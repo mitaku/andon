@@ -76,6 +76,8 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。人が番号で答�
 17. **2026-11-05 Chief of Staff が人に端末を指す言い方は「<Space 名> / <tab 名>」**（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site work / A-12 ログインの直し`）。address は末尾に添えるだけ。command の出力も同じ形。
 18. **2026-11-05 Chief of Staff と Chief Engineer のアイコンを役ごとに変える（人の希望）。** App はプログラム名（状態報告の `app`、無ければ argv の先頭）で `programs.json` の項目を引き、アイコンはそこで決まる。手段は実装で確かめる: 役ごとの wrapper 名（`andon-cos` など）＋ `host-install` が置く `programs.json` の項目が第一候補、効かなければ mod で描くか upstream に頼む。
 
+19. **2026-11-05 mod の置き場は App の設定フォルダに従う（15 の補足）。** `HERDR_APP_HOME` → `XDG_CONFIG_HOME/herdr-app` → `~/.config/herdr-app` の順で選び、その `mods/andon/` に置く。WSL では Windows 側との取り違えを避けるため `HERDR_APP_HOME` の明示指定を求め、未指定ならホストの道具を書き込む前に止める。
+
 ## やらないこと（範囲の外。理由）
 
 - **ペインの分割を建屋から指すこと**（前提 4）。並べたいものは同じ `herdr.tab` にする（決めたこと 5）。

@@ -17,7 +17,7 @@ cp -R "$andon_root/package" "$img/opt/andon"
 for t in bash cat cmp cp dirname grep head install mkdir mktemp mv printf rm sed tail; do
   ln -s "$(command -v "$t")" "$tmp/path/$t"
 done
-sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" "$@"; }
+sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
 
 cd "$tmp" || exit 1
 "$andon" init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -71,6 +71,15 @@ sandbox HOME="$tmp/app-host-home" HERDR_APP_HOME="$tmp/app home" XDG_CONFIG_HOME
 sandbox HOME="$tmp/wsl-home" WSL_DISTRO_NAME=sample WSL_INTEROP=sample XDG_CONFIG_HOME="$tmp/wsl-xdg" bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && [ ! -e "$tmp/wsl-home" ] && [ ! -e "$tmp/wsl-xdg" ] && grep -q HERDR_APP_HOME "$tmp/err" \
   && pass "WSL は App home が未指定なら書き込む前に案内して止まる" || fail "WSL の未指定: rc=$r"
+# The /proc branch is also fake, including the systemd interop name.
+mkdir "$tmp/wsl probe"
+for marker in WSLInterop WSLInterop-late; do
+  : >"$tmp/wsl probe/$marker"
+  sandbox HOME="$tmp/probe-home" ANDON_WSL_PROBE="$tmp/wsl probe" bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
+  [ "$r" = 1 ] && [ ! -e "$tmp/probe-home" ] && grep -q HERDR_APP_HOME "$tmp/err" \
+    && pass "偽の $marker で WSL を検出し、書く前に止まる" || fail "WSL probe $marker: rc=$r"
+  rm "$tmp/wsl probe/$marker"
+done
 sandbox HOME="$tmp/wsl-host-home" WSL_DISTRO_NAME=sample HERDR_APP_HOME="$tmp/windows-app" bash bin/bootstrap host-install >"$tmp/out" 2>&1
 cmp -s "$tmp/windows-app/mods/andon/main.js" "$andon_root/package/host/andon/main.js" \
   && pass "WSL は明示された App home に置く" || fail "WSL の App mod が無い"
