@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "kind": {
-      "description": "Which of the five decision kinds. line (a change to the line) is not passed to the ledger's --kind.",
+      "description": "Which of the five decision kinds; line is a change to the line.",
       "enum": ["business", "users", "promise", "irreversible", "line"]
     },
     "question": {
