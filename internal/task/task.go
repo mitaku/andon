@@ -6,6 +6,7 @@
 //	review-request <id>   report.json に review_request を足して報告する（回数・前回の commit は command が数える）
 //	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば台帳を review にする
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
+//	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・クーリエが打つ）
 //
 // 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。
 package task
@@ -33,7 +34,8 @@ const Usage = "usage: andon task show <id>                                  予�
 	"       andon task review-request <id> < report.md           review_request を足して報告する（レビューを頼む）\n" +
 	"       andon task ready <id>                                 HEAD・report.json・PR の head・レビューが揃えば review にする\n" +
 	"       andon task ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
-	"       andon task start <id> | finish <id>                   （まだ無い）\n" +
+	"       andon task finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
+	"       andon task start <id>                                 （まだ無い）\n" +
 	"--data は report.json の任意のキー（pr・waived・acceptance・next・remember・agents_md）の JSON object。\n" +
 	"--pr を省くと前の report.json の pr を引き継ぐ。\n"
 
@@ -97,7 +99,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return usage()
 		}
 		err = withTask(id, func(c *ctx) error { return c.ask(stdin, stdout, rest[0]) })
-	case "start", "finish":
+	case "finish":
+		if len(rest) > 0 {
+			return usage()
+		}
+		err = withTask(id, func(c *ctx) error { return c.finish(stdout) })
+	case "start":
 		fmt.Fprintf(stderr, "andon task %s: 中身はまだ無い\n", sub)
 		return exitFail
 	default:
@@ -133,7 +140,7 @@ func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "rep
 
 // head は担当の worktree（task.yaml の worktree。無ければ cwd）の HEAD。
 func (c *ctx) head() (string, error) {
-	dir := c.task.Str("worktree")
+	dir := c.task.Path("worktree")
 	args := []string{"rev-parse", "HEAD"}
 	if dir != "" {
 		args = append([]string{"-C", dir}, args...)
