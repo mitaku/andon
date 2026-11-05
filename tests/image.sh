@@ -13,10 +13,11 @@ fi
 tmp=$(mktemp -d)
 plant=$tmp/andon-imgtest
 # 建屋の compose を片付ける。boot がコンテナの利用者で /workspace に書いたものは root で持ち主を戻してから消す
+# compose の補間に要る値は bin/bootstrap と同じものを渡す
+dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
 cleanup() {
   if [ -f "$plant/.andon/compose.yaml" ]; then
-    docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" \
-      down -v --remove-orphans >/dev/null 2>&1 || true
+    dc down -v --remove-orphans >/dev/null 2>&1 || true
   fi
   docker image rm andon-imgtest:local >/dev/null 2>&1 || true
   docker run --rm --user 0 -v "$tmp:/t" andon:test chown -R "$(id -u):$(id -g)" /t >/dev/null 2>&1 || true
@@ -71,7 +72,6 @@ free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",
 printf 'SSH_PORT=%s\nPORTLESS_PORT=%s\nFILES_PORT=%s\n' "$(free_port)" "$(free_port)" "$(free_port)" >"$plant/.env"
 # 建屋の image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
 BUILDX_BUILDER=default "$plant/bin/bootstrap" up
-dc() { docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
 if ! dc logs dev | grep -q '\[andon boot\] ready'; then
   dc logs dev >&2 || true
   echo 'FAIL image: compose の起動で andon boot が ready まで走らない' >&2
