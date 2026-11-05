@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -150,7 +151,7 @@ func TestStart(t *testing.T) {
 		"hc templates --json",
 		"hc ls --json",
 		"kanban set S-7 branch=sample-site/S-7-add-the-button worktree=" + f.wt(),
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label project=sample-site --label task=S-7 --label title=Add the button --cwd " + f.wt() + " claude タスク `sample-site/S-7`。",
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label project=sample-site --label task=S-7 --label title=Add the button --label herdr.space=andon-sample-site-work --label herdr.tab=andon-sample-site-S-7 --cwd " + f.wt() + " claude タスク `sample-site/S-7`。",
 		"依頼書は `" + brief + "`。",
 		"kanban start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
@@ -178,7 +179,7 @@ func TestStartWithoutRepo(t *testing.T) {
 	if rc != 0 || errs != "" || !strings.Contains(out, "cwd "+cwd) || strings.Contains(out, "branch") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label project=sample-site --label task=S-7 --label title=Add the button --cwd "+cwd+" claude") {
+	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label project=sample-site --label task=S-7 --label title=Add the button --label herdr.space=andon-sample-site-work --label herdr.tab=andon-sample-site-S-7 --cwd "+cwd+" claude") {
 		t.Errorf("calls=%q", f.calls())
 	}
 }
@@ -273,5 +274,14 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 	if _, err := os.Stat(f.wt()); err != nil {
 		t.Errorf("worktree を消した: %v", err)
+	}
+}
+
+// 担当の置き場のラベルは slug・id・題だけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7）。
+func TestWorkLabels(t *testing.T) {
+	want := []string{"project=sample-site", "task=S-7", "title=Add the button",
+		"herdr.space=andon-sample-site-work", "herdr.tab=andon-sample-site-S-7"}
+	if got := workLabels("sample-site", "S-7", "Add the button"); !slices.Equal(got, want) {
+		t.Errorf("got %q want %q", got, want)
 	}
 }

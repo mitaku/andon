@@ -31,18 +31,19 @@ case \$1 in
        while [ \$# -gt 0 ]; do case \$1 in --label) case \$2 in role=*) role=\${2#role=};; project=*) project=\${2#project=};; esac; shift;; esac; shift; done
        awk -v r="\$role" -v p="\$project" '(r == "" || \$4 == r) && (p == "" || \$5 == p) {print \$1, \$2}' \$d/live \\
          | jq -Rn '{terminals: [inputs | split(" ") | {address: .[0], name: .[1]}]}' ;;
-  get) awk -v a="\$2" '\$1 == a {print \$1, \$2, \$3}' \$d/live | jq -Rn '[inputs | split(" ") | {address: .[0], name: .[1], cwd: .[2]}] | .[0] // error("no")' ;;
+  get) awk -v a="\$2" '\$1 == a {print \$1, \$2, \$3, \$6, \$7}' \$d/live \\
+         | jq -Rn '[inputs | split(" ") | {address: .[0], name: .[1], cwd: .[2], labels: ({"herdr.space": .[3], "herdr.tab": .[4]} | with_entries(select(.value != null and .value != "")))}] | .[0] // error("no")' ;;
   templates) echo '{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}' ;;
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 42) )); echo \$((n + 1)) > \$d/next
-       name= cwd= role= project=
+       name= cwd= role= project= space= tab=
        while [ \$# -gt 0 ]; do case \$1 in
          --name) name=\$2; shift;; --cwd) cwd=\$2; shift;;
-         --label) case \$2 in role=*) role=\${2#role=};; project=*) project=\${2#project=};; esac; shift;;
+         --label) case \$2 in role=*) role=\${2#role=};; project=*) project=\${2#project=};; herdr.space=*) space=\${2#herdr.space=};; herdr.tab=*) tab=\${2#herdr.tab=};; esac; shift;;
        esac; shift; done
-       echo "t\$n \$name \$cwd \$role \$project" >> \$d/live
+       echo "t\$n \$name \$cwd \$role \$project \$space \$tab" >> \$d/live
        sent=\$(cat \$d/first 2>/dev/null || echo true)
        echo "{\"address\":\"t\$n\",\"first_message\":{\"sent\":\$sent,\"reason\":\"trust prompt\"}}" ;;
-  attach) echo "attach \$2" >> \$d/attached ;;
+  attach) echo "attach \$2" >> \$d/attached ;;  # 打てば印が残る（andon chief-of-staff は打たない。ADR-0002 決めたこと 14）
   *) echo "unexpected hc \$1" >&2; exit 9 ;;
 esac
 EOF
@@ -57,7 +58,7 @@ coordinator() { sed -n 's/^coordinator: *//p' .flightdeck/config.yaml; }
 
 # 台帳の外で打つと止まる
 cd "$tmp"
-rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '台帳が見つからない' "$tmp/err" && [ "$(runs)" = 0 ] || die "台帳の外で: rc=$rc $(cat "$tmp/err")"
 ok '台帳の外では起こさずに止まる'
 
@@ -66,41 +67,42 @@ kanban init --prefix D >/dev/null
 root=$PWD
 
 # 1. 起こす
-"$andon" chief-of-staff --no-attach >"$tmp/out"
+"$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 1 ] || die "hc run の回数: $(runs)"
-grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label role=chief-of-staff --label project=demo --cwd $root chief-of-staff プロジェクト \`demo\` の Chief of Staff。" "$tmp/hc/log" \
+grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label role=chief-of-staff --label project=demo --label herdr.space=andon-demo --label herdr.tab=andon-demo-cos --cwd $root chief-of-staff プロジェクト \`demo\` の Chief of Staff。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(cat "$tmp/hc/log")"
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
 [ "$(coordinator)" = t42 ] || die "coordinator: $(coordinator)"
 jq -e 'select(.config) | .config.coordinator == "t42"' .flightdeck/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
 grep -q 'demo の Chief of Staff は t42（demo-cos・起こした）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
-ok '起こす: hc run（ラベル role=chief-of-staff project=demo・cwd は台帳の root）・config.yaml の coordinator・--no-attach なら乗らない'
+[ "$(tail -n 1 "$tmp/out")" = 'andon chief-of-staff: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
+ok '起こす: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の coordinator・hc attach を打たず出た場所「demo / CoS」を出す'
 
 # 2. 動いていれば起こさない（Chief of Staff 自身が起きたときに打つ形）
 lines=$(wc -l < .flightdeck/log.jsonl)
-"$andon" chief-of-staff --no-attach >"$tmp/out"
+"$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 1 ] || die '二重に起こした'
 [ "$(wc -l < .flightdeck/log.jsonl)" = "$lines" ] || die 'coordinator が合っているのに台帳を書いた'
-grep -q 't42（demo-cos・動いているものを使う）' "$tmp/out" || die "out: $(cat "$tmp/out")"
+grep -q 't42（demo-cos・動いているものを使う）' "$tmp/out" && grep -q '出た場所 demo / CoS（t42）' "$tmp/out" || die "out: $(cat "$tmp/out")"
 ok '動いていれば起こさない（二重に起こさない）。coordinator が合っていれば台帳を書かない'
 
 # 3. 起き直した（端末が変わった）: coordinator が直る
 sed -i 's/^t42 /t50 /' "$tmp/hc/live"
-"$andon" chief-of-staff --no-attach >/dev/null
+"$andon" chief-of-staff >/dev/null
 [ "$(runs)" = 1 ] && [ "$(coordinator)" = t50 ] || die "coordinator が直らない: $(coordinator) runs=$(runs)"
 ok '起き直して address が変わったら coordinator を直す'
 
 # 4. 名前か cwd が合わない端末は使わない
 cp "$tmp/hc/live" "$tmp/live.bak"
 sed -i "s| $root | /elsewhere |" "$tmp/hc/live"
-rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'cwd（/elsewhere）が合わない' "$tmp/err" && [ "$(coordinator)" = t50 ] || die "合わない端末: rc=$rc $(cat "$tmp/err")"
 cp "$tmp/live.bak" "$tmp/hc/live"
 ok 'ラベルが合っても名前か cwd が違う端末は使わない（台帳を書かない）'
 
 # 5. 2人なら止まる
 echo "t51 demo-cos2 $root chief-of-staff demo" >> "$tmp/hc/live"
-rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'Chief of Staff が 2 人いる: t50 t51' "$tmp/err" && [ "$(runs)" = 1 ] || die "2人: rc=$rc $(cat "$tmp/err")"
 cp "$tmp/live.bak" "$tmp/hc/live"
 ok '2人いれば止まる（1プロジェクトに1人）'
@@ -108,11 +110,17 @@ ok '2人いれば止まる（1プロジェクトに1人）'
 # 6. 最初のメッセージが届かない（信頼の画面など）
 : > "$tmp/hc/live"
 echo false > "$tmp/hc/first"
-rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
-grep -q '最初のメッセージが届いていない: trust prompt。hc attach t43 で画面に答えてから、次を送る: hc send t43 "プロジェクト `demo` の Chief of Staff。' "$tmp/err" || die "案内: $(cat "$tmp/err")"
+grep -q '最初のメッセージが届いていない: trust prompt。App の demo / CoS で答えてから、次を送る: hc send t43 "プロジェクト `demo` の Chief of Staff。' "$tmp/err" || die "案内: $(cat "$tmp/err")"
 [ "$(coordinator)" = t43 ] || die "届かなくても台帳に載せる: $(coordinator)"
 rm "$tmp/hc/first"
+[ ! -e "$tmp/hc/attached" ] || die "hc attach を打った: $(cat "$tmp/hc/attached")"
 ok '最初のメッセージが届かなければ終了コード 3・送り直す hc send を案内（台帳には載せる）'
+
+# 7. --no-attach は消した（ADR-0002 決めたこと 14）
+rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" || die "--no-attach: rc=$rc $(cat "$tmp/err")"
+ok '--no-attach は使い方の誤り（attach をやめたので要らない）'
 
 echo "all passed ($pass)"

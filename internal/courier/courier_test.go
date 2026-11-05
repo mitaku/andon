@@ -3,6 +3,7 @@ package courier
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -123,5 +124,33 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	}
 	if b2 := reviewerBrief(l, ledger.Task{"id": "D-1"}, rep, Reviewer{Task: "D-1", Round: 2}, "example/app", "7"); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
 		t.Errorf("担当がいないのに宛先を書いた:\n%s", b2)
+	}
+}
+
+// 担当の端末のラベル herdr.space・herdr.tab をレビュアーに写す（ADR-0002 決めたこと 12・受け入れ条件 3）。読めなければ付けない。
+func TestWorkerPlace(t *testing.T) {
+	bin := t.TempDir()
+	hc := "#!/bin/sh\n[ \"$1 $3\" = 'get --json' ] || exit 9\ncase $2 in\n" +
+		"  t7) echo '{\"address\":\"t7\",\"labels\":{\"task\":\"D-1\",\"herdr.space\":\"andon-demo-work\",\"herdr.tab\":\"andon-demo-D-1\",\"where\":\"x / y\"}}' ;;\n" +
+		"  t8) echo '{\"address\":\"t8\",\"labels\":{\"task\":\"D-2\"}}' ;;\n" +
+		"  t9) echo '{\"address\":\"t9\"' ;;\n" +
+		"  *) echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3 ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(bin, "hc"), []byte(hc), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	for _, c := range []struct {
+		agent string
+		want  []string
+	}{
+		{"t7", []string{"herdr.space=andon-demo-work", "herdr.tab=andon-demo-D-1"}}, // where は写さない
+		{"t8", nil},  // ラベルが無い
+		{"t9", nil},  // 返事が読めない
+		{"t10", nil}, // 端末が無い
+		{"", nil},    // agent が無い
+	} {
+		if got := workerPlace(c.agent); !slices.Equal(got, c.want) {
+			t.Errorf("%q: got %q want %q", c.agent, got, c.want)
+		}
 	}
 }

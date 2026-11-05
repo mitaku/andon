@@ -7,6 +7,8 @@
 // することは4つ: 台帳にタスクを足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこのタスクから出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
 // タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
+// 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<タスク id> を付け、人の Herdr App の指揮側の Space に
+// タスクの tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
 //
 // 置き場（andon task start と同じ形。internal/spawn）:
@@ -129,7 +131,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	if len(live.Terminals) > 0 {
 		t := live.Terminals[0]
-		return die("Chief Engineer が動いている: %s（タスク %s）。話すには hc attach %s。新しい題は、前の題を渡してから", t.Address, t.Labels["task"], t.Address)
+		return die("Chief Engineer が動いている: %s（%s）。新しい題は、前の題を渡してから", where(slug, t.Labels["task"], t.Labels["title"]), t.Address)
 	}
 
 	found, err := spawn.HasTemplate(Profile)
@@ -169,7 +171,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。",
 		slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"))
 
-	run, err := spawn.Run(name, []string{"role=" + Profile, "project=" + slug, "task=" + id, "title=" + title}, cwd, Profile, msg)
+	labels := []string{"role=" + Profile, "project=" + slug, "task=" + id, "title=" + title,
+		"herdr.space=andon-" + slug, "herdr.tab=andon-" + slug + "-" + id}
+	run, err := spawn.Run(name, labels, cwd, Profile, msg)
 	if err != nil {
 		undo()
 		return die("%v。worktree と branch を戻した。タスク %s は todo のまま残る", err, id)
@@ -179,13 +183,21 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return die("%s start %s に失敗: %v（端末 %s は起きている）", cli, id, err, run.Address)
 	}
 
+	place := where(slug, id, title)
 	if !run.First.Sent {
-		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s。hc attach %s で画面に答えてから、次を送る: hc send %s %q\n",
-			run.Address, name, run.Reason(), run.Address, run.Address, msg)
+		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s。App の %s で答えてから、次を送る: hc send %s %q\n",
+			run.Address, name, run.Reason(), place, run.Address, msg)
+		fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 		return exitFirst
 	}
-	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起こした。cwd %s branch %s。話すには hc attach %s\n", id, title, run.Address, name, cwd, wt.Branch, run.Address)
+	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起こした。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
+	fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 	return 0
+}
+
+// where は人に端末を指す言い方「<Space 名> / <tab 名>」（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける。
+func where(slug, id, title string) string {
+	return slug + " / CE " + id + " " + title
 }
 
 // parseArgs は --repo <r>（--repo=<r> も）と題1つを受ける。
