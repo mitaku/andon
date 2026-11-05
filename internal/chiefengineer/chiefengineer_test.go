@@ -141,6 +141,10 @@ func TestStartsChiefEngineer(t *testing.T) {
 	if !strings.Contains(out, "S-7（Billing の設計）を t42（sample-site-s-7）で起こした。cwd "+f.wt()+" branch sample-site/S-7-billing") {
 		t.Errorf("out=%q", out)
 	}
+	// 最後に出た場所を「<Space 名> / <tab 名>」で出す。hc attach は打たない（ADR-0002 決めたこと 14・16・17）
+	if !strings.HasSuffix(out, "andon chief-engineer: 出た場所 sample-site / CE S-7 Billing の設計（t42）\n") || strings.Contains(out, "hc attach") || f.has("hc attach") {
+		t.Errorf("出た場所が最後に無い・attach が残る: out=%q", out)
+	}
 	if b := f.branches(); !strings.Contains(b, "sample-site/S-7-billing") {
 		t.Errorf("branch が無い: %q", b)
 	}
@@ -154,7 +158,7 @@ func TestStartsChiefEngineer(t *testing.T) {
 		"hc templates --json",
 		"kanban add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 FLIGHTDECK_ROOT=" + f.root,
 		"kanban set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label task=S-7 --label title=Billing の設計 --cwd " + f.wt() + " chief-engineer タスク `sample-site/S-7`。",
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label task=S-7 --label title=Billing の設計 --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-S-7 --cwd " + f.wt() + " chief-engineer タスク `sample-site/S-7`。",
 		"依頼書は `" + f.root + "/.flightdeck/tasks/S-7/brief.md`。",
 		"kanban start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
@@ -301,9 +305,9 @@ func TestBadSlug(t *testing.T) {
 
 func TestAlreadyRunning(t *testing.T) {
 	f := newFake(t)
-	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3"}}]}`)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3","title":"Billing の設計"}}]}`)
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: t9（タスク S-3）") || f.has("kanban add") || f.has("hc run") {
+	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: sample-site / CE S-3 Billing の設計（t9）") || f.has("kanban add") || f.has("hc run") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 }
@@ -334,7 +338,9 @@ func TestFirstMessageNotSent(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
 	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFirst || out != "" || !strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt") || !f.has("kanban start S-7 | HC_TERMINAL_ID=t42") {
+	if rc != exitFirst || out != "andon chief-engineer: 出た場所 sample-site / CE S-7 題（t42）\n" ||
+		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt。App の sample-site / CE S-7 題 で答えてから") ||
+		!f.has("kanban start S-7 | HC_TERMINAL_ID=t42") || f.has("hc attach") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 }

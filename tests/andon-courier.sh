@@ -143,6 +143,8 @@ ok 'Chief of Staff の端末が無ければ飛ばし、初めて見る台帳は�
 
 # 1. 一周: review-request → レビュアーを起こす → レビュー → ready → ゲート → マージ → finish
 mark=$(wc -l < "$L/log.jsonl")
+# 担当 t7 は andon task start のラベルで App の作業側の tab にいる（ADR-0002）。レビュアーは同じ値を付ける
+echo '{"address":"t7","state":"live","labels":{"task":"'"$id"'","herdr.space":"andon-demo-work","herdr.tab":"andon-demo-'"$id"'","where":"demo work / x"}}' > "$tmp/hc/term-t7.json"
 work "$id" docs/a.md
 as_worker "$id" report
 as_worker "$id" review-request
@@ -159,7 +161,11 @@ grep -q "hc send t7 " "$L/tasks/$rev/brief.md" && grep -q 'Chief of Staff・ク�
 grep -q "commit $head" "$L/tasks/$rev/brief.md" && ! grep -q '## Report' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
 pending "$id" review-requested | jq -e --arg r "$rev" '.detail == {round: 1, reviewer: "codex-review", reviewer_task: $r}' >/dev/null || die '通知 review-requested が無い'
 emit <(pending "$id" review-requested) notification-review-requested.json
-ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:courier・detached worktree・hc run --no-notify・依頼書の宛先は担当）"
+grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-work --label herdr.tab=andon-demo-$id --cwd " && ! grep "^run " "$tmp/hc/log" | grep -q 'where=' ||
+    die "レビュアーに担当の herdr.space・herdr.tab が無い（where を写した）: $(grep ^run "$tmp/hc/log")"
+grep -qx "get t7 --json" "$tmp/hc/log" || die '担当の端末を hc get --json で読んでいない'
+rm "$tmp/hc/term-t7.json"
+ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:courier・detached worktree・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起こした'
 ok '同じ review_request（task と commit）で二度起こさない'
@@ -295,7 +301,8 @@ insteadof "$tmp/origin" "$tmp/nowhere"
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] && jq -e --arg k "$id@$head" '.reviewers[$k].failed | contains("fetch")' "$state" >/dev/null || die 'fetch に失敗したのに起こした・控えに失敗が無い'
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] && jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null || die 'fetch が戻ったのに起こさない'
-ok 'fetch の一時の失敗は控えで成功と分け、次の見回りで起こす'
+! grep '^run ' "$tmp/hc/log" | tail -n 1 | grep -q 'herdr\.' || die "担当の端末のラベルが読めないのに herdr.space・herdr.tab を付けた: $(grep ^run "$tmp/hc/log" | tail -n 1)"
+ok 'fetch の一時の失敗は控えで成功と分け、次の見回りで起こす（担当の端末のラベルが読めなければ herdr.space・herdr.tab を付けない）'
 
 # 9. ゲートのあと Chief of Staff が merge: person に変えたら、マージせず次の見回りでゲートから回し直す
 gate_through() { # gate_through <id>: レビュアーが指摘なしで返し、担当が ready まで

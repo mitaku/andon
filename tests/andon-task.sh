@@ -232,12 +232,14 @@ br=demo/$s1-add-the-button
 [ -z "$(git -C "$wt" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" ] || die 'branch に upstream がある'
 [ "$(field "$s1" status)" = doing ] && [ "$(field "$s1" agent)" = t42 ] && [ "$(field "$s1" branch)" = "$br" ] && [ "$(field "$s1" worktree)" = "~/.herdr/worktrees/app/demo-$s1" ] \
   || die "台帳: $(kanban show "$s1" --json | jq -c .task)"
-grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label project=demo --label task=$s1 --label title=Add the button --cwd $wt claude タスク \`demo/$s1\`。" "$tmp/hc/log" \
+grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label project=demo --label task=$s1 --label title=Add the button --label herdr.space=andon-demo-work --label herdr.tab=andon-demo-$s1 --cwd $wt claude タスク \`demo/$s1\`。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
 grep -q "$s1 を t42（demo-$lc・claude）で起こした。cwd $wt branch $br" "$tmp/out" || die "out: $(cat "$tmp/out")"
+[ "$(tail -n 1 "$tmp/out")" = "andon task: 出た場所 demo work / $s1 Add the button（t42）" ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
 jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == "terminal:t42"' .flightdeck/log.jsonl >/dev/null || die 'doing にしたのが担当の端末でない'
-ok 'start: worktree と branch（upstream 無し）・hc run（名前・ラベル・cwd・最初のメッセージ）・kanban start で doing と agent'
+ok 'start: worktree と branch（upstream 無し）・hc run（名前・ラベル・herdr.space と herdr.tab・cwd・最初のメッセージ）・kanban start で doing と agent・出た場所'
+
 
 expect_fail "は doing" "$andon" task start "$s1"
 [ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '二度起こした'
@@ -294,9 +296,11 @@ grep -q "^run .*--cwd $PWD/.flightdeck/tasks/$s5 claude " "$tmp/hc/log" || die '
 ok 'start: 最初のメッセージが届かなければ終了コード 3 と送り直す hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
 
 # start が作ったものを finish が片付ける
+: > "$tmp/hc/log"
 "$andon" task finish "$s1" >/dev/null
+[ -z "$(grep -v '^ls \|^kill \|^rm ' "$tmp/hc/log")" ] || die "finish が kill・rm（と ls）のほかに hc を打った: $(cat "$tmp/hc/log")"
 [ ! -e "$wt" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/$br" && [ "$(field "$s1" status)" = done ] && ! grep -q " $s1\$" "$tmp/hc/live" \
   || die "finish で片付かない: $(kanban show "$s1" --json | jq -c .task)"
-ok 'start が作った worktree・branch・端末を finish が片付ける'
+ok 'start が作った worktree・branch・端末を finish が片付ける（ラベルに触らない。hc は ls・kill・rm だけ）'
 
 echo "all passed ($pass)"
