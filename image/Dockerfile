@@ -55,8 +55,6 @@ RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install \
  && bash /tmp/claude-install latest \
  && rm -rf /tmp/claude-install "${HOME}/.claude" "${HOME}/.claude.json"
 
-# 認証と release の検証はホスト側。名前付き context は検証済みバイナリだけ。
-COPY --from=deck --chmod=755 /deck /usr/local/bin/deck
 COPY package/ /opt/andon/
 USER root
 RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon

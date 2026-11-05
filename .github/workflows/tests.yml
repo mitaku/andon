@@ -18,8 +18,6 @@ jobs:
       - name: tests/*.sh (including image build and runtime)
         env:
           ANDON_PUBLIC_DENYLIST_CONTENT: ${{ secrets.ANDON_PUBLIC_DENYLIST }}
-          GH_TOKEN: ${{ secrets.DECK_RELEASE_TOKEN }}
-          DECK_REPOSITORY: ${{ vars.DECK_REPOSITORY || format('{0}/herdr-flightdeck', github.repository_owner) }}
         run: |
           set -e
           if [ -n "$ANDON_PUBLIC_DENYLIST_CONTENT" ]; then
