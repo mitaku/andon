@@ -1,0 +1,9 @@
+# 建屋の設定（人が書く）。andon init が作り、以後 Andon は追従しない。
+# 建屋の repo の名前は andon-<slug>。
+
+# 建屋の名前。compose の project は andon-<slug>、コンテナのホスト名は <slug>。
+slug = "{{.Slug}}"
+
+# 建屋の持ち主（git の author の email）。projects/<project>/delegation.json は、
+# それを最後に変えた commit の author がこれと一致するときだけ信じる（空なら委譲は無いものとして読む）。
+owner = "{{.Owner}}"

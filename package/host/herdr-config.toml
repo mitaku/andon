@@ -1,0 +1,10 @@
+# ホストの herdr（建屋を束ねて見る手元の端末）の設定の雛形。bin/bootstrap host-install が
+# ~/.config/herdr/config.toml に置く（すでにあれば触らない）。建屋は herdr machine add andon-<slug> --label <slug> で足す。
+onboarding = false
+
+[ui.toast]
+# terminal = 通知を画面の流れに混ぜ、手元の端末がデスクトップの通知に替える（system は届かないことがある）
+delivery = "terminal"
+
+[ui.sound]
+enabled = false
