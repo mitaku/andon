@@ -361,7 +361,7 @@ id=$(event 'ターンの中の通知')
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"見た"}')
 jq -e --arg id "$id" '.decision == "block" and (.reason | startswith("<news project=\"demo\">\n") and contains("\n\($id) review-requested: 1 回目のレビュアー ") and endswith("「<no-reply>」とだけ返す。\n</news>"))' <<<"$out" >/dev/null ||
     die "Stop が <news> で block しない: $out"
-jq -e '.pending == [] and .hook == "t5"' "$state" >/dev/null || die '取り出した待ちが控えに残った'
+jq -e '.pending == [] and .hook.terminal == "t5" and .hook.via == "stop"' "$state" >/dev/null || die '取り出した待ちが控えに残った・渡した turn を控えていない'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assistant_message":"<no-reply>"}')
 [ -z "$out" ] || die "待ちが無いのに block した: $out"
 grep -qx 't5 news.replied=3' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '<no-reply> だけの答えに news.replied を書かない'
@@ -376,13 +376,40 @@ jq -e --arg id "$id" '.hookSpecificOutput.hookEventName == "UserPromptSubmit" an
     | contains("\($id) review-requested:") and contains("<delegation project=\"demo\">\n{\"project\":\"demo\""))' <<<"$out" >/dev/null ||
     die "additionalContext に待ちと委譲が無い: $out"
 jq -e '.pending == []' "$state" >/dev/null || die '添えた待ちが残った'
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"了解"}' >/dev/null
+! grep -q 'news.replied=3$' <(tail -n +2 "$tmp/hc/labels") || die '人への答えに news.replied を書いた'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"もう一つ"}')
 jq -e '.hookSpecificOutput.additionalContext | (contains("<news") | not) and contains("<delegation")' <<<"$out" >/dev/null || die "待ちが無いときに委譲だけを添えない: $out"
 out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}'); rc=$?
 [ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
-HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"了解"}' >/dev/null
-! grep -q 'news.replied=3$' <(tail -n +2 "$tmp/hc/labels") || die '人への答えに news.replied を書いた'
 ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
+
+# 12b. UserPromptSubmit で渡したあと turn が中断された（Stop が来ない）ら、次の送信で1回だけ届け直す。news.replied は渡した turn の答えにだけ
+ups() { HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"prompt\":\"x\"}" | jq -r '.hookSpecificOutput.additionalContext'; }
+cstop() { HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"stop_hook_active\":${3:-false},\"last_assistant_message\":\"$2\"}"; }
+id=$(event '中断される送信')
+labels=$(wc -l < "$tmp/hc/labels")
+ups p1 | grep -q "$id review-requested:" || die '1回目の送信で渡さない'
+jq -e '.hook.via == "prompt" and .hook.prompt_id == "p1" and (.hook.news | length) == 1' "$state" >/dev/null || die '渡した <news> を turn の終わりまで控えに残さない'
+# p1 は中断（Stop が来ない）。次の送信で届け直す
+ups p2 | grep -q "$id review-requested:" || die '中断された turn の <news> を次の送信で届け直さない'
+jq -e '(.hook.news // []) == [] and (.hook.again | length) == 1' "$state" >/dev/null || die '届け直した分を控えていない'
+# p2 も中断。届け直しは1回だけ
+ups p3 | grep -q "review-requested" && die '届け直しを2回した'
+cstop p3 '<no-reply>' >/dev/null
+[ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die '<news> を渡していない turn の <no-reply> に news.replied を書いた'
+# 渡した turn と違う turn の Stop では書かない・渡した turn の Stop では書く
+id=$(event '照合する送信')
+ups p4 >/dev/null
+cos working 6
+out=$(cstop p0 '<no-reply>')
+[ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die '別の turn（prompt_id 違い）の Stop で news.replied を書いた'
+jq -e --arg id "$id" '.decision == "block" and (.reason | contains("\($id) review-requested:"))' <<<"$out" >/dev/null || die "確かめていない <news> をその Stop で届け直さない: $out"
+cstop p0 '<no-reply>' true >/dev/null
+grep -qx 't5 news.replied=6' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '届け直した turn の <no-reply> に news.replied を書かない'
+cstop p0 '<no-reply>' true >/dev/null
+[ "$(grep -c 'news.replied' "$tmp/hc/labels")" = 2 ] || die '確かめ済みの <news> に二度 news.replied を書いた'
+ok '送信で渡した <news> は turn の Stop まで控えに残し、中断されたら次の送信で1回だけ届け直す。news.replied は prompt_id で照合した turn だけ（違う turn の Stop では書かず届け直す）'
 
 # 13. 離席時だけ hc send（状態 idle・入力欄が空・前の <news> の turn が進んでいる）
 id=$(event '離席の通知')
@@ -435,8 +462,14 @@ restart "$id"
 restart "$id"
 stop >/dev/null; stop true >/dev/null; stop true >/dev/null
 [ -z "$(stop true)" ] || die '続けて止める回数の上限を超えても block した'
+# 控えが書けなければ止めない（止めた回数を数えられないまま止め続けない）
+restart "$id"
+: > "$tmp/notadir"
+for a in false true true true true; do
+    [ -z "$(cd "$wt" && XDG_STATE_HOME=$tmp/notadir HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<"{\"stop_hook_active\":$a}")" ] || die '控えが書けないのに block した'
+done
 term t7 idle 1
 [ -z "$(stop)" ] || die 'ラベル task= の無い端末で block した'
-ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通過以後に報告か問いがあれば通す。続けて止めるのは3回まで）'
+ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通過以後に報告か問いがあれば通す。続けて止めるのは3回まで・控えが書けなければ通す）'
 
 echo "all passed ($pass)"

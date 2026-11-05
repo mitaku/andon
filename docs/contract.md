@@ -233,9 +233,9 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 | 誰の | イベント | 打つもの | 返すもの |
 |---|---|---|---|
-| Chief of Staff | `Stop` | `andon courier drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の答え（入力の `last_assistant_message`）が `<no-reply>` だけなら `news.replied=<turn>` を書く |
-| Chief of Staff | `UserPromptSubmit` | `andon courier drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ） |
-| 担当 | `Stop` | `andon task stop-check`（端末のラベル `task=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無ければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。続けて止めるのは3回まで。レビュアーも同じ |
+| Chief of Staff | `Stop` | `andon courier drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の turn の終わり（入力の `prompt_id`・`session_id` が合う）なら確かめ済みにし、答え（`last_assistant_message`）が `<no-reply>` だけなら `news.replied=<turn>` を書く。合わなければ渡した通知を1回だけ届け直す |
+| Chief of Staff | `UserPromptSubmit` | `andon courier drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ）。前にフックで渡した `<news>` の turn の終わりを見ていなければ（中断）、その通知を1回だけ届け直す |
+| 担当 | `Stop` | `andon task stop-check`（端末のラベル `task=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無ければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。続けて止めるのは3回まで。控えが書けなければ通す。レビュアーも同じ |
 
 - フックの実体は `package/hooks/stop`・`user-prompt-submit`（image では `/opt/andon/hooks/`）。どの端末でも同じフックが走り、役は command がラベルで見分ける（どちらでもなければ何も出さない）。
 

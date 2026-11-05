@@ -227,6 +227,8 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 |---|---|---|
 | 2026-11-05 | フックは managed settings の `Stop`・`UserPromptSubmit` に1つずつ（`/opt/andon/hooks/stop`・`user-prompt-submit`）。どの端末でも同じフックが走るので、役は command が自分の端末のラベルで見分ける: `role=chief-of-staff` なら `andon courier drain`（`project=` から slug を引く。`--project` は省く）、`task=` なら `andon task stop-check`。どちらでもない・`andon` が無い・落ちたときは何も出さずに通す | contract.md §9、Y-90 の担当の推し |
 | 2026-11-05 | フックで渡した `<news>` の `news.replied` は、画面ではなく次の `Stop` の入力の `last_assistant_message` で決める（`<no-reply>` だけなら、そのときの端末の `turn` で書く）。フックの文は画面に `</news>` として出るとは限らないため。③で送ったものは仮設どおり画面で決める | courier.md §3.1、Y-90 の担当の推し |
+| 2026-11-05 | フックで渡した `<news>` は、渡した turn の `Stop` を見るまで控え（`hook`。端末・経路・`session_id`・`prompt_id`・渡した通知）に残す。`Stop` の入力の `prompt_id`（と `session_id`）が渡した turn と合えば確かめ済みにし、そのときだけ `news.replied` を書く（`Stop` の block で渡したものは続きの turn、`stop_hook_active` の `Stop`）。合わない `Stop`・次の `UserPromptSubmit` が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す（届け直した分はもう届け直さない）。控えを書けてから出力する | P6b の独立レビュー 1 回目（Y-96）の major・minor と Chief of Staff の方針 |
+| 2026-11-05 | `stop-check` は控え（止めた回数）を書けなければ止めずに通す（数えられないまま止め続けない） | 同上 |
 | 2026-11-05 | クーリエの見回りと `drain` は控えを lock（`<slug>.json.lock` の flock）で取り合う。見回りは取れるまで待ち、`drain` は 10 秒待って取れなければ通す（待ちは次の口で届く） | courier.md §3（フックが落ちたときは通す）、Y-90 の担当の推し |
 | 2026-11-05 | `stop-check` の「前回の通過」は、通したときの `log.jsonl` の行の数を控え（`~/.local/state/andon/stop-check/<slug>-<id>.json`）に持つ。`doing` に入り直した行があればそこから数える。続けて止めるのは 3 回まで（`stop_hook_active` が続く間）で、超えたら通して理由を1行出す（フックが続きのターンを回し続けて費用を燃やさないため） | contract.md §9、Y-90 の担当の推し |
 | 2026-11-05 | `UserPromptSubmit` では、待ちが無くても委譲の一覧（`andon delegate show --json` を1行に詰めたもの）を `<delegation project="<slug>">` で毎回添える | contract.md §9、Y-90 の担当の推し |
