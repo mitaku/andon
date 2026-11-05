@@ -177,9 +177,9 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 | `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
 
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`task` はタスクについての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
-- 届け方: ①Chief of Staff の `Stop` フックが `andon courier drain <slug>` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
+- 届け方: ①Chief of Staff の `Stop` フックが `andon courier drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの依頼ではない。足すことが無ければ `<no-reply>`」）。`news.replied=<turn>` のラベルも同じ（ボードとの約束）。
-- クーリエの控え `~/.local/state/andon/courier/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・送った turn・起こしたレビュアー（`task` → `reviewer_task`・`commit`）・回したゲート（`task` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。クーリエの行の `by` は `terminal:courier`）。控えの中の形はクーリエだけが読むので約束にしない（schema は無い）。
+- クーリエの控え `~/.local/state/andon/courier/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・③で送った turn と端末・フックで渡した端末・起こしたレビュアー（`task` → `reviewer_task`・`commit`）・回したゲート（`task` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。クーリエの行の `by` は `terminal:courier`）。控えの中の形はクーリエだけが読むので約束にしない（schema は無い）。
 
 ## 7. ゲートの条件表と記録
 
@@ -233,9 +233,11 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 | 誰の | イベント | 打つもの | 返すもの |
 |---|---|---|---|
-| Chief of Staff | `Stop` | `andon courier drain --project <slug>` | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない |
-| Chief of Staff | `UserPromptSubmit` | 同じ（`--context`）＋ `andon delegate show --json` | 待ちと委譲の一覧を `additionalContext` に |
-| 担当 | `Stop` | `andon task stop-check`（端末のラベル `task=` から id を引く） | 台帳が `doing` で、前回の通過以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無ければ `block`（理由「報告か問いを書いてから止まる」）。レビュアーも同じ |
+| Chief of Staff | `Stop` | `andon courier drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の答え（入力の `last_assistant_message`）が `<no-reply>` だけなら `news.replied=<turn>` を書く |
+| Chief of Staff | `UserPromptSubmit` | `andon courier drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ） |
+| 担当 | `Stop` | `andon task stop-check`（端末のラベル `task=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無ければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。続けて止めるのは3回まで。レビュアーも同じ |
+
+- フックの実体は `package/hooks/stop`・`user-prompt-submit`（image では `/opt/andon/hooks/`）。どの端末でも同じフックが走り、役は command がラベルで見分ける（どちらでもなければ何も出さない）。
 
 - 要実測: `Stop` の `decision: block` で続きの turn が始まること、`UserPromptSubmit` の `additionalContext` が文脈に入ること、Codex の同等物（最初の版は Claude Code だけ）。
 - フックが落ちたとき（command が無い・台帳が見つからない）は**通す**（止めない。クーリエのログに1行）。フックは守りの1枚で、唯一の守りではない（`andon task ready` とクーリエの照合が残る）。
