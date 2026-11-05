@@ -51,6 +51,11 @@ type State struct {
 	Coord     string              `json:"coord,omitempty"`     // 離席時に送った Chief of Staff の端末（替わったら NewsTurn を捨てる）
 	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（courier.md §4.1 の c）
 	Hook      *HookNews           `json:"hook,omitempty"`      // フックで渡して、その turn の終わりをまだ見ていない <news>
+	LogPos    *int64              `json:"log_pos,omitempty"`   // log.jsonl の読んだ位置（バイト。無ければ初めて）
+	LogHold   *int64              `json:"log_hold,omitempty"`  // 問いの JSON を待って止まった行の頭（1回だけ待つ）
+	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人のタスクを除く。無ければ初めて）
+	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<task>|<agent>|<状態>|<status_ms>）
+	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元のエラーで続きを打った回数（<task>|<agent>）
 }
 
 // HookNews はフックで渡した <news>（courier.md §3）。渡した turn の Stop で確かめ済みにする。
@@ -76,6 +81,7 @@ func StatePath(slug string) string {
 // LoadState は控えを読む。無ければ空の控えと first=true（初めて見る台帳）。
 func LoadState(slug string) (*State, bool, error) {
 	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
+	st.ensure()
 	b, err := os.ReadFile(StatePath(slug))
 	if errors.Is(err, os.ErrNotExist) {
 		return st, true, nil
@@ -95,6 +101,7 @@ func LoadState(slug string) (*State, bool, error) {
 	if st.Pending == nil {
 		st.Pending = []Notification{}
 	}
+	st.ensure()
 	return st, false, nil
 }
 

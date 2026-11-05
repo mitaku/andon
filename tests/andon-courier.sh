@@ -390,10 +390,10 @@ cstop() { HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<"{\"session_id\":\"s1\",\"prompt
 id=$(event '中断される送信')
 labels=$(wc -l < "$tmp/hc/labels")
 ups p1 | grep -q "$id review-requested:" || die '1回目の送信で渡さない'
-jq -e '.hook.via == "prompt" and .hook.prompt_id == "p1" and (.hook.news | length) == 1' "$state" >/dev/null || die '渡した <news> を turn の終わりまで控えに残さない'
+jq -e '.hook.via == "prompt" and .hook.prompt_id == "p1" and (.hook.news | any(.kind == "review-requested"))' "$state" >/dev/null || die '渡した <news> を turn の終わりまで控えに残さない'
 # p1 は中断（Stop が来ない）。次の送信で届け直す
 ups p2 | grep -q "$id review-requested:" || die '中断された turn の <news> を次の送信で届け直さない'
-jq -e '(.hook.news // []) == [] and (.hook.again | length) == 1' "$state" >/dev/null || die '届け直した分を控えていない'
+jq -e '(.hook.news // []) == [] and (.hook.again | any(.kind == "review-requested"))' "$state" >/dev/null || die '届け直した分を控えていない'
 # p2 も中断。届け直しは1回だけ
 ups p3 | grep -q "review-requested" && die '届け直しを2回した'
 cstop p3 '<no-reply>' >/dev/null
@@ -471,5 +471,133 @@ done
 term t7 idle 1
 [ -z "$(stop)" ] || die 'ラベル task= の無い端末で block した'
 ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通過以後に報告か問いがあれば通す。続けて止めるのは3回まで・控えが書けなければ通す）'
+
+# === 通知の元（courier.md §2.2・§2.3。contract.md §6）===
+# 別の台帳 pick（Chief of Staff t6。偽の hc get --json は無いので経路③では送らない）で、拾う元ごとに正負を見る
+mkdir -p "$tmp/plant/projects/pick"
+cd "$tmp/plant/projects/pick"
+env -u FLIGHTDECK_ROOT kanban init --prefix P >/dev/null
+export FLIGHTDECK_ROOT=$PWD
+kanban config set coordinator=t6 >/dev/null
+echo "t6 chief-of-staff" >> "$tmp/hc/live"
+P=$PWD/.flightdeck
+pk() { "$andon" courier --once --project pick 2>>"$tmp/courier.log"; }
+pst=$tmp/state/andon/courier/pick.json
+pp() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.task == $t and .kind == $k)]' "$pst"; }  # その task と kind の待ち（配列）
+clear_pending() { jq '.pending = []' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"; }
+as_cos() { HC_TERMINAL_ID=t6 "$@"; }
+as_w() { HC_TERMINAL_ID=t8 "$@"; }
+now_ms() { echo $(( $(date +%s) * 1000 )); }
+termp() { # termp <addr> <status> <status_ms>: 生きている担当の偽の hc get --json
+    jq -n --arg a "$1" --arg s "$2" --argjson ms "$3" '{address: $a, state: "live", status: {state: $s}, status_ms: $ms, turn: 1, labels: {}}' > "$tmp/hc/term-$1.json"
+    grep -q "^$1 " "$tmp/hc/live" || echo "$1 agent" >> "$tmp/hc/live"
+}
+qjson='{"kind":"business","question":"どちらの名前にする？","facts":["x"],"options":[{"label":"A","pick":true},{"label":"B"}]}'
+
+# 15. 初めて見る台帳は ready と log.jsonl の位置を控えるだけ
+p1=$(as_cos kanban add '前からあるタスク')
+as_w kanban report "$p1" <<<'## Report' >/dev/null
+pk
+jq -e --arg p "$p1" '.pending == [] and .ready == [$p] and .log_pos == ('"$(stat -c %s "$P/log.jsonl")"')' "$pst" >/dev/null || die "初めて見る台帳で積んだ・控えていない: $(jq -c '{pending, ready, log_pos}' "$pst")"
+ok '初めて見る台帳は、今の ready と log.jsonl の位置を控えるだけで積まない'
+
+# 16. ready は差で拾う（人のタスクは除く・ルーチンは detail.routine）
+p2=$(as_cos kanban add '新しく引き取れる')
+p3=$(as_cos kanban add '人がする'); as_cos kanban set "$p3" who=person >/dev/null
+p4=$(as_cos kanban add 'ルーチンが足した'); as_cos kanban set "$p4" routine=nightly >/dev/null
+pk
+pp "$p2" ready | jq -e '.[0].detail == {title: "新しく引き取れる"}' >/dev/null || die "増えた ready を拾わない: $(pp "$p2" ready)"
+pp "$p4" ready | jq -e '.[0].detail == {title: "ルーチンが足した", routine: "nightly"}' >/dev/null || die "ルーチンの ready に routine が無い: $(pp "$p4" ready)"
+[ "$(pp "$p1" ready)" = '[]' ] || die '前回もあった ready を拾った'
+[ "$(pp "$p3" ready)" = '[]' ] || die '人のタスクの ready を拾った'
+emit <(pp "$p4" ready | jq '.[0]') notification-ready.json
+clear_pending; pk
+[ "$(jq '[.pending[] | select(.kind == "ready")] | length' "$pst")" = 0 ] || die '同じ ready を二度拾った'
+ok 'ready は前回との差で拾い（人のタスクは除く・routine を添える）、同じものを二度拾わない'
+
+# 17. log.jsonl: report・問い・review。Chief of Staff 自身の行は拾わない。同じタスクの同じ出来事は新しい1件に置き換える
+as_w kanban start "$p2" >/dev/null
+as_w kanban report "$p2" <<<'## Report' >/dev/null
+as_cos kanban report "$p4" <<<'## Report' >/dev/null
+pk
+pp "$p2" report | jq -e --arg r "$P/tasks/$p2/report.md" '.[0].detail == {report: $r}' >/dev/null || die "報告を拾わない: $(pp "$p2" report)"
+[ "$(pp "$p4" report)" = '[]' ] || die 'Chief of Staff 自身の報告を拾った'
+emit <(pp "$p2" report | jq '.[0]') notification-report.json
+first_at=$(pp "$p2" report | jq -r '.[0].at')
+sleep 1
+as_w kanban report "$p2" --append <<<'足した' >/dev/null
+pk
+pp "$p2" report | jq -e --arg a "$first_at" 'length == 1 and .[0].at > $a' >/dev/null || die "同じ出来事を新しい1件に置き換えない: $(pp "$p2" report)"
+ok 'log.jsonl の報告を前回の続きから拾い、Chief of Staff（by terminal:t6）の行は拾わず、同じタスクの同じ出来事は新しい1件に置き換える'
+
+(HC_TERMINAL_ID=t8 "$andon" task ask "$p2" - <<<"$qjson" >/dev/null)
+(HC_TERMINAL_ID=t6 "$andon" task ask "$p4" - <<<"$qjson" >/dev/null)
+pk
+pp "$p2" asked | jq -e '.[0].detail == {n: 1, kind: "business", question: "どちらの名前にする？"}' >/dev/null || die "問いを拾わない: $(pp "$p2" asked)"
+[ "$(pp "$p4" asked)" = '[]' ] || die 'Chief of Staff 自身の問いを拾った'
+# 問いの JSON が台帳の行より遅れて置かれたら、1回だけ待って拾う。JSON の無い問い（台帳の CLI を直に打った）は待ったあと飛ばす
+as_w kanban ask "$p2" '直に打った問い' >/dev/null
+pk
+[ "$(pp "$p2" asked | jq -r '.[0].detail.n')" = 1 ] && jq -e '.log_hold != null' "$pst" >/dev/null || die '問いの JSON を待たない'
+mkdir -p "$P/tasks/$p2/library/questions"; echo "$qjson" > "$P/tasks/$p2/library/questions/2.json"
+pk
+pp "$p2" asked | jq -e 'length == 1 and .[0].detail.n == 2' >/dev/null && jq -e 'has("log_hold") | not' "$pst" >/dev/null || die "遅れて置かれた問いの JSON を拾わない: $(pp "$p2" asked)"
+as_w kanban ask "$p2" 'JSON の無い問い' >/dev/null
+as_w kanban report "$p2" --append <<<'その後' >/dev/null
+clear_pending; pk; pk
+[ "$(pp "$p2" asked)" = '[]' ] && [ "$(pp "$p2" report | jq length)" = 1 ] || die "JSON の無い問いで止まり続けた・あとの行を拾わない: $(jq -c .pending "$pst")"
+grep -q "$p2 の問い 3 の JSON が読めない" "$tmp/courier.log" || die '飛ばした問いがログに無い'
+ok 'log.jsonl の問いを問いの JSON から拾い（Chief of Staff の問いは拾わない）、JSON が遅れたら1回だけ待ち、無ければ飛ばして続きを読む'
+
+mkdir -p "$P/tasks/$p2/library"
+jq -n '{commit: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", pr: "https://github.com/example/app/pull/7"}' > "$P/tasks/$p2/library/report.json"
+as_w kanban review "$p2" >/dev/null
+p5=$(as_cos kanban add 'PR の無いタスク'); as_w kanban start "$p5" >/dev/null; as_w kanban review "$p5" >/dev/null
+p6=$(as_cos kanban add 'Chief of Staff がレビューに入れる'); as_cos kanban review "$p6" >/dev/null
+clear_pending; pk
+pp "$p2" review | jq -e --arg r "$P/tasks/$p2/report.md" '.[0].detail == {report: $r, pr: "https://github.com/example/app/pull/7"}' >/dev/null || die "review を拾わない: $(pp "$p2" review)"
+pp "$p5" report | jq -e 'length == 1' >/dev/null && [ "$(pp "$p5" review)" = '[]' ] || die "PR の無い review を report で知らせない: $(jq -c .pending "$pst")"
+[ "$(jq --arg t "$p6" '[.pending[] | select(.task == $t)] | length' "$pst")" = 0 ] || die 'Chief of Staff 自身の review を拾った'
+emit <(pp "$p2" review | jq '.[0]') notification-review.json
+ok 'log.jsonl の review を report.json の pr つきで拾い（PR が無ければ report）、Chief of Staff の review は拾わない'
+
+# 18. 止まった担当（doing の担当の端末。同じ状態・同じ status_ms につき1回）
+st_task() { local id; id=$(as_cos kanban add "$1"); HC_TERMINAL_ID=$2 kanban start "$id" >/dev/null; echo "$id"; }
+old_idle=$(( $(now_ms) - 16 * 60 * 1000 )); old_work=$(( $(now_ms) - 21 * 60 * 1000 )); fresh=$(( $(now_ms) - 60 * 1000 ))
+g=$(st_task '端末が無い' t21)
+b=$(st_task 'blocked' t22); termp t22 blocked "$fresh"
+e=$(st_task 'error（認証）' t24); termp t24 error "$fresh"; printf 'API Error: 401 unauthorized · Please run /login\n' > "$tmp/hc/screen-t24"
+i=$(st_task 'idle が長い' t25); termp t25 idle "$old_idle"
+r=$(st_task 'レビュー待ち' t26); termp t26 done "$old_idle"; as_cos kanban add 'レビュアー' --parent "$r" --profile codex-review >/dev/null
+w=$(st_task 'working が長い' t27); termp t27 working "$old_work"
+q=$(st_task '静か（短い）' t28); termp t28 idle "$fresh"
+k=$(st_task 'working（短い）' t29); termp t29 working "$fresh"
+pk
+pp "$g" finished | jq -e '.[0].detail == {agent: "t21", status_ms: 0}' >/dev/null || die "端末の無い担当を finished で知らせない: $(pp "$g" finished)"
+pp "$b" blocked | jq -e --argjson ms "$fresh" '.[0].detail == {agent: "t22", status_ms: $ms}' >/dev/null || die "blocked を知らせない: $(pp "$b" blocked)"
+pp "$e" error | jq -e 'length == 1' >/dev/null || die '提供元でない error を知らせない'
+pp "$i" stalled | jq -e --argjson ms "$old_idle" '.[0].detail == {agent: "t25", status_ms: $ms}' >/dev/null || die "idle のまま15分を stalled で知らせない: $(pp "$i" stalled)"
+pp "$w" stalled | jq -e 'length == 1' >/dev/null || die 'working のまま20分を stalled で知らせない'
+[ "$(pp "$r" stalled)" = '[]' ] || die '子のレビュアーのタスクを待つ担当を stalled で知らせた'
+[ "$(jq --arg q "$q" --arg k "$k" '[.pending[] | select(.task == $q or .task == $k)] | length' "$pst")" = 0 ] || die '短い idle・working を知らせた'
+! grep -q "^t2[0-9]	" "$tmp/hc/sent" 2>/dev/null || die '提供元でない error に続きを打った'
+for f in "$g finished" "$b blocked" "$e error" "$i stalled"; do set -- $f; emit <(pp "$1" "$2" | jq '.[0]') "notification-$2.json"; done
+clear_pending; pk
+[ "$(jq '.pending | length' "$pst")" = 0 ] || die "同じ状態で二度知らせた: $(jq -c .pending "$pst")"
+termp t22 blocked "$(now_ms)"
+pk
+pp "$b" blocked | jq -e 'length == 1' >/dev/null || die '新しい status_ms の blocked を知らせない'
+ok '止まった担当: 端末が無い（finished）・blocked・提供元でない error・idle 15分・working 20分を知らせ、レビュー待ち・短いものは知らせず、同じ status_ms につき1回'
+
+# 19. 提供元のエラーは自分で続きを打つ（1分・5分・15分あと、3回まで）。4回目は知らせる
+v=$(st_task 'error（混雑）' t23); termp t23 error "$fresh"; printf 'API Error: 529 {"type":"overloaded_error"}\n' > "$tmp/hc/screen-t23"
+clear_pending; pk
+[ "$(grep -c "^t23	提供元のエラーで止まった。続けて" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元のエラーに続きを打たない・知らせた'
+pk
+[ "$(grep -c '^t23	' "$tmp/hc/sent")" = 1 ] || die '5分を待たずに続きを打った'
+jq --arg k "$v|t23" '.retry[$k] = {n: 3, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+pk
+pp "$v" error | jq -e '.[0].detail.agent == "t23"' >/dev/null && [ "$(grep -c '^t23	' "$tmp/hc/sent")" = 1 ] || die "3回続きを打っても戻らない担当を error で知らせない: $(pp "$v" error)"
+ok '提供元のエラーは自分で続きを打ち（間を空けて3回まで）、4回目は error で知らせる'
 
 echo "all passed ($pass)"
