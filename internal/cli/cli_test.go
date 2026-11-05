@@ -13,7 +13,7 @@ func run(args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-var subs = []string{"task", "chief-of-staff", "courier", "publish", "triage", "gate"}
+var subs = []string{"task", "chief-of-staff", "courier", "publish", "triage", "gate", "boot"}
 
 func TestHelpListsEverySubCommand(t *testing.T) {
 	rc, out, errs := run("help")
