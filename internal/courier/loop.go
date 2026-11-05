@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -62,15 +63,21 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report) (Reviewer, 
 	case rr.Round > limit:
 		// review_request.extra は頼んだ時点の上限で数えたもの。起こすかは今の review_rounds（Chief of Staff が上げれば起こす）
 		return r, fmt.Sprintf("追加の回（%d 回目／上限 %d）。起こすかは Chief of Staff が決める（review_rounds を上げれば起こす）", rr.Round, limit)
-	case rep.PR == "":
-		return r, "report.json に pr が無い"
+	}
+	owner, name, number, ok := contract.ParsePR(rep.PR)
+	switch {
+	case !ok:
+		return r, "report.json に pr が無い・形が違う"
+	case r.Repo != "github.com/"+owner+"/"+name:
+		return r, fmt.Sprintf("task.yaml の repo（%s）と PR の repo（%s/%s）が違う", r.Repo, owner, name)
+	case !slices.Contains(p.l.Repos(), r.Repo):
+		return r, "台帳の config.yaml の repos にこの repo が無い"
 	}
 	if head, err := prHead(rep.PR); err != nil {
 		return r, err.Error()
 	} else if head != rr.Commit {
 		return r, fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12])
 	}
-	owner, name, number, _ := contract.ParsePR(rep.PR)
 	dir, err := repoDir(r.Repo)
 	if err != nil {
 		return r, err.Error()
@@ -81,7 +88,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report) (Reviewer, 
 	if _, err := os.Lstat(r.Worktree); err == nil {
 		return r, "detached worktree の置き場がもうある: " + r.Worktree
 	}
-	if _, _, err := run("", nil, "", "git", "-C", dir, "fetch", "-q", "https://"+r.Repo, rr.Commit); err != nil {
+	if _, _, err := run("", nil, "", "git", "-C", dir, "fetch", "-q", "https://github.com/"+owner+"/"+name, rr.Commit); err != nil {
 		return r, "PR の head を fetch できない: " + err.Error()
 	}
 	if err := os.MkdirAll(filepath.Dir(r.Worktree), 0o755); err != nil {
@@ -305,9 +312,17 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 		stop(fmt.Sprintf("条件表の repos.%s.merge（マージの方式）が無い", t.Str("repo")))
 		return
 	}
-	owner, name, number, ok := contract.ParsePR(rep.PR)
-	if !ok || !contract.IsSHA(res.Head) {
-		stop("report.json の pr かゲートの head が読めない")
+	// マージするのはゲートが判定した PR と head だけ（判定のあとに report.json が書き換わっていたら打たない）
+	owner, name, number, ok := contract.ParsePR(res.PR)
+	switch {
+	case !ok || !contract.IsSHA(res.Head):
+		stop("ゲートの記録の pr・head が読めない")
+		return
+	case res.PR != rep.PR:
+		stop(fmt.Sprintf("ゲートが判定した PR（%s）と report.json の pr（%s）が違う", res.PR, rep.PR))
+		return
+	case "github.com/"+owner+"/"+name != t.Str("repo"):
+		stop(fmt.Sprintf("ゲートが判定した PR の repo が task.yaml の repo（%s）と違う", t.Str("repo")))
 		return
 	}
 	slug := owner + "/" + name
