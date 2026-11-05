@@ -125,43 +125,56 @@ type prView struct {
 }
 
 // LoadTable は条件表を読む: パッケージの gate.json に、建屋の gate.local.json のキーを1つずつ置き換えて重ねる。
-func LoadTable(pkg, ws string) (*Table, error) {
+// gate.local.json は建屋の repo の HEAD のもので、最後に変えたのが owner のときだけ重ねる（委譲と同じ読み方。
+// 信じられなければ重ねず、理由を warn に返す。repos が無くなるのでゲートは needs_human に倒れる）。
+func LoadTable(pkg, ws string) (*Table, string, error) {
 	merged := map[string]json.RawMessage{}
-	for i, p := range []string{filepath.Join(pkg, "gate.json"), filepath.Join(ws, "gate.local.json")} {
-		b, err := os.ReadFile(p)
-		if i == 1 && errors.Is(err, os.ErrNotExist) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("条件表が読めない: %v", err)
-		}
+	add := func(b []byte, p string) error {
 		var m map[string]json.RawMessage
 		if err := json.Unmarshal(b, &m); err != nil {
-			return nil, fmt.Errorf("条件表が JSON でない: %s", p)
+			return fmt.Errorf("条件表が JSON でない: %s", p)
 		}
 		for k, v := range m {
 			merged[k] = v
 		}
+		return nil
 	}
-	b, _ := json.Marshal(merged)
+	b, err := os.ReadFile(filepath.Join(pkg, "gate.json"))
+	if err != nil {
+		return nil, "", fmt.Errorf("条件表が読めない: %v", err)
+	}
+	if err := add(b, "gate.json"); err != nil {
+		return nil, "", err
+	}
+	warn := ""
+	switch local, err := delegate.OwnerFile(ws, "gate.local.json"); {
+	case errors.Is(err, delegate.ErrAbsent):
+	case err != nil:
+		warn = "gate.local.json を重ねない: " + err.Error()
+	default:
+		if err := add(local, "gate.local.json"); err != nil {
+			return nil, "", err
+		}
+	}
+	b, _ = json.Marshal(merged)
 	var t Table
 	if err := contract.Decode(b, &t); err != nil {
-		return nil, fmt.Errorf("条件表の形が違う: %v", err)
+		return nil, "", fmt.Errorf("条件表の形が違う: %v", err)
 	}
 	for r, rt := range t.Repos {
 		if rt.Merge != "" && rt.Merge != "merge" && rt.Merge != "squash" && rt.Merge != "rebase" {
-			return nil, fmt.Errorf("条件表の repos.%s.merge が知らない値: %q", r, rt.Merge)
+			return nil, "", fmt.Errorf("条件表の repos.%s.merge が知らない値: %q", r, rt.Merge)
 		}
 		for g, v := range rt.TierOverrides {
 			if v != "A" && v != "B" && v != "C" {
-				return nil, fmt.Errorf("条件表の repos.%s.tier_overrides[%s] が A/B/C でない", r, g)
+				return nil, "", fmt.Errorf("条件表の repos.%s.tier_overrides[%s] が A/B/C でない", r, g)
 			}
 		}
 	}
 	if t.SizeHumanLines == nil || t.SizeReviewLines == nil {
-		return nil, errors.New("条件表に size_review_lines・size_human_lines が無い")
+		return nil, "", errors.New("条件表に size_review_lines・size_human_lines が無い")
 	}
-	return &t, nil
+	return &t, warn, nil
 }
 
 func getenv(k, def string) string {
@@ -186,9 +199,12 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "", err
 	}
 	ws := delegate.Workspace()
-	table, err := LoadTable(getenv("ANDON_HOME", "/opt/andon"), ws)
+	table, warn, err := LoadTable(getenv("ANDON_HOME", "/opt/andon"), ws)
 	if err != nil {
 		return nil, "", err
+	}
+	if warn != "" {
+		fmt.Fprintln(stderr, "andon gate:", warn)
 	}
 
 	// L1 台帳: PR の場所は report.json の pr だけ（Markdown も task.yaml の pr も読まない）

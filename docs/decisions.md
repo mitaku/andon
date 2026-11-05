@@ -179,3 +179,4 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | 建屋の repo は `ANDON_WORKSPACE`（既定 `/workspace`。boot と同じ）。`andon.toml` は最上段の `owner = "…"` の行だけを読む（TOML の依存を足さない）。委譲の author の照合は、commit の author の email が `owner` と同じこと（P4 の `andon.toml` の雛形の定義） | 担当の推し・P4 の `init/andon.toml.tmpl` |
 | 2026-11-05 | `andon delegate` は `--project <slug>` を取る（省くと cwd の `projects/<slug>/`）。型（`preset`）を変える command は作らない（設計書に無い。人が JSON を書いて commit する。次の `andon delegate` が検査する） | 担当の推し |
 | 2026-11-05 | 担当の command と CoS の検収の照合は、レビュアーのうち作成の行の `by` が `terminal:<coordinator>` のものだけを数える（仮設と同じ）。クーリエが起こすレビュアー（P6a）を数える形は P6a で足す | 仮設のゲート・担当の推し |
+| 2026-11-05 | 建屋の `gate.local.json` も委譲と同じ読み方: 建屋の repo の HEAD のものを、最後に変えた commit の author の email が `owner` のときだけ重ねる（作業ツリー・未 commit の変更は読まない）。信じられなければ重ねず、repos が無いのでゲートは `needs_human` | P5 の担当の推し（自動のセキュリティレビューの指摘） |

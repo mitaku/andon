@@ -155,10 +155,18 @@ got=$(gate "$id" --dry-run); expect 0 approve
 jq -e '.grants[0].revoked.reason == "やめる"' delegation.json >/dev/null
 ok 'delegate revoke: 行を残して取り消す（型 work の merge B に戻る）'
 
-# 7. 検査が落ちれば fix
-echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f nothing"]}}}' > "$tmp/plant/gate.local.json"
+# 7. 検査が落ちれば fix（gate.local.json は建屋の repo の HEAD で、owner が commit したものだけ）
+set_check() { echo "{\"repos\": {\"github.com/example/app\": {\"merge\": \"squash\", \"check\": [\"$1\"]}}}" > "$tmp/plant/gate.local.json"; }
+set_check 'test -f nothing'
+got=$(gate "$id" --dry-run); expect 0 approve
+as_owner git -C "$tmp/plant" commit -qam 'check を変える'
 got=$(gate "$id" --dry-run); expect 1 fix 'check: test -f nothing'
-echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
+set_check 'true'; as_agent git -C "$tmp/plant" commit -qam 'agent が検査を緩めた'
+got=$(gate "$id" --dry-run); expect 4 needs_human '条件表の repos'
+grep -q 'gate.local.json を重ねない' "$tmp/err" || die '信じない理由が出ない'
+set_check 'test -f docs/a.md'; as_owner git -C "$tmp/plant" commit -qam 'check を戻す'
+got=$(gate "$id" --dry-run); expect 0 approve
+ok 'gate.local.json は作業ツリーの変更を読まず、owner でない commit は重ねない'
 ok '条件表の検査が PR の head で落ちれば fix'
 
 # 8. 予約キーを書いたのが Chief of Staff でなければ needs_human

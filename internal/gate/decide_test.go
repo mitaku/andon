@@ -12,7 +12,7 @@ import (
 func pkgTable(t *testing.T) *Table {
 	_, file, _, _ := runtime.Caller(0)
 	root := filepath.Join(filepath.Dir(file), "..", "..")
-	tb, err := LoadTable(filepath.Join(root, "package"), t.TempDir())
+	tb, _, err := LoadTable(filepath.Join(root, "package"), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

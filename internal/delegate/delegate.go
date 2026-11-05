@@ -313,27 +313,43 @@ func git(ws string, args ...string) (string, error) {
 	return string(out), nil
 }
 
+// ErrAbsent は建屋の repo の HEAD にそのファイルが無いこと。
+var ErrAbsent = errors.New("建屋の repo の HEAD に無い")
+
+// OwnerFile は建屋の repo の HEAD の rel を読み、それを最後に変えた commit の author の email が andon.toml の owner のときだけ返す
+// （委譲・gate.local.json。人だけが書くファイル。作業ツリーと未 commit の変更は読まない）。
+func OwnerFile(ws, rel string) ([]byte, error) {
+	b, err := git(ws, "show", "HEAD:"+filepath.ToSlash(rel))
+	if err != nil {
+		return nil, ErrAbsent
+	}
+	owner := Owner(ws)
+	if owner == "" {
+		return nil, errors.New("andon.toml に owner が無い")
+	}
+	author, err := git(ws, "log", "-1", "--format=%an%x00%ae", "HEAD", "--", rel)
+	name, email, _ := strings.Cut(strings.TrimSpace(author), "\x00")
+	if err != nil || email != owner {
+		return nil, fmt.Errorf("%s を最後に変えた commit の author（%s <%s>）が owner でない", rel, name, email)
+	}
+	return []byte(b), nil
+}
+
 // Read は建屋の repo の HEAD の委譲を読む（読み手は全部これ）。信じられなければ無委譲。
 func Read(ws, slug, today string) Result {
 	none := func(reason string) Result {
 		return Result{Project: slug, Reason: reason, Effective: maps(None), Grants: []Grant{}}
 	}
-	b, err := git(ws, "show", "HEAD:"+filepath.ToSlash(Rel(slug)))
-	if err != nil {
+	b, err := OwnerFile(ws, Rel(slug))
+	if errors.Is(err, ErrAbsent) {
 		return none("委譲が無い（建屋の repo の HEAD に " + Rel(slug) + " が無い）")
 	}
-	f, err := Parse([]byte(b), slug)
+	if err != nil {
+		return none(err.Error())
+	}
+	f, err := Parse(b, slug)
 	if err != nil {
 		return none("委譲の形が違う: " + err.Error())
-	}
-	owner := Owner(ws)
-	if owner == "" {
-		return none("andon.toml に owner が無い")
-	}
-	author, err := git(ws, "log", "-1", "--format=%an%x00%ae", "HEAD", "--", Rel(slug))
-	name, email, _ := strings.Cut(strings.TrimSpace(author), "\x00")
-	if err != nil || email != owner {
-		return none(fmt.Sprintf("委譲を最後に変えた commit の author（%s <%s>）が owner でない", name, email))
 	}
 	r := Result{Project: slug, Trusted: true, Preset: f.Preset, Effective: f.Effective(today), Grants: []Grant{}}
 	if r.Preset == "" {
