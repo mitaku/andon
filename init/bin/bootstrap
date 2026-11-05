@@ -127,6 +127,14 @@ ensure_up() {
 
 # host_install は、イメージの /opt/andon/host/ からホストの置き場へ写す。今あるファイルは上書きしない。
 host_install() {
+  local app_home
+  if [ -n "${HERDR_APP_HOME:-}" ]; then
+    app_home=$HERDR_APP_HOME
+  elif [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] || [ -e /proc/sys/fs/binfmt_misc/WSLInterop ]; then
+    die 'WSL では App の置き場を HERDR_APP_HOME に指定する（Windows の App なら Windows 側の設定フォルダを wslpath で変換する。docs/operate.md の host-install を参照）'
+  else
+    app_home=${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app
+  fi
   local bin=${ANDON_HOST_BIN:-$HOME/.local/bin}
   local src
   tmp=$(mktemp -d)
@@ -153,7 +161,7 @@ host_install() {
   place "$tmp/ssh_config" "$HOME/.ssh/config.d/$project.conf" 600
   place "$src/cloud-init.yaml" .andon/cloud-init.yaml 644
   # A personal mod is a unit: even an incomplete existing folder is left alone.
-  local mod="$HOME/.config/herdr-app/mods/andon"
+  local mod="$app_home/mods/andon"
   if [ -e "$mod" ] || [ -L "$mod" ]; then
     echo "! $mod はすでにある（触らない）"
   elif [ "$dry" = 1 ]; then

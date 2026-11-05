@@ -36,7 +36,9 @@ export default class Andon extends View {
       else if (!labels.role || labels.role === "chief-engineer") {
         if (typeof labels.task !== "string" || !labels.task ||
             typeof labels.title !== "string" || !labels.title) continue;
-        name = `${labels.role === "chief-engineer" ? "CE " : ""}${labels.task} ${labels.title}`;
+        const title = labels.title.replace(/[\s\p{Cc}]+/gu, " ").trim();
+        if (!title) continue;
+        name = `${labels.role === "chief-engineer" ? "CE " : ""}${labels.task} ${title}`;
       } else continue;
       const tabKey = labels.role === "chief-of-staff" ? "cos" : labels.task;
       if (tab.id !== `${prefix}andon-${slug}-${tabKey}`) continue;

@@ -55,7 +55,7 @@ assert.deepEqual(render(), [
 // Echo the App's changes: a second render must issue no command.
 for (const [kind, { id, name }] of calls) {
   const targets = kind === 'space.rename' ? spaces : spaces.flatMap(s => s.tabs);
-  targets.find(t => t.id === id).name = name;
+  targets.find(t => t.id === id).name = name.trim();
 }
 assert.deepEqual(render(), []);
 // Reviewer has its own task/title but the worker's tab. No rename, even alone.
@@ -85,4 +85,17 @@ panes = [];
 assert.deepEqual(render(), []);
 spaces = [];
 assert.deepEqual(render(), []);
+// App rename trims names before saving. Repeated snapshots must settle even
+// when a ledger title contains trailing whitespace or control characters.
+panes = [{ terminal: 't1', tab: 'andon-sample-site-A-1' }];
+for (const [title, expected] of [
+  ['修正 ', 'A-1 修正'], ['  修正  ', 'A-1 修正'],
+  ['一行目\n二行目\t次\u0007', 'A-1 一行目 二行目 次'], ['  \t\n', null],
+]) {
+  spaces = [{ id: 'andon-sample-site', name: slug, tabs: [{ id: panes[0].tab, name: '1' }] }];
+  terminals = [{ address: 't1', state: 'live', labels: { ...valid, title } }];
+  assert.deepEqual(render(), expected ? [['tab.rename', { id: panes[0].tab, name: expected }]] : []);
+  for (const [, { name }] of calls) spaces[0].tabs[0].name = name.trim();
+  assert.deepEqual(render(), []);
+}
 console.log('ok   App mod: names, idempotence, reviewer, remote placement, and rename-only API');

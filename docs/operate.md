@@ -77,7 +77,16 @@ bin/bootstrap host-install
 
 ### Herdr App の名前付け mod
 
-同じ `host-install` が `~/.config/herdr-app/mods/andon/` に名前付け mod を置く。既存のディレクトリは、不完全でも中身を補わずそのまま残す。更新するときは退避してから打ち直す。
+同じ `host-install` が App の設定フォルダの `mods/andon/` に名前付け mod を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存のディレクトリは、不完全でも中身を補わずそのまま残す。更新するときは退避してから打ち直す。
+
+**WSL で実行し、App は Windows 側で動く場合**は、Windows の App の設定フォルダを WSL から見たパスで `HERDR_APP_HOME` に指定する。WSL では未指定だと書き込み前に止まり、案内を出す。Windows の既定値は `%USERPROFILE%\.config\herdr-app`。App 側で `HERDR_APP_HOME` や `XDG_CONFIG_HOME` を指定しているなら、その設定に合う実際のフォルダを選ぶ。
+
+```bash
+# <user> は Windows の利用者名に置き換える。App の置き場を変えていればそのパスを渡す。
+HERDR_APP_HOME="$(wslpath 'C:\Users\<user>\.config\herdr-app')" bin/bootstrap host-install
+```
+
+WSL 内で Linux 版 App を動かしている場合も、その App の設定フォルダを `HERDR_APP_HOME` で明示する。Windows のプロファイルや App の環境をインストーラーが推測することはない。
 
 App の標準レイアウトは mod の追加だけでは起動しない。人が App の command palette でレイアウトを複製し、その個人用レイアウトの常に表示する row または column の `children` に次の block を1つ加える（他の block は残す）。`host-install` はレイアウトを変更しない。
 
@@ -85,9 +94,9 @@ App の標準レイアウトは mod の追加だけでは起動しない。人�
 { "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }
 ```
 
-この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check ~/.config/herdr-app/mods/andon` を実行し、個人用レイアウトで `sample-site / CoS`・`sample-site / CE A-1 設計`・`sample-site work / A-2 修正` が見えることを確認する。App のエラーは `herdr-app status` で見る。
+この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon` を実行し（Windows の App は Windows 側で実行する）、個人用レイアウトで `sample-site / CoS`・`sample-site / CE A-1 設計`・`sample-site work / A-2 修正` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
-mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。役ごとのアイコンは含まない。
+mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
 
 API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
 

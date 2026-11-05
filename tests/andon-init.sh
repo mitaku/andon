@@ -57,6 +57,27 @@ grep -q '^+ docker compose .* exec .* dev herdr$' "$tmp/out" && pass "入口は 
 
 sandbox bash bin/bootstrap --dry-run host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -q "install -m 755 $home/.local/bin/andon-up" "$tmp/out" && [ ! -e "$home/.local" ] && [ ! -e "$home/.config" ] && pass "host-install --dry-run は HOME に書かない" || fail "host-install --dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"
+# Use separate fake App homes so precedence and WSL cannot hit real settings.
+sandbox HOME="$tmp/xdg-home" XDG_CONFIG_HOME="$tmp/xdg" bash bin/bootstrap --dry-run host-install >"$tmp/out" 2>&1
+[ ! -e "$tmp/xdg" ] && grep -q "$tmp/xdg/herdr-app/mods/andon" "$tmp/out" \
+  && pass "XDG の dry-run は置き場を示すだけ" || fail "XDG の dry-run"
+sandbox HOME="$tmp/xdg-home" XDG_CONFIG_HOME="$tmp/xdg" bash bin/bootstrap host-install >"$tmp/out" 2>&1
+cmp -s "$tmp/xdg/herdr-app/mods/andon/main.js" "$andon_root/package/host/andon/main.js" \
+  && pass "XDG_CONFIG_HOME の App に置く" || fail "XDG の mod が無い"
+sandbox HOME="$tmp/app-host-home" HERDR_APP_HOME="$tmp/app home" XDG_CONFIG_HOME="$tmp/unused-xdg" bash bin/bootstrap host-install >"$tmp/out" 2>&1
+[ -f "$tmp/app home/mods/andon/main.js" ] && [ ! -e "$tmp/unused-xdg" ] \
+  && pass "HERDR_APP_HOME が XDG より優先（空白を含むパス）" || fail "App home の優先順"
+# WSL without an explicit App home stops before creating host configuration.
+sandbox HOME="$tmp/wsl-home" WSL_DISTRO_NAME=sample WSL_INTEROP=sample XDG_CONFIG_HOME="$tmp/wsl-xdg" bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && [ ! -e "$tmp/wsl-home" ] && [ ! -e "$tmp/wsl-xdg" ] && grep -q HERDR_APP_HOME "$tmp/err" \
+  && pass "WSL は App home が未指定なら書き込む前に案内して止まる" || fail "WSL の未指定: rc=$r"
+sandbox HOME="$tmp/wsl-host-home" WSL_DISTRO_NAME=sample HERDR_APP_HOME="$tmp/windows-app" bash bin/bootstrap host-install >"$tmp/out" 2>&1
+cmp -s "$tmp/windows-app/mods/andon/main.js" "$andon_root/package/host/andon/main.js" \
+  && pass "WSL は明示された App home に置く" || fail "WSL の App mod が無い"
+echo '// personal' >"$tmp/windows-app/mods/andon/main.js"
+sandbox HOME="$tmp/wsl-host-home" WSL_DISTRO_NAME=sample HERDR_APP_HOME="$tmp/windows-app" bash bin/bootstrap host-install >"$tmp/out" 2>&1
+grep -qx '// personal' "$tmp/windows-app/mods/andon/main.js" \
+  && pass "明示先の既存 mod も保護する" || fail "明示先の mod を上書きした"
 echo SSH_PORT=2299 >.env
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && [ -x "$home/.local/bin/andon-up" ] && [ -f "$home/.config/herdr/config.toml" ] && pass "host-install は andon-up と herdr の設定を置く（偽の HOME）" || fail "host-install: rc=$r $(cat "$tmp/out" "$tmp/err")"
