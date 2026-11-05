@@ -149,3 +149,10 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | `tests/schema.sh` の必須キーの期待値は schema から読まずテストに固定し、制約を緩めた schema の写しで検査全体が落ちることを自己検査する | P2 の独立レビュー 1 回目の指摘 |
 | 2026-11-05 | schema の pattern には ECMA-262 と Python で意味が割れる表現（`.`・`\s`・`\d`・`\w`・`\b`）を使わず、明示した ASCII の文字クラスで書く（lint が落とす）。検査器を ECMA-262 に寄せることはしない（`$` の置き換えだけ残す） | P2 の独立レビュー 2 回目の指摘・Chief of Staff の方針 |
 | 2026-11-05 | 入れ子の object の必須のキーも、テストに固定した期待値で検査する（委譲の grant の `id` など） | P2 の独立レビュー 2 回目の指摘 |
+
+## 9. P3b-2 での決定
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | schema の検査器を `tests/lib/schema_check.py` から `package/lib/andon/schema_check.py` に移す。P5 で `andon task report`・`ask` が command になるまで、担当・Chief of Staff・Chief Engineer は `report.json` と問いの JSON を jq で書き、建屋でこの検査器と `schema/`（image が `/opt/andon/schema` に置く。`ANDON_SCHEMA` で差し替え）に通す。tests も同じ検査器を使う | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針（skill は contract.md・schema/ を正に書く） |
+| 2026-11-05 | `andon chief-engineer` は `--repo <host/owner/repo>` を取り、その repo に worktree と branch を切って Chief Engineer を起こす（文書の PR と `report.json` を同じタスクから返す。design.md §1.8）。repo は台帳の `config.yaml` から推さない（台帳はファイルを直接読まない約束） | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針 |
