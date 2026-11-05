@@ -9,9 +9,7 @@
   "permissions": {
     "allow": [
       "Bash(actionlint:*)",
-      "Bash(aqua:*)",
       "Bash(cat:*)",
-      "Bash(find:*)",
       "Bash(gh pr checks:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr view:*)",
@@ -20,7 +18,6 @@
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
       "Bash(ghalint:*)",
-      "Bash(git branch *)",
       "Bash(git diff *)",
       "Bash(git diff)",
       "Bash(git log *)",
@@ -29,11 +26,12 @@
       "Bash(git status)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(pinact run:*)",
       "WebSearch"
     ],
     "deny": [
-      "Bash(gh pr merge:*)"
+      "Bash(gh pr merge:*)",
+      "Bash(git diff *--output*)",
+      "Bash(git diff *--ext-diff*)"
     ]
   },
   "hooks": {
