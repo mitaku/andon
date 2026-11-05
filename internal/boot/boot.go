@@ -3,9 +3,9 @@
 // 毎起動、パッケージ（/opt/andon）から建屋へ配布物を生成する。symlink の網は張らない:
 //
 //	<pkg>/settings.json                       → managed settings（/etc/claude-code/managed-settings.json）
-//	<pkg>/templates/*.md ＋ <ws>/templates.local/*.md → ~/.config/herdr-core/templates/<name>.md
+//	<pkg>/templates/*.md ＋ <ws>/templates.local/*.md → ~/.config/herdr-core/templates/<name>.md（本文の /opt/andon は <pkg> に）
 //	<pkg>/environment.md ＋ <ws>/AGENTS.local.md → <claude>/CLAUDE.md（@ の2行）・~/.codex/AGENTS.md（連結）
-//	<pkg>/skills/<name>/                      → <claude>/skills/andon-<name>（symlink。パッケージの中を指す）
+//	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
 //	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、portless・files サーバ・sshd・クーリエの起動。
@@ -37,8 +37,11 @@ const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・クーリエを起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
-	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・skill の symlink・herdr の設定。\n" +
+	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
+
+// DefaultPackage はパッケージの既定の置き場。プロファイルの本文はこのパスで書く。
+const DefaultPackage = "/opt/andon"
 
 // Env は boot が読み書きする場所。テストで差し替える。
 type Env struct {
@@ -60,7 +63,7 @@ func EnvFromOS(log io.Writer) Env {
 	home, _ := os.UserHomeDir()
 	self, _ := os.Executable()
 	return Env{
-		Package:         getenv("ANDON_HOME", "/opt/andon"),
+		Package:         getenv("ANDON_HOME", DefaultPackage),
 		Workspace:       getenv("ANDON_WORKSPACE", "/workspace"),
 		Home:            home,
 		ClaudeDir:       os.Getenv("CLAUDE_CONFIG_DIR"),
@@ -286,6 +289,7 @@ func (e Env) sudoInstall(dst string, data []byte) error {
 }
 
 // genTemplates はプロファイルを生成する。同じ名前なら建屋の templates.local が勝つ。
+// 本文の /opt/andon はパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起こせるように。ADR-0001 決定 5）。
 // 置き場にある、どちらにも無い名前のファイルには触らない（人が hc に入れたもの）。
 func genTemplates(e Env) error {
 	files := map[string]string{}
@@ -306,11 +310,20 @@ func genTemplates(e Env) error {
 	for _, name := range sortedKeys(files) {
 		b, err := os.ReadFile(files[name])
 		if err == nil {
-			err = e.generate(filepath.Join(dst, name), b, 0o644)
+			err = e.generate(filepath.Join(dst, name), Template(b, e.Package), 0o644)
 		}
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+// Template はプロファイルの本文の /opt/andon を pkg に置き換える。pkg が既定なら何もしない。
+func Template(b []byte, pkg string) []byte {
+	pkg = filepath.Clean(pkg)
+	if pkg == DefaultPackage {
+		return b
+	}
+	return bytes.ReplaceAll(b, []byte(DefaultPackage), []byte(pkg))
 }
 
 // ClaudeMD は <claude>/CLAUDE.md の中身（2行）。
@@ -340,11 +353,13 @@ func genCodexAgents(e Env) error {
 	return e.generate(filepath.Join(e.Home, ".codex", "AGENTS.md"), bytes.Join(parts, []byte("\n")), 0o644)
 }
 
-// genSkills は <claude>/skills/andon-<name> → <pkg>/skills/<name> を張る。
+// genSkills は ~/.agents/skills/andon-<name> → <pkg>/skills/<name> を張る（Codex など .agents/skills を読むハーネス向け。
+// Claude Code は plugin として --plugin-dir で読む。ADR-0001 決定 2）。
 // パッケージから消えた skill の andon-* リンクは外す。andon- で始まらないもの（利用者の skill）には触らない。
+// 前の置き場 <claude>/skills の andon-* リンクも外す（二重に読まれるのを避ける）。
 func genSkills(e Env) error {
-	dir := filepath.Join(e.claudeDir(), "skills")
-	if st, err := os.Lstat(dir); err == nil && st.Mode()&fs.ModeSymlink != 0 {
+	dir := filepath.Join(e.Home, ".agents", "skills")
+	if isSymlink(dir) {
 		return fmt.Errorf("%s が symlink（仮設の形）。外してから打ち直す", dir)
 	}
 	want := map[string]string{}
@@ -357,19 +372,44 @@ func genSkills(e Env) error {
 			want["andon-"+ent.Name()] = filepath.Join(e.Package, "skills", ent.Name())
 		}
 	}
-	var errs []error
-	if have, err := os.ReadDir(dir); err == nil {
-		for _, ent := range have {
-			if _, ok := want[ent.Name()]; !ok && strings.HasPrefix(ent.Name(), "andon-") && ent.Type()&fs.ModeSymlink != 0 {
-				errs = append(errs, os.Remove(filepath.Join(dir, ent.Name())))
-				e.logf("外した: %s", filepath.Join(dir, ent.Name()))
-			}
-		}
-	}
+	errs := []error{e.unlinkAndon(dir, want)}
 	for _, name := range sortedKeys(want) {
 		errs = append(errs, e.symlink(want[name], filepath.Join(dir, name)))
 	}
+	if old := filepath.Join(e.claudeDir(), "skills"); isSymlink(old) {
+		e.logf("%s が symlink（仮設の形）なので andon-* を外さない", old)
+	} else {
+		errs = append(errs, e.unlinkAndon(old, nil))
+	}
 	return errors.Join(errs...)
+}
+
+// unlinkAndon は dir の中の andon-* の symlink のうち、keep に無いものを外す。dir が無ければ何もしない。
+func (e Env) unlinkAndon(dir string, keep map[string]string) error {
+	have, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	var errs []error
+	for _, ent := range have {
+		if _, ok := keep[ent.Name()]; ok || !strings.HasPrefix(ent.Name(), "andon-") || ent.Type()&fs.ModeSymlink == 0 {
+			continue
+		}
+		p := filepath.Join(dir, ent.Name())
+		if err := os.Remove(p); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		e.logf("外した: %s", p)
+	}
+	return errors.Join(errs...)
+}
+
+func isSymlink(p string) bool {
+	st, err := os.Lstat(p)
+	return err == nil && st.Mode()&fs.ModeSymlink != 0
 }
 
 // genHerdr はパッケージの herdr の設定を volume へ写す。パッケージに無ければ何もしない。

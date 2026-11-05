@@ -102,7 +102,7 @@ func snapshot(t *testing.T, root string) string {
 // fullPackage はパッケージと建屋に、生成の元になるものを一通り置く。
 func (f *fixture) fullPackage(t *testing.T) {
 	put(t, filepath.Join(f.pkg, "settings.json"), `{"permissions":{"deny":["Bash(gh pr merge:*)"]},"hooks":{}}`)
-	put(t, filepath.Join(f.pkg, "templates", "claude.md"), "---\nname: claude\n---\nパッケージの claude\n")
+	put(t, filepath.Join(f.pkg, "templates", "claude.md"), "---\nname: claude\ncommand: claude --plugin-dir /opt/andon\n---\nパッケージの claude。`/opt/andon/skills/worker/SKILL.md`\n")
 	put(t, filepath.Join(f.pkg, "templates", "sonnet.md"), "---\nname: sonnet\n---\nパッケージの sonnet\n")
 	put(t, filepath.Join(f.pkg, "templates", ".gitkeep"), "")
 	put(t, filepath.Join(f.pkg, "environment.md"), "# 建屋の環境\n")
@@ -151,9 +151,12 @@ func TestGenerateWritesEverything(t *testing.T) {
 		t.Errorf("Codex の AGENTS.md = %q", s)
 	}
 	for _, name := range []string{"worker", "glossary"} {
-		if to, err := os.Readlink(filepath.Join(f.claude, "skills", "andon-"+name)); err != nil || to != filepath.Join(f.pkg, "skills", name) {
+		if to, err := os.Readlink(filepath.Join(f.home, ".agents", "skills", "andon-"+name)); err != nil || to != filepath.Join(f.pkg, "skills", name) {
 			t.Errorf("skill %s: %q %v", name, to, err)
 		}
+	}
+	if _, err := os.Lstat(filepath.Join(f.claude, "skills")); err == nil {
+		t.Error("<claude>/skills を作った（Claude Code は plugin で読む）")
 	}
 	if s := read(t, filepath.Join(f.home, ".config", "herdr", "config.toml")); s != "[ui]\n" {
 		t.Errorf("herdr の設定 = %q", s)
@@ -255,42 +258,111 @@ func TestBrokenSettingsKeepsManaged(t *testing.T) {
 func TestSkillLinks(t *testing.T) {
 	f := newFixture(t)
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
-	skills := filepath.Join(f.claude, "skills")
-	mustMkdir(t, skills)
-	if err := os.Symlink(filepath.Join(f.pkg, "skills", "gone"), filepath.Join(skills, "andon-gone")); err != nil {
+	agents := filepath.Join(f.home, ".agents", "skills")
+	old := filepath.Join(f.claude, "skills")
+	for _, d := range []string{agents, old} {
+		mustMkdir(t, d)
+		for name, to := range map[string]string{
+			"andon-gone": filepath.Join(f.pkg, "skills", "gone"),
+			"my-skill":   filepath.Join(f.root, "my-skill"),
+		} {
+			if err := os.Symlink(to, filepath.Join(d, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	// 前の置き場の andon-worker（仮設の形から移るときに残っているもの）
+	if err := os.Symlink(filepath.Join(f.pkg, "skills", "worker"), filepath.Join(old, "andon-worker")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join(f.root, "my-skill"), filepath.Join(skills, "my-skill")); err != nil {
+	put(t, filepath.Join(agents, "andon-real", "SKILL.md"), "実ディレクトリ\n")
+
+	if err := Generate(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{filepath.Join(agents, "andon-gone"), filepath.Join(old, "andon-gone"), filepath.Join(old, "andon-worker")} {
+		if _, err := os.Lstat(p); err == nil {
+			t.Errorf("%s が残っている", p)
+		}
+	}
+	for _, p := range []string{filepath.Join(agents, "my-skill"), filepath.Join(old, "my-skill"), filepath.Join(agents, "andon-real", "SKILL.md")} {
+		if _, err := os.Lstat(p); err != nil {
+			t.Errorf("%s を外した（symlink でない・andon- でないものには触らない）", p)
+		}
+	}
+	if to, err := os.Readlink(filepath.Join(agents, "andon-worker")); err != nil || to != filepath.Join(f.pkg, "skills", "worker") {
+		t.Errorf("andon-worker → %q %v", to, err)
+	}
+}
+
+func TestAgentsSkillsDirSymlinkStops(t *testing.T) {
+	f := newFixture(t)
+	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
+	repo := filepath.Join(f.root, "skills-repo")
+	mustMkdir(t, repo)
+	mustMkdir(t, filepath.Join(f.home, ".agents"))
+	if err := os.Symlink(repo, filepath.Join(f.home, ".agents", "skills")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Generate(f.env()); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("~/.agents/skills が symlink なのに黙って通した: %v", err)
+	}
+	if ents, _ := os.ReadDir(repo); len(ents) != 0 {
+		t.Error("リンク先の repo に書き込んだ")
+	}
+}
+
+// 前の置き場 <claude>/skills が symlink（仮設の形）なら、その先には触らない（andon-* も外さない）。
+func TestOldClaudeSkillsDirSymlinkIsLeftAlone(t *testing.T) {
+	f := newFixture(t)
+	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
+	repo := filepath.Join(f.root, "skills-repo")
+	mustMkdir(t, repo)
+	if err := os.Symlink(filepath.Join(f.pkg, "skills", "worker"), filepath.Join(repo, "andon-worker")); err != nil {
+		t.Fatal(err)
+	}
+	mustMkdir(t, f.claude)
+	if err := os.Symlink(repo, filepath.Join(f.claude, "skills")); err != nil {
 		t.Fatal(err)
 	}
 	if err := Generate(f.env()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Lstat(filepath.Join(skills, "andon-gone")); err == nil {
-		t.Error("パッケージから消えた skill のリンクが残っている")
+	if _, err := os.Lstat(filepath.Join(repo, "andon-worker")); err != nil {
+		t.Error("リンク先の repo の中を外した")
 	}
-	if _, err := os.Lstat(filepath.Join(skills, "my-skill")); err != nil {
-		t.Error("利用者の skill を外した")
-	}
-	if _, err := os.Readlink(filepath.Join(skills, "andon-worker")); err != nil {
-		t.Error("andon-worker が無い")
+	if _, err := os.Readlink(filepath.Join(f.home, ".agents", "skills", "andon-worker")); err != nil {
+		t.Error("~/.agents/skills/andon-worker が無い")
 	}
 }
 
-func TestSkillsDirSymlinkIsLeftAlone(t *testing.T) {
+// プロファイルの本文の /opt/andon は ANDON_HOME に置き換わる。既定のままなら変えない。
+func TestTemplatesUsePackagePath(t *testing.T) {
 	f := newFixture(t)
-	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
-	repo := filepath.Join(f.root, "skills-repo")
-	mustMkdir(t, repo)
-	mustMkdir(t, f.claude)
-	if err := os.Symlink(repo, filepath.Join(f.claude, "skills")); err != nil {
+	f.fullPackage(t)
+	put(t, filepath.Join(f.ws, "templates.local", "mine.md"), "`/opt/andon/skills/worker/SKILL.md`\n")
+	if err := Generate(f.env()); err != nil {
 		t.Fatal(err)
 	}
-	if err := Generate(f.env()); err == nil {
-		t.Error("skills が symlink なのに黙って通した")
+	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates")
+	if s := read(t, filepath.Join(tpl, "claude.md")); strings.Contains(s, " /opt/andon") || strings.Contains(s, "`/opt/andon") ||
+		!strings.Contains(s, "--plugin-dir "+f.pkg+"\n") || !strings.Contains(s, "`"+f.pkg+"/skills/worker/SKILL.md`") {
+		t.Errorf("claude.md:\n%s", s)
 	}
-	if ents, _ := os.ReadDir(repo); len(ents) != 0 {
-		t.Error("リンク先の repo に書き込んだ")
+	if s := read(t, filepath.Join(tpl, "mine.md")); s != "`"+f.pkg+"/skills/worker/SKILL.md`\n" {
+		t.Errorf("mine.md = %q", s)
+	}
+
+	in := []byte("--plugin-dir /opt/andon `/opt/andon/skills/worker/SKILL.md`")
+	for pkg, want := range map[string]string{
+		"/opt/andon":          string(in),
+		"/opt/andon/":         string(in),
+		"/src/andon/package/": "--plugin-dir /src/andon/package `/src/andon/package/skills/worker/SKILL.md`",
+		"/src/andon/package":  "--plugin-dir /src/andon/package `/src/andon/package/skills/worker/SKILL.md`",
+	} {
+		if got := string(Template(in, pkg)); got != want {
+			t.Errorf("Template(%q) = %q, want %q", pkg, got, want)
+		}
 	}
 }
 

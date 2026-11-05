@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/andon-boot.sh — andon boot を偽の HOME・偽の建屋・偽のパッケージで2回打つ。
-# 生成（managed settings・プロファイル・CLAUDE.md の2行）が揃い、2回目で何も変わらないこと。
+# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink）が揃い、2回目で何も変わらないこと。
 # PATH には andon の置き場だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace に触らない）。
 set -u
 tmp=$(mktemp -d)
@@ -15,8 +15,12 @@ pkg=$tmp/opt/andon ws=$tmp/workspace home=$tmp/home managed=$tmp/etc/claude-code
 mkdir -p "$pkg/templates" "$pkg/skills/worker" "$ws/templates.local" "$home" "$tmp/path"
 echo '{"permissions":{"deny":["Bash(gh pr merge:*)"]}}' >"$pkg/settings.json"
 printf -- '---\nname: claude\n---\nパッケージ\n' >"$pkg/templates/claude.md"
+printf -- '---\nname: codex\n---\n`/opt/andon/skills/worker/SKILL.md` を読む\n' >"$pkg/templates/codex.md"
 printf -- '---\nname: claude\n---\n建屋\n' >"$ws/templates.local/claude.md"
 echo worker >"$pkg/skills/worker/SKILL.md"
+mkdir -p "$home/.claude/skills"
+ln -s "$pkg/skills/worker" "$home/.claude/skills/andon-worker" # 前の置き場（外れること）
+ln -s "$tmp/mine" "$home/.claude/skills/mine"                   # 利用者の skill（残ること）
 cp "$andon" "$tmp/path/andon"
 
 boot() {
@@ -32,7 +36,9 @@ grep -q 'gh pr merge' "$managed" && pass "managed settings を生成する" || f
 grep -q '建屋' "$home/.config/herdr-core/templates/claude.md" && pass "プロファイルを生成する（建屋の templates.local が勝つ）" || fail "プロファイル"
 [ "$(cat "$home/.claude/CLAUDE.md")" = "@$pkg/environment.md
 @$ws/AGENTS.local.md" ] && pass "CLAUDE.md は2行" || fail "CLAUDE.md: $(cat "$home/.claude/CLAUDE.md")"
-[ "$(readlink "$home/.claude/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink" || fail "skill"
+[ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
+[ ! -L "$home/.claude/skills/andon-worker" ] && [ -L "$home/.claude/skills/mine" ] && pass "~/.claude/skills の andon-* だけ外す" || fail "~/.claude/skills: $(ls -l "$home/.claude/skills")"
+grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
 
 snap >"$tmp/snap1"
 boot; r=$?
