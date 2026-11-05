@@ -486,8 +486,8 @@ andon/
     gate.schema.json         ゲートの条件表と記録
     delegation.schema.json   委譲（§1.10）
   package/                   建屋に配るもの（image に COPY され /opt/andon になる）
-    bin/andon                入口の CLI
-    lib/andon/<sub>          command の中身: task・chief-of-staff・chief-engineer・courier・gate・triage・publish・delegate・boot・init（言語は §2.7）
+    bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
+    lib/andon/               command が読む資材（中身のソースは internal/<sub>）。sub-command: task・chief-of-staff・chief-engineer・courier・gate・triage・publish・delegate・boot・init（言語は §2.7）
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・glossary
     environment.md           AI 用: 建屋の環境メモ（エージェントの設定ファイルが @ で読む）
     templates/<profile>.md   プロファイル（端末の土台の template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
@@ -503,7 +503,8 @@ andon/
     andon.toml  Dockerfile  bin/bootstrap  .aqua/local.yaml  local/setup.sh
     compose.override.yaml  AGENTS.local.md  gate.local.json  templates.local/  .ssh/  wiki/
     projects/<slug>/delegation.json  委譲の例（型 work。§1.10）
-  cmd/kanban/                台帳の CLI（Go。移したら。名前は §3.5。go.mod は repo の根）
+  cmd/andon/  internal/      andon の Go のソース（cmd/andon が入口、internal/<sub> が中身。go.mod は repo の根）
+  cmd/kanban/                台帳の CLI（Go。移したら。名前は §3.5）
   tests/                     テスト（bash。偽の hc・試しの台帳・schema の検証・image のビルド。Go は go test）
   .github/workflows/         image を焼く（ghcr）・tests
 ```
