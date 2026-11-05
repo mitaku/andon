@@ -5,7 +5,7 @@
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。
 #   5. statusline が JSON を読んで1行を出す。
-#   6. skill に書いた機械向けの手順（report.json・問いの JSON・task.yaml の予約キー）をそのまま回し、schema に通す。
+#   6. skill の機械向けの手順が command（andon task …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -80,7 +80,7 @@ case $out in *Sample*42%*) [ ! -s "$tmp/err" ] && pass "statusline は model と
 out=$(printf '' | bash package/lib/andon/statusline)
 [ "$out" = Claude ] && pass "statusline は空の入力で Claude" || fail "statusline（空）: $out"
 
-# === 6. skill の機械向けの手順（skill の中の ``` の塊をそのまま抜いて回し、schema に通す） ===
+# === 6. skill の機械向けの手順（command を指す。skill の中の ``` の塊の例は schema に通す） ===
 # block <file> <1行目の頭> … 1行目が「<頭>」で始まる ``` の塊（字下げを除く）
 block() { awk -v h="$2" '
   /^ *```/ { if (inb) { exit } ; fence = 1; next }
@@ -89,60 +89,17 @@ block() { awk -v h="$2" '
 export ANDON_HOME=$PWD/package ANDON_SCHEMA=$PWD/schema
 chk() { python3 package/lib/andon/schema_check.py validate "schema/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
 
-# 偽の deck: root は $tmp/proj、ask は stdin と引数を控えて <id>#1
-mkdir -p "$tmp/bin" "$tmp/proj" "$tmp/git"
-cat >"$tmp/bin/deck" <<'DECK'
-#!/usr/bin/env bash
-case $1 in
-  root) echo "$FAKE_ROOT" ;;
-  ask) printf '%s\n' "$*" >"$FAKE_ROOT/ask.args"; cat >"$FAKE_ROOT/ask.text"; echo "$2#1" ;;
-  *) exit 9 ;;
-esac
-DECK
-chmod +x "$tmp/bin/deck"
-git -C "$tmp/git" init -q && git -C "$tmp/git" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m x
-head_sha=$(git -C "$tmp/git" rev-parse HEAD)
-
-rr_blk=$(block package/skills/worker/SKILL.md '# review_request')
-rep_blk=$(block package/skills/worker/SKILL.md '# report.json')
-q_blk=$(block package/skills/worker/SKILL.md '# 問い')
-[ -n "$rr_blk" ] && [ -n "$rep_blk" ] && [ -n "$q_blk" ] && pass "worker skill に review_request・report.json・問いの手順がある" || fail "worker skill の手順の塊が見つからない"
-
-runblk() { # runblk <説明> <前置き> <塊…> — $tmp/git で、偽の deck を先に置いて回す
-  local desc=$1 pre=$2; shift 2
-  (cd "$tmp/git" && PATH="$tmp/bin:$PATH" FAKE_ROOT="$tmp/proj" bash -euc "$pre"$'\n'"$(printf '%s\n' "$@")") >"$tmp/run" 2>&1 \
-    || { fail "$desc（回らない: $(head -3 "$tmp/run")）"; return 1; }
-}
-lib=$tmp/proj/.flightdeck/tasks/S-1/library
-if runblk "report.json（PR・レビュー依頼・見送り・次）" 'id=S-1 pr=https://github.com/example/sample-site/pull/3
-waived='"'"'[{"severity":"minor","file":"a.go","line":2,"reason":"起きない"}]'"'"' next='"'"'[{"to":"chief-of-staff","text":"マージ後に finish"}]'"'"'' "$rr_blk" "$rep_blk"; then
-  if chk report "$lib/report.json" && jq -e --arg h "$head_sha" '.commit == $h and .pr != null and .review_request.round == 1 and .review_request.limit == 2 and .review_request.previous == null and .review_request.commit == $h and .review_request.extra == false and (.waived | length) == 1 and (.next[0].to == "chief-of-staff") and (has("remember") | not)' "$lib/report.json" >/dev/null
-  then pass "worker の手順の report.json（PR・review_request・waived・next）が report.schema.json に合う"
-  else fail "report.json: $(head -1 "$tmp/why") $(cat "$lib/report.json")"; fi
-fi
-if runblk "report.json（追加の回）" 'id=S-1 pr=https://github.com/example/sample-site/pull/3' "$(printf '%s\n' "$rr_blk" | sed "s/^round=1 limit=2 reviewer=codex-review previous=null\$/round=3 limit=2 reviewer=claude-review previous='\"$head_sha\"'/")" "$rep_blk"; then
-  chk report "$lib/report.json" && jq -e --arg h "$head_sha" '.review_request.extra == true and .review_request.previous == $h and .review_request.reviewer == "claude-review"' "$lib/report.json" >/dev/null \
-    && pass "追加の回（round > limit）は extra: true・previous つきで schema に合う" || fail "追加の回: $(cat "$lib/report.json")"
-fi
-if runblk "report.json（PR 前・頼まない）" 'id=S-1' "$rep_blk"; then
-  chk report "$lib/report.json" && jq -e 'keys == ["commit"]' "$lib/report.json" >/dev/null \
-    && pass "何も無いときの report.json は commit だけで schema に合う" || fail "空の report.json: $(cat "$lib/report.json")"
-fi
-if runblk "問い" 'id=S-1' "$q_blk"; then
-  if chk question "$lib/questions/1.json" && grep -qx 'ask S-1 - --kind users' "$tmp/proj/ask.args" && grep -q '^推奨案: <推奨案>$' "$tmp/proj/ask.text"
-  then pass "worker の手順の問いは questions/<n>.json（question.schema.json）と台帳の text・kind になる"
-  else fail "問い: $(head -1 "$tmp/why") $(cat "$tmp/proj/ask.args" 2>/dev/null)"; fi
-fi
-if runblk "問い（line）" 'id=S-1' "$(printf '%s\n' "$q_blk" | sed 's/--arg kind users/--arg kind line/')"; then
-  grep -qx 'ask S-1 -' "$tmp/proj/ask.args" && chk question "$lib/questions/1.json" \
-    && pass "kind: line の問いは JSON にだけ書き、台帳には kind を渡さない" || fail "問い（line）: $(cat "$tmp/proj/ask.args")"
-fi
-rm -f "$tmp/proj/ask.args" "$lib/questions/1.json"
-if (cd "$tmp/git" && PATH="$tmp/bin:$PATH" FAKE_ROOT="$tmp/proj" bash -euc "id=S-1"$'\n'"$(printf '%s\n' "$q_blk" | sed 's/, {label: \$other}//')") >"$tmp/run" 2>&1; then
-  fail "選択肢が1つの問いが通った"
-elif [ ! -e "$tmp/proj/ask.args" ] && [ ! -e "$lib/questions/1.json" ]; then
-  pass "形の壊れた問い（選択肢が1つ）は schema で止まり、台帳に置かない"
-else fail "形の壊れた問いが台帳に置かれた"; fi
+# 担当の機械向けの手順は command（andon task …）。skill に JSON を手で書く手順・一致を手で確かめる手順が残っていない
+w=package/skills/worker/SKILL.md
+for c in 'andon task report' 'andon task review-request' 'andon task ready' 'andon task ask' 'andon task show'; do
+  grep -q "$c" "$w" && pass "worker skill は $c を使う" || fail "worker skill に $c が無い"
+done
+left=$(grep -nE 'schema_check|report\.json"? *$|> "\$lib/report\.json"|questions/\$\{n|一致を確かめる|headRefOid' "$w" || true)
+[ -z "$left" ] && pass "worker skill に report.json・問いの JSON を手で書く手順と、一致を手で確かめる手順が無い" || fail "手の手順が残る: $left"
+# skill の問いの例（andon task ask の stdin）は question.schema.json に合う
+q_blk=$(block "$w" 'andon task ask "$id" -' | sed '1d;$d')
+printf '%s\n' "$q_blk" >"$tmp/q.json"
+[ -n "$q_blk" ] && chk question "$tmp/q.json" && pass "worker skill の問いの例は question.schema.json に合う" || fail "問いの例: $(head -1 "$tmp/why" 2>/dev/null) $q_blk"
 
 # Chief of Staff の task.yaml の予約キー: 全部書き、task-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# task.yaml の予約キー' | grep '^deck set ')
@@ -152,14 +109,14 @@ if chk task-keys "$tmp/keys.json" && jq -e 'keys == ["merge","must_fix","review"
 else fail "Chief of Staff の deck set: $set_line"; fi
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
-grep -q 'jq .review_request tasks/<id>/library/report.json' package/skills/chief-of-staff/SKILL.md \
-  && pass "Chief of Staff はレビュー依頼を report.json から読む" || fail "chief-of-staff がレビュー依頼を report.json から読まない"
+grep -q 'andon task show <id>` の `report.review_request`' package/skills/chief-of-staff/SKILL.md && grep -q 'andon gate <id> --dry-run' package/skills/chief-of-staff/SKILL.md \
+  && pass "Chief of Staff はレビュー依頼を andon task show で読み、検収の照合を andon gate --dry-run にさせる" || fail "chief-of-staff がレビュー依頼・検収を command で読まない"
 
 # Chief Engineer: worktree で文書の PR と report.json を同じタスクから返す。問いは問いの JSON
 ce=package/skills/chief-engineer/SKILL.md
 grep -q 'cwd は案件の repo の自分の worktree' "$ce" && grep -q '`pr`＝文書の PR' "$ce" && ! grep -q 'tasks/<id>/library/<題' "$ce" \
   && pass "Chief Engineer は worktree で文書の PR と report.json を返す" || fail "chief-engineer の渡し方"
-grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -q 'worker skill §5 の1の手順で、問いの JSON' package/skills/ask-one-by-one/SKILL.md \
+grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -q 'andon task ask "$id" -' package/skills/ask-one-by-one/SKILL.md \
   && pass "Chief Engineer と Chief of Staff の問いは問いの JSON の手順を使う" || fail "問いの JSON の手順を指していない"
 left=$(grep -nE 'deck ask [^-]*"<|deck set <id> pr=' package/skills/*/SKILL.md || true)
 [ -z "$left" ] && pass "skill に JSON を通らない deck ask と task.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
