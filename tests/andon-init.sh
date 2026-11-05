@@ -56,10 +56,23 @@ grep -q '^+ docker compose --project-name andon-x --project-directory .* -f .and
 grep -q '^+ docker compose .* exec .* dev herdr$' "$tmp/out" && pass "入口は herdr" || fail "enter: $(cat "$tmp/out")"
 
 sandbox bash bin/bootstrap --dry-run host-install >"$tmp/out" 2>"$tmp/err"; r=$?
-[ "$r" = 0 ] && grep -q "install -m 755 $home/.local/bin/andon-up" "$tmp/out" && [ ! -e "$home/.local" ] && pass "host-install --dry-run は HOME に書かない" || fail "host-install --dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"
+[ "$r" = 0 ] && grep -q "install -m 755 $home/.local/bin/andon-up" "$tmp/out" && [ ! -e "$home/.local" ] && [ ! -e "$home/.config" ] && pass "host-install --dry-run は HOME に書かない" || fail "host-install --dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"
 echo SSH_PORT=2299 >.env
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && [ -x "$home/.local/bin/andon-up" ] && [ -f "$home/.config/herdr/config.toml" ] && pass "host-install は andon-up と herdr の設定を置く（偽の HOME）" || fail "host-install: rc=$r $(cat "$tmp/out" "$tmp/err")"
+mod=$home/.config/herdr-app/mods/andon
+cmp -s "$mod/main.js" "$andon_root/package/host/andon/main.js" && cmp -s "$mod/mod.json" "$andon_root/package/host/andon/mod.json" \
+  && pass "host-install は App mod を置く" || fail "App mod が違うか無い"
+echo '// personal' >"$mod/main.js"
+rm "$mod/mod.json"
+sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
+grep -qx '// personal' "$mod/main.js" && [ ! -e "$mod/mod.json" ] \
+  && pass "既存 mod は編集済み・不完全でもディレクトリごと触らない" || fail "既存 mod を変更した"
+rm -r "$mod"
+ln -s "$home/missing-mod" "$mod"
+sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
+[ -L "$mod" ] && [ ! -e "$home/missing-mod" ] \
+  && pass "リンク切れの mod も触らない" || fail "mod のリンクを変更した"
 conf=$home/.ssh/config.d/andon-x.conf
 grep -qx 'Host andon-x' "$conf" && grep -qx '  Port 2299' "$conf" && ! grep -qE '<(slug|ssh-port|portless-port)>' "$conf" && pass "ssh config に建屋の名前と .env の番号" || fail "ssh config: $(cat "$conf" 2>&1)"
 echo '# 人が書いた' >"$home/.config/herdr/config.toml"

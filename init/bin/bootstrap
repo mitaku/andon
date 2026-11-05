@@ -8,7 +8,7 @@
 #   bin/bootstrap logs           起動の記録を追う
 #   bin/bootstrap status         状態を見る
 #   bin/bootstrap rebuild        イメージを作り直して入れ替える（Dockerfile の FROM を上げたあと）
-#   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定）を置く
+#   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod）を置く
 #   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
 #
 # compose.yaml は建屋の repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
@@ -152,6 +152,17 @@ host_install() {
   place "$src/herdr-config.toml" "$HOME/.config/herdr/config.toml" 644
   place "$tmp/ssh_config" "$HOME/.ssh/config.d/$project.conf" 600
   place "$src/cloud-init.yaml" .andon/cloud-init.yaml 644
+  # A personal mod is a unit: even an incomplete existing folder is left alone.
+  local mod="$HOME/.config/herdr-app/mods/andon"
+  if [ -e "$mod" ] || [ -L "$mod" ]; then
+    echo "! $mod はすでにある（触らない）"
+  elif [ "$dry" = 1 ]; then
+    echo "+ cp -R $src/andon $mod"
+  else
+    mkdir -p "${mod%/*}"
+    cp -R "$src/andon" "$mod"
+    echo "+ $mod"
+  fi
   echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM に建屋を立てるとき、<…> を埋めて渡す）"
   if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then
     echo "~/.ssh/config の先頭に1行足す: Include config.d/*"

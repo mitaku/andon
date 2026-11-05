@@ -75,6 +75,22 @@ bin/bootstrap host-install
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
 - **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。
 
+### Herdr App の名前付け mod
+
+同じ `host-install` が `~/.config/herdr-app/mods/andon/` に名前付け mod を置く。既存のディレクトリは、不完全でも中身を補わずそのまま残す。更新するときは退避してから打ち直す。
+
+App の標準レイアウトは mod の追加だけでは起動しない。人が App の command palette でレイアウトを複製し、その個人用レイアウトの常に表示する row または column の `children` に次の block を1つ加える（他の block は残す）。`host-install` はレイアウトを変更しない。
+
+```json
+{ "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }
+```
+
+この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check ~/.config/herdr-app/mods/andon` を実行し、個人用レイアウトで `sample-site / CoS`・`sample-site / CE A-1 設計`・`sample-site work / A-2 修正` が見えることを確認する。App のエラーは `herdr-app status` で見る。
+
+mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。役ごとのアイコンは含まない。
+
+API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
+
 ## 5. 建屋に入って、立ち上がりを確かめる
 
 ```bash
