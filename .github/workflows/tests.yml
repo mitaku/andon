@@ -3,16 +3,23 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*.*.*']
 permissions:
   contents: read
 jobs:
   tests:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      - name: tests/*.sh
+      - uses: docker/setup-buildx-action@v3
+      - name: tests/*.sh (including image build and runtime)
         env:
           ANDON_PUBLIC_DENYLIST_CONTENT: ${{ secrets.ANDON_PUBLIC_DENYLIST }}
+          GH_TOKEN: ${{ secrets.DECK_RELEASE_TOKEN }}
+          DECK_REPOSITORY: ${{ vars.DECK_REPOSITORY || format('{0}/herdr-flightdeck', github.repository_owner) }}
         run: |
           set -e
           if [ -n "$ANDON_PUBLIC_DENYLIST_CONTENT" ]; then
@@ -20,3 +27,23 @@ jobs:
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
           for f in tests/*.sh; do echo "== $f"; bash "$f"; done
+      - name: Publish to GHCR
+        if: github.event_name == 'push'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          IMAGE_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${IMAGE_OWNER,,}/andon"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          fi
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          docker tag andon:test "$image:$GITHUB_SHA"
+          docker push "$image:$GITHUB_SHA"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            docker tag andon:test "$image:$GITHUB_REF_NAME"
+            docker push "$image:$GITHUB_REF_NAME"
+          fi

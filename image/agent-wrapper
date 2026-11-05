@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+tool="$(basename "$0")"
+node_bin="$(dirname "$(AQUA_GLOBAL_CONFIG=/opt/andon-aqua/aqua.yaml aqua which node)")"
+exec env PATH="${node_bin}:${PATH}" "/opt/andon-tools/bin/${tool}" "$@"
