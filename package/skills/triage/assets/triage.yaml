@@ -1,0 +1,16 @@
+# ルーチン triage の例（triage skill）。
+# 台帳は git の外なのでパッケージからは降りない。人の go で、Chief of Staff が
+# projects/<slug>/.flightdeck/routines/triage.yaml に写す（schedule は config.yaml の timezone で読む）。
+# 周期（週1・月曜 9:00）は仮の決定。止めるときは人が paused: true を書く。
+title: "トリアージ（既定のゴール: 台帳の未処理を 0 にする）"
+profile: sonnet
+brief: |
+  # トリアージ
+  ゴール: 前回のトリアージのあとに増えた項目を全部仕分け、台帳の未処理を 0 にする（既定のゴール）。
+  やること: /opt/andon/skills/triage/SKILL.md を読み、その手順で `andon triage collect` → 項目ごとに確かめて仕分け →
+  tasks/<自分の id>/library/decisions.json と報告（要約表）→ deck report → deck review。
+  守ること: 読むだけ。台帳にもリポジトリにも書かない（書くのは自分の tasks/<id>/library/ と報告）。エージェントを起こさない。
+  `andon triage apply` は --dry-run だけ打つ。Chief of Staff へ hc send しない。
+  完了条件: decisions.json が仕分けた全項目に decision と理由を持ち、`andon triage apply <自分の id> --dry-run` が通る。
+schedule: "0 9 * * 1"
+open: 1
