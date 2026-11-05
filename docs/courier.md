@@ -195,6 +195,8 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 - **台帳に書くときの `by` は `terminal:courier`**（`HC_TERMINAL_ID=courier` で打つ）。ゲートと `andon task ready` は、作成の行の `by` が Chief of Staff かクーリエのレビュアーを数える。
 - **レビュアーの依頼書に結果の宛先を書く**: 元のタスク（`parent`）の担当（`task.yaml` の `agent`）だけ。Chief of Staff・クーリエへは送らせない（Chief of Staff へはクーリエが通知で届ける）。
 - **上限を超えた回**は今の `review_rounds` で決める。Chief of Staff が `review_rounds` を上げれば、次の見回りで起こす。
+- **マージの直前に読み直す**: タスクの予約キー・履歴・委譲がゲートのときと違えば打たず、次の見回りでゲートから回し直す。
+- **起こしそこねたら続きから**: 最初のメッセージが届くまでは起こしたことにしない。一時の失敗（fetch・`hc run`・信頼の画面）は控えに分けて持ち、次の見回りで済んだ段の続きからやり直す（二重に起こさない）。
 - **片付け**は `andon task finish <id>` の1つ（レビュアーの子タスクと detached worktree も片付く）。人がマージしたときは Chief of Staff が同じ command を打つ。
 - **安全側**: `task.yaml` の値が読めない・履歴の照合が合わない（contract.md §2）・委譲が読めないときは、起こさない・マージしない。ゲートは `needs_human` を返し、クーリエはそれを問いにするだけ。
 - 不可逆な操作（デプロイ・公開・削除）は、command が委譲を読んでから打つ（design.md §1.10）。範囲外なら command が止まって理由を1行出し、クーリエはそれを通知にする。
