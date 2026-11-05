@@ -31,4 +31,12 @@ ok "kanban --help と deck --help が同じ"
 "$kanban" --version | grep -qE '^kanban [^ ]+$' || die "kanban --version: $("$kanban" --version)"
 ok "kanban --version（$("$kanban" --version)）"
 
+# 4. 形式の文書と schema が指す文書が repo にある（写す前の repo の concept.md・mod-design.md などを指したままにしない）
+#    brief.md・report.md・coordinator.md は台帳の中のファイルの名前、docs/ledger-format.md は写す元（herdr-flightdeck）の文書なので除く
+refs=$(grep -ohE '(docs/)?[A-Za-z0-9_-]+\.md' schema/ledger/*.json docs/ledger.md $(ls cmd/kanban/*.go | grep -v _test.go) | grep -vxE 'brief\.md|report\.md|coordinator\.md|docs\/ledger-format\.md' | sort -u)
+for r in $refs; do
+  [ -f "$r" ] || [ -f "docs/$r" ] || die "指す先が無い文書: $r（schema/ledger・docs/ledger.md・cmd/kanban）"
+done
+ok "schema/ledger・docs/ledger.md・cmd/kanban が指す文書は全部ある"
+
 echo "kanban: $pass ok"

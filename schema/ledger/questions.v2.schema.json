@@ -17,7 +17,7 @@
         "type": "string"
       },
       "kind": {
-        "description": "Which kind of decision point (concept.md D18), or line: a change to the line itself (the gates, roles and rules the work runs on).",
+        "description": "Which kind of decision point (docs/design.md §1.3), or line: a change to the line itself (the gates, roles and rules the work runs on).",
         "enum": ["business", "users", "promise", "irreversible", "line"]
       },
       "status": {
