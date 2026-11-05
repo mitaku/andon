@@ -39,8 +39,9 @@ ARG PORTLESS_VERSION=0.15.5
 RUN npm config set prefix /opt/andon-tools \
  && npm install -g "playwright@${PLAYWRIGHT_VERSION}" "portless@${PORTLESS_VERSION}" \
  && npm cache clean --force \
- && rm -rf "${HOME}/.npm"
-COPY --chmod=755 image/agent-wrapper /opt/andon-home/.local/bin/agent-wrapper
+ && rm -rf "${HOME}/.npm" \
+ && mkdir -p "${HOME}/.local/bin"
+COPY --chown=andon:andon --chmod=755 image/agent-wrapper /opt/andon-home/.local/bin/agent-wrapper
 RUN ln -s agent-wrapper "${HOME}/.local/bin/portless"
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/andon-home/.cache/ms-playwright
 ARG INSTALL_BROWSERS=1
