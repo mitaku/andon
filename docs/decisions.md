@@ -210,3 +210,14 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | 台帳の CLI は `worktree` を HOME の下なら `~/…` で書く（`deck start`。今の `kanban start` も同じ）。`andon task` は読むときに HOME に開く | Y-86 で見つけた（本物の台帳の半分以上が `~/` 形） |
 | 2026-11-05 | マージの直前に、タスクの予約キー・履歴（`by`）・委譲を読み直す。ゲートのときと1つでも違えば（`merge: person` に変わった・委譲の `merge` が変わった・review でなくなった）`gh pr merge` を打たず、控えに書かずに次の見回りでゲートから回し直す | P6a の独立レビュー 1 回目（Y-88）の major と Chief of Staff の方針 |
 | 2026-11-05 | レビュアーの起動は段（detached worktree・レビュアーのタスク・端末・最初のメッセージ）ごとに控えに書き、最初のメッセージが届くまで成功にしない。起こした（started）・起こさない（skipped。設定・上限・head 違い）・起こしそこねた（failed。fetch・`hc run`・最初のメッセージなどの一時の失敗）を分け、failed は次の見回りで済んだ段の続きから（タスクも端末も二つにしない。生きている端末へは最初のメッセージを送り直す）。3回続けば通知 `report` | 同上 |
+
+## 14. skill の配布（Chief Engineer のタスク Y-84。正は [skills-distribution.md](skills-distribution.md)）
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | skill の配布の範囲は「Andon（image）が届く所に届く」。建屋の中の継ぎ目だけ固め、public の読み手向けの配布（marketplace・`npx skills` の案内）はしない | skills-distribution.md 決めたこと 1 |
+| 2026-11-05 | Claude Code 系のプロファイルは `/opt/andon` を plugin `andon`（`package/.claude-plugin/plugin.json`）として `--plugin-dir` で読み、skill は `/andon:<name>`。`~/.claude/skills/andon-*` の symlink はやめる。Codex など `.agents/skills` を読むハーネス向けには boot が `~/.agents/skills/andon-<name>` の symlink を張る | skills-distribution.md 決めたこと 2 |
+| 2026-11-05 | Claude Code 系のプロファイルは `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md` で役の skill を system prompt に足し、最初のメッセージの「先に読む」の行を消す。`--agent` は採らない（system prompt の置き換えの危険）。Codex 系は最初のメッセージで絶対パスを指す形のまま | skills-distribution.md 決めたこと 3 |
+| 2026-11-05 | 作業側の別マシンは Andon の image で立てる。skill を `andon` の binary に埋めない | skills-distribution.md 決めたこと 4 |
+| 2026-11-05 | PR 時の「skill が打つ command が `andon help` にあるか」の検査は入れない。版の照合は `machine` を建てるとき `andon version` の比較として添え、`ANDON_HOME` が checkout のときは照合しない（boot が template の `/opt/andon` を `ANDON_HOME` に置き換える） | skills-distribution.md 決めたこと 5 |
+| 2026-11-05 | Skills over MCP（クーリエの HTTP 同居も）・独自エージェント・TanStack Intent／npm 同梱はやらない。再開の条件は skills-distribution.md の「やらないこと」 | skills-distribution.md やらないこと |

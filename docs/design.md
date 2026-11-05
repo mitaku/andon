@@ -519,8 +519,8 @@ andon/
 | パッケージ | 効く場所 | 写し方（`andon boot` が毎起動） |
 |---|---|---|
 | `/opt/andon/bin/andon`・`lib/` | PATH | イメージの `/usr/local/bin/andon` → `/opt/andon/bin/andon`（焼く。volume に触らない） |
-| `/opt/andon/skills/*` | Claude Code の skill。最初のメッセージの絶対パス | `~/.claude/skills/andon-*` → `/opt/andon/skills/*` の symlink を boot が張る。利用者の自作 skill は別の symlink |
-| `/opt/andon/templates/*.md` ＋ 建屋の `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージに建屋の上書きを重ねる）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
+| `/opt/andon/skills/*`（＋ `/opt/andon/.claude-plugin/plugin.json`） | Claude Code は plugin `andon`（`/andon:<name>`）。Codex など `.agents/skills` を読むハーネスは `~/.agents/skills/andon-<name>` | Claude Code 系のプロファイルの command が `--plugin-dir /opt/andon` でその場で読む（symlink は張らない）。Codex 向けは `~/.agents/skills/andon-<name>` → `/opt/andon/skills/<name>` の symlink を boot が張る。利用者の自作 skill には触らない。設計は [skills-distribution.md](skills-distribution.md) |
+| `/opt/andon/templates/*.md` ＋ 建屋の `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージに建屋の上書きを重ねる。本文の `/opt/andon` は `ANDON_HOME` に置き換える）。Claude Code 系の command に `--plugin-dir /opt/andon` と `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md`（役の skill を system prompt に足す。[skills-distribution.md](skills-distribution.md)）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
 | `/opt/andon/environment.md` ＋ 建屋の `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
 | `/opt/andon/settings.json`（deny・allow・hooks）＋ `andon.toml` | `/etc/claude-code/managed-settings.json` | boot が生成して置く（root）。managed は最優先でセッションから書き換えられない。設定ファイルを HOME に symlink する仮設の形は**やめる** |
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |
