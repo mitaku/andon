@@ -218,6 +218,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 |---|---|---|
 | 2026-11-05 | skill の配布: Claude Code 系は `/opt/andon` を plugin `andon` として `--plugin-dir` で読み（`/andon:<name>`）、役の skill を `--append-system-prompt-file` で system prompt に足す。Codex など `.agents/skills` を読むハーネス向けは boot が `~/.agents/skills/andon-<name>` の symlink。作業側の別マシンは image で立てる。PR 時の stale 検査は入れず、版の照合は `machine` と一緒（`ANDON_HOME` が checkout なら照合しない）。やらないこと: Skills over MCP・独自エージェント・marketplace での配布・Intent／npm 同梱 | [ADR-0001](adr/0001-skills-distribution.md) |
 | 2026-11-05 | Chief Engineer の題は ADR（`docs/adr/NNNN-<題>.md`。番号と状態つき。形は design.md §1.8 のまま）。decisions.md には ADR 1本につき1行。部品の生きた設計（courier・image・ledger）と核（design・contract・decisions・operate）は `docs/` 直下のまま | 人の決定 2026-11-05（Y-84 の対話） |
+| 2026-11-05 | Herdr App の Space と tab: 建屋から指す口は hc のラベル `herdr.space`・`herdr.tab` だけで、書くのは Andon の command とクーリエ。Space はプロジェクト × 2 段（指揮側 `andon-<slug>`・作業側 `andon-<slug>-work`。指揮側は試作の結果で「マシンに 1 つ」に決め直す候補）、tab はタスク 1 つ（レビュアーは担当と同じ tab）。人が起こす 2 役は command がラベルと attach まで一度にする。片付けは空になって消えるのに任せる。実装の前に試作。仮設の `yard task` には入れない。やらないこと: ペインの分割・`herdr-app` や建屋の `herdr` CLI・Chief of Staff による Space の操作・`where` | [ADR-0002](adr/0002-herdr-spaces.md)（Y-105 の対話） |
 
 ## 15. P6b での決定
 

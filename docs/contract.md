@@ -223,6 +223,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 | 担当・レビュアーの端末の名前 | `<slug>-<id を小文字>`（`a-z 0-9 - _`、32字まで） | `andon task start`・クーリエ | クーリエ・ボード |
 | Chief of Staff の端末の名前 | `<slug>-cos`（cwd は台帳の root） | `andon chief-of-staff` | `andon chief-of-staff`（動いているものを使うときに名前と cwd を照らす） |
 | ラベル | `role=chief-of-staff \| courier \| chief-engineer`・`project=<slug>`・`task=<id>`・`title=<題>`・`news.replied=<turn>` | command・クーリエ | ボード・クーリエ・フック（自分のタスクを引く） |
+| Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（持ち主は Herdr App。id は command が決める: Space `andon-<slug>`・`andon-<slug>-work`、tab `andon-<slug>-<id>`・`andon-<slug>-cos`。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・クーリエ（レビュアーに担当と同じ値） | Herdr App |
 | template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon task start`（`hc templates` で存在を確かめる） |
 | 台帳の `agent` | 端末の address。作業側が別のマシンなら `<machine>/t7`（相談 F4） | `kanban start`（担当）・クーリエ（作業側の代筆） | クーリエ・ボード |
 | 起こし方 | `hc run --bg --outlive-parent --no-notify --name … --label … --cwd … [--on <machine>] <profile> "<最初の3行>"` | `andon task start`・クーリエ | — |
