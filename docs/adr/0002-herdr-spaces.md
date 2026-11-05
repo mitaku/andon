@@ -75,7 +75,7 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。人が番号で答�
 16. **2026-11-05 名前の規則。** Space は `<slug>`（指揮側）と `<slug> work`（作業側）。tab は Chief of Staff が `CoS`、Chief Engineer が `CE <id> <題>`、担当が `<id> <題>`（レビュアーは同じ tab なので付けない）。題は台帳の `title`（ラベル `title=` に既にある）。
 17. **2026-11-05 Chief of Staff が人に端末を指す言い方は「<Space 名> / <tab 名>」**（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site work / A-12 ログインの直し`）。address は末尾に添えるだけ。command の出力も同じ形。
 18. **2026-11-05 Chief of Staff と Chief Engineer のアイコンを役ごとに変える（人の希望）。** App はプログラム名（状態報告の `app`、無ければ argv の先頭）で `programs.json` の項目を引き、アイコンはそこで決まる。手段は実装で確かめる: 役ごとの wrapper 名（`andon-cos` など）＋ `host-install` が置く `programs.json` の項目が第一候補、効かなければ mod で描くか upstream に頼む。
-19. **2026-11-05 受け入れ条件 3 の「`--on <machine>` でも同じ」は、作業側を別のマシンに出すタスクへ回す（Y-108 のレビュー Y-111 の指摘。人が答えた）。** `andon task start` は今までどおり `machine` 付きのタスクを起こさずに止まる（[decisions.md](../decisions.md) の 2026-11-05「machine があるタスクを起こさずに止まる」）。ラベルの値は slug・id・題だけで決まり machine に依らない（`internal/task` の `workLabels`）ので、そのタスクは `hc run --on` を足すだけでよい。
+19. **2026-11-05 受け入れ条件 3 の「`--on <machine>` でも同じ」は、作業側を別のマシンに出すタスクへ回す（Y-108 のレビュー Y-111 の指摘。Chief of Staff が決めた）。** `andon task start` は今までどおり `machine` 付きのタスクを起こさずに止まる（[decisions.md](../decisions.md) の 2026-11-05「machine があるタスクを起こさずに止まる」）。ラベルの値は slug・id・題だけで決まり machine に依らない（`internal/task` の `workLabels`）ので、そのタスクは `hc run --on` を足すだけでよい。
     理由: `--on` を渡すだけでは、指揮側に作った worktree（repo の無いタスクは `tasks/<id>/`）が別のマシンに無く、cwd が成り立たない。別のマシンの worktree の作り方は design.md §1.5 の「その先」で決める。
     捨てた案: この題で `hc run --on` を通す（作業側の置き場の設計を先取りする）。
 
