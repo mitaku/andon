@@ -38,15 +38,18 @@ docker pull ghcr.io/<owner>/andon:<版>      # <版> は main の 40桁の commi
 
 ```bash
 mkdir -p ~/.local/bin ~/src
-docker run --rm ghcr.io/<owner>/andon:<版> cat /opt/andon/bin/andon > ~/.local/bin/andon
-chmod 755 ~/.local/bin/andon
+# 一時ファイルに取り出してから置き換える（取り出しが落ちても、前の andon を空にしない）
+docker run --rm ghcr.io/<owner>/andon:<版> cat /opt/andon/bin/andon > ~/.local/bin/andon.new \
+  && install -m 755 ~/.local/bin/andon.new ~/.local/bin/andon && rm ~/.local/bin/andon.new
+# image の版と揃っているか（2つの sha256 が同じなら揃っている）
+docker run --rm ghcr.io/<owner>/andon:<版> sha256sum /opt/andon/bin/andon ; sha256sum ~/.local/bin/andon
 cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 ```
 
-- image を上げたら取り出し直す（ホストの `andon` は image の版と揃える）。`~/.local/bin` が PATH に無ければ足す。
+- image を上げたら取り出し直す（ホストの `andon` は image の版と揃える。揃っているかは上の sha256 の2行で比べる）。`~/.local/bin` が PATH に無ければ足す。
 - `--owner` は `andon.toml` の `owner`。委譲のファイル（`delegation.json`）をこの email の commit だけが信じられるようにする。
 - **通ったら見えるもの**: `~/src/andon-home/` に `Dockerfile`（`FROM` ＋ 2行）・`andon.toml`（`slug = "home"`）・`bin/bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/`・`projects/`。標準出力に `建屋の repo を作った`。パッケージのファイルは無い（design.md §5.1 の 1）。
-- **落ちたら見る所**: `はすでにあり、空でない` — 上書きしない。別の `--dir` か、中身を退避する。`slug は英小文字・数字・-` — slug の綴り。
+- **落ちたら見る所**: 取り出しの `docker run` が落ちた（`manifest unknown` など）— 1 の pull を先に通す。`~/.local/bin/andon.new` が残っていれば消す。`はすでにあり、空でない` — 上書きしない。別の `--dir` か、中身を退避する。`slug は英小文字・数字・-` — slug の綴り。
 - 建屋の repo を git で持つなら `git init` して commit する（`.ghq/`・`.env` などは雛形の `.gitignore` が外している）。
 
 ## 3. 起動する（`bin/bootstrap`）
