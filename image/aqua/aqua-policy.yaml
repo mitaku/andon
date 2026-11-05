@@ -1,6 +1,6 @@
 registries:
   - type: standard
-    ref: v4.579.0
+    ref: semver("= 4.579.0")
   - name: andon
     type: local
     path: registry.yaml
