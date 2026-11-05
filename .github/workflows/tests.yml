@@ -1,0 +1,22 @@
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: tests/*.sh
+        env:
+          ANDON_PUBLIC_DENYLIST_CONTENT: ${{ secrets.ANDON_PUBLIC_DENYLIST }}
+        run: |
+          set -e
+          if [ -n "$ANDON_PUBLIC_DENYLIST_CONTENT" ]; then
+            export ANDON_PUBLIC_DENYLIST="$RUNNER_TEMP/public-denylist"
+            printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
+          fi
+          for f in tests/*.sh; do echo "== $f"; bash "$f"; done
