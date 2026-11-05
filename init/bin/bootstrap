@@ -61,12 +61,19 @@ require_docker() {
 
 # extract <イメージの中の /opt/andon からのパス> <置き場>
 # ANDON_IMAGE_ROOT があれば、そのディレクトリをイメージの根として読む（試験用の偽のイメージ）。
+# --dry-run では何も書かない（打つものを出すだけ）。
 extract() {
+  if [ "$dry" = 1 ]; then
+    if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+      run cp -R "$ANDON_IMAGE_ROOT/opt/andon/$1" "$2"
+    else
+      run docker cp "<docker create $image>:/opt/andon/$1" "$2"
+    fi
+    return 0
+  fi
   mkdir -p "$(dirname "$2")"
   if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
     cp -R "$ANDON_IMAGE_ROOT/opt/andon/$1" "$2"
-  elif [ "$dry" = 1 ]; then
-    run docker cp "<docker create $image>:/opt/andon/$1" "$2"
   else
     local cid
     cid=$(docker create "$image")
@@ -76,11 +83,13 @@ extract() {
 }
 
 compose_file() {
+  if [ "$dry" = 1 ]; then
+    extract compose.yaml .andon/compose.yaml
+    return 0
+  fi
   rm -f .andon/compose.yaml.new
   extract compose.yaml .andon/compose.yaml.new
-  if [ -f .andon/compose.yaml.new ]; then
-    mv .andon/compose.yaml.new .andon/compose.yaml
-  fi
+  mv .andon/compose.yaml.new .andon/compose.yaml
 }
 
 dc() {
@@ -119,10 +128,18 @@ ensure_up() {
 # host_install は、イメージの /opt/andon/host/ からホストの置き場へ写す。今あるファイルは上書きしない。
 host_install() {
   local bin=${ANDON_HOST_BIN:-$HOME/.local/bin}
+  local src
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
-  extract host "$tmp/host"
-  [ -d "$tmp/host" ] || return 0 # --dry-run で、取り出しを打たなかった
+  if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+    src=$ANDON_IMAGE_ROOT/opt/andon/host # 偽のイメージは読むだけ（--dry-run でも中身を見て比べられる）
+  elif [ "$dry" = 1 ]; then
+    extract host "$tmp/host" # 打つものを出すだけ。中身が無いので、ここで終わる
+    return 0
+  else
+    extract host "$tmp/host"
+    src=$tmp/host
+  fi
   local ssh_port portless_port
   ssh_port=$(dotenv SSH_PORT 2222)
   portless_port=$(dotenv PORTLESS_PORT 1355)
@@ -130,12 +147,11 @@ host_install() {
     *[!0-9]*) die ".env の SSH_PORT・PORTLESS_PORT は数字だけ（いま: '$ssh_port' '$portless_port'）" ;;
   esac
   sed -e "s/<slug>/$slug/g" -e "s/<ssh-port>/$ssh_port/g" -e "s/<portless-port>/$portless_port/g" \
-    "$tmp/host/ssh_config" >"$tmp/ssh_config"
-  place "$tmp/host/andon-up" "$bin/andon-up" 755
-  place "$tmp/host/herdr-config.toml" "$HOME/.config/herdr/config.toml" 644
+    "$src/ssh_config" >"$tmp/ssh_config" # 一時ディレクトリ（建屋の repo と HOME の外）
+  place "$src/andon-up" "$bin/andon-up" 755
+  place "$src/herdr-config.toml" "$HOME/.config/herdr/config.toml" 644
   place "$tmp/ssh_config" "$HOME/.ssh/config.d/$project.conf" 600
-  mkdir -p .andon
-  cp "$tmp/host/cloud-init.yaml" .andon/cloud-init.yaml
+  place "$src/cloud-init.yaml" .andon/cloud-init.yaml 644
   echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM に建屋を立てるとき、<…> を埋めて渡す）"
   if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then
     echo "~/.ssh/config の先頭に1行足す: Include config.d/*"

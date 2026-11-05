@@ -35,9 +35,22 @@ find andon-x -name '*.tmpl' | grep -q . && fail "*.tmpl が残っている" || p
 [ "$r" = 1 ] && grep -q '上書きしない' "$tmp/err" && pass "空でないディレクトリには書かない" || fail "2回目: rc=$r $(cat "$tmp/err")"
 
 cd andon-x || exit 1
+# 建屋の repo の状態（種類・パス・中身）。--dry-run の前後で比べる
+state() { find . -printf '%y %p %m\n' | sort; find . -type f -exec sha256sum {} + | sort; }
+state >"$tmp/s0"
 sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && pass "bootstrap --dry-run は rc 0" || fail "dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"
-cmp -s .andon/compose.yaml "$andon_root/package/compose.yaml" && pass "compose.yaml をイメージから .andon/ に取り出す" || fail "compose.yaml を取り出していない"
+state >"$tmp/s1"
+cmp -s "$tmp/s0" "$tmp/s1" && pass "--dry-run は建屋の repo に何も書かない（.andon/ を作らない）" || fail "dry-run で変わった: $(diff "$tmp/s0" "$tmp/s1")"
+grep -q "^+ cp -R $img/opt/andon/compose.yaml .andon/compose.yaml$" "$tmp/out" && pass "compose.yaml をイメージから .andon/ に取り出す（と出す）" || fail "取り出し: $(cat "$tmp/out")"
+mkdir .andon && echo '# 前の残り' >.andon/compose.yaml.new && echo '# 前の compose' >.andon/compose.yaml
+state >"$tmp/s0"
+sandbox bash bin/bootstrap --dry-run >/dev/null 2>&1
+sandbox bash bin/bootstrap --dry-run rebuild >/dev/null 2>&1
+sandbox bash bin/bootstrap --dry-run host-install >/dev/null 2>&1
+state >"$tmp/s1"
+cmp -s "$tmp/s0" "$tmp/s1" && pass "--dry-run は .andon/ の今あるファイルを消さず書き換えない" || fail "dry-run で変わった: $(diff "$tmp/s0" "$tmp/s1")"
+rm -r .andon
 grep -q '^+ docker build -t andon-x:local ' "$tmp/out" && pass "イメージを andon-x:local で焼く" || fail "build: $(cat "$tmp/out")"
 grep -q '^+ docker compose --project-name andon-x --project-directory .* -f .andon/compose.yaml up -d$' "$tmp/out" && pass "compose の project は andon-x" || fail "up: $(cat "$tmp/out")"
 grep -q '^+ docker compose .* exec .* dev herdr$' "$tmp/out" && pass "入口は herdr" || fail "enter: $(cat "$tmp/out")"
@@ -52,6 +65,10 @@ grep -qx 'Host andon-x' "$conf" && grep -qx '  Port 2299' "$conf" && ! grep -qE 
 echo '# 人が書いた' >"$home/.config/herdr/config.toml"
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
 grep -qx '# 人が書いた' "$home/.config/herdr/config.toml" && pass "host-install は今あるファイルを上書きしない" || fail "上書きした"
+cmp -s .andon/cloud-init.yaml "$andon_root/package/host/cloud-init.yaml" && pass "host-install は cloud-init の雛形を .andon/ に置く" || fail "cloud-init.yaml が無い"
+echo '# 埋めた' >.andon/cloud-init.yaml
+sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
+grep -qx '# 埋めた' .andon/cloud-init.yaml && pass "host-install は編集済みの cloud-init.yaml を残す" || fail "cloud-init.yaml を上書きした"
 echo 'SSH_PORT=22/;s/x/y' >.env
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '数字だけ' "$tmp/err" && pass "host-install は数字でない番号で止まる" || fail "番号の検査: rc=$r $(cat "$tmp/out" "$tmp/err")"
@@ -62,7 +79,7 @@ sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q 'FROM を埋める' "$tmp/err" && pass "FROM が埋まっていなければ止まる" || fail "placeholder: rc=$r $(cat "$tmp/err")"
 
 if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
-  ANDON_IMAGE=andon-x:local ANDON_SLUG=x docker compose --project-directory "$PWD" -f .andon/compose.yaml config -q 2>"$tmp/err" &&
+  ANDON_IMAGE=andon-x:local ANDON_SLUG=x docker compose --project-directory "$PWD" -f "$andon_root/package/compose.yaml" config -q 2>"$tmp/err" &&
     pass "compose.yaml は docker compose が読める" || fail "docker compose config: $(cat "$tmp/err")"
 else
   echo "skip docker compose config（docker compose が無い）"
