@@ -1,6 +1,6 @@
 # ADR-0002: Herdr App の Space と tab への役の置き方（仕様・設計。2026-11-05。Chief Engineer のタスク Y-105）
 
-- 状態: **決定（2026-11-05）**。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改め（試作の結果を含む）は「決めたこと」に下から足す。
+- 状態: **決定（2026-11-05）**。同日、試作 S0 の結果で前提 8〜11 と決めたこと 10〜18 を足した（Chief Engineer のタスク Y-106。構造は変えていないので同じ ADR）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改め（試作の結果を含む）は「決めたこと」に下から足す。
 - 主題: Chief of Staff・Chief Engineer・担当とレビュアーを、人の Herdr App（herdrdev/herdr-app）の Space と tab にどう置くか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は端末のラベル（[contract.md](../contract.md) §8）。
 
@@ -20,6 +20,13 @@ Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュア�
 6. Andon の command は App の画面を動かす操作（select・focus・peek・attach）を打たない。`hc attach` は人が自分で打ったときだけ。これが「フォーカスを奪わない」の決まりの実体。
 7. Space は 1 マシンに属す（App の規則）。作業側を別マシンに出した担当はそのマシンの Space に出る。マシン横断の俯瞰は Space ではなくボードの仕事。
 
+S0 の結果を受けて 2026-11-05 に足した前提（Y-106。人が同意）。3 と 5 は 9 のとおり改める。
+
+8. 建屋は 1 コンテナ（App からは 1 machine）に N プロジェクト。プロジェクトごとに `projects/<slug>/` の台帳と Chief of Staff がいる。この文書の `<slug>` はプロジェクトの slug。
+9. **置き場（Space・tab の作成・配置・消滅）は Andon の command がラベルで擬似的に操作し、名前だけは建屋の外（人の App に入れた Andon の mod か、人）が付ける。** 建屋から名前を付ける口は無い（App は `herdr.space`・`herdr.tab` 以外のラベルを読まない。`where` は App の出力で入力ではない）。
+10. 人が端末を見つける手がかりは hc の address ではなく、Space 名・tab 名・端末の題の 3 つ。端末の題はプログラム（Claude Code）が会話から自分で付けるもので、Andon の command は決められない。
+11. ラベルで採用された pane と `hc attach` の pane は別物で、両方あれば二重に出る（App の仕様）。どちらかを捨てる。
+
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-05 Space はプロジェクト × 2 段。** `<slug>`（指揮側: Chief of Staff の tab と Chief Engineer の tab）と `<slug> work`（作業側: tab ＝ タスク）。
@@ -38,17 +45,45 @@ Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュア�
    捨てた案: 起こすたびに乱数の id（App の形に寄せる。戻る場所が無い）。
 7. **2026-11-05 実装の前に試作で確かめ、その結果で 1 の指揮側の割り方を決め直す。** 人の案: 同じ tab id の端末が App で並ぶ（事実上の split）なら、**マシンに 1 つの Space に全プロジェクトの Chief of Staff を並べる**形もある。試作（依頼書に切る案の S0）で「新しい id の Space を App が前に出すか・同じ tab id の 2 端末が並ぶか・空になった tab と Space が消えるか・attach との二重表示」を人が App で見て答え、結果をこの節に下から足す。1 の指揮側（`andon-<slug>`）はそれまで仮。作業側（`andon-<slug>-work`。tab ＝ タスク）は変えない。
    理由: 要実測が 4 つあり、どれも人の App を見ないと確かめられない。試してから決める（人 2026-11-05）。
+
+   **S0 の結果（2026-11-05。Chief of Staff が人の go で打ち、人が App で見た。読み解きは Y-106 で Herdr App の公開ソースと照らした）。** 打ったのは `hc run --bg --no-parent --no-notify --label herdr.space=andon-try --label herdr.tab=andon-try-1 -- sh` を 2 つ。
+   - (a) 人の見え方: 「新しい Space は出ない。2 つは『workspace』という名前の Space に出た」。**読み解き: Space は id `andon-try` で新しく作られていた。** App は知らない id の Space と tab をその id で作り、名前は付けない（`src/window.rs` の `adopt`）。名無しの Space の名前は「最初の端末の cwd で `git rev-parse --show-toplevel` した結果のフォルダ名」（repo でなければ cwd のフォルダ名。`src/model.rs` の `space_name`）で、試作の端末の cwd が建屋 repo の中だったので建屋 repo のフォルダ名が出た。名無しの tab は番号。画面は移らない（App は表示中の Space を変えない）。つまり崩れたのは「id が名前として見える」「人が一度付けた名前が残る」の 2 つで、「ラベルで Space を作れる」は崩れていない。
+   - (b) 同じ `herdr.tab` の 2 つは同じ tab に**横に並んで** split された（App はその tab の最後の pane の横に足す）。
+   - (c) 2 つを kill・rm すると tab も Space も消えた（最後の tab が閉じると Space も閉じる。残るのは名前とフォルダだけで id は残らず、同じ id で起こし直すと名無しの新しい Space になる）。
+   - (d) `hc attach` すると二重に出た（前提 11）。
+   - おまけ: `where` ラベルは App が「<Space 名> / <tab 名>」を書く出力で、子の端末は親の値を継ぐ。Andon は読まず書かない（開いている問いの答え）。
 8. **2026-11-05 Chief Engineer の tab は担当と同じ規則** `herdr.tab=andon-<slug>-<タスク id>`（指揮側の Space の中）。題が終われば tab が空になって消える。
    捨てた案: 固定の `andon-<slug>-ce`（題ごとの区切りが見えない）。
 9. **2026-11-05 仮設の建屋の `yard task` には入れない。** 実装は Andon の command だけ（`andon task start`・`andon chief-of-staff`・`andon chief-engineer`・クーリエ）。試作（7）は仮設の建屋で打てるので、見える化の確認はそれで足りる。
    理由: 仮設には「運用を止めない直し」だけ入れる（design.md §5.3）。
 
+S0 の結果で決め直したこと（2026-11-05。Y-106。人が番号で答えた）。
+
+10. **2026-11-05 指揮側はプロジェクトごと。1 の 2 段（`<slug>` と `<slug> work`）を仮から確定にする。** 作業側を別マシンに出しても形が変わらない。
+    捨てた案: machine に 1 つの指揮側 Space に全プロジェクトの Chief of Staff と Chief Engineer を並べる（前提 8 で構造上は取れるが、人が答える相手がプロジェクトごとに分かれている方が静か）／プロジェクトの Space 1 つに Chief of Staff・Chief Engineer・タスクの tab を全部並べる（作業側の流れが指揮側に混ざる）。
+11. **2026-11-05 Chief Engineer は worktree で起きたまま、指揮側の Space に出す。** 文書の PR に branch が要る。置き場は id で決まるので cwd は関係ない。
+    捨てた案: プロジェクトの root で起こす。
+12. **2026-11-05 作業側の tab ＝ タスク 1 つ（2 を確定）。レビュアーは担当と同じ tab に横に並ぶ（5 を確定。S0 の (b)）。**
+    捨てた案: `<slug> work` に tab 1 つで全タスクを split（pane が積まれて読めず、どのタスクが blocked かが tab の状態で分からない）。
+13. **2026-11-05 id は command が決定的に作る（6 を確定）。** 起こし直しても同じ場所に戻り、打つ場所に依らない。人が手で作っていた Space は移行で閉じる。
+    捨てた案: `andon chief-of-staff` を打った端末の `herdr.space` を写す（打つ場所を間違えると別の Space に出る）。
+14. **2026-11-05 command の attach をやめる（4 を改める）。** 人が起こす 2 役もラベルだけで App に出し、command は最後に出た場所を「<Space 名> / <tab 名>」で出す。`--no-attach` は要らなくなるので消す。最初のメッセージが届かないとき（信頼の画面など）は人が App のその tab で答える。前提 6 は「Andon は attach も打たない」に戻る。
+    捨てた案: ラベルをやめ attach だけ（Space の見える化を捨てることになる）。
+15. **2026-11-05 名前は Andon 同梱の App の mod が付ける（前提 9）。** Andon が `package/host/` に mod を同梱し、`host-install` が人の App の mods（`~/.config/herdr-app/mods/`）に置く。mod は App の中で端末の一覧を読み、command が既に付けているラベル `project`・`role`・`task`・`title` から `space.rename`・`tab.rename` を打つ。**名前だけ。** 置き場・画面・Space の作成と消滅には触れない（design.md §4 の「Herdr App は触らない」をこの 1 点だけ緩める）。
+    並行して、採用時にラベル `herdr.space.name`・`herdr.tab.name` を名前にする機能を Herdr App に issue で頼む（labels.md が `herdr.` 接頭の追加を受け付けている）。入れば mod は要らなくなる。
+    捨てた案: 人が App で付ける（タスクの tab は毎回付けることになり、空になった Space の名前は消える。規則が人任せ）／cwd のフォルダ名で既定名を狙う（tab は番号のままで、作業側の Space 名は担当の入れ替わりで変わる）。
+16. **2026-11-05 名前の規則。** Space は `<slug>`（指揮側）と `<slug> work`（作業側）。tab は Chief of Staff が `CoS`、Chief Engineer が `CE <id> <題>`、担当が `<id> <題>`（レビュアーは同じ tab なので付けない）。題は台帳の `title`（ラベル `title=` に既にある）。
+17. **2026-11-05 Chief of Staff が人に端末を指す言い方は「<Space 名> / <tab 名>」**（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site work / A-12 ログインの直し`）。address は末尾に添えるだけ。command の出力も同じ形。
+18. **2026-11-05 Chief of Staff と Chief Engineer のアイコンを役ごとに変える（人の希望）。** App はプログラム名（状態報告の `app`、無ければ argv の先頭）で `programs.json` の項目を引き、アイコンはそこで決まる。手段は実装で確かめる: 役ごとの wrapper 名（`andon-cos` など）＋ `host-install` が置く `programs.json` の項目が第一候補、効かなければ mod で描くか upstream に頼む。
+
 ## やらないこと（範囲の外。理由）
 
 - **ペインの分割を建屋から指すこと**（前提 4）。並べたいものは同じ `herdr.tab` にする（決めたこと 5）。
 - **建屋に `herdr-app` を入れる・建屋の `herdr` CLI で Space を作ること**（前提 3）。
-- **Chief of Staff が Space・tab を操作すること**（作る・閉じる・名前を付ける・前に出す。前提 5・6）。名前は人が App で付ける。
-- **ラベル `where` を書くこと**: 書き手は App の見込み。Andon は読まず書かない。
+- **Chief of Staff が Space・tab を操作すること**（作る・閉じる・名前を付ける・前に出す。前提 5・6）。名前は Andon の mod が人の App の中で付ける（決めたこと 15）。
+- **ラベル `where` を書くこと**: 書き手は App（S0 で確認）。Andon は読まず書かない。
+- **mod が名前以外に触ること**（Space や tab を作る・閉じる・選ぶ・pane を動かす）。mod の仕事は `space.rename`・`tab.rename` だけ。
+- **建屋から名前を付けようとすること**（`where` や独自のラベルで）: App は読まない（前提 9）。
 - **クーリエと通知の係自身を App に出すこと**: `--no-parent` のまま（人が見るものではない）。
 - **ラベルの on/off の設定**: App の無い建屋（クラウド常駐）でもラベルは無害なので、常に付ける。
 - **ボード（herdr-flightdeck）の変更**: inbox は `task=` で担当を独立の行にしており、Space で絞らないのは向こうの方針（prior-art.md「Space filter: Leave」）。Space の見える化は App の標準の画面で得る。
@@ -59,32 +94,36 @@ Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュア�
 継ぎ目は 4 つ。既存のテストに足す（新しい継ぎ目を作らない）。
 
 1. **試作（S0。人が App で見る）**: `hc run --bg --no-parent --label herdr.space=andon-try --label herdr.tab=andon-try-1 -- sh` の形で偽の端末を起こし、人が答える 4 項目を報告に書く: (a) 知らない id で App に新しい Space が出るか・そのとき前に出る（人の画面が移る）か、(b) 同じ `herdr.tab` で起こした 2 つ目の端末がその tab に並ぶ（split）か・向き、(c) 端末を終えると tab と Space が消えるか、(d) ラベルを付けた端末に `hc attach` したとき二重に出るか。結果は決めたこと 7 の下に追記する。
-2. **`andon chief-of-staff`・`andon chief-engineer`（偽の hc。`internal/chiefengineer` のテストと、F2 で建てる chief-of-staff のテスト）**: `hc run` の引数に `--label herdr.space=andon-<slug>` と `--label herdr.tab=andon-<slug>-<タスク id>`（Chief of Staff は `andon-<slug>-cos`）がある。起こしたあと `hc attach <address>` を打つ。`--no-attach` では打たない。
+2. **`andon chief-of-staff`・`andon chief-engineer`（偽の hc。`internal/chiefengineer`・`internal/chiefofstaff` のテスト）**: `hc run` の引数に `--label herdr.space=andon-<slug>` と `--label herdr.tab=andon-<slug>-<タスク id>`（Chief of Staff は `andon-<slug>-cos`）がある。**`hc attach` は打たない**（決めたこと 14。`--no-attach` は無い）。最後に標準出力に「<Space 名> / <tab 名>」の形で出た場所を出す。
 3. **`andon task start`（偽の hc。`tests/andon-task.sh`）とクーリエのレビュアー起動（`internal/courier` のテスト）**: `andon task start` は `--label herdr.space=andon-<slug>-work --label herdr.tab=andon-<slug>-<id>` を付け、`--on <machine>` でも同じ。クーリエは親タスクの担当の端末（`task.yaml` の `agent`）の `herdr.space`・`herdr.tab` を `hc get --json` で読んで同じ値を付け、読めなければ付けない。`andon task finish` はラベルに触らない（打つ hc は kill・rm だけ）。
 4. **約束の文書（`tests/public.sh`・`tests/schema.sh`）**: contract.md §8 のラベル表に `herdr.space=<id>`・`herdr.tab=<id>`（持ち主 Herdr App・書き手 command とクーリエ・読み手 App）の行がある。schema は変えない。
-5. **建屋で実測（P4 以降の決まり。報告に書く）**: 担当を 1 つ起こすと App の `andon-<slug>-work` に tab が出て、レビュアーが同じ tab に並び、finish で消える。
+5. **mod（`package/host/` の中。偽の App の API でテスト）**: ラベル `project=<slug> role=chief-of-staff` の端末がある Space に `<slug>`、その tab に `CoS` を付ける。`role=chief-engineer task=<id> title=<題>` の tab に `CE <id> <題>`、`task=<id>`（role 無し）の tab に `<id> <題>`、`herdr.space=andon-<slug>-work` の Space に `<slug> work`。既に同じ名前なら打たない。`space.rename`・`tab.rename` 以外の command を打たない。`host-install` が mod を `~/.config/herdr-app/mods/andon/` に置く（既にあれば触らない）。
+6. **建屋で実測（P4 以降の決まり。報告に書く）**: `andon chief-of-staff` で App に `<slug> / CoS` が出て二重に出ない。担当を 1 つ起こすと `<slug> work / <id> <題>` が出て、レビュアーが同じ tab に横に並び、finish で消える。Chief of Staff と Chief Engineer のアイコンが役ごとに違う（決めたこと 18。効かなければ直しのタスク）。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
 | # | 手 | 完了条件 | 依存 |
 |---|---|---|---|
 | S1 | この文書の PR（design.md §1.5 と contract.md §8・decisions.md から指す） | `bash tests/*.sh` green | — |
-| S0 | 試作: 偽の端末でラベルの振る舞いを人が見る（Chief of Staff が人の go を取って打つ。人が閉じる。`review: off`） | 受け入れ条件 1 の 4 項目が報告にあり、この文書に追記の PR | S1 のマージ |
-| S2 | `andon chief-engineer`（と F2 の `andon chief-of-staff`）にラベルと attach | 受け入れ条件 2 | S0（二重表示の答え）・S1 |
-| S3 | `andon task start` にラベル・クーリエのレビュアーに同じ tab・`--on` でも同じ | 受け入れ条件 3 | S0・S1。`andon task start` を建てるタスクに添える |
-| S4 | 建屋で実測 | 受け入れ条件 5。落ちたら直しのタスク | S2・S3・建屋（P7） |
+| S0 | 試作: 偽の端末でラベルの振る舞いを人が見る（済 2026-11-05。結果は決めたこと 7 の下） | 受け入れ条件 1 の 4 項目が報告にあり、この文書に追記の PR | S1 のマージ |
+| S2 | `andon chief-engineer`・`andon chief-of-staff` にラベル。attach と `--no-attach` を消し、出た場所を出す | 受け入れ条件 2 | S1 |
+| S3 | `andon task start` にラベル・クーリエのレビュアーに同じ tab・`--on` でも同じ | 受け入れ条件 3 | S1。`andon task start` を建てるタスクに添える |
+| S5 | 名前を付ける mod（`package/host/`）と `host-install`。役ごとのアイコン（wrapper 名 ＋ `programs.json`）も同じタスクで試す | 受け入れ条件 5 | S1。S2・S3 とは独立 |
+| S6 | Herdr App に issue: 採用時に `herdr.space.name`・`herdr.tab.name` を名前にする（人が出す。文面を Chief of Staff が用意） | issue の URL が報告にある | — |
+| S7 | Chief of Staff の skill と contract.md §8 に「人に端末を指す言い方」（決めたこと 17）を足す | `tests/public.sh`・`tests/schema.sh` green | S1 |
+| S4 | 建屋で実測。移行で、人が手で作っていた Space を閉じる | 受け入れ条件 6。落ちたら直しのタスク | S2・S3・S5・建屋（P7） |
 
 ## 開いている問い（残った問い。判断の種類つき）
 
-- **指揮側の割り方**（ラインの変更。試作 S0 の (b) の結果で人が決める）: プロジェクトごとの `andon-<slug>` か、マシンに 1 つの Space に全プロジェクトの Chief of Staff を並べるか。
-- **attach との二重表示が出たときの選び方**（ラインの変更。S0 の (d) の結果で）: ラベルを人の端末から写す／command の attach をやめる。
-- **Space・tab の名前を command から付けられるか**（事実。App の API 次第。今は人が付ける）。
+2026-11-05（Y-106）に閉じた問い: 指揮側の割り方（決めたこと 10）・attach との二重表示（14）・名前を command から付けられるか（付けられない。mod が付ける。15）・`where` の書き手（App。前提 9）。
+
 - **別マシンで起こした担当が App に出るか**（事実。Herdr が起こしていない端末は出ない見込み。S4 で見る）。
-- **`where` ラベルの書き手**（事実。App の見込み）。
+- **mod から端末のラベルが読めるか**（事実。App 自身は core の記録のラベルを読んでいるので読める見込み。S5 で実測。読めなければ `herdr.`〜のラベルを頼む S6 を待つ）。
+- **役ごとのアイコンの手段**（事実。決めたこと 18 の候補を S5 で試す）。
 
 ## 出典（読んだもの・捨てた案の出所）
 
 - Andon の側: [design.md](../design.md) §1.3〜§1.8・§5、[courier.md](../courier.md)、[contract.md](../contract.md) §8・§9、[operate.md](../operate.md)、`internal/chiefengineer`・`internal/task`・`internal/courier`・`internal/boot`、`package/skills/chief-of-staff`。
-- Herdr App: https://github.com/herdrdev/herdr-app （README・`defaults/AGENTS.md`・`docs/commands.md`。2026-11-05 に読んだ）。要点: Space は 1 マシンの仕事の置き場。Herdr が起こす端末にはラベル `herdr.space=<id>`・`herdr.tab=<id>` が付き、そのラベルを持つ端末はそこに出る。知らない id は新しい Space か tab になる。`hc run` で起きた sub-agent は親の tab にペインの無いまま属し `terminal.peek` で覗く。`herdr-app` は窓を、`hc` は herdr-core を動かす。
+- Herdr App: https://github.com/herdrdev/herdr-app （README・`defaults/AGENTS.md`・`docs/commands.md`・`docs/labels.md`。S0 の読み解きに `src/window.rs` の `adopt`・`reconcile`・`write_where`・`folder_info`、`src/model.rs` の `space_name`・`tab_name`、`src/programs.rs`、`defaults/mods/agents/main.js`。2026-11-05 に読んだ）。要点: Space は 1 マシンの仕事の置き場。Herdr が起こす端末にはラベル `herdr.space=<id>`・`herdr.tab=<id>` が付き、そのラベルを持つ端末はそこに出る。知らない id は新しい Space か tab になる。`hc run` で起きた sub-agent は親の tab にペインの無いまま属し `terminal.peek` で覗く。`herdr-app` は窓を、`hc` は herdr-core を動かす。
 - herdr-core: `hc --help`・`hc --skill`（窓は並べない。`herdr-app --skill` を使え）・`hc run --help`・`hc get --json`（2026-11-05 の実機: Chief of Staff の端末に `herdr.space`・`herdr.tab`・`where`、担当に `where` だけ）。
 - ボード（herdr-flightdeck。private）: `docs/concept.md`・`docs/mod-design.md`（`task=` の担当を独立の行にする決定 2026-11-03・未確認の項 §9）・`herdr-app/scripts/fake-agent.mjs`（`hc run --label herdr.space=… --label herdr.tab=…` で新しい Space に出す例）。
