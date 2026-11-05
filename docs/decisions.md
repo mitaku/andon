@@ -180,3 +180,4 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | `andon delegate` は `--project <slug>` を取る（省くと cwd の `projects/<slug>/`）。型（`preset`）を変える command は作らない（設計書に無い。人が JSON を書いて commit する。次の `andon delegate` が検査する） | 担当の推し |
 | 2026-11-05 | 担当の command と CoS の検収の照合は、レビュアーのうち作成の行の `by` が `terminal:<coordinator>` のものだけを数える（仮設と同じ）。クーリエが起こすレビュアー（P6a）を数える形は P6a で足す | 仮設のゲート・担当の推し |
 | 2026-11-05 | 建屋の `gate.local.json` も委譲と同じ読み方: 建屋の repo の HEAD のものを、最後に変えた commit の author の email が `owner` のときだけ重ねる（作業ツリー・未 commit の変更は読まない）。信じられなければ重ねず、repos が無いのでゲートは `needs_human` | P5 の担当の推し（自動のセキュリティレビューの指摘） |
+| 2026-11-05 | 約束の JSON の入口（`report.json`・`findings.json`・問いの JSON・条件表・委譲・`--data`）は全部 `contract.Decode` を通り、存在するキーの null・型違い・知らないキーを拒む（schema と同じ）。null を許すのは tag `andon:"nullable"` のキー（`review_request.previous`・委譲の `until`・`revoked`）だけ。条件表の glob はリテラルを rune 単位で逃がす | P5 の独立レビュー 1 回目（Y-82）の指摘と Chief of Staff の方針 |

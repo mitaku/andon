@@ -58,3 +58,36 @@ func TestRelPath(t *testing.T) {
 		}
 	}
 }
+
+// 入口は存在するキーの null・型違いを拒む（schema と同じ）。null を許すのは review_request.previous だけ
+func TestDecodeRejectsNullAndWrongTypes(t *testing.T) {
+	q := `{"kind":"users","question":"q","options":[{"label":"a","pick":true},{"label":"b"}]}`
+	for name, bad := range map[string]string{
+		"options[1].pick が null": strings.Replace(q, `{"label":"b"}`, `{"label":"b","pick":null}`, 1),
+		"remaining が null":       strings.Replace(q, `"kind"`, `"remaining":null,"kind"`, 1),
+		"facts が null":           strings.Replace(q, `"kind"`, `"facts":null,"kind"`, 1),
+		"from が null":            strings.Replace(q, `"kind"`, `"from":null,"kind"`, 1),
+		"facts の要素が null":        strings.Replace(q, `"kind"`, `"facts":[null],"kind"`, 1),
+		"remaining が文字列":         strings.Replace(q, `"kind"`, `"remaining":"1","kind"`, 1),
+		"全体が null":               `null`,
+	} {
+		if _, err := ParseQuestion([]byte(bad)); err == nil {
+			t.Errorf("問い: %s: 通ってしまう", name)
+		}
+	}
+	r := `{"commit":"` + sha + `"}`
+	for name, bad := range map[string]string{
+		"pr が null":                      strings.Replace(r, `}`, `,"pr":null}`, 1),
+		"waived が null":                  strings.Replace(r, `}`, `,"waived":null}`, 1),
+		"next の要素が null":                 strings.Replace(r, `}`, `,"next":[null]}`, 1),
+		"review_request が null":          strings.Replace(r, `}`, `,"review_request":null}`, 1),
+		"review_request.reviewer が null": strings.Replace(r, `}`, `,"review_request":{"round":1,"limit":2,"commit":"`+sha+`","previous":null,"reviewer":null,"extra":false}}`, 1),
+	} {
+		if _, err := ParseReport([]byte(bad)); err == nil {
+			t.Errorf("report.json: %s: 通ってしまう", name)
+		}
+	}
+	if err := Decode([]byte(`{"commit":"`+sha+`","findings":null}`), &Findings{}); err == nil {
+		t.Error("findings.json: findings が null で通ってしまう")
+	}
+}

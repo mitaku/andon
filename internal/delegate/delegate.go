@@ -65,9 +65,9 @@ type Grant struct {
 	Value    json.RawMessage `json:"value"`
 	By       string          `json:"by"`
 	At       string          `json:"at"`
-	Until    *string         `json:"until"`
+	Until    *string         `json:"until" andon:"nullable"`
 	Evidence string          `json:"evidence"`
-	Revoked  *Revoked        `json:"revoked"`
+	Revoked  *Revoked        `json:"revoked" andon:"nullable"`
 }
 
 // File は delegation.json。

@@ -1,6 +1,8 @@
 package gate
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -33,6 +35,9 @@ func TestGlob(t *testing.T) {
 		{"projects/*/delegation.json", "projects/x/delegation.json", true},
 		{"projects/*/delegation.json", "projects/x/y/delegation.json", false},
 		{"a.b", "axb", false},
+		{"docs/機密/**", "docs/機密/a.md", true},
+		{"docs/機密/**", "docs/機械/a.md", false},
+		{"?.md", "機.md", true},
 	} {
 		if got := Glob(c.g, c.p); got != c.want {
 			t.Errorf("Glob(%q, %q) = %v", c.g, c.p, got)
@@ -60,6 +65,7 @@ func TestClassify(t *testing.T) {
 		{"削除行の sudo は数えない", []string{"docs/x.md"}, "-run sudo x\n", false, nil, "A"},
 		{"tier_overrides で AGENTS.md を B", []string{"AGENTS.md"}, "", false, map[string]string{"AGENTS.md": "B"}, "B"},
 		{"tier_overrides で docs を C", []string{"docs/x.md"}, "", false, map[string]string{"docs/**": "C"}, "C"},
+		{"非 ASCII のパスの tier_overrides", []string{"docs/機密/a.md"}, "", false, map[string]string{"docs/機密/**": "C"}, "C"},
 	} {
 		var files []File
 		for _, f := range c.files {
@@ -126,4 +132,46 @@ func TestDecide(t *testing.T) {
 	if _, r := Decide(func() Facts { f := good; f.Tier = "C"; return f }()); !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
 		t.Errorf("委譲の理由の形: %v", r)
 	}
+}
+
+// 条件表の入口は Decode の厳しい読み方を通る: null・型違い・知らないキーは誤り（null の check で検査を飛ばさない）
+func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	pkg := filepath.Join(filepath.Dir(file), "..", "..", "package")
+	for name, local := range map[string]string{
+		"check が null":        `{"repos": {"github.com/example/app": {"check": null}}}`,
+		"repos の値が null":      `{"repos": {"github.com/example/app": null}}`,
+		"tier_c_paths が null": `{"tier_c_paths": null}`,
+		"check が文字列":          `{"repos": {"github.com/example/app": {"check": "bash x"}}}`,
+		"check の要素が null":     `{"repos": {"github.com/example/app": {"check": [null]}}}`,
+		"知らないキー":              `{"repos": {"github.com/example/app": {"checks": ["x"]}}}`,
+	} {
+		ws := ownerPlant(t, local)
+		if _, warn, err := LoadTable(pkg, ws); err == nil {
+			t.Errorf("%s: 通ってしまう（warn %q）", name, warn)
+		}
+	}
+	ws := ownerPlant(t, `{"repos": {"github.com/example/app": {"check": []}}}`)
+	if tb, warn, err := LoadTable(pkg, ws); err != nil || warn != "" || tb.Repos["github.com/example/app"].Check == nil {
+		t.Errorf("空の check（人が決めた「検査なし」）は通る: %v %q", err, warn)
+	}
+}
+
+// ownerPlant は owner が gate.local.json を commit した建屋の repo を作る。
+func ownerPlant(t *testing.T, local string) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	ws := t.TempDir()
+	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte(`owner = "owner@example.com"`+"\n"), 0o644)
+	os.WriteFile(filepath.Join(ws, "gate.local.json"), []byte(local), 0o644)
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-qm", "plant"}} {
+		c := exec.Command("git", append([]string{"-C", ws}, args...)...)
+		c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=o", "GIT_AUTHOR_EMAIL=owner@example.com", "GIT_COMMITTER_NAME=o", "GIT_COMMITTER_EMAIL=owner@example.com")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	return ws
 }

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"andon/internal/ledger"
 )
@@ -53,20 +54,25 @@ func Glob(g, path string) bool {
 	if !ok {
 		var b strings.Builder
 		b.WriteString("^")
-		for i := 0; i < len(g); i++ {
+		// リテラルは rune 単位で逃がす（1 byte ずつ逃がすと非 ASCII の字が壊れて当たらない）
+		for i := 0; i < len(g); {
 			switch {
 			case strings.HasPrefix(g[i:], "**/"):
 				b.WriteString("(?:.*/)?")
-				i += 2
+				i += 3
 			case strings.HasPrefix(g[i:], "**"):
 				b.WriteString(".*")
-				i++
+				i += 2
 			case g[i] == '*':
 				b.WriteString("[^/]*")
+				i++
 			case g[i] == '?':
 				b.WriteString("[^/]")
+				i++
 			default:
-				b.WriteString(regexp.QuoteMeta(g[i : i+1]))
+				_, n := utf8.DecodeRuneInString(g[i:])
+				b.WriteString(regexp.QuoteMeta(g[i : i+n]))
+				i += n
 			}
 		}
 		b.WriteString("$")

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 )
@@ -45,8 +46,19 @@ func RelPath(s string) bool {
 	return true
 }
 
-// Decode は JSON を v に読む。知らないキー・後ろの余りは誤り。
+// Decode は JSON を v に読む（約束の JSON の入口は全部これ）。schema と同じく厳しく読む:
+// 知らないキー・型違い・後ろの余りは誤り。存在するキーの null も誤り（Go は null を nil・ゼロ値として黙って受けるので、
+// 先に生の JSON を型に沿って歩いて拒む）。null を許すのは struct の tag に `andon:"nullable"` を書いたキーだけ。
 func Decode(b []byte, v any) error {
+	var raw any
+	rd := json.NewDecoder(bytes.NewReader(b))
+	rd.UseNumber()
+	if err := rd.Decode(&raw); err != nil {
+		return err
+	}
+	if err := noNull(raw, reflect.TypeOf(v), "$"); err != nil {
+		return err
+	}
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.DisallowUnknownFields()
 	if err := d.Decode(v); err != nil {
@@ -54,6 +66,62 @@ func Decode(b []byte, v any) error {
 	}
 	if _, err := d.Token(); err != io.EOF {
 		return errors.New("JSON の後ろに余りがある")
+	}
+	return nil
+}
+
+var rawMessage = reflect.TypeOf(json.RawMessage{})
+
+// noNull は raw を型 t に沿って歩き、許されていない null を探す。
+func noNull(raw any, t reflect.Type, at string) error {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if raw == nil {
+		return fmt.Errorf("%s が null", at)
+	}
+	if t == rawMessage || t.Kind() == reflect.Interface {
+		return nil // 中身は呼び手が確かめる
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return nil // 型違いは json の Decode が拒む
+		}
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+			if name == "" || name == "-" {
+				continue
+			}
+			x, present := m[name]
+			if !present {
+				continue
+			}
+			if x == nil && f.Tag.Get("andon") == "nullable" {
+				continue
+			}
+			if err := noNull(x, f.Type, at+"."+name); err != nil {
+				return err
+			}
+		}
+	case reflect.Map:
+		if m, ok := raw.(map[string]any); ok {
+			for k, x := range m {
+				if err := noNull(x, t.Elem(), at+"."+k); err != nil {
+					return err
+				}
+			}
+		}
+	case reflect.Slice:
+		if a, ok := raw.([]any); ok {
+			for i, x := range a {
+				if err := noNull(x, t.Elem(), fmt.Sprintf("%s[%d]", at, i)); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -140,7 +208,7 @@ type ReviewRequest struct {
 	Round    int     `json:"round"`
 	Limit    int     `json:"limit"`
 	Commit   string  `json:"commit"`
-	Previous *string `json:"previous"`
+	Previous *string `json:"previous" andon:"nullable"`
 	Reviewer string  `json:"reviewer"`
 	Extra    bool    `json:"extra"`
 }
