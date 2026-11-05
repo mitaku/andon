@@ -31,7 +31,11 @@
     "deny": [
       "Bash(gh pr merge:*)",
       "Bash(git diff *--output*)",
-      "Bash(git diff *--ext-diff*)"
+      "Bash(git diff *--ext-diff*)",
+      "Bash(git log *--output*)",
+      "Bash(git show *--output*)",
+      "Bash(git log *--ext-diff*)",
+      "Bash(git show *--ext-diff*)"
     ]
   },
   "hooks": {
