@@ -24,7 +24,7 @@ description: Chief of Staff が `andon task start` で起こした担当とレ�
 
 ## 1. 最初に読む
 
-最初のメッセージは「タスク `<slug>/<id>`。依頼書は `<brief.md の絶対パス>`。先にこの SKILL.md を読む」の3行。
+最初のメッセージは「タスク `<slug>/<id>`。依頼書は `<brief.md の絶対パス>`」。Claude Code 系のプロファイルではこの skill はもう system prompt に入っている。Codex 系では3行目「先にこの SKILL.md を読む」が付く。
 
 1. 依頼書を読む。`deck show <id>` で `task.yaml`（`repo`・`branch`・`worktree`・`parent`）も見る。
    `deck` は worktree から台帳を自分で見つける。見つからなければ依頼書のパスの `.flightdeck` の親を `FLIGHTDECK_ROOT` に入れて打つ。
