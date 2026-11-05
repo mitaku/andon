@@ -80,6 +80,9 @@ COPY schema/ /opt/andon/schema/
 # 台帳の CLI（cmd/kanban）。tests/image.sh が同じ repo から焼いたものを build context `kanban` で渡す
 # （docker build --build-context kanban=<dir>）。deck は1版だけの別名（docs/design.md §3.5 の K5）
 COPY --from=kanban --chmod=755 kanban /usr/local/bin/kanban
+# andon の CLI（cmd/andon）。kanban と同じく tests/image.sh が焼き、build context `andon` で渡す。
+# compose の `andon boot` と、ホストが取り出す口（docs/operate.md の 2）がこれを使う
+COPY --from=andon --chmod=755 andon /opt/andon/bin/andon
 USER root
 RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon \
  && ln -s kanban /usr/local/bin/deck

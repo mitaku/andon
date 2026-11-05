@@ -4,17 +4,16 @@
 - 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[courier.md](courier.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
 - 書き方: `<owner>`（GitHub の持ち主）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。建屋の名前（slug）は例として `home`。
 
-## 0. 先に知っておくこと: いま通らない所が3つある
+## 0. 先に知っておくこと: いま通らない所が2つある
 
 コードを読んで見つけた。各段に回り道を書いた。直しは末尾の「直しのタスク」。
 
 | # | 通らない所 | どの段 | 回り道 |
 |---|---|---|---|
-| F1 | **image に `andon` が焼かれていない。** `package/bin/` は空で、Dockerfile の `ln -s /opt/andon/bin/andon /usr/local/bin/andon` は切れたリンクになる（焼いているのは `kanban` だけ）。建屋の compose は `andon boot; exec sleep infinity` で起動するので、**コンテナは立つが boot が走らない**（プロファイル・managed settings・portless・sshd・クーリエが無い）。ホストで `andon init` を打つ口も無い（release は無い） | 2・3・5 | 2 はソースから `go build`。3 から先は、image が直るまで進めない（5 の確かめで気づく） |
 | F2 | `andon chief-of-staff` の中身が無い（`中身はまだ無い`）。Chief of Staff の skill が最初に打つ `andon chief-of-staff --no-attach`（自分を台帳に載せる）も同じ | 9 | `hc run` で起こし、`kanban config set coordinator=<address>` を人が打つ |
 | F3 | `andon task start` の中身が無い（`中身はまだ無い`）。Chief of Staff が担当を起こせない | 10 | 人が worktree を切って `hc run` し `kanban start` で結ぶ（`andon chief-engineer` の4段と同じ） |
 
-そのほか小さいもの: `package/environment.md` が無い（boot が作る `CLAUDE.md` の1行目の `@` が指す先。`AGENTS.local.md` のほうは建屋の repo にある）。
+（F1「image に `andon` が焼かれていない」と `package/environment.md` が無いことは直した。image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）
 
 ## 1. image を取る
 
@@ -35,23 +34,16 @@ docker pull ghcr.io/<owner>/andon:<版>      # <版> は main の 40桁の commi
 
 建屋の repo は `andon init <slug>` が作る（雛形は `init/`。作ったあとは Andon に追従しない）。置き場は `~/src/andon-<slug>`（`andon-up` が `$HOME/src/andon-*` を探す。`ANDON_PLANTS` で変えられる）。
 
-**F1 の回り道（いまの形）** — ホストでソースから焼く。Go は `mise.toml` の版。
+ホストの `andon` は image から取り出す（release は無い）。image の中の `andon` は linux の静的バイナリで、配布は amd64 だけ（ホストが Linux か WSL の amd64 なら、そのまま動く）。
 
 ```bash
-mkdir -p ~/src && cd ~/src
-git clone https://github.com/<owner>/andon.git andon-src      # private なので gh auth か token が要る
-cd andon-src && go build -o /tmp/andon ./cmd/andon
-cd ~/src && /tmp/andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
+mkdir -p ~/.local/bin ~/src
+docker run --rm ghcr.io/<owner>/andon:<版> cat /opt/andon/bin/andon > ~/.local/bin/andon
+chmod 755 ~/.local/bin/andon
+cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 ```
 
-**F1 が直ったあと** — image の中の `andon` を docker run で打つ。コンテナの利用者とホストの利用者を揃えて、書いたファイルがホストの持ち物になるようにする。
-
-```bash
-cd ~/src
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/out ghcr.io/<owner>/andon:<版> \
-  andon init home --dir /out/andon-home --image ghcr.io/<owner>/andon:<版> --owner <email>
-```
-
+- image を上げたら取り出し直す（ホストの `andon` は image の版と揃える）。`~/.local/bin` が PATH に無ければ足す。
 - `--owner` は `andon.toml` の `owner`。委譲のファイル（`delegation.json`）をこの email の commit だけが信じられるようにする。
 - **通ったら見えるもの**: `~/src/andon-home/` に `Dockerfile`（`FROM` ＋ 2行）・`andon.toml`（`slug = "home"`）・`bin/bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/`・`projects/`。標準出力に `建屋の repo を作った`。パッケージのファイルは無い（design.md §5.1 の 1）。
 - **落ちたら見る所**: `はすでにあり、空でない` — 上書きしない。別の `--dir` か、中身を退避する。`slug は英小文字・数字・-` — slug の綴り。
@@ -72,7 +64,7 @@ bin/bootstrap               # 初回: image を焼く → compose.yaml を取り
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
   - `docker デーモンに繋がらない` — docker が起きているか。
-  - 5分待っても `ready` が出ず `準備の完了を確かめられなかった` — **F1 を疑う**。`bin/bootstrap sh` で入り、`andon help` が `command not found` なら image に `andon` が無い。
+  - 5分待っても `ready` が出ず `準備の完了を確かめられなかった` — `bin/bootstrap logs` で boot の警告の行を見る。`andon help` が `command not found` なら `FROM` の image が古い（`andon` を焼く前の版）。
   - ポートが使用中 — `.env` の番号を変えて `bin/bootstrap` を打ち直す。
   - `local/setup.sh` が落ちる — `bin/bootstrap` の build のログ。建屋固有の追加（`local/aqua.yaml`・`local/setup.sh`）が原因。
 
@@ -97,7 +89,7 @@ bin/bootstrap               # herdr に入る。bash で入るなら: bin/bootst
 
 ```bash
 hostname                    # slug（home）
-andon help                  # F1: 直っていれば sub-command の一覧
+andon help                  # sub-command の一覧
 hc ls                       # 端末の一覧。courier が出る
 ls ~/.config/herdr-core/templates     # claude・sonnet・fable・codex・codex-review・claude-review・chief-of-staff・chief-engineer
 ls -l ~/.agents/skills                # andon-<name> が /opt/andon/skills/<name> への symlink
@@ -106,7 +98,7 @@ cat /etc/claude-code/managed-settings.json
 ```
 
 - **通ったら見えるもの**: 上の全部。`hc get courier` が通る（クーリエは `andon courier` を常駐させた端末）。
-- **落ちたら見る所**: どれも出なければ boot が走っていない（F1。`bin/bootstrap logs`）。boot は失敗しても続ける作りなので、警告の行を探す。生成だけ失敗したときは `andon boot` を中で打ち直せば同じ結果になる（何度打っても同じ）。`hc` が無い・端末が起きない — herdr-core は初めて `hc` を叩くと起きる。
+- **落ちたら見る所**: どれも出なければ boot が走っていない（`bin/bootstrap logs`）。boot は失敗しても続ける作りなので、警告の行を探す。生成だけ失敗したときは `andon boot` を中で打ち直せば同じ結果になる（何度打っても同じ）。`hc` が無い・端末が起きない — herdr-core は初めて `hc` を叩くと起きる。
 
 ## 6. 中でログインする（建屋の中で取る）
 
@@ -234,7 +226,5 @@ jq . ~/.local/state/andon/courier/home.json 2>/dev/null   # 控え（<slug> は�
 
 | 題 | 内容 | 受け入れの見方 |
 |---|---|---|
-| **F1: image に `andon` を焼く** | `image/Dockerfile` が `cmd/andon` を linux の静的バイナリに焼いて `/opt/andon/bin/andon` に置く（`kanban` と同じく build context で渡す）。`tests/image.sh` に `andon help` を足す。2 の docker run 形が通ること | `docker run --rm <image> andon help`・`andon init x --dir /tmp/x` |
 | **F2: `andon chief-of-staff`** | usage のとおり: `projects/<slug>/` で打つと Chief of Staff を起こし（`hc run`）、`config.yaml` の `coordinator` を合わせ、動いていれば使い、2人なら止まり、`--no-attach` でなければ `hc attach`。`andon chief-engineer`（`internal/chiefengineer`）が手本 | `tests/` に偽の hc で起こす・動いていれば起こさない・coordinator が直る |
 | **F3: `andon task start`** | 台帳のタスクに worktree と branch を切り、`hc run` で template を起こし、`kanban start` で結ぶ（`chiefengineer` の4段）。最初のメッセージは skill を読ませる行を持たない（ADR-0001） | `tests/andon-task.sh` に start の正負。10 の4段が1行になる |
-| `package/environment.md` | boot が `CLAUDE.md` から `@` で指す環境メモが無い。環境のこと（hc・deck・`andon`・ghq・portless の名前の付け方）だけを書く | `~/.claude/CLAUDE.md` の1行目が実在のファイルを指す |
