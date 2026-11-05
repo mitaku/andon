@@ -115,8 +115,8 @@ deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 me
 2. **人の go を取ってから**起こす（ルーチンが足したタスクと、委譲の範囲の中のものは聞かずに起こしてよい。並行の上限は守る）。
 3. `andon task start <id>`（`projects/<slug>/` で打つ）。worktree・branch・端末・`task.yaml` の欄はコマンドが作る。
    - 終了コード 1: 理由の1行を読んで直す（依頼書が無い・プロファイルが無い・起こし済み など）。直せないものは人へ。
-   - 終了コード 3（最初のメッセージが届いていない）: 出た画面を読む。信頼の画面なら §4 の決まりで答え、`hc read` で届いていないことを確かめてから
-     コマンドが出した `hc send <address> …` を打ち、`deck set <id> agent=<address>`。
+   - 終了コード 3（最初のメッセージが届いていない）: 台帳はもう `doing`・`agent` はその端末。`hc read <address>` で出た画面を読む。信頼の画面なら §4 の決まりで答え、
+     `hc read` で届いていないことを確かめてから、コマンドが出した `hc send <address> …` を打つ。
 4. 起こしたら、人に1行で知らせる（`S-3（返事の下書きボタン）を t7（claude）で起こした`）。そのあと `hc wait` で自分を止めない（人と話す役なので、届いたものをそのターンで処理する）。
 
 担当は `deck start` → 実装 → PR → `deck report` → `deck review`（人への問いは `deck ask`）までを自分でする（worker skill）。
