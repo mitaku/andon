@@ -18,6 +18,7 @@ case $1 in
   root) echo "$FAKE_ROOT" ;;
   show) cat "$FAKE_ROOT/show-$2.json" ;;
   set) echo "$2 updated" ;;
+  ready) cat "$FAKE_ROOT/ready.json" 2>/dev/null || echo '[{"id":"S-7"}]' ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
 esac
@@ -56,6 +57,7 @@ func newStart(t *testing.T) *startFixture {
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(startKanban), 0o755)
 	os.WriteFile(filepath.Join(bin, "hc"), []byte(startHc), 0o755)
 	os.WriteFile(filepath.Join(f.root, ".flightdeck", "tasks", "S-7", "brief.md"), []byte("# 題\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, ".flightdeck", "config.yaml"), []byte("version: 2\nrepos:\n  - github.com/example/sample-site\ncoordinator: t5\n"), 0o644)
 	origin := filepath.Join(dir, "origin.git")
 	gitT(t, "", "init", "-q", "--bare", "-b", "main", origin)
 	gitT(t, "", "clone", "-q", origin, f.repoDir)
@@ -97,6 +99,14 @@ func (f *startFixture) run() (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
+// addRepo は台帳の config.yaml の repos に足す。
+func (f *startFixture) addRepo(repo string) {
+	p := filepath.Join(f.root, ".flightdeck", "config.yaml")
+	b, _ := os.ReadFile(p)
+	s := strings.Replace(string(b), "repos:\n", "repos:\n  - "+repo+"\n", 1)
+	os.WriteFile(p, []byte(s), 0o644)
+}
+
 func (f *startFixture) wt() string {
 	return filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "sample-site-S-7")
 }
@@ -136,6 +146,7 @@ func TestStart(t *testing.T) {
 	want := []string{
 		"kanban root",
 		"kanban show S-7 --json",
+		"kanban ready --json",
 		"hc templates --json",
 		"hc ls --json",
 		"kanban set S-7 branch=sample-site/S-7-add-the-button worktree=" + f.wt(),
@@ -191,7 +202,24 @@ func TestStartRefuses(t *testing.T) {
 			t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","name":"sample-site-s-7"}]}`)
 		}},
 		{"bad repo", "repo が不正", func(f *startFixture) { f.task["repo"] = "example/sample-site" }},
-		{"no clone", "リポジトリが無い", func(f *startFixture) { f.task["repo"] = "github.com/example/none" }},
+		{"no clone", "リポジトリが無い", func(f *startFixture) {
+			f.task["repo"] = "github.com/example/none"
+			f.addRepo("github.com/example/none")
+		}},
+		{"not in repos", "repo github.com/example/other が台帳の config.yaml の repos に無い", func(f *startFixture) {
+			// clone はあるが、このプロジェクトの repo ではない
+			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
+			f.task["repo"] = "github.com/example/other"
+		}},
+		{"after", "S-7 は after（S-6）が済んでいない", func(f *startFixture) {
+			f.task["after"] = []any{"S-6"}
+			os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(`[{"id":"S-8"}]`), 0o644)
+		}},
+		{"origin branch", "branch sample-site/S-7-add-the-button が origin にもうある", func(f *startFixture) {
+			// clone は fetch していないが、origin にだけ同名の branch がある
+			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-7-add-the-button")
+			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-7-add-the-button")
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := newStart(t)
@@ -202,6 +230,9 @@ func TestStartRefuses(t *testing.T) {
 			}
 			if f.has("hc run") || f.has("kanban set") || f.has("kanban start") {
 				t.Errorf("止まる前に書いた: %q", f.calls())
+			}
+			if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-7") {
+				t.Errorf("worktree か branch を作った: %q", f.branches())
 			}
 		})
 	}

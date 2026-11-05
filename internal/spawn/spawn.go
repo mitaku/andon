@@ -163,6 +163,12 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 	if _, err := g("show-ref", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
 		return nil, fmt.Errorf("branch %s がもうある", branch)
 	}
+	// origin にだけある同名の branch（clone が fetch していないもの）も見る。担当の push がぶつからないように
+	if out, err := g("ls-remote", "--heads", "origin", "refs/heads/"+branch); err != nil {
+		return nil, fmt.Errorf("origin の branch を確かめられない（%s）", repoDir)
+	} else if out != "" {
+		return nil, fmt.Errorf("branch %s が origin にもうある", branch)
+	}
 	path := WorktreePath(repoDir, slug, id)
 	if _, err := os.Lstat(path); err == nil {
 		return nil, fmt.Errorf("worktree の置き場がもうある: %s", path)

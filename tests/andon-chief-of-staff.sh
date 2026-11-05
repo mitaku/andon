@@ -6,9 +6,16 @@ set -euo pipefail
 for c in jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+# helper の go build が本物の HOME の Go のキャッシュに書かないように、helper を読む前に一時の HOME とキャッシュへ向ける
+export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOMODCACHE="$tmp/gomodcache" GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
+mkdir -p "$HOME"
 . "$(dirname "$0")/lib/andon.sh"
 . "$(dirname "$0")/lib/kanban.sh"
-export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config"
+# helper が go build したなら、キャッシュは一時ディレクトリにある
+if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
+  [ -n "$(ls -A "$tmp/gocache" 2>/dev/null)" ] || { echo "FAIL go のキャッシュが一時ディレクトリに無い" >&2; exit 1; }
+  echo "ok   go build のキャッシュは一時ディレクトリ（$tmp/gocache）"
+fi
 unset FLIGHTDECK_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/hc" "$tmp/projects/demo"
 

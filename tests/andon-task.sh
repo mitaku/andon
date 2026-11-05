@@ -6,9 +6,17 @@ set -euo pipefail
 for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+# helper の go build が本物の HOME の Go のキャッシュに書かないように、helper を読む前に一時の HOME とキャッシュへ向ける
+export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOMODCACHE="$tmp/gomodcache" GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
+mkdir -p "$HOME"
 . "$(dirname "$0")/lib/andon.sh"
 . "$(dirname "$0")/lib/kanban.sh"
-export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
+# helper が go build したなら、キャッシュは一時ディレクトリにある
+if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
+  [ -n "$(ls -A "$tmp/gocache" 2>/dev/null)" ] || { echo "FAIL go のキャッシュが一時ディレクトリに無い" >&2; exit 1; }
+  echo "ok   go build のキャッシュは一時ディレクトリ（$tmp/gocache）"
+fi
+export GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 unset FLIGHTDECK_ROOT
 mkdir -p "$HOME" "$tmp/demo" "$tmp/bin"
@@ -241,6 +249,27 @@ s3=$(kanban add 'プロファイルの無いもの' --repo github.com/example/ap
 expect_fail 'プロファイル fable の template が無い' "$andon" task start "$s3"
 [ ! -e "$HOME/.herdr/worktrees/app/demo-$s2" ] && [ ! -e "$HOME/.herdr/worktrees/app/demo-$s3" ] || die '止まる前に worktree を作った'
 ok 'start: 依頼書が無い・template が無いなら何も作らずに止まる'
+
+# 台帳の repos に無い repo（clone はある）・未完了の after・origin にだけある同名の branch は、何も作らずに止まる
+git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/other" 2>/dev/null
+s6=$(kanban add 'Other repo' --profile claude --brief - <<<'# x')
+kanban set "$s6" repo=github.com/example/other >/dev/null
+expect_fail '台帳の config.yaml の repos に無い' "$andon" task start "$s6"
+s7=$(kanban add 'Later' --repo github.com/example/app --profile claude --brief - <<<'# x')
+kanban set "$s7" "after=$s2" >/dev/null
+[ "$(field "$s7" status)" = todo ] || die "after を足しても todo のはず: $(field "$s7" status)"
+expect_fail "after（$s2）が済んでいない" "$andon" task start "$s7"
+s8=$(kanban add 'Taken name' --repo github.com/example/app --profile claude --brief - <<<'# x')
+git -C "$appdir" push -q origin "HEAD:refs/heads/demo/$s8-taken-name"
+git -C "$appdir" update-ref -d "refs/remotes/origin/demo/$s8-taken-name"
+expect_fail "branch demo/$s8-taken-name が origin にもうある" "$andon" task start "$s8"
+for x in "$s6" "$s7" "$s8"; do
+  [ ! -e "$HOME/.herdr/worktrees/app/demo-$x" ] && [ ! -e "$HOME/.herdr/worktrees/other/demo-$x" ] && [ "$(field "$x" status)" = todo ] && [ -z "$(field "$x" branch)$(field "$x" worktree)" ] \
+    || die "$x: 止まる前に作った: $(kanban show "$x" --json | jq -c .task)"
+  ! grep -q "task=$x " "$tmp/hc/log" || die "$x: hc run を打った"
+done
+! git -C "$GHQ_ROOT/github.com/example/other" show-ref --quiet "refs/heads/demo/$s6-other-repo" && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s7-later" || die '止まる前に branch を作った'
+ok 'start: repos に無い repo・未完了の after・origin にある同名の branch では、worktree・branch・台帳の欄・hc run を作らずに止まる'
 
 # hc run が落ちたら、作った worktree と branch を戻す
 s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brief - <<<'# x')

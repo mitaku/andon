@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"andon/internal/spawn"
@@ -38,6 +39,12 @@ func (c *ctx) start(stdout io.Writer) error {
 	}
 	if s := c.task.Str("status"); s != "todo" {
 		return fail("%s は %s（起こせるのは todo だけ）", id, s)
+	}
+	// kanban start の開始の条件（after が全部済んでいる）を、何かを作る前に確かめる
+	if ok, err := c.startable(); err != nil {
+		return err
+	} else if !ok {
+		return fail("%s は after（%s）が済んでいない。済んでから起こす", id, strings.Join(c.after(), ", "))
 	}
 	if wt, br := c.task.Str("worktree"), c.task.Str("branch"); wt != "" || br != "" {
 		return fail("%s は起こし済み（worktree=%s branch=%s）。やり直すなら先に andon task finish", id, wt, br)
@@ -81,6 +88,9 @@ func (c *ctx) start(stdout io.Writer) error {
 	if repo := c.task.Str("repo"); repo != "" {
 		if !spawn.RepoRe.MatchString(repo) {
 			return fail("repo が不正: '%s'（<host>/<owner>/<repo>）", repo)
+		}
+		if !slices.Contains(c.l.Repos(), repo) {
+			return fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
 		}
 		repoDir, err := spawn.RepoPath(repo)
 		if err != nil {
@@ -148,4 +158,40 @@ func liveNames() (map[string]bool, error) {
 		names[t.Name] = true
 	}
 	return names, nil
+}
+
+// startable は台帳の CLI の ready（todo か queued で、after が全部済んでいる）にこのタスクがあるか。
+func (c *ctx) startable() (bool, error) {
+	out, err := c.l.Run("", "ready", "--json")
+	if err != nil {
+		return false, err
+	}
+	var ts []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &ts); err != nil {
+		return false, fail("kanban ready の返事が読めない")
+	}
+	for _, t := range ts {
+		if t.ID == c.id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// after は task.yaml の after（並び）。
+func (c *ctx) after() []string {
+	var out []string
+	switch v := c.task["after"].(type) {
+	case []any:
+		for _, a := range v {
+			if s, ok := a.(string); ok {
+				out = append(out, s)
+			}
+		}
+	case string:
+		out = append(out, v)
+	}
+	return out
 }
