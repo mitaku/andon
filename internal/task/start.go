@@ -116,8 +116,12 @@ func (c *ctx) start(stdout io.Writer) error {
 
 	// skill worker はプロファイルの command が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
 	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
-	// 名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる
-	run, err := spawn.Run(name, []string{"project=" + slug, "task=" + id, "title=" + title}, cwd, profile, msg)
+	// 名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
+	// herdr.space・herdr.tab で人の Herdr App の作業側の Space にタスクの tab として出す（ADR-0002 決めたこと 6・12）。
+	// 作業側を別のマシンに出しても（hc run --on）同じ値（その machine の Space に出る。前提 7）
+	labels := []string{"project=" + slug, "task=" + id, "title=" + title,
+		"herdr.space=andon-" + slug + "-work", "herdr.tab=andon-" + slug + "-" + id}
+	run, err := spawn.Run(name, labels, cwd, profile, msg)
 	if err != nil {
 		undo()
 		return fail("%v。作った worktree と branch を戻した。%s は todo のまま", err, id)
@@ -127,15 +131,17 @@ func (c *ctx) start(stdout io.Writer) error {
 	if _, err := spawn.OutputIn(cwd, []string{"FLIGHTDECK_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
 	}
+	place := slug + " work / " + id + " " + title // 人に端末を指す言い方（ADR-0002 決めたこと 16・17）
 	if !run.First.Sent {
-		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。hc read %s で画面を読み、答えてから次を送る: hc send %s %q（台帳は doing・agent %s のまま）",
-			run.Address, name, run.Reason(), run.Address, run.Address, msg, run.Address)}
+		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。hc read %s で画面を読み、答えてから次を送る: hc send %s %q（台帳は doing・agent %s のまま。App では %s）",
+			run.Address, name, run.Reason(), run.Address, run.Address, msg, run.Address, place)}
 	}
 	fmt.Fprintf(stdout, "andon task: %s を %s（%s・%s）で起こした。cwd %s", id, run.Address, name, profile, cwd)
 	if branch != "" {
 		fmt.Fprintf(stdout, " branch %s", branch)
 	}
 	fmt.Fprintln(stdout)
+	fmt.Fprintf(stdout, "andon task: 出た場所 %s（%s）\n", place, run.Address)
 	return nil
 }
 

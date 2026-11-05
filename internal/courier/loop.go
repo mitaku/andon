@@ -162,8 +162,12 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 	}
 	if r.Address == "" {
 		// --no-notify: 止まった・終わったはクーリエが端末の土台から拾う（contract.md §8）
-		out, _, err := run("", nil, "", "hc", "run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", term,
-			"--label", "project="+p.l.Slug, "--label", "task="+rev, "--label", "title="+title, "--cwd", cwd, s.Reviewer, msg)
+		args := []string{"run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", term,
+			"--label", "project=" + p.l.Slug, "--label", "task=" + rev, "--label", "title=" + title}
+		for _, l := range workerPlace(t.Str("agent")) {
+			args = append(args, "--label", l)
+		}
+		out, _, err := run("", nil, "", "hc", append(args, "--cwd", cwd, s.Reviewer, msg)...)
 		var started struct {
 			Address      string `json:"address"`
 			FirstMessage struct {
@@ -189,6 +193,28 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 		return fmt.Sprintf("%s（%s）に最初のメッセージを送れない: %v（次の見回りで送り直す）", rev, r.Address, err), false
 	}
 	return "", false
+}
+
+// workerPlace は担当の端末（task.yaml の agent）のラベル herdr.space・herdr.tab を "k=v" で返す。レビュアーに同じ値を付け、
+// 人の Herdr App で担当と同じ tab に並べる（ADR-0002 決めたこと 12）。読めなければ（端末が無い・ラベルが無い）付けない。
+func workerPlace(agent string) []string {
+	if agent == "" {
+		return nil
+	}
+	out, _, err := run("", nil, "", "hc", "get", agent, "--json")
+	var term struct {
+		Labels map[string]string `json:"labels"`
+	}
+	if err != nil || json.Unmarshal([]byte(out), &term) != nil {
+		return nil
+	}
+	var labels []string
+	for _, k := range []string{"herdr.space", "herdr.tab"} {
+		if v := term.Labels[k]; v != "" {
+			labels = append(labels, k+"="+v)
+		}
+	}
+	return labels
 }
 
 // reviewerBrief はレビュアーの依頼書（independent-review skill の §4 の型）。plan と担当の報告は見せない。
