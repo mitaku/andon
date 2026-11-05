@@ -96,3 +96,46 @@ func TestMainUsage(t *testing.T) {
 		t.Errorf("rc=%d err=%q", rc, errb.String())
 	}
 }
+
+func TestPublishSameFileKeepsContent(t *testing.T) {
+	e := env(t)
+	if _, err := Publish(e, writeTemp(t, "weekly.html", "<p>v1</p>"), ""); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(e.Workspace, "artifacts", "2026-01-02-weekly.html")
+	if _, err := Publish(e, dst, "weekly"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(dst); string(got) != "<p>v1</p>" {
+		t.Errorf("同じファイルの公開し直しで中身 = %q", got)
+	}
+	entries, _ := os.ReadDir(filepath.Join(e.Workspace, "artifacts"))
+	if len(entries) != 1 {
+		t.Errorf("一時ファイルが残った: %v", entries)
+	}
+}
+
+// 拡張子の無いファイルは拡張子を付けない（仮設の <日付>-report.report から意図して変えた）。
+func TestPublishWithoutExtension(t *testing.T) {
+	e := env(t)
+	src := writeTemp(t, "report", "x")
+	for slug, want := range map[string]string{"": "2026-01-02-report", "weekly": "2026-01-02-weekly"} {
+		url, err := Publish(e, src, slug)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasSuffix(url, "/"+want) {
+			t.Errorf("slug %q: url = %q, want …/%s", slug, url, want)
+		}
+		if _, err := os.Stat(filepath.Join(e.Workspace, "artifacts", want)); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func writeTemp(t *testing.T, name, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	write(t, p, body)
+	return p
+}

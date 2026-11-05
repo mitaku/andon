@@ -51,7 +51,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 }
 
 // Publish は file を <Workspace>/artifacts/<日付>-<slug><拡張子> にコピーし、URL を返す。
-// slug が空なら file の名前から拡張子を除いたもの。
+// slug が空なら file の名前から拡張子を除いたもの。拡張子の無い file は拡張子を付けない
+// （仮設は <日付>-report.report にしていた。意図して変えた）。
 func Publish(env Env, file, slug string) (string, error) {
 	st, err := os.Stat(file)
 	if err != nil || !st.Mode().IsRegular() {
@@ -76,21 +77,31 @@ func Publish(env Env, file, slug string) (string, error) {
 	return fmt.Sprintf("http://files.%s.localhost:%s/%s", env.Hostname, port(filepath.Join(env.Workspace, ".env")), name), nil
 }
 
+// copyFile は同じディレクトリの一時ファイルに書いてから rename する。
+// src と dst が同じファイル（公開済みのものを公開し直す）でも中身を空にしない。
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	out, err := os.CreateTemp(filepath.Dir(dst), ".publish-*")
 	if err != nil {
 		return err
 	}
+	defer os.Remove(out.Name()) // rename の後は無いので何もしない
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		return err
 	}
-	return out.Close()
+	if err := out.Chmod(0o644); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	return os.Rename(out.Name(), dst)
 }
 
 // port は .env の最後の PORTLESS_PORT= の値（引用符と空白を除く）。無ければ DefaultPort。
