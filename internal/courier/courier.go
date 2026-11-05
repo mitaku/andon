@@ -60,7 +60,11 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return exitUsage
 		}
 	}
-	for _, c := range []string{ledger.CLI, "hc", "gh", "git"} {
+	if err := ledger.Check(); err != nil {
+		fmt.Fprintf(stderr, "andon courier: %v\n", err)
+		return exitFail
+	}
+	for _, c := range []string{"hc", "gh", "git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			fmt.Fprintf(stderr, "andon courier: %s が無い\n", c)
 			return exitFail

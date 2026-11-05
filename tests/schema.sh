@@ -280,15 +280,18 @@ findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+
 LOOSE
 fi
 
-# 5. command の出力（tests/andon-task.sh・andon-gate.sh・andon-courier.sh が ANDON_EMIT_DIR に写したもの）。台帳の CLI が無ければ skip
+# 5. command の出力（tests/andon-task.sh・andon-gate.sh・andon-courier.sh が ANDON_EMIT_DIR に写したもの）。
+#    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
-  if ! command -v deck >/dev/null; then
-    echo "skip command の出力（台帳の CLI が無い）"
+  mkdir "$tmp/emit"
+  skipped=0
+  for t in andon-task andon-gate andon-courier; do
+    if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
+    elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
+  done
+  if [ "$skipped" = 1 ]; then
+    echo "skip command の出力（$(grep '^skip: ' "$tmp/emit.log" | head -1)）"
   else
-    mkdir "$tmp/emit"
-    for t in andon-task andon-gate andon-courier; do
-      if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5; fi
-    done
     while IFS='|' read -r file name desc; do
       case "$file" in ''|'#'*) continue ;; esac
       if [ -f "$tmp/emit/$file" ]; then expect pass "$name" "$tmp/emit/$file" "command の出力: $desc が schema/$name を通る"

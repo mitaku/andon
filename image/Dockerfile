@@ -77,8 +77,12 @@ RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.conf
 COPY package/ /opt/andon/
 # skill の手順が JSON を確かめる schema（package/lib/andon/schema_check.py が読む。ANDON_SCHEMA の既定）
 COPY schema/ /opt/andon/schema/
+# 台帳の CLI（cmd/kanban）。tests/image.sh が同じ repo から焼いたものを build context `kanban` で渡す
+# （docker build --build-context kanban=<dir>）。deck は1版だけの別名（docs/design.md §3.5 の K5）
+COPY --from=kanban --chmod=755 kanban /usr/local/bin/kanban
 USER root
-RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon
+RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon \
+ && ln -s kanban /usr/local/bin/deck
 USER andon
 WORKDIR /workspace
 CMD ["bash"]

@@ -59,7 +59,7 @@ func runCollect(l *ledger, limit int, stdout, _ io.Writer) error {
 // collect は台帳から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
 // 読むだけで、台帳にもリポジトリにも書かない。
 func (l *ledger) collect() ([]Item, error) {
-	out, err := l.deck("", "list", "--all", "--json")
+	out, err := l.kanban("", "list", "--all", "--json")
 	if err != nil {
 		return nil, fail("台帳を読めない")
 	}

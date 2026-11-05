@@ -10,7 +10,7 @@ Docker（BuildKit 対応）を用意する。
 bash tests/image.sh
 ```
 
-台帳の CLI は P3c で `kanban` を同じ repo からビルドして入れる。P3a では `deck` を焼かず、private release の取得や取得用 token は不要（人の決定 2026-11-05、decisions.md §9）。
+台帳の CLI `kanban`（`cmd/kanban/`。P3c）は同じ repo からビルドして入れる。`tests/image.sh` が linux の静的バイナリを焼き、build context `kanban`（`docker build --build-context kanban=<dir>`）で渡して `/usr/local/bin/kanban` に COPY する。`deck` は1版だけの別名（`/usr/local/bin/deck` → `kanban` の symlink）。private release の取得や取得用 token は使わない（人の決定 2026-11-05、decisions.md §9）。
 
 テストは `andon:test` を作り、ネットワークを切ったコンテナで `/opt/andon` と主要な CLI を確かめる。同じ image の actionlint・ghalint・pinact で イメージ配布 workflow（tests.yml）の構文・権限・固定 SHA も検査する。P3a では `package/` が空なので `andon help` はまだ検査しない。Docker が使えなければローカルは SKIP を表示し、CI は失敗する。
 

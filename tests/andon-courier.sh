@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# `andon courier`（インナーループ。docs/courier.md §5 の P6a）。本物の台帳の CLI（deck）と git・一時の建屋の repo・偽の hc・偽の gh で回す。
+# `andon courier`（インナーループ。docs/courier.md §5 の P6a）。本物の台帳の CLI（kanban）と git・一時の建屋の repo・偽の hc・偽の gh で回す。
 # Chief of Staff（t5）は台帳を用意したあと1つも打たず、review-request → レビュアーを起こす → レビュー → ready → ゲート →
 # マージ → finish が通ることを見る。fix は担当へ hc send、needs_human は問い（from: gate）。GitHub と本物の hc には出ない。
-# ANDON_EMIT_DIR があれば、通知・問い・ゲートの記録を写す（tests/schema.sh が schema に通す）。台帳の CLI が無ければ skip。
+# ANDON_EMIT_DIR があれば、通知・問い・ゲートの記録を写す（tests/schema.sh が schema に通す）。台帳の CLI は tests/lib/kanban.sh が焼く。
 set -euo pipefail
-for c in deck git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
+for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
+. "$(dirname "$0")/lib/kanban.sh"
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" XDG_STATE_HOME="$tmp/state" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_COMMITTER_NAME=c GIT_COMMITTER_EMAIL=c@example.com GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=agent@example.com
 export ANDON_HOME="$andon_root/package" ANDON_WORKSPACE="$tmp/plant" GHQ_ROOT="$tmp/ghq"
@@ -80,9 +81,9 @@ mkdir -p "$tmp/plant/projects/demo"
 echo '{"version": 1, "project": "demo", "preset": "work"}' > "$tmp/plant/projects/demo/delegation.json"
 as_owner git -C "$tmp/plant" add -A; as_owner git -C "$tmp/plant" commit -qm plant
 cd "$tmp/plant/projects/demo"
-deck init --prefix D --repo github.com/example/app >/dev/null
+kanban init --prefix D --repo github.com/example/app >/dev/null
 export FLIGHTDECK_ROOT=$PWD
-deck config set coordinator=t5 >/dev/null
+kanban config set coordinator=t5 >/dev/null
 L=$PWD/.flightdeck
 courier() { "$andon" courier --once --project demo 2>>"$tmp/courier.log"; }
 state=$tmp/state/andon/courier/demo.json
@@ -90,12 +91,12 @@ pending() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.task == $t an
 
 # Chief of Staff がタスクを切る（t5 が予約キーを書く）。担当 t7 が worktree で作業し、PR 7 を出す
 newtask() { # newtask <題> <merge> → id
-    local id; id=$(HC_TERMINAL_ID=t5 deck add "$1" --profile claude --repo github.com/example/app)
-    HC_TERMINAL_ID=t5 deck set "$id" review=on must_fix=major merge="$2" >/dev/null
+    local id; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app)
+    HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major merge="$2" >/dev/null
     git -C "$app" fetch -q origin
     git -C "$app" worktree add -q -b "demo/$id" "$HOME/.herdr/worktrees/app/demo-$id" origin/main
-    HC_TERMINAL_ID=t5 deck set "$id" "branch=demo/$id" "worktree=$HOME/.herdr/worktrees/app/demo-$id" >/dev/null  # andon task start の代わり
-    (cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 deck start "$id" >/dev/null)
+    HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$HOME/.herdr/worktrees/app/demo-$id" >/dev/null  # andon task start の代わり
+    (cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
     echo "t7 $id" >> "$tmp/hc/live"
     echo "$id"
 }
@@ -110,12 +111,12 @@ work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実�
     printf '+++ b/%s\n+x\n' "$2" > "$tmp/gh/diff"
     rm -f "$tmp/gh/merged"
 }
-restart() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 deck start "$1" >/dev/null); }  # 直しが届いた担当
+restart() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 kanban start "$1" >/dev/null); }  # 直しが届いた担当
 as_worker() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 "$andon" task "$2" "$1" "${@:3}" <<<'## Report' >/dev/null); }
 review_by() { # review_by <レビュアーの id> <findings>: レビュアーが findings.json を書いて review にする
     mkdir -p "$L/tasks/$1/library"
     jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$L/tasks/$1/library/findings.json"
-    HC_TERMINAL_ID=t9 deck review "$1" >/dev/null
+    HC_TERMINAL_ID=t9 kanban review "$1" >/dev/null
 }
 
 # 0. Chief of Staff の端末が生きていなければ台帳を飛ばす。初めて見る台帳は控えるだけ
@@ -138,10 +139,10 @@ work "$id" docs/a.md
 as_worker "$id" report
 as_worker "$id" review-request
 courier
-rev=$(deck list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
+rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 [ -n "$rev" ] || die 'レビュアーのタスクが無い'
-deck show "$rev" --json | jq -e --arg p "$id" '.task.profile == "codex-review" and .task.status == "doing" and .task.agent == "t9" and .task.parent == $p' >/dev/null ||
-    die "レビュアーのタスクの項目が違う: $(deck show "$rev" --json)"
+kanban show "$rev" --json | jq -e --arg p "$id" '.task.profile == "codex-review" and .task.status == "doing" and .task.agent == "t9" and .task.parent == $p' >/dev/null ||
+    die "レビュアーのタスクの項目が違う: $(kanban show "$rev" --json)"
 jq -e --arg r "$rev" 'select(.id == $r and has("change") and .change.add != null) | .by == "terminal:courier"' "$L/log.jsonl" >/dev/null || die 'レビュアーのタスクの作成が courier でない'
 rwt=$HOME/.herdr/worktrees/app/demo-$id-r1
 [ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die 'detached worktree が head に無い'
@@ -150,7 +151,7 @@ grep -q "hc send t7 " "$L/tasks/$rev/brief.md" && grep -q 'Chief of Staff・ク�
 grep -q "commit $head" "$L/tasks/$rev/brief.md" && ! grep -q '## Report' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
 pending "$id" review-requested | jq -e --arg r "$rev" '.detail == {round: 1, reviewer: "codex-review", reviewer_task: $r}' >/dev/null || die '通知 review-requested が無い'
 emit <(pending "$id" review-requested) notification-review-requested.json
-ok "review_request でレビュアーを起こす（deck add --parent・by terminal:courier・detached worktree・hc run --no-notify・依頼書の宛先は担当）"
+ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:courier・detached worktree・hc run --no-notify・依頼書の宛先は担当）"
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起こした'
 ok '同じ review_request（task と commit）で二度起こさない'
@@ -162,8 +163,8 @@ courier
 rec=$L/tasks/$id/library/gate/$head.json
 jq -e '.decision == "approve" and .merged == true and .tier == "B"' "$rec" >/dev/null || die "ゲートの記録が approve・merged でない: $(cat "$rec")"
 grep -qx "pr merge 7 --repo example/app --squash --match-head-commit $head" "$tmp/gh/merges" || die 'マージの打ち方が違う'
-deck show "$id" --json | jq -e '.task.status == "done"' >/dev/null || die 'タスクが done でない'
-deck show "$rev" --json | jq -e '.task.status == "done"' >/dev/null || die 'レビュアーのタスクが done でない'
+kanban show "$id" --json | jq -e '.task.status == "done"' >/dev/null || die 'タスクが done でない'
+kanban show "$rev" --json | jq -e '.task.status == "done"' >/dev/null || die 'レビュアーのタスクが done でない'
 [ ! -e "$HOME/.herdr/worktrees/app/demo-$id" ] && [ ! -e "$rwt" ] || die 'worktree が残った'
 ! git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'origin/main に入った branch が残った'
 ! grep -q " $id\$\| $rev\$" "$tmp/hc/live" || die '端末が残った'
@@ -183,12 +184,12 @@ work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
 courier
-rev=$(deck list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
+rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 review_by "$rev" '[{"severity":"major","file":"docs/a.md","line":1}]'
 as_worker "$id" ready
 courier
 grep -q "^t7	$id（説明を足す）: ゲートが fix を返した。理由: Must fix 以上が 1 件" "$tmp/hc/sent" || die "fix が担当に届いていない: $(cat "$tmp/hc/sent" 2>/dev/null)"
-[ ! -e "$tmp/gh/merged" ] && deck show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
+[ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
 courier
 [ "$(grep -c "	$id（" "$tmp/hc/sent")" = 1 ] || die '同じ review 入りで二度ゲートを回した'
 ok 'fix は理由を担当（task.yaml の agent）へ hc send し、同じ review 入りでは二度回さない'
@@ -199,13 +200,13 @@ work "$id" package/gate.json
 as_worker "$id" report
 as_worker "$id" review-request
 courier
-rev=$(deck list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p)] | last | .id')
+rev=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p)] | last | .id')
 review_by "$rev" '[]'
 as_worker "$id" ready
 courier
 q=$L/tasks/$id/library/questions/1.json
 jq -e '.from == "gate" and .kind == "line" and (.facts | any(contains("delegation: merge=B < tier C"))) and .options[0].pick == true' "$q" >/dev/null || die "問いが無い・形が違う: $(cat "$q" 2>/dev/null)"
-deck questions --json 2>/dev/null | jq -e --arg t "$id" 'any(.[]; .task == $t)' >/dev/null || deck questions | grep -q "$id" || die '台帳に問いが無い'
+kanban questions --json 2>/dev/null | jq -e --arg t "$id" 'any(.[]; .task == $t)' >/dev/null || kanban questions | grep -q "$id" || die '台帳に問いが無い'
 pending "$id" asked | jq -e '.detail.n == 1 and .detail.kind == "line"' >/dev/null || die '通知 asked が無い'
 [ ! -e "$tmp/gh/merged" ] || die 'needs_human なのにマージした'
 emit "$q" question-gate.json
@@ -218,16 +219,16 @@ work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
 courier
-rev=$(deck list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
+rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 review_by "$rev" '[]'
 as_worker "$id" ready
 courier
 pending "$id" gate | jq -e '.detail.decision == "approve"' >/dev/null || die '通知 gate が無い'
-[ ! -e "$tmp/gh/merged" ] && deck show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'merge: person なのにマージした'
+[ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'merge: person なのにマージした'
 ok 'merge: person は approve でもマージせず、通知 gate で止まる（人がマージする）'
 
 # 5. 上限を超えた回（extra）は起こさない（Chief of Staff が決める）
-HC_TERMINAL_ID=t5 deck set "$id" review_rounds=1 >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
 restart "$id"
 work "$id" docs/a.md
 as_worker "$id" report
@@ -239,16 +240,16 @@ pending "$id" report | jq -e '.detail.report | endswith("/report.md")' >/dev/nul
 grep -q '追加の回（2 回目／上限 1）' "$tmp/courier.log" || die '起こさない理由がログに無い'
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '上限を超えた回を二度目の見回りで起こした'
-HC_TERMINAL_ID=t5 deck set "$id" review_rounds=2 >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=2 >/dev/null
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die 'Chief of Staff が review_rounds を上げたのに起こさない'
 ok '上限を超えた回（extra）は起こさず通知 report。Chief of Staff が review_rounds を上げたら次の見回りで起こす'
 
 # 6. andon task finish（人がマージしたあと Chief of Staff が打つ）はレビュアーの子タスクと detached worktree も片付ける
-revs=$(deck list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')
+revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')
 [ "$revs" -ge 2 ] && ls -d "$HOME/.herdr/worktrees/app/demo-$id-r"* >/dev/null || die 'レビュアーの子タスク・detached worktree が無い（前提）'
 HC_TERMINAL_ID=t5 "$andon" task finish "$id" >/dev/null
-deck list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .parent == $p); .status == "done")' >/dev/null || die '子タスクが done でない'
+kanban list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .parent == $p); .status == "done")' >/dev/null || die '子タスクが done でない'
 ! ls -d "$HOME/.herdr/worktrees/app/demo-$id"* >/dev/null 2>&1 || die 'worktree が残った'
 git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'マージしていない branch を消した'
 ok 'andon task finish はレビュアーの子タスクと detached worktree も片付け、origin に入っていない branch は残す'

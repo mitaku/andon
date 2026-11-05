@@ -1,6 +1,6 @@
 # クーリエ（courier）の設計
 
-- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループは実装済み（`andon courier`。通知は控えに積むまで。P6a での決定は [decisions.md](decisions.md) §12）。
+- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループは実装済み（`andon courier`。通知は控えに積むまで。P6a での決定は [decisions.md](decisions.md) §13）。
 - この文書がクーリエの設計の正。前の設計（仮設の工場の通知の係）は記録として向こうに残る（相談 F8 の回答。[decisions.md](decisions.md) §7）。読んだものは末尾の「出典」。
 - 語は [design.md](design.md) §0.1。機械が読む形（通知の JSON・控え・フック・端末のラベル）の正は [contract.md](contract.md) と `schema/` で、この文書はそれを**なぜその形か**と**いつ何をするか**で説明する。食い違えば contract.md と `schema/` が正。
 
