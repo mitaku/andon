@@ -1,0 +1,17 @@
+{
+  "size_review_lines": 500,
+  "size_human_lines": 1000,
+  "test_paths": ["tests/**"],
+  "tier_a_paths": ["docs/**", "tests/**", "README*", "CHANGELOG.md"],
+  "tier_b_paths": ["**/.claude/skills/**", "bin/**", "**/*.sh", "cmd/**", "internal/**", "schema/**", "package/bin/**", "package/lib/**", "init/**"],
+  "tier_c_paths": ["image/**", "Dockerfile", "compose*.y*ml", "docker-compose*.y*ml",
+                   "package/skills/**", "package/templates/**", "package/hooks/**", "package/gate.json", "package/settings.json",
+                   "package/environment.md", "package/compose.yaml", "package/host/**",
+                   "gate.local.json", "andon.toml", "templates.local/**", "projects/*/delegation.json",
+                   "hooks/**", ".github/workflows/**", "tests/public*.sh", ".envrc", ".env.example", ".aqua/aqua-policy.yaml",
+                   "**/.mcp.json", "**/AGENTS.md", "**/AGENTS.override.md", "**/AGENTS.local.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
+                   "**/.claude/**", "**/.codex/**", ".aqua/registry.yaml", ".aqua/aqua-checksums.json",
+                   "**/renovate.json*", "**/.renovaterc*"],
+  "tier_c_path_exceptions": {"**/.claude/**": ["**/.claude/skills/**"]},
+  "tier_c_added_line_patterns": ["0\\.0\\.0\\.0", "\\bsudo\\b", "curl[^|]*\\|\\s*(ba)?sh", "authorized_keys", "token=", "secret=", "password=", "\"renovate\"\\s*:"]
+}

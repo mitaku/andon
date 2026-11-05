@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# andon の statusline（Claude Code の status line。ネットワークに出ない）:
+#   <model> │ ✍ <context%> │ <dir> (<branch><dirty>) │ ⏱ <session> │ <effort>
+# Reads a JSON payload on stdin. See https://code.claude.com/docs/en/statusline
+set -f
+
+input=$(cat)
+[ -z "$input" ] && { printf 'Claude'; exit 0; }
+
+# ── colors (truecolor) ──────────────────────────────────
+blue=$'\033[38;2;0;153;255m'
+cyan=$'\033[38;2;86;182;194m'
+green=$'\033[38;2;0;175;80m'
+orange=$'\033[38;2;255;176;85m'
+yellow=$'\033[38;2;230;200;0m'
+red=$'\033[38;2;255;85;85m'
+white=$'\033[38;2;220;220;220m'
+magenta=$'\033[38;2;180;140;255m'
+dim=$'\033[2m'
+reset=$'\033[0m'
+sep=" ${dim}│${reset} "
+
+jqv() { printf '%s' "$input" | jq -r "$1" 2>/dev/null; }
+
+color_for_pct() {
+  local p=$1
+  if [ "$p" -ge 90 ]; then printf '%s' "$red"
+  elif [ "$p" -ge 70 ]; then printf '%s' "$yellow"
+  elif [ "$p" -ge 50 ]; then printf '%s' "$orange"
+  else printf '%s' "$green"
+  fi
+}
+
+model=$(jqv '.model.display_name // "Claude"')
+
+# context %: prefer used_percentage, fall back to token-usage / size
+pct=$(jqv '.context_window.used_percentage // empty')
+if [ -z "$pct" ]; then
+  size=$(jqv '.context_window.context_window_size // 0')
+  it=$(jqv '.context_window.current_usage.input_tokens // 0')
+  cc=$(jqv '.context_window.current_usage.cache_creation_input_tokens // 0')
+  cr=$(jqv '.context_window.current_usage.cache_read_input_tokens // 0')
+  if [ "${size:-0}" -gt 0 ] 2>/dev/null; then
+    pct=$(( (it + cc + cr) * 100 / size ))
+  fi
+fi
+[ -z "$pct" ] && pct=0
+
+cwd=$(jqv '.workspace.current_dir // .cwd // ""')
+[ -z "$cwd" ] && cwd=$(pwd)
+dir_name=$(basename "$cwd" 2>/dev/null || printf '%s' "$cwd")
+
+branch=""
+dirty=""
+if git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  branch=$(git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null)
+  [ -n "$(git -C "$cwd" status --porcelain 2>/dev/null)" ] && dirty="*"
+fi
+
+# session duration (best effort; GNU date)
+dur=""
+start=$(jqv '.session.start_time // empty')
+if [ -n "$start" ]; then
+  start_epoch=$(date -d "$start" +%s 2>/dev/null || true)
+  if [ -n "$start_epoch" ]; then
+    elapsed=$(( $(date +%s) - start_epoch ))
+    if [ "$elapsed" -ge 3600 ]; then dur="$(( elapsed / 3600 ))h$(( (elapsed % 3600) / 60 ))m"
+    elif [ "$elapsed" -ge 60 ]; then dur="$(( elapsed / 60 ))m"
+    else dur="${elapsed}s"
+    fi
+  fi
+fi
+
+# effort level (from user settings, if present)
+effort="default"
+[ -f "$HOME/.claude/settings.json" ] && effort=$(jq -r '.effortLevel // "default"' "$HOME/.claude/settings.json" 2>/dev/null)
+
+pct_color=$(color_for_pct "$pct")
+
+line="${blue}${model}${reset}${sep}✍ ${pct_color}${pct}%${reset}${sep}${cyan}${dir_name}${reset}"
+[ -n "$branch" ] && line="${line} ${green}(${branch}${red}${dirty}${green})${reset}"
+[ -n "$dur" ] && line="${line}${sep}${dim}⏱ ${reset}${white}${dur}${reset}"
+case "$effort" in
+  high)   line="${line}${sep}${magenta}● ${effort}${reset}" ;;
+  low)    line="${line}${sep}${dim}◔ ${effort}${reset}" ;;
+  *)      line="${line}${sep}${dim}◑ ${effort}${reset}" ;;
+esac
+
+printf '%s' "$line"

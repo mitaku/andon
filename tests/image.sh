@@ -14,6 +14,8 @@ docker build --file image/Dockerfile --tag andon:test .
 docker run --rm --network none andon:test bash -euc '
   test "$(id -u)" -ne 0
   test -d /opt/andon
+  printf "{\"commit\": \"%040d\"}\n" 0 > /tmp/report.json
+  python3 /opt/andon/lib/andon/schema_check.py validate /opt/andon/schema/report.schema.json /tmp/report.json
   test -d "$PLAYWRIGHT_BROWSERS_PATH"
   hc --version
   node --version

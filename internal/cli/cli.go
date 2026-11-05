@@ -12,6 +12,7 @@ import (
 	"io"
 
 	"andon/internal/boot"
+	"andon/internal/chiefengineer"
 	"andon/internal/publish"
 	"andon/internal/triage"
 )
@@ -38,6 +39,12 @@ var commands = []command{
 		usage: "usage: andon chief-of-staff              projects/<slug>/ で打つ。終わりに hc attach でその画面に乗る\n" +
 			"       andon chief-of-staff --no-attach  乗らずに終わる\n" +
 			"中身はまだ無い。\n",
+	},
+	{
+		name:  "chief-engineer",
+		about: "人と仕様・設計を対話する Chief Engineer を、台帳のタスクとして起こす",
+		usage: chiefengineer.Usage,
+		run:   chiefengineer.Main,
 	},
 	{
 		name:  "courier",

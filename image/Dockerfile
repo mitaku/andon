@@ -70,6 +70,8 @@ RUN case "$(dpkg --print-architecture)" in \
  && rm /tmp/claude
 
 COPY package/ /opt/andon/
+# skill の手順が JSON を確かめる schema（package/lib/andon/schema_check.py が読む。ANDON_SCHEMA の既定）
+COPY schema/ /opt/andon/schema/
 USER root
 RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon
 USER andon

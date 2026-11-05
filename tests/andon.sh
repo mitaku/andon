@@ -10,7 +10,7 @@ cd "$tmp" || exit 2   # 台帳の外で打つ
 fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
-subs="task chief-of-staff courier publish triage gate boot"
+subs="task chief-of-staff chief-engineer courier publish triage gate boot"
 
 # === andon help: 一覧 ===
 "$andon" help >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -47,6 +47,8 @@ done
 # === 中身に渡る: 引数の誤りは中身の usage と終了コード ===
 "$andon" triage >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon triage collect' "$tmp/err" && pass "andon triage（引数なし）は中身の usage で rc 2" || fail "andon triage: rc=$r $(cat "$tmp/err")"
+"$andon" chief-engineer >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon chief-engineer' "$tmp/err" && pass "andon chief-engineer（引数なし）は usage で rc 2" || fail "andon chief-engineer: rc=$r $(cat "$tmp/err")"
 "$andon" publish >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon publish' "$tmp/err" && pass "andon publish（引数なし）は usage で rc 2" || fail "andon publish: rc=$r $(cat "$tmp/err")"
 "$andon" publish "$tmp/none.html" >/dev/null 2>"$tmp/err"; r=$?

@@ -155,3 +155,11 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 日付 | 決定 | 出典 |
 |---|---|---|
 | 2026-11-05 | P3a では `deck` を image に焼かず、private release の取得用 token も置かない。台帳の CLI は P3c で同じ repo の `kanban` をビルドして入れる。§7 の F9 の暫定配布案をこの決定で置き換える | 人の回答（P3a の CI に必要な取得用 token の相談） |
+
+## 10. P3b-2 での決定
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | schema の検査器を `tests/lib/schema_check.py` から `package/lib/andon/schema_check.py` に移す。P5 で `andon task report`・`ask` が command になるまで、担当・Chief of Staff・Chief Engineer は `report.json` と問いの JSON を jq で書き、建屋でこの検査器と `schema/`（image が `/opt/andon/schema` に置く。`ANDON_SCHEMA` で差し替え）に通す。tests も同じ検査器を使う | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針（skill は contract.md・schema/ を正に書く） |
+| 2026-11-05 | `andon chief-engineer` は `--repo <host/owner/repo>` を取り、その repo に worktree と branch を切って Chief Engineer を起こす（文書の PR と `report.json` を同じタスクから返す。design.md §1.8）。repo は台帳の `config.yaml` から推さない（台帳はファイルを直接読まない約束） | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針 |
+| 2026-11-05 | 上の行を改める: `andon chief-engineer "<題>"` は `--repo` を省ける。省いたら台帳の `config.yaml` の `repos` が1つのときその repo を使い、2つ以上（か無い・読めない形）なら `--repo <host/owner/repo>` を求める（終了コード 2）。`repos` は台帳の CLI が書く形（`repos:` の下の `  - <repo>`）だけを読む（台帳の CLI に repos を出す口が無いため。出す口ができたら替える） | Y-71 のレビュー 2 回目（Y-78）の指摘と Chief of Staff の推奨案 |

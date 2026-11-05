@@ -13,7 +13,7 @@ func run(args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-var subs = []string{"task", "chief-of-staff", "courier", "publish", "triage", "gate", "boot"}
+var subs = []string{"task", "chief-of-staff", "chief-engineer", "courier", "publish", "triage", "gate", "boot"}
 
 func TestHelpListsEverySubCommand(t *testing.T) {
 	rc, out, errs := run("help")
@@ -60,6 +60,9 @@ func TestSkeletonSubCommands(t *testing.T) {
 func TestPassesArgsToSubCommand(t *testing.T) {
 	if rc, _, errs := run("triage"); rc != 2 || !strings.HasPrefix(errs, "usage: andon triage collect") {
 		t.Errorf("triage: rc=%d err=%q", rc, errs)
+	}
+	if rc, _, errs := run("chief-engineer"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
+		t.Errorf("chief-engineer: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("publish", "/nonexistent/none.html"); rc != 1 || !strings.Contains(errs, "not a file") {
 		t.Errorf("publish: rc=%d err=%q", rc, errs)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests/schema.sh の検査器（python3 の標準ライブラリだけ）。
+"""schema の検査器（python3 の標準ライブラリだけ）。tests/schema.sh と、建屋で担当・Chief of Staff・Chief Engineer が JSON を確かめるのに使う。
 
 JSON Schema（draft 2020-12）のうち、schema/ が使うキーワードだけを実装する。
 知らないキーワードが schema にあれば、黙って飛ばさずに落ちる（検査が効いていないのに通るのを防ぐ）。
