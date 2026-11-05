@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 \
@@ -46,15 +46,28 @@ RUN ln -s agent-wrapper "${HOME}/.local/bin/portless"
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/andon-home/.cache/ms-playwright
 ARG INSTALL_BROWSERS=1
 RUN if [ "${INSTALL_BROWSERS}" = 1 ]; then /opt/andon-tools/bin/playwright install --with-deps chromium; fi
-RUN uv python install 3.14 --default \
- && uv tool install cookiecutter \
- && uv tool install cruft \
+ARG COOKIECUTTER_VERSION=2.7.1
+ARG CRUFT_VERSION=2.16.0
+RUN uv python install 3.14.10 --default \
+ && uv tool install "cookiecutter==${COOKIECUTTER_VERSION}" \
+ && uv tool install "cruft==${CRUFT_VERSION}" \
  && echo 'eval "$(mise activate bash)"' >> "${HOME}/.bashrc" \
  && echo 'eval "$(direnv hook bash)"' >> "${HOME}/.bashrc"
 ENV CLAUDE_CONFIG_DIR=/opt/andon-home/.claude
-RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install \
- && bash /tmp/claude-install latest \
- && rm -rf /tmp/claude-install "${HOME}/.claude" "${HOME}/.claude.json"
+ARG CLAUDE_VERSION=2.1.318
+ARG CLAUDE_SHA256_AMD64=708c77b204db30086ff6f1ed34577bda03e1be74ced80557cbf7b54249ebf0bd
+ARG CLAUDE_SHA256_ARM64=53a0d7e219d7b0804ecba5dbc002745e89f786cc946d2de85a6470d5b2d1fb06
+RUN case "$(dpkg --print-architecture)" in \
+      amd64) platform=linux-x64; checksum="${CLAUDE_SHA256_AMD64}" ;; \
+      arm64) platform=linux-arm64; checksum="${CLAUDE_SHA256_ARM64}" ;; \
+      *) exit 1 ;; \
+    esac \
+ && curl -fsSL "https://downloads.claude.ai/claude-code-releases/${CLAUDE_VERSION}/${platform}/claude" -o /tmp/claude \
+ && echo "${checksum}  /tmp/claude" | sha256sum -c - \
+ && mkdir -p "${HOME}/.local/share/claude/versions" \
+ && install -m 755 /tmp/claude "${HOME}/.local/share/claude/versions/${CLAUDE_VERSION}" \
+ && ln -s "${HOME}/.local/share/claude/versions/${CLAUDE_VERSION}" "${HOME}/.local/bin/claude" \
+ && rm /tmp/claude
 
 COPY package/ /opt/andon/
 USER root

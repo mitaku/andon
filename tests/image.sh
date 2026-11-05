@@ -22,4 +22,11 @@ docker run --rm --network none andon:test bash -euc '
   codex --version
   portless --version
 '
-echo 'ok   image: build and offline runtime smoke checks'
+docker run --rm --network none \
+  --mount "type=bind,source=$PWD,target=/src,readonly" --workdir /src \
+  andon:test bash -euc '
+    actionlint
+    ghalint run
+    pinact run --fix=false --no-api
+  '
+echo 'ok   image: build, offline runtime and workflow policy checks'
