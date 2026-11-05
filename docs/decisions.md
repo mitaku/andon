@@ -5,6 +5,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 出典の書き方:
 
 - **設計書 §6 問いN** — [design.md](design.md) の §6 の問いと、その「人の答え」の列。
+- **ADR-NNNN** — [adr/](adr/) の文書（Chief Engineer の題。design.md §1.8）。ADR 1本につきこの記録には1行（要点と番号）。各決定の中身・理由・捨てた案は ADR が正。
 - **仮設の記録（private）** — 仮設の工場（Andon の前身の実装）の設計文書・ゲートの文書・トリアージの文書。private で、public の読み手には届かない。決定の中身はここに写してあるので、設計の正はこの文書。仮設の語（yard・コーディネーター・段 A/B/C・知らせ）は、Andon の語（建屋・Chief of Staff・レベル A/B/C・通知）に直して写す。対応は design.md §2.4。
 
 ## 1. 設計書 §6 の人の答え（27 問）
@@ -211,13 +212,9 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | マージの直前に、タスクの予約キー・履歴（`by`）・委譲を読み直す。ゲートのときと1つでも違えば（`merge: person` に変わった・委譲の `merge` が変わった・review でなくなった）`gh pr merge` を打たず、控えに書かずに次の見回りでゲートから回し直す | P6a の独立レビュー 1 回目（Y-88）の major と Chief of Staff の方針 |
 | 2026-11-05 | レビュアーの起動は段（detached worktree・レビュアーのタスク・端末・最初のメッセージ）ごとに控えに書き、最初のメッセージが届くまで成功にしない。起こした（started）・起こさない（skipped。設定・上限・head 違い）・起こしそこねた（failed。fetch・`hc run`・最初のメッセージなどの一時の失敗）を分け、failed は次の見回りで済んだ段の続きから（タスクも端末も二つにしない。生きている端末へは最初のメッセージを送り直す）。3回続けば通知 `report` | 同上 |
 
-## 14. skill の配布（Chief Engineer のタスク Y-84。正は [skills-distribution.md](skills-distribution.md)）
+## 14. ADR（Chief Engineer の題）
 
 | 日付 | 決定 | 出典 |
 |---|---|---|
-| 2026-11-05 | skill の配布の範囲は「Andon（image）が届く所に届く」。建屋の中の継ぎ目だけ固め、public の読み手向けの配布（marketplace・`npx skills` の案内）はしない | skills-distribution.md 決めたこと 1 |
-| 2026-11-05 | Claude Code 系のプロファイルは `/opt/andon` を plugin `andon`（`package/.claude-plugin/plugin.json`）として `--plugin-dir` で読み、skill は `/andon:<name>`。`~/.claude/skills/andon-*` の symlink はやめる。Codex など `.agents/skills` を読むハーネス向けには boot が `~/.agents/skills/andon-<name>` の symlink を張る | skills-distribution.md 決めたこと 2 |
-| 2026-11-05 | Claude Code 系のプロファイルは `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md` で役の skill を system prompt に足し、最初のメッセージの「先に読む」の行を消す。`--agent` は採らない（system prompt の置き換えの危険）。Codex 系は最初のメッセージで絶対パスを指す形のまま | skills-distribution.md 決めたこと 3 |
-| 2026-11-05 | 作業側の別マシンは Andon の image で立てる。skill を `andon` の binary に埋めない | skills-distribution.md 決めたこと 4 |
-| 2026-11-05 | PR 時の「skill が打つ command が `andon help` にあるか」の検査は入れない。版の照合は `machine` を建てるとき `andon version` の比較として添え、`ANDON_HOME` が checkout のときは照合しない（boot が template の `/opt/andon` を `ANDON_HOME` に置き換える） | skills-distribution.md 決めたこと 5 |
-| 2026-11-05 | Skills over MCP（クーリエの HTTP 同居も）・独自エージェント・TanStack Intent／npm 同梱はやらない。再開の条件は skills-distribution.md の「やらないこと」 | skills-distribution.md やらないこと |
+| 2026-11-05 | skill の配布: Claude Code 系は `/opt/andon` を plugin `andon` として `--plugin-dir` で読み（`/andon:<name>`）、役の skill を `--append-system-prompt-file` で system prompt に足す。Codex など `.agents/skills` を読むハーネス向けは boot が `~/.agents/skills/andon-<name>` の symlink。作業側の別マシンは image で立てる。PR 時の stale 検査は入れず、版の照合は `machine` と一緒（`ANDON_HOME` が checkout なら照合しない）。やらないこと: Skills over MCP・独自エージェント・marketplace での配布・Intent／npm 同梱 | [ADR-0001](adr/0001-skills-distribution.md) |
+| 2026-11-05 | Chief Engineer の題は ADR（`docs/adr/NNNN-<題>.md`。番号と状態つき。形は design.md §1.8 のまま）。decisions.md には ADR 1本につき1行。部品の生きた設計（courier・image・ledger）と核（design・contract・decisions・operate）は `docs/` 直下のまま | 人の決定 2026-11-05（Y-84 の対話） |

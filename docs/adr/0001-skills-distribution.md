@@ -1,8 +1,8 @@
-# skill の配布（仕様・設計。2026-11-05。Chief Engineer のタスク Y-84）
+# ADR-0001: skill の配布（仕様・設計。2026-11-05。Chief Engineer のタスク Y-84）
 
-- 状態: **決定**（人が 2026-11-05 に「決めた」）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。
+- 状態: **決定（2026-11-05）**。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: Andon の skill（`package/skills/`。chief-of-staff・worker・chief-engineer・independent-review・ask-one-by-one・triage・glossary）を、建屋の中と、public にしたあとの外（他の人の手元）にどう届けるか。
-- 語は [design.md](design.md) §0.1。機械が読む形は変えない（skill は AI が読む Markdown。[contract.md](contract.md) §0 原則1）。
+- 語は [design.md](../design.md) §0.1。機械が読む形は変えない（skill は AI が読む Markdown。[contract.md](../contract.md) §0 原則1）。
 
 ## 問題（人の言葉で。言い直しの段落）
 
@@ -57,7 +57,7 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 
 | # | 手 | 完了条件 | 依存 |
 |---|---|---|---|
-| S1 | この文書の PR（design.md §2.3 の表の skill とプロファイルの行を直す・decisions.md に決定 1〜5 を写す） | `bash tests/*.sh` green | — |
+| S1 | この文書の PR（design.md §1.8・§2.2・§2.3 と decisions.md・README・chief-engineer skill から指す） | `bash tests/*.sh` green | — |
 | S2 | boot: `~/.agents/skills/andon-<name>` の symlink（`~/.claude/skills/andon-*` は外す）＋ template 生成時の `/opt/andon` → `ANDON_HOME` の置換 ＋ tests | 受け入れ条件 1 と 3 の置換 | S1 のマージ |
 | S3 | package: `.claude-plugin/plugin.json`・Claude Code 系 template に `--plugin-dir` と `--append-system-prompt-file`・「先に読む」の行を消す・`andon chief-engineer` の最初のメッセージ・tests | 受け入れ条件 2 | S1 のマージ（S2 と並行可） |
 | S4 | 建屋で実測（担当1つを起こして最初の turn を見る） | 受け入れ条件 3。落ちたら直しのタスク | S2・S3・建屋（P7） |
@@ -70,7 +70,7 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 
 ## 出典（読んだもの・捨てた案の出所）
 
-- Andon の側: [design.md](design.md) §1.5・§1.8・§1.10・§2.1〜§2.7・§5・§6、[courier.md](courier.md)、[contract.md](contract.md) §8・§9、[decisions.md](decisions.md)、`package/skills/*/SKILL.md`、`package/templates/*.md`、`internal/boot/boot.go`（skill の symlink）、`internal/chiefengineer/chiefengineer.go`（最初のメッセージの絶対パス）、`image/Dockerfile`（`package/` → `/opt/andon`）、`tests/package.sh`。
+- Andon の側: [design.md](../design.md) §1.5・§1.8・§1.10・§2.1〜§2.7・§5・§6、[courier.md](../courier.md)、[contract.md](../contract.md) §8・§9、[decisions.md](../decisions.md)、`package/skills/*/SKILL.md`、`package/templates/*.md`、`internal/boot/boot.go`（skill の symlink）、`internal/chiefengineer/chiefengineer.go`（最初のメッセージの絶対パス）、`image/Dockerfile`（`package/` → `/opt/andon`）、`tests/package.sh`。
 - MCP Skills extension（SEP-2640 Final。`io.modelcontextprotocol/skills`）: 概要 https://modelcontextprotocol.io/extensions/skills/overview 、仕様 https://github.com/modelcontextprotocol/ext-skills （`specification/beta/skills.mdx`）、client matrix https://modelcontextprotocol.io/extensions/client-matrix 、実装の一覧 `docs/implementations.md`（同 repo）。2026-11-05 に読んだ。
 - Agent Skills の仕様: https://agentskills.io/specification
 - Claude Code: skills（置き場と優先。enterprise＝managed settings のディレクトリの `.claude/skills/`） https://code.claude.com/docs/en/skills 、plugins https://code.claude.com/docs/en/plugins 、plugin の読み込み https://code.claude.com/docs/en/plugins/loading 、組織の管理（`extraKnownMarketplaces`・`enabledPlugins`・`strictPluginOnlyCustomization`・seed） https://code.claude.com/docs/en/plugins/org 、marketplace のホスト https://code.claude.com/docs/en/plugins/host-marketplace 、managed settings https://code.claude.com/docs/en/managed-settings 、settings https://code.claude.com/docs/en/settings
