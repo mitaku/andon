@@ -49,7 +49,7 @@
 | **Chief of Staff（CoS）** | chief-of-staff | ラインを回す役。文書を依頼書に切り、担当を起こし、検収し、振り返りをする。人と設計の対話はしない（§1.8） |
 | **担当** | worker | 1つのタスクのために起きるエージェント。自分の worktree の中だけで働き、報告を書いて終わる |
 | **レビュアー** | reviewer | 実装と別ブランドのモデルで、書いていない目で commit を読み、指摘を重さつきで返す。直さない |
-| **クーリエ** | courier | 建屋に1つ常駐するプログラム（出典は TPS の水すまし。§1.7。`runner` は CI の runner と紛れるので使わない）。台帳と端末を周期で回り、通知を届け、レビュアーを起こし、ゲートを回し、片付ける。判断はしない |
+| **クーリエ** | courier | 建屋に1つ常駐するプログラム（出典は TPS の水すまし。§1.7。`runner` は CI の runner と紛れるので使わない）。台帳と端末を周期で回り、通知を届け、レビュアーを起こし、ゲートを回し、片付ける。判断はしない。設計は [courier.md](courier.md) |
 | **ゲート** | gate | PR をマージしてよいかの決定式。条件表（JSON）を読み、`approve`／`fix`／`needs_human` を返す。レベル A・B・C（下） |
 | **レベル A／B／C** | tier | ゲートが変更ごとに決める段階。A＝テストが通れば自動マージ、B＝独立レビューつきで自動マージ、C＝人がマージ（ラインそのものの変更・不可逆なもの） |
 | **振り返り** | retro | アウターループのルーチン。記録を読んでつまずきを拾い、環境を直す PR を出す |
@@ -474,6 +474,7 @@ andon/
   docs/                      人用
     design.md                この文書
     contract.md              機械向けの約束の説明（正は schema/）
+    courier.md               クーリエの設計（何を拾い、誰にいつどう届け、どこまで動かすか）
     decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す）
     operate.md               建屋の立て方・更新・引っ越し（人の手順）
   schema/                    機械用（約束の正。JSON Schema）
@@ -538,7 +539,7 @@ andon/
 | `yard <sub>`（CLI） | `andon <sub>` | 替える | 入口は1つ。古い名前の別名は作らない（仮設と Andon は同居しないので要らない） |
 | コーディネーター | **Chief of Staff**（`chief-of-staff`。略して CoS） | 替える（人の決定 2026-11-05） | 人「コーディネーターという名前がダブルループに合わない」。mattpocock の chief-of-staff から |
 | 担当エージェント | **担当**（`worker`） | 日本語はそのまま、識別子を英語に | 「task agent」より役が伝わる |
-| yard news（通知の係） | **クーリエ**（`courier`。出典は水すまし。§1.7。人の決定 2026-11-05） | 育てる | 通知だけでなくレビュアーの起動・ゲート・片付けを持つので、「news」では狭い |
+| yard news（通知の係） | **クーリエ**（`courier`。出典は水すまし。§1.7。人の決定 2026-11-05） | 育てる | 通知だけでなくレビュアーの起動・ゲート・片付けを持つので、「news」では狭い。設計の正は [courier.md](courier.md) |
 | 知らせ | **通知** | 替える | 一般の語で |
 | 段 A／B／C | **レベル A／B／C**（`tier`） | 替える | 一般の語で |
 | 来歴・道しるべ・推し | 履歴・指針・推奨案 | 替える | 一般の語で（§1.7 の方針4） |
@@ -685,7 +686,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | F5 | `by` に代筆の印（クーリエが作業側の outbox を引いて報告を書くとき `terminal:<クーリエ> for <machine>/t7`） | 履歴の真正。ゲートが「誰が書いたか」で照合する | 動く（クーリエの控えで補う） |
 | F6 | Andon の予約キー（`review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine`）を ledger-format に「Andon が使うキー」として注記する | 他の読み手が同じ名前を別の意味で使わないため | 動く（任意キーのまま） |
 | F7 | 台帳の入れ物を将来 DB・MCP にするとき、台帳の CLI が server になるか、Andon が持つか | 今は決めない。入口が `andon task …` に閉じていれば後ろだけ替えられる | 動く |
-| F8 | クーリエ（旧 yard news）の設計の所在 | クーリエは Andon が育てる。flightdeck 側は記録として残し、設計の正を Andon の `docs/` に移してよいか | 動く |
+| F8 | クーリエ（旧 yard news）の設計の所在 | クーリエは Andon が育てる。flightdeck 側は記録として残し、設計の正を Andon の `docs/` に移してよいか | 動く。**回答: 移してよい**（2026-11-05。[decisions.md](decisions.md) §7）。正は [courier.md](courier.md) |
 | F9 | 台帳の CLI の配布経路（aqua の private release → Andon の image に CI で焼く） | ビルドに token が要る。GHCR に Go のバイナリを同梱するか、flightdeck の release のままか | 動く（起動時に token で入れる） |
 
 ### 3.3 捨てるものと、その理由（まとめ）
@@ -837,6 +838,7 @@ andon/
 | P8 | **セルフホストに移る**: Andon の仕事を仮設のプロジェクトの台帳から `home` の台帳へ。仮設の Chief of Staff の設定に「Andon の仕事は home へ渡す」。template-yard に tag を打って凍結 | 小 | 以後の Andon の PR が home の台帳から出る。仮設の台帳に Andon の todo が無い | 人 ＋ Chief of Staff（タスクにしない） | P7 |
 
 - 全部で PR 10 本前後。P3a と P3b、P4 と P5 は並行できる。
+- クーリエが P3b・P6a・P6b でそれぞれ何を持つかは [courier.md](courier.md) §5。
 - レビュアーは、Claude が書いたものは `codex-review`、Codex が書いたもの（P3a）は `claude-review`。`must_fix: major`・`review_rounds: 2` は既定のまま。
 - **仮設のゲートで Andon の PR をマージする**には、仮設の建屋のゲートの条件表の `repos` に `github.com/<owner>/andon` を足す（レベル C。人が入れる）。それまでは人がマージする（この PR と同じ）。
 
