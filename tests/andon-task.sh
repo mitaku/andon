@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# `andon task show/report/review-request/ready/ask`。本物の台帳の CLI（kanban）・一時の台帳と git・偽の gh で回す。
+# `andon task show/report/review-request/ready/ask/start`。本物の台帳の CLI（kanban）・一時の台帳と git・偽の gh・偽の hc で回す。
+# start は bare な origin とその clone（GHQ_ROOT）に worktree を切り、偽の hc で起こし、finish で片付くまで。本物の hc・台帳には触らない。
 # ANDON_EMIT_DIR があれば、command が書いた JSON をそこに写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
 for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
@@ -178,5 +179,95 @@ for bad in '.options[1].pick = true' '.options = [.options[0]]' '.question = "a\
 done
 [ "$(kanban show "$id" --json | jq '.questions | length')" = 2 ]
 ok 'ask: 形の違う問いは台帳に書く前に止まる'
+
+# start: Chief of Staff（t5）が担当を起こす。案件の repo は bare な origin とその clone
+export GHQ_ROOT="$tmp/ghq"
+git init -q --bare -b main "$tmp/origin.git"
+git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/app" 2>/dev/null
+appdir=$GHQ_ROOT/github.com/example/app
+git -C "$appdir" commit -q --allow-empty -m init
+git -C "$appdir" push -q origin HEAD:main
+# 偽の hc: 生きている端末は $tmp/hc/live（1行に address name task）。run は t42, t43 … を返し、打ったものを $tmp/hc/log に。
+# $tmp/hc/run-rc があれば run はその終了コードで落ちる。$tmp/hc/first があれば first_message.sent はその中身
+mkdir -p "$tmp/hc"; : > "$tmp/hc/live"
+cat > "$tmp/bin/hc" <<EOF
+#!/usr/bin/env bash
+d=$tmp/hc
+printf '%s\n' "\$*" >>\$d/log
+case \$1 in
+  ls) task=; for a in "\$@"; do case \$a in task=*) task=\${a#task=};; esac; done
+      awk -v t="\$task" 't == "" || \$3 == t {print \$1, \$2}' \$d/live | jq -Rn '{terminals: [inputs | split(" ") | {address: .[0], name: .[1], state: "live"}]}' ;;
+  templates) echo '{"templates":[{"name":"claude"},{"name":"codex"}]}' ;;
+  run) [ -e \$d/run-rc ] && { echo boom >&2; exit "\$(cat \$d/run-rc)"; }
+       n=\$(cat \$d/next 2>/dev/null || echo 42); echo \$((n + 1)) > \$d/next
+       name= task=; while [ \$# -gt 0 ]; do case \$1 in --name) name=\$2; shift;; --label) case \$2 in task=*) task=\${2#task=};; esac; shift;; esac; shift; done
+       echo "t\$n \$name \$task" >> \$d/live
+       echo "{\"address\":\"t\$n\",\"first_message\":{\"sent\":\$(cat \$d/first 2>/dev/null || echo true),\"reason\":\"trust prompt\"}}" ;;
+  kill) ;;
+  rm) sed -i "/^\$2 /d" \$d/live ;;
+  *) echo "unexpected hc \$1" >&2; exit 9 ;;
+esac
+EOF
+chmod +x "$tmp/bin/hc"
+field() { kanban show "$1" --json | jq -r --arg k "$2" '.task[$k] // ""'; }
+# 台帳は repos に案件の repo を持つ別の台帳（slug は demo）
+mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
+FLIGHTDECK_ROOT= kanban init --prefix S --repo github.com/example/app >/dev/null
+export FLIGHTDECK_ROOT=$PWD HC_TERMINAL_ID=t5
+kanban config set coordinator=t5 >/dev/null
+s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude --brief - <<<'# Add the button')
+"$andon" task start "$s1" > "$tmp/out"
+lc=$(tr A-Z a-z <<<"$s1")
+wt=$HOME/.herdr/worktrees/app/demo-$s1
+br=demo/$s1-add-the-button
+[ -d "$wt" ] && [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = "$br" ] || die "worktree か branch が無い: $(cat "$tmp/out")"
+[ -z "$(git -C "$wt" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" ] || die 'branch に upstream がある'
+[ "$(field "$s1" status)" = doing ] && [ "$(field "$s1" agent)" = t42 ] && [ "$(field "$s1" branch)" = "$br" ] && [ "$(field "$s1" worktree)" = "~/.herdr/worktrees/app/demo-$s1" ] \
+  || die "台帳: $(kanban show "$s1" --json | jq -c .task)"
+grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label project=demo --label task=$s1 --label title=Add the button --cwd $wt claude タスク \`demo/$s1\`。" "$tmp/hc/log" \
+  || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
+! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
+grep -q "$s1 を t42（demo-$lc・claude）で起こした。cwd $wt branch $br" "$tmp/out" || die "out: $(cat "$tmp/out")"
+jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == "terminal:t42"' .flightdeck/log.jsonl >/dev/null || die 'doing にしたのが担当の端末でない'
+ok 'start: worktree と branch（upstream 無し）・hc run（名前・ラベル・cwd・最初のメッセージ）・kanban start で doing と agent'
+
+expect_fail "は doing" "$andon" task start "$s1"
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '二度起こした'
+ok 'start: 起こし済み（doing）は起こさない'
+
+s2=$(kanban add '依頼書の無いタスク' --repo github.com/example/app --profile claude)
+expect_fail '依頼書（brief.md）が無い' "$andon" task start "$s2"
+s3=$(kanban add 'プロファイルの無いもの' --repo github.com/example/app --profile fable --brief - <<<'# x')
+expect_fail 'プロファイル fable の template が無い' "$andon" task start "$s3"
+[ ! -e "$HOME/.herdr/worktrees/app/demo-$s2" ] && [ ! -e "$HOME/.herdr/worktrees/app/demo-$s3" ] || die '止まる前に worktree を作った'
+ok 'start: 依頼書が無い・template が無いなら何も作らずに止まる'
+
+# hc run が落ちたら、作った worktree と branch を戻す
+s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brief - <<<'# x')
+echo 1 > "$tmp/hc/run-rc"
+expect_fail 'hc run に失敗' "$andon" task start "$s4"
+rm "$tmp/hc/run-rc"
+[ ! -e "$HOME/.herdr/worktrees/app/demo-$s4" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s4-run-fails" \
+  && [ "$(field "$s4" status)" = todo ] && [ -z "$(field "$s4" branch)$(field "$s4" worktree)" ] || die "戻していない: $(kanban show "$s4" --json | jq -c .task)"
+"$andon" task start "$s4" >/dev/null || die 'やり直せない'
+ok 'start: hc run が落ちたら worktree・branch・台帳の欄を戻す（やり直せる）'
+
+# 最初のメッセージが届かない（信頼の画面など）
+s5=$(kanban add 'Trust prompt' --profile claude --brief - <<<'# x')   # repo の無いタスク: tasks/<id>/ で起こる
+echo false > "$tmp/hc/first"
+rc=0; "$andon" task start "$s5" >"$tmp/out" 2>"$tmp/err" || rc=$?
+rm "$tmp/hc/first"
+[ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
+addr=$(field "$s5" agent)
+grep -q "に最初のメッセージが届いていない: trust prompt。hc read $addr で画面を読み、答えてから次を送る: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
+  && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
+grep -q "^run .*--cwd $PWD/.flightdeck/tasks/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
+ok 'start: 最初のメッセージが届かなければ終了コード 3 と送り直す hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
+
+# start が作ったものを finish が片付ける
+"$andon" task finish "$s1" >/dev/null
+[ ! -e "$wt" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/$br" && [ "$(field "$s1" status)" = done ] && ! grep -q " $s1\$" "$tmp/hc/live" \
+  || die "finish で片付かない: $(kanban show "$s1" --json | jq -c .task)"
+ok 'start が作った worktree・branch・端末を finish が片付ける'
 
 echo "all passed ($pass)"

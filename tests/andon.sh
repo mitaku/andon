@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/andon.sh — 入口 andon（振り分け・一覧・--help・知らない sub-command・骨だけの sub-command）。
+# tests/andon.sh — 入口 andon（振り分け・一覧・--help・知らない sub-command）。
 # 中身（publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。台帳も hc も起こさない。
 set -u
 tmp=$(mktemp -d)
@@ -37,18 +37,15 @@ for s in $subs; do
     && pass "andon $s --help" || fail "andon $s --help: rc=$r $(cat "$tmp/out" "$tmp/err")"
 done
 
-# === 骨だけの sub-command: 中身が無いと言って rc 1 ===
-for s in task chief-of-staff; do
-  "$andon" "$s" start X-1 >"$tmp/out" 2>"$tmp/err"; r=$?
-  [ "$r" = 1 ] && [ ! -s "$tmp/out" ] && grep -q '中身はまだ無い' "$tmp/err" \
-    && pass "andon $s は中身はまだ無いと言って rc 1" || fail "andon $s: rc=$r $(cat "$tmp/err")"
-done
-
 # === 中身に渡る: 引数の誤りは中身の usage と終了コード ===
 "$andon" triage >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon triage collect' "$tmp/err" && pass "andon triage（引数なし）は中身の usage で rc 2" || fail "andon triage: rc=$r $(cat "$tmp/err")"
 "$andon" courier --bogus >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon courier' "$tmp/err" && pass "andon courier（知らない引数）は usage で rc 2" || fail "andon courier: rc=$r $(cat "$tmp/err")"
+"$andon" chief-of-staff start >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" && pass "andon chief-of-staff（知らない引数）は usage で rc 2" || fail "andon chief-of-staff: rc=$r $(cat "$tmp/err")"
+"$andon" task start X-1 extra >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon task' "$tmp/err" && pass "andon task start（余分な引数）は usage で rc 2" || fail "andon task start: rc=$r $(cat "$tmp/err")"
 "$andon" chief-engineer >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon chief-engineer' "$tmp/err" && pass "andon chief-engineer（引数なし）は usage で rc 2" || fail "andon chief-engineer: rc=$r $(cat "$tmp/err")"
 "$andon" publish >/dev/null 2>"$tmp/err"; r=$?

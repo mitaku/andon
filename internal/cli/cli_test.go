@@ -48,11 +48,10 @@ func TestSubCommandHelp(t *testing.T) {
 	}
 }
 
-func TestSkeletonSubCommands(t *testing.T) {
-	for _, s := range []string{"task", "chief-of-staff"} {
-		rc, out, errs := run(s, "start", "X-1")
-		if rc != 1 || out != "" || !strings.Contains(errs, "中身はまだ無い") {
-			t.Errorf("%s: rc=%d out=%q err=%q", s, rc, out, errs)
+func TestNoSkeletonLeft(t *testing.T) {
+	for _, c := range commands {
+		if c.run == nil {
+			t.Errorf("%s の中身が無い", c.name)
 		}
 	}
 }
@@ -63,6 +62,12 @@ func TestPassesArgsToSubCommand(t *testing.T) {
 	}
 	if rc, _, errs := run("courier", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon courier") {
 		t.Errorf("courier: rc=%d err=%q", rc, errs)
+	}
+	if rc, _, errs := run("chief-of-staff", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-of-staff") {
+		t.Errorf("chief-of-staff: rc=%d err=%q", rc, errs)
+	}
+	if rc, _, errs := run("task", "start", "X-1", "extra"); rc != 2 || !strings.HasPrefix(errs, "usage: andon task") {
+		t.Errorf("task start: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("chief-engineer"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
 		t.Errorf("chief-engineer: rc=%d err=%q", rc, errs)
