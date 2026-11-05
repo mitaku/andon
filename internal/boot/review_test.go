@@ -87,12 +87,16 @@ func TestFilesHandlerServesOnlyInsideRoot(t *testing.T) {
 	put(t, filepath.Join(r, "outside", "x.txt"), "外")
 	for link, to := range map[string]string{
 		"leak.json": filepath.Join(r, "secret.json"),
-		"inner":     filepath.Join(root, "report.html"),
+		"inner":     "report.html", // 中を指す相対リンクは返す（絶対パスのリンクは os.Root が開かない）
 		"dir":       filepath.Join(r, "outside"),
 	} {
 		if err := os.Symlink(to, filepath.Join(root, link)); err != nil {
 			t.Fatal(err)
 		}
+	}
+	mustMkdir(t, filepath.Join(root, "sub"))
+	if err := os.Symlink(filepath.Join(r, "secret.json"), filepath.Join(root, "sub", "index.html")); err != nil {
+		t.Fatal(err)
 	}
 	h, err := FilesHandler(root)
 	if err != nil {
@@ -105,12 +109,15 @@ func TestFilesHandlerServesOnlyInsideRoot(t *testing.T) {
 		h.ServeHTTP(w, req)
 		return w.Code, w.Body.String()
 	}
-	for path, want := range map[string]int{
-		"/report.html": 200, "/inner": 200, "/": 200,
-		"/leak.json": 404, "/dir/x.txt": 404, "/../secret.json": 404, "/none": 404,
-	} {
+	// 中の実体は返す。外を指すものは返さない（os.Root が開かない。コードは 404 か 500、ディレクトリは一覧に落ちる）
+	for path, want := range map[string]string{"/report.html": "納品物", "/inner": "納品物"} {
+		if code, body := get(path); code != 200 || body != want {
+			t.Errorf("%s: code=%d body=%q", path, code, body)
+		}
+	}
+	for _, path := range []string{"/leak.json", "/sub/", "/sub/index.html", "/dir/x.txt", "/../secret.json", "/none"} {
 		code, body := get(path)
-		if code != want || strings.Contains(body, "秘密") || strings.Contains(body, "外") && code == 200 && path != "/" {
+		if strings.Contains(body, "秘密") || strings.Contains(body, "外") || (code == 200 && path != "/sub/") {
 			t.Errorf("%s: code=%d body=%q", path, code, body)
 		}
 	}

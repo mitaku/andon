@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 )
 
-// FilesHandler は root（納品物 artifacts/）を読み取りで返す。要求先の実体のパス（symlink を解いたもの）が
-// root の中にあるものだけ返し、外を指す symlink は 404 にする。root 自体が symlink なら作らない。
+// FilesHandler は root（納品物 artifacts/）を読み取りで返す。開くのは os.Root を通すので、
+// root の外を指す symlink（ディレクトリの index.html を含む）は開けず 404 になる。root 自体が symlink なら作らない。
 func FilesHandler(root string) (http.Handler, error) {
 	st, err := os.Lstat(root)
 	if err != nil {
@@ -19,22 +17,17 @@ func FilesHandler(root string) (http.Handler, error) {
 	if !st.IsDir() {
 		return nil, fmt.Errorf("%s が実ディレクトリでない（symlink は配らない）", root)
 	}
-	real, err := filepath.EvalSymlinks(root)
+	r, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
-	fsrv := http.FileServer(http.Dir(real))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+	fsrv := http.FileServerFS(r.FS())
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet && req.Method != http.MethodHead {
 			http.Error(w, "読み取りだけ", http.StatusMethodNotAllowed)
 			return
 		}
-		target, err := filepath.EvalSymlinks(filepath.Join(real, filepath.FromSlash(filepath.Clean("/"+r.URL.Path))))
-		if err != nil || (target != real && !strings.HasPrefix(target, real+string(filepath.Separator))) {
-			http.NotFound(w, r)
-			return
-		}
-		fsrv.ServeHTTP(w, r)
+		fsrv.ServeHTTP(w, req)
 	}), nil
 }
 
