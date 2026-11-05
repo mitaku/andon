@@ -13,8 +13,11 @@ import (
 
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
+	"andon/internal/delegate"
+	"andon/internal/gate"
 	"andon/internal/plantinit"
 	"andon/internal/publish"
+	"andon/internal/task"
 	"andon/internal/triage"
 )
 
@@ -29,10 +32,9 @@ type command struct {
 var commands = []command{
 	{
 		name:  "task",
-		about: "台帳のタスクに担当を起こす（start）・片付ける（finish）（まだ無い）",
-		usage: "usage: andon task start <id>     worktree と branch を作り、hc でプロファイルの担当を起こす\n" +
-			"       andon task finish <id>    端末と worktree を片付け、マージ済みなら branch を消し、done にする\n" +
-			"中身はまだ無い。\n",
+		about: "担当が台帳に返す（show・report・review-request・ready・ask）。起こす・片付ける（start・finish）はまだ無い",
+		usage: task.Usage,
+		run:   task.Main,
 	},
 	{
 		name:  "chief-of-staff",
@@ -82,9 +84,15 @@ var commands = []command{
 	},
 	{
 		name:  "gate",
-		about: "台帳・PR・検査・独立レビューを照合し、条件を満たす PR だけをマージする（まだ無い）",
-		usage: "usage: andon gate <id> [--dry-run]   台帳のタスクの PR を照合し、条件を満たす head だけをマージする\n" +
-			"中身はまだ無い。\n",
+		about: "台帳のタスクの PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
+		usage: gate.Usage,
+		run:   gate.Main,
+	},
+	{
+		name:  "delegate",
+		about: "委譲（projects/<slug>/delegation.json）を読む（show）・人が書く（grant・narrow・revoke）",
+		usage: delegate.Usage,
+		run:   delegate.Main,
 	},
 }
 

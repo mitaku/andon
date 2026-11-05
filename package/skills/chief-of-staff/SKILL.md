@@ -201,12 +201,10 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 
 ### レビュー依頼を受けたら
 
-担当は `tasks/<id>/library/report.json` に `review_request`（`round`・`limit`・`commit`・`previous`・`reviewer`・`extra`）を書いて `deck report` する。`<news>` の `<id> report` で届く。
+担当は `andon task review-request` で `tasks/<id>/library/report.json` に `review_request`（`round`・`limit`・`commit`・`previous`・`reviewer`・`extra`）を書いて `deck report` する（command が `HEAD` ＝ PR の head・回と上限・レビュアーを確かめて書く）。`<news>` の `<id> report` で届く。
 報告の Markdown の `## レビュー依頼` の行は人が読む写しで、判断には使わない。
 
-1. `jq .review_request tasks/<id>/library/report.json` を読み、確かめる: `round ≤ limit`、`limit` が `task.yaml` の `review_rounds`（無ければ 2）と同じ、
-   `reviewer` が `task.yaml` の `reviewer` と同じ、`commit` が `report.json` の `pr` の最後の commit と同じ
-   （`gh pr view <pr> --json headRefOid -q .headRefOid`）。`report.json` が無い・形が壊れている・どれかが違えば起こさず、担当に `hc send` で理由を返す。
+1. `andon task show <id>` の `report.review_request` と `settings` を読む。`report` が無い・`review_request` が無ければ起こさず、担当に `hc send` で理由を返す。
    `extra: true`（`round > limit`。追加の回）は、上限を使い切っても critical / major が残っているときだけ、Chief of Staff の判断で起こしてよい（人の判断待ちにしない。見るのは `previous..commit` の差分だけ）。
    minor 以下だけが残っているなら起こさず、見送りに残して進めるよう担当に返す。追加の回でも同じ指摘が続いて収まらないと見たら人へ（§8）。
 2. independent-review の §3・§4 の手順でレビュアーのタスク（`parent: <id>`）を足し、依頼書を組み立て、`andon task start <新しい id>` で起こす。
@@ -219,13 +217,11 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 
 方針は現地現物（go and see）: 言われた結果を推さず、実物を読む。
 
-1. `deck show <id>` と `tasks/<id>/library/report.json` を読む（`commit`・`pr`＝ゲートが読む PR の場所・`waived`・`next`）。`report.json` が無い・形が壊れている・`pr` が無いなら検収しない（担当に返す）。人が読む `report.md` は経緯を見るのに使う。
-2. **レビューの commit を照合する**（`Review: on` のとき）: 最後のレビュアー（`deck list --json` で `parent` が `<id>` の最新）の `tasks/<レビュアーの id>/library/findings.json` の `commit` と、
-   PR の最後の commit（`gh pr view <url> --json headRefOid -q .headRefOid`）が一致すること。
-   一致しなければ検収しない。担当に `hc send` で「最後の commit <sha> のレビューが無い。頼み直して」と返す。
-3. `Must fix` 以上の指摘が残っていないか（`findings.json` の `findings` を `task.yaml` の `must_fix` で数え、`report.json` の `waived` に理由つきであるものを除く。`andon gate` と同じ数え方。報告の Markdown の見出しは数えない）。残っていれば担当に戻す。
-4. 完了条件を報告と PR（`gh pr view`・`gh pr checks`）で確かめる。
-5. 人にマージを頼む（1行: タスクの番号（題）・PR の URL・何が変わったか・レビューの回数と結果・見送った指摘）。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
+1. `andon task show <id>` を読む（`report`＝`commit`・`pr`（ゲートが読む PR の場所）・`waived`・`next`）。人が読む `report.md` は経緯を見るのに使う。
+2. **ゲートに照合させる**: `andon gate <id> --dry-run`（記録も GitHub への書き込みもしない）。PR の head・`report.json`・最新のレビューの `commit`・`Must fix` 以上の残り・検査・レベル・委譲を照合し、
+   `decision` と `reasons[]` を出す。`fix` なら理由を担当に `hc send` で返す。`needs_human` の理由が委譲（`delegation: merge=… < tier …`）だけなら照合は通っている（人がマージする。4 へ）。ほかの `needs_human` は人へ（§8）。`approve` でも 3 を見る。
+3. 完了条件を報告と PR（`gh pr view`・`gh pr checks`）で確かめる。
+4. 人にマージを頼む（1行: タスクの番号（題）・PR の URL・何が変わったか・レビューの回数と結果・見送った指摘）。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
 
 直しが要るとき（検収で見つけたもの・人の指摘）は、担当へ `hc send` で戻す。担当が `deck start` で `doing` に戻し、直したら同じ手順で返す。
 

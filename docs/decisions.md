@@ -163,3 +163,21 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | schema の検査器を `tests/lib/schema_check.py` から `package/lib/andon/schema_check.py` に移す。P5 で `andon task report`・`ask` が command になるまで、担当・Chief of Staff・Chief Engineer は `report.json` と問いの JSON を jq で書き、建屋でこの検査器と `schema/`（image が `/opt/andon/schema` に置く。`ANDON_SCHEMA` で差し替え）に通す。tests も同じ検査器を使う | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針（skill は contract.md・schema/ を正に書く） |
 | 2026-11-05 | `andon chief-engineer` は `--repo <host/owner/repo>` を取り、その repo に worktree と branch を切って Chief Engineer を起こす（文書の PR と `report.json` を同じタスクから返す。design.md §1.8）。repo は台帳の `config.yaml` から推さない（台帳はファイルを直接読まない約束） | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針 |
 | 2026-11-05 | 上の行を改める: `andon chief-engineer "<題>"` は `--repo` を省ける。省いたら台帳の `config.yaml` の `repos` が1つのときその repo を使い、2つ以上（か無い・読めない形）なら `--repo <host/owner/repo>` を求める（終了コード 2）。`repos` は台帳の CLI が書く形（`repos:` の下の `  - <repo>`）だけを読む（台帳の CLI に repos を出す口が無いため。出す口ができたら替える） | Y-71 のレビュー 2 回目（Y-78）の指摘と Chief of Staff の推奨案 |
+
+## 11. P5 での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | `andon gate` は判定と記録（`library/gate/<head>.json`・PR の commit status `andon/gate` とコメント）までで、**マージしない**。マージと finish はクーリエ（P6a） | contract.md §6・§7、courier.md §5 |
+| 2026-11-05 | ゲートは PR の場所を `report.json` の `pr` だけから読む（`task.yaml` の `pr` は読まない）。`report.json` が無い・形が違う・台帳と PR が合わないときは、信じられる PR が無いので記録も GitHub への書き込みもせず `fix` | contract.md §4・仮設のゲート（template-yard #41） |
+| 2026-11-05 | 委譲が無い（無い・読めない・author が owner でない）ときの `merge` は `none` で、ゲートはどのレベルでも `needs_human`（人がマージする）。conflict・base が既定ブランチでない・作者が建屋の gh アカウントでない・fork・files の件数の食い違いは、委譲の範囲に関わらず `needs_human`（仮設ではレベル C の理由だったもの。委譲 `merge: C` で通らないように分けた） | contract.md §7・§11、design.md §1.10 |
+| 2026-11-05 | `must_fix` 以上の指摘を担当が `waived` に入れたら、ゲートは `needs_human`（担当がレビュアーを覆した。人が判断する）。`must_fix_open` は `waived` に無いものだけを数える。同じ head で Must fix が残って `fix` を返した記録があれば、2度目は `needs_human`（仮設の控えファイルを記録で置き換えた） | 担当の推し（chief-of-staff skill の数え方と schema の description に合わせた） |
+| 2026-11-05 | `andon task review-request` の回は、レビュアーの子タスク（profile が `*-review`）の `findings.json` の `commit` のうち違うものの数 ＋ 1。`previous` は最新の `findings.json` の `commit`。古い commit を見たレビューは前の回と同じ commit なので回が増えない。`HEAD` のレビューがもうあれば頼まない | 担当の推し（`report.json` は毎回書き直すので、回を控える場所が無い） |
+| 2026-11-05 | `andon task report` は `--pr` を省くと前の `report.json` の `pr` を引き継ぐ（ゲートが読むのはこれだけなので、書き忘れで落ちないように）。ほかのキーは毎回書き直す。`review-request` は前の `report.json` に `review_request` を足して書く | 担当の推し |
+| 2026-11-05 | 建屋の repo は `ANDON_WORKSPACE`（既定 `/workspace`。boot と同じ）。`andon.toml` は最上段の `owner = "…"` の行だけを読む（TOML の依存を足さない）。委譲の author の照合は、commit の author の email が `owner` と同じこと（P4 の `andon.toml` の雛形の定義） | 担当の推し・P4 の `init/andon.toml.tmpl` |
+| 2026-11-05 | `andon delegate` は `--project <slug>` を取る（省くと cwd の `projects/<slug>/`）。型（`preset`）を変える command は作らない（設計書に無い。人が JSON を書いて commit する。次の `andon delegate` が検査する） | 担当の推し |
+| 2026-11-05 | 担当の command と CoS の検収の照合は、レビュアーのうち作成の行の `by` が `terminal:<coordinator>` のものだけを数える（仮設と同じ）。クーリエが起こすレビュアー（P6a）を数える形は P6a で足す | 仮設のゲート・担当の推し |
+| 2026-11-05 | 建屋の `gate.local.json` も委譲と同じ読み方: 建屋の repo の HEAD のものを、最後に変えた commit の author の email が `owner` のときだけ重ねる（作業ツリー・未 commit の変更は読まない）。信じられなければ重ねず、repos が無いのでゲートは `needs_human` | P5 の担当の推し（自動のセキュリティレビューの指摘） |
+| 2026-11-05 | 約束の JSON の入口（`report.json`・`findings.json`・問いの JSON・条件表・委譲・`--data`）は全部 `contract.Decode` を通り、存在するキーの null・型違い・知らないキーを拒む（schema と同じ）。null を許すのは tag `andon:"nullable"` のキー（`review_request.previous`・委譲の `until`・`revoked`）だけ。条件表の glob はリテラルを rune 単位で逃がす | P5 の独立レビュー 1 回目（Y-82）の指摘と Chief of Staff の方針 |

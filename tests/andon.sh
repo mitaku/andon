@@ -10,7 +10,7 @@ cd "$tmp" || exit 2   # 台帳の外で打つ
 fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
-subs="task chief-of-staff chief-engineer courier publish triage gate boot"
+subs="task chief-of-staff chief-engineer courier publish triage gate delegate boot"
 
 # === andon help: 一覧 ===
 "$andon" help >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -38,7 +38,7 @@ for s in $subs; do
 done
 
 # === 骨だけの sub-command: 中身が無いと言って rc 1 ===
-for s in task chief-of-staff courier gate; do
+for s in task chief-of-staff courier; do
   "$andon" "$s" start X-1 >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 1 ] && [ ! -s "$tmp/out" ] && grep -q '中身はまだ無い' "$tmp/err" \
     && pass "andon $s は中身はまだ無いと言って rc 1" || fail "andon $s: rc=$r $(cat "$tmp/err")"

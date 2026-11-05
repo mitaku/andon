@@ -55,8 +55,8 @@ EOF
 deck set "$id" who=person
 ```
 
-続けて worker skill §5 の1の手順で、問いの JSON を `$id` に置く（`kind`・`question`・`options`〈先頭が推奨案〉・`facts` に出どころ・`from: chief-of-staff`）。
-P5 で `andon task ask` が command になるまでの手順で、`brief.md` は人が読む写し。
+続けて `andon task ask "$id" -` に問いの JSON を stdin で渡す（`kind`・`question`・`options`〈先頭が推奨案〉・`facts` に出どころ・`from: chief-of-staff`。worker skill §5 の1）。
+command が形を確かめ、台帳に問い、`library/questions/<n>.json` に置く。`brief.md` は人が読む写し。
 
 - 題は問いを1行、末尾に「（人の判断待ち）」。`--profile` を付けない（エージェントを起こさないタスク）。足したら `deck set <id> who=person`。
 - `kind` は判断の5種（`business`／`users`／`promise`／`irreversible`／`line`＝ラインの変更）のどれか。
