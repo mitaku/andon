@@ -6,7 +6,7 @@
 //
 // することは4つ: 台帳にタスクを足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこのタスクから出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
-// タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban（無ければ別名の deck）。
+// タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
 // 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
 //
 // 置き場（andon task start と同じ形）:
@@ -69,8 +69,11 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon chief-engineer: repo が不正: '%s'（<host>/<owner>/<repo>）\n", repo)
 		return exitUsage
 	}
-	cli := ledger.CLI()
-	for _, c := range []string{cli, "hc", "git"} {
+	cli := ledger.CLI
+	if err := ledger.Check(); err != nil {
+		return die("%v", err)
+	}
+	for _, c := range []string{"hc", "git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			return die("%s が無い", c)
 		}

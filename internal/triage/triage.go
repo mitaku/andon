@@ -125,8 +125,11 @@ type ledger struct {
 }
 
 func openLedger() (*ledger, error) {
-	cli := ledgercli.CLI()
-	for _, c := range []string{cli, "git"} {
+	if err := ledgercli.Check(); err != nil {
+		return nil, fail("%v", err)
+	}
+	cli := ledgercli.CLI
+	for _, c := range []string{"git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			return nil, fail("%s が無い", c)
 		}
@@ -143,7 +146,7 @@ func openLedger() (*ledger, error) {
 	return l, nil
 }
 
-// kanban は台帳の CLI（kanban。無ければ別名の deck）を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
+// kanban は台帳の CLI（kanban）を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
 func (l *ledger) kanban(stdin string, args ...string) (string, error) {
 	c := exec.Command(l.cli, args...)
 	c.Env = append(os.Environ(), "FLIGHTDECK_ROOT="+l.root)

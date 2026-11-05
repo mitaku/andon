@@ -185,7 +185,10 @@ func getenv(k, def string) string {
 }
 
 func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
-	for _, c := range []string{ledger.CLI(), "gh", "git"} {
+	if err := ledger.Check(); err != nil {
+		return nil, "", err
+	}
+	for _, c := range []string{"gh", "git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			return nil, "", fmt.Errorf("%s が無い", c)
 		}

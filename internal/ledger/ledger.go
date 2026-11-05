@@ -1,4 +1,4 @@
-// Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（kanban。deck は1版だけの別名）だけで、
+// Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（kanban）だけで、
 // ここはそれを打つか、台帳のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
 //
 // command（andon task・andon gate）が共有するもの: タスクの項目（task.yaml の Andon の予約キー）と履歴の照合・
@@ -18,15 +18,18 @@ import (
 	"strings"
 )
 
-// CLI は台帳の CLI の名前。PATH に kanban があれば kanban、無くて deck（1版だけの別名・仮設の建屋）があれば deck。
-// どちらも無ければ kanban（呼ぶ側が「kanban が無い」と言う）。
-func CLI() string {
-	for _, c := range []string{"kanban", "deck"} {
-		if _, err := exec.LookPath(c); err == nil {
-			return c
-		}
+// CLI は台帳の CLI の名前。別名の deck には落ちない（同じ名前の古い deck が版違いの振る舞いで動くのを避ける）。
+const CLI = "kanban"
+
+// Missing は台帳の CLI が PATH に無いときの言い方（入れ方の案内つき）。
+const Missing = "kanban が無い（台帳の CLI。Andon の image に入っている。手元なら go install ./cmd/kanban で入れる）"
+
+// Check は台帳の CLI が PATH にあるかを確かめる。無ければ Missing を返す。
+func Check() error {
+	if _, err := exec.LookPath(CLI); err != nil {
+		return errors.New(Missing)
 	}
-	return "kanban"
+	return nil
 }
 
 // Ledger は1つの台帳。
@@ -34,26 +37,24 @@ type Ledger struct {
 	Root string // プロジェクトの根（.flightdeck の親）
 	Slug string
 	Dir  string // <Root>/.flightdeck
-	cli  string // 打つ台帳の CLI（Open が CLI() で決める）
 }
 
 // Open は台帳の CLI に台帳の根を聞く。
 func Open() (*Ledger, error) {
-	cli := CLI()
-	if _, err := exec.LookPath(cli); err != nil {
-		return nil, fmt.Errorf("%s が無い", cli)
+	if err := Check(); err != nil {
+		return nil, err
 	}
-	out, err := exec.Command(cli, "root").Output()
+	out, err := exec.Command(CLI, "root").Output()
 	root := strings.TrimSpace(string(out))
 	if err != nil || root == "" {
 		return nil, errors.New("台帳が見つからない（projects/<slug>/ か担当の worktree で打つ）")
 	}
-	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, ".flightdeck"), cli: cli}, nil
+	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, ".flightdeck")}, nil
 }
 
 // Run は台帳の CLI をこの台帳に向けて打ち、stdout を返す（前後の空白を除く）。
 func (l *Ledger) Run(stdin string, args ...string) (string, error) {
-	c := exec.Command(l.cli, args...)
+	c := exec.Command(CLI, args...)
 	c.Env = append(os.Environ(), "FLIGHTDECK_ROOT="+l.Root)
 	c.Stdin = strings.NewReader(stdin)
 	var errb bytes.Buffer
@@ -64,7 +65,7 @@ func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 		if i := strings.IndexByte(msg, '\n'); i >= 0 {
 			msg = msg[:i]
 		}
-		return "", fmt.Errorf("%s %s: %v %s", l.cli, args[0], err, msg)
+		return "", fmt.Errorf("%s %s: %v %s", CLI, args[0], err, msg)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
