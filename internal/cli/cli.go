@@ -13,6 +13,8 @@ import (
 
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
+	"andon/internal/delegate"
+	"andon/internal/gate"
 	"andon/internal/publish"
 	"andon/internal/task"
 	"andon/internal/triage"
@@ -75,9 +77,15 @@ var commands = []command{
 	},
 	{
 		name:  "gate",
-		about: "台帳・PR・検査・独立レビューを照合し、条件を満たす PR だけをマージする（まだ無い）",
-		usage: "usage: andon gate <id> [--dry-run]   台帳のタスクの PR を照合し、条件を満たす head だけをマージする\n" +
-			"中身はまだ無い。\n",
+		about: "台帳のタスクの PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
+		usage: gate.Usage,
+		run:   gate.Main,
+	},
+	{
+		name:  "delegate",
+		about: "委譲（projects/<slug>/delegation.json）を読む（show）・人が書く（grant・narrow・revoke）",
+		usage: delegate.Usage,
+		run:   delegate.Main,
 	},
 }
 

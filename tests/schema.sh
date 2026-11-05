@@ -3,6 +3,7 @@
 #   1. schema/ の7本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
+#   5. command（andon task・andon gate・andon delegate）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh に書かせる）。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -277,6 +278,31 @@ delegation|."$defs".grant.required -= ["id"]|grant の必須から id を外す
 report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
 findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+$"|file の .. の段の検査を外す
 LOOSE
+fi
+
+# 5. command の出力（tests/andon-task.sh・andon-gate.sh が ANDON_EMIT_DIR に写したもの）。台帳の CLI が無ければ skip
+if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
+  if ! command -v deck >/dev/null; then
+    echo "skip command の出力（台帳の CLI が無い）"
+  else
+    mkdir "$tmp/emit"
+    for t in andon-task andon-gate; do
+      if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5; fi
+    done
+    while IFS='|' read -r file name desc; do
+      case "$file" in ''|'#'*) continue ;; esac
+      if [ -f "$tmp/emit/$file" ]; then expect pass "$name" "$tmp/emit/$file" "command の出力: $desc が schema/$name を通る"
+      else ng "command の出力: $desc（$file）が無い"; fi
+    done <<'EMIT'
+report-1.json|report|andon task report の report.json
+report-review-request.json|report|andon task review-request の report.json
+task-keys.json|task-keys|andon task show の settings
+question.json|question|andon task ask の questions/<n>.json
+gate-record.json|gate|andon gate の記録（approve）
+gate-record-stale.json|gate|andon gate の記録（stale）
+delegation.json|delegation|andon delegate grant の delegation.json
+EMIT
+  fi
 fi
 
 exit "$fail"

@@ -13,7 +13,7 @@ func run(args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-var subs = []string{"task", "chief-of-staff", "chief-engineer", "courier", "publish", "triage", "gate", "boot"}
+var subs = []string{"task", "chief-of-staff", "chief-engineer", "courier", "publish", "triage", "gate", "delegate", "boot"}
 
 func TestHelpListsEverySubCommand(t *testing.T) {
 	rc, out, errs := run("help")
@@ -49,7 +49,7 @@ func TestSubCommandHelp(t *testing.T) {
 }
 
 func TestSkeletonSubCommands(t *testing.T) {
-	for _, s := range []string{"task", "chief-of-staff", "courier", "gate"} {
+	for _, s := range []string{"task", "chief-of-staff", "courier"} {
 		rc, out, errs := run(s, "start", "X-1")
 		if rc != 1 || out != "" || !strings.Contains(errs, "中身はまだ無い") {
 			t.Errorf("%s: rc=%d out=%q err=%q", s, rc, out, errs)
