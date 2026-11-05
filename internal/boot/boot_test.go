@@ -276,6 +276,13 @@ func TestSkillLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	put(t, filepath.Join(agents, "andon-real", "SKILL.md"), "実ディレクトリ\n")
+	// 利用者が andon- の名前で置いた skill（パッケージの外を指す）: 消えた名前でも同じ名前でも触らない
+	if err := os.Symlink(filepath.Join(f.root, "my-skill"), filepath.Join(agents, "andon-personal")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(f.root, "my-skill"), filepath.Join(old, "andon-personal")); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := Generate(f.env()); err != nil {
 		t.Fatal(err)
@@ -285,13 +292,58 @@ func TestSkillLinks(t *testing.T) {
 			t.Errorf("%s が残っている", p)
 		}
 	}
-	for _, p := range []string{filepath.Join(agents, "my-skill"), filepath.Join(old, "my-skill"), filepath.Join(agents, "andon-real", "SKILL.md")} {
+	for _, p := range []string{filepath.Join(agents, "my-skill"), filepath.Join(old, "my-skill"), filepath.Join(agents, "andon-real", "SKILL.md"),
+		filepath.Join(agents, "andon-personal"), filepath.Join(old, "andon-personal")} {
 		if _, err := os.Lstat(p); err != nil {
 			t.Errorf("%s を外した（symlink でない・andon- でないものには触らない）", p)
 		}
 	}
 	if to, err := os.Readlink(filepath.Join(agents, "andon-worker")); err != nil || to != filepath.Join(f.pkg, "skills", "worker") {
 		t.Errorf("andon-worker → %q %v", to, err)
+	}
+}
+
+// 同じ名前でも、利用者のリンク（パッケージの外を指す）は張り替えない。ログに1行出す。
+func TestSkillLinkSameNameUserLinkIsKept(t *testing.T) {
+	f := newFixture(t)
+	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
+	agents := filepath.Join(f.home, ".agents", "skills")
+	mustMkdir(t, agents)
+	mine := filepath.Join(f.root, "my-worker")
+	if err := os.Symlink(mine, filepath.Join(agents, "andon-worker")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Generate(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	if to, _ := os.Readlink(filepath.Join(agents, "andon-worker")); to != mine {
+		t.Errorf("利用者の andon-worker を張り替えた: → %q", to)
+	}
+	if !strings.Contains(f.log.String(), "触らない: "+filepath.Join(agents, "andon-worker")) {
+		t.Errorf("ログに出していない: %s", f.log.String())
+	}
+}
+
+// ANDON_HOME を替えて打ち直すと、既定の /opt/andon の skills を指す前のリンクは boot のものとして張り替える。
+func TestSkillLinkFollowsPackageChange(t *testing.T) {
+	f := newFixture(t)
+	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
+	agents := filepath.Join(f.home, ".agents", "skills")
+	mustMkdir(t, agents)
+	if err := os.Symlink(filepath.Join(DefaultPackage, "skills", "worker"), filepath.Join(agents, "andon-worker")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(DefaultPackage, "skills", "gone"), filepath.Join(agents, "andon-gone")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Generate(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	if to, _ := os.Readlink(filepath.Join(agents, "andon-worker")); to != filepath.Join(f.pkg, "skills", "worker") {
+		t.Errorf("andon-worker → %q", to)
+	}
+	if _, err := os.Lstat(filepath.Join(agents, "andon-gone")); err == nil {
+		t.Error("andon-gone が残っている")
 	}
 }
 
@@ -360,9 +412,51 @@ func TestTemplatesUsePackagePath(t *testing.T) {
 		"/src/andon/package/": "--plugin-dir /src/andon/package `/src/andon/package/skills/worker/SKILL.md`",
 		"/src/andon/package":  "--plugin-dir /src/andon/package `/src/andon/package/skills/worker/SKILL.md`",
 	} {
-		if got := string(Template(in, pkg)); got != want {
-			t.Errorf("Template(%q) = %q, want %q", pkg, got, want)
+		if got, err := Template(in, pkg); err != nil || string(got) != want {
+			t.Errorf("Template(%q) = %q %v, want %q", pkg, got, err, want)
 		}
+	}
+	// パスの要素の境界だけ置き換える
+	for in, want := range map[string]string{
+		"--plugin-dir /opt/andon-snapshot":     "--plugin-dir /opt/andon-snapshot",
+		"--plugin-dir /opt/andonx/skills":      "--plugin-dir /opt/andonx/skills",
+		"/srv/opt/andon/skills":                "/srv/opt/andon/skills",
+		"/opt/andon.bak":                       "/opt/andon.bak",
+		"/opt/andon":                           "/p",
+		"x=/opt/andon/skills\n'/opt/andon' ":   "x=/p/skills\n'/p' ",
+		"--plugin-dir=/opt/andon,a:/opt/andon": "--plugin-dir=/p,a:/p",
+	} {
+		if got, err := Template([]byte(in), "/p"); err != nil || string(got) != want {
+			t.Errorf("Template(%q) = %q %v, want %q", in, got, err, want)
+		}
+	}
+	// command で割れる文字・相対パスはエラー（quote を作らない）
+	for _, pkg := range []string{"/tmp/andon checkout/package", "/tmp/a\tb", "/tmp/a'b", "/tmp/$x", "rel/package"} {
+		if _, err := Template(in, pkg); err == nil {
+			t.Errorf("Template(%q) がエラーにならない", pkg)
+		}
+	}
+}
+
+// ANDON_HOME が command で割れるなら、プロファイルを1枚も書かずにエラー（今あるものを残す）。
+func TestTemplatesUnsafePackageStops(t *testing.T) {
+	f := newFixture(t)
+	f.pkg = filepath.Join(f.root, "andon checkout", "package")
+	f.fullPackage(t)
+	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates")
+	put(t, filepath.Join(tpl, "claude.md"), "前のプロファイル\n")
+	err := Generate(f.env())
+	if err == nil || !strings.Contains(err.Error(), "プロファイル") {
+		t.Fatalf("err = %v", err)
+	}
+	if read(t, filepath.Join(tpl, "claude.md")) != "前のプロファイル\n" {
+		t.Error("プロファイルを書き換えた")
+	}
+	if _, err := os.Stat(filepath.Join(tpl, "sonnet.md")); err == nil {
+		t.Error("ほかのプロファイルを書いた")
+	}
+	if _, err := os.Stat(filepath.Join(f.claude, "CLAUDE.md")); err != nil {
+		t.Error("1つ失敗したら残りを止めた")
 	}
 }
 
