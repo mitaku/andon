@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 check_py=tests/lib/schema_check.py
+schema_dir="${ANDON_SCHEMA_DIR:-schema}"   # 自己検査（下の 4）が緩めた写しを指す
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -25,10 +26,10 @@ schema_of() {
 expected="delegation findings gate notification question report task-keys"
 
 # 1. schema そのもの
-actual="$(cd schema && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
+actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "$expected" ]; then ok "schema/ は7本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
-  if out="$(python3 "$check_py" lint "schema/$name.schema.json" 2>&1)"; then
+  if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
     ok "schema/$name の決まり"
   else
     ng "schema/$name の決まり"; printf '     %s\n' "$out"
@@ -36,7 +37,7 @@ for name in $expected; do
 done
 
 # validate <schema 名> <instance のファイル> → 0 通る / 1 落ちる / 2 検査できない
-validate() { python3 "$check_py" validate "schema/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
+validate() { python3 "$check_py" validate "$schema_dir/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
 
 expect() { # expect pass|fail <schema 名> <ファイル> <説明>
   local want=$1 name=$2 file=$3 desc=$4 rc=0
@@ -47,11 +48,20 @@ expect() { # expect pass|fail <schema 名> <ファイル> <説明>
   else ng "$desc（want $want）"; sed 's/^/     /' "$tmp/why"; fi
 }
 
-# 検査器が実装していないキーワード（例 format）を黙って飛ばさず、検査できない（2）で止まること
-printf '%s\n' '{"type": "string", "format": "date"}' >"$tmp/unknown-keyword.schema.json"
-printf '%s\n' '"x"' >"$tmp/x.json"
-rc=0; python3 "$check_py" validate "$tmp/unknown-keyword.schema.json" "$tmp/x.json" >/dev/null 2>&1 || rc=$?
-if [ "$rc" -eq 2 ]; then ok "検査器は知らないキーワードで止まる"; else ng "検査器が知らないキーワードを飛ばした（rc=$rc）"; fi
+# 検査器そのもの（schema と instance を直に書く。終了コード ｜ schema ｜ instance ｜ 説明）
+while IFS='|' read -r want sch inst desc; do
+  case "$want" in ''|'#'*) continue ;; esac
+  printf '%s\n' "$sch" >"$tmp/self.schema.json"; printf '%s\n' "$inst" >"$tmp/self.json"
+  rc=0; python3 "$check_py" validate "$tmp/self.schema.json" "$tmp/self.json" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq "$want" ]; then ok "検査器: $desc"; else ng "検査器: $desc（rc=$rc、want $want）"; fi
+done <<'SELF'
+2|{"type": "string", "format": "date"}|"x"|知らないキーワード（format）で止まる
+0|{"type": "integer"}|1.0|integer は 1.0 を受ける（2020-12）
+1|{"type": "integer"}|1.5|integer は 1.5 を拒む
+1|{"type": "integer"}|true|integer は真偽値を拒む
+1|{"type": "string", "pattern": "^[a-z.]+$"}|"main.py\n"|$ は末尾の改行の前に合わない（ECMA-262）
+0|{"type": "string", "pattern": "^a[$]$"}|"a$"|文字クラスの中の $ は字のまま
+SELF
 
 # 2. contract.md の例
 python3 "$check_py" examples docs/contract.md >"$tmp/examples.tsv"
@@ -71,6 +81,17 @@ for key in $expected gate-record; do
 done
 
 # 3a. 知らないキー・無いキー（例から機械的に作る）
+# 必須のキーは schema から読まず、ここで固定する（schema の必須を外す変更がテストからも消えないように）
+declare -A required=(
+  [task-keys]=""
+  [findings]="commit findings"
+  [report]="commit"
+  [question]="kind question options"
+  [notification]="at project kind detail"
+  [gate]=""
+  [gate-record]="at id pr head tier tier_reasons changed_lines checks review acceptance delegation decision reasons merged"
+  [delegation]="version project"
+)
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
   jq -c "$2" "$1" >"$out"; echo "$out"
@@ -80,8 +101,7 @@ for key in "${!first[@]}"; do
   if [ "$key" != task-keys ]; then   # 台帳の項目は台帳の形式に倣って知らないキーを許す
     expect fail "$name" "$(mutate "$src" '. + {"x_unknown": 1}')" "$key: 知らないキー x_unknown を足すと落ちる"
   fi
-  req_path='.required'; [ "$key" = gate-record ] && req_path='."$defs".record.required'
-  for k in $(jq -r "($req_path // [])[]" "schema/$name.schema.json"); do
+  for k in ${required[$key]}; do
     expect fail "$name" "$(mutate "$src" "del(.\"$k\")")" "$key: 必須のキー $k を消すと落ちる"
   done
 done
@@ -111,14 +131,24 @@ fail|findings|.findings[0].file = ""|file が空
 fail|findings|.findings[0].file = "a\u0001b"|file に制御文字
 fail|findings|.findings[0] += {"title": "x"}|指摘に知らないキー
 fail|findings|del(.findings[0].line)|指摘に line が無い
+fail|findings|.findings[0].file = "src/main.py\n"|file の末尾に LF
+fail|findings|.findings[0].file = "src/main.py\r"|file の末尾に CR
+fail|findings|.findings[0].file = "/outside"|file が絶対パス
+fail|findings|.findings[0].file = "../outside"|file が repo の外（..）
+fail|findings|.findings[0].file = "src/../../outside"|file の途中に ..
+pass|findings|.findings[0].file = "src/main.py"|file が repo からの相対パス
+pass|findings|.findings[0].file = "..hidden/x"|.. で始まる名前は .. の段ではない
 pass|report|{commit}|commit だけでも通る
 fail|report|.pr = "#12"|pr が URL でない
+fail|report|.commit = "9c4e1b0"|commit が40桁でない
+fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない
 fail|report|del(.review_request.previous)|review_request に previous が無い
 fail|report|.review_request.round = 0|review_request.round が 0
 fail|report|.review_request += {"note": "x"}|review_request に知らないキー
 pass|report|.review_request.previous = .commit|再レビューの previous が sha
 fail|report|.review_request.previous = "HEAD~1"|previous が sha でも null でもない
 fail|report|del(.waived[0].reason)|waived に reason が無い
+fail|report|.waived[0].file = "../x"|waived の file が repo の外
 fail|report|.acceptance[0].result = "ok"|acceptance の result が pass/fail/manual でない
 fail|report|.next[0].to = "human"|next の to が知らない宛先
 fail|report|.remember = "x"|remember が配列でない
@@ -144,6 +174,8 @@ fail|notification|.detail += {"text": "x"}|detail に知らないキー
 fail|notification|.kind = "asked"|asked なのに detail が review の形
 fail|notification|.kind = "signal"|signal はまだ schema に無い
 fail|notification|.at = "2026-11-04 09:00:00"|at が UTC の形でない
+fail|notification|.at = "2026-02-30T09:00:00Z"|at が暦に無い日
+fail|notification|.at = "2026-11-04T24:00:00Z"|at の時が 24
 fail|notification|.task = "../x"|task が id の形でない
 pass|gate|{}|条件表は空でも通る（gate.local.json）
 fail|gate|.repos[] += {"auto": true}|条件表の repos に知らないキー
@@ -151,6 +183,14 @@ fail|gate|.repos[].merge = "fast-forward"|merge の方法が知らない値
 fail|gate|.repos[].tier_overrides["AGENTS.md"] = "D"|tier_overrides の値が A/B/C でない
 fail|gate|.size_review_lines = "500"|size_review_lines が文字列
 pass|gate-record|.review = {state: "missing", must_fix_open: 0, waived: 0}|review が missing（task・commit 無し）
+pass|gate-record|.review = {state: "off", must_fix_open: 0, waived: 0}|review が off（task・commit 無し）
+pass|gate-record|.review.state = "stale"|review が stale（task・commit あり）
+fail|gate-record|del(.review.task)|current なのに task が無い
+fail|gate-record|del(.review.commit)|current なのに commit が無い
+fail|gate-record|.review.state = "stale" | del(.review.commit)|stale なのに commit が無い
+fail|gate-record|.review.state = "missing"|missing なのに task・commit がある
+fail|gate-record|.review = {state: "off", task: "A-13", must_fix_open: 0, waived: 0}|off なのに task がある
+fail|gate-record|.at = "2026-13-01T09:10:00Z"|at の月が 13
 fail|gate-record|.review.state = "unknown"|review.state が知らない値
 fail|gate-record|.decision = "approved"|decision が知らない値
 fail|gate-record|.tier = "D"|tier が A/B/C でない
@@ -168,9 +208,33 @@ fail|delegation|.grants[0] |= (.scope = "profile" | .value = "true")|真偽値�
 fail|delegation|del(.grants[0].evidence)|grant に evidence が無い
 fail|delegation|.grants[0].by = "chief-of-staff"|by が owner でない
 fail|delegation|.grants[0].until = "2026/12/31"|until が日付の形でない
+fail|delegation|.grants[0].at = "9999-99-99"|at が暦に無い（9999-99-99）
+fail|delegation|.grants[0].at = "2026-02-30"|at が暦に無い（2月30日）
+fail|delegation|.grants[0].at = "2026-13-01"|at の月が 13
+fail|delegation|.grants[0].until = "2026-02-29"|until がうるう年でない年の 2月29日
+pass|delegation|.grants[0].until = "2028-02-29"|until がうるう年の 2月29日
+pass|delegation|.grants[0].until = "2000-02-29"|2000 年はうるう年
+fail|delegation|.grants[0].until = "2100-02-29"|2100 年はうるう年でない
+fail|delegation|.grants[1].revoked.at = "2026-11-31"|revoked.at が暦に無い（11月31日）
 fail|delegation|del(.grants[1].revoked.reason)|revoked に reason が無い
 fail|delegation|.grants[0].id = "g1"|grant の id が d<n> でない
 fail|delegation|.grants[0] += {"note": "x"}|grant に知らないキー
 EOF
+
+# 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
+if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
+  while IFS='|' read -r name expr desc; do
+    case "$name" in ''|'#'*) continue ;; esac
+    loose="$tmp/loose"; rm -rf "$loose"; cp -r schema "$loose"
+    jq "$expr" "schema/$name.schema.json" >"$loose/$name.schema.json"
+    if ANDON_SCHEMA_DIR="$loose" bash "$0" >/dev/null 2>&1; then ng "自己検査: $desc でも通ってしまう"
+    else ok "自己検査: $desc と落ちる"; fi
+  done <<'LOOSE'
+findings|.required -= ["commit"]|findings の必須から commit を外す
+findings|.additionalProperties = true|findings の知らないキーを許す
+gate|."$defs".record.required -= ["decision"]|ゲートの記録の必須から decision を外す
+report|."$defs".sha.pattern = "^[0-9a-f]+$"|sha の桁を緩める
+LOOSE
+fi
 
 exit "$fail"

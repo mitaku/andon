@@ -55,7 +55,7 @@
       "required": ["at", "id", "pr", "head", "tier", "tier_reasons", "changed_lines", "checks", "review", "acceptance", "delegation", "decision", "reasons", "merged"],
       "additionalProperties": false,
       "properties": {
-        "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+        "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
         "id": { "description": "Task id.", "type": "string", "pattern": "^[^/\\\\:]+$", "not": { "enum": [".", ".."] } },
         "pr": { "description": "URL of the pull request.", "type": "string", "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$" },
         "head": { "description": "PR head the gate judged.", "$ref": "#/$defs/sha" },
@@ -74,7 +74,7 @@
           }
         },
         "review": {
-          "description": "The independent review. task and commit are absent when it is missing.",
+          "description": "The independent review. task and commit are required when state is current or stale, and absent when it is missing or off.",
           "type": "object", "required": ["state", "must_fix_open", "waived"], "additionalProperties": false,
           "properties": {
             "state": { "description": "current: findings.json points at head. stale: it points elsewhere. missing: none, or unreadable. off: review is off for the task.", "enum": ["current", "stale", "missing", "off"] },
@@ -82,7 +82,13 @@
             "commit": { "description": "commit of findings.json.", "$ref": "#/$defs/sha" },
             "must_fix_open": { "description": "Findings at must_fix or heavier not waived.", "type": "integer", "minimum": 0 },
             "waived": { "description": "Number of waived findings in report.json.", "type": "integer", "minimum": 0 }
-          }
+          },
+          "allOf": [
+            { "if": { "properties": { "state": { "enum": ["current", "stale"] } } },
+              "then": { "required": ["task", "commit"] } },
+            { "if": { "properties": { "state": { "enum": ["missing", "off"] } } },
+              "then": { "not": { "anyOf": [{ "required": ["task"] }, { "required": ["commit"] }] } } }
+          ]
         },
         "acceptance": {
           "description": "Counts of report.json acceptance results.",

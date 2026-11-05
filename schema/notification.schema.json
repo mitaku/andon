@@ -7,7 +7,7 @@
   "required": ["at", "project", "kind", "detail"],
   "additionalProperties": false,
   "properties": {
-    "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ.", "$ref": "#/$defs/time" },
+    "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "$ref": "#/$defs/time" },
     "project": { "description": "Project slug.", "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
     "task": { "description": "Task id, when the notification is about a task.", "$ref": "#/$defs/id" },
     "kind": {
@@ -35,7 +35,7 @@
       "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } }
   ],
   "$defs": {
-    "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
     "id": { "description": "A ledger task id: no /, \\ or :, and not . or ...", "type": "string", "pattern": "^[^/\\\\:]+$", "not": { "enum": [".", ".."] } },
     "path": { "description": "An absolute path.", "type": "string", "pattern": "^/" },
     "pr": { "description": "URL of a pull request.", "type": "string", "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$" },

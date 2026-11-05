@@ -87,7 +87,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 |---|---|---|
 | `commit` | 40桁・小文字 | 見た commit。PR の head と違えば stale |
 | `findings[].severity` | `critical` / `major` / `minor` / `trivial` | 重さ。起きる条件を具体的に示せないものは `trivial` |
-| `findings[].file` | repo からの相対パス（空でなく、制御文字が無い） | — |
+| `findings[].file` | repo からの相対パス（空でなく、制御文字・改行が無く、`/` で始まらず、`..` の段を含まない） | — |
 | `findings[].line` | 1 以上の整数 | — |
 
 - 無い・JSON でない・形が違う → missing。`commit` 違い → stale。報告の Markdown は読まない。
@@ -175,7 +175,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
 
-- キーは `at`・`project`・`kind`・`detail` が必須、`task` はタスクについての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
+- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`task` はタスクについての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
 - 届け方: ①Chief of Staff の `Stop` フックが `andon courier drain <slug>` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの依頼ではない。足すことが無ければ `<no-reply>`」）。`news.replied=<turn>` のラベルも同じ（ボードとの約束）。
 - クーリエの控え `~/.local/state/andon/courier/<slug>.json`: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・送った turn・起こしたレビュアー（`task` → `reviewer_task`・`commit`）・回したゲート（`task` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ）。
@@ -210,7 +210,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
  "decision": "approve", "reasons": [], "merged": true}
 ```
 
-- キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`）/ `stale`（違う）/ `missing`（無い・読めない。`task`・`commit` は書かない）/ `off`（タスクの `review: off`）。`delegation.merge` は委譲が無ければ `none`。
+- キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`）/ `stale`（違う）/ `missing`（無い・読めない）/ `off`（タスクの `review: off`）。`current`・`stale` では `task` と `commit` が必須、`missing`・`off` では2つとも書かない。`delegation.merge` は委譲が無ければ `none`。
 - `decision` と `reasons[]` は決定式（純粋関数）の出力そのまま。PR のコメントと commit status（`andon/gate`）には同じ内容を写す（記録の正は台帳の側）。
 - `delegation`: 読んだ委譲の `merge` の値と、判定のレベルがその中か（§11）。外なら approve でも `decision: needs_human`、`reasons[]` に `delegation: merge=B < tier C`。
 - 読み手: クーリエ（approve → `merge: auto` ＋ 委譲の範囲内ならマージ → `andon task finish`。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・人。
@@ -273,7 +273,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `grants[].scope` | 必須 | `merge` / `deploy` / `publish` / `irreversible` / `external-requests` / `profile` / `package-update` / `line-change` |
 | `grants[].value` | 必須 | `scope` ごとの値（design.md §1.10 の表）。`merge`＝`none`/`A`/`B`/`C`、`deploy`＝`none`/`preview`/`production`、`publish`＝`none`/`internal`/`public`、`irreversible`＝`delete-branch`/`force-push`/`rewrite-history` の配列（`delete-remote` は書けない）、`external-requests`・`profile`・`package-update`＝真偽値、`line-change`＝`none`/`project`/`plant` |
 | `grants[].by` | 必須 | 付与した人。文字列の `owner` だけ（実際の人は建屋の `andon.toml` の `owner`。照合は commit の author で） |
-| `grants[].at` | 必須 | 付与した日（`YYYY-MM-DD`） |
+| `grants[].at` | 必須 | 付与した日（`YYYY-MM-DD`。暦にある日。`2026-02-30` やうるう年でない年の `02-29` は通らない） |
 | `grants[].until` | 任意 | 期限（`YYYY-MM-DD`）。過ぎていれば無いものと同じ。`null` は無期限 |
 | `grants[].evidence` | 必須 | 根拠。人の発言の記録へのパスか引用（写さず指す） |
 | `grants[].revoked` | 任意 | 取り消し `{at, by, reason}`（3つとも必須。`null` は取り消していない）。あれば無いものと同じ（行は消さない。履歴のため） |
@@ -281,7 +281,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 **読み方**（読む側は全部この順）:
 
 1. 建屋の repo の **HEAD** の `projects/<slug>/delegation.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
-2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部人）として読む。無い・JSON でない・`project` が違う・`version` を知らない、も同じ（原則2）。
+2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部人）として読む。無い・JSON でない・schema を通らない・`project` が違う・`version` を知らない、も同じ（原則2）。
 3. `preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。
 4. 読み手ごとに見る `scope`: ゲート＝`merge`。クーリエと `andon task …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。Chief of Staff＝全部（起きるたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）。
 5. Andon の建屋の `andon` プロジェクトは `preset` を `andon` 以外にできない（command が拒む。`merge` の上限 `B`・`line-change: none`）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
