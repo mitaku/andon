@@ -7,6 +7,7 @@
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
 //
+// 通知の元（pickup.go。courier.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
 // 離席時だけの hc send（deliver.go。経路③）。courier.md §3。
 // 台帳に書くのは台帳の CLI と andon task … だけで、by は terminal:courier（ledger.CourierBy）。
@@ -159,6 +160,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.rows = p.l.Log()
+	p.collect(coordinator) // 通知の元（courier.md §2.2・§2.3）
 	busy := false
 	for _, t := range p.tasks {
 		status := t.Str("status")

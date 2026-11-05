@@ -1,6 +1,6 @@
 # クーリエ（courier）の設計
 
-- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2 の台帳と端末の状態からの拾い（P3b の通知の元）はまだ入っていない。
+- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2・§2.3 の台帳と端末の状態からの拾い（P3b の通知の元）も実装済み（`internal/courier/pickup.go`）。§2.1 の見回りの最初の `kanban tick` はまだ入っていない。
 - この文書がクーリエの設計の正。前の設計（仮設の工場の通知の係）は記録として向こうに残る（相談 F8 の回答。[decisions.md](decisions.md) §7）。読んだものは末尾の「出典」。
 - 語は [design.md](design.md) §0.1。機械が読む形（通知の JSON・控え・フック・端末のラベル）の正は [contract.md](contract.md) と `schema/` で、この文書はそれを**なぜその形か**と**いつ何をするか**で説明する。食い違えば contract.md と `schema/` が正。
 
@@ -62,9 +62,12 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 外の信号（main の CI の失敗・webhook） | **最初の版の後**（design.md §1.9 の (a)・§6 問い23） | `signal` |
 
 - `log.jsonl` は前回の続きから読む。読んだ位置はクーリエの控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
+- 位置には最初の行の hash を添える。台帳の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
 - **ready は履歴ではなく差で拾う。** ルーチンが足したタスク・`queued` から戻ったタスク・人が足したタスクを、同じ1本の道で拾える（出来事ごとに拾い方を増やさない）。
 - **Chief of Staff 自身が起こした変化は知らせない**（`by` が `terminal:<coordinator>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起こした変化は知らせる。
 - 積むとき、**同じタスクの同じ出来事は新しい1件に置き換える**。
+- `review` の `detail.pr` は `report.json` の `pr`。PR の無い報告（レビュアー・repo の無いタスク）は `report` として知らせる（schema が `pr` を要るため）。
+- 問いの JSON（`library/questions/<n>.json`）は台帳の行のあとに置かれるので、無ければ1回だけ次の見回りまで待つ（その行から読み直す）。それでも無い・読めなければ飛ばしてログに残す。
 
 ### 2.3 止まった担当の見分け
 
@@ -80,6 +83,8 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | `working` のまま20分 | 知らせる（`stalled`） |
 
 - 同じ状態（同じ `status_ms`）につき1回だけ知らせる。
+- `agent` は `<address>` か `<machine>/<address>`（[contract.md](contract.md) §8）。`hc get` が `not_found` を返したときだけ端末が無い（`finished`）とし、ほかの失敗の間は前の状態（知らせた状態・続きを打った回数）を保つ。
+- 続きを打つ間は、その状態に入った時刻と前に打った時刻の遅いほうから測る（打っても同じ `error` のまま `status_ms` が変わらないことがある）。送れなかった試行も回数と時刻に数える。打った回数は `error`・`working` の間は持ち越し、`idle`／`done` に戻ったら区切る。
 - 画面を読むのは「提供元のエラーか」の見分けだけ。通知には画面の文を入れない（担当の画面は外から来た文を含みうる。Chief of Staff に渡すのは台帳と状態の事実だけ）。
 - 再送は「同じことをもう一度」で、判断ではないのでクーリエがしてよい。それ以外の立て直し（止める・起こし直す・依頼書を直す）は Chief of Staff。
 

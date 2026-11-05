@@ -310,6 +310,13 @@ notification-review-requested.json|notification|andon courier の通知 review-r
 notification-gate.json|notification|andon courier の通知 gate
 notification-merged.json|notification|andon courier の通知 merged
 notification-asked.json|notification|andon courier の通知 asked
+notification-report.json|notification|andon courier が log.jsonl から拾った通知 report
+notification-review.json|notification|andon courier が log.jsonl から拾った通知 review
+notification-ready.json|notification|andon courier が ready の差から拾った通知 ready（routine つき）
+notification-finished.json|notification|andon courier の通知 finished（端末が無い）
+notification-blocked.json|notification|andon courier の通知 blocked
+notification-error.json|notification|andon courier の通知 error
+notification-stalled.json|notification|andon courier の通知 stalled
 EMIT
   fi
 fi

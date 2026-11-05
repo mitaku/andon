@@ -62,8 +62,9 @@ type terminal struct {
 	Status struct {
 		State string `json:"state"`
 	} `json:"status"`
-	Turn   int               `json:"turn"`
-	Labels map[string]string `json:"labels"`
+	StatusMs int64             `json:"status_ms"`
+	Turn     int               `json:"turn"`
+	Labels   map[string]string `json:"labels"`
 }
 
 func hcGet(addr string) (*terminal, error) {
