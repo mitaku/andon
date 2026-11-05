@@ -2,7 +2,7 @@
 FROM ubuntu:24.04
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales \
+ && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 \
  && rm -rf /var/lib/apt/lists/* \
  && locale-gen en_US.UTF-8 \
  && useradd --create-home --home-dir /opt/andon-home --shell /bin/bash andon \
