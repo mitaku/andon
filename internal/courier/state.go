@@ -52,6 +52,7 @@ type State struct {
 	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（courier.md §4.1 の c）
 	Hook      *HookNews           `json:"hook,omitempty"`      // フックで渡して、その turn の終わりをまだ見ていない <news>
 	LogPos    *int64              `json:"log_pos,omitempty"`   // log.jsonl の読んだ位置（バイト。無ければ初めて）
+	LogHead   string              `json:"log_head,omitempty"`  // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
 	LogHold   *int64              `json:"log_hold,omitempty"`  // 問いの JSON を待って止まった行の頭（1回だけ待つ）
 	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人のタスクを除く。無ければ初めて）
 	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<task>|<agent>|<状態>|<status_ms>）

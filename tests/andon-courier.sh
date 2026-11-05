@@ -58,7 +58,9 @@ cat > "$tmp/bin/hc" <<EOF
 d=$tmp/hc
 echo "\$*" >> \$d/log
 case \$1 in
-  get) grep -q "^\$2 " \$d/live || exit 1; [ "\${3:-}" != --json ] || cat \$d/term-\$2.json 2>/dev/null ;;
+  get) [ ! -f "\$d/getfail" ] || ! grep -qx "\$2" \$d/getfail || { echo '{"error":{"kind":"internal","message":"x"}}' >&2; exit 1; }  # 一時の失敗
+       grep -q "^\$2 " \$d/live || { echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; }
+       [ "\${3:-}" != --json ] || cat \$d/term-\$2.json 2>/dev/null ;;
   read) cat \$d/screen-\$2 2>/dev/null ;;                        # hc read <addr> [--lines n]: 文字だけの画面
   attach) [ "\$2" = --observe ] && cat \$d/ansi-\$3 2>/dev/null ;;  # hc attach --observe <addr>: ANSI の画面
   label) echo "\$2 \$3" >> \$d/labels ;;
@@ -66,7 +68,8 @@ case \$1 in
        task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
        echo "t\$n \$task" >> \$d/live
        printf '{"address":"t%s","first_message":{"sent":%s}}\n' "\$n" "\$(cat \$d/first 2>/dev/null || echo true)" ;;
-  send) [ "\$2" != --if ] || shift 2; printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
+  send) [ "\$2" != --if ] || shift 2; [ ! -f "\$d/sendfail" ] || ! grep -qx "\$2" \$d/sendfail || exit 1
+        printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
   ls) task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
       awk -v t="\$task" '\$2 == t { printf "%s{\"address\":\"%s\",\"state\":\"live\"}", (n++ ? "," : ""), \$1 }' \$d/live | { printf '{"terminals":['; cat; printf ']}\n'; } ;;
   kill) ;;
@@ -489,6 +492,7 @@ as_cos() { HC_TERMINAL_ID=t6 "$@"; }
 as_w() { HC_TERMINAL_ID=t8 "$@"; }
 now_ms() { echo $(( $(date +%s) * 1000 )); }
 termp() { # termp <addr> <status> <status_ms>: 生きている担当の偽の hc get --json
+    mkdir -p "$(dirname "$tmp/hc/term-$1.json")"
     jq -n --arg a "$1" --arg s "$2" --argjson ms "$3" '{address: $a, state: "live", status: {state: $s}, status_ms: $ms, turn: 1, labels: {}}' > "$tmp/hc/term-$1.json"
     grep -q "^$1 " "$tmp/hc/live" || echo "$1 agent" >> "$tmp/hc/live"
 }
@@ -564,19 +568,19 @@ ok 'log.jsonl の review を report.json の pr つきで拾い（PR が無け�
 # 18. 止まった担当（doing の担当の端末。同じ状態・同じ status_ms につき1回）
 st_task() { local id; id=$(as_cos kanban add "$1"); HC_TERMINAL_ID=$2 kanban start "$id" >/dev/null; echo "$id"; }
 old_idle=$(( $(now_ms) - 16 * 60 * 1000 )); old_work=$(( $(now_ms) - 21 * 60 * 1000 )); fresh=$(( $(now_ms) - 60 * 1000 ))
-g=$(st_task '端末が無い' t21)
-b=$(st_task 'blocked' t22); termp t22 blocked "$fresh"
-e=$(st_task 'error（認証）' t24); termp t24 error "$fresh"; printf 'API Error: 401 unauthorized · Please run /login\n' > "$tmp/hc/screen-t24"
-i=$(st_task 'idle が長い' t25); termp t25 idle "$old_idle"
-r=$(st_task 'レビュー待ち' t26); termp t26 done "$old_idle"; as_cos kanban add 'レビュアー' --parent "$r" --profile codex-review >/dev/null
-w=$(st_task 'working が長い' t27); termp t27 working "$old_work"
-q=$(st_task '静か（短い）' t28); termp t28 idle "$fresh"
-k=$(st_task 'working（短い）' t29); termp t29 working "$fresh"
+g=$(st_task '端末が無い' w21)
+b=$(st_task 'blocked' w22); termp w22 blocked "$fresh"
+e=$(st_task 'error（認証）' w24); termp w24 error "$fresh"; printf 'API Error: 401 unauthorized · Please run /login\n' > "$tmp/hc/screen-w24"
+i=$(st_task 'idle が長い' w25); termp w25 idle "$old_idle"
+r=$(st_task 'レビュー待ち' w26); termp w26 done "$old_idle"; as_cos kanban add 'レビュアー' --parent "$r" --profile codex-review >/dev/null
+w=$(st_task 'working が長い' w27); termp w27 working "$old_work"
+q=$(st_task '静か（短い）' w28); termp w28 idle "$fresh"
+k=$(st_task 'working（短い）' w29); termp w29 working "$fresh"
 pk
-pp "$g" finished | jq -e '.[0].detail == {agent: "t21", status_ms: 0}' >/dev/null || die "端末の無い担当を finished で知らせない: $(pp "$g" finished)"
-pp "$b" blocked | jq -e --argjson ms "$fresh" '.[0].detail == {agent: "t22", status_ms: $ms}' >/dev/null || die "blocked を知らせない: $(pp "$b" blocked)"
+pp "$g" finished | jq -e '.[0].detail == {agent: "w21", status_ms: 0}' >/dev/null || die "端末の無い担当を finished で知らせない: $(pp "$g" finished)"
+pp "$b" blocked | jq -e --argjson ms "$fresh" '.[0].detail == {agent: "w22", status_ms: $ms}' >/dev/null || die "blocked を知らせない: $(pp "$b" blocked)"
 pp "$e" error | jq -e 'length == 1' >/dev/null || die '提供元でない error を知らせない'
-pp "$i" stalled | jq -e --argjson ms "$old_idle" '.[0].detail == {agent: "t25", status_ms: $ms}' >/dev/null || die "idle のまま15分を stalled で知らせない: $(pp "$i" stalled)"
+pp "$i" stalled | jq -e --argjson ms "$old_idle" '.[0].detail == {agent: "w25", status_ms: $ms}' >/dev/null || die "idle のまま15分を stalled で知らせない: $(pp "$i" stalled)"
 pp "$w" stalled | jq -e 'length == 1' >/dev/null || die 'working のまま20分を stalled で知らせない'
 [ "$(pp "$r" stalled)" = '[]' ] || die '子のレビュアーのタスクを待つ担当を stalled で知らせた'
 [ "$(jq --arg q "$q" --arg k "$k" '[.pending[] | select(.task == $q or .task == $k)] | length' "$pst")" = 0 ] || die '短い idle・working を知らせた'
@@ -584,20 +588,76 @@ pp "$w" stalled | jq -e 'length == 1' >/dev/null || die 'working のまま20分�
 for f in "$g finished" "$b blocked" "$e error" "$i stalled"; do set -- $f; emit <(pp "$1" "$2" | jq '.[0]') "notification-$2.json"; done
 clear_pending; pk
 [ "$(jq '.pending | length' "$pst")" = 0 ] || die "同じ状態で二度知らせた: $(jq -c .pending "$pst")"
-termp t22 blocked "$(now_ms)"
+termp w22 blocked "$(now_ms)"
 pk
 pp "$b" blocked | jq -e 'length == 1' >/dev/null || die '新しい status_ms の blocked を知らせない'
 ok '止まった担当: 端末が無い（finished）・blocked・提供元でない error・idle 15分・working 20分を知らせ、レビュー待ち・短いものは知らせず、同じ status_ms につき1回'
 
 # 19. 提供元のエラーは自分で続きを打つ（1分・5分・15分あと、3回まで）。4回目は知らせる
-v=$(st_task 'error（混雑）' t23); termp t23 error "$fresh"; printf 'API Error: 529 {"type":"overloaded_error"}\n' > "$tmp/hc/screen-t23"
+v=$(st_task 'error（混雑）' w23); termp w23 error "$fresh"; printf 'API Error: 529 {"type":"overloaded_error"}\n' > "$tmp/hc/screen-w23"
 clear_pending; pk
-[ "$(grep -c "^t23	提供元のエラーで止まった。続けて" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元のエラーに続きを打たない・知らせた'
+[ "$(grep -c "^w23	提供元のエラーで止まった。続けて" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元のエラーに続きを打たない・知らせた'
 pk
-[ "$(grep -c '^t23	' "$tmp/hc/sent")" = 1 ] || die '5分を待たずに続きを打った'
-jq --arg k "$v|t23" '.retry[$k] = {n: 3, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+[ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die '5分を待たずに続きを打った'
+jq --arg k "$v|w23" '.retry[$k] = {n: 3, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
 pk
-pp "$v" error | jq -e '.[0].detail.agent == "t23"' >/dev/null && [ "$(grep -c '^t23	' "$tmp/hc/sent")" = 1 ] || die "3回続きを打っても戻らない担当を error で知らせない: $(pp "$v" error)"
+pp "$v" error | jq -e '.[0].detail.agent == "w23"' >/dev/null && [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die "3回続きを打っても戻らない担当を error で知らせない: $(pp "$v" error)"
 ok '提供元のエラーは自分で続きを打ち（間を空けて3回まで）、4回目は error で知らせる'
+
+# 20. log.jsonl が書き直されて前の位置より長くなっても、先頭の行が替われば先頭から読む
+old=$(stat -c %s "$P/log.jsonl")
+p7=$(as_cos kanban add '書き直しのあと')
+{ echo "{\"at\":\"2026-01-01T00:00:00Z\",\"by\":\"terminal:t6\",\"id\":\"$p7\",\"change\":{\"title\":\"書き直した\"}}"
+  echo "{\"at\":\"2026-01-01T00:00:01Z\",\"by\":\"terminal:t8\",\"id\":\"$p7\",\"change\":{\"report\":\"write\"}}"
+  while [ "$(stat -c %s "$P/log.jsonl.new" 2>/dev/null || echo 0)" -le "$old" ]; do
+    echo "{\"at\":\"2026-01-01T00:00:02Z\",\"by\":\"terminal:t6\",\"id\":\"$p7\",\"change\":{\"title\":\"埋め草\"}}" >> "$P/log.jsonl.new"
+  done; } >> "$P/log.jsonl.new.head"
+cat "$P/log.jsonl.new.head" "$P/log.jsonl.new" > "$P/log.jsonl"; rm "$P/log.jsonl.new.head" "$P/log.jsonl.new"
+[ "$(stat -c %s "$P/log.jsonl")" -gt "$old" ] || die '前提: 書き直した log が前の位置より長くない'
+clear_pending; pk
+pp "$p7" report | jq -e 'length == 1' >/dev/null || die "書き直した log の先頭の報告を拾わない: $(jq -c .pending "$pst")"
+grep -q 'log.jsonl の先頭の行が替わった' "$tmp/courier.log" || die '読み直した理由がログに無い'
+clear_pending; pk
+[ "$(pp "$p7" report)" = '[]' ] || die '読み直したあと同じ行をもう一度拾った'
+ok 'log.jsonl が書き直されて前の位置より長くなっても、先頭の行が替われば先頭から読み直す（追記では読み直さない）'
+
+# 21. 別のマシンの担当（agent: <machine>/<address>）も見る
+m=$(as_cos kanban add '別のマシン'); HC_TERMINAL_ID=m1/w30 kanban start "$m" >/dev/null
+kanban show "$m" --json | jq -e '.task.agent == "m1/w30"' >/dev/null || die '前提: agent が m1/w30 でない'
+termp m1/w30 blocked "$(now_ms)"
+clear_pending; pk
+pp "$m" blocked | jq -e '.[0].detail.agent == "m1/w30"' >/dev/null || die "別のマシンの担当の blocked を知らせない: $(pp "$m" blocked)"
+sed -i '/^m1\/w30 /d' "$tmp/hc/live"
+pk
+pp "$m" finished | jq -e '.[0].detail.agent == "m1/w30"' >/dev/null || die '別のマシンの担当の端末が無いのを知らせない'
+ok '別のマシンの担当（<machine>/<address>）の blocked・finished も知らせる'
+
+# 22. hc get の一時の失敗は端末が無いことと分け、取れない間は前の状態を保つ
+n=$(st_task '一時の失敗' w31); termp w31 blocked "$fresh"
+clear_pending; pk
+pp "$n" blocked | jq -e 'length == 1' >/dev/null || die '前提: blocked を知らせない'
+echo w31 > "$tmp/hc/getfail"
+clear_pending; pk
+[ "$(jq --arg t "$n" '[.pending[] | select(.task == $t)] | length' "$pst")" = 0 ] || die "hc get の失敗で何か積んだ（finished など）: $(jq -c .pending "$pst")"
+jq -e --arg k "$n|w31|blocked|$fresh" '.sent[$k]' "$pst" >/dev/null || die '取れない間に知らせた状態を忘れた'
+rm "$tmp/hc/getfail"
+pk
+[ "$(jq --arg t "$n" '[.pending[] | select(.task == $t)] | length' "$pst")" = 0 ] || die '取れるようになったら同じ状態をもう一度知らせた'
+ok 'hc get の一時の失敗では finished にせず、取れない間は知らせた状態を保つ（戻っても同じ状態は知らせない）'
+
+# 23. 続きを送れなかった試行も回数と時刻に数える
+u=$(st_task '送れない' w32); termp w32 error "$old_work"; printf 'API Error: 529 overloaded\n' > "$tmp/hc/screen-w32"
+echo w32 > "$tmp/hc/sendfail"
+clear_pending; pk; pk
+jq -e --arg k "$u|w32" '.retry[$k].n == 1 and .retry[$k].at > 0' "$pst" >/dev/null || die "送れなかった試行を数えない・間を空けずに打ち直した: $(jq -c --arg k "$u|w32" '.retry[$k]' "$pst")"
+[ "$(grep -c '^send w32 ' "$tmp/hc/log")" = 1 ] || die '送れないまま見回りごとに打った'
+jq --arg k "$u|w32" '.retry[$k].at = 0 | .retry[$k].n = 2' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+pk
+jq -e --arg k "$u|w32" '.retry[$k].n == 3' "$pst" >/dev/null || die '送れなかった3回目を数えない'
+jq --arg k "$u|w32" '.retry[$k].at = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+pk
+pp "$u" error | jq -e 'length == 1' >/dev/null || die '送れないまま3回を超えても error で知らせない'
+rm "$tmp/hc/sendfail"
+ok '提供元のエラーで続きを送れなかった試行も回数と時刻に数え、上限を超えたら error で知らせる'
 
 echo "all passed ($pass)"

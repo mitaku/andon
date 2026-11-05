@@ -3,6 +3,8 @@ package courier
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"andon/internal/contract"
@@ -35,7 +38,7 @@ const RetryText = "提供元のエラーで止まった。続けて"
 var (
 	authErrRe     = regexp.MustCompile(`(?i)unauthori[sz]ed|\b401\b|\b403\b|invalid api key|/login|authenticat`)
 	providerErrRe = regexp.MustCompile(`(?i)overloaded|rate.?limit|too many requests|\b429\b|API Error: 5[0-9]{2}|\b(500|502|503|504|529)\b|internal server error|service unavailable|bad gateway|connection (error|reset|refused|closed)|ECONNRESET|stream disconnected|request timed out|high demand|混雑`)
-	agentRe       = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
+	agentRe       = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9_.-]{0,62}/)?[A-Za-z0-9_-]{1,40}$`) // <address> か <machine>/<address>（contract.md §8）
 )
 
 // ProviderError は担当の画面が提供元の混雑・rate limit・接続・5xx のエラーか。認証の失敗は含めない。
@@ -66,15 +69,22 @@ func (p *project) readLog(coordinator string) {
 		p.logf("log.jsonl が読めない: %v", err)
 		return
 	}
+	head := logHead(f)
 	if p.st.LogPos == nil { // 初めて: 位置を控えるだけ
-		p.st.LogPos = &size
+		p.st.LogPos, p.st.LogHead = &size, head
 		return
 	}
 	pos := *p.st.LogPos
-	if size < pos {
+	switch {
+	case size < pos:
 		p.logf("log.jsonl が短くなった。新しいファイルとして先頭から読む")
 		pos, p.st.LogHold = 0, nil
+	case pos > 0 && p.st.LogHead != "" && head != p.st.LogHead:
+		// 台帳の log は追記だけ。先頭の行が替わったのは手で書き直したときなので、新しいファイルとして読む
+		p.logf("log.jsonl の先頭の行が替わった。新しいファイルとして先頭から読む")
+		pos, p.st.LogHold = 0, nil
 	}
+	p.st.LogHead = head
 	if size == pos || f == nil {
 		p.st.LogPos = &pos
 		return
@@ -100,6 +110,21 @@ func (p *project) readLog(coordinator string) {
 		buf = buf[i+1:]
 	}
 	p.st.LogPos = &pos
+}
+
+// logHead は log.jsonl の最初の行（改行まで）の sha256。まだ1行も無ければ空。
+func logHead(f *os.File) string {
+	if f == nil {
+		return ""
+	}
+	buf := make([]byte, 64<<10)
+	n, _ := f.ReadAt(buf, 0)
+	i := bytes.IndexByte(buf[:n], '\n')
+	if i < 0 {
+		return ""
+	}
+	sum := sha256.Sum256(buf[:i])
+	return hex.EncodeToString(sum[:])
 }
 
 // logRow は log.jsonl の1行（pos はその行の頭）から通知を積む。false はこの行で止まって次の見回りで読み直すとき。
@@ -254,20 +279,29 @@ func (p *project) watch(now time.Time) {
 		if !idRe.MatchString(id) || !agentRe.MatchString(agent) {
 			continue
 		}
+		rk := id + "|" + agent
+		r := p.st.Retry[rk]
 		s, ok := p.seen(agent)
-		if !ok {
+		if !ok { // 取れない間は前の状態（知らせた状態・続きを打った回数）を保つ
+			for k := range p.st.Sent {
+				if strings.HasPrefix(k, rk+"|") {
+					sent[k] = true
+				}
+			}
+			if _, had := p.st.Retry[rk]; had {
+				retry[rk] = r
+			}
 			continue
 		}
 		s.Reviewing = reviewing[id]
-		rk := id + "|" + agent
-		r := p.st.Retry[rk]
 		v := Judge(s, func() string { out, _ := hcOut("read", agent, "--lines", "40"); return out }, r, nowMs)
 		if v.Retry && !p.first {
+			// 送れなかった試行も回数と時刻に数える（送れないまま見回りごとに打ち続けない）
+			r = Resend{N: r.N + 1, At: nowMs}
 			if p.retry(agent) {
-				r = Resend{N: r.N + 1, At: nowMs}
 				p.logf("%s の担当 %s に続きを打った（提供元のエラー、%d 回目）", id, agent, r.N)
 			} else {
-				p.logf("%s の担当 %s に続きを打てなかった", id, agent)
+				p.logf("%s の担当 %s に続きを打てなかった（%d 回目に数える）", id, agent, r.N)
 			}
 		}
 		// 回数は error・working の間は持ち越し（「続けて」を数える）、idle／done に戻ったら区切る
@@ -286,13 +320,24 @@ func (p *project) watch(now time.Time) {
 	p.st.Sent, p.st.Retry = sent, retry
 }
 
-// seen は担当の端末の様子。hc get が失敗すれば端末が無い。形が読めなければ ok=false（この回は見ない）。
+// seen は担当の端末の様子。hc get が not_found を返せば端末が無い。ほかの失敗・形が読めないときは ok=false（この回は見ない）。
 func (p *project) seen(agent string) (Seen, bool) {
 	cmd := exec.Command("hc", "get", agent, "--json")
 	cmd.Env = withoutTerminal()
+	var errb bytes.Buffer
+	cmd.Stderr = &errb
 	out, err := cmd.Output()
 	if err != nil {
-		return Seen{Gone: true}, true
+		var e struct {
+			Error struct {
+				Kind string `json:"kind"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(bytes.TrimSpace(errb.Bytes()), &e) == nil && e.Error.Kind == "not_found" {
+			return Seen{Gone: true}, true
+		}
+		p.logf("hc get %s が失敗した（この回は前の状態を保つ）: %v", agent, err)
+		return Seen{}, false
 	}
 	var t terminal
 	if json.Unmarshal(out, &t) != nil || t.State == "" {
