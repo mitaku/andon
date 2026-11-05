@@ -181,3 +181,16 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | 担当の command と CoS の検収の照合は、レビュアーのうち作成の行の `by` が `terminal:<coordinator>` のものだけを数える（仮設と同じ）。クーリエが起こすレビュアー（P6a）を数える形は P6a で足す | 仮設のゲート・担当の推し |
 | 2026-11-05 | 建屋の `gate.local.json` も委譲と同じ読み方: 建屋の repo の HEAD のものを、最後に変えた commit の author の email が `owner` のときだけ重ねる（作業ツリー・未 commit の変更は読まない）。信じられなければ重ねず、repos が無いのでゲートは `needs_human` | P5 の担当の推し（自動のセキュリティレビューの指摘） |
 | 2026-11-05 | 約束の JSON の入口（`report.json`・`findings.json`・問いの JSON・条件表・委譲・`--data`）は全部 `contract.Decode` を通り、存在するキーの null・型違い・知らないキーを拒む（schema と同じ）。null を許すのは tag `andon:"nullable"` のキー（`review_request.previous`・委譲の `until`・`revoked`）だけ。条件表の glob はリテラルを rune 単位で逃がす | P5 の独立レビュー 1 回目（Y-82）の指摘と Chief of Staff の方針 |
+
+## 12. P3c での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | `cmd/kanban/` は herdr-flightdeck の `cmd/deck`（tag `deck-v0.4.0`）の写しで、写した 2026-11-05 から Apache-2.0（§7 の F10）。出典は `cmd/kanban/main.go` の冒頭と `tests/kanban/test-deck.mjs` の冒頭に書いた。変えたのは command の名前（help・使い方・エラーの接頭辞 `kanban:`）と文書への参照、`--version`（K4。版は `-ldflags "-X main.version=…"`、無ければ `dev`）だけ | design.md §3.5・§5.2 |
+| 2026-11-05 | `deck` の別名は名前で振る舞いを変えない（同じバイナリ。help も同じ。help の末尾に別名の1行）。image は `/usr/local/bin/deck` → `kanban` の symlink。環境変数 `FLIGHTDECK_ROOT` と `.flightdeck/` は変えない（K5）。テストの時計 `DECK_NOW` も変えない（振る舞いテストが写しのまま通るように） | §7 の K5 |
+| 2026-11-05 | 振る舞いテストは向こうの `test-deck.mjs` を写しのまま持ち込み（K4）、`tests/kanban.sh` が node で回す。bash への書き直しは後（設計書 §3.5 の `tests/kanban.sh` は今は node の入口）。node は CI では必須、手元に無ければ skip | §7 の K4 |
+| 2026-11-05 | image の `kanban` は Dockerfile の中でビルドせず、`tests/image.sh` が焼いたバイナリを build context `kanban` で COPY する（設計書 §3.5「CI が焼いたバイナリを COPY」。Go の image を足さない） | design.md §3.5 |
+| 2026-11-05 | `internal/` は台帳の CLI を `ledger.CLI()` で選ぶ: PATH に `kanban` があれば `kanban`、無くて `deck` があれば `deck`（仮設の建屋で `andon` を打っても動く）。テストの偽物は `kanban` の名前で置く | 依頼書（internal/ の deck を kanban に） |
+| 2026-11-05 | `tests/andon-task.sh`・`andon-gate.sh`・`andon-triage.sh` は台帳の CLI を自分で焼く（`tests/lib/kanban.sh`）ので、go があれば CI の両方の workflow で skip しない。`tests/schema.sh` の command の出力の節も同じ。go の workflow は 4 target（linux/amd64・linux/arm64・darwin/arm64・windows/amd64）のビルドを確かめる。release は作らない（Andon の tag で一緒に。後の工程） | 依頼書の完了条件 |
