@@ -2,6 +2,8 @@
 
 `for f in tests/*.sh; do bash "$f"; done` で全部回る。
 
+要るのは bash・python3（標準ライブラリだけ）・jq。`tests/schema.sh` は `schema/` と `docs/contract.md` の例を突き合わせる（検査器は `tests/lib/schema_check.py`。schema に新しいキーワードを使うなら、先に検査器に足す）。
+
 ## public 検査の禁止リスト
 
 `tests/public.sh` は、秘密の形に加えて、**固有の値の禁止リスト**を全ファイルに当てる。リストの中身（建屋名・ユーザー名・案件名など）が git の履歴に残らないよう、**リストは repo の外に置く**。

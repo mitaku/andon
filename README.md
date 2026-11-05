@@ -7,7 +7,7 @@
 ## 文書の地図
 
 - [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・クーリエ・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
-- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲）。正は `schema/`（まだ無い）
+- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲）。正は `schema/`（JSON Schema 7本。`tests/schema.sh` が例と突き合わせる）
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
 - [REVIEW.md](REVIEW.md) — この repo のレビュアーの観点
@@ -15,7 +15,7 @@
 
 ## ディレクトリ
 
-`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/`・`package/`・`image/`・`init/`・`cmd/kanban/`）。中身は P2 以降の PR で入る（手の順は設計書 §5.2）。
+`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/`・`image/`・`init/`・`cmd/kanban/`）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
 
 ## テスト
 
