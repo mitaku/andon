@@ -338,11 +338,3 @@ func TestFirstMessageNotSent(t *testing.T) {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 }
-
-func TestShortTitle(t *testing.T) {
-	for in, want := range map[string]string{"課金の設計": "", "Billing の設計": "billing", "A very long English title for the design doc": "a-very-long-english-title-for"} {
-		if got := shortTitle(in); got != want {
-			t.Errorf("shortTitle(%q)=%q want %q", in, got, want)
-		}
-	}
-}

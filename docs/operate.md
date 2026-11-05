@@ -4,16 +4,9 @@
 - 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[courier.md](courier.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
 - 書き方: `<owner>`（GitHub の持ち主）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。建屋の名前（slug）は例として `home`。
 
-## 0. 先に知っておくこと: いま通らない所が2つある
+## 0. 先に知っておくこと: 通らなかった所（直した）
 
-コードを読んで見つけた。各段に回り道を書いた。直しは末尾の「直しのタスク」。
-
-| # | 通らない所 | どの段 | 回り道 |
-|---|---|---|---|
-| F2 | `andon chief-of-staff` の中身が無い（`中身はまだ無い`）。Chief of Staff の skill が最初に打つ `andon chief-of-staff --no-attach`（自分を台帳に載せる）も同じ | 9 | `hc run` で起こし、`kanban config set coordinator=<address>` を人が打つ |
-| F3 | `andon task start` の中身が無い（`中身はまだ無い`）。Chief of Staff が担当を起こせない | 10 | 人が worktree を切って `hc run` し `kanban start` で結ぶ（`andon chief-engineer` の4段と同じ） |
-
-（F1「image に `andon` が焼かれていない」と `package/environment.md` が無いことは直した。image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）
+コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon task start` の中身が無い」（10）。
 
 ## 1. image を取る
 
@@ -145,21 +138,15 @@ kanban list ; kanban lint
 
 ## 9. Chief of Staff を起こす
 
-**F2 の回り道（いまの形）**:
-
 ```bash
 cd /workspace/projects/andon
-hc run --bg --no-parent --name andon-cos --label role=chief-of-staff --label project=andon \
-  --cwd /workspace/projects/andon chief-of-staff
-hc ls                                       # andon-cos の address を控える
-kanban config set coordinator=<address>      # クーリエはこの端末が live な台帳だけを見る
-hc attach andon-cos                          # 画面に乗る
+andon chief-of-staff        # 起こして（動いていればそれを使って）画面に乗る。抜けるのは ctrl+\
 ```
 
-`andon chief-of-staff` が入れば、`projects/andon/` で `andon chief-of-staff` と打つだけになる（動いていれば使う・2人なら止まる・画面に乗る）。Chief of Staff の skill が最初に打つ `andon chief-of-staff --no-attach` は、F2 の間は落ちる。落ちたら、`config.yaml` の `coordinator` を人が合わせたと伝えて続けさせる。端末を起き直すと address が変わるので、そのたびに `kanban config set` を打ち直す。
+起きた Chief of Staff は、skill の手順で最初に `andon chief-of-staff --no-attach` を打ち、自分を `config.yaml` の `coordinator` に載せる。端末を起き直して address が変わっても、これで直る。
 
-- **通ったら見えるもの**: `hc ls` に `role=chief-of-staff project=andon` の端末。`config.yaml` の `coordinator` がその address。Chief of Staff が自分の skill（system prompt に入った役の手順）に従って台帳を読む。
-- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが控えるだけで動かさない**（[courier.md](courier.md) §2）。1回の見回りのあとに効く。
+- **通ったら見えるもの**: `andon chief-of-staff: andon の Chief of Staff は <address>（andon-cos・起こした）`。`hc ls` に `role=chief-of-staff project=andon` の端末（名前 `andon-cos`）。`config.yaml` の `coordinator` がその address。もう一度打つと起こさずに `動いているものを使う`。Chief of Staff が自分の skill（system prompt に入った役の手順）に従って台帳を読む。
+- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない`（信頼の画面など）— 画面で答えてから、出た `hc send` を打つ（`--no-attach` なら終了コード 3）。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが控えるだけで動かさない**（[courier.md](courier.md) §2）。1回の見回りのあとに効く。
 
 ## 10. 小さい PR を1本流す
 
@@ -167,15 +154,10 @@ hc attach andon-cos                          # 画面に乗る
 
 流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → クーリエがレビュアーを起こす → `ready`（レビュー）→ クーリエがゲート → approve → クーリエがマージ → `andon task finish`。
 
-**F3 の回り道（いまの形）**: 担当を起こす `andon task start` が無いので、人が4段を打つ（`internal/chiefengineer` が Chief Engineer にしていることと同じ）。
-
-1. 台帳に載せる: `kanban add "<題>" --repo github.com/<owner>/andon --profile claude --brief -`（依頼書は標準入力）→ id（`A-1`）。
-2. worktree を切る: `git -C /workspace/.ghq/github.com/<owner>/andon worktree add --no-track -b andon/A-1-<短い名前> ~/.herdr/worktrees/andon/andon-A-1 origin/main`。
-3. 起こす: `hc run --bg --name andon-a-1 --label task=A-1 --label project=andon --cwd <worktree> claude "タスク andon/A-1。依頼書は <brief.md の絶対パス>"`。
-4. 結ぶ: `kanban start A-1`（`status: doing`・`agent` がその端末に）。
+担当を起こすのは Chief of Staff の `andon task start <id>`（`projects/andon/` で打つ）。worktree と branch（`~/.herdr/worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `task.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。
 
 - **通ったら見えるもの**: 下の「§5.1 の確かめ方」の対応表。
-- **落ちたら見る所**: 担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read courier`・`~/.local/state/andon/courier/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `tasks/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
+- **落ちたら見る所**: `andon task start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— `hc read <address>` で画面を読んで答え、出た `hc send` を打つ（台帳はもう `doing`）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read courier`・`~/.local/state/andon/courier/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `tasks/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
 
 ## 11. クーリエの確かめ
 
@@ -224,10 +206,3 @@ jq . ~/.local/state/andon/courier/home.json 2>/dev/null   # 控え（<slug> は�
 | 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設の建屋の台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon の建屋ができるまで Andon の仕事を持っている。この建屋の側では何もしない |
 
 数える指標（design.md §5.1 の最後）の最初の1回は、10 の `log.jsonl` から数える: 人の `by` の行の数（介在回数）・依頼書からマージまでの時間・ゲートの `fix`＋`needs_human` の数。
-
-## 直しのタスク（コードは直さない。担当を切るのは Chief of Staff）
-
-| 題 | 内容 | 受け入れの見方 |
-|---|---|---|
-| **F2: `andon chief-of-staff`** | usage のとおり: `projects/<slug>/` で打つと Chief of Staff を起こし（`hc run`）、`config.yaml` の `coordinator` を合わせ、動いていれば使い、2人なら止まり、`--no-attach` でなければ `hc attach`。`andon chief-engineer`（`internal/chiefengineer`）が手本 | `tests/` に偽の hc で起こす・動いていれば起こさない・coordinator が直る |
-| **F3: `andon task start`** | 台帳のタスクに worktree と branch を切り、`hc run` で template を起こし、`kanban start` で結ぶ（`chiefengineer` の4段）。最初のメッセージは skill を読ませる行を持たない（ADR-0001） | `tests/andon-task.sh` に start の正負。10 の4段が1行になる |

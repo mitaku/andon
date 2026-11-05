@@ -233,3 +233,14 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | `stop-check` の「前回の通過」は、通したときの `log.jsonl` の行の数を控え（`~/.local/state/andon/stop-check/<slug>-<id>.json`）に持つ。`doing` に入り直した行があればそこから数える。続けて止めるのは 3 回まで（`stop_hook_active` が続く間）で、超えたら通して理由を1行出す（フックが続きのターンを回し続けて費用を燃やさないため） | contract.md §9、Y-90 の担当の推し |
 | 2026-11-05 | `UserPromptSubmit` では、待ちが無くても委譲の一覧（`andon delegate show --json` を1行に詰めたもの）を `<delegation project="<slug>">` で毎回添える | contract.md §9、Y-90 の担当の推し |
 | 2026-11-05 | 通知の文は `kind` ごとに1行（`review-requested`・`gate`・`merged` も）。`stalled` の分は通知の `at` と `detail.status_ms` の差。題・名前は制御文字と `<>` を空白に替えて60字に切る（`</news>` を題から漏らさない） | courier.md §3.1、Y-90 の担当の推し |
+
+## 16. P7 の前提（F2・F3）での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | `andon chief-of-staff` は仮設の `yard coordinator` を移したもの。端末の名前は `<slug>-cos`（担当の `<slug>-<id>` と並べて見分ける）、cwd は台帳の root、ラベル `role=chief-of-staff project=<slug>`。動いているものはラベルで探し、名前と cwd が合うときだけ使う。2人なら止まる。`config.yaml` の `coordinator` は違うときだけ `kanban config set` で書く。`--no-attach` でなく TTY から打ったときだけ `hc attach` | operate.md の F2、Y-102 の担当の推し |
+| 2026-11-05 | `andon task start` は仮設の `yard task start` を移したもの（aqua の policy の出し入れは移さない）。起こせるのは `todo` で worktree・branch の無いタスクだけ。`hc run` のあと、担当の cwd でその端末として `kanban start` を打ち、`doing` と `agent` を command が結ぶ（`andon chief-engineer` と同じ）。最初のメッセージが届かなくても結んだまま、送り直す `hc send` を案内して終了コード 3（Chief of Staff は `deck set agent` を打たなくてよい） | operate.md の F3、Y-102 の担当の推し |
+| 2026-11-05 | `andon task start` は `task.yaml` に `machine` があるタスクを起こさずに止まる（`hc run --on` はまだ扱わない。黙って指揮側で起こさない） | contract.md §2 の `machine`、Y-102 の担当の推し |
+| 2026-11-05 | 起こす command（`chief-of-staff`・`chief-engineer`・`task start`）の共通部分（worktree と branch・`hc templates`・`hc run`）は `internal/spawn` に置く | Y-102 の担当の推し |

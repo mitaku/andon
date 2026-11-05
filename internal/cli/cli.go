@@ -13,6 +13,7 @@ import (
 
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
+	"andon/internal/chiefofstaff"
 	"andon/internal/courier"
 	"andon/internal/delegate"
 	"andon/internal/gate"
@@ -29,20 +30,18 @@ type command struct {
 	run   func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 }
 
-// 中身がまだ無いもの（骨だけ）は run が nil。
 var commands = []command{
 	{
 		name:  "task",
-		about: "担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）。起こす（start）はまだ無い",
+		about: "担当を起こす（start）・担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）",
 		usage: task.Usage,
 		run:   task.Main,
 	},
 	{
 		name:  "chief-of-staff",
-		about: "プロジェクトの Chief of Staff を起こす（動いていれば、そのまま使う）（まだ無い）",
-		usage: "usage: andon chief-of-staff              projects/<slug>/ で打つ。終わりに hc attach でその画面に乗る\n" +
-			"       andon chief-of-staff --no-attach  乗らずに終わる\n" +
-			"中身はまだ無い。\n",
+		about: "プロジェクトの Chief of Staff を起こす（動いていれば、そのまま使う）",
+		usage: chiefofstaff.Usage,
+		run:   chiefofstaff.Main,
 	},
 	{
 		name:  "chief-engineer",
@@ -128,10 +127,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if len(rest) > 0 && (rest[0] == "-h" || rest[0] == "--help") {
 			fmt.Fprint(stdout, c.usage)
 			return 0
-		}
-		if c.run == nil {
-			fmt.Fprintf(stderr, "andon %s: 中身はまだ無い\n", sub)
-			return 1
 		}
 		return c.run(rest, stdin, stdout, stderr)
 	}

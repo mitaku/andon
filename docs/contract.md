@@ -221,6 +221,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 | 何 | 形 | 書き手 | 読み手 |
 |---|---|---|---|
 | 担当・レビュアーの端末の名前 | `<slug>-<id を小文字>`（`a-z 0-9 - _`、32字まで） | `andon task start`・クーリエ | クーリエ・ボード |
+| Chief of Staff の端末の名前 | `<slug>-cos`（cwd は台帳の root） | `andon chief-of-staff` | `andon chief-of-staff`（動いているものを使うときに名前と cwd を照らす） |
 | ラベル | `role=chief-of-staff \| courier \| chief-engineer`・`project=<slug>`・`task=<id>`・`title=<題>`・`news.replied=<turn>` | command・クーリエ | ボード・クーリエ・フック（自分のタスクを引く） |
 | template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon task start`（`hc templates` で存在を確かめる） |
 | 台帳の `agent` | 端末の address。作業側が別のマシンなら `<machine>/t7`（相談 F4） | `kanban start`（担当）・クーリエ（作業側の代筆） | クーリエ・ボード |

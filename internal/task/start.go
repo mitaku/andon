@@ -1,0 +1,197 @@
+package task
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
+
+	"andon/internal/spawn"
+)
+
+const exitFirst = 3 // 起きたが、最初のメッセージが届いていない
+
+// notSent は担当が起きたが最初のメッセージが届いていないこと（終了コード 3）。msg は人か Chief of Staff への案内。
+type notSent struct{ msg string }
+
+func (n notSent) Error() string { return n.msg }
+
+var profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+
+// start は台帳のタスクに担当を起こす（仮設の yard task start を移したもの。docs/contract.md §8）:
+// repo があれば worktree と branch を切り、hc run でプロファイルを起こし、kanban start で doing にして agent をその端末にする。
+// 打つのは Chief of Staff（projects/<slug>/ で）。起こせなかったら作った worktree と branch を戻す（やり直せるように）。
+// 最初のメッセージが届かなかったとき（信頼の画面など）は、台帳は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
+func (c *ctx) start(stdout io.Writer) error {
+	for _, cmd := range []string{"git", "hc"} {
+		if _, err := exec.LookPath(cmd); err != nil {
+			return fail("%s が無い", cmd)
+		}
+	}
+	slug, id := c.l.Slug, c.id
+	if !spawn.SlugRe.MatchString(slug) {
+		return fail("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
+	}
+	if s := c.task.Str("status"); s != "todo" {
+		return fail("%s は %s（起こせるのは todo だけ）", id, s)
+	}
+	// kanban start の開始の条件（after が全部済んでいる）を、何かを作る前に確かめる
+	if ok, err := c.startable(); err != nil {
+		return err
+	} else if !ok {
+		return fail("%s は after（%s）が済んでいない。済んでから起こす", id, strings.Join(c.after(), ", "))
+	}
+	if wt, br := c.task.Str("worktree"), c.task.Str("branch"); wt != "" || br != "" {
+		return fail("%s は起こし済み（worktree=%s branch=%s）。やり直すなら先に andon task finish", id, wt, br)
+	}
+	if m := c.task.Str("machine"); m != "" {
+		// 別のマシンで起こす（hc run --on）はまだ扱わない。黙って指揮側で起こさない
+		return fail("%s は machine=%s（別のマシンで起こす）。andon task start はまだ扱わない。machine を消すか、人が起こす", id, m)
+	}
+	profile := c.task.Str("profile")
+	if profile == "" {
+		return fail("%s に profile が無い（kanban set %s profile=<名前>）", id, id)
+	}
+	if !profileRe.MatchString(profile) {
+		return fail("profile が不正: '%s'", profile)
+	}
+	brief := filepath.Join(c.l.Dir, "tasks", id, "brief.md")
+	if fi, err := os.Stat(brief); err != nil || fi.Size() == 0 {
+		return fail("%s に依頼書（brief.md）が無い", id)
+	}
+	found, err := spawn.HasTemplate(profile)
+	if err != nil {
+		return fail("%v", err)
+	}
+	if !found {
+		return fail("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", profile)
+	}
+	name := strings.ToLower(slug + "-" + id)
+	if !spawn.NameRe.MatchString(name) {
+		return fail("端末の名前 %s が hc の決まり（a-z 0-9 - _ で32字まで）に合わない", name)
+	}
+	if live, err := liveNames(); err != nil {
+		return err
+	} else if live[name] {
+		return fail("端末 %s がもう動いている（hc ls で確かめる）", name)
+	}
+
+	title := c.task.Str("title")
+	cwd := filepath.Join(c.l.Dir, "tasks", id)
+	undo := func() {}
+	branch := ""
+	if repo := c.task.Str("repo"); repo != "" {
+		if !spawn.RepoRe.MatchString(repo) {
+			return fail("repo が不正: '%s'（<host>/<owner>/<repo>）", repo)
+		}
+		if !slices.Contains(c.l.Repos(), repo) {
+			return fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
+		}
+		repoDir, err := spawn.RepoPath(repo)
+		if err != nil {
+			return fail("%v", err)
+		}
+		if _, err := git(repoDir, "rev-parse", "--git-dir"); err != nil {
+			return fail("リポジトリが無い: %s（ghq get する）", repoDir)
+		}
+		wt, err := spawn.NewWorktree(repoDir, slug, id, title)
+		if err != nil {
+			return fail("%v", err)
+		}
+		if _, err := c.l.Run("", "set", id, "branch="+wt.Branch, "worktree="+wt.Path); err != nil {
+			wt.Remove()
+			return err
+		}
+		undo = func() {
+			wt.Remove()
+			c.l.Run("", "set", id, "branch=", "worktree=")
+		}
+		cwd, branch = wt.Path, wt.Branch
+	}
+
+	// skill worker はプロファイルの command が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
+	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
+	// 名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる
+	run, err := spawn.Run(name, []string{"project=" + slug, "task=" + id, "title=" + title}, cwd, profile, msg)
+	if err != nil {
+		undo()
+		return fail("%v。作った worktree と branch を戻した。%s は todo のまま", err, id)
+	}
+
+	// 台帳を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
+	if _, err := spawn.OutputIn(cwd, []string{"FLIGHTDECK_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
+		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
+	}
+	if !run.First.Sent {
+		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。hc read %s で画面を読み、答えてから次を送る: hc send %s %q（台帳は doing・agent %s のまま）",
+			run.Address, name, run.Reason(), run.Address, run.Address, msg, run.Address)}
+	}
+	fmt.Fprintf(stdout, "andon task: %s を %s（%s・%s）で起こした。cwd %s", id, run.Address, name, profile, cwd)
+	if branch != "" {
+		fmt.Fprintf(stdout, " branch %s", branch)
+	}
+	fmt.Fprintln(stdout)
+	return nil
+}
+
+// liveNames は動いている端末の名前（hc の名前は動いているものの中で1つ）。
+func liveNames() (map[string]bool, error) {
+	out, err := spawn.Output(nil, "", "hc", "ls", "--json")
+	if err != nil {
+		return nil, fail("hc ls に失敗: %v", err)
+	}
+	var ls struct {
+		Terminals []struct {
+			Name string `json:"name"`
+		} `json:"terminals"`
+	}
+	if err := json.Unmarshal([]byte(out), &ls); err != nil {
+		return nil, fail("hc ls の返事が読めない")
+	}
+	names := map[string]bool{}
+	for _, t := range ls.Terminals {
+		names[t.Name] = true
+	}
+	return names, nil
+}
+
+// startable は台帳の CLI の ready（todo か queued で、after が全部済んでいる）にこのタスクがあるか。
+func (c *ctx) startable() (bool, error) {
+	out, err := c.l.Run("", "ready", "--json")
+	if err != nil {
+		return false, err
+	}
+	var ts []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &ts); err != nil {
+		return false, fail("kanban ready の返事が読めない")
+	}
+	for _, t := range ts {
+		if t.ID == c.id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// after は task.yaml の after（並び）。
+func (c *ctx) after() []string {
+	var out []string
+	switch v := c.task["after"].(type) {
+	case []any:
+		for _, a := range v {
+			if s, ok := a.(string); ok {
+				out = append(out, s)
+			}
+		}
+	case string:
+		out = append(out, v)
+	}
+	return out
+}
