@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -273,5 +274,14 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 	if _, err := os.Stat(f.wt()); err != nil {
 		t.Errorf("worktree を消した: %v", err)
+	}
+}
+
+// 担当の置き場のラベルは slug・id・題だけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7）。
+func TestWorkLabels(t *testing.T) {
+	want := []string{"project=sample-site", "task=S-7", "title=Add the button",
+		"herdr.space=andon-sample-site-work", "herdr.tab=andon-sample-site-S-7"}
+	if got := workLabels("sample-site", "S-7", "Add the button"); !slices.Equal(got, want) {
+		t.Errorf("got %q want %q", got, want)
 	}
 }

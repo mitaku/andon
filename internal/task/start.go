@@ -116,12 +116,7 @@ func (c *ctx) start(stdout io.Writer) error {
 
 	// skill worker はプロファイルの command が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
 	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
-	// 名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
-	// herdr.space・herdr.tab で人の Herdr App の作業側の Space にタスクの tab として出す（ADR-0002 決めたこと 6・12）。
-	// 作業側を別のマシンに出しても（hc run --on）同じ値（その machine の Space に出る。前提 7）
-	labels := []string{"project=" + slug, "task=" + id, "title=" + title,
-		"herdr.space=andon-" + slug + "-work", "herdr.tab=andon-" + slug + "-" + id}
-	run, err := spawn.Run(name, labels, cwd, profile, msg)
+	run, err := spawn.Run(name, workLabels(slug, id, title), cwd, profile, msg)
 	if err != nil {
 		undo()
 		return fail("%v。作った worktree と branch を戻した。%s は todo のまま", err, id)
@@ -143,6 +138,14 @@ func (c *ctx) start(stdout io.Writer) error {
 	fmt.Fprintln(stdout)
 	fmt.Fprintf(stdout, "andon task: 出た場所 %s（%s）\n", place, run.Address)
 	return nil
+}
+
+// workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
+// herdr.space・herdr.tab で人の Herdr App の作業側の Space にタスクの tab として出す（ADR-0002 決めたこと 6・12）。
+// 値は slug・id・題だけで決まり、どのマシンで起こすかに依らない（別のマシンならその machine の Space に出る。前提 7）。
+func workLabels(slug, id, title string) []string {
+	return []string{"project=" + slug, "task=" + id, "title=" + title,
+		"herdr.space=andon-" + slug + "-work", "herdr.tab=andon-" + slug + "-" + id}
 }
 
 // liveNames は動いている端末の名前（hc の名前は動いているものの中で1つ）。
