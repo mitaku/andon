@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,7 @@ func newFake(t *testing.T) *fake {
 	git(t, f.repoDir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "init")
 	git(t, f.repoDir, "push", "-q", "origin", "HEAD:main")
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
+	f.config("repos:\n  - github.com/example/sample-site\n")
 	t.Setenv("HOME", f.home)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
@@ -82,6 +84,19 @@ func git(t *testing.T, dir string, args ...string) {
 	c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// config は台帳の config.yaml に、台帳の CLI が書く形で repos を置く。
+func (f *fake) config(repos string) {
+	f.t.Helper()
+	p := filepath.Join(f.root, ".flightdeck", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		f.t.Fatal(err)
+	}
+	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\n" + repos + "coordinator: t1\n"
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		f.t.Fatal(err)
 	}
 }
 
@@ -162,7 +177,7 @@ func TestStartsChiefEngineer(t *testing.T) {
 func TestUsage(t *testing.T) {
 	newFake(t)
 	r := "--repo=github.com/example/sample-site"
-	for _, args := range [][]string{nil, {""}, {"題"}, {r}, {r, ""}, {r, "  "}, {r, "a", "b"}, {r, "二行\nの題"}, {r, "--no-attach", "題"}, {"--repo"}} {
+	for _, args := range [][]string{nil, {""}, {r}, {r, ""}, {r, "  "}, {r, "a", "b"}, {r, "二行\nの題"}, {r, "--no-attach", "題"}, {"--repo"}} {
 		rc, out, errs := runMain(args...)
 		if rc != exitUsage || out != "" || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
 			t.Errorf("%q: rc=%d out=%q err=%q", args, rc, out, errs)
@@ -176,6 +191,77 @@ func TestNoLedger(t *testing.T) {
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
 	if rc != exitFail || !strings.Contains(errs, "台帳が見つからない") || f.has("hc") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	}
+}
+
+// 文書（design.md・skill・README）に書いた andon chief-engineer の呼び出しを、そのまま打って通る
+func TestDocumentedInvocations(t *testing.T) {
+	re := regexp.MustCompile("andon chief-engineer((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?) \"<題>\"")
+	files, _ := filepath.Glob("../../package/skills/*/SKILL.md")
+	files = append(files, "../../docs/design.md", "../../README.md")
+	found := 0
+	for _, file := range files {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+			found++
+			args := []string{"題"}
+			if strings.Contains(m[1], "--repo") && !strings.Contains(m[1], "[") {
+				args = []string{"--repo", "github.com/example/sample-site", "題"}
+			}
+			t.Run(file+":"+m[0], func(t *testing.T) {
+				newFake(t)
+				if rc, _, errs := runMain(args...); rc != 0 {
+					t.Errorf("%s: rc=%d err=%q", m[0], rc, errs)
+				}
+			})
+		}
+	}
+	if found < 3 {
+		t.Errorf("文書に andon chief-engineer の呼び出しが %d 個しか見つからない", found)
+	}
+	// 呼び出しの形が上の正規表現に合わない書き方が文書に残っていない
+	loose := regexp.MustCompile("andon chief-engineer [^`）]*")
+	for _, file := range files {
+		b, _ := os.ReadFile(file)
+		for _, m := range loose.FindAllString(string(b), -1) {
+			if !re.MatchString(m) && strings.Contains(m, "<") {
+				t.Errorf("%s: 確かめられない呼び出しの書き方: %q", file, m)
+			}
+		}
+	}
+}
+
+func TestLedgerRepos(t *testing.T) {
+	for _, c := range []struct {
+		repos string
+		rc    int
+		err   string
+	}{
+		{"repos:\n  - github.com/example/a\n  - github.com/example/b\n", exitUsage, "台帳の repos が 2 個（github.com/example/a・github.com/example/b）。--repo"},
+		{"repos: []\n", exitUsage, "台帳の repos が 0 個"},
+		{"", exitUsage, "repos が読めない"},
+		{"repos: [github.com/example/sample-site]\n", exitUsage, "repos が読めない"},
+	} {
+		f := newFake(t)
+		f.config(c.repos)
+		rc, _, errs := runMain("題")
+		if rc != c.rc || !strings.Contains(errs, c.err) || f.has("deck add") {
+			t.Errorf("%q: rc=%d err=%q", c.repos, rc, errs)
+		}
+	}
+	// 1つなら --repo 無しで通り、--repo があれば repos より --repo
+	f := newFake(t)
+	f.config("repos:\n  - \"github.com/example/sample-site\"\n")
+	if rc, _, errs := runMain("題"); rc != 0 || !f.has("deck add 題 --repo github.com/example/sample-site ") {
+		t.Errorf("1つ: rc=%d err=%q", rc, errs)
+	}
+	f = newFake(t)
+	f.config("repos:\n  - github.com/example/a\n  - github.com/example/b\n")
+	if rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題"); rc != 0 {
+		t.Errorf("--repo があれば repos が2つでも通る: rc=%d err=%q", rc, errs)
 	}
 }
 

@@ -7,7 +7,7 @@ description: 台帳（deck）と hc（端末の土台）で動くプロジェク
 
 **台帳（`deck`）と hc で動くプロジェクトの Chief of Staff の手順。** 用語は glossary skill に従う。
 ラインを回す: 人の依頼と Chief Engineer の文書を依頼書に切り、担当を起こして検収し、振り返る。**自分では実装しない**（読むだけのサブエージェントでタスクを切るのは可）。
-**人と仕様・設計の対話もしない**。設計を詰める話が始まったら、人に `andon chief-engineer "<題>"`（プロジェクトの場所で打つ）を勧める。
+**人と仕様・設計の対話もしない**。設計を詰める話が始まったら、人に `andon chief-engineer "<題>"`（プロジェクトの場所で打つ。台帳の repos が2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<題>"`）を勧める。
 
 - この SKILL が効くのは、`projects/<slug>/.flightdeck/config.yaml` があり、その `coordinator` が自分（`$HC_TERMINAL_ID`）のとき。
 - 打つコマンドは `deck`（台帳）・`hc`（端末とエージェント）・`andon task`（起こす・片付ける）・`andon chief-of-staff --no-attach`（自分を台帳に載せる。`--no-attach` を付けないと端末から打ったとき自分の画面に乗ろうとする）・`gh`。

@@ -1,7 +1,8 @@
 // Package chiefengineer は andon chief-engineer: 人と仕様・設計を対話する Chief Engineer を
 // 台帳のタスクとして起こす（docs/design.md §1.8）。
 //
-//	andon chief-engineer --repo <host/owner/repo> "<題>"   projects/<slug>/ で打つ
+//	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は台帳の repos が1つならそれ
+//	andon chief-engineer --repo <host/owner/repo> "<題>"   台帳の repos が2つ以上（か無い）とき
 //
 // することは4つ: 台帳にタスクを足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこのタスクから出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
@@ -28,8 +29,9 @@ import (
 )
 
 // Usage は andon chief-engineer の使い方。
-const Usage = "usage: andon chief-engineer --repo <host/owner/repo> \"<題>\"\n" +
-	"projects/<slug>/ で打つ。台帳にタスクを足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
+const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] \"<題>\"\n" +
+	"projects/<slug>/ で打つ。--repo を省くと台帳の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
+	"台帳にタスクを足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起こし、タスクを doing にする。文書の PR はそのタスクから出る。\n" +
 	"Chief Engineer が動いていれば起こさずに止まる（1プロジェクトに1人）。\n"
 
@@ -61,7 +63,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return exitFail
 	}
 
-	if !repoRe.MatchString(repo) {
+	if repo != "" && !repoRe.MatchString(repo) {
 		fmt.Fprintf(stderr, "andon chief-engineer: repo が不正: '%s'（<host>/<owner>/<repo>）\n", repo)
 		return exitUsage
 	}
@@ -78,6 +80,21 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	slug := filepath.Base(root)
 	if !slugRe.MatchString(slug) {
 		return die("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
+	}
+	if repo == "" {
+		repos, ok := ledgerRepos(filepath.Join(root, ".flightdeck", "config.yaml"))
+		switch {
+		case !ok:
+			fmt.Fprintf(stderr, "andon chief-engineer: 台帳の config.yaml の repos が読めない。--repo <host/owner/repo> で渡す\n")
+			return exitUsage
+		case len(repos) != 1:
+			fmt.Fprintf(stderr, "andon chief-engineer: 台帳の repos が %d 個（%s）。--repo <host/owner/repo> で選ぶ\n", len(repos), strings.Join(repos, "・"))
+			return exitUsage
+		}
+		repo = repos[0]
+		if !repoRe.MatchString(repo) {
+			return die("台帳の repos の値が不正: '%s'", repo)
+		}
 	}
 	repoDir, err := repoPath(repo)
 	if err != nil {
@@ -211,7 +228,48 @@ func parseArgs(args []string) (repo, title string, ok bool) {
 			}
 		}
 	}
-	return repo, title, repo != "" && title != ""
+	return repo, title, title != ""
+}
+
+// ledgerRepos は台帳の config.yaml の repos を読む。台帳の CLI に repos を出す口が無いので、
+// 台帳の CLI が書く形（行頭の "repos:" の下に "  - <repo>" が並ぶ。無ければ "repos: []"）だけを読む。
+// それ以外の形（flow の並び・入れ子・読めない）は ok=false（安全側: 呼び手は --repo を求める）。
+func ledgerRepos(path string) (repos []string, ok bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	in, seen := false, false
+	for _, ln := range strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n") {
+		switch {
+		case ln == "repos:":
+			if seen {
+				return nil, false
+			}
+			in, seen = true, true
+		case ln == "repos: []":
+			if seen {
+				return nil, false
+			}
+			seen = true
+		case in && strings.HasPrefix(ln, "  - "):
+			v := strings.TrimSpace(strings.TrimPrefix(ln, "  - "))
+			if len(v) >= 2 && (v[0] == '"' || v[0] == '\'') && v[len(v)-1] == v[0] {
+				v = v[1 : len(v)-1]
+			}
+			if v == "" {
+				return nil, false
+			}
+			repos = append(repos, v)
+		case in && (ln == "" || !strings.HasPrefix(ln, " ")):
+			in = false
+		case in:
+			return nil, false
+		case strings.HasPrefix(ln, "repos:"):
+			return nil, false
+		}
+	}
+	return repos, seen
 }
 
 // repoPath は $GHQ_ROOT（無ければ ghq root）/<repo>。
