@@ -17,7 +17,7 @@
 
 ## ディレクトリ
 
-`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/` の `bin/`・`hooks/`・`cmd/kanban/`）。`package/` には skill（`skills/`）・プロファイル（`templates/`）・ゲートの条件表（`gate.json`）・managed settings の既定（`settings.json`）・statusline（`lib/andon/`）・建屋の compose（`compose.yaml`）・ホスト用の雛形（`host/`）が入っている（建屋へ配る仕組みはまだ無い）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
+`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/` の `bin/`・`cmd/kanban/`）。`package/` には skill（`skills/`）・プロファイル（`templates/`）・ゲートの条件表（`gate.json`）・managed settings の既定（`settings.json`）・statusline（`lib/andon/`）・Claude Code のフック（`hooks/`。Stop・UserPromptSubmit）・建屋の compose（`compose.yaml`）・ホスト用の雛形（`host/`）が入っている（建屋へ配る仕組みはまだ無い）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
 
 ## 建屋を立てる
 

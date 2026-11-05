@@ -1,6 +1,6 @@
 # クーリエ（courier）の設計
 
-- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループは実装済み（`andon courier`。通知は控えに積むまで。P6a での決定は [decisions.md](decisions.md) §13）。
+- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2 の台帳と端末の状態からの拾い（P3b の通知の元）はまだ入っていない。
 - この文書がクーリエの設計の正。前の設計（仮設の工場の通知の係）は記録として向こうに残る（相談 F8 の回答。[decisions.md](decisions.md) §7）。読んだものは末尾の「出典」。
 - 語は [design.md](design.md) §0.1。機械が読む形（通知の JSON・控え・フック・端末のラベル）の正は [contract.md](contract.md) と `schema/` で、この文書はそれを**なぜその形か**と**いつ何をするか**で説明する。食い違えば contract.md と `schema/` が正。
 
@@ -93,12 +93,12 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 | # | 経路 | いつ | 打つもの | 書きかけに貼り付くか |
 |---|---|---|---|---|
-| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon courier drain --project <slug>` → 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}` で続きのターンにする | 貼り付かない（入力欄を通らない） |
+| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon courier drain`（slug は端末のラベルから）→ 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}` で続きのターンにする | 貼り付かない（入力欄を通らない） |
 | ② | Chief of Staff の `UserPromptSubmit` フック | 人が送ったとき | 同じ（`--context`）＋ 委譲の一覧。`additionalContext` に添える | 貼り付かない（人の文の横に文脈として入る） |
 | ③ | 離席時だけ `hc send` | ①②が来ない間（Chief of Staff がターンを終えて入力を待っていて、人も打っていない） | §4 の守りがそろったら `hc send --if idle` | 判定が外れたときだけ（§4.4） |
 
 - **①②が主、③が残り。** ターンの中で起きた出来事は①で、人が戻って打てば②で届く。③が要るのは「Chief of Staff が待っていて、人も離れている」ときだけ——そのとき誰も Chief of Staff を起こさないので、ラインが止まる。
-- `drain` は待ちを全部取り出して空にする。届けたら控えの「送った turn」を進める（③の守り c が使う）。
+- `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（答えが `<no-reply>` だけかもここで見る）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
 - ①の `block` が続きのターンを始めること、②の `additionalContext` が文脈に入ることは**要実測**（P6b。contract.md §9）。
 - フックが落ちたとき（command が無い・台帳が見つからない）は**通す**。待ちはクーリエに残り、次の口で届く。
 
@@ -118,7 +118,7 @@ S-9 の担当 t5 が working のまま 21 分
 
 - **まとめて1通**: Chief of Staff は複数をまとめて1回で答えるほうが安い。
 - **末尾の1行**: 通知はデータで、依頼ではない。Chief of Staff は台帳を読んで動き、人に言うことが無ければ `<no-reply>` とだけ返す。
-- **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: ③で送ったあと、Chief of Staff のターンが終わって答えが `<no-reply>` だけなら、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。①②で届けたターンも同じ規則で書く。
+- **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: ③で送ったあと、Chief of Staff のターンが終わって答えが `<no-reply>` だけなら、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。①②で届けたターンも同じ規則で書く（こちらは画面ではなく、次の `Stop` フックの入力の `last_assistant_message` が `<no-reply>` だけかで決める。decisions.md §15）。
 
 ---
 
@@ -159,7 +159,7 @@ Claude Code の画面は、最後の2本の罫線（`─` が20字以上並ぶ�
 5. **SGR の色は組ごと1つの属性として読む。** `38:2::r:g:b` のような colon 形式の色の中の `2` を dim と取り違えない。
 6. **ヒントの形を特別扱いしない。** `❯ Try "` を文字で覚える形は、候補の文が変わるたびに外れる。薄い字なら同じ仕組みで空になる。
 
-Andon ではこれを Go で書き直す（design.md §2.7 の (1)。画面を正規表現で読む形は端が尽きない）。列の許可の一覧と再現の画面は、表のテストにする（P6b）。
+Andon ではこれを Go で書き直した（`internal/courier/screen.go`。design.md §2.7 の (1)。画面を正規表現で読む形は端が尽きない）。列の許可の一覧と再現の画面は表のテスト（`screen_test.go`）にした。
 
 ### 4.4 残る危険（ゼロにはできない）
 

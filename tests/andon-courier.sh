@@ -51,18 +51,22 @@ case "\$*" in
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
 esac
 EOF
-# 偽の hc: 生きている端末は $tmp/hc/live（address task の行）。run は t9, t10 … を返し、打ったものを $tmp/hc/log に
+# 偽の hc: 生きている端末は $tmp/hc/live（address task の行）。run は t9, t10 … を返し、打ったものを $tmp/hc/log に。
+# get --json は $tmp/hc/term-<addr>.json、read は screen-<addr>、attach --observe は ansi-<addr>（無ければ何も出さない）
 cat > "$tmp/bin/hc" <<EOF
 #!/bin/bash
 d=$tmp/hc
 echo "\$*" >> \$d/log
 case \$1 in
-  get) grep -q "^\$2 " \$d/live ;;
+  get) grep -q "^\$2 " \$d/live || exit 1; [ "\${3:-}" != --json ] || cat \$d/term-\$2.json 2>/dev/null ;;
+  read) cat \$d/screen-\$2 2>/dev/null ;;                        # hc read <addr> [--lines n]: 文字だけの画面
+  attach) [ "\$2" = --observe ] && cat \$d/ansi-\$3 2>/dev/null ;;  # hc attach --observe <addr>: ANSI の画面
+  label) echo "\$2 \$3" >> \$d/labels ;;
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 9) )); echo \$((n + 1)) > \$d/next
        task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
        echo "t\$n \$task" >> \$d/live
        printf '{"address":"t%s","first_message":{"sent":%s}}\n' "\$n" "\$(cat \$d/first 2>/dev/null || echo true)" ;;
-  send) printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
+  send) [ "\$2" != --if ] || shift 2; printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
   ls) task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
       awk -v t="\$task" '\$2 == t { printf "%s{\"address\":\"%s\",\"state\":\"live\"}", (n++ ? "," : ""), \$1 }' \$d/live | { printf '{"terminals":['; cat; printf ']}\n'; } ;;
   kill) ;;
@@ -322,5 +326,150 @@ courier
 jq -e '.from == "gate" and (.facts | any(contains("delegation: merge=none")))' "$L/tasks/$id/library/questions/1.json" >/dev/null || die '回し直したゲートの needs_human が問いになっていない'
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'マージした'
 ok 'ゲートのあと委譲の merge が取り消されたら gh pr merge を打たず、回し直したゲートの needs_human を問いにする'
+
+# === フックで届ける・止める（P6b。courier.md §3・§4、contract.md §9）===
+# フックは package/hooks/ を Claude Code と同じに打つ（stdin にフックの入力の JSON、HC_TERMINAL_ID は自分の端末）
+ln -sf "$andon" "$tmp/bin/andon"
+hooks=$andon_root/package/hooks
+rule=$(printf '─%.0s' $(seq 30))
+term() { # term <addr> <状態> <turn> [<k=v>…]: 偽の hc get --json
+    local a=$1 s=$2 n=$3; shift 3
+    printf '%s\n' "$@" | jq -R 'select(. != "") | split("=") | {(.[0]): .[1]}' | jq -s --arg a "$a" --arg s "$s" --argjson n "$n" \
+        '{address: $a, state: "live", status: {state: $s}, turn: $n, labels: (add // {})}' > "$tmp/hc/term-$a.json"
+}
+cos() { term t5 "$1" "$2" role=chief-of-staff project=demo; }
+screen() { # screen <入力欄の文字> <入力欄の ANSI>: Chief of Staff の画面（hc read と attach --observe）
+    printf '● 前の答え\n%s\n%s\n%s\n  model │ 12%%\n' "$rule" "$1" "$rule" > "$tmp/hc/screen-t5"
+    printf '\033[!p\033[?1049l\033[?1049h\033[2J\033[H● 前の答え\r\n%s\r\n%s\033[0m\r\n%s\r\n  model │ 12%%' "$rule" "$2" "$rule" > "$tmp/hc/ansi-t5"
+}
+event() { # event <題>: クーリエが通知 review-requested を積む出来事（担当がレビューを頼む）。id を返す
+    local id; id=$(newtask "$1" person)
+    work "$id" docs/a.md
+    as_worker "$id" report --pr https://github.com/example/app/pull/7
+    as_worker "$id" review-request
+    courier
+    pending "$id" review-requested | jq -e . >/dev/null || die "$1: 通知が積まれていない"
+    echo "$id"
+}
+sent() { cat "$tmp/hc/sent" 2>/dev/null | grep -c '^t5	'; }
+
+# 11. turn 中の通知が Stop で届く（Chief of Staff が working の間、クーリエは hc send しない）
+cos working 3
+screen '❯' '❯'
+id=$(event 'ターンの中の通知')
+[ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
+out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"見た"}')
+jq -e --arg id "$id" '.decision == "block" and (.reason | startswith("<news project=\"demo\">\n") and contains("\n\($id) review-requested: 1 回目のレビュアー ") and endswith("「<no-reply>」とだけ返す。\n</news>"))' <<<"$out" >/dev/null ||
+    die "Stop が <news> で block しない: $out"
+jq -e '.pending == [] and .hook.terminal == "t5" and .hook.via == "stop"' "$state" >/dev/null || die '取り出した待ちが控えに残った・渡した turn を控えていない'
+out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assistant_message":"<no-reply>"}')
+[ -z "$out" ] || die "待ちが無いのに block した: $out"
+grep -qx 't5 news.replied=3' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '<no-reply> だけの答えに news.replied を書かない'
+out=$(HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<'{}')
+[ -z "$out" ] || die "Chief of Staff でも担当でもない端末で何か出した: $out"
+ok 'turn 中の通知は Chief of Staff の Stop フック（drain）が block の reason で渡し、答えが <no-reply> だけなら news.replied を書く'
+
+# 12. 送信時に添えられる（UserPromptSubmit。委譲の一覧も同じ口で）
+id=$(event '送信時の通知')
+out=$(HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"hook_event_name":"UserPromptSubmit","prompt":"次は？"}')
+jq -e --arg id "$id" '.hookSpecificOutput.hookEventName == "UserPromptSubmit" and (.hookSpecificOutput.additionalContext
+    | contains("\($id) review-requested:") and contains("<delegation project=\"demo\">\n{\"project\":\"demo\""))' <<<"$out" >/dev/null ||
+    die "additionalContext に待ちと委譲が無い: $out"
+jq -e '.pending == []' "$state" >/dev/null || die '添えた待ちが残った'
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"了解"}' >/dev/null
+! grep -q 'news.replied=3$' <(tail -n +2 "$tmp/hc/labels") || die '人への答えに news.replied を書いた'
+out=$(HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"もう一つ"}')
+jq -e '.hookSpecificOutput.additionalContext | (contains("<news") | not) and contains("<delegation")' <<<"$out" >/dev/null || die "待ちが無いときに委譲だけを添えない: $out"
+out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}'); rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
+ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
+
+# 12b. UserPromptSubmit で渡したあと turn が中断された（Stop が来ない）ら、次の送信で1回だけ届け直す。news.replied は渡した turn の答えにだけ
+ups() { HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"prompt\":\"x\"}" | jq -r '.hookSpecificOutput.additionalContext'; }
+cstop() { HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"stop_hook_active\":${3:-false},\"last_assistant_message\":\"$2\"}"; }
+id=$(event '中断される送信')
+labels=$(wc -l < "$tmp/hc/labels")
+ups p1 | grep -q "$id review-requested:" || die '1回目の送信で渡さない'
+jq -e '.hook.via == "prompt" and .hook.prompt_id == "p1" and (.hook.news | length) == 1' "$state" >/dev/null || die '渡した <news> を turn の終わりまで控えに残さない'
+# p1 は中断（Stop が来ない）。次の送信で届け直す
+ups p2 | grep -q "$id review-requested:" || die '中断された turn の <news> を次の送信で届け直さない'
+jq -e '(.hook.news // []) == [] and (.hook.again | length) == 1' "$state" >/dev/null || die '届け直した分を控えていない'
+# p2 も中断。届け直しは1回だけ
+ups p3 | grep -q "review-requested" && die '届け直しを2回した'
+cstop p3 '<no-reply>' >/dev/null
+[ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die '<news> を渡していない turn の <no-reply> に news.replied を書いた'
+# 渡した turn と違う turn の Stop では書かない・渡した turn の Stop では書く
+id=$(event '照合する送信')
+ups p4 >/dev/null
+cos working 6
+out=$(cstop p0 '<no-reply>')
+[ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die '別の turn（prompt_id 違い）の Stop で news.replied を書いた'
+jq -e --arg id "$id" '.decision == "block" and (.reason | contains("\($id) review-requested:"))' <<<"$out" >/dev/null || die "確かめていない <news> をその Stop で届け直さない: $out"
+cstop p0 '<no-reply>' true >/dev/null
+grep -qx 't5 news.replied=6' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '届け直した turn の <no-reply> に news.replied を書かない'
+cstop p0 '<no-reply>' true >/dev/null
+[ "$(grep -c 'news.replied' "$tmp/hc/labels")" = 2 ] || die '確かめ済みの <news> に二度 news.replied を書いた'
+ok '送信で渡した <news> は turn の Stop まで控えに残し、中断されたら次の送信で1回だけ届け直す。news.replied は prompt_id で照合した turn だけ（違う turn の Stop では書かず届け直す）'
+
+# 13. 離席時だけ hc send（状態 idle・入力欄が空・前の <news> の turn が進んでいる）
+id=$(event '離席の通知')
+cos idle 4
+screen '❯ これを直して' '❯ これを直して'
+courier
+[ "$(sent)" = 0 ] || die '人の書きかけがあるのに hc send した'
+screen '❯' '❯ 前の文'
+courier
+[ "$(sent)" = 0 ] || die 'hc read と組み直した画面が違うのに hc send した'
+screen '❯ Try "fix lint"' $'❯ \e[7m\e[2mTry "fix lint"\e[0m\e[?7h'
+courier
+[ "$(sent)" = 0 ] || die '許可の一覧に無い列があるのに hc send した'
+screen '❯ Try "fix lint"' $'❯ \e[2mTry "fix lint"\e[22m'
+cos working 4
+courier
+[ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
+cos idle 4
+courier
+[ "$(sent)" = 1 ] && grep -q "^send --if idle t5 <news project=\"demo\">" "$tmp/hc/log" || die "薄い字のサジェストだけの入力欄に hc send --if idle しない: $(grep '^send' "$tmp/hc/log" | tail -1)"
+grep -q "^t5	<news project=\"demo\">" "$tmp/hc/sent" && grep -q "$id review-requested:" "$tmp/hc/sent" || die '<news> の文が違う'
+jq -e '.pending == [] and .news_turn == 4' "$state" >/dev/null || die '送った turn を控えていない'
+id2=$(event '答えている途中の通知')
+courier
+[ "$(sent)" = 1 ] || die '前の <news> の turn が進んでいないのに送った'
+cos done 5
+printf '❯ <news project="demo">\n  %s review-requested: x\n  </news>\n\n● <no-reply>\n\n%s\n❯\n%s\n' "$id" "$rule" "$rule" > "$tmp/hc/screen-t5"
+courier
+grep -qx 't5 news.replied=5' "$tmp/hc/labels" || die '③で送った <news> の <no-reply> に news.replied を書かない'
+screen '❯' '❯'
+courier
+[ "$(sent)" = 2 ] && grep -q "^send t5 <news" "$tmp/hc/log" && grep -q "$id2 review-requested:" "$tmp/hc/sent" || die 'done の Chief of Staff に --if なしで送らない'
+ok '離席時だけ hc send（idle か done・入力欄が空・薄い字は空・hc read と一致・許可の一覧の列だけ・前の turn が進んでから。idle は --if idle）'
+
+# 14. doing で報告無しの Stop が block（担当・レビュアーの Stop フック。stop-check）
+id=$(newtask '止まる前に報告する' person)
+wt=$HOME/.herdr/worktrees/app/demo-$id
+term t7 idle 1 project=demo "task=$id"
+stop() { (cd "$wt" && HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<"{\"stop_hook_active\":${1:-false}}"); }
+out=$(stop)
+jq -e --arg id "$id" '.decision == "block" and (.reason | startswith("\($id) は doing のまま"))' <<<"$out" >/dev/null || die "報告の無い doing の Stop が block しない: $out"
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+[ -z "$(stop)" ] || die '報告を書いたのに block した'
+[ -n "$(stop)" ] || die '前回の通過のあと報告も問いも無い（次のターン）のに通した'
+restart "$id"
+[ -n "$(stop)" ] || die '直しで doing に戻ったのに、報告の前の Stop を通した'
+(cd "$wt" && HC_TERMINAL_ID=t7 "$andon" task ask "$id" - <<<'{"kind":"line","question":"どちらにする？","facts":["x"],"options":[{"label":"A","pick":true},{"label":"B"}]}' >/dev/null)
+[ -z "$(stop)" ] || die '問いを書いたのに block した'
+restart "$id"
+stop >/dev/null; stop true >/dev/null; stop true >/dev/null
+[ -z "$(stop true)" ] || die '続けて止める回数の上限を超えても block した'
+# 控えが書けなければ止めない（止めた回数を数えられないまま止め続けない）
+restart "$id"
+: > "$tmp/notadir"
+for a in false true true true true; do
+    [ -z "$(cd "$wt" && XDG_STATE_HOME=$tmp/notadir HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<"{\"stop_hook_active\":$a}")" ] || die '控えが書けないのに block した'
+done
+term t7 idle 1
+[ -z "$(stop)" ] || die 'ラベル task= の無い端末で block した'
+ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通過以後に報告か問いがあれば通す。続けて止めるのは3回まで・控えが書けなければ通す）'
 
 echo "all passed ($pass)"

@@ -7,6 +7,7 @@
 //	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば台帳を review にする
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・クーリエが打つ）
+//	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
 // 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。
 package task
@@ -36,6 +37,8 @@ const Usage = "usage: andon task show <id>                                  予�
 	"       andon task ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon task finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
 	"       andon task start <id>                                 （まだ無い）\n" +
+	"       andon task stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
+	"                                                          （id を省くと端末のラベル task=。担当でなければ何も出さない）\n" +
 	"--data は report.json の任意のキー（pr・waived・acceptance・next・remember・agents_md）の JSON object。\n" +
 	"--pr を省くと前の report.json の pr を引き継ぐ。\n"
 
@@ -55,6 +58,9 @@ func fail(format string, a ...any) error { return failure{fmt.Sprintf(format, a.
 // Main は andon task。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	usage := func() int { fmt.Fprint(stderr, Usage); return exitUsage }
+	if len(args) > 0 && args[0] == "stop-check" {
+		return stopCheck(args[1:], stdin, stdout, stderr)
+	}
 	if len(args) < 2 {
 		return usage()
 	}
