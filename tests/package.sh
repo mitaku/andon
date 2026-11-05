@@ -72,6 +72,11 @@ jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >
 sl=$(jq -r '.statusLine.command' package/settings.json)
 [ "$sl" = /opt/andon/lib/andon/statusline ] && [ -x package/lib/andon/statusline ] \
   && pass "statusLine は package/lib/andon/statusline を指す" || fail "statusLine: $sl"
+for ev in Stop:stop UserPromptSubmit:user-prompt-submit; do
+  jq -e --arg e "${ev%%:*}" --arg c "/opt/andon/hooks/${ev#*:}" '.hooks[$e] | any(.[].hooks[]; .command == $c)' package/settings.json >/dev/null \
+    && [ -x "package/hooks/${ev#*:}" ] && sh -n "package/hooks/${ev#*:}" \
+    && pass "${ev%%:*} フックは package/hooks/${ev#*:} を指す" || fail "${ev%%:*} フック: package/hooks/${ev#*:}"
+done
 
 # === 5. statusline ===
 out=$(printf '%s' '{"model":{"display_name":"Sample"},"context_window":{"used_percentage":42},"cwd":"/tmp"}' | bash package/lib/andon/statusline 2>"$tmp/err")

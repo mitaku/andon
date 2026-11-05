@@ -1,0 +1,11 @@
+#!/bin/sh
+# Claude Code の Stop フック（docs/contract.md §9。managed settings が呼ぶ）。判断は持たず、command を呼ぶだけ。
+#   Chief of Staff（ラベル role=chief-of-staff）: andon courier drain。待ちの通知があれば block で続きのターンに渡す
+#   担当・レビュアー（ラベル task=）: andon task stop-check。doing で報告も問いも無ければ block
+# どちらでもない端末・andon が無い・落ちたときは何も出さずに通す（待ちは次の口で届く）。
+command -v andon >/dev/null 2>&1 || exit 0
+in=$(cat)
+out=$(printf '%s' "$in" | andon courier drain 2>/dev/null) || out=
+[ -n "$out" ] || out=$(printf '%s' "$in" | andon task stop-check 2>/dev/null) || out=
+[ -z "$out" ] || printf '%s\n' "$out"
+exit 0

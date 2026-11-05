@@ -1,0 +1,8 @@
+#!/bin/sh
+# Claude Code の UserPromptSubmit フック（docs/contract.md §9。managed settings が呼ぶ）。判断は持たず、command を呼ぶだけ。
+# Chief of Staff（ラベル role=chief-of-staff）なら、待ちの通知と委譲の一覧を additionalContext に添える（人の文の横に文脈として入る）。
+# ほかの端末・andon が無い・落ちたときは何も出さずに通す。
+command -v andon >/dev/null 2>&1 || exit 0
+out=$(andon courier drain --context 2>/dev/null) || out=
+[ -z "$out" ] || printf '%s\n' "$out"
+exit 0
