@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/findings/1",
+  "title": "Reviewer findings",
+  "description": "tasks/<reviewer task id>/library/findings.json, written by the reviewer. Only these keys. Missing, not JSON or not this shape: the review is missing. commit differs from the PR head: the review is stale.",
+  "type": "object",
+  "required": ["commit", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "commit": {
+      "description": "The commit the reviewer read: 40 lowercase hex digits.",
+      "$ref": "#/$defs/sha"
+    },
+    "findings": {
+      "description": "One entry per finding. Empty when there is none.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "description": "A full git commit id: 40 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "finding": {
+      "description": "Where a finding is and how heavy it is.",
+      "type": "object",
+      "required": ["severity", "file", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "description": "trivial when the condition that triggers it cannot be shown concretely.",
+          "enum": ["critical", "major", "minor", "trivial"]
+        },
+        "file": {
+          "description": "Path relative to the repository root: not empty, no control characters.",
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "line": {
+          "description": "Line number, 1 or more.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}
