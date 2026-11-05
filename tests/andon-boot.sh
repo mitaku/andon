@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/andon-boot.sh — andon boot を偽の HOME・偽の建屋・偽のパッケージで2回打つ。
-# 生成（managed settings・プロファイル・CLAUDE.md の2行）が揃い、2回目で何も変わらないこと。
+# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink）が揃い、2回目で何も変わらないこと。
 # PATH には andon の置き場だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace に触らない）。
 set -u
 tmp=$(mktemp -d)
@@ -15,8 +15,14 @@ pkg=$tmp/opt/andon ws=$tmp/workspace home=$tmp/home managed=$tmp/etc/claude-code
 mkdir -p "$pkg/templates" "$pkg/skills/worker" "$ws/templates.local" "$home" "$tmp/path"
 echo '{"permissions":{"deny":["Bash(gh pr merge:*)"]}}' >"$pkg/settings.json"
 printf -- '---\nname: claude\n---\nパッケージ\n' >"$pkg/templates/claude.md"
+printf -- '---\nname: codex\n---\n`/opt/andon/skills/worker/SKILL.md` を読む\n' >"$pkg/templates/codex.md"
 printf -- '---\nname: claude\n---\n建屋\n' >"$ws/templates.local/claude.md"
 echo worker >"$pkg/skills/worker/SKILL.md"
+mkdir -p "$home/.claude/skills"
+ln -s "$pkg/skills/worker" "$home/.claude/skills/andon-worker" # 前の置き場（外れること）
+ln -s "$tmp/mine" "$home/.claude/skills/mine"                   # 利用者の skill（残ること）
+mkdir -p "$home/.agents/skills"
+ln -s "$tmp/mine" "$home/.agents/skills/andon-mine"             # 利用者が andon- の名前で置いた skill（残ること）
 cp "$andon" "$tmp/path/andon"
 
 boot() {
@@ -32,15 +38,24 @@ grep -q 'gh pr merge' "$managed" && pass "managed settings を生成する" || f
 grep -q '建屋' "$home/.config/herdr-core/templates/claude.md" && pass "プロファイルを生成する（建屋の templates.local が勝つ）" || fail "プロファイル"
 [ "$(cat "$home/.claude/CLAUDE.md")" = "@$pkg/environment.md
 @$ws/AGENTS.local.md" ] && pass "CLAUDE.md は2行" || fail "CLAUDE.md: $(cat "$home/.claude/CLAUDE.md")"
-[ "$(readlink "$home/.claude/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink" || fail "skill"
+[ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
+[ ! -L "$home/.claude/skills/andon-worker" ] && [ -L "$home/.claude/skills/mine" ] && [ "$(readlink "$home/.agents/skills/andon-mine")" = "$tmp/mine" ] && pass "boot が張った andon-* だけ外す" || fail "~/.claude/skills: $(ls -l "$home/.claude/skills")"
+grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
 
 snap >"$tmp/snap1"
 boot; r=$?
 snap >"$tmp/snap2"
 [ "$r" = 0 ] && cmp -s "$tmp/snap1" "$tmp/snap2" && pass "2回打っても同じ（冪等）" || fail "2回目: rc=$r $(diff "$tmp/snap1" "$tmp/snap2")"
-grep -q '生成:' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
+grep -qE '生成:|リンク:|外した:' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
 
 "$andon" boot extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon boot' "$tmp/err" && pass "引数を取らない（usage で rc 2）" || fail "boot extra: rc=$r"
+
+mkdir -p "$tmp/sp ace" && cp -r "$pkg" "$tmp/sp ace/"
+env -i PATH="$tmp/path" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+  ANDON_HOME="$tmp/sp ace/andon" ANDON_WORKSPACE="$ws" ANDON_MANAGED_SETTINGS="$managed" \
+  andon boot >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'command で割れる' "$tmp/err" && grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" \
+  && pass "空白を含む ANDON_HOME は置換せず rc 1（プロファイルを残す）" || fail "空白: rc=$r $(cat "$tmp/err")"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
