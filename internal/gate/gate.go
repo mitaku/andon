@@ -185,7 +185,7 @@ func getenv(k, def string) string {
 }
 
 func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
-	for _, c := range []string{ledger.CLI, "gh", "git"} {
+	for _, c := range []string{ledger.CLI(), "gh", "git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			return nil, "", fmt.Errorf("%s が無い", c)
 		}

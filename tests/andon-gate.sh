@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# `andon gate` と `andon delegate`。本物の台帳の CLI（deck）と git・一時の建屋の repo・偽の gh で回す。
-# PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。台帳の CLI が無ければ skip。
+# `andon gate` と `andon delegate`。本物の台帳の CLI（kanban）と git・一時の建屋の repo・偽の gh で回す。
+# PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。台帳の CLI は tests/lib/kanban.sh が焼く。
 # ANDON_EMIT_DIR があれば、ゲートの記録と委譲を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
-for c in deck git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
+for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
+. "$(dirname "$0")/lib/kanban.sh"
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_COMMITTER_NAME=c GIT_COMMITTER_EMAIL=c@example.com
 export ANDON_HOME="$andon_root/package" ANDON_WORKSPACE="$tmp/plant" GHQ_ROOT="$tmp/ghq"
@@ -70,12 +71,12 @@ echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -
 as_owner git -C "$tmp/plant" add -A; as_owner git -C "$tmp/plant" commit -qm plant
 mkdir -p "$tmp/plant/projects/demo"
 cd "$tmp/plant/projects/demo"
-deck init --prefix D --repo github.com/example/app >/dev/null
+kanban init --prefix D --repo github.com/example/app >/dev/null
 export FLIGHTDECK_ROOT=$PWD
-deck config set coordinator=t5 >/dev/null
+kanban config set coordinator=t5 >/dev/null
 git clone -q "$tmp/origin" "$tmp/wt"
-id=$(HC_TERMINAL_ID=t5 deck add 'docs を直す' --profile claude)
-HC_TERMINAL_ID=t5 deck set "$id" review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+id=$(HC_TERMINAL_ID=t5 kanban add 'docs を直す' --profile claude)
+HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=.flightdeck/tasks/$id/library
 gate() { local rc=0; "$andon" gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
 expect() { # expect <rc> <decision> <理由に含む語>
@@ -93,11 +94,11 @@ ok '信じられる PR（report.json の pr）が無ければ記録せずに fix
 # 担当の手順: report → レビュアーの findings → ready
 export HC_TERMINAL_ID=t7
 "$andon" task report "$id" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
-rev=$(HC_TERMINAL_ID=t5 deck add "$id のレビュー" --parent "$id" --profile codex-review)
+rev=$(HC_TERMINAL_ID=t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
 mkdir -p ".flightdeck/tasks/$rev/library"
 findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > ".flightdeck/tasks/$rev/library/findings.json"; }
 findings "$head"
-HC_TERMINAL_ID=t5 deck review "$rev" >/dev/null
+HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
 "$andon" task ready "$id" >/dev/null
 unset HC_TERMINAL_ID
 
@@ -170,9 +171,9 @@ ok 'gate.local.json は作業ツリーの変更を読まず、owner でない co
 ok '条件表の検査が PR の head で落ちれば fix'
 
 # 8. 予約キーを書いたのが Chief of Staff でなければ needs_human
-HC_TERMINAL_ID=t7 deck set "$id" must_fix=trivial >/dev/null
+HC_TERMINAL_ID=t7 kanban set "$id" must_fix=trivial >/dev/null
 got=$(gate "$id" --dry-run); expect 4 needs_human 'Chief of Staff'
-HC_TERMINAL_ID=t5 deck set "$id" must_fix=major >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$id" must_fix=major >/dev/null
 ok '予約キーを最後に書いたのが Chief of Staff でなければ needs_human'
 
 # 9. Must fix が残れば fix、同じ head で2度目は needs_human

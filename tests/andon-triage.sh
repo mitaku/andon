@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# `andon triage`。本物の台帳の CLI（deck）・一時の台帳と HOME で回す。hc の端末も GitHub も使わない。
-# 台帳の CLI が無ければ skip（CI には入っていない。go test が決定の検査・上限・要約を見る）。
+# `andon triage`。本物の台帳の CLI（kanban）・一時の台帳と HOME で回す。hc の端末も GitHub も使わない。
+# 台帳の CLI は tests/lib/kanban.sh が go build で焼く（go が無ければ skip）。
 set -euo pipefail
-for c in deck git jq sha1sum; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
+for c in git jq sha1sum; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
+. "$(dirname "$0")/lib/kanban.sh"
 script=$andon
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET FLIGHTDECK_ROOT
@@ -16,11 +17,11 @@ printf '#!/bin/sh\necho forbidden-gh >&2\nexit 99\n' > "$tmp/bin/gh"
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 cd "$tmp/demo"
-deck init --prefix T --repo example.invalid/me/app >/dev/null
+kanban init --prefix T --repo example.invalid/me/app >/dev/null
 export FLIGHTDECK_ROOT=$PWD
 for n in one two three; do
-    task=$(deck add "$n")
-    deck report "$task" <<REPORT
+    task=$(kanban add "$n")
+    kanban report "$task" <<REPORT
 ## Report
 見送り（minor）:
 - $n の修正
@@ -32,16 +33,16 @@ For AGENTS.md: $n の規則
 ## 人に聞くこと
 - $n の問い
 REPORT
-    deck done "$task" >/dev/null
+    kanban done "$task" >/dev/null
 done
-assigned=$(deck add '担当済み')
-deck set "$assigned" agent=t99 >/dev/null
-todo=$(deck add '未担当')
-person=$(deck add '端末で確認（人の判断待ち）')
-deck set "$person" who=person >/dev/null
+assigned=$(kanban add '担当済み')
+kanban set "$assigned" agent=t99 >/dev/null
+todo=$(kanban add '未担当')
+person=$(kanban add '端末で確認（人の判断待ち）')
+kanban set "$person" who=person >/dev/null
 mkdir "$tmp/leftover"
-deck set T-1 "worktree=$tmp/leftover" >/dev/null
-broken=$(deck add broken); deck report "$broken" <<<'見出しなし'; deck done "$broken" >/dev/null
+kanban set T-1 "worktree=$tmp/leftover" >/dev/null
+broken=$(kanban add broken); kanban report "$broken" <<<'見出しなし'; kanban done "$broken" >/dev/null
 "$script" triage collect > "$tmp/items"
 jq -e '([.[].kind] | unique) == ["agents","leftover","next","person","question","remember","task","unreadable","waived"]' "$tmp/items" >/dev/null
 echo 'ok collect: eight kinds and unreadable'
@@ -50,7 +51,7 @@ set +e
 set -e
 [[ $rc == 4 ]]
 echo 'ok limit: exit 4'
-triage=$(deck add triage)
+triage=$(kanban add triage)
 mkdir -p ".flightdeck/tasks/$triage/library"
 file=.flightdeck/tasks/$triage/library/decisions.json
 jq --arg todo "$todo" --arg person "$person" '
@@ -102,12 +103,12 @@ cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok absent hash, assigned task and uncollected key rejected without writes'
 "$script" triage apply "$triage" --max-tasks 2 > "$tmp/summary"
-[[ $(deck show "$todo" --json | jq -r .task.status) == done ]]
+[[ $(kanban show "$todo" --json | jq -r .task.status) == done ]]
 tail -1 ".flightdeck/tasks/$todo/report.md" | grep -q '不要（'
 record=$(echo .flightdeck/library/triage/*.json)
 jq -e '[.items[]|select(.decision=="bundle")|.created_task]|unique|length==1' "$record" >/dev/null
 while read -r task; do
-    [[ $(deck show "$task" --json | jq -r .task.who) == person ]]
+    [[ $(kanban show "$task" --json | jq -r .task.who) == person ]]
 done < <(jq -r '.items[]|select(.decision=="person")|.created_task' "$record")
 grep -q '閉じた 2 ・ 直す 2（うち束ね 1） ・ 人へ 3 ・ 次回 3 ・ 読めない 1' "$tmp/summary"
 echo 'ok apply: close, bundle, person, summary'
@@ -125,7 +126,7 @@ set -e
 [[ $rc == 1 ]]
 echo 'ok repeated apply refused'
 # Recorded keys can be revisited, but text still comes from the original source.
-revisit=$(deck add revisit)
+revisit=$(kanban add revisit)
 mkdir -p ".flightdeck/tasks/$revisit/library"
 jq '{goal:"戻す",collected,items:[(.items[]|select(.decision=="bundle"))][0:1]} | .items[0] += {decision:"keep",reason:"再検討",text:"spoofed text"}' "$record" > ".flightdeck/tasks/$revisit/library/decisions.json"
 "$script" triage apply "$revisit" --dry-run > "$tmp/revisit"

@@ -6,7 +6,7 @@
 //
 // することは4つ: 台帳にタスクを足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこのタスクから出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
-// タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は今は deck。
+// タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban（無ければ別名の deck）。
 // 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
 //
 // 置き場（andon task start と同じ形）:
@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"andon/internal/ledger"
 )
 
 // Usage は andon chief-engineer の使い方。
@@ -67,13 +69,14 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon chief-engineer: repo が不正: '%s'（<host>/<owner>/<repo>）\n", repo)
 		return exitUsage
 	}
-	for _, c := range []string{"deck", "hc", "git"} {
+	cli := ledger.CLI()
+	for _, c := range []string{cli, "hc", "git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			return die("%s が無い", c)
 		}
 	}
 
-	root, err := output(nil, "", "deck", "root")
+	root, err := output(nil, "", cli, "root")
 	if err != nil || root == "" {
 		return die("台帳が見つからない（projects/<slug>/ で打つ）")
 	}
@@ -147,9 +150,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	brief := "# " + title + "\n\n" +
 		"Chief Engineer のタスク。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
 		"題は人の1行。手順は skill chief-engineer。\n"
-	id, err := output(env, brief, "deck", "add", title, "--repo", repo, "--profile", Profile, "--brief", "-")
+	id, err := output(env, brief, cli, "add", title, "--repo", repo, "--profile", Profile, "--brief", "-")
 	if err != nil || !idRe.MatchString(id) {
-		return die("deck add に失敗: %v %q", err, id)
+		return die("%s add に失敗: %v %q", cli, err, id)
 	}
 
 	name := strings.ToLower(slug + "-" + id)
@@ -160,13 +163,13 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		return die("%v。タスク %s は todo のまま残る", err, id)
 	}
-	if _, err := output(env, "", "deck", "set", id, "branch="+wt.branch, "worktree="+wt.path); err != nil {
+	if _, err := output(env, "", cli, "set", id, "branch="+wt.branch, "worktree="+wt.path); err != nil {
 		wt.remove()
-		return die("deck set %s branch/worktree に失敗: %v。タスク %s は todo のまま残る", id, err, id)
+		return die("%s set %s branch/worktree に失敗: %v。タスク %s は todo のまま残る", cli, id, err, id)
 	}
 	undo := func() {
 		wt.remove()
-		output(env, "", "deck", "set", id, "branch=", "worktree=")
+		output(env, "", cli, "set", id, "branch=", "worktree=")
 	}
 	cwd := wt.path
 	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
@@ -192,8 +195,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return die("hc run の返事に address が無い: %s。タスク %s は todo のまま残る", out, id)
 	}
 
-	if _, err := outputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", "deck", "start", id); err != nil {
-		return die("deck start %s に失敗: %v（端末 %s は起きている）", id, err, run.Address)
+	if _, err := outputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {
+		return die("%s start %s に失敗: %v（端末 %s は起きている）", cli, id, err, run.Address)
 	}
 
 	if !run.FirstMessage.Sent {
