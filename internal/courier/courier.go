@@ -7,7 +7,8 @@
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
 //
-// 通知（contract.md §6）は控えに JSON で積むだけ。Chief of Staff に届ける口（フック・離席時の hc send）は P3b・P6b。
+// 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
+// 離席時だけの hc send（deliver.go。経路③）。courier.md §3。
 // 台帳に書くのは台帳の CLI と andon task … だけで、by は terminal:courier（ledger.CourierBy）。
 package courier
 
@@ -32,8 +33,10 @@ import (
 // Usage は andon courier --help の中身。
 const Usage = "usage: andon courier [--project <slug>]          回り続ける（hc の端末 courier の中で動く）\n" +
 	"       andon courier --once [--project <slug>]   1回だけ回して終わる\n" +
+	"       andon courier drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
 	"建屋（ANDON_WORKSPACE。無ければ /workspace）の projects/*/.flightdeck を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
+	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
 	"Chief of Staff（config.yaml の coordinator）の端末が生きていない台帳は飛ばす。初めて見る台帳は控えるだけで動かさない。\n" +
 	"控えは ~/.local/state/andon/courier/<slug>.json（XDG_STATE_HOME があればその下）。\n"
 
@@ -46,8 +49,11 @@ const (
 )
 
 // Main は andon courier。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	once, only := false, ""
+	if len(args) > 0 && args[0] == "drain" {
+		return Drain(args[1:], stdin, stdout, stderr)
+	}
 	for i := 0; i < len(args); i++ {
 		switch {
 		case args[i] == "--once":
@@ -139,6 +145,11 @@ func (p *project) pass() (bool, error) {
 	if coordinator == "" || exec.Command("hc", "get", coordinator).Run() != nil {
 		return false, nil // Chief of Staff が起きたときに台帳を自分で読む（courier.md §2.1）
 	}
+	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	st, first, err := LoadState(p.l.Slug)
 	if err != nil {
 		return false, err
@@ -168,7 +179,10 @@ func (p *project) pass() (bool, error) {
 			p.review(t, rep)
 		}
 	}
-	return busy, p.st.Save(p.l.Slug)
+	if !p.first {
+		p.deliver(coordinator) // 経路③: 離席時だけ（courier.md §3・§4）
+	}
+	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
 }
 
 func isReviewer(t ledger.Task) bool {

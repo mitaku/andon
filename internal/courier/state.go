@@ -45,9 +45,12 @@ type Gate struct {
 
 // State はクーリエの控え（~/.local/state/andon/courier/<slug>.json。台帳の外）。
 type State struct {
-	Reviewers map[string]Reviewer `json:"reviewers"` // <task>@<commit>
-	Gates     map[string]Gate     `json:"gates"`     // <task>#<log.jsonl の行>
-	Pending   []Notification      `json:"pending"`   // 待ちの通知（届けるのは P3b・P6b）
+	Reviewers map[string]Reviewer `json:"reviewers"`           // <task>@<commit>
+	Gates     map[string]Gate     `json:"gates"`               // <task>#<log.jsonl の行>
+	Pending   []Notification      `json:"pending"`             // 待ちの通知（drain.go のフックと deliver.go の離席時の hc send が届ける）
+	Coord     string              `json:"coord,omitempty"`     // 離席時に送った Chief of Staff の端末（替わったら NewsTurn を捨てる）
+	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（courier.md §4.1 の c）
+	Hook      string              `json:"hook,omitempty"`      // フックで <news> を渡した端末（次の Stop で <no-reply> を見る）
 }
 
 // StatePath は控えの置き場。
