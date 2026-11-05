@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/package.sh — package/ の skill・プロファイル・ゲートの条件表・managed settings・statusline（design.md §2.2・§2.4）。
 #   1. skill 7つとプロファイル 8つがそろい、frontmatter の name がディレクトリ名・ファイル名と同じ。
-#   2. プロファイルの本文が指す skill が package/skills/ にある。
+#   2. plugin.json の name が andon。Claude Code 系のプロファイルは command で plugin と役の skill を運び（本文で読ませない）、Codex 系は本文で skill を指す。
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。
 #   5. statusline が JSON を読んで1行を出す。
@@ -38,16 +38,30 @@ for p in $profiles; do
     && pass "プロファイル $p の frontmatter" || fail "プロファイル $p の frontmatter"
 done
 
-# === 2. プロファイルが指す skill ===
-for p in $profiles; do
-  refs=$(grep -o '/opt/andon/skills/[a-z-]*/SKILL\.md' "package/templates/$p.md" | sort -u)
-  [ -n "$refs" ] || { fail "プロファイル $p が skill を指していない"; continue; }
-  ok=1
-  for r in $refs; do [ -f "package/${r#/opt/andon/}" ] || ok=0; done
-  [ "$ok" = 1 ] && pass "プロファイル $p の skill がある（$(echo $refs | tr '\n' ' ')）" || fail "プロファイル $p が無い skill を指す: $refs"
+# === 2. plugin とプロファイルが指す skill（docs/adr/0001-skills-distribution.md 決定 2・3） ===
+jq -e '.name == "andon"' package/.claude-plugin/plugin.json >/dev/null 2>&1 \
+  && pass "package/.claude-plugin/plugin.json の name は andon" || fail "package/.claude-plugin/plugin.json が無いか name が andon でない"
+# Claude Code 系: command が plugin と役の skill を運び、本文は skill を読ませない。役の skill は package/skills/ にある
+role() { case $1 in chief-engineer|chief-of-staff) echo "$1" ;; *) echo worker ;; esac; }
+for p in chief-engineer chief-of-staff claude sonnet fable claude-review; do
+  f=package/templates/$p.md r=$(role "$p")
+  cmd=" $(fm "$f" command) "
+  body=$(awk 'n >= 2; /^---$/ && n < 2 {n++}' "$f")
+  case $cmd in *" --plugin-dir /opt/andon "*) ;; *) fail "プロファイル $p の command に --plugin-dir /opt/andon が無い"; continue ;; esac
+  case $cmd in *" --append-system-prompt-file /opt/andon/skills/$r/SKILL.md "*) ;; *) fail "プロファイル $p の command に --append-system-prompt-file /opt/andon/skills/$r/SKILL.md が無い"; continue ;; esac
+  [ -f "package/skills/$r/SKILL.md" ] || { fail "プロファイル $p の skill $r が package/skills に無い"; continue; }
+  if grep -qE 'SKILL\.md|読む|読み' <<<"$body"; then fail "プロファイル $p の本文に「先に読む」の行が残る: $(grep -E 'SKILL\.md|読む|読み' <<<"$body" | head -1)"
+  else pass "プロファイル $p は command で plugin と skill $r を運ぶ（本文で読ませない）"; fi
 done
-grep -q '/skills/worker/SKILL.md' package/templates/codex-review.md && grep -q '§6' package/templates/codex-review.md \
-  && pass "レビュアーのプロファイルは worker skill の §6 を指す" || fail "codex-review が worker §6 を指していない"
+# Codex 系: 本文で役の skill を絶対パスで指す（今のまま）
+for p in codex codex-review; do
+  f=package/templates/$p.md
+  case " $(fm "$f" command) " in *--plugin-dir*|*--append-system-prompt-file*) fail "プロファイル $p（Codex）の command に Claude Code の口がある"; continue ;; esac
+  grep -q '`/opt/andon/skills/worker/SKILL.md` を最初に読み' "$f" && [ -f package/skills/worker/SKILL.md ] \
+    && pass "プロファイル $p（Codex）は本文で worker skill を指す" || fail "プロファイル $p（Codex）が本文で worker skill を指していない"
+done
+grep -q '§6' package/templates/codex-review.md && grep -q '§6' package/templates/claude-review.md \
+  && pass "レビュアーのプロファイルは worker skill の §6 を指す" || fail "レビュアーのプロファイルが worker §6 を指していない"
 
 # === 3. 仮設の語 ===
 # 用語集は「## 仮設の語」の節より前だけ、「_避ける_」の行を除いて見る。動詞の「知らせる」は語ではないので「の知らせ」だけを見る

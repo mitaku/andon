@@ -175,8 +175,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		output(env, "", cli, "set", id, "branch=", "worktree=")
 	}
 	cwd := wt.path
-	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
-		slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"), filepath.Join(home(), "skills", "chief-engineer", "SKILL.md"))
+	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
+	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。",
+		slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"))
 
 	// --no-notify: 止まった・終わったはクーリエが端末の土台から拾う（contract.md §8）
 	out, err := output(nil, "", "hc", "run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", name,
@@ -350,14 +351,6 @@ func shortTitle(title string) string {
 		s = strings.TrimRight(s[:30], "-")
 	}
 	return s
-}
-
-// home はパッケージの置き場。ANDON_HOME（checkout の package/ を指して試す）が無ければ /opt/andon（design.md §2.5）。
-func home() string {
-	if h := os.Getenv("ANDON_HOME"); h != "" {
-		return h
-	}
-	return "/opt/andon"
 }
 
 // output はコマンドを打ち、stdout を返す（前後の空白を除く）。stderr は失敗のときだけ err に入れる。
