@@ -126,6 +126,9 @@ host_install() {
   local ssh_port portless_port
   ssh_port=$(dotenv SSH_PORT 2222)
   portless_port=$(dotenv PORTLESS_PORT 1355)
+  case "$ssh_port$portless_port" in
+    *[!0-9]*) die ".env の SSH_PORT・PORTLESS_PORT は数字だけ（いま: '$ssh_port' '$portless_port'）" ;;
+  esac
   sed -e "s/<slug>/$slug/g" -e "s/<ssh-port>/$ssh_port/g" -e "s/<portless-port>/$portless_port/g" \
     "$tmp/host/ssh_config" >"$tmp/ssh_config"
   place "$tmp/host/andon-up" "$bin/andon-up" 755

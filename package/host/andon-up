@@ -15,6 +15,8 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+logs=$HOME/.local/state/andon/andon-up
+mkdir -p "$logs" && chmod 700 "$logs" || exit 1
 up=0 failed=0
 for dir in "$plants"/andon-*; do
   [ -x "$dir/bin/bootstrap" ] || continue
@@ -23,11 +25,11 @@ for dir in "$plants"/andon-*; do
     echo "  - $name（このホストでは起こさない）"
     continue
   fi
-  if "$dir/bin/bootstrap" up >"${TMPDIR:-/tmp}/andon-up-$name.log" 2>&1; then
+  if "$dir/bin/bootstrap" up >"$logs/$name.log" 2>&1; then
     echo "  + $name"
     up=$((up + 1))
   else
-    echo "  ✗ $name（記録: ${TMPDIR:-/tmp}/andon-up-$name.log）"
+    echo "  ✗ $name（記録: $logs/$name.log）"
     failed=$((failed + 1))
   fi
 done

@@ -52,6 +52,9 @@ grep -qx 'Host andon-x' "$conf" && grep -qx '  Port 2299' "$conf" && ! grep -qE 
 echo '# 人が書いた' >"$home/.config/herdr/config.toml"
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
 grep -qx '# 人が書いた' "$home/.config/herdr/config.toml" && pass "host-install は今あるファイルを上書きしない" || fail "上書きした"
+echo 'SSH_PORT=22/;s/x/y' >.env
+sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q '数字だけ' "$tmp/err" && pass "host-install は数字でない番号で止まる" || fail "番号の検査: rc=$r $(cat "$tmp/out" "$tmp/err")"
 rm .env
 
 sed -i 's|^FROM .*|FROM ghcr.io/<owner>/andon:<版>|' Dockerfile
