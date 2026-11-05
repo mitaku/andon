@@ -20,3 +20,7 @@ example-building
 # 案件名
 example-project
 ```
+
+## image の検査
+
+`tests/image.sh` は Docker があれば実際にビルドしてコンテナを起動する。手順と CI の配布条件は [docs/image.md](../docs/image.md)。Docker が無いローカルでは SKIP、CI では失敗する。
