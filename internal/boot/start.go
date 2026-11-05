@@ -139,11 +139,11 @@ func startPortless(e Env) error {
 	return nil
 }
 
-// startFiles は納品物 artifacts/ を読み取りで公開する静的サーバを起こし、portless に files で登録する。
+// startFiles は納品物 artifacts/ を読み取りで公開する files サーバ（andon boot serve-files）を起こし、
+// portless に files で登録する。返すのは実体が artifacts/ の中にあるものだけ（FilesHandler）。
 func startFiles(e Env) error {
-	python, ok := e.has("python3")
-	portless, ok2 := e.has("portless")
-	if !ok || !ok2 {
+	portless, ok := e.has("portless")
+	if !ok || e.Self == "" {
 		return nil
 	}
 	dir := filepath.Join(e.Workspace, "artifacts")
@@ -153,14 +153,17 @@ func startFiles(e Env) error {
 	port := e.dotenv("FILES_PORT", DefaultFilesPort)
 	if !listening(port) {
 		logPath := filepath.Join(os.TempDir(), "files-server.log")
-		if err := detach(logPath, python, "-m", "http.server", port, "--bind", "127.0.0.1", "--directory", dir); err != nil {
+		if err := detach(logPath, e.Self, "boot", "serve-files", dir, port); err != nil {
 			return err
 		}
 		if !waitListening(port, 3*time.Second) {
 			return fmt.Errorf("待ち受けが上がらない（%s）", logPath)
 		}
 	}
-	_ = exec.Command(portless, "alias", "files", port).Run() // 冪等。登録は volume に残る
+	// 登録は volume に残るが、冪等なので毎回打つ。失敗すれば納品物の URL が届かないので知らせる
+	if out, err := exec.Command(portless, "alias", "files", port).CombinedOutput(); err != nil {
+		return fmt.Errorf("portless alias files %s: %v: %s", port, err, strings.TrimSpace(string(out)))
+	}
 	e.logf("files: http://files.%s.localhost:%s/ （artifacts/ を読み取り公開）", e.Hostname, e.dotenv("PORTLESS_PORT", DefaultPortlessPort))
 	return nil
 }

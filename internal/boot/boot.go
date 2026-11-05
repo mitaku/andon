@@ -15,6 +15,8 @@ package boot
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,10 +29,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Usage は andon boot --help の中身。
 const Usage = "usage: andon boot\n" +
+	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・クーリエを起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・skill の symlink・herdr の設定。\n" +
@@ -46,6 +50,7 @@ type Env struct {
 	Hostname        string
 	// LookPath は道具を探す。見つからなければ、その起動は飛ばす。
 	LookPath func(string) (string, error)
+	Self     string // andon の実行ファイル（files サーバとして自分を起こす）
 	Log      io.Writer
 }
 
@@ -53,6 +58,7 @@ type Env struct {
 func EnvFromOS(log io.Writer) Env {
 	host, _ := os.Hostname()
 	home, _ := os.UserHomeDir()
+	self, _ := os.Executable()
 	return Env{
 		Package:         getenv("ANDON_HOME", "/opt/andon"),
 		Workspace:       getenv("ANDON_WORKSPACE", "/workspace"),
@@ -61,6 +67,7 @@ func EnvFromOS(log io.Writer) Env {
 		ManagedSettings: getenv("ANDON_MANAGED_SETTINGS", "/etc/claude-code/managed-settings.json"),
 		Hostname:        host,
 		LookPath:        exec.LookPath,
+		Self:            self,
 		Log:             log,
 	}
 }
@@ -74,6 +81,13 @@ func getenv(k, def string) string {
 
 // Main は andon boot。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 3 && args[0] == "serve-files" {
+		if err := serveFiles(args[1], args[2]); err != nil {
+			fmt.Fprintf(stderr, "andon boot serve-files: %v\n", err)
+			return 1
+		}
+		return 0
+	}
 	if len(args) > 0 {
 		fmt.Fprint(stderr, Usage)
 		return 2
@@ -168,14 +182,68 @@ func (e Env) writeFile(path string, data []byte, mode fs.FileMode) error {
 	return nil
 }
 
+// generate は boot が持つ配布物を書く。今ある実ファイルが、boot が前に書いたもの（控えの sha256）でも
+// これから書くものでもなければ、人が書いたものとして <path>.bak に退避してから書く（黙って消さない）。
+// 控えは ~/.local/state/andon/boot.json。読めなければ空として扱う（退避が増えるだけで、消えはしない）。
+func (e Env) generate(path string, data []byte, mode fs.FileMode) error {
+	state := e.loadState()
+	if st, err := os.Lstat(path); err == nil && st.Mode().IsRegular() {
+		cur, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(cur, data) && state[path] != sum(cur) {
+			bak := path + ".bak"
+			if _, err := os.Lstat(bak); err == nil {
+				bak += "." + time.Now().Format("20060102-150405")
+			}
+			if err := os.Rename(path, bak); err != nil {
+				return err
+			}
+			e.logf("退避: %s → %s（boot が書いたものでないため）", path, bak)
+		}
+	}
+	if err := e.writeFile(path, data, mode); err != nil {
+		return err
+	}
+	if state[path] == sum(data) {
+		return nil
+	}
+	state[path] = sum(data)
+	b, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return e.writeFile(e.statePath(), append(b, '\n'), 0o644)
+}
+
+func (e Env) statePath() string {
+	return filepath.Join(e.Home, ".local", "state", "andon", "boot.json")
+}
+
+func (e Env) loadState() map[string]string {
+	state := map[string]string{}
+	if b, err := os.ReadFile(e.statePath()); err == nil {
+		if json.Unmarshal(b, &state) != nil || state == nil {
+			state = map[string]string{}
+		}
+	}
+	return state
+}
+
+func sum(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
 // genManagedSettings は <pkg>/settings.json を managed settings に置く。無ければ {}。
 // JSON でなければ書かない（今あるものを残す）。置き場に書けなければ sudo で置く（root の場所）。
 func genManagedSettings(e Env) error {
 	src := filepath.Join(e.Package, "settings.json")
 	settings := map[string]any{}
 	if b, err := os.ReadFile(src); err == nil {
-		if err := json.Unmarshal(b, &settings); err != nil {
-			return fmt.Errorf("%s が JSON のオブジェクトでない（書かずに残す）: %w", src, err)
+		if err := json.Unmarshal(b, &settings); err != nil || settings == nil {
+			return fmt.Errorf("%s が JSON のオブジェクトでない（書かずに残す）: %v", src, err)
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -238,7 +306,7 @@ func genTemplates(e Env) error {
 	for _, name := range sortedKeys(files) {
 		b, err := os.ReadFile(files[name])
 		if err == nil {
-			err = e.writeFile(filepath.Join(dst, name), b, 0o644)
+			err = e.generate(filepath.Join(dst, name), b, 0o644)
 		}
 		errs = append(errs, err)
 	}
@@ -251,7 +319,7 @@ func ClaudeMD(pkg, ws string) string {
 }
 
 func genClaudeMD(e Env) error {
-	return e.writeFile(filepath.Join(e.claudeDir(), "CLAUDE.md"), []byte(ClaudeMD(e.Package, e.Workspace)), 0o644)
+	return e.generate(filepath.Join(e.claudeDir(), "CLAUDE.md"), []byte(ClaudeMD(e.Package, e.Workspace)), 0o644)
 }
 
 // genCodexAgents は Codex の AGENTS.md を連結で生成する（Codex は @ で読まない）。無いほうは飛ばす。
@@ -269,7 +337,7 @@ func genCodexAgents(e Env) error {
 		}
 		parts = append(parts, b)
 	}
-	return e.writeFile(filepath.Join(e.Home, ".codex", "AGENTS.md"), bytes.Join(parts, []byte("\n")), 0o644)
+	return e.generate(filepath.Join(e.Home, ".codex", "AGENTS.md"), bytes.Join(parts, []byte("\n")), 0o644)
 }
 
 // genSkills は <claude>/skills/andon-<name> → <pkg>/skills/<name> を張る。
@@ -317,7 +385,7 @@ func genHerdr(e Env) error {
 			continue
 		}
 		if err == nil {
-			err = e.writeFile(dst, b, 0o644)
+			err = e.generate(dst, b, 0o644)
 		}
 		errs = append(errs, err)
 	}
