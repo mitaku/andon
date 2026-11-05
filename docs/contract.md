@@ -156,7 +156,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 
 ## 6. 通知
 
-クーリエの中では JSON。届けるときだけ `<news>` の文に描く（文は JSON から作る。文から推さない）。
+クーリエの中では JSON。届けるときだけ `<news>` の文に描く（文は JSON から作る。文から推さない）。拾い方・届ける経路・離席の判定の理由は [courier.md](courier.md)。
 
 ```json
 {"at": "2026-11-04T09:00:00Z", "project": "andon", "task": "A-12", "kind": "review",
