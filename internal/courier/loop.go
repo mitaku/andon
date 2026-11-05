@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"andon/internal/contract"
+	"andon/internal/delegate"
 	"andon/internal/gate"
 	"andon/internal/ledger"
 )
@@ -22,120 +25,170 @@ var (
 
 // ---------------------------------------------------------------- レビュアーを起こす
 
-// reviewRequest は report.json の review_request を拾い、レビュアーを起こす（commit ごとに1回）。
+// retryReport は、起こしそこねてこの回数続いたら Chief of Staff に通知 report を積む（再試行は続ける）。
+const retryReport = 3
+
+// reviewRequest は report.json の review_request を拾い、レビュアーを起こす（<task>@<commit> ごとに1回）。
+// 控えの状態は3つ: 起こした（Started。もう打たない）・起こさない（Skipped。上限を超えた回だけ review_rounds が
+// 上がれば起こし直す）・起こしそこねた（Failed。済んだ段〈worktree・タスク・端末〉を持ったまま次の見回りで続きから）。
 func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 	id, rr := t.Str("id"), rep.ReviewRequest
 	key := id + "@" + rr.Commit
 	limit, _ := strconv.Atoi(ledger.SettingsOf(t).ReviewRounds)
-	if prev, ok := p.st.Reviewers[key]; ok && !(prev.OverLimit > 0 && limit > prev.OverLimit) {
-		return // 上限を超えて起こさなかった回だけ、Chief of Staff が review_rounds を上げたら起こし直す
+	prev, seen := p.st.Reviewers[key]
+	if !Retry(prev, seen, limit) {
+		return
 	}
-	if p.first {
+	if p.first && !seen {
 		p.st.Reviewers[key] = Reviewer{Task: id, Commit: rr.Commit, Round: rr.Round, Skipped: "初めて見た台帳"}
 		return
 	}
-	r, why := p.startReviewer(t, rep)
-	if why != "" {
-		r := Reviewer{Task: id, Commit: rr.Commit, Round: rr.Round, Skipped: why}
+	r := prev
+	if !seen {
+		r = Reviewer{Task: id, Commit: rr.Commit, Round: rr.Round}
+	}
+	r.Skipped, r.OverLimit = "", 0
+	why, final := p.startReviewer(t, rep, &r)
+	switch {
+	case why != "" && final:
+		r.Skipped, r.Failed = why, ""
 		if rr.Round > limit {
 			r.OverLimit = limit
 		}
-		p.st.Reviewers[key] = r
 		p.logf("%s のレビュアーを起こさない: %s", id, why)
 		p.notify(id, "report", map[string]any{"report": p.reportPath(id)}) // 判断は Chief of Staff（報告を読む）
-		return
+	case why != "":
+		r.Failed = why
+		r.Attempts++
+		p.logf("%s のレビュアーを起こしそこねた（%d 回目。次の見回りで続きから）: %s", id, r.Attempts, why)
+		if r.Attempts == retryReport {
+			p.notify(id, "report", map[string]any{"report": p.reportPath(id)})
+		}
+	default:
+		r.Started, r.Failed = true, ""
+		p.logf("%s のレビュー（%d 回目）を %s（%s）で起こした", id, r.Round, r.ReviewerTask, r.Address)
+		p.notify(id, "review-requested", map[string]any{"round": r.Round, "reviewer": ledger.SettingsOf(t).Reviewer, "reviewer_task": r.ReviewerTask})
 	}
 	p.st.Reviewers[key] = r
-	p.logf("%s のレビュー（%d 回目）を %s（%s）で起こした", id, r.Round, r.ReviewerTask, t.Str("reviewer"))
-	p.notify(id, "review-requested", map[string]any{"round": r.Round, "reviewer": ledger.SettingsOf(t).Reviewer, "reviewer_task": r.ReviewerTask})
 }
 
-// startReviewer はレビュアーのタスクを足して起こす。起こさないときは理由を返す（何も残さない）。
-func (p *project) startReviewer(t ledger.Task, rep *contract.Report) (Reviewer, string) {
+// Retry は、控えの前の状態（seen が false なら無い）から、今度の見回りでレビュアーを起こしに行くか。
+func Retry(prev Reviewer, seen bool, limit int) bool {
+	switch {
+	case !seen:
+		return true
+	case prev.Started:
+		return false // 二重に起こさない
+	case prev.Skipped != "":
+		return prev.OverLimit > 0 && limit > prev.OverLimit
+	}
+	return true // 起こしそこねた: 続きから
+}
+
+// startReviewer はレビュアーを起こす。段ごとに r に書き、済んだ段は飛ばす（起こしそこねても続きからやり直せる）:
+// detached worktree → レビュアーのタスク（kanban add --parent）→ 端末（hc run）→ 最初のメッセージ。
+// 起こさない（final）か起こしそこねた（再試行）ときは理由を返す。最初のメッセージが届くまでは成功にしない。
+func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer) (why string, final bool) {
 	id, rr, s := t.Str("id"), rep.ReviewRequest, ledger.SettingsOf(t)
-	r := Reviewer{Task: id, Commit: rr.Commit, Round: rr.Round, Repo: t.Str("repo")}
 	limit, _ := strconv.Atoi(s.ReviewRounds)
+	r.Repo = t.Str("repo")
 	switch {
 	case s.Review != "on" || !p.l.Trusted(p.rows, t, "review"):
-		return r, "task.yaml の review が on でない、または最後に書いたのが Chief of Staff でない"
+		return "task.yaml の review が on でない、または最後に書いたのが Chief of Staff でない", true
 	case !p.trusted(t, "reviewer") || !p.trusted(t, "review_rounds"):
-		return r, "task.yaml の reviewer・review_rounds を最後に書いたのが Chief of Staff でない"
+		return "task.yaml の reviewer・review_rounds を最後に書いたのが Chief of Staff でない", true
 	case rr.Round > limit:
 		// review_request.extra は頼んだ時点の上限で数えたもの。起こすかは今の review_rounds（Chief of Staff が上げれば起こす）
-		return r, fmt.Sprintf("追加の回（%d 回目／上限 %d）。起こすかは Chief of Staff が決める（review_rounds を上げれば起こす）", rr.Round, limit)
+		return fmt.Sprintf("追加の回（%d 回目／上限 %d）。起こすかは Chief of Staff が決める（review_rounds を上げれば起こす）", rr.Round, limit), true
 	}
 	owner, name, number, ok := contract.ParsePR(rep.PR)
 	switch {
 	case !ok:
-		return r, "report.json に pr が無い・形が違う"
+		return "report.json に pr が無い・形が違う", true
 	case r.Repo != "github.com/"+owner+"/"+name:
-		return r, fmt.Sprintf("task.yaml の repo（%s）と PR の repo（%s/%s）が違う", r.Repo, owner, name)
+		return fmt.Sprintf("task.yaml の repo（%s）と PR の repo（%s/%s）が違う", r.Repo, owner, name), true
 	case !slices.Contains(p.l.Repos(), r.Repo):
-		return r, "台帳の config.yaml の repos にこの repo が無い"
+		return "台帳の config.yaml の repos にこの repo が無い", true
 	}
 	if head, err := prHead(rep.PR); err != nil {
-		return r, err.Error()
+		return err.Error(), false
 	} else if head != rr.Commit {
-		return r, fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12])
+		return fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12]), true
 	}
 	dir, err := repoDir(r.Repo)
 	if err != nil {
-		return r, err.Error()
+		return err.Error(), false
 	}
 
-	// PR の head を読む detached worktree（担当の worktree とは別。片付けはクーリエ）
-	r.Worktree = filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(dir), fmt.Sprintf("%s-%s-r%d", p.l.Slug, id, rr.Round))
-	if _, err := os.Lstat(r.Worktree); err == nil {
-		return r, "detached worktree の置き場がもうある: " + r.Worktree
+	// 1. PR の head を読む detached worktree（担当の worktree とは別。andon task finish が片付ける）
+	if r.Worktree == "" {
+		wt := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(dir), fmt.Sprintf("%s-%s-r%d", p.l.Slug, id, rr.Round))
+		if _, err := os.Lstat(wt); err == nil {
+			return "detached worktree の置き場がもうある: " + wt, true
+		}
+		if _, _, err := run("", nil, "", "git", "-C", dir, "fetch", "-q", "https://github.com/"+owner+"/"+name, rr.Commit); err != nil {
+			return "PR の head を fetch できない: " + err.Error(), false
+		}
+		if err := os.MkdirAll(filepath.Dir(wt), 0o755); err != nil {
+			return err.Error(), false
+		}
+		if _, _, err := run("", nil, "", "git", "-C", dir, "worktree", "add", "-q", "--detach", wt, rr.Commit); err != nil {
+			return "detached worktree を作れない: " + err.Error(), false
+		}
+		r.Worktree = wt
 	}
-	if _, _, err := run("", nil, "", "git", "-C", dir, "fetch", "-q", "https://github.com/"+owner+"/"+name, rr.Commit); err != nil {
-		return r, "PR の head を fetch できない: " + err.Error()
-	}
-	if err := os.MkdirAll(filepath.Dir(r.Worktree), 0o755); err != nil {
-		return r, err.Error()
-	}
-	if _, _, err := run("", nil, "", "git", "-C", dir, "worktree", "add", "-q", "--detach", r.Worktree, rr.Commit); err != nil {
-		return r, "detached worktree を作れない: " + err.Error()
-	}
-	undo := func() { run("", nil, "", "git", "-C", dir, "worktree", "remove", "--force", r.Worktree) }
 
+	// 2. レビュアーのタスク（一度だけ足す）
 	title := fmt.Sprintf("%s のレビュー（%d 回目）", id, rr.Round)
-	brief := reviewerBrief(p.l, t, rep, r, owner+"/"+name, number)
-	rev, err := p.l.Run(brief, "add", title, "--profile", s.Reviewer, "--parent", id, "--brief", "-")
-	if err != nil || !idRe.MatchString(rev) {
-		undo()
-		return r, fmt.Sprintf("レビュアーのタスクを足せない: %v %q", err, rev)
+	if r.ReviewerTask == "" {
+		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, owner+"/"+name, number), "add", title, "--profile", s.Reviewer, "--parent", id, "--brief", "-")
+		if err != nil || !idRe.MatchString(rev) {
+			return fmt.Sprintf("レビュアーのタスクを足せない: %v %q", err, rev), false
+		}
+		r.ReviewerTask = rev
 	}
-	r.ReviewerTask = rev
+	rev := r.ReviewerTask
 	term := strings.ToLower(p.l.Slug + "-" + rev)
 	if !nameRe.MatchString(term) {
-		undo()
-		return r, fmt.Sprintf("端末の名前 %s が hc の決まりに合わない（%s は todo のまま残る）", term, rev)
+		return fmt.Sprintf("端末の名前 %s が hc の決まりに合わない（%s は todo のまま残る）", term, rev), true
 	}
 	cwd := filepath.Join(p.l.Dir, "tasks", rev)
 	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
 		p.l.Slug, rev, filepath.Join(cwd, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md"))
-	// --no-notify: 止まった・終わったはクーリエが端末の土台から拾う（contract.md §8）
-	out, _, err := run("", nil, "", "hc", "run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", term,
-		"--label", "project="+p.l.Slug, "--label", "task="+rev, "--label", "title="+title, "--cwd", cwd, s.Reviewer, msg)
-	var started struct {
-		Address      string `json:"address"`
-		FirstMessage struct {
-			Sent   bool   `json:"sent"`
-			Reason string `json:"reason"`
-		} `json:"first_message"`
+
+	// 3. 端末（起こした端末が生きていれば起こし直さない）
+	if r.Address != "" && exec.Command("hc", "get", r.Address).Run() != nil {
+		r.Address = "" // 端末が無くなった: 起こし直す
 	}
-	if err != nil || json.Unmarshal([]byte(out), &started) != nil || started.Address == "" {
-		undo()
-		return r, fmt.Sprintf("hc run に失敗（%s は todo のまま残る）: %v", rev, err)
+	if r.Address == "" {
+		// --no-notify: 止まった・終わったはクーリエが端末の土台から拾う（contract.md §8）
+		out, _, err := run("", nil, "", "hc", "run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", term,
+			"--label", "project="+p.l.Slug, "--label", "task="+rev, "--label", "title="+title, "--cwd", cwd, s.Reviewer, msg)
+		var started struct {
+			Address      string `json:"address"`
+			FirstMessage struct {
+				Sent   bool   `json:"sent"`
+				Reason string `json:"reason"`
+			} `json:"first_message"`
+		}
+		if err != nil || json.Unmarshal([]byte(out), &started) != nil || started.Address == "" {
+			return fmt.Sprintf("hc run に失敗（%s は todo のまま。次の見回りで起こし直す）: %v", rev, err), false
+		}
+		r.Address = started.Address
+		if _, _, err := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", rev); err != nil {
+			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, err)
+		}
+		if !started.FirstMessage.Sent {
+			return fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s（次の見回りで送り直す）", rev, r.Address, started.FirstMessage.Reason), false
+		}
+		return "", false
 	}
-	if _, _, err := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + started.Address}, "", ledger.CLI, "start", rev); err != nil {
-		p.logf("%s の deck start に失敗（端末 %s は起きている）: %v", rev, started.Address, err)
+
+	// 4. 起きているが最初のメッセージが届いていない端末へ送り直す（信頼の画面などで止まっていれば拒まれ、次の見回りへ）
+	if _, _, err := run("", nil, "", "hc", "send", r.Address, msg); err != nil {
+		return fmt.Sprintf("%s（%s）に最初のメッセージを送れない: %v（次の見回りで送り直す）", rev, r.Address, err), false
 	}
-	if !started.FirstMessage.Sent {
-		p.logf("%s（%s）に最初のメッセージが届いていない: %s", rev, started.Address, started.FirstMessage.Reason)
-	}
-	return r, ""
+	return "", false
 }
 
 // reviewerBrief はレビュアーの依頼書（independent-review skill の §4 の型）。plan と担当の報告は見せない。
@@ -200,7 +253,8 @@ type gateResult struct {
 	Tier       string   `json:"tier"`
 	PR         string   `json:"pr"`
 	Delegation struct {
-		OK bool `json:"ok"`
+		Merge string `json:"merge"`
+		OK    bool   `json:"ok"`
 	} `json:"delegation"`
 }
 
@@ -245,7 +299,9 @@ func (p *project) review(t ledger.Task, rep *contract.Report) {
 	}
 	switch res.Decision {
 	case "approve":
-		p.approve(t, rep, res, record, &g)
+		if p.approve(t, rep, res, record, &g) {
+			return // 控えに書かない: 次の見回りでゲートから回し直す
+		}
 	case "fix":
 		p.fix(t, res, record)
 	default:
@@ -287,10 +343,12 @@ func (p *project) fix(t ledger.Task, res gateResult, record string) {
 }
 
 // approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 gate のまま止まる（人がマージする）。
-func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, record string, g *Gate) {
+// マージの直前に、タスクの Settings・履歴・委譲を読み直し、ゲートのときと変わっていればマージせず regate を返す
+// （呼び手は控えに書かず、次の見回りでゲートから回し直す）。
+func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, record string, g *Gate) (regate bool) {
 	id := t.Str("id")
 	if ledger.SettingsOf(t).Merge != "auto" || !p.l.Trusted(p.rows, t, "merge") || !res.Delegation.OK {
-		return
+		return false
 	}
 	stop := func(why string) {
 		p.logf("%s をマージしない: %s", id, why)
@@ -302,7 +360,7 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 	table, warn, err := gate.LoadTable(home(), p.c.WS)
 	if err != nil {
 		stop("条件表が読めない: " + err.Error())
-		return
+		return false
 	}
 	if warn != "" {
 		p.logf("%s", warn)
@@ -310,25 +368,29 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 	method := table.Repos[t.Str("repo")].Merge
 	if method == "" {
 		stop(fmt.Sprintf("条件表の repos.%s.merge（マージの方式）が無い", t.Str("repo")))
-		return
+		return false
 	}
 	// マージするのはゲートが判定した PR と head だけ（判定のあとに report.json が書き換わっていたら打たない）
 	owner, name, number, ok := contract.ParsePR(res.PR)
 	switch {
 	case !ok || !contract.IsSHA(res.Head):
 		stop("ゲートの記録の pr・head が読めない")
-		return
+		return false
 	case res.PR != rep.PR:
 		stop(fmt.Sprintf("ゲートが判定した PR（%s）と report.json の pr（%s）が違う", res.PR, rep.PR))
-		return
+		return false
 	case "github.com/"+owner+"/"+name != t.Str("repo"):
 		stop(fmt.Sprintf("ゲートが判定した PR の repo が task.yaml の repo（%s）と違う", t.Str("repo")))
-		return
+		return false
 	}
 	slug := owner + "/" + name
+	if ok, why := p.stillAuthorized(t, res); !ok {
+		p.logf("%s をいまはマージしない（次の見回りでゲートから回し直す）: %s", id, why)
+		return true
+	}
 	if _, _, err := run("", nil, "", "gh", "pr", "merge", number, "--repo", slug, "--"+method, "--match-head-commit", res.Head); err != nil {
 		stop("gh pr merge に失敗: " + err.Error())
-		return
+		return false
 	}
 	out, _, err := run("", nil, "", "gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit")
 	var view struct {
@@ -339,7 +401,7 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 	}
 	if err != nil || json.Unmarshal([]byte(out), &view) != nil || view.State != "MERGED" || !contract.IsSHA(view.MergeCommit.Oid) {
 		stop(fmt.Sprintf("マージを打ったが PR が MERGED にならない（%s）", view.State))
-		return
+		return false
 	}
 	g.Merged = view.MergeCommit.Oid
 	if err := markMerged(record); err != nil {
@@ -353,6 +415,38 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 			Options: []contract.Option{{Label: "Chief of Staff が理由を読んで andon task finish する", Pick: ptr(true)}, {Label: "人が片付ける"}}})
 	}
 	p.notify(id, "merged", map[string]any{"pr": rep.PR, "sha": view.MergeCommit.Oid})
+	return false
+}
+
+// stillAuthorized はマージの直前にタスクと履歴と委譲を読み直し、ゲートのときの認可がまだ効いているか。
+func (p *project) stillAuthorized(before ledger.Task, res gateResult) (bool, string) {
+	id := before.Str("id")
+	now, err := p.l.Show(id)
+	if err != nil {
+		return false, "タスクを読み直せない: " + err.Error()
+	}
+	rows := p.l.Log()
+	trusted := p.l.Trusted(rows, now, "merge") && p.l.Trusted(rows, now, "review") && p.l.Trusted(rows, now, "must_fix")
+	merge := delegate.Read(p.c.WS, p.l.Slug, time.Now().UTC().Format("2006-01-02")).Merge()
+	return Authorized(ledger.SettingsOf(before), ledger.SettingsOf(now), now.Str("status"), trusted, res.Delegation.Merge, merge, res.Tier)
+}
+
+// Authorized は、ゲートのときの事実（before・gateMerge）とマージ直前に読み直した事実（now・status・trusted・nowMerge）から、
+// クーリエがマージしてよいかを決める（純粋関数）。どれか1つでも変わっていれば、いまはマージしない。
+func Authorized(before, now ledger.Settings, status string, trusted bool, gateMerge, nowMerge, tier string) (bool, string) {
+	switch {
+	case status != "review":
+		return false, fmt.Sprintf("タスクが review でなくなった（%s）", status)
+	case now != before:
+		return false, "task.yaml の予約キーがゲートのあとに変わった"
+	case now.Merge != "auto" || !trusted:
+		return false, "merge: auto でない、または予約キーを最後に書いたのが Chief of Staff でない"
+	case nowMerge != gateMerge:
+		return false, fmt.Sprintf("委譲の merge がゲートのあとに変わった（%s → %s）", gateMerge, nowMerge)
+	case !gate.Within(tier, nowMerge):
+		return false, fmt.Sprintf("delegation: merge=%s < tier %s", nowMerge, tier)
+	}
+	return true, ""
 }
 
 // markMerged はゲートの記録の merged を true にする（記録の書き手はクーリエ。contract.md §7）。

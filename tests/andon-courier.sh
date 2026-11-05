@@ -42,7 +42,8 @@ case "\$*" in
   "api repos/example/app --jq .default_branch") echo main ;;
   "api user --jq .login") echo plant-bot ;;
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
-  "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted ;;
+  "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted
+    if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi ;;  # ゲートの最後の書き込み。マージの前に状態を変える
   "pr merge 7 --repo example/app "*)
     echo "\$*" >> \$d/merges
     h=\$(jq -r .headRefOid \$d/view.json)
@@ -60,7 +61,7 @@ case \$1 in
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 9) )); echo \$((n + 1)) > \$d/next
        task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
        echo "t\$n \$task" >> \$d/live
-       printf '{"address":"t%s","first_message":{"sent":true}}\n' "\$n" ;;
+       printf '{"address":"t%s","first_message":{"sent":%s}}\n' "\$n" "\$(cat \$d/first 2>/dev/null || echo true)" ;;
   send) printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
   ls) task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
       awk -v t="\$task" '\$2 == t { printf "%s{\"address\":\"%s\",\"state\":\"live\"}", (n++ ? "," : ""), \$1 }' \$d/live | { printf '{"terminals":['; cat; printf ']}\n'; } ;;
@@ -253,5 +254,73 @@ kanban list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .p
 ! ls -d "$HOME/.herdr/worktrees/app/demo-$id"* >/dev/null 2>&1 || die 'worktree が残った'
 git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'マージしていない branch を消した'
 ok 'andon task finish はレビュアーの子タスクと detached worktree も片付け、origin に入っていない branch は残す'
+
+# 7. 最初のメッセージが届かなければ起こしたことにしない。次の見回りで同じ端末へ送り直す（二重に起こさない）
+id=$(newtask '最初の文が届かない' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+runs=$(grep -c '^run' "$tmp/hc/log")
+echo false > "$tmp/hc/first"
+courier
+rm "$tmp/hc/first"
+key="$id@$head"
+jq -e --arg k "$key" '.reviewers[$k] | (.started | not) and .failed != null and .reviewer_task != null and .address != null' "$state" >/dev/null || die "届いていないのに起こしたことにした: $(jq -c --arg k "$key" '.reviewers[$k]' "$state")"
+[ "$(pending "$id" review-requested)" = null ] || die '届いていないのに通知 review-requested を積んだ'
+addr=$(jq -r --arg k "$key" '.reviewers[$k].address' "$state")
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '二重に起こした'
+grep -q "^$addr	タスク \`demo/" "$tmp/hc/sent" || die '同じ端末へ最初のメッセージを送り直していない'
+jq -e --arg k "$key" '.reviewers[$k].started == true' "$state" >/dev/null && [ "$(pending "$id" review-requested)" != null ] || die '送り直したのに起こしたことにならない'
+[ "$(kanban list --all --json | jq --arg p "$id" '[.[] | select(.parent == $p)] | length')" = 1 ] || die 'レビュアーのタスクを二つ足した'
+ok '最初のメッセージが届くまでは起こしたことにせず、次の見回りで同じ端末へ送り直す（タスクも端末も二つにしない）'
+
+# 8. fetch の一時の失敗は次の見回りでやり直す
+id=$(newtask 'fetch が一度落ちる' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+runs=$(grep -c '^run' "$tmp/hc/log")
+insteadof() { git config --global --remove-section "url.file://$2" 2>/dev/null || true; git config --global url."file://$1".insteadOf https://github.com/example/app; }
+insteadof "$tmp/nowhere" "$tmp/origin"
+courier
+insteadof "$tmp/origin" "$tmp/nowhere"
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] && jq -e --arg k "$id@$head" '.reviewers[$k].failed | contains("fetch")' "$state" >/dev/null || die 'fetch に失敗したのに起こした・控えに失敗が無い'
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] && jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null || die 'fetch が戻ったのに起こさない'
+ok 'fetch の一時の失敗は控えで成功と分け、次の見回りで起こす'
+
+# 9. ゲートのあと Chief of Staff が merge: person に変えたら、マージせず次の見回りでゲートから回し直す
+gate_through() { # gate_through <id>: レビュアーが指摘なしで返し、担当が ready まで
+    local rev; rev=$(kanban list --all --json | jq -r --arg p "$1" '[.[] | select(.parent == $p)] | last | .id')
+    review_by "$rev" '[]'
+    as_worker "$1" ready
+}
+gate_through "$id"
+merges=$(wc -l < "$tmp/gh/merges")
+echo "cd $PWD && HC_TERMINAL_ID=t5 kanban set $id merge=person >/dev/null" > "$tmp/gh/hook"
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと merge: person に変えたのにマージした'
+grep -q "$id をいまはマージしない.*予約キーがゲートのあとに変わった" "$tmp/courier.log" || die '止めた理由がログに無い'
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die '回し直しでマージした'
+[ "$(grep -c "^status .*$head" "$tmp/gh/posted")" = 2 ] || die 'ゲートを回し直していない'
+ok 'ゲートのあと merge: person に変わったら gh pr merge を打たず、次の見回りでゲートから回し直す（approve でも person なので止まる）'
+
+# 10. ゲートのあとオーナーが委譲の merge を取り消したら、マージしない（回し直したゲートは needs_human）
+id=$(newtask '委譲が取り消される' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+courier
+gate_through "$id"
+echo "cd $tmp/plant/projects/demo && env -u HC_TERMINAL_ID GIT_AUTHOR_NAME=o GIT_AUTHOR_EMAIL=owner@example.com $andon delegate narrow merge none --evidence x >$tmp/hook.out 2>&1" > "$tmp/gh/hook"
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと委譲を取り消したのにマージした'
+grep -q "$id をいまはマージしない.*委譲の merge がゲートのあとに変わった（B → none）" "$tmp/courier.log" || die '止めた理由がログに無い'
+courier
+jq -e '.from == "gate" and (.facts | any(contains("delegation: merge=none")))' "$L/tasks/$id/library/questions/1.json" >/dev/null || die '回し直したゲートの needs_human が問いになっていない'
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'マージした'
+ok 'ゲートのあと委譲の merge が取り消されたら gh pr merge を打たず、回し直したゲートの needs_human を問いにする'
 
 echo "all passed ($pass)"

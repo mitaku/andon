@@ -19,16 +19,20 @@ type Notification struct {
 	Detail  map[string]any `json:"detail"`
 }
 
-// Reviewer は起こしたレビュアー（控えの「task → reviewer_task・commit」）。
+// Reviewer は起こしたレビュアー（控えの「task → reviewer_task・commit」）。状態は Started・Skipped・Failed のどれか。
 type Reviewer struct {
 	Task         string `json:"task"`
-	ReviewerTask string `json:"reviewer_task,omitempty"` // 空なら起こしていない（初めて見た・起こさなかった）
 	Commit       string `json:"commit"`
 	Round        int    `json:"round,omitempty"`
 	Repo         string `json:"repo,omitempty"`
-	Worktree     string `json:"worktree,omitempty"`   // detached worktree（andon task finish が消す）
-	Skipped      string `json:"skipped,omitempty"`    // 起こさなかった理由
-	OverLimit    int    `json:"over_limit,omitempty"` // 上限を超えて起こさなかったときの上限（それより上がれば起こし直す）
+	Worktree     string `json:"worktree,omitempty"`      // 作った detached worktree（andon task finish が消す）
+	ReviewerTask string `json:"reviewer_task,omitempty"` // 足したレビュアーのタスク
+	Address      string `json:"address,omitempty"`       // 起こした端末
+	Started      bool   `json:"started,omitempty"`       // 最初のメッセージまで届いた（もう起こさない）
+	Skipped      string `json:"skipped,omitempty"`       // 起こさない理由（初めて見た・設定・上限・head 違い）
+	OverLimit    int    `json:"over_limit,omitempty"`    // 上限を超えて起こさなかったときの上限（それより上がれば起こし直す）
+	Failed       string `json:"failed,omitempty"`        // 起こしそこねた理由（次の見回りで続きから）
+	Attempts     int    `json:"attempts,omitempty"`      // 起こしそこねた回数
 }
 
 // Gate は回したゲート（控えの「task → sha」）。review に入った log.jsonl の行ごとに1回。
