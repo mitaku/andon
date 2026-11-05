@@ -181,3 +181,17 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | 担当の command と CoS の検収の照合は、レビュアーのうち作成の行の `by` が `terminal:<coordinator>` のものだけを数える（仮設と同じ）。クーリエが起こすレビュアー（P6a）を数える形は P6a で足す | 仮設のゲート・担当の推し |
 | 2026-11-05 | 建屋の `gate.local.json` も委譲と同じ読み方: 建屋の repo の HEAD のものを、最後に変えた commit の author の email が `owner` のときだけ重ねる（作業ツリー・未 commit の変更は読まない）。信じられなければ重ねず、repos が無いのでゲートは `needs_human` | P5 の担当の推し（自動のセキュリティレビューの指摘） |
 | 2026-11-05 | 約束の JSON の入口（`report.json`・`findings.json`・問いの JSON・条件表・委譲・`--data`）は全部 `contract.Decode` を通り、存在するキーの null・型違い・知らないキーを拒む（schema と同じ）。null を許すのは tag `andon:"nullable"` のキー（`review_request.previous`・委譲の `until`・`revoked`）だけ。条件表の glob はリテラルを rune 単位で逃がす | P5 の独立レビュー 1 回目（Y-82）の指摘と Chief of Staff の方針 |
+
+## 12. P6a での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | 11 の「クーリエが起こすレビュアーを数える形は P6a で足す」を改める: クーリエは台帳の CLI を `HC_TERMINAL_ID=courier` で打ち（`by` は `terminal:courier`）、作成の行の `by` が `terminal:<coordinator>` か `terminal:courier` のレビュアーを数える。偽装は §3 の D3 と同じく残る危険として受け入れる | courier.md §5、Y-86 の担当の推し |
+| 2026-11-05 | クーリエのインナーループは台帳の状態から拾う: `doing` のタスクの `report.json` の `review_request` を `<task>@<commit>` ごとに1回、`review` に入った `log.jsonl` の行ごとに1回ゲートを回す（同じ commit で `review` に入り直したら回し直す。ゲートの「同じ head で2度目の Must fix」が効くように）。初めて見る台帳は控えるだけ。ゲートが判定できない（終了コード 3）・マージ・片付けに失敗したときは問い（`from: gate`） | courier.md §2.1・§5、Y-86 の担当の推し |
+| 2026-11-05 | 上限を超えた回は、`review_request.extra` ではなく今の `review_rounds` と `round` で決める。起こさなかったら通知 `report`。Chief of Staff が `review_rounds` を上げれば、クーリエが次の見回りで起こす（Chief of Staff が手でレビュアーを起こす手順を残さない） | courier.md §5（`review_request.extra` は Chief of Staff の判断）、Y-86 の担当の推し |
+| 2026-11-05 | マージは条件表の `repos.<repo>.merge` の方式で `gh pr merge --match-head-commit <ゲートの head>`。方式が無ければマージせず問い。マージしたらゲートの記録の `merged` を true にし、`andon task finish` を打つ。`andon task finish` はレビュアーの子タスクと、クーリエが作った detached worktree（`~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>`）も片付ける（人がマージしたあと Chief of Staff が打つときも同じ1つの command で済む） | contract.md §7、仮設の `yard task finish`、Y-86 の担当の推し |
+| 2026-11-05 | `andon task finish` は仮設の `yard task finish` を移したもの（aqua の policy の出し入れは仮設だけのものなので移さない）。人の手直しを集める `library/corrections.json`（design.md §1.9 の (b)）は P6a に入れない（形が schema に無い。別の手で） | Y-86 の担当の推し |
+| 2026-11-05 | クーリエの通知は控え（`~/.local/state/andon/courier/<slug>.json` の `pending`）に積むだけ。Chief of Staff に届ける口（フック・離席時の `hc send`）は P3b・P6b | courier.md §5、Y-86 の担当の推し |
+| 2026-11-05 | 台帳の CLI は `worktree` を HOME の下なら `~/…` で書く（`deck start`）。`andon task` は読むときに HOME に開く | Y-86 で見つけた（本物の台帳の半分以上が `~/` 形） |

@@ -109,8 +109,14 @@ if chk task-keys "$tmp/keys.json" && jq -e 'keys == ["merge","must_fix","review"
 else fail "Chief of Staff の deck set: $set_line"; fi
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
-grep -q 'andon task show <id>` の `report.review_request`' package/skills/chief-of-staff/SKILL.md && grep -q 'andon gate <id> --dry-run' package/skills/chief-of-staff/SKILL.md \
-  && pass "Chief of Staff はレビュー依頼を andon task show で読み、検収の照合を andon gate --dry-run にさせる" || fail "chief-of-staff がレビュー依頼・検収を command で読まない"
+# インナーループはクーリエ（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起こす手順が残っていない
+cos6=$(sed -n '/^## 6\. /,/^## 7\. /p' package/skills/chief-of-staff/SKILL.md)
+grep -q '^## 6\. レビューとゲート（人の判断が要るときだけ）' <<<"$cos6" && grep -q '^### `needs_human` のとき' <<<"$cos6" \
+  && ! grep -qE 'andon task start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
+  && ! grep -qE 'worktree add --detach|andon task start "\$new"' package/skills/independent-review/SKILL.md \
+  && pass "Chief of Staff の §6 は needs_human のときだけ。レビュアーを起こすのとゲートはクーリエ" || fail "chief-of-staff・independent-review にレビュアーを手で起こす手順・ゲートを手で回す手順が残る"
+grep -q '元のタスク（`task.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元のタスクの担当だけ' package/skills/independent-review/SKILL.md \
+  && pass "レビュアーの結果の宛先は parent のタスクの担当だけ（Chief of Staff へ送らない）" || fail "レビュアーの宛先が parent のタスクの担当に固定されていない"
 
 # Chief Engineer: worktree で文書の PR と report.json を同じタスクから返す。問いは問いの JSON
 ce=package/skills/chief-engineer/SKILL.md

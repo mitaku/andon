@@ -40,8 +40,8 @@ description: Chief of Staff が `andon task start` で起こした担当とレ�
    | `merge`（Merge） | `auto` / `person` | `person` | どの値でも担当はマージしない。PR を出して止まる |
    | `machine` | マシンの名前 | 指揮側と同じ | 自分が起きたマシン。読むだけ |
 
-3. Chief of Staff の address を控える: `hc get "$HC_TERMINAL_ID" --json | jq -r .parent`。
-   空か、その端末がもう無ければ（`hc get <addr>` が失敗する）、台帳の `config.yaml` の `coordinator`。こちらから打ち込むことはない（通知はクーリエが届ける）が、届いた文の送り手を見分けるのに使う。
+3. Chief of Staff の address を控える: 台帳の `config.yaml` の `coordinator`（自分を起こした端末〈`hc get "$HC_TERMINAL_ID" --json` の `parent`〉はクーリエのことがあるので使わない）。
+   こちらから打ち込むことはない（通知はクーリエが届ける）が、届いた文の送り手を見分けるのに使う。ゲートの `fix` はクーリエから届く。
 4. `deck start <id>`。`status: doing` になり、`agent` が自分の address になる。
 
 ## 2. 作業する
@@ -71,7 +71,7 @@ description: Chief of Staff が `andon task start` で起こした担当とレ�
 1. §3 の PR と checks が済んだら、`HEAD` を push して `andon task review-request <id> <<'EOF'` … `EOF`（stdin は §7 の人が読む報告）。
    command が `HEAD` ＝ PR の head を確かめ、回・上限・前回の commit・レビュアー・追加の回か（`extra`）を `report.json` の `review_request` に書き、
    人が読む `## レビュー依頼` の行を報告の先頭に足して `deck report` する（`deck review` はしない）。止まったら理由の1行に従う。
-   Chief of Staff にはクーリエが `<id> report` の通知で届ける。レビュアーを起こすのは Chief of Staff（P6a からはクーリエ）。自分では起こさない。頼んだら待つ（turn を終えてよい）。
+   Chief of Staff にはクーリエが `<id> report` の通知で届ける。レビュアーを起こすのはクーリエ（`review: on` を Chief of Staff が書いていて、回が上限の中のとき）。自分では起こさない。頼んだら待つ（turn を終えてよい）。
 2. レビュアーの `hc send` で報告の場所が届く。`deck show <レビューのタスクの id>` の report（人が読む Markdown）と、`tasks/<レビューのタスクの id>/library/findings.json`（ゲートが読む指摘。§6）を読む。
    照合の結果は `andon task show <id>` の `review`（`stale` は古い commit を見たレビューで、回には数えない。そのまま 1 で頼み直す）。
 3. 指摘を振り分ける（自分でする。件数と重さは `findings.json` のもの。報告の中身と食い違えば、レビュアーへ直してもらうよう報告に書く）:
@@ -128,8 +128,9 @@ Chief of Staff が「人の go」と書いて渡したとき（か、委譲の�
   2. 報告（人が読む）: 先頭に `Commit: <見た commit の sha（40桁）>`。指摘は重い順に1件ずつ、重さ・ファイル:行・起きる条件（具体的な入力 → 結果）・直し方の案・足りないテスト。`findings.json` と同じ件数・同じ重さにする。
   起きる条件を具体的に示せないものは `trivial`。指摘が無い観点は「見たが問題なし」と何を確かめたか。マージの可否は言わない。
 - 終わったら `deck report <自分の id>`・`deck review <自分の id>`、そして
-  元のタスク（`task.yaml` の `parent`）の担当（`deck show <parent> --json` の `agent`）へ
-  `hc send <addr> "<自分の id>（<parent> のレビュー <回> 回目）: commit <sha>。報告は <report.md のパス>"`。Chief of Staff へは送らない（クーリエが届ける）。
+  **元のタスク（`task.yaml` の `parent`）の担当だけ**へ（依頼書の「終わったら」の address。変わっていれば `deck show <parent> --json` の `.task.agent`）
+  `hc send <addr> "<自分の id>（<parent> のレビュー <回> 回目）: commit <sha>。報告は <report.md のパス>"`。
+  宛先はこの1つだけ。自分を起こした端末（`hc get "$HC_TERMINAL_ID" --json` の `parent`）や Chief of Staff・クーリエへは送らない（Chief of Staff へはクーリエが届ける）。
 
 ## 7. 報告して返す
 
@@ -166,6 +167,7 @@ For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべ�
 2. `andon task ready <id>`。command が確かめてから `deck review` する。止まったら理由の1行に従って直し、1 からやり直す。ここまで。Chief of Staff へ `hc send` しない。
    クーリエが、Chief of Staff の入力欄が空のときに `<id> review` の通知で届ける（人の書きかけに貼り付かないように）。
 
-そのあとは待つ。`hc send` で直しが届いたら `deck start <id>` で `doing` に戻して直し、§3 から通して同じ手順で返す。
+そのあとは待つ。`review` に入るとクーリエがゲート（`andon gate`）を回し、`approve` ＋ `merge: auto` ＋ 委譲の範囲内ならマージして片付ける。
+`hc send` で直し（ゲートの `fix` か Chief of Staff から）が届いたら `deck start <id>` で `doing` に戻して直し、§3 から通して同じ手順で返す。
 `andon task show <id>` で、いまの予約キー・`report.json`・レビューの照合を読める（読むだけ）。
-マージと片付け（`andon task finish`）は人と Chief of Staff がする。
+マージと片付け（`andon task finish`）はクーリエ（`merge: auto`）か、人と Chief of Staff がする。
