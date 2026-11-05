@@ -16,6 +16,8 @@ docker run --rm --network none andon:test bash -euc '
   test -d /opt/andon
   test -f /opt/andon/compose.yaml
   test -x /opt/andon/host/andon-up
+  printf "{\"commit\": \"%040d\"}\n" 0 > /tmp/report.json
+  python3 /opt/andon/lib/andon/schema_check.py validate /opt/andon/schema/report.schema.json /tmp/report.json
   test -d "$PLAYWRIGHT_BROWSERS_PATH"
   hc --version
   node --version

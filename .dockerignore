@@ -3,3 +3,5 @@
 !image/**
 !package/
 !package/**
+!schema/
+!schema/**

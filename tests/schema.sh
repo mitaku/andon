@@ -3,11 +3,11 @@
 #   1. schema/ の7本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
-# 道具は python3（標準ライブラリだけ。tests/lib/schema_check.py）と jq。
+# 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-check_py=tests/lib/schema_check.py
+check_py=package/lib/andon/schema_check.py
 schema_dir="${ANDON_SCHEMA_DIR:-schema}"   # 自己検査（下の 4）が緩めた写しを指す
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

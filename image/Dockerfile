@@ -75,6 +75,8 @@ RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.conf
       "${HOME}/.config/herdr-core" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
  && chmod 700 "${HOME}/.ssh"
 COPY package/ /opt/andon/
+# skill の手順が JSON を確かめる schema（package/lib/andon/schema_check.py が読む。ANDON_SCHEMA の既定）
+COPY schema/ /opt/andon/schema/
 USER root
 RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon
 USER andon
