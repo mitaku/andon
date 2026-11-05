@@ -14,6 +14,8 @@ docker build --file image/Dockerfile --tag andon:test .
 docker run --rm --network none andon:test bash -euc '
   test "$(id -u)" -ne 0
   test -d /opt/andon
+  test -f /opt/andon/compose.yaml
+  test -x /opt/andon/host/andon-up
   test -d "$PLAYWRIGHT_BROWSERS_PATH"
   hc --version
   node --version

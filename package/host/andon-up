@@ -1,0 +1,35 @@
+#!/bin/sh
+# andon-up — ホストの建屋を全部起こす（PC を立ち上げたあとに1回）。起きているものは飛ばす。
+#
+#   andon-up            ${ANDON_PLANTS:-$HOME/src} の下の andon-*（bin/bootstrap を持つもの）を起こす
+#
+# 置き方: 建屋の repo で bin/bootstrap host-install（~/.local/bin/andon-up に置く）。
+# このホストで起こさない建屋は ~/.config/andon/skip に1行1つ（repo の名前）。
+set -u
+
+plants=${ANDON_PLANTS:-$HOME/src}
+skip=$HOME/.config/andon/skip
+
+if ! docker info >/dev/null 2>&1; then
+  echo "✗ docker デーモンに繋がらない。先に docker を起こす" >&2
+  exit 1
+fi
+
+up=0 failed=0
+for dir in "$plants"/andon-*; do
+  [ -x "$dir/bin/bootstrap" ] || continue
+  name=$(basename "$dir")
+  if [ -f "$skip" ] && grep -qx "$name" "$skip"; then
+    echo "  - $name（このホストでは起こさない）"
+    continue
+  fi
+  if "$dir/bin/bootstrap" up >"${TMPDIR:-/tmp}/andon-up-$name.log" 2>&1; then
+    echo "  + $name"
+    up=$((up + 1))
+  else
+    echo "  ✗ $name（記録: ${TMPDIR:-/tmp}/andon-up-$name.log）"
+    failed=$((failed + 1))
+  fi
+done
+echo "建屋: 起動 $up / 失敗 $failed"
+[ "$failed" -eq 0 ]

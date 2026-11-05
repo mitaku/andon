@@ -1,0 +1,45 @@
+# 建屋の compose（パッケージの持ち物）。建屋の bin/bootstrap がイメージから .andon/compose.yaml に取り出して使う。
+# 建屋の repo では書き換えない。建屋に固有のサービスは建屋の compose.override.yaml に書く（bootstrap が重ねる）。
+# 番号は建屋の .env（SSH_PORT・PORTLESS_PORT・FILES_PORT）。ANDON_IMAGE・ANDON_SLUG は bootstrap が渡す。
+services:
+  dev:
+    image: ${ANDON_IMAGE:?bin/bootstrap から起こす}
+    # 毎起動、パッケージから配布物を生成し、portless・sshd・クーリエを起こしてから待つ
+    command: ["bash", "-c", "andon boot; exec sleep infinity"]
+    # コンテナのホスト名を建屋の名前にする（プロンプトと portless の名前に出る）
+    hostname: ${ANDON_SLUG:?bin/bootstrap から起こす}
+    init: true
+    # codex の sandbox（bwrap）は user namespace を作る。docker の既定の seccomp はそれを拒む
+    security_opt:
+      - seccomp:unconfined
+    ports:
+      # ssh（herdr の別マシン・portless の LocalForward）。127.0.0.1 にだけ晒す
+      - "127.0.0.1:${SSH_PORT:-2222}:22"
+    environment:
+      # 建屋の local/aqua.yaml（Dockerfile が /opt/andon-local に写す）をイメージの備品に重ねる
+      AQUA_GLOBAL_CONFIG: /opt/andon-local/aqua.yaml:/opt/andon-aqua/aqua.yaml
+    volumes:
+      - .:/workspace
+      # ログインと設定は作り直しても残す（HOME は /opt/andon-home）
+      - claude:/opt/andon-home/.claude
+      - claude-native:/opt/andon-home/.local/share/claude
+      - codex:/opt/andon-home/.codex
+      - agents:/opt/andon-home/.agents
+      - gh:/opt/andon-home/.config/gh
+      - herdr:/opt/andon-home/.config/herdr
+      - herdr-core:/opt/andon-home/.config/herdr-core
+      - ssh:/opt/andon-home/.ssh
+      - portless:/opt/andon-home/.portless
+      - state:/opt/andon-home/.local/state
+
+volumes:
+  claude:
+  claude-native:
+  codex:
+  agents:
+  gh:
+  herdr:
+  herdr-core:
+  ssh:
+  portless:
+  state:
