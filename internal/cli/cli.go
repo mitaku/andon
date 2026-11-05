@@ -1,0 +1,112 @@
+// Package cli は andon の sub-command を振り分ける。
+//
+//	andon help              一覧
+//	andon <sub> --help      その sub-command の使い方
+//	andon <sub> [引数…]     中身に渡す
+//
+// 知らない sub-command は一覧を stderr に出して終了コード 2。
+package cli
+
+import (
+	"fmt"
+	"io"
+
+	"andon/internal/publish"
+	"andon/internal/triage"
+)
+
+type command struct {
+	name  string
+	about string
+	usage string
+	run   func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
+}
+
+// 中身がまだ無いもの（骨だけ）は run が nil。
+var commands = []command{
+	{
+		name:  "task",
+		about: "台帳のタスクに担当を起こす（start）・片付ける（finish）（まだ無い）",
+		usage: "usage: andon task start <id>     worktree と branch を作り、hc でプロファイルの担当を起こす\n" +
+			"       andon task finish <id>    端末と worktree を片付け、マージ済みなら branch を消し、done にする\n" +
+			"中身はまだ無い。\n",
+	},
+	{
+		name:  "chief-of-staff",
+		about: "プロジェクトの Chief of Staff を起こす（動いていれば、そのまま使う）（まだ無い）",
+		usage: "usage: andon chief-of-staff              projects/<slug>/ で打つ。終わりに hc attach でその画面に乗る\n" +
+			"       andon chief-of-staff --no-attach  乗らずに終わる\n" +
+			"中身はまだ無い。\n",
+	},
+	{
+		name:  "courier",
+		about: "台帳と hc から通知を拾い、Chief of Staff に届ける（まだ無い）",
+		usage: "usage: andon courier           回り続ける（hc の端末 courier の中で動く）\n" +
+			"       andon courier --once    1回だけ回して終わる\n" +
+			"中身はまだ無い。\n",
+	},
+	{
+		name:  "publish",
+		about: "生成したファイルを artifacts/ へ公開し、URL を返す",
+		usage: "usage: andon publish <file> [slug]\n" +
+			"/workspace/artifacts/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n",
+		run: publish.Main,
+	},
+	{
+		name:  "triage",
+		about: "台帳の溜まったものを集める（collect）・仕分けの決定を台帳に当てる（apply）",
+		usage: triage.Usage +
+			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
+		run: triage.Main,
+	},
+	{
+		name:  "gate",
+		about: "台帳・PR・検査・独立レビューを照合し、条件を満たす PR だけをマージする（まだ無い）",
+		usage: "usage: andon gate <id> [--dry-run]   台帳のタスクの PR を照合し、条件を満たす head だけをマージする\n" +
+			"中身はまだ無い。\n",
+	},
+}
+
+func list(w io.Writer) {
+	fmt.Fprint(w, "usage: andon <sub-command> [引数…]\n\n")
+	width := len("help")
+	for _, c := range commands {
+		width = max(width, len(c.name))
+	}
+	for _, c := range commands {
+		fmt.Fprintf(w, "  %-*s  %s\n", width, c.name, c.about)
+	}
+	fmt.Fprintf(w, "  %-*s  %s\n", width, "help", "この一覧")
+	fmt.Fprint(w, "\nandon <sub-command> --help で、その sub-command の使い方を出す。台帳は台帳の CLI で書く。\n")
+}
+
+// Run は andon を args で走らせ、終了コードを返す。
+func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	sub := "help"
+	if len(args) > 0 {
+		sub = args[0]
+	}
+	switch sub {
+	case "help", "-h", "--help":
+		list(stdout)
+		return 0
+	}
+	for _, c := range commands {
+		if c.name != sub {
+			continue
+		}
+		rest := args[1:]
+		if len(rest) > 0 && (rest[0] == "-h" || rest[0] == "--help") {
+			fmt.Fprint(stdout, c.usage)
+			return 0
+		}
+		if c.run == nil {
+			fmt.Fprintf(stderr, "andon %s: 中身はまだ無い\n", sub)
+			return 1
+		}
+		return c.run(rest, stdin, stdout, stderr)
+	}
+	fmt.Fprintf(stderr, "andon: 知らない sub-command: %s\n", sub)
+	list(stderr)
+	return 2
+}
