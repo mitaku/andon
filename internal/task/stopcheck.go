@@ -65,10 +65,12 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if st.Pass > len(rows) { // log.jsonl が短くなった: 控えを捨てる
 		st = stopState{}
 	}
-	save := func() {
-		os.MkdirAll(filepath.Dir(path), 0o755)
+	save := func() error {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
 		b, _ := json.Marshal(st)
-		os.WriteFile(path, append(b, '\n'), 0o644)
+		return os.WriteFile(path, append(b, '\n'), 0o644)
 	}
 	if t.Str("status") != "doing" {
 		return pass("")
@@ -95,7 +97,9 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		save()
 		return pass(fmt.Sprintf("%s は報告も問いも無いまま %d 回止めた", id, maxBlocks))
 	}
-	save()
+	if err := save(); err != nil { // 止めた回数を数えられないなら止めない（止め続けない側に倒す）
+		return pass("控えが書けない: " + err.Error())
+	}
 	reason := fmt.Sprintf("%s は doing のまま、報告も問いも台帳に無い。報告（andon task report。レビューを頼むなら review-request）か"+
 		"問い（andon task ask）を書いてから止まる。終わったなら andon task ready まで。", id)
 	b, _ := json.Marshal(map[string]string{"decision": "block", "reason": reason})
