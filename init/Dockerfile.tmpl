@@ -1,0 +1,3 @@
+FROM {{.Image}}
+COPY --chown=andon:andon local/ /opt/andon-local/
+RUN bash /opt/andon-local/setup.sh

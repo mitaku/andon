@@ -16,7 +16,19 @@
 
 ## ディレクトリ
 
-`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/`・`image/`・`init/`・`cmd/kanban/`）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
+`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/` の一部・`cmd/kanban/`）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
+
+## 建屋を立てる
+
+建屋の repo は `andon init <slug>` で作る（`andon-<slug>`。雛形は `init/`。作ったあとは Andon に追従しない）。ホストに要るのは docker と bash だけ。
+
+```bash
+andon init <slug> --image ghcr.io/<owner>/andon:<版> --owner <email>
+cd andon-<slug> && bin/bootstrap            # イメージを焼き、compose.yaml をイメージから取り出して起動し、herdr に入る
+bin/bootstrap host-install                  # ホストの andon-up・ssh config・herdr の設定を置く（今あるものは上書きしない）
+```
+
+番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）は建屋の `.env` に書く。`bin/bootstrap --dry-run` は docker を打たずに、打つものを出す。
 
 ## テスト
 
