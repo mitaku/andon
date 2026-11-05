@@ -13,6 +13,7 @@ import (
 
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
+	"andon/internal/courier"
 	"andon/internal/delegate"
 	"andon/internal/gate"
 	"andon/internal/plantinit"
@@ -32,7 +33,7 @@ type command struct {
 var commands = []command{
 	{
 		name:  "task",
-		about: "担当が台帳に返す（show・report・review-request・ready・ask）。起こす・片付ける（start・finish）はまだ無い",
+		about: "担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）。起こす（start）はまだ無い",
 		usage: task.Usage,
 		run:   task.Main,
 	},
@@ -51,10 +52,9 @@ var commands = []command{
 	},
 	{
 		name:  "courier",
-		about: "台帳と hc から通知を拾い、Chief of Staff に届ける（まだ無い）",
-		usage: "usage: andon courier           回り続ける（hc の端末 courier の中で動く）\n" +
-			"       andon courier --once    1回だけ回して終わる\n" +
-			"中身はまだ無い。\n",
+		about: "台帳を回り、インナーループ（レビュアーを起こす・ゲート・merge: auto のマージと片付け）を回す。通知を届ける口はまだ無い",
+		usage: courier.Usage,
+		run:   courier.Main,
 	},
 	{
 		name:  "publish",

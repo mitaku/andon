@@ -38,7 +38,7 @@ for s in $subs; do
 done
 
 # === 骨だけの sub-command: 中身が無いと言って rc 1 ===
-for s in task chief-of-staff courier; do
+for s in task chief-of-staff; do
   "$andon" "$s" start X-1 >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 1 ] && [ ! -s "$tmp/out" ] && grep -q '中身はまだ無い' "$tmp/err" \
     && pass "andon $s は中身はまだ無いと言って rc 1" || fail "andon $s: rc=$r $(cat "$tmp/err")"
@@ -47,6 +47,8 @@ done
 # === 中身に渡る: 引数の誤りは中身の usage と終了コード ===
 "$andon" triage >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon triage collect' "$tmp/err" && pass "andon triage（引数なし）は中身の usage で rc 2" || fail "andon triage: rc=$r $(cat "$tmp/err")"
+"$andon" courier --bogus >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon courier' "$tmp/err" && pass "andon courier（知らない引数）は usage で rc 2" || fail "andon courier: rc=$r $(cat "$tmp/err")"
 "$andon" chief-engineer >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon chief-engineer' "$tmp/err" && pass "andon chief-engineer（引数なし）は usage で rc 2" || fail "andon chief-engineer: rc=$r $(cat "$tmp/err")"
 "$andon" publish >/dev/null 2>"$tmp/err"; r=$?

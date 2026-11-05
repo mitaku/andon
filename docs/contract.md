@@ -71,6 +71,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 - **値は全部文字列**。`kanban set` は値を文字列で書くので、`review_rounds` も `"2"`（1 以上の整数を表す数字の列）。YAML に手で `review_rounds: 2` と書いた数は schema を通らない（読み手は「無い」として既定を使う）。
 - 台帳の形式は知らないキーを許して保つので、この schema は**知らないキーを拒まない**。どれも必須ではない（無いときの振る舞いは上の表）。
 - **履歴の照合**: ゲートとクーリエは、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の coordinator>` で、その値が今の `task.yaml` と同じときだけ信じる。違えば `needs_human`。`coordinator` が無ければ信じない。
+- **レビュアーのタスク**（`parent` が元のタスクで `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<coordinator>` か `terminal:courier`（クーリエが起こしたもの）のときだけ、ゲートと `andon task ready` がレビューに数える。
 - 値の綴りは小文字（`machine` を除く）。知らない値は「無い」と同じ。
 - 読み手が `kanban show <id> --json` の `.task` から取る（ファイルを直接読まない）。
 
@@ -178,7 +179,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`task` はタスクについての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
 - 届け方: ①Chief of Staff の `Stop` フックが `andon courier drain <slug>` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの依頼ではない。足すことが無ければ `<no-reply>`」）。`news.replied=<turn>` のラベルも同じ（ボードとの約束）。
-- クーリエの控え `~/.local/state/andon/courier/<slug>.json`: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・送った turn・起こしたレビュアー（`task` → `reviewer_task`・`commit`）・回したゲート（`task` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ）。
+- クーリエの控え `~/.local/state/andon/courier/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・送った turn・起こしたレビュアー（`task` → `reviewer_task`・`commit`）・回したゲート（`task` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。クーリエの行の `by` は `terminal:courier`）。控えの中の形はクーリエだけが読むので約束にしない（schema は無い）。
 
 ## 7. ゲートの条件表と記録
 

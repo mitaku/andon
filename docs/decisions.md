@@ -194,3 +194,19 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | image の `kanban` は Dockerfile の中でビルドせず、`tests/image.sh` が焼いたバイナリを build context `kanban` で COPY する（設計書 §3.5「CI が焼いたバイナリを COPY」。Go の image を足さない） | design.md §3.5 |
 | 2026-11-05 | `internal/` は台帳の CLI に `kanban` だけを打つ（`ledger.CLI`）。別名の `deck` には落ちない（PATH の `deck` が版違いでも名前だけで選んでしまうため。1回目のレビューの major）。無ければ「kanban が無い」と入れ方を案内して止める。image と CI は `kanban` を入れる。テストの偽物は `kanban` の名前で置く | 依頼書（internal/ の deck を kanban に）・Y-87 のレビュー |
 | 2026-11-05 | `tests/andon-task.sh`・`andon-gate.sh`・`andon-triage.sh` は台帳の CLI を自分で焼く（`tests/lib/kanban.sh`）ので、go があれば CI の両方の workflow で skip しない。`tests/schema.sh` の command の出力の節も同じ。go の workflow は 4 target（linux/amd64・linux/arm64・darwin/arm64・windows/amd64）のビルドを確かめる。release は作らない（Andon の tag で一緒に。後の工程） | 依頼書の完了条件 |
+
+## 13. P6a での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | 11 の「クーリエが起こすレビュアーを数える形は P6a で足す」を改める: クーリエは台帳の CLI を `HC_TERMINAL_ID=courier` で打ち（`by` は `terminal:courier`）、作成の行の `by` が `terminal:<coordinator>` か `terminal:courier` のレビュアーを数える。偽装は §3 の D3 と同じく残る危険として受け入れる | courier.md §5、Y-86 の担当の推し |
+| 2026-11-05 | クーリエのインナーループは台帳の状態から拾う: `doing` のタスクの `report.json` の `review_request` を `<task>@<commit>` ごとに1回、`review` に入った `log.jsonl` の行ごとに1回ゲートを回す（同じ commit で `review` に入り直したら回し直す。ゲートの「同じ head で2度目の Must fix」が効くように）。初めて見る台帳は控えるだけ。ゲートが判定できない（終了コード 3）・マージ・片付けに失敗したときは問い（`from: gate`） | courier.md §2.1・§5、Y-86 の担当の推し |
+| 2026-11-05 | 上限を超えた回は、`review_request.extra` ではなく今の `review_rounds` と `round` で決める。起こさなかったら通知 `report`。Chief of Staff が `review_rounds` を上げれば、クーリエが次の見回りで起こす（Chief of Staff が手でレビュアーを起こす手順を残さない） | courier.md §5（`review_request.extra` は Chief of Staff の判断）、Y-86 の担当の推し |
+| 2026-11-05 | マージは条件表の `repos.<repo>.merge` の方式で `gh pr merge --match-head-commit <ゲートの head>`。方式が無ければマージせず問い。マージしたらゲートの記録の `merged` を true にし、`andon task finish` を打つ。`andon task finish` はレビュアーの子タスクと、クーリエが作った detached worktree（`~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>`）も片付ける（人がマージしたあと Chief of Staff が打つときも同じ1つの command で済む） | contract.md §7、仮設の `yard task finish`、Y-86 の担当の推し |
+| 2026-11-05 | `andon task finish` は仮設の `yard task finish` を移したもの（aqua の policy の出し入れは仮設だけのものなので移さない）。人の手直しを集める `library/corrections.json`（design.md §1.9 の (b)）は P6a に入れない（形が schema に無い。別の手で） | Y-86 の担当の推し |
+| 2026-11-05 | クーリエの通知は控え（`~/.local/state/andon/courier/<slug>.json` の `pending`）に積むだけ。Chief of Staff に届ける口（フック・離席時の `hc send`）は P3b・P6b | courier.md §5、Y-86 の担当の推し |
+| 2026-11-05 | 台帳の CLI は `worktree` を HOME の下なら `~/…` で書く（`deck start`。今の `kanban start` も同じ）。`andon task` は読むときに HOME に開く | Y-86 で見つけた（本物の台帳の半分以上が `~/` 形） |
+| 2026-11-05 | マージの直前に、タスクの予約キー・履歴（`by`）・委譲を読み直す。ゲートのときと1つでも違えば（`merge: person` に変わった・委譲の `merge` が変わった・review でなくなった）`gh pr merge` を打たず、控えに書かずに次の見回りでゲートから回し直す | P6a の独立レビュー 1 回目（Y-88）の major と Chief of Staff の方針 |
+| 2026-11-05 | レビュアーの起動は段（detached worktree・レビュアーのタスク・端末・最初のメッセージ）ごとに控えに書き、最初のメッセージが届くまで成功にしない。起こした（started）・起こさない（skipped。設定・上限・head 違い）・起こしそこねた（failed。fetch・`hc run`・最初のメッセージなどの一時の失敗）を分け、failed は次の見回りで済んだ段の続きから（タスクも端末も二つにしない。生きている端末へは最初のメッセージを送り直す）。3回続けば通知 `report` | 同上 |

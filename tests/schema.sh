@@ -3,7 +3,7 @@
 #   1. schema/ の7本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
-#   5. command（andon task・andon gate・andon delegate）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh に書かせる）。
+#   5. command（andon task・andon gate・andon delegate・andon courier）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh・andon-courier.sh に書かせる）。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -280,12 +280,12 @@ findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+
 LOOSE
 fi
 
-# 5. command の出力（tests/andon-task.sh・andon-gate.sh が ANDON_EMIT_DIR に写したもの）。
+# 5. command の出力（tests/andon-task.sh・andon-gate.sh・andon-courier.sh が ANDON_EMIT_DIR に写したもの）。
 #    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-task andon-gate; do
+  for t in andon-task andon-gate andon-courier; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -304,6 +304,12 @@ question.json|question|andon task ask の questions/<n>.json
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 delegation.json|delegation|andon delegate grant の delegation.json
+gate-record-merged.json|gate|andon courier がマージしたあとのゲートの記録（merged）
+question-gate.json|question|andon courier が needs_human で出した問い（from: gate）
+notification-review-requested.json|notification|andon courier の通知 review-requested
+notification-gate.json|notification|andon courier の通知 gate
+notification-merged.json|notification|andon courier の通知 merged
+notification-asked.json|notification|andon courier の通知 asked
 EMIT
   fi
 fi

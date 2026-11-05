@@ -32,11 +32,21 @@ func Check() error {
 	return nil
 }
 
+// CourierBy はクーリエが台帳の CLI を打つときの log.jsonl の by（HC_TERMINAL_ID=courier で打つ）。
+// クーリエが足したレビュアーのタスクは、Chief of Staff が足したものと同じに数える（docs/courier.md §5 の P6a）。
+const CourierBy = "terminal:courier"
+
 // Ledger は1つの台帳。
 type Ledger struct {
 	Root string // プロジェクトの根（.flightdeck の親）
 	Slug string
-	Dir  string // <Root>/.flightdeck
+	Dir  string   // <Root>/.flightdeck
+	Env  []string // 台帳の CLI に足す環境（クーリエは HC_TERMINAL_ID=courier）
+}
+
+// At は台帳の根 root（.flightdeck の親）の Ledger。
+func At(root string) *Ledger {
+	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, ".flightdeck")}
 }
 
 // Open は台帳の CLI に台帳の根を聞く。
@@ -49,13 +59,13 @@ func Open() (*Ledger, error) {
 	if err != nil || root == "" {
 		return nil, errors.New("台帳が見つからない（projects/<slug>/ か担当の worktree で打つ）")
 	}
-	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, ".flightdeck")}, nil
+	return At(root), nil
 }
 
 // Run は台帳の CLI をこの台帳に向けて打ち、stdout を返す（前後の空白を除く）。
 func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	c := exec.Command(CLI, args...)
-	c.Env = append(os.Environ(), "FLIGHTDECK_ROOT="+l.Root)
+	c.Env = append(append(os.Environ(), "FLIGHTDECK_ROOT="+l.Root), l.Env...)
 	c.Stdin = strings.NewReader(stdin)
 	var errb bytes.Buffer
 	c.Stderr = &errb
@@ -76,6 +86,17 @@ type Task map[string]any
 // Str はキーの値。文字列でなければ空。
 func (t Task) Str(k string) string {
 	s, _ := t[k].(string)
+	return s
+}
+
+// Path はキーの値をパスとして読む。台帳の CLI は HOME の下を `~/…` で書くことがあるので、HOME に開く。
+func (t Task) Path(k string) string {
+	s := t.Str(k)
+	if rest, ok := strings.CutPrefix(s, "~/"); ok {
+		if home := os.Getenv("HOME"); home != "" {
+			return filepath.Join(home, rest)
+		}
+	}
 	return s
 }
 
@@ -270,7 +291,7 @@ func machineOK(v string) bool {
 
 // Reviewer は、タスク id のレビューに数えるレビュアーのタスクのうち最新のもの（無ければ空）と、
 // 数えなかった子タスク（理由の文に使う）。数えるのは: parent が id・status が review か done・
-// 作成の行（log.jsonl の最初の add）の by が terminal:<coordinator>・profile が実装と別ブランドの *-review。
+// 作成の行（log.jsonl の最初の add）の by が terminal:<coordinator> かクーリエ（CourierBy）・profile が実装と別ブランドの *-review。
 func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 	coordinator := l.Coordinator()
 	creator := map[string]string{}
@@ -289,7 +310,8 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 			continue
 		}
 		p := c.Str("profile")
-		if coordinator != "" && creator[c.Str("id")] == "terminal:"+coordinator && strings.HasSuffix(p, "-review") && Brand(p) != brand {
+		by := creator[c.Str("id")]
+		if (by == CourierBy || coordinator != "" && by == "terminal:"+coordinator) && strings.HasSuffix(p, "-review") && Brand(p) != brand {
 			picked = append(picked, c)
 		} else {
 			others = append(others, c.Str("id"))

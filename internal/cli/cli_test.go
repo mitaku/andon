@@ -49,7 +49,7 @@ func TestSubCommandHelp(t *testing.T) {
 }
 
 func TestSkeletonSubCommands(t *testing.T) {
-	for _, s := range []string{"task", "chief-of-staff", "courier"} {
+	for _, s := range []string{"task", "chief-of-staff"} {
 		rc, out, errs := run(s, "start", "X-1")
 		if rc != 1 || out != "" || !strings.Contains(errs, "中身はまだ無い") {
 			t.Errorf("%s: rc=%d out=%q err=%q", s, rc, out, errs)
@@ -60,6 +60,9 @@ func TestSkeletonSubCommands(t *testing.T) {
 func TestPassesArgsToSubCommand(t *testing.T) {
 	if rc, _, errs := run("triage"); rc != 2 || !strings.HasPrefix(errs, "usage: andon triage collect") {
 		t.Errorf("triage: rc=%d err=%q", rc, errs)
+	}
+	if rc, _, errs := run("courier", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon courier") {
+		t.Errorf("courier: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("chief-engineer"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
 		t.Errorf("chief-engineer: rc=%d err=%q", rc, errs)

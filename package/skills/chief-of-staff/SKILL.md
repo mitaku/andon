@@ -1,6 +1,6 @@
 ---
 name: chief-of-staff
-description: 台帳（deck）と hc（端末の土台）で動くプロジェクトの Chief of Staff が読む。起きたときの確かめ・人の依頼と Chief Engineer の文書をタスクに切る・依頼書（Settings 欄つき）を書く・andon task start で担当を起こす・止まったエージェントへの答え方（許可・信頼の画面・提供元のエラー・静かなまま）・レビュー依頼を受けてレビュアーを起こす・検収（レビューの commit の照合）・andon task finish で片付ける・規約1〜10の形・トリアージの回し方（andon triage apply）、を持つ
+description: 台帳（deck）と hc（端末の土台）で動くプロジェクトの Chief of Staff が読む。起きたときの確かめ・人の依頼と Chief Engineer の文書をタスクに切る・依頼書（Settings 欄つき）を書く・andon task start で担当を起こす・止まったエージェントへの答え方（許可・信頼の画面・提供元のエラー・静かなまま）・インナーループ（レビュアー・ゲート・マージ・片付け）はクーリエが回し、人の判断が要るとき（needs_human・merge: person）だけ受ける・andon task finish で片付ける・規約1〜10の形・トリアージの回し方（andon triage apply）、を持つ
 ---
 
 # chief-of-staff
@@ -101,7 +101,7 @@ deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 me
 | `machine` | マシンの名前 | 書かない（指揮側と同じ） | 作業側を別のマシンで起こすときだけ `machine=<名前>` を足す |
 
 - **既定から変えた行には、行末に `★` と短い理由を付ける**（例 `- Review: on ★新しい module`）。
-- `Review: on` のとき、レビューは担当の工程になる。担当がレビューを頼み、指摘の重さが `Must fix` 以上なら自分で直す（§6）。
+- `Review: on` のとき、レビューは担当の工程になる。担当がレビューを頼み、指摘の重さが `Must fix` 以上なら自分で直す（worker skill の §4）。レビュアーを起こすのとゲートはクーリエ（§6）。
 - `coordinator.md` にプロジェクトの既定があれば、それを既定として使う（`★` は coordinator.md の既定から変えた行に付ける）。
 
 ## 3. 起こす
@@ -134,7 +134,7 @@ blocked には次の順で答える（規約3）:
 2. 判断:
    - **許可の確認**（コマンド・ファイルの書き込み）: タスクの範囲内で、worktree の中・壊さない・外へ出さないものだけ「Yes」（**1回だけ**の選択肢）。「常に許可」「このセッションでは聞かない」は選ばない。
    - **「このフォルダを信頼するか」**: 画面のパスが**そのタスクの worktree（`task.yaml` の `worktree`）と同じときだけ**答える（repo の無いタスクは `tasks/<id>/`）。
-     レビュアーのタスクは、cwd の `tasks/<id>/` と、Chief of Staff が作った detached の worktree のとき（independent-review の §3）。
+     レビュアーのタスクは、cwd の `tasks/<id>/` と、クーリエが作った detached の worktree（`~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>`）のとき（independent-review の §3）。
      ほかのパス・Codex のフックの確認画面は人へ回す。
    - それ以外（範囲外・不可逆: push 先の変更・削除・本番系・外向きの送信・認証）: 委譲の範囲の中でなければ答えず、人へ（§8 の1問ずつ）。
 3. `hc keys <agent> <キー…>`（例: 1番目の選択肢なら `enter`、番号で選ぶ画面なら `1`）。`hc send` は blocked のとき拒まれる（終了コード 9）。`--force` は使わない。
@@ -181,9 +181,12 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 | 行 | クーリエがしたこと | 受けたら |
 |---|---|---|
 | `<id> ready: 「…」（ルーチン tidy）` | `deck ready` の前回との差（人のタスクを除く。ルーチンが足したもの・`queued` から戻ったものも） | 依頼書を確かめ、並行の上限の中で `andon task start`。ルーチンが足したものは人に聞かずに起こす |
-| `<id> report: 報告 <path>` | 台帳の `log.jsonl` に report の書き込み | 報告を読む。`## レビュー依頼` があれば §6、`## 人に聞くこと` があれば §8 |
-| `<id> review: 報告 <path>` | `status: review` に入った | §6 の検収（レビュアーのタスクなら §6 の「レビュー依頼を受けたら」の4。Chief Engineer のタスクなら §1 の「Chief Engineer の文書を受けたら」） |
-| `<id> asked: 問い <n>（questions.yaml）` | `deck ask` の問い | `deck questions --open` を読み、§8 |
+| `<id> report: 報告 <path>` | 台帳の `log.jsonl` に report の書き込み。レビュー依頼でクーリエがレビュアーを起こさなかったときも（上限を超えた回など。理由は `hc read courier`） | 報告を読む。起こさなかったレビュー依頼なら §6 の「上限を超えた回」、`## 人に聞くこと` があれば §8 |
+| `<id> review-requested: …` | レビュー依頼を拾い、レビュアーを起こした | 何もしない |
+| `<id> review: 報告 <path>` | `status: review` に入った（担当のタスクならクーリエがゲートを回す） | 担当のタスクなら何もしない（結果は `gate` の行で届く）。Chief Engineer のタスクなら §1 の「Chief Engineer の文書を受けたら」 |
+| `<id> gate: <decision> …` | ゲートを回した（記録 `library/gate/<head>.json`） | `approve` で `merged` が続かなければ §6 の「approve で止まったとき」。`fix` は何もしない（クーリエが担当へ返した）。`needs_human` は `asked` の行で届く |
+| `<id> merged: <PR>` | approve ＋ `merge: auto` ＋ 委譲の範囲内でマージし、`andon task finish` した | 何もしない（人に言うことがあれば1行） |
+| `<id> asked: 問い <n>（questions.yaml）` | `andon task ask` の問い（担当から、またはゲートの `needs_human` で `from: gate`） | `deck questions --open` と `library/questions/<n>.json` を読み、§8（`from: gate` なら §6） |
 | `… の担当 … が blocked。hc read … で画面を見る` | 何もしない | §4（許可・信頼の画面に答える） |
 | `… が idle のまま N 分、まだ doing` | 何もしない（子のレビュアーのタスク〈`parent: <id>`〉が todo／doing の間は、レビュー待ちなので届かない） | 上の表の `idle` の行（1回だけ続きを促す。2回目は人へ） |
 | `… が working のまま N 分` | 何もしない | 上の表の `working` の行 |
@@ -194,43 +197,39 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 クーリエは、この Chief of Staff の端末が live でない台帳を飛ばす。起き直したら（`andon chief-of-staff --no-attach` で address を合わせたら）次の見回りから届く。
 止まっている間の出来事は、起きたときに台帳を自分で読む（§0）。クーリエの様子は `hc read courier`。
 
-## 6. レビューと検収
+## 6. レビューとゲート（人の判断が要るときだけ）
 
-`Review: on` のタスクでは、**レビューは担当の工程**（worker skill の §4）。Chief of Staff はレビュアーを起こし、検収で commit を照合する。
-指摘の振り分け（`Must fix` 以上を直す・軽いものは見送りに残す）は担当がする。
+**インナーループはクーリエが回す**（`docs/courier.md` §5）。Chief of Staff はターンを使わない:
+担当の `andon task review-request` → クーリエがレビュアーを起こす（`deck add --parent`・detached worktree・`hc run`。依頼書の宛先は担当）→ レビュアーの結果は担当へ届く →
+担当の `andon task ready` → クーリエが `andon gate` を回す → `approve` ＋ `merge: auto` ＋ 委譲の範囲内ならマージして `andon task finish` ／ `fix` は担当へ返す ／ `needs_human` は問い（`from: gate`）。
+Chief of Staff が決めるのは、依頼書の Settings（§2。`review`・`reviewer`・`review_rounds`・`merge`）だけ。レビュアーを手で起こさない・`andon gate` を手で回さない・指摘を中継しない。
 
-### レビュー依頼を受けたら
+### `needs_human` のとき（`<id> asked` で `from: gate`）
 
-担当は `andon task review-request` で `tasks/<id>/library/report.json` に `review_request`（`round`・`limit`・`commit`・`previous`・`reviewer`・`extra`）を書いて `deck report` する（command が `HEAD` ＝ PR の head・回と上限・レビュアーを確かめて書く）。`<news>` の `<id> report` で届く。
-報告の Markdown の `## レビュー依頼` の行は人が読む写しで、判断には使わない。
+1. `tasks/<id>/library/questions/<n>.json`（`facts` に理由・PR・ゲートの記録のパス）と、記録 `library/gate/<head>.json` の `reasons[]` を読む。
+2. 理由が委譲（`delegation: merge=… < tier …`）だけなら照合は通っている。人にマージを頼む（3）。
+   ほかの理由（conflict・base・作者・予約キーを信じられない・Must fix の見送り・同じ head で2度目の Must fix・ゲートが判定できない）は、人へ（§8 の1問ずつ）。
+   直せば済むと人が答えたら、担当へ `hc send` で理由を返す（担当が `deck start` で戻して直し、同じ手順で返す）。
+3. 人にマージを頼む（1行: タスクの番号（題）・PR の URL・何が変わったか・レビューの回数と結果・見送った指摘）。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
+   人がマージしたら §7。
 
-1. `andon task show <id>` の `report.review_request` と `settings` を読む。`report` が無い・`review_request` が無ければ起こさず、担当に `hc send` で理由を返す。
-   `extra: true`（`round > limit`。追加の回）は、上限を使い切っても critical / major が残っているときだけ、Chief of Staff の判断で起こしてよい（人の判断待ちにしない。見るのは `previous..commit` の差分だけ）。
-   minor 以下だけが残っているなら起こさず、見送りに残して進めるよう担当に返す。追加の回でも同じ指摘が続いて収まらないと見たら人へ（§8）。
-2. independent-review の §3・§4 の手順でレビュアーのタスク（`parent: <id>`）を足し、依頼書を組み立て、`andon task start <新しい id>` で起こす。
-   レビューの回ごとに新しいレビュアーのタスクにする（前の回の報告は見せない。再レビューの依頼書には `previous` の commit を書き、差分だけを見させる）。
-3. 人に1行で知らせる（`S-3（返事の下書きボタン）のレビュー（1 回目）を S-4（codex-review）で起こした`）。
-4. レビュアーは報告を書いて `review` にし、担当に `hc send` する（こちらへは `<news>` の `<レビュアーの id> review` で届く）。受けたらレビュアーのタスクの端末だけ片付けてよい
-   （`andon task finish <レビュアーの id>` と、detached の worktree の `git worktree remove`）。
+### approve で止まったとき（`<id> gate: approve` のあと `merged` が来ない）
 
-### 担当が `review` にしたら（検収）
+`merge: person`、または `merge: auto` を最後に書いたのが Chief of Staff でない。人にマージを頼む（上の3と同じ1行）。
 
-方針は現地現物（go and see）: 言われた結果を推さず、実物を読む。
+### 上限を超えた回（`<id> report` で、クーリエがレビュアーを起こさなかった）
 
-1. `andon task show <id>` を読む（`report`＝`commit`・`pr`（ゲートが読む PR の場所）・`waived`・`next`）。人が読む `report.md` は経緯を見るのに使う。
-2. **ゲートに照合させる**: `andon gate <id> --dry-run`（記録も GitHub への書き込みもしない）。PR の head・`report.json`・最新のレビューの `commit`・`Must fix` 以上の残り・検査・レベル・委譲を照合し、
-   `decision` と `reasons[]` を出す。`fix` なら理由を担当に `hc send` で返す。`needs_human` の理由が委譲（`delegation: merge=… < tier …`）だけなら照合は通っている（人がマージする。4 へ）。ほかの `needs_human` は人へ（§8）。`approve` でも 3 を見る。
-3. 完了条件を報告と PR（`gh pr view`・`gh pr checks`）で確かめる。
-4. 人にマージを頼む（1行: タスクの番号（題）・PR の URL・何が変わったか・レビューの回数と結果・見送った指摘）。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
-
-直しが要るとき（検収で見つけたもの・人の指摘）は、担当へ `hc send` で戻す。担当が `deck start` で `doing` に戻し、直したら同じ手順で返す。
+`report.json` の `review_request` の `round` が `review_rounds` を超えた（`extra: true`）。起こすかは Chief of Staff が決める:
+上限を使い切っても critical / major が残っているなら起こす——`deck set <id> review_rounds=<round>` を打てば、クーリエが次の見回りで起こす（見るのは `previous..commit` の差分だけ）。
+minor 以下だけが残っているなら起こさず、見送りに残して `andon task ready` へ進むよう担当に `hc send` で返す。追加の回でも同じ指摘が続いて収まらないと見たら人へ（§8）。
 
 ## 7. 片付け
 
-- `gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon task finish <id>`。
+- クーリエがマージしたもの（`<id> merged`）は、クーリエが `andon task finish` 済み。
+- 人がマージしたものは、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon task finish <id>`（レビュアーの子タスクと detached worktree も片付く）。
   commit していない変更があると止まる。そのときは担当に聞くか、人へ。
 - マージせずにやめるタスクは、**人の go を取ってから** `andon task finish <id>`（branch は残る）。
-- レビュアーのタスクは §6 で片付け済みのはず。残っていれば `andon task finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
+- レビュアーのタスクは、元のタスクの `andon task finish` で片付く。元のタスクをやめずにレビュアーだけ残っていれば `andon task finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
 - 残りの見つけ方（規約4・6）: `deck list`（`doing`・`review` のまま古いもの）、`hc ls --label project=<slug>`、`git worktree list`、`deck lint`。
 
 ## 8. 人への質問
