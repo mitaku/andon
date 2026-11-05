@@ -23,7 +23,8 @@ TYPES = {
     "object": lambda v: isinstance(v, dict),
     "array": lambda v: isinstance(v, list),
     "string": lambda v: isinstance(v, str),
-    "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    # 2020-12 の integer は小数部が 0 の数（1.0 も integer）
+    "integer": lambda v: not isinstance(v, bool) and (isinstance(v, int) or (isinstance(v, float) and v.is_integer())),
     "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
     "boolean": lambda v: isinstance(v, bool),
     "null": lambda v: v is None,
@@ -32,6 +33,30 @@ TYPES = {
 
 class SchemaError(Exception):
     pass
+
+
+def ecma_pattern(pattern):
+    """JSON Schema の pattern（ECMA-262）を Python の re に合わせる。
+
+    違いのうち schema/ に効くのは `$` だけ: ECMA-262（multiline なし）の `$` は入力の末尾だけに合うが、
+    Python の `$` は末尾の改行の前にも合う。文字クラスの外の `$` を `\\Z` に替える。
+    """
+    out, i, in_class = [], 0, False
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "\\":
+            out.append(pattern[i:i + 2])
+            i += 2
+            continue
+        if in_class:
+            in_class = c != "]"
+        elif c == "[":
+            in_class = True
+        elif c == "$":
+            c = r"\Z"
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def same(a, b):
@@ -77,7 +102,7 @@ class Validator:
         if "const" in schema and not same(inst, schema["const"]):
             errs.append(f"{path}: {json.dumps(schema['const'])} でない")
         if isinstance(inst, str):
-            if "pattern" in schema and not re.search(schema["pattern"], inst):
+            if "pattern" in schema and not re.search(ecma_pattern(schema["pattern"]), inst):
                 errs.append(f"{path}: {json.dumps(inst, ensure_ascii=False)} が形 {schema['pattern']} に合わない")
             if "minLength" in schema and len(inst) < schema["minLength"]:
                 errs.append(f"{path}: 短すぎる")
@@ -115,7 +140,8 @@ class Validator:
             n = sum(1 for b in branches if not b)
             if n == 0:
                 # 一番近い枝（理由が最も少ない枝）の理由を添える
-                nearest = min(branches, key=len)
+                # 同じ数なら、理由の場所が深い枝（型の違いより中身の違い）を選ぶ
+                nearest = min(branches, key=lambda b: (len(b), -len(b[0].split(": ")[0])))
                 errs.append(f"{path}: {k} のどれにも合わない（近い枝: {nearest[0]}）")
             elif k == "oneOf" and n > 1:
                 errs.append(f"{path}: oneOf のうち {n} 個に合う（ちょうど1つでない）")
