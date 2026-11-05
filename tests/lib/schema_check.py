@@ -59,6 +59,30 @@ def ecma_pattern(pattern):
     return "".join(out)
 
 
+def divergent(pattern):
+    """ECMA-262 と Python の re で意味が割れる表現を返す（schema/ の pattern には使わない）。
+
+    `.`（行区切り文字 U+2028 などの扱い）と、`\\s` `\\d` `\\w` `\\b` とその大文字（Unicode の範囲）。
+    代わりに明示した ASCII の文字クラスで書く。`$` は ecma_pattern が合わせるので使ってよい。
+    """
+    found, i, in_class = [], 0, False
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "\\":
+            if pattern[i + 1:i + 2] in set("sSdDwWbB"):
+                found.append(pattern[i:i + 2])
+            i += 2
+            continue
+        if in_class:
+            in_class = c != "]"
+        elif c == "[":
+            in_class = True
+        elif c == ".":
+            found.append(".")
+        i += 1
+    return found
+
+
 def same(a, b):
     # JSON の等しさ（True と 1 を区別する）
     if isinstance(a, bool) or isinstance(b, bool):
@@ -191,6 +215,9 @@ def lint_schema(schema):
         for k in ("title", "description"):
             if k in sub and not sub[k].isascii():
                 errs.append(f"{at}.{k}: 英語でない（ASCII の外の字がある）")
+        if isinstance(sub.get("pattern"), str):
+            for d in divergent(sub["pattern"]):
+                errs.append(f"{at}.pattern: ECMA-262 と Python で意味が割れる {d} を使っている（明示した ASCII の文字クラスで書く）")
         for name, prop in sub.get("properties", {}).items():
             if not name.isascii():
                 errs.append(f"{at}: 識別子 {name} が英語でない")

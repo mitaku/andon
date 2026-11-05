@@ -14,7 +14,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 fail=0
 ok()  { echo "ok   $1"; }
-ng()  { echo "FAIL $1"; fail=1; }
+ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 緩めた写しの自己検査は最初の FAIL で止める
 
 # 節の番号 → schema（contract.md の冒頭の表と同じ）
 schema_of() {
@@ -63,6 +63,14 @@ done <<'SELF'
 0|{"type": "string", "pattern": "^a[$]$"}|"a$"|文字クラスの中の $ は字のまま
 SELF
 
+# schema の決まりのうち、ECMA-262 と Python で意味が割れる表現を pattern に使わないこと（使えば lint が落ちる）
+for p in '^a.b$' '^[^/\s]+$' '^\d+$' '^\w+$' '^\bx$'; do
+  jq -n --arg p "$p" '{"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://andon.example.com/schema/x/1",
+                       "description": "x", "type": "string", "pattern": $p}' >"$tmp/div.schema.json"
+  if python3 "$check_py" lint "$tmp/div.schema.json" >/dev/null 2>&1; then ng "検査器: pattern $p が lint を通ってしまう"
+  else ok "検査器: pattern $p は lint で落ちる"; fi
+done
+
 # 2. contract.md の例
 python3 "$check_py" examples docs/contract.md >"$tmp/examples.tsv"
 declare -A first=()   # schema 名 → 最初の例のファイル（3 の元）
@@ -106,6 +114,31 @@ for key in "${!first[@]}"; do
   done
 done
 
+# 入れ子の object の必須のキーと知らないキー（例の key ｜ object を指す jq の道 ｜ 必須のキー。これも schema から読まない）
+while IFS='|' read -r key at keys; do
+  case "$key" in ''|'#'*) continue ;; esac
+  name="${key%-record}"; src="${first[$key]}"
+  expect fail "$name" "$(mutate "$src" "$at += {\"x_unknown\": 1}")" "$key: $at に知らないキーを足すと落ちる"
+  for k in $keys; do
+    expect fail "$name" "$(mutate "$src" "del($at.\"$k\")")" "$key: $at の必須のキー $k を消すと落ちる"
+  done
+done <<'NESTED'
+findings|.findings[0]|severity file line
+report|.review_request|round limit commit previous reviewer extra
+report|.waived[0]|severity file line reason
+report|.acceptance[0]|id result evidence
+report|.next[0]|to text
+question|.options[0]|label pick
+notification|.detail|report pr
+gate|.repos[]|
+gate-record|.review|state must_fix_open waived task commit
+gate-record|.checks[0]|cmd ok
+gate-record|.acceptance|pass fail manual
+gate-record|.delegation|merge ok
+delegation|.grants[0]|id scope value by at evidence
+delegation|.grants[1].revoked|at by reason
+NESTED
+
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
 while IFS='|' read -r want key rest; do
   case "$want" in ''|'#'*) continue ;; esac
@@ -138,6 +171,8 @@ fail|findings|.findings[0].file = "../outside"|file が repo の外（..）
 fail|findings|.findings[0].file = "src/../../outside"|file の途中に ..
 pass|findings|.findings[0].file = "src/main.py"|file が repo からの相対パス
 pass|findings|.findings[0].file = "..hidden/x"|.. で始まる名前は .. の段ではない
+fail|findings|.findings[0].file = "\u2028/../../outside"|file の .. の段の前に行区切り文字 U+2028
+fail|findings|.findings[0].file = "a/\u2028b/../../../outside"|file の途中の段に U+2028
 pass|report|{commit}|commit だけでも通る
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
@@ -149,6 +184,10 @@ pass|report|.review_request.previous = .commit|再レビューの previous が s
 fail|report|.review_request.previous = "HEAD~1"|previous が sha でも null でもない
 fail|report|del(.waived[0].reason)|waived に reason が無い
 fail|report|.waived[0].file = "../x"|waived の file が repo の外
+fail|report|.waived[0].file = "\u2028/../../outside"|waived の file の .. の段の前に U+2028
+fail|report|.pr = "https://github.com/\ufeffowner/andon/pull/1"|pr の owner に BOM（U+FEFF）
+fail|report|.pr = "https://github.com/own er/andon/pull/1"|pr の owner に空白
+fail|report|.pr = "https://github.com/\u00e9/andon/pull/1"|pr の owner に ASCII の外の字
 fail|report|.acceptance[0].result = "ok"|acceptance の result が pass/fail/manual でない
 fail|report|.next[0].to = "human"|next の to が知らない宛先
 fail|report|.remember = "x"|remember が配列でない
@@ -234,6 +273,9 @@ findings|.required -= ["commit"]|findings の必須から commit を外す
 findings|.additionalProperties = true|findings の知らないキーを許す
 gate|."$defs".record.required -= ["decision"]|ゲートの記録の必須から decision を外す
 report|."$defs".sha.pattern = "^[0-9a-f]+$"|sha の桁を緩める
+delegation|."$defs".grant.required -= ["id"]|grant の必須から id を外す
+report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
+findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+$"|file の .. の段の検査を外す
 LOOSE
 fi
 

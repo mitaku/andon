@@ -114,7 +114,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 | キー | 要るか | 読み手 | 意味 |
 |---|---|---|---|
 | `commit` | 必須 | クーリエ・ゲート | 書いた時点の HEAD（40桁・小文字）。`andon task ready` が `HEAD` ＝ `commit` ＝ PR の head を確かめる |
-| `pr` | PR を出したら必須（schema では任意。確かめるのは `andon task ready`） | ゲート・クーリエ | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む |
+| `pr` | PR を出したら必須（schema では任意。確かめるのは `andon task ready`） | ゲート・クーリエ | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む。`https://github.com/<owner>/<repo>/pull/<n>` で、owner と repo は `/` を除く印字できる ASCII |
 | `review_request` | レビューを頼むときだけ。中の6つのキーは全部必須（`previous` は初回 `null`、`round`・`limit` は 1 以上の整数） | クーリエ | クーリエが `kanban add --parent <id>` ＋ detached worktree ＋ `hc run <reviewer>` で起こす。`round` ≤ `limit` でなければ起こさない（`extra: true` なら Chief of Staff の判断待ち）。`previous` があれば再レビュー（差分 `previous..commit` だけ）。`commit` が PR の head と違えば起こさない |
 | `waived` | 任意 | トリアージ・振り返り | 見送った指摘（`findings.json` と同じ3つ ＋ `reason`） |
 | `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command かユースケースの実行の跡のパス。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |

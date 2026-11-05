@@ -36,7 +36,7 @@
         "file": {
           "description": "Path relative to the repository root: not empty, no control characters, not absolute, no .. segment.",
           "type": "string",
-          "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$"
+          "pattern": "^(?!/)(?!(?:[^/]*/)*\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$"
         },
         "line": {
           "description": "Line number, 1 or more.",

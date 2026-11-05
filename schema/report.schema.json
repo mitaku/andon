@@ -12,9 +12,9 @@
       "$ref": "#/$defs/sha"
     },
     "pr": {
-      "description": "URL of the task's pull request. The gate reads only this.",
+      "description": "URL of the task's pull request; owner and repo are printable ASCII without /. The gate reads only this.",
       "type": "string",
-      "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$"
+      "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$"
     },
     "review_request": {
       "description": "Present only when asking for a review. The courier starts the reviewer.",
@@ -59,7 +59,7 @@
         "additionalProperties": false,
         "properties": {
           "severity": { "description": "As in findings.json.", "enum": ["critical", "major", "minor", "trivial"] },
-          "file": { "description": "As in findings.json (relative, no .. segment).", "type": "string", "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$" },
+          "file": { "description": "As in findings.json (relative, no .. segment).", "type": "string", "pattern": "^(?!/)(?!(?:[^/]*/)*\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$" },
           "line": { "description": "As in findings.json.", "type": "integer", "minimum": 1 },
           "reason": { "description": "Why it was not fixed.", "type": "string", "minLength": 1 }
         }

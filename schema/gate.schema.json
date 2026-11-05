@@ -57,7 +57,7 @@
       "properties": {
         "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
         "id": { "description": "Task id.", "type": "string", "pattern": "^[^/\\\\:]+$", "not": { "enum": [".", ".."] } },
-        "pr": { "description": "URL of the pull request.", "type": "string", "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$" },
+        "pr": { "description": "URL of the pull request; owner and repo are printable ASCII without /.", "type": "string", "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$" },
         "head": { "description": "PR head the gate judged.", "$ref": "#/$defs/sha" },
         "tier": { "description": "Tier of the change.", "$ref": "#/$defs/tier" },
         "tier_reasons": { "description": "Why the tier, one line each.", "type": "array", "items": { "type": "string" } },
