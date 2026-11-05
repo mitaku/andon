@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/task-keys/1",
+  "title": "Andon reserved keys in a ledger task",
+  "description": "The keys Andon reserves in tasks/<id>/task.yaml, as readers take them from `kanban show <id> --json` (.task). The ledger format allows and keeps any other key, so other keys are not checked here. The Chief of Staff writes these keys with `kanban set`, which stores every value as a string. A missing or unknown value is treated as missing by readers (the gate answers needs_human); keys with a default say so.",
+  "type": "object",
+  "properties": {
+    "review": {
+      "description": "Whether an independent review is part of the task. Missing: the gate answers needs_human and the courier does not start a reviewer.",
+      "enum": ["on", "off"]
+    },
+    "must_fix": {
+      "description": "Findings of this severity or heavier must be fixed by the task's agent. Missing: the gate answers needs_human.",
+      "enum": ["critical", "major", "minor", "trivial"]
+    },
+    "reviewer": {
+      "description": "Reviewer profile. Default: the other brand than the implementing profile (Claude -> codex-review, Codex -> claude-review).",
+      "enum": ["codex-review", "claude-review"]
+    },
+    "review_rounds": {
+      "description": "Upper limit of review rounds, an integer of 1 or more written as a string (kanban set stores strings). Default: \"2\".",
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "merge": {
+      "description": "auto: the courier may merge after the gate approves, within the delegation. person: stop and notify the person. Default: person. It can only narrow the delegation.",
+      "enum": ["auto", "person"]
+    },
+    "machine": {
+      "description": "Machine name in the terminal host where the worker and reviewer run. Default: the same machine as the Chief of Staff.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    }
+  }
+}

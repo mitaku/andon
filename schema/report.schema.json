@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/report/1",
+  "title": "Machine part of a task report",
+  "description": "tasks/<id>/library/report.json, written by the task's agent right before `kanban report`, whole each time. Only these keys. pr is required once a PR is open; that is checked by `andon task ready`, not by this schema.",
+  "type": "object",
+  "required": ["commit"],
+  "additionalProperties": false,
+  "properties": {
+    "commit": {
+      "description": "HEAD when the report was written.",
+      "$ref": "#/$defs/sha"
+    },
+    "pr": {
+      "description": "URL of the task's pull request; owner and repo are printable ASCII without /. The gate reads only this.",
+      "type": "string",
+      "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$"
+    },
+    "review_request": {
+      "description": "Present only when asking for a review. The courier starts the reviewer.",
+      "type": "object",
+      "required": ["round", "limit", "commit", "previous", "reviewer", "extra"],
+      "additionalProperties": false,
+      "properties": {
+        "round": {
+          "description": "This round, counted from 1.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "limit": {
+          "description": "review_rounds of the task. The courier starts a reviewer only when round <= limit.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "commit": {
+          "description": "The commit to review. Must be the PR head.",
+          "$ref": "#/$defs/sha"
+        },
+        "previous": {
+          "description": "The commit of the previous round; only previous..commit is reviewed again. null on the first round.",
+          "anyOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }]
+        },
+        "reviewer": {
+          "description": "Reviewer profile.",
+          "enum": ["codex-review", "claude-review"]
+        },
+        "extra": {
+          "description": "true for a round beyond the limit; the Chief of Staff decides whether to start it.",
+          "type": "boolean"
+        }
+      }
+    },
+    "waived": {
+      "description": "Findings left unfixed, with the reason.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "file", "line", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "severity": { "description": "As in findings.json.", "enum": ["critical", "major", "minor", "trivial"] },
+          "file": { "description": "As in findings.json (relative, no .. segment).", "type": "string", "pattern": "^(?!/)(?!(?:[^/]*/)*\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$" },
+          "line": { "description": "As in findings.json.", "type": "integer", "minimum": 1 },
+          "reason": { "description": "Why it was not fixed.", "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "acceptance": {
+      "description": "Results against the acceptance criteria of the Chief Engineer's document, when there are any.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "result", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "description": "Number of the acceptance criterion (A1, ...).", "type": "string", "minLength": 1 },
+          "result": { "description": "fail makes the gate answer fix; manual raises the tier by one.", "enum": ["pass", "fail", "manual"] },
+          "evidence": { "description": "The test command, or the path of the trace of a use case run.", "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "next": {
+      "description": "Next steps, each addressed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["to", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "to": { "description": "person, chief-of-staff, or task (to be cut into a next task).", "enum": ["person", "chief-of-staff", "task"] },
+          "text": { "description": "One line, imperative.", "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "remember": {
+      "description": "Machine copy of the report's Remember section.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "agents_md": {
+      "description": "Machine copy of the report's For AGENTS.md lines.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "description": "A full git commit id: 40 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    }
+  }
+}

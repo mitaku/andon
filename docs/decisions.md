@@ -132,3 +132,20 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | 移す間の互換: `deck` の alias は 1 版だけ。形式 v2 のまま、`.flightdeck/` も `FLIGHTDECK_ROOT` も変えない（環境変数の名前は形式の一部）。改名は v3 と一緒で、alias の版では両方読む（K5） | herdr-flightdeck の記録（private）相談への回答 K5 |
 | 2026-11-05 | v3 は版を上げないと変えられないものだけ: `.flightdeck/` → `.kanban/`、`FLIGHTDECK_ROOT` → `KANBAN_ROOT`、予約キーの正式化、問いの形（F2）。足す変更（F3〜F6）は v3 を待たない。移行の道具 `kanban migrate`（フォルダ名と `version` の書き換え）を付ける。向こうの板の対応は v3 の tag の前に Andon から知らせを受けて出す（K6） | herdr-flightdeck の記録（private）相談への回答 K6 |
 | 2026-11-05 | 移したあとの台帳の CLI と形式の持ち主は Andon。知らせは双方向: 向こうから Andon へは要望を、Andon から向こうへは形式の変更（版・新しいキー・ラベル名）を tag の前に。向こうが持ち続けるのは mod の読み方と Web ボードの畳み方（K7） | herdr-flightdeck の記録（private）相談への回答 K7 |
+
+## 8. P2 での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | schema は JSON Schema draft 2020-12（台帳の形式の schema と同じ）。`$id` は `https://andon.example.com/schema/<名前>/<版>` | P2 の担当の推し（contract.md §10） |
+| 2026-11-05 | schema の検査は python3 の標準ライブラリで書いた小さな検査器（`tests/lib/schema_check.py`）。使うキーワードだけを実装し、知らないキーワードがあれば検査できないとして落ちる。建屋に JSON Schema の検査器が無く、勝手に入れないため | P2 の担当の推し（依頼書「道具は建屋に今あるもので」） |
+| 2026-11-05 | schema は書き手の約束として知らないキーを拒む（`additionalProperties: false`）。台帳の項目（`task-keys`）だけは台帳の形式に倣って許す | P2 の依頼書の完了条件（知らないキーの例が落ちる）・contract.md §0 の 4 |
+| 2026-11-05 | 台帳の項目の値は文字列（`kanban set` が文字列で書く）。`review_rounds` は `"2"` | P2 で `deck set` を実測 |
+| 2026-11-05 | ゲートの記録の `review.state` に `off`（タスクが `review: off`）を足す | P2 の担当の推し（contract.md §7 に無かった） |
+| 2026-11-05 | 検査器の pattern は ECMA-262 の意味に合わせる（`$` は末尾の改行の前に合わない）。`integer` は小数部が 0 の数（`1.0`）も受ける | P2 の独立レビュー 1 回目の指摘 |
+| 2026-11-05 | 日付・時刻は暦にある値だけを通す（うるう年まで pattern で見る）。`findings[].file`・`waived[].file` は絶対パスと `..` の段を拒む。ゲートの記録の `review` は `state` ごとに `task`・`commit` の有無を決める | P2 の独立レビュー 1 回目の指摘 |
+| 2026-11-05 | `tests/schema.sh` の必須キーの期待値は schema から読まずテストに固定し、制約を緩めた schema の写しで検査全体が落ちることを自己検査する | P2 の独立レビュー 1 回目の指摘 |
+| 2026-11-05 | schema の pattern には ECMA-262 と Python で意味が割れる表現（`.`・`\s`・`\d`・`\w`・`\b`）を使わず、明示した ASCII の文字クラスで書く（lint が落とす）。検査器を ECMA-262 に寄せることはしない（`$` の置き換えだけ残す） | P2 の独立レビュー 2 回目の指摘・Chief of Staff の方針 |
+| 2026-11-05 | 入れ子の object の必須のキーも、テストに固定した期待値で検査する（委譲の grant の `id` など） | P2 の独立レビュー 2 回目の指摘 |

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/question/1",
+  "title": "Question to the person",
+  "description": "tasks/<id>/library/questions/<n>.json, where n is the number the ledger gave the question. Written by whoever asks. A command checks it, renders the person's text from it and runs `kanban ask`. Only these keys.",
+  "type": "object",
+  "required": ["kind", "question", "options"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "description": "Which of the five decision kinds; line is a change to the line.",
+      "enum": ["business", "users", "promise", "irreversible", "line"]
+    },
+    "question": {
+      "description": "The question itself, one line.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\n]*$"
+    },
+    "facts": {
+      "description": "Facts, as paths or URLs rather than copies. A question outside the delegation has one line naming the delegation it is outside of.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "reason": {
+      "description": "Why the decision is needed.",
+      "type": "string",
+      "minLength": 1
+    },
+    "options": {
+      "description": "Two or more options. The first one is the recommendation (pick: true); no other option has pick: true.",
+      "type": "array",
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/option",
+          "required": ["pick"],
+          "properties": { "pick": { "description": "The recommendation.", "const": true } }
+        }
+      ],
+      "items": {
+        "$ref": "#/$defs/option",
+        "properties": { "pick": { "description": "Only the first option is picked.", "const": false } }
+      }
+    },
+    "remaining": {
+      "description": "How many questions follow this one.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "from": {
+      "description": "Who asks.",
+      "enum": ["task", "gate", "retro", "chief-of-staff", "chief-engineer"]
+    }
+  },
+  "$defs": {
+    "option": {
+      "description": "One option.",
+      "type": "object",
+      "required": ["label"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "description": "The option, short.", "type": "string", "minLength": 1 },
+        "pick": { "description": "true only on the recommended option.", "type": "boolean" }
+      }
+    }
+  }
+}

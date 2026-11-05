@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/notification/1",
+  "title": "Courier notification",
+  "description": "A notification inside the courier. The text in <news> is rendered from it only when it is delivered. detail depends on kind. Only these keys.",
+  "type": "object",
+  "required": ["at", "project", "kind", "detail"],
+  "additionalProperties": false,
+  "properties": {
+    "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "$ref": "#/$defs/time" },
+    "project": { "description": "Project slug.", "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "task": { "description": "Task id, when the notification is about a task.", "$ref": "#/$defs/id" },
+    "kind": {
+      "description": "What happened.",
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "blocked", "error", "finished", "stalled"]
+    },
+    "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "kind": { "const": "report" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/report" } } } },
+    { "if": { "properties": { "kind": { "const": "review" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/review" } } } },
+    { "if": { "properties": { "kind": { "const": "asked" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/asked" } } } },
+    { "if": { "properties": { "kind": { "const": "ready" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/ready" } } } },
+    { "if": { "properties": { "kind": { "const": "review-requested" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/review-requested" } } } },
+    { "if": { "properties": { "kind": { "const": "gate" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/gate" } } } },
+    { "if": { "properties": { "kind": { "const": "merged" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/merged" } } } },
+    { "if": { "properties": { "kind": { "enum": ["blocked", "error", "finished", "stalled"] } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } }
+  ],
+  "$defs": {
+    "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
+    "id": { "description": "A ledger task id: no /, \\ or :, and not . or ...", "type": "string", "pattern": "^[^/\\\\:]+$", "not": { "enum": [".", ".."] } },
+    "path": { "description": "An absolute path.", "type": "string", "pattern": "^/" },
+    "pr": { "description": "URL of a pull request; owner and repo are printable ASCII without /.", "type": "string", "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$" },
+    "report": {
+      "description": "kind report: from {\"report\": \"write\" | \"append\"} in log.jsonl.",
+      "type": "object", "required": ["report"], "additionalProperties": false,
+      "properties": { "report": { "description": "Path of report.md.", "$ref": "#/$defs/path" } }
+    },
+    "review": {
+      "description": "kind review: from {\"status\": \"review\"}.",
+      "type": "object", "required": ["report", "pr"], "additionalProperties": false,
+      "properties": {
+        "report": { "description": "Path of report.md.", "$ref": "#/$defs/path" },
+        "pr": { "description": "From report.json.", "$ref": "#/$defs/pr" }
+      }
+    },
+    "asked": {
+      "description": "kind asked: from {\"question\": n, \"status\": \"open\"}, filled from the question JSON.",
+      "type": "object", "required": ["n", "kind", "question"], "additionalProperties": false,
+      "properties": {
+        "n": { "description": "Question number in the task.", "type": "integer", "minimum": 1 },
+        "kind": { "description": "As in question.json.", "enum": ["business", "users", "promise", "irreversible", "line"] },
+        "question": { "description": "As in question.json.", "type": "string", "minLength": 1 }
+      }
+    },
+    "ready": {
+      "description": "kind ready: a task that became ready since last time (person tasks excluded).",
+      "type": "object", "required": ["title"], "additionalProperties": false,
+      "properties": {
+        "title": { "description": "Task title.", "type": "string" },
+        "routine": { "description": "Routine that added the task, if any.", "type": "string", "minLength": 1 }
+      }
+    },
+    "review-requested": {
+      "description": "kind review-requested: the courier started a reviewer for review_request.",
+      "type": "object", "required": ["round", "reviewer", "reviewer_task"], "additionalProperties": false,
+      "properties": {
+        "round": { "description": "As in review_request.", "type": "integer", "minimum": 1 },
+        "reviewer": { "description": "Reviewer profile.", "enum": ["codex-review", "claude-review"] },
+        "reviewer_task": { "description": "The reviewer's task id.", "$ref": "#/$defs/id" }
+      }
+    },
+    "gate": {
+      "description": "kind gate: the result of `andon gate` run by the courier.",
+      "type": "object", "required": ["decision", "reasons", "record"], "additionalProperties": false,
+      "properties": {
+        "decision": { "description": "As in the gate record.", "enum": ["approve", "fix", "needs_human"] },
+        "reasons": { "description": "As in the gate record.", "type": "array", "items": { "type": "string" } },
+        "record": { "description": "Path of the gate record.", "$ref": "#/$defs/path" }
+      }
+    },
+    "merged": {
+      "description": "kind merged: the courier merged and finished the task.",
+      "type": "object", "required": ["pr", "sha"], "additionalProperties": false,
+      "properties": {
+        "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
+        "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "terminal": {
+      "description": "kind blocked, error, finished, stalled: the terminal host's state. No screen text.",
+      "type": "object", "required": ["agent", "status_ms"], "additionalProperties": false,
+      "properties": {
+        "agent": { "description": "Terminal address.", "type": "string", "minLength": 1 },
+        "status_ms": { "description": "status_ms of the terminal host: Unix time in milliseconds when it entered this state.", "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
