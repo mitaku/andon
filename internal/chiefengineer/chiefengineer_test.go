@@ -156,12 +156,15 @@ func TestStartsChiefEngineer(t *testing.T) {
 		"kanban set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
 		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label task=S-7 --label title=Billing の設計 --cwd " + f.wt() + " chief-engineer タスク `sample-site/S-7`。",
 		"依頼書は `" + f.root + "/.flightdeck/tasks/S-7/brief.md`。",
-		"先に `/opt/andon-test/skills/chief-engineer/SKILL.md` を読む。",
 		"kanban start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
 	}
 	if len(calls) != len(want) {
 		t.Fatalf("calls:\n%s", strings.Join(calls, "\n"))
+	}
+	// skill はプロファイルの command が system prompt に足す（ADR-0001 決定 3）。最初のメッセージで読ませない
+	if all := strings.Join(calls, "\n"); strings.Contains(all, "SKILL.md") || strings.Contains(all, "先に") {
+		t.Errorf("最初のメッセージに「先に読む」の行が残る:\n%s", all)
 	}
 	for i := range want {
 		if !strings.HasPrefix(calls[i], want[i]) {
@@ -341,12 +344,5 @@ func TestShortTitle(t *testing.T) {
 		if got := shortTitle(in); got != want {
 			t.Errorf("shortTitle(%q)=%q want %q", in, got, want)
 		}
-	}
-}
-
-func TestDefaultHome(t *testing.T) {
-	t.Setenv("ANDON_HOME", "")
-	if h := home(); h != "/opt/andon" {
-		t.Errorf("home=%q", h)
 	}
 }
