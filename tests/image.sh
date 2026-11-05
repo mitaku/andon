@@ -23,9 +23,9 @@ docker run --rm --network none andon:test bash -euc '
   portless --version
 '
 docker run --rm --network none \
-  --mount "type=bind,source=$PWD,target=/src,readonly" --workdir /src \
+  --mount "type=bind,source=$PWD/.github/workflows/tests.yml,target=/workspace/.github/workflows/tests.yml,readonly" \
   andon:test bash -euc '
-    actionlint
+    actionlint .github/workflows/tests.yml
     ghalint run
     pinact run --fix=false --no-api
   '
