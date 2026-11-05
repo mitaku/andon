@@ -1,0 +1,10 @@
+registries:
+  - type: standard
+    ref: semver("= 4.579.0")
+  - name: andon
+    type: local
+    path: registry.yaml
+packages:
+  - registry: standard
+  - registry: andon
+    name: herdrdev/herdr-core

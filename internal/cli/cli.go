@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 
+	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/publish"
 	"andon/internal/triage"
@@ -65,6 +66,12 @@ var commands = []command{
 		usage: triage.Usage +
 			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
 		run: triage.Main,
+	},
+	{
+		name:  "boot",
+		about: "パッケージから建屋へ配布物を生成し、portless・sshd・クーリエを起こす（毎起動）",
+		usage: boot.Usage,
+		run:   boot.Main,
 	},
 	{
 		name:  "gate",

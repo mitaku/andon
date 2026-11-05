@@ -1,0 +1,19 @@
+packages:
+  - name: herdrdev/herdr-core
+    type: http
+    repo_owner: herdrdev
+    repo_name: herdr-core
+    description: herdr-core (hc) - terminal core for agents
+    url: https://releases.herdr.dev/core/{{trimV .Version}}/herdr-core-{{.OS}}-{{.Arch}}.tar.gz
+    format: tar.gz
+    replacements:
+      amd64: x86_64
+      arm64: aarch64
+      darwin: macos
+    supported_envs:
+      - linux
+      - darwin
+    files:
+      - name: herdr-core
+      - name: hc
+        src: herdr-core
