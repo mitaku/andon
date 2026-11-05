@@ -106,13 +106,11 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return exitUsage
 		}
 	}
-	var in struct {
-		LastAssistantMessage string `json:"last_assistant_message"`
-	}
+	var in hookInput
 	if b, _ := io.ReadAll(stdin); len(bytes.TrimSpace(b)) > 0 {
-		json.Unmarshal(b, &in) // 読めなければ空のまま（news.replied を書かないだけ）
+		json.Unmarshal(b, &in) // 読めなければ空のまま（turn の照合が緩くなり、news.replied を書かないだけ）
 	}
-	out, err := drain(slug, context, in.LastAssistantMessage)
+	out, err := drain(slug, context, in)
 	if err != nil {
 		fmt.Fprintf(stderr, "andon courier drain: %v（通す）\n", err)
 		return 0
@@ -125,7 +123,33 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func drain(slug string, context bool, last string) (any, error) {
+// hookInput は Claude Code のフックの入力のうち drain が読むもの。
+type hookInput struct {
+	SessionID            string `json:"session_id"`
+	PromptID             string `json:"prompt_id"`
+	StopHookActive       bool   `json:"stop_hook_active"`
+	LastAssistantMessage string `json:"last_assistant_message"`
+}
+
+// sameTurn は、Stop の入力 in が、フックで <news> を渡した turn（h）の終わりか。
+// prompt_id（と session_id）があれば照合する。Stop の block で渡したものは続きの turn（stop_hook_active）の終わりだけ。
+func sameTurn(h *HookNews, addr string, in hookInput) bool {
+	if h.Terminal != addr {
+		return false
+	}
+	if h.Via == "stop" && !in.StopHookActive {
+		return false
+	}
+	if h.SessionID != "" && in.SessionID != "" && h.SessionID != in.SessionID {
+		return false
+	}
+	if h.PromptID != "" && in.PromptID != "" {
+		return h.PromptID == in.PromptID
+	}
+	return true
+}
+
+func drain(slug string, context bool, in hookInput) (any, error) {
 	addr := os.Getenv("HC_TERMINAL_ID")
 	var self *terminal
 	if addr != "" {
@@ -145,24 +169,53 @@ func drain(slug string, context bool, last string) (any, error) {
 		return nil, err
 	}
 	defer unlock()
-	st, first, err := LoadState(slug)
+	st, _, err := LoadState(slug)
 	if err != nil {
 		return nil, err
 	}
 	changed := false
-	// 前にフックで渡した <news> の答え（Stop だけが答えを持つ）。<no-reply> だけなら、ボードはその turn を人が見る返事に数えない
-	if !context && st.Hook != "" {
-		if st.Hook == addr && strings.TrimSpace(last) == "<no-reply>" && self != nil {
-			label(addr, self.Turn)
+	// 前にフックで渡した <news>。渡した turn が Stop で終わったら確かめ済み（答えが <no-reply> だけなら news.replied を書く）。
+	// 終わりを見ないまま別の turn が来た（人が中断した・フックの出力が捨てられた）なら、まだ届けていない1回目の分だけ届け直す
+	var again []Notification
+	if h := st.Hook; h != nil {
+		if !context && sameTurn(h, addr, in) {
+			if strings.TrimSpace(in.LastAssistantMessage) == "<no-reply>" && self != nil {
+				label(addr, self.Turn)
+			}
+		} else {
+			again = h.News // 届け直しは1回だけ（h.Again は捨てる）
 		}
-		st.Hook, changed = "", true
+		st.Hook, changed = nil, true
+	}
+	ns := append([]Notification{}, again...)
+	retry := map[string]bool{}
+	for _, n := range again {
+		retry[n.Task+"\x00"+n.Kind] = true
+	}
+	for _, n := range st.Pending {
+		delete(retry, n.Task+"\x00"+n.Kind) // 新しい1件に置き換わったものは1回目として数える
+		tmp := State{Pending: ns}
+		tmp.Push(n)
+		ns = tmp.Pending
 	}
 	var news string
-	if len(st.Pending) > 0 {
-		news = Render(slug, st.Pending)
-		st.Pending, st.Hook, changed = []Notification{}, addr, true
+	if len(ns) > 0 {
+		news = Render(slug, ns)
+		h := &HookNews{Terminal: addr, Via: "stop", SessionID: in.SessionID, PromptID: in.PromptID}
+		if context {
+			h.Via = "prompt"
+		}
+		for _, n := range ns {
+			if retry[n.Task+"\x00"+n.Kind] {
+				h.Again = append(h.Again, n)
+			} else {
+				h.News = append(h.News, n)
+			}
+		}
+		st.Pending, st.Hook, changed = []Notification{}, h, true
 	}
-	if changed && !first {
+	if changed {
+		// 書けてから渡す（書けなければ通す。待ちは控えに残り、次の口で届く）
 		if err := st.Save(slug); err != nil {
 			return nil, err
 		}
@@ -174,8 +227,7 @@ func drain(slug string, context bool, last string) (any, error) {
 		return map[string]any{"decision": "block", "reason": news}, nil
 	}
 	ctx := news
-	var d bytes.Buffer
-	var dc bytes.Buffer
+	var d, dc bytes.Buffer
 	if delegate.Main([]string{"show", "--json", "--project", slug}, nil, &d, io.Discard) == 0 && json.Compact(&dc, d.Bytes()) == nil {
 		if ctx != "" {
 			ctx += "\n"

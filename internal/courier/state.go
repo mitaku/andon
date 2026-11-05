@@ -50,7 +50,18 @@ type State struct {
 	Pending   []Notification      `json:"pending"`             // 待ちの通知（drain.go のフックと deliver.go の離席時の hc send が届ける）
 	Coord     string              `json:"coord,omitempty"`     // 離席時に送った Chief of Staff の端末（替わったら NewsTurn を捨てる）
 	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（courier.md §4.1 の c）
-	Hook      string              `json:"hook,omitempty"`      // フックで <news> を渡した端末（次の Stop で <no-reply> を見る）
+	Hook      *HookNews           `json:"hook,omitempty"`      // フックで渡して、その turn の終わりをまだ見ていない <news>
+}
+
+// HookNews はフックで渡した <news>（courier.md §3）。渡した turn の Stop で確かめ済みにする。
+// 確かめないまま別の turn が来たら、News だけを1回届け直す（Again は届け直した分で、もう届け直さない）。
+type HookNews struct {
+	Terminal  string         `json:"terminal"`
+	Via       string         `json:"via"` // stop（block の reason）・prompt（additionalContext）
+	SessionID string         `json:"session_id,omitempty"`
+	PromptID  string         `json:"prompt_id,omitempty"`
+	News      []Notification `json:"news,omitempty"`
+	Again     []Notification `json:"again,omitempty"`
 }
 
 // StatePath は控えの置き場。
