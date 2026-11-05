@@ -91,3 +91,24 @@ func TestDecodeRejectsNullAndWrongTypes(t *testing.T) {
 		t.Error("findings.json: findings が null で通ってしまう")
 	}
 }
+
+// encoding/json はキーを大文字小文字を区別せず当てる。入口は名前の完全一致だけを受ける
+func TestDecodeRejectsCaseVariantKeys(t *testing.T) {
+	r := `{"commit":"` + sha + `"}`
+	for name, bad := range map[string]string{
+		"Commit":               strings.Replace(r, `"commit"`, `"Commit"`, 1),
+		"PR が null":            strings.Replace(r, `}`, `,"PR":null}`, 1),
+		"Pr が型違い":              strings.Replace(r, `}`, `,"Pr":12}`, 1),
+		"review_request.Extra": strings.Replace(r, `}`, `,"review_request":{"round":1,"limit":2,"commit":"`+sha+`","previous":null,"reviewer":"codex-review","Extra":false}}`, 1),
+	} {
+		if _, err := ParseReport([]byte(bad)); err == nil {
+			t.Errorf("report.json: %s: 通ってしまう", name)
+		}
+	}
+	if _, err := ParseQuestion([]byte(`{"kind":"users","question":"q","options":[{"label":"a","pick":true},{"Label":"b"}]}`)); err == nil {
+		t.Error("問い: options[1].Label が通ってしまう")
+	}
+	if err := Decode([]byte(`{"commit":"`+sha+`","findings":[],"Findings":null}`), &Findings{}); err == nil {
+		t.Error("findings.json: Findings: null が通ってしまう")
+	}
+}

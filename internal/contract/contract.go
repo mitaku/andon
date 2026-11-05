@@ -48,7 +48,7 @@ func RelPath(s string) bool {
 
 // Decode は JSON を v に読む（約束の JSON の入口は全部これ）。schema と同じく厳しく読む:
 // 知らないキー・型違い・後ろの余りは誤り。存在するキーの null も誤り（Go は null を nil・ゼロ値として黙って受けるので、
-// 先に生の JSON を型に沿って歩いて拒む）。null を許すのは struct の tag に `andon:"nullable"` を書いたキーだけ。
+// 先に生の JSON を型に沿って歩いて拒む）。キーは struct の json の名前と完全に一致すること（大小文字違いは知らないキー）。null を許すのは struct の tag に `andon:"nullable"` を書いたキーだけ。
 func Decode(b []byte, v any) error {
 	var raw any
 	rd := json.NewDecoder(bytes.NewReader(b))
@@ -88,6 +88,18 @@ func noNull(raw any, t reflect.Type, at string) error {
 		m, ok := raw.(map[string]any)
 		if !ok {
 			return nil // 型違いは json の Decode が拒む
+		}
+		// encoding/json はキーを大文字小文字を区別せずに当てるので、名前が完全に一致しないキーは知らないキーとして先に拒む
+		known := map[string]bool{}
+		for i := 0; i < t.NumField(); i++ {
+			if name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ","); name != "" && name != "-" {
+				known[name] = true
+			}
+		}
+		for k := range m {
+			if !known[k] {
+				return fmt.Errorf("%s に知らないキー %q", at, k)
+			}
 		}
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)

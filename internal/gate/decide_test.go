@@ -139,12 +139,15 @@ func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
 	_, file, _, _ := runtime.Caller(0)
 	pkg := filepath.Join(filepath.Dir(file), "..", "..", "package")
 	for name, local := range map[string]string{
-		"check が null":        `{"repos": {"github.com/example/app": {"check": null}}}`,
-		"repos の値が null":      `{"repos": {"github.com/example/app": null}}`,
-		"tier_c_paths が null": `{"tier_c_paths": null}`,
-		"check が文字列":          `{"repos": {"github.com/example/app": {"check": "bash x"}}}`,
-		"check の要素が null":     `{"repos": {"github.com/example/app": {"check": [null]}}}`,
-		"知らないキー":              `{"repos": {"github.com/example/app": {"checks": ["x"]}}}`,
+		"check が null":         `{"repos": {"github.com/example/app": {"check": null}}}`,
+		"repos の値が null":       `{"repos": {"github.com/example/app": null}}`,
+		"tier_c_paths が null":  `{"tier_c_paths": null}`,
+		"check が文字列":           `{"repos": {"github.com/example/app": {"check": "bash x"}}}`,
+		"check の要素が null":      `{"repos": {"github.com/example/app": {"check": [null]}}}`,
+		"知らないキー":               `{"repos": {"github.com/example/app": {"checks": ["x"]}}}`,
+		"Check が null（大小文字違い）": `{"repos": {"github.com/example/app": {"Check": null}}}`,
+		"Check が文字列（大小文字違い）":   `{"repos": {"github.com/example/app": {"Check": "true"}}}`,
+		"Repos（大小文字違い）":        `{"Repos": {}}`,
 	} {
 		ws := ownerPlant(t, local)
 		if _, warn, err := LoadTable(pkg, ws); err == nil {
