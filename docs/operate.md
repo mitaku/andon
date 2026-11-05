@@ -75,6 +75,31 @@ bin/bootstrap host-install
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
 - **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。
 
+### 手元の端末から SSH で入る
+
+`host-install` が置いた ssh config（`~/.ssh/config.d/andon-home.conf`）の `Host andon-home` で、手元の端末から建屋の中へ入る。sshd は**公開鍵が置いてあるときだけ**起きる。鍵は人の手元にある既存のものを使う（作り方はここでは扱わない）。
+
+```bash
+cd ~/src/andon-home
+git check-ignore .ssh/authorized_keys     # .ssh/ が .gitignore 済みか（パスが出ればよい）
+mkdir -p .ssh && chmod 700 .ssh
+cat ~/.ssh/<公開鍵のファイル>.pub >> .ssh/authorized_keys     # <公開鍵のファイル> は自分の .pub（例 id_ed25519.pub）
+chmod 600 .ssh/authorized_keys
+bin/bootstrap down && bin/bootstrap up    # 起こし直す（動いているときの up は何もしない）
+bin/bootstrap logs                        # 確かめたら Ctrl-C
+ssh andon-home
+```
+
+- 建屋の repo はコンテナの `/workspace` に載っているので、ホストで置いた `.ssh/authorized_keys` を boot が読み、建屋の中の `~/.ssh/authorized_keys` に写す。ホスト鍵は volume に残るので、作り直しても変わらない。
+- `git check-ignore` が何も出さなければ、`.ssh/` が `.gitignore` に無い。公開鍵を commit しないよう、先に `.gitignore` に `.ssh/` を足す。
+- **通ったら見えるもの**: ログに `sshd を起動した（コンテナの 22 番。ホスト側の番号は .env の SSH_PORT）`。`ssh andon-home` で建屋の中のシェルに入り、`hostname` が slug（`home`）。ssh config の `LocalForward` で、手元のブラウザから portless の名前（`http://<app>.home.localhost:<PORTLESS_PORT>`）も引ける。
+- **落ちたら見る所**:
+  - ログに `ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）` — `.ssh/authorized_keys` が無い。置く場所は建屋の repo の直下（`~/src/andon-home/.ssh/`）。置いたあと、`down` → `up` で起こし直す。
+  - `Connection refused`・`Connection timed out` — `.env` の `SSH_PORT` と、ssh config の `Port` が同じか（`.env` を変えたあと `host-install` を打ち直すなら、古い `~/.ssh/config.d/andon-home.conf` を退避してから。`host-install` は今あるファイルを上書きしない）。ほかの建屋や別のものと `SSH_PORT` が重なると、compose の起動がポート使用中で落ちる（3 の落ちたら見る所）。
+  - `Permission denied (publickey)` — `authorized_keys` に入っている公開鍵が、手元でつかわれる鍵と対か。`ssh -v andon-home` で提示された鍵を見る。置いたあとで起こし直していないときも同じ（boot が起動時に写す）。
+  - `ssh: Could not resolve hostname andon-home` — `~/.ssh/config` の先頭に `Include config.d/*` の1行が無い。`host-install` の出力が案内する1行を足す。
+  - 初回の `REMOTE HOST IDENTIFICATION HAS CHANGED`（同じ `SSH_PORT` で別の建屋に入ったとき）— `ssh-keygen -R "[127.0.0.1]:<SSH_PORT>"` で手元の `known_hosts` の古い行を消す。
+
 ### Herdr App の名前付け mod
 
 同じ `host-install` が App の設定フォルダの `mods/andon/` に名前付け mod を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存のディレクトリは、不完全でも中身を補わずそのまま残す。更新するときは退避してから打ち直す。
