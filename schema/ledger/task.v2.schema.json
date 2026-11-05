@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "flightdeck ledger task.yaml (format 2)",
+  "description": "A .flightdeck/tasks/<id>/task.yaml, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. The folder's name is the task's id. Any other key is allowed and kept. status is one of config.yaml columns, which a schema of one file can't check.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Same as the folder name. One plain name: no /, \\ or :, and not . or ...",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": { "enum": [".", ".."] }
+    },
+    "title": {
+      "description": "Required to be a useful task; a task without one is listed with no title.",
+      "type": "string"
+    },
+    "status": {
+      "description": "One of config.yaml columns (by default todo, queued, doing, review, done). A value not in columns is shown in the first column.",
+      "type": "string"
+    },
+    "repo": {
+      "description": "One of config.yaml repos: the repository the task works in.",
+      "type": "string"
+    },
+    "parent": {
+      "description": "Id of the task this is part of (an epic).",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": { "enum": [".", ".."] }
+    },
+    "phase": {
+      "description": "Id from config.yaml phases.",
+      "type": "string"
+    },
+    "after": {
+      "description": "Ids in this ledger that must be done first.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^/\\\\:]+$",
+        "not": { "enum": [".", ".."] }
+      }
+    },
+    "profile": {
+      "description": "The yard's profile for the agent (opus, codex, reviewer, ...). The yard defines profiles; the ledger only keeps the name.",
+      "type": "string"
+    },
+    "who": {
+      "description": "person: a person's task (a decision to make, or work only a person can do). Absent: an agent's task.",
+      "type": "string",
+      "enum": ["person"]
+    },
+    "agent": {
+      "description": "The terminal working on it: its herdr-core address on the ledger's own machine (t3, not vps/t3). A tab or terminal name is also accepted by readers.",
+      "type": "string"
+    },
+    "branch": {
+      "description": "The task's git branch.",
+      "type": "string"
+    },
+    "worktree": {
+      "description": "The task's worktree folder (~ allowed).",
+      "type": "string"
+    },
+    "links": {
+      "description": "http(s) URLs, or paths relative to the root.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "routine": {
+      "description": "The name of the routine that added it (routines/<name>.yaml). One plain name: no /, \\ or :, and not . or ...",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": { "enum": [".", ".."] }
+    },
+    "created": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, written as a string.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "updated": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, written as a string.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  }
+}

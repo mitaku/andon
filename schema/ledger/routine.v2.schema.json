@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "flightdeck ledger routines/<name>.yaml (format 2)",
+  "description": "A .flightdeck/routines/<name>.yaml: a kind of work kanban adds a task for, again and again. Derived from docs/ledger.md (Routines); where they differ, ledger.md is right. The file's name is the routine's name (one plain name). It needs schedule, on, or both. Any other key is allowed and kept.",
+  "type": "object",
+  "required": ["title"],
+  "anyOf": [
+    { "required": ["schedule"] },
+    { "required": ["on"] }
+  ],
+  "properties": {
+    "title": {
+      "description": "Required. The title of each task it adds.",
+      "type": "string"
+    },
+    "brief": {
+      "description": "The brief.md of each task it adds.",
+      "type": "string"
+    },
+    "profile": {
+      "description": "Copied into each task it adds.",
+      "type": "string"
+    },
+    "repo": {
+      "description": "Copied into each task it adds. One of config.yaml repos, which a schema of one file can't check.",
+      "type": "string",
+      "pattern": "^[^/]+/[^/]+/[^/]+$"
+    },
+    "schedule": {
+      "description": "Fires at these times: cron's five fields (minute, hour, day of month, month, day of week), in config.yaml timezone, else UTC. kanban lint checks each field.",
+      "type": "string",
+      "pattern": "^\\s*\\S+(\\s+\\S+){4}\\s*$"
+    },
+    "on": {
+      "description": "Fires when any task moves into one of these statuses, except a task this routine added.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "open": {
+      "description": "Fires only while fewer than this many of the tasks it added are not done. Default 1.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "paused": {
+      "description": "true: never fires.",
+      "type": "boolean"
+    }
+  }
+}
