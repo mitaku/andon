@@ -2,7 +2,7 @@
 
 `for f in tests/*.sh; do bash "$f"; done` で全部回る。
 
-要るのは bash・python3（標準ライブラリだけ）・jq。`tests/schema.sh` は `schema/` と `docs/contract.md` の例を突き合わせる（検査器は `tests/lib/schema_check.py`。schema に新しいキーワードを使うなら、先に検査器に足す）。
+要るのは bash・python3（標準ライブラリだけ）・jq。`tests/schema.sh` は `schema/` と `docs/contract.md` の例を突き合わせる（検査器は `tests/lib/schema_check.py`。schema に新しいキーワードを使うなら、先に検査器に足す。pattern には ECMA-262 と Python で意味が割れる `.`・`\s`・`\d`・`\w`・`\b` を使わず、明示した ASCII の文字クラスで書く。lint が落とす）。`tests/schema.sh` は制約を緩めた schema の写しで自分を回す自己検査を持つので、1分ほどかかる。
 
 ## public 検査の禁止リスト
 
