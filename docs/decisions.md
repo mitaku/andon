@@ -91,7 +91,49 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 |---|---|---|
 | 2026-11-05 | 固有の値の禁止リストは repo の外に置く（手元は `~/.config/andon/public-denylist`、CI は secret）。リストが無いときは秘密の形だけ検査して通す。リストの語を履歴に残さない（design.md §2.6 の 1 を上書き） | 人の決定（P1 の依頼書の追記） |
 
-## 6. P2 での決定
+## 6. herdr-flightdeck の決定（台帳・オーケストレーション）
+
+台帳の CLI と形式の元の持ち主 herdr-flightdeck（private）の決定のうち、台帳に関わる D14・D16・D17・D20〜D22 を写す。写してよいと向こうの人が決めた（2026-11-05、§7 の 2026-11-05 の行）。仮設の語は Andon の語に直してある（コーディネーター→Chief of Staff、yard→建屋、知らせ→通知）。日付は向こうで決めた日。出典の「herdr-flightdeck の記録（private）」は private で、public の読み手には届かない。決定の中身はここに写してあるので、設計の正はこの文書。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-02 | 柱 4: 計画は `.flightdeck/` の台帳に置き、変えるのは小さな CLI（`deck`。ロック・検査・ログ）、板は読むだけ。1 タスク 1 フォルダ（`task.yaml`・`brief.md`・`report.md`・`library/`）。カードは担当の状態を出し、そこへ飛べる。理由: 計画はコードのそばに。1 つのファイルを多数の worktree で共有すると書き込みが失われるがフォルダなら失われない。CLI は全エージェントが呼べる。板は見るだけで、mod に書き込みを増やさない。置き場所は D17 で替わった | herdr-flightdeck の記録（private）D14 |
+| 2026-11-02 | オーケストレーションは建屋の側に置き、台帳の道具の側には置かない。依頼を割る・worktree とエージェントを付ける・報告を集める・レビューに送るのは、建屋の skill（担当用と Chief of Staff 用）が `deck` と `hc` の上で行う。道具の側が出すのは `deck` と mod と台帳の形式（契約）だけで、形式の変更は版を付けて告げる。理由: 仕事の組み方は建屋ごとに違い、よく変わる。道具と見え方は変わらない | herdr-flightdeck の記録（private）D16 |
+| 2026-11-02 | 書く・長い・人が要りうる仕事は、サブエージェントではなく台帳のタスクにして、Chief of Staff が担当を起こす（worktree・プロファイル・報告が付き、板に出る）。担当の中のサブエージェントは、その turn のうちに返る短い読み取り（検索・探索・自分の差分の独立レビュー）だけで、書き込み・PR・エージェントの起動はしない。担当が仕事を割りたければ報告の `## Next` に書いて Chief of Staff に返す。Chief of Staff 自身は仕事をしない（タスクを切る読み取りのサブエージェントだけ可） | herdr-flightdeck の記録（private）D16 の 2026-11-02 の追記 |
+| 2026-11-02 | 台帳は案件ごとに 1 つ、git の外に置く。建屋は複数の案件（`projects/<slug>/`）を持ち、案件が信頼境界で、Chief of Staff が 1 人（人が話す相手）、タスクごとに担当を起こす（スター型）。台帳は案件の `.flightdeck/` で、`config.yaml` に `repos` と Chief of Staff、タスクに `repo` と `profile`。全案件を見る側は全台帳を読むだけで書かない。プロファイルは建屋が定義し、台帳は名前を表示するだけ。理由: 台帳を建屋の根に 1 つ置くと、どの Chief of Staff も全案件のタスクを書けてしまい、「案件の仕事は案件の Chief of Staff のもの」が作法だけになる。D14 の「建屋の根に置く」を替える | herdr-flightdeck の記録（private）D17 |
+| 2026-11-02 | 繰り返す仕事（ルーティン）は台帳のファイル `routines/<name>.yaml` に置き、`deck` が起こす。足すタスクと起動条件（時刻 `schedule` か、タスクがある状態に入ること `on`）を書く。時刻は建屋が数分ごとに回す `deck tick`、出来事はタスクを動かすコマンドが追加する。ルーティンごとに未完了は `open` 件まで（積み過ぎを防ぐブレーキ）。追加されたタスクに担当を起こすのは Chief of Staff。理由: 起動は台帳に対する決まった規則なので、プログラムが漏れも重複もなく、トークンを使わずに行う。何をいつやるかは人が書く | herdr-flightdeck の記録（private）D20 |
+| 2026-11-03 | 人への問いは台帳に置き、人は Chief of Staff から聞く。担当は人が要るとき端末で聞かず `deck ask` で問いを書いて止まる。Chief of Staff は未回答の問いを全部読み、判断点でないものは自分で答え、残りを 1 つの文書にまとめて人に出す（事実・理由・問い・推し・問いごとの名前）。答えは `deck answer` で台帳に書き、担当へ渡し、担当が `received` にする。人が見る「要対応」は担当ごとでなく Chief of Staff の 1 つだけ。理由: 5 人が聞くと人は問いごとに文脈を替え、同じ問いが何通りにも来る。Chief of Staff の頭の中だけでまとめると、圧縮や再起動や取りこぼしで失われる。台帳なら、担当が答えを受けるまで問いは開いたままで、確かめは数えるだけでできる（文書に全問・全答が受領済み・問いのある停止中の担当が全て）。未確認: 担当の指示だけで端末で聞くのを防げるか（最後の確かめはそのため） | herdr-flightdeck の記録（private）D21 |
+| 2026-11-03 | 通知は 1 つの配達役が Chief of Staff に届け、担当は端末に打ち込まない。担当の `hc send` が、人が書きかけの入力行に貼り付いて一緒に送られた。担当は台帳（`deck report`・`deck review`・`deck ask`）で止まり、`--no-notify` で起こす。建屋ごとに 1 つの配達役（旧 `yard-news`。Andon では `courier`）が、台帳の `log.jsonl` を前回の続きから読み、エージェントの状態（止まった・終わった・20 分変化なしの作業中）を見て、Chief of Staff が待機中で入力行が空のとき（`hc read` で確かめる。淡色の文字は空とみなし、書きかけは空とみなさない）、待っている全部を 1 つの `<news>` メッセージにして送る（データであり依頼ではない。足すことが無ければ `<no-reply>` と答える）。画面が読めない・`hc read` と食い違う・許可リスト外の制御列があるときは何も送らない。理由: 人が Chief of Staff の端末に直接打つので、書き手は 1 つで、入力行が空になるのを待たねばならない。台帳から拾うので、担当が言い忘れても失われない。未確認: Codex の入力行の見え方。向こうの `docs/yard-news.md` は 2026-11-03 の設計の記録で、正は Andon の `docs/` に移してよい（§7 の F8） | herdr-flightdeck の記録（private）D22 |
+
+## 7. 相談 F1〜F12・K1〜K8 への回答で決まったこと
+
+[design.md](design.md) §3.2・§3.4・§3.5 の相談への、herdr-flightdeck 側の回答（回答案を向こうの人が 2026-11-05 に決定）。台帳の CLI は `kanban` として Andon のモノレポに移る（§1 問い 5・6・15・16）。以下は向こうの決定の写しで、Andon 側の設計は design.md と contract.md が正。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | 移す時期は決定のまま（P5 のあと P7 の前）。早めない。P3a〜P3c の間だけ CI に読み取り専用の token を置いて release から取る。移したら token は消す（F9・K1） | herdr-flightdeck の記録（private）相談への回答 §4 の 1 |
+| 2026-11-05 | 移すコードに Apache-2.0 を付けてよい。`cmd/kanban` は herdr-flightdeck の `cmd/deck`（tag）の写しで、写した日に Apache-2.0 を付けた、と Andon 側で出典を残す（F10） | herdr-flightdeck の記録（private）相談への回答 §4 の 2 |
+| 2026-11-05 | 台帳の決定（D14・D16・D17・D20〜D22）を Andon の `docs/decisions.md` に写してよい。文書ごとでなく決定だけ。出典に private の印（F11。§6 が写し） | herdr-flightdeck の記録（private）相談への回答 §4 の 3 |
+| 2026-11-05 | herdr-flightdeck（mod・Web ボード）を公開するかは、今は決めない。Andon の README は「あれば使える」と書く。Web ボードは凍結中で台帳を読まず、Andon の通知から返す口の候補に当たらない（F12） | herdr-flightdeck の記録（private）相談への回答 §4 の 4 |
+| 2026-11-05 | 移す前に、台帳の CLI の最後の release `deck-v0.4.0` を出す（別タスク）。中身は形式 v2 に足すだけの変更: 問いの `kind` に `line`（F3）、`agent` の説明の明確化（F4）、予約キーの注記（F6）、schema の一覧の修正。`deck-v0.4.0` から写し、写した時点で向こうの `cmd/deck` は凍結、以後の直しは Andon（K1・K7・K8） | herdr-flightdeck の記録（private）相談への回答 §4 の 5・K1・K8 |
+| 2026-11-05 | `kind` に 5 つ目 `line` を受ける。移す前に台帳の側で足すので、P5 に `line` の例外が要らない（F3） | herdr-flightdeck の記録（private）相談への回答 F3 |
+| 2026-11-05 | `task.yaml` の `agent` は、台帳と同じ machine なら `t3`、別の machine なら full address `<machine>/t3`。読み手は `/` を含む値を full address として引く。`machine` キーは足さない（`machine`＝どこで起こすか、`agent`＝どこで動いているか、は別物）（F4） | herdr-flightdeck の記録（private）相談への回答 F4 |
+| 2026-11-05 | 代筆の印は `by` を変えず、`log.jsonl` の行に任意キー `for` を足す。移したあと Andon で（F5） | herdr-flightdeck の記録（private）相談への回答 F5 |
+| 2026-11-05 | 予約キー（`review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine`・`pr`）を形式の文書に注記する。形式は読まないが、別の意味で使われないように。`pr` は仮設のゲートが読み、Andon では `report.json`（F6） | herdr-flightdeck の記録（private）相談への回答 F6 |
+| 2026-11-05 | `kanban events`（`--follow`）は移したあと Andon で、courier（P6a）と同じ repo で作る。cursor は不透明な文字列（中身はバイト位置）、follow は数秒のポーリング。向こうでは作らない（F1） | herdr-flightdeck の記録（private）相談への回答 F1 |
+| 2026-11-05 | 問いの形（`options[]`・`facts[]`・`reason`・`remaining`・`from`）を `questions.yaml` の形式の項目にするのは v3 で。それまでは `library/questions/<n>.json` のまま（F2） | herdr-flightdeck の記録（private）相談への回答 F2 |
+| 2026-11-05 | 台帳の入れ物を DB・MCP にするかは今は決めない。決めるときの条件: 書き手は台帳の CLI 1 つのまま、読み手（板）の扱い（ファイルを残して DB は写し、または読み手も CLI／server 経由にして版を上げる）を先に決める（F7） | herdr-flightdeck の記録（private）相談への回答 F7 |
+| 2026-11-05 | courier（旧 yard news）の設計の正は Andon の `docs/` に移してよい。向こうの文書は記録として残る。mod との約束のラベル `news.replied=<turn>` は向こうの持ち物で、変えるときは Andon から向こうへ知らせる（F8） | herdr-flightdeck の記録（private）相談への回答 F8 |
+| 2026-11-05 | 移すまでの間、Andon の CI は読み取り専用の token で release から台帳の CLI を取って image に焼く。移したら同じ repo でビルドして token を消す（F9） | herdr-flightdeck の記録（private）相談への回答 F9 |
+| 2026-11-05 | 公開の準備（F10・F11）は、台帳の CLI と形式が Andon に移れば Andon の中で片付く。`concept.md` は移さず公開しない。形式の文書と schema は移る（F10・F11） | herdr-flightdeck の記録（private）相談への回答 F10・F11 |
+| 2026-11-05 | 形式の正は、移したら Andon の `docs/ledger.md` と `schema/ledger/`。向こうの `docs/ledger-format.md` は v2 の記録として残し、冒頭に正の移動を 1 行。向こうの schema は消す（K2） | herdr-flightdeck の記録（private）相談への回答 K2 |
+| 2026-11-05 | 向こうの mod・Web ボードが依るのは台帳の CLI でなく**ファイルの形式**なので、CLI を移しても壊れない。移したあとの片付けは向こうの PR（CLI・テスト・CI・文書）（K3） | herdr-flightdeck の記録（private）相談への回答 K3 |
+| 2026-11-05 | 最初の `kanban` の release は、`deck-v0.4.0` と同じ振る舞い。確かめは向こうのテストスクリプト（任意のバイナリに走る 103 件）をそのまま持ち込んで通す。bash への書き直しはその後で、書き直すなら同じ 103 件が同じ結果になることを並べて確かめる。`kanban --version` は新しく足す（K4） | herdr-flightdeck の記録（private）相談への回答 K4 |
+| 2026-11-05 | 移す間の互換: `deck` の alias は 1 版だけ。形式 v2 のまま、`.flightdeck/` も `FLIGHTDECK_ROOT` も変えない（環境変数の名前は形式の一部）。改名は v3 と一緒で、alias の版では両方読む（K5） | herdr-flightdeck の記録（private）相談への回答 K5 |
+| 2026-11-05 | v3 は版を上げないと変えられないものだけ: `.flightdeck/` → `.kanban/`、`FLIGHTDECK_ROOT` → `KANBAN_ROOT`、予約キーの正式化、問いの形（F2）。足す変更（F3〜F6）は v3 を待たない。移行の道具 `kanban migrate`（フォルダ名と `version` の書き換え）を付ける。向こうの板の対応は v3 の tag の前に Andon から知らせを受けて出す（K6） | herdr-flightdeck の記録（private）相談への回答 K6 |
+| 2026-11-05 | 移したあとの台帳の CLI と形式の持ち主は Andon。知らせは双方向: 向こうから Andon へは要望を、Andon から向こうへは形式の変更（版・新しいキー・ラベル名）を tag の前に。向こうが持ち続けるのは mod の読み方と Web ボードの畳み方（K7） | herdr-flightdeck の記録（private）相談への回答 K7 |
+
+## 8. P2 での決定
 
 担当が推しで進めたもの。覆すなら下に行を足す。
 
