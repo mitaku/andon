@@ -10,9 +10,21 @@ if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
   echo 'SKIP image: Docker is unavailable; build and runtime checks require CI'
   exit 0
 fi
-docker build --file image/Dockerfile --tag andon:test .
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+# 台帳の CLI は同じ repo から焼いて build context `kanban` で渡す（image/Dockerfile）
+mkdir "$tmp/kanban"
+arch=$(docker version --format '{{.Server.Arch}}')
+build_kanban() { CGO_ENABLED=0 GOOS=linux GOARCH="$arch" "$@" build -trimpath -ldflags "-s -w -X main.version=$(git rev-parse --short=12 HEAD 2>/dev/null || echo dev)" -o "$tmp/kanban/kanban" ./cmd/kanban; }
+if command -v go >/dev/null; then build_kanban go
+elif command -v mise >/dev/null; then build_kanban mise exec -- go
+else echo 'FAIL image: go is required to build kanban' >&2; exit 1; fi
+docker build --file image/Dockerfile --build-context "kanban=$tmp/kanban" --tag andon:test .
 docker run --rm --network none andon:test bash -euc '
   test "$(id -u)" -ne 0
+  kanban --version
+  test "$(kanban --help)" = "$(deck --help)"
+  test "$(readlink /usr/local/bin/deck)" = kanban
   test -d /opt/andon
   test -f /opt/andon/compose.yaml
   test -x /opt/andon/host/andon-up

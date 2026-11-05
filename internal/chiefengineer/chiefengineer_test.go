@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// fake は偽の deck と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ（コマンド名 引数… と、HC_TERMINAL_ID）。
+// fake は偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ（コマンド名 引数… と、HC_TERMINAL_ID）。
 // 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
 type fake struct {
 	t       *testing.T
@@ -21,13 +21,13 @@ type fake struct {
 }
 
 const fakeDeck = `#!/usr/bin/env bash
-printf 'deck %s | HC_TERMINAL_ID=%s FLIGHTDECK_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${FLIGHTDECK_ROOT:-}" >>"$LOG"
+printf 'kanban %s | HC_TERMINAL_ID=%s FLIGHTDECK_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${FLIGHTDECK_ROOT:-}" >>"$LOG"
 case $1 in
   root) [ -n "${FAKE_ROOT:-}" ] && echo "$FAKE_ROOT" || { echo "no ledger" >&2; exit 1; } ;;
   add) cat >"$LOG.brief"; mkdir -p "$FAKE_ROOT/.flightdeck/tasks/S-7"; echo S-7 ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   set) echo "$2 updated" ;;
-  *) echo "unexpected deck $1" >&2; exit 9 ;;
+  *) echo "unexpected kanban $1" >&2; exit 9 ;;
 esac
 `
 
@@ -49,7 +49,7 @@ func newFake(t *testing.T) *fake {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for name, body := range map[string]string{"deck": fakeDeck, "hc": fakeHc} {
+	for name, body := range map[string]string{"kanban": fakeDeck, "hc": fakeHc} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -149,15 +149,15 @@ func TestStartsChiefEngineer(t *testing.T) {
 	}
 	calls := f.calls()
 	want := []string{
-		"deck root",
+		"kanban root",
 		"hc ls --json --label role=chief-engineer --label project=sample-site",
 		"hc templates --json",
-		"deck add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 FLIGHTDECK_ROOT=" + f.root,
-		"deck set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
+		"kanban add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 FLIGHTDECK_ROOT=" + f.root,
+		"kanban set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
 		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label task=S-7 --label title=Billing の設計 --cwd " + f.wt() + " chief-engineer タスク `sample-site/S-7`。",
 		"依頼書は `" + f.root + "/.flightdeck/tasks/S-7/brief.md`。",
 		"先に `/opt/andon-test/skills/chief-engineer/SKILL.md` を読む。",
-		"deck start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
+		"kanban start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
 	}
 	if len(calls) != len(want) {
@@ -248,14 +248,14 @@ func TestLedgerRepos(t *testing.T) {
 		f := newFake(t)
 		f.config(c.repos)
 		rc, _, errs := runMain("題")
-		if rc != c.rc || !strings.Contains(errs, c.err) || f.has("deck add") {
+		if rc != c.rc || !strings.Contains(errs, c.err) || f.has("kanban add") {
 			t.Errorf("%q: rc=%d err=%q", c.repos, rc, errs)
 		}
 	}
 	// 1つなら --repo 無しで通り、--repo があれば repos より --repo
 	f := newFake(t)
 	f.config("repos:\n  - \"github.com/example/sample-site\"\n")
-	if rc, _, errs := runMain("題"); rc != 0 || !f.has("deck add 題 --repo github.com/example/sample-site ") {
+	if rc, _, errs := runMain("題"); rc != 0 || !f.has("kanban add 題 --repo github.com/example/sample-site ") {
 		t.Errorf("1つ: rc=%d err=%q", rc, errs)
 	}
 	f = newFake(t)
@@ -268,11 +268,11 @@ func TestLedgerRepos(t *testing.T) {
 func TestBadRepo(t *testing.T) {
 	f := newFake(t)
 	rc, _, errs := runMain("--repo", "example/sample-site", "題")
-	if rc != exitUsage || !strings.Contains(errs, "repo が不正") || f.has("deck") {
+	if rc != exitUsage || !strings.Contains(errs, "repo が不正") || f.has("kanban") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 	rc, _, errs = runMain("--repo", "github.com/example/none", "題")
-	if rc != exitFail || !strings.Contains(errs, "リポジトリが無い") || f.has("deck add") {
+	if rc != exitFail || !strings.Contains(errs, "リポジトリが無い") || f.has("kanban add") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 }
@@ -291,7 +291,7 @@ func TestBadSlug(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_ROOT", filepath.Join(t.TempDir(), "Bad_Slug"))
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "slug が不正") || f.has("deck add") {
+	if rc != exitFail || !strings.Contains(errs, "slug が不正") || f.has("kanban add") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 }
@@ -300,7 +300,7 @@ func TestAlreadyRunning(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3"}}]}`)
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: t9（タスク S-3）") || f.has("deck add") || f.has("hc run") {
+	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: t9（タスク S-3）") || f.has("kanban add") || f.has("hc run") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 }
@@ -309,7 +309,7 @@ func TestNoTemplate(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"}]}`)
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "プロファイル chief-engineer の template が無い") || f.has("deck add") {
+	if rc != exitFail || !strings.Contains(errs, "プロファイル chief-engineer の template が無い") || f.has("kanban add") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 }
@@ -318,11 +318,11 @@ func TestHcRunFails(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_RUN_RC", "1")
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-7 は todo のまま残る") || f.has("deck start") {
+	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-7 は todo のまま残る") || f.has("kanban start") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 	// やり直せるように worktree と branch を戻し、台帳の欄も消す
-	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-7") || !f.has("deck set S-7 branch= worktree=") {
+	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-7") || !f.has("kanban set S-7 branch= worktree=") {
 		t.Errorf("戻していない: branches=%q calls=%q", f.branches(), f.calls())
 	}
 }
@@ -331,7 +331,7 @@ func TestFirstMessageNotSent(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
 	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFirst || out != "" || !strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt") || !f.has("deck start S-7 | HC_TERMINAL_ID=t42") {
+	if rc != exitFirst || out != "" || !strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt") || !f.has("kanban start S-7 | HC_TERMINAL_ID=t42") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 }

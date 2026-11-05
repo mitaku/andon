@@ -2,7 +2,7 @@
 // 担当の無い todo、人の判断待ち、片付けの残り）を集め（collect）、仕分けの決定を台帳に当てる（apply）。
 //
 // collect は読むだけ。apply は判断を持たず、decisions.json を検査してから台帳の CLI を打つ。
-// 台帳を書くのは台帳の CLI（deck）だけで、ここは record（library/triage/）だけを書く。
+// 台帳を書くのは台帳の CLI（kanban）だけで、ここは record（library/triage/）だけを書く。
 package triage
 
 import (
@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	ledgercli "andon/internal/ledger"
 )
 
 // Usage は andon triage の使い方。
@@ -113,8 +115,9 @@ type limitError struct{ limit int }
 
 func (e limitError) Error() string { return fmt.Sprintf("over limit %d", e.limit) }
 
-// ledger は1つの台帳。deck はこの台帳に向けて打つ。
+// ledger は1つの台帳。kanban（メソッド）は台帳の CLI をこの台帳に向けて打つ。
 type ledger struct {
+	cli  string // 打つ台帳の CLI
 	root string // プロジェクトの根（.flightdeck の親）
 	slug string
 	dir  string // <root>/.flightdeck
@@ -122,26 +125,30 @@ type ledger struct {
 }
 
 func openLedger() (*ledger, error) {
-	for _, c := range []string{"deck", "git"} {
+	if err := ledgercli.Check(); err != nil {
+		return nil, fail("%v", err)
+	}
+	cli := ledgercli.CLI
+	for _, c := range []string{"git"} {
 		if _, err := exec.LookPath(c); err != nil {
 			return nil, fail("%s が無い", c)
 		}
 	}
-	out, err := exec.Command("deck", "root").Output()
+	out, err := exec.Command(cli, "root").Output()
 	if err != nil {
 		return nil, fail("台帳が見つからない")
 	}
 	root := strings.TrimRight(string(out), "\n")
-	l := &ledger{root: root, slug: filepath.Base(root), dir: filepath.Join(root, ".flightdeck"), now: time.Now()}
+	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, ".flightdeck"), now: time.Now()}
 	if !slugRe.MatchString(l.slug) {
 		return nil, fail("slug が不正")
 	}
 	return l, nil
 }
 
-// deck は台帳の CLI を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
-func (l *ledger) deck(stdin string, args ...string) (string, error) {
-	c := exec.Command("deck", args...)
+// kanban は台帳の CLI（kanban）を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
+func (l *ledger) kanban(stdin string, args ...string) (string, error) {
+	c := exec.Command(l.cli, args...)
 	c.Env = append(os.Environ(), "FLIGHTDECK_ROOT="+l.root)
 	if stdin != "" {
 		c.Stdin = strings.NewReader(stdin)
@@ -149,7 +156,7 @@ func (l *ledger) deck(stdin string, args ...string) (string, error) {
 	c.Stderr = os.Stderr
 	out, err := c.Output()
 	if err != nil {
-		return "", fmt.Errorf("deck %s: %w", strings.Join(args, " "), err)
+		return "", fmt.Errorf("%s %s: %w", l.cli, strings.Join(args, " "), err)
 	}
 	return strings.TrimRight(string(out), "\n"), nil
 }

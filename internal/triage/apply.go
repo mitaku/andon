@@ -142,7 +142,7 @@ func (l *ledger) preflight(id string, items []item) error {
 		if src == id {
 			return fail("自分自身は仕分けできない")
 		}
-		out, err := l.deck("", "show", src, "--json")
+		out, err := l.kanban("", "show", src, "--json")
 		if err != nil {
 			return fail("出どころが無い: %s", src)
 		}
@@ -172,10 +172,10 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 		if k := first.keyPart(2); k == "task" || k == "person" {
 			src := first.keyPart(1)
 			note := fmt.Sprintf("不要（%s・%s）: %s\n", id, date, first.str("reason"))
-			if _, err := l.deck(note, "report", src, "--append"); err != nil {
+			if _, err := l.kanban(note, "report", src, "--append"); err != nil {
 				return "", err
 			}
-			if _, err := l.deck("", "done", src); err != nil {
+			if _, err := l.kanban("", "done", src); err != nil {
 				return "", err
 			}
 		}
@@ -192,17 +192,17 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 		brief := "やること:\n" + strings.Join(briefs, "\n\n") +
 			"\nなぜ: トリアージ " + strings.Join(keys, ", ") +
 			"\n完了条件: 上記の依頼を満たす。\n守ること: 依頼の範囲内で作業する。\n\n## Settings\n- Review: " + review + "\n"
-		return l.deck(brief, "add", first.taskStr("title"), "--repo", first.taskStr("repo"), "--profile", first.taskStr("profile"), "--brief", "-")
+		return l.kanban(brief, "add", first.taskStr("title"), "--repo", first.taskStr("repo"), "--profile", first.taskStr("profile"), "--brief", "-")
 	case "person":
 		brief := "出どころ: " + first.key() +
 			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
 			"\n推し: " + orDefault(first["pick"], "なし") +
 			"\n理由: " + first.str("reason") + "\n"
-		newID, err := l.deck(brief, "add", first.str("question")+personSuffix, "--brief", "-")
+		newID, err := l.kanban(brief, "add", first.str("question")+personSuffix, "--brief", "-")
 		if err != nil {
 			return "", err
 		}
-		if _, err := l.deck("", "set", newID, "who=person"); err != nil {
+		if _, err := l.kanban("", "set", newID, "who=person"); err != nil {
 			return "", err
 		}
 		return newID, nil

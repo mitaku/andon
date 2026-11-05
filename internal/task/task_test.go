@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-// 台帳の CLI（deck）が CI に無いので、ready の照合は偽の deck と gh・本物の git で見る（振る舞いの全体は tests/andon-task.sh）。
-// 偽の deck は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> を置くだけ。
+// ready の照合は偽の kanban と gh・本物の git で見る（振る舞いの全体は tests/andon-task.sh）。
+// 偽の kanban は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> を置くだけ。
 
 const fakeDeck = `#!/bin/sh
 case "$1" in
@@ -55,7 +55,7 @@ func newFixture(t *testing.T) *fixture {
 			t.Fatal(err)
 		}
 	}
-	os.WriteFile(filepath.Join(bin, "deck"), []byte(fakeDeck), 0o755)
+	os.WriteFile(filepath.Join(bin, "kanban"), []byte(fakeDeck), 0o755)
 	os.WriteFile(filepath.Join(bin, "gh"), []byte(fakeGH), 0o755)
 	os.WriteFile(filepath.Join(f.root, ".flightdeck", "config.yaml"), []byte("version: 2\ncoordinator: t5\n"), 0o644)
 	git := func(args ...string) string {

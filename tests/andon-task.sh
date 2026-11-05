@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# `andon task show/report/review-request/ready/ask`。本物の台帳の CLI（deck）・一時の台帳と git・偽の gh で回す。
-# 台帳の CLI が無ければ skip（CI には入っていない）。
+# `andon task show/report/review-request/ready/ask`。本物の台帳の CLI（kanban）・一時の台帳と git・偽の gh で回す。
 # ANDON_EMIT_DIR があれば、command が書いた JSON をそこに写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
-for c in deck git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
+for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
+. "$(dirname "$0")/lib/kanban.sh"
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 unset FLIGHTDECK_ROOT
@@ -38,12 +38,12 @@ c1=$(commit one)
 echo "$c1" > "$tmp/prhead"
 
 cd "$tmp/demo"
-deck init --prefix T >/dev/null
+kanban init --prefix T >/dev/null
 export FLIGHTDECK_ROOT=$PWD
-deck config set coordinator=t5 >/dev/null
+kanban config set coordinator=t5 >/dev/null
 as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # 台帳の by を選ぶ（t5 が Chief of Staff、t7 が担当）
-id=$(as t5 deck add 'andon task を足す' --profile claude)
-as t5 deck set "$id" review=on must_fix=major "worktree=$tmp/wt" >/dev/null
+id=$(as t5 kanban add 'andon task を足す' --profile claude)
+as t5 kanban set "$id" review=on must_fix=major "worktree=$tmp/wt" >/dev/null
 lib=.flightdeck/tasks/$id/library
 pr=https://github.com/example/app/pull/7
 export HC_TERMINAL_ID=t7
@@ -77,10 +77,10 @@ expect_fail 'レビューが missing' "$andon" task ready "$id"
 ok 'ready: レビューが無ければ止まる'
 
 # レビュアー（Chief of Staff が足す）。commit c1 を見た
-rev=$(as t5 deck add "$id のレビュー" --parent "$id" --profile codex-review)
+rev=$(as t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
 mkdir -p ".flightdeck/tasks/$rev/library"
 jq -n --arg c "$c1" '{commit: $c, findings: [{severity: "minor", file: "f", line: 1}]}' > ".flightdeck/tasks/$rev/library/findings.json"
-as t5 deck review "$rev" >/dev/null
+as t5 kanban review "$rev" >/dev/null
 
 # HEAD を進める（直した）。report.json の commit は古い
 c2=$(commit two)
@@ -99,18 +99,18 @@ jq -e --arg c "$c2" --arg p "$c1" '.review_request | .round == 2 and .commit == 
 ok 'review-request: 2 回目・previous は前のレビューの commit'
 
 # 担当が自分で足した子タスクは数えない
-fake=$(deck add "$id の自作レビュー" --parent "$id" --profile codex-review)
+fake=$(kanban add "$id の自作レビュー" --parent "$id" --profile codex-review)
 mkdir -p ".flightdeck/tasks/$fake/library"
 jq -n --arg c "$c2" '{commit: $c, findings: []}' > ".flightdeck/tasks/$fake/library/findings.json"
-deck review "$fake" >/dev/null
+kanban review "$fake" >/dev/null
 expect_fail 'レビューが stale' "$andon" task ready "$id"
 ok 'ready: Chief of Staff が足していないレビューは数えない'
 
 # 形の壊れた findings.json は missing
-rev2=$(as t5 deck add "$id のレビュー 2" --parent "$id" --profile codex-review)
+rev2=$(as t5 kanban add "$id のレビュー 2" --parent "$id" --profile codex-review)
 mkdir -p ".flightdeck/tasks/$rev2/library"
 jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "Major", file: "f", line: 1}]}' > ".flightdeck/tasks/$rev2/library/findings.json"
-as t5 deck review "$rev2" >/dev/null
+as t5 kanban review "$rev2" >/dev/null
 expect_fail 'findings.json が無い・形が違う' "$andon" task ready "$id"
 ok 'ready: findings.json の形が違えば missing'
 jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line: 2}]}' > ".flightdeck/tasks/$rev2/library/findings.json"
@@ -139,23 +139,23 @@ ok 'show: 予約キー（既定で埋める）・report.json・レビューの�
 
 # ready の正
 "$andon" task ready "$id" >/dev/null
-[ "$(deck show "$id" --json | jq -r .task.status)" = review ]
+[ "$(kanban show "$id" --json | jq -r .task.status)" = review ]
 ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で review にする'
 
 # review: off なら照合しない。review が無ければ止まる
-id2=$(as t5 deck add 'レビュー無し' --profile codex)
-as t5 deck set "$id2" review=off "worktree=$tmp/wt" >/dev/null
+id2=$(as t5 kanban add 'レビュー無し' --profile codex)
+as t5 kanban set "$id2" review=off "worktree=$tmp/wt" >/dev/null
 "$andon" task report "$id2" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on でない' "$andon" task review-request "$id2" <<<'## Report'
 "$andon" task ready "$id2" >/dev/null
 ok 'ready: review: off ならレビューを照合しない。review-request は断る'
-id3=$(as t5 deck add 'Settings 無し')
-as t5 deck set "$id3" "worktree=$tmp/wt" review_rounds=1 >/dev/null
+id3=$(as t5 kanban add 'Settings 無し')
+as t5 kanban set "$id3" "worktree=$tmp/wt" review_rounds=1 >/dev/null
 "$andon" task report "$id3" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on/off でない' "$andon" task ready "$id3"
 ok 'ready: task.yaml の review が無ければ止まる'
-as t5 deck set "$id3" review=on >/dev/null
-r3=$(as t5 deck add "$id3 のレビュー" --parent "$id3" --profile codex-review)
+as t5 kanban set "$id3" review=on >/dev/null
+r3=$(as t5 kanban add "$id3 のレビュー" --parent "$id3" --profile codex-review)
 mkdir -p ".flightdeck/tasks/$r3/library"; jq -n --arg c "$c1" '{commit: $c, findings: []}' > ".flightdeck/tasks/$r3/library/findings.json"
 "$andon" task review-request "$id3" <<<'## Report' >/dev/null
 jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' ".flightdeck/tasks/$id3/library/report.json" >/dev/null
@@ -166,17 +166,17 @@ ok 'review-request: 上限を超えた回は extra'
 q='{"kind":"users","question":"既定を変えるか","facts":["docs/design.md §1.10"],"options":[{"label":"変える","pick":true},{"label":"変えない"}],"remaining":1,"from":"task"}'
 "$andon" task ask "$id" - <<<"$q" | grep -q "$id#1"
 jq -e '.kind == "users" and .options[0].pick == true' "$lib/questions/1.json" >/dev/null
-deck show "$id" --json | jq -e '.questions[0] | .kind == "users" and (.text | contains("推奨案: 変える")) and (.text | contains("あと 1 問"))' >/dev/null
+kanban show "$id" --json | jq -e '.questions[0] | .kind == "users" and (.text | contains("推奨案: 変える")) and (.text | contains("あと 1 問"))' >/dev/null
 emit "$lib/questions/1.json" question.json
 ok 'ask: 問いを台帳に置き、JSON を library/questions/<n>.json に'
 "$andon" task ask "$id" - <<<"$(jq -c '.kind = "line"' <<<"$q")" >/dev/null
-deck show "$id" --json | jq -e '.questions[1] | has("kind") | not' >/dev/null
+kanban show "$id" --json | jq -e '.questions[1] | has("kind") | not' >/dev/null
 jq -e '.kind == "line"' "$lib/questions/2.json" >/dev/null
 ok 'ask: kind line は台帳に kind を付けず、JSON にだけ書く'
 for bad in '.options[1].pick = true' '.options = [.options[0]]' '.question = "a\nb"' '. + {"x": 1}' '.kind = "other"'; do
     expect_fail '問いの JSON の形が違う' "$andon" task ask "$id" - <<<"$(jq -c "$bad" <<<"$q")"
 done
-[ "$(deck show "$id" --json | jq '.questions | length')" = 2 ]
+[ "$(kanban show "$id" --json | jq '.questions | length')" = 2 ]
 ok 'ask: 形の違う問いは台帳に書く前に止まる'
 
 echo "all passed ($pass)"

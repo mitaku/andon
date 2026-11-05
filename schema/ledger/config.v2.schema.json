@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "flightdeck ledger config.yaml (format 2)",
+  "description": "The .flightdeck/config.yaml of a ledger, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. Unknown keys are allowed (readers ignore them, writers keep them).",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": {
+      "description": "Format version. Required: 2.",
+      "type": "integer",
+      "const": 2
+    },
+    "title": {
+      "description": "A name to show. The project's slug when absent.",
+      "type": "string"
+    },
+    "prefix": {
+      "description": "Prefix of new task ids (<prefix>-<n>). One plain name: no /, \\ or :, and not . or ... Default W.",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": { "enum": [".", ".."] }
+    },
+    "columns": {
+      "description": "The statuses, in board order. The last one means done. Default [todo, queued, doing, review, done].",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "phases": {
+      "description": "Ordered stages, for timeline views. Default [].",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" }
+        }
+      }
+    },
+    "repos": {
+      "description": "The project's repositories as <host>/<owner>/<repo>, the path ghq gives them: three names, no leading or trailing /. Default [].",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[^/]+/[^/]+/[^/]+$" }
+    },
+    "coordinator": {
+      "description": "The terminal of the project's coordinator: its herdr-core address on the ledger's own machine (t2).",
+      "type": "string"
+    },
+    "timezone": {
+      "description": "An IANA time zone (Asia/Tokyo) in which routines' schedule is read. Default UTC.",
+      "type": "string"
+    }
+  }
+}

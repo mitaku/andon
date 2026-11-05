@@ -1,4 +1,4 @@
-// Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（今は deck。P3c で kanban）だけで、
+// Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（kanban）だけで、
 // ここはそれを打つか、台帳のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
 //
 // command（andon task・andon gate）が共有するもの: タスクの項目（task.yaml の Andon の予約キー）と履歴の照合・
@@ -18,8 +18,19 @@ import (
 	"strings"
 )
 
-// CLI は台帳の CLI の名前（P3c で kanban に替わる）。
-const CLI = "deck"
+// CLI は台帳の CLI の名前。別名の deck には落ちない（同じ名前の古い deck が版違いの振る舞いで動くのを避ける）。
+const CLI = "kanban"
+
+// Missing は台帳の CLI が PATH に無いときの言い方（入れ方の案内つき）。
+const Missing = "kanban が無い（台帳の CLI。Andon の image に入っている。手元なら go install ./cmd/kanban で入れる）"
+
+// Check は台帳の CLI が PATH にあるかを確かめる。無ければ Missing を返す。
+func Check() error {
+	if _, err := exec.LookPath(CLI); err != nil {
+		return errors.New(Missing)
+	}
+	return nil
+}
 
 // Ledger は1つの台帳。
 type Ledger struct {
@@ -30,8 +41,8 @@ type Ledger struct {
 
 // Open は台帳の CLI に台帳の根を聞く。
 func Open() (*Ledger, error) {
-	if _, err := exec.LookPath(CLI); err != nil {
-		return nil, fmt.Errorf("%s が無い", CLI)
+	if err := Check(); err != nil {
+		return nil, err
 	}
 	out, err := exec.Command(CLI, "root").Output()
 	root := strings.TrimSpace(string(out))
