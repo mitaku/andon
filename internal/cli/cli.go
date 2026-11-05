@@ -15,6 +15,7 @@ import (
 	"andon/internal/chiefengineer"
 	"andon/internal/delegate"
 	"andon/internal/gate"
+	"andon/internal/plantinit"
 	"andon/internal/publish"
 	"andon/internal/task"
 	"andon/internal/triage"
@@ -74,6 +75,12 @@ var commands = []command{
 		about: "パッケージから建屋へ配布物を生成し、portless・sshd・クーリエを起こす（毎起動）",
 		usage: boot.Usage,
 		run:   boot.Main,
+	},
+	{
+		name:  "init",
+		about: "建屋の repo の雛形（andon-<slug>）を作る",
+		usage: plantinit.Usage,
+		run:   plantinit.Main,
 	},
 	{
 		name:  "gate",

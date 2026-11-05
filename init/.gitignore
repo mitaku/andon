@@ -1,0 +1,12 @@
+# bin/bootstrap がイメージから取り出すもの（パッケージの持ち物。この repo では追跡しない）
+.andon/
+# 迎えた repo（それぞれが独立した git repo）
+.ghq/
+# 秘密と番号（SSH_PORT・PORTLESS_PORT・FILES_PORT）
+.env
+.env.*
+# 公開鍵（置くマシンごとに違う）
+.ssh/
+# andon publish の公開先（生成物）
+artifacts/
+.codex/

@@ -273,7 +273,7 @@ func Workspace() string {
 	return "/workspace"
 }
 
-// Owner は建屋の andon.toml の owner（最上段の owner = "…" の行だけを読む）。無ければ空。
+// Owner は建屋の andon.toml の owner（git の author の email。最上段の owner = "…" の行だけを読む）。無ければ空。
 func Owner(ws string) string {
 	b, err := os.ReadFile(filepath.Join(ws, "andon.toml"))
 	if err != nil {
@@ -332,7 +332,7 @@ func Read(ws, slug, today string) Result {
 	}
 	author, err := git(ws, "log", "-1", "--format=%an%x00%ae", "HEAD", "--", Rel(slug))
 	name, email, _ := strings.Cut(strings.TrimSpace(author), "\x00")
-	if err != nil || (name != owner && email != owner) {
+	if err != nil || email != owner {
 		return none(fmt.Sprintf("委譲を最後に変えた commit の author（%s <%s>）が owner でない", name, email))
 	}
 	r := Result{Project: slug, Trusted: true, Preset: f.Preset, Effective: f.Effective(today), Grants: []Grant{}}

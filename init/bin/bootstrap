@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+# 建屋の入口。ホストに要るのは docker と bash だけ。
+#
+#   bin/bootstrap                起動して herdr に入る（セッションは残るので、もう一度打てば戻る）
+#   bin/bootstrap up             起動だけ（入らない）
+#   bin/bootstrap sh             herdr を介さず bash で入る（退避用）
+#   bin/bootstrap down           止める（volume は残る）
+#   bin/bootstrap logs           起動の記録を追う
+#   bin/bootstrap status         状態を見る
+#   bin/bootstrap rebuild        イメージを作り直して入れ替える（Dockerfile の FROM を上げたあと）
+#   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定）を置く
+#   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
+#
+# compose.yaml は建屋の repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
+# 番号は .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT）。建屋に固有のサービスは compose.override.yaml に。
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+root=$PWD
+
+dry=0
+if [ "${1:-}" = --dry-run ]; then
+  dry=1
+  shift
+fi
+
+die() { echo "✗ $*" >&2; exit 1; }
+
+# andon.toml の key = "value" の値（TOML の1行の文字列だけを読む）
+toml() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" andon.toml | head -n 1; }
+
+[ -f andon.toml ] || die "andon.toml が無い（andon init で作った建屋の repo の中で打つ）"
+slug=$(toml slug)
+case "$slug" in
+  '' | *[!a-z0-9-]* | -*) die "andon.toml の slug が無いか、英小文字・数字・- でない: '$slug'" ;;
+esac
+from=$(sed -n 's/^FROM[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' Dockerfile | head -n 1)
+case "$from" in
+  '' | *'<'* | *'>'*) die "Dockerfile の FROM を埋める（いま: '$from'。例 ghcr.io/<owner>/andon:<版>）" ;;
+esac
+
+project=andon-$slug
+image=$project:local
+export ANDON_SLUG=$slug ANDON_IMAGE=$image
+
+run() {
+  if [ "$dry" = 1 ]; then
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+require_docker() {
+  [ "$dry" = 1 ] && return 0
+  command -v docker >/dev/null 2>&1 || die "docker が無い。建屋はホストに docker と bash だけを求める"
+  docker info >/dev/null 2>&1 || die "docker デーモンに繋がらない（起動しているか確かめる）"
+}
+
+# extract <イメージの中の /opt/andon からのパス> <置き場>
+# ANDON_IMAGE_ROOT があれば、そのディレクトリをイメージの根として読む（試験用の偽のイメージ）。
+# --dry-run では何も書かない（打つものを出すだけ）。
+extract() {
+  if [ "$dry" = 1 ]; then
+    if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+      run cp -R "$ANDON_IMAGE_ROOT/opt/andon/$1" "$2"
+    else
+      run docker cp "<docker create $image>:/opt/andon/$1" "$2"
+    fi
+    return 0
+  fi
+  mkdir -p "$(dirname "$2")"
+  if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+    cp -R "$ANDON_IMAGE_ROOT/opt/andon/$1" "$2"
+  else
+    local cid
+    cid=$(docker create "$image")
+    docker cp "$cid:/opt/andon/$1" "$2" >/dev/null || { docker rm "$cid" >/dev/null; return 1; }
+    docker rm "$cid" >/dev/null
+  fi
+}
+
+compose_file() {
+  if [ "$dry" = 1 ]; then
+    extract compose.yaml .andon/compose.yaml
+    return 0
+  fi
+  rm -f .andon/compose.yaml.new
+  extract compose.yaml .andon/compose.yaml.new
+  mv .andon/compose.yaml.new .andon/compose.yaml
+}
+
+dc() {
+  local files=(-f .andon/compose.yaml)
+  [ -f compose.override.yaml ] && files+=(-f compose.override.yaml)
+  run docker compose --project-name "$project" --project-directory "$root" "${files[@]}" "$@"
+}
+
+build() { run docker build "$@" -t "$image" "$root"; }
+
+ensure_image() {
+  if [ "$dry" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then
+    build
+  fi
+}
+
+ensure_up() {
+  if [ "$dry" = 0 ] && [ -n "$(dc ps -q dev 2>/dev/null)" ]; then
+    return 0
+  fi
+  ensure_image
+  compose_file
+  dc up -d
+  [ "$dry" = 1 ] && return 0
+  echo "[$project] 起動の完了を待つ..."
+  for _ in $(seq 1 60); do
+    if dc logs dev 2>/dev/null | grep -q '\[andon boot\] ready'; then
+      echo "[$project] 準備できた"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "[$project] 準備の完了を確かめられなかった（続ける。bin/bootstrap logs で見る）" >&2
+}
+
+# host_install は、イメージの /opt/andon/host/ からホストの置き場へ写す。今あるファイルは上書きしない。
+host_install() {
+  local bin=${ANDON_HOST_BIN:-$HOME/.local/bin}
+  local src
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+    src=$ANDON_IMAGE_ROOT/opt/andon/host # 偽のイメージは読むだけ（--dry-run でも中身を見て比べられる）
+  elif [ "$dry" = 1 ]; then
+    extract host "$tmp/host" # 打つものを出すだけ。中身が無いので、ここで終わる
+    return 0
+  else
+    extract host "$tmp/host"
+    src=$tmp/host
+  fi
+  local ssh_port portless_port
+  ssh_port=$(dotenv SSH_PORT 2222)
+  portless_port=$(dotenv PORTLESS_PORT 1355)
+  case "$ssh_port$portless_port" in
+    *[!0-9]*) die ".env の SSH_PORT・PORTLESS_PORT は数字だけ（いま: '$ssh_port' '$portless_port'）" ;;
+  esac
+  sed -e "s/<slug>/$slug/g" -e "s/<ssh-port>/$ssh_port/g" -e "s/<portless-port>/$portless_port/g" \
+    "$src/ssh_config" >"$tmp/ssh_config" # 一時ディレクトリ（建屋の repo と HOME の外）
+  place "$src/andon-up" "$bin/andon-up" 755
+  place "$src/herdr-config.toml" "$HOME/.config/herdr/config.toml" 644
+  place "$tmp/ssh_config" "$HOME/.ssh/config.d/$project.conf" 600
+  place "$src/cloud-init.yaml" .andon/cloud-init.yaml 644
+  echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM に建屋を立てるとき、<…> を埋めて渡す）"
+  if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then
+    echo "~/.ssh/config の先頭に1行足す: Include config.d/*"
+  fi
+}
+
+# place <元> <先> <mode>: 先が無ければ置く。あれば違いだけ知らせて触らない。
+place() {
+  if [ -e "$2" ]; then
+    if cmp -s "$1" "$2"; then
+      echo "= $2"
+    else
+      echo "! $2 はすでにあり、雛形と違う（触らない。入れ替えるなら退避してから打ち直す）"
+    fi
+    return 0
+  fi
+  if [ "$dry" = 1 ]; then
+    echo "+ install -m $3 $2"
+    return 0
+  fi
+  install -D -m "$3" "$1" "$2"
+  echo "+ $2"
+}
+
+# .env の key の値（最後の行）。無ければ既定。
+dotenv() {
+  local k v val=""
+  if [ -f .env ]; then
+    while IFS='=' read -r k v; do
+      k=${k//[[:space:]]/}
+      v=${v//[\"\'[:space:]]/}
+      [ "$k" = "$1" ] && [ -n "$v" ] && val=$v
+    done <.env
+  fi
+  echo "${val:-$2}"
+}
+
+case "${1:-}" in
+  "" | enter)
+    require_docker
+    ensure_up
+    # herdr は手元の端末の名前（TERM_PROGRAM）を見て通知を出すので、コンテナの中まで運ぶ
+    dc exec -e TERM_PROGRAM="${TERM_PROGRAM:-}" -e TERM_PROGRAM_VERSION="${TERM_PROGRAM_VERSION:-}" dev herdr
+    ;;
+  up) require_docker; ensure_up ;;
+  sh | bash) require_docker; ensure_up; dc exec dev bash ;;
+  down) require_docker; compose_file; dc down ;;
+  logs) require_docker; compose_file; dc logs -f dev ;;
+  status) require_docker; compose_file; dc ps ;;
+  rebuild)
+    require_docker
+    build --pull
+    compose_file
+    dc up -d --force-recreate
+    ;;
+  host-install)
+    if [ -z "${ANDON_IMAGE_ROOT:-}" ]; then
+      require_docker
+      ensure_image
+    fi
+    host_install
+    ;;
+  -h | --help | help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2
+    exit 2
+    ;;
+esac

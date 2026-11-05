@@ -195,7 +195,7 @@ func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (str
 	if owner := Owner(ws); owner != "" {
 		author, _ := git(ws, "log", "-1", "--format=%an%x00%ae")
 		name, email, _ := strings.Cut(strings.TrimSpace(author), "\x00")
-		if name != owner && email != owner {
+		if email != owner {
 			fmt.Fprintf(stderr, "andon delegate: 注意: commit の author（%s <%s>）が andon.toml の owner（%s）でない。読み手は無委譲として読む\n", name, email, owner)
 		}
 	} else {

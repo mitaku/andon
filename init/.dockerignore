@@ -1,0 +1,4 @@
+# 建屋の repo から docker build に渡すのは local/ だけ（.ghq/ などを送らない）
+*
+!local/
+!local/**
