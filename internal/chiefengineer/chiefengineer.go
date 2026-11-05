@@ -9,7 +9,7 @@
 // タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
 // 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
 //
-// 置き場（andon task start と同じ形）:
+// 置き場（andon task start と同じ形。internal/spawn）:
 //
 //	worktree  ~/.herdr/worktrees/<repo 名>/<slug>-<id>
 //	branch    <slug>/<id>-<題の英字の短い形>。origin/<既定の branch> から --no-track で切る
@@ -17,7 +17,6 @@
 package chiefengineer
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,6 +27,7 @@ import (
 	"strings"
 
 	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 // Usage は andon chief-engineer の使い方。
@@ -47,11 +47,13 @@ const (
 )
 
 var (
-	slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`) // schema の project と同じ
-	repoRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	slugRe = spawn.SlugRe
+	repoRe = spawn.RepoRe
 	idRe   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
-	nameRe = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
+	nameRe = spawn.NameRe
 )
+
+var output = spawn.Output
 
 // Main は andon chief-engineer を走らせ、終了コードを返す。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
@@ -102,7 +104,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return die("台帳の repos の値が不正: '%s'", repo)
 		}
 	}
-	repoDir, err := repoPath(repo)
+	repoDir, err := spawn.RepoPath(repo)
 	if err != nil {
 		return die("%v", err)
 	}
@@ -130,21 +132,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return die("Chief Engineer が動いている: %s（タスク %s）。話すには hc attach %s。新しい題は、前の題を渡してから", t.Address, t.Labels["task"], t.Address)
 	}
 
-	tpl, err := output(nil, "", "hc", "templates", "--json")
+	found, err := spawn.HasTemplate(Profile)
 	if err != nil {
-		return die("hc templates に失敗: %v", err)
-	}
-	var tpls struct {
-		Templates []struct {
-			Name string `json:"name"`
-		} `json:"templates"`
-	}
-	if err := json.Unmarshal([]byte(tpl), &tpls); err != nil {
-		return die("hc templates の返事が読めない: %v", err)
-	}
-	found := false
-	for _, t := range tpls.Templates {
-		found = found || t.Name == Profile
+		return die("%v", err)
 	}
 	if !found {
 		return die("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", Profile)
@@ -162,57 +152,39 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if !nameRe.MatchString(name) {
 		return die("端末の名前 %s が hc の決まり（a-z 0-9 - _ で32字まで）に合わない。タスク %s は todo のまま残る", name, id)
 	}
-	wt, err := newWorktree(repoDir, slug, id, title)
+	wt, err := spawn.NewWorktree(repoDir, slug, id, title)
 	if err != nil {
 		return die("%v。タスク %s は todo のまま残る", err, id)
 	}
-	if _, err := output(env, "", cli, "set", id, "branch="+wt.branch, "worktree="+wt.path); err != nil {
-		wt.remove()
+	if _, err := output(env, "", cli, "set", id, "branch="+wt.Branch, "worktree="+wt.Path); err != nil {
+		wt.Remove()
 		return die("%s set %s branch/worktree に失敗: %v。タスク %s は todo のまま残る", cli, id, err, id)
 	}
 	undo := func() {
-		wt.remove()
+		wt.Remove()
 		output(env, "", cli, "set", id, "branch=", "worktree=")
 	}
-	cwd := wt.path
+	cwd := wt.Path
 	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
 	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。",
 		slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"))
 
-	// --no-notify: 止まった・終わったはクーリエが端末の土台から拾う（contract.md §8）
-	out, err := output(nil, "", "hc", "run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", name,
-		"--label", "role="+Profile, "--label", "project="+slug, "--label", "task="+id, "--label", "title="+title,
-		"--cwd", cwd, Profile, msg)
+	run, err := spawn.Run(name, []string{"role=" + Profile, "project=" + slug, "task=" + id, "title=" + title}, cwd, Profile, msg)
 	if err != nil {
 		undo()
-		return die("hc run に失敗: %v。worktree と branch を戻した。タスク %s は todo のまま残る", err, id)
-	}
-	var run struct {
-		Address      string `json:"address"`
-		FirstMessage struct {
-			Sent   bool   `json:"sent"`
-			Reason string `json:"reason"`
-		} `json:"first_message"`
-	}
-	if err := json.Unmarshal([]byte(out), &run); err != nil || run.Address == "" {
-		undo()
-		return die("hc run の返事に address が無い: %s。タスク %s は todo のまま残る", out, id)
+		return die("%v。worktree と branch を戻した。タスク %s は todo のまま残る", err, id)
 	}
 
-	if _, err := outputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {
+	if _, err := spawn.OutputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {
 		return die("%s start %s に失敗: %v（端末 %s は起きている）", cli, id, err, run.Address)
 	}
 
-	if !run.FirstMessage.Sent {
-		reason := run.FirstMessage.Reason
-		if reason == "" {
-			reason = "理由なし"
-		}
+	if !run.First.Sent {
 		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s。hc attach %s で画面に答えてから、次を送る: hc send %s %q\n",
-			run.Address, name, reason, run.Address, run.Address, msg)
+			run.Address, name, run.Reason(), run.Address, run.Address, msg)
 		return exitFirst
 	}
-	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起こした。cwd %s branch %s。話すには hc attach %s\n", id, title, run.Address, name, cwd, wt.branch, run.Address)
+	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起こした。cwd %s branch %s。話すには hc attach %s\n", id, title, run.Address, name, cwd, wt.Branch, run.Address)
 	return 0
 }
 
@@ -277,110 +249,4 @@ func ledgerRepos(path string) (repos []string, ok bool) {
 		}
 	}
 	return repos, seen
-}
-
-// repoPath は $GHQ_ROOT（無ければ ghq root）/<repo>。
-func repoPath(repo string) (string, error) {
-	root := os.Getenv("GHQ_ROOT")
-	if root == "" {
-		if out, err := output(nil, "", "ghq", "root"); err == nil {
-			root = out
-		}
-	}
-	if root == "" {
-		return "", fmt.Errorf("GHQ_ROOT が無い")
-	}
-	return filepath.Join(root, repo), nil
-}
-
-type worktree struct{ repoDir, path, branch string }
-
-// newWorktree は origin の既定の branch の最新から、upstream の無い branch と worktree を切る（andon task start と同じ置き場）。
-func newWorktree(repoDir, slug, id, title string) (*worktree, error) {
-	g := func(args ...string) (string, error) {
-		return output(nil, "", "git", append([]string{"-c", "url.https://github.com/.insteadOf=git@github.com:", "-C", repoDir}, args...)...)
-	}
-	sym, err := g("ls-remote", "--symref", "origin", "HEAD")
-	def := ""
-	for _, ln := range strings.Split(sym, "\n") {
-		if f := strings.Fields(ln); len(f) == 3 && f[0] == "ref:" && f[2] == "HEAD" && strings.HasPrefix(f[1], "refs/heads/") {
-			def = strings.TrimPrefix(f[1], "refs/heads/")
-		}
-	}
-	if err != nil || def == "" {
-		return nil, fmt.Errorf("origin の既定の branch が分からない（%s）", repoDir)
-	}
-	if _, err := g("fetch", "-q", "origin", "+refs/heads/"+def+":refs/remotes/origin/"+def); err != nil {
-		return nil, fmt.Errorf("origin/%s を fetch できない（%s）", def, repoDir)
-	}
-	branch := slug + "/" + id
-	if short := shortTitle(title); short != "" {
-		branch += "-" + short
-	}
-	if _, err := g("check-ref-format", "--branch", branch); err != nil {
-		return nil, fmt.Errorf("branch 名が不正: %s", branch)
-	}
-	if _, err := g("show-ref", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
-		return nil, fmt.Errorf("branch %s がもうある", branch)
-	}
-	path := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir), slug+"-"+id)
-	if _, err := os.Lstat(path); err == nil {
-		return nil, fmt.Errorf("worktree の置き場がもうある: %s", path)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	if _, err := g("worktree", "add", "-q", "--no-track", "-b", branch, path, "refs/remotes/origin/"+def); err != nil {
-		return nil, fmt.Errorf("worktree を作れない: %s", path)
-	}
-	return &worktree{repoDir: repoDir, path: path, branch: branch}, nil
-}
-
-// remove は newWorktree が作ったものを戻す（起こせなかったとき。やり直せるように）。
-func (w *worktree) remove() {
-	output(nil, "", "git", "-C", w.repoDir, "worktree", "remove", "--force", w.path)
-	output(nil, "", "git", "-C", w.repoDir, "branch", "-D", w.branch)
-}
-
-var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
-
-// shortTitle は題の英字の短い形: ASCII の英数字以外を - にして小文字・30字まで（日本語だけの題なら空）。
-func shortTitle(title string) string {
-	s := strings.Trim(nonAlnum.ReplaceAllString(strings.ToLower(title), "-"), "-")
-	if len(s) > 30 {
-		s = strings.TrimRight(s[:30], "-")
-	}
-	return s
-}
-
-// output はコマンドを打ち、stdout を返す（前後の空白を除く）。stderr は失敗のときだけ err に入れる。
-func output(env []string, stdin, name string, args ...string) (string, error) {
-	return outputIn("", env, stdin, name, args...)
-}
-
-// outputIn は dir で output する。
-func outputIn(dir string, env []string, stdin, name string, args ...string) (string, error) {
-	c := exec.Command(name, args...)
-	c.Dir = dir
-	if env != nil {
-		c.Env = append(os.Environ(), env...)
-	}
-	c.Stdin = strings.NewReader(stdin)
-	var errb bytes.Buffer
-	c.Stderr = &errb
-	b, err := c.Output()
-	if err != nil {
-		if s := strings.TrimSpace(errb.String()); s != "" {
-			return "", fmt.Errorf("%w: %s", err, firstLine(s))
-		}
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), nil
-}
-
-func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
 }
