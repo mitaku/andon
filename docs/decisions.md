@@ -5,6 +5,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 出典の書き方:
 
 - **設計書 §6 問いN** — [design.md](design.md) の §6 の問いと、その「人の答え」の列。
+- **ADR-NNNN** — [adr/](adr/) の文書（Chief Engineer の題。design.md §1.8）。ADR 1本につきこの記録には1行（要点と番号）。各決定の中身・理由・捨てた案は ADR が正。
 - **仮設の記録（private）** — 仮設の工場（Andon の前身の実装）の設計文書・ゲートの文書・トリアージの文書。private で、public の読み手には届かない。決定の中身はここに写してあるので、設計の正はこの文書。仮設の語（yard・コーディネーター・段 A/B/C・知らせ）は、Andon の語（建屋・Chief of Staff・レベル A/B/C・通知）に直して写す。対応は design.md §2.4。
 
 ## 1. 設計書 §6 の人の答え（27 問）
@@ -211,7 +212,14 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | マージの直前に、タスクの予約キー・履歴（`by`）・委譲を読み直す。ゲートのときと1つでも違えば（`merge: person` に変わった・委譲の `merge` が変わった・review でなくなった）`gh pr merge` を打たず、控えに書かずに次の見回りでゲートから回し直す | P6a の独立レビュー 1 回目（Y-88）の major と Chief of Staff の方針 |
 | 2026-11-05 | レビュアーの起動は段（detached worktree・レビュアーのタスク・端末・最初のメッセージ）ごとに控えに書き、最初のメッセージが届くまで成功にしない。起こした（started）・起こさない（skipped。設定・上限・head 違い）・起こしそこねた（failed。fetch・`hc run`・最初のメッセージなどの一時の失敗）を分け、failed は次の見回りで済んだ段の続きから（タスクも端末も二つにしない。生きている端末へは最初のメッセージを送り直す）。3回続けば通知 `report` | 同上 |
 
-## 14. P6b での決定
+## 14. ADR（Chief Engineer の題）
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-05 | skill の配布: Claude Code 系は `/opt/andon` を plugin `andon` として `--plugin-dir` で読み（`/andon:<name>`）、役の skill を `--append-system-prompt-file` で system prompt に足す。Codex など `.agents/skills` を読むハーネス向けは boot が `~/.agents/skills/andon-<name>` の symlink。作業側の別マシンは image で立てる。PR 時の stale 検査は入れず、版の照合は `machine` と一緒（`ANDON_HOME` が checkout なら照合しない）。やらないこと: Skills over MCP・独自エージェント・marketplace での配布・Intent／npm 同梱 | [ADR-0001](adr/0001-skills-distribution.md) |
+| 2026-11-05 | Chief Engineer の題は ADR（`docs/adr/NNNN-<題>.md`。番号と状態つき。形は design.md §1.8 のまま）。decisions.md には ADR 1本につき1行。部品の生きた設計（courier・image・ledger）と核（design・contract・decisions・operate）は `docs/` 直下のまま | 人の決定 2026-11-05（Y-84 の対話） |
+
+## 15. P6b での決定
 
 担当が推しで進めたもの。覆すなら下に行を足す。
 
@@ -223,4 +231,3 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | `stop-check` の「前回の通過」は、通したときの `log.jsonl` の行の数を控え（`~/.local/state/andon/stop-check/<slug>-<id>.json`）に持つ。`doing` に入り直した行があればそこから数える。続けて止めるのは 3 回まで（`stop_hook_active` が続く間）で、超えたら通して理由を1行出す（フックが続きのターンを回し続けて費用を燃やさないため） | contract.md §9、Y-90 の担当の推し |
 | 2026-11-05 | `UserPromptSubmit` では、待ちが無くても委譲の一覧（`andon delegate show --json` を1行に詰めたもの）を `<delegation project="<slug>">` で毎回添える | contract.md §9、Y-90 の担当の推し |
 | 2026-11-05 | 通知の文は `kind` ごとに1行（`review-requested`・`gate`・`merged` も）。`stalled` の分は通知の `at` と `detail.status_ms` の差。題・名前は制御文字と `<>` を空白に替えて60字に切る（`</news>` を題から漏らさない） | courier.md §3.1、Y-90 の担当の推し |
-

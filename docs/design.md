@@ -256,7 +256,7 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 ## 出典（読んだもの・捨てた案の出所）
 ```
 
-置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。Andon 自身の設計は `docs/`（この文書がその形）。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。
+置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<題の英字>.md`（4桁の通し番号。先頭の状態行は `提案`／`決定（日付）`／`覆された → ADR-NNNN`。中身の形は上のとおりで、受け入れ条件と切る案が ADR の「結果」に当たる。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。人の決定 2026-11-05。最初の ADR は [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)）。[decisions.md](decisions.md) には ADR 1本につき1行（要点と番号）を足し、各決定を写し直さない。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。
 
 **Chief of Staff への渡し方**（台帳経由。約束は [contract.md](contract.md) §4・§8。新しい約束は足さない）:
 
@@ -475,8 +475,9 @@ andon/
     design.md                この文書
     contract.md              機械向けの約束の説明（正は schema/）
     courier.md               クーリエの設計（何を拾い、誰にいつどう届け、どこまで動かすか）
-    decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す）
+    decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。ADR は1本1行）
     operate.md               建屋の立て方・更新・引っ越し（人の手順）
+    adr/NNNN-<題>.md         Chief Engineer の題ごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（courier.md・image.md・ledger.md）は直下のまま
   schema/                    機械用（約束の正。JSON Schema）
     ledger/                  台帳の形式（台帳の CLI を移したら。§3.5）
     task-keys.schema.json    台帳の項目のうち Andon の予約キー（review・must_fix・…）
@@ -519,8 +520,8 @@ andon/
 | パッケージ | 効く場所 | 写し方（`andon boot` が毎起動） |
 |---|---|---|
 | `/opt/andon/bin/andon`・`lib/` | PATH | イメージの `/usr/local/bin/andon` → `/opt/andon/bin/andon`（焼く。volume に触らない） |
-| `/opt/andon/skills/*` | Claude Code の skill。最初のメッセージの絶対パス | `~/.claude/skills/andon-*` → `/opt/andon/skills/*` の symlink を boot が張る。利用者の自作 skill は別の symlink |
-| `/opt/andon/templates/*.md` ＋ 建屋の `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージに建屋の上書きを重ねる）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
+| `/opt/andon/skills/*`（＋ `/opt/andon/.claude-plugin/plugin.json`） | Claude Code は plugin `andon`（`/andon:<name>`）。Codex など `.agents/skills` を読むハーネスは `~/.agents/skills/andon-<name>` | Claude Code 系のプロファイルの command が `--plugin-dir /opt/andon` でその場で読む（symlink は張らない）。Codex 向けは `~/.agents/skills/andon-<name>` → `/opt/andon/skills/<name>` の symlink を boot が張る。利用者の自作 skill には触らない。設計は [ADR-0001](adr/0001-skills-distribution.md) |
+| `/opt/andon/templates/*.md` ＋ 建屋の `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージに建屋の上書きを重ねる。本文の `/opt/andon` は `ANDON_HOME` に置き換える）。Claude Code 系の command に `--plugin-dir /opt/andon` と `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md`（役の skill を system prompt に足す。[ADR-0001](adr/0001-skills-distribution.md)）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
 | `/opt/andon/environment.md` ＋ 建屋の `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
 | `/opt/andon/settings.json`（deny・allow・hooks）＋ `andon.toml` | `/etc/claude-code/managed-settings.json` | boot が生成して置く（root）。managed は最優先でセッションから書き換えられない。設定ファイルを HOME に symlink する仮設の形は**やめる** |
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |

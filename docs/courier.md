@@ -1,6 +1,6 @@
 # クーリエ（courier）の設計
 
-- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§14）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2 の台帳と端末の状態からの拾い（P3b の通知の元）はまだ入っていない。
+- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2 の台帳と端末の状態からの拾い（P3b の通知の元）はまだ入っていない。
 - この文書がクーリエの設計の正。前の設計（仮設の工場の通知の係）は記録として向こうに残る（相談 F8 の回答。[decisions.md](decisions.md) §7）。読んだものは末尾の「出典」。
 - 語は [design.md](design.md) §0.1。機械が読む形（通知の JSON・控え・フック・端末のラベル）の正は [contract.md](contract.md) と `schema/` で、この文書はそれを**なぜその形か**と**いつ何をするか**で説明する。食い違えば contract.md と `schema/` が正。
 
@@ -118,7 +118,7 @@ S-9 の担当 t5 が working のまま 21 分
 
 - **まとめて1通**: Chief of Staff は複数をまとめて1回で答えるほうが安い。
 - **末尾の1行**: 通知はデータで、依頼ではない。Chief of Staff は台帳を読んで動き、人に言うことが無ければ `<no-reply>` とだけ返す。
-- **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: ③で送ったあと、Chief of Staff のターンが終わって答えが `<no-reply>` だけなら、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。①②で届けたターンも同じ規則で書く（こちらは画面ではなく、次の `Stop` フックの入力の `last_assistant_message` が `<no-reply>` だけかで決める。decisions.md §14）。
+- **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: ③で送ったあと、Chief of Staff のターンが終わって答えが `<no-reply>` だけなら、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。①②で届けたターンも同じ規則で書く（こちらは画面ではなく、次の `Stop` フックの入力の `last_assistant_message` が `<no-reply>` だけかで決める。decisions.md §15）。
 
 ---
 
