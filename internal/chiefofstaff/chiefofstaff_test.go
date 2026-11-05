@@ -2,7 +2,6 @@ package chiefofstaff
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +26,6 @@ case $1 in
   get) echo "$FAKE_GET" ;;
   templates) echo "$FAKE_TPL" ;;
   run) echo "$FAKE_RUN" ;;
-  attach) exit 0 ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
 esac
 `
@@ -105,18 +103,22 @@ func runMain(args ...string) (int, string, string) {
 
 func TestStartsChiefOfStaff(t *testing.T) {
 	f := newFake(t)
-	rc, out, errs := runMain("--no-attach")
+	rc, out, errs := runMain()
 	if rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
 	if !strings.Contains(out, "sample-site の Chief of Staff は t42（sample-site-cos・起こした）") {
 		t.Errorf("out=%q", out)
 	}
+	// 最後に出た場所を「<Space 名> / <tab 名>」で出す（ADR-0002 決めたこと 14・17）。address は末尾に添えるだけ
+	if !strings.HasSuffix(out, "andon chief-of-staff: 出た場所 sample-site / CoS（t42）\n") {
+		t.Errorf("出た場所が最後に無い: out=%q", out)
+	}
 	want := []string{
 		"kanban root",
 		"hc ls --json --label role=chief-of-staff --label project=sample-site",
 		"hc templates --json",
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-cos --label role=chief-of-staff --label project=sample-site --cwd " + f.root + " chief-of-staff プロジェクト `sample-site` の Chief of Staff。",
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-cos --label role=chief-of-staff --label project=sample-site --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-cos --cwd " + f.root + " chief-of-staff プロジェクト `sample-site` の Chief of Staff。",
 		"台帳は `" + f.root + "/.flightdeck`。",
 		"kanban config set coordinator=t42 | FLIGHTDECK_ROOT=" + f.root,
 	}
@@ -141,9 +143,9 @@ func TestStartsChiefOfStaff(t *testing.T) {
 func TestUsesRunningOne(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`"}`)
-	rc, out, errs := runMain("--no-attach")
-	if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") {
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","labels":{"herdr.space":"andon-sample-site","herdr.tab":"andon-sample-site-cos"}}`)
+	rc, out, errs := runMain()
+	if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") || !strings.HasSuffix(out, "出た場所 sample-site / CoS（t1）\n") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	// 二重に起こさない。coordinator が合っていれば書かない
@@ -157,7 +159,7 @@ func TestFixesCoordinator(t *testing.T) {
 	f.setCoordinator("t3") // 起き直す前の address
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t8"}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t8","name":"sample-site-cos","cwd":"`+f.root+`"}`)
-	if rc, _, errs := runMain("--no-attach"); rc != 0 || errs != "" {
+	if rc, _, errs := runMain(); rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
 	if f.has("hc run") || f.coordinator() != "t8" {
@@ -168,7 +170,7 @@ func TestFixesCoordinator(t *testing.T) {
 func TestTwoRunning(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"},{"address":"t2"}]}`)
-	rc, _, errs := runMain("--no-attach")
+	rc, _, errs := runMain()
 	if rc != exitFail || !strings.Contains(errs, "Chief of Staff が 2 人いる: t1 t2") || f.has("hc run") || f.has("kanban config") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
@@ -178,7 +180,7 @@ func TestRunningOneDoesNotMatch(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9"}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t9","name":"sample-site-cos","cwd":"/elsewhere"}`)
-	rc, _, errs := runMain("--no-attach")
+	rc, _, errs := runMain()
 	if rc != exitFail || !strings.Contains(errs, "名前（sample-site-cos）か cwd（/elsewhere）が合わない") || f.has("kanban config") || f.coordinator() != "t1" {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
@@ -187,7 +189,7 @@ func TestRunningOneDoesNotMatch(t *testing.T) {
 func TestNoTemplate(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"}]}`)
-	rc, _, errs := runMain("--no-attach")
+	rc, _, errs := runMain()
 	if rc != exitFail || !strings.Contains(errs, "プロファイル chief-of-staff の template が無い") || f.has("hc run") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
@@ -196,7 +198,7 @@ func TestNoTemplate(t *testing.T) {
 func TestNoLedger(t *testing.T) {
 	newFake(t)
 	t.Setenv("FAKE_ROOT", "")
-	if rc, _, errs := runMain("--no-attach"); rc != exitFail || !strings.Contains(errs, "台帳が見つからない") {
+	if rc, _, errs := runMain(); rc != exitFail || !strings.Contains(errs, "台帳が見つからない") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 }
@@ -204,9 +206,9 @@ func TestNoLedger(t *testing.T) {
 func TestFirstMessageNotSent(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
-	rc, _, errs := runMain("--no-attach")
+	rc, _, errs := runMain()
 	if rc != exitFirst || !strings.Contains(errs, "t42（sample-site-cos）に最初のメッセージが届いていない: trust prompt") ||
-		!strings.Contains(errs, "hc attach t42 で画面に答えてから、次を送る: hc send t42 \"プロジェクト `sample-site` の Chief of Staff。") {
+		!strings.Contains(errs, "App の sample-site / CoS で答えてから、次を送る: hc send t42 \"プロジェクト `sample-site` の Chief of Staff。") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 	// 起きた端末は台帳に載せる（起き直さずに画面に答えればよい）
@@ -215,40 +217,31 @@ func TestFirstMessageNotSent(t *testing.T) {
 	}
 }
 
-func TestAttach(t *testing.T) {
+func TestRunningOneWithoutLabels(t *testing.T) {
 	f := newFake(t)
-	old := isTTY
-	isTTY = func(io.Reader, io.Writer) bool { return true }
-	t.Cleanup(func() { isTTY = old })
-	if rc, _, errs := runMain(); rc != 0 || errs != "" {
-		t.Fatalf("rc=%d err=%q", rc, errs)
-	}
-	if c := f.calls(); c[len(c)-1] != "hc attach t42" {
-		t.Errorf("calls=%q", c)
-	}
-	// --no-attach なら端末からでも乗らない
-	os.Remove(f.log)
-	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t42"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t42","name":"sample-site-cos","cwd":"`+f.root+`"}`)
-	if rc, _, _ := runMain("--no-attach"); rc != 0 || f.has("hc attach") {
-		t.Errorf("rc=%d calls=%q", rc, f.calls())
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`"}`)
+	rc, out, _ := runMain()
+	// ラベルより前に起きた端末: 付け直さず、App の Space に無いと言う（嘘の場所を出さない）
+	if rc != 0 || strings.Contains(out, "sample-site / CoS") || !strings.Contains(out, "出た場所 App の Space の外") || f.has("hc label") {
+		t.Errorf("rc=%d out=%q calls=%q", rc, out, f.calls())
 	}
 }
 
-func TestFirstMessageNotSentAttaches(t *testing.T) {
-	f := newFake(t)
-	old := isTTY
-	isTTY = func(io.Reader, io.Writer) bool { return true }
-	t.Cleanup(func() { isTTY = old })
-	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
-	rc, _, errs := runMain()
-	if rc != 0 || !strings.Contains(errs, "画面で答えてから、次を送る: hc send t42") || !f.has("hc attach t42") {
-		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+func TestNeverAttaches(t *testing.T) {
+	for _, run := range []string{`{"address":"t42","first_message":{"sent":true}}`, `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`} {
+		f := newFake(t)
+		t.Setenv("FAKE_RUN", run)
+		runMain()
+		if f.has("hc attach") {
+			t.Errorf("hc attach を打った: %q", f.calls())
+		}
 	}
 }
 
 func TestUsage(t *testing.T) {
-	for _, args := range [][]string{{"x"}, {"--no-attach", "x"}, {"--attach"}} {
+	// --no-attach は消した（ADR-0002 決めたこと 14）
+	for _, args := range [][]string{{"x"}, {"--no-attach"}, {"--attach"}} {
 		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon chief-of-staff") {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
 		}
