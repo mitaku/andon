@@ -279,6 +279,9 @@ func TestDropStaleRoles(t *testing.T) {
 // 前の版の係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起こさない。
 // 片付けられれば起こす。
 func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
+	oldWait, oldPoll := dispatcherWait, stalePoll
+	dispatcherWait, stalePoll = 100*time.Millisecond, 10*time.Millisecond
+	t.Cleanup(func() { dispatcherWait, stalePoll = oldWait, oldPoll })
 	old := func(fg string) string {
 		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
 	}
@@ -317,5 +320,34 @@ func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 				t.Errorf("起こさない理由が無い: %q", got)
 			}
 		})
+	}
+}
+
+// 作り直しの直後は前に出ているものが最初は取れない。取れるまで読み直し、シェルだと分かったら片付ける。
+func TestDropStaleRolesRereadsForeground(t *testing.T) {
+	oldWait, oldPoll := dispatcherWait, stalePoll
+	dispatcherWait, stalePoll = 2*time.Second, 10*time.Millisecond
+	t.Cleanup(func() { dispatcherWait, stalePoll = oldWait, oldPoll })
+	f, e, d := dispatcherFixture(t)
+	// 最初の2回は foreground が null、3回目から /bin/bash を返す偽の hc。
+	put(t, filepath.Join(d, "bin", "hc"), `#!/usr/bin/env bash
+d=$FAKE_HC
+case $1 in
+  get) n=$(cat "$d/n" 2>/dev/null || echo 0); n=$((n+1)); echo $n >"$d/n"
+       if [ $n -le 2 ]; then fg=null; else fg='{"name":"bash","argv":["/bin/bash"]}'; fi
+       echo '{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":'"$fg"'}' ;;
+  keep|kill|rm) echo "$*" >>"$d/log" ;;
+  *) exit 9 ;;
+esac
+`)
+	if err := dropStaleRoles(e); err != nil {
+		t.Fatal(err)
+	}
+	log, _ := os.ReadFile(filepath.Join(d, "log"))
+	if string(log) != "keep t1 --off\nkill t1\nrm t1\n" {
+		t.Errorf("hc=%q", log)
+	}
+	if !strings.Contains(f.log.String(), "片付けた") {
+		t.Errorf("log=%q", f.log.String())
 	}
 }
