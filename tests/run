@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# tests/run [--changed [<base>]]
+#
+# tests/*.sh を並べて走らせ、1本ごとの所要時間の表を出す（tests/lib/run-tests.sh）。並べる数は ANDON_TEST_JOBS（既定は nproc）。
+#   引数なし         全部。
+#   --changed [base] 変えたものに関係する検査だけ（tests/lib/scope.sh。image の検査は image に関係するときだけ）。
+#                    変えたものは <base>（既定は origin/main との merge-base）からの差分と、未 commit・未追跡のファイル。
+# 手元では --changed、全部は CI に任せる。go test ./... は別に打つ。
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+case "${1:-}" in
+  '') exec bash tests/lib/run-tests.sh ;;
+  --changed) ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+esac
+base=${2:-$(git merge-base HEAD origin/main)}
+changed=$( {
+  git diff --name-only --no-renames "$base"
+  git ls-files --others --exclude-standard
+} | sort -u)
+mapfile -t tests < <(bash tests/lib/scope.sh <<<"$changed")
+echo "変えたもの（$(git rev-parse --short "$base") から）: $(wc -l <<<"${changed:-}" | tr -d ' ') 個 → 走らせる: ${tests[*]}"
+exec bash tests/lib/run-tests.sh "${tests[@]}"

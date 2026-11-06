@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI の tests の job が使う道具（tests/lib/image-scope.sh・tests/lib/run-tests.sh）の振る舞い。
+# CI の tests の job と手元の tests/run が使う道具（tests/lib/image-scope.sh・scope.sh・run-tests.sh）の振る舞い。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 die() { echo "FAIL ci: $*" >&2; exit 1; }
@@ -16,6 +16,24 @@ for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report
   [ "$(scope docs/image.md "$p")" = true ] || die "$p を含むのに false"
 done
 ok "image-scope: 文書・ほかの tests だけなら飛ばし、image に入るもの・知らないパスでは走らせる"
+
+# 1b. scope（手元の tests/run --changed）: 文書だけならいつもの分、触った test とそれが読む文書の分を足し、
+#     コードや知らないパスでは全部。image.sh は image-scope と同じとき
+pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
+always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh '
+[ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
+[ "$(pick docs/contract.md)" = 'tests/ci.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh が無い"
+[ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
+[ "$(pick internal/task/task_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/task/task_test.go)"
+n_all=$(ls tests/*.sh | wc -l)
+for p in internal/task/task.go package/x NEW; do
+  got=$(pick "$p")
+  [ "$(wc -w <<<"$got")" -eq "$n_all" ] || die "$p で全部にならない: $got"
+done
+[ "$(wc -w <<<"$(pick tests/lib/kanban.sh)")" -eq $((n_all - 1)) ] || die "tests/lib/kanban.sh で image.sh 以外の全部にならない"
+grep -q tests/image.sh <<<"$(pick tests/lib/kanban.sh)" && die "image に関係しない tests/lib で image.sh"
+grep -q tests/image.sh <<<"$(pick tests/lib/pty-probe.py)" || die "pty-probe.py で image.sh が無い"
+ok "scope: 文書だけならいつもの分、触ったものに関係する分を足し、コード・知らないパスでは全部（image.sh は image に関係するとき）"
 
 # 2. run-tests: 1本ごとに出力をまとめ（混ざらない）、表を出し、落ちたものがあれば 1。skip は走らせない
 tmp=$(mktemp -d)
