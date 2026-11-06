@@ -21,6 +21,7 @@ COPY image/sshd_config.d/andon.conf /etc/ssh/sshd_config.d/andon.conf
 
 ENV HOME=/opt/andon-home
 ENV LANG=en_US.UTF-8
+ENV SHELL=/bin/bash
 ENV AQUA_ROOT_DIR=/opt/andon-home/.local/share/aquaproj-aqua
 ENV PATH=/opt/andon-home/.local/bin:/opt/andon-home/.local/share/aquaproj-aqua/bin:${PATH}
 ENV AQUA_GLOBAL_CONFIG=/opt/andon-aqua/aqua.yaml
