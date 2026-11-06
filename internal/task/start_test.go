@@ -39,6 +39,7 @@ esac
 type startFixture struct {
 	t                        *testing.T
 	root, log, repoDir, home string
+	plant                    string
 	task                     map[string]any
 }
 
@@ -65,6 +66,11 @@ func newStart(t *testing.T) *startFixture {
 	gitT(t, "", "clone", "-q", origin, f.repoDir)
 	gitT(t, f.repoDir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "init")
 	gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:main")
+	// 建屋の repo（dir）: owner が commit した project.json が、書いてよい repo を持つ
+	f.plant = dir
+	gitT(t, dir, "init", "-q")
+	os.WriteFile(filepath.Join(dir, "andon.toml"), []byte("owner = \"owner@example.com\"\n"), 0o644)
+	f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site","github.com/example/none"]}`, "owner@example.com")
 	f.task = map[string]any{"id": "S-7", "title": "Add the button", "status": "todo", "profile": "claude", "repo": "github.com/example/sample-site"}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
@@ -103,6 +109,14 @@ func (f *startFixture) run() (int, string, string) {
 	var out, errb bytes.Buffer
 	rc := Main([]string{"start", "S-7"}, strings.NewReader(""), &out, &errb)
 	return rc, out.String(), errb.String()
+}
+
+// project は建屋の repo の projects/sample-site/project.json を書き、author を email にして commit する。
+func (f *startFixture) project(body, email string) {
+	f.t.Helper()
+	os.WriteFile(filepath.Join(f.plant, "projects", "sample-site", "project.json"), []byte(body), 0o644)
+	gitT(f.t, f.plant, "add", "andon.toml", "projects/sample-site/project.json")
+	gitT(f.t, f.plant, "-c", "user.name=x", "-c", "user.email="+email, "commit", "-q", "-m", "project")
 }
 
 // addRepo は台帳の config.yaml の repos に足す。
@@ -224,6 +238,22 @@ func TestStartRefuses(t *testing.T) {
 			// clone はあるが、このプロジェクトの repo ではない
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
+		}},
+		{"not in project repos", "repo github.com/example/other が projects/sample-site/project.json の repos に無い", func(f *startFixture) {
+			// 台帳の config.yaml にはあるが、人が書いた project.json の repos に無い
+			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
+			f.task["repo"] = "github.com/example/other"
+			f.addRepo("github.com/example/other")
+		}},
+		{"no project.json", "建屋の repo の HEAD に projects/sample-site/project.json が無い", func(f *startFixture) {
+			gitT(t, f.plant, "rm", "-q", "projects/sample-site/project.json")
+			gitT(t, f.plant, "-c", "user.name=o", "-c", "user.email=owner@example.com", "commit", "-q", "-m", "rm")
+		}},
+		{"project.json not by owner", "author（x <agent@example.com>）が owner でない", func(f *startFixture) {
+			f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site"]}`, "agent@example.com")
+		}},
+		{"project.json broken", "project.json の形が違う", func(f *startFixture) {
+			f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"}}`, "owner@example.com")
 		}},
 		{"after", "S-7 は after（S-6）が済んでいない", func(f *startFixture) {
 			f.task["after"] = []any{"S-6"}

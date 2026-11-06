@@ -86,15 +86,15 @@ func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	run(nil, "init", "-q")
 	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte(`owner = "owner@example.com"`+"\n"), 0o644)
 	os.MkdirAll(filepath.Join(ws, "projects", "sample-site"), 0o755)
-	p := filepath.Join(ws, Rel("sample-site"))
-	os.WriteFile(p, []byte(sample), 0o644)
+	p := filepath.Join(ws, ProjectRel("sample-site"))
+	os.WriteFile(p, []byte(projectOf(sample)), 0o644)
 	run(owner, "add", "-A")
 	run(owner, "commit", "-qm", "d")
 	if r := Read(ws, "sample-site", "2026-11-10"); !r.Trusted || r.Merge() != "B" || len(r.Grants) != 2 {
 		t.Errorf("owner の commit: %+v", r)
 	}
 	// 作業ツリーの変更は読まない
-	os.WriteFile(p, []byte(strings.Replace(sample, `"hobby"`, `"work"`, 1)), 0o644)
+	os.WriteFile(p, []byte(projectOf(strings.Replace(sample, `"hobby"`, `"work"`, 1))), 0o644)
 	if r := Read(ws, "sample-site", "2026-11-10"); r.Preset != "hobby" {
 		t.Errorf("作業ツリーを読んだ: %+v", r)
 	}
@@ -104,5 +104,59 @@ func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	}
 	if r := Read(ws, "nothing", "2026-11-10"); r.Trusted || r.Merge() != "none" {
 		t.Errorf("無いのに委譲がある: %+v", r)
+	}
+	// 移す前の delegation.json は、owner が commit していても読まない（無委譲。理由に移すことを書く）
+	os.MkdirAll(filepath.Join(ws, "projects", "legacy"), 0o755)
+	os.WriteFile(filepath.Join(ws, LegacyRel("legacy")), []byte(strings.Replace(sample, "sample-site", "legacy", 1)), 0o644)
+	run(owner, "add", "-A")
+	run(owner, "commit", "-qm", "legacy")
+	if r := Read(ws, "legacy", "2026-11-10"); r.Trusted || r.Merge() != "none" || !strings.Contains(r.Reason, "delegation.json は読まない") {
+		t.Errorf("delegation.json を読んだ: %+v", r)
+	}
+	// project.json に delegation が無ければ無委譲
+	os.WriteFile(filepath.Join(ws, ProjectRel("legacy")), []byte(`{"version":1,"project":{"title":"L","prefix":"L"},"repos":[]}`), 0o644)
+	run(owner, "add", "-A")
+	run(owner, "commit", "-qm", "project")
+	if r := Read(ws, "legacy", "2026-11-10"); r.Trusted || !strings.Contains(r.Reason, "delegation が無い") {
+		t.Errorf("delegation の無い project.json: %+v", r)
+	}
+	if p, err := ReadProject(ws, "legacy"); err != nil || len(p.Repos) != 0 {
+		t.Errorf("ReadProject: %+v %v", p, err)
+	}
+}
+
+// projectOf は委譲 d を delegation に持つ project.json。
+func projectOf(d string) string {
+	return `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"], "delegation": ` + d + `}`
+}
+
+func TestParseProject(t *testing.T) {
+	full := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"},
+ "repos": ["github.com/example/sample-site"], "references": ["github.com/example/design-notes", "https://example.com/spec"],
+ "delegation": ` + sample + `, "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面"], "triage_max_tasks": 3}}`
+	p, err := ParseProject([]byte(full), "sample-site")
+	if err != nil || p.Project.Prefix != "S" || len(p.Repos) != 1 || *p.ChiefOfStaff.Parallel != 2 {
+		t.Fatalf("%+v %v", p, err)
+	}
+	for name, j := range map[string]string{
+		"repos が無い":            `{"version":1,"project":{"title":"x","prefix":"S"}}`,
+		"project が無い":          `{"version":1,"repos":[]}`,
+		"prefix が無い":           `{"version":1,"project":{"title":"x"},"repos":[]}`,
+		"prefix が小文字":          `{"version":1,"project":{"title":"x","prefix":"s"},"repos":[]}`,
+		"title が空":             `{"version":1,"project":{"title":"","prefix":"S"},"repos":[]}`,
+		"知らないキー":               `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"x":1}`,
+		"project に知らないキー":      `{"version":1,"project":{"title":"x","prefix":"S","slug":"a"},"repos":[]}`,
+		"知らない version":         `{"version":2,"project":{"title":"x","prefix":"S"},"repos":[]}`,
+		"repo の形":              `{"version":1,"project":{"title":"x","prefix":"S"},"repos":["example/app"]}`,
+		"repo が重なる":            `{"version":1,"project":{"title":"x","prefix":"S"},"repos":["github.com/a/b","github.com/a/b"]}`,
+		"references が URL でない": `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"references":["ftp://x"]}`,
+		"delegation が null":    `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"delegation":null}`,
+		"delegation の形":        `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"delegation":{"version":1,"project":"other"}}`,
+		"parallel が 0":         `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"chief_of_staff":{"parallel":0}}`,
+		"cos に知らないキー":          `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"chief_of_staff":{"goal":"x"}}`,
+	} {
+		if _, err := ParseProject([]byte(j), "sample-site"); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
 	}
 }

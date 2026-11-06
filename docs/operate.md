@@ -26,12 +26,12 @@
 
 建屋の repo（`~/src/andon-<slug>`。コンテナの `/workspace`）と、製品の repo（ソース）を分ける。
 
-- `projects/<slug>/` は**建屋の repo の実ディレクトリ**（symlink にしない）。台帳（`.flightdeck/`。git の外）と、委譲（`delegation.json`・`delegation.md`）を置く。
+- `projects/<slug>/` は**建屋の repo の実ディレクトリ**（symlink にしない）。台帳（`.flightdeck/`。git の外）と、人が書くプロジェクトの事実（`project.json`: 書いてよい repo・委譲など。[contract.md](contract.md) §11）を置く。
 - ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `~/.herdr/worktrees/<repo 名>/<slug>-<id>` の worktree で働く。
-- 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。
+- 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon task start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
 - `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、建屋の repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
-- **symlink にしない理由**: 委譲は「人だけが書く」。これを、建屋の repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると委譲のファイルが製品の repo に入り、担当の PR で書き換えうる。
+- **symlink にしない理由**: 委譲は「人だけが書く」。これを、建屋の repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
 
 ## 0. 先に知っておくこと: 通らなかった所（直した）
 
@@ -73,7 +73,7 @@ cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 ```
 
 - image を上げたら取り出し直す（ホストの `andon` は image の版と揃える。揃っているかは上の sha256 の2行で比べる）。`~/.local/bin` が PATH に無ければ足す。
-- `--owner` は `andon.toml` の `owner`。委譲のファイル（`delegation.json`）をこの email の commit だけが信じられるようにする。
+- `--owner` は `andon.toml` の `owner`。`project.json`（委譲・書いてよい repo）をこの email の commit だけが信じられるようにする。
 - **通ったら見えるもの**: `~/src/andon-home/` に `Dockerfile`（`FROM` ＋ 2行）・`andon.toml`（`slug = "home"`）・`bin/bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/`・`projects/`。標準出力に `建屋の repo を作った`。パッケージのファイルは無い（design.md §5.1 の 1）。
 - **落ちたら見る所**: 取り出しの `docker run` が落ちた（`manifest unknown` など）— 1 の pull を先に通す。`~/.local/bin/andon.new` が残っていれば消す。`はすでにあり、空でない` — 上書きしない。別の `--dir` か、中身を退避する。`slug は英小文字・数字・-` — slug の綴り。
 - 建屋の repo を git で持つなら `git init` して commit する（`.ghq/`・`.env` などは雛形の `.gitignore` が外している）。
@@ -286,10 +286,14 @@ ghq list
 mkdir -p /workspace/projects/andon && cd /workspace/projects/andon
 kanban init --prefix A --repo github.com/<owner>/andon
 kanban list ; kanban lint
+# 人のファイル: このプロジェクトが書いてよい repo（形は contract.md §11）。owner の email で commit する
+echo '{"version": 1, "project": {"title": "Andon", "prefix": "A"}, "repos": ["github.com/<owner>/andon"]}' > project.json
+git add project.json && git commit -m 'projects/andon/project.json'
 ```
 
 - **通ったら見えるもの**: `created …/.flightdeck`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
 - **落ちたら見る所**: `already a ledger` — 作ってある（そのまま使う）。`--repo must be host/owner/repo` — 綴り。`checkClock` の失敗 — コンテナの時計。
+- `project.json` が無い・owner の commit でない・`repos` に無い repo のタスクは、`andon task start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無い建屋は、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
 - `projects/andon/coordinator.md`（人のファイル: 目標・並行の上限・独立レビューを入れる条件）は任意。無ければ並行の上限は 2。
 
 ## 9. Chief of Staff を起こす
@@ -313,7 +317,7 @@ andon chief-of-staff        # 起こす（動いていればそれを使う）�
 
 ### 先に: マージの委譲と owner の email
 
-依頼書の `Merge: auto` でマージされるには、ゲートが approve するだけでは足りず、**委譲の `merge` がそのレベルを許している**ことが要る（[contract.md](contract.md) §11）。委譲（`projects/andon/delegation.json`）と条件表（`gate.local.json`）は、**それを最後に変えた commit の author の email が `andon.toml` の `owner` と一致するときだけ**信じられる。違うと無委譲（全部人）・条件表を重ねない、として読まれる。
+依頼書の `Merge: auto` でマージされるには、ゲートが approve するだけでは足りず、**委譲の `merge` がそのレベルを許している**ことが要る（[contract.md](contract.md) §11）。委譲（`projects/andon/project.json` の `delegation`）と条件表（`gate.local.json`）は、**それを最後に変えた commit の author の email が `andon.toml` の `owner` と一致するときだけ**信じられる。違うと無委譲（全部人）・条件表を重ねない、として読まれる。
 
 ```bash
 cd ~/src/andon-home
@@ -322,12 +326,12 @@ git config user.email                       # 建屋の repo の commit で使�
 git config user.email '<owner の email>'    # 違うなら合わせる（この repo の中だけ）
 andon delegate grant merge B --evidence '<根拠のパスか引用>'    # projects/andon/ で打つ（か --project andon を付ける）。B はマージを許すレベルの上限（A / B / C）
 andon delegate show                                              # 同じく projects/andon/ で（か --project andon）
-git -C ~/src/andon-home log -1 --format='%ae' -- projects/andon/delegation.json gate.local.json
+git -C ~/src/andon-home log -1 --format='%ae' -- projects/andon/project.json gate.local.json
 ```
 
-- `grant` は `delegation.json` と `delegation.md` を書いて commit する。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
-- **通ったら見えるもの**: `grant` が `projects/andon/delegation.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
-- **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — `git config user.email` が owner と違うまま commit した。email を合わせて、`delegation.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
+- `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先に人が書く。無ければ書かない）。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
+- **通ったら見えるもの**: `grant` が `projects/andon/project.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
+- **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — `git config user.email` が owner と違うまま commit した。email を合わせて、`project.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 
 人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。建屋の `gate.local.json`）。
 

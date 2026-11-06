@@ -82,6 +82,11 @@ for p in package/skills/ package/templates/ package/gate.json package/settings.j
   jq -e --arg p "${p%/}" '.tier_c_paths | map(rtrimstr("/**")) | index($p)' package/gate.json >/dev/null \
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
+# 人だけが書くファイル（author 照合の対象）は、PR に入ればレベル C（contract.md §11・§7）
+for p in 'projects/*/project.json' gate.local.json andon.toml; do
+  jq -e --arg p "$p" '.tier_c_paths | index($p)' package/gate.json >/dev/null \
+    && pass "人のファイル $p はレベル C" || fail "$p が tier_c_paths に無い"
+done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
 jq -e '.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY == "1"' package/settings.json >/dev/null && pass "settings の env が auto memory を止める（CLAUDE_CODE_DISABLE_AUTO_MEMORY=1。autoMemoryEnabled:false より優先して効く）" || fail "settings の env に CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 が無い"

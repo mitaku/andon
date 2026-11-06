@@ -8,7 +8,7 @@
   "tier_c_paths": ["image/**", "Dockerfile", "compose*.y*ml", "docker-compose*.y*ml",
                    "package/skills/**", "package/templates/**", "package/hooks/**", "package/gate.json", "package/settings.json", "package/codex.rules",
                    "package/environment.md", "package/compose.yaml", "package/host/**",
-                   "gate.local.json", "andon.toml", "templates.local/**", "projects/*/delegation.json",
+                   "gate.local.json", "andon.toml", "templates.local/**", "projects/*/project.json", "projects/*/delegation.json",
                    "hooks/**", ".github/workflows/**", "tests/public*.sh", ".envrc", ".env.example", ".aqua/aqua-policy.yaml",
                    "**/.mcp.json", "**/AGENTS.md", "**/AGENTS.override.md", "**/AGENTS.local.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
                    "**/.claude/**", "**/.codex/**", ".aqua/registry.yaml", ".aqua/aqua-checksums.json",
