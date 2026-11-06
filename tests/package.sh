@@ -3,7 +3,7 @@
 #   1. skill 7つとプロファイル 8つがそろい、frontmatter の name がディレクトリ名・ファイル名と同じ。
 #   2. plugin.json の name が andon。Claude Code 系のプロファイルは command で plugin と役の skill を運び（本文で読ませない）、Codex 系は本文で skill を指す。
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
-#   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。
+#   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
 #   5. statusline が JSON を読んで1行を出す。
 #   6. skill の機械向けの手順が command（andon task …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
@@ -91,6 +91,18 @@ for ev in Stop:stop UserPromptSubmit:user-prompt-submit; do
     && [ -x "package/hooks/${ev#*:}" ] && sh -n "package/hooks/${ev#*:}" \
     && pass "${ev%%:*} フックは package/hooks/${ev#*:} を指す" || fail "${ev%%:*} フック: package/hooks/${ev#*:}"
 done
+
+# 全フックの command が、建屋に在るファイルだけを指す（/opt/andon/ は package/ の写し。$HOME 配下は image に無い）
+cmds=$(jq -r '[.hooks[][].hooks[].command] | .[]' package/settings.json)
+bad=
+while IFS= read -r c; do
+  [ -z "$c" ] && continue
+  case $c in
+    /opt/andon/*) [ -e "package/${c#/opt/andon/}" ] || bad="$bad [$c]" ;;
+    *) bad="$bad [$c]" ;;
+  esac
+done <<<"$cmds"
+[ -z "$bad" ] && pass "settings のフックは package に在る /opt/andon/ のファイルだけを指す" || fail "settings のフックが建屋に無いファイルを指す:$bad"
 
 # === 5. statusline ===
 out=$(printf '%s' '{"model":{"display_name":"Sample"},"context_window":{"used_percentage":42},"cwd":"/tmp"}' | bash package/lib/andon/statusline 2>"$tmp/err")
