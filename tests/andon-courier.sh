@@ -183,8 +183,8 @@ ok '同じ commit の出し直しは、前回が起こさずに終わってい�
 # 1. 一周: review-request → レビュアーを起こす → レビュー → ready → ゲート → マージ → finish
 id=$(newtask 'docs を直す' auto)
 mark=$(wc -l < "$L/log.jsonl")
-# 担当 t7 は andon task start のラベルで App の作業側の tab にいる（ADR-0002）。レビュアーは同じ値を付ける
-echo '{"address":"t7","state":"live","labels":{"task":"'"$id"'","herdr.space":"andon-demo-work","herdr.tab":"andon-demo-'"$id"'","where":"demo work / x"}}' > "$tmp/hc/term-t7.json"
+# 担当 t7 は andon task start のラベルで App のタスクの Space の tab にいる（ADR-0003）。レビュアーは同じ値を付ける
+echo '{"address":"t7","state":"live","labels":{"task":"'"$id"'","herdr.space":"andon-demo-'"$id"'","herdr.tab":"andon-demo-'"$id"'","where":"x / y"}}' > "$tmp/hc/term-t7.json"
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
@@ -202,7 +202,7 @@ grep -q "hc send t7 " "$L/tasks/$rev/brief.md" && grep -q 'Chief of Staff・ク�
 grep -q "commit $head" "$L/tasks/$rev/brief.md" && ! grep -q '## Report' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
 pending "$id" review-requested | jq -e --arg r "$rev" '.detail == {round: 1, reviewer: "codex-review", reviewer_task: $r}' >/dev/null || die '通知 review-requested が無い'
 emit <(pending "$id" review-requested) notification-review-requested.json
-grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-work --label herdr.tab=andon-demo-$id --cwd " && ! grep "^run " "$tmp/hc/log" | grep -q 'where=' ||
+grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --label herdr.tab=andon-demo-$id --cwd " && ! grep "^run " "$tmp/hc/log" | grep -q 'where=' ||
     die "レビュアーに担当の herdr.space・herdr.tab が無い（where を写した）: $(grep ^run "$tmp/hc/log")"
 grep -qx "get t7 --json" "$tmp/hc/log" || die '担当の端末を hc get --json で読んでいない'
 rm "$tmp/hc/term-t7.json"

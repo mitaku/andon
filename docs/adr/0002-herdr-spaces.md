@@ -1,6 +1,6 @@
 # ADR-0002: Herdr App の Space と tab への役の置き方（仕様・設計。2026-11-05。Chief Engineer のタスク Y-105）
 
-- 状態: **決定（2026-11-05）**。同日、試作 S0 の結果で前提 8〜11 と決めたこと 10〜18 を足した（Chief Engineer のタスク Y-106。構造は変えていないので同じ ADR）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改め（試作の結果を含む）は「決めたこと」に下から足す。
+- 状態: **決定（2026-11-05）。決めたこと 1・2（作業側の Space と tab。それを確定した 12・作業側の名前の 16 を含む）は覆された → [ADR-0003](0003-task-spaces.md)**（2026-11-06）。同日、試作 S0 の結果で前提 8〜11 と決めたこと 10〜18 を足した（Chief Engineer のタスク Y-106。構造は変えていないので同じ ADR）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改め（試作の結果を含む）は「決めたこと」に下から足す。
 - 主題: Chief of Staff・Chief Engineer・担当とレビュアーを、人の Herdr App（herdrdev/herdr-app）の Space と tab にどう置くか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は端末のラベル（[contract.md](../contract.md) §8）。
 
