@@ -68,8 +68,14 @@ function location() {
 }
 
 /** @returns {Record<string, any>} */
+// Ledger files are written by agents: a short YAML whose aliases nest (`b: [*a, *a]`, again and
+// again) would grow without bound when the board copies it. `kanban` writes no aliases, so a file
+// with one is refused (shown as unreadable), and so is an oversized file.
+const YAML_MAX_BYTES = 256 * 1024;
+const YAML_MAX_ALIASES = 0;
 function parseYaml(text) {
-  const value = /** @type {any} */ (load(text.replace(/^﻿/, "")));
+  if (text.length > YAML_MAX_BYTES) throw new Error(`larger than ${YAML_MAX_BYTES / 1024} KiB`);
+  const value = /** @type {any} */ (load(text.replace(/^﻿/, ""), { maxAliases: YAML_MAX_ALIASES }));
   if (value != null && (typeof value !== "object" || Array.isArray(value))) throw new Error("not a mapping");
   return value ?? {};
 }

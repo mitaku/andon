@@ -118,11 +118,15 @@ await check('context-header: Andon の担当・レビュアー・Chief Engineer 
   assert.deepEqual([...f.where], ['This computer', 'sample-site']);
 });
 
-await check('kanban-board: kanban/config.yaml に version がある所だけを台帳とみなし、chief_of_staff を読む', async () => {
+await check('kanban-board: kanban/config.yaml に version がある所だけを台帳とみなし、chief_of_staff を読み、alias の入れ子の task.yaml を拒む', async () => {
   const fsys = new Map([
     ['/w/repo/kanban/config.yaml', 'title: not a ledger\n'],
     ['/w/plant/projects/sample-site/kanban/config.yaml', 'version: 2\nchief_of_staff: t2\nrepos: [github.com/sample/repo]\n'],
   ]);
+  // A short task.yaml whose aliases nest 22 deep: 4M copies if expanded. It must be refused.
+  let bomb = 'a0: &a0 [x]\n';
+  for (let i = 1; i <= 22; i++) bomb += `a${i}: &a${i} [*a${i - 1}, *a${i - 1}]\n`;
+  const tasks = new Map([['A-0001', 'title: Fine\nstatus: todo\n'], ['A-0002', bomb]]);
   const Board = await load(`${HOST}/kanban-board`, {
     agents: () => [], terminals: () => [], panes: () => [], spaces: () => [], focused: () => null,
     readTextFile: async (p) => { if (!fsys.has(p)) throw new Error('missing'); return fsys.get(p); },
@@ -135,7 +139,9 @@ await check('kanban-board: kanban/config.yaml に version がある所だけを�
         const hits = [...fsys].filter(([p]) => p.startsWith(`${dir}/projects/`) && p.endsWith('/kanban/config.yaml'));
         return { code: 0, stdout: hits.map(([p, t]) => `\x1e${p.split('/').at(-3)}\n${t}\n`).join(''), stderr: '' };
       }
-      if (cmd === 'sh' && args[1].includes('kanban/tasks/')) return { code: 0, stdout: '', stderr: '' };
+      if (cmd === 'sh' && args[1].includes('kanban/tasks/')) {
+        return { code: 0, stdout: [...tasks].map(([id, t]) => `\x1e${id}\n${t}\n`).join(''), stderr: '' };
+      }
       return { code: 1, stdout: '', stderr: '' };
     },
   });
@@ -151,6 +157,12 @@ await check('kanban-board: kanban/config.yaml に version がある所だけを�
   assert.notEqual(plain.root, '/w/repo', 'version の無い kanban/ を台帳とみなした');
   const { ledger } = await b.readLedger(b.root, null);
   assert.equal(ledger.chiefOfStaff, 't2');
+  const started = Date.now();
+  const { tasks: read } = await b.readLedger(b.root, null);
+  JSON.stringify(read);
+  assert.ok(Date.now() - started < 2000, 'alias の入れ子の展開に時間がかかった');
+  assert.equal(read.find(t => t.id === 'A-0001')?.title, 'Fine');
+  assert.match(String(read.find(t => t.id === 'A-0002')?.broken), /maxAliases/, 'alias の入れ子を読めないタスクにしていない');
 });
 
 if (failed) process.exit(1);
