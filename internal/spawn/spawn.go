@@ -11,6 +11,7 @@ package spawn
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -188,7 +189,7 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 		}
 	}
 	if err != nil || def == "" {
-		return nil, fmt.Errorf("origin の既定の branch が分からない（%s）", repoDir)
+		return nil, defaultBranchError(repoDir, err)
 	}
 	if _, err := g("fetch", "-q", "origin", "+refs/heads/"+def+":refs/remotes/origin/"+def); err != nil {
 		return nil, fmt.Errorf("origin/%s を fetch できない（%s）", def, repoDir)
@@ -220,6 +221,22 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 		return nil, fmt.Errorf("worktree を作れない: %s", path)
 	}
 	return &Worktree{RepoDir: repoDir, Path: path, Branch: branch}, nil
+}
+
+// authFailure は git の stderr が認証の失敗らしいとき真（credential helper が未設定・token が無効・権限が無い）。
+var authFailure = regexp.MustCompile(`(?i)could not read (username|password)|authentication failed|terminal prompts disabled|permission denied|invalid credentials|repository not found|returned error: 40[13]`)
+
+// defaultBranchError は origin の既定の branch を引けなかった失敗の文。git の stderr（Output が err に入れた1行）を添え、
+// 認証が原因らしいときは gh auth status・gh auth setup-git を案内する（建屋で gh auth setup-git が未実行のとき、原因が文言に出ない）。
+func defaultBranchError(repoDir string, cause error) error {
+	msg := fmt.Sprintf("origin の既定の branch が分からない（%s）", repoDir)
+	if cause != nil {
+		msg += ": " + cause.Error()
+	}
+	if cause != nil && authFailure.MatchString(cause.Error()) {
+		msg += "。認証が原因らしい: gh auth status でログインを確かめ、gh auth setup-git で git の資格情報を gh にする（boot が起動のたびに打つ。gh auth login のあと andon boot を打ち直してもよい）"
+	}
+	return errors.New(msg)
 }
 
 // WorktreePath は ~/.herdr/worktrees/<repo 名>/<slug>-<id>（andon task finish が片付ける置き場と同じ）。
