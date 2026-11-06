@@ -20,7 +20,10 @@ import (
 //   - task ids get four digits (A-5 → A-0005): the folders, and id, parent and after in task.yaml;
 //   - .flightdeck/coordinator.md becomes the Chief of Staff's section of the project's AGENTS.md;
 //   - the dispatcher's state for the project (~/.local/state/andon/dispatcher/<slug>.json)
-//     names the tasks by their new ids.
+//     names the tasks by their new ids;
+//   - when the project has no project.json, a draft of it is written from config.yaml (title,
+//     prefix, repos) and delegation.json (delegation), for the person to check and commit.
+//     kanban commits nothing; delegation.json stays.
 //
 // log.jsonl, reports and briefs keep the ids they were written with: kanban and Andon read
 // A-5 as A-0005. A task in doing or review stops the move, before anything changes: its
@@ -60,8 +63,12 @@ func cmdMigrate(e env, a args) error {
 	if _, _, err := readDispatcherState(slug); err != nil {
 		return err
 	}
+	draft, err := projectDraft(root, old)
+	if err != nil {
+		return err
+	}
 	var moved map[string]string
-	err := lockIn(old, lockWait, func() error {
+	err = lockIn(old, lockWait, func() error {
 		var err error
 		moved, err = migrateIn(root, old)
 		return err
@@ -86,6 +93,13 @@ func cmdMigrate(e env, a args) error {
 	if err != nil {
 		return err
 	}
+	project := ""
+	if draft != nil {
+		project = filepath.Join(root, "project.json")
+		if err := writeAtomic(project, draft); err != nil {
+			return err
+		}
+	}
 	entry := &omap{}
 	entry.set("at", now())
 	entry.set("by", who())
@@ -108,11 +122,15 @@ func cmdMigrate(e env, a args) error {
 	if state != "" {
 		lines = append(lines, "dispatcher state renamed ids: "+state)
 	}
+	if project != "" {
+		lines = append(lines, "wrote a draft of "+project+" (not committed): check it, commit it as yours, then andon delegate show")
+	}
 	o := &omap{}
 	o.set("root", root)
 	o.set("ids", ids)
 	o.set("agents", agents)
 	o.set("dispatcherState", state)
+	o.set("projectDraft", project)
 	e.out(a, o, strings.Join(lines, "\n"))
 	return nil
 }
@@ -257,6 +275,66 @@ func moveCoordinatorMD(root string) (string, error) {
 		return "", err
 	}
 	return to, os.Remove(from)
+}
+
+// projectDraft is the project.json to write when the project has none (nil when it has one):
+// version 1, project (config.yaml title, else the folder's name; prefix), repos (config.yaml),
+// and delegation (delegation.json as it is). The shape is Andon's schema/project.schema.json;
+// andon delegate show checks it once the person has committed it.
+func projectDraft(root, old string) ([]byte, error) {
+	to := filepath.Join(root, "project.json")
+	if err := checkNoLink(to, true); err != nil {
+		return nil, err
+	}
+	if exists(to) {
+		return nil, nil
+	}
+	cfg, err := readDoc(filepath.Join(old, "config.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	title := cfg.str("title")
+	if title == "" {
+		title = filepath.Base(root)
+	}
+	prefix := cfg.str("prefix")
+	if prefix == "" {
+		prefix = "W"
+	}
+	repos := cfg.list("repos")
+	if repos == nil {
+		repos = []string{}
+	}
+	var delegation json.RawMessage
+	from := filepath.Join(root, "delegation.json")
+	if err := checkNoLink(from, true); err != nil {
+		return nil, err
+	}
+	switch b, err := os.ReadFile(from); {
+	case os.IsNotExist(err):
+	case err != nil:
+		return nil, err
+	default:
+		var v map[string]any
+		if json.Unmarshal(b, &v) != nil || v == nil {
+			return nil, fail("not moved: %s is not a JSON object; fix it first (it becomes project.json's delegation)", from)
+		}
+		delegation = json.RawMessage(b)
+	}
+	type info struct {
+		Title  string `json:"title"`
+		Prefix string `json:"prefix"`
+	}
+	out, err := json.MarshalIndent(struct {
+		Version    int             `json:"version"`
+		Project    info            `json:"project"`
+		Repos      []string        `json:"repos"`
+		Delegation json.RawMessage `json:"delegation,omitempty"`
+	}{1, info{title, prefix}, repos, delegation}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
 }
 
 // readDispatcherState reads the dispatcher's state for slug: nil data when there is none,

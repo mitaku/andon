@@ -274,14 +274,15 @@ One JSON object per line, appended:
 
 ## Moving from `.flightdeck/`
 
-`kanban migrate [--root dir]` (root as for `kanban init`) moves a ledger from `<root>/.flightdeck/` to `<root>/kanban/`, once. It stops, and changes nothing, when `kanban/` is already there, when `config.yaml` isn't version 2, when a `task.yaml` can't be read, or when a task is `doing` or `review` (a worktree, branch, terminal and Space carry its id; finish those first). Otherwise it:
+`kanban migrate [--root dir]` (root as for `kanban init`) moves a ledger from `<root>/.flightdeck/` to `<root>/kanban/`, once. It stops, and changes nothing, when `kanban/` is already there, when `config.yaml` isn't version 2, when a `task.yaml` can't be read or a task folder is a symbolic link, when the dispatcher state or `delegation.json` (below) can't be read as JSON, or when a task is `doing` or `review` (a worktree, branch, terminal and Space carry its id; finish those first). Otherwise it:
 
 1. renames, in each `task.yaml`, `id`, `parent` and `after` to four-digit ids, then each `tasks/<id>/` folder (with its `library/`);
 2. renames `config.yaml` `coordinator` to `chief_of_staff` (value, comments and place kept);
 3. moves the folder to `kanban/` (`.gitignore` stays `*`);
 4. appends `coordinator.md`, if there is one, to `<root>/AGENTS.md` under `## Chief of Staff` and removes it;
 5. renames the moved ids in Andon's dispatcher state for the project (`$XDG_STATE_HOME/andon/dispatcher/<slug>.json`, else `~/.local/state/…`): keys and strings that are an id, or an id followed by `#`, `@` or `|`;
-6. logs `{"at", "by", "migrate": {"from": ".flightdeck", "ids": {old: new}}}`.
+6. when `<root>/project.json` is missing, writes a draft of it for the person to check and commit: `version` 1, `project` (`config.yaml` `title`, else the folder's name, and `prefix`), `repos` (`config.yaml` `repos`) and `delegation` (`<root>/delegation.json` as it is, which stays). The shape is Andon's [project.schema.json](../schema/project.schema.json); kanban commits nothing;
+7. logs `{"at", "by", "migrate": {"from": ".flightdeck", "ids": {old: new}}}`.
 
 `log.jsonl`, `brief.md`, `report.md` and the questions keep the ids they were written with (the readers take `A-5` as `A-0005`). Routines name no task ids. Branch and worktree names are not changed.
 

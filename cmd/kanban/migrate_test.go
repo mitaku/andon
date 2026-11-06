@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+
+	"andon/internal/delegate"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,6 +83,7 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	put(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\n# the lead\ncoordinator: t5 # now\nrepos: []\n")
 	put(t, filepath.Join(old, "coordinator.md"), "並行の上限: 3\n")
 	put(t, filepath.Join(root, "AGENTS.md"), "# app\n\nthe map\n")
+	put(t, filepath.Join(root, "delegation.json"), `{"version": 1, "project": "app", "preset": "hobby", "grants": [{"id": "d1", "scope": "merge", "value": "B", "by": "owner", "at": "2026-11-06", "until": null, "evidence": "x"}]}`)
 	put(t, filepath.Join(old, "tasks", "A-3", "task.yaml"), "id: A-3\ntitle: three\nstatus: done\n")
 	put(t, filepath.Join(old, "tasks", "A-5", "task.yaml"), "id: A-5\ntitle: five # kept\nstatus: todo\nparent: A-3\nafter: [A-3]\n")
 	put(t, filepath.Join(old, "tasks", "A-5", "questions.yaml"), "- n: 1\n  text: which?\n  status: open\n")
@@ -118,6 +121,17 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	// kanban/ stays out of git (ADR-0005, 5); nothing is git added.
 	if out := git(ws, "status", "--porcelain", "--untracked-files=all"); strings.Contains(out, "kanban/") || git(ws, "diff", "--cached", "--name-only") != "" {
 		t.Fatalf("git status after migrate:\n%s", out)
+	}
+	// A draft of project.json from config.yaml and delegation.json, which Andon reads with the same delegation.
+	p, err := delegate.ParseProject([]byte(readFile(t, filepath.Join(root, "project.json"))), "app")
+	if err != nil || p.Project.Title != "app" || p.Project.Prefix != "A" || len(p.Repos) != 0 {
+		t.Fatalf("project.json draft: %+v %v", p, err)
+	}
+	if f, err := delegate.Parse(p.Delegation, "app"); err != nil || f.Effective("2026-11-07")["merge"] != "B" {
+		t.Fatalf("project.json delegation: %v", err)
+	}
+	if !exists(filepath.Join(root, "delegation.json")) {
+		t.Fatal("delegation.json was removed")
 	}
 	var st map[string]any
 	json.Unmarshal([]byte(readFile(t, dstate)), &st)
@@ -241,4 +255,25 @@ func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
 	if !exists(taskFile(root, "A-0005")) || !strings.Contains(readFile(t, file), `"A-0005"`) {
 		t.Fatalf("migrate after the fix: %s", readFile(t, file))
 	}
+}
+
+// project.json is drafted only when there is none, and a delegation.json that isn't a JSON object stops the move.
+func TestMigrateProjectDraft(t *testing.T) {
+	t.Setenv("KANBAN_ROOT", "")
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := filepath.Join(t.TempDir(), "app")
+	put(t, filepath.Join(root, ".flightdeck", "config.yaml"), "version: 2\nprefix: A\ntitle: App\nrepos:\n  - github.com/x/app\n")
+	put(t, filepath.Join(root, "delegation.json"), "[1]")
+	deckFails(t, root, "", "migrate")
+	if exists(filepath.Join(root, "kanban")) || exists(filepath.Join(root, "project.json")) {
+		t.Fatal("something moved")
+	}
+	put(t, filepath.Join(root, "project.json"), "mine\n")
+	kanban(t, root, "migrate")
+	assertUnchanged(t, filepath.Join(root, "project.json"), "mine\n")
+
+	other := filepath.Join(t.TempDir(), "web")
+	put(t, filepath.Join(other, ".flightdeck", "config.yaml"), "version: 2\nprefix: W\ntitle: Web\nrepos:\n  - github.com/x/web\n")
+	kanban(t, other, "migrate")
+	assertUnchanged(t, filepath.Join(other, "project.json"), "{\n  \"version\": 1,\n  \"project\": {\n    \"title\": \"Web\",\n    \"prefix\": \"W\"\n  },\n  \"repos\": [\n    \"github.com/x/web\"\n  ]\n}\n")
 }
