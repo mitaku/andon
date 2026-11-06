@@ -36,7 +36,7 @@ func Start(e Env) {
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},
-		{"前の版の役の端末", dropStaleRoles},
+		{"前の版の係の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
 	} {
 		if err := step.run(e); err != nil {
@@ -247,52 +247,47 @@ func startSSHD(e Env) error {
 	return nil
 }
 
-// roles は Andon が今付ける役のラベル（role=）の値（chiefofstaff.Profile・chiefengineer.Profile・dispatcher.Name。
-// chiefengineer が boot を読むので、ここでは字で持つ）。
-var roles = map[string]bool{"chief-of-staff": true, "chief-engineer": true, dispatcher.Name: true}
+// oldDispatcher は名前を改める前の常駐の係の名前（端末の名前と role= の値。2026-11-06 に dispatcher へ改めた）。
+const oldDispatcher = "courier"
 
-// dropStaleRoles は、役のラベルの値が今の Andon の役のどれでもない live な端末を片付ける（keep を外して kill・rm）。
-// 前の版が起こした役の端末（役の名前を改めた前の名前のもの）で、建屋の upgrade のあとに残る。
-// 役のラベルの付いた端末は Andon の持ち物なので、中身を見ずに片付ける（decisions.md の 2026-11-06。人の打ちかけには打ち込まない）。
-// 前の版の常駐の係が動いたままなら、今の dispatcher と二重に回る（同じ PR をマージしにいく）ので、起こす前に片付ける。
+// dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
+// （keep を外して kill・rm）。建屋の upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
+// （同じ PR をマージしにいく）ので、起こす前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
+// （作り直しで戻った中身）のときだけ片付け、それ以外（人が中で何か動かしている・前に出ているものが取れない）は触らずに1行書く。
 func dropStaleRoles(e Env) error {
 	hc, ok := e.has("hc")
 	if !ok {
 		return nil
 	}
-	out, err := spawn.Output(nil, "", hc, "ls", "--json")
+	got, err := spawn.Output(nil, "", hc, "get", oldDispatcher, "--json")
 	if err != nil {
-		return fmt.Errorf("hc ls: %v", err)
+		return nil // 前の係の端末は無い（not_found）。hc 自体の不調は dispatcher の段が出す
 	}
-	var ls struct {
-		Terminals []struct {
-			Address string `json:"address"`
-		} `json:"terminals"`
+	var t spawn.Term
+	if json.Unmarshal([]byte(got), &t) != nil || t.State != "live" || t.Address == "" ||
+		t.Name != oldDispatcher || t.Labels["role"] != oldDispatcher {
+		return nil
 	}
-	if err := json.Unmarshal([]byte(out), &ls); err != nil {
-		return fmt.Errorf("hc ls --json の形が読めない: %v", err)
+	if t.Foreground == nil || !(t.Shell() || isOldDispatcher(t.Foreground.Argv)) {
+		fg := "取れない"
+		if t.Foreground != nil {
+			fg = t.Foreground.Name
+		}
+		e.logf("前の版の係の端末 %s の前に出ているものが %s なので触らない（hc kill %s で片付けてから andon boot）", t.Address, fg, t.Address)
+		return nil
 	}
-	for _, l := range ls.Terminals {
-		got, err := spawn.Output(nil, "", hc, "get", l.Address, "--json")
-		if err != nil {
-			continue // ls と get の間に消えた
+	for _, args := range [][]string{{"keep", t.Address, "--off"}, {"kill", t.Address}, {"rm", t.Address}} {
+		if o, err := exec.Command(hc, args...).CombinedOutput(); err != nil {
+			return fmt.Errorf("hc %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(o)))
 		}
-		var t spawn.Term
-		if json.Unmarshal([]byte(got), &t) != nil || t.State != "live" {
-			continue
-		}
-		role := t.Labels["role"]
-		if role == "" || roles[role] {
-			continue
-		}
-		for _, args := range [][]string{{"keep", l.Address, "--off"}, {"kill", l.Address}, {"rm", l.Address}} {
-			if o, err := exec.Command(hc, args...).CombinedOutput(); err != nil {
-				return fmt.Errorf("hc %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(o)))
-			}
-		}
-		e.logf("前の版の役の端末 %s（%s・role=%s）を片付けた", l.Address, t.Name, role)
 	}
+	e.logf("前の版の係の端末 %s（%s）を片付けた", t.Address, oldDispatcher)
 	return nil
+}
+
+// isOldDispatcher は前に出ているものが前の版の係（andon courier）か。
+func isOldDispatcher(argv []string) bool {
+	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == oldDispatcher
 }
 
 // startDispatcher は dispatcher の端末を確かめる（dispatcher.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。

@@ -351,10 +351,10 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前の版の建屋を上げるときは次のとおり。
 
 1. **上げる前に**: `status: review` のタスクと、レビュアーが動いている（`review_request` を出した）タスクが無いときに上げる。あれば片付くのを待つ（理由は 3）。
-2. **image を上げて起動する**（`rebuild`）。boot が、役のラベル（`role=`）の値が今の役（`chief-of-staff`・`chief-engineer`・`dispatcher`）のどれでもない live な端末を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。役のラベルの付いた端末は Andon の持ち物なので中身を見ずに片付ける（上の「役のラベルの付いた端末は Andon の持ち物」）。起動のログに `前の版の役の端末 <address>（courier・role=courier）を片付けた` と `dispatcher を起こした` が出る。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
+2. **image を上げて起動する**（`rebuild`）。boot が前の係の端末（名前もラベルも `courier`・`role=courier`）を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。片付けるのは前に出ているものが前の係（`andon courier`）か引数の無いシェル（作り直しで戻った中身）のときだけで、起動のログに `前の版の係の端末 <address>（courier）を片付けた` と `dispatcher を起こした` が出る。それ以外（人が中で何か動かしている・前に出ているものが取れない）は触らずに `… なので触らない` と書くので、人が `hc kill <address>` で片付けてから `andon boot` を打ち直す（前の係が動いたままだと dispatcher と二重に回る）。ほかの端末には触らない。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
 3. **控えの置き場が替わる**: `~/.local/state/andon/courier/` は読まない。新しい `~/.local/state/andon/dispatcher/` に控えが無いので、どの台帳も**初めて見る台帳**として扱われる（[dispatcher.md](dispatcher.md) §2.1）:
    - 止まっていた間の出来事（報告・問い・止まり）は通知にしない。最初の見回りは位置を控えるだけ。Chief of Staff は起きたときと同じく台帳を自分で読む（`deck list`）。
-   - `doing` のタスクの今の `review_request` は拾う。前の係が起こしたレビュアーの子タスクがあれば、それを引き継いで二重に起こさない。ただしその子タスクは作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。担当にレビューを頼み直させる（Chief of Staff）。
+   - `doing` のタスクの今の `review_request` は拾う。前の係が同じ commit のレビュアーの子タスクを作っていれば、それを引き継いで二重に起こさない（起こした回として控える）。ただしその子タスクは作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。同じ commit のまま頼み直しても、引き継いだ回なので起こし直さない。担当に**新しい commit を push してから、次の回として**頼み直させる（直すものが無ければ `git commit --allow-empty`。同じ回の番号ではレビュアーの detached worktree の置き場がぶつかる。上限を超えれば Chief of Staff が `review_rounds` を上げる）。commit が変われば新しい回として dispatcher がレビュアーを起こし、作成の `by` は `terminal:dispatcher` になる（Chief of Staff が担当に `hc send` で頼む）。1 で待つのはこのためで、待てるなら待つ。
    - すでに `status: review` のタスクはゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon task ready`）か、人が PR を見てマージし Chief of Staff が `andon task finish`。
    - 最初のメッセージの送り直し（`first_message.sent=false`）は2回目の見回りから。
 4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の名前付け mod」）。入れ直すまで、新しい tab は名前が付かない。

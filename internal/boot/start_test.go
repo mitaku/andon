@@ -228,39 +228,51 @@ func TestStartDispatcherBusy(t *testing.T) {
 	}
 }
 
-// 偽の hc（端末の一覧）: ls は $D/t*.json の address を並べ、get <addr> はその中身を返す。keep・kill・rm は $D/log へ。
+// 偽の hc: get <name> は $D/<name>.json（無ければ not_found）。keep・kill・rm は $D/log へ。
 const staleHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
-  ls) printf '{"terminals":['; sep=; for f in "$d"/t*.json; do printf '%s{"address":"%s"}' "$sep" "$(basename "$f" .json)"; sep=,; done; echo ']}' ;;
-  get) cat "$d/$2.json" ;;
+  get) [ -e "$d/$2.json" ] || { echo '{"error":{"kind":"not_found"}}' >&2; exit 3; }; cat "$d/$2.json" ;;
   keep|kill|rm) echo "$*" >>"$d/log" ;;
   *) exit 9 ;;
 esac
 `
 
-// 役のラベルの値が今の役のどれでもない端末（前の版の常駐の係）だけを片付ける。今の役・役の無い端末・終わった端末には触らない。
+// 前の版の係（名前もラベルも courier）だけを、前に出ているものが前の係かシェルのときに片付ける。
+// ほかの役・知らない役・人が中で何か動かしている端末・前に出ているものが取れない端末には触らない。
 func TestDropStaleRoles(t *testing.T) {
-	f, e, d := dispatcherFixture(t)
-	put(t, filepath.Join(d, "bin", "hc"), staleHc)
-	for addr, j := range map[string]string{
-		"t1": `{"address":"t1","name":"old-relay","state":"live","labels":{"role":"old-relay"}}`,
-		"t2": `{"address":"t2","name":"dispatcher","state":"live","labels":{"role":"dispatcher"}}`,
-		"t3": `{"address":"t3","name":"cos","state":"live","labels":{"role":"chief-of-staff","project":"x"}}`,
-		"t4": `{"address":"t4","name":"x-y-1","state":"live","labels":{"project":"x","task":"Y-1"}}`,
-		"t5": `{"address":"t5","name":"ce","state":"live","labels":{"role":"chief-engineer"}}`,
-		"t6": `{"address":"t6","name":"gone","state":"finished","labels":{"role":"old-relay"}}`,
+	old := func(fg string) string {
+		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
+	}
+	for _, c := range []struct {
+		name, term string
+		dropped    bool
+		log        string
+	}{
+		{"前の係が動いている", old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`), true, "前の版の係の端末 t1（courier）を片付けた"},
+		{"作り直しで戻ったシェル", old(`{"name":"bash","argv":["/bin/bash"]}`), true, "片付けた"},
+		{"人が中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), false, "前に出ているものが vim なので触らない"},
+		{"前に出ているものが取れない", old("null"), false, "取れない なので触らない"},
+		{"名前が courier でもラベルが違う", `{"address":"t1","name":"courier","state":"live","labels":{"role":"worker"},"foreground":{"name":"bash","argv":["/bin/bash"]}}`, false, ""},
+		{"終わった端末", `{"address":"t1","name":"courier","state":"finished","labels":{"role":"courier"}}`, false, ""},
+		{"端末が無い", "", false, ""},
 	} {
-		put(t, filepath.Join(d, addr+".json"), j)
-	}
-	if err := dropStaleRoles(e); err != nil {
-		t.Fatal(err)
-	}
-	log, _ := os.ReadFile(filepath.Join(d, "log"))
-	if want := "keep t1 --off\nkill t1\nrm t1\n"; string(log) != want {
-		t.Errorf("hc=%q want %q", log, want)
-	}
-	if got := f.log.String(); !strings.Contains(got, "前の版の役の端末 t1（old-relay・role=old-relay）を片付けた") {
-		t.Errorf("log=%q", got)
+		t.Run(c.name, func(t *testing.T) {
+			f, e, d := dispatcherFixture(t)
+			put(t, filepath.Join(d, "bin", "hc"), staleHc)
+			if c.term != "" {
+				put(t, filepath.Join(d, "courier.json"), c.term)
+			}
+			if err := dropStaleRoles(e); err != nil {
+				t.Fatal(err)
+			}
+			log, _ := os.ReadFile(filepath.Join(d, "log"))
+			if want := map[bool]string{true: "keep t1 --off\nkill t1\nrm t1\n", false: ""}[c.dropped]; string(log) != want {
+				t.Errorf("hc=%q want %q", log, want)
+			}
+			if got := f.log.String(); (c.log == "") != (got == "") || !strings.Contains(got, c.log) {
+				t.Errorf("log=%q want %q", got, c.log)
+			}
+		})
 	}
 }
