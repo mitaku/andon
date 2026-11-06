@@ -39,7 +39,7 @@ const Usage = "usage: andon courier [--project <slug>]          回り続ける�
 	"建屋（ANDON_WORKSPACE。無ければ /workspace）の projects/*/.flightdeck を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
-	"Chief of Staff（config.yaml の coordinator）の端末が生きていない台帳は飛ばす。初めて見る台帳は控えるだけで動かさない。\n" +
+	"Chief of Staff（config.yaml の coordinator）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
 	"控えは ~/.local/state/andon/courier/<slug>.json（XDG_STATE_HOME があればその下）。\n"
 
 // Name はクーリエの端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:courier）。

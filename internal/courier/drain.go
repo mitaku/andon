@@ -23,6 +23,7 @@ const DrainUsage = "usage: andon courier drain [--context] [--project <slug>] < 
 	"  既定（Stop）: 待ちがあれば {\"decision\": \"block\", \"reason\": \"<news>…</news>\"}。前にフックで渡した <news> の答えが <no-reply> だけなら news.replied を書く\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
+	"Chief of Staff なら、クーリエの端末（courier）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
 	"落ちたとき（台帳・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
 
 // lockWait は drain が控えの lock を待つ長さ。クーリエの見回りが持っていれば、待ちは次の口で届く。
@@ -165,6 +166,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	if !slugRe.MatchString(slug) {
 		return nil, fmt.Errorf("プロジェクトの名前が不正: %q", slug)
 	}
+	ensure() // core が起き直してクーリエの中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)
 	if err != nil {
 		return nil, err
@@ -239,6 +241,19 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return nil, nil
 	}
 	return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, nil
+}
+
+// ensure はクーリエの端末を確かめる（courier.Ensure）。落ちても drain は通す（stderr に1行。フックは捨てる）。
+func ensure() {
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if did, err := Ensure(self, delegate.Workspace()); err != nil {
+		fmt.Fprintf(os.Stderr, "andon courier drain: クーリエの端末を確かめられない: %v\n", err)
+	} else if did != "" {
+		fmt.Fprintf(os.Stderr, "andon courier drain: %s\n", did)
+	}
 }
 
 // label は Chief of Staff の端末に news.replied=<turn> を書く（ボードとの約束。courier.md §3.1）。

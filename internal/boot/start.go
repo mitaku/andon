@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"andon/internal/courier"
 )
 
 // 番号の既定。建屋の .env（PORTLESS_PORT・FILES_PORT）で上書きする。
@@ -242,27 +244,19 @@ func startSSHD(e Env) error {
 	return nil
 }
 
-// CourierName は建屋に1つのクーリエの端末の名前（docs/courier.md §5）。
-const CourierName = "courier"
-
-// startCourier はクーリエの端末を起こす（動いていれば何もしない）。中身は P6 で育てる（今は骨）。
-// --keep なので core が起き直すとシェルに替わる。毎起動ここで中身を戻す。
+// startCourier はクーリエの端末を確かめる（courier.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。
+// --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff のフックも同じ確かめを打つ。
 func startCourier(e Env) error {
-	hc, ok := e.has("hc")
-	if !ok {
+	if _, ok := e.has("hc"); !ok {
 		return nil
 	}
-	if exec.Command(hc, "get", CourierName).Run() == nil {
-		e.logf("クーリエはすでに動いている")
-		return nil
-	}
-	andon := filepath.Join(e.Package, "bin", "andon")
-	out, err := exec.Command(hc, "run", "--bg", "--no-parent", "--no-notify", "--keep",
-		"--name", CourierName, "--label", "role="+CourierName, "--cwd", e.Workspace,
-		"--", andon, "courier").CombinedOutput()
+	did, err := courier.Ensure(filepath.Join(e.Package, "bin", "andon"), e.Workspace)
 	if err != nil {
-		return fmt.Errorf("hc run: %v: %s", err, strings.TrimSpace(string(out)))
+		return err
 	}
-	e.logf("クーリエを起こした")
+	if did == "" {
+		did = "クーリエはすでに動いている"
+	}
+	e.logf("%s", did)
 	return nil
 }

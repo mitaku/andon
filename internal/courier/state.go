@@ -29,10 +29,11 @@ type Reviewer struct {
 	ReviewerTask string `json:"reviewer_task,omitempty"` // 足したレビュアーのタスク
 	Address      string `json:"address,omitempty"`       // 起こした端末
 	Started      bool   `json:"started,omitempty"`       // 最初のメッセージまで届いた（もう起こさない）
-	Skipped      string `json:"skipped,omitempty"`       // 起こさない理由（初めて見た・設定・上限・head 違い）
+	Skipped      string `json:"skipped,omitempty"`       // 起こさない理由（設定・上限・head 違い）
 	OverLimit    int    `json:"over_limit,omitempty"`    // 上限を超えて起こさなかったときの上限（それより上がれば起こし直す）
 	Failed       string `json:"failed,omitempty"`        // 起こしそこねた理由（次の見回りで続きから）
 	Attempts     int    `json:"attempts,omitempty"`      // 起こしそこねた回数
+	Row          int    `json:"row,omitempty"`           // 決めたときのタスクの報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
 }
 
 // Gate は回したゲート（控えの「task → sha」）。review に入った log.jsonl の行ごとに1回。

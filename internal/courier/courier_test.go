@@ -17,19 +17,77 @@ func TestRetry(t *testing.T) {
 		prev  Reviewer
 		seen  bool
 		limit int
+		row   int
 		want  bool
 	}{
-		{"初めて", Reviewer{}, false, 2, true},
-		{"起こした（二重に起こさない）", Reviewer{Started: true, Failed: ""}, true, 2, false},
-		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerTask: "D-2"}, true, 2, true},
-		{"初めて見た台帳", Reviewer{Skipped: "初めて見た台帳"}, true, 2, false},
-		{"設定で起こさない", Reviewer{Skipped: "review が on でない"}, true, 5, false},
-		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1}, true, 1, false},
-		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1}, true, 2, true},
+		{"初めて", Reviewer{}, false, 2, 5, true},
+		{"起こした（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 5, false},
+		{"起こした回を同じ commit で頼み直した（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 9, false},
+		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerTask: "D-2", Row: 5}, true, 2, 5, true},
+		{"設定で起こさない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, false},
+		{"起こさなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true},
+		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true},
+		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, false},
+		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true},
 	} {
-		if got := Retry(c.prev, c.seen, c.limit); got != c.want {
+		if got := Retry(c.prev, c.seen, c.limit, c.row); got != c.want {
 			t.Errorf("%s: Retry = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子タスクが無ければ起こしに行き、
+// あれば引き継ぐ（todo でなければもう受けている。todo なら端末を照らし、live なら address を引き継ぐ）。
+func TestAdopt(t *testing.T) {
+	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
+	briefs := map[string]string{
+		"D-2": "対象: worktree `x`（detached）。commit " + c1 + "。差分は",
+		"D-3": "対象: worktree `y`（detached）。commit " + c2 + "。差分は",
+	}
+	brief := func(rev string) string { return briefs[rev] }
+	tasks := []ledger.Task{
+		{"id": "D-1", "status": "doing", "profile": "claude"},
+		{"id": "D-2", "status": "done", "profile": "codex-review", "parent": "D-1", "agent": "t9"},
+		{"id": "D-3", "status": "todo", "profile": "codex-review", "parent": "D-1"},
+		{"id": "D-4", "status": "doing", "profile": "claude", "parent": "D-1"}, // レビュアーでない子
+	}
+	none := func(string) (string, int, bool) { return "", 0, false }
+	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief, none); ok {
+		t.Error("子タスクの無い commit を引き継いだ（起こしに行かない）")
+	}
+	if r, ok := Adopt(tasks, "D-1", c1, brief, none); !ok || !r.Started || r.ReviewerTask != "D-2" || r.Address != "t9" {
+		t.Errorf("受けた子タスク: %+v %v（もう受けているはず）", r, ok)
+	}
+	if r, ok := Adopt(tasks, "D-1", c2, brief, none); !ok || r.Started || r.ReviewerTask != "D-3" || r.Address != "" {
+		t.Errorf("todo で端末も無い子タスク: %+v %v（起こすところから続けるはず）", r, ok)
+	}
+	// todo だが端末が live（hc run は通ったが kanban start の前に落ちた）: address を引き継ぎ、hc run し直さない
+	asked := ""
+	fresh := func(rev string) (string, int, bool) { asked = rev; return "t12", 0, true }
+	if r, ok := Adopt(tasks, "D-1", c2, brief, fresh); !ok || r.Started || r.Address != "t12" || asked != "D-3" {
+		t.Errorf("todo で端末が live（まだ何も受けていない）: %+v %v %q（address を引き継ぎ、最初のメッセージから）", r, ok, asked)
+	}
+	busy := func(string) (string, int, bool) { return "t12", 2, true }
+	if r, ok := Adopt(tasks, "D-1", c2, brief, busy); !ok || !r.Started || r.Address != "t12" {
+		t.Errorf("todo で端末が live（もう受けている）: %+v %v（二重に送らないはず）", r, ok)
+	}
+	if _, ok := Adopt(tasks, "D-9", c1, brief, none); ok {
+		t.Error("ほかのタスクの子を引き継いだ")
+	}
+}
+
+func TestLastReport(t *testing.T) {
+	rows := []ledger.Row{
+		{ID: "D-1", Change: map[string]any{"report": "write"}},
+		{ID: "D-2", Change: map[string]any{"report": "write"}},
+		{ID: "D-1", Change: map[string]any{"status": "doing"}},
+		{ID: "D-1", Change: map[string]any{"report": "write"}},
+	}
+	if got := lastReport(rows, "D-1"); got != 4 {
+		t.Errorf("D-1: %d", got)
+	}
+	if got := lastReport(rows, "D-9"); got != 0 {
+		t.Errorf("D-9: %d", got)
 	}
 }
 
@@ -152,5 +210,46 @@ func TestWorkerPlace(t *testing.T) {
 		if got := workerPlace(c.agent); !slices.Equal(got, c.want) {
 			t.Errorf("%q: got %q want %q", c.agent, got, c.want)
 		}
+	}
+}
+
+// 引き継ぐ detached worktree は、その repo の worktree list に detached で載り HEAD が commit のものだけ（置き場にあるだけでは信じない）。
+func TestDetachedAt(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("GHQ_ROOT", root)
+	dir := filepath.Join(root, "github.com", "example", "app")
+	git := func(args ...string) string {
+		t.Helper()
+		out, _, err := run("", []string{"GIT_AUTHOR_NAME=x", "GIT_AUTHOR_EMAIL=x@example.com", "GIT_COMMITTER_NAME=x", "GIT_COMMITTER_EMAIL=x@example.com"}, "", "git", args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(out)
+	}
+	git("init", "-q", dir)
+	git("-C", dir, "commit", "-q", "--allow-empty", "-m", "a")
+	c1 := git("-C", dir, "rev-parse", "HEAD")
+	git("-C", dir, "commit", "-q", "--allow-empty", "-m", "b")
+	wt := filepath.Join(root, "wt", "sample-D-1-r1")
+	git("-C", dir, "worktree", "add", "-q", "--detach", wt, c1)
+	if !detachedAt("github.com/example/app", wt, c1) {
+		t.Error("その commit の detached worktree を引き継がない")
+	}
+	if detachedAt("github.com/example/app", wt, git("-C", dir, "rev-parse", "HEAD")) {
+		t.Error("HEAD が違う worktree を引き継いだ")
+	}
+	plain := filepath.Join(root, "wt", "sample-D-1-r2")
+	if err := os.MkdirAll(plain, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if detachedAt("github.com/example/app", plain, c1) {
+		t.Error("worktree でない置き場を引き継いだ")
+	}
+	link := filepath.Join(root, "wt", "sample-D-1-r3")
+	if err := os.Symlink(wt, link); err != nil {
+		t.Fatal(err)
+	}
+	if detachedAt("github.com/example/app", link, c1) {
+		t.Error("symlink を引き継いだ")
 	}
 }

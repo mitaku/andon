@@ -29,25 +29,53 @@ var (
 const retryReport = 3
 
 // reviewRequest は report.json の review_request を拾い、レビュアーを起こす（<task>@<commit> ごとに1回）。
-// 控えの状態は3つ: 起こした（Started。もう打たない）・起こさない（Skipped。上限を超えた回だけ review_rounds が
-// 上がれば起こし直す）・起こしそこねた（Failed。済んだ段〈worktree・タスク・端末〉を持ったまま次の見回りで続きから）。
+// 控えの状態は3つ: 起こした（Started。もう打たない）・起こさない（Skipped。担当が頼み直す〈報告の行が増える〉か、
+// 上限を超えた回で review_rounds が上がれば起こし直す）・起こしそこねた（Failed。済んだ段〈worktree・タスク・端末〉を
+// 持ったまま次の見回りで続きから）。
+// 初めて見る台帳でも、今の review_request は拾う（タスクが doing で commit が PR の head なので、過去の出来事ではない）。
+// 二重に起こさない守りは控えではなく台帳で持つ: その commit のレビュアーの子タスクがもうあれば、それを引き継ぐ（Adopt）。
 func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 	id, rr := t.Str("id"), rep.ReviewRequest
 	key := id + "@" + rr.Commit
 	limit, _ := strconv.Atoi(ledger.SettingsOf(t).ReviewRounds)
+	row := lastReport(p.rows, id)
 	prev, seen := p.st.Reviewers[key]
-	if !Retry(prev, seen, limit) {
-		return
-	}
-	if p.first && !seen {
-		p.st.Reviewers[key] = Reviewer{Task: id, Commit: rr.Commit, Round: rr.Round, Skipped: "初めて見た台帳"}
+	if !Retry(prev, seen, limit, row) {
 		return
 	}
 	r := prev
-	if !seen {
+	if !seen || prev.Skipped != "" {
 		r = Reviewer{Task: id, Commit: rr.Commit, Round: rr.Round}
 	}
-	r.Skipped, r.OverLimit = "", 0
+	r.Row = row
+	if r.ReviewerTask == "" {
+		if a, ok := Adopt(p.tasks, id, rr.Commit, func(rev string) string {
+			b, _ := os.ReadFile(filepath.Join(p.l.Dir, "tasks", rev, "brief.md"))
+			return string(b)
+		}, func(rev string) (string, int, bool) { return liveTask(p.l.Slug, rev) }); ok {
+			r.ReviewerTask, r.Address, r.Started = a.ReviewerTask, a.Address, a.Started
+			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
+				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
+			}
+			if r.Address != "" && p.status(r.ReviewerTask) == "todo" {
+				// 端末は起きているが kanban start が済んでいない（hc run のあとに落ちた）。台帳を端末に合わせる
+				cwd := filepath.Join(p.l.Dir, "tasks", r.ReviewerTask)
+				if _, _, err := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", r.ReviewerTask); err != nil {
+					p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", r.ReviewerTask, ledger.CLI, r.Address, err)
+				}
+			}
+			switch {
+			case r.Started:
+				p.logf("%s のレビュー（commit %s）は %s（%s）がもう受けている（控えに無かった。起こさない）", id, rr.Commit[:12], r.ReviewerTask, orNone(r.Address))
+				p.st.Reviewers[key] = r
+				return
+			case r.Address != "":
+				p.logf("%s のレビュアーのタスク %s は todo だが端末 %s が起きている（控えに無かった）。引き継いで最初のメッセージから", id, r.ReviewerTask, r.Address)
+			default:
+				p.logf("%s のレビュアーのタスク %s が todo のまま（控えに無かった）。続きから起こす", id, r.ReviewerTask)
+			}
+		}
+	}
 	why, final := p.startReviewer(t, rep, &r)
 	switch {
 	case why != "" && final:
@@ -73,16 +101,118 @@ func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 }
 
 // Retry は、控えの前の状態（seen が false なら無い）から、今度の見回りでレビュアーを起こしに行くか。
-func Retry(prev Reviewer, seen bool, limit int) bool {
+// row はそのタスクの報告の最後の行（log.jsonl の何行目か）。起こさなかった回は、担当が頼み直して行が増えれば拾い直す
+// （同じ commit の出し直しでも、前回が起こさずに終わっていれば拾う。起こした回は二重に起こさない）。
+func Retry(prev Reviewer, seen bool, limit, row int) bool {
 	switch {
 	case !seen:
 		return true
 	case prev.Started:
 		return false // 二重に起こさない
 	case prev.Skipped != "":
-		return prev.OverLimit > 0 && limit > prev.OverLimit
+		return row > prev.Row || (prev.OverLimit > 0 && limit > prev.OverLimit)
 	}
 	return true // 起こしそこねた: 続きから
+}
+
+// Adopt は、控えに無い review_request（初めて見た台帳・控えを無くした）のレビュアーの子タスクが台帳にもうあるかを見る。
+// 子タスクは parent が id のレビュアーで、依頼書（brief。reviewerBrief が書く）にその commit があるもの。
+// todo でなければ、もう受けている（Started。二重に起こさない）。
+// todo でも端末が起きていることがある（hc run は通ったが kanban start の前に落ちた）。live（ラベル task=<子>）の端末を引き、
+// 何か受けていれば（turn が 1 以上）もう受けている、まだなら address を引き継いで続きから（最初のメッセージを送り直す）。
+// 端末が無いときだけ、起こすところから続ける。
+func Adopt(tasks []ledger.Task, id, commit string, brief func(rev string) string, live func(rev string) (addr string, turn int, ok bool)) (Reviewer, bool) {
+	for _, c := range tasks {
+		if c.Str("parent") != id || !isReviewer(c) || !strings.Contains(brief(c.Str("id")), "commit "+commit+"。") {
+			continue
+		}
+		r := Reviewer{ReviewerTask: c.Str("id")}
+		if c.Str("status") != "todo" {
+			r.Started, r.Address = true, c.Str("agent")
+		} else if addr, turn, ok := live(r.ReviewerTask); ok {
+			r.Address, r.Started = addr, turn > 0
+		}
+		return r, true
+	}
+	return Reviewer{}, false
+}
+
+// liveTask はプロジェクト slug のタスク rev の live な端末（hc ls --label project=<slug> --label task=<rev>）。
+// task の id はプロジェクトをまたいで同じことがあるので、返った端末のラベル（hc get）も project・task の両方で確かめる。
+// 無い・読めなければ ok=false。
+func liveTask(slug, rev string) (string, int, bool) {
+	out, err := hcOut("ls", "--json", "--label", "project="+slug, "--label", "task="+rev)
+	var ls struct {
+		Terminals []struct {
+			Address string `json:"address"`
+			State   string `json:"state"`
+			Turn    int    `json:"turn"`
+		} `json:"terminals"`
+	}
+	if err != nil || json.Unmarshal([]byte(out), &ls) != nil {
+		return "", 0, false
+	}
+	for _, t := range ls.Terminals {
+		if t.State != "live" || t.Address == "" {
+			continue
+		}
+		g, err := hcGet(t.Address)
+		if err != nil || g.State != "live" || g.Labels["project"] != slug || g.Labels["task"] != rev {
+			continue
+		}
+		return t.Address, g.Turn, true
+	}
+	return "", 0, false
+}
+
+// status は台帳のタスク id の status（この回に読んだ一覧から）。
+func (p *project) status(id string) string {
+	for _, t := range p.tasks {
+		if t.Str("id") == id {
+			return t.Str("status")
+		}
+	}
+	return ""
+}
+
+// lastReport はタスク id の報告の最後の行（log.jsonl の何行目か。1 から。無ければ 0）。
+func lastReport(rows []ledger.Row, id string) int {
+	n := 0
+	for i, r := range rows {
+		if _, ok := r.Change["report"]; ok && r.ID == id {
+			n = i + 1
+		}
+	}
+	return n
+}
+
+// detachedAt は wt が repo の detached worktree で、HEAD が commit か（symlink でない・worktree list に detached で載る）。
+// 引き継ぐのはこれを満たすものだけ。置き場にあるだけのものは信じない。
+func detachedAt(repo, wt, commit string) bool {
+	dir, err := repoDir(repo)
+	if fi, lerr := os.Lstat(wt); err != nil || wt == "" || lerr != nil || !fi.IsDir() {
+		return false
+	}
+	out, _, err := run("", nil, "", "git", "-C", dir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return false
+	}
+	for _, blk := range strings.Split(out, "\n\n") {
+		lines := strings.Split(strings.TrimSpace(blk), "\n")
+		if len(lines) >= 3 && lines[0] == "worktree "+wt && lines[1] == "HEAD "+commit && lines[2] == "detached" {
+			return true
+		}
+	}
+	return false
+}
+
+// reviewerWorktree はレビュアーの detached worktree の置き場（repo の置き場が分からなければ空）。
+func (p *project) reviewerWorktree(t ledger.Task, round int) string {
+	dir, err := repoDir(t.Str("repo"))
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(dir), fmt.Sprintf("%s-%s-r%d", p.l.Slug, t.Str("id"), round))
 }
 
 // startReviewer はレビュアーを起こす。段ごとに r に書き、済んだ段は飛ばす（起こしそこねても続きからやり直せる）:
@@ -122,7 +252,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 
 	// 1. PR の head を読む detached worktree（担当の worktree とは別。andon task finish が片付ける）
 	if r.Worktree == "" {
-		wt := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(dir), fmt.Sprintf("%s-%s-r%d", p.l.Slug, id, rr.Round))
+		wt := p.reviewerWorktree(t, rr.Round)
 		if _, err := os.Lstat(wt); err == nil {
 			return "detached worktree の置き場がもうある: " + wt, true
 		}

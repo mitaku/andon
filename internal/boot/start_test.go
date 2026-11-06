@@ -92,3 +92,23 @@ func TestSetupGitCredentialsNoGH(t *testing.T) {
 		t.Errorf("gh が無いときは何もしない: %v %q", err, f.log.String())
 	}
 }
+
+// クーリエの端末を確かめられない（控えの置き場が作れない）ときは、警告の行に出す（「すでに動いている」と言わない）。
+func TestStartCourierReportsLockError(t *testing.T) {
+	f := newFixture(t)
+	notDir := filepath.Join(f.root, "state-is-a-file")
+	put(t, notDir, "")
+	t.Setenv("XDG_STATE_HOME", notDir)
+	e := f.env()
+	e.LookPath = func(tool string) (string, error) { // hc だけある（ほかの起動は飛ばす）。hc は打つ前に止まる
+		if tool == "hc" {
+			return "/usr/bin/hc", nil
+		}
+		return "", os.ErrNotExist
+	}
+	Start(e)
+	got := f.log.String()
+	if !strings.Contains(got, "クーリエ の準備に失敗") || strings.Contains(got, "すでに動いている") {
+		t.Errorf("起こせなかったことが見えない: %q", got)
+	}
+}
