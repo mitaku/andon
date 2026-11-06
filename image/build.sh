@@ -5,9 +5,6 @@
 # ホストに要るのは docker と bash だけ（kanban・andon の go build は image/Dockerfile の段 bin で docker の中）。
 # <revision> は焼いた元の commit（image の label org.opencontainers.image.revision）。省けば checkout の git から取る
 # （汚れていれば末尾に -dirty。git が無ければ unknown）。kanban --version には先頭12文字（と -dirty）が出る。
-#
-# CI だけが使う env: ANDON_BUILD_CACHE_FROM・ANDON_BUILD_CACHE_TO（docker buildx の --cache-from・--cache-to の値。
-# 片方でもあれば docker buildx build --load で焼く）。どちらも無ければ（建屋・release）今までどおり cache を読み書きしない。
 set -euo pipefail
 
 [ "$#" -ge 2 ] && [ "$#" -le 3 ] || { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
@@ -27,12 +24,6 @@ case "$rev" in
   *) version=${rev:0:12} ;;
 esac
 
-build=(docker build)
-if [ -n "${ANDON_BUILD_CACHE_FROM:-}${ANDON_BUILD_CACHE_TO:-}" ]; then
-  build=(docker buildx build --load)
-  [ -z "${ANDON_BUILD_CACHE_FROM:-}" ] || build+=(--cache-from "$ANDON_BUILD_CACHE_FROM")
-  [ -z "${ANDON_BUILD_CACHE_TO:-}" ] || build+=(--cache-to "$ANDON_BUILD_CACHE_TO")
-fi
-"${build[@]}" --file "$checkout/image/Dockerfile" \
+docker build --file "$checkout/image/Dockerfile" \
   --build-arg "ANDON_REVISION=$rev" --build-arg "ANDON_VERSION=$version" \
   --tag "$tag" "$checkout"
