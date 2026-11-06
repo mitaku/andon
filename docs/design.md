@@ -634,7 +634,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `.devcontainer/sshd_config` | — | 取り込む | `image/`（焼く） |
 | `.devcontainer/herdr/config.toml`・`file-viewer.toml` | — | 取り込む | `package/host/herdr/`（建屋の中の herdr の設定の雛形。boot が volume へ写す。建屋の repo が実体を持つ今の形はやめる） |
 | `.devcontainer/herdr-core/templates/*.md`（7つ） | — | 取り込む | `package/templates/`。boot が建屋の `templates.local/` を重ねて `~/.config/herdr-core/templates/` に生成 |
-| `.devcontainer/herdr-auto-title/`（python のフック） | — | **外部の部品**（固定した写し） | herdr の公式 integration の一部。`image/` にベンダーとして焼く（版と由来を `image/vendor.md` に）。Andon の持ち物にはしない |
+| `.devcontainer/herdr-auto-title/`（python のフック） | — | **捨てる** | 使わない。tab 名は Andon 同梱の App の mod が付ける（[ADR-0002](adr/0002-herdr-spaces.md)）。image に焼かず、managed settings のフックにも付けない |
 | `.claude/settings.json`（permissions・plugins・env・statusLine） | — | 取り込む（形を変える） | `package/settings.json`（managed settings の既定）。boot が生成（§2.3）。plugins の有効化は建屋の `andon.toml` から |
 | `.claude/statusline.sh` | — | 取り込む | `package/lib/andon/statusline` |
 | `.claude/skills/yard-coordinator`（274 行）・`yard-task-agent`（135）・`independent-review`（103）・`ask-one-by-one`（80）・`yard-triage`（144）・`yard-glossary`（212） | 948 | 取り込む（名前を替え、短くする） | `package/skills/{chief-of-staff,worker,independent-review,ask-one-by-one,triage,glossary}`。手順のうち決まったもの（一致の確認・レビュアーの起動・ゲート・片付け）は command とクーリエへ移し、文を減らす |
@@ -706,7 +706,7 @@ Andon が使う部品のうち public でないものを洗い出した（`gh re
 | ledger-format v2・schema・concept.md（herdr-flightdeck の docs） | private | Andon の約束（contract.md）の土台。この文書と contract.md から指している | public の読み手に届かない。公開してもらう（docs だけでも）か、許可を得て `docs/` に写す（出典と版を添えて）。**相談 F11** |
 | flightdeck の mod・Web ボード | private | 人の Interface。Andon は触らない | Andon の動作には要らない（台帳の CLI があれば回る）。README に「あれば使える」と書くだけ。**相談 F12**（公開の予定があるか） |
 | `hc`（herdrdev/herdr-core）・herdr-app・herdr | **public**（Apache-2.0） | 端末の土台・人の Interface | そのまま |
-| herdr-auto-title（sh1ma。MIT。仮設が vendoring） | public（MIT） | image に焼く | そのまま。`LICENSE` と由来を `image/vendor.md` に |
+| herdr-auto-title（sh1ma。MIT。仮設が vendoring） | public（MIT） | 使わない | ADR-0002 の mod が tab 名を付ける。image に焼かない |
 | cc-shiori（<owner>。plugin の marketplace） | **public**（MIT） | 建屋の settings の `extraKnownMarketplaces` | そのまま。ただし建屋の `andon.toml` から足す形（Andon の既定には入れない） |
 | <owner>/skills（自作 skill） | private | 仮設では `~/.claude/skills` の symlink | Andon の依存にしない。建屋の設定（`andon.toml` の `skills_repo`）で指す |
 | template-yard・example-yard | private | 仮設。この文書が入力として指す | public の読み手に届かない。決定は `docs/decisions.md` に写す（P1）ので、設計の正はそこ。仮設への参照は「仮設の記録（private）」と印を付けて残す |

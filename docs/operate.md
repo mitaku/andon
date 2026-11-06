@@ -258,6 +258,8 @@ andon chief-of-staff        # 起こす（動いていればそれを使う）�
 
 - **通ったら見えるもの**: `andon chief-of-staff: andon の Chief of Staff は <address>（andon-cos・起こした）` と `andon chief-of-staff: 出た場所 andon / CoS（<address>）`。App に Chief of Staff の Space と tab が出る（画面は移らない）。`hc ls` に `role=chief-of-staff project=andon` の端末（名前 `andon-cos`）。`config.yaml` の `coordinator` がその address。もう一度打つと起こさずに `動いているものを使う`。Chief of Staff が自分の skill（system prompt に入った役の手順）に従って台帳を読む。
 - **App から起こした端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App から建屋へつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `coordinator` が落ちた端末を指したままでも、打ち直せば新しく起こした address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
+- **最初のメッセージが届いたかは** Chief of Staff の画面（`hc read <address>`）で、台帳を読み始めたかで見る。`andon chief-of-staff` の終了コード 0 だけでは分からない（hook で止まっても 0 で返った）。入力欄にメッセージが残って動かないときは、`UserPromptSubmit operation blocked by hook` の行が出ていないかを見る。
+- **落ちた Chief of Staff を起こし直す**: image を上げ直し（`bin/bootstrap` で作り直す）、落ちた端末を `hc kill <address>` してから `andon chief-of-staff`。`hc server restart` が `no systemd user manager here: the core ends with whatever started it` を出すのは、systemd の無いコンテナである建屋では正常（core は起こした側と一緒に終わる）。
 - **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない`（信頼の画面など）— App のその tab（か `hc attach <address>`）で画面に答えてから、出た `hc send` を打つ（終了コード 3）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが控えるだけで動かさない**（[courier.md](courier.md) §2）。1回の見回りのあとに効く。
 
 ## 10. 小さい PR を1本流す
@@ -271,8 +273,8 @@ cd ~/src/andon-home
 grep '^owner' andon.toml                    # owner の email（2 の --owner）
 git config user.email                       # 建屋の repo の commit で使われる email
 git config user.email '<owner の email>'    # 違うなら合わせる（この repo の中だけ）
-andon delegate grant merge B --evidence '<根拠のパスか引用>'    # 人が建屋の repo で打つ。B はマージを許すレベルの上限（A / B / C）
-andon delegate show
+andon delegate grant merge B --evidence '<根拠のパスか引用>'    # projects/andon/ で打つ（か --project andon を付ける）。B はマージを許すレベルの上限（A / B / C）
+andon delegate show                                              # 同じく projects/andon/ で（か --project andon）
 git log -1 --format='%ae' -- projects/andon/delegation.json gate.local.json
 ```
 
