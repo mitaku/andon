@@ -210,7 +210,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 
 ### P6b: フックで届ける
 
-§3 の経路①②を入れ、③を「離席時だけ」に絞る。担当の `Stop` フック（`andon task stop-check`。報告か問いを書くまで止まれない）も同じ手で入る。テストは `tests/andon-courier.sh`（turn 中の通知が `Stop` で届く・送信時に添えられる・離席時だけ `hc send`・`doing` で報告無しの `Stop` が block）。本物の Claude Code で1日、実測する。
+§3 の経路①②を入れ、③を「離席時だけ」に絞る。担当の `Stop` フック（`andon task stop-check`。報告か問いを書くまで止まれない。問いの答え・レビュアーの結果を待つターンは止めない）も同じ手で入る。テストは `tests/andon-courier.sh`（turn 中の通知が `Stop` で届く・送信時に添えられる・離席時だけ `hc send`・`doing` で報告無しの `Stop` が block。問いが開いている・レビュー待ちの `Stop` は通す）。本物の Claude Code で1日、実測する。
 
 ---
 
