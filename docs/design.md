@@ -50,7 +50,7 @@
 | **担当** | worker | 1つのタスクのために起きるエージェント。自分の worktree の中だけで働き、報告を書いて終わる |
 | **レビュアー** | reviewer | 実装と別ブランドのモデルで、書いていない目で commit を読み、指摘を重さつきで返す。直さない |
 | **クーリエ** | courier | 建屋に1つ常駐するプログラム（出典は TPS の水すまし。§1.7。`runner` は CI の runner と紛れるので使わない）。台帳と端末を周期で回り、通知を届け、レビュアーを起こし、ゲートを回し、片付ける。判断はしない。設計は [courier.md](courier.md) |
-| **ゲート** | gate | PR をマージしてよいかの決定式。条件表（JSON）を読み、`approve`／`fix`／`needs_human` を返す。レベル A・B・C（下） |
+| **ゲート** | gate | PR をマージしてよいかの決定式。条件表（JSON）と PR の head の GitHub の checks を読み、`approve`／`fix`／`needs_human` を返す（checks が揃うまでは `wait`）。レベル A・B・C（下） |
 | **レベル A／B／C** | tier | ゲートが変更ごとに決める段階。A＝テストが通れば自動マージ、B＝独立レビューつきで自動マージ、C＝人がマージ（ラインそのものの変更・不可逆なもの） |
 | **振り返り** | retro | アウターループのルーチン。記録を読んでつまずきを拾い、環境を直す PR を出す |
 | **トリアージ** | triage | 報告の「次にやること」を集めて、タスクに切る・捨てる・寝かせるを決める手 |
@@ -497,6 +497,7 @@ andon/
     hooks/                   ハーネスのフック（Stop・UserPromptSubmit。クーリエと command を呼ぶだけ）
     gate.json                ゲートの条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）
+    codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
     compose.yaml             建屋の compose（bootstrap がイメージから取り出す）
     host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）
   image/                     base image
@@ -526,6 +527,7 @@ andon/
 | `/opt/andon/environment.md` ＋ 建屋の `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
 | `/opt/andon/settings.json`（deny・allow・hooks）＋ `andon.toml` | `/etc/claude-code/managed-settings.json` | boot が生成して置く（root）。managed は最優先でセッションから書き換えられない。設定ファイルを HOME に symlink する仮設の形は**やめる** |
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |
+| `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
 | `/opt/andon/gate.json` ＋ 建屋の `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
 | `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
 | `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM | `bin/bootstrap host-install` で写す |
@@ -794,7 +796,7 @@ andon/
 | 通知 | クーリエの中の JSON（`kind`・`project`・`task`・`at`・`detail`）。届けるときだけ `<news>` の文に描く | クーリエ | Chief of Staff（フック経由）・ボード（`news.replied`） | 仮設の通知の種類。外の信号 `signal` は最初の版の後（§1.9） |
 | 受け入れ条件の検証 | `report.json` の `acceptance[]`（Chief Engineer の受け入れ条件の番号・`pass`／`fail`／`manual`・証拠） | 担当 | ゲート・振り返り | §1.9 の (a)。任意キー（版は上げない） |
 | 人の手直し | `tasks/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上の人の直し・指摘の覆し） | クーリエ（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で |
-| ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `tasks/<id>/library/gate/<sha>.json` ＋ PR のコメントと status | 人（条件表）・ゲート（記録） | ゲート・振り返り・人 | 仮設のゲートの条件表と出力 |
+| ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `tasks/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（private の repo ではブランチ保護が効かないので、ゲートが CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・クーリエ（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | 端末の土台との約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`task`・`title`・`news.replied`・template の名前＝プロファイル | command・クーリエ | ボード・クーリエ | 今のまま |
 | フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（クーリエが通知を渡す）、担当の `Stop`（報告か問いが無ければ止まれない） | boot が生成 | Claude Code | 要実測 |
 | 委譲 | 建屋の repo の `projects/<slug>/delegation.json`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | 人（`andon delegate`。照合は commit の author） | Chief of Staff（起きるたび）・ゲート（`merge` の最大レベル）・クーリエと command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |

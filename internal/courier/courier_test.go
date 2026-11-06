@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"andon/internal/contract"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -119,6 +120,31 @@ func TestAuthorized(t *testing.T) {
 		got, why := Authorized(c.before, c.now, c.status, c.trusted, c.gateMerge, c.nowMerge, c.tier)
 		if got != c.want || !strings.Contains(why, c.why) {
 			t.Errorf("%s: Authorized = %v %q, want %v（%q を含む）", c.name, got, why, c.want, c.why)
+		}
+	}
+}
+
+func TestChecksStill(t *testing.T) {
+	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	ok := gate.GitHubChecks{State: "success", Names: []string{}}
+	for _, c := range []struct {
+		name     string
+		now      string
+		checks   gate.GitHubChecks
+		optional bool
+		want     bool
+		why      string
+	}{
+		{"変わっていない", h1, ok, false, true, ""},
+		{"ゲートのあとに push された", h2, ok, false, false, "head がゲートのあとに動いた"},
+		{"checks が走り直した", h1, gate.GitHubChecks{State: "pending", Names: []string{"test"}}, false, false, "pending: test"},
+		{"checks が落ちた", h1, gate.GitHubChecks{State: "failure", Names: []string{"image"}}, false, false, "failure: image"},
+		{"checks が消えた（要る）", h1, gate.GitHubChecks{State: "none"}, false, false, "none"},
+		{"checks が無い（要らない repo）", h1, gate.GitHubChecks{State: "none"}, true, true, ""},
+	} {
+		got, why := ChecksStill(h1, c.now, c.checks, c.optional)
+		if got != c.want || !strings.Contains(why, c.why) {
+			t.Errorf("%s: ChecksStill = %v %q, want %v（%q を含む）", c.name, got, why, c.want, c.why)
 		}
 	}
 }

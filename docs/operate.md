@@ -216,6 +216,8 @@ ls ~/.config/herdr-core/templates     # claude・sonnet・fable・codex・codex-
 ls -l ~/.agents/skills                # andon-<name> が /opt/andon/skills/<name> への symlink
 cat ~/.claude/CLAUDE.md               # @ の2行（environment.md と AGENTS.local.md）
 cat /etc/claude-code/managed-settings.json
+head -3 ~/.codex/config.toml          # approval_policy・sandbox_mode（無かったときに boot が足したもの）
+codex execpolicy check -r ~/.codex/rules/andon.rules gh pr merge 1   # "decision":"forbidden"
 ```
 
 - **通ったら見えるもの**: 上の全部。`hc get courier` が通る（クーリエは `andon courier` を常駐させた端末）。

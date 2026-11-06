@@ -4,6 +4,7 @@
 #   2. plugin.json の name が andon。Claude Code 系のプロファイルは command で plugin と役の skill を運び（本文で読ませない）、Codex 系は本文で skill を指す。
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
+#      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
 #   5. statusline が JSON を読んで1行を出す。
 #   6. skill の機械向けの手順が command（andon task …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
@@ -77,12 +78,47 @@ if python3 package/lib/andon/schema_check.py validate schema/gate.schema.json pa
   pass "package/gate.json は gate.schema.json に合う"
 else fail "package/gate.json: $(head -1 "$tmp/why")"; fi
 jq -e 'has("repos") | not' package/gate.json >/dev/null && pass "package/gate.json に repos が無い（建屋の gate.local.json へ）" || fail "package/gate.json に repos がある"
-for p in package/skills/ package/templates/ package/gate.json package/settings.json; do
+for p in package/skills/ package/templates/ package/gate.json package/settings.json package/codex.rules; do
   jq -e --arg p "${p%/}" '.tier_c_paths | map(rtrimstr("/**")) | index($p)' package/gate.json >/dev/null \
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
+# Codex の rules（package/codex.rules）は、deny のうちコマンドの頭で引く線（Bash(<語…>:*)）と同じ一覧。
+# それ以外の deny（Bash(git diff *--output*) など）は allow の穴を塞ぐもので、allow の無い Codex（承認は never）には要らない。
+# その印として、頭の線でない deny は allow のどれかと同じコマンドで始まること（新しい種類の deny を足したら、ここで止まって決める）
+deny_heads=$(jq -r '.permissions.deny[] | select(test("^Bash\\([^*]*:\\*\\)$")) | sub("^Bash\\("; "") | sub(":\\*\\)$"; "")' package/settings.json | sort)
+# rules は頭の線ごとに、直接の形（["gh", "pr", "merge"]）と wrapper の形（[[wrapper…], "gh", "pr", "merge"]）の2本を持つ
+rules_of() { # rules_of <direct|wrapped>: その形の forbidden の頭の線
+  python3 - package/codex.rules "$1" <<'EOF'
+import ast, re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+for m in re.finditer(r'prefix_rule\((.*?)\n\)', text, re.S):
+    body = m.group(1)
+    pat = re.search(r'pattern\s*=\s*(\[.*?\])\s*,\s*\n', body, re.S)
+    dec = re.search(r'decision\s*=\s*"([a-z]+)"', body)
+    if not (pat and dec and dec.group(1) == "forbidden"):
+        continue
+    p = ast.literal_eval(pat.group(1))
+    wrapped = isinstance(p[0], list)
+    rest = p[1:] if wrapped else p
+    if all(isinstance(x, str) for x in rest) and wrapped == (sys.argv[2] == "wrapped"):
+        print(" ".join(rest))
+EOF
+}
+for kind in direct wrapped; do
+  rule_heads=$(rules_of "$kind" | sort)
+  [ -n "$deny_heads" ] && [ "$deny_heads" = "$rule_heads" ] \
+    && pass "package/codex.rules の forbidden（$kind）が settings の deny（頭の線）と同じ（$(tr '\n' ',' <<<"$deny_heads" | sed 's/,$//')）" \
+    || fail "package/codex.rules（$kind）と settings の deny がずれる（deny: $(tr '\n' ',' <<<"$deny_heads") / rules: $(tr '\n' ',' <<<"$rule_heads")）"
+done
+bad=
+while IFS= read -r d; do
+  [ -z "$d" ] && continue
+  cmd=$(sed -E 's/^Bash\(([a-z-]+ [a-z-]+).*/\1/' <<<"$d")
+  jq -e --arg c "$cmd" '.permissions.allow | any(startswith("Bash(" + $c + " ") or startswith("Bash(" + $c + ")") or startswith("Bash(" + $c + ":"))' package/settings.json >/dev/null || bad="$bad [$d]"
+done < <(jq -r '.permissions.deny[] | select(test("^Bash\\([^*]*:\\*\\)$") | not)' package/settings.json)
+[ -z "$bad" ] && pass "頭の線でない deny は allow の穴を塞ぐものだけ（Codex の rules に要らない）" || fail "頭の線でも allow の穴塞ぎでもない deny（Codex の rules にどう引くか決める）:$bad"
 sl=$(jq -r '.statusLine.command' package/settings.json)
 [ "$sl" = /opt/andon/lib/andon/statusline ] && [ -x package/lib/andon/statusline ] \
   && pass "statusLine は package/lib/andon/statusline を指す" || fail "statusLine: $sl"

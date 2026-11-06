@@ -72,7 +72,7 @@ func TestTrustFromNothing(t *testing.T) {
 	if to, _ := os.Readlink(filepath.Join(f.home, ".claude.json")); to != cj {
 		t.Errorf("作った .claude.json に ~/.claude.json のリンクが無い: %q", to)
 	}
-	toml := read(t, filepath.Join(f.home, ".codex", "config.toml"))
+	toml := withoutCodexDefaults(read(t, filepath.Join(f.home, ".codex", "config.toml")))
 	want := ""
 	for i, r := range roots {
 		if i > 0 {
@@ -148,7 +148,7 @@ hooks = true`)
 		t.Error("ghq の repo を足していない")
 	}
 
-	toml := read(t, codex)
+	toml := withoutCodexDefaults(read(t, codex))
 	if !strings.HasPrefix(toml, `model = "m"  # 利用者のもの`+"\n") || !strings.Contains(toml, "[features]\nhooks = true\n") {
 		t.Errorf("ほかの設定が変わった:\n%s", toml)
 	}
@@ -193,7 +193,7 @@ func TestTrustLeavesUnreadable(t *testing.T) {
 			if err := Generate(e); err != nil {
 				t.Fatal(err)
 			}
-			if read(t, cj) != claude || read(t, codex) != c.codex {
+			if read(t, cj) != claude || withoutCodexDefaults(read(t, codex)) != c.codex {
 				t.Error("読めない設定を書き換えた")
 			}
 			if n := strings.Count(f.log.String(), "信頼を足さない"); n != 2 {
@@ -267,5 +267,51 @@ func TestTrustClaudeConcurrentWriter(t *testing.T) {
 	}
 	if !strings.Contains(f.log.String(), "読むたびに書き換わる") {
 		t.Errorf("ログに無い: %s", f.log.String())
+	}
+}
+
+func TestTrustCodexIgnoresTablesInMultilineStrings(t *testing.T) {
+	f := newFixture(t)
+	e, roots := trustEnv(t, f)
+	codex := filepath.Join(f.home, ".codex", "config.toml")
+	// 複数行の文字列の中の見出しと trust_level は本物ではない。本物の表を末尾に足す
+	user := "developer_instructions = \"\"\"\n[projects." + quoteTOML(roots[0]) + "]\ntrust_level = \"trusted\"\n\"\"\"\nnote = '''\n[projects." + quoteTOML(roots[1]) + "]\n'''\n"
+	put(t, codex, user)
+	if err := trustCodex(e); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, codex)
+	if !strings.HasPrefix(got, user) {
+		t.Errorf("文字列の中を書き換えた:\n%s", got)
+	}
+	trusted, err := codexTrusted(got)
+	if err != nil {
+		t.Fatalf("書いたものが TOML として読めない: %v\n%s", err, got)
+	}
+	for _, r := range roots {
+		if !trusted[r] {
+			t.Errorf("%s の本物の表が無い:\n%s", r, got)
+		}
+	}
+	// 2回目は何も書かない
+	f.log.Reset()
+	if err := trustCodex(e); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, codex) != got || f.log.Len() != 0 {
+		t.Errorf("2回目に書いた: %s", f.log.String())
+	}
+}
+
+func TestTrustCodexLeavesBrokenTOML(t *testing.T) {
+	f := newFixture(t)
+	e, _ := trustEnv(t, f)
+	codex := filepath.Join(f.home, ".codex", "config.toml")
+	put(t, codex, "developer_instructions = \"\"\"\n[projects.\"/x\"]\n")
+	if err := trustCodex(e); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, codex) != "developer_instructions = \"\"\"\n[projects.\"/x\"]\n" || !strings.Contains(f.log.String(), "TOML として読めない") {
+		t.Errorf("読めない TOML に書いた: %s", f.log.String())
 	}
 }

@@ -30,13 +30,18 @@ change() { # change <path> <行>: origin に commit して head を返す
     git -C "$tmp/origin" add -A; as_agent git -C "$tmp/origin" commit -qm "$1"; git -C "$tmp/origin" rev-parse HEAD
 }
 
-# 偽の gh: PR の事実は $tmp/gh/ のファイル。書き込み（status・comment）は $tmp/gh/posted に1行ずつ
+# 偽の gh: PR の事実は $tmp/gh/ のファイル（GitHub の checks は rollup.json）。書き込み（status・comment）は $tmp/gh/posted に1行ずつ
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 d=$tmp/gh
 case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
+  "api graphql "*)  # statusCheckRollup.contexts を100件ずつ（after は前のページの件数）
+    off=\$(printf '%s\n' "\$@" | sed -n 's/^after=//p'); echo "graphql \${off:-0}" >> \$d/pages
+    jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {repository: {pullRequest: {headRefOid: \$v[0].headRefOid,
+      commits: {nodes: [{commit: {oid: \$v[0].headRefOid, statusCheckRollup: (if length == 0 then null else
+        {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
@@ -54,6 +59,14 @@ cat > "$tmp/bin/hc" <<EOF
 EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
+# rollup <状態…>: GitHub の checks（CheckRun の status/conclusion か ctx:<state>）。ゲート自身の andon/gate の failure をいつも混ぜる
+rollup() {
+    printf '%s\n' "$@" | jq -R -s '[split("\n")[] | select(. != "") |
+      if startswith("ctx:") then {__typename: "StatusContext", context: "ci/x", state: .[4:]}
+      else (split("/") | {__typename: "CheckRun", name: "test", status: .[0], conclusion: (.[1] // "")}) end]
+      + [{__typename: "StatusContext", context: "andon/gate", state: "FAILURE"}]' > "$tmp/gh/rollup.json"
+}
+rollup COMPLETED/SUCCESS
 # pr <path> <行数>: PR の head を進め、view・files・diff を作る
 pr() {
     head=$(change "$1" "${3:-x}")
@@ -143,6 +156,61 @@ rm -f "$rec" "$tmp/gh/posted"
 got=$(gate "$id" --dry-run); expect 0 approve
 [ ! -e "$rec" ] && [ ! -e "$tmp/gh/posted" ] || die 'dry-run が書いた'
 ok '--dry-run は記録も GitHub への書き込みもしない'
+
+# 5b. GitHub の checks（PR の head の statusCheckRollup。ゲート自身の andon/gate は数えない）
+rm -f "$rec" "$tmp/gh/posted"
+rollup COMPLETED/SUCCESS IN_PROGRESS
+got=$(gate "$id"); expect 5 wait 'まだ走っている: test'
+jq -e '.github_checks == {state: "pending", names: ["test"]} and .checks == []' "$tmp/out" >/dev/null || die 'wait の出力の形が違う・検査を回した'
+emit "$tmp/out" gate-record-wait.json
+[ ! -e "$rec" ] && [ ! -e "$tmp/gh/posted" ] || die 'wait なのに記録・GitHub へ書いた'
+ok 'GitHub の checks が走っていれば wait（終了コード 5。記録も GitHub への書き込みもしない・検査を回さない）'
+rollup COMPLETED/SUCCESS COMPLETED/FAILURE
+got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+jq -e '.github_checks.state == "failure" and .checks == []' "$tmp/out" >/dev/null || die 'failure の出力の形が違う'
+rollup ctx:PENDING
+got=$(gate "$id" --dry-run); expect 5 wait 'まだ走っている: ci/x'
+rollup COMPLETED/ACTION_REQUIRED
+got=$(gate "$id" --dry-run); expect 4 needs_human '決められない'
+ok 'GitHub の checks が落ちれば fix・commit status の pending は wait・action_required は needs_human'
+# 100 件を超える checks は全ページ読む（後のページだけの failure を見落とさない）
+jq -n '[range(150) | {__typename: "CheckRun", name: "job\(.)", status: "COMPLETED", conclusion: (if . == 120 then "FAILURE" else "SUCCESS" end), databaseId: .}]' > "$tmp/gh/rollup.json"
+rm -f "$tmp/gh/pages"
+got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: job120'
+grep -qx 'graphql 100' "$tmp/gh/pages" || die '2ページ目を読んでいない'
+# 同じ check の再実行は最新（databaseId が大きい）だけを数える。出てくる順に依らない
+rerun() { jq -n --arg a "$1" --arg b "$2" '[{__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: $a, databaseId: 1,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_tests"}}}},
+  {__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: $b, databaseId: 2,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_tests"}}}}] | if $ARGS.named.rev == "1" then reverse else . end' --arg rev "${3:-0}" > "$tmp/gh/rollup.json"; }
+rerun FAILURE SUCCESS;   got=$(gate "$id" --dry-run); expect 0 approve
+rerun FAILURE SUCCESS 1; got=$(gate "$id" --dry-run); expect 0 approve
+rerun SUCCESS FAILURE;   got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+rerun SUCCESS FAILURE 1; got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+# 表示名が同じ別ファイルの workflow（id が違う）の同じ名前の check は束ねない
+jq -n '[{__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "FAILURE", databaseId: 1,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_a"}}}},
+  {__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "SUCCESS", databaseId: 2,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_b"}}}}]' > "$tmp/gh/rollup.json"
+got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+ok 'GitHub の checks は100件を超えても全ページ読み、同じ check の再実行は最新だけを数える（順に依らない。workflow は表示名でなく id で分ける）'
+rollup
+got=$(gate "$id" --dry-run); expect 5 wait 'まだ1つも無い'
+jq -e '.github_checks == {state: "none", names: []}' "$tmp/out" >/dev/null || die 'none の形が違う（andon/gate を数えた）'
+log=.flightdeck/log.jsonl; cp "$log" "$tmp/log.bak"
+jq -c --arg id "$id" 'if .id == $id and .change.status == "review" then .at = "2020-01-01T00:00:00Z" else . end' "$tmp/log.bak" > "$log"
+got=$(gate "$id" --dry-run); expect 4 needs_human '1つも無いまま 30 分'
+echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"], "github_checks": "optional"}}}' > "$tmp/plant/gate.local.json"
+as_owner git -C "$tmp/plant" commit -qam 'CI の無い repo'
+got=$(gate "$id" --dry-run); expect 0 approve
+rollup COMPLETED/FAILURE
+got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた'
+cp "$tmp/log.bak" "$log"
+echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
+as_owner git -C "$tmp/plant" commit -qam 'checks を要るに戻す'
+rollup COMPLETED/SUCCESS
+got=$(gate "$id" --dry-run); expect 0 approve
+ok 'checks が1つも無ければ wait、review から github_checks_wait_minutes を過ぎたら needs_human。optional の repo は無くても通し、在る checks は見る'
 
 # 6. 委譲を最後に変えたのが owner でなければ無委譲
 echo '{"version": 1, "project": "demo", "preset": "hobby"}' > delegation.json
