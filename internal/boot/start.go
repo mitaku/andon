@@ -28,6 +28,7 @@ func Start(e Env) {
 		run  func(Env) error
 	}{
 		{"Claude Code の記録", fixClaudeInstall},
+		{"git の資格情報", setupGitCredentials},
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},
@@ -95,6 +96,30 @@ func waitListening(port string, d time.Duration) bool {
 		}
 	}
 	return false
+}
+
+// setupGitCredentials は gh がログイン済みなら `gh auth setup-git` を打つ（git の credential helper を gh にする）。
+// ~/.gitconfig は volume の外なので、作り直すと消える。毎起動打てば戻る（何度打っても同じ結果）。
+// ログインしていなければ何もせず1行だけ残す。gh の出力は token を含みうるのでログに出さない。
+func setupGitCredentials(e Env) error {
+	gh, ok := e.has("gh")
+	if !ok {
+		return nil
+	}
+	run := func(args ...string) error {
+		cmd := exec.Command(gh, args...)
+		cmd.Env = append(os.Environ(), "HOME="+e.Home)
+		return cmd.Run()
+	}
+	if run("auth", "status") != nil {
+		e.logf("gh はログインしていない。git の資格情報は設定しない（gh auth login のあと、再起動か gh auth setup-git）")
+		return nil
+	}
+	if err := run("auth", "setup-git"); err != nil {
+		return fmt.Errorf("gh auth setup-git: %w", err)
+	}
+	e.logf("git の credential helper を gh にした")
+	return nil
 }
 
 // fixClaudeInstall は .claude.json に「ネイティブ版で入っている」記録が無ければ claude install latest で書き直す

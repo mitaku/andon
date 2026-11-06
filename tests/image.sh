@@ -127,6 +127,18 @@ dc exec -T dev bash -euc '
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
+# (a0) ~/.gitconfig が消えた状態（作り直しの後）でも、gh がログイン済みなら boot が credential helper を gh にする。
+# 偽のログイン状態: auth status だけ 0 を返す gh を PATH の先頭に置く（setup-git は本物を、ホストを指定して打つ）
+dc exec -T dev bash -euc '
+  real=$(command -v gh)
+  d=$(mktemp -d)
+  printf "#!/bin/sh\n[ \"\$*\" = \"auth status\" ] && exit 0\nexec %s auth setup-git --hostname github.com --force\n" "$real" > "$d/gh"
+  chmod +x "$d/gh"
+  rm -f "$HOME/.gitconfig"
+  PATH="$d:$PATH" andon boot >/dev/null
+  git config --global --get-all credential.https://github.com.helper | grep -q "gh auth git-credential"
+  rm -rf "$d" "$HOME/.gitconfig"
+'
 # (a) ssh のセッション（非対話）に image の環境が渡ること。Herdr App の herdr-core serve もこの形で起きる
 ssh_dev() { dc exec -T dev ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no \
   -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR andon@127.0.0.1 "$@"; }
@@ -150,6 +162,15 @@ for k in $(sed -n 's/^SetEnv //p' image/sshd_config.d/andon.conf | tr ' ' '\n' |
     exit 1
   fi
 done
+# (a1) ssh のセッションのシェルは /bin/bash（SetEnv の SHELL。無いと Herdr App の端末が /bin/sh で起きて補完が効かない）
+if [ "$(ssh_dev 'echo $SHELL')" != /bin/bash ]; then
+  echo 'FAIL image: ssh のセッションの SHELL が /bin/bash でない' >&2
+  exit 1
+fi
+if [ "$(dc exec -T dev getent passwd andon | cut -d: -f7)" != /bin/bash ]; then
+  echo 'FAIL image: andon のログインシェルが /bin/bash でない' >&2
+  exit 1
+fi
 # (a2) ssh の対話ログインシェルでも補完が出る（sshd → ~/.profile → ~/.bashrc）。履歴の置き場は volume
 ssh_login=$(ssh_dev 'bash -lic "complete -p gh hc; echo HISTFILE=\$HISTFILE" 2>/dev/null') || true
 if ! grep -q ' hc$' <<<"$ssh_login" || ! grep -q ' gh$' <<<"$ssh_login" ||
