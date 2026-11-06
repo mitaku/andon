@@ -26,7 +26,9 @@ const fakeHc = `#!/usr/bin/env bash
 printf 'hc %s\n' "$*" >>"$LOG"
 case $1 in
   ls) echo "$FAKE_LS" ;;
-  get) v="FAKE_GET_$2"; echo "${!v:-$FAKE_GET}" ;;
+  get) n=$(( $(cat "$LOG.gets" 2>/dev/null || echo 0) + 1 )); echo $n > "$LOG.gets"
+       s="FAKE_GET$n"; v="FAKE_GET_$2"  # FAKE_GET<n> があれば n 回目の get はそれ
+       if [ -n "${!s:-}" ]; then echo "${!s}"; else echo "${!v:-$FAKE_GET}"; fi ;;
   keep|kill|rm) ;;
   templates) echo "$FAKE_TPL" ;;
   run) echo "$FAKE_RUN" ;;
@@ -343,8 +345,21 @@ func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
 		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
 		t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+term+`}`)
 		rc, out, errs := runMain()
-		if rc != exitFail || strings.Contains(out, "動いているものを使う") || f.coordinator() != "t3" || f.has("hc kill") {
+		if rc != exitFail || strings.Contains(out, "動いているものを使う") || f.coordinator() != "t3" || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") {
 			t.Errorf("%s: rc=%d out=%q err=%q calls=%q", term, rc, out, errs, f.calls())
 		}
+	}
+}
+
+// 起動の直後: 最初の hc get には agent の情報がまだ無く、読み直すと status.app=claude-code。動いているとして使う（打ち直しを求めない）。
+func TestChiefOfStaffAgentAppearsLater(t *testing.T) {
+	f := newFake(t)
+	spawn.SettleWait = 2 * time.Second
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+	t.Setenv("FAKE_GET1", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","argv":["sh","-c","claude"],"status":null,"foreground":{"name":"sh","argv":["sh","-c","claude"]}}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
+	rc, out, errs := runMain()
+	if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") || f.has("hc run") || f.has("hc kill") {
+		t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
 	}
 }

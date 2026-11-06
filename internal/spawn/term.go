@@ -59,6 +59,7 @@ const (
 const AgentApp = "claude-code"
 
 // Kind は端末を見分ける。戻った端末は top-level の argv も前に出ているものも引数の無いシェル
+// （役のラベルの付いた端末は Andon の持ち物で、人がシェルとして使う場所ではない、と決めた。decisions.md §16）
 // （top-level がシェルでも前に別のものが出ていれば、人が中で何かしているとみて Unsure）。
 // 動いているは、top-level の argv がシェルでなく、hc の agent が Claude Code のときだけ。
 // agent の情報が無い・別のもの・前に出ているものが取れないは Unsure。
@@ -97,8 +98,8 @@ var (
 	settlePoll = 500 * time.Millisecond
 )
 
-// Look は hc get addr。前に出ているものが取れない（戻った直後・替わる途中）あいだは SettleWait まで読み直す。
-// 上限を過ぎても取れなければ Foreground が nil のまま返す（呼び手は「確かめられない」として扱う）。
+// Look は hc get addr。見分け（Kind）が Unsure のあいだ（前に出ているものが取れない・起動の直後で agent の情報がまだ無い）は
+// SettleWait まで読み直す。上限を過ぎても Unsure なら最後に読んだものを返す（呼び手は「確かめられない」として扱う）。
 func Look(addr string) (*Term, error) {
 	end := time.Now().Add(SettleWait)
 	for {
@@ -110,7 +111,7 @@ func Look(addr string) (*Term, error) {
 		if err := json.Unmarshal([]byte(out), &t); err != nil {
 			return nil, fmt.Errorf("hc get %s の返事が読めない: %v", addr, err)
 		}
-		if t.Foreground != nil || !time.Now().Before(end) {
+		if t.Kind() != Unsure || !time.Now().Before(end) {
 			return &t, nil
 		}
 		time.Sleep(settlePoll)
