@@ -144,7 +144,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if run != nil && !run.First.Sent {
+	if run != nil && !run.First.Delivered() {
 		fmt.Fprintf(stderr, "andon chief-of-staff: %s（%s）に最初のメッセージが届いていない: %s。App の %s で答えてから、次を送る: hc send %s %q\n",
 			addr, name, run.Reason(), where, addr, msg)
 		fmt.Fprintf(stdout, "andon chief-of-staff: 出た場所 %s（%s）\n", where, addr)

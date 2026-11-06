@@ -99,15 +99,29 @@ func HasTemplate(name string) (bool, error) {
 // Started は hc run --json の返事。
 type Started struct {
 	Address string `json:"address"`
-	First   struct {
-		Sent   bool   `json:"sent"`
-		Reason string `json:"reason"`
-	} `json:"first_message"`
+	First   First  `json:"first_message"`
+}
+
+// First は hc run の first_message。Started は送ったあと数秒で working になったか
+// （null は状態を報告しない program で、誰にも分からない。hc 0.1.17 の terminal.send）。
+type First struct {
+	Sent    bool   `json:"sent"`
+	Started *bool  `json:"started"`
+	Reason  string `json:"reason"`
+}
+
+// Delivered は最初のメッセージが届いたか: 送れて、動き出さなかった（started=false）のでもない。
+// 送れても動き出さなければ、起動の途中で入力を捨てられたとみる（Codex 0.166.0。courier.md §5）。
+func (f First) Delivered() bool {
+	return f.Sent && (f.Started == nil || *f.Started)
 }
 
 // Reason は最初のメッセージが届かなかった理由（無ければ「理由なし」）。
 func (s *Started) Reason() string {
-	if s.First.Reason == "" {
+	switch {
+	case s.First.Sent && !s.First.Delivered():
+		return "送ったが動き出さなかった（起動の途中で入力を捨てられたとみる）"
+	case s.First.Reason == "":
 		return "理由なし"
 	}
 	return s.First.Reason

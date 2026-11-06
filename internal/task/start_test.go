@@ -295,6 +295,19 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 }
 
+// hc が送ったと返しても、動き出さなければ（started=false。起動の途中で入力を捨てられた）届いていない扱いにする。
+func TestStartFirstMessageNotStarted(t *testing.T) {
+	f := newStart(t)
+	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":true,"started":false,"turn":1}}`)
+	rc, _, errs := f.run()
+	if rc != exitFirst || !strings.Contains(errs, "に最初のメッセージが届いていない: 送ったが動き出さなかった") {
+		t.Fatalf("rc=%d err=%q", rc, errs)
+	}
+	if !f.has("hc label t42 first_message.sent=false") {
+		t.Errorf("ラベルを付けていない: calls=%q", f.calls())
+	}
+}
+
 // ラベルを付けられなければ、クーリエは送り直さないので手で送る案内だけにする。
 func TestStartFirstMessageNoLabel(t *testing.T) {
 	f := newStart(t)
