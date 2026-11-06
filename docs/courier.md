@@ -200,6 +200,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | `report.json` の `review_request`（`round` ≤ `review_rounds`） | レビュアーを起こす: `kanban add --parent <id>` ＋ 担当の commit の detached worktree ＋ `hc run <reviewer>`（`--no-notify`）。通知 `review-requested` | 起こすかは `task.yaml` の `review`・`reviewer`（Chief of Staff が書く） |
 | `review_request.extra`（上限を超えた回） | **起こさない**。通知にして Chief of Staff へ | Chief of Staff |
 | `{"status": "review"}` | `andon gate` を回す。記録 `library/gate/<sha>.json`。通知 `gate` | ゲート（決定式） |
+| ゲートが `wait`（PR の head の GitHub の checks が走っている・まだ1つも無い。contract.md §7） | **待つ**: 控えに書かず、通知も問いも出さない。次の見回りでゲートから回し直す（checks が揃えば判定に進む。1つも無いまま `github_checks_wait_minutes` を過ぎたらゲートが `needs_human` を返す） | ゲート |
 | ゲートが `approve` ＋ `merge: auto` ＋ 委譲の `merge` がそのレベルを許す | マージ（条件表の `repos.<repo>.merge` の方式）→ `andon task finish`（`library/corrections.json` に人の手直しを集める。design.md §1.9 の (b)）。通知 `merged` | ゲート・委譲（人） |
 | ゲートが `approve` で `merge: person`、または委譲の外 | マージしない。通知 `gate` のまま止まる | 人 |
 | ゲートが `fix` | 理由を担当へ `hc send`（担当は人が打つ端末ではないので、離席の守りは要らない） | ゲート |
@@ -211,7 +212,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 - **台帳に書くときの `by` は `terminal:courier`**（`HC_TERMINAL_ID=courier` で打つ）。ゲートと `andon task ready` は、作成の行の `by` が Chief of Staff かクーリエのレビュアーを数える。
 - **レビュアーの依頼書に結果の宛先を書く**: 元のタスク（`parent`）の担当（`task.yaml` の `agent`）だけ。Chief of Staff・クーリエへは送らせない（Chief of Staff へはクーリエが通知で届ける）。
 - **上限を超えた回**は今の `review_rounds` で決める。Chief of Staff が `review_rounds` を上げれば、次の見回りで起こす。
-- **マージの直前に読み直す**: タスクの予約キー・履歴・委譲がゲートのときと違えば打たず、次の見回りでゲートから回し直す。
+- **マージの直前に読み直す**: タスクの予約キー・履歴・委譲、PR の head と GitHub の checks（ゲートと同じ読み方。contract.md §7）がゲートのときと違えば（push された・checks が走り直した・落ちた）打たず、次の見回りでゲートから回し直す。残る隙間: マージの直前の読み直しと `gh pr merge` の間に、同じ head のまま checks が走り直した・落ちたときは止められない（`--match-head-commit` が固定するのは head だけ）。サーバーの側で checks を強制できるのはブランチ保護（ruleset）だけで、private の repo の Free のプランでは使えないので、この隙間は受け入れる。public にしたら ruleset で既定ブランチに required checks を付けて塞ぐ（public にする手順に入れてある）。
 - **起こしそこねたら続きから**: 最初のメッセージが届くまでは起こしたことにしない。一時の失敗（fetch・`hc run`・信頼の画面）は控えに分けて持ち、次の見回りで済んだ段の続きからやり直す（二重に起こさない）。
 - **担当の最初のメッセージも送り直す**: `andon task start`・`andon chief-engineer` が最初のメッセージを届けられなかった（終了コード 3）端末には、command がラベル `first_message.sent=false` を付けて預ける。クーリエは見回り（§2.3 の `hc get`）でこのラベルの `doing` の担当を拾い、`idle`（か状態がまだ無い）なら同じ最初のメッセージを `hc send` し、ラベルを外してログに1行。`blocked`・`error` の間は送らず次の見回りへ（`hc send` も画面が入力を受けられなければ拒む）。`working`・`done` なら人が手で送ったとみなし、送らずにラベルだけ外す。送る前に控え（`first`）へ「送りかけ」を書いて保存し、送れなければその場で消して保存する。送ったあとラベルを外す前に落ちても、外しそこねても、控えにあれば二度と送らない（送っている最中に落ちたときは送らない側に倒れ、担当は `idle` のまま `stalled` で Chief of Staff に届く）。初めて見る台帳では送らない。
 - **片付け**は `andon task finish <id>` の1つ（レビュアーの子タスクと detached worktree も片付く）。人がマージしたときは Chief of Staff が同じ command を打つ。

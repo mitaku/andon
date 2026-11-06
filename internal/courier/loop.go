@@ -437,7 +437,7 @@ func (p *project) review(t ledger.Task, rep *contract.Report) {
 	}
 	out, code, err := p.andon("", "gate", id)
 	var res gateResult
-	if (code != 0 && code != 1 && code != 4) || json.Unmarshal([]byte(out), &res) != nil {
+	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal([]byte(out), &res) != nil {
 		g.Decision = "needs_human"
 		p.st.Gates[key] = g
 		p.logf("%s のゲートが判定できない: %v", id, err)
@@ -445,6 +445,11 @@ func (p *project) review(t ledger.Task, rep *contract.Report) {
 			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）のゲートが判定できなかった。PR を人が見るか", id, short(t.Str("title"))),
 			Facts: []string{fmt.Sprintf("andon gate %s: %v", id, err)}, From: "gate",
 			Options: []contract.Option{{Label: "人が PR を読んでマージを決める", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
+		return
+	}
+	if res.Decision == "wait" {
+		// GitHub の checks が揃っていない: 控えに書かず、次の見回りでゲートから回し直す（通知もしない）
+		p.logf("%s のゲートは GitHub の checks を待つ: %s", id, strings.Join(res.Reasons, "／"))
 		return
 	}
 	g.Sha, g.Decision = res.Head, res.Decision
@@ -544,6 +549,16 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 		p.logf("%s をいまはマージしない（次の見回りでゲートから回し直す）: %s", id, why)
 		return true
 	}
+	// PR の head と GitHub の checks も読み直す（ゲートのあとに push された・checks が変わったら打たない）
+	nowHead, checks, err := gate.ReadChecks(number, slug)
+	if err != nil {
+		p.logf("%s をいまはマージしない（次の見回りでゲートから回し直す）: %v", id, err)
+		return true
+	}
+	if ok, why := ChecksStill(res.Head, nowHead, checks, table.Repos[t.Str("repo")].GitHubChecks == "optional"); !ok {
+		p.logf("%s をいまはマージしない（次の見回りでゲートから回し直す）: %s", id, why)
+		return true
+	}
 	if _, _, err := run("", nil, "", "gh", "pr", "merge", number, "--repo", slug, "--"+method, "--match-head-commit", res.Head); err != nil {
 		stop("gh pr merge に失敗: " + err.Error())
 		return false
@@ -603,6 +618,25 @@ func Authorized(before, now ledger.Settings, status string, trusted bool, gateMe
 		return false, fmt.Sprintf("delegation: merge=%s < tier %s", nowMerge, tier)
 	}
 	return true, ""
+}
+
+// ChecksStill は、マージの直前に読み直した PR の head と GitHub の checks で、まだマージしてよいか（純粋関数）。
+// head がゲートの判定した head と違う（ゲートのあとに push された）か、checks が通す状態でなければマージしない。
+func ChecksStill(gateHead, nowHead string, checks gate.GitHubChecks, optional bool) (bool, string) {
+	switch {
+	case nowHead != gateHead:
+		return false, fmt.Sprintf("PR の head がゲートのあとに動いた（%s → %s）", short12(gateHead), short12(nowHead))
+	case !checks.Passed(optional):
+		return false, fmt.Sprintf("GitHub の checks がゲートのあとに変わった（%s: %s）", checks.State, strings.Join(checks.Names, ", "))
+	}
+	return true, ""
+}
+
+func short12(s string) string {
+	if len(s) > 12 {
+		return s[:12]
+	}
+	return s
 }
 
 // markMerged はゲートの記録の merged を true にする（記録の書き手はクーリエ。contract.md §7）。

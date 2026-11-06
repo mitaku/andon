@@ -1,6 +1,7 @@
 {
   "size_review_lines": 500,
   "size_human_lines": 1000,
+  "github_checks_wait_minutes": 30,
   "test_paths": ["tests/**"],
   "tier_a_paths": ["docs/**", "tests/**", "README*", "CHANGELOG.md"],
   "tier_b_paths": ["**/.claude/skills/**", "bin/**", "**/*.sh", "cmd/**", "internal/**", "schema/**", "package/bin/**", "package/lib/**", "init/**"],
