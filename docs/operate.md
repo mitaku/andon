@@ -346,6 +346,20 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 控えは `~/.local/state/andon/dispatcher/<プロジェクト名>.json`（`XDG_STATE_HOME` があればその下）。待ちの通知は `pending`、フックで渡したものは `hook` に残る。通知は台帳と端末の状態から拾う（[dispatcher.md](dispatcher.md) §2.2・§2.3）。**通ったら見えるもの**: 10 の流れの各段（`review`・`ready`・`gate`・`merged`）が、Chief of Staff に `<news>` として1通にまとまって届く。
 
+### 前の名前の係から移す（courier → dispatcher）
+
+常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前の版の建屋を上げるときは次のとおり。
+
+1. **上げる前に**: `status: review` のタスクと、レビュアーが動いている（`review_request` を出した）タスクが無いときに上げる。あれば片付くのを待つ（理由は 3）。
+2. **image を上げて起動する**（`rebuild`）。boot が、役のラベル（`role=`）の値が今の役（`chief-of-staff`・`chief-engineer`・`dispatcher`）のどれでもない live な端末を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。役のラベルの付いた端末は Andon の持ち物なので中身を見ずに片付ける（上の「役のラベルの付いた端末は Andon の持ち物」）。起動のログに `前の版の役の端末 <address>（courier・role=courier）を片付けた` と `dispatcher を起こした` が出る。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
+3. **控えの置き場が替わる**: `~/.local/state/andon/courier/` は読まない。新しい `~/.local/state/andon/dispatcher/` に控えが無いので、どの台帳も**初めて見る台帳**として扱われる（[dispatcher.md](dispatcher.md) §2.1）:
+   - 止まっていた間の出来事（報告・問い・止まり）は通知にしない。最初の見回りは位置を控えるだけ。Chief of Staff は起きたときと同じく台帳を自分で読む（`deck list`）。
+   - `doing` のタスクの今の `review_request` は拾う。前の係が起こしたレビュアーの子タスクがあれば、それを引き継いで二重に起こさない。ただしその子タスクは作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。担当にレビューを頼み直させる（Chief of Staff）。
+   - すでに `status: review` のタスクはゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon task ready`）か、人が PR を見てマージし Chief of Staff が `andon task finish`。
+   - 最初のメッセージの送り直し（`first_message.sent=false`）は2回目の見回りから。
+4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の名前付け mod」）。入れ直すまで、新しい tab は名前が付かない。
+5. **片付け**: 2 と 3 を確かめたら、前の控え `~/.local/state/andon/courier/` を消してよい（読む者はいない）。
+
 ## 12. 実測する（P6b と ADR-0001 S4）
 
 本物の Claude Code でしか確かめられないもの。**見る場所**を書く。落ちたら直しのタスクにする。

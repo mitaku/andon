@@ -1,6 +1,6 @@
 # ADR-0002: Herdr App の Space と tab への役の置き方（仕様・設計。2026-11-05。Chief Engineer のタスク Y-105）
 
-- 状態: **決定（2026-11-05）。決めたこと 1・2（作業側の Space と tab。それを確定した 12・作業側の名前の 16 を含む）は覆された → [ADR-0003](0003-task-spaces.md)**（2026-11-06）。同日、試作 S0 の結果で前提 8〜11 と決めたこと 10〜18 を足した（Chief Engineer のタスク Y-106。構造は変えていないので同じ ADR）。2026-11-06 に伝令の置き場を足し、「やらないこと」の1行を覆した（決めたこと 21。Y-140）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改め（試作の結果を含む）は「決めたこと」に下から足す。
+- 状態: **決定（2026-11-05）。決めたこと 1・2（作業側の Space と tab。それを確定した 12・作業側の名前の 16 を含む）は覆された → [ADR-0003](0003-task-spaces.md)**（2026-11-06）。同日、試作 S0 の結果で前提 8〜11 と決めたこと 10〜18 を足した（Chief Engineer のタスク Y-106。構造は変えていないので同じ ADR）。2026-11-06 に伝令の置き場を足し、「やらないこと」の1行を覆した（決めたこと 21。Y-140）。同日、その係の名前を dispatcher に改めた（決めたこと 22。Y-123）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改め（試作の結果を含む）は「決めたこと」に下から足す。
 - 主題: Chief of Staff・Chief Engineer・担当とレビュアーを、人の Herdr App（herdrdev/herdr-app）の Space と tab にどう置くか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は端末のラベル（[contract.md](../contract.md) §8）。
 
@@ -84,6 +84,9 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。人が番号で答�
     理由: P7 で伝令が止まっていたのに誰も気づけなかった（人の意向 2026-11-06）。App で見えれば止まりに気づける。
     覆したこと: 「やらないこと」の「クーリエと通知の係自身を App に出すこと」（当時の理由は「人が見るものではない」）。通知の係は今回も出さない（`--no-parent` のまま）。
     捨てた案: 台帳が増えても指揮側のどれか1つの Space に出す（どの Space かが台帳の並び順で決まり、足すたびに動く）。`project` ラベルを伝令に付ける（ラベルの読み手のボードとフックが、伝令を台帳の担当と取り違えうる）。
+22. **2026-11-06 21 の係の名前を dispatcher に改める（出典: 人）。** 21 の名前の行を次に替える: tab の id は `andon-<slug>-dispatcher`・`andon-<建屋の slug>-dispatcher`、名前は「dispatcher」。端末の名前とラベルは `dispatcher`・`role=dispatcher`、ラベルを付けるのは `dispatcher.Ensure`。日本語の文でも「dispatcher」と書く（カタカナにしない）。置き場（台帳の数で決める）と mod が tab id から名前を導く形は 21 のまま。前の名前の端末は建屋の boot が片付ける（役のラベルの値が今の役のどれでもない端末。operate.md「前の名前の係から移す」）。
+    理由: 21 の日本語の呼び名も英語の識別子も、ソフトウェア開発の言葉として聞き馴染みが無い。仕事（台帳と端末を見回る・起きたことを Chief of Staff に知らせる・決まった次の工程を起こす。判断はしない）に一番近い、聞き馴染みのある語にした。
+    覆したこと: 21 の「日本語の呼び名」と「英語の識別子はそのまま」。
 
 ## やらないこと（範囲の外。理由）
 
@@ -132,7 +135,7 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。人が番号で答�
 
 ## 出典（読んだもの・捨てた案の出所）
 
-- Andon の側: [design.md](../design.md) §1.3〜§1.8・§5、[courier.md](../courier.md)、[contract.md](../contract.md) §8・§9、[operate.md](../operate.md)、`internal/chiefengineer`・`internal/task`・`internal/courier`・`internal/boot`、`package/skills/chief-of-staff`。
+- Andon の側: [design.md](../design.md) §1.3〜§1.8・§5、[dispatcher.md](../dispatcher.md)、[contract.md](../contract.md) §8・§9、[operate.md](../operate.md)、`internal/chiefengineer`・`internal/task`・`internal/dispatcher`・`internal/boot`、`package/skills/chief-of-staff`。
 - Herdr App: https://github.com/herdrdev/herdr-app （README・`defaults/AGENTS.md`・`docs/commands.md`・`docs/labels.md`。S0 の読み解きに `src/window.rs` の `adopt`・`reconcile`・`write_where`・`folder_info`、`src/model.rs` の `space_name`・`tab_name`、`src/programs.rs`、`defaults/mods/agents/main.js`。2026-11-05 に読んだ）。要点: Space は 1 マシンの仕事の置き場。Herdr が起こす端末にはラベル `herdr.space=<id>`・`herdr.tab=<id>` が付き、そのラベルを持つ端末はそこに出る。知らない id は新しい Space か tab になる。`hc run` で起きた sub-agent は親の tab にペインの無いまま属し `terminal.peek` で覗く。`herdr-app` は窓を、`hc` は herdr-core を動かす。
 - herdr-core: `hc --help`・`hc --skill`（窓は並べない。`herdr-app --skill` を使え）・`hc run --help`・`hc get --json`（2026-11-05 の実機: Chief of Staff の端末に `herdr.space`・`herdr.tab`・`where`、担当に `where` だけ）。
 - ボード（herdr-flightdeck。private）: `docs/concept.md`・`docs/mod-design.md`（`task=` の担当を独立の行にする決定 2026-11-03・未確認の項 §9）・`herdr-app/scripts/fake-agent.mjs`（`hc run --label herdr.space=… --label herdr.tab=…` で新しい Space に出す例）。
