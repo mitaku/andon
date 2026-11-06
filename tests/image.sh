@@ -111,4 +111,15 @@ dc exec -T dev bash -euc '
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
+# ホスト鍵は volume に残り、container を作り直しても sshd が同じ鍵を出すこと（手元の known_hosts が壊れない）
+hostkey_fp() { dc exec -T dev bash -euc 'ssh-keyscan -t ed25519 127.0.0.1 2>/dev/null | ssh-keygen -lf - | cut -d" " -f2'; }
+fp1=$(hostkey_fp)
+vol_fp=$(dc exec -T dev ssh-keygen -lf /opt/andon-home/.ssh/ssh_host_ed25519_key.pub | cut -d' ' -f2)
+dc down --remove-orphans >/dev/null
+BUILDX_BUILDER=default "$plant/bin/bootstrap" up
+fp2=$(hostkey_fp)
+if [ -z "$fp1" ] || [ "$fp1" != "$vol_fp" ] || [ "$fp1" != "$fp2" ]; then
+  echo "FAIL image: sshd のホスト鍵が volume のものでない、または作り直しで変わった（$fp1 / $vol_fp / $fp2）" >&2
+  exit 1
+fi
 echo 'ok   image: build, offline runtime, workflow policy checks and plant boot (init → bootstrap up → boot → ssh)'

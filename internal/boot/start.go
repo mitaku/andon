@@ -171,7 +171,7 @@ func startFiles(e Env) error {
 }
 
 // startSSHD は外の端末から入る口を開ける。建屋の .ssh/authorized_keys が無いか読めなければ無効のまま。
-// 設定は image に焼いた sshd_config。ホスト鍵は volume の ~/.ssh に置く（作り直すたびに変わらないように）。
+// 設定は image に焼いた sshd_config。ホスト鍵は volume の ~/.ssh に置き、`-h` で sshd に渡す（渡さないと image の /etc/ssh の鍵が使われ、image を焼き直すたびに変わる）。
 func startSSHD(e Env) error {
 	keys := filepath.Join(e.Workspace, ".ssh", "authorized_keys")
 	b, err := os.ReadFile(keys)
@@ -210,7 +210,7 @@ func startSSHD(e Env) error {
 			return fmt.Errorf("sudo %s: %v: %s", strings.Join(args, " "), err, out)
 		}
 	}
-	if out, err := exec.Command(sudo, "-n", "/usr/sbin/sshd").CombinedOutput(); err != nil {
+	if out, err := exec.Command(sudo, "-n", "/usr/sbin/sshd", "-h", hostKey).CombinedOutput(); err != nil {
 		return fmt.Errorf("sshd: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	e.logf("sshd を起動した（コンテナの 22 番。ホスト側の番号は .env の SSH_PORT）")
