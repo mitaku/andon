@@ -233,7 +233,8 @@ const staleHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
   get) [ -e "$d/$2.json" ] || { echo '{"error":{"kind":"not_found"}}' >&2; exit 3; }; cat "$d/$2.json" ;;
-  keep|kill|rm) echo "$*" >>"$d/log" ;;
+  keep|kill|rm) [ ! -e "$d/fail-$1" ] || { echo "$1 failed" >&2; exit 1; }; echo "$*" >>"$d/log" ;;
+  run) echo "$*" >>"$d/log" ;;
   *) exit 9 ;;
 esac
 `
@@ -251,8 +252,6 @@ func TestDropStaleRoles(t *testing.T) {
 	}{
 		{"前の係が動いている", old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`), true, "前の版の係の端末 t1（courier）を片付けた"},
 		{"作り直しで戻ったシェル", old(`{"name":"bash","argv":["/bin/bash"]}`), true, "片付けた"},
-		{"人が中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), false, "前に出ているものが vim なので触らない"},
-		{"前に出ているものが取れない", old("null"), false, "取れない なので触らない"},
 		{"名前が courier でもラベルが違う", `{"address":"t1","name":"courier","state":"live","labels":{"role":"worker"},"foreground":{"name":"bash","argv":["/bin/bash"]}}`, false, ""},
 		{"終わった端末", `{"address":"t1","name":"courier","state":"finished","labels":{"role":"courier"}}`, false, ""},
 		{"端末が無い", "", false, ""},
@@ -272,6 +271,50 @@ func TestDropStaleRoles(t *testing.T) {
 			}
 			if got := f.log.String(); (c.log == "") != (got == "") || !strings.Contains(got, c.log) {
 				t.Errorf("log=%q want %q", got, c.log)
+			}
+		})
+	}
+}
+
+// 前の版の係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起こさない。
+// 片付けられれば起こす。
+func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
+	old := func(fg string) string {
+		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
+	}
+	running := old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`)
+	for _, c := range []struct {
+		name, term, fail string
+		started          bool
+		log              string
+	}{
+		{"kill に失敗", running, "kill", false, "kill failed"},
+		{"keep --off に失敗", running, "keep", false, "keep failed"},
+		{"人が中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), "", false, "前に出ているものが vim なので触らない"},
+		{"前に出ているものが取れない", old("null"), "", false, "取れない なので触らない"},
+		{"片付けた", running, "", true, "前の版の係の端末 t1（courier）を片付けた"},
+		{"前の係の端末が無い", "", "", true, "dispatcher を起こした"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f, e, d := dispatcherFixture(t)
+			put(t, filepath.Join(d, "bin", "hc"), staleHc)
+			if c.term != "" {
+				put(t, filepath.Join(d, "courier.json"), c.term)
+			}
+			if c.fail != "" {
+				put(t, filepath.Join(d, "fail-"+c.fail), "")
+			}
+			Start(e)
+			log, _ := os.ReadFile(filepath.Join(d, "log"))
+			if got := strings.Contains(string(log), "run "); got != c.started {
+				t.Errorf("dispatcher の hc run=%v want %v: %q", got, c.started, log)
+			}
+			got := f.log.String()
+			if !strings.Contains(got, c.log) {
+				t.Errorf("log=%q want %q", got, c.log)
+			}
+			if !c.started && !strings.Contains(got, "dispatcher は起こさない") {
+				t.Errorf("起こさない理由が無い: %q", got)
 			}
 		})
 	}

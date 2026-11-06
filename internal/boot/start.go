@@ -27,6 +27,7 @@ const (
 
 // Start は起動の手を順に打つ。道具が無ければ飛ばし、失敗は警告にして続ける。
 func Start(e Env) {
+	oldLive := false // 前の版の係の端末を片付けられなかった（dispatcher を起こさない）
 	for _, step := range []struct {
 		name string
 		run  func(Env) error
@@ -39,7 +40,15 @@ func Start(e Env) {
 		{"前の版の係の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
 	} {
-		if err := step.run(e); err != nil {
+		if step.name == "dispatcher" && oldLive {
+			e.logf("前の版の係の端末が残っているので dispatcher は起こさない（二重に回さない）。人が hc kill <address> で片付けてから andon boot を打ち直す")
+			continue
+		}
+		err := step.run(e)
+		if errors.Is(err, errOldDispatcher) {
+			oldLive = true
+		}
+		if err != nil {
 			e.logf("%s の準備に失敗（続行する）: %v", step.name, err)
 		}
 	}
@@ -250,10 +259,15 @@ func startSSHD(e Env) error {
 // oldDispatcher は名前を改める前の常駐の係の名前（端末の名前と role= の値。2026-11-06 に dispatcher へ改めた）。
 const oldDispatcher = "courier"
 
+// errOldDispatcher は前の版の係の端末が live のまま残った（片付けなかった・片付けに失敗した）。
+// Start はその起動で dispatcher を起こさない（前の係が動いていれば二重に回る）。
+var errOldDispatcher = errors.New("前の版の係の端末が残っている")
+
 // dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
 // （keep を外して kill・rm）。建屋の upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
 // （同じ PR をマージしにいく）ので、起こす前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
-// （作り直しで戻った中身）のときだけ片付け、それ以外（人が中で何か動かしている・前に出ているものが取れない）は触らずに1行書く。
+// （作り直しで戻った中身）のときだけ片付ける。それ以外（人が中で何か動かしている・前に出ているものが取れない）と
+// 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起こさない）。
 func dropStaleRoles(e Env) error {
 	hc, ok := e.has("hc")
 	if !ok {
@@ -273,12 +287,11 @@ func dropStaleRoles(e Env) error {
 		if t.Foreground != nil {
 			fg = t.Foreground.Name
 		}
-		e.logf("前の版の係の端末 %s の前に出ているものが %s なので触らない（hc kill %s で片付けてから andon boot）", t.Address, fg, t.Address)
-		return nil
+		return fmt.Errorf("%w: %s の前に出ているものが %s なので触らない（hc kill %s で片付けてから andon boot）", errOldDispatcher, t.Address, fg, t.Address)
 	}
 	for _, args := range [][]string{{"keep", t.Address, "--off"}, {"kill", t.Address}, {"rm", t.Address}} {
 		if o, err := exec.Command(hc, args...).CombinedOutput(); err != nil {
-			return fmt.Errorf("hc %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(o)))
+			return fmt.Errorf("%w: hc %s: %v: %s（hc kill %s で片付けてから andon boot）", errOldDispatcher, strings.Join(args, " "), err, strings.TrimSpace(string(o)), t.Address)
 		}
 	}
 	e.logf("前の版の係の端末 %s（%s）を片付けた", t.Address, oldDispatcher)
