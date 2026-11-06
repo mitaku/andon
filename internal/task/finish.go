@@ -49,12 +49,21 @@ func (c *ctx) finish(stdout io.Writer) error {
 			wt, branch = "", ""
 		}
 	}
-	own := false
+	own, detached := false, false
 	if wt != "" {
 		if repoDir == "" {
 			return fail("%s に worktree があるが repo が無い", c.id)
 		}
-		want := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir), slug+"-"+c.id)
+		// 本体の checkout（git worktree list の先頭）は、置き場の検査より先に、明示的に消さない
+		if MainCheckout(repoDir, wt) {
+			return fail("%s の worktree が repo の本体の checkout: %s（消さない。台帳の worktree・branch を確かめる）", c.id, wt)
+		}
+		dir := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir))
+		want := filepath.Join(dir, slug+"-"+c.id)
+		// レビュアーの子タスクは、クーリエが kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
+		if p := c.task.Str("parent"); p != "" && strings.HasSuffix(c.task.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
+			want, detached = wt, true
+		}
 		if wt != want {
 			return fail("%s の worktree が %s でない: %s", c.id, want, wt)
 		}
@@ -71,7 +80,12 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 	}
 	if wt != "" {
-		if _, err := os.Stat(wt); err == nil {
+		if _, err := os.Stat(wt); err == nil && detached {
+			if !Pair(repoDir, wt, "detached") {
+				return fail("%s は %s の detached worktree でない", wt, repoDir)
+			}
+			own = true // レビュアーは読むだけ。検査の残り物があっても消す（親の片付けと同じく --force）
+		} else if err == nil {
 			if branch == "" {
 				return fail("%s に worktree があるが branch が無い", c.id)
 			}
@@ -106,7 +120,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 	if repoDir != "" {
 		olds, _ := filepath.Glob(filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir), slug+"-"+c.id+"-r*"))
 		for _, p := range olds {
-			if Pair(repoDir, p, "detached") {
+			if Pair(repoDir, p, "detached") && !MainCheckout(repoDir, p) {
 				if _, err := git(repoDir, "worktree", "remove", "--force", p); err != nil {
 					return fail("レビュアーの detached worktree を消せない: %s", p)
 				}
@@ -122,7 +136,11 @@ func (c *ctx) finish(stdout io.Writer) error {
 	kept := ""
 	if repoDir != "" {
 		if own {
-			if _, err := git(repoDir, "worktree", "remove", wt); err != nil {
+			args := []string{"worktree", "remove", wt}
+			if detached {
+				args = []string{"worktree", "remove", "--force", wt}
+			}
+			if _, err := git(repoDir, args...); err != nil {
 				return fail("worktree を消せない: %s", wt)
 			}
 		}
@@ -150,6 +168,43 @@ func (c *ctx) finish(stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "andon task: %s を片付けた（done）。%s\n", c.id, kept)
 	return nil
+}
+
+// MainCheckout は path が repo の本体の checkout（git worktree list の先頭）か。repoDir と path の両方から見る
+// （path が repoDir とは別の repo の本体のこともある）。シンボリックリンクは解いて比べる。
+func MainCheckout(repoDir, path string) bool {
+	real := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return filepath.Clean(p)
+	}
+	want := real(path)
+	for _, d := range []string{repoDir, path} {
+		out, err := git(d, "worktree", "list", "--porcelain")
+		if err != nil {
+			continue
+		}
+		first, _, _ := strings.Cut(out, "\n")
+		if m, ok := strings.CutPrefix(first, "worktree "); ok && real(m) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// reviewRound は wt が prefix（…/<slug>-<parent>-r）に回の数を足したものか。
+func reviewRound(wt, prefix string) bool {
+	n, ok := strings.CutPrefix(wt, prefix)
+	if !ok || n == "" {
+		return false
+	}
+	for _, r := range n {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // Pair は path が repoDir の worktree の一覧にあり、同じ項目に line（"branch refs/heads/…" か "detached"）があるか。

@@ -58,10 +58,10 @@ func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
 				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
 			}
-			if r.Address != "" && p.status(r.ReviewerTask) == "todo" {
+			if r.Address != "" && r.Worktree != "" && p.status(r.ReviewerTask) == "todo" {
 				// 端末は起きているが kanban start が済んでいない（hc run のあとに落ちた）。台帳を端末に合わせる
-				cwd := filepath.Join(p.l.Dir, "tasks", r.ReviewerTask)
-				if _, _, err := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", r.ReviewerTask); err != nil {
+				// （worktree を確かめられないときは startReviewer の 4 が、置き場を作り直したあとで合わせる）
+				if err := p.startLedger(r.ReviewerTask, r.Address, r.Worktree); err != nil {
 					p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", r.ReviewerTask, ledger.CLI, r.Address, err)
 				}
 			}
@@ -216,6 +216,18 @@ func (p *project) reviewerWorktree(t ledger.Task, round int) string {
 	return filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(dir), fmt.Sprintf("%s-%s-r%d", p.l.Slug, t.Str("id"), round))
 }
 
+// startLedger はレビュアーのタスクを doing にし、agent を端末 addr にする（kanban start）。
+// 打つ cwd はレビュアーの detached worktree wt: kanban start は cwd の checkout を worktree に、branch を書く
+// （detached なので branch は書かない）。台帳の tasks/<子>/ で打つと、台帳が git の中にある建屋では
+// 台帳を包む checkout（建屋の本体）が worktree・branch として書かれる。
+func (p *project) startLedger(rev, addr, wt string) error {
+	if wt == "" {
+		return fmt.Errorf("%s の detached worktree が分からない", rev)
+	}
+	_, _, err := run(wt, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + addr}, "", ledger.CLI, "start", rev)
+	return err
+}
+
 // startReviewer はレビュアーを起こす。段ごとに r に書き、済んだ段は飛ばす（起こしそこねても続きからやり直せる）:
 // detached worktree → レビュアーのタスク（kanban add --parent）→ 端末（hc run）→ 最初のメッセージ。
 // 起こさない（final）か起こしそこねた（再試行）ときは理由を返す。最初のメッセージが届くまでは成功にしない。
@@ -303,7 +315,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 			return fmt.Sprintf("hc run に失敗（%s は todo のまま。次の見回りで起こし直す）: %v", rev, err), false
 		}
 		r.Address = started.Address
-		_, _, serr := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", rev)
+		serr := p.startLedger(rev, r.Address, r.Worktree)
 		if serr != nil {
 			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, serr)
 		}
@@ -323,7 +335,13 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 		return why + "（次の見回りで送り直す）", false
 	}
 
-	// 4. 起きているが最初のメッセージが届いていない端末へ送り直す（信頼の画面などで止まっていれば拒まれ、次の見回りへ）
+	// 4. 起きているが最初のメッセージが届いていない端末へ送り直す（信頼の画面などで止まっていれば拒まれ、次の見回りへ）。
+	// kanban start が済んでいなければ先に台帳を端末に合わせる（引き継いだ端末で、worktree を作り直したとき）
+	if p.status(rev) == "todo" {
+		if err := p.startLedger(rev, r.Address, r.Worktree); err != nil {
+			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, err)
+		}
+	}
 	if _, _, err := run("", nil, "", "hc", "send", r.Address, msg); err != nil {
 		return fmt.Sprintf("%s（%s）に最初のメッセージを送れない: %v（次の見回りで送り直す）", rev, r.Address, err), false
 	}
