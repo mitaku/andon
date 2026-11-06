@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/BurntSushi/toml"
+
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -225,7 +227,6 @@ var (
 	// codexProjectRe は [projects."<path>"] か [projects.'<path>'] の表の見出し。
 	codexProjectRe = regexp.MustCompile(`^\s*\[\s*projects\s*\.\s*("((?:[^"\\]|\\.)*)"|'([^']*)')\s*\]\s*(#.*)?$`)
 	codexTableRe   = regexp.MustCompile(`^\s*\[`)
-	codexTrustRe   = regexp.MustCompile(`^\s*trust_level\s*=`)
 	// codexOtherRe は projects をこの関数が読まない形で書いたもの（[projects] の表・top-level の projects = {…}・
 	// projects."<path>".… の dotted key）。
 	codexOtherRe = regexp.MustCompile(`^\s*(\[\s*projects\s*\]|projects\s*(=|\.))`)
@@ -234,6 +235,8 @@ var (
 // trustCodex は ~/.codex/config.toml に [projects."<根>"] trust_level = "trusted" を足す。
 // 今ある表には触らない（trust_level があれば値が何でもそのまま。人が untrusted にしたものを覆さない）。
 // 表があって trust_level だけが無ければ、見出しの直後に1行足す。projects を別の形で書いていれば書かない。
+// trust_level の有無は TOML のパーサで読む（読めない TOML には書かない）。見出しの行を探すときは複数行の文字列の中を
+// 飛ばす。書く前に出力を読み直し、足した根の trust_level がパーサから見えなければ書かない。
 func trustCodex(e Env) error {
 	path := filepath.Join(e.Home, ".codex", "config.toml")
 	b, err := os.ReadFile(path)
@@ -241,10 +244,15 @@ func trustCodex(e Env) error {
 		return err
 	}
 	text := strings.ReplaceAll(string(b), "\r\n", "\n")
+	trusted, err := codexTrusted(text)
+	if err != nil {
+		return e.skipTrust("%s が TOML として読めない（書かない）: %v", path, err)
+	}
 	lines := strings.Split(text, "\n")
 	if text == "" {
 		lines = nil
 	}
+	inString := multilineStringLines(lines)
 	type table struct {
 		at    int // 見出しの行
 		trust bool
@@ -253,6 +261,9 @@ func trustCodex(e Env) error {
 	var cur *table
 	top := true // まだ表の見出しの前（top-level の key）
 	for i, ln := range lines {
+		if inString[i] {
+			continue // 複数行の文字列の中（見出しでもキーでもない）
+		}
 		if m := codexProjectRe.FindStringSubmatch(ln); m != nil {
 			key, ok := m[3], true
 			if strings.HasPrefix(m[1], `"`) {
@@ -274,9 +285,9 @@ func trustCodex(e Env) error {
 			cur, top = nil, false
 			continue
 		}
-		if cur != nil && codexTrustRe.MatchString(ln) {
-			cur.trust = true
-		}
+	}
+	for key, t := range tables {
+		_, t.trust = trusted[key]
 	}
 	var added []string
 	insert := map[int]bool{}
@@ -310,7 +321,14 @@ func trustCodex(e Env) error {
 		tail = tail[1:] // 新しいファイルは空行で始めない
 	}
 	out = append(out, tail...)
-	if err := e.writeFile(path, []byte(strings.Join(out, "\n")+"\n"), modeOr(path, 0o600)); err != nil {
+	data := strings.Join(out, "\n") + "\n"
+	after, err := codexTrusted(data)
+	for _, root := range added {
+		if _, ok := after[root]; err != nil || !ok {
+			return e.skipTrust("%s に足した %s の trust_level が読み直すと見えない（書かない）", path, root)
+		}
+	}
+	if err := e.writeFile(path, []byte(data), modeOr(path, 0o600)); err != nil {
 		return err
 	}
 	e.logf("信頼を足した（Codex）: %s", strings.Join(added, " "))
@@ -343,4 +361,50 @@ func unescapeTOML(s string) (string, bool) {
 		return "", false
 	}
 	return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(s), true
+}
+
+// codexTrusted は config.toml の中身から、trust_level を持つ projects の根を返す（値は問わない）。
+func codexTrusted(text string) (map[string]bool, error) {
+	var cfg struct {
+		Projects map[string]map[string]any `toml:"projects"`
+	}
+	if _, err := toml.Decode(strings.TrimPrefix(text, "\ufeff"), &cfg); err != nil {
+		return nil, err
+	}
+	got := map[string]bool{}
+	for root, p := range cfg.Projects {
+		if _, ok := p["trust_level"]; ok {
+			got[root] = true
+		}
+	}
+	return got, nil
+}
+
+// multilineStringLines は、行ごとに「行の頭が複数行の文字列（"""…""" か ”'…”'）の中にあるか」を返す。
+// 1行の中の文字列・コメントの中の引用符は見分けない（取り違えたときは、書く前の読み直しで止まる）。
+func multilineStringLines(lines []string) []bool {
+	in := make([]bool, len(lines))
+	delim := ""
+	for i, ln := range lines {
+		in[i] = delim != ""
+		for rest := ln; ; {
+			if delim != "" {
+				j := strings.Index(rest, delim)
+				if j < 0 {
+					break
+				}
+				rest, delim = rest[j+3:], ""
+				continue
+			}
+			j, d := strings.Index(rest, `"""`), `"""`
+			if k := strings.Index(rest, "'''"); k >= 0 && (j < 0 || k < j) {
+				j, d = k, "'''"
+			}
+			if j < 0 {
+				break
+			}
+			rest, delim = rest[j+3:], d
+		}
+	}
+	return in
 }

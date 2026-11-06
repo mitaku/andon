@@ -14,6 +14,7 @@ fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
 pkg=$tmp/opt/andon ws=$tmp/workspace home=$tmp/home managed=$tmp/etc/claude-code/managed-settings.json
 mkdir -p "$pkg/templates" "$pkg/skills/worker" "$ws/templates.local" "$home" "$tmp/path"
 echo '{"permissions":{"deny":["Bash(gh pr merge:*)"]}}' >"$pkg/settings.json"
+cp "$(dirname "$0")/../package/codex.rules" "$pkg/codex.rules"
 printf -- '---\nname: claude\n---\nパッケージ\n' >"$pkg/templates/claude.md"
 printf -- '---\nname: codex\n---\n`/opt/andon/skills/worker/SKILL.md` を読む\n' >"$pkg/templates/codex.md"
 printf -- '---\nname: claude\n---\n建屋\n' >"$ws/templates.local/claude.md"
@@ -43,9 +44,13 @@ grep -q '建屋' "$home/.config/herdr-core/templates/claude.md" && pass "プロ�
 [ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
 [ ! -L "$home/.claude/skills/andon-worker" ] && [ -L "$home/.claude/skills/mine" ] && [ "$(readlink "$home/.agents/skills/andon-mine")" = "$tmp/mine" ] && pass "boot が張った andon-* だけ外す" || fail "~/.claude/skills: $(ls -l "$home/.claude/skills")"
 grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
+# Codex の承認・sandbox の既定は config.toml の先頭の塊（最初の空行まで）。信頼の表はその後ろに続く
+[ "$(sed -n '2,3p' "$home/.codex/config.toml")" = 'approval_policy = "never"
+sandbox_mode = "danger-full-access"' ] && cmp -s "$pkg/codex.rules" "$home/.codex/rules/andon.rules" \
+  && pass "Codex の承認・sandbox の既定と rules を置く" || fail "Codex の既定: $(cat "$home/.codex/config.toml")"
 repo=$ws/.ghq/github.com/example/sample-site
 jq -e --arg w "$ws" --arg r "$repo" '.projects[$w].hasTrustDialogAccepted == true and .projects[$r].hasTrustDialogAccepted == true and (.projects | length) == 2' "$home/.claude/.claude.json" >/dev/null \
-  && [ "$(cat "$home/.codex/config.toml")" = "[projects.\"$ws\"]
+  && [ "$(sed '1,/^$/d' "$home/.codex/config.toml")" = "[projects.\"$ws\"]
 trust_level = \"trusted\"
 
 [projects.\"$repo\"]

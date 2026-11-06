@@ -5,6 +5,7 @@
 //	<pkg>/settings.json                       → managed settings（/etc/claude-code/managed-settings.json）
 //	<pkg>/templates/*.md ＋ <ws>/templates.local/*.md → ~/.config/herdr-core/templates/<name>.md（本文の /opt/andon は <pkg> に）
 //	<pkg>/environment.md ＋ <ws>/AGENTS.local.md → <claude>/CLAUDE.md（@ の2行）・~/.codex/AGENTS.md（連結）
+//	<pkg>/codex.rules                         → ~/.codex/rules/andon.rules（＋ ~/.codex/config.toml に足りない承認・sandbox の既定だけ）
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
 //	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
 //
@@ -38,7 +39,7 @@ const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・クーリエを起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
-	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
+	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
 	"信頼: 建屋の repo と台帳（projects/*/.flightdeck/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
@@ -144,6 +145,8 @@ func Generate(e Env) error {
 		{"プロファイル", genTemplates},
 		{"CLAUDE.md", genClaudeMD},
 		{"Codex の AGENTS.md", genCodexAgents},
+		{"Codex の設定", genCodexConfig},
+		{"Codex の rules", genCodexRules},
 		{"skill", genSkills},
 		{"herdr の設定", genHerdr},
 		{"Claude Code の起動リンク", linkClaude},
