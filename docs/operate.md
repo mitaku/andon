@@ -329,7 +329,7 @@ andon delegate show                                              # 同じく pro
 git -C ~/src/andon-home log -1 --format='%ae' -- projects/andon/project.json gate.local.json
 ```
 
-- `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先に人が書く。無ければ書かない）。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
+- `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先に人が書く。無い・commit していない変更がある・最後の commit が owner でない、なら書かない）。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
 - **通ったら見えるもの**: `grant` が `projects/andon/project.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
 - **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — `git config user.email` が owner と違うまま commit した。email を合わせて、`project.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 

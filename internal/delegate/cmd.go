@@ -146,19 +146,26 @@ func agentTerminal() error {
 	return nil
 }
 
-// change は作業ツリーの project.json を読み、delegation を f で変え、検査して書き、project.json だけを commit する。
-// project.json の delegation のほかのキーは人が書いたまま（形だけ2字下げに揃う）。project.json が無ければ書かない（先に人が書く）。
+// change は建屋の repo の HEAD の project.json（owner の commit）を読み、delegation を f で変え、検査して書き、project.json だけを commit する。
+// project.json の delegation のほかのキーは HEAD のまま（形だけ2字下げに揃う）。project.json が無ければ書かない（先に人が書く）。
+// 作業ツリーや index に commit していない変更があれば打たない（エージェントが書いた変更を人の commit に混ぜない）。
+// HEAD を最後に変えたのが owner でなければ打たない（owner でない変更を人の commit で信じられる形にしない）。
 func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (string, error)) error {
 	if err := agentTerminal(); err != nil {
 		return err
 	}
 	rel := ProjectRel(slug)
 	path := filepath.Join(ws, rel)
-	b, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("%s が無い。先に人が書いて commit する（形は docs/contract.md §11）", rel)
-	} else if err != nil {
+	if st, err := git(ws, "status", "--porcelain", "--", rel); err != nil {
 		return err
+	} else if strings.TrimSpace(st) != "" {
+		return fmt.Errorf("%s に commit していない変更がある（git diff で中身を確かめ、人の変更なら owner の email で commit してから打つ）", rel)
+	}
+	b, err := OwnerFile(ws, rel)
+	if errors.Is(err, ErrAbsent) {
+		return fmt.Errorf("建屋の repo の HEAD に %s が無い。先に人が書いて commit する（形は docs/contract.md §11）", rel)
+	} else if err != nil {
+		return fmt.Errorf("%v（中身を確かめ、owner の email で commit し直してから打つ）", err)
 	}
 	p, err := ParseProject(b, slug)
 	if err != nil {
@@ -195,14 +202,12 @@ func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (str
 		return err
 	}
 	fmt.Fprintf(stdout, "%s: %s\n", rel, strings.SplitN(msg, "\n", 2)[0])
-	if owner := Owner(ws); owner != "" {
-		author, _ := git(ws, "log", "-1", "--format=%an%x00%ae")
-		name, email, _ := strings.Cut(strings.TrimSpace(author), "\x00")
-		if email != owner {
-			fmt.Fprintf(stderr, "andon delegate: 注意: commit の author（%s <%s>）が andon.toml の owner（%s）でない。読み手は無委譲として読む\n", name, email, owner)
-		}
-	} else {
-		fmt.Fprintln(stderr, "andon delegate: 注意: andon.toml に owner が無い。読み手は無委譲として読む")
+	// owner は OwnerFile が確かめた（無ければ打たない）。打った人の email が owner と違えば、読み手は信じない
+	owner := Owner(ws)
+	author, _ := git(ws, "log", "-1", "--format=%an%x00%ae")
+	name, email, _ := strings.Cut(strings.TrimSpace(author), "\x00")
+	if email != owner {
+		fmt.Fprintf(stderr, "andon delegate: 注意: commit の author（%s <%s>）が andon.toml の owner（%s）でない。読み手は無委譲として読む\n", name, email, owner)
 	}
 	return nil
 }

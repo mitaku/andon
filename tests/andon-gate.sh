@@ -153,9 +153,20 @@ rc=0; as_owner "$andon" delegate grant irreversible delete-remote --evidence x >
 [ "$rc" = 1 ] && grep -q 'delete-remote は委譲できない' "$tmp/err" || die 'delete-remote を委譲できた'
 mkdir -p "$tmp/plant/projects/andon"
 echo '{"version": 1, "project": {"title": "Andon", "prefix": "A"}, "repos": []}' > "$tmp/plant/projects/andon/project.json"
+as_owner git -C "$tmp/plant" add projects/andon/project.json; as_owner git -C "$tmp/plant" commit -qm 'andon の project.json'
 rc=0; as_owner "$andon" delegate grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'B まで' "$tmp/err" || die 'andon プロジェクトに merge C を委譲できた'
 ok 'delegate: narrow は広げない・delete-remote と andon の merge C は断る'
+# 作業ツリーの変更（エージェントが repos を足した、など）を人の commit に混ぜない。HEAD が owner の commit でなければ書かない
+jq '.repos += ["github.com/example/other"]' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json
+rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'commit していない変更がある' "$tmp/err" || die "未 commit の変更があるのに書けた: $(cat "$tmp/err")"
+as_agent git -C "$tmp/plant" commit -qm 'agent が repos を足した' -- projects/demo/project.json
+rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'owner でない' "$tmp/err" || die "owner でない HEAD の上に書けた: $(cat "$tmp/err")"
+as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
+jq -e '.repos == ["github.com/example/app"] and (.delegation.grants | length) == 1' project.json >/dev/null || die "戻っていない: $(cat project.json)"
+ok 'delegate: project.json に未 commit の変更がある・HEAD が owner の commit でなければ書かない（ほかの変更を人の commit に混ぜない）'
 "$andon" delegate show --json | jq -e '.trusted and .preset == "work" and .effective.merge == "B" and .effective.deploy == "none"' >/dev/null
 ok 'delegate show: HEAD の委譲を読み手と同じに読む'
 
