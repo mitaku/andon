@@ -70,7 +70,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 - **値は全部文字列**。`kanban set` は値を文字列で書くので、`review_rounds` も `"2"`（1 以上の整数を表す数字の列）。YAML に手で `review_rounds: 2` と書いた数は schema を通らない（読み手は「無い」として既定を使う）。
 - 台帳の形式は知らないキーを許して保つので、この schema は**知らないキーを拒まない**。どれも必須ではない（無いときの振る舞いは上の表）。
 - **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の chief_of_staff>` で、その値が今の `task.yaml` と同じときだけ信じる。違えば `needs_human`。`chief_of_staff` が無ければ信じない。`log.jsonl` の id は 4 桁に揃えて読む（移す前の行は `A-5` のまま。[ledger.md](ledger.md) の Writing）。
-- **レビュアーのタスク**（`parent` が元のタスクで `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<chief_of_staff>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon task ready` がレビューに数える。
+- **レビュアーのタスク**（`parent` が元のタスクで `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<chief_of_staff>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon task ready` がレビューに数える。id は `<元のタスクの id>-r<回>`（`A-0005-r1`。dispatcher が `kanban add --round <回>` で付ける。2026-11-06 より前の子は通し番号のまま読む。[ledger.md](ledger.md) の Writing）。数えるのは id の形ではなく `parent` と `profile`。
 - 値の綴りは小文字（`machine` を除く）。知らない値は「無い」と同じ。
 - 読み手が `kanban show <id> --json` の `.task` から取る（ファイルを直接読まない）。
 

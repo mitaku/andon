@@ -32,7 +32,7 @@ The folder, one key and the ids changed at once, for the one ledger there was; `
 | `projects/<slug>/.flightdeck/`, `$FLIGHTDECK_ROOT` | `projects/<slug>/kanban/`, `$KANBAN_ROOT`; a folder is a ledger only when `kanban/config.yaml` has a `version` (see [Finding the root](#finding-the-root)) |
 | `config.yaml` `coordinator` | `config.yaml` `chief_of_staff` |
 | `coordinator.md` in the ledger | the Chief of Staff section of `projects/<slug>/AGENTS.md`, outside the ledger ([ADR-0004](adr/0004-project-layout.md)) |
-| ids `<prefix>-<n>` (`A-5`) | ids `<prefix>-<n>` with `n` of four digits (`A-0005`); `A-5` is read as `A-0005` (see [Writing](#writing)) |
+| ids `<prefix>-<n>` (`A-5`) | ids `<prefix>-<n>` with `n` of four digits (`A-0005`); `A-5` is read as `A-0005` (see [Writing](#writing)). A reviewer's task added since is `<parent>-r<k>` (`A-0005-r1`) |
 
 ## Layout
 
@@ -264,7 +264,8 @@ One JSON object per line, appended:
 - **Take the lock** for any write: an OS lock on `kanban/.lock` (`flock` on Linux and macOS, `LockFileEx` on Windows), held while you read the task again, change it and log the change. The file stays (empty). Readers don't lock.
 - **Write atomically:** to a temporary file beside the target (`<file>.tmp-…`), then rename it over the target.
 - **Ids:** under the lock, the next id is `<prefix>-<n+1>` with the number zero-padded to four digits (`W-0001`, `W-0012`), where `n` is the highest number among the existing task folders with that prefix. Padded ids sort by name in number order (`ls tasks/`, boards); past `W-9999` the number only grows (`W-10000`) and that order breaks. An id and the `prefix` are each one plain name: no `/`, `\`, `:`, and not `.` or `..`.
-- **Reading ids:** an id typed or found as `<prefix>-<digits>` names the task with that number, however many digits: `W-5`, `W-05` and `W-0005` are the same task. `kanban` takes them so in its arguments (`<id>`, `<id>#<n>`, `--parent`, `--after`, `parent=`, `after=`) and in `log.jsonl`, whose lines written before the move to four digits keep `W-5`. It always shows and writes `W-0005`.
+- **A reviewer's ids:** a task added with `--parent <id>` and a `--profile` ending in `-review` (a reviewer of that task) is `<parent>-r<k>` for round `k` (`W-0005-r1`, `W-0005-r2`) and takes no number from the sequence. `k` is `--round <k>` when given (Andon's dispatcher gives its round; a task already there is an error), else one more than the parent's reviewer tasks so far. `kanban lint` checks that such an id's `parent` is `<parent>` and its `profile` ends in `-review`, and that every task folder is named as `kanban` writes ids (not `W-5` or `W-0005-r01`, which every command would read as another task). Reviewer tasks added before 2026-11-06 took a number (`W-0006` reviewing `W-0005`); they stay so and read as before.
+- **Reading ids:** an id typed or found as `<prefix>-<digits>` names the task with that number, however many digits: `W-5`, `W-05` and `W-0005` are the same task, and `W-5-r1` is `W-0005-r1`. `kanban` takes them so in its arguments (`<id>`, `<id>#<n>`, `--parent`, `--after`, `parent=`, `after=`) and in `log.jsonl`, whose lines written before the move to four digits keep `W-5`. It always shows and writes `W-0005`.
 - **Stay inside:** don't follow symbolic links inside `kanban/`; `kanban` refuses a task folder, `task.yaml`, `report.md` or the lock that is a link, so nothing is written outside the ledger.
 - Prefer `kanban` to writing files by hand; it does all of the above. Editing a `task.yaml` in an editor is fine when no `kanban` is writing the same task.
 
