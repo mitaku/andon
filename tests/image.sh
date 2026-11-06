@@ -113,6 +113,65 @@ dc exec -T dev bash -euc '
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
+# (a) ssh のセッション（非対話）に image の環境が渡ること。Herdr App の herdr-core serve もこの形で起きる
+ssh_dev() { dc exec -T dev ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR andon@127.0.0.1 "$@"; }
+ssh_tools=$(ssh_dev 'command -v claude hc gh aqua') || {
+  printf '%s\n' "$ssh_tools" >&2
+  echo 'FAIL image: ssh のセッションに claude・hc・gh・aqua が見えない' >&2
+  exit 1
+}
+if [ "$(sed -n 2p <<<"$ssh_tools")" != /opt/andon-home/.local/bin/hc ]; then
+  printf '%s\n' "$ssh_tools" >&2
+  echo 'FAIL image: ssh のセッションの hc が ~/.local/bin のものでない' >&2
+  exit 1
+fi
+ssh_env=$(ssh_dev env)
+exec_env=$(dc exec -T dev env)
+for k in $(sed -n 's/^SetEnv //p' image/sshd_config.d/andon.conf | tr ' ' '\n' | cut -d= -f1); do
+  a=$(grep "^$k=" <<<"$ssh_env" || true)
+  b=$(grep "^$k=" <<<"$exec_env" || true)
+  if [ -z "$b" ] || [ "$a" != "$b" ]; then
+    echo "FAIL image: ssh のセッションの $k がコンテナの環境と違う（ssh: ${a:-<無い>} / exec: ${b:-<無い>}）" >&2
+    exit 1
+  fi
+done
+# (b) ~/.local/bin/herdr-core が実ファイル（Herdr App が置いたもの）なら、boot し直しても触らず、hc も core もそれを使う
+dc exec -T dev bash -euc '
+  seed=$(readlink -f "$HOME/.local/bin/herdr-core")
+  test "$seed" != "$HOME/.local/bin/herdr-core"
+  test "$(readlink "$HOME/.local/bin/hc")" = herdr-core
+  rm "$HOME/.local/bin/herdr-core"
+  cp "$seed" "$HOME/.local/bin/herdr-core"
+'
+app_sum=$(dc exec -T dev sha256sum /opt/andon-home/.local/bin/herdr-core)
+dc restart dev >/dev/null
+for _ in $(seq 90); do
+  boot_log=$(dc logs dev 2>&1) || true
+  [ "$(grep -c '\[andon boot\] ready' <<<"$boot_log" || true)" -ge 2 ] && break
+  sleep 1
+done
+if [ "$(grep -c '\[andon boot\] ready' <<<"$boot_log" || true)" -lt 2 ]; then
+  printf '%s\n' "$boot_log" >&2
+  echo 'FAIL image: restart のあと andon boot が ready まで走らない' >&2
+  exit 1
+fi
+if [ "$(dc exec -T dev sha256sum /opt/andon-home/.local/bin/herdr-core)" != "$app_sum" ] ||
+  ! dc exec -T dev bash -euc '
+    core="$HOME/.local/bin/herdr-core"
+    test -f "$core" && ! test -L "$core"
+    test "$(readlink "$HOME/.local/bin/hc")" = herdr-core
+    test "$(command -v hc)" = "$HOME/.local/bin/hc"
+    st=$(hc server status --json)
+    pids=$(jq -r ".pid, .holders[].pid" <<<"$st")
+    test -n "$pids"
+    for p in $pids; do
+      test "$(readlink "/proc/$p/exe")" = "$core" || { echo "pid $p: $(readlink "/proc/$p/exe")" >&2; exit 1; }
+    done
+  '; then
+  echo 'FAIL image: ~/.local/bin/herdr-core（実ファイル）を boot が触った、または hc・core がそれを使っていない' >&2
+  exit 1
+fi
 # ホスト鍵は volume に残り、container を作り直しても sshd が同じ鍵を出すこと（手元の known_hosts が壊れない）
 hostkey_fp() { dc exec -T dev bash -euc 'ssh-keyscan -t ed25519 127.0.0.1 2>/dev/null | ssh-keygen -lf - | cut -d" " -f2'; }
 fp1=$(hostkey_fp)
@@ -124,4 +183,4 @@ if [ -z "$fp1" ] || [ "$fp1" != "$vol_fp" ] || [ "$fp1" != "$fp2" ]; then
   echo "FAIL image: sshd のホスト鍵が volume のものでない、または作り直しで変わった（$fp1 / $vol_fp / $fp2）" >&2
   exit 1
 fi
-echo 'ok   image: build, offline runtime, workflow policy checks and plant boot (init → bootstrap up → boot → ssh)'
+echo 'ok   image: build, offline runtime, workflow policy checks and plant boot (init → bootstrap up → boot → ssh env → herdr-core in ~/.local/bin)'

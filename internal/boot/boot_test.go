@@ -536,3 +536,76 @@ func TestMainRejectsArgs(t *testing.T) {
 		t.Errorf("rc=%d err=%q", rc, errb.String())
 	}
 }
+
+// herdr-core は ~/.local/bin が正。無いか symlink なら aqua の種へ繋ぎ、実ファイル（Herdr App が置いたもの）は触らない
+func TestHerdrCoreLink(t *testing.T) {
+	f := newFixture(t)
+	seed := filepath.Join(f.root, "aqua", "pkgs", "herdr-core")
+	put(t, seed, "seed")
+	aqua := filepath.Join(f.root, "bin", "aqua")
+	put(t, aqua, "#!/bin/sh\necho "+seed+"\n")
+	if err := os.Chmod(aqua, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e := f.env()
+	e.LookPath = func(n string) (string, error) {
+		if n == "aqua" {
+			return aqua, nil
+		}
+		return "", errors.New("無い")
+	}
+	bin := filepath.Join(f.home, ".local", "bin")
+	core, hc := filepath.Join(bin, "herdr-core"), filepath.Join(bin, "hc")
+
+	// 無い → 種へ。hc は herdr-core への相対 symlink
+	if err := linkHerdrCore(e); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.Readlink(core); got != seed {
+		t.Fatalf("herdr-core → %q", got)
+	}
+	if got, _ := os.Readlink(hc); got != "herdr-core" {
+		t.Fatalf("hc → %q", got)
+	}
+
+	// 古い種を指す symlink → 今の種へ張り直す
+	if err := os.Remove(core); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(f.root, "old"), core); err != nil {
+		t.Fatal(err)
+	}
+	if err := linkHerdrCore(e); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.Readlink(core); got != seed {
+		t.Fatalf("herdr-core → %q（張り直していない）", got)
+	}
+
+	// 実ファイル（App が置いた）→ 触らない。hc もそのまま
+	if err := os.Remove(core); err != nil {
+		t.Fatal(err)
+	}
+	put(t, core, "from-app")
+	if err := linkHerdrCore(e); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(core); string(b) != "from-app" {
+		t.Fatalf("App の herdr-core を書き換えた: %q", b)
+	}
+	if got, _ := os.Readlink(hc); got != "herdr-core" {
+		t.Fatalf("hc → %q", got)
+	}
+
+	// hc が実ファイルなら触らない
+	if err := os.Remove(hc); err != nil {
+		t.Fatal(err)
+	}
+	put(t, hc, "own-hc")
+	if err := linkHerdrCore(e); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(hc); string(b) != "own-hc" {
+		t.Fatalf("hc を書き換えた: %q", b)
+	}
+}

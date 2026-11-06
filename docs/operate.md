@@ -10,6 +10,8 @@
 
 P7 で見つけた F4「建屋の `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物の建屋の repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
 
+P7 で見つけた F5「Herdr App から起こした端末に `claude` が見えず、Chief of Staff が `env: 'claude': No such file or directory` で落ちる」も直した。sshd が image の環境を引き継がず、App が SSH 越しに起こす herdr-core serve の `PATH` に `~/.local/bin` と aqua の道具が無かった。image が sshd に環境を渡し、boot が herdr-core を `~/.local/bin`（App が置く場所）に揃える（4 の「Herdr App から建屋へつなぐ」）。
+
 ## 1. image を取る
 
 **やること**: private の image を取る。GHCR の package は private なので、`read:packages` を持つ token が要る。
@@ -147,6 +149,16 @@ ssh andon-home hostname      # Windows の PowerShell から。App が使うの�
 - **通ったら見えるもの**: `hostname` が slug（`home`）を返す。App の Add Machine で `andon-home` が繋がり、建屋の Space が出る。
 - **落ちたら見る所**: `Connection refused` — WSL 側で `ssh andon-home` が通るかを先に見る（通らなければ上の「手元の端末から SSH で入る」）。WSL で通り Windows で通らないなら、localhost 転送が切れている（`%USERPROFILE%\.wslconfig` の `[wsl2]` の `localhostForwarding=false`）か、Windows 側のほかのものが同じ番号を取っている（`netstat -ano | findstr :<SSH_PORT>`）。`Permission denied (publickey)` — Windows 側の `IdentityFile` の公開鍵が `authorized_keys` に無い。`ssh -v andon-home` で提示された鍵を見る。`Bad owner or permissions` — Windows の秘密鍵の ACL。自分だけが読める形にする。
 
+### Herdr App から建屋へつなぐ（Add Machine）
+
+App の Add Machine で建屋（`Host andon-home`）を足すと、App は SSH 越しに herdr-core を建屋の `~/.local/bin/herdr-core` に置き（Copy HC）、`herdr-core serve` を起こす。以後の Update HC もこのファイルを差し替える。**建屋の herdr-core の版は App が決める**。
+
+- SSH のセッションには image の環境（`PATH`・`AQUA_*`・`GHQ_ROOT`・`LANG`・`CLAUDE_CONFIG_DIR` など）が渡る（image の `/etc/ssh/sshd_config.d/andon.conf` の `SetEnv`）。App の serve から起きる端末にも `claude`・`hc`・`gh` が見える。
+- boot は `~/.local/bin/herdr-core` が無いか symlink のときだけ image の種（aqua の herdr-core）へ繋ぐ。**実ファイル（App が置いたもの）は触らない**。`~/.local/bin/hc` は herdr-core への相対 symlink。`~/.local/bin` は PATH で aqua より先なので、boot がクーリエを起こす `hc` も、それが起こす core も、App の serve と同じ herdr-core になる。
+- `~/.local/bin` はコンテナ層。image を上げて作り直すと、App が置いた herdr-core は消えて image の種に戻る。App で Update HC を打ち直し（App が古い版を知らせればそれに従う）、建屋の中で `hc server restart`（core を新しい版で起こし直す。端末は生きたまま）。`hc --version` と `hc server status` の `version` が App の版と同じなら揃っている。
+- **App の serve を起こし直す要るとき**（App に建屋が出ない・serve が古い版のまま・SSH の環境を変えたあと）: App でその machine を切って繋ぎ直す（serve は繋ぐときに起きる）。それでも出なければ `bin/bootstrap down` → `up` で建屋ごと起こし直し、上の Update HC から。
+- **落ちたら見る所**: 端末が `env: 'claude': No such file or directory` で落ちる・SSH のシェルで `hc`・`gh` が打てない — image が古い（SSH に環境が渡らない版）。`ssh andon-home 'echo $PATH'` の先頭が `/opt/andon-home/.local/bin` か。版が割れている（`hc --version` と `hc server status` の `version` が違う）— `readlink ~/.local/bin/herdr-core ~/.local/bin/hc` を見てから `hc server restart`。
+
 ### Herdr App の名前付け mod
 
 同じ `host-install` が App の設定フォルダの `mods/andon/` に名前付け mod を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存のディレクトリは、不完全でも中身を補わずそのまま残す。更新するときは退避してから打ち直す。
@@ -245,6 +257,7 @@ andon chief-of-staff        # 起こす（動いていればそれを使う）�
 起きた Chief of Staff は、skill の手順で最初に `andon chief-of-staff` を打ち、自分を `config.yaml` の `coordinator` に載せる。端末を起き直して address が変わっても、これで直る。
 
 - **通ったら見えるもの**: `andon chief-of-staff: andon の Chief of Staff は <address>（andon-cos・起こした）` と `andon chief-of-staff: 出た場所 andon / CoS（<address>）`。App に Chief of Staff の Space と tab が出る（画面は移らない）。`hc ls` に `role=chief-of-staff project=andon` の端末（名前 `andon-cos`）。`config.yaml` の `coordinator` がその address。もう一度打つと起こさずに `動いているものを使う`。Chief of Staff が自分の skill（system prompt に入った役の手順）に従って台帳を読む。
+- **App から起こした端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App から建屋へつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `coordinator` が落ちた端末を指したままでも、打ち直せば新しく起こした address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
 - **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない`（信頼の画面など）— App のその tab（か `hc attach <address>`）で画面に答えてから、出た `hc send` を打つ（終了コード 3）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが控えるだけで動かさない**（[courier.md](courier.md) §2）。1回の見回りのあとに効く。
 
 ## 10. 小さい PR を1本流す
