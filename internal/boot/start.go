@@ -246,17 +246,26 @@ func startSSHD(e Env) error {
 
 // startCourier はクーリエの端末を確かめる（courier.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。
 // --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff のフックも同じ確かめを打つ。
+// 作り直しの直後は、戻った端末の前に出ているものがまだ取れないことがあるので、courierWait まで読み直す。
+// 何もしなかったときは理由ごとに書き分ける（動いている・確かめられなかった・ほかが確かめている）。
 func startCourier(e Env) error {
 	if _, ok := e.has("hc"); !ok {
 		return nil
 	}
-	did, err := courier.Ensure(filepath.Join(e.Package, "bin", "andon"), e.Workspace)
-	if err != nil {
+	did, err := courier.Ensure(filepath.Join(e.Package, "bin", "andon"), e.Workspace, courierWait)
+	switch {
+	case errors.Is(err, courier.ErrBusy):
+		did = "クーリエの端末はほかが確かめている（boot は確かめなかった。Chief of Staff のフックが続ける）"
+	case errors.Is(err, courier.ErrUnsure):
+		did = fmt.Sprintf("%v。動いているとはみなさない（hc get courier --json の foreground がシェルなら andon boot を打ち直す）", err)
+	case err != nil:
 		return err
-	}
-	if did == "" {
-		did = "クーリエはすでに動いている"
+	case did == "":
+		did = "クーリエはすでに動いている（前に andon courier が出ている）"
 	}
 	e.logf("%s", did)
 	return nil
 }
+
+// courierWait は、クーリエの端末の前に出ているものが取れるまで boot が待つ上限。テストで差し替える。
+var courierWait = 5 * time.Second

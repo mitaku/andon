@@ -31,8 +31,12 @@ case \$1 in
        while [ \$# -gt 0 ]; do case \$1 in --label) case \$2 in role=*) role=\${2#role=};; project=*) project=\${2#project=};; esac; shift;; esac; shift; done
        awk -v r="\$role" -v p="\$project" '(r == "" || \$4 == r) && (p == "" || \$5 == p) {print \$1, \$2}' \$d/live \\
          | jq -Rn '{terminals: [inputs | split(" ") | {address: .[0], name: .[1]}]}' ;;
-  get) awk -v a="\$2" '\$1 == a {print \$1, \$2, \$3, \$6, \$7}' \$d/live \\
-         | jq -Rn '[inputs | split(" ") | {address: .[0], name: .[1], cwd: .[2], labels: ({"herdr.space": .[3], "herdr.tab": .[4]} | with_entries(select(.value != null and .value != "")))}] | .[0] // error("no")' ;;
+  get) fg='{"name":"sh","argv":["sh","-c","claude"]}'  # \$d/shells にある address は中身が素のシェル（作り直しで戻った端末）
+       if [ -f \$d/shells ] && grep -qx "\$2" \$d/shells; then fg='{"name":"bash","argv":["/bin/bash"]}'; fi
+       awk -v a="\$2" '\$1 == a {print \$1, \$2, \$3, \$6, \$7}' \$d/live \\
+         | jq -Rn --argjson fg "\$fg" '[inputs | split(" ") | {address: .[0], name: .[1], cwd: .[2], foreground: \$fg, labels: ({"herdr.space": .[3], "herdr.tab": .[4]} | with_entries(select(.value != null and .value != "")))}] | .[0] // error("no")' ;;
+  keep|kill) ;;
+  rm) awk -v a="\$2" '\$1 != a' \$d/live > \$d/live.new && mv \$d/live.new \$d/live ;;
   templates) echo '{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}' ;;
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 42) )); echo \$((n + 1)) > \$d/next
        name= cwd= role= project= space= tab=
@@ -118,7 +122,16 @@ rm "$tmp/hc/first"
 [ ! -e "$tmp/hc/attached" ] || die "hc attach を打った: $(cat "$tmp/hc/attached")"
 ok '最初のメッセージが届かなければ終了コード 3・送り直す hc send を案内（台帳には載せる）'
 
-# 7. --no-attach は消した（ADR-0002 決めたこと 14）
+# 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起こし直し、coordinator を合わせる
+echo t43 > "$tmp/hc/shells"
+"$andon" chief-of-staff >"$tmp/out"
+[ "$(runs)" = 3 ] && [ "$(coordinator)" = t44 ] || die "戻った端末: runs=$(runs) coordinator=$(coordinator) $(cat "$tmp/out")"
+grep -qx 'keep t43 --off' "$tmp/hc/log" && grep -qx 'kill t43' "$tmp/hc/log" && grep -qx 'rm t43' "$tmp/hc/log" || die "片付けていない: $(cat "$tmp/hc/log")"
+grep -q 't43 は Chief of Staff のラベルのまま中身がシェルに替わっていた' "$tmp/out" && grep -q 't44（demo-cos・起こした）' "$tmp/out" || die "out: $(cat "$tmp/out")"
+rm "$tmp/hc/shells"
+ok '中身がシェルに替わって戻った端末は使わず、keep を外して kill・rm し、起こし直して coordinator を合わせる'
+
+# 8. --no-attach は消した（ADR-0002 決めたこと 14）
 rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" || die "--no-attach: rc=$rc $(cat "$tmp/err")"
 ok '--no-attach は使い方の誤り（attach をやめたので要らない）'

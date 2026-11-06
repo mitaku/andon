@@ -6,10 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"andon/internal/spawn"
 )
 
 // 偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ。
-// 振る舞いは環境変数で変える: FAKE_LS（hc ls）・FAKE_GET（hc get）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）。
+// 振る舞いは環境変数で変える: FAKE_LS（hc ls）・FAKE_GET（hc get。FAKE_GET_<address> があればその address はそれ）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）。
 const fakeKanban = `#!/usr/bin/env bash
 printf 'kanban %s | FLIGHTDECK_ROOT=%s\n' "$*" "${FLIGHTDECK_ROOT:-}" >>"$LOG"
 case $1 in
@@ -23,7 +26,8 @@ const fakeHc = `#!/usr/bin/env bash
 printf 'hc %s\n' "$*" >>"$LOG"
 case $1 in
   ls) echo "$FAKE_LS" ;;
-  get) echo "$FAKE_GET" ;;
+  get) v="FAKE_GET_$2"; echo "${!v:-$FAKE_GET}" ;;
+  keep|kill|rm) ;;
   templates) echo "$FAKE_TPL" ;;
   run) echo "$FAKE_RUN" ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
@@ -60,6 +64,8 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("FAKE_GET", `{}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}`)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":true}}`)
+	spawn.SettleWait = 50 * time.Millisecond
+	t.Cleanup(func() { spawn.SettleWait = 5 * time.Second })
 	return f
 }
 
@@ -100,6 +106,12 @@ func runMain(args ...string) (int, string, string) {
 	rc := Main(args, strings.NewReader(""), &out, &errb)
 	return rc, out.String(), errb.String()
 }
+
+// 前に出ているもの: エージェント（hc の template は sh -c '… claude …' で起こす）と、作り直しで戻った素のシェル
+const (
+	fgAgent = `"foreground":{"name":"sh","argv":["sh","-c","claude"]}`
+	fgShell = `"foreground":{"name":"bash","argv":["/bin/bash"]}`
+)
 
 func TestStartsChiefOfStaff(t *testing.T) {
 	f := newFake(t)
@@ -143,7 +155,7 @@ func TestStartsChiefOfStaff(t *testing.T) {
 func TestUsesRunningOne(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","labels":{"herdr.space":"andon-sample-site","herdr.tab":"andon-sample-site-cos"}}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`,"labels":{"herdr.space":"andon-sample-site","herdr.tab":"andon-sample-site-cos"}}`)
 	rc, out, errs := runMain()
 	if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") || !strings.HasSuffix(out, "出た場所 sample-site / CoS（t1）\n") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
@@ -158,7 +170,7 @@ func TestFixesCoordinator(t *testing.T) {
 	f := newFake(t)
 	f.setCoordinator("t3") // 起き直す前の address
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t8"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t8","name":"sample-site-cos","cwd":"`+f.root+`"}`)
+	t.Setenv("FAKE_GET", `{"address":"t8","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
 	if rc, _, errs := runMain(); rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
@@ -170,6 +182,7 @@ func TestFixesCoordinator(t *testing.T) {
 func TestTwoRunning(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"},{"address":"t2"}]}`)
+	t.Setenv("FAKE_GET", `{"name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
 	rc, _, errs := runMain()
 	if rc != exitFail || !strings.Contains(errs, "Chief of Staff が 2 人いる: t1 t2") || f.has("hc run") || f.has("kanban config") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
@@ -179,7 +192,7 @@ func TestTwoRunning(t *testing.T) {
 func TestRunningOneDoesNotMatch(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t9","name":"sample-site-cos","cwd":"/elsewhere"}`)
+	t.Setenv("FAKE_GET", `{"address":"t9","name":"sample-site-cos","cwd":"/elsewhere",`+fgAgent+`}`)
 	rc, _, errs := runMain()
 	if rc != exitFail || !strings.Contains(errs, "名前（sample-site-cos）か cwd（/elsewhere）が合わない") || f.has("kanban config") || f.coordinator() != "t1" {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
@@ -220,7 +233,7 @@ func TestFirstMessageNotSent(t *testing.T) {
 func TestRunningOneWithoutLabels(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`"}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
 	rc, out, _ := runMain()
 	// ラベルより前に起きた端末: 付け直さず、App の Space に無いと言う（嘘の場所を出さない）
 	if rc != 0 || strings.Contains(out, "sample-site / CoS") || !strings.Contains(out, "出た場所 App の Space の外") || f.has("hc label") {
@@ -245,5 +258,55 @@ func TestUsage(t *testing.T) {
 		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon chief-of-staff") {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
 		}
+	}
+}
+
+// 作り直しで戻った端末（ラベル・名前・cwd はそのまま、中身が素のシェル）: 使わずに片付け、起こし直して coordinator を合わせる。
+func TestShellChiefOfStaffIsReplaced(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgShell+`}`)
+	rc, out, errs := runMain()
+	if rc != 0 || errs != "" || !strings.Contains(out, "t1 は Chief of Staff のラベルのまま中身がシェルに替わっていた") || !strings.Contains(out, "t42（sample-site-cos・起こした）") {
+		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+	calls := strings.Join(f.calls(), "\n")
+	if !strings.Contains(calls, "hc keep t1 --off\nhc kill t1\nhc rm t1\n") || !f.has("hc run") || f.has("hc send") || f.coordinator() != "t42" {
+		t.Errorf("coordinator=%q calls:\n%s", f.coordinator(), calls)
+	}
+}
+
+// 中身がシェルの端末は2人と数えない（動いている1人を使い、シェルの端末は片付ける）。
+func TestShellChiefOfStaffNotCounted(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"},{"address":"t2"}]}`)
+	t.Setenv("FAKE_GET_t1", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgShell+`}`)
+	t.Setenv("FAKE_GET_t2", `{"address":"t2","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
+	rc, out, errs := runMain()
+	if rc != 0 || errs != "" || !strings.Contains(out, "t2（sample-site-cos・動いているものを使う）") {
+		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+	if !f.has("hc kill t1") || f.has("hc kill t2") || f.has("hc run") || f.coordinator() != "t2" {
+		t.Errorf("coordinator=%q calls=%q", f.coordinator(), f.calls())
+	}
+}
+
+// 待っても前に出ているものが取れない: 使わず・起こさず・片付けず止まる（動いているかを確かめられない）。
+func TestChiefOfStaffForegroundUnknown(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","foreground":null}`)
+	rc, _, errs := runMain()
+	if rc != exitFail || !strings.Contains(errs, "確かめられないので止まる") || f.has("hc run") || f.has("hc kill") || f.has("kanban config") {
+		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	}
+	n := 0
+	for _, c := range f.calls() {
+		if strings.HasPrefix(c, "hc get t1") {
+			n++
+		}
+	}
+	if n < 2 {
+		t.Errorf("読み直していない: hc get %d 回", n)
 	}
 }

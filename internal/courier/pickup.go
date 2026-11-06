@@ -407,6 +407,10 @@ func (p *project) seen(agent string) (Seen, bool) {
 	if t.State != "live" {
 		return Seen{Gone: true, StatusMs: t.StatusMs}, true
 	}
+	if t.Foreground != nil && spawn.BareShell(t.Foreground.Argv) {
+		// 作り直しで中身が素のシェルに替わって戻った端末（状態を報告しないので stalled にもならない）。終わった端末として知らせる
+		return Seen{Gone: true, StatusMs: t.StatusMs}, true
+	}
 	return Seen{Status: t.Status.State, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false"}, true
 }
 

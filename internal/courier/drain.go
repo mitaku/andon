@@ -66,6 +66,10 @@ type terminal struct {
 	StatusMs int64             `json:"status_ms"`
 	Turn     int               `json:"turn"`
 	Labels   map[string]string `json:"labels"`
+	// Foreground は前に出ているもの（作り直しで中身がシェルに替わった端末の見分けに読む）
+	Foreground *struct {
+		Argv []string `json:"argv"`
+	} `json:"foreground"`
 }
 
 func hcGet(addr string) (*terminal, error) {
@@ -249,7 +253,10 @@ func ensure() {
 	if err != nil {
 		return
 	}
-	if did, err := Ensure(self, delegate.Workspace()); err != nil {
+	// フックは人の入力ごとに走るので待たない（前に何も出ていなければ ErrUnsure で次のターンに任せる）
+	if did, err := Ensure(self, delegate.Workspace(), 0); errors.Is(err, ErrBusy) {
+		return
+	} else if err != nil {
 		fmt.Fprintf(os.Stderr, "andon courier drain: クーリエの端末を確かめられない: %v\n", err)
 	} else if did != "" {
 		fmt.Fprintf(os.Stderr, "andon courier drain: %s\n", did)

@@ -11,7 +11,7 @@ import (
 )
 
 // fake は偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ（コマンド名 引数… と、HC_TERMINAL_ID）。
-// 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
+// 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_GET（hc get。無ければ前にエージェントが出ている）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
 type fake struct {
 	t       *testing.T
 	root    string // 台帳の root（projects/sample-site）
@@ -35,6 +35,8 @@ const fakeHc = `#!/usr/bin/env bash
 printf 'hc %s\n' "$*" >>"$LOG"
 case $1 in
   ls) echo "$FAKE_LS" ;;
+  get) echo "${FAKE_GET:-{\"foreground\":{\"name\":\"sh\",\"argv\":[\"sh\",\"-c\",\"claude\"]\}\}}" ;;
+  keep|kill|rm) ;;
   templates) echo "$FAKE_TPL" ;;
   run) [ "$FAKE_RUN_RC" = 0 ] || { echo "boom" >&2; exit 1; }
        echo "$FAKE_RUN" ;;
@@ -313,6 +315,22 @@ func TestAlreadyRunning(t *testing.T) {
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
 	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: sample-site / CE S-3 Billing の設計（t9）") || f.has("kanban add") || f.has("hc run") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	}
+}
+
+// 作り直しで中身が素のシェルに替わって戻った Chief Engineer の端末は、動いているとは数えない。片付けてから起こす。
+func TestShellChiefEngineerIsReplaced(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3","title":"Billing の設計"}}]}`)
+	t.Setenv("FAKE_GET", `{"address":"t9","foreground":{"name":"bash","argv":["/bin/bash"]}}`)
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	if rc != 0 || errs != "" || !strings.Contains(out, "sample-site / CE S-3 Billing の設計（t9）は中身がシェルに替わっていた") {
+		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+	for _, c := range []string{"hc keep t9 --off", "hc kill t9", "hc rm t9", "kanban add", "hc run"} {
+		if !f.has(c) {
+			t.Errorf("%s を打っていない: %q", c, f.calls())
+		}
 	}
 }
 
