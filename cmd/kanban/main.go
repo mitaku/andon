@@ -362,6 +362,9 @@ func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 		k = n
 	} else {
 		for _, x := range all {
+			if x.broken != "" {
+				return "", fail("task %s can't be read (%s); fix it, or give --round", x.id, x.broken)
+			}
 			if x.d.str("parent") == parent && isReviewProfile(x.d.str("profile")) {
 				k++
 			}
@@ -905,6 +908,9 @@ func cmdLint(e env, a args) error {
 		}
 		if p := t.d.str("parent"); p != "" && all[p] == nil {
 			problems = append(problems, fmt.Sprintf("%s: parent %s, which doesn't exist", t.id, p))
+		}
+		if c := canonID(t.id); c != t.id {
+			problems = append(problems, fmt.Sprintf("%s: not written as an id is (%s), so kanban reads it as another task", t.id, c))
 		}
 		if base, _, ok := splitRound(t.id); ok {
 			if p := t.d.str("parent"); p != base {

@@ -600,3 +600,35 @@ func TestCanonID(t *testing.T) {
 		}
 	}
 }
+
+// A folder named the way an id is typed (A-5, A-0005-r01) is read by no command; lint says so.
+func TestLintChecksIDsAreWrittenCanonically(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	kanban(t, root, "add", "work")
+	put(t, taskFile(root, "A-0001-r01"), "id: A-0001-r01\ntitle: x\nstatus: todo\nparent: A-0001\nprofile: codex-review\n")
+	put(t, taskFile(root, "A-2"), "id: A-2\ntitle: y\nstatus: todo\n")
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint"}, root, strings.NewReader(""), &out, &errb); code != 1 ||
+		!strings.Contains(out.String(), "A-0001-r01: not written as an id is (A-0001-r1)") ||
+		!strings.Contains(out.String(), "A-2: not written as an id is (A-0002)") {
+		t.Fatalf("lint: exit %d, %q %q", code, out.String(), errb.String())
+	}
+}
+
+// A task.yaml that can't be read stops a reviewer's add without --round (it can't be counted), with a line, not a panic.
+func TestReviewerAddWithABrokenTask(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	kanban(t, root, "add", "work")
+	kanban(t, root, "add", "other")
+	put(t, taskFile(root, "A-0002"), "- not a mapping\n")
+	if msg := deckFails(t, root, "", "add", "review", "--parent", "A-0001", "--profile", "codex-review"); !strings.Contains(msg, "task A-0002 can't be read") {
+		t.Fatalf("message: %q", msg)
+	}
+	if got := kanban(t, root, "add", "review", "--parent", "A-0001", "--profile", "codex-review", "--round", "1"); got != "A-0001-r1\n" {
+		t.Fatalf("with --round: %q", got)
+	}
+}
