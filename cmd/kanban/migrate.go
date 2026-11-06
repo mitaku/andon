@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+
+	"andon/internal/delegate"
+	"andon/internal/dispatcher"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -143,7 +146,7 @@ func migrateIn(root, old string) (map[string]string, error) {
 	if err != nil {
 		return nil, fail("%s: %v", cfgFile, err)
 	}
-	if v := cfg.get("version"); isNull(v) || v.Value != fmt.Sprint(formatVersion) {
+	if v := cfg.get("version"); !isInt(v) || v.Value != fmt.Sprint(formatVersion) {
 		return nil, fail("%s is not format %d; kanban migrate moves format %d only", cfgFile, formatVersion, formatVersion)
 	}
 	if !isNull(cfg.get("chief_of_staff")) {
@@ -315,9 +318,8 @@ func projectDraft(root, old string) ([]byte, error) {
 	case err != nil:
 		return nil, err
 	default:
-		var v map[string]any
-		if json.Unmarshal(b, &v) != nil || v == nil {
-			return nil, fail("not moved: %s is not a JSON object; fix it first (it becomes project.json's delegation)", from)
+		if !json.Valid(b) {
+			return nil, fail("not moved: %s is not JSON; fix it first (it becomes project.json's delegation)", from)
 		}
 		delegation = json.RawMessage(b)
 	}
@@ -333,6 +335,11 @@ func projectDraft(root, old string) ([]byte, error) {
 	}{1, info{title, prefix}, repos, delegation}, "", "  ")
 	if err != nil {
 		return nil, err
+	}
+	// Checked as Andon reads it (schema and rules, the delegation's too), before anything is moved:
+	// a draft Andon can't read would leave the project with no delegation.
+	if _, err := delegate.ParseProject(out, filepath.Base(root)); err != nil {
+		return nil, fail("not moved: the project.json drafted from config.yaml and delegation.json can't be read by Andon (%v); fix them first, or write project.json yourself", err)
 	}
 	return append(out, '\n'), nil
 }
@@ -351,8 +358,10 @@ func readDispatcherState(slug string) ([]byte, any, error) {
 		return nil, nil, err
 	}
 	var v any
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, nil, fail("not moved: %s is not JSON; fix or remove it first", file)
+	// The dispatcher reads it as its State (internal/dispatcher, LoadState); valid JSON of
+	// another shape would stop the dispatcher after the move, so it stops the move instead.
+	if json.Unmarshal(data, &v) != nil || json.Unmarshal(data, new(dispatcher.State)) != nil {
+		return nil, nil, fail("not moved: %s is not the dispatcher's state; fix or remove it first", file)
 	}
 	return data, v, nil
 }

@@ -274,7 +274,7 @@ One JSON object per line, appended:
 
 ## Moving from `.flightdeck/`
 
-`kanban migrate [--root dir]` (root as for `kanban init`) moves a ledger from `<root>/.flightdeck/` to `<root>/kanban/`, once. It stops, and changes nothing, when `kanban/` is already there, when `config.yaml` isn't version 2, when a `task.yaml` can't be read or a task folder is a symbolic link, when the dispatcher state or `delegation.json` (below) can't be read as JSON, or when a task is `doing` or `review` (a worktree, branch, terminal and Space carry its id; finish those first). Otherwise it:
+`kanban migrate [--root dir]` (root as for `kanban init`) moves a ledger from `<root>/.flightdeck/` to `<root>/kanban/`, once. It stops, and changes nothing, when `kanban/` is already there, when `config.yaml` isn't version 2, when a `task.yaml` can't be read or a task folder is a symbolic link, when the dispatcher state can't be read as the dispatcher's state, when the `project.json` it would draft (below) wouldn't pass Andon's reader, or when a task is `doing` or `review` (a worktree, branch, terminal and Space carry its id; finish those first). Otherwise it:
 
 1. renames, in each `task.yaml`, `id`, `parent` and `after` to four-digit ids, then each `tasks/<id>/` folder (with its `library/`);
 2. renames `config.yaml` `coordinator` to `chief_of_staff` (value, comments and place kept);

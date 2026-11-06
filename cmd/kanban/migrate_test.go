@@ -244,10 +244,13 @@ func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
 	put(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\ncoordinator: t5\n")
 	put(t, filepath.Join(old, "tasks", "A-5", "task.yaml"), "id: A-5\ntitle: five\nstatus: todo\n")
 	file := filepath.Join(state, "andon", "dispatcher", "app.json")
-	put(t, file, "{not json")
-	deckFails(t, root, "", "migrate")
-	if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(old, "tasks", "A-5")) {
-		t.Fatal("something moved")
+	for _, bad := range []string{"{not json", "[]", `{"reviewers": []}`} {
+		put(t, file, bad)
+		deckFails(t, root, "", "migrate")
+		if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(old, "tasks", "A-5")) {
+			t.Fatalf("%s: something moved", bad)
+		}
+		assertUnchanged(t, file, bad)
 	}
 	assertUnchanged(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\ncoordinator: t5\n")
 	put(t, file, `{"ready":["A-5"]}`)
@@ -263,10 +266,13 @@ func TestMigrateProjectDraft(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := filepath.Join(t.TempDir(), "app")
 	put(t, filepath.Join(root, ".flightdeck", "config.yaml"), "version: 2\nprefix: A\ntitle: App\nrepos:\n  - github.com/x/app\n")
-	put(t, filepath.Join(root, "delegation.json"), "[1]")
-	deckFails(t, root, "", "migrate")
-	if exists(filepath.Join(root, "kanban")) || exists(filepath.Join(root, "project.json")) {
-		t.Fatal("something moved")
+	for _, bad := range []string{"[1]", "{}", "{not json", `{"version": 1, "project": "app", "preset": "hobby", "grants": [{"id": "x"}]}`} {
+		put(t, filepath.Join(root, "delegation.json"), bad)
+		deckFails(t, root, "", "migrate")
+		if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(root, ".flightdeck", "config.yaml")) || exists(filepath.Join(root, "project.json")) {
+			t.Fatalf("%s: something moved", bad)
+		}
+		assertUnchanged(t, filepath.Join(root, "delegation.json"), bad)
 	}
 	put(t, filepath.Join(root, "project.json"), "mine\n")
 	kanban(t, root, "migrate")
@@ -276,4 +282,24 @@ func TestMigrateProjectDraft(t *testing.T) {
 	put(t, filepath.Join(other, ".flightdeck", "config.yaml"), "version: 2\nprefix: W\ntitle: Web\nrepos:\n  - github.com/x/web\n")
 	kanban(t, other, "migrate")
 	assertUnchanged(t, filepath.Join(other, "project.json"), "{\n  \"version\": 1,\n  \"project\": {\n    \"title\": \"Web\",\n    \"prefix\": \"W\"\n  },\n  \"repos\": [\n    \"github.com/x/web\"\n  ]\n}\n")
+}
+
+// A quoted version is not format 2: nothing moves; an integer one does.
+func TestMigrateNeedsAnIntegerVersion(t *testing.T) {
+	t.Setenv("KANBAN_ROOT", "")
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := filepath.Join(t.TempDir(), "app")
+	cfg := filepath.Join(root, ".flightdeck", "config.yaml")
+	put(t, cfg, "version: '2'\nprefix: A\n")
+	put(t, filepath.Join(root, ".flightdeck", "tasks", "A-1", "task.yaml"), "id: A-1\ntitle: one\nstatus: todo\n")
+	deckFails(t, root, "", "migrate")
+	assertUnchanged(t, cfg, "version: '2'\nprefix: A\n")
+	if exists(filepath.Join(root, "kanban")) || exists(filepath.Join(root, "project.json")) || !exists(filepath.Join(root, ".flightdeck", "tasks", "A-1")) {
+		t.Fatal("something moved")
+	}
+	put(t, cfg, "version: 2\nprefix: A\n")
+	kanban(t, root, "migrate")
+	if out := strings.TrimSpace(kanban(t, root, "root")); !sameFile(out, root) || !exists(taskFile(root, "A-0001")) {
+		t.Fatalf("after migrate: root %q", out)
+	}
 }
