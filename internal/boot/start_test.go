@@ -6,7 +6,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
+
+	"andon/internal/courier"
 )
 
 // authorized_keys が無いときと、あるが読めないときを別の行で出す（どちらも sshd は起こさない）。
@@ -110,5 +114,116 @@ func TestStartCourierReportsLockError(t *testing.T) {
 	got := f.log.String()
 	if !strings.Contains(got, "クーリエ の準備に失敗") || strings.Contains(got, "すでに動いている") {
 		t.Errorf("起こせなかったことが見えない: %q", got)
+	}
+}
+
+// 偽の hc（クーリエの端末）: get が n 回目のとき $D/term.<n> があれば $D/term にしてから返す。打ったものは $D/log へ。
+const courierHc = `#!/usr/bin/env bash
+d=$FAKE_HC
+case $1 in
+  get) n=$(( $(cat "$d/gets" 2>/dev/null || echo 0) + 1 )); echo $n > "$d/gets"
+       [ ! -e "$d/term.$n" ] || mv "$d/term.$n" "$d/term"
+       [ -e "$d/term" ] || { echo '{"error":{"kind":"not_found"}}' >&2; exit 3; }; cat "$d/term" ;;
+  keep|kill|run) echo "$*" >>"$d/log" ;;
+  rm) echo "$*" >>"$d/log"; rm -f "$d/term" ;;
+  *) exit 9 ;;
+esac
+`
+
+func courierFixture(t *testing.T) (*fixture, Env, string) {
+	t.Helper()
+	f := newFixture(t)
+	d := filepath.Join(f.root, "hc")
+	mustMkdir(t, filepath.Join(d, "bin"))
+	hc := filepath.Join(d, "bin", "hc")
+	put(t, hc, courierHc)
+	if err := os.Chmod(hc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(d, "bin")+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_HC", d)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(f.root, "state"))
+	e := f.env()
+	e.LookPath = func(n string) (string, error) {
+		if n == "hc" {
+			return hc, nil
+		}
+		return "", errors.New("無い")
+	}
+	return f, e, d
+}
+
+func term(fg string) string {
+	return `{"address":"t1","state":"live","argv":["/bin/bash"],"foreground":` + fg + `}`
+}
+
+// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。「すでに動いている」と書かずに起こし直す。
+func TestStartCourierRestoredShell(t *testing.T) {
+	f, e, d := courierFixture(t)
+	old := courierWait
+	courierWait = 2 * time.Second
+	t.Cleanup(func() { courierWait = old })
+	put(t, filepath.Join(d, "term"), term("null"))
+	put(t, filepath.Join(d, "term.2"), term(`{"name":"bash","argv":["/bin/bash"]}`))
+	if err := startCourier(e); err != nil {
+		t.Fatal(err)
+	}
+	got := f.log.String()
+	log, _ := os.ReadFile(filepath.Join(d, "log"))
+	if strings.Contains(got, "すでに動いている") || !strings.Contains(got, "起こし直した") || !strings.Contains(string(log), "run ") {
+		t.Errorf("log=%q hc=%q", got, log)
+	}
+}
+
+// 待っても前に出ているものが取れない: 「確かめられなかった」と書き、「すでに動いている」とは書かない。何も打たない。
+func TestStartCourierUnsure(t *testing.T) {
+	f, e, d := courierFixture(t)
+	old := courierWait
+	courierWait = 100 * time.Millisecond
+	t.Cleanup(func() { courierWait = old })
+	put(t, filepath.Join(d, "term"), term("null"))
+	if err := startCourier(e); err != nil {
+		t.Fatal(err)
+	}
+	got := f.log.String()
+	if strings.Contains(got, "すでに動いている") || !strings.Contains(got, "確かめられなかった") || strings.Contains(got, "準備に失敗") {
+		t.Errorf("log=%q", got)
+	}
+	if _, err := os.Stat(filepath.Join(d, "log")); err == nil {
+		t.Error("確かめられないのに hc を打った")
+	}
+}
+
+// 前に andon courier が出ていれば「すでに動いている」。
+func TestStartCourierRunning(t *testing.T) {
+	f, e, d := courierFixture(t)
+	put(t, filepath.Join(d, "term"), term(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`))
+	if err := startCourier(e); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.log.String(); !strings.Contains(got, "クーリエはすでに動いている") {
+		t.Errorf("log=%q", got)
+	}
+}
+
+// ほかが確かめている（lock を持っている）: 「ほかが確かめている」と書き、「すでに動いている」とは書かない。
+func TestStartCourierBusy(t *testing.T) {
+	f, e, d := courierFixture(t)
+	put(t, filepath.Join(d, "term"), term("null"))
+	lock := filepath.Join(filepath.Dir(courier.StatePath("x")), ".terminal.lock")
+	mustMkdir(t, filepath.Dir(lock))
+	fh, err := os.OpenFile(lock, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fh.Close()
+	if err := syscall.Flock(int(fh.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	if err := startCourier(e); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.log.String(); strings.Contains(got, "すでに動いている") || !strings.Contains(got, "ほかが確かめている") {
+		t.Errorf("log=%q", got)
 	}
 }

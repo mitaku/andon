@@ -8,10 +8,13 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"andon/internal/spawn"
 )
 
 // fake は偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ（コマンド名 引数… と、HC_TERMINAL_ID）。
-// 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
+// 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_GET（hc get。無ければ Claude Code が動いている）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
 type fake struct {
 	t       *testing.T
 	root    string // 台帳の root（projects/sample-site）
@@ -35,6 +38,11 @@ const fakeHc = `#!/usr/bin/env bash
 printf 'hc %s\n' "$*" >>"$LOG"
 case $1 in
   ls) echo "$FAKE_LS" ;;
+  get) n=$(( $(cat "$LOG.gets" 2>/dev/null || echo 0) + 1 )); echo $n > "$LOG.gets"; s="FAKE_GET$n"  # FAKE_GET<n> があれば n 回目の get はそれ
+       if [ -n "${!s:-}" ]; then echo "${!s}"
+       elif [ -n "${FAKE_GET:-}" ]; then echo "$FAKE_GET"
+       else echo '{"argv":["sh","-c","claude"],"status":{"app":"claude-code"},"foreground":{"name":"sh","argv":["sh","-c","claude"]}}'; fi ;;
+  keep|kill|rm) ;;
   templates) echo "$FAKE_TPL" ;;
   run) [ "$FAKE_RUN_RC" = 0 ] || { echo "boom" >&2; exit 1; }
        echo "$FAKE_RUN" ;;
@@ -78,6 +86,8 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-engineer"}]}`)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":true}}`)
 	t.Setenv("FAKE_RUN_RC", "0")
+	spawn.SettleWait = time.Second
+	t.Cleanup(func() { spawn.SettleWait = 5 * time.Second })
 	return f
 }
 
@@ -312,6 +322,53 @@ func TestAlreadyRunning(t *testing.T) {
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3","title":"Billing の設計"}}]}`)
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
 	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: sample-site / CE S-3 Billing の設計（t9）") || f.has("kanban add") || f.has("hc run") {
+		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	}
+}
+
+// 作り直しで中身が素のシェルに替わって戻った Chief Engineer の端末は、動いているとは数えない。片付けてから起こす。
+func TestShellChiefEngineerIsReplaced(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3","title":"Billing の設計"}}]}`)
+	t.Setenv("FAKE_GET", `{"address":"t9","argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`)
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	if rc != 0 || errs != "" || !strings.Contains(out, "sample-site / CE S-3 Billing の設計（t9）は中身がシェルに替わっていた") {
+		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+	for _, c := range []string{"hc keep t9 --off", "hc kill t9", "hc rm t9", "kanban add", "hc run"} {
+		if !f.has(c) {
+			t.Errorf("%s を打っていない: %q", c, f.calls())
+		}
+	}
+}
+
+// 人がシェルで使っている・agent が Claude Code でない端末は、片付けず「動いている」とも言わない（確かめられないとして止まる）。
+func TestUnsureChiefEngineerKept(t *testing.T) {
+	for _, get := range []string{
+		`{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`,
+		`{"argv":["/bin/bash"],"status":null,"foreground":{"name":"vim","argv":["vim"]}}`,
+		`{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"vim","argv":["/usr/bin/vim"]}}`,
+	} {
+		f := newFake(t)
+		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3","title":"Billing の設計"}}]}`)
+		t.Setenv("FAKE_GET", get)
+		rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
+		if rc != exitFail || strings.Contains(errs, "Chief Engineer が動いている") || !strings.Contains(errs, "確かめられないので止まる") {
+			t.Errorf("%s: rc=%d err=%q", get, rc, errs)
+		}
+		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("kanban add") {
+			t.Errorf("%s: 人の端末に触った・タスクを足した: %q", get, f.calls())
+		}
+	}
+}
+
+// 起動の直後: 最初の hc get には agent の情報がまだ無く、読み直すと status.app=claude-code。動いているとして止まる（二重に起こさない）。
+func TestChiefEngineerAgentAppearsLater(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","task":"S-3","title":"Billing の設計"}}]}`)
+	t.Setenv("FAKE_GET1", `{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"sh","argv":["sh","-c","claude"]}}`)
+	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: sample-site / CE S-3 Billing の設計（t9）") || f.has("kanban add") || f.has("hc run") || f.has("hc kill") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 }

@@ -10,15 +10,16 @@
 
 | 役 | 端末の名前 | 出る場所（Space / tab） | 起こすのは・きっかけ | 止まったら誰が戻すか |
 |---|---|---|---|---|
-| 伝令（courier） | `courier`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「伝令」、2つ以上なら `<建屋の slug> plant` の tab「伝令」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon courier` でなければ片付けて起こし直す（courier.md §5）。戻らなければ人が `andon boot` |
-| Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる |
-| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ伝令が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ |
-| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ伝令が送り直す。止まりは伝令が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる |
+| 伝令（courier） | `courier`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「伝令」、2つ以上なら `<建屋の slug> plant` の tab「伝令」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon courier` でなければ片付けて起こし直す（courier.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければ人が `andon boot` |
+| Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、打ち直せば command が数えずに片付け（keep を外して kill・rm）、起こし直して coordinator を合わせる。数えるのは hc の agent が Claude Code の端末だけで、どちらとも言えない端末（人が中で使っているなど）があれば触らずに止まる |
+| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ伝令が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ。作り直しで戻った端末（top-level の argv ごと素のシェル）は、次の `andon chief-engineer` が数えずに片付けてから起こす（前のタスクは台帳に残る）。hc の agent が Claude Code でも戻った端末でもなければ止まる |
+| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ伝令が送り直す。止まりは伝令が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、伝令が終わった端末（`finished`）として知らせる |
 | レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | 伝令。担当の `andon task review-request` の報告を拾って起こす | 伝令が起こしたものも、担当と同じく最初のメッセージが届かなければ（`hc run` の `sent: false`、か `sent: true` でも `started: false`）ラベル `first_message.sent=false` を付けて預け、伝令が次の見回りでレビュアーの文を送り直す（[courier.md](courier.md) §5）。それ以外は担当の依頼で Chief of Staff が起こし直す |
 
 - **伝令とゲート**: 担当の `andon task ready`（`status: review`）を拾った伝令が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。伝令が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
 - **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかった（`sent: false`、か `sent: true` でも `started: false`＝送ったが動き出さない）ら、端末にラベル `first_message.sent=false` が付き、伝令が見回りで入力を受けられる状態（`idle`）になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
 - **信頼の画面**: 建屋では出ない（boot と、起こす直前の `andon task start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
+- **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`task=…` の付いた端末で中身が素のシェル（起こした command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。伝令の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
 - **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、タスクの範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
 
 ## 建屋の置き方

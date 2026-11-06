@@ -11,7 +11,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc: get は $D/status（無ければ idle）とラベル（$D/unsent があれば first_message.sent=false）を返す。
+// 偽の hc: get は $D/status（無ければ idle）と top-level の argv（$D/argv。無ければ sh -c claude）と前に出ているもの（$D/fg。無ければ null）とラベル（$D/unsent があれば first_message.sent=false）を返す。
 // send は $D/send-rc があればその終了コードで落ちる。label は $D/label-rc があれば落ち、通れば $D/unsent を消す。
 // 打たれたものは $D/log に1行ずつ（send は本文の改行を | にして）。
 const firstHc = `#!/usr/bin/env bash
@@ -19,7 +19,9 @@ d=$FAKE_HC
 case $1 in
   get)
     labels='{}'; [ -e "$d/unsent" ] && labels='{"first_message.sent":"false"}'
-    printf '{"state":"live","status":{"state":"%s"},"status_ms":%s,"turn":0,"labels":%s}\n' "$(cat "$d/status" 2>/dev/null || echo idle)" "$(date +%s%3N)" "$labels" ;;
+    fg=null; [ -e "$d/fg" ] && fg=$(cat "$d/fg")
+    argv='["sh","-c","claude"]'; [ -e "$d/argv" ] && argv=$(cat "$d/argv")
+    printf '{"state":"live","status":{"state":"%s"},"status_ms":%s,"turn":0,"labels":%s,"argv":%s,"foreground":%s}\n' "$(cat "$d/status" 2>/dev/null || echo idle)" "$(date +%s%3N)" "$labels" "$argv" "$fg" ;;
   send) printf 'send %s %s\n' "$2" "$(printf '%s' "$3" | tr '\n' '|')" >>"$d/log"
     [ -e "$d/send-rc" ] && exit "$(cat "$d/send-rc")"; exit 0 ;;
   label) printf 'label %s\n' "${*:2}" >>"$d/log"
@@ -215,5 +217,25 @@ func TestFirstMessageReviewer(t *testing.T) {
 	}
 	if got := f.round(); got != nil {
 		t.Fatalf("送ったあとにまた打った: %q", got)
+	}
+}
+
+// 作り直しで中身が素のシェルに替わって戻った担当の端末は、状態を報告しないので stalled にならない。終わった端末として見る。
+func TestSeenBareShellIsGone(t *testing.T) {
+	f := newFirst(t)
+	f.put("argv", `["/bin/bash"]`)
+	f.put("fg", `{"name":"bash","argv":["/bin/bash"]}`)
+	if s, ok := f.p.seen("t42"); !ok || !s.Gone {
+		t.Fatalf("中身がシェルの端末を生きているとみた: %+v %v", s, ok)
+	}
+	// top-level はエージェントの command で、前にシェル（中で人が何かした）: 終わったとはみない
+	f.rm("argv")
+	if s, ok := f.p.seen("t42"); !ok || s.Gone {
+		t.Fatalf("top-level がエージェントの端末を終わったとみた: %+v %v", s, ok)
+	}
+	// エージェントは sh -c '… claude …' で起きる（前に出ているものの名前が sh でも、引数があればシェルではない）
+	f.put("fg", `{"name":"sh","argv":["sh","-c","claude"]}`)
+	if s, ok := f.p.seen("t42"); !ok || s.Gone {
+		t.Fatalf("起動したエージェントを終わったとみた: %+v %v", s, ok)
 	}
 }

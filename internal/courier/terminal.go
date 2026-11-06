@@ -11,6 +11,9 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
+
+	"andon/internal/spawn"
 )
 
 // クーリエの端末の中身を戻す（courier.md §5 の P3b「端末を起こす・中身を戻す」）。端末は --keep で起こすので、core が起き直すと（hc server restart・
@@ -21,7 +24,17 @@ import (
 // クーリエが回るのは Chief of Staff が生きている台帳だけで、Chief of Staff が動けばフックが走る。
 
 // shells は、クーリエの端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、人が抜けたあと）。
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ash": true, "fish": true, "nu": true}
+var shells = spawn.Shells
+
+// ErrBusy は、ほかが確かめている（boot と複数の Chief of Staff のフックが重なった）ので何もしなかった。
+var ErrBusy = errors.New("ほかがクーリエの端末を確かめている")
+
+// ErrUnsure は、待っても前に出ているものが取れず、動いているかを確かめられなかった（作り直しで戻った直後など）。
+// 「動いている」とはみなさない。
+var ErrUnsure = errors.New("クーリエの端末を確かめられなかった")
+
+// ensurePoll は前に出ているものを読み直す間隔。
+var ensurePoll = 500 * time.Millisecond
 
 // courierTerm は hc get courier --json のうち、中身の見分けに読むもの。
 type courierTerm struct {
@@ -39,19 +52,23 @@ func IsCourier(argv []string) bool {
 }
 
 // Ensure はクーリエの端末を確かめ、無ければ起こし、中身がシェルに替わっていれば端末を片付けて起こし直す。
-// 何かしたらその1行を返す（何もしなければ空）。andon はパッケージの andon、cwd は建屋の repo。
+// 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd は建屋の repo。
+// 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
+// ほかが確かめていれば ErrBusy を返す（どちらも「動いている」ではない）。
 // シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。クーリエ専用の端末なので、
 // keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
-// 前に何も出ていない（替わる途中）・シェルでも andon courier でもないもの（人が何か動かしている）が出ているときは触らない。
-func Ensure(andon, cwd string) (string, error) {
+// シェルでも andon courier でもないもの（人が何か動かしている）が出ているときは触らない。
+func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 	unlock, err := ensureLock()
-	if errors.Is(err, errLocked) {
-		return "", nil // ほかが確かめている（boot と複数の Chief of Staff のフックが重なった）
-	} else if err != nil {
-		return "", err // 控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
+	if err != nil {
+		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
 	}
 	defer unlock()
 	t, gone, err := getCourier()
+	for end := time.Now().Add(wait); err == nil && !gone && t.Foreground == nil && time.Now().Before(end); {
+		time.Sleep(ensurePoll)
+		t, gone, err = getCourier()
+	}
 	switch {
 	case err != nil:
 		return "", err
@@ -61,7 +78,7 @@ func Ensure(andon, cwd string) (string, error) {
 		}
 		return "クーリエを起こした", nil
 	case t.Foreground == nil:
-		return "", nil
+		return "", fmt.Errorf("%w（%s は %v 待っても前に出ているものが取れない）", ErrUnsure, t.Address, wait)
 	case IsCourier(t.Foreground.Argv):
 		return "", nil
 	case !shells[t.Foreground.Name]:
@@ -150,10 +167,7 @@ func hcRun(args ...string) (string, error) {
 	return string(out), err
 }
 
-// errLocked は、ほかが lock を持っている（Ensure を1つずつにする）。
-var errLocked = errors.New("ほかがクーリエの端末を確かめている")
-
-// ensureLock は Ensure を1つずつにする lock（ほかが持っていれば errLocked ですぐ諦める。ほかの失敗はそのまま返す）。
+// ensureLock は Ensure を1つずつにする lock（ほかが持っていれば ErrBusy ですぐ諦める。ほかの失敗はそのまま返す）。
 func ensureLock() (func(), error) {
 	path := filepath.Join(filepath.Dir(StatePath("x")), ".terminal.lock")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -166,7 +180,7 @@ func ensureLock() (func(), error) {
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, errLocked
+			return nil, ErrBusy
 		}
 		return nil, fmt.Errorf("lock が取れない: %v", err)
 	}

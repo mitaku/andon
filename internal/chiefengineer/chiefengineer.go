@@ -10,6 +10,8 @@
 // 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<タスク id> を付け、人の Herdr App の指揮側の Space に
 // タスクの tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
+// 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付けてから起こす。
+// hc の agent が Claude Code でも戻った端末でもない端末があれば、確かめられないとして止まる。
 //
 // 置き場（andon task start と同じ形。internal/spawn）:
 //
@@ -130,9 +132,33 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := json.Unmarshal([]byte(ls), &live); err != nil {
 		return die("hc ls の返事が読めない: %v", err)
 	}
-	if len(live.Terminals) > 0 {
-		t := live.Terminals[0]
-		return die("Chief Engineer が動いている: %s（%s）。新しい題は、前の題を渡してから", where(slug, t.Labels["task"], t.Labels["title"]), t.Address)
+	// ラベルと live だけでは決めない: 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付ける（前のタスクは台帳に残る）。
+	// 動いているは hc の agent が Claude Code のときだけ。どちらとも言えなければ止まる
+	var shells []*spawn.Term
+	for _, lt := range live.Terminals {
+		t, err := spawn.Look(lt.Address)
+		if err != nil {
+			return die("%v", err)
+		}
+		t.Address = lt.Address
+		if t.Labels == nil {
+			t.Labels = lt.Labels
+		}
+		switch t.Kind() {
+		case spawn.Restored:
+			shells = append(shells, t)
+		case spawn.Running:
+			return die("Chief Engineer が動いている: %s（%s）。新しい題は、前の題を渡してから", where(slug, t.Labels["task"], t.Labels["title"]), lt.Address)
+		default:
+			return die("Chief Engineer のラベルの %s で Claude Code が動いているか確かめられないので止まる（%s）。人が使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, t.Describe(), lt.Address)
+		}
+	}
+	for _, t := range shells {
+		if err := spawn.Discard(t.Address); err != nil {
+			return die("%s（Chief Engineer のラベルで中身がシェル）を片付けられない: %v", t.Address, err)
+		}
+		fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）は中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた。タスク %s は台帳に残る\n",
+			where(slug, t.Labels["task"], t.Labels["title"]), t.Address, t.Labels["task"])
 	}
 
 	found, err := spawn.HasTemplate(Profile)

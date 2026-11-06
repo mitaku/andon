@@ -1,18 +1,23 @@
 package courier
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // 偽の hc: get courier は $D/term（無ければ not_found）を返す。run・send・keep・kill・rm は打たれたものを $D/log に1行ずつ。
 // rm は $D/term を消す（片付けた端末は無くなる）。
+// get が n 回目のとき $D/term.<n> があれば、それを $D/term にしてから返す（あとで前に出ているものが取れる・替わる）。
 const ensureHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
-  get) [ -e "$d/term" ] || { echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; }; cat "$d/term" ;;
+  get) n=$(( $(cat "$d/gets" 2>/dev/null || echo 0) + 1 )); echo $n > "$d/gets"
+       [ ! -e "$d/term.$n" ] || mv "$d/term.$n" "$d/term"
+       [ -e "$d/term" ] || { echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; }; cat "$d/term" ;;
   run|send|keep|kill) echo "$*" >>"$d/log"; exit 0 ;;
   rm) echo "$*" >>"$d/log"; rm -f "$d/term"; exit 0 ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
@@ -20,6 +25,11 @@ esac
 `
 
 func newEnsure(t *testing.T) (d string, round func() (string, []string, error)) {
+	return newEnsureWait(t, 0)
+}
+
+// newEnsureWait は round の Ensure に wait を渡す（前に出ているものを読み直す上限）。
+func newEnsureWait(t *testing.T, wait time.Duration) (d string, round func() (string, []string, error)) {
 	t.Helper()
 	d = t.TempDir()
 	bin := filepath.Join(d, "bin")
@@ -34,9 +44,12 @@ func newEnsure(t *testing.T) (d string, round func() (string, []string, error)) 
 	hostName = func() (string, error) { return "TestPlant", nil }
 	t.Cleanup(func() { hostName = os.Hostname })
 	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
+	ensurePoll = 10 * time.Millisecond
+	t.Cleanup(func() { ensurePoll = 500 * time.Millisecond })
 	return d, func() (string, []string, error) {
 		os.Remove(filepath.Join(d, "log"))
-		did, err := Ensure("/opt/andon/bin/andon", "/srv/plant")
+		os.Remove(filepath.Join(d, "gets"))
+		did, err := Ensure("/opt/andon/bin/andon", "/srv/plant", wait)
 		b, _ := os.ReadFile(filepath.Join(d, "log"))
 		var calls []string
 		if s := strings.TrimSpace(string(b)); s != "" {
@@ -87,11 +100,12 @@ func TestEnsureCourier(t *testing.T) {
 		}
 	}
 
-	// 前に何も出ていない（替わる途中）・別のものが出ている: 触らない
+	// 前に何も出ていない（替わる途中）: 触らないが、動いているとも言わない（ErrUnsure）
 	putTerm(t, term, "null")
-	if did, calls, err := round(); err != nil || did != "" || calls != nil {
+	if did, calls, err := round(); !errors.Is(err, ErrUnsure) || did != "" || calls != nil {
 		t.Fatalf("前に何も出ていないとき: %q %q %v", did, calls, err)
 	}
+	// 別のものが出ている: 触らない
 	putTerm(t, term, `{"name":"vim","argv":["vim"]}`)
 	if did, calls, err := round(); err == nil || did != "" || calls != nil {
 		t.Fatalf("別のものが出ているとき: %q %q %v", did, calls, err)
@@ -106,6 +120,30 @@ func TestEnsureCourier(t *testing.T) {
 	}
 }
 
+// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。動いているとはみなさず、片付けて起こし直す。
+func TestEnsureSettlesThenRestarts(t *testing.T) {
+	d, round := newEnsureWait(t, time.Second)
+	putTerm(t, filepath.Join(d, "term"), "null")
+	putTerm(t, filepath.Join(d, "term.3"), `{"name":"bash","argv":["/bin/bash"]}`)
+	did, calls, err := round()
+	if err != nil || !strings.Contains(did, "起こし直した") || len(calls) != 4 || calls[0] != "keep t1 --off" || !strings.HasPrefix(calls[3], "run ") {
+		t.Fatalf("取れてからシェルだったとき: %q %q %v", did, calls, err)
+	}
+}
+
+// 待っても前に出ているものが取れない: 何も打たず ErrUnsure（「すでに動いている」にしない）。
+func TestEnsureUnsureAfterWait(t *testing.T) {
+	d, round := newEnsureWait(t, 50*time.Millisecond)
+	putTerm(t, filepath.Join(d, "term"), "null")
+	did, calls, err := round()
+	if !errors.Is(err, ErrUnsure) || did != "" || calls != nil || !strings.Contains(err.Error(), "t1") {
+		t.Fatalf("取れないまま: %q %q %v", did, calls, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(d, "gets")); strings.TrimSpace(string(b)) == "1" {
+		t.Error("読み直していない")
+	}
+}
+
 // ほかが確かめている間（lock を持っている間）は何もしない（boot と複数の Chief of Staff のフックが重なっても二重に打たない）。
 func TestEnsureLocked(t *testing.T) {
 	_, round := newEnsure(t)
@@ -114,7 +152,7 @@ func TestEnsureLocked(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer unlock()
-	if did, calls, err := round(); err != nil || did != "" || calls != nil {
+	if did, calls, err := round(); !errors.Is(err, ErrBusy) || did != "" || calls != nil {
 		t.Fatalf("lock の間に打った: %q %q %v", did, calls, err)
 	}
 }

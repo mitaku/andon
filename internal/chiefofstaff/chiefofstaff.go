@@ -4,7 +4,8 @@
 //
 // することは4つ:
 //  1. ラベル role=chief-of-staff project=<slug> の、動いている端末を探す。1つならそれを使う（名前と cwd が合うときだけ）。
-//     2つ以上なら止まる（1プロジェクトに1人）。
+//     2つ以上なら止まる（1プロジェクトに1人）。数えるのは hc の agent が Claude Code の端末だけ。
+//     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
 //  2. 無ければプロファイル chief-of-staff で起こす（名前 <slug>-cos・cwd は台帳の root）。
 //     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos で人の Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
 //  3. その address を台帳の config.yaml の coordinator に書く（違うときだけ。kanban config set）。
@@ -87,12 +88,32 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := json.Unmarshal([]byte(ls), &live); err != nil {
 		return die("hc ls の返事が読めない: %v", err)
 	}
-	var addrs []string
-	for _, t := range live.Terminals {
-		addrs = append(addrs, t.Address)
+	// ラベルと live だけでは決めない: 作り直しで戻った端末は、ラベルはそのままで top-level の argv ごと素のシェル。
+	// 動いているは hc の agent が Claude Code のときだけ。どちらとも言えなければ、片付けも使いもせず止まる
+	var addrs, shells []string
+	var cur *spawn.Term
+	for _, lt := range live.Terminals {
+		t, err := spawn.Look(lt.Address)
+		if err != nil {
+			return die("%v", err)
+		}
+		switch t.Kind() {
+		case spawn.Restored:
+			shells = append(shells, lt.Address)
+		case spawn.Running:
+			addrs, cur = append(addrs, lt.Address), t
+		default:
+			return die("%s（%s の Chief of Staff のラベル）で Claude Code が動いているか確かめられないので止まる（%s）。人が使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, slug, t.Describe(), lt.Address)
+		}
 	}
 	if len(addrs) > 1 {
 		return die("%s の Chief of Staff が %d 人いる: %s（1人に減らす）", slug, len(addrs), strings.Join(addrs, " "))
+	}
+	for _, a := range shells {
+		if err := spawn.Discard(a); err != nil {
+			return die("%s（Chief of Staff のラベルで中身がシェル）を片付けられない: %v", a, err)
+		}
+		fmt.Fprintf(stdout, "andon chief-of-staff: %s は Chief of Staff のラベルのまま中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた\n", a)
 	}
 
 	space, tab := "andon-"+slug, "andon-"+slug+"-cos"
@@ -103,18 +124,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(addrs) == 1 {
 		addr, how = addrs[0], "動いているものを使う"
 		// ラベルだけでは決めない: 名前と cwd が合うものだけを使う（ほかのプロジェクトの端末を config.yaml に書かない）
-		got, err := spawn.Output(nil, "", "hc", "get", addr, "--json")
-		if err != nil {
-			return die("hc get %s に失敗: %v", addr, err)
-		}
-		var t struct {
-			Name   string            `json:"name"`
-			Cwd    string            `json:"cwd"`
-			Labels map[string]string `json:"labels"`
-		}
-		if err := json.Unmarshal([]byte(got), &t); err != nil {
-			return die("hc get %s の返事が読めない: %v", addr, err)
-		}
+		t := cur
 		if t.Name != name || t.Cwd == "" || !sameDir(t.Cwd, root) {
 			return die("%s はラベルが %s の Chief of Staff だが、名前（%s）か cwd（%s）が合わない（名前 %s・cwd %s のはず）。hc ls で確かめる", addr, slug, t.Name, t.Cwd, name, root)
 		}
