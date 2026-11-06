@@ -131,3 +131,56 @@ func TestIsCourier(t *testing.T) {
 		}
 	}
 }
+
+// lock の置き場が作れない・開けないとき（ほかが確かめている、ではない）は、何もしなかったことにせずエラーを返す。
+func TestEnsureLockError(t *testing.T) {
+	d, round := newEnsure(t)
+	notDir := filepath.Join(d, "state-is-a-file")
+	if err := os.WriteFile(notDir, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_STATE_HOME", notDir) // この下に andon/courier を作れない
+	did, calls, err := round()
+	if err == nil || did != "" || calls != nil {
+		t.Fatalf("lock の置き場が作れないのに黙った: %q %q %v", did, calls, err)
+	}
+}
+
+// 偽の hc: ls はラベルで絞らずに3つ返す（別のプロジェクトの同じ id が先）。get は address ごとのラベルを返す。
+const liveHc = `#!/usr/bin/env bash
+case $1 in
+  ls) echo "$*" >>"$FAKE_HC/log"
+      echo '{"terminals":[{"address":"t20","state":"live","turn":3},{"address":"t22","state":"finished"},{"address":"t21","state":"live","turn":0}]}' ;;
+  get) case $2 in
+         t20) echo '{"state":"live","turn":3,"labels":{"project":"other-site","task":"D-3"}}' ;;
+         t21) echo '{"state":"live","turn":0,"labels":{"project":"sample-site","task":"D-3"}}' ;;
+         *) echo '{"error":{"kind":"not_found"}}' >&2; exit 3 ;;
+       esac ;;
+  *) exit 9 ;;
+esac
+`
+
+// 端末は project と task の両方で照らす（task の id はプロジェクトをまたいで同じことがある）。
+func TestLiveTask(t *testing.T) {
+	d := t.TempDir()
+	bin := filepath.Join(d, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "hc"), []byte(liveHc), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_HC", d)
+	addr, turn, ok := liveTask("sample-site", "D-3")
+	if !ok || addr != "t21" || turn != 0 {
+		t.Fatalf("別のプロジェクトの端末を引いた・自分の端末を引かない: %q %d %v", addr, turn, ok)
+	}
+	b, _ := os.ReadFile(filepath.Join(d, "log"))
+	if got := strings.TrimSpace(string(b)); got != "ls --json --label project=sample-site --label task=D-3" {
+		t.Errorf("hc ls を project と task で絞っていない: %q", got)
+	}
+	if _, _, ok := liveTask("third-site", "D-3"); ok {
+		t.Error("ラベルの合わない端末を引いた")
+	}
+}

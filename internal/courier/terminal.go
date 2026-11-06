@@ -44,8 +44,10 @@ func IsCourier(argv []string) bool {
 // 前に何も出ていない（替わる途中）・シェルでも andon courier でもないもの（人が何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string) (string, error) {
 	unlock, err := ensureLock()
-	if err != nil {
+	if errors.Is(err, errLocked) {
 		return "", nil // ほかが確かめている（boot と複数の Chief of Staff のフックが重なった）
+	} else if err != nil {
+		return "", err // 控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
 	}
 	defer unlock()
 	t, gone, err := getCourier()
@@ -122,7 +124,10 @@ func hcRun(args ...string) (string, error) {
 	return string(out), err
 }
 
-// ensureLock は Ensure を1つずつにする lock（取れなければすぐ諦める）。
+// errLocked は、ほかが lock を持っている（Ensure を1つずつにする）。
+var errLocked = errors.New("ほかがクーリエの端末を確かめている")
+
+// ensureLock は Ensure を1つずつにする lock（ほかが持っていれば errLocked ですぐ諦める。ほかの失敗はそのまま返す）。
 func ensureLock() (func(), error) {
 	path := filepath.Join(filepath.Dir(StatePath("x")), ".terminal.lock")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -134,7 +139,10 @@ func ensureLock() (func(), error) {
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()
-		return nil, errors.New("lock が取れない")
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, errLocked
+		}
+		return nil, fmt.Errorf("lock が取れない: %v", err)
 	}
 	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
 }

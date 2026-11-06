@@ -52,7 +52,7 @@ func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 		if a, ok := Adopt(p.tasks, id, rr.Commit, func(rev string) string {
 			b, _ := os.ReadFile(filepath.Join(p.l.Dir, "tasks", rev, "brief.md"))
 			return string(b)
-		}, liveTask); ok {
+		}, func(rev string) (string, int, bool) { return liveTask(p.l.Slug, rev) }); ok {
 			r.ReviewerTask, r.Address, r.Started = a.ReviewerTask, a.Address, a.Started
 			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
 				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
@@ -137,9 +137,11 @@ func Adopt(tasks []ledger.Task, id, commit string, brief func(rev string) string
 	return Reviewer{}, false
 }
 
-// liveTask はタスク rev の live な端末（hc ls --label task=<rev>）。無い・読めなければ ok=false。
-func liveTask(rev string) (string, int, bool) {
-	out, err := hcOut("ls", "--json", "--label", "task="+rev)
+// liveTask はプロジェクト slug のタスク rev の live な端末（hc ls --label project=<slug> --label task=<rev>）。
+// task の id はプロジェクトをまたいで同じことがあるので、返った端末のラベル（hc get）も project・task の両方で確かめる。
+// 無い・読めなければ ok=false。
+func liveTask(slug, rev string) (string, int, bool) {
+	out, err := hcOut("ls", "--json", "--label", "project="+slug, "--label", "task="+rev)
 	var ls struct {
 		Terminals []struct {
 			Address string `json:"address"`
@@ -151,9 +153,14 @@ func liveTask(rev string) (string, int, bool) {
 		return "", 0, false
 	}
 	for _, t := range ls.Terminals {
-		if t.State == "live" && t.Address != "" {
-			return t.Address, t.Turn, true
+		if t.State != "live" || t.Address == "" {
+			continue
 		}
+		g, err := hcGet(t.Address)
+		if err != nil || g.State != "live" || g.Labels["project"] != slug || g.Labels["task"] != rev {
+			continue
+		}
+		return t.Address, g.Turn, true
 	}
 	return "", 0, false
 }
