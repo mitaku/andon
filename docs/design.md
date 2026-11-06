@@ -510,7 +510,7 @@ andon/
   cmd/andon/  internal/      andon の Go のソース（cmd/andon が入口、internal/<sub> が中身。go.mod は repo の根）
   cmd/kanban/                台帳の CLI（Go。移したら。名前は §3.5）
   tests/                     テスト（bash。偽の hc・試しの台帳・schema の検証・image のビルド。Go は go test）
-  .github/workflows/         image を焼く（ghcr）・tests
+  .github/workflows/         image を焼いて検査する・tests（ghcr へは v* の tag だけ）
 ```
 
 - **`package/` は建屋に効くもの、それ以外は Andon を建てる人と担当のためのもの。** `/opt/andon` の中身は `package/` と同じ構成（`/opt/andon/bin/andon` …）。
@@ -532,7 +532,7 @@ andon/
 | `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
 | `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM | `bin/bootstrap host-install` で写す |
 
-建屋の repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` の版を上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。
+建屋の repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` の版を上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。Andon を直して建屋で試すときは、`bootstrap rebuild --from <andon の checkout>` がその checkout から base image を焼いて `FROM` を差し替える（GHCR を通さない。配る版は `vX.Y.Z` の tag だけ）。
 
 ### 2.4 仮設の名前との対応
 
@@ -602,7 +602,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | **テスト** | 単体＝`go test`（決定式・schema・command の出力）。結合＝bash（偽の hc・試しの台帳・一時 HOME。仮設の tests と同じ型）。`tests/public.sh`（§2.6）・`gitleaks`・`shellcheck` | 決定式は表で、配線は実物で | — |
 | **備品の入れ方** | CLI＝**aqua**（宣言と checksum。仮設と同じ）。言語＝**mise**。npm のグローバル（Claude Code・Codex・portless）＝固定の prefix | 仮設で困っていない。`apt` は最後の手段 | — |
 | **コンテナ** | **docker compose**（ホストは docker と bash だけ。クラウドも同じ compose） | 仮設と同じ | Kubernetes 等（1人の工場には重い） |
-| **CI と配布** | **GitHub Actions**。PR ごとに tests、マージごとに image を `ghcr.io/<owner>/andon:<sha>`、tag で `:vX.Y.Z` と Go のバイナリ（4 target。deck の workflow と同じ形）。release の道具（goreleaser 等）は入れない | 仮設と deck の形をそのまま使える | — |
+| **CI と配布** | **GitHub Actions**。PR とマージごとに tests（image を焼いて検査するだけ）、tag で image を `ghcr.io/<owner>/andon:vX.Y.Z` と Go のバイナリ（4 target。deck の workflow と同じ形）。マージごとの `:<sha>` の push はやめた（2026-11-06。GHCR のストレージ枠。日々の試しは建屋で checkout から焼く。decisions.md §18）。release の道具（goreleaser 等）は入れない | 仮設と deck の形をそのまま使える | — |
 | **版上げ** | **Renovate**（aqua・`FROM`・Go の依存） | 仮設と同じ | — |
 | **エージェントのハーネス** | **Claude Code**（既定。フックと managed settings）と **Codex CLI**（担当・レビュアー）。最初の版の Chief of Staff・フックは Claude Code だけ（§6 問い12） | 仮設と同じ | — |
 | **文書** | Markdown ＋ Mermaid。schema の `description` と識別子は英語（§6 問い11） | GitHub でそのまま読める | — |
@@ -652,7 +652,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `docs/wsl/yards-up`（366 行）・`yard-cruft`・`herdr-config.toml`、`docs/windows/wezterm.lua`・`yard-artifacts-tunnels.ps1` | — | 取り込む（`yard-cruft` は捨てる） | `package/host/{wsl,windows,cloud}/`。`yards-up` → `andon-up`（雛形の更新の pull を外し、建屋の repo の ff-only pull とイメージの版の表示だけに）。`host-install` で写す。docs のコピーをやめる |
 | `tests/*.sh`（9本・1,587 行） | 1,587 | 取り込む | `tests/`。名前を替え、`cookiecutter-render.sh` を捨て、`image.sh`（ビルドが通る）と `schema.sh`（schema と contract.md・例の食い違い）を足す |
 | `renovate.json` | — | 取り込む | Andon の repo（aqua の版上げ）と `init/renovate.json`（建屋の `FROM` の版上げ） |
-| `.github/workflows/` | 無い | 足す | image を焼く（PR のマージごと `:<sha>`、tag で `:vX.Y.Z`）・tests |
+| `.github/workflows/` | 無い | 足す | image を焼く（PR とマージは検査だけ、tag で `:vX.Y.Z`）・tests |
 
 **example-yard**（仮設の建屋。`/workspace`）:
 

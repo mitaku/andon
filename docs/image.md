@@ -10,9 +10,9 @@ Docker（BuildKit 対応）を用意する。
 bash tests/image.sh
 ```
 
-台帳の CLI `kanban`（`cmd/kanban/`。P3c）は同じ repo からビルドして入れる。`tests/image.sh` が linux の静的バイナリを焼き、build context `kanban`（`docker build --build-context kanban=<dir>`）で渡して `/usr/local/bin/kanban` に COPY する。`deck` は1版だけの別名（`/usr/local/bin/deck` → `kanban` の symlink）。private release の取得や取得用 token は使わない（人の決定 2026-11-05、decisions.md §9）。
+焼く手順は `image/build.sh <andon の checkout> <tag>` の1本だけ。`tests/image.sh`（CI も）と建屋の `bin/bootstrap rebuild --from`（[operate.md](operate.md) の 3）が同じものを打つ。要るのは docker と bash だけ。焼いた元の commit（汚れた checkout なら末尾に `-dirty`）を label `org.opencontainers.image.revision` に付ける（`bin/bootstrap status` が出す）。
 
-`andon`（`cmd/andon/`）も同じく焼き、build context `andon` で渡して `/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。ホストは同じバイナリを image から取り出して使う（[operate.md](operate.md) の 2）。
+台帳の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は、`image/Dockerfile` の最初の段 `bin`（golang の image。版は `mise.toml` の go と揃え、`tests/image.sh` が確かめる）で linux の静的バイナリに焼き、`/usr/local/bin/kanban`・`/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。`kanban --version` は commit の先頭12文字。`deck` は1版だけの別名（`/usr/local/bin/deck` → `kanban` の symlink）。private release の取得や取得用 token は使わない（人の決定 2026-11-05、decisions.md §9）。ホストは同じ `andon` を image から取り出して使う（[operate.md](operate.md) の 2）。
 
 テストは `andon:test` を作り、ネットワークを切ったコンテナで `/opt/andon`・`andon help` と主要な CLI を確かめる。同じ image の actionlint・ghalint・pinact で イメージ配布 workflow（tests.yml）の構文・権限・固定 SHA も検査する。対話の bash（`bash -ic`・`bash -lic`）で補完・`HISTFILE`・プロンプト・fzf のキー割り当てが効くことと、`rg`・`fzf`・`jq` が動くことも見る。続けて建屋を立てる道を通す: image から取り出した `andon` で `andon init` → `bin/bootstrap up`（`FROM andon:test`）→ compose の起動で `andon boot` が `ready` まで走り、managed settings・プロファイル・`CLAUDE.md` の2行（`environment.md` と `AGENTS.local.md`）・skill のリンクができたことを確かめる。Docker が使えなければローカルは SKIP を表示し、CI は失敗する。
 
@@ -24,6 +24,22 @@ bash tests/image.sh
 - **Tab 補完**: bash-completion（apt）と、git・gh・hc・andon・deck（kanban）・just・mise。gh・just・mise は各 CLI の生成物、hc は `hc --help` の一覧から image を焼くときに作る（hc に生成の口が無い）、andon・kanban・deck はサブコマンド名だけ（`image/completions/`。フラグは補わない）。どれも `/usr/share/bash-completion/completions/` に置き、最初の Tab を待たずに登録する。
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `建屋の名前:ディレクトリ (git のブランチ)`。色は控えめ。
+
+## 信頼の画面（Claude Code・Codex）
+
+建屋では信頼の画面（trust this folder）を出さない。建屋＝コンテナが信頼の境界なので、boot と、起こす直前の `andon task start`・`andon chief-engineer` が、建屋の repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/.flightdeck/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
+
+足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起こし、最初の画面だけを読んだ）:
+
+| 信頼した所 → 起こした所 | Claude Code 2.1.318 | Codex 0.166.0 |
+|---|---|---|
+| git の外の親 → その下の dir | 効く（`/` まで親を遡る） | 信頼の画面がもともと出ない |
+| git の repo の根 → repo の中の dir | 効く | 効く（画面に「Trusting will apply to the repository root」と出る） |
+| repo の根より上の親 → repo の中の dir | 効かない（根で止まる） | 効かない |
+| 元の repo の根 → その worktree | 効く | 効く |
+| worktree の置き場（`~/.herdr/worktrees`）→ worktree | 効かない | 効かない |
+
+`tests/image.sh` が、建屋の claude と codex を `/workspace` の下の新しい dir で起こしても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。版を上げたら同じ表を測り直す。
 
 ## Codex の承認と sandbox
 
@@ -44,9 +60,11 @@ Codex のフックは配っていない（フックは Claude Code だけ。[con
 
 ## CI と配布
 
-PR はビルドとテストだけを行い、push しない。main の push では、tests の job が通った同じ job の中で、検査済み image（`andon:test`）を `ghcr.io/<owner>/andon:<40桁のcommit SHA>` に push する。image を artifact で受け渡さない（GitHub のストレージ枠を使うため）。`vX.Y.Z` の tag では main に含まれる commit かを検査し、既存の SHA image に版 tag だけを付ける。tag の実行は publish job が行い、ビルドせず、SHA image が無ければ失敗する（main の配布完了後に tag を出す）。配布は Linux amd64 から始める。GHCR の package は private のまま運用し、公開への変更は人が行う。
+配る版と日々のサイクルを分ける。日々の直しは建屋で andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
 
-GHCR への push は tests の job（main の push の step だけ）と publish job（tag）に付与する Actions の `GITHUB_TOKEN`（`packages: write`）を使う。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu は digest、Python・uv tool は直接指定する版を固定する。
+PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでの建屋はそれを使う）。配布は Linux amd64 から始める。GHCR の package は private のまま運用し、公開への変更と tag を切るのは人が行う。
+
+`packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
 
 ## 残る危険
 

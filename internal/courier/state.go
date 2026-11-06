@@ -57,6 +57,7 @@ type State struct {
 	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人のタスクを除く。無ければ初めて）
 	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<task>|<agent>|<状態>|<status_ms>）
 	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元のエラーで続きを打った回数（<task>|<agent>）
+	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<task>|<agent>。二度と送らない）
 }
 
 // HookNews はフックで渡した <news>（courier.md §3）。渡した turn の Stop で確かめ済みにする。

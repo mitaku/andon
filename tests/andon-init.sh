@@ -129,6 +129,94 @@ done
 sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run down >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && pass "持ち主が 1001 でも down は通る" || fail "持ち主 1001 で down: rc=$r $(cat "$tmp/err")"
 
+# rebuild --from: andon の checkout から image/build.sh で base image を焼き、FROM をそれにして build・up する（偽の docker）
+co=$tmp/co
+mkdir -p "$co/image" "$tmp/dpath"
+cp "$andon_root/image/build.sh" "$andon_root/image/Dockerfile" "$co/image/"
+git -C "$co" init -q && git -C "$co" add . && git -C "$co" -c user.name=t -c user.email=t@example.com commit -qm init
+sha=$(git -C "$co" rev-parse HEAD)
+cp -P "$tmp/path/"* "$tmp/dpath/"
+for t in git env; do ln -s "$(command -v "$t")" "$tmp/dpath/$t"; done
+# 偽の docker: 1回の呼び出しを1行に、argv を1つずつ [ ] で囲んで記録する（空白を含む引数の境界も比べる）。git は FAKE_SHA を答え、image inspect は FAKE_REVISION を答える
+cat >"$tmp/dpath/docker" <<'SH'
+#!/bin/bash
+{ printf '[%s]' "$@"; echo; } >>"$FAKE_DOCKER_LOG"
+case "$*" in
+  *"rev-parse HEAD") echo "$FAKE_SHA" ;;
+  "image inspect"*) [ -n "${FAKE_REVISION:-}" ] && echo "$FAKE_REVISION" || exit 1 ;;
+esac
+exit 0
+SH
+chmod 755 "$tmp/dpath/docker"
+log=$tmp/docker.log
+argv() { printf '[%s]' "$@"; }
+dsandbox() { : >"$log"; env -i PATH="$tmp/dpath" HOME="$home" ANDON_IMAGE_ROOT="$img" FAKE_DOCKER_LOG="$log" FAKE_SHA="$sha" "$@"; }
+cp Dockerfile "$tmp/Dockerfile.orig"
+tag=andon:local-${sha:0:12}
+
+dsandbox bash bin/bootstrap --dry-run rebuild --from "$co" >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -qxF "+ bash $co/image/build.sh $co $tag $sha" "$tmp/out" && cmp -s Dockerfile "$tmp/Dockerfile.orig" && [ ! -s "$log" ] \
+  && pass "rebuild --from --dry-run は image/build.sh を出すだけ（FROM も docker も触らない）" || fail "rebuild --from --dry-run: rc=$r $(cat "$tmp/out" "$tmp/err" "$log")"
+
+dsandbox bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>"$tmp/err"; r=$?
+want_build=$(argv build --file "$co/image/Dockerfile" --build-arg "ANDON_REVISION=$sha" --build-arg "ANDON_VERSION=${sha:0:12}" --tag "$tag" "$co")
+mapfile -t calls <"$log"
+[ "$r" = 0 ] && [ "${calls[1]:-}" = "$want_build" ] \
+  && pass "rebuild --from は image/build.sh で checkout から $tag を焼く" || fail "rebuild --from の base: rc=$r $(cat "$tmp/err" "$log")"
+[ "$(head -n 1 Dockerfile)" = "FROM $tag" ] && [ "$(tail -n +2 Dockerfile)" = "$(tail -n +2 "$tmp/Dockerfile.orig")" ] \
+  && pass "rebuild --from は Dockerfile の FROM だけを $tag にする" || fail "FROM: $(cat Dockerfile)"
+[ "${calls[2]:-}" = "$(argv build -t andon-x:local "$PWD")" ] \
+  && pass "続けて FROM $tag で建屋の image を焼く（--pull を付けない）" || fail "建屋の build: $(cat "$log")"
+[ "${calls[3]:-}" = "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)" ] \
+  && pass "そのあと compose で作り直す" || fail "up: $(cat "$log")"
+grep -q "commit: $sha" "$tmp/out" && grep -q 'GHCR の版へ戻すなら' "$tmp/out" \
+  && pass "元の commit と、GHCR の版へ戻す道を出す" || fail "出力: $(cat "$tmp/out")"
+
+dsandbox FAKE_REVISION="$sha" bash bin/bootstrap status >"$tmp/out" 2>&1
+grep -qxF "FROM: $tag（commit: $sha）" "$tmp/out" && pass "status は FROM と元の commit を出す" || fail "status: $(cat "$tmp/out")"
+dsandbox bash bin/bootstrap status >"$tmp/out" 2>&1
+grep -qxF "FROM: $tag（commit: 手元に無い）" "$tmp/out" && pass "status は image が手元に無いと言う" || fail "status（無い）: $(cat "$tmp/out")"
+
+echo x >"$co/new-file"
+dsandbox bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>&1
+grep -qF -- "$(argv --build-arg "ANDON_REVISION=$sha-dirty" --build-arg "ANDON_VERSION=${sha:0:12}-dirty" --tag "$tag-dirty" "$co")" "$log" && [ "$(head -n 1 Dockerfile)" = "FROM $tag-dirty" ] \
+  && pass "汚れた checkout は -dirty の tag で焼く" || fail "dirty: $(cat "$tmp/out" "$log")"
+rm "$co/new-file"
+
+# ホストに git が無ければ、今の FROM の image の git で読む
+rm "$tmp/dpath/git"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>&1; r=$?
+grep -qF "$(argv run --rm --network none -v "$co:/src:ro" example.com/andon:test git -c 'safe.directory=*' -C /src rev-parse HEAD)" "$log" && [ "$(head -n 1 Dockerfile)" = "FROM $tag" ] \
+  && pass "ホストに git が無ければ docker の中の git で commit を読む" || fail "git 無し: rc=$r $(cat "$tmp/out" "$log")"
+
+# checkout の path: 空白を含む・相対・git でない
+ln -s "$(command -v git)" "$tmp/dpath/git"
+sp="$tmp/co dir"
+cp -R "$co" "$sp"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from "$sp" >"$tmp/out" 2>"$tmp/err"; r=$?
+mapfile -t calls <"$log"
+[ "$r" = 0 ] && [ "${calls[1]:-}" = "$(argv build --file "$sp/image/Dockerfile" --build-arg "ANDON_REVISION=$sha" --build-arg "ANDON_VERSION=${sha:0:12}" --tag "$tag" "$sp")" ] && [ "$(head -n 1 Dockerfile)" = "FROM $tag" ] \
+  && pass "空白を含む checkout の path でも焼ける" || fail "空白の path: rc=$r $(cat "$tmp/err" "$log")"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from ../co >"$tmp/out" 2>"$tmp/err"; r=$?
+mapfile -t calls <"$log"
+[ "$r" = 0 ] && [ "${calls[1]:-}" = "$want_build" ] \
+  && pass "相対の checkout の path は絶対にして渡す" || fail "相対の path: rc=$r $(cat "$tmp/err" "$log")"
+mkdir -p "$tmp/nogit/image" && cp "$co/image/build.sh" "$co/image/Dockerfile" "$tmp/nogit/image/"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from "$tmp/nogit" >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'commit が読めない' "$tmp/err" && ! grep -q "^\[build\]" "$log" && cmp -s Dockerfile "$tmp/Dockerfile.orig" \
+  && pass "git でない checkout は焼く前に止まる（FROM も触らない）" || fail "git でない: rc=$r $(cat "$tmp/err" "$log")"
+
+dsandbox bash bin/bootstrap rebuild --from "$tmp/nowhere" >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q "image/build.sh が無い" "$tmp/err" && ! grep -q "^\[build\]" "$log" && pass "andon の checkout でなければ止まる" || fail "--from 無効: rc=$r $(cat "$tmp/err")"
+dsandbox bash bin/bootstrap rebuild --bogus >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && ! grep -q "^\[build\]" "$log" && pass "rebuild の知らない引数で止まる" || fail "rebuild --bogus: rc=$r"
+cp "$tmp/Dockerfile.orig" Dockerfile
+rm -rf .andon
+
 sed -i 's|^FROM .*|FROM ghcr.io/<owner>/andon:<版>|' Dockerfile
 sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q 'FROM を埋める' "$tmp/err" && pass "FROM が埋まっていなければ止まる" || fail "placeholder: rc=$r $(cat "$tmp/err")"

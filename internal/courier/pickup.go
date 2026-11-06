@@ -19,6 +19,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 // 通知の元（docs/courier.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って控えに積む。
@@ -224,6 +225,7 @@ type Seen struct {
 	Status    string // status.state
 	StatusMs  int64
 	Reviewing bool // 子のレビュアーのタスクが todo／doing
+	Unsent    bool // ラベル first_message.sent=false（最初のメッセージが届いていない。courier.md §5）
 }
 
 // Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
@@ -270,7 +272,7 @@ func (p *project) watch(now time.Time) {
 			reviewing[t.Str("parent")] = true
 		}
 	}
-	sent, retry := map[string]bool{}, map[string]Resend{}
+	sent, retry, first := map[string]bool{}, map[string]Resend{}, map[string]bool{}
 	for _, t := range p.tasks {
 		id, agent := t.Str("id"), t.Str("agent")
 		if t.Str("status") != "doing" || t.Str("who") == "person" || agent == "" {
@@ -291,7 +293,13 @@ func (p *project) watch(now time.Time) {
 			if _, had := p.st.Retry[rk]; had {
 				retry[rk] = r
 			}
+			if p.st.First[rk] {
+				first[rk] = true
+			}
 			continue
+		}
+		if s.Unsent && !p.first && p.sendFirst(t, agent, s.Status, p.st.First[rk]) {
+			first[rk] = true
 		}
 		s.Reviewing = reviewing[id]
 		v := Judge(s, func() string { out, _ := hcOut("read", agent, "--lines", "40"); return out }, r, nowMs)
@@ -317,7 +325,55 @@ func (p *project) watch(now time.Time) {
 		}
 		sent[k] = true
 	}
-	p.st.Sent, p.st.Retry = sent, retry
+	p.st.Sent, p.st.Retry, p.st.First = sent, retry, first
+}
+
+// sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
+// （courier.md §5 の「起こしそこねたら続きから」。andon task start・andon chief-engineer が終了コード 3 で預けたもの）。
+// 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
+// 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
+// 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
+func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (keep bool) {
+	id := t.Str("id")
+	switch {
+	case done:
+	case status == "working" || status == "done":
+		p.logf("%s の担当 %s は最初のメッセージのラベルが残っているが、もう動いている（手で送られた）。送らない", id, agent)
+	case status == "idle" || status == "":
+		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "tasks", id, "brief.md"))
+		// 送る前に控えへ「送りかけ」を書いて保存する（送ってからラベルを外す前にクーリエが落ちても、再開後に二度送らない。
+		// 送っている間に落ちたときは届いたか分からないまま送らない側に倒れる。担当は idle のままなので stalled で Chief of Staff に届く）
+		rk := id + "|" + agent
+		p.st.First[rk] = true
+		if err := p.st.Save(p.l.Slug); err != nil {
+			delete(p.st.First, rk)
+			p.logf("%s の担当 %s に最初のメッセージを送らない（控えを書けない。次の見回りで）: %v", id, agent, err)
+			return false
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "hc", "send", agent, msg)
+		cmd.Env = withoutTerminal()
+		if err := cmd.Run(); err != nil {
+			// 送る前の保存と対: 送りかけをその場で消して保存する（pass の最後の保存より前に落ちても、次の見回りで送り直す）
+			delete(p.st.First, rk)
+			if serr := p.st.Save(p.l.Slug); serr != nil {
+				p.logf("%s の担当 %s の送りかけを控えから消せない: %v", id, agent, serr)
+			}
+			p.logf("%s の担当 %s に最初のメッセージを送れない（次の見回りで送り直す）: %v", id, agent, err)
+			return false
+		}
+		p.logf("%s の担当 %s に最初のメッセージを送った（起こしたときに届かなかった分）", id, agent)
+	default:
+		return false // blocked・error: 画面が入力を受けられるようになるまで待つ
+	}
+	cmd := exec.Command("hc", "label", agent, spawn.FirstLabel+"=")
+	cmd.Env = withoutTerminal()
+	if err := cmd.Run(); err != nil {
+		p.logf("%s の担当 %s のラベル %s を外せない（控えに送ったと持つ）: %v", id, agent, spawn.FirstLabel, err)
+		return true
+	}
+	return false
 }
 
 // seen は担当の端末の様子。hc get が not_found を返せば端末が無い。ほかの失敗・形が読めないときは ok=false（この回は見ない）。
@@ -347,7 +403,7 @@ func (p *project) seen(agent string) (Seen, bool) {
 	if t.State != "live" {
 		return Seen{Gone: true, StatusMs: t.StatusMs}, true
 	}
-	return Seen{Status: t.Status.State, StatusMs: t.StatusMs}, true
+	return Seen{Status: t.Status.State, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false"}, true
 }
 
 // retry は担当に続きを打つ（担当は人が打つ端末ではないので、離席の守りは要らない）。
@@ -366,5 +422,8 @@ func (s *State) ensure() {
 	}
 	if s.Retry == nil {
 		s.Retry = map[string]Resend{}
+	}
+	if s.First == nil {
+		s.First = map[string]bool{}
 	}
 }

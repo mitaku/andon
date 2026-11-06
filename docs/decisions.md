@@ -249,6 +249,8 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-06 | managed settings（`package/settings.json`）から herdr（TUI）の連携フック2つ（`herdr-auto-title`・`herdr-agent-state`）を外す。前者は tab 名を付けるが Andon では App の mod が付ける（ADR-0002）、後者は herdr（TUI）の socket に状態を送るもので hc と Herdr App の建屋では何もしない。建屋にファイルが無く、最初のメッセージが `UserPromptSubmit operation blocked by hook` で止まった。`tests/package.sh` が、フックの command が指すファイルが package に在ることを確かめる | operate.md §9（P7 で止まった）、Y-124 |
 | 2026-11-06 | `stop-check` は待つのが正しいターンを止めない: 自分の問いが開いたまま（`answered` が来ていない）か、`report.json` の `review_request` の `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え・レビューが届いたのに報告も問いも無く終わるターンは今までどおり止める | P7 の A-1（レビュー待ちのターンが3回続けて止められた）、Y-132 |
 | 2026-11-06 | 建屋の Codex は承認を求めず sandbox なしで動かす（`approval_policy = "never"`・`sandbox_mode = "danger-full-access"`。boot が `~/.codex/config.toml` に無いキーだけ足す）。Claude Code の deny のうちコマンドの頭で引く線（今は `gh pr merge`）は Codex の execpolicy の rules（`package/codex.rules` → `~/.codex/rules/andon.rules`）の `forbidden` で引き、`tests/package.sh` が2か所を突き合わせる。Codex 側が拒むのは直接の形と引数を取らない wrapper だけで、引数を取る wrapper・先頭の代入・`$( )` の中は拒めない（Claude Code と同じ広さではない。守る相手は間違える担当で、マージを止めるのはゲートと public 後のブランチ保護）。`workspace-write`＋`writable_roots`＋`network_access` は採らない（台帳・socket・push のたびに穴を足すことになり、境界はコンテナ） | 人の依頼（2026-11-06・P7。Codex が権限の確認で止まる）を担当が推しで。[image.md](image.md) の「Codex の承認と sandbox」、Y-145 |
+| 2026-11-06 | 信頼の画面は建屋では出さない（建屋＝コンテナが信頼の境界）。boot と、起こす直前の `andon task start`・`andon chief-engineer` が、建屋の repo と、台帳に載った案件の repo の根（`projects/*/.flightdeck/config.yaml` の `repos` にあって `<GHQ_ROOT>/<host>/<owner>/<repo>` に clone されたもの。ghq の下を全部は信頼しない）を Claude Code（`.claude.json` の `projects["<根>"].hasTrustDialogAccepted`）と Codex（`~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`）で信頼済みにする。足りない所だけ足し、今ある値は触らない（Codex で人が `untrusted` にした表も覆さない）。repo は実体のパスで実体の GHQ_ROOT の内側にあるものだけ（symlink で外へ逃げるものは足さない）。動いている Claude Code の書き込みを古い中身で上書きしないよう、足すものが無ければ書かず、書く直前に読み直して変わっていれば読み直した中身からやり直す（5回で諦めてログに1行）。読み直しから rename までの隙間は受け入れる。形が読めなければ書かずにログに1行。worktree の置き場は足さない: 実測（Claude Code 2.1.318・Codex 0.166.0）で、git の中は repo の根で判定し、worktree は元の repo の根の信頼が効き、根より上の親は効かない（docs/image.md） | 人の決定 2026-11-06（P7 で担当が信頼の画面で止まった）、Y-128 |
+| 2026-11-06 | 最初のメッセージが届かなかった担当・Chief Engineer は、command が端末にラベル `first_message.sent=false` を付け、クーリエが見回りで送り直す（`idle` のときだけ。送れたらラベルを外す。`working`・`done` は手で送られたとみなす。二度送らない）。終了コード 3 は残し、案内は「クーリエが送り直す。急ぐときだけ手で」。Chief of Staff はクーリエが見張らないので手で送るまま | 人の決定 2026-11-06（ブロッカーが外れたら続きが動く）、courier.md §5、Y-128 |
 
 ## 17. public にする準備での決定
 
@@ -259,3 +261,9 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-06 | repo の description は "A one-person software factory: AI coding agents take tasks from a ledger through review to merge, and call the human only for decisions only they can make."、topics は `ai-agents`・`coding-agents`・`claude-code`・`codex`・`multi-agent`・`software-factory`・`human-in-the-loop`・`developer-tools`。設定は public にするときに Chief of Staff が打つ | 人（Y-126 の案A） |
 | 2026-11-06 | 名前 Andon は一般の用語なので、そのまま使う（商標は J-PlatPat と USPTO で確かめた） | 人 |
 | 2026-11-06 | 同じ名前の別のもの（AI のツールや MCP server）と見分けるため、表示名に修飾を添える: 「Andon — a one-person software factory」。README の見出しの直下・英語の段の書き出し・description・social preview の画像（`docs/assets/social-preview.png`）で揃える。repo 名・コマンド・image 名は `andon` のまま | 人（Y-126） |
+
+## 18. 配布の線での決定
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-06 | GHCR へは `vX.Y.Z` の tag の push のときだけ（tests を通した image を）push する。main へのマージごとの `:<sha>` の push はやめる（約 1 GiB の版がマージごとに増え、private の package のストレージ枠に当たった）。日々の試しは建屋で andon の checkout から焼く（`bin/bootstrap rebuild --from`。焼く手順は `image/build.sh` の1本で、tests・CI と同じ）。tag を切るまでの建屋は、いま GHCR にある SHA の版を使う | 人（2026-11-06）、Y-136 |

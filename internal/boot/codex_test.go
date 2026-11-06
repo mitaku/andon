@@ -9,6 +9,19 @@ import (
 
 const codexHead = "# andon boot が足した（建屋が信頼の境界。値を変えれば boot は覆さない）\n"
 
+// withoutCodexDefaults は genCodexConfig が先頭に足した塊（見出しの行からその後の空行まで）を外す
+// （信頼のテストが、同じファイルに足す既定に左右されないように）。
+func withoutCodexDefaults(s string) string {
+	if !strings.HasPrefix(s, codexHead) {
+		return s
+	}
+	rest := strings.TrimPrefix(s, codexHead)
+	for strings.HasPrefix(rest, "approval_policy = ") || strings.HasPrefix(rest, "sandbox_mode = ") {
+		rest = rest[strings.Index(rest, "\n")+1:]
+	}
+	return strings.TrimPrefix(rest, "\n")
+}
+
 func TestCodexConfigAndRulesFromNothing(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
@@ -17,8 +30,8 @@ func TestCodexConfigAndRulesFromNothing(t *testing.T) {
 	}
 	cfg := filepath.Join(f.home, ".codex", "config.toml")
 	want := codexHead + "approval_policy = \"never\"\nsandbox_mode = \"danger-full-access\"\n"
-	if s := read(t, cfg); s != want {
-		t.Errorf("config.toml = %q, want %q", s, want)
+	if s := read(t, cfg); !strings.HasPrefix(s, want) { // 後ろに信頼の表（trust.go）が続く
+		t.Errorf("config.toml = %q, want %q で始まる", s, want)
 	}
 	if st, err := os.Stat(cfg); err != nil || st.Mode().Perm() != 0o600 {
 		t.Errorf("config.toml の権限: %v %v", st, err)
@@ -49,7 +62,7 @@ func TestCodexConfigKeepsUserValues(t *testing.T) {
 	if err := os.Chmod(cfg, 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if err := Generate(f.env()); err != nil {
+	if err := genCodexConfig(f.env()); err != nil {
 		t.Fatal(err)
 	}
 	got := read(t, cfg)
@@ -68,7 +81,7 @@ func TestCodexConfigKeepsUserValues(t *testing.T) {
 	both := "\"approval_policy\" = \"untrusted\"\nsandbox_mode='workspace-write'\n[sandbox_workspace_write]\nnetwork_access = true\n"
 	put(t, cfg, both)
 	f.log.Reset()
-	if err := Generate(f.env()); err != nil {
+	if err := genCodexConfig(f.env()); err != nil {
 		t.Fatal(err)
 	}
 	if s := read(t, cfg); s != both || strings.Contains(f.log.String(), "config.toml") {
