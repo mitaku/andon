@@ -21,14 +21,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 0 # MEASURE（Y-174 の実測。最後に戻す）
       - name: Decide whether the image checks are needed
         id: scope
         run: |
           set -euo pipefail
           # PR の merge commit の1つ目の親が base。PR 以外（main の push）は必ず image まで見る
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            git diff --name-only HEAD^1 HEAD | tee "$RUNNER_TEMP/changed"
+            git diff --name-only HEAD^2^ HEAD^2 | tee "$RUNNER_TEMP/changed" # MEASURE: PR の最後の commit だけを見る（最後に戻す）
             image=$(bash tests/lib/image-scope.sh <"$RUNNER_TEMP/changed")
           else
             image=true
@@ -37,7 +37,7 @@ jobs:
           {
             if [ "$image" = true ]; then
               echo "ANDON_BUILD_CACHE_FROM=type=gha,scope=andon-image"
-              if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+              if true; then # MEASURE: PR も書く（最後に戻す）
                 echo "ANDON_BUILD_CACHE_TO=type=gha,scope=andon-image,mode=max"
               fi
             else
