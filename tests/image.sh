@@ -2,6 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# image/Dockerfile の段 bin（kanban・andon を焼く golang）の版は mise.toml の go と揃える（docker が無くても見る）
+img_go=$(sed -n 's/^FROM golang:\([0-9.]*\)-.* AS bin$/\1/p' image/Dockerfile)
+mise_go=$(sed -n 's/^go = "\(.*\)"$/\1/p' mise.toml)
+if [ -z "$img_go" ] || [ "$img_go" != "$mise_go" ]; then
+  echo "FAIL image: image/Dockerfile の golang（${img_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
+  exit 1
+fi
+
 if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
   if [ "${CI:-false}" = true ]; then
     echo 'FAIL image: CI requires Docker' >&2
@@ -25,17 +33,14 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
-# 台帳の CLI と andon は同じ repo から焼いて build context `kanban`・`andon` で渡す（image/Dockerfile）
-mkdir "$tmp/kanban" "$tmp/andon-bin"
-arch=$(docker version --format '{{.Server.Arch}}')
-build_bin() { # build_bin <go コマンド…>: kanban と andon を linux の静的バイナリに焼く
-  CGO_ENABLED=0 GOOS=linux GOARCH="$arch" "$@" build -trimpath -ldflags "-s -w -X main.version=$(git rev-parse --short=12 HEAD 2>/dev/null || echo dev)" -o "$tmp/kanban/kanban" ./cmd/kanban
-  CGO_ENABLED=0 GOOS=linux GOARCH="$arch" "$@" build -trimpath -ldflags "-s -w" -o "$tmp/andon-bin/andon" ./cmd/andon
-}
-if command -v go >/dev/null; then build_bin go
-elif command -v mise >/dev/null; then build_bin mise exec -- go
-else echo 'FAIL image: go is required to build kanban and andon' >&2; exit 1; fi
-docker build --file image/Dockerfile --build-context "kanban=$tmp/kanban" --build-context "andon=$tmp/andon-bin" --tag andon:test .
+# 焼くのは image/build.sh（CI と建屋の bin/bootstrap rebuild --from も同じもの）。kanban・andon の go build も docker の中
+bash image/build.sh . andon:test
+rev=$(docker image inspect andon:test --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+want=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+case "$rev" in
+  "$want" | "$want-dirty") ;;
+  *) echo "FAIL image: label org.opencontainers.image.revision が checkout の commit でない（$rev / $want）" >&2; exit 1 ;;
+esac
 docker run --rm --network none andon:test bash -euc '
   test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
   ! getent passwd ubuntu

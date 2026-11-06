@@ -5,3 +5,12 @@
 !package/**
 !schema/
 !schema/**
+!go.mod
+!go.sum
+!embed.go
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!init/
+!init/**
