@@ -20,7 +20,7 @@ argument-hint: "[PR の URL か番号]"
 4. 人が求めた
 
 **入れる条件はプロジェクトごとに決める**。趣味・個人のプロジェクトでは独立レビューを要らないとしてよく、
-その場合の既定は「①か④のときだけ入れる」。決めた条件は `coordinator.md` に1行で書く。
+その場合の既定は「①か④のときだけ入れる」。決めた条件は `projects/<slug>/AGENTS.md` の「Chief of Staff」の節に1行で書く。
 
 Chief of Staff が依頼書を書くときにこの条件で決め、Settings の `Review` に `on` / `off` で書く（既定 `off`）。
 

@@ -28,8 +28,8 @@
 ## 1. 置き場と書き手
 
 ```
-projects/<slug>/.flightdeck/
-  config.yaml                     coordinator（kanban config set。Chief of Staff の端末）
+projects/<slug>/kanban/
+  config.yaml                     chief_of_staff（kanban config set。Chief of Staff の端末）
   tasks/<id>/
     task.yaml                     台帳の項目 ＋ Andon の予約キー（§2。Chief of Staff が kanban set）
     brief.md                      人・AI 用（Settings は写し。機械は読まない）
@@ -63,15 +63,15 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 `kanban show <id> --json` の `.task`（Andon の予約キー以外は台帳の形式のキー）:
 
 ```json
-{"id": "A-12", "title": "andon task ready を足す", "status": "doing",
+{"id": "A-0012", "title": "andon task ready を足す", "status": "doing",
  "review": "on", "must_fix": "major", "reviewer": "codex-review",
  "review_rounds": "2", "merge": "person", "machine": "vps"}
 ```
 
 - **値は全部文字列**。`kanban set` は値を文字列で書くので、`review_rounds` も `"2"`（1 以上の整数を表す数字の列）。YAML に手で `review_rounds: 2` と書いた数は schema を通らない（読み手は「無い」として既定を使う）。
 - 台帳の形式は知らないキーを許して保つので、この schema は**知らないキーを拒まない**。どれも必須ではない（無いときの振る舞いは上の表）。
-- **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の coordinator>` で、その値が今の `task.yaml` と同じときだけ信じる。違えば `needs_human`。`coordinator` が無ければ信じない。
-- **レビュアーのタスク**（`parent` が元のタスクで `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<coordinator>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon task ready` がレビューに数える。
+- **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の chief_of_staff>` で、その値が今の `task.yaml` と同じときだけ信じる。違えば `needs_human`。`chief_of_staff` が無ければ信じない。`log.jsonl` の id は 4 桁に揃えて読む（移す前の行は `A-5` のまま。[ledger.md](ledger.md) の Writing）。
+- **レビュアーのタスク**（`parent` が元のタスクで `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<chief_of_staff>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon task ready` がレビューに数える。
 - 値の綴りは小文字（`machine` を除く）。知らない値は「無い」と同じ。
 - 読み手が `kanban show <id> --json` の `.task` から取る（ファイルを直接読まない）。
 
@@ -106,7 +106,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
  "waived": [{"severity": "minor", "file": "package/lib/andon/task", "line": 88, "reason": "起きる条件がこの repo に無い"}],
  "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-task.sh"}],
  "next": [{"to": "person", "text": "PR #12 を読む（レベル C: package/gate.json）"},
-          {"to": "chief-of-staff", "text": "マージ後に andon task finish A-12"},
+          {"to": "chief-of-staff", "text": "マージ後に andon task finish A-0012"},
           {"to": "task", "text": "lib/andon/triage が足すタスクにも review・must_fix を書く"}],
  "remember": ["機械が判定に使うものは Markdown に埋めない"],
  "agents_md": ["テストは bash tests/*.sh"]}
@@ -160,8 +160,8 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（文は JSON から作る。文から推さない）。拾い方・届ける経路・離席の判定の理由は [dispatcher.md](dispatcher.md)。
 
 ```json
-{"at": "2026-11-04T09:00:00Z", "project": "andon", "task": "A-12", "kind": "review",
- "detail": {"report": "/workspace/projects/andon/.flightdeck/tasks/A-12/report.md", "pr": "https://github.com/<owner>/andon/pull/12"}}
+{"at": "2026-11-04T09:00:00Z", "project": "andon", "task": "A-0012", "kind": "review",
+ "detail": {"report": "/workspace/projects/andon/kanban/tasks/A-0012/report.md", "pr": "https://github.com/<owner>/andon/pull/12"}}
 ```
 
 | `kind` | 元 | `detail` |
@@ -204,11 +204,11 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 **記録** `tasks/<id>/library/gate/<head sha>.json`（dispatcher が書く。`--dry-run` では書かない）:
 
 ```json
-{"at": "2026-11-04T09:10:00Z", "id": "A-12", "pr": "https://github.com/<owner>/andon/pull/12", "head": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
+{"at": "2026-11-04T09:10:00Z", "id": "A-0012", "pr": "https://github.com/<owner>/andon/pull/12", "head": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
  "tier": "B", "tier_reasons": ["package/lib/andon/task は tier_b_paths"], "changed_lines": 212,
  "checks": [{"cmd": "bash tests/*.sh", "ok": true}],
  "github_checks": {"state": "success", "names": []},
- "review": {"state": "current", "task": "A-13", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "must_fix_open": 0, "waived": 1},
+ "review": {"state": "current", "task": "A-0013", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "must_fix_open": 0, "waived": 1},
  "acceptance": {"pass": 3, "fail": 0, "manual": 0},
  "delegation": {"merge": "B", "ok": true},
  "decision": "approve", "reasons": [], "merged": true}
@@ -230,7 +230,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | Chief of Staff の端末の名前 | `<slug>-cos`（cwd は台帳の root） | `andon chief-of-staff` | `andon chief-of-staff`（動いているものを使うときに名前と cwd を照らす） |
 | ラベル | `role=chief-of-staff \| dispatcher \| chief-engineer`・`project=<slug>`・`task=<id>`・`title=<題>`・`news.replied=<turn>`・`first_message.sent=false`（最初のメッセージが届かなかった〈`hc run` の `first_message` が `sent: false`、か `started: false`〉担当・Chief Engineer・レビュアー。`andon task start`・`andon chief-engineer`・dispatcher〈レビュアー〉が付け、dispatcher が送り直して外す。[dispatcher.md](dispatcher.md) §5） | command・dispatcher | ボード・dispatcher・フック（自分のタスクを引く） |
 | Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（持ち主は Herdr App。id は command が決める: Chief of Staff は `andon-<slug>`・`andon-<slug>-cos`、Chief Engineer は `andon-<slug>`・`andon-<slug>-<id>`、担当は `andon-<slug>-<id>`・`andon-<slug>-<id>`（Space ＝ タスク。[ADR-0003](adr/0003-task-spaces.md)。machine に依らない。`machine` 付きのタスクを `andon task start` はまだ起こさない。ADR-0002 決めたこと 19）、レビュアーは担当の端末（台帳の `agent`）の値を `hc get --json` で読んで写す（読めなければ付けない）。dispatcher は台帳が1つなら `andon-<slug>`・`andon-<slug>-dispatcher`、2つ以上なら `andon-<建屋の slug>-plant`・`andon-<建屋の slug>-dispatcher`（建屋の slug は hostname。ADR-0002 決めたこと 21）。`where` は App が書く出力で、Andon は読まず書かない。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・dispatcher（自分の端末のラベルは boot とフックの `dispatcher.Ensure` が付ける）。`andon task finish` は触らない（端末の kill・rm で tab が空になって消える） | Herdr App |
-| 人に端末を指す言い方 | `<Space 名> / <tab 名>`（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site / CE A-3 Billing の設計`・`A-12 ログインの直し / A-12`）。address は末尾に `（t7）` と添えるだけ。Andon の command は `hc attach` を打たず、最後に出た場所をこの形で出す | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・Chief of Staff | 人 |
+| 人に端末を指す言い方 | `<Space 名> / <tab 名>`（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site / CE A-0003 Billing の設計`・`A-0012 ログインの直し / A-0012`）。address は末尾に `（t7）` と添えるだけ。Andon の command は `hc attach` を打たず、最後に出た場所をこの形で出す | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・Chief of Staff | 人 |
 | template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon task start`（`hc templates` で存在を確かめる） |
 | 台帳の `agent` | 端末の address。作業側が別のマシンなら `<machine>/t7`（相談 F4） | `kanban start`（担当）・dispatcher（作業側の代筆） | dispatcher・ボード |
 | 起こし方 | `hc run --bg --outlive-parent --no-notify --name … --label … --cwd … [--on <machine>] <profile> "<最初の3行>"` | `andon task start`・dispatcher | — |

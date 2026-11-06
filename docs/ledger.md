@@ -1,10 +1,10 @@
-# The `.flightdeck/` ledger format
+# The `kanban/` ledger format
 
-Format version **2** (2026-11-02). This is the contract between the ledger's CLI (`kanban`, in [`cmd/kanban/`](../cmd/kanban/); `deck` is another name for it for one version) and anything else that reads or writes a ledger — Andon's commands, skills and gate, and boards that read the files directly. Since 2026-11-05 this file is the format's reference; it was copied from herdr-flightdeck's `docs/ledger-format.md` at tag `deck-v0.4.0` ([decisions.md](decisions.md) §7, §12). Where it says *yard*, Andon says *plant* (建屋); where it says *coordinator*, Andon says *Chief of Staff*. Andon's reserved keys in `task.yaml` are in [contract.md](contract.md) §2.
+Format version **2** (2026-11-02). This is the contract between the ledger's CLI (`kanban`, in [`cmd/kanban/`](../cmd/kanban/); `deck` is another name for it for one version) and anything else that reads or writes a ledger — Andon's commands, skills and gate, and boards that read the files directly. Since 2026-11-05 this file is the format's reference; it was copied from herdr-flightdeck's `docs/ledger-format.md` at tag `deck-v0.4.0` ([decisions.md](decisions.md) §7, §12). Where it says *yard*, Andon says *plant* (建屋). Andon's reserved keys in `task.yaml` are in [contract.md](contract.md) §2.
 
 JSON Schemas for editors and checks: [config.v2.schema.json](../schema/ledger/config.v2.schema.json) (`config.yaml`), [task.v2.schema.json](../schema/ledger/task.v2.schema.json) (`task.yaml`), [questions.v2.schema.json](../schema/ledger/questions.v2.schema.json) (`questions.yaml`) and [routine.v2.schema.json](../schema/ledger/routine.v2.schema.json) (`routines/<name>.yaml`). They are derived from this file; where they differ, this file is right.
 
-**A ledger belongs to one project.** On a yard, a project is `<yard-root>/projects/<slug>/`: a trust boundary with one coordinator, and one or more repositories cloned with ghq. Its ledger is `projects/<slug>/.flightdeck/`, kept out of git. Version 1 put one ledger at the yard's root; see [Changes from version 1](#changes-from-version-1).
+**A ledger belongs to one project.** On a yard, a project is `<yard-root>/projects/<slug>/`: a trust boundary with one Chief of Staff, and one or more repositories cloned with ghq. Its ledger is `projects/<slug>/kanban/`, kept out of git. Version 1 put one ledger at the yard's root; see [Changes from version 1](#changes-from-version-1).
 
 ## Compatibility
 
@@ -19,18 +19,28 @@ JSON Schemas for editors and checks: [config.v2.schema.json](../schema/ledger/co
 |---|---|---|
 | 2026-11-02 | `routines/<name>.yaml`, `state/routines.json`, `config.yaml` `timezone`, `task.yaml` `routine` | [Routines](#routines) |
 | 2026-11-03 | `task.yaml` `who` (`person`: a person's task) | [`task.yaml`](#tasksidtaskyaml) |
-| 2026-11-03 | `coordinator.md`, a reserved file name | [`coordinator.md`](#coordinatormd) |
+| 2026-11-03 | `coordinator.md`, a reserved file name (moved out of the ledger on 2026-11-06, below) | — |
 | 2026-11-03 | `log.jsonl` lines `{"config": …}`, written by `kanban config set` | [`log.jsonl`](#logjsonl) |
 | 2026-11-03 | `tasks/<id>/questions.yaml`, the ledger's `library/`, `log.jsonl` lines `{"question": …}` | [Questions](#questions) |
+
+### Moved without a version change (2026-11-06)
+
+The folder, one key and the ids changed at once, for the one ledger there was; `kanban migrate` moves a ledger, and nothing reads the old names ([Moving from `.flightdeck/`](#moving-from-flightdeck)).
+
+| Was | Now |
+|---|---|
+| `projects/<slug>/.flightdeck/`, `$FLIGHTDECK_ROOT` | `projects/<slug>/kanban/`, `$KANBAN_ROOT`; a folder is a ledger only when `kanban/config.yaml` has a `version` (see [Finding the root](#finding-the-root)) |
+| `config.yaml` `coordinator` | `config.yaml` `chief_of_staff` |
+| `coordinator.md` in the ledger | the Chief of Staff section of `projects/<slug>/AGENTS.md`, outside the ledger ([ADR-0004](adr/0004-project-layout.md)) |
+| ids `<prefix>-<n>` (`A-5`) | ids `<prefix>-<n>` with `n` of four digits (`A-0005`); `A-5` is read as `A-0005` (see [Writing](#writing)) |
 
 ## Layout
 
 ```
 <yard-root>/
   projects/<slug>/               the project (its folder name is the slug)
-    .flightdeck/
+    kanban/
       config.yaml                the ledger's settings
-      coordinator.md             the coordinator's goals and instructions (optional; kanban doesn't read it)
       tasks/<id>/
         task.yaml                the task's state            (required for a task)
         brief.md                 what to do                  (optional)
@@ -39,14 +49,14 @@ JSON Schemas for editors and checks: [config.v2.schema.json](../schema/ledger/co
         library/                 what it produced            (optional)
       routines/<name>.yaml       a kind of work run again and again (optional; see Routines)
       state/routines.json        when each routine last fired, or was first seen (written by kanban)
-      library/                   the coordinator's documents for the person (optional)
+      library/                   the Chief of Staff's documents for the person (optional)
       log.jsonl                  who changed what, when      (written by kanban)
       .lock                      writers' lock               (an empty file; see Writing)
       .gitignore                 `*`: the ledger stays out of git
   .ghq/<host>/<owner>/<repo>/    the project's repositories (ghq's layout)
 ```
 
-The ledger's **root** is the folder that holds `.flightdeck/`: the project's folder. Outside a yard, any folder can be a root.
+The ledger's **root** is the folder that holds `kanban/`: the project's folder. Outside a yard, any folder can be a root.
 
 The ledger is not kept in git. The yard keeps the storage across container rebuilds (that is the yard's job, not the ledger's).
 
@@ -54,11 +64,11 @@ The ledger is not kept in git. The yard keeps the storage across container rebui
 
 From a working folder, in order:
 
-1. `$FLIGHTDECK_ROOT`, if set (it must hold `.flightdeck/config.yaml`). A coordinator sets it for each agent it starts.
-2. The nearest folder at or above the working folder that holds `.flightdeck/config.yaml`.
-3. **From the repository.** Take the main checkout: the parent of `git rev-parse --path-format=absolute --git-common-dir`, so a worktree anywhere (`~/.herdr/worktrees/…`) leads to its repository. Walk up from the main checkout. At each folder, look at every `projects/*/.flightdeck/config.yaml` and keep the ledgers whose `repos` match the main checkout (see `repos` below). Stop at the first folder where any match.
+1. `$KANBAN_ROOT`, if set (it must hold `kanban/config.yaml`). The Chief of Staff sets it for each agent it starts.
+2. The nearest folder at or above the working folder that holds `kanban/config.yaml` with a whole-number `version`. `kanban/` is a plain name, so a `kanban/` folder without one (in a product's repository, say) is not a ledger and the walk goes on.
+3. **From the repository.** Take the main checkout: the parent of `git rev-parse --path-format=absolute --git-common-dir`, so a worktree anywhere (`~/.herdr/worktrees/…`) leads to its repository. Walk up from the main checkout. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2) and keep the ledgers whose `repos` match the main checkout (see `repos` below). Stop at the first folder where any match.
    - One match: that ledger.
-   - More than one: an error that names them; set `$FLIGHTDECK_ROOT`.
+   - More than one: an error that names them; set `$KANBAN_ROOT`.
    - None, up to the top: there is no ledger.
 
 ## `config.yaml`
@@ -66,13 +76,13 @@ From a working folder, in order:
 ```yaml
 version: 2                      # required
 title: sample site             # optional; the slug when absent
-prefix: FD                      # task ids are <prefix>-<n>
+prefix: FD                      # task ids are <prefix>-<n> (FD-0001)
 columns: [todo, queued, doing, review, done]
 phases:                         # optional, in order
   - { id: P1, title: Attention queue }
 repos:                          # the project's repositories, ghq style
   - github.com/<owner>/sample-site
-coordinator: t2                 # optional; the coordinator's terminal
+chief_of_staff: t2              # optional; the Chief of Staff's terminal
 ```
 
 | Key | Type | Default | Meaning |
@@ -83,11 +93,7 @@ coordinator: t2                 # optional; the coordinator's terminal
 | `columns` | list of strings | `[todo, queued, doing, review, done]` | The statuses, in board order. **The last one means done.** |
 | `phases` | list of `{id, title}` | `[]` | Ordered stages, for timeline views. |
 | `repos` | list of strings | `[]` | The project's repositories as `<host>/<owner>/<repo>`, the path ghq gives them. A checkout matches an entry when the path of its main checkout ends with `/<host>/<owner>/<repo>` (compared with `/` separators; without regard to case on Windows). |
-| `coordinator` | string | — | The terminal of the project's coordinator: its herdr-core address on the ledger's own machine (`t2`). The address changes each time a coordinator is started again; it sets it with `kanban config set coordinator=<address>`, which writes under the lock and keeps comments and key order. |
-
-## `coordinator.md`
-
-`.flightdeck/coordinator.md` is reserved for the project's coordinator: its goals, standing instructions and limits (for example, how many agents may run at once). Markdown, written by people (or the coordinator, on a person's word). It sits beside `config.yaml`, out of git like the rest of the ledger. `kanban` and the board don't read it; the yard's skills say how a coordinator uses it. Other tools must not use the name for anything else.
+| `chief_of_staff` | string | — | The terminal of the project's Chief of Staff: its herdr-core address on the ledger's own machine (`t2`). The address changes each time the Chief of Staff is started again; it sets it with `kanban config set chief_of_staff=<address>`, which writes under the lock and keeps comments and key order. |
 
 ## `tasks/<id>/task.yaml`
 
@@ -130,7 +136,7 @@ Any other key is allowed and kept.
 - **Ready:** status is `todo` or `queued` and it waits on nothing. (`kanban ready` lists these.)
 - `queued` means "added with something to wait for". When the last thing it waits for is done, `kanban done` moves it to the first column.
 - **Needs you is not a status.** It comes from the agent's live state in herdr-core (blocked), never from the ledger. A task's open questions (see Questions) are in the ledger; they are not a status either.
-- Who may change what (for example, that only the coordinator moves a task to `done`) is not part of the format. The yard's skills decide it.
+- Who may change what (for example, that only the Chief of Staff moves a task to `done`) is not part of the format. The yard's skills decide it.
 
 ## `brief.md`, `report.md`, `library/`
 
@@ -140,9 +146,9 @@ Any other key is allowed and kept.
 
 ## Routines
 
-A **routine** is a kind of work defined once and run again and again: look at untriaged tasks every morning, check the architecture every night, review what reviews keep finding. Each time its trigger fires, `kanban` adds one task to the ledger from it. The task is an ordinary task: the coordinator starts an agent for it, and the board shows it. Adding routines is a file, not a format change: format 2 readers that don't know them ignore them.
+A **routine** is a kind of work defined once and run again and again: look at untriaged tasks every morning, check the architecture every night, review what reviews keep finding. Each time its trigger fires, `kanban` adds one task to the ledger from it. The task is an ordinary task: the Chief of Staff starts an agent for it, and the board shows it. Adding routines is a file, not a format change: format 2 readers that don't know them ignore them.
 
-People write routines (or the coordinator, on a person's word). `kanban` reads them; nothing else acts on them.
+People write routines (or the Chief of Staff, on a person's word). `kanban` reads them; nothing else acts on them.
 
 ### `routines/<name>.yaml`
 
@@ -189,15 +195,15 @@ A routine needs `schedule`, `on`, or both. Any other key is allowed and kept.
 
 ## Questions
 
-A task agent that needs the person to decide something writes the question into the ledger and stops, instead of asking in its terminal. The coordinator gathers the open questions of every task into one document for the person, writes the answers back, and passes each answer to its agent. The person sees one Needs you, the coordinator's, not one per agent.
+A task agent that needs the person to decide something writes the question into the ledger and stops, instead of asking in its terminal. The Chief of Staff gathers the open questions of every task into one document for the person, writes the answers back, and passes each answer to its agent. The person sees one Needs you, the Chief of Staff's, not one per agent.
 
-The ledger, not the coordinator's memory, is where a question lives: a question is closed only when its agent has received the answer, and anything that drops one (a coordinator's context compacted or restarted, a question missed while gathering, a half-answered document) leaves it open, to be found by the next `kanban questions`.
+The ledger, not the Chief of Staff's memory, is where a question lives: a question is closed only when its agent has received the answer, and anything that drops one (a Chief of Staff's context compacted or restarted, a question missed while gathering, a half-answered document) leaves it open, to be found by the next `kanban questions`.
 
 Adding questions is a file, not a format change: format 2 readers that don't know them ignore them.
 
 ### `tasks/<id>/questions.yaml`
 
-A list, oldest first. Each question is named `<id>#<n>` (`FD-12#2`).
+A list, oldest first. Each question is named `<id>#<n>` (`FD-0012#2`).
 
 ```yaml
 - n: 1
@@ -229,16 +235,16 @@ Any other key is allowed and kept.
 ### The questions' lifecycle
 
 - `kanban ask <id> "<text>"` (task agent): adds an `open` question. The agent then ends its turn and waits.
-- `kanban questions` (coordinator): lists the `open` and `answered` questions of the ledger, oldest first; `--open` only the open ones, `--json` for programs. This is where the coordinator starts every time, not from what it remembers.
-- `kanban answer <id>#<n> "<answer>"` (coordinator): writes the answer; `answered`. The coordinator then passes it to the task's agent.
+- `kanban questions` (Chief of Staff): lists the `open` and `answered` questions of the ledger, oldest first; `--open` only the open ones, `--json` for programs. This is where the Chief of Staff starts every time, not from what it remembers.
+- `kanban answer <id>#<n> "<answer>"` (Chief of Staff): writes the answer; `answered`. The Chief of Staff then passes it to the task's agent.
 - `kanban received <id>#<n>` (task agent): `received`. The question is closed.
 - `kanban done` refuses a task with an `open` or `answered` question (it says which). `--force` closes it anyway and logs that.
 
-### What the coordinator does with them
+### What the Chief of Staff does with them
 
-How the coordinator gathers and asks is the yard's skill, not the format. The format makes these checks possible:
+How the Chief of Staff gathers and asks is the yard's skill, not the format. The format makes these checks possible:
 
-- **Every question asked is in the document.** The coordinator's document for the person (a page in the ledger's `library/`) lists the `<id>#<n>` of every question it holds, and the time `kanban questions` was read. A question that is merged with another lists all of their names; its answer is written to each.
+- **Every question asked is in the document.** The Chief of Staff's document for the person (a page in the ledger's `library/`) lists the `<id>#<n>` of every question it holds, and the time `kanban questions` was read. A question that is merged with another lists all of their names; its answer is written to each.
 - **Nothing is left behind.** After the person answers, `kanban questions --open` lists what is still open; it goes into the next document.
 - **Every answer arrives.** A question `answered` but not `received` is one the agent never got.
 - **Every stopped agent has asked.** A task whose agent is stopped (Needs you, or idle with the task not in review or done) but has no `open` question asked outside the ledger. Viewers that see both herdr-core and the ledger (work-board, inbox) show it.
@@ -248,32 +254,46 @@ How the coordinator gathers and asks is the yard's skill, not the format. The fo
 One JSON object per line, appended:
 
 ```json
-{"at":"2026-11-02T10:03:00Z","by":"terminal:t3","id":"FD-12","change":{"status":"doing","agent":"t3"}}
+{"at":"2026-11-02T10:03:00Z","by":"terminal:t3","id":"FD-0012","change":{"status":"doing","agent":"t3"}}
 ```
 
 `by` is `terminal:<$HC_TERMINAL_ID>` when run in a herdr-core terminal, else the user name. `change` holds the keys that changed (`null` for a removed key), or `{"add": "<title>"}` for a new task, or `{"report": "write" | "append"}`. A routine's firing logs `{"routine": "<name>", "fired": "<id added>"}` or `{"routine": "<name>", "skipped": "open" | "paused"}` (with no `id`), and `by` is `routine:<name>`. Questions log `{"question": <n>, "status": "open" | "answered" | "received"}` with the task's `id` (the text and answer are in `questions.yaml`, not in the log); `kanban done --force` past one logs `{"status": "<last column>", "forced": [<n>, …]}`. A task moved out of `queued` by `kanban done` logs `{"status": "<first column>", "freedBy": "<id>"}`. `kanban config set` logs `{"config": {"coordinator": "<address>" | null}}` (with no `id`).
 
 ## Writing
 
-- **Take the lock** for any write: an OS lock on `.flightdeck/.lock` (`flock` on Linux and macOS, `LockFileEx` on Windows), held while you read the task again, change it and log the change. The file stays (empty). Readers don't lock.
+- **Take the lock** for any write: an OS lock on `kanban/.lock` (`flock` on Linux and macOS, `LockFileEx` on Windows), held while you read the task again, change it and log the change. The file stays (empty). Readers don't lock.
 - **Write atomically:** to a temporary file beside the target (`<file>.tmp-…`), then rename it over the target.
-- **Ids:** under the lock, the next id is `<prefix>-<n+1>`, where `n` is the highest number among the existing task folders with that prefix. An id and the `prefix` are each one plain name: no `/`, `\`, `:`, and not `.` or `..`.
-- **Stay inside:** don't follow symbolic links inside `.flightdeck/`; `kanban` refuses a task folder, `task.yaml`, `report.md` or the lock that is a link, so nothing is written outside the ledger.
+- **Ids:** under the lock, the next id is `<prefix>-<n+1>` with the number zero-padded to four digits (`W-0001`, `W-0012`), where `n` is the highest number among the existing task folders with that prefix. Padded ids sort by name in number order (`ls tasks/`, boards); past `W-9999` the number only grows (`W-10000`) and that order breaks. An id and the `prefix` are each one plain name: no `/`, `\`, `:`, and not `.` or `..`.
+- **Reading ids:** an id typed or found as `<prefix>-<digits>` names the task with that number, however many digits: `W-5`, `W-05` and `W-0005` are the same task. `kanban` takes them so in its arguments (`<id>`, `<id>#<n>`, `--parent`, `--after`, `parent=`, `after=`) and in `log.jsonl`, whose lines written before the move to four digits keep `W-5`. It always shows and writes `W-0005`.
+- **Stay inside:** don't follow symbolic links inside `kanban/`; `kanban` refuses a task folder, `task.yaml`, `report.md` or the lock that is a link, so nothing is written outside the ledger.
 - Prefer `kanban` to writing files by hand; it does all of the above. Editing a `task.yaml` in an editor is fine when no `kanban` is writing the same task.
 
 ## `.gitignore`
 
-`kanban init` writes `.flightdeck/.gitignore` with one line, `*`, so the ledger stays out of whatever repository holds the project's folder.
+`kanban init` writes `kanban/.gitignore` with one line, `*`, so the ledger stays out of whatever repository holds the project's folder.
+
+## Moving from `.flightdeck/`
+
+`kanban migrate [--root dir]` (root as for `kanban init`) moves a ledger from `<root>/.flightdeck/` to `<root>/kanban/`, once. It stops, and changes nothing, when `kanban/` is already there, when `config.yaml` isn't version 2, when a `task.yaml` can't be read, or when a task is `doing` or `review` (a worktree, branch, terminal and Space carry its id; finish those first). Otherwise it:
+
+1. renames, in each `task.yaml`, `id`, `parent` and `after` to four-digit ids, then each `tasks/<id>/` folder (with its `library/`);
+2. renames `config.yaml` `coordinator` to `chief_of_staff` (value, comments and place kept);
+3. moves the folder to `kanban/` (`.gitignore` stays `*`);
+4. appends `coordinator.md`, if there is one, to `<root>/AGENTS.md` under `## Chief of Staff` and removes it;
+5. renames the moved ids in Andon's dispatcher state for the project (`$XDG_STATE_HOME/andon/dispatcher/<slug>.json`, else `~/.local/state/…`): keys and strings that are an id, or an id followed by `#`, `@` or `|`;
+6. logs `{"at", "by", "migrate": {"from": ".flightdeck", "ids": {old: new}}}`.
+
+`log.jsonl`, `brief.md`, `report.md` and the questions keep the ids they were written with (the readers take `A-5` as `A-0005`). Routines name no task ids. Branch and worktree names are not changed.
 
 ## Reading a whole yard
 
-A view of every project (the yard project's) reads each `<yard-root>/projects/*/.flightdeck/` as its own ledger. Ids are only unique within a ledger, so such a view names a task as `<slug>/<id>`. `after` and `parent` don't reach across ledgers.
+A view of every project (the yard project's) reads each `<yard-root>/projects/*/kanban/` as its own ledger. Ids are only unique within a ledger, so such a view names a task as `<slug>/<id>`. `after` and `parent` don't reach across ledgers.
 
 ## Changes from version 1
 
 | Version 1 | Version 2 |
 |---|---|
-| One ledger at the yard's root, for every project | One ledger per project, at `projects/<slug>/.flightdeck/` |
+| One ledger at the yard's root, for every project | One ledger per project, at `projects/<slug>/kanban/` |
 | `config.yaml` `projects`: name → folder | Removed. The ledger is the project; `repos` lists its repositories |
 | `task.yaml` `project` | Removed. `repo` names the repository |
 | — | `config.yaml` `title`, `coordinator`; `task.yaml` `profile` |

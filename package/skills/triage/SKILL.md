@@ -94,7 +94,7 @@ andon triage collect > library/items.json        # cwd は tasks/<自分の id>/
      "task": {"title": "AGENTS.md に検査のコマンドを足す", "repo": "github.com/<owner>/sample-site", "profile": "sonnet", "review": "off", "brief": "足す行"}},
     {"key": "collect が返した key", "decision": "person", "kind": "promise", "reason": "レベル A を人が見ずに入れる線",
      "question": "レベル A の PR を検収と検査だけでマージしてよいか", "pick": "よい。危ない面はレベル B・C で絞っている"},
-    {"key": "collect が返した key", "decision": "keep", "reason": "待つ: S-4 のマージ"}
+    {"key": "collect が返した key", "decision": "keep", "reason": "待つ: S-0004 のマージ"}
   ]
 }
 ```
