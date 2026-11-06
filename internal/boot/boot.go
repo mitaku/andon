@@ -143,6 +143,7 @@ func Generate(e Env) error {
 		{"skill", genSkills},
 		{"herdr の設定", genHerdr},
 		{"Claude Code の起動リンク", linkClaude},
+		{"herdr-core の起動リンク", linkHerdrCore},
 		{".claude.json", rescueClaudeJSON},
 	} {
 		if err := step.run(e); err != nil {
@@ -556,6 +557,36 @@ func linkClaude(e Env) error {
 		return nil
 	}
 	return e.symlink(filepath.Join(dir, newest), filepath.Join(e.Home, ".local", "bin", "claude"))
+}
+
+// linkHerdrCore は herdr-core（hc）を ~/.local/bin に揃える。正は ~/.local/bin/herdr-core で、Herdr App が
+// Add Machine・Update HC でここに置き、差し替える（版は App が決める）。無いか symlink なら image の種（aqua）へ繋ぐ。
+// 実ファイルは App の持ち物なので触らない。hc は無いときだけ herdr-core への相対 symlink にする（差し替えに付いていく）。
+// ~/.local/bin は PATH で aqua より先なので、クーリエを起こす hc も、それが起こす core も同じ herdr-core になる。
+func linkHerdrCore(e Env) error {
+	bin := filepath.Join(e.Home, ".local", "bin")
+	core := filepath.Join(bin, "herdr-core")
+	if st, err := os.Lstat(core); err != nil || st.Mode()&fs.ModeSymlink != 0 {
+		aqua, ok := e.has("aqua")
+		if !ok {
+			return nil
+		}
+		out, err := exec.Command(aqua, "which", "herdr-core").Output()
+		if err != nil {
+			return fmt.Errorf("aqua which herdr-core: %v", err)
+		}
+		seed := strings.TrimSpace(string(out))
+		if seed == "" || seed == core {
+			return nil
+		}
+		if err := e.symlink(seed, core); err != nil {
+			return err
+		}
+	}
+	if _, err := os.Stat(filepath.Join(bin, "hc")); err != nil {
+		return e.symlink("herdr-core", filepath.Join(bin, "hc"))
+	}
+	return nil
 }
 
 func versionLess(a, b string) bool {

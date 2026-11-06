@@ -16,6 +16,8 @@ RUN apt-get update \
  && mkdir -p /run/sshd /opt/andon-tools /opt/andon-aqua /workspace \
  && chmod 755 /run/sshd \
  && chown andon:andon /opt/andon-tools /opt/andon-aqua /workspace
+# sshd のセッションに下の ENV を渡す（sshd は ENV を引き継がない）。値を変えたらこのファイルも直す（tests/sshd-env.sh が見る）
+COPY image/sshd_config.d/andon.conf /etc/ssh/sshd_config.d/andon.conf
 
 ENV HOME=/opt/andon-home
 ENV LANG=en_US.UTF-8
