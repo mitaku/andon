@@ -33,19 +33,21 @@ Keys while it has the keyboard: `h`/`l` columns, `j`/`k` cards, `Enter` open, `g
 
 | Call | When |
 |---|---|
-| `readTextFile(<folder>/kanban/config.yaml, {on})` up the folders, and `exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {cwd, on})` | finding the ledger |
-| `fs.readdir(<folder>/projects)` + `readTextFile` of each `projects/*/kanban/config.yaml` (this computer, Windows); `exec("sh", ["-c", <fixed script>, "kanban-board", <folder>], {on})` printing each of them (another machine, or not Windows) | finding the project from the repository, finding the plant, reading All projects |
-| `fs.readdir` + `readTextFile` of each `task.yaml` (this computer, Windows); `exec("sh", ["-c", <fixed script>, "kanban-board", <root>], {on})` printing each `task.yaml` (another machine, or not Windows) | reading the tasks |
+| `exec("sh", ["-c", <fixed script>, "kanban-board", <max>, <total>, <folder>, <file>…], {on})` printing each `kanban/config.yaml` up the folders (another machine, or not Windows); on this computer with Windows, `exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", <fixed script> followed by the quoted paths])` saying whether each is a reparse point and its length, then `readTextFile`; and `exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {cwd, on})` | finding the ledger |
+| `exec("sh", ["-c", <fixed script>, "kanban-board", <folder>, <max>, <total>], {on})` printing each `projects/*/kanban/config.yaml` (another machine, or not Windows); `fs.readdir(<folder>/projects)` + the PowerShell check + `readTextFile` (this computer, Windows) | finding the project from the repository, finding the plant, reading All projects |
+| `exec("sh", ["-c", <fixed script>, "kanban-board", <root>, <max>, <total>], {on})` printing each `task.yaml` (another machine, or not Windows); `exec("powershell", …)` listing the task folders with each `task.yaml`'s length or that it is a reparse point, then `readTextFile` (this computer, Windows) | reading the tasks |
 | `watchFolder(<root>/kanban)` for each ledger shown | this computer only |
-| `readTextFile` of `brief.md`, `report.md`; `exec("ls", ["-1", <task>/library], {on})` | opening a card |
+| The same checked read of `brief.md`, `report.md` (1 MiB each); `exec("ls", ["-1", <task>/library], {on})` | opening a card |
 | `run("agent.focus", {terminal})` | going to a card's agent or the Chief of Staff |
 | `exec("explorer.exe" \| "open" \| "xdg-open", [url])`, only `http(s)` URLs | clicking a web link |
+
+Every file is checked on the machine it is on before it is read: a file that is a symbolic link (a reparse point on Windows), or whose folder is one (the task's folder, `kanban/`), is not read and is shown as `symbolic link`; a `config.yaml` or `task.yaml` over 256 KiB, a brief or report over 1 MiB, and anything past 4 MiB in one read are not read either (the scripts look at the size before `head -c`). Ledger files are written by agents.
 
 Nothing is written. No network. The root path from another machine only ever goes to programs as a separate argument.
 
 ## Origin
 
-Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/work-board` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`, where it was named `work-board`. Changed for Andon: the ledger's folder `.flightdeck/` → `kanban/` (a folder is a ledger only with a `version`), `coordinator` → `chief_of_staff`, `FLIGHTDECK_ROOT` → `KANBAN_ROOT`, the name `work-board` → `kanban-board`, and the plant's words. The preview picture was not copied.
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/work-board` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`, where it was named `work-board`. Changed for Andon: the ledger's folder `.flightdeck/` → `kanban/` (a folder is a ledger only with a `version`), `coordinator` → `chief_of_staff`, `FLIGHTDECK_ROOT` → `KANBAN_ROOT`, the name `work-board` → `kanban-board`, the checked reads above, and the plant's words. The preview picture was not copied.
 
 ## Licence
 

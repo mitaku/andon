@@ -2,7 +2,8 @@
 // andon layout: their JavaScript parses, the layout carries the naming block, and the two places
 // changed for Andon behave (context-header's name, kanban-board's ledger lookup) against a fake API.
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -56,6 +57,10 @@ await check('レイアウト andon は名前付けの block（andon-names・mod 
   assert.equal(layout.preview, 'layouts/andon.svg');
 });
 
+// Every herdr export the mods import, doing nothing; a test overrides what it looks at.
+const FAKE_HERDR = Object.fromEntries(['settings', 'appHome', 'agents', 'terminals', 'panes', 'spaces', 'focused', 'exec', 'readTextFile', 'watchFolder',
+  'run', 'theme', 'props', 'closeOverlay', 'window', 'home', 'hc', 'notify'].map((k) => [k, () => null]));
+
 // Loads a mod's main.js in a VM with fake herdr, gpui and fs modules. Relative imports are loaded too.
 async function load(dir, herdr) {
   const context = vm.createContext({ console });
@@ -65,10 +70,10 @@ async function load(dir, herdr) {
   const el = new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : () => el), apply: () => el });
   const ui = { View: class {}, div: () => el, svg: () => el, image: () => el, v_flex: () => el, h_flex: () => el, TextView: {} };
   const known = {
-    herdr: synthetic(herdr),
+    herdr: synthetic({ ...FAKE_HERDR, ...herdr }),
     'gpui-kit': synthetic({ View: ui.View, div: ui.div, svg: ui.svg, image: ui.image }),
-    'gpui-base': synthetic({ v_flex: ui.v_flex, h_flex: ui.h_flex, TextView: ui.TextView }),
-    'fs/promises': synthetic({ readdir: async () => [] }),
+    'gpui-base': synthetic({ v_flex: ui.v_flex, h_flex: ui.h_flex, TextView: ui.TextView, Editor: class {}, EditorState: class {} }),
+    'fs/promises': synthetic({ readdir: async () => [], exists: async () => false }),
   };
   const cache = new Map();
   const source = async (file) => {
@@ -78,12 +83,12 @@ async function load(dir, herdr) {
   const main = await source(`${dir}/main.js`);
   await main.link(async (spec, ref) => known[spec] ?? source(path.join(path.dirname(ref.identifier), spec)));
   await main.evaluate();
-  return main.namespace.default;
+  return main.namespace;
 }
 
 await check('context-header: Andon の担当・レビュアー・Chief Engineer はラベルから名付け、2行目で名前を繰り返さない', async () => {
   let paneList = [], termList = [], spaceList = [], current = null;
-  const Header = await load(`${HOST}/context-header`, {
+  const { default: Header } = await load(`${HOST}/context-header`, {
     panes: () => paneList, terminals: () => termList, spaces: () => spaceList, props: () => ({ pane: current }),
     run: () => {}, theme: () => ({}), home: () => '/home/sample', hc: async () => ({ code: 0 }), notify: () => {},
   });
@@ -118,51 +123,114 @@ await check('context-header: Andon の担当・レビュアー・Chief Engineer 
   assert.deepEqual([...f.where], ['This computer', 'sample-site']);
 });
 
-await check('kanban-board: kanban/config.yaml に version がある所だけを台帳とみなし、chief_of_staff を読み、alias の入れ子の task.yaml を拒む', async () => {
-  const fsys = new Map([
-    ['/w/repo/kanban/config.yaml', 'title: not a ledger\n'],
-    ['/w/plant/projects/sample-site/kanban/config.yaml', 'version: 2\nchief_of_staff: t2\nrepos: [github.com/sample/repo]\n'],
-  ]);
-  // A short task.yaml whose aliases nest 22 deep: 4M copies if expanded. It must be refused.
-  let bomb = 'a0: &a0 [x]\n';
-  for (let i = 1; i <= 22; i++) bomb += `a${i}: &a${i} [*a${i - 1}, *a${i - 1}]\n`;
-  const tasks = new Map([['A-0001', 'title: Fine\nstatus: todo\n'], ['A-0002', bomb]]);
-  const Board = await load(`${HOST}/kanban-board`, {
-    agents: () => [], terminals: () => [], panes: () => [], spaces: () => [], focused: () => null,
-    readTextFile: async (p) => { if (!fsys.has(p)) throw new Error('missing'); return fsys.get(p); },
-    watchFolder: async () => {}, run: () => {}, theme: () => ({}), props: () => ({}), closeOverlay: () => {},
-    window: () => ({ platform: 'linux' }),
-    exec: async (cmd, args) => {
-      if (cmd === 'git') return { code: 0, stdout: '/w/plant/.ghq/github.com/sample/repo/.git\n', stderr: '' };
-      if (cmd === 'sh' && args[1].includes('projects/*/kanban/config.yaml')) {
-        const dir = args[3];
-        const hits = [...fsys].filter(([p]) => p.startsWith(`${dir}/projects/`) && p.endsWith('/kanban/config.yaml'));
-        return { code: 0, stdout: hits.map(([p, t]) => `\x1e${p.split('/').at(-3)}\n${t}\n`).join(''), stderr: '' };
-      }
-      if (cmd === 'sh' && args[1].includes('kanban/tasks/')) {
-        return { code: 0, stdout: [...tasks].map(([id, t]) => `\x1e${id}\n${t}\n`).join(''), stderr: '' };
-      }
-      return { code: 1, stdout: '', stderr: '' };
-    },
-  });
-  // From inside a product's repo that has a kanban/ folder of its own: that folder is not the ledger.
-  const b = new Board();
-  b.reset();
-  await b.find('/w/plant/.ghq/github.com/sample/repo/src', null);
-  assert.equal(b.root, '/w/plant/projects/sample-site');
-  assert.equal(b.plant, '/w/plant');
-  const plain = new Board();
-  plain.reset();
-  await plain.find('/w/repo', null);
-  assert.notEqual(plain.root, '/w/repo', 'version の無い kanban/ を台帳とみなした');
-  const { ledger } = await b.readLedger(b.root, null);
-  assert.equal(ledger.chiefOfStaff, 't2');
-  const started = Date.now();
-  const { tasks: read } = await b.readLedger(b.root, null);
-  JSON.stringify(read);
-  assert.ok(Date.now() - started < 2000, 'alias の入れ子の展開に時間がかかった');
-  assert.equal(read.find(t => t.id === 'A-0001')?.title, 'Fine');
-  assert.match(String(read.find(t => t.id === 'A-0002')?.broken), /maxAliases/, 'alias の入れ子を読めないタスクにしていない');
+await check('kanban-board: version のある kanban/ だけを台帳とみなし、symlink・大きすぎるファイル・alias の入れ子を読む前に拒む（固定 script を本物の sh で）', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-board-'));
+  try {
+    const put = async (p, text) => { await mkdir(path.dirname(p), { recursive: true }); await writeFile(p, text); };
+    const plant = `${tmp}/plant`, ledger = `${plant}/projects/sample-site/kanban`;
+    await put(`${tmp}/secret.txt`, 'SECRET-OUTSIDE\n');
+    await put(`${tmp}/outside/task.yaml`, 'title: SECRET-OUTSIDE\n');
+    await put(`${ledger}/config.yaml`, 'version: 2\nchief_of_staff: t2\nrepos: [github.com/sample/repo]\n');
+    await put(`${ledger}/tasks/A-0001/task.yaml`, 'title: Fine\nstatus: todo\n');
+    await put(`${ledger}/tasks/A-0001/report.md`, '# Report\n');
+    await symlink(`${tmp}/secret.txt`, `${ledger}/tasks/A-0001/brief.md`);
+    // A short task.yaml whose aliases nest 22 deep: 4M copies if expanded.
+    let bomb = 'a0: &a0 [x]\n';
+    for (let i = 1; i <= 22; i++) bomb += `a${i}: &a${i} [*a${i - 1}, *a${i - 1}]\n`;
+    await put(`${ledger}/tasks/A-0002/task.yaml`, bomb);
+    await mkdir(`${ledger}/tasks/A-0003`);
+    await symlink(`${tmp}/secret.txt`, `${ledger}/tasks/A-0003/task.yaml`);
+    await symlink(`${tmp}/outside`, `${ledger}/tasks/A-0004`);
+    await put(`${ledger}/tasks/A-0005/task.yaml`, `title: big\nnote: ${'x'.repeat(300 * 1024)}\n`);
+    await put(`${plant}/.ghq/github.com/sample/repo/kanban/config.yaml`, 'title: not a ledger\n');
+    await mkdir(`${tmp}/linked`);
+    await symlink(ledger, `${tmp}/linked/kanban`);
+    let pending = null;
+    const { default: Board } = await load(`${HOST}/kanban-board`, {
+      agents: () => [], terminals: () => [], panes: () => [], spaces: () => [], focused: () => null,
+      readTextFile: async () => { throw new Error('the board read a file without the fixed script'); },
+      watchFolder: async () => {}, run: () => {}, theme: () => ({}), props: () => ({}), closeOverlay: () => {},
+      window: () => ({ platform: 'linux' }),
+      exec: async (cmd, args, opts = {}) => {
+        if (cmd === 'git') return String(opts.cwd).startsWith(`${plant}/.ghq/`) ? { code: 0, stdout: `${plant}/.ghq/github.com/sample/repo/.git\n`, stderr: '' } : { code: 128, stdout: '', stderr: 'not a git repository' };
+        const r = spawnSync(cmd, args, { cwd: opts.cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+        return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+      },
+    });
+    const b = new Board();
+    b.reset();
+    await b.find(`${plant}/.ghq/github.com/sample/repo/src`, null);
+    assert.equal(b.root, `${plant}/projects/sample-site`, 'version の無い kanban/ を越えて台帳を見つけていない');
+    assert.equal(b.plant, plant);
+    const viaLink = new Board();
+    viaLink.reset();
+    await viaLink.find(`${tmp}/linked`, null);
+    assert.equal(viaLink.root, null, 'symlink の kanban/ を台帳とみなした');
+    const started = Date.now();
+    const { ledger: config, tasks } = await b.readLedger(b.root, null);
+    const shown = JSON.stringify(tasks);
+    assert.ok(Date.now() - started < 2000, '読むのに時間がかかった');
+    assert.equal(config.chiefOfStaff, 't2');
+    const byId = Object.fromEntries(tasks.map((t) => [t.id, t]));
+    assert.equal(byId['A-0001'].title, 'Fine');
+    assert.match(String(byId['A-0002'].broken), /maxAliases/, 'alias の入れ子を読めないタスクにしていない');
+    assert.match(String(byId['A-0003'].broken), /symbolic link/, 'symlink の task.yaml を読んだ');
+    assert.match(String(byId['A-0004'].broken), /symbolic link/, 'symlink のタスクのフォルダを読んだ');
+    assert.match(String(byId['A-0005'].broken), /larger than/, '大きすぎる task.yaml を読んだ');
+    assert.ok(!shown.includes('SECRET-OUTSIDE') && !shown.includes('xxxxxxxxxx'), '拒んだファイルの中身が出た');
+    b.where = { on: null };
+    b.openTask(byId['A-0001'], { spawn: (fn) => (pending = fn({ notify: () => {} })), notify: () => {} });
+    await pending;
+    assert.equal(b.detail.report, '# Report\n\n');
+    assert.match(String(b.detail.brief), /not shown: symbolic link/, 'symlink の brief.md を読んだ');
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+await check('kanban-board: 1 回の読みで出す量に上限がある（固定 script）', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-total-'));
+  try {
+    const ns = await load(`${HOST}/kanban-board`, { exec: async () => ({}), readTextFile: async () => null, window: () => ({}) });
+    const script = ns.LIST_TASKS;
+    assert.ok(script, 'LIST_TASKS が読めない');
+    for (let i = 1; i <= 20; i++) {
+      await mkdir(`${tmp}/kanban/tasks/A-${String(i).padStart(4, '0')}`, { recursive: true });
+      await writeFile(`${tmp}/kanban/tasks/A-${String(i).padStart(4, '0')}/task.yaml`, `note: ${'y'.repeat(250 * 1024)}\n`);
+    }
+    const r = spawnSync('sh', ['-c', script, 'kanban-board', tmp, String(256 * 1024), String(4 * 1024 * 1024)], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(r.stdout.length <= 4 * 1024 * 1024 + 4096, `出力が ${r.stdout.length} バイト`);
+    assert.match(r.stdout, /\x1fover \d+ bytes in all/);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+await check('files-plus: 自分で読むもの（画像・図・Markdown の画像行）は、途中のフォルダかファイルが symlink なら読む前に拒む（固定 script を本物の sh で）', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'files-plus-'));
+  try {
+    const { NO_LINKS_SH } = await load(`${HOST}/files-plus`, {
+      spaces: () => [], panes: () => [], focused: () => null, settings: () => ({}), appHome: () => tmp,
+    });
+    assert.ok(NO_LINKS_SH, 'NO_LINKS_SH が読めない');
+    await mkdir(`${tmp}/repo/docs`, { recursive: true });
+    await mkdir(`${tmp}/outside`);
+    await writeFile(`${tmp}/outside/secret.png`, 'SECRET');
+    await writeFile(`${tmp}/repo/docs/shot.png`, 'PNG');
+    await symlink(`${tmp}/outside/secret.png`, `${tmp}/repo/docs/link.png`);
+    await symlink(`${tmp}/outside`, `${tmp}/repo/img`);
+    const said = (...parts) => spawnSync('sh', ['-c', NO_LINKS_SH, 'files-plus', `${tmp}/repo`, ...parts], { encoding: 'utf8' }).stdout.trim();
+    assert.equal(said('docs', 'shot.png'), 'ok');
+    assert.equal(said('docs', 'link.png'), 'link', 'symlink のファイルを通した');
+    assert.equal(said('img', 'secret.png'), 'link', 'symlink のフォルダを通した');
+    const src = await readFile(`${HOST}/files-plus/main.js`, 'utf8');
+    for (const call of ['cacheFile(root, path, on)', 'cacheFile(root, target, on)', 'cacheMermaid(root, path, on,']) assert.ok(src.includes(call), `${call} が無い`);
+    assert.match(src, /async function cacheFile\(root, path, on\) \{\n  const file = await unlinked\(root, path, on\);/);
+    assert.match(src, /async function cacheMermaid\(root, path, on, room\) \{\n  const file = await unlinked\(root, path, on\);/);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
 });
 
 if (failed) process.exit(1);

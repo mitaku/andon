@@ -53,11 +53,13 @@ Herdr's own calls are unchanged (`exec` of PowerShell or `sh` to list folders, `
 | `exec("explorer.exe" \| "open" \| "xdg-open", [path])` when **Open in browser** is clicked on an `.html` / `.htm` file: the file's path here, or its copy in the cache (copied as a picture is) | this computer |
 | `fs.mkdir` / `readdir` / `writeFile` (base64 text, diagram SVG) / `unlink` | `cache/files-plus/` in the app home |
 
+Before any of these reads (a picture, a diagram file, a page copied to open, a picture a Markdown file names), files-plus checks on the machine the file is on that neither the file nor any folder between the panel's folder and it is a symbolic link (a reparse point on Windows): `exec("sh", ["-c", <fixed script>, "files-plus", <folder>, <each part of the path>…], {on})`, or on this computer with Windows the same in PowerShell with quoted arguments. A link is not read ("is or goes through a symbolic link: not read"); a repository can hold a link to a file outside it. Diagram files over 1 MiB are not drawn. The text preview of a file you click is Herdr's and follows links as before.
+
 No network, no credentials, nothing written on other machines.
 
 ## Origin
 
-Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/files-plus` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the PowerShell quoting above, the layout's name. The preview picture was not copied.
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/files-plus` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the PowerShell quoting above, refusing symbolic links before its own reads, the layout's name. The preview picture was not copied.
 
 ## Licence
 

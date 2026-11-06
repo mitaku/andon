@@ -6,7 +6,8 @@
 // Mermaid files (.mmd, .mermaid) as diagrams drawn by Pele (pele/, MIT), and Markdown rendered,
 // with its Mermaid blocks and image lines drawn, and HTML read as text with a button to open it in
 // the browser, on this computer and on other machines.
-// Changed by Andon: the quoting of PowerShell arguments (psQuote), also in Herdr's folder listing.
+// Changed by Andon: the quoting of PowerShell arguments (psQuote), also in Herdr's folder listing;
+// and what files-plus reads by itself refuses symbolic links (unlinked).
 // Everything else is Herdr's code as shipped.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
@@ -41,6 +42,27 @@ const psQuote = (a) => `'${a.replace(/['\u2018\u2019\u201A\u201B]/g, (m) => m + 
 const ps = (script, ...args) =>
   exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `& { ${script} } ${args.map(psQuote).join(" ")}`]);
 
+// Changed by Andon: what files-plus reads by itself (pictures, diagrams, a page to open, the
+// pictures a Markdown file names) is refused before it is read when the file, or any folder between
+// the panel's folder and it, is a symbolic link (a reparse point on Windows), checked on the machine
+// the file is on. A repository can hold a link to a file outside it.
+const MAX_MERMAID = 1024 * 1024;
+// The folders and file after the root as arguments; prints "link" at the first symbolic link, else "ok".
+export const NO_LINKS_SH = 'p=$1; shift; for s in "$@"; do p=$p/$s; if [ -L "$p" ]; then echo link; exit 0; fi; done; echo ok';
+const NO_LINKS_PS = "param($r) $p = $r; foreach ($s in $args) { $p = Join-Path $p $s; $i = Get-Item -LiteralPath $p -Force -ErrorAction Stop; " +
+  "if ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) { 'link'; return } }; 'ok'";
+// The file's full path, once no part of `path` under `root` is a symbolic link.
+async function unlinked(root, path, on) {
+  const parts = path.split("/").filter((x) => x && x !== ".");
+  if (parts.includes("..")) throw new Error(`${path} is outside this folder`);
+  const r = !on && windows() ? await ps(NO_LINKS_PS, root, ...parts) : await exec("sh", ["-c", NO_LINKS_SH, "files-plus", root, ...parts], { on });
+  if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot read this file");
+  const said = r.stdout.trim();
+  if (said === "link") throw new Error(`${path} is or goes through a symbolic link: not read`);
+  if (said !== "ok") throw new Error("Cannot read this file");
+  return `${root}/${parts.join("/")}`;
+}
+
 // FNV-1a: where, which file, its size and time name the cache file, so an edited picture is fetched again.
 function fnv(text) {
   let h = 0x811c9dc5;
@@ -66,7 +88,10 @@ function inlineColors(svgText, t) {
 // Draws the diagram into the cache at most `room` px wide: image() draws an SVG at the size its
 // root says, so the size is written into the file (the viewBox keeps the drawing whole).
 // Named by its text, the theme and the width, so an edit, a new theme or a resize draws it again.
-async function cacheMermaid(file, on, room) {
+async function cacheMermaid(root, path, on, room) {
+  const file = await unlinked(root, path, on);
+  const { size } = await fileInfo(file, on);
+  if (size > MAX_MERMAID) throw new Error(`Too large to draw (${mib(size)})`);
   const text = await readTextFile(file, { on });
   if (text === null) throw new Error("This file is no longer available");
   return drawMermaid(text, room);
@@ -150,7 +175,8 @@ async function fileInfo(file, on) {
 }
 
 // Copies a picture (or a page to open) into the cache (named "<ms>-<hash>.<ext>") and returns its app-home path.
-async function cacheFile(file, on) {
+async function cacheFile(root, path, on) {
+  const file = await unlinked(root, path, on);
   const { size, time } = await fileInfo(file, on);
   if (size > MAX_IMAGE) throw new Error(`Too large to copy (${mib(size)})`);
   const ext = file.split(".").pop().toLowerCase(), hash = fnv(`${on ?? ""}\0${file}\0${size}\0${time}`);
@@ -302,7 +328,7 @@ export default class Files extends View {
     if (isMermaid(path)) {
       cx.spawn(async cx => {
         try {
-          const diagram = await cacheMermaid(`${root}/${path}`, on, this.room());
+          const diagram = await cacheMermaid(root, path, on, this.room());
           if (this.file === path && this.current(context)) this.diagram = diagram;
           // The panel's width may have come in while it was drawing.
           if (this.diagram === diagram && diagram.room !== this.room()) this.show(path, cx);
@@ -314,7 +340,7 @@ export default class Files extends View {
     if (isImage(path)) {
       cx.spawn(async cx => {
         try {
-          const picture = await cacheFile(`${root}/${path}`, on);
+          const picture = await cacheFile(root, path, on);
           if (this.file === path && this.current(context)) this.picture = picture;
         } catch (e) { if (this.file === path && this.current(context)) this.fileError = e instanceof Error ? e.message : "Cannot preview this image"; }
         finally { cx.notify(); }
@@ -352,7 +378,7 @@ export default class Files extends View {
           else {
             const target = relative(path, b.src);
             if (target === null) throw new Error(`${b.src} is outside this folder`);
-            b.picture = await cacheFile(`${root}/${target}`, on);
+            b.picture = await cacheFile(root, target, on);
           }
         } catch (e) { b.error = e instanceof Error ? e.message.split("\n").slice(0, 4).join("\n") : "Cannot draw this"; }
         if (this.markdown?.blocks === blocks && this.current(context)) cx.notify();
@@ -397,7 +423,7 @@ export default class Files extends View {
     if (!path || !isHtml(path)) return;
     this.browserError = null;
     cx.spawn(async cx => {
-      try { await openLocal(on ? `${appHome()}/${await cacheFile(`${root}/${path}`, on)}` : `${root}/${path}`); }
+      try { await openLocal(on ? `${appHome()}/${await cacheFile(root, path, on)}` : await unlinked(root, path, on)); }
       catch (e) { if (this.file === path && this.current(context)) this.browserError = e instanceof Error ? e.message : "Cannot open this page"; }
       finally { cx.notify(); }
     });

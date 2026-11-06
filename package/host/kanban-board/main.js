@@ -19,10 +19,40 @@ const KIND = { permission: "Permission", question: "Question", auth: "Auth" };
 const POLL_MS = 10000;
 const STALE_MS = { here: 30000, remote: 60000 };
 const MAX_UP = 12;
-// Prints each task folder's name after \x1e, then its task.yaml. A fixed script; the root is $1.
-const LIST_TASKS = 'for d in "$1"/kanban/tasks/*/; do [ -f "$d/task.yaml" ] || continue; n=${d%/}; printf "\\036%s\\n" "${n##*/}"; cat "$d/task.yaml"; printf "\\n"; done';
-// Prints each project's slug after \x1e, then its config.yaml. A fixed script; the folder is $1.
-const LIST_PROJECTS = 'for c in "$1"/projects/*/kanban/config.yaml; do [ -f "$c" ] || continue; p=${c%/kanban/config.yaml}; printf "\\036%s\\n" "${p##*/}"; cat "$c"; printf "\\n"; done';
+// Ledger files are read on the machine they are on, and refused before they are read when they are
+// a symbolic link (a reparse point on Windows) or their folder is one, or when they are too large:
+// the ledger is written by agents (changed by Andon).
+const MAX_TEXT = 256 * 1024;        // one config.yaml or task.yaml
+const MAX_DOC = 1024 * 1024;        // a brief.md or report.md
+const MAX_TOTAL = 4 * 1024 * 1024;  // all that one read prints (exec's output stops at 8 MiB)
+// emit <dir> <file>: \x1f and why, or the file's text; t counts the bytes printed against $total.
+const SH_EMIT = 'emit() { if [ -L "$1" ] || [ -L "$2" ]; then printf "\\037symbolic link\\n"; return; fi; ' +
+  '[ -f "$2" ] || { printf "\\037not a file\\n"; return; }; s=$(wc -c < "$2" | tr -d " "); ' +
+  'if [ "$s" -gt "$max" ]; then printf "\\037larger than %s bytes\\n" "$max"; return; fi; ' +
+  't=$((t + s)); if [ "$t" -gt "$total" ]; then printf "\\037over %s bytes in all\\n" "$total"; return; fi; ' +
+  'head -c "$max" "$2"; printf "\\n"; }; ';
+// Each task folder's name after \x1e, then its task.yaml (or \x1f and why). A fixed script: root, max, total.
+export const LIST_TASKS = SH_EMIT + 'max=$2; total=$3; t=0; [ -L "$1/kanban" ] || [ -L "$1/kanban/tasks" ] && exit 0; ' +
+  'for d in "$1"/kanban/tasks/*/; do n=${d%/}; [ -e "$n/task.yaml" ] || [ -L "$n/task.yaml" ] || continue; ' +
+  'printf "\\036%s\\n" "${n##*/}"; emit "$n" "$n/task.yaml"; done';
+// Each project's slug after \x1e, then its config.yaml (or \x1f and why). A fixed script: folder, max, total.
+export const LIST_PROJECTS = SH_EMIT + 'max=$2; total=$3; t=0; for c in "$1"/projects/*/kanban/config.yaml; do ' +
+  '[ -e "$c" ] || [ -L "$c" ] || continue; p=${c%/kanban/config.yaml}; printf "\\036%s\\n" "${p##*/}"; emit "$p/kanban" "$c"; done';
+// Pairs of <folder> <file> after max and total: each pair's number after \x1e, then the file (or \x1f and why).
+export const READ_FILES = SH_EMIT + 'max=$1; total=$2; t=0; i=0; shift 2; while [ $# -ge 2 ]; do ' +
+  'printf "\\036%s\\n" "$i"; emit "$1" "$2"; i=$((i + 1)); shift 2; done';
+// Windows: for each path, "none", "link" (a reparse point), "dir" or its length. Paths are arguments.
+const PS_ITEMS = "foreach ($p in $args) { $i = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue; " +
+  "if (-not $i) { 'none' } elseif ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) { 'link' } elseif ($i.PSIsContainer) { 'dir' } else { [string]$i.Length } }";
+// Windows: each task folder's name, a tab, then "link" or task.yaml's length. The root is the argument.
+const PS_TASKS = "param($r) $d = Join-Path $r 'kanban\\tasks'; $k = Get-Item -LiteralPath (Join-Path $r 'kanban') -Force -ErrorAction SilentlyContinue; " +
+  "$t = Get-Item -LiteralPath $d -Force -ErrorAction SilentlyContinue; if (-not $t -or (($k.Attributes -bor $t.Attributes) -band [IO.FileAttributes]::ReparsePoint)) { return }; " +
+  "Get-ChildItem -LiteralPath $d -Force -Directory | ForEach-Object { $f = Get-Item -LiteralPath (Join-Path $_.FullName 'task.yaml') -Force -ErrorAction SilentlyContinue; " +
+  "if ($f) { $s = if (($_.Attributes -bor $f.Attributes) -band [IO.FileAttributes]::ReparsePoint) { 'link' } elseif ($f.PSIsContainer) { 'dir' } else { [string]$f.Length }; \"{0}`t{1}\" -f $_.Name, $s } }";
+// A PowerShell single-quoted string (', and ‘ ’ ‚ ‛, which also end one, doubled).
+const psQuote = (a) => `'${a.replace(/['‘’‚‛]/g, (m) => m + m)}'`;
+const ps = (script, ...args) =>
+  exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `& { ${script} } ${args.map(psQuote).join(" ")}`]);
 const REPO = /^[^/]+\/[^/]+\/[^/]+$/;
 
 const alpha = (color, aa) => /** @type {`#${string}`} */ (`${color}${aa}`);
@@ -109,19 +139,66 @@ function openWeb(url) {
 async function projectsUnder(dir, on) {
   const out = [];
   if (!local(on)) {
-    const r = await exec("sh", ["-c", LIST_PROJECTS, "kanban-board", dir], { on }).catch(() => null);
-    for (const chunk of r?.code === 0 ? r.stdout.split("\x1e").slice(1) : []) {
-      const nl = chunk.indexOf("\n"), slug = chunk.slice(0, nl);
-      const text = chunk.slice(nl + 1);
-      if (isLedger(text)) out.push({ root: join(join(dir, "projects"), slug), slug, text });
+    const r = await exec("sh", ["-c", LIST_PROJECTS, "kanban-board", dir, String(MAX_TEXT), String(MAX_TOTAL)], { on }).catch(() => null);
+    for (const [slug, v] of r?.code === 0 ? chunks(r.stdout) : []) {
+      if (v.text !== undefined && isLedger(v.text)) out.push({ root: join(join(dir, "projects"), slug), slug, text: v.text });
     }
     return out;
   }
   const base = join(dir, "projects");
-  const names = await fs.readdir(base).catch(() => []);
-  for (const slug of names.sort()) {
-    const text = await readTextFile(`${base}/${slug}/kanban/config.yaml`).catch(() => null);
-    if (text !== null && isLedger(text)) out.push({ root: `${base}/${slug}`, slug, text });
+  const slugs = (await fs.readdir(base).catch(() => [])).sort();
+  if (!slugs.length) return out;
+  const got = await readChecked(slugs.map((slug) => [`${base}/${slug}/kanban`, `${base}/${slug}/kanban/config.yaml`]), MAX_TEXT, on).catch(() => []);
+  slugs.forEach((slug, i) => {
+    const text = got[i]?.text;
+    if (text !== undefined && isLedger(text)) out.push({ root: `${base}/${slug}`, slug, text });
+  });
+  return out;
+}
+
+// What the fixed scripts print: [key, { text } | { error }] for each \x1e chunk.
+function chunks(stdout) {
+  return stdout.split("\x1e").slice(1).map((chunk) => {
+    const nl = chunk.indexOf("\n"), body = chunk.slice(nl + 1);
+    return [chunk.slice(0, nl), body.startsWith("\x1f") ? { error: body.slice(1).trim() } : { text: body }];
+  });
+}
+
+// Windows: a file's state as PS_ITEMS gives it, turned into what to do. Lengths count against `left`.
+function verdict(dir, file, max, left) {
+  if (dir === "link" || file === "link") return { error: "symbolic link" };
+  if (file === "none") return null;
+  if (file === "dir" || !/^\d+$/.test(file ?? "")) return { error: "not a file" };
+  const size = Number(file);
+  if (size > max) return { error: `larger than ${max} bytes` };
+  if (size > left.bytes) return { error: `over ${MAX_TOTAL} bytes in all` };
+  left.bytes -= size;
+  return { read: true };
+}
+
+// Reads files as [folder, file] pairs on their machine, each refused before it is read when it or its
+// folder is a symbolic link or it is over `max` bytes. Gives { text } | { error } | null (missing) per pair.
+async function readChecked(pairs, max, on) {
+  if (!local(on)) {
+    const r = await exec("sh", ["-c", READ_FILES, "kanban-board", String(max), String(MAX_TOTAL), ...pairs.flat()], { on });
+    if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot read the ledger");
+    const got = new Map(chunks(r.stdout));
+    return pairs.map((_, i) => {
+      const v = got.get(String(i));
+      return v?.error === "not a file" ? null : v ?? null;
+    });
+  }
+  const r = await ps(PS_ITEMS, ...pairs.flat());
+  if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot read the ledger");
+  const states = r.stdout.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  const left = { bytes: MAX_TOTAL };
+  const out = [];
+  for (let i = 0; i < pairs.length; i++) {
+    const v = verdict(states[2 * i], states[2 * i + 1], max, left);
+    if (v?.read) {
+      const text = await readTextFile(pairs[i][1]).catch(() => null);
+      out.push(text === null ? null : { text });
+    } else out.push(v);
   }
   return out;
 }
@@ -172,8 +249,9 @@ export default class KanbanBoard extends View {
   // name the main checkout. Then the plant: the nearest folder above with projects/*/kanban/.
   async find(cwd, on) {
     for (const d of ancestors(cwd)) {
-      const text = await readTextFile(join(d, "kanban/config.yaml"), { on }).catch(() => null);
-      if (text !== null && isLedger(text)) { this.root = d.replace(/\/$/, ""); break; }
+      const [got] = await readChecked([[join(d, "kanban"), join(d, "kanban/config.yaml")]], MAX_TEXT, on).catch(() => [null]);
+      const text = got?.text;
+      if (text !== undefined && isLedger(text)) { this.root = d.replace(/\/$/, ""); break; }
     }
     if (!this.root) {
       const r = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }).catch(() => null);
@@ -198,36 +276,39 @@ export default class KanbanBoard extends View {
   async readTasks(root, on) {
     const texts = new Map();
     if (!local(on)) {
-      const r = await exec("sh", ["-c", LIST_TASKS, "kanban-board", root], { on });
+      const r = await exec("sh", ["-c", LIST_TASKS, "kanban-board", root, String(MAX_TEXT), String(MAX_TOTAL)], { on });
       if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/tasks");
-      for (const chunk of r.stdout.split("\x1e").slice(1)) {
-        const nl = chunk.indexOf("\n");
-        texts.set(chunk.slice(0, nl), chunk.slice(nl + 1));
-      }
+      for (const [id, v] of chunks(r.stdout)) texts.set(id, v);
       return texts;
     }
-    const dir = `${root}/kanban/tasks`;
-    if (!(await fs.exists(dir))) return texts;
-    for (const e of await fs.readdir(dir, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const text = await readTextFile(`${dir}/${e.name}/task.yaml`).catch(() => null);
-      if (text !== null) texts.set(e.name, text);
+    const r = await ps(PS_TASKS, root);
+    if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/tasks");
+    const left = { bytes: MAX_TOTAL };
+    for (const line of r.stdout.split(/\r?\n/).filter((x) => x.includes("\t"))) {
+      const [id, state] = line.trim().split("\t");
+      const v = verdict("dir", state, MAX_TEXT, left);
+      if (!v) continue;
+      if (!v.read) { texts.set(id, v); continue; }
+      const text = await readTextFile(`${root}/kanban/tasks/${id}/task.yaml`).catch(() => null);
+      if (text !== null) texts.set(id, { text });
     }
     return texts;
   }
 
   // One ledger: its config and tasks. Throws when its config can't be read.
   async readLedger(root, on) {
-    const text = await readTextFile(`${root}/kanban/config.yaml`, { on });
-    if (text === null) throw new Error("kanban/config.yaml is gone");
-    const config = readConfig(text);
+    const [got] = await readChecked([[`${root}/kanban`, `${root}/kanban/config.yaml`]], MAX_TEXT, on);
+    if (!got) throw new Error("kanban/config.yaml is gone");
+    if (got.error) throw new Error(`kanban/config.yaml: ${got.error}`);
+    const config = readConfig(got.text);
     const slug = slugOf(root);
     const ledger = { root, slug, name: config.title ?? slug, ...config };
     /** @type {Record<string, any>[]} */
     const tasks = [];
     for (const [id, t] of await this.readTasks(root, on)) {
       const at = { id, slug, root, key: `${slug}/${id}` };
-      try { tasks.push({ ...parseYaml(t), ...at }); }
+      if (t.error) { tasks.push({ ...at, broken: t.error }); continue; }
+      try { tasks.push({ ...parseYaml(t.text), ...at }); }
       catch (e) { tasks.push({ ...at, broken: String(e instanceof Error ? e.message : e).split("\n")[0] }); }
     }
     return { ledger, tasks };
@@ -323,8 +404,10 @@ export default class KanbanBoard extends View {
     const on = this.where?.on, detail = this.detail;
     cx.spawn(async (cx) => {
       const base = `${task.root}/kanban/tasks/${task.id}`;
-      detail.brief = await readTextFile(`${base}/brief.md`, { on }).catch(() => null);
-      detail.report = await readTextFile(`${base}/report.md`, { on }).catch(() => null);
+      const [brief, report] = await readChecked([[base, `${base}/brief.md`], [base, `${base}/report.md`]], MAX_DOC, on).catch(() => [null, null]);
+      const shown = (v) => (v?.error ? `(not shown: ${v.error})` : v?.text ?? null);
+      detail.brief = shown(brief);
+      detail.report = shown(report);
       const ls = await exec("ls", ["-1", `${base}/library`], { on }).catch(() => null);
       if (ls?.code === 0) detail.library = ls.stdout.split("\n").filter(Boolean);
       else if (!on && (await fs.exists(`${base}/library`).catch(() => false))) detail.library = (await fs.readdir(`${base}/library`)).sort();
