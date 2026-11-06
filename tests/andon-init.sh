@@ -25,9 +25,11 @@ sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" ANDON_W
 cd "$tmp" || exit 1
 "$andon" init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && [ ! -s "$tmp/err" ] && pass "andon init x は rc 0" || fail "init: rc=$r $(cat "$tmp/out" "$tmp/err")"
-for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate.local.json AGENTS.local.md wiki/index.md projects/.gitkeep .gitignore .dockerignore; do
+for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate.local.json AGENTS.local.md wiki/index.md files/.gitkeep projects/.gitkeep .gitignore .dockerignore; do
   [ -f "andon-x/$f" ] || fail "andon-x/$f が無い"
 done
+grep -qx 'files/' andon-x/.gitignore && fail ".gitignore が files/ を除いている" || pass "files/ は追跡する（.gitignore に無い）"
+grep -qx 'artifacts/' andon-x/.gitignore && fail ".gitignore に artifacts/ が残っている" || pass ".gitignore に artifacts/ が無い"
 [ -x andon-x/bin/bootstrap ] && [ -x andon-x/local/setup.sh ] && pass "bin/bootstrap と local/setup.sh は実行できる" || fail "実行の権限"
 [ "$(grep -c . andon-x/Dockerfile)" = 3 ] && head -n 1 andon-x/Dockerfile | grep -qx 'FROM example.com/andon:test' && pass "Dockerfile は FROM ＋ 2行" || fail "Dockerfile: $(cat andon-x/Dockerfile)"
 grep -qx 'slug = "x"' andon-x/andon.toml && grep -qx 'owner = "dev@example.com"' andon-x/andon.toml && pass "andon.toml に slug と owner" || fail "andon.toml: $(cat andon-x/andon.toml)"

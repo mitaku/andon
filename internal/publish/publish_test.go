@@ -37,7 +37,7 @@ func TestPublishCopiesWithDateAndSlug(t *testing.T) {
 		if want := "http://files.sample-site.localhost:" + DefaultPort + "/" + c.want; url != want {
 			t.Errorf("slug %q: url = %q, want %q", c.slug, url, want)
 		}
-		got, err := os.ReadFile(filepath.Join(e.Workspace, "artifacts", c.want))
+		got, err := os.ReadFile(filepath.Join(e.Workspace, "files", c.want))
 		if err != nil || string(got) != "<p>v1</p>" {
 			t.Errorf("slug %q: copy = %q, %v", c.slug, got, err)
 		}
@@ -47,7 +47,7 @@ func TestPublishCopiesWithDateAndSlug(t *testing.T) {
 	if _, err := Publish(e, src, ""); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := os.ReadFile(filepath.Join(e.Workspace, "artifacts", "2026-01-02-review.html")); string(got) != "<p>v2</p>" {
+	if got, _ := os.ReadFile(filepath.Join(e.Workspace, "files", "2026-01-02-review.html")); string(got) != "<p>v2</p>" {
 		t.Errorf("republish = %q", got)
 	}
 }
@@ -102,14 +102,14 @@ func TestPublishSameFileKeepsContent(t *testing.T) {
 	if _, err := Publish(e, writeTemp(t, "weekly.html", "<p>v1</p>"), ""); err != nil {
 		t.Fatal(err)
 	}
-	dst := filepath.Join(e.Workspace, "artifacts", "2026-01-02-weekly.html")
+	dst := filepath.Join(e.Workspace, "files", "2026-01-02-weekly.html")
 	if _, err := Publish(e, dst, "weekly"); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(dst); string(got) != "<p>v1</p>" {
 		t.Errorf("同じファイルの公開し直しで中身 = %q", got)
 	}
-	entries, _ := os.ReadDir(filepath.Join(e.Workspace, "artifacts"))
+	entries, _ := os.ReadDir(filepath.Join(e.Workspace, "files"))
 	if len(entries) != 1 {
 		t.Errorf("一時ファイルが残った: %v", entries)
 	}
@@ -127,7 +127,7 @@ func TestPublishWithoutExtension(t *testing.T) {
 		if !strings.HasSuffix(url, "/"+want) {
 			t.Errorf("slug %q: url = %q, want …/%s", slug, url, want)
 		}
-		if _, err := os.Stat(filepath.Join(e.Workspace, "artifacts", want)); err != nil {
+		if _, err := os.Stat(filepath.Join(e.Workspace, "files", want)); err != nil {
 			t.Error(err)
 		}
 	}
@@ -138,4 +138,23 @@ func writeTemp(t *testing.T, name, body string) string {
 	p := filepath.Join(t.TempDir(), name)
 	write(t, p, body)
 	return p
+}
+
+func TestPublishRejectsTooLarge(t *testing.T) {
+	e := env(t)
+	src := filepath.Join(t.TempDir(), "big.bin")
+	f, err := os.Create(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(MaxSize + 1); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if _, err := Publish(e, src, ""); err == nil || !strings.Contains(err.Error(), "大きすぎる") {
+		t.Fatalf("上限超えを拒まなかった: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(e.Workspace, "files")); err == nil {
+		t.Error("拒んだのに files/ を作った")
+	}
 }

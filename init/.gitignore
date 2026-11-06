@@ -7,6 +7,4 @@
 .env.*
 # 公開鍵（置くマシンごとに違う）
 .ssh/
-# andon publish の公開先（生成物）
-artifacts/
 .codex/

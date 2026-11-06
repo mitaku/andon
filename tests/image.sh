@@ -128,7 +128,7 @@ dc exec -T dev bash -euc '
   test "$(readlink "$HOME/.agents/skills/andon-worker")" = /opt/andon/skills/worker
   test "$(stat -c %u:%g "$HOME/.config/gh" "$HOME/.config/gh/hosts.yml" | sort -u)" = 1000:1000
   test "$(cat "$HOME/.config/gh/hosts.yml")" = old
-  test -d /workspace/artifacts
+  test -d /workspace/files
   # Codex の承認・sandbox・rules（docs/image.md の「Codex の承認と sandbox」）。モデルは呼ばない:
   # prompt-input は実効の設定から組んだ permissions の文を出す（承認 never・sandbox なし・network あり＝確認の画面を出さない）。
   # rules は boot が置いたファイルを Codex 自身の execpolicy で引く（gh pr merge は forbidden、git push・台帳への書き込みは当たらない）

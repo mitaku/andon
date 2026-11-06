@@ -57,9 +57,9 @@ var commands = []command{
 	},
 	{
 		name:  "publish",
-		about: "生成したファイルを artifacts/ へ公開し、URL を返す",
+		about: "生成したファイルを files/ へ公開し、URL を返す",
 		usage: "usage: andon publish <file> [slug]\n" +
-			"/workspace/artifacts/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n",
+			"/workspace/files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n",
 		run: publish.Main,
 	},
 	{

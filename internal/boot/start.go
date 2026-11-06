@@ -180,14 +180,14 @@ func startPortless(e Env) error {
 	return nil
 }
 
-// startFiles は納品物 artifacts/ を読み取りで公開する files サーバ（andon boot serve-files）を起こし、
-// portless に files で登録する。返すのは実体が artifacts/ の中にあるものだけ（FilesHandler）。
+// startFiles は納品物 files/ を読み取りで公開する files サーバ（andon boot serve-files）を起こし、
+// portless に files で登録する。返すのは実体が files/ の中にあるものだけ（FilesHandler）。
 func startFiles(e Env) error {
 	portless, ok := e.has("portless")
 	if !ok || e.Self == "" {
 		return nil
 	}
-	dir := filepath.Join(e.Workspace, "artifacts")
+	dir := filepath.Join(e.Workspace, "files")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func startFiles(e Env) error {
 	if out, err := exec.Command(portless, "alias", "files", port).CombinedOutput(); err != nil {
 		return fmt.Errorf("portless alias files %s: %v: %s", port, err, strings.TrimSpace(string(out)))
 	}
-	e.logf("files: http://files.%s.localhost:%s/ （artifacts/ を読み取り公開）", e.Hostname, e.dotenv("PORTLESS_PORT", DefaultPortlessPort))
+	e.logf("files: http://files.%s.localhost:%s/ （files/ を読み取り公開）", e.Hostname, e.dotenv("PORTLESS_PORT", DefaultPortlessPort))
 	return nil
 }
 
