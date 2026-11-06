@@ -24,7 +24,7 @@ docker pull ghcr.io/<owner>/andon:<版>      # <版> は main の 40桁の commi
 - **通ったら見えるもの**: `docker image ls ghcr.io/<owner>/andon` に行が出る。
 - **落ちたら見る所**:
   - `denied`・`unauthorized` — token に `read:packages` があるか。組織の package なら SSO の承認。package の「Manage access」にこのアカウントがあるか。
-  - `manifest unknown` — tag は main の配布完了後に出る（[image.md](image.md)）。40桁の SHA は GitHub の Actions の「tests」の publish job で確かめる。
+  - `manifest unknown` — tag は main の配布完了後に出る（[image.md](image.md)）。40桁の SHA は GitHub の Actions の「tests」の tests job（main の push の最後の step）で確かめる。
   - `no matching manifest` — 配布は Linux amd64 だけ（[image.md](image.md)）。
 
 ## 2. 建屋の repo を作る（`andon init`）

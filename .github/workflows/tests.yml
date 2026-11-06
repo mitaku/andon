@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -28,25 +29,21 @@ jobs:
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
           for f in tests/*.sh; do echo "== $f"; bash "$f"; done
-      - name: Save tested image
+      - name: Push tested image to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          IMAGE_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          docker save andon:test | gzip > "$RUNNER_TEMP/andon-image.tar.gz"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        with:
-          name: andon-image
-          path: ${{ runner.temp }}/andon-image.tar.gz
-          compression-level: 0
-          retention-days: 1
-          if-no-files-found: error
+          image="ghcr.io/${IMAGE_OWNER,,}/andon"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          docker tag andon:test "$image:$GITHUB_SHA"
+          docker push "$image:$GITHUB_SHA"
   publish:
-    needs: tests
-    if: >-
-      ${{ !cancelled() && github.event_name == 'push' &&
-          ((github.ref == 'refs/heads/main' && needs.tests.result == 'success') ||
-           (startsWith(github.ref, 'refs/tags/v') && needs.tests.result == 'skipped')) }}
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -58,18 +55,12 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Require a release commit already on main
-        if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           git merge-base --is-ancestor HEAD origin/main
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: github.ref == 'refs/heads/main'
-        with:
-          name: andon-image
-          path: ${{ runner.temp }}/andon-image
-      - name: Publish tested image or tag the existing SHA image
+      - name: Tag the existing SHA image
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY_USER: ${{ github.actor }}
@@ -80,11 +71,5 @@ jobs:
           commit=$(git rev-parse HEAD)
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
           trap 'docker logout ghcr.io' EXIT
-          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
-            docker load --input "$RUNNER_TEMP/andon-image/andon-image.tar.gz"
-            docker tag andon:test "$image:$commit"
-            docker push "$image:$commit"
-          else
-            docker buildx imagetools create --prefer-index=false \
-              --tag "$image:$GITHUB_REF_NAME" "$image:$commit"
-          fi
+          docker buildx imagetools create --prefer-index=false \
+            --tag "$image:$GITHUB_REF_NAME" "$image:$commit"
