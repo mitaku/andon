@@ -1,3 +1,5 @@
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo/andon-wordmark-dark.svg"><img src="docs/assets/logo/andon-wordmark.svg" alt="andon" height="64"></picture></p>
+
 # Andon
 
 **English summary.** Andon is a software factory for one person: a selective "dark factory" where machines handle what machines can decide, LLMs handle what needs judgment, and a human is called only for the few decisions that are theirs. It is built as one repo with three kinds of readers (humans, AI agents, machines). It is not the manufacturing-floor andon product. The documents are in Japanese for now; English will be added when needed. Everything in this repo must be fit to be public (no secrets, no personal or project-specific values; see `docs/design.md` §2.6).

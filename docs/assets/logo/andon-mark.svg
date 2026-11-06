@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Andon"><title>Andon</title>
+<path d="M26 4H38L57 60H45L42 50H22L19 60H7Z" style="fill:var(--ink,#1F2328)"/>
+<path d="M29.5 12H34.5L45 42H19Z" style="fill:var(--glow,#F0A202)"/>
+<circle cx="32" cy="33" r="5" style="fill:var(--glow-hi,#FFD36B)"/>
+</svg>

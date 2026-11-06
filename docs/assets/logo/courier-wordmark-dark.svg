@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 274 64" width="274" height="64" role="img" aria-label="Andon courier"><title>Andon courier</title>
+<rect x="4" y="7" width="56" height="5" rx="2.5" style="fill:var(--ink,#ECE6DA)"/>
+<rect x="30" y="12" width="4" height="7" style="fill:var(--ink,#ECE6DA)"/>
+<rect x="21" y="19" width="22" height="5" rx="1.5" style="fill:var(--ink,#ECE6DA)"/>
+<rect x="23" y="24" width="18" height="24" style="fill:var(--ink,#ECE6DA)"/>
+<rect x="26" y="27" width="12" height="18" style="fill:var(--paper,#3A3328)"/>
+<circle cx="32" cy="36" r="5" style="fill:var(--glow,#F0A202)"/>
+<rect x="21" y="48" width="22" height="5" rx="1.5" style="fill:var(--ink,#ECE6DA)"/>
+<rect x="5" y="30" width="12" height="4" rx="2" style="fill:var(--ink,#ECE6DA)"/>
+<rect x="9" y="39" width="8" height="4" rx="2" style="fill:var(--ink,#ECE6DA)"/>
+<path d="M99.69 34.98A9 9 0 1 0 99.69 47.02L104.15 51.04A15 15 0 1 1 104.15 30.96ZM111 41A15 15 0 1 1 141 41A15 15 0 1 1 111 41ZM117 41A9 9 0 1 0 135 41A9 9 0 1 0 117 41ZM146 26H152V41H146ZM170 26H176V56H170ZM152 41A9 9 0 0 0 170 41H176A15 15 0 0 1 146 41ZM181 26H187V56H181ZM181 41A15 15 0 0 1 196 26H200V32H196A9 9 0 0 0 187 41ZM205 26H211V56H205ZM205 15H211V21H205ZM242.15 51.04A15 15 0 1 1 245.7 44H222.51A9 9 0 0 0 237.69 47.02ZM239.49 38A9 9 0 0 0 222.51 38ZM251 26H257V56H251ZM251 41A15 15 0 0 1 266 26H270V32H266A9 9 0 0 0 257 41Z" style="fill:var(--ink,#ECE6DA)"/>
+</svg>

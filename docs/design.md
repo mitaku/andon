@@ -478,6 +478,7 @@ andon/
     decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。ADR は1本1行）
     operate.md               建屋の立て方・更新・引っ越し（人の手順）
     adr/NNNN-<題>.md         Chief Engineer の題ごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（courier.md・image.md・ledger.md）は直下のまま
+    assets/logo/             Andon とクーリエの記号・ワードマーク（SVG。明るい背景用と -dark。窓の色の意味は置き場の README）
   schema/                    機械用（約束の正。JSON Schema）
     ledger/                  台帳の形式（台帳の CLI を移したら。§3.5）
     task-keys.schema.json    台帳の項目のうち Andon の予約キー（review・must_fix・…）

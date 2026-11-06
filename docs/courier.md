@@ -1,3 +1,5 @@
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo/courier-mark-dark.svg"><img src="assets/logo/courier-mark.svg" alt="クーリエの記号" height="64"></picture></p>
+
 # クーリエ（courier）の設計
 
 - 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2・§2.3 の台帳と端末の状態からの拾い（P3b の通知の元）も実装済み（`internal/courier/pickup.go`）。§2.1 の見回りの最初の `kanban tick` はまだ入っていない。
