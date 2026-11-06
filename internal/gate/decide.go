@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"andon/internal/ledger"
@@ -20,6 +21,7 @@ type Table struct {
 	TierCPaths             []string             `json:"tier_c_paths,omitempty"`
 	TierCPathExceptions    map[string][]string  `json:"tier_c_path_exceptions,omitempty"`
 	TierCAddedLinePatterns []string             `json:"tier_c_added_line_patterns,omitempty"`
+	GitHubChecksWait       *int                 `json:"github_checks_wait_minutes,omitempty"`
 	Repos                  map[string]RepoTable `json:"repos,omitempty"`
 }
 
@@ -29,6 +31,7 @@ type RepoTable struct {
 	StripPrefix   string            `json:"strip_prefix,omitempty"`
 	Check         []string          `json:"check,omitempty"`
 	TierOverrides map[string]string `json:"tier_overrides,omitempty"`
+	GitHubChecks  string            `json:"github_checks,omitempty"` // required（既定）/ optional
 }
 
 // File は PR の変更された1ファイル。
@@ -223,6 +226,97 @@ type Check struct {
 	OK  bool   `json:"ok"`
 }
 
+// GateContext はゲート自身が PR の head に付ける commit status の context（GitHub の checks の事実から除く）。
+const GateContext = "andon/gate"
+
+// CheckItem は gh pr view --json statusCheckRollup の1件（CheckRun か StatusContext）。
+type CheckItem struct {
+	Typename   string `json:"__typename"`
+	Name       string `json:"name"`       // CheckRun
+	Status     string `json:"status"`     // CheckRun
+	Conclusion string `json:"conclusion"` // CheckRun
+	Context    string `json:"context"`    // StatusContext
+	State      string `json:"state"`      // StatusContext
+}
+
+// GitHubChecks は PR の head の GitHub の checks を1つの状態にまとめたもの。
+// state は failure > unknown > pending > success の順で一番悪いもの。1件も無ければ none。
+// names はその状態にした checks の名前（success・none では空）。
+type GitHubChecks struct {
+	State string   `json:"state"`
+	Names []string `json:"names"`
+}
+
+// Passed は GitHub の checks がマージを止めないか（success か、要らない repo で1件も無い）。
+func (g GitHubChecks) Passed(optional bool) bool {
+	return g.State == "success" || (g.State == "none" && optional)
+}
+
+var checkRank = map[string]int{"none": 0, "success": 1, "pending": 2, "unknown": 3, "failure": 4}
+
+// SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。ゲート自身の status（andon/gate）は数えない。
+// CheckRun: 終わっていなければ pending。結論 success・skipped・neutral は通す（GitHub のブランチ保護と同じ）、
+// failure・cancelled・timed_out・startup_failure は failure、それ以外（action_required・stale・知らない値）は unknown。
+// StatusContext: success は通す、pending・expected は pending、failure・error は failure、それ以外は unknown。
+func SummarizeChecks(items []CheckItem) GitHubChecks {
+	g := GitHubChecks{State: "none", Names: []string{}}
+	names := map[string][]string{}
+	for _, it := range items {
+		name, state := it.Name, "unknown"
+		switch it.Typename {
+		case "CheckRun":
+			switch strings.ToUpper(it.Status) {
+			case "COMPLETED":
+				switch strings.ToUpper(it.Conclusion) {
+				case "SUCCESS", "SKIPPED", "NEUTRAL":
+					state = "success"
+				case "FAILURE", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE":
+					state = "failure"
+				}
+			case "QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED":
+				state = "pending"
+			}
+		case "StatusContext":
+			name = it.Context
+			if name == GateContext {
+				continue
+			}
+			switch strings.ToUpper(it.State) {
+			case "SUCCESS":
+				state = "success"
+			case "PENDING", "EXPECTED":
+				state = "pending"
+			case "FAILURE", "ERROR":
+				state = "failure"
+			}
+		}
+		if name == "" {
+			name = "(" + it.Typename + ")"
+		}
+		names[state] = append(names[state], name)
+		if checkRank[state] > checkRank[g.State] {
+			g.State = state
+		}
+	}
+	if g.State != "success" && g.State != "none" {
+		g.Names = names[g.State]
+	}
+	return g
+}
+
+// ChecksOverdue は、タスクが最後に review に入った log.jsonl の行の at から limit 分を過ぎたか（純粋関数）。
+// その行が無い・at が読めなければ過ぎたとみなす（安全側。needs_human に倒れる）。
+func ChecksOverdue(rows []ledger.Row, id string, now time.Time, limit int) bool {
+	at := ""
+	for _, r := range rows {
+		if r.ID == id && r.Change["status"] == "review" {
+			at = r.At
+		}
+	}
+	since, err := time.Parse(time.RFC3339, at)
+	return err != nil || now.Sub(since) >= time.Duration(limit)*time.Minute
+}
+
 // Facts は決定式の入力（集めた事実）。
 type Facts struct {
 	LedgerReasons   []string // 台帳と PR が合わない（fix）
@@ -237,9 +331,14 @@ type Facts struct {
 	Review          ledger.Review
 	PreviousMustFix bool // 同じ head で Must fix が残って fix を返したことがある
 	AcceptanceFail  int
+	GitHubChecks    GitHubChecks // PR の head の GitHub の checks
+	ChecksOptional  bool         // 条件表の repos.<repo>.github_checks が optional（1件も無くてよい）
+	ChecksOverdue   bool         // review に入ってから github_checks_wait_minutes を過ぎた
+	ChecksWait      int          // github_checks_wait_minutes（理由の文に入れる）
 }
 
 // Decide は決定式（純粋関数）。decision と reasons を返す。approve の reasons は空。
+// wait は GitHub の checks を待つ（記録も PR への書き込みもしない。クーリエが次の見回りで回し直す）。
 func Decide(f Facts) (string, []string) {
 	switch {
 	case len(f.LedgerReasons) > 0:
@@ -260,6 +359,13 @@ func Decide(f Facts) (string, []string) {
 			return "fix", []string{"check: " + c.Cmd}
 		}
 	}
+	switch g := f.GitHubChecks; g.State {
+	case "failure":
+		return "fix", []string{"GitHub の checks が落ちた: " + strings.Join(g.Names, ", ")}
+	case "success", "pending", "none":
+	default: // unknown・読めていない（空）
+		return "needs_human", []string{"GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", ")}
+	}
 	if f.ReviewRequired {
 		switch r := f.Review; {
 		case r.State == "missing":
@@ -276,6 +382,15 @@ func Decide(f Facts) (string, []string) {
 	}
 	if f.AcceptanceFail > 0 {
 		return "fix", []string{fmt.Sprintf("受け入れ条件の fail が %d 件", f.AcceptanceFail)}
+	}
+	// 待ち（wait）は、ほかに止める理由が無く GitHub の checks だけが揃っていないとき
+	switch g := f.GitHubChecks; {
+	case g.State == "pending":
+		return "wait", []string{"GitHub の checks がまだ走っている: " + strings.Join(g.Names, ", ")}
+	case g.State == "none" && !f.ChecksOptional && f.ChecksOverdue:
+		return "needs_human", []string{fmt.Sprintf("GitHub の checks が1つも無いまま %d 分過ぎた（条件表の github_checks: optional でない）", f.ChecksWait)}
+	case g.State == "none" && !f.ChecksOptional:
+		return "wait", []string{"GitHub の checks がまだ1つも無い"}
 	}
 	return "approve", []string{}
 }

@@ -36,7 +36,7 @@ case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view 7 --repo example/app --json state,mergeCommit")
     if [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
-  "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
+  "pr view 7 --repo example/app --json "*) jq -s '.[0] + {statusCheckRollup: .[1]}' \$d/view.json \$d/rollup.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
   "api repos/example/app --jq .default_branch") echo main ;;
@@ -51,6 +51,9 @@ case "\$*" in
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
 esac
 EOF
+# GitHub の checks（statusCheckRollup）は $tmp/gh/rollup.json。既定は通っている
+checks() { jq -n --arg s "$1" --arg c "${2:-}" '[{__typename: "CheckRun", name: "test", status: $s, conclusion: $c}]' > "$tmp/gh/rollup.json"; }
+mkdir -p "$tmp/gh"; checks COMPLETED SUCCESS
 # 偽の hc: 生きている端末は $tmp/hc/live（address task の行）。run は t9, t10 … を返し、打ったものを $tmp/hc/log に。
 # get --json は $tmp/hc/term-<addr>.json、read は screen-<addr>、attach --observe は ansi-<addr>（無ければ何も出さない）
 cat > "$tmp/bin/hc" <<EOF
@@ -320,6 +323,51 @@ courier
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die '回し直しでマージした'
 [ "$(grep -c "^status .*$head" "$tmp/gh/posted")" = 2 ] || die 'ゲートを回し直していない'
 ok 'ゲートのあと merge: person に変わったら gh pr merge を打たず、次の見回りでゲートから回し直す（approve でも person なので止まる）'
+
+# 9b. GitHub の checks が走っている間は待ち（マージしない・人に回さない・控えに書かない）。通れば次の見回りでマージ
+id=$(newtask 'CI を待つ' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+courier
+checks IN_PROGRESS
+gate_through "$id"
+merges=$(wc -l < "$tmp/gh/merges")
+courier
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'checks が走っているのにマージした'
+[ "$(grep -c "$id のゲートは GitHub の checks を待つ: GitHub の checks がまだ走っている: test" "$tmp/courier.log")" = 2 ] || die '見回りのたびにゲートを回し直していない'
+jq -e --arg t "$id" '([.gates[] | select(.task == $t)] | length) == 0 and ([.pending[] | select(.task == $t and (.kind == "gate" or .kind == "asked"))] | length) == 0' "$state" >/dev/null ||
+    die 'wait を控えに書いた・通知 gate か問いを出した'
+[ ! -e "$L/tasks/$id/library/questions" ] && [ ! -e "$L/tasks/$id/library/gate" ] || die 'wait で問い・ゲートの記録を書いた'
+checks COMPLETED SUCCESS
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.task.status == "done"' >/dev/null || die 'checks が通ったのにマージしない'
+ok 'GitHub の checks が走っている間はゲートが wait。クーリエは控えに書かず問いも出さず、見回りのたびに回し直し、通ればマージする'
+
+# 9c. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
+id=$(newtask 'CI が走り直す' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+courier
+gate_through "$id"
+merges=$(wc -l < "$tmp/gh/merges")
+checks IN_PROGRESS; mv "$tmp/gh/rollup.json" "$tmp/gh/rollup-pending.json"; checks COMPLETED SUCCESS
+echo "mv $tmp/gh/rollup-pending.json $tmp/gh/rollup.json" > "$tmp/gh/hook"  # ゲートが approve を書いたあとに走り直す
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと checks が走り直したのにマージした'
+grep -q "$id をいまはマージしない.*GitHub の checks がゲートのあとに変わった（pending: test）" "$tmp/courier.log" || die '止めた理由がログに無い'
+checks COMPLETED SUCCESS
+old=$head
+echo "jq --arg h $(printf 'f%.0s' $(seq 40)) '.headRefOid = \$h' $tmp/gh/view.json > $tmp/gh/v && mv $tmp/gh/v $tmp/gh/view.json" > "$tmp/gh/hook"
+courier
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと push されたのにマージした'
+grep -q "$id をいまはマージしない.*PR の head がゲートのあとに動いた（${old:0:12} → ffffffffffff）" "$tmp/courier.log" || die '止めた理由がログに無い'
+courier
+grep -q "^t7	$id（CI が走り直す）: ゲートが fix を返した。理由: .*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die "回し直したゲートが fix を担当へ返していない: $(tail -n 2 "$tmp/hc/sent" 2>/dev/null)"
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die '回し直しでマージした'
+ok 'マージの直前に PR の head と GitHub の checks を読み直し、checks が変わった・head が動いたら打たない（回し直したゲートが担当へ fix）'
 
 # 10. ゲートのあとオーナーが委譲の merge を取り消したら、マージしない（回し直したゲートは needs_human）
 id=$(newtask '委譲が取り消される' auto)

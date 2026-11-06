@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"andon/internal/ledger"
 )
@@ -97,7 +98,8 @@ func TestWithinAndRaise(t *testing.T) {
 
 func TestDecide(t *testing.T) {
 	good := Facts{PROpen: true, RepoKnown: true, Tier: "B", MergeLevel: "B", ReviewRequired: true,
-		Checks: []Check{{"bash tests/*.sh", true}}, Review: ledger.Review{State: "current"}}
+		Checks: []Check{{"bash tests/*.sh", true}}, Review: ledger.Review{State: "current"},
+		GitHubChecks: GitHubChecks{State: "success", Names: []string{}}, ChecksWait: 30}
 	cases := []struct {
 		name string
 		mod  func(*Facts)
@@ -119,6 +121,33 @@ func TestDecide(t *testing.T) {
 		{"Must fix を見送った", func(f *Facts) { f.Review.WaivedHeavy = 1 }, "needs_human"},
 		{"受け入れ条件の fail", func(f *Facts) { f.AcceptanceFail = 1 }, "fix"},
 		{"レビュー不要なら missing でも通る", func(f *Facts) { f.ReviewRequired = false; f.Review.State = "off" }, "approve"},
+		{"GitHub の checks が落ちた", func(f *Facts) { f.GitHubChecks = GitHubChecks{"failure", []string{"test"}} }, "fix"},
+		{"GitHub の checks が走っている", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}} }, "wait"},
+		{"走っていても長く待ったまま needs_human にしない", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
+			f.ChecksOverdue = true
+		}, "wait"},
+		{"GitHub の checks に知らない状態", func(f *Facts) { f.GitHubChecks = GitHubChecks{"unknown", []string{"x"}} }, "needs_human"},
+		{"GitHub の checks を読めていない", func(f *Facts) { f.GitHubChecks = GitHubChecks{} }, "needs_human"},
+		{"checks が1つも無い（要る）", func(f *Facts) { f.GitHubChecks = GitHubChecks{State: "none"} }, "wait"},
+		{"checks が1つも無いまま上限を過ぎた", func(f *Facts) { f.GitHubChecks = GitHubChecks{State: "none"}; f.ChecksOverdue = true }, "needs_human"},
+		{"checks が要らない repo で1つも無い", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{State: "none"}
+			f.ChecksOptional, f.ChecksOverdue = true, true
+		}, "approve"},
+		{"要らない repo でも落ちた checks は止める", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{"failure", []string{"test"}}
+			f.ChecksOptional = true
+		}, "fix"},
+		{"走っていても Must fix は先に担当へ", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
+			f.Review.MustFixOpen = 1
+		}, "fix"},
+		{"走っていても委譲の外は人へ", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}; f.Tier = "C" }, "needs_human"},
+		{"走っていても head が台帳と違えば止める", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
+			f.LedgerReasons = []string{"report.json の commit が PR の head と違う"}
+		}, "fix"},
 	}
 	for _, c := range cases {
 		f := good
@@ -131,6 +160,60 @@ func TestDecide(t *testing.T) {
 	}
 	if _, r := Decide(func() Facts { f := good; f.Tier = "C"; return f }()); !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
 		t.Errorf("委譲の理由の形: %v", r)
+	}
+}
+
+func TestSummarizeChecks(t *testing.T) {
+	run := func(name, status, conclusion string) CheckItem {
+		return CheckItem{Typename: "CheckRun", Name: name, Status: status, Conclusion: conclusion}
+	}
+	ctx := func(name, state string) CheckItem {
+		return CheckItem{Typename: "StatusContext", Context: name, State: state}
+	}
+	for _, c := range []struct {
+		name  string
+		items []CheckItem
+		want  GitHubChecks
+	}{
+		{"無い", nil, GitHubChecks{"none", []string{}}},
+		{"ゲート自身の status だけは無いと同じ", []CheckItem{ctx(GateContext, "FAILURE")}, GitHubChecks{"none", []string{}}},
+		{"全部 success（skipped・neutral も通す）", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("lint", "COMPLETED", "SKIPPED"),
+			run("opt", "COMPLETED", "NEUTRAL"), ctx("ci/x", "SUCCESS"), ctx(GateContext, "FAILURE")}, GitHubChecks{"success", []string{}}},
+		{"走っている", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("image", "IN_PROGRESS", ""), run("q", "QUEUED", "")},
+			GitHubChecks{"pending", []string{"image", "q"}}},
+		{"status の pending", []CheckItem{ctx("ci/x", "PENDING")}, GitHubChecks{"pending", []string{"ci/x"}}},
+		{"落ちたのが一番重い", []CheckItem{run("image", "IN_PROGRESS", ""), run("test", "COMPLETED", "FAILURE"),
+			run("c", "COMPLETED", "CANCELLED"), run("t", "COMPLETED", "TIMED_OUT"), ctx("ci/x", "ERROR")},
+			GitHubChecks{"failure", []string{"test", "c", "t", "ci/x"}}},
+		{"action_required・知らない値は unknown", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("deploy", "COMPLETED", "ACTION_REQUIRED"),
+			run("x", "SOMETHING", "")}, GitHubChecks{"unknown", []string{"deploy", "x"}}},
+	} {
+		if got := SummarizeChecks(c.items); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: %+v want %+v", c.name, got, c.want)
+		}
+	}
+	if !(GitHubChecks{State: "success"}).Passed(false) || (GitHubChecks{State: "none"}).Passed(false) ||
+		!(GitHubChecks{State: "none"}).Passed(true) || (GitHubChecks{State: "pending"}).Passed(true) {
+		t.Error("Passed")
+	}
+}
+
+func TestChecksOverdue(t *testing.T) {
+	now := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
+	rows := []ledger.Row{
+		{At: "2026-11-06T08:00:00Z", ID: "D-1", Change: map[string]any{"status": "review"}},
+		{At: "2026-11-06T09:40:00Z", ID: "D-1", Change: map[string]any{"status": "review"}}, // 入り直した行から数える
+		{At: "2026-11-06T09:00:00Z", ID: "D-2", Change: map[string]any{"status": "review"}},
+	}
+	switch {
+	case ChecksOverdue(rows, "D-1", now, 30):
+		t.Error("入り直してから 20 分で過ぎたことになった")
+	case !ChecksOverdue(rows, "D-1", now, 20):
+		t.Error("20 分ちょうどで過ぎていない")
+	case !ChecksOverdue(rows, "D-3", now, 30):
+		t.Error("review の行が無いのに過ぎていない（安全側）")
+	case !ChecksOverdue([]ledger.Row{{At: "x", ID: "D-1", Change: map[string]any{"status": "review"}}}, "D-1", now, 30):
+		t.Error("at が読めないのに過ぎていない（安全側）")
 	}
 }
 
@@ -148,6 +231,7 @@ func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
 		"Check が null（大小文字違い）": `{"repos": {"github.com/example/app": {"Check": null}}}`,
 		"Check が文字列（大小文字違い）":   `{"repos": {"github.com/example/app": {"Check": "true"}}}`,
 		"Repos（大小文字違い）":        `{"Repos": {}}`,
+		"github_checks が知らない値": `{"repos": {"github.com/example/app": {"github_checks": "off"}}}`,
 	} {
 		ws := ownerPlant(t, local)
 		if _, warn, err := LoadTable(pkg, ws); err == nil {

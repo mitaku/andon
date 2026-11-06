@@ -15,6 +15,7 @@
       "properties": {
         "size_review_lines": { "description": "Changed lines from which an independent review is required.", "type": "integer", "minimum": 0 },
         "size_human_lines": { "description": "Changed lines from which the person reviews.", "type": "integer", "minimum": 0 },
+        "github_checks_wait_minutes": { "description": "Minutes after the task entered review that the gate waits for a PR with no GitHub checks at all before it returns needs_human (repositories whose github_checks is required).", "type": "integer", "minimum": 1 },
         "test_paths": { "description": "Paths that count as tests.", "$ref": "#/$defs/globs" },
         "tier_a_paths": { "description": "Paths of tier A.", "$ref": "#/$defs/globs" },
         "tier_b_paths": { "description": "Paths of tier B.", "$ref": "#/$defs/globs" },
@@ -39,6 +40,7 @@
               "merge": { "description": "Merge method.", "enum": ["merge", "squash", "rebase"] },
               "strip_prefix": { "description": "Prefix removed from changed paths before matching.", "type": "string", "minLength": 1 },
               "check": { "description": "Shell commands the gate runs; each must succeed.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "github_checks": { "description": "Whether the PR head must have GitHub checks. required (default): none at all means wait. optional: none at all passes. Checks that exist must pass either way.", "enum": ["required", "optional"] },
               "tier_overrides": {
                 "description": "Path glob -> tier, overriding the tier paths for this repository.",
                 "type": "object",
@@ -52,7 +54,7 @@
     "record": {
       "description": "Gate record. decision and reasons are the output of the decision function as is; the PR comment and the andon/gate commit status copy them.",
       "type": "object",
-      "required": ["at", "id", "pr", "head", "tier", "tier_reasons", "changed_lines", "checks", "review", "acceptance", "delegation", "decision", "reasons", "merged"],
+      "required": ["at", "id", "pr", "head", "tier", "tier_reasons", "changed_lines", "checks", "github_checks", "review", "acceptance", "delegation", "decision", "reasons", "merged"],
       "additionalProperties": false,
       "properties": {
         "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
@@ -71,6 +73,14 @@
               "cmd": { "description": "The command.", "type": "string", "minLength": 1 },
               "ok": { "description": "Whether it succeeded.", "type": "boolean" }
             }
+          }
+        },
+        "github_checks": {
+          "description": "GitHub checks of the PR head (statusCheckRollup, without the gate's own andon/gate status), as one state.",
+          "type": "object", "required": ["state", "names"], "additionalProperties": false,
+          "properties": {
+            "state": { "description": "The worst of: failure (failure, cancelled, timed_out, startup_failure, error) > unknown (action_required, stale, any other value) > pending (not completed, pending, expected) > success (success, skipped, neutral). none: no check at all.", "enum": ["success", "pending", "failure", "unknown", "none"] },
+            "names": { "description": "Names of the checks in that state. Empty for success and none.", "type": "array", "items": { "type": "string" } }
           }
         },
         "review": {
@@ -107,7 +117,7 @@
             "ok": { "description": "Whether the tier is within merge.", "type": "boolean" }
           }
         },
-        "decision": { "description": "Output of the decision function.", "enum": ["approve", "fix", "needs_human"] },
+        "decision": { "description": "Output of the decision function. wait (GitHub checks not settled) is printed by andon gate but never written as a record.", "enum": ["approve", "fix", "needs_human", "wait"] },
         "reasons": { "description": "Output of the decision function, one line each. Empty on approve.", "type": "array", "items": { "type": "string" } },
         "merged": { "description": "Whether the courier merged the PR.", "type": "boolean" }
       }

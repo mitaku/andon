@@ -73,6 +73,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-03 | tests の分類: 行数の除外だけ。tests 配下でも skill は B・設定は C、実行される tests のスクリプトは B。独立レビューが要るときは、レビューの確認を先に読み、current でなければ検査を回さない | 仮設の記録（private）ゲート D2 |
 | 2026-11-03 | レビュー作成者の偽装は、残る危険として受け入れコードでは塞がない。ゲートが相手にするのは間違える担当で、騙そうとする担当ではない。守りは自動セキュリティレビューとレベル C | 仮設の記録（private）ゲート D3 |
 | 2026-11-04 | ゲートが読むもの（依頼書の Settings・レビューの指摘の数と重さ）は Markdown でなく機械向けの形で持つ。Markdown の依頼書・報告は人が読むためのもの | 仮設の記録（private）ゲート D4 |
+| 2026-11-06 | ゲートは PR の head の GitHub の checks（`statusCheckRollup`。自分の `andon/gate` は除く）を事実に入れる。落ちた（failure・cancelled・timed_out・startup_failure）は `fix`（担当が直す）、action_required・知らない値は `needs_human`、走っている・1つも無いは `wait`（記録しない。クーリエが見回りのたびに回し直す）。neutral・skipped は通す。1つも無いまま review から `github_checks_wait_minutes`（既定 30）を過ぎたら `needs_human`、CI の無い repo は条件表の `github_checks: optional`。走っているものは時間で人へ上げない。クーリエはマージの直前に head と checks を読み直し、変わっていれば打たない | 人・Chief of Staff（2026-11-06。private の repo でブランチ保護が効かず、CI の落ちた PR を伝令がマージしうる）、Y-142 の依頼書の推し |
 
 ## 4. トリアージの決定
 

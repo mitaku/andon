@@ -171,7 +171,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 | `asked` | `{"question": n, "status": "open"}` | `n`・`kind`・`question`（§5 の JSON から） |
 | `ready` | `kanban ready --json` の前回との差（人のタスクを除く） | `title`・`routine` |
 | `review-requested` | `report.json` の `review_request`（クーリエが起こしたとき） | `round`・`reviewer`・`reviewer_task` |
-| `gate` | クーリエが `andon gate` を回した結果 | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス） |
+| `gate` | クーリエが `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス） |
 | `merged` | ゲートの approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき | `pr`・`sha` |
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
@@ -183,21 +183,23 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 
 ## 7. ゲートの条件表と記録
 
-**条件表** `package/gate.json`（既定）＋ 建屋の `gate.local.json`（上書き。深い併合ではなく、キーごとの置き換え）。仮設のゲートの条件表のキー（`size_review_lines`・`size_human_lines`・`test_paths`・`tier_a_paths`・`tier_b_paths`・`tier_c_paths`・`tier_c_path_exceptions`・`tier_c_added_line_patterns`・`repos{merge, strip_prefix, check[]}`）に、`repos.<repo>.tier_overrides`（パスの glob → レベル）を足す。既定の条件表で案件 repo の `AGENTS.md`・`REVIEW.md` は **B**（人の決定 2026-11-05。design.md §6 問い7。Andon の repo と建屋の repo は C のまま）。条件表を変えるのはレベル C（人）。
+**条件表** `package/gate.json`（既定）＋ 建屋の `gate.local.json`（上書き。深い併合ではなく、キーごとの置き換え）。仮設のゲートの条件表のキー（`size_review_lines`・`size_human_lines`・`test_paths`・`tier_a_paths`・`tier_b_paths`・`tier_c_paths`・`tier_c_path_exceptions`・`tier_c_added_line_patterns`・`repos{merge, strip_prefix, check[]}`）に、`repos.<repo>.tier_overrides`（パスの glob → レベル）・`repos.<repo>.github_checks`・`github_checks_wait_minutes`（下）を足す。既定の条件表で案件 repo の `AGENTS.md`・`REVIEW.md` は **B**（人の決定 2026-11-05。design.md §6 問い7。Andon の repo と建屋の repo は C のまま）。条件表を変えるのはレベル C（人）。
 
 ```json
-{"size_review_lines": 500, "size_human_lines": 1000,
+{"size_review_lines": 500, "size_human_lines": 1000, "github_checks_wait_minutes": 30,
  "test_paths": ["tests/**"],
  "tier_a_paths": ["docs/**", "tests/**", "README*"],
  "tier_b_paths": ["package/lib/**", "**/*.sh"],
  "tier_c_paths": ["image/**", ".github/workflows/**", "package/gate.json", "**/AGENTS.md", "**/.claude/**"],
  "tier_c_path_exceptions": {"**/.claude/**": ["**/.claude/skills/**"]},
  "tier_c_added_line_patterns": ["\\bsudo\\b", "curl[^|]*\\|\\s*(ba)?sh"],
- "repos": {"github.com/<owner>/sample-site": {"merge": "squash", "check": ["bash tests/*.sh"],
+ "repos": {"github.com/<owner>/sample-site": {"merge": "squash", "check": ["bash tests/*.sh"], "github_checks": "required",
                                             "tier_overrides": {"AGENTS.md": "B", "REVIEW.md": "B"}}}}
 ```
 
-- キーはどれも必須ではない（`gate.local.json` は置き換えるキーだけを持つ）。知らないキーは拒む。`repos.<repo>.merge` は `merge` / `squash` / `rebase`、`tier_overrides` の値は `A` / `B` / `C`。
+- キーはどれも必須ではない（`gate.local.json` は置き換えるキーだけを持つ）。知らないキーは拒む。`repos.<repo>.merge` は `merge` / `squash` / `rebase`、`tier_overrides` の値は `A` / `B` / `C`。重ねたあとに `size_review_lines`・`size_human_lines`・`github_checks_wait_minutes` が無ければ、ゲートは誤り（終了コード 3）。
+- `repos.<repo>.github_checks`: PR の head に GitHub の checks（Actions の CI など）が要るか。`required`（既定）は1つも無ければ待ち、`optional` は1つも無くても通す（CI の無い repo）。どちらでも、在る checks は通っていなければ止める。
+- `github_checks_wait_minutes`: `required` の repo で checks が1つも無いとき、タスクが `review` に入った `log.jsonl` の行の `at` からこの分だけ待ち、過ぎたら `needs_human`（push の直後で checks がまだ付いていないのと、CI が無いのとを分ける）。
 
 **記録** `tasks/<id>/library/gate/<head sha>.json`（クーリエが書く。`--dry-run` では書かない）:
 
@@ -205,6 +207,7 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 {"at": "2026-11-04T09:10:00Z", "id": "A-12", "pr": "https://github.com/<owner>/andon/pull/12", "head": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
  "tier": "B", "tier_reasons": ["package/lib/andon/task は tier_b_paths"], "changed_lines": 212,
  "checks": [{"cmd": "bash tests/*.sh", "ok": true}],
+ "github_checks": {"state": "success", "names": []},
  "review": {"state": "current", "task": "A-13", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "must_fix_open": 0, "waived": 1},
  "acceptance": {"pass": 3, "fail": 0, "manual": 0},
  "delegation": {"merge": "B", "ok": true},
@@ -213,8 +216,11 @@ projects/<slug>/delegation.md     command が生成する人用の一覧（機�
 
 - キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`）/ `stale`（違う）/ `missing`（無い・読めない）/ `off`（タスクの `review: off`）。`current`・`stale` では `task` と `commit` が必須、`missing`・`off` では2つとも書かない。`delegation.merge` は委譲が無ければ `none`。
 - `decision` と `reasons[]` は決定式（純粋関数）の出力そのまま。PR のコメントと commit status（`andon/gate`）には同じ内容を写す（記録の正は台帳の側）。
+- `github_checks`: PR の head の GitHub の checks（`gh pr view --json headRefOid,statusCheckRollup`。head と同じ1回で読む。ゲート自身の commit status `andon/gate` は数えない）を1つの状態にまとめたもの。`state` は一番悪いもの: `failure`（failure・cancelled・timed_out・startup_failure・status の error）＞ `unknown`（action_required・stale・知らない値）＞ `pending`（終わっていない・status の pending・expected）＞ `success`（success・skipped・neutral。neutral は GitHub のブランチ保護と同じく通す）。1つも無ければ `none`。`names` はその状態にした checks の名前（`success`・`none` では空）。
+- GitHub の checks の決定: `failure` → `fix`（担当が直せるもの）。`unknown` → `needs_human`。`pending`、または `required` の repo で `none` → **`wait`**（ほかに止める理由が無いときだけ。止める理由があればそちらを返す）。`none` のまま `github_checks_wait_minutes` を過ぎたら `needs_human`。`pending` は時間で人へ上げない（走り終われば success か failure になる）。checks が通っていないあいだは条件表の `check` を回さない。
+- **`wait` は記録に書かない**: `andon gate` は記録の形を stdout に出して終了コード 5 で返すが、`gate/<head>.json`・PR のコメント・commit status は書かない（見回りのたびに PR を埋めない）。読み手（クーリエ）は控えに書かず、次の見回りでゲートから回し直す。
 - `delegation`: 読んだ委譲の `merge` の値と、判定のレベルがその中か（§11）。外なら approve でも `decision: needs_human`、`reasons[]` に `delegation: merge=B < tier C`。
-- 読み手: クーリエ（approve → `merge: auto` ＋ 委譲の範囲内ならマージ → `andon task finish`。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・人。
+- 読み手: クーリエ（approve → `merge: auto` ＋ 委譲の範囲内なら、マージの直前に PR の head と GitHub の checks を読み直し、head が記録の `head` のまま・checks が通る状態のときだけマージ → `andon task finish`。違えば打たず、次の見回りでゲートから回し直す。wait → 控えに書かずに次の見回りで回し直す。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・人。
 
 ## 8. 端末の土台（hc）との約束
 

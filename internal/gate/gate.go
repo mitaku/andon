@@ -1,9 +1,9 @@
 // Package gate は andon gate（docs/contract.md §7。仮設のゲート lib/yard/gate を Go に移したもの）。
 // 台帳のタスクの PR を、task.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
-// ゲートの条件表・委譲（delegation.json）で照合し、decision（approve / fix / needs_human）を出して記録する。
+// ゲートの条件表・委譲（delegation.json）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
 // Markdown（依頼書・報告）は読まない。マージはしない（クーリエが記録を読んでする。P6a）。
 //
-// 終了コード: approve 0・fix 1・使い方 2・道具や台帳の誤り 3・needs_human 4。
+// 終了コード: approve 0・fix 1・使い方 2・道具や台帳の誤り 3・needs_human 4・wait 5（記録しない）。
 package gate
 
 import (
@@ -29,13 +29,15 @@ import (
 const Usage = "usage: andon gate <id> [--dry-run]\n" +
 	"台帳のタスクの PR（report.json の pr）を、task.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は tasks/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
-	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・誤り 3。\n"
+	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
+	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3。\n"
 
 const (
 	exitFix   = 1
 	exitUsage = 2
 	exitError = 3
 	exitHuman = 4
+	exitWait  = 5
 )
 
 var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
@@ -50,6 +52,7 @@ type Record struct {
 	TierReasons  []string      `json:"tier_reasons"`
 	ChangedLines int           `json:"changed_lines"`
 	Checks       []Check       `json:"checks"`
+	GitHubChecks GitHubChecks  `json:"github_checks"`
 	Review       ledger.Review `json:"review"`
 	Acceptance   struct {
 		Pass   int `json:"pass"`
@@ -94,6 +97,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	case "fix":
 		return exitFix
+	case "wait":
+		return exitWait
 	}
 	return exitHuman
 }
@@ -170,9 +175,12 @@ func LoadTable(pkg, ws string) (*Table, string, error) {
 				return nil, "", fmt.Errorf("条件表の repos.%s.tier_overrides[%s] が A/B/C でない", r, g)
 			}
 		}
+		if rt.GitHubChecks != "" && rt.GitHubChecks != "required" && rt.GitHubChecks != "optional" {
+			return nil, "", fmt.Errorf("条件表の repos.%s.github_checks が知らない値: %q", r, rt.GitHubChecks)
+		}
 	}
-	if t.SizeHumanLines == nil || t.SizeReviewLines == nil {
-		return nil, "", errors.New("条件表に size_review_lines・size_human_lines が無い")
+	if t.SizeHumanLines == nil || t.SizeReviewLines == nil || t.GitHubChecksWait == nil {
+		return nil, "", errors.New("条件表に size_review_lines・size_human_lines・github_checks_wait_minutes が無い")
 	}
 	return &t, warn, nil
 }
@@ -239,7 +247,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "", errors.New("PR が読めない")
 	}
 	head := pv.HeadRefOid
-	rec := &Record{At: time.Now().UTC().Format("2006-01-02T15:04:05Z"), ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
+	now := time.Now().UTC()
+	rec := &Record{At: now.Format("2006-01-02T15:04:05Z"), ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
 	facts := Facts{PROpen: pv.State == "OPEN" && !pv.IsDraft}
 	if t.Str("status") != "review" {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("台帳のタスクが review でない（%s）", t.Str("status")))
@@ -324,14 +333,19 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	facts.MergeLevel = d.Merge()
 	rec.Delegation.Merge, rec.Delegation.OK = facts.MergeLevel, Within(tier, facts.MergeLevel)
 
-	// files・diff は head と別に取っている。取り直して動いていれば判定しない
-	b, err = gh("pr", "view", number, "--repo", slug, "--json", "headRefOid", "-q", ".headRefOid")
+	// files・diff は head と別に取っている。取り直して動いていれば判定しない。
+	// GitHub の checks は head と同じ1回で読む（判定する head の checks だけを見る）
+	after, checks, err := ReadChecks(number, slug)
 	if err != nil {
 		return nil, "", err
 	}
-	if after := strings.TrimSpace(string(b)); after != head {
+	if after != head {
 		return nil, fmt.Sprintf("判定の途中で PR の head が動いた（%s → %s）。取り直す", head, after), nil
 	}
+	rec.GitHubChecks = checks
+	facts.GitHubChecks, facts.ChecksOptional = checks, rt.GitHubChecks == "optional"
+	facts.ChecksWait = *table.GitHubChecksWait
+	facts.ChecksOverdue = ChecksOverdue(rows, id, now, facts.ChecksWait)
 
 	// L3 レビュー・L2 検査（前の段で決まっていれば回さない）
 	facts.ReviewRequired = tier == "B" || tier == "C" || s.Review == "on"
@@ -345,7 +359,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		rec.Review = l.CheckReview(rows, tasks, t, head, s.MustFix, rep.Waived)
 	}
 	facts.Review = rec.Review
-	if gated && (!facts.ReviewRequired || rec.Review.State == "current") {
+	if gated && (!facts.ReviewRequired || rec.Review.State == "current") && checks.Passed(facts.ChecksOptional) {
 		rec.Checks, err = runChecks(repo, head, rt.Check)
 		if err != nil {
 			return nil, "", err
@@ -360,7 +374,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		}
 	}
 	rec.Decision, rec.Reasons = Decide(facts)
-	if dry {
+	if dry || rec.Decision == "wait" {
 		return rec, "", nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -451,6 +465,22 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	return checks, nil
 }
 
+// ReadChecks は PR の head と、その head の GitHub の checks を1回の gh で読む（クーリエもマージの直前に使う）。
+func ReadChecks(number, slug string) (string, GitHubChecks, error) {
+	b, err := gh("pr", "view", number, "--repo", slug, "--json", "headRefOid,statusCheckRollup")
+	if err != nil {
+		return "", GitHubChecks{}, err
+	}
+	var v struct {
+		HeadRefOid        string      `json:"headRefOid"`
+		StatusCheckRollup []CheckItem `json:"statusCheckRollup"`
+	}
+	if json.Unmarshal(b, &v) != nil || !contract.IsSHA(v.HeadRefOid) {
+		return "", GitHubChecks{}, errors.New("PR の head と checks が読めない")
+	}
+	return v.HeadRefOid, SummarizeChecks(v.StatusCheckRollup), nil
+}
+
 // postGitHub は記録を PR の commit status（andon/gate）とコメントに写す。失敗しても判定は変えない。
 func postGitHub(slug, number string, rec *Record, stderr io.Writer) {
 	state := "failure"
@@ -458,7 +488,7 @@ func postGitHub(slug, number string, rec *Record, stderr io.Writer) {
 		state = "success"
 	}
 	desc := "andon gate: " + rec.Decision + "（tier " + rec.Tier + "）"
-	if _, err := gh("api", "-X", "POST", "repos/"+slug+"/statuses/"+rec.Head, "-f", "context=andon/gate", "-f", "state="+state, "-f", "description="+desc); err != nil {
+	if _, err := gh("api", "-X", "POST", "repos/"+slug+"/statuses/"+rec.Head, "-f", "context="+GateContext, "-f", "state="+state, "-f", "description="+desc); err != nil {
 		fmt.Fprintln(stderr, "andon gate: commit status の記録に失敗:", err)
 	}
 	var b strings.Builder
@@ -467,6 +497,7 @@ func postGitHub(slug, number string, rec *Record, stderr io.Writer) {
 	for _, c := range rec.Checks {
 		fmt.Fprintf(&b, "- check `%s`: %s\n", c.Cmd, strconv.FormatBool(c.OK))
 	}
+	fmt.Fprintf(&b, "- GitHub の checks: %s\n", rec.GitHubChecks.State)
 	fmt.Fprintf(&b, "- review %s（Must fix %d・見送り %d）\n", rec.Review.State, rec.Review.MustFixOpen, rec.Review.Waived)
 	fmt.Fprintf(&b, "- delegation merge=%s（%v）\n", rec.Delegation.Merge, rec.Delegation.OK)
 	for _, r := range rec.Reasons {

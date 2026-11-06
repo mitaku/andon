@@ -170,6 +170,7 @@ func (l *Ledger) Repos() []string {
 
 // Row は log.jsonl の1行（台帳の CLI が書く）。
 type Row struct {
+	At     string         `json:"at"`
 	By     string         `json:"by"`
 	ID     string         `json:"id"`
 	Change map[string]any `json:"change"`

@@ -98,7 +98,7 @@ declare -A required=(
   [question]="kind question options"
   [notification]="at project kind detail"
   [gate]=""
-  [gate-record]="at id pr head tier tier_reasons changed_lines checks review acceptance delegation decision reasons merged"
+  [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [delegation]="version project"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
@@ -134,6 +134,7 @@ notification|.detail|report pr
 gate|.repos[]|
 gate-record|.review|state must_fix_open waived task commit
 gate-record|.checks[0]|cmd ok
+gate-record|.github_checks|state names
 gate-record|.acceptance|pass fail manual
 gate-record|.delegation|merge ok
 delegation|.grants[0]|id scope value by at evidence
@@ -222,6 +223,7 @@ fail|gate|.repos[] += {"auto": true}|条件表の repos に知らないキー
 fail|gate|.repos[].merge = "fast-forward"|merge の方法が知らない値
 fail|gate|.repos[].tier_overrides["AGENTS.md"] = "D"|tier_overrides の値が A/B/C でない
 fail|gate|.size_review_lines = "500"|size_review_lines が文字列
+fail|gate|.repos[] += {"github_checks": "off"}|github_checks が知らない値
 pass|gate-record|.review = {state: "missing", must_fix_open: 0, waived: 0}|review が missing（task・commit 無し）
 pass|gate-record|.review = {state: "off", must_fix_open: 0, waived: 0}|review が off（task・commit 無し）
 pass|gate-record|.review.state = "stale"|review が stale（task・commit あり）
@@ -233,6 +235,8 @@ fail|gate-record|.review = {state: "off", task: "A-13", must_fix_open: 0, waived
 fail|gate-record|.at = "2026-13-01T09:10:00Z"|at の月が 13
 fail|gate-record|.review.state = "unknown"|review.state が知らない値
 fail|gate-record|.decision = "approved"|decision が知らない値
+pass|gate-record|.decision = "wait" | .github_checks = {state: "pending", names: ["test"]}|wait（andon gate の出力。記録には書かない）
+fail|gate-record|.github_checks.state = "green"|github_checks.state が知らない値
 fail|gate-record|.tier = "D"|tier が A/B/C でない
 fail|gate-record|. + {"size_review_lines": 500}|記録に条件表のキーが混ざる
 fail|gate-record|.checks[0] += {"exit": 0}|checks に知らないキー
@@ -303,6 +307,7 @@ task-keys.json|task-keys|andon task show の settings
 question.json|question|andon task ask の questions/<n>.json
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
+gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
 delegation.json|delegation|andon delegate grant の delegation.json
 gate-record-merged.json|gate|andon courier がマージしたあとのゲートの記録（merged）
 question-gate.json|question|andon courier が needs_human で出した問い（from: gate）
