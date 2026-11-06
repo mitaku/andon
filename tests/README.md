@@ -25,4 +25,4 @@ example-project
 
 `tests/image.sh` は Docker があれば実際にビルドしてコンテナを起動する。建屋の claude と codex を `/workspace` の下の新しい dir で起こし、信頼の画面が出ないことも見る（最初の画面は `tests/lib/pty-probe.py` で pty に起こして読む。標準ライブラリだけ）。手順と CI の配布条件は [docs/image.md](../docs/image.md)。Docker が無いローカルでは SKIP、CI では失敗する。
 
-`tests/host.sh` は実物の mod を Node.js の VM に読み、偽の `herdr`・`gpui-kit` API で名前付け・同名の無操作・レビュアーの除外・別マシンの配置・rename 以外を呼ばないことを検証する。`tests/andon-init.sh` は mod の初回配置、既存ディレクトリとリンクの保護、App の環境変数による置き場と WSL の明示指定も確かめる。本物の App の描画とレイアウトへの配置は、このテストには含まれない。
+`tests/host.sh` は実物の mod を Node.js の VM に読み、偽の `herdr`・`gpui-kit` API で名前付け・同名の無操作・レビュアーの除外・別マシンの配置・rename 以外を呼ばないことを検証する（`tests/host/mod.mjs`）。画面の mod（inbox・kanban-board・context-header・files-plus）は `tests/host/screen.mjs` が、JavaScript の構文（`node --check`）・`mod.json`・`keys.json`・レイアウト `andon` の名前付けの block、Andon に合わせた所（context-header の名前・kanban-board の台帳の見つけ方）を見る。`tests/andon-init.sh` は mod とレイアウトの初回配置、既存ディレクトリ・レイアウト・リンクの保護、App の環境変数による置き場と WSL の明示指定も確かめる。本物の App の描画とレイアウトへの配置は、このテストには含まれない。
