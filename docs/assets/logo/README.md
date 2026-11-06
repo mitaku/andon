@@ -13,3 +13,5 @@ Andon の記号（A の行燈）とクーリエの記号（提灯を運ぶ）。
 
 **窓の色が状態の印になる。** 行燈の窓と提灯の灯りは、緑＝流れている・黄＝人の判断待ち・赤＝止まった。ファイルの既定は黄（灯りがついて人を呼んでいる。[design.md](../../design.md) §0 の「灯り」）。
 色は `style="fill:var(--glow,…)"` で塗っているので、HTML に inline すれば CSS の変数で替えられる（`--glow`・`--glow-hi`。線は `--ink`、提灯の紙は `--paper`）。緑は `#2F9E62`／`#8FD8AE`、赤は `#D8453B`／`#F29A92`。
+
+**social preview.** `../social-preview.png`（1280×640・明るい背景）は GitHub の social preview に使う画像で、`andon-wordmark.svg` と1行「a one-person software factory」を並べて PNG に焼いたもの。設定は repo の Settings → General → Social preview で人か Chief of Staff がする。

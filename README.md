@@ -2,13 +2,13 @@
 
 # Andon
 
-A one-person software factory: AI coding agents take tasks from a ledger through implementation, review and merge, and the human is called only for the decisions that only they can make.
+**Andon — a one-person software factory.** AI coding agents take tasks from a ledger through implementation, review and merge, and the human is called only for the decisions that only they can make.
 
 一人で使うソフトウェア工場。エージェントが台帳のタスクを実装・レビュー・マージまで流し、人は自分にしかできない判断のときだけ呼ばれる。
 
 ## English summary
 
-**What it is.** Andon is the package, the contracts and the documents for running a software "line" with AI agents. One long-lived container (a *plant*) is set up per trust boundary (one client, one hobby, ...). Inside it, a coordinating agent (the *Chief of Staff*) reads a file-based task ledger, starts one worker agent per task in its own git worktree, asks a reviewer agent of a different model family to review the pull request, and lets a gate decide from rules what can merge without a person. The human is called (the andon light turns on) only for five kinds of decisions: what to build, how users should experience it, promises to the outside, irreversible risks, and changes to the line itself. Which of these a person must answer can be delegated per project, except what to build.
+**What it is.** Andon — a one-person software factory — is the package, the contracts and the documents for running a software "line" with AI agents. One long-lived container (a *plant*) is set up per trust boundary (one client, one hobby, ...). Inside it, a coordinating agent (the *Chief of Staff*) reads a file-based task ledger, starts one worker agent per task in its own git worktree, asks a reviewer agent of a different model family to review the pull request, and lets a gate decide from rules what can merge without a person. The human is called (the andon light turns on) only for five kinds of decisions: what to build, how users should experience it, promises to the outside, irreversible risks, and changes to the line itself. Which of these a person must answer can be delegated per project, except what to build.
 
 The design calls this a *selective dark factory*. A "dark factory" is a factory that runs with the lights off because no person is on the floor. Andon is selective: machines stop what machines can decide (tests, gates), language models handle what needs judgment, and a person sees only what is left. The name comes from the andon cord and light of the Toyota Production System. Andon is not a manufacturing-floor andon product.
 
