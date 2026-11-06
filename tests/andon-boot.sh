@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/andon-boot.sh — andon boot を偽の HOME・偽の建屋・偽のパッケージで2回打つ。
-# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink）が揃い、2回目で何も変わらないこと。
+# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink・信頼）が揃い、2回目で何も変わらないこと。
 # PATH には andon の置き場だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace に触らない）。
 set -u
 tmp=$(mktemp -d)
@@ -23,11 +23,12 @@ ln -s "$pkg/skills/worker" "$home/.claude/skills/andon-worker" # 前の置き場
 ln -s "$tmp/mine" "$home/.claude/skills/mine"                   # 利用者の skill（残ること）
 mkdir -p "$home/.agents/skills"
 ln -s "$tmp/mine" "$home/.agents/skills/andon-mine"             # 利用者が andon- の名前で置いた skill（残ること）
+mkdir -p "$ws/.ghq/github.com/example/sample-site/.git"           # ghq の repo（信頼の根）
 cp "$andon" "$tmp/path/andon"
 
 boot() {
   env -i PATH="$tmp/path" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
-    ANDON_HOME="$pkg" ANDON_WORKSPACE="$ws" ANDON_MANAGED_SETTINGS="$managed" \
+    ANDON_HOME="$pkg" ANDON_WORKSPACE="$ws" ANDON_MANAGED_SETTINGS="$managed" GHQ_ROOT="$ws/.ghq" \
     andon boot >"$tmp/out" 2>"$tmp/err"
 }
 snap() { (cd "$tmp" && find etc home -printf '%y %p %l %m %T@\n' | sort && find etc home -type f -exec cat {} +); }
@@ -41,12 +42,19 @@ grep -q '建屋' "$home/.config/herdr-core/templates/claude.md" && pass "プロ�
 [ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
 [ ! -L "$home/.claude/skills/andon-worker" ] && [ -L "$home/.claude/skills/mine" ] && [ "$(readlink "$home/.agents/skills/andon-mine")" = "$tmp/mine" ] && pass "boot が張った andon-* だけ外す" || fail "~/.claude/skills: $(ls -l "$home/.claude/skills")"
 grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
+repo=$ws/.ghq/github.com/example/sample-site
+jq -e --arg w "$ws" --arg r "$repo" '.projects[$w].hasTrustDialogAccepted == true and .projects[$r].hasTrustDialogAccepted == true and (.projects | length) == 2' "$home/.claude/.claude.json" >/dev/null \
+  && [ "$(cat "$home/.codex/config.toml")" = "[projects.\"$ws\"]
+trust_level = \"trusted\"
+
+[projects.\"$repo\"]
+trust_level = \"trusted\"" ] && pass "建屋の repo と ghq の repo を Claude Code・Codex で信頼済みにする" || fail "信頼: $(cat "$home/.claude/.claude.json" "$home/.codex/config.toml" 2>&1)"
 
 snap >"$tmp/snap1"
 boot; r=$?
 snap >"$tmp/snap2"
 [ "$r" = 0 ] && cmp -s "$tmp/snap1" "$tmp/snap2" && pass "2回打っても同じ（冪等）" || fail "2回目: rc=$r $(diff "$tmp/snap1" "$tmp/snap2")"
-grep -qE '生成:|リンク:|外した:' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
+grep -qE '生成:|リンク:|外した:|信頼を足した' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
 
 "$andon" boot extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon boot' "$tmp/err" && pass "引数を取らない（usage で rc 2）" || fail "boot extra: rc=$r"
