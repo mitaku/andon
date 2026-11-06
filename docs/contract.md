@@ -10,7 +10,7 @@
 | §5 問い | `schema/question.schema.json` |
 | §6 通知 | `schema/notification.schema.json` |
 | §7 ゲートの条件表と記録 | `schema/gate.schema.json`（条件表か記録のどちらか一方に合う） |
-| §11 委譲 | `schema/delegation.schema.json` |
+| §11 プロジェクトの事実と委譲 | `schema/project.schema.json` |
 
 - 読み手: command（`andon task …`・`andon gate`・`andon triage`・`andon delegate`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
@@ -22,7 +22,7 @@
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起こさない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
 3. **1つの約束に1人の書き手。** `task.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` は担当、問いの JSON は問うた者、通知とゲートの記録は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
-5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `tasks/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.task/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。委譲だけは建屋の repo（§11。書き手が人だから）。
+5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `tasks/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.task/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけは建屋の repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon task`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-task.sh`・`tests/andon-gate.sh` に書かせる）。
 
 ## 1. 置き場と書き手
@@ -42,8 +42,7 @@ projects/<slug>/kanban/
       gate/<head sha>.json        dispatcher（§7。ゲートの記録）
       corrections.json            dispatcher（finish のとき。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
-projects/<slug>/delegation.json   人（§11。建屋の repo。git の履歴が照合の元）
-projects/<slug>/delegation.md     command が生成する人用の一覧（機械は読まない）
+projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。建屋の repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ```
 
@@ -258,26 +257,42 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 - キーを消す・意味を変える: 版を上げ、古い版を読む側を1版だけ残す（建屋の `FROM` の版上げが追いつくまで）。
 - ledger-format の `version` が上がったら、Andon の command は台帳の CLI の言うとおりに止まる（ledger-format の規則）。
 
-## 11. 委譲（`delegation.json`）
+## 11. プロジェクトの事実と委譲（`project.json`）
 
-オーナー（人）が Chief of Staff・dispatcher・担当に何をどこまで任せたか（design.md §1.10）。**置き場は建屋の repo の `projects/<slug>/delegation.json`**（台帳の外。書き手が人だけだから）。人用の一覧 `delegation.md` を同じ場所に command が生成する（機械は読まない）。
+プロジェクトについて機械が読む事実（[ADR-0004](adr/0004-project-layout.md) 決めたこと 1）。**置き場は建屋の repo の `projects/<slug>/project.json`**（台帳の外。書き手が人だけだから）。委譲（オーナー〈人〉が Chief of Staff・dispatcher・担当に何をどこまで任せたか。design.md §1.10）はその `delegation` に入る。人が見る一覧は `andon delegate show`。
 
 ```json
-{"version": 1, "project": "sample-site", "preset": "hobby",
- "grants": [
-   {"id": "d1", "scope": "publish", "value": "public",
-    "by": "owner", "at": "2026-11-05", "until": null,
-    "evidence": "2026-11-05 の対話「サイトは勝手に出してよい」（projects/sample-site/master/decisions.md #12）",
-    "revoked": null},
-   {"id": "d2", "scope": "deploy", "value": "none",
-    "by": "owner", "at": "2026-11-05", "until": "2026-12-31",
-    "evidence": "移行中はデプロイを人が見る",
-    "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]}
+{"version": 1,
+ "project": {"title": "Sample site", "prefix": "S"},
+ "repos": ["github.com/example/sample-site"],
+ "references": ["github.com/example/design-notes", "https://example.com/style-guide"],
+ "delegation": {"version": 1, "project": "sample-site", "preset": "hobby",
+   "grants": [
+     {"id": "d1", "scope": "publish", "value": "public",
+      "by": "owner", "at": "2026-11-05", "until": null,
+      "evidence": "2026-11-05 の対話「サイトは勝手に出してよい」（github.com/example/sample-site の docs/decisions.md #12）",
+      "revoked": null},
+     {"id": "d2", "scope": "deploy", "value": "none",
+      "by": "owner", "at": "2026-11-05", "until": "2026-12-31",
+      "evidence": "移行中はデプロイを人が見る",
+      "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]},
+ "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_tasks": 3}}
 ```
 
 | キー | 要るか | 意味 |
 |---|---|---|
 | `version` | 必須 | この形式の版（整数の `1`） |
+| `project` | 必須 | `{title, prefix}`（2つとも必須）。`title` は人に見せる名前、`prefix` はタスクの id の接頭字（英大文字で始まる英大文字・数字） |
+| `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon task start` はタスクの `repo` がここに無ければ起こさない。台帳の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
+| `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
+| `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部人） |
+| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_tasks`（1回のトリアージで起こすタスクの上限。1 以上。既定 3） |
+
+`delegation` の中:
+
+| キー | 要るか | 意味 |
+|---|---|---|
+| `version` | 必須 | 委譲の形式の版（整数の `1`） |
 | `project` | 必須 | プロジェクトの slug（置き場と一致しなければ無委譲） |
 | `preset` | 任意 | 既定の型 `hobby` / `work` / `andon`（design.md §1.10 の表）。無ければ `work` |
 | `grants[]` | 任意 | 型からの足し引き。後の行が前の行を上書きする（同じ `scope` の有効な grant のうち、`at` が最新のもの） |
@@ -292,12 +307,13 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 **読み方**（読む側は全部この順）:
 
-1. 建屋の repo の **HEAD** の `projects/<slug>/delegation.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
-2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部人）として読む。無い・JSON でない・schema を通らない・`project` が違う・`version` を知らない、も同じ（原則2）。
-3. `preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。
-4. 読み手ごとに見る `scope`: ゲート＝`merge`。dispatcher と `andon task …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。Chief of Staff＝全部（起きるたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）。
-5. Andon の建屋の `andon` プロジェクトは `preset` を `andon` 以外にできない（command が拒む。`merge` の上限 `B`・`line-change: none`）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
+1. 建屋の repo の **HEAD** の `projects/<slug>/project.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
+2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部人）・**書いてよい repo 無し**として読む。無い・JSON でない・schema を通らない・`delegation.project` が違う・`version` を知らない、も同じ（原則2）。`delegation` が無ければ無委譲。
+3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがある建屋は、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは台帳の改名のタスク（ADR-0004 決めたこと 5 の 4）。
+4. `delegation.preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。
+5. 読み手ごとに見るもの: ゲート＝`merge`。dispatcher と `andon task …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon task start`＝`repos`（タスクの `repo` が無ければ起こさない）。Chief of Staff＝委譲の全部（起きるたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
+6. Andon の建屋の `andon` プロジェクトは `preset` を `andon` 以外にできない（command が拒む。`merge` の上限 `B`・`line-change: none`）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
 
-**書き方**: 人が建屋の repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command は JSON を検証して書き、`delegation.md` を生成し、commit する（message に `scope`・`value`・`evidence`）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` があれば拒む）。
+**書き方**: `project.json` は人が書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲は人が建屋の repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command は建屋の repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更を人の commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `task=` があれば拒む）。
 
 **依頼書の Settings との関係**: `task.yaml` の `merge: auto` は委譲の `merge` の範囲の中でだけ効く（§2）。委譲の外なら、ゲートは approve でも `needs_human`（§7 の `delegation`）。

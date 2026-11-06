@@ -99,7 +99,7 @@ git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
 mkdir -p "$tmp/plant/projects/demo"
-echo '{"version": 1, "project": "demo", "preset": "work"}' > "$tmp/plant/projects/demo/delegation.json"
+echo '{"version": 1, "project": {"title": "Demo", "prefix": "D"}, "repos": ["github.com/example/app"], "delegation": {"version": 1, "project": "demo", "preset": "work"}}' > "$tmp/plant/projects/demo/project.json"
 as_owner git -C "$tmp/plant" add -A; as_owner git -C "$tmp/plant" commit -qm plant
 cd "$tmp/plant/projects/demo"
 kanban init --prefix D --repo github.com/example/app >/dev/null

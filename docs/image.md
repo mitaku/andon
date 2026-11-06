@@ -52,6 +52,8 @@ Claude Code の managed settings の deny のうちコマンドの頭で引く�
 
 **Claude Code と同じ広さではない。** rules は token の頭の一致で、引数の値を読み飛ばせない。Codex が拒むのは直接の形（絶対パスを含む）と、引数を取らない wrapper（`env`・`command`・`exec`・`nohup`・`nice`・`sudo`・`xargs`）の形だけ。Claude Code の deny が見る、引数を取る wrapper（`timeout 30 …`・`env FOO=bar …`）・先頭の代入（`FOO=bar gh pr merge`）・`$( )` の中は拒めない（`tests/image.sh` が「拒めないことが分かっている形」として持つ）。守る相手は間違える担当で、偽る担当ではない（下の「残る危険」と同じ D1）。マージを本当に止めるのはゲートと、public にしたあとのブランチ保護。
 
+人のファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当が人のファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない。
+
 deny のうち `Bash(git diff *--output*)` などは allow の穴を塞ぐもので、allow を持たない Codex には引かない。2か所の一覧は `tests/package.sh` が突き合わせる。Codex 自身の危険の判定（`rm -f` など）は `never` の下では確認ではなく拒否になる。
 
 Codex のフックは配っていない（フックは Claude Code だけ。[contract.md](contract.md)）ので、フックの信頼の画面は出ない。

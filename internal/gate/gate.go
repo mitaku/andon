@@ -1,6 +1,6 @@
 // Package gate は andon gate（docs/contract.md §7。仮設のゲート lib/yard/gate を Go に移したもの）。
 // 台帳のタスクの PR を、task.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
-// ゲートの条件表・委譲（delegation.json）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
+// ゲートの条件表・委譲（project.json の delegation）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
 // Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
 // 終了コード: approve 0・fix 1・使い方 2・道具や台帳の誤り 3・needs_human 4・wait 5（記録しない）。

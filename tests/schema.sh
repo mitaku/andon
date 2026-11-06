@@ -21,10 +21,10 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 schema_of() {
   case "$1" in
     2) echo task-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo delegation ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; *) return 1 ;;
   esac
 }
-expected="delegation findings gate notification question report task-keys"
+expected="findings gate notification project question report task-keys"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
@@ -99,7 +99,7 @@ declare -A required=(
   [notification]="at project kind detail"
   [gate]=""
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
-  [delegation]="version project"
+  [project]="version project repos"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
@@ -137,8 +137,11 @@ gate-record|.checks[0]|cmd ok
 gate-record|.github_checks|state names
 gate-record|.acceptance|pass fail manual
 gate-record|.delegation|merge ok
-delegation|.grants[0]|id scope value by at evidence
-delegation|.grants[1].revoked|at by reason
+project|.project|title prefix
+project|.delegation|version project
+project|.chief_of_staff|
+project|.delegation.grants[0]|id scope value by at evidence
+project|.delegation.grants[1].revoked|at by reason
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -240,29 +243,45 @@ fail|gate-record|.github_checks.state = "green"|github_checks.state が知らな
 fail|gate-record|.tier = "D"|tier が A/B/C でない
 fail|gate-record|. + {"size_review_lines": 500}|記録に条件表のキーが混ざる
 fail|gate-record|.checks[0] += {"exit": 0}|checks に知らないキー
-fail|delegation|.version = 2|知らない version
-fail|delegation|.version = "1"|version が文字列
-fail|delegation|.preset = "free"|知らない preset
-pass|delegation|{version: 1, project: "sample-site"}|preset も grants も無くても通る（型 work）
-fail|delegation|.grants[0].scope = "merge"|scope merge に publish の値
-pass|delegation|.grants[0] |= (.scope = "merge" | .value = "B")|scope merge の値 B
-pass|delegation|.grants[0] |= (.scope = "irreversible" | .value = ["delete-branch", "force-push"])|scope irreversible の配列
-fail|delegation|.grants[0] |= (.scope = "irreversible" | .value = ["delete-remote"])|delete-remote は委譲できない
-fail|delegation|.grants[0] |= (.scope = "profile" | .value = "true")|真偽値の scope に文字列
-fail|delegation|del(.grants[0].evidence)|grant に evidence が無い
-fail|delegation|.grants[0].by = "chief-of-staff"|by が owner でない
-fail|delegation|.grants[0].until = "2026/12/31"|until が日付の形でない
-fail|delegation|.grants[0].at = "9999-99-99"|at が暦に無い（9999-99-99）
-fail|delegation|.grants[0].at = "2026-02-30"|at が暦に無い（2月30日）
-fail|delegation|.grants[0].at = "2026-13-01"|at の月が 13
-fail|delegation|.grants[0].until = "2026-02-29"|until がうるう年でない年の 2月29日
-pass|delegation|.grants[0].until = "2028-02-29"|until がうるう年の 2月29日
-pass|delegation|.grants[0].until = "2000-02-29"|2000 年はうるう年
-fail|delegation|.grants[0].until = "2100-02-29"|2100 年はうるう年でない
-fail|delegation|.grants[1].revoked.at = "2026-11-31"|revoked.at が暦に無い（11月31日）
-fail|delegation|del(.grants[1].revoked.reason)|revoked に reason が無い
-fail|delegation|.grants[0].id = "g1"|grant の id が d<n> でない
-fail|delegation|.grants[0] += {"note": "x"}|grant に知らないキー
+pass|project|{version: 1, project: {title: "x", prefix: "S"}, repos: []}|repos が空・任意のキーが無くても通る
+fail|project|del(.repos)|repos が無い
+fail|project|.repos = "github.com/example/app"|repos が配列でない
+fail|project|.repos[0] = "example/app"|repos の要素が <host>/<owner>/<repo> でない
+fail|project|.references[0] = "ftp://example.com/x"|references が repo でも https の URL でもない
+pass|project|.references = ["https://example.com/x"]|references に https の URL
+fail|project|.project.prefix = "s"|prefix が英大文字でない
+fail|project|.project.title = ""|title が空
+fail|project|.version = 2|知らない version
+fail|project|.delegation = null|delegation が null
+fail|project|.delegation += {"x_unknown": 1}|delegation が今の委譲と違う形（知らないキー）
+fail|project|del(.delegation.project)|delegation が今の委譲と違う形（project が無い）
+fail|project|.delegation = {preset: "work", grants: []}|delegation が今の委譲と違う形（version・project が無い）
+fail|project|.chief_of_staff.parallel = 0|parallel が 0
+fail|project|.chief_of_staff.review_when = "外向きの面"|review_when が配列でない
+fail|project|.chief_of_staff.triage_max_tasks = "3"|triage_max_tasks が文字列
+fail|project|.delegation.version = 2|委譲: 知らない version
+fail|project|.delegation.version = "1"|委譲: version が文字列
+fail|project|.delegation.preset = "free"|委譲: 知らない preset
+pass|project|.delegation = {version: 1, project: "sample-site"}|委譲: preset も grants も無くても通る（型 work）
+fail|project|.delegation.grants[0].scope = "merge"|委譲: scope merge に publish の値
+pass|project|.delegation.grants[0] |= (.scope = "merge" | .value = "B")|委譲: scope merge の値 B
+pass|project|.delegation.grants[0] |= (.scope = "irreversible" | .value = ["delete-branch", "force-push"])|委譲: scope irreversible の配列
+fail|project|.delegation.grants[0] |= (.scope = "irreversible" | .value = ["delete-remote"])|委譲: delete-remote は委譲できない
+fail|project|.delegation.grants[0] |= (.scope = "profile" | .value = "true")|委譲: 真偽値の scope に文字列
+fail|project|del(.delegation.grants[0].evidence)|委譲: grant に evidence が無い
+fail|project|.delegation.grants[0].by = "chief-of-staff"|委譲: by が owner でない
+fail|project|.delegation.grants[0].until = "2026/12/31"|委譲: until が日付の形でない
+fail|project|.delegation.grants[0].at = "9999-99-99"|委譲: at が暦に無い（9999-99-99）
+fail|project|.delegation.grants[0].at = "2026-02-30"|委譲: at が暦に無い（2月30日）
+fail|project|.delegation.grants[0].at = "2026-13-01"|委譲: at の月が 13
+fail|project|.delegation.grants[0].until = "2026-02-29"|委譲: until がうるう年でない年の 2月29日
+pass|project|.delegation.grants[0].until = "2028-02-29"|委譲: until がうるう年の 2月29日
+pass|project|.delegation.grants[0].until = "2000-02-29"|委譲: 2000 年はうるう年
+fail|project|.delegation.grants[0].until = "2100-02-29"|委譲: 2100 年はうるう年でない
+fail|project|.delegation.grants[1].revoked.at = "2026-11-31"|委譲: revoked.at が暦に無い（11月31日）
+fail|project|del(.delegation.grants[1].revoked.reason)|委譲: revoked に reason が無い
+fail|project|.delegation.grants[0].id = "g1"|委譲: grant の id が d<n> でない
+fail|project|.delegation.grants[0] += {"note": "x"}|委譲: grant に知らないキー
 EOF
 
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
@@ -278,7 +297,9 @@ findings|.required -= ["commit"]|findings の必須から commit を外す
 findings|.additionalProperties = true|findings の知らないキーを許す
 gate|."$defs".record.required -= ["decision"]|ゲートの記録の必須から decision を外す
 report|."$defs".sha.pattern = "^[0-9a-f]+$"|sha の桁を緩める
-delegation|."$defs".grant.required -= ["id"]|grant の必須から id を外す
+project|."$defs".grant.required -= ["id"]|grant の必須から id を外す
+project|.required -= ["repos"]|project の必須から repos を外す
+project|."$defs".delegation.additionalProperties = true|delegation の知らないキーを許す
 report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
 findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+$"|file の .. の段の検査を外す
 LOOSE
@@ -308,7 +329,7 @@ question.json|question|andon task ask の questions/<n>.json
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
-delegation.json|delegation|andon delegate grant の delegation.json
+project.json|project|andon delegate grant の project.json
 gate-record-merged.json|gate|andon dispatcher がマージしたあとのゲートの記録（merged）
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested

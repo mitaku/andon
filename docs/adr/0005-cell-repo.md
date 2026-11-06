@@ -52,7 +52,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
 4. **2026-11-06 人のファイルとエージェントの境界と守り。** 人のファイル（人だけが書く）は `andon.toml`・`projects/<slug>/project.json`・`gate.local.json`・`templates.local/`・`local/`・建屋の `AGENTS.md`。エージェントが commit してよいのは `wiki/`・`files/`・`projects/<slug>/AGENTS.md`・`projects/<slug>/.claude/`・`kanban/`（表の「書く人」のとおり）。守りは 3 段:
    - (a) **機械が読む人のファイル**（`project.json`・`gate.local.json`）は、建屋の repo の HEAD を読み、最後に変えた commit の author が `owner` のときだけ信じる（contract.md §11。今ある。持ち主が 1 人なので照合はこの 1 行で足りる）。
    - (b) **書く command は役の端末で拒む**: `andon delegate` は hc のラベル `role=` か `task=` のある端末では打てない（今ある）。
-   - (c) **ハーネスの deny**: managed settings（`package/settings.json`）の `deny` に、人のファイルへの `Write`・`Edit` を足す。design.md §1.10 が「managed deny ＋ 端末のラベル」と書くが、今の `settings.json` の deny は `gh pr merge` と git の `--output` 系だけで、この deny は**まだ無い**（見つけた継ぎ目。S3）。Codex 側は同じ広さで拒めない（受け入れ済み。前提 4）。
+   - (c) **ハーネスの deny**: managed settings（`package/settings.json`）の `deny` に、人のファイルへの `Write`・`Edit` を足す。design.md §1.10 が「managed deny ＋ 端末のラベル」と書くが、今の `settings.json` の deny は `gh pr merge` と git の `--output` 系だけで、この deny は**まだ無い**（見つけた継ぎ目。S3）。Codex 側は同じ広さで拒めない（受け入れ済み。前提 4）。**→ 在る（6。S3）。**
    理由: 守りを緩められるのは人のファイルだけ、という構造にしておけば、エージェントの書く場所を増やしても（ADR-0004）線は 1 本のまま（shepherdr 1.0「repo の file は事実だけ、guard を緩められない」と同じ線）。
    捨てた案: 「人以外は建屋の repo に commit しない」（ADR-0004 の 1 回目の前提）——`wiki/` が既に例外で、台帳を追跡するなら成り立たない。ファイルごとの線に替えた。
 
@@ -63,6 +63,13 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    - 受け入れ条件 1 と 4 の commit・push、切る案 S2 の `.gitignore` の書き換えと S4、開いている問い 2 は無くなる（下に打ち消し線ではなくこの項で読み替える。文書を書き換えないのは「覆したら上書きせず下に足す」の規則）。S4 は「operate.md の引っ越しの段（`kanban/` を写す手）」だけ残る。
    理由: 前提 1 のとおり。台帳を git に入れると、セルの repo の履歴がエージェントの commit で埋まり、「人のファイルはエージェントが commit しない」の線（4）の例外が増える。要るものが外に出ている以上、増やす理由が無い。
    捨てた案: 3（伝令が commit・push）——人の意図と違う／`kanban export` の command を作る——`cp -r` で足りる。
+
+6. **2026-11-06 4 の (c) は在る（S3。タスク Y-162）。** `package/settings.json` の `permissions.deny` に `Edit(//workspace/<人のファイル>)` を 9 本足した: `andon.toml`・`AGENTS.md`・`gate.local.json`・`templates.local/**`・`local/**`・`bin/**`・`projects/*/project.json`・`projects/*/delegation.json`・`projects/*/delegation.md`（`delegation.*` は `project.json` へ移すまでの今のファイル。移したら外す）。
+   - 書き方は Claude Code 2.1.319 の permissions の文書に従う: `Write`・`MultiEdit`・`NotebookEdit` は `Edit(path)` の規則で引かれ、`Write(path)` の規則は受け付けても当たらない。絶対パスは `//`（単独の `/` は設定の置き場からの相対）。建屋の repo は `/workspace` に決め打ち（`ANDON_WORKSPACE` で動かすと deny は付いてこない）。
+   - 塞げる: Claude Code の道具（Write・Edit。絶対パスでも cwd からの相対パスでも）、Bash の `sed -i`・`tee`・`cp`・リダイレクト（`>`・`>>`。`cd` のあとの相対パスでも）。塞げない: ファイルを自分で開く子プロセス（`python3 -c "open(…)"`・node・`git checkout`/`git restore` など）と Codex（rules は argv の頭の一致で、書き先のパスに当たらない。`apply_patch` にも当たらない）。残りは (a) の照合と (b) が受け持つ。持ち主自身が建屋で Claude Code に人のファイルを書かせることもできなくなる（人は手で書くか `andon delegate` を打つ）。
+   - 実測（2026-11-06。使い捨ての HOME で `--settings` に `/workspace` を一時の dir に置き換えた同じ規則を渡し、`acceptEdits`＋allow で deny が勝つかを見た）: 道具 10 通り（絶対・相対・`../../`）と Bash 8 通りが拒まれ、`python3 -c` の 1 通りだけ通った。対照（`projects/<slug>/AGENTS.md`・`wiki/` への同じ形）は全部通った。
+   理由: (c) が「在る」と書かれていながら無かった継ぎ目を塞ぐ。守る相手は間違える担当（D1）なので、道具と Bash の普通の形で足りる。
+   捨てた案: `Write(…)` で書く——今の版では当たらない／`Read` の deny も足す——読むのは要る（Chief of Staff が `project.json` を読む）。
 
 ## やらないこと（範囲の外。理由）
 

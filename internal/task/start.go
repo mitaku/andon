@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"andon/internal/boot"
+	"andon/internal/delegate"
 	"andon/internal/spawn"
 )
 
@@ -25,7 +27,7 @@ func (n notSent) Error() string { return n.msg }
 var profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
 // start は台帳のタスクに担当を起こす（仮設の yard task start を移したもの。docs/contract.md §8）:
-// repo があれば worktree と branch を切り、hc run でプロファイルを起こし、kanban start で doing にして agent をその端末にする。
+// repo があれば（台帳の config.yaml の repos と、建屋の repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起こし、kanban start で doing にして agent をその端末にする。
 // 打つのは Chief of Staff（projects/<slug>/ で）。起こせなかったら作った worktree と branch を戻す（やり直せるように）。
 // 最初のメッセージが届かなかったとき（信頼の画面など）は、台帳は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
 func (c *ctx) start(stdout, stderr io.Writer) error {
@@ -92,6 +94,17 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 		}
 		if !slices.Contains(c.l.Repos(), repo) {
 			return fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
+		}
+		// 書いてよい repo の正は建屋の repo の HEAD の project.json（人だけが書く。author 照合）。読めなければ repo 無し（安全側）
+		ws := delegate.Workspace()
+		proj, err := delegate.ReadProject(ws, slug)
+		if errors.Is(err, delegate.ErrAbsent) {
+			return fail("repo %s を書いてよいか分からない: 建屋の repo の HEAD に %s が無い（人が書いて commit する）", repo, delegate.ProjectRel(slug))
+		} else if err != nil {
+			return fail("repo %s を書いてよいか分からない: %v", repo, err)
+		}
+		if !slices.Contains(proj.Repos, repo) {
+			return fail("repo %s が %s の repos に無い（このプロジェクトが書いてよい repo でない）", repo, delegate.ProjectRel(slug))
 		}
 		repoDir, err := spawn.RepoPath(repo)
 		if err != nil {
