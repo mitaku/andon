@@ -269,6 +269,57 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 
 ---
 
+## 7. 「Nothing runs twice」の表: どの処理を、どの機の誰が、1 回だけ走らせるか
+
+別のマシンに作業側を出す（[design.md](design.md) §1.5）前に、常駐・定期の処理ごとに「走らせる者」と「二重に走ったら」と「今の守り」を固定する。考え方は shepherdr〈MIT〉の README の "Nothing runs twice"（定期の処理は 1 つの係が 1 本の道で走らせ、ほかは走らせない）と同じ。守りを足すのはこの表の外（タスクにする）で、ここは**今ある守りと無い所を事実で書く**。
+
+### 7.1 前提
+
+- **指揮側は 1 つのマシン**（台帳・dispatcher・Chief of Staff・ゲート・控え）。作業側（担当・レビュアー）はそのマシンでも別のマシンでもよい（design.md §1.5）。この表の「誰」は、指揮側のマシンの中の誰か。
+- **走らせる者は 1 者**: 定期の処理は dispatcher だけが走らせる。Chief of Staff・人が手で打ってよい command（`andon gate`・`andon task finish` など）は、dispatcher が打つものと**同じ command**なので、手で打つと二重に走りうる（下の「二重に走ったら」）。
+- **守りの種類**: ① OS の lock（`flock`。プロセスが死ねば OS が放す。ネットワークのファイルシステムや別マシンをまたいでは効かない）／② 控え（`~/.local/state/andon/dispatcher/<slug>.json`。同じ組を 2 度打たない）／③ 端末のラベル（`hc` の `role=`・`project=`・`task=`・`first_message.sent`。端末が生きている間だけ）／④ 台帳の状態（`status`・`worktree`・`branch`・履歴）／⑤ GitHub 側（`--match-head-commit`・commit status）／⑥ 冪等（何度打っても同じ結果）。
+
+### 7.2 表
+
+| # | 処理 | 走らせる者（指揮側のマシンで 1 つ） | 二重に走ったら | 今の守り |
+|---|---|---|---|---|
+| 1 | dispatcher 自身の起動 | `andon boot` の `dispatcher` の段と、Chief of Staff の Stop フック（`drain` の `ensure`）。**どちらも `Ensure`** | 2 つの `andon dispatcher` が同じ台帳を回す（同じレビュアーを起こす・同じ PR をマージしにいく） | ①`.terminal.lock`（取れなければ `ErrBusy` ですぐ諦める）＋③端末の名前 `dispatcher`（`Ensure` は名前で引き、live なら起こさない）。前の版の係の端末が残っていれば起こさない（boot の `dropStaleRoles`）。**手で `andon dispatcher` を別のシェルで打つのは防がない**（7.3 の G1。ただし下の #2 の lock が巡の中身を直列にする） |
+| 2 | dispatcher の 1 巡（§2.1.1 の 0〜7） | dispatcher。プロジェクトごとに直列 | 同じ出来事を二度拾う・二度通知する・二度起こす | ①控えの lock（`<slug>.json.lock`）を巡の終わりまで持つ（待たずに諦める。取れなければその巡のそのプロジェクトは飛ばしてログに 1 行）。`drain`（フック）も同じ lock を取る（10 秒待って、取れなければ通して次の口へ）。②控えの位置（`log_pos`・`ready`・`Sent`・`Retry`・`First`） |
+| 3 | レビュアーを起こす（P6a） | dispatcher（`review_request` を拾ったとき） | 同じ commit のレビュアーが 2 人いる（指摘が二重・端末と費用が二重） | ②控えの `Reviewers`（`<task>@<commit>`）＋④台帳の子タスク（控えが無いときは parent・依頼書の commit で引き継ぐ）＋③ラベル `project=`・`task=<子>` の live な端末（`hc run` は通ったが `kanban start` の前に落ちた分）。起こしそこねは続きから |
+| 4 | ゲートを回す | dispatcher（`review` に入った `log.jsonl` の行ごとに 1 回）。Chief of Staff が `andon gate` を手で打つこともある | 記録 `library/gate/<head>.json` が上書きされる・PR に commit status とコメントが二重に付く。判定は同じ事実から決まるので**同じ決定**（事実が間に変わっていれば後の方が新しい） | ②控えの `Gates`（`<task>#<行>`）。**手で打つ分は防がない**（G2） |
+| 5 | マージして片付ける | dispatcher（approve ＋ `merge: auto` ＋ 委譲の範囲内）。`merge: person` は人 | 2 度目の `gh pr merge` が失敗する→問い（`irreversible`）が出る。人が先にマージしたときも同じ。head が替わっていれば止まる | ⑤`--match-head-commit`（判定した head だけ）＋マージ直前の読み直し（`stillAuthorized`・`ChecksStill`）＋②控えの `Gates[].Merged`。`finish` は④台帳の `worktree`・`branch` が空なら何も消さない（本体の checkout は消さない）。**問いが出るのは誤報になる**（G3） |
+| 6 | 担当の最初のメッセージの送り直し・提供元のエラーの続き打ち（§2.3・P6a） | dispatcher | 同じメッセージを 2 度送る・続きを 4 回以上打つ | ③ラベル `first_message.sent=false`（送ったら外す）＋②控えの `First`（送る前に「送りかけ」を保存。外しそこねても二度と送らない）・`Retry`（回数。3 回まで）。送っている最中に落ちたら**送らない側に倒れる**（`stalled` で気づく） |
+| 7 | 通知を Chief of Staff へ届ける（§3） | dispatcher（経路③の `hc send`）と、Chief of Staff 自身のフック（経路①②の `drain`） | 同じ通知が 2 度届く（`<news>` が二重） | ①控えの lock（#2 と同じ）＋②控えの `Pending`（届けたら空にする）・`Hook`・`NewsTurn`（同じ turn に 2 度送らない）。`<no-reply>` で `news.replied` を書く。迷ったら送らない |
+| 8 | `kanban tick`（routine の `schedule`） | **今は誰も走らせていない**（§2.1 の「入っていない」）。入れるときは dispatcher が 1 巡の 3 と 4 の間（§2.1.1）で打つ | schedule の時刻に 2 度タスクが足される | 台帳の側にある: ①台帳の lock（`kanban/.lock`。書き手は 1 つ）の中で `state/routines.json` の「最後に撃った時刻」を読んで書く＝同じ時刻は 1 度だけ撃つ。逃した時刻は 1 度にまとめる。`open`（未完了の数）で積み上げを止める。**tick を誰が走らせるか（dispatcher だけ）を入れるまで、人が cron で打てば二重に走る**（G4） |
+| 9 | 台帳への書き込み（`kanban`） | 打つ者は誰でも（Chief of Staff・担当・dispatcher・人）。ファイルは台帳の CLI だけが書く | 同時の書き込みで id の重複・行の混ざり | ①`kanban/.lock`（書き手は 1 つ。待つのは 10 秒）。書き込みは一時ファイル＋rename |
+| 10 | 担当・Chief of Staff・Chief Engineer を起こす（`andon task start`・`chief-of-staff`・`chief-engineer`） | Chief of Staff（人が `chief-of-staff` を打つ） | 同じタスクの worktree と branch が二重に作られる・Chief of Staff が 2 人になる | ④台帳（`todo` だけ起こせる・`worktree`・`branch` が空でなければ起こし済みで断る）。1 プロジェクト 1 人は③ラベル `role=chief-of-staff`・`project=` の live な端末を数えて 2 人以上なら止まる。起こせなかったら worktree と branch を戻す。**同時に打たれた 2 本の「見る→起こす」の間は塞がない**（G5） |
+| 11 | 担当の Stop フック（`andon task stop-check`） | 担当・レビュアー自身（その端末のフック） | 止める回数が数え間違う | 担当のタスクごとの状態（`Blocks`。3 回で通す）。端末ごとなので他と取り合わない |
+| 12 | 信頼の書き込み（boot の `Trust`・`andon task start` の直前の `TrustFromOS`） | boot と、起こす command（呼び手が書く） | 動いている Claude Code と `.claude.json` を取り合って、後から書いた方が負ける | ⑥足すものが無ければ書かない（2 回目は何も書かない）＋書く直前の読み直しと 5 回のやり直し。**読み直しから rename までの短い隙間は受け入れる**（decisions.md）。Codex の設定は今ある表に触らない |
+| 13 | boot の生成（配布物・skill・テンプレート・symlink） | `andon boot`（建屋の起動ごとに 1 回） | 同時に 2 本走ると `.bak` が増えるか、後の方が先の書き込みを上書きする | ⑥同じ内容なら書き直さない（`boot.json` の sha256 控え）。人が書いたものは `.bak` に退避してから書く（黙って消さない）。boot 自体の lock は無い（G6） |
+| 14 | boot の起動の段（portless・files サーバ・sshd・git の資格情報） | `andon boot` | 同じポートで 2 つ起動しようとして後の方が bind に失敗する | ⑥起こす前にポートが listen しているかを見る。`gh auth setup-git` は何度打っても同じ。lock は無い（G6） |
+| 15 | `andon publish`（`files/` への書き出し） | 打った者（担当・Chief of Staff・人） | 同じ日・同じ slug は上書き | ⑥同じ日・同じ slug の再公開は上書きと決めてある。一時ファイル＋rename。上限 20 MiB |
+| 16 | hooks（Stop・UserPromptSubmit） | Claude Code が呼ぶ（managed settings）。判断は持たず command を呼ぶだけ | #7・#11 に同じ | 呼ぶ先の command の守り（#7・#11・#1）。UserPromptSubmit の `drain --context` は読むだけで控えを書かない |
+
+### 7.3 守りが無い所（直さない。報告のための一覧）
+
+| # | どこ | 起きること | 重さ | 直すなら |
+|---|---|---|---|---|
+| G1 | `andon dispatcher` に**プロセス単位の singleton の lock が無い**（#1） | 人が別のシェルで `andon dispatcher` を打つと 2 本回る。巡の中身は #2 の控えの lock で直列になり、後から来た方の巡はそのプロジェクトを飛ばしてログに 1 行出す。レビュアーを二重に起こしはしないが、ログが荒れ、片方が `drain` と lock を取り合って 10 秒待たせることがある | 低（実害は小さい） | `andon dispatcher` の先頭で、控えの置き場の `.dispatcher.lock` を非ブロックで取る（`.terminal.lock` と同じ作り）。取れなければ 1 行出して終わる |
+| G2 | ゲートに lock が無い（#4）。Chief of Staff が `andon gate` を手で打つのと dispatcher の巡が重なる | 記録が上書きされ、PR に commit status とコメントが二重に付く。判定は同じ事実から決まる | 低 | `andon gate` が `<head>.json` を作る間の lock を取る。または commit status とコメントを head ごとに 1 度だけ付ける |
+| G3 | 人が PR をマージするのと dispatcher のマージが重なる（#5） | dispatcher の `gh pr merge` が失敗して、すでに MERGED なのに「マージできなかった」という `irreversible` の問いが出る（誤報） | 低〜中（人を呼ぶ） | 失敗のあと `gh pr view` で `MERGED` かつ `--match-head-commit` と同じ head なら、問いにせず `finish` へ進む |
+| G4 | `kanban tick` の走らせ手が決まっていない（#8） | 入れる前は routine の `schedule` が動かない。人が cron で打つ形で入れれば、dispatcher が打つ分と二重になりうる（台帳の側の守りで同じ時刻は 1 度しか撃たない） | 低 | dispatcher だけが打つと決めて §2.1.1 の 3 と 4 の間に入れる（この文書で順は固定済み）。cron は置かない |
+| G5 | `andon task start`・`andon chief-of-staff` の「見る→起こす」の間に lock が無い（#10） | 同時に 2 本打つと、worktree と branch を 2 度作ろうとする（2 本目は名前の衝突で失敗する見込み）、Chief of Staff が 2 人になる（次に打ったとき 2 人以上で止まる）。打つのは 1 人（Chief of Staff）なので起きにくい | 低 | 台帳の `kanban/.lock` の中で `status`→`doing` を先に予約してから起こす |
+| G6 | `andon boot` に lock が無い（#13・#14） | 2 本同時に走ると生成物の書き込みが重なる。起動の段はポートで守られる | 低（建屋の起動ごとに 1 回） | 控えの置き場の `boot.lock` |
+| G7 | **別のマシンをまたぐと、①の lock は効かない**（#1・#2・#7・#9） | 控えも台帳の lock も指揮側のマシンの普通のファイル。指揮側が 2 つのマシンに分かれる（dispatcher を 2 台で回す）形は、今の守りでは**成り立たない**。作業側のマシンから台帳を直接書く形も同じ（`flock` は NFS などで効かない保証が無い） | 前提の違反（今は起きない） | 指揮側は 1 つのマシンと決めたまま（design.md §1.5）、作業側からの入口を `andon task …` の command に閉じ、別のマシンなら `hc` 越しに指揮側で打つ。**作業側の Stop フック（`stop-check`）が台帳を読む分は、別のマシンでは指揮側へ写す形にする必要がある**（#11。この PR の外） |
+| G8 | 控えが無くなると（消した・別のマシンへ移した）、「初めて見る台帳」として扱う（§2.1） | 通知の元は位置を控えるだけで過去を流さない。ただし**ゲートを回した記録の控え（`Gates`）も失う**ので、`review` のタスクのゲートは回さず記録だけ置く。レビュアーは台帳と端末のラベルで引き継ぐ（#3）。マージ済みの印は `library/gate/<head>.json` の `merged` | 低 | 控えの置き場を台帳の外（`~/.local/state`）に置くのは決めたこと（§6）。移すときは控えごと移す |
+
+### 7.4 この表を保つ
+
+- 常駐・定期の処理を足すとき（`kanban tick` を入れる・新しい routine の道・外の信号〈`signal`〉・別のマシンの dispatcher）は、**この表に行を足してから**入れる。「走らせる者は 1 者か」「二重に走ったら何が起きるか」「守りは何か」を空欄にしない。
+- 守りを足したら、7.3 の該当行を消して 7.2 の「今の守り」へ移す。
+
+---
+
 ## 出典
 
 - 前の工場の通知の係の設計（2026-11-03。private の記録）: herdr-flightdeck の `docs/yard-news.md`（担当が打ち込んで書きかけに貼り付いた件・Shepherdr〈公開の OSS〉の news の形・入力欄の読み方・`<no-reply>` と `news.replied`・人の決定 2026-11-03）と、template-yard の `docs/orchestration.md` §3.3（知らせの元・届ける前の守り・残る危険）。
