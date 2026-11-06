@@ -13,6 +13,8 @@ paths=()
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   paths+=("$p")
+  # root の Go のテスト（workflow_test.go など。image に入らない）
+  case "$p" in */*) ;; *_test.go) continue ;; esac
   case "$p" in
     docs/contract.md) run[tests/schema.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
@@ -22,7 +24,7 @@ while IFS= read -r p; do
     tests/lib/*) all=true ;;
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
     # Go のテスト（go test ./... が見る）・人の文書は、いつもの分だけ
-    *_test.go | docs/* | tests/* | README.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | README.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     *) all=true ;;
   esac
 done

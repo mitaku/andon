@@ -12,6 +12,7 @@ scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
 [ "$(scope)" = false ] || die "変更が無いのに true"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
   internal/task/task.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
+  package/lib/andon/x_test.go init/x_test.go image/x_test.go \
   tests/image.sh tests/lib/pty-probe.py tests/lib/run-tests.sh tests/lib/image-scope.sh docs-new/x NEW.md; do
   [ "$(scope docs/image.md "$p")" = true ] || die "$p を含むのに false"
 done
@@ -25,6 +26,8 @@ always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh '
 [ "$(pick docs/contract.md)" = 'tests/ci.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh が無い"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
 [ "$(pick internal/task/task_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/task/task_test.go)"
+[ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"
+grep -q tests/image.sh <<<"$(pick package/lib/andon/x_test.go)" || die "package/ の下の _test.go で image.sh が無い"
 n_all=$(ls tests/*.sh | wc -l)
 for p in internal/task/task.go package/x NEW; do
   got=$(pick "$p")
