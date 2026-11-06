@@ -199,6 +199,7 @@ as_worker "$id" review-request
 dispatcher
 rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 [ -n "$rev" ] || die 'レビュアーのタスクが無い'
+[ "$rev" = "$id-r1" ] || die "レビュアーのタスクの id が <親>-r<回> でない: $rev"
 raddr=$(jq -r --arg k "$id@$head" '.reviewers[$k].address' "$state")
 kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.task.profile == "codex-review" and .task.status == "doing" and .task.agent == $a and ($a | startswith("t")) and .task.parent == $p' >/dev/null ||
     die "レビュアーのタスクの項目が違う: $(kanban show "$rev" --json)"
@@ -268,6 +269,10 @@ as_worker "$id" report
 as_worker "$id" review-request
 dispatcher
 rev=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p)] | last | .id')
+[ "$rev" = "$id-r2" ] || die "2 回目のレビュアーのタスクの id が $id-r2 でない: $rev"
+kanban list --all --json | jq -e '[.[].id | select(test("^D-[0-9]+$")) | ltrimstr("D-") | tonumber] | sort == [range(1; length + 1)]' >/dev/null &&
+  kanban list --all --json | jq -e 'all(.[]; (.id | test("^D-[0-9]{4}(-r[1-9][0-9]*)?$")) and ((.id | test("-r")) == (.profile == "codex-review")))' >/dev/null ||
+    die "レビュアーのタスクが通し番号を使った・id の形が違う: $(kanban list --all --json | jq -c 'map([.id, .profile])')"
 review_by "$rev" '[]'
 as_worker "$id" ready
 dispatcher
@@ -279,6 +284,7 @@ pending "$id" asked | jq -e '.detail.n == 1 and .detail.kind == "line"' >/dev/nu
 emit "$q" question-gate.json
 emit <(pending "$id" asked) notification-asked.json
 ok 'needs_human は問い（from: gate・kind line）を台帳に出し、マージしない'
+ok 'レビュアーのタスクの id は <親>-r<回>（1 回目 r1・2 回目 r2）で、通し番号を使わない'
 
 # 4. merge: person は approve でも止まる（通知 gate だけ）
 id=$(newtask '人がマージする' person)

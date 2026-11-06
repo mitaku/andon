@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -23,7 +24,7 @@ import (
 const help = `kanban: a project's work ledger in kanban/ (format 2; one folder per task)
 
   kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make kanban/ (config.yaml, tasks/)
-  kanban add "title" [--repo r] [--profile p] [--parent id] [--after id,…] [--phase id] [--brief file|-]
+  kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--brief file|-]
   kanban list [--status s] [--repo r] [--all] [--json]
   kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for
   kanban show <id> [--json]
@@ -44,7 +45,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 2; one folder p
   kanban root                               print the ledger's root
   kanban --version                          print kanban's version
 
-Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001.
+Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A reviewer's task
+(--parent and a --profile ending in -review) is <parent>-r<k> for round k (W-0001-r1) and takes no number.
 The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
 whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
 repo is filled in from the current checkout when it matches one of repos.
@@ -271,7 +273,7 @@ func readInput(e env, name string) (string, error) {
 func cmdAdd(e env, a args) error {
 	title := strings.TrimSpace(strings.Join(a.rest, " "))
 	if title == "" {
-		return fail(`usage: kanban add "title" [--repo r] [--profile p] [--parent id] [--after id,…] [--phase id] [--brief file|-]`)
+		return fail(`usage: kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--brief file|-]`)
 	}
 	cfg, err := readConfig(e.root)
 	if err != nil {
@@ -306,6 +308,10 @@ func cmdAdd(e env, a args) error {
 				return fail("no task %s", ref)
 			}
 		}
+		id, err := reviewerID(a, parent, all)
+		if err != nil {
+			return err
+		}
 		status := a.flags["status"]
 		if !a.has("status") {
 			status = cfg.columns[0]
@@ -317,8 +323,7 @@ func cmdAdd(e env, a args) error {
 			return fail("status must be one of %s", strings.Join(cfg.columns, ", "))
 		}
 		fields := map[string]string{"repo": repo, "parent": parent, "phase": a.flags["phase"], "profile": a.flags["profile"]}
-		var err error
-		if t, err = newTask(e.root, cfg, title, fields, after, status, brief); err != nil {
+		if t, err = newTask(e.root, cfg, id, title, fields, after, status, brief); err != nil {
 			return err
 		}
 		change := &omap{}
@@ -338,18 +343,58 @@ func listDoc(key string, items []string) *doc {
 	return d
 }
 
-// newTask adds a task under the lock, as kanban add does: the next id, title, the non-empty
-// fields, after, status, created and updated, and brief.md when brief isn't nil. The caller logs it.
-func newTask(root string, cfg config, title string, fields map[string]string, after []string, status string, brief *string) (*task, error) {
-	re := regexp.MustCompile(`^` + regexp.QuoteMeta(cfg.prefix) + `-(\d+)$`)
-	n := 0
-	for _, x := range allTasks(root) {
-		if re.MatchString(x.id) {
-			n = max(n, numberOf(x.id))
+// reviewerID is the id kanban add gives a reviewer's task (--parent and a *-review --profile):
+// <parent>-r<k>, k from --round, else one more than the parent's reviewer tasks so far (of either id form).
+// It takes no number from the prefix's sequence. Empty for any other task (the next number).
+func reviewerID(a args, parent string, all map[string]*task) (string, error) {
+	if parent == "" || !isReviewProfile(a.flags["profile"]) {
+		if a.has("round") {
+			return "", fail("--round is for a reviewer's task: --parent id and a --profile ending in -review")
+		}
+		return "", nil
+	}
+	k := 1
+	if a.has("round") {
+		n, err := strconv.Atoi(a.flags["round"])
+		if err != nil || n < 1 {
+			return "", fail("--round must be a whole number, 1 or more")
+		}
+		k = n
+	} else {
+		for _, x := range all {
+			if x.d.str("parent") == parent && isReviewProfile(x.d.str("profile")) {
+				k++
+			}
+		}
+		for all[roundID(parent, k)] != nil {
+			k++
 		}
 	}
+	id := roundID(parent, k)
+	if all[id] != nil {
+		return "", fail("task %s is already there (round %d of %s)", id, k, parent)
+	}
+	return id, checkSegment("id", id)
+}
+
+// newTask adds a task under the lock, as kanban add does: id (when empty, the next <prefix>-<n>), title, the non-empty
+// fields, after, status, created and updated, and brief.md when brief isn't nil. The caller logs it.
+func newTask(root string, cfg config, id, title string, fields map[string]string, after []string, status string, brief *string) (*task, error) {
+	if id == "" {
+		re := regexp.MustCompile(`^` + regexp.QuoteMeta(cfg.prefix) + `-(\d+)$`)
+		n := 0
+		for _, x := range allTasks(root) {
+			if re.MatchString(x.id) {
+				n = max(n, numberOf(x.id))
+			}
+		}
+		id = formatID(cfg.prefix, n+1)
+	}
+	if exists(taskDir(root, id)) {
+		return nil, fail("task %s is already there", id)
+	}
 	at := now()
-	t := &task{id: formatID(cfg.prefix, n+1), d: newDoc()}
+	t := &task{id: id, d: newDoc()}
 	t.d.setStr("id", t.id)
 	t.d.setStr("title", title)
 	t.d.setStr("status", status)
@@ -860,6 +905,14 @@ func cmdLint(e env, a args) error {
 		}
 		if p := t.d.str("parent"); p != "" && all[p] == nil {
 			problems = append(problems, fmt.Sprintf("%s: parent %s, which doesn't exist", t.id, p))
+		}
+		if base, _, ok := splitRound(t.id); ok {
+			if p := t.d.str("parent"); p != base {
+				problems = append(problems, fmt.Sprintf("%s: a reviewer's id, but parent is %q, not %s", t.id, p, base))
+			}
+			if !isReviewProfile(t.d.str("profile")) {
+				problems = append(problems, fmt.Sprintf("%s: a reviewer's id, but profile %q doesn't end in -review", t.id, t.d.str("profile")))
+			}
 		}
 		if r := t.repo(); r != "" && cfgRead && !slices.Contains(cfg.repos, r) {
 			problems = append(problems, fmt.Sprintf("%s: repo %s is not in config.yaml repos", t.id, r))
