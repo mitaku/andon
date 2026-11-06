@@ -71,7 +71,7 @@ func newStart(t *testing.T) *startFixture {
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("ANDON_WORKSPACE", filepath.Join(dir, "workspace"))
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/.flightdeck の台帳を読む
 
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)

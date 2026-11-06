@@ -228,7 +228,7 @@ ghq get github.com/<owner>/andon        # GHQ_ROOT=/workspace/.ghq の下に入�
 ghq list
 ```
 
-- **通ったら見えるもの**: `/workspace/.ghq/github.com/<owner>/andon`。迎えた repo の根は、`andon task start`・`andon chief-engineer` が起こす前に Claude Code と Codex の信頼に足す（boot と同じ手。担当とレビュアーの worktree は元の repo の根で判定されるので、信頼の画面が出ない）。
+- **通ったら見えるもの**: `/workspace/.ghq/github.com/<owner>/andon`。迎えた repo の根は、台帳の `config.yaml` の `repos` に載っていれば、`andon task start`・`andon chief-engineer` が起こす前に Claude Code と Codex の信頼に足す（boot と同じ手。担当とレビュアーの worktree は元の repo の根で判定されるので、信頼の画面が出ない）。
 - **落ちたら見る所**: `Repository not found` — `gh auth status` と repo の権限。`could not read Username` — `gh auth setup-git`。
 
 ## 8. プロジェクト `andon` の台帳を作る

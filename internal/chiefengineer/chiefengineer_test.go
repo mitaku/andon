@@ -68,7 +68,7 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("HOME", f.home)
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("ANDON_WORKSPACE", filepath.Join(dir, "workspace"))
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/.flightdeck の台帳を読む
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)

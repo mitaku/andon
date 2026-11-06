@@ -10,14 +10,20 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+
+	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 // 信頼の画面を建屋では出さない（建屋＝コンテナが信頼の境界。人の決定 2026-11-06）。
 // boot が、エージェントが起きる場所の根を Claude Code と Codex の両方で信頼済みにしておく。足りない所だけ足し、
 // 今ある設定は触らない（2回目は何も書かない）。
 //
-// 根は「建屋の repo」と「ghq の repo（<GhqRoot>/<host>/<owner>/<repo>）」だけ。担当・レビュアーの worktree は
+// 根は「建屋の repo」と「台帳に載った案件の repo（建屋の projects/*/.flightdeck/config.yaml の repos にあり、
+// <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
+// Chief of Staff と人で、andon task start が起こしてよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（~/.herdr/worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
 //   - Claude Code 2.1.318: git の外は cwd から親へ / まで遡る。git の中は repo の根で止まり、それより上の親は効かない。
 //     worktree は元の repo の根の信頼が効く（worktree の置き場の親は効かない）。
@@ -39,13 +45,19 @@ func TrustFromOS(log io.Writer) error {
 	return Trust(e)
 }
 
-// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順は建屋の repo、ghq の repo の名前順。
+// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順は建屋の repo、台帳の名前順と repos の順。
 func (e Env) trustRoots() []string {
 	cands := []string{e.Workspace}
-	if e.GhqRoot != "" {
-		gits, _ := filepath.Glob(filepath.Join(e.GhqRoot, "*", "*", "*", ".git"))
-		for _, g := range gits {
-			cands = append(cands, filepath.Dir(g))
+	if e.GhqRoot != "" && e.Workspace != "" {
+		cfgs, _ := filepath.Glob(filepath.Join(e.Workspace, "projects", "*", ".flightdeck", "config.yaml"))
+		sort.Strings(cfgs)
+		for _, cfg := range cfgs {
+			for _, repo := range ledger.At(filepath.Dir(filepath.Dir(cfg))).Repos() {
+				dir := filepath.Join(e.GhqRoot, repo)
+				if _, err := os.Lstat(filepath.Join(dir, ".git")); spawn.RepoRe.MatchString(repo) && err == nil {
+					cands = append(cands, dir)
+				}
+			}
 		}
 	}
 	var roots []string

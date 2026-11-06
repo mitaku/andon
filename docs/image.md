@@ -27,7 +27,7 @@ bash tests/image.sh
 
 ## 信頼の画面（Claude Code・Codex）
 
-建屋では信頼の画面（trust this folder）を出さない。建屋＝コンテナが信頼の境界なので、boot と、起こす直前の `andon task start`・`andon chief-engineer` が、建屋の repo（`/workspace`）と ghq の repo の根（`/workspace/.ghq/<host>/<owner>/<repo>`）を信頼済みにする。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
+建屋では信頼の画面（trust this folder）を出さない。建屋＝コンテナが信頼の境界なので、boot と、起こす直前の `andon task start`・`andon chief-engineer` が、建屋の repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/.flightdeck/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
 
 足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起こし、最初の画面だけを読んだ）:
 

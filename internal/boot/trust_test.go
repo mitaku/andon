@@ -8,7 +8,8 @@ import (
 	"testing"
 )
 
-// trustEnv は建屋の repo と ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
+// trustEnv は建屋の repo と、台帳に載った ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
+// 台帳に載っていない repo・clone されていない repo・形の違う repo の名前は根にしない。
 func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	t.Helper()
 	e := f.env()
@@ -18,6 +19,11 @@ func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	mustMkdir(t, filepath.Join(a, ".git"))
 	put(t, filepath.Join(b, ".git"), "gitdir: elsewhere\n")
 	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "not-a-repo"))
+	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "unlisted", ".git")) // 台帳に無い repo は信頼しない
+	put(t, filepath.Join(f.ws, "projects", "sample-site", ".flightdeck", "config.yaml"),
+		"version: 2\nrepos:\n  - github.com/example/sample-site\n  - github.com/example/not-a-repo\n  - github.com/example/missing\ncoordinator: t5\n")
+	put(t, filepath.Join(f.ws, "projects", "tools", ".flightdeck", "config.yaml"),
+		"version: 2\nrepos:\n  - github.com/example/tools\n  - ../../../etc\n")
 	mustMkdir(t, filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "x-1")) // 置き場は足さない
 	roots := []string{f.ws, a, b}
 	for i, r := range roots {
