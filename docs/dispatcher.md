@@ -62,7 +62,8 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、`Pending` へ積む（§2.2・§2.3） | 控えに書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす | |
-| 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元のエラーの再送・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
+| 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
+| 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。提供元に切られて止まっていれば、入力欄が空のときだけ「続けて」（§2.4） | 端末に打つことがある |
 | 5 | タスクごとの工程 | 一覧の順に1タスクずつ。**`doing` で `review_request` があれば**レビュアーを起こす（`review-requested`）、**`review` ならゲートを回す**（`gate`・マージ・`fix`・問い）。レビュアー・Chief Engineer・repo の無いタスクは飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 6 | 届ける（経路③） | 初めて見る台帳でなければ、§4 の守りがそろったときだけ `hc send`。送ったら `Pending` を空にする | 端末に打つ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いているタスク（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
@@ -111,16 +112,50 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 |---|---|
 | 端末が無い・終わった | 知らせる（`finished`） |
 | `blocked` | 知らせる（権限の確認など。問いは台帳に来るので、残るのはハーネスの確認だけの見込み） |
-| `error` で、画面が提供元の混雑・rate limit・接続・5xx | **自分で続きを打つ**（1分・5分・15分あと、3回まで）。4回目は知らせる（`error`）。認証の失敗は提供元のエラーとみなさない |
+| `error` で、提供元に切られた（§2.4 の見分け） | **自分で「続けて」を打つ**（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら打たずに知らせる（`error`）。認証の失敗・使用量の上限は提供元に切られたとみなさない |
 | `error`（それ以外） | 知らせる |
 | `idle`／`done` のまま15分 | 知らせる（`stalled`）。ただし子のレビュアーのタスク（`parent: <id>`）が `todo`／`doing` の間はレビュー待ちで静かなだけなので除く |
 | `working` のまま20分 | 知らせる（`stalled`） |
 
 - 同じ状態（同じ `status_ms`）につき1回だけ知らせる。
 - `agent` は `<address>` か `<machine>/<address>`（[contract.md](contract.md) §8）。`hc get` が `not_found` を返したときだけ端末が無い（`finished`）とし、ほかの失敗の間は前の状態（知らせた状態・続きを打った回数）を保つ。
-- 続きを打つ間は、その状態に入った時刻と前に打った時刻の遅いほうから測る（打っても同じ `error` のまま `status_ms` が変わらないことがある）。送れなかった試行も回数と時刻に数える。打った回数は `error`・`working` の間は持ち越し、`idle`／`done` に戻ったら区切る。
-- 画面を読むのは「提供元のエラーか」の見分けだけ。通知には画面の文を入れない（担当の画面は外から来た文を含みうる。Chief of Staff に渡すのは台帳と状態の事実だけ）。
+- 「続けて」の間・回数・ほかの送り直しとの関係は §2.4。
+- 画面を読むのは「提供元に切られたか」の見分けだけ（§2.4。Claude Code は `status.msg` で足り、画面を読むのは Codex）。通知には画面の文を入れない（担当の画面は外から来た文を含みうる。Chief of Staff に渡すのは台帳と状態の事実だけ）。
 - 再送は「同じことをもう一度」で、判断ではないので dispatcher がしてよい。それ以外の立て直し（止める・起こし直す・依頼書を直す）は Chief of Staff。
+
+### 2.4 提供元に切られたとき
+
+担当・レビュアー・Chief of Staff の端末が、提供元（モデルの API。Claude・Codex）に切られて止まったら、dispatcher が間をあけて「続けて」を打つ。混雑や接続の切れは待てば通るので、人を呼ぶほどではない。待っても通らないときだけ知らせる（前の工場から引き継いだ再送を、shepherdr〈MIT〉と同じ間隔と回数に揃えた）。
+
+**見分け**（2026-11-06 の実測。偽の API〈529・500・429・401 を返す〉に向けた Claude Code 2.1.319 と Codex 0.166.0 を hc の端末で動かし、手元のセッションの記録とも突き合わせた）:
+
+| | Claude Code | Codex |
+|---|---|---|
+| 切られたとき（529・5xx・接続の切れ） | 自分で約 3 分やり直してから、hc の状態が `error`。`status.msg` にエラーの文（`API Error: 529 Overloaded. …`・`API Error: The response stopped arriving. …`） | すぐ `error`。`status.msg` は無く、画面の最後に `■ We’re currently experiencing high demand, …` か `Selected model is at capacity. …` |
+| 認証の失敗 | `blocked`（`kind: auth`・`msg: Invalid API key · …`）。`error` にならないので、ここには来ない | `error`。画面とセッションの記録に `unexpected status 401 Unauthorized: …` |
+| 入力欄 | 切られたあとも空で、`hc send` を受ける。打てば `working` に戻り、また切られれば新しい `status_ms` の `error` | 同じ（`›` の入力欄。罫線は無い） |
+
+- 状態が `error` のときだけ見る。文は `status.msg` を先に読み、無ければ（Codex）画面の最後の 40 行を読む。
+- 提供元に切られた、は文が混雑・rate limit・接続・5xx の語に当たり、認証（`401`・`403`・`/login`・`authenticat` など）と使用量の上限（`usage limit`・`quota`・`billing` など。待っても直らない）の語に当たらないとき。それ以外の `error` は今までどおり知らせる（§2.3）。
+
+**間と回数**:
+
+- 切られた 1〜4 回目は、それぞれ **1・2・4・8 分**あとに「続けて」を打つ。測るのは、切られた時刻（`status_ms`）と前に打った時刻の遅いほう（打っても同じ `error` のまま `status_ms` が変わらないことがある）。
+- **5 回目に切られたら打たない。** 担当・レビュアーは Chief of Staff に `error` を1回だけ知らせ、Chief of Staff が人に上げる（dispatcher は人を呼ばない。§0）。打った直後の見回りがまだ前の切断の `error` を見ているだけのときは数えない（最後に打ったあとの `status_ms` か、打ってから 8 分同じ `error` のままで、5 回目とみる）。
+- 送れなかった試行も回数と時刻に数える（送れないまま見回りごとに打ち続けない）。回数は `error`・`working` の間は持ち越し、ほかの状態（`idle`・`done` など）に戻ったら区切る。控えは `Retry`（担当は `<task>|<agent>`、Chief of Staff は `:cos|<address>`）。
+- 文は「提供元（モデルの API）に切られて止まった。止まる前の続きを、今の許可の範囲で続けて（dispatcher から。人の依頼ではない）」。人の依頼と取り違えないよう、送り手と範囲を書く。
+
+**Chief of Staff**:
+
+- 人が打つ端末なので、入力欄が空と確かめられたときだけ打つ（§4.2 の読み方。入力欄 → 状態の順に読み直し、同じ `error` のままのときだけ）。確かめられない回（人が打ちかけている・罫線の無い入力欄）は打たず、その回も数える。
+- 5 回目に切られたら、知らせる相手が止まっているので通知は積まず、ログに1行残して止める。人は Herdr App で Chief of Staff の `error` に気づく。
+- 初めて見る台帳では打たない（担当と同じ）。
+
+**ほかの送り直しと二重に送らない**:
+
+- **最初のメッセージの送り直し**（§5）: 最初のメッセージがまだ届いていない端末（ラベル `first_message.sent=false` で控えの `First` にも無い）には「続けて」を打たない（続ける仕事を受け取っていない）。`error` として知らせる。最初のメッセージの送り直しは `idle` のときだけで、`error` の間は送らないので、同じ見回りで2つが同じ端末に届くことは無い。控えの `First` にある（送ったがラベルを外せなかった）端末は届いたとみて、続きを打つ。
+- **`stalled`**: 「続けて」は `error` のときだけ、`stalled` は `idle`・`done`・`working` のときだけで、状態で分かれる。`stalled` は知らせるだけで打たない。打ったあと `working` のまま 20 分たてば `stalled` を知らせる。
+- **経路③の `<news>`**（§3）: Chief of Staff に送るのは `idle`・`done` のときだけで、「続けて」は `error` のときだけ。
 
 ---
 
@@ -288,7 +323,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 3 | レビュアーを起こす（P6a） | dispatcher（`review_request` を拾ったとき） | 同じ commit のレビュアーが 2 人いる（指摘が二重・端末と費用が二重） | ②控えの `Reviewers`（`<task>@<commit>`）＋④台帳の子タスク（控えが無いときは parent・依頼書の commit で引き継ぐ）＋③ラベル `project=`・`task=<子>` の live な端末（`hc run` は通ったが `kanban start` の前に落ちた分）。起こしそこねは続きから |
 | 4 | ゲートを回す | dispatcher（`review` に入った `log.jsonl` の行ごとに 1 回）。Chief of Staff が `andon gate` を手で打つこともある | 記録 `library/gate/<head>.json` が上書きされる・PR に commit status とコメントが二重に付く。判定は同じ事実から決まるので**同じ決定**（事実が間に変わっていれば後の方が新しい） | ②控えの `Gates`（`<task>#<行>`）。**手で打つ分は防がない**（G2） |
 | 5 | マージして片付ける | dispatcher（approve ＋ `merge: auto` ＋ 委譲の範囲内）。`merge: person` は人 | 2 度目の `gh pr merge` が失敗する→問い（`irreversible`）が出る。人が先にマージしたときも同じ。head が替わっていれば止まる | ⑤`--match-head-commit`（判定した head だけ）＋マージ直前の読み直し（`stillAuthorized`・`ChecksStill`）＋②控えの `Gates[].Merged`。`finish` は④台帳の `worktree`・`branch` が空なら何も消さない（本体の checkout は消さない）。**問いが出るのは誤報になる**（G3） |
-| 6 | 担当の最初のメッセージの送り直し・提供元のエラーの続き打ち（§2.3・P6a） | dispatcher | 同じメッセージを 2 度送る・続きを 4 回以上打つ | ③ラベル `first_message.sent=false`（送ったら外す）＋②控えの `First`（送る前に「送りかけ」を保存。外しそこねても二度と送らない）・`Retry`（回数。3 回まで）。送っている最中に落ちたら**送らない側に倒れる**（`stalled` で気づく） |
+| 6 | 担当の最初のメッセージの送り直し・提供元に切られたときの「続けて」（担当・レビュアー・Chief of Staff。§2.4・P6a） | dispatcher | 同じメッセージを 2 度送る・「続けて」を 5 回以上打つ・最初のメッセージの前に「続けて」を打つ | ③ラベル `first_message.sent=false`（送ったら外す）＋②控えの `First`（送る前に「送りかけ」を保存。外しそこねても二度と送らない）・`Retry`（回数。4 回まで。最初のメッセージが届いていない端末には打たない）。送っている最中に落ちたら**送らない側に倒れる**（`stalled` で気づく） |
 | 7 | 通知を Chief of Staff へ届ける（§3） | dispatcher（経路③の `hc send`）と、Chief of Staff 自身のフック（経路①②の `drain`） | 同じ通知が 2 度届く（`<news>` が二重） | ①控えの lock（#2 と同じ）＋②控えの `Pending`（届けたら空にする）・`Hook`・`NewsTurn`（同じ turn に 2 度送らない）。`<no-reply>` で `news.replied` を書く。迷ったら送らない |
 | 8 | `kanban tick`（routine の `schedule`） | **今は誰も走らせていない**（§2.1 の「入っていない」）。入れるときは dispatcher が 1 巡の 3 と 4 の間（§2.1.1）で打つ | schedule の時刻に 2 度タスクが足される | 台帳の側にある: ①台帳の lock（`kanban/.lock`。書き手は 1 つ）の中で `state/routines.json` の「最後に撃った時刻」を読んで書く＝同じ時刻は 1 度だけ撃つ。逃した時刻は 1 度にまとめる。`open`（未完了の数）で積み上げを止める。**tick を誰が走らせるか（dispatcher だけ）を入れるまで、人が cron で打てば二重に走る**（G4） |
 | 9 | 台帳への書き込み（`kanban`） | 打つ者は誰でも（Chief of Staff・担当・dispatcher・人）。ファイルは台帳の CLI だけが書く | 同時の書き込みで id の重複・行の混ざり | ①`kanban/.lock`（書き手は 1 つ。待つのは 10 秒）。書き込みは一時ファイル＋rename |
@@ -324,4 +359,5 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 
 - 前の工場の通知の係の設計（2026-11-03。private の記録）: herdr-flightdeck の `docs/yard-news.md`（担当が打ち込んで書きかけに貼り付いた件・Shepherdr〈公開の OSS〉の news の形・入力欄の読み方・`<no-reply>` と `news.replied`・人の決定 2026-11-03）と、template-yard の `docs/orchestration.md` §3.3（知らせの元・届ける前の守り・残る危険）。
 - 前の工場の実装: template-yard の `lib/yard/news`（見回り・止まった担当の見分け・提供元のエラーの再送・入力欄の読み方・ANSI の dim の組み直し）と、その変更の記録（2026-11-04。薄い字のサジェストで約40分・11件が溜まった件、組み直しを `hc read` と突き合わせる形・制御列の許可の一覧・控えて戻す列・colon 形式の色。独立レビューの指摘から）。
+- shepherdr（MIT）の scheduler: 提供元に切られたときの「続けて」の間（1・2・4・8 分）と、5 回目に切られたら人へ上げる形（§2.4）。
 - Andon の側: [design.md](design.md) §0.1・§1.7・§3.2 F1・F8・§5.2 P3b・P6a・P6b、[contract.md](contract.md) §6・§8・§9、[decisions.md](decisions.md) §6（2026-11-03 の通知の決定）・§7（F1・F8 の回答）。

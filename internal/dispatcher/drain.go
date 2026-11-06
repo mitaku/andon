@@ -62,6 +62,7 @@ type terminal struct {
 	State  string `json:"state"`
 	Status struct {
 		State string `json:"state"`
+		Msg   string `json:"msg"` // 状態に添えた文（Claude Code の error の API のエラー。提供元に切られたかの見分けにだけ読む）
 	} `json:"status"`
 	StatusMs int64             `json:"status_ms"`
 	Turn     int               `json:"turn"`

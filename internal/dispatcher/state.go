@@ -57,7 +57,7 @@ type State struct {
 	LogHold   *int64              `json:"log_hold,omitempty"`  // 問いの JSON を待って止まった行の頭（1回だけ待つ）
 	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人のタスクを除く。無ければ初めて）
 	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<task>|<agent>|<状態>|<status_ms>）
-	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元のエラーで続きを打った回数（<task>|<agent>）
+	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元に切られて「続けて」を打った回数（<task>|<agent>。Chief of Staff は :cos|<address>）
 	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<task>|<agent>。二度と送らない）
 }
 
