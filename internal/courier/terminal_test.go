@@ -31,6 +31,8 @@ func newEnsure(t *testing.T) (d string, round func() (string, []string, error)) 
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", d)
+	hostName = func() (string, error) { return "TestPlant", nil }
+	t.Cleanup(func() { hostName = os.Hostname })
 	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
 	return d, func() (string, []string, error) {
 		os.Remove(filepath.Join(d, "log"))
@@ -62,7 +64,7 @@ func TestEnsureCourier(t *testing.T) {
 
 	// 端末が無い: 起こす
 	did, calls, err := round()
-	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name courier --label role=courier --cwd /srv/plant -- /opt/andon/bin/andon courier" {
+	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name courier --label role=courier --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-courier --cwd /srv/plant -- /opt/andon/bin/andon courier" {
 		t.Fatalf("端末が無いとき: %q %q %v", did, calls, err)
 	}
 
@@ -75,7 +77,7 @@ func TestEnsureCourier(t *testing.T) {
 	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: シェルには打ち込まず、片付けて同じ名前・ラベルで起こし直す
 	putTerm(t, term, fgShell)
 	did, calls, err = round()
-	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name courier --label role=courier --cwd /srv/plant -- /opt/andon/bin/andon courier"}
+	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name courier --label role=courier --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-courier --cwd /srv/plant -- /opt/andon/bin/andon courier"}
 	if err != nil || !strings.Contains(did, "起こし直した") || strings.Join(calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("中身がシェルのとき: %q %q %v", did, calls, err)
 	}
@@ -172,6 +174,8 @@ func TestLiveTask(t *testing.T) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", d)
+	hostName = func() (string, error) { return "TestPlant", nil }
+	t.Cleanup(func() { hostName = os.Hostname })
 	addr, turn, ok := liveTask("sample-site", "D-3")
 	if !ok || addr != "t21" || turn != 0 {
 		t.Fatalf("別のプロジェクトの端末を引いた・自分の端末を引かない: %q %d %v", addr, turn, ok)
@@ -183,4 +187,27 @@ func TestLiveTask(t *testing.T) {
 	if _, _, ok := liveTask("third-site", "D-3"); ok {
 		t.Error("ラベルの合わない端末を引いた")
 	}
+}
+
+// 置き場: 台帳が1つなら指揮側の Space に、2つ以上（無いときも）なら建屋の名前の Space に出す。
+func TestPlace(t *testing.T) {
+	hostName = func() (string, error) { return "Sample_Plant.local", nil }
+	t.Cleanup(func() { hostName = os.Hostname })
+	ws := t.TempDir()
+	ledger := func(slug string) {
+		dir := filepath.Join(ws, "projects", slug, ".flightdeck")
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "config.yaml"), nil, 0o644)
+	}
+	check := func(label, wantSpace, wantTab string) {
+		t.Helper()
+		if sp, tb := Place(ws); sp != wantSpace || tb != wantTab {
+			t.Errorf("%s: %q %q", label, sp, tb)
+		}
+	}
+	check("台帳なし", "andon-sample-plant-local-plant", "andon-sample-plant-local-courier")
+	ledger("alpha")
+	check("台帳1つ", "andon-alpha", "andon-alpha-courier")
+	ledger("beta")
+	check("台帳2つ", "andon-sample-plant-local-plant", "andon-sample-plant-local-courier")
 }
