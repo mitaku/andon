@@ -18,13 +18,13 @@ P7 で見つけた F5「Herdr App から起こした端末に `claude` が見え
 
 ```bash
 printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
-docker pull ghcr.io/<owner>/andon:<版>      # <版> は main の 40桁の commit SHA か vX.Y.Z
+docker pull ghcr.io/<owner>/andon:<版>      # <版> は vX.Y.Z（配る版）。tag を切るまでは、いまある 40桁の commit SHA の版
 ```
 
 - **通ったら見えるもの**: `docker image ls ghcr.io/<owner>/andon` に行が出る。
 - **落ちたら見る所**:
   - `denied`・`unauthorized` — token に `read:packages` があるか。組織の package なら SSO の承認。package の「Manage access」にこのアカウントがあるか。
-  - `manifest unknown` — tag は main の配布完了後に出る（[image.md](image.md)）。40桁の SHA は GitHub の Actions の「tests」の tests job（main の push の最後の step）で確かめる。
+  - `manifest unknown` — GHCR に版が出るのは `vX.Y.Z` の tag を push して tests の job が通ったときだけ（[image.md](image.md)）。main へのマージでは出ない。P7 のように tag を切る前の建屋は、すでに GHCR にある 40桁の commit SHA の版（main へのマージで出していた頃のもの）を使う。その版のまま、日々の直しは 3 の「andon を直して建屋で試す」で手元で焼く。
   - `no matching manifest` — 配布は Linux amd64 だけ（[image.md](image.md)）。
 
 ## 2. 建屋の repo を作る（`andon init`）
@@ -82,6 +82,22 @@ grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh 
   - 5分待っても `ready` が出ず `準備の完了を確かめられなかった` — `bin/bootstrap logs` で boot の警告の行を見る。`andon help` が `command not found` なら `FROM` の image が古い（`andon` を焼く前の版）。
   - ポートが使用中 — `.env` の番号を変えて `bin/bootstrap` を打ち直す。
   - `local/setup.sh` が落ちる — `bin/bootstrap` の build のログ。建屋固有の追加（`local/aqua.yaml`・`local/setup.sh`）が原因。
+
+### andon を直して建屋で試す（日々のサイクル: `rebuild --from`）
+
+andon を直したら、マージも GHCR も通さず、建屋の中の andon の checkout（7 で迎えたもの。ブランチのままでよい）から image を焼いて、その image で建屋を作り直す。ホストで、建屋の repo から打つ。
+
+```bash
+cd ~/src/andon-home
+bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon    # 建屋の /workspace/.ghq/… はホストのここ
+bin/bootstrap status                                          # 最後の行に FROM と元の commit
+```
+
+- **何が起きるか**: checkout の `image/build.sh` で base image `andon:local-<commit の先頭12文字>`（checkout が汚れていれば末尾に `-dirty`）を焼く（kanban・andon の go build も docker の中。ホストに go は要らない）→ 建屋の `Dockerfile` の `FROM` をその tag に書き換える → 建屋の image を焼き直す（手元にしか無い tag なので `--pull` は付けない）→ compose で作り直す。commit はホストの git で読む（ホストに git が無ければ、今の `FROM` の image の git で読む）。
+- **通ったら見えるもの**: `[andon-home] <checkout>（commit: <40桁>）から andon:local-… を焼く` と `Dockerfile の FROM: <前> → andon:local-…`。`bin/bootstrap status` の最後の行が `FROM: andon:local-…（commit: <40桁>）`。
+- **GHCR の版へ戻す**: `Dockerfile` の `FROM` を `ghcr.io/<owner>/andon:<版>`（上の行に出た「前」の値）に書き戻して `bin/bootstrap rebuild`（1 の pull が先）。建屋の repo を git で持っているなら `git checkout Dockerfile` でもよい。
+- **落ちたら見る所**: `image/build.sh が無い` — `--from` が andon の checkout を指していないか、`image/build.sh` を持つ前の版の checkout（`git pull` する）。焼きが落ちる — 出力の `docker build` のログ（checkout の変更が原因なら直して打ち直す）。`--from` の焼き直しは建屋の image が変わるだけで、volume（ログイン・履歴）は残る。
+- 手元で焼いた `andon:local-…` は増えていくので、要らなくなったら `docker image rm` で消す。ホストの `andon`（2）を合わせるなら、2 の取り出しの `ghcr.io/<owner>/andon:<版>` を `andon:local-…` に置き換えて打つ。
 
 ## 4. ホストの道具を置く（`host-install`）
 
