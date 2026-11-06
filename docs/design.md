@@ -500,7 +500,7 @@ andon/
     settings.json            managed settings の既定（deny・allow・hooks）
     codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
     compose.yaml             建屋の compose（bootstrap がイメージから取り出す）
-    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）
+    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus）・レイアウト layouts/andon.json
   image/                     base image
     Dockerfile               備品・Claude Code・Codex・hc・台帳の CLI・package/ の COPY
     aqua/                    備品の宣言（aqua.yaml・registry・checksums・policy）
@@ -531,7 +531,7 @@ andon/
 | `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
 | `/opt/andon/gate.json` ＋ 建屋の `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
 | `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
-| `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM | `bin/bootstrap host-install` で写す |
+| `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM・人の Herdr App の設定フォルダ（`mods/`・`layouts/`） | `bin/bootstrap host-install` で写す（今あるものは上書きしない） |
 
 建屋の repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` の版を上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。Andon を直して建屋で試すときは、`bootstrap rebuild --from <andon の checkout>` がその checkout から base image を焼いて `FROM` を差し替える（GHCR を通さない。配る版は `vX.Y.Z` の tag だけ）。
 
@@ -676,7 +676,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `deck`（Go の CLI。台帳を書く唯一の道具） | **外部の部品** | Andon の command（`andon task …`・dispatcher・ゲート）は台帳の CLI を呼ぶ。配布は aqua の private release（CI の token で image に焼く。§6 問い5） |
 | `docs/ledger-format.md` ＋ `docs/schema/*.v2.schema.json`（形式 v2） | **外部の約束** | Andon の予約キー（§4）は「Any other key is allowed and kept」の上に置く。形式そのものは変えない。変えたいものは §3.2 |
 | `docs/concept.md`・`docs/yard-news.md`・`handoff-*.md` | 外部の記録 | Andon の `docs/decisions.md` から指す。写さない |
-| `herdr-app/mods/`（focus-queue・work-board・files-plus・context-header）・`layouts/flightdeck.json` | 外部の部品（人の Interface） | 約束は端末のラベル（`project`・`task`・`title`・`role`・`news.replied`）と台帳の形式だけ |
+| `herdr-app/mods/`（focus-queue・work-board・files-plus・context-header）・`layouts/flightdeck.json` | 外部の部品（人の Interface）。**2026-11-06 に取り込んだ**（`package/host/` の inbox・kanban-board〈work-board を改名〉・context-header・files-plus・`layouts/andon.json`。`host-install` で人の App に置く。[decisions.md](decisions.md)） | 約束は端末のラベル（`project`・`task`・`title`・`role`・`news.replied`）と台帳の形式だけ |
 | `cmd/flightdeck`（Web ボード。全建屋の自分待ち） | 外部の部品 | 将来の「通知から返す口」の候補の1つ。Andon の問いの形（§4）を読めるように、§3.2 で相談 |
 
 **hc（herdr-core 0.1.17）・Herdr App**: 外部の部品。Andon が hc に求めるのは、永続 PTY・エージェントの状態（OSC 7501）・起こす（template・label・`--on`）・`hc send`／`keys`・別のマシン（`machine`・`exec --on`・`file --on`・`put`）・`hc events`（dispatcher が見回りの代わりに使う）。Herdr App は人の Interface で、Andon は触らない。
