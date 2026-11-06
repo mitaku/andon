@@ -21,12 +21,24 @@ export default class Andon extends View {
       const location = tabs.get(pane.tab);
       if (!terminal || terminal.state !== "live" || !location) continue;
       const labels = terminal.labels ?? {};
-      const slug = labels.project;
-      if (typeof slug !== "string" || !slug) continue;
       const labelSpace = labels["herdr.space"];
       const { space, tab } = location;
       const prefix = space.machine ? `${space.machine}/` : "";
       if (space.id !== prefix + labelSpace) continue;
+      if (labels.role === "courier") {
+        // The courier is one per plant and spans projects, so it has no project
+        // label: the name comes from its own ids. One ledger: the project's
+        // command-side Space (andon-<x>). Else the plant's Space (andon-<x>-plant).
+        const m = /^andon-(.+)-courier$/.exec(tab.id.slice(prefix.length));
+        if (!m) continue;
+        if (labelSpace === `andon-${m[1]}`) rename("space", space, m[1]);
+        else if (labelSpace === `andon-${m[1]}-plant`) rename("space", space, `${m[1]} plant`);
+        else continue;
+        rename("tab", tab, "伝令");
+        continue;
+      }
+      const slug = labels.project;
+      if (typeof slug !== "string" || !slug) continue;
       // Command side: one Space per project (CoS and CE tabs). Work side: one
       // Space per task, its tab holds the worker (ADR-0003). Reviewers share
       // the worker's Space and tab with their own task/title, so their labels
