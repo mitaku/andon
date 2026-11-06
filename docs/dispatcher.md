@@ -43,7 +43,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 ### 2.1 見回り
 
 - 建屋の各プロジェクトの台帳を回る。**待ちが無ければ1分ごと、待ちがあれば5秒ごと**（仮の値。設定で替えられる）。
-- プロジェクトの Chief of Staff（`config.yaml` の `coordinator`）の端末が生きていなければ、その台帳は丸ごと飛ばす（ログに1行。理由が変わったときだけ）。Chief of Staff は起きたときに台帳を自分で読むので、留守の間に積む必要が無い。
+- プロジェクトの Chief of Staff（`config.yaml` の `chief_of_staff`）の端末が生きていなければ、その台帳は丸ごと飛ばす（ログに1行。理由が変わったときだけ）。Chief of Staff は起きたときに台帳を自分で読むので、留守の間に積む必要が無い。
 - 見回りの最初に `kanban tick` を打つ（ルーチンの `schedule` が来たものをタスクにする）。台帳の CLI の仕事を、周期を持つ dispatcher が代わりに起こすだけ。
 - **初めて見る台帳**（控えが無い）は、通知の元（§2.2・§2.3）について今の ready と `log.jsonl` の位置を控えるだけで送らない（過去の出来事を一度に流さない）。
   ただし `doing` のタスクの今の `review_request`（§5）は拾う。commit が PR の head と同じことを確かめてから起こすので、過去の出来事ではなく、いま止まっている工程だから（dispatcher が止まっている間に出たレビュー依頼を取りこぼさない。2026-11-06 の P7）。
@@ -68,7 +68,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - `log.jsonl` は前回の続きから読む。読んだ位置は dispatcher の控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
 - 位置には最初の行の hash を添える。台帳の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
 - **ready は履歴ではなく差で拾う。** ルーチンが足したタスク・`queued` から戻ったタスク・人が足したタスクを、同じ1本の道で拾える（出来事ごとに拾い方を増やさない）。
-- **Chief of Staff 自身が起こした変化は知らせない**（`by` が `terminal:<coordinator>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起こした変化は知らせる。
+- **Chief of Staff 自身が起こした変化は知らせない**（`by` が `terminal:<chief_of_staff>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起こした変化は知らせる。
 - 積むとき、**同じタスクの同じ出来事は新しい1件に置き換える**。
 - `review` の `detail.pr` は `report.json` の `pr`。PR の無い報告（レビュアー・repo の無いタスク）は `report` として知らせる（schema が `pr` を要するため）。
 - 問いの JSON（`library/questions/<n>.json`）は台帳の行のあとに置かれるので、無ければ1回だけ次の見回りまで待つ（その行から読み直す）。それでも無い・読めなければ飛ばしてログに残す。
@@ -117,10 +117,10 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 ```
 <news project="sample-site">
-S-10 review: 報告 tasks/S-10/report.md（PR https://github.com/<owner>/sample-site/pull/24）
-S-11 asked: 問い 1（irreversible）
-S-12 ready: 「依存の版上げ」（ルーチン triage）
-S-9 の担当 t5 が working のまま 21 分
+S-0010 review: 報告 tasks/S-0010/report.md（PR https://github.com/<owner>/sample-site/pull/24）
+S-0011 asked: 問い 1（irreversible）
+S-0012 ready: 「依存の版上げ」（ルーチン triage）
+S-0009 の担当 t5 が working のまま 21 分
 これは台帳と端末の土台から拾った通知で、人からの新しい依頼ではない。足すことが無ければ「<no-reply>」とだけ返す。
 </news>
 ```

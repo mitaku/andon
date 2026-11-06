@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `andon chief-of-staff`（docs/design.md §1.8 の Chief of Staff を起こす）。本物の台帳の CLI（kanban）・一時の台帳・偽の hc で回す。
-# 起こす・動いていれば起こさない（二重に起こさない）・起き直したら coordinator が直る・2人なら止まる・最初のメッセージが届かないときの案内。
+# 起こす・動いていれば起こさない（二重に起こさない）・起き直したら chief_of_staff が直る・2人なら止まる・最初のメッセージが届かないときの案内。
 # 本物の hc には触らない。
 set -euo pipefail
 for c in jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
@@ -16,7 +16,7 @@ if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
   [ -n "$(ls -A "$tmp/gocache" 2>/dev/null)" ] || { echo "FAIL go のキャッシュが一時ディレクトリに無い" >&2; exit 1; }
   echo "ok   go build のキャッシュは一時ディレクトリ（$tmp/gocache）"
 fi
-unset FLIGHTDECK_ROOT HC_TERMINAL_ID
+unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/hc" "$tmp/projects/demo"
 
 # 偽の hc: 生きている端末は $tmp/hc/live（1行に address name cwd role project）。run は t42, t43 … を返す。
@@ -59,7 +59,7 @@ pass=0
 ok() { echo "ok   $1"; pass=$((pass + 1)); }
 die() { echo "FAIL $1" >&2; exit 1; }
 runs() { cat "$tmp/hc/log" 2>/dev/null | grep -c '^run' || true; }
-coordinator() { sed -n 's/^coordinator: *//p' .flightdeck/config.yaml; }
+cos() { sed -n 's/^chief_of_staff: *//p' kanban/config.yaml; }
 
 # 台帳の外で打つと止まる
 cd "$tmp"
@@ -77,31 +77,31 @@ root=$PWD
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label role=chief-of-staff --label project=demo --label herdr.space=andon-demo --label herdr.tab=andon-demo-cos --cwd $root chief-of-staff プロジェクト \`demo\` の Chief of Staff。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(cat "$tmp/hc/log")"
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
-[ "$(coordinator)" = t42 ] || die "coordinator: $(coordinator)"
-jq -e 'select(.config) | .config.coordinator == "t42"' .flightdeck/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
+[ "$(cos)" = t42 ] || die "chief_of_staff: $(cos)"
+jq -e 'select(.config) | .config.chief_of_staff == "t42"' kanban/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
 grep -q 'demo の Chief of Staff は t42（demo-cos・起こした）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = 'andon chief-of-staff: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
-ok '起こす: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の coordinator・hc attach を打たず出た場所「demo / CoS」を出す'
+ok '起こす: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
 
 # 2. 動いていれば起こさない（Chief of Staff 自身が起きたときに打つ形）
-lines=$(wc -l < .flightdeck/log.jsonl)
+lines=$(wc -l < kanban/log.jsonl)
 "$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 1 ] || die '二重に起こした'
-[ "$(wc -l < .flightdeck/log.jsonl)" = "$lines" ] || die 'coordinator が合っているのに台帳を書いた'
+[ "$(wc -l < kanban/log.jsonl)" = "$lines" ] || die 'chief_of_staff が合っているのに台帳を書いた'
 grep -q 't42（demo-cos・動いているものを使う）' "$tmp/out" && grep -q '出た場所 demo / CoS（t42）' "$tmp/out" || die "out: $(cat "$tmp/out")"
-ok '動いていれば起こさない（二重に起こさない）。coordinator が合っていれば台帳を書かない'
+ok '動いていれば起こさない（二重に起こさない）。chief_of_staff が合っていれば台帳を書かない'
 
-# 3. 起き直した（端末が変わった）: coordinator が直る
+# 3. 起き直した（端末が変わった）: chief_of_staff が直る
 sed -i 's/^t42 /t50 /' "$tmp/hc/live"
 "$andon" chief-of-staff >/dev/null
-[ "$(runs)" = 1 ] && [ "$(coordinator)" = t50 ] || die "coordinator が直らない: $(coordinator) runs=$(runs)"
-ok '起き直して address が変わったら coordinator を直す'
+[ "$(runs)" = 1 ] && [ "$(cos)" = t50 ] || die "chief_of_staff が直らない: $(cos) runs=$(runs)"
+ok '起き直して address が変わったら chief_of_staff を直す'
 
 # 4. 名前か cwd が合わない端末は使わない
 cp "$tmp/hc/live" "$tmp/live.bak"
 sed -i "s| $root | /elsewhere |" "$tmp/hc/live"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q 'cwd（/elsewhere）が合わない' "$tmp/err" && [ "$(coordinator)" = t50 ] || die "合わない端末: rc=$rc $(cat "$tmp/err")"
+[ "$rc" = 1 ] && grep -q 'cwd（/elsewhere）が合わない' "$tmp/err" && [ "$(cos)" = t50 ] || die "合わない端末: rc=$rc $(cat "$tmp/err")"
 cp "$tmp/live.bak" "$tmp/hc/live"
 ok 'ラベルが合っても名前か cwd が違う端末は使わない（台帳を書かない）'
 
@@ -118,19 +118,19 @@ echo false > "$tmp/hc/first"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 grep -q '最初のメッセージが届いていない: trust prompt。App の demo / CoS で答えてから、次を送る: hc send t43 "プロジェクト `demo` の Chief of Staff。' "$tmp/err" || die "案内: $(cat "$tmp/err")"
-[ "$(coordinator)" = t43 ] || die "届かなくても台帳に載せる: $(coordinator)"
+[ "$(cos)" = t43 ] || die "届かなくても台帳に載せる: $(cos)"
 rm "$tmp/hc/first"
 [ ! -e "$tmp/hc/attached" ] || die "hc attach を打った: $(cat "$tmp/hc/attached")"
 ok '最初のメッセージが届かなければ終了コード 3・送り直す hc send を案内（台帳には載せる）'
 
-# 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起こし直し、coordinator を合わせる
+# 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起こし直し、chief_of_staff を合わせる
 echo t43 > "$tmp/hc/shells"
 "$andon" chief-of-staff >"$tmp/out"
-[ "$(runs)" = 3 ] && [ "$(coordinator)" = t44 ] || die "戻った端末: runs=$(runs) coordinator=$(coordinator) $(cat "$tmp/out")"
+[ "$(runs)" = 3 ] && [ "$(cos)" = t44 ] || die "戻った端末: runs=$(runs) chief_of_staff=$(cos) $(cat "$tmp/out")"
 grep -qx 'keep t43 --off' "$tmp/hc/log" && grep -qx 'kill t43' "$tmp/hc/log" && grep -qx 'rm t43' "$tmp/hc/log" || die "片付けていない: $(cat "$tmp/hc/log")"
 grep -q 't43 は Chief of Staff のラベルのまま中身がシェルに替わっていた' "$tmp/out" && grep -q 't44（demo-cos・起こした）' "$tmp/out" || die "out: $(cat "$tmp/out")"
 rm "$tmp/hc/shells"
-ok '中身がシェルに替わって戻った端末は使わず、keep を外して kill・rm し、起こし直して coordinator を合わせる'
+ok '中身がシェルに替わって戻った端末は使わず、keep を外して kill・rm し、起こし直して chief_of_staff を合わせる'
 
 # 8. --no-attach は消した（ADR-0002 決めたこと 14）
 rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?

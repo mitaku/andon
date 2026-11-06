@@ -140,7 +140,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 	}
 
 	// 台帳を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
-	if _, err := spawn.OutputIn(cwd, []string{"FLIGHTDECK_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
+	if _, err := spawn.OutputIn(cwd, []string{"KANBAN_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
 	}
 	place := id + " " + title + " / " + id // 人に端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）

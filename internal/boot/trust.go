@@ -23,7 +23,7 @@ import (
 // boot が、エージェントが起きる場所の根を Claude Code と Codex の両方で信頼済みにしておく。足りない所だけ足し、
 // 今ある設定は触らない（2回目は何も書かない）。
 //
-// 根は「建屋の repo」と「台帳に載った案件の repo（建屋の projects/*/.flightdeck/config.yaml の repos にあり、
+// 根は「建屋の repo」と「台帳に載った案件の repo（建屋の projects/*/kanban/config.yaml の repos にあり、
 // <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
 // Chief of Staff と人で、andon task start が起こしてよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（~/.herdr/worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
@@ -52,7 +52,7 @@ func (e Env) trustRoots() []string {
 	cands := []string{e.Workspace}
 	ghq, err := filepath.EvalSymlinks(e.GhqRoot)
 	if e.GhqRoot != "" && e.Workspace != "" && err == nil {
-		cfgs, _ := filepath.Glob(filepath.Join(e.Workspace, "projects", "*", ".flightdeck", "config.yaml"))
+		cfgs, _ := filepath.Glob(filepath.Join(e.Workspace, "projects", "*", "kanban", "config.yaml"))
 		sort.Strings(cfgs)
 		for _, cfg := range cfgs {
 			for _, repo := range ledger.At(filepath.Dir(filepath.Dir(cfg))).Repos() {

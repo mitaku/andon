@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -38,15 +39,15 @@ const DispatcherBy = "terminal:dispatcher"
 
 // Ledger は1つの台帳。
 type Ledger struct {
-	Root string // プロジェクトの根（.flightdeck の親）
+	Root string // プロジェクトの根（kanban/ の親）
 	Slug string
-	Dir  string   // <Root>/.flightdeck
+	Dir  string   // <Root>/kanban
 	Env  []string // 台帳の CLI に足す環境（dispatcher は HC_TERMINAL_ID=dispatcher）
 }
 
-// At は台帳の根 root（.flightdeck の親）の Ledger。
+// At は台帳の根 root（kanban/ の親）の Ledger。
 func At(root string) *Ledger {
-	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, ".flightdeck")}
+	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, "kanban")}
 }
 
 // Open は台帳の CLI に台帳の根を聞く。
@@ -65,7 +66,7 @@ func Open() (*Ledger, error) {
 // Run は台帳の CLI をこの台帳に向けて打ち、stdout を返す（前後の空白を除く）。
 func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	c := exec.Command(CLI, args...)
-	c.Env = append(append(os.Environ(), "FLIGHTDECK_ROOT="+l.Root), l.Env...)
+	c.Env = append(append(os.Environ(), "KANBAN_ROOT="+l.Root), l.Env...)
 	c.Stdin = strings.NewReader(stdin)
 	var errb bytes.Buffer
 	c.Stderr = &errb
@@ -133,14 +134,17 @@ func (l *Ledger) Library(id string) string {
 	return filepath.Join(l.Dir, "tasks", id, "library")
 }
 
-// Coordinator は config.yaml の coordinator（Chief of Staff の端末）。無ければ空。
-func (l *Ledger) Coordinator() string {
+// ChiefOfStaff は config.yaml の chief_of_staff（Chief of Staff の端末）。無ければ空。
+func (l *Ledger) ChiefOfStaff() string {
 	b, err := os.ReadFile(filepath.Join(l.Dir, "config.yaml"))
 	if err != nil {
 		return ""
 	}
 	for _, line := range strings.Split(string(b), "\n") {
-		if v, ok := strings.CutPrefix(line, "coordinator:"); ok {
+		if v, ok := strings.CutPrefix(line, "chief_of_staff:"); ok {
+			if i := strings.Index(v, " #"); i >= 0 {
+				v = v[:i]
+			}
 			return strings.Trim(strings.TrimSpace(v), `"'`)
 		}
 	}
@@ -189,17 +193,18 @@ func (l *Ledger) Log() []Row {
 	for s.Scan() {
 		var r Row
 		if json.Unmarshal(s.Bytes(), &r) == nil {
+			r.ID = CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
 			rows = append(rows, r)
 		}
 	}
 	return rows
 }
 
-// Trusted は、タスク id の key を最後に変えた log.jsonl の行の by が terminal:<coordinator> で、
-// その値がいまの task の値と同じか（contract.md §2 の履歴の照合）。coordinator が無ければ信じない。
+// Trusted は、タスク id の key を最後に変えた log.jsonl の行の by が terminal:<chief_of_staff> で、
+// その値がいまの task の値と同じか（contract.md §2 の履歴の照合）。chief_of_staff が無ければ信じない。
 func (l *Ledger) Trusted(rows []Row, t Task, key string) bool {
-	coordinator := l.Coordinator()
-	if coordinator == "" {
+	cos := l.ChiefOfStaff()
+	if cos == "" {
 		return false
 	}
 	var last *Row
@@ -211,7 +216,7 @@ func (l *Ledger) Trusted(rows []Row, t Task, key string) bool {
 			last = &rows[i]
 		}
 	}
-	if last == nil || last.By != "terminal:"+coordinator {
+	if last == nil || last.By != "terminal:"+cos {
 		return false
 	}
 	v, ok := last.Change[key].(string)
@@ -292,9 +297,9 @@ func machineOK(v string) bool {
 
 // Reviewer は、タスク id のレビューに数えるレビュアーのタスクのうち最新のもの（無ければ空）と、
 // 数えなかった子タスク（理由の文に使う）。数えるのは: parent が id・status が review か done・
-// 作成の行（log.jsonl の最初の add）の by が terminal:<coordinator> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
+// 作成の行（log.jsonl の最初の add）の by が terminal:<chief_of_staff> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
 func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
-	coordinator := l.Coordinator()
+	cos := l.ChiefOfStaff()
 	creator := map[string]string{}
 	for _, r := range rows {
 		if _, ok := r.Change["add"]; ok {
@@ -312,7 +317,7 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 		}
 		p := c.Str("profile")
 		by := creator[c.Str("id")]
-		if (by == DispatcherBy || coordinator != "" && by == "terminal:"+coordinator) && strings.HasSuffix(p, "-review") && Brand(p) != brand {
+		if (by == DispatcherBy || cos != "" && by == "terminal:"+cos) && strings.HasSuffix(p, "-review") && Brand(p) != brand {
 			picked = append(picked, c)
 		} else {
 			others = append(others, c.Str("id"))
@@ -329,6 +334,20 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 		return idLess(a.Str("id"), b.Str("id"))
 	})
 	return picked[len(picked)-1].Str("id"), others
+}
+
+// CanonID は人が打った id を台帳の形に揃える（A-5・A-05 → A-0005。docs/ledger.md の Ids）。
+// <prefix>-<数字> でなければそのまま。台帳の CLI（kanban）の canonID と同じ。
+func CanonID(id string) string {
+	i := strings.LastIndex(id, "-")
+	if i <= 0 || i == len(id)-1 || strings.Trim(id[i+1:], "0123456789") != "" {
+		return id
+	}
+	n, err := strconv.Atoi(id[i+1:])
+	if err != nil || n < 1 {
+		return id
+	}
+	return fmt.Sprintf("%s-%04d", id[:i], n)
 }
 
 // idLess は台帳の id（<prefix>-<n>）を番号の順に比べる。

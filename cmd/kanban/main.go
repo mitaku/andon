@@ -1,4 +1,4 @@
-// kanban changes the work ledger in .flightdeck/ (docs/ledger.md; docs/design.md §3.5).
+// kanban changes the work ledger in kanban/ (docs/ledger.md; docs/design.md §3.5).
 //
 // Copied from herdr-flightdeck's cmd/deck at tag deck-v0.4.0 on 2026-11-05 and licensed
 // under Apache-2.0 from that day (docs/decisions.md §7, §12). The behaviour is deck-v0.4.0's;
@@ -20,9 +20,9 @@ import (
 	"unicode/utf8"
 )
 
-const help = `kanban: a project's work ledger in .flightdeck/ (format 2; one folder per task)
+const help = `kanban: a project's work ledger in kanban/ (format 2; one folder per task)
 
-  kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make .flightdeck/ (config.yaml, tasks/)
+  kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make kanban/ (config.yaml, tasks/)
   kanban add "title" [--repo r] [--profile p] [--parent id] [--after id,…] [--phase id] [--brief file|-]
   kanban list [--status s] [--repo r] [--all] [--json]
   kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for
@@ -39,11 +39,13 @@ const help = `kanban: a project's work ledger in .flightdeck/ (format 2; one fol
   kanban tick [--json]                      add a task for each routine whose schedule came due
   kanban routine list [--json]              routines: trigger, last and next time, tasks not done
   kanban routine run <name>                 fire a routine now (open and paused still apply)
-  kanban config set coordinator=<address>   set config.yaml coordinator (empty value removes it)
+  kanban config set chief_of_staff=<address>   set config.yaml chief_of_staff (empty value removes it)
+  kanban migrate [--root dir]               move a .flightdeck/ ledger to kanban/ (ids to <prefix>-0001; once)
   kanban root                               print the ledger's root
   kanban --version                          print kanban's version
 
-The root: $FLIGHTDECK_ROOT, else the nearest folder above with .flightdeck/, else the projects/<slug>/
+Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001.
+The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
 whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
 repo is filled in from the current checkout when it matches one of repos.
 deck is another name for kanban (for one version); both print this help.`
@@ -116,7 +118,7 @@ func init() {
 		"init": cmdInit, "add": cmdAdd, "list": cmdList, "ready": cmdReady, "show": cmdShow,
 		"start": cmdStart, "set": cmdSet, "review": cmdReview, "done": cmdDone, "report": cmdReport,
 		"lint": cmdLint, "tick": cmdTick, "routine": cmdRoutine, "config": cmdConfig,
-		"ask": cmdAsk, "questions": cmdQuestions, "answer": cmdAnswer, "received": cmdReceived, "root": func(e env, _ args) error { e.println(e.root); return nil },
+		"ask": cmdAsk, "questions": cmdQuestions, "answer": cmdAnswer, "received": cmdReceived, "migrate": cmdMigrate, "root": func(e env, _ args) error { e.println(e.root); return nil },
 	}
 }
 
@@ -156,7 +158,7 @@ func dispatch(argv []string, cwd string, stdin io.Reader, stdout io.Writer) erro
 		return err
 	}
 	e := env{cwd: cwd, stdin: stdin, stdout: stdout}
-	if argv[0] != "init" {
+	if argv[0] != "init" && argv[0] != "migrate" {
 		if e.root, err = findRoot(cwd); err != nil {
 			return err
 		}
@@ -198,7 +200,7 @@ repos:%s
 func cmdInit(e env, a args) error {
 	root := a.flags["root"]
 	if root == "" {
-		root = os.Getenv("FLIGHTDECK_ROOT")
+		root = os.Getenv("KANBAN_ROOT")
 	}
 	if root == "" {
 		root = e.cwd
@@ -221,7 +223,7 @@ func cmdInit(e env, a args) error {
 		return err
 	}
 	root, _ = filepath.Abs(root)
-	dir := filepath.Join(root, ".flightdeck")
+	dir := ledgerDir(root)
 	file := filepath.Join(dir, "config.yaml")
 	// An existing ledger is checked before anything is made, so a format kanban doesn't know stays as it is.
 	already := exists(file)
@@ -233,7 +235,7 @@ func cmdInit(e env, a args) error {
 	if err := os.MkdirAll(filepath.Join(dir, "tasks"), 0o755); err != nil {
 		return err
 	}
-	// The ledger stays out of git (docs/decisions.md §6).
+	// The ledger stays out of git (ADR-0005, 5).
 	if ignore := filepath.Join(dir, ".gitignore"); !exists(ignore) {
 		if err := writeAtomic(ignore, []byte(initialGitignore)); err != nil {
 			return err
@@ -296,9 +298,10 @@ func cmdAdd(e env, a args) error {
 		all := byID(tasks)
 		var after []string
 		if a.has("after") {
-			after = splitList(a.flags["after"])
+			after = canonIDs(splitList(a.flags["after"]))
 		}
-		for _, ref := range append([]string{a.flags["parent"]}, after...) {
+		parent := canonID(a.flags["parent"])
+		for _, ref := range append([]string{parent}, after...) {
 			if ref != "" && all[ref] == nil {
 				return fail("no task %s", ref)
 			}
@@ -313,7 +316,7 @@ func cmdAdd(e env, a args) error {
 		if !cfg.hasColumn(status) {
 			return fail("status must be one of %s", strings.Join(cfg.columns, ", "))
 		}
-		fields := map[string]string{"repo": repo, "parent": a.flags["parent"], "phase": a.flags["phase"], "profile": a.flags["profile"]}
+		fields := map[string]string{"repo": repo, "parent": parent, "phase": a.flags["phase"], "profile": a.flags["profile"]}
 		var err error
 		if t, err = newTask(e.root, cfg, title, fields, after, status, brief); err != nil {
 			return err
@@ -346,7 +349,7 @@ func newTask(root string, cfg config, title string, fields map[string]string, af
 		}
 	}
 	at := now()
-	t := &task{id: fmt.Sprintf("%s-%d", cfg.prefix, n+1), d: newDoc()}
+	t := &task{id: formatID(cfg.prefix, n+1), d: newDoc()}
 	t.d.setStr("id", t.id)
 	t.d.setStr("title", title)
 	t.d.setStr("status", status)
@@ -473,7 +476,7 @@ func need(a args, usage string) (string, error) {
 	if len(a.rest) == 0 || a.rest[0] == "" {
 		return "", fail("usage: %s", usage)
 	}
-	return a.rest[0], nil
+	return canonID(a.rest[0]), nil
 }
 
 func cmdShow(e env, a args) error {
@@ -610,7 +613,7 @@ func cmdSet(e env, a args) error {
 	if len(a.rest) < 2 || a.rest[0] == "" {
 		return fail("usage: kanban set <id> key=value …  (empty value removes the key)")
 	}
-	id, pairs := a.rest[0], a.rest[1:]
+	id, pairs := canonID(a.rest[0]), a.rest[1:]
 	cfg, err := readConfig(e.root)
 	if err != nil {
 		return err
@@ -639,9 +642,15 @@ func cmdSet(e env, a args) error {
 				change.set(k, nil)
 			case listKeys[k]:
 				items := splitList(v)
+				if k == "after" {
+					items = canonIDs(items)
+				}
 				t.d.setList(k, items)
 				change.set(k, items)
 			default:
+				if k == "parent" {
+					v = canonID(v)
+				}
 				t.d.setStr(k, v)
 				change.set(k, v)
 			}
@@ -872,19 +881,19 @@ func cmdLint(e env, a args) error {
 	return nil
 }
 
-// cmdConfig changes config.yaml under the lock. Only coordinator: a coordinator's address changes
+// cmdConfig changes config.yaml under the lock. Only chief_of_staff: the Chief of Staff's address changes
 // each time it is started again, and it sets it here rather than by hand, outside the lock.
 // config.yaml is edited as a YAML tree, so comments and key order stay.
 func cmdConfig(e env, a args) error {
-	const usage = "usage: kanban config set coordinator=<address>  (empty value removes it)"
+	const usage = "usage: kanban config set chief_of_staff=<address>  (empty value removes it)"
 	if len(a.rest) != 2 || a.rest[0] != "set" || !strings.Contains(a.rest[1], "=") {
 		return fail(usage)
 	}
 	k, v, _ := strings.Cut(a.rest[1], "=")
-	if k != "coordinator" {
-		return fail("kanban config set changes coordinator only, not %q", k)
+	if k != "chief_of_staff" {
+		return fail("kanban config set changes chief_of_staff only, not %q", k)
 	}
-	file := filepath.Join(e.root, ".flightdeck", "config.yaml")
+	file := filepath.Join(ledgerDir(e.root), "config.yaml")
 	err := withLock(e.root, lockWait, func() error {
 		if err := checkNoLink(file, true); err != nil {
 			return err
@@ -918,9 +927,9 @@ func cmdConfig(e env, a args) error {
 		return err
 	}
 	var shown any
-	text := "coordinator removed"
+	text := "chief_of_staff removed"
 	if v != "" {
-		shown, text = v, "coordinator: "+v
+		shown, text = v, "chief_of_staff: "+v
 	}
 	e.out(a, map[string]any{k: shown}, text)
 	return nil

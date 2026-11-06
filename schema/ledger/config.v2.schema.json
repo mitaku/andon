@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "flightdeck ledger config.yaml (format 2)",
-  "description": "The .flightdeck/config.yaml of a ledger, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. Unknown keys are allowed (readers ignore them, writers keep them).",
+  "title": "kanban ledger config.yaml (format 2)",
+  "description": "The kanban/config.yaml of a ledger, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. Unknown keys are allowed (readers ignore them, writers keep them).",
   "type": "object",
   "required": ["version"],
   "properties": {
@@ -41,8 +41,8 @@
       "type": "array",
       "items": { "type": "string", "pattern": "^[^/]+/[^/]+/[^/]+$" }
     },
-    "coordinator": {
-      "description": "The terminal of the project's coordinator: its herdr-core address on the ledger's own machine (t2).",
+    "chief_of_staff": {
+      "description": "The terminal of the project's Chief of Staff: its herdr-core address on the ledger's own machine (t2). Set with kanban config set chief_of_staff=<address>.",
       "type": "string"
     },
     "timezone": {

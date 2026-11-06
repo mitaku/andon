@@ -27,7 +27,7 @@ description: Chief of Staff が `andon task start` で起こした担当とレ�
 最初のメッセージは「タスク `<slug>/<id>`。依頼書は `<brief.md の絶対パス>`」。Claude Code 系のプロファイルではこの skill はもう system prompt に入っている。Codex 系では3行目「先にこの SKILL.md を読む」が付く。
 
 1. 依頼書を読む。`deck show <id>` で `task.yaml`（`repo`・`branch`・`worktree`・`parent`）も見る。
-   `deck` は worktree から台帳を自分で見つける。見つからなければ依頼書のパスの `.flightdeck` の親を `FLIGHTDECK_ROOT` に入れて打つ。
+   `deck` は worktree から台帳を自分で見つける。見つからなければ依頼書のパスの `kanban` の親を `KANBAN_ROOT` に入れて打つ。
 2. **Settings を読む**。正は `task.yaml` の予約キー（既定で埋めた値は `andon task show <id>` の `settings`）で、依頼書の `## Settings` は人が読む写し。
    Chief of Staff が書く。自分で `deck set` しない（ゲートと dispatcher は Chief of Staff 以外が書いた値を信じず、人へ回す）。写しと食い違っていれば報告の `## Next` に1行書く。
 
@@ -40,7 +40,7 @@ description: Chief of Staff が `andon task start` で起こした担当とレ�
    | `merge`（Merge） | `auto` / `person` | `person` | どの値でも担当はマージしない。PR を出して止まる |
    | `machine` | マシンの名前 | 指揮側と同じ | 自分が起きたマシン。読むだけ |
 
-3. Chief of Staff の address を控える: 台帳の `config.yaml` の `coordinator`（自分を起こした端末〈`hc get "$HC_TERMINAL_ID" --json` の `parent`〉は dispatcher のことがあるので使わない）。
+3. Chief of Staff の address を控える: 台帳の `config.yaml` の `chief_of_staff`（自分を起こした端末〈`hc get "$HC_TERMINAL_ID" --json` の `parent`〉は dispatcher のことがあるので使わない）。
    こちらから打ち込むことはない（通知は dispatcher が届ける）が、届いた文の送り手を見分けるのに使う。ゲートの `fix` は dispatcher から届く。
 4. `deck start <id>`。`status: doing` になり、`agent` が自分の address になる。
 
@@ -49,7 +49,7 @@ description: Chief of Staff が `andon task start` で起こした担当とレ�
 - 依頼書の「やること」「完了条件」「守ること」だけをする。頼まれていない稀なケースや将来のケースのために設計しない。
 - cwd が自分の worktree（`task.yaml` の `worktree`）。そこから出て書かない。repo の無いタスクは `tasks/<id>/` が cwd で、成果はそこに書く。
 - 書く仕事・長い仕事・範囲の外の仕事を見つけたら、自分でせず報告の `## Next` に1行書く。
-- 報告・問い・`hc send` の文でほかのタスクに触れるときは「番号（題）」の形で書く（例 `S-4（返事の下書きボタン）`。題が長ければ要点に縮める）。
+- 報告・問い・`hc send` の文でほかのタスクに触れるときは「番号（題）」の形で書く（例 `S-0004（返事の下書きボタン）`。題が長ければ要点に縮める）。
 - 推奨案で進めて後から戻せる選択は、推奨案で進めて報告に「〜は〜で進めた（戻すなら一言）」と書く。
 - 人の判断が要るもの（範囲外の操作・不可逆な操作・方針）に当たったら §5。
 
@@ -120,7 +120,7 @@ Chief of Staff が「人の go」と書いて渡したとき（か、委譲の�
      書き方（jq。指摘ごとに `{severity:…, file:…, line:…}` を並べる）:
 
      ```
-     f="$(deck root)/.flightdeck/tasks/<自分の id>/library/findings.json"; mkdir -p "${f%/*}"
+     f="$(deck root)/kanban/tasks/<自分の id>/library/findings.json"; mkdir -p "${f%/*}"
      jq -n --arg c "$(git rev-parse HEAD)" '{commit:$c, findings:[{severity:"major", file:"internal/cli/cli.go", line:120}]}' > "$f"
      ```
 
@@ -143,7 +143,7 @@ EOF
 ```
 
 - `commit` は command が `HEAD` を書く。`pr` は `--pr` で（省くと前の `report.json` の `pr` を引き継ぐ）。
-- `--data` は任意のキーの JSON object: `waived`・`acceptance`・`next`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon task finish S-12"}]}`。`to` は `person` / `chief-of-staff` / `task`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。
+- `--data` は任意のキーの JSON object: `waived`・`acceptance`・`next`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon task finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `task`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。
 - 形が違えば command が書く前に止まる（理由1行）。直して打ち直す。
 
 人が読む報告の書式（毎回全体を書き直す）:

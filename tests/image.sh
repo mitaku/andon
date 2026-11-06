@@ -152,8 +152,8 @@ dc exec -T dev bash -euc '
   for c in "FOO=bar gh pr merge 1" "echo \"\$(gh pr merge 1)\""; do
     test "$(codex execpolicy check $rules bash -lc "$c" | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 拒めないはずの「$c」が rules に当たる（docs と tests を直す）" >&2; exit 1; }
   done
-  # 担当・レビュアーが台帳（projects/<slug>/.flightdeck とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
-  for c in "git push -u origin HEAD" "deck report T-1" "deck review T-1" "tee /workspace/projects/p/.flightdeck/tasks/T-1/library/findings.json"; do
+  # 担当・レビュアーが台帳（projects/<slug>/kanban とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
+  for c in "git push -u origin HEAD" "deck report T-1" "deck review T-1" "tee /workspace/projects/p/kanban/tasks/T-1/library/findings.json"; do
     test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]"
   done
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

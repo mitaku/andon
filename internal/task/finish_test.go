@@ -39,14 +39,14 @@ func TestMainCheckout(t *testing.T) {
 }
 
 func TestReviewRound(t *testing.T) {
-	p := "/h/.herdr/worktrees/app/demo-D-1-r"
+	p := "/h/.herdr/worktrees/app/demo-D-0001-r"
 	for wt, want := range map[string]bool{
-		p + "1":                                true,
-		p + "12":                               true,
-		p:                                      false,
-		p + "1x":                               false,
-		"/h/.herdr/worktrees/app/demo-D-1":     false,
-		"/h/.herdr/worktrees/app/demo-D-10-r1": false,
+		p + "1":                                  true,
+		p + "12":                                 true,
+		p:                                        false,
+		p + "1x":                                 false,
+		"/h/.herdr/worktrees/app/demo-D-0001":    false,
+		"/h/.herdr/worktrees/app/demo-D-0010-r1": false,
 	} {
 		if got := reviewRound(wt, p); got != want {
 			t.Errorf("reviewRound(%s) = %v, want %v", wt, got, want)

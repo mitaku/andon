@@ -139,7 +139,7 @@ func (q *questionsFile) find(n int) (*doc, error) {
 // loggedNumber is the highest question number log.jsonl has for the task, so that a question
 // removed from questions.yaml by hand still keeps its number.
 func loggedNumber(root, id string) int {
-	f, err := os.Open(filepath.Join(root, ".flightdeck", "log.jsonl"))
+	f, err := os.Open(filepath.Join(ledgerDir(root), "log.jsonl"))
 	if err != nil {
 		return 0
 	}
@@ -152,7 +152,7 @@ func loggedNumber(root, id string) int {
 			ID     string         `json:"id"`
 			Change map[string]any `json:"change"`
 		}
-		if json.Unmarshal(sc.Bytes(), &l) != nil || l.ID != id {
+		if json.Unmarshal(sc.Bytes(), &l) != nil || canonID(l.ID) != id {
 			continue
 		}
 		if n, ok := l.Change["question"].(float64); ok {
@@ -203,7 +203,7 @@ func cmdAsk(e env, a args) error {
 	if len(a.rest) < 2 || a.rest[0] == "" {
 		return fail(usage)
 	}
-	id := a.rest[0]
+	id := canonID(a.rest[0])
 	kind := a.flags["kind"]
 	if a.has("kind") && !slices.Contains(questionKinds, kind) {
 		return fail("--kind must be one of %s", strings.Join(questionKinds, ", "))
@@ -266,7 +266,7 @@ func parseRef(s string) (string, int, error) {
 	if err != nil || n < 1 {
 		return "", 0, fail("%q is not <id>#<n>", s)
 	}
-	return s[:i], n, nil
+	return canonID(s[:i]), n, nil
 }
 
 // moveQuestion moves <id>#<n> from status from to status to under the lock, setting keys.

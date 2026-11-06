@@ -1,6 +1,6 @@
 # ルーチン triage の例（triage skill）。
 # 台帳は git の外なのでパッケージからは降りない。人の go で、Chief of Staff が
-# projects/<slug>/.flightdeck/routines/triage.yaml に写す（schedule は config.yaml の timezone で読む）。
+# projects/<slug>/kanban/routines/triage.yaml に写す（schedule は config.yaml の timezone で読む）。
 # 周期（週1・月曜 9:00）は仮の決定。止めるときは人が paused: true を書く。
 title: "トリアージ（既定のゴール: 台帳の未処理を 0 にする）"
 profile: sonnet

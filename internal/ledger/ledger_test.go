@@ -38,3 +38,27 @@ func TestOpenUsesKanban(t *testing.T) {
 		t.Fatalf("Open() = %+v, %v; want root %s", l, err, root)
 	}
 }
+
+// 人が短く打った id と、移す前の log.jsonl の id は 4 桁に揃えて読む。
+func TestCanonID(t *testing.T) {
+	for in, want := range map[string]string{"A-5": "A-0005", "A-05": "A-0005", "A-0005": "A-0005", "A-12345": "A-12345", "Y-T-7": "Y-T-0007", "A-0": "A-0", "A-x": "A-x", "abc": "abc", "-5": "-5", "A-": "A-"} {
+		if got := CanonID(in); got != want {
+			t.Errorf("CanonID(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// 移す前の行（id: A-5・by: Chief of Staff）は、移したあとのタスク A-0005 の照合に数える。
+func TestTrustedReadsOldIds(t *testing.T) {
+	root := t.TempDir()
+	l := At(root)
+	os.MkdirAll(l.Dir, 0o755)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 2\nchief_of_staff: t5 # the lead\n"), 0o644)
+	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(`{"at":"x","by":"terminal:t5","id":"A-5","change":{"review":"on"}}`+"\n"), 0o644)
+	if l.ChiefOfStaff() != "t5" {
+		t.Fatalf("ChiefOfStaff() = %q", l.ChiefOfStaff())
+	}
+	if !l.Trusted(l.Log(), Task{"id": "A-0005", "review": "on"}, "review") {
+		t.Fatal("the row written as A-5 does not count for A-0005")
+	}
+}

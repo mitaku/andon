@@ -40,7 +40,7 @@ const Usage = "usage: andon boot\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
-	"信頼: 建屋の repo と台帳（projects/*/.flightdeck/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
+	"信頼: 建屋の repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
 // DefaultPackage はパッケージの既定の置き場。プロファイルの本文はこのパスで書く。

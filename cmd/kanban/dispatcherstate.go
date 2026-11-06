@@ -1,0 +1,67 @@
+package main
+
+// The shape of Andon's dispatcher state (internal/dispatcher, State), so that kanban migrate
+// can check a state file reads as the dispatcher reads it before it moves anything. A copy,
+// not an import: internal/dispatcher doesn't build for every target kanban is built for.
+// TestDispatcherStateShape keeps the two the same.
+
+type dsNotification struct {
+	At      string         `json:"at"`
+	Project string         `json:"project"`
+	Task    string         `json:"task,omitempty"`
+	Kind    string         `json:"kind"`
+	Detail  map[string]any `json:"detail"`
+}
+
+type dsReviewer struct {
+	Task         string `json:"task"`
+	Commit       string `json:"commit"`
+	Round        int    `json:"round,omitempty"`
+	Repo         string `json:"repo,omitempty"`
+	Worktree     string `json:"worktree,omitempty"`
+	ReviewerTask string `json:"reviewer_task,omitempty"`
+	Address      string `json:"address,omitempty"`
+	Started      bool   `json:"started,omitempty"`
+	Skipped      string `json:"skipped,omitempty"`
+	OverLimit    int    `json:"over_limit,omitempty"`
+	Failed       string `json:"failed,omitempty"`
+	Attempts     int    `json:"attempts,omitempty"`
+	Row          int    `json:"row,omitempty"`
+}
+
+type dsGate struct {
+	Task     string `json:"task"`
+	Sha      string `json:"sha,omitempty"`
+	Decision string `json:"decision,omitempty"`
+	Merged   string `json:"merged,omitempty"`
+}
+
+type dsHookNews struct {
+	Terminal  string           `json:"terminal"`
+	Via       string           `json:"via"`
+	SessionID string           `json:"session_id,omitempty"`
+	PromptID  string           `json:"prompt_id,omitempty"`
+	News      []dsNotification `json:"news,omitempty"`
+	Again     []dsNotification `json:"again,omitempty"`
+}
+
+type dsResend struct {
+	N  int   `json:"n"`
+	At int64 `json:"at"`
+}
+
+type dispatcherState struct {
+	Reviewers map[string]dsReviewer `json:"reviewers"`
+	Gates     map[string]dsGate     `json:"gates"`
+	Pending   []dsNotification      `json:"pending"`
+	Coord     string                `json:"coord,omitempty"`
+	NewsTurn  *int                  `json:"news_turn,omitempty"`
+	Hook      *dsHookNews           `json:"hook,omitempty"`
+	LogPos    *int64                `json:"log_pos,omitempty"`
+	LogHead   string                `json:"log_head,omitempty"`
+	LogHold   *int64                `json:"log_hold,omitempty"`
+	Ready     *[]string             `json:"ready,omitempty"`
+	Sent      map[string]bool       `json:"sent,omitempty"`
+	Retry     map[string]dsResend   `json:"retry,omitempty"`
+	First     map[string]bool       `json:"first,omitempty"`
+}

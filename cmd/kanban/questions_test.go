@@ -53,60 +53,60 @@ func TestQuestionLifecycle(t *testing.T) {
 	root := routineLedger(t) // the clock is DECK_NOW
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, root, "add", "Export")
-	if got := kanban(t, root, "ask", "W-1", "CSV only, or CSV and Excel?", "--kind", "business"); got != "W-1#1\n" {
+	if got := kanban(t, root, "ask", "W-0001", "CSV only, or CSV and Excel?", "--kind", "business"); got != "W-0001#1\n" {
 		t.Fatalf("ask: %q", got)
 	}
-	deckFails(t, root, "", "ask", "W-1", "x", "--kind", "money")
-	deckFails(t, root, "", "ask", "W-1", "  ")
-	deckFails(t, root, "", "ask", "W-9", "x")
-	q := questionsOf(t, root, "W-1")
+	deckFails(t, root, "", "ask", "W-0001", "x", "--kind", "money")
+	deckFails(t, root, "", "ask", "W-0001", "  ")
+	deckFails(t, root, "", "ask", "W-0009", "x")
+	q := questionsOf(t, root, "W-0001")
 	if len(q) != 1 || q[0]["n"] != 1 || q[0]["status"] != "open" || q[0]["kind"] != "business" || q[0]["asked"] != "2026-11-02T08:00:00Z" || q[0]["askedBy"] != "terminal:t3" {
 		t.Fatalf("after ask: %v", q)
 	}
 
 	t.Setenv("DECK_NOW", "2026-11-02T11:00:00Z")
-	if got := kanban(t, root, "questions"); !strings.HasPrefix(got, "W-1#1") || !strings.Contains(got, "open") || !strings.Contains(got, "3h") || !strings.Contains(got, "Export") || !strings.Contains(got, "CSV only") {
+	if got := kanban(t, root, "questions"); !strings.HasPrefix(got, "W-0001#1") || !strings.Contains(got, "open") || !strings.Contains(got, "3h") || !strings.Contains(got, "Export") || !strings.Contains(got, "CSV only") {
 		t.Fatalf("questions: %q", got)
 	}
 	// No step skipped: received needs answered, answer needs open.
-	deckFails(t, root, "", "received", "W-1#1")
+	deckFails(t, root, "", "received", "W-0001#1")
 	t.Setenv("HC_TERMINAL_ID", "t2")
-	deckIn(t, root, "CSV only for now.\n", "answer", "W-1#1", "-")
-	deckFails(t, root, "", "answer", "W-1#1", "again")
+	deckIn(t, root, "CSV only for now.\n", "answer", "W-0001#1", "-")
+	deckFails(t, root, "", "answer", "W-0001#1", "again")
 	if got := kanban(t, root, "questions", "--open"); got != "(no questions)\n" {
 		t.Fatalf("questions --open after answer: %q", got)
 	}
 	var listed []map[string]any
 	json.Unmarshal([]byte(kanban(t, root, "questions", "--json")), &listed)
-	if len(listed) != 1 || listed[0]["name"] != "W-1#1" || listed[0]["status"] != "answered" || listed[0]["answer"] != "CSV only for now." || listed[0]["title"] != "Export" {
+	if len(listed) != 1 || listed[0]["name"] != "W-0001#1" || listed[0]["status"] != "answered" || listed[0]["answer"] != "CSV only for now." || listed[0]["title"] != "Export" {
 		t.Fatalf("questions --json: %v", listed)
 	}
 	t.Setenv("HC_TERMINAL_ID", "t3")
-	kanban(t, root, "received", "W-1#1")
-	deckFails(t, root, "", "received", "W-1#1")
-	deckFails(t, root, "", "answer", "W-1#1", "late")
-	deckFails(t, root, "", "answer", "W-1#2", "none")
-	deckFails(t, root, "", "answer", "W-1", "no number")
+	kanban(t, root, "received", "W-0001#1")
+	deckFails(t, root, "", "received", "W-0001#1")
+	deckFails(t, root, "", "answer", "W-0001#1", "late")
+	deckFails(t, root, "", "answer", "W-0001#2", "none")
+	deckFails(t, root, "", "answer", "W-0001", "no number")
 	if got := kanban(t, root, "questions"); got != "(no questions)\n" {
 		t.Fatalf("questions after received: %q", got)
 	}
-	q1 := questionsOf(t, root, "W-1")[0]
+	q1 := questionsOf(t, root, "W-0001")[0]
 	if q1["status"] != "received" || q1["answered"] != "2026-11-02T11:00:00Z" || q1["answeredBy"] != "terminal:t2" || q1["received"] != "2026-11-02T11:00:00Z" {
 		t.Fatalf("after received: %v", q1)
 	}
 	// The log has the number and status, never the text or the answer.
-	if got := questionLog(t, root); !slices.Equal(got, []string{"W-1#1 open", "W-1#1 answered", "W-1#1 received"}) {
+	if got := questionLog(t, root); !slices.Equal(got, []string{"W-0001#1 open", "W-0001#1 answered", "W-0001#1 received"}) {
 		t.Fatalf("log: %v", got)
 	}
-	if data, _ := os.ReadFile(filepath.Join(root, ".flightdeck", "log.jsonl")); bytes.Contains(data, []byte("CSV")) {
+	if data, _ := os.ReadFile(filepath.Join(root, "kanban", "log.jsonl")); bytes.Contains(data, []byte("CSV")) {
 		t.Fatalf("the log has the text: %s", data)
 	}
 	// show counts them; --json has them all.
-	if got := kanban(t, root, "show", "W-1"); !strings.Contains(got, "questions: 0 open, 0 answered, 1 received") {
+	if got := kanban(t, root, "show", "W-0001"); !strings.Contains(got, "questions: 0 open, 0 answered, 1 received") {
 		t.Fatalf("show: %q", got)
 	}
 	var shown struct{ Questions []map[string]any }
-	json.Unmarshal([]byte(kanban(t, root, "show", "W-1", "--json")), &shown)
+	json.Unmarshal([]byte(kanban(t, root, "show", "W-0001", "--json")), &shown)
 	if len(shown.Questions) != 1 || shown.Questions[0]["answer"] != "CSV only for now." {
 		t.Fatalf("show --json: %v", shown)
 	}
@@ -116,25 +116,25 @@ func TestQuestionLifecycle(t *testing.T) {
 // n is never reused, even after a person removes questions from the file by hand.
 func TestQuestionNumbersAreNotReused(t *testing.T) {
 	root := ledger(t)
-	kanban(t, root, "ask", "W-1", "one")
-	kanban(t, root, "ask", "W-1", "two")
-	file := filepath.Join(taskDir(root, "W-1"), "questions.yaml")
+	kanban(t, root, "ask", "W-0001", "one")
+	kanban(t, root, "ask", "W-0001", "two")
+	file := filepath.Join(taskDir(root, "W-0001"), "questions.yaml")
 	os.WriteFile(file, []byte("# kept by hand\n- n: 1\n  text: one\n  status: open\n  asked: \"2026-11-02T08:00:00Z\"\n  mine: kept\n"), 0o644)
-	if got := kanban(t, root, "ask", "W-1", "three"); got != "W-1#3\n" {
+	if got := kanban(t, root, "ask", "W-0001", "three"); got != "W-0001#3\n" {
 		t.Fatalf("after removing #2: %q", got)
 	}
 	os.WriteFile(file, []byte(""), 0o644)
-	if got := kanban(t, root, "ask", "W-1", "four"); got != "W-1#4\n" {
+	if got := kanban(t, root, "ask", "W-0001", "four"); got != "W-0001#4\n" {
 		t.Fatalf("after emptying the file: %q", got)
 	}
 	// A task of its own counts from 1.
 	kanban(t, root, "add", "Second")
-	if got := kanban(t, root, "ask", "W-2", "first of W-2"); got != "W-2#1\n" {
-		t.Fatalf("W-2: %q", got)
+	if got := kanban(t, root, "ask", "W-0002", "first of W-0002"); got != "W-0002#1\n" {
+		t.Fatalf("W-0002: %q", got)
 	}
 	// A person's comment and unknown key survive a write.
 	os.WriteFile(file, []byte("# kept by hand\n- n: 1\n  text: one\n  status: open\n  asked: \"2026-11-02T08:00:00Z\"\n  mine: kept\n"), 0o644)
-	kanban(t, root, "answer", "W-1#1", "yes")
+	kanban(t, root, "answer", "W-0001#1", "yes")
 	got, _ := os.ReadFile(file)
 	if !strings.HasPrefix(string(got), "# kept by hand\n- n: 1\n") || !strings.Contains(string(got), "mine: kept\n  answer: yes\n") {
 		t.Fatalf("file:\n%s", got)
@@ -144,17 +144,17 @@ func TestQuestionNumbersAreNotReused(t *testing.T) {
 // done stops on a question not received; --force closes it and logs which.
 func TestDoneStopsOnQuestions(t *testing.T) {
 	root := ledger(t)
-	kanban(t, root, "ask", "W-1", "one")
-	kanban(t, root, "ask", "W-1", "two")
-	kanban(t, root, "answer", "W-1#2", "yes")
-	msg := deckFails(t, root, "", "done", "W-1")
-	if !strings.Contains(msg, "W-1#1 (open)") || !strings.Contains(msg, "W-1#2 (answered)") || !strings.Contains(msg, "--force") {
+	kanban(t, root, "ask", "W-0001", "one")
+	kanban(t, root, "ask", "W-0001", "two")
+	kanban(t, root, "answer", "W-0001#2", "yes")
+	msg := deckFails(t, root, "", "done", "W-0001")
+	if !strings.Contains(msg, "W-0001#1 (open)") || !strings.Contains(msg, "W-0001#2 (answered)") || !strings.Contains(msg, "--force") {
 		t.Fatalf("done: %q", msg)
 	}
-	if s := readYAML(t, taskFile(root, "W-1"))["status"]; s != "todo" {
+	if s := readYAML(t, taskFile(root, "W-0001"))["status"]; s != "todo" {
 		t.Fatalf("status after a refused done: %v", s)
 	}
-	kanban(t, root, "done", "W-1", "--force")
+	kanban(t, root, "done", "W-0001", "--force")
 	lines := logLines(t, root)
 	last := lines[len(lines)-1]["change"].(map[string]any)
 	if last["status"] != "done" || fmt.Sprint(last["forced"]) != "[1 2]" {
@@ -162,10 +162,10 @@ func TestDoneStopsOnQuestions(t *testing.T) {
 	}
 	// With every question received, done needs no --force and logs no forced.
 	kanban(t, root, "add", "Second")
-	kanban(t, root, "ask", "W-2", "one")
-	kanban(t, root, "answer", "W-2#1", "yes")
-	kanban(t, root, "received", "W-2#1")
-	kanban(t, root, "done", "W-2")
+	kanban(t, root, "ask", "W-0002", "one")
+	kanban(t, root, "answer", "W-0002#1", "yes")
+	kanban(t, root, "received", "W-0002#1")
+	kanban(t, root, "done", "W-0002")
 	lines = logLines(t, root)
 	if c := lines[len(lines)-1]["change"].(map[string]any); c["forced"] != nil {
 		t.Fatalf("forced without --force: %v", c)
@@ -178,22 +178,22 @@ func TestQuestionsOldestFirstAcrossTasks(t *testing.T) {
 	kanban(t, root, "add", "First")
 	kanban(t, root, "add", "Second")
 	for _, s := range []struct{ at, id string }{
-		{"2026-11-02T09:00:00Z", "W-2"}, {"2026-11-02T10:00:00Z", "W-1"}, {"2026-11-02T11:00:00Z", "W-2"}, {"2026-11-02T12:00:00Z", "W-1"},
+		{"2026-11-02T09:00:00Z", "W-0002"}, {"2026-11-02T10:00:00Z", "W-0001"}, {"2026-11-02T11:00:00Z", "W-0002"}, {"2026-11-02T12:00:00Z", "W-0001"},
 	} {
 		t.Setenv("DECK_NOW", s.at)
 		kanban(t, root, "ask", s.id, "asked at "+s.at)
 	}
-	kanban(t, root, "answer", "W-1#1", "yes")
+	kanban(t, root, "answer", "W-0001#1", "yes")
 	var names []string
 	for _, l := range strings.Split(strings.TrimSpace(kanban(t, root, "questions")), "\n") {
 		names = append(names, strings.Fields(l)[0])
 	}
-	if want := []string{"W-2#1", "W-1#1", "W-2#2", "W-1#2"}; !slices.Equal(names, want) {
+	if want := []string{"W-0002#1", "W-0001#1", "W-0002#2", "W-0001#2"}; !slices.Equal(names, want) {
 		t.Fatalf("questions: %v, want %v", names, want)
 	}
 	var open []map[string]any
 	json.Unmarshal([]byte(kanban(t, root, "questions", "--open", "--json")), &open)
-	if len(open) != 3 || open[0]["name"] != "W-2#1" || open[1]["name"] != "W-2#2" {
+	if len(open) != 3 || open[0]["name"] != "W-0002#1" || open[1]["name"] != "W-0002#2" {
 		t.Fatalf("--open --json: %v", open)
 	}
 }
@@ -209,7 +209,7 @@ func TestConcurrentAsksGetDifferentNumbers(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			var out, errb bytes.Buffer
-			codes[i] = run([]string{"ask", "W-1", fmt.Sprintf("question %d", i)}, root, strings.NewReader(""), &out, &errb)
+			codes[i] = run([]string{"ask", "W-0001", fmt.Sprintf("question %d", i)}, root, strings.NewReader(""), &out, &errb)
 			outs[i] = strings.TrimSpace(out.String() + errb.String())
 		}()
 	}
@@ -218,14 +218,14 @@ func TestConcurrentAsksGetDifferentNumbers(t *testing.T) {
 	if len(slices.Compact(slices.Clone(outs))) != 10 || slices.Contains(codes, 1) {
 		t.Fatalf("asks: %v %v", codes, outs)
 	}
-	if q := questionsOf(t, root, "W-1"); len(q) != 10 {
+	if q := questionsOf(t, root, "W-0001"); len(q) != 10 {
 		t.Fatalf("questions.yaml has %d", len(q))
 	}
 }
 
 func TestLintQuestions(t *testing.T) {
 	root := ledger(t)
-	os.WriteFile(filepath.Join(taskDir(root, "W-1"), "questions.yaml"), []byte(`- n: 1
+	os.WriteFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"), []byte(`- n: 1
   text: fine
   status: open
   asked: "2026-11-02T08:00:00Z"
@@ -258,32 +258,32 @@ func TestLintQuestions(t *testing.T) {
 		t.Fatalf("lint exit %d: %s", code, errb.String())
 	}
 	for _, p := range []string{
-		"W-1#1: n is used twice", "W-1: questions.yaml entry 3: n is not a whole number", "W-1#3: no text",
-		`W-1#3: status "maybe"`, `W-1#3: kind "money"`, `W-1#3: asked "yesterday" is not a UTC time`,
-		"W-1#4: received but no answer", "W-1#4: received but no answered", "W-1#5: open but has answer",
-		"W-1: questions.yaml entry 7 is not a mapping",
+		"W-0001#1: n is used twice", "W-0001: questions.yaml entry 3: n is not a whole number", "W-0001#3: no text",
+		`W-0001#3: status "maybe"`, `W-0001#3: kind "money"`, `W-0001#3: asked "yesterday" is not a UTC time`,
+		"W-0001#4: received but no answer", "W-0001#4: received but no answered", "W-0001#5: open but has answer",
+		"W-0001: questions.yaml entry 7 is not a mapping",
 	} {
 		if !strings.Contains(out.String(), p) {
 			t.Errorf("lint lacks %q:\n%s", p, out.String())
 		}
 	}
-	if strings.Contains(out.String(), "W-1#1: no text") {
+	if strings.Contains(out.String(), "W-0001#1: no text") {
 		t.Errorf("lint flagged a good question:\n%s", out.String())
 	}
 	// kanban doesn't write a file it can't read whole.
-	deckFails(t, root, "", "ask", "W-1", "more")
-	os.WriteFile(filepath.Join(taskDir(root, "W-1"), "questions.yaml"), []byte("n: 1\n"), 0o644)
-	deckFails(t, root, "", "ask", "W-1", "more")
-	deckFails(t, root, "", "done", "W-1")
+	deckFails(t, root, "", "ask", "W-0001", "more")
+	os.WriteFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"), []byte("n: 1\n"), 0o644)
+	deckFails(t, root, "", "ask", "W-0001", "more")
+	deckFails(t, root, "", "done", "W-0001")
 }
 
 func TestQuestionsLinkIsRefused(t *testing.T) {
 	root := ledger(t)
 	out := sentinelFile(t, "questions.yaml", "- n: 1\n  text: outside\n  status: open\n")
-	symlink(t, out, filepath.Join(taskDir(root, "W-1"), "questions.yaml"))
-	deckFails(t, root, "", "ask", "W-1", "x")
-	deckFails(t, root, "", "answer", "W-1#1", "x")
-	deckFails(t, root, "", "done", "W-1")
+	symlink(t, out, filepath.Join(taskDir(root, "W-0001"), "questions.yaml"))
+	deckFails(t, root, "", "ask", "W-0001", "x")
+	deckFails(t, root, "", "answer", "W-0001#1", "x")
+	deckFails(t, root, "", "done", "W-0001")
 	assertUnchanged(t, out, "- n: 1\n  text: outside\n  status: open\n")
 	if got := kanban(t, root, "questions"); !strings.Contains(got, "unreadable") {
 		t.Fatalf("questions: %q", got)

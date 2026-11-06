@@ -59,7 +59,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		if len(args) == 0 {
 			return usage()
 		}
-		id, args = args[0], args[1:]
+		id, args = ledgercli.CanonID(args[0]), args[1:]
 		if !idRe.MatchString(id) {
 			fmt.Fprintln(stderr, "andon triage: id が不正")
 			return exitFail
@@ -118,9 +118,9 @@ func (e limitError) Error() string { return fmt.Sprintf("over limit %d", e.limit
 // ledger は1つの台帳。kanban（メソッド）は台帳の CLI をこの台帳に向けて打つ。
 type ledger struct {
 	cli  string // 打つ台帳の CLI
-	root string // プロジェクトの根（.flightdeck の親）
+	root string // プロジェクトの根（kanban の親）
 	slug string
-	dir  string // <root>/.flightdeck
+	dir  string // <root>/kanban
 	now  time.Time
 }
 
@@ -139,7 +139,7 @@ func openLedger() (*ledger, error) {
 		return nil, fail("台帳が見つからない")
 	}
 	root := strings.TrimRight(string(out), "\n")
-	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, ".flightdeck"), now: time.Now()}
+	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), now: time.Now()}
 	if !slugRe.MatchString(l.slug) {
 		return nil, fail("slug が不正")
 	}
@@ -149,7 +149,7 @@ func openLedger() (*ledger, error) {
 // kanban は台帳の CLI（kanban）を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
 func (l *ledger) kanban(stdin string, args ...string) (string, error) {
 	c := exec.Command(l.cli, args...)
-	c.Env = append(os.Environ(), "FLIGHTDECK_ROOT="+l.root)
+	c.Env = append(os.Environ(), "KANBAN_ROOT="+l.root)
 	if stdin != "" {
 		c.Stdin = strings.NewReader(stdin)
 	}

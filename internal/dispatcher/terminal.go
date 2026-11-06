@@ -104,11 +104,11 @@ var hostName = os.Hostname
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
 // Place は dispatcher の置き場（herdr.space・herdr.tab のラベルの値）。ws は建屋の repo。
-// 台帳（ws/projects/*/.flightdeck/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
+// 台帳（ws/projects/*/kanban/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
 // それ以外（2つ以上。無いときも）は建屋の名前の Space andon-<建屋の slug>-plant。tab は andon-<slug または建屋の slug>-dispatcher。
 // 名前は Andon の App の mod が付ける（ADR-0002 決めたこと 21）。
 func Place(ws string) (space, tab string) {
-	cfgs, _ := filepath.Glob(filepath.Join(ws, "projects", "*", ".flightdeck", "config.yaml"))
+	cfgs, _ := filepath.Glob(filepath.Join(ws, "projects", "*", "kanban", "config.yaml"))
 	if len(cfgs) == 1 {
 		slug := filepath.Base(filepath.Dir(filepath.Dir(cfgs[0])))
 		return "andon-" + slug, "andon-" + slug + "-dispatcher"

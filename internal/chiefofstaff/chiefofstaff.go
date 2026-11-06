@@ -8,7 +8,7 @@
 //     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
 //  2. 無ければプロファイル chief-of-staff で起こす（名前 <slug>-cos・cwd は台帳の root）。
 //     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos で人の Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
-//  3. その address を台帳の config.yaml の coordinator に書く（違うときだけ。kanban config set）。
+//  3. その address を台帳の config.yaml の chief_of_staff に書く（違うときだけ。kanban config set）。
 //  4. 出た場所を「<Space 名> / <tab 名>」（<slug> / CoS）で出す。hc attach は打たない（ADR-0002 決めたこと 14・17）。
 //
 // 打つのは人（プロジェクトで Chief of Staff と話すとき）か、起き直した Chief of Staff 自身（自分が見つかるので起こし直さない）。
@@ -30,7 +30,7 @@ import (
 // Usage は andon chief-of-staff の使い方。
 const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。人の Herdr App の <slug> / CoS に出る\n" +
 	"動いていればそれを使い、無ければプロファイル chief-of-staff で起こす（名前 <slug>-cos）。\n" +
-	"台帳の config.yaml の coordinator をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
+	"台帳の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
 	"最初のメッセージが届かなかった（信頼の画面など）ときは終了コード 3 と、App のその tab で答えたあとに打つ hc send を出す。\n"
 
 // Profile は Chief of Staff のプロファイル（hc の template の名前）。
@@ -148,9 +148,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		addr, how = run.Address, "起こした"
 	}
 
-	if l.Coordinator() != addr {
-		if _, err := spawn.Output([]string{"FLIGHTDECK_ROOT=" + root}, "", cli, "config", "set", "coordinator="+addr); err != nil {
-			return die("%s config set coordinator=%s に失敗: %v", cli, addr, err)
+	if l.ChiefOfStaff() != addr {
+		if _, err := spawn.Output([]string{"KANBAN_ROOT=" + root}, "", cli, "config", "set", "chief_of_staff="+addr); err != nil {
+			return die("%s config set chief_of_staff=%s に失敗: %v", cli, addr, err)
 		}
 	}
 
@@ -160,7 +160,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "andon chief-of-staff: 出た場所 %s（%s）\n", where, addr)
 		return exitFirst
 	}
-	fmt.Fprintf(stdout, "andon chief-of-staff: %s の Chief of Staff は %s（%s・%s）。config.yaml の coordinator: %s\n", slug, addr, name, how, addr)
+	fmt.Fprintf(stdout, "andon chief-of-staff: %s の Chief of Staff は %s（%s・%s）。config.yaml の chief_of_staff: %s\n", slug, addr, name, how, addr)
 	fmt.Fprintf(stdout, "andon chief-of-staff: 出た場所 %s（%s）\n", where, addr)
 	return 0
 }

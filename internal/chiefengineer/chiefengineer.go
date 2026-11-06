@@ -95,7 +95,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return die("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
 	if repo == "" {
-		repos, ok := ledgerRepos(filepath.Join(root, ".flightdeck", "config.yaml"))
+		repos, ok := ledgerRepos(filepath.Join(root, "kanban", "config.yaml"))
 		switch {
 		case !ok:
 			fmt.Fprintf(stderr, "andon chief-engineer: 台帳の config.yaml の repos が読めない。--repo <host/owner/repo> で渡す\n")
@@ -116,7 +116,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if _, err := output(nil, "", "git", "-C", repoDir, "rev-parse", "--git-dir"); err != nil {
 		return die("リポジトリが無い: %s（ghq get する）", repoDir)
 	}
-	env := []string{"FLIGHTDECK_ROOT=" + root}
+	env := []string{"KANBAN_ROOT=" + root}
 
 	// 1プロジェクトに1人
 	ls, err := output(nil, "", "hc", "ls", "--json", "--label", "role="+Profile, "--label", "project="+slug)
@@ -195,7 +195,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	cwd := wt.Path
 	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足す
-	msg := spawn.FirstMessage(slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"))
+	msg := spawn.FirstMessage(slug, id, filepath.Join(root, "kanban", "tasks", id, "brief.md"))
 
 	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {

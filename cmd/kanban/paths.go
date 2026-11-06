@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// kanban writes only inside .flightdeck/. Task ids and the id prefix become folder names,
+// kanban writes only inside kanban/. Task ids and the id prefix become folder names,
 // so they must be one plain path segment; and nothing on a write path may be a symbolic
 // link, which could point outside.
 
@@ -30,7 +30,7 @@ func checkNoLink(path string, wantFile bool) error {
 		}
 		return err
 	case fi.Mode()&fs.ModeSymlink != 0:
-		return fail("%s is a symbolic link; kanban writes only inside .flightdeck/", path)
+		return fail("%s is a symbolic link; kanban writes only inside kanban/", path)
 	case wantFile && !fi.Mode().IsRegular():
 		return fail("%s is not a regular file", path)
 	}
@@ -45,7 +45,7 @@ func taskPath(root, id string) (string, error) {
 	}
 	dir := taskDir(root, id)
 	if rel, err := filepath.Rel(tasksDir(root), dir); err != nil || rel != id {
-		return "", fail("task id %q is outside .flightdeck/tasks/", id)
+		return "", fail("task id %q is outside kanban/tasks/", id)
 	}
 	for _, p := range []string{tasksDir(root), dir} {
 		if err := checkNoLink(p, false); err != nil {

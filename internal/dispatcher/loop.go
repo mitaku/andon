@@ -224,7 +224,7 @@ func (p *project) startLedger(rev, addr, wt string) error {
 	if wt == "" {
 		return fmt.Errorf("%s の detached worktree が分からない", rev)
 	}
-	_, _, err := run(wt, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + addr}, "", ledger.CLI, "start", rev)
+	_, _, err := run(wt, []string{"KANBAN_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + addr}, "", ledger.CLI, "start", rev)
 	return err
 }
 
