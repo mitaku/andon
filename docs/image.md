@@ -29,9 +29,9 @@ bash tests/image.sh
 
 配る版と日々のサイクルを分ける。日々の直しは建屋で andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
 
-PR と main の push は、image を焼いて検査するだけで GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push だけ: tests の job が先に tag の名前と「main に含まれる commit か」を確かめ、tests を通した同じ job の中で、検査済み image（`andon:test`）を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでの建屋はそれを使う）。配布は Linux amd64 から始める。GHCR の package は private のまま運用し、公開への変更と tag を切るのは人が行う。
+PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでの建屋はそれを使う）。配布は Linux amd64 から始める。GHCR の package は private のまま運用し、公開への変更と tag を切るのは人が行う。
 
-GHCR への push は tests の job の tag の step だけが、job に付与する Actions の `GITHUB_TOKEN`（`packages: write`）を使う。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
+`packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、tag でだけ動く job 以外に `packages: write` と GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
 
 ## 残る危険
 

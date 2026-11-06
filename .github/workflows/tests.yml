@@ -7,9 +7,33 @@ on:
 permissions:
   contents: read
 jobs:
-  # PR と main の push は image を焼いて検査するだけ（GHCR に書かない）。
-  # vX.Y.Z の tag の push だけ、main に含まれる commit かを先に確かめ、検査を通した同じ image を GHCR へ push する
+  # PR と main の push: image を焼いて検査するだけ。token に packages の書き込みを持たせない
   tests:
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: tests/*.sh (including image build and runtime)
+        env:
+          ANDON_PUBLIC_DENYLIST_CONTENT: ${{ secrets.ANDON_PUBLIC_DENYLIST }}
+        run: |
+          set -e
+          if [ -n "$ANDON_PUBLIC_DENYLIST_CONTENT" ]; then
+            export ANDON_PUBLIC_DENYLIST="$RUNNER_TEMP/public-denylist"
+            printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
+          fi
+          for f in tests/*.sh; do echo "== $f"; bash "$f"; done
+  # vX.Y.Z の tag の push だけ: tag の名前と main に含まれる commit かを確かめ、同じ job の中で
+  # tests/*.sh（image/build.sh で焼いた andon:test の検査を含む）を通した image を GHCR へ push する。
+  # packages: write はこの job だけ（workflow_test.go が確かめる）
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -21,7 +45,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Require a release commit already on main
-        if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
@@ -37,8 +60,7 @@ jobs:
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
           for f in tests/*.sh; do echo "== $f"; bash "$f"; done
-      - name: Push tested image to GHCR (release tag only)
-        if: github.event_name == 'push' && github.ref_type == 'tag'
+      - name: Push tested image to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY_USER: ${{ github.actor }}
