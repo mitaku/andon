@@ -31,6 +31,7 @@
 - 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon task start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
 - `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、建屋の repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
+- **納品物 `files/`**: `andon publish` が `<日付>-<slug>` で置き、files サーバが公開する。git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。
 - **symlink にしない理由**: 委譲は「人だけが書く」。これを、建屋の repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
 
 ## 0. 先に知っておくこと: 通らなかった所（直した）
@@ -40,6 +41,23 @@
 P7 で見つけた F4「建屋の `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物の建屋の repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
 
 P7 で見つけた F5「Herdr App から起こした端末に `claude` が見えず、Chief of Staff が `env: 'claude': No such file or directory` で落ちる」も直した。sshd が image の環境を引き継がず、App が SSH 越しに起こす herdr-core serve の `PATH` に `~/.local/bin` と aqua の道具が無かった。image が sshd に環境を渡し、boot が herdr-core を `~/.local/bin`（App が置く場所）に揃える（4 の「Herdr App から建屋へつなぐ」）。
+
+### 前の名前から移す（`artifacts/` → `files/`）
+
+前の建屋は納品物を `artifacts/` に置いていた。`files/` に改めたので、建屋の中で一度だけ移す。
+
+```bash
+cd /workspace
+mv artifacts files           # 無ければ何もしない（files/ が既にあれば中身を files/ へ移す）
+git add files                # 追跡する（.gitignore の artifacts/ の行は消してよい）
+# files サーバは古い artifacts/ を見ているので、起こし直す（ポートから PID を引いて止め、boot をもう一度）
+port=$(grep -m1 '^FILES_PORT=' .env | cut -d= -f2)   # .env に無ければ boot の既定の番号
+pid=$(ss -ltnp "sport = :$port" | grep -o "pid=[0-9]*" | head -1 | cut -d= -f2)
+[ -n "$pid" ] && kill "$pid"
+andon boot
+```
+
+URL（`http://files.<建屋>.localhost:<番号>/…`）は変わらない。
 
 ## 1. image を取る
 

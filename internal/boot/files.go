@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// FilesHandler は root（納品物 artifacts/）を読み取りで返す。開くのは os.Root を通すので、
+// FilesHandler は root（納品物 files/）を読み取りで返す。開くのは os.Root を通すので、
 // root の外を指す symlink（ディレクトリの index.html を含む）は開けず 404 になる。root 自体が symlink なら作らない。
 func FilesHandler(root string) (http.Handler, error) {
 	st, err := os.Lstat(root)

@@ -125,7 +125,7 @@ _避ける_: automation、cron（cron は時刻の書き方の名前としてだ
 
 **library**:
 タスクが作ったファイルの置き場（`tasks/<id>/library/`）。担当が worktree の外に書いてよい唯一の場所で、機械向けの JSON もここに置く。
-_避ける_: 成果物フォルダ、artifacts
+_避ける_: 成果物フォルダ
 
 **ステータス**（status）:
 タスクがどの列にいるか（`todo`・`queued`・`doing`・`review`・`done`）。

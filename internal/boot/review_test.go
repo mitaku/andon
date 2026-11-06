@@ -80,7 +80,7 @@ func TestNullSettingsKeepsManaged(t *testing.T) {
 
 func TestFilesHandlerServesOnlyInsideRoot(t *testing.T) {
 	r := t.TempDir()
-	root := filepath.Join(r, "artifacts")
+	root := filepath.Join(r, "files")
 	put(t, filepath.Join(root, "report.html"), "納品物")
 	put(t, filepath.Join(r, "secret.json"), "秘密")
 	mustMkdir(t, filepath.Join(r, "outside"))
@@ -132,7 +132,7 @@ func TestFilesHandlerServesOnlyInsideRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := FilesHandler(linked); err == nil {
-		t.Error("artifacts 自体が symlink なのに配った")
+		t.Error("files 自体が symlink なのに配った")
 	}
 }
 

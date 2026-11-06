@@ -1,6 +1,6 @@
-// Package publish は生成したファイルを「公開」する: <workspace>/artifacts/ に日付つきでコピーし、URL を返す。
+// Package publish は生成したファイルを「公開」する: <workspace>/files/ に日付つきでコピーし、URL を返す。
 //
-// artifacts/ は files サーバ（artifacts/ を ROOT として読み取り公開する静的サーバ）の表玄関。
+// files/ は files サーバ（files/ を ROOT として読み取り公開する静的サーバ）の表玄関。
 // 同じ日に同じ slug で公開し直すと上書きになる（再公開）。
 package publish
 
@@ -13,6 +13,10 @@ import (
 	"strings"
 	"time"
 )
+
+// MaxSize は公開できる 1 ファイルの上限（バイト）。files/ は git で追跡する（ADR-0005）ので、
+// 大きいもの（動画など）は納品物の面に置かず拒む。LFS は使わない。
+const MaxSize = 20 << 20
 
 const usage = "usage: andon publish <file> [slug]\n"
 
@@ -50,13 +54,16 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// Publish は file を <Workspace>/artifacts/<日付>-<slug><拡張子> にコピーし、URL を返す。
+// Publish は file を <Workspace>/files/<日付>-<slug><拡張子> にコピーし、URL を返す。
 // slug が空なら file の名前から拡張子を除いたもの。拡張子の無い file は拡張子を付けない
 // （仮設は <日付>-report.report にしていた。意図して変えた）。
 func Publish(env Env, file, slug string) (string, error) {
 	st, err := os.Stat(file)
 	if err != nil || !st.Mode().IsRegular() {
 		return "", fmt.Errorf("not a file: %s", file)
+	}
+	if st.Size() > MaxSize {
+		return "", fmt.Errorf("大きすぎる（%d バイト、上限 %d）。files/ は git で追跡するので、大きいものは置かない: %s", st.Size(), MaxSize, file)
 	}
 	base := filepath.Base(file)
 	ext := filepath.Ext(base)
@@ -66,7 +73,7 @@ func Publish(env Env, file, slug string) (string, error) {
 	if strings.ContainsRune(slug, '/') {
 		return "", fmt.Errorf("slug に / は使えない: %s", slug)
 	}
-	dir := filepath.Join(env.Workspace, "artifacts")
+	dir := filepath.Join(env.Workspace, "files")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
