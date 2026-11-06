@@ -17,8 +17,8 @@ description: 台帳（deck）と hc（端末の土台）で動くプロジェク
 - **台帳のタスクは「番号（題）」の形で書く**。人への返事・通知・依頼書・`hc send` の文でタスクに触れるときは、`S-4（返事の下書きボタン）` のように番号のあとに題を添える。
   題が長ければ要点に縮めてよい。番号だけだと、人は台帳を引かないと何のタスクか分からない。スクリプトの出力（`<news>` の行など）はそのまま読む。
 - **人に端末を指すときは「<Space 名> / <tab 名>」で言う**（人の Herdr App の画面の場所。App が端末の `where` に書く形と同じ）。人は App で hc の address が見えない。
-  address は末尾に添えるだけ（`sample-site work / S-3 返事の下書きボタン（t7）`）。名前の決まり: Space は `<slug>`（自分と Chief Engineer）と `<slug> work`（担当とレビュアー）、
-  tab は自分が `CoS`・Chief Engineer が `CE <id> <題>`・担当が `<id> <題>`（レビュアーは担当と同じ tab に並ぶ）。`andon chief-of-staff`・`andon chief-engineer`・`andon task start` は最後に `出た場所 …` の行で同じ形を出すので、それを写す。
+  address は末尾に添えるだけ（`S-3 返事の下書きボタン / S-3（t7）`）。名前の決まり: Space は `<slug>`（自分と Chief Engineer）とタスクごとの `<id> <題>`（担当とレビュアー）、
+  tab は自分が `CoS`・Chief Engineer が `CE <id> <題>`・担当が `<id>`（レビュアーは担当と同じ tab に並ぶ）。`andon chief-of-staff`・`andon chief-engineer`・`andon task start` は最後に `出た場所 …` の行で同じ形を出すので、それを写す。
   置き場はコマンドがラベル `herdr.space`・`herdr.tab` で決める（`contract.md` §8）。自分では `hc label` も `herdr-app` も打たない（Space・tab を作る・閉じる・名前を付ける・前に出す、をしない）。
 
 ## 0. 起きたとき・毎ターンの最初に読むもの
@@ -122,7 +122,7 @@ deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 me
    - 終了コード 3（最初のメッセージが届いていない）: 台帳はもう `doing`・`agent` はその端末。最初のメッセージは**クーリエが送り直す**（端末が入力を受けられるようになった次の見回りで。手で送らない）。
      画面が止まっていれば（`hc read <address>`）§4 の決まりで答えるだけでよい。急ぐときだけ、`hc read` で届いていないことを確かめてから、コマンドが出した `hc send <address> …` を打つ。
      コマンドが「ラベルを付けられず、クーリエは送り直さない」と出したときは、答えてから手で送る。
-4. 起こしたら、人に1行で知らせる。場所はコマンドの `出た場所` の行を写す（`S-3（返事の下書きボタン）を claude で起こした。sample-site work / S-3 返事の下書きボタン（t7）`）。そのあと `hc wait` で自分を止めない（人と話す役なので、届いたものをそのターンで処理する）。
+4. 起こしたら、人に1行で知らせる。場所はコマンドの `出た場所` の行を写す（`S-3（返事の下書きボタン）を claude で起こした。S-3 返事の下書きボタン / S-3（t7）`）。そのあと `hc wait` で自分を止めない（人と話す役なので、届いたものをそのターンで処理する）。
 
 担当は `deck start` → 実装 → PR → `deck report` → `deck review`（人への問いは `deck ask`）までを自分でする（worker skill）。
 担当は `--no-notify` で起き、この Chief of Staff へ `hc send` しない。通知はクーリエが `<news>` で届ける（§5 の「`<news>` の読み方」）。

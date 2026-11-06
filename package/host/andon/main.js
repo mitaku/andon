@@ -24,26 +24,28 @@ export default class Andon extends View {
       const slug = labels.project;
       if (typeof slug !== "string" || !slug) continue;
       const labelSpace = labels["herdr.space"];
-      const work = labelSpace === `andon-${slug}-work`;
-      if (!work && labelSpace !== `andon-${slug}`) continue;
       const { space, tab } = location;
       const prefix = space.machine ? `${space.machine}/` : "";
       if (space.id !== prefix + labelSpace) continue;
-      // Reviewers share the worker's tab, but their own task/title must not
-      // replace its name. Only the three label shapes in the contract name it.
-      let name;
-      if (labels.role === "chief-of-staff") name = "CoS";
-      else if (!labels.role || labels.role === "chief-engineer") {
-        if (typeof labels.task !== "string" || !labels.task ||
-            typeof labels.title !== "string" || !labels.title) continue;
-        const title = labels.title.replace(/[\s\p{Cc}]+/gu, " ").trim();
-        if (!title) continue;
-        name = `${labels.role === "chief-engineer" ? "CE " : ""}${labels.task} ${title}`;
+      // Command side: one Space per project (CoS and CE tabs). Work side: one
+      // Space per task, its tab holds the worker (ADR-0003). Reviewers share
+      // the worker's Space and tab with their own task/title, so their labels
+      // never match the shapes below and they rename nothing.
+      const title = typeof labels.title === "string"
+        ? labels.title.replace(/[\s\p{Cc}]+/gu, " ").trim() : "";
+      const task = typeof labels.task === "string" ? labels.task : "";
+      let spaceName, tabKey, tabName;
+      if (labelSpace === `andon-${slug}`) {
+        spaceName = slug;
+        if (labels.role === "chief-of-staff") [tabKey, tabName] = ["cos", "CoS"];
+        else if (labels.role === "chief-engineer" && task && title) [tabKey, tabName] = [task, `CE ${task} ${title}`];
+        else continue;
+      } else if (!labels.role && task && title && labelSpace === `andon-${slug}-${task}`) {
+        [spaceName, tabKey, tabName] = [`${task} ${title}`, task, task];
       } else continue;
-      const tabKey = labels.role === "chief-of-staff" ? "cos" : labels.task;
       if (tab.id !== `${prefix}andon-${slug}-${tabKey}`) continue;
-      rename("space", space, work ? `${slug} work` : slug);
-      rename("tab", tab, name);
+      rename("space", space, spaceName);
+      rename("tab", tab, tabName);
     }
     for (const [command, args] of commands.values()) run(command, args);
     return div();

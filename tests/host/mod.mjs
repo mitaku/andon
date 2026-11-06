@@ -28,7 +28,7 @@ const view = new mod.namespace.default();
 const slug = 'sample-site';
 function add({ task, title, role, work = false, machine = null, address = 't1' }) {
   const prefix = machine ? `${machine}/` : '';
-  const sid = `andon-${slug}${work ? '-work' : ''}`;
+  const sid = `andon-${slug}${work ? `-${task}` : ''}`;
   const tid = `andon-${slug}-${role === 'chief-of-staff' ? 'cos' : task}`;
   let space = spaces.find(s => s.id === prefix + sid);
   if (!space) spaces.push(space = { id: prefix + sid, machine, name: 'unnamed', tabs: [] });
@@ -47,10 +47,10 @@ assert.deepEqual(render(), [
   ['space.rename', { id: 'andon-sample-site', name: slug }],
   ['tab.rename', { id: 'andon-sample-site-cos', name: 'CoS' }],
   ['tab.rename', { id: 'andon-sample-site-A-1', name: 'CE A-1 設計' }],
-  ['space.rename', { id: 'andon-sample-site-work', name: `${slug} work` }],
-  ['tab.rename', { id: 'andon-sample-site-A-2', name: 'A-2 修正' }],
-  ['space.rename', { id: 'sample-machine/andon-sample-site-work', name: `${slug} work` }],
-  ['tab.rename', { id: 'sample-machine/andon-sample-site-A-2', name: 'A-2 別マシン' }],
+  ['space.rename', { id: 'andon-sample-site-A-2', name: 'A-2 修正' }],
+  ['tab.rename', { id: 'andon-sample-site-A-2', name: 'A-2' }],
+  ['space.rename', { id: 'sample-machine/andon-sample-site-A-2', name: 'A-2 別マシン' }],
+  ['tab.rename', { id: 'sample-machine/andon-sample-site-A-2', name: 'A-2' }],
 ]);
 // Echo the App's changes: a second render must issue no command.
 for (const [kind, { id, name }] of calls) {
@@ -58,7 +58,7 @@ for (const [kind, { id, name }] of calls) {
   targets.find(t => t.id === id).name = name.trim();
 }
 assert.deepEqual(render(), []);
-// Reviewer has its own task/title but the worker's tab. No rename, even alone.
+// Reviewer has its own task/title but the worker's Space and tab. No rename, even alone.
 const worker = terminals[2];
 terminals.push({ ...worker, address: 't4', labels: { ...worker.labels, task: 'A-3', title: 'レビュー' } });
 panes.push({ terminal: 't4', tab: panes[2].tab });
@@ -72,9 +72,10 @@ assert.deepEqual(render(), [['tab.rename', { id: 'andon-sample-site-A-1', name: 
 // adopted must not issue commands. Reuse an unnamed real target to catch writes.
 spaces = [{ id: 'andon-sample-site', name: 'unnamed', tabs: [{ id: 'andon-sample-site-A-1', name: '1' }] }];
 panes = [{ terminal: 't1', tab: 'andon-sample-site-A-1' }];
-const valid = { project: slug, task: 'A-1', title: '設計', 'herdr.space': 'andon-sample-site' };
+const valid = { project: slug, role: 'chief-engineer', task: 'A-1', title: '設計', 'herdr.space': 'andon-sample-site' };
 for (const labels of [{}, { ...valid, project: '' }, { ...valid, role: 'courier' },
-  { ...valid, 'herdr.space': 'another-space' }, { ...valid, title: '' }]) {
+  { ...valid, 'herdr.space': 'another-space' }, { ...valid, title: '' },
+  { ...valid, role: undefined }]) { // a worker belongs in its own task's Space
   terminals = [{ address: 't1', state: 'live', labels }];
   assert.deepEqual(render(), []);
 }
@@ -89,8 +90,8 @@ assert.deepEqual(render(), []);
 // when a ledger title contains trailing whitespace or control characters.
 panes = [{ terminal: 't1', tab: 'andon-sample-site-A-1' }];
 for (const [title, expected] of [
-  ['修正 ', 'A-1 修正'], ['  修正  ', 'A-1 修正'],
-  ['一行目\n二行目\t次\u0007', 'A-1 一行目 二行目 次'], ['  \t\n', null],
+  ['修正 ', 'CE A-1 修正'], ['  修正  ', 'CE A-1 修正'],
+  ['一行目\n二行目\t次\u0007', 'CE A-1 一行目 二行目 次'], ['  \t\n', null],
 ]) {
   spaces = [{ id: 'andon-sample-site', name: slug, tabs: [{ id: panes[0].tab, name: '1' }] }];
   terminals = [{ address: 't1', state: 'live', labels: { ...valid, title } }];
