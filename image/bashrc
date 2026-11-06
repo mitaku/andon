@@ -32,3 +32,4 @@ if declare -F __git_ps1 >/dev/null; then
 else
   PS1='\[\e[2m\]\h\[\e[0m\]:\[\e[34m\]\w\[\e[0m\]\$ '
 fi
+# MEASURE: image を変えた PR（最後に戻す）
