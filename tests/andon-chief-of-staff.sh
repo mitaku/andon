@@ -31,10 +31,11 @@ case \$1 in
        while [ \$# -gt 0 ]; do case \$1 in --label) case \$2 in role=*) role=\${2#role=};; project=*) project=\${2#project=};; esac; shift;; esac; shift; done
        awk -v r="\$role" -v p="\$project" '(r == "" || \$4 == r) && (p == "" || \$5 == p) {print \$1, \$2}' \$d/live \\
          | jq -Rn '{terminals: [inputs | split(" ") | {address: .[0], name: .[1]}]}' ;;
-  get) fg='{"name":"sh","argv":["sh","-c","claude"]}'  # \$d/shells にある address は中身が素のシェル（作り直しで戻った端末）
-       if [ -f \$d/shells ] && grep -qx "\$2" \$d/shells; then fg='{"name":"bash","argv":["/bin/bash"]}'; fi
+  get) fg='"argv":["sh","-c","claude"],"status":{"app":"claude-code"},"foreground":{"name":"sh","argv":["sh","-c","claude"]}'
+       # \$d/shells にある address は作り直しで戻った端末（argv ごと素のシェル・agent 無し）
+       if [ -f \$d/shells ] && grep -qx "\$2" \$d/shells; then fg='"argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}'; fi
        awk -v a="\$2" '\$1 == a {print \$1, \$2, \$3, \$6, \$7}' \$d/live \\
-         | jq -Rn --argjson fg "\$fg" '[inputs | split(" ") | {address: .[0], name: .[1], cwd: .[2], foreground: \$fg, labels: ({"herdr.space": .[3], "herdr.tab": .[4]} | with_entries(select(.value != null and .value != "")))}] | .[0] // error("no")' ;;
+         | jq -Rn --argjson fg "{\$fg}" '[inputs | split(" ") | (\$fg + {address: .[0], name: .[1], cwd: .[2], labels: ({"herdr.space": .[3], "herdr.tab": .[4]} | with_entries(select(.value != null and .value != "")))})] | .[0] // error("no")' ;;
   keep|kill) ;;
   rm) awk -v a="\$2" '\$1 != a' \$d/live > \$d/live.new && mv \$d/live.new \$d/live ;;
   templates) echo '{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}' ;;

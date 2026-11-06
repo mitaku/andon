@@ -9,10 +9,9 @@ import (
 )
 
 // 作り直し（herdr-core が自分の状態から端末を戻す）や core の起き直しのあと、端末は名前とラベルをそのままに、
-// 中身が素のシェル（argv ["/bin/bash"] など）に替わって live で戻ってくる。ラベルと live だけでは
-// 「動いている」と言えないので、前に出ているもの（hc get の foreground.argv）で見る。
-// エージェントは sh -c '… claude …' で起きるので foreground.name が sh のこともある。名前ではなく
-// 「引数の無いシェル」かで見分ける。
+// 中身が素のシェルに替わって live で戻ってくる。戻った端末は top-level の argv ごとシェルに替わる（P7 の実測: argv ["/bin/bash"]）。
+// 起こした役の端末の top-level の argv は template の command（sh -c '… claude …'）のまま。
+// ラベルと live だけでは「動いている」と言えないので、top-level の argv と、hc の agent の情報（status.app）で見分ける。
 
 // Shells は、前に出ていれば「中身がシェル」とみなすもの。
 var Shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ash": true, "fish": true, "nu": true}
@@ -28,15 +27,69 @@ type Term struct {
 	Name       string            `json:"name"`
 	Cwd        string            `json:"cwd"`
 	State      string            `json:"state"`
+	Argv       []string          `json:"argv"`
 	Labels     map[string]string `json:"labels"`
 	Foreground *struct {
 		Argv []string `json:"argv"`
 		Name string   `json:"name"`
 	} `json:"foreground"`
+	Status *struct {
+		App string `json:"app"`
+	} `json:"status"`
 }
 
-// Shell は前に出ているものが引数の無いシェルか（作り直しで戻った・中身が抜けた端末）。
+// Agent は hc の agent の情報（status.app。エージェントの連携が報告する。報告が無ければ空）。
+func (t *Term) Agent() string {
+	if t.Status == nil {
+		return ""
+	}
+	return t.Status.App
+}
+
+// Kind は役の端末の見分け。
+type Kind int
+
+const (
+	Unsure   Kind = iota // 動いているとも戻った端末とも言えない（片付けず、動いているとも数えない）
+	Running              // Claude Code が動いている
+	Restored             // 作り直しで中身が素のシェルに替わって戻った端末（片付けてよい）
+)
+
+// AgentApp は役の端末で動いているはずのもの（hc の agent の値）。
+const AgentApp = "claude-code"
+
+// Kind は端末を見分ける。戻った端末は top-level の argv も前に出ているものも引数の無いシェル
+// （top-level がシェルでも前に別のものが出ていれば、人が中で何かしているとみて Unsure）。
+// 動いているは、top-level の argv がシェルでなく、hc の agent が Claude Code のときだけ。
+// agent の情報が無い・別のもの・前に出ているものが取れないは Unsure。
+func (t *Term) Kind() Kind {
+	switch {
+	case BareShell(t.Argv):
+		if t.Shell() {
+			return Restored
+		}
+		return Unsure
+	case t.Agent() == AgentApp:
+		return Running
+	}
+	return Unsure
+}
+
+// Shell は前に出ているものが引数の無いシェルか。
 func (t *Term) Shell() bool { return t.Foreground != nil && BareShell(t.Foreground.Argv) }
+
+// Describe は人に見せる端末の様子（argv・前に出ているもの・agent）。
+func (t *Term) Describe() string {
+	fg := "取れない"
+	if t.Foreground != nil {
+		fg = strings.Join(t.Foreground.Argv, " ")
+	}
+	agent := t.Agent()
+	if agent == "" {
+		agent = "無し"
+	}
+	return fmt.Sprintf("argv %s・前に %s・agent %s", strings.Join(t.Argv, " "), fg, agent)
+}
 
 // SettleWait は前に出ているものが取れるまで読み直す上限。settlePoll はその間隔。テストで差し替える。
 var (

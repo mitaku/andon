@@ -107,10 +107,10 @@ func runMain(args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-// 前に出ているもの: エージェント（hc の template は sh -c '… claude …' で起こす）と、作り直しで戻った素のシェル
+// 端末の様子: エージェント（hc の template は sh -c '… claude …' で起こし、agent は claude-code）と、作り直しで戻った端末（argv ごと素のシェル・agent 無し）
 const (
-	fgAgent = `"foreground":{"name":"sh","argv":["sh","-c","claude"]}`
-	fgShell = `"foreground":{"name":"bash","argv":["/bin/bash"]}`
+	fgAgent = `"argv":["sh","-c","claude"],"status":{"app":"claude-code"},"foreground":{"name":"sh","argv":["sh","-c","claude"]}`
+	fgShell = `"argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}`
 )
 
 func TestStartsChiefOfStaff(t *testing.T) {
@@ -295,7 +295,7 @@ func TestShellChiefOfStaffNotCounted(t *testing.T) {
 func TestChiefOfStaffForegroundUnknown(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","foreground":null}`)
+	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","argv":["/bin/bash"],"foreground":null}`)
 	rc, _, errs := runMain()
 	if rc != exitFail || !strings.Contains(errs, "確かめられないので止まる") || f.has("hc run") || f.has("hc kill") || f.has("kanban config") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
@@ -308,5 +308,43 @@ func TestChiefOfStaffForegroundUnknown(t *testing.T) {
 	}
 	if n < 2 {
 		t.Errorf("読み直していない: hc get %d 回", n)
+	}
+}
+
+// 人がシェルで使っている端末（top-level はエージェントの command で前にシェル・top-level がシェルで前に別のもの）は片付けない。
+// 使いも数えもせず、確かめられないとして止まる（台帳を書かない）。
+func TestHumanShellChiefOfStaffKept(t *testing.T) {
+	for _, term := range []string{
+		`"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}`,
+		`"argv":["/bin/bash"],"status":null,"foreground":{"name":"vim","argv":["vim","notes.md"]}`,
+	} {
+		f := newFake(t)
+		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+		t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+term+`}`)
+		rc, _, errs := runMain()
+		if rc != exitFail || !strings.Contains(errs, "Claude Code が動いているか確かめられないので止まる") {
+			t.Errorf("%s: rc=%d err=%q", term, rc, errs)
+		}
+		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") || f.coordinator() != "t1" {
+			t.Errorf("%s: 人の端末に触った・台帳を書いた: %q", term, f.calls())
+		}
+	}
+}
+
+// agent が Claude Code でない端末（前に別のもの・agent の情報が無い）は動いているとして使わない。
+// agent が claude-code の sh -c claude は動いているとして使う（TestUsesRunningOne）。
+func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
+	for _, term := range []string{
+		`"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"vim","argv":["/usr/bin/vim"]}`,
+		`"argv":["sh","-c","claude"],"status":{"app":"codex"},"foreground":{"name":"sh","argv":["sh","-c","claude"]}`,
+	} {
+		f := newFake(t)
+		f.setCoordinator("t3")
+		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+		t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+term+`}`)
+		rc, out, errs := runMain()
+		if rc != exitFail || strings.Contains(out, "動いているものを使う") || f.coordinator() != "t3" || f.has("hc kill") {
+			t.Errorf("%s: rc=%d out=%q err=%q calls=%q", term, rc, out, errs, f.calls())
+		}
 	}
 }

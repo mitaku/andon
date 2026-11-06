@@ -4,7 +4,8 @@
 //
 // することは4つ:
 //  1. ラベル role=chief-of-staff project=<slug> の、動いている端末を探す。1つならそれを使う（名前と cwd が合うときだけ）。
-//     2つ以上なら止まる（1プロジェクトに1人）。中身が素のシェルの端末（作り直しで戻ったもの）は数えず、片付ける。
+//     2つ以上なら止まる（1プロジェクトに1人）。数えるのは hc の agent が Claude Code の端末だけ。
+//     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
 //  2. 無ければプロファイル chief-of-staff で起こす（名前 <slug>-cos・cwd は台帳の root）。
 //     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos で人の Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
 //  3. その address を台帳の config.yaml の coordinator に書く（違うときだけ。kanban config set）。
@@ -87,7 +88,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := json.Unmarshal([]byte(ls), &live); err != nil {
 		return die("hc ls の返事が読めない: %v", err)
 	}
-	// ラベルと live だけでは決めない: 作り直しで戻った端末は、ラベルはそのままで中身が素のシェル。前に出ているもので見る
+	// ラベルと live だけでは決めない: 作り直しで戻った端末は、ラベルはそのままで top-level の argv ごと素のシェル。
+	// 動いているは hc の agent が Claude Code のときだけ。どちらとも言えなければ、片付けも使いもせず止まる
 	var addrs, shells []string
 	var cur *spawn.Term
 	for _, lt := range live.Terminals {
@@ -95,13 +97,13 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		if err != nil {
 			return die("%v", err)
 		}
-		switch {
-		case t.Shell():
+		switch t.Kind() {
+		case spawn.Restored:
 			shells = append(shells, lt.Address)
-		case t.Foreground == nil:
-			return die("%s（%s の Chief of Staff のラベル）の前に出ているものが %v 待っても取れない。動いているか確かめられないので止まる（hc get %s --json の foreground を見て、少し待って打ち直す）", lt.Address, slug, spawn.SettleWait, lt.Address)
-		default:
+		case spawn.Running:
 			addrs, cur = append(addrs, lt.Address), t
+		default:
+			return die("%s（%s の Chief of Staff のラベル）で Claude Code が動いているか確かめられないので止まる（%s）。人が使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, slug, t.Describe(), lt.Address)
 		}
 	}
 	if len(addrs) > 1 {

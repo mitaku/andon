@@ -66,7 +66,8 @@ type terminal struct {
 	StatusMs int64             `json:"status_ms"`
 	Turn     int               `json:"turn"`
 	Labels   map[string]string `json:"labels"`
-	// Foreground は前に出ているもの（作り直しで中身がシェルに替わった端末の見分けに読む）
+	// Argv と Foreground は top-level の command と前に出ているもの（作り直しで中身がシェルに替わった端末の見分けに読む）
+	Argv       []string `json:"argv"`
 	Foreground *struct {
 		Argv []string `json:"argv"`
 	} `json:"foreground"`
