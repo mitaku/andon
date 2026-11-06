@@ -205,6 +205,9 @@ kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.task.profile 
 jq -e --arg r "$rev" 'select(.id == $r and has("change") and .change.add != null) | .by == "terminal:courier"' "$L/log.jsonl" >/dev/null || die 'レビュアーのタスクの作成が courier でない'
 rwt=$HOME/.herdr/worktrees/app/demo-$id-r1
 [ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die 'detached worktree が head に無い'
+# 台帳（$tmp/plant/projects/demo）は建屋の git の中にあるが、レビュアーのタスクの作業場所は detached worktree（branch は無い）
+kanban show "$rev" --json | jq -e '.task.worktree == "~/.herdr/worktrees/app/demo-'"$id"'-r1" and (.task.branch // "") == ""' >/dev/null ||
+    die "レビュアーのタスクの worktree・branch が detached worktree でない（建屋の本体を書いた）: $(kanban show "$rev" --json | jq -c '.task | {worktree, branch}')"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(echo "$rev" | tr A-Z a-z) .*--cwd $L/tasks/$rev codex-review" "$tmp/hc/log" || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
 grep -q "hc send t7 " "$L/tasks/$rev/brief.md" && grep -q 'Chief of Staff・クーリエへは送らない' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に宛先（担当 t7）が無い'
 grep -q "commit $head" "$L/tasks/$rev/brief.md" && ! grep -q '## Report' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
@@ -214,7 +217,7 @@ grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --la
     die "レビュアーに担当の herdr.space・herdr.tab が無い（where を写した）: $(grep ^run "$tmp/hc/log")"
 grep -qx "get t7 --json" "$tmp/hc/log" || die '担当の端末を hc get --json で読んでいない'
 rm "$tmp/hc/term-t7.json"
-ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:courier・detached worktree・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
+ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:courier・detached worktree〈台帳の worktree もそれ・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
 runs=$(grep -c '^run' "$tmp/hc/log")
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '同じ review_request で二度起こした'
@@ -317,6 +320,15 @@ kanban list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .p
 ! ls -d "$HOME/.herdr/worktrees/app/demo-$id"* >/dev/null 2>&1 || die 'worktree が残った'
 git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'マージしていない branch を消した'
 ok 'andon task finish はレビュアーの子タスクと detached worktree も片付け、origin に入っていない branch は残す'
+
+# 6b. 台帳の worktree が repo の本体の checkout（git worktree list の先頭）を指していたら、finish は何も消さずに止まる
+id=$(HC_TERMINAL_ID=t5 kanban add '本体を指す' --profile claude --repo github.com/example/app)
+HC_TERMINAL_ID=t5 kanban set "$id" "worktree=$app" branch=main >/dev/null
+if out=$(HC_TERMINAL_ID=t5 "$andon" task finish "$id" 2>&1); then die "本体の checkout を指すタスクを finish が片付けた: $out"; fi
+grep -q 'repo の本体の checkout' <<<"$out" || die "止まった理由が本体の checkout でない: $out"
+[ -d "$app/.git" ] && git -C "$app" worktree list --porcelain | head -1 | grep -qx "worktree $app" || die '本体の checkout が消えた'
+kanban show "$id" --json | jq -e '.task.status != "done"' >/dev/null || die '止まったのに done にした'
+ok 'andon task finish は台帳の worktree が repo の本体の checkout なら、消さずに止まる'
 
 # 7. 最初のメッセージが届かなければ（送れなかった・送ったが動き出さなかった）、端末にラベル first_message.sent=false を付けて
 #    起こしたことにし、次の見回りで1回だけ送り直す（担当と同じ。courier.md §5）。タスクも端末も二つにしない
