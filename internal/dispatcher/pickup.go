@@ -366,8 +366,8 @@ func (p *project) watch(now time.Time) {
 				p.logf("%s の担当 %s に続きを打たない（控えを書けない。次の見回りで）", id, agent)
 			}
 		}
-		// 回数は error・working の間は持ち越し（「続けて」を数える）、idle／done に戻ったら区切る
-		if s.Status != "idle" && s.Status != "done" && !s.Gone && r.kept() {
+		// 回数は error・working の間だけ持ち越し（「続けて」を数える）、ほかの状態（idle・done・blocked など）に戻ったら区切る
+		if (s.Status == "error" || s.Status == "working") && !s.Gone && r.kept() {
 			retry[rk] = r
 		}
 		if v.Kind == "" {

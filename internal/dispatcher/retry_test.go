@@ -361,3 +361,26 @@ func TestRetrySavedBeforeSend(t *testing.T) {
 		t.Fatalf("書けなかった試行を数えた: %+v", r)
 	}
 }
+
+// 回数は error・working の間だけ持ち越す: 4 回打ったあと blocked（認証など）を通って working に戻り、また切られたら、1 分待ちからやり直す。
+func TestRetryResetThroughBlocked(t *testing.T) {
+	f := newRetry(t)
+	f.term("t42", "error", cutMsg, 0, false)
+	f.at(0, "")
+	f.p.st.Retry["S-7|t42"] = Resend{N: 4, At: f.t0.UnixMilli(), Cut: f.t0.UnixMilli(), Since: f.t0.UnixMilli(), Sent: f.t0.UnixMilli()}
+	f.term("t42", "blocked", "Invalid API key · Fix external API key", time.Minute, false)
+	f.at(time.Minute, "")
+	if r, ok := f.p.st.Retry["S-7|t42"]; ok {
+		t.Fatalf("blocked を通ったのに回数が残っている: %+v", r)
+	}
+	f.term("t42", "working", "", 2*time.Minute, false)
+	f.at(2*time.Minute, "")
+	f.p.st.Pending = []Notification{}
+	f.term("t42", "error", cutMsg, 5*time.Minute, false)
+	if got := f.at(5*time.Minute, ""); got != nil || len(f.p.st.Pending) != 0 {
+		t.Fatalf("戻ったあとの切断をすぐ打った・打ち切った: %q %q", got, f.kinds())
+	}
+	if got := f.at(6*time.Minute, ""); len(got) != 1 || got[0] != resend {
+		t.Fatalf("戻ったあとの切断に 1 分で打っていない: %q", got)
+	}
+}
