@@ -38,7 +38,7 @@ const Usage = "usage: andon task show <id>                                  予�
 	"       andon task ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon task finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
 	"       andon task start <id>                                 担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
-	"                                                          （最初のメッセージが届かなければ終了コード 3 と送り直す hc send）\n" +
+	"                                                          （最初のメッセージが届かなければ終了コード 3。クーリエが送り直す）\n" +
 	"       andon task stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
 	"                                                          （id を省くと端末のラベル task=。担当でなければ何も出さない）\n" +
 	"--data は report.json の任意のキー（pr・waived・acceptance・next・remember・agents_md）の JSON object。\n" +
@@ -116,7 +116,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if len(rest) > 0 {
 			return usage()
 		}
-		err = withTask(id, func(c *ctx) error { return c.start(stdout) })
+		err = withTask(id, func(c *ctx) error { return c.start(stdout, stderr) })
 	default:
 		return usage()
 	}

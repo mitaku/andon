@@ -132,6 +132,33 @@ dc exec -T dev bash -euc '
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
+# (c) boot が建屋の repo（/workspace）を信頼済みにしたので、建屋の claude と codex を /workspace の下の新しい dir で
+# 起こしても信頼の画面が出ない。対照に、信頼の根の外の新しい repo（/tmp）では出ることも見る（画面を読めていることの確かめ）。
+# 本物の建屋の repo は git なので、ここでも git にしてから起こす（andon init の直後は git でない）。最初の画面だけ読んで止める。
+# claude は onboarding を済ませた形に、codex は偽の鍵の auth.json を置く（どちらも信頼の画面の前に出る画面を飛ばすため。
+# 外へは何も送らない。偽の鍵は見たあと消す）
+dc exec -T dev bash -c 'cat >/tmp/pty-probe.py' <tests/lib/pty-probe.py
+trust_out=$(dc exec -T dev bash -euc '
+  [ -d /workspace/.git ] || git -C /workspace init -q
+  python3 -c "import json,sys; p=sys.argv[1]; c=json.load(open(p)); c[\"hasCompletedOnboarding\"]=True; json.dump(c, open(p, \"w\"))" "$CLAUDE_CONFIG_DIR/.claude.json"
+  printf "{\"OPENAI_API_KEY\":\"sk-test-not-a-key\"}" >"$HOME/.codex/auth.json"
+  mkdir -p /workspace/trust-probe/sub /tmp/untrusted-probe
+  git -C /tmp/untrusted-probe init -q
+  for t in claude codex; do
+    echo "== $t new"; python3 /tmp/pty-probe.py 15 /workspace/trust-probe/sub "$t"
+    echo "== $t control"; python3 /tmp/pty-probe.py 15 /tmp/untrusted-probe "$t"
+  done
+  rm -f "$HOME/.codex/auth.json"
+  rm -rf /workspace/trust-probe /tmp/untrusted-probe
+' 2>&1) || true
+probe() { awk -v h="== $1" '/^== /{on = ($0 == h); next} on' <<<"$trust_out"; }
+c_new=$(probe 'claude new') c_ctl=$(probe 'claude control') x_new=$(probe 'codex new') x_ctl=$(probe 'codex control')
+if [[ $c_new == *'trust this folder'* || $c_new != *'Not logged in'* || $c_ctl != *'trust this folder'* ||
+  $x_new == *'Trust this folder'* || $x_new != *'Ask Codex'* || $x_ctl != *'Trust this folder'* ]]; then
+  printf '%s\n' "$trust_out" >&2
+  echo 'FAIL image: 建屋の claude・codex が /workspace の下の新しい dir で信頼の画面を出す（か、対照の /tmp で出ない）' >&2
+  exit 1
+fi
 # (a0) ~/.gitconfig が消えた状態（作り直しの後）でも、gh がログイン済みなら boot が credential helper を gh にする。
 # 偽のログイン状態: auth status だけ 0 を返す gh を PATH の先頭に置く（setup-git は本物を、ホストを指定して打つ）。hosts.yml はこの前の検査で壊れた中身なので GH_CONFIG_DIR を外す
 dc exec -T dev bash -euc '

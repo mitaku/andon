@@ -6,6 +6,7 @@
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon task finish（レビュアーのタスクも片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
+//	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //
 // 通知の元（pickup.go。courier.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、

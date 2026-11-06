@@ -38,6 +38,7 @@ case $1 in
   templates) echo "$FAKE_TPL" ;;
   run) [ "$FAKE_RUN_RC" = 0 ] || { echo "boom" >&2; exit 1; }
        echo "$FAKE_RUN" ;;
+  label) [ "${FAKE_LABEL_RC:-0}" = 0 ] || { echo "no label" >&2; exit 1; } ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
 esac
 `
@@ -65,6 +66,9 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
 	f.config("repos:\n  - github.com/example/sample-site\n")
 	t.Setenv("HOME", f.home)
+	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/.flightdeck の台帳を読む
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
@@ -339,7 +343,9 @@ func TestFirstMessageNotSent(t *testing.T) {
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
 	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
 	if rc != exitFirst || out != "andon chief-engineer: 出た場所 sample-site / CE S-7 題（t42）\n" ||
-		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt。App の sample-site / CE S-7 題 で答えてから") ||
+		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt。クーリエが見回りで送り直す") ||
+		!strings.Contains(errs, "急ぐときだけ手で: hc send t42 \"タスク `sample-site/S-7`。") || !strings.Contains(errs, "（App では sample-site / CE S-7 題）") ||
+		!f.has("hc label t42 first_message.sent=false") ||
 		!f.has("kanban start S-7 | HC_TERMINAL_ID=t42") || f.has("hc attach") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}

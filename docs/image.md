@@ -25,6 +25,22 @@ bash tests/image.sh
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `建屋の名前:ディレクトリ (git のブランチ)`。色は控えめ。
 
+## 信頼の画面（Claude Code・Codex）
+
+建屋では信頼の画面（trust this folder）を出さない。建屋＝コンテナが信頼の境界なので、boot と、起こす直前の `andon task start`・`andon chief-engineer` が、建屋の repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/.flightdeck/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
+
+足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起こし、最初の画面だけを読んだ）:
+
+| 信頼した所 → 起こした所 | Claude Code 2.1.318 | Codex 0.166.0 |
+|---|---|---|
+| git の外の親 → その下の dir | 効く（`/` まで親を遡る） | 信頼の画面がもともと出ない |
+| git の repo の根 → repo の中の dir | 効く | 効く（画面に「Trusting will apply to the repository root」と出る） |
+| repo の根より上の親 → repo の中の dir | 効かない（根で止まる） | 効かない |
+| 元の repo の根 → その worktree | 効く | 効く |
+| worktree の置き場（`~/.herdr/worktrees`）→ worktree | 効かない | 効かない |
+
+`tests/image.sh` が、建屋の claude と codex を `/workspace` の下の新しい dir で起こしても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。版を上げたら同じ表を測り直す。
+
 ## CI と配布
 
 配る版と日々のサイクルを分ける。日々の直しは建屋で andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
