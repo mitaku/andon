@@ -189,6 +189,26 @@ dsandbox bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>&1; r=$?
 grep -qF "run --rm --network none -v $co:/src:ro example.com/andon:test git -c safe.directory=* -C /src rev-parse HEAD" "$log" && [ "$(head -n 1 Dockerfile)" = "FROM $tag" ] \
   && pass "ホストに git が無ければ docker の中の git で commit を読む" || fail "git 無し: rc=$r $(cat "$tmp/out" "$log")"
 
+# checkout の path: 空白を含む・相対・git でない
+ln -s "$(command -v git)" "$tmp/dpath/git"
+sp="$tmp/co dir"
+cp -R "$co" "$sp"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from "$sp" >"$tmp/out" 2>"$tmp/err"; r=$?
+mapfile -t calls <"$log"
+[ "$r" = 0 ] && [ "${calls[1]:-}" = "build --file $sp/image/Dockerfile --build-arg ANDON_REVISION=$sha --build-arg ANDON_VERSION=${sha:0:12} --tag $tag $sp" ] && [ "$(head -n 1 Dockerfile)" = "FROM $tag" ] \
+  && pass "空白を含む checkout の path でも焼ける" || fail "空白の path: rc=$r $(cat "$tmp/err" "$log")"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from ../co >"$tmp/out" 2>"$tmp/err"; r=$?
+mapfile -t calls <"$log"
+[ "$r" = 0 ] && [ "${calls[1]:-}" = "$want_build" ] \
+  && pass "相対の checkout の path は絶対にして渡す" || fail "相対の path: rc=$r $(cat "$tmp/err" "$log")"
+mkdir -p "$tmp/nogit/image" && cp "$co/image/build.sh" "$co/image/Dockerfile" "$tmp/nogit/image/"
+cp "$tmp/Dockerfile.orig" Dockerfile
+dsandbox bash bin/bootstrap rebuild --from "$tmp/nogit" >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'commit が読めない' "$tmp/err" && ! grep -q "^build" "$log" && cmp -s Dockerfile "$tmp/Dockerfile.orig" \
+  && pass "git でない checkout は焼く前に止まる（FROM も触らない）" || fail "git でない: rc=$r $(cat "$tmp/err" "$log")"
+
 dsandbox bash bin/bootstrap rebuild --from "$tmp/nowhere" >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q "image/build.sh が無い" "$tmp/err" && ! grep -q "^build" "$log" && pass "andon の checkout でなければ止まる" || fail "--from 無効: rc=$r $(cat "$tmp/err")"
 dsandbox bash bin/bootstrap rebuild --bogus >"$tmp/out" 2>"$tmp/err"; r=$?
