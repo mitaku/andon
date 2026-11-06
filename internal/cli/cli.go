@@ -89,7 +89,7 @@ var commands = []command{
 	},
 	{
 		name:  "delegate",
-		about: "委譲（projects/<slug>/delegation.json）を読む（show）・人が書く（grant・narrow・revoke）",
+		about: "委譲（projects/<slug>/project.json の delegation）を読む（show）・人が書く（grant・narrow・revoke）",
 		usage: delegate.Usage,
 		run:   delegate.Main,
 	},

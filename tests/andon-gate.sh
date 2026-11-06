@@ -122,25 +122,51 @@ jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.st
 grep -q 'status .*state=failure' "$tmp/gh/posted" && grep -q comment "$tmp/gh/posted"
 ok '委譲が無ければ needs_human（記録を書き、status と comment を付ける）'
 
-# 3. andon delegate: 人が委譲を書く
+# 3. andon delegate: 人が委譲を書く（project.json の delegation。project.json は先に人が書く）
+rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'project.json が無い' "$tmp/err" && [ ! -e project.json ] || die 'project.json が無いのに書けた'
+ok 'delegate: project.json が無ければ作らない（先に人が書く）'
+# 移す前の delegation.json は、owner が commit していても読まない（無委譲）
+echo '{"version": 1, "project": "demo", "preset": "work", "grants": [{"id": "d1", "scope": "merge", "value": "B", "by": "owner", "at": "2026-11-05", "evidence": "x"}]}' > delegation.json
+as_owner git -C "$tmp/plant" add projects/demo/delegation.json; as_owner git -C "$tmp/plant" commit -qm 'legacy delegation.json'
+"$andon" delegate show --json | jq -e '(.trusted | not) and .effective.merge == "none" and (.reason | contains("delegation.json は読まない"))' >/dev/null || die "delegation.json を読んだ: $("$andon" delegate show --json)"
+got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=none < tier B'
+as_owner git -C "$tmp/plant" rm -q projects/demo/delegation.json; as_owner git -C "$tmp/plant" commit -qm 'legacy を消す'
+ok 'delegate show・gate: 移す前の delegation.json だけの建屋は無委譲（読まない）'
+echo '{"version": 1, "project": {"title": "Demo", "prefix": "D"}, "repos": ["github.com/example/app"], "references": ["https://example.com/spec"]}' > project.json
+as_owner git -C "$tmp/plant" add projects/demo/project.json; as_owner git -C "$tmp/plant" commit -qm 'project.json'
+"$andon" delegate show --json | jq -e '(.trusted | not) and (.reason | contains("delegation が無い"))' >/dev/null || die 'delegation の無い project.json を委譲として読んだ'
 echo '{"role":"chief-of-staff"}' > "$tmp/labels"
 rc=0; HC_TERMINAL_ID=t5 "$andon" delegate grant merge B --evidence x --project demo >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q 'role=chief-of-staff' "$tmp/err" && [ ! -e delegation.json ] || die 'Chief of Staff の端末で書けた'
+[ "$rc" = 1 ] && grep -q 'role=chief-of-staff' "$tmp/err" && ! jq -e 'has("delegation")' project.json >/dev/null || die 'Chief of Staff の端末で書けた'
 ok 'delegate: Chief of Staff・担当の端末（role= / task=）では打てない'
 as_owner "$andon" delegate grant merge B --evidence '2026-11-05 の対話' >/dev/null
-jq -e '.version == 1 and .project == "demo" and .grants[0].id == "d1" and .grants[0].value == "B" and .grants[0].until == null' delegation.json >/dev/null
-grep -q '| `merge` | B | d1 |' delegation.md
+jq -e '.delegation | .version == 1 and .project == "demo" and .grants[0].id == "d1" and .grants[0].value == "B" and .grants[0].until == null' project.json >/dev/null
+jq -e '.project == {title: "Demo", prefix: "D"} and .repos == ["github.com/example/app"] and .references == ["https://example.com/spec"]' project.json >/dev/null || die "人が書いたキーを変えた: $(cat project.json)"
+[ ! -e delegation.md ] && [ "$(git -C "$tmp/plant" show --name-only --format= HEAD)" = projects/demo/project.json ] || die 'project.json のほかを書いた'
 git -C "$tmp/plant" log -1 --format=%B | grep -q 'evidence: 2026-11-05 の対話'
-emit delegation.json delegation.json
-ok 'delegate grant: JSON を書き、delegation.md を生成し、根拠つきで commit する（cwd から slug）'
+emit project.json project.json
+ok 'delegate grant: project.json の delegation だけを書き、根拠つきで commit する（cwd から slug。ほかのキーは人のまま）'
 rc=0; as_owner "$andon" delegate narrow merge C --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '広げない' "$tmp/err" || die 'narrow で広げられた'
 rc=0; as_owner "$andon" delegate grant irreversible delete-remote --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'delete-remote は委譲できない' "$tmp/err" || die 'delete-remote を委譲できた'
 mkdir -p "$tmp/plant/projects/andon"
+echo '{"version": 1, "project": {"title": "Andon", "prefix": "A"}, "repos": []}' > "$tmp/plant/projects/andon/project.json"
+as_owner git -C "$tmp/plant" add projects/andon/project.json; as_owner git -C "$tmp/plant" commit -qm 'andon の project.json'
 rc=0; as_owner "$andon" delegate grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'B まで' "$tmp/err" || die 'andon プロジェクトに merge C を委譲できた'
 ok 'delegate: narrow は広げない・delete-remote と andon の merge C は断る'
+# 作業ツリーの変更（エージェントが repos を足した、など）を人の commit に混ぜない。HEAD が owner の commit でなければ書かない
+jq '.repos += ["github.com/example/other"]' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json
+rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'commit していない変更がある' "$tmp/err" || die "未 commit の変更があるのに書けた: $(cat "$tmp/err")"
+as_agent git -C "$tmp/plant" commit -qm 'agent が repos を足した' -- projects/demo/project.json
+rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'owner でない' "$tmp/err" || die "owner でない HEAD の上に書けた: $(cat "$tmp/err")"
+as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
+jq -e '.repos == ["github.com/example/app"] and (.delegation.grants | length) == 1' project.json >/dev/null || die "戻っていない: $(cat project.json)"
+ok 'delegate: project.json に未 commit の変更がある・HEAD が owner の commit でなければ書かない（ほかの変更を人の commit に混ぜない）'
 "$andon" delegate show --json | jq -e '.trusted and .preset == "work" and .effective.merge == "B" and .effective.deploy == "none"' >/dev/null
 ok 'delegate show: HEAD の委譲を読み手と同じに読む'
 
@@ -213,15 +239,15 @@ got=$(gate "$id" --dry-run); expect 0 approve
 ok 'checks が1つも無ければ wait、review から github_checks_wait_minutes を過ぎたら needs_human。optional の repo は無くても通し、在る checks は見る'
 
 # 6. 委譲を最後に変えたのが owner でなければ無委譲
-echo '{"version": 1, "project": "demo", "preset": "hobby"}' > delegation.json
-as_agent git -C "$tmp/plant" commit -qam 'agent が書いた'
+jq '.delegation = {"version": 1, "project": "demo", "preset": "hobby"}' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json
+as_agent git -C "$tmp/plant" commit -qm 'agent が書いた' -- projects/demo/project.json
 got=$(gate "$id" --dry-run); expect 4 needs_human 'merge=none'
 as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
 ok '委譲の commit の author が owner でなければ無委譲'
 as_owner "$andon" delegate revoke d1 --reason 'やめる' >/dev/null
 got=$(gate "$id" --dry-run); expect 0 approve
 "$andon" delegate show --json | jq -e '.effective.merge == "B" and .grants == []' >/dev/null
-jq -e '.grants[0].revoked.reason == "やめる"' delegation.json >/dev/null
+jq -e '.delegation.grants[0].revoked.reason == "やめる"' project.json >/dev/null
 ok 'delegate revoke: 行を残して取り消す（型 work の merge B に戻る）'
 
 # 7. 検査が落ちれば fix（gate.local.json は建屋の repo の HEAD で、owner が commit したものだけ）

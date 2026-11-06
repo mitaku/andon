@@ -83,6 +83,11 @@ for p in package/skills/ package/templates/ package/gate.json package/settings.j
   jq -e --arg p "${p%/}" '.tier_c_paths | map(rtrimstr("/**")) | index($p)' package/gate.json >/dev/null \
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
+# 人だけが書くファイル（author 照合の対象）は、PR に入ればレベル C（contract.md §11・§7）
+for p in 'projects/*/project.json' gate.local.json andon.toml; do
+  jq -e --arg p "$p" '.tier_c_paths | index($p)' package/gate.json >/dev/null \
+    && pass "人のファイル $p はレベル C" || fail "$p が tier_c_paths に無い"
+done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
 jq -e '.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY == "1"' package/settings.json >/dev/null && pass "settings の env が auto memory を止める（CLAUDE_CODE_DISABLE_AUTO_MEMORY=1。autoMemoryEnabled:false より優先して効く）" || fail "settings の env に CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 が無い"
@@ -123,10 +128,13 @@ done < <(jq -r '.permissions.deny[] | select(startswith("Bash(")) | select(test(
 [ -z "$bad" ] && pass "頭の線でない deny は allow の穴を塞ぐものだけ（Codex の rules に要らない）" || fail "頭の線でも allow の穴塞ぎでもない deny（Codex の rules にどう引くか決める）:$bad"
 # 人のファイル（ADR-0005 決めたこと 4 の (c)）への書き換えを deny する。今の Claude Code は Write・NotebookEdit・MultiEdit を Edit(path) の規則で引き、
 # Write(path) の規則は受け付けても当たらない。絶対パスは //（単独の / は設定の置き場からの相対）。Codex には同じ線を引けない（docs/image.md）
-for f in andon.toml AGENTS.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json' 'projects/*/delegation.json' 'projects/*/delegation.md'; do
+for f in andon.toml AGENTS.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json'; do
   jq -e --arg r "Edit(//workspace/$f)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
     && pass "settings は人のファイル /workspace/$f の書き換えを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
 done
+# 移す前の委譲のファイルは読まない（contract.md §11）ので deny しない（project.json の deny が受け持つ）
+! jq -e '.permissions.deny | any(test("delegation\\.(json|md)"))' package/settings.json >/dev/null \
+  && pass "settings の deny に delegation.json・delegation.md が残っていない" || fail "settings の deny に delegation.json・delegation.md が残る"
 bad=$(jq -r '.permissions.deny[] | select(startswith("Bash(") or startswith("Edit(//workspace/") | not)' package/settings.json)
 [ -z "$bad" ] && pass "deny は Bash(…) と Edit(//workspace/…) だけ（Write(…) は当たらないので書かない）" || fail "知らない形の deny: $(tr '\n' ' ' <<<"$bad")"
 sl=$(jq -r '.statusLine.command' package/settings.json)

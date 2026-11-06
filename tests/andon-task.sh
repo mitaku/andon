@@ -193,6 +193,11 @@ export GHQ_ROOT="$tmp/ghq"
 # start は起こす前に信頼の設定を足す（boot と同じ手）。一時の HOME に書かせ、本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
 unset CLAUDE_CONFIG_DIR
 export ANDON_WORKSPACE="$tmp/plant"
+# 建屋の repo（人のもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
+git init -q "$tmp/plant"; mkdir -p "$tmp/plant/projects/demo"
+printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
+echo '{"version": 1, "project": {"title": "Demo", "prefix": "S"}, "repos": ["github.com/example/app"]}' > "$tmp/plant/projects/demo/project.json"
+git -C "$tmp/plant" add -A; GIT_AUTHOR_EMAIL=owner@example.com git -C "$tmp/plant" commit -qm plant
 git init -q --bare -b main "$tmp/origin.git"
 git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/app" 2>/dev/null
 appdir=$GHQ_ROOT/github.com/example/app
@@ -224,7 +229,7 @@ chmod +x "$tmp/bin/hc"
 field() { kanban show "$1" --json | jq -r --arg k "$2" '.task[$k] // ""'; }
 # 台帳は repos に案件の repo を持つ別の台帳（slug は demo）
 mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
-FLIGHTDECK_ROOT= kanban init --prefix S --repo github.com/example/app >/dev/null
+FLIGHTDECK_ROOT= kanban init --prefix S --repo github.com/example/app --repo github.com/example/lib >/dev/null
 export FLIGHTDECK_ROOT=$PWD HC_TERMINAL_ID=t5
 kanban config set coordinator=t5 >/dev/null
 s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude --brief - <<<'# Add the button')
@@ -269,13 +274,23 @@ s8=$(kanban add 'Taken name' --repo github.com/example/app --profile claude --br
 git -C "$appdir" push -q origin "HEAD:refs/heads/demo/$s8-taken-name"
 git -C "$appdir" update-ref -d "refs/remotes/origin/demo/$s8-taken-name"
 expect_fail "branch demo/$s8-taken-name が origin にもうある" "$andon" task start "$s8"
-for x in "$s6" "$s7" "$s8"; do
+# 台帳の config.yaml の repos にはあるが、project.json の repos に無い repo（このプロジェクトが書いてよい repo でない）
+git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/lib" 2>/dev/null
+s9=$(kanban add 'Lib' --repo github.com/example/lib --profile claude --brief - <<<'# x')
+expect_fail 'repo github.com/example/lib が projects/demo/project.json の repos に無い' "$andon" task start "$s9"
+! git -C "$GHQ_ROOT/github.com/example/lib" show-ref --quiet "refs/heads/demo/$s9-lib" || die 'project.json の repos に無いのに branch を作った'
+# project.json を最後に変えたのが owner でなければ、書いてよい repo は無い（安全側）
+jq '.repos += ["github.com/example/lib"]' "$tmp/plant/projects/demo/project.json" > "$tmp/p.json" && cp "$tmp/p.json" "$tmp/plant/projects/demo/project.json"
+GIT_AUTHOR_EMAIL=agent@example.com git -C "$tmp/plant" commit -qam 'agent が repos を足した'
+expect_fail 'author（t <agent@example.com>）が owner でない' "$andon" task start "$s9"
+git -C "$tmp/plant" reset -q --hard HEAD~1
+for x in "$s6" "$s7" "$s8" "$s9"; do
   [ ! -e "$HOME/.herdr/worktrees/app/demo-$x" ] && [ ! -e "$HOME/.herdr/worktrees/other/demo-$x" ] && [ "$(field "$x" status)" = todo ] && [ -z "$(field "$x" branch)$(field "$x" worktree)" ] \
     || die "$x: 止まる前に作った: $(kanban show "$x" --json | jq -c .task)"
   ! grep -q "task=$x " "$tmp/hc/log" || die "$x: hc run を打った"
 done
 ! git -C "$GHQ_ROOT/github.com/example/other" show-ref --quiet "refs/heads/demo/$s6-other-repo" && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s7-later" || die '止まる前に branch を作った'
-ok 'start: repos に無い repo・未完了の after・origin にある同名の branch では、worktree・branch・台帳の欄・hc run を作らずに止まる'
+ok 'start: 台帳か project.json（owner の commit）の repos に無い repo・未完了の after・origin にある同名の branch では、worktree・branch・台帳の欄・hc run を作らずに止まる'
 
 # hc run が落ちたら、作った worktree と branch を戻す
 s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brief - <<<'# x')

@@ -487,7 +487,7 @@ andon/
     question.schema.json     問いの形
     notification.schema.json 通知
     gate.schema.json         ゲートの条件表と記録
-    delegation.schema.json   委譲（§1.10）
+    project.schema.json      プロジェクトの事実と委譲（§1.10。contract.md §11）
   package/                   建屋に配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
     lib/andon/               command が読む資材（中身のソースは internal/<sub>）。sub-command: task・chief-of-staff・chief-engineer・dispatcher・gate・triage・publish・delegate・boot・init（言語は §2.7）

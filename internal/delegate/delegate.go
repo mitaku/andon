@@ -1,5 +1,5 @@
-// Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。建屋の repo の projects/<slug>/delegation.json を
-// 読み（Read。ゲート・dispatcher・command が使う）、人が書く手順を助ける（andon delegate grant/narrow/revoke/show）。
+// Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。建屋の repo の projects/<slug>/project.json の
+// delegation を読み（Read。ゲート・dispatcher・command が使う）、人が書く手順を助ける（andon delegate grant/narrow/revoke/show）。
 //
 // 読み方: 建屋の repo の HEAD のファイルだけを読み、それを最後に変えた commit の author が andon.toml の owner と
 // 一致するときだけ信じる。無い・読めない・形が違う・一致しない は無委譲（全部人）。
@@ -70,7 +70,7 @@ type Grant struct {
 	Revoked  *Revoked        `json:"revoked" andon:"nullable"`
 }
 
-// File は delegation.json。
+// File は委譲（project.json の delegation。移す前の delegation.json と同じ形）。
 type File struct {
 	Version int     `json:"version"`
 	Project string  `json:"project"`
@@ -150,7 +150,7 @@ func checkValue(scope string, raw json.RawMessage) error {
 	return nil
 }
 
-// Parse は delegation.json を読み、schema と command の決まり（id が一意・project が置き場と同じ・andon は型 andon）で確かめる。
+// Parse は委譲（project.json の delegation）を読み、schema と command の決まり（id が一意・project が置き場と同じ・andon は型 andon）で確かめる。
 func Parse(b []byte, slug string) (*File, error) {
 	var f File
 	if err := contract.Decode(b, &f); err != nil {
@@ -262,9 +262,6 @@ func (r Result) Merge() string {
 	return s
 }
 
-// Rel は建屋の repo の中の置き場。
-func Rel(slug string) string { return filepath.Join("projects", slug, "delegation.json") }
-
 // Workspace は建屋の repo（ANDON_WORKSPACE。既定 /workspace）。
 func Workspace() string {
 	if w := os.Getenv("ANDON_WORKSPACE"); w != "" {
@@ -317,7 +314,7 @@ func git(ws string, args ...string) (string, error) {
 var ErrAbsent = errors.New("建屋の repo の HEAD に無い")
 
 // OwnerFile は建屋の repo の HEAD の rel を読み、それを最後に変えた commit の author の email が andon.toml の owner のときだけ返す
-// （委譲・gate.local.json。人だけが書くファイル。作業ツリーと未 commit の変更は読まない）。
+// （project.json・gate.local.json。人だけが書くファイル。作業ツリーと未 commit の変更は読まない）。
 func OwnerFile(ws, rel string) ([]byte, error) {
 	b, err := git(ws, "show", "HEAD:"+filepath.ToSlash(rel))
 	if err != nil {
@@ -335,19 +332,26 @@ func OwnerFile(ws, rel string) ([]byte, error) {
 	return []byte(b), nil
 }
 
-// Read は建屋の repo の HEAD の委譲を読む（読み手は全部これ）。信じられなければ無委譲。
+// Read は建屋の repo の HEAD の委譲（project.json の delegation）を読む（読み手は全部これ）。信じられなければ無委譲。
+// 移す前の delegation.json は読まない（無委譲。理由にそう書く）。
 func Read(ws, slug, today string) Result {
 	none := func(reason string) Result {
 		return Result{Project: slug, Reason: reason, Effective: maps(None), Grants: []Grant{}}
 	}
-	b, err := OwnerFile(ws, Rel(slug))
+	p, err := ReadProject(ws, slug)
 	if errors.Is(err, ErrAbsent) {
-		return none("委譲が無い（建屋の repo の HEAD に " + Rel(slug) + " が無い）")
+		if _, lerr := git(ws, "cat-file", "-e", "HEAD:"+filepath.ToSlash(LegacyRel(slug))); lerr == nil {
+			return none("委譲が無い（" + LegacyRel(slug) + " は読まない。" + ProjectRel(slug) + " の delegation へ移すまで無委譲）")
+		}
+		return none("委譲が無い（建屋の repo の HEAD に " + ProjectRel(slug) + " が無い）")
 	}
 	if err != nil {
 		return none(err.Error())
 	}
-	f, err := Parse(b, slug)
+	if p.Delegation == nil {
+		return none("委譲が無い（" + ProjectRel(slug) + " に delegation が無い）")
+	}
+	f, err := Parse(p.Delegation, slug)
 	if err != nil {
 		return none("委譲の形が違う: " + err.Error())
 	}
@@ -410,51 +414,6 @@ func toStrings(v any) []string {
 	return nil
 }
 
-// Markdown は人用の一覧 delegation.md（command が生成する。機械は読まない）。
-func Markdown(f *File, today string) string {
-	preset := f.Preset
-	if preset == "" {
-		preset = "work（既定）"
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "# 委譲: %s\n\n", f.Project)
-	fmt.Fprintf(&b, "andon delegate が delegation.json から生成する（手で直さない。直すのは andon delegate grant / narrow / revoke）。\n\n")
-	fmt.Fprintf(&b, "型: %s。%s 時点で効いている値:\n\n", preset, today)
-	b.WriteString("| 範囲 | 値 | 元 |\n|---|---|---|\n")
-	eff := f.Effective(today)
-	from := map[string]string{}
-	grants := slices.Clone(f.Grants)
-	slices.SortStableFunc(grants, func(a, b Grant) int { return strings.Compare(a.At, b.At) })
-	for _, g := range grants {
-		if g.Active(today) {
-			from[g.Scope] = g.ID
-		}
-	}
-	for _, s := range Scopes {
-		src := "型"
-		if id := from[s]; id != "" {
-			src = id
-		}
-		fmt.Fprintf(&b, "| `%s` | %s | %s |\n", s, show(eff[s]), src)
-	}
-	if len(f.Grants) > 0 {
-		b.WriteString("\n## 付与と取り消し（履歴。行は消さない）\n\n| id | 範囲 | 値 | 日付 | 期限 | 根拠 | 取り消し |\n|---|---|---|---|---|---|---|\n")
-		for _, g := range f.Grants {
-			var v any
-			_ = json.Unmarshal(g.Value, &v)
-			until, revoked := "無期限", ""
-			if g.Until != nil {
-				until = *g.Until
-			}
-			if g.Revoked != nil {
-				revoked = g.Revoked.At + " " + cell(g.Revoked.Reason)
-			}
-			fmt.Fprintf(&b, "| %s | `%s` | %s | %s | %s | %s | %s |\n", g.ID, g.Scope, show(v), g.At, until, cell(g.Evidence), revoked)
-		}
-	}
-	return b.String()
-}
-
 func show(v any) string {
 	switch x := v.(type) {
 	case []string:
@@ -469,8 +428,4 @@ func show(v any) string {
 		return strings.Join(toStrings(x), " / ")
 	}
 	return fmt.Sprint(v)
-}
-
-func cell(s string) string {
-	return strings.NewReplacer("|", `\|`, "\n", " ").Replace(s)
 }

@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/project/1",
+  "title": "Project",
+  "description": "projects/<slug>/project.json in the plant's repository: the facts machines read about one project. Written only by the person (`andon delegate` writes the delegation part). Readers read it at HEAD and trust it only when the last commit's author is the owner in andon.toml; otherwise, or when it does not pass this schema, nothing is delegated and no repository may be written (the safe side). Only these keys.",
+  "type": "object",
+  "required": [
+    "version",
+    "project",
+    "repos"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "Version of this format.",
+      "const": 1
+    },
+    "project": {
+      "description": "What the project is called.",
+      "type": "object",
+      "required": [
+        "title",
+        "prefix"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "description": "A name to show.",
+          "type": "string",
+          "minLength": 1
+        },
+        "prefix": {
+          "description": "Prefix of task ids (<prefix>-<n>): upper-case letters and digits, starting with a letter.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]*$"
+        }
+      }
+    },
+    "repos": {
+      "description": "Repositories this project may write (tasks are started only in these; the ledger's config.yaml repos is a subset). Empty: none. Entries are unique (checked by the command).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repo"
+      }
+    },
+    "references": {
+      "description": "Repositories and URLs this project reads but never writes.",
+      "type": "array",
+      "items": {
+        "description": "A repository (<host>/<owner>/<repo>) or an https URL.",
+        "anyOf": [
+          {
+            "$ref": "#/$defs/repo"
+          },
+          {
+            "type": "string",
+            "pattern": "^https://[!-~]+$"
+          }
+        ]
+      }
+    },
+    "delegation": {
+      "description": "Delegation. Absent: nothing is delegated.",
+      "$ref": "#/$defs/delegation"
+    },
+    "chief_of_staff": {
+      "description": "Settings the Chief of Staff reads. Absent keys: the skill's defaults.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "parallel": {
+          "description": "How many tasks may be doing or in review at once. Default 2.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "review_when": {
+          "description": "When to turn independent review on, one condition per entry (read by the Chief of Staff, not by commands).",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "triage_max_tasks": {
+          "description": "How many tasks one triage may start (andon triage apply --max-tasks). Default 3.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "date": {
+      "description": "A real calendar date, YYYY-MM-DD (leap years checked).",
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))$"
+    },
+    "grant": {
+      "description": "One grant. value depends on scope (see allOf).",
+      "type": "object",
+      "required": [
+        "id",
+        "scope",
+        "value",
+        "by",
+        "at",
+        "evidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "d1, d2, ...; unique in the file.",
+          "type": "string",
+          "pattern": "^d[1-9][0-9]*$"
+        },
+        "scope": {
+          "description": "What is delegated.",
+          "enum": [
+            "merge",
+            "deploy",
+            "publish",
+            "irreversible",
+            "external-requests",
+            "profile",
+            "package-update",
+            "line-change"
+          ]
+        },
+        "value": {
+          "description": "Depends on scope."
+        },
+        "by": {
+          "description": "Who granted it: owner (the owner in andon.toml).",
+          "const": "owner"
+        },
+        "at": {
+          "description": "Date of the grant.",
+          "$ref": "#/$defs/date"
+        },
+        "until": {
+          "description": "Expiry date; past it the grant is as if absent. null: no expiry.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Where the person said so: a path or a quote (point to it, do not copy).",
+          "type": "string",
+          "minLength": 1
+        },
+        "revoked": {
+          "description": "Revocation; when present the grant is as if absent (the entry is kept for history). null: not revoked.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "at",
+                "by",
+                "reason"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "description": "Date of the revocation.",
+                  "$ref": "#/$defs/date"
+                },
+                "by": {
+                  "description": "Who revoked it.",
+                  "const": "owner"
+                },
+                "reason": {
+                  "description": "Why.",
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "merge"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "Highest tier the dispatcher may merge.",
+                "enum": [
+                  "none",
+                  "A",
+                  "B",
+                  "C"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "deploy"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "Deploy stage allowed.",
+                "enum": [
+                  "none",
+                  "preview",
+                  "production"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "publish"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "Publishing allowed.",
+                "enum": [
+                  "none",
+                  "internal",
+                  "public"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "irreversible"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "Irreversible operations allowed without asking. delete-remote can never be delegated.",
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "delete-branch",
+                    "force-push",
+                    "rewrite-history"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "enum": [
+                  "external-requests",
+                  "profile",
+                  "package-update"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "Delegated or not.",
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "line-change"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "How far line changes may go in without the person.",
+                "enum": [
+                  "none",
+                  "project",
+                  "plant"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "delegation": {
+      "description": "Delegation: what the owner (a person) leaves to the Chief of Staff, the dispatcher and the agents. Same shape as the former projects/<slug>/delegation.json. Written through `andon delegate`. That grant ids are unique, that project matches the folder and that the andon project keeps preset andon are checked by the command, not by this schema.",
+      "type": "object",
+      "required": [
+        "version",
+        "project"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "description": "Version of this format.",
+          "const": 1
+        },
+        "project": {
+          "description": "Project slug; must match the folder.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "preset": {
+          "description": "Default set the grants are laid on. Absent: work.",
+          "enum": [
+            "hobby",
+            "work",
+            "andon"
+          ]
+        },
+        "grants": {
+          "description": "Additions and subtractions over the preset. For each scope, the valid grant with the latest at wins.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/grant"
+          }
+        }
+      }
+    },
+    "repo": {
+      "description": "A repository as <host>/<owner>/<repo>.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"
+    }
+  }
+}
