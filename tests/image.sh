@@ -128,14 +128,14 @@ dc exec -T dev bash -euc '
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
 # (a0) ~/.gitconfig が消えた状態（作り直しの後）でも、gh がログイン済みなら boot が credential helper を gh にする。
-# 偽のログイン状態: auth status だけ 0 を返す gh を PATH の先頭に置く（setup-git は本物を、ホストを指定して打つ）
+# 偽のログイン状態: auth status だけ 0 を返す gh を PATH の先頭に置く（setup-git は本物を、ホストを指定して打つ）。hosts.yml はこの前の検査で壊れた中身なので GH_CONFIG_DIR を外す
 dc exec -T dev bash -euc '
   real=$(command -v gh)
   d=$(mktemp -d)
   printf "#!/bin/sh\n[ \"\$*\" = \"auth status\" ] && exit 0\nexec %s auth setup-git --hostname github.com --force 2>/tmp/gh-err\n" "$real" > "$d/gh"
   chmod +x "$d/gh"
   rm -f "$HOME/.gitconfig"
-  PATH="$d:$PATH" andon boot >"$d/boot.log" 2>&1 || true
+  GH_CONFIG_DIR="$d/cfg" PATH="$d:$PATH" andon boot >"$d/boot.log" 2>&1 || true
   helpers=$(git config --global --get-all credential.https://github.com.helper || true)
   if ! grep -q "gh auth git-credential" <<<"$helpers"; then
     cat "$d/boot.log" /tmp/gh-err >&2 || true
