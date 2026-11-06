@@ -15,6 +15,7 @@
 1. `projects/<slug>/` は建屋の repo の**実ディレクトリ**で、製品の repo への symlink にしない（operate.md「建屋の置き方」。人のファイルを担当の PR の経路に乗せないため）。変えない。
 2. **建屋の持ち主は 1 人。プロジェクトは互いに独立。** 建屋の repo は持ち主の状態の箱（private）。台帳は工場の中の工程の記録で、人と人が共有する issue の置き場ではない。repo や案件全体の issue を他の人と回すなら外部のトラッカー（GitHub Issues など）が正で、Chief of Staff がそれを扱う（書き込みは人の go。タスクには key だけ）。複数人の建屋は別の ADR。
 3. **建屋は Herdr App の machine、`projects/<slug>/` は指揮側の Space、タスクは作業側の Space**（[ADR-0002](0002-herdr-spaces.md)・[ADR-0003](0003-task-spaces.md)）。持ち主は全建屋を Herdr App とボードで見る（大部屋。design.md §1.7）。だから建屋が N 個あっても同じ形で読めること（schema で validate できること）が要る。
+   **語の改め（人 2026-11-06。この文書の範囲外）**: 「建屋」は **セル（cell）** に改める。リーンのセル生産（必要なものを全部中に持ち、独立して回る小さな単位）の語で、この文書の前提 2・3（持ち主は 1 人・独立・同じ形・持ち運べる）がその定義そのもの。Andon＝工場（構造）、セル＝案件ごとの自己完結した単位、ライン＝セルの中の工程、大部屋＝全セルを見る面、と並ぶ。セルの repo の名前は `<slug>-cell`。この文書は design.md §0.1 の今の語（建屋・`plant`）のまま書き、置き換え（§0.1・§1.7 の系譜の表・文書・skill・command・`andon init` の雛形の repo 名）は別タスク（S8）。
 4. cwd が `projects/<slug>/` なのは **Chief of Staff だけ**。Chief Engineer（文書の PR の branch。ADR-0002 決めたこと 11）・担当・レビュアーは worktree。担当が worktree の外に書いてよいのは自分の `kanban/tasks/<id>/library/` だけ（contract.md §0 の 5・worker skill）。
 5. 人のファイルの照合（contract.md §11。最後に変えた commit の author が `andon.toml` の `owner`）は、**人のファイルをエージェントが commit しない**ことで成り立つ。エージェントが commit してよい場所は表で決める（`wiki/` は既にそう。decisions.md D12・問い21）。守りは「騙す担当」向けではない（D1・D3）。
 6. 台帳は 1 プロジェクトに 1 つ、書くのは台帳の CLI（`kanban`）だけ（D14・D17）。形式は [ledger.md](../ledger.md)。
@@ -157,6 +158,7 @@
 | S5 | 伝令の commit・push の段（`andon.toml` で切れる）＋ decisions.md に問い10 を決め直す行 ＋ auto memory の `env` | 受け入れ条件 5 の commit・push、4 の `env` | S2 |
 | S6 | `artifacts/` → `files/`（`andon publish`・files サーバ・`init/.gitignore`・docs） | 受け入れ条件 3 | S1 のマージ。S2 と独立 |
 | S7 | `AGENTS.md` の行数の lint（数は人）と、文書・skill の文言（決めたこと 9 の 9） | 受け入れ条件 4 の前半 | S2・S3 |
+| S8 | 語の改め「建屋」→「セル（cell）」（design.md §0.1・§1.7、文書・skill・command、`andon init` の repo 名 `<slug>-cell`、decisions.md に 1 行） | `git grep 建屋` が design.md の系譜の「仮設の語」の行だけ | S1 のマージ。ほかと独立 |
 | — | Y-158（調べる・決める・直すのプロセス）は決めたこと 6 を入力に、中間成果物の型とファイル名、調べるタスクの型を決める | Y-158 の完了条件 | S1 のマージ |
 
 ## 開いている問い（人に聞く。1 問ずつ。推しつき）
