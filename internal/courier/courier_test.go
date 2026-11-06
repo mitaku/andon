@@ -37,7 +37,7 @@ func TestRetry(t *testing.T) {
 }
 
 // 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子タスクが無ければ起こしに行き、
-// あれば引き継ぐ（todo なら続きから、それ以外はもう受けている）。
+// あれば引き継ぐ（todo でなければもう受けている。todo なら端末を照らし、live なら address を引き継ぐ）。
 func TestAdopt(t *testing.T) {
 	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
 	briefs := map[string]string{
@@ -51,16 +51,27 @@ func TestAdopt(t *testing.T) {
 		{"id": "D-3", "status": "todo", "profile": "codex-review", "parent": "D-1"},
 		{"id": "D-4", "status": "doing", "profile": "claude", "parent": "D-1"}, // レビュアーでない子
 	}
-	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief); ok {
+	none := func(string) (string, int, bool) { return "", 0, false }
+	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief, none); ok {
 		t.Error("子タスクの無い commit を引き継いだ（起こしに行かない）")
 	}
-	if r, ok := Adopt(tasks, "D-1", c1, brief); !ok || !r.Started || r.ReviewerTask != "D-2" || r.Address != "t9" {
+	if r, ok := Adopt(tasks, "D-1", c1, brief, none); !ok || !r.Started || r.ReviewerTask != "D-2" || r.Address != "t9" {
 		t.Errorf("受けた子タスク: %+v %v（もう受けているはず）", r, ok)
 	}
-	if r, ok := Adopt(tasks, "D-1", c2, brief); !ok || r.Started || r.ReviewerTask != "D-3" {
-		t.Errorf("todo の子タスク: %+v %v（続きから起こすはず）", r, ok)
+	if r, ok := Adopt(tasks, "D-1", c2, brief, none); !ok || r.Started || r.ReviewerTask != "D-3" || r.Address != "" {
+		t.Errorf("todo で端末も無い子タスク: %+v %v（起こすところから続けるはず）", r, ok)
 	}
-	if _, ok := Adopt(tasks, "D-9", c1, brief); ok {
+	// todo だが端末が live（hc run は通ったが kanban start の前に落ちた）: address を引き継ぎ、hc run し直さない
+	asked := ""
+	fresh := func(rev string) (string, int, bool) { asked = rev; return "t12", 0, true }
+	if r, ok := Adopt(tasks, "D-1", c2, brief, fresh); !ok || r.Started || r.Address != "t12" || asked != "D-3" {
+		t.Errorf("todo で端末が live（まだ何も受けていない）: %+v %v %q（address を引き継ぎ、最初のメッセージから）", r, ok, asked)
+	}
+	busy := func(string) (string, int, bool) { return "t12", 2, true }
+	if r, ok := Adopt(tasks, "D-1", c2, brief, busy); !ok || !r.Started || r.Address != "t12" {
+		t.Errorf("todo で端末が live（もう受けている）: %+v %v（二重に送らないはず）", r, ok)
+	}
+	if _, ok := Adopt(tasks, "D-9", c1, brief, none); ok {
 		t.Error("ほかのタスクの子を引き継いだ")
 	}
 }

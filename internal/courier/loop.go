@@ -52,17 +52,28 @@ func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 		if a, ok := Adopt(p.tasks, id, rr.Commit, func(rev string) string {
 			b, _ := os.ReadFile(filepath.Join(p.l.Dir, "tasks", rev, "brief.md"))
 			return string(b)
-		}); ok {
+		}, liveTask); ok {
 			r.ReviewerTask, r.Address, r.Started = a.ReviewerTask, a.Address, a.Started
 			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
 				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
 			}
-			if r.Started {
-				p.logf("%s のレビュー（commit %s）は %s がもう受けている（控えに無かった。起こさない）", id, rr.Commit[:12], r.ReviewerTask)
+			if r.Address != "" && p.status(r.ReviewerTask) == "todo" {
+				// 端末は起きているが kanban start が済んでいない（hc run のあとに落ちた）。台帳を端末に合わせる
+				cwd := filepath.Join(p.l.Dir, "tasks", r.ReviewerTask)
+				if _, _, err := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", r.ReviewerTask); err != nil {
+					p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", r.ReviewerTask, ledger.CLI, r.Address, err)
+				}
+			}
+			switch {
+			case r.Started:
+				p.logf("%s のレビュー（commit %s）は %s（%s）がもう受けている（控えに無かった。起こさない）", id, rr.Commit[:12], r.ReviewerTask, orNone(r.Address))
 				p.st.Reviewers[key] = r
 				return
+			case r.Address != "":
+				p.logf("%s のレビュアーのタスク %s は todo だが端末 %s が起きている（控えに無かった）。引き継いで最初のメッセージから", id, r.ReviewerTask, r.Address)
+			default:
+				p.logf("%s のレビュアーのタスク %s が todo のまま（控えに無かった）。続きから起こす", id, r.ReviewerTask)
 			}
-			p.logf("%s のレビュアーのタスク %s が todo のまま（控えに無かった）。続きから起こす", id, r.ReviewerTask)
 		}
 	}
 	why, final := p.startReviewer(t, rep, &r)
@@ -106,9 +117,11 @@ func Retry(prev Reviewer, seen bool, limit, row int) bool {
 
 // Adopt は、控えに無い review_request（初めて見た台帳・控えを無くした）のレビュアーの子タスクが台帳にもうあるかを見る。
 // 子タスクは parent が id のレビュアーで、依頼書（brief。reviewerBrief が書く）にその commit があるもの。
-// todo なら端末はまだ起きていない（kanban start の前）ので、タスクを引き継いで続きから起こす（Started は false）。
 // todo でなければ、もう受けている（Started。二重に起こさない）。
-func Adopt(tasks []ledger.Task, id, commit string, brief func(rev string) string) (Reviewer, bool) {
+// todo でも端末が起きていることがある（hc run は通ったが kanban start の前に落ちた）。live（ラベル task=<子>）の端末を引き、
+// 何か受けていれば（turn が 1 以上）もう受けている、まだなら address を引き継いで続きから（最初のメッセージを送り直す）。
+// 端末が無いときだけ、起こすところから続ける。
+func Adopt(tasks []ledger.Task, id, commit string, brief func(rev string) string, live func(rev string) (addr string, turn int, ok bool)) (Reviewer, bool) {
 	for _, c := range tasks {
 		if c.Str("parent") != id || !isReviewer(c) || !strings.Contains(brief(c.Str("id")), "commit "+commit+"。") {
 			continue
@@ -116,10 +129,43 @@ func Adopt(tasks []ledger.Task, id, commit string, brief func(rev string) string
 		r := Reviewer{ReviewerTask: c.Str("id")}
 		if c.Str("status") != "todo" {
 			r.Started, r.Address = true, c.Str("agent")
+		} else if addr, turn, ok := live(r.ReviewerTask); ok {
+			r.Address, r.Started = addr, turn > 0
 		}
 		return r, true
 	}
 	return Reviewer{}, false
+}
+
+// liveTask はタスク rev の live な端末（hc ls --label task=<rev>）。無い・読めなければ ok=false。
+func liveTask(rev string) (string, int, bool) {
+	out, err := hcOut("ls", "--json", "--label", "task="+rev)
+	var ls struct {
+		Terminals []struct {
+			Address string `json:"address"`
+			State   string `json:"state"`
+			Turn    int    `json:"turn"`
+		} `json:"terminals"`
+	}
+	if err != nil || json.Unmarshal([]byte(out), &ls) != nil {
+		return "", 0, false
+	}
+	for _, t := range ls.Terminals {
+		if t.State == "live" && t.Address != "" {
+			return t.Address, t.Turn, true
+		}
+	}
+	return "", 0, false
+}
+
+// status は台帳のタスク id の status（この回に読んだ一覧から）。
+func (p *project) status(id string) string {
+	for _, t := range p.tasks {
+		if t.Str("id") == id {
+			return t.Str("status")
+		}
+	}
+	return ""
 }
 
 // lastReport はタスク id の報告の最後の行（log.jsonl の何行目か。1 から。無ければ 0）。

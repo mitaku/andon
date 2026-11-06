@@ -187,7 +187,7 @@ Andon ではこれを Go で書き直した（`internal/courier/screen.go`。des
 前の工場の通知の係を Go の `andon courier` に書き直す。§2 の拾い方と §4 の経路③だけ（フックはまだ無い）。端末の名前とラベルは `role=courier`。控えは `~/.local/state/andon/courier/<slug>.json`（contract.md §6）。
 
 **端末を起こす・中身を戻す**: 端末は建屋に1つで、名前は `courier`。`hc run --keep` で起こすので、core が起き直すと（`hc server restart`・Herdr App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで、中身がシェルに替わる（hc は元の command を打ち直さない）。
-そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon courier`」で動いていると見る。無ければ起こし、シェルならそのシェルに `andon courier` を打ち込む。前に何も出ていない（替わる途中）・シェルでも `andon courier` でもないものが出ているときは触らない。
+そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon courier`」で動いていると見る。無ければ起こす。シェルなら、そのシェルには打ち込まず（入力欄に人の打ちかけがあれば、それに足して実行してしまう）、クーリエ専用の端末なので `hc keep --off`・`hc kill`・`hc rm` で片付けて、同じ名前・ラベルで起こし直す（名前で引くと片付けた端末に当たりうるので address で打つ）。前に何も出ていない（替わる途中）・シェルでも `andon courier` でもないもの（人が何か動かしている）が出ているときは触らない。
 確かめるのは boot（毎起動）と Chief of Staff のフック（`andon courier drain`。毎ターン）。core の起き直しは boot を通らないが、クーリエが回るのは Chief of Staff が生きている台帳だけ（§2.1）で、Chief of Staff が動けば必ずフックが走るので、これで足りる。
 クーリエ自身の見張りでは戻せない（止まっているのはクーリエ）。hc にも元の command を打ち直す機能は無い。複数のフックと boot が重なっても二重に打たないよう、確かめは lock の中で1つずつ（2026-11-06 の P7）。
 
@@ -206,7 +206,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | ゲートが `needs_human` | 問いを出す（contract.md §5。`from: gate`）。通知 `asked` | 人 |
 
 - **二度起こさない・二度回さない**: 起こしたレビュアー（`task` → `reviewer_task`・`commit`）と回したゲート（`task` → `sha`。`review` に入った `log.jsonl` の行ごと）を控えに持ち、同じ組では打たない。
-  控えに無い組（初めて見た台帳・控えを無くした）は台帳を見る: parent がそのタスクのレビュアーで、依頼書にその commit があるタスクがあれば、`todo` なら続きから起こし（端末はまだ無い）、それ以外ならもう受けているとして起こさない。
+  控えに無い組（初めて見た台帳・控えを無くした）は台帳を見る: parent がそのタスクのレビュアーで、依頼書にその commit があるタスクがあれば、`todo` でなければもう受けているとして起こさない。`todo` でも端末が起きていることがある（`hc run` は通ったが `kanban start` の前に落ちた）ので、ラベル `task=<子>` の live な端末を引く。何か受けていれば（`turn` が 1 以上）起こさず、まだなら address を引き継いで最初のメッセージから続ける。端末が無いときだけ起こすところから続ける。
 - **同じ commit の出し直し**: 起こさなかった回（設定・上限・head 違いなどで止めた回）は、担当が `andon task review-request` で頼み直せば（そのタスクの報告の行が増えれば）拾い直す。起こした回は、同じ commit で頼み直しても二重に起こさない。
 - **台帳に書くときの `by` は `terminal:courier`**（`HC_TERMINAL_ID=courier` で打つ）。ゲートと `andon task ready` は、作成の行の `by` が Chief of Staff かクーリエのレビュアーを数える。
 - **レビュアーの依頼書に結果の宛先を書く**: 元のタスク（`parent`）の担当（`task.yaml` の `agent`）だけ。Chief of Staff・クーリエへは送らせない（Chief of Staff へはクーリエが通知で届ける）。

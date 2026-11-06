@@ -72,7 +72,7 @@ case \$1 in
         printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
   ls) task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
       awk -v t="\$task" '\$2 == t { printf "%s{\"address\":\"%s\",\"state\":\"live\"}", (n++ ? "," : ""), \$1 }' \$d/live | { printf '{"terminals":['; cat; printf ']}\n'; } ;;
-  kill) ;;
+  kill|keep) ;;
   rm) sed -i "/^\$2 /d" \$d/live ;;
   *) exit 99 ;;
 esac
@@ -152,7 +152,7 @@ ok 'Chief of Staff の端末が無ければ飛ばし、初めて見る台帳で�
 cp "$state" "$tmp/state.bak"; rm "$state"
 courier
 [ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '控えを無くしたあと、もういるレビュアーを二重に起こした'
-grep -q "$id のレビュー（commit ${head:0:12}）は .* がもう受けている" "$tmp/courier.log" || die '引き継いだことがログに無い'
+grep -q "$id のレビュー（commit ${head:0:12}）は .*がもう受けている" "$tmp/courier.log" || die '引き継いだことがログに無い'
 cp "$tmp/state.bak" "$state"
 ok '控えに無い review_request でも、台帳にその commit のレビュアーの子タスクがあれば引き継ぐ（二重に起こさない）'
 
@@ -435,15 +435,22 @@ out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}
 [ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
 ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
 
-# 12a. core が起き直してクーリエの端末の中身がシェルに替わっていたら、Chief of Staff のフックが andon courier を打ち直す
-echo '{"address":"courier","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-courier.json"
+# 12a. core が起き直してクーリエの端末の中身がシェルに替わっていたら、Chief of Staff のフックが片付けて起こし直す（シェルには打ち込まない）
+echo '{"address":"t3","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-courier.json"
+logs=$(wc -l < "$tmp/hc/log")
 HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"x"}' >/dev/null
-grep -qxF "courier	'$andon' courier" "$tmp/hc/sent" || die "シェルに替わったクーリエに andon courier を打ち直さない: $(cat "$tmp/hc/sent")"
+got=$(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -v '^get \|^ls ')
+want="keep t3 --off
+kill t3
+rm t3
+run --bg --no-parent --no-notify --keep --name courier --label role=courier --cwd $tmp/plant -- $andon courier"
+[ "$got" = "$want" ] || die "シェルに替わったクーリエを片付けて起こし直さない: $got"
+! grep -q '^courier	' "$tmp/hc/sent" || die 'クーリエのシェルに打ち込んだ'
 fg_courier
-cp "$tmp/hc/sent" "$tmp/hc/sent.before"
+logs=$(wc -l < "$tmp/hc/log")
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"x"}' >/dev/null
-cmp -s "$tmp/hc/sent" "$tmp/hc/sent.before" || die '中身が andon courier のクーリエに打ち込んだ'
-ok 'クーリエの端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）が andon courier を打ち直す（動いていれば触らない）'
+! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^run \|^kill \|^rm ' || die '中身が andon courier のクーリエを起こし直した'
+ok 'クーリエの端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）が片付けて同じ名前・ラベルで起こし直す（シェルに打ち込まない・動いていれば触らない）'
 
 # 12b. UserPromptSubmit で渡したあと turn が中断された（Stop が来ない）ら、次の送信で1回だけ届け直す。news.replied は渡した turn の答えにだけ
 ups() { HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"prompt\":\"x\"}" | jq -r '.hookSpecificOutput.additionalContext'; }
