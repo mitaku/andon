@@ -68,6 +68,40 @@ PR と main の push は、tests の job（`packages` の権限を持たない�
 
 `packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
 
+### CI の所要時間
+
+tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の3つで縮める。どれも check の名前（`tests`）は変えず、飛ばすときも job は成功で終わる。
+
+- **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す（go の workflow と同じ）。
+- **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。
+- **image に関係しない PR では `tests/image.sh` を飛ばす**（下の表）。
+
+**image の build の cache は使わない。** buildx の GitHub Actions cache（`type=gha`、`mode=max`）を試したが、Go だけを変えた PR で `tests/image.sh` が 224 秒から 307 秒に延びた。約 1 GiB の層を cache から取り込む時間と、docker-container の builder から docker へ渡す `--load`（約 70 秒）が、build で浮く時間を上回る。cache を持たないので、release の job が PR の書いたものを読む心配も無い。
+
+**image に関係しない PR では `tests/image.sh` を飛ばす。** PR の変更（merge commit と base の差分。rename は元と先の両方）を `tests/lib/image-scope.sh` が分ける。飛ばしてよいのは、変更が全部、下の表の「飛ばす」に入るときだけ。知らないパスは走らせる側に倒す。main の push では必ず全部走る（release も）。
+
+| 変更 | image の build と runtime の検査 | 理由 |
+|---|---|---|
+| `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
+| `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
+| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、Dockerfile の golang の版を `mise.toml` と突き合わせる |
+| `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
+| 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
+
+**手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（建屋で 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。
+
+| 変えたもの | 走らせる `tests/*.sh` |
+|---|---|
+| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`（安く全体を見るもの） |
+| `docs/contract.md` | `schema.sh` を足す（例を schema と突き合わせる） |
+| `docs/ledger.md`・`tests/kanban/` | `kanban.sh` を足す |
+| `docs/adr/` | `package.sh` を足す |
+| `tests/<x>.sh` | その `tests/<x>.sh` を足す |
+| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md` など | 足さない |
+| `tests/lib/` | `image.sh` 以外の全部 |
+| それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`.github/` と知らないパス） | `image.sh` 以外の全部 |
+| CI の表で「走らせる」もの | `image.sh` も（Docker が無ければ SKIP） |
+
 ## 残る危険
 
 workflow を書き換えた branch をこの repo に push できる者は、マージ前でも GHCR に push できる。workflow 内の権限制限だけでは、この操作を防げない。
