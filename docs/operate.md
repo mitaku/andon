@@ -13,8 +13,8 @@
 | 伝令（courier） | `courier`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「伝令」、2つ以上なら `<建屋の slug> plant` の tab「伝令」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon courier` でなければ片付けて起こし直す（courier.md §5）。戻らなければ人が `andon boot` |
 | Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる |
 | Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ伝令が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ |
-| 担当 | `<slug>-<id を小文字>` | 作業側の Space `<slug>-<id>`（Space ＝ タスク。[ADR-0003](adr/0003-task-spaces.md)） | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ伝令が送り直す。止まりは伝令が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる |
-| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | 伝令。担当の `andon task review-request` の報告を拾って起こす | 伝令が起こしたものも、最初のメッセージが届かなければ送り直す（届いたかは端末の `first_message.sent` と、受けたか＝`started` で見る。Y-148）。それ以外は担当の依頼で Chief of Staff が起こし直す |
+| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ伝令が送り直す。止まりは伝令が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる |
+| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | 伝令。担当の `andon task review-request` の報告を拾って起こす | 伝令が起こしたものも、最初のメッセージが届かなければ送り直す（届いたかは端末の `first_message.sent` と、受けたか＝`started` で見る。[courier.md](courier.md) §5）。それ以外は担当の依頼で Chief of Staff が起こし直す |
 
 - **伝令とゲート**: 担当の `andon task ready`（`status: review`）を拾った伝令が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。伝令が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
 - **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかったら（`first_message.sent=false`）、伝令が見回りで入力を受けられる状態になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
