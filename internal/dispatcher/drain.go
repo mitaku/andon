@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"bytes"
@@ -17,19 +17,19 @@ import (
 	"andon/internal/delegate"
 )
 
-// DrainUsage は andon courier drain の使い方。
-const DrainUsage = "usage: andon courier drain [--context] [--project <slug>] < フックの入力の JSON\n" +
+// DrainUsage は andon dispatcher drain の使い方。
+const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>] < フックの入力の JSON\n" +
 	"Chief of Staff の Stop・UserPromptSubmit フックが打つ（package/hooks/。contract.md §9）。待ちの通知を全部取り出して <news> に描く。\n" +
 	"  既定（Stop）: 待ちがあれば {\"decision\": \"block\", \"reason\": \"<news>…</news>\"}。前にフックで渡した <news> の答えが <no-reply> だけなら news.replied を書く\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
-	"Chief of Staff なら、クーリエの端末（courier）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
+	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
 	"落ちたとき（台帳・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
 
-// lockWait は drain が控えの lock を待つ長さ。クーリエの見回りが持っていれば、待ちは次の口で届く。
+// lockWait は drain が控えの lock を待つ長さ。dispatcher の見回りが持っていれば、待ちは次の口で届く。
 var lockWait = 10 * time.Second
 
-// lockState は控えの lock を取る（クーリエの見回りと drain が控えを読み書きする間）。wait が 0 なら取れるまで待つ。
+// lockState は控えの lock を取る（dispatcher の見回りと drain が控えを読み書きする間）。wait が 0 なら取れるまで待つ。
 func lockState(slug string, wait time.Duration) (func(), error) {
 	path := StatePath(slug) + ".lock"
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -57,7 +57,7 @@ func lockState(slug string, wait time.Duration) (func(), error) {
 	}
 }
 
-// terminal は hc get --json のうち、クーリエとフックが読むもの。
+// terminal は hc get --json のうち、dispatcher とフックが読むもの。
 type terminal struct {
 	State  string `json:"state"`
 	Status struct {
@@ -98,7 +98,7 @@ func withoutTerminal() []string {
 	return env
 }
 
-// Drain は andon courier drain。
+// Drain は andon dispatcher drain。
 func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	context, slug := false, ""
 	for i := 0; i < len(args); i++ {
@@ -119,7 +119,7 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	out, err := drain(slug, context, in)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon courier drain: %v（通す）\n", err)
+		fmt.Fprintf(stderr, "andon dispatcher drain: %v（通す）\n", err)
 		return 0
 	}
 	if out != nil {
@@ -171,7 +171,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	if !slugRe.MatchString(slug) {
 		return nil, fmt.Errorf("プロジェクトの名前が不正: %q", slug)
 	}
-	ensure() // core が起き直してクーリエの中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
+	ensure() // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, nil
 }
 
-// ensure はクーリエの端末を確かめる（courier.Ensure）。落ちても drain は通す（stderr に1行。フックは捨てる）。
+// ensure は dispatcher の端末を確かめる（dispatcher.Ensure）。落ちても drain は通す（stderr に1行。フックは捨てる）。
 func ensure() {
 	self, err := os.Executable()
 	if err != nil {
@@ -258,13 +258,13 @@ func ensure() {
 	if did, err := Ensure(self, delegate.Workspace(), 0); errors.Is(err, ErrBusy) {
 		return
 	} else if err != nil {
-		fmt.Fprintf(os.Stderr, "andon courier drain: クーリエの端末を確かめられない: %v\n", err)
+		fmt.Fprintf(os.Stderr, "andon dispatcher drain: dispatcher の端末を確かめられない: %v\n", err)
 	} else if did != "" {
-		fmt.Fprintf(os.Stderr, "andon courier drain: %s\n", did)
+		fmt.Fprintf(os.Stderr, "andon dispatcher drain: %s\n", did)
 	}
 }
 
-// label は Chief of Staff の端末に news.replied=<turn> を書く（ボードとの約束。courier.md §3.1）。
+// label は Chief of Staff の端末に news.replied=<turn> を書く（ボードとの約束。dispatcher.md §3.1）。
 func label(addr string, turn int) error {
 	cmd := exec.Command("hc", "label", addr, "news.replied="+strconv.Itoa(turn))
 	cmd.Env = withoutTerminal()

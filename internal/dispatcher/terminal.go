@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"bytes"
@@ -16,28 +16,28 @@ import (
 	"andon/internal/spawn"
 )
 
-// クーリエの端末の中身を戻す（courier.md §5 の P3b「端末を起こす・中身を戻す」）。端末は --keep で起こすので、core が起き直すと（hc server restart・
+// dispatcher の端末の中身を戻す（dispatcher.md §5 の P3b「端末を起こす・中身を戻す」）。端末は --keep で起こすので、core が起き直すと（hc server restart・
 // App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで中身がシェルに替わる。
-// hc get courier が通るだけでは「動いている」と言えないので、前に出ているもの（foreground.argv）で見る。
+// hc get dispatcher が通るだけでは「動いている」と言えないので、前に出ているもの（foreground.argv）で見る。
 // 中身がシェルなら、そのシェルには打ち込まず、端末を片付けて起こし直す。
-// 打つのは boot（毎起動）と Chief of Staff のフック（andon courier drain。毎ターン）。core の起き直しは boot を通らないが、
-// クーリエが回るのは Chief of Staff が生きている台帳だけで、Chief of Staff が動けばフックが走る。
+// 打つのは boot（毎起動）と Chief of Staff のフック（andon dispatcher drain。毎ターン）。core の起き直しは boot を通らないが、
+// dispatcher が回るのは Chief of Staff が生きている台帳だけで、Chief of Staff が動けばフックが走る。
 
-// shells は、クーリエの端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、人が抜けたあと）。
+// shells は、dispatcher の端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、人が抜けたあと）。
 var shells = spawn.Shells
 
 // ErrBusy は、ほかが確かめている（boot と複数の Chief of Staff のフックが重なった）ので何もしなかった。
-var ErrBusy = errors.New("ほかがクーリエの端末を確かめている")
+var ErrBusy = errors.New("ほかが dispatcher の端末を確かめている")
 
 // ErrUnsure は、待っても前に出ているものが取れず、動いているかを確かめられなかった（作り直しで戻った直後など）。
 // 「動いている」とはみなさない。
-var ErrUnsure = errors.New("クーリエの端末を確かめられなかった")
+var ErrUnsure = errors.New("dispatcher の端末を確かめられなかった")
 
 // ensurePoll は前に出ているものを読み直す間隔。
 var ensurePoll = 500 * time.Millisecond
 
-// courierTerm は hc get courier --json のうち、中身の見分けに読むもの。
-type courierTerm struct {
+// dispatcherTerm は hc get dispatcher --json のうち、中身の見分けに読むもの。
+type dispatcherTerm struct {
 	Address    string `json:"address"`
 	State      string `json:"state"`
 	Foreground *struct {
@@ -46,43 +46,43 @@ type courierTerm struct {
 	} `json:"foreground"`
 }
 
-// IsCourier は前に出ているものが andon courier（回り続けるもの）か。
-func IsCourier(argv []string) bool {
-	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == "courier"
+// IsDispatcher は前に出ているものが andon dispatcher（回り続けるもの）か。
+func IsDispatcher(argv []string) bool {
+	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == "dispatcher"
 }
 
-// Ensure はクーリエの端末を確かめ、無ければ起こし、中身がシェルに替わっていれば端末を片付けて起こし直す。
+// Ensure は dispatcher の端末を確かめ、無ければ起こし、中身がシェルに替わっていれば端末を片付けて起こし直す。
 // 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd は建屋の repo。
 // 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
 // ほかが確かめていれば ErrBusy を返す（どちらも「動いている」ではない）。
-// シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。クーリエ専用の端末なので、
+// シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。dispatcher 専用の端末なので、
 // keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
-// シェルでも andon courier でもないもの（人が何か動かしている）が出ているときは触らない。
+// シェルでも andon dispatcher でもないもの（人が何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 	unlock, err := ensureLock()
 	if err != nil {
 		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
 	}
 	defer unlock()
-	t, gone, err := getCourier()
+	t, gone, err := getDispatcher()
 	for end := time.Now().Add(wait); err == nil && !gone && t.Foreground == nil && time.Now().Before(end); {
 		time.Sleep(ensurePoll)
-		t, gone, err = getCourier()
+		t, gone, err = getDispatcher()
 	}
 	switch {
 	case err != nil:
 		return "", err
 	case gone:
-		if err := runCourier(andon, cwd); err != nil {
+		if err := runDispatcher(andon, cwd); err != nil {
 			return "", err
 		}
-		return "クーリエを起こした", nil
+		return "dispatcher を起こした", nil
 	case t.Foreground == nil:
 		return "", fmt.Errorf("%w（%s は %v 待っても前に出ているものが取れない）", ErrUnsure, t.Address, wait)
-	case IsCourier(t.Foreground.Argv):
+	case IsDispatcher(t.Foreground.Argv):
 		return "", nil
 	case !shells[t.Foreground.Name]:
-		return "", fmt.Errorf("クーリエの端末の前に %s が出ている（andon courier でもシェルでもない。触らない）", t.Foreground.Name)
+		return "", fmt.Errorf("dispatcher の端末の前に %s が出ている（andon dispatcher でもシェルでもない。触らない）", t.Foreground.Name)
 	case t.Address == "":
 		return "", fmt.Errorf("hc get %s に address が無い", Name)
 	}
@@ -92,10 +92,10 @@ func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 			return "", fmt.Errorf("hc %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(out))
 		}
 	}
-	if err := runCourier(andon, cwd); err != nil {
+	if err := runDispatcher(andon, cwd); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("クーリエの端末（%s）の中身がシェルに替わっていたので、片付けて起こし直した", t.Address), nil
+	return fmt.Sprintf("dispatcher の端末（%s）の中身がシェルに替わっていたので、片付けて起こし直した", t.Address), nil
 }
 
 // hostName は建屋の名前（hostname）。建屋の台帳が2つ以上のときの Space 名に使う。テストで差し替える。
@@ -103,37 +103,37 @@ var hostName = os.Hostname
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
-// Place は伝令の置き場（herdr.space・herdr.tab のラベルの値）。ws は建屋の repo。
+// Place は dispatcher の置き場（herdr.space・herdr.tab のラベルの値）。ws は建屋の repo。
 // 台帳（ws/projects/*/.flightdeck/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
-// それ以外（2つ以上。無いときも）は建屋の名前の Space andon-<建屋の slug>-plant。tab は andon-<slug または建屋の slug>-courier。
+// それ以外（2つ以上。無いときも）は建屋の名前の Space andon-<建屋の slug>-plant。tab は andon-<slug または建屋の slug>-dispatcher。
 // 名前は Andon の App の mod が付ける（ADR-0002 決めたこと 21）。
 func Place(ws string) (space, tab string) {
 	cfgs, _ := filepath.Glob(filepath.Join(ws, "projects", "*", ".flightdeck", "config.yaml"))
 	if len(cfgs) == 1 {
 		slug := filepath.Base(filepath.Dir(filepath.Dir(cfgs[0])))
-		return "andon-" + slug, "andon-" + slug + "-courier"
+		return "andon-" + slug, "andon-" + slug + "-dispatcher"
 	}
 	h, _ := hostName()
 	plant := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(h), "-"), "-")
 	if plant == "" {
 		plant = "plant"
 	}
-	return "andon-" + plant + "-plant", "andon-" + plant + "-courier"
+	return "andon-" + plant + "-plant", "andon-" + plant + "-dispatcher"
 }
 
-func runCourier(andon, cwd string) error {
+func runDispatcher(andon, cwd string) error {
 	space, tab := Place(cwd)
 	out, err := hcRun("run", "--bg", "--no-parent", "--no-notify", "--keep",
 		"--name", Name, "--label", "role="+Name, "--label", "herdr.space="+space, "--label", "herdr.tab="+tab,
-		"--cwd", cwd, "--", andon, "courier")
+		"--cwd", cwd, "--", andon, "dispatcher")
 	if err != nil {
 		return fmt.Errorf("hc run: %v: %s", err, strings.TrimSpace(out))
 	}
 	return nil
 }
 
-// getCourier は hc get courier。端末が無い・終わっていれば gone。
-func getCourier() (*courierTerm, bool, error) {
+// getDispatcher は hc get dispatcher。端末が無い・終わっていれば gone。
+func getDispatcher() (*dispatcherTerm, bool, error) {
 	cmd := exec.Command("hc", "get", Name, "--json")
 	cmd.Env = withoutTerminal()
 	var errb bytes.Buffer
@@ -150,7 +150,7 @@ func getCourier() (*courierTerm, bool, error) {
 		}
 		return nil, false, fmt.Errorf("hc get %s: %v %s", Name, err, strings.TrimSpace(errb.String()))
 	}
-	var t courierTerm
+	var t dispatcherTerm
 	if json.Unmarshal(out, &t) != nil || t.State == "" {
 		return nil, false, fmt.Errorf("hc get %s の形が読めない", Name)
 	}

@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"bytes"
@@ -22,7 +22,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// 通知の元（docs/courier.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って控えに積む。
+// 通知の元（docs/dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って控えに積む。
 // 初めて見る元（控えに位置や前回の ready が無い）は、今を控えるだけで積まない。
 
 const (
@@ -30,7 +30,7 @@ const (
 	workingAfter = 20 * time.Minute // working のまま、これ以上で stalled
 )
 
-// retryAfter は提供元のエラーで止まった担当に続きを打つまでの間（回数＝個数。courier.md §2.3）。
+// retryAfter は提供元のエラーで止まった担当に続きを打つまでの間（回数＝個数。dispatcher.md §2.3）。
 var retryAfter = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute}
 
 // RetryText は提供元のエラーで止まった担当に打つ文。
@@ -225,7 +225,7 @@ type Seen struct {
 	Status    string // status.state
 	StatusMs  int64
 	Reviewing bool // 子のレビュアーのタスクが todo／doing
-	Unsent    bool // ラベル first_message.sent=false（最初のメッセージが届いていない。courier.md §5）
+	Unsent    bool // ラベル first_message.sent=false（最初のメッセージが届いていない。dispatcher.md §5）
 }
 
 // Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
@@ -235,7 +235,7 @@ type Verdict struct {
 	Retry bool
 }
 
-// Judge は担当の様子 s から、知らせるか・続きを打つかを決める（courier.md §2.3）。screen は error のときだけ読む。
+// Judge は担当の様子 s から、知らせるか・続きを打つかを決める（dispatcher.md §2.3）。screen は error のときだけ読む。
 func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	key := s.Status + "|" + strconv.FormatInt(s.StatusMs, 10)
 	age := time.Duration(nowMs-s.StatusMs) * time.Millisecond
@@ -329,8 +329,8 @@ func (p *project) watch(now time.Time) {
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
-// （courier.md §5 の「起こしそこねたら続きから」。andon task start・andon chief-engineer が終了コード 3 で預けたものと、
-// クーリエが起こしたレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
+// （dispatcher.md §5 の「起こしそこねたら続きから」。andon task start・andon chief-engineer が終了コード 3 で預けたものと、
+// dispatcher が起こしたレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
 // 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
 // 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
 // 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
@@ -343,9 +343,9 @@ func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (kee
 	case status == "idle" || status == "":
 		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "tasks", id, "brief.md"))
 		if isReviewer(t) {
-			msg = p.reviewerFirst(id) // 伝令が起こしたレビュアー（startReviewer と同じ文）
+			msg = p.reviewerFirst(id) // dispatcher が起こしたレビュアー（startReviewer と同じ文）
 		}
-		// 送る前に控えへ「送りかけ」を書いて保存する（送ってからラベルを外す前にクーリエが落ちても、再開後に二度送らない。
+		// 送る前に控えへ「送りかけ」を書いて保存する（送ってからラベルを外す前に dispatcher が落ちても、再開後に二度送らない。
 		// 送っている間に落ちたときは届いたか分からないまま送らない側に倒れる。担当は idle のままなので stalled で Chief of Staff に届く）
 		rk := id + "|" + agent
 		p.st.First[rk] = true

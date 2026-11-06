@@ -7,7 +7,7 @@
 //	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば台帳を review にする
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
 //	start <id>            worktree と branch を切り、hc run で担当を起こし、kanban start で結ぶ（Chief of Staff が打つ）
-//	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・クーリエが打つ）
+//	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
 // 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。start で最初のメッセージが届かなければ 3。
@@ -38,7 +38,7 @@ const Usage = "usage: andon task show <id>                                  予�
 	"       andon task ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon task finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
 	"       andon task start <id>                                 担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
-	"                                                          （最初のメッセージが届かなければ終了コード 3。クーリエが送り直す）\n" +
+	"                                                          （最初のメッセージが届かなければ終了コード 3。dispatcher が送り直す）\n" +
 	"       andon task stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
 	"                                                          （id を省くと端末のラベル task=。担当でなければ何も出さない）\n" +
 	"--data は report.json の任意のキー（pr・waived・acceptance・next・remember・agents_md）の JSON object。\n" +
@@ -230,7 +230,7 @@ func readMarkdown(stdin io.Reader) (string, error) {
 	return string(b), nil
 }
 
-// write は report.json を検査して置き、台帳の CLI で報告する（クーリエは report の書き込みを合図に report.json を読む）。
+// write は report.json を検査して置き、台帳の CLI で報告する（dispatcher は report の書き込みを合図に report.json を読む）。
 func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
 	if err := r.Check(); err != nil {
 		return fail("report.json の形が違う: %v", err)

@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"andon/internal/courier"
+	"andon/internal/dispatcher"
 )
 
 // 番号の既定。建屋の .env（PORTLESS_PORT・FILES_PORT）で上書きする。
@@ -34,7 +34,7 @@ func Start(e Env) {
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},
-		{"クーリエ", startCourier},
+		{"dispatcher", startDispatcher},
 	} {
 		if err := step.run(e); err != nil {
 			e.logf("%s の準備に失敗（続行する）: %v", step.name, err)
@@ -244,28 +244,28 @@ func startSSHD(e Env) error {
 	return nil
 }
 
-// startCourier はクーリエの端末を確かめる（courier.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。
+// startDispatcher は dispatcher の端末を確かめる（dispatcher.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。
 // --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff のフックも同じ確かめを打つ。
-// 作り直しの直後は、戻った端末の前に出ているものがまだ取れないことがあるので、courierWait まで読み直す。
+// 作り直しの直後は、戻った端末の前に出ているものがまだ取れないことがあるので、dispatcherWait まで読み直す。
 // 何もしなかったときは理由ごとに書き分ける（動いている・確かめられなかった・ほかが確かめている）。
-func startCourier(e Env) error {
+func startDispatcher(e Env) error {
 	if _, ok := e.has("hc"); !ok {
 		return nil
 	}
-	did, err := courier.Ensure(filepath.Join(e.Package, "bin", "andon"), e.Workspace, courierWait)
+	did, err := dispatcher.Ensure(filepath.Join(e.Package, "bin", "andon"), e.Workspace, dispatcherWait)
 	switch {
-	case errors.Is(err, courier.ErrBusy):
-		did = "クーリエの端末はほかが確かめている（boot は確かめなかった。Chief of Staff のフックが続ける）"
-	case errors.Is(err, courier.ErrUnsure):
-		did = fmt.Sprintf("%v。動いているとはみなさない（hc get courier --json の foreground がシェルなら andon boot を打ち直す）", err)
+	case errors.Is(err, dispatcher.ErrBusy):
+		did = "dispatcher の端末はほかが確かめている（boot は確かめなかった。Chief of Staff のフックが続ける）"
+	case errors.Is(err, dispatcher.ErrUnsure):
+		did = fmt.Sprintf("%v。動いているとはみなさない（hc get dispatcher --json の foreground がシェルなら andon boot を打ち直す）", err)
 	case err != nil:
 		return err
 	case did == "":
-		did = "クーリエはすでに動いている（前に andon courier が出ている）"
+		did = "dispatcher はすでに動いている（前に andon dispatcher が出ている）"
 	}
 	e.logf("%s", did)
 	return nil
 }
 
-// courierWait は、クーリエの端末の前に出ているものが取れるまで boot が待つ上限。テストで差し替える。
-var courierWait = 5 * time.Second
+// dispatcherWait は、dispatcher の端末の前に出ているものが取れるまで boot が待つ上限。テストで差し替える。
+var dispatcherWait = 5 * time.Second

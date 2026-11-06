@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// 偽の hc: get courier は $D/term（無ければ not_found）を返す。run・send・keep・kill・rm は打たれたものを $D/log に1行ずつ。
+// 偽の hc: get dispatcher は $D/term（無ければ not_found）を返す。run・send・keep・kill・rm は打たれたものを $D/log に1行ずつ。
 // rm は $D/term を消す（片付けた端末は無くなる）。
 // get が n 回目のとき $D/term.<n> があれば、それを $D/term にしてから返す（あとで前に出ているものが取れる・替わる）。
 const ensureHc = `#!/usr/bin/env bash
@@ -67,22 +67,22 @@ func putTerm(t *testing.T, path, fg string) {
 }
 
 const (
-	fgCourier = `{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`
-	fgShell   = `{"name":"sh","argv":["/bin/sh"]}`
+	fgDispatcher = `{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}`
+	fgShell      = `{"name":"sh","argv":["/bin/sh"]}`
 )
 
-func TestEnsureCourier(t *testing.T) {
+func TestEnsureDispatcher(t *testing.T) {
 	d, round := newEnsure(t)
 	term := filepath.Join(d, "term")
 
 	// 端末が無い: 起こす
 	did, calls, err := round()
-	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name courier --label role=courier --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-courier --cwd /srv/plant -- /opt/andon/bin/andon courier" {
+	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher" {
 		t.Fatalf("端末が無いとき: %q %q %v", did, calls, err)
 	}
 
-	// 中身が andon courier: 何もしない
-	putTerm(t, term, fgCourier)
+	// 中身が andon dispatcher: 何もしない
+	putTerm(t, term, fgDispatcher)
 	if did, calls, err := round(); err != nil || did != "" || calls != nil {
 		t.Fatalf("動いているとき: %q %q %v", did, calls, err)
 	}
@@ -90,7 +90,7 @@ func TestEnsureCourier(t *testing.T) {
 	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: シェルには打ち込まず、片付けて同じ名前・ラベルで起こし直す
 	putTerm(t, term, fgShell)
 	did, calls, err = round()
-	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name courier --label role=courier --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-courier --cwd /srv/plant -- /opt/andon/bin/andon courier"}
+	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher"}
 	if err != nil || !strings.Contains(did, "起こし直した") || strings.Join(calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("中身がシェルのとき: %q %q %v", did, calls, err)
 	}
@@ -157,16 +157,16 @@ func TestEnsureLocked(t *testing.T) {
 	}
 }
 
-func TestIsCourier(t *testing.T) {
+func TestIsDispatcher(t *testing.T) {
 	for argv, want := range map[string]bool{
-		"/opt/andon/bin/andon courier": true,
-		"andon courier":                true,
-		"andon courier --once":         false,
-		"andon courier drain":          false,
-		"/bin/sh":                      false,
-		"andon gate":                   false,
+		"/opt/andon/bin/andon dispatcher": true,
+		"andon dispatcher":                true,
+		"andon dispatcher --once":         false,
+		"andon dispatcher drain":          false,
+		"/bin/sh":                         false,
+		"andon gate":                      false,
 	} {
-		if got := IsCourier(strings.Fields(argv)); got != want {
+		if got := IsDispatcher(strings.Fields(argv)); got != want {
 			t.Errorf("%s: %v", argv, got)
 		}
 	}
@@ -179,7 +179,7 @@ func TestEnsureLockError(t *testing.T) {
 	if err := os.WriteFile(notDir, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_STATE_HOME", notDir) // この下に andon/courier を作れない
+	t.Setenv("XDG_STATE_HOME", notDir) // この下に andon/dispatcher を作れない
 	did, calls, err := round()
 	if err == nil || did != "" || calls != nil {
 		t.Fatalf("lock の置き場が作れないのに黙った: %q %q %v", did, calls, err)
@@ -243,9 +243,9 @@ func TestPlace(t *testing.T) {
 			t.Errorf("%s: %q %q", label, sp, tb)
 		}
 	}
-	check("台帳なし", "andon-sample-plant-local-plant", "andon-sample-plant-local-courier")
+	check("台帳なし", "andon-sample-plant-local-plant", "andon-sample-plant-local-dispatcher")
 	ledger("alpha")
-	check("台帳1つ", "andon-alpha", "andon-alpha-courier")
+	check("台帳1つ", "andon-alpha", "andon-alpha-dispatcher")
 	ledger("beta")
-	check("台帳2つ", "andon-sample-plant-local-plant", "andon-sample-plant-local-courier")
+	check("台帳2つ", "andon-sample-plant-local-plant", "andon-sample-plant-local-dispatcher")
 }

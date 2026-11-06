@@ -1,13 +1,13 @@
 # ロゴ
 
-Andon の記号（A の行燈）とクーリエの記号（提灯を運ぶ）。どちらも 64 の格子に手で描いた SVG で、ワードマーク（andon・courier）の字も手で描いたパス。フォントは使っていない。
+Andon の記号（A の行燈）と dispatcher の記号（提灯を運ぶ）。どちらも 64 の格子に手で描いた SVG で、ワードマークの字も手で描いたパス。フォントは使っていない。
 
 | ファイル | 中身 |
 |---|---|
 | `andon-mark.svg`・`andon-mark-dark.svg` | Andon の記号だけ |
 | `andon-wordmark.svg`・`andon-wordmark-dark.svg` | Andon の記号と andon の字 |
-| `courier-mark.svg`・`courier-mark-dark.svg` | クーリエの記号だけ |
-| `courier-wordmark.svg`・`courier-wordmark-dark.svg` | クーリエの記号と courier の字 |
+| `dispatcher-mark.svg`・`dispatcher-mark-dark.svg` | dispatcher の記号だけ |
+| `dispatcher-wordmark.svg`・`dispatcher-wordmark-dark.svg` | dispatcher の記号とワードマーク（字はまだ描き直していない。前の名前のまま） |
 
 `-dark` は暗い背景用。GitHub の README では `<picture>` と `prefers-color-scheme` で出し分ける（README.md の冒頭が例）。
 

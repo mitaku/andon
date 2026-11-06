@@ -56,7 +56,7 @@ description: 人が `andon chief-engineer "<題>"` で起こした Chief Enginee
 1. 文書を commit し、worker skill §3 の手順で push・PR・checks。
 2. worker skill §7 の手順で `report.json` を書く: `pr`＝文書の PR、`next='[{"to": "chief-of-staff", "text": "<文書のパス> を依頼書に切る"}]'`（開いている問いがあれば `{"to": "person", …}` も）。
 3. 人が読む報告（worker skill §7 の書式）: `## Report` に文書のパス・決めたことの数・開いている問いの数・人が「決めた」と言った日。
-4. `deck report <id>` → `deck review <id>`。Chief of Staff へ `hc send` しない（クーリエが届ける）。Chief of Staff はあなたのタスクを検収しない（検収は人が対話の中でした）。文書の PR がマージされたら Chief of Staff が片付ける。
+4. `deck report <id>` → `deck review <id>`。Chief of Staff へ `hc send` しない（dispatcher が届ける）。Chief of Staff はあなたのタスクを検収しない（検収は人が対話の中でした）。文書の PR がマージされたら Chief of Staff が片付ける。
 
 ## 取らないもの
 

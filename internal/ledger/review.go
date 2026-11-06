@@ -27,7 +27,7 @@ func (l *Ledger) CheckReview(rows []Row, tasks []Task, t Task, head, mustFix str
 	if reviewer == "" {
 		r.Reason = "レビューが無い（Chief of Staff にレビューを頼む）"
 		if len(others) > 0 {
-			r.Reason = fmt.Sprintf("子タスク %s はレビューに数えない（作成が coordinator・クーリエでない、または profile が実装と別ブランドの *-review でない）。Chief of Staff に頼み直す", strings.Join(others, ","))
+			r.Reason = fmt.Sprintf("子タスク %s はレビューに数えない（作成が coordinator・dispatcher でない、または profile が実装と別ブランドの *-review でない）。Chief of Staff に頼み直す", strings.Join(others, ","))
 		}
 		return r
 	}

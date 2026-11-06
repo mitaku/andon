@@ -10,7 +10,7 @@ cd "$tmp" || exit 2   # 台帳の外で打つ
 fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
-subs="task chief-of-staff chief-engineer courier publish triage gate delegate boot"
+subs="task chief-of-staff chief-engineer dispatcher publish triage gate delegate boot"
 
 # === andon help: 一覧 ===
 "$andon" help >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -23,7 +23,7 @@ for s in yard coordinator news; do grep -qw "$s" "$tmp/out" && fail "help に仮
 
 # === 知らない sub-command: 一覧を stderr に出して rc 2 ===
 "$andon" bogus >"$tmp/out" 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && [ ! -s "$tmp/out" ] && grep -q '知らない sub-command: bogus' "$tmp/err" && grep -q '^  courier  ' "$tmp/err" \
+[ "$r" = 2 ] && [ ! -s "$tmp/out" ] && grep -q '知らない sub-command: bogus' "$tmp/err" && grep -q '^  dispatcher  ' "$tmp/err" \
   && pass "知らない sub-command は一覧を stderr に出して rc 2" || fail "bogus: rc=$r $(cat "$tmp/err")"
 for old in coordinator news; do
   "$andon" "$old" >/dev/null 2>&1; r=$?
@@ -40,8 +40,8 @@ done
 # === 中身に渡る: 引数の誤りは中身の usage と終了コード ===
 "$andon" triage >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon triage collect' "$tmp/err" && pass "andon triage（引数なし）は中身の usage で rc 2" || fail "andon triage: rc=$r $(cat "$tmp/err")"
-"$andon" courier --bogus >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '^usage: andon courier' "$tmp/err" && pass "andon courier（知らない引数）は usage で rc 2" || fail "andon courier: rc=$r $(cat "$tmp/err")"
+"$andon" dispatcher --bogus >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon dispatcher' "$tmp/err" && pass "andon dispatcher（知らない引数）は usage で rc 2" || fail "andon dispatcher: rc=$r $(cat "$tmp/err")"
 "$andon" chief-of-staff start >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" && pass "andon chief-of-staff（知らない引数）は usage で rc 2" || fail "andon chief-of-staff: rc=$r $(cat "$tmp/err")"
 "$andon" task start X-1 extra >/dev/null 2>"$tmp/err"; r=$?

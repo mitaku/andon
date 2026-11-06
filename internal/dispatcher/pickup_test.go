@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"strconv"

@@ -1,5 +1,5 @@
-// Package courier は andon courier: 建屋に1つ常駐し、台帳を周期で回ってインナーループの決まった次の工程を起こす
-// （docs/courier.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・人が持つ。
+// Package dispatcher は andon dispatcher: 建屋に1つ常駐し、台帳を周期で回ってインナーループの決まった次の工程を起こす
+// （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・人が持つ。
 //
 //	report.json の review_request   → レビュアーを起こす（kanban add --parent ＋ detached worktree ＋ hc run）
 //	{"status": "review"} に入った    → andon gate を回す
@@ -8,11 +8,11 @@
 //	needs_human                     → 問い（from: gate）を出す
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //
-// 通知の元（pickup.go。courier.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
+// 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
-// 離席時だけの hc send（deliver.go。経路③）。courier.md §3。
-// 台帳に書くのは台帳の CLI と andon task … だけで、by は terminal:courier（ledger.CourierBy）。
-package courier
+// 離席時だけの hc send（deliver.go。経路③）。dispatcher.md §3。
+// 台帳に書くのは台帳の CLI と andon task … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
+package dispatcher
 
 import (
 	"bytes"
@@ -32,25 +32,25 @@ import (
 	"andon/internal/ledger"
 )
 
-// Usage は andon courier --help の中身。
-const Usage = "usage: andon courier [--project <slug>]          回り続ける（hc の端末 courier の中で動く）\n" +
-	"       andon courier --once [--project <slug>]   1回だけ回して終わる\n" +
-	"       andon courier drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
+// Usage は andon dispatcher --help の中身。
+const Usage = "usage: andon dispatcher [--project <slug>]          回り続ける（hc の端末 dispatcher の中で動く）\n" +
+	"       andon dispatcher --once [--project <slug>]   1回だけ回して終わる\n" +
+	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
 	"建屋（ANDON_WORKSPACE。無ければ /workspace）の projects/*/.flightdeck を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
 	"Chief of Staff（config.yaml の coordinator）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
-	"控えは ~/.local/state/andon/courier/<slug>.json（XDG_STATE_HOME があればその下）。\n"
+	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。\n"
 
-// Name はクーリエの端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:courier）。
-const Name = "courier"
+// Name は dispatcher の端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
+const Name = "dispatcher"
 
 const (
 	exitFail  = 1
 	exitUsage = 2
 )
 
-// Main は andon courier。
+// Main は andon dispatcher。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	once, only := false, ""
 	if len(args) > 0 && args[0] == "drain" {
@@ -69,27 +69,27 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 	if err := ledger.Check(); err != nil {
-		fmt.Fprintf(stderr, "andon courier: %v\n", err)
+		fmt.Fprintf(stderr, "andon dispatcher: %v\n", err)
 		return exitFail
 	}
 	for _, c := range []string{"hc", "gh", "git"} {
 		if _, err := exec.LookPath(c); err != nil {
-			fmt.Fprintf(stderr, "andon courier: %s が無い\n", c)
+			fmt.Fprintf(stderr, "andon dispatcher: %s が無い\n", c)
 			return exitFail
 		}
 	}
 	self, err := os.Executable()
 	if err != nil {
-		fmt.Fprintf(stderr, "andon courier: 自分のパスが分からない: %v\n", err)
+		fmt.Fprintf(stderr, "andon dispatcher: 自分のパスが分からない: %v\n", err)
 		return exitFail
 	}
-	c := &Courier{WS: delegate.Workspace(), Andon: self, Log: stderr}
+	c := &Dispatcher{WS: delegate.Workspace(), Andon: self, Log: stderr}
 	for {
 		busy := c.Pass(only)
 		if once {
 			return 0
 		}
-		// 待ちが無ければ1分ごと、待ちがあれば5秒ごと（courier.md §2.1）
+		// 待ちが無ければ1分ごと、待ちがあれば5秒ごと（dispatcher.md §2.1）
 		if busy {
 			time.Sleep(5 * time.Second)
 		} else {
@@ -98,19 +98,19 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 }
 
-// Courier は1つの建屋のクーリエ。
-type Courier struct {
+// Dispatcher は1つの建屋の dispatcher。
+type Dispatcher struct {
 	WS    string    // 建屋の repo
 	Andon string    // andon のバイナリ（gate・task を打つ）
 	Log   io.Writer // ログ（1行ずつ）
 }
 
-func (c *Courier) logf(format string, a ...any) {
-	fmt.Fprintf(c.Log, "andon courier: "+format+"\n", a...)
+func (c *Dispatcher) logf(format string, a ...any) {
+	fmt.Fprintf(c.Log, "andon dispatcher: "+format+"\n", a...)
 }
 
 // Pass は建屋の台帳を1回ずつ回す。動いているタスク（doing・review）があれば busy。
-func (c *Courier) Pass(only string) bool {
+func (c *Dispatcher) Pass(only string) bool {
 	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", ".flightdeck", "config.yaml"))
 	sort.Strings(cfgs)
 	busy := false
@@ -132,7 +132,7 @@ func (c *Courier) Pass(only string) bool {
 
 // project は1つの台帳を1回回す間のもの。
 type project struct {
-	c     *Courier
+	c     *Dispatcher
 	l     *ledger.Ledger
 	st    *State
 	first bool
@@ -145,7 +145,7 @@ func (p *project) logf(format string, a ...any) { p.c.logf(p.l.Slug+": "+format,
 func (p *project) pass() (bool, error) {
 	coordinator := p.l.Coordinator()
 	if coordinator == "" || exec.Command("hc", "get", coordinator).Run() != nil {
-		return false, nil // Chief of Staff が起きたときに台帳を自分で読む（courier.md §2.1）
+		return false, nil // Chief of Staff が起きたときに台帳を自分で読む（dispatcher.md §2.1）
 	}
 	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
 	if err != nil {
@@ -161,7 +161,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.rows = p.l.Log()
-	p.collect(coordinator) // 通知の元（courier.md §2.2・§2.3）
+	p.collect(coordinator) // 通知の元（dispatcher.md §2.2・§2.3）
 	busy := false
 	for _, t := range p.tasks {
 		status := t.Str("status")
@@ -183,7 +183,7 @@ func (p *project) pass() (bool, error) {
 		}
 	}
 	if !p.first {
-		p.deliver(coordinator) // 経路③: 離席時だけ（courier.md §3・§4）
+		p.deliver(coordinator) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
 }
@@ -232,7 +232,7 @@ func run(dir string, env []string, stdin string, name string, args ...string) (s
 	return string(out), 0, nil
 }
 
-// andon は自分（andon）をこの台帳の根で打つ（by は terminal:courier）。
+// andon は自分（andon）をこの台帳の根で打つ（by は terminal:dispatcher）。
 func (p *project) andon(stdin string, args ...string) (string, int, error) {
 	return run(p.l.Root, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
 }

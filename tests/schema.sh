@@ -3,7 +3,7 @@
 #   1. schema/ の7本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
-#   5. command（andon task・andon gate・andon delegate・andon courier）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh・andon-courier.sh に書かせる）。
+#   5. command（andon task・andon gate・andon delegate・andon dispatcher）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh・andon-dispatcher.sh に書かせる）。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -284,12 +284,12 @@ findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+
 LOOSE
 fi
 
-# 5. command の出力（tests/andon-task.sh・andon-gate.sh・andon-courier.sh が ANDON_EMIT_DIR に写したもの）。
+# 5. command の出力（tests/andon-task.sh・andon-gate.sh・andon-dispatcher.sh が ANDON_EMIT_DIR に写したもの）。
 #    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-task andon-gate andon-courier; do
+  for t in andon-task andon-gate andon-dispatcher; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -309,19 +309,19 @@ gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
 delegation.json|delegation|andon delegate grant の delegation.json
-gate-record-merged.json|gate|andon courier がマージしたあとのゲートの記録（merged）
-question-gate.json|question|andon courier が needs_human で出した問い（from: gate）
-notification-review-requested.json|notification|andon courier の通知 review-requested
-notification-gate.json|notification|andon courier の通知 gate
-notification-merged.json|notification|andon courier の通知 merged
-notification-asked.json|notification|andon courier の通知 asked
-notification-report.json|notification|andon courier が log.jsonl から拾った通知 report
-notification-review.json|notification|andon courier が log.jsonl から拾った通知 review
-notification-ready.json|notification|andon courier が ready の差から拾った通知 ready（routine つき）
-notification-finished.json|notification|andon courier の通知 finished（端末が無い）
-notification-blocked.json|notification|andon courier の通知 blocked
-notification-error.json|notification|andon courier の通知 error
-notification-stalled.json|notification|andon courier の通知 stalled
+gate-record-merged.json|gate|andon dispatcher がマージしたあとのゲートの記録（merged）
+question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
+notification-review-requested.json|notification|andon dispatcher の通知 review-requested
+notification-gate.json|notification|andon dispatcher の通知 gate
+notification-merged.json|notification|andon dispatcher の通知 merged
+notification-asked.json|notification|andon dispatcher の通知 asked
+notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report
+notification-review.json|notification|andon dispatcher が log.jsonl から拾った通知 review
+notification-ready.json|notification|andon dispatcher が ready の差から拾った通知 ready（routine つき）
+notification-finished.json|notification|andon dispatcher の通知 finished（端末が無い）
+notification-blocked.json|notification|andon dispatcher の通知 blocked
+notification-error.json|notification|andon dispatcher の通知 error
+notification-stalled.json|notification|andon dispatcher の通知 stalled
 EMIT
   fi
 fi
@@ -331,8 +331,8 @@ fi
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   sec8="$(awk '/^## 8\. /{on=1; next} /^## /{on=0} on' docs/contract.md)"
   row="$(grep '^| Herdr App の置き場のラベル |' <<<"$sec8" || true)"
-  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q '持ち主は Herdr App' <<<"$row" && grep -q 'クーリエ' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
-    ok "contract.md §8: herdr.space・herdr.tab の行（持ち主 Herdr App・書き手 command とクーリエ・読み手 App）"
+  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q '持ち主は Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
+    ok "contract.md §8: herdr.space・herdr.tab の行（持ち主 Herdr App・書き手 command と dispatcher・読み手 App）"
   else ng "contract.md §8 に herdr.space・herdr.tab の行が無い・形が違う"; fi
   if grep -q '^| 人に端末を指す言い方 | `<Space 名> / <tab 名>`' <<<"$sec8"; then ok "contract.md §8: 人に端末を指す言い方の行"
   else ng "contract.md §8 に人に端末を指す言い方の行が無い"; fi

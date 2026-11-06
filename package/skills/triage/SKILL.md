@@ -134,5 +134,5 @@ decisions.json: tasks/<id>/library/decisions.json。`andon triage apply <id> --d
 ```
 
 - 問いを `## 人に聞くこと` に並べない（人の問いは `apply` が人のタスクにし、Chief of Staff が1問ずつ出す）。`deck ask` もしない（誰も待っていない問いなので）。
-- `deck report <id>` → `deck review <id>`。Chief of Staff へ `hc send` しない（クーリエが届ける）。
+- `deck report <id>` → `deck review <id>`。Chief of Staff へ `hc send` しない（dispatcher が届ける）。
 - 直しが届いたら（`<hc from=…>`）、`deck start <id>` で戻し、decisions.json を直して `--dry-run` から通し直す。

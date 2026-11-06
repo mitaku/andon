@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"bytes"
@@ -52,7 +52,7 @@ func newFirst(t *testing.T) *firstFixture {
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state")) // 送る前の控えの保存を一時の置き場へ（本物の控えに触らない）
 	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
 	st.ensure()
-	f.p = &project{c: &Courier{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
+	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
 		tasks: []ledger.Task{{"id": "S-7", "status": "doing", "agent": "t42"}}}
 	f.put("unsent", "")
 	return f
@@ -158,7 +158,7 @@ func TestFirstMessageSentByHand(t *testing.T) {
 	}
 }
 
-// 送ってからラベルを外す前にクーリエが落ちても、再開後に二度送らない（送る前に控えへ「送りかけ」を保存する）。
+// 送ってからラベルを外す前に dispatcher が落ちても、再開後に二度送らない（送る前に控えへ「送りかけ」を保存する）。
 func TestFirstMessageCrashBeforeUnlabel(t *testing.T) {
 	f := newFirst(t)
 	// 送れたがラベルを外せないまま落ちた、とみなす（控えは送る前に保存されている）
@@ -202,7 +202,7 @@ func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 	}
 }
 
-// クーリエが起こしたレビュアー（startReviewer がラベルを付けたもの）にも、見回りで1回だけ送り直す。文はレビュアーの最初のメッセージ。
+// dispatcher が起こしたレビュアー（startReviewer がラベルを付けたもの）にも、見回りで1回だけ送り直す。文はレビュアーの最初のメッセージ。
 // hc run が送れなかったときも、送ったが動き出さなかった（入力欄が空のまま idle）ときも、端末のラベルは同じ。
 func TestFirstMessageReviewer(t *testing.T) {
 	f := newFirst(t)

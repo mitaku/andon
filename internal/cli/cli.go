@@ -14,8 +14,8 @@ import (
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/chiefofstaff"
-	"andon/internal/courier"
 	"andon/internal/delegate"
+	"andon/internal/dispatcher"
 	"andon/internal/gate"
 	"andon/internal/plantinit"
 	"andon/internal/publish"
@@ -50,10 +50,10 @@ var commands = []command{
 		run:   chiefengineer.Main,
 	},
 	{
-		name:  "courier",
+		name:  "dispatcher",
 		about: "台帳を回り、インナーループ（レビュアーを起こす・ゲート・merge: auto のマージと片付け）を回す。通知を届ける口はまだ無い",
-		usage: courier.Usage,
-		run:   courier.Main,
+		usage: dispatcher.Usage,
+		run:   dispatcher.Main,
 	},
 	{
 		name:  "publish",
@@ -71,7 +71,7 @@ var commands = []command{
 	},
 	{
 		name:  "boot",
-		about: "パッケージから建屋へ配布物を生成し、portless・sshd・クーリエを起こす（毎起動）",
+		about: "パッケージから建屋へ配布物を生成し、portless・sshd・dispatcher を起こす（毎起動）",
 		usage: boot.Usage,
 		run:   boot.Main,
 	},

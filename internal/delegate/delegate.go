@@ -1,5 +1,5 @@
 // Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。建屋の repo の projects/<slug>/delegation.json を
-// 読み（Read。ゲート・クーリエ・command が使う）、人が書く手順を助ける（andon delegate grant/narrow/revoke/show）。
+// 読み（Read。ゲート・dispatcher・command が使う）、人が書く手順を助ける（andon delegate grant/narrow/revoke/show）。
 //
 // 読み方: 建屋の repo の HEAD のファイルだけを読み、それを最後に変えた commit の author が andon.toml の owner と
 // 一致するときだけ信じる。無い・読めない・形が違う・一致しない は無委譲（全部人）。

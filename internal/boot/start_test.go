@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"andon/internal/courier"
+	"andon/internal/dispatcher"
 )
 
 // authorized_keys が無いときと、あるが読めないときを別の行で出す（どちらも sshd は起こさない）。
@@ -97,8 +97,8 @@ func TestSetupGitCredentialsNoGH(t *testing.T) {
 	}
 }
 
-// クーリエの端末を確かめられない（控えの置き場が作れない）ときは、警告の行に出す（「すでに動いている」と言わない）。
-func TestStartCourierReportsLockError(t *testing.T) {
+// dispatcher の端末を確かめられない（控えの置き場が作れない）ときは、警告の行に出す（「すでに動いている」と言わない）。
+func TestStartDispatcherReportsLockError(t *testing.T) {
 	f := newFixture(t)
 	notDir := filepath.Join(f.root, "state-is-a-file")
 	put(t, notDir, "")
@@ -112,13 +112,13 @@ func TestStartCourierReportsLockError(t *testing.T) {
 	}
 	Start(e)
 	got := f.log.String()
-	if !strings.Contains(got, "クーリエ の準備に失敗") || strings.Contains(got, "すでに動いている") {
+	if !strings.Contains(got, "dispatcher の準備に失敗") || strings.Contains(got, "すでに動いている") {
 		t.Errorf("起こせなかったことが見えない: %q", got)
 	}
 }
 
-// 偽の hc（クーリエの端末）: get が n 回目のとき $D/term.<n> があれば $D/term にしてから返す。打ったものは $D/log へ。
-const courierHc = `#!/usr/bin/env bash
+// 偽の hc（dispatcher の端末）: get が n 回目のとき $D/term.<n> があれば $D/term にしてから返す。打ったものは $D/log へ。
+const dispatcherHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
   get) n=$(( $(cat "$d/gets" 2>/dev/null || echo 0) + 1 )); echo $n > "$d/gets"
@@ -130,13 +130,13 @@ case $1 in
 esac
 `
 
-func courierFixture(t *testing.T) (*fixture, Env, string) {
+func dispatcherFixture(t *testing.T) (*fixture, Env, string) {
 	t.Helper()
 	f := newFixture(t)
 	d := filepath.Join(f.root, "hc")
 	mustMkdir(t, filepath.Join(d, "bin"))
 	hc := filepath.Join(d, "bin", "hc")
-	put(t, hc, courierHc)
+	put(t, hc, dispatcherHc)
 	if err := os.Chmod(hc, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -158,14 +158,14 @@ func term(fg string) string {
 }
 
 // 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。「すでに動いている」と書かずに起こし直す。
-func TestStartCourierRestoredShell(t *testing.T) {
-	f, e, d := courierFixture(t)
-	old := courierWait
-	courierWait = 2 * time.Second
-	t.Cleanup(func() { courierWait = old })
+func TestStartDispatcherRestoredShell(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	old := dispatcherWait
+	dispatcherWait = 2 * time.Second
+	t.Cleanup(func() { dispatcherWait = old })
 	put(t, filepath.Join(d, "term"), term("null"))
 	put(t, filepath.Join(d, "term.2"), term(`{"name":"bash","argv":["/bin/bash"]}`))
-	if err := startCourier(e); err != nil {
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
 	got := f.log.String()
@@ -176,13 +176,13 @@ func TestStartCourierRestoredShell(t *testing.T) {
 }
 
 // 待っても前に出ているものが取れない: 「確かめられなかった」と書き、「すでに動いている」とは書かない。何も打たない。
-func TestStartCourierUnsure(t *testing.T) {
-	f, e, d := courierFixture(t)
-	old := courierWait
-	courierWait = 100 * time.Millisecond
-	t.Cleanup(func() { courierWait = old })
+func TestStartDispatcherUnsure(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	old := dispatcherWait
+	dispatcherWait = 100 * time.Millisecond
+	t.Cleanup(func() { dispatcherWait = old })
 	put(t, filepath.Join(d, "term"), term("null"))
-	if err := startCourier(e); err != nil {
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
 	got := f.log.String()
@@ -194,23 +194,23 @@ func TestStartCourierUnsure(t *testing.T) {
 	}
 }
 
-// 前に andon courier が出ていれば「すでに動いている」。
-func TestStartCourierRunning(t *testing.T) {
-	f, e, d := courierFixture(t)
-	put(t, filepath.Join(d, "term"), term(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`))
-	if err := startCourier(e); err != nil {
+// 前に andon dispatcher が出ていれば「すでに動いている」。
+func TestStartDispatcherRunning(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	put(t, filepath.Join(d, "term"), term(`{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}`))
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.log.String(); !strings.Contains(got, "クーリエはすでに動いている") {
+	if got := f.log.String(); !strings.Contains(got, "dispatcher はすでに動いている") {
 		t.Errorf("log=%q", got)
 	}
 }
 
 // ほかが確かめている（lock を持っている）: 「ほかが確かめている」と書き、「すでに動いている」とは書かない。
-func TestStartCourierBusy(t *testing.T) {
-	f, e, d := courierFixture(t)
+func TestStartDispatcherBusy(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
 	put(t, filepath.Join(d, "term"), term("null"))
-	lock := filepath.Join(filepath.Dir(courier.StatePath("x")), ".terminal.lock")
+	lock := filepath.Join(filepath.Dir(dispatcher.StatePath("x")), ".terminal.lock")
 	mustMkdir(t, filepath.Dir(lock))
 	fh, err := os.OpenFile(lock, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
@@ -220,7 +220,7 @@ func TestStartCourierBusy(t *testing.T) {
 	if err := syscall.Flock(int(fh.Fd()), syscall.LOCK_EX); err != nil {
 		t.Fatal(err)
 	}
-	if err := startCourier(e); err != nil {
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.log.String(); strings.Contains(got, "すでに動いている") || !strings.Contains(got, "ほかが確かめている") {

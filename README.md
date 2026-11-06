@@ -25,7 +25,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 | [docs/design.md](docs/design.md) | What Andon is, its vocabulary, the repo layout and tool choices (the main design document) |
 | [docs/contract.md](docs/contract.md), [schema/](schema/) | Machine-readable contracts (ledger keys, findings, reports, questions, notifications, gate, delegation). `schema/` is the source of truth |
 | [docs/operate.md](docs/operate.md) | How to set up a plant and run one task |
-| [docs/courier.md](docs/courier.md), [docs/ledger.md](docs/ledger.md), [docs/image.md](docs/image.md) | The courier (resident notifier), the ledger CLI, the container image |
+| [docs/dispatcher.md](docs/dispatcher.md), [docs/ledger.md](docs/ledger.md), [docs/image.md](docs/image.md) | The dispatcher (resident notifier), the ledger CLI, the container image |
 | [docs/adr/](docs/adr/), [docs/decisions.md](docs/decisions.md) | Architecture decision records and the decision log |
 | `cmd/andon`, `cmd/kanban`, `internal/` | The `andon` CLI and the ledger CLI (`kanban`, alias `deck`), in Go |
 | `package/` | What is shipped into the plant at `/opt/andon`: skills, agent profiles, gate rules, managed settings, hooks, compose file, host templates |
@@ -44,9 +44,9 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 ### 文書の地図
 
-- [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・クーリエ・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
+- [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・dispatcher・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
 - [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲）。正は `schema/`（JSON Schema 7本。`tests/schema.sh` が例と突き合わせる）
-- [docs/courier.md](docs/courier.md) — クーリエ（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席時の送り）、どこまで動かすか（判断はしない）
+- [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席時の送り）、どこまで動かすか（判断はしない）
 - [docs/operate.md](docs/operate.md) — 建屋を立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しのタスク）
 - [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。[0001 skill の配布](docs/adr/0001-skills-distribution.md): 建屋の中は plugin `andon` と `.agents/skills` の symlink・役の skill を system prompt に足す。外は Andon が届く所に届く。やらないこと: MCP・marketplace。[0002 Herdr App の Space](docs/adr/0002-herdr-spaces.md): 指揮側と作業側の Space・tab はタスク・口は hc のラベルだけ・試してから指揮側の割り方を決め直す。[0003 タスクごとの Space](docs/adr/0003-task-spaces.md): 作業側を Space ＝ タスクにし、App の Files・Changes がタスクの worktree を指す
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定

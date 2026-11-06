@@ -1,7 +1,7 @@
 // Package gate は andon gate（docs/contract.md §7。仮設のゲート lib/yard/gate を Go に移したもの）。
 // 台帳のタスクの PR を、task.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
 // ゲートの条件表・委譲（delegation.json）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
-// Markdown（依頼書・報告）は読まない。マージはしない（クーリエが記録を読んでする。P6a）。
+// Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
 // 終了コード: approve 0・fix 1・使い方 2・道具や台帳の誤り 3・needs_human 4・wait 5（記録しない）。
 package gate
@@ -477,7 +477,7 @@ const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $afte
 // checksPages は読むページの上限（100件ずつ。超えたら読めないとして止める）。
 const checksPages = 50
 
-// ReadChecks は PR の head と、その head の GitHub の checks を全ページ読む（クーリエもマージの直前に使う）。
+// ReadChecks は PR の head と、その head の GitHub の checks を全ページ読む（dispatcher もマージの直前に使う）。
 // ページの間に head が動いたら、動いた先の head を返す（呼び手は自分の head と比べて止める）。
 func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 	owner, name, _ := strings.Cut(slug, "/")

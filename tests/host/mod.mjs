@@ -58,18 +58,18 @@ for (const [kind, { id, name }] of calls) {
   targets.find(t => t.id === id).name = name.trim();
 }
 assert.deepEqual(render(), []);
-// The courier has no project label. One ledger: it shares the project's
+// The dispatcher has no project label. One ledger: it shares the project's
 // command-side Space; else it sits in the plant's own Space.
-terminals.push({ address: 't9', state: 'live', labels: { role: 'courier', 'herdr.space': 'andon-sample-site', 'herdr.tab': 'andon-sample-site-courier' } });
-spaces[0].tabs.push({ id: 'andon-sample-site-courier', name: '1' });
-panes.push({ terminal: 't9', tab: 'andon-sample-site-courier' });
-terminals.push({ address: 't8', state: 'live', labels: { role: 'courier', 'herdr.space': 'andon-sample-plant-plant', 'herdr.tab': 'andon-sample-plant-courier' } });
-spaces.push({ id: 'andon-sample-plant-plant', machine: null, name: 'unnamed', tabs: [{ id: 'andon-sample-plant-courier', name: '1' }] });
-panes.push({ terminal: 't8', tab: 'andon-sample-plant-courier' });
+terminals.push({ address: 't9', state: 'live', labels: { role: 'dispatcher', 'herdr.space': 'andon-sample-site', 'herdr.tab': 'andon-sample-site-dispatcher' } });
+spaces[0].tabs.push({ id: 'andon-sample-site-dispatcher', name: '1' });
+panes.push({ terminal: 't9', tab: 'andon-sample-site-dispatcher' });
+terminals.push({ address: 't8', state: 'live', labels: { role: 'dispatcher', 'herdr.space': 'andon-sample-plant-plant', 'herdr.tab': 'andon-sample-plant-dispatcher' } });
+spaces.push({ id: 'andon-sample-plant-plant', machine: null, name: 'unnamed', tabs: [{ id: 'andon-sample-plant-dispatcher', name: '1' }] });
+panes.push({ terminal: 't8', tab: 'andon-sample-plant-dispatcher' });
 assert.deepEqual(render(), [
-  ['tab.rename', { id: 'andon-sample-site-courier', name: '伝令' }],
+  ['tab.rename', { id: 'andon-sample-site-dispatcher', name: 'dispatcher' }],
   ['space.rename', { id: 'andon-sample-plant-plant', name: 'sample-plant plant' }],
-  ['tab.rename', { id: 'andon-sample-plant-courier', name: '伝令' }],
+  ['tab.rename', { id: 'andon-sample-plant-dispatcher', name: 'dispatcher' }],
 ]);
 for (const [kind, { id, name }] of calls) {
   const targets = kind === 'space.rename' ? spaces : spaces.flatMap(s => s.tabs);
@@ -91,7 +91,7 @@ assert.deepEqual(render(), [['tab.rename', { id: 'andon-sample-site-A-1', name: 
 spaces = [{ id: 'andon-sample-site', name: 'unnamed', tabs: [{ id: 'andon-sample-site-A-1', name: '1' }] }];
 panes = [{ terminal: 't1', tab: 'andon-sample-site-A-1' }];
 const valid = { project: slug, role: 'chief-engineer', task: 'A-1', title: '設計', 'herdr.space': 'andon-sample-site' };
-for (const labels of [{}, { ...valid, project: '' }, { ...valid, role: 'courier' },
+for (const labels of [{}, { ...valid, project: '' }, { ...valid, role: 'dispatcher' },
   { ...valid, 'herdr.space': 'another-space' }, { ...valid, title: '' },
   { ...valid, role: undefined }]) { // a worker belongs in its own task's Space
   terminals = [{ address: 't1', state: 'live', labels }];
