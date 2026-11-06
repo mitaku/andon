@@ -92,7 +92,12 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return exitFix
 	}
 	stdout.Write(contract.Marshal(rec))
-	switch rec.Decision {
+	return ExitCode(rec.Decision)
+}
+
+// ExitCode は decision を andon gate の終了コードにする（approve 0・fix 1・needs_human 4・wait 5）。
+func ExitCode(decision string) int {
+	switch decision {
 	case "approve":
 		return 0
 	case "fix":
@@ -342,6 +347,10 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if after != head {
 		return nil, fmt.Sprintf("判定の途中で PR の head が動いた（%s → %s）。取り直す", head, after), nil
 	}
+	// 記録の at は GitHub の checks を読んだ時刻（判定の事実のうち最後に外から読んだもの）。
+	// ゲートを始めた時刻にすると、その後に通った checks を前もって通ったように見せる（P7・v0.0.3）
+	now = time.Now().UTC()
+	rec.At = now.Format("2006-01-02T15:04:05Z")
 	rec.GitHubChecks = checks
 	facts.GitHubChecks, facts.ChecksOptional = checks, rt.GitHubChecks == "optional"
 	facts.ChecksWait = *table.GitHubChecksWait
@@ -574,7 +583,7 @@ func postGitHub(slug, number string, rec *Record, stderr io.Writer) {
 	for _, c := range rec.Checks {
 		fmt.Fprintf(&b, "- check `%s`: %s\n", c.Cmd, strconv.FormatBool(c.OK))
 	}
-	fmt.Fprintf(&b, "- GitHub の checks: %s\n", rec.GitHubChecks.State)
+	fmt.Fprintf(&b, "- GitHub の checks: %s（%s 時点: %s）\n", rec.GitHubChecks.State, rec.At, strings.Join(rec.GitHubChecks.Names, ", "))
 	fmt.Fprintf(&b, "- review %s（Must fix %d・見送り %d）\n", rec.Review.State, rec.Review.MustFixOpen, rec.Review.Waived)
 	fmt.Fprintf(&b, "- delegation merge=%s（%v）\n", rec.Delegation.Merge, rec.Delegation.OK)
 	for _, r := range rec.Reasons {

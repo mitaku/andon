@@ -163,6 +163,36 @@ func TestDecide(t *testing.T) {
 	}
 }
 
+// TestChecksToExit は GitHub の checks の読みからゲートの終了コードまでを通す（P7・v0.0.3: 0 件を success と読まない）。
+func TestChecksToExit(t *testing.T) {
+	run := func(name, status, conclusion string) CheckItem {
+		return CheckItem{Typename: "CheckRun", Name: name, Status: status, Conclusion: conclusion}
+	}
+	good := Facts{PROpen: true, RepoKnown: true, Tier: "A", MergeLevel: "B", ChecksWait: 30}
+	for _, c := range []struct {
+		name     string
+		items    []CheckItem
+		overdue  bool
+		decision string
+		exit     int
+	}{
+		{"checks 0 件は待つ", nil, false, "wait", 5},
+		{"ゲート自身の status だけ（0 件と同じ）は待つ", []CheckItem{{Typename: "StatusContext", Context: GateContext, State: "SUCCESS"}}, false, "wait", 5},
+		{"30 分を過ぎた 0 件は人へ", nil, true, "needs_human", 4},
+		{"全部 success は approve", []CheckItem{run("go", "COMPLETED", "SUCCESS"), run("tests", "COMPLETED", "SUCCESS"), run("release", "COMPLETED", "SKIPPED")}, false, "approve", 0},
+		{"走っているもの 1 つは待つ", []CheckItem{run("go", "COMPLETED", "SUCCESS"), run("tests", "IN_PROGRESS", "")}, true, "wait", 5},
+	} {
+		f := good
+		f.GitHubChecks, f.ChecksOverdue = SummarizeChecks(c.items), c.overdue
+		if d, _ := Decide(f); d != c.decision || ExitCode(d) != c.exit {
+			t.Errorf("%s: %s（終了コード %d） want %s（%d）", c.name, d, ExitCode(d), c.decision, c.exit)
+		}
+	}
+	if ExitCode("fix") != 1 {
+		t.Error("fix の終了コード")
+	}
+}
+
 func TestSummarizeChecks(t *testing.T) {
 	run := func(name, status, conclusion string) CheckItem {
 		return CheckItem{Typename: "CheckRun", Name: name, Status: status, Conclusion: conclusion}
@@ -178,7 +208,7 @@ func TestSummarizeChecks(t *testing.T) {
 		{"無い", nil, GitHubChecks{"none", []string{}}},
 		{"ゲート自身の status だけは無いと同じ", []CheckItem{ctx(GateContext, "FAILURE")}, GitHubChecks{"none", []string{}}},
 		{"全部 success（skipped・neutral も通す）", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("lint", "COMPLETED", "SKIPPED"),
-			run("opt", "COMPLETED", "NEUTRAL"), ctx("ci/x", "SUCCESS"), ctx(GateContext, "FAILURE")}, GitHubChecks{"success", []string{}}},
+			run("opt", "COMPLETED", "NEUTRAL"), ctx("ci/x", "SUCCESS"), ctx(GateContext, "FAILURE")}, GitHubChecks{"success", []string{"test", "lint", "opt", "ci/x"}}},
 		{"走っている", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("image", "IN_PROGRESS", ""), run("q", "QUEUED", "")},
 			GitHubChecks{"pending", []string{"image", "q"}}},
 		{"status の pending", []CheckItem{ctx("ci/x", "PENDING")}, GitHubChecks{"pending", []string{"ci/x"}}},

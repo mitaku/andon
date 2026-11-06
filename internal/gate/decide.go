@@ -319,7 +319,7 @@ func (it CheckItem) state() string {
 
 // GitHubChecks は PR の head の GitHub の checks を1つの状態にまとめたもの。
 // state は failure > unknown > pending > success の順で一番悪いもの。1件も無ければ none。
-// names はその状態にした checks の名前（success・none では空）。
+// names はその状態にした checks の名前（success では通した checks 全部。記録に何を読んだかを残す。none では空）。
 type GitHubChecks struct {
 	State string   `json:"state"`
 	Names []string `json:"names"`
@@ -352,7 +352,7 @@ func SummarizeChecks(items []CheckItem) GitHubChecks {
 			g.State = state
 		}
 	}
-	if g.State != "success" && g.State != "none" {
+	if g.State != "none" {
 		g.Names = names[g.State]
 	}
 	return g
