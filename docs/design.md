@@ -661,7 +661,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | 雛形から降りたもの全部（`bin/`・`lib/`・`.claude/`・`.devcontainer/`・`Dockerfile`・`compose.yaml`・`.aqua/aqua.yaml` …） | **仮設のまま**（Andon には写さない） | 正は template-yard。example は Andon ができるまで仮設として動かし続ける |
 | `AGENTS.md` の案件の部分（projects の一覧・直接フォワード・pin の注記） | 建屋の `AGENTS.local.md` の形 | 引っ越しのとき（§5.4）に写す |
 | `memory/`（index.md だけ・空） | 建屋の `wiki/` の種 | Andon の建屋の repo に `wiki/index.md` を置く |
-| `projects/<slug>/`（symlink と実ディレクトリ）・`projects/*/.flightdeck/`（台帳。git の外） | 案件データ。**移し方は後**（§5.4 に線だけ） | 建屋の repo の形は同じ（`projects/`）。台帳はディレクトリごと写す |
+| `projects/<slug>/`（仮設では symlink と実ディレクトリ。Andon では実ディレクトリだけ）・`projects/*/.flightdeck/`（台帳。git の外） | 案件データ。**移し方は後**（§5.4 に線だけ） | 建屋の repo の形は同じ（`projects/`）。台帳はディレクトリごと写す |
 | `local/setup.sh`・`.aqua/local.yaml`・`compose.override.yaml`・`.ssh/authorized_keys`・`.env`・`merge-gate.json`（描画済み） | 建屋の repo の形（`init/` と同じ名前） | 今の「派生側が触る場所」がそのまま建屋の repo の中身になる。`merge-gate.json` は `gate.local.json`（上書きだけ） |
 | `.cruft.json` | 捨てる | — |
 | `artifacts/`（納品物）・`.ghq/`・`.codex/` | 建屋の中の置き場（gitignore）。そのまま | — |
@@ -863,7 +863,7 @@ andon/
 ### 5.4 仮設の建屋の案件の移し方（線だけ。後で決める）
 
 - 順: **Andon の建屋（home）で1本流れてから**（P7）。仮設の建屋は案件データが一番大きいので最後。ほかの建屋も同じ手順。
-- 手: `andon init <slug>` で建屋の repo（`andon-<slug>`）を作り、仮設の建屋から案件データだけ写す——`projects/`（symlink と実ディレクトリ）・`AGENTS.md` の案件の部分 → `AGENTS.local.md`・`.aqua/local.yaml`・`local/setup.sh`・`compose.override.yaml`・`.ssh/authorized_keys`・ゲートの条件表の上書き分 → `gate.local.json`・`memory/` → `wiki/`。台帳（`projects/*/.flightdeck/`。git の外）はディレクトリごと写し、台帳の CLI の lint で確かめる。
+- 手: `andon init <slug>` で建屋の repo（`andon-<slug>`）を作り、仮設の建屋から案件データだけ写す——`projects/`（symlink は実ディレクトリにする。理由は [operate.md](operate.md) の「建屋の置き方」）・`AGENTS.md` の案件の部分 → `AGENTS.local.md`・`.aqua/local.yaml`・`local/setup.sh`・`compose.override.yaml`・`.ssh/authorized_keys`・ゲートの条件表の上書き分 → `gate.local.json`・`memory/` → `wiki/`。台帳（`projects/*/.flightdeck/`。git の外）はディレクトリごと写し、台帳の CLI の lint で確かめる。
 - 中で取り直すもの（核）: `gh auth login`・`claude login`・Codex のログイン。ghq の repo は GitHub から clone し直す（volume を持ち越さない。worktree は未マージの PR の branch から戻る）。端末の土台の設定とプロファイルは boot が生成する。ホストの ssh config・`yards-up` は `host-install` で置き換える。
 - 旧 `example-yard` の repo は archive（削除しない。不可逆）。
 - 決めるのは後: 建屋の repo を新しく作るか作り替えるか、portless の番号と直接フォワードの引き継ぎ、動いている担当（worktree）の引っ越し中の扱い。

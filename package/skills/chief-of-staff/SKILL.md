@@ -1,6 +1,6 @@
 ---
 name: chief-of-staff
-description: 台帳（deck）と hc（端末の土台）で動くプロジェクトの Chief of Staff が読む。起きたときの確かめ・人の依頼と Chief Engineer の文書をタスクに切る・依頼書（Settings 欄つき）を書く・andon task start で担当を起こす・止まったエージェントへの答え方（許可・信頼の画面・提供元のエラー・静かなまま）・インナーループ（レビュアー・ゲート・マージ・片付け）はクーリエが回し、人の判断が要るとき（needs_human・merge: person）だけ受ける・andon task finish で片付ける・規約1〜10の形・トリアージの回し方（andon triage apply）、を持つ
+description: 台帳（deck）と hc（端末の土台）で動くプロジェクトの Chief of Staff が読む。起きたときの確かめ・人の依頼と Chief Engineer の文書をタスクに切る・依頼書（Settings 欄つき）を書く・andon task start で担当を起こす・止まったエージェントへの答え方（許可の確認・提供元のエラー・静かなまま）・インナーループ（レビュアー・ゲート・マージ・片付け）はクーリエが回し、人の判断が要るとき（needs_human・merge: person）だけ受ける・andon task finish で片付ける・規約1〜10の形・トリアージの回し方（andon triage apply）、を持つ
 ---
 
 # chief-of-staff
@@ -138,9 +138,7 @@ blocked には次の順で答える（規約3）:
    `hc read` には色が入らないので見分けられない。入力欄の文を「人が何かしようとしている」しるしとして読まず、人に確かめに行かない。状態は hc の状態が正（§0）。
 2. 判断:
    - **許可の確認**（コマンド・ファイルの書き込み）: タスクの範囲内で、worktree の中・壊さない・外へ出さないものだけ「Yes」（**1回だけ**の選択肢）。「常に許可」「このセッションでは聞かない」は選ばない。
-   - **「このフォルダを信頼するか」**: 画面のパスが**そのタスクの worktree（`task.yaml` の `worktree`）と同じときだけ**答える（repo の無いタスクは `tasks/<id>/`）。
-     レビュアーのタスクは、cwd の `tasks/<id>/` と、クーリエが作った detached の worktree（`~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>`）のとき（independent-review の §3）。
-     ほかのパス・Codex のフックの確認画面は人へ回す。
+   - **「このフォルダを信頼するか」**: 建屋では出ない（boot と `andon task start` が repo の根を信頼済みにする）。出たら想定外なので、`hc keys` で答えず人へ回す（§8 の1問ずつ）。Codex のフックの確認画面も人へ。
    - それ以外（範囲外・不可逆: push 先の変更・削除・本番系・外向きの送信・認証）: 委譲の範囲の中でなければ答えず、人へ（§8 の1問ずつ）。
 3. `hc keys <agent> <キー…>`（例: 1番目の選択肢なら `enter`、番号で選ぶ画面なら `1`）。`hc send` は blocked のとき拒まれる（終了コード 9）。`--force` は使わない。
 4. `hc read <agent> --lines 0` で、答えが通って先へ進んだことを確かめる。
@@ -193,7 +191,7 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 | `<id> gate: <decision> …` | ゲートを回した（記録 `library/gate/<head>.json`） | `approve` で `merged` が続かなければ §6 の「approve で止まったとき」。`fix` は何もしない（クーリエが担当へ返した）。`needs_human` は `asked` の行で届く |
 | `<id> merged: <PR>` | approve ＋ `merge: auto` ＋ 委譲の範囲内でマージし、`andon task finish` した | 何もしない（人に言うことがあれば1行） |
 | `<id> asked: 問い <n>（questions.yaml）` | `andon task ask` の問い（担当から、またはゲートの `needs_human` で `from: gate`） | `deck questions --open` と `library/questions/<n>.json` を読み、§8（`from: gate` なら §6） |
-| `… の担当 … が blocked。hc read … で画面を見る` | 何もしない | §4（許可・信頼の画面に答える） |
+| `… の担当 … が blocked。hc read … で画面を見る` | 何もしない | §4（許可の確認に答える。信頼の画面は建屋では出ない） |
 | `… が idle のまま N 分、まだ doing` | 何もしない（子のレビュアーのタスク〈`parent: <id>`〉が todo／doing の間は、レビュー待ちなので届かない） | 上の表の `idle` の行（1回だけ続きを促す。2回目は人へ） |
 | `… が working のまま N 分` | 何もしない | 上の表の `working` の行 |
 | `… が error（提供元のエラーではない）。…` | 何もしない（画面の文は入れない） | 上の表の2行目（`hc read` で見て人へ知らせる） |
@@ -211,6 +209,8 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 **インナーループはクーリエが回す**（`docs/courier.md` §5）。Chief of Staff はターンを使わない:
 担当の `andon task review-request` → クーリエがレビュアーを起こす（`deck add --parent`・detached worktree・`hc run`。依頼書の宛先は担当）→ レビュアーの結果は担当へ届く →
 担当の `andon task ready` → クーリエが `andon gate` を回す → `approve` ＋ `merge: auto` ＋ 委譲の範囲内ならマージして `andon task finish` ／ `fix` は担当へ返す ／ `needs_human` は問い（`from: gate`）。
+ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）で、**通知も問いも出ない**。クーリエが見回りのたびにゲートから回し直す。CI が1つも無いまま 30 分たつと `needs_human`（`asked` で届く）。
+誰がどの端末をどう起こすかの一覧は `docs/operate.md` の「役の配置と起動」。
 Chief of Staff が決めるのは、依頼書の Settings（§2。`review`・`reviewer`・`review_rounds`・`merge`）だけ。レビュアーを手で起こさない・`andon gate` を手で回さない・指摘を中継しない。
 
 ### `needs_human` のとき（`<id> asked` で `from: gate`）

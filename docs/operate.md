@@ -4,6 +4,33 @@
 - 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[courier.md](courier.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
 - 書き方: `<owner>`（GitHub の持ち主）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。建屋の名前（slug）は例として `home`。
 
+## 役の配置と起動（一覧）
+
+誰が・どの端末で・何をきっかけに起こすか・止まったら誰が戻すか。コードで確かめた形（`internal/boot`・`internal/chiefofstaff`・`internal/chiefengineer`・`internal/task`・`internal/courier`）。ほかの文書（[courier.md](courier.md)・[contract.md](contract.md) §8・skill）はここへリンクする。ラベルの値の正は contract.md §8。
+
+| 役 | 端末の名前 | 出る場所（Space / tab） | 起こすのは・きっかけ | 止まったら誰が戻すか |
+|---|---|---|---|---|
+| 伝令（courier） | `courier`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「伝令」、2つ以上なら `<建屋の slug> plant` の tab「伝令」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon courier` でなければ片付けて起こし直す（courier.md §5）。戻らなければ人が `andon boot` |
+| Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる |
+| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ伝令が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ |
+| 担当 | `<slug>-<id を小文字>` | 作業側の Space `<slug>-<id>`（Space ＝ タスク。[ADR-0003](adr/0003-task-spaces.md)） | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ伝令が送り直す。止まりは伝令が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる |
+| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | 伝令。担当の `andon task review-request` の報告を拾って起こす | 伝令が起こしたものも、最初のメッセージが届かなければ送り直す（届いたかは端末の `first_message.sent` と、受けたか＝`started` で見る。Y-148）。それ以外は担当の依頼で Chief of Staff が起こし直す |
+
+- **伝令とゲート**: 担当の `andon task ready`（`status: review`）を拾った伝令が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。伝令が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
+- **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかったら（`first_message.sent=false`）、伝令が見回りで入力を受けられる状態になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
+- **信頼の画面**: 建屋では出ない（boot と、起こす直前の `andon task start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
+- **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、タスクの範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
+
+## 建屋の置き方
+
+建屋の repo（`~/src/andon-<slug>`。コンテナの `/workspace`）と、製品の repo（ソース）を分ける。
+
+- `projects/<slug>/` は**建屋の repo の実ディレクトリ**（symlink にしない）。台帳（`.flightdeck/`。git の外）と、委譲（`delegation.json`・`delegation.md`）を置く。
+- ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `~/.herdr/worktrees/<repo 名>/<slug>-<id>` の worktree で働く。
+- 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。
+- 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
+- **symlink にしない理由**: 委譲は「人だけが書く」。これを、建屋の repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると委譲のファイルが製品の repo に入り、担当の PR で書き換えうる。
+
 ## 0. 先に知っておくこと: 通らなかった所（直した）
 
 コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon task start` の中身が無い」（10）。
@@ -229,14 +256,15 @@ codex execpolicy check -r ~/.codex/rules/andon.rules gh pr merge 1   # "decision
 
 ```bash
 gh auth login               # GitHub.com → HTTPS → device code（URL とコードを手元で）
+gh auth setup-git           # git の資格情報を gh にする（これが無いと git の clone・fetch が認証で落ちる）
 claude                      # 初回に /login。URL を手元で開き、コードを貼る
 codex login --device-auth   # Codex を使うとき
 ```
 
-ログインは volume（`claude`・`codex`・`gh` など）に残る。作り直しても消えない。git の資格情報（credential helper を gh にする設定）は `~/.gitconfig` にあり volume の外だが、`gh` にログインしていれば boot が毎起動 `gh auth setup-git` を打つので、作り直しのあとも自動で戻る（手で打たなくてよい）。
+ログインは volume（`claude`・`codex`・`gh` など）に残る。作り直しても消えない。git の資格情報（credential helper を gh にする設定）は `~/.gitconfig` にあり volume の外。初回は上の `gh auth setup-git` を打つ。そのあと `gh` にログインしていれば boot が毎起動同じ手を打つので、作り直しても戻る。
 
 - **通ったら見えるもの**: `gh auth status` が Logged in。`claude` が対話に入る。`codex login status`。
-- **落ちたら見る所**: `gh` のスコープ（`repo`・`workflow`・`read:packages`）。device code の期限切れは打ち直す。`claude` が毎回ログインを求める — `claude` の volume が付いているか（`bin/bootstrap sh` で `ls ~/.claude`）。
+- **落ちたら見る所**: `andon task start` が `origin の既定の branch が分からない（…）: …could not read Username…。認証が原因らしい` で止まる — `gh auth status` でログインを確かめ、`gh auth setup-git` を打つ（git の stderr が文言に添えて出る）。`gh` のスコープ（`repo`・`workflow`・`read:packages`）。device code の期限切れは打ち直す。`claude` が毎回ログインを求める — `claude` の volume が付いているか（`bin/bootstrap sh` で `ls ~/.claude`）。
 
 ## 7. Andon の repo を迎える
 
@@ -250,7 +278,7 @@ ghq list
 
 ## 8. プロジェクト `andon` の台帳を作る
 
-台帳はプロジェクトごとに `projects/<slug>/.flightdeck/`（git の外）。slug はプロジェクト名＝フォルダ名。
+台帳はプロジェクトごとに `projects/<slug>/.flightdeck/`（git の外）。slug はプロジェクト名＝フォルダ名。`projects/<slug>/` は実ディレクトリ（symlink にしない。理由は上の「建屋の置き方」）。
 
 ```bash
 mkdir -p /workspace/projects/andon && cd /workspace/projects/andon
@@ -277,7 +305,7 @@ andon chief-of-staff        # 起こす（動いていればそれを使う）�
 - **App から起こした端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App から建屋へつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `coordinator` が落ちた端末を指したままでも、打ち直せば新しく起こした address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
 - **最初のメッセージが届いたかは** Chief of Staff の画面（`hc read <address>`）で、台帳を読み始めたかで見る。`andon chief-of-staff` の終了コード 0 だけでは分からない（hook で止まっても 0 で返った）。入力欄にメッセージが残って動かないときは、`UserPromptSubmit operation blocked by hook` の行が出ていないかを見る。
 - **落ちた Chief of Staff を起こし直す**: image を上げ直し（`bin/bootstrap` で作り直す）、落ちた端末を `hc kill <address>` してから `andon chief-of-staff`。`hc server restart` が `no systemd user manager here: the core ends with whatever started it` を出すのは、systemd の無いコンテナである建屋では正常（core は起こした側と一緒に終わる）。
-- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない`（信頼の画面など）— App のその tab（か `hc attach <address>`）で画面に答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff はクーリエが見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[courier.md](courier.md) §2.1）。通知は1回の見回りのあとに効く。クーリエの端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起こし直す（[courier.md](courier.md) §5）。
+- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面は建屋では出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff はクーリエが見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[courier.md](courier.md) §2.1）。通知は1回の見回りのあとに効く。クーリエの端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起こし直す（[courier.md](courier.md) §5）。
 
 ## 10. 小さい PR を1本流す
 
