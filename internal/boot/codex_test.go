@@ -85,3 +85,42 @@ func TestCodexRulesSkippedWithoutPackageFile(t *testing.T) {
 		t.Error("パッケージに無いのに rules を作った")
 	}
 }
+
+func TestCodexConfigKeepsBOMFirst(t *testing.T) {
+	f := newFixture(t)
+	cfg := filepath.Join(f.home, ".codex", "config.toml")
+	put(t, cfg, "\ufeffapproval_policy = \"on-request\"\n")
+	if err := genCodexConfig(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	want := "\ufeff" + codexHead + "sandbox_mode = \"danger-full-access\"\n\napproval_policy = \"on-request\"\n"
+	if s := read(t, cfg); s != want {
+		t.Errorf("config.toml = %q, want %q", s, want)
+	}
+}
+
+func TestCodexConfigReadsMultilineStrings(t *testing.T) {
+	f := newFixture(t)
+	cfg := filepath.Join(f.home, ".codex", "config.toml")
+	// 複数行の文字列の中の [example] は表ではない。その後ろの top-level のキーも数える
+	user := "developer_instructions = \"\"\"\n[example]\n\"\"\"\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n"
+	put(t, cfg, user)
+	if err := genCodexConfig(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	if s := read(t, cfg); s != user {
+		t.Errorf("今あるキーを重ねて足した: %q", s)
+	}
+}
+
+func TestCodexConfigLeavesBrokenTOML(t *testing.T) {
+	f := newFixture(t)
+	cfg := filepath.Join(f.home, ".codex", "config.toml")
+	put(t, cfg, "approval_policy = \n")
+	if err := genCodexConfig(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	if s := read(t, cfg); s != "approval_policy = \n" || !strings.Contains(f.log.String(), "TOML として読めない") {
+		t.Errorf("読めない設定に書いた: %q %s", s, f.log.String())
+	}
+}

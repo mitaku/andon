@@ -88,21 +88,30 @@ jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >
 # それ以外の deny（Bash(git diff *--output*) など）は allow の穴を塞ぐもので、allow の無い Codex（承認は never）には要らない。
 # その印として、頭の線でない deny は allow のどれかと同じコマンドで始まること（新しい種類の deny を足したら、ここで止まって決める）
 deny_heads=$(jq -r '.permissions.deny[] | select(test("^Bash\\([^*]*:\\*\\)$")) | sub("^Bash\\("; "") | sub(":\\*\\)$"; "")' package/settings.json | sort)
-rule_heads=$(python3 - package/codex.rules <<'EOF'
+# rules は頭の線ごとに、直接の形（["gh", "pr", "merge"]）と wrapper の形（[[wrapper…], "gh", "pr", "merge"]）の2本を持つ
+rules_of() { # rules_of <direct|wrapped>: その形の forbidden の頭の線
+  python3 - package/codex.rules "$1" <<'EOF'
 import ast, re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 for m in re.finditer(r'prefix_rule\((.*?)\n\)', text, re.S):
     body = m.group(1)
-    pat = re.search(r'pattern\s*=\s*(\[[^\]]*\])', body)
+    pat = re.search(r'pattern\s*=\s*(\[.*?\])\s*,\s*\n', body, re.S)
     dec = re.search(r'decision\s*=\s*"([a-z]+)"', body)
-    if pat and dec and dec.group(1) == "forbidden":
-        print(" ".join(ast.literal_eval(pat.group(1))))
+    if not (pat and dec and dec.group(1) == "forbidden"):
+        continue
+    p = ast.literal_eval(pat.group(1))
+    wrapped = isinstance(p[0], list)
+    rest = p[1:] if wrapped else p
+    if all(isinstance(x, str) for x in rest) and wrapped == (sys.argv[2] == "wrapped"):
+        print(" ".join(rest))
 EOF
-)
-rule_heads=$(sort <<<"$rule_heads")
-[ -n "$deny_heads" ] && [ "$deny_heads" = "$rule_heads" ] \
-  && pass "package/codex.rules の forbidden が settings の deny（頭の線）と同じ（$(tr '\n' ',' <<<"$deny_heads" | sed 's/,$//')）" \
-  || fail "package/codex.rules と settings の deny がずれる（deny: $(tr '\n' ',' <<<"$deny_heads") / rules: $(tr '\n' ',' <<<"$rule_heads")）"
+}
+for kind in direct wrapped; do
+  rule_heads=$(rules_of "$kind" | sort)
+  [ -n "$deny_heads" ] && [ "$deny_heads" = "$rule_heads" ] \
+    && pass "package/codex.rules の forbidden（$kind）が settings の deny（頭の線）と同じ（$(tr '\n' ',' <<<"$deny_heads" | sed 's/,$//')）" \
+    || fail "package/codex.rules（$kind）と settings の deny がずれる（deny: $(tr '\n' ',' <<<"$deny_heads") / rules: $(tr '\n' ',' <<<"$rule_heads")）"
+done
 bad=
 while IFS= read -r d; do
   [ -z "$d" ] && continue

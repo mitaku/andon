@@ -497,7 +497,7 @@ andon/
     hooks/                   ハーネスのフック（Stop・UserPromptSubmit。クーリエと command を呼ぶだけ）
     gate.json                ゲートの条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）
-    codex.rules              Codex の execpolicy の rules（settings.json の deny と同じ線）
+    codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
     compose.yaml             建屋の compose（bootstrap がイメージから取り出す）
     host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）
   image/                     base image

@@ -1,5 +1,7 @@
 # Codex の execpolicy の rules。boot が ~/.codex/rules/andon.rules に写す（docs/image.md の「Codex の承認と sandbox」）。
-# managed settings（settings.json）の permissions.deny のうち、コマンドの頭で引く線（Bash(<コマンド>:*)）と同じ線。
+# managed settings（settings.json）の permissions.deny のうち、コマンドの頭で引く線（Bash(<コマンド>:*)）を Codex に引く。
+# 直接の形と、引数を取らないよくある wrapper の形だけ（rules は token の頭の一致で、引数の値を読み飛ばせない）。
+# 拒めない形（timeout 30 …・先頭の代入・$( ) の中）は tests/image.sh が「拒めないことが分かっている形」として持つ。
 # 一覧を変えたら settings.json も直す（tests/package.sh が突き合わせる）。
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
@@ -7,4 +9,11 @@ prefix_rule(
     justification = "マージは人がする（担当・レビュアーは PR を出して止まる）",
     match = [["gh", "pr", "merge", "1", "--squash"]],
     not_match = [["gh", "pr", "view", "1"]],
+)
+prefix_rule(
+    pattern = [["env", "command", "exec", "nohup", "nice", "sudo", "xargs"], "gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "マージは人がする（担当・レビュアーは PR を出して止まる）",
+    match = [["env", "gh", "pr", "merge", "1"], ["xargs", "gh", "pr", "merge"]],
+    not_match = [["env", "gh", "pr", "view", "1"]],
 )

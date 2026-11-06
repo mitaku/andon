@@ -132,8 +132,21 @@ dc exec -T dev bash -euc '
   for want in "No filesystem sandboxing" "Network access is enabled" "Approval policy is currently never"; do
     grep -qF "$want" <<<"$pi" || { echo "FAIL image: Codex の実効の設定に「$want」が無い" >&2; exit 1; }
   done
-  rules=$(ls "$HOME"/.codex/rules/*.rules | sed "s/^/-r /")
-  test "$(codex execpolicy check $rules gh pr merge 1 --squash | jq -r .decision)" = forbidden
+  # 実行時と同じく、絶対パスの program も basename の rule で引く
+  rules="--resolve-host-executables $(ls "$HOME"/.codex/rules/*.rules | sed "s/^/-r /")"
+  # 拒む形: 直接と、引数を取らない wrapper。Codex は `bash -lc` の平らな script を割ってから1つずつ引くので、割ったあとの argv で確かめる
+  for c in "gh pr merge 1 --squash" "/usr/bin/gh pr merge 1" "env gh pr merge 1" "command gh pr merge 1" "exec gh pr merge 1" \
+    "nohup gh pr merge 1" "nice gh pr merge 1" "sudo gh pr merge 1" "xargs gh pr merge"; do
+    test "$(codex execpolicy check $rules $c | jq -r .decision)" = forbidden || { echo "FAIL image: Codex の rules が「$c」を拒まない" >&2; exit 1; }
+  done
+  # 拒めないことが分かっている形（docs/image.md）。rules は token の頭の一致なので、引数を取る wrapper・先頭の代入・$( ) の中は当たらない。
+  # 代入と置換を含む script は Codex が割らないので、script ごと1つの argv（bash -lc …）として引かれる。拒めるようになったらここを直す
+  for c in "timeout 30 gh pr merge 1" "env FOO=bar gh pr merge 1"; do
+    test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 拒めないはずの「$c」が rules に当たる（docs と tests を直す）" >&2; exit 1; }
+  done
+  for c in "FOO=bar gh pr merge 1" "echo \"\$(gh pr merge 1)\""; do
+    test "$(codex execpolicy check $rules bash -lc "$c" | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 拒めないはずの「$c」が rules に当たる（docs と tests を直す）" >&2; exit 1; }
+  done
   # 担当・レビュアーが台帳（projects/<slug>/.flightdeck とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
   for c in "git push -u origin HEAD" "deck report T-1" "deck review T-1" "tee /workspace/projects/p/.flightdeck/tasks/T-1/library/findings.json"; do
     test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]"
