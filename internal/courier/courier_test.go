@@ -201,3 +201,44 @@ func TestWorkerPlace(t *testing.T) {
 		}
 	}
 }
+
+// 引き継ぐ detached worktree は、その repo の worktree list に detached で載り HEAD が commit のものだけ（置き場にあるだけでは信じない）。
+func TestDetachedAt(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("GHQ_ROOT", root)
+	dir := filepath.Join(root, "github.com", "example", "app")
+	git := func(args ...string) string {
+		t.Helper()
+		out, _, err := run("", []string{"GIT_AUTHOR_NAME=x", "GIT_AUTHOR_EMAIL=x@example.com", "GIT_COMMITTER_NAME=x", "GIT_COMMITTER_EMAIL=x@example.com"}, "", "git", args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(out)
+	}
+	git("init", "-q", dir)
+	git("-C", dir, "commit", "-q", "--allow-empty", "-m", "a")
+	c1 := git("-C", dir, "rev-parse", "HEAD")
+	git("-C", dir, "commit", "-q", "--allow-empty", "-m", "b")
+	wt := filepath.Join(root, "wt", "sample-D-1-r1")
+	git("-C", dir, "worktree", "add", "-q", "--detach", wt, c1)
+	if !detachedAt("github.com/example/app", wt, c1) {
+		t.Error("その commit の detached worktree を引き継がない")
+	}
+	if detachedAt("github.com/example/app", wt, git("-C", dir, "rev-parse", "HEAD")) {
+		t.Error("HEAD が違う worktree を引き継いだ")
+	}
+	plain := filepath.Join(root, "wt", "sample-D-1-r2")
+	if err := os.MkdirAll(plain, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if detachedAt("github.com/example/app", plain, c1) {
+		t.Error("worktree でない置き場を引き継いだ")
+	}
+	link := filepath.Join(root, "wt", "sample-D-1-r3")
+	if err := os.Symlink(wt, link); err != nil {
+		t.Fatal(err)
+	}
+	if detachedAt("github.com/example/app", link, c1) {
+		t.Error("symlink を引き継いだ")
+	}
+}

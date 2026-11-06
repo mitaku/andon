@@ -54,10 +54,8 @@ func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 			return string(b)
 		}); ok {
 			r.ReviewerTask, r.Address, r.Started = a.ReviewerTask, a.Address, a.Started
-			if wt := p.reviewerWorktree(t, rr.Round); wt != "" {
-				if _, err := os.Lstat(wt); err == nil {
-					r.Worktree = wt
-				}
+			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
+				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
 			}
 			if r.Started {
 				p.logf("%s のレビュー（commit %s）は %s がもう受けている（控えに無かった。起こさない）", id, rr.Commit[:12], r.ReviewerTask)
@@ -133,6 +131,26 @@ func lastReport(rows []ledger.Row, id string) int {
 		}
 	}
 	return n
+}
+
+// detachedAt は wt が repo の detached worktree で、HEAD が commit か（symlink でない・worktree list に detached で載る）。
+// 引き継ぐのはこれを満たすものだけ。置き場にあるだけのものは信じない。
+func detachedAt(repo, wt, commit string) bool {
+	dir, err := repoDir(repo)
+	if fi, lerr := os.Lstat(wt); err != nil || wt == "" || lerr != nil || !fi.IsDir() {
+		return false
+	}
+	out, _, err := run("", nil, "", "git", "-C", dir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return false
+	}
+	for _, blk := range strings.Split(out, "\n\n") {
+		lines := strings.Split(strings.TrimSpace(blk), "\n")
+		if len(lines) >= 3 && lines[0] == "worktree "+wt && lines[1] == "HEAD "+commit && lines[2] == "detached" {
+			return true
+		}
+	}
+	return false
 }
 
 // reviewerWorktree はレビュアーの detached worktree の置き場（repo の置き場が分からなければ空）。
