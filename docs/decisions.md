@@ -280,3 +280,4 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 日付 | 決定 | 出典 |
 |---|---|---|
 | 2026-11-06 | GHCR へは `vX.Y.Z` の tag の push のときだけ（tests を通した image を）push する。main へのマージごとの `:<sha>` の push はやめる（約 1 GiB の版がマージごとに増え、private の package のストレージ枠に当たった）。日々の試しは建屋で andon の checkout から焼く（`bin/bootstrap rebuild --from`。焼く手順は `image/build.sh` の1本で、tests・CI と同じ）。tag を切るまでの建屋は、いま GHCR にある SHA の版を使う | 人（2026-11-06）、Y-136 |
+| 2026-11-06 | CI の tests の job を縮める: andon・kanban を1回だけ焼いて渡し、`tests/*.sh` を並べ、image の build は GHA の cache（scope `andon-image`。書くのは main の push だけ、release は読まない）を読み、image に関係しない PR では `tests/image.sh` を飛ばす（check の名前は変えず、main の push と tag では全部走る）。表と理由は [image.md](image.md) の「CI の所要時間」 | 人（2026-11-06「CI ながくないかな」）、Y-174 |

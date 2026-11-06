@@ -7,7 +7,10 @@ on:
 permissions:
   contents: read
 jobs:
-  # PR と main の push: image を焼いて検査するだけ。token に packages の書き込みを持たせない
+  # PR と main の push: image を焼いて検査するだけ。token に packages の書き込みを持たせない。
+  # 速くする3つ（docs/image.md の「CI の所要時間」）: andon・kanban を1回だけ焼いて渡す・tests/*.sh を並べる・
+  # image の build は GHA の cache（scope andon-image。書くのは main の push だけ）を読む。PR の変更が image に
+  # 関係しなければ tests/image.sh を飛ばす（job は成功で終わる。main の push では必ず全部走る）
   tests:
     if: github.ref_type != 'tag'
     runs-on: ubuntu-24.04
@@ -18,7 +21,50 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+          fetch-depth: 2
+      - name: Decide whether the image checks are needed
+        id: scope
+        run: |
+          set -euo pipefail
+          # PR の merge commit の1つ目の親が base。PR 以外（main の push）は必ず image まで見る
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD | tee "$RUNNER_TEMP/changed"
+            image=$(bash tests/lib/image-scope.sh <"$RUNNER_TEMP/changed")
+          else
+            image=true
+          fi
+          echo "image=$image" >>"$GITHUB_OUTPUT"
+          {
+            if [ "$image" = true ]; then
+              echo "ANDON_BUILD_CACHE_FROM=type=gha,scope=andon-image"
+              if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+                echo "ANDON_BUILD_CACHE_TO=type=gha,scope=andon-image,mode=max"
+              fi
+            else
+              echo "ANDON_TEST_SKIP=tests/image.sh"
+            fi
+          } >>"$GITHUB_ENV"
+          if [ "$image" != true ]; then
+            echo "::notice title=tests/image.sh::image に関係する変更が無いので、image の build と runtime の検査を飛ばす"
+          fi
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: go build (andon and kanban for tests/*.sh)
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/bin/andon" ./cmd/andon
+          go build -ldflags "-X main.version=${GITHUB_SHA::12}" -o "$RUNNER_TEMP/bin/kanban" ./cmd/kanban
+          {
+            echo "ANDON_BIN=$RUNNER_TEMP/bin/andon"
+            echo "KANBAN_BIN=$RUNNER_TEMP/bin/kanban"
+          } >>"$GITHUB_ENV"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        if: steps.scope.outputs.image == 'true'
+      # docker buildx の type=gha が要る ACTIONS_RUNTIME_TOKEN・ACTIONS_CACHE_URL などを後の step の env に出す
+      # （GITHUB_TOKEN の permissions は増えない。cache は ref ごとに隔離され、PR の run は自分と main の分しか読めない）
+      - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+        if: steps.scope.outputs.image == 'true'
       - name: tests/*.sh (including image build and runtime)
         env:
           ANDON_PUBLIC_DENYLIST_CONTENT: ${{ secrets.ANDON_PUBLIC_DENYLIST }}
@@ -28,10 +74,11 @@ jobs:
             export ANDON_PUBLIC_DENYLIST="$RUNNER_TEMP/public-denylist"
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
-          for f in tests/*.sh; do echo "== $f"; bash "$f"; done
+          bash tests/lib/run-tests.sh
   # vX.Y.Z の tag の push だけ: tag の名前と main に含まれる commit かを確かめ、同じ job の中で
   # tests/*.sh（image/build.sh で焼いた andon:test の検査を含む）を通した image を GHCR へ push する。
-  # packages: write はこの job だけ（workflow_test.go が確かめる）
+  # packages: write はこの job だけ（workflow_test.go が確かめる）。image の build は cache を読まない（PR が書いた
+  # ものを配る image に混ぜない。ANDON_BUILD_CACHE_* を置かないので image/build.sh は docker build で一から焼く）
   release:
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-24.04
@@ -59,7 +106,7 @@ jobs:
             export ANDON_PUBLIC_DENYLIST="$RUNNER_TEMP/public-denylist"
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
-          for f in tests/*.sh; do echo "== $f"; bash "$f"; done
+          bash tests/lib/run-tests.sh
       - name: Push tested image to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

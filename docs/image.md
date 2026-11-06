@@ -68,6 +68,32 @@ PR と main の push は、tests の job（`packages` の権限を持たない�
 
 `packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
 
+### CI の所要時間
+
+tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の3つで縮める。どれも check の名前（`tests`）は変えず、飛ばすときも job は成功で終わる。
+
+- **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す（go の workflow と同じ）。
+- **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。
+- **image の build の cache**: `image/build.sh` は env `ANDON_BUILD_CACHE_FROM`・`ANDON_BUILD_CACHE_TO` があるときだけ `docker buildx build` で GitHub Actions の cache（`type=gha`、scope `andon-image`）を読み書きする。cache の口は `crazy-max/ghaction-github-runtime` が後の step に出す（`GITHUB_TOKEN` の permissions は増えない）。
+
+cache の scope の切り方:
+
+| job | 読む | 書く | 理由 |
+|---|---|---|---|
+| tests（PR） | 読む（GitHub の隔離で、読めるのは自分の PR と main が書いたものだけ） | 書かない | image は約 1 GiB で、`mode=max` の中間層を PR ごとに書くと repo の cache の枠（10 GB）で main の分が押し出される |
+| tests（main の push） | 読む | 書く（`mode=max`。中間層も） | マージ済みの内容だけが書く。次の PR はこれを読む |
+| release（`vX.Y.Z` の tag） | 読まない | 書かない | 配る image に cache（とくに PR が書いたもの）を混ぜない。env を置かないので `image/build.sh` は今までどおり `docker build` で一から焼く |
+
+**image に関係しない PR では `tests/image.sh` を飛ばす。** PR の変更（merge commit と base の差分）を `tests/lib/image-scope.sh` が分ける。飛ばしてよいのは、変更が全部、下の表の「飛ばす」に入るときだけ。知らないパスは走らせる側に倒す。main の push では必ず全部走る（release も）。
+
+| 変更 | image の build と runtime の検査 | 理由 |
+|---|---|---|
+| `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
+| `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
+| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、Dockerfile の golang の版を `mise.toml` と突き合わせる |
+| `docs/`・`tests/` のほか・`*_test.go`・root の `README.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
+| 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
+
 ## 残る危険
 
 workflow を書き換えた branch をこの repo に push できる者は、マージ前でも GHCR に push できる。workflow 内の権限制限だけでは、この操作を防げない。
