@@ -196,7 +196,7 @@ App の標準レイアウトは mod の追加だけでは起動しない。人�
 
 この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon` を実行し（Windows の App は Windows 側で実行する）、個人用レイアウトで `sample-site / CoS`・`sample-site / CE A-1 設計`・`A-2 修正 / A-2` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
-mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
+mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。伝令（`role=courier`）は tab を「伝令」に、台帳が2つ以上のときの建屋の Space を `<建屋の slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
 
 API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
 
@@ -218,7 +218,7 @@ cat ~/.claude/CLAUDE.md               # @ の2行（environment.md と AGENTS.lo
 cat /etc/claude-code/managed-settings.json
 ```
 
-- **通ったら見えるもの**: 上の全部。`hc get courier` が通る（クーリエは `andon courier` を常駐させた端末）。
+- **通ったら見えるもの**: 上の全部。`hc get courier` が通る（クーリエは `andon courier` を常駐させた端末）。App に tab「伝令」が出る（台帳が1つならその指揮側の Space、2つ以上なら `<建屋の slug> plant`）。ラベルは `hc get courier --json` の `herdr.space`・`herdr.tab`。
 - **落ちたら見る所**: どれも出なければ boot が走っていない（`bin/bootstrap logs`）。boot は失敗しても続ける作りなので、警告の行を探す。生成だけ失敗したときは `andon boot` を中で打ち直せば同じ結果になる（何度打っても同じ）。`hc` が無い・端末が起きない — herdr-core は初めて `hc` を叩くと起きる。
 
 ## 6. 中でログインする（建屋の中で取る）

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 )
@@ -80,9 +81,34 @@ func Ensure(andon, cwd string) (string, error) {
 	return fmt.Sprintf("クーリエの端末（%s）の中身がシェルに替わっていたので、片付けて起こし直した", t.Address), nil
 }
 
+// hostName は建屋の名前（hostname）。建屋の台帳が2つ以上のときの Space 名に使う。テストで差し替える。
+var hostName = os.Hostname
+
+var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
+
+// Place は伝令の置き場（herdr.space・herdr.tab のラベルの値）。ws は建屋の repo。
+// 台帳（ws/projects/*/.flightdeck/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
+// それ以外（2つ以上。無いときも）は建屋の名前の Space andon-<建屋の slug>-plant。tab は andon-<slug または建屋の slug>-courier。
+// 名前は Andon の App の mod が付ける（ADR-0002 決めたこと 21）。
+func Place(ws string) (space, tab string) {
+	cfgs, _ := filepath.Glob(filepath.Join(ws, "projects", "*", ".flightdeck", "config.yaml"))
+	if len(cfgs) == 1 {
+		slug := filepath.Base(filepath.Dir(filepath.Dir(cfgs[0])))
+		return "andon-" + slug, "andon-" + slug + "-courier"
+	}
+	h, _ := hostName()
+	plant := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(h), "-"), "-")
+	if plant == "" {
+		plant = "plant"
+	}
+	return "andon-" + plant + "-plant", "andon-" + plant + "-courier"
+}
+
 func runCourier(andon, cwd string) error {
+	space, tab := Place(cwd)
 	out, err := hcRun("run", "--bg", "--no-parent", "--no-notify", "--keep",
-		"--name", Name, "--label", "role="+Name, "--cwd", cwd, "--", andon, "courier")
+		"--name", Name, "--label", "role="+Name, "--label", "herdr.space="+space, "--label", "herdr.tab="+tab,
+		"--cwd", cwd, "--", andon, "courier")
 	if err != nil {
 		return fmt.Errorf("hc run: %v: %s", err, strings.TrimSpace(out))
 	}

@@ -443,7 +443,7 @@ got=$(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -v '^get \|^ls ')
 want="keep t3 --off
 kill t3
 rm t3
-run --bg --no-parent --no-notify --keep --name courier --label role=courier --cwd $tmp/plant -- $andon courier"
+run --bg --no-parent --no-notify --keep --name courier --label role=courier --label herdr.space=andon-demo --label herdr.tab=andon-demo-courier --cwd $tmp/plant -- $andon courier"
 [ "$got" = "$want" ] || die "シェルに替わったクーリエを片付けて起こし直さない: $got"
 ! grep -q '^courier	' "$tmp/hc/sent" || die 'クーリエのシェルに打ち込んだ'
 fg_courier
