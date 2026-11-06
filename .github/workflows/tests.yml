@@ -7,8 +7,9 @@ on:
 permissions:
   contents: read
 jobs:
+  # PR と main の push は image を焼いて検査するだけ（GHCR に書かない）。
+  # vX.Y.Z の tag の push だけ、main に含まれる commit かを先に確かめ、検査を通した同じ image を GHCR へ push する
   tests:
-    if: github.ref_type != 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -18,6 +19,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Require a release commit already on main
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor HEAD origin/main
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: tests/*.sh (including image build and runtime)
         env:
@@ -29,8 +37,8 @@ jobs:
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
           for f in tests/*.sh; do echo "== $f"; bash "$f"; done
-      - name: Push tested image to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Push tested image to GHCR (release tag only)
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY_USER: ${{ github.actor }}
@@ -40,36 +48,5 @@ jobs:
           image="ghcr.io/${IMAGE_OWNER,,}/andon"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
           trap 'docker logout ghcr.io' EXIT
-          docker tag andon:test "$image:$GITHUB_SHA"
-          docker push "$image:$GITHUB_SHA"
-  publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Require a release commit already on main
-        run: |
-          set -euo pipefail
-          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          git merge-base --is-ancestor HEAD origin/main
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      - name: Tag the existing SHA image
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REGISTRY_USER: ${{ github.actor }}
-          IMAGE_OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-          image="ghcr.io/${IMAGE_OWNER,,}/andon"
-          commit=$(git rev-parse HEAD)
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
-          trap 'docker logout ghcr.io' EXIT
-          docker buildx imagetools create --prefer-index=false \
-            --tag "$image:$GITHUB_REF_NAME" "$image:$commit"
+          docker tag andon:test "$image:$GITHUB_REF_NAME"
+          docker push "$image:$GITHUB_REF_NAME"
