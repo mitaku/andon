@@ -322,6 +322,31 @@ git add project.json && git commit -m 'projects/andon/project.json'
 6. **起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。dispatcher は Chief of Staff の最初のターンのフックか `andon boot` で起きる。控えの id は 4 に移してあるので、初めて見る台帳としては扱われない。
 7. **自分のスクリプト**: `FLIGHTDECK_ROOT` を使っていれば `KANBAN_ROOT` に改める。
 
+### 別のマシンへ引っ越す（建屋を動かす）
+
+建屋を別のマシン（別の PC・別のホスト）へ動かすときの手順。台帳 `kanban/` は git で追跡しない（[ADR-0005](adr/0005-cell-repo.md) 決めたこと 5）ので、建屋の repo を push・clone しても台帳は付いてこない。**台帳を写すのは人が手でする**。
+
+- **写さなかったとき失うもの**: 台帳の全部（タスクの一覧と状態・`log.jsonl`・依頼書・報告・問い・ルーチン）。建屋の repo（人のファイル・`wiki/`・`files/`・`projects/<slug>/AGENTS.md`）と、決定・進行中の仕事（製品の repo の `docs/`・PR と branch）は GitHub に残るので失わない。台帳が無いと新しい側の `projects/<slug>/` は空のプロジェクトになり、`kanban init` からやり直す（タスクの id は `0001` から振り直し。前の PR や branch の名前に残る id とは別物になる）。台帳に残るのは経過で、セルの寿命のもの。要らなければ写さなくてよい。
+- **写す前に `doing`・`review` を片付けておく理由**: `task.yaml` の `agent`・`worktree`・`machine` と、端末のラベル・Space・worktree・branch は、**古いマシンの**ものだから。写した先で `doing` のまま残ると、動いている担当がいないのに動いているように見え、直しは起こし直すところから始まる。片付けてから写せば（マージして `andon task finish`、または `todo` に戻す）、新しい側で起こし直す担当が減る。
+
+手順（古い側 → 新しい側）:
+
+1. **古い側で止める**: 動かす直前に、`doing`・`review` のタスクを片付ける（上）。Chief of Staff（`hc ls --label role=chief-of-staff --label project=<slug>`）を `hc kill <address>`、次に `hc kill dispatcher`。Chief of Staff を先に止めるのは、そのターンのフックが dispatcher を起こし直すため。
+2. **建屋の repo を push する**（人のファイルだけが入る）: `git status --short` で `andon.toml`・`projects/*/project.json`・`AGENTS.md`・`gate.local.json`・`templates.local/`・`local/`・`wiki/`・`files/` に未 commit が無いか見て、commit（author が `andon.toml` の `owner`）して `git push`。`.env`・`.ssh/`・`.ghq/` は追跡されない（新しい側で作り直す）。
+3. **`kanban/` を写す**（手で。手段は例）:
+
+   ```bash
+   # 古い側。プロジェクトごとに 1 つ（.lock と state/ は写さなくてよい）
+   cd /workspace/projects
+   tar -czf ~/kanban-<slug>.tgz --exclude='.lock' --exclude='state' <slug>/kanban
+   scp ~/kanban-<slug>.tgz <新しい側のホスト>:~/
+   ```
+
+4. **新しい側で建屋の repo を迎える**: `git clone` した repo を `~/src/andon-<slug>` に置く（または [§2](#2-建屋の-repo-を作るandon-init) の `andon init` で作った repo に、clone した中身を重ねる）。続けて §3 の起動、§5〜§6 のログイン（`gh`・`claude`・Codex は中で取り直す。持ち越さない）。`.env` と `.ssh/authorized_keys` は新しい側で作る。
+5. **台帳を置く**: `tar -xzf ~/kanban-<slug>.tgz -C /workspace/projects`（建屋の中で）。`cd /workspace/projects/<slug> && kanban lint ; kanban list --all`。置く前に `andon init` した建屋で `kanban/` が空に作られていたら、退けてから置く（`kanban init` は `already a ledger` で止まる）。
+6. **worktree を戻す**: 未マージの PR の branch から戻る（[design.md](design.md) §5.4）。`ghq get github.com/<owner>/<repo>` で製品の repo を迎え、`doing` だったタスクの branch を取って `andon task start <id>` で worktree と端末を作り直す（branch が GitHub に push 済みであること。push 前の変更は古い側にしか無い）。
+7. **`doing` の担当を起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。写した台帳の `agent`・`worktree`・`machine`・`chief_of_staff` は古いマシンのままで、新しい側では無効。dispatcher は端末の無い `doing` の担当を `stalled` として Chief of Staff に知らせる（[dispatcher.md](dispatcher.md) §2.3）ので、それを起こし直しの印として、担当を起こし直す。1 で片付けておけば、この段のタスクは少ない。
+
 ## 9. Chief of Staff を起こす
 
 ```bash
