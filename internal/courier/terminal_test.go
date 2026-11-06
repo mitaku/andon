@@ -5,16 +5,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
-// 偽の hc: get courier は $D/term（無ければ not_found）を返す。run・send は打たれたものを $D/log に1行ずつ。
-// send は $D/after があれば、それを $D/term に替える（打ち込んだシェルが andon courier に替わる）。
+// 偽の hc: get courier は $D/term（無ければ not_found）を返す。run・send・keep・kill・rm は打たれたものを $D/log に1行ずつ。
+// rm は $D/term を消す（片付けた端末は無くなる）。
 const ensureHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
   get) [ -e "$d/term" ] || { echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; }; cat "$d/term" ;;
-  run|send) echo "$*" >>"$d/log"; [ "$1" = send ] && [ -e "$d/after" ] && cp "$d/after" "$d/term"; exit 0 ;;
+  run|send|keep|kill) echo "$*" >>"$d/log"; exit 0 ;;
+  rm) echo "$*" >>"$d/log"; rm -f "$d/term"; exit 0 ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
 esac
 `
@@ -32,9 +32,6 @@ func newEnsure(t *testing.T) (d string, round func() (string, []string, error)) 
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
-	old := ensureWait
-	ensureWait = 300 * time.Millisecond
-	t.Cleanup(func() { ensureWait = old })
 	return d, func() (string, []string, error) {
 		os.Remove(filepath.Join(d, "log"))
 		did, err := Ensure("/opt/andon/bin/andon", "/srv/plant")
@@ -49,7 +46,7 @@ func newEnsure(t *testing.T) (d string, round func() (string, []string, error)) 
 
 func putTerm(t *testing.T, path, fg string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(`{"state":"live","argv":["/bin/sh"],"foreground":`+fg+`}`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"address":"t1","state":"live","argv":["/bin/sh"],"foreground":`+fg+`}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -75,15 +72,17 @@ func TestEnsureCourier(t *testing.T) {
 		t.Fatalf("動いているとき: %q %q %v", did, calls, err)
 	}
 
-	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: andon courier を打ち直す
+	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: シェルには打ち込まず、片付けて同じ名前・ラベルで起こし直す
 	putTerm(t, term, fgShell)
-	putTerm(t, filepath.Join(d, "after"), fgCourier)
 	did, calls, err = round()
-	if err != nil || !strings.Contains(did, "打ち直した") || len(calls) != 1 || calls[0] != "send courier '/opt/andon/bin/andon' courier" {
+	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name courier --label role=courier --cwd /srv/plant -- /opt/andon/bin/andon courier"}
+	if err != nil || !strings.Contains(did, "起こし直した") || strings.Join(calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("中身がシェルのとき: %q %q %v", did, calls, err)
 	}
-	if did, calls, _ := round(); did != "" || calls != nil {
-		t.Fatalf("打ち直したあとにまた打った: %q %q", did, calls)
+	for _, c := range calls {
+		if strings.HasPrefix(c, "send ") {
+			t.Fatalf("シェルに打ち込んだ（打ちかけの文字に足してしまう）: %q", c)
+		}
 	}
 
 	// 前に何も出ていない（替わる途中）・別のものが出ている: 触らない

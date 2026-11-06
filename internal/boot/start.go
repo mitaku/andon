@@ -244,7 +244,7 @@ func startSSHD(e Env) error {
 	return nil
 }
 
-// startCourier はクーリエの端末を確かめる（courier.Ensure。無ければ起こし、中身がシェルに替わっていれば andon courier を打ち直す）。
+// startCourier はクーリエの端末を確かめる（courier.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。
 // --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff のフックも同じ確かめを打つ。
 func startCourier(e Env) error {
 	if _, ok := e.has("hc"); !ok {

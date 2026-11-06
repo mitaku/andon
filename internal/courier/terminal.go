@@ -10,23 +10,21 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 )
 
 // クーリエの端末の中身を戻す（courier.md §5 の P3b「端末を起こす・中身を戻す」）。端末は --keep で起こすので、core が起き直すと（hc server restart・
 // App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで中身がシェルに替わる。
 // hc get courier が通るだけでは「動いている」と言えないので、前に出ているもの（foreground.argv）で見る。
+// 中身がシェルなら、そのシェルには打ち込まず、端末を片付けて起こし直す。
 // 打つのは boot（毎起動）と Chief of Staff のフック（andon courier drain。毎ターン）。core の起き直しは boot を通らないが、
 // クーリエが回るのは Chief of Staff が生きている台帳だけで、Chief of Staff が動けばフックが走る。
-
-// ensureWait は、シェルに打ち込んだあと中身がクーリエに替わるのを待つ長さ（その間 lock を持ち、二重に打たない）。
-var ensureWait = 3 * time.Second
 
 // shells は、クーリエの端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、人が抜けたあと）。
 var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ash": true, "fish": true, "nu": true}
 
 // courierTerm は hc get courier --json のうち、中身の見分けに読むもの。
 type courierTerm struct {
+	Address    string `json:"address"`
 	State      string `json:"state"`
 	Foreground *struct {
 		Argv []string `json:"argv"`
@@ -39,9 +37,11 @@ func IsCourier(argv []string) bool {
 	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == "courier"
 }
 
-// Ensure はクーリエの端末を確かめ、無ければ起こし、中身がシェルに替わっていれば andon courier を打ち直す。
+// Ensure はクーリエの端末を確かめ、無ければ起こし、中身がシェルに替わっていれば端末を片付けて起こし直す。
 // 何かしたらその1行を返す（何もしなければ空）。andon はパッケージの andon、cwd は建屋の repo。
-// 前に何も出ていない（替わる途中）・シェルでも andon courier でもないものが出ているときは触らない（迷ったら動かさない）。
+// シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。クーリエ専用の端末なので、
+// keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
+// 前に何も出ていない（替わる途中）・シェルでも andon courier でもないもの（人が何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string) (string, error) {
 	unlock, err := ensureLock()
 	if err != nil {
@@ -53,10 +53,8 @@ func Ensure(andon, cwd string) (string, error) {
 	case err != nil:
 		return "", err
 	case gone:
-		out, err := hcRun("run", "--bg", "--no-parent", "--no-notify", "--keep",
-			"--name", Name, "--label", "role="+Name, "--cwd", cwd, "--", andon, "courier")
-		if err != nil {
-			return "", fmt.Errorf("hc run: %v: %s", err, strings.TrimSpace(out))
+		if err := runCourier(andon, cwd); err != nil {
+			return "", err
 		}
 		return "クーリエを起こした", nil
 	case t.Foreground == nil:
@@ -65,16 +63,28 @@ func Ensure(andon, cwd string) (string, error) {
 		return "", nil
 	case !shells[t.Foreground.Name]:
 		return "", fmt.Errorf("クーリエの端末の前に %s が出ている（andon courier でもシェルでもない。触らない）", t.Foreground.Name)
+	case t.Address == "":
+		return "", fmt.Errorf("hc get %s に address が無い", Name)
 	}
-	if out, err := hcRun("send", Name, shellQuote(andon)+" courier"); err != nil {
-		return "", fmt.Errorf("hc send %s: %v: %s", Name, err, strings.TrimSpace(out))
-	}
-	for end := time.Now().Add(ensureWait); time.Now().Before(end); time.Sleep(200 * time.Millisecond) {
-		if t, _, err := getCourier(); err == nil && t != nil && t.Foreground != nil && IsCourier(t.Foreground.Argv) {
-			break
+	// 名前で引くと片付けた端末（finished）に当たりうるので、address で打つ
+	for _, args := range [][]string{{"keep", t.Address, "--off"}, {"kill", t.Address}, {"rm", t.Address}} {
+		if out, err := hcRun(args...); err != nil {
+			return "", fmt.Errorf("hc %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(out))
 		}
 	}
-	return "クーリエの端末がシェルに替わっていたので andon courier を打ち直した", nil
+	if err := runCourier(andon, cwd); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("クーリエの端末（%s）の中身がシェルに替わっていたので、片付けて起こし直した", t.Address), nil
+}
+
+func runCourier(andon, cwd string) error {
+	out, err := hcRun("run", "--bg", "--no-parent", "--no-notify", "--keep",
+		"--name", Name, "--label", "role="+Name, "--cwd", cwd, "--", andon, "courier")
+	if err != nil {
+		return fmt.Errorf("hc run: %v: %s", err, strings.TrimSpace(out))
+	}
+	return nil
 }
 
 // getCourier は hc get courier。端末が無い・終わっていれば gone。
@@ -128,5 +138,3 @@ func ensureLock() (func(), error) {
 	}
 	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
 }
-
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

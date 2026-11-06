@@ -23,7 +23,7 @@ const DrainUsage = "usage: andon courier drain [--context] [--project <slug>] < 
 	"  既定（Stop）: 待ちがあれば {\"decision\": \"block\", \"reason\": \"<news>…</news>\"}。前にフックで渡した <news> の答えが <no-reply> だけなら news.replied を書く\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
-	"Chief of Staff なら、クーリエの端末（courier）の中身がシェルに替わっていれば andon courier を打ち直す（core が起き直したあと）。\n" +
+	"Chief of Staff なら、クーリエの端末（courier）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
 	"落ちたとき（台帳・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
 
 // lockWait は drain が控えの lock を待つ長さ。クーリエの見回りが持っていれば、待ちは次の口で届く。
