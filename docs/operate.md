@@ -59,6 +59,18 @@ bin/bootstrap               # 初回: image を焼く → compose.yaml を取り
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）は建屋の `.env` に書く。**建屋を2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
+**`.env` に番号を書く前に、ホストで使われている番号を確かめる**（既定は `SSH_PORT=2222`・`PORTLESS_PORT=1355`。ほかの建屋・別の docker・ホストのほかのものと同じ番号だと、起動がポート使用中で落ちる）。
+
+```bash
+docker ps -a --format '{{.Names}}\t{{.Ports}}'     # 公開している port（止まっているコンテナも拾う）
+ss -ltn                                            # いまホストで listen している番号
+grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh config で使っている番号
+```
+
+- WSL＋Windows の App なら、Windows 側の ssh config（`C:\Users\<user>\.ssh\config`。4 の「WSL＋Windows の App から入る」）も同じ grep で見る。
+- **通ったら見えるもの**: 選んだ `SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT` のどれも、上の3つの出力に出てこない。選んだ番号を `.env` に書いてから `bin/bootstrap`。
+- **落ちたら見る所**: `bin/bootstrap` が `port is already allocated`・`address already in use` で落ちる — 出た番号を上の3つで引き、持ち主の側を動かすか、`.env` の番号を変えて打ち直す。起動のあとで `.env` の番号を変えたなら、`host-install` が置いた ssh config の `Port`・`LocalForward` も同じ番号にする（4 の落ちたら見る所）。
+
 - **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ `herdr` を開く。もう一度打てば同じセッションに戻る。
 - **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・クーリエを起こした行）。herdr の画面が開く。andon が uid 1001 だった版の image から上げた最初の起動では、`持ち主を直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
@@ -104,7 +116,36 @@ ssh andon-home
   - `Connection refused`・`Connection timed out` — `.env` の `SSH_PORT` と、ssh config の `Port` が同じか（`.env` を変えたあと `host-install` を打ち直すなら、古い `~/.ssh/config.d/andon-home.conf` を退避してから。`host-install` は今あるファイルを上書きしない）。ほかの建屋や別のものと `SSH_PORT` が重なると、compose の起動がポート使用中で落ちる（3 の落ちたら見る所）。
   - `Permission denied (publickey)` — `authorized_keys` に入っている公開鍵が、手元でつかわれる鍵と対か。`ssh -v andon-home` で提示された鍵を見る。置いたあとで起こし直していないときも同じ（boot が起動時に写す）。
   - `ssh: Could not resolve hostname andon-home` — `~/.ssh/config` の先頭に `Include config.d/*` の1行が無い。`host-install` の出力が案内する1行を足す。
-  - 初回の `REMOTE HOST IDENTIFICATION HAS CHANGED`（同じ `SSH_PORT` で別の建屋に入ったとき）— `ssh-keygen -R "[127.0.0.1]:<SSH_PORT>"` で手元の `known_hosts` の古い行を消す。
+  - `REMOTE HOST IDENTIFICATION HAS CHANGED`（同じ `SSH_PORT` で別の建屋に入ったとき。ProxyJump 先の別マシンが同じ番号で待っていて、その記録と `[127.0.0.1]:<SSH_PORT>` がぶつかるときも出る）— **消す前に、記録の指紋と建屋のホスト鍵の指紋を照らす**。
+    ```bash
+    ssh-keygen -F "[127.0.0.1]:<SSH_PORT>" -f ~/.ssh/known_hosts -l     # 手元に記録されている指紋
+    bin/bootstrap sh        # 建屋の中のシェル（建屋の repo で）。入ったら次の1行、終わったら exit
+    ssh-keygen -lf ~/.ssh/ssh_host_ed25519_key.pub     # 建屋のホスト鍵の指紋
+    ```
+    建屋のホスト鍵は boot が volume に置く（建屋の中の `~/.ssh/ssh_host_ed25519_key.pub`。作り直しても変わらない）。**指紋（`SHA256:…`）が同じ**なら、記録は正しいので消さない（別の原因を探す）。**違う**なら、記録は別のマシンのもの。その行だけ `ssh-keygen -R "[127.0.0.1]:<SSH_PORT>"` で消して入り直す。ProxyJump 先の記録を残したいなら、`SSH_PORT` を変える（3）ほうが安全。
+
+### WSL＋Windows の App から入る
+
+WSL に建屋があり、Herdr App が Windows 側で動くとき、`host-install` が置くのは **WSL 側**の `~/.ssh/config.d/andon-home.conf` だけ（Windows 側の ssh config と鍵には触らない。`host-install` はこのために変えない）。App の Add Machine が使う Windows 側の ssh config は、人が書く。建屋の sshd は WSL の `127.0.0.1:<SSH_PORT>` で待っていて、WSL の localhost 転送（既定で有効）で Windows の `127.0.0.1:<SSH_PORT>` からも届く。
+
+Windows の `C:\Users\<user>\.ssh\config` に足す（`<…>` は自分の値。番号は `.env` の `SSH_PORT`）:
+
+```
+Host andon-home
+  HostName 127.0.0.1
+  Port <SSH_PORT>
+  User andon
+  IdentityFile C:\Users\<user>\.ssh\<秘密鍵のファイル>
+```
+
+`IdentityFile` の鍵の公開鍵（`<秘密鍵のファイル>.pub`）が、建屋の repo の `.ssh/authorized_keys` に入っていること（上の「手元の端末から SSH で入る」。WSL の鍵とは別の鍵なら、その公開鍵も足して `bin/bootstrap down && bin/bootstrap up`）。そのうえで App の Add Machine に `andon-home` を指定する。
+
+```powershell
+ssh andon-home hostname      # Windows の PowerShell から。App が使うのと同じ設定で届くか
+```
+
+- **通ったら見えるもの**: `hostname` が slug（`home`）を返す。App の Add Machine で `andon-home` が繋がり、建屋の Space が出る。
+- **落ちたら見る所**: `Connection refused` — WSL 側で `ssh andon-home` が通るかを先に見る（通らなければ上の「手元の端末から SSH で入る」）。WSL で通り Windows で通らないなら、localhost 転送が切れている（`%USERPROFILE%\.wslconfig` の `[wsl2]` の `localhostForwarding=false`）か、Windows 側のほかのものが同じ番号を取っている（`netstat -ano | findstr :<SSH_PORT>`）。`Permission denied (publickey)` — Windows 側の `IdentityFile` の公開鍵が `authorized_keys` に無い。`ssh -v andon-home` で提示された鍵を見る。`Bad owner or permissions` — Windows の秘密鍵の ACL。自分だけが読める形にする。
 
 ### Herdr App の名前付け mod
 
@@ -207,6 +248,24 @@ andon chief-of-staff        # 起こす（動いていればそれを使う）�
 - **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない`（信頼の画面など）— App のその tab（か `hc attach <address>`）で画面に答えてから、出た `hc send` を打つ（終了コード 3）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが控えるだけで動かさない**（[courier.md](courier.md) §2）。1回の見回りのあとに効く。
 
 ## 10. 小さい PR を1本流す
+
+### 先に: マージの委譲と owner の email
+
+依頼書の `Merge: auto` でマージされるには、ゲートが approve するだけでは足りず、**委譲の `merge` がそのレベルを許している**ことが要る（[contract.md](contract.md) §11）。委譲（`projects/andon/delegation.json`）と条件表（`gate.local.json`）は、**それを最後に変えた commit の author の email が `andon.toml` の `owner` と一致するときだけ**信じられる。違うと無委譲（全部人）・条件表を重ねない、として読まれる。
+
+```bash
+cd ~/src/andon-home
+grep '^owner' andon.toml                    # owner の email（2 の --owner）
+git config user.email                       # 建屋の repo の commit で使われる email
+git config user.email '<owner の email>'    # 違うなら合わせる（この repo の中だけ）
+andon delegate grant merge B --evidence '<根拠のパスか引用>'    # 人が建屋の repo で打つ。B はマージを許すレベルの上限（A / B / C）
+andon delegate show
+git log -1 --format='%ae' -- projects/andon/delegation.json gate.local.json
+```
+
+- `grant` は `delegation.json` と `delegation.md` を書いて commit する。Chief of Staff・担当・クーリエの端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
+- **通ったら見えるもの**: `grant` が `projects/andon/delegation.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
+- **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — `git config user.email` が owner と違うまま commit した。email を合わせて、`delegation.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 
 人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。建屋の `gate.local.json`）。
 
