@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"andon/internal/delegate"
-	"andon/internal/dispatcher"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -358,9 +357,10 @@ func readDispatcherState(slug string) ([]byte, any, error) {
 		return nil, nil, err
 	}
 	var v any
-	// The dispatcher reads it as its State (internal/dispatcher, LoadState); valid JSON of
-	// another shape would stop the dispatcher after the move, so it stops the move instead.
-	if json.Unmarshal(data, &v) != nil || json.Unmarshal(data, new(dispatcher.State)) != nil {
+	// The dispatcher reads it as its State (internal/dispatcher, LoadState; the shape is copied
+	// in dispatcherstate.go); valid JSON of another shape would stop the dispatcher after the
+	// move, so it stops the move instead.
+	if json.Unmarshal(data, &v) != nil || json.Unmarshal(data, new(dispatcherState)) != nil {
 		return nil, nil, fail("not moved: %s is not the dispatcher's state; fix or remove it first", file)
 	}
 	return data, v, nil
