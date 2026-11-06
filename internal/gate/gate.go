@@ -465,20 +465,97 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	return checks, nil
 }
 
-// ReadChecks は PR の head と、その head の GitHub の checks を1回の gh で読む（クーリエもマージの直前に使う）。
+// checksQuery は PR の head と、その commit の statusCheckRollup の contexts を100件ずつ読む。
+const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) { headRefOid
+    commits(last: 1) { nodes { commit { oid statusCheckRollup { contexts(first: 100, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes { __typename
+        ... on CheckRun { name status conclusion databaseId checkSuite { app { slug } workflowRun { workflow { name } } } }
+        ... on StatusContext { context state createdAt } } } } } } } } } }`
+
+// checksPages は読むページの上限（100件ずつ。超えたら読めないとして止める）。
+const checksPages = 50
+
+// ReadChecks は PR の head と、その head の GitHub の checks を全ページ読む（クーリエもマージの直前に使う）。
+// ページの間に head が動いたら、動いた先の head を返す（呼び手は自分の head と比べて止める）。
 func ReadChecks(number, slug string) (string, GitHubChecks, error) {
-	b, err := gh("pr", "view", number, "--repo", slug, "--json", "headRefOid,statusCheckRollup")
-	if err != nil {
-		return "", GitHubChecks{}, err
+	owner, name, _ := strings.Cut(slug, "/")
+	head, after := "", ""
+	var items []CheckItem
+	for page := 0; ; page++ {
+		if page == checksPages {
+			return "", GitHubChecks{}, fmt.Errorf("GitHub の checks が %d 件を超えて読みきれない", checksPages*100)
+		}
+		args := []string{"api", "graphql", "-f", "query=" + checksQuery, "-f", "owner=" + owner, "-f", "name=" + name, "-F", "number=" + number}
+		if after != "" {
+			args = append(args, "-f", "after="+after)
+		}
+		b, err := gh(args...)
+		if err != nil {
+			return "", GitHubChecks{}, err
+		}
+		var v struct {
+			Data struct {
+				Repository struct {
+					PullRequest struct {
+						HeadRefOid string `json:"headRefOid"`
+						Commits    struct {
+							Nodes []struct {
+								Commit struct {
+									Oid               string `json:"oid"`
+									StatusCheckRollup *struct {
+										Contexts struct {
+											PageInfo struct {
+												HasNextPage bool   `json:"hasNextPage"`
+												EndCursor   string `json:"endCursor"`
+											} `json:"pageInfo"`
+											Nodes []struct {
+												CheckItem
+												CheckSuite struct {
+													App         struct{ Slug string } `json:"app"`
+													WorkflowRun *struct {
+														Workflow struct{ Name string } `json:"workflow"`
+													} `json:"workflowRun"`
+												} `json:"checkSuite"`
+											} `json:"nodes"`
+										} `json:"contexts"`
+									} `json:"statusCheckRollup"`
+								} `json:"commit"`
+							} `json:"nodes"`
+						} `json:"commits"`
+					} `json:"pullRequest"`
+				} `json:"repository"`
+			} `json:"data"`
+		}
+		pr := &v.Data.Repository.PullRequest
+		if json.Unmarshal(b, &v) != nil || !contract.IsSHA(pr.HeadRefOid) || len(pr.Commits.Nodes) != 1 || pr.Commits.Nodes[0].Commit.Oid != pr.HeadRefOid {
+			return "", GitHubChecks{}, errors.New("PR の head と checks が読めない")
+		}
+		if head != "" && pr.HeadRefOid != head {
+			return pr.HeadRefOid, GitHubChecks{}, nil // 読んでいる間に head が動いた
+		}
+		head = pr.HeadRefOid
+		roll := pr.Commits.Nodes[0].Commit.StatusCheckRollup
+		if roll == nil {
+			break // checks が1つも無い
+		}
+		for _, n := range roll.Contexts.Nodes {
+			it := n.CheckItem
+			it.App = n.CheckSuite.App.Slug
+			if n.CheckSuite.WorkflowRun != nil {
+				it.Workflow = n.CheckSuite.WorkflowRun.Workflow.Name
+			}
+			items = append(items, it)
+		}
+		if !roll.Contexts.PageInfo.HasNextPage {
+			break
+		}
+		if after = roll.Contexts.PageInfo.EndCursor; after == "" {
+			return "", GitHubChecks{}, errors.New("GitHub の checks の続きのページが読めない")
+		}
 	}
-	var v struct {
-		HeadRefOid        string      `json:"headRefOid"`
-		StatusCheckRollup []CheckItem `json:"statusCheckRollup"`
-	}
-	if json.Unmarshal(b, &v) != nil || !contract.IsSHA(v.HeadRefOid) {
-		return "", GitHubChecks{}, errors.New("PR の head と checks が読めない")
-	}
-	return v.HeadRefOid, SummarizeChecks(v.StatusCheckRollup), nil
+	return head, SummarizeChecks(items), nil
 }
 
 // postGitHub は記録を PR の commit status（andon/gate）とコメントに写す。失敗しても判定は変えない。

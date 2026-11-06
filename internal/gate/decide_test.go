@@ -198,6 +198,34 @@ func TestSummarizeChecks(t *testing.T) {
 	}
 }
 
+func TestSummarizeChecksLatestRun(t *testing.T) {
+	run := func(wf, conclusion string, id int64) CheckItem {
+		return CheckItem{Typename: "CheckRun", Name: "test", Status: "COMPLETED", Conclusion: conclusion, DatabaseID: id, App: "github-actions", Workflow: wf}
+	}
+	ctx := func(state, at string) CheckItem {
+		return CheckItem{Typename: "StatusContext", Context: "ci/x", State: state, CreatedAt: at}
+	}
+	queued := CheckItem{Typename: "CheckRun", Name: "test", Status: "QUEUED", DatabaseID: 3, App: "github-actions", Workflow: "tests"}
+	for _, c := range []struct {
+		name  string
+		items []CheckItem
+		want  string
+	}{
+		{"古い failure → 新しい success", []CheckItem{run("tests", "FAILURE", 1), run("tests", "SUCCESS", 2)}, "success"},
+		{"新しい success が先に出ても", []CheckItem{run("tests", "SUCCESS", 2), run("tests", "CANCELLED", 1)}, "success"},
+		{"古い success → 新しい failure", []CheckItem{run("tests", "SUCCESS", 1), run("tests", "FAILURE", 2)}, "failure"},
+		{"新しい failure が先に出ても", []CheckItem{run("tests", "FAILURE", 2), run("tests", "SUCCESS", 1)}, "failure"},
+		{"走り直しは pending", []CheckItem{run("tests", "SUCCESS", 2), queued}, "pending"},
+		{"別の workflow の同じ名前は別の check", []CheckItem{run("lint", "FAILURE", 1), run("tests", "SUCCESS", 2)}, "failure"},
+		{"status: 古い error → 新しい success", []CheckItem{ctx("ERROR", "2026-11-06T09:00:00Z"), ctx("SUCCESS", "2026-11-06T09:05:00Z")}, "success"},
+		{"status: 新しい failure が先に出ても", []CheckItem{ctx("FAILURE", "2026-11-06T09:05:00Z"), ctx("SUCCESS", "2026-11-06T09:00:00Z")}, "failure"},
+	} {
+		if got := SummarizeChecks(c.items); got.State != c.want {
+			t.Errorf("%s: %+v want %s", c.name, got, c.want)
+		}
+	}
+}
+
 func TestChecksOverdue(t *testing.T) {
 	now := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
 	rows := []ledger.Row{

@@ -36,7 +36,12 @@ cat > "$tmp/bin/gh" <<EOF
 d=$tmp/gh
 case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
-  "pr view 7 --repo example/app --json "*) jq -s '.[0] + {statusCheckRollup: .[1]}' \$d/view.json \$d/rollup.json ;;
+  "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
+  "api graphql "*)  # statusCheckRollup.contexts を100件ずつ（after は前のページの件数）
+    off=\$(printf '%s\n' "\$@" | sed -n 's/^after=//p'); echo "graphql \${off:-0}" >> \$d/pages
+    jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {repository: {pullRequest: {headRefOid: \$v[0].headRefOid,
+      commits: {nodes: [{commit: {oid: \$v[0].headRefOid, statusCheckRollup: (if length == 0 then null else
+        {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
@@ -168,6 +173,21 @@ got=$(gate "$id" --dry-run); expect 5 wait 'まだ走っている: ci/x'
 rollup COMPLETED/ACTION_REQUIRED
 got=$(gate "$id" --dry-run); expect 4 needs_human '決められない'
 ok 'GitHub の checks が落ちれば fix・commit status の pending は wait・action_required は needs_human'
+# 100 件を超える checks は全ページ読む（後のページだけの failure を見落とさない）
+jq -n '[range(150) | {__typename: "CheckRun", name: "job\(.)", status: "COMPLETED", conclusion: (if . == 120 then "FAILURE" else "SUCCESS" end), databaseId: .}]' > "$tmp/gh/rollup.json"
+rm -f "$tmp/gh/pages"
+got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: job120'
+grep -qx 'graphql 100' "$tmp/gh/pages" || die '2ページ目を読んでいない'
+# 同じ check の再実行は最新（databaseId が大きい）だけを数える。出てくる順に依らない
+rerun() { jq -n --arg a "$1" --arg b "$2" '[{__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: $a, databaseId: 1,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {name: "tests"}}}},
+  {__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: $b, databaseId: 2,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {name: "tests"}}}}] | if $ARGS.named.rev == "1" then reverse else . end' --arg rev "${3:-0}" > "$tmp/gh/rollup.json"; }
+rerun FAILURE SUCCESS;   got=$(gate "$id" --dry-run); expect 0 approve
+rerun FAILURE SUCCESS 1; got=$(gate "$id" --dry-run); expect 0 approve
+rerun SUCCESS FAILURE;   got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+rerun SUCCESS FAILURE 1; got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+ok 'GitHub の checks は100件を超えても全ページ読み、同じ check の再実行は最新だけを数える（順に依らない）'
 rollup
 got=$(gate "$id" --dry-run); expect 5 wait 'まだ1つも無い'
 jq -e '.github_checks == {state: "none", names: []}' "$tmp/out" >/dev/null || die 'none の形が違う（andon/gate を数えた）'

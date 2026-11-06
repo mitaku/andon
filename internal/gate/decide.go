@@ -229,14 +229,52 @@ type Check struct {
 // GateContext はゲート自身が PR の head に付ける commit status の context（GitHub の checks の事実から除く）。
 const GateContext = "andon/gate"
 
-// CheckItem は gh pr view --json statusCheckRollup の1件（CheckRun か StatusContext）。
+// CheckItem は head の commit の statusCheckRollup.contexts の1件（CheckRun か StatusContext）。
 type CheckItem struct {
 	Typename   string `json:"__typename"`
 	Name       string `json:"name"`       // CheckRun
 	Status     string `json:"status"`     // CheckRun
 	Conclusion string `json:"conclusion"` // CheckRun
+	DatabaseID int64  `json:"databaseId"` // CheckRun（再実行ほど大きい）
+	App        string `json:"app"`        // CheckRun の check suite の app（slug）
+	Workflow   string `json:"workflow"`   // CheckRun の workflow の名前（Actions でなければ空）
 	Context    string `json:"context"`    // StatusContext
 	State      string `json:"state"`      // StatusContext
+	CreatedAt  string `json:"createdAt"`  // StatusContext
+}
+
+// key は同じ check を見分ける鍵（CheckRun は app・workflow・名前、StatusContext は context）。
+func (it CheckItem) key() string {
+	if it.Typename == "StatusContext" {
+		return "status\x00" + it.Context
+	}
+	return it.Typename + "\x00" + it.App + "\x00" + it.Workflow + "\x00" + it.Name
+}
+
+// newer は it が old より新しい実行か（CheckRun は databaseId、StatusContext は createdAt。同じなら後に来たもの）。
+func (it CheckItem) newer(old CheckItem) bool {
+	if it.Typename == "StatusContext" {
+		return it.CreatedAt >= old.CreatedAt // RFC 3339 の UTC は文字列の順が時刻の順
+	}
+	return it.DatabaseID >= old.DatabaseID
+}
+
+// Latest は同じ check の実行が複数あれば最新の1つだけを残す（再実行で古い failure を数えない）。順は最初に出た順。
+func Latest(items []CheckItem) []CheckItem {
+	idx := map[string]int{}
+	out := []CheckItem{}
+	for _, it := range items {
+		k := it.key()
+		if i, ok := idx[k]; ok {
+			if it.newer(out[i]) {
+				out[i] = it
+			}
+			continue
+		}
+		idx[k] = len(out)
+		out = append(out, it)
+	}
+	return out
 }
 
 // GitHubChecks は PR の head の GitHub の checks を1つの状態にまとめたもの。
@@ -255,13 +293,14 @@ func (g GitHubChecks) Passed(optional bool) bool {
 var checkRank = map[string]int{"none": 0, "success": 1, "pending": 2, "unknown": 3, "failure": 4}
 
 // SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。ゲート自身の status（andon/gate）は数えない。
+// 同じ check の実行が複数あれば最新の1つだけを数える（Latest）。
 // CheckRun: 終わっていなければ pending。結論 success・skipped・neutral は通す（GitHub のブランチ保護と同じ）、
 // failure・cancelled・timed_out・startup_failure は failure、それ以外（action_required・stale・知らない値）は unknown。
 // StatusContext: success は通す、pending・expected は pending、failure・error は failure、それ以外は unknown。
 func SummarizeChecks(items []CheckItem) GitHubChecks {
 	g := GitHubChecks{State: "none", Names: []string{}}
 	names := map[string][]string{}
-	for _, it := range items {
+	for _, it := range Latest(items) {
 		name, state := it.Name, "unknown"
 		switch it.Typename {
 		case "CheckRun":

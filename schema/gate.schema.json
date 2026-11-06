@@ -76,7 +76,7 @@
           }
         },
         "github_checks": {
-          "description": "GitHub checks of the PR head (statusCheckRollup, without the gate's own andon/gate status), as one state.",
+          "description": "GitHub checks of the PR head (every page of statusCheckRollup.contexts, without the gate's own andon/gate status, only the latest run of each check), as one state.",
           "type": "object", "required": ["state", "names"], "additionalProperties": false,
           "properties": {
             "state": { "description": "The worst of: failure (failure, cancelled, timed_out, startup_failure, error) > unknown (action_required, stale, any other value) > pending (not completed, pending, expected) > success (success, skipped, neutral). none: no check at all.", "enum": ["success", "pending", "failure", "unknown", "none"] },
