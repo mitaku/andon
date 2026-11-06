@@ -273,14 +273,24 @@ func dropStaleRoles(e Env) error {
 	if !ok {
 		return nil
 	}
-	got, err := spawn.Output(nil, "", hc, "get", oldDispatcher, "--json")
-	if err != nil {
-		return nil // 前の係の端末は無い（not_found）。hc 自体の不調は dispatcher の段が出す
-	}
+	// 作り直しの直後は、戻った端末の前に出ているものがまだ取れない（foreground が無い）ことがある。
+	// 取れるまで dispatcherWait まで読み直す。上限を過ぎても取れなければ、最後に読んだものを使う（下で触らずに残す）。
+	end := time.Now().Add(dispatcherWait)
 	var t spawn.Term
-	if json.Unmarshal([]byte(got), &t) != nil || t.State != "live" || t.Address == "" ||
-		t.Name != oldDispatcher || t.Labels["role"] != oldDispatcher {
-		return nil
+	for {
+		got, err := spawn.Output(nil, "", hc, "get", oldDispatcher, "--json")
+		if err != nil {
+			return nil // 前の係の端末は無い（not_found）。hc 自体の不調は dispatcher の段が出す
+		}
+		t = spawn.Term{}
+		if json.Unmarshal([]byte(got), &t) != nil || t.State != "live" || t.Address == "" ||
+			t.Name != oldDispatcher || t.Labels["role"] != oldDispatcher {
+			return nil
+		}
+		if t.Foreground != nil || !time.Now().Before(end) {
+			break
+		}
+		time.Sleep(stalePoll)
 	}
 	if t.Foreground == nil || !(t.Shell() || isOldDispatcher(t.Foreground.Argv)) {
 		fg := "取れない"
@@ -328,3 +338,6 @@ func startDispatcher(e Env) error {
 
 // dispatcherWait は、dispatcher の端末の前に出ているものが取れるまで boot が待つ上限。テストで差し替える。
 var dispatcherWait = 5 * time.Second
+
+// stalePoll は、dropStaleRoles が前に出ているものを読み直す間隔。テストで差し替える。
+var stalePoll = 200 * time.Millisecond
