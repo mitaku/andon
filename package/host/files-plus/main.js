@@ -6,6 +6,7 @@
 // Mermaid files (.mmd, .mermaid) as diagrams drawn by Pele (pele/, MIT), and Markdown rendered,
 // with its Mermaid blocks and image lines drawn, and HTML read as text with a button to open it in
 // the browser, on this computer and on other machines.
+// Changed by Andon: the quoting of PowerShell arguments (psQuote), also in Herdr's folder listing.
 // Everything else is Herdr's code as shipped.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
@@ -34,8 +35,11 @@ const isImage = (path) => IMAGES.has((path.split(".").pop() ?? "").toLowerCase()
 const mib = (n) => `${(n / 1048576).toFixed(1)} MiB`;
 const windows = () => window()?.platform === "windows";
 // A fixed script with quoted local paths, as directory() above does.
+// A PowerShell single-quoted string. PowerShell also ends one at ‘ ’ ‚ ‛, so each is doubled too
+// (changed by Andon: a file name holding one could otherwise run as code).
+const psQuote = (a) => `'${a.replace(/['\u2018\u2019\u201A\u201B]/g, (m) => m + m)}'`;
 const ps = (script, ...args) =>
-  exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `& { ${script} } ${args.map((a) => `'${a.replaceAll("'", "''")}'`).join(" ")}`]);
+  exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `& { ${script} } ${args.map(psQuote).join(" ")}`]);
 
 // FNV-1a: where, which file, its size and time name the cache file, so an edited picture is fetched again.
 function fnv(text) {
@@ -188,7 +192,7 @@ async function pruneCache() {
 
 async function directory(path, on) {
   if (!on && window()?.platform === "windows") {
-    const r = await exec("powershell", ["-NoProfile", "-Command", "& { param($p) @(Get-ChildItem -LiteralPath $p -Force -ErrorAction Stop | Where-Object Name -ne '.git' | Select-Object -First 501 | ForEach-Object { @{ name=$_.Name; dir=($_.PSIsContainer -and -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)) } }) | ConvertTo-Json -Compress } '" + path.replaceAll("'", "''") + "'"]);
+    const r = await exec("powershell", ["-NoProfile", "-Command", "& { param($p) @(Get-ChildItem -LiteralPath $p -Force -ErrorAction Stop | Where-Object Name -ne '.git' | Select-Object -First 501 | ForEach-Object { @{ name=$_.Name; dir=($_.PSIsContainer -and -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)) } }) | ConvertTo-Json -Compress } " + psQuote(path)]);
     if (r.code !== 0) throw new Error(r.stderr || "Cannot list this folder");
     const result = JSON.parse(r.stdout || "[]");
     return Array.isArray(result) ? result : [result];
