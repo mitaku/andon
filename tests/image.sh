@@ -135,8 +135,13 @@ dc exec -T dev bash -euc '
   printf "#!/bin/sh\n[ \"\$*\" = \"auth status\" ] && exit 0\nexec %s auth setup-git --hostname github.com --force\n" "$real" > "$d/gh"
   chmod +x "$d/gh"
   rm -f "$HOME/.gitconfig"
-  PATH="$d:$PATH" andon boot >/dev/null
-  git config --global --get-all credential.https://github.com.helper | grep -q "gh auth git-credential"
+  PATH="$d:$PATH" andon boot >"$d/boot.log" 2>&1 || true
+  helpers=$(git config --global --get-all credential.https://github.com.helper || true)
+  if ! grep -q "gh auth git-credential" <<<"$helpers"; then
+    cat "$d/boot.log" "$HOME/.gitconfig" >&2 || true
+    echo "FAIL image: gitconfig が消えた後の boot が credential helper を gh にしない" >&2
+    exit 1
+  fi
   rm -rf "$d" "$HOME/.gitconfig"
 '
 # (a) ssh のセッション（非対話）に image の環境が渡ること。Herdr App の herdr-core serve もこの形で起きる
