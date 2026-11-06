@@ -130,7 +130,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 	if _, err := spawn.OutputIn(cwd, []string{"FLIGHTDECK_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
 	}
-	place := slug + " work / " + id + " " + title // 人に端末を指す言い方（ADR-0002 決めたこと 16・17）
+	place := id + " " + title + " / " + id // 人に端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
 	if !run.First.Sent {
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。%s（台帳は doing・agent %s のまま。App では %s）",
 			run.Address, name, run.Reason(), spawn.ResendHint(run.Address, msg), run.Address, place)}
@@ -145,11 +145,11 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 }
 
 // workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
-// herdr.space・herdr.tab で人の Herdr App の作業側の Space にタスクの tab として出す（ADR-0002 決めたこと 6・12）。
+// herdr.space・herdr.tab で人の Herdr App にタスクごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
 // 値は slug・id・題だけで決まり、どのマシンで起こすかに依らない（別のマシンならその machine の Space に出る。前提 7）。
 func workLabels(slug, id, title string) []string {
 	return []string{"project=" + slug, "task=" + id, "title=" + title,
-		"herdr.space=andon-" + slug + "-work", "herdr.tab=andon-" + slug + "-" + id}
+		"herdr.space=andon-" + slug + "-" + id, "herdr.tab=andon-" + slug + "-" + id}
 }
 
 // liveNames は動いている端末の名前（hc の名前は動いているものの中で1つ）。

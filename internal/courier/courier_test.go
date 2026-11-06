@@ -185,11 +185,11 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	}
 }
 
-// 担当の端末のラベル herdr.space・herdr.tab をレビュアーに写す（ADR-0002 決めたこと 12・受け入れ条件 3）。読めなければ付けない。
+// 担当の端末のラベル herdr.space・herdr.tab をレビュアーに写す（ADR-0002 決めたこと 12・受け入れ条件 3。ADR-0003 で Space もタスクごと）。読めなければ付けない。
 func TestWorkerPlace(t *testing.T) {
 	bin := t.TempDir()
 	hc := "#!/bin/sh\n[ \"$1 $3\" = 'get --json' ] || exit 9\ncase $2 in\n" +
-		"  t7) echo '{\"address\":\"t7\",\"labels\":{\"task\":\"D-1\",\"herdr.space\":\"andon-demo-work\",\"herdr.tab\":\"andon-demo-D-1\",\"where\":\"x / y\"}}' ;;\n" +
+		"  t7) echo '{\"address\":\"t7\",\"labels\":{\"task\":\"D-1\",\"herdr.space\":\"andon-demo-D-1\",\"herdr.tab\":\"andon-demo-D-1\",\"where\":\"x / y\"}}' ;;\n" +
 		"  t8) echo '{\"address\":\"t8\",\"labels\":{\"task\":\"D-2\"}}' ;;\n" +
 		"  t9) echo '{\"address\":\"t9\"' ;;\n" +
 		"  *) echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3 ;;\nesac\n"
@@ -201,7 +201,7 @@ func TestWorkerPlace(t *testing.T) {
 		agent string
 		want  []string
 	}{
-		{"t7", []string{"herdr.space=andon-demo-work", "herdr.tab=andon-demo-D-1"}}, // where は写さない
+		{"t7", []string{"herdr.space=andon-demo-D-1", "herdr.tab=andon-demo-D-1"}}, // where は写さない
 		{"t8", nil},  // ラベルが無い
 		{"t9", nil},  // 返事が読めない
 		{"t10", nil}, // 端末が無い
