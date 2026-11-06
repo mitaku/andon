@@ -31,7 +31,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    | `andon.toml` | 建屋の設定（`owner`・版・自動 push の切り替え〈3〉） | **人** | する | machine |
    | `AGENTS.md`・`AGENTS.local.md` | 建屋の指針（薄く。行数の上限は ADR-0004 の lint と同じ）。`.local` は boot が生成する環境メモ | 人／boot | する／しない | — |
    | `gate.local.json`・`templates.local/`・`local/`・`bin/` | ゲートの上書き・プロファイルの上書き・備品・`bootstrap` | **人** | する | — |
-   | `projects/<slug>/` | プロジェクト（ADR-0004）。指揮側の Space | ADR-0004 の表 | する（台帳を含む。3） | space（指揮側） |
+   | `projects/<slug>/` | プロジェクト（ADR-0004）。指揮側の Space | ADR-0004 の表 | する（**台帳 `kanban/` を除く**。5） | space（指揮側） |
    | `wiki/` | 建屋を横断する知識。1 ファイル 1 件・日付・出典・痩せた `index.md`。プロジェクト固有の事実も index の節か front matter の印で**ここ**に置く（プロジェクトに wiki は作らない） | Chief of Staff（D12） | する | — |
    | `files/` | 納品物（人に URL で届けるもの。`andon publish` が `<日付>-<slug>` で置き、files サーバが公開する）。**今の `artifacts/` の改名** | `andon publish`（担当・Chief of Staff・人） | する（大きいものは開いている問い 1） | — |
    | `.env`・`.env.*`・`.ssh/`・`.andon/`・`.ghq/`・`.codex/` | 秘密・番号・鍵・パッケージの取り出し・迎えた repo・ハーネスの状態 | 人／boot | しない（`init/.gitignore` のまま） | — |
@@ -40,7 +40,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    理由: 直下の既存の雛形（`init/`）を変えず、`wiki/`・`files/` の 2 つを「建て直しに要る」側に置いただけ。`artifacts` → `files` は「生成物」の語感を消し、納品物の面（files サーバのルート）と名前を揃える。
    捨てた案: `artifacts/` のまま——`.gitignore` 済みで、建て直すと納品物が消える／`projects/<slug>/wiki/`——段が増えると「どこに書くか」の迷いが増え、1 プロジェクトの建屋で空の段ができる。段は「製品 repo の `docs/` → 建屋の `wiki/` → 持ち主の wiki（建屋の外）」の 3 つで足りる／建屋ルートに `.claude/`——開いている問い 4。
 
-3. **2026-11-06 台帳 `kanban/` は追跡する（`.lock`・`state/`・一時ファイルを除く）。commit と push は伝令がする。自動 push の決定（問い10）を、前提が変わった分だけ決め直す。** 伝令は 1 巡の終わりに `kanban/`（と `files/`・`wiki/`）に差分があれば 1 commit（メッセージは機械的。例 `kanban: <slug> <日付> <変えたタスクの id>`）し、`andon.toml` で切れる既定 on の push をする。
+3. **2026-11-06 台帳 `kanban/` は追跡する（`.lock`・`state/`・一時ファイルを除く）。commit と push は伝令がする。自動 push の決定（問い10）を、前提が変わった分だけ決め直す。** **覆された → 5（同日）。** 以下は記録のまま。 伝令は 1 巡の終わりに `kanban/`（と `files/`・`wiki/`）に差分があれば 1 commit（メッセージは機械的。例 `kanban: <slug> <日付> <変えたタスクの id>`）し、`andon.toml` で切れる既定 on の push をする。
    - 履歴の正は `log.jsonl`（追記だけ。`by` つき）で、git の履歴は**運ぶための箱**。読みやすさは要らない（前提 1）。
    - 書き手は建屋に同時に 1 つ（指揮側。「1 つの home に書き手は 1 つ」）なので conflict は起きない。
    - **マシン固有の値**（`config.yaml` の `coordinator`、`task.yaml` の `agent`・`worktree`・`machine`）は追跡されるが、別のマシンでは無効。動かした先で端末が無いタスクは伝令が `stalled` として知らせ、起こし直しの対象にする（Y-155 の「シェルの端末を見誤らない」と同じ扱い）。将来は `state/` に分けて `config.yaml` から外す（台帳の形式の版上げ。K6）。
@@ -55,6 +55,14 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    - (c) **ハーネスの deny**: managed settings（`package/settings.json`）の `deny` に、人のファイルへの `Write`・`Edit` を足す。design.md §1.10 が「managed deny ＋ 端末のラベル」と書くが、今の `settings.json` の deny は `gh pr merge` と git の `--output` 系だけで、この deny は**まだ無い**（見つけた継ぎ目。S3）。Codex 側は同じ広さで拒めない（受け入れ済み。前提 4）。
    理由: 守りを緩められるのは人のファイルだけ、という構造にしておけば、エージェントの書く場所を増やしても（ADR-0004）線は 1 本のまま（shepherdr 1.0「repo の file は事実だけ、guard を緩められない」と同じ線）。
    捨てた案: 「人以外は建屋の repo に commit しない」（ADR-0004 の 1 回目の前提）——`wiki/` が既に例外で、台帳を追跡するなら成り立たない。ファイルごとの線に替えた。
+
+5. **2026-11-06 3 を覆す: 台帳 `kanban/` は追跡しない（`kanban/.gitignore` の `*` のまま）。伝令は commit も push もしない。問い10（自動 push は捨てる）はそのまま。** 人の答え「複数人で働く工場ではない。台帳は工場の中のもの。共有したい issue は GitHub や Linear を Chief of Staff が扱えばよい」を、私（担当）が「1 人だから commit してよい」と読み違えて 3 を書いた。人の意図は「台帳はセルの中の工程の記録で、持ち運ぶものではない」。
+   - 持ち運びが要る情報は台帳の外に出ている: 決定は製品 repo の `docs/`（ADR）、進行中の仕事は PR と branch（GitHub）、人と共有する issue は外部のトラッカー、事実と学びは `wiki/`・skill・テスト。台帳に残るのは経過（`log.jsonl`・brief・report・library）で、セルの寿命のもの。
+   - 別のマシンへ動かすときに経過も持っていきたければ、人が `kanban/` をディレクトリごと写す（operate.md の引っ越しの段に「写してよい・写さなくてもよい」と書く）。写した先ではマシン固有の値（`coordinator`・`agent`・`worktree`・`machine`）が無効で、伝令が `stalled` として知らせる（3 の記述はこの点だけ生きる）。
+   - 決めたこと 1 の基準「建て直しに要るか」はそのまま。台帳は「建て直しに要らない」側（要るものは外に出ている）。
+   - 受け入れ条件 1 と 4 の commit・push、切る案 S2 の `.gitignore` の書き換えと S4、開いている問い 2 は無くなる（下に打ち消し線ではなくこの項で読み替える。文書を書き換えないのは「覆したら上書きせず下に足す」の規則）。S4 は「operate.md の引っ越しの段（`kanban/` を写す手）」だけ残る。
+   理由: 前提 1 のとおり。台帳を git に入れると、セルの repo の履歴がエージェントの commit で埋まり、「人のファイルはエージェントが commit しない」の線（4）の例外が増える。要るものが外に出ている以上、増やす理由が無い。
+   捨てた案: 3（伝令が commit・push）——人の意図と違う／`kanban export` の command を作る——`cp -r` で足りる。
 
 ## やらないこと（範囲の外。理由）
 

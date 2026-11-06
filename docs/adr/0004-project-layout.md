@@ -16,7 +16,7 @@
 2. 建屋の持ち主は 1 人、プロジェクトは互いに独立、建屋は Herdr App の machine で **`projects/<slug>/` は指揮側の Space**（[ADR-0005](0005-cell-repo.md) 前提 1・2、[ADR-0002](0002-herdr-spaces.md)）。
 3. cwd が `projects/<slug>/` なのは **Chief of Staff だけ**。Chief Engineer（文書の PR の branch。ADR-0002 決めたこと 11）・担当・レビュアーは worktree。担当が worktree の外に書いてよいのは自分の `kanban/tasks/<id>/library/` だけ（contract.md §0 の 5・worker skill）。
 4. 人のファイルの照合（contract.md §11）は「人のファイルをエージェントが commit しない」で成り立ち、エージェントが commit してよい場所は表で決める（ADR-0005 決めたこと 4）。
-5. 台帳は 1 プロジェクトに 1 つ、書くのは台帳の CLI（`kanban`）だけ（D14・D17）。追跡する（ADR-0005 決めたこと 3）。
+5. 台帳は 1 プロジェクトに 1 つ、書くのは台帳の CLI（`kanban`）だけ（D14・D17）。追跡しない（ADR-0005 決めたこと 5。3 は同日に覆された）。
 6. 製品の仕様・設計・用語・合意事項は製品の repo の `docs/`（design.md §1.8・§6 問い21）。
 7. アウターループ（design.md §1.4）の出口は テスト／レビューの観点（`REVIEW.md`）／指針（`AGENTS.md`）／skill／wiki／削る。**memory は置かない**。Claude Code の auto memory は managed settings で切ってある（`package/settings.json` の `autoMemoryEnabled: false`）。
 8. 先輩プロジェクト shepherdr（0.2 → 1.0 → 2.x → 3.x）は、project フォルダの同居（`memory/`・`inbox/`・`uploads/`・`scratch/`・`threads/`）を 1.0 で全部外し、以後戻していない。残したのは repo の `AGENTS.md` と、持ち主の home のタスクだけ（出典）。
@@ -30,7 +30,7 @@
    | `project.json` | **機械が読む事実**（schema は `schema/project.schema.json`。`version`・`project`〈題・接頭字〉・`repos`〈このプロジェクトが**書いてよい** repo〉・`references`〈読むだけの repo・URL〉・`delegation`〈委譲。今の `delegation.json` の中身〉・Chief of Staff の設定値〈並行の上限・独立レビューの条件・トリアージの上限〉） | **人だけ**（author 照合。`andon delegate` が `delegation` の部分を書く。役の端末では拒む） | 消す＝無委譲・repo 無し（安全側）。履歴は git に残る |
    | `AGENTS.md` | **薄い地図**: 何のプロジェクトか・どこに何があるか・毎回要る決まりだけ（Chief of Staff への指示の節を含む。今の `coordinator.md`）。読み手は cwd がここの Chief of Staff。**太らせない**: 行数の上限を lint が見る（数は人が決める。目安は画面 1 枚） | Chief of Staff（アウターループの出口の 1 つ。人も書いてよい） | 消してよい（skill の既定に戻る） |
    | `.claude/` | ハーネスの設定: `settings.json`（このプロジェクトの allow 等。managed の deny は緩められない）・`skills/`（Chief of Staff の手順。1 skill 1 仕事。必要なときだけ読まれる）・`agents/`（副エージェント）。`settings.local.json` は追跡しない。Codex 系に同じ手順が要るときだけ `.agents/skills/` を `.claude/skills/` への symlink で足す | Chief of Staff（人も） | 消してよい |
-   | `kanban/` | 台帳（形式は ledger.md: `config.yaml`・`tasks/<id>/`・`routines/`・`library/`・`log.jsonl`）。追跡する（`.lock`・`state/`・一時ファイルを除く。ADR-0005） | 台帳の CLI だけ（打つのは Chief of Staff・Chief Engineer・担当・レビュアー・伝令・ゲート。`log.jsonl` の `by` で照合）。commit は伝令 | 消さない。工程の記録そのもの。消すのは人がプロジェクトを閉じるとき |
+   | `kanban/` | 台帳（形式は ledger.md: `config.yaml`・`tasks/<id>/`・`routines/`・`library/`・`log.jsonl`）。**追跡しない**（`kanban/.gitignore` の `*`。ADR-0005 決めたこと 5。セルの中の工程の記録で、持ち運ぶものではない） | 台帳の CLI だけ（打つのは Chief of Staff・Chief Engineer・担当・レビュアー・伝令・ゲート。`log.jsonl` の `by` で照合） | 消さない。工程の記録そのもの。消すのは人がプロジェクトを閉じるとき |
 
    - `kanban/tasks/<id>/library/`: タスクが作ったもの（機械向けの JSON・調べものの中間成果物〈2〉・作り直せる生成ビュー〈3〉）。担当が worktree の外に書いてよい唯一の場所。`finish` でも消さない（振り返りとトリアージが読む）。大きいもの（clone・動画）は置かない（scratch へ）。
    - `kanban/library/`: Chief of Staff が人に出す文書（問いのまとめ・トリアージの要約・タスクをまたぐ比べた表）。
@@ -68,7 +68,7 @@
    | 置き場 | 何を置くか | 書く人 | 見分け |
    |---|---|---|---|
    | 製品の repo の `docs/`・`AGENTS.md`・`REVIEW.md`・`.claude/skills/` | 仕様・設計・用語・合意事項・ADR、repo の指針・レビューの観点・手順（仮設の `master/` に当たる） | Chief Engineer・担当（PR。指針は Chief of Staff の判断で無灯。design.md §1.4） | 別の建屋でも要る |
-   | `projects/<slug>/` | **この建屋でこのプロジェクトを運転するもの**: 事実（`project.json`）・薄い地図（`AGENTS.md`）・Chief of Staff の手順（`.claude/`）・台帳（1 の表） | 人・Chief of Staff・台帳の CLI | この建屋でだけ要る。建屋を替えたら repo ごと動く（ADR-0005） |
+   | `projects/<slug>/` | **この建屋でこのプロジェクトを運転するもの**: 事実（`project.json`）・薄い地図（`AGENTS.md`）・Chief of Staff の手順（`.claude/`）・台帳（1 の表。追跡しない） | 人・Chief of Staff・台帳の CLI | この建屋でだけ要る。建屋を替えたら repo ごと動く（台帳は人が写す。ADR-0005 決めたこと 5） |
    | 建屋の `wiki/`・`AGENTS.md`・`gate.local.json`・`templates.local/`・`local/` | 建屋を横断するもの（プロジェクトをまたぐ事実と学び・建屋の指針・ゲートの上書き・備品） | Chief of Staff（`wiki/`）・人 | プロジェクトを替えても要る |
    | Andon の `package/` | 全建屋に効くもの（横展） | 人（Andon の PR。design.md §1.3 の 5） | 建屋を替えても要る |
    | 建屋の外（持ち主の wiki） | 全工場の知識 | 人 | — |
@@ -79,13 +79,13 @@
    捨てた案: `projects/<slug>/docs/`——製品の文書の写しは二重になり、案件の周辺の事実は `wiki/` に印を付けて置ける。
 
 5. **2026-11-06 今ある建屋からの移し方は要件だけ（実装は Y-141 と S2〜S5）。**
-   1. `projects/<slug>/.flightdeck/` → `projects/<slug>/kanban/`（`mv`）。`kanban/.gitignore` を書き換えて `git add`（ADR-0005 決めたこと 3）。`FLIGHTDECK_ROOT` → `KANBAN_ROOT`。
+   1. `projects/<slug>/.flightdeck/` → `projects/<slug>/kanban/`（`mv`。`kanban/.gitignore` の `*` はそのまま。ADR-0005 決めたこと 5）。`FLIGHTDECK_ROOT` → `KANBAN_ROOT`。
    2. 台帳の見分けは「`kanban/config.yaml` があり、形式の版が読める」ときだけ。製品の repo の中の `kanban/` を台帳と誤認しない（Y-141 の守り。テストで固定）。
    3. `coordinator.md`（台帳の中）→ `projects/<slug>/AGENTS.md` の Chief of Staff の節。ledger.md の予約名 `coordinator.md` は外す。
    4. `delegation.json` → `project.json` の `delegation`。`config.yaml` の `repos` → `project.json` の `repos`（台帳側は部分集合として残す）。`delegation.md` は消す（`andon delegate show`）。
    5. `config.yaml` の `coordinator` → `chief_of_staff`、id → `<PREFIX>-%04d`（Y-141 の本文と追記のとおり）。
    6. 移す前に Chief of Staff と伝令を止め、`doing`・`review` のタスクがあれば移さず止まる（Y-141 の 4）。移したら起こし直す。
-   7. 移したあと `kanban lint`・`andon delegate show`・`hc ls` が通り、`git status` の未追跡が `.lock`・`state/` だけ。
+   7. 移したあと `kanban lint`・`andon delegate show`・`hc ls` が通り、`git status` に `kanban/` が出ない。
    8. 文書と skill: operate.md の「建屋の置き方」と §8、chief-of-staff・independent-review・worker・glossary の skill の `.flightdeck`・`coordinator.md`、contract.md §11 の `delegation.json` のパス、design.md §2.2 の `init/` の例（`delegation.json` → `project.json`）。
 
 ## やらないこと（範囲の外。理由）
