@@ -30,28 +30,33 @@ const (
 	workingAfter = 20 * time.Minute // working のまま、これ以上で stalled
 )
 
-// retryAfter は提供元のエラーで止まった担当に続きを打つまでの間（回数＝個数。dispatcher.md §2.3）。
-var retryAfter = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute}
+// retryAfter は提供元に切られた端末に「続けて」を打つまでの間。i 回目に切られたら retryAfter[i-1] あとに打つ。
+// 個数（4）を打ち切ると、5 回目に切られたところで打つのをやめて知らせる（dispatcher.md §2.4。shepherdr〈MIT〉と同じ間隔）。
+var retryAfter = []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute}
 
-// RetryText は提供元のエラーで止まった担当に打つ文。
-const RetryText = "提供元のエラーで止まった。続けて"
+// RetryText は提供元に切られた端末に打つ文。人の依頼と取り違えないよう、送り手と範囲を書く。
+const RetryText = "提供元（モデルの API）に切られて止まった。止まる前の続きを、今の許可の範囲で続けて（dispatcher から。人の依頼ではない）"
 
 var (
-	authErrRe     = regexp.MustCompile(`(?i)unauthori[sz]ed|\b401\b|\b403\b|invalid api key|/login|authenticat`)
-	providerErrRe = regexp.MustCompile(`(?i)overloaded|rate.?limit|too many requests|\b429\b|API Error: 5[0-9]{2}|\b(500|502|503|504|529)\b|internal server error|service unavailable|bad gateway|connection (error|reset|refused|closed)|ECONNRESET|stream disconnected|request timed out|high demand|混雑`)
-	agentRe       = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9_.-]{0,62}/)?[A-Za-z0-9_-]{1,40}$`) // <address> か <machine>/<address>（contract.md §8）
+	authErrRe      = regexp.MustCompile(`(?i)unauthori[sz]ed|\b401\b|\b403\b|invalid api key|/login|authenticat|oauth token`)
+	allowanceErrRe = regexp.MustCompile(`(?i)usage limit|hit your [a-z ]*limit|\bquota\b|billing|credit balance`)
+	providerErrRe  = regexp.MustCompile(`(?i)overloaded|at capacity|rate.?limit|too many requests|\b429\b|API Error: 5[0-9]{2}|\b(500|502|503|504|529)\b|internal server error|service unavailable|bad gateway|connection (error|reset|refused|closed)|ECONNRESET|stream disconnected|stopped arriving|request timed out|high demand|混雑`)
+	agentRe        = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9_.-]{0,62}/)?[A-Za-z0-9_-]{1,40}$`) // <address> か <machine>/<address>（contract.md §8）
 )
 
-// ProviderError は担当の画面が提供元の混雑・rate limit・接続・5xx のエラーか。認証の失敗は含めない。
-func ProviderError(screen string) bool {
-	return !authErrRe.MatchString(screen) && providerErrRe.MatchString(screen)
+// ProviderError は文（hc の status.msg か画面）が、提供元の混雑・rate limit・接続・5xx で切られたものか。
+// 待てば通る見込みのものだけで、認証の失敗と使用量の上限（待っても直らない）は含めない。dispatcher.md §2.4。
+func ProviderError(text string) bool {
+	return !authErrRe.MatchString(text) && !allowanceErrRe.MatchString(text) && providerErrRe.MatchString(text)
 }
 
 // collect は通知の元を拾う（pass が控えの lock を持って呼ぶ）。
 func (p *project) collect(cos string) {
 	p.readReady()
 	p.readLog(cos)
-	p.watch(time.Now())
+	now := time.Now()
+	p.watch(now)
+	p.retryChief(cos, now)
 }
 
 // ---------------------------------------------------------------- log.jsonl の続き
@@ -214,19 +219,36 @@ func (p *project) readReady() {
 
 // ---------------------------------------------------------------- 止まった担当
 
-// Resend は提供元のエラーで続きを打った回数と最後に打った時刻（Unix ミリ秒）。
+// Resend は提供元に切られて「続けて」を打った回数と時刻（dispatcher.md §2.4）。打てなかった試行も数える。
+// 時刻はどれも dispatcher の時計（Unix ミリ秒）。端末の status_ms は端末の土台の時計なので、時刻としては比べず、
+// 切断の見分け（同じ error か・新しく切られたか）にだけ使う。
 type Resend struct {
-	N  int   `json:"n"`
-	At int64 `json:"at"`
+	N     int   `json:"n"`
+	At    int64 `json:"at"`              // 最後に打った（打とうとした）時刻
+	Cut   int64 `json:"cut,omitempty"`   // いま見ている error の status_ms（切断の見分け）
+	Since int64 `json:"since,omitempty"` // その error を dispatcher が初めて見た時刻
+	Sent  int64 `json:"sent,omitempty"`  // 最後に打ったときの Cut（これと違う error なら、打ったあとにまた切られた）
 }
+
+// Saw は error の様子 s を控えに映す: 新しい status_ms の error なら、それを dispatcher が初めて見た時刻を nowMs で持つ。
+func (r Resend) Saw(s Seen, nowMs int64) Resend {
+	if s.Status == "error" && s.StatusMs != r.Cut {
+		r.Cut, r.Since = s.StatusMs, nowMs
+	}
+	return r
+}
+
+// kept は控えに残すものがあるか。
+func (r Resend) kept() bool { return r.N > 0 || r.At > 0 || r.Cut != 0 }
 
 // Seen は担当の端末の1回の様子。
 type Seen struct {
 	Gone      bool   // 端末が無い・終わった
 	Status    string // status.state
+	Msg       string // status.msg（program が状態に添えた文。Claude Code は error のとき API のエラーの文を入れる。Codex は入れない）
 	StatusMs  int64
 	Reviewing bool // 子のレビュアーのタスクが todo／doing
-	Unsent    bool // ラベル first_message.sent=false（最初のメッセージが届いていない。dispatcher.md §5）
+	Unsent    bool // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
 }
 
 // Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
@@ -236,7 +258,20 @@ type Verdict struct {
 	Retry bool
 }
 
-// Judge は担当の様子 s から、知らせるか・続きを打つかを決める（dispatcher.md §2.3）。screen は error のときだけ読む。
+// ScreenCut は画面から、Codex がターンを止めたときに出すエラーの行（行頭が ■ の最後の行。実測 Codex 0.166.0）だけを返す。
+// 無ければ空。画面のほかの行（エージェントの出力・ファイルの中身）は、提供元の語を含んでいても見分けに使わない。
+func ScreenCut(screen string) string {
+	lines := strings.Split(screen, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(nbsp(lines[i])); strings.HasPrefix(l, "■") {
+			return l
+		}
+	}
+	return ""
+}
+
+// Judge は担当の様子 s から、知らせるか・続きを打つかを決める（dispatcher.md §2.3・§2.4）。
+// 提供元に切られたかは status.msg で見分け、無ければ（Codex）screen の ■ の行（ScreenCut）を読む。screen は error で msg が無いときだけ読む。
 func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	key := s.Status + "|" + strconv.FormatInt(s.StatusMs, 10)
 	age := time.Duration(nowMs-s.StatusMs) * time.Millisecond
@@ -246,14 +281,26 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	case s.Status == "blocked":
 		return Verdict{Kind: "blocked", Key: key}
 	case s.Status == "error":
-		if !ProviderError(screen()) {
+		text := s.Msg
+		if text == "" {
+			text = ScreenCut(screen())
+		}
+		// 最初のメッセージが届いていない端末に「続けて」は意味が無い（続ける仕事を受け取っていない）。知らせる
+		if s.Unsent || !ProviderError(text) {
 			return Verdict{Kind: "error", Key: key}
 		}
+		r = r.Saw(s, nowMs) // 呼び手が映していなくても同じ答えにする
 		if r.N >= len(retryAfter) {
-			return Verdict{Kind: "error", Key: "retry-out"}
+			// 打ち切るのは、最後に打ったあとにまた切られた（5 回目の切断。status_ms が打ったときと違う）か、
+			// 打っても最後の間だけ待って同じ error のままのとき。打った直後の見回りで、まだ前の切断の error を見ているだけなら待つ
+			if r.Cut != r.Sent || time.Duration(nowMs-r.At)*time.Millisecond >= retryAfter[len(retryAfter)-1] {
+				return Verdict{Kind: "error", Key: "retry-out"}
+			}
+			return Verdict{}
 		}
-		// 再送しても同じ error のまま status_ms が変わらないことがあるので、遅いほうから測る
-		if time.Duration(nowMs-max(s.StatusMs, r.At))*time.Millisecond >= retryAfter[r.N] {
+		// その error を初めて見た時刻と前に打った時刻の遅いほうから測る（どちらも dispatcher の時計。
+		// 打っても同じ error のまま status_ms が変わらないことがある）
+		if time.Duration(nowMs-max(r.Since, r.At))*time.Millisecond >= retryAfter[r.N] {
 			return Verdict{Retry: true}
 		}
 	case (s.Status == "idle" || s.Status == "done") && age >= idleAfter && !s.Reviewing:
@@ -302,19 +349,25 @@ func (p *project) watch(now time.Time) {
 		if s.Unsent && !p.first && p.sendFirst(t, agent, s.Status, p.st.First[rk]) {
 			first[rk] = true
 		}
+		// 控えに「送った」があればラベルが残っていても届いたとみる（続きを打ってよい）
+		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
+		r = r.Saw(s, nowMs)
 		v := Judge(s, func() string { out, _ := hcOut("read", agent, "--lines", "40"); return out }, r, nowMs)
 		if v.Retry && !p.first {
-			// 送れなかった試行も回数と時刻に数える（送れないまま見回りごとに打ち続けない）
-			r = Resend{N: r.N + 1, At: nowMs}
-			if p.retry(agent) {
-				p.logf("%s の担当 %s に続きを打った（提供元のエラー、%d 回目）", id, agent, r.N)
+			if next, ok := p.countResend(rk, r, nowMs); ok {
+				r = next
+				if p.retry(agent) {
+					p.logf("%s の担当 %s に続きを打った（提供元に切られた、%d 回目）", id, agent, r.N)
+				} else {
+					p.logf("%s の担当 %s に続きを打てなかった（%d 回目に数える）", id, agent, r.N)
+				}
 			} else {
-				p.logf("%s の担当 %s に続きを打てなかった（%d 回目に数える）", id, agent, r.N)
+				p.logf("%s の担当 %s に続きを打たない（控えを書けない。次の見回りで）", id, agent)
 			}
 		}
-		// 回数は error・working の間は持ち越し（「続けて」を数える）、idle／done に戻ったら区切る
-		if s.Status != "idle" && s.Status != "done" && !s.Gone && (r.N > 0 || r.At > 0) {
+		// 回数は error・working の間だけ持ち越し（「続けて」を数える）、ほかの状態（idle・done・blocked など）に戻ったら区切る
+		if (s.Status == "error" || s.Status == "working") && !s.Gone && r.kept() {
 			retry[rk] = r
 		}
 		if v.Kind == "" {
@@ -326,7 +379,105 @@ func (p *project) watch(now time.Time) {
 		}
 		sent[k] = true
 	}
+	// Chief of Staff の分（retryChief が持つ。キーは cosKey で始まり、タスクの id とは重ならない）は持ち越す
+	for k := range p.st.Sent {
+		if strings.HasPrefix(k, cosKey) {
+			sent[k] = true
+		}
+	}
+	for k, r := range p.st.Retry {
+		if strings.HasPrefix(k, cosKey) {
+			retry[k] = r
+		}
+	}
 	p.st.Sent, p.st.Retry, p.st.First = sent, retry, first
+}
+
+// countResend は打つ前に、回数と時刻を1つ進めた控えを保存する（打ってから pass の最後の保存の前に dispatcher が落ちても、
+// 再開後に同じ切断へ打ち直さず、上限も超えない。送れなかった・届いたか分からない試行も1回に数える）。
+// 保存できなければ控えを戻して false（打たない）。
+func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) {
+	prev, had := p.st.Retry[key]
+	next := r
+	next.N, next.At, next.Sent = r.N+1, nowMs, r.Cut
+	p.st.Retry[key] = next
+	if err := p.st.Save(p.l.Slug); err != nil {
+		if had {
+			p.st.Retry[key] = prev
+		} else {
+			delete(p.st.Retry, key)
+		}
+		return r, false
+	}
+	return next, true
+}
+
+// cosKey は控えの Retry・Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: はタスクの id に使えない）。
+const cosKey = ":cos|"
+
+// retryChief は Chief of Staff の端末が提供元に切られて止まったとき、担当と同じ間隔で「続けて」を打つ（dispatcher.md §2.4）。
+// Chief of Staff は人が打つ端末なので、入力欄が空と確かめられたときだけ打つ（確かめられなければ打たず、その試行も数える）。
+// 打ち切ったら、知らせる相手（Chief of Staff）が止まっているので、ログに1行残して止める。人は Herdr App の error で気づく。
+func (p *project) retryChief(cos string, now time.Time) {
+	key := cosKey + cos
+	for k := range p.st.Retry { // 替わった前の Chief of Staff の分は捨てる
+		if strings.HasPrefix(k, cosKey) && k != key {
+			delete(p.st.Retry, k)
+		}
+	}
+	for k := range p.st.Sent {
+		if strings.HasPrefix(k, cosKey) && !strings.HasPrefix(k, key+"|") {
+			delete(p.st.Sent, k)
+		}
+	}
+	if p.first || !agentRe.MatchString(cos) {
+		return
+	}
+	c, err := hcGet(cos)
+	if err != nil || c.State != "live" {
+		return // 取れない間は前の回数を保つ
+	}
+	if c.Status.State != "error" && c.Status.State != "working" {
+		// 回数は error・working の間は持ち越し、ほかに戻ったら区切る（担当と同じ）
+		delete(p.st.Retry, key)
+		delete(p.st.Sent, key+"|retry-out")
+		return
+	}
+	s := Seen{Status: c.Status.State, Msg: c.Status.Msg, StatusMs: c.StatusMs}
+	r := p.st.Retry[key].Saw(s, now.UnixMilli())
+	if r.kept() {
+		p.st.Retry[key] = r
+	}
+	v := Judge(s, func() string { out, _ := hcOut("read", cos, "--lines", "40"); return out }, r, now.UnixMilli())
+	switch {
+	case v.Retry:
+		next, ok := p.countResend(key, r, now.UnixMilli())
+		if !ok {
+			p.logf("Chief of Staff %s に続きを打たない（控えを書けない。次の見回りで）", cos)
+			return
+		}
+		r = next
+		if p.retryIfEmpty(cos, c) {
+			p.logf("Chief of Staff %s に続きを打った（提供元に切られた、%d 回目）", cos, r.N)
+		} else {
+			p.logf("Chief of Staff %s に続きを打たなかった（入力欄が空と確かめられない・送れない。%d 回目に数える）", cos, r.N)
+		}
+	case v.Key == "retry-out" && !p.st.Sent[key+"|retry-out"]:
+		p.st.Sent[key+"|retry-out"] = true
+		p.logf("Chief of Staff %s は提供元に %d 回続けて切られた。もう打たない（人が Herdr App の error で気づく）", cos, len(retryAfter)+1)
+	}
+}
+
+// retryIfEmpty は Chief of Staff に続きを打つ。入力欄 → 状態の順に読み直し、同じ error のまま入力欄が空のときだけ打つ
+// （人が打ちかけていれば、それに続けて送ってしまうので。§4.2 の inputEmpty。罫線の無い入力欄〈Codex〉は空と確かめられないので打たない）。
+func (p *project) retryIfEmpty(cos string, c *terminal) bool {
+	if !inputEmpty(cos) {
+		return false
+	}
+	if c2, err := hcGet(cos); err != nil || c2.Status.State != "error" || c2.StatusMs != c.StatusMs || c2.Turn != c.Turn {
+		return false
+	}
+	return p.retry(cos)
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
@@ -412,10 +563,10 @@ func (p *project) seen(agent string) (Seen, bool) {
 		// 作り直しで top-level の argv ごと素のシェルに替わって戻った端末（状態を報告しないので stalled にもならない）。終わった端末として知らせる
 		return Seen{Gone: true, StatusMs: t.StatusMs}, true
 	}
-	return Seen{Status: t.Status.State, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false"}, true
+	return Seen{Status: t.Status.State, Msg: t.Status.Msg, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false"}, true
 }
 
-// retry は担当に続きを打つ（担当は人が打つ端末ではないので、離席の守りは要らない）。
+// retry は端末に続きを打つ。担当は人が打つ端末ではないので離席の守りは要らない。Chief of Staff は retryIfEmpty を通して打つ。
 func (p *project) retry(agent string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

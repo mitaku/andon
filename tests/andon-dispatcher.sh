@@ -744,16 +744,19 @@ pk
 pp "$b" blocked | jq -e 'length == 1' >/dev/null || die '新しい status_ms の blocked を知らせない'
 ok '止まった担当: 端末が無い（finished）・blocked・提供元でない error・idle 15分・working 20分を知らせ、レビュー待ち・短いものは知らせず、同じ status_ms につき1回'
 
-# 19. 提供元のエラーは自分で続きを打つ（1分・5分・15分あと、3回まで）。4回目は知らせる
-v=$(st_task 'error（混雑）' w23); termp w23 error "$fresh"; printf 'API Error: 529 {"type":"overloaded_error"}\n' > "$tmp/hc/screen-w23"
+# 19. 提供元に切られたら自分で続きを打つ（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら知らせる（dispatcher.md §2.4）
+v=$(st_task 'error（混雑）' w23); termp w23 error "$fresh"; printf '› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n' > "$tmp/hc/screen-w23"
 clear_pending; pk
-[ "$(grep -c "^w23	提供元のエラーで止まった。続けて" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元のエラーに続きを打たない・知らせた'
+! grep -q '^w23	' "$tmp/hc/sent" 2>/dev/null && jq -e --arg k "$v|w23" '.retry[$k].since > 0 and .retry[$k].n == 0' "$pst" >/dev/null || die '初めて見た切断にすぐ打った・見た時刻を控えない'
+jq --arg k "$v|w23" '.retry[$k].since = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"   # 見てから 1 分たった
 pk
-[ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die '5分を待たずに続きを打った'
-jq --arg k "$v|w23" '.retry[$k] = {n: 3, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+[ "$(grep -c "^w23	提供元（モデルの API）に切られて止まった。止まる前の続きを" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元に切られた担当に続きを打たない・知らせた'
 pk
-pp "$v" error | jq -e '.[0].detail.agent == "w23"' >/dev/null && [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die "3回続きを打っても戻らない担当を error で知らせない: $(pp "$v" error)"
-ok '提供元のエラーは自分で続きを打ち（間を空けて3回まで）、4回目は error で知らせる'
+[ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die '2分を待たずに続きを打った'
+jq --arg k "$v|w23" '.retry[$k] = {n: 4, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+pk
+pp "$v" error | jq -e '.[0].detail.agent == "w23"' >/dev/null && [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die "4回続きを打ってまた切られた担当を error で知らせない: $(pp "$v" error)"
+ok '提供元に切られたら自分で続きを打ち（間を空けて4回まで）、5回目に切られたら error で知らせる'
 
 # 20. log.jsonl が書き直されて前の位置より長くなっても、先頭の行が替われば先頭から読む
 old=$(stat -c %s "$P/log.jsonl")
@@ -797,17 +800,19 @@ pk
 ok 'hc get の一時の失敗では finished にせず、取れない間は知らせた状態を保つ（戻っても同じ状態は知らせない）'
 
 # 23. 続きを送れなかった試行も回数と時刻に数える
-u=$(st_task '送れない' w32); termp w32 error "$old_work"; printf 'API Error: 529 overloaded\n' > "$tmp/hc/screen-w32"
+u=$(st_task '送れない' w32); termp w32 error "$old_work"; printf '■ Selected model is at capacity. Please try a different model.\n' > "$tmp/hc/screen-w32"
 echo w32 > "$tmp/hc/sendfail"
-clear_pending; pk; pk
+clear_pending; pk
+jq --arg k "$u|w32" '.retry[$k].since = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"   # 見てから 1 分たった
+pk; pk
 jq -e --arg k "$u|w32" '.retry[$k].n == 1 and .retry[$k].at > 0' "$pst" >/dev/null || die "送れなかった試行を数えない・間を空けずに打ち直した: $(jq -c --arg k "$u|w32" '.retry[$k]' "$pst")"
 [ "$(grep -c '^send w32 ' "$tmp/hc/log")" = 1 ] || die '送れないまま見回りごとに打った'
-jq --arg k "$u|w32" '.retry[$k].at = 0 | .retry[$k].n = 2' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
+jq --arg k "$u|w32" '.retry[$k].at = 0 | .retry[$k].n = 3' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
 pk
-jq -e --arg k "$u|w32" '.retry[$k].n == 3' "$pst" >/dev/null || die '送れなかった3回目を数えない'
+jq -e --arg k "$u|w32" '.retry[$k].n == 4' "$pst" >/dev/null || die '送れなかった4回目を数えない'
 jq --arg k "$u|w32" '.retry[$k].at = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
 pk
-pp "$u" error | jq -e 'length == 1' >/dev/null || die '送れないまま3回を超えても error で知らせない'
+pp "$u" error | jq -e 'length == 1' >/dev/null || die '送れないまま4回を超えても error で知らせない'
 rm "$tmp/hc/sendfail"
 ok '提供元のエラーで続きを送れなかった試行も回数と時刻に数え、上限を超えたら error で知らせる'
 
