@@ -152,7 +152,7 @@ bin/bootstrap status                                          # 最後の行に 
 bin/bootstrap host-install
 ```
 
-`andon-up`（PC を起こしたあとに全建屋を起こす）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に置く。**今あるファイルは上書きしない**。
+`andon-up`（PC を起こしたあとに全建屋を起こす）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に、Herdr App の mod とレイアウト `andon` を App の設定フォルダに（下の「Herdr App の mod とレイアウト」）置く。**今あるファイルは上書きしない**。最後に、App のレイアウトを `andon` に切り替える1手を案内する。
 
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
 - **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。
@@ -222,9 +222,19 @@ App の Add Machine で建屋（`Host andon-home`）を足すと、App は SSH �
 - **App の serve を起こし直す必要があるとき**（App に建屋が出ない・serve が古い版のまま・SSH の環境を変えたあと）: App でその machine を切って繋ぎ直す（serve は繋ぐときに起きる）。それでも出なければ `bin/bootstrap down` → `up` で建屋ごと起こし直し、上の Update HC から。
 - **落ちたら見る所**: 端末が `env: 'claude': No such file or directory` で落ちる・SSH のシェルで `hc`・`gh` が打てない — image が古い（SSH に環境が渡らない版）。`ssh andon-home 'echo $PATH'` の先頭が `/opt/andon-home/.local/bin` か。版が割れている（`hc --version` と `hc server status` の `version` が違う）— `readlink ~/.local/bin/herdr-core ~/.local/bin/hc` を見てから `hc server restart`。
 
-### Herdr App の名前付け mod
+### Herdr App の mod とレイアウト
 
-同じ `host-install` が App の設定フォルダの `mods/andon/` に名前付け mod を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存のディレクトリは、不完全でも中身を補わずそのまま残す。更新するときは退避してから打ち直す。
+同じ `host-install` が App の設定フォルダに、Andon の mod 5つ（`mods/` の下）とレイアウト `andon`（`layouts/andon.json`・`andon.svg`）を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存の mod のディレクトリは、不完全でも中身を補わずそのまま残し、既存のレイアウトのファイルも上書きしない。更新するときは退避してから打ち直す（herdr-flightdeck の `inbox` などを前に入れていれば、それも退避してから）。
+
+| mod | 何をする | 中身 |
+|---|---|---|
+| `andon` | Space・tab に名前を付ける（下の段） | `package/host/andon/` |
+| `inbox` | 人を待つエージェントの列（Needs you・Done）。Chief of Staff と Chief Engineer の turn の終わりは返事として出る | `package/host/inbox/README.md` |
+| `kanban-board` | 台帳 `projects/<slug>/kanban/` を読むだけのボード（`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
+| `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
+| `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
+
+由来は前身の herdr-flightdeck（private）の `herdr-app/`（commit `afc57ac`。`work-board` を `kanban-board` に改名）。ライセンスは各 README の Origin・Licence の節（files-plus は Herdr の `files` mod の改変で Apache-2.0、同梱の Pele は MIT、inbox の Lucide のアイコンは ISC、kanban-board の js-yaml は MIT）。
 
 **WSL で実行し、App は Windows 側で動く場合**は、Windows の App の設定フォルダを WSL から見たパスで `HERDR_APP_HOME` に指定する。WSL では未指定だと書き込み前に止まり、案内を出す。Windows の既定値は `%USERPROFILE%\.config\herdr-app`。App 側で `HERDR_APP_HOME` や `XDG_CONFIG_HOME` を指定しているなら、その設定に合う実際のフォルダを選ぶ。
 
@@ -235,13 +245,17 @@ HERDR_APP_HOME="$(wslpath 'C:\Users\<user>\.config\herdr-app')" bin/bootstrap ho
 
 WSL 内で Linux 版 App を動かしている場合も、その App の設定フォルダを `HERDR_APP_HOME` で明示する。Windows のプロファイルや App の環境をインストーラーが推測することはない。
 
-App の標準レイアウトは mod の追加だけでは起動しない。人が App の command palette でレイアウトを複製し、その個人用レイアウトの常に表示する row または column の `children` に次の block を1つ加える（他の block は残す）。`host-install` はレイアウトを変更しない。
+**人が App でやる1手**: レイアウトを `andon` に切り替える。App のあるマシンで次を打つ（Windows の App は Windows 側で。command palette でレイアウトに `andon` を選んでもよい）。`host-install` は App のレイアウトを切り替えない。
 
-```json
-{ "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }
+```bash
+herdr-app do layout.switch --name andon
 ```
 
-この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon` を実行し（Windows の App は Windows 側で実行する）、個人用レイアウトで `sample-site / CoS`・`sample-site / CE A-0001 設計`・`A-0002 修正 / A-0002` が見えることを確認する。App のエラーは `herdr-app status` で見る。
+レイアウト `andon` は App の標準の `main` の agents の欄を `inbox` にし、pane の見出しを `context-header`、Files を `files-plus` にしたもの。名前付けの block（`{ "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }`）を左の列に最初から持つので、レイアウトを複製して block を足す手は要らない。自分のレイアウトを使い続けるなら、その常に表示する row または column の `children` にこの block を1つ加える（他の block は残す）。
+
+キーは人のもの（`keys.json`・`settings.json` は `host-install` が触らない）。使うなら各 mod の README の Keys の断片（`inbox` の `ctrl-shift-j`・`ctrl-shift-d`・`ctrl-shift-h`・`ctrl-shift-u`、`kanban-board` の `ctrl-shift-y`。同じ断片が各 mod の `keys.json`）を自分の `keys.json` に足す。
+
+この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon`（ほかの mod も同じ形で）を実行し（Windows の App は Windows 側で実行する）、レイアウト `andon` で `sample-site / CoS`・`sample-site / CE A-0001 設計`・`A-0002 修正 / A-0002` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
 mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、台帳が2つ以上のときの建屋の Space を `<建屋の slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
 
@@ -432,7 +446,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
    - `doing` のタスクの今の `review_request` は拾う。前の係が同じ commit のレビュアーの子タスクを作っていれば、それを引き継いで二重に起こさない（起こした回として控える）。ただしその子タスクは作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。同じ commit のまま頼み直しても、引き継いだ回なので起こし直さない。担当に**新しい commit を push してから、次の回として**頼み直させる（直すものが無ければ `git commit --allow-empty`。同じ回の番号ではレビュアーの detached worktree の置き場がぶつかる。上限を超えれば Chief of Staff が `review_rounds` を上げる）。commit が変われば新しい回として dispatcher がレビュアーを起こし、作成の `by` は `terminal:dispatcher` になる（Chief of Staff が担当に `hc send` で頼む）。1 で待つのはこのためで、待てるなら待つ。
    - すでに `status: review` のタスクはゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon task ready`）か、人が PR を見てマージし Chief of Staff が `andon task finish`。
    - 最初のメッセージの送り直し（`first_message.sent=false`）は2回目の見回りから。
-4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の名前付け mod」）。入れ直すまで、新しい tab は名前が付かない。
+4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の mod とレイアウト」）。入れ直すまで、新しい tab は名前が付かない。
 5. **片付け**: 2 と 3 を確かめたら、前の控え `~/.local/state/andon/courier/` を消してよい（読む者はいない）。
 
 ## 12. 実測する（P6b と ADR-0001 S4）

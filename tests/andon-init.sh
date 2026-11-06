@@ -98,6 +98,21 @@ sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 mod=$home/.config/herdr-app/mods/andon
 cmp -s "$mod/main.js" "$andon_root/package/host/andon/main.js" && cmp -s "$mod/mod.json" "$andon_root/package/host/andon/mod.json" \
   && pass "host-install は App mod を置く" || fail "App mod が違うか無い"
+app=$home/.config/herdr-app
+ok=1
+for name in inbox kanban-board context-header files-plus; do
+  diff -r "$app/mods/$name" "$andon_root/package/host/$name" >/dev/null || ok=0
+done
+cmp -s "$app/layouts/andon.json" "$andon_root/package/host/layouts/andon.json" && cmp -s "$app/layouts/andon.svg" "$andon_root/package/host/layouts/andon.svg" || ok=0
+[ "$ok" = 1 ] && pass "host-install は inbox・kanban-board・context-header・files-plus とレイアウト andon を App の置き場に置く" || fail "画面の mod かレイアウトが違うか無い: $(ls -R "$app" 2>&1 | head -20)"
+echo '{"personal": true}' >"$app/layouts/andon.json"
+echo '// personal' >"$app/mods/inbox/main.js"
+rm "$app/mods/kanban-board/mod.json"
+sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
+grep -qx '{"personal": true}' "$app/layouts/andon.json" && grep -qx '// personal' "$app/mods/inbox/main.js" && [ ! -e "$app/mods/kanban-board/mod.json" ] \
+  && grep -q "layouts/andon.json はすでにあり" "$tmp/out" && grep -q "mods/inbox はすでにある" "$tmp/out" \
+  && pass "host-install は今あるレイアウトと画面の mod（編集済み・不完全でも）を上書きしない" || fail "レイアウトか画面の mod を上書きした: $(cat "$tmp/out")"
+grep -q 'layout.switch --name andon' "$tmp/out" && pass "host-install はレイアウトを andon に切り替える1手を出す" || fail "切り替えの案内が無い: $(cat "$tmp/out")"
 echo '// personal' >"$mod/main.js"
 rm "$mod/mod.json"
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
