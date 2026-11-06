@@ -46,8 +46,11 @@ type dsHookNews struct {
 }
 
 type dsResend struct {
-	N  int   `json:"n"`
-	At int64 `json:"at"`
+	N     int   `json:"n"`
+	At    int64 `json:"at"`
+	Cut   int64 `json:"cut,omitempty"`
+	Since int64 `json:"since,omitempty"`
+	Sent  int64 `json:"sent,omitempty"`
 }
 
 type dispatcherState struct {

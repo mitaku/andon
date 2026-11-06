@@ -219,11 +219,27 @@ func (p *project) readReady() {
 
 // ---------------------------------------------------------------- 止まった担当
 
-// Resend は提供元に切られて「続けて」を打った回数と最後に打った時刻（Unix ミリ秒）。打てなかった試行も数える。
+// Resend は提供元に切られて「続けて」を打った回数と時刻（dispatcher.md §2.4）。打てなかった試行も数える。
+// 時刻はどれも dispatcher の時計（Unix ミリ秒）。端末の status_ms は端末の土台の時計なので、時刻としては比べず、
+// 切断の見分け（同じ error か・新しく切られたか）にだけ使う。
 type Resend struct {
-	N  int   `json:"n"`
-	At int64 `json:"at"`
+	N     int   `json:"n"`
+	At    int64 `json:"at"`              // 最後に打った（打とうとした）時刻
+	Cut   int64 `json:"cut,omitempty"`   // いま見ている error の status_ms（切断の見分け）
+	Since int64 `json:"since,omitempty"` // その error を dispatcher が初めて見た時刻
+	Sent  int64 `json:"sent,omitempty"`  // 最後に打ったときの Cut（これと違う error なら、打ったあとにまた切られた）
 }
+
+// Saw は error の様子 s を控えに映す: 新しい status_ms の error なら、それを dispatcher が初めて見た時刻を nowMs で持つ。
+func (r Resend) Saw(s Seen, nowMs int64) Resend {
+	if s.Status == "error" && s.StatusMs != r.Cut {
+		r.Cut, r.Since = s.StatusMs, nowMs
+	}
+	return r
+}
+
+// kept は控えに残すものがあるか。
+func (r Resend) kept() bool { return r.N > 0 || r.At > 0 || r.Cut != 0 }
 
 // Seen は担当の端末の1回の様子。
 type Seen struct {
@@ -242,8 +258,20 @@ type Verdict struct {
 	Retry bool
 }
 
+// ScreenCut は画面から、Codex がターンを止めたときに出すエラーの行（行頭が ■ の最後の行。実測 Codex 0.166.0）だけを返す。
+// 無ければ空。画面のほかの行（エージェントの出力・ファイルの中身）は、提供元の語を含んでいても見分けに使わない。
+func ScreenCut(screen string) string {
+	lines := strings.Split(screen, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(nbsp(lines[i])); strings.HasPrefix(l, "■") {
+			return l
+		}
+	}
+	return ""
+}
+
 // Judge は担当の様子 s から、知らせるか・続きを打つかを決める（dispatcher.md §2.3・§2.4）。
-// 提供元に切られたかは status.msg で見分け、無ければ（Codex）screen を読む。screen は error で msg が無いときだけ読む。
+// 提供元に切られたかは status.msg で見分け、無ければ（Codex）screen の ■ の行（ScreenCut）を読む。screen は error で msg が無いときだけ読む。
 func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	key := s.Status + "|" + strconv.FormatInt(s.StatusMs, 10)
 	age := time.Duration(nowMs-s.StatusMs) * time.Millisecond
@@ -255,22 +283,24 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	case s.Status == "error":
 		text := s.Msg
 		if text == "" {
-			text = screen()
+			text = ScreenCut(screen())
 		}
 		// 最初のメッセージが届いていない端末に「続けて」は意味が無い（続ける仕事を受け取っていない）。知らせる
 		if s.Unsent || !ProviderError(text) {
 			return Verdict{Kind: "error", Key: key}
 		}
+		r = r.Saw(s, nowMs) // 呼び手が映していなくても同じ答えにする
 		if r.N >= len(retryAfter) {
-			// 打ち切るのは、最後に打ったあとにまた切られた（5 回目の切断）か、打っても最後の間だけ待って同じ error のままのとき。
-			// 打った直後の見回りで、まだ前の切断の error を見ているだけなら待つ
-			if s.StatusMs > r.At || time.Duration(nowMs-r.At)*time.Millisecond >= retryAfter[len(retryAfter)-1] {
+			// 打ち切るのは、最後に打ったあとにまた切られた（5 回目の切断。status_ms が打ったときと違う）か、
+			// 打っても最後の間だけ待って同じ error のままのとき。打った直後の見回りで、まだ前の切断の error を見ているだけなら待つ
+			if r.Cut != r.Sent || time.Duration(nowMs-r.At)*time.Millisecond >= retryAfter[len(retryAfter)-1] {
 				return Verdict{Kind: "error", Key: "retry-out"}
 			}
 			return Verdict{}
 		}
-		// 再送しても同じ error のまま status_ms が変わらないことがあるので、遅いほうから測る
-		if time.Duration(nowMs-max(s.StatusMs, r.At))*time.Millisecond >= retryAfter[r.N] {
+		// その error を初めて見た時刻と前に打った時刻の遅いほうから測る（どちらも dispatcher の時計。
+		// 打っても同じ error のまま status_ms が変わらないことがある）
+		if time.Duration(nowMs-max(r.Since, r.At))*time.Millisecond >= retryAfter[r.N] {
 			return Verdict{Retry: true}
 		}
 	case (s.Status == "idle" || s.Status == "done") && age >= idleAfter && !s.Reviewing:
@@ -322,18 +352,22 @@ func (p *project) watch(now time.Time) {
 		// 控えに「送った」があればラベルが残っていても届いたとみる（続きを打ってよい）
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
+		r = r.Saw(s, nowMs)
 		v := Judge(s, func() string { out, _ := hcOut("read", agent, "--lines", "40"); return out }, r, nowMs)
 		if v.Retry && !p.first {
-			// 送れなかった試行も回数と時刻に数える（送れないまま見回りごとに打ち続けない）
-			r = Resend{N: r.N + 1, At: nowMs}
-			if p.retry(agent) {
-				p.logf("%s の担当 %s に続きを打った（提供元に切られた、%d 回目）", id, agent, r.N)
+			if next, ok := p.countResend(rk, r, nowMs); ok {
+				r = next
+				if p.retry(agent) {
+					p.logf("%s の担当 %s に続きを打った（提供元に切られた、%d 回目）", id, agent, r.N)
+				} else {
+					p.logf("%s の担当 %s に続きを打てなかった（%d 回目に数える）", id, agent, r.N)
+				}
 			} else {
-				p.logf("%s の担当 %s に続きを打てなかった（%d 回目に数える）", id, agent, r.N)
+				p.logf("%s の担当 %s に続きを打たない（控えを書けない。次の見回りで）", id, agent)
 			}
 		}
 		// 回数は error・working の間は持ち越し（「続けて」を数える）、idle／done に戻ったら区切る
-		if s.Status != "idle" && s.Status != "done" && !s.Gone && (r.N > 0 || r.At > 0) {
+		if s.Status != "idle" && s.Status != "done" && !s.Gone && r.kept() {
 			retry[rk] = r
 		}
 		if v.Kind == "" {
@@ -357,6 +391,25 @@ func (p *project) watch(now time.Time) {
 		}
 	}
 	p.st.Sent, p.st.Retry, p.st.First = sent, retry, first
+}
+
+// countResend は打つ前に、回数と時刻を1つ進めた控えを保存する（打ってから pass の最後の保存の前に dispatcher が落ちても、
+// 再開後に同じ切断へ打ち直さず、上限も超えない。送れなかった・届いたか分からない試行も1回に数える）。
+// 保存できなければ控えを戻して false（打たない）。
+func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) {
+	prev, had := p.st.Retry[key]
+	next := r
+	next.N, next.At, next.Sent = r.N+1, nowMs, r.Cut
+	p.st.Retry[key] = next
+	if err := p.st.Save(p.l.Slug); err != nil {
+		if had {
+			p.st.Retry[key] = prev
+		} else {
+			delete(p.st.Retry, key)
+		}
+		return r, false
+	}
+	return next, true
 }
 
 // cosKey は控えの Retry・Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: はタスクの id に使えない）。
@@ -390,13 +443,20 @@ func (p *project) retryChief(cos string, now time.Time) {
 		delete(p.st.Sent, key+"|retry-out")
 		return
 	}
-	r := p.st.Retry[key]
 	s := Seen{Status: c.Status.State, Msg: c.Status.Msg, StatusMs: c.StatusMs}
+	r := p.st.Retry[key].Saw(s, now.UnixMilli())
+	if r.kept() {
+		p.st.Retry[key] = r
+	}
 	v := Judge(s, func() string { out, _ := hcOut("read", cos, "--lines", "40"); return out }, r, now.UnixMilli())
 	switch {
 	case v.Retry:
-		r = Resend{N: r.N + 1, At: now.UnixMilli()}
-		p.st.Retry[key] = r
+		next, ok := p.countResend(key, r, now.UnixMilli())
+		if !ok {
+			p.logf("Chief of Staff %s に続きを打たない（控えを書けない。次の見回りで）", cos)
+			return
+		}
+		r = next
 		if p.retryIfEmpty(cos, c) {
 			p.logf("Chief of Staff %s に続きを打った（提供元に切られた、%d 回目）", cos, r.N)
 		} else {

@@ -110,6 +110,9 @@ func TestRetryWorkerIntervals(t *testing.T) {
 	cut := time.Duration(0) // 切られた時刻（t0 からの分）
 	for i, wait := range []time.Duration{1, 2, 4, 8} {
 		f.term("t42", "error", cutMsg, cut*time.Minute, false)
+		if got := f.at(cut*time.Minute, ""); got != nil { // 切られたのを見る（ここから測る）
+			t.Fatalf("%d 回目: 見たその回に打った: %q", i+1, got)
+		}
 		if got := f.at((cut+wait)*time.Minute-time.Second, ""); got != nil {
 			t.Fatalf("%d 回目: %v 分たたないうちに打った: %q", i+1, wait, got)
 		}
@@ -135,7 +138,7 @@ func TestRetryWorkerIntervals(t *testing.T) {
 	}
 	// 5 回目に切られた: もう打たず、error を知らせる
 	f.term("t42", "error", cutMsg, cut*time.Minute, false)
-	if got := f.at((cut+30)*time.Minute, ""); got != nil {
+	if got := f.at(cut*time.Minute, ""); got != nil {
 		t.Fatalf("5 回目に切られたのに打った: %q", got)
 	}
 	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:error" {
@@ -175,6 +178,7 @@ func TestRetryWorkerNotProvider(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", "", 0, false)
 	f.screen("t42", "› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n")
+	f.at(0, "")
 	if got := f.at(time.Minute, ""); len(got) != 1 || got[0] != resend {
 		t.Fatalf("Codex の切断に打っていない: %q", got)
 	}
@@ -193,8 +197,8 @@ func TestRetryNotWithFirstMessage(t *testing.T) {
 	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:error" {
 		t.Fatalf("知らせていない: %q", k)
 	}
-	if _, ok := f.p.st.Retry["S-7|t42"]; ok {
-		t.Fatal("打っていないのに回数を数えた")
+	if r := f.p.st.Retry["S-7|t42"]; r.N != 0 {
+		t.Fatalf("打っていないのに回数を数えた: %+v", r)
 	}
 	// 送ったがラベルを外せなかった（控えの first）: 届いているので続きを打つ。最初のメッセージは送り直さない
 	f.p.st.First["S-7|t42"] = true
@@ -208,6 +212,7 @@ func TestRetryNotWithFirstMessage(t *testing.T) {
 func TestRetryThenStalled(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", cutMsg, 0, false)
+	f.at(0, "")
 	if got := f.at(time.Minute, ""); len(got) != 1 {
 		t.Fatalf("打っていない: %q", got)
 	}
@@ -231,6 +236,7 @@ func TestRetryChief(t *testing.T) {
 	typing := "● 前の答え\n" + rule + "\n❯ 人が打ちかけ\n" + rule + "\n"
 	f.term("t1", "error", cutMsg, 0, false)
 	f.screen("t1", empty)
+	f.at(0, "t1")
 	if got := f.at(59*time.Second, "t1"); got != nil {
 		t.Fatalf("1 分たたないうちに打った: %q", got)
 	}
@@ -256,7 +262,7 @@ func TestRetryChief(t *testing.T) {
 	}
 	// 5 回目に切られた: 打たずにログに1行（知らせる相手が止まっているので通知は積まない）
 	f.term("t1", "error", cutMsg, 20*time.Minute, false)
-	if got := f.at(60*time.Minute, "t1"); got != nil {
+	if got := f.at(20*time.Minute, "t1"); got != nil {
 		t.Fatalf("打ち切ったのに打った: %q", got)
 	}
 	f.at(61*time.Minute, "t1")
@@ -285,5 +291,73 @@ func TestRetryChief(t *testing.T) {
 	f.screen("t1", empty)
 	if got := f.at(30*time.Minute, "t1"); got != nil {
 		t.Fatalf("初めて見る台帳で打った: %q", got)
+	}
+}
+
+// 端末の土台の時計（status_ms）が dispatcher の時計とずれていても、間は dispatcher が切断を見た時刻から測る。
+// 打ってから status_ms が変われば、その値が打った時刻より前（端末の時計が遅れている）でも新しい切断とみる。
+func TestRetryClockSkew(t *testing.T) {
+	for _, skew := range []time.Duration{-30 * time.Minute, 30 * time.Minute} {
+		f := newRetry(t)
+		f.term("t42", "error", cutMsg, skew, false)
+		if got := f.at(0, ""); got != nil {
+			t.Fatalf("skew %v: 初めて見た切断にすぐ打った: %q", skew, got)
+		}
+		if got := f.at(59*time.Second, ""); got != nil {
+			t.Fatalf("skew %v: 1 分たたないうちに打った: %q", skew, got)
+		}
+		if got := f.at(time.Minute, ""); len(got) != 1 {
+			t.Fatalf("skew %v: 1 分で打っていない: %q", skew, got)
+		}
+		// 4 回打ったところから、また切られた（status_ms は打った時刻より前に見える値）
+		r := f.p.st.Retry["S-7|t42"]
+		r.N = 4
+		f.p.st.Retry["S-7|t42"] = r
+		f.term("t42", "error", cutMsg, skew-time.Hour, false)
+		if got := f.at(time.Minute+5*time.Second, ""); got != nil {
+			t.Fatalf("skew %v: 5 回目に切られたのに打った: %q", skew, got)
+		}
+		if k := f.kinds(); len(k) != 1 || k[0] != "S-7:error" {
+			t.Fatalf("skew %v: 5 回目の切断をすぐ知らせない: %q", skew, k)
+		}
+	}
+}
+
+// 打つ前に回数と時刻を控えに保存する: 打ってから見回りの最後の保存の前に落ちても、再開後に同じ切断へ打ち直さない。
+func TestRetrySavedBeforeSend(t *testing.T) {
+	f := newRetry(t)
+	f.term("t42", "error", cutMsg, 0, false)
+	f.at(0, "")
+	if got := f.at(time.Minute, ""); len(got) != 1 {
+		t.Fatalf("打っていない: %q", got)
+	}
+	// 見回りの最後の保存はしないまま落ちた、とみなし、保存された控えから再開する
+	st, _, err := LoadState("sample-site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := st.Retry["S-7|t42"]; r.N != 1 {
+		t.Fatalf("打つ前に控えへ保存していない: %+v", r)
+	}
+	f.p.st = st
+	if got := f.at(time.Minute+5*time.Second, ""); got != nil {
+		t.Fatalf("再開後に同じ切断へ打ち直した: %q", got)
+	}
+	// 控えを書けなければ打たない
+	f = newRetry(t)
+	f.term("t42", "error", cutMsg, 0, false)
+	f.at(0, "")
+	dir := filepath.Join(f.d, "state", "andon", "dispatcher")
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, nil, 0o644); err != nil { // 置き場をファイルで塞ぐ
+		t.Fatal(err)
+	}
+	if got := f.at(time.Minute, ""); got != nil {
+		t.Fatalf("控えを書けないのに打った: %q", got)
+	}
+	if r := f.p.st.Retry["S-7|t42"]; r.N != 0 {
+		t.Fatalf("書けなかった試行を数えた: %+v", r)
 	}
 }
