@@ -104,9 +104,9 @@ func TestStartDispatcherReportsLockError(t *testing.T) {
 	put(t, notDir, "")
 	t.Setenv("XDG_STATE_HOME", notDir)
 	e := f.env()
-	e.LookPath = func(tool string) (string, error) { // hc だけある（ほかの起動は飛ばす）。hc は打つ前に止まる
+	e.LookPath = func(tool string) (string, error) { // hc だけある（ほかの起動は飛ばす）。hc は打つ前に止まる（無いパスなので本物の hc を打たない）
 		if tool == "hc" {
-			return "/usr/bin/hc", nil
+			return filepath.Join(f.root, "no-hc"), nil
 		}
 		return "", os.ErrNotExist
 	}
@@ -224,6 +224,43 @@ func TestStartDispatcherBusy(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := f.log.String(); strings.Contains(got, "すでに動いている") || !strings.Contains(got, "ほかが確かめている") {
+		t.Errorf("log=%q", got)
+	}
+}
+
+// 偽の hc（端末の一覧）: ls は $D/t*.json の address を並べ、get <addr> はその中身を返す。keep・kill・rm は $D/log へ。
+const staleHc = `#!/usr/bin/env bash
+d=$FAKE_HC
+case $1 in
+  ls) printf '{"terminals":['; sep=; for f in "$d"/t*.json; do printf '%s{"address":"%s"}' "$sep" "$(basename "$f" .json)"; sep=,; done; echo ']}' ;;
+  get) cat "$d/$2.json" ;;
+  keep|kill|rm) echo "$*" >>"$d/log" ;;
+  *) exit 9 ;;
+esac
+`
+
+// 役のラベルの値が今の役のどれでもない端末（前の版の常駐の係）だけを片付ける。今の役・役の無い端末・終わった端末には触らない。
+func TestDropStaleRoles(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	put(t, filepath.Join(d, "bin", "hc"), staleHc)
+	for addr, j := range map[string]string{
+		"t1": `{"address":"t1","name":"old-relay","state":"live","labels":{"role":"old-relay"}}`,
+		"t2": `{"address":"t2","name":"dispatcher","state":"live","labels":{"role":"dispatcher"}}`,
+		"t3": `{"address":"t3","name":"cos","state":"live","labels":{"role":"chief-of-staff","project":"x"}}`,
+		"t4": `{"address":"t4","name":"x-y-1","state":"live","labels":{"project":"x","task":"Y-1"}}`,
+		"t5": `{"address":"t5","name":"ce","state":"live","labels":{"role":"chief-engineer"}}`,
+		"t6": `{"address":"t6","name":"gone","state":"finished","labels":{"role":"old-relay"}}`,
+	} {
+		put(t, filepath.Join(d, addr+".json"), j)
+	}
+	if err := dropStaleRoles(e); err != nil {
+		t.Fatal(err)
+	}
+	log, _ := os.ReadFile(filepath.Join(d, "log"))
+	if want := "keep t1 --off\nkill t1\nrm t1\n"; string(log) != want {
+		t.Errorf("hc=%q want %q", log, want)
+	}
+	if got := f.log.String(); !strings.Contains(got, "前の版の役の端末 t1（old-relay・role=old-relay）を片付けた") {
 		t.Errorf("log=%q", got)
 	}
 }

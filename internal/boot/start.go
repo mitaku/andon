@@ -2,6 +2,7 @@ package boot
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"andon/internal/dispatcher"
+	"andon/internal/spawn"
 )
 
 // 番号の既定。建屋の .env（PORTLESS_PORT・FILES_PORT）で上書きする。
@@ -34,6 +36,7 @@ func Start(e Env) {
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},
+		{"前の版の役の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
 	} {
 		if err := step.run(e); err != nil {
@@ -241,6 +244,54 @@ func startSSHD(e Env) error {
 		return fmt.Errorf("sshd: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	e.logf("sshd を起動した（コンテナの 22 番。ホスト側の番号は .env の SSH_PORT）")
+	return nil
+}
+
+// roles は Andon が今付ける役のラベル（role=）の値（chiefofstaff.Profile・chiefengineer.Profile・dispatcher.Name。
+// chiefengineer が boot を読むので、ここでは字で持つ）。
+var roles = map[string]bool{"chief-of-staff": true, "chief-engineer": true, dispatcher.Name: true}
+
+// dropStaleRoles は、役のラベルの値が今の Andon の役のどれでもない live な端末を片付ける（keep を外して kill・rm）。
+// 前の版が起こした役の端末（役の名前を改めた前の名前のもの）で、建屋の upgrade のあとに残る。
+// 役のラベルの付いた端末は Andon の持ち物なので、中身を見ずに片付ける（decisions.md の 2026-11-06。人の打ちかけには打ち込まない）。
+// 前の版の常駐の係が動いたままなら、今の dispatcher と二重に回る（同じ PR をマージしにいく）ので、起こす前に片付ける。
+func dropStaleRoles(e Env) error {
+	hc, ok := e.has("hc")
+	if !ok {
+		return nil
+	}
+	out, err := spawn.Output(nil, "", hc, "ls", "--json")
+	if err != nil {
+		return fmt.Errorf("hc ls: %v", err)
+	}
+	var ls struct {
+		Terminals []struct {
+			Address string `json:"address"`
+		} `json:"terminals"`
+	}
+	if err := json.Unmarshal([]byte(out), &ls); err != nil {
+		return fmt.Errorf("hc ls --json の形が読めない: %v", err)
+	}
+	for _, l := range ls.Terminals {
+		got, err := spawn.Output(nil, "", hc, "get", l.Address, "--json")
+		if err != nil {
+			continue // ls と get の間に消えた
+		}
+		var t spawn.Term
+		if json.Unmarshal([]byte(got), &t) != nil || t.State != "live" {
+			continue
+		}
+		role := t.Labels["role"]
+		if role == "" || roles[role] {
+			continue
+		}
+		for _, args := range [][]string{{"keep", l.Address, "--off"}, {"kill", l.Address}, {"rm", l.Address}} {
+			if o, err := exec.Command(hc, args...).CombinedOutput(); err != nil {
+				return fmt.Errorf("hc %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(o)))
+			}
+		}
+		e.logf("前の版の役の端末 %s（%s・role=%s）を片付けた", l.Address, t.Name, role)
+	}
 	return nil
 }
 

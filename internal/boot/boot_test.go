@@ -500,6 +500,7 @@ func TestMainWithFakeHome(t *testing.T) {
 	bin := filepath.Join(f.root, "bin")
 	calls := filepath.Join(f.root, "hc-calls")
 	put(t, filepath.Join(bin, "hc"), "#!/bin/sh\nPATH=/usr/bin:/bin\necho \"$*\" >> '"+calls+"'\n"+
+		"[ \"$1\" = ls ] && { echo '{\"terminals\":[]}'; exit 0; }\n"+
 		"[ \"$1\" = get ] && { grep -q '^run ' '"+calls+"' || { echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3; }; "+
 		"echo '{\"state\":\"live\",\"foreground\":{\"name\":\"andon\",\"argv\":[\""+filepath.Join(f.pkg, "bin", "andon")+"\",\"dispatcher\"]}}'; }\nexit 0\n")
 	if err := os.Chmod(filepath.Join(bin, "hc"), 0o755); err != nil {
