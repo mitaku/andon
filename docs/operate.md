@@ -30,7 +30,7 @@
 - ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `~/.herdr/worktrees/<repo 名>/<slug>-<id>` の worktree で働く。
 - 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
-- 建屋の repo の直下と `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）、誰が書き・git で追跡するか（台帳は追跡する）、別のマシンへの動かし方の要件は [ADR-0004](adr/0004-project-layout.md)（提案。マージで決定。実装は台帳の改名と一緒）。
+- `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、建屋の repo の直下・git で追跡するか（台帳は追跡する）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
 - **symlink にしない理由**: 委譲は「人だけが書く」。これを、建屋の repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると委譲のファイルが製品の repo に入り、担当の PR で書き換えうる。
 
 ## 0. 先に知っておくこと: 通らなかった所（直した）
