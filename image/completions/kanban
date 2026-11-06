@@ -1,0 +1,7 @@
+# bash completion for kanban と deck（サブコマンド名だけ。フラグまでは補わない）。image/Dockerfile が置く
+_kanban() {
+  local cur=${COMP_WORDS[COMP_CWORD]}
+  [ "$COMP_CWORD" -eq 1 ] || return 0
+  COMPREPLY=($(compgen -W "init add list ready show start set review done report ask questions answer received lint tick routine config root" -- "$cur"))
+}
+complete -F _kanban kanban deck

@@ -4,7 +4,7 @@
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 \
+ && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 bash-completion \
  && rm -rf /var/lib/apt/lists/* \
  && locale-gen en_US.UTF-8 \
  && userdel --remove ubuntu \
@@ -58,7 +58,8 @@ RUN uv python install 3.14.10 --default \
  && uv tool install "cookiecutter==${COOKIECUTTER_VERSION}" \
  && uv tool install "cruft==${CRUFT_VERSION}" \
  && echo 'eval "$(mise activate bash)"' >> "${HOME}/.bashrc" \
- && echo 'eval "$(direnv hook bash)"' >> "${HOME}/.bashrc"
+ && echo 'eval "$(direnv hook bash)"' >> "${HOME}/.bashrc" \
+ && echo '[ -r /etc/andon-bashrc ] && . /etc/andon-bashrc' >> "${HOME}/.bashrc"
 ENV CLAUDE_CONFIG_DIR=/opt/andon-home/.claude
 ARG CLAUDE_VERSION=2.1.318
 ARG CLAUDE_SHA256_AMD64=708c77b204db30086ff6f1ed34577bda03e1be74ced80557cbf7b54249ebf0bd
@@ -89,9 +90,23 @@ COPY --from=kanban --chmod=755 kanban /usr/local/bin/kanban
 # andon の CLI（cmd/andon）。kanban と同じく tests/image.sh が焼き、build context `andon` で渡す。
 # compose の `andon boot` と、ホストが取り出す口（docs/operate.md の 2）がこれを使う
 COPY --from=andon --chmod=755 andon /opt/andon/bin/andon
+# 対話 bash の設定（~/.bashrc の末尾が読む）と Tab 補完。gh・just・mise は各 CLI が生成するもの、hc は --help の一覧から作る
+# （hc に生成の口が無い）、andon・kanban・deck はサブコマンド名だけの小さな補完（image/completions/）
+COPY --chmod=644 image/bashrc /etc/andon-bashrc
+COPY --chmod=644 image/completions/ /tmp/andon-completions/
+# 生成は andon で（aqua の道具は andon の持ち物。root が走らせると cache が root の持ち物になる）
+RUN mkdir /tmp/andon-gen \
+ && gh completion -s bash > /tmp/andon-gen/gh \
+ && just --completions bash > /tmp/andon-gen/just \
+ && mise completion bash > /tmp/andon-gen/mise \
+ && words=$(hc --help | awk '/^  [a-z]/ && $1 != "hc" {print $1}' | sort -u | tr '\n' ' ') \
+ && test -n "$words" \
+ && printf '_hc() {\n  [ "$COMP_CWORD" -eq 1 ] || return 0\n  COMPREPLY=($(compgen -W "%s" -- "${COMP_WORDS[COMP_CWORD]}"))\n}\ncomplete -F _hc hc\n' "$words" > /tmp/andon-gen/hc
 USER root
 RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon \
- && ln -s kanban /usr/local/bin/deck
+ && ln -s kanban /usr/local/bin/deck \
+ && install -m 644 /tmp/andon-gen/* /tmp/andon-completions/* /usr/share/bash-completion/completions/ \
+ && rm -rf /tmp/andon-gen /tmp/andon-completions
 USER andon
 WORKDIR /workspace
 CMD ["bash"]

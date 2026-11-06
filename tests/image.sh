@@ -57,6 +57,20 @@ docker run --rm --network none andon:test bash -euc '
   claude --version
   codex --version
   portless --version
+  rg --version
+  fzf --version
+  jq --version
+  usage --version
+  # 対話の bash（bash -ic）に Tab 補完・履歴・プロンプト・fzf が入っていること。HISTFILE は volume（state）の下
+  out=$(bash -ic "complete -p git gh hc andon deck just mise; echo HISTFILE=\$HISTFILE; echo PS1=\$PS1; (bind -X; bind -s) | grep -c fzf" 2>/dev/null)
+  for c in git gh hc andon deck just mise; do grep -q " $c\$" <<<"$out" || { echo "no completion for $c" >&2; exit 1; }; done
+  grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$out"
+  grep -q "PS1=.*__git_ps1" <<<"$out"
+  test "$(tail -1 <<<"$out")" -gt 0
+  # ログインシェル（ssh が起こす形）でも ~/.profile → ~/.bashrc で同じものが読まれること
+  login=$(bash -lic "complete -p hc; echo HISTFILE=\$HISTFILE" 2>/dev/null)
+  grep -q " hc\$" <<<"$login"
+  grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$login"
 '
 docker run --rm --network none \
   --mount "type=bind,source=$PWD/.github/workflows/tests.yml,target=/workspace/.github/workflows/tests.yml,readonly" \
@@ -136,6 +150,14 @@ for k in $(sed -n 's/^SetEnv //p' image/sshd_config.d/andon.conf | tr ' ' '\n' |
     exit 1
   fi
 done
+# (a2) ssh の対話ログインシェルでも補完が出る（sshd → ~/.profile → ~/.bashrc）。履歴の置き場は volume
+ssh_login=$(ssh_dev 'bash -lic "complete -p gh hc; echo HISTFILE=\$HISTFILE" 2>/dev/null') || true
+if ! grep -q ' hc$' <<<"$ssh_login" || ! grep -q ' gh$' <<<"$ssh_login" ||
+  ! grep -qx 'HISTFILE=/opt/andon-home/.local/state/bash/history' <<<"$ssh_login"; then
+  printf '%s\n' "$ssh_login" >&2
+  echo 'FAIL image: ssh の対話ログインシェルに補完・HISTFILE が効いていない' >&2
+  exit 1
+fi
 # (b) ~/.local/bin/herdr-core が実ファイル（Herdr App が置いたもの）なら、boot し直しても触らず、hc も core もそれを使う
 dc exec -T dev bash -euc '
   seed=$(readlink -f "$HOME/.local/bin/herdr-core")
