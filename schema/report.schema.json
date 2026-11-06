@@ -17,7 +17,7 @@
       "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$"
     },
     "review_request": {
-      "description": "Present only when asking for a review. The courier starts the reviewer.",
+      "description": "Present only when asking for a review. The dispatcher starts the reviewer.",
       "type": "object",
       "required": ["round", "limit", "commit", "previous", "reviewer", "extra"],
       "additionalProperties": false,
@@ -28,7 +28,7 @@
           "minimum": 1
         },
         "limit": {
-          "description": "review_rounds of the task. The courier starts a reviewer only when round <= limit.",
+          "description": "review_rounds of the task. The dispatcher starts a reviewer only when round <= limit.",
           "type": "integer",
           "minimum": 1
         },

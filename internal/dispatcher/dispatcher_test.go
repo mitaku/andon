@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"os"
@@ -199,7 +199,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	task := ledger.Task{"id": "D-1", "agent": "t7"}
 	b := reviewerBrief(l, task, rep, Reviewer{Task: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, "example/app", "7")
 	for _, want := range []string{
-		"hc send t7 ", "Chief of Staff・クーリエへは送らない", "宛先はこの1つだけ",
+		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
 		"commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
 	} {
 		if !strings.Contains(b, want) {

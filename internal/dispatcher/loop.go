@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"encoding/json"
@@ -303,7 +303,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 		r.Address = "" // 端末が無くなった: 起こし直す
 	}
 	if r.Address == "" {
-		// --no-notify: 止まった・終わったはクーリエが端末の土台から拾う（contract.md §8）
+		// --no-notify: 止まった・終わったは dispatcher が端末の土台から拾う（contract.md §8）
 		args := []string{"run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", term,
 			"--label", "project=" + p.l.Slug, "--label", "task=" + rev, "--label", "title=" + title}
 		for _, l := range workerPlace(t.Str("agent")) {
@@ -323,7 +323,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 			return "", false
 		}
 		// 届いていない（送れなかった・送ったが動き出さなかった）。担当と同じく端末にラベルを付けて、
-		// 見回りの sendFirst に1回だけの送り直しを預ける（courier.md §5。二重に送らない守りは控えの first）。
+		// 見回りの sendFirst に1回だけの送り直しを預ける（dispatcher.md §5。二重に送らない守りは控えの first）。
 		// sendFirst が見るのは doing のタスクなので、start が通らなかったときと、ラベルを付けられないときは 4 で送り直す
 		why := fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s", rev, r.Address, started.Reason())
 		if serr == nil {
@@ -377,7 +377,7 @@ func workerPlace(agent string) []string {
 }
 
 // reviewerBrief はレビュアーの依頼書（independent-review skill の §4 の型）。plan と担当の報告は見せない。
-// 結果の宛先は元のタスクの担当（task.yaml の agent）に固定する。Chief of Staff へは送らない（クーリエが届ける）。
+// 結果の宛先は元のタスクの担当（task.yaml の agent）に固定する。Chief of Staff へは送らない（dispatcher が届ける）。
 func reviewerBrief(l *ledger.Ledger, t ledger.Task, rep *contract.Report, r Reviewer, repo, number string) string {
 	rr := rep.ReviewRequest
 	agent := t.Str("agent")
@@ -409,7 +409,7 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Task, rep *contract.Report, r Revi
 		fmt.Fprintf(&b, "`hc send %s \"<自分の id>（%s のレビュー %d 回目）: commit %s。報告は <自分の report.md のパス>\"`\n", agent, r.Task, r.Round, rr.Commit)
 	}
 	fmt.Fprintf(&b, "宛先は %s の task.yaml の agent（`deck show %s --json` の .task.agent。起こした時点では %s）。", r.Task, r.Task, orNone(agent))
-	b.WriteString("Chief of Staff・クーリエへは送らない（Chief of Staff へはクーリエが届ける）。\n")
+	b.WriteString("Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。\n")
 	return b.String()
 }
 
@@ -430,7 +430,7 @@ func home() string {
 
 // ---------------------------------------------------------------- ゲート
 
-// gateResult は andon gate の出力のうちクーリエが読むもの（記録 contract.md §7。信じられる PR が無いときは decision・reasons だけ）。
+// gateResult は andon gate の出力のうち dispatcher が読むもの（記録 contract.md §7。信じられる PR が無いときは decision・reasons だけ）。
 type gateResult struct {
 	Decision   string   `json:"decision"`
 	Reasons    []string `json:"reasons"`
@@ -543,7 +543,7 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 	stop := func(why string) {
 		p.logf("%s をマージしない: %s", id, why)
 		p.ask(id, contract.Question{
-			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）はゲートが approve したが、クーリエがマージできなかった。人がマージするか", id, short(t.Str("title"))),
+			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）はゲートが approve したが、dispatcher がマージできなかった。人がマージするか", id, short(t.Str("title"))),
 			Facts: []string{why, "PR " + rep.PR, "ゲートの記録 " + record}, From: "gate",
 			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
 	}
@@ -632,7 +632,7 @@ func (p *project) stillAuthorized(before ledger.Task, res gateResult) (bool, str
 }
 
 // Authorized は、ゲートのときの事実（before・gateMerge）とマージ直前に読み直した事実（now・status・trusted・nowMerge）から、
-// クーリエがマージしてよいかを決める（純粋関数）。どれか1つでも変わっていれば、いまはマージしない。
+// dispatcher がマージしてよいかを決める（純粋関数）。どれか1つでも変わっていれば、いまはマージしない。
 func Authorized(before, now ledger.Settings, status string, trusted bool, gateMerge, nowMerge, tier string) (bool, string) {
 	switch {
 	case status != "review":
@@ -668,7 +668,7 @@ func short12(s string) string {
 	return s
 }
 
-// markMerged はゲートの記録の merged を true にする（記録の書き手はクーリエ。contract.md §7）。
+// markMerged はゲートの記録の merged を true にする（記録の書き手は dispatcher。contract.md §7）。
 func markMerged(record string) error {
 	b, err := os.ReadFile(record)
 	if err != nil {

@@ -294,11 +294,11 @@ rc=0; "$andon" task start "$s5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 rm "$tmp/hc/first"
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 addr=$(field "$s5" agent)
-grep -q "に最初のメッセージが届いていない: trust prompt。クーリエが見回りで送り直す（.*急ぐときだけ手で: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
+grep -q "に最初のメッセージが届いていない: trust prompt。dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
   && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
-grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'クーリエに預けるラベルを付けていない'
+grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatcher に預けるラベルを付けていない'
 grep -q "^run .*--cwd $PWD/.flightdeck/tasks/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
-ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（クーリエが送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
+ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
 
 # start が作ったものを finish が片付ける
 : > "$tmp/hc/log"

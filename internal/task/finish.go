@@ -14,9 +14,9 @@ import (
 // finish は端末と worktree を片付け、マージ済みなら branch を消し、台帳を done にする（仮設の yard task finish を移したもの）。
 // 台帳の worktree と branch が、andon task start がこのタスクに作るもの（~/.herdr/worktrees/<repo 名>/<slug>-<id> と
 // <slug>/<id>[-…]）と合うときだけ片付ける。合わなければ端末にも触らずに止まる（台帳の書き違いで別のタスクの作業物を消さない）。
-// レビュアーの子タスク（parent がこのタスクで profile が *-review）と、クーリエが作った detached worktree
+// レビュアーの子タスク（parent がこのタスクで profile が *-review）と、dispatcher が作った detached worktree
 // （~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>）も片付ける。
-// マージしたかは確かめない（確かめてから打つのは打つ側。クーリエは MERGED を見てから打つ）。
+// マージしたかは確かめない（確かめてから打つのは打つ側。dispatcher は MERGED を見てから打つ）。
 func (c *ctx) finish(stdout io.Writer) error {
 	for _, cmd := range []string{"git", "hc"} {
 		if _, err := exec.LookPath(cmd); err != nil {
@@ -60,7 +60,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 		dir := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir))
 		want := filepath.Join(dir, slug+"-"+c.id)
-		// レビュアーの子タスクは、クーリエが kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
+		// レビュアーの子タスクは、dispatcher が kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
 		if p := c.task.Str("parent"); p != "" && strings.HasSuffix(c.task.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
 			want, detached = wt, true
 		}

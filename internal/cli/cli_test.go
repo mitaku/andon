@@ -13,7 +13,7 @@ func run(args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-var subs = []string{"task", "chief-of-staff", "chief-engineer", "courier", "publish", "triage", "gate", "delegate", "boot", "init"}
+var subs = []string{"task", "chief-of-staff", "chief-engineer", "dispatcher", "publish", "triage", "gate", "delegate", "boot", "init"}
 
 func TestHelpListsEverySubCommand(t *testing.T) {
 	rc, out, errs := run("help")
@@ -34,7 +34,7 @@ func TestHelpListsEverySubCommand(t *testing.T) {
 
 func TestUnknownSubCommand(t *testing.T) {
 	rc, out, errs := run("bogus")
-	if rc != 2 || out != "" || !strings.Contains(errs, "知らない sub-command: bogus") || !strings.Contains(errs, "\n  courier  ") {
+	if rc != 2 || out != "" || !strings.Contains(errs, "知らない sub-command: bogus") || !strings.Contains(errs, "\n  dispatcher  ") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 }
@@ -60,8 +60,8 @@ func TestPassesArgsToSubCommand(t *testing.T) {
 	if rc, _, errs := run("triage"); rc != 2 || !strings.HasPrefix(errs, "usage: andon triage collect") {
 		t.Errorf("triage: rc=%d err=%q", rc, errs)
 	}
-	if rc, _, errs := run("courier", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon courier") {
-		t.Errorf("courier: rc=%d err=%q", rc, errs)
+	if rc, _, errs := run("dispatcher", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon dispatcher") {
+		t.Errorf("dispatcher: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("chief-of-staff", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-of-staff") {
 		t.Errorf("chief-of-staff: rc=%d err=%q", rc, errs)

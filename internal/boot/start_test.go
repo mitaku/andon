@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"andon/internal/courier"
+	"andon/internal/dispatcher"
 )
 
 // authorized_keys が無いときと、あるが読めないときを別の行で出す（どちらも sshd は起こさない）。
@@ -97,28 +97,28 @@ func TestSetupGitCredentialsNoGH(t *testing.T) {
 	}
 }
 
-// クーリエの端末を確かめられない（控えの置き場が作れない）ときは、警告の行に出す（「すでに動いている」と言わない）。
-func TestStartCourierReportsLockError(t *testing.T) {
+// dispatcher の端末を確かめられない（控えの置き場が作れない）ときは、警告の行に出す（「すでに動いている」と言わない）。
+func TestStartDispatcherReportsLockError(t *testing.T) {
 	f := newFixture(t)
 	notDir := filepath.Join(f.root, "state-is-a-file")
 	put(t, notDir, "")
 	t.Setenv("XDG_STATE_HOME", notDir)
 	e := f.env()
-	e.LookPath = func(tool string) (string, error) { // hc だけある（ほかの起動は飛ばす）。hc は打つ前に止まる
+	e.LookPath = func(tool string) (string, error) { // hc だけある（ほかの起動は飛ばす）。hc は打つ前に止まる（無いパスなので本物の hc を打たない）
 		if tool == "hc" {
-			return "/usr/bin/hc", nil
+			return filepath.Join(f.root, "no-hc"), nil
 		}
 		return "", os.ErrNotExist
 	}
 	Start(e)
 	got := f.log.String()
-	if !strings.Contains(got, "クーリエ の準備に失敗") || strings.Contains(got, "すでに動いている") {
+	if !strings.Contains(got, "dispatcher の準備に失敗") || strings.Contains(got, "すでに動いている") {
 		t.Errorf("起こせなかったことが見えない: %q", got)
 	}
 }
 
-// 偽の hc（クーリエの端末）: get が n 回目のとき $D/term.<n> があれば $D/term にしてから返す。打ったものは $D/log へ。
-const courierHc = `#!/usr/bin/env bash
+// 偽の hc（dispatcher の端末）: get が n 回目のとき $D/term.<n> があれば $D/term にしてから返す。打ったものは $D/log へ。
+const dispatcherHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
   get) n=$(( $(cat "$d/gets" 2>/dev/null || echo 0) + 1 )); echo $n > "$d/gets"
@@ -130,13 +130,13 @@ case $1 in
 esac
 `
 
-func courierFixture(t *testing.T) (*fixture, Env, string) {
+func dispatcherFixture(t *testing.T) (*fixture, Env, string) {
 	t.Helper()
 	f := newFixture(t)
 	d := filepath.Join(f.root, "hc")
 	mustMkdir(t, filepath.Join(d, "bin"))
 	hc := filepath.Join(d, "bin", "hc")
-	put(t, hc, courierHc)
+	put(t, hc, dispatcherHc)
 	if err := os.Chmod(hc, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -158,14 +158,14 @@ func term(fg string) string {
 }
 
 // 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。「すでに動いている」と書かずに起こし直す。
-func TestStartCourierRestoredShell(t *testing.T) {
-	f, e, d := courierFixture(t)
-	old := courierWait
-	courierWait = 2 * time.Second
-	t.Cleanup(func() { courierWait = old })
+func TestStartDispatcherRestoredShell(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	old := dispatcherWait
+	dispatcherWait = 2 * time.Second
+	t.Cleanup(func() { dispatcherWait = old })
 	put(t, filepath.Join(d, "term"), term("null"))
 	put(t, filepath.Join(d, "term.2"), term(`{"name":"bash","argv":["/bin/bash"]}`))
-	if err := startCourier(e); err != nil {
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
 	got := f.log.String()
@@ -176,13 +176,13 @@ func TestStartCourierRestoredShell(t *testing.T) {
 }
 
 // 待っても前に出ているものが取れない: 「確かめられなかった」と書き、「すでに動いている」とは書かない。何も打たない。
-func TestStartCourierUnsure(t *testing.T) {
-	f, e, d := courierFixture(t)
-	old := courierWait
-	courierWait = 100 * time.Millisecond
-	t.Cleanup(func() { courierWait = old })
+func TestStartDispatcherUnsure(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	old := dispatcherWait
+	dispatcherWait = 100 * time.Millisecond
+	t.Cleanup(func() { dispatcherWait = old })
 	put(t, filepath.Join(d, "term"), term("null"))
-	if err := startCourier(e); err != nil {
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
 	got := f.log.String()
@@ -194,23 +194,23 @@ func TestStartCourierUnsure(t *testing.T) {
 	}
 }
 
-// 前に andon courier が出ていれば「すでに動いている」。
-func TestStartCourierRunning(t *testing.T) {
-	f, e, d := courierFixture(t)
-	put(t, filepath.Join(d, "term"), term(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`))
-	if err := startCourier(e); err != nil {
+// 前に andon dispatcher が出ていれば「すでに動いている」。
+func TestStartDispatcherRunning(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
+	put(t, filepath.Join(d, "term"), term(`{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}`))
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.log.String(); !strings.Contains(got, "クーリエはすでに動いている") {
+	if got := f.log.String(); !strings.Contains(got, "dispatcher はすでに動いている") {
 		t.Errorf("log=%q", got)
 	}
 }
 
 // ほかが確かめている（lock を持っている）: 「ほかが確かめている」と書き、「すでに動いている」とは書かない。
-func TestStartCourierBusy(t *testing.T) {
-	f, e, d := courierFixture(t)
+func TestStartDispatcherBusy(t *testing.T) {
+	f, e, d := dispatcherFixture(t)
 	put(t, filepath.Join(d, "term"), term("null"))
-	lock := filepath.Join(filepath.Dir(courier.StatePath("x")), ".terminal.lock")
+	lock := filepath.Join(filepath.Dir(dispatcher.StatePath("x")), ".terminal.lock")
 	mustMkdir(t, filepath.Dir(lock))
 	fh, err := os.OpenFile(lock, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
@@ -220,10 +220,102 @@ func TestStartCourierBusy(t *testing.T) {
 	if err := syscall.Flock(int(fh.Fd()), syscall.LOCK_EX); err != nil {
 		t.Fatal(err)
 	}
-	if err := startCourier(e); err != nil {
+	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.log.String(); strings.Contains(got, "すでに動いている") || !strings.Contains(got, "ほかが確かめている") {
 		t.Errorf("log=%q", got)
+	}
+}
+
+// 偽の hc: get <name> は $D/<name>.json（無ければ not_found）。keep・kill・rm は $D/log へ。
+const staleHc = `#!/usr/bin/env bash
+d=$FAKE_HC
+case $1 in
+  get) [ -e "$d/$2.json" ] || { echo '{"error":{"kind":"not_found"}}' >&2; exit 3; }; cat "$d/$2.json" ;;
+  keep|kill|rm) [ ! -e "$d/fail-$1" ] || { echo "$1 failed" >&2; exit 1; }; echo "$*" >>"$d/log" ;;
+  run) echo "$*" >>"$d/log" ;;
+  *) exit 9 ;;
+esac
+`
+
+// 前の版の係（名前もラベルも courier）だけを、前に出ているものが前の係かシェルのときに片付ける。
+// ほかの役・知らない役・人が中で何か動かしている端末・前に出ているものが取れない端末には触らない。
+func TestDropStaleRoles(t *testing.T) {
+	old := func(fg string) string {
+		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
+	}
+	for _, c := range []struct {
+		name, term string
+		dropped    bool
+		log        string
+	}{
+		{"前の係が動いている", old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`), true, "前の版の係の端末 t1（courier）を片付けた"},
+		{"作り直しで戻ったシェル", old(`{"name":"bash","argv":["/bin/bash"]}`), true, "片付けた"},
+		{"名前が courier でもラベルが違う", `{"address":"t1","name":"courier","state":"live","labels":{"role":"worker"},"foreground":{"name":"bash","argv":["/bin/bash"]}}`, false, ""},
+		{"終わった端末", `{"address":"t1","name":"courier","state":"finished","labels":{"role":"courier"}}`, false, ""},
+		{"端末が無い", "", false, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f, e, d := dispatcherFixture(t)
+			put(t, filepath.Join(d, "bin", "hc"), staleHc)
+			if c.term != "" {
+				put(t, filepath.Join(d, "courier.json"), c.term)
+			}
+			if err := dropStaleRoles(e); err != nil {
+				t.Fatal(err)
+			}
+			log, _ := os.ReadFile(filepath.Join(d, "log"))
+			if want := map[bool]string{true: "keep t1 --off\nkill t1\nrm t1\n", false: ""}[c.dropped]; string(log) != want {
+				t.Errorf("hc=%q want %q", log, want)
+			}
+			if got := f.log.String(); (c.log == "") != (got == "") || !strings.Contains(got, c.log) {
+				t.Errorf("log=%q want %q", got, c.log)
+			}
+		})
+	}
+}
+
+// 前の版の係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起こさない。
+// 片付けられれば起こす。
+func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
+	old := func(fg string) string {
+		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
+	}
+	running := old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`)
+	for _, c := range []struct {
+		name, term, fail string
+		started          bool
+		log              string
+	}{
+		{"kill に失敗", running, "kill", false, "kill failed"},
+		{"keep --off に失敗", running, "keep", false, "keep failed"},
+		{"人が中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), "", false, "前に出ているものが vim なので触らない"},
+		{"前に出ているものが取れない", old("null"), "", false, "取れない なので触らない"},
+		{"片付けた", running, "", true, "前の版の係の端末 t1（courier）を片付けた"},
+		{"前の係の端末が無い", "", "", true, "dispatcher を起こした"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f, e, d := dispatcherFixture(t)
+			put(t, filepath.Join(d, "bin", "hc"), staleHc)
+			if c.term != "" {
+				put(t, filepath.Join(d, "courier.json"), c.term)
+			}
+			if c.fail != "" {
+				put(t, filepath.Join(d, "fail-"+c.fail), "")
+			}
+			Start(e)
+			log, _ := os.ReadFile(filepath.Join(d, "log"))
+			if got := strings.Contains(string(log), "run "); got != c.started {
+				t.Errorf("dispatcher の hc run=%v want %v: %q", got, c.started, log)
+			}
+			got := f.log.String()
+			if !strings.Contains(got, c.log) {
+				t.Errorf("log=%q want %q", got, c.log)
+			}
+			if !c.started && !strings.Contains(got, "dispatcher は起こさない") {
+				t.Errorf("起こさない理由が無い: %q", got)
+			}
+		})
 	}
 }

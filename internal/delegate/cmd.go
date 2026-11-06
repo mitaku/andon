@@ -25,7 +25,7 @@ const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text
 	"scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 	"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
 	"       line-change(none/project/plant)。narrow は今の値より広げない。--project を省くと cwd の projects/<slug>/。\n" +
-	"Chief of Staff・担当・クーリエの端末（hc のラベル role= か task= がある）では打てない。\n"
+	"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か task= がある）では打てない。\n"
 
 const (
 	exitFail  = 1
@@ -120,7 +120,7 @@ func project(ws, given string) (string, error) {
 	return "", errors.New("プロジェクトが分からない（projects/<slug>/ で打つか --project <slug>）")
 }
 
-// agentTerminal は打っているのが Chief of Staff・担当・クーリエの端末か（hc のラベル role= か task=）。
+// agentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か task=）。
 // 読めなければ打たせない（安全側）。
 func agentTerminal() error {
 	id := os.Getenv("HC_TERMINAL_ID")

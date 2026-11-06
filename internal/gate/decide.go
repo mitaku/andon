@@ -392,7 +392,7 @@ type Facts struct {
 }
 
 // Decide は決定式（純粋関数）。decision と reasons を返す。approve の reasons は空。
-// wait は GitHub の checks を待つ（記録も PR への書き込みもしない。クーリエが次の見回りで回し直す）。
+// wait は GitHub の checks を待つ（記録も PR への書き込みもしない。dispatcher が次の見回りで回し直す）。
 func Decide(f Facts) (string, []string) {
 	switch {
 	case len(f.LedgerReasons) > 0:

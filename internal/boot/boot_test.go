@@ -493,15 +493,16 @@ func TestVersionLess(t *testing.T) {
 }
 
 // Main を環境変数だけで走らせる: 偽の HOME・偽の建屋、PATH には記録するだけの偽の hc。
-// 本物の hc・HOME・/workspace に触らない。2回目はクーリエを起こし直さない（中身が andon courier のまま）。
+// 本物の hc・HOME・/workspace に触らない。2回目は dispatcher を起こし直さない（中身が andon dispatcher のまま）。
 func TestMainWithFakeHome(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
 	bin := filepath.Join(f.root, "bin")
 	calls := filepath.Join(f.root, "hc-calls")
 	put(t, filepath.Join(bin, "hc"), "#!/bin/sh\nPATH=/usr/bin:/bin\necho \"$*\" >> '"+calls+"'\n"+
+		"[ \"$1\" = ls ] && { echo '{\"terminals\":[]}'; exit 0; }\n"+
 		"[ \"$1\" = get ] && { grep -q '^run ' '"+calls+"' || { echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3; }; "+
-		"echo '{\"state\":\"live\",\"foreground\":{\"name\":\"andon\",\"argv\":[\""+filepath.Join(f.pkg, "bin", "andon")+"\",\"courier\"]}}'; }\nexit 0\n")
+		"echo '{\"state\":\"live\",\"foreground\":{\"name\":\"andon\",\"argv\":[\""+filepath.Join(f.pkg, "bin", "andon")+"\",\"dispatcher\"]}}'; }\nexit 0\n")
 	if err := os.Chmod(filepath.Join(bin, "hc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -520,9 +521,9 @@ func TestMainWithFakeHome(t *testing.T) {
 	}
 	got := read(t, calls)
 	if strings.Count(got, "run ") != 1 {
-		t.Errorf("クーリエを起こした回数が1でない:\n%s", got)
+		t.Errorf("dispatcher を起こした回数が1でない:\n%s", got)
 	}
-	for _, want := range []string{"--name courier", "--label role=courier", "--cwd " + f.ws, filepath.Join(f.pkg, "bin", "andon") + " courier"} {
+	for _, want := range []string{"--name dispatcher", "--label role=dispatcher", "--cwd " + f.ws, filepath.Join(f.pkg, "bin", "andon") + " dispatcher"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("hc run に %q が無い:\n%s", want, got)
 		}

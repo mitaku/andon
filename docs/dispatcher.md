@@ -1,18 +1,18 @@
-<p><picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo/courier-mark-dark.svg"><img src="assets/logo/courier-mark.svg" alt="クーリエの記号" height="64"></picture></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo/dispatcher-mark-dark.svg"><img src="assets/logo/dispatcher-mark.svg" alt="dispatcher の記号" height="64"></picture></p>
 
-# クーリエ（courier）の設計
+# dispatcher の設計
 
-- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon courier`・`andon courier drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2・§2.3 の台帳と端末の状態からの拾い（P3b の通知の元）も実装済み（`internal/courier/pickup.go`）。§2.1 の見回りの最初の `kanban tick` はまだ入っていない。
-- この文書がクーリエの設計の正。前の設計（仮設の工場の通知の係）は記録として向こうに残る（相談 F8 の回答。[decisions.md](decisions.md) §7）。読んだものは末尾の「出典」。
+- 状態: **設計**（2026-11-05 起草）。実装は P3b（通知だけ）・P6a（インナーループ）・P6b（フックと離席時の送り）で入る（[design.md](design.md) §5.2）。P6a のインナーループと P6b のフック・離席時の送りは実装済み（`andon dispatcher`・`andon dispatcher drain`・`andon task stop-check`・`package/hooks/`。決定は [decisions.md](decisions.md) §13・§15）。①②の効きと③の離席の判定は本物の Claude Code での実測が残る（P7）。§2.2・§2.3 の台帳と端末の状態からの拾い（P3b の通知の元）も実装済み（`internal/dispatcher/pickup.go`）。§2.1 の見回りの最初の `kanban tick` はまだ入っていない。
+- この文書が dispatcher の設計の正。前の設計（仮設の工場の通知の係）は記録として向こうに残る（相談 F8 の回答。[decisions.md](decisions.md) §7）。読んだものは末尾の「出典」。
 - 語は [design.md](design.md) §0.1。機械が読む形（通知の JSON・控え・フック・端末のラベル）の正は [contract.md](contract.md) と `schema/` で、この文書はそれを**なぜその形か**と**いつ何をするか**で説明する。食い違えば contract.md と `schema/` が正。
 
 ---
 
 ## 0. 一言で
 
-**クーリエは、建屋に1つ常駐して台帳と端末を周期で回り、拾ったことを Chief of Staff に届け、決まった次の工程を起こすプログラム。判断はしない。**
+**dispatcher は、建屋に1つ常駐して台帳と端末を周期で回り、拾ったことを Chief of Staff に届け、決まった次の工程を起こすプログラム。判断はしない。**
 
-出典は TPS の水すまし（design.md §1.7）: 決まった経路を決まった周期で回り、各工程に部品を届け、できたものを引き取る。工程を知っていて、通るたびに異常に気づく。クーリエも同じで、**次に何が起きるべきかが決まっている所だけ**を動かし、決まっていない所は通知か問いにして人と Chief of Staff に渡す。
+出典は TPS の水すまし（design.md §1.7）: 決まった経路を決まった周期で回り、各工程に部品を届け、できたものを引き取る。工程を知っていて、通るたびに異常に気づく。dispatcher も同じで、**次に何が起きるべきかが決まっている所だけ**を動かし、決まっていない所は通知か問いにして人と Chief of Staff に渡す。
 
 | する | しない |
 |---|---|
@@ -30,8 +30,8 @@
 
 そこで形を3つ決めた（[decisions.md](decisions.md) §6。2026-11-03）:
 
-1. **担当は Chief of Staff に打ち込まない。** 報告・レビュー入り・問いは台帳に書くだけ（`andon task report`・`review`・`ask`）。担当は `--no-notify` で起こし、止まった・終わったはクーリエが端末の土台から拾う。
-2. **Chief of Staff に打ち込むのはクーリエだけ。** 書き手が1つなら、入力欄が空になるのを待つ守りを1か所に置ける。
+1. **担当は Chief of Staff に打ち込まない。** 報告・レビュー入り・問いは台帳に書くだけ（`andon task report`・`review`・`ask`）。担当は `--no-notify` で起こし、止まった・終わったは dispatcher が端末の土台から拾う。
+2. **Chief of Staff に打ち込むのは dispatcher だけ。** 書き手が1つなら、入力欄が空になるのを待つ守りを1か所に置ける。
 3. **台帳から拾う。** 担当が言い忘れても、台帳に書いた時点で失われない。
 
 Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路①②）を足す。打ち込み（経路③）は人が離れているときだけの残りの口になり、書きかけに貼り付く危険は「離席の判定が外れたとき」だけに縮む。
@@ -44,9 +44,9 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 - 建屋の各プロジェクトの台帳を回る。**待ちが無ければ1分ごと、待ちがあれば5秒ごと**（仮の値。設定で替えられる）。
 - プロジェクトの Chief of Staff（`config.yaml` の `coordinator`）の端末が生きていなければ、その台帳は丸ごと飛ばす（ログに1行。理由が変わったときだけ）。Chief of Staff は起きたときに台帳を自分で読むので、留守の間に積む必要が無い。
-- 見回りの最初に `kanban tick` を打つ（ルーチンの `schedule` が来たものをタスクにする）。台帳の CLI の仕事を、周期を持つクーリエが代わりに起こすだけ。
+- 見回りの最初に `kanban tick` を打つ（ルーチンの `schedule` が来たものをタスクにする）。台帳の CLI の仕事を、周期を持つ dispatcher が代わりに起こすだけ。
 - **初めて見る台帳**（控えが無い）は、通知の元（§2.2・§2.3）について今の ready と `log.jsonl` の位置を控えるだけで送らない（過去の出来事を一度に流さない）。
-  ただし `doing` のタスクの今の `review_request`（§5）は拾う。commit が PR の head と同じことを確かめてから起こすので、過去の出来事ではなく、いま止まっている工程だから（クーリエが止まっている間に出たレビュー依頼を取りこぼさない。2026-11-06 の P7）。
+  ただし `doing` のタスクの今の `review_request`（§5）は拾う。commit が PR の head と同じことを確かめてから起こすので、過去の出来事ではなく、いま止まっている工程だから（dispatcher が止まっている間に出たレビュー依頼を取りこぼさない。2026-11-06 の P7）。
   二重に起こさない守りは控えではなく台帳で持つ: その commit のレビュアーの子タスクがもうあれば引き継ぐ（§5 の「二度起こさない」）。
 
 ### 2.2 通知の元
@@ -60,12 +60,12 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 問いが来た | `log.jsonl` の `{"question": n, "status": "open"}`。中身は問いの JSON（contract.md §5） | `asked` |
 | 引き取れるタスクが増えた | `kanban ready --json` の**前回との差**（人のタスクを除いた id の集まりで比べる） | `ready` |
 | レビューを頼まれ、起こした | `report.json` の `review_request`（P6a） | `review-requested` |
-| ゲートが判定した | クーリエが回した `andon gate` の結果（P6a） | `gate` |
+| ゲートが判定した | dispatcher が回した `andon gate` の結果（P6a） | `gate` |
 | マージして片付けた | approve ＋ `merge: auto` ＋ 委譲の範囲内（P6a） | `merged` |
 | 担当が止まった・落ちた・終わった・静か | 端末の土台の状態（§2.3） | `blocked`・`error`・`finished`・`stalled` |
 | 外の信号（main の CI の失敗・webhook） | **最初の版の後**（design.md §1.9 の (a)・§6 問い23） | `signal` |
 
-- `log.jsonl` は前回の続きから読む。読んだ位置はクーリエの控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
+- `log.jsonl` は前回の続きから読む。読んだ位置は dispatcher の控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
 - 位置には最初の行の hash を添える。台帳の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
 - **ready は履歴ではなく差で拾う。** ルーチンが足したタスク・`queued` から戻ったタスク・人が足したタスクを、同じ1本の道で拾える（出来事ごとに拾い方を増やさない）。
 - **Chief of Staff 自身が起こした変化は知らせない**（`by` が `terminal:<coordinator>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起こした変化は知らせる。
@@ -90,7 +90,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - `agent` は `<address>` か `<machine>/<address>`（[contract.md](contract.md) §8）。`hc get` が `not_found` を返したときだけ端末が無い（`finished`）とし、ほかの失敗の間は前の状態（知らせた状態・続きを打った回数）を保つ。
 - 続きを打つ間は、その状態に入った時刻と前に打った時刻の遅いほうから測る（打っても同じ `error` のまま `status_ms` が変わらないことがある）。送れなかった試行も回数と時刻に数える。打った回数は `error`・`working` の間は持ち越し、`idle`／`done` に戻ったら区切る。
 - 画面を読むのは「提供元のエラーか」の見分けだけ。通知には画面の文を入れない（担当の画面は外から来た文を含みうる。Chief of Staff に渡すのは台帳と状態の事実だけ）。
-- 再送は「同じことをもう一度」で、判断ではないのでクーリエがしてよい。それ以外の立て直し（止める・起こし直す・依頼書を直す）は Chief of Staff。
+- 再送は「同じことをもう一度」で、判断ではないので dispatcher がしてよい。それ以外の立て直し（止める・起こし直す・依頼書を直す）は Chief of Staff。
 
 ---
 
@@ -98,18 +98,18 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 宛先は**プロジェクトの Chief of Staff だけ**。人には届けない（人はボードで台帳と端末を見る）。担当に届けるのは P6a の `fix` だけ（§5）。
 
-通知はクーリエの中で JSON のまま積み（contract.md §6）、**届けるときだけ** `<news>` の文に描く。経路は3つで、どれも同じ JSON から同じ文を描く。
+通知は dispatcher の中で JSON のまま積み（contract.md §6）、**届けるときだけ** `<news>` の文に描く。経路は3つで、どれも同じ JSON から同じ文を描く。
 
 | # | 経路 | いつ | 打つもの | 書きかけに貼り付くか |
 |---|---|---|---|---|
-| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon courier drain`（slug は端末のラベルから）→ 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}` で続きのターンにする | 貼り付かない（入力欄を通らない） |
+| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon dispatcher drain`（slug は端末のラベルから）→ 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}` で続きのターンにする | 貼り付かない（入力欄を通らない） |
 | ② | Chief of Staff の `UserPromptSubmit` フック | 人が送ったとき | 同じ（`--context`）＋ 委譲の一覧。`additionalContext` に添える | 貼り付かない（人の文の横に文脈として入る） |
 | ③ | 離席時だけ `hc send` | ①②が来ない間（Chief of Staff がターンを終えて入力を待っていて、人も打っていない） | §4 の守りがそろったら `hc send --if idle` | 判定が外れたときだけ（§4.4） |
 
 - **①②が主、③が残り。** ターンの中で起きた出来事は①で、人が戻って打てば②で届く。③が要るのは「Chief of Staff が待っていて、人も離れている」ときだけ——そのとき誰も Chief of Staff を起こさないので、ラインが止まる。
 - `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（答えが `<no-reply>` だけかもここで見る）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
 - ①の `block` が続きのターンを始めること、②の `additionalContext` が文脈に入ることは**要実測**（P6b。contract.md §9）。
-- フックが落ちたとき（command が無い・台帳が見つからない）は**通す**。待ちはクーリエに残り、次の口で届く。
+- フックが落ちたとき（command が無い・台帳が見つからない）は**通す**。待ちは dispatcher に残り、次の口で届く。
 
 ### 3.1 `<news>` の文
 
@@ -168,7 +168,7 @@ Claude Code の画面は、最後の2本の罫線（`─` が20字以上並ぶ�
 5. **SGR の色は組ごと1つの属性として読む。** `38:2::r:g:b` のような colon 形式の色の中の `2` を dim と取り違えない。
 6. **ヒントの形を特別扱いしない。** `❯ Try "` を文字で覚える形は、候補の文が変わるたびに外れる。薄い字なら同じ仕組みで空になる。
 
-Andon ではこれを Go で書き直した（`internal/courier/screen.go`。design.md §2.7 の (1)。画面を正規表現で読む形は端が尽きない）。列の許可の一覧と再現の画面は表のテスト（`screen_test.go`）にした。
+Andon ではこれを Go で書き直した（`internal/dispatcher/screen.go`。design.md §2.7 の (1)。画面を正規表現で読む形は端が尽きない）。列の許可の一覧と再現の画面は表のテスト（`screen_test.go`）にした。
 
 ### 4.4 残る危険（ゼロにはできない）
 
@@ -180,23 +180,23 @@ Andon ではこれを Go で書き直した（`internal/courier/screen.go`。des
 
 ## 5. 手ごとの役（P3b → P6a → P6b）
 
-クーリエは一度に作らず、ラインの手に合わせて育てる（design.md §5.2）。
+dispatcher は一度に作らず、ラインの手に合わせて育てる（design.md §5.2）。
 
 ### P3b: 通知だけ
 
-前の工場の通知の係を Go の `andon courier` に書き直す。§2 の拾い方と §4 の経路③だけ（フックはまだ無い）。端末の名前とラベルは `role=courier`。控えは `~/.local/state/andon/courier/<slug>.json`（contract.md §6）。
+前の工場の通知の係を Go の `andon dispatcher` に書き直す。§2 の拾い方と §4 の経路③だけ（フックはまだ無い）。端末の名前とラベルは `role=dispatcher`。控えは `~/.local/state/andon/dispatcher/<slug>.json`（contract.md §6）。
 
-**端末を起こす・中身を戻す**: 端末は建屋に1つで、名前は `courier`。`hc run --keep` で起こすので、core が起き直すと（`hc server restart`・Herdr App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで、中身がシェルに替わる（hc は元の command を打ち直さない）。
-そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon courier`」で動いていると見る。無ければ起こす。シェルなら、そのシェルには打ち込まず（入力欄に人の打ちかけがあれば、それに足して実行してしまう）、クーリエ専用の端末なので `hc keep --off`・`hc kill`・`hc rm` で片付けて、同じ名前・ラベルで起こし直す（名前で引くと片付けた端末に当たりうるので address で打つ）。前に何も出ていない（替わる途中）・シェルでも `andon courier` でもないもの（人が何か動かしている）が出ているときは触らない。
-確かめるのは boot（毎起動）と Chief of Staff のフック（`andon courier drain`。毎ターン）。core の起き直しは boot を通らないが、クーリエが回るのは Chief of Staff が生きている台帳だけ（§2.1）で、Chief of Staff が動けば必ずフックが走るので、これで足りる。
+**端末を起こす・中身を戻す**: 端末は建屋に1つで、名前は `dispatcher`。`hc run --keep` で起こすので、core が起き直すと（`hc server restart`・Herdr App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで、中身がシェルに替わる（hc は元の command を打ち直さない）。
+そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon dispatcher`」で動いていると見る。無ければ起こす。シェルなら、そのシェルには打ち込まず（入力欄に人の打ちかけがあれば、それに足して実行してしまう）、dispatcher 専用の端末なので `hc keep --off`・`hc kill`・`hc rm` で片付けて、同じ名前・ラベルで起こし直す（名前で引くと片付けた端末に当たりうるので address で打つ）。前に何も出ていない（替わる途中）・シェルでも `andon dispatcher` でもないもの（人が何か動かしている）が出ているときは触らない。
+確かめるのは boot（毎起動）と Chief of Staff のフック（`andon dispatcher drain`。毎ターン）。core の起き直しは boot を通らないが、dispatcher が回るのは Chief of Staff が生きている台帳だけ（§2.1）で、Chief of Staff が動けば必ずフックが走るので、これで足りる。
 作り直し（`bin/bootstrap down` のあと作り直す）のあとは、herdr-core が前の端末を名前とラベルのまま中身を素のシェルにして戻し、戻った直後は前に出ているものがまだ取れないことがある。boot は取れるまで数秒読み直してから同じ見分けをし、取れないままなら「確かめられなかった」とログに書く（「すでに動いている」とは書かない。フックは待たずに次のターンに任せる）。Chief of Staff・Chief Engineer の戻った端末（top-level の argv ごと素のシェル。起こした端末は template の command のまま）はそれぞれの command の打ち直しで、担当・レビュアーの戻った端末は見回りが終わった端末（`finished`）として知らせて戻す（2026-11-06 の P7）。
-クーリエ自身の見張りでは戻せない（止まっているのはクーリエ）。hc にも元の command を打ち直す機能は無い。複数のフックと boot が重なっても二重に打たないよう、確かめは lock の中で1つずつ（2026-11-06 の P7）。
+dispatcher 自身の見張りでは戻せない（止まっているのは dispatcher）。hc にも元の command を打ち直す機能は無い。複数のフックと boot が重なっても二重に打たないよう、確かめは lock の中で1つずつ（2026-11-06 の P7）。
 
 ### P6a: インナーループを回す
 
 Chief of Staff が1ターンも使わずに、レビュー依頼から片付けまでが流れる。どの段も**決まった次の工程**で、判断はゲートと Chief of Staff と人が持つ。
 
-| 拾うもの | クーリエがすること | 判断を持つ者 |
+| 拾うもの | dispatcher がすること | 判断を持つ者 |
 |---|---|---|
 | `report.json` の `review_request`（`round` ≤ `review_rounds`） | レビュアーを起こす: `kanban add --parent <id>` ＋ 担当の commit の detached worktree ＋ `hc run <reviewer>`（`--no-notify`）。通知 `review-requested` | 起こすかは `task.yaml` の `review`・`reviewer`（Chief of Staff が書く） |
 | `review_request.extra`（上限を超えた回） | **起こさない**。通知にして Chief of Staff へ | Chief of Staff |
@@ -210,27 +210,27 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 - **二度起こさない・二度回さない**: 起こしたレビュアー（`task` → `reviewer_task`・`commit`）と回したゲート（`task` → `sha`。`review` に入った `log.jsonl` の行ごと）を控えに持ち、同じ組では打たない。
   控えに無い組（初めて見た台帳・控えを無くした）は台帳を見る: parent がそのタスクのレビュアーで、依頼書にその commit があるタスクがあれば、`todo` でなければもう受けているとして起こさない。`todo` でも端末が起きていることがある（`hc run` は通ったが `kanban start` の前に落ちた）ので、ラベル `project=<slug>`・`task=<子>` の live な端末を引く（task の id はプロジェクトをまたいで同じことがあるので、返った端末のラベルも両方で確かめる）。何か受けていれば（`turn` が 1 以上）起こさず、まだなら address を引き継いで最初のメッセージから続ける。端末が無いときだけ起こすところから続ける。
 - **同じ commit の出し直し**: 起こさなかった回（設定・上限・head 違いなどで止めた回）は、担当が `andon task review-request` で頼み直せば（そのタスクの報告の行が増えれば）拾い直す。起こした回は、同じ commit で頼み直しても二重に起こさない。
-- **台帳に書くときの `by` は `terminal:courier`**（`HC_TERMINAL_ID=courier` で打つ）。ゲートと `andon task ready` は、作成の行の `by` が Chief of Staff かクーリエのレビュアーを数える。
-- **レビュアーの依頼書に結果の宛先を書く**: 元のタスク（`parent`）の担当（`task.yaml` の `agent`）だけ。Chief of Staff・クーリエへは送らせない（Chief of Staff へはクーリエが通知で届ける）。
+- **台帳に書くときの `by` は `terminal:dispatcher`**（`HC_TERMINAL_ID=dispatcher` で打つ）。ゲートと `andon task ready` は、作成の行の `by` が Chief of Staff か dispatcher のレビュアーを数える。
+- **レビュアーの依頼書に結果の宛先を書く**: 元のタスク（`parent`）の担当（`task.yaml` の `agent`）だけ。Chief of Staff・dispatcher へは送らせない（Chief of Staff へは dispatcher が通知で届ける）。
 - **上限を超えた回**は今の `review_rounds` で決める。Chief of Staff が `review_rounds` を上げれば、次の見回りで起こす。
 - **マージの直前に読み直す**: タスクの予約キー・履歴・委譲、PR の head と GitHub の checks（ゲートと同じ読み方。contract.md §7）がゲートのときと違えば（push された・checks が走り直した・落ちた）打たず、次の見回りでゲートから回し直す。残る隙間: マージの直前の読み直しと `gh pr merge` の間に、同じ head のまま checks が走り直した・落ちたときは止められない（`--match-head-commit` が固定するのは head だけ）。サーバーの側で checks を強制できるのはブランチ保護（ruleset）だけで、private の repo の Free のプランでは使えないので、この隙間は受け入れる。public にしたら ruleset で既定ブランチに required checks を付けて塞ぐ（public にする手順に入れてある）。
 - **起こしそこねたら続きから**: 一時の失敗（fetch・`hc run`・信頼の画面）は控えに分けて持ち、次の見回りで済んだ段の続きからやり直す（二重に起こさない）。レビュアーの端末が起きたのに最初のメッセージが届いていなければ、担当と同じくラベル `first_message.sent=false` を付けて起こしたことにし（通知 `review-requested`）、送り直しは次の項目の見回りに預ける。ラベルを付けられない・`kanban start` が通らなかった（見回りは `doing` しか見ない）ときだけ、起こしたことにせず次の見回りで同じ端末へ `hc send` する。
-- **担当の最初のメッセージも送り直す**: `andon task start`・`andon chief-engineer` が最初のメッセージを届けられなかった（終了コード 3）端末には、command がラベル `first_message.sent=false` を付けて預ける（クーリエが起こしたレビュアーも同じ。上の項目）。届かなかった、は `hc run` の `first_message` が `sent: false`（Codex 0.166.0 は入力欄の背景が動き続けて出力が落ち着かず、hc が送らずに返ることが多い）か、`sent: true` でも `started: false`（送ったが数秒で `working` にならない。起動の途中で入力を捨てられたとみる）のとき。`started` が無い（状態を報告しない program）は届いたとみる。クーリエは見回り（§2.3 の `hc get`）でこのラベルの `doing` の担当を拾い、`idle`（か状態がまだ無い。入力欄が空のまま）なら同じ最初のメッセージ（レビュアーにはレビュアーの文）を `hc send` し、ラベルを外してログに1行。`blocked`・`error` の間は送らず次の見回りへ（`hc send` も画面が入力を受けられなければ拒む）。`working`・`done` なら人が手で送ったとみなし、送らずにラベルだけ外す。送る前に控え（`first`）へ「送りかけ」を書いて保存し、送れなければその場で消して保存する。送ったあとラベルを外す前に落ちても、外しそこねても、控えにあれば二度と送らない（送っている最中に落ちたときは送らない側に倒れ、担当は `idle` のまま `stalled` で Chief of Staff に届く）。初めて見る台帳では送らない。
+- **担当の最初のメッセージも送り直す**: `andon task start`・`andon chief-engineer` が最初のメッセージを届けられなかった（終了コード 3）端末には、command がラベル `first_message.sent=false` を付けて預ける（dispatcher が起こしたレビュアーも同じ。上の項目）。届かなかった、は `hc run` の `first_message` が `sent: false`（Codex 0.166.0 は入力欄の背景が動き続けて出力が落ち着かず、hc が送らずに返ることが多い）か、`sent: true` でも `started: false`（送ったが数秒で `working` にならない。起動の途中で入力を捨てられたとみる）のとき。`started` が無い（状態を報告しない program）は届いたとみる。dispatcher は見回り（§2.3 の `hc get`）でこのラベルの `doing` の担当を拾い、`idle`（か状態がまだ無い。入力欄が空のまま）なら同じ最初のメッセージ（レビュアーにはレビュアーの文）を `hc send` し、ラベルを外してログに1行。`blocked`・`error` の間は送らず次の見回りへ（`hc send` も画面が入力を受けられなければ拒む）。`working`・`done` なら人が手で送ったとみなし、送らずにラベルだけ外す。送る前に控え（`first`）へ「送りかけ」を書いて保存し、送れなければその場で消して保存する。送ったあとラベルを外す前に落ちても、外しそこねても、控えにあれば二度と送らない（送っている最中に落ちたときは送らない側に倒れ、担当は `idle` のまま `stalled` で Chief of Staff に届く）。初めて見る台帳では送らない。
 - **レビュアーの台帳の作業場所は detached worktree**: レビュアーの `kanban start` は、そのレビュアーの detached worktree（`<slug>-<id>-r<回>`）を cwd にして打つ。台帳の `worktree` はその worktree、`branch` は書かれない（detached）、`repo` は担当のタスクと同じになる。台帳の `tasks/<子>/` で打つと、台帳が建屋の git の中にあるとき、建屋の本体の checkout と branch が作業場所として書かれる（P7 v0.0.2 の 21）。端末の cwd（`hc run --cwd`）は今までどおり `tasks/<子>/`。
 - **片付け**は `andon task finish <id>` の1つ（レビュアーの子タスクと detached worktree も片付く。子タスクの `worktree` が `<slug>-<親>-r<回>` の detached worktree で `branch` が無ければ、その worktree を消す）。人がマージしたときは Chief of Staff が同じ command を打つ。finish は、台帳の `worktree` が repo の本体の checkout（`git worktree list` の先頭）なら、何も消さずに止まる。
-- **安全側**: `task.yaml` の値が読めない・履歴の照合が合わない（contract.md §2）・委譲が読めないときは、起こさない・マージしない。ゲートは `needs_human` を返し、クーリエはそれを問いにするだけ。
-- 不可逆な操作（デプロイ・公開・削除）は、command が委譲を読んでから打つ（design.md §1.10）。範囲外なら command が止まって理由を1行出し、クーリエはそれを通知にする。
+- **安全側**: `task.yaml` の値が読めない・履歴の照合が合わない（contract.md §2）・委譲が読めないときは、起こさない・マージしない。ゲートは `needs_human` を返し、dispatcher はそれを問いにするだけ。
+- 不可逆な操作（デプロイ・公開・削除）は、command が委譲を読んでから打つ（design.md §1.10）。範囲外なら command が止まって理由を1行出し、dispatcher はそれを通知にする。
 
 ### P6b: フックで届ける
 
-§3 の経路①②を入れ、③を「離席時だけ」に絞る。担当の `Stop` フック（`andon task stop-check`。報告か問いを書くまで止まれない。問いの答え・レビュアーの結果を待つターンは止めない）も同じ手で入る。テストは `tests/andon-courier.sh`（turn 中の通知が `Stop` で届く・送信時に添えられる・離席時だけ `hc send`・`doing` で報告無しの `Stop` が block。問いが開いている・レビュー待ちの `Stop` は通す）。本物の Claude Code で1日、実測する。
+§3 の経路①②を入れ、③を「離席時だけ」に絞る。担当の `Stop` フック（`andon task stop-check`。報告か問いを書くまで止まれない。問いの答え・レビュアーの結果を待つターンは止めない）も同じ手で入る。テストは `tests/andon-dispatcher.sh`（turn 中の通知が `Stop` で届く・送信時に添えられる・離席時だけ `hc send`・`doing` で報告無しの `Stop` が block。問いが開いている・レビュー待ちの `Stop` は通す）。本物の Claude Code で1日、実測する。
 
 ---
 
 ## 6. やらないこと
 
-- **判断しない。** 検収・優先・次のタスク・追加のレビュー・問いの答え・ゲートの覆しはしない。クーリエが動かすのは「次が決まっている」所だけ。
-- **人を呼ばない。** 灯りをつけるのは問いとレベル C（design.md §1.3）。クーリエは問いを台帳に出すまで。
+- **判断しない。** 検収・優先・次のタスク・追加のレビュー・問いの答え・ゲートの覆しはしない。dispatcher が動かすのは「次が決まっている」所だけ。
+- **人を呼ばない。** 灯りをつけるのは問いとレベル C（design.md §1.3）。dispatcher は問いを台帳に出すまで。
 - **台帳のファイルを直接書かない。** 書くのは台帳の CLI と command 経由だけ。控えは台帳の外に置く。
 - **頼まれていないエージェントを起こさない。** 起こすのは `review_request` のレビュアーだけ（担当を起こすのは Chief of Staff の `andon task start`）。
 - **担当の画面の文を運ばない。** 見るのは状態と、提供元のエラーかの見分けだけ。

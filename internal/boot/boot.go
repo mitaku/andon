@@ -10,7 +10,7 @@
 //	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、建屋の repo と台帳に載った repo の根を Claude Code・Codex で
-// 信頼済みにする（trust.go。足りない所だけ足す）、portless・files サーバ・sshd・クーリエの起動。
+// 信頼済みにする（trust.go。足りない所だけ足す）、portless・files サーバ・sshd・dispatcher の起動。
 // 起動は道具が無ければ飛ばし、失敗しても続ける（建屋は立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
 package boot
@@ -37,7 +37,7 @@ import (
 // Usage は andon boot --help の中身。
 const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
-	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・クーリエを起こす。\n" +
+	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
 	"信頼: 建屋の repo と台帳（projects/*/.flightdeck/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
@@ -571,7 +571,7 @@ func linkClaude(e Env) error {
 // linkHerdrCore は herdr-core（hc）を ~/.local/bin に揃える。正は ~/.local/bin/herdr-core で、Herdr App が
 // Add Machine・Update HC でここに置き、差し替える（版は App が決める）。無いか symlink なら image の種（aqua）へ繋ぐ。
 // 実ファイルは App の持ち物なので触らない。hc は無いときだけ herdr-core への相対 symlink にする（差し替えに付いていく）。
-// ~/.local/bin は PATH で aqua より先なので、クーリエを起こす hc も、それが起こす core も同じ herdr-core になる。
+// ~/.local/bin は PATH で aqua より先なので、dispatcher を起こす hc も、それが起こす core も同じ herdr-core になる。
 func linkHerdrCore(e Env) error {
 	bin := filepath.Join(e.Home, ".local", "bin")
 	core := filepath.Join(bin, "herdr-core")

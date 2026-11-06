@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 var slugRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,60}$`)
 
-// deliver は経路③（courier.md §3・§4）: Chief of Staff がターンを終えて入力を待っていて、人も打っていないときだけ
+// deliver は経路③（dispatcher.md §3・§4）: Chief of Staff がターンを終えて入力を待っていて、人も打っていないときだけ
 // 待ちを hc send で届ける。迷ったら送らない（送らなかった通知はフックでも届く）。控えの lock を持って呼ぶ。
 func (p *project) deliver(coord string) {
 	c, err := hcGet(coord)
@@ -57,7 +57,7 @@ func (p *project) deliver(coord string) {
 		return
 	}
 	// done は --if idle に拒まれるので、確かめた直後に --if なしで送る。どちらも hc send 自身が人の手が止まるのを待つ。
-	// ここから hc send が打つまでの間に人が打ち始めると、通知はその文に続けて送られうる（courier.md §4.4。ゼロにはできない）
+	// ここから hc send が打つまでの間に人が打ち始めると、通知はその文に続けて送られうる（dispatcher.md §4.4。ゼロにはできない）
 	args := []string{"send", coord, msg}
 	if status == "idle" {
 		args = []string{"send", "--if", "idle", coord, msg}
@@ -83,7 +83,7 @@ func hcOut(args ...string) (string, error) {
 	return string(out), err
 }
 
-// inputEmpty は入力欄が空か（courier.md §4.2・§4.3）。文字の正は hc read。attach で組み直した入力欄（薄い字も残したもの）が
+// inputEmpty は入力欄が空か（dispatcher.md §4.2・§4.3）。文字の正は hc read。attach で組み直した入力欄（薄い字も残したもの）が
 // hc read の入力欄と一字も違わないときだけ、薄い字を除いて決める。違う・取れない・読めないなら false（送らない）。
 func inputEmpty(addr string) bool {
 	text, err := hcOut("read", addr)

@@ -32,16 +32,16 @@ func Check() error {
 	return nil
 }
 
-// CourierBy はクーリエが台帳の CLI を打つときの log.jsonl の by（HC_TERMINAL_ID=courier で打つ）。
-// クーリエが足したレビュアーのタスクは、Chief of Staff が足したものと同じに数える（docs/courier.md §5 の P6a）。
-const CourierBy = "terminal:courier"
+// DispatcherBy は dispatcher が台帳の CLI を打つときの log.jsonl の by（HC_TERMINAL_ID=dispatcher で打つ）。
+// dispatcher が足したレビュアーのタスクは、Chief of Staff が足したものと同じに数える（docs/dispatcher.md §5 の P6a）。
+const DispatcherBy = "terminal:dispatcher"
 
 // Ledger は1つの台帳。
 type Ledger struct {
 	Root string // プロジェクトの根（.flightdeck の親）
 	Slug string
 	Dir  string   // <Root>/.flightdeck
-	Env  []string // 台帳の CLI に足す環境（クーリエは HC_TERMINAL_ID=courier）
+	Env  []string // 台帳の CLI に足す環境（dispatcher は HC_TERMINAL_ID=dispatcher）
 }
 
 // At は台帳の根 root（.flightdeck の親）の Ledger。
@@ -292,7 +292,7 @@ func machineOK(v string) bool {
 
 // Reviewer は、タスク id のレビューに数えるレビュアーのタスクのうち最新のもの（無ければ空）と、
 // 数えなかった子タスク（理由の文に使う）。数えるのは: parent が id・status が review か done・
-// 作成の行（log.jsonl の最初の add）の by が terminal:<coordinator> かクーリエ（CourierBy）・profile が実装と別ブランドの *-review。
+// 作成の行（log.jsonl の最初の add）の by が terminal:<coordinator> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
 func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 	coordinator := l.Coordinator()
 	creator := map[string]string{}
@@ -312,7 +312,7 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 		}
 		p := c.Str("profile")
 		by := creator[c.Str("id")]
-		if (by == CourierBy || coordinator != "" && by == "terminal:"+coordinator) && strings.HasSuffix(p, "-review") && Brand(p) != brand {
+		if (by == DispatcherBy || coordinator != "" && by == "terminal:"+coordinator) && strings.HasSuffix(p, "-review") && Brand(p) != brand {
 			picked = append(picked, c)
 		} else {
 			others = append(others, c.Str("id"))

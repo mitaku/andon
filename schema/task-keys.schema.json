@@ -6,7 +6,7 @@
   "type": "object",
   "properties": {
     "review": {
-      "description": "Whether an independent review is part of the task. Missing: the gate answers needs_human and the courier does not start a reviewer.",
+      "description": "Whether an independent review is part of the task. Missing: the gate answers needs_human and the dispatcher does not start a reviewer.",
       "enum": ["on", "off"]
     },
     "must_fix": {
@@ -23,7 +23,7 @@
       "pattern": "^[1-9][0-9]*$"
     },
     "merge": {
-      "description": "auto: the courier may merge after the gate approves, within the delegation. person: stop and notify the person. Default: person. It can only narrow the delegation.",
+      "description": "auto: the dispatcher may merge after the gate approves, within the delegation. person: stop and notify the person. Default: person. It can only narrow the delegation.",
       "enum": ["auto", "person"]
     },
     "machine": {

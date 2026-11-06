@@ -274,7 +274,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 	for _, want := range []string{
 		"t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt",
-		"クーリエが見回りで送り直す（画面が入力を受けられるようになれば。",
+		"dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。",
 		"急ぐときだけ手で: hc send t42 \"タスク `sample-site/S-7`。",
 		"台帳は doing・agent t42 のまま",
 	} {
@@ -282,7 +282,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 			t.Errorf("err に %q が無い: %q", want, errs)
 		}
 	}
-	// 送り直しはクーリエに預ける（端末のラベル。contract.md §8）
+	// 送り直しは dispatcher に預ける（端末のラベル。contract.md §8）
 	if !f.has("hc label t42 first_message.sent=false") {
 		t.Errorf("ラベルを付けていない: calls=%q", f.calls())
 	}
@@ -308,15 +308,15 @@ func TestStartFirstMessageNotStarted(t *testing.T) {
 	}
 }
 
-// ラベルを付けられなければ、クーリエは送り直さないので手で送る案内だけにする。
+// ラベルを付けられなければ、dispatcher は送り直さないので手で送る案内だけにする。
 func TestStartFirstMessageNoLabel(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
 	t.Setenv("FAKE_LABEL_RC", "1")
 	rc, _, errs := f.run()
 	if rc != exitFirst || !strings.Contains(errs, "ラベル first_message.sent を付けられず") ||
-		!strings.Contains(errs, "クーリエは送り直さない。hc read t42 で画面を読み、答えてから手で送る: hc send t42 ") ||
-		strings.Contains(errs, "クーリエが見回りで送り直す") {
+		!strings.Contains(errs, "dispatcher は送り直さない。hc read t42 で画面を読み、答えてから手で送る: hc send t42 ") ||
+		strings.Contains(errs, "dispatcher が見回りで送り直す") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 }

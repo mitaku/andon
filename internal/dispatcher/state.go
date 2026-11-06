@@ -1,4 +1,4 @@
-package courier
+package dispatcher
 
 import (
 	"encoding/json"
@@ -44,13 +44,13 @@ type Gate struct {
 	Merged   string `json:"merged,omitempty"`   // マージの commit
 }
 
-// State はクーリエの控え（~/.local/state/andon/courier/<slug>.json。台帳の外）。
+// State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。台帳の外）。
 type State struct {
 	Reviewers map[string]Reviewer `json:"reviewers"`           // <task>@<commit>
 	Gates     map[string]Gate     `json:"gates"`               // <task>#<log.jsonl の行>
 	Pending   []Notification      `json:"pending"`             // 待ちの通知（drain.go のフックと deliver.go の離席時の hc send が届ける）
 	Coord     string              `json:"coord,omitempty"`     // 離席時に送った Chief of Staff の端末（替わったら NewsTurn を捨てる）
-	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（courier.md §4.1 の c）
+	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（dispatcher.md §4.1 の c）
 	Hook      *HookNews           `json:"hook,omitempty"`      // フックで渡して、その turn の終わりをまだ見ていない <news>
 	LogPos    *int64              `json:"log_pos,omitempty"`   // log.jsonl の読んだ位置（バイト。無ければ初めて）
 	LogHead   string              `json:"log_head,omitempty"`  // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
@@ -61,7 +61,7 @@ type State struct {
 	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<task>|<agent>。二度と送らない）
 }
 
-// HookNews はフックで渡した <news>（courier.md §3）。渡した turn の Stop で確かめ済みにする。
+// HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。
 // 確かめないまま別の turn が来たら、News だけを1回届け直す（Again は届け直した分で、もう届け直さない）。
 type HookNews struct {
 	Terminal  string         `json:"terminal"`
@@ -78,7 +78,7 @@ func StatePath(slug string) string {
 	if dir == "" {
 		dir = filepath.Join(os.Getenv("HOME"), ".local", "state")
 	}
-	return filepath.Join(dir, "andon", "courier", slug+".json")
+	return filepath.Join(dir, "andon", "dispatcher", slug+".json")
 }
 
 // LoadState は控えを読む。無ければ空の控えと first=true（初めて見る台帳）。

@@ -1,25 +1,25 @@
 # 建屋を立てて1本流す（手順）
 
 - 状態: **手順**（2026-11-05 起草。[design.md](design.md) §5.2 の P7 の準備）。読み手は人。ホスト（docker と bash がある Linux か WSL）で打つ。
-- 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[courier.md](courier.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
+- 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[dispatcher.md](dispatcher.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
 - 書き方: `<owner>`（GitHub の持ち主）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。建屋の名前（slug）は例として `home`。
 
 ## 役の配置と起動（一覧）
 
-誰が・どの端末で・何をきっかけに起こすか・止まったら誰が戻すか。コードで確かめた形（`internal/boot`・`internal/chiefofstaff`・`internal/chiefengineer`・`internal/task`・`internal/courier`）。ほかの文書（[courier.md](courier.md)・[contract.md](contract.md) §8・skill）はここへリンクする。ラベルの値の正は contract.md §8。
+誰が・どの端末で・何をきっかけに起こすか・止まったら誰が戻すか。コードで確かめた形（`internal/boot`・`internal/chiefofstaff`・`internal/chiefengineer`・`internal/task`・`internal/dispatcher`）。ほかの文書（[dispatcher.md](dispatcher.md)・[contract.md](contract.md) §8・skill）はここへリンクする。ラベルの値の正は contract.md §8。
 
 | 役 | 端末の名前 | 出る場所（Space / tab） | 起こすのは・きっかけ | 止まったら誰が戻すか |
 |---|---|---|---|---|
-| 伝令（courier） | `courier`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「伝令」、2つ以上なら `<建屋の slug> plant` の tab「伝令」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon courier` でなければ片付けて起こし直す（courier.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければ人が `andon boot` |
+| dispatcher | `dispatcher`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「dispatcher」、2つ以上なら `<建屋の slug> plant` の tab「dispatcher」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon dispatcher` でなければ片付けて起こし直す（dispatcher.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければ人が `andon boot` |
 | Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、打ち直せば command が数えずに片付け（keep を外して kill・rm）、起こし直して coordinator を合わせる。数えるのは hc の agent が Claude Code の端末だけで、どちらとも言えない端末（人が中で使っているなど）があれば触らずに止まる |
-| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ伝令が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ。作り直しで戻った端末（top-level の argv ごと素のシェル）は、次の `andon chief-engineer` が数えずに片付けてから起こす（前のタスクは台帳に残る）。hc の agent が Claude Code でも戻った端末でもなければ止まる |
-| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ伝令が送り直す。止まりは伝令が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、伝令が終わった端末（`finished`）として知らせる |
-| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | 伝令。担当の `andon task review-request` の報告を拾って起こす | 伝令が起こしたものも、担当と同じく最初のメッセージが届かなければ（`hc run` の `sent: false`、か `sent: true` でも `started: false`）ラベル `first_message.sent=false` を付けて預け、伝令が次の見回りでレビュアーの文を送り直す（[courier.md](courier.md) §5）。それ以外は担当の依頼で Chief of Staff が起こし直す |
+| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ dispatcher が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ。作り直しで戻った端末（top-level の argv ごと素のシェル）は、次の `andon chief-engineer` が数えずに片付けてから起こす（前のタスクは台帳に残る）。hc の agent が Claude Code でも戻った端末でもなければ止まる |
+| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ dispatcher が送り直す。止まりは dispatcher が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、dispatcher が終わった端末（`finished`）として知らせる |
+| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | dispatcher。担当の `andon task review-request` の報告を拾って起こす | dispatcher が起こしたものも、担当と同じく最初のメッセージが届かなければ（`hc run` の `sent: false`、か `sent: true` でも `started: false`）ラベル `first_message.sent=false` を付けて預け、dispatcher が次の見回りでレビュアーの文を送り直す（[dispatcher.md](dispatcher.md) §5）。それ以外は担当の依頼で Chief of Staff が起こし直す |
 
-- **伝令とゲート**: 担当の `andon task ready`（`status: review`）を拾った伝令が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。伝令が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
-- **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかった（`sent: false`、か `sent: true` でも `started: false`＝送ったが動き出さない）ら、端末にラベル `first_message.sent=false` が付き、伝令が見回りで入力を受けられる状態（`idle`）になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
+- **dispatcher とゲート**: 担当の `andon task ready`（`status: review`）を拾った dispatcher が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。dispatcher が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
+- **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかった（`sent: false`、か `sent: true` でも `started: false`＝送ったが動き出さない）ら、端末にラベル `first_message.sent=false` が付き、dispatcher が見回りで入力を受けられる状態（`idle`）になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
 - **信頼の画面**: 建屋では出ない（boot と、起こす直前の `andon task start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
-- **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`task=…` の付いた端末で中身が素のシェル（起こした command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。伝令の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
+- **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`task=…` の付いた端末で中身が素のシェル（起こした command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。dispatcher の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
 - **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、タスクの範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
 
 ## 建屋の置き方
@@ -102,7 +102,7 @@ grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh 
 - **落ちたら見る所**: `bin/bootstrap` が `port is already allocated`・`address already in use` で落ちる — 出た番号を上の3つで引き、持ち主の側を動かすか、`.env` の番号を変えて打ち直す。起動のあとで `.env` の番号を変えたなら、`host-install` が置いた ssh config の `Port`・`LocalForward` も同じ番号にする（4 の落ちたら見る所）。
 
 - **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ `herdr` を開く。もう一度打てば同じセッションに戻る。
-- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・クーリエを起こした行）。herdr の画面が開く。andon が uid 1001 だった版の image から上げた最初の起動では、`持ち主を直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
+- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・dispatcher を起こした行）。herdr の画面が開く。andon が uid 1001 だった版の image から上げた最初の起動では、`持ち主を直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
   - `建屋の repo（…）の持ち主が uid <n>` — 建屋の repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon init` からやり直す（uid を合わせ直す仕組みは無い）。
@@ -198,7 +198,7 @@ ssh andon-home hostname      # Windows の PowerShell から。App が使うの�
 App の Add Machine で建屋（`Host andon-home`）を足すと、App は SSH 越しに herdr-core を建屋の `~/.local/bin/herdr-core` に置き（Copy HC）、`herdr-core serve` を起こす。以後の Update HC もこのファイルを差し替える。**建屋の herdr-core の版は App が決める**。
 
 - SSH のセッションには image の環境（`PATH`・`AQUA_*`・`GHQ_ROOT`・`LANG`・`CLAUDE_CONFIG_DIR` など）が渡る（image の `/etc/ssh/sshd_config.d/andon.conf` の `SetEnv`）。App の serve から起きる端末にも `claude`・`hc`・`gh` が見える。
-- boot は `~/.local/bin/herdr-core` が無いか symlink のときだけ image の種（aqua の herdr-core）へ繋ぐ。**実ファイル（App が置いたもの）は触らない**。`~/.local/bin/hc` は herdr-core への相対 symlink。`~/.local/bin` は PATH で aqua より先なので、boot がクーリエを起こす `hc` も、それが起こす core も、App の serve と同じ herdr-core になる。
+- boot は `~/.local/bin/herdr-core` が無いか symlink のときだけ image の種（aqua の herdr-core）へ繋ぐ。**実ファイル（App が置いたもの）は触らない**。`~/.local/bin/hc` は herdr-core への相対 symlink。`~/.local/bin` は PATH で aqua より先なので、boot が dispatcher を起こす `hc` も、それが起こす core も、App の serve と同じ herdr-core になる。
 - `~/.local/bin` はコンテナ層。image を上げて作り直すと、App が置いた herdr-core は消えて image の種に戻る。App で Update HC を打ち直し（App が古い版を知らせればそれに従う）、建屋の中で `hc server restart`（core を新しい版で起こし直す。端末は生きたまま）。`hc --version` と `hc server status` の `version` が App の版と同じなら揃っている。
 - **App の serve を起こし直す必要があるとき**（App に建屋が出ない・serve が古い版のまま・SSH の環境を変えたあと）: App でその machine を切って繋ぎ直す（serve は繋ぐときに起きる）。それでも出なければ `bin/bootstrap down` → `up` で建屋ごと起こし直し、上の Update HC から。
 - **落ちたら見る所**: 端末が `env: 'claude': No such file or directory` で落ちる・SSH のシェルで `hc`・`gh` が打てない — image が古い（SSH に環境が渡らない版）。`ssh andon-home 'echo $PATH'` の先頭が `/opt/andon-home/.local/bin` か。版が割れている（`hc --version` と `hc server status` の `version` が違う）— `readlink ~/.local/bin/herdr-core ~/.local/bin/hc` を見てから `hc server restart`。
@@ -224,7 +224,7 @@ App の標準レイアウトは mod の追加だけでは起動しない。人�
 
 この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon` を実行し（Windows の App は Windows 側で実行する）、個人用レイアウトで `sample-site / CoS`・`sample-site / CE A-1 設計`・`A-2 修正 / A-2` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
-mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。伝令（`role=courier`）は tab を「伝令」に、台帳が2つ以上のときの建屋の Space を `<建屋の slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
+mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、台帳が2つ以上のときの建屋の Space を `<建屋の slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
 
 API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
 
@@ -239,7 +239,7 @@ bin/bootstrap               # herdr に入る。bash で入るなら: bin/bootst
 ```bash
 hostname                    # slug（home）
 andon help                  # sub-command の一覧
-hc ls                       # 端末の一覧。courier が出る
+hc ls                       # 端末の一覧。dispatcher が出る
 ls ~/.config/herdr-core/templates     # claude・sonnet・fable・codex・codex-review・claude-review・chief-of-staff・chief-engineer
 ls -l ~/.agents/skills                # andon-<name> が /opt/andon/skills/<name> への symlink
 cat ~/.claude/CLAUDE.md               # @ の2行（environment.md と AGENTS.local.md）
@@ -248,7 +248,7 @@ head -3 ~/.codex/config.toml          # approval_policy・sandbox_mode（無か�
 codex execpolicy check -r ~/.codex/rules/andon.rules gh pr merge 1   # "decision":"forbidden"
 ```
 
-- **通ったら見えるもの**: 上の全部。`hc get courier` が通る（クーリエは `andon courier` を常駐させた端末）。App に tab「伝令」が出る（台帳が1つならその指揮側の Space、2つ以上なら `<建屋の slug> plant`）。ラベルは `hc get courier --json` の `herdr.space`・`herdr.tab`。
+- **通ったら見えるもの**: 上の全部。`hc get dispatcher` が通る（dispatcher は `andon dispatcher` を常駐させた端末）。App に tab「dispatcher」が出る（台帳が1つならその指揮側の Space、2つ以上なら `<建屋の slug> plant`）。ラベルは `hc get dispatcher --json` の `herdr.space`・`herdr.tab`。
 - **落ちたら見る所**: どれも出なければ boot が走っていない（`bin/bootstrap logs`）。boot は失敗しても続ける作りなので、警告の行を探す。生成だけ失敗したときは `andon boot` を中で打ち直せば同じ結果になる（何度打っても同じ）。`hc` が無い・端末が起きない — herdr-core は初めて `hc` を叩くと起きる。
 
 ## 6. 中でログインする（建屋の中で取る）
@@ -306,7 +306,7 @@ andon chief-of-staff        # 起こす（動いていればそれを使う）�
 - **App から起こした端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App から建屋へつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `coordinator` が落ちた端末を指したままでも、打ち直せば新しく起こした address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
 - **最初のメッセージが届いたかは** Chief of Staff の画面（`hc read <address>`）で、台帳を読み始めたかで見る。`andon chief-of-staff` の終了コード 0 だけでは分からない（hook で止まっても 0 で返った）。入力欄にメッセージが残って動かないときは、`UserPromptSubmit operation blocked by hook` の行が出ていないかを見る。
 - **落ちた Chief of Staff を起こし直す**: image を上げ直し（`bin/bootstrap` で作り直す）、落ちた端末を `hc kill <address>` してから `andon chief-of-staff`。`hc server restart` が `no systemd user manager here: the core ends with whatever started it` を出すのは、systemd の無いコンテナである建屋では正常（core は起こした側と一緒に終わる）。
-- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面は建屋では出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff はクーリエが見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。クーリエがこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、クーリエが通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[courier.md](courier.md) §2.1）。通知は1回の見回りのあとに効く。クーリエの端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起こし直す（[courier.md](courier.md) §5）。
+- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面は建屋では出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff は dispatcher が見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。dispatcher がこの台帳を飛ばす — `coordinator` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、dispatcher が通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[dispatcher.md](dispatcher.md) §2.1）。通知は1回の見回りのあとに効く。dispatcher の端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起こし直す（[dispatcher.md](dispatcher.md) §5）。
 
 ## 10. 小さい PR を1本流す
 
@@ -324,27 +324,41 @@ andon delegate show                                              # 同じく pro
 git -C ~/src/andon-home log -1 --format='%ae' -- projects/andon/delegation.json gate.local.json
 ```
 
-- `grant` は `delegation.json` と `delegation.md` を書いて commit する。Chief of Staff・担当・クーリエの端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
+- `grant` は `delegation.json` と `delegation.md` を書いて commit する。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
 - **通ったら見えるもの**: `grant` が `projects/andon/delegation.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
 - **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — `git config user.email` が owner と違うまま commit した。email を合わせて、`delegation.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 
 人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。建屋の `gate.local.json`）。
 
-流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → クーリエがレビュアーを起こす → `ready`（レビュー）→ クーリエがゲート → approve → クーリエがマージ → `andon task finish`。
+流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → dispatcher がレビュアーを起こす → `ready`（レビュー）→ dispatcher がゲート → approve → dispatcher がマージ → `andon task finish`。
 
-担当を起こすのは Chief of Staff の `andon task start <id>`（`projects/andon/` で打つ）。worktree と branch（`~/.herdr/worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `task.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App にタスクの Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、クーリエが起こすレビュアーは担当と同じ tab に横に並ぶ。`andon task finish` で端末が片付くと tab が空になり、Space ごと消える。
+担当を起こすのは Chief of Staff の `andon task start <id>`（`projects/andon/` で打つ）。worktree と branch（`~/.herdr/worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `task.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App にタスクの Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、dispatcher が起こすレビュアーは担当と同じ tab に横に並ぶ。`andon task finish` で端末が片付くと tab が空になり、Space ごと消える。
 
 - **通ったら見えるもの**: 下の「§5.1 の確かめ方」の対応表。
-- **落ちたら見る所**: `andon task start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**クーリエが次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[courier.md](courier.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てばクーリエは送らない）。信頼の画面そのものは出ないはず（boot と `andon task start` が repo の根を信頼済みにする。7）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read courier`・`~/.local/state/andon/courier/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `tasks/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
+- **落ちたら見る所**: `andon task start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**dispatcher が次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[dispatcher.md](dispatcher.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てば dispatcher は送らない）。信頼の画面そのものは出ないはず（boot と `andon task start` が repo の根を信頼済みにする。7）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read dispatcher`・`~/.local/state/andon/dispatcher/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `tasks/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
 
-## 11. クーリエの確かめ
+## 11. dispatcher の確かめ
 
 ```bash
-hc get courier ; hc read courier                       # 見回りの記録
-jq . ~/.local/state/andon/courier/home.json 2>/dev/null   # 控え（<slug> は台帳のプロジェクト名なら andon.json）
+hc get dispatcher ; hc read dispatcher                       # 見回りの記録
+jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> は台帳のプロジェクト名なら andon.json）
 ```
 
-控えは `~/.local/state/andon/courier/<プロジェクト名>.json`（`XDG_STATE_HOME` があればその下）。待ちの通知は `pending`、フックで渡したものは `hook` に残る。通知は台帳と端末の状態から拾う（[courier.md](courier.md) §2.2・§2.3）。**通ったら見えるもの**: 10 の流れの各段（`review`・`ready`・`gate`・`merged`）が、Chief of Staff に `<news>` として1通にまとまって届く。
+控えは `~/.local/state/andon/dispatcher/<プロジェクト名>.json`（`XDG_STATE_HOME` があればその下）。待ちの通知は `pending`、フックで渡したものは `hook` に残る。通知は台帳と端末の状態から拾う（[dispatcher.md](dispatcher.md) §2.2・§2.3）。**通ったら見えるもの**: 10 の流れの各段（`review`・`ready`・`gate`・`merged`）が、Chief of Staff に `<news>` として1通にまとまって届く。
+
+### 前の名前の係から移す（courier → dispatcher）
+
+常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前の版の建屋を上げるときは次のとおり。
+
+1. **上げる前に**: `status: review` のタスクと、レビュアーが動いている（`review_request` を出した）タスクが無いときに上げる。あれば片付くのを待つ（理由は 3）。
+2. **image を上げて起動する**（`rebuild`）。boot が前の係の端末（名前もラベルも `courier`・`role=courier`）を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。片付けるのは前に出ているものが前の係（`andon courier`）か引数の無いシェル（作り直しで戻った中身）のときだけで、起動のログに `前の版の係の端末 <address>（courier）を片付けた` と `dispatcher を起こした` が出る。それ以外（人が中で何か動かしている・前に出ているものが取れない）は触らずに `… なので触らない` と書き、片付けに失敗したとき（`hc keep`・`kill`・`rm` が落ちた）も含めて、**その起動では dispatcher を起こさない**（前の係が動いたままだと二重に回る。ログに `dispatcher は起こさない` が出る）。人が `hc kill <address>` で片付けてから `andon boot` を打ち直す。ほかの端末には触らない。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
+3. **控えの置き場が替わる**: `~/.local/state/andon/courier/` は読まない。新しい `~/.local/state/andon/dispatcher/` に控えが無いので、どの台帳も**初めて見る台帳**として扱われる（[dispatcher.md](dispatcher.md) §2.1）:
+   - 止まっていた間の出来事（報告・問い・止まり）は通知にしない。最初の見回りは位置を控えるだけ。Chief of Staff は起きたときと同じく台帳を自分で読む（`deck list`）。
+   - `doing` のタスクの今の `review_request` は拾う。前の係が同じ commit のレビュアーの子タスクを作っていれば、それを引き継いで二重に起こさない（起こした回として控える）。ただしその子タスクは作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。同じ commit のまま頼み直しても、引き継いだ回なので起こし直さない。担当に**新しい commit を push してから、次の回として**頼み直させる（直すものが無ければ `git commit --allow-empty`。同じ回の番号ではレビュアーの detached worktree の置き場がぶつかる。上限を超えれば Chief of Staff が `review_rounds` を上げる）。commit が変われば新しい回として dispatcher がレビュアーを起こし、作成の `by` は `terminal:dispatcher` になる（Chief of Staff が担当に `hc send` で頼む）。1 で待つのはこのためで、待てるなら待つ。
+   - すでに `status: review` のタスクはゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon task ready`）か、人が PR を見てマージし Chief of Staff が `andon task finish`。
+   - 最初のメッセージの送り直し（`first_message.sent=false`）は2回目の見回りから。
+4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の名前付け mod」）。入れ直すまで、新しい tab は名前が付かない。
+5. **片付け**: 2 と 3 を確かめたら、前の控え `~/.local/state/andon/courier/` を消してよい（読む者はいない）。
 
 ## 12. 実測する（P6b と ADR-0001 S4）
 
@@ -359,16 +373,16 @@ jq . ~/.local/state/andon/courier/home.json 2>/dev/null   # 控え（<slug> は�
 - `ANDON_HOME=<checkout>/package` で起こした担当（開発中の回避の口）は、checkout の plugin と skill が入る（`hc templates` の本文の `/opt/andon` が `ANDON_HOME` に置き換わっている）。
 - 落ちたら: boot の生成（5 の `~/.agents/skills`・template の本文）、`package/.claude-plugin/plugin.json`、template の `command`（`--plugin-dir`・`--append-system-prompt-file`）。
 
-### P6b: フックの4つ（[courier.md](courier.md) §3・§4・§5）
+### P6b: フックの4つ（[dispatcher.md](dispatcher.md) §3・§4・§5）
 
 | 見ること | どう起こすか | どこで見るか |
 |---|---|---|
 | **Stop の block** — turn 中の通知が、Stop で続きの turn として届く | Chief of Staff が長めの turn にいる間に、担当を `deck review` させて通知を積む | Chief of Staff の画面で、turn の終わりに自動で次の turn が始まり `<news>` を読む。控えの `hook` に渡した turn。担当側: `doing` で報告も問いも無いまま止まろうとすると block（`stop-check` の控え `~/.local/state/andon/stop-check/<slug>-<id>.json`） |
 | **additionalContext** — 人が送信したとき、待ちが文脈に添えられる | 通知が積まれている間に、人が何か送る | Chief of Staff に「いま添えられた通知を言って」と聞く。待ちが無くても `<delegation project="…">` が毎回添えられる |
-| **離席時だけ `hc send`** — 入力欄が空で idle のときだけ送る | Chief of Staff を idle にし、人は何も打たず5秒以上待つ。次に入力欄に書きかけを置いて同じことをする | 空のとき: `hc read` に `<news>` が入る。書きかけのとき: **送られない**（次の回に持ち越す）。薄い字（候補）を書きかけと見誤らない（courier.md §4.3） |
+| **離席時だけ `hc send`** — 入力欄が空で idle のときだけ送る | Chief of Staff を idle にし、人は何も打たず5秒以上待つ。次に入力欄に書きかけを置いて同じことをする | 空のとき: `hc read` に `<news>` が入る。書きかけのとき: **送られない**（次の回に持ち越す）。薄い字（候補）を書きかけと見誤らない（dispatcher.md §4.3） |
 | **Esc のあとの届け直し** — 渡した turn を中断したら1回だけ届け直す | `<news>` を渡された turn を Esc で止める | 次の turn で同じ通知が**1回だけ**もう一度届く（控えの `hook` から消えるまで）。2回以上届くなら落ち |
 
-落ちたら: `/etc/claude-code/managed-settings.json` の `hooks`（`/opt/andon/hooks/stop`・`user-prompt-submit`）が付いているか。フックは落ちたら通す作りなので、**フックが何も出さない**ときは、`andon courier drain` を手で打って出力を見る。
+落ちたら: `/etc/claude-code/managed-settings.json` の `hooks`（`/opt/andon/hooks/stop`・`user-prompt-submit`）が付いているか。フックは落ちたら通す作りなので、**フックが何も出さない**ときは、`andon dispatcher drain` を手で打って出力を見る。
 
 ## 13. §5.1 の確かめ方への対応表
 
@@ -378,7 +392,7 @@ jq . ~/.local/state/andon/courier/home.json 2>/dev/null   # 控え（<slug> は�
 |---|---|---|---|
 | 1 | 建屋がパッケージから立つ | 2・3・5・6 | 建屋の repo にパッケージのファイルが無い（`ls ~/src/andon-home`。`Dockerfile` は `FROM` ＋ 2行）。5 の確かめが全部通る。6 のログインが建屋の中で済む |
 | 2 | 1本流れる | 10 | `kanban show <id>` の `status` が `done`。`tasks/<id>/log.jsonl` に `doing` → `review` → `done`。`tasks/<id>/library/gate/<head sha>.json` の決定が approve。PR が `MERGED`（`gh pr view <n> --json state`）。担当の端末が片付いた（`hc ls`・`git worktree list`） |
-| 3 | 人が触っていない | 10 | `jq -r '.by' /workspace/projects/andon/.flightdeck/tasks/<id>/log.jsonl \| sort \| uniq -c` の `by` が、Chief of Staff・クーリエ・担当・レビュアーの `terminal:` だけ（人のユーザー名が無い）。Chief of Staff の turn が「依頼を受ける」と「結果を見る」の2つだけ（`hc read andon-cos`） |
+| 3 | 人が触っていない | 10 | `jq -r '.by' /workspace/projects/andon/.flightdeck/tasks/<id>/log.jsonl \| sort \| uniq -c` の `by` が、Chief of Staff・dispatcher・担当・レビュアーの `terminal:` だけ（人のユーザー名が無い）。Chief of Staff の turn が「依頼を受ける」と「結果を見る」の2つだけ（`hc read andon-cos`） |
 | 4 | 流れたのは Andon 自身の変更 | 10 | PR の repo が `<owner>/andon`（`gh pr view <n> --json url`）。レベル A か B（ゲートの記録の `tier`） |
 | 5 | 自分をテストできる | 7・10 | 建屋の中で `cd /workspace/.ghq/github.com/<owner>/andon && for f in tests/*.sh; do bash "$f"; done` が green（Go・docker は repo の `mise.toml`・環境の備品に依る。`tests/image.sh` は docker が無ければ SKIP） |
 | 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設の建屋の台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon の建屋ができるまで Andon の仕事を持っている。この建屋の側では何もしない |

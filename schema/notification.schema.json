@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/notification/1",
-  "title": "Courier notification",
-  "description": "A notification inside the courier. The text in <news> is rendered from it only when it is delivered. detail depends on kind. Only these keys.",
+  "title": "Dispatcher notification",
+  "description": "A notification inside the dispatcher. The text in <news> is rendered from it only when it is delivered. detail depends on kind. Only these keys.",
   "type": "object",
   "required": ["at", "project", "kind", "detail"],
   "additionalProperties": false,
@@ -70,7 +70,7 @@
       }
     },
     "review-requested": {
-      "description": "kind review-requested: the courier started a reviewer for review_request.",
+      "description": "kind review-requested: the dispatcher started a reviewer for review_request.",
       "type": "object", "required": ["round", "reviewer", "reviewer_task"], "additionalProperties": false,
       "properties": {
         "round": { "description": "As in review_request.", "type": "integer", "minimum": 1 },
@@ -79,7 +79,7 @@
       }
     },
     "gate": {
-      "description": "kind gate: the result of `andon gate` run by the courier.",
+      "description": "kind gate: the result of `andon gate` run by the dispatcher.",
       "type": "object", "required": ["decision", "reasons", "record"], "additionalProperties": false,
       "properties": {
         "decision": { "description": "As in the gate record.", "enum": ["approve", "fix", "needs_human"] },
@@ -88,7 +88,7 @@
       }
     },
     "merged": {
-      "description": "kind merged: the courier merged and finished the task.",
+      "description": "kind merged: the dispatcher merged and finished the task.",
       "type": "object", "required": ["pr", "sha"], "additionalProperties": false,
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
