@@ -211,12 +211,11 @@ cat /etc/claude-code/managed-settings.json
 
 ```bash
 gh auth login               # GitHub.com → HTTPS → device code（URL とコードを手元で）
-gh auth setup-git           # git の credential helper を gh にする（clone・push が通らないとき）
 claude                      # 初回に /login。URL を手元で開き、コードを貼る
 codex login --device-auth   # Codex を使うとき
 ```
 
-ログインは volume（`claude`・`codex`・`gh` など）に残る。作り直しても消えない。
+ログインは volume（`claude`・`codex`・`gh` など）に残る。作り直しても消えない。git の資格情報（credential helper を gh にする設定）は `~/.gitconfig` にあり volume の外だが、`gh` にログインしていれば boot が毎起動 `gh auth setup-git` を打つので、作り直しのあとも自動で戻る（手で打たなくてよい）。
 
 - **通ったら見えるもの**: `gh auth status` が Logged in。`claude` が対話に入る。`codex login status`。
 - **落ちたら見る所**: `gh` のスコープ（`repo`・`workflow`・`read:packages`）。device code の期限切れは打ち直す。`claude` が毎回ログインを求める — `claude` の volume が付いているか（`bin/bootstrap sh` で `ls ~/.claude`）。
@@ -229,7 +228,7 @@ ghq list
 ```
 
 - **通ったら見えるもの**: `/workspace/.ghq/github.com/<owner>/andon`。迎えた repo の根は、台帳の `config.yaml` の `repos` に載っていれば、`andon task start`・`andon chief-engineer` が起こす前に Claude Code と Codex の信頼に足す（boot と同じ手。担当とレビュアーの worktree は元の repo の根で判定されるので、信頼の画面が出ない）。
-- **落ちたら見る所**: `Repository not found` — `gh auth status` と repo の権限。`could not read Username` — `gh auth setup-git`。
+- **落ちたら見る所**: `Repository not found` — `gh auth status` と repo の権限。`could not read Username` — `gh auth status` でログインを確かめ、`andon boot` を打ち直す（boot が `gh auth setup-git` を打つ）。
 
 ## 8. プロジェクト `andon` の台帳を作る
 
@@ -275,7 +274,7 @@ git config user.email                       # 建屋の repo の commit で使�
 git config user.email '<owner の email>'    # 違うなら合わせる（この repo の中だけ）
 andon delegate grant merge B --evidence '<根拠のパスか引用>'    # projects/andon/ で打つ（か --project andon を付ける）。B はマージを許すレベルの上限（A / B / C）
 andon delegate show                                              # 同じく projects/andon/ で（か --project andon）
-git log -1 --format='%ae' -- projects/andon/delegation.json gate.local.json
+git -C ~/src/andon-home log -1 --format='%ae' -- projects/andon/delegation.json gate.local.json
 ```
 
 - `grant` は `delegation.json` と `delegation.md` を書いて commit する。Chief of Staff・担当・クーリエの端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
