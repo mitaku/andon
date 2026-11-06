@@ -1,7 +1,7 @@
 {
   "id": "root",
   "type": "row",
-  "preview": "layouts/flightdeck.svg",
+  "preview": "layouts/andon.svg",
   "titlebar": "none",
   "traffic_lights": [12, 16],
   "background": "canvas",
@@ -20,7 +20,8 @@
             { "id": "spaces", "type": "block", "size": { "weight": 1 }, "min": 90, "content": { "mod": "spaces" } }
           ]
         },
-        { "id": "sidebar-footer", "type": "block", "size": { "px": 69 }, "content": { "mod": "workspace-chrome", "props": { "footer": true } } }
+        { "id": "sidebar-footer", "type": "block", "size": { "px": 69 }, "content": { "mod": "workspace-chrome", "props": { "footer": true } } },
+        { "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }
       ]
     },
     {

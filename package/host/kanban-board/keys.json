@@ -1,5 +1,5 @@
 {
   "global": {
-    "ctrl-shift-y": "mod.open:work-board"
+    "ctrl-shift-y": "mod.open:kanban-board"
   }
 }

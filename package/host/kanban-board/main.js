@@ -1,9 +1,9 @@
-// Work board: the work ledger in .flightdeck/ (docs/ledger-format.md, format 2) as a Jira-like board.
-// Reads only: people and agents change the ledger with the `deck` CLI. Shows the ledger of the
-// project the focused pane's folder belongs to, or every project's ledger in the yard, here or on
+// Kanban board: the work ledger in kanban/ (Andon's docs/ledger.md, format 2) as a Jira-like board.
+// Reads only: people and agents change the ledger with the `kanban` CLI. Shows the ledger of the
+// project the focused pane's folder belongs to, or every project's ledger in the plant, here or on
 // another machine, and never shows old contents as new: a band says when it last changed and was
 // last checked, and a failed read keeps the last good contents under a red band. Opens as a dialog
-// (`mod.open:work-board`) or as a tab's pane.
+// (`mod.open:kanban-board`) or as a tab's pane.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
@@ -20,9 +20,9 @@ const POLL_MS = 10000;
 const STALE_MS = { here: 30000, remote: 60000 };
 const MAX_UP = 12;
 // Prints each task folder's name after \x1e, then its task.yaml. A fixed script; the root is $1.
-const LIST_TASKS = 'for d in "$1"/.flightdeck/tasks/*/; do [ -f "$d/task.yaml" ] || continue; n=${d%/}; printf "\\036%s\\n" "${n##*/}"; cat "$d/task.yaml"; printf "\\n"; done';
+const LIST_TASKS = 'for d in "$1"/kanban/tasks/*/; do [ -f "$d/task.yaml" ] || continue; n=${d%/}; printf "\\036%s\\n" "${n##*/}"; cat "$d/task.yaml"; printf "\\n"; done';
 // Prints each project's slug after \x1e, then its config.yaml. A fixed script; the folder is $1.
-const LIST_PROJECTS = 'for c in "$1"/projects/*/.flightdeck/config.yaml; do [ -f "$c" ] || continue; p=${c%/.flightdeck/config.yaml}; printf "\\036%s\\n" "${p##*/}"; cat "$c"; printf "\\n"; done';
+const LIST_PROJECTS = 'for c in "$1"/projects/*/kanban/config.yaml; do [ -f "$c" ] || continue; p=${c%/kanban/config.yaml}; printf "\\036%s\\n" "${p##*/}"; cat "$c"; printf "\\n"; done';
 const REPO = /^[^/]+\/[^/]+\/[^/]+$/;
 
 const alpha = (color, aa) => /** @type {`#${string}`} */ (`${color}${aa}`);
@@ -74,16 +74,22 @@ function parseYaml(text) {
   return value ?? {};
 }
 
-// A config.yaml as the board uses it. Readers stop at a format they don't know (ledger-format.md).
+// A config.yaml as the board uses it. Readers stop at a format they don't know (ledger.md).
 function readConfig(text) {
   const c = parseYaml(text);
-  if (c.version !== FORMAT) throw new Error(c.version == null ? "this ledger is format 1; the board reads format 2 (docs/ledger-format.md)" : `format ${c.version} is unknown; the board reads format 2`);
+  if (c.version !== FORMAT) throw new Error(c.version == null ? "this ledger is format 1; the board reads format 2 (docs/ledger.md)" : `format ${c.version} is unknown; the board reads format 2`);
   return {
     columns: Array.isArray(c.columns) && c.columns.length ? c.columns.map(String) : DEFAULT_COLUMNS,
     repos: Array.isArray(c.repos) ? c.repos.map(String) : [],
     title: c.title == null ? null : String(c.title),
-    coordinator: c.coordinator == null ? null : String(c.coordinator),
+    chiefOfStaff: c.chief_of_staff == null ? null : String(c.chief_of_staff),
   };
+}
+
+// A kanban/ folder is a ledger only when its config.yaml has a whole-number version (ledger.md,
+// "Finding the root"): a product's repository may have a kanban/ folder of its own.
+function isLedger(text) {
+  try { return Number.isInteger(parseYaml(text).version); } catch { return false; }
 }
 
 // Web links open in the person's browser. Only http(s): anything else could name a program.
@@ -93,22 +99,23 @@ function openWeb(url) {
   exec(platform === "windows" ? "explorer.exe" : platform === "macos" ? "open" : "xdg-open", [url]).catch(() => {});
 }
 
-// Every `projects/*/.flightdeck/config.yaml` under a folder, as { root, slug, text }.
+// Every ledger `projects/*/kanban/config.yaml` under a folder, as { root, slug, text }.
 async function projectsUnder(dir, on) {
   const out = [];
   if (!local(on)) {
-    const r = await exec("sh", ["-c", LIST_PROJECTS, "work-board", dir], { on }).catch(() => null);
+    const r = await exec("sh", ["-c", LIST_PROJECTS, "kanban-board", dir], { on }).catch(() => null);
     for (const chunk of r?.code === 0 ? r.stdout.split("\x1e").slice(1) : []) {
       const nl = chunk.indexOf("\n"), slug = chunk.slice(0, nl);
-      out.push({ root: join(join(dir, "projects"), slug), slug, text: chunk.slice(nl + 1) });
+      const text = chunk.slice(nl + 1);
+      if (isLedger(text)) out.push({ root: join(join(dir, "projects"), slug), slug, text });
     }
     return out;
   }
   const base = join(dir, "projects");
   const names = await fs.readdir(base).catch(() => []);
   for (const slug of names.sort()) {
-    const text = await readTextFile(`${base}/${slug}/.flightdeck/config.yaml`).catch(() => null);
-    if (text !== null) out.push({ root: `${base}/${slug}`, slug, text });
+    const text = await readTextFile(`${base}/${slug}/kanban/config.yaml`).catch(() => null);
+    if (text !== null && isLedger(text)) out.push({ root: `${base}/${slug}`, slug, text });
   }
   return out;
 }
@@ -120,7 +127,7 @@ function names(entry, checkout, on) {
   return fold(checkout.replace(/\\/g, "/").replace(/\/+$/, "")).endsWith(fold(`/${entry}`));
 }
 
-export default class WorkBoard extends View {
+export default class KanbanBoard extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
     // As a dialog, take the keyboard when it opens (focus can't move during a render).
@@ -128,7 +135,7 @@ export default class WorkBoard extends View {
     this.view = "board";
     this.filter = "";
     this.typing = false;
-    this.pick = null;       // a repo (one project) or a project's slug (the yard) to show alone
+    this.pick = null;       // a repo (one project) or a project's slug (the plant) to show alone
     this.openKey = null;
     this.detail = null;
     this.selCol = 0;
@@ -140,9 +147,9 @@ export default class WorkBoard extends View {
 
   reset() {
     this.where = null;      // { key, cwd, on }
-    this.root = null;       // the project's folder (holding .flightdeck/), or null
-    this.yard = null;       // the folder holding projects/*/.flightdeck/, or null
-    this.all = false;       // every project in the yard, not only this one
+    this.root = null;       // the project's folder (holding kanban/), or null
+    this.plant = null;       // the folder holding projects/*/kanban/, or null
+    this.all = false;       // every project in the plant, not only this one
     this.lookError = null;  // finding the ledger failed (two projects claim the repo)
     this.searched = false;
     this.data = null;       // { ledgers, tasks, columns, unreadable } as last read well
@@ -155,11 +162,12 @@ export default class WorkBoard extends View {
     this.scope = 0;         // counts switches between this project and all, so a late read is dropped
   }
 
-  // The project's ledger, the way deck finds it: up from the folder, else the project whose repos
-  // name the main checkout. Then the yard: the nearest folder above with projects/*/.flightdeck/.
+  // The project's ledger, the way kanban finds it: up from the folder, else the project whose repos
+  // name the main checkout. Then the plant: the nearest folder above with projects/*/kanban/.
   async find(cwd, on) {
     for (const d of ancestors(cwd)) {
-      if ((await readTextFile(join(d, ".flightdeck/config.yaml"), { on }).catch(() => null)) !== null) { this.root = d.replace(/\/$/, ""); break; }
+      const text = await readTextFile(join(d, "kanban/config.yaml"), { on }).catch(() => null);
+      if (text !== null && isLedger(text)) { this.root = d.replace(/\/$/, ""); break; }
     }
     if (!this.root) {
       const r = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }).catch(() => null);
@@ -169,30 +177,30 @@ export default class WorkBoard extends View {
         const claim = (await projectsUnder(d, on)).filter((p) => {
           try { return parseYaml(p.text).repos?.some?.((e) => names(String(e), main, on)) ?? false; } catch { return false; }
         });
-        if (claim.length > 1) { this.lookError = `${claim.map((p) => `projects/${p.slug}`).join(", ")} all list this repository; set FLIGHTDECK_ROOT`; return; }
-        if (claim.length === 1) { this.root = claim[0].root; this.yard = d.replace(/\/$/, ""); break; }
+        if (claim.length > 1) { this.lookError = `${claim.map((p) => `projects/${p.slug}`).join(", ")} all list this repository; set KANBAN_ROOT`; return; }
+        if (claim.length === 1) { this.root = claim[0].root; this.plant = d.replace(/\/$/, ""); break; }
       }
     }
-    if (!this.yard) for (const d of ancestors(this.root ?? cwd)) {
-      if ((await projectsUnder(d, on)).length) { this.yard = d.replace(/\/$/, ""); break; }
+    if (!this.plant) for (const d of ancestors(this.root ?? cwd)) {
+      if ((await projectsUnder(d, on)).length) { this.plant = d.replace(/\/$/, ""); break; }
     }
-    // In the yard but in no project (the yard's own folder): show every project.
-    if (!this.root && this.yard) this.all = true;
+    // In the plant but in no project (the plant's own folder): show every project.
+    if (!this.root && this.plant) this.all = true;
   }
 
   // Every task's text, by folder name.
   async readTasks(root, on) {
     const texts = new Map();
     if (!local(on)) {
-      const r = await exec("sh", ["-c", LIST_TASKS, "work-board", root], { on });
-      if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list .flightdeck/tasks");
+      const r = await exec("sh", ["-c", LIST_TASKS, "kanban-board", root], { on });
+      if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/tasks");
       for (const chunk of r.stdout.split("\x1e").slice(1)) {
         const nl = chunk.indexOf("\n");
         texts.set(chunk.slice(0, nl), chunk.slice(nl + 1));
       }
       return texts;
     }
-    const dir = `${root}/.flightdeck/tasks`;
+    const dir = `${root}/kanban/tasks`;
     if (!(await fs.exists(dir))) return texts;
     for (const e of await fs.readdir(dir, { withFileTypes: true })) {
       if (!e.isDirectory()) continue;
@@ -204,8 +212,8 @@ export default class WorkBoard extends View {
 
   // One ledger: its config and tasks. Throws when its config can't be read.
   async readLedger(root, on) {
-    const text = await readTextFile(`${root}/.flightdeck/config.yaml`, { on });
-    if (text === null) throw new Error(".flightdeck/config.yaml is gone");
+    const text = await readTextFile(`${root}/kanban/config.yaml`, { on });
+    if (text === null) throw new Error("kanban/config.yaml is gone");
     const config = readConfig(text);
     const slug = slugOf(root);
     const ledger = { root, slug, name: config.title ?? slug, ...config };
@@ -238,9 +246,9 @@ export default class WorkBoard extends View {
           await this.find(cwd, on);
           this.searched = true;
         }
-        if (this.where !== where || (!this.root && !this.yard)) return;
-        const all = this.all && this.yard;
-        const roots = all ? (await projectsUnder(this.yard, on)).map((p) => p.root) : [this.root];
+        if (this.where !== where || (!this.root && !this.plant)) return;
+        const all = this.all && this.plant;
+        const roots = all ? (await projectsUnder(this.plant, on)).map((p) => p.root) : [this.root];
         const ledgers = [], tasks = [], unreadable = [];
         for (const root of roots) {
           try {
@@ -285,16 +293,16 @@ export default class WorkBoard extends View {
     cx.spawn(async (cx) => {
       try {
         while (this.where === where) {
-          await watchFolder(`${root}/.flightdeck`);
+          await watchFolder(`${root}/kanban`);
           if (this.where === where) this.refresh(cx);
         }
       } catch {}
     });
   }
 
-  // Between this project and every project in the yard.
+  // Between this project and every project in the plant.
   setAll(all, cx) {
-    if (!this.yard || (!all && !this.root) || this.all === all) return;
+    if (!this.plant || (!all && !this.root) || this.all === all) return;
     this.all = all;
     this.scope++;
     this.pick = null; this.openKey = null; this.detail = null;
@@ -308,7 +316,7 @@ export default class WorkBoard extends View {
     this.detail = { key: task.key, brief: null, report: null, library: [], loading: true };
     const on = this.where?.on, detail = this.detail;
     cx.spawn(async (cx) => {
-      const base = `${task.root}/.flightdeck/tasks/${task.id}`;
+      const base = `${task.root}/kanban/tasks/${task.id}`;
       detail.brief = await readTextFile(`${base}/brief.md`, { on }).catch(() => null);
       detail.report = await readTextFile(`${base}/report.md`, { on }).catch(() => null);
       const ls = await exec("ls", ["-1", `${base}/library`], { on }).catch(() => null);
@@ -330,7 +338,7 @@ export default class WorkBoard extends View {
       ?? list.find((a) => a.tab_name === name) ?? { address, status: null, missing: true };
   }
 
-  // What to tell cards apart by: the project in the yard, the repo when a project has several.
+  // What to tell cards apart by: the project in the plant, the repo when a project has several.
   placeOf(task) {
     if (this.all) return this.ledgerOf(task)?.name ?? task.slug;
     return (this.data?.ledgers[0]?.repos.length ?? 0) > 1 && task.repo ? short(task.repo) : null;
@@ -517,9 +525,9 @@ export default class WorkBoard extends View {
     const keyboard = this.handle.is_focused();
     const ledgers = this.data?.ledgers ?? [];
     const one = !this.all ? ledgers[0] : null;
-    // Chips: the projects in the yard, or the repos of a project that has more than one.
+    // Chips: the projects in the plant, or the repos of a project that has more than one.
     const picks = this.all ? ledgers.map((l) => [l.slug, l.name]) : (one?.repos.length ?? 0) > 1 ? one.repos.map((r) => [r, short(r)]) : [];
-    const coordinator = one?.coordinator ? this.agentOf(one.coordinator, list, terms) : null;
+    const chief = one?.chiefOfStaff ? this.agentOf(one.chiefOfStaff, list, terms) : null;
     const button = (id, text, active, onClick) => div().id(id).px(8).h(24).flex().items_center().rounded(6).text_size(12).cursor_pointer()
       .bg(active ? t.selected : alpha(t.background, "00")).text_color(active ? t.foreground : t.muted)
       .hover((s) => s.bg(t.hover)).on_click(onClick).child(text);
@@ -527,30 +535,30 @@ export default class WorkBoard extends View {
       .bg(this.pick === value ? t.selected : t.raised).text_color(this.pick === value ? t.foreground : t.muted)
       .hover((s) => s.bg(t.hover)).on_click((_e, cx) => { this.pick = value; cx.notify(); }).child(text);
     const header = h_flex().h(44).px(14).gap(10).flex_none().items_center().border_b(1).border_color(t.border)
-      .child(div().flex_none().text_size(14).font_semibold().text_color(t.foreground).child("Work"))
-      .child(div().flex_none().text_size(12).text_color(t.dim).child(this.all ? `${slugOf(this.yard ?? "")} · all projects` : one?.name ?? (this.root ? slugOf(this.root) : "")))
+      .child(div().flex_none().text_size(14).font_semibold().text_color(t.foreground).child("Kanban"))
+      .child(div().flex_none().text_size(12).text_color(t.dim).child(this.all ? `${slugOf(this.plant ?? "")} · all projects` : one?.name ?? (this.root ? slugOf(this.root) : "")))
       .child(h_flex().gap(4)
         .child(button("wb-view-board", "Board", this.view === "board", (_e, cx) => { this.view = "board"; cx.notify(); }))
         .child(button("wb-view-list", "List", this.view === "list", (_e, cx) => { this.view = "list"; cx.notify(); })))
-      .when(Boolean(this.yard && this.root), (el) => el.child(h_flex().gap(4)
+      .when(Boolean(this.plant && this.root), (el) => el.child(h_flex().gap(4)
         .child(button("wb-scope-project", "This project", !this.all, (_e, cx) => { this.setAll(false, cx); cx.notify(); }))
         .child(button("wb-scope-all", "All projects", this.all, (_e, cx) => { this.setAll(true, cx); cx.notify(); }))))
       .when(picks.length > 1, (el) => el.child(h_flex().gap(4).child(chip(null, "All")).children(picks.map(([v, text]) => chip(v, text)))))
       .child(div().flex_1())
       .when(this.typing || Boolean(this.filter), (el) => el.child(div().text_size(12).text_color(this.typing ? t.foreground : t.muted).child(`/${this.filter}${this.typing ? "▏" : ""}`)))
-      .when(Boolean(coordinator), (el) => el.child(h_flex().id("wb-coordinator").gap(6).px(8).h(24).items_center().rounded(6).text_size(12)
-        .text_color(coordinator.missing ? t.dim : t.muted)
-        .when(!coordinator.missing, (r) => r.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => run("agent.focus", { terminal: coordinator.address })))
-        .when(Boolean(this.mark(t, coordinator)), (r) => r.child(this.mark(t, coordinator)))
-        .child(div().child(coordinator.missing ? `Coordinator ${one.coordinator} (not running)` : "Coordinator"))))
+      .when(Boolean(chief), (el) => el.child(h_flex().id("wb-chief-of-staff").gap(6).px(8).h(24).items_center().rounded(6).text_size(12)
+        .text_color(chief.missing ? t.dim : t.muted)
+        .when(!chief.missing, (r) => r.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => run("agent.focus", { terminal: chief.address })))
+        .when(Boolean(this.mark(t, chief)), (r) => r.child(this.mark(t, chief)))
+        .child(div().child(chief.missing ? `Chief of Staff ${one.chiefOfStaff} (not running)` : "Chief of Staff"))))
       .when(Boolean(props()?.overlay), (el) => el.child(div().id("wb-close").p(4).rounded(4).text_color(t.dim).cursor_pointer()
         .hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => this.close()).child(svg(`${CHROME}/x.svg`).size(14))));
     const empty = (text) => div().p(20).text_size(13).text_color(t.dim).child(text);
     let body;
     if (!cwd) body = empty("No folder in view.");
-    else if (!this.searched) body = empty("Looking for .flightdeck/…");
+    else if (!this.searched) body = empty("Looking for kanban/…");
     else if (this.lookError) body = empty(`Can't tell which project this is: ${this.lookError}.`);
-    else if (!this.root && !this.yard) body = empty("No project ledger here. Make one in the project's folder with `kanban init --repo <host>/<owner>/<repo>`.");
+    else if (!this.root && !this.plant) body = empty("No project ledger here. Make one in the project's folder with `kanban init --repo <host>/<owner>/<repo>`.");
     else if (!this.data) body = empty(this.failure ? "" : "Reading…");
     else if (this.view === "list") body = this.listView(t, cols, list, terms, tasksById);
     else {
@@ -563,15 +571,15 @@ export default class WorkBoard extends View {
     }
     const unreadable = [...broken.map((b) => `${this.all ? `${b.slug}/` : ""}${b.id} (${b.broken})`), ...(this.data?.unreadable ?? [])];
     return v_flex()
-      .id("work-board")
+      .id("kanban-board")
       .track_focus(this.handle)
       .on_key_down((e, cx) => this.key(e, cx))
       .size_full().min_h(0).bg(t.background).text_color(t.foreground)
       .child(header)
-      .when(Boolean(this.root || this.yard) && !this.lookError, (el) => el.child(this.band(t)))
+      .when(Boolean(this.root || this.plant) && !this.lookError, (el) => el.child(this.band(t)))
       .when(unreadable.length > 0, (el) => el.child(div().px(14).py(4).text_size(11.5).text_color(t.blocked).child(`Unreadable: ${unreadable.join(", ")}`)))
       .child(h_flex().flex_1().min_h(0).child(body).when(Boolean(this.openKey), (el) => el.child(this.detailView(t, list, terms, tasksById))))
       .when(keyboard, (el) => el.child(div().h(22).px(14).flex_none().flex().items_center().text_size(10.5).text_color(t.dim)
-        .child(`h/l columns · j/k cards · Enter open · g go to agent · v board/list${this.yard && this.root ? " · p this project/all" : ""} · / filter · Esc close`)));
+        .child(`h/l columns · j/k cards · Enter open · g go to agent · v board/list${this.plant && this.root ? " · p this project/all" : ""} · / filter · Esc close`)));
   }
 }

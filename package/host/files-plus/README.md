@@ -2,11 +2,9 @@
 
 Herdr's Files panel, plus pictures and diagrams. Click a `png`, `jpg`, `gif`, `webp`, `bmp` or `svg` file and the panel shows the image instead of "Binary file · no text preview"; click a Mermaid file (`.mmd`, `.mermaid`) and it shows the diagram; click a Markdown file (`.md`, `.markdown`) and it shows it rendered, with its Mermaid blocks drawn and its image lines shown; click an HTML file (`.html`, `.htm`) and it shows the page as text, with **Open in browser** for the page as made. All of it works on this computer and on other machines. Everything else (the tree, git marks, text previews) is Herdr's shipped `files` mod as it was.
 
-![files-plus](preview.png)
-
 ## Place it
 
-The `flightdeck` layout (in this repo) uses it for the Files panel. In your own copy of `main`, change the panel's Files block to it, keeping the id `files` so the tab bar's Files button still opens it:
+The `andon` layout (`../layouts/andon.json`) uses it for the Files panel. In your own copy of `main`, change the panel's Files block to it, keeping the id `files` so the tab bar's Files button still opens it:
 
 ```json
 { "id": "files", "type": "block", "content": { "mod": "files-plus" } }
@@ -47,7 +45,7 @@ Herdr's own calls are unchanged (`exec` of PowerShell or `sh` to list folders, `
 
 | Call | Where |
 |---|---|
-| `exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", <fixed script>, <quoted local path>…])`: `Get-Item` (size, time), `Copy-Item`, `[IO.File]::WriteAllBytes` of decoded base64 | this computer (Windows) |
+| `exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", <fixed script> followed by each local path as a single-quoted string (`'`, `‘`, `’`, `‚`, `‛` doubled)])`: `Get-Item` (size, time), `Copy-Item`, `[IO.File]::WriteAllBytes` of decoded base64 | this computer (Windows) |
 | `exec("stat", ["-c", "%s %Y", "--", path], {on})`, `exec("base64", ["-w0", "--", path], {on})` | the machine the file is on (read only) |
 | `exec("sh", ["-c", 'base64 -d "$1" > "$2"', …])` | this computer, when it isn't Windows |
 | `readTextFile(path, {on})` of a `.mmd` / `.mermaid` file, then Pele in the mod (no program runs) | where the file is |
@@ -57,8 +55,12 @@ Herdr's own calls are unchanged (`exec` of PowerShell or `sh` to list folders, `
 
 No network, no credentials, nothing written on other machines.
 
+## Origin
+
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/files-plus` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the PowerShell quoting above, the layout's name. The preview picture was not copied.
+
 ## Licence
 
-`main.js` is a changed copy of Herdr's shipped `files` mod (herdr-app 0.1.10, `defaults/mods/files` in [herdrdev/herdr-app](https://github.com/herdrdev/herdr-app)) by the herdr-app authors, under the Apache License 2.0: see [LICENSE](LICENSE). The icons are Herdr's, unchanged. The changes are marked at the top of `main.js`; the commit "chore(files-plus): …" holds the copy as shipped, and later commits are ours.
+`main.js` is a changed copy of Herdr's shipped `files` mod (herdr-app 0.1.10, `defaults/mods/files` in [herdrdev/herdr-app](https://github.com/herdrdev/herdr-app)) by the herdr-app authors, under the Apache License 2.0: see [LICENSE](LICENSE). The icons are Herdr's, unchanged. The changes are marked at the top of `main.js`: the previews (made in herdr-flightdeck (a private repository that Andon came out of)), and Andon's quoting of PowerShell arguments, which also covers Herdr's own folder listing.
 
 `pele/pele.js` is [Pele](https://github.com/obsidianmd/pele) 1.13.0 by kepano, MIT (`pele/LICENSE`), exactly as published on npm: `dist/pele.js` from `pele-1.13.0.tgz` (npm integrity `sha512-Ie8UKY9x00MsuR3jO6AzUwzK2Z6MIV3Tf4EDdITiuk8Uaz8K7g0R082WqsqNaSU8DdgkrRvZThzhit83mi/uiw==`; the file's SHA-256 is `37bea5005aa6d2dde929032ced5d2958cf642667cbc1fe675f9dfacf4ba15a51`). It uses no network, no `eval`, and the DOM only when one exists (it doesn't here). `pele/pele.d.ts` is ours: the part of its API the mod uses.

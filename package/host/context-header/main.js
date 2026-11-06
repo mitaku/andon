@@ -20,6 +20,16 @@ function icon(p, size, color) {
   return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
 }
 
+// Andon's task terminals are named from their labels (Andon's docs/contract.md §8), as the andon
+// mod names their Space and tab (ADR-0002, ADR-0003): "<id> <title>", "CE <id> <title>" for a Chief
+// Engineer. A reviewer shares its worker's tab, so the tab's name would be the worker's.
+function andonName(labels) {
+  const title = typeof labels?.title === "string" ? labels.title.replace(/[\s\p{Cc}]+/gu, " ").trim() : "";
+  const task = typeof labels?.task === "string" ? labels.task : "";
+  if (!labels?.project || !task || !title) return null;
+  return labels.role === "chief-engineer" ? `CE ${task} ${title}` : labels.role ? null : `${task} ${title}`;
+}
+
 function folder(cwd) {
   if (!cwd) return "";
   const h = home();
@@ -62,10 +72,14 @@ export default class ContextHeader extends View {
     const kids = terms.filter((k) => k.state === "live" && k.parent && (machine && !k.parent.includes("/") ? `${machine}/${k.parent}` : k.parent) === p.terminal && !panes().some((x) => x.terminal === k.address));
     const agent = Boolean(p.status);
     const report = term.report ?? {};
+    const labelled = agent ? andonName(term.labels) : null;
+    const name = labelled ?? (agent ? displayName({ title: p.title, program: p.program, address: p.terminal }, tab) : p.title || p.program?.name || "shell");
+    // Line 2 doesn't say the name again; an Andon task's tab is named after its id, which line 1 has.
+    const tabName = tab && !/^\d+$/.test(tab.name) && !labelled ? tab.name : null;
     return {
       p,
       agent,
-      name: agent ? displayName({ title: p.title, program: p.program, address: p.terminal }, tab) : p.title || p.program?.name || "shell",
+      name,
       status: p.status,
       // The core's time when it has one (hc ls can leave it out), else when the tab last changed state.
       since: term.status_ms ?? tab?.changed_at ?? null,
@@ -74,7 +88,7 @@ export default class ContextHeader extends View {
       settled: Boolean(term.labels?.settled),
       turn: term.turn ?? 0,
       kids: kids.length,
-      where: [machine ?? "This computer", space?.name, tab && !/^\d+$/.test(tab.name) ? tab.name : null].filter(Boolean),
+      where: [machine ?? "This computer", space?.name, tabName].filter((x) => x && x !== name),
       branch: p.branch && p.branch !== "main" && p.branch !== "master" ? p.branch : null,
       folder: folder(p.cwd),
     };

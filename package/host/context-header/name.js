@@ -1,4 +1,4 @@
-// How an agent is named, the same everywhere (concept.md §6.2 "Display name"):
+// How an agent is named, the same everywhere:
 // a tab the person named, else the agent's own title when it says something,
 // else the program's name. A terminal with no title of its own reports its address (t9) as one.
 

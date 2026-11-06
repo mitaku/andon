@@ -2,8 +2,6 @@
 
 Herdr's Files panel with picture and diagram previews: browse the focused pane's folder, click an image or a Mermaid file and see it, also when the folder is on another machine.
 
-![Files plus](preview.png)
-
 ## What you see
 
 Herdr's Files panel as shipped: a 42px header (back arrow, "Files", the file's path), the folder tree, git marks. A picked image shows centered under the header, at most the panel's width, scrolling if tall. While it loads: "Loading file…"; on failure the reason in `dim` (for example "Too large to preview (6.2 MiB)").

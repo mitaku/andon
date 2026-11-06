@@ -2,7 +2,7 @@
 // Needs you (blocked) before Done (finished and not settled yet). Settle, then next.
 // Working, Idle and Settled wait in folded shelves.
 // Opened as a dialog (mod.open:inbox), the same queue is drawn as a Kanban board:
-// a column per section and a swimlane per machine (docs/mod-design.md §16).
+// a column per section and a swimlane per machine.
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -45,9 +45,11 @@ const parentOf = (k) => {
   const machine = machineOf(k.address);
   return machine && k.parent && !k.parent.includes("/") ? `${machine}/${k.parent}` : k.parent ?? null;
 };
-// A yard's agents carry `project=<slug>` (yard-task, hc run --label). They are colleagues, not
-// helpers: each gets its own row even without a pane. A coordinator under a pane is that pane's
-// own agent (yard-coordinator attaches the pane to it), so its row is the pane's.
+// Andon's agents carry `project=<slug>` (andon task start, hc run --label). They are colleagues, not
+// helpers: each gets its own row even without a pane. One under a pane is that pane's own agent,
+// so its row is the pane's.
+// The roles a person starts and talks with (Andon's docs/contract.md §8): a turn they end is a reply.
+const TALKS_TO_YOU = new Set(["chief-of-staff", "chief-engineer"]);
 const ownRow = (k, listed) => Boolean(k.labels?.task || (k.labels?.project && !listed.has(parentOf(k))));
 const urgent = (a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
 
@@ -106,7 +108,6 @@ export default class Inbox extends View {
     // address -> the settled value written but not back in terminals() yet ("" = removed).
     this.pending = new Map();
     // Tabs this copy has named: each at most once, so a name the person clears stays cleared.
-    this.renamed = new Set();
     this.settledLimit = SETTLED_FIRST;
     this.sel = null;
     this.filter = "";
@@ -141,7 +142,7 @@ export default class Inbox extends View {
   }
 
   // Everything the queue shows, in order. Also keeps the change times and unsettles agents
-  // that have new work (concept.md §6.2 "Unsettle rule").
+  // that have new work.
   model(cx) {
     const now = Date.now();
     const mem = /** @type {any} */ (shared(MEMORY));
@@ -160,7 +161,7 @@ export default class Inbox extends View {
     for (const [addr, v] of this.pending) {
       if ((byAddr.get(addr)?.labels?.settled ?? "") === v) this.pending.delete(addr);
     }
-    // Yard agents without a pane, shaped like agents() rows: shown by peeking, named by hc.
+    // Andon's agents without a pane, shaped like agents() rows: shown by peeking, named by hc.
     const paneless = terms
       .filter((k) => k.state === "live" && !listed.has(k.address) && ownRow(k, listed))
       .map((k) => ({
@@ -168,7 +169,7 @@ export default class Inbox extends View {
         status: k.status === "error" ? "blocked" : k.status ?? "idle",
         program: k.program,
         title: k.name ?? "",
-        // "project › task", or the coordinator's project alone.
+        // "project › task", or the Chief of Staff's project alone.
         space_name: [k.labels.project, k.labels.task].filter(Boolean).join(" › "),
         tab: null,
         tab_name: "",
@@ -207,33 +208,27 @@ export default class Inbox extends View {
         if (this.pending.get(a.address) !== "") this.write(a.address, "", cx);
         settled = null;
       }
-      // A coordinator talks only to the person, so a turn it ends is a reply to them: Needs you
-      // while unseen (Herdr's done), Idle once looked at (Herdr turns done into idle by itself).
-      const lead = [term, ...kids].find((k) => k.labels?.role === "coordinator");
-      const coordinator = Boolean(lead);
-      const reply = coordinator && status === "done";
-      const finished = !coordinator && (status === "done" || (status === "idle" && turn > this.base[a.address]));
+      // The Chief of Staff and a Chief Engineer talk with the person, so a turn they end is a reply:
+      // Needs you while unseen (Herdr's done), Idle once looked at (Herdr turns done into idle by itself).
+      const lead = [term, ...kids].find((k) => TALKS_TO_YOU.has(k.labels?.role));
+      const talks = Boolean(lead);
+      const reply = talks && status === "done";
+      const finished = !talks && (status === "done" || (status === "idle" && turn > this.base[a.address]));
       const section = settled ? "settled" : status === "blocked" || reply ? "needs" : finished ? "done" : status === "working" ? "working" : "idle";
       const at = this.changed[a.address].at;
       const tab = tabs.get(a.tab);
-      // A tab nobody named is called by its number: name it after the yard agent in it (the column only).
-      const tabName = lead?.labels?.project ? `${lead.labels.project} コーディネーター` : term.labels?.title;
-      if (!this.board && tab && !tab.named && tabName && !this.renamed.has(tab.id)) {
-        this.renamed.add(tab.id);
-        run("tab.rename", { id: tab.id, name: tabName });
-      }
       return {
         address: a.address,
         status,
         section,
         settled,
         turn,
-        coordinator,
+        talks,
         peek: peek?.address ?? (a.paneless ? a.address : null),
         kind: status === "blocked" ? (failed ? "Failed" : KIND[report.kind] ?? null) : reply ? "Reply" : null,
         reply,
         msg: short(report.msg),
-        // A `title` label (yard-task puts the task's title there) names it best.
+        // A `title` label (andon task start puts the task's title there) names it best.
         name: term.labels?.title || (a.paneless && a.title ? a.title : displayName(a, tab)),
         program: a.program,
         space: a.space_name,
@@ -338,7 +333,7 @@ export default class Inbox extends View {
     }
   }
 
-  // The second layer of keys (mod-design.md §2.5): only while the queue has the keyboard.
+  // The second layer of keys: only while the queue has the keyboard.
   key(e, cx) {
     if (this.board) return this.boardKey(e, cx);
     const m = this.model(cx);
@@ -466,8 +461,8 @@ export default class Inbox extends View {
     const when = i.section === "settled" ? i.settled.ms : i.since;
     const time = `${duration(m.now - when)}${i.approx && i.section !== "settled" ? "+" : ""}`;
     const quiet = i.section === "idle" || i.section === "settled";
-    // A coordinator runs the same program as its task agents: its own glyph tells it apart.
-    const pic = i.coordinator ? svg("mods/inbox/coordinator.svg").size(16).flex_none().text_color(t.accent) : icon(i.program, 16, t.foreground);
+    // The Chief of Staff runs the same program as the task agents: its own glyph tells it apart.
+    const pic = i.talks ? svg("mods/inbox/chief-of-staff.svg").size(16).flex_none().text_color(t.accent) : icon(i.program, 16, t.foreground);
     // Only what's unusual: a named tab, a branch other than main/master, the agent's message.
     const branch = i.branch === "main" || i.branch === "master" ? null : i.branch;
     const tail = [i.tab !== i.name && !/^\d+$/.test(i.tab) ? i.tab : null, branch, i.msg].filter(Boolean).join(" · ");
@@ -727,7 +722,7 @@ export default class Inbox extends View {
           .child(this.headButton(t, "fq-next", "mods/inbox/next.svg", "Next waiting (ctrl-shift-j)", (cx) => this.next(this.model(cx))))
           // The same queue as a Kanban board (this mod again, as a dialog).
           .child(this.headButton(t, "fq-open-board", `${CHROME}/layers.svg`, "Board (ctrl-shift-u)", () => run("mod.open", { name: "inbox" })))
-          .child(this.headButton(t, "fq-work-board", "mods/inbox/work-board.svg", "Work board (ctrl-shift-y)", () => run("mod.open", { name: "work-board" })))))
+          .child(this.headButton(t, "fq-kanban-board", "mods/inbox/kanban-board.svg", "Kanban board (ctrl-shift-y)", () => run("mod.open", { name: "kanban-board" })))))
       .when(Boolean(note), (el) => el.child(note))
       .when(this.picker && m.machines.length > 0, (el) => el.child(this.pickerList(t, m, keyboard)))
       .child(v_flex().id("fq-list").flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always").children(body))

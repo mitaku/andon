@@ -2,8 +2,6 @@
 
 A two-line pane header: what this terminal's work is, where it lives, and what it waits for.
 
-![Context header](preview.png)
-
 ## What you see
 
 On the theme's `background`, 1px `border` under it, 10px side padding, 46px high (set by the layout):
