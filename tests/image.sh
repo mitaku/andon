@@ -124,6 +124,20 @@ dc exec -T dev bash -euc '
   test "$(stat -c %u:%g "$HOME/.config/gh" "$HOME/.config/gh/hosts.yml" | sort -u)" = 1000:1000
   test "$(cat "$HOME/.config/gh/hosts.yml")" = old
   test -d /workspace/artifacts
+  # Codex の承認・sandbox・rules（docs/image.md の「Codex の承認と sandbox」）。モデルは呼ばない:
+  # prompt-input は実効の設定から組んだ permissions の文を出す（承認 never・sandbox なし・network あり＝確認の画面を出さない）。
+  # rules は boot が置いたファイルを Codex 自身の execpolicy で引く（gh pr merge は forbidden、git push・台帳への書き込みは当たらない）
+  cmp /opt/andon/codex.rules "$HOME/.codex/rules/andon.rules"
+  pi=$(cd /workspace && codex debug prompt-input x 2>/dev/null)
+  for want in "No filesystem sandboxing" "Network access is enabled" "Approval policy is currently never"; do
+    grep -qF "$want" <<<"$pi" || { echo "FAIL image: Codex の実効の設定に「$want」が無い" >&2; exit 1; }
+  done
+  rules=$(ls "$HOME"/.codex/rules/*.rules | sed "s/^/-r /")
+  test "$(codex execpolicy check $rules gh pr merge 1 --squash | jq -r .decision)" = forbidden
+  # 担当・レビュアーが台帳（projects/<slug>/.flightdeck とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
+  for c in "git push -u origin HEAD" "deck report T-1" "deck review T-1" "tee /workspace/projects/p/.flightdeck/tasks/T-1/library/findings.json"; do
+    test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]"
+  done
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '

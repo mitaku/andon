@@ -25,6 +25,19 @@ bash tests/image.sh
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `建屋の名前:ディレクトリ (git のブランチ)`。色は控えめ。
 
+## Codex の承認と sandbox
+
+建屋（コンテナ）が信頼の境界なので、Codex を承認の確認で止めない。boot が毎起動、`~/.codex/config.toml` の top-level に無いキーだけを先頭に足す（あるキーは値が何でもそのまま）:
+
+- `approval_policy = "never"` — 確認の画面を出さない。
+- `sandbox_mode = "danger-full-access"` — 担当とレビュアーは worktree の外（台帳の `projects/<slug>/.flightdeck` とその `.lock`。`deck report`・`deck review`・`library/`）に書き、`git push`（ネットワーク）と hc の socket を使う。`workspace-write` に `writable_roots`・`network_access` を足す形は、台帳の置き場が建屋ごとに違ううえ socket の扱いもあり、その割に建屋の外へは届かない（境界はコンテナ）ので採らない。Claude Code も建屋では sandbox なしで動く。
+
+Claude Code の managed settings の deny と同じ線は、Codex の execpolicy の rules で引く。`package/codex.rules` を boot が `~/.codex/rules/andon.rules` に写す（人の rules は別のファイルに書く）。今は `gh pr merge` を `forbidden`。rules は承認の方針の前に引かれ、`forbidden` は `never` でも拒む（Codex 0.166.0 の [`codex-rs/core/src/exec_policy.rs`](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/core/src/exec_policy.rs) の `create_exec_approval_requirement_for_parsed_commands`。当たらないコマンドだけが `render_decision_for_unmatched_command` で `never` → Allow になる）。`bash -lc "a && b"` のような平らな script は1つずつに割って引く。`$(…)` などを含む script は割らないので当たらない（Claude Code の deny も頭で引くので同じ線）。deny のうち `Bash(git diff *--output*)` などは allow の穴を塞ぐもので、allow を持たない Codex には引かない。2か所の一覧は `tests/package.sh` が突き合わせる。Codex 自身の危険の判定（`rm -f` など）は `never` の下では確認ではなく拒否になる。
+
+Codex のフックは配っていない（フックは Claude Code だけ。[contract.md](contract.md)）ので、フックの信頼の画面は出ない。
+
+`tests/image.sh` は、モデルを呼ばずに `codex debug prompt-input` の permissions の文（実効の設定から組む）と `codex execpolicy check` で確かめる。
+
 ## CI と配布
 
 PR はビルドとテストだけを行い、push しない。main の push では、tests の job が通った同じ job の中で、検査済み image（`andon:test`）を `ghcr.io/<owner>/andon:<40桁のcommit SHA>` に push する。image を artifact で受け渡さない（GitHub のストレージ枠を使うため）。`vX.Y.Z` の tag では main に含まれる commit かを検査し、既存の SHA image に版 tag だけを付ける。tag の実行は publish job が行い、ビルドせず、SHA image が無ければ失敗する（main の配布完了後に tag を出す）。配布は Linux amd64 から始める。GHCR の package は private のまま運用し、公開への変更は人が行う。

@@ -109,6 +109,7 @@ func (f *fixture) fullPackage(t *testing.T) {
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
 	put(t, filepath.Join(f.pkg, "skills", "glossary", "SKILL.md"), "glossary\n")
 	put(t, filepath.Join(f.pkg, "host", "herdr", "config.toml"), "[ui]\n")
+	put(t, filepath.Join(f.pkg, "codex.rules"), "prefix_rule(pattern = [\"gh\", \"pr\", \"merge\"], decision = \"forbidden\")\n")
 	put(t, filepath.Join(f.ws, "templates.local", "sonnet.md"), "---\nname: sonnet\n---\n建屋の sonnet\n")
 	put(t, filepath.Join(f.ws, "templates.local", "local-only.md"), "建屋だけ\n")
 	put(t, filepath.Join(f.ws, "AGENTS.local.md"), "# 案件の部分")

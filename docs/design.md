@@ -497,6 +497,7 @@ andon/
     hooks/                   ハーネスのフック（Stop・UserPromptSubmit。クーリエと command を呼ぶだけ）
     gate.json                ゲートの条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）
+    codex.rules              Codex の execpolicy の rules（settings.json の deny と同じ線）
     compose.yaml             建屋の compose（bootstrap がイメージから取り出す）
     host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）
   image/                     base image
@@ -526,6 +527,7 @@ andon/
 | `/opt/andon/environment.md` ＋ 建屋の `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
 | `/opt/andon/settings.json`（deny・allow・hooks）＋ `andon.toml` | `/etc/claude-code/managed-settings.json` | boot が生成して置く（root）。managed は最優先でセッションから書き換えられない。設定ファイルを HOME に symlink する仮設の形は**やめる** |
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |
+| `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
 | `/opt/andon/gate.json` ＋ 建屋の `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
 | `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
 | `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM | `bin/bootstrap host-install` で写す |
