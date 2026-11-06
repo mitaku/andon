@@ -88,9 +88,11 @@ docker volume create --label com.docker.compose.project=andon-imgtest --label co
 docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
 # 建屋の image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
 BUILDX_BUILDER=default "$plant/bin/bootstrap" up
-if ! dc logs dev | grep -q '\[andon boot\] ready' || ! dc logs dev | grep -q 'sshd を起動した' ||
-  ! dc logs dev | grep -qF '持ち主を直した: /opt/andon-home/.config/gh（uid 1001 → 1000）'; then
-  dc logs dev >&2 || true
+# ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
+boot_log=$(dc logs dev 2>&1) || true
+if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
+  ! grep -qF '持ち主を直した: /opt/andon-home/.config/gh（uid 1001 → 1000）' <<<"$boot_log"; then
+  printf '%s\n' "$boot_log" >&2
   echo 'FAIL image: compose の起動で andon boot が ready まで走らない（sshd・volume の持ち主の行も見る）' >&2
   exit 1
 fi

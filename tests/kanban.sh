@@ -22,9 +22,10 @@ ok "test-deck.mjs（$(echo "$out" | tail -1 | sed 's/.*: //')）"
 
 # 2. deck は kanban の別名（1版だけ。K5）: 同じバイナリを deck の名前で打っても help は同じ
 ln -s "$kanban" "$tmp/deck"
-[ "$("$kanban" --help)" = "$("$tmp/deck" --help)" ] || die "kanban --help と deck --help が違う"
-"$kanban" --help | head -1 | grep -q '^kanban: ' || die "kanban --help の1行目"
-"$kanban" --help | grep -q '^deck is another name for kanban' || die "kanban --help に deck の別名が無い"
+help_out=$("$kanban" --help)
+[ "$help_out" = "$("$tmp/deck" --help)" ] || die "kanban --help と deck --help が違う"
+head -n 1 <<<"$help_out" | grep -q '^kanban: ' || die "kanban --help の1行目"
+grep -q '^deck is another name for kanban' <<<"$help_out" || die "kanban --help に deck の別名が無い"
 ok "kanban --help と deck --help が同じ"
 
 # 3. --version（K4 で足す）。go build のままなら dev、CI は -X main.version で版を入れる
