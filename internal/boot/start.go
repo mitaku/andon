@@ -2,7 +2,9 @@ package boot
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -168,12 +170,16 @@ func startFiles(e Env) error {
 	return nil
 }
 
-// startSSHD は外の端末から入る口を開ける。建屋の .ssh/authorized_keys が無ければ無効のまま。
+// startSSHD は外の端末から入る口を開ける。建屋の .ssh/authorized_keys が無いか読めなければ無効のまま。
 // 設定は image に焼いた sshd_config。ホスト鍵は volume の ~/.ssh に置く（作り直すたびに変わらないように）。
 func startSSHD(e Env) error {
 	keys := filepath.Join(e.Workspace, ".ssh", "authorized_keys")
-	if _, err := os.Stat(keys); err != nil {
+	b, err := os.ReadFile(keys)
+	if errors.Is(err, fs.ErrNotExist) {
 		e.logf("ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）")
+		return nil
+	} else if err != nil {
+		e.logf("ssh は無効（.ssh/authorized_keys があるが読めない: %v。建屋の repo の持ち主と andon の uid が同じか確かめる）", err)
 		return nil
 	}
 	sudo, ok := e.has("sudo")
@@ -194,10 +200,6 @@ func startSSHD(e Env) error {
 			return fmt.Errorf("ssh-keygen: %v: %s", err, out)
 		}
 		e.logf("ssh のホスト鍵を生成した")
-	}
-	b, err := os.ReadFile(keys)
-	if err != nil {
-		return err
 	}
 	if err := e.writeFile(filepath.Join(ssh, "authorized_keys"), b, 0o600); err != nil {
 		return err

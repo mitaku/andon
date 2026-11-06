@@ -8,6 +8,8 @@
 
 コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon task start` の中身が無い」（10）。
 
+P7 で見つけた F4「建屋の `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物の建屋の repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
+
 ## 1. image を取る
 
 **やること**: private の image を取る。GHCR の package は private なので、`read:packages` を持つ token が要る。
@@ -47,6 +49,8 @@ cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 
 ## 3. 起動する（`bin/bootstrap`）
 
+建屋の repo は **uid 1000 の利用者**の持ち物にする（建屋の `andon` は uid 1000 で動き、建屋の repo をそのまま `/workspace` に載せる）。WSL・cloud-init の既定の利用者は 1000（`id -u` で確かめる）。違うと `bin/bootstrap` は起こす前に止まる。
+
 ```bash
 cd ~/src/andon-home
 bin/bootstrap --dry-run     # docker を打たずに、打つものを出す
@@ -56,9 +60,10 @@ bin/bootstrap               # 初回: image を焼く → compose.yaml を取り
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）は建屋の `.env` に書く。**建屋を2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
 - **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ `herdr` を開く。もう一度打てば同じセッションに戻る。
-- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・クーリエを起こした行）。herdr の画面が開く。
+- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・クーリエを起こした行）。herdr の画面が開く。andon が uid 1001 だった版の image から上げた最初の起動では、`持ち主を直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
+  - `建屋の repo（…）の持ち主が uid <n>` — 建屋の repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon init` からやり直す（uid を合わせ直す仕組みは無い）。
   - `docker デーモンに繋がらない` — docker が起きているか。
   - 5分待っても `ready` が出ず `準備の完了を確かめられなかった` — `bin/bootstrap logs` で boot の警告の行を見る。`andon help` が `command not found` なら `FROM` の image が古い（`andon` を焼く前の版）。
   - ポートが使用中 — `.env` の番号を変えて `bin/bootstrap` を打ち直す。
@@ -95,6 +100,7 @@ ssh andon-home
 - **通ったら見えるもの**: ログに `sshd を起動した（コンテナの 22 番。ホスト側の番号は .env の SSH_PORT）`。`ssh andon-home` で建屋の中のシェルに入り、`hostname` が slug（`home`）。ssh config の `LocalForward` で、手元のブラウザから portless の名前（`http://<app>.home.localhost:<PORTLESS_PORT>`）も引ける。
 - **落ちたら見る所**:
   - ログに `ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）` — `.ssh/authorized_keys` が無い。置く場所は建屋の repo の直下（`~/src/andon-home/.ssh/`）。置いたあと、`down` → `up` で起こし直す。
+  - ログに `ssh は無効（.ssh/authorized_keys があるが読めない: …）` — 鍵はあるが、建屋の `andon`（uid 1000）から読めない。`ls -ln .ssh .ssh/authorized_keys` で持ち主が 1000 か見る（`sudo` で作ると root の持ち物になる）。違えば `sudo chown -R 1000:1000 .ssh` で直し、`down` → `up`。
   - `Connection refused`・`Connection timed out` — `.env` の `SSH_PORT` と、ssh config の `Port` が同じか（`.env` を変えたあと `host-install` を打ち直すなら、古い `~/.ssh/config.d/andon-home.conf` を退避してから。`host-install` は今あるファイルを上書きしない）。ほかの建屋や別のものと `SSH_PORT` が重なると、compose の起動がポート使用中で落ちる（3 の落ちたら見る所）。
   - `Permission denied (publickey)` — `authorized_keys` に入っている公開鍵が、手元でつかわれる鍵と対か。`ssh -v andon-home` で提示された鍵を見る。置いたあとで起こし直していないときも同じ（boot が起動時に写す）。
   - `ssh: Could not resolve hostname andon-home` — `~/.ssh/config` の先頭に `Include config.d/*` の1行が無い。`host-install` の出力が案内する1行を足す。

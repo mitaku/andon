@@ -55,6 +55,7 @@ type Env struct {
 	LookPath func(string) (string, error)
 	Self     string // andon の実行ファイル（files サーバとして自分を起こす）
 	Log      io.Writer
+	Uid, Gid int // boot を打つ利用者。HOME の volume の持ち主をこれに揃える（fixOwners）
 }
 
 // EnvFromOS は環境変数から Env を作る。
@@ -72,6 +73,8 @@ func EnvFromOS(log io.Writer) Env {
 		LookPath:        exec.LookPath,
 		Self:            self,
 		Log:             log,
+		Uid:             os.Getuid(),
+		Gid:             os.Getgid(),
 	}
 }
 
@@ -99,6 +102,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if env.Home == "" {
 		fmt.Fprintln(stderr, "andon boot: HOME が無い")
 		return 1
+	}
+	if err := fixOwners(env); err != nil {
+		env.logf("volume の持ち主の修正に失敗（続行する）: %v", err)
 	}
 	if err := Generate(env); err != nil {
 		fmt.Fprintf(stderr, "andon boot: %v\n", err)
