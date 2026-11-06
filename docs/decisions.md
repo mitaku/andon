@@ -222,8 +222,8 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | Chief Engineer の題は ADR（`docs/adr/NNNN-<題>.md`。番号と状態つき。形は design.md §1.8 のまま）。decisions.md には ADR 1本につき1行。部品の生きた設計（courier・image・ledger）と核（design・contract・decisions・operate）は `docs/` 直下のまま | 人の決定 2026-11-05（Y-84 の対話） |
 | 2026-11-05 | Herdr App の Space と tab: 建屋から指す口は hc のラベル `herdr.space`・`herdr.tab` だけで、書くのは Andon の command とクーリエ。Space はプロジェクト × 2 段（指揮側 `andon-<slug>`・作業側 `andon-<slug>-work`。試作 S0 の結果で確定）、tab はタスク 1 つ（レビュアーは担当と同じ tab に横に並ぶ）。id は command が決定的に作る。command は attach を打たない（出た場所を「<Space 名> / <tab 名>」で出す。人に端末を指す言い方も同じ形）。名前は建屋から付けられないので、Andon 同梱の App の mod が人の App の中でラベルから付ける（Space `<slug>`・`<slug> work`、tab `CoS`・`CE <id> <題>`・`<id> <題>`。並行して upstream に機能を頼む）。片付けは空になって消えるのに任せる。仮設の `yard task` には入れない。やらないこと: ペインの分割・`herdr-app` や建屋の `herdr` CLI・Chief of Staff による Space の操作・`where`・mod が名前以外に触ること | [ADR-0002](adr/0002-herdr-spaces.md)（Y-105・Y-106 の対話） |
 | 2026-11-06 | Herdr App の作業側は Space ＝ タスク（`herdr.space=andon-<slug>-<id>`・名前 `<id> <題>`。tab は担当の 1 つで id は今まで同じ `andon-<slug>-<id>`・名前 `<id>`。レビュアーは担当と同じ tab）。Space のフォルダが担当の worktree になり、App の Files・Changes がタスクを指す。ADR-0002 の決めたこと 1・2 の作業側を覆す。指揮側は変えない | [ADR-0003](adr/0003-task-spaces.md)（人 2026-11-06。Y-147） |
-| 2026-11-06 | ADR-0004（`projects/<slug>/` の構成: 予約名は `project.json`・`AGENTS.md`・`.claude/`・`kanban/`、memory は置かない、生成ビューと納品物の区別、製品の repo の `docs/` との線引き、今ある建屋からの移し方）を決定にする | 人（2026-11-06）、[ADR-0004](adr/0004-project-layout.md)、Y-161・Y-141 |
-| 2026-11-06 | ADR-0005（建屋の repo の直下の予約名・追跡の基準・人のファイルの守り。台帳 `kanban/` は追跡しない〈決めたこと 5 が 3 を覆す〉）を決定にする | 人（2026-11-06）、[ADR-0005](adr/0005-cell-repo.md)、Y-161・Y-141 |
+| 2026-11-06 | 建屋の repo の `projects/<slug>/`（プロジェクトのルート）の構成: 直下の予約名と書く人・memory は置かない（アウターループで wiki へ）・auto memory は managed で OFF（`autoMemoryEnabled: false` と `env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`）。実装は別タスク（台帳の改名 Y-141 など） | [ADR-0004](adr/0004-project-layout.md)（人 2026-11-06。PR #52 のマージ。Y-161） |
+| 2026-11-06 | 建屋（セル）の repo の直下と追跡・持ち運び・守り: 追跡の基準は「建屋を別のマシンに建て直すとき要るか」の 1 本。「建屋」はセル（cell）に改める。実装は別タスク | [ADR-0005](adr/0005-cell-repo.md)（人 2026-11-06。PR #52 のマージ。Y-161） |
 
 ## 15. P6b での決定
 
