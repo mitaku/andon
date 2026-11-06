@@ -45,7 +45,9 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 建屋の各プロジェクトの台帳を回る。**待ちが無ければ1分ごと、待ちがあれば5秒ごと**（仮の値。設定で替えられる）。
 - プロジェクトの Chief of Staff（`config.yaml` の `coordinator`）の端末が生きていなければ、その台帳は丸ごと飛ばす（ログに1行。理由が変わったときだけ）。Chief of Staff は起きたときに台帳を自分で読むので、留守の間に積む必要が無い。
 - 見回りの最初に `kanban tick` を打つ（ルーチンの `schedule` が来たものをタスクにする）。台帳の CLI の仕事を、周期を持つクーリエが代わりに起こすだけ。
-- **初めて見る台帳**は、今の ready と `log.jsonl` の位置を控えるだけで送らない（過去の出来事を一度に流さない）。
+- **初めて見る台帳**（控えが無い）は、通知の元（§2.2・§2.3）について今の ready と `log.jsonl` の位置を控えるだけで送らない（過去の出来事を一度に流さない）。
+  ただし `doing` のタスクの今の `review_request`（§5）は拾う。commit が PR の head と同じことを確かめてから起こすので、過去の出来事ではなく、いま止まっている工程だから（クーリエが止まっている間に出たレビュー依頼を取りこぼさない。2026-11-06 の P7）。
+  二重に起こさない守りは控えではなく台帳で持つ: その commit のレビュアーの子タスクがもうあれば引き継ぐ（§5 の「二度起こさない」）。
 
 ### 2.2 通知の元
 
@@ -184,6 +186,11 @@ Andon ではこれを Go で書き直した（`internal/courier/screen.go`。des
 
 前の工場の通知の係を Go の `andon courier` に書き直す。§2 の拾い方と §4 の経路③だけ（フックはまだ無い）。端末の名前とラベルは `role=courier`。控えは `~/.local/state/andon/courier/<slug>.json`（contract.md §6）。
 
+**端末を起こす・中身を戻す**: 端末は建屋に1つで、名前は `courier`。`hc run --keep` で起こすので、core が起き直すと（`hc server restart`・Herdr App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで、中身がシェルに替わる（hc は元の command を打ち直さない）。
+そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon courier`」で動いていると見る。無ければ起こし、シェルならそのシェルに `andon courier` を打ち込む。前に何も出ていない（替わる途中）・シェルでも `andon courier` でもないものが出ているときは触らない。
+確かめるのは boot（毎起動）と Chief of Staff のフック（`andon courier drain`。毎ターン）。core の起き直しは boot を通らないが、クーリエが回るのは Chief of Staff が生きている台帳だけ（§2.1）で、Chief of Staff が動けば必ずフックが走るので、これで足りる。
+クーリエ自身の見張りでは戻せない（止まっているのはクーリエ）。hc にも元の command を打ち直す機能は無い。複数のフックと boot が重なっても二重に打たないよう、確かめは lock の中で1つずつ（2026-11-06 の P7）。
+
 ### P6a: インナーループを回す
 
 Chief of Staff が1ターンも使わずに、レビュー依頼から片付けまでが流れる。どの段も**決まった次の工程**で、判断はゲートと Chief of Staff と人が持つ。
@@ -199,6 +206,8 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | ゲートが `needs_human` | 問いを出す（contract.md §5。`from: gate`）。通知 `asked` | 人 |
 
 - **二度起こさない・二度回さない**: 起こしたレビュアー（`task` → `reviewer_task`・`commit`）と回したゲート（`task` → `sha`。`review` に入った `log.jsonl` の行ごと）を控えに持ち、同じ組では打たない。
+  控えに無い組（初めて見た台帳・控えを無くした）は台帳を見る: parent がそのタスクのレビュアーで、依頼書にその commit があるタスクがあれば、`todo` なら続きから起こし（端末はまだ無い）、それ以外ならもう受けているとして起こさない。
+- **同じ commit の出し直し**: 起こさなかった回（設定・上限・head 違いなどで止めた回）は、担当が `andon task review-request` で頼み直せば（そのタスクの報告の行が増えれば）拾い直す。起こした回は、同じ commit で頼み直しても二重に起こさない。
 - **台帳に書くときの `by` は `terminal:courier`**（`HC_TERMINAL_ID=courier` で打つ）。ゲートと `andon task ready` は、作成の行の `by` が Chief of Staff かクーリエのレビュアーを数える。
 - **レビュアーの依頼書に結果の宛先を書く**: 元のタスク（`parent`）の担当（`task.yaml` の `agent`）だけ。Chief of Staff・クーリエへは送らせない（Chief of Staff へはクーリエが通知で届ける）。
 - **上限を超えた回**は今の `review_rounds` で決める。Chief of Staff が `review_rounds` を上げれば、次の見回りで起こす。

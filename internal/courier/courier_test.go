@@ -17,19 +17,66 @@ func TestRetry(t *testing.T) {
 		prev  Reviewer
 		seen  bool
 		limit int
+		row   int
 		want  bool
 	}{
-		{"初めて", Reviewer{}, false, 2, true},
-		{"起こした（二重に起こさない）", Reviewer{Started: true, Failed: ""}, true, 2, false},
-		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerTask: "D-2"}, true, 2, true},
-		{"初めて見た台帳", Reviewer{Skipped: "初めて見た台帳"}, true, 2, false},
-		{"設定で起こさない", Reviewer{Skipped: "review が on でない"}, true, 5, false},
-		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1}, true, 1, false},
-		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1}, true, 2, true},
+		{"初めて", Reviewer{}, false, 2, 5, true},
+		{"起こした（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 5, false},
+		{"起こした回を同じ commit で頼み直した（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 9, false},
+		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerTask: "D-2", Row: 5}, true, 2, 5, true},
+		{"設定で起こさない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, false},
+		{"起こさなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true},
+		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true},
+		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, false},
+		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true},
 	} {
-		if got := Retry(c.prev, c.seen, c.limit); got != c.want {
+		if got := Retry(c.prev, c.seen, c.limit, c.row); got != c.want {
 			t.Errorf("%s: Retry = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子タスクが無ければ起こしに行き、
+// あれば引き継ぐ（todo なら続きから、それ以外はもう受けている）。
+func TestAdopt(t *testing.T) {
+	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
+	briefs := map[string]string{
+		"D-2": "対象: worktree `x`（detached）。commit " + c1 + "。差分は",
+		"D-3": "対象: worktree `y`（detached）。commit " + c2 + "。差分は",
+	}
+	brief := func(rev string) string { return briefs[rev] }
+	tasks := []ledger.Task{
+		{"id": "D-1", "status": "doing", "profile": "claude"},
+		{"id": "D-2", "status": "done", "profile": "codex-review", "parent": "D-1", "agent": "t9"},
+		{"id": "D-3", "status": "todo", "profile": "codex-review", "parent": "D-1"},
+		{"id": "D-4", "status": "doing", "profile": "claude", "parent": "D-1"}, // レビュアーでない子
+	}
+	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief); ok {
+		t.Error("子タスクの無い commit を引き継いだ（起こしに行かない）")
+	}
+	if r, ok := Adopt(tasks, "D-1", c1, brief); !ok || !r.Started || r.ReviewerTask != "D-2" || r.Address != "t9" {
+		t.Errorf("受けた子タスク: %+v %v（もう受けているはず）", r, ok)
+	}
+	if r, ok := Adopt(tasks, "D-1", c2, brief); !ok || r.Started || r.ReviewerTask != "D-3" {
+		t.Errorf("todo の子タスク: %+v %v（続きから起こすはず）", r, ok)
+	}
+	if _, ok := Adopt(tasks, "D-9", c1, brief); ok {
+		t.Error("ほかのタスクの子を引き継いだ")
+	}
+}
+
+func TestLastReport(t *testing.T) {
+	rows := []ledger.Row{
+		{ID: "D-1", Change: map[string]any{"report": "write"}},
+		{ID: "D-2", Change: map[string]any{"report": "write"}},
+		{ID: "D-1", Change: map[string]any{"status": "doing"}},
+		{ID: "D-1", Change: map[string]any{"report": "write"}},
+	}
+	if got := lastReport(rows, "D-1"); got != 4 {
+		t.Errorf("D-1: %d", got)
+	}
+	if got := lastReport(rows, "D-9"); got != 0 {
+		t.Errorf("D-9: %d", got)
 	}
 }
 

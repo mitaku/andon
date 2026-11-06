@@ -80,6 +80,10 @@ EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 echo "t5 chief-of-staff" > "$tmp/hc/live"
+# クーリエの端末（Chief of Staff のフックの drain が中身を確かめる。terminal.go）。中身は andon courier
+echo "courier role" >> "$tmp/hc/live"
+fg_courier() { echo '{"address":"courier","state":"live","foreground":{"name":"andon","argv":["'"$andon"'","courier"]}}' > "$tmp/hc/term-courier.json"; }
+fg_courier
 
 # 建屋の repo（人のもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
 git init -q "$tmp/plant"
@@ -127,8 +131,8 @@ review_by() { # review_by <レビュアーの id> <findings>: レビュアーが
     HC_TERMINAL_ID=t9 kanban review "$1" >/dev/null
 }
 
-# 0. Chief of Staff の端末が生きていなければ台帳を飛ばす。初めて見る台帳は控えるだけ
-id=$(newtask 'docs を直す' auto)
+# 0. Chief of Staff の端末が生きていなければ台帳を飛ばす。初めて見る台帳は通知の元を控えるだけだが、今の review_request は拾う
+id=$(newtask '初めて見た台帳のレビュー依頼' person)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
@@ -137,21 +141,57 @@ courier
 [ ! -e "$state" ] || die 'Chief of Staff がいないのに回った'
 echo "t5 chief-of-staff" >> "$tmp/hc/live"
 courier
-[ -e "$state" ] && ! grep -q '^run' "$tmp/hc/log" || die '初めて見る台帳で動いた'
-jq -e '.pending == [] and (.reviewers | length) == 1' "$state" >/dev/null || die '初めて見た review_request を控えていない'
-ok 'Chief of Staff の端末が無ければ飛ばし、初めて見る台帳は控えるだけ'
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die "初めて見た台帳の済んでいない review_request を拾わない: $(grep ^run "$tmp/hc/log")"
+jq -e --arg k "$id@$head" '(.reviewers | length) == 1 and .reviewers[$k].started == true and ([.pending[].kind] == ["review-requested"])' "$state" >/dev/null ||
+    die "初めて見た台帳で控え・通知が違う（report・ready を流した）: $(jq -c '{reviewers, pending}' "$state")"
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起こした'
+ok 'Chief of Staff の端末が無ければ飛ばし、初めて見る台帳でも済んでいない review_request は拾う（過去の report・ready は流さない）'
+
+# 0b. 控えを無くしても（初めて見た台帳と同じ）、台帳にその commit のレビュアーがもういれば二重に起こさない
+cp "$state" "$tmp/state.bak"; rm "$state"
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '控えを無くしたあと、もういるレビュアーを二重に起こした'
+grep -q "$id のレビュー（commit ${head:0:12}）は .* がもう受けている" "$tmp/courier.log" || die '引き継いだことがログに無い'
+cp "$tmp/state.bak" "$state"
+ok '控えに無い review_request でも、台帳にその commit のレビュアーの子タスクがあれば引き継ぐ（二重に起こさない）'
+
+# 0c. 前の版の控え（初めて見た台帳で控えただけの回）と、起こさなかった回を同じ commit で頼み直したとき
+id=$(newtask '止まっていた間のレビュー依頼' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+HC_TERMINAL_ID=t5 kanban set "$id" review=off >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$id" review=on >/dev/null
+as_worker "$id" review-request
+HC_TERMINAL_ID=t5 kanban set "$id" review=off >/dev/null
+runs=$(grep -c '^run' "$tmp/hc/log")
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'review が off なのに起こした'
+jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("task.yaml の review が on でない")' "$state" >/dev/null || die '起こさなかった回を控えていない'
+HC_TERMINAL_ID=t5 kanban set "$id" review=on >/dev/null
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '頼み直していないのに起こし直した'
+as_worker "$id" review-request   # 同じ commit で頼み直す
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起こさなかった回を同じ commit で頼み直したのに拾わない'
+as_worker "$id" review-request
+courier
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起こした回を同じ commit で頼み直したら二重に起こした'
+ok '同じ commit の出し直しは、前回が起こさずに終わっていれば拾い、起こしていれば二重に起こさない'
 
 # 1. 一周: review-request → レビュアーを起こす → レビュー → ready → ゲート → マージ → finish
+id=$(newtask 'docs を直す' auto)
 mark=$(wc -l < "$L/log.jsonl")
 # 担当 t7 は andon task start のラベルで App の作業側の tab にいる（ADR-0002）。レビュアーは同じ値を付ける
 echo '{"address":"t7","state":"live","labels":{"task":"'"$id"'","herdr.space":"andon-demo-work","herdr.tab":"andon-demo-'"$id"'","where":"demo work / x"}}' > "$tmp/hc/term-t7.json"
 work "$id" docs/a.md
-as_worker "$id" report
+as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
 courier
 rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 [ -n "$rev" ] || die 'レビュアーのタスクが無い'
-kanban show "$rev" --json | jq -e --arg p "$id" '.task.profile == "codex-review" and .task.status == "doing" and .task.agent == "t9" and .task.parent == $p' >/dev/null ||
+raddr=$(jq -r --arg k "$id@$head" '.reviewers[$k].address' "$state")
+kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.task.profile == "codex-review" and .task.status == "doing" and .task.agent == $a and ($a | startswith("t")) and .task.parent == $p' >/dev/null ||
     die "レビュアーのタスクの項目が違う: $(kanban show "$rev" --json)"
 jq -e --arg r "$rev" 'select(.id == $r and has("change") and .change.add != null) | .by == "terminal:courier"' "$L/log.jsonl" >/dev/null || die 'レビュアーのタスクの作成が courier でない'
 rwt=$HOME/.herdr/worktrees/app/demo-$id-r1
@@ -166,8 +206,9 @@ grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-work --l
 grep -qx "get t7 --json" "$tmp/hc/log" || die '担当の端末を hc get --json で読んでいない'
 rm "$tmp/hc/term-t7.json"
 ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:courier・detached worktree・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
+runs=$(grep -c '^run' "$tmp/hc/log")
 courier
-[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起こした'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '同じ review_request で二度起こした'
 ok '同じ review_request（task と commit）で二度起こさない'
 
 review_by "$rev" '[{"severity":"minor","file":"docs/a.md","line":1}]'
@@ -393,6 +434,16 @@ jq -e '.hookSpecificOutput.additionalContext | (contains("<news") | not) and con
 out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}'); rc=$?
 [ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
 ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
+
+# 12a. core が起き直してクーリエの端末の中身がシェルに替わっていたら、Chief of Staff のフックが andon courier を打ち直す
+echo '{"address":"courier","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-courier.json"
+HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"x"}' >/dev/null
+grep -qxF "courier	'$andon' courier" "$tmp/hc/sent" || die "シェルに替わったクーリエに andon courier を打ち直さない: $(cat "$tmp/hc/sent")"
+fg_courier
+cp "$tmp/hc/sent" "$tmp/hc/sent.before"
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"x"}' >/dev/null
+cmp -s "$tmp/hc/sent" "$tmp/hc/sent.before" || die '中身が andon courier のクーリエに打ち込んだ'
+ok 'クーリエの端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）が andon courier を打ち直す（動いていれば触らない）'
 
 # 12b. UserPromptSubmit で渡したあと turn が中断された（Stop が来ない）ら、次の送信で1回だけ届け直す。news.replied は渡した turn の答えにだけ
 ups() { HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"prompt\":\"x\"}" | jq -r '.hookSpecificOutput.additionalContext'; }

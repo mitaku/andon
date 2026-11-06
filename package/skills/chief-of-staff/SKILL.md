@@ -202,6 +202,9 @@ S-9 の担当 t5 が working のまま 21 分。hc read で画面が進んでい
 
 クーリエは、この Chief of Staff の端末が live でない台帳を飛ばす。起き直したら（`andon chief-of-staff` で address を合わせたら）次の見回りから届く。
 止まっている間の出来事は、起きたときに台帳を自分で読む（§0）。クーリエの様子は `hc read courier`。
+クーリエの端末が素のシェルのまま（core が起き直したあと）でも、自分の端末のフックが毎ターン確かめて `andon courier` を打ち直す。`hc send courier` で手で起こさない（二重に起こす）。
+戻らなければ（`hc get courier --json` の `foreground.argv` が `andon courier` にならない）、人へ「`andon boot` を打ち直すか」を1問。
+クーリエが止まっていた間に出たレビュー依頼も、起き直したクーリエが拾う（初めて見る台帳でも）。担当に頼み直させなくてよい。
 
 ## 6. レビューとゲート（人の判断が要るときだけ）
 
