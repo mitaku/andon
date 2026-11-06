@@ -225,6 +225,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-06 | Herdr App の作業側は Space ＝ タスク（`herdr.space=andon-<slug>-<id>`・名前 `<id> <題>`。tab は担当の 1 つで id は今まで同じ `andon-<slug>-<id>`・名前 `<id>`。レビュアーは担当と同じ tab）。Space のフォルダが担当の worktree になり、App の Files・Changes がタスクを指す。ADR-0002 の決めたこと 1・2 の作業側を覆す。指揮側は変えない | [ADR-0003](adr/0003-task-spaces.md)（人 2026-11-06。Y-147） |
 | 2026-11-06 | 建屋の repo の `projects/<slug>/`（プロジェクトのルート）の構成: 直下の予約名と書く人・memory は置かない（アウターループで wiki へ）・auto memory は managed で OFF（`autoMemoryEnabled: false` と `env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`）。実装は別タスク（台帳の改名 Y-141 など） | [ADR-0004](adr/0004-project-layout.md)（人 2026-11-06。PR #52 のマージ。Y-161） |
 | 2026-11-06 | 建屋（セル）の repo の直下と追跡・持ち運び・守り: 追跡の基準は「建屋を別のマシンに建て直すとき要るか」の 1 本。「建屋」はセル（cell）に改める。実装は別タスク | [ADR-0005](adr/0005-cell-repo.md)（人 2026-11-06。PR #52 のマージ。Y-161） |
+| 2026-11-06 | 仮設の工場にあって Andon に無いものの棚卸し（表 A〜F）と塞ぐ順: 引っ越し（P8）の前に要るのは `kanban tick` を dispatcher の 1 巡に入れる・Chief of Staff の template に `--add-dir`（wiki）・人のマージと dispatcher のマージの重なり（G3）・P6b の実測の記録とルーチンの写し（人）の 5 件。ほかは移ってから Andon のタスクとして。`hc events`・許可ルールの追加・Codex の Chief of Staff・自動 push・既読と `agent explain` 相当はやらない。実装は別タスク（S2〜S5） | [ADR-0006](adr/0006-interim-gap-inventory.md)（提案。Y-143） |
 
 ## 15. P6b での決定
 
