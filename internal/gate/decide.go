@@ -237,13 +237,13 @@ type CheckItem struct {
 	Conclusion string `json:"conclusion"` // CheckRun
 	DatabaseID int64  `json:"databaseId"` // CheckRun（再実行ほど大きい）
 	App        string `json:"app"`        // CheckRun の check suite の app（slug）
-	Workflow   string `json:"workflow"`   // CheckRun の workflow の名前（Actions でなければ空）
+	Workflow   string `json:"workflow"`   // CheckRun の workflow の id（GraphQL の Workflow.id。表示名でなく。Actions でなければ空）
 	Context    string `json:"context"`    // StatusContext
 	State      string `json:"state"`      // StatusContext
 	CreatedAt  string `json:"createdAt"`  // StatusContext
 }
 
-// key は同じ check を見分ける鍵（CheckRun は app・workflow・名前、StatusContext は context）。
+// key は同じ check を見分ける鍵（CheckRun は app・workflow の id・名前、StatusContext は context）。
 func (it CheckItem) key() string {
 	if it.Typename == "StatusContext" {
 		return "status\x00" + it.Context
@@ -251,22 +251,31 @@ func (it CheckItem) key() string {
 	return it.Typename + "\x00" + it.App + "\x00" + it.Workflow + "\x00" + it.Name
 }
 
-// newer は it が old より新しい実行か（CheckRun は databaseId、StatusContext は createdAt。同じなら後に来たもの）。
-func (it CheckItem) newer(old CheckItem) bool {
+// order は it が old より新しい実行なら 1、古ければ -1、判別できなければ 0
+// （CheckRun は databaseId、StatusContext は createdAt。RFC 3339 の UTC は文字列の順が時刻の順）。
+func (it CheckItem) order(old CheckItem) int {
 	if it.Typename == "StatusContext" {
-		return it.CreatedAt >= old.CreatedAt // RFC 3339 の UTC は文字列の順が時刻の順
+		return strings.Compare(it.CreatedAt, old.CreatedAt)
 	}
-	return it.DatabaseID >= old.DatabaseID
+	switch {
+	case it.DatabaseID > old.DatabaseID:
+		return 1
+	case it.DatabaseID < old.DatabaseID:
+		return -1
+	}
+	return 0
 }
 
-// Latest は同じ check の実行が複数あれば最新の1つだけを残す（再実行で古い failure を数えない）。順は最初に出た順。
+// Latest は同じ check の実行が複数あれば最新の1つだけを残す（再実行で古い failure を数えない）。
+// 新旧を判別できない（同じ時刻・同じ id）ときは悪い方を残す。順は最初に出た順。
 func Latest(items []CheckItem) []CheckItem {
 	idx := map[string]int{}
 	out := []CheckItem{}
 	for _, it := range items {
 		k := it.key()
 		if i, ok := idx[k]; ok {
-			if it.newer(out[i]) {
+			switch o := it.order(out[i]); {
+			case o > 0, o == 0 && checkRank[it.state()] > checkRank[out[i].state()]:
 				out[i] = it
 			}
 			continue
@@ -275,6 +284,37 @@ func Latest(items []CheckItem) []CheckItem {
 		out = append(out, it)
 	}
 	return out
+}
+
+// state は1件の状態（success・pending・failure・unknown）。
+// CheckRun: 終わっていなければ pending。結論 success・skipped・neutral は通す（GitHub のブランチ保護と同じ）、
+// failure・cancelled・timed_out・startup_failure は failure、それ以外（action_required・stale・知らない値）は unknown。
+// StatusContext: success は通す、pending・expected は pending、failure・error は failure、それ以外は unknown。
+func (it CheckItem) state() string {
+	switch it.Typename {
+	case "CheckRun":
+		switch strings.ToUpper(it.Status) {
+		case "COMPLETED":
+			switch strings.ToUpper(it.Conclusion) {
+			case "SUCCESS", "SKIPPED", "NEUTRAL":
+				return "success"
+			case "FAILURE", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE":
+				return "failure"
+			}
+		case "QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED":
+			return "pending"
+		}
+	case "StatusContext":
+		switch strings.ToUpper(it.State) {
+		case "SUCCESS":
+			return "success"
+		case "PENDING", "EXPECTED":
+			return "pending"
+		case "FAILURE", "ERROR":
+			return "failure"
+		}
+	}
+	return "unknown"
 }
 
 // GitHubChecks は PR の head の GitHub の checks を1つの状態にまとめたもの。
@@ -293,40 +333,15 @@ func (g GitHubChecks) Passed(optional bool) bool {
 var checkRank = map[string]int{"none": 0, "success": 1, "pending": 2, "unknown": 3, "failure": 4}
 
 // SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。ゲート自身の status（andon/gate）は数えない。
-// 同じ check の実行が複数あれば最新の1つだけを数える（Latest）。
-// CheckRun: 終わっていなければ pending。結論 success・skipped・neutral は通す（GitHub のブランチ保護と同じ）、
-// failure・cancelled・timed_out・startup_failure は failure、それ以外（action_required・stale・知らない値）は unknown。
-// StatusContext: success は通す、pending・expected は pending、failure・error は failure、それ以外は unknown。
+// 同じ check の実行が複数あれば最新の1つだけを数える（Latest）。1件ごとの状態は state。
 func SummarizeChecks(items []CheckItem) GitHubChecks {
 	g := GitHubChecks{State: "none", Names: []string{}}
 	names := map[string][]string{}
 	for _, it := range Latest(items) {
-		name, state := it.Name, "unknown"
-		switch it.Typename {
-		case "CheckRun":
-			switch strings.ToUpper(it.Status) {
-			case "COMPLETED":
-				switch strings.ToUpper(it.Conclusion) {
-				case "SUCCESS", "SKIPPED", "NEUTRAL":
-					state = "success"
-				case "FAILURE", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE":
-					state = "failure"
-				}
-			case "QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED":
-				state = "pending"
-			}
-		case "StatusContext":
-			name = it.Context
-			if name == GateContext {
+		name, state := it.Name, it.state()
+		if it.Typename == "StatusContext" {
+			if name = it.Context; name == GateContext {
 				continue
-			}
-			switch strings.ToUpper(it.State) {
-			case "SUCCESS":
-				state = "success"
-			case "PENDING", "EXPECTED":
-				state = "pending"
-			case "FAILURE", "ERROR":
-				state = "failure"
 			}
 		}
 		if name == "" {

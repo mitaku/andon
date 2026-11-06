@@ -471,7 +471,7 @@ const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $afte
     commits(last: 1) { nodes { commit { oid statusCheckRollup { contexts(first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes { __typename
-        ... on CheckRun { name status conclusion databaseId checkSuite { app { slug } workflowRun { workflow { name } } } }
+        ... on CheckRun { name status conclusion databaseId checkSuite { app { slug } workflowRun { workflow { id } } } }
         ... on StatusContext { context state createdAt } } } } } } } } } }`
 
 // checksPages は読むページの上限（100件ずつ。超えたら読めないとして止める）。
@@ -515,7 +515,7 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 												CheckSuite struct {
 													App         struct{ Slug string } `json:"app"`
 													WorkflowRun *struct {
-														Workflow struct{ Name string } `json:"workflow"`
+														Workflow struct{ ID string } `json:"workflow"`
 													} `json:"workflowRun"`
 												} `json:"checkSuite"`
 											} `json:"nodes"`
@@ -544,7 +544,7 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 			it := n.CheckItem
 			it.App = n.CheckSuite.App.Slug
 			if n.CheckSuite.WorkflowRun != nil {
-				it.Workflow = n.CheckSuite.WorkflowRun.Workflow.Name
+				it.Workflow = n.CheckSuite.WorkflowRun.Workflow.ID
 			}
 			items = append(items, it)
 		}

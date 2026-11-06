@@ -217,6 +217,16 @@ func TestSummarizeChecksLatestRun(t *testing.T) {
 		{"新しい failure が先に出ても", []CheckItem{run("tests", "FAILURE", 2), run("tests", "SUCCESS", 1)}, "failure"},
 		{"走り直しは pending", []CheckItem{run("tests", "SUCCESS", 2), queued}, "pending"},
 		{"別の workflow の同じ名前は別の check", []CheckItem{run("lint", "FAILURE", 1), run("tests", "SUCCESS", 2)}, "failure"},
+		// 表示名が同じでも別ファイルの workflow は id が違う: 束ねない
+		{"同じ表示名・別 id の workflow（failure が先）", []CheckItem{run("W_ci_a", "FAILURE", 1), run("W_ci_b", "SUCCESS", 2)}, "failure"},
+		{"同じ表示名・別 id の workflow（success が先）", []CheckItem{run("W_ci_b", "SUCCESS", 2), run("W_ci_a", "FAILURE", 1)}, "failure"},
+		// 新旧を判別できない（同じ createdAt・同じ databaseId）ときは悪い方を残す。順に依らない
+		{"status: 同じ時刻の failure と success", []CheckItem{ctx("FAILURE", "2026-11-06T09:00:00Z"), ctx("SUCCESS", "2026-11-06T09:00:00Z")}, "failure"},
+		{"status: 同じ時刻の success と failure", []CheckItem{ctx("SUCCESS", "2026-11-06T09:00:00Z"), ctx("FAILURE", "2026-11-06T09:00:00Z")}, "failure"},
+		{"status: 同じ時刻の pending と success", []CheckItem{ctx("PENDING", "2026-11-06T09:00:00Z"), ctx("SUCCESS", "2026-11-06T09:00:00Z")}, "pending"},
+		{"status: 同じ時刻の success と pending", []CheckItem{ctx("SUCCESS", "2026-11-06T09:00:00Z"), ctx("PENDING", "2026-11-06T09:00:00Z")}, "pending"},
+		{"CheckRun: 同じ id の failure と success", []CheckItem{run("tests", "FAILURE", 5), run("tests", "SUCCESS", 5)}, "failure"},
+		{"CheckRun: 同じ id の success と failure", []CheckItem{run("tests", "SUCCESS", 5), run("tests", "FAILURE", 5)}, "failure"},
 		{"status: 古い error → 新しい success", []CheckItem{ctx("ERROR", "2026-11-06T09:00:00Z"), ctx("SUCCESS", "2026-11-06T09:05:00Z")}, "success"},
 		{"status: 新しい failure が先に出ても", []CheckItem{ctx("FAILURE", "2026-11-06T09:05:00Z"), ctx("SUCCESS", "2026-11-06T09:00:00Z")}, "failure"},
 	} {

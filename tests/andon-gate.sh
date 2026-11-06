@@ -180,14 +180,20 @@ got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: job12
 grep -qx 'graphql 100' "$tmp/gh/pages" || die '2ページ目を読んでいない'
 # 同じ check の再実行は最新（databaseId が大きい）だけを数える。出てくる順に依らない
 rerun() { jq -n --arg a "$1" --arg b "$2" '[{__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: $a, databaseId: 1,
-  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {name: "tests"}}}},
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_tests"}}}},
   {__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: $b, databaseId: 2,
-  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {name: "tests"}}}}] | if $ARGS.named.rev == "1" then reverse else . end' --arg rev "${3:-0}" > "$tmp/gh/rollup.json"; }
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_tests"}}}}] | if $ARGS.named.rev == "1" then reverse else . end' --arg rev "${3:-0}" > "$tmp/gh/rollup.json"; }
 rerun FAILURE SUCCESS;   got=$(gate "$id" --dry-run); expect 0 approve
 rerun FAILURE SUCCESS 1; got=$(gate "$id" --dry-run); expect 0 approve
 rerun SUCCESS FAILURE;   got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
 rerun SUCCESS FAILURE 1; got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
-ok 'GitHub の checks は100件を超えても全ページ読み、同じ check の再実行は最新だけを数える（順に依らない）'
+# 表示名が同じ別ファイルの workflow（id が違う）の同じ名前の check は束ねない
+jq -n '[{__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "FAILURE", databaseId: 1,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_a"}}}},
+  {__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "SUCCESS", databaseId: 2,
+  checkSuite: {app: {slug: "github-actions"}, workflowRun: {workflow: {id: "W_b"}}}}]' > "$tmp/gh/rollup.json"
+got=$(gate "$id" --dry-run); expect 1 fix 'GitHub の checks が落ちた: test'
+ok 'GitHub の checks は100件を超えても全ページ読み、同じ check の再実行は最新だけを数える（順に依らない。workflow は表示名でなく id で分ける）'
 rollup
 got=$(gate "$id" --dry-run); expect 5 wait 'まだ1つも無い'
 jq -e '.github_checks == {state: "none", names: []}' "$tmp/out" >/dev/null || die 'none の形が違う（andon/gate を数えた）'
