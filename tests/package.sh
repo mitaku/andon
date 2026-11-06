@@ -84,6 +84,7 @@ for p in package/skills/ package/templates/ package/gate.json package/settings.j
 done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
+jq -e '.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY == "1"' package/settings.json >/dev/null && pass "settings の env が auto memory を止める（CLAUDE_CODE_DISABLE_AUTO_MEMORY=1。autoMemoryEnabled:false より優先して効く）" || fail "settings の env に CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 が無い"
 # Codex の rules（package/codex.rules）は、deny のうちコマンドの頭で引く線（Bash(<語…>:*)）と同じ一覧。
 # それ以外の deny（Bash(git diff *--output*) など）は allow の穴を塞ぐもので、allow の無い Codex（承認は never）には要らない。
 # その印として、頭の線でない deny は allow のどれかと同じコマンドで始まること（新しい種類の deny を足したら、ここで止まって決める）
