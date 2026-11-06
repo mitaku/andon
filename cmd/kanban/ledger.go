@@ -336,7 +336,35 @@ func readConfig(root string) (config, error) {
 func tasksDir(root string) string     { return filepath.Join(ledgerDir(root), "tasks") }
 func taskDir(root, id string) string  { return filepath.Join(tasksDir(root), id) }
 func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), "task.yaml") }
-func numberOf(id string) int          { n, _ := strconv.Atoi(id[strings.LastIndex(id, "-")+1:]); return n }
+
+// numberOf is the number of a task's id: 5 for A-0005, and for a reviewer's A-0005-r1 too (its parent's).
+func numberOf(id string) int {
+	if base, _, ok := splitRound(id); ok {
+		id = base
+	}
+	n, _ := strconv.Atoi(id[strings.LastIndex(id, "-")+1:])
+	return n
+}
+
+// splitRound reads a reviewer's id, <parent>-r<k> (A-0005-r1): the parent's id and the round k (1 or more).
+// ok is false for any other id.
+func splitRound(id string) (parent string, k int, ok bool) {
+	i := strings.LastIndex(id, "-r")
+	if i <= 0 || i+2 == len(id) || strings.Trim(id[i+2:], "0123456789") != "" {
+		return "", 0, false
+	}
+	k, err := strconv.Atoi(id[i+2:])
+	if err != nil || k < 1 {
+		return "", 0, false
+	}
+	return id[:i], k, true
+}
+
+// roundID is the id of a reviewer's task for the parent's round k: <parent>-r<k> (A-0005-r1).
+func roundID(parent string, k int) string { return fmt.Sprintf("%s-r%d", parent, k) }
+
+// isReviewProfile is whether a task with this profile is a reviewer's (the yard's *-review profiles).
+func isReviewProfile(p string) bool { return strings.HasSuffix(p, "-review") }
 
 // idDigits is how many digits a task's number has at least, so that ids sort by name
 // (A-0005; past 9999 the number only grows, and names stop sorting in number order).
@@ -345,9 +373,17 @@ const idDigits = 4
 // formatID is <prefix>-<n> with n zero-padded to idDigits.
 func formatID(prefix string, n int) string { return fmt.Sprintf("%s-%0*d", prefix, idDigits, n) }
 
-// canonID reads an id as typed: A-5, A-05 and A-0005 are the same task, A-0005.
-// Anything not <prefix>-<digits> comes back as it is.
+// canonID reads an id as typed: A-5, A-05 and A-0005 are the same task, A-0005; a reviewer's
+// A-5-r1 is A-0005-r1 (the round without leading zeros). Any other id comes back as it is.
 func canonID(id string) string {
+	if base, k, ok := splitRound(id); ok {
+		return roundID(canonNumber(base), k)
+	}
+	return canonNumber(id)
+}
+
+// canonNumber is canonID for <prefix>-<digits>.
+func canonNumber(id string) string {
 	i := strings.LastIndex(id, "-")
 	if i <= 0 || i == len(id)-1 || strings.Trim(id[i+1:], "0123456789") != "" {
 		return id
@@ -383,6 +419,11 @@ func ids(root string) []string {
 		a, b := numberOf(out[i]), numberOf(out[j])
 		if a != b {
 			return a < b
+		}
+		_, ra, _ := splitRound(out[i])
+		_, rb, _ := splitRound(out[j])
+		if ra != rb {
+			return ra < rb // a reviewer's tasks right after their parent, in round order
 		}
 		return out[i] < out[j]
 	})

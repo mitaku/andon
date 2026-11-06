@@ -38,8 +38,8 @@ Chief of Staff が依頼書を書くときにこの条件で決め、Settings �
 Chief of Staff は起こさない。起こすのは、`task.yaml` の `review: on`（Chief of Staff が書いたもの）で、`round` が `review_rounds` 以下で、`commit` が PR の head のときだけ。回ごとに新しいタスク:
 
 1. PR の head を読む worktree を detached で作る: `~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>`（commit は `review_request.commit`）。
-2. 依頼書（4の型）で `deck add "<id> のレビュー（<回> 回目）" --profile <reviewer> --parent <id> --brief -`（by は `terminal:dispatcher`。ゲートは dispatcher と Chief of Staff が足したレビュアーだけを数える）。
-   `--repo` は付けない（cwd は `tasks/<新しい id>/`）。
+2. 依頼書（4の型）で `deck add "<id> のレビュー（<回> 回目）" --profile <reviewer> --parent <id> --round <回> --brief -`（by は `terminal:dispatcher`。ゲートは dispatcher と Chief of Staff が足したレビュアーだけを数える）。
+   新しい id は `<id>-r<回>`（通し番号を使わない）。`--repo` は付けない（cwd は `tasks/<新しい id>/`）。
 3. `hc run --bg --outlive-parent --no-notify --name <slug>-<新しい id> … <reviewer>` で起こし、`deck start <新しい id>`。通知 `review-requested` を Chief of Staff へ積む。
    信頼の画面は、cwd（`tasks/<新しい id>/`）と 1 の worktree のときだけ Chief of Staff が答える。codex を初めて使う repo のフックの確認画面は人へ回す。
 

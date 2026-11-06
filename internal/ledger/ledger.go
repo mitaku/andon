@@ -336,9 +336,16 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 	return picked[len(picked)-1].Str("id"), others
 }
 
-// CanonID は人が打った id を台帳の形に揃える（A-5・A-05 → A-0005。docs/ledger.md の Ids）。
-// <prefix>-<数字> でなければそのまま。台帳の CLI（kanban）の canonID と同じ。
+// CanonID は人が打った id を台帳の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。docs/ledger.md の Ids）。
+// どちらの形でもなければそのまま。台帳の CLI（kanban）の canonID と同じ。
 func CanonID(id string) string {
+	if base, k, ok := SplitRound(id); ok {
+		return fmt.Sprintf("%s-r%d", canonNumber(base), k)
+	}
+	return canonNumber(id)
+}
+
+func canonNumber(id string) string {
 	i := strings.LastIndex(id, "-")
 	if i <= 0 || i == len(id)-1 || strings.Trim(id[i+1:], "0123456789") != "" {
 		return id
@@ -350,12 +357,36 @@ func CanonID(id string) string {
 	return fmt.Sprintf("%s-%04d", id[:i], n)
 }
 
-// idLess は台帳の id（<prefix>-<n>）を番号の順に比べる。
+// SplitRound はレビュアーのタスクの id（<親>-r<回>。A-0005-r1）を親の id と回（1 以上）に分ける。違う形なら ok が false。
+func SplitRound(id string) (parent string, round int, ok bool) {
+	i := strings.LastIndex(id, "-r")
+	if i <= 0 || i+2 == len(id) || strings.Trim(id[i+2:], "0123456789") != "" {
+		return "", 0, false
+	}
+	k, err := strconv.Atoi(id[i+2:])
+	if err != nil || k < 1 {
+		return "", 0, false
+	}
+	return id[:i], k, true
+}
+
+// idLess は台帳の id（<prefix>-<n>、レビュアーは <prefix>-<n>-r<回>）を番号・回の順に比べる。
 func idLess(a, b string) bool {
-	pa, na, _ := strings.Cut(a, "-")
-	pb, nb, _ := strings.Cut(b, "-")
+	ab, ar, _ := SplitRound(a)
+	bb, br, _ := SplitRound(b)
+	if ar == 0 {
+		ab = a
+	}
+	if br == 0 {
+		bb = b
+	}
+	if ab == bb {
+		return ar < br
+	}
+	pa, na, _ := strings.Cut(ab, "-")
+	pb, nb, _ := strings.Cut(bb, "-")
 	if pa != pb || len(na) == len(nb) {
-		return a < b
+		return ab < bb
 	}
 	return len(na) < len(nb)
 }

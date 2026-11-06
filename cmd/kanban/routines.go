@@ -214,7 +214,7 @@ func (f *firing) fire(r *routine) error {
 			s := b.Value
 			brief = &s
 		}
-		t, err := newTask(f.root, f.cfg, r.d.str("title"), fields, nil, f.cfg.columns[0], brief)
+		t, err := newTask(f.root, f.cfg, "", r.d.str("title"), fields, nil, f.cfg.columns[0], brief)
 		if err != nil {
 			return err
 		}

@@ -284,7 +284,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 	// 2. レビュアーのタスク（一度だけ足す）
 	title := fmt.Sprintf("%s のレビュー（%d 回目）", id, rr.Round)
 	if r.ReviewerTask == "" {
-		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, owner+"/"+name, number), "add", title, "--profile", s.Reviewer, "--parent", id, "--brief", "-")
+		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, owner+"/"+name, number), "add", title, "--profile", s.Reviewer, "--parent", id, "--round", strconv.Itoa(rr.Round), "--brief", "-")
 		if err != nil || !idRe.MatchString(rev) {
 			return fmt.Sprintf("レビュアーのタスクを足せない: %v %q", err, rev), false
 		}

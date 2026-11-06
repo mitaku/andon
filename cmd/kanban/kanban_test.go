@@ -511,3 +511,124 @@ func TestConfigLinkIsRefused(t *testing.T) {
 	deckFails(t, root, "", "config", "set", "chief_of_staff=t7")
 	assertUnchanged(t, real, "version: 2\n")
 }
+
+// A reviewer's task (--parent and a *-review profile) is <parent>-r<k> and takes no number from the sequence.
+func TestReviewerIDs(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	for range 5 {
+		kanban(t, root, "add", "work")
+	}
+	if got := kanban(t, root, "add", "A-0005 のレビュー（1 回目）", "--parent", "A-5", "--profile", "codex-review", "--round", "1"); got != "A-0005-r1\n" {
+		t.Fatalf("round 1: %q", got)
+	}
+	if got := kanban(t, root, "add", "A-0005 のレビュー（2 回目）", "--parent", "A-0005", "--profile", "codex-review"); got != "A-0005-r2\n" {
+		t.Fatalf("round 2 (counted): %q", got)
+	}
+	if got := kanban(t, root, "add", "next"); got != "A-0006\n" {
+		t.Fatalf("the sequence moved: %q", got)
+	}
+	if got := kanban(t, root, "add", "not a reviewer", "--parent", "A-0005", "--profile", "claude"); got != "A-0007\n" {
+		t.Fatalf("a child that isn't a reviewer: %q", got)
+	}
+	deckFails(t, root, "", "add", "again", "--parent", "A-0005", "--profile", "codex-review", "--round", "2")
+	deckFails(t, root, "", "add", "x", "--parent", "A-0005", "--profile", "codex-review", "--round", "0")
+	deckFails(t, root, "", "add", "x", "--parent", "A-0005", "--round", "3")
+	deckFails(t, root, "", "add", "x", "--parent", "A-0099", "--profile", "codex-review")
+
+	// read as typed, in every place an id is taken
+	kanban(t, root, "start", "A-5-r01")
+	kanban(t, root, "set", "A-0006", "after=A-5-r1")
+	got, _ := os.ReadFile(taskFile(root, "A-0006"))
+	if !strings.Contains(string(got), "after: [A-0005-r1]") {
+		t.Fatalf("after not read as A-0005-r1:\n%s", got)
+	}
+	if out := kanban(t, root, "ask", "A-5-r2", "which?"); out != "A-0005-r2#1\n" {
+		t.Fatalf("ask: %q", out)
+	}
+	kanban(t, root, "answer", "A-5-r2#1", "this")
+	if out := kanban(t, root, "show", "A-0005-r1"); !strings.Contains(out, "A-0005 のレビュー（1 回目）") {
+		t.Fatalf("show: %q", out)
+	}
+	// listed right after their parent, in round order
+	out := kanban(t, root, "list", "--all")
+	if a, b, c, d := strings.Index(out, "A-0005 "), strings.Index(out, "A-0005-r1"), strings.Index(out, "A-0005-r2"), strings.Index(out, "A-0006"); !(a < b && b < c && c < d) {
+		t.Fatalf("order:\n%s", out)
+	}
+}
+
+// Older reviewers' tasks took a number (A-0003 reviews A-0002); they still read, and count toward the round.
+func TestOldReviewerTasksAreRead(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	kanban(t, root, "add", "work")
+	put(t, taskFile(root, "A-0002"), "id: A-0002\ntitle: A-0001 のレビュー（1 回目）\nstatus: done\nparent: A-0001\nprofile: codex-review\n")
+	if out := kanban(t, root, "show", "A-2"); !strings.Contains(out, "A-0001 のレビュー（1 回目）") {
+		t.Fatalf("show: %q", out)
+	}
+	if got := kanban(t, root, "add", "A-0001 のレビュー（2 回目）", "--parent", "A-1", "--profile", "codex-review"); got != "A-0001-r2\n" {
+		t.Fatalf("round after an old reviewer: %q", got)
+	}
+	if got := kanban(t, root, "add", "next"); got != "A-0003\n" {
+		t.Fatalf("next: %q", got)
+	}
+	kanban(t, root, "lint")
+}
+
+func TestLintChecksReviewerIDs(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	kanban(t, root, "add", "work")
+	kanban(t, root, "add", "other")
+	put(t, taskFile(root, "A-0001-r1"), "id: A-0001-r1\ntitle: x\nstatus: todo\nparent: A-0002\nprofile: claude\n")
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint"}, root, strings.NewReader(""), &out, &errb); code != 1 ||
+		!strings.Contains(out.String(), `A-0001-r1: a reviewer's id, but parent is "A-0002", not A-0001`) ||
+		!strings.Contains(out.String(), `A-0001-r1: a reviewer's id, but profile "claude" doesn't end in -review`) {
+		t.Fatalf("lint: exit %d, %q %q", code, out.String(), errb.String())
+	}
+}
+
+func TestCanonID(t *testing.T) {
+	for in, want := range map[string]string{"A-5": "A-0005", "A-0005": "A-0005", "A-5-r1": "A-0005-r1", "A-0005-r01": "A-0005-r1",
+		"A-0005-r0": "A-0005-r0", "A-0005-rx": "A-0005-rx", "A-12345-r3": "A-12345-r3", "plain": "plain"} {
+		if got := canonID(in); got != want {
+			t.Errorf("canonID(%s) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+// A folder named the way an id is typed (A-5, A-0005-r01) is read by no command; lint says so.
+func TestLintChecksIDsAreWrittenCanonically(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	kanban(t, root, "add", "work")
+	put(t, taskFile(root, "A-0001-r01"), "id: A-0001-r01\ntitle: x\nstatus: todo\nparent: A-0001\nprofile: codex-review\n")
+	put(t, taskFile(root, "A-2"), "id: A-2\ntitle: y\nstatus: todo\n")
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint"}, root, strings.NewReader(""), &out, &errb); code != 1 ||
+		!strings.Contains(out.String(), "A-0001-r01: not written as an id is (A-0001-r1)") ||
+		!strings.Contains(out.String(), "A-2: not written as an id is (A-0002)") {
+		t.Fatalf("lint: exit %d, %q %q", code, out.String(), errb.String())
+	}
+}
+
+// A task.yaml that can't be read stops a reviewer's add without --round (it can't be counted), with a line, not a panic.
+func TestReviewerAddWithABrokenTask(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("KANBAN_ROOT", root)
+	kanban(t, root, "init", "--root", root, "--prefix", "A")
+	kanban(t, root, "add", "work")
+	kanban(t, root, "add", "other")
+	put(t, taskFile(root, "A-0002"), "- not a mapping\n")
+	if msg := deckFails(t, root, "", "add", "review", "--parent", "A-0001", "--profile", "codex-review"); !strings.Contains(msg, "task A-0002 can't be read") {
+		t.Fatalf("message: %q", msg)
+	}
+	if got := kanban(t, root, "add", "review", "--parent", "A-0001", "--profile", "codex-review", "--round", "1"); got != "A-0001-r1\n" {
+		t.Fatalf("with --round: %q", got)
+	}
+}
