@@ -173,9 +173,10 @@ ok 'delegate show: HEAD の委譲を読み手と同じに読む'
 # 4. 委譲の範囲内で揃えば approve
 got=$(gate "$id"); expect 0 approve
 jq -e '.delegation == {merge: "B", ok: true} and .checks == [{cmd: "test -f docs/a.md", ok: true}] and .reasons == []' "$rec" >/dev/null
+jq -e '.github_checks == {state: "success", names: ["test"]}' "$rec" >/dev/null || die 'approve の記録に通した checks の名前が無い'
 grep -q 'state=success' "$tmp/gh/posted"
 emit "$rec" gate-record.json
-ok 'approve: 予約キー・report.json の pr・findings.json・検査・委譲が揃う'
+ok 'approve: 予約キー・report.json の pr・findings.json・検査・委譲が揃う（記録に通した checks の名前）'
 
 # 5. --dry-run は書かない
 rm -f "$rec" "$tmp/gh/posted"

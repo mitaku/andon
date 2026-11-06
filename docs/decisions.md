@@ -75,6 +75,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-04 | ゲートが読むもの（依頼書の Settings・レビューの指摘の数と重さ）は Markdown でなく機械向けの形で持つ。Markdown の依頼書・報告は人が読むためのもの | 仮設の記録（private）ゲート D4 |
 | 2026-11-06 | ゲートは PR の head の GitHub の checks（`statusCheckRollup`。自分の `andon/gate` は除く）を事実に入れる。落ちた（failure・cancelled・timed_out・startup_failure）は `fix`（担当が直す）、action_required・知らない値は `needs_human`、走っている・1つも無いは `wait`（記録しない。クーリエが見回りのたびに回し直す）。neutral・skipped は通す。1つも無いまま review から `github_checks_wait_minutes`（既定 30）を過ぎたら `needs_human`、CI の無い repo は条件表の `github_checks: optional`。走っているものは時間で人へ上げない。クーリエはマージの直前に head と checks を読み直し、変わっていれば打たない | 人・Chief of Staff（2026-11-06。private の repo でブランチ保護が効かず、CI の落ちた PR を伝令がマージしうる）、Y-142 の依頼書の推し |
 | 2026-11-06 | 上の行に足す: checks は100件ずつ全ページ読み、同じ check の実行は最新の1つだけを数える（workflow は表示名でなく `Workflow.id` で分け、新旧を判別できないときは悪い方を残す。レビュー 2 回目〈Y-153〉の major 2件）。マージの直前の読み直しと `gh pr merge` の間に同じ head で checks が変わる隙間は受け入れる（サーバー側で強制できるのはブランチ保護だけで、private の Free では使えない）。public にしたら ruleset で required checks を付けて塞ぐ | Y-142 の独立レビュー 1 回目（Y-150）の major 3件と Chief of Staff の振り分け |
+| 2026-11-06 | 上の行に足す: checks が1つも無い（ゲート自身の `andon/gate` だけを含む）は `none` で `wait`、success と読まない（ゲート・dispatcher のマージ前の読み直しとも）。ゲートの記録の `at` は始めた時刻でなく GitHub の checks を読んだ時刻にし、`github_checks.names` は success でも通した checks を全部残す（記録だけで、何を読んで approve したかが分かる） | P7・v0.0.3 の 25（Y-179）。approve の記録の時刻が tests の完了より前に見え、names が空で 0 件と区別できなかった |
 
 ## 4. トリアージの決定
 
