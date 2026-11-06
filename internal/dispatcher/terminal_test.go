@@ -233,7 +233,7 @@ func TestPlace(t *testing.T) {
 	t.Cleanup(func() { hostName = os.Hostname })
 	ws := t.TempDir()
 	ledger := func(slug string) {
-		dir := filepath.Join(ws, "projects", slug, ".flightdeck")
+		dir := filepath.Join(ws, "projects", slug, "kanban")
 		os.MkdirAll(dir, 0o755)
 		os.WriteFile(filepath.Join(dir, "config.yaml"), nil, 0o644)
 	}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "flightdeck ledger task.yaml (format 2)",
-  "description": "A .flightdeck/tasks/<id>/task.yaml, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. The folder's name is the task's id. Any other key is allowed and kept. status is one of config.yaml columns, which a schema of one file can't check.",
+  "title": "kanban ledger task.yaml (format 2)",
+  "description": "A kanban/tasks/<id>/task.yaml, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. The folder's name is the task's id. Any other key is allowed and kept. status is one of config.yaml columns, which a schema of one file can't check.",
   "type": "object",
   "properties": {
     "id": {

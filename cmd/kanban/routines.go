@@ -26,9 +26,9 @@ type routine struct {
 	broken string // why the file can't be read
 }
 
-func routinesDir(root string) string { return filepath.Join(root, ".flightdeck", "routines") }
+func routinesDir(root string) string { return filepath.Join(ledgerDir(root), "routines") }
 func statePath(root string) string {
-	return filepath.Join(root, ".flightdeck", "state", "routines.json")
+	return filepath.Join(ledgerDir(root), "state", "routines.json")
 }
 
 // readRoutines reads routines/*.yaml, by name. A routines/ that is a symbolic link is
@@ -53,7 +53,7 @@ func readRoutines(root string) ([]*routine, error) {
 		r := &routine{name: name}
 		file := filepath.Join(dir, e.Name())
 		if err := checkNoLink(file, true); err != nil {
-			r.broken = "is a symbolic link or not a file; kanban reads only inside .flightdeck/"
+			r.broken = "is a symbolic link or not a file; kanban reads only inside kanban/"
 		} else if r.d, err = readDoc(file); err != nil {
 			r.broken = firstLine(err.Error())
 		}

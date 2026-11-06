@@ -51,14 +51,14 @@ func newFixture(t *testing.T) *fixture {
 	dir := t.TempDir()
 	f := &fixture{t: t, root: filepath.Join(dir, "proj"), wt: filepath.Join(dir, "wt"), by: "terminal:t5"}
 	bin := filepath.Join(dir, "bin")
-	for _, d := range []string{bin, filepath.Join(f.root, ".flightdeck"), f.wt} {
+	for _, d := range []string{bin, filepath.Join(f.root, "kanban"), f.wt} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(fakeDeck), 0o755)
 	os.WriteFile(filepath.Join(bin, "gh"), []byte(fakeGH), 0o755)
-	os.WriteFile(filepath.Join(f.root, ".flightdeck", "config.yaml"), []byte("version: 2\ncoordinator: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 2\nchief_of_staff: t5\n"), 0o644)
 	git := func(args ...string) string {
 		c := exec.Command("git", append([]string{"-C", f.wt}, args...)...)
 		c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
@@ -73,13 +73,13 @@ func newFixture(t *testing.T) *fixture {
 	git("commit", "-q", "--allow-empty", "-m", "x")
 	f.head = git("rev-parse", "HEAD")
 	f.prHead = f.head
-	f.task = map[string]any{"id": "T-1", "status": "doing", "profile": "claude", "review": "on", "must_fix": "major", "worktree": f.wt}
-	f.reviewer = map[string]any{"id": "T-2", "parent": "T-1", "status": "review", "profile": "codex-review", "updated": "2026-11-05T00:00:00Z"}
+	f.task = map[string]any{"id": "T-0001", "status": "doing", "profile": "claude", "review": "on", "must_fix": "major", "worktree": f.wt}
+	f.reviewer = map[string]any{"id": "T-0002", "parent": "T-0001", "status": "review", "profile": "codex-review", "updated": "2026-11-05T00:00:00Z"}
 	f.report = `{"commit": "` + f.head + `", "pr": "https://github.com/example/app/pull/7"}`
 	f.findings = f.head
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_ROOT", f.root)
-	t.Setenv("FLIGHTDECK_ROOT", "")
+	t.Setenv("KANBAN_ROOT", "")
 	return f
 }
 
@@ -97,25 +97,25 @@ func js(v any) string { b, _ := json.Marshal(v); return string(b) }
 
 // ready を打ち、終了コードと stderr と review にしたかを返す。
 func (f *fixture) ready() (int, string, bool) {
-	f.write("show-T-1.json", js(map[string]any{"task": f.task}))
+	f.write("show-T-0001.json", js(map[string]any{"task": f.task}))
 	list := []any{f.task}
 	log := ""
 	if f.reviewer != nil {
 		list = append(list, f.reviewer)
-		log = js(map[string]any{"by": f.by, "id": "T-2", "change": map[string]any{"add": "review"}}) + "\n"
+		log = js(map[string]any{"by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}) + "\n"
 		if f.findings != "" {
-			f.write(".flightdeck/tasks/T-2/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
+			f.write("kanban/tasks/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
 		}
 	}
 	f.write("list.json", js(list))
-	f.write(".flightdeck/log.jsonl", log)
+	f.write("kanban/log.jsonl", log)
 	if f.report != "" {
-		f.write(".flightdeck/tasks/T-1/library/report.json", f.report)
+		f.write("kanban/tasks/T-0001/library/report.json", f.report)
 	}
 	f.write("prhead", f.prHead+"\n")
 	var out, errb bytes.Buffer
-	rc := Main([]string{"ready", "T-1"}, strings.NewReader(""), &out, &errb)
-	_, err := os.Stat(filepath.Join(f.root, "reviewed-T-1"))
+	rc := Main([]string{"ready", "T-0001"}, strings.NewReader(""), &out, &errb)
+	_, err := os.Stat(filepath.Join(f.root, "reviewed-T-0001"))
 	return rc, errb.String(), err == nil
 }
 

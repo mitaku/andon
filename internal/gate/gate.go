@@ -81,7 +81,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	dry := len(args) == 2
-	rec, early, err := run(args[0], dry, stderr)
+	rec, early, err := run(ledger.CanonID(args[0]), dry, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "andon gate: %v\n", err)
 		return exitError
@@ -299,7 +299,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	case s.Review == "" || s.MustFix == "":
 		facts.SettingsReason = "task.yaml の review・must_fix が無い・知らない値（Chief of Staff が kanban set する）"
 	case !l.Trusted(rows, t, "review") || !l.Trusted(rows, t, "must_fix"):
-		facts.SettingsReason = "task.yaml の review・must_fix を最後に書いたのが Chief of Staff（config.yaml の coordinator）でない・記録と値が違う"
+		facts.SettingsReason = "task.yaml の review・must_fix を最後に書いたのが Chief of Staff（config.yaml の chief_of_staff）でない・記録と値が違う"
 	}
 	if s.Merge == "auto" && !l.Trusted(rows, t, "merge") {
 		s.Merge = "person" // 信じられない auto は無いのと同じ（既定 person）

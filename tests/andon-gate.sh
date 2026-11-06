@@ -11,7 +11,7 @@ trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_COMMITTER_NAME=c GIT_COMMITTER_EMAIL=c@example.com
 export ANDON_HOME="$andon_root/package" ANDON_WORKSPACE="$tmp/plant" GHQ_ROOT="$tmp/ghq"
-unset FLIGHTDECK_ROOT HC_TERMINAL_ID
+unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/gh"
 pass=0
 ok() { echo "ok   $1"; pass=$((pass + 1)); }
@@ -85,12 +85,12 @@ as_owner git -C "$tmp/plant" add -A; as_owner git -C "$tmp/plant" commit -qm pla
 mkdir -p "$tmp/plant/projects/demo"
 cd "$tmp/plant/projects/demo"
 kanban init --prefix D --repo github.com/example/app >/dev/null
-export FLIGHTDECK_ROOT=$PWD
-kanban config set coordinator=t5 >/dev/null
+export KANBAN_ROOT=$PWD
+kanban config set chief_of_staff=t5 >/dev/null
 git clone -q "$tmp/origin" "$tmp/wt"
 id=$(HC_TERMINAL_ID=t5 kanban add 'docs を直す' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
-lib=.flightdeck/tasks/$id/library
+lib=kanban/tasks/$id/library
 gate() { local rc=0; "$andon" gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
 expect() { # expect <rc> <decision> <理由に含む語>
     local rc=$1; shift
@@ -108,8 +108,8 @@ ok '信じられる PR（report.json の pr）が無ければ記録せずに fix
 export HC_TERMINAL_ID=t7
 "$andon" task report "$id" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
 rev=$(HC_TERMINAL_ID=t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
-mkdir -p ".flightdeck/tasks/$rev/library"
-findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > ".flightdeck/tasks/$rev/library/findings.json"; }
+mkdir -p "kanban/tasks/$rev/library"
+findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > "kanban/tasks/$rev/library/findings.json"; }
 findings "$head"
 HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
 "$andon" task ready "$id" >/dev/null
@@ -197,7 +197,7 @@ ok 'GitHub の checks は100件を超えても全ページ読み、同じ check 
 rollup
 got=$(gate "$id" --dry-run); expect 5 wait 'まだ1つも無い'
 jq -e '.github_checks == {state: "none", names: []}' "$tmp/out" >/dev/null || die 'none の形が違う（andon/gate を数えた）'
-log=.flightdeck/log.jsonl; cp "$log" "$tmp/log.bak"
+log=kanban/log.jsonl; cp "$log" "$tmp/log.bak"
 jq -c --arg id "$id" 'if .id == $id and .change.status == "review" then .at = "2020-01-01T00:00:00Z" else . end' "$tmp/log.bak" > "$log"
 got=$(gate "$id" --dry-run); expect 4 needs_human '1つも無いまま 30 分'
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"], "github_checks": "optional"}}}' > "$tmp/plant/gate.local.json"
@@ -257,7 +257,7 @@ export HC_TERMINAL_ID=t7
 "$andon" task report "$id" <<<'## Report' >/dev/null
 unset HC_TERMINAL_ID
 got=$(gate "$id"); expect 1 fix 'review stale'
-jq -e --arg c "$(jq -r .commit ".flightdeck/tasks/$rev/library/findings.json")" '.review.state == "stale" and .review.commit == $c' "$lib/gate/$head.json" >/dev/null
+jq -e --arg c "$(jq -r .commit "kanban/tasks/$rev/library/findings.json")" '.review.state == "stale" and .review.commit == $c' "$lib/gate/$head.json" >/dev/null
 emit "$lib/gate/$head.json" gate-record-stale.json
 ok 'レビューが古い commit を見ていれば stale で fix（記録の形）'
 

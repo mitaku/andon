@@ -66,7 +66,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		return usage()
 	}
-	sub, id, rest := args[0], args[1], args[2:]
+	sub, id, rest := args[0], ledger.CanonID(args[1]), args[2:]
 	if !idRe.MatchString(id) {
 		fmt.Fprintf(stderr, "andon task %s: id が不正: %q\n", sub, id)
 		return exitUsage

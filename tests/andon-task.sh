@@ -18,7 +18,7 @@ if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
 fi
 export GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
-unset FLIGHTDECK_ROOT
+unset KANBAN_ROOT
 mkdir -p "$HOME" "$tmp/demo" "$tmp/bin"
 # 偽の gh: pr view <url> --json headRefOid -q .headRefOid → $tmp/prhead
 cat > "$tmp/bin/gh" <<EOF
@@ -48,12 +48,12 @@ echo "$c1" > "$tmp/prhead"
 
 cd "$tmp/demo"
 kanban init --prefix T >/dev/null
-export FLIGHTDECK_ROOT=$PWD
-kanban config set coordinator=t5 >/dev/null
+export KANBAN_ROOT=$PWD
+kanban config set chief_of_staff=t5 >/dev/null
 as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # 台帳の by を選ぶ（t5 が Chief of Staff、t7 が担当）
 id=$(as t5 kanban add 'andon task を足す' --profile claude)
 as t5 kanban set "$id" review=on must_fix=major "worktree=$tmp/wt" >/dev/null
-lib=.flightdeck/tasks/$id/library
+lib=kanban/tasks/$id/library
 pr=https://github.com/example/app/pull/7
 export HC_TERMINAL_ID=t7
 
@@ -67,7 +67,7 @@ expect_fail 'next は' "$andon" task report "$id" --data '{"next":[{"to":"human"
 ok 'report: --data の知らないキー・command のキー・知らない宛先は書く前に止まる'
 "$andon" task report "$id" --pr "$pr" --data '{"next":[{"to":"chief-of-staff","text":"マージ後に片付ける"}],"remember":["x"]}' <<<'## Report' >/dev/null
 jq -e --arg c "$c1" --arg pr "$pr" '.commit == $c and .pr == $pr and .next[0].to == "chief-of-staff" and (has("review_request") | not)' "$lib/report.json" >/dev/null
-grep -q '## Report' ".flightdeck/tasks/$id/report.md"
+grep -q '## Report' "kanban/tasks/$id/report.md"
 emit "$lib/report.json" report-1.json
 ok 'report: commit は HEAD、pr と --data を書き、台帳に報告する'
 "$andon" task report "$id" <<<'## Report' >/dev/null
@@ -77,7 +77,7 @@ ok 'report: --pr を省くと前の pr を引き継ぎ、ほかは書き直す'
 # review-request（1 回目）
 "$andon" task review-request "$id" <<<'## Report' >/dev/null
 jq -e --arg c "$c1" '.review_request == {round: 1, limit: 2, commit: $c, previous: null, reviewer: "codex-review", extra: false}' "$lib/report.json" >/dev/null
-head -2 ".flightdeck/tasks/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
+head -2 "kanban/tasks/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
 emit "$lib/report.json" report-review-request.json
 ok 'review-request: 1 回目・前回 null・reviewer は実装と別ブランド・人用の行を先頭に'
 
@@ -87,8 +87,8 @@ ok 'ready: レビューが無ければ止まる'
 
 # レビュアー（Chief of Staff が足す）。commit c1 を見た
 rev=$(as t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
-mkdir -p ".flightdeck/tasks/$rev/library"
-jq -n --arg c "$c1" '{commit: $c, findings: [{severity: "minor", file: "f", line: 1}]}' > ".flightdeck/tasks/$rev/library/findings.json"
+mkdir -p "kanban/tasks/$rev/library"
+jq -n --arg c "$c1" '{commit: $c, findings: [{severity: "minor", file: "f", line: 1}]}' > "kanban/tasks/$rev/library/findings.json"
 as t5 kanban review "$rev" >/dev/null
 
 # HEAD を進める（直した）。report.json の commit は古い
@@ -109,20 +109,20 @@ ok 'review-request: 2 回目・previous は前のレビューの commit'
 
 # 担当が自分で足した子タスクは数えない
 fake=$(kanban add "$id の自作レビュー" --parent "$id" --profile codex-review)
-mkdir -p ".flightdeck/tasks/$fake/library"
-jq -n --arg c "$c2" '{commit: $c, findings: []}' > ".flightdeck/tasks/$fake/library/findings.json"
+mkdir -p "kanban/tasks/$fake/library"
+jq -n --arg c "$c2" '{commit: $c, findings: []}' > "kanban/tasks/$fake/library/findings.json"
 kanban review "$fake" >/dev/null
 expect_fail 'レビューが stale' "$andon" task ready "$id"
 ok 'ready: Chief of Staff が足していないレビューは数えない'
 
 # 形の壊れた findings.json は missing
 rev2=$(as t5 kanban add "$id のレビュー 2" --parent "$id" --profile codex-review)
-mkdir -p ".flightdeck/tasks/$rev2/library"
-jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "Major", file: "f", line: 1}]}' > ".flightdeck/tasks/$rev2/library/findings.json"
+mkdir -p "kanban/tasks/$rev2/library"
+jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "Major", file: "f", line: 1}]}' > "kanban/tasks/$rev2/library/findings.json"
 as t5 kanban review "$rev2" >/dev/null
 expect_fail 'findings.json が無い・形が違う' "$andon" task ready "$id"
 ok 'ready: findings.json の形が違えば missing'
-jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line: 2}]}' > ".flightdeck/tasks/$rev2/library/findings.json"
+jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line: 2}]}' > "kanban/tasks/$rev2/library/findings.json"
 
 # HEAD のレビューがもうあれば頼まない
 expect_fail 'レビューはもうある' "$andon" task review-request "$id" <<<'## Report'
@@ -165,10 +165,10 @@ expect_fail 'review が on/off でない' "$andon" task ready "$id3"
 ok 'ready: task.yaml の review が無ければ止まる'
 as t5 kanban set "$id3" review=on >/dev/null
 r3=$(as t5 kanban add "$id3 のレビュー" --parent "$id3" --profile codex-review)
-mkdir -p ".flightdeck/tasks/$r3/library"; jq -n --arg c "$c1" '{commit: $c, findings: []}' > ".flightdeck/tasks/$r3/library/findings.json"
+mkdir -p "kanban/tasks/$r3/library"; jq -n --arg c "$c1" '{commit: $c, findings: []}' > "kanban/tasks/$r3/library/findings.json"
 "$andon" task review-request "$id3" <<<'## Report' >/dev/null
-jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' ".flightdeck/tasks/$id3/library/report.json" >/dev/null
-head -2 ".flightdeck/tasks/$id3/report.md" | grep -q '（追加）'
+jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' "kanban/tasks/$id3/library/report.json" >/dev/null
+head -2 "kanban/tasks/$id3/report.md" | grep -q '（追加）'
 ok 'review-request: 上限を超えた回は extra'
 
 # ask
@@ -224,9 +224,9 @@ chmod +x "$tmp/bin/hc"
 field() { kanban show "$1" --json | jq -r --arg k "$2" '.task[$k] // ""'; }
 # 台帳は repos に案件の repo を持つ別の台帳（slug は demo）
 mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
-FLIGHTDECK_ROOT= kanban init --prefix S --repo github.com/example/app >/dev/null
-export FLIGHTDECK_ROOT=$PWD HC_TERMINAL_ID=t5
-kanban config set coordinator=t5 >/dev/null
+KANBAN_ROOT= kanban init --prefix S --repo github.com/example/app >/dev/null
+export KANBAN_ROOT=$PWD HC_TERMINAL_ID=t5
+kanban config set chief_of_staff=t5 >/dev/null
 s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude --brief - <<<'# Add the button')
 "$andon" task start "$s1" > "$tmp/out"
 lc=$(tr A-Z a-z <<<"$s1")
@@ -241,7 +241,7 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label p
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
 grep -q "$s1 を t42（demo-$lc・claude）で起こした。cwd $wt branch $br" "$tmp/out" || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = "andon task: 出た場所 $s1 Add the button / $s1（t42）" ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
-jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == "terminal:t42"' .flightdeck/log.jsonl >/dev/null || die 'doing にしたのが担当の端末でない'
+jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == "terminal:t42"' kanban/log.jsonl >/dev/null || die 'doing にしたのが担当の端末でない'
 ok 'start: worktree と branch（upstream 無し）・hc run（名前・ラベル・herdr.space と herdr.tab・cwd・最初のメッセージ）・kanban start で doing と agent・出た場所'
 
 
@@ -297,7 +297,7 @@ addr=$(field "$s5" agent)
 grep -q "に最初のメッセージが届いていない: trust prompt。dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
   && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
 grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatcher に預けるラベルを付けていない'
-grep -q "^run .*--cwd $PWD/.flightdeck/tasks/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
+grep -q "^run .*--cwd $PWD/kanban/tasks/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
 ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
 
 # start が作ったものを finish が片付ける

@@ -79,9 +79,29 @@ func exists(p string) bool {
 	return err == nil
 }
 
+// ledgerName is the ledger's folder in the project's root (docs/ledger.md, Layout).
+const ledgerName = "kanban"
+
+func ledgerDir(root string) string { return filepath.Join(root, ledgerName) }
+
+// isLedger: root/kanban/config.yaml is a mapping whose version is a whole number. kanban/ is
+// a plain name, so a kanban/ folder without that (in a product's repository, say) is not a ledger.
+func isLedger(root string) bool {
+	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
+	if err != nil {
+		return false
+	}
+	v := d.get("version")
+	if isNull(v) || v.Kind != yaml.ScalarNode {
+		return false
+	}
+	_, err = strconv.Atoi(v.Value)
+	return err == nil
+}
+
 func findUp(dir string) string {
 	for d := filepath.Clean(dir); ; d = filepath.Dir(d) {
-		if exists(filepath.Join(d, ".flightdeck", "config.yaml")) {
+		if isLedger(d) {
 			return d
 		}
 		if filepath.Dir(d) == d {
@@ -133,15 +153,16 @@ func repoOf(repos []string, checkout string) string {
 }
 
 // projectsFor walks up from the checkout and returns, at the first folder where any match,
-// the projects/<slug> folders whose .flightdeck/config.yaml lists the checkout in repos.
-// It reads nothing but projects/*/.flightdeck/config.yaml.
+// the projects/<slug> folders whose kanban/config.yaml lists the checkout in repos.
+// It reads nothing but projects/*/kanban/config.yaml.
 func projectsFor(checkout string) (string, []string) {
 	for d := filepath.Clean(checkout); ; d = filepath.Dir(d) {
-		configs, _ := filepath.Glob(filepath.Join(d, "projects", "*", ".flightdeck", "config.yaml"))
+		configs, _ := filepath.Glob(filepath.Join(d, "projects", "*", ledgerName, "config.yaml"))
 		var found []string
 		for _, c := range configs {
-			if doc, err := readDoc(c); err == nil && repoOf(doc.list("repos"), checkout) != "" {
-				found = append(found, filepath.Dir(filepath.Dir(c)))
+			root := filepath.Dir(filepath.Dir(c))
+			if doc, err := readDoc(c); err == nil && isLedger(root) && repoOf(doc.list("repos"), checkout) != "" {
+				found = append(found, root)
 			}
 		}
 		if len(found) > 0 {
@@ -153,13 +174,13 @@ func projectsFor(checkout string) (string, []string) {
 	}
 }
 
-// findRoot: FLIGHTDECK_ROOT, else up from here, else the project whose repos match
+// findRoot: KANBAN_ROOT, else up from here, else the project whose repos match
 // this worktree's main checkout (docs/ledger.md, Finding the root).
 func findRoot(cwd string) (string, error) {
-	if env := os.Getenv("FLIGHTDECK_ROOT"); env != "" {
+	if env := os.Getenv("KANBAN_ROOT"); env != "" {
 		r, _ := filepath.Abs(env)
-		if !exists(filepath.Join(r, ".flightdeck", "config.yaml")) {
-			return "", fail("FLIGHTDECK_ROOT has no .flightdeck/: %s (run kanban init there)", r)
+		if !exists(filepath.Join(ledgerDir(r), "config.yaml")) {
+			return "", fail("KANBAN_ROOT has no kanban/: %s (run kanban init there)", r)
 		}
 		return r, nil
 	}
@@ -176,10 +197,10 @@ func findRoot(cwd string) (string, error) {
 			for i, f := range found {
 				names[i] = "projects/" + filepath.Base(f)
 			}
-			return "", fail("this repository is in more than one project under %s: %s (set FLIGHTDECK_ROOT)", at, strings.Join(names, ", "))
+			return "", fail("this repository is in more than one project under %s: %s (set KANBAN_ROOT)", at, strings.Join(names, ", "))
 		}
 	}
-	return "", fail("no ledger: no .flightdeck/ here or above, and no projects/*/.flightdeck/ lists this repository (run kanban init, or set FLIGHTDECK_ROOT)")
+	return "", fail("no ledger: no kanban/ here or above, and no projects/*/kanban/ lists this repository (run kanban init, or set KANBAN_ROOT)")
 }
 
 // writeAtomic writes a temporary file beside the target and renames it over the target
@@ -218,15 +239,20 @@ func renameRetrying(from, to string, wait time.Duration) error {
 	}
 }
 
-// withLock runs fn while holding an OS lock on .flightdeck/.lock: one writer at a time
+// withLock runs fn while holding an OS lock on kanban/.lock: one writer at a time
 // for ids and for task writes. The file stays (empty); the lock goes with the process.
 func withLock(root string, wait time.Duration, fn func() error) error {
-	path := filepath.Join(root, ".flightdeck", ".lock")
+	return lockIn(ledgerDir(root), wait, fn)
+}
+
+// lockIn is withLock on the ledger folder dir (kanban migrate locks the old folder).
+func lockIn(dir string, wait time.Duration, fn func() error) error {
+	path := filepath.Join(dir, ".lock")
 	if fi, err := os.Lstat(path); err == nil && fi.IsDir() {
 		return fail("%s is a folder (left by the old node deck); remove it", path)
 	}
 	// Checked before anything is written, so a refused log doesn't leave a task half-changed.
-	for _, p := range []string{path, filepath.Join(root, ".flightdeck", "log.jsonl")} {
+	for _, p := range []string{path, filepath.Join(dir, "log.jsonl")} {
 		if err := checkNoLink(p, true); err != nil {
 			return err
 		}
@@ -246,7 +272,7 @@ func withLock(root string, wait time.Duration, fn func() error) error {
 			break
 		}
 		if time.Now().After(deadline) {
-			return fail(".flightdeck/.lock is held (another kanban is writing)")
+			return fail("%s is held (another kanban is writing)", path)
 		}
 		time.Sleep(time.Duration(20+rand.IntN(30)) * time.Millisecond)
 	}
@@ -277,9 +303,9 @@ func readDoc(file string) (*doc, error) {
 }
 
 // readConfig reads config.yaml and stops on any version but 2 (none means 1).
-// title and coordinator are kept in the file; kanban itself doesn't use them.
+// title and chief_of_staff are kept in the file; kanban itself doesn't use them.
 func readConfig(root string) (config, error) {
-	d, err := readDoc(filepath.Join(root, ".flightdeck", "config.yaml"))
+	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
 	if err != nil {
 		if err.Error() == "not a mapping" {
 			return config{}, fail("config.yaml is not a mapping")
@@ -302,10 +328,40 @@ func readConfig(root string) (config, error) {
 	return c, nil
 }
 
-func tasksDir(root string) string     { return filepath.Join(root, ".flightdeck", "tasks") }
+func tasksDir(root string) string     { return filepath.Join(ledgerDir(root), "tasks") }
 func taskDir(root, id string) string  { return filepath.Join(tasksDir(root), id) }
 func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), "task.yaml") }
 func numberOf(id string) int          { n, _ := strconv.Atoi(id[strings.LastIndex(id, "-")+1:]); return n }
+
+// idDigits is how many digits a task's number has at least, so that ids sort by name
+// (A-0005; past 9999 the number only grows, and names stop sorting in number order).
+const idDigits = 4
+
+// formatID is <prefix>-<n> with n zero-padded to idDigits.
+func formatID(prefix string, n int) string { return fmt.Sprintf("%s-%0*d", prefix, idDigits, n) }
+
+// canonID reads an id as typed: A-5, A-05 and A-0005 are the same task, A-0005.
+// Anything not <prefix>-<digits> comes back as it is.
+func canonID(id string) string {
+	i := strings.LastIndex(id, "-")
+	if i <= 0 || i == len(id)-1 || strings.Trim(id[i+1:], "0123456789") != "" {
+		return id
+	}
+	n, err := strconv.Atoi(id[i+1:])
+	if err != nil || n < 1 {
+		return id
+	}
+	return formatID(id[:i], n)
+}
+
+// canonIDs is canonID on each.
+func canonIDs(ids []string) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = canonID(id)
+	}
+	return out
+}
 
 func ids(root string) []string {
 	entries, err := os.ReadDir(tasksDir(root))
@@ -421,7 +477,7 @@ func appendEntry(root string, entry *omap) error {
 	if err != nil {
 		return err
 	}
-	return appendFile(filepath.Join(root, ".flightdeck", "log.jsonl"), append(line, '\n'))
+	return appendFile(filepath.Join(ledgerDir(root), "log.jsonl"), append(line, '\n'))
 }
 
 func waitingOn(t *task, all map[string]*task, cfg config) []string {

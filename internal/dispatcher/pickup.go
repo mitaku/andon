@@ -48,16 +48,16 @@ func ProviderError(screen string) bool {
 }
 
 // collect は通知の元を拾う（pass が控えの lock を持って呼ぶ）。
-func (p *project) collect(coordinator string) {
+func (p *project) collect(cos string) {
 	p.readReady()
-	p.readLog(coordinator)
+	p.readLog(cos)
 	p.watch(time.Now())
 }
 
 // ---------------------------------------------------------------- log.jsonl の続き
 
 // readLog は log.jsonl を前回の続き（バイト位置）から、最後の改行まで読む。Chief of Staff 自身の行は知らせない。
-func (p *project) readLog(coordinator string) {
+func (p *project) readLog(cos string) {
 	path := filepath.Join(p.l.Dir, "log.jsonl")
 	f, err := os.Open(path)
 	var size int64
@@ -100,7 +100,7 @@ func (p *project) readLog(coordinator string) {
 	} else {
 		buf = nil // 書きかけの行だけ
 	}
-	by := "terminal:" + coordinator
+	by := "terminal:" + cos
 	for len(buf) > 0 {
 		i := bytes.IndexByte(buf, '\n')
 		line := buf[:i]
@@ -134,6 +134,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	if json.Unmarshal(line, &r) != nil || r.Change == nil || r.By == by || !idRe.MatchString(r.ID) {
 		return true
 	}
+	r.ID = ledger.CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
 	c, id := r.Change, r.ID
 	switch {
 	case c["report"] == "write" || c["report"] == "append":

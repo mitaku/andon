@@ -130,21 +130,21 @@ func keysOf(m map[string]any) []string {
 func TestWhatDeckWritesFitsTheSchemas(t *testing.T) {
 	cfgSchema, taskSchema := loadSchema(t, "config.v2.schema.json"), loadSchema(t, "task.v2.schema.json")
 	root := filepath.Join(t.TempDir(), "root")
-	t.Setenv("FLIGHTDECK_ROOT", root)
+	t.Setenv("KANBAN_ROOT", root)
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, t.TempDir(), "init", "--root", root, "--prefix", "FD", "--repo", "github.com/x/app")
 	kanban(t, root, "add", "Epic")
-	kanban(t, root, "add", "Work", "--parent", "FD-1", "--phase", "P1", "--profile", "opus", "--repo", "github.com/x/app")
-	kanban(t, root, "add", "Later", "--after", "FD-2")
-	kanban(t, root, "set", "FD-2", "links=https://a.example,docs/x.md", "branch=work/2", "worktree=~/wt/2")
-	kanban(t, root, "start", "FD-2")
-	kanban(t, root, "set", "FD-3", "who=person")
-	kanban(t, root, "config", "set", "coordinator=t2")
-	os.MkdirAll(filepath.Join(root, ".flightdeck", "routines"), 0o755)
-	os.WriteFile(filepath.Join(root, ".flightdeck", "routines", "after.yaml"), []byte("title: After\nbrief: Look.\nprofile: sonnet\nrepo: github.com/x/app\non: [done]\n"), 0o644)
-	kanban(t, root, "done", "FD-2") // the routine adds FD-4
+	kanban(t, root, "add", "Work", "--parent", "FD-0001", "--phase", "P1", "--profile", "opus", "--repo", "github.com/x/app")
+	kanban(t, root, "add", "Later", "--after", "FD-0002")
+	kanban(t, root, "set", "FD-0002", "links=https://a.example,docs/x.md", "branch=work/2", "worktree=~/wt/2")
+	kanban(t, root, "start", "FD-0002")
+	kanban(t, root, "set", "FD-0003", "who=person")
+	kanban(t, root, "config", "set", "chief_of_staff=t2")
+	os.MkdirAll(filepath.Join(root, "kanban", "routines"), 0o755)
+	os.WriteFile(filepath.Join(root, "kanban", "routines", "after.yaml"), []byte("title: After\nbrief: Look.\nprofile: sonnet\nrepo: github.com/x/app\non: [done]\n"), 0o644)
+	kanban(t, root, "done", "FD-0002") // the routine adds FD-0004
 
-	cfg := readYAML(t, filepath.Join(root, ".flightdeck", "config.yaml"))
+	cfg := readYAML(t, filepath.Join(root, "kanban", "config.yaml"))
 	for _, p := range check(cfgSchema, cfg, "config.yaml") {
 		t.Error(p)
 	}
@@ -156,10 +156,10 @@ func TestWhatDeckWritesFitsTheSchemas(t *testing.T) {
 		}
 	}
 	taskProps, _ := taskSchema["properties"].(map[string]any)
-	if !exists(taskFile(root, "FD-4")) {
+	if !exists(taskFile(root, "FD-0004")) {
 		t.Fatal("the routine added no task")
 	}
-	for _, id := range []string{"FD-1", "FD-2", "FD-3", "FD-4"} {
+	for _, id := range []string{"FD-0001", "FD-0002", "FD-0003", "FD-0004"} {
 		task := readYAML(t, taskFile(root, id))
 		for _, p := range check(taskSchema, task, id) {
 			t.Error(p)
@@ -200,8 +200,8 @@ func TestSchemasRefuseWhatTheFormatRefuses(t *testing.T) {
 		{cfgSchema, "version: 2\nrepos: [/github.com/x/app]\n", false},
 		{cfgSchema, "version: 2\nrepos: [x/app]\n", false},
 		{taskSchema, "title: x\nnotes: kept\n", true},
-		{taskSchema, "id: ../W-1\n", false},
-		{taskSchema, "after: [W-1, '.']\n", false},
+		{taskSchema, "id: ../W-0001\n", false},
+		{taskSchema, "after: [W-0001, '.']\n", false},
 		{taskSchema, "created: 2026-11-02\n", false},
 		{taskSchema, "created: '2026-11-02T10:00:00Z'\n", true},
 		{taskSchema, "routine: triage\n", true},
@@ -232,13 +232,13 @@ func TestQuestionsFitTheSchema(t *testing.T) {
 	schema := loadSchema(t, "questions.v2.schema.json")
 	root := ledger(t)
 	t.Setenv("HC_TERMINAL_ID", "t3")
-	kanban(t, root, "ask", "W-1", "one", "--kind", "irreversible")
-	kanban(t, root, "ask", "W-1", "two")
-	kanban(t, root, "ask", "W-1", "three", "--kind", "line")
-	kanban(t, root, "answer", "W-1#2", "yes")
-	kanban(t, root, "answer", "W-1#3", "no")
-	kanban(t, root, "received", "W-1#3")
-	data, _ := os.ReadFile(filepath.Join(taskDir(root, "W-1"), "questions.yaml"))
+	kanban(t, root, "ask", "W-0001", "one", "--kind", "irreversible")
+	kanban(t, root, "ask", "W-0001", "two")
+	kanban(t, root, "ask", "W-0001", "three", "--kind", "line")
+	kanban(t, root, "answer", "W-0001#2", "yes")
+	kanban(t, root, "answer", "W-0001#3", "no")
+	kanban(t, root, "received", "W-0001#3")
+	data, _ := os.ReadFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"))
 	var written any
 	if err := yaml.Unmarshal(data, &written); err != nil {
 		t.Fatal(err)

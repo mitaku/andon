@@ -14,10 +14,10 @@ import (
 // 偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ。
 // 振る舞いは環境変数で変える: FAKE_LS（hc ls）・FAKE_GET（hc get。FAKE_GET_<address> があればその address はそれ）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）。
 const fakeKanban = `#!/usr/bin/env bash
-printf 'kanban %s | FLIGHTDECK_ROOT=%s\n' "$*" "${FLIGHTDECK_ROOT:-}" >>"$LOG"
+printf 'kanban %s | KANBAN_ROOT=%s\n' "$*" "${KANBAN_ROOT:-}" >>"$LOG"
 case $1 in
   root) [ -n "${FAKE_ROOT:-}" ] && echo "$FAKE_ROOT" || { echo "no ledger" >&2; exit 1; } ;;
-  config) sed -i "s/^coordinator:.*/coordinator: ${3#coordinator=}/" "$FLIGHTDECK_ROOT/.flightdeck/config.yaml" ;;
+  config) sed -i "s/^chief_of_staff:.*/chief_of_staff: ${3#chief_of_staff=}/" "$KANBAN_ROOT/kanban/config.yaml" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
 esac
 `
@@ -54,14 +54,14 @@ func newFake(t *testing.T) *fake {
 		}
 	}
 	f := &fake{t: t, root: filepath.Join(dir, "projects", "sample-site"), log: filepath.Join(dir, "log")}
-	if err := os.MkdirAll(filepath.Join(f.root, ".flightdeck"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(f.root, "kanban"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	f.setCoordinator("t1")
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
-	t.Setenv("FLIGHTDECK_ROOT", "")
+	t.Setenv("KANBAN_ROOT", "")
 	t.Setenv("FAKE_LS", `{"terminals":[]}`)
 	t.Setenv("FAKE_GET", `{}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}`)
@@ -73,16 +73,16 @@ func newFake(t *testing.T) *fake {
 
 func (f *fake) setCoordinator(addr string) {
 	f.t.Helper()
-	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\nrepos: []\ncoordinator: " + addr + "\n"
-	if err := os.WriteFile(filepath.Join(f.root, ".flightdeck", "config.yaml"), []byte(body), 0o644); err != nil {
+	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\nrepos: []\nchief_of_staff: " + addr + "\n"
+	if err := os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte(body), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
 }
 
-func (f *fake) coordinator() string {
-	b, _ := os.ReadFile(filepath.Join(f.root, ".flightdeck", "config.yaml"))
+func (f *fake) chief_of_staff() string {
+	b, _ := os.ReadFile(filepath.Join(f.root, "kanban", "config.yaml"))
 	for _, ln := range strings.Split(string(b), "\n") {
-		if v, ok := strings.CutPrefix(ln, "coordinator: "); ok {
+		if v, ok := strings.CutPrefix(ln, "chief_of_staff: "); ok {
 			return v
 		}
 	}
@@ -133,8 +133,8 @@ func TestStartsChiefOfStaff(t *testing.T) {
 		"hc ls --json --label role=chief-of-staff --label project=sample-site",
 		"hc templates --json",
 		"hc run --json --bg --outlive-parent --no-notify --name sample-site-cos --label role=chief-of-staff --label project=sample-site --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-cos --cwd " + f.root + " chief-of-staff プロジェクト `sample-site` の Chief of Staff。",
-		"台帳は `" + f.root + "/.flightdeck`。",
-		"kanban config set coordinator=t42 | FLIGHTDECK_ROOT=" + f.root,
+		"台帳は `" + f.root + "/kanban`。",
+		"kanban config set chief_of_staff=t42 | KANBAN_ROOT=" + f.root,
 	}
 	calls := f.calls()
 	if len(calls) != len(want) {
@@ -149,8 +149,8 @@ func TestStartsChiefOfStaff(t *testing.T) {
 	if all := strings.Join(calls, "\n"); strings.Contains(all, "SKILL.md") || strings.Contains(all, "先に") {
 		t.Errorf("最初のメッセージに「先に読む」の行が残る:\n%s", all)
 	}
-	if f.coordinator() != "t42" {
-		t.Errorf("coordinator=%q", f.coordinator())
+	if f.chief_of_staff() != "t42" {
+		t.Errorf("chief_of_staff=%q", f.chief_of_staff())
 	}
 }
 
@@ -162,7 +162,7 @@ func TestUsesRunningOne(t *testing.T) {
 	if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") || !strings.HasSuffix(out, "出た場所 sample-site / CoS（t1）\n") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	// 二重に起こさない。coordinator が合っていれば書かない
+	// 二重に起こさない。chief_of_staff が合っていれば書かない
 	if f.has("hc run") || f.has("hc templates") || f.has("kanban config") {
 		t.Errorf("calls=%q", f.calls())
 	}
@@ -176,8 +176,8 @@ func TestFixesCoordinator(t *testing.T) {
 	if rc, _, errs := runMain(); rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
-	if f.has("hc run") || f.coordinator() != "t8" {
-		t.Errorf("coordinator=%q calls=%q", f.coordinator(), f.calls())
+	if f.has("hc run") || f.chief_of_staff() != "t8" {
+		t.Errorf("chief_of_staff=%q calls=%q", f.chief_of_staff(), f.calls())
 	}
 }
 
@@ -196,7 +196,7 @@ func TestRunningOneDoesNotMatch(t *testing.T) {
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9"}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t9","name":"sample-site-cos","cwd":"/elsewhere",`+fgAgent+`}`)
 	rc, _, errs := runMain()
-	if rc != exitFail || !strings.Contains(errs, "名前（sample-site-cos）か cwd（/elsewhere）が合わない") || f.has("kanban config") || f.coordinator() != "t1" {
+	if rc != exitFail || !strings.Contains(errs, "名前（sample-site-cos）か cwd（/elsewhere）が合わない") || f.has("kanban config") || f.chief_of_staff() != "t1" {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 }
@@ -227,8 +227,8 @@ func TestFirstMessageNotSent(t *testing.T) {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 	// 起きた端末は台帳に載せる（起き直さずに画面に答えればよい）
-	if f.coordinator() != "t42" {
-		t.Errorf("coordinator=%q", f.coordinator())
+	if f.chief_of_staff() != "t42" {
+		t.Errorf("chief_of_staff=%q", f.chief_of_staff())
 	}
 }
 
@@ -263,7 +263,7 @@ func TestUsage(t *testing.T) {
 	}
 }
 
-// 作り直しで戻った端末（ラベル・名前・cwd はそのまま、中身が素のシェル）: 使わずに片付け、起こし直して coordinator を合わせる。
+// 作り直しで戻った端末（ラベル・名前・cwd はそのまま、中身が素のシェル）: 使わずに片付け、起こし直して chief_of_staff を合わせる。
 func TestShellChiefOfStaffIsReplaced(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
@@ -273,8 +273,8 @@ func TestShellChiefOfStaffIsReplaced(t *testing.T) {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	calls := strings.Join(f.calls(), "\n")
-	if !strings.Contains(calls, "hc keep t1 --off\nhc kill t1\nhc rm t1\n") || !f.has("hc run") || f.has("hc send") || f.coordinator() != "t42" {
-		t.Errorf("coordinator=%q calls:\n%s", f.coordinator(), calls)
+	if !strings.Contains(calls, "hc keep t1 --off\nhc kill t1\nhc rm t1\n") || !f.has("hc run") || f.has("hc send") || f.chief_of_staff() != "t42" {
+		t.Errorf("chief_of_staff=%q calls:\n%s", f.chief_of_staff(), calls)
 	}
 }
 
@@ -288,8 +288,8 @@ func TestShellChiefOfStaffNotCounted(t *testing.T) {
 	if rc != 0 || errs != "" || !strings.Contains(out, "t2（sample-site-cos・動いているものを使う）") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	if !f.has("hc kill t1") || f.has("hc kill t2") || f.has("hc run") || f.coordinator() != "t2" {
-		t.Errorf("coordinator=%q calls=%q", f.coordinator(), f.calls())
+	if !f.has("hc kill t1") || f.has("hc kill t2") || f.has("hc run") || f.chief_of_staff() != "t2" {
+		t.Errorf("chief_of_staff=%q calls=%q", f.chief_of_staff(), f.calls())
 	}
 }
 
@@ -327,7 +327,7 @@ func TestHumanShellChiefOfStaffKept(t *testing.T) {
 		if rc != exitFail || !strings.Contains(errs, "Claude Code が動いているか確かめられないので止まる") {
 			t.Errorf("%s: rc=%d err=%q", term, rc, errs)
 		}
-		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") || f.coordinator() != "t1" {
+		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") || f.chief_of_staff() != "t1" {
 			t.Errorf("%s: 人の端末に触った・台帳を書いた: %q", term, f.calls())
 		}
 	}
@@ -345,7 +345,7 @@ func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
 		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
 		t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+term+`}`)
 		rc, out, errs := runMain()
-		if rc != exitFail || strings.Contains(out, "動いているものを使う") || f.coordinator() != "t3" || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") {
+		if rc != exitFail || strings.Contains(out, "動いているものを使う") || f.chief_of_staff() != "t3" || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") {
 			t.Errorf("%s: rc=%d out=%q err=%q calls=%q", term, rc, out, errs, f.calls())
 		}
 	}

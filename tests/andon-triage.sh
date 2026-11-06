@@ -9,7 +9,7 @@ trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/kanban.sh"
 script=$andon
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
-unset HC_TERMINAL_ID HC_TERMINAL_SOCKET FLIGHTDECK_ROOT
+unset HC_TERMINAL_ID HC_TERMINAL_SOCKET KANBAN_ROOT
 mkdir -p "$HOME" "$tmp/demo" "$tmp/bin"
 # Optional terminal inventory is empty; gh is a tripwire.
 printf '#!/bin/sh\necho '\''{"terminals":[]}'\''\n' > "$tmp/bin/hc"
@@ -18,7 +18,7 @@ chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 cd "$tmp/demo"
 kanban init --prefix T --repo example.invalid/me/app >/dev/null
-export FLIGHTDECK_ROOT=$PWD
+export KANBAN_ROOT=$PWD
 for n in one two three; do
     task=$(kanban add "$n")
     kanban report "$task" <<REPORT
@@ -52,8 +52,8 @@ set -e
 [[ $rc == 4 ]]
 echo 'ok limit: exit 4'
 triage=$(kanban add triage)
-mkdir -p ".flightdeck/tasks/$triage/library"
-file=.flightdeck/tasks/$triage/library/decisions.json
+mkdir -p "kanban/tasks/$triage/library"
+file=kanban/tasks/$triage/library/decisions.json
 jq --arg todo "$todo" --arg person "$person" '
  def task($title): {title:($title|ltrimstr("- ")),repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"やること: 修正\n完了条件: 検査を通す"};
  {goal:"テスト",collected:"2026-11-03T00:00:00Z",items:
@@ -65,7 +65,7 @@ jq --arg todo "$todo" --arg person "$person" '
    (.[]|select(.kind=="unreadable")|{key,decision:"keep",reason:"読む"})]}' "$tmp/items" > "$file"
 # Put bundle first so max-tasks 2 must create one bundle and one fix.
 jq '.items |= sort_by(if .decision=="bundle" then 0 else 1 end)' "$file" > "$tmp/sorted"; cp "$tmp/sorted" "$file"
-snapshot() { find .flightdeck -type f -exec sha1sum {} + | sort; }
+snapshot() { find kanban -type f -exec sha1sum {} + | sort; }
 snapshot > "$tmp/before"
 "$script" triage apply "$triage" --max-tasks 2 --dry-run > "$tmp/plan"
 snapshot > "$tmp/after"
@@ -104,8 +104,8 @@ snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok absent hash, assigned task and uncollected key rejected without writes'
 "$script" triage apply "$triage" --max-tasks 2 > "$tmp/summary"
 [[ $(kanban show "$todo" --json | jq -r .task.status) == done ]]
-tail -1 ".flightdeck/tasks/$todo/report.md" | grep -q '不要（'
-record=$(echo .flightdeck/library/triage/*.json)
+tail -1 "kanban/tasks/$todo/report.md" | grep -q '不要（'
+record=$(echo kanban/library/triage/*.json)
 jq -e '[.items[]|select(.decision=="bundle")|.created_task]|unique|length==1' "$record" >/dev/null
 while read -r task; do
     [[ $(kanban show "$task" --json | jq -r .task.who) == person ]]
@@ -127,8 +127,8 @@ set -e
 echo 'ok repeated apply refused'
 # Recorded keys can be revisited, but text still comes from the original source.
 revisit=$(kanban add revisit)
-mkdir -p ".flightdeck/tasks/$revisit/library"
-jq '{goal:"戻す",collected,items:[(.items[]|select(.decision=="bundle"))][0:1]} | .items[0] += {decision:"keep",reason:"再検討",text:"spoofed text"}' "$record" > ".flightdeck/tasks/$revisit/library/decisions.json"
+mkdir -p "kanban/tasks/$revisit/library"
+jq '{goal:"戻す",collected,items:[(.items[]|select(.decision=="bundle"))][0:1]} | .items[0] += {decision:"keep",reason:"再検討",text:"spoofed text"}' "$record" > "kanban/tasks/$revisit/library/decisions.json"
 "$script" triage apply "$revisit" --dry-run > "$tmp/revisit"
 jq -e '.items[0].text != "spoofed text"' "$tmp/revisit" >/dev/null
 echo 'ok recorded key can be revisited; decisions text is not trusted'

@@ -14,12 +14,12 @@ import (
 // 偽の kanban は $FAKE_ROOT/show-<id>.json を返し、打たれたものを $LOG に書く。偽の hc は FAKE_LS・FAKE_TPL・FAKE_RUN（FAKE_RUN_RC）を返す。
 
 const startKanban = `#!/usr/bin/env bash
-printf 'kanban %s | HC_TERMINAL_ID=%s FLIGHTDECK_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${FLIGHTDECK_ROOT:-}" >>"$LOG"
+printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${KANBAN_ROOT:-}" >>"$LOG"
 case $1 in
   root) echo "$FAKE_ROOT" ;;
   show) cat "$FAKE_ROOT/show-$2.json" ;;
   set) echo "$2 updated" ;;
-  ready) cat "$FAKE_ROOT/ready.json" 2>/dev/null || echo '[{"id":"S-7"}]' ;;
+  ready) cat "$FAKE_ROOT/ready.json" 2>/dev/null || echo '[{"id":"S-0007"}]' ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
 esac
@@ -51,31 +51,31 @@ func newStart(t *testing.T) *startFixture {
 	bin := filepath.Join(dir, "bin")
 	f := &startFixture{t: t, root: filepath.Join(dir, "projects", "sample-site"), log: filepath.Join(dir, "log"),
 		repoDir: filepath.Join(dir, "ghq", "github.com", "example", "sample-site"), home: filepath.Join(dir, "home")}
-	for _, d := range []string{bin, filepath.Join(f.root, ".flightdeck", "tasks", "S-7")} {
+	for _, d := range []string{bin, filepath.Join(f.root, "kanban", "tasks", "S-0007")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(startKanban), 0o755)
 	os.WriteFile(filepath.Join(bin, "hc"), []byte(startHc), 0o755)
-	os.WriteFile(filepath.Join(f.root, ".flightdeck", "tasks", "S-7", "brief.md"), []byte("# 題\n"), 0o644)
-	os.WriteFile(filepath.Join(f.root, ".flightdeck", "config.yaml"), []byte("version: 2\nrepos:\n  - github.com/example/sample-site\ncoordinator: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "tasks", "S-0007", "brief.md"), []byte("# 題\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 2\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t5\n"), 0o644)
 	origin := filepath.Join(dir, "origin.git")
 	gitT(t, "", "init", "-q", "--bare", "-b", "main", origin)
 	gitT(t, "", "clone", "-q", origin, f.repoDir)
 	gitT(t, f.repoDir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "init")
 	gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:main")
-	f.task = map[string]any{"id": "S-7", "title": "Add the button", "status": "todo", "profile": "claude", "repo": "github.com/example/sample-site"}
+	f.task = map[string]any{"id": "S-0007", "title": "Add the button", "status": "todo", "profile": "claude", "repo": "github.com/example/sample-site"}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/.flightdeck の台帳を読む
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban の台帳を読む
 
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
-	t.Setenv("FLIGHTDECK_ROOT", "")
+	t.Setenv("KANBAN_ROOT", "")
 	t.Setenv("HC_TERMINAL_ID", "t5") // 打った Chief of Staff。担当の agent にしてはいけない
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t5","name":"sample-site-cos"}]}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"codex"}]}`)
@@ -97,24 +97,24 @@ func gitT(t *testing.T, dir string, args ...string) {
 func (f *startFixture) run() (int, string, string) {
 	f.t.Helper()
 	b := js(map[string]any{"task": f.task})
-	if err := os.WriteFile(filepath.Join(f.root, "show-S-7.json"), []byte(b), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.root, "show-S-0007.json"), []byte(b), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
 	var out, errb bytes.Buffer
-	rc := Main([]string{"start", "S-7"}, strings.NewReader(""), &out, &errb)
+	rc := Main([]string{"start", "S-0007"}, strings.NewReader(""), &out, &errb)
 	return rc, out.String(), errb.String()
 }
 
 // addRepo は台帳の config.yaml の repos に足す。
 func (f *startFixture) addRepo(repo string) {
-	p := filepath.Join(f.root, ".flightdeck", "config.yaml")
+	p := filepath.Join(f.root, "kanban", "config.yaml")
 	b, _ := os.ReadFile(p)
 	s := strings.Replace(string(b), "repos:\n", "repos:\n  - "+repo+"\n", 1)
 	os.WriteFile(p, []byte(s), 0o644)
 }
 
 func (f *startFixture) wt() string {
-	return filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "sample-site-S-7")
+	return filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "sample-site-S-0007")
 }
 
 func (f *startFixture) calls() []string {
@@ -142,23 +142,23 @@ func TestStart(t *testing.T) {
 	if rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
-	if !strings.Contains(out, "S-7 を t42（sample-site-s-7・claude）で起こした。cwd "+f.wt()+" branch sample-site/S-7-add-the-button") {
+	if !strings.Contains(out, "S-0007 を t42（sample-site-s-0007・claude）で起こした。cwd "+f.wt()+" branch sample-site/S-0007-add-the-button") {
 		t.Errorf("out=%q", out)
 	}
-	if _, err := os.Stat(filepath.Join(f.wt(), ".git")); err != nil || !strings.Contains(f.branches(), "sample-site/S-7-add-the-button") {
+	if _, err := os.Stat(filepath.Join(f.wt(), ".git")); err != nil || !strings.Contains(f.branches(), "sample-site/S-0007-add-the-button") {
 		t.Errorf("worktree か branch が無い: %v %q", err, f.branches())
 	}
-	brief := filepath.Join(f.root, ".flightdeck", "tasks", "S-7", "brief.md")
+	brief := filepath.Join(f.root, "kanban", "tasks", "S-0007", "brief.md")
 	want := []string{
 		"kanban root",
-		"kanban show S-7 --json",
+		"kanban show S-0007 --json",
 		"kanban ready --json",
 		"hc templates --json",
 		"hc ls --json",
-		"kanban set S-7 branch=sample-site/S-7-add-the-button worktree=" + f.wt(),
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label project=sample-site --label task=S-7 --label title=Add the button --label herdr.space=andon-sample-site-S-7 --label herdr.tab=andon-sample-site-S-7 --cwd " + f.wt() + " claude タスク `sample-site/S-7`。",
+		"kanban set S-0007 branch=sample-site/S-0007-add-the-button worktree=" + f.wt(),
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label task=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd " + f.wt() + " claude タスク `sample-site/S-0007`。",
 		"依頼書は `" + brief + "`。",
-		"kanban start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
+		"kanban start S-0007 | HC_TERMINAL_ID=t42 KANBAN_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
 	}
 	calls := f.calls()
@@ -188,11 +188,11 @@ func TestStartWithoutRepo(t *testing.T) {
 	f := newStart(t)
 	delete(f.task, "repo")
 	rc, out, errs := f.run()
-	cwd := filepath.Join(f.root, ".flightdeck", "tasks", "S-7")
+	cwd := filepath.Join(f.root, "kanban", "tasks", "S-0007")
 	if rc != 0 || errs != "" || !strings.Contains(out, "cwd "+cwd) || strings.Contains(out, "branch") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label project=sample-site --label task=S-7 --label title=Add the button --label herdr.space=andon-sample-site-S-7 --label herdr.tab=andon-sample-site-S-7 --cwd "+cwd+" claude") {
+	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label task=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd "+cwd+" claude") {
 		t.Errorf("calls=%q", f.calls())
 	}
 }
@@ -202,18 +202,18 @@ func TestStartRefuses(t *testing.T) {
 		name, want string
 		edit       func(f *startFixture)
 	}{
-		{"not todo", "S-7 は doing（起こせるのは todo だけ）", func(f *startFixture) { f.task["status"] = "doing" }},
-		{"queued", "S-7 は queued", func(f *startFixture) { f.task["status"] = "queued" }},
-		{"started", "S-7 は起こし済み", func(f *startFixture) { f.task["branch"] = "sample-site/S-7" }},
+		{"not todo", "S-0007 は doing（起こせるのは todo だけ）", func(f *startFixture) { f.task["status"] = "doing" }},
+		{"queued", "S-0007 は queued", func(f *startFixture) { f.task["status"] = "queued" }},
+		{"started", "S-0007 は起こし済み", func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
 		{"machine", "machine=remote1（別のマシンで起こす）", func(f *startFixture) { f.task["machine"] = "remote1" }},
-		{"no profile", "S-7 に profile が無い", func(f *startFixture) { delete(f.task, "profile") }},
+		{"no profile", "S-0007 に profile が無い", func(f *startFixture) { delete(f.task, "profile") }},
 		{"option profile", "profile が不正", func(f *startFixture) { f.task["profile"] = "--help" }},
 		{"no brief", "依頼書（brief.md）が無い", func(f *startFixture) {
-			os.Remove(filepath.Join(f.root, ".flightdeck", "tasks", "S-7", "brief.md"))
+			os.Remove(filepath.Join(f.root, "kanban", "tasks", "S-0007", "brief.md"))
 		}},
 		{"no template", "プロファイル fable の template が無い", func(f *startFixture) { f.task["profile"] = "fable" }},
-		{"live name", "端末 sample-site-s-7 がもう動いている", func(f *startFixture) {
-			t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","name":"sample-site-s-7"}]}`)
+		{"live name", "端末 sample-site-s-0007 がもう動いている", func(f *startFixture) {
+			t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","name":"sample-site-s-0007"}]}`)
 		}},
 		{"bad repo", "repo が不正", func(f *startFixture) { f.task["repo"] = "example/sample-site" }},
 		{"no clone", "リポジトリが無い", func(f *startFixture) {
@@ -225,14 +225,14 @@ func TestStartRefuses(t *testing.T) {
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
 		}},
-		{"after", "S-7 は after（S-6）が済んでいない", func(f *startFixture) {
-			f.task["after"] = []any{"S-6"}
-			os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(`[{"id":"S-8"}]`), 0o644)
+		{"after", "S-0007 は after（S-0006）が済んでいない", func(f *startFixture) {
+			f.task["after"] = []any{"S-0006"}
+			os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(`[{"id":"S-0008"}]`), 0o644)
 		}},
-		{"origin branch", "branch sample-site/S-7-add-the-button が origin にもうある", func(f *startFixture) {
+		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", func(f *startFixture) {
 			// clone は fetch していないが、origin にだけ同名の branch がある
-			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-7-add-the-button")
-			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-7-add-the-button")
+			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-0007-add-the-button")
+			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-0007-add-the-button")
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -245,7 +245,7 @@ func TestStartRefuses(t *testing.T) {
 			if f.has("hc run") || f.has("kanban set") || f.has("kanban start") {
 				t.Errorf("止まる前に書いた: %q", f.calls())
 			}
-			if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-7") {
+			if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") {
 				t.Errorf("worktree か branch を作った: %q", f.branches())
 			}
 		})
@@ -256,11 +256,11 @@ func TestStartHcRunFails(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN_RC", "1")
 	rc, _, errs := f.run()
-	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-7 は todo のまま") || f.has("kanban start") {
+	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-0007 は todo のまま") || f.has("kanban start") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 	// やり直せるように worktree と branch を戻し、台帳の欄も消す
-	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-7") || !f.has("kanban set S-7 branch= worktree=") {
+	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") || !f.has("kanban set S-0007 branch= worktree=") {
 		t.Errorf("戻していない: branches=%q calls=%q", f.branches(), f.calls())
 	}
 }
@@ -273,9 +273,9 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	for _, want := range []string{
-		"t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt",
+		"t42（sample-site-s-0007）に最初のメッセージが届いていない: trust prompt",
 		"dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。",
-		"急ぐときだけ手で: hc send t42 \"タスク `sample-site/S-7`。",
+		"急ぐときだけ手で: hc send t42 \"タスク `sample-site/S-0007`。",
 		"台帳は doing・agent t42 のまま",
 	} {
 		if !strings.Contains(errs, want) {
@@ -287,7 +287,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 		t.Errorf("ラベルを付けていない: calls=%q", f.calls())
 	}
 	// 起きた端末は台帳に結ぶ（worktree は残す。画面に答えて送り直せば続く）
-	if !f.has("kanban start S-7 | HC_TERMINAL_ID=t42") {
+	if !f.has("kanban start S-0007 | HC_TERMINAL_ID=t42") {
 		t.Errorf("calls=%q", f.calls())
 	}
 	if _, err := os.Stat(f.wt()); err != nil {
@@ -323,9 +323,9 @@ func TestStartFirstMessageNoLabel(t *testing.T) {
 
 // 担当の置き場のラベルは slug・id・題だけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7、ADR-0003）。
 func TestWorkLabels(t *testing.T) {
-	want := []string{"project=sample-site", "task=S-7", "title=Add the button",
-		"herdr.space=andon-sample-site-S-7", "herdr.tab=andon-sample-site-S-7"}
-	if got := workLabels("sample-site", "S-7", "Add the button"); !slices.Equal(got, want) {
+	want := []string{"project=sample-site", "task=S-0007", "title=Add the button",
+		"herdr.space=andon-sample-site-S-0007", "herdr.tab=andon-sample-site-S-0007"}
+	if got := workLabels("sample-site", "S-0007", "Add the button"); !slices.Equal(got, want) {
 		t.Errorf("got %q want %q", got, want)
 	}
 }

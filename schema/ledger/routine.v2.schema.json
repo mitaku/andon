@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "flightdeck ledger routines/<name>.yaml (format 2)",
-  "description": "A .flightdeck/routines/<name>.yaml: a kind of work kanban adds a task for, again and again. Derived from docs/ledger.md (Routines); where they differ, ledger.md is right. The file's name is the routine's name (one plain name). It needs schedule, on, or both. Any other key is allowed and kept.",
+  "title": "kanban ledger routines/<name>.yaml (format 2)",
+  "description": "A kanban/routines/<name>.yaml: a kind of work kanban adds a task for, again and again. Derived from docs/ledger.md (Routines); where they differ, ledger.md is right. The file's name is the routine's name (one plain name). It needs schedule, on, or both. Any other key is allowed and kept.",
   "type": "object",
   "required": ["title"],
   "anyOf": [

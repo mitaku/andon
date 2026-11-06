@@ -39,7 +39,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	id := ""
 	if len(args) == 1 {
-		id = args[0]
+		id = ledger.CanonID(args[0])
 	} else if id = ownTask(); id == "" {
 		return 0 // 担当・レビュアーの端末ではない
 	}

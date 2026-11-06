@@ -24,10 +24,10 @@ type fake struct {
 }
 
 const fakeDeck = `#!/usr/bin/env bash
-printf 'kanban %s | HC_TERMINAL_ID=%s FLIGHTDECK_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${FLIGHTDECK_ROOT:-}" >>"$LOG"
+printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${KANBAN_ROOT:-}" >>"$LOG"
 case $1 in
   root) [ -n "${FAKE_ROOT:-}" ] && echo "$FAKE_ROOT" || { echo "no ledger" >&2; exit 1; } ;;
-  add) cat >"$LOG.brief"; mkdir -p "$FAKE_ROOT/.flightdeck/tasks/S-7"; echo S-7 ;;
+  add) cat >"$LOG.brief"; mkdir -p "$FAKE_ROOT/kanban/tasks/S-7"; echo S-7 ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   set) echo "$2 updated" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
@@ -76,7 +76,7 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("HOME", f.home)
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/.flightdeck の台帳を読む
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban の台帳を読む
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
@@ -104,11 +104,11 @@ func git(t *testing.T, dir string, args ...string) {
 // config は台帳の config.yaml に、台帳の CLI が書く形で repos を置く。
 func (f *fake) config(repos string) {
 	f.t.Helper()
-	p := filepath.Join(f.root, ".flightdeck", "config.yaml")
+	p := filepath.Join(f.root, "kanban", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		f.t.Fatal(err)
 	}
-	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\n" + repos + "coordinator: t1\n"
+	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\n" + repos + "chief_of_staff: t1\n"
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
@@ -170,11 +170,11 @@ func TestStartsChiefEngineer(t *testing.T) {
 		"kanban root",
 		"hc ls --json --label role=chief-engineer --label project=sample-site",
 		"hc templates --json",
-		"kanban add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 FLIGHTDECK_ROOT=" + f.root,
+		"kanban add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 KANBAN_ROOT=" + f.root,
 		"kanban set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
 		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label task=S-7 --label title=Billing の設計 --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-S-7 --cwd " + f.wt() + " chief-engineer タスク `sample-site/S-7`。",
-		"依頼書は `" + f.root + "/.flightdeck/tasks/S-7/brief.md`。",
-		"kanban start S-7 | HC_TERMINAL_ID=t42 FLIGHTDECK_ROOT=" + f.root,
+		"依頼書は `" + f.root + "/kanban/tasks/S-7/brief.md`。",
+		"kanban start S-7 | HC_TERMINAL_ID=t42 KANBAN_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
 	}
 	if len(calls) != len(want) {

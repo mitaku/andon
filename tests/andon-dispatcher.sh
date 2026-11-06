@@ -12,7 +12,7 @@ trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" XDG_STATE_HOME="$tmp/state" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_COMMITTER_NAME=c GIT_COMMITTER_EMAIL=c@example.com GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=agent@example.com
 export ANDON_HOME="$andon_root/package" ANDON_WORKSPACE="$tmp/plant" GHQ_ROOT="$tmp/ghq"
-unset FLIGHTDECK_ROOT HC_TERMINAL_ID
+unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/gh" "$tmp/hc"
 pass=0
 ok() { echo "ok   $1"; pass=$((pass + 1)); }
@@ -103,9 +103,9 @@ echo '{"version": 1, "project": "demo", "preset": "work"}' > "$tmp/plant/project
 as_owner git -C "$tmp/plant" add -A; as_owner git -C "$tmp/plant" commit -qm plant
 cd "$tmp/plant/projects/demo"
 kanban init --prefix D --repo github.com/example/app >/dev/null
-export FLIGHTDECK_ROOT=$PWD
-kanban config set coordinator=t5 >/dev/null
-L=$PWD/.flightdeck
+export KANBAN_ROOT=$PWD
+kanban config set chief_of_staff=t5 >/dev/null
+L=$PWD/kanban
 dispatcher() { "$andon" dispatcher --once --project demo 2>>"$tmp/dispatcher.log"; }
 state=$tmp/state/andon/dispatcher/demo.json
 pending() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.task == $t and .kind == $k)] | last' "$state"; }
@@ -624,11 +624,11 @@ ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通
 # 別の台帳 pick（Chief of Staff t6。偽の hc get --json は無いので経路③では送らない）で、拾う元ごとに正負を見る
 mkdir -p "$tmp/plant/projects/pick"
 cd "$tmp/plant/projects/pick"
-env -u FLIGHTDECK_ROOT kanban init --prefix P >/dev/null
-export FLIGHTDECK_ROOT=$PWD
-kanban config set coordinator=t6 >/dev/null
+env -u KANBAN_ROOT kanban init --prefix P >/dev/null
+export KANBAN_ROOT=$PWD
+kanban config set chief_of_staff=t6 >/dev/null
 echo "t6 chief-of-staff" >> "$tmp/hc/live"
-P=$PWD/.flightdeck
+P=$PWD/kanban
 pk() { "$andon" dispatcher --once --project pick 2>>"$tmp/dispatcher.log"; }
 pst=$tmp/state/andon/dispatcher/pick.json
 pp() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.task == $t and .kind == $k)]' "$pst"; }  # その task と kind の待ち（配列）

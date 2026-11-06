@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "flightdeck ledger tasks/<id>/questions.yaml (format 2)",
-  "description": "A .flightdeck/tasks/<id>/questions.yaml: the questions a task's agent asked the person, oldest first. Derived from docs/ledger.md (Questions); where they differ, ledger.md is right. Each question is named <id>#<n>. That n is never reused, that the times fit the status (an answered question has answer and answered, and so on) and that n is not used twice are checked by kanban lint, not by this schema. Any other key is allowed and kept.",
+  "title": "kanban ledger tasks/<id>/questions.yaml (format 2)",
+  "description": "A kanban/tasks/<id>/questions.yaml: the questions a task's agent asked the person, oldest first. Derived from docs/ledger.md (Questions); where they differ, ledger.md is right. Each question is named <id>#<n>. That n is never reused, that the times fit the status (an answered question has answer and answered, and so on) and that n is not used twice are checked by kanban lint, not by this schema. Any other key is allowed and kept.",
   "type": "array",
   "items": {
     "type": "object",

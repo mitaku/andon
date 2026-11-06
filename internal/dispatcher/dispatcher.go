@@ -36,10 +36,10 @@ import (
 const Usage = "usage: andon dispatcher [--project <slug>]          回り続ける（hc の端末 dispatcher の中で動く）\n" +
 	"       andon dispatcher --once [--project <slug>]   1回だけ回して終わる\n" +
 	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
-	"建屋（ANDON_WORKSPACE。無ければ /workspace）の projects/*/.flightdeck を回り、レビュアーを起こす・ゲートを回す・\n" +
+	"建屋（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
-	"Chief of Staff（config.yaml の coordinator）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
+	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
 	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。\n"
 
 // Name は dispatcher の端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
@@ -111,7 +111,7 @@ func (c *Dispatcher) logf(format string, a ...any) {
 
 // Pass は建屋の台帳を1回ずつ回す。動いているタスク（doing・review）があれば busy。
 func (c *Dispatcher) Pass(only string) bool {
-	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", ".flightdeck", "config.yaml"))
+	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", "kanban", "config.yaml"))
 	sort.Strings(cfgs)
 	busy := false
 	for _, cfg := range cfgs {
@@ -143,8 +143,8 @@ type project struct {
 func (p *project) logf(format string, a ...any) { p.c.logf(p.l.Slug+": "+format, a...) }
 
 func (p *project) pass() (bool, error) {
-	coordinator := p.l.Coordinator()
-	if coordinator == "" || exec.Command("hc", "get", coordinator).Run() != nil {
+	cos := p.l.ChiefOfStaff()
+	if cos == "" || exec.Command("hc", "get", cos).Run() != nil {
 		return false, nil // Chief of Staff が起きたときに台帳を自分で読む（dispatcher.md §2.1）
 	}
 	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
@@ -161,7 +161,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.rows = p.l.Log()
-	p.collect(coordinator) // 通知の元（dispatcher.md §2.2・§2.3）
+	p.collect(cos) // 通知の元（dispatcher.md §2.2・§2.3）
 	busy := false
 	for _, t := range p.tasks {
 		status := t.Str("status")
@@ -183,7 +183,7 @@ func (p *project) pass() (bool, error) {
 		}
 	}
 	if !p.first {
-		p.deliver(coordinator) // 経路③: 離席時だけ（dispatcher.md §3・§4）
+		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
 }
@@ -234,7 +234,7 @@ func run(dir string, env []string, stdin string, name string, args ...string) (s
 
 // andon は自分（andon）をこの台帳の根で打つ（by は terminal:dispatcher）。
 func (p *project) andon(stdin string, args ...string) (string, int, error) {
-	return run(p.l.Root, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
+	return run(p.l.Root, []string{"KANBAN_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
 }
 
 // prHead は PR の head（gh pr view）。

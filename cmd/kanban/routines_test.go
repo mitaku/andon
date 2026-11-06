@@ -68,24 +68,24 @@ func TestCronNext(t *testing.T) {
 func routineLedger(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "root")
-	t.Setenv("FLIGHTDECK_ROOT", root)
+	t.Setenv("KANBAN_ROOT", root)
 	t.Setenv("HC_TERMINAL_ID", "")
 	t.Setenv("DECK_NOW", "2026-11-02T08:00:00Z")
 	kanban(t, t.TempDir(), "init", "--root", root, "--repo", "github.com/x/app")
-	os.MkdirAll(filepath.Join(root, ".flightdeck", "routines"), 0o755)
+	os.MkdirAll(filepath.Join(root, "kanban", "routines"), 0o755)
 	return root
 }
 
 func writeRoutine(t *testing.T, root, name, body string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(root, ".flightdeck", "routines", name+".yaml"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "kanban", "routines", name+".yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func logLines(t *testing.T, root string) []map[string]any {
 	t.Helper()
-	data, _ := os.ReadFile(filepath.Join(root, ".flightdeck", "log.jsonl"))
+	data, _ := os.ReadFile(filepath.Join(root, "kanban", "log.jsonl"))
 	var out []map[string]any
 	for _, l := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if l == "" {
@@ -123,7 +123,7 @@ func taskCount(root string) int {
 
 func readState(t *testing.T, root string) map[string]string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, ".flightdeck", "state", "routines.json"))
+	data, err := os.ReadFile(filepath.Join(root, "kanban", "state", "routines.json"))
 	if err != nil {
 		return nil
 	}
@@ -152,7 +152,7 @@ func TestTickFiresOnScheduleOnce(t *testing.T) {
 		t.Fatalf("tick before 9:00 added %d", n)
 	}
 	t.Setenv("DECK_NOW", "2026-11-02T09:00:00Z")
-	if out := kanban(t, root, "tick"); !strings.Contains(out, "triage") || !strings.Contains(out, "W-1") {
+	if out := kanban(t, root, "tick"); !strings.Contains(out, "triage") || !strings.Contains(out, "W-0001") {
 		t.Fatalf("tick at 9:00: %q", out)
 	}
 	kanban(t, root, "tick") // the same minute again: nothing
@@ -161,27 +161,27 @@ func TestTickFiresOnScheduleOnce(t *testing.T) {
 	if n := taskCount(root); n != 1 {
 		t.Fatalf("%d tasks after repeated ticks", n)
 	}
-	got, _ := os.ReadFile(taskFile(root, "W-1"))
-	want := "id: W-1\ntitle: Look at untriaged tasks\nstatus: todo\nrepo: github.com/x/app\nprofile: sonnet\nroutine: triage\ncreated: \"2026-11-02T09:00:00Z\"\n"
+	got, _ := os.ReadFile(taskFile(root, "W-0001"))
+	want := "id: W-0001\ntitle: Look at untriaged tasks\nstatus: todo\nrepo: github.com/x/app\nprofile: sonnet\nroutine: triage\ncreated: \"2026-11-02T09:00:00Z\"\n"
 	if !strings.HasPrefix(string(got), want) {
 		t.Fatalf("task:\n%s\nwant prefix:\n%s", got, want)
 	}
-	if b, _ := os.ReadFile(filepath.Join(taskDir(root, "W-1"), "brief.md")); string(b) != "List them.\n" {
+	if b, _ := os.ReadFile(filepath.Join(taskDir(root, "W-0001"), "brief.md")); string(b) != "List them.\n" {
 		t.Fatalf("brief %q", b)
 	}
-	if l := routineLog(t, root); len(l) != 1 || l[0] != "triage fired W-1 by routine:triage" {
+	if l := routineLog(t, root); len(l) != 1 || l[0] != "triage fired W-0001 by routine:triage" {
 		t.Fatalf("log %v", l)
 	}
 	if s := readState(t, root); s["triage"] != "2026-11-02T09:00:00Z" {
 		t.Fatalf("state %v", s)
 	}
 	// The routine file is only read.
-	if b, _ := os.ReadFile(filepath.Join(root, ".flightdeck", "routines", "triage.yaml")); !strings.Contains(string(b), "# a person's note") {
+	if b, _ := os.ReadFile(filepath.Join(root, "kanban", "routines", "triage.yaml")); !strings.Contains(string(b), "# a person's note") {
 		t.Fatalf("routine file changed: %q", b)
 	}
 
 	// Three days missed: one task, not three (after the first is done).
-	kanban(t, root, "done", "W-1")
+	kanban(t, root, "done", "W-0001")
 	t.Setenv("DECK_NOW", "2026-11-05T12:00:00Z")
 	kanban(t, root, "tick")
 	kanban(t, root, "tick")
@@ -195,7 +195,7 @@ func TestOpenStopsUntilDone(t *testing.T) {
 	writeRoutine(t, root, "hourly", "title: Hourly check\nschedule: \"0 * * * *\"\n")
 	kanban(t, root, "tick")
 	t.Setenv("DECK_NOW", "2026-11-02T09:00:00Z")
-	kanban(t, root, "tick") // W-1
+	kanban(t, root, "tick") // W-0001
 	t.Setenv("DECK_NOW", "2026-11-02T10:00:00Z")
 	if out := kanban(t, root, "tick"); !strings.Contains(out, "open") {
 		t.Fatalf("tick with one open: %q", out)
@@ -203,7 +203,7 @@ func TestOpenStopsUntilDone(t *testing.T) {
 	if n := taskCount(root); n != 1 {
 		t.Fatalf("%d tasks while one is open", n)
 	}
-	kanban(t, root, "done", "W-1")
+	kanban(t, root, "done", "W-0001")
 	t.Setenv("DECK_NOW", "2026-11-02T10:05:00Z")
 	kanban(t, root, "tick")
 	if n := taskCount(root); n != 1 {
@@ -214,7 +214,7 @@ func TestOpenStopsUntilDone(t *testing.T) {
 	if n := taskCount(root); n != 2 {
 		t.Fatalf("%d tasks after done, want 2", n)
 	}
-	want := []string{"hourly fired W-1 by routine:hourly", "hourly skipped open by routine:hourly", "hourly fired W-2 by routine:hourly"}
+	want := []string{"hourly fired W-0001 by routine:hourly", "hourly skipped open by routine:hourly", "hourly fired W-0002 by routine:hourly"}
 	if l := routineLog(t, root); strings.Join(l, "|") != strings.Join(want, "|") {
 		t.Fatalf("log %v", l)
 	}
@@ -232,27 +232,27 @@ func TestEventFires(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "after-done", "title: Look at what was done\non: [done]\n")
 	writeRoutine(t, root, "on-review", "title: Review it\non: review\n")
-	kanban(t, root, "add", "Work")               // W-1
-	kanban(t, root, "add", "Other")              // W-2
-	kanban(t, root, "start", "W-1")              // doing: nothing listens
-	kanban(t, root, "review", "W-1")             // on-review -> W-3
-	kanban(t, root, "done", "W-1")               // after-done -> W-4
-	kanban(t, root, "start", "W-3")              //
-	kanban(t, root, "done", "W-3")               // after-done open (W-4 not done): skipped
-	kanban(t, root, "done", "W-4")               // its own task: nothing
-	kanban(t, root, "set", "W-2", "status=done") // after-done -> W-5
-	kanban(t, root, "set", "W-2", "status=done") // not a move: nothing
+	kanban(t, root, "add", "Work")                  // W-0001
+	kanban(t, root, "add", "Other")                 // W-0002
+	kanban(t, root, "start", "W-0001")              // doing: nothing listens
+	kanban(t, root, "review", "W-0001")             // on-review -> W-0003
+	kanban(t, root, "done", "W-0001")               // after-done -> W-0004
+	kanban(t, root, "start", "W-0003")              //
+	kanban(t, root, "done", "W-0003")               // after-done open (W-0004 not done): skipped
+	kanban(t, root, "done", "W-0004")               // its own task: nothing
+	kanban(t, root, "set", "W-0002", "status=done") // after-done -> W-0005
+	kanban(t, root, "set", "W-0002", "status=done") // not a move: nothing
 	want := []string{
-		"on-review fired W-3 by routine:on-review",
-		"after-done fired W-4 by routine:after-done",
+		"on-review fired W-0003 by routine:on-review",
+		"after-done fired W-0004 by routine:after-done",
 		"after-done skipped open by routine:after-done",
-		"after-done fired W-5 by routine:after-done",
+		"after-done fired W-0005 by routine:after-done",
 	}
 	if l := routineLog(t, root); strings.Join(l, "|") != strings.Join(want, "|") {
 		t.Fatalf("log:\n%s\nwant:\n%s", strings.Join(l, "\n"), strings.Join(want, "\n"))
 	}
-	if b, _ := os.ReadFile(taskFile(root, "W-4")); !strings.Contains(string(b), "routine: after-done") {
-		t.Fatalf("W-4: %s", b)
+	if b, _ := os.ReadFile(taskFile(root, "W-0004")); !strings.Contains(string(b), "routine: after-done") {
+		t.Fatalf("W-0004: %s", b)
 	}
 	if s := readState(t, root); s["after-done"] == "" || s["on-review"] == "" {
 		t.Fatalf("state %v", s)
@@ -262,13 +262,13 @@ func TestEventFires(t *testing.T) {
 func TestDoneFreeingQueuedFires(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "on-todo", "title: Something is ready\non: [todo]\n")
-	kanban(t, root, "add", "First")                    // W-1 todo (add is not a move)
-	kanban(t, root, "add", "Second", "--after", "W-1") // W-2 queued
+	kanban(t, root, "add", "First")                       // W-0001 todo (add is not a move)
+	kanban(t, root, "add", "Second", "--after", "W-0001") // W-0002 queued
 	if n := taskCount(root); n != 2 {
 		t.Fatalf("add fired: %d tasks", n)
 	}
-	kanban(t, root, "done", "W-1") // W-2 queued -> todo: on-todo -> W-3
-	if l := routineLog(t, root); len(l) != 1 || l[0] != "on-todo fired W-3 by routine:on-todo" {
+	kanban(t, root, "done", "W-0001") // W-0002 queued -> todo: on-todo -> W-0003
+	if l := routineLog(t, root); len(l) != 1 || l[0] != "on-todo fired W-0003 by routine:on-todo" {
 		t.Fatalf("log %v", l)
 	}
 }
@@ -286,7 +286,7 @@ func TestPausedAndRun(t *testing.T) {
 	if out := kanban(t, root, "routine", "run", "nightly"); !strings.Contains(out, "paused") {
 		t.Fatalf("run paused: %q", out)
 	}
-	if out := kanban(t, root, "routine", "run", "manual"); !strings.Contains(out, "W-1") {
+	if out := kanban(t, root, "routine", "run", "manual"); !strings.Contains(out, "W-0001") {
 		t.Fatalf("run: %q", out)
 	}
 	if out := kanban(t, root, "routine", "run", "manual"); !strings.Contains(out, "open") {
@@ -297,7 +297,7 @@ func TestPausedAndRun(t *testing.T) {
 	deckFails(t, root, "", "routine", "run")
 	deckFails(t, root, "", "routine", "what")
 	want := []string{"nightly skipped paused by routine:nightly", "nightly skipped paused by routine:nightly",
-		"manual fired W-1 by routine:manual", "manual skipped open by routine:manual"}
+		"manual fired W-0001 by routine:manual", "manual skipped open by routine:manual"}
 	if l := routineLog(t, root); strings.Join(l, "|") != strings.Join(want, "|") {
 		t.Fatalf("log %v", l)
 	}
@@ -307,7 +307,7 @@ func TestRoutineList(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "triage", "title: Triage\nschedule: \"0 9 * * 1-5\"\n")
 	writeRoutine(t, root, "after", "title: After\non: [done]\nopen: 2\npaused: true\n")
-	os.WriteFile(filepath.Join(root, ".flightdeck", "config.yaml"), []byte("version: 2\nrepos: [github.com/x/app]\ntimezone: Asia/Tokyo\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 2\nrepos: [github.com/x/app]\ntimezone: Asia/Tokyo\n"), 0o644)
 	out := kanban(t, root, "routine", "list", "--json")
 	var got []map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
@@ -370,7 +370,7 @@ func TestLintRoutines(t *testing.T) {
 	if s := readState(t, root); s["ok"] == "" {
 		t.Fatalf("tick skipped the good routine: %v", s)
 	}
-	os.WriteFile(filepath.Join(root, ".flightdeck", "config.yaml"), []byte("version: 2\ntimezone: Mars/Base\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 2\ntimezone: Mars/Base\n"), 0o644)
 	out.Reset()
 	run([]string{"lint"}, root, strings.NewReader(""), &out, &errb)
 	if !strings.Contains(out.String(), "config.yaml: timezone") {
@@ -382,7 +382,7 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "r", "title: R\nschedule: \"* * * * *\"\n")
 	outDir := t.TempDir()
-	stateDir := filepath.Join(root, ".flightdeck", "state")
+	stateDir := filepath.Join(root, "kanban", "state")
 	symlink(t, outDir, stateDir)
 	deckFails(t, root, "", "tick")
 	deckFails(t, root, "", "routine", "list")
@@ -400,25 +400,25 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 	root2 := routineLedger(t)
 	elsewhere := t.TempDir()
 	os.WriteFile(filepath.Join(elsewhere, "x.yaml"), []byte("title: X\non: [done]\n"), 0o644)
-	symlink(t, filepath.Join(elsewhere, "x.yaml"), filepath.Join(root2, ".flightdeck", "routines", "x.yaml"))
+	symlink(t, filepath.Join(elsewhere, "x.yaml"), filepath.Join(root2, "kanban", "routines", "x.yaml"))
 	kanban(t, root2, "add", "Work")
-	kanban(t, root2, "done", "W-1")
+	kanban(t, root2, "done", "W-0001")
 	if n := taskCount(root2); n != 1 {
 		t.Fatalf("a linked routine fired: %d", n)
 	}
-	os.RemoveAll(filepath.Join(root2, ".flightdeck", "routines"))
-	symlink(t, elsewhere, filepath.Join(root2, ".flightdeck", "routines"))
+	os.RemoveAll(filepath.Join(root2, "kanban", "routines"))
+	symlink(t, elsewhere, filepath.Join(root2, "kanban", "routines"))
 	deckFails(t, root2, "", "routine", "list")
 }
 
 func TestRoutineCommandsRefuseOtherVersions(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "r", "title: R\nschedule: \"* * * * *\"\n")
-	os.WriteFile(filepath.Join(root, ".flightdeck", "config.yaml"), []byte("version: 3\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\n"), 0o644)
 	deckFails(t, root, "", "tick")
 	deckFails(t, root, "", "routine", "list")
 	deckFails(t, root, "", "routine", "run", "r")
-	if exists(filepath.Join(root, ".flightdeck", "state")) || exists(filepath.Join(root, ".flightdeck", ".lock")) {
+	if exists(filepath.Join(root, "kanban", "state")) || exists(filepath.Join(root, "kanban", ".lock")) {
 		t.Fatal("wrote to a ledger of another version")
 	}
 }
