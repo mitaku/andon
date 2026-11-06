@@ -131,7 +131,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
 	}
 	place := slug + " work / " + id + " " + title // 人に端末を指す言い方（ADR-0002 決めたこと 16・17）
-	if !run.First.Sent {
+	if !run.First.Delivered() {
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。%s（台帳は doing・agent %s のまま。App では %s）",
 			run.Address, name, run.Reason(), spawn.ResendHint(run.Address, msg), run.Address, place)}
 	}

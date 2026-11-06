@@ -52,6 +52,7 @@ case "\$*" in
 esac
 EOF
 # 偽の hc: 生きている端末は $tmp/hc/live（address task の行）。run は t9, t10 … を返し、打ったものを $tmp/hc/log に。
+# run の first_message は $tmp/hc/first の中身（無ければ届いた: sent・started が true）
 # get --json は $tmp/hc/term-<addr>.json、read は screen-<addr>、attach --observe は ansi-<addr>（無ければ何も出さない）
 cat > "$tmp/bin/hc" <<EOF
 #!/bin/bash
@@ -67,7 +68,7 @@ case \$1 in
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 9) )); echo \$((n + 1)) > \$d/next
        task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
        echo "t\$n \$task" >> \$d/live
-       printf '{"address":"t%s","first_message":{"sent":%s}}\n' "\$n" "\$(cat \$d/first 2>/dev/null || echo true)" ;;
+       printf '{"address":"t%s","first_message":%s}\n' "\$n" "\$(cat \$d/first 2>/dev/null || echo '{"sent":true,"started":true}')" ;;
   send) [ "\$2" != --if ] || shift 2; [ ! -f "\$d/sendfail" ] || ! grep -qx "\$2" \$d/sendfail || exit 1
         printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
   ls) task=\$(printf '%s\n' "\$@" | sed -n 's/^task=//p')
@@ -309,25 +310,39 @@ kanban list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .p
 git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'マージしていない branch を消した'
 ok 'andon task finish はレビュアーの子タスクと detached worktree も片付け、origin に入っていない branch は残す'
 
-# 7. 最初のメッセージが届かなければ起こしたことにしない。次の見回りで同じ端末へ送り直す（二重に起こさない）
-id=$(newtask '最初の文が届かない' auto)
-work "$id" docs/a.md
-as_worker "$id" report --pr https://github.com/example/app/pull/7
-as_worker "$id" review-request
-runs=$(grep -c '^run' "$tmp/hc/log")
-echo false > "$tmp/hc/first"
-courier
-rm "$tmp/hc/first"
-key="$id@$head"
-jq -e --arg k "$key" '.reviewers[$k] | (.started | not) and .failed != null and .reviewer_task != null and .address != null' "$state" >/dev/null || die "届いていないのに起こしたことにした: $(jq -c --arg k "$key" '.reviewers[$k]' "$state")"
-[ "$(pending "$id" review-requested)" = null ] || die '届いていないのに通知 review-requested を積んだ'
-addr=$(jq -r --arg k "$key" '.reviewers[$k].address' "$state")
-courier
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '二重に起こした'
-grep -q "^$addr	タスク \`demo/" "$tmp/hc/sent" || die '同じ端末へ最初のメッセージを送り直していない'
-jq -e --arg k "$key" '.reviewers[$k].started == true' "$state" >/dev/null && [ "$(pending "$id" review-requested)" != null ] || die '送り直したのに起こしたことにならない'
-[ "$(kanban list --all --json | jq --arg p "$id" '[.[] | select(.parent == $p)] | length')" = 1 ] || die 'レビュアーのタスクを二つ足した'
-ok '最初のメッセージが届くまでは起こしたことにせず、次の見回りで同じ端末へ送り直す（タスクも端末も二つにしない）'
+# 7. 最初のメッセージが届かなければ（送れなかった・送ったが動き出さなかった）、端末にラベル first_message.sent=false を付けて
+#    起こしたことにし、次の見回りで1回だけ送り直す（担当と同じ。courier.md §5）。タスクも端末も二つにしない
+for first in '{"sent":false,"reason":"t9 is still starting: its output has not settled"}' '{"sent":true,"started":false,"turn":1}'; do
+  id=$(newtask "最初の文が届かない $(jq -r .sent <<<"$first")" auto)
+  work "$id" docs/a.md
+  as_worker "$id" report --pr https://github.com/example/app/pull/7
+  as_worker "$id" review-request
+  runs=$(grep -c '^run' "$tmp/hc/log")
+  echo "$first" > "$tmp/hc/first"
+  courier
+  rm "$tmp/hc/first"
+  key="$id@$head"
+  jq -e --arg k "$key" '.reviewers[$k] | .started == true and .reviewer_task != null and .address != null' "$state" >/dev/null || die "ラベルを付けたのに起こしたことにならない（$first）: $(jq -c --arg k "$key" '.reviewers[$k]' "$state")"
+  addr=$(jq -r --arg k "$key" '.reviewers[$k].address' "$state")
+  rev=$(jq -r --arg k "$key" '.reviewers[$k].reviewer_task' "$state")
+  grep -qx "$addr first_message.sent=false" "$tmp/hc/labels" || die "届いていない端末にラベルを付けていない（$first）"
+  ! grep -q "^$addr	" "$tmp/hc/sent" 2>/dev/null || die "起こした回に送り直した（$first）"
+  # 次の見回り: レビュアーは idle のまま（入力欄が空）。同じ端末へレビュアーの最初のメッセージを1回だけ送り、ラベルを外す
+  printf '{"address":"%s","state":"live","status":{"state":"idle"},"status_ms":%s,"turn":1,"labels":{"first_message.sent":"false"}}\n' "$addr" "$(date +%s%3N)" > "$tmp/hc/term-$addr.json"
+  courier
+  [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die "二重に起こした（$first）"
+  [ "$(grep -c "^$addr	タスク \`demo/$rev\`。" "$tmp/hc/sent")" = 1 ] || die "同じ端末へレビュアーの最初のメッセージを送り直していない（$first）"
+  grep -A2 "^$addr	タスク" "$tmp/hc/sent" | grep -q "^先に \`.*/skills/worker/SKILL.md\` を読む。" || die "送り直した文がレビュアーの最初のメッセージでない（$first）"
+  grep -qx "$addr first_message.sent=" "$tmp/hc/labels" || die "送り直したのにラベルを外していない（$first）"
+  # ラベルが外れたので、idle のままでももう送らない（外しそこねたときは控えの first が守る。first_test.go）
+  printf '{"address":"%s","state":"live","status":{"state":"idle"},"status_ms":%s,"turn":1,"labels":{}}\n' "$addr" "$(date +%s%3N)" > "$tmp/hc/term-$addr.json"
+  courier
+  [ "$(grep -c "^$addr	" "$tmp/hc/sent")" = 1 ] || die "二度送った（$first）"
+  rm "$tmp/hc/term-$addr.json"
+  [ "$(kanban list --all --json | jq --arg p "$id" '[.[] | select(.parent == $p)] | length')" = 1 ] || die "レビュアーのタスクを二つ足した（$first）"
+done
+rm "$tmp/hc/labels" # 後ろの見出し（12）は labels の行を先頭から数える
+ok '最初のメッセージが届かなければ（sent=false・sent=true でも動き出さない）ラベルを付け、次の見回りで idle のレビュアーへ1回だけ送り直す（タスクも端末も二つにしない）'
 
 # 8. fetch の一時の失敗は次の見回りでやり直す
 id=$(newtask 'fetch が一度落ちる' auto)
