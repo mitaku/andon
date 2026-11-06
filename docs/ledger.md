@@ -257,7 +257,7 @@ One JSON object per line, appended:
 {"at":"2026-11-02T10:03:00Z","by":"terminal:t3","id":"FD-0012","change":{"status":"doing","agent":"t3"}}
 ```
 
-`by` is `terminal:<$HC_TERMINAL_ID>` when run in a herdr-core terminal, else the user name. `change` holds the keys that changed (`null` for a removed key), or `{"add": "<title>"}` for a new task, or `{"report": "write" | "append"}`. A routine's firing logs `{"routine": "<name>", "fired": "<id added>"}` or `{"routine": "<name>", "skipped": "open" | "paused"}` (with no `id`), and `by` is `routine:<name>`. Questions log `{"question": <n>, "status": "open" | "answered" | "received"}` with the task's `id` (the text and answer are in `questions.yaml`, not in the log); `kanban done --force` past one logs `{"status": "<last column>", "forced": [<n>, …]}`. A task moved out of `queued` by `kanban done` logs `{"status": "<first column>", "freedBy": "<id>"}`. `kanban config set` logs `{"config": {"coordinator": "<address>" | null}}` (with no `id`).
+`by` is `terminal:<$HC_TERMINAL_ID>` when run in a herdr-core terminal, else the user name. `change` holds the keys that changed (`null` for a removed key), or `{"add": "<title>"}` for a new task, or `{"report": "write" | "append"}`. A routine's firing logs `{"routine": "<name>", "fired": "<id added>"}` or `{"routine": "<name>", "skipped": "open" | "paused"}` (with no `id`), and `by` is `routine:<name>`. Questions log `{"question": <n>, "status": "open" | "answered" | "received"}` with the task's `id` (the text and answer are in `questions.yaml`, not in the log); `kanban done --force` past one logs `{"status": "<last column>", "forced": [<n>, …]}`. A task moved out of `queued` by `kanban done` logs `{"status": "<first column>", "freedBy": "<id>"}`. `kanban config set` logs `{"config": {"chief_of_staff": "<address>" | null}}` (with no `id`; lines from before 2026-11-06 say `coordinator`). `kanban migrate` logs `{"migrate": {"from": ".flightdeck", "ids": {…}}}` (with no `id`).
 
 ## Writing
 
@@ -296,7 +296,7 @@ A view of every project (the yard project's) reads each `<yard-root>/projects/*/
 | One ledger at the yard's root, for every project | One ledger per project, at `projects/<slug>/kanban/` |
 | `config.yaml` `projects`: name → folder | Removed. The ledger is the project; `repos` lists its repositories |
 | `task.yaml` `project` | Removed. `repo` names the repository |
-| — | `config.yaml` `title`, `coordinator`; `task.yaml` `profile` |
+| — | `config.yaml` `title`, `coordinator` (`chief_of_staff` since 2026-11-06); `task.yaml` `profile` |
 | `version` optional | `version: 2` required |
 | `.gitignore`: `.lock`, `*.tmp-*` | `.gitignore`: `*` (out of git) |
 | Root: env, up, up from the main checkout | Root: env, up, then the project whose `repos` match the main checkout |

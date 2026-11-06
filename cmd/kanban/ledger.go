@@ -84,18 +84,23 @@ const ledgerName = "kanban"
 
 func ledgerDir(root string) string { return filepath.Join(root, ledgerName) }
 
-// isLedger: root/kanban/config.yaml is a mapping whose version is a whole number. kanban/ is
-// a plain name, so a kanban/ folder without that (in a product's repository, say) is not a ledger.
+// isLedger: root/kanban/config.yaml is a mapping whose version is a YAML integer (2, not "2").
+// kanban/ is a plain name, so a kanban/ folder without that (in a product's repository, say) is not a ledger.
 func isLedger(root string) bool {
 	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
 	if err != nil {
 		return false
 	}
 	v := d.get("version")
-	if isNull(v) || v.Kind != yaml.ScalarNode {
+	return isInt(v)
+}
+
+// isInt: n is a YAML integer scalar (its resolved tag is !!int; a quoted "2" is a string).
+func isInt(n *yaml.Node) bool {
+	if isNull(n) || n.Kind != yaml.ScalarNode || n.ShortTag() != "!!int" {
 		return false
 	}
-	_, err = strconv.Atoi(v.Value)
+	_, err := strconv.Atoi(n.Value)
 	return err == nil
 }
 
@@ -315,7 +320,7 @@ func readConfig(root string) (config, error) {
 	switch v := d.get("version"); {
 	case isNull(v):
 		return config{}, fail("config.yaml has no version, so it is format 1; this kanban reads format %d only (docs/ledger.md: move the tasks by hand)", formatVersion)
-	case v.Kind != yaml.ScalarNode || v.Value != strconv.Itoa(formatVersion):
+	case !isInt(v) || v.Value != strconv.Itoa(formatVersion):
 		return config{}, fail("config.yaml is format version %s; this kanban reads format %d only", v.Value, formatVersion)
 	}
 	c := config{prefix: "W", columns: defaultColumns, repos: d.list("repos"), timezone: d.str("timezone")}

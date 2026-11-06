@@ -44,7 +44,7 @@ func TestAKanbanFolderInARepositoryIsNotALedger(t *testing.T) {
 	os.MkdirAll(project, 0o755)
 	kanban(t, project, "init", "--root", project, "--repo", "github.com/x/app")
 	gitInit(t, repo)
-	for name, body := range map[string]string{"": "", "config.yaml": "theme: dark\n", "tasks/W-1/task.yaml": "id: W-1\n"} {
+	for name, body := range map[string]string{"": "", "config.yaml": "version: '2'\ntheme: dark\n", "tasks/W-1/task.yaml": "id: W-1\n"} {
 		if name == "" {
 			os.MkdirAll(filepath.Join(repo, "kanban"), 0o755)
 			continue
@@ -58,6 +58,12 @@ func TestAKanbanFolderInARepositoryIsNotALedger(t *testing.T) {
 	if out := strings.TrimSpace(kanban(t, filepath.Join(repo, "kanban"), "root")); !sameFile(out, project) {
 		t.Fatalf("root from its kanban/: %q, want %q", out, project)
 	}
+	// A quoted version is a string, not a format: kanban writes to the project's ledger, not the repository's.
+	if out := kanban(t, repo, "add", "x"); out != "W-0001\n" || !exists(taskFile(project, "W-0001")) || exists(filepath.Join(repo, "kanban", "tasks", "W-0001")) {
+		t.Fatalf("add from the repository: %q", out)
+	}
+	t.Setenv("KANBAN_ROOT", repo)
+	deckFails(t, repo, "", "list")
 }
 
 // kanban migrate moves .flightdeck/ to kanban/: the folder (still out of git), chief_of_staff, the ids,
@@ -194,4 +200,45 @@ func sameFile(a, b string) bool {
 	fa, err1 := os.Stat(a)
 	fb, err2 := os.Stat(b)
 	return err1 == nil && err2 == nil && os.SameFile(fa, fb)
+}
+
+// A task folder that is a symbolic link stops the move before anything changes.
+func TestMigrateRefusesALinkedTaskFolder(t *testing.T) {
+	t.Setenv("KANBAN_ROOT", "")
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	old := filepath.Join(root, ".flightdeck")
+	put(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\n")
+	put(t, filepath.Join(old, "tasks", "A-1", "task.yaml"), "id: A-1\ntitle: one\nstatus: todo\n")
+	elsewhere := filepath.Join(t.TempDir(), "A-5")
+	put(t, filepath.Join(elsewhere, "task.yaml"), "id: A-5\ntitle: five\nstatus: todo\n")
+	symlink(t, elsewhere, filepath.Join(old, "tasks", "A-5"))
+	deckFails(t, root, "", "migrate")
+	if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(old, "tasks", "A-1")) {
+		t.Fatal("something moved")
+	}
+	assertUnchanged(t, filepath.Join(old, "tasks", "A-1", "task.yaml"), "id: A-1\ntitle: one\nstatus: todo\n")
+}
+
+// A dispatcher state that isn't JSON stops the move before anything changes; once it is fixed, migrate runs.
+func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
+	t.Setenv("KANBAN_ROOT", "")
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	root := filepath.Join(t.TempDir(), "app")
+	old := filepath.Join(root, ".flightdeck")
+	put(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\ncoordinator: t5\n")
+	put(t, filepath.Join(old, "tasks", "A-5", "task.yaml"), "id: A-5\ntitle: five\nstatus: todo\n")
+	file := filepath.Join(state, "andon", "dispatcher", "app.json")
+	put(t, file, "{not json")
+	deckFails(t, root, "", "migrate")
+	if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(old, "tasks", "A-5")) {
+		t.Fatal("something moved")
+	}
+	assertUnchanged(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\ncoordinator: t5\n")
+	put(t, file, `{"ready":["A-5"]}`)
+	kanban(t, root, "migrate")
+	if !exists(taskFile(root, "A-0005")) || !strings.Contains(readFile(t, file), `"A-0005"`) {
+		t.Fatalf("migrate after the fix: %s", readFile(t, file))
+	}
 }

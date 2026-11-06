@@ -49,6 +49,17 @@ func cmdMigrate(e env, a args) error {
 			return err
 		}
 	}
+	// What is read after the move is checked first, so that a failure there can't leave
+	// a ledger half moved (kanban migrate finds nothing to move the second time).
+	for _, p := range []string{filepath.Join(old, "coordinator.md"), filepath.Join(root, "AGENTS.md")} {
+		if err := checkNoLink(p, true); err != nil {
+			return err
+		}
+	}
+	slug := filepath.Base(root)
+	if _, _, err := readDispatcherState(slug); err != nil {
+		return err
+	}
 	var moved map[string]string
 	err := lockIn(old, lockWait, func() error {
 		var err error
@@ -71,7 +82,7 @@ func cmdMigrate(e env, a args) error {
 	if err != nil {
 		return err
 	}
-	state, err := migrateDispatcherState(filepath.Base(root), moved)
+	state, err := migrateDispatcherState(slug, moved)
 	if err != nil {
 		return err
 	}
@@ -133,13 +144,14 @@ func migrateIn(root, old string) (map[string]string, error) {
 	var items []item
 	var busy, broken []string
 	for _, en := range entries {
+		// A link is refused before IsDir, which is false for a link to a folder.
+		if err := checkNoLink(filepath.Join(tasksAt, en.Name()), false); err != nil {
+			return nil, err
+		}
 		if !en.IsDir() {
 			continue
 		}
 		file := filepath.Join(tasksAt, en.Name(), "task.yaml")
-		if err := checkNoLink(filepath.Join(tasksAt, en.Name()), false); err != nil {
-			return nil, err
-		}
 		if err := checkNoLink(file, true); err != nil {
 			return nil, err
 		}
@@ -247,6 +259,26 @@ func moveCoordinatorMD(root string) (string, error) {
 	return to, os.Remove(from)
 }
 
+// readDispatcherState reads the dispatcher's state for slug: nil data when there is none,
+// an error when it can't be read or isn't JSON (kanban migrate stops before changing anything).
+func readDispatcherState(slug string) ([]byte, any, error) {
+	file := dispatcherStatePath(slug)
+	if err := checkNoLink(file, true); err != nil {
+		return nil, nil, err
+	}
+	data, err := os.ReadFile(file)
+	if os.IsNotExist(err) {
+		return nil, nil, nil
+	} else if err != nil {
+		return nil, nil, err
+	}
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return nil, nil, fail("not moved: %s is not JSON; fix or remove it first", file)
+	}
+	return data, v, nil
+}
+
 // dispatcherStatePath is Andon's dispatcher's state for the project slug (internal/dispatcher, StatePath).
 func dispatcherStatePath(slug string) string {
 	dir := os.Getenv("XDG_STATE_HOME")
@@ -264,15 +296,9 @@ func migrateDispatcherState(slug string, moved map[string]string) (string, error
 	if len(moved) == 0 {
 		return "", nil
 	}
-	data, err := os.ReadFile(file)
-	if os.IsNotExist(err) {
-		return "", nil
-	} else if err != nil {
+	data, v, err := readDispatcherState(slug)
+	if err != nil || data == nil {
 		return "", err
-	}
-	var v any
-	if err := json.Unmarshal(data, &v); err != nil {
-		return "", fail("%s is not JSON; fix or remove it, then start the dispatcher again", file)
 	}
 	re := regexp.MustCompile(`^([^#@|]+)([#@|].*)?$`)
 	rename := func(s string) string {
