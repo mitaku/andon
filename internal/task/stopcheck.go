@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"andon/internal/contract"
 	"andon/internal/ledger"
 )
 
@@ -23,7 +24,7 @@ type stopState struct {
 }
 
 // stopCheck は担当・レビュアーの Stop フック（contract.md §9）。台帳が doing で、前回の通過（無ければ doing に入った行）以後に
-// 報告・review・問いのどれも log.jsonl に無ければ {"decision": "block"}。id を省くと自分の端末のラベル task= から引く。
+// 報告・review・問いのどれも log.jsonl に無く、待ち（waiting）でもなければ {"decision": "block"}。id を省くと自分の端末のラベル task= から引く。
 // 担当の端末でない・台帳が読めないときは何も出さずに通す。
 func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && !idRe.MatchString(args[0])) {
@@ -88,6 +89,11 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return pass("")
 		}
 	}
+	if waiting(l, rows, t) { // 待つのが正しいターン（問いの答え・レビュアーの結果待ち）は止めない
+		st = stopState{Pass: len(rows)}
+		save()
+		return pass("")
+	}
 	if !in.StopHookActive {
 		st.Blocks = 0
 	}
@@ -117,6 +123,33 @@ func returned(c map[string]any) bool {
 	}
 	_, q := c["question"]
 	return q && c["status"] == "open"
+}
+
+// waiting は、担当が待つのが正しい状態か: 自分の問いが開いたまま（最後の行が open で、answered が来ていない）か、
+// report.json の review_request の commit を指すレビュアーの findings.json がまだ無い（CheckReview が current でない）。
+// 答え・レビューが届いたあとは待ちではない（受けて動く）。
+func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Task) bool {
+	id := t.Str("id")
+	open := map[any]bool{}
+	for _, r := range rows {
+		if q, ok := r.Change["question"]; ok && r.ID == id {
+			open[q] = r.Change["status"] == "open"
+		}
+	}
+	for _, o := range open {
+		if o {
+			return true
+		}
+	}
+	rep, err := contract.ReadReport(filepath.Join(l.Library(id), "report.json"))
+	if err != nil || rep.ReviewRequest == nil {
+		return false
+	}
+	tasks, err := l.List()
+	if err != nil {
+		return false
+	}
+	return l.CheckReview(rows, tasks, t, rep.ReviewRequest.Commit, "", nil).State != "current"
 }
 
 // ownTask は自分の端末（HC_TERMINAL_ID）のラベル task=。読めなければ空。

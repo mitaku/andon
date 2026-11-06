@@ -247,6 +247,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-05 | 起こす command（`chief-of-staff`・`chief-engineer`・`task start`）の共通部分（worktree と branch・`hc templates`・`hc run`）は `internal/spawn` に置く | Y-102 の担当の推し |
 | 2026-11-06 | image の `andon` は uid・gid 1000（`ubuntu` 利用者を外す）。建屋の repo の持ち主が 1000 でなければ `bin/bootstrap` が起こす前に止まる（合わせ直す仕組みは作らない）。`andon boot` は HOME の volume の持ち主が自分でなければ `sudo chown -R` で直す（uid 1001 の版の volume を作り直さずに使う）。sshd は鍵が「無い」と「読めない」を別の行で出す | operate.md の F4（P7 で SSH の段が止まった）、Y-116 の依頼書の推し |
 | 2026-11-06 | managed settings（`package/settings.json`）から herdr（TUI）の連携フック2つ（`herdr-auto-title`・`herdr-agent-state`）を外す。前者は tab 名を付けるが Andon では App の mod が付ける（ADR-0002）、後者は herdr（TUI）の socket に状態を送るもので hc と Herdr App の建屋では何もしない。建屋にファイルが無く、最初のメッセージが `UserPromptSubmit operation blocked by hook` で止まった。`tests/package.sh` が、フックの command が指すファイルが package に在ることを確かめる | operate.md §9（P7 で止まった）、Y-124 |
+| 2026-11-06 | `stop-check` は待つのが正しいターンを止めない: 自分の問いが開いたまま（`answered` が来ていない）か、`report.json` の `review_request` の `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え・レビューが届いたのに報告も問いも無く終わるターンは今までどおり止める | P7 の A-1（レビュー待ちのターンが3回続けて止められた）、Y-132 |
 
 ## 17. public にする準備での決定
 

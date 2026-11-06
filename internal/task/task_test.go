@@ -38,6 +38,7 @@ type fixture struct {
 	report   string         // report.json の中身（空なら置かない）
 	findings string         // レビュアーの findings.json の commit（空なら置かない）
 	prHead   string
+	state    bool // stop-check の控えの置き場を作ったか
 }
 
 func newFixture(t *testing.T) *fixture {
