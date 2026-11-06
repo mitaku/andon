@@ -6,8 +6,10 @@
 #   bin/bootstrap sh             herdr を介さず bash で入る（退避用）
 #   bin/bootstrap down           止める（volume は残る）
 #   bin/bootstrap logs           起動の記録を追う
-#   bin/bootstrap status         状態を見る
+#   bin/bootstrap status         状態を見る（FROM の image と、その元の commit も出す）
 #   bin/bootstrap rebuild        イメージを作り直して入れ替える（Dockerfile の FROM を上げたあと）
+#   bin/bootstrap rebuild --from <andon の checkout>
+#                                その checkout から base image（andon:local-<短い SHA>）を焼き、FROM をそれにして入れ替える
 #   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod）を置く
 #   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
 #
@@ -109,6 +111,76 @@ dc() {
 }
 
 build() { run docker build "$@" -t "$image" "$root"; }
+
+# rebuild --from が焼いた FROM（andon:local-…）はレジストリに無いので、--pull を付けない
+pull_flag() {
+  case "$from" in
+    andon:local-*) ;;
+    *) echo --pull ;;
+  esac
+}
+
+# FROM の image と、その元の commit（image/build.sh が付ける label。前の版の image には無い）
+# （go の template の開き括弧を2つ並べて書かない。andon init は雛形にそれが残っていないことを確かめる）
+show_from() {
+  local rev fmt
+  fmt=$(printf '%s%s index .Config.Labels "org.opencontainers.image.revision" }}' '{' '{')
+  if [ "$dry" = 1 ]; then
+    run docker image inspect --format "$fmt" "$from"
+    return 0
+  fi
+  rev=$(docker image inspect --format "$fmt" "$from" 2>/dev/null) || rev='手元に無い'
+  case "$rev" in '' | '<no value>') rev=不明 ;; esac
+  echo "FROM: $from（commit: $rev）"
+}
+
+# revision <andon の checkout>: HEAD の commit（汚れていれば末尾に -dirty）。
+# ホストに git が無ければ、今の FROM の image の git で読む（ホストに要るのは docker と bash だけ）
+revision() {
+  local co=$1 rev dirty
+  if command -v git >/dev/null 2>&1; then
+    rev=$(git -C "$co" rev-parse HEAD) || die "$co の commit が読めない（git の checkout か）"
+    dirty=$(git -C "$co" status --porcelain) || die "$co の状態が読めない"
+  elif [ "$dry" = 1 ]; then
+    run docker run --rm --network none -v "$co:/src:ro" "$from" git -C /src rev-parse HEAD >&2
+    echo '<commit>'
+    return 0
+  else
+    rev=$(docker run --rm --network none -v "$co:/src:ro" "$from" git -c safe.directory='*' -C /src rev-parse HEAD) ||
+      die "$co の commit が読めない（git の checkout か。ホストに git が無いので $from の git で読んだ）"
+    dirty=$(docker run --rm --network none -v "$co:/src:ro" "$from" git -c safe.directory='*' -C /src status --porcelain) ||
+      die "$co の状態が読めない"
+  fi
+  [ -z "$dirty" ] || rev=$rev-dirty
+  echo "$rev"
+}
+
+# rebuild_from <andon の checkout>: image/build.sh で base image を焼き、Dockerfile の FROM をそれにして入れ替える
+rebuild_from() {
+  local co=$1 rev tag line done=0
+  [ -n "$co" ] || die "rebuild --from に andon の checkout を渡す（例: bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon）"
+  [ -f "$co/image/build.sh" ] || die "$co/image/build.sh が無い（andon の checkout を渡す。image/build.sh の無い古い版からは焼けない）"
+  co=$(cd "$co" && pwd)
+  rev=$(revision "$co") || exit 1
+  tag=andon:local-${rev:0:12}
+  case "$rev" in *-dirty) tag=$tag-dirty ;; esac
+  echo "[$project] $co（commit: $rev）から $tag を焼く"
+  run bash "$co/image/build.sh" "$co" "$tag" "$rev"
+  echo "[$project] Dockerfile の FROM: $from → $tag（GHCR の版へ戻すなら、FROM を書き戻して bin/bootstrap rebuild）"
+  if [ "$dry" = 1 ]; then
+    echo "+ Dockerfile の最初の FROM を 'FROM $tag' にする"
+  else
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ "$done" = 0 ] && [[ $line =~ ^FROM[[:space:]] ]]; then
+        line="FROM $tag"
+        done=1
+      fi
+      printf '%s\n' "$line"
+    done <Dockerfile >Dockerfile.new
+    mv Dockerfile.new Dockerfile
+  fi
+  from=$tag
+}
 
 ensure_image() {
   if [ "$dry" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then
@@ -240,11 +312,17 @@ case "${1:-}" in
   sh | bash) require_docker; require_owner; ensure_up; dc exec dev bash ;;
   down) require_docker; compose_file; dc down ;;
   logs) require_docker; compose_file; dc logs -f dev ;;
-  status) require_docker; compose_file; dc ps ;;
+  status) require_docker; compose_file; dc ps; show_from ;;
   rebuild)
     require_docker
     require_owner
-    build --pull
+    case "${2:-}" in
+      '') ;;
+      --from) rebuild_from "${3:-}" ;;
+      *) die "rebuild の引数は --from <andon の checkout> だけ（いま: '$2'）" ;;
+    esac
+    # shellcheck disable=SC2046 # pull_flag は空か --pull の1語
+    build $(pull_flag)
     compose_file
     dc up -d --force-recreate
     ;;
@@ -255,9 +333,9 @@ case "${1:-}" in
     fi
     host_install
     ;;
-  -h | --help | help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h | --help | help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)
-    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 2
     ;;
 esac
