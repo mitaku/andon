@@ -492,14 +492,15 @@ func TestVersionLess(t *testing.T) {
 }
 
 // Main を環境変数だけで走らせる: 偽の HOME・偽の建屋、PATH には記録するだけの偽の hc。
-// 本物の hc・HOME・/workspace に触らない。2回目はクーリエを起こし直さない。
+// 本物の hc・HOME・/workspace に触らない。2回目はクーリエを起こし直さない（中身が andon courier のまま）。
 func TestMainWithFakeHome(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
 	bin := filepath.Join(f.root, "bin")
 	calls := filepath.Join(f.root, "hc-calls")
 	put(t, filepath.Join(bin, "hc"), "#!/bin/sh\nPATH=/usr/bin:/bin\necho \"$*\" >> '"+calls+"'\n"+
-		"[ \"$1\" = get ] && { grep -q '^run ' '"+calls+"' && exit 0 || exit 1; }\nexit 0\n")
+		"[ \"$1\" = get ] && { grep -q '^run ' '"+calls+"' || { echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3; }; "+
+		"echo '{\"state\":\"live\",\"foreground\":{\"name\":\"andon\",\"argv\":[\""+filepath.Join(f.pkg, "bin", "andon")+"\",\"courier\"]}}'; }\nexit 0\n")
 	if err := os.Chmod(filepath.Join(bin, "hc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
