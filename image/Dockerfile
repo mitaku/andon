@@ -1,11 +1,15 @@
 # syntax=docker/dockerfile:1
+# andon は uid・gid 1000（ubuntu の既定の利用者を外して空ける）。建屋の repo を /workspace に bind mount するので、
+# ホストの持ち主（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わない建屋は bin/bootstrap が起こす前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 \
  && rm -rf /var/lib/apt/lists/* \
  && locale-gen en_US.UTF-8 \
- && useradd --create-home --home-dir /opt/andon-home --shell /bin/bash andon \
+ && userdel --remove ubuntu \
+ && groupadd --gid 1000 andon \
+ && useradd --uid 1000 --gid 1000 --create-home --home-dir /opt/andon-home --shell /bin/bash andon \
  && usermod -p '*' andon \
  && echo 'andon ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/andon \
  && chmod 440 /etc/sudoers.d/andon \

@@ -17,6 +17,9 @@ cp -R "$andon_root/package" "$img/opt/andon"
 for t in bash cat cmp cp dirname grep head install mkdir mktemp mv printf rm sed tail; do
   ln -s "$(command -v "$t")" "$tmp/path/$t"
 done
+# 偽の stat: bin/bootstrap が見る建屋の repo の持ち主（stat -c %u）。既定は 1000、FAKE_OWNER で変える
+printf '#!/bin/bash\necho "${FAKE_OWNER:-1000}"\n' >"$tmp/path/stat"
+chmod 755 "$tmp/path/stat"
 sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
 
 cd "$tmp" || exit 1
@@ -116,6 +119,15 @@ echo 'SSH_PORT=22/;s/x/y' >.env
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '数字だけ' "$tmp/err" && pass "host-install は数字でない番号で止まる" || fail "番号の検査: rc=$r $(cat "$tmp/out" "$tmp/err")"
 rm .env
+
+# 建屋の repo の持ち主が uid 1000 でなければ、起こす前に止まって回り道を出す（down・status・host-install は止めない）
+for sub in "" up sh rebuild; do
+  sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run $sub >"$tmp/out" 2>"$tmp/err"; r=$?
+  [ "$r" = 1 ] && grep -q 'uid 1001' "$tmp/err" && grep -q '回り道' "$tmp/err" && ! grep -q 'docker' "$tmp/out" \
+    && pass "持ち主が 1001 なら '${sub:-enter}' は起こす前に止まる" || fail "持ち主 1001 で ${sub:-enter}: rc=$r $(cat "$tmp/out" "$tmp/err")"
+done
+sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run down >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && pass "持ち主が 1001 でも down は通る" || fail "持ち主 1001 で down: rc=$r $(cat "$tmp/err")"
 
 sed -i 's|^FROM .*|FROM ghcr.io/<owner>/andon:<版>|' Dockerfile
 sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?

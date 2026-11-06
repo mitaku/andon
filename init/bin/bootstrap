@@ -59,6 +59,16 @@ require_docker() {
   docker info >/dev/null 2>&1 || die "docker デーモンに繋がらない（起動しているか確かめる）"
 }
 
+# 建屋の andon は uid 1000 で動く（image/Dockerfile）。建屋の repo は /workspace に bind mount するので、
+# 持ち主が違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起こす前に止める。
+require_owner() {
+  local owner
+  owner=$(stat -c %u "$root") || die "建屋の repo（$root）の持ち主が読めない"
+  [ "$owner" = 1000 ] && return 0
+  die "建屋の repo（$root）の持ち主が uid $owner。建屋の andon は uid 1000 で動くので、/workspace を読み書きできない。
+  回り道: uid 1000 の利用者で建屋の repo を作り直して（andon init）、そこから打つ（docs/operate.md の 3）"
+}
+
 # extract <イメージの中の /opt/andon からのパス> <置き場>
 # ANDON_IMAGE_ROOT があれば、そのディレクトリをイメージの根として読む（試験用の偽のイメージ）。
 # --dry-run では何も書かない（打つものを出すだけ）。
@@ -221,17 +231,19 @@ dotenv() {
 case "${1:-}" in
   "" | enter)
     require_docker
+    require_owner
     ensure_up
     # herdr は手元の端末の名前（TERM_PROGRAM）を見て通知を出すので、コンテナの中まで運ぶ
     dc exec -e TERM_PROGRAM="${TERM_PROGRAM:-}" -e TERM_PROGRAM_VERSION="${TERM_PROGRAM_VERSION:-}" dev herdr
     ;;
-  up) require_docker; ensure_up ;;
-  sh | bash) require_docker; ensure_up; dc exec dev bash ;;
+  up) require_docker; require_owner; ensure_up ;;
+  sh | bash) require_docker; require_owner; ensure_up; dc exec dev bash ;;
   down) require_docker; compose_file; dc down ;;
   logs) require_docker; compose_file; dc logs -f dev ;;
   status) require_docker; compose_file; dc ps ;;
   rebuild)
     require_docker
+    require_owner
     build --pull
     compose_file
     dc up -d --force-recreate

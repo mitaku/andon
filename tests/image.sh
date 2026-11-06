@@ -19,6 +19,7 @@ cleanup() {
   if [ -f "$plant/.andon/compose.yaml" ]; then
     dc down -v --remove-orphans >/dev/null 2>&1 || true
   fi
+  docker volume rm andon-imgtest_gh >/dev/null 2>&1 || true
   docker image rm andon-imgtest:local >/dev/null 2>&1 || true
   docker run --rm --user 0 -v "$tmp:/t" andon:test chown -R "$(id -u):$(id -g)" /t >/dev/null 2>&1 || true
   rm -rf "$tmp"
@@ -36,7 +37,8 @@ elif command -v mise >/dev/null; then build_bin mise exec -- go
 else echo 'FAIL image: go is required to build kanban and andon' >&2; exit 1; fi
 docker build --file image/Dockerfile --build-context "kanban=$tmp/kanban" --build-context "andon=$tmp/andon-bin" --tag andon:test .
 docker run --rm --network none andon:test bash -euc '
-  test "$(id -u)" -ne 0
+  test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
+  ! getent passwd ubuntu
   kanban --version
   test "$(kanban --help)" = "$(deck --help)"
   test "$(readlink /usr/local/bin/deck)" = kanban
@@ -70,11 +72,26 @@ chmod 755 "$tmp/andon"
 "$tmp/andon" init imgtest --dir "$plant" --image andon:test --owner owner@example.com
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
 printf 'SSH_PORT=%s\nPORTLESS_PORT=%s\nFILES_PORT=%s\n' "$(free_port)" "$(free_port)" "$(free_port)" >"$plant/.env"
+# 建屋の repo は uid 1000 の持ち物（WSL・cloud-init の既定の利用者。runner は 1000 とは限らないので root で渡す）。
+# 公開鍵は docs/operate.md の SSH の節のとおり 700 の .ssh・600 の authorized_keys。.andon/ は bootstrap（runner）が書く
+mkdir "$plant/.andon"
+docker run --rm --network none --user 0 -v "$plant:/p" andon:test bash -euc '
+  mkdir -m 700 /p/.ssh
+  ssh-keygen -q -t ed25519 -N "" -C imgtest -f /p/.ssh/id_test
+  cp /p/.ssh/id_test.pub /p/.ssh/authorized_keys
+  chmod 600 /p/.ssh/authorized_keys
+  chown -R 1000:1000 /p
+  chmod 777 /p/.andon
+'
+# andon が uid 1001 だった版の image で作った volume（中身は 1001 の持ち物）。boot が作り直さずに andon へ渡すこと
+docker volume create --label com.docker.compose.project=andon-imgtest --label com.docker.compose.volume=gh andon-imgtest_gh >/dev/null
+docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
 # 建屋の image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
 BUILDX_BUILDER=default "$plant/bin/bootstrap" up
-if ! dc logs dev | grep -q '\[andon boot\] ready'; then
+if ! dc logs dev | grep -q '\[andon boot\] ready' || ! dc logs dev | grep -q 'sshd を起動した' ||
+  ! dc logs dev | grep -qF '持ち主を直した: /opt/andon-home/.config/gh（uid 1001 → 1000）'; then
   dc logs dev >&2 || true
-  echo 'FAIL image: compose の起動で andon boot が ready まで走らない' >&2
+  echo 'FAIL image: compose の起動で andon boot が ready まで走らない（sshd・volume の持ち主の行も見る）' >&2
   exit 1
 fi
 dc exec -T dev bash -euc '
@@ -88,5 +105,10 @@ dc exec -T dev bash -euc '
   test -s /opt/andon/environment.md
   test -s /workspace/AGENTS.local.md
   test "$(readlink "$HOME/.agents/skills/andon-worker")" = /opt/andon/skills/worker
+  test "$(stat -c %u:%g "$HOME/.config/gh" "$HOME/.config/gh/hosts.yml" | sort -u)" = 1000:1000
+  test "$(cat "$HOME/.config/gh/hosts.yml")" = old
+  test -d /workspace/artifacts
+  test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
-echo 'ok   image: build, offline runtime, workflow policy checks and plant boot (init → bootstrap up → boot)'
+echo 'ok   image: build, offline runtime, workflow policy checks and plant boot (init → bootstrap up → boot → ssh)'
