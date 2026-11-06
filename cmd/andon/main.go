@@ -10,4 +10,4 @@ import (
 func main() {
 	os.Exit(cli.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
-// MEASURE: Go を変えた PR（最後に戻す）
+// MEASURE: Go を変えた PR・cache 無し（最後に戻す）
