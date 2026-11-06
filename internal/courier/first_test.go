@@ -177,3 +177,25 @@ func TestFirstMessageCrashBeforeUnlabel(t *testing.T) {
 		t.Fatalf("再開後に送り直した: %q", got)
 	}
 }
+
+// 送れなかったら、送りかけをその場で控えから消して保存する（pass の最後の保存より前に落ちても、再開後に送り直す）。
+func TestFirstMessageSendFailsThenCrash(t *testing.T) {
+	f := newFirst(t)
+	f.put("send-rc", "1")
+	if got := f.round(); len(got) != 1 || !strings.HasPrefix(got[0], "send t42 ") {
+		t.Fatalf("1回目: %q", got)
+	}
+	// pass の最後の保存はしないまま落ちた、とみなし、保存された控えから再開する
+	st, _, err := LoadState("sample-site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.First["S-7|t42"] {
+		t.Fatal("送れなかったのに控えに送りかけが残っている")
+	}
+	f.p.st = st
+	f.rm("send-rc")
+	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 ") || got[1] != "label t42 first_message.sent=" {
+		t.Fatalf("再開後に送り直していない: %q", got)
+	}
+}

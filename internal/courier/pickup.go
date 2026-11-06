@@ -355,7 +355,11 @@ func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (kee
 		cmd := exec.CommandContext(ctx, "hc", "send", agent, msg)
 		cmd.Env = withoutTerminal()
 		if err := cmd.Run(); err != nil {
+			// 送る前の保存と対: 送りかけをその場で消して保存する（pass の最後の保存より前に落ちても、次の見回りで送り直す）
 			delete(p.st.First, rk)
+			if serr := p.st.Save(p.l.Slug); serr != nil {
+				p.logf("%s の担当 %s の送りかけを控えから消せない: %v", id, agent, serr)
+			}
 			p.logf("%s の担当 %s に最初のメッセージを送れない（次の見回りで送り直す）: %v", id, agent, err)
 			return false
 		}
