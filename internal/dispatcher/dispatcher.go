@@ -142,6 +142,7 @@ type project struct {
 
 func (p *project) logf(format string, a ...any) { p.c.logf(p.l.Slug+": "+format, a...) }
 
+// pass の段の順は docs/dispatcher.md §2.1.1 の表で固定している。変えるときは表も直す。
 func (p *project) pass() (bool, error) {
 	cos := p.l.ChiefOfStaff()
 	if cos == "" || exec.Command("hc", "get", cos).Run() != nil {
