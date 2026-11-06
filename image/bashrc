@@ -1,0 +1,34 @@
+# 建屋の対話 bash の設定（image/Dockerfile が /etc/andon-bashrc に焼き、~/.bashrc から読む）。
+# ssh のログインシェル（~/.profile → ~/.bashrc）・bootstrap enter・App の端末のどれでも効く。
+# 対話のときだけ読まれる（~/.bashrc の先頭が非対話なら return する）。
+
+# 履歴は volume（state）に置く。作り直しても消えない
+HISTFILE=$HOME/.local/state/bash/history
+mkdir -p "${HISTFILE%/*}" 2>/dev/null
+shopt -s histappend
+HISTSIZE=100000
+HISTFILESIZE=200000
+HISTCONTROL=ignoreboth:erasedups
+case ";$PROMPT_COMMAND;" in *";history -a;"*) ;; *) PROMPT_COMMAND="history -a${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;; esac
+
+# Tab 補完。git・gh・hc・andon・deck・kanban・just・mise を最初の Tab を待たずに登録する
+if ! shopt -oq posix && [ -f /usr/share/bash-completion/bash_completion ]; then
+  . /usr/share/bash-completion/bash_completion
+  for _c in git gh hc andon kanban just mise; do
+    [ -r "/usr/share/bash-completion/completions/$_c" ] && . "/usr/share/bash-completion/completions/$_c"
+  done
+  unset _c
+fi
+
+# fzf: Ctrl-R（履歴）・Ctrl-T（ファイル）・Alt-C（cd）
+if command -v fzf >/dev/null 2>&1; then
+  eval "$(fzf --bash)"
+fi
+
+# プロンプト: 建屋の名前:ディレクトリ (ブランチ)
+[ -r /usr/lib/git-core/git-sh-prompt ] && . /usr/lib/git-core/git-sh-prompt
+if declare -F __git_ps1 >/dev/null; then
+  PS1='\[\e[2m\]\h\[\e[0m\]:\[\e[34m\]\w\[\e[0m\]\[\e[33m\]$(__git_ps1 " (%s)")\[\e[0m\]\$ '
+else
+  PS1='\[\e[2m\]\h\[\e[0m\]:\[\e[34m\]\w\[\e[0m\]\$ '
+fi

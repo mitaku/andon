@@ -1,6 +1,31 @@
 {
   "checksums": [
     {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.2.0/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz",
+      "checksum": "3750B2E93F37E0C692657DA574D7019A101C0084DA05A790C83FD335BAD973E4",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz",
+      "checksum": "A740B91C82EAF9914CFEDD353572F2791CBE0162C84101EE0951058F4DCBC90D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.2.0/ripgrep-15.2.0-x86_64-apple-darwin.tar.gz",
+      "checksum": "AF7825FCC69A2AFC7A7AEA55FC9AF90E26421D8F20FE59DF32E233C0B8A231C1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+      "checksum": "71B2FEF860ABE467217A538FF31DE02F5258807C0129F771846F87BD029AAFC5",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "33E15BCF1624B25CDD2A55813A47A2F95DBE126268203E76AA6A585D1E7B149C",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/astral-sh/uv/0.13.6/uv-aarch64-apple-darwin.tar.gz",
       "checksum": "60FBD5C8A1ED681845EEA28D9D622FCDE03C51E91A43465B64A1E17DB1ED3472",
       "algorithm": "sha256"
@@ -221,6 +246,31 @@
       "algorithm": "sha512"
     },
     {
+      "id": "github_release/github.com/jdx/usage/v7.2.0/usage-aarch64-pc-windows-msvc.zip",
+      "checksum": "D6FE897D731BDBF03BD3EC08DE9A9FD0183B52D5354DBA2BEDC3C2D7E840A568",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jdx/usage/v7.2.0/usage-aarch64-unknown-linux-musl.tar.gz",
+      "checksum": "320421C6047C2726B01476C69D36B18FA513B917BD0C8AE80D1F880521435CC8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jdx/usage/v7.2.0/usage-universal-apple-darwin.tar.gz",
+      "checksum": "1E666F741C800AA5EDA693B1D28CC8CAA3AC4EC7E73B6FFFF40BB42A13A886D1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jdx/usage/v7.2.0/usage-x86_64-pc-windows-msvc.zip",
+      "checksum": "3C9C624DD930C1779F7118EB7C80C42336661FD16754DE79A41059868F8CB199",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jdx/usage/v7.2.0/usage-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "BEAC5DB300BF11FF71D8F8B762898265CDB5DC98BAD64C49B790DE5D808D6D02",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/jqlang/jq/jq-1.8.2/jq-linux-amd64",
       "checksum": "B1C22172DD303F3BE49E935AA56AA48A8B7A46E0BC838B4997D3BB451495870F",
       "algorithm": "sha256"
@@ -243,6 +293,36 @@
     {
       "id": "github_release/github.com/jqlang/jq/jq-1.8.2/jq-windows-amd64.exe",
       "checksum": "A6FC67FEDAF9128A3309A1E2EBB8B986AECCF70122EE46D2CB4849E423F0C627",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/junegunn/fzf/v0.74.5/fzf-0.74.5-darwin_amd64.tar.gz",
+      "checksum": "ACA6CAB692E6C069E724A43070A448E18586C7C0FDD1139F6D487EC1680599ED",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/junegunn/fzf/v0.74.5/fzf-0.74.5-darwin_arm64.tar.gz",
+      "checksum": "ADA808C7401B9949CE8842274AC16A6B6193FD32DCADA396884A6A9A89E5985A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/junegunn/fzf/v0.74.5/fzf-0.74.5-linux_amd64.tar.gz",
+      "checksum": "D47D7F882972C7D674DBBBA998FFA4116E68379616FFAC7695D0671E9A722C5F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/junegunn/fzf/v0.74.5/fzf-0.74.5-linux_arm64.tar.gz",
+      "checksum": "CF058001DA21724A469B714A29CF4AAB9CBE860D218A0D6C1B5B661EFAD7784C",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/junegunn/fzf/v0.74.5/fzf-0.74.5-windows_amd64.zip",
+      "checksum": "01F854EC8B9B47C99A7D78023638F7D2056CFB0AF56B72DABD112032EED3993E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/junegunn/fzf/v0.74.5/fzf-0.74.5-windows_arm64.zip",
+      "checksum": "45D8F69B7660AC0C59118C9CCACCDEA305D56FDD74A3599AA357CBB374EBD61E",
       "algorithm": "sha256"
     },
     {

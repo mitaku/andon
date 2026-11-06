@@ -29,3 +29,6 @@ packages:
   - name: herdrdev/herdr-core@v0.1.17
     registry: andon
   - name: neovim/neovim@v0.12.6
+  - name: BurntSushi/ripgrep@15.2.0
+  - name: junegunn/fzf@v0.74.5
+  - name: jdx/usage@v7.2.0
