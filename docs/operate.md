@@ -370,6 +370,7 @@ git add project.json && git commit -m 'projects/andon/project.json'
 ```bash
 cd /workspace/projects/andon
 andon chief-of-staff        # 起こす（動いていればそれを使う）。画面には乗らない
+andon open andon            # 同じこと。どこからでも打てる（slug を省くと fzf で選ぶ。fzf が無い・端末でなければ一覧を出して終了コード 2）
 ```
 
 コマンドは `hc attach` を打たない（[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 14）。Chief of Staff はラベル `herdr.space=andon-andon`・`herdr.tab=andon-andon-cos` で Herdr App の指揮側の Space に出るので、人は App のその tab で話す。最後の行に出た場所が「<Space 名> / <tab 名>」の形で出る（`andon / CoS`）。名前を付けるのは App の mod（S5）で、入るまでは Space と tab が名無し（Space はフォルダ名・tab は番号）に見える。App の無い所で話すときは人が自分で `hc attach <address>`。

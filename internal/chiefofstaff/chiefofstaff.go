@@ -48,6 +48,12 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, Usage)
 		return exitUsage
 	}
+	return Start("", stdout, stderr)
+}
+
+// Start は dir（空なら今のディレクトリ）から台帳を探して、そのプロジェクトの Chief of Staff を起こす／使う。
+// andon open <slug> が projects/<slug> を指して呼ぶ（cd はしない）。
+func Start(dir string, stdout, stderr io.Writer) int {
 	die := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "andon chief-of-staff: "+format+"\n", a...)
 		return exitFail
@@ -60,7 +66,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if _, err := exec.LookPath("hc"); err != nil {
 		return die("hc が無い")
 	}
-	root, err := spawn.Output(nil, "", cli, "root")
+	root, err := spawn.OutputIn(dir, nil, "", cli, "root")
 	if err != nil || root == "" {
 		return die("台帳が見つからない（projects/<slug>/ で打つ）")
 	}

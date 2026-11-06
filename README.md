@@ -71,6 +71,8 @@ bin/bootstrap host-install                  # ホストの andon-up・ssh config
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）は建屋の `.env` に書く。`bin/bootstrap --dry-run` は docker を打たずに、打つものを出す。
 
+建屋の中では `andon open <slug>` でプロジェクトの Chief of Staff を開く（`projects/<slug>/` に cd して `andon chief-of-staff` を打つのと同じ）。slug を省くと、台帳のあるプロジェクトの一覧から fzf で選ぶ。
+
 ### テスト
 
 ```bash
