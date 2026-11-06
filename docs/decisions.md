@@ -258,3 +258,9 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-06 | repo の description は "A one-person software factory: AI coding agents take tasks from a ledger through review to merge, and call the human only for decisions only they can make."、topics は `ai-agents`・`coding-agents`・`claude-code`・`codex`・`multi-agent`・`software-factory`・`human-in-the-loop`・`developer-tools`。設定は public にするときに Chief of Staff が打つ | 人（Y-126 の案A） |
 | 2026-11-06 | 名前 Andon は一般の用語なので、そのまま使う（商標は J-PlatPat と USPTO で確かめた） | 人 |
 | 2026-11-06 | 同じ名前の別のもの（AI のツールや MCP server）と見分けるため、表示名に修飾を添える: 「Andon — a one-person software factory」。README の見出しの直下・英語の段の書き出し・description・social preview の画像（`docs/assets/social-preview.png`）で揃える。repo 名・コマンド・image 名は `andon` のまま | 人（Y-126） |
+
+## 18. 配布の線での決定
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-06 | GHCR へは `vX.Y.Z` の tag の push のときだけ（tests を通した image を）push する。main へのマージごとの `:<sha>` の push はやめる（約 1 GiB の版がマージごとに増え、private の package のストレージ枠に当たった）。日々の試しは建屋で andon の checkout から焼く（`bin/bootstrap rebuild --from`。焼く手順は `image/build.sh` の1本で、tests・CI と同じ）。tag を切るまでの建屋は、いま GHCR にある SHA の版を使う | 人（2026-11-06）、Y-136 |

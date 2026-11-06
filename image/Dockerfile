@@ -1,4 +1,20 @@
 # syntax=docker/dockerfile:1
+# 焼くのは image/build.sh（tests/image.sh・CI・建屋の bin/bootstrap rebuild --from が同じものを打つ）。
+# kanban と andon は下の段で docker の中で焼く（ホストに go は要らない）。go の版は mise.toml・go.mod と揃える
+FROM golang:1.27.3-bookworm@sha256:dc0963f32053e4bc451d24d87e3892d42d01021b61f093e98eb95c0352bb84b0 AS bin
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY embed.go ./
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY init/ init/
+# kanban --version に出す版（image/build.sh が commit の短い SHA を渡す）
+ARG ANDON_VERSION=dev
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${ANDON_VERSION}" -o /out/kanban ./cmd/kanban \
+ && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/andon ./cmd/andon
+
 # andon は uid・gid 1000（ubuntu の既定の利用者を外して空ける）。建屋の repo を /workspace に bind mount するので、
 # ホストの持ち主（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わない建屋は bin/bootstrap が起こす前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
@@ -85,12 +101,11 @@ RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.conf
 COPY package/ /opt/andon/
 # skill の手順が JSON を確かめる schema（package/lib/andon/schema_check.py が読む。ANDON_SCHEMA の既定）
 COPY schema/ /opt/andon/schema/
-# 台帳の CLI（cmd/kanban）。tests/image.sh が同じ repo から焼いたものを build context `kanban` で渡す
-# （docker build --build-context kanban=<dir>）。deck は1版だけの別名（docs/design.md §3.5 の K5）
-COPY --from=kanban --chmod=755 kanban /usr/local/bin/kanban
-# andon の CLI（cmd/andon）。kanban と同じく tests/image.sh が焼き、build context `andon` で渡す。
+# 台帳の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。deck は1版だけの別名（docs/design.md §3.5 の K5）
+COPY --from=bin --chmod=755 /out/kanban /usr/local/bin/kanban
+# andon の CLI（cmd/andon）。kanban と同じく段 bin が焼く。
 # compose の `andon boot` と、ホストが取り出す口（docs/operate.md の 2）がこれを使う
-COPY --from=andon --chmod=755 andon /opt/andon/bin/andon
+COPY --from=bin --chmod=755 /out/andon /opt/andon/bin/andon
 # 対話 bash の設定（~/.bashrc の末尾が読む）と Tab 補完。gh・just・mise は各 CLI が生成するもの、hc は --help の一覧から作る
 # （hc に生成の口が無い）、andon・kanban・deck はサブコマンド名だけの小さな補完（image/completions/）
 COPY --chmod=644 image/bashrc /etc/andon-bashrc
@@ -111,3 +126,6 @@ RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon \
 USER andon
 WORKDIR /workspace
 CMD ["bash"]
+# 焼いた元の commit（image/build.sh が渡す。汚れた checkout なら末尾に -dirty）。bin/bootstrap status が出す
+ARG ANDON_REVISION=unknown
+LABEL org.opencontainers.image.revision=${ANDON_REVISION}
