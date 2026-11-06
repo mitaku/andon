@@ -36,7 +36,16 @@
       "Bash(git log *--output*)",
       "Bash(git show *--output*)",
       "Bash(git log *--ext-diff*)",
-      "Bash(git show *--ext-diff*)"
+      "Bash(git show *--ext-diff*)",
+      "Edit(//workspace/andon.toml)",
+      "Edit(//workspace/AGENTS.md)",
+      "Edit(//workspace/gate.local.json)",
+      "Edit(//workspace/templates.local/**)",
+      "Edit(//workspace/local/**)",
+      "Edit(//workspace/bin/**)",
+      "Edit(//workspace/projects/*/project.json)",
+      "Edit(//workspace/projects/*/delegation.json)",
+      "Edit(//workspace/projects/*/delegation.md)"
     ]
   },
   "hooks": {
