@@ -199,3 +199,21 @@ func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 		t.Fatalf("再開後に送り直していない: %q", got)
 	}
 }
+
+// クーリエが起こしたレビュアー（startReviewer がラベルを付けたもの）にも、見回りで1回だけ送り直す。文はレビュアーの最初のメッセージ。
+// hc run が送れなかったときも、送ったが動き出さなかった（入力欄が空のまま idle）ときも、端末のラベルは同じ。
+func TestFirstMessageReviewer(t *testing.T) {
+	f := newFirst(t)
+	f.p.tasks = []ledger.Task{{"id": "S-8", "status": "doing", "agent": "t43", "parent": "S-7", "profile": "codex-review"}}
+	brief := filepath.Join(f.d, "projects", "sample-site", ".flightdeck", "tasks", "S-8", "brief.md")
+	send := "send t43 タスク `sample-site/S-8`。|依頼書は `" + brief + "`。|先に `" + filepath.Join(home(), "skills", "worker", "SKILL.md") + "` を読む。"
+	if got := f.round(); len(got) != 2 || got[0] != send || got[1] != "label t43 first_message.sent=" {
+		t.Fatalf("1回目: %q", got)
+	}
+	if !strings.Contains(f.log.String(), "S-8 の担当 t43 に最初のメッセージを送った") {
+		t.Errorf("送ったことがログに無い: %s", f.log.String())
+	}
+	if got := f.round(); got != nil {
+		t.Fatalf("送ったあとにまた打った: %q", got)
+	}
+}

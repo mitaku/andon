@@ -16,6 +16,7 @@ import (
 	"andon/internal/delegate"
 	"andon/internal/gate"
 	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 var (
@@ -283,8 +284,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 		return fmt.Sprintf("端末の名前 %s が hc の決まりに合わない（%s は todo のまま残る）", term, rev), true
 	}
 	cwd := filepath.Join(p.l.Dir, "tasks", rev)
-	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
-		p.l.Slug, rev, filepath.Join(cwd, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md"))
+	msg := p.reviewerFirst(rev)
 
 	// 3. 端末（起こした端末が生きていれば起こし直さない）
 	if r.Address != "" && exec.Command("hc", "get", r.Address).Run() != nil {
@@ -298,24 +298,29 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 			args = append(args, "--label", l)
 		}
 		out, _, err := run("", nil, "", "hc", append(args, "--cwd", cwd, s.Reviewer, msg)...)
-		var started struct {
-			Address      string `json:"address"`
-			FirstMessage struct {
-				Sent   bool   `json:"sent"`
-				Reason string `json:"reason"`
-			} `json:"first_message"`
-		}
+		var started spawn.Started
 		if err != nil || json.Unmarshal([]byte(out), &started) != nil || started.Address == "" {
 			return fmt.Sprintf("hc run に失敗（%s は todo のまま。次の見回りで起こし直す）: %v", rev, err), false
 		}
 		r.Address = started.Address
-		if _, _, err := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", rev); err != nil {
-			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, err)
+		_, _, serr := run(cwd, []string{"FLIGHTDECK_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + r.Address}, "", ledger.CLI, "start", rev)
+		if serr != nil {
+			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, serr)
 		}
-		if !started.FirstMessage.Sent {
-			return fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s（次の見回りで送り直す）", rev, r.Address, started.FirstMessage.Reason), false
+		if started.First.Delivered() {
+			return "", false
 		}
-		return "", false
+		// 届いていない（送れなかった・送ったが動き出さなかった）。担当と同じく端末にラベルを付けて、
+		// 見回りの sendFirst に1回だけの送り直しを預ける（courier.md §5。二重に送らない守りは控えの first）。
+		// sendFirst が見るのは doing のタスクなので、start が通らなかったときと、ラベルを付けられないときは 4 で送り直す
+		why := fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s", rev, r.Address, started.Reason())
+		if serr == nil {
+			if err := spawn.MarkUnsent(r.Address); err == nil {
+				p.logf("%s。ラベル %s=false を付けた（見回りで送り直す）", why, spawn.FirstLabel)
+				return "", false
+			}
+		}
+		return why + "（次の見回りで送り直す）", false
 	}
 
 	// 4. 起きているが最初のメッセージが届いていない端末へ送り直す（信頼の画面などで止まっていれば拒まれ、次の見回りへ）
@@ -323,6 +328,12 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 		return fmt.Sprintf("%s（%s）に最初のメッセージを送れない: %v（次の見回りで送り直す）", rev, r.Address, err), false
 	}
 	return "", false
+}
+
+// reviewerFirst はレビュアーのタスク rev の最初のメッセージ（起こすときと、届かなかったのを sendFirst が送り直すときで同じ文）。
+func (p *project) reviewerFirst(rev string) string {
+	return fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
+		p.l.Slug, rev, filepath.Join(p.l.Dir, "tasks", rev, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md"))
 }
 
 // workerPlace は担当の端末（task.yaml の agent）のラベル herdr.space・herdr.tab を "k=v" で返す。レビュアーに同じ値を付け、
