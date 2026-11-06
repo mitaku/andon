@@ -47,6 +47,7 @@ func newFirst(t *testing.T) *firstFixture {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state")) // 送る前の控えの保存を一時の置き場へ（本物の控えに触らない）
 	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Courier{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
@@ -152,5 +153,27 @@ func TestFirstMessageSentByHand(t *testing.T) {
 	f.rm("unsent")
 	if got := f.round(); got != nil {
 		t.Fatalf("ラベルの無い担当に打った: %q", got)
+	}
+}
+
+// 送ってからラベルを外す前にクーリエが落ちても、再開後に二度送らない（送る前に控えへ「送りかけ」を保存する）。
+func TestFirstMessageCrashBeforeUnlabel(t *testing.T) {
+	f := newFirst(t)
+	// 送れたがラベルを外せないまま落ちた、とみなす（控えは送る前に保存されている）
+	f.put("label-rc", "1")
+	f.round()
+	b, err := os.ReadFile(StatePath("sample-site"))
+	if err != nil || !strings.Contains(string(b), `"S-7|t42": true`) {
+		t.Fatalf("送る前に控えへ送りかけを保存していない: %v %s", err, b)
+	}
+	// 再開: 保存された控えから読み直す。ラベルは残っている
+	st, _, err := LoadState("sample-site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.p.st = st
+	f.rm("label-rc")
+	if got := f.round(); len(got) != 1 || got[0] != "label t42 first_message.sent=" {
+		t.Fatalf("再開後に送り直した: %q", got)
 	}
 }

@@ -202,3 +202,70 @@ func TestTrustLeavesUnreadable(t *testing.T) {
 		})
 	}
 }
+
+// 台帳に載っていても、GHQ_ROOT の外へ逃げる symlink の repo は信頼しない（実体のパスで判定する）。
+func TestTrustRefusesSymlinkOutsideGhq(t *testing.T) {
+	f := newFixture(t)
+	e, roots := trustEnv(t, f)
+	outside := filepath.Join(f.root, "outside", "repo")
+	mustMkdir(t, filepath.Join(outside, ".git"))
+	if err := os.Symlink(outside, filepath.Join(e.GhqRoot, "github.com", "example", "escape")); err != nil {
+		t.Fatal(err)
+	}
+	put(t, filepath.Join(f.ws, "projects", "escape", ".flightdeck", "config.yaml"), "version: 2\nrepos:\n  - github.com/example/escape\n")
+	if err := Trust(e); err != nil {
+		t.Fatal(err)
+	}
+	got := trustedClaude(t, filepath.Join(f.claude, ".claude.json"))
+	real, _ := filepath.EvalSymlinks(outside)
+	if got[real] || got[outside] || len(got) != len(roots) {
+		t.Errorf("GHQ_ROOT の外を信頼した: %v", got)
+	}
+	if toml := read(t, filepath.Join(f.home, ".codex", "config.toml")); strings.Contains(toml, "outside") {
+		t.Errorf("Codex で GHQ_ROOT の外を信頼した:\n%s", toml)
+	}
+	if !strings.Contains(f.log.String(), "github.com/example/escape が GHQ_ROOT の外") {
+		t.Errorf("ログに無い: %s", f.log.String())
+	}
+}
+
+// 読んだあとに動いている Claude Code が .claude.json を書き換えたら、古い中身で上書きせず、新しい中身に足す。
+func TestTrustClaudeConcurrentWriter(t *testing.T) {
+	f := newFixture(t)
+	e, roots := trustEnv(t, f)
+	cj := filepath.Join(f.claude, ".claude.json")
+	put(t, cj, `{"numStartups": 1}`)
+	calls := 0
+	claudeRace = func(path string) {
+		calls++
+		if calls == 1 { // 1回目の読み直しの前に Claude Code が書いた
+			put(t, path, `{"numStartups": 2, "oauthAccount": {"emailAddress": "a@example.com"}}`)
+		}
+	}
+	defer func() { claudeRace = func(string) {} }()
+	if err := trustClaude(e); err != nil {
+		t.Fatal(err)
+	}
+	s := read(t, cj)
+	if calls != 2 || !strings.Contains(s, `"numStartups": 2`) || !strings.Contains(s, `"a@example.com"`) {
+		t.Errorf("Claude Code の書き込みを失った（calls=%d）:\n%s", calls, s)
+	}
+	if got := trustedClaude(t, cj); len(got) != len(roots) {
+		t.Errorf("信頼を足していない: %v", got)
+	}
+
+	// 読むたびに書き換わるなら、書かずにログに1行
+	put(t, cj, `{"numStartups": 1}`)
+	n := 0
+	claudeRace = func(path string) { n++; put(t, path, `{"numStartups": `+strings.Repeat("9", n)+`}`) }
+	f.log.Reset()
+	if err := trustClaude(e); err != nil {
+		t.Fatal(err)
+	}
+	if s := read(t, cj); n != claudeTries || s != `{"numStartups": `+strings.Repeat("9", n)+`}` {
+		t.Errorf("書き換わり続けるのに書いた（n=%d）: %s", n, s)
+	}
+	if !strings.Contains(f.log.String(), "読むたびに書き換わる") {
+		t.Errorf("ログに無い: %s", f.log.String())
+	}
+}

@@ -48,13 +48,24 @@ func TrustFromOS(log io.Writer) error {
 // trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順は建屋の repo、台帳の名前順と repos の順。
 func (e Env) trustRoots() []string {
 	cands := []string{e.Workspace}
-	if e.GhqRoot != "" && e.Workspace != "" {
+	ghq, err := filepath.EvalSymlinks(e.GhqRoot)
+	if e.GhqRoot != "" && e.Workspace != "" && err == nil {
 		cfgs, _ := filepath.Glob(filepath.Join(e.Workspace, "projects", "*", ".flightdeck", "config.yaml"))
 		sort.Strings(cfgs)
 		for _, cfg := range cfgs {
 			for _, repo := range ledger.At(filepath.Dir(filepath.Dir(cfg))).Repos() {
-				dir := filepath.Join(e.GhqRoot, repo)
-				if _, err := os.Lstat(filepath.Join(dir, ".git")); spawn.RepoRe.MatchString(repo) && err == nil {
+				if !spawn.RepoRe.MatchString(repo) {
+					continue
+				}
+				// 実体のパスで、実体の GHQ_ROOT の内側にある clone だけ（symlink で外へ逃げる repo は信頼しない）
+				dir, err := filepath.EvalSymlinks(filepath.Join(ghq, repo))
+				if err != nil || !strings.HasPrefix(dir, ghq+string(filepath.Separator)) {
+					if err == nil {
+						e.logf("信頼を足さない: %s が GHQ_ROOT の外（%s）を指す", repo, dir)
+					}
+					continue
+				}
+				if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
 					cands = append(cands, dir)
 				}
 			}
@@ -90,30 +101,71 @@ func (e Env) claudeJSON() string {
 // trustClaude は .claude.json の projects["<根>"].hasTrustDialogAccepted を true にする。ほかのキー・値は
 // そのまま残す（読んだ JSON の値を組み直さずに書き戻す）。無ければ作る（Claude Code は足りないキーを既定で補う）。
 // JSON の object でなければ書かない。
+//
+// 動いている Claude Code も同じファイルを書くので、古い中身で上書きしないように: 足すものが無ければ書かない。
+// 書く直前に読み直し、変わっていれば読み直した中身からやり直す（claudeTries 回で諦めてログに1行）。
+// 読み直しから rename までの短い隙間に Claude Code が書いたものは負けうる（受け入れる。docs/decisions.md）。
 func trustClaude(e Env) error {
 	path := e.claudeJSON()
-	b, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+	roots := e.trustRoots()
+	for try := 0; try < claudeTries; try++ {
+		b, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		out, added, skip := addClaudeTrust(b, roots)
+		if skip != "" {
+			return e.skipTrust("%s %s（書かない）", path, skip)
+		}
+		if len(added) == 0 {
+			return nil
+		}
+		claudeRace(path)
+		now, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		if !bytes.Equal(now, b) {
+			continue // 読んだあとに書き換わった: 新しい中身からやり直す
+		}
+		if err := e.writeFile(path, out, modeOr(path, 0o600)); err != nil {
+			return err
+		}
+		e.logf("信頼を足した（Claude Code）: %s", strings.Join(added, " "))
+		if len(b) == 0 && e.ClaudeDir != "" {
+			return e.symlink(path, filepath.Join(e.Home, ".claude.json")) // 作ったときは rescueClaudeJSON と同じリンクを張る
+		}
+		return nil
 	}
+	return e.skipTrust("%s が読むたびに書き換わる（%d 回。次の起動か andon task start で足す）", path, claudeTries)
+}
+
+// claudeTries は .claude.json が読むたびに書き換わるとき、やり直す回数。
+const claudeTries = 5
+
+// claudeRace は書く直前の読み直しの前に呼ぶ（テストが並行の書き手を差し込む）。
+var claudeRace = func(string) {}
+
+// addClaudeTrust は .claude.json の中身 b に roots の信頼を足した中身を返す。足すものが無ければ added が空。
+// 形が読めなければ skip に理由。
+func addClaudeTrust(b []byte, roots []string) (out []byte, added []string, skip string) {
 	top := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(b)) > 0 {
 		if err := json.Unmarshal(b, &top); err != nil || top == nil {
-			return e.skipTrust("%s が JSON の object でない（書かない）", path)
+			return nil, nil, "が JSON の object でない"
 		}
 	}
 	projects := map[string]json.RawMessage{}
 	if raw, ok := top["projects"]; ok && string(raw) != "null" {
 		if err := json.Unmarshal(raw, &projects); err != nil || projects == nil {
-			return e.skipTrust("%s の projects が object でない（書かない）", path)
+			return nil, nil, "の projects が object でない"
 		}
 	}
-	var added []string
-	for _, root := range e.trustRoots() {
+	for _, root := range roots {
 		entry := map[string]json.RawMessage{}
 		if raw, ok := projects[root]; ok && string(raw) != "null" {
 			if err := json.Unmarshal(raw, &entry); err != nil || entry == nil {
-				return e.skipTrust("%s の projects[%q] が object でない（書かない）", path, root)
+				return nil, nil, fmt.Sprintf("の projects[%q] が object でない", root)
 			}
 		}
 		if string(entry["hasTrustDialogAccepted"]) == "true" {
@@ -122,31 +174,23 @@ func trustClaude(e Env) error {
 		entry["hasTrustDialogAccepted"] = json.RawMessage("true")
 		raw, err := marshal(entry, "")
 		if err != nil {
-			return err
+			return nil, nil, err.Error()
 		}
 		projects[root] = raw
 		added = append(added, root)
 	}
 	if len(added) == 0 {
-		return nil
+		return nil, nil, ""
 	}
 	raw, err := marshal(projects, "")
 	if err != nil {
-		return err
+		return nil, nil, err.Error()
 	}
 	top["projects"] = raw
-	out, err := marshal(top, "  ")
-	if err != nil {
-		return err
+	if out, err = marshal(top, "  "); err != nil {
+		return nil, nil, err.Error()
 	}
-	if err := e.writeFile(path, append(out, '\n'), modeOr(path, 0o600)); err != nil {
-		return err
-	}
-	e.logf("信頼を足した（Claude Code）: %s", strings.Join(added, " "))
-	if len(b) == 0 && e.ClaudeDir != "" {
-		return e.symlink(path, filepath.Join(e.Home, ".claude.json")) // 作ったときは rescueClaudeJSON と同じリンクを張る
-	}
-	return nil
+	return append(out, '\n'), added, ""
 }
 
 // skipTrust は設定の形が読めないとき: 書かずにログに1行出して続ける（人の設定を壊さない。boot は止めない）。

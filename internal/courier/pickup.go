@@ -330,7 +330,8 @@ func (p *project) watch(now time.Time) {
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
 // （courier.md §5 の「起こしそこねたら続きから」。andon task start・andon chief-engineer が終了コード 3 で預けたもの）。
-// 送ったら（人が手で送って動き出していても）ラベルを外す。外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
+// 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
+// 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
 // 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
 func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (keep bool) {
 	id := t.Str("id")
@@ -340,11 +341,21 @@ func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (kee
 		p.logf("%s の担当 %s は最初のメッセージのラベルが残っているが、もう動いている（手で送られた）。送らない", id, agent)
 	case status == "idle" || status == "":
 		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "tasks", id, "brief.md"))
+		// 送る前に控えへ「送りかけ」を書いて保存する（送ってからラベルを外す前にクーリエが落ちても、再開後に二度送らない。
+		// 送っている間に落ちたときは届いたか分からないまま送らない側に倒れる。担当は idle のままなので stalled で Chief of Staff に届く）
+		rk := id + "|" + agent
+		p.st.First[rk] = true
+		if err := p.st.Save(p.l.Slug); err != nil {
+			delete(p.st.First, rk)
+			p.logf("%s の担当 %s に最初のメッセージを送らない（控えを書けない。次の見回りで）: %v", id, agent, err)
+			return false
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "hc", "send", agent, msg)
 		cmd.Env = withoutTerminal()
 		if err := cmd.Run(); err != nil {
+			delete(p.st.First, rk)
 			p.logf("%s の担当 %s に最初のメッセージを送れない（次の見回りで送り直す）: %v", id, agent, err)
 			return false
 		}
