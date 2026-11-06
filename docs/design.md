@@ -431,7 +431,7 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 
 タスクの `merge: auto` は委譲の範囲の中でだけ効き、`merge: person` は委譲があっても人に戻す（**狭める方向にだけ効く**）。委譲が無いタスクの `auto` はゲートが `needs_human` にする。条件表と委譲を1つにしない理由は上の案 C。
 
-**書き手の照合**: 委譲の正は建屋の repo の HEAD。command は、そのファイルを最後に変えた commit の author が建屋の `andon.toml` の `owner` と一致するときだけ信じ、一致しなければ**無委譲（全部人）**として読む（安全側。履歴は固定のプログラム〈git〉が作り、読む側が照合する——台帳の `log.jsonl` の `by` と同じ考え）。Chief of Staff・担当・dispatcher の端末は建屋の repo に commit できない（managed deny ＋ 端末のラベル）。将来は signed commit で強くできる（今は備えない。§1.5）。委譲を足す・狭める・取り消すのは `andon delegate grant|narrow|revoke`（人が建屋の repo で打つ。JSON と `delegation.md` を書き、根拠を commit message に残す）。
+**書き手の照合**: 委譲の正は建屋の repo の HEAD。command は、そのファイルを最後に変えた commit の author が建屋の `andon.toml` の `owner` と一致するときだけ信じ、一致しなければ**無委譲（全部人）**として読む（安全側。履歴は固定のプログラム〈git〉が作り、読む側が照合する——台帳の `log.jsonl` の `by` と同じ考え）。Chief of Staff・担当・dispatcher は人のファイルを書き換えられない（managed settings の deny `Edit(//workspace/…)` が Claude Code の道具と Bash の `sed -i`・`tee`・リダイレクトを拒む。ファイルを自分で開く子プロセスと Codex は拒めず、照合が受け持つ。ADR-0005 決めたこと 6）・`andon delegate` は役の端末で打てない（端末のラベル）。将来は signed commit で強くできる（今は備えない。§1.5）。委譲を足す・狭める・取り消すのは `andon delegate grant|narrow|revoke`（人が建屋の repo で打つ。JSON と `delegation.md` を書き、根拠を commit message に残す）。
 
 **任せた場合でも残す安全網**:
 

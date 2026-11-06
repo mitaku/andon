@@ -5,6 +5,7 @@
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
 #      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
+#      settings の deny が人のファイル（ADR-0005 決めたこと 4 の (c)）の書き換えを Edit(//workspace/…) で拒む。
 #   5. statusline が JSON を読んで1行を出す。
 #   6. skill の機械向けの手順が command（andon task …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
@@ -123,8 +124,16 @@ while IFS= read -r d; do
   [ -z "$d" ] && continue
   cmd=$(sed -E 's/^Bash\(([a-z-]+ [a-z-]+).*/\1/' <<<"$d")
   jq -e --arg c "$cmd" '.permissions.allow | any(startswith("Bash(" + $c + " ") or startswith("Bash(" + $c + ")") or startswith("Bash(" + $c + ":"))' package/settings.json >/dev/null || bad="$bad [$d]"
-done < <(jq -r '.permissions.deny[] | select(test("^Bash\\([^*]*:\\*\\)$") | not)' package/settings.json)
+done < <(jq -r '.permissions.deny[] | select(startswith("Bash(")) | select(test("^Bash\\([^*]*:\\*\\)$") | not)' package/settings.json)
 [ -z "$bad" ] && pass "頭の線でない deny は allow の穴を塞ぐものだけ（Codex の rules に要らない）" || fail "頭の線でも allow の穴塞ぎでもない deny（Codex の rules にどう引くか決める）:$bad"
+# 人のファイル（ADR-0005 決めたこと 4 の (c)）への書き換えを deny する。今の Claude Code は Write・NotebookEdit・MultiEdit を Edit(path) の規則で引き、
+# Write(path) の規則は受け付けても当たらない。絶対パスは //（単独の / は設定の置き場からの相対）。Codex には同じ線を引けない（docs/image.md）
+for f in andon.toml AGENTS.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json' 'projects/*/delegation.json' 'projects/*/delegation.md'; do
+  jq -e --arg r "Edit(//workspace/$f)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
+    && pass "settings は人のファイル /workspace/$f の書き換えを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
+done
+bad=$(jq -r '.permissions.deny[] | select(startswith("Bash(") or startswith("Edit(//workspace/") | not)' package/settings.json)
+[ -z "$bad" ] && pass "deny は Bash(…) と Edit(//workspace/…) だけ（Write(…) は当たらないので書かない）" || fail "知らない形の deny: $(tr '\n' ' ' <<<"$bad")"
 sl=$(jq -r '.statusLine.command' package/settings.json)
 [ "$sl" = /opt/andon/lib/andon/statusline ] && [ -x package/lib/andon/statusline ] \
   && pass "statusLine は package/lib/andon/statusline を指す" || fail "statusLine: $sl"
