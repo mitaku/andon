@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strings"
 
+	"andon/internal/boot"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -167,10 +168,13 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		output(env, "", cli, "set", id, "branch=", "worktree=")
 	}
 	cwd := wt.Path
-	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
-	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。",
-		slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"))
+	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足す
+	msg := spawn.FirstMessage(slug, id, filepath.Join(root, ".flightdeck", "tasks", id, "brief.md"))
 
+	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
+	if err := boot.TrustFromOS(io.Discard); err != nil {
+		fmt.Fprintf(stderr, "andon chief-engineer: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
+	}
 	labels := []string{"role=" + Profile, "project=" + slug, "task=" + id, "title=" + title,
 		"herdr.space=andon-" + slug, "herdr.tab=andon-" + slug + "-" + id}
 	run, err := spawn.Run(name, labels, cwd, Profile, msg)
@@ -185,8 +189,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 
 	place := where(slug, id, title)
 	if !run.First.Sent {
-		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s。App の %s で答えてから、次を送る: hc send %s %q\n",
-			run.Address, name, run.Reason(), place, run.Address, msg)
+		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s。%s（App では %s）\n",
+			run.Address, name, run.Reason(), spawn.ResendHint(run.Address, msg), place)
 		fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 		return exitFirst
 	}

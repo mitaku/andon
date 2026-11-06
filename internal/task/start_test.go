@@ -31,6 +31,7 @@ case $1 in
   ls) echo "$FAKE_LS" ;;
   templates) echo "$FAKE_TPL" ;;
   run) [ "${FAKE_RUN_RC:-0}" = 0 ] || { echo "boom" >&2; exit 1; }; echo "$FAKE_RUN" ;;
+  label) [ "${FAKE_LABEL_RC:-0}" = 0 ] || { echo "no label" >&2; exit 1; } ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
 esac
 `
@@ -68,6 +69,10 @@ func newStart(t *testing.T) *startFixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
+	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(dir, "workspace"))
+
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("FLIGHTDECK_ROOT", "")
@@ -165,6 +170,14 @@ func TestStart(t *testing.T) {
 			t.Errorf("call %d:\n got %q\nwant %q", i, calls[i], want[i])
 		}
 	}
+	// 起こす前に案件の repo の根を信頼に足す（boot のあとに迎えた repo でも信頼の画面を出さない）
+	repo, _ := filepath.EvalSymlinks(f.repoDir)
+	if cj := read(t, filepath.Join(f.home, ".claude.json")); !strings.Contains(cj, `"`+repo+`": {`) || !strings.Contains(cj, `"hasTrustDialogAccepted": true`) {
+		t.Errorf(".claude.json に repo の根の信頼が無い:\n%s", cj)
+	}
+	if toml := read(t, filepath.Join(f.home, ".codex", "config.toml")); !strings.Contains(toml, `[projects."`+repo+`"]`+"\ntrust_level = \"trusted\"\n") {
+		t.Errorf("config.toml に repo の根の信頼が無い:\n%s", toml)
+	}
 	// skill はプロファイルの command が system prompt に足す（ADR-0001 決定 3）。最初のメッセージで読ませない
 	if all := strings.Join(calls, "\n"); strings.Contains(all, "SKILL.md") || strings.Contains(all, "先に") {
 		t.Errorf("最初のメッセージに「先に読む」の行が残る:\n%s", all)
@@ -261,12 +274,17 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 	for _, want := range []string{
 		"t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt",
-		"hc read t42 で画面を読み、答えてから次を送る: hc send t42 \"タスク `sample-site/S-7`。",
+		"クーリエが見回りで送り直す（画面が入力を受けられるようになれば。",
+		"急ぐときだけ手で: hc send t42 \"タスク `sample-site/S-7`。",
 		"台帳は doing・agent t42 のまま",
 	} {
 		if !strings.Contains(errs, want) {
 			t.Errorf("err に %q が無い: %q", want, errs)
 		}
+	}
+	// 送り直しはクーリエに預ける（端末のラベル。contract.md §8）
+	if !f.has("hc label t42 first_message.sent=false") {
+		t.Errorf("ラベルを付けていない: calls=%q", f.calls())
 	}
 	// 起きた端末は台帳に結ぶ（worktree は残す。画面に答えて送り直せば続く）
 	if !f.has("kanban start S-7 | HC_TERMINAL_ID=t42") {
@@ -277,6 +295,19 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 }
 
+// ラベルを付けられなければ、クーリエは送り直さないので手で送る案内だけにする。
+func TestStartFirstMessageNoLabel(t *testing.T) {
+	f := newStart(t)
+	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
+	t.Setenv("FAKE_LABEL_RC", "1")
+	rc, _, errs := f.run()
+	if rc != exitFirst || !strings.Contains(errs, "ラベル first_message.sent を付けられず") ||
+		!strings.Contains(errs, "クーリエは送り直さない。hc read t42 で画面を読み、答えてから手で送る: hc send t42 ") ||
+		strings.Contains(errs, "クーリエが見回りで送り直す") {
+		t.Errorf("rc=%d err=%q", rc, errs)
+	}
+}
+
 // 担当の置き場のラベルは slug・id・題だけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7）。
 func TestWorkLabels(t *testing.T) {
 	want := []string{"project=sample-site", "task=S-7", "title=Add the button",
@@ -284,4 +315,13 @@ func TestWorkLabels(t *testing.T) {
 	if got := workLabels("sample-site", "S-7", "Add the button"); !slices.Equal(got, want) {
 		t.Errorf("got %q want %q", got, want)
 	}
+}
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

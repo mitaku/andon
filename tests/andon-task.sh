@@ -190,6 +190,9 @@ ok 'ask: 形の違う問いは台帳に書く前に止まる'
 
 # start: Chief of Staff（t5）が担当を起こす。案件の repo は bare な origin とその clone
 export GHQ_ROOT="$tmp/ghq"
+# start は起こす前に信頼の設定を足す（boot と同じ手）。一時の HOME に書かせ、本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
+unset CLAUDE_CONFIG_DIR
+export ANDON_WORKSPACE="$tmp/plant"
 git init -q --bare -b main "$tmp/origin.git"
 git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/app" 2>/dev/null
 appdir=$GHQ_ROOT/github.com/example/app
@@ -212,6 +215,7 @@ case \$1 in
        echo "t\$n \$name \$task" >> \$d/live
        echo "{\"address\":\"t\$n\",\"first_message\":{\"sent\":\$(cat \$d/first 2>/dev/null || echo true),\"reason\":\"trust prompt\"}}" ;;
   kill) ;;
+  label) ;;
   rm) sed -i "/^\$2 /d" \$d/live ;;
   *) echo "unexpected hc \$1" >&2; exit 9 ;;
 esac
@@ -290,10 +294,11 @@ rc=0; "$andon" task start "$s5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 rm "$tmp/hc/first"
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 addr=$(field "$s5" agent)
-grep -q "に最初のメッセージが届いていない: trust prompt。hc read $addr で画面を読み、答えてから次を送る: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
+grep -q "に最初のメッセージが届いていない: trust prompt。クーリエが見回りで送り直す（.*急ぐときだけ手で: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
   && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
+grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'クーリエに預けるラベルを付けていない'
 grep -q "^run .*--cwd $PWD/.flightdeck/tasks/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
-ok 'start: 最初のメッセージが届かなければ終了コード 3 と送り直す hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
+ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（クーリエが送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
 
 # start が作ったものを finish が片付ける
 : > "$tmp/hc/log"

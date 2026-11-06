@@ -113,6 +113,32 @@ func (s *Started) Reason() string {
 	return s.First.Reason
 }
 
+// FirstLabel は最初のメッセージが届かなかった端末に付けるラベルの名前。値は "false"。
+// クーリエが見回りで拾い、端末が入力を受けられるようになったら最初のメッセージを送って外す（contract.md §8・courier.md §5）。
+const FirstLabel = "first_message.sent"
+
+// FirstMessage は担当（andon task start）と Chief Engineer（andon chief-engineer）の最初のメッセージ（タスクの2行）。
+// skill はプロファイルの command が system prompt に足すので、ここには書かない（ADR-0001 決定 3）。
+// クーリエが送り直すときも同じ文を組む。brief は依頼書の絶対パス。
+func FirstMessage(slug, id, brief string) string {
+	return fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
+}
+
+// MarkUnsent は端末に FirstLabel=false を付ける（クーリエに送り直しを預ける）。
+func MarkUnsent(addr string) error {
+	_, err := Output(nil, "", "hc", "label", addr, FirstLabel+"=false")
+	return err
+}
+
+// ResendHint は最初のメッセージが届かなかった端末 addr に FirstLabel を付け、人か Chief of Staff への案内を返す。
+// 送り直しはクーリエに預ける（画面が入力を受けられるようになれば次の見回りで送る）。付けられなければ手で送る案内だけにする。
+func ResendHint(addr, msg string) string {
+	if err := MarkUnsent(addr); err != nil {
+		return fmt.Sprintf("ラベル %s を付けられず（%v）、クーリエは送り直さない。hc read %s で画面を読み、答えてから手で送る: hc send %s %q", FirstLabel, err, addr, addr, msg)
+	}
+	return fmt.Sprintf("クーリエが見回りで送り直す（画面が入力を受けられるようになれば。信頼の画面などは App のその tab で答える）。急ぐときだけ手で: hc send %s %q", addr, msg)
+}
+
 // Run は hc run --json --bg --outlive-parent --no-notify で template を起こす（contract.md §8 の起こし方）。
 // --no-notify: 止まった・終わったはクーリエが端末の土台から拾う。labels は "k=v" の並び。
 func Run(name string, labels []string, cwd, template, msg string) (*Started, error) {

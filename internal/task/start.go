@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"andon/internal/boot"
 	"andon/internal/spawn"
 )
 
@@ -27,7 +28,7 @@ var profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 // repo があれば worktree と branch を切り、hc run でプロファイルを起こし、kanban start で doing にして agent をその端末にする。
 // 打つのは Chief of Staff（projects/<slug>/ で）。起こせなかったら作った worktree と branch を戻す（やり直せるように）。
 // 最初のメッセージが届かなかったとき（信頼の画面など）は、台帳は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
-func (c *ctx) start(stdout io.Writer) error {
+func (c *ctx) start(stdout, stderr io.Writer) error {
 	for _, cmd := range []string{"git", "hc"} {
 		if _, err := exec.LookPath(cmd); err != nil {
 			return fail("%s が無い", cmd)
@@ -114,8 +115,11 @@ func (c *ctx) start(stdout io.Writer) error {
 		cwd, branch = wt.Path, wt.Branch
 	}
 
-	// skill worker はプロファイルの command が system prompt に足すので、最初のメッセージはタスクの2行だけ（ADR-0001 決定 3）
-	msg := fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
+	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
+	if err := boot.TrustFromOS(io.Discard); err != nil {
+		fmt.Fprintf(stderr, "andon task: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
+	}
+	msg := spawn.FirstMessage(slug, id, brief)
 	run, err := spawn.Run(name, workLabels(slug, id, title), cwd, profile, msg)
 	if err != nil {
 		undo()
@@ -128,8 +132,8 @@ func (c *ctx) start(stdout io.Writer) error {
 	}
 	place := slug + " work / " + id + " " + title // 人に端末を指す言い方（ADR-0002 決めたこと 16・17）
 	if !run.First.Sent {
-		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。hc read %s で画面を読み、答えてから次を送る: hc send %s %q（台帳は doing・agent %s のまま。App では %s）",
-			run.Address, name, run.Reason(), run.Address, run.Address, msg, run.Address, place)}
+		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。%s（台帳は doing・agent %s のまま。App では %s）",
+			run.Address, name, run.Reason(), spawn.ResendHint(run.Address, msg), run.Address, place)}
 	}
 	fmt.Fprintf(stdout, "andon task: %s を %s（%s・%s）で起こした。cwd %s", id, run.Address, name, profile, cwd)
 	if branch != "" {
