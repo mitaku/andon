@@ -14,7 +14,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 **Who it is for.** One developer who already runs several coding agents in terminals and wants them to keep working while the developer is away, without giving up control of merges and irreversible operations. It is built for its author's own use first.
 
-**Status.** Experimental. It is used by one person, and the interfaces change without notice. Most documents are written in Japanese; English is added only where needed. There are no releases with compatibility promises yet. The host must be Linux or WSL with Docker and bash. The cell image bundles agent CLIs (Claude Code, Codex) and the terminal workspace herdr; you bring your own accounts for them.
+**Status.** Experimental. It is used by one person, and the interfaces change without notice. Most documents are written in Japanese; English is added only where needed. There are no releases with compatibility promises yet; what changed in each tagged version, and what to do when upgrading, is in [CHANGELOG.md](CHANGELOG.md). The host must be Linux or WSL with Docker and bash. The cell image bundles agent CLIs (Claude Code, Codex) and the terminal workspace herdr; you bring your own accounts for them.
 
 **Getting started.** The step-by-step procedure (Japanese) is [docs/operate.md](docs/operate.md): pull the image, create a cell repo with `andon init <slug>`, run `bin/bootstrap`, then start the Chief of Staff and run one issue. The commands are also in [Set up a cell](#セルを立てる) below.
 
