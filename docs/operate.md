@@ -68,6 +68,8 @@ printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-std
 docker pull ghcr.io/<owner>/andon:<版>      # <版> は vX.Y.Z（配る版）。tag を切るまでは、いまある 40桁の commit SHA の版
 ```
 
+版ごとの変更と、上げるときにすることは [CHANGELOG.md](../CHANGELOG.md)。
+
 - **通ったら見えるもの**: `docker image ls ghcr.io/<owner>/andon` に行が出る。
 - **落ちたら見る所**:
   - `denied`・`unauthorized` — token に `read:packages` があるか。組織の package なら SSO の承認。package の「Manage access」にこのアカウントがあるか。
@@ -507,3 +509,11 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 | 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設のセルの台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon のセルができるまで Andon の仕事を持っている。このセルの側では何もしない |
 
 数える指標（design.md §5.1 の最後）の最初の1回は、10 の `log.jsonl` から数える: 人の `by` の行の数（介在回数）・依頼書からマージまでの時間・ゲートの `fix`＋`needs_human` の数。
+
+## 14. 版を切る
+
+版ごとの変更と「上げるときにすること」は [CHANGELOG.md](../CHANGELOG.md) に書く。**書くのは版を切るときだけ**で、PR ごとには触らない（全部の PR が版と CHANGELOG を触るとぶつかるので、その形は持たない。[design.md](design.md) §5）。
+
+1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前の版からの範囲は `git log <前の版>..origin/main`。各版に「変わったこと」（人の目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
+2. **マージ**（人か Chief of Staff）。
+3. **annotated tag**: マージした commit に `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>"` を打って push する（打つのは人。tag の push で GHCR に image が出る。[image.md](image.md) の「CI と配布」）。
