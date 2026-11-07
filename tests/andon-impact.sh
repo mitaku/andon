@@ -42,7 +42,7 @@ kanban config set chief_of_staff=t5 >/dev/null
 L=$PWD/kanban
 # task <題> <status> [brief]: branch demo/<id> を origin/main（その時点）から切り、worktree を置く
 task() {
-    local id wt; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app --brief - <<<"${3:-やること: $1}")
+    local id wt; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app --brief - <<<"${3:-解決すべき問題: $1}")
     wt=$HOME/.herdr/worktrees/app/demo-$id
     git -C "$app" worktree add -q -b "demo/$id" "$wt" origin/main
     HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$wt" >/dev/null

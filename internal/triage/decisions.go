@@ -43,9 +43,9 @@ func (i item) keyPart(n int) string {
 	return ""
 }
 
-func (i item) task() obj { t, _ := i["task"].(obj); return t }
+func (i item) issue() obj { t, _ := i["issue"].(obj); return t }
 
-func (i item) taskStr(k string) string { s, _ := i.task()[k].(string); return s }
+func (i item) issueStr(k string) string { s, _ := i.issue()[k].(string); return s }
 
 type record struct {
 	path  string
@@ -88,7 +88,7 @@ func (l *ledger) records() ([]record, error) {
 }
 
 var (
-	keyRe   = regexp.MustCompile(`^[a-z0-9-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(task|person|next|waived|remember|agents|question|leftover|unreadable):[a-f0-9]{40}$`)
+	keyRe   = regexp.MustCompile(`^[a-z0-9-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable):[a-f0-9]{40}$`)
 	repoRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	tokenRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 )
@@ -142,7 +142,7 @@ func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 		}
 		switch d {
 		case "fix", "bundle":
-			t, ok := it["task"].(obj)
+			t, ok := it["issue"].(obj)
 			if !ok {
 				return nil, nil, false
 			}
@@ -180,8 +180,8 @@ func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 	return data, items, true
 }
 
-// capTasks は起こす課題（fix と、bundle の束）を入力の順に max まで数え、超えたものを keep にする。
-func capTasks(items []item, max int) []item {
+// capIssues は起こす課題（fix と、bundle の束）を入力の順に max まで数え、超えたものを keep にする。
+func capIssues(items []item, max int) []item {
 	got := make([]item, 0, len(items))
 	var groups []string
 	for _, it := range items {

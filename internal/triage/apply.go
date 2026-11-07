@@ -11,14 +11,14 @@ import (
 	"time"
 )
 
-func runApply(l *ledger, id string, maxTasks int, dry bool, now time.Time, stdout io.Writer) error {
+func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdout io.Writer) error {
 	b, err := os.ReadFile(filepath.Join(l.dir, "issues", id, "library", "decisions.json"))
 	if err != nil {
 		return fail("decisions.json が無い: %s", id)
 	}
 	data, items, ok := parseDecisions(b, l.slug)
 	if !ok {
-		return fail("decisions.json が不正（key・理由・task・question を確認）")
+		return fail("decisions.json が不正（key・理由・issue・question を確認）")
 	}
 	if err := l.preflight(id, items); err != nil {
 		return err
@@ -44,8 +44,8 @@ func runApply(l *ledger, id string, maxTasks int, dry bool, now time.Time, stdou
 	for _, it := range items {
 		_, inCurrent := current[it.key()]
 		known := inCurrent || slices.ContainsFunc(historical, func(h item) bool { return h.key() == it.key() })
-		closesTask := it.decision() == "close" && (it.keyPart(2) == "task" || it.keyPart(2) == "person")
-		if !known || (closesTask && !inCurrent) {
+		closesIssue := it.decision() == "close" && (it.keyPart(2) == "issue" || it.keyPart(2) == "person")
+		if !known || (closesIssue && !inCurrent) {
 			return fail("key が収集項目・記録に無い、または close 対象が現在の未担当項目でない")
 		}
 	}
@@ -53,7 +53,7 @@ func runApply(l *ledger, id string, maxTasks int, dry bool, now time.Time, stdou
 	for _, it := range items {
 		it["text"] = sourceText(it.key(), inventory, historical)
 	}
-	items = capTasks(items, maxTasks)
+	items = capIssues(items, maxIssues)
 	data["items"] = toAny(items)
 
 	date := now.Format("2006-01-02")
@@ -90,7 +90,7 @@ func runApply(l *ledger, id string, maxTasks int, dry bool, now time.Time, stdou
 		}
 		for _, it := range g {
 			if newID != "" {
-				it["created_task"] = newID
+				it["created_issue"] = newID
 			}
 			done = append(done, it)
 		}
@@ -148,13 +148,13 @@ func (l *ledger) preflight(id string, items []item) error {
 		}
 		closes := slices.ContainsFunc(items, func(it item) bool {
 			k := it.keyPart(2)
-			return it.keyPart(1) == src && (k == "task" || k == "person") && it.decision() == "close"
+			return it.keyPart(1) == src && (k == "issue" || k == "person") && it.decision() == "close"
 		})
 		if !closes {
 			continue
 		}
 		var show struct {
-			Issue task `json:"issue"`
+			Issue ledgerIssue `json:"issue"`
 		}
 		if err := json.Unmarshal([]byte(out), &show); err != nil ||
 			(show.Issue.Status != "todo" && show.Issue.Status != "queued") || show.Issue.Agent != "" {
@@ -169,7 +169,7 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 	first := g[0]
 	switch first.decision() {
 	case "close":
-		if k := first.keyPart(2); k == "task" || k == "person" {
+		if k := first.keyPart(2); k == "issue" || k == "person" {
 			src := first.keyPart(1)
 			note := fmt.Sprintf("不要（%s・%s）: %s\n", id, date, first.str("reason"))
 			if _, err := l.kanban(note, "report", src, "--append"); err != nil {
@@ -183,16 +183,16 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 		review := "off"
 		var briefs, keys []string
 		for _, it := range g {
-			if it.taskStr("review") == "on" {
+			if it.issueStr("review") == "on" {
 				review = "on"
 			}
-			briefs = append(briefs, it.taskStr("brief"))
+			briefs = append(briefs, it.issueStr("brief"))
 			keys = append(keys, it.key())
 		}
-		brief := "やること:\n" + strings.Join(briefs, "\n\n") +
+		brief := "解決すべき問題:\n" + strings.Join(briefs, "\n\n") +
 			"\nなぜ: トリアージ " + strings.Join(keys, ", ") +
 			"\n完了条件: 上記の依頼を満たす。\n守ること: 依頼の範囲内で作業する。\n\n## Settings\n- Review: " + review + "\n"
-		return l.kanban(brief, "add", first.taskStr("title"), "--repo", first.taskStr("repo"), "--profile", first.taskStr("profile"), "--brief", "-")
+		return l.kanban(brief, "add", first.issueStr("title"), "--repo", first.issueStr("repo"), "--profile", first.issueStr("profile"), "--brief", "-")
 	case "person":
 		brief := "出どころ: " + first.key() +
 			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
@@ -251,7 +251,7 @@ func summary(slug, date string, goal any, items []item) string {
 		seen := map[string]bool{}
 		for _, it := range items {
 			if slices.Contains(decisions, it.decision()) {
-				seen[cell(it["created_task"])] = true
+				seen[cell(it["created_issue"])] = true
 			}
 		}
 		return len(seen)
@@ -285,13 +285,13 @@ func summary(slug, date string, goal any, items []item) string {
 	b.WriteString("\n## 直す（起こした課題）\n| 課題 | 題 | 出どころ | Review |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if d := it.decision(); d == "fix" || d == "bundle" {
-			b.WriteString(row(it["created_task"], it.task()["title"], it.key(), it.task()["review"]))
+			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))
 		}
 	}
 	b.WriteString("\n## 人へ（人の課題）\n| 課題 | 問い | kind | 推し |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if it.decision() == "person" {
-			b.WriteString(row(it["created_task"], it["question"], orDefault(it["kind"], "判断がつかない"), orDefault(it["pick"], "なし")))
+			b.WriteString(row(it["created_issue"], it["question"], orDefault(it["kind"], "判断がつかない"), orDefault(it["pick"], "なし")))
 		}
 	}
 	b.WriteString("\n## 次回に回した（keep）\n| 出どころ | 項目 | 待つもの |\n|---|---|---|\n")

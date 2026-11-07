@@ -7,7 +7,8 @@
 #      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
 #      settings の deny が人のファイル（ADR-0005 決めたこと 4 の (c)）の書き換えを Edit(//workspace/…) で拒む。
 #   5. statusline が JSON を読んで1行を出す。
-#   6. skill の機械向けの手順が command（andon task …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
+#   6. skill の機械向けの手順が command（andon issue …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
+#   7. 課題（issue）への改名（ADR-0008 受け入れ条件 5）: glossary の項・欄名・skill と template に旧語が無い。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -180,62 +181,82 @@ block() { awk -v h="$2" '
 export ANDON_HOME=$PWD/package ANDON_SCHEMA=$PWD/schema
 chk() { python3 package/lib/andon/schema_check.py validate "schema/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
 
-# 担当の機械向けの手順は command（andon task …）。skill に JSON を手で書く手順・一致を手で確かめる手順が残っていない
+# 担当の機械向けの手順は command（andon issue …）。skill に JSON を手で書く手順・一致を手で確かめる手順が残っていない
 w=package/skills/worker/SKILL.md
-for c in 'andon task report' 'andon task review-request' 'andon task ready' 'andon task ask' 'andon task show'; do
+for c in 'andon issue report' 'andon issue review-request' 'andon issue ready' 'andon issue ask' 'andon issue show'; do
   grep -q "$c" "$w" && pass "worker skill は $c を使う" || fail "worker skill に $c が無い"
 done
 left=$(grep -nE 'schema_check|report\.json"? *$|> "\$lib/report\.json"|questions/\$\{n|一致を確かめる|headRefOid' "$w" || true)
 [ -z "$left" ] && pass "worker skill に report.json・問いの JSON を手で書く手順と、一致を手で確かめる手順が無い" || fail "手の手順が残る: $left"
-# skill の問いの例（andon task ask の stdin）は question.schema.json に合う
-q_blk=$(block "$w" 'andon task ask "$id" -' | sed '1d;$d')
+# skill の問いの例（andon issue ask の stdin）は question.schema.json に合う
+q_blk=$(block "$w" 'andon issue ask "$id" -' | sed '1d;$d')
 printf '%s\n' "$q_blk" >"$tmp/q.json"
 [ -n "$q_blk" ] && chk question "$tmp/q.json" && pass "worker skill の問いの例は question.schema.json に合う" || fail "問いの例: $(head -1 "$tmp/why" 2>/dev/null) $q_blk"
 
-# 工程の背骨（ADR-0006 決めたこと 9・11・12・13）: worker の工程表に6つの工程、報告の書式に ## 計画・探した範囲・計画との差。Chief of Staff の雛形に 横展開: と調べるタスクの 終了条件:
+# 工程の背骨（ADR-0006 決めたこと 9・11・12・13）: worker の工程表に6つの工程、報告の書式に ## 計画・探した範囲・計画との差。Chief of Staff の雛形に 横展開: と調べる課題の 終了条件:
 w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w")
 miss=
 for s in 理解 計画 作業 確認 完成 振り返り; do grep -q "^| $s |" <<<"$w2" || miss="$miss $s"; done
 [ -z "$miss" ] && pass "worker skill §2 の工程表に 理解・計画・作業・確認・完成・振り返り がある" || fail "worker skill §2 の工程表に無い工程:$miss"
 w7=$(block "$w" 'PR: <https://')
 grep -q '^## 計画$' <<<"$w7" && grep -q '^探した範囲: ' <<<"$w7" && grep -q '^計画との差: ' <<<"$w7" \
-  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"# 調べるタスクの候補の例（andon task candidates の stdin）は candidates.schema.json に合う。scope の問いは worker skill が案内する
-c_blk=$(block "$w" 'andon task candidates "$id" -' | sed '1d;$d')
+  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"# 調べる課題の候補の例（andon issue candidates の stdin）は candidates.schema.json に合う。scope の問いは worker skill が案内する
+c_blk=$(block "$w" 'andon issue candidates "$id" -' | sed '1d;$d')
 printf '%s\n' "$c_blk" >"$tmp/c.json"
 [ -n "$c_blk" ] && chk candidates "$tmp/c.json" && pass "worker skill の候補の例は candidates.schema.json に合う" || fail "候補の例: $(head -1 "$tmp/why" 2>/dev/null) $c_blk"
-grep -q 'kind: scope' "$w" && grep -q 'andon task candidates' "$w" && pass "worker skill は scope の問いと andon task candidates を案内する" || fail "worker skill に scope の問いか andon task candidates が無い"
+grep -q 'kind: scope' "$w" && grep -q 'andon issue candidates' "$w" && pass "worker skill は scope の問いと andon issue candidates を案内する" || fail "worker skill に scope の問いか andon issue candidates が無い"
 
 cos=package/skills/chief-of-staff/SKILL.md
 block "$cos" '# <id> <題>' | grep -q '^横展開: ' && block "$cos" '# <id> 調べる: ' | grep -q '^終了条件: ' \
-  && pass "Chief of Staff の依頼書の雛形に 横展開: の行、調べるタスクの雛形に 終了条件: の行がある" || fail "chief-of-staff の雛形に 横展開: か 終了条件: が無い"
+  && pass "Chief of Staff の依頼書の雛形に 横展開: の行、調べる課題の雛形に 終了条件: の行がある" || fail "chief-of-staff の雛形に 横展開: か 終了条件: が無い"
 
 block "$cos" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates' \
-  && pass "調べるタスクの雛形の Settings に Deliverable: candidates がある" || fail "調べるタスクの雛形に Deliverable: candidates が無い"
+  && pass "調べる課題の雛形の Settings に Deliverable: candidates がある" || fail "調べる課題の雛形に Deliverable: candidates が無い"
 
-# Chief of Staff の task.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
-set_line=$(block package/skills/chief-of-staff/SKILL.md '# task.yaml の予約キー' | grep '^deck set ')
+# Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
+set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^deck set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
 if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
-  pass "Chief of Staff は予約キー5つ（review・must_fix・reviewer・review_rounds・merge）を task.yaml に書く"
+  pass "Chief of Staff は予約キー5つ（review・must_fix・reviewer・review_rounds・merge）を issue.yaml に書く"
 else fail "Chief of Staff の deck set: $set_line"; fi
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
 # インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起こす手順が残っていない
 cos6=$(sed -n '/^## 6\. /,/^## 7\. /p' package/skills/chief-of-staff/SKILL.md)
 grep -q '^## 6\. レビューとゲート（人の判断が要るときだけ）' <<<"$cos6" && grep -q '^### `needs_human` のとき' <<<"$cos6" \
-  && ! grep -qE 'andon task start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
-  && ! grep -qE 'worktree add --detach|andon task start "\$new"' package/skills/independent-review/SKILL.md \
+  && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
+  && ! grep -qE 'worktree add --detach|andon issue start "\$new"' package/skills/independent-review/SKILL.md \
   && pass "Chief of Staff の §6 は needs_human のときだけ。レビュアーを起こすのとゲートは dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起こす手順・ゲートを手で回す手順が残る"
-grep -q '元のタスク（`task.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元のタスクの担当だけ' package/skills/independent-review/SKILL.md \
-  && pass "レビュアーの結果の宛先は parent のタスクの担当だけ（Chief of Staff へ送らない）" || fail "レビュアーの宛先が parent のタスクの担当に固定されていない"
+grep -q '元の課題（`issue.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元の課題の担当だけ' package/skills/independent-review/SKILL.md \
+  && pass "レビュアーの結果の宛先は parent の課題の担当だけ（Chief of Staff へ送らない）" || fail "レビュアーの宛先が parent の課題の担当に固定されていない"
 
-# Chief Engineer: worktree で文書の PR と report.json を同じタスクから返す。問いは問いの JSON
+# Chief Engineer: worktree で文書の PR と report.json を同じ課題から返す。問いは問いの JSON
 ce=package/skills/chief-engineer/SKILL.md
-grep -q 'cwd は案件の repo の自分の worktree' "$ce" && grep -q '`pr`＝文書の PR' "$ce" && ! grep -q 'tasks/<id>/library/<題' "$ce" \
+grep -q 'cwd は案件の repo の自分の worktree' "$ce" && grep -q '`pr`＝文書の PR' "$ce" && ! grep -q 'issues/<id>/library/<題' "$ce" \
   && pass "Chief Engineer は worktree で文書の PR と report.json を返す" || fail "chief-engineer の渡し方"
-grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -q 'andon task ask "$id" -' package/skills/ask-one-by-one/SKILL.md \
+grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -q 'andon issue ask "$id" -' package/skills/ask-one-by-one/SKILL.md \
   && pass "Chief Engineer と Chief of Staff の問いは問いの JSON の手順を使う" || fail "問いの JSON の手順を指していない"
 left=$(grep -nE 'deck ask [^-]*"<|deck set <id> pr=' package/skills/*/SKILL.md || true)
-[ -z "$left" ] && pass "skill に JSON を通らない deck ask と task.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
+[ -z "$left" ] && pass "skill に JSON を通らない deck ask と issue.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
+
+# === 7. 課題（issue）／作業（task）への改名（ADR-0008 受け入れ条件 5・4・2 の欄名） ===
+g=package/skills/glossary/SKILL.md
+grep -q '^\*\*課題\*\*（issue）:' "$g" && grep -q '^\*\*作業\*\*（task）:' "$g" && grep -q '^課題（issue）A-0012' "$g" && grep -q '作業（task）1:' "$g" \
+  && pass "glossary に 課題（issue）・作業（task）の項と包含の図がある" || fail "glossary の課題・作業の項か包含の図が無い"
+! grep -q '（work item）' "$g" && pass "glossary に「タスク（work item）」の項が無い" || fail "glossary に work item の項が残る"
+# 「タスク」は「避ける」の行と仮設の語の表の行にしか無い
+left=$(grep -n 'タスク' "$g" | grep -v '^[0-9]*:_避ける_' | grep -v '^[0-9]*:| タスク' || true)
+[ -z "$left" ] && pass "glossary の「タスク」は「避ける」の行と仮設の語の表にしか無い" || fail "glossary に「タスク」が残る: $left"
+# skill 7本と template 8本に「タスク」と andon task・旧欄名・旧キーが無い（glossary は上で見た）
+left=$(grep -rnE 'タスク|andon task|to: task|from: task|max-tasks|created_task|task\.yaml|kanban/tasks' package/skills package/templates --exclude-dir=glossary || true)
+[ -z "$left" ] && pass "skill と template に「タスク」・andon task・旧キーが無い" || fail "旧語が残る: $left"
+sed -n '/^# <id> <題>$/,/^```$/p' "$cos" | sed -n '2p' | grep -q '^解決すべき問題:' \
+  && ! grep -q '^やること:' "$cos" && pass "chief-of-staff §2 の雛形の最初の欄が 解決すべき問題: で、やること: が無い" || fail "chief-of-staff の雛形の最初の欄が 解決すべき問題: でない"
+grep -q '古い依頼書の「やること」欄は「解決すべき問題」と同じ欄として読む' package/skills/worker/SKILL.md \
+  && pass "worker skill は 解決すべき問題 と古い やること の両方を読む" || fail "worker skill に古い やること 欄の読み替えが無い"
+grep -q '解決すべき問題' package/skills/triage/SKILL.md && ! grep -q 'やること' package/skills/triage/SKILL.md package/skills/triage/assets/triage.yaml \
+  && pass "triage skill とルーチンの依頼書の欄名が 解決すべき問題" || fail "triage の欄名が 解決すべき問題 でない"
+grep -q 'andon issue stop-check' package/hooks/stop \
+  && pass "package/hooks/stop が andon issue stop-check を打つ" || fail "package/hooks/stop が andon issue stop-check を打たない"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

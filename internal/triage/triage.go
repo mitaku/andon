@@ -52,7 +52,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return usage()
 	}
 	cmd, args := args[0], args[1:]
-	limit, maxTasks, dry, id := 50, 3, false, ""
+	limit, maxIssues, dry, id := 50, 3, false, ""
 	switch cmd {
 	case "collect":
 	case "apply":
@@ -77,7 +77,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			if cmd == "collect" {
 				limit = n
 			} else {
-				maxTasks = n
+				maxIssues = n
 			}
 			args = args[2:]
 		case cmd == "apply" && args[0] == "--dry-run":
@@ -92,7 +92,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		if cmd == "collect" {
 			err = runCollect(l, limit, stdout, stderr)
 		} else {
-			err = runApply(l, id, maxTasks, dry, time.Now().UTC(), stdout)
+			err = runApply(l, id, maxIssues, dry, time.Now().UTC(), stdout)
 		}
 	}
 	var f failure

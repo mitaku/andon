@@ -20,8 +20,8 @@ cd "$tmp/demo"
 kanban init --prefix T --repo example.invalid/me/app >/dev/null
 export KANBAN_ROOT=$PWD
 for n in one two three; do
-    task=$(kanban add "$n")
-    kanban report "$task" <<REPORT
+    issue=$(kanban add "$n")
+    kanban report "$issue" <<REPORT
 ## Report
 見送り（minor）:
 - $n の修正
@@ -33,7 +33,7 @@ For AGENTS.md: $n の規則
 ## 人に聞くこと
 - $n の問い
 REPORT
-    kanban done "$task" >/dev/null
+    kanban done "$issue" >/dev/null
 done
 assigned=$(kanban add '担当済み')
 kanban set "$assigned" agent=t99 >/dev/null
@@ -44,7 +44,7 @@ mkdir "$tmp/leftover"
 kanban set T-1 "worktree=$tmp/leftover" >/dev/null
 broken=$(kanban add broken); kanban report "$broken" <<<'見出しなし'; kanban done "$broken" >/dev/null
 "$script" triage collect > "$tmp/items"
-jq -e '([.[].kind] | unique) == ["agents","leftover","next","person","question","remember","task","unreadable","waived"]' "$tmp/items" >/dev/null
+jq -e '([.[].kind] | unique) == ["agents","issue","leftover","next","person","question","remember","unreadable","waived"]' "$tmp/items" >/dev/null
 echo 'ok collect: eight kinds and unreadable'
 set +e
 "$script" triage collect --limit 1 >/dev/null 2>&1; rc=$?
@@ -55,12 +55,12 @@ triage=$(kanban add triage)
 mkdir -p "kanban/issues/$triage/library"
 file=kanban/issues/$triage/library/decisions.json
 jq --arg todo "$todo" --arg person "$person" '
- def task($title): {title:($title|ltrimstr("- ")),repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"やること: 修正\n完了条件: 検査を通す"};
+ def issue($title): {title:($title|ltrimstr("- ")),repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"解決すべき問題: 修正\n完了条件: 検査を通す"};
  {goal:"テスト",collected:"2026-11-03T00:00:00Z",items:
-  [(.[]|select(.from==$todo and .kind=="task")|{key,decision:"close",reason:"不要"}),
+  [(.[]|select(.from==$todo and .kind=="issue")|{key,decision:"close",reason:"不要"}),
    (.[]|select(.from==$person and .kind=="person")|{key,decision:"close",reason:"済み"}),
-   (.[]|select(.kind=="next")|{key,decision:"fix",reason:"直せる",task:task(.text)}),
-   (.[]|select(.kind=="agents")|{key,decision:"bundle",bundle:"docs",reason:"同じrepo",task:task(.text)}),
+   (.[]|select(.kind=="next")|{key,decision:"fix",reason:"直せる",issue:issue(.text)}),
+   (.[]|select(.kind=="agents")|{key,decision:"bundle",bundle:"docs",reason:"同じrepo",issue:issue(.text)}),
    (.[]|select(.kind=="question")|{key,decision:"person",reason:"人が必要",question:(.text|ltrimstr("- ")),kind:"promise",pick:"確認する"}),
    (.[]|select(.kind=="unreadable")|{key,decision:"keep",reason:"読む"})]}' "$tmp/items" > "$file"
 # Put bundle first so max-issues 2 must create one bundle and one fix.
@@ -81,7 +81,7 @@ set -e
 cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok invalid reason fails before mutation'
-for filter in '.items[0].task.title=""' '.items[0].task.repo="example.invalid/other/repo"' '.items[0].key="other:T-1:task"'; do
+for filter in '.items[0].issue.title=""' '.items[0].issue.repo="example.invalid/other/repo"' '.items[0].key="other:T-1:issue"'; do
     jq "$filter" "$tmp/good" > "$file"
     set +e
     "$script" triage apply "$triage" >/dev/null 2>&1; rc=$?
@@ -92,7 +92,7 @@ cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok missing title, mixed-repo bundle and foreign key rejected before mutation'
 assigned_hash=$(printf '%s' '担当済み' | sha1sum); assigned_hash=${assigned_hash%% *}
-for bad_key in "demo:$assigned:task" "demo:$assigned:task:$assigned_hash" "demo:T-1:next:0000000000000000000000000000000000000000"; do
+for bad_key in "demo:$assigned:issue" "demo:$assigned:issue:$assigned_hash" "demo:T-1:next:0000000000000000000000000000000000000000"; do
     jq --arg key "$bad_key" '.items += [{key:$key,decision:"close",reason:"typo"}]' "$tmp/good" > "$file"
     set +e
     "$script" triage apply "$triage" >/dev/null 2>&1; rc=$?
@@ -101,15 +101,15 @@ for bad_key in "demo:$assigned:task" "demo:$assigned:task:$assigned_hash" "demo:
 done
 cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
-echo 'ok absent hash, assigned task and uncollected key rejected without writes'
+echo 'ok absent hash, assigned issue and uncollected key rejected without writes'
 "$script" triage apply "$triage" --max-issues 2 > "$tmp/summary"
 [[ $(kanban show "$todo" --json | jq -r .issue.status) == done ]]
 tail -1 "kanban/issues/$todo/report.md" | grep -q '不要（'
 record=$(echo kanban/library/triage/*.json)
-jq -e '[.items[]|select(.decision=="bundle")|.created_task]|unique|length==1' "$record" >/dev/null
-while read -r task; do
-    [[ $(kanban show "$task" --json | jq -r .issue.who) == person ]]
-done < <(jq -r '.items[]|select(.decision=="person")|.created_task' "$record")
+jq -e '[.items[]|select(.decision=="bundle")|.created_issue]|unique|length==1' "$record" >/dev/null
+while read -r issue; do
+    [[ $(kanban show "$issue" --json | jq -r .issue.who) == person ]]
+done < <(jq -r '.items[]|select(.decision=="person")|.created_issue' "$record")
 grep -q '閉じた 2 ・ 直す 2（うち束ね 1） ・ 人へ 3 ・ 次回 3 ・ 読めない 1' "$tmp/summary"
 echo 'ok apply: close, bundle, person, summary'
 "$script" triage collect --limit 100 > "$tmp/again"
