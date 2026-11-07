@@ -97,7 +97,7 @@ done
 declare -A required=(
   [task-keys]=""
   [findings]="commit findings"
-  [report]="commit"
+  [report]=""   # commit は repo のあるタスクでだけ必須（andon task report・ready が確かめる。ADR-0006 の repo の無い調べるタスク）
   [question]="kind question options"
   [notification]="at project kind detail"
   [gate]=""
@@ -187,6 +187,7 @@ pass|findings|.findings[0].file = "..hidden/x"|.. で始まる名前は .. の�
 fail|findings|.findings[0].file = "\u2028/../../outside"|file の .. の段の前に行区切り文字 U+2028
 fail|findings|.findings[0].file = "a/\u2028b/../../../outside"|file の途中の段に U+2028
 pass|report|{commit}|commit だけでも通る
+pass|report|{}|commit 無し（repo の無いタスク）でも通る
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
 fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない
@@ -368,6 +369,11 @@ report-1.json|report|andon task report の report.json
 report-review-request.json|report|andon task review-request の report.json
 task-keys.json|task-keys|andon task show の settings
 question.json|question|andon task ask の questions/<n>.json
+question-scope.json|question|andon task ask の questions/<n>.json（kind: scope）
+candidates.json|candidates|andon task candidates の candidates.json
+report-norepo.json|report|andon task report の report.json（repo の無いタスク。commit 無し）
+candidates-norepo.json|candidates|andon task candidates の candidates.json（repo の無いタスク。commit 無し）
+task-keys-candidates.json|task-keys|andon task show の settings（deliverable: candidates）
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）

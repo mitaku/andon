@@ -239,6 +239,7 @@ type Settings struct {
 	ReviewRounds string `json:"review_rounds"`
 	Merge        string `json:"merge"`
 	Machine      string `json:"machine,omitempty"`
+	Deliverable  string `json:"deliverable"`
 }
 
 // Severities は重い順。
@@ -264,7 +265,7 @@ func Brand(profile string) string {
 
 // SettingsOf は task の予約キーを読む。
 func SettingsOf(t Task) Settings {
-	s := Settings{ReviewRounds: "2", Merge: "person"}
+	s := Settings{ReviewRounds: "2", Merge: "person", Deliverable: "pr"}
 	if v := t.Str("review"); v == "on" || v == "off" {
 		s.Review = v
 	}
@@ -285,6 +286,9 @@ func SettingsOf(t Task) Settings {
 	}
 	if v := t.Str("machine"); machineOK(v) {
 		s.Machine = v
+	}
+	if v := t.Str("deliverable"); v == "candidates" {
+		s.Deliverable = v
 	}
 	return s
 }

@@ -32,7 +32,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 2; one folder p
   kanban set <id> key=value …               empty value removes the key; after/links take a,b
   kanban review <id> | kanban done <id> [--force]  done refuses a task with questions not received
   kanban report <id> [--append] < file      write report.md
-  kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line)
+  kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
+                                            scope asks the Chief of Staff which candidates to fix)
   kanban questions [--open] [--json]        open and answered questions, oldest first
   kanban answer <id>#<n> "<answer>"|-       write the person's answer (open → answered)
   kanban received <id>#<n>                  the agent has the answer (answered → received)
