@@ -116,7 +116,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 | キー | 要るか | 読み手 | 意味 |
 |---|---|---|---|
-| `commit` | 必須 | dispatcher・ゲート | 書いた時点の HEAD（40桁・小文字）。`andon task ready` が `HEAD` ＝ `commit` ＝ PR の head を確かめる |
+| `commit` | repo のあるタスクでは必須（schema では任意。`andon task report` が書き、`andon task ready` が確かめる）。repo の無いタスクでは書かない | dispatcher・ゲート | 書いた時点の HEAD（40桁・小文字）。`andon task ready` が `HEAD` ＝ `commit` ＝ PR の head を確かめる |
 | `pr` | PR を出したら必須（schema では任意。確かめるのは `andon task ready`） | ゲート・dispatcher | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む。`https://github.com/<owner>/<repo>/pull/<n>` で、owner と repo は `/` を除く印字できる ASCII |
 | `review_request` | レビューを頼むときだけ。中の6つのキーは全部必須（`previous` は初回 `null`、`round`・`limit` は 1 以上の整数） | dispatcher | dispatcher が `kanban add --parent <id>` ＋ detached worktree ＋ `hc run <reviewer>` で起こす。`round` ≤ `limit` でなければ起こさない（`extra: true` なら Chief of Staff の判断待ち）。`previous` があれば再レビュー（差分 `previous..commit` だけ）。`commit` が PR の head と違えば起こさない |
 | `waived` | 任意 | トリアージ・振り返り | 見送った指摘（`findings.json` と同じ3つ ＋ `reason`） |
@@ -345,7 +345,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 ## 12. 候補の一覧（`candidates.json`）
 
-担当のタスクの `library/candidates.json`。調べて見つけた、直すかもしれないが決めていないもの（候補）の一覧。調べるタスク（`deliverable: candidates`。§2）の成果で、直すタスクが範囲の問い（§5 の `kind: scope`）で止まるときにも同じ形で書く。担当は手で書かず、`andon task candidates <id> <json|->` で書く（command が形を確かめ、repo があれば `commit` に `HEAD` を入れる。入力に `commit` は書かない。形が違えば書かずに終了コード 1 と理由1行で、前の一覧はそのまま）。書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（`finish` でも残る）。
+担当のタスクの `library/candidates.json`。調べて見つけた、直すかもしれないが決めていないもの（候補）の一覧。調べるタスク（`deliverable: candidates`。§2）の成果で、直すタスクが範囲の問い（§5 の `kind: scope`）で止まるときにも同じ形で書く。担当は手で書かず、`andon task candidates <id> <json|->` で書く（打てるのはそのタスクの担当の端末〈`task.yaml` の `agent` ＝ `HC_TERMINAL_ID`〉だけ。command が形を確かめ、repo があれば `commit` に `HEAD` を入れる。入力に `commit` は書かない。形が違えば書かずに終了コード 1 と理由1行で、前の一覧はそのまま）。書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（`finish` でも残る）。
 
 ```json
 {"commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",

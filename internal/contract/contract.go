@@ -314,9 +314,9 @@ type Next struct {
 	Text string `json:"text"`
 }
 
-// Report は report.json（担当が書く。command が書く）。
+// Report は report.json（担当が書く。command が書く）。commit は repo のあるタスクでは必須で、確かめるのは andon task report・ready。
 type Report struct {
-	Commit        string         `json:"commit"`
+	Commit        string         `json:"commit,omitempty"` // repo の無いタスクでは書かない
 	PR            string         `json:"pr,omitempty"`
 	ReviewRequest *ReviewRequest `json:"review_request,omitempty"`
 	Waived        []Waived       `json:"waived,omitempty"`
@@ -328,7 +328,7 @@ type Report struct {
 
 // Check は report.json の形を schema/report.schema.json と同じ決まりで確かめる。
 func (r *Report) Check() error {
-	if !IsSHA(r.Commit) {
+	if r.Commit != "" && !IsSHA(r.Commit) {
 		return errors.New("commit が40桁・小文字でない")
 	}
 	if r.PR != "" {

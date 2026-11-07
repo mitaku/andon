@@ -259,13 +259,28 @@ kanban start "$sv2" >/dev/null
 "$andon" task report "$sv2" <<<'## Report' >/dev/null
 expect_fail 'pr が無い' "$andon" task ready "$sv2"
 ok 'ready: deliverable を最後に書いたのが Chief of Staff でなければ pr として PR を要る'
-# repo の無い調べるタスク: commit を書かず、HEAD を照合しない
+# repo の無い調べるタスク: commit を書かず、HEAD を照合しない。cwd は git の外（start と同じ tasks/<id>/）で、candidates → report → ready まで通る
 nr=$(as t5 kanban add '調べる: repo 無し' --profile claude)
+as t5 kanban set "$nr" deliverable=candidates review=off >/dev/null
 kanban start "$nr" >/dev/null
+pushd "kanban/tasks/$nr" >/dev/null
+! git rev-parse HEAD >/dev/null 2>&1 || die 'repo 無し: cwd が git の中'
 "$andon" task candidates "$nr" - <<<'{"candidates":[{"id":"c1","text":"x","in_scope":false}]}' >/dev/null
-jq -e 'has("commit") | not' "kanban/tasks/$nr/library/candidates.json" >/dev/null
+jq -e 'has("commit") | not' library/candidates.json >/dev/null
+"$andon" task report "$nr" --data '{"next":[{"to":"chief-of-staff","text":"candidates.json から切る"}]}' <<<'## Report' >/dev/null
+jq -e 'has("commit") | not' library/report.json >/dev/null
+emit library/report.json report-norepo.json
+"$andon" task ready "$nr" >/dev/null
+popd >/dev/null
 emit "kanban/tasks/$nr/library/candidates.json" candidates-norepo.json
-ok 'candidates: repo の無いタスクは commit を書かない'
+[ "$(kanban show "$nr" --json | jq -r .task.status)" = review ] || die 'repo 無し: ready で review にならない'
+ok 'repo の無い調べるタスク: commit を書かずに candidates → report → ready で review になる'
+# ほかの端末からは、そのタスクの候補を書けない（書き換えない）
+cp "$lfx/candidates.json" "$tmp/fx-before.json"
+expect_fail '担当' env HC_TERMINAL_ID=t9 "$andon" task candidates "$fx" - <<<'{"candidates":[]}'
+expect_fail '担当' env -u HC_TERMINAL_ID "$andon" task candidates "$fx" - <<<'{"candidates":[]}'
+cmp -s "$tmp/fx-before.json" "$lfx/candidates.json" || die 'candidates: ほかの端末の書き込みで一覧が変わった'
+ok 'candidates: そのタスクの担当（agent）でない端末からは書かずに終了コード 1'
 
 # start: Chief of Staff（t5）が担当を起こす。案件の repo は bare な origin とその clone
 export GHQ_ROOT="$tmp/ghq"

@@ -4,11 +4,10 @@
   "title": "Machine part of a task report",
   "description": "tasks/<id>/library/report.json, written by the task's agent right before `kanban report`, whole each time. Only these keys. pr is required once a PR is open; that is checked by `andon task ready`, not by this schema.",
   "type": "object",
-  "required": ["commit"],
   "additionalProperties": false,
   "properties": {
     "commit": {
-      "description": "HEAD when the report was written.",
+      "description": "HEAD when the report was written. Required for a task with a repository (andon task report writes it and andon task ready checks it); absent for a task without one.",
       "$ref": "#/$defs/sha"
     },
     "pr": {

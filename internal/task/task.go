@@ -173,8 +173,8 @@ func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "rep
 
 func (c *ctx) candidatesPath() string { return filepath.Join(c.l.Library(c.id), "candidates.json") }
 
-// hasRepo は repo のあるタスクか（task.yaml の repo）。repo の無いタスクの候補は commit を持たない。
-func (c *ctx) hasRepo() bool { return c.task.Str("repo") != "" }
+// hasRepo は repo のあるタスクか（task.yaml の repo か worktree）。repo の無いタスクの報告と候補は commit を持たない。
+func (c *ctx) hasRepo() bool { return c.task.Str("repo") != "" || c.task.Str("worktree") != "" }
 
 // readInput は <file|-> の中身。
 func readInput(stdin io.Reader, src string) ([]byte, error) {
@@ -288,9 +288,11 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 	if err != nil {
 		return err
 	}
-	head, err := c.head()
-	if err != nil {
-		return err
+	head := ""
+	if c.hasRepo() {
+		if head, err = c.head(); err != nil {
+			return err
+		}
 	}
 	r := &contract.Report{}
 	if data != "" {
@@ -301,7 +303,7 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 			return fail("--data に commit・review_request は書かない（command が書く）")
 		}
 	}
-	r.Commit = head
+	r.Commit = head // repo の無いタスクでは空（書かない）
 	if pr != "" {
 		r.PR = pr
 	}
@@ -416,7 +418,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 		return err
 	}
 	if r.Commit != head {
-		return fail("report.json の commit（%s）が HEAD（%s）と違う。andon task report で書き直す", r.Commit[:12], head[:12])
+		return fail("report.json の commit（%.12s）が HEAD（%s）と違う。andon task report で書き直す", r.Commit, head[:12])
 	}
 	ph, err := prHead(r.PR)
 	if err != nil {
@@ -464,7 +466,7 @@ func (c *ctx) readyCandidates(r *contract.Report, stdout io.Writer) error {
 			return err
 		}
 		if r.Commit != head {
-			return fail("report.json の commit（%s）が HEAD（%s）と違う。andon task report で書き直す", r.Commit[:12], head[:12])
+			return fail("report.json の commit（%.12s）が HEAD（%s）と違う。andon task report で書き直す", r.Commit, head[:12])
 		}
 		if cs.Commit != head {
 			return fail("candidates.json の commit（%.12s）が HEAD（%s）と違う。andon task candidates で書き直す", cs.Commit, head[:12])
@@ -484,6 +486,9 @@ func (c *ctx) candidates(stdin io.Reader, stdout io.Writer, src string) error {
 	b, err := readInput(stdin, src)
 	if err != nil {
 		return err
+	}
+	if me, agent := os.Getenv("HC_TERMINAL_ID"), c.task.Str("agent"); me == "" || me != agent {
+		return fail("%s の担当（agent: %q）の端末でない（HC_TERMINAL_ID: %q）。候補の一覧は自分のタスクにだけ書く", c.id, agent, me)
 	}
 	cs, err := contract.ParseCandidates(b)
 	if err != nil {
