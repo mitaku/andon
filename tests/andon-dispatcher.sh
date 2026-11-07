@@ -318,6 +318,24 @@ dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die 'Chief of Staff が review_rounds を上げたのに起こさない'
 ok '上限を超えた回（extra）は起こさず通知 report。Chief of Staff が review_rounds を上げたら次の見回りで起こす'
 
+# 5b. deliverable: candidates（調べるタスク。Chief of Staff が書いた）はインナーループを通らない: review_request があってもレビュアーを起こさず、
+#     review に入っても andon gate を回さない（通知は届ける）。ADR-0006 受け入れ条件 3
+sid=$(newtask '誤りの候補を調べる' person)
+HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates >/dev/null
+mkdir -p "$L/tasks/$sid/library"
+jq '.review_request' -e "$L/tasks/$id/library/report.json" >/dev/null || die '写す review_request が無い'
+cp "$L/tasks/$id/library/report.json" "$L/tasks/$sid/library/report.json"   # 形の合う review_request つきの報告
+runs=$(grep -c '^run' "$tmp/hc/log"); posted=$(grep -c '^status' "$tmp/gh/posted")
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates のタスクの review_request でレビュアーを起こした'
+(cd "$HOME/.herdr/worktrees/app/demo-$sid" && HC_TERMINAL_ID=t7 kanban review "$sid" >/dev/null)
+dispatcher
+[ "$(grep -c '^status' "$tmp/gh/posted")" = "$posted" ] && [ ! -e "$L/tasks/$sid/library/gate" ] || die 'candidates のタスクにゲートを回した'
+jq -e --arg t "$sid" '[.gates | to_entries[] | select(.value.task == $t)] == []' "$state" >/dev/null || die "candidates のタスクのゲートを控えた: $(jq -c .gates "$state")"
+[ "$(pending "$sid" review)" != null ] || [ "$(pending "$sid" report)" != null ] || die "candidates のタスクの review の通知が無い: $(jq -c .pending "$state")"
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates のタスクでレビュアーを起こした'
+ok 'deliverable: candidates のタスクは review_request でレビュアーを起こさず、review に入ってもゲートを回さない（通知は届ける）'
+
 # 6. andon task finish（人がマージしたあと Chief of Staff が打つ）はレビュアーの子タスクと detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')
 [ "$revs" -ge 2 ] && ls -d "$HOME/.herdr/worktrees/app/demo-$id-r"* >/dev/null || die 'レビュアーの子タスク・detached worktree が無い（前提）'

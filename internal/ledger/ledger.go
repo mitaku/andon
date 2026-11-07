@@ -223,6 +223,13 @@ func (l *Ledger) Trusted(rows []Row, t Task, key string) bool {
 	return ok && v == t.Str(key)
 }
 
+// Candidates は、タスクの成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
+// Chief of Staff か（contract.md §2 の履歴の照合）。照合が合わない・無い・知らない値は false（pr として読む＝安全側）。
+// 読み手は dispatcher（ゲートを回さない）と andon gate（回さずに終了コード 3）。ADR-0006 決めたこと 7。
+func (l *Ledger) Candidates(rows []Row, t Task) bool {
+	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
+}
+
 // Settings は task.yaml の Andon の予約キー（contract.md §2）。無い・知らない値は空（読み手が安全側に倒す）。
 // 既定があるキー（reviewer・review_rounds・merge）は既定で埋める。
 type Settings struct {

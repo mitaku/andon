@@ -30,7 +30,7 @@ const Usage = "usage: andon gate <id> [--dry-run]\n" +
 	"台帳のタスクの PR（report.json の pr）を、task.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は tasks/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
 	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
-	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3。\n"
+	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates のタスクも。回さない）。\n"
 
 const (
 	exitFix   = 1
@@ -213,6 +213,10 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	t, err := l.Show(id)
 	if err != nil {
 		return nil, "", err
+	}
+	if l.Candidates(l.Log(), t) {
+		// 調べるタスクの成果は PR ではなく候補の一覧で、Chief of Staff が読んで切る（ADR-0006 決めたこと 7）。記録しない
+		return nil, "", errors.New("deliverable: candidates のタスクにゲートは無い（候補の一覧は Chief of Staff が読む）")
 	}
 	ws := delegate.Workspace()
 	table, warn, err := LoadTable(getenv("ANDON_HOME", "/opt/andon"), ws)
