@@ -118,16 +118,19 @@ Chief Engineer（`role=chief-engineer` のタスク。案件の repo の worktre
 問い: <1行。何を知りたいか・何を見つけるか>
 範囲: <どこを見るか（repo・ディレクトリ・期間）と、見ない所>
 なぜ: <1行。人の依頼か文書のどこから来たか>
-完了条件: 報告（## Report に候補の表〈1行1件。場所・何・どう直すか・問いの答えに当たるか〉と計ったこと、## Next に切る案）。PR は出さない。
+完了条件: library/candidates.json（候補 0 でも）と報告（## Report に候補の表と計ったこと、## Next に切る案）。PR は出さない。
 終了条件: 範囲を読み切ったら終える。候補が 0 でも報告する。
 守ること: 直さない（直し方は候補の行に1行）。push・PR・エージェントを起こさない。<触らない場所・同時に動くタスク>
 
 ## Settings
+- Deliverable: candidates ★調べる
 - Review: off
 ```
 
-- 調べるタスクは今は repo の無いタスクで起こす（`--repo` を付けない。cwd は `tasks/<id>/`、読むのは `.ghq/` の checkout）。担当は報告（`andon task report`）まで書いて止まり、`andon task ready` はしない（PR が無いので command が止める）。
-- 報告が届いたら、候補を §4 の範囲の判断と同じ線で直すタスクに切り、調べるタスクは `andon task finish <id>`（PR の無いタスク）。切らなかった候補は捨てない（担当の報告の Next に1行ずつ残っていて、トリアージが拾う）。
+- 依頼書の Settings に `Deliverable: candidates` を書き、**Chief of Staff の端末で** `deck set <id> deliverable=candidates` も打つ（正は `task.yaml`。写しだけでは dispatcher と `andon task ready` は `pr` として読む）。型の既定は `pr`。
+- 調べるタスクは repo を持ってよい（worktree で読む・走らせる。push はしない）。読むだけで足りるなら repo の無いタスクでもよい（`--repo` を付けない。cwd は `tasks/<id>/`、読むのは `.ghq/` の checkout）。
+- 担当は `andon task candidates`（`library/candidates.json`）→ `andon task report` → `andon task ready` で終える。`ready` は PR の代わりに `candidates.json` を確かめる。ゲートは回らず、独立レビューも無い（`Review: off`）。通知は `<id> report` で届く。
+- 届いたら `candidates.json` と報告を読み、候補を §4 の範囲の判断と同じ表（場所・レベル・種類・直し方）で直すタスクに切り、調べるタスクは `andon task finish <id>`（§7）。切らなかった候補は捨てない（担当の報告の Next に1行ずつ残っていて、トリアージが拾う）。
 
 **Settings の埋め方**（Chief of Staff が毎回埋める）。**正は `task.yaml` の予約キー**（contract.md §2）で、依頼書の Settings は人が読む写し。
 ゲート・dispatcher・担当が読むのは `task.yaml` だけ。無い・知らない値、または最後に書いたのが Chief of Staff でない（台帳の `log.jsonl` の `by`）なら、ゲートは人へ回す（needs_human）。
@@ -145,6 +148,7 @@ deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 me
 | `reviewer`（Reviewer） | `codex-review` / `claude-review` | `codex-review` | 実装と別ブランドにする。Codex が書くタスク（profile `codex`）なら `claude-review` |
 | `review_rounds`（Review rounds） | 1 以上の数 | `2` | 人が変えたときだけ |
 | `merge`（Merge） | `auto` / `person` | `person` | `auto` は**委譲がこのプロジェクトのマージを任せているときだけ**（委譲の `merge` が無ければ `person`）。`auto` でも、マージするのはゲートが approve し、変更のレベルが委譲の範囲の中のときだけ（委譲を広げることはできない） |
+| `deliverable`（Deliverable） | `pr` / `candidates` | `pr` | 調べるタスク（成果が候補の一覧で PR が無い。§2 の雛形）のときだけ `candidates`。`deck set <id> deliverable=candidates` |
 | `machine` | マシンの名前 | 書かない（指揮側と同じ） | 作業側を別のマシンで起こすときだけ `machine=<名前>` を足す |
 
 - **既定から変えた行には、行末に `★` と短い理由を付ける**（例 `- Review: on ★新しい module`）。
@@ -189,7 +193,7 @@ blocked には次の順で答える（規約3）:
 
 担当が `## 人に聞くこと` を返したら §8 へ。決まったら `hc send <agent> "<決定>"` で返す。
 
-担当が `## 範囲の問い`（見つけたもののどれを直すか）を返したら、**範囲の判断は自分のもの**で、人に灯りはつかない。候補ごとに次の4つを見る:
+担当が `## 範囲の問い`（見つけたもののどれを直すか）を返したら、**範囲の判断は自分のもの**で、人に灯りはつかない。担当は `library/candidates.json`（候補の一覧。`id`・`text`・`in_scope`）を書き、`kind: scope` の問い（台帳では `（scope）` つきで `<id>#<n>`）を出している。まず `candidates.json` を読む（`andon task show <id>` でも）。候補ごとに次の4つを見る:
 
 | 候補が | 自分で決める | 人へ（§8 の1問ずつ） | Chief Engineer へ |
 |---|---|---|---|
@@ -198,7 +202,7 @@ blocked には次の順で答える（規約3）:
 | 種類 | 判断の4種のどれでもない（誤字・壊れたリンク・落ちるテスト・既に決まった形への揃え） | 事業・利用者・約束・不可逆 | — |
 | 直し方 | 1つに決まり、合計が元の PR に収まる（テストを除いて 500 行未満）か、小さい直すタスクに切れる | — | 構造の違う案が2つ以上・外との約束・何を作るかに戻る（人に題を勧める） |
 
-- 4つとも「自分で」の候補は、推奨案どおりか違う組み合わせで決め、候補ごとの行き先を1文で返す（`hc send <agent> "1・2 はこの PR で。3 は別のタスク S-0012（README の英語の段）"`）。別のタスクにしたものは `deck add` し、依頼書の「なぜ」に元のタスクの番号と候補を書く。捨てるものは理由を1行。
+- 4つとも「自分で」の候補は、推奨案どおりか違う組み合わせで決め、候補ごとの行き先を `id` で書いて `deck answer <id>#<n> "<文>"` で台帳に残し、`hc send <agent> "<文>"` で返す（例「c1・c2 はこの PR で。c3 は別のタスク S-0012（README の英語の段）。c4 は捨てる: その repo に条件が無い」）。別のタスクにしたものは `deck add` し、依頼書の「なぜ」に元のタスクの番号と候補を書く。捨てるものは理由を1行。
 - 「人へ」の候補はその候補だけ人の問いにし（ask-one-by-one skill §3）、残りは先に答えてよい。「Chief Engineer へ」の候補は題として人に勧め、候補のまま残す。
 - 自分で答えた範囲の判断は人に知らせない（委譲の範囲の中の判断と同じ。記録は担当の報告に残る）。
 - 依頼書は書き換えない。答えが依頼書の追記になる。
@@ -294,6 +298,7 @@ minor 以下だけが残っているなら起こさず、見送りに残して `
 
 - dispatcher がマージしたもの（`<id> merged`）は、dispatcher が `andon task finish` 済み。
 - どちらのマージでも、finish のあと dispatcher が動いているタスクへの影響を見て、影響があれば `<id> impact` で届く（下の「マージのあとの影響」）。
+- 調べるタスク（`deliverable: candidates`）は PR が無いので、報告と `candidates.json` を読んで直すタスクを切ったあと（切らない候補は報告の Next に残っている）、人の go は要らず `andon task finish <id>`。commit していない変更があって止まったら、担当に捨てさせる（報告の Next に「commit は捨ててよい」と書かせる）。
 - 人がマージしたものは、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon task finish <id>`（レビュアーの子タスクと detached worktree も片付く）。
   commit していない変更があると止まる。そのときは担当に聞くか、人へ。
 - マージせずにやめるタスクは、**人の go を取ってから** `andon task finish <id>`（branch は残る）。

@@ -110,6 +110,7 @@ flowchart LR
   H["人"] <-- "問いと判断" --> CE["Chief Engineer（§1.8）"]
   CE --> DOC["仕様・設計文書"]
   subgraph INNER["インナーループ（ライン。dispatcher とゲートが回す）"]
+    S["調べる（候補）"] -.-> B
     B["依頼書（Chief of Staff が切る）"] --> I["実装（担当）"] --> R["独立レビュー"] --> G["ゲート"] --> M["自動マージ・finish"]
   end
   DOC --> B
@@ -121,7 +122,8 @@ flowchart LR
 ```
 
 - ラインの入口は **Chief Engineer**（§1.8）: 人と仕様・設計を対話し、文書にして Chief of Staff へ渡す。Chief of Staff はそれを依頼書に切る。
-- 担当の工程の背骨は **理解 → 計画 → 作業 → 確認 → 完成 → 振り返り**（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 9〜11）。担当が主体で、依頼書（課題と完了条件）を自分で理解して作業に分け、作業ごとに終了条件を置く。**横展開**（同じ種類のものをほかにも探す）は既定で、範囲の中は直し、外は残し、範囲を決めないと作業が切れないときだけ止まる。
+- 担当の工程の背骨は **理解 → 計画 → 作業 → 確認 → 完成 → 振り返り**（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 9〜11）。担当が主体で、依頼書（課題と完了条件）を自分で理解して作業に分け、作業ごとに終了条件を置く。**横展開**（同じ種類のものをほかにも探す）は既定で、範囲の中は直し、外は残し、範囲を決めないと作業が切れないときだけ止まる（候補の一覧 `candidates.json` と `scope` の問いで止まり、答えるのは Chief of Staff）。
+- 依頼の完了条件が「分かる・候補が出る」なら、インナーループの入口に**調べるタスク**が入る（`deliverable: candidates`）。担当は直さず候補の一覧と報告を返し、Chief of Staff が候補から直すタスクを切る。調べるタスクにゲートと独立レビューは無い（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 1・7）。
 - インナーループは**dispatcher が回す**（レビュアーの起動・ゲート・マージ・片付け）。Chief of Staff はラインを回す判断だけ（依頼書に切る・`needs_human` の検収・問いの中継）。仕様・設計の会話は Chief of Staff の仕事ではない。
 - アウターループの改善を入れる判断は**ラインを2つに分ける**: 案件 repo のテスト・レビューの観点・指針（`AGENTS.md`）は Chief of Staff の判断で無灯、Andon 自身のライン（ゲート・skill・規約・設定）の変更だけ人（§1.3 の 5）。
 - 振り返りの入力は自己申告だけでなく、機械が残す記録（指摘・ゲートの記録・報告の機械向けの部分・人の手直し）と、セッションの記録。**記録を機械向けの形で残す**（§4）のは、このループのため。
@@ -224,7 +226,7 @@ Andon が**持つ**のは パッケージ・約束・文書と、セルの形。
 | 役 | 本業 | 人との会話 | 持つ判断 | 起こし方・寿命 | プロファイル |
 |---|---|---|---|---|---|
 | **Chief Engineer** | 人に問いを重ねて仕様・設計を詰め、文書にして渡す。**実装もタスク切りもしない** | **する**（本業。人が直接話す） | 無い（決めるのは人。Chief Engineer は推奨案を出す） | 人がプロジェクトの場所で `andon chief-engineer "<題>"`。1題＝1タスク。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
-| **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起こす・検収・振り返り・wiki | `needs_human` の問いの中継と受付だけ | タスクの範囲内の許可・案件側のアウターループ | 人が `andon chief-of-staff`。常駐 | `chief-of-staff` |
+| **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起こす・検収・振り返り・wiki | `needs_human` の問いの中継と受付だけ | タスクの範囲内の許可・範囲（候補のどれを直すか。委譲と判断の4種の中で）・案件側のアウターループ | 人が `andon chief-of-staff`。常駐 | `chief-of-staff` |
 | dispatcher | 通知・レビュアーの起動・ゲート・片付け | しない | しない | セルに1つ常駐 | — |
 | 担当・レビュアー | 1タスク・1レビュー | 問いは台帳経由 | 自工程の品質 | Chief of Staff（dispatcher）が起こす | `claude`・`codex`・`*-review` |
 
@@ -796,7 +798,8 @@ andon/
 
 | 約束 | 置き場 | 書き手 | 読み手 | 出発点 |
 |---|---|---|---|---|
-| 台帳の項目（依頼書の Settings の正） | `task.yaml` の予約キー `review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine` | Chief of Staff（`kanban set`。履歴は `log.jsonl` の `by` で照合） | ゲート・dispatcher・担当 | 仮設で進行中の「ゲートが台帳の項目を読む」形 |
+| 台帳の項目（依頼書の Settings の正） | `task.yaml` の予約キー `review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine`・`deliverable`（`pr`／`candidates`。調べるタスクの印） | Chief of Staff（`kanban set`。履歴は `log.jsonl` の `by` で照合） | ゲート・dispatcher・担当 | 仮設で進行中の「ゲートが台帳の項目を読む」形 |
+| 候補 | `tasks/<id>/library/candidates.json`（`commit`・`candidates[]` の `id`・`text`・`file`・`line`・`in_scope`） | 担当（`andon task candidates`） | Chief of Staff（切る・範囲の問いに答える）・人・トリアージ・振り返り。ゲートと dispatcher は判定に読まない | ADR-0006。contract.md §12 |
 | 指摘 | `tasks/<レビュアーの id>/library/findings.json` | レビュアー | ゲート・担当（振り分け）・振り返り | 同上（形そのまま） |
 | 報告の機械向けの部分 | `tasks/<id>/library/report.json`（`commit`・`pr`・`review_request`・`waived`・`next`・`remember`・`agents_md`） | 担当 | dispatcher（レビュアーの起動・ready の一致）・ゲート（`pr`）・トリアージ・振り返り | 仮設の報告の `PR:` 行・`## レビュー依頼`・`## Next`（宛先の印を足す） |
 | 問い | `questions.yaml`（台帳の CLI。人向けの `text`）＋ `tasks/<id>/library/questions/<n>.json`（判断の種類・事実・理由・選択肢・推奨案・あと何問） | 担当・dispatcher（ゲートの `needs_human`）・Chief of Staff | Chief of Staff・通知の口・ボード | 「1通で答えられる形」・1問ずつの作法 |
