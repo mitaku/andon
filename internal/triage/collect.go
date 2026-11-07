@@ -25,8 +25,8 @@ type Item struct {
 	AgeDays int64  `json:"age_days"`
 }
 
-// task は台帳の CLI の list --json の1件のうち、ここが読むキー。
-type task struct {
+// ledgerIssue は台帳の CLI の list --json の1件のうち、ここが読むキー。
+type ledgerIssue struct {
 	ID       string `json:"id"`
 	Title    string `json:"title"`
 	Status   string `json:"status"`
@@ -63,8 +63,8 @@ func (l *ledger) collect() ([]Item, error) {
 	if err != nil {
 		return nil, fail("台帳を読めない")
 	}
-	var tasks []task
-	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+	var issues []ledgerIssue
+	if err := json.Unmarshal([]byte(out), &issues); err != nil {
 		return nil, fail("台帳を読めない")
 	}
 	records, err := l.records()
@@ -80,19 +80,19 @@ func (l *ledger) collect() ([]Item, error) {
 			}
 		}
 	}
-	terms, err := l.terminalTasks()
+	terms, err := l.terminalIssues()
 	if err != nil {
 		return nil, err
 	}
-	sort.SliceStable(tasks, func(i, j int) bool {
-		if tasks[i].Created != tasks[j].Created {
-			return tasks[i].Created < tasks[j].Created
+	sort.SliceStable(issues, func(i, j int) bool {
+		if issues[i].Created != issues[j].Created {
+			return issues[i].Created < issues[j].Created
 		}
-		return tasks[i].ID < tasks[j].ID
+		return issues[i].ID < issues[j].ID
 	})
 
 	byKey := map[string]Item{}
-	for _, t := range tasks {
+	for _, t := range issues {
 		if !idRe.MatchString(t.ID) {
 			return nil, fail("台帳の id が不正")
 		}
@@ -110,7 +110,7 @@ func (l *ledger) collect() ([]Item, error) {
 			if t.Who == "person" || strings.HasSuffix(t.Title, personSuffix) {
 				emit("person", t.Title)
 			} else if t.Agent == "" {
-				emit("task", t.Title)
+				emit("issue", t.Title)
 			}
 		}
 		if t.Status == "done" && l.leftover(t, terms) {
@@ -162,8 +162,8 @@ func expandHome(p string) string {
 	return p
 }
 
-// terminalTasks は hc の端末のうち、このプロジェクトのものの task ラベル。hc が無ければ空（起こさない）。
-func (l *ledger) terminalTasks() (map[string]bool, error) {
+// terminalIssues は hc の端末のうち、このプロジェクトのものの issue ラベル。hc が無ければ空（起こさない）。
+func (l *ledger) terminalIssues() (map[string]bool, error) {
 	got := map[string]bool{}
 	if _, err := exec.LookPath("hc"); err != nil {
 		return got, nil
@@ -189,7 +189,7 @@ func (l *ledger) terminalTasks() (map[string]bool, error) {
 }
 
 // leftover は done の課題に worktree か端末が残っているか。
-func (l *ledger) leftover(t task, terms map[string]bool) bool {
+func (l *ledger) leftover(t ledgerIssue, terms map[string]bool) bool {
 	wt := expandHome(t.Worktree)
 	if wt != "" {
 		if _, err := os.Stat(wt); err == nil {

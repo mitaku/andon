@@ -71,7 +71,7 @@ const k2 = "demo:T-2:next:0000000000000000000000000000000000000002"
 
 func fix(key, title string) map[string]any {
 	return map[string]any{"key": key, "decision": "fix", "reason": "直せる",
-		"task": map[string]any{"title": title, "repo": "example.invalid/me/app", "profile": "claude", "review": "on", "brief": "やること"}}
+		"issue": map[string]any{"title": title, "repo": "example.invalid/me/app", "profile": "claude", "review": "on", "brief": "解決すべき問題"}}
 }
 
 func decisions(items ...map[string]any) []byte {
@@ -92,21 +92,21 @@ func TestParseDecisionsRejects(t *testing.T) {
 		c[k] = v
 		return c
 	}
-	withTask := func(k string, v any) map[string]any {
+	withIssue := func(k string, v any) map[string]any {
 		f := fix(k1, "t")
-		f["task"].(map[string]any)[k] = v
+		f["issue"].(map[string]any)[k] = v
 		return f
 	}
 	bad := map[string][]map[string]any{
 		"空白の理由":         {with(fix(k1, "t"), "reason", " ")},
 		"改行の理由":         {with(fix(k1, "t"), "reason", "a\nb")},
-		"題が空":           {withTask("title", "")},
-		"題が - で始まる":     {withTask("title", "-x")},
-		"repo の形":       {withTask("repo", "me/app")},
-		"profile の形":    {withTask("profile", "-x")},
-		"review の値":     {withTask("review", "yes")},
+		"題が空":           {withIssue("title", "")},
+		"題が - で始まる":     {withIssue("title", "-x")},
+		"repo の形":       {withIssue("repo", "me/app")},
+		"profile の形":    {withIssue("profile", "-x")},
+		"review の値":     {withIssue("review", "yes")},
 		"ほかの台帳の key":    {with(fix(k1, "t"), "key", "other:T-1:next:0000000000000000000000000000000000000001")},
-		"hash の無い key":  {with(fix(k1, "t"), "key", "demo:T-1:task")},
+		"hash の無い key":  {with(fix(k1, "t"), "key", "demo:T-1:issue")},
 		"知らない kind":     {with(fix(k1, "t"), "key", "demo:T-1:bogus:0000000000000000000000000000000000000001")},
 		"知らない decision": {with(fix(k1, "t"), "decision", "drop")},
 		"同じ key":        {fix(k1, "a"), fix(k1, "b")},
@@ -115,7 +115,7 @@ func TestParseDecisionsRejects(t *testing.T) {
 			with(with(fix(k1, "t"), "decision", "bundle"), "bundle", "b"),
 			func() map[string]any {
 				f := with(with(fix(k2, "t"), "decision", "bundle"), "bundle", "b")
-				f["task"] = map[string]any{"title": "t", "repo": "example.invalid/other/repo", "profile": "claude", "review": "on", "brief": "x"}
+				f["issue"] = map[string]any{"title": "t", "repo": "example.invalid/other/repo", "profile": "claude", "review": "on", "brief": "x"}
 				return f
 			}(),
 		},
@@ -138,7 +138,7 @@ func TestParseDecisionsRejects(t *testing.T) {
 	}
 }
 
-func TestCapTasksCountsBundleOnce(t *testing.T) {
+func TestCapIssuesCountsBundleOnce(t *testing.T) {
 	b := func(key string) item {
 		f := item(fix(key, "t"))
 		f["decision"], f["bundle"] = "bundle", "docs"
@@ -147,7 +147,7 @@ func TestCapTasksCountsBundleOnce(t *testing.T) {
 	k3 := "demo:T-3:next:0000000000000000000000000000000000000003"
 	k4 := "demo:T-4:next:0000000000000000000000000000000000000004"
 	in := []item{b(k1), item(fix(k2, "a")), b(k3), item(fix(k4, "b")), {"key": "x", "decision": "close", "reason": "r"}}
-	got := capTasks(in, 2)
+	got := capIssues(in, 2)
 	var decisions []string
 	for _, it := range got {
 		decisions = append(decisions, it.decision())
@@ -167,11 +167,11 @@ func TestCapTasksCountsBundleOnce(t *testing.T) {
 func TestSummary(t *testing.T) {
 	items := []item{
 		{"key": k1, "decision": "close", "reason": "a|b", "text": "行\n本文"},
-		{"key": k2, "decision": "fix", "reason": "r", "created_task": "T-9", "task": map[string]any{"title": "題", "review": "on"}},
+		{"key": k2, "decision": "fix", "reason": "r", "created_issue": "T-9", "issue": map[string]any{"title": "題", "review": "on"}},
 		{"key": "demo:T-3:unreadable:0000000000000000000000000000000000000003", "decision": "keep", "reason": "読む"},
 	}
 	for i := range 4 {
-		items = append(items, item{"key": "demo:T-5:question:" + strings.Repeat("0", 39) + string(rune('a'+i)), "decision": "person", "reason": "r", "question": "q", "created_task": "T-1" + string(rune('0'+i))})
+		items = append(items, item{"key": "demo:T-5:question:" + strings.Repeat("0", 39) + string(rune('a'+i)), "decision": "person", "reason": "r", "question": "q", "created_issue": "T-1" + string(rune('0'+i))})
 	}
 	got := summary("demo", "2026-01-02", "ゴール", items)
 	want := "線引きを見直す\n\n# トリアージ demo 2026-01-02（ゴール: ゴール）\n" +
