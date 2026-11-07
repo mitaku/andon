@@ -126,7 +126,10 @@ func (c *ctx) impactOf(t ledger.Task, repoDir, sha string, merged []string) cont
 	// worktree の commit していない変更（追跡している変更と、まだ git add していない新しいファイル）も数える。
 	// worktree が無い（片付けた・別のマシン）ときは branch の分だけ。あるのに読めなければ error（影響なしに倒さない）
 	if wt := t.Path("worktree"); wt != "" {
-		if _, err := os.Stat(wt); err == nil {
+		if _, err := os.Stat(wt); err != nil && !errors.Is(err, os.ErrNotExist) {
+			it.Error = "worktree を確かめられない: " + wt
+			return it
+		} else if err == nil {
 			dirty, err1 := git(wt, "diff", "--name-only", "--no-renames", "HEAD")
 			untracked, err2 := git(wt, "ls-files", "--others", "--exclude-standard")
 			if err1 != nil || err2 != nil {

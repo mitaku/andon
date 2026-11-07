@@ -64,6 +64,7 @@ brief=$(task '依頼書が指す' doing '入力（正）: doc.md の段')
 none=$(task '関係ない' doing)
 fresh=$(task 'まだ git add していない新しいファイル' doing)
 gone=$(task 'worktree が読めない' doing)
+locked=$(task 'worktree を確かめられない' doing)
 edit "$m" doc.md 's/^a$/A merged/'
 echo merged > "$HOME/.herdr/worktrees/app/demo-$m/new.md"; git -C "$HOME/.herdr/worktrees/app/demo-$m" add new.md; git -C "$HOME/.herdr/worktrees/app/demo-$m" commit -qm new
 edit "$conf" doc.md 's/^a$/A mine/'
@@ -92,23 +93,31 @@ ok 'PR がまだ MERGED でなければ終了コード 4 で何も出さない'
 jq -n --arg o "$sha" '{state: "MERGED", mergeCommit: {oid: $o}, files: [{path: "doc.md"}, {path: "new.md"}]}' > "$tmp/gh/view.json"
 # worktree はあるが git として読めない（.git の指す先が消えた）
 echo "gitdir: $tmp/nowhere" > "$HOME/.herdr/worktrees/app/demo-$gone/.git"
+# worktree の上の段に入れない（stat が EACCES）。無い（ENOENT）とは分けて error にする
+mkdir -p "$tmp/locked"; git -C "$app" worktree move "$HOME/.herdr/worktrees/app/demo-$locked" "$tmp/locked/wt"
+HC_TERMINAL_ID=t5 kanban set "$locked" "worktree=$tmp/locked/wt" >/dev/null
+chmod 000 "$tmp/locked"
 log0=$(wc -l < "$L/log.jsonl")
 st0=$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)
 "$andon" task impact "$m" > "$tmp/impact.json" || die "andon task impact が落ちた: $(cat "$tmp/impact.json")"
 I=$tmp/impact.json
 jq -e --arg m "$m" --arg s "$sha" '.task == $m and .sha == $s and .pr == "https://github.com/example/app/pull/1" and .files == ["doc.md", "new.md"]' "$I" >/dev/null || die "頭の事実が違う: $(jq -c 'del(.tasks)' "$I")"
 row() { jq -c --arg t "$1" '.tasks[] | select(.task == $t)' "$I"; }
-[ "$(jq '.tasks | length' "$I")" = 7 ] || die "見るのは同じ repo の doing／review の担当の7件（自分・レビュアーを除く）: $(jq -c '[.tasks[].task]' "$I")"
+[ "$(jq '.tasks | length' "$I")" = 8 ] || die "見るのは同じ repo の doing／review の担当の8件（自分・レビュアーを除く）: $(jq -c '[.tasks[].task]' "$I")"
 row "$conf" | jq -e '.status == "review" and .conflict == true and .conflict_files == ["doc.md"] and .overlap == ["doc.md"] and .contains == false and .pr == "https://github.com/example/app/pull/9"' >/dev/null || die "衝突: $(row "$conf")"
 row "$clean" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "衝突しない重なり: $(row "$clean")"
 row "$dirty" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "commit していない変更の重なり: $(row "$dirty")"
 row "$brief" | jq -e '.conflict == false and .overlap == [] and .brief_refs == ["doc.md"]' >/dev/null || die "依頼書が指す: $(row "$brief")"
 row "$none" | jq -e '.conflict == false and .overlap == [] and .brief_refs == [] and (has("error") | not)' >/dev/null || die "関係ない: $(row "$none")"
 row "$fresh" | jq -e '.overlap == ["new.md"] and (has("error") | not)' >/dev/null || die "まだ git add していない新しいファイルの重なり: $(row "$fresh")"
+chmod 755 "$tmp/locked"
+if [ "$(id -u)" != 0 ]; then   # root は権限で止まらない
+  row "$locked" | jq -e '.error | contains("worktree を確かめられない")' >/dev/null || die "worktree を stat できないのに error でない: $(row "$locked")"
+fi
 row "$gone" | jq -e '.error | contains("commit していない変更が読めない")' >/dev/null || die "worktree が読めないのに error でない: $(row "$gone")"
 [ "$(wc -l < "$L/log.jsonl")" = "$log0" ] || die '台帳に書いた'
 [ "$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)" = "$st0" ] || die 'worktree を変えた'
-ok '同じ repo の動いているタスクごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めなければ error（台帳と worktree に書かない）'
+ok '同じ repo の動いているタスクごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めない・確かめられなければ error（台帳と worktree に書かない）'
 
 # 3. もう含む（rebase 済み）・branch が読めない
 git -C "$HOME/.herdr/worktrees/app/demo-$clean" -c core.editor=true rebase -q "$sha"
