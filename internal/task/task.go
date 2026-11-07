@@ -409,7 +409,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if err != nil {
 		return fail("library/report.json の形が違う: %v", err)
 	}
-	if c.l.Deliverable(c.l.Log(), c.task) == "candidates" {
+	if c.l.Candidates(c.l.Log(), c.task) {
 		return c.readyCandidates(r, stdout)
 	}
 	if r.PR == "" {

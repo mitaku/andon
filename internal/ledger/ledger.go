@@ -293,15 +293,6 @@ func SettingsOf(t Task) Settings {
 	return s
 }
 
-// Deliverable はタスクの成果の形（contract.md §2）: candidates は、その値を最後に書いたのが Chief of Staff のときだけ。
-// ほかは pr（安全側: PR を要り、ゲートを回す）。
-func (l *Ledger) Deliverable(rows []Row, t Task) string {
-	if SettingsOf(t).Deliverable == "candidates" && l.Trusted(rows, t, "deliverable") {
-		return "candidates"
-	}
-	return "pr"
-}
-
 func machineOK(v string) bool {
 	if v == "" {
 		return false
