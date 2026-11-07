@@ -40,20 +40,20 @@ export default class Andon extends View {
       const slug = labels.project;
       if (typeof slug !== "string" || !slug) continue;
       // Command side: one Space per project (CoS and CE tabs). Work side: one
-      // Space per task, its tab holds the worker (ADR-0003). Reviewers share
-      // the worker's Space and tab with their own task/title, so their labels
+      // Space per issue, its tab holds the worker (ADR-0003). Reviewers share
+      // the worker's Space and tab with their own issue/title, so their labels
       // never match the shapes below and they rename nothing.
       const title = typeof labels.title === "string"
         ? labels.title.replace(/[\s\p{Cc}]+/gu, " ").trim() : "";
-      const task = typeof labels.task === "string" ? labels.task : "";
+      const issue = typeof labels.issue === "string" ? labels.issue : "";
       let spaceName, tabKey, tabName;
       if (labelSpace === `andon-${slug}`) {
         spaceName = slug;
         if (labels.role === "chief-of-staff") [tabKey, tabName] = ["cos", "CoS"];
-        else if (labels.role === "chief-engineer" && task && title) [tabKey, tabName] = [task, `CE ${task} ${title}`];
+        else if (labels.role === "chief-engineer" && issue && title) [tabKey, tabName] = [issue, `CE ${issue} ${title}`];
         else continue;
-      } else if (!labels.role && task && title && labelSpace === `andon-${slug}-${task}`) {
-        [spaceName, tabKey, tabName] = [`${task} ${title}`, task, task];
+      } else if (!labels.role && issue && title && labelSpace === `andon-${slug}-${issue}`) {
+        [spaceName, tabKey, tabName] = [`${issue} ${title}`, issue, issue];
       } else continue;
       if (tab.id !== `${prefix}andon-${slug}-${tabKey}`) continue;
       rename("space", space, spaceName);

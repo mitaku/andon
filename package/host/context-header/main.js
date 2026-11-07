@@ -20,14 +20,14 @@ function icon(p, size, color) {
   return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
 }
 
-// Andon's task terminals are named from their labels (Andon's docs/contract.md §8), as the andon
+// Andon's issue terminals are named from their labels (Andon's docs/contract.md §8), as the andon
 // mod names their Space and tab (ADR-0002, ADR-0003): "<id> <title>", "CE <id> <title>" for a Chief
 // Engineer. A reviewer shares its worker's tab, so the tab's name would be the worker's.
 function andonName(labels) {
   const title = typeof labels?.title === "string" ? labels.title.replace(/[\s\p{Cc}]+/gu, " ").trim() : "";
-  const task = typeof labels?.task === "string" ? labels.task : "";
-  if (!labels?.project || !task || !title) return null;
-  return labels.role === "chief-engineer" ? `CE ${task} ${title}` : labels.role ? null : `${task} ${title}`;
+  const issue = typeof labels?.issue === "string" ? labels.issue : "";
+  if (!labels?.project || !issue || !title) return null;
+  return labels.role === "chief-engineer" ? `CE ${issue} ${title}` : labels.role ? null : `${issue} ${title}`;
 }
 
 function folder(cwd) {
@@ -74,7 +74,7 @@ export default class ContextHeader extends View {
     const report = term.report ?? {};
     const labelled = agent ? andonName(term.labels) : null;
     const name = labelled ?? (agent ? displayName({ title: p.title, program: p.program, address: p.terminal }, tab) : p.title || p.program?.name || "shell");
-    // Line 2 doesn't say the name again; an Andon task's tab is named after its id, which line 1 has.
+    // Line 2 doesn't say the name again; an Andon issue's tab is named after its id, which line 1 has.
     const tabName = tab && !/^\d+$/.test(tab.name) && !labelled ? tab.name : null;
     return {
       p,

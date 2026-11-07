@@ -86,7 +86,7 @@ async function load(dir, herdr) {
   return main.namespace;
 }
 
-await check('context-header: Andon の担当・レビュアー・Chief Engineer はラベルから名付け、2行目で名前を繰り返さない', async () => {
+await check('context-header: Andon の担当・レビュアー・Chief Engineer はラベル issue から名付け（task は読まない）、2行目で名前を繰り返さない', async () => {
   let paneList = [], termList = [], spaceList = [], current = null;
   const { default: Header } = await load(`${HOST}/context-header`, {
     panes: () => paneList, terminals: () => termList, spaces: () => spaceList, props: () => ({ pane: current }),
@@ -104,10 +104,12 @@ await check('context-header: Andon の担当・レビュアー・Chief Engineer 
     paneList.push({ pane, terminal, tab, status: 'idle', title: '✳ something', program, cwd: '/home/sample/x' });
     termList.push({ address: terminal, state: 'live', labels });
   };
-  at('p1', 't1', 'andon-sample-site-A-0002', { project: 'sample-site', task: 'A-0002', title: 'Fix login' });
-  at('p2', 't2', 'andon-sample-site-A-0002', { project: 'sample-site', task: 'A-0003', title: 'Review  of\tA-0002' });
-  at('p3', 't3', 'andon-sample-site-A-0001', { project: 'sample-site', role: 'chief-engineer', task: 'A-0001', title: 'Billing design' });
+  at('p1', 't1', 'andon-sample-site-A-0002', { project: 'sample-site', issue: 'A-0002', title: 'Fix login' });
+  at('p2', 't2', 'andon-sample-site-A-0002', { project: 'sample-site', issue: 'A-0003', title: 'Review  of\tA-0002' });
+  at('p3', 't3', 'andon-sample-site-A-0001', { project: 'sample-site', role: 'chief-engineer', issue: 'A-0001', title: 'Billing design' });
   at('p4', 't4', 'andon-sample-site-cos', { project: 'sample-site', role: 'chief-of-staff' });
+  // The old label task= is not read (ADR-0008 decision 7).
+  at('p5', 't5', 'andon-sample-site-A-0009', { project: 'sample-site', task: 'A-0009', title: 'Old label' });
   const facts = (pane) => { current = pane; const h = new Header(); return h.facts(); };
   let f = facts('p1');
   assert.equal(f.name, 'A-0002 Fix login');
@@ -121,6 +123,8 @@ await check('context-header: Andon の担当・レビュアー・Chief Engineer 
   f = facts('p4');
   assert.equal(f.name, 'CoS', 'Chief of Staff は andon mod が付けた tab の名前');
   assert.deepEqual([...f.where], ['This computer', 'sample-site']);
+  f = facts('p5');
+  assert.ok(!String(f.name).includes('A-0009'), `ラベル task= から名付けた: ${f.name}`);
 });
 
 await check('kanban-board: version のある kanban/ だけを台帳とみなし、symlink・大きすぎるファイル・alias の入れ子を読む前に拒む（固定 script を本物の sh で）', async () => {
@@ -129,19 +133,19 @@ await check('kanban-board: version のある kanban/ だけを台帳とみなし
     const put = async (p, text) => { await mkdir(path.dirname(p), { recursive: true }); await writeFile(p, text); };
     const plant = `${tmp}/plant`, ledger = `${plant}/projects/sample-site/kanban`;
     await put(`${tmp}/secret.txt`, 'SECRET-OUTSIDE\n');
-    await put(`${tmp}/outside/task.yaml`, 'title: SECRET-OUTSIDE\n');
-    await put(`${ledger}/config.yaml`, 'version: 2\nchief_of_staff: t2\nrepos: [github.com/sample/repo]\n');
-    await put(`${ledger}/tasks/A-0001/task.yaml`, 'title: Fine\nstatus: todo\n');
-    await put(`${ledger}/tasks/A-0001/report.md`, '# Report\n');
-    await symlink(`${tmp}/secret.txt`, `${ledger}/tasks/A-0001/brief.md`);
-    // A short task.yaml whose aliases nest 22 deep: 4M copies if expanded.
+    await put(`${tmp}/outside/issue.yaml`, 'title: SECRET-OUTSIDE\n');
+    await put(`${ledger}/config.yaml`, 'version: 3\nchief_of_staff: t2\nrepos: [github.com/sample/repo]\n');
+    await put(`${ledger}/issues/A-0001/issue.yaml`, 'title: Fine\nstatus: todo\n');
+    await put(`${ledger}/issues/A-0001/report.md`, '# Report\n');
+    await symlink(`${tmp}/secret.txt`, `${ledger}/issues/A-0001/brief.md`);
+    // A short issue.yaml whose aliases nest 22 deep: 4M copies if expanded.
     let bomb = 'a0: &a0 [x]\n';
     for (let i = 1; i <= 22; i++) bomb += `a${i}: &a${i} [*a${i - 1}, *a${i - 1}]\n`;
-    await put(`${ledger}/tasks/A-0002/task.yaml`, bomb);
-    await mkdir(`${ledger}/tasks/A-0003`);
-    await symlink(`${tmp}/secret.txt`, `${ledger}/tasks/A-0003/task.yaml`);
-    await symlink(`${tmp}/outside`, `${ledger}/tasks/A-0004`);
-    await put(`${ledger}/tasks/A-0005/task.yaml`, `title: big\nnote: ${'x'.repeat(300 * 1024)}\n`);
+    await put(`${ledger}/issues/A-0002/issue.yaml`, bomb);
+    await mkdir(`${ledger}/issues/A-0003`);
+    await symlink(`${tmp}/secret.txt`, `${ledger}/issues/A-0003/issue.yaml`);
+    await symlink(`${tmp}/outside`, `${ledger}/issues/A-0004`);
+    await put(`${ledger}/issues/A-0005/issue.yaml`, `title: big\nnote: ${'x'.repeat(300 * 1024)}\n`);
     await put(`${plant}/.ghq/github.com/sample/repo/kanban/config.yaml`, 'title: not a ledger\n');
     await mkdir(`${tmp}/linked`);
     await symlink(ledger, `${tmp}/linked/kanban`);
@@ -166,6 +170,9 @@ await check('kanban-board: version のある kanban/ だけを台帳とみなし
     viaLink.reset();
     await viaLink.find(`${tmp}/linked`, null);
     assert.equal(viaLink.root, null, 'symlink の kanban/ を台帳とみなした');
+    // The old path tasks/<id>/task.yaml is not read (ADR-0008 decision 7).
+    await put(`${ledger}/tasks/A-0009/task.yaml`, 'title: Old path\nstatus: todo\n');
+    await put(`${ledger}/issues/A-0006/task.yaml`, 'title: Old file name\nstatus: todo\n');
     const started = Date.now();
     const { ledger: config, tasks } = await b.readLedger(b.root, null);
     const shown = JSON.stringify(tasks);
@@ -173,10 +180,11 @@ await check('kanban-board: version のある kanban/ だけを台帳とみなし
     assert.equal(config.chiefOfStaff, 't2');
     const byId = Object.fromEntries(tasks.map((t) => [t.id, t]));
     assert.equal(byId['A-0001'].title, 'Fine');
-    assert.match(String(byId['A-0002'].broken), /maxAliases/, 'alias の入れ子を読めないタスクにしていない');
-    assert.match(String(byId['A-0003'].broken), /symbolic link/, 'symlink の task.yaml を読んだ');
-    assert.match(String(byId['A-0004'].broken), /symbolic link/, 'symlink のタスクのフォルダを読んだ');
-    assert.match(String(byId['A-0005'].broken), /larger than/, '大きすぎる task.yaml を読んだ');
+    assert.ok(!byId['A-0009'] && !byId['A-0006'], `古い path（tasks/・task.yaml）を読んだ: ${Object.keys(byId)}`);
+    assert.match(String(byId['A-0002'].broken), /maxAliases/, 'alias の入れ子を読めない課題にしていない');
+    assert.match(String(byId['A-0003'].broken), /symbolic link/, 'symlink の issue.yaml を読んだ');
+    assert.match(String(byId['A-0004'].broken), /symbolic link/, 'symlink の課題のフォルダを読んだ');
+    assert.match(String(byId['A-0005'].broken), /larger than/, '大きすぎる issue.yaml を読んだ');
     assert.ok(!shown.includes('SECRET-OUTSIDE') && !shown.includes('xxxxxxxxxx'), '拒んだファイルの中身が出た');
     b.where = { on: null };
     b.openTask(byId['A-0001'], { spawn: (fn) => (pending = fn({ notify: () => {} })), notify: () => {} });
@@ -188,15 +196,45 @@ await check('kanban-board: version のある kanban/ だけを台帳とみなし
   }
 });
 
+await check('kanban-board: 形式 2 の台帳は読まず、手で移す 1 行を出す（ADR-0008 決めたこと 7）', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-v2-'));
+  try {
+    await mkdir(`${tmp}/kanban/tasks/A-0001`, { recursive: true });
+    await writeFile(`${tmp}/kanban/config.yaml`, 'version: 2\n');
+    await writeFile(`${tmp}/kanban/tasks/A-0001/task.yaml`, 'title: Old\nstatus: todo\n');
+    const { default: Board } = await load(`${HOST}/kanban-board`, {
+      window: () => ({ platform: 'linux' }), readTextFile: async () => { throw new Error('read without the fixed script'); },
+      exec: async (cmd, args, opts = {}) => {
+        const r = spawnSync(cmd, args, { cwd: opts.cwd, encoding: 'utf8' });
+        return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+      },
+    });
+    await assert.rejects(new Board().readLedger(tmp, null), /^Error: config\.yaml is format 2; move it by hand \(docs\/operate\.md\)$/);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+await check('App の mod は課題を issue の名前で読み、古い名前（ラベル task・kanban/tasks・task.yaml）を読まない', async () => {
+  for (const mod of ['andon', 'inbox', 'context-header', 'kanban-board']) {
+    const src = await readFile(`${HOST}/${mod}/main.js`, 'utf8');
+    assert.doesNotMatch(src, /labels\??\.task\b|\btask=/, `${mod} がラベル task を読む`);
+    assert.doesNotMatch(src, /kanban[\/\\]+tasks|task\.yaml/, `${mod} が古い台帳の path を読む`);
+  }
+  for (const mod of ['andon', 'inbox', 'context-header']) {
+    assert.match(await readFile(`${HOST}/${mod}/main.js`, 'utf8'), /labels\??\.issue\b/, `${mod} がラベル issue を読まない`);
+  }
+});
+
 await check('kanban-board: 1 回の読みで出す量に上限がある（固定 script）', async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-total-'));
   try {
     const ns = await load(`${HOST}/kanban-board`, { exec: async () => ({}), readTextFile: async () => null, window: () => ({}) });
-    const script = ns.LIST_TASKS;
-    assert.ok(script, 'LIST_TASKS が読めない');
+    const script = ns.LIST_ISSUES;
+    assert.ok(script, 'LIST_ISSUES が読めない');
     for (let i = 1; i <= 20; i++) {
-      await mkdir(`${tmp}/kanban/tasks/A-${String(i).padStart(4, '0')}`, { recursive: true });
-      await writeFile(`${tmp}/kanban/tasks/A-${String(i).padStart(4, '0')}/task.yaml`, `note: ${'y'.repeat(250 * 1024)}\n`);
+      await mkdir(`${tmp}/kanban/issues/A-${String(i).padStart(4, '0')}`, { recursive: true });
+      await writeFile(`${tmp}/kanban/issues/A-${String(i).padStart(4, '0')}/issue.yaml`, `note: ${'y'.repeat(250 * 1024)}\n`);
     }
     const r = spawnSync('sh', ['-c', script, 'kanban-board', tmp, String(256 * 1024), String(4 * 1024 * 1024)], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     assert.equal(r.status, 0, r.stderr);
