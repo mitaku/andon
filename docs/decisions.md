@@ -296,3 +296,9 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 日付 | 決定 | 出典 |
 |---|---|---|
 | 2026-11-07 | マージのあと、同じ repo で動いているタスク（`doing`・`review`）への影響は、機械で分かる事実（もう含むか・`git merge-tree` の衝突・触ったファイルの重なり・依頼書が名前を出すファイル）を `andon task impact` が集め、dispatcher が `log.jsonl` の `done` の行ごとに1回打って通知 `impact` にする。判断（影響なし・rebase を頼む・一度止めて向きを確かめる）と担当への依頼は Chief of Staff（chief-of-staff skill §7 の表）。合図をマージではなく `done` にしたのは、dispatcher のマージと人のマージ（Chief of Staff の finish）を1本の道で拾うため。GitHub の `mergeable` はマージの直後に計算中のことが多いので使わない。rebase は担当がする | 人（2026-11-07。Y-200 の依頼）・[dispatcher.md](dispatcher.md) §2.5・§7.2 の 17 |
+
+## 20. ADR-0004 の S5 での決定
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-07 | `AGENTS.md` の行数に決まった上限は無い。行数の lint は作らない（[ADR-0004](adr/0004-project-layout.md) の開いている問い 1 の答え。ADR は書き換えない）。太らせない線は、薄い地図に絞る書き方（ADR-0004 決めたこと 1）と人の目で守る | 人（2026-11-07。Y-169 の依頼） |

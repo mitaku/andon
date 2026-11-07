@@ -65,6 +65,12 @@ done
 grep -q '§6' package/templates/codex-review.md && grep -q '§6' package/templates/claude-review.md \
   && pass "レビュアーのプロファイルは worker skill の §6 を指す" || fail "レビュアーのプロファイルが worker §6 を指していない"
 
+# === 2b. 前の置き場の名前が残っていない（ADR-0004 受け入れ条件 4 の前半） ===
+# 台帳は kanban/（KANBAN_ROOT）、coordinator.md は AGENTS.md の Chief of Staff の節、委譲は project.json の delegation。
+# 移す前の名前を skill・プロファイル・フック・command・環境メモに書かない（package/gate.json の保護の表は対象の外）。
+left=$(grep -rnE '\.flightdeck|FLIGHTDECK_ROOT|coordinator\.md|delegation\.(json|md)' package/skills package/templates package/hooks package/bin package/lib package/environment.md || true)
+[ -z "$left" ] && pass "skill・プロファイル・フック・command に .flightdeck・coordinator.md・delegation.json が残っていない" || fail "前の置き場の名前が残る: $(head -3 <<<"$left")"
+
 # === 3. 仮設の語 ===
 # 用語集は「## 仮設の語」の節より前だけ、「_避ける_」の行を除いて見る。動詞の「知らせる」は語ではないので「の知らせ」だけを見る
 for f in package/skills/*/SKILL.md package/skills/*/assets/* package/templates/*.md; do
