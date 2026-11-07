@@ -136,11 +136,24 @@ func logHead(f *os.File) string {
 // logRow は log.jsonl の1行（pos はその行の頭）から通知を積む。false はこの行で止まって次の見回りで読み直すとき。
 func (p *project) logRow(line []byte, by string, pos int64) bool {
 	var r ledger.Row
-	if json.Unmarshal(line, &r) != nil || r.Change == nil || r.By == by || !idRe.MatchString(r.ID) {
+	if json.Unmarshal(line, &r) != nil || r.Change == nil || !idRe.MatchString(r.ID) {
 		return true
 	}
 	r.ID = ledger.CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
 	c, id := r.Change, r.ID
+	// done は Chief of Staff が打った finish（人がマージしたあと）も拾う: 影響（andon task impact）は Chief of Staff もまだ見ていない事実
+	if c["status"] == "done" {
+		if p.st.Impact == nil {
+			p.st.Impact = map[string]int{}
+		}
+		if _, ok := p.st.Impact[id]; !ok {
+			p.st.Impact[id] = 0
+		}
+		return true
+	}
+	if r.By == by {
+		return true
+	}
 	switch {
 	case c["report"] == "write" || c["report"] == "append":
 		p.notify(id, "report", map[string]any{"report": p.reportPath(id)})

@@ -67,4 +67,5 @@ type dispatcherState struct {
 	Sent      map[string]bool       `json:"sent,omitempty"`
 	Retry     map[string]dsResend   `json:"retry,omitempty"`
 	First     map[string]bool       `json:"first,omitempty"`
+	Impact    map[string]int        `json:"impact,omitempty"`
 }

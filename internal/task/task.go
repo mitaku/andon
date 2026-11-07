@@ -8,9 +8,10 @@
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
 //	start <id>            worktree と branch を切り、hc run で担当を起こし、kanban start で結ぶ（Chief of Staff が打つ）
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
+//	impact <id>           マージした PR が、同じ repo の doing／review のタスクにぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
-// 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。start で最初のメッセージが届かなければ 3。
+// 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。start で最初のメッセージが届かなければ 3。impact で PR がまだ MERGED でなければ 4。
 package task
 
 import (
@@ -37,6 +38,8 @@ const Usage = "usage: andon task show <id>                                  予�
 	"       andon task ready <id>                                 HEAD・report.json・PR の head・レビューが揃えば review にする\n" +
 	"       andon task ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon task finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
+	"       andon task impact <id>                                マージした PR と、同じ repo の動いているタスクの重なり・衝突を JSON で出す\n" +
+	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
 	"       andon task start <id>                                 担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
 	"                                                          （最初のメッセージが届かなければ終了コード 3。dispatcher が送り直す）\n" +
 	"       andon task stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
@@ -112,6 +115,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return usage()
 		}
 		err = withTask(id, func(c *ctx) error { return c.finish(stdout) })
+	case "impact":
+		if len(rest) > 0 {
+			return usage()
+		}
+		err = withTask(id, func(c *ctx) error { return c.impact(stdout) })
 	case "start":
 		if len(rest) > 0 {
 			return usage()
@@ -124,6 +132,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon task %s: %v\n", sub, err)
 		if errors.As(err, new(notSent)) {
 			return exitFirst
+		}
+		if errors.As(err, new(notMerged)) {
+			return exitNotMerged
 		}
 		return exitFail
 	}

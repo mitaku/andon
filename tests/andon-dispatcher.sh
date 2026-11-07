@@ -37,6 +37,10 @@ case "\$*" in
   "pr view 7 --repo example/app --json state,mergeCommit")
     if [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
+  "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon task impact（impactfail があれば落ちる）
+    [ ! -f \$d/impactfail ] || { echo "HTTP 502" >&2; exit 1; }
+    if [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},files:[.[0][] | {path: .filename}]}' \$d/files.json
+    else echo '{"state":"OPEN","mergeCommit":null,"files":[]}'; fi ;;
   "api graphql "*)  # statusCheckRollup.contexts を100件ずつ（after は前のページの件数）
     off=\$(printf '%s\n' "\$@" | sed -n 's/^after=//p'); echo "graphql \${off:-0}" >> \$d/pages
     jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {repository: {pullRequest: {headRefOid: \$v[0].headRefOid,
@@ -246,6 +250,39 @@ tail -n +"$((mark + 1))" "$L/log.jsonl" | jq -e -s 'all(.by != "terminal:t5")' >
 [ ! -e "$tmp/hc/sent" ] || die "誰かに hc send した: $(cat "$tmp/hc/sent")"
 ok 'その間 Chief of Staff（t5）は台帳に1行も書いていない・誰にも hc send していない'
 
+# 1b. マージのあと（done の行）、同じ repo の動いているタスクへの影響を andon task impact で1回だけ集めて知らせる
+# 0・0c のタスクは同じ docs/a.md を別の行で足した branch（doing）なので、ぶつかり・重なる。判断は Chief of Staff（通知だけ）
+merged_id=$id
+old0=$(kanban list --json | jq -r '.[] | select(.title == "初めて見た台帳のレビュー依頼") | .id')
+echo "入力: docs/a.md を読む" >> "$L/tasks/$old0/brief.md"
+nsent() { if [ -e "$tmp/hc/sent" ]; then wc -l < "$tmp/hc/sent"; else echo 0; fi; }
+sent0=$(nsent)
+dispatcher
+pending "$merged_id" impact | jq -e --arg h "$head" --arg o "$old0" '.detail.pr == "https://github.com/example/app/pull/7" and .detail.sha == $h
+  and (.detail.tasks | length) == 2 and all(.detail.tasks[]; .conflict == true and .overlap == ["docs/a.md"])
+  and ([.detail.tasks[] | select(.task == $o) | .brief_refs] == [["docs/a.md"]])' >/dev/null ||
+    die "通知 impact が無い・形が違う: $(pending "$merged_id" impact)"
+emit <(pending "$merged_id" impact) notification-impact.json
+jq -e '(.impact // {}) | length == 0' "$state" >/dev/null || die "済んだ impact が控えに残った: $(jq -c .impact "$state")"
+[ "$(nsent)" = "$sent0" ] || die '影響を見て dispatcher が担当に hc send した（判断と依頼は Chief of Staff）'
+n0=$(jq '[.pending[] | select(.kind == "impact")] | length' "$state")
+dispatcher
+[ "$(jq '[.pending[] | select(.kind == "impact")] | length' "$state")" = "$n0" ] || die '同じマージの影響を二度知らせた'
+ok 'マージで done になったら andon task impact を1回打ち、ぶつかる・重なる・依頼書が指す動いているタスクを通知 impact にする（担当には送らない）'
+# 1c. 影響を集められない（gh が落ちる）ときは次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む
+jq --arg m "$merged_id" '.impact = {($m): 0}' "$state" > "$state.new" && mv "$state.new" "$state"
+touch "$tmp/gh/impactfail"
+dispatcher; dispatcher
+jq -e --arg m "$merged_id" '.impact[$m] == 2' "$state" >/dev/null || die "失敗の回数を控えていない: $(jq -c .impact "$state")"
+pending "$merged_id" impact | jq -e 'has("detail") and (.detail | has("error") | not)' >/dev/null || die '3 回の前に諦めた'
+dispatcher
+pending "$merged_id" impact | jq -e '.detail.pr == "https://github.com/example/app/pull/7" and (.detail.error | contains("3 回打って失敗")) and (.detail | has("tasks") | not)' >/dev/null ||
+    die "諦めたのに Chief of Staff に知らせない: $(pending "$merged_id" impact)"
+jq -e '(.impact // {}) | length == 0' "$state" >/dev/null || die '諦めたあとも控えに残った'
+emit <(pending "$merged_id" impact) notification-impact-error.json
+rm "$tmp/gh/impactfail"
+ok '影響を集められなければ次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む（ログだけにしない）'
+
 # 2. fix は担当へ hc send（Must fix が残る）
 id=$(newtask '説明を足す' auto)
 work "$id" docs/a.md
@@ -344,6 +381,9 @@ kanban list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .p
 ! ls -d "$HOME/.herdr/worktrees/app/demo-$id"* >/dev/null 2>&1 || die 'worktree が残った'
 git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'マージしていない branch を消した'
 ok 'andon task finish はレビュアーの子タスクと detached worktree も片付け、origin に入っていない branch は残す'
+dispatcher
+grep -q "$id の PR はマージされていないので影響を見ない" "$tmp/dispatcher.log" || die 'Chief of Staff が打った finish（done）を拾って andon task impact を打っていない'
+ok 'Chief of Staff が打った finish（done）も拾い、PR が MERGED でなければ影響を知らせない'
 
 # 6b. 台帳の worktree が repo の本体の checkout（git worktree list の先頭）を指していたら、finish は何も消さずに止まる
 id=$(HC_TERMINAL_ID=t5 kanban add '本体を指す' --profile claude --repo github.com/example/app)

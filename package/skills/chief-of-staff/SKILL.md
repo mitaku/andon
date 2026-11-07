@@ -247,6 +247,7 @@ S-0009 の担当 t5 が working のまま 21 分。hc read で画面が進んで
 | `<id> review: 報告 <path>` | `status: review` に入った（担当のタスクなら dispatcher がゲートを回す） | 担当のタスクなら何もしない（結果は `gate` の行で届く）。Chief Engineer のタスクなら §1 の「Chief Engineer の文書を受けたら」 |
 | `<id> gate: <decision> …` | ゲートを回した（記録 `library/gate/<head>.json`） | `approve` で `merged` が続かなければ §6 の「approve で止まったとき」。`fix` は何もしない（dispatcher が担当へ返した）。`needs_human` は `asked` の行で届く |
 | `<id> merged: <PR>` | approve ＋ `merge: auto` ＋ 委譲の範囲内でマージし、`andon task finish` した | 何もしない（人に言うことがあれば1行） |
+| `<id> impact: <PR> のマージ（…）で <id>（衝突・重なり n・依頼書 n）…` | `<id>` が done になり（誰の finish でも）、PR が MERGED なので `andon task impact` で同じ repo の動いているタスクを見た。影響のあるものだけが並ぶ | §7 の「マージのあとの影響」 |
 | `<id> asked: 問い <n>（questions.yaml）` | `andon task ask` の問い（担当から、またはゲートの `needs_human` で `from: gate`） | `deck questions --open` と `library/questions/<n>.json` を読み、§8（`from: gate` なら §6） |
 | `… の担当 … が blocked。hc read … で画面を見る` | 何もしない | §4（許可の確認に答える。信頼の画面は建屋では出ない） |
 | `… が idle のまま N 分、まだ doing` | 何もしない（子のレビュアーのタスク〈`parent: <id>`〉が todo／doing の間は、レビュー待ちなので届かない） | 上の表の `idle` の行（1回だけ続きを促す。2回目は人へ） |
@@ -292,11 +293,32 @@ minor 以下だけが残っているなら起こさず、見送りに残して `
 ## 7. 片付け
 
 - dispatcher がマージしたもの（`<id> merged`）は、dispatcher が `andon task finish` 済み。
+- どちらのマージでも、finish のあと dispatcher が動いているタスクへの影響を見て、影響があれば `<id> impact` で届く（下の「マージのあとの影響」）。
 - 人がマージしたものは、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon task finish <id>`（レビュアーの子タスクと detached worktree も片付く）。
   commit していない変更があると止まる。そのときは担当に聞くか、人へ。
 - マージせずにやめるタスクは、**人の go を取ってから** `andon task finish <id>`（branch は残る）。
 - レビュアーのタスクは、元のタスクの `andon task finish` で片付く。元のタスクをやめずにレビュアーだけ残っていれば `andon task finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
 - 残りの見つけ方（規約4・6）: `deck list`（`doing`・`review` のまま古いもの）、`hc ls --label project=<slug>`、`git worktree list`、`deck lint`。
+
+### マージのあとの影響（`<id> impact`）
+
+1本のマージで、同じ repo で動いている担当（`doing`・`review`）の前提が変わる。事実は dispatcher が `andon task impact` で集めた（`<news>` の行は要約。全部は `andon task impact <マージしたタスクの id>` を打って JSON で読む。読むだけ）。
+**判断と担当への依頼は自分のもの**（委譲の外の決断だけ人へ）。担当の代わりに rebase しない・dispatcher に頼まない。タスクごとに上から見て、最初に当たった行で決める:
+
+| 事実（`tasks[]` の1件） | 判断 | すること |
+|---|---|---|
+| 通知そのものが `<id> impact: … の影響を集められなかった（…）`（dispatcher が3回打って諦めた） | 確かめる | `andon task impact <id>` を手で打って JSON を読み、下の行で決める。また落ちれば理由（gh・fetch）を人へ1行 |
+| `error`（branch・worktree が読めない） | 確かめる | `deck show <id>`・`git worktree list` で branch を確かめる（規約6）。直せなければ人へ1行 |
+| マージした PR が、そのタスクの**前提**を変えた: `brief_refs` があるか、PR が ADR・設計書・約束（contract・schema）・skill を変えていて、依頼書の「なぜ」「入力」「完了条件」に関わる（PR と依頼書を読んで決める） | **一度止めて向きを確かめる** | 担当へ `hc send <agent> "<マージした id>（題）が入り <PR> で <ファイル> が変わった。次の commit の前に手を止めて読み、依頼書の追記を待って"`。向きが変わらなければ「変わらない。そのまま続けて」、変われば依頼書に `## 追記（<日付>）` を足して「追記した。読んでから続けて」（`conflict` もあれば rebase も一緒に頼む）。向きを決めるのが決断（4種・委譲の外）なら人へ1問（§8）。担当は止めたまま |
+| `conflict: true` | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（題）が main に入り、<conflict_files> でぶつかる。origin の main に rebase して衝突を解き、検査を通して push。review にいたら deck start で戻してから。Review: on ならレビューを頼み直す"` |
+| `overlap` だけ（衝突しない）で、`review` にいる | **rebase を頼む** | 同じ文（「ぶつからないが <overlap> が重なる。rebase して検査を通し直す」）。マージの前に新しい main で検査を通すため |
+| `overlap` だけで、`doing` | 影響なし（いまは） | 何もしない。担当は PR を出す前に main を取り直す（同じファイルの次のマージでまた届く） |
+| 上のどれでもない | 影響なし | 何もしない |
+
+- 決めたことは、人がいるターンならその返事に1行（`S-0011（…）に rebase を頼んだ・S-0012（…）は止めて向きを確かめている`）。影響なしだけなら `<no-reply>`。
+- 同じ担当に同じマージで二度頼まない。rebase を頼んだ担当が `blocked`・答えないときは §4・§5 の表で扱う。
+- **ほかの「前提が変わった」も同じ口で担当へ届ける**: 動いているタスクの依頼書に追記したら、そのターンで担当へ `hc send <agent> "依頼書に追記した（<要点>）。読んでから続けて"`（台帳の依頼書は担当の画面に届かない）。
+  人の答え（§8）が、問うたタスクのほかに動いているタスクの前提にも触れるなら、その担当にも同じく1行で知らせる。
 
 ## 8. 人への質問
 

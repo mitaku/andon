@@ -288,3 +288,11 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 |---|---|---|
 | 2026-11-06 | GHCR へは `vX.Y.Z` の tag の push のときだけ（tests を通した image を）push する。main へのマージごとの `:<sha>` の push はやめる（約 1 GiB の版がマージごとに増え、private の package のストレージ枠に当たった）。日々の試しは建屋で andon の checkout から焼く（`bin/bootstrap rebuild --from`。焼く手順は `image/build.sh` の1本で、tests・CI と同じ）。tag を切るまでの建屋は、いま GHCR にある SHA の版を使う | 人（2026-11-06）、Y-136 |
 | 2026-11-06 | CI の tests の job を縮める: andon・kanban を1回だけ焼いて渡し、`tests/*.sh` を並べ、image に関係しない PR では `tests/image.sh` を飛ばす（check の名前は変えず、main の push と tag では全部走る）。image の build の GHA cache は実測で遅くなったので使わない。手元は `tests/run --changed` で関係する検査だけ。表と理由は [image.md](image.md) の「CI の所要時間」 | 人（2026-11-06「CI ながくないかな」）、Y-174 |
+
+## 19. マージのあとの影響での決定
+
+担当が推しで進めたもの。覆すなら下に行を足す。
+
+| 日付 | 決定 | 出典 |
+|---|---|---|
+| 2026-11-07 | マージのあと、同じ repo で動いているタスク（`doing`・`review`）への影響は、機械で分かる事実（もう含むか・`git merge-tree` の衝突・触ったファイルの重なり・依頼書が名前を出すファイル）を `andon task impact` が集め、dispatcher が `log.jsonl` の `done` の行ごとに1回打って通知 `impact` にする。判断（影響なし・rebase を頼む・一度止めて向きを確かめる）と担当への依頼は Chief of Staff（chief-of-staff skill §7 の表）。合図をマージではなく `done` にしたのは、dispatcher のマージと人のマージ（Chief of Staff の finish）を1本の道で拾うため。GitHub の `mergeable` はマージの直後に計算中のことが多いので使わない。rebase は担当がする | 人（2026-11-07。Y-200 の依頼）・[dispatcher.md](dispatcher.md) §2.5・§7.2 の 17 |
