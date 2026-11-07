@@ -370,7 +370,7 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 
 **なぜファイルか**: 今は委譲が skill の規約の文と人の発言（会話）に散っている。Chief of Staff が起きるたびに「これは聞くべきか」を文脈から推すと、太る・ぶれる。委譲を**機械が読む形**で持てば、Chief of Staff は範囲内を聞かずに進め、範囲外は問い（§4）を出す。判断の種類（§1.3）は変わらず、**誰が判断するか**だけが変わる。リーンの語では「チームに権限を」と「方針の明示」（§1.7）の交点で、TPS では作業者にラインを止める権限を与えるアンドンの紐が原型（TPS は止める権限、Andon は進める権限）。「権限委譲」の TPS の固有語は見つからなかったので、識別子は英語の一般語 `delegation`。
 
-**置き場**（推奨: 建屋の repo の `projects/<slug>/delegation.json`。人用はそこに生成する `delegation.md` と `andon delegate show` の表）:
+**置き場**（2026-11-06 に `projects/<slug>/project.json` の `delegation` に決まった。[ADR-0004](adr/0004-project-layout.md)・[contract.md](contract.md) §11。以下の `delegation.json`・`delegation.md` は決める前の名前で、案の比べ方の記録として残す）（推奨: 建屋の repo の `projects/<slug>/delegation.json`。人用はそこに生成する `delegation.md` と `andon delegate show` の表）:
 
 | 案 | 置き場 | 利点 | 難点 |
 |---|---|---|---|
@@ -511,7 +511,7 @@ andon/
   init/                      建屋の repo の雛形（andon init が写す。生成後は追従しない）
     andon.toml  Dockerfile  bin/bootstrap  .aqua/local.yaml  local/setup.sh
     compose.override.yaml  AGENTS.local.md  gate.local.json  templates.local/  .ssh/  wiki/
-    projects/<slug>/delegation.json  委譲の例（型 work。§1.10）
+    projects/<slug>/project.json     プロジェクトの事実と委譲の例（`delegation` は型 work。§1.10。ADR-0004）
   cmd/andon/  internal/      andon の Go のソース（cmd/andon が入口、internal/<sub> が中身。go.mod は repo の根）
   cmd/kanban/                台帳の CLI（Go。移したら。名前は §3.5）
   tests/                     テスト（bash。偽の hc・試しの台帳・schema の検証・image のビルド。Go は go test）
