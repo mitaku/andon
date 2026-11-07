@@ -11,7 +11,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// Table はゲートの条件表（package/gate.json ＋ 建屋の gate.local.json。キーごとの置き換え）。
+// Table はゲートの条件表（package/gate.json ＋ セルの gate.local.json。キーごとの置き換え）。
 type Table struct {
 	SizeReviewLines        *int                 `json:"size_review_lines,omitempty"`
 	SizeHumanLines         *int                 `json:"size_human_lines,omitempty"`

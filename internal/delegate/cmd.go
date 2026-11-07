@@ -21,7 +21,7 @@ const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text
 	"       andon delegate narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
 	"       andon delegate revoke <id> --reason <text> [--project <slug>]\n" +
 	"       andon delegate show [--json] [--project <slug>]\n" +
-	"人が建屋の repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
+	"人がセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
 	"project.json を commit する（project.json は先に人が書く）。show は HEAD の委譲を読み手と同じに読む。\n" +
 	"scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 	"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
@@ -146,7 +146,7 @@ func AgentTerminal(why string) error {
 	return nil
 }
 
-// change は建屋の repo の HEAD の project.json（owner の commit）を読み、delegation を f で変え、検査して書き、project.json だけを commit する。
+// change はセルの repo の HEAD の project.json（owner の commit）を読み、delegation を f で変え、検査して書き、project.json だけを commit する。
 // project.json の delegation のほかのキーは HEAD のまま（形だけ2字下げに揃う）。project.json が無ければ書かない（先に人が書く）。
 // 作業ツリーや index に commit していない変更があれば打たない（エージェントが書いた変更を人の commit に混ぜない）。
 // HEAD を最後に変えたのが owner でなければ打たない（owner でない変更を人の commit で信じられる形にしない）。
@@ -163,7 +163,7 @@ func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (str
 	}
 	b, err := OwnerFile(ws, rel)
 	if errors.Is(err, ErrAbsent) {
-		return fmt.Errorf("建屋の repo の HEAD に %s が無い。先に人が書いて commit する（形は docs/contract.md §11）", rel)
+		return fmt.Errorf("セルの repo の HEAD に %s が無い。先に人が書いて commit する（形は docs/contract.md §11）", rel)
 	} else if err != nil {
 		return fmt.Errorf("%v（中身を確かめ、owner の email で commit し直してから打つ）", err)
 	}

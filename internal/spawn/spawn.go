@@ -227,7 +227,7 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 var authFailure = regexp.MustCompile(`(?i)could not read (username|password)|authentication failed|terminal prompts disabled|permission denied|invalid credentials|repository not found|returned error: 40[13]`)
 
 // defaultBranchError は origin の既定の branch を引けなかった失敗の文。git の stderr（Output が err に入れた1行）を添え、
-// 認証が原因らしいときは gh auth status・gh auth setup-git を案内する（建屋で gh auth setup-git が未実行のとき、原因が文言に出ない）。
+// 認証が原因らしいときは gh auth status・gh auth setup-git を案内する（セルで gh auth setup-git が未実行のとき、原因が文言に出ない）。
 func defaultBranchError(repoDir string, cause error) error {
 	msg := fmt.Sprintf("origin の既定の branch が分からない（%s）", repoDir)
 	if cause != nil {

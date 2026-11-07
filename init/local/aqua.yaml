@@ -1,5 +1,5 @@
 ---
-# この建屋だけに足す CLI。イメージの備品（/opt/andon-aqua/aqua.yaml）には触らない。
+# このセルだけに足す CLI。イメージの備品（/opt/andon-aqua/aqua.yaml）には触らない。
 # 足したら `aqua update-checksum -a`（aqua-checksums.json がこの横にできる）。
 checksum:
   enabled: true

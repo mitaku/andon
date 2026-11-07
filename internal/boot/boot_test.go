@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// fixture は偽の HOME・偽の建屋・偽のパッケージを一時ディレクトリに作る。
+// fixture は偽の HOME・偽のセル・偽のパッケージを一時ディレクトリに作る。
 type fixture struct {
 	root, pkg, ws, home, claude, managed string
 	log                                  bytes.Buffer
@@ -99,19 +99,19 @@ func snapshot(t *testing.T, root string) string {
 	return b.String()
 }
 
-// fullPackage はパッケージと建屋に、生成の元になるものを一通り置く。
+// fullPackage はパッケージとセルに、生成の元になるものを一通り置く。
 func (f *fixture) fullPackage(t *testing.T) {
 	put(t, filepath.Join(f.pkg, "settings.json"), `{"permissions":{"deny":["Bash(gh pr merge:*)"]},"hooks":{}}`)
 	put(t, filepath.Join(f.pkg, "templates", "claude.md"), "---\nname: claude\ncommand: claude --plugin-dir /opt/andon\n---\nパッケージの claude。`/opt/andon/skills/worker/SKILL.md`\n")
 	put(t, filepath.Join(f.pkg, "templates", "sonnet.md"), "---\nname: sonnet\n---\nパッケージの sonnet\n")
 	put(t, filepath.Join(f.pkg, "templates", ".gitkeep"), "")
-	put(t, filepath.Join(f.pkg, "environment.md"), "# 建屋の環境\n")
+	put(t, filepath.Join(f.pkg, "environment.md"), "# セルの環境\n")
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
 	put(t, filepath.Join(f.pkg, "skills", "glossary", "SKILL.md"), "glossary\n")
 	put(t, filepath.Join(f.pkg, "host", "herdr", "config.toml"), "[ui]\n")
 	put(t, filepath.Join(f.pkg, "codex.rules"), "prefix_rule(pattern = [\"gh\", \"pr\", \"merge\"], decision = \"forbidden\")\n")
-	put(t, filepath.Join(f.ws, "templates.local", "sonnet.md"), "---\nname: sonnet\n---\n建屋の sonnet\n")
-	put(t, filepath.Join(f.ws, "templates.local", "local-only.md"), "建屋だけ\n")
+	put(t, filepath.Join(f.ws, "templates.local", "sonnet.md"), "---\nname: sonnet\n---\nセルの sonnet\n")
+	put(t, filepath.Join(f.ws, "templates.local", "local-only.md"), "セルだけ\n")
 	put(t, filepath.Join(f.ws, "AGENTS.local.md"), "# 案件の部分")
 }
 
@@ -133,8 +133,8 @@ func TestGenerateWritesEverything(t *testing.T) {
 	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates")
 	for name, want := range map[string]string{
 		"claude.md":     "パッケージの claude",
-		"sonnet.md":     "建屋の sonnet", // 建屋の templates.local が勝つ
-		"local-only.md": "建屋だけ",
+		"sonnet.md":     "セルの sonnet", // セルの templates.local が勝つ
+		"local-only.md": "セルだけ",
 	} {
 		if s := read(t, filepath.Join(tpl, name)); !strings.Contains(s, want) {
 			t.Errorf("%s: %q に %q が無い", name, s, want)
@@ -148,7 +148,7 @@ func TestGenerateWritesEverything(t *testing.T) {
 	if s := read(t, filepath.Join(f.claude, "CLAUDE.md")); s != want {
 		t.Errorf("CLAUDE.md = %q, want %q", s, want)
 	}
-	if s := read(t, filepath.Join(f.home, ".codex", "AGENTS.md")); s != "# 建屋の環境\n\n# 案件の部分\n" {
+	if s := read(t, filepath.Join(f.home, ".codex", "AGENTS.md")); s != "# セルの環境\n\n# 案件の部分\n" {
 		t.Errorf("Codex の AGENTS.md = %q", s)
 	}
 	for _, name := range []string{"worker", "glossary"} {
@@ -492,7 +492,7 @@ func TestVersionLess(t *testing.T) {
 	}
 }
 
-// Main を環境変数だけで走らせる: 偽の HOME・偽の建屋、PATH には記録するだけの偽の hc。
+// Main を環境変数だけで走らせる: 偽の HOME・偽のセル、PATH には記録するだけの偽の hc。
 // 本物の hc・HOME・/workspace に触らない。2回目は dispatcher を起こし直さない（中身が andon dispatcher のまま）。
 func TestMainWithFakeHome(t *testing.T) {
 	f := newFixture(t)

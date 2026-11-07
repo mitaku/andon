@@ -198,7 +198,7 @@ fx=$(as t5 kanban add '誤字を1つ直す' --profile claude)
 as t5 kanban set "$fx" review=off must_fix=major "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
 kanban start "$fx" >/dev/null
 lfx=kanban/tasks/$fx/library
-cands='{"candidates":[{"id":"c1","text":"docs/a.md:4 「建家」→「建屋」","file":"docs/a.md","line":4,"in_scope":true},{"id":"c2","text":"README の段を書き直す","in_scope":false}]}'
+cands='{"candidates":[{"id":"c1","text":"docs/a.md:4 「台長」→「台帳」","file":"docs/a.md","line":4,"in_scope":true},{"id":"c2","text":"README の段を書き直す","in_scope":false}]}'
 for bad in '.candidates[1].id = "c1"|重なっている' 'del(.candidates[0].in_scope)|in_scope が無い' '.candidates[0] += {"tier": "A"}|知らないキー' \
            '.candidates[0].text = "a\nb"|2行以上' '.candidates[0].file = "/etc/x"|相対パス' '.candidates[0].line = 0|line が' '.candidates[0].id = "x1"|c1, c2' \
            '. + {"commit": "'"$s1"'"}|commit は書かない' 'del(.candidates)|candidates が無い'; do
@@ -288,10 +288,10 @@ ok 'candidates: そのタスクの担当（agent）でない端末からは書�
 
 # start: Chief of Staff（t5）が担当を起こす。案件の repo は bare な origin とその clone
 export GHQ_ROOT="$tmp/ghq"
-# start は起こす前に信頼の設定を足す（boot と同じ手）。一時の HOME に書かせ、本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
+# start は起こす前に信頼の設定を足す（boot と同じ手）。一時の HOME に書かせ、本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 unset CLAUDE_CONFIG_DIR
 export ANDON_WORKSPACE="$tmp/plant"
-# 建屋の repo（人のもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
+# セルの repo（人のもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
 git init -q "$tmp/plant"; mkdir -p "$tmp/plant/projects/demo"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"version": 1, "project": {"title": "Demo", "prefix": "S"}, "repos": ["github.com/example/app"]}' > "$tmp/plant/projects/demo/project.json"

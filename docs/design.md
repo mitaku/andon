@@ -3,7 +3,7 @@
 - 状態: **設計の提案**（2026-11-04 起草、2026-11-05 書き直し）。実装はしない。読んだ人がどこから建てるかを決める。
 - **読み手の前提**（人、2026-11-05）: この文書は **Andon の repo だけを読む人**のために書く。今動いている工場（以下「仮設の工場」。§3 で棚卸しする）を知らなくても読める。仮設の道具の名前（yard・deck・flightdeck）は §3 と §5 にだけ出し、本文の役と部品は Andon の名前で呼ぶ（§0.1）。語彙はリーン開発（Lean Software Development・Kanban Method）の英語を先に置き、トヨタ生産方式（TPS）を出典として添える（§1.7）。
 - 人の決定（日付つき）:
-  - 2026-11-04: 自分のソフトウェアファクトリーに **Andon** と名前を付けて育てる。Andon は**工場そのもの（構造）の名前**で、今の実装（仮設の工場）はそれを成す形の1つ。Andon はこの repo `<owner>/andon` に一から建て、一定できあがったら Andon 専用の建屋を用意し、Andon の上で Andon を開発する（セルフホスト）。理由: 今は道具が散らばっていて管理しにくい。
+  - 2026-11-04: 自分のソフトウェアファクトリーに **Andon** と名前を付けて育てる。Andon は**工場そのもの（構造）の名前**で、今の実装（仮設の工場）はそれを成す形の1つ。Andon はこの repo `<owner>/andon` に一から建て、一定できあがったら Andon 専用のセルを用意し、Andon の上で Andon を開発する（セルフホスト）。理由: 今は道具が散らばっていて管理しにくい。
   - 2026-11-04: **最終的に public にする**つもりで開発する（今は private。§2.6）。
   - 2026-11-04: 台帳の CLI と形式は、Andon に合わせた名前で Andon のモノレポに入れてよい（§3.5。段取りは持ち主と決める）。
   - 2026-11-04: 部品と役の名前は TPS の語彙を調べて当てる。ソフトウェアに移された系譜（リーン開発・Kanban Method）も同じ表に（§1.7）。
@@ -11,7 +11,7 @@
   - 2026-11-04: Warp の software factory（Zach Lloyd の講演）を読み、取り入れるものと違えるものを書く（§1.9）。
   - 2026-11-05: 読み手は Andon の repo だけを読む人。ラインを回す役の名前は **Chief of Staff**。語彙はリーン開発を意識する。
   - 2026-11-05: **道具の選定もこの時点である程度しておく**（base image・CLI の言語など。§2.7）。
-  - 2026-11-05: **§6 の 27 問すべてに人の答えが出た**（§6 の右の列。推奨と違ったのは 2〈係は `dispatcher`〉・10〈建屋の自動 push は捨てる〉・11〈日本語から始め、必要になったら英語〉・26〈`hobby` は全部任せる〉）。決定は P1 で `docs/decisions.md` に写す。
+  - 2026-11-05: **§6 の 27 問すべてに人の答えが出た**（§6 の右の列。推奨と違ったのは 2〈係は `dispatcher`〉・10〈セルの自動 push は捨てる〉・11〈日本語から始め、必要になったら英語〉・26〈`hobby` は全部任せる〉）。決定は P1 で `docs/decisions.md` に写す。
   - 2026-11-05: **オーナー（人）と Chief of Staff の間の委譲の状態をファイルで持つ**（何をどこまで任せたか。範囲・付与した人・日付・期限・取り消し・根拠つき。§1.10）。委譲の広さは案件ごとに違う——「趣味の開発ならマージやデプロイは勝手にしてくれてもいい」——ので、既定の型から足し引きする形に。
 - 入力（正）: 仮設の工場の設計文書（決定 1〜15 と残る問い）と、人との議論の記録（2026-11-04。ハーネスは薄く・人用／AI 用／機械用の記述を分ける・開発体験を損なわない・ダブルループ構造・名前 Andon・新しく建てる・セルフホスト）。どちらも private の記録なので、決定は Andon の `docs/decisions.md` に日付と出典つきで写す（§5.2 の P1）。この文書は決まったことを**前提として使い、繰り返さない**。主題は「その配線を新しい repo にどう置くか」。
 - 書き手: Andon を設計する担当エージェント（最上位のモデル）。読んだ版は付録。
@@ -22,11 +22,11 @@
 
 **Andon は「選択的 Dark Factory」。止められるものは機械、判断が要るものは LLM、残りだけ人。ラインは回り続け（AND ON）、人を呼ぶときだけ灯りがつく（アンドン）。**
 
-この repo に建てるのは、その工場の**パッケージ**（建屋の base image と `/opt/andon`）と**約束**（機械が読む形）と**文書**（人用・AI 用）で、**案件のデータは持たない**。建屋は Andon のパッケージを `FROM` で指す設定だけの repo になり、更新は版上げの PR 1本になる。
+この repo に建てるのは、その工場の**パッケージ**（セルの base image と `/opt/andon`）と**約束**（機械が読む形）と**文書**（人用・AI 用）で、**案件のデータは持たない**。セルは Andon のパッケージを `FROM` で指す設定だけの repo になり、更新は版上げの PR 1本になる。
 
 **最初の commit から public に耐える形で建てる**（§2.6）: 秘密と、案件や個人に固有の値は repo に入れず、利用者側の設定に出す。履歴に残ると消せないので、PR ごとにテストする。
 
-最初の到達点（§5.1）: **Andon の建屋を1つ立て、その中で Andon 自身の PR が1本、人がレベル C と不可逆な操作以外に触らずに流れる。** そこまでを §5.2 の手に切った。
+最初の到達点（§5.1）: **Andon のセルを1つ立て、その中で Andon 自身の PR が1本、人がレベル C と不可逆な操作以外に触らずに流れる。** そこまでを §5.2 の手に切った。
 
 ### 0.1 語彙（この文書の語と英語）
 
@@ -35,11 +35,11 @@
 | 語 | 英語 | 意味 |
 |---|---|---|
 | **Andon** | andon | 工場そのもの。構造の名前。この repo はそれを成す形の1つ |
-| **建屋** | plant | 案件（信頼境界）ごとに1つ立てる長寿命のコンテナと、その設定 repo。手元にもクラウドにも立つ |
-| **パッケージ** | package | この repo から建屋に配るもの一式: base image と `/opt/andon/`（command・skill・プロファイル・フック・ゲートの条件表・環境メモ・ホスト用） |
+| **セル** | cell | 案件（信頼境界）ごとに1つ立てる長寿命のコンテナと、その設定 repo（`<slug>-cell`）。手元にもクラウドにも立つ。出典はリーンのセル生産（§1.7）。前の語は §2.4 |
+| **パッケージ** | package | この repo からセルに配るもの一式: base image と `/opt/andon/`（command・skill・プロファイル・フック・ゲートの条件表・環境メモ・ホスト用） |
 | **ライン** | line | タスクが依頼書からマージまで流れる工程の列（＝インナーループ）。「ラインそのものの変更」はゲートの条件表・skill・設定・フックの変更 |
 | **灯り** | andon light | 人の判断待ち。灯りがつく条件は §1.3 の5種だけ |
-| **台帳** | ledger | 建屋のプロジェクトごとに1つ。タスク・問い・ルーチン・履歴を持つファイル群。書くのは台帳の CLI（`kanban`。§3.5）だけ |
+| **台帳** | ledger | セルのプロジェクトごとに1つ。タスク・問い・ルーチン・履歴を持つファイル群。書くのは台帳の CLI（`kanban`。§3.5）だけ |
 | **タスク** | work item | 台帳のカード1枚。かんばん（§1.7） |
 | **依頼書** | brief | タスクの文書（背景・完了条件・守ること・Settings）。人と AI が読む |
 | **報告** | report | 担当がタスクごとに書く結果。人用の Markdown と機械用の JSON（§4） |
@@ -49,7 +49,7 @@
 | **Chief of Staff（CoS）** | chief-of-staff | ラインを回す役。文書を依頼書に切り、担当を起こし、検収し、振り返りをする。人と設計の対話はしない（§1.8） |
 | **担当** | worker | 1つのタスクのために起きるエージェント。自分の worktree の中だけで働き、報告を書いて終わる |
 | **レビュアー** | reviewer | 実装と別ブランドのモデルで、書いていない目で commit を読み、指摘を重さつきで返す。直さない |
-| **dispatcher** | dispatcher | 建屋に1つ常駐するプログラム（仕事の出典は TPS の水すまし〈water spider〉。名前はソフトウェアで聞き馴染みのある英語の dispatcher にした〈人、2026-11-06〉。§1.7。`runner` は CI の runner と紛れるので使わない）。台帳と端末を周期で回り、通知を届け、レビュアーを起こし、ゲートを回し、片付ける。判断はしない。設計は [dispatcher.md](dispatcher.md) |
+| **dispatcher** | dispatcher | セルに1つ常駐するプログラム（仕事の出典は TPS の水すまし〈water spider〉。名前はソフトウェアで聞き馴染みのある英語の dispatcher にした〈人、2026-11-06〉。§1.7。`runner` は CI の runner と紛れるので使わない）。台帳と端末を周期で回り、通知を届け、レビュアーを起こし、ゲートを回し、片付ける。判断はしない。設計は [dispatcher.md](dispatcher.md) |
 | **ゲート** | gate | PR をマージしてよいかの決定式。条件表（JSON）と PR の head の GitHub の checks を読み、`approve`／`fix`／`needs_human` を返す（checks が揃うまでは `wait`）。レベル A・B・C（下） |
 | **レベル A／B／C** | tier | ゲートが変更ごとに決める段階。A＝テストが通れば自動マージ、B＝独立レビューつきで自動マージ、C＝人がマージ（ラインそのものの変更・不可逆なもの） |
 | **振り返り** | retro | アウターループのルーチン。記録を読んでつまずきを拾い、環境を直す PR を出す |
@@ -57,11 +57,11 @@
 | **プロファイル** | profile | エージェントの起こし方（CLI・モデル・effort）の名前。端末の土台の template が中身を持つ |
 | **ルーチン** | routine | 台帳にある定期の仕事（振り返り・トリアージ・見回り） |
 | **委譲** | delegation | オーナーが Chief of Staff（と dispatcher・担当）に任せた範囲。プロジェクトごとのファイルで持ち、人だけが書く（§1.10） |
-| **指揮側／作業側** | control／work | 建屋の中の2段。指揮側＝人・Chief of Staff・dispatcher・ゲート・台帳・wiki。作業側＝担当・レビュアー（別のマシンでもよい） |
+| **指揮側／作業側** | control／work | セルの中の2段。指揮側＝人・Chief of Staff・dispatcher・ゲート・台帳・wiki。作業側＝担当・レビュアー（別のマシンでもよい） |
 | **インナーループ／アウターループ** | inner／outer loop | 内側＝ライン。外側＝振り返り。合わせて**ダブルループ** |
 | **仮設の工場** | interim factory | 今動いている工場。Andon を建てる間だけ使い、保守は運用を止めない程度（§3・§5） |
-| **セルフホスト** | self-hosting | Andon の建屋の中で Andon を開発する状態 |
-| **外部の部品** | — | Andon が使うが持たないもの。端末の土台 **hc**（herdr-core。エージェント用の永続する端末。Apache-2.0）、人の Interface **Herdr App** と**ボード**（herdr-flightdeck。全建屋の自分待ちを1画面で見る Web ボードと画面の mod。別プロジェクトの持ち物） |
+| **セルフホスト** | self-hosting | Andon のセルの中で Andon を開発する状態 |
+| **外部の部品** | — | Andon が使うが持たないもの。端末の土台 **hc**（herdr-core。エージェント用の永続する端末。Apache-2.0）、人の Interface **Herdr App** と**ボード**（herdr-flightdeck。全セルの自分待ちを1画面で見る Web ボードと画面の mod。別プロジェクトの持ち物） |
 
 ---
 
@@ -129,10 +129,10 @@ flowchart LR
 ### 1.5 人は判断だけ。手元とクラウド。作業側は別のマシンでもよい
 
 - 人は判断だけする。実装・レビュー・ゲート・片付け・通知の仕分けは人の仕事ではない。
-- 建屋は増え、散らばる。手元（WSL）にも、クラウド常駐（PC を閉じても回る）にもある。どちらも**同じ建屋の repo・同じパッケージ・同じ bootstrap**。
-- 建屋の中の2段（指揮側／作業側）は、**マシンの境**にもできる。指揮側（人・Chief of Staff・dispatcher・ゲート・台帳・wiki）は1つのマシン、作業側（担当・レビュアー）は同じマシンでも別のマシンでもよい。台帳は指揮側に1つ。作業側からの入口は `andon task …` の command に閉じ、別のマシンなら command が端末の土台（hc）越しに写す。人の Herdr App の画面でもこの2段で分ける（指揮側の Space とタスクごとの Space。[ADR-0002](adr/0002-herdr-spaces.md)・[ADR-0003](adr/0003-task-spaces.md)）。
+- セルは増え、散らばる。手元（WSL）にも、クラウド常駐（PC を閉じても回る）にもある。どちらも**同じセルの repo・同じパッケージ・同じ bootstrap**。
+- セルの中の2段（指揮側／作業側）は、**マシンの境**にもできる。指揮側（人・Chief of Staff・dispatcher・ゲート・台帳・wiki）は1つのマシン、作業側（担当・レビュアー）は同じマシンでも別のマシンでもよい。台帳は指揮側に1つ。作業側からの入口は `andon task …` の command に閉じ、別のマシンなら command が端末の土台（hc）越しに写す。人の Herdr App の画面でもこの2段で分ける（指揮側の Space とタスクごとの Space。[ADR-0002](adr/0002-herdr-spaces.md)・[ADR-0003](adr/0003-task-spaces.md)）。
 - **常駐・定期の処理は、指揮側のマシンで 1 者だけが走らせる**。どの処理を誰が・二重に走ったら何が起きるか・今の守りと無い所は [dispatcher.md](dispatcher.md) §7 の表。作業側を別のマシンに出す前の前提を確かめるのに使う。
-- 返す口は、まずは各建屋の Chief of Staff の端末、最終的には通知。だから問いの形を今から揃える。
+- 返す口は、まずは各セルの Chief of Staff の端末、最終的には通知。だから問いの形を今から揃える。
 - 騙す担当への備えは今は持たない（履歴は固定のプログラムが作り、照合は後から足せる形にだけ）。理由（人）: 偽ろうとするならもっと簡単に偽れるので、そこを塞いでも割に合わない。
 
 ### 1.6 Andon と、それを成す形と、Interface
@@ -143,7 +143,7 @@ flowchart TB
     direction TB
     subgraph FORM["それを成す形（実装）"]
       PKG["この repo: パッケージ（image ＋ /opt/andon）・約束（schema）・文書"]
-      HOUSE["建屋 ×N（案件ごと。設定だけの repo ＋ コンテナ）"]
+      HOUSE["セル ×N（案件ごと。設定だけの repo ＋ コンテナ）"]
       LED["台帳（CLI と形式。§3.5 で Andon に移す案）"]
       HC["端末の土台（hc。外部の部品）"]
     end
@@ -159,7 +159,7 @@ flowchart TB
   HC -- "状態" --> APP
 ```
 
-Andon が**持つ**のは パッケージ・約束・文書と、建屋の形。端末の土台（hc）と Interface（Herdr App・ボード）は**外部の部品**で、Andon は約束（§4）を通してそれらを使う。台帳（CLI と形式）は今は外部の部品で、Andon に移す案が §3.5。
+Andon が**持つ**のは パッケージ・約束・文書と、セルの形。端末の土台（hc）と Interface（Herdr App・ボード）は**外部の部品**で、Andon は約束（§4）を通してそれらを使う。台帳（CLI と形式）は今は外部の部品で、Andon に移す案が §3.5。
 
 ### 1.7 語彙の系譜: リーン開発・Kanban Method と、トヨタ生産方式（TPS）
 
@@ -175,9 +175,9 @@ Andon が**持つ**のは パッケージ・約束・文書と、建屋の形。
 | | 4 速く届ける（deliver as fast as possible） | 小さく速く届けるほど学べる | インナーループの自動マージ・小さい PR（レベル A／B）・「1本流れる」の時間を測る（§5.1） |
 | | 5 チームに権限を（empower the team。2006 版では respect people） | 決める人は現場に | 担当の自工程完結（下）・Chief of Staff がタスクの範囲内の許可を出す・案件側の改善は Chief of Staff の判断で無灯・**委譲のファイル**（任せた範囲を明示し、その中は聞かずに進める。§1.10） |
 | | 6 品質を作り込む（build quality in。build integrity in とも） | 検査で見つけるのではなく工程で作り込む | テスト・ゲート・独立レビュー（TPS の自働化・自工程完結と同じ当て。英語ではこちらが通じる） |
-| | 7 全体を見る（see the whole） | 部分最適でなく流れ全体を見る | アウターループ・建屋を横断する wiki・俯瞰（台帳と端末の一覧）・バリューストリーム（下） |
+| | 7 全体を見る（see the whole） | 部分最適でなく流れ全体を見る | アウターループ・セルを横断する wiki・俯瞰（台帳と端末の一覧）・バリューストリーム（下） |
 | **Kanban Method**（David J. Anderson『Kanban: Successful Evolutionary Change for Your Technology Business』2010。2005 年に名付けた） | 見える化（visualize） | 仕事の流れを板に出す | 台帳とボード（大部屋。下） |
-| | WIP 制限（limit work in progress） | 工程ごとの仕掛りに上限を置き、pull で流す | **同時に走る担当の数**（建屋の設定）・Chief Engineer は1プロジェクト1題・レビューの往復の上限（`review_rounds`） |
+| | WIP 制限（limit work in progress） | 工程ごとの仕掛りに上限を置き、pull で流す | **同時に走る担当の数**（セルの設定）・Chief Engineer は1プロジェクト1題・レビューの往復の上限（`review_rounds`） |
 | | 流れの管理（manage flow） | 流れを測り、滞りを減らす | dispatcher の周期・平準化（下）・`stalled` の通知 |
 | | 方針の明示（make policies explicit） | いつ動かしてよいかを明文化する | ゲートの条件表・設定・依頼書の Settings・委譲のファイル（**機械が読む形**にする。§4・§1.10） |
 | | フィードバックの輪（implement feedback loops） | 定期の振り返りと測定 | 通知・振り返りのルーチン |
@@ -194,13 +194,14 @@ Andon が**持つ**のは パッケージ・約束・文書と、建屋の形。
 | **かんばん**（kanban） | 後工程が前工程から引き取るときに使う**カード**。TPS を pull で回す道具 | **タスク**（台帳のカード。依頼書＝引き取りの指示）と、それを動かす **CLI**（§3.5 の名前の推奨） | 合う（カード＝タスク）。台帳全体（履歴・問い・ルーチン）は「かんばんの箱」で、かんばんそのものではない。ソフトウェアの「Kanban」（ボードの手法）と重なるが、意味は近く通じやすい | `kanban`／英名は無い（card・signboard）。ローマ字がそのまま英語で、最も通じる |
 | **自工程完結**（ji kotei kanketsu） | 自分の工程で良品条件を満たし、不良を後工程に渡さない。検査に頼らず工程で品質を作り込む。事務の仕事にも広げられ、「意思決定の連鎖」で自分の仕事の良否を自分で分かるように | **担当の工程**: テストを通してから commit・`ready` の照合・レビューの指摘を自分で振り分ける。担当の skill の方針の語 | 合う。部品の名前ではなく、skill の文の語 | `ji kotei kanketsu`／**built-in quality**（quality at the source）。ローマ字は英語圏で稀。英名で |
 | **反省**（hansei）・**カイゼン**（kaizen） | 反省＝節目と終わりに問題を見つけて共有し、同じ誤りを繰り返さない集まり（PDCA の check に当たる）。カイゼン＝継続的な改善 | **振り返り＝反省**（アウターループの入口。記録を読み、候補を出す）。**改善の PR＝カイゼン**（出口） | 合う | `hansei`／**reflection**、`kaizen`／**continuous improvement**。kaizen はローマ字が英語。hansei は lean の語で、ソフトでは **retro**（retrospective）のほうが通じる |
-| **横展**（yokoten） | 「横に展開する」。1つの場所の学びを組織の全体へ広げる | **パッケージの版上げで全建屋へ広がること**と、建屋をまたぐ wiki。依頼の当て「案件の学びを1か所へ集約」は**向きが逆**: 集約は横展の前段（拾い上げ）で、横展は広がる側 | 直した | `yokoten`／**horizontal deployment**（lateral deployment）。英名で |
+| **横展**（yokoten） | 「横に展開する」。1つの場所の学びを組織の全体へ広げる | **パッケージの版上げで全セルへ広がること**と、セルをまたぐ wiki。依頼の当て「案件の学びを1か所へ集約」は**向きが逆**: 集約は横展の前段（拾い上げ）で、横展は広がる側 | 直した | `yokoten`／**horizontal deployment**（lateral deployment）。英名で |
 | **標準作業**（standardized work） | 今いちばん良いと分かっている手順を文書にし、それを守り、改善で更新する | **skill・command・依頼書の雛形・プロファイル**（決まった手順）。wiki は標準作業ではなく「歴史」（日付つきの決定） | 直した（依頼の当ては wiki・skill。wiki を外した） | 英名 **standardized work** だけ（ローマ字は使われない） |
-| **大部屋**（obeya） | 「大きな部屋」。プロジェクトの関係者と情報を1つの部屋に集めて速く決める。Prius の開発で内山田が作った | **人の Interface**（Herdr App ＋ ボード＝全建屋の自分待ちを1画面） | 合う（見る面として）。ただし外部の部品なので Andon が名付けない | `obeya`／**big room**（war room とも）。両方通じる |
+| **大部屋**（obeya） | 「大きな部屋」。プロジェクトの関係者と情報を1つの部屋に集めて速く決める。Prius の開発で内山田が作った | **人の Interface**（Herdr App ＋ ボード＝全セルの自分待ちを1画面） | 合う（見る面として）。ただし外部の部品なので Andon が名付けない | `obeya`／**big room**（war room とも）。両方通じる |
+| **セル生産**（cell production。cellular manufacturing） | 必要な設備と人を1か所に集め、1つの製品（の族）を始めから終わりまで流す小さな単位。ラインを長くつながず、単位ごとに独立して回る | **セル**＝案件（信頼境界）ごとに1つ立てる、必要なもの（パッケージ・台帳・端末・wiki）を全部中に持ち独立して回る単位（ADR-0005 前提 3。人の決定 2026-11-06）。持ち主は1人・互いに独立・同じ形・持ち運べる | 合う。前の語（§2.4）は建物の語で、独立して回る単位の意味が無かった。Andon＝工場、セル＝案件ごとの単位、ライン＝セルの中の工程、大部屋＝全セルを見る面 | **cell**（cellular manufacturing）。英名がそのまま通じる |
 | **現地現物**（genchi genbutsu） | 「実際の場所、実際の物」。現場に行って自分の目で確かめる | **振り返りが記録そのもの（セッションの記録・指摘・ゲートの記録）を読む**こと。Chief of Staff の検収「言われた結果を信じず実物を読む」 | 合う。方針の語 | `genchi genbutsu`／**go and see**。両方通じる |
-| **平準化**（heijunka） | 生産量と種類をならして、山と谷を作らない | **並行の上限**（建屋の設定）とルーチンの開き方（溜めない） | 合う。方針の語 | `heijunka`／**production leveling**（level scheduling）。英名のほうが通じる |
+| **平準化**（heijunka） | 生産量と種類をならして、山と谷を作らない | **並行の上限**（セルの設定）とルーチンの開き方（溜めない） | 合う。方針の語 | `heijunka`／**production leveling**（level scheduling）。英名のほうが通じる |
 | **主査**（shusa。今は「チーフエンジニア」） | 製品1つの構想・仕様・事業の成否に全責任を持つ役。1953 年に制度ができた（flier の要約が豊田英二の「主査は製品の社長、社長は主査の助っ人」を紹介。原典は未確認）。開発者への正式な権限はほとんど無く、機能部門に属す人を構想の力で束ねる。生産技術・販売との調整も持つ（lean.org の Lexicon: "program manager with total responsibility for a product line, previously known as shusa"） | **Chief Engineer**＝人と仕様・設計を対話する役（§1.8）。案件（製品）の構想と仕様を持ち、ラインに指示しない（タスクを切るのは Chief of Staff） | 合う（権限なし・構想を持つ・現場の監督と別、が重なる）。Toyota の主査が持つ「開発工程の管理・生産技術との調整」は Andon では Chief of Staff。**「仕様と設計の持ち主」の意味だけ取る** | `shusa`／**chief engineer**（Toyota の公式英名。lean では定着。一般の英語では「上級技師」とも読まれるので README に1行の説明）。英名で |
-| **生産技術／生産準備**（seisan gijutsu。production engineering／production preparation） | 製品の設計段階から量産の立ち上げまで、工程・設備・治具・品質の作り込みを設計する部門。製品の設計とも現場（製造）とも別（出典: トヨタ系の求人票の職務の記述。トヨタの 2026-05 の組織発表は Production Engineering Group を「engineering・production・manufacturing engineering の統合」と説明） | **Andon 自身のラインの仕様・設計**（この文書・§5.2 の立ち上げ・ラインの変更＝§1.3 の 5）。セルフホストでは **Andon の建屋の Chief Engineer が生産技術**（製品＝Andon のライン） | 合う。役を2つ作らない: Chief Engineer が1つで、対象が製品か工場かの違い。識別子には使わず方針の語（「ラインの変更は生産技術の仕事＝人の判断」） | `seisan gijutsu`（通じない）／**production engineering**（manufacturing engineering とも）。英名で、文書の語だけ |
+| **生産技術／生産準備**（seisan gijutsu。production engineering／production preparation） | 製品の設計段階から量産の立ち上げまで、工程・設備・治具・品質の作り込みを設計する部門。製品の設計とも現場（製造）とも別（出典: トヨタ系の求人票の職務の記述。トヨタの 2026-05 の組織発表は Production Engineering Group を「engineering・production・manufacturing engineering の統合」と説明） | **Andon 自身のラインの仕様・設計**（この文書・§5.2 の立ち上げ・ラインの変更＝§1.3 の 5）。セルフホストでは **Andon のセルの Chief Engineer が生産技術**（製品＝Andon のライン） | 合う。役を2つ作らない: Chief Engineer が1つで、対象が製品か工場かの違い。識別子には使わず方針の語（「ラインの変更は生産技術の仕事＝人の判断」） | `seisan gijutsu`（通じない）／**production engineering**（manufacturing engineering とも）。英名で、文書の語だけ |
 | **水すまし**（mizusumashi。water spider） | 決まった経路を決まった周期で回り、各工程に部品を届け、できたものを引き取る専任の運び手。工程を知っていて、通るたびに異常に気づく。単なる運搬係ではなく手順が標準化されている | **dispatcher**（周期で台帳と端末を回り、通知を届け、レビュアーを起こし、ゲートを回し、片付ける。止まった担当に気づく） | 合う（依頼の当てには無かった語。足した）。**dispatcher の仕事の出典**（名前は英語の一般語の dispatcher） | `mizusumashi`／**water spider**（**runner** とも）。英名のほうが通じる |
 | **チームリーダー**（team leader）・**工長**（group leader） | アンドンの紐が引かれたら最初に駆けつけ、現場で直し、直らなければラインを止めて上に上げる役。製品の構想は持たない | **Chief of Staff**（担当が止まったら範囲内だけ答え、範囲外を人へ。ラインを回す） | 合う（主査と現場の監督が別、の「現場」の側）。名前は TPS の語ではなく mattpocock の chief-of-staff から取る（人の決定。§1.8） | **team leader**／**group leader**。英名で、説明の語だけ |
 
@@ -224,7 +225,7 @@ Andon が**持つ**のは パッケージ・約束・文書と、建屋の形。
 |---|---|---|---|---|---|
 | **Chief Engineer** | 人に問いを重ねて仕様・設計を詰め、文書にして渡す。**実装もタスク切りもしない** | **する**（本業。人が直接話す） | 無い（決めるのは人。Chief Engineer は推奨案を出す） | 人がプロジェクトの場所で `andon chief-engineer "<題>"`。1題＝1タスク。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
 | **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起こす・検収・振り返り・wiki | `needs_human` の問いの中継と受付だけ | タスクの範囲内の許可・案件側のアウターループ | 人が `andon chief-of-staff`。常駐 | `chief-of-staff` |
-| dispatcher | 通知・レビュアーの起動・ゲート・片付け | しない | しない | 建屋に1つ常駐 | — |
+| dispatcher | 通知・レビュアーの起動・ゲート・片付け | しない | しない | セルに1つ常駐 | — |
 | 担当・レビュアー | 1タスク・1レビュー | 問いは台帳経由 | 自工程の品質 | Chief of Staff（dispatcher）が起こす | `claude`・`codex`・`*-review` |
 
 mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切る（to-tickets）・実装を回す・retro」を1つの役に持たせる。Andon はそれを **Chief Engineer（問いと spec）／Chief of Staff（tickets と回すことと振り返り）**に割る。割る線は「人と話すか」。名前は mattpocock の語をそのまま取る（人の決定 2026-11-05。TPS の対応は §1.7 のチームリーダー）。
@@ -233,11 +234,11 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 
 参考にしたもの（出典は付録。**本文は複製しない**。要点だけ取り、Andon の語で書き直す）: mattpocock/skills の `grilling`（決定を木の形で持つ・今出せる問いだけ出す・一度に出す問いの束・事実と判断の分離・終わりの確認）・`grill-me`（何を・いつ）・`to-spec`（決めたことだけ書く・テストの継ぎ目を先に）・`to-tickets`（縦に薄く切る・依存を書く）・`handoff`。pstack（poteto 作。Claude Code の plugin `cursor/pstack`）の `in-your-own-words`（目的の言い直し）・`sharpen`（深く、大きくではなく）・`architect`（構造の違う案を2つ以上）・`interrogate`（反論は走らせて証明したものだけ）・`show-me-your-work`（決定の履歴）。gstack の `office-hours`（前提への反論・代案 A/B/C・設計書の形）・`plan-ceo-review`（範囲の4モード: 広げる・選んで広げる・保つ・減らす）・`plan-eng-review`（構造・端・テスト表。これは担当とレビュアーの側で使う）。
 
-1. **読む（事実は Chief Engineer の仕事）。** 人に聞く前に自分で調べる: 案件のマスタ（用語・合意事項）・repo の docs・建屋の wiki の index・台帳（進行中のタスクと開いている問い）・決定の記録。環境にある事実は副エージェント（新しい文脈）に取りに行かせ、待つ間も別の枝を進める。**人に事実を聞かない。人に聞くのは判断だけ。**
+1. **読む（事実は Chief Engineer の仕事）。** 人に聞く前に自分で調べる: 案件のマスタ（用語・合意事項）・repo の docs・セルの wiki の index・台帳（進行中のタスクと開いている問い）・決定の記録。環境にある事実は副エージェント（新しい文脈）に取りに行かせ、待つ間も別の枝を進める。**人に事実を聞かない。人に聞くのは判断だけ。**
 2. **言い直す。** 人の目的と困りごとを自分の言葉で1段落に書き、人が直す（pstack `in-your-own-words`）。ここで題の大きさを見る: 1セッションに収まらない題は先に割る（grill-me の「問いが200になったら範囲が大きすぎる」）。
 3. **前提を並べる。** 「本当にこの問題か」「何もしないとどうなるか」「既にあるもので済む部分」「配り方（新しい部品なら利用者にどう届くか）」を**同意する／しない**の文で並べ、人が1つずつ返す（office-hours Phase 3）。同じ前提で2度失敗していたら前提を疑う（pstack attack-the-premise）。
 4. **問いを重ねる（本体）。** 設計を**決定の一覧**として持ち（前提 → それに依る決定 → さらに依る決定、の順。木の形）、前提が済んで**今出せる問い**だけを出す。問いの形は台帳の問い（[contract.md](contract.md) §5）と同じ: **何の判断か・事実・理由・選択肢・推奨案・あと何問**。「はい」で推奨案が通る文にする。一度に出すのは互いに依らない問いの全部（番号つき）、人は番号で答える。答えが返るたびに一覧を組み直す。**推奨案は出すが決めない**: 自分で答えて進んだら骨格の違反（grilling の「事実は skill の仕事、判断は人の仕事」）。
-   - 既定は「互いに依らない問いをまとめて出す」（人が端末で向き合っている前提）。人が1問ずつを好むなら建屋の設定（`andon.toml`）の1行で切り替える（台帳経由の問い〈離席中〉は常に1問ずつ。§6 問い19）。
+   - 既定は「互いに依らない問いをまとめて出す」（人が端末で向き合っている前提）。人が1問ずつを好むならセルの設定（`andon.toml`）の1行で切り替える（台帳経由の問い〈離席中〉は常に1問ずつ。§6 問い19）。
    - **話しても決まらない問い**（見た目・手触り）は話し続けない。試作を1つ、捨てる前提の小さいタスク（レベル A・`review: off`）として Chief of Staff へ渡し、返るまで別の枝を進める（grill-me の prototype・pstack exhaust-the-design-space）。Chief Engineer 自身は書かない。
 5. **代案を2つ以上。** 構造の違う案を2〜3（最小・理想・横から。office-hours Phase 4、pstack architect の「design it twice」）。各案に大きさ・リスク・再利用するもの・捨てるもの。推奨案を1行の理由と一緒に。人が選ぶ。範囲の問いは plan-ceo-review の4モード（広げる・選んで広げる・保つ・減らす）で聞く。
 6. **反論を走らせる（任意。外向きの面・不可逆な設計のとき）。** 別の文脈の副エージェント（できれば別ブランド）に「この設計を壊せ。証明できたものだけ返せ」を出す（pstack `interrogate`、gstack の second opinion）。返った指摘は人に見せて判断を取る。
@@ -294,7 +295,7 @@ sequenceDiagram
 | B | 既存の最上位のプロファイルを流用（プロファイルを足さない） | Chief of Staff が `kanban add` して `andon task start`（この文書を書いたタスクと同じ） | 仮設の間はこれ（§5.3 の 9）。ただし「人と直接話す」が依頼書の文に頼る |
 | C | `chief-of-staff` のプロファイルに SKILL を足し、Chief of Staff が「設計モード」に入る | `andon chief-of-staff` の中で `/grill` | 分けない案。文脈が太る（人の指摘そのもの）。採らない |
 
-Andon が自分を設計するとき（セルフホスト、Andon の建屋の台帳）は、その建屋の Chief Engineer が TPS でいう**生産技術**（§1.7）: 製品＝Andon のライン。ラインの変更は人の判断（§1.3 の 5）なので、その文書は必ず人がマージする。
+Andon が自分を設計するとき（セルフホスト、Andon のセルの台帳）は、そのセルの Chief Engineer が TPS でいう**生産技術**（§1.7）: 製品＝Andon のライン。ラインの変更は人の判断（§1.3 の 5）なので、その文書は必ず人がマージする。
 
 **「Pstack」について**（人の答え 2026-11-05。§6 問い19）: Pstack＝**poteto（Lauren Tan）作の pstack**。Claude Code の plugin として `cursor/pstack` で公開されている（MIT。Codex 向けの移植が painhardcore/pstack）。`interrogate`・`architect`・`sharpen`・`in-your-own-words`・`show-me-your-work` が設計の対話に当たる。gstack（Garry Tan。MIT）は pstack の一部を取り込んでいる（`licenses/MIT-pstack.txt`）。上の骨格は pstack と gstack の**両方から取った**。
 
@@ -310,21 +311,21 @@ Andon が自分を設計するとき（セルフホスト、Andon の建屋の�
 
 | # | Lloyd の主張（出典の要約） | Andon では | 取り入れる／違える・理由 |
 |---|---|---|---|
-| 1 | **「製品ではなく、製品を作るものを作る」**。ソフトウェア工学は factory engineering になり、CI/CD と同じく、まともな規模のプロジェクトは全部 factory を持つようになる。engineer は meta-engineer になる | 工場（Andon）を建てる人＝人と Andon の建屋の Chief Engineer（§1.8）。TPS の語では**生産技術**（§1.7）。「選択的 Dark Factory」（§1.2）と同じ像 | **取り入れる**（像は同じ）。Andon の語では factory engineer ＝ 生産技術。役の名前には使わない（英語の文で説明に使う） |
+| 1 | **「製品ではなく、製品を作るものを作る」**。ソフトウェア工学は factory engineering になり、CI/CD と同じく、まともな規模のプロジェクトは全部 factory を持つようになる。engineer は meta-engineer になる | 工場（Andon）を建てる人＝人と Andon のセルの Chief Engineer（§1.8）。TPS の語では**生産技術**（§1.7）。「選択的 Dark Factory」（§1.2）と同じ像 | **取り入れる**（像は同じ）。Andon の語では factory engineer ＝ 生産技術。役の名前には使わない（英語の文で説明に使う） |
 | 2 | **ループの段**: 入力（トラッカー・Slack・端末・監視）→ 振り分け（簡単なものは直接実装、複雑なものは spec へ）→ **spec agent が product spec と tech spec を書く**→ 人の spec review → 実装（クラウドの agent）→ agent のレビュー ＋ 人のレビュー → 検証（UI は computer-use で screenshot・動画）→ CI/CD → 監視 agent が入口に戻す | Chief Engineer（§1.8）→ Chief of Staff が依頼書に切る → 担当 → 独立レビュー → ゲート → マージ（§1.4）。監視の入口は無い | **半分取り入れる**。spec の2本立て（product＝何を・tech＝どう）は Chief Engineer の文書の「問題・決めたこと」と「受け入れ条件・依頼書に切る案」に写す。**違える**: Warp の spec は agent が書いて人が review するが、Andon の spec は**人と Chief Engineer の対話で決める**（事業判断は人のもの。§1.8）。監視からの入口は最初の版に無く、入口は人と振り返りだけ（下の (a)）。UI の検証は人の skill（ユースケースを実行して動画と実行の跡を証拠にする手）が既にあり、担当のテストの1種として後で入れる |
 | 3 | **人の接点（spec review・code review・product review）が「factory の中で詰まる所」**。どこに人を入れるかはチームが選ぶ。review を全部 agent にする所もあれば、高リスクの変更だけ人が見る所もある | 判断5種（§1.3）とレベル A／B／C（ゲート）。人はレベル C と不可逆だけ | **取り入れる**（同じ考え）。**違える**: Warp は段（spec・code・product の review）に人を置くが、Andon は**変更ごと**にゲートがレベルを決める（ライン自身の変更＝レベル C）。固定の接点より「灯りがつく条件」で持つほうが、人の介在率を下げる方向に動かしやすい |
 | 4 | **測る**: 自動でマージされた PR の割合（20% → 60% へ上げる）、PR あたりの人の介在回数、PR あたりのコスト（モデル構成ごと。コストと品質の Pareto）、効率。run ごとに LLM-as-judge で採点し、失敗した run から自己改善の workflow を作る。実タスクを replay してモデルを比べる | §5.1 の確かめ方3（履歴に人の `by` が無い）。freee の KPI「人の介在率」 | **取り入れる（指標だけ）**: §5.1 に **自動マージ率・PR あたりの人の介在回数・PR あたりの token コスト・依頼書からマージまでの時間** を足し、台帳の履歴と `report.json` から数えられる形にする（振り返りの入力。§1.7 の value stream）。**違える**: judge による run の採点・replay・Pareto は**最初の版に入れない**（薄いハーネス。記録の形 §4 を先に揃え、必要になったら記録から作る）。paddo.dev の警告も取る: 弱いゲートで throughput を上げると「速くバグを出す工場」になる——指標は自動マージ率だけでなく、ゲートの差し戻し率と一緒に見る |
 | 5 | **構成**: control plane（仕事を配る）・クラウドの sandbox（どのハーネスでも動く）・agent とモデルの選択・data plane（記憶。小さく作るのは易しいが大きくするのは難しい）・**observer agent**（他の agent の仕事を見て skill を直す＝self-improving の仕組み。例: 上級者が review agent の指摘を直すと、observer がそれを見て次の run の agent を直す） | 指揮側／作業側（§1.5）: 指揮側＝dispatcher・台帳・ゲート、作業側＝担当（worktree か別マシン）。プロファイルがモデルの選択。記憶＝台帳の履歴・記録（§4）・wiki。observer ＝ 振り返り（アウターループ） | **取り入れる（配線）**: 指揮側／作業側の2段と「どのハーネスでも」は同じ（Claude Code・Codex の両方を担当に）。**違える（2つ）**: (a) data plane は**ファイル**（台帳の形式が約束。DB・MCP は将来 §4）で、ホストされた記憶を持たない。(b) observer は **skill を直接書き換えない**。振り返りの出口は PR で、案件側のテスト・観点・指針は Chief of Staff の判断、Andon 自身のライン（skill・ゲート・設定）は人（§1.3 の 5）。理由: skill の自己書き換えは「ラインそのものの変更」で、人が灯りを見る側に置いた決定。self-improving は **PR 経由の self-improving** にする |
-| 6 | **factory は版管理されたコード**。自分のインフラでも Warp のでも動く。どのモデル・どのハーネスでも（open-weight・Claude Code・Codex） | パッケージ（image ＋ `/opt/andon`）と建屋の repo（§2）。セルフホスト（§5） | **取り入れる**（既にそう）。Andon は「factory を定義するコード」を public にする側（§2.6） |
+| 6 | **factory は版管理されたコード**。自分のインフラでも Warp のでも動く。どのモデル・どのハーネスでも（open-weight・Claude Code・Codex） | パッケージ（image ＋ `/opt/andon`）とセルの repo（§2）。セルフホスト（§5） | **取り入れる**（既にそう）。Andon は「factory を定義するコード」を public にする側（§2.6） |
 | 7 | **段階的に**: リスクの低い repo や特定の issue の種類から始め、自動マージの割合を上げていく。最初の bottleneck は review か「agent が何を変えたか見えないこと」 | ゲートのレベル A／B／C・独立レビュー・指摘の JSON | **取り入れる**（既にそう）。「見えない」の対策は Andon では**記録の形**（§4: 指摘・ゲートの記録・報告の機械向けの部分）と大部屋（ボード） |
-| 8 | **open source のモデル**: 製品が安く作れる時代の堀は配布・エコシステム・ブランド・データ・資本。自動化が OSS の負担（雑な issue・雑な PR・review の重さ）を吸収する。**公開の protofactory**（build.warp.dev）で issue・状態・agent・貢献者を見せる | public にする（§2.6）。台帳と大部屋は建屋の中（private） | **半分取り入れる**: 道具（Andon）は public、**工場の現場（台帳・通知・問い）は public にしない**（案件のデータ。§2.6 の「固有の値は建屋へ」と同じ線）。Andon は1人の工場で外からの issue・PR を受ける入口が無い。公開の現場が要るならボードの持ち主と相談（§3.2 の追加。今は出さない） |
+| 8 | **open source のモデル**: 製品が安く作れる時代の堀は配布・エコシステム・ブランド・データ・資本。自動化が OSS の負担（雑な issue・雑な PR・review の重さ）を吸収する。**公開の protofactory**（build.warp.dev）で issue・状態・agent・貢献者を見せる | public にする（§2.6）。台帳と大部屋はセルの中（private） | **半分取り入れる**: 道具（Andon）は public、**工場の現場（台帳・通知・問い）は public にしない**（案件のデータ。§2.6 の「固有の値はセルへ」と同じ線）。Andon は1人の工場で外からの issue・PR を受ける入口が無い。公開の現場が要るならボードの持ち主と相談（§3.2 の追加。今は出さない） |
 | 9 | **検証**（Jory の整理）: engineering excellence ＝ verification（自動化できる判断）＋ context ＋ taste。「spec が eval になった。走らせられる spec」。factory は spec どおりかは証明できるが、spec を書く価値があったかは分からない | Chief Engineer の受け入れ条件（テストできる形。継ぎ目を先に。§1.8）・ゲート・独立レビュー | **取り入れる**: 受け入れ条件は**できるだけ走らせられる形**（テスト・振る舞いテスト・ユースケースの実行）で書き、依頼書の完了条件がそれを指す。「spec を書く価値」は人の判断（事業判断）で、Chief Engineer の前提の問い（§1.8 の 3）がそこを受け持つ |
 
 **Warp Factories／Oz との違い**（製品との線引き。出典は Warp の発表と二次資料。閉じた beta なので中身は発表の範囲）:
 
 | 観点 | Oz（2026-02）／Warp Factories（2026-08、closed beta） | Andon |
 |---|---|---|
-| 何か | Oz: クラウドで coding agent を走らせ・管理・編成する基盤（Docker の sandbox、run ごとの共有リンクと監査の跡、CLI と API、enterprise は self-host、2026-05 から Claude Code・Codex・Warp Agent を1つの control plane で）。Factories: その上の「cloud software factory」（版管理された定義・SDLC の自動化・multi-model／harness・指標と記憶つきの self-improvement・custom agent／skill／automation・Slack／Teams／Linear／Jira／GitHub／GitLab の入口・factory app の画面・$10,000 分の利用枠） | 1人のためのソフトウェアファクトリーの**道具と約束と文書**（§0）。製品ではなく public の repo。建屋は自前（WSL・クラウド常駐）。価格は無い |
+| 何か | Oz: クラウドで coding agent を走らせ・管理・編成する基盤（Docker の sandbox、run ごとの共有リンクと監査の跡、CLI と API、enterprise は self-host、2026-05 から Claude Code・Codex・Warp Agent を1つの control plane で）。Factories: その上の「cloud software factory」（版管理された定義・SDLC の自動化・multi-model／harness・指標と記憶つきの self-improvement・custom agent／skill／automation・Slack／Teams／Linear／Jira／GitHub／GitLab の入口・factory app の画面・$10,000 分の利用枠） | 1人のためのソフトウェアファクトリーの**道具と約束と文書**（§0）。製品ではなく public の repo。セルは自前（WSL・クラウド常駐）。価格は無い |
 | ハーネス | どのモデル・どのハーネスでも（実装役を Claude Code や Codex に替えられる） | 同じ（プロファイル＝端末の土台の template。実装とレビューは別ブランド） |
 | 作業の場 | headless の sandbox。人は共有リンクで跡を見る | **永続する端末**（hc の PTY）。人が担当の端末に入れる（規約で入らないが、入れる）。別マシンへは hc 越し |
 | 記憶・指標 | hosted の data plane（会話・評価・記憶）。cost・throughput・quality の自動の指標。judge で run を採点 | **ファイル**（台帳・記録・wiki。形式が約束）。指標は履歴から数える（§5.1）。judge は入れない（上の 4） |
@@ -370,13 +371,13 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 
 **なぜファイルか**: 今は委譲が skill の規約の文と人の発言（会話）に散っている。Chief of Staff が起きるたびに「これは聞くべきか」を文脈から推すと、太る・ぶれる。委譲を**機械が読む形**で持てば、Chief of Staff は範囲内を聞かずに進め、範囲外は問い（§4）を出す。判断の種類（§1.3）は変わらず、**誰が判断するか**だけが変わる。リーンの語では「チームに権限を」と「方針の明示」（§1.7）の交点で、TPS では作業者にラインを止める権限を与えるアンドンの紐が原型（TPS は止める権限、Andon は進める権限）。「権限委譲」の TPS の固有語は見つからなかったので、識別子は英語の一般語 `delegation`。
 
-**置き場**（2026-11-06 に `projects/<slug>/project.json` の `delegation` に決まった。[ADR-0004](adr/0004-project-layout.md)・[contract.md](contract.md) §11。以下の `delegation.json`・`delegation.md` は決める前の名前で、案の比べ方の記録として残す）（推奨: 建屋の repo の `projects/<slug>/delegation.json`。人用はそこに生成する `delegation.md` と `andon delegate show` の表）:
+**置き場**（2026-11-06 に `projects/<slug>/project.json` の `delegation` に決まった。[ADR-0004](adr/0004-project-layout.md)・[contract.md](contract.md) §11。以下の `delegation.json`・`delegation.md` は決める前の名前で、案の比べ方の記録として残す）（推奨: セルの repo の `projects/<slug>/delegation.json`。人用はそこに生成する `delegation.md` と `andon delegate show` の表）:
 
 | 案 | 置き場 | 利点 | 難点 |
 |---|---|---|---|
-| **A**（推奨） | 建屋の repo `projects/<slug>/delegation.json`（機械）＋ `delegation.md`（人用。command が生成） | **書き手は人だけ**が自然に守れる: 建屋の repo は人のもので、担当と Chief of Staff は案件 repo の worktree で働き、建屋の repo には書けない（managed deny）。履歴＝git の log（author・日付・commit message に根拠）。取り消し＝commit。プロジェクトごと、という粒度が `projects/<slug>/` にそのまま合う | 台帳と置き場が分かれる（台帳は git の外）。ボードからは見えない（§3.2 に相談を足せる） |
+| **A**（推奨） | セルの repo `projects/<slug>/delegation.json`（機械）＋ `delegation.md`（人用。command が生成） | **書き手は人だけ**が自然に守れる: セルの repo は人のもので、担当と Chief of Staff は案件 repo の worktree で働き、セルの repo には書けない（managed deny）。履歴＝git の log（author・日付・commit message に根拠）。取り消し＝commit。プロジェクトごと、という粒度が `projects/<slug>/` にそのまま合う | 台帳と置き場が分かれる（台帳は git の外）。ボードからは見えない（§3.2 に相談を足せる） |
 | B | 台帳 `.flightdeck/delegation.json` | 台帳と一緒に見える。`log.jsonl` の `by` で照合できる | 台帳の CLI が知らないファイルになる（形式の相談がもう1つ増える）。台帳は git の外なので履歴が CLI 頼み |
-| C | ゲートの条件表 `gate.local.json` の中 | 置き場が1つ減る | 軸が違う: 条件表は「変更が何か（レベル）」で建屋ごと、委譲は「誰が判断するか」でプロジェクトごと。人が読む一覧にもならない |
+| C | ゲートの条件表 `gate.local.json` の中 | 置き場が1つ減る | 軸が違う: 条件表は「変更が何か（レベル）」でセルごと、委譲は「誰が判断するか」でプロジェクトごと。人が読む一覧にもならない |
 
 **形**（機械用。正は [contract.md](contract.md) §11）: 既定の型（`preset`）を1つ選び、`grants[]` で足し引きする。
 
@@ -397,14 +398,14 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 
 | `scope` | 値 | 任せると何が変わるか | 任せても残るもの |
 |---|---|---|---|
-| `merge` | `none` / `A` / `B` / `C` | dispatcher がマージしてよい**最大のレベル**。`C` ならラインそのものの変更も自動マージ | Andon 自身のライン（Andon の建屋の `andon` プロジェクト）は常に `B` まで（型 `andon` で固定。§1.3 の 5） |
+| `merge` | `none` / `A` / `B` / `C` | dispatcher がマージしてよい**最大のレベル**。`C` ならラインそのものの変更も自動マージ | Andon 自身のライン（Andon のセルの `andon` プロジェクト）は常に `B` まで（型 `andon` で固定。§1.3 の 5） |
 | `deploy` | `none` / `preview` / `production` | 担当・dispatcher が案件のデプロイ（CI の workflow の起動など）を打ってよい段階 | 条件: 戻す command が1つで、受け入れ条件に書いてある（無ければ `none` と同じ） |
-| `publish` | `none` / `internal` / `public` | 外への公開（パッケージの release・サイト・投稿）。`internal` は自分の建屋の中（`andon publish`）まで | `public` は取り消せない。型 `work`・`andon` は `none`。`hobby` は `public` まで任せる（人の決定 2026-11-05。戻せないことを承知の上） |
+| `publish` | `none` / `internal` / `public` | 外への公開（パッケージの release・サイト・投稿）。`internal` は自分のセルの中（`andon publish`）まで | `public` は取り消せない。型 `work`・`andon` は `none`。`hobby` は `public` まで任せる（人の決定 2026-11-05。戻せないことを承知の上） |
 | `irreversible` | 許す操作の一覧（`delete-branch` / `force-push` / `rewrite-history` / `delete-remote` …） | 一覧にある操作だけ、問いを出さずに打てる | 既定は空。`delete-remote` は型でも足せない（人だけ） |
 | `external-requests` | `true` / `false` | 他のプロジェクトから委譲の印つきで来た依頼を、承認とみなして進めてよいか | 不可逆な操作の go は人（上の `irreversible` が効く） |
 | `profile` | `true` / `false` | プロファイル（モデル・effort）の選び方を Chief of Staff に任せるか | 新しいプロファイルを作る・変えるのは人（ラインの変更） |
-| `package-update` | `true` / `false` | パッケージの版上げ（建屋の `FROM`）の PR を Chief of Staff が受けてよいか | マージは `merge` のレベルに従う（`Dockerfile` はレベル C） |
-| `line-change` | `none` / `project` / `plant` | アウターループの改善をどこまで無灯で入れるか: `project`＝案件 repo のテスト・レビューの観点・指針まで、`plant`＝建屋の設定（`gate.local.json`・`AGENTS.local.md`）まで | Andon のパッケージ（skill・ゲートの条件表の既定・設定の既定）は常に人 |
+| `package-update` | `true` / `false` | パッケージの版上げ（セルの `FROM`）の PR を Chief of Staff が受けてよいか | マージは `merge` のレベルに従う（`Dockerfile` はレベル C） |
+| `line-change` | `none` / `project` / `plant` | アウターループの改善をどこまで無灯で入れるか: `project`＝案件 repo のテスト・レビューの観点・指針まで、`plant`＝セルの設定（`gate.local.json`・`AGENTS.local.md`）まで | Andon のパッケージ（skill・ゲートの条件表の既定・設定の既定）は常に人 |
 
 **既定の型（`preset`）**（案件はここから `grants[]` で足し引きする）:
 
@@ -412,30 +413,30 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 |---|---|---|---|---|---|---|---|---|---|
 | **`hobby`** | `C` | `production` | `public` | `delete-branch` / `force-push` | `true` | `true` | `true` | `plant` | 趣味の開発。**全部任せる**（人の決定 2026-11-05。マージ・デプロイ・戻せない公開も）。リモートの削除と履歴の書き換えだけ人 |
 | **`work`** | `B` | `none` | `none` | （空） | `false` | `true` | `true` | `project` | 仕事。レベル C・デプロイ・外向き・不可逆は人 |
-| **`andon`** | `B` | `none` | `none` | （空） | `false` | `true` | `true` | `none` | Andon 自身（セルフホストの建屋）。ラインの変更は人 |
+| **`andon`** | `B` | `none` | `none` | （空） | `false` | `true` | `true` | `none` | Andon 自身（セルフホストのセル）。ラインの変更は人 |
 
 仮設の規約は `work` に近い（レベル C と不可逆は人・委譲印つきは承認にしない・プロファイルは Chief of Staff）。最初の版の既定（`preset` が無いとき）は **`work`**（安全側）。
 
-**判断5種との関係**: 種類は同じ（§1.3）。1（何を作るか）は型でも grant でも**委譲できない**（オーナーの目的そのもの。Chief Engineer との対話で決める）。2〜4 は型で「誰が判断するか」が変わる（例: `hobby` では 2〜4 は全部 Chief of Staff。4 不可逆のうちリモートの削除と履歴の書き換えだけ人）。5（ラインの変更）は案件側（`line-change`）と建屋（`plant`）まで委譲でき、Andon のパッケージは常に人。
+**判断5種との関係**: 種類は同じ（§1.3）。1（何を作るか）は型でも grant でも**委譲できない**（オーナーの目的そのもの。Chief Engineer との対話で決める）。2〜4 は型で「誰が判断するか」が変わる（例: `hobby` では 2〜4 は全部 Chief of Staff。4 不可逆のうちリモートの削除と履歴の書き換えだけ人）。5（ラインの変更）は案件側（`line-change`）とセル（`plant`）まで委譲でき、Andon のパッケージは常に人。
 
 **誰が読むか・いつ**:
 
 - **Chief of Staff**: 起きるたび。`UserPromptSubmit` のフックが `andon delegate show --json` を文脈に添える（§4 のフックと同じ口）。判断が範囲内なら聞かずに進め、範囲外なら問いの JSON を出す（`kind` は判断の種類。`facts` に「委譲 `merge: B` の外」と書く）。
 - **ゲート**: 判定のたび。判定のレベルが `merge` の値を超えていれば、approve でも `needs_human`（理由に `delegation: merge=B < tier C`）。
 - **dispatcher・担当の command**: デプロイ・公開・不可逆な操作の**前**に読み、無ければ command が止まって理由を1行出す（ポカヨケ。判断しない。できなくする）。
-- 読む側は建屋の repo の **HEAD** の `delegation.json` だけを読む（worktree や作業側の写しは読まない）。
+- 読む側はセルの repo の **HEAD** の `delegation.json` だけを読む（worktree や作業側の写しは読まない）。
 
 **ゲートの条件表・依頼書の Settings との関係**（3つは別の置き場。優先は 委譲 → 条件表 → タスク）:
 
 | 何 | 決めること | 粒度 | 書き手 |
 |---|---|---|---|
-| ゲートの条件表（`gate.json` ＋ `gate.local.json`） | **変更が何か**（レベル A／B／C） | 建屋（repo ごとの上書きあり） | 人（レベル C） |
+| ゲートの条件表（`gate.json` ＋ `gate.local.json`） | **変更が何か**（レベル A／B／C） | セル（repo ごとの上書きあり） | 人（レベル C） |
 | 委譲（`delegation.json`） | **誰が判断するか**（そのレベルを通してよいか・デプロイ・公開・不可逆） | プロジェクト | 人 |
 | 依頼書の Settings（`task.yaml` の `merge`・`review` …） | **このタスクで狭めるか** | タスク | Chief of Staff |
 
 タスクの `merge: auto` は委譲の範囲の中でだけ効き、`merge: person` は委譲があっても人に戻す（**狭める方向にだけ効く**）。委譲が無いタスクの `auto` はゲートが `needs_human` にする。条件表と委譲を1つにしない理由は上の案 C。
 
-**書き手の照合**: 委譲の正は建屋の repo の HEAD。command は、そのファイルを最後に変えた commit の author が建屋の `andon.toml` の `owner` と一致するときだけ信じ、一致しなければ**無委譲（全部人）**として読む（安全側。履歴は固定のプログラム〈git〉が作り、読む側が照合する——台帳の `log.jsonl` の `by` と同じ考え）。Chief of Staff・担当・dispatcher は人のファイルを書き換えられない（managed settings の deny `Edit(//workspace/…)` が Claude Code の道具と Bash の `sed -i`・`tee`・リダイレクトを拒む。ファイルを自分で開く子プロセスと Codex は拒めず、照合が受け持つ。ADR-0005 決めたこと 6）・`andon delegate` は役の端末で打てない（端末のラベル）。将来は signed commit で強くできる（今は備えない。§1.5）。委譲を足す・狭める・取り消すのは `andon delegate grant|narrow|revoke`（人が建屋の repo で打つ。JSON と `delegation.md` を書き、根拠を commit message に残す）。
+**書き手の照合**: 委譲の正はセルの repo の HEAD。command は、そのファイルを最後に変えた commit の author がセルの `andon.toml` の `owner` と一致するときだけ信じ、一致しなければ**無委譲（全部人）**として読む（安全側。履歴は固定のプログラム〈git〉が作り、読む側が照合する——台帳の `log.jsonl` の `by` と同じ考え）。Chief of Staff・担当・dispatcher は人のファイルを書き換えられない（managed settings の deny `Edit(//workspace/…)` が Claude Code の道具と Bash の `sed -i`・`tee`・リダイレクトを拒む。ファイルを自分で開く子プロセスと Codex は拒めず、照合が受け持つ。ADR-0005 決めたこと 6）・`andon delegate` は役の端末で打てない（端末のラベル）。将来は signed commit で強くできる（今は備えない。§1.5）。委譲を足す・狭める・取り消すのは `andon delegate grant|narrow|revoke`（人がセルの repo で打つ。JSON と `delegation.md` を書き、根拠を commit message に残す）。
 
 **任せた場合でも残す安全網**:
 
@@ -444,7 +445,7 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 3. **戻し方**: マージ → revert の PR（Chief of Staff が切る。レベル A）。デプロイ → 任せる条件そのもの（戻す command が受け入れ条件にある）。公開 → 戻せない。`hobby` では承知の上で任せ（人の決定）、`work`・`andon` では人。
 4. **壊れたら灯る**: 自動マージ後の main の CI の失敗は外の信号（§1.9 の `signal`）で Chief of Staff へ戻り、直しのタスクになる。それでも直らなければ問い。
 
-**仮設の工場で先に小さく試すなら**: 仮設の建屋の repo に `projects/yard/delegation.json`（型 `work` に `merge: B`・`profile`・`package-update`・`external-requests: true` を足した1枚）を置き、Chief of Staff（仮設のコーディネーター）の設定ファイルに「起きたら読み、範囲内は聞かない」の1行を足す。ゲートは読まない（マージは人のまま）ので、効くのは「聞かずに進める範囲」だけ——プロファイルの選び方・雛形の更新の取り込み・委譲印つきの依頼・レベル B までのマージの判断を人に聞かなくなる。1〜2週で、人への問いの数が減ったか・範囲外を聞き損ねたか（`corrections.json` の前身として、人が直した回数）を数える。`andon delegate` の command と schema は P2・P5 で建てる（§5.2）。
+**仮設の工場で先に小さく試すなら**: 仮設のセルの repo に `projects/yard/delegation.json`（型 `work` に `merge: B`・`profile`・`package-update`・`external-requests: true` を足した1枚）を置き、Chief of Staff（仮設のコーディネーター）の設定ファイルに「起きたら読み、範囲内は聞かない」の1行を足す。ゲートは読まない（マージは人のまま）ので、効くのは「聞かずに進める範囲」だけ——プロファイルの選び方・雛形の更新の取り込み・委譲印つきの依頼・レベル B までのマージの判断を人に聞かなくなる。1〜2週で、人への問いの数が減ったか・範囲外を聞き損ねたか（`corrections.json` の前身として、人が直した回数）を数える。`andon delegate` の command と schema は P2・P5 で建てる（§5.2）。
 
 **問い**: §6 の 25〜27。
 
@@ -472,7 +473,7 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 
 ```
 andon/
-  README.md                  人用。一言・入口（建屋の立て方）・文書の地図
+  README.md                  人用。一言・入口（セルの立て方）・文書の地図
   AGENTS.md                  AI 用。この repo で働く担当の指針（短い。テストの回し方・触ってよい場所）
   REVIEW.md                  AI 用。この repo のレビュアーの観点
   docs/                      人用
@@ -480,7 +481,7 @@ andon/
     contract.md              機械向けの約束の説明（正は schema/）
     dispatcher.md               dispatcher の設計（何を拾い、誰にいつどう届け、どこまで動かすか）
     decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。ADR は1本1行）
-    operate.md               建屋の立て方・更新・引っ越し（人の手順）
+    operate.md               セルの立て方・更新・引っ越し（人の手順）
     adr/NNNN-<題>.md         Chief Engineer の題ごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（dispatcher.md・image.md・ledger.md）は直下のまま
     assets/logo/             Andon と dispatcher の記号・ワードマーク（SVG。明るい背景用と -dark。窓の色の意味は置き場の README）
   schema/                    機械用（約束の正。JSON Schema）
@@ -493,22 +494,22 @@ andon/
     gate.schema.json         ゲートの条件表と記録
     project.schema.json      プロジェクトの事実と委譲（§1.10。contract.md §11）
     candidates.schema.json   候補の一覧（調べるタスクの成果。contract.md §12。ADR-0006）
-  package/                   建屋に配るもの（image に COPY され /opt/andon になる）
+  package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
     lib/andon/               command が読む資材（中身のソースは internal/<sub>）。sub-command: task・chief-of-staff・chief-engineer・dispatcher・gate・triage・publish・delegate・boot・init（言語は §2.7）
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・glossary
-    environment.md           AI 用: 建屋の環境メモ（エージェントの設定ファイルが @ で読む）
+    environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     templates/<profile>.md   プロファイル（端末の土台の template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
     hooks/                   ハーネスのフック（Stop・UserPromptSubmit。dispatcher と command を呼ぶだけ）
     gate.json                ゲートの条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）
     codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
-    compose.yaml             建屋の compose（bootstrap がイメージから取り出す）
+    compose.yaml             セルの compose（bootstrap がイメージから取り出す）
     host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus）・レイアウト layouts/andon.json
   image/                     base image
     Dockerfile               備品・Claude Code・Codex・hc・台帳の CLI・package/ の COPY
     aqua/                    備品の宣言（aqua.yaml・registry・checksums・policy）
-  init/                      建屋の repo の雛形（andon init が写す。生成後は追従しない）
+  init/                      セルの repo の雛形（andon init が写す。生成後は追従しない）
     andon.toml  Dockerfile  bin/bootstrap  .aqua/local.yaml  local/setup.sh
     compose.override.yaml  AGENTS.local.md  gate.local.json  templates.local/  .ssh/  wiki/
     projects/<slug>/project.json     プロジェクトの事実と委譲の例（`delegation` は型 work。§1.10。ADR-0004）
@@ -518,9 +519,9 @@ andon/
   .github/workflows/         image を焼いて検査する・tests（ghcr へは v* の tag だけ）
 ```
 
-- **`package/` は建屋に効くもの、それ以外は Andon を建てる人と担当のためのもの。** `/opt/andon` の中身は `package/` と同じ構成（`/opt/andon/bin/andon` …）。
+- **`package/` はセルに効くもの、それ以外は Andon を建てる人と担当のためのもの。** `/opt/andon` の中身は `package/` と同じ構成（`/opt/andon/bin/andon` …）。
 - 仮設の command 6本と入口・起動・bootstrap・ラッパーは、`package/lib/andon/` と `init/` に名前を変えて移る（§3）。
-- `wiki/` は**建屋の repo** に置く（Andon 本体の repo ではない）。Andon の建屋（セルフホスト）の wiki は、その建屋の repo にある。
+- `wiki/` は**セルの repo** に置く（Andon 本体の repo ではない）。セルフホストのセル（Andon 自身の）の wiki は、そのセルの repo にある。
 
 ### 2.3 パッケージがどこに効くか（symlink の網を生成に替える）
 
@@ -528,16 +529,16 @@ andon/
 |---|---|---|
 | `/opt/andon/bin/andon`・`lib/` | PATH | イメージの `/usr/local/bin/andon` → `/opt/andon/bin/andon`（焼く。volume に触らない） |
 | `/opt/andon/skills/*`（＋ `/opt/andon/.claude-plugin/plugin.json`） | Claude Code は plugin `andon`（`/andon:<name>`）。Codex など `.agents/skills` を読むハーネスは `~/.agents/skills/andon-<name>` | Claude Code 系のプロファイルの command が `--plugin-dir /opt/andon` でその場で読む（symlink は張らない）。Codex 向けは `~/.agents/skills/andon-<name>` → `/opt/andon/skills/<name>` の symlink を boot が張る。利用者の自作 skill には触らない。設計は [ADR-0001](adr/0001-skills-distribution.md) |
-| `/opt/andon/templates/*.md` ＋ 建屋の `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージに建屋の上書きを重ねる。本文の `/opt/andon` は `ANDON_HOME` に置き換える）。Claude Code 系の command に `--plugin-dir /opt/andon` と `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md`（役の skill を system prompt に足す。[ADR-0001](adr/0001-skills-distribution.md)）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
-| `/opt/andon/environment.md` ＋ 建屋の `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
+| `/opt/andon/templates/*.md` ＋ セルの `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージにセルの上書きを重ねる。本文の `/opt/andon` は `ANDON_HOME` に置き換える）。Claude Code 系の command に `--plugin-dir /opt/andon` と `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md`（役の skill を system prompt に足す。[ADR-0001](adr/0001-skills-distribution.md)）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
+| `/opt/andon/environment.md` ＋ セルの `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
 | `/opt/andon/settings.json`（deny・allow・hooks）＋ `andon.toml` | `/etc/claude-code/managed-settings.json` | boot が生成して置く（root）。managed は最優先でセッションから書き換えられない。設定ファイルを HOME に symlink する仮設の形は**やめる** |
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |
 | `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
-| `/opt/andon/gate.json` ＋ 建屋の `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
+| `/opt/andon/gate.json` ＋ セルの `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
 | `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
 | `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM・人の Herdr App の設定フォルダ（`mods/`・`layouts/`） | `bin/bootstrap host-install` で写す（今あるものは上書きしない） |
 
-建屋の repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` の版を上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。Andon を直して建屋で試すときは、`bootstrap rebuild --from <andon の checkout>` がその checkout から base image を焼いて `FROM` を差し替える（GHCR を通さない。配る版は `vX.Y.Z` の tag だけ）。
+セルの repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` の版を上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。Andon を直してセルで試すときは、`bootstrap rebuild --from <andon の checkout>` がその checkout から base image を焼いて `FROM` を差し替える（GHCR を通さない。配る版は `vX.Y.Z` の tag だけ）。
 
 ### 2.4 仮設の名前との対応
 
@@ -545,7 +546,8 @@ andon/
 
 | 仮設の語 | Andon の語（識別子） | 扱い | 理由 |
 |---|---|---|---|
-| **yard**（案件ごとのコンテナと repo） | **建屋**（`andon`。CLI・`andon.toml`・`/opt/andon`）。建屋の repo の名前は `andon-<slug>`（推奨。§6 問い3） | 語を替える | 人「yard という名前も忘れてよいかも」。建屋は工場の語でそのまま通じる |
+| **yard**（案件ごとのコンテナと repo） | **セル**（`andon`。CLI・`andon.toml`・`/opt/andon`）。セルの repo の名前は `<slug>-cell` | 語を替える | 人「yard という名前も忘れてよいかも」。2026-11-05 に決めた語と repo の名前（§6 問い3）を 2026-11-06 に改めた（次の行） |
+| **建屋**（plant。2026-11-05〜06 の Andon の語） | **セル**（`cell`）。repo は `<slug>-cell`（前の形 `andon-<slug>` のセルはそのまま動く。operate.md §2） | 語を替える（人の決定 2026-11-06。ADR-0005 前提 3） | 建物の語で、独立して回る単位の意味が無かった（§1.7 のセル生産）。識別子に残る `plant`（委譲の `line-change` の値・dispatcher の Space の id `andon-<x>-plant`・`ANDON_PLANTS`・`internal/plantinit`）は、読むファイルと動いているセルに効くので、この語の改めでは変えない |
 | `yard <sub>`（CLI） | `andon <sub>` | 替える | 入口は1つ。古い名前の別名は作らない（仮設と Andon は同居しないので要らない） |
 | コーディネーター | **Chief of Staff**（`chief-of-staff`。略して CoS） | 替える（人の決定 2026-11-05） | 人「コーディネーターという名前がダブルループに合わない」。mattpocock の chief-of-staff から |
 | 担当エージェント | **担当**（`worker`） | 日本語はそのまま、識別子を英語に | 「task agent」より役が伝わる |
@@ -566,10 +568,10 @@ andon/
 
 Andon を建てる担当（仮設の工場の担当も、セルフホストの担当も）が困らないように:
 
-- **建屋の外でも動く**: `tests/*.sh` は偽の hc・試しの台帳・一時 HOME で回り、台帳の CLI と `hc` があれば（aqua）どの checkout でも通る。
-- **checkout の command をそのまま試せる**: `ANDON_HOME=<checkout>/package` で `bin/andon` が `/opt/andon` の代わりに checkout の `lib`・`skills`・`gate.json` を見る。セルフホストの担当が、自分の worktree の command を自分の建屋で試せる（dispatcher・ゲートは `--dry-run` で）。
+- **セルの外でも動く**: `tests/*.sh` は偽の hc・試しの台帳・一時 HOME で回り、台帳の CLI と `hc` があれば（aqua）どの checkout でも通る。
+- **checkout の command をそのまま試せる**: `ANDON_HOME=<checkout>/package` で `bin/andon` が `/opt/andon` の代わりに checkout の `lib`・`skills`・`gate.json` を見る。セルフホストの担当が、自分の worktree の command を自分のセルで試せる（dispatcher・ゲートは `--dry-run` で）。
 - **image はローカルでも焼ける**: `docker build -f image/Dockerfile .` で同じものができる。CI は同じ手順を回すだけ。
-- **AGENTS.md は指針だけ**: この repo の `AGENTS.md` は「テストは `bash tests/*.sh`」「`package/` の変更は建屋で実測」「schema を変えたら contract.md と tests」の数行。
+- **AGENTS.md は指針だけ**: この repo の `AGENTS.md` は「テストは `bash tests/*.sh`」「`package/` の変更はセルで実測」「schema を変えたら contract.md と tests」の数行。
 
 ### 2.6 最初の commit から public に耐える形
 
@@ -579,15 +581,15 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 
 | 入れないもの | 例 | 行き先（利用者側の設定） |
 |---|---|---|
-| 秘密 | token・鍵・`.env` の値・`gh` の資格情報・Claude／Codex のログイン | 建屋の volume と `.env`（gitignore）。「秘密をファイルに書かない」 |
-| 個人の環境に固有の値 | 建屋名・ホスト名・ポート番号・メールアドレス・GitHub のユーザー名・ホームのパス | 建屋の `andon.toml`・`.env`・`AGENTS.local.md`・`compose.override.yaml`・`host/` の雛形は値を空か例（`example.com`・`<owner>`）で |
-| 案件に固有のもの | 案件名・社名・プロジェクトの一覧・案件の repo 名・顧客の用語 | 建屋の `projects/`・`AGENTS.local.md`・建屋の wiki。Andon の docs の例は架空の名前で（この文書の仮設の建屋名・案件名は、P1 で架空の名前 `example-yard`・`sample-site` 等に置き換え済み） |
+| 秘密 | token・鍵・`.env` の値・`gh` の資格情報・Claude／Codex のログイン | セルの volume と `.env`（gitignore）。「秘密をファイルに書かない」 |
+| 個人の環境に固有の値 | セル名・ホスト名・ポート番号・メールアドレス・GitHub のユーザー名・ホームのパス | セルの `andon.toml`・`.env`・`AGENTS.local.md`・`compose.override.yaml`・`host/` の雛形は値を空か例（`example.com`・`<owner>`）で |
+| 案件に固有のもの | 案件名・社名・プロジェクトの一覧・案件の repo 名・顧客の用語 | セルの `projects/`・`AGENTS.local.md`・セルの wiki。Andon の docs の例は架空の名前で（この文書の仮設のセル名・案件名は、P1 で架空の名前 `example-yard`・`sample-site` 等に置き換え済み） |
 | 公開できない依存への参照 | private な repo の release・private な文書への URL | §3.4。public にするまでに取り込む・公開してもらう・差し替える |
 | 仮設から写すときに付いてくるもの | 雛形の変数（ユーザー名）・README の例・`.ssh/authorized_keys`・端末の土台の machine の名前 | 写すときに剥がす（§5.3 の 7） |
 
 **テスト**（PR ごと。P1 で入れる）:
 
-1. `tests/public.sh`: 秘密の形（token・鍵・`password=` 等。仮設のゲートの条件表にある正規表現から始める）と、**固有の値の禁止リスト**（ユーザー名・メールアドレス・建屋名・ホスト名・ポート番号・案件名。1行1つ。人が足す。**リストは repo の外に置く**＝名前を履歴に残さないため。置き場と書き方は `tests/README.md`）を、追加行と全ファイルに当てる。当たれば落ちる。例として要るものは架空の名前に。
+1. `tests/public.sh`: 秘密の形（token・鍵・`password=` 等。仮設のゲートの条件表にある正規表現から始める）と、**固有の値の禁止リスト**（ユーザー名・メールアドレス・セル名・ホスト名・ポート番号・案件名。1行1つ。人が足す。**リストは repo の外に置く**＝名前を履歴に残さないため。置き場と書き方は `tests/README.md`）を、追加行と全ファイルに当てる。当たれば落ちる。例として要るものは架空の名前に。
 2. CI（Actions）で同じテストを全 PR に回す（この repo のテストは台帳の CLI と hc が要らないので、CI に載せられる。仮設のゲートが無くても止まる）。
 3. 秘密のテストは既製の道具（gitleaks 等。aqua で入る）を**足してよい**（新しい道具の導入は人の go。推奨は gitleaks）。固有の値の禁止リストは自前の grep で足りる。
 4. ゲートのレベル C に `.github/workflows/**` を入れる（テストそのものを弱める変更は人が見る）。
@@ -607,7 +609,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | **テスト** | 単体＝`go test`（決定式・schema・command の出力）。結合＝bash（偽の hc・試しの台帳・一時 HOME。仮設の tests と同じ型）。`tests/public.sh`（§2.6）・`gitleaks`・`shellcheck` | 決定式は表で、配線は実物で | — |
 | **備品の入れ方** | CLI＝**aqua**（宣言と checksum。仮設と同じ）。言語＝**mise**。npm のグローバル（Claude Code・Codex・portless）＝固定の prefix | 仮設で困っていない。`apt` は最後の手段 | — |
 | **コンテナ** | **docker compose**（ホストは docker と bash だけ。クラウドも同じ compose） | 仮設と同じ | Kubernetes 等（1人の工場には重い） |
-| **CI と配布** | **GitHub Actions**。PR とマージごとに tests（image を焼いて検査するだけ）、tag で image を `ghcr.io/<owner>/andon:vX.Y.Z` と Go のバイナリ（4 target。deck の workflow と同じ形）。マージごとの `:<sha>` の push はやめた（2026-11-06。GHCR のストレージ枠。日々の試しは建屋で checkout から焼く。decisions.md §18）。release の道具（goreleaser 等）は入れない | 仮設と deck の形をそのまま使える | — |
+| **CI と配布** | **GitHub Actions**。PR とマージごとに tests（image を焼いて検査するだけ）、tag で image を `ghcr.io/<owner>/andon:vX.Y.Z` と Go のバイナリ（4 target。deck の workflow と同じ形）。マージごとの `:<sha>` の push はやめた（2026-11-06。GHCR のストレージ枠。日々の試しはセルで checkout から焼く。decisions.md §18）。release の道具（goreleaser 等）は入れない | 仮設と deck の形をそのまま使える | — |
 | **版上げ** | **Renovate**（aqua・`FROM`・Go の依存） | 仮設と同じ | — |
 | **エージェントのハーネス** | **Claude Code**（既定。フックと managed settings）と **Codex CLI**（担当・レビュアー）。最初の版の Chief of Staff・フックは Claude Code だけ（§6 問い12） | 仮設と同じ | — |
 | **文書** | Markdown ＋ Mermaid。schema の `description` と識別子は英語（§6 問い11） | GitHub でそのまま読める | — |
@@ -619,8 +621,8 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 
 **仮設の工場**は4つの持ち物でできている。この節だけ、それぞれの名前で呼ぶ:
 
-- **template-yard**: 建屋の雛形の repo（cookiecutter。派生した建屋は cruft で更新を取り込む）。command・skill・設定・Dockerfile・ホスト用のスクリプトの正。
-- **example-yard**: 今動いている建屋1つ（`/workspace`）。雛形から降りたものと、案件のデータ。
+- **template-yard**: セルの雛形の repo（cookiecutter。派生したセルは cruft で更新を取り込む）。command・skill・設定・Dockerfile・ホスト用のスクリプトの正。
+- **example-yard**: 今動いているセル1つ（`/workspace`）。雛形から降りたものと、案件のデータ。
 - **herdr-flightdeck**: 別プロジェクトの持ち物。台帳の CLI **deck** と形式（ledger-format v2）、人の Interface（Web ボード・画面の mod）。
 - **hc**（herdr-core）と **Herdr App**: 端末の土台と人の Interface。外部の部品。
 
@@ -632,44 +634,44 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 
 | 今 | 行数 | 扱い | Andon での置き場・理由 |
 |---|---|---|---|
-| `cookiecutter.json`・`hooks/post_gen_project.py`・`tests/cookiecutter-render.sh`・`.cruft.json`（派生側） | — | **捨てる** | 配布はイメージのタグ。建屋の雛形は `init/`（生成後に追従しないので道具は何でもよい） |
+| `cookiecutter.json`・`hooks/post_gen_project.py`・`tests/cookiecutter-render.sh`・`.cruft.json`（派生側） | — | **捨てる** | 配布はイメージのタグ。セルの雛形は `init/`（生成後に追従しないので道具は何でもよい） |
 | `{{slug}}-yard/Dockerfile` | 150 | 取り込む | `image/Dockerfile`（上段: 備品・Claude Code・Codex・hc・台帳の CLI・`package/` の COPY）と `init/Dockerfile`（下段: `FROM ghcr.io/<owner>/andon:<版>` ＋ `local/setup.sh` の2段）に分ける |
 | `compose.yaml` | 60 | 取り込む | `package/compose.yaml`。`bootstrap` がイメージから取り出す。volume の一覧はそのまま（廃止した前の仕組みの volume 2つは捨てる） |
 | `.aqua/*`（aqua.yaml・registry・checksums・policy・local.yaml の雛形） | — | 取り込む | `image/aqua/`。`local.yaml` の雛形は `init/.aqua/local.yaml` |
 | `.devcontainer/scripts/post-create.sh`・`post-start.sh`（246 行）・`initialize.sh`、`bin/yard-boot`（162 行） | 400 超 | 取り込む（畳む） | `package/lib/andon/boot` 1本。symlink の自己修復を**生成**に替える（§2.3）。残るのは portless・sshd・dispatcher の起動・Claude Code の起動リンク・設定の救出 |
 | `.devcontainer/devcontainer.json` | — | **捨てる** | devcontainer CLI に依存しない方針（今も便宜だけ）。VS Code から入る必要が出たら `init/` に薄い雛形を足す |
 | `.devcontainer/sshd_config` | — | 取り込む | `image/`（焼く） |
-| `.devcontainer/herdr/config.toml`・`file-viewer.toml` | — | 取り込む | `package/host/herdr/`（建屋の中の herdr の設定の雛形。boot が volume へ写す。建屋の repo が実体を持つ今の形はやめる） |
-| `.devcontainer/herdr-core/templates/*.md`（7つ） | — | 取り込む | `package/templates/`。boot が建屋の `templates.local/` を重ねて `~/.config/herdr-core/templates/` に生成 |
+| `.devcontainer/herdr/config.toml`・`file-viewer.toml` | — | 取り込む | `package/host/herdr/`（セルの中の herdr の設定の雛形。boot が volume へ写す。セルの repo が実体を持つ今の形はやめる） |
+| `.devcontainer/herdr-core/templates/*.md`（7つ） | — | 取り込む | `package/templates/`。boot がセルの `templates.local/` を重ねて `~/.config/herdr-core/templates/` に生成 |
 | `.devcontainer/herdr-auto-title/`（python のフック） | — | **捨てる** | 使わない。tab 名は Andon 同梱の App の mod が付ける（[ADR-0002](adr/0002-herdr-spaces.md)）。image に焼かず、managed settings のフックにも付けない |
-| `.claude/settings.json`（permissions・plugins・env・statusLine） | — | 取り込む（形を変える） | `package/settings.json`（managed settings の既定）。boot が生成（§2.3）。plugins の有効化は建屋の `andon.toml` から |
+| `.claude/settings.json`（permissions・plugins・env・statusLine） | — | 取り込む（形を変える） | `package/settings.json`（managed settings の既定）。boot が生成（§2.3）。plugins の有効化はセルの `andon.toml` から |
 | `.claude/statusline.sh` | — | 取り込む | `package/lib/andon/statusline` |
 | `.claude/skills/yard-coordinator`（274 行）・`yard-task-agent`（135）・`independent-review`（103）・`ask-one-by-one`（80）・`yard-triage`（144）・`yard-glossary`（212） | 948 | 取り込む（名前を替え、短くする） | `package/skills/{chief-of-staff,worker,independent-review,ask-one-by-one,triage,glossary}`。手順のうち決まったもの（一致の確認・レビュアーの起動・ゲート・片付け）は command と dispatcher へ移し、文を減らす |
 | `.claude/skills/yard-setup`（SKILL 142 行・CHANGELOG・`assets/formation-section.md`） | — | **捨てる** | 版は git の tag。環境メモは生成（`environment.md` ＋ `AGENTS.local.md`）。規約の追記は要らない |
-| `AGENTS.md`（環境メモ ＋ 編成の規約） | — | 取り込む（分ける） | 環境の節 → `package/environment.md`。編成の規約（規約1〜10・受付と俯瞰）→ `package/skills/chief-of-staff` と `docs/operate.md`。案件の部分（projects の一覧・直接フォワード）→ 建屋の `AGENTS.local.md` |
+| `AGENTS.md`（環境メモ ＋ 編成の規約） | — | 取り込む（分ける） | 環境の節 → `package/environment.md`。編成の規約（規約1〜10・受付と俯瞰）→ `package/skills/chief-of-staff` と `docs/operate.md`。案件の部分（projects の一覧・直接フォワード）→ セルの `AGENTS.local.md` |
 | `bin/yard`（80 行）・`lib/yard/task`（234）・`coordinator`（99）・`news`（464）・`gate`（322）・`triage`（239）・`publish`（28） | 1,466 | 取り込む（育てる） | `package/bin/andon`・`package/lib/andon/*`。`task` に作業側の command（`show`・`report`・`review`・`ask`・`ready`・`review-request`。§4）、`news` を**dispatcher**（`dispatcher`）に育てる（レビュアーの起動・ゲート・finish・フックの口）。`gate` は「台帳の項目と指摘の JSON を読む」形（仮設で進行中）を出発点に |
 | `bin/yard-coordinator`・`yard-deck-tick`・`yard-merge-gate`・`yard-publish`・`yard-task`・`yard-triage`（古い名前の別名） | 24 | **捨てる** | Andon に古い名前は無い |
-| `bin/bootstrap`（89 行。ホストで動く入口） | 89 | 取り込む | `init/bin/bootstrap`（建屋の repo に1本）。イメージから `compose.yaml` と自分の更新版を取り出す。`host-install` を足す |
-| `bin/yard-autopush`（78 行。建屋の repo の post-commit） | 78 | **捨てる** | 人の決定（2026-11-05。§6 問い10）: commit と push は Chief of Staff や Chief Engineer が意識して行うことで、仕組みは要らない |
-| `bin/yard-agent-wrapper` | 13 | 取り込む | `image/`（焼く。portless を建屋固定の node で） |
-| `merge-gate.json` | — | 取り込む | `package/gate.json`（既定）。建屋ごとの上書きは `init/gate.local.json`。repo ごとのレベルの上書き（§6 問い7）を足す |
+| `bin/bootstrap`（89 行。ホストで動く入口） | 89 | 取り込む | `init/bin/bootstrap`（セルの repo に1本）。イメージから `compose.yaml` と自分の更新版を取り出す。`host-install` を足す |
+| `bin/yard-autopush`（78 行。セルの repo の post-commit） | 78 | **捨てる** | 人の決定（2026-11-05。§6 問い10）: commit と push は Chief of Staff や Chief Engineer が意識して行うことで、仕組みは要らない |
+| `bin/yard-agent-wrapper` | 13 | 取り込む | `image/`（焼く。portless をセル固定の node で） |
+| `merge-gate.json` | — | 取り込む | `package/gate.json`（既定）。セルごとの上書きは `init/gate.local.json`。repo ごとのレベルの上書き（§6 問い7）を足す |
 | `README.md`・`docs/design.md`・`orchestration.md`・`merge-gate.md`・`triage.md`・`shepherdr-gap.md`・`redesign.md`・`customize.md`・`wsl-host.md`・`windows-host.md` | — | **捨てる**（写さない） | 仮設の記録として template-yard に残す。Andon の `docs/` は新しく書き、決定だけ `docs/decisions.md` に日付と出典つきで写す。`redesign.md` はこの文書の入力で、指すだけ |
-| `docs/wsl/yards-up`（366 行）・`yard-cruft`・`herdr-config.toml`、`docs/windows/wezterm.lua`・`yard-artifacts-tunnels.ps1` | — | 取り込む（`yard-cruft` は捨てる） | `package/host/{wsl,windows,cloud}/`。`yards-up` → `andon-up`（雛形の更新の pull を外し、建屋の repo の ff-only pull とイメージの版の表示だけに）。`host-install` で写す。docs のコピーをやめる |
+| `docs/wsl/yards-up`（366 行）・`yard-cruft`・`herdr-config.toml`、`docs/windows/wezterm.lua`・`yard-artifacts-tunnels.ps1` | — | 取り込む（`yard-cruft` は捨てる） | `package/host/{wsl,windows,cloud}/`。`yards-up` → `andon-up`（雛形の更新の pull を外し、セルの repo の ff-only pull とイメージの版の表示だけに）。`host-install` で写す。docs のコピーをやめる |
 | `tests/*.sh`（9本・1,587 行） | 1,587 | 取り込む | `tests/`。名前を替え、`cookiecutter-render.sh` を捨て、`image.sh`（ビルドが通る）と `schema.sh`（schema と contract.md・例の食い違い）を足す |
-| `renovate.json` | — | 取り込む | Andon の repo（aqua の版上げ）と `init/renovate.json`（建屋の `FROM` の版上げ） |
+| `renovate.json` | — | 取り込む | Andon の repo（aqua の版上げ）と `init/renovate.json`（セルの `FROM` の版上げ） |
 | `.github/workflows/` | 無い | 足す | image を焼く（PR とマージは検査だけ、tag で `:vX.Y.Z`）・tests |
 
-**example-yard**（仮設の建屋。`/workspace`）:
+**example-yard**（仮設のセル。`/workspace`）:
 
 | 今 | 扱い | 理由 |
 |---|---|---|
 | 雛形から降りたもの全部（`bin/`・`lib/`・`.claude/`・`.devcontainer/`・`Dockerfile`・`compose.yaml`・`.aqua/aqua.yaml` …） | **仮設のまま**（Andon には写さない） | 正は template-yard。example は Andon ができるまで仮設として動かし続ける |
-| `AGENTS.md` の案件の部分（projects の一覧・直接フォワード・pin の注記） | 建屋の `AGENTS.local.md` の形 | 引っ越しのとき（§5.4）に写す |
-| `memory/`（index.md だけ・空） | 建屋の `wiki/` の種 | Andon の建屋の repo に `wiki/index.md` を置く |
-| `projects/<slug>/`（仮設では symlink と実ディレクトリ。Andon では実ディレクトリだけ）・`projects/*/.flightdeck/`（台帳。git の外） | 案件データ。**移し方は後**（§5.4 に線だけ） | 建屋の repo の形は同じ（`projects/`）。台帳はディレクトリごと写す |
-| `local/setup.sh`・`.aqua/local.yaml`・`compose.override.yaml`・`.ssh/authorized_keys`・`.env`・`merge-gate.json`（描画済み） | 建屋の repo の形（`init/` と同じ名前） | 今の「派生側が触る場所」がそのまま建屋の repo の中身になる。`merge-gate.json` は `gate.local.json`（上書きだけ） |
+| `AGENTS.md` の案件の部分（projects の一覧・直接フォワード・pin の注記） | セルの `AGENTS.local.md` の形 | 引っ越しのとき（§5.4）に写す |
+| `memory/`（index.md だけ・空） | セルの `wiki/` の種 | Andon のセルの repo に `wiki/index.md` を置く |
+| `projects/<slug>/`（仮設では symlink と実ディレクトリ。Andon では実ディレクトリだけ）・`projects/*/.flightdeck/`（台帳。git の外） | 案件データ。**移し方は後**（§5.4 に線だけ） | セルの repo の形は同じ（`projects/`）。台帳はディレクトリごと写す |
+| `local/setup.sh`・`.aqua/local.yaml`・`compose.override.yaml`・`.ssh/authorized_keys`・`.env`・`merge-gate.json`（描画済み） | セルの repo の形（`init/` と同じ名前） | 今の「派生側が触る場所」がそのままセルの repo の中身になる。`merge-gate.json` は `gate.local.json`（上書きだけ） |
 | `.cruft.json` | 捨てる | — |
-| `files/`（納品物。追跡する。ADR-0005）・`.ghq/`・`.codex/` | 建屋の中の置き場。`files/` 以外は gitignore | — |
+| `files/`（納品物。追跡する。ADR-0005）・`.ghq/`・`.codex/` | セルの中の置き場。`files/` 以外は gitignore | — |
 
 **ホスト（WSL・Windows）**: 上の `docs/wsl/*`・`docs/windows/*` のとおり `package/host/` に取り込む。「ホストには docker と bash だけ」の原則に、「それ以外に置くものはパッケージの `host/` から `host-install` で写す」を足す。
 
@@ -681,7 +683,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `docs/ledger-format.md` ＋ `docs/schema/*.v2.schema.json`（形式 v2） | **外部の約束** | Andon の予約キー（§4）は「Any other key is allowed and kept」の上に置く。形式そのものは変えない。変えたいものは §3.2 |
 | `docs/concept.md`・`docs/yard-news.md`・`handoff-*.md` | 外部の記録 | Andon の `docs/decisions.md` から指す。写さない |
 | `herdr-app/mods/`（focus-queue・work-board・files-plus・context-header）・`layouts/flightdeck.json` | 外部の部品（人の Interface）。**2026-11-06 に取り込んだ**（`package/host/` の inbox・kanban-board〈work-board を改名〉・context-header・files-plus・`layouts/andon.json`。`host-install` で人の App に置く。[decisions.md](decisions.md)） | 約束は端末のラベル（`project`・`task`・`title`・`role`・`news.replied`）と台帳の形式だけ |
-| `cmd/flightdeck`（Web ボード。全建屋の自分待ち） | 外部の部品 | 将来の「通知から返す口」の候補の1つ。Andon の問いの形（§4）を読めるように、§3.2 で相談 |
+| `cmd/flightdeck`（Web ボード。全セルの自分待ち） | 外部の部品 | 将来の「通知から返す口」の候補の1つ。Andon の問いの形（§4）を読めるように、§3.2 で相談 |
 
 **hc（herdr-core 0.1.17）・Herdr App**: 外部の部品。Andon が hc に求めるのは、永続 PTY・エージェントの状態（OSC 7501）・起こす（template・label・`--on`）・`hc send`／`keys`・別のマシン（`machine`・`exec --on`・`file --on`・`put`）・`hc events`（dispatcher が見回りの代わりに使う）。Herdr App は人の Interface で、Andon は触らない。
 
@@ -714,8 +716,8 @@ Andon が使う部品のうち public でないものを洗い出した（`gh re
 | flightdeck の mod・Web ボード | private | 人の Interface。Andon は触らない | Andon の動作には要らない（台帳の CLI があれば回る）。README に「あれば使える」と書くだけ。**相談 F12**（公開の予定があるか） |
 | `hc`（herdrdev/herdr-core）・herdr-app・herdr | **public**（Apache-2.0） | 端末の土台・人の Interface | そのまま |
 | herdr-auto-title（sh1ma。MIT。仮設が vendoring） | public（MIT） | 使わない | ADR-0002 の mod が tab 名を付ける。image に焼かない |
-| cc-shiori（<owner>。plugin の marketplace） | **public**（MIT） | 建屋の settings の `extraKnownMarketplaces` | そのまま。ただし建屋の `andon.toml` から足す形（Andon の既定には入れない） |
-| <owner>/skills（自作 skill） | private | 仮設では `~/.claude/skills` の symlink | Andon の依存にしない。建屋の設定（`andon.toml` の `skills_repo`）で指す |
+| cc-shiori（<owner>。plugin の marketplace） | **public**（MIT） | セルの settings の `extraKnownMarketplaces` | そのまま。ただしセルの `andon.toml` から足す形（Andon の既定には入れない） |
+| <owner>/skills（自作 skill） | private | 仮設では `~/.claude/skills` の symlink | Andon の依存にしない。セルの設定（`andon.toml` の `skills_repo`）で指す |
 | template-yard・example-yard | private | 仮設。この文書が入力として指す | public の読み手に届かない。決定は `docs/decisions.md` に写す（P1）ので、設計の正はそこ。仮設への参照は「仮設の記録（private）」と印を付けて残す |
 | base image（`ghcr.io/<owner>/andon`） | private の予定（§6 問い5） | パッケージ | public にするときは image も public に（中に private の部品が無いことが条件＝上の deck の行） |
 | aqua・Claude Code・Codex・portless・Playwright・mise・uv | public | 備品 | そのまま |
@@ -724,7 +726,7 @@ Andon が使う部品のうち public でないものを洗い出した（`gh re
 
 | # | 相談 | 理由 | 無くても動くか |
 |---|---|---|---|
-| F10 | `deck` を public の読み手が取れる形にできるか（release だけ public・別 repo・Andon の image への同梱の許可） | Andon を public にしたとき、利用者が台帳の CLI を取れないと建屋が立たない | 動かない（public の利用者には） |
+| F10 | `deck` を public の読み手が取れる形にできるか（release だけ public・別 repo・Andon の image への同梱の許可） | Andon を public にしたとき、利用者が台帳の CLI を取れないとセルが立たない | 動かない（public の利用者には） |
 | F11 | ledger-format v2・schema・concept.md を public の読み手が読める形にできるか（docs の公開か、Andon の `docs/` への写しの許可） | contract.md の土台。約束の文書が読めないと Andon の約束も読めない | 動く（Andon だけなら） |
 | F12 | flightdeck の mod・Web ボードを公開する予定があるか | Andon の README に「人の Interface」として書けるか | 動く |
 
@@ -780,10 +782,10 @@ andon/
 | K1 | 移すか・いつか | Andon の P5（約束を command に）のあと、P7（1本流す）の前。それまで Andon は release の `deck` を使う（F9） |
 | K2 | 形式の正の所在 | `ledger-format.md` と schema を Andon へ移し、flightdeck は「読む側」として Andon の `docs/ledger.md` を指す。形式の変更は Andon の PR で、flightdeck へ知らせる（今の「versioned and announced」の相手が入れ替わる） |
 | K3 | あちらの mod・Web ボードが依る所 | 形式だけ（ファイルを直接読む）。CLI の移動では壊れない。`herdr-app/cli/`（deck の README・`test-deck.mjs`）は Andon を指す案内に |
-| K4 | 版と release | 最初の Andon の release は `deck-v0.3.0` と**同じ振る舞い**（flightdeck の `test-deck.mjs` を通す）。tag は Andon の版に揃える。aqua の registry の entry を Andon に向ける。仮設の建屋は `deck-v0.3.0` のまま（止まるまで） |
+| K4 | 版と release | 最初の Andon の release は `deck-v0.3.0` と**同じ振る舞い**（flightdeck の `test-deck.mjs` を通す）。tag は Andon の版に揃える。aqua の registry の entry を Andon に向ける。仮設のセルは `deck-v0.3.0` のまま（止まるまで） |
 | K5 | 移す間の互換 | 名前を替えても `deck` の alias を1版だけ残す。形式は v2 のまま（`.flightdeck/` のフォルダ名も）。フォルダの改名は v3（K6） |
 | K6 | 形式 v3 の内容（任意） | フォルダ名 `.kanban/`・Andon の予約キーを正式の項目に・問いの形（F2・F3）・`agent` の machine（F4）・`by` の代筆の印（F5）。1回でまとめて上げる |
-| K7 | 保守の持ち主 | 移したあとは Andon（Andon の建屋の台帳）。flightdeck 側からの要望は委譲の印で Andon の Chief of Staff へ |
+| K7 | 保守の持ち主 | 移したあとは Andon（Andon のセルの台帳）。flightdeck 側からの要望は委譲の印で Andon の Chief of Staff へ |
 | K8 | 移す前に flightdeck で済ませたい変更があるか | 持ち主が決める。Andon は待つ |
 
 ---
@@ -804,7 +806,7 @@ andon/
 | ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `tasks/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（private の repo ではブランチ保護が効かないので、ゲートが CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・dispatcher（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | 端末の土台との約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`task`・`title`・`news.replied`・template の名前＝プロファイル | command・dispatcher | ボード・dispatcher | 今のまま |
 | フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）、担当の `Stop`（報告か問いが無ければ止まれない） | boot が生成 | Claude Code | 要実測 |
-| 委譲 | 建屋の repo の `projects/<slug>/delegation.json`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | 人（`andon delegate`。照合は commit の author） | Chief of Staff（起きるたび）・ゲート（`merge` の最大レベル）・dispatcher と command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |
+| 委譲 | セルの repo の `projects/<slug>/delegation.json`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | 人（`andon delegate`。照合は commit の author） | Chief of Staff（起きるたび）・ゲート（`merge` の最大レベル）・dispatcher と command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |
 | 仕様・設計の受け渡し | Chief Engineer のタスクの `report.json`（`pr`＝文書の PR・`next[{to: chief-of-staff}]`）と端末のラベル `role=chief-engineer`。**新しい約束は足さない** | Chief Engineer | dispatcher（通知）・Chief of Staff（文書を読んで依頼書に切る） | §1.8 |
 
 原則は6つ（contract.md §0）: 無い・読めない・知らない値は安全側／読み手は知らないキーを無視し、書き手は保つ（ledger-format と同じ）／1つの約束に1人の書き手／形式の正は `schema/`、版は schema の `$id`／台帳の形式は変えない（任意キーの上に置く）／Markdown は人と AI のもので、機械は読まない。
@@ -814,20 +816,20 @@ andon/
 
 ### 5.1 何ができたら「一定できあがった」か
 
-推奨（人の案のとおり）: **Andon の建屋を1つ立て、その中で Andon 自身の PR が1本、人がレベル C と不可逆な操作以外に触らずに流れる。** 確かめ方を機械が数えられる形にしておく:
+推奨（人の案のとおり）: **Andon のセルを1つ立て、その中で Andon 自身の PR が1本、人がレベル C と不可逆な操作以外に触らずに流れる。** 確かめ方を機械が数えられる形にしておく:
 
 | # | 確かめること | どう確かめるか |
 |---|---|---|
-| 1 | 建屋がパッケージから立つ | `andon init <slug>` → `bootstrap` で建屋が立ち、建屋の repo にパッケージのファイルが無い（`Dockerfile` は `FROM` ＋ 2行）。`gh auth login`・`claude login` は建屋の中で済ませる |
-| 2 | 1本流れる | その建屋のプロジェクト `andon` の台帳で、タスク1件が 依頼書（`review: on`・`merge: auto`）→ `andon task start` → 担当の PR → `review-request` → dispatcher がレビュアーを起こす → `ready` → dispatcher がゲート → approve → dispatcher がマージ → finish まで通る |
+| 1 | セルがパッケージから立つ | `andon init <slug>` → `bootstrap` でセルが立ち、セルの repo にパッケージのファイルが無い（`Dockerfile` は `FROM` ＋ 2行）。`gh auth login`・`claude login` はセルの中で済ませる |
+| 2 | 1本流れる | そのセルのプロジェクト `andon` の台帳で、タスク1件が 依頼書（`review: on`・`merge: auto`）→ `andon task start` → 担当の PR → `review-request` → dispatcher がレビュアーを起こす → `ready` → dispatcher がゲート → approve → dispatcher がマージ → finish まで通る |
 | 3 | 人が触っていない | `log.jsonl` の `by` に Chief of Staff と dispatcher と担当とレビュアー以外が無い。Chief of Staff の turn は「依頼を受ける」と「結果を見る」の2つだけ |
 | 4 | 流れたのは Andon 自身の変更 | PR の repo が `<owner>/andon`。レベル A か B（レベル C は定義上、人が見る） |
-| 5 | 自分をテストできる | 建屋の中で `bash tests/*.sh` が green |
-| 6 | 仮設は止まっていない | 仮設の建屋の台帳と端末に異常なし。仮設のプロジェクトは Andon の建屋ができるまで Andon の仕事を持つ |
+| 5 | 自分をテストできる | セルの中で `bash tests/*.sh` が green |
+| 6 | 仮設は止まっていない | 仮設のセルの台帳と端末に異常なし。仮設のプロジェクトは Andon のセルができるまで Andon の仕事を持つ |
 
 **数える指標**（Warp に倣う。§1.9 の 4。振り返りの入力。台帳の履歴 `log.jsonl` と `report.json`・ゲートの記録から数えられる形にする）: 自動マージ率（人の `by` 無しでマージされた PR ／ 全 PR）・PR あたりの人の介在回数（`by` が人の行の数）・PR あたりの token コスト（端末の土台か担当の報告から。最初の版は無くてよい）・依頼書からマージまでの時間・ゲートの差し戻し率（`fix`＋`needs_human` ／ 全判定。自動マージ率と一緒に見る）。最初の版では「1本流れる」で1回数えるだけでよい。
 
-ここまでが「一定できあがった」。クラウド常駐・通知の口・振り返り・作業側を別のマシンに出す・外の信号の入口と人の手直しの記録（§1.9 の (a)・(b)）は**その先**で、Andon の建屋の上で Andon のタスクとして建てる。
+ここまでが「一定できあがった」。クラウド常駐・通知の口・振り返り・作業側を別のマシンに出す・外の信号の入口と人の手直しの記録（§1.9 の (a)・(b)）は**その先**で、Andon のセルの上で Andon のタスクとして建てる。
 
 ### 5.2 そこまでの最小の手（タスクに切れる粒度）
 
@@ -835,43 +837,43 @@ andon/
 
 | # | 手 | 大きさ | 完了条件（要点） | プロファイル・Settings | 依存 |
 |---|---|---|---|---|---|
-| P1 | **骨組み**: §2.2 の構成（空のディレクトリは `.gitkeep`）・`README.md` の地図・`docs/decisions.md`（仮設の設計文書の決定・ゲートとトリアージの決定を日付と出典つきで写す）・`AGENTS.md`・`REVIEW.md`・`tests/` の型（1本の偽テスト）・**`tests/public.sh` と禁止リスト（§2.6）**・`LICENSE`（§6 問い13）・CI（tests だけ） | 小 | `bash tests/*.sh` が green。decisions.md の各行に日付と出典。この PR の文書の固有の値（仮設の建屋名・ポート番号）が架空の名前に置き換わる | `sonnet`・Review off | この PR のマージ |
+| P1 | **骨組み**: §2.2 の構成（空のディレクトリは `.gitkeep`）・`README.md` の地図・`docs/decisions.md`（仮設の設計文書の決定・ゲートとトリアージの決定を日付と出典つきで写す）・`AGENTS.md`・`REVIEW.md`・`tests/` の型（1本の偽テスト）・**`tests/public.sh` と禁止リスト（§2.6）**・`LICENSE`（§6 問い13）・CI（tests だけ） | 小 | `bash tests/*.sh` が green。decisions.md の各行に日付と出典。この PR の文書の固有の値（仮設のセル名・ポート番号）が架空の名前に置き換わる | `sonnet`・Review off | この PR のマージ |
 | P2 | **約束を schema とテストに**: `schema/` 7本（contract.md §2〜§7・§11）・`tests/schema.sh`（例が schema を通る・command の出力が schema を通る）・contract.md を schema に合わせて直す | 中 | contract.md の例が全部 schema を通る。知らないキー・無いキーの例が落ちる | `claude`・Review on（機械向けの正） | P1 |
 | P3a | **base image と CI**: `image/Dockerfile`（仮設の Dockerfile の上段。`package/` を `/opt/andon` に COPY）・`image/aqua/`・Actions で `ghcr.io/<owner>/andon:<sha>` と `:vX.Y.Z` を焼く・台帳の CLI の焼き込み（相談 F9） | 大 | PR のマージで image が焼け、`docker run … andon help` が出る。`tests/image.sh` がローカルのビルドを確かめる | `codex`（新しい独立した module）・Review on（`claude-review`） | P1（`package/` は空でよい） |
 | P3b | **パッケージの移植**: 仮設の command 6本と入口を **Go の `andon` に書き直す**（§2.7。bash は参照。最初は sub-command の骨と `boot`・`publish`・`triage` まで）・skill 6つ（＋新しい `chief-engineer`。§1.8 の骨格。短い）・プロファイル 7つ（＋`chief-engineer`）・`andon chief-engineer`（`kanban add`＋`start`＋`hc run` するだけ）・ゲートの条件表・`settings.json`・`statusline` を `package/` に名前を替えて移す。`yard` → `andon`、`coordinator` → `chief-of-staff`、`news` → `dispatcher`（中身はまだ通知だけ）。`boot`（仮設の起動スクリプト3本を1本に。symlink を生成に）。tests を移す | 大（分けてよい: 3b-1 command と tests／3b-2 skill とプロファイル／3b-3 boot） | 移した tests が green。skill の中の `yard …` が `andon …` に。boot が managed settings・プロファイル・`CLAUDE.md` の2行を生成する（偽の HOME で） | `claude`・Review on | P1 |
 | P3c | **台帳の CLI を Andon へ移す**（§3.5。持ち主と K1〜K8 を決めてから）: `cmd/kanban/`・`schema/ledger/`・`docs/ledger.md`・`tests/kanban.sh`・CI のビルド・image への COPY・alias `deck` | 中（コードは写すだけ。テストと CI が主） | `test-deck.mjs` 相当の振る舞いテストが green。`kanban --help` が `deck --help` と同じ。image の中に `kanban` と `deck`（alias） | `claude`・Review on（別ブランド `codex-review`） | P3a・K1〜K8 の合意 |
-| P4 | **建屋の雛形と入口**: `init/`（`andon.toml`・`Dockerfile` 2行・`bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/index.md`・`projects/`）・`andon init <slug>`・`bootstrap` がイメージから `compose.yaml` を取り出す・`host/` と `host-install`（`andon-up`・ssh config・herdr config・cloud-init の雛形） | 中 | 偽のイメージで `andon init x` → `bootstrap --dry-run` が通る。実機で建屋が1つ立つ（P7 で確かめる） | `claude`・Review on（`bin`） | P3a・P3b |
+| P4 | **セルの雛形と入口**: `init/`（`andon.toml`・`Dockerfile` 2行・`bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/index.md`・`projects/`）・`andon init <slug>`・`bootstrap` がイメージから `compose.yaml` を取り出す・`host/` と `host-install`（`andon-up`・ssh config・herdr config・cloud-init の雛形） | 中 | 偽のイメージで `andon init x` → `bootstrap --dry-run` が通る。実機でセルが1つ立つ（P7 で確かめる） | `claude`・Review on（`bin`） | P3a・P3b |
 | P5 | **約束を command に**: `andon task show/report/review-request/ready/ask`・`report.json`・問いの JSON・`andon gate` が `task.yaml` の予約キーと `report.json` の `pr` と `findings.json` と**委譲**を読む・ゲートの記録・`andon delegate grant/narrow/revoke/show`（§1.10）・`tests/` | 中〜大 | `tests/andon-task.sh` に ready の正負（HEAD 不一致・レビュー stale・`report.json` の形）、`tests/andon-gate.sh` に記録の形。担当の skill から一致の確認の文が消える | `claude`・Review on | P2・P3b |
 | P6a | **dispatcher にインナーループを持たせる**: `review_request` を拾ってレビュアーを起こす（`kanban add --parent` ＋ detached worktree ＋ `hc run`）・`review` に入ったら `andon gate` を回す・approve ＋ `merge: auto` でマージ → finish・fix は担当へ `hc send`・`needs_human` は問い（`from: gate`） | 大 | 試しの台帳と偽の hc で、Chief of Staff が1ターンも使わずに review-request → レビュー → gate → マージ → finish が通る。Chief of Staff の skill のレビューとゲートの節が「`needs_human` のとき」だけになる | `claude`・Review on | P5 |
 | P6b | **フックで届ける・止める**: Chief of Staff の `Stop`・`UserPromptSubmit`（`andon dispatcher drain`）、担当の `Stop`（`stop-check`）、離席時だけ `hc send`（仮設の離席の判定を移す）。`package/hooks/`・`settings.json` | 中 | `tests/andon-dispatcher.sh` に「turn 中の通知が Stop で届く」「送信時に添えられる」「離席時だけ hc send」「doing で報告無しの Stop が block」。**要実測**（本物の Claude Code で1日） | `claude`・Review on | P6a |
-| P7 | **建屋を立てて1本流す**（人の手 ＋ 直しのタスク）: `andon init home` → `bootstrap` → 中でログイン → `ghq get <owner>/andon` → `projects/andon` の台帳 → `andon chief-of-staff` → 小さい PR（レベル A か B）を1本。[operate.md](operate.md) にその手順 | 中 | §5.1 の 1〜6 が全部 ✓。落ちたところは直しのタスクに切る | 人 ＋ `sonnet`（operate.md）・直しは `claude` | P4・P6b |
+| P7 | **セルを立てて1本流す**（人の手 ＋ 直しのタスク）: `andon init home` → `bootstrap` → 中でログイン → `ghq get <owner>/andon` → `projects/andon` の台帳 → `andon chief-of-staff` → 小さい PR（レベル A か B）を1本。[operate.md](operate.md) にその手順 | 中 | §5.1 の 1〜6 が全部 ✓。落ちたところは直しのタスクに切る | 人 ＋ `sonnet`（operate.md）・直しは `claude` | P4・P6b |
 | P8 | **セルフホストに移る**: Andon の仕事を仮設のプロジェクトの台帳から `home` の台帳へ。仮設の Chief of Staff の設定に「Andon の仕事は home へ渡す」。template-yard に tag を打って凍結 | 小 | 以後の Andon の PR が home の台帳から出る。仮設の台帳に Andon の todo が無い | 人 ＋ Chief of Staff（タスクにしない） | P7 |
 
 - 全部で PR 10 本前後。P3a と P3b、P4 と P5 は並行できる。
 - dispatcher が P3b・P6a・P6b でそれぞれ何を持つかは [dispatcher.md](dispatcher.md) §5。
 - レビュアーは、Claude が書いたものは `codex-review`、Codex が書いたもの（P3a）は `claude-review`。`must_fix: major`・`review_rounds: 2` は既定のまま。
-- **仮設のゲートで Andon の PR をマージする**には、仮設の建屋のゲートの条件表の `repos` に `github.com/<owner>/andon` を足す（レベル C。人が入れる）。それまでは人がマージする（この PR と同じ）。
+- **仮設のゲートで Andon の PR をマージする**には、仮設のセルのゲートの条件表の `repos` に `github.com/<owner>/andon` を足す（レベル C。人が入れる）。それまでは人がマージする（この PR と同じ）。
 
 ### 5.3 仮設の工場で建てる間の決まり
 
-1. **仮設に入れるのは「運用を止めない直し」と「Andon の PR を流すのに要るもの」だけ。** 要るもの: ゲートが台帳の項目と指摘の JSON を読む形（仕上げてマージ）・離席の判定（実装は P6b で Andon に移す）・Chief of Staff がゲートでマージする経路（Andon の PR を仮設で人無しに通せる）・仮設の建屋のゲートの条件表に `<owner>/andon`（レベル C・人）。仮設の台帳では Y-20・Y-53・Y-21。
+1. **仮設に入れるのは「運用を止めない直し」と「Andon の PR を流すのに要るもの」だけ。** 要るもの: ゲートが台帳の項目と指摘の JSON を読む形（仕上げてマージ）・離席の判定（実装は P6b で Andon に移す）・Chief of Staff がゲートでマージする経路（Andon の PR を仮設で人無しに通せる）・仮設のセルのゲートの条件表に `<owner>/andon`（レベル C・人）。仮設の台帳では Y-20・Y-53・Y-21。
 2. **仮設で打たない手**: 仮設の設計文書に並ぶ残りの手（版を tag に・フック・ready の照合・dispatcher・managed settings・振り返り・wiki・問いの形・パッケージ化・クラウド・通知・作業側の分離）。全部 Andon で建てる。乾いた走り5本（仮設の台帳の Y-22）は Andon の PR 5本で兼ねる（推奨。§6 問い4）。ほかの保守タスクは凍結（トリアージの `keep`）。
-3. **雛形の更新の取り込みは、上の1が仮設の建屋に降りるまで。** それ以後 template-yard の master を動かさず、tag を打って凍結する（P8）。新しい建屋を雛形で立てない。新しい案件は Andon の建屋ができるまで待つか、仮設の建屋に迎える。
+3. **雛形の更新の取り込みは、上の1が仮設のセルに降りるまで。** それ以後 template-yard の master を動かさず、tag を打って凍結する（P8）。新しいセルを雛形で立てない。新しい案件は Andon のセルができるまで待つか、仮設のセルに迎える。
 4. **Andon を建てる担当は、仮設のプロジェクトの台帳で回す**（この文書と同じ。repo は `<owner>/andon`）。プロファイルと Settings は §5.2 の列。
-5. **仮設の記録は消さない。** template-yard の docs・仮設の台帳・議論の記録はそのまま。Andon の docs は指す（写さない）。仮設で出た学びのうち Andon に効くものは、トリアージの流れで `docs/decisions.md` か建屋の wiki の種へ。
+5. **仮設の記録は消さない。** template-yard の docs・仮設の台帳・議論の記録はそのまま。Andon の docs は指す（写さない）。仮設で出た学びのうち Andon に効くものは、トリアージの流れで `docs/decisions.md` かセルの wiki の種へ。
 6. **仮設の通知・ゲートが壊れたら直す**（運用を止めない程度）。壊れていないものは磨かない。
-7. **仮設から Andon へ写すときは固有の値を剥がす**（§2.6）: 雛形の変数（ユーザー名）・建屋名・ポート番号・`authorized_keys`・端末の土台の machine 名・案件名。写す前に `tests/public.sh` を通す。
+7. **仮設から Andon へ写すときは固有の値を剥がす**（§2.6）: 雛形の変数（ユーザー名）・セル名・ポート番号・`authorized_keys`・端末の土台の machine 名・案件名。写す前に `tests/public.sh` を通す。
 8. **public にする直前に、履歴全体をもう一度テストする**（§2.6 の 5）。漏れがあれば履歴を書き換える（人の go）。時期は §6 問い16。
 9. **仮設での Chief Engineer は最上位のプロファイルの担当タスク**（§1.8 の案 B。この文書を書いたタスクがその形）。依頼書に「人と直接対話する（Chief of Staff は中継しない）。問いは端末で、離席中は台帳の問い」と書き、成果は文書の PR と報告の「依頼書に切る」。`andon chief-engineer` の command とプロファイルは P3b で建てる。
-10. **委譲を仮設で先に試してよい**（§1.10 の最後の段落。建屋の repo に1枚と設定の1行。ゲートは読まない）。
+10. **委譲を仮設で先に試してよい**（§1.10 の最後の段落。セルの repo に1枚と設定の1行。ゲートは読まない）。
 
-### 5.4 仮設の建屋の案件の移し方（線だけ。後で決める）
+### 5.4 仮設のセルの案件の移し方（線だけ。後で決める）
 
-- 順: **Andon の建屋（home）で1本流れてから**（P7）。仮設の建屋は案件データが一番大きいので最後。ほかの建屋も同じ手順。
-- 手: `andon init <slug>` で建屋の repo（`andon-<slug>`）を作り、仮設の建屋から案件データだけ写す——`projects/`（symlink は実ディレクトリにする。理由は [operate.md](operate.md) の「建屋の置き方」）・`AGENTS.md` の案件の部分 → `AGENTS.local.md`・`.aqua/local.yaml`・`local/setup.sh`・`compose.override.yaml`・`.ssh/authorized_keys`・ゲートの条件表の上書き分 → `gate.local.json`・`memory/` → `wiki/`。台帳（`projects/*/.flightdeck/`。git の外）はディレクトリごと写し、台帳の CLI の lint で確かめる。
+- 順: **Andon のセル（home）で1本流れてから**（P7）。仮設のセルは案件データが一番大きいので最後。ほかのセルも同じ手順。
+- 手: `andon init <slug>` でセルの repo（`<slug>-cell`）を作り、仮設のセルから案件データだけ写す——`projects/`（symlink は実ディレクトリにする。理由は [operate.md](operate.md) の「セルの置き方」）・`AGENTS.md` の案件の部分 → `AGENTS.local.md`・`.aqua/local.yaml`・`local/setup.sh`・`compose.override.yaml`・`.ssh/authorized_keys`・ゲートの条件表の上書き分 → `gate.local.json`・`memory/` → `wiki/`。台帳（`projects/*/.flightdeck/`。git の外）はディレクトリごと写し、台帳の CLI の lint で確かめる。
 - 中で取り直すもの（核）: `gh auth login`・`claude login`・Codex のログイン。ghq の repo は GitHub から clone し直す（volume を持ち越さない。worktree は未マージの PR の branch から戻る）。端末の土台の設定とプロファイルは boot が生成する。ホストの ssh config・`yards-up` は `host-install` で置き換える。
 - 旧 `example-yard` の repo は archive（削除しない。不可逆）。
-- 決めるのは後: 建屋の repo を新しく作るか作り替えるか、portless の番号と直接フォワードの引き継ぎ、動いている担当（worktree）の引っ越し中の扱い。
+- 決めるのは後: セルの repo を新しく作るか作り替えるか、portless の番号と直接フォワードの引き継ぎ、動いている担当（worktree）の引っ越し中の扱い。
 
 ---
 
@@ -883,14 +885,14 @@ andon/
 |---|---|---|---|---|
 | 1 | **モチーフ**: 行燈か三色ランプか（§1.1） | 意味は三色ランプ（緑・黄・赤＝流れている・人の判断待ち・止まった）、絵は行燈 | どちらか1つに寄せる。意味と絵を分ければ両方取れるので、分ける | 推奨どおり |
 | 2 | **役の識別子**: `chief-of-staff`・`chief-engineer`・`dispatcher`・`worker` でよいか | このまま（§0.1。`--help` でそのまま読める英語） | `cos`・`ce`（短いが読めない）／dispatcher は `mizusumashi`（lean を知る人には強い）・`keeper` | `chief-of-staff`・`chief-engineer`・`worker` はこのまま。**係は `dispatcher`**（`runner` は CI の runner と紛れる。日本語の説明は水すまし。名前は 2026-11-06 に改めた） |
-| 3 | **建屋の英語名と repo の名前**: 「yard」を残すか。建屋の repo は `andon-<slug>` か `<slug>-yard` のままか。セルフホストの建屋の slug | 「yard」は仮設の語として対応表へ。建屋の repo は `andon-<slug>`。セルフホストの建屋は `home`（repo `andon-home`） | `<slug>-yard` を残すと今のホストの道具がそのまま使えるが、名前が2つになる | 推奨どおり |
+| 3 | **セルの英語名と repo の名前**: 「yard」を残すか。セルの repo は `andon-<slug>` か `<slug>-yard` のままか。セルフホストのセルの slug | 「yard」は仮設の語として対応表へ。セルの repo は `andon-<slug>`。セルフホストのセルは `home`（repo `andon-home`）（→ 2026-11-06 に repo の名前は `<slug>-cell`。§2.4） | `<slug>-yard` を残すと今のホストの道具がそのまま使えるが、名前が2つになる | 推奨どおり |
 | 4 | **仮設でやる範囲**: Chief of Staff がゲートでマージする経路（仮設の台帳の Y-21）を仮設でやるか。乾いた走り5本（Y-22）を Andon の PR で兼ねるか | 経路はやる（Andon の PR を人無しで通す経路になる）。乾いた走りは Andon の PR 5本で兼ねる。ほかは凍結 | 経路もやめて人がマージし続ける（Andon の PR 10本の間だけなので、それでも回る） | 推奨どおり（仮設の保守タスクの整理は Chief of Staff） |
 | 5 | **base image の置き場と台帳の CLI の焼き込み** | `ghcr.io/<owner>/andon`（private）。台帳の CLI は flightdeck の release から CI の token で（相談 F9） | image に焼かず、boot が token で入れる（初回起動に token が要る） | 推奨どおり。台帳の CLI は image に焼く（P5 までは CI の token で release から。移した後は同じ repo で作る） |
 | 6 | **台帳の持ち方**: 台帳の CLI と形式を Andon のモノレポに移すか（人の方向。§3.5） | 移す。名前は `kanban`、形式 v2 はそのまま、段取り K1〜K8 は持ち主と。時期は P5 のあと | 外部の部品のまま使い続ける（F9〜F11 の相談が残る。public にするとき台帳の CLI が取れない） | 推奨どおり |
-| 7 | **案件 repo の `AGENTS.md`・`REVIEW.md` をレベル B に下げるか**（`gate.json` の repo ごとの上書き） | 下げる（独立レビュー付き）。Andon の repo と建屋の repo はレベル C のまま | レベル C のまま（アウターループの改善が人で律速） | 推奨どおり |
+| 7 | **案件 repo の `AGENTS.md`・`REVIEW.md` をレベル B に下げるか**（`gate.json` の repo ごとの上書き） | 下げる（独立レビュー付き）。Andon の repo とセルの repo はレベル C のまま | レベル C のまま（アウターループの改善が人で律速） | 推奨どおり |
 | 8 | **ダブルループの構造の名前**（人: 「変則スター」はもう少し適切な名前があるかも） | 名前を付けない。「インナーループ／アウターループ」と §1.4 の図で足りる。「変則スター」の語は使わない | 付けるなら、見立て（厨房・鉄道）ではなく形の語で | 推奨どおり |
 | 9 | **旧文書の扱い**: 仮設の docs を Andon に移すか | 移さず指す。決定だけ `docs/decisions.md` に写す | 全部移す（量が多く、仮設の語で書かれている） | 推奨どおり |
-| 10 | **建屋の repo の自動 push** を残すか | 残す（`init/` に置き、`andon.toml` で切れる）。wiki の取り込みに効く | 捨てる（建屋の repo の commit は稀） | **捨てる**（commit と push は Chief of Staff や Chief Engineer が意識して行うことで、仕組みは要らない） |
+| 10 | **セルの repo の自動 push** を残すか | 残す（`init/` に置き、`andon.toml` で切れる）。wiki の取り込みに効く | 捨てる（セルの repo の commit は稀） | **捨てる**（commit と push は Chief of Staff や Chief Engineer が意識して行うことで、仕組みは要らない） |
 | 11 | **文書の言語**（public にするとき）: 人用・AI 用の文書は日本語のままか、英語を併記するか。schema の `description` は英語か | 人用・AI 用は日本語のまま（書き手も読み手も人は1人。英語を併記すると二重の保守になる）。`README.md` だけ英語の要約を上に置く。schema の `description` と識別子は英語 | 全部英語（読み手が増えるが、skill の質が落ちる）／全部日本語 | **日本語から始め、必要になったら英語を足す**（README の英語の要約・schema の `description` と識別子は英語） |
 | 12 | **Codex の Chief of Staff とフックの同等物** | 最初の版は Claude Code だけ | — | 推奨どおり |
 | 13 | **ライセンス** | Apache-2.0（hc・herdr-app と揃う。特許の条項がある。vendoring する MIT のものと併存できる）。P1 で `LICENSE` を置く（最初の commit からの意思表示） | MIT（cc-shiori と揃う。短い）。公開まで置かない（履歴に「ライセンス無しの期間」が残るだけで害は無いが、後から選ぶ理由も無い） | 推奨どおり |
@@ -905,7 +907,7 @@ andon/
 | 22 | **observer（自己改善）をどこまで許すか**（§1.9 の 5） | 振り返りの出口は PR だけ。案件側は Chief of Staff の判断、Andon のラインは人 | observer が案件側の `AGENTS.md`・`REVIEW.md` を直接書き換える（人が見ない範囲なら速いが、履歴が PR に残らない）／judge と replay を入れてから考える | 推奨どおり |
 | 23 | **監視の入口をいつ・何から入れるか**（§1.9 の (a)） | P8 の後。まず案件 repo の main の CI の失敗（外部の部品が要らない）、次に案件ごとのエラー監視の webhook。利用の統計は入れない | 最初の版から入れる（P6a の dispatcher に乗る。ただし「1本流れる」が遅れる）／入れない（入口は人と振り返りだけのまま。Dark Factory の KPI が人の投入に依る） | 推奨どおり |
 | 24 | **`andon` の言語**（§2.7） | Go（台帳の CLI と同じ module。1バイナリ。dispatcher の常駐とゲートの決定式のテストのため） | bash を写す（速いが二度書く）／Python・TypeScript（ランタイムが増える） | 推奨どおり（Go） |
-| 25 | **委譲のファイルの置き場**（§1.10） | 建屋の repo の `projects/<slug>/delegation.json`（人だけが書ける・履歴が git） | 台帳の中（CLI が知らないファイルになる）／ゲートの条件表の中（軸が違う） | 推奨どおり |
+| 25 | **委譲のファイルの置き場**（§1.10） | セルの repo の `projects/<slug>/delegation.json`（人だけが書ける・履歴が git） | 台帳の中（CLI が知らないファイルになる）／ゲートの条件表の中（軸が違う） | 推奨どおり |
 | 26 | **既定の型の中身**（§1.10）: `hobby` で `publish` を `public` まで任せるか・`deploy` を `production` まで任せるか | `publish` は `internal` まで（戻せない）。`deploy` は `production` まで、ただし戻す command が受け入れ条件にあるときだけ | `hobby` は全部任せる（人の言葉どおり。戻せない公開も含む）／`deploy` も `preview` まで | **全部任せる**（public への公開・production へのデプロイも。戻せない公開も含む）。「何を作るか」と Andon 自身のパッケージが常に人、はそのまま |
 | 27 | **委譲の期限と既定**（§1.10） | 期限は無し（`until: null`）が既定。型が無いプロジェクトは `work`（安全側） | 90 日で切れる（人が更新し続ける負担）／既定を `hobby`（1人の工場なら趣味が多い。だが仕事の案件で広すぎる） | 推奨どおり |
 
@@ -916,7 +918,7 @@ andon/
 - 人の決定と議論: 仮設の台帳の議論の記録（2026-11-04・05。private）。依頼書（追記1〜7 と補足）。
 - 仮設の工場の設計文書（template-yard `docs/redesign.md`。master `6d45fa7`。private）: 像とコンセプト・案 B の配線・手・決定 1〜15 と残る問い。ほか `README.md`・`docs/design.md`・`orchestration.md`・`merge-gate.md`・`triage.md`・`wsl-host.md`・`windows-host.md`・`cookiecutter.json`・`hooks/post_gen_project.py`・雛形の `Dockerfile`・`compose.yaml`・`merge-gate.json`・`.claude/settings.json`・`bin/yard`・`bin/yard-boot`・`.devcontainer/scripts/post-start.sh`・プロファイル2つ・`lib/yard/task`・`lib/yard/news`（通知の種類）・skill と tests の一覧と行数・`docs/wsl/yards-up`・`yard-cruft`。
 - 仮設で進行中の2つの変更（private）: ゲートが台帳の項目（`review`・`must_fix`）と指摘の JSON（`library/findings.json`）を読む形（template-yard PR #41）、離席の判定（画面の文から入力欄の状態を読む。PR #42）。どちらも「Markdown や画面の文を正規表現で読むと端が尽きない」の学びの出所。
-- 仮設の建屋（`/workspace`。private）: `AGENTS.md`（環境メモと編成の規約）・`README.md`・`bin/`・`lib/yard/` の行数・`memory/index.md`・`Dockerfile`・`.cruft.json`・`merge-gate.json`・`local/`・台帳の一覧と Chief of Staff の設定。
+- 仮設のセル（`/workspace`。private）: `AGENTS.md`（環境メモと編成の規約）・`README.md`・`bin/`・`lib/yard/` の行数・`memory/index.md`・`Dockerfile`・`.cruft.json`・`merge-gate.json`・`local/`・台帳の一覧と Chief of Staff の設定。
 - herdr-flightdeck（`3691923`。private）: `docs/concept.md`・`docs/ledger-format.md`（全文）・`docs/yard-news.md`・`docs/glossary.md`・`docs/schema/{task,questions}.v2.schema.json`・`README.md`・`herdr-app/README.md`・`mods/focus-queue/README.md`・repo の構成。deck: `cmd/deck/*.go`（行数）・`go.mod`・`.github/workflows/deck.yml`・`deck-release.yml`・`herdr-app/cli/README.md`・`mods/work-board/main.js`（台帳のファイルを直接読む）・git の tag。
 - 選択的 Dark Factory: freee「freee における規模の実践」（AIx 開発組織 Summit 2026。https://speakerdeck.com/freee/freee-niokeru-kibo-no-jissen-aix-kaihatsu-soshiki-summit-2026 ）。
 - ダブルループの出所: mattpocock/skills の `skills/in-progress/chief-of-staff/SKILL.md`・`skills/engineering/retro/SKILL.md`・`docs/engineering/retro.md`（2026-11-04 に読んだ）。
@@ -927,4 +929,4 @@ andon/
 - 道具: `hc --help`・`hc run|machine|events --help`・`hc templates`・`hc ls`（0.1.17）・`deck --help`（deck-v0.3.0）。
 - 用語: 仮設の用語集 skill（v0.2.0）・担当の skill。
 - TPS の語彙（2026-11-04。web で読んだ）: Toyota UK「Toyota Production System glossary」（https://mag.toyota.co.uk/toyota-production-system-glossary 。andon・genchi genbutsu・heijunka・jidoka・kanban）・同「Jidoka」（https://mag.toyota.co.uk/jidoka-toyota-production-system/ ）・lean.org Lexicon「hansei」（https://www.lean.org/lexicon-terms/hansei/ ）・「obeya」（https://www.lean.org/lexicon-terms/obeya/ ）・Wikipedia「Obeya」（https://en.wikipedia.org/wiki/Obeya ）・Creative Safety Supply の用語集（yokoten・poka-yoke。https://creativesafetysupply.com/glossary/understanding-lean-manufacturing-terms ）・TechTarget「Lean water spider」（https://www.techtarget.com/searcherp/definition/Lean-water-spider ）・Shoplogix「Mizusumashi」（https://shoplogix.com/?p=6813 ）・Lean Blog「What Is an Andon Cord?」（https://www.leanblog.org/2024/07/demystifying-toyotas-andon-system-how-it-works-and-common-misconceptions/ ）・自工程完結は newswitch（https://newswitch.jp/p/9346 ）と MONOist（https://monoist.itmedia.co.jp/mn/articles/1807/26/news064_2.html ）。トヨタ本体の公式の定義は見つからなかった語（yokoten・hansei・mizusumashi）は lean の解説の定義。
-- 公開性（2026-11-04）: `gh repo view` で <owner>/{andon,template-yard,example-yard,herdr-flightdeck,skills}（private・ライセンス無し）・<owner>/cc-shiori（public・MIT）・herdrdev/{herdr-core,herdr-app,herdr}（public・Apache-2.0）。仮設の建屋の `.aqua/aqua.yaml`・`registry.yaml`（deck の `tags: [private]`）・`.claude/settings.json`（marketplace）・herdr-auto-title の README と LICENSE（sh1ma・MIT）。名前の衝突は web 検索（「andon open source」「Andon trademark software」）を軽く読んだだけ。
+- 公開性（2026-11-04）: `gh repo view` で <owner>/{andon,template-yard,example-yard,herdr-flightdeck,skills}（private・ライセンス無し）・<owner>/cc-shiori（public・MIT）・herdrdev/{herdr-core,herdr-app,herdr}（public・Apache-2.0）。仮設のセルの `.aqua/aqua.yaml`・`registry.yaml`（deck の `tags: [private]`）・`.claude/settings.json`（marketplace）・herdr-auto-title の README と LICENSE（sh1ma・MIT）。名前の衝突は web 検索（「andon open source」「Andon trademark software」）を軽く読んだだけ。

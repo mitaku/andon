@@ -26,9 +26,9 @@ export default class Andon extends View {
       const prefix = space.machine ? `${space.machine}/` : "";
       if (space.id !== prefix + labelSpace) continue;
       if (labels.role === "dispatcher") {
-        // The dispatcher is one per plant and spans projects, so it has no project
+        // The dispatcher is one per cell and spans projects, so it has no project
         // label: the name comes from its own ids. One ledger: the project's
-        // command-side Space (andon-<x>). Else the plant's Space (andon-<x>-plant).
+        // command-side Space (andon-<x>). Else the cell's Space (andon-<x>-cell).
         const m = /^andon-(.+)-dispatcher$/.exec(tab.id.slice(prefix.length));
         if (!m) continue;
         if (labelSpace === `andon-${m[1]}`) rename("space", space, m[1]);

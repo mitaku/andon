@@ -29,7 +29,7 @@ func TestMainCheckout(t *testing.T) {
 	}{
 		{repo, true},                     // repo の本体
 		{wt, false},                      // detached worktree
-		{other, true},                    // 別の repo の本体（台帳を包む建屋の checkout など）
+		{other, true},                    // 別の repo の本体（台帳を包むセルの checkout など）
 		{filepath.Join(tmp, "x"), false}, // 無い
 	} {
 		if got := MainCheckout(repo, c.path); got != c.want {

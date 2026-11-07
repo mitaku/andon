@@ -1,7 +1,7 @@
 #cloud-config
-# クラウドの VM に建屋を1つ立てる雛形。<…> を埋めて VM の user-data に渡す。
-# ホストに入れるのは docker と git だけ。ログイン（gh・claude・codex）は建屋の中で取る。
-# VM に入ったら: git clone <建屋の repo> ~/src/andon-<slug> → docker login ghcr.io（イメージが private なら）
+# クラウドの VM にセルを1つ立てる雛形。<…> を埋めて VM の user-data に渡す。
+# ホストに入れるのは docker と git だけ。ログイン（gh・claude・codex）はセルの中で取る。
+# VM に入ったら: git clone <セルの repo> ~/src/andon-<slug> → docker login ghcr.io（イメージが private なら）
 #   → ~/src/andon-<slug>/bin/bootstrap
 package_update: true
 packages:

@@ -20,7 +20,7 @@ if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
 fi
 tmp=$(mktemp -d)
 plant=$tmp/andon-imgtest
-# 建屋の compose を片付ける。boot がコンテナの利用者で /workspace に書いたものは root で持ち主を戻してから消す
+# セルの compose を片付ける。boot がコンテナの利用者で /workspace に書いたものは root で持ち主を戻してから消す
 # compose の補間に要る値は bin/bootstrap と同じものを渡す
 dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
 cleanup() {
@@ -33,7 +33,7 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
-# 焼くのは image/build.sh（CI と建屋の bin/bootstrap rebuild --from も同じもの）。kanban・andon の go build も docker の中
+# 焼くのは image/build.sh（CI とセルの bin/bootstrap rebuild --from も同じもの）。kanban・andon の go build も docker の中
 bash image/build.sh . andon:test
 rev=$(docker image inspect andon:test --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
 want=$(git rev-parse HEAD 2>/dev/null || echo unknown)
@@ -85,13 +85,13 @@ docker run --rm --network none \
     pinact run --fix=false --no-api
   '
 
-# 建屋を立てる道（docs/operate.md の 2・3・5）: ホストへ andon を取り出す → andon init → bin/bootstrap up → boot の生成物
+# セルを立てる道（docs/operate.md の 2・3・5）: ホストへ andon を取り出す → andon init → bin/bootstrap up → boot の生成物
 docker run --rm --network none andon:test cat /opt/andon/bin/andon >"$tmp/andon"
 chmod 755 "$tmp/andon"
 "$tmp/andon" init imgtest --dir "$plant" --image andon:test --owner owner@example.com
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
 printf 'SSH_PORT=%s\nPORTLESS_PORT=%s\nFILES_PORT=%s\n' "$(free_port)" "$(free_port)" "$(free_port)" >"$plant/.env"
-# 建屋の repo は uid 1000 の持ち物（WSL・cloud-init の既定の利用者。runner は 1000 とは限らないので root で渡す）。
+# セルの repo は uid 1000 の持ち物（WSL・cloud-init の既定の利用者。runner は 1000 とは限らないので root で渡す）。
 # 公開鍵は docs/operate.md の SSH の節のとおり 700 の .ssh・600 の authorized_keys。.andon/ は bootstrap（runner）が書く
 mkdir "$plant/.andon"
 docker run --rm --network none --user 0 -v "$plant:/p" andon:test bash -euc '
@@ -105,7 +105,7 @@ docker run --rm --network none --user 0 -v "$plant:/p" andon:test bash -euc '
 # andon が uid 1001 だった版の image で作った volume（中身は 1001 の持ち物）。boot が作り直さずに andon へ渡すこと
 docker volume create --label com.docker.compose.project=andon-imgtest --label com.docker.compose.volume=gh andon-imgtest_gh >/dev/null
 docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
-# 建屋の image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
+# セルの image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
 BUILDX_BUILDER=default "$plant/bin/bootstrap" up
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
@@ -159,9 +159,9 @@ dc exec -T dev bash -euc '
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
-# (c) boot が建屋の repo（/workspace）を信頼済みにしたので、建屋の claude と codex を /workspace の下の新しい dir で
+# (c) boot がセルの repo（/workspace）を信頼済みにしたので、セルの claude と codex を /workspace の下の新しい dir で
 # 起こしても信頼の画面が出ない。対照に、信頼の根の外の新しい repo（/tmp）では出ることも見る（画面を読めていることの確かめ）。
-# 本物の建屋の repo は git なので、ここでも git にしてから起こす（andon init の直後は git でない）。最初の画面だけ読んで止める。
+# 本物のセルの repo は git なので、ここでも git にしてから起こす（andon init の直後は git でない）。最初の画面だけ読んで止める。
 # claude は onboarding を済ませた形に、codex は偽の鍵の auth.json を置く（どちらも信頼の画面の前に出る画面を飛ばすため。
 # 外へは何も送らない。偽の鍵は見たあと消す）
 dc exec -T dev bash -c 'cat >/tmp/pty-probe.py' <tests/lib/pty-probe.py
@@ -183,7 +183,7 @@ c_new=$(probe 'claude new') c_ctl=$(probe 'claude control') x_new=$(probe 'codex
 if [[ $c_new == *'trust this folder'* || $c_new != *'Not logged in'* || $c_ctl != *'trust this folder'* ||
   $x_new == *'Trust this folder'* || $x_new != *'Ask Codex'* || $x_ctl != *'Trust this folder'* ]]; then
   printf '%s\n' "$trust_out" >&2
-  echo 'FAIL image: 建屋の claude・codex が /workspace の下の新しい dir で信頼の画面を出す（か、対照の /tmp で出ない）' >&2
+  echo 'FAIL image: セルの claude・codex が /workspace の下の新しい dir で信頼の画面を出す（か、対照の /tmp で出ない）' >&2
   exit 1
 fi
 # (a0) ~/.gitconfig が消えた状態（作り直しの後）でも、gh がログイン済みなら boot が credential helper を gh にする。

@@ -23,7 +23,7 @@
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起こさない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
 3. **1つの約束に1人の書き手。** `task.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
-5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `tasks/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.task/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけは建屋の repo（§11。書き手が人だから）。
+5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `tasks/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.task/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon task`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-task.sh`・`tests/andon-gate.sh` に書かせる）。
 
 ## 1. 置き場と書き手
@@ -44,7 +44,7 @@ projects/<slug>/kanban/
       gate/<head sha>.json        dispatcher（§7。ゲートの記録）
       corrections.json            dispatcher（finish のとき。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
-projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。建屋の repo。git の履歴が照合の元）
+projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ```
 
@@ -206,7 +206,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 
 ## 7. ゲートの条件表と記録
 
-**条件表** `package/gate.json`（既定）＋ 建屋の `gate.local.json`（上書き。深い併合ではなく、キーごとの置き換え）。仮設のゲートの条件表のキー（`size_review_lines`・`size_human_lines`・`test_paths`・`tier_a_paths`・`tier_b_paths`・`tier_c_paths`・`tier_c_path_exceptions`・`tier_c_added_line_patterns`・`repos{merge, strip_prefix, check[]}`）に、`repos.<repo>.tier_overrides`（パスの glob → レベル）・`repos.<repo>.github_checks`・`github_checks_wait_minutes`（下）を足す。既定の条件表で案件 repo の `AGENTS.md`・`REVIEW.md` は **B**（人の決定 2026-11-05。design.md §6 問い7。Andon の repo と建屋の repo は C のまま）。条件表を変えるのはレベル C（人）。
+**条件表** `package/gate.json`（既定）＋ セルの `gate.local.json`（上書き。深い併合ではなく、キーごとの置き換え）。仮設のゲートの条件表のキー（`size_review_lines`・`size_human_lines`・`test_paths`・`tier_a_paths`・`tier_b_paths`・`tier_c_paths`・`tier_c_path_exceptions`・`tier_c_added_line_patterns`・`repos{merge, strip_prefix, check[]}`）に、`repos.<repo>.tier_overrides`（パスの glob → レベル）・`repos.<repo>.github_checks`・`github_checks_wait_minutes`（下）を足す。既定の条件表で案件 repo の `AGENTS.md`・`REVIEW.md` は **B**（人の決定 2026-11-05。design.md §6 問い7。Andon の repo とセルの repo は C のまま）。条件表を変えるのはレベル C（人）。
 
 ```json
 {"size_review_lines": 500, "size_human_lines": 1000, "github_checks_wait_minutes": 30,
@@ -253,7 +253,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | 担当・レビュアーの端末の名前 | `<slug>-<id を小文字>`（`a-z 0-9 - _`、32字まで） | `andon task start`・dispatcher | dispatcher・ボード |
 | Chief of Staff の端末の名前 | `<slug>-cos`（cwd は台帳の root） | `andon chief-of-staff` | `andon chief-of-staff`（動いているものを使うときに名前と cwd を照らす） |
 | ラベル | `role=chief-of-staff \| dispatcher \| chief-engineer`・`project=<slug>`・`task=<id>`・`title=<題>`・`news.replied=<turn>`・`first_message.sent=false`（最初のメッセージが届かなかった〈`hc run` の `first_message` が `sent: false`、か `started: false`〉担当・Chief Engineer・レビュアー。`andon task start`・`andon chief-engineer`・dispatcher〈レビュアー〉が付け、dispatcher が送り直して外す。[dispatcher.md](dispatcher.md) §5） | command・dispatcher | ボード・dispatcher・フック（自分のタスクを引く） |
-| Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（持ち主は Herdr App。id は command が決める: Chief of Staff は `andon-<slug>`・`andon-<slug>-cos`、Chief Engineer は `andon-<slug>`・`andon-<slug>-<id>`、担当は `andon-<slug>-<id>`・`andon-<slug>-<id>`（Space ＝ タスク。[ADR-0003](adr/0003-task-spaces.md)。machine に依らない。`machine` 付きのタスクを `andon task start` はまだ起こさない。ADR-0002 決めたこと 19）、レビュアーは担当の端末（台帳の `agent`）の値を `hc get --json` で読んで写す（読めなければ付けない）。dispatcher は台帳が1つなら `andon-<slug>`・`andon-<slug>-dispatcher`、2つ以上なら `andon-<建屋の slug>-plant`・`andon-<建屋の slug>-dispatcher`（建屋の slug は hostname。ADR-0002 決めたこと 21）。`where` は App が書く出力で、Andon は読まず書かない。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・dispatcher（自分の端末のラベルは boot とフックの `dispatcher.Ensure` が付ける）。`andon task finish` は触らない（端末の kill・rm で tab が空になって消える） | Herdr App |
+| Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（持ち主は Herdr App。id は command が決める: Chief of Staff は `andon-<slug>`・`andon-<slug>-cos`、Chief Engineer は `andon-<slug>`・`andon-<slug>-<id>`、担当は `andon-<slug>-<id>`・`andon-<slug>-<id>`（Space ＝ タスク。[ADR-0003](adr/0003-task-spaces.md)。machine に依らない。`machine` 付きのタスクを `andon task start` はまだ起こさない。ADR-0002 決めたこと 19）、レビュアーは担当の端末（台帳の `agent`）の値を `hc get --json` で読んで写す（読めなければ付けない）。dispatcher は台帳が1つなら `andon-<slug>`・`andon-<slug>-dispatcher`、2つ以上なら `andon-<セルの slug>-plant`・`andon-<セルの slug>-dispatcher`（セルの slug は hostname。ADR-0002 決めたこと 21）。`where` は App が書く出力で、Andon は読まず書かない。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・dispatcher（自分の端末のラベルは boot とフックの `dispatcher.Ensure` が付ける）。`andon task finish` は触らない（端末の kill・rm で tab が空になって消える） | Herdr App |
 | 人に端末を指す言い方 | `<Space 名> / <tab 名>`（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site / CE A-0003 Billing の設計`・`A-0012 ログインの直し / A-0012`）。address は末尾に `（t7）` と添えるだけ。Andon の command は `hc attach` を打たず、最後に出た場所をこの形で出す | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・Chief of Staff | 人 |
 | template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon task start`（`hc templates` で存在を確かめる） |
 | 台帳の `agent` | 端末の address。作業側が別のマシンなら `<machine>/t7`（相談 F4） | `kanban start`（担当）・dispatcher（作業側の代筆） | dispatcher・ボード |
@@ -279,12 +279,12 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 - `schema/*.schema.json` の `$id` に版（`https://andon.example.com/schema/<名前>/<版>`。例 `https://andon.example.com/schema/report/1`。URL は識別子で、取りに行かない）。`tests/schema.sh` が `$id` の形・draft 2020-12・`description` と識別子が英語であることも確かめる。読み手は `$id` ではなく**キーの有無**で振る舞う（原則4）。
 - キーを足す: 版を上げない。`docs/contract.md` と `tests/schema.sh` の例を足す。
-- キーを消す・意味を変える: 版を上げ、古い版を読む側を1版だけ残す（建屋の `FROM` の版上げが追いつくまで）。
+- キーを消す・意味を変える: 版を上げ、古い版を読む側を1版だけ残す（セルの `FROM` の版上げが追いつくまで）。
 - ledger-format の `version` が上がったら、Andon の command は台帳の CLI の言うとおりに止まる（ledger-format の規則）。
 
 ## 11. プロジェクトの事実と委譲（`project.json`）
 
-プロジェクトについて機械が読む事実（[ADR-0004](adr/0004-project-layout.md) 決めたこと 1）。**置き場は建屋の repo の `projects/<slug>/project.json`**（台帳の外。書き手が人だけだから）。委譲（オーナー〈人〉が Chief of Staff・dispatcher・担当に何をどこまで任せたか。design.md §1.10）はその `delegation` に入る。人が見る一覧は `andon delegate show`。
+プロジェクトについて機械が読む事実（[ADR-0004](adr/0004-project-layout.md) 決めたこと 1）。**置き場はセルの repo の `projects/<slug>/project.json`**（台帳の外。書き手が人だけだから）。委譲（オーナー〈人〉が Chief of Staff・dispatcher・担当に何をどこまで任せたか。design.md §1.10）はその `delegation` に入る。人が見る一覧は `andon delegate show`。
 
 ```json
 {"version": 1,
@@ -324,7 +324,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `grants[].id` | 必須 | `d1` … 一意（一意かは command が確かめる） |
 | `grants[].scope` | 必須 | `merge` / `deploy` / `publish` / `irreversible` / `external-requests` / `profile` / `package-update` / `line-change` |
 | `grants[].value` | 必須 | `scope` ごとの値（design.md §1.10 の表）。`merge`＝`none`/`A`/`B`/`C`、`deploy`＝`none`/`preview`/`production`、`publish`＝`none`/`internal`/`public`、`irreversible`＝`delete-branch`/`force-push`/`rewrite-history` の配列（`delete-remote` は書けない）、`external-requests`・`profile`・`package-update`＝真偽値、`line-change`＝`none`/`project`/`plant` |
-| `grants[].by` | 必須 | 付与した人。文字列の `owner` だけ（実際の人は建屋の `andon.toml` の `owner`。照合は commit の author で） |
+| `grants[].by` | 必須 | 付与した人。文字列の `owner` だけ（実際の人はセルの `andon.toml` の `owner`。照合は commit の author で） |
 | `grants[].at` | 必須 | 付与した日（`YYYY-MM-DD`。暦にある日。`2026-02-30` やうるう年でない年の `02-29` は通らない） |
 | `grants[].until` | 任意 | 期限（`YYYY-MM-DD`）。過ぎていれば無いものと同じ。`null` は無期限 |
 | `grants[].evidence` | 必須 | 根拠。人の発言の記録へのパスか引用（写さず指す） |
@@ -332,14 +332,14 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 **読み方**（読む側は全部この順）:
 
-1. 建屋の repo の **HEAD** の `projects/<slug>/project.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
+1. セルの repo の **HEAD** の `projects/<slug>/project.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
 2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部人）・**書いてよい repo 無し**として読む。無い・JSON でない・schema を通らない・`delegation.project` が違う・`version` を知らない、も同じ（原則2）。`delegation` が無ければ無委譲。
-3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがある建屋は、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは台帳の改名のタスク（ADR-0004 決めたこと 5 の 4）。
+3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがあるセルは、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは台帳の改名のタスク（ADR-0004 決めたこと 5 の 4）。
 4. `delegation.preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。
 5. 読み手ごとに見るもの: ゲート＝`merge`。dispatcher と `andon task …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon task start`＝`repos`（タスクの `repo` が無ければ起こさない）。Chief of Staff＝委譲の全部（起きるたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
-6. Andon の建屋の `andon` プロジェクトは `preset` を `andon` 以外にできない（command が拒む。`merge` の上限 `B`・`line-change: none`）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
+6. Andon のセルの `andon` プロジェクトは `preset` を `andon` 以外にできない（command が拒む。`merge` の上限 `B`・`line-change: none`）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
 
-**書き方**: `project.json` は人が書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲は人が建屋の repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command は建屋の repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更を人の commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `task=` があれば拒む）。
+**書き方**: `project.json` は人が書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲は人がセルの repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command はセルの repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更を人の commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `task=` があれば拒む）。
 
 **依頼書の Settings との関係**: `task.yaml` の `merge: auto` は委譲の `merge` の範囲の中でだけ効く（§2）。委譲の外なら、ゲートは approve でも `needs_human`（§7 の `delegation`）。
 
@@ -350,7 +350,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 ```json
 {"commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
  "candidates": [
-   {"id": "c1", "text": "docs/design.md:42 「建家」→「建屋」", "file": "docs/design.md", "line": 42, "in_scope": true},
+   {"id": "c1", "text": "docs/design.md:42 「台長」→「台帳」", "file": "docs/design.md", "line": 42, "in_scope": true},
    {"id": "c2", "text": "docs/operate.md:17 「起動する」が2回", "file": "docs/operate.md", "line": 17, "in_scope": false},
    {"id": "c3", "text": "README の英語の段に古い command 名。直し方は語の置換だけでなく段の書き直し", "file": "README.md", "line": 30, "in_scope": false}]}
 ```

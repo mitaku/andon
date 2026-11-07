@@ -227,7 +227,7 @@ func TestLiveTask(t *testing.T) {
 	}
 }
 
-// 置き場: 台帳が1つなら指揮側の Space に、2つ以上（無いときも）なら建屋の名前の Space に出す。
+// 置き場: 台帳が1つなら指揮側の Space に、2つ以上（無いときも）ならセルの名前の Space に出す。
 func TestPlace(t *testing.T) {
 	hostName = func() (string, error) { return "Sample_Plant.local", nil }
 	t.Cleanup(func() { hostName = os.Hostname })

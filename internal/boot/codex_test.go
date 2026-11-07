@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const codexHead = "# andon boot が足した（建屋が信頼の境界。値を変えれば boot は覆さない）\n"
+const codexHead = "# andon boot が足した（セルが信頼の境界。値を変えれば boot は覆さない）\n"
 
 // withoutCodexDefaults は genCodexConfig が先頭に足した塊（見出しの行からその後の空行まで）を外す
 // （信頼のテストが、同じファイルに足す既定に左右されないように）。

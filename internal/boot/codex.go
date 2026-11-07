@@ -10,7 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// 建屋の Codex を権限の確認で止めない（建屋＝コンテナが信頼の境界。docs/image.md の「Codex の承認と sandbox」）。
+// セルの Codex を権限の確認で止めない（セル＝コンテナが信頼の境界。docs/image.md の「Codex の承認と sandbox」）。
 // Claude Code の managed settings の deny のうち頭で引く線を、Codex の execpolicy の rules で引く（forbidden は承認の方針に
 // かかわらず先に効く。拒めるのは直接の形とよくある wrapper だけ）。
 
@@ -51,7 +51,7 @@ func genCodexConfig(e Env) error {
 	if len(add) == 0 {
 		return nil
 	}
-	head := lead + "# andon boot が足した（建屋が信頼の境界。値を変えれば boot は覆さない）\n" + strings.Join(add, "\n") + "\n"
+	head := lead + "# andon boot が足した（セルが信頼の境界。値を変えれば boot は覆さない）\n" + strings.Join(add, "\n") + "\n"
 	if strings.TrimSpace(text) != "" {
 		head += "\n" + text
 	}

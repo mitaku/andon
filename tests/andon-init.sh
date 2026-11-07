@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/andon-init.sh — andon init x で建屋の repo を作り、偽のイメージ（一時ディレクトリ）で bin/bootstrap --dry-run を通す。
+# tests/andon-init.sh — andon init x でセルの repo を作り、偽のイメージ（一時ディレクトリ）で bin/bootstrap --dry-run を通す。
 # 偽のイメージは package/ を <根>/opt/andon に写したもの（ANDON_IMAGE_ROOT）。PATH に docker を置かない
 # （本物の docker・HOME・hc・/workspace に触らない）。docker compose が手元にあれば、取り出した compose.yaml の形も確かめる。
 set -u
@@ -17,7 +17,7 @@ cp -R "$andon_root/package" "$img/opt/andon"
 for t in bash cat cmp cp dirname grep head install mkdir mktemp mv printf rm sed tail; do
   ln -s "$(command -v "$t")" "$tmp/path/$t"
 done
-# 偽の stat: bin/bootstrap が見る建屋の repo の持ち主（stat -c %u）。既定は 1000、FAKE_OWNER で変える
+# 偽の stat: bin/bootstrap が見るセルの repo の持ち主（stat -c %u）。既定は 1000、FAKE_OWNER で変える
 printf '#!/bin/bash\necho "${FAKE_OWNER:-1000}"\n' >"$tmp/path/stat"
 chmod 755 "$tmp/path/stat"
 sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
@@ -26,27 +26,27 @@ cd "$tmp" || exit 1
 "$andon" init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && [ ! -s "$tmp/err" ] && pass "andon init x は rc 0" || fail "init: rc=$r $(cat "$tmp/out" "$tmp/err")"
 for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate.local.json AGENTS.local.md wiki/index.md files/.gitkeep projects/.gitkeep .gitignore .dockerignore; do
-  [ -f "andon-x/$f" ] || fail "andon-x/$f が無い"
+  [ -f "x-cell/$f" ] || fail "x-cell/$f が無い"
 done
-grep -qx 'files/' andon-x/.gitignore && fail ".gitignore が files/ を除いている" || pass "files/ は追跡する（.gitignore に無い）"
-grep -qx 'artifacts/' andon-x/.gitignore && fail ".gitignore に artifacts/ が残っている" || pass ".gitignore に artifacts/ が無い"
-[ -x andon-x/bin/bootstrap ] && [ -x andon-x/local/setup.sh ] && pass "bin/bootstrap と local/setup.sh は実行できる" || fail "実行の権限"
-[ "$(grep -c . andon-x/Dockerfile)" = 3 ] && head -n 1 andon-x/Dockerfile | grep -qx 'FROM example.com/andon:test' && pass "Dockerfile は FROM ＋ 2行" || fail "Dockerfile: $(cat andon-x/Dockerfile)"
-grep -qx 'slug = "x"' andon-x/andon.toml && grep -qx 'owner = "dev@example.com"' andon-x/andon.toml && pass "andon.toml に slug と owner" || fail "andon.toml: $(cat andon-x/andon.toml)"
-find andon-x -name '*.tmpl' | grep -q . && fail "*.tmpl が残っている" || pass "*.tmpl は埋めて外す"
-[ -e andon-x/compose.yaml ] || [ -e andon-x/.andon ] && fail "建屋の repo にパッケージのファイルがある" || pass "建屋の repo に compose.yaml が無い"
+grep -qx 'files/' x-cell/.gitignore && fail ".gitignore が files/ を除いている" || pass "files/ は追跡する（.gitignore に無い）"
+grep -qx 'artifacts/' x-cell/.gitignore && fail ".gitignore に artifacts/ が残っている" || pass ".gitignore に artifacts/ が無い"
+[ -x x-cell/bin/bootstrap ] && [ -x x-cell/local/setup.sh ] && pass "bin/bootstrap と local/setup.sh は実行できる" || fail "実行の権限"
+[ "$(grep -c . x-cell/Dockerfile)" = 3 ] && head -n 1 x-cell/Dockerfile | grep -qx 'FROM example.com/andon:test' && pass "Dockerfile は FROM ＋ 2行" || fail "Dockerfile: $(cat x-cell/Dockerfile)"
+grep -qx 'slug = "x"' x-cell/andon.toml && grep -qx 'owner = "dev@example.com"' x-cell/andon.toml && pass "andon.toml に slug と owner" || fail "andon.toml: $(cat x-cell/andon.toml)"
+find x-cell -name '*.tmpl' | grep -q . && fail "*.tmpl が残っている" || pass "*.tmpl は埋めて外す"
+[ -e x-cell/compose.yaml ] || [ -e x-cell/.andon ] && fail "セルの repo にパッケージのファイルがある" || pass "セルの repo に compose.yaml が無い"
 
 "$andon" init x >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '上書きしない' "$tmp/err" && pass "空でないディレクトリには書かない" || fail "2回目: rc=$r $(cat "$tmp/err")"
 
-cd andon-x || exit 1
-# 建屋の repo の状態（種類・パス・中身）。--dry-run の前後で比べる
+cd x-cell || exit 1
+# セルの repo の状態（種類・パス・中身）。--dry-run の前後で比べる
 state() { find . -printf '%y %p %m\n' | sort; find . -type f -exec sha256sum {} + | sort; }
 state >"$tmp/s0"
 sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && pass "bootstrap --dry-run は rc 0" || fail "dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"
 state >"$tmp/s1"
-cmp -s "$tmp/s0" "$tmp/s1" && pass "--dry-run は建屋の repo に何も書かない（.andon/ を作らない）" || fail "dry-run で変わった: $(diff "$tmp/s0" "$tmp/s1")"
+cmp -s "$tmp/s0" "$tmp/s1" && pass "--dry-run はセルの repo に何も書かない（.andon/ を作らない）" || fail "dry-run で変わった: $(diff "$tmp/s0" "$tmp/s1")"
 grep -q "^+ cp -R $img/opt/andon/compose.yaml .andon/compose.yaml$" "$tmp/out" && pass "compose.yaml をイメージから .andon/ に取り出す（と出す）" || fail "取り出し: $(cat "$tmp/out")"
 mkdir .andon && echo '# 前の残り' >.andon/compose.yaml.new && echo '# 前の compose' >.andon/compose.yaml
 state >"$tmp/s0"
@@ -124,7 +124,7 @@ sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
 [ -L "$mod" ] && [ ! -e "$home/missing-mod" ] \
   && pass "リンク切れの mod も触らない" || fail "mod のリンクを変更した"
 conf=$home/.ssh/config.d/andon-x.conf
-grep -qx 'Host andon-x' "$conf" && grep -qx '  Port 2299' "$conf" && ! grep -qE '<(slug|ssh-port|portless-port)>' "$conf" && pass "ssh config に建屋の名前と .env の番号" || fail "ssh config: $(cat "$conf" 2>&1)"
+grep -qx 'Host andon-x' "$conf" && grep -qx '  Port 2299' "$conf" && ! grep -qE '<(slug|ssh-port|portless-port)>' "$conf" && pass "ssh config にセルの名前と .env の番号" || fail "ssh config: $(cat "$conf" 2>&1)"
 echo '# 人が書いた' >"$home/.config/herdr/config.toml"
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
 grep -qx '# 人が書いた' "$home/.config/herdr/config.toml" && pass "host-install は今あるファイルを上書きしない" || fail "上書きした"
@@ -137,7 +137,7 @@ sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '数字だけ' "$tmp/err" && pass "host-install は数字でない番号で止まる" || fail "番号の検査: rc=$r $(cat "$tmp/out" "$tmp/err")"
 rm .env
 
-# 建屋の repo の持ち主が uid 1000 でなければ、起こす前に止まって回り道を出す（down・status・host-install は止めない）
+# セルの repo の持ち主が uid 1000 でなければ、起こす前に止まって回り道を出す（down・status・host-install は止めない）
 for sub in "" up sh rebuild; do
   sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run $sub >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 1 ] && grep -q 'uid 1001' "$tmp/err" && grep -q '回り道' "$tmp/err" && ! grep -q 'docker' "$tmp/out" \
@@ -183,7 +183,7 @@ mapfile -t calls <"$log"
 [ "$(head -n 1 Dockerfile)" = "FROM $tag" ] && [ "$(tail -n +2 Dockerfile)" = "$(tail -n +2 "$tmp/Dockerfile.orig")" ] \
   && pass "rebuild --from は Dockerfile の FROM だけを $tag にする" || fail "FROM: $(cat Dockerfile)"
 [ "${calls[2]:-}" = "$(argv build -t andon-x:local "$PWD")" ] \
-  && pass "続けて FROM $tag で建屋の image を焼く（--pull を付けない）" || fail "建屋の build: $(cat "$log")"
+  && pass "続けて FROM $tag でセルの image を焼く（--pull を付けない）" || fail "セルの build: $(cat "$log")"
 [ "${calls[3]:-}" = "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)" ] \
   && pass "そのあと compose で作り直す" || fail "up: $(cat "$log")"
 grep -q "commit: $sha" "$tmp/out" && grep -q 'GHCR の版へ戻すなら' "$tmp/out" \
@@ -244,5 +244,17 @@ if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
 else
   echo "skip docker compose config（docker compose が無い）"
 fi
+
+# andon-up: <slug>-cell と前の形の andon-<slug> を1回ずつ起こす（偽の docker と HOME。本物の docker に触らない）
+up=$tmp/up && mkdir -p "$up/src" "$up/home" "$up/path"
+printf '#!/bin/sh\nexit 0\n' >"$up/path/docker" && chmod 755 "$up/path/docker"
+for d in a-cell andon-b andon-c-cell d; do
+  mkdir -p "$up/src/$d/bin"
+  printf '#!/bin/sh\necho %s >>"%s"\n' "$d" "$up/started" >"$up/src/$d/bin/bootstrap"
+  chmod 755 "$up/src/$d/bin/bootstrap"
+done
+env -i PATH="$up/path:/usr/bin:/bin" HOME="$up/home" ANDON_PLANTS="$up/src" sh "$andon_root/package/host/andon-up" >"$tmp/out" 2>&1; r=$?
+got=$(sort "$up/started" 2>/dev/null | tr '\n' ' ')
+[ "$r" = 0 ] && [ "$got" = "a-cell andon-b andon-c-cell " ] && pass "andon-up は *-cell と andon-* を1回ずつ起こす" || fail "andon-up: rc=$r 起こした: $got $(cat "$tmp/out")"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

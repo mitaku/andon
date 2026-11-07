@@ -1,5 +1,5 @@
-# 建屋 andon-<slug> に入る口（bin/bootstrap host-install が番号を埋めて ~/.ssh/config.d/ に置く）。
-# 鍵は建屋の repo の .ssh/authorized_keys に公開鍵を置く（コンテナの中で sshd が読む）。
+# セル andon-<slug> に入る口（bin/bootstrap host-install が番号を埋めて ~/.ssh/config.d/ に置く）。
+# 鍵はセルの repo の .ssh/authorized_keys に公開鍵を置く（コンテナの中で sshd が読む）。
 Host andon-<slug>
   HostName 127.0.0.1
   Port <ssh-port>

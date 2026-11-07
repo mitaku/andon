@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/andon-boot.sh — andon boot を偽の HOME・偽の建屋・偽のパッケージで2回打つ。
+# tests/andon-boot.sh — andon boot を偽の HOME・偽のセル・偽のパッケージで2回打つ。
 # 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink・信頼）が揃い、2回目で何も変わらないこと。
 # PATH には andon の置き場だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace に触らない）。
 set -u
@@ -17,7 +17,7 @@ echo '{"permissions":{"deny":["Bash(gh pr merge:*)"]}}' >"$pkg/settings.json"
 cp "$(dirname "$0")/../package/codex.rules" "$pkg/codex.rules"
 printf -- '---\nname: claude\n---\nパッケージ\n' >"$pkg/templates/claude.md"
 printf -- '---\nname: codex\n---\n`/opt/andon/skills/worker/SKILL.md` を読む\n' >"$pkg/templates/codex.md"
-printf -- '---\nname: claude\n---\n建屋\n' >"$ws/templates.local/claude.md"
+printf -- '---\nname: claude\n---\nセル\n' >"$ws/templates.local/claude.md"
 echo worker >"$pkg/skills/worker/SKILL.md"
 mkdir -p "$home/.claude/skills"
 ln -s "$pkg/skills/worker" "$home/.claude/skills/andon-worker" # 前の置き場（外れること）
@@ -38,7 +38,7 @@ snap() { (cd "$tmp" && find etc home -printf '%y %p %l %m %T@\n' | sort && find 
 boot; r=$?
 [ "$r" = 0 ] && grep -q 'ready' "$tmp/out" && [ ! -s "$tmp/err" ] && pass "andon boot は rc 0 で ready" || fail "boot: rc=$r $(cat "$tmp/out" "$tmp/err")"
 grep -q 'gh pr merge' "$managed" && pass "managed settings を生成する" || fail "managed settings: $(cat "$managed" 2>&1)"
-grep -q '建屋' "$home/.config/herdr-core/templates/claude.md" && pass "プロファイルを生成する（建屋の templates.local が勝つ）" || fail "プロファイル"
+grep -q 'セル' "$home/.config/herdr-core/templates/claude.md" && pass "プロファイルを生成する（セルの templates.local が勝つ）" || fail "プロファイル"
 [ "$(cat "$home/.claude/CLAUDE.md")" = "@$pkg/environment.md
 @$ws/AGENTS.local.md" ] && pass "CLAUDE.md は2行" || fail "CLAUDE.md: $(cat "$home/.claude/CLAUDE.md")"
 [ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
@@ -54,7 +54,7 @@ jq -e --arg w "$ws" --arg r "$repo" '.projects[$w].hasTrustDialogAccepted == tru
 trust_level = \"trusted\"
 
 [projects.\"$repo\"]
-trust_level = \"trusted\"" ] && pass "建屋の repo と ghq の repo を Claude Code・Codex で信頼済みにする" || fail "信頼: $(cat "$home/.claude/.claude.json" "$home/.codex/config.toml" 2>&1)"
+trust_level = \"trusted\"" ] && pass "セルの repo と ghq の repo を Claude Code・Codex で信頼済みにする" || fail "信頼: $(cat "$home/.claude/.claude.json" "$home/.codex/config.toml" 2>&1)"
 
 snap >"$tmp/snap1"
 boot; r=$?

@@ -134,8 +134,8 @@ type prView struct {
 	} `json:"author"`
 }
 
-// LoadTable は条件表を読む: パッケージの gate.json に、建屋の gate.local.json のキーを1つずつ置き換えて重ねる。
-// gate.local.json は建屋の repo の HEAD のもので、最後に変えたのが owner のときだけ重ねる（委譲と同じ読み方。
+// LoadTable は条件表を読む: パッケージの gate.json に、セルの gate.local.json のキーを1つずつ置き換えて重ねる。
+// gate.local.json はセルの repo の HEAD のもので、最後に変えたのが owner のときだけ重ねる（委譲と同じ読み方。
 // 信じられなければ重ねず、理由を warn に返す。repos が無くなるのでゲートは needs_human に倒れる）。
 func LoadTable(pkg, ws string) (*Table, string, error) {
 	merged := map[string]json.RawMessage{}
@@ -295,7 +295,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.Blockers = append(facts.Blockers, "base が既定ブランチでない")
 	}
 	if pv.Author.Login != strings.TrimSpace(string(actor)) {
-		facts.Blockers = append(facts.Blockers, "作者が建屋の gh アカウントでない")
+		facts.Blockers = append(facts.Blockers, "作者がセルの gh アカウントでない")
 	}
 	if pv.IsCrossRepository {
 		facts.Blockers = append(facts.Blockers, "fork の PR")

@@ -52,7 +52,7 @@ func IsDispatcher(argv []string) bool {
 }
 
 // Ensure は dispatcher の端末を確かめ、無ければ起こし、中身がシェルに替わっていれば端末を片付けて起こし直す。
-// 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd は建屋の repo。
+// 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd はセルの repo。
 // 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
 // ほかが確かめていれば ErrBusy を返す（どちらも「動いている」ではない）。
 // シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。dispatcher 専用の端末なので、
@@ -98,14 +98,14 @@ func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 	return fmt.Sprintf("dispatcher の端末（%s）の中身がシェルに替わっていたので、片付けて起こし直した", t.Address), nil
 }
 
-// hostName は建屋の名前（hostname）。建屋の台帳が2つ以上のときの Space 名に使う。テストで差し替える。
+// hostName はセルの名前（hostname）。セルの台帳が2つ以上のときの Space 名に使う。テストで差し替える。
 var hostName = os.Hostname
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
-// Place は dispatcher の置き場（herdr.space・herdr.tab のラベルの値）。ws は建屋の repo。
+// Place は dispatcher の置き場（herdr.space・herdr.tab のラベルの値）。ws はセルの repo。
 // 台帳（ws/projects/*/kanban/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
-// それ以外（2つ以上。無いときも）は建屋の名前の Space andon-<建屋の slug>-plant。tab は andon-<slug または建屋の slug>-dispatcher。
+// それ以外（2つ以上。無いときも）はセルの名前の Space andon-<セルの slug>-plant。tab は andon-<slug またはセルの slug>-dispatcher。
 // 名前は Andon の App の mod が付ける（ADR-0002 決めたこと 21）。
 func Place(ws string) (space, tab string) {
 	cfgs, _ := filepath.Glob(filepath.Join(ws, "projects", "*", "kanban", "config.yaml"))

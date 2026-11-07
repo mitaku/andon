@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# 焼くのは image/build.sh（tests/image.sh・CI・建屋の bin/bootstrap rebuild --from が同じものを打つ）。
+# 焼くのは image/build.sh（tests/image.sh・CI・セルの bin/bootstrap rebuild --from が同じものを打つ）。
 # kanban と andon は下の段で docker の中で焼く（ホストに go は要らない）。go の版は mise.toml・go.mod と揃える
 FROM golang:1.27.3-bookworm@sha256:dc0963f32053e4bc451d24d87e3892d42d01021b61f093e98eb95c0352bb84b0 AS bin
 WORKDIR /src
@@ -15,8 +15,8 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${ANDON_VERSION}" -o /out/kanban ./cmd/kanban \
  && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/andon ./cmd/andon
 
-# andon は uid・gid 1000（ubuntu の既定の利用者を外して空ける）。建屋の repo を /workspace に bind mount するので、
-# ホストの持ち主（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わない建屋は bin/bootstrap が起こす前に止める
+# andon は uid・gid 1000（ubuntu の既定の利用者を外して空ける）。セルの repo を /workspace に bind mount するので、
+# ホストの持ち主（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わないセルは bin/bootstrap が起こす前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 RUN apt-get update \
@@ -93,7 +93,7 @@ RUN case "$(dpkg --print-architecture)" in \
  && ln -s "${HOME}/.local/share/claude/versions/${CLAUDE_VERSION}" "${HOME}/.local/bin/claude" \
  && rm /tmp/claude
 
-# 建屋の compose（package/compose.yaml）が volume を重ねる置き場。先に andon の持ち物で作っておく
+# セルの compose（package/compose.yaml）が volume を重ねる置き場。先に andon の持ち物で作っておく
 # （無い場所に volume を重ねると root の持ち物になり、andon が書けない）
 RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.config/gh" "${HOME}/.config/herdr" \
       "${HOME}/.config/herdr-core" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \

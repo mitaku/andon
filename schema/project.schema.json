@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/project/1",
   "title": "Project",
-  "description": "projects/<slug>/project.json in the plant's repository: the facts machines read about one project. Written only by the person (`andon delegate` writes the delegation part). Readers read it at HEAD and trust it only when the last commit's author is the owner in andon.toml; otherwise, or when it does not pass this schema, nothing is delegated and no repository may be written (the safe side). Only these keys.",
+  "description": "projects/<slug>/project.json in the cell's repository: the facts machines read about one project. Written only by the person (`andon delegate` writes the delegation part). Readers read it at HEAD and trust it only when the last commit's author is the owner in andon.toml; otherwise, or when it does not pass this schema, nothing is delegated and no repository may be written (the safe side). Only these keys.",
   "type": "object",
   "required": [
     "version",

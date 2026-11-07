@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon create`（ADR-0004 決めたこと 1 の予約名で projects/<slug>/ を立てる）。本物の台帳の CLI（kanban）・一時の建屋の repo・偽の ghq と hc で回す。
+# `andon create`（ADR-0004 決めたこと 1 の予約名で projects/<slug>/ を立てる）。本物の台帳の CLI（kanban）・一時のセルの repo・偽の ghq と hc で回す。
 # 作る中身（kanban lint が通る・project.json が schema を通る・AGENTS.md）・commit しない・既にあれば何も変えずに止まる・役の端末で拒む・
 # 端末でなければ聞かずに slug が無いと止まる。対話の中身は go test（internal/create）が見る。本物の hc と ghq には触らない。
 set -euo pipefail
@@ -17,7 +17,7 @@ fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
 
-# 偽の建屋の repo（owner の commit が1つ）
+# 偽のセルの repo（owner の commit が1つ）
 ws=$tmp/ws
 mkdir -p "$ws/projects"
 git -C "$ws" init -q

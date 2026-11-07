@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/gate/1",
   "title": "Gate table and gate record",
-  "description": "Either a gate table (package/gate.json, or the plant's gate.local.json that replaces its keys one by one) or a gate record (tasks/<id>/library/gate/<head sha>.json, written by the dispatcher). Only these keys.",
+  "description": "Either a gate table (package/gate.json, or the cell's gate.local.json that replaces its keys one by one) or a gate record (tasks/<id>/library/gate/<head sha>.json, written by the dispatcher). Only these keys.",
   "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/record" }],
   "$defs": {
     "sha": { "description": "A full git commit id: 40 lowercase hex digits.", "type": "string", "pattern": "^[0-9a-f]{40}$" },

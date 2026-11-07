@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon dispatcher`（インナーループ。docs/dispatcher.md §5 の P6a）。本物の台帳の CLI（kanban）と git・一時の建屋の repo・偽の hc・偽の gh で回す。
+# `andon dispatcher`（インナーループ。docs/dispatcher.md §5 の P6a）。本物の台帳の CLI（kanban）と git・一時のセルの repo・偽の hc・偽の gh で回す。
 # Chief of Staff（t5）は台帳を用意したあと1つも打たず、review-request → レビュアーを起こす → レビュー → ready → ゲート →
 # マージ → finish が通ることを見る。fix は担当へ hc send、needs_human は問い（from: gate）。GitHub と本物の hc には出ない。
 # ANDON_EMIT_DIR があれば、通知・問い・ゲートの記録を写す（tests/schema.sh が schema に通す）。台帳の CLI は tests/lib/kanban.sh が焼く。
@@ -98,7 +98,7 @@ echo "dispatcher role" >> "$tmp/hc/live"
 fg_dispatcher() { echo '{"address":"dispatcher","state":"live","foreground":{"name":"andon","argv":["'"$andon"'","dispatcher"]}}' > "$tmp/hc/term-dispatcher.json"; }
 fg_dispatcher
 
-# 建屋の repo（人のもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
+# セルの repo（人のもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
 git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
@@ -210,9 +210,9 @@ kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.task.profile 
 jq -e --arg r "$rev" 'select(.id == $r and has("change") and .change.add != null) | .by == "terminal:dispatcher"' "$L/log.jsonl" >/dev/null || die 'レビュアーのタスクの作成が dispatcher でない'
 rwt=$HOME/.herdr/worktrees/app/demo-$id-r1
 [ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die 'detached worktree が head に無い'
-# 台帳（$tmp/plant/projects/demo）は建屋の git の中にあるが、レビュアーのタスクの作業場所は detached worktree（branch は無い）
+# 台帳（$tmp/plant/projects/demo）はセルの git の中にあるが、レビュアーのタスクの作業場所は detached worktree（branch は無い）
 kanban show "$rev" --json | jq -e '.task.worktree == "~/.herdr/worktrees/app/demo-'"$id"'-r1" and (.task.branch // "") == ""' >/dev/null ||
-    die "レビュアーのタスクの worktree・branch が detached worktree でない（建屋の本体を書いた）: $(kanban show "$rev" --json | jq -c '.task | {worktree, branch}')"
+    die "レビュアーのタスクの worktree・branch が detached worktree でない（セルの本体を書いた）: $(kanban show "$rev" --json | jq -c '.task | {worktree, branch}')"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(echo "$rev" | tr A-Z a-z) .*--cwd $L/tasks/$rev codex-review" "$tmp/hc/log" || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
 grep -q "hc send t7 " "$L/tasks/$rev/brief.md" && grep -q 'Chief of Staff・dispatcher へは送らない' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に宛先（担当 t7）が無い'
 grep -q "commit $head" "$L/tasks/$rev/brief.md" && ! grep -q '## Report' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
