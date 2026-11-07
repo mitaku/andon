@@ -3,9 +3,9 @@
 // Copied from herdr-flightdeck's cmd/deck at tag deck-v0.4.0 on 2026-11-05 and licensed
 // under Apache-2.0 from that day (docs/decisions.md §7, §12). The behaviour is deck-v0.4.0's;
 // only the command's name changed. deck is an alias of kanban for one version.
-// One folder per piece of work (tasks/<id>/task.yaml, brief.md, report.md, library/),
+// One folder per issue (issues/<id>/issue.yaml, brief.md, report.md, library/),
 // written under an OS file lock, atomically, and logged to log.jsonl.
-// task.yaml is edited as a YAML node tree, so a person's comments and key order stay.
+// issue.yaml is edited as a YAML node tree, so a person's comments and key order stay.
 package main
 
 import (
@@ -21,32 +21,32 @@ import (
 	"unicode/utf8"
 )
 
-const help = `kanban: a project's work ledger in kanban/ (format 2; one folder per task)
+const help = `kanban: a project's work ledger in kanban/ (format 3; one folder per issue)
 
-  kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make kanban/ (config.yaml, tasks/)
+  kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make kanban/ (config.yaml, issues/)
   kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--brief file|-]
   kanban list [--status s] [--repo r] [--all] [--json]
   kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for
   kanban show <id> [--json]
   kanban start <id> [--force] [--repo r]    doing; agent from $HC_TERMINAL_ID; branch and worktree from git
   kanban set <id> key=value …               empty value removes the key; after/links take a,b
-  kanban review <id> | kanban done <id> [--force]  done refuses a task with questions not received
+  kanban review <id> | kanban done <id> [--force]  done refuses an issue with questions not received
   kanban report <id> [--append] < file      write report.md
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
                                             scope asks the Chief of Staff which candidates to fix)
   kanban questions [--open] [--json]        open and answered questions, oldest first
   kanban answer <id>#<n> "<answer>"|-       write the person's answer (open → answered)
   kanban received <id>#<n>                  the agent has the answer (answered → received)
-  kanban lint [--json]                      tasks, questions, routines and config.yaml
-  kanban tick [--json]                      add a task for each routine whose schedule came due
-  kanban routine list [--json]              routines: trigger, last and next time, tasks not done
+  kanban lint [--json]                      issues, questions, routines and config.yaml
+  kanban tick [--json]                      add an issue for each routine whose schedule came due
+  kanban routine list [--json]              routines: trigger, last and next time, issues not done
   kanban routine run <name>                 fire a routine now (open and paused still apply)
   kanban config set chief_of_staff=<address>   set config.yaml chief_of_staff (empty value removes it)
-  kanban migrate [--root dir]               move a .flightdeck/ ledger to kanban/ (ids to <prefix>-0001; once)
+  kanban migrate [--root dir]               move a .flightdeck/ ledger to kanban/ (ids to <prefix>-0001; once; it stays format 2)
   kanban root                               print the ledger's root
   kanban --version                          print kanban's version
 
-Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A reviewer's task
+Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A reviewer's issue
 (--parent and a --profile ending in -review) is <parent>-r<k> for round k (W-0001-r1) and takes no number.
 The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
 whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
@@ -167,10 +167,13 @@ func dispatch(argv []string, cwd string, stdin io.Reader, stdout io.Writer) erro
 		}
 		// Every command but init (which checks for itself) and lint (which reports it as a
 		// problem) stops on a format it doesn't know, before it reads or writes anything else.
+		// A format 2 ledger stops lint too: it is not broken, it is to be moved by hand.
 		if argv[0] != "lint" {
 			if _, err := readConfig(e.root); err != nil {
 				return err
 			}
+		} else if isFormat2(e.root) {
+			return fail(errFormat2)
 		}
 	}
 	return cmd(e, a)
@@ -188,7 +191,7 @@ func main() {
 // initialGitignore keeps the whole ledger out of git (docs/ledger.md, .gitignore).
 const initialGitignore = "*\n"
 
-const initialConfig = `version: 2
+const initialConfig = `version: 3
 prefix: %s
 columns:
   - todo
@@ -235,7 +238,7 @@ func cmdInit(e env, a args) error {
 			return err
 		}
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "tasks"), 0o755); err != nil {
+	if err := os.MkdirAll(issuesDir(root), 0o755); err != nil {
 		return err
 	}
 	// The ledger stays out of git (ADR-0005, 5).
@@ -306,7 +309,7 @@ func cmdAdd(e env, a args) error {
 		parent := canonID(a.flags["parent"])
 		for _, ref := range append([]string{parent}, after...) {
 			if ref != "" && all[ref] == nil {
-				return fail("no task %s", ref)
+				return fail("no issue %s", ref)
 			}
 		}
 		id, err := reviewerID(a, parent, all)
@@ -350,7 +353,7 @@ func listDoc(key string, items []string) *doc {
 func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 	if parent == "" || !isReviewProfile(a.flags["profile"]) {
 		if a.has("round") {
-			return "", fail("--round is for a reviewer's task: --parent id and a --profile ending in -review")
+			return "", fail("--round is for a reviewer's issue: --parent id and a --profile ending in -review")
 		}
 		return "", nil
 	}
@@ -364,7 +367,7 @@ func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 	} else {
 		for _, x := range all {
 			if x.broken != "" {
-				return "", fail("task %s can't be read (%s); fix it, or give --round", x.id, x.broken)
+				return "", fail("issue %s can't be read (%s); fix it, or give --round", x.id, x.broken)
 			}
 			if x.d.str("parent") == parent && isReviewProfile(x.d.str("profile")) {
 				k++
@@ -376,7 +379,7 @@ func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 	}
 	id := roundID(parent, k)
 	if all[id] != nil {
-		return "", fail("task %s is already there (round %d of %s)", id, k, parent)
+		return "", fail("issue %s is already there (round %d of %s)", id, k, parent)
 	}
 	return id, checkSegment("id", id)
 }
@@ -395,7 +398,7 @@ func newTask(root string, cfg config, id, title string, fields map[string]string
 		id = formatID(cfg.prefix, n+1)
 	}
 	if exists(taskDir(root, id)) {
-		return nil, fail("task %s is already there", id)
+		return nil, fail("issue %s is already there", id)
 	}
 	at := now()
 	t := &task{id: id, d: newDoc()}
@@ -546,7 +549,7 @@ func cmdShow(e env, a args) error {
 	}
 	brief, report := read("brief.md"), read("report.md")
 	o := &omap{}
-	o.set("task", t.json())
+	o.set("issue", t.json())
 	o.set("brief", brief)
 	o.set("report", report)
 	q, qerr := readQuestions(e.root, id)
@@ -911,7 +914,7 @@ func cmdLint(e env, a args) error {
 			problems = append(problems, fmt.Sprintf("%s: parent %s, which doesn't exist", t.id, p))
 		}
 		if c := canonID(t.id); c != t.id {
-			problems = append(problems, fmt.Sprintf("%s: not written as an id is (%s), so kanban reads it as another task", t.id, c))
+			problems = append(problems, fmt.Sprintf("%s: not written as an id is (%s), so kanban reads it as another issue", t.id, c))
 		}
 		if base, _, ok := splitRound(t.id); ok {
 			if p := t.d.str("parent"); p != base {
@@ -930,7 +933,7 @@ func cmdLint(e env, a args) error {
 	o := &omap{}
 	o.set("ok", len(problems) == 0)
 	o.set("problems", problems)
-	text := fmt.Sprintf("ok (%d tasks)", len(tasks))
+	text := fmt.Sprintf("ok (%d issues)", len(tasks))
 	if len(problems) > 0 {
 		text = strings.Join(problems, "\n")
 	}

@@ -456,7 +456,7 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 	}
 	_, kerr := spawn.OutputIn(dir, nil, "", "kanban", kargs...)
 	// kanban init が作るもの（ディレクトリは先に。退けるときは逆の順）
-	made = append(made, kdir, filepath.Join(kdir, "tasks"), filepath.Join(kdir, ".gitignore"), filepath.Join(kdir, "config.yaml"))
+	made = append(made, kdir, filepath.Join(kdir, "issues"), filepath.Join(kdir, ".gitignore"), filepath.Join(kdir, "config.yaml"))
 	if kerr != nil {
 		return undo(fmt.Errorf("kanban init が落ちた: %v", kerr))
 	}

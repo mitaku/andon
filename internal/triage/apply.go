@@ -12,7 +12,7 @@ import (
 )
 
 func runApply(l *ledger, id string, maxTasks int, dry bool, now time.Time, stdout io.Writer) error {
-	b, err := os.ReadFile(filepath.Join(l.dir, "tasks", id, "library", "decisions.json"))
+	b, err := os.ReadFile(filepath.Join(l.dir, "issues", id, "library", "decisions.json"))
 	if err != nil {
 		return fail("decisions.json が無い: %s", id)
 	}
@@ -154,7 +154,7 @@ func (l *ledger) preflight(id string, items []item) error {
 			continue
 		}
 		var show struct {
-			Task task `json:"task"`
+			Task task `json:"issue"`
 		}
 		if err := json.Unmarshal([]byte(out), &show); err != nil ||
 			(show.Task.Status != "todo" && show.Task.Status != "queued") || show.Task.Agent != "" {

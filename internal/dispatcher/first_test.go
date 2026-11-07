@@ -81,7 +81,7 @@ func (f *firstFixture) round() []string {
 
 func TestFirstMessageResent(t *testing.T) {
 	f := newFirst(t)
-	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "tasks", "S-7", "brief.md")
+	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
 	send := "send t42 タスク `sample-site/S-7`。|依頼書は `" + brief + "`。"
 
 	// 信頼の画面などで止まっている間は送らない（次の見回りへ持ち越す）
@@ -207,7 +207,7 @@ func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 func TestFirstMessageReviewer(t *testing.T) {
 	f := newFirst(t)
 	f.p.tasks = []ledger.Task{{"id": "S-8", "status": "doing", "agent": "t43", "parent": "S-7", "profile": "codex-review"}}
-	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "tasks", "S-8", "brief.md")
+	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-8", "brief.md")
 	send := "send t43 タスク `sample-site/S-8`。|依頼書は `" + brief + "`。|先に `" + filepath.Join(home(), "skills", "worker", "SKILL.md") + "` を読む。"
 	if got := f.round(); len(got) != 2 || got[0] != send || got[1] != "label t43 first_message.sent=" {
 		t.Fatalf("1回目: %q", got)

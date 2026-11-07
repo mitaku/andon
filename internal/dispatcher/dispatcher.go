@@ -213,7 +213,7 @@ func (p *project) notify(task, kind string, detail map[string]any) {
 }
 
 func (p *project) reportPath(id string) string {
-	return filepath.Join(p.l.Dir, "tasks", id, "report.md")
+	return filepath.Join(p.l.Dir, "issues", id, "report.md")
 }
 
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05Z") }

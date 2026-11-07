@@ -1,21 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "kanban ledger config.yaml (format 2)",
-  "description": "The kanban/config.yaml of a ledger, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. Unknown keys are allowed (readers ignore them, writers keep them).",
+  "title": "kanban ledger config.yaml (format 3)",
+  "description": "The kanban/config.yaml of a ledger, format version 3. Derived from docs/ledger.md; where they differ, ledger.md is right. Unknown keys are allowed (readers ignore them, writers keep them).",
   "type": "object",
   "required": ["version"],
   "properties": {
     "version": {
-      "description": "Format version. Required: 2.",
+      "description": "Format version. Required: 3.",
       "type": "integer",
-      "const": 2
+      "const": 3
     },
     "title": {
       "description": "A name to show. The project's slug when absent.",
       "type": "string"
     },
     "prefix": {
-      "description": "Prefix of new task ids (<prefix>-<n>). One plain name: no /, \\ or :, and not . or ... Default W.",
+      "description": "Prefix of new issue ids (<prefix>-<n>). One plain name: no /, \\ or :, and not . or ... Default W.",
       "type": "string",
       "pattern": "^[^/\\\\:]+$",
       "not": { "enum": [".", ".."] }

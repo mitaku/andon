@@ -37,17 +37,17 @@ func checkNoLink(path string, wantFile bool) error {
 	return nil
 }
 
-// taskPath is tasks/<id>, after checking that id is one segment and that neither
-// tasks/ nor tasks/<id> is a symbolic link.
+// taskPath is issues/<id>, after checking that id is one segment and that neither
+// issues/ nor issues/<id> is a symbolic link.
 func taskPath(root, id string) (string, error) {
-	if err := checkSegment("task id", id); err != nil {
+	if err := checkSegment("issue id", id); err != nil {
 		return "", err
 	}
 	dir := taskDir(root, id)
-	if rel, err := filepath.Rel(tasksDir(root), dir); err != nil || rel != id {
-		return "", fail("task id %q is outside kanban/tasks/", id)
+	if rel, err := filepath.Rel(issuesDir(root), dir); err != nil || rel != id {
+		return "", fail("issue id %q is outside kanban/issues/", id)
 	}
-	for _, p := range []string{tasksDir(root), dir} {
+	for _, p := range []string{issuesDir(root), dir} {
 		if err := checkNoLink(p, false); err != nil {
 			return "", err
 		}

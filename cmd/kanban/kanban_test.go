@@ -51,7 +51,7 @@ func TestLockRefusesOldNodeLockFolder(t *testing.T) {
 }
 
 func TestWriteAtomicReplaces(t *testing.T) {
-	file := filepath.Join(t.TempDir(), "task.yaml")
+	file := filepath.Join(t.TempDir(), "issue.yaml")
 	for _, s := range []string{"a: 1\n", "a: 2\n"} {
 		if err := writeAtomic(file, []byte(s)); err != nil {
 			t.Fatal(err)
@@ -191,11 +191,11 @@ func TestPrefixThatLeavesTasksIsRefused(t *testing.T) {
 	root := ledger(t)
 	outside := filepath.Join(filepath.Dir(root), "escape")
 	for _, prefix := range []string{"../../../escape", `..\..\..\escape`, "a/b", "..", "C:x"} {
-		os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 2\nprefix: '"+prefix+"'\n"), 0o644)
+		os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\nprefix: '"+prefix+"'\n"), 0o644)
 		deckFails(t, root, "", "add", "x")
 	}
 	matches, _ := filepath.Glob(outside + "*")
-	entries, _ := os.ReadDir(tasksDir(root))
+	entries, _ := os.ReadDir(issuesDir(root))
 	if len(matches) != 0 || len(entries) != 1 {
 		t.Fatalf("written outside %v, tasks %d", matches, len(entries))
 	}
@@ -204,8 +204,8 @@ func TestPrefixThatLeavesTasksIsRefused(t *testing.T) {
 
 func TestIDThatLeavesTasksIsRefused(t *testing.T) {
 	root := ledger(t)
-	// A task.yaml one level up from tasks/, which "../" ids would reach.
-	sentinel := filepath.Join(root, "kanban", "task.yaml")
+	// An issue.yaml one level up from issues/, which "../" ids would reach.
+	sentinel := filepath.Join(root, "kanban", "issue.yaml")
 	os.WriteFile(sentinel, []byte("title: sentinel\n"), 0o644)
 	abs := filepath.Join(root, "kanban")
 	for _, id := range []string{"..", "../", "../W-0001", `..\W-0001`, `W-0001\..\..`, abs, "/tmp", "C:W-0001"} {
@@ -250,13 +250,13 @@ func assertUnchanged(t *testing.T, path, want string) {
 func TestTaskFolderLinkIsRefused(t *testing.T) {
 	root := ledger(t)
 	outDir := t.TempDir()
-	os.WriteFile(filepath.Join(outDir, "task.yaml"), []byte("title: outside\n"), 0o644)
-	symlink(t, outDir, filepath.Join(tasksDir(root), "escape"))
+	os.WriteFile(filepath.Join(outDir, "issue.yaml"), []byte("title: outside\n"), 0o644)
+	symlink(t, outDir, filepath.Join(issuesDir(root), "escape"))
 	deckFails(t, root, "", "set", "escape", "title=x")
 	deckFails(t, root, "", "start", "escape")
 	deckFails(t, root, "", "done", "escape")
 	deckFails(t, root, "r", "report", "escape")
-	assertUnchanged(t, filepath.Join(outDir, "task.yaml"), "title: outside\n")
+	assertUnchanged(t, filepath.Join(outDir, "issue.yaml"), "title: outside\n")
 	if exists(filepath.Join(outDir, "report.md")) {
 		t.Fatal("report written through the link")
 	}
@@ -286,7 +286,7 @@ func TestLogLinkIsRefused(t *testing.T) {
 
 func TestTaskFileLinkIsRefused(t *testing.T) {
 	root := ledger(t)
-	out := sentinelFile(t, "task.yaml", "title: outside\n")
+	out := sentinelFile(t, "issue.yaml", "title: outside\n")
 	os.Remove(taskFile(root, "W-0001"))
 	symlink(t, out, taskFile(root, "W-0001"))
 	deckFails(t, root, "", "set", "W-0001", "title=x")
@@ -325,7 +325,7 @@ func TestOtherFormatVersionsAreRefused(t *testing.T) {
 	logFile := filepath.Join(root, "kanban", "log.jsonl")
 	before, _ := os.ReadFile(taskFile(root, "W-0001"))
 	logBefore, _ := os.ReadFile(logFile)
-	for _, cfg := range []string{"prefix: W\nprojects:\n  app: projects/app\n", "version: 1\n", "version: 3\n", "version: [2]\n"} {
+	for _, cfg := range []string{"prefix: W\nprojects:\n  app: projects/app\n", "version: 1\n", "version: 4\n", "version: [2]\n"} {
 		os.WriteFile(cfgFile, []byte(cfg), 0o644)
 		msg := deckFails(t, root, "", "add", "x")
 		deckFails(t, root, "", "set", "W-0001", "title=y")
@@ -336,7 +336,7 @@ func TestOtherFormatVersionsAreRefused(t *testing.T) {
 	}
 	assertUnchanged(t, taskFile(root, "W-0001"), string(before))
 	assertUnchanged(t, logFile, string(logBefore))
-	if entries, _ := os.ReadDir(tasksDir(root)); len(entries) != 1 {
+	if entries, _ := os.ReadDir(issuesDir(root)); len(entries) != 1 {
 		t.Fatalf("%d tasks", len(entries))
 	}
 }
@@ -391,13 +391,13 @@ func TestRepoAndProfile(t *testing.T) {
 
 // v1 and unknown versions are refused by every command, before anything is read or made.
 func TestOtherVersionsAreRefusedByEveryCommand(t *testing.T) {
-	for _, cfg := range []string{"prefix: W\nprojects: {}\n", "version: 1\n", "version: 3\n"} {
+	for _, cfg := range []string{"prefix: W\nprojects: {}\n", "version: 1\n", "version: 4\n"} {
 		root := t.TempDir()
 		t.Setenv("KANBAN_ROOT", root)
 		fd := filepath.Join(root, "kanban")
-		os.MkdirAll(filepath.Join(fd, "tasks", "W-0001"), 0o755)
+		os.MkdirAll(filepath.Join(fd, "issues", "W-0001"), 0o755)
 		os.WriteFile(filepath.Join(fd, "config.yaml"), []byte(cfg), 0o644)
-		os.WriteFile(filepath.Join(fd, "tasks", "W-0001", "task.yaml"), []byte("id: W-0001\ntitle: old\nstatus: todo\n"), 0o644)
+		os.WriteFile(filepath.Join(fd, "issues", "W-0001", "issue.yaml"), []byte("id: W-0001\ntitle: old\nstatus: todo\n"), 0o644)
 		deckFails(t, root, "text\n", "report", "W-0001")
 		deckFails(t, root, "text\n", "report", "W-0001", "--append")
 		deckFails(t, root, "", "root")
@@ -405,7 +405,7 @@ func TestOtherVersionsAreRefusedByEveryCommand(t *testing.T) {
 		deckFails(t, root, "", "init", "--root", root)
 		deckFails(t, root, "", "config", "set", "chief_of_staff=t9")
 		assertUnchanged(t, filepath.Join(fd, "config.yaml"), cfg)
-		for _, made := range []string{"log.jsonl", ".lock", ".gitignore", filepath.Join("tasks", "W-0001", "report.md")} {
+		for _, made := range []string{"log.jsonl", ".lock", ".gitignore", filepath.Join("issues", "W-0001", "report.md")} {
 			if exists(filepath.Join(fd, made)) {
 				t.Errorf("%q: %s was made", cfg, made)
 			}
@@ -439,7 +439,7 @@ func TestReposMustBeHostOwnerRepo(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "root")
 	kanban(t, t.TempDir(), "init", "--root", root, "--repo", "github.com/x/app")
 	t.Setenv("KANBAN_ROOT", root)
-	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 2\nrepos: [github.com/x/app, github.com/x/lib/, x/app]\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\nrepos: [github.com/x/app, github.com/x/lib/, x/app]\n"), 0o644)
 	deckFails(t, root, "", "add", "x", "--repo", "github.com/x/lib/")
 	deckFails(t, root, "", "add", "x", "--repo", "x/app")
 	kanban(t, root, "add", "ok", "--repo", "github.com/x/app")
@@ -476,17 +476,17 @@ func TestWhoGoesBetweenProfileAndAgent(t *testing.T) {
 func TestConfigSetCoordinator(t *testing.T) {
 	root := ledger(t)
 	file := filepath.Join(root, "kanban", "config.yaml")
-	os.WriteFile(file, []byte("# by hand\nversion: 2\ntitle: App # shown\nchief_of_staff: t1 # the lead\nprefix: W\nmine: kept\n"), 0o644)
+	os.WriteFile(file, []byte("# by hand\nversion: 3\ntitle: App # shown\nchief_of_staff: t1 # the lead\nprefix: W\nmine: kept\n"), 0o644)
 	if out := kanban(t, root, "config", "set", "chief_of_staff=t7"); out != "chief_of_staff: t7\n" {
 		t.Fatalf("out %q", out)
 	}
-	assertUnchanged(t, file, "# by hand\nversion: 2\ntitle: App # shown\nchief_of_staff: t7 # the lead\nprefix: W\nmine: kept\n")
+	assertUnchanged(t, file, "# by hand\nversion: 3\ntitle: App # shown\nchief_of_staff: t7 # the lead\nprefix: W\nmine: kept\n")
 	kanban(t, root, "config", "set", "chief_of_staff=")
-	assertUnchanged(t, file, "# by hand\nversion: 2\ntitle: App # shown\nprefix: W\nmine: kept\n")
+	assertUnchanged(t, file, "# by hand\nversion: 3\ntitle: App # shown\nprefix: W\nmine: kept\n")
 	if out := kanban(t, root, "config", "set", "chief_of_staff=t8", "--json"); !strings.Contains(out, `"chief_of_staff": "t8"`) {
 		t.Fatalf("json %q", out)
 	}
-	assertUnchanged(t, file, "# by hand\nversion: 2\ntitle: App # shown\nprefix: W\nmine: kept\nchief_of_staff: t8\n")
+	assertUnchanged(t, file, "# by hand\nversion: 3\ntitle: App # shown\nprefix: W\nmine: kept\nchief_of_staff: t8\n")
 	if cfg, err := readConfig(root); err != nil || cfg.prefix != "W" {
 		t.Fatalf("cfg %+v, err %v", cfg, err)
 	}
@@ -499,17 +499,17 @@ func TestConfigSetCoordinator(t *testing.T) {
 	for _, bad := range [][]string{{"config"}, {"config", "set"}, {"config", "set", "prefix=X"}, {"config", "set", "chief_of_staff"}, {"config", "get", "chief_of_staff=t1"}} {
 		deckFails(t, root, "", bad...)
 	}
-	assertUnchanged(t, file, "# by hand\nversion: 2\ntitle: App # shown\nprefix: W\nmine: kept\nchief_of_staff: t8\n")
+	assertUnchanged(t, file, "# by hand\nversion: 3\ntitle: App # shown\nprefix: W\nmine: kept\nchief_of_staff: t8\n")
 }
 
 func TestConfigLinkIsRefused(t *testing.T) {
 	root := ledger(t)
 	file := filepath.Join(root, "kanban", "config.yaml")
-	real := sentinelFile(t, "config.yaml", "version: 2\n")
+	real := sentinelFile(t, "config.yaml", "version: 3\n")
 	os.Remove(file)
 	symlink(t, real, file)
 	deckFails(t, root, "", "config", "set", "chief_of_staff=t7")
-	assertUnchanged(t, real, "version: 2\n")
+	assertUnchanged(t, real, "version: 3\n")
 }
 
 // A reviewer's task (--parent and a *-review profile) is <parent>-r<k> and takes no number from the sequence.
@@ -617,7 +617,7 @@ func TestLintChecksIDsAreWrittenCanonically(t *testing.T) {
 	}
 }
 
-// A task.yaml that can't be read stops a reviewer's add without --round (it can't be counted), with a line, not a panic.
+// An issue.yaml that can't be read stops a reviewer's add without --round (it can't be counted), with a line, not a panic.
 func TestReviewerAddWithABrokenTask(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("KANBAN_ROOT", root)
@@ -625,7 +625,7 @@ func TestReviewerAddWithABrokenTask(t *testing.T) {
 	kanban(t, root, "add", "work")
 	kanban(t, root, "add", "other")
 	put(t, taskFile(root, "A-0002"), "- not a mapping\n")
-	if msg := deckFails(t, root, "", "add", "review", "--parent", "A-0001", "--profile", "codex-review"); !strings.Contains(msg, "task A-0002 can't be read") {
+	if msg := deckFails(t, root, "", "add", "review", "--parent", "A-0001", "--profile", "codex-review"); !strings.Contains(msg, "issue A-0002 can't be read") {
 		t.Fatalf("message: %q", msg)
 	}
 	if got := kanban(t, root, "add", "review", "--parent", "A-0001", "--profile", "codex-review", "--round", "1"); got != "A-0001-r1\n" {

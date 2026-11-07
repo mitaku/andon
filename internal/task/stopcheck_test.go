@@ -13,14 +13,14 @@ func (f *fixture) stopCheck(log ...map[string]any) string {
 		f.t.Setenv("XDG_STATE_HOME", f.t.TempDir())
 		f.state = true
 	}
-	f.write("show-T-0001.json", js(map[string]any{"task": f.task}))
+	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 	list := []any{f.task}
 	rows := js(map[string]any{"by": "terminal:t9", "id": "T-0001", "change": map[string]any{"status": "doing"}}) + "\n"
 	if f.reviewer != nil {
 		list = append(list, f.reviewer)
 		rows += js(map[string]any{"by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}) + "\n"
 		if f.findings != "" {
-			f.write("kanban/tasks/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
+			f.write("kanban/issues/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
 		}
 	}
 	for _, r := range log {
@@ -29,7 +29,7 @@ func (f *fixture) stopCheck(log ...map[string]any) string {
 	f.write("list.json", js(list))
 	f.write("kanban/log.jsonl", rows)
 	if f.report != "" {
-		f.write("kanban/tasks/T-0001/library/report.json", f.report)
+		f.write("kanban/issues/T-0001/library/report.json", f.report)
 	}
 	var out, errb bytes.Buffer
 	if rc := stopCheck([]string{"T-0001"}, strings.NewReader(`{"stop_hook_active":false}`), &out, &errb); rc != 0 {

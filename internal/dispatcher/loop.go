@@ -51,7 +51,7 @@ func (p *project) reviewRequest(t ledger.Task, rep *contract.Report) {
 	r.Row = row
 	if r.ReviewerTask == "" {
 		if a, ok := Adopt(p.tasks, id, rr.Commit, func(rev string) string {
-			b, _ := os.ReadFile(filepath.Join(p.l.Dir, "tasks", rev, "brief.md"))
+			b, _ := os.ReadFile(filepath.Join(p.l.Dir, "issues", rev, "brief.md"))
 			return string(b)
 		}, func(rev string) (string, int, bool) { return liveTask(p.l.Slug, rev) }); ok {
 			r.ReviewerTask, r.Address, r.Started = a.ReviewerTask, a.Address, a.Started
@@ -218,7 +218,7 @@ func (p *project) reviewerWorktree(t ledger.Task, round int) string {
 
 // startLedger はレビュアーのタスクを doing にし、agent を端末 addr にする（kanban start）。
 // 打つ cwd はレビュアーの detached worktree wt: kanban start は cwd の checkout を worktree に、branch を書く
-// （detached なので branch は書かない）。台帳の tasks/<子>/ で打つと、台帳が git の中にあるセルでは
+// （detached なので branch は書かない）。台帳の issues/<子>/ で打つと、台帳が git の中にあるセルでは
 // 台帳を包む checkout（セルの本体）が worktree・branch として書かれる。
 func (p *project) startLedger(rev, addr, wt string) error {
 	if wt == "" {
@@ -237,9 +237,9 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 	r.Repo = t.Str("repo")
 	switch {
 	case s.Review != "on" || !p.l.Trusted(p.rows, t, "review"):
-		return "task.yaml の review が on でない、または最後に書いたのが Chief of Staff でない", true
+		return "issue.yaml の review が on でない、または最後に書いたのが Chief of Staff でない", true
 	case !p.trusted(t, "reviewer") || !p.trusted(t, "review_rounds"):
-		return "task.yaml の reviewer・review_rounds を最後に書いたのが Chief of Staff でない", true
+		return "issue.yaml の reviewer・review_rounds を最後に書いたのが Chief of Staff でない", true
 	case rr.Round > limit:
 		// review_request.extra は頼んだ時点の上限で数えたもの。起こすかは今の review_rounds（Chief of Staff が上げれば起こす）
 		return fmt.Sprintf("追加の回（%d 回目／上限 %d）。起こすかは Chief of Staff が決める（review_rounds を上げれば起こす）", rr.Round, limit), true
@@ -249,7 +249,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 	case !ok:
 		return "report.json に pr が無い・形が違う", true
 	case r.Repo != "github.com/"+owner+"/"+name:
-		return fmt.Sprintf("task.yaml の repo（%s）と PR の repo（%s/%s）が違う", r.Repo, owner, name), true
+		return fmt.Sprintf("issue.yaml の repo（%s）と PR の repo（%s/%s）が違う", r.Repo, owner, name), true
 	case !slices.Contains(p.l.Repos(), r.Repo):
 		return "台帳の config.yaml の repos にこの repo が無い", true
 	}
@@ -295,7 +295,7 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 	if !nameRe.MatchString(term) {
 		return fmt.Sprintf("端末の名前 %s が hc の決まりに合わない（%s は todo のまま残る）", term, rev), true
 	}
-	cwd := filepath.Join(p.l.Dir, "tasks", rev)
+	cwd := filepath.Join(p.l.Dir, "issues", rev)
 	msg := p.reviewerFirst(rev)
 
 	// 3. 端末（起こした端末が生きていれば起こし直さない）
@@ -351,10 +351,10 @@ func (p *project) startReviewer(t ledger.Task, rep *contract.Report, r *Reviewer
 // reviewerFirst はレビュアーのタスク rev の最初のメッセージ（起こすときと、届かなかったのを sendFirst が送り直すときで同じ文）。
 func (p *project) reviewerFirst(rev string) string {
 	return fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
-		p.l.Slug, rev, filepath.Join(p.l.Dir, "tasks", rev, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md"))
+		p.l.Slug, rev, filepath.Join(p.l.Dir, "issues", rev, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md"))
 }
 
-// workerPlace は担当の端末（task.yaml の agent）のラベル herdr.space・herdr.tab を "k=v" で返す。レビュアーに同じ値を付け、
+// workerPlace は担当の端末（issue.yaml の agent）のラベル herdr.space・herdr.tab を "k=v" で返す。レビュアーに同じ値を付け、
 // 人の Herdr App で担当と同じ Space・tab に並べる（ADR-0002 決めたこと 12・ADR-0003）。読めなければ（端末が無い・ラベルが無い）付けない。
 func workerPlace(agent string) []string {
 	if agent == "" {
@@ -377,7 +377,7 @@ func workerPlace(agent string) []string {
 }
 
 // reviewerBrief はレビュアーの依頼書（independent-review skill の §4 の型）。plan と担当の報告は見せない。
-// 結果の宛先は元のタスクの担当（task.yaml の agent）に固定する。Chief of Staff へは送らない（dispatcher が届ける）。
+// 結果の宛先は元のタスクの担当（issue.yaml の agent）に固定する。Chief of Staff へは送らない（dispatcher が届ける）。
 func reviewerBrief(l *ledger.Ledger, t ledger.Task, rep *contract.Report, r Reviewer, repo, number string) string {
 	rr := rep.ReviewRequest
 	agent := t.Str("agent")
@@ -388,7 +388,7 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Task, rep *contract.Report, r Revi
 	if rr.Previous != nil {
 		fmt.Fprintf(&b, "再レビュー: 前の回の commit %s。見るのは `git diff %s..%s` だけ。前の回に「問題なし」の観点はやり直さない。\n", *rr.Previous, *rr.Previous, rr.Commit)
 	}
-	fmt.Fprintf(&b, "仕様の正: 元のタスクの依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n\n", filepath.Join(l.Dir, "tasks", r.Task, "brief.md"))
+	fmt.Fprintf(&b, "仕様の正: 元のタスクの依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n\n", filepath.Join(l.Dir, "issues", r.Task, "brief.md"))
 	b.WriteString("見てほしいこと（重い順）:\n" +
 		"1. この PR で一番怖いところ（外向きの面・壊すと戻せないもの）\n" +
 		"2. 正しさ: 並行性・失敗の波及・境界\n" +
@@ -408,7 +408,7 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Task, rep *contract.Report, r Revi
 	if agent != "" {
 		fmt.Fprintf(&b, "`hc send %s \"<自分の id>（%s のレビュー %d 回目）: commit %s。報告は <自分の report.md のパス>\"`\n", agent, r.Task, r.Round, rr.Commit)
 	}
-	fmt.Fprintf(&b, "宛先は %s の task.yaml の agent（`deck show %s --json` の .task.agent。起こした時点では %s）。", r.Task, r.Task, orNone(agent))
+	fmt.Fprintf(&b, "宛先は %s の issue.yaml の agent（`deck show %s --json` の .issue.agent。起こした時点では %s）。", r.Task, r.Task, orNone(agent))
 	b.WriteString("Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。\n")
 	return b.String()
 }
@@ -570,7 +570,7 @@ func (p *project) approve(t ledger.Task, rep *contract.Report, res gateResult, r
 		stop(fmt.Sprintf("ゲートが判定した PR（%s）と report.json の pr（%s）が違う", res.PR, rep.PR))
 		return false
 	case "github.com/"+owner+"/"+name != t.Str("repo"):
-		stop(fmt.Sprintf("ゲートが判定した PR の repo が task.yaml の repo（%s）と違う", t.Str("repo")))
+		stop(fmt.Sprintf("ゲートが判定した PR の repo が issue.yaml の repo（%s）と違う", t.Str("repo")))
 		return false
 	}
 	slug := owner + "/" + name
@@ -638,7 +638,7 @@ func Authorized(before, now ledger.Settings, status string, trusted bool, gateMe
 	case status != "review":
 		return false, fmt.Sprintf("タスクが review でなくなった（%s）", status)
 	case now != before:
-		return false, "task.yaml の予約キーがゲートのあとに変わった"
+		return false, "issue.yaml の予約キーがゲートのあとに変わった"
 	case now.Merge != "auto" || !trusted:
 		return false, "merge: auto でない、または予約キーを最後に書いたのが Chief of Staff でない"
 	case nowMerge != gateMerge:

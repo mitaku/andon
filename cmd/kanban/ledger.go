@@ -286,7 +286,11 @@ func lockIn(dir string, wait time.Duration, fn func() error) error {
 }
 
 // formatVersion is the ledger format kanban reads and writes (docs/ledger.md).
-const formatVersion = 2
+const formatVersion = 3
+
+// errFormat2 is the one line every command stops with on a format 2 ledger (tasks/, task.yaml):
+// there is no migration and nothing reads it (docs/ledger.md, Changes from version 2).
+const errFormat2 = "config.yaml is format 2; move it by hand (docs/operate.md)"
 
 type config struct {
 	prefix   string
@@ -307,7 +311,17 @@ func readDoc(file string) (*doc, error) {
 	return parseDoc(data)
 }
 
-// readConfig reads config.yaml and stops on any version but 2 (none means 1).
+// isFormat2: root's config.yaml says version 2.
+func isFormat2(root string) bool {
+	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
+	if err != nil {
+		return false
+	}
+	v := d.get("version")
+	return isInt(v) && v.Value == "2"
+}
+
+// readConfig reads config.yaml and stops on any version but 3 (none means 1).
 // title and chief_of_staff are kept in the file; kanban itself doesn't use them.
 func readConfig(root string) (config, error) {
 	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
@@ -319,7 +333,9 @@ func readConfig(root string) (config, error) {
 	}
 	switch v := d.get("version"); {
 	case isNull(v):
-		return config{}, fail("config.yaml has no version, so it is format 1; this kanban reads format %d only (docs/ledger.md: move the tasks by hand)", formatVersion)
+		return config{}, fail("config.yaml has no version, so it is format 1; this kanban reads format %d only (docs/ledger.md: move the issues by hand)", formatVersion)
+	case isInt(v) && v.Value == "2":
+		return config{}, fail(errFormat2)
 	case !isInt(v) || v.Value != strconv.Itoa(formatVersion):
 		return config{}, fail("config.yaml is format version %s; this kanban reads format %d only", v.Value, formatVersion)
 	}
@@ -333,9 +349,12 @@ func readConfig(root string) (config, error) {
 	return c, nil
 }
 
-func tasksDir(root string) string     { return filepath.Join(ledgerDir(root), "tasks") }
-func taskDir(root, id string) string  { return filepath.Join(tasksDir(root), id) }
-func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), "task.yaml") }
+// issueFileName is each issue's own file, issues/<id>/issue.yaml.
+const issueFileName = "issue.yaml"
+
+func issuesDir(root string) string    { return filepath.Join(ledgerDir(root), "issues") }
+func taskDir(root, id string) string  { return filepath.Join(issuesDir(root), id) }
+func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), issueFileName) }
 
 // numberOf is the number of a task's id: 5 for A-0005, and for a reviewer's A-0005-r1 too (its parent's).
 func numberOf(id string) int {
@@ -405,7 +424,7 @@ func canonIDs(ids []string) []string {
 }
 
 func ids(root string) []string {
-	entries, err := os.ReadDir(tasksDir(root))
+	entries, err := os.ReadDir(issuesDir(root))
 	if err != nil {
 		return nil
 	}
@@ -423,14 +442,14 @@ func ids(root string) []string {
 		_, ra, _ := splitRound(out[i])
 		_, rb, _ := splitRound(out[j])
 		if ra != rb {
-			return ra < rb // a reviewer's tasks right after their parent, in round order
+			return ra < rb // a reviewer's issues right after their parent, in round order
 		}
 		return out[i] < out[j]
 	})
 	return out
 }
 
-// task is one tasks/<id>/task.yaml. Its id is the folder's name.
+// task is one issue, issues/<id>/issue.yaml. Its id is the folder's name.
 type task struct {
 	id     string
 	d      *doc
@@ -446,14 +465,14 @@ func readTask(root, id string) (*task, error) {
 	if err != nil {
 		return nil, err
 	}
-	file := filepath.Join(dir, "task.yaml")
+	file := filepath.Join(dir, issueFileName)
 	if !exists(file) {
-		return nil, fail("no task %s", id)
+		return nil, fail("no issue %s", id)
 	}
 	d, err := readDoc(file)
 	if err != nil {
 		if err.Error() == "not a mapping" {
-			return nil, fail("%s/task.yaml is not a mapping", id)
+			return nil, fail("%s/%s is not a mapping", id, issueFileName)
 		}
 		return nil, err
 	}
@@ -493,7 +512,7 @@ func writeTask(root string, t *task) error {
 	if t.d.str("id") != t.id {
 		t.d.setStr("id", t.id)
 	}
-	return writeAtomic(filepath.Join(dir, "task.yaml"), t.d.encode())
+	return writeAtomic(filepath.Join(dir, issueFileName), t.d.encode())
 }
 
 // json is the task as plain values (file order), with id set to the folder's name.

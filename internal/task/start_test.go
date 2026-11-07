@@ -52,15 +52,15 @@ func newStart(t *testing.T) *startFixture {
 	bin := filepath.Join(dir, "bin")
 	f := &startFixture{t: t, root: filepath.Join(dir, "projects", "sample-site"), log: filepath.Join(dir, "log"),
 		repoDir: filepath.Join(dir, "ghq", "github.com", "example", "sample-site"), home: filepath.Join(dir, "home")}
-	for _, d := range []string{bin, filepath.Join(f.root, "kanban", "tasks", "S-0007")} {
+	for _, d := range []string{bin, filepath.Join(f.root, "kanban", "issues", "S-0007")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(startKanban), 0o755)
 	os.WriteFile(filepath.Join(bin, "hc"), []byte(startHc), 0o755)
-	os.WriteFile(filepath.Join(f.root, "kanban", "tasks", "S-0007", "brief.md"), []byte("# 題\n"), 0o644)
-	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 2\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# 題\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t5\n"), 0o644)
 	origin := filepath.Join(dir, "origin.git")
 	gitT(t, "", "init", "-q", "--bare", "-b", "main", origin)
 	gitT(t, "", "clone", "-q", origin, f.repoDir)
@@ -102,7 +102,7 @@ func gitT(t *testing.T, dir string, args ...string) {
 
 func (f *startFixture) run() (int, string, string) {
 	f.t.Helper()
-	b := js(map[string]any{"task": f.task})
+	b := js(map[string]any{"issue": f.task})
 	if err := os.WriteFile(filepath.Join(f.root, "show-S-0007.json"), []byte(b), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestStart(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.wt(), ".git")); err != nil || !strings.Contains(f.branches(), "sample-site/S-0007-add-the-button") {
 		t.Errorf("worktree か branch が無い: %v %q", err, f.branches())
 	}
-	brief := filepath.Join(f.root, "kanban", "tasks", "S-0007", "brief.md")
+	brief := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
 	want := []string{
 		"kanban root",
 		"kanban show S-0007 --json",
@@ -202,7 +202,7 @@ func TestStartWithoutRepo(t *testing.T) {
 	f := newStart(t)
 	delete(f.task, "repo")
 	rc, out, errs := f.run()
-	cwd := filepath.Join(f.root, "kanban", "tasks", "S-0007")
+	cwd := filepath.Join(f.root, "kanban", "issues", "S-0007")
 	if rc != 0 || errs != "" || !strings.Contains(out, "cwd "+cwd) || strings.Contains(out, "branch") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
@@ -223,7 +223,7 @@ func TestStartRefuses(t *testing.T) {
 		{"no profile", "S-0007 に profile が無い", func(f *startFixture) { delete(f.task, "profile") }},
 		{"option profile", "profile が不正", func(f *startFixture) { f.task["profile"] = "--help" }},
 		{"no brief", "依頼書（brief.md）が無い", func(f *startFixture) {
-			os.Remove(filepath.Join(f.root, "kanban", "tasks", "S-0007", "brief.md"))
+			os.Remove(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"))
 		}},
 		{"no template", "プロファイル fable の template が無い", func(f *startFixture) { f.task["profile"] = "fable" }},
 		{"live name", "端末 sample-site-s-0007 がもう動いている", func(f *startFixture) {

@@ -53,7 +53,7 @@ kanban config set chief_of_staff=t5 >/dev/null
 as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # 台帳の by を選ぶ（t5 が Chief of Staff、t7 が担当）
 id=$(as t5 kanban add 'andon task を足す' --profile claude)
 as t5 kanban set "$id" review=on must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
-lib=kanban/tasks/$id/library
+lib=kanban/issues/$id/library
 pr=https://github.com/example/app/pull/7
 export HC_TERMINAL_ID=t7
 
@@ -67,7 +67,7 @@ expect_fail 'next は' "$andon" task report "$id" --data '{"next":[{"to":"human"
 ok 'report: --data の知らないキー・command のキー・知らない宛先は書く前に止まる'
 "$andon" task report "$id" --pr "$pr" --data '{"next":[{"to":"chief-of-staff","text":"マージ後に片付ける"}],"remember":["x"]}' <<<'## Report' >/dev/null
 jq -e --arg c "$c1" --arg pr "$pr" '.commit == $c and .pr == $pr and .next[0].to == "chief-of-staff" and (has("review_request") | not)' "$lib/report.json" >/dev/null
-grep -q '## Report' "kanban/tasks/$id/report.md"
+grep -q '## Report' "kanban/issues/$id/report.md"
 emit "$lib/report.json" report-1.json
 ok 'report: commit は HEAD、pr と --data を書き、台帳に報告する'
 "$andon" task report "$id" <<<'## Report' >/dev/null
@@ -77,7 +77,7 @@ ok 'report: --pr を省くと前の pr を引き継ぎ、ほかは書き直す'
 # review-request（1 回目）
 "$andon" task review-request "$id" <<<'## Report' >/dev/null
 jq -e --arg c "$c1" '.review_request == {round: 1, limit: 2, commit: $c, previous: null, reviewer: "codex-review", extra: false}' "$lib/report.json" >/dev/null
-head -2 "kanban/tasks/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
+head -2 "kanban/issues/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
 emit "$lib/report.json" report-review-request.json
 ok 'review-request: 1 回目・前回 null・reviewer は実装と別ブランド・人用の行を先頭に'
 
@@ -87,8 +87,8 @@ ok 'ready: レビューが無ければ止まる'
 
 # レビュアー（Chief of Staff が足す）。commit c1 を見た
 rev=$(as t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
-mkdir -p "kanban/tasks/$rev/library"
-jq -n --arg c "$c1" '{commit: $c, findings: [{severity: "minor", file: "f", line: 1}]}' > "kanban/tasks/$rev/library/findings.json"
+mkdir -p "kanban/issues/$rev/library"
+jq -n --arg c "$c1" '{commit: $c, findings: [{severity: "minor", file: "f", line: 1}]}' > "kanban/issues/$rev/library/findings.json"
 as t5 kanban review "$rev" >/dev/null
 
 # HEAD を進める（直した）。report.json の commit は古い
@@ -109,20 +109,20 @@ ok 'review-request: 2 回目・previous は前のレビューの commit'
 
 # 担当が自分で足した子タスクは数えない
 fake=$(kanban add "$id の自作レビュー" --parent "$id" --profile codex-review)
-mkdir -p "kanban/tasks/$fake/library"
-jq -n --arg c "$c2" '{commit: $c, findings: []}' > "kanban/tasks/$fake/library/findings.json"
+mkdir -p "kanban/issues/$fake/library"
+jq -n --arg c "$c2" '{commit: $c, findings: []}' > "kanban/issues/$fake/library/findings.json"
 kanban review "$fake" >/dev/null
 expect_fail 'レビューが stale' "$andon" task ready "$id"
 ok 'ready: Chief of Staff が足していないレビューは数えない'
 
 # 形の壊れた findings.json は missing
 rev2=$(as t5 kanban add "$id のレビュー 2" --parent "$id" --profile codex-review)
-mkdir -p "kanban/tasks/$rev2/library"
-jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "Major", file: "f", line: 1}]}' > "kanban/tasks/$rev2/library/findings.json"
+mkdir -p "kanban/issues/$rev2/library"
+jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "Major", file: "f", line: 1}]}' > "kanban/issues/$rev2/library/findings.json"
 as t5 kanban review "$rev2" >/dev/null
 expect_fail 'findings.json が無い・形が違う' "$andon" task ready "$id"
 ok 'ready: findings.json の形が違えば missing'
-jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line: 2}]}' > "kanban/tasks/$rev2/library/findings.json"
+jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line: 2}]}' > "kanban/issues/$rev2/library/findings.json"
 
 # HEAD のレビューがもうあれば頼まない
 expect_fail 'レビューはもうある' "$andon" task review-request "$id" <<<'## Report'
@@ -148,7 +148,7 @@ ok 'show: 予約キー（既定で埋める）・report.json・レビューの�
 
 # ready の正
 "$andon" task ready "$id" >/dev/null
-[ "$(kanban show "$id" --json | jq -r .task.status)" = review ]
+[ "$(kanban show "$id" --json | jq -r .issue.status)" = review ]
 ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で review にする'
 
 # review: off なら照合しない。review が無ければ止まる
@@ -162,13 +162,13 @@ id3=$(as t5 kanban add 'Settings 無し')
 as t5 kanban set "$id3" "worktree=$tmp/wt" repo=github.com/example/app review_rounds=1 >/dev/null
 "$andon" task report "$id3" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on/off でない' "$andon" task ready "$id3"
-ok 'ready: task.yaml の review が無ければ止まる'
+ok 'ready: issue.yaml の review が無ければ止まる'
 as t5 kanban set "$id3" review=on >/dev/null
 r3=$(as t5 kanban add "$id3 のレビュー" --parent "$id3" --profile codex-review)
-mkdir -p "kanban/tasks/$r3/library"; jq -n --arg c "$c1" '{commit: $c, findings: []}' > "kanban/tasks/$r3/library/findings.json"
+mkdir -p "kanban/issues/$r3/library"; jq -n --arg c "$c1" '{commit: $c, findings: []}' > "kanban/issues/$r3/library/findings.json"
 "$andon" task review-request "$id3" <<<'## Report' >/dev/null
-jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' "kanban/tasks/$id3/library/report.json" >/dev/null
-head -2 "kanban/tasks/$id3/report.md" | grep -q '（追加）'
+jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' "kanban/issues/$id3/library/report.json" >/dev/null
+head -2 "kanban/issues/$id3/report.md" | grep -q '（追加）'
 ok 'review-request: 上限を超えた回は extra'
 
 # ask
@@ -192,12 +192,12 @@ ok 'ask: 形の違う問いは台帳に書く前に止まる'
 git init -q "$tmp/wt2"
 commit2() { echo "$1" > "$tmp/wt2/f"; git -C "$tmp/wt2" add f; git -C "$tmp/wt2" commit -qm "$1"; git -C "$tmp/wt2" rev-parse HEAD; }
 s1=$(commit2 one)
-field0() { kanban show "$1" --json | jq -r --arg k "$2" '.task[$k] // ""'; }
+field0() { kanban show "$1" --json | jq -r --arg k "$2" '.issue[$k] // ""'; }
 # 直すタスクが範囲で止まる: candidates → ask（scope）→ stop-check は通す
 fx=$(as t5 kanban add '誤字を1つ直す' --profile claude)
 as t5 kanban set "$fx" review=off must_fix=major "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
 kanban start "$fx" >/dev/null
-lfx=kanban/tasks/$fx/library
+lfx=kanban/issues/$fx/library
 cands='{"candidates":[{"id":"c1","text":"docs/a.md:4 「台長」→「台帳」","file":"docs/a.md","line":4,"in_scope":true},{"id":"c2","text":"README の段を書き直す","in_scope":false}]}'
 for bad in '.candidates[1].id = "c1"|重なっている' 'del(.candidates[0].in_scope)|in_scope が無い' '.candidates[0] += {"tier": "A"}|知らないキー' \
            '.candidates[0].text = "a\nb"|2行以上' '.candidates[0].file = "/etc/x"|相対パス' '.candidates[0].line = 0|line が' '.candidates[0].id = "x1"|c1, c2' \
@@ -232,7 +232,7 @@ ok 'stop-check: scope の問いが開いたままのターンを通す'
 sv=$(as t5 kanban add '調べる: 古い command 名' --profile claude)
 as t5 kanban set "$sv" deliverable=candidates review=off "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
 kanban start "$sv" >/dev/null
-lsv=kanban/tasks/$sv/library
+lsv=kanban/issues/$sv/library
 "$andon" task report "$sv" --data '{"next":[{"to":"chief-of-staff","text":"candidates.json から切る"}]}' <<<'## Report' >/dev/null
 expect_fail 'candidates.json が無い' "$andon" task ready "$sv"
 ok 'ready（candidates）: candidates.json が無ければ止まる'
@@ -249,7 +249,7 @@ ok 'ready（candidates）: candidates.json の commit が HEAD と違えば止�
 jq -e '.settings.deliverable == "candidates"' "$tmp/show-sv" >/dev/null
 jq .settings "$tmp/show-sv" > "$tmp/settings-sv.json"; emit "$tmp/settings-sv.json" task-keys-candidates.json
 "$andon" task ready "$sv" >/dev/null
-[ "$(kanban show "$sv" --json | jq -r .task.status)" = review ] || die 'ready（candidates）: review にならない'
+[ "$(kanban show "$sv" --json | jq -r .issue.status)" = review ] || die 'ready（candidates）: review にならない'
 ok 'ready（candidates）: PR 無しで、候補 0 件の candidates.json と HEAD が揃えば review にする（show の settings に deliverable）'
 # Chief of Staff でない書き手の deliverable は信じず pr として読む（PR を要る）
 sv2=$(as t5 kanban add '調べる: 担当が自分で型を変える' --profile claude)
@@ -266,7 +266,7 @@ nr=$(as t5 kanban add '調べる: repo 無し' --profile claude)
 as t5 kanban set "$nr" deliverable=candidates review=off >/dev/null
 (cd "$tmp/wt2" && kanban start "$nr" >/dev/null)
 [ -n "$(field0 "$nr" worktree)" ] || die 'repo 無し: kanban start が worktree を書かない（前提が崩れた）'
-pushd "kanban/tasks/$nr" >/dev/null
+pushd "kanban/issues/$nr" >/dev/null
 ! git rev-parse HEAD >/dev/null 2>&1 || die 'repo 無し: cwd が git の中'
 "$andon" task candidates "$nr" - <<<'{"candidates":[{"id":"c1","text":"x","in_scope":false}]}' >/dev/null
 jq -e 'has("commit") | not' library/candidates.json >/dev/null
@@ -276,8 +276,8 @@ jq -e 'has("commit") | not' library/report.json >/dev/null
 emit library/report.json report-norepo.json
 "$andon" task ready "$nr" >/dev/null
 popd >/dev/null
-emit "kanban/tasks/$nr/library/candidates.json" candidates-norepo.json
-[ "$(kanban show "$nr" --json | jq -r .task.status)" = review ] || die 'repo 無し: ready で review にならない'
+emit "kanban/issues/$nr/library/candidates.json" candidates-norepo.json
+[ "$(kanban show "$nr" --json | jq -r .issue.status)" = review ] || die 'repo 無し: ready で review にならない'
 ok 'repo の無い調べるタスク: commit を書かずに candidates → report → ready で review になる'
 # ほかの端末からは、そのタスクの候補を書けない（書き換えない）
 cp "$lfx/candidates.json" "$tmp/fx-before.json"
@@ -324,7 +324,7 @@ case \$1 in
 esac
 EOF
 chmod +x "$tmp/bin/hc"
-field() { kanban show "$1" --json | jq -r --arg k "$2" '.task[$k] // ""'; }
+field() { kanban show "$1" --json | jq -r --arg k "$2" '.issue[$k] // ""'; }
 # 台帳は repos に案件の repo を持つ別の台帳（slug は demo）
 mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
 KANBAN_ROOT= kanban init --prefix S --repo github.com/example/app --repo github.com/example/lib >/dev/null
@@ -338,7 +338,7 @@ br=demo/$s1-add-the-button
 [ -d "$wt" ] && [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = "$br" ] || die "worktree か branch が無い: $(cat "$tmp/out")"
 [ -z "$(git -C "$wt" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" ] || die 'branch に upstream がある'
 [ "$(field "$s1" status)" = doing ] && [ "$(field "$s1" agent)" = t42 ] && [ "$(field "$s1" branch)" = "$br" ] && [ "$(field "$s1" worktree)" = "~/.herdr/worktrees/app/demo-$s1" ] \
-  || die "台帳: $(kanban show "$s1" --json | jq -c .task)"
+  || die "台帳: $(kanban show "$s1" --json | jq -c .issue)"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label project=demo --label task=$s1 --label title=Add the button --label herdr.space=andon-demo-$s1 --label herdr.tab=andon-demo-$s1 --cwd $wt claude タスク \`demo/$s1\`。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
@@ -384,7 +384,7 @@ expect_fail 'author（t <agent@example.com>）が owner でない' "$andon" task
 git -C "$tmp/plant" reset -q --hard HEAD~1
 for x in "$s6" "$s7" "$s8" "$s9"; do
   [ ! -e "$HOME/.herdr/worktrees/app/demo-$x" ] && [ ! -e "$HOME/.herdr/worktrees/other/demo-$x" ] && [ "$(field "$x" status)" = todo ] && [ -z "$(field "$x" branch)$(field "$x" worktree)" ] \
-    || die "$x: 止まる前に作った: $(kanban show "$x" --json | jq -c .task)"
+    || die "$x: 止まる前に作った: $(kanban show "$x" --json | jq -c .issue)"
   ! grep -q "task=$x " "$tmp/hc/log" || die "$x: hc run を打った"
 done
 ! git -C "$GHQ_ROOT/github.com/example/other" show-ref --quiet "refs/heads/demo/$s6-other-repo" && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s7-later" || die '止まる前に branch を作った'
@@ -396,7 +396,7 @@ echo 1 > "$tmp/hc/run-rc"
 expect_fail 'hc run に失敗' "$andon" task start "$s4"
 rm "$tmp/hc/run-rc"
 [ ! -e "$HOME/.herdr/worktrees/app/demo-$s4" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s4-run-fails" \
-  && [ "$(field "$s4" status)" = todo ] && [ -z "$(field "$s4" branch)$(field "$s4" worktree)" ] || die "戻していない: $(kanban show "$s4" --json | jq -c .task)"
+  && [ "$(field "$s4" status)" = todo ] && [ -z "$(field "$s4" branch)$(field "$s4" worktree)" ] || die "戻していない: $(kanban show "$s4" --json | jq -c .issue)"
 "$andon" task start "$s4" >/dev/null || die 'やり直せない'
 ok 'start: hc run が落ちたら worktree・branch・台帳の欄を戻す（やり直せる）'
 
@@ -410,7 +410,7 @@ addr=$(field "$s5" agent)
 grep -q "に最初のメッセージが届いていない: trust prompt。dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr \"タスク \`demo/$s5\`。" "$tmp/err" \
   && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
 grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatcher に預けるラベルを付けていない'
-grep -q "^run .*--cwd $PWD/kanban/tasks/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
+grep -q "^run .*--cwd $PWD/kanban/issues/$s5 claude " "$tmp/hc/log" || die 'repo の無いタスクの cwd が tasks/<id>/ でない'
 ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無いタスクは tasks/<id>/ で'
 
 # start が作ったものを finish が片付ける
@@ -418,7 +418,7 @@ ok 'start: 最初のメッセージが届かなければ終了コード 3・端�
 "$andon" task finish "$s1" >/dev/null
 [ -z "$(grep -v '^ls \|^kill \|^rm ' "$tmp/hc/log")" ] || die "finish が kill・rm（と ls）のほかに hc を打った: $(cat "$tmp/hc/log")"
 [ ! -e "$wt" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/$br" && [ "$(field "$s1" status)" = done ] && ! grep -q " $s1\$" "$tmp/hc/live" \
-  || die "finish で片付かない: $(kanban show "$s1" --json | jq -c .task)"
+  || die "finish で片付かない: $(kanban show "$s1" --json | jq -c .issue)"
 ok 'start が作った worktree・branch・端末を finish が片付ける（ラベルに触らない。hc は ls・kill・rm だけ）'
 
 echo "all passed ($pass)"

@@ -73,7 +73,7 @@ func newFake(t *testing.T) *fake {
 
 func (f *fake) setCoordinator(addr string) {
 	f.t.Helper()
-	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\nrepos: []\nchief_of_staff: " + addr + "\n"
+	body := "version: 3\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\nrepos: []\nchief_of_staff: " + addr + "\n"
 	if err := os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte(body), 0o644); err != nil {
 		f.t.Fatal(err)
 	}

@@ -90,7 +90,7 @@ kanban config set chief_of_staff=t5 >/dev/null
 git clone -q "$tmp/origin" "$tmp/wt"
 id=$(HC_TERMINAL_ID=t5 kanban add 'docs を直す' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
-lib=kanban/tasks/$id/library
+lib=kanban/issues/$id/library
 gate() { local rc=0; "$andon" gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
 expect() { # expect <rc> <decision> <理由に含む語>
     local rc=$1; shift
@@ -108,8 +108,8 @@ ok '信じられる PR（report.json の pr）が無ければ記録せずに fix
 export HC_TERMINAL_ID=t7
 "$andon" task report "$id" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
 rev=$(HC_TERMINAL_ID=t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
-mkdir -p "kanban/tasks/$rev/library"
-findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > "kanban/tasks/$rev/library/findings.json"; }
+mkdir -p "kanban/issues/$rev/library"
+findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > "kanban/issues/$rev/library/findings.json"; }
 findings "$head"
 HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
 "$andon" task ready "$id" >/dev/null
@@ -284,7 +284,7 @@ export HC_TERMINAL_ID=t7
 "$andon" task report "$id" <<<'## Report' >/dev/null
 unset HC_TERMINAL_ID
 got=$(gate "$id"); expect 1 fix 'review stale'
-jq -e --arg c "$(jq -r .commit "kanban/tasks/$rev/library/findings.json")" '.review.state == "stale" and .review.commit == $c' "$lib/gate/$head.json" >/dev/null
+jq -e --arg c "$(jq -r .commit "kanban/issues/$rev/library/findings.json")" '.review.state == "stale" and .review.commit == $c' "$lib/gate/$head.json" >/dev/null
 emit "$lib/gate/$head.json" gate-record-stale.json
 ok 'レビューが古い commit を見ていれば stale で fix（記録の形）'
 
@@ -304,7 +304,7 @@ HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates branch=survey "worktr
 rm -f "$tmp/gh/posted"
 got=$(gate "$sid")
 [ "$got" = 3 ] && [ ! -s "$tmp/out" ] && [ "$(wc -l < "$tmp/err")" = 1 ] && grep -q 'deliverable: candidates' "$tmp/err" || { cat "$tmp/out" "$tmp/err" >&2; die "candidates に rc $got"; }
-[ ! -e "kanban/tasks/$sid/library/gate" ] && [ ! -e "$tmp/gh/posted" ] || die 'candidates なのに記録・GitHub に書いた'
+[ ! -e "kanban/issues/$sid/library/gate" ] && [ ! -e "$tmp/gh/posted" ] || die 'candidates なのに記録・GitHub に書いた'
 # 最後に書いたのが Chief of Staff でなければ pr として読む（今までどおり report.json を見に行く）
 HC_TERMINAL_ID=t7 kanban set "$sid" deliverable=candidates >/dev/null
 got=$(gate "$sid"); expect 1 fix 'report.json'

@@ -16,7 +16,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Questions (docs/ledger.md "Questions", docs/decisions.md §6): tasks/<id>/questions.yaml is
+// Questions (docs/ledger.md "Questions", docs/decisions.md §6): issues/<id>/questions.yaml is
 // a list of the questions a task's agent asked the person. Each goes open → answered →
 // received; the text and the answer stay in the file, the log has only the number and status.
 
@@ -29,7 +29,7 @@ var (
 	questionKeys = []string{"n", "text", "kind", "asked", "askedBy", "status", "answer", "answered", "answeredBy", "received"}
 )
 
-// questionsFile is one tasks/<id>/questions.yaml kept as a node tree, so that a person's
+// questionsFile is one issues/<id>/questions.yaml kept as a node tree, so that a person's
 // comments, key order and keys kanban doesn't know stay.
 type questionsFile struct {
 	id    string

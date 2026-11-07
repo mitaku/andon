@@ -21,9 +21,9 @@ func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "not-a-repo"))
 	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "unlisted", ".git")) // 台帳に無い repo は信頼しない
 	put(t, filepath.Join(f.ws, "projects", "sample-site", "kanban", "config.yaml"),
-		"version: 2\nrepos:\n  - github.com/example/sample-site\n  - github.com/example/not-a-repo\n  - github.com/example/missing\nchief_of_staff: t5\n")
+		"version: 3\nrepos:\n  - github.com/example/sample-site\n  - github.com/example/not-a-repo\n  - github.com/example/missing\nchief_of_staff: t5\n")
 	put(t, filepath.Join(f.ws, "projects", "tools", "kanban", "config.yaml"),
-		"version: 2\nrepos:\n  - github.com/example/tools\n  - ../../../etc\n")
+		"version: 3\nrepos:\n  - github.com/example/tools\n  - ../../../etc\n")
 	mustMkdir(t, filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "x-1")) // 置き場は足さない
 	roots := []string{f.ws, a, b}
 	for i, r := range roots {
@@ -212,7 +212,7 @@ func TestTrustRefusesSymlinkOutsideGhq(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(e.GhqRoot, "github.com", "example", "escape")); err != nil {
 		t.Fatal(err)
 	}
-	put(t, filepath.Join(f.ws, "projects", "escape", "kanban", "config.yaml"), "version: 2\nrepos:\n  - github.com/example/escape\n")
+	put(t, filepath.Join(f.ws, "projects", "escape", "kanban", "config.yaml"), "version: 3\nrepos:\n  - github.com/example/escape\n")
 	if err := Trust(e); err != nil {
 		t.Fatal(err)
 	}

@@ -27,7 +27,7 @@ const fakeDeck = `#!/usr/bin/env bash
 printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${KANBAN_ROOT:-}" >>"$LOG"
 case $1 in
   root) [ -n "${FAKE_ROOT:-}" ] && echo "$FAKE_ROOT" || { echo "no ledger" >&2; exit 1; } ;;
-  add) cat >"$LOG.brief"; mkdir -p "$FAKE_ROOT/kanban/tasks/S-7"; echo S-7 ;;
+  add) cat >"$LOG.brief"; mkdir -p "$FAKE_ROOT/kanban/issues/S-7"; echo S-7 ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   set) echo "$2 updated" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
@@ -108,7 +108,7 @@ func (f *fake) config(repos string) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		f.t.Fatal(err)
 	}
-	body := "version: 2\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\n" + repos + "chief_of_staff: t1\n"
+	body := "version: 3\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\n" + repos + "chief_of_staff: t1\n"
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestStartsChiefEngineer(t *testing.T) {
 		"kanban add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 KANBAN_ROOT=" + f.root,
 		"kanban set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
 		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label task=S-7 --label title=Billing の設計 --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-S-7 --cwd " + f.wt() + " chief-engineer タスク `sample-site/S-7`。",
-		"依頼書は `" + f.root + "/kanban/tasks/S-7/brief.md`。",
+		"依頼書は `" + f.root + "/kanban/issues/S-7/brief.md`。",
 		"kanban start S-7 | HC_TERMINAL_ID=t42 KANBAN_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
 	}

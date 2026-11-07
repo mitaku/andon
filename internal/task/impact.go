@@ -99,7 +99,7 @@ func (c *ctx) impactOf(t ledger.Task, repoDir, sha string, merged []string) cont
 	if r, err := contract.ReadReport(filepath.Join(c.l.Library(id), "report.json")); err == nil {
 		it.PR = r.PR
 	}
-	if b, err := os.ReadFile(filepath.Join(c.l.Dir, "tasks", id, "brief.md")); err == nil {
+	if b, err := os.ReadFile(filepath.Join(c.l.Dir, "issues", id, "brief.md")); err == nil {
 		it.BriefRefs = BriefRefs(string(b), merged)
 	}
 	head, err := git(repoDir, "rev-parse", "--verify", "--quiet", "refs/heads/"+it.Branch+"^{commit}")

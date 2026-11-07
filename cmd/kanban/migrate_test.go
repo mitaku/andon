@@ -139,8 +139,11 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	if want := `{"coord":"t5","gates":{"A-0005#3":{"task":"A-0005"}},"pending":[{"kind":"review","task":"A-0003"}],"ready":["A-0005"],"reviewers":{"A-0005@abc":{"reviewer_task":"A-0012","task":"A-0005"}},"sent":{"A-0005|t9|done|1":true},"worktree":"/w/yard-A-5"}`; string(b) != want {
 		t.Fatalf("dispatcher state:\n%s\nwant\n%s", b, want)
 	}
-	// A-5#1 still answers: the question kept its number (log.jsonl says A-5).
+	// kanban migrate leaves format 2: every command stops until the person moves it by hand.
 	t.Setenv("KANBAN_ROOT", root)
+	deckFails(t, root, "", "list")
+	moveByHand(t, root)
+	// A-5#1 still answers: the question kept its number (log.jsonl says A-5).
 	kanban(t, root, "answer", "A-5#1", "this")
 	if out := kanban(t, root, "ask", "A-0005", "and?"); out != "A-0005#2\n" {
 		t.Fatalf("ask after migrate: %q", out)
@@ -255,7 +258,7 @@ func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
 	assertUnchanged(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\ncoordinator: t5\n")
 	put(t, file, `{"ready":["A-5"]}`)
 	kanban(t, root, "migrate")
-	if !exists(taskFile(root, "A-0005")) || !strings.Contains(readFile(t, file), `"A-0005"`) {
+	if !exists(filepath.Join(root, "kanban", "tasks", "A-0005", "task.yaml")) || !strings.Contains(readFile(t, file), `"A-0005"`) {
 		t.Fatalf("migrate after the fix: %s", readFile(t, file))
 	}
 }
@@ -299,6 +302,7 @@ func TestMigrateNeedsAnIntegerVersion(t *testing.T) {
 	}
 	put(t, cfg, "version: 2\nprefix: A\n")
 	kanban(t, root, "migrate")
+	moveByHand(t, root)
 	if out := strings.TrimSpace(kanban(t, root, "root")); !sameFile(out, root) || !exists(taskFile(root, "A-0001")) {
 		t.Fatalf("after migrate: root %q", out)
 	}

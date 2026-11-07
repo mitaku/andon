@@ -14,12 +14,12 @@ import (
 func TestGateRefusesCandidates(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "kanban")
-	os.MkdirAll(filepath.Join(dir, "tasks", "D-0001", "library"), 0o755)
-	os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("version: 2\nchief_of_staff: t5\nrepos: [github.com/example/app]\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "issues", "D-0001", "library"), 0o755)
+	os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\nrepos: [github.com/example/app]\n"), 0o644)
 	bin := t.TempDir()
 	// 偽の kanban（root と show だけ）・gh・git（呼ばれたら印を残す）
 	kanban := "#!/bin/sh\ncase \"$1\" in\n  root) echo " + root + " ;;\n" +
-		"  show) echo '{\"task\": {\"id\": \"D-0001\", \"status\": \"review\", \"repo\": \"github.com/example/app\", \"branch\": \"b\", \"deliverable\": \"candidates\"}}' ;;\n" +
+		"  show) echo '{\"issue\": {\"id\": \"D-0001\", \"status\": \"review\", \"repo\": \"github.com/example/app\", \"branch\": \"b\", \"deliverable\": \"candidates\"}}' ;;\n" +
 		"esac\n"
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(kanban), 0o755)
 	for _, n := range []string{"gh", "git"} {
@@ -44,7 +44,7 @@ func TestGateRefusesCandidates(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(bin, "called")); err == nil {
 		t.Error("candidates なのに gh・git を打った")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "tasks", "D-0001", "library", "gate")); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, "issues", "D-0001", "library", "gate")); err == nil {
 		t.Error("candidates なのに記録を書いた")
 	}
 
