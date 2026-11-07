@@ -225,6 +225,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 2026-11-06 | Herdr App の作業側は Space ＝ タスク（`herdr.space=andon-<slug>-<id>`・名前 `<id> <題>`。tab は担当の 1 つで id は今まで同じ `andon-<slug>-<id>`・名前 `<id>`。レビュアーは担当と同じ tab）。Space のフォルダが担当の worktree になり、App の Files・Changes がタスクを指す。ADR-0002 の決めたこと 1・2 の作業側を覆す。指揮側は変えない | [ADR-0003](adr/0003-task-spaces.md)（人 2026-11-06。Y-147） |
 | 2026-11-06 | 建屋の repo の `projects/<slug>/`（プロジェクトのルート）の構成: 直下の予約名と書く人・memory は置かない（アウターループで wiki へ）・auto memory は managed で OFF（`autoMemoryEnabled: false` と `env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`）。実装は別タスク（台帳の改名 Y-141 など） | [ADR-0004](adr/0004-project-layout.md)（人 2026-11-06。PR #52 のマージ。Y-161） |
 | 2026-11-06 | 建屋（セル）の repo の直下と追跡・持ち運び・守り: 追跡の基準は「建屋を別のマシンに建て直すとき要るか」の 1 本。「建屋」はセル（cell）に改める。実装は別タスク | [ADR-0005](adr/0005-cell-repo.md)（人 2026-11-06。PR #52 のマージ。Y-161） |
+| 2026-11-06 | 調べる・決める・直すを分ける: 工程の背骨は 理解→計画→作業→確認→完成→振り返り（担当が主体。横展開は既定。作業の終了条件と課題の完了条件は別）。タスクの型は 3 つ（調べる＝候補の一覧 `library/candidates.json`・直す＝PR・決める＝Chief Engineer の文書。`task.yaml` の `deliverable` で見分ける）。直すタスクの担当は「範囲を決めなければ進めない」ときだけ止まり、候補の一覧と問い `kind: scope` で返す。範囲の判断は Chief of Staff（灯りはつかない。4 種・レベル C・委譲の外に当たる候補だけ人へ）。委譲に `scope` は足さない。決断は人か委譲の中の Chief of Staff、判断は標準にして 機械が確かめる形 → 文 → 人のレビュー の順に置く。`scope` の答えは人に知らせない。台帳のカードの語の向きは「課題（issue）」（改名は別 ADR）。実装は別タスク | [ADR-0006](adr/0006-survey-fix-decide.md)（人の問い 2026-11-06・人の指摘 2026-11-07。Y-158。提案。PR #69 の人のマージで決定） |
 
 ## 15. P6b での決定
 
