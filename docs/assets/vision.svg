@@ -2,13 +2,13 @@
 <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9a958b"/></marker></defs>
 <rect width="1720" height="1142" fill="#fbfaf7"/>
 <text x="40" y="44" font-size="22" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">Andon の向きと工程 — ビジョン → ミッション → バリュー → ライン（役と仕組み）</text>
-<text x="1680" y="44" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">docs/vision.md · 提案 2026-11-07（Y-198）</text>
+<text x="1680" y="44" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">docs/vision.md · 決定 2026-11-07（Y-198・Y-214）</text>
 <rect x="40" y="64" width="1640" height="62" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
 <circle cx="59" cy="81" r="7" fill="#d9891f"/>
 <circle cx="59" cy="79" r="2.2" fill="#fbfaf7"/>
 <path d="M55 85.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
 <text x="72" y="86" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">ビジョン（目指す状態。案 A。人が決めた 2026-11-07）</text>
-<text x="52" y="108" font-size="14" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人は、自分にしかできない決断だけをする。ラインは人が見ていない間も回り、灯りがつくのはその決断のときだけ。</text>
+<text x="52" y="108" font-size="14" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人は、自分にしかできない判断だけをする。ラインは人が見ていない間も回り、灯りがつくのはその判断のときだけ。</text>
 <text x="1660" y="116" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">D6・D7 / design.md §0・§1.1・§1.3</text>
 <rect x="40" y="140" width="1640" height="62" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
 <text x="52" y="162" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">ミッション（Andon が担うこと）</text>
@@ -18,7 +18,7 @@
 <rect x="40" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
 <rect x="316" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
 <text x="332.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
-<text x="52" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">1 灯りは決断にだけ</text>
+<text x="52" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">1 灯りは判断にだけ</text>
 <text x="52" y="288.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人を呼ぶのは 5 種の判断だけ。事実は聞かない。</text>
 <text x="52" y="306.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">灯りは呼び出し（問い）と定位置停止（不可逆・</text>
 <text x="52" y="323.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">レベル C）の 2 つ。何を作るかは人から離れない</text>
