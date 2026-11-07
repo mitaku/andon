@@ -30,6 +30,10 @@
       "description": "Machine name in the terminal host where the worker and reviewer run. Default: the same machine as the Chief of Staff.",
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "deliverable": {
+      "description": "What the task delivers. pr: a pull request (fix tasks, Chief Engineer documents). candidates: library/candidates.json without a pull request (survey tasks); andon task ready asks for the file instead of a PR and the dispatcher does not run the gate. Default: pr.",
+      "enum": ["pr", "candidates"]
     }
   }
 }

@@ -3,6 +3,9 @@
 
 JSON Schema（draft 2020-12）のうち、schema/ が使うキーワードだけを実装する。
 知らないキーワードが schema にあれば、黙って飛ばさずに落ちる（検査が効いていないのに通るのを防ぐ）。
+標準に無いキーワードは1つだけ: `uniqueKeys`（配列の object の要素で、名前を並べたキーの値が重ならない。例 候補の `id`）。
+2020-12 はキーワードの一意を要素の全体でしか書けないので足した。ほかの検査器は知らないキーワードを注記として飛ばすので、
+一意は command の側でも確かめる。
 
 使い方:
   schema_check.py validate <schema.json> <instance.json>   通れば 0、落ちれば 1 と理由
@@ -18,6 +21,7 @@ KEYWORDS = ANNOTATIONS | {
     "$defs", "$ref", "type", "properties", "required", "additionalProperties",
     "items", "prefixItems", "enum", "const", "pattern", "minimum", "minLength",
     "minItems", "oneOf", "anyOf", "allOf", "if", "then", "else", "not",
+    "uniqueKeys",
 }
 TYPES = {
     "object": lambda v: isinstance(v, dict),
@@ -155,6 +159,14 @@ class Validator:
                     errs += self.errors(prefix[i], v, f"{path}[{i}]")
                 elif "items" in schema:
                     errs += self.errors(schema["items"], v, f"{path}[{i}]")
+            for k in schema.get("uniqueKeys", []):
+                seen = []
+                for i, v in enumerate(inst):
+                    if not isinstance(v, dict) or k not in v:
+                        continue
+                    if any(same(v[k], x) for x in seen):
+                        errs.append(f"{path}[{i}].{k}: {json.dumps(v[k], ensure_ascii=False)} が重なる")
+                    seen.append(v[k])
         for sub in schema.get("allOf", []):
             errs += self.errors(sub, inst, path)
         for k in ("anyOf", "oneOf"):

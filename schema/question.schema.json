@@ -8,8 +8,8 @@
   "additionalProperties": false,
   "properties": {
     "kind": {
-      "description": "Which of the five decision kinds; line is a change to the line.",
-      "enum": ["business", "users", "promise", "irreversible", "line"]
+      "description": "Which of the five decision kinds (line is a change to the line), or scope: which candidates a fix task should fix. A scope question goes to the Chief of Staff and does not light the andon.",
+      "enum": ["business", "users", "promise", "irreversible", "line", "scope"]
     },
     "question": {
       "description": "The question itself, one line.",
