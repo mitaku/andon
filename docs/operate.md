@@ -315,16 +315,18 @@ ghq list
 台帳はプロジェクトごとに `projects/<slug>/kanban/`（git の外）。slug はプロジェクト名＝フォルダ名。`projects/<slug>/` は実ディレクトリ（symlink にしない。理由は上の「建屋の置き方」）。
 
 ```bash
-mkdir -p /workspace/projects/andon && cd /workspace/projects/andon
-kanban init --prefix A --repo github.com/<owner>/andon
-kanban list ; kanban lint
-# 人のファイル: このプロジェクトが書いてよい repo（形は contract.md §11）。owner の email で commit する
-echo '{"version": 1, "project": {"title": "Andon", "prefix": "A"}, "repos": ["github.com/<owner>/andon"]}' > project.json
-git add project.json && git commit -m 'projects/andon/project.json'
+cd /workspace
+andon create andon --repo github.com/<owner>/andon --prefix A --title Andon   # 足りない引数は、端末なら既定値を示して聞く
+cd projects/andon && kanban list ; kanban lint
+# 人のファイル: project.json（このプロジェクトが書いてよい repo。形は contract.md §11）と AGENTS.md。中身を見て owner の email で commit する
+git add project.json AGENTS.md && git commit -m 'projects/andon'
+andon delegate show          # 型と効いている値（commit の前は「無委譲」）
 ```
 
-- **通ったら見えるもの**: `created …/kanban`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
-- **落ちたら見る所**: `already a ledger` — 作ってある（そのまま使う）。`--repo must be host/owner/repo` — 綴り。`checkClock` の失敗 — コンテナの時計。
+- **`andon create` がすること**: `projects/<slug>/` に台帳（`kanban init`。prefix と repos を渡す）・`project.json` の下書き（`version`・`project`〈題・prefix〉・`repos`。`delegation` は無し＝無委譲。Andon が読むのと同じ検査を通す）・`AGENTS.md` の雛形（薄い地図の見出しだけ。[ADR-0004](adr/0004-project-layout.md) 決めたこと 1）を作り、`repos` のうち `GHQ_ROOT` の下に clone の無いものを `ghq get` で迎える。**commit はしない**（人のファイル）。最後に commit の仕方と `andon open <slug>` を出す。
+- **聞くもの**: 引数に無い slug・repos（1 行に 1 つ、空行で終わり）・prefix（既定は slug の `-` で区切った頭文字。`sample-site` → `SS`）・題（既定は slug）。聞いたときは最後に確かめる。標準入力が端末でなければ聞かない: slug が無ければ止まり、ほかは既定（repos 無し）。
+- **通ったら見えるもの**: `作った: projects/andon/（kanban/・project.json・AGENTS.md）`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
+- **落ちたら見る所**（どれも何も作らずに止まる）: `が既にある` — 作ってある（そのまま使う。手で作るときの `kanban init` は `already a ledger`）。`slug は英小文字・数字・-`・`repo は <host>/<owner>/<repo>`・`prefix は英大文字で始まる` — 綴り。`この端末（role=…）では打てない` — 役の端末。人の端末で打つ。`ghq get … が落ちた` — `gh auth status`。`kanban init が落ちた` — 理由の文（`checkClock` ならコンテナの時計）。
 - `project.json` が無い・owner の commit でない・`repos` に無い repo のタスクは、`andon task start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無い建屋は、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
 - `projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・並行の上限・独立レビューを入れる条件）は任意。無ければ並行の上限は 2。
 - タスクの id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じタスク）。

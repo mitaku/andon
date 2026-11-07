@@ -121,9 +121,9 @@ func project(ws, given string) (string, error) {
 	return "", errors.New("プロジェクトが分からない（projects/<slug>/ で打つか --project <slug>）")
 }
 
-// agentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か task=）。
-// 読めなければ打たせない（安全側）。
-func agentTerminal() error {
+// AgentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か task=）。
+// 役の端末なら why を添えた誤り。読めなければ打たせない（安全側）。人のファイルを書く command（delegate・create）が使う。
+func AgentTerminal(why string) error {
 	id := os.Getenv("HC_TERMINAL_ID")
 	if id == "" {
 		return nil
@@ -140,7 +140,7 @@ func agentTerminal() error {
 	}
 	for _, k := range []string{"role", "task"} {
 		if v, ok := t.Labels[k]; ok {
-			return fmt.Errorf("この端末（%s=%s）では打てない。委譲を書くのは人だけ", k, v)
+			return fmt.Errorf("この端末（%s=%s）では打てない。%s", k, v, why)
 		}
 	}
 	return nil
@@ -151,7 +151,7 @@ func agentTerminal() error {
 // 作業ツリーや index に commit していない変更があれば打たない（エージェントが書いた変更を人の commit に混ぜない）。
 // HEAD を最後に変えたのが owner でなければ打たない（owner でない変更を人の commit で信じられる形にしない）。
 func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (string, error)) error {
-	if err := agentTerminal(); err != nil {
+	if err := AgentTerminal("委譲を書くのは人だけ"); err != nil {
 		return err
 	}
 	rel := ProjectRel(slug)
