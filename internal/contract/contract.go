@@ -215,6 +215,74 @@ func ReadFindings(path string) (*Findings, error) {
 	return &f, nil
 }
 
+// Candidate は candidates.json の1件（contract.md §12）。
+type Candidate struct {
+	ID      string  `json:"id"`
+	Text    string  `json:"text"`
+	File    *string `json:"file,omitempty"`
+	Line    *int    `json:"line,omitempty"`
+	InScope *bool   `json:"in_scope"`
+}
+
+// Candidates は candidates.json（担当が andon task candidates で書く）。commit は repo の無いタスクでは書かない。
+type Candidates struct {
+	Commit     string      `json:"commit,omitempty"`
+	Candidates []Candidate `json:"candidates"`
+}
+
+var candidateIDRe = regexp.MustCompile(`^c[1-9][0-9]*$`)
+
+// Check は候補の一覧の形を確かめる。id の一意は schema では拡張キーワード（uniqueKeys）で、ほかの検査器は飛ばすのでここでも確かめる。
+func (c *Candidates) Check() error {
+	if c.Commit != "" && !IsSHA(c.Commit) {
+		return errors.New("commit が40桁・小文字でない")
+	}
+	if c.Candidates == nil {
+		return errors.New("candidates が無い")
+	}
+	seen := map[string]bool{}
+	for i, x := range c.Candidates {
+		at := fmt.Sprintf("candidates[%d]", i)
+		switch {
+		case !candidateIDRe.MatchString(x.ID):
+			return fmt.Errorf("%s の id が c1, c2, … の形でない: %q", at, x.ID)
+		case seen[x.ID]:
+			return fmt.Errorf("%s の id %s が重なっている", at, x.ID)
+		case x.Text == "" || strings.Contains(x.Text, "\n"):
+			return fmt.Errorf("%s（%s）の text が空か2行以上", at, x.ID)
+		case x.File != nil && !RelPath(*x.File):
+			return fmt.Errorf("%s（%s）の file が repo からの相対パスでない: %q", at, x.ID, *x.File)
+		case x.Line != nil && *x.Line < 1:
+			return fmt.Errorf("%s（%s）の line が 1 以上の整数でない", at, x.ID)
+		case x.InScope == nil:
+			return fmt.Errorf("%s（%s）に in_scope が無い", at, x.ID)
+		}
+		seen[x.ID] = true
+	}
+	return nil
+}
+
+// ParseCandidates は候補の一覧の JSON を読んで検査する。
+func ParseCandidates(b []byte) (*Candidates, error) {
+	var c Candidates
+	if err := Decode(b, &c); err != nil {
+		return nil, err
+	}
+	if err := c.Check(); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// ReadCandidates は candidates.json を読んで検査する。
+func ReadCandidates(path string) (*Candidates, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCandidates(b)
+}
+
 // ReviewRequest は report.json の review_request（contract.md §4）。
 type ReviewRequest struct {
 	Round    int     `json:"round"`
@@ -368,9 +436,9 @@ func ParseQuestion(b []byte) (*Question, error) {
 		return nil, errors.New("reason が空")
 	}
 	switch q.Kind {
-	case "business", "users", "promise", "irreversible", "line":
+	case "business", "users", "promise", "irreversible", "line", "scope":
 	default:
-		return nil, fmt.Errorf("kind が business/users/promise/irreversible/line でない: %q", q.Kind)
+		return nil, fmt.Errorf("kind が business/users/promise/irreversible/line/scope でない: %q", q.Kind)
 	}
 	if q.Question == "" || strings.Contains(q.Question, "\n") {
 		return nil, errors.New("question が空か2行以上")
@@ -425,12 +493,4 @@ func (q *Question) Text() string {
 		fmt.Fprintf(&b, "\nあと %d 問", *q.Remaining)
 	}
 	return b.String()
-}
-
-// LedgerKind は台帳の kind（4種）。line は台帳が受けないので空（相談 F3）。
-func (q *Question) LedgerKind() string {
-	if q.Kind == "line" {
-		return ""
-	}
-	return q.Kind
 }

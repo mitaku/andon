@@ -368,6 +368,10 @@ report-1.json|report|andon task report の report.json
 report-review-request.json|report|andon task review-request の report.json
 task-keys.json|task-keys|andon task show の settings
 question.json|question|andon task ask の questions/<n>.json
+question-scope.json|question|andon task ask の questions/<n>.json（kind: scope）
+candidates.json|candidates|andon task candidates の candidates.json
+candidates-norepo.json|candidates|andon task candidates の candidates.json（repo の無いタスク。commit 無し）
+task-keys-candidates.json|task-keys|andon task show の settings（deliverable: candidates）
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）

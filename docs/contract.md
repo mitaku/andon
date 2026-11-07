@@ -124,7 +124,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `next[]` | 任意 | トリアージ | `to` は `person` / `chief-of-staff` / `task`（次のタスクに切るもの） |
 | `remember[]`・`agents_md[]` | 任意 | トリアージ・振り返り | 人用の報告の `## Remember`・`For AGENTS.md:` の機械向けの写し |
 
-- 担当の `andon task ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーのタスクの `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。
+- 担当の `andon task ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーのタスクの `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
 - 担当の `andon task review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。
 - 作業側（別のマシン）の担当は同じ command を打つ。command は `<worktree>.task/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
 
@@ -132,7 +132,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 人が「文脈なしで読めて、1通で答えられる」形。2つに書く:
 
-1. `kanban ask <id> "<text>" --kind <k>`: `questions.yaml` の `text` は人向けの描画（下の JSON から command が作る。何の判断か・事実・理由・選択肢・推奨案・あと何問）。`kind` は下の JSON の `kind` と同じ。台帳の CLI は判断の5種（`line` まで）を受ける。`scope` を受けるのは `cmd/kanban` の `questionKinds` に足してから（[ADR-0006](adr/0006-survey-fix-decide.md) の S3）。
+1. `kanban ask <id> "<text>" --kind <k>`: `questions.yaml` の `text` は人向けの描画（下の JSON から command が作る。何の判断か・事実・理由・選択肢・推奨案・あと何問）。`kind` は下の JSON の `kind` と同じ。台帳の CLI は判断の5種（`line` まで）と `scope` を受ける（`kanban ask --kind scope`。[ledger.md](ledger.md) の Questions）。
 2. `tasks/<id>/library/questions/<n>.json`（`n` は台帳が付けた番号）:
 
 ```json
@@ -345,7 +345,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 ## 12. 候補の一覧（`candidates.json`）
 
-担当のタスクの `library/candidates.json`。調べて見つけた、直すかもしれないが決めていないもの（候補）の一覧。調べるタスク（`deliverable: candidates`。§2）の成果で、直すタスクが範囲の問い（§5 の `kind: scope`）で止まるときにも同じ形で書く。担当は手で書かず、`andon task candidates <id> <json|->` で書く（command が形を確かめ、repo があれば `commit` に `HEAD` を入れる）。書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（`finish` でも残る）。
+担当のタスクの `library/candidates.json`。調べて見つけた、直すかもしれないが決めていないもの（候補）の一覧。調べるタスク（`deliverable: candidates`。§2）の成果で、直すタスクが範囲の問い（§5 の `kind: scope`）で止まるときにも同じ形で書く。担当は手で書かず、`andon task candidates <id> <json|->` で書く（command が形を確かめ、repo があれば `commit` に `HEAD` を入れる。入力に `commit` は書かない。形が違えば書かずに終了コード 1 と理由1行で、前の一覧はそのまま）。書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（`finish` でも残る）。
 
 ```json
 {"commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",

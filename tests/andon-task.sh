@@ -141,7 +141,7 @@ cp "$tmp/good" "$lib/report.json"
 
 # show
 "$andon" task show "$id" > "$tmp/show"
-jq -e --arg rev "$rev2" --arg c "$c2" '.settings == {review: "on", must_fix: "major", reviewer: "codex-review", review_rounds: "2", merge: "person"}
+jq -e --arg rev "$rev2" --arg c "$c2" '.settings == {review: "on", must_fix: "major", reviewer: "codex-review", review_rounds: "2", merge: "person", deliverable: "pr"}
   and .review == {state: "current", task: $rev, commit: $c, must_fix_open: 0, waived: 0} and .report.commit == $c' "$tmp/show" >/dev/null
 jq .settings "$tmp/show" > "$tmp/settings.json"; emit "$tmp/settings.json" task-keys.json
 ok 'show: 予約キー（既定で埋める）・report.json・レビューの照合'
@@ -179,14 +179,93 @@ kanban show "$id" --json | jq -e '.questions[0] | .kind == "users" and (.text | 
 emit "$lib/questions/1.json" question.json
 ok 'ask: 問いを台帳に置き、JSON を library/questions/<n>.json に'
 "$andon" task ask "$id" - <<<"$(jq -c '.kind = "line"' <<<"$q")" >/dev/null
-kanban show "$id" --json | jq -e '.questions[1] | has("kind") | not' >/dev/null
+kanban show "$id" --json | jq -e '.questions[1].kind == "line"' >/dev/null
 jq -e '.kind == "line"' "$lib/questions/2.json" >/dev/null
-ok 'ask: kind line は台帳に kind を付けず、JSON にだけ書く'
+ok 'ask: kind line も台帳に kind を付ける（kanban ask --kind line）'
 for bad in '.options[1].pick = true' '.options = [.options[0]]' '.question = "a\nb"' '. + {"x": 1}' '.kind = "other"'; do
     expect_fail '問いの JSON の形が違う' "$andon" task ask "$id" - <<<"$(jq -c "$bad" <<<"$q")"
 done
 [ "$(kanban show "$id" --json | jq '.questions | length')" = 2 ]
 ok 'ask: 形の違う問いは台帳に書く前に止まる'
+
+# 候補・範囲の問い・調べるタスクの ready（ADR-0006 決めたこと 2・3・4・7。受け入れ条件 2）。worktree は別に切る
+git init -q "$tmp/wt2"
+commit2() { echo "$1" > "$tmp/wt2/f"; git -C "$tmp/wt2" add f; git -C "$tmp/wt2" commit -qm "$1"; git -C "$tmp/wt2" rev-parse HEAD; }
+s1=$(commit2 one)
+# 直すタスクが範囲で止まる: candidates → ask（scope）→ stop-check は通す
+fx=$(as t5 kanban add '誤字を1つ直す' --profile claude)
+as t5 kanban set "$fx" review=off must_fix=major "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
+kanban start "$fx" >/dev/null
+lfx=kanban/tasks/$fx/library
+cands='{"candidates":[{"id":"c1","text":"docs/a.md:4 「建家」→「建屋」","file":"docs/a.md","line":4,"in_scope":true},{"id":"c2","text":"README の段を書き直す","in_scope":false}]}'
+for bad in '.candidates[1].id = "c1"|重なっている' 'del(.candidates[0].in_scope)|in_scope が無い' '.candidates[0] += {"tier": "A"}|知らないキー' \
+           '.candidates[0].text = "a\nb"|2行以上' '.candidates[0].file = "/etc/x"|相対パス' '.candidates[0].line = 0|line が' '.candidates[0].id = "x1"|c1, c2' \
+           '. + {"commit": "'"$s1"'"}|commit は書かない' 'del(.candidates)|candidates が無い'; do
+    expect_fail "${bad#*|}" "$andon" task candidates "$fx" - <<<"$(jq -c "${bad%|*}" <<<"$cands")"
+    [ "$(wc -l < "$tmp/err")" = 1 ] || die "candidates: 理由が1行でない: $(cat "$tmp/err")"
+done
+[ ! -e "$lfx/candidates.json" ] || die 'candidates: 形の違う一覧を書いた'
+ok 'candidates: 形が違えば書かずに終了コード 1 と理由1行（id の重複・in_scope 無し・知らないキー・commit を書く）'
+"$andon" task candidates "$fx" - <<<"$cands" | grep -q '候補 2 件、範囲の中 1 件'
+jq -e --arg c "$s1" '.commit == $c and (.candidates | length) == 2 and .candidates[0].file == "docs/a.md" and .candidates[1].in_scope == false and (.candidates[1] | has("file") or has("line") | not)' "$lfx/candidates.json" >/dev/null
+emit "$lfx/candidates.json" candidates.json
+printf '%s' "$cands" > "$tmp/cands.json"; "$andon" task candidates "$fx" "$tmp/cands.json" >/dev/null
+ok 'candidates: 形を確かめて library/candidates.json に書く（commit は HEAD。ファイルからも）'
+expect_fail '形が違う' "$andon" task candidates "$fx" - <<<'{"candidates":[{"id":"c1","text":"x","in_scope":true},{"id":"c1","text":"y","in_scope":true}]}'
+jq -e '(.candidates | length) == 2 and .candidates[1].id == "c2"' "$lfx/candidates.json" >/dev/null || die 'candidates: 形の違う一覧で前の一覧を壊した'
+ok 'candidates: 形が違えば前の candidates.json はそのまま'
+sq=$(jq -nc --arg f "$lfx/candidates.json" '{kind: "scope", question: "誤字は1つではなく2つ。どれを直すか", facts: [$f, "依頼書: 誤字を1つ直す"],
+  options: [{label: "c1 と c2 を全部この PR で", pick: true}, {label: "c1 だけ。c2 は別のタスク"}], from: "task"}')
+"$andon" task ask "$fx" - <<<"$sq" | grep -q "$fx#1"
+kanban show "$fx" --json | jq -e '.questions[0] | .kind == "scope" and .status == "open" and (.text | contains("（scope）"))' >/dev/null
+jq -e '.kind == "scope"' "$lfx/questions/1.json" >/dev/null
+emit "$lfx/questions/1.json" question-scope.json
+ok 'ask: kind scope を受けて kanban ask --kind scope を打つ'
+out=$("$andon" task stop-check "$fx" <<<'{"stop_hook_active":false}' 2>/dev/null)
+[ -z "$out" ] || die "stop-check: scope の問いが開いたままのターンを止めた: $out"
+out=$("$andon" task stop-check "$fx" <<<'{"stop_hook_active":false}' 2>/dev/null)
+[ -z "$out" ] || die "stop-check: scope の問いの答えを待つターンを止めた: $out"
+ok 'stop-check: scope の問いが開いたままのターンを通す'
+
+# 調べるタスク（deliverable: candidates）の ready: PR 無しで candidates.json を要る
+sv=$(as t5 kanban add '調べる: 古い command 名' --profile claude)
+as t5 kanban set "$sv" deliverable=candidates review=off "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
+kanban start "$sv" >/dev/null
+lsv=kanban/tasks/$sv/library
+"$andon" task report "$sv" --data '{"next":[{"to":"chief-of-staff","text":"candidates.json から切る"}]}' <<<'## Report' >/dev/null
+expect_fail 'candidates.json が無い' "$andon" task ready "$sv"
+ok 'ready（candidates）: candidates.json が無ければ止まる'
+echo '{"candidates":[' > "$lsv/candidates.json"
+expect_fail 'candidates.json の形が違う' "$andon" task ready "$sv"
+ok 'ready（candidates）: 手で壊した candidates.json で止まる'
+"$andon" task candidates "$sv" - <<<'{"candidates":[]}' >/dev/null
+s2=$(commit2 two)
+"$andon" task report "$sv" <<<'## Report' >/dev/null
+expect_fail 'candidates.json の commit' "$andon" task ready "$sv"
+ok 'ready（candidates）: candidates.json の commit が HEAD と違えば止まる'
+"$andon" task candidates "$sv" - <<<'{"candidates":[]}' >/dev/null
+"$andon" task show "$sv" > "$tmp/show-sv"
+jq -e '.settings.deliverable == "candidates"' "$tmp/show-sv" >/dev/null
+jq .settings "$tmp/show-sv" > "$tmp/settings-sv.json"; emit "$tmp/settings-sv.json" task-keys-candidates.json
+"$andon" task ready "$sv" >/dev/null
+[ "$(kanban show "$sv" --json | jq -r .task.status)" = review ] || die 'ready（candidates）: review にならない'
+ok 'ready（candidates）: PR 無しで、候補 0 件の candidates.json と HEAD が揃えば review にする（show の settings に deliverable）'
+# Chief of Staff でない書き手の deliverable は信じず pr として読む（PR を要る）
+sv2=$(as t5 kanban add '調べる: 担当が自分で型を変える' --profile claude)
+as t5 kanban set "$sv2" review=off "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
+as t7 kanban set "$sv2" deliverable=candidates >/dev/null
+kanban start "$sv2" >/dev/null
+"$andon" task candidates "$sv2" - <<<'{"candidates":[]}' >/dev/null
+"$andon" task report "$sv2" <<<'## Report' >/dev/null
+expect_fail 'pr が無い' "$andon" task ready "$sv2"
+ok 'ready: deliverable を最後に書いたのが Chief of Staff でなければ pr として PR を要る'
+# repo の無い調べるタスク: commit を書かず、HEAD を照合しない
+nr=$(as t5 kanban add '調べる: repo 無し' --profile claude)
+kanban start "$nr" >/dev/null
+"$andon" task candidates "$nr" - <<<'{"candidates":[{"id":"c1","text":"x","in_scope":false}]}' >/dev/null
+jq -e 'has("commit") | not' "kanban/tasks/$nr/library/candidates.json" >/dev/null
+emit "kanban/tasks/$nr/library/candidates.json" candidates-norepo.json
+ok 'candidates: repo の無いタスクは commit を書かない'
 
 # start: Chief of Staff（t5）が担当を起こす。案件の repo は bare な origin とその clone
 export GHQ_ROOT="$tmp/ghq"

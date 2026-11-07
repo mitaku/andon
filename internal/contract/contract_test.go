@@ -35,8 +35,11 @@ func TestParseQuestion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if q.LedgerKind() != "" || !strings.Contains(q.Text(), "推奨案: a") || strings.Contains(q.Text(), "あと") {
-		t.Errorf("text・kind: %q %q", q.Text(), q.LedgerKind())
+	if !strings.Contains(q.Text(), "推奨案: a") || strings.Contains(q.Text(), "あと") {
+		t.Errorf("text: %q", q.Text())
+	}
+	if _, err := ParseQuestion([]byte(strings.Replace(good, `"line"`, `"scope"`, 1))); err != nil {
+		t.Errorf("kind scope が通らない: %v", err)
 	}
 	for name, bad := range map[string]string{
 		"推奨案が2つ":    strings.Replace(good, `"pick":false`, `"pick":true`, 1),
@@ -46,6 +49,48 @@ func TestParseQuestion(t *testing.T) {
 		"from が人":   strings.Replace(good, `"remaining":0`, `"from":"person"`, 1),
 	} {
 		if _, err := ParseQuestion([]byte(bad)); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
+	}
+}
+
+// 候補の一覧（contract.md §12・ADR-0006 決めたこと 2）。schema の uniqueKeys（id の一意）もここで確かめる
+func TestParseCandidates(t *testing.T) {
+	good := `{"commit":"` + sha + `","candidates":[
+	 {"id":"c1","text":"docs/a.md:4 誤字","file":"docs/a.md","line":4,"in_scope":true},
+	 {"id":"c2","text":"README の段を書き直す","in_scope":false}]}`
+	c, err := ParseCandidates([]byte(good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Candidates) != 2 || !*c.Candidates[0].InScope || *c.Candidates[1].InScope || c.Candidates[1].File != nil {
+		t.Errorf("読んだ形: %+v", c.Candidates)
+	}
+	for name, ok := range map[string]string{
+		"commit 無し（repo の無いタスク）": `{"candidates":[{"id":"c1","text":"x","in_scope":false}]}`,
+		"候補 0": `{"candidates":[]}`,
+	} {
+		if _, err := ParseCandidates([]byte(ok)); err != nil {
+			t.Errorf("%s: 通らない: %v", name, err)
+		}
+	}
+	for name, bad := range map[string]string{
+		"id が重なる":         strings.Replace(good, `"id":"c2"`, `"id":"c1"`, 1),
+		"id の形":           strings.Replace(good, `"id":"c2"`, `"id":"x2"`, 1),
+		"id が c0":         strings.Replace(good, `"id":"c2"`, `"id":"c0"`, 1),
+		"in_scope 無し":     strings.Replace(good, `,"in_scope":false`, ``, 1),
+		"in_scope が null": strings.Replace(good, `"in_scope":false`, `"in_scope":null`, 1),
+		"知らないキー":          strings.Replace(good, `"id":"c2"`, `"tier":"A","id":"c2"`, 1),
+		"上の知らないキー":        strings.Replace(good, `"candidates"`, `"x":1,"candidates"`, 1),
+		"text が空":         strings.Replace(good, `"README の段を書き直す"`, `""`, 1),
+		"text が2行":        strings.Replace(good, `"README の段を書き直す"`, `"a\nb"`, 1),
+		"file が絶対":        strings.Replace(good, `"file":"docs/a.md"`, `"file":"/etc/x"`, 1),
+		"file が空":         strings.Replace(good, `"file":"docs/a.md"`, `"file":""`, 1),
+		"line が 0":        strings.Replace(good, `"line":4`, `"line":0`, 1),
+		"commit が短い":      strings.Replace(good, sha, "9c4e1b0", 1),
+		"candidates 無し":   `{"commit":"` + sha + `"}`,
+	} {
+		if _, err := ParseCandidates([]byte(bad)); err == nil {
 			t.Errorf("%s: 通ってしまう", name)
 		}
 	}

@@ -5,7 +5,9 @@
 //	report <id>           report.json を書き（commit は HEAD）、stdin の Markdown で台帳に報告する
 //	review-request <id>   report.json に review_request を足して報告する（回数・前回の commit は command が数える）
 //	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば台帳を review にする
+//	                      （deliverable: candidates なら PR の代わりに candidates.json を確かめる）
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
+//	candidates <id> <file|->  候補の一覧の JSON を検査し、library/candidates.json に置く（repo があれば commit は HEAD）
 //	start <id>            worktree と branch を切り、hc run で担当を起こし、kanban start で結ぶ（Chief of Staff が打つ）
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
 //	impact <id>           マージした PR が、同じ repo の doing／review のタスクにぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
@@ -36,7 +38,9 @@ const Usage = "usage: andon task show <id>                                  予�
 	"                                                          report.json を書き（commit は HEAD）、台帳に報告する\n" +
 	"       andon task review-request <id> < report.md           review_request を足して報告する（レビューを頼む）\n" +
 	"       andon task ready <id>                                 HEAD・report.json・PR の head・レビューが揃えば review にする\n" +
+	"                                                          （deliverable: candidates なら PR の代わりに candidates.json）\n" +
 	"       andon task ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
+	"       andon task candidates <id> <candidates.json|->        候補の一覧を検査して library/candidates.json に書く（commit は command が書く）\n" +
 	"       andon task finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
 	"       andon task impact <id>                                マージした PR と、同じ repo の動いているタスクの重なり・衝突を JSON で出す\n" +
 	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
@@ -110,6 +114,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return usage()
 		}
 		err = withTask(id, func(c *ctx) error { return c.ask(stdin, stdout, rest[0]) })
+	case "candidates":
+		if len(rest) != 1 {
+			return usage()
+		}
+		err = withTask(id, func(c *ctx) error { return c.candidates(stdin, stdout, rest[0]) })
 	case "finish":
 		if len(rest) > 0 {
 			return usage()
@@ -161,6 +170,19 @@ func withTask(id string, f func(*ctx) error) error {
 }
 
 func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "report.json") }
+
+func (c *ctx) candidatesPath() string { return filepath.Join(c.l.Library(c.id), "candidates.json") }
+
+// hasRepo は repo のあるタスクか（task.yaml の repo）。repo の無いタスクの候補は commit を持たない。
+func (c *ctx) hasRepo() bool { return c.task.Str("repo") != "" }
+
+// readInput は <file|-> の中身。
+func readInput(stdin io.Reader, src string) ([]byte, error) {
+	if src == "-" {
+		return io.ReadAll(stdin)
+	}
+	return os.ReadFile(src)
+}
 
 // head は担当の worktree（task.yaml の worktree。無ければ cwd）の HEAD。
 func (c *ctx) head() (string, error) {
@@ -383,6 +405,9 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if err != nil {
 		return fail("library/report.json の形が違う: %v", err)
 	}
+	if c.l.Deliverable(c.l.Log(), c.task) == "candidates" {
+		return c.readyCandidates(r, stdout)
+	}
 	if r.PR == "" {
 		return fail("report.json に pr が無い（andon task report <id> --pr <url>）")
 	}
@@ -423,16 +448,75 @@ func (c *ctx) ready(stdout io.Writer) error {
 	return nil
 }
 
+// readyCandidates は調べるタスク（deliverable: candidates。ADR-0006 決めたこと 7）の ready: PR とレビューの代わりに、
+// candidates.json が在って形が合い、repo があれば report.json と candidates.json の commit が HEAD と同じことを確かめる。
+func (c *ctx) readyCandidates(r *contract.Report, stdout io.Writer) error {
+	cs, err := contract.ReadCandidates(c.candidatesPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return fail("deliverable が candidates なのに library/candidates.json が無い。andon task candidates で書く")
+	}
+	if err != nil {
+		return fail("library/candidates.json の形が違う: %v", err)
+	}
+	if c.hasRepo() {
+		head, err := c.head()
+		if err != nil {
+			return err
+		}
+		if r.Commit != head {
+			return fail("report.json の commit（%s）が HEAD（%s）と違う。andon task report で書き直す", r.Commit[:12], head[:12])
+		}
+		if cs.Commit != head {
+			return fail("candidates.json の commit（%.12s）が HEAD（%s）と違う。andon task candidates で書き直す", cs.Commit, head[:12])
+		}
+	}
+	out, err := c.l.Run("", "review", c.id)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(stdout, out)
+	return nil
+}
+
+// candidates は候補の一覧（contract.md §12）を検査して library/candidates.json に置く。commit は command が書く
+// （repo があれば HEAD、無ければ書かない）。台帳には書かない（報告と問いが候補を指す）。
+func (c *ctx) candidates(stdin io.Reader, stdout io.Writer, src string) error {
+	b, err := readInput(stdin, src)
+	if err != nil {
+		return err
+	}
+	cs, err := contract.ParseCandidates(b)
+	if err != nil {
+		return fail("候補の一覧の JSON の形が違う: %v", err)
+	}
+	if cs.Commit != "" {
+		return fail("候補の一覧に commit は書かない（command が書く）")
+	}
+	if c.hasRepo() {
+		if cs.Commit, err = c.head(); err != nil {
+			return err
+		}
+	}
+	if err := os.MkdirAll(c.l.Library(c.id), 0o755); err != nil {
+		return err
+	}
+	if err := contract.Write(c.candidatesPath(), cs); err != nil {
+		return err
+	}
+	in := 0
+	for _, x := range cs.Candidates {
+		if *x.InScope {
+			in++
+		}
+	}
+	fmt.Fprintf(stdout, "%s/library/candidates.json written（候補 %d 件、範囲の中 %d 件）\n", c.id, len(cs.Candidates), in)
+	return nil
+}
+
 var askedRe = regexp.MustCompile(`#([1-9][0-9]*)$`)
 
 func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
-	var b []byte
-	var err error
-	if src == "-" {
-		b, err = io.ReadAll(stdin)
-	} else {
-		b, err = os.ReadFile(src)
-	}
+	b, err := readInput(stdin, src)
 	if err != nil {
 		return err
 	}
@@ -440,11 +524,7 @@ func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
 	if err != nil {
 		return fail("問いの JSON の形が違う: %v", err)
 	}
-	args := []string{"ask", c.id, "-"}
-	if k := q.LedgerKind(); k != "" {
-		args = append(args, "--kind", k)
-	}
-	out, err := c.l.Run(q.Text(), args...)
+	out, err := c.l.Run(q.Text(), "ask", c.id, "-", "--kind", q.Kind)
 	if err != nil {
 		return err
 	}
