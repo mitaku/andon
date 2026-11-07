@@ -61,10 +61,11 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 3 | 台帳を1回だけ読む | タスクの一覧と `log.jsonl` の全行を**この1回だけ**読む。以降の段はこの写しを使う | 読むだけ |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、`Pending` へ積む（§2.2・§2.3） | 控えに書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
-| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす | |
+| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` に積む（§2.5） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。提供元に切られて止まっていれば、入力欄が空のときだけ「続けて」（§2.4） | 端末に打つことがある |
 | 5 | タスクごとの工程 | 一覧の順に1タスクずつ。**`doing` で `review_request` があれば**レビュアーを起こす（`review-requested`）、**`review` ならゲートを回す**（`gate`・マージ・`fix`・問い）。レビュアー・Chief Engineer・repo の無いタスク・`deliverable: candidates` のタスクは飛ばす（§5 の P6a） | 台帳・端末に書く |
+| 5b | マージのあとの影響 | 控えの `Impact` のタスクごとに `andon task impact` を1回打ち、影響のあるタスクがあれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
 | 6 | 届ける（経路③） | 初めて見る台帳でなければ、§4 の守りがそろったときだけ `hc send`。送ったら `Pending` を空にする | 端末に打つ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いているタスク（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
 
@@ -93,6 +94,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | レビューを頼まれ、起こした | `report.json` の `review_request`（P6a） | `review-requested` |
 | ゲートが判定した | dispatcher が回した `andon gate` の結果（P6a） | `gate` |
 | マージして片付けた | approve ＋ `merge: auto` ＋ 委譲の範囲内（P6a） | `merged` |
+| マージのあと、動いているタスクにぶつかる・重なる | `log.jsonl` の `{"status": "done"}`（dispatcher と Chief of Staff の finish）→ `andon task impact`（§2.5） | `impact` |
 | 担当が止まった・落ちた・終わった・静か | 端末の土台の状態（§2.3） | `blocked`・`error`・`finished`・`stalled` |
 | 外の信号（main の CI の失敗・webhook） | **最初の版の後**（design.md §1.9 の (a)・§6 問い23） | `signal` |
 
@@ -157,6 +159,18 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - **最初のメッセージの送り直し**（§5）: 最初のメッセージがまだ届いていない端末（ラベル `first_message.sent=false` で控えの `First` にも無い）には「続けて」を打たない（続ける仕事を受け取っていない）。`error` として知らせる。最初のメッセージの送り直しは `idle` のときだけで、`error` の間は送らないので、同じ見回りで2つが同じ端末に届くことは無い。控えの `First` にある（送ったがラベルを外せなかった）端末は届いたとみて、続きを打つ。
 - **`stalled`**: 「続けて」は `error` のときだけ、`stalled` は `idle`・`done`・`working` のときだけで、状態で分かれる。`stalled` は知らせるだけで打たない。打ったあと `working` のまま 20 分たてば `stalled` を知らせる。
 - **経路③の `<news>`**（§3）: Chief of Staff に送るのは `idle`・`done` のときだけで、「続けて」は `error` のときだけ。
+
+### 2.5 マージのあとの影響
+
+1本がマージされると、同じ repo で動いている担当（`doing`・`review`）の前提が変わる: main とぶつかる、同じファイルを触っている、依頼書の入力（ADR・設計書）が書き換わった。放っておくと担当は古い前提のまま進み、ぶつかりはゲートの `conflict`（マージの直前）まで分からない。
+そこで**機械で分かる事実だけ**を dispatcher が集めて Chief of Staff に渡し、**判断と担当への依頼は Chief of Staff** が持つ（ADR-0006 決めたこと 14 の 機械→文→人 の順。判断の表は chief-of-staff skill §7）。
+
+- **合図はマージではなく `done` の行**。マージは2つの道で起きる（dispatcher の `merge: auto`・人のマージ）が、どちらも `andon task finish` で `done` になる（人がマージしたときは Chief of Staff が MERGED を確かめてから打つ）。`done` を拾えば1本の道で両方を拾える。Chief of Staff が打った行も拾う（影響は Chief of Staff もまだ見ていない事実なので、「自分のしたことを自分に知らせない」の外）。
+- 拾った id は控えの `Impact` に積み、5b で `andon task impact <id>` を打つ。レビュアー・Chief Engineer・repo の無いタスク・`report.json` に `pr` の無いタスクは打たない。PR が MERGED でない（マージせずにやめた）ときは command が終了コード 4 を返し、ログに1行で終える。失敗は次の見回りで打ち直し、3回で諦めてログに残す（Chief of Staff は同じ command を手で打てる）。
+- `andon task impact` は読むだけ（書くのは `git fetch` だけ）。同じ repo の `doing`／`review` の担当のタスクごとに、branch がもうマージの commit を含むか・`git merge-tree` でぶつかるか・両方が触ったファイル（worktree の commit していない変更も）・依頼書に名前が出るマージのファイル、を出す（形は contract.md §6）。GitHub の `mergeable` はマージの直後には計算中のことが多いので使わず、手元の git で決める。
+- 影響のあるタスクが1つも無ければ知らせない（ログに1行）。あれば `impact` を1件積み、同じ巡の6で届けうる（`merged` と同じ通に載ることもある）。
+- **担当に `hc send` しない**。rebase を頼む・止めて向きを確かめるは Chief of Staff の判断（§6 の「判断しない」）。rebase そのものは担当がする（Chief of Staff も dispatcher もしない）。
+- 初めて見る台帳では `done` も位置を控えるだけで拾わない（過去のマージを流さない）。`log.jsonl` を先頭から読み直したとき（§2.2）は古い `done` も拾うが、古いマージの commit は動いている branch に含まれる（`contains`）ので、ほとんど知らせにならない。
 
 ---
 
@@ -336,6 +350,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 14 | boot の起動の段（portless・files サーバ・sshd・git の資格情報） | `andon boot` | 同じポートで 2 つ起動しようとして後の方が bind に失敗する | ⑥起こす前にポートが listen しているかを見る。`gh auth setup-git` は何度打っても同じ。lock は無い（G6） |
 | 15 | `andon publish`（`files/` への書き出し） | 打った者（担当・Chief of Staff・人） | 同じ日・同じ slug は上書き | ⑥同じ日・同じ slug の再公開は上書きと決めてある。一時ファイル＋rename。上限 20 MiB |
 | 16 | hooks（Stop・UserPromptSubmit） | Claude Code が呼ぶ（managed settings）。判断は持たず command を呼ぶだけ | #7・#11 に同じ | 呼ぶ先の command の守り（#7・#11・#1）。UserPromptSubmit の `drain --context` は読むだけで控えを書かない |
+| 17 | マージのあとの影響を集める（`andon task impact`。§2.5） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。Chief of Staff が手で打つこともある | 同じマージの `impact` が 2 度届く。command は読むだけ（`git fetch` のほか書かない）なので、事実が壊れることは無い | ②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Impact`（打ったら外す。失敗は 3 回まで）。⑥command は読むだけで何度打っても同じ事実から同じ出力。**手で打つ分は防がない**が、手で打った Chief of Staff はもう読んでいる |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

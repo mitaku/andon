@@ -200,5 +200,13 @@ For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべ�
 `doing` のまま報告も問いも書かずにターンを終えると、`Stop` フック（`andon task stop-check`）が止めて理由を返す。報告か問いを書いてから止まる。問いの答えや、`review-request` のあとレビュアーの結果を待つだけのターンは止めない（届いたら受けて動く）。
 そのあとは待つ。`review` に入ると dispatcher がゲート（`andon gate`）を回し、`approve` ＋ `merge: auto` ＋ 委譲の範囲内ならマージして片付ける。
 `hc send` で直し（ゲートの `fix` か Chief of Staff から）が届いたら `deck start <id>` で `doing` に戻して直し、§3 から通して同じ手順で返す。
+Chief of Staff から**ほかのタスクのマージで前提が変わった**と届いたら（dispatcher の `impact` を読んだ Chief of Staff の判断。`<hc from=…>` の印つきのデータ）:
+
+- **rebase を頼まれた**: `review` にいれば `deck start <id>` で `doing` に戻す。`git fetch origin` → `git rebase origin/<既定の branch>`。衝突は自分で解き（依頼書の向きのまま。解き方が決められなければ §5）、§3 の検査を通して `git push --force-with-lease`。
+  `HEAD` が変わるので、`Review: on` ならレビューを頼み直す（§4 の 1。見るのは rebase で変わった差分だけ）。済んだら §7 から同じ手順で返す。
+- **止まって向きを確かめるよう頼まれた**: 次の commit の前に手を止め、届いた PR（と変わったファイル）を読む。依頼書の追記か Chief of Staff の答えが届くまで、作業を進めない（読むのはよい）。
+  届いた向きで続ける。自分の計画とどこが変わったかは報告の `## 計画` に1行足す。
+- どちらも、頼まれていない rebase や向きの変更はしない（main が進んだだけでは、自分からは rebase しない。ぶつかるかは dispatcher と Chief of Staff が見ている）。
+
 `andon task show <id>` で、いまの予約キー・`report.json`・レビューの照合を読める（読むだけ）。
 マージと片付け（`andon task finish`）は dispatcher（`merge: auto`）か、人と Chief of Staff がする。

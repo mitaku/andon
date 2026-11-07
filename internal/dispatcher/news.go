@@ -66,6 +66,28 @@ func line(n Notification) string {
 		return s + " 記録 " + d("record")
 	case "merged":
 		return head + d("pr") + " をマージして片付けた（" + clean(n.Detail["sha"], 12) + "）"
+	case "impact":
+		s := head + d("pr") + " のマージ（" + clean(n.Detail["sha"], 12) + "）で"
+		rows, _ := n.Detail["tasks"].([]any)
+		var parts []string
+		for _, r := range rows {
+			m, _ := r.(map[string]any)
+			var what []string
+			if m["conflict"] == true {
+				what = append(what, "衝突")
+			}
+			if o, _ := m["overlap"].([]any); len(o) > 0 {
+				what = append(what, fmt.Sprintf("重なり %d", len(o)))
+			}
+			if b, _ := m["brief_refs"].([]any); len(b) > 0 {
+				what = append(what, fmt.Sprintf("依頼書 %d", len(b)))
+			}
+			if m["error"] != nil {
+				what = append(what, "読めない")
+			}
+			parts = append(parts, clean(m["task"], 40)+"（"+strings.Join(what, "・")+"）")
+		}
+		return s + " " + strings.Join(parts, "; ") + "。andon task impact " + clean(n.Task, 40) + " で事実を読む"
 	case "stalled":
 		s := clean(n.Task, 40) + " の担当 " + short("agent") + " が止まったまま"
 		if m := minutesSince(n); m >= 0 {

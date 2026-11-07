@@ -225,6 +225,10 @@ pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "c
 pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json"}|kind gate
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|kind merged
 pass|notification|.kind = "stalled" | .detail = {agent: "t7", status_ms: 1793845966681} | del(.task)|kind stalled（task 無し）
+pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: []}|impact の tasks が空
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: []}]}|impact の tasks の1件に brief_refs が無い
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: [], brief_refs: [], screen: "x"}]}|impact の tasks の1件に知らないキー
 fail|notification|del(.detail.pr)|review の detail に pr が無い
 fail|notification|.detail += {"text": "x"}|detail に知らないキー
 fail|notification|.kind = "asked"|asked なのに detail が review の形
@@ -370,6 +374,7 @@ question-gate.json|question|andon dispatcher が needs_human で出した問い�
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
 notification-merged.json|notification|andon dispatcher の通知 merged
+notification-impact.json|notification|andon dispatcher の通知 impact（andon task impact から）
 notification-asked.json|notification|andon dispatcher の通知 asked
 notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report
 notification-review.json|notification|andon dispatcher が log.jsonl から拾った通知 review

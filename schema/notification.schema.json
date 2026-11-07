@@ -12,7 +12,7 @@
     "task": { "description": "Task id, when the notification is about a task.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "blocked", "error", "finished", "stalled"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "impact", "blocked", "error", "finished", "stalled"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -31,6 +31,8 @@
       "then": { "properties": { "detail": { "$ref": "#/$defs/gate" } } } },
     { "if": { "properties": { "kind": { "const": "merged" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/merged" } } } },
+    { "if": { "properties": { "kind": { "const": "impact" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/impact" } } } },
     { "if": { "properties": { "kind": { "enum": ["blocked", "error", "finished", "stalled"] } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } }
   ],
@@ -93,6 +95,28 @@
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
         "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "impact": {
+      "description": "kind impact: from `andon task impact` after a task's PR was merged. Only the running tasks it may affect; the Chief of Staff judges.",
+      "type": "object", "required": ["pr", "sha", "tasks"], "additionalProperties": false,
+      "properties": {
+        "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
+        "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tasks": {
+          "description": "Running tasks in the same repo that conflict, overlap, are referenced by the brief, or could not be read.",
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "required": ["task", "conflict", "overlap", "brief_refs"], "additionalProperties": false,
+            "properties": {
+              "task": { "description": "Task id.", "$ref": "#/$defs/id" },
+              "conflict": { "description": "git merge-tree of the branch and the merge commit conflicts.", "type": "boolean" },
+              "overlap": { "description": "Files both changed (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "brief_refs": { "description": "Merged files named in the task's brief (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "error": { "description": "Why the facts could not be read.", "type": "string", "minLength": 1 }
+            }
+          }
+        }
       }
     },
     "terminal": {

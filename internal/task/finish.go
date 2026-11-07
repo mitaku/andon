@@ -27,15 +27,11 @@ func (c *ctx) finish(stdout io.Writer) error {
 	wt, branch := c.task.Path("worktree"), c.task.Str("branch")
 	repoDir := ""
 	if repo != "" {
-		root := os.Getenv("GHQ_ROOT")
-		if root == "" {
-			out, err := exec.Command("ghq", "root").Output()
-			if err != nil {
-				return fail("GHQ_ROOT が無い")
-			}
-			root = strings.TrimSpace(string(out))
+		d, err := repoDirOf(repo)
+		if err != nil {
+			return err
 		}
-		repoDir = filepath.Join(root, repo)
+		repoDir = d
 	}
 
 	// repo の無いタスク（レビュアーなど）は、担当の deck start が cwd（tasks/<id>/）を包む checkout を書く。

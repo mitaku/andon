@@ -184,6 +184,7 @@ func (p *project) pass() (bool, error) {
 			p.review(t, rep)
 		}
 	}
+	p.impacts() // マージのあとの影響（dispatcher.md §2.5）
 	if !p.first {
 		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}
