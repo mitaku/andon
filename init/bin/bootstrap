@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 建屋の入口。ホストに要るのは docker と bash だけ。
+# セルの入口。ホストに要るのは docker と bash だけ。
 #
 #   bin/bootstrap                起動して herdr に入る（セッションは残るので、もう一度打てば戻る）
 #   bin/bootstrap up             起動だけ（入らない）
@@ -13,8 +13,8 @@
 #   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod）を置く
 #   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
 #
-# compose.yaml は建屋の repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
-# 番号は .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT）。建屋に固有のサービスは compose.override.yaml に。
+# compose.yaml はセルの repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
+# 番号は .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT）。セルに固有のサービスは compose.override.yaml に。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -31,7 +31,7 @@ die() { echo "✗ $*" >&2; exit 1; }
 # andon.toml の key = "value" の値（TOML の1行の文字列だけを読む）
 toml() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" andon.toml | head -n 1; }
 
-[ -f andon.toml ] || die "andon.toml が無い（andon init で作った建屋の repo の中で打つ）"
+[ -f andon.toml ] || die "andon.toml が無い（andon init で作ったセルの repo の中で打つ）"
 slug=$(toml slug)
 case "$slug" in
   '' | *[!a-z0-9-]* | -*) die "andon.toml の slug が無いか、英小文字・数字・- でない: '$slug'" ;;
@@ -57,18 +57,18 @@ run() {
 
 require_docker() {
   [ "$dry" = 1 ] && return 0
-  command -v docker >/dev/null 2>&1 || die "docker が無い。建屋はホストに docker と bash だけを求める"
+  command -v docker >/dev/null 2>&1 || die "docker が無い。セルはホストに docker と bash だけを求める"
   docker info >/dev/null 2>&1 || die "docker デーモンに繋がらない（起動しているか確かめる）"
 }
 
-# 建屋の andon は uid 1000 で動く（image/Dockerfile）。建屋の repo は /workspace に bind mount するので、
+# セルの andon は uid 1000 で動く（image/Dockerfile）。セルの repo は /workspace に bind mount するので、
 # 持ち主が違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起こす前に止める。
 require_owner() {
   local owner
-  owner=$(stat -c %u "$root") || die "建屋の repo（$root）の持ち主が読めない"
+  owner=$(stat -c %u "$root") || die "セルの repo（$root）の持ち主が読めない"
   [ "$owner" = 1000 ] && return 0
-  die "建屋の repo（$root）の持ち主が uid $owner。建屋の andon は uid 1000 で動くので、/workspace を読み書きできない。
-  回り道: uid 1000 の利用者で建屋の repo を作り直して（andon init）、そこから打つ（docs/operate.md の 3）"
+  die "セルの repo（$root）の持ち主が uid $owner。セルの andon は uid 1000 で動くので、/workspace を読み書きできない。
+  回り道: uid 1000 の利用者でセルの repo を作り直して（andon init）、そこから打つ（docs/operate.md の 3）"
 }
 
 # extract <イメージの中の /opt/andon からのパス> <置き場>
@@ -247,7 +247,7 @@ host_install() {
     *[!0-9]*) die ".env の SSH_PORT・PORTLESS_PORT は数字だけ（いま: '$ssh_port' '$portless_port'）" ;;
   esac
   sed -e "s/<slug>/$slug/g" -e "s/<ssh-port>/$ssh_port/g" -e "s/<portless-port>/$portless_port/g" \
-    "$src/ssh_config" >"$tmp/ssh_config" # 一時ディレクトリ（建屋の repo と HOME の外）
+    "$src/ssh_config" >"$tmp/ssh_config" # 一時ディレクトリ（セルの repo と HOME の外）
   place "$src/andon-up" "$bin/andon-up" 755
   place "$src/herdr-config.toml" "$HOME/.config/herdr/config.toml" 644
   place "$tmp/ssh_config" "$HOME/.ssh/config.d/$project.conf" 600
@@ -269,7 +269,7 @@ host_install() {
   place "$src/layouts/andon.json" "$app_home/layouts/andon.json" 644
   place "$src/layouts/andon.svg" "$app_home/layouts/andon.svg" 644
   echo "App のレイアウトを andon に切り替える: App のあるマシンで herdr-app do layout.switch --name andon（keys.json・settings.json は人のもの。各 mod の README の断片を足す）"
-  echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM に建屋を立てるとき、<…> を埋めて渡す）"
+  echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM にセルを立てるとき、<…> を埋めて渡す）"
   if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then
     echo "~/.ssh/config の先頭に1行足す: Include config.d/*"
   fi

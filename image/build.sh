@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # image/build.sh <andon の checkout> <tag> [<revision>]
 #
-# andon の checkout から base image を焼く。tests/image.sh（CI も）と建屋の `bin/bootstrap rebuild --from` が同じものを打つ。
+# andon の checkout から base image を焼く。tests/image.sh（CI も）とセルの `bin/bootstrap rebuild --from` が同じものを打つ。
 # ホストに要るのは docker と bash だけ（kanban・andon の go build は image/Dockerfile の段 bin で docker の中）。
 # <revision> は焼いた元の commit（image の label org.opencontainers.image.revision）。省けば checkout の git から取る
 # （汚れていれば末尾に -dirty。git が無ければ unknown）。kanban --version には先頭12文字（と -dirty）が出る。

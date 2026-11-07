@@ -1,8 +1,8 @@
-# 建屋を立てて1本流す（手順）
+# セルを立てて1本流す（手順）
 
 - 状態: **手順**（2026-11-05 起草。[design.md](design.md) §5.2 の P7 の準備）。読み手は人。ホスト（docker と bash がある Linux か WSL）で打つ。
 - 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[dispatcher.md](dispatcher.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
-- 書き方: `<owner>`（GitHub の持ち主）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。建屋の名前（slug）は例として `home`。
+- 書き方: `<owner>`（GitHub の持ち主）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。セルの名前（slug）は例として `home`。
 
 ## 役の配置と起動（一覧）
 
@@ -10,7 +10,7 @@
 
 | 役 | 端末の名前 | 出る場所（Space / tab） | 起こすのは・きっかけ | 止まったら誰が戻すか |
 |---|---|---|---|---|
-| dispatcher | `dispatcher`（建屋に1つ） | 台帳が1つならその指揮側の Space の tab「dispatcher」、2つ以上なら `<建屋の slug> plant` の tab「dispatcher」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon dispatcher` でなければ片付けて起こし直す（dispatcher.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければ人が `andon boot` |
+| dispatcher | `dispatcher`（セルに1つ） | 台帳が1つならその指揮側の Space の tab「dispatcher」、2つ以上なら `<セルの slug> plant` の tab「dispatcher」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon dispatcher` でなければ片付けて起こし直す（dispatcher.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければ人が `andon boot` |
 | Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、打ち直せば command が数えずに片付け（keep を外して kill・rm）、起こし直して chief_of_staff を合わせる。数えるのは hc の agent が Claude Code の端末だけで、どちらとも言えない端末（人が中で使っているなど）があれば触らずに止まる |
 | Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ dispatcher が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ。作り直しで戻った端末（top-level の argv ごと素のシェル）は、次の `andon chief-engineer` が数えずに片付けてから起こす（前のタスクは台帳に残る）。hc の agent が Claude Code でも戻った端末でもなければ止まる |
 | 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ dispatcher が送り直す。止まりは dispatcher が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、dispatcher が終わった端末（`finished`）として知らせる |
@@ -18,33 +18,33 @@
 
 - **dispatcher とゲート**: 担当の `andon task ready`（`status: review`）を拾った dispatcher が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。dispatcher が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
 - **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかった（`sent: false`、か `sent: true` でも `started: false`＝送ったが動き出さない）ら、端末にラベル `first_message.sent=false` が付き、dispatcher が見回りで入力を受けられる状態（`idle`）になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
-- **信頼の画面**: 建屋では出ない（boot と、起こす直前の `andon task start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
+- **信頼の画面**: セルでは出ない（boot と、起こす直前の `andon task start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
 - **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`task=…` の付いた端末で中身が素のシェル（起こした command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。dispatcher の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
 - **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、タスクの範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
 
-## 建屋の置き方
+## セルの置き方
 
-建屋の repo（`~/src/andon-<slug>`。コンテナの `/workspace`）と、製品の repo（ソース）を分ける。
+セルの repo（`~/src/<slug>-cell`。コンテナの `/workspace`）と、製品の repo（ソース）を分ける。
 
-- `projects/<slug>/` は**建屋の repo の実ディレクトリ**（symlink にしない）。台帳（`kanban/`。git の外）と、人が書くプロジェクトの事実（`project.json`: 書いてよい repo・委譲など。[contract.md](contract.md) §11）を置く。
+- `projects/<slug>/` は**セルの repo の実ディレクトリ**（symlink にしない）。台帳（`kanban/`。git の外）と、人が書くプロジェクトの事実（`project.json`: 書いてよい repo・委譲など。[contract.md](contract.md) §11）を置く。
 - ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `~/.herdr/worktrees/<repo 名>/<slug>-<id>` の worktree で働く。
 - 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon task start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
-- `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、建屋の repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
+- `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
 - **納品物 `files/`**: `andon publish` が `<日付>-<slug>` で置き、files サーバが公開する。git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。
-- **symlink にしない理由**: 委譲は「人だけが書く」。これを、建屋の repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
+- **symlink にしない理由**: 委譲は「人だけが書く」。これを、セルの repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
 
 ## 0. 先に知っておくこと: 通らなかった所（直した）
 
 コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon task start` の中身が無い」（10）。
 
-P7 で見つけた F4「建屋の `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物の建屋の repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
+P7 で見つけた F4「セルの `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物のセルの repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
 
-P7 で見つけた F5「Herdr App から起こした端末に `claude` が見えず、Chief of Staff が `env: 'claude': No such file or directory` で落ちる」も直した。sshd が image の環境を引き継がず、App が SSH 越しに起こす herdr-core serve の `PATH` に `~/.local/bin` と aqua の道具が無かった。image が sshd に環境を渡し、boot が herdr-core を `~/.local/bin`（App が置く場所）に揃える（4 の「Herdr App から建屋へつなぐ」）。
+P7 で見つけた F5「Herdr App から起こした端末に `claude` が見えず、Chief of Staff が `env: 'claude': No such file or directory` で落ちる」も直した。sshd が image の環境を引き継がず、App が SSH 越しに起こす herdr-core serve の `PATH` に `~/.local/bin` と aqua の道具が無かった。image が sshd に環境を渡し、boot が herdr-core を `~/.local/bin`（App が置く場所）に揃える（4 の「Herdr App からセルへつなぐ」）。
 
 ### 前の名前から移す（`artifacts/` → `files/`）
 
-前の建屋は納品物を `artifacts/` に置いていた。`files/` に改めたので、建屋の中で一度だけ移す。
+前のセルは納品物を `artifacts/` に置いていた。`files/` に改めたので、セルの中で一度だけ移す。
 
 ```bash
 cd /workspace
@@ -57,7 +57,7 @@ pid=$(ss -ltnp "sport = :$port" | grep -o "pid=[0-9]*" | head -1 | cut -d= -f2)
 andon boot
 ```
 
-URL（`http://files.<建屋>.localhost:<番号>/…`）は変わらない。
+URL（`http://files.<セル>.localhost:<番号>/…`）は変わらない。
 
 ## 1. image を取る
 
@@ -71,12 +71,14 @@ docker pull ghcr.io/<owner>/andon:<版>      # <版> は vX.Y.Z（配る版）�
 - **通ったら見えるもの**: `docker image ls ghcr.io/<owner>/andon` に行が出る。
 - **落ちたら見る所**:
   - `denied`・`unauthorized` — token に `read:packages` があるか。組織の package なら SSO の承認。package の「Manage access」にこのアカウントがあるか。
-  - `manifest unknown` — GHCR に版が出るのは `vX.Y.Z` の tag を push して tests の job が通ったときだけ（[image.md](image.md)）。main へのマージでは出ない。P7 のように tag を切る前の建屋は、すでに GHCR にある 40桁の commit SHA の版（main へのマージで出していた頃のもの）を使う。その版のまま、日々の直しは 3 の「andon を直して建屋で試す」で手元で焼く。
+  - `manifest unknown` — GHCR に版が出るのは `vX.Y.Z` の tag を push して tests の job が通ったときだけ（[image.md](image.md)）。main へのマージでは出ない。P7 のように tag を切る前のセルは、すでに GHCR にある 40桁の commit SHA の版（main へのマージで出していた頃のもの）を使う。その版のまま、日々の直しは 3 の「andon を直してセルで試す」で手元で焼く。
   - `no matching manifest` — 配布は Linux amd64 だけ（[image.md](image.md)）。
 
-## 2. 建屋の repo を作る（`andon init`）
+## 2. セルの repo を作る（`andon init`）
 
-建屋の repo は `andon init <slug>` が作る（雛形は `init/`。作ったあとは Andon に追従しない）。置き場は `~/src/andon-<slug>`（`andon-up` が `$HOME/src/andon-*` を探す。`ANDON_PLANTS` で変えられる）。
+セルの repo は `andon init <slug>` が作る（雛形は `init/`。作ったあとは Andon に追従しない）。置き場は `~/src/<slug>-cell`（`andon-up` が `$HOME/src/*-cell` と、前の形の `$HOME/src/andon-*` を探す。`ANDON_PLANTS` で変えられる）。
+
+前の形の名前（`~/src/andon-<slug>`）で作ったセルは、そのままでよい。改めるなら `bin/bootstrap down` → `mv ~/src/andon-<slug> ~/src/<slug>-cell` → 新しい場所で `bin/bootstrap up`（compose の project と volume は slug から決まるので残る。`~/.config/andon/skip` に書いた名前は書き直す）。
 
 ホストの `andon` は image から取り出す（release は無い）。image の中の `andon` は linux の静的バイナリで、配布は amd64 だけ（ホストが Linux か WSL の amd64 なら、そのまま動く）。
 
@@ -92,23 +94,23 @@ cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 
 - image を上げたら取り出し直す（ホストの `andon` は image の版と揃える。揃っているかは上の sha256 の2行で比べる）。`~/.local/bin` が PATH に無ければ足す。
 - `--owner` は `andon.toml` の `owner`。`project.json`（委譲・書いてよい repo）をこの email の commit だけが信じられるようにする。
-- **通ったら見えるもの**: `~/src/andon-home/` に `Dockerfile`（`FROM` ＋ 2行）・`andon.toml`（`slug = "home"`）・`bin/bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/`・`projects/`。標準出力に `建屋の repo を作った`。パッケージのファイルは無い（design.md §5.1 の 1）。
+- **通ったら見えるもの**: `~/src/home-cell/` に `Dockerfile`（`FROM` ＋ 2行）・`andon.toml`（`slug = "home"`）・`bin/bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/`・`projects/`。標準出力に `セルの repo を作った`。パッケージのファイルは無い（design.md §5.1 の 1）。
 - **落ちたら見る所**: 取り出しの `docker run` が落ちた（`manifest unknown` など）— 1 の pull を先に通す。`~/.local/bin/andon.new` が残っていれば消す。`はすでにあり、空でない` — 上書きしない。別の `--dir` か、中身を退避する。`slug は英小文字・数字・-` — slug の綴り。
-- 建屋の repo を git で持つなら `git init` して commit する（`.ghq/`・`.env` などは雛形の `.gitignore` が外している）。
+- セルの repo を git で持つなら `git init` して commit する（`.ghq/`・`.env` などは雛形の `.gitignore` が外している）。
 
 ## 3. 起動する（`bin/bootstrap`）
 
-建屋の repo は **uid 1000 の利用者**の持ち物にする（建屋の `andon` は uid 1000 で動き、建屋の repo をそのまま `/workspace` に載せる）。WSL・cloud-init の既定の利用者は 1000（`id -u` で確かめる）。違うと `bin/bootstrap` は起こす前に止まる。
+セルの repo は **uid 1000 の利用者**の持ち物にする（セルの `andon` は uid 1000 で動き、セルの repo をそのまま `/workspace` に載せる）。WSL・cloud-init の既定の利用者は 1000（`id -u` で確かめる）。違うと `bin/bootstrap` は起こす前に止まる。
 
 ```bash
-cd ~/src/andon-home
+cd ~/src/home-cell
 bin/bootstrap --dry-run     # docker を打たずに、打つものを出す
 bin/bootstrap               # 初回: image を焼く → compose.yaml を取り出す → 起動 → herdr に入る
 ```
 
-番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）は建屋の `.env` に書く。**建屋を2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
+番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）はセルの `.env` に書く。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
-**`.env` に番号を書く前に、ホストで使われている番号を確かめる**（既定は `SSH_PORT=2222`・`PORTLESS_PORT=1355`。ほかの建屋・別の docker・ホストのほかのものと同じ番号だと、起動がポート使用中で落ちる）。
+**`.env` に番号を書く前に、ホストで使われている番号を確かめる**（既定は `SSH_PORT=2222`・`PORTLESS_PORT=1355`。ほかのセル・別の docker・ホストのほかのものと同じ番号だと、起動がポート使用中で落ちる）。
 
 ```bash
 docker ps -a --format '{{.Names}}\t{{.Ports}}'     # 公開している port（止まっているコンテナも拾う）
@@ -124,26 +126,26 @@ grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh 
 - **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・dispatcher を起こした行）。herdr の画面が開く。andon が uid 1001 だった版の image から上げた最初の起動では、`持ち主を直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
-  - `建屋の repo（…）の持ち主が uid <n>` — 建屋の repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon init` からやり直す（uid を合わせ直す仕組みは無い）。
+  - `セルの repo（…）の持ち主が uid <n>` — セルの repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon init` からやり直す（uid を合わせ直す仕組みは無い）。
   - `docker デーモンに繋がらない` — docker が起きているか。
   - 5分待っても `ready` が出ず `準備の完了を確かめられなかった` — `bin/bootstrap logs` で boot の警告の行を見る。`andon help` が `command not found` なら `FROM` の image が古い（`andon` を焼く前の版）。
   - ポートが使用中 — `.env` の番号を変えて `bin/bootstrap` を打ち直す。
-  - `local/setup.sh` が落ちる — `bin/bootstrap` の build のログ。建屋固有の追加（`local/aqua.yaml`・`local/setup.sh`）が原因。
+  - `local/setup.sh` が落ちる — `bin/bootstrap` の build のログ。セル固有の追加（`local/aqua.yaml`・`local/setup.sh`）が原因。
 
-### andon を直して建屋で試す（日々のサイクル: `rebuild --from`）
+### andon を直してセルで試す（日々のサイクル: `rebuild --from`）
 
-andon を直したら、マージも GHCR も通さず、建屋の中の andon の checkout（7 で迎えたもの。ブランチのままでよい）から image を焼いて、その image で建屋を作り直す。ホストで、建屋の repo から打つ。
+andon を直したら、マージも GHCR も通さず、セルの中の andon の checkout（7 で迎えたもの。ブランチのままでよい）から image を焼いて、その image でセルを作り直す。ホストで、セルの repo から打つ。
 
 ```bash
-cd ~/src/andon-home
-bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon    # 建屋の /workspace/.ghq/… はホストのここ
+cd ~/src/home-cell
+bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon    # セルの /workspace/.ghq/… はホストのここ
 bin/bootstrap status                                          # 最後の行に FROM と元の commit
 ```
 
-- **何が起きるか**: checkout の `image/build.sh` で base image `andon:local-<commit の先頭12文字>`（checkout が汚れていれば末尾に `-dirty`）を焼く（kanban・andon の go build も docker の中。ホストに go は要らない）→ 建屋の `Dockerfile` の `FROM` をその tag に書き換える → 建屋の image を焼き直す（手元にしか無い tag なので `--pull` は付けない）→ compose で作り直す。commit はホストの git で読む（ホストに git が無ければ、今の `FROM` の image の git で読む）。
+- **何が起きるか**: checkout の `image/build.sh` で base image `andon:local-<commit の先頭12文字>`（checkout が汚れていれば末尾に `-dirty`）を焼く（kanban・andon の go build も docker の中。ホストに go は要らない）→ セルの `Dockerfile` の `FROM` をその tag に書き換える → セルの image を焼き直す（手元にしか無い tag なので `--pull` は付けない）→ compose で作り直す。commit はホストの git で読む（ホストに git が無ければ、今の `FROM` の image の git で読む）。
 - **通ったら見えるもの**: `[andon-home] <checkout>（commit: <40桁>）から andon:local-… を焼く` と `Dockerfile の FROM: <前> → andon:local-…`。`bin/bootstrap status` の最後の行が `FROM: andon:local-…（commit: <40桁>）`。
-- **GHCR の版へ戻す**: `Dockerfile` の `FROM` を `ghcr.io/<owner>/andon:<版>`（上の行に出た「前」の値）に書き戻して `bin/bootstrap rebuild`（1 の pull が先）。建屋の repo を git で持っているなら `git checkout Dockerfile` でもよい。
-- **落ちたら見る所**: `image/build.sh が無い` — `--from` が andon の checkout を指していないか、`image/build.sh` を持つ前の版の checkout（`git pull` する）。焼きが落ちる — 出力の `docker build` のログ（checkout の変更が原因なら直して打ち直す）。`--from` の焼き直しは建屋の image が変わるだけで、volume（ログイン・履歴）は残る。
+- **GHCR の版へ戻す**: `Dockerfile` の `FROM` を `ghcr.io/<owner>/andon:<版>`（上の行に出た「前」の値）に書き戻して `bin/bootstrap rebuild`（1 の pull が先）。セルの repo を git で持っているなら `git checkout Dockerfile` でもよい。
+- **落ちたら見る所**: `image/build.sh が無い` — `--from` が andon の checkout を指していないか、`image/build.sh` を持つ前の版の checkout（`git pull` する）。焼きが落ちる — 出力の `docker build` のログ（checkout の変更が原因なら直して打ち直す）。`--from` の焼き直しはセルの image が変わるだけで、volume（ログイン・履歴）は残る。
 - 手元で焼いた `andon:local-…` は増えていくので、要らなくなったら `docker image rm` で消す。ホストの `andon`（2）を合わせるなら、2 の取り出しの `ghcr.io/<owner>/andon:<版>` を `andon:local-…` に置き換えて打つ。
 
 ## 4. ホストの道具を置く（`host-install`）
@@ -152,17 +154,17 @@ bin/bootstrap status                                          # 最後の行に 
 bin/bootstrap host-install
 ```
 
-`andon-up`（PC を起こしたあとに全建屋を起こす）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に、Herdr App の mod とレイアウト `andon` を App の設定フォルダに（下の「Herdr App の mod とレイアウト」）置く。**今あるファイルは上書きしない**。最後に、App のレイアウトを `andon` に切り替える1手を案内する。
+`andon-up`（PC を起こしたあとに全セルを起こす）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に、Herdr App の mod とレイアウト `andon` を App の設定フォルダに（下の「Herdr App の mod とレイアウト」）置く。**今あるファイルは上書きしない**。最後に、App のレイアウトを `andon` に切り替える1手を案内する。
 
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
 - **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。
 
 ### 手元の端末から SSH で入る
 
-`host-install` が置いた ssh config（`~/.ssh/config.d/andon-home.conf`）の `Host andon-home` で、手元の端末から建屋の中へ入る。sshd は**公開鍵が置いてあるときだけ**起きる。鍵は人の手元にある既存のものを使う（作り方はここでは扱わない）。
+`host-install` が置いた ssh config（`~/.ssh/config.d/andon-home.conf`）の `Host andon-home` で、手元の端末からセルの中へ入る。sshd は**公開鍵が置いてあるときだけ**起きる。鍵は人の手元にある既存のものを使う（作り方はここでは扱わない）。
 
 ```bash
-cd ~/src/andon-home
+cd ~/src/home-cell
 git check-ignore .ssh/authorized_keys     # .ssh/ が .gitignore 済みか（パスが出ればよい）
 mkdir -p .ssh && chmod 700 .ssh
 cat ~/.ssh/<公開鍵のファイル>.pub >> .ssh/authorized_keys     # <公開鍵のファイル> は自分の .pub（例 id_ed25519.pub）
@@ -172,26 +174,26 @@ bin/bootstrap logs                        # 確かめたら Ctrl-C
 ssh andon-home
 ```
 
-- 建屋の repo はコンテナの `/workspace` に載っているので、ホストで置いた `.ssh/authorized_keys` を boot が読み、建屋の中の `~/.ssh/authorized_keys` に写す。ホスト鍵は volume に残るので、作り直しても変わらない。
+- セルの repo はコンテナの `/workspace` に載っているので、ホストで置いた `.ssh/authorized_keys` を boot が読み、セルの中の `~/.ssh/authorized_keys` に写す。ホスト鍵は volume に残るので、作り直しても変わらない。
 - `git check-ignore` が何も出さなければ、`.ssh/` が `.gitignore` に無い。公開鍵を commit しないよう、先に `.gitignore` に `.ssh/` を足す。
-- **通ったら見えるもの**: ログに `sshd を起動した（コンテナの 22 番。ホスト側の番号は .env の SSH_PORT）`。`ssh andon-home` で建屋の中のシェルに入り、`hostname` が slug（`home`）。ssh config の `LocalForward` で、手元のブラウザから portless の名前（`http://<app>.home.localhost:<PORTLESS_PORT>`）も引ける。
+- **通ったら見えるもの**: ログに `sshd を起動した（コンテナの 22 番。ホスト側の番号は .env の SSH_PORT）`。`ssh andon-home` でセルの中のシェルに入り、`hostname` が slug（`home`）。ssh config の `LocalForward` で、手元のブラウザから portless の名前（`http://<app>.home.localhost:<PORTLESS_PORT>`）も引ける。
 - **落ちたら見る所**:
-  - ログに `ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）` — `.ssh/authorized_keys` が無い。置く場所は建屋の repo の直下（`~/src/andon-home/.ssh/`）。置いたあと、`down` → `up` で起こし直す。
-  - ログに `ssh は無効（.ssh/authorized_keys があるが読めない: …）` — 鍵はあるが、建屋の `andon`（uid 1000）から読めない。`ls -ln .ssh .ssh/authorized_keys` で持ち主が 1000 か見る（`sudo` で作ると root の持ち物になる）。違えば `sudo chown -R 1000:1000 .ssh` で直し、`down` → `up`。
-  - `Connection refused`・`Connection timed out` — `.env` の `SSH_PORT` と、ssh config の `Port` が同じか（`.env` を変えたあと `host-install` を打ち直すなら、古い `~/.ssh/config.d/andon-home.conf` を退避してから。`host-install` は今あるファイルを上書きしない）。ほかの建屋や別のものと `SSH_PORT` が重なると、compose の起動がポート使用中で落ちる（3 の落ちたら見る所）。
+  - ログに `ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）` — `.ssh/authorized_keys` が無い。置く場所はセルの repo の直下（`~/src/home-cell/.ssh/`）。置いたあと、`down` → `up` で起こし直す。
+  - ログに `ssh は無効（.ssh/authorized_keys があるが読めない: …）` — 鍵はあるが、セルの `andon`（uid 1000）から読めない。`ls -ln .ssh .ssh/authorized_keys` で持ち主が 1000 か見る（`sudo` で作ると root の持ち物になる）。違えば `sudo chown -R 1000:1000 .ssh` で直し、`down` → `up`。
+  - `Connection refused`・`Connection timed out` — `.env` の `SSH_PORT` と、ssh config の `Port` が同じか（`.env` を変えたあと `host-install` を打ち直すなら、古い `~/.ssh/config.d/andon-home.conf` を退避してから。`host-install` は今あるファイルを上書きしない）。ほかのセルや別のものと `SSH_PORT` が重なると、compose の起動がポート使用中で落ちる（3 の落ちたら見る所）。
   - `Permission denied (publickey)` — `authorized_keys` に入っている公開鍵が、手元でつかわれる鍵と対か。`ssh -v andon-home` で提示された鍵を見る。置いたあとで起こし直していないときも同じ（boot が起動時に写す）。
   - `ssh: Could not resolve hostname andon-home` — `~/.ssh/config` の先頭に `Include config.d/*` の1行が無い。`host-install` の出力が案内する1行を足す。
-  - `REMOTE HOST IDENTIFICATION HAS CHANGED`（同じ `SSH_PORT` で別の建屋に入ったとき。ProxyJump 先の別マシンが同じ番号で待っていて、その記録と `[127.0.0.1]:<SSH_PORT>` がぶつかるときも出る）— **消す前に、記録の指紋と建屋のホスト鍵の指紋を照らす**。
+  - `REMOTE HOST IDENTIFICATION HAS CHANGED`（同じ `SSH_PORT` で別のセルに入ったとき。ProxyJump 先の別マシンが同じ番号で待っていて、その記録と `[127.0.0.1]:<SSH_PORT>` がぶつかるときも出る）— **消す前に、記録の指紋とセルのホスト鍵の指紋を照らす**。
     ```bash
     ssh-keygen -F "[127.0.0.1]:<SSH_PORT>" -f ~/.ssh/known_hosts -l     # 手元に記録されている指紋
-    bin/bootstrap sh        # 建屋の中のシェル（建屋の repo で）。入ったら次の1行、終わったら exit
-    ssh-keygen -lf ~/.ssh/ssh_host_ed25519_key.pub     # 建屋のホスト鍵の指紋
+    bin/bootstrap sh        # セルの中のシェル（セルの repo で）。入ったら次の1行、終わったら exit
+    ssh-keygen -lf ~/.ssh/ssh_host_ed25519_key.pub     # セルのホスト鍵の指紋
     ```
-    建屋のホスト鍵は boot が volume に置く（建屋の中の `~/.ssh/ssh_host_ed25519_key.pub`。作り直しても変わらない）。**指紋（`SHA256:…`）が同じ**なら、記録は正しいので消さない（別の原因を探す）。**違う**なら、記録は別のマシンのもの。その行だけ `ssh-keygen -R "[127.0.0.1]:<SSH_PORT>"` で消して入り直す。ProxyJump 先の記録を残したいなら、`SSH_PORT` を変える（3）ほうが安全。
+    セルのホスト鍵は boot が volume に置く（セルの中の `~/.ssh/ssh_host_ed25519_key.pub`。作り直しても変わらない）。**指紋（`SHA256:…`）が同じ**なら、記録は正しいので消さない（別の原因を探す）。**違う**なら、記録は別のマシンのもの。その行だけ `ssh-keygen -R "[127.0.0.1]:<SSH_PORT>"` で消して入り直す。ProxyJump 先の記録を残したいなら、`SSH_PORT` を変える（3）ほうが安全。
 
 ### WSL＋Windows の App から入る
 
-WSL に建屋があり、Herdr App が Windows 側で動くとき、`host-install` が置くのは **WSL 側**の `~/.ssh/config.d/andon-home.conf` だけ（Windows 側の ssh config と鍵には触らない。`host-install` はこのために変えない）。App の Add Machine が使う Windows 側の ssh config は、人が書く。建屋の sshd は WSL の `127.0.0.1:<SSH_PORT>` で待っていて、WSL の localhost 転送（既定で有効）で Windows の `127.0.0.1:<SSH_PORT>` からも届く。
+WSL にセルがあり、Herdr App が Windows 側で動くとき、`host-install` が置くのは **WSL 側**の `~/.ssh/config.d/andon-home.conf` だけ（Windows 側の ssh config と鍵には触らない。`host-install` はこのために変えない）。App の Add Machine が使う Windows 側の ssh config は、人が書く。セルの sshd は WSL の `127.0.0.1:<SSH_PORT>` で待っていて、WSL の localhost 転送（既定で有効）で Windows の `127.0.0.1:<SSH_PORT>` からも届く。
 
 Windows の `C:\Users\<user>\.ssh\config` に足す（`<…>` は自分の値。番号は `.env` の `SSH_PORT`）:
 
@@ -203,23 +205,23 @@ Host andon-home
   IdentityFile C:\Users\<user>\.ssh\<秘密鍵のファイル>
 ```
 
-`IdentityFile` の鍵の公開鍵（`<秘密鍵のファイル>.pub`）が、建屋の repo の `.ssh/authorized_keys` に入っていること（上の「手元の端末から SSH で入る」。WSL の鍵とは別の鍵なら、その公開鍵も足して `bin/bootstrap down && bin/bootstrap up`）。そのうえで App の Add Machine に `andon-home` を指定する。
+`IdentityFile` の鍵の公開鍵（`<秘密鍵のファイル>.pub`）が、セルの repo の `.ssh/authorized_keys` に入っていること（上の「手元の端末から SSH で入る」。WSL の鍵とは別の鍵なら、その公開鍵も足して `bin/bootstrap down && bin/bootstrap up`）。そのうえで App の Add Machine に `andon-home` を指定する。
 
 ```powershell
 ssh andon-home hostname      # Windows の PowerShell から。App が使うのと同じ設定で届くか
 ```
 
-- **通ったら見えるもの**: `hostname` が slug（`home`）を返す。App の Add Machine で `andon-home` が繋がり、建屋の Space が出る。
+- **通ったら見えるもの**: `hostname` が slug（`home`）を返す。App の Add Machine で `andon-home` が繋がり、セルの Space が出る。
 - **落ちたら見る所**: `Connection refused` — WSL 側で `ssh andon-home` が通るかを先に見る（通らなければ上の「手元の端末から SSH で入る」）。WSL で通り Windows で通らないなら、localhost 転送が切れている（`%USERPROFILE%\.wslconfig` の `[wsl2]` の `localhostForwarding=false`）か、Windows 側のほかのものが同じ番号を取っている（`netstat -ano | findstr :<SSH_PORT>`）。`Permission denied (publickey)` — Windows 側の `IdentityFile` の公開鍵が `authorized_keys` に無い。`ssh -v andon-home` で提示された鍵を見る。`Bad owner or permissions` — Windows の秘密鍵の ACL。自分だけが読める形にする。
 
-### Herdr App から建屋へつなぐ（Add Machine）
+### Herdr App からセルへつなぐ（Add Machine）
 
-App の Add Machine で建屋（`Host andon-home`）を足すと、App は SSH 越しに herdr-core を建屋の `~/.local/bin/herdr-core` に置き（Copy HC）、`herdr-core serve` を起こす。以後の Update HC もこのファイルを差し替える。**建屋の herdr-core の版は App が決める**。
+App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH 越しに herdr-core をセルの `~/.local/bin/herdr-core` に置き（Copy HC）、`herdr-core serve` を起こす。以後の Update HC もこのファイルを差し替える。**セルの herdr-core の版は App が決める**。
 
 - SSH のセッションには image の環境（`PATH`・`AQUA_*`・`GHQ_ROOT`・`LANG`・`CLAUDE_CONFIG_DIR` など）が渡る（image の `/etc/ssh/sshd_config.d/andon.conf` の `SetEnv`）。App の serve から起きる端末にも `claude`・`hc`・`gh` が見える。
 - boot は `~/.local/bin/herdr-core` が無いか symlink のときだけ image の種（aqua の herdr-core）へ繋ぐ。**実ファイル（App が置いたもの）は触らない**。`~/.local/bin/hc` は herdr-core への相対 symlink。`~/.local/bin` は PATH で aqua より先なので、boot が dispatcher を起こす `hc` も、それが起こす core も、App の serve と同じ herdr-core になる。
-- `~/.local/bin` はコンテナ層。image を上げて作り直すと、App が置いた herdr-core は消えて image の種に戻る。App で Update HC を打ち直し（App が古い版を知らせればそれに従う）、建屋の中で `hc server restart`（core を新しい版で起こし直す。端末は生きたまま）。`hc --version` と `hc server status` の `version` が App の版と同じなら揃っている。
-- **App の serve を起こし直す必要があるとき**（App に建屋が出ない・serve が古い版のまま・SSH の環境を変えたあと）: App でその machine を切って繋ぎ直す（serve は繋ぐときに起きる）。それでも出なければ `bin/bootstrap down` → `up` で建屋ごと起こし直し、上の Update HC から。
+- `~/.local/bin` はコンテナ層。image を上げて作り直すと、App が置いた herdr-core は消えて image の種に戻る。App で Update HC を打ち直し（App が古い版を知らせればそれに従う）、セルの中で `hc server restart`（core を新しい版で起こし直す。端末は生きたまま）。`hc --version` と `hc server status` の `version` が App の版と同じなら揃っている。
+- **App の serve を起こし直す必要があるとき**（App にセルが出ない・serve が古い版のまま・SSH の環境を変えたあと）: App でその machine を切って繋ぎ直す（serve は繋ぐときに起きる）。それでも出なければ `bin/bootstrap down` → `up` でセルごと起こし直し、上の Update HC から。
 - **落ちたら見る所**: 端末が `env: 'claude': No such file or directory` で落ちる・SSH のシェルで `hc`・`gh` が打てない — image が古い（SSH に環境が渡らない版）。`ssh andon-home 'echo $PATH'` の先頭が `/opt/andon-home/.local/bin` か。版が割れている（`hc --version` と `hc server status` の `version` が違う）— `readlink ~/.local/bin/herdr-core ~/.local/bin/hc` を見てから `hc server restart`。
 
 ### Herdr App の mod とレイアウト
@@ -257,11 +259,11 @@ herdr-app do layout.switch --name andon
 
 この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon`（ほかの mod も同じ形で）を実行し（Windows の App は Windows 側で実行する）、レイアウト `andon` で `sample-site / CoS`・`sample-site / CE A-0001 設計`・`A-0002 修正 / A-0002` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
-mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、台帳が2つ以上のときの建屋の Space を `<建屋の slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
+mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、台帳が2つ以上のときのセルの Space を `<セルの slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
 
 API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
 
-## 5. 建屋に入って、立ち上がりを確かめる
+## 5. セルに入って、立ち上がりを確かめる
 
 ```bash
 bin/bootstrap               # herdr に入る。bash で入るなら: bin/bootstrap sh
@@ -281,12 +283,12 @@ head -3 ~/.codex/config.toml          # approval_policy・sandbox_mode（無か�
 codex execpolicy check -r ~/.codex/rules/andon.rules gh pr merge 1   # "decision":"forbidden"
 ```
 
-- **通ったら見えるもの**: 上の全部。`hc get dispatcher` が通る（dispatcher は `andon dispatcher` を常駐させた端末）。App に tab「dispatcher」が出る（台帳が1つならその指揮側の Space、2つ以上なら `<建屋の slug> plant`）。ラベルは `hc get dispatcher --json` の `herdr.space`・`herdr.tab`。
+- **通ったら見えるもの**: 上の全部。`hc get dispatcher` が通る（dispatcher は `andon dispatcher` を常駐させた端末）。App に tab「dispatcher」が出る（台帳が1つならその指揮側の Space、2つ以上なら `<セルの slug> plant`）。ラベルは `hc get dispatcher --json` の `herdr.space`・`herdr.tab`。
 - **落ちたら見る所**: どれも出なければ boot が走っていない（`bin/bootstrap logs`）。boot は失敗しても続ける作りなので、警告の行を探す。生成だけ失敗したときは `andon boot` を中で打ち直せば同じ結果になる（何度打っても同じ）。`hc` が無い・端末が起きない — herdr-core は初めて `hc` を叩くと起きる。
 
-## 6. 中でログインする（建屋の中で取る）
+## 6. 中でログインする（セルの中で取る）
 
-ブラウザは建屋に無い。URL が出たら**手元のブラウザで開く**（建屋から開こうとしない）。トークンをホストから持ち込まない。
+ブラウザはセルに無い。URL が出たら**手元のブラウザで開く**（セルから開こうとしない）。トークンをホストから持ち込まない。
 
 ```bash
 gh auth login               # GitHub.com → HTTPS → device code（URL とコードを手元で）
@@ -312,7 +314,7 @@ ghq list
 
 ## 8. プロジェクト `andon` の台帳を作る
 
-台帳はプロジェクトごとに `projects/<slug>/kanban/`（git の外）。slug はプロジェクト名＝フォルダ名。`projects/<slug>/` は実ディレクトリ（symlink にしない。理由は上の「建屋の置き方」）。
+台帳はプロジェクトごとに `projects/<slug>/kanban/`（git の外）。slug はプロジェクト名＝フォルダ名。`projects/<slug>/` は実ディレクトリ（symlink にしない。理由は上の「セルの置き方」）。
 
 ```bash
 cd /workspace
@@ -327,13 +329,13 @@ andon delegate show          # 型と効いている値（commit の前は「無
 - **聞くもの**: 引数に無い slug・repos（1 行に 1 つ、空行で終わり）・prefix（既定は slug の `-` で区切った頭文字。`sample-site` → `SS`）・題（既定は slug）。聞いたときは最後に確かめる。標準入力が端末でなければ聞かない: slug が無ければ止まり、ほかは既定（repos 無し）。
 - **通ったら見えるもの**: `作った: projects/andon/（kanban/・project.json・AGENTS.md）`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
 - **落ちたら見る所**（どれも何も作らずに止まる）: `が既にある` — 作ってある（そのまま使う。手で作るときの `kanban init` は `already a ledger`）。`slug は英小文字・数字・-`・`repo は <host>/<owner>/<repo>`・`prefix は英大文字で始まる` — 綴り。`この端末（role=…）では打てない` — 役の端末。人の端末で打つ。`ghq get … が落ちた` — `gh auth status`。`… があるが git の clone でない` — `GHQ_ROOT` の下の空のディレクトリなどを確かめて退ける。`題に改行や制御文字がある` — 題は 1 行。`kanban init が落ちた` — 理由の文（`checkClock` ならコンテナの時計）。
-- `project.json` が無い・owner の commit でない・`repos` に無い repo のタスクは、`andon task start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無い建屋は、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
+- `project.json` が無い・owner の commit でない・`repos` に無い repo のタスクは、`andon task start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無いセルは、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
 - `projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・並行の上限・独立レビューを入れる条件）は任意。無ければ並行の上限は 2。
 - タスクの id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じタスク）。
 
 ### 前の置き場から移す（`.flightdeck/` → `kanban/`）
 
-台帳の置き場は 2026-11-06 に `projects/<slug>/.flightdeck/` から `projects/<slug>/kanban/` に改めた。同時に `config.yaml` の `coordinator` を `chief_of_staff` に、タスクの id を 4 桁（`A-5` → `A-0005`）に、台帳の中の `coordinator.md` を `projects/<slug>/AGENTS.md` の「Chief of Staff」の節に改めた（[ledger.md](ledger.md) の「Moving from `.flightdeck/`」・[ADR-0004](adr/0004-project-layout.md) 決めたこと 5）。前の名前を読む互換は無いので、前の版の建屋を上げるときは台帳ごとに `kanban migrate` を1回打つ。台帳は今までどおり git の外（`kanban/.gitignore` の `*`。ADR-0005 決めたこと 5）。
+台帳の置き場は 2026-11-06 に `projects/<slug>/.flightdeck/` から `projects/<slug>/kanban/` に改めた。同時に `config.yaml` の `coordinator` を `chief_of_staff` に、タスクの id を 4 桁（`A-5` → `A-0005`）に、台帳の中の `coordinator.md` を `projects/<slug>/AGENTS.md` の「Chief of Staff」の節に改めた（[ledger.md](ledger.md) の「Moving from `.flightdeck/`」・[ADR-0004](adr/0004-project-layout.md) 決めたこと 5）。前の名前を読む互換は無いので、前の版のセルを上げるときは台帳ごとに `kanban migrate` を1回打つ。台帳は今までどおり git の外（`kanban/.gitignore` の `*`。ADR-0005 決めたこと 5）。
 
 1. **上げる前に**: `doing`・`review` のタスクを片付ける（マージして `andon task finish`、または `todo` に戻す）。worktree・branch・端末のラベル・Space の名前に id が入っているので、`kanban migrate` はそういうタスクがあると何も変えずに止まる。確かめ方: `grep -lE '^status: (doing|review)' projects/<slug>/.flightdeck/tasks/*/task.yaml`（何も出なければよい）。
    委譲を控える: `andon delegate show > ~/delegation-before.txt`（前の版の `andon` は `delegation.json` を読む。6 で比べる）。
@@ -356,17 +358,17 @@ andon delegate show          # 型と効いている値（commit の前は「無
 6. **起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。dispatcher は Chief of Staff の最初のターンのフックか `andon boot` で起きる。控えの id は 4 に移してあるので、初めて見る台帳としては扱われない。
 7. **自分のスクリプト**: `FLIGHTDECK_ROOT` を使っていれば `KANBAN_ROOT` に改める。
 
-### 別のマシンへ引っ越す（建屋を動かす）
+### 別のマシンへ引っ越す（セルを動かす）
 
-建屋を別のマシン（別の PC・別のホスト）へ動かすときの手順。台帳 `kanban/` は git で追跡しない（[ADR-0005](adr/0005-cell-repo.md) 決めたこと 5）ので、建屋の repo を push・clone しても台帳は付いてこない。**台帳を写すのは人が手でする**。
+セルを別のマシン（別の PC・別のホスト）へ動かすときの手順。台帳 `kanban/` は git で追跡しない（[ADR-0005](adr/0005-cell-repo.md) 決めたこと 5）ので、セルの repo を push・clone しても台帳は付いてこない。**台帳を写すのは人が手でする**。
 
-- **写さなかったとき失うもの**: 台帳の全部（タスクの一覧と状態・`log.jsonl`・依頼書・報告・問い・ルーチン）。建屋の repo（人のファイル・`wiki/`・`files/`・`projects/<slug>/AGENTS.md`）と、決定・進行中の仕事（製品の repo の `docs/`・PR と branch）は GitHub に残るので失わない。台帳が無いと新しい側の `projects/<slug>/` は空のプロジェクトになり、`kanban init` からやり直す（タスクの id は `0001` から振り直し。前の PR や branch の名前に残る id とは別物になる）。台帳に残るのは経過で、セルの寿命のもの。要らなければ写さなくてよい。
+- **写さなかったとき失うもの**: 台帳の全部（タスクの一覧と状態・`log.jsonl`・依頼書・報告・問い・ルーチン）。セルの repo（人のファイル・`wiki/`・`files/`・`projects/<slug>/AGENTS.md`）と、決定・進行中の仕事（製品の repo の `docs/`・PR と branch）は GitHub に残るので失わない。台帳が無いと新しい側の `projects/<slug>/` は空のプロジェクトになり、`kanban init` からやり直す（タスクの id は `0001` から振り直し。前の PR や branch の名前に残る id とは別物になる）。台帳に残るのは経過で、セルの寿命のもの。要らなければ写さなくてよい。
 - **写す前に `doing`・`review` を片付けておく理由**: `task.yaml` の `agent`・`worktree`・`machine` と、端末のラベル・Space・worktree・branch は、**古いマシンの**ものだから。写した先で `doing` のまま残ると、動いている担当がいないのに動いているように見え、直しは起こし直すところから始まる。片付けてから写せば（マージして `andon task finish`、または `todo` に戻す）、新しい側で起こし直す担当が減る。
 
 手順（古い側 → 新しい側）:
 
 1. **古い側で止める**: 動かす直前に、`doing`・`review` のタスクを片付ける（上）。Chief of Staff（`hc ls --label role=chief-of-staff --label project=<slug>`）を `hc kill <address>`、次に `hc kill dispatcher`。Chief of Staff を先に止めるのは、そのターンのフックが dispatcher を起こし直すため。
-2. **建屋の repo を push する**（人のファイルだけが入る）: `git status --short` で `andon.toml`・`projects/*/project.json`・`AGENTS.md`・`gate.local.json`・`templates.local/`・`local/`・`wiki/`・`files/` に未 commit が無いか見て、commit（author が `andon.toml` の `owner`）して `git push`。`.env`・`.ssh/`・`.ghq/` は追跡されない（新しい側で作り直す）。
+2. **セルの repo を push する**（人のファイルだけが入る）: `git status --short` で `andon.toml`・`projects/*/project.json`・`AGENTS.md`・`gate.local.json`・`templates.local/`・`local/`・`wiki/`・`files/` に未 commit が無いか見て、commit（author が `andon.toml` の `owner`）して `git push`。`.env`・`.ssh/`・`.ghq/` は追跡されない（新しい側で作り直す）。
 3. **`kanban/` を写す**（手で。手段は例）:
 
    ```bash
@@ -376,8 +378,8 @@ andon delegate show          # 型と効いている値（commit の前は「無
    scp ~/kanban-<slug>.tgz <新しい側のホスト>:~/
    ```
 
-4. **新しい側で建屋の repo を迎える**: `git clone` した repo を `~/src/andon-<slug>` に置く（または [§2](#2-建屋の-repo-を作るandon-init) の `andon init` で作った repo に、clone した中身を重ねる）。続けて §3 の起動、§5〜§6 のログイン（`gh`・`claude`・Codex は中で取り直す。持ち越さない）。`.env` と `.ssh/authorized_keys` は新しい側で作る。
-5. **台帳を置く**: `tar -xzf ~/kanban-<slug>.tgz -C /workspace/projects`（建屋の中で）。`cd /workspace/projects/<slug> && kanban lint ; kanban list --all`。置く前に `andon init` した建屋で `kanban/` が空に作られていたら、退けてから置く（`kanban init` は `already a ledger` で止まる）。
+4. **新しい側でセルの repo を迎える**: `git clone` した repo を `~/src/<slug>-cell` に置く（または [§2](#2-セルの-repo-を作るandon-init) の `andon init` で作った repo に、clone した中身を重ねる）。続けて §3 の起動、§5〜§6 のログイン（`gh`・`claude`・Codex は中で取り直す。持ち越さない）。`.env` と `.ssh/authorized_keys` は新しい側で作る。
+5. **台帳を置く**: `tar -xzf ~/kanban-<slug>.tgz -C /workspace/projects`（セルの中で）。`cd /workspace/projects/<slug> && kanban lint ; kanban list --all`。置く前に `andon init` したセルで `kanban/` が空に作られていたら、退けてから置く（`kanban init` は `already a ledger` で止まる）。
 6. **worktree を戻す**: 未マージの PR の branch から戻る（[design.md](design.md) §5.4）。`ghq get github.com/<owner>/<repo>` で製品の repo を迎え、`doing` だったタスクの branch を取って `andon task start <id>` で worktree と端末を作り直す（branch が GitHub に push 済みであること。push 前の変更は古い側にしか無い）。
 7. **`doing` の担当を起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。写した台帳の `agent`・`worktree`・`machine`・`chief_of_staff` は古いマシンのままで、新しい側では無効。dispatcher は端末の無い `doing` の担当を `stalled` として Chief of Staff に知らせる（[dispatcher.md](dispatcher.md) §2.3）ので、それを起こし直しの印として、担当を起こし直す。1 で片付けておけば、この段のタスクは少ない。
 
@@ -394,10 +396,10 @@ andon open andon            # 同じこと。どこからでも打てる（slug 
 起きた Chief of Staff は、skill の手順で最初に `andon chief-of-staff` を打ち、自分を `config.yaml` の `chief_of_staff` に載せる。端末を起き直して address が変わっても、これで直る。
 
 - **通ったら見えるもの**: `andon chief-of-staff: andon の Chief of Staff は <address>（andon-cos・起こした）` と `andon chief-of-staff: 出た場所 andon / CoS（<address>）`。App に Chief of Staff の Space と tab が出る（画面は移らない）。`hc ls` に `role=chief-of-staff project=andon` の端末（名前 `andon-cos`）。`config.yaml` の `chief_of_staff` がその address。もう一度打つと起こさずに `動いているものを使う`。Chief of Staff が自分の skill（system prompt に入った役の手順）に従って台帳を読む。
-- **App から起こした端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App から建屋へつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `chief_of_staff` が落ちた端末を指したままでも、打ち直せば新しく起こした address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
+- **App から起こした端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App からセルへつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `chief_of_staff` が落ちた端末を指したままでも、打ち直せば新しく起こした address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
 - **最初のメッセージが届いたかは** Chief of Staff の画面（`hc read <address>`）で、台帳を読み始めたかで見る。`andon chief-of-staff` の終了コード 0 だけでは分からない（hook で止まっても 0 で返った）。入力欄にメッセージが残って動かないときは、`UserPromptSubmit operation blocked by hook` の行が出ていないかを見る。
-- **落ちた Chief of Staff を起こし直す**: image を上げ直し（`bin/bootstrap` で作り直す）、落ちた端末を `hc kill <address>` してから `andon chief-of-staff`。`hc server restart` が `no systemd user manager here: the core ends with whatever started it` を出すのは、systemd の無いコンテナである建屋では正常（core は起こした側と一緒に終わる）。
-- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面は建屋では出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff は dispatcher が見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。dispatcher がこの台帳を飛ばす — `chief_of_staff` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、dispatcher が通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[dispatcher.md](dispatcher.md) §2.1）。通知は1回の見回りのあとに効く。dispatcher の端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起こし直す（[dispatcher.md](dispatcher.md) §5）。
+- **落ちた Chief of Staff を起こし直す**: image を上げ直し（`bin/bootstrap` で作り直す）、落ちた端末を `hc kill <address>` してから `andon chief-of-staff`。`hc server restart` が `no systemd user manager here: the core ends with whatever started it` を出すのは、systemd の無いコンテナであるセルでは正常（core は起こした側と一緒に終わる）。
+- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面はセルでは出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff は dispatcher が見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起きた Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起きるが skill が効かない — 10 の S4 の確かめ。dispatcher がこの台帳を飛ばす — `chief_of_staff` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、dispatcher が通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[dispatcher.md](dispatcher.md) §2.1）。通知は1回の見回りのあとに効く。dispatcher の端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起こし直す（[dispatcher.md](dispatcher.md) §5）。
 
 ## 10. 小さい PR を1本流す
 
@@ -406,20 +408,20 @@ andon open andon            # 同じこと。どこからでも打てる（slug 
 依頼書の `Merge: auto` でマージされるには、ゲートが approve するだけでは足りず、**委譲の `merge` がそのレベルを許している**ことが要る（[contract.md](contract.md) §11）。委譲（`projects/andon/project.json` の `delegation`）と条件表（`gate.local.json`）は、**それを最後に変えた commit の author の email が `andon.toml` の `owner` と一致するときだけ**信じられる。違うと無委譲（全部人）・条件表を重ねない、として読まれる。
 
 ```bash
-cd ~/src/andon-home
+cd ~/src/home-cell
 grep '^owner' andon.toml                    # owner の email（2 の --owner）
-git config user.email                       # 建屋の repo の commit で使われる email
+git config user.email                       # セルの repo の commit で使われる email
 git config user.email '<owner の email>'    # 違うなら合わせる（この repo の中だけ）
 andon delegate grant merge B --evidence '<根拠のパスか引用>'    # projects/andon/ で打つ（か --project andon を付ける）。B はマージを許すレベルの上限（A / B / C）
 andon delegate show                                              # 同じく projects/andon/ で（か --project andon）
-git -C ~/src/andon-home log -1 --format='%ae' -- projects/andon/project.json gate.local.json
+git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate.local.json
 ```
 
 - `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先に人が書く。無い・commit していない変更がある・最後の commit が owner でない、なら書かない）。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
 - **通ったら見えるもの**: `grant` が `projects/andon/project.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
 - **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — `git config user.email` が owner と違うまま commit した。email を合わせて、`project.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 
-人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。建屋の `gate.local.json`）。
+人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。セルの `gate.local.json`）。
 
 流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → dispatcher がレビュアーを起こす → `ready`（レビュー）→ dispatcher がゲート → approve → dispatcher がマージ → `andon task finish` → 次の見回りで dispatcher が同じ repo の動いているタスクへの影響（`andon task impact`）を見て、ぶつかる・重なるものがあれば Chief of Staff に `impact` で届ける（rebase を頼むか・止めて向きを確かめるかは Chief of Staff。[dispatcher.md](dispatcher.md) §2.5）。
 
@@ -439,7 +441,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 ### 前の名前の係から移す（courier → dispatcher）
 
-常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前の版の建屋を上げるときは次のとおり。
+常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前の版のセルを上げるときは次のとおり。
 
 1. **上げる前に**: `status: review` のタスクと、レビュアーが動いている（`review_request` を出した）タスクが無いときに上げる。あれば片付くのを待つ（理由は 3）。
 2. **image を上げて起動する**（`rebuild`）。boot が前の係の端末（名前もラベルも `courier`・`role=courier`）を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。片付けるのは前に出ているものが前の係（`andon courier`）か引数の無いシェル（作り直しで戻った中身）のときだけで、起動のログに `前の版の係の端末 <address>（courier）を片付けた` と `dispatcher を起こした` が出る。前に出ているものが取れないあいだ（作り直しの直後）は取れるまで最大 5 秒読み直し、それでも取れなければ、それ以外（人が中で何か動かしている）と同じく触らずに `… なので触らない` と書き、片付けに失敗したとき（`hc keep`・`kill`・`rm` が落ちた）も含めて、**その起動では dispatcher を起こさない**（前の係が動いたままだと二重に回る。ログに `dispatcher は起こさない` が出る）。人が `hc kill <address>` で片付けてから `andon boot` を打ち直す。ほかの端末には触らない。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
@@ -481,11 +483,11 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 | # | 確かめること | どの段 | 何で見るか |
 |---|---|---|---|
-| 1 | 建屋がパッケージから立つ | 2・3・5・6 | 建屋の repo にパッケージのファイルが無い（`ls ~/src/andon-home`。`Dockerfile` は `FROM` ＋ 2行）。5 の確かめが全部通る。6 のログインが建屋の中で済む |
+| 1 | セルがパッケージから立つ | 2・3・5・6 | セルの repo にパッケージのファイルが無い（`ls ~/src/home-cell`。`Dockerfile` は `FROM` ＋ 2行）。5 の確かめが全部通る。6 のログインがセルの中で済む |
 | 2 | 1本流れる | 10 | `kanban show <id>` の `status` が `done`。`tasks/<id>/log.jsonl` に `doing` → `review` → `done`。`tasks/<id>/library/gate/<head sha>.json` の決定が approve。PR が `MERGED`（`gh pr view <n> --json state`）。担当の端末が片付いた（`hc ls`・`git worktree list`） |
 | 3 | 人が触っていない | 10 | `jq -r '.by' /workspace/projects/andon/kanban/tasks/<id>/log.jsonl \| sort \| uniq -c` の `by` が、Chief of Staff・dispatcher・担当・レビュアーの `terminal:` だけ（人のユーザー名が無い）。Chief of Staff の turn が「依頼を受ける」と「結果を見る」の2つだけ（`hc read andon-cos`） |
 | 4 | 流れたのは Andon 自身の変更 | 10 | PR の repo が `<owner>/andon`（`gh pr view <n> --json url`）。レベル A か B（ゲートの記録の `tier`） |
-| 5 | 自分をテストできる | 7・10 | 建屋の中で `cd /workspace/.ghq/github.com/<owner>/andon && for f in tests/*.sh; do bash "$f"; done` が green（Go・docker は repo の `mise.toml`・環境の備品に依る。`tests/image.sh` は docker が無ければ SKIP） |
-| 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設の建屋の台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon の建屋ができるまで Andon の仕事を持っている。この建屋の側では何もしない |
+| 5 | 自分をテストできる | 7・10 | セルの中で `cd /workspace/.ghq/github.com/<owner>/andon && for f in tests/*.sh; do bash "$f"; done` が green（Go・docker は repo の `mise.toml`・環境の備品に依る。`tests/image.sh` は docker が無ければ SKIP） |
+| 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設のセルの台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon のセルができるまで Andon の仕事を持っている。このセルの側では何もしない |
 
 数える指標（design.md §5.1 の最後）の最初の1回は、10 の `log.jsonl` から数える: 人の `by` の行の数（介在回数）・依頼書からマージまでの時間・ゲートの `fix`＋`needs_human` の数。

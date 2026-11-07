@@ -66,7 +66,7 @@ func newStart(t *testing.T) *startFixture {
 	gitT(t, "", "clone", "-q", origin, f.repoDir)
 	gitT(t, f.repoDir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "init")
 	gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:main")
-	// 建屋の repo（dir）: owner が commit した project.json が、書いてよい repo を持つ
+	// セルの repo（dir）: owner が commit した project.json が、書いてよい repo を持つ
 	f.plant = dir
 	gitT(t, dir, "init", "-q")
 	os.WriteFile(filepath.Join(dir, "andon.toml"), []byte("owner = \"owner@example.com\"\n"), 0o644)
@@ -75,7 +75,7 @@ func newStart(t *testing.T) *startFixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
-	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・建屋の repo に触らない
+	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban の台帳を読む
 
@@ -111,7 +111,7 @@ func (f *startFixture) run() (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-// project は建屋の repo の projects/sample-site/project.json を書き、author を email にして commit する。
+// project はセルの repo の projects/sample-site/project.json を書き、author を email にして commit する。
 func (f *startFixture) project(body, email string) {
 	f.t.Helper()
 	os.WriteFile(filepath.Join(f.plant, "projects", "sample-site", "project.json"), []byte(body), 0o644)
@@ -245,7 +245,7 @@ func TestStartRefuses(t *testing.T) {
 			f.task["repo"] = "github.com/example/other"
 			f.addRepo("github.com/example/other")
 		}},
-		{"no project.json", "建屋の repo の HEAD に projects/sample-site/project.json が無い", func(f *startFixture) {
+		{"no project.json", "セルの repo の HEAD に projects/sample-site/project.json が無い", func(f *startFixture) {
 			gitT(t, f.plant, "rm", "-q", "projects/sample-site/project.json")
 			gitT(t, f.plant, "-c", "user.name=o", "-c", "user.email=owner@example.com", "commit", "-q", "-m", "rm")
 		}},

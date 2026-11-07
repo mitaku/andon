@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// trustEnv は建屋の repo と、台帳に載った ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
+// trustEnv はセルの repo と、台帳に載った ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
 // 台帳に載っていない repo・clone されていない repo・形の違う repo の名前は根にしない。
 func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	t.Helper()
@@ -142,7 +142,7 @@ hooks = true`)
 	}
 	p := ps[ws].(map[string]any)
 	if p["hasTrustDialogAccepted"] != true || p["lastCost"].(json.Number).String() != "0.10" || p["allowedTools"].([]any)[0] != "Bash(ls)" {
-		t.Errorf("建屋の repo の project = %v", p)
+		t.Errorf("セルの repo の project = %v", p)
 	}
 	if !trustedClaude(t, cj)[repo] {
 		t.Error("ghq の repo を足していない")

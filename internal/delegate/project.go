@@ -41,7 +41,7 @@ var (
 	urlRe    = regexp.MustCompile(`^https://[!-~]+$`)
 )
 
-// ProjectRel は建屋の repo の中の project.json の置き場。
+// ProjectRel はセルの repo の中の project.json の置き場。
 func ProjectRel(slug string) string { return filepath.Join("projects", slug, "project.json") }
 
 // LegacyRel は移す前の委譲の置き場（読まない。無委譲の理由を言うためだけに見る）。
@@ -110,7 +110,7 @@ func uniq(s []string) []string {
 	return slices.Compact(out)
 }
 
-// ReadProject は建屋の repo の HEAD の project.json を、author 照合（OwnerFile）を通して読む。
+// ReadProject はセルの repo の HEAD の project.json を、author 照合（OwnerFile）を通して読む。
 // 無ければ ErrAbsent。信じられない・形が違うものは誤り（読み手は安全側に倒す: 無委譲・repo 無し）。
 func ReadProject(ws, slug string) (*Project, error) {
 	b, err := OwnerFile(ws, ProjectRel(slug))

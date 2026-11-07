@@ -4,8 +4,8 @@ The work ledger in `kanban/` ([format 2](../../../docs/ledger.md): one ledger pe
 
 ## What it shows
 
-- **The ledger of the project you are in:** found the way `kanban` finds it ([ledger.md](../../../docs/ledger.md), "Finding the root"): up from the focused pane's folder to a `kanban/config.yaml` with a whole-number `version`, else the project in the plant (`projects/*/kanban/`) whose `repos` name the repository's main checkout, so a worktree anywhere finds it. On this computer or on another machine. Two projects claiming the same repository is shown as such (set `KANBAN_ROOT` for `kanban`). A `kanban/` folder without a `version` (a product's own folder, say) is not a ledger.
-- **This project / All projects:** in a plant, **All projects** shows every project's ledger on one board, each card naming its project (title from `config.yaml`, else the folder's name); a project that can't be read (a format it doesn't know, a YAML mistake) is listed as unreadable and the rest show. In the plant's own folder, which is in no project, it opens on All projects.
+- **The ledger of the project you are in:** found the way `kanban` finds it ([ledger.md](../../../docs/ledger.md), "Finding the root"): up from the focused pane's folder to a `kanban/config.yaml` with a whole-number `version`, else the project in the cell (`projects/*/kanban/`) whose `repos` name the repository's main checkout, so a worktree anywhere finds it. On this computer or on another machine. Two projects claiming the same repository is shown as such (set `KANBAN_ROOT` for `kanban`). A `kanban/` folder without a `version` (a product's own folder, say) is not a ledger.
+- **This project / All projects:** in a cell, **All projects** shows every project's ledger on one board, each card naming its project (title from `config.yaml`, else the folder's name); a project that can't be read (a format it doesn't know, a YAML mistake) is listed as unreadable and the rest show. In the cell's own folder, which is in no project, it opens on All projects.
 - **A format it doesn't know is not guessed at:** a ledger without `version: 2` shows why in the red band.
 - **YAML it won't expand:** a `config.yaml` or `task.yaml` with a YAML alias (`*name`; `kanban` writes none) or over 256 KiB is not read: the task is listed as unreadable. Ledger files are written by agents, and nested aliases would make a short file grow without bound.
 - **A band that never shows old contents as new:** when the contents last changed and when they were last checked; "not checked lately" after 30 s here (60 s on another machine). If the ledger can't be read (a YAML mistake, a missing file), a red band says why and the board keeps what it last read.
@@ -34,7 +34,7 @@ Keys while it has the keyboard: `h`/`l` columns, `j`/`k` cards, `Enter` open, `g
 | Call | When |
 |---|---|
 | `exec("sh", ["-c", <fixed script>, "kanban-board", <max>, <total>, <folder>, <file>…], {on})` printing each `kanban/config.yaml` up the folders (another machine, or not Windows); on this computer with Windows, `exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", <fixed script> followed by the quoted paths])` saying whether each is a reparse point and its length, then `readTextFile`; and `exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {cwd, on})` | finding the ledger |
-| `exec("sh", ["-c", <fixed script>, "kanban-board", <folder>, <max>, <total>], {on})` printing each `projects/*/kanban/config.yaml` (another machine, or not Windows); `fs.readdir(<folder>/projects)` + the PowerShell check + `readTextFile` (this computer, Windows) | finding the project from the repository, finding the plant, reading All projects |
+| `exec("sh", ["-c", <fixed script>, "kanban-board", <folder>, <max>, <total>], {on})` printing each `projects/*/kanban/config.yaml` (another machine, or not Windows); `fs.readdir(<folder>/projects)` + the PowerShell check + `readTextFile` (this computer, Windows) | finding the project from the repository, finding the cell, reading All projects |
 | `exec("sh", ["-c", <fixed script>, "kanban-board", <root>, <max>, <total>], {on})` printing each `task.yaml` (another machine, or not Windows); `exec("powershell", …)` listing the task folders with each `task.yaml`'s length or that it is a reparse point, then `readTextFile` (this computer, Windows) | reading the tasks |
 | `watchFolder(<root>/kanban)` for each ledger shown | this computer only |
 | The same checked read of `brief.md`, `report.md` (1 MiB each); `exec("ls", ["-1", <task>/library], {on})` | opening a card |
@@ -47,7 +47,7 @@ Nothing is written. No network. The root path from another machine only ever goe
 
 ## Origin
 
-Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/work-board` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`, where it was named `work-board`. Changed for Andon: the ledger's folder `.flightdeck/` → `kanban/` (a folder is a ledger only with a `version`), `coordinator` → `chief_of_staff`, `FLIGHTDECK_ROOT` → `KANBAN_ROOT`, the name `work-board` → `kanban-board`, the checked reads above, and the plant's words. The preview picture was not copied.
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/work-board` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`, where it was named `work-board`. Changed for Andon: the ledger's folder `.flightdeck/` → `kanban/` (a folder is a ledger only with a `version`), `coordinator` → `chief_of_staff`, `FLIGHTDECK_ROOT` → `KANBAN_ROOT`, the name `work-board` → `kanban-board`, the checked reads above, and the cell's words. The preview picture was not copied.
 
 ## Licence
 

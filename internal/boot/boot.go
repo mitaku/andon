@@ -1,6 +1,6 @@
-// Package boot は建屋の起動（docs/design.md §2.3・§3.1）。仮設の起動スクリプト3本を1本にしたもの。
+// Package boot はセルの起動（docs/design.md §2.3・§3.1）。仮設の起動スクリプト3本を1本にしたもの。
 //
-// 毎起動、パッケージ（/opt/andon）から建屋へ配布物を生成する。symlink の網は張らない:
+// 毎起動、パッケージ（/opt/andon）からセルへ配布物を生成する。symlink の網は張らない:
 //
 //	<pkg>/settings.json                       → managed settings（/etc/claude-code/managed-settings.json）
 //	<pkg>/templates/*.md ＋ <ws>/templates.local/*.md → ~/.config/herdr-core/templates/<name>.md（本文の /opt/andon は <pkg> に）
@@ -9,9 +9,9 @@
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
 //	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
 //
-// そのあと、Claude Code の起動リンクと .claude.json の救出、建屋の repo と台帳に載った repo の根を Claude Code・Codex で
+// そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
 // 信頼済みにする（trust.go。足りない所だけ足す）、portless・files サーバ・sshd・dispatcher の起動。
-// 起動は道具が無ければ飛ばし、失敗しても続ける（建屋は立ち上がりきることを優先する）。
+// 起動は道具が無ければ飛ばし、失敗しても続ける（セルは立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
 package boot
 
@@ -37,10 +37,10 @@ import (
 // Usage は andon boot --help の中身。
 const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
-	"パッケージ（ANDON_HOME。既定 /opt/andon）から建屋へ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
+	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
-	"信頼: 建屋の repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
+	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
 // DefaultPackage はパッケージの既定の置き場。プロファイルの本文はこのパスで書く。
@@ -49,7 +49,7 @@ const DefaultPackage = "/opt/andon"
 // Env は boot が読み書きする場所。テストで差し替える。
 type Env struct {
 	Package         string // パッケージ（ANDON_HOME。既定 /opt/andon）
-	Workspace       string // 建屋の repo（ANDON_WORKSPACE。既定 /workspace）
+	Workspace       string // セルの repo（ANDON_WORKSPACE。既定 /workspace）
 	GhqRoot         string // 案件の repo の置き場（GHQ_ROOT）。空なら信頼の根に案件の repo を足さない
 	Home            string // HOME
 	ClaudeDir       string // CLAUDE_CONFIG_DIR。空なら <Home>/.claude
@@ -304,7 +304,7 @@ func (e Env) sudoInstall(dst string, data []byte) error {
 	return nil
 }
 
-// genTemplates はプロファイルを生成する。同じ名前なら建屋の templates.local が勝つ。
+// genTemplates はプロファイルを生成する。同じ名前ならセルの templates.local が勝つ。
 // 本文の /opt/andon はパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起こせるように。ADR-0001 決定 5）。
 // 置き場にある、どちらにも無い名前のファイルには触らない（人が hc に入れたもの）。
 func genTemplates(e Env) error {

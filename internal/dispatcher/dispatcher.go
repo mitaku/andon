@@ -1,4 +1,4 @@
-// Package dispatcher は andon dispatcher: 建屋に1つ常駐し、台帳を周期で回ってインナーループの決まった次の工程を起こす
+// Package dispatcher は andon dispatcher: セルに1つ常駐し、台帳を周期で回ってインナーループの決まった次の工程を起こす
 // （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・人が持つ。
 //
 //	report.json の review_request   → レビュアーを起こす（kanban add --parent ＋ detached worktree ＋ hc run）
@@ -37,7 +37,7 @@ import (
 const Usage = "usage: andon dispatcher [--project <slug>]          回り続ける（hc の端末 dispatcher の中で動く）\n" +
 	"       andon dispatcher --once [--project <slug>]   1回だけ回して終わる\n" +
 	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
-	"建屋（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起こす・ゲートを回す・\n" +
+	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
 	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
@@ -99,9 +99,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 }
 
-// Dispatcher は1つの建屋の dispatcher。
+// Dispatcher は1つのセルの dispatcher。
 type Dispatcher struct {
-	WS    string    // 建屋の repo
+	WS    string    // セルの repo
 	Andon string    // andon のバイナリ（gate・task を打つ）
 	Log   io.Writer // ログ（1行ずつ）
 }
@@ -110,7 +110,7 @@ func (c *Dispatcher) logf(format string, a ...any) {
 	fmt.Fprintf(c.Log, "andon dispatcher: "+format+"\n", a...)
 }
 
-// Pass は建屋の台帳を1回ずつ回す。動いているタスク（doing・review）があれば busy。
+// Pass はセルの台帳を1回ずつ回す。動いているタスク（doing・review）があれば busy。
 func (c *Dispatcher) Pass(only string) bool {
 	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", "kanban", "config.yaml"))
 	sort.Strings(cfgs)

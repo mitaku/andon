@@ -1,4 +1,4 @@
-// andon は建屋の仕事の入口（docs/design.md §2.2・§2.7）。中身は internal/ にある。
+// andon はセルの仕事の入口（docs/design.md §2.2・§2.7）。中身は internal/ にある。
 package main
 
 import (

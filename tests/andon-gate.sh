@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon gate` と `andon delegate`。本物の台帳の CLI（kanban）と git・一時の建屋の repo・偽の gh で回す。
+# `andon gate` と `andon delegate`。本物の台帳の CLI（kanban）と git・一時のセルの repo・偽の gh で回す。
 # PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。台帳の CLI は tests/lib/kanban.sh が焼く。
 # ANDON_EMIT_DIR があれば、ゲートの記録と委譲を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -77,7 +77,7 @@ pr() {
     git -C "$tmp/wt" fetch -q origin && git -C "$tmp/wt" checkout -q "$head"
 }
 
-# 建屋の repo（人のもの）と台帳
+# セルの repo（人のもの）と台帳
 git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
@@ -132,7 +132,7 @@ as_owner git -C "$tmp/plant" add projects/demo/delegation.json; as_owner git -C 
 "$andon" delegate show --json | jq -e '(.trusted | not) and .effective.merge == "none" and (.reason | contains("delegation.json は読まない"))' >/dev/null || die "delegation.json を読んだ: $("$andon" delegate show --json)"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=none < tier B'
 as_owner git -C "$tmp/plant" rm -q projects/demo/delegation.json; as_owner git -C "$tmp/plant" commit -qm 'legacy を消す'
-ok 'delegate show・gate: 移す前の delegation.json だけの建屋は無委譲（読まない）'
+ok 'delegate show・gate: 移す前の delegation.json だけのセルは無委譲（読まない）'
 echo '{"version": 1, "project": {"title": "Demo", "prefix": "D"}, "repos": ["github.com/example/app"], "references": ["https://example.com/spec"]}' > project.json
 as_owner git -C "$tmp/plant" add projects/demo/project.json; as_owner git -C "$tmp/plant" commit -qm 'project.json'
 "$andon" delegate show --json | jq -e '(.trusted | not) and (.reason | contains("delegation が無い"))' >/dev/null || die 'delegation の無い project.json を委譲として読んだ'
@@ -251,7 +251,7 @@ got=$(gate "$id" --dry-run); expect 0 approve
 jq -e '.delegation.grants[0].revoked.reason == "やめる"' project.json >/dev/null
 ok 'delegate revoke: 行を残して取り消す（型 work の merge B に戻る）'
 
-# 7. 検査が落ちれば fix（gate.local.json は建屋の repo の HEAD で、owner が commit したものだけ）
+# 7. 検査が落ちれば fix（gate.local.json はセルの repo の HEAD で、owner が commit したものだけ）
 set_check() { echo "{\"repos\": {\"github.com/example/app\": {\"merge\": \"squash\", \"check\": [\"$1\"]}}}" > "$tmp/plant/gate.local.json"; }
 set_check 'test -f nothing'
 got=$(gate "$id" --dry-run); expect 0 approve

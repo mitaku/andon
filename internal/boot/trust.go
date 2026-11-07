@@ -19,11 +19,11 @@ import (
 	"andon/internal/spawn"
 )
 
-// 信頼の画面を建屋では出さない（建屋＝コンテナが信頼の境界。人の決定 2026-11-06）。
+// 信頼の画面をセルでは出さない（セル＝コンテナが信頼の境界。人の決定 2026-11-06）。
 // boot が、エージェントが起きる場所の根を Claude Code と Codex の両方で信頼済みにしておく。足りない所だけ足し、
 // 今ある設定は触らない（2回目は何も書かない）。
 //
-// 根は「建屋の repo」と「台帳に載った案件の repo（建屋の projects/*/kanban/config.yaml の repos にあり、
+// 根は「セルの repo」と「台帳に載った案件の repo（セルの projects/*/kanban/config.yaml の repos にあり、
 // <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
 // Chief of Staff と人で、andon task start が起こしてよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（~/.herdr/worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
@@ -47,7 +47,7 @@ func TrustFromOS(log io.Writer) error {
 	return Trust(e)
 }
 
-// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順は建屋の repo、台帳の名前順と repos の順。
+// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順はセルの repo、台帳の名前順と repos の順。
 func (e Env) trustRoots() []string {
 	cands := []string{e.Workspace}
 	ghq, err := filepath.EvalSymlinks(e.GhqRoot)

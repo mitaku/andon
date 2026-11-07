@@ -19,7 +19,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// 番号の既定。建屋の .env（PORTLESS_PORT・FILES_PORT）で上書きする。
+// 番号の既定。セルの .env（PORTLESS_PORT・FILES_PORT）で上書きする。
 const (
 	DefaultPortlessPort = "1355"
 	DefaultFilesPort    = "8907"
@@ -158,7 +158,7 @@ func fixClaudeInstall(e Env) error {
 	return nil
 }
 
-// startPortless はアプリを名前で当てるプロキシを起こす（http://<app>.<建屋名>.localhost:<番号>）。
+// startPortless はアプリを名前で当てるプロキシを起こす（http://<app>.<セル名>.localhost:<番号>）。
 func startPortless(e Env) error {
 	portless, ok := e.has("portless")
 	if !ok {
@@ -209,7 +209,7 @@ func startFiles(e Env) error {
 	return nil
 }
 
-// startSSHD は外の端末から入る口を開ける。建屋の .ssh/authorized_keys が無いか読めなければ無効のまま。
+// startSSHD は外の端末から入る口を開ける。セルの .ssh/authorized_keys が無いか読めなければ無効のまま。
 // 設定は image に焼いた sshd_config。ホスト鍵は volume の ~/.ssh に置き、`-h` で sshd に渡す（渡さないと image の /etc/ssh の鍵が使われ、image を焼き直すたびに変わる）。
 func startSSHD(e Env) error {
 	keys := filepath.Join(e.Workspace, ".ssh", "authorized_keys")
@@ -218,7 +218,7 @@ func startSSHD(e Env) error {
 		e.logf("ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）")
 		return nil
 	} else if err != nil {
-		e.logf("ssh は無効（.ssh/authorized_keys があるが読めない: %v。建屋の repo の持ち主と andon の uid が同じか確かめる）", err)
+		e.logf("ssh は無効（.ssh/authorized_keys があるが読めない: %v。セルの repo の持ち主と andon の uid が同じか確かめる）", err)
 		return nil
 	}
 	sudo, ok := e.has("sudo")
@@ -264,7 +264,7 @@ const oldDispatcher = "courier"
 var errOldDispatcher = errors.New("前の版の係の端末が残っている")
 
 // dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
-// （keep を外して kill・rm）。建屋の upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
+// （keep を外して kill・rm）。セルの upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
 // （同じ PR をマージしにいく）ので、起こす前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
 // （作り直しで戻った中身）のときだけ片付ける。それ以外（人が中で何か動かしている・前に出ているものが取れない）と
 // 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起こさない）。

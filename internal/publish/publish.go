@@ -25,8 +25,8 @@ const DefaultPort = "1355"
 
 // Env は公開先を決める値。テストで差し替える。
 type Env struct {
-	Workspace string    // 建屋の作業場（既定 /workspace）
-	Hostname  string    // URL のホスト名に使う建屋の名前
+	Workspace string    // セルの作業場（既定 /workspace）
+	Hostname  string    // URL のホスト名に使うセルの名前
 	Now       time.Time // 日付
 }
 

@@ -1,6 +1,6 @@
 // Kanban board: the work ledger in kanban/ (Andon's docs/ledger.md, format 2) as a Jira-like board.
 // Reads only: people and agents change the ledger with the `kanban` CLI. Shows the ledger of the
-// project the focused pane's folder belongs to, or every project's ledger in the plant, here or on
+// project the focused pane's folder belongs to, or every project's ledger in the cell, here or on
 // another machine, and never shows old contents as new: a band says when it last changed and was
 // last checked, and a failed read keeps the last good contents under a red band. Opens as a dialog
 // (`mod.open:kanban-board`) or as a tab's pane.
@@ -218,7 +218,7 @@ export default class KanbanBoard extends View {
     this.view = "board";
     this.filter = "";
     this.typing = false;
-    this.pick = null;       // a repo (one project) or a project's slug (the plant) to show alone
+    this.pick = null;       // a repo (one project) or a project's slug (the cell) to show alone
     this.openKey = null;
     this.detail = null;
     this.selCol = 0;
@@ -232,7 +232,7 @@ export default class KanbanBoard extends View {
     this.where = null;      // { key, cwd, on }
     this.root = null;       // the project's folder (holding kanban/), or null
     this.plant = null;       // the folder holding projects/*/kanban/, or null
-    this.all = false;       // every project in the plant, not only this one
+    this.all = false;       // every project in the cell, not only this one
     this.lookError = null;  // finding the ledger failed (two projects claim the repo)
     this.searched = false;
     this.data = null;       // { ledgers, tasks, columns, unreadable } as last read well
@@ -246,7 +246,7 @@ export default class KanbanBoard extends View {
   }
 
   // The project's ledger, the way kanban finds it: up from the folder, else the project whose repos
-  // name the main checkout. Then the plant: the nearest folder above with projects/*/kanban/.
+  // name the main checkout. Then the cell: the nearest folder above with projects/*/kanban/.
   async find(cwd, on) {
     for (const d of ancestors(cwd)) {
       const [got] = await readChecked([[join(d, "kanban"), join(d, "kanban/config.yaml")]], MAX_TEXT, on).catch(() => [null]);
@@ -268,7 +268,7 @@ export default class KanbanBoard extends View {
     if (!this.plant) for (const d of ancestors(this.root ?? cwd)) {
       if ((await projectsUnder(d, on)).length) { this.plant = d.replace(/\/$/, ""); break; }
     }
-    // In the plant but in no project (the plant's own folder): show every project.
+    // In the cell but in no project (the cell's own folder): show every project.
     if (!this.root && this.plant) this.all = true;
   }
 
@@ -387,7 +387,7 @@ export default class KanbanBoard extends View {
     });
   }
 
-  // Between this project and every project in the plant.
+  // Between this project and every project in the cell.
   setAll(all, cx) {
     if (!this.plant || (!all && !this.root) || this.all === all) return;
     this.all = all;
@@ -427,7 +427,7 @@ export default class KanbanBoard extends View {
       ?? list.find((a) => a.tab_name === name) ?? { address, status: null, missing: true };
   }
 
-  // What to tell cards apart by: the project in the plant, the repo when a project has several.
+  // What to tell cards apart by: the project in the cell, the repo when a project has several.
   placeOf(task) {
     if (this.all) return this.ledgerOf(task)?.name ?? task.slug;
     return (this.data?.ledgers[0]?.repos.length ?? 0) > 1 && task.repo ? short(task.repo) : null;
@@ -614,7 +614,7 @@ export default class KanbanBoard extends View {
     const keyboard = this.handle.is_focused();
     const ledgers = this.data?.ledgers ?? [];
     const one = !this.all ? ledgers[0] : null;
-    // Chips: the projects in the plant, or the repos of a project that has more than one.
+    // Chips: the projects in the cell, or the repos of a project that has more than one.
     const picks = this.all ? ledgers.map((l) => [l.slug, l.name]) : (one?.repos.length ?? 0) > 1 ? one.repos.map((r) => [r, short(r)]) : [];
     const chief = one?.chiefOfStaff ? this.agentOf(one.chiefOfStaff, list, terms) : null;
     const button = (id, text, active, onClick) => div().id(id).px(8).h(24).flex().items_center().rounded(6).text_size(12).cursor_pointer()

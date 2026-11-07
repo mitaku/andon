@@ -312,7 +312,7 @@ func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
 	}
 }
 
-// ownerPlant は owner が gate.local.json を commit した建屋の repo を作る。
+// ownerPlant は owner が gate.local.json を commit したセルの repo を作る。
 func ownerPlant(t *testing.T, local string) string {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

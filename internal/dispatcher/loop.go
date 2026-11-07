@@ -218,8 +218,8 @@ func (p *project) reviewerWorktree(t ledger.Task, round int) string {
 
 // startLedger はレビュアーのタスクを doing にし、agent を端末 addr にする（kanban start）。
 // 打つ cwd はレビュアーの detached worktree wt: kanban start は cwd の checkout を worktree に、branch を書く
-// （detached なので branch は書かない）。台帳の tasks/<子>/ で打つと、台帳が git の中にある建屋では
-// 台帳を包む checkout（建屋の本体）が worktree・branch として書かれる。
+// （detached なので branch は書かない）。台帳の tasks/<子>/ で打つと、台帳が git の中にあるセルでは
+// 台帳を包む checkout（セルの本体）が worktree・branch として書かれる。
 func (p *project) startLedger(rev, addr, wt string) error {
 	if wt == "" {
 		return fmt.Errorf("%s の detached worktree が分からない", rev)

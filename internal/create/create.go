@@ -1,4 +1,4 @@
-// Package create は andon create [slug]: 建屋の repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
+// Package create は andon create [slug]: セルの repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
 //
 //	projects/<slug>/kanban/      台帳（kanban init。prefix と repos を渡す）
 //	projects/<slug>/project.json 下書き（version・project〈題・接頭字〉・repos。delegation は無し＝無委譲）。commit しない
@@ -30,7 +30,7 @@ import (
 
 // Usage は andon create --help の中身。
 const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <題>]\n" +
-	"人が建屋の repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に台帳（kanban/）・project.json の下書き・\n" +
+	"人がセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に台帳（kanban/）・project.json の下書き・\n" +
 	"AGENTS.md の雛形を作り、repo を ghq get で迎える（無いものだけ）。project.json と AGENTS.md は commit しない（人が見て commit する）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
@@ -380,7 +380,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	ws := delegate.Workspace()
 	projects := filepath.Join(ws, "projects")
 	if st, err := os.Stat(projects); err != nil || !st.IsDir() {
-		fmt.Fprintf(stderr, "andon create: %s が無い（建屋の repo で打つ。ANDON_WORKSPACE）\n", projects)
+		fmt.Fprintf(stderr, "andon create: %s が無い（セルの repo で打つ。ANDON_WORKSPACE）\n", projects)
 		return exitFail
 	}
 	var a *asker

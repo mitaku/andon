@@ -84,7 +84,7 @@ grep -q '^## 仮設の語' package/skills/glossary/SKILL.md && pass "用語集�
 if python3 package/lib/andon/schema_check.py validate schema/gate.schema.json package/gate.json >"$tmp/why" 2>&1; then
   pass "package/gate.json は gate.schema.json に合う"
 else fail "package/gate.json: $(head -1 "$tmp/why")"; fi
-jq -e 'has("repos") | not' package/gate.json >/dev/null && pass "package/gate.json に repos が無い（建屋の gate.local.json へ）" || fail "package/gate.json に repos がある"
+jq -e 'has("repos") | not' package/gate.json >/dev/null && pass "package/gate.json に repos が無い（セルの gate.local.json へ）" || fail "package/gate.json に repos がある"
 for p in package/skills/ package/templates/ package/gate.json package/settings.json package/codex.rules; do
   jq -e --arg p "${p%/}" '.tier_c_paths | map(rtrimstr("/**")) | index($p)' package/gate.json >/dev/null \
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
@@ -152,7 +152,7 @@ for ev in Stop:stop UserPromptSubmit:user-prompt-submit; do
     && pass "${ev%%:*} フックは package/hooks/${ev#*:} を指す" || fail "${ev%%:*} フック: package/hooks/${ev#*:}"
 done
 
-# 全フックの command が、建屋に在るファイルだけを指す（/opt/andon/ は package/ の写し。$HOME 配下は image に無い）
+# 全フックの command が、セルに在るファイルだけを指す（/opt/andon/ は package/ の写し。$HOME 配下は image に無い）
 cmds=$(jq -r '[.hooks[][].hooks[].command] | .[]' package/settings.json)
 bad=
 while IFS= read -r c; do
@@ -162,7 +162,7 @@ while IFS= read -r c; do
     *) bad="$bad [$c]" ;;
   esac
 done <<<"$cmds"
-[ -z "$bad" ] && pass "settings のフックは package に在る /opt/andon/ のファイルだけを指す" || fail "settings のフックが建屋に無いファイルを指す:$bad"
+[ -z "$bad" ] && pass "settings のフックは package に在る /opt/andon/ のファイルだけを指す" || fail "settings のフックがセルに無いファイルを指す:$bad"
 
 # === 5. statusline ===
 out=$(printf '%s' '{"model":{"display_name":"Sample"},"context_window":{"used_percentage":42},"cwd":"/tmp"}' | bash package/lib/andon/statusline 2>"$tmp/err")

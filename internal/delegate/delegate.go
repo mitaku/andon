@@ -1,7 +1,7 @@
-// Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。建屋の repo の projects/<slug>/project.json の
+// Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。セルの repo の projects/<slug>/project.json の
 // delegation を読み（Read。ゲート・dispatcher・command が使う）、人が書く手順を助ける（andon delegate grant/narrow/revoke/show）。
 //
-// 読み方: 建屋の repo の HEAD のファイルだけを読み、それを最後に変えた commit の author が andon.toml の owner と
+// 読み方: セルの repo の HEAD のファイルだけを読み、それを最後に変えた commit の author が andon.toml の owner と
 // 一致するときだけ信じる。無い・読めない・形が違う・一致しない は無委譲（全部人）。
 package delegate
 
@@ -262,7 +262,7 @@ func (r Result) Merge() string {
 	return s
 }
 
-// Workspace は建屋の repo（ANDON_WORKSPACE。既定 /workspace）。
+// Workspace はセルの repo（ANDON_WORKSPACE。既定 /workspace）。
 func Workspace() string {
 	if w := os.Getenv("ANDON_WORKSPACE"); w != "" {
 		return w
@@ -270,7 +270,7 @@ func Workspace() string {
 	return "/workspace"
 }
 
-// Owner は建屋の andon.toml の owner（git の author の email。最上段の owner = "…" の行だけを読む）。無ければ空。
+// Owner はセルの andon.toml の owner（git の author の email。最上段の owner = "…" の行だけを読む）。無ければ空。
 func Owner(ws string) string {
 	b, err := os.ReadFile(filepath.Join(ws, "andon.toml"))
 	if err != nil {
@@ -310,10 +310,10 @@ func git(ws string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// ErrAbsent は建屋の repo の HEAD にそのファイルが無いこと。
-var ErrAbsent = errors.New("建屋の repo の HEAD に無い")
+// ErrAbsent はセルの repo の HEAD にそのファイルが無いこと。
+var ErrAbsent = errors.New("セルの repo の HEAD に無い")
 
-// OwnerFile は建屋の repo の HEAD の rel を読み、それを最後に変えた commit の author の email が andon.toml の owner のときだけ返す
+// OwnerFile はセルの repo の HEAD の rel を読み、それを最後に変えた commit の author の email が andon.toml の owner のときだけ返す
 // （project.json・gate.local.json。人だけが書くファイル。作業ツリーと未 commit の変更は読まない）。
 func OwnerFile(ws, rel string) ([]byte, error) {
 	b, err := git(ws, "show", "HEAD:"+filepath.ToSlash(rel))
@@ -332,7 +332,7 @@ func OwnerFile(ws, rel string) ([]byte, error) {
 	return []byte(b), nil
 }
 
-// Read は建屋の repo の HEAD の委譲（project.json の delegation）を読む（読み手は全部これ）。信じられなければ無委譲。
+// Read はセルの repo の HEAD の委譲（project.json の delegation）を読む（読み手は全部これ）。信じられなければ無委譲。
 // 移す前の delegation.json は読まない（無委譲。理由にそう書く）。
 func Read(ws, slug, today string) Result {
 	none := func(reason string) Result {
@@ -343,7 +343,7 @@ func Read(ws, slug, today string) Result {
 		if _, lerr := git(ws, "cat-file", "-e", "HEAD:"+filepath.ToSlash(LegacyRel(slug))); lerr == nil {
 			return none("委譲が無い（" + LegacyRel(slug) + " は読まない。" + ProjectRel(slug) + " の delegation へ移すまで無委譲）")
 		}
-		return none("委譲が無い（建屋の repo の HEAD に " + ProjectRel(slug) + " が無い）")
+		return none("委譲が無い（セルの repo の HEAD に " + ProjectRel(slug) + " が無い）")
 	}
 	if err != nil {
 		return none(err.Error())

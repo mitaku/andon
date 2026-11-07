@@ -4,7 +4,7 @@ usage: python3 pty-probe.py <秒> <cwd> <program> [args...]
 （stdin から読ませるときは python3 - <秒> <cwd> <program> …）
 
 信頼の画面のような最初の画面を見るためのもの。打鍵はしない（端末の問い合わせ〈位置・色・属性〉にだけ答える）。
-標準ライブラリだけ。tests/image.sh が建屋のコンテナの中で使う。
+標準ライブラリだけ。tests/image.sh がセルのコンテナの中で使う。
 """
 
 import fcntl
