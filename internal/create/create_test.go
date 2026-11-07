@@ -34,7 +34,9 @@ func setup(t *testing.T) (ws, log string) {
 	bin := t.TempDir()
 	log = filepath.Join(bin, "ghq.log")
 	scripts := map[string]string{
-		"kanban": "#!/usr/bin/env bash\n[ \"$1\" = init ] || exit 9\n[ -n \"${KANBAN_FAIL:-}\" ] && { echo boom >&2; exit 1; }\nmkdir -p \"$3/kanban\" && echo \"$*\" > \"$3/kanban/args\"\n" +
+		"kanban": "#!/usr/bin/env bash\n[ \"$1\" = init ] || exit 9\n[ -n \"${KANBAN_FAIL:-}\" ] && { echo boom >&2; exit 1; }\n" +
+			"mkdir -p \"$3/kanban/tasks\" && echo '*' > \"$3/kanban/.gitignore\" && echo \"$*\" > \"$3/kanban/config.yaml\"\n" +
+			"[ -n \"${KANBAN_TASK:-}\" ] && mkdir -p \"$3/kanban/tasks/S-0001\" && echo mine > \"$3/kanban/tasks/S-0001/brief.md\"\n" +
 			"[ -n \"${KANBAN_HUMAN:-}\" ] && echo mine > \"$3/$KANBAN_HUMAN\"\nexit 0\n",
 		"ghq": "#!/usr/bin/env bash\necho \"$*\" >> '" + log + "'\n[ -z \"${GHQ_BROKEN:-}\" ] && git init -q \"$GHQ_ROOT/$2\"\nexit 0\n",
 		"hc":  "#!/usr/bin/env bash\ncase \"$HC_TERMINAL_ID\" in role*) echo '{\"labels\":{\"role\":\"chief-of-staff\"}}';; *) echo '{\"labels\":{}}';; esac\n",
@@ -48,6 +50,7 @@ func setup(t *testing.T) (ws, log string) {
 	t.Setenv("HC_TERMINAL_ID", "")
 	t.Setenv("KANBAN_FAIL", "")
 	t.Setenv("KANBAN_HUMAN", "")
+	t.Setenv("KANBAN_TASK", "")
 	t.Setenv("GHQ_BROKEN", "")
 	return ws, log
 }
@@ -84,7 +87,7 @@ func TestAllArgsMakesTheProjectWithoutCommitting(t *testing.T) {
 		t.Fatalf("rc=%d %s %s", rc, out, errs)
 	}
 	dir := filepath.Join(ws, "projects", "sample-site")
-	if got := read(t, filepath.Join(dir, "kanban", "args")); got != "init --root "+dir+" --prefix SS --repo example.com/o/have --repo example.com/o/new\n" {
+	if got := read(t, filepath.Join(dir, "kanban", "config.yaml")); got != "init --root "+dir+" --prefix SS --repo example.com/o/have --repo example.com/o/new\n" {
 		t.Errorf("kanban init: %q", got)
 	}
 	p, err := delegate.ParseProject([]byte(read(t, filepath.Join(dir, "project.json"))), "sample-site")
@@ -340,5 +343,23 @@ func TestGuideQuotesTheWorkspace(t *testing.T) {
 	}
 	if quote("/workspace") != "/workspace" {
 		t.Error("ふつうのパスは引用しない")
+	}
+}
+
+func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
+	ws, _ := setup(t)
+	t.Setenv("KANBAN_TASK", "1")
+	t.Setenv("KANBAN_HUMAN", "AGENTS.md")
+	if rc, _, errs := run(strings.NewReader(""), "sample-site"); rc != exitFail || !strings.Contains(errs, "残した") {
+		t.Errorf("rc=%d %s", rc, errs)
+	}
+	dir := filepath.Join(ws, "projects", "sample-site")
+	if read(t, filepath.Join(dir, "kanban", "tasks", "S-0001", "brief.md")) != "mine\n" {
+		t.Error("kanban/ の中の人のファイルを消した")
+	}
+	for _, gone := range []string{"project.json", "kanban/config.yaml", "kanban/.gitignore"} {
+		if _, err := os.Lstat(filepath.Join(dir, gone)); err == nil {
+			t.Errorf("作った %s が残っている", gone)
+		}
 	}
 }

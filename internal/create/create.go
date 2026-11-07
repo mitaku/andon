@@ -435,10 +435,11 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 	}
 	// ここから先で落ちたら、この command が作ったものだけを退ける。途中で人が置いたものは残す
 	// （projects/<slug> は空になったときだけ消す）。
+	// 退けるときは os.Remove だけ（再帰で消さない）。ディレクトリは空のときだけ消えるので、中に人が置いたものは残る。
 	var made []string
 	undo := func(err error) error {
 		for i := len(made) - 1; i >= 0; i-- {
-			_ = os.RemoveAll(made[i])
+			_ = os.Remove(made[i])
 		}
 		if os.Remove(dir) != nil {
 			return fmt.Errorf("%v。作ったものは退けたが、projects/%s にほかのものがあるので残した", err, in.slug)
@@ -454,7 +455,8 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 		kargs = append(kargs, "--repo", r)
 	}
 	_, kerr := spawn.OutputIn(dir, nil, "", "kanban", kargs...)
-	made = append(made, kdir)
+	// kanban init が作るもの（ディレクトリは先に。退けるときは逆の順）
+	made = append(made, kdir, filepath.Join(kdir, "tasks"), filepath.Join(kdir, ".gitignore"), filepath.Join(kdir, "config.yaml"))
 	if kerr != nil {
 		return undo(fmt.Errorf("kanban init が落ちた: %v", kerr))
 	}
