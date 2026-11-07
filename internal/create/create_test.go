@@ -35,8 +35,8 @@ func setup(t *testing.T) (ws, log string) {
 	log = filepath.Join(bin, "ghq.log")
 	scripts := map[string]string{
 		"kanban": "#!/usr/bin/env bash\n[ \"$1\" = init ] || exit 9\n[ -n \"${KANBAN_FAIL:-}\" ] && { echo boom >&2; exit 1; }\n" +
-			"mkdir -p \"$3/kanban/tasks\" && echo '*' > \"$3/kanban/.gitignore\" && echo \"$*\" > \"$3/kanban/config.yaml\"\n" +
-			"[ -n \"${KANBAN_TASK:-}\" ] && mkdir -p \"$3/kanban/tasks/S-0001\" && echo mine > \"$3/kanban/tasks/S-0001/brief.md\"\n" +
+			"mkdir -p \"$3/kanban/issues\" && echo '*' > \"$3/kanban/.gitignore\" && echo \"$*\" > \"$3/kanban/config.yaml\"\n" +
+			"[ -n \"${KANBAN_TASK:-}\" ] && mkdir -p \"$3/kanban/issues/S-0001\" && echo mine > \"$3/kanban/issues/S-0001/brief.md\"\n" +
 			"[ -n \"${KANBAN_HUMAN:-}\" ] && echo mine > \"$3/$KANBAN_HUMAN\"\nexit 0\n",
 		"ghq": "#!/usr/bin/env bash\necho \"$*\" >> '" + log + "'\n[ -z \"${GHQ_BROKEN:-}\" ] && git init -q \"$GHQ_ROOT/$2\"\nexit 0\n",
 		"hc":  "#!/usr/bin/env bash\ncase \"$HC_TERMINAL_ID\" in role*) echo '{\"labels\":{\"role\":\"chief-of-staff\"}}';; *) echo '{\"labels\":{}}';; esac\n",
@@ -354,7 +354,7 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 		t.Errorf("rc=%d %s", rc, errs)
 	}
 	dir := filepath.Join(ws, "projects", "sample-site")
-	if read(t, filepath.Join(dir, "kanban", "tasks", "S-0001", "brief.md")) != "mine\n" {
+	if read(t, filepath.Join(dir, "kanban", "issues", "S-0001", "brief.md")) != "mine\n" {
 		t.Error("kanban/ の中の人のファイルを消した")
 	}
 	for _, gone := range []string{"project.json", "kanban/config.yaml", "kanban/.gitignore"} {

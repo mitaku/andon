@@ -1,5 +1,5 @@
 // Package gate は andon gate（docs/contract.md §7。仮設のゲート lib/yard/gate を Go に移したもの）。
-// 台帳のタスクの PR を、task.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
+// 台帳のタスクの PR を、issue.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
 // ゲートの条件表・委譲（project.json の delegation）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
 // Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
@@ -27,8 +27,8 @@ import (
 
 // Usage は andon gate --help の中身。
 const Usage = "usage: andon gate <id> [--dry-run]\n" +
-	"台帳のタスクの PR（report.json の pr）を、task.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
-	"記録は tasks/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
+	"台帳のタスクの PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
+	"記録は issues/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
 	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
 	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates のタスクも。回さない）。\n"
 
@@ -227,7 +227,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		fmt.Fprintln(stderr, "andon gate:", warn)
 	}
 
-	// L1 台帳: PR の場所は report.json の pr だけ（Markdown も task.yaml の pr も読まない）
+	// L1 台帳: PR の場所は report.json の pr だけ（Markdown も issue.yaml の pr も読まない）
 	rep, err := contract.ReadReport(filepath.Join(l.Library(id), "report.json"))
 	if err != nil {
 		return nil, "report.json が無い・形が違う（andon task report）", nil
@@ -239,11 +239,11 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	repo := t.Str("repo")
 	switch {
 	case repo != "github.com/"+owner+"/"+name:
-		return nil, fmt.Sprintf("task.yaml の repo（%s）と PR の repo（%s/%s）が違う", repo, owner, name), nil
+		return nil, fmt.Sprintf("issue.yaml の repo（%s）と PR の repo（%s/%s）が違う", repo, owner, name), nil
 	case !contains(l.Repos(), repo):
 		return nil, "台帳の config.yaml の repos にこの repo が無い", nil
 	case t.Str("branch") == "":
-		return nil, "task.yaml に branch が無い", nil
+		return nil, "issue.yaml に branch が無い", nil
 	}
 	slug := owner + "/" + name
 
@@ -263,7 +263,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("台帳のタスクが review でない（%s）", t.Str("status")))
 	}
 	if pv.HeadRefName != t.Str("branch") {
-		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("PR の branch（%s）が task.yaml の branch と違う", pv.HeadRefName))
+		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("PR の branch（%s）が issue.yaml の branch と違う", pv.HeadRefName))
 	}
 	if rep.Commit != head {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon task ready からやり直す）")
@@ -306,9 +306,9 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	s := ledger.SettingsOf(t)
 	switch {
 	case s.Review == "" || s.MustFix == "":
-		facts.SettingsReason = "task.yaml の review・must_fix が無い・知らない値（Chief of Staff が kanban set する）"
+		facts.SettingsReason = "issue.yaml の review・must_fix が無い・知らない値（Chief of Staff が kanban set する）"
 	case !l.Trusted(rows, t, "review") || !l.Trusted(rows, t, "must_fix"):
-		facts.SettingsReason = "task.yaml の review・must_fix を最後に書いたのが Chief of Staff（config.yaml の chief_of_staff）でない・記録と値が違う"
+		facts.SettingsReason = "issue.yaml の review・must_fix を最後に書いたのが Chief of Staff（config.yaml の chief_of_staff）でない・記録と値が違う"
 	}
 	if s.Merge == "auto" && !l.Trusted(rows, t, "merge") {
 		s.Merge = "person" // 信じられない auto は無いのと同じ（既定 person）

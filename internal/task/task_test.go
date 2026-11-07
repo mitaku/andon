@@ -58,7 +58,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(fakeDeck), 0o755)
 	os.WriteFile(filepath.Join(bin, "gh"), []byte(fakeGH), 0o755)
-	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 2\nchief_of_staff: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
 	git := func(args ...string) string {
 		c := exec.Command("git", append([]string{"-C", f.wt}, args...)...)
 		c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
@@ -97,20 +97,20 @@ func js(v any) string { b, _ := json.Marshal(v); return string(b) }
 
 // ready を打ち、終了コードと stderr と review にしたかを返す。
 func (f *fixture) ready() (int, string, bool) {
-	f.write("show-T-0001.json", js(map[string]any{"task": f.task}))
+	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 	list := []any{f.task}
 	log := ""
 	if f.reviewer != nil {
 		list = append(list, f.reviewer)
 		log = js(map[string]any{"by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}) + "\n"
 		if f.findings != "" {
-			f.write("kanban/tasks/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
+			f.write("kanban/issues/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
 		}
 	}
 	f.write("list.json", js(list))
 	f.write("kanban/log.jsonl", log)
 	if f.report != "" {
-		f.write("kanban/tasks/T-0001/library/report.json", f.report)
+		f.write("kanban/issues/T-0001/library/report.json", f.report)
 	}
 	f.write("prhead", f.prHead+"\n")
 	var out, errb bytes.Buffer

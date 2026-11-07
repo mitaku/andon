@@ -506,7 +506,7 @@ func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (kee
 	case status == "working" || status == "done":
 		p.logf("%s の担当 %s は最初のメッセージのラベルが残っているが、もう動いている（手で送られた）。送らない", id, agent)
 	case status == "idle" || status == "":
-		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "tasks", id, "brief.md"))
+		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "issues", id, "brief.md"))
 		if isReviewer(t) {
 			msg = p.reviewerFirst(id) // dispatcher が起こしたレビュアー（startReviewer と同じ文）
 		}

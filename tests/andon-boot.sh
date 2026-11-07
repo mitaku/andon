@@ -25,7 +25,7 @@ ln -s "$tmp/mine" "$home/.claude/skills/mine"                   # 利用者の s
 mkdir -p "$home/.agents/skills"
 ln -s "$tmp/mine" "$home/.agents/skills/andon-mine"             # 利用者が andon- の名前で置いた skill（残ること）
 mkdir -p "$ws/.ghq/github.com/example/sample-site/.git" "$ws/.ghq/github.com/example/unlisted/.git" "$ws/projects/demo/kanban"
-printf 'version: 2\nrepos:\n  - github.com/example/sample-site\n' >"$ws/projects/demo/kanban/config.yaml" # 台帳に載った repo だけが信頼の根
+printf 'version: 3\nrepos:\n  - github.com/example/sample-site\n' >"$ws/projects/demo/kanban/config.yaml" # 台帳に載った repo だけが信頼の根
 cp "$andon" "$tmp/path/andon"
 
 boot() {

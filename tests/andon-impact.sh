@@ -78,10 +78,10 @@ HC_TERMINAL_ID=t5 kanban add 'レビュー' --profile codex-review --parent "$co
 # m の PR をマージする（squash の代わりに m の commit を origin の main に入れる）
 git -C "$HOME/.herdr/worktrees/app/demo-$m" push -q origin "HEAD:main"
 sha=$(git -C "$HOME/.herdr/worktrees/app/demo-$m" rev-parse HEAD)
-mkdir -p "$L/tasks/$m/library"
-echo '{"commit": "'"$sha"'", "pr": "https://github.com/example/app/pull/1"}' > "$L/tasks/$m/library/report.json"
-mkdir -p "$L/tasks/$conf/library"
-jq -n --arg c "$(git -C "$app" rev-parse "demo/$conf")" '{commit: $c, pr: "https://github.com/example/app/pull/9"}' > "$L/tasks/$conf/library/report.json"
+mkdir -p "$L/issues/$m/library"
+echo '{"commit": "'"$sha"'", "pr": "https://github.com/example/app/pull/1"}' > "$L/issues/$m/library/report.json"
+mkdir -p "$L/issues/$conf/library"
+jq -n --arg c "$(git -C "$app" rev-parse "demo/$conf")" '{commit: $c, pr: "https://github.com/example/app/pull/9"}' > "$L/issues/$conf/library/report.json"
 
 # 1. MERGED でなければ終了コード 4（何も出さない）
 echo '{"state":"OPEN","mergeCommit":null,"files":[]}' > "$tmp/gh/view.json"

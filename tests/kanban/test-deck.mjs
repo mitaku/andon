@@ -1,6 +1,6 @@
 // Behaviour tests for kanban (the ledger's CLI), copied unchanged from herdr-flightdeck's
 // herdr-app/cli/test-deck.mjs at tag deck-v0.4.0 (docs/decisions.md §7, §12); only these lines differ,
-// and (Y-141) the ledger's folder kanban/, KANBAN_ROOT, chief_of_staff and four-digit ids (W-0001).
+// and (Y-141) the ledger's folder kanban/, KANBAN_ROOT, chief_of_staff and four-digit ids (W-0001); (Y-208) format 3: issues/<id>/issue.yaml and show --json .issue.
 // tests/kanban.sh runs it: DECK_BIN=<path to a kanban executable> node tests/kanban/test-deck.mjs
 // Without DECK_BIN it looks for bin/deck (bin/deck.exe on Windows) at the repo root. Uses a temporary folder only.
 import { spawn, spawnSync } from "node:child_process";
@@ -16,7 +16,7 @@ if (!existsSync(bin)) {
   process.exit(1);
 }
 const cmd = bin, pre = [];
-// A yard in a temporary folder: projects/a and projects/b each hold a ledger (format 2);
+// A yard in a temporary folder: projects/a and projects/b each hold a ledger (format 3);
 // the repositories go under .ghq/ the way ghq clones them.
 const yard = mkdtempSync(join(tmpdir(), "deck-test-"));
 const root = join(yard, "projects", "a"), rootB = join(yard, "projects", "b");
@@ -51,20 +51,20 @@ try {
   check("init in the current folder", run(["init", "--repo", "github.com/x/other"], { cwd: rootB }).code === 0);
   check("init's .gitignore is *", readFileSync(join(root, "kanban", ".gitignore"), "utf8") === "*\n");
   const cfgA = readFileSync(join(root, "kanban", "config.yaml"), "utf8");
-  check("init writes version 2 and repos", cfgA.startsWith("version: 2\n") && cfgA.includes("repos:\n  - github.com/x/app\n"), cfgA);
+  check("init writes version 3 and repos", cfgA.startsWith("version: 3\n") && cfgA.includes("repos:\n  - github.com/x/app\n"), cfgA);
   mkdirSync(join(root, "notes"), { recursive: true });
 
   const a = run(["add", "Parent work"]);
   check("add returns an id", a.out === "W-0001", a.out + a.err);
   const b = run(["add", "日本語の題名", "--parent", "W-0001", "--profile", "opus"], { cwd: join(root, "notes") });
   check("add from a folder in the project", b.out === "W-0002", b.out + b.err);
-  const w2 = JSON.parse(run(["show", "W-0002", "--json"]).out).task;
+  const w2 = JSON.parse(run(["show", "W-0002", "--json"]).out).issue;
   check("add --profile; no repo outside git", w2.profile === "opus" && !("repo" in w2), JSON.stringify(w2));
   check("add --repo not in repos is refused", run(["add", "x", "--repo", "github.com/x/nope"]).code === 1);
-  check("unicode title kept", readFileSync(join(root, "kanban", "tasks", "W-0002", "task.yaml"), "utf8").includes("日本語の題名"));
+  check("unicode title kept", readFileSync(join(root, "kanban", "issues", "W-0002", "issue.yaml"), "utf8").includes("日本語の題名"));
   const c = run(["add", "After two", "--after", "W-0002"]);
   check("add with after", c.out === "W-0003");
-  check("waiting task is queued", JSON.parse(run(["show", "W-0003", "--json"]).out).task.status === "queued");
+  check("waiting task is queued", JSON.parse(run(["show", "W-0003", "--json"]).out).issue.status === "queued");
   check("unknown parent is refused", run(["add", "x", "--parent", "W-0099"]).code === 1);
 
   const ready = run(["ready", "--json"]).out;
@@ -74,15 +74,15 @@ try {
   const st = run(["start", "W-0002", "--json"]);
   const started = JSON.parse(st.out);
   check("start sets doing and agent", started.status === "doing" && started.agent === "t9", st.out + st.err);
-  check("review", run(["review", "W-0002"]).code === 0 && JSON.parse(run(["show", "W-0002", "--json"]).out).task.status === "review");
+  check("review", run(["review", "W-0002"]).code === 0 && JSON.parse(run(["show", "W-0002", "--json"]).out).issue.status === "review");
   const d = run(["done", "W-0002"]);
   check("done frees the waiting task", d.out.includes("now ready: W-0003"), d.out + d.err);
-  check("freed task moved to todo", JSON.parse(run(["show", "W-0003", "--json"]).out).task.status === "todo");
+  check("freed task moved to todo", JSON.parse(run(["show", "W-0003", "--json"]).out).issue.status === "todo");
 
   check("set a list", run(["set", "W-0001", "links=https://a.example,docs/x.md"]).code === 0
-    && JSON.parse(run(["show", "W-0001", "--json"]).out).task.links.length === 2);
+    && JSON.parse(run(["show", "W-0001", "--json"]).out).issue.links.length === 2);
   check("set removes with empty value", run(["set", "W-0001", "links="]).code === 0
-    && !("links" in JSON.parse(run(["show", "W-0001", "--json"]).out).task));
+    && !("links" in JSON.parse(run(["show", "W-0001", "--json"]).out).issue));
   check("set refuses a bad status", run(["set", "W-0001", "status=nope"]).code === 1);
   check("set refuses id", run(["set", "W-0001", "id=W-0007"]).code === 1);
   for (const id of ["../W-0001", "..", "W-0001/../../x", "..\\W-0001"])
@@ -90,7 +90,7 @@ try {
 
   check("report write", run(["report", "W-0001"], { input: "# Report\nfirst\n" }).code === 0);
   check("report append", run(["report", "W-0001", "--append"], { input: "second\n" }).code === 0);
-  const rep = readFileSync(join(root, "kanban", "tasks", "W-0001", "report.md"), "utf8");
+  const rep = readFileSync(join(root, "kanban", "issues", "W-0001", "report.md"), "utf8");
   check("report has both", rep.includes("first") && rep.includes("second"), rep);
 
   check("list hides done by default", !run(["list"]).out.includes("W-0002") && run(["list", "--all"]).out.includes("W-0002"));
@@ -102,7 +102,7 @@ try {
   const got = many.map((r) => r.out);
   check("parallel adds all succeed", many.every((r) => r.code === 0), JSON.stringify(many));
   check("parallel ids are unique", new Set(got).size === 10, got.join(" "));
-  check("tasks folder has 13", readdirSync(join(root, "kanban", "tasks")).length === 13);
+  check("tasks folder has 13", readdirSync(join(root, "kanban", "issues")).length === 13);
   const log = readFileSync(join(root, "kanban", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
   check("log has every add", log.filter((l) => l.change.add).length === 13, String(log.length));
   // The lock is an OS lock on an empty file; the file stays, the lock goes with the process.
@@ -111,7 +111,7 @@ try {
   check("a write after the parallel adds gets the lock", run(["set", "W-0004", "phase=P1"]).code === 0);
 
   // A person's comments and key order in task.yaml survive set, start and done.
-  const commented = join(root, "kanban", "tasks", "W-0005", "task.yaml");
+  const commented = join(root, "kanban", "issues", "W-0005", "issue.yaml");
   writeFileSync(commented, [
     "# Written by hand: keep this",
     "title: Commented work  # the title",
@@ -132,14 +132,14 @@ try {
 
   // deck config set chief_of_staff= keeps a person's comments in config.yaml.
   const cfgFile = join(root, "kanban", "config.yaml");
-  writeFileSync(cfgFile, readFileSync(cfgFile, "utf8").replace("version: 2\n", "# by hand\nversion: 2\n"));
+  writeFileSync(cfgFile, readFileSync(cfgFile, "utf8").replace("version: 3\n", "# by hand\nversion: 3\n"));
   const setCo = run(["config", "set", "chief_of_staff=t7"]);
   const cfgNow = readFileSync(cfgFile, "utf8");
-  check("config set chief_of_staff", setCo.code === 0 && cfgNow.startsWith("# by hand\nversion: 2\n") && cfgNow.includes("chief_of_staff: t7\n"), setCo.err + cfgNow);
+  check("config set chief_of_staff", setCo.code === 0 && cfgNow.startsWith("# by hand\nversion: 3\n") && cfgNow.includes("chief_of_staff: t7\n"), setCo.err + cfgNow);
   check("config set refuses other keys", run(["config", "set", "prefix=X"]).code === 1 && !readFileSync(cfgFile, "utf8").includes("prefix: X"));
 
   // A broken task shows up in lint and doesn't stop the rest.
-  writeFileSync(join(root, "kanban", "tasks", "W-0001", "task.yaml"), "id: W-0001\ntitle: [unclosed\n");
+  writeFileSync(join(root, "kanban", "issues", "W-0001", "issue.yaml"), "id: W-0001\ntitle: [unclosed\n");
   check("list still works with a broken task", run(["list"]).code === 0 && run(["list"]).out.includes("unreadable"));
   const lint = run(["lint"]);
   check("lint reports the broken task", lint.code === 1 && lint.out.includes("W-0001"), lint.out);
@@ -165,7 +165,7 @@ try {
   const qr = join(yard, "projects", "q");
   mkdirSync(qr, { recursive: true });
   const q = (args, opts = {}) => run(args, { cwd: qr, ...opts, env: { DECK_NOW: "2026-11-03T01:00:00Z", ...opts.env } });
-  const qfile = (id) => join(qr, "kanban", "tasks", id, "questions.yaml");
+  const qfile = (id) => join(qr, "kanban", "issues", id, "questions.yaml");
   const qlog = () => readFileSync(join(qr, "kanban", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l))
     .filter((l) => l.change && "question" in l.change).map((l) => `${l.id}#${l.change.question} ${l.change.status}`);
   check("init a ledger for questions", run(["init", "--root", qr]).code === 0 && q(["add", "Export"]).out === "W-0001" && q(["add", "Import"]).out === "W-0002");
@@ -217,7 +217,7 @@ try {
   check("init a ledger for routines", run(["init", "--root", rr, "--repo", "github.com/x/app"]).code === 0);
   const routineFile = (name, body) => writeFileSync(join(rr, "kanban", "routines", `${name}.yaml`), body);
   routineFile("daily", "# kept\ntitle: Daily look\nbrief: |\n  Look.\nprofile: sonnet\nrepo: github.com/x/app\nschedule: \"0 9 * * *\"\n");
-  const rtasks = () => readdirSync(join(rr, "kanban", "tasks")).sort();
+  const rtasks = () => readdirSync(join(rr, "kanban", "issues")).sort();
   const rlog = () => readFileSync(join(rr, "kanban", "log.jsonl"), "utf8").trim().split("\n").filter(Boolean)
     .map((l) => JSON.parse(l)).filter((l) => "routine" in l).map((l) => `${l.routine} ${l.fired ?? "skipped " + l.skipped} ${l.by}`);
   const rstate = () => JSON.parse(readFileSync(join(rr, "kanban", "state", "routines.json"), "utf8"));
@@ -227,8 +227,8 @@ try {
   check("tick at the time adds one", t9.out === "daily: added W-0001" && rtasks().join() === "W-0001", t9.out + t9.err);
   check("tick again adds nothing", r(["tick"], "2026-11-02T09:00:00Z").out === "(nothing due)" && r(["tick"], "2026-11-02T09:05:00Z").code === 0 && rtasks().length === 1);
   const rw1 = JSON.parse(r(["show", "W-0001", "--json"]).out);
-  check("the added task", rw1.task.title === "Daily look" && rw1.task.routine === "daily" && rw1.task.profile === "sonnet"
-    && rw1.task.repo === "github.com/x/app" && rw1.task.status === "todo" && rw1.brief === "Look.\n", JSON.stringify(rw1));
+  check("the added task", rw1.issue.title === "Daily look" && rw1.issue.routine === "daily" && rw1.issue.profile === "sonnet"
+    && rw1.issue.repo === "github.com/x/app" && rw1.issue.status === "todo" && rw1.brief === "Look.\n", JSON.stringify(rw1));
   check("the routine file is only read", readFileSync(join(rr, "kanban", "routines", "daily.yaml"), "utf8").startsWith("# kept\n"));
   const skip = r(["tick"], "2026-11-03T09:00:00Z");
   check("open stops it while its task isn't done", skip.out === "daily: skipped (open)" && rtasks().length === 1, skip.out + skip.err);
@@ -264,7 +264,7 @@ try {
     "routines/none.yaml: needs schedule or on"].every((p) => rlint.out.includes(p)), rlint.out);
   check("tick with a bad routine fails but fires the rest", r(["tick"], "2026-11-07T09:00:00Z").code === 1 && rtasks().length === 6);
   check("a DECK_NOW that isn't a time is refused", r(["tick"], "soon").code === 1);
-  writeFileSync(join(rr, "kanban", "config.yaml"), "version: 3\n");
+  writeFileSync(join(rr, "kanban", "config.yaml"), "version: 4\n");
   const before = readFileSync(join(rr, "kanban", "state", "routines.json"), "utf8");
   check("routine commands refuse another version", [r(["tick"]), r(["routine", "list"]), r(["routine", "run", "daily"])].every((x) => x.code === 1 && x.err.includes("format")));
   check("and write nothing", readFileSync(join(rr, "kanban", "state", "routines.json"), "utf8") === before && rtasks().length === 6);
@@ -282,7 +282,7 @@ try {
     gitRepo(app);
     for (const [slug, entry] of [["d", "github.com/x/app/"], ["e", "/github.com/x/app"], ["f", "x/app"]]) {
       mkdirSync(join(yard, "projects", slug, "kanban"), { recursive: true });
-      writeFileSync(join(yard, "projects", slug, "kanban", "config.yaml"), `version: 2\nrepos: ["${entry}"]\n`);
+      writeFileSync(join(yard, "projects", slug, "kanban", "config.yaml"), `version: 3\nrepos: ["${entry}"]\n`);
     }
     const fromRepo = run(["root"], { cwd: join(app, "src") });
     check("root found from the repository (projects/a)", same(fromRepo.out, root), fromRepo.out + fromRepo.err);
@@ -315,7 +315,7 @@ try {
       const fromC = run(["root"], { cwd: wtC });
       check("root found for a linked project", same(fromC.out, rootC), fromC.out + fromC.err);
       const addC = run(["add", "Linked work"], { cwd: wtC });
-      const taskC = join(lib, "kanban", "tasks", "W-0001", "task.yaml");
+      const taskC = join(lib, "kanban", "issues", "W-0001", "issue.yaml");
       check("add through a linked project", addC.code === 0 && existsSync(taskC) && readFileSync(taskC, "utf8").includes("repo: github.com/x/lib"), addC.out + addC.err);
       const dirty = g(["status", "--porcelain", "--untracked-files=all"], lib).stdout.trim();
       check("the ledger stays out of git", dirty === "", dirty);
@@ -324,7 +324,7 @@ try {
     rmSync(outside, { recursive: true, force: true });
 
     // Two projects with the same repository: an error that names both.
-    writeFileSync(join(rootB, "kanban", "config.yaml"), "version: 2\nrepos: [github.com/x/app]\n");
+    writeFileSync(join(rootB, "kanban", "config.yaml"), "version: 3\nrepos: [github.com/x/app]\n");
     const both = run(["root"], { cwd: app });
     check("two projects with one repository is an error naming both",
       both.code === 1 && both.err.includes("projects/a") && both.err.includes("projects/b"), both.out + both.err);

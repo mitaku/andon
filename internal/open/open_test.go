@@ -17,7 +17,7 @@ func setup(t *testing.T, slugs ...string) string {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(d, "config.yaml"), []byte("version: 2\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(d, "config.yaml"), []byte("version: 3\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

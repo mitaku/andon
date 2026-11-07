@@ -123,7 +123,7 @@ func (l *ledger) collect() ([]Item, error) {
 		if t.Status != "done" && t.Status != "review" {
 			continue
 		}
-		body, err := os.ReadFile(filepath.Join(l.dir, "tasks", t.ID, "report.md"))
+		body, err := os.ReadFile(filepath.Join(l.dir, "issues", t.ID, "report.md"))
 		if err != nil || !hasHeading(body) {
 			emit("unreadable", "報告が無い・読めない、または見出しが無い")
 			continue

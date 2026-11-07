@@ -34,10 +34,10 @@ func (c *ctx) finish(stdout io.Writer) error {
 		repoDir = d
 	}
 
-	// repo の無いタスク（レビュアーなど）は、担当の deck start が cwd（tasks/<id>/）を包む checkout を書く。
+	// repo の無いタスク（レビュアーなど）は、担当の deck start が cwd（issues/<id>/）を包む checkout を書く。
 	// start が作ったものではないので、git には触らず台帳から消すだけ（その checkout と一致するときだけ）
 	if repo == "" && wt != "" {
-		top, err := git(filepath.Join(c.l.Dir, "tasks", c.id), "rev-parse", "--show-toplevel")
+		top, err := git(filepath.Join(c.l.Dir, "issues", c.id), "rev-parse", "--show-toplevel")
 		if err == nil && top == wt {
 			if _, err := c.l.Run("", "set", c.id, "worktree=", "branch="); err != nil {
 				return err

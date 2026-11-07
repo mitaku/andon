@@ -173,7 +173,7 @@ func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "rep
 
 func (c *ctx) candidatesPath() string { return filepath.Join(c.l.Library(c.id), "candidates.json") }
 
-// hasRepo は repo のあるタスクか（task.yaml の repo）。worktree では見ない: kanban start は cwd の git の根を
+// hasRepo は repo のあるタスクか（issue.yaml の repo）。worktree では見ない: kanban start は cwd の git の根を
 // worktree に書くので、repo の無いタスクでも台帳が git の checkout の中にあれば worktree が入る。
 // repo の無いタスクの報告と候補は commit を持たない。
 func (c *ctx) hasRepo() bool { return c.task.Str("repo") != "" }
@@ -186,7 +186,7 @@ func readInput(stdin io.Reader, src string) ([]byte, error) {
 	return os.ReadFile(src)
 }
 
-// head は担当の worktree（task.yaml の worktree。無ければ cwd）の HEAD。
+// head は担当の worktree（issue.yaml の worktree。無ければ cwd）の HEAD。
 func (c *ctx) head() (string, error) {
 	dir := c.task.Path("worktree")
 	args := []string{"rev-parse", "HEAD"}
@@ -328,10 +328,10 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	}
 	s := ledger.SettingsOf(c.task)
 	if s.Review != "on" {
-		return fail("task.yaml の review が on でない（%q）。レビューは頼めない", c.task.Str("review"))
+		return fail("issue.yaml の review が on でない（%q）。レビューは頼めない", c.task.Str("review"))
 	}
 	if c.task.Str("review_rounds") != "" && c.task.Str("review_rounds") != s.ReviewRounds {
-		return fail("task.yaml の review_rounds が 1 以上の数でない: %q", c.task.Str("review_rounds"))
+		return fail("issue.yaml の review_rounds が 1 以上の数でない: %q", c.task.Str("review_rounds"))
 	}
 	prev, err := c.previous()
 	if err != nil {
@@ -442,7 +442,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 		}
 	case "off":
 	default:
-		return fail("task.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.task.Str("review"))
+		return fail("issue.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.task.Str("review"))
 	}
 	out, err := c.l.Run("", "review", c.id)
 	if err != nil {

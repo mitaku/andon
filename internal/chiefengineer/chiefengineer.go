@@ -195,7 +195,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	cwd := wt.Path
 	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足す
-	msg := spawn.FirstMessage(slug, id, filepath.Join(root, "kanban", "tasks", id, "brief.md"))
+	msg := spawn.FirstMessage(slug, id, filepath.Join(root, "kanban", "issues", id, "brief.md"))
 
 	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {

@@ -13,7 +13,7 @@ import (
 func TestGated(t *testing.T) {
 	l := ledger.At(t.TempDir())
 	os.MkdirAll(l.Dir, 0o755)
-	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 2\nchief_of_staff: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
 	p := &project{l: l, rows: []ledger.Row{
 		{ID: "D-0001", By: "terminal:t5", Change: map[string]any{"deliverable": "candidates"}},
 		{ID: "D-0002", By: "terminal:t7", Change: map[string]any{"deliverable": "candidates"}},

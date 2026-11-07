@@ -128,7 +128,7 @@ func keysOf(m map[string]any) []string {
 }
 
 func TestWhatDeckWritesFitsTheSchemas(t *testing.T) {
-	cfgSchema, taskSchema := loadSchema(t, "config.v2.schema.json"), loadSchema(t, "task.v2.schema.json")
+	cfgSchema, taskSchema := loadSchema(t, "config.v3.schema.json"), loadSchema(t, "issue.v3.schema.json")
 	root := filepath.Join(t.TempDir(), "root")
 	t.Setenv("KANBAN_ROOT", root)
 	t.Setenv("HC_TERMINAL_ID", "t3")
@@ -181,24 +181,24 @@ func TestWhatDeckWritesFitsTheSchemas(t *testing.T) {
 }
 
 func TestSchemasRefuseWhatTheFormatRefuses(t *testing.T) {
-	cfgSchema, taskSchema := loadSchema(t, "config.v2.schema.json"), loadSchema(t, "task.v2.schema.json")
-	routineSchema := loadSchema(t, "routine.v2.schema.json")
+	cfgSchema, taskSchema := loadSchema(t, "config.v3.schema.json"), loadSchema(t, "issue.v3.schema.json")
+	routineSchema := loadSchema(t, "routine.v3.schema.json")
 	for _, c := range []struct {
 		schema map[string]any
 		yaml   string
 		ok     bool
 	}{
-		{cfgSchema, "version: 2\nunknown: kept\n", true},
+		{cfgSchema, "version: 3\nunknown: kept\n", true},
 		{cfgSchema, "prefix: W\nprojects: {app: projects/app}\n", false},
 		{cfgSchema, "version: 1\n", false},
-		{cfgSchema, "version: '2'\n", false},
-		{cfgSchema, "version: 2\nprefix: a/b\n", false},
-		{cfgSchema, "version: 2\nprefix: '..'\n", false},
-		{cfgSchema, "version: 2\nrepos: github.com/x/app\n", false},
-		{cfgSchema, "version: 2\nrepos: [github.com/x/app]\n", true},
-		{cfgSchema, "version: 2\nrepos: [github.com/x/app/]\n", false},
-		{cfgSchema, "version: 2\nrepos: [/github.com/x/app]\n", false},
-		{cfgSchema, "version: 2\nrepos: [x/app]\n", false},
+		{cfgSchema, "version: '3'\n", false},
+		{cfgSchema, "version: 3\nprefix: a/b\n", false},
+		{cfgSchema, "version: 3\nprefix: '..'\n", false},
+		{cfgSchema, "version: 3\nrepos: github.com/x/app\n", false},
+		{cfgSchema, "version: 3\nrepos: [github.com/x/app]\n", true},
+		{cfgSchema, "version: 3\nrepos: [github.com/x/app/]\n", false},
+		{cfgSchema, "version: 3\nrepos: [/github.com/x/app]\n", false},
+		{cfgSchema, "version: 3\nrepos: [x/app]\n", false},
 		{taskSchema, "title: x\nnotes: kept\n", true},
 		{taskSchema, "id: ../W-0001\n", false},
 		{taskSchema, "after: [W-0001, '.']\n", false},
@@ -208,7 +208,7 @@ func TestSchemasRefuseWhatTheFormatRefuses(t *testing.T) {
 		{taskSchema, "routine: ../x\n", false},
 		{taskSchema, "who: person\n", true},
 		{taskSchema, "who: agent\n", false},
-		{cfgSchema, "version: 2\ntimezone: Asia/Tokyo\n", true},
+		{cfgSchema, "version: 3\ntimezone: Asia/Tokyo\n", true},
 		{routineSchema, "title: T\nbrief: B\nprofile: p\nrepo: github.com/x/app\nschedule: '0 9 * * 1-5'\non: [done]\nopen: 1\npaused: false\nmine: kept\n", true},
 		{routineSchema, "title: T\non: [done]\n", true},
 		{routineSchema, "title: T\n", false},
@@ -229,7 +229,7 @@ func TestSchemasRefuseWhatTheFormatRefuses(t *testing.T) {
 }
 
 func TestQuestionsFitTheSchema(t *testing.T) {
-	schema := loadSchema(t, "questions.v2.schema.json")
+	schema := loadSchema(t, "questions.v3.schema.json")
 	root := ledger(t)
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, root, "ask", "W-0001", "one", "--kind", "irreversible")

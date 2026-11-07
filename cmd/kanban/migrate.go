@@ -15,7 +15,8 @@ import (
 
 // kanban migrate moves a format 2 ledger from its old folder, .flightdeck/, to kanban/
 // (docs/ledger.md, Moving from .flightdeck/; docs/operate.md). Once, by a person, with the
-// Chief of Staff and the dispatcher stopped:
+// Chief of Staff and the dispatcher stopped. The ledger stays format 2 (tasks/, task.yaml):
+// the person then moves it to format 3 by hand (docs/operate.md); kanban migrate doesn't.
 //
 //   - .flightdeck/ becomes kanban/ (its .gitignore, *, keeps it out of git as before);
 //   - config.yaml's coordinator becomes chief_of_staff;
@@ -33,6 +34,9 @@ import (
 
 const oldLedgerName = ".flightdeck"
 
+// oldFormat is the format of a .flightdeck/ ledger, and of the kanban/ ledger kanban migrate makes.
+const oldFormat = 2
+
 func cmdMigrate(e env, a args) error {
 	root := a.flags["root"]
 	if root == "" {
@@ -43,6 +47,9 @@ func cmdMigrate(e env, a args) error {
 	}
 	root, _ = filepath.Abs(root)
 	old, dir := filepath.Join(root, oldLedgerName), ledgerDir(root)
+	if isFormat2(root) {
+		return fail(errFormat2)
+	}
 	if !exists(filepath.Join(old, "config.yaml")) {
 		return fail("nothing to move: no %s/config.yaml in %s", oldLedgerName, root)
 	}
@@ -117,7 +124,8 @@ func cmdMigrate(e env, a args) error {
 		return err
 	}
 
-	lines := []string{fmt.Sprintf("moved %s to %s (%d ids renamed)", old, dir, len(moved))}
+	lines := []string{fmt.Sprintf("moved %s to %s (%d ids renamed)", old, dir, len(moved)),
+		fmt.Sprintf("it is format %d: move it to format %d by hand (docs/operate.md)", oldFormat, formatVersion)}
 	if agents != "" {
 		lines = append(lines, "coordinator.md is now the Chief of Staff section of "+agents)
 	}
@@ -145,8 +153,8 @@ func migrateIn(root, old string) (map[string]string, error) {
 	if err != nil {
 		return nil, fail("%s: %v", cfgFile, err)
 	}
-	if v := cfg.get("version"); !isInt(v) || v.Value != fmt.Sprint(formatVersion) {
-		return nil, fail("%s is not format %d; kanban migrate moves format %d only", cfgFile, formatVersion, formatVersion)
+	if v := cfg.get("version"); !isInt(v) || v.Value != fmt.Sprint(oldFormat) {
+		return nil, fail("%s is not format %d; kanban migrate moves format %d only", cfgFile, oldFormat, oldFormat)
 	}
 	if !isNull(cfg.get("chief_of_staff")) {
 		return nil, fail("%s already has chief_of_staff", cfgFile)

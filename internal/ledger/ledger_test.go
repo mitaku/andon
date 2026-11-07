@@ -64,7 +64,7 @@ func TestTrustedReadsOldIds(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
 	os.MkdirAll(l.Dir, 0o755)
-	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 2\nchief_of_staff: t5 # the lead\n"), 0o644)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5 # the lead\n"), 0o644)
 	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(`{"at":"x","by":"terminal:t5","id":"A-5","change":{"review":"on"}}`+"\n"), 0o644)
 	if l.ChiefOfStaff() != "t5" {
 		t.Fatalf("ChiefOfStaff() = %q", l.ChiefOfStaff())
@@ -79,7 +79,7 @@ func TestCandidates(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
 	os.MkdirAll(l.Dir, 0o755)
-	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 2\nchief_of_staff: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
 	row := func(id, by, v string) Row { return Row{ID: id, By: by, Change: map[string]any{"deliverable": v}} }
 	rows := []Row{
 		row("A-0001", "terminal:t5", "candidates"),

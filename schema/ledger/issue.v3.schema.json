@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "kanban ledger task.yaml (format 2)",
-  "description": "A kanban/tasks/<id>/task.yaml, format version 2. Derived from docs/ledger.md; where they differ, ledger.md is right. The folder's name is the task's id. Any other key is allowed and kept. status is one of config.yaml columns, which a schema of one file can't check.",
+  "title": "kanban ledger issue.yaml (format 3)",
+  "description": "A kanban/issues/<id>/issue.yaml, format version 3. Derived from docs/ledger.md; where they differ, ledger.md is right. The folder's name is the issue's id. Any other key is allowed and kept. status is one of config.yaml columns, which a schema of one file can't check.",
   "type": "object",
   "properties": {
     "id": {
@@ -11,7 +11,7 @@
       "not": { "enum": [".", ".."] }
     },
     "title": {
-      "description": "Required to be a useful task; a task without one is listed with no title.",
+      "description": "Required to be a useful issue; an issue without one is listed with no title.",
       "type": "string"
     },
     "status": {
@@ -19,11 +19,11 @@
       "type": "string"
     },
     "repo": {
-      "description": "One of config.yaml repos: the repository the task works in.",
+      "description": "One of config.yaml repos: the repository the issue works in.",
       "type": "string"
     },
     "parent": {
-      "description": "Id of the task this is part of (an epic).",
+      "description": "Id of the issue this is part of (an epic).",
       "type": "string",
       "pattern": "^[^/\\\\:]+$",
       "not": { "enum": [".", ".."] }
@@ -46,7 +46,7 @@
       "type": "string"
     },
     "who": {
-      "description": "person: a person's task (a decision to make, or work only a person can do). Absent: an agent's task.",
+      "description": "person: a person's issue (a decision to make, or work only a person can do). Absent: an agent's issue.",
       "type": "string",
       "enum": ["person"]
     },
@@ -55,11 +55,11 @@
       "type": "string"
     },
     "branch": {
-      "description": "The task's git branch.",
+      "description": "The issue's git branch.",
       "type": "string"
     },
     "worktree": {
-      "description": "The task's worktree folder (~ allowed).",
+      "description": "The issue's worktree folder (~ allowed).",
       "type": "string"
     },
     "links": {

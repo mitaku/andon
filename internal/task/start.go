@@ -63,7 +63,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 	if !profileRe.MatchString(profile) {
 		return fail("profile が不正: '%s'", profile)
 	}
-	brief := filepath.Join(c.l.Dir, "tasks", id, "brief.md")
+	brief := filepath.Join(c.l.Dir, "issues", id, "brief.md")
 	if fi, err := os.Stat(brief); err != nil || fi.Size() == 0 {
 		return fail("%s に依頼書（brief.md）が無い", id)
 	}
@@ -85,7 +85,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 	}
 
 	title := c.task.Str("title")
-	cwd := filepath.Join(c.l.Dir, "tasks", id)
+	cwd := filepath.Join(c.l.Dir, "issues", id)
 	undo := func() {}
 	branch := ""
 	if repo := c.task.Str("repo"); repo != "" {
@@ -206,7 +206,7 @@ func (c *ctx) startable() (bool, error) {
 	return false, nil
 }
 
-// after は task.yaml の after（並び）。
+// after は issue.yaml の after（並び）。
 func (c *ctx) after() []string {
 	var out []string
 	switch v := c.task["after"].(type) {

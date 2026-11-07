@@ -117,7 +117,7 @@ func routineLog(t *testing.T, root string) []string {
 }
 
 func taskCount(root string) int {
-	entries, _ := os.ReadDir(tasksDir(root))
+	entries, _ := os.ReadDir(issuesDir(root))
 	return len(entries)
 }
 
@@ -307,7 +307,7 @@ func TestRoutineList(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "triage", "title: Triage\nschedule: \"0 9 * * 1-5\"\n")
 	writeRoutine(t, root, "after", "title: After\non: [done]\nopen: 2\npaused: true\n")
-	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 2\nrepos: [github.com/x/app]\ntimezone: Asia/Tokyo\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\nrepos: [github.com/x/app]\ntimezone: Asia/Tokyo\n"), 0o644)
 	out := kanban(t, root, "routine", "list", "--json")
 	var got []map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
@@ -370,7 +370,7 @@ func TestLintRoutines(t *testing.T) {
 	if s := readState(t, root); s["ok"] == "" {
 		t.Fatalf("tick skipped the good routine: %v", s)
 	}
-	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 2\ntimezone: Mars/Base\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\ntimezone: Mars/Base\n"), 0o644)
 	out.Reset()
 	run([]string{"lint"}, root, strings.NewReader(""), &out, &errb)
 	if !strings.Contains(out.String(), "config.yaml: timezone") {
@@ -414,7 +414,7 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 func TestRoutineCommandsRefuseOtherVersions(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "r", "title: R\nschedule: \"* * * * *\"\n")
-	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 4\n"), 0o644)
 	deckFails(t, root, "", "tick")
 	deckFails(t, root, "", "routine", "list")
 	deckFails(t, root, "", "routine", "run", "r")

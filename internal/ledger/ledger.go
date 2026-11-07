@@ -1,7 +1,7 @@
 // Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（kanban）だけで、
 // ここはそれを打つか、台帳のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
 //
-// command（andon task・andon gate）が共有するもの: タスクの項目（task.yaml の Andon の予約キー）と履歴の照合・
+// command（andon task・andon gate）が共有するもの: タスクの項目（issue.yaml の Andon の予約キー）と履歴の照合・
 // レビュアーのタスクの選び方・findings.json の読み方・library/ の置き場。
 package ledger
 
@@ -81,7 +81,7 @@ func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Task は台帳のタスクの項目（`show <id> --json` の .task）。値は全部文字列（台帳の CLI がそう書く）。
+// Task は台帳のタスクの項目（`show <id> --json` の .issue）。値は全部文字列（台帳の CLI がそう書く）。
 type Task map[string]any
 
 // Str はキーの値。文字列でなければ空。
@@ -108,7 +108,7 @@ func (l *Ledger) Show(id string) (Task, error) {
 		return nil, err
 	}
 	var v struct {
-		Task Task `json:"task"`
+		Task Task `json:"issue"`
 	}
 	if err := json.Unmarshal([]byte(out), &v); err != nil || v.Task == nil {
 		return nil, fmt.Errorf("タスク %s が読めない", id)
@@ -131,7 +131,7 @@ func (l *Ledger) List() ([]Task, error) {
 
 // Library はタスクの library/（機械向けの置き場）。
 func (l *Ledger) Library(id string) string {
-	return filepath.Join(l.Dir, "tasks", id, "library")
+	return filepath.Join(l.Dir, "issues", id, "library")
 }
 
 // ChiefOfStaff は config.yaml の chief_of_staff（Chief of Staff の端末）。無ければ空。
@@ -230,7 +230,7 @@ func (l *Ledger) Candidates(rows []Row, t Task) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
 }
 
-// Settings は task.yaml の Andon の予約キー（contract.md §2）。無い・知らない値は空（読み手が安全側に倒す）。
+// Settings は issue.yaml の Andon の予約キー（contract.md §2）。無い・知らない値は空（読み手が安全側に倒す）。
 // 既定があるキー（reviewer・review_rounds・merge）は既定で埋める。
 type Settings struct {
 	Review       string `json:"review,omitempty"`

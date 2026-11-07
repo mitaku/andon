@@ -52,8 +52,8 @@ set -e
 [[ $rc == 4 ]]
 echo 'ok limit: exit 4'
 triage=$(kanban add triage)
-mkdir -p "kanban/tasks/$triage/library"
-file=kanban/tasks/$triage/library/decisions.json
+mkdir -p "kanban/issues/$triage/library"
+file=kanban/issues/$triage/library/decisions.json
 jq --arg todo "$todo" --arg person "$person" '
  def task($title): {title:($title|ltrimstr("- ")),repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"やること: 修正\n完了条件: 検査を通す"};
  {goal:"テスト",collected:"2026-11-03T00:00:00Z",items:
@@ -103,12 +103,12 @@ cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok absent hash, assigned task and uncollected key rejected without writes'
 "$script" triage apply "$triage" --max-tasks 2 > "$tmp/summary"
-[[ $(kanban show "$todo" --json | jq -r .task.status) == done ]]
-tail -1 "kanban/tasks/$todo/report.md" | grep -q '不要（'
+[[ $(kanban show "$todo" --json | jq -r .issue.status) == done ]]
+tail -1 "kanban/issues/$todo/report.md" | grep -q '不要（'
 record=$(echo kanban/library/triage/*.json)
 jq -e '[.items[]|select(.decision=="bundle")|.created_task]|unique|length==1' "$record" >/dev/null
 while read -r task; do
-    [[ $(kanban show "$task" --json | jq -r .task.who) == person ]]
+    [[ $(kanban show "$task" --json | jq -r .issue.who) == person ]]
 done < <(jq -r '.items[]|select(.decision=="person")|.created_task' "$record")
 grep -q '閉じた 2 ・ 直す 2（うち束ね 1） ・ 人へ 3 ・ 次回 3 ・ 読めない 1' "$tmp/summary"
 echo 'ok apply: close, bundle, person, summary'
@@ -127,8 +127,8 @@ set -e
 echo 'ok repeated apply refused'
 # Recorded keys can be revisited, but text still comes from the original source.
 revisit=$(kanban add revisit)
-mkdir -p "kanban/tasks/$revisit/library"
-jq '{goal:"戻す",collected,items:[(.items[]|select(.decision=="bundle"))][0:1]} | .items[0] += {decision:"keep",reason:"再検討",text:"spoofed text"}' "$record" > "kanban/tasks/$revisit/library/decisions.json"
+mkdir -p "kanban/issues/$revisit/library"
+jq '{goal:"戻す",collected,items:[(.items[]|select(.decision=="bundle"))][0:1]} | .items[0] += {decision:"keep",reason:"再検討",text:"spoofed text"}' "$record" > "kanban/issues/$revisit/library/decisions.json"
 "$script" triage apply "$revisit" --dry-run > "$tmp/revisit"
 jq -e '.items[0].text != "spoofed text"' "$tmp/revisit" >/dev/null
 echo 'ok recorded key can be revisited; decisions text is not trusted'

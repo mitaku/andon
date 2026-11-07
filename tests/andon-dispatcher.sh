@@ -139,8 +139,8 @@ work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実�
 restart() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 kanban start "$1" >/dev/null); }  # 直しが届いた担当
 as_worker() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 "$andon" task "$2" "$1" "${@:3}" <<<'## Report' >/dev/null); }
 review_by() { # review_by <レビュアーの id> <findings>: レビュアーが findings.json を書いて review にする
-    mkdir -p "$L/tasks/$1/library"
-    jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$L/tasks/$1/library/findings.json"
+    mkdir -p "$L/issues/$1/library"
+    jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$L/issues/$1/library/findings.json"
     HC_TERMINAL_ID=t9 kanban review "$1" >/dev/null
 }
 
@@ -180,7 +180,7 @@ HC_TERMINAL_ID=t5 kanban set "$id" review=off >/dev/null
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'review が off なのに起こした'
-jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("task.yaml の review が on でない")' "$state" >/dev/null || die '起こさなかった回を控えていない'
+jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("issue.yaml の review が on でない")' "$state" >/dev/null || die '起こさなかった回を控えていない'
 HC_TERMINAL_ID=t5 kanban set "$id" review=on >/dev/null
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '頼み直していないのに起こし直した'
@@ -205,17 +205,17 @@ rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p
 [ -n "$rev" ] || die 'レビュアーのタスクが無い'
 [ "$rev" = "$id-r1" ] || die "レビュアーのタスクの id が <親>-r<回> でない: $rev"
 raddr=$(jq -r --arg k "$id@$head" '.reviewers[$k].address' "$state")
-kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.task.profile == "codex-review" and .task.status == "doing" and .task.agent == $a and ($a | startswith("t")) and .task.parent == $p' >/dev/null ||
+kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.issue.profile == "codex-review" and .issue.status == "doing" and .issue.agent == $a and ($a | startswith("t")) and .issue.parent == $p' >/dev/null ||
     die "レビュアーのタスクの項目が違う: $(kanban show "$rev" --json)"
 jq -e --arg r "$rev" 'select(.id == $r and has("change") and .change.add != null) | .by == "terminal:dispatcher"' "$L/log.jsonl" >/dev/null || die 'レビュアーのタスクの作成が dispatcher でない'
 rwt=$HOME/.herdr/worktrees/app/demo-$id-r1
 [ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die 'detached worktree が head に無い'
 # 台帳（$tmp/plant/projects/demo）はセルの git の中にあるが、レビュアーのタスクの作業場所は detached worktree（branch は無い）
-kanban show "$rev" --json | jq -e '.task.worktree == "~/.herdr/worktrees/app/demo-'"$id"'-r1" and (.task.branch // "") == ""' >/dev/null ||
-    die "レビュアーのタスクの worktree・branch が detached worktree でない（セルの本体を書いた）: $(kanban show "$rev" --json | jq -c '.task | {worktree, branch}')"
-grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(echo "$rev" | tr A-Z a-z) .*--cwd $L/tasks/$rev codex-review" "$tmp/hc/log" || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
-grep -q "hc send t7 " "$L/tasks/$rev/brief.md" && grep -q 'Chief of Staff・dispatcher へは送らない' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に宛先（担当 t7）が無い'
-grep -q "commit $head" "$L/tasks/$rev/brief.md" && ! grep -q '## Report' "$L/tasks/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
+kanban show "$rev" --json | jq -e '.issue.worktree == "~/.herdr/worktrees/app/demo-'"$id"'-r1" and (.issue.branch // "") == ""' >/dev/null ||
+    die "レビュアーのタスクの worktree・branch が detached worktree でない（セルの本体を書いた）: $(kanban show "$rev" --json | jq -c '.issue | {worktree, branch}')"
+grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(echo "$rev" | tr A-Z a-z) .*--cwd $L/issues/$rev codex-review" "$tmp/hc/log" || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
+grep -q "hc send t7 " "$L/issues/$rev/brief.md" && grep -q 'Chief of Staff・dispatcher へは送らない' "$L/issues/$rev/brief.md" || die 'レビュアーの依頼書に宛先（担当 t7）が無い'
+grep -q "commit $head" "$L/issues/$rev/brief.md" && ! grep -q '## Report' "$L/issues/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
 pending "$id" review-requested | jq -e --arg r "$rev" '.detail == {round: 1, reviewer: "codex-review", reviewer_task: $r}' >/dev/null || die '通知 review-requested が無い'
 emit <(pending "$id" review-requested) notification-review-requested.json
 grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --label herdr.tab=andon-demo-$id --cwd " && ! grep "^run " "$tmp/hc/log" | grep -q 'where=' ||
@@ -232,11 +232,11 @@ review_by "$rev" '[{"severity":"minor","file":"docs/a.md","line":1}]'
 as_worker "$id" report --data '{"waived":[{"severity":"minor","file":"docs/a.md","line":1,"reason":"起きる条件が無い"}]}'
 as_worker "$id" ready
 dispatcher
-rec=$L/tasks/$id/library/gate/$head.json
+rec=$L/issues/$id/library/gate/$head.json
 jq -e '.decision == "approve" and .merged == true and .tier == "B"' "$rec" >/dev/null || die "ゲートの記録が approve・merged でない: $(cat "$rec")"
 grep -qx "pr merge 7 --repo example/app --squash --match-head-commit $head" "$tmp/gh/merges" || die 'マージの打ち方が違う'
-kanban show "$id" --json | jq -e '.task.status == "done"' >/dev/null || die 'タスクが done でない'
-kanban show "$rev" --json | jq -e '.task.status == "done"' >/dev/null || die 'レビュアーのタスクが done でない'
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'タスクが done でない'
+kanban show "$rev" --json | jq -e '.issue.status == "done"' >/dev/null || die 'レビュアーのタスクが done でない'
 [ ! -e "$HOME/.herdr/worktrees/app/demo-$id" ] && [ ! -e "$rwt" ] || die 'worktree が残った'
 ! git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'origin/main に入った branch が残った'
 ! grep -q " $id\$\| $rev\$" "$tmp/hc/live" || die '端末が残った'
@@ -254,7 +254,7 @@ ok 'その間 Chief of Staff（t5）は台帳に1行も書いていない・誰�
 # 0・0c のタスクは同じ docs/a.md を別の行で足した branch（doing）なので、ぶつかり・重なる。判断は Chief of Staff（通知だけ）
 merged_id=$id
 old0=$(kanban list --json | jq -r '.[] | select(.title == "初めて見た台帳のレビュー依頼") | .id')
-echo "入力: docs/a.md を読む" >> "$L/tasks/$old0/brief.md"
+echo "入力: docs/a.md を読む" >> "$L/issues/$old0/brief.md"
 nsent() { if [ -e "$tmp/hc/sent" ]; then wc -l < "$tmp/hc/sent"; else echo 0; fi; }
 sent0=$(nsent)
 dispatcher
@@ -294,10 +294,10 @@ review_by "$rev" '[{"severity":"major","file":"docs/a.md","line":1}]'
 as_worker "$id" ready
 dispatcher
 grep -q "^t7	$id（説明を足す）: ゲートが fix を返した。理由: Must fix 以上が 1 件" "$tmp/hc/sent" || die "fix が担当に届いていない: $(cat "$tmp/hc/sent" 2>/dev/null)"
-[ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
+[ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
 dispatcher
 [ "$(grep -c "	$id（" "$tmp/hc/sent")" = 1 ] || die '同じ review 入りで二度ゲートを回した'
-ok 'fix は理由を担当（task.yaml の agent）へ hc send し、同じ review 入りでは二度回さない'
+ok 'fix は理由を担当（issue.yaml の agent）へ hc send し、同じ review 入りでは二度回さない'
 
 # 3. needs_human は問い（from: gate）。レベル C は委譲 merge B の外
 restart "$id"
@@ -313,7 +313,7 @@ kanban list --all --json | jq -e '[.[].id | select(test("^D-[0-9]+$")) | ltrimst
 review_by "$rev" '[]'
 as_worker "$id" ready
 dispatcher
-q=$L/tasks/$id/library/questions/1.json
+q=$L/issues/$id/library/questions/1.json
 jq -e '.from == "gate" and .kind == "line" and (.facts | any(contains("delegation: merge=B < tier C"))) and .options[0].pick == true' "$q" >/dev/null || die "問いが無い・形が違う: $(cat "$q" 2>/dev/null)"
 kanban questions --json 2>/dev/null | jq -e --arg t "$id" 'any(.[]; .task == $t)' >/dev/null || kanban questions | grep -q "$id" || die '台帳に問いが無い'
 pending "$id" asked | jq -e '.detail.n == 1 and .detail.kind == "line"' >/dev/null || die '通知 asked が無い'
@@ -334,7 +334,7 @@ review_by "$rev" '[]'
 as_worker "$id" ready
 dispatcher
 pending "$id" gate | jq -e '.detail.decision == "approve"' >/dev/null || die '通知 gate が無い'
-[ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'merge: person なのにマージした'
+[ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'merge: person なのにマージした'
 ok 'merge: person は approve でもマージせず、通知 gate で止まる（人がマージする）'
 
 # 5. 上限を超えた回（extra）は起こさない（Chief of Staff が決める）
@@ -359,15 +359,15 @@ ok '上限を超えた回（extra）は起こさず通知 report。Chief of Staf
 #     review に入っても andon gate を回さない（通知は届ける）。ADR-0006 受け入れ条件 3
 sid=$(newtask '誤りの候補を調べる' person)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates >/dev/null
-mkdir -p "$L/tasks/$sid/library"
-jq '.review_request' -e "$L/tasks/$id/library/report.json" >/dev/null || die '写す review_request が無い'
-cp "$L/tasks/$id/library/report.json" "$L/tasks/$sid/library/report.json"   # 形の合う review_request つきの報告
+mkdir -p "$L/issues/$sid/library"
+jq '.review_request' -e "$L/issues/$id/library/report.json" >/dev/null || die '写す review_request が無い'
+cp "$L/issues/$id/library/report.json" "$L/issues/$sid/library/report.json"   # 形の合う review_request つきの報告
 runs=$(grep -c '^run' "$tmp/hc/log"); posted=$(grep -c '^status' "$tmp/gh/posted")
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates のタスクの review_request でレビュアーを起こした'
 (cd "$HOME/.herdr/worktrees/app/demo-$sid" && HC_TERMINAL_ID=t7 kanban review "$sid" >/dev/null)
 dispatcher
-[ "$(grep -c '^status' "$tmp/gh/posted")" = "$posted" ] && [ ! -e "$L/tasks/$sid/library/gate" ] || die 'candidates のタスクにゲートを回した'
+[ "$(grep -c '^status' "$tmp/gh/posted")" = "$posted" ] && [ ! -e "$L/issues/$sid/library/gate" ] || die 'candidates のタスクにゲートを回した'
 jq -e --arg t "$sid" '[.gates | to_entries[] | select(.value.task == $t)] == []' "$state" >/dev/null || die "candidates のタスクのゲートを控えた: $(jq -c .gates "$state")"
 [ "$(pending "$sid" review)" != null ] || [ "$(pending "$sid" report)" != null ] || die "candidates のタスクの review の通知が無い: $(jq -c .pending "$state")"
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates のタスクでレビュアーを起こした'
@@ -391,7 +391,7 @@ HC_TERMINAL_ID=t5 kanban set "$id" "worktree=$app" branch=main >/dev/null
 if out=$(HC_TERMINAL_ID=t5 "$andon" task finish "$id" 2>&1); then die "本体の checkout を指すタスクを finish が片付けた: $out"; fi
 grep -q 'repo の本体の checkout' <<<"$out" || die "止まった理由が本体の checkout でない: $out"
 [ -d "$app/.git" ] && git -C "$app" worktree list --porcelain | head -1 | grep -qx "worktree $app" || die '本体の checkout が消えた'
-kanban show "$id" --json | jq -e '.task.status != "done"' >/dev/null || die '止まったのに done にした'
+kanban show "$id" --json | jq -e '.issue.status != "done"' >/dev/null || die '止まったのに done にした'
 ok 'andon task finish は台帳の worktree が repo の本体の checkout なら、消さずに止まる'
 
 # 7. 最初のメッセージが届かなければ（送れなかった・送ったが動き出さなかった）、端末にラベル first_message.sent=false を付けて
@@ -457,7 +457,7 @@ dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと merge: person に変えたのにマージした'
 grep -q "$id をいまはマージしない.*予約キーがゲートのあとに変わった" "$tmp/dispatcher.log" || die '止めた理由がログに無い'
 dispatcher
-[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die '回し直しでマージした'
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die '回し直しでマージした'
 [ "$(grep -c "^status .*$head" "$tmp/gh/posted")" = 2 ] || die 'ゲートを回し直していない'
 ok 'ゲートのあと merge: person に変わったら gh pr merge を打たず、次の見回りでゲートから回し直す（approve でも person なので止まる）'
 
@@ -472,14 +472,14 @@ gate_through "$id"
 merges=$(wc -l < "$tmp/gh/merges")
 dispatcher
 dispatcher
-[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.task.status == "review"' >/dev/null || die 'checks が走っているのにマージした'
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'checks が走っているのにマージした'
 [ "$(grep -c "$id のゲートは GitHub の checks を待つ: GitHub の checks がまだ走っている: test" "$tmp/dispatcher.log")" = 2 ] || die '見回りのたびにゲートを回し直していない'
 jq -e --arg t "$id" '([.gates[] | select(.task == $t)] | length) == 0 and ([.pending[] | select(.task == $t and (.kind == "gate" or .kind == "asked"))] | length) == 0' "$state" >/dev/null ||
     die 'wait を控えに書いた・通知 gate か問いを出した'
-[ ! -e "$L/tasks/$id/library/questions" ] && [ ! -e "$L/tasks/$id/library/gate" ] || die 'wait で問い・ゲートの記録を書いた'
+[ ! -e "$L/issues/$id/library/questions" ] && [ ! -e "$L/issues/$id/library/gate" ] || die 'wait で問い・ゲートの記録を書いた'
 checks COMPLETED SUCCESS
 dispatcher
-[ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.task.status == "done"' >/dev/null || die 'checks が通ったのにマージしない'
+[ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'checks が通ったのにマージしない'
 ok 'GitHub の checks が走っている間はゲートが wait。dispatcher は控えに書かず問いも出さず、見回りのたびに回し直し、通ればマージする'
 
 # 9c. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
@@ -518,7 +518,7 @@ dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと委譲を取り消したのにマージした'
 grep -q "$id をいまはマージしない.*委譲の merge がゲートのあとに変わった（B → none）" "$tmp/dispatcher.log" || die '止めた理由がログに無い'
 dispatcher
-jq -e '.from == "gate" and (.facts | any(contains("delegation: merge=none")))' "$L/tasks/$id/library/questions/1.json" >/dev/null || die '回し直したゲートの needs_human が問いになっていない'
+jq -e '.from == "gate" and (.facts | any(contains("delegation: merge=none")))' "$L/issues/$id/library/questions/1.json" >/dev/null || die '回し直したゲートの needs_human が問いになっていない'
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'マージした'
 ok 'ゲートのあと委譲の merge が取り消されたら gh pr merge を打たず、回し直したゲートの needs_human を問いにする'
 
@@ -733,7 +733,7 @@ as_w kanban start "$p2" >/dev/null
 as_w kanban report "$p2" <<<'## Report' >/dev/null
 as_cos kanban report "$p4" <<<'## Report' >/dev/null
 pk
-pp "$p2" report | jq -e --arg r "$P/tasks/$p2/report.md" '.[0].detail == {report: $r}' >/dev/null || die "報告を拾わない: $(pp "$p2" report)"
+pp "$p2" report | jq -e --arg r "$P/issues/$p2/report.md" '.[0].detail == {report: $r}' >/dev/null || die "報告を拾わない: $(pp "$p2" report)"
 [ "$(pp "$p4" report)" = '[]' ] || die 'Chief of Staff 自身の報告を拾った'
 emit <(pp "$p2" report | jq '.[0]') notification-report.json
 first_at=$(pp "$p2" report | jq -r '.[0].at')
@@ -752,7 +752,7 @@ pp "$p2" asked | jq -e '.[0].detail == {n: 1, kind: "business", question: "ど�
 as_w kanban ask "$p2" '直に打った問い' >/dev/null
 pk
 [ "$(pp "$p2" asked | jq -r '.[0].detail.n')" = 1 ] && jq -e '.log_hold != null' "$pst" >/dev/null || die '問いの JSON を待たない'
-mkdir -p "$P/tasks/$p2/library/questions"; echo "$qjson" > "$P/tasks/$p2/library/questions/2.json"
+mkdir -p "$P/issues/$p2/library/questions"; echo "$qjson" > "$P/issues/$p2/library/questions/2.json"
 pk
 pp "$p2" asked | jq -e 'length == 1 and .[0].detail.n == 2' >/dev/null && jq -e 'has("log_hold") | not' "$pst" >/dev/null || die "遅れて置かれた問いの JSON を拾わない: $(pp "$p2" asked)"
 as_w kanban ask "$p2" 'JSON の無い問い' >/dev/null
@@ -762,13 +762,13 @@ clear_pending; pk; pk
 grep -q "$p2 の問い 3 の JSON が読めない" "$tmp/dispatcher.log" || die '飛ばした問いがログに無い'
 ok 'log.jsonl の問いを問いの JSON から拾い（Chief of Staff の問いは拾わない）、JSON が遅れたら1回だけ待ち、無ければ飛ばして続きを読む'
 
-mkdir -p "$P/tasks/$p2/library"
-jq -n '{commit: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", pr: "https://github.com/example/app/pull/7"}' > "$P/tasks/$p2/library/report.json"
+mkdir -p "$P/issues/$p2/library"
+jq -n '{commit: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", pr: "https://github.com/example/app/pull/7"}' > "$P/issues/$p2/library/report.json"
 as_w kanban review "$p2" >/dev/null
 p5=$(as_cos kanban add 'PR の無いタスク'); as_w kanban start "$p5" >/dev/null; as_w kanban review "$p5" >/dev/null
 p6=$(as_cos kanban add 'Chief of Staff がレビューに入れる'); as_cos kanban review "$p6" >/dev/null
 clear_pending; pk
-pp "$p2" review | jq -e --arg r "$P/tasks/$p2/report.md" '.[0].detail == {report: $r, pr: "https://github.com/example/app/pull/7"}' >/dev/null || die "review を拾わない: $(pp "$p2" review)"
+pp "$p2" review | jq -e --arg r "$P/issues/$p2/report.md" '.[0].detail == {report: $r, pr: "https://github.com/example/app/pull/7"}' >/dev/null || die "review を拾わない: $(pp "$p2" review)"
 pp "$p5" report | jq -e 'length == 1' >/dev/null && [ "$(pp "$p5" review)" = '[]' ] || die "PR の無い review を report で知らせない: $(jq -c .pending "$pst")"
 [ "$(jq --arg t "$p6" '[.pending[] | select(.task == $t)] | length' "$pst")" = 0 ] || die 'Chief of Staff 自身の review を拾った'
 emit <(pp "$p2" review | jq '.[0]') notification-review.json
@@ -835,7 +835,7 @@ ok 'log.jsonl が書き直されて前の位置より長くなっても、先頭
 
 # 21. 別のマシンの担当（agent: <machine>/<address>）も見る
 m=$(as_cos kanban add '別のマシン'); HC_TERMINAL_ID=m1/w30 kanban start "$m" >/dev/null
-kanban show "$m" --json | jq -e '.task.agent == "m1/w30"' >/dev/null || die '前提: agent が m1/w30 でない'
+kanban show "$m" --json | jq -e '.issue.agent == "m1/w30"' >/dev/null || die '前提: agent が m1/w30 でない'
 termp m1/w30 blocked "$(now_ms)"
 clear_pending; pk
 pp "$m" blocked | jq -e '.[0].detail.agent == "m1/w30"' >/dev/null || die "別のマシンの担当の blocked を知らせない: $(pp "$m" blocked)"
