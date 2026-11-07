@@ -298,4 +298,16 @@ got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and (.tier_reasons | any(contains("package/gate.json")))' "$tmp/out" >/dev/null
 ok 'レベル C の変更は委譲 merge B の外で needs_human'
 
+# 12. deliverable: candidates（調べるタスク）にはゲートが無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
+sid=$(HC_TERMINAL_ID=t5 kanban add 'docs の誤りを調べる' --profile claude)
+HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates branch=survey "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+rm -f "$tmp/gh/posted"
+got=$(gate "$sid")
+[ "$got" = 3 ] && [ ! -s "$tmp/out" ] && [ "$(wc -l < "$tmp/err")" = 1 ] && grep -q 'deliverable: candidates' "$tmp/err" || { cat "$tmp/out" "$tmp/err" >&2; die "candidates に rc $got"; }
+[ ! -e "kanban/tasks/$sid/library/gate" ] && [ ! -e "$tmp/gh/posted" ] || die 'candidates なのに記録・GitHub に書いた'
+# 最後に書いたのが Chief of Staff でなければ pr として読む（今までどおり report.json を見に行く）
+HC_TERMINAL_ID=t7 kanban set "$sid" deliverable=candidates >/dev/null
+got=$(gate "$sid"); expect 1 fix 'report.json'
+ok 'deliverable: candidates は回さず終了コード 3（記録しない）。Chief of Staff が書いたものでなければ pr として読む'
+
 echo "all passed ($pass)"

@@ -64,7 +64,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。提供元に切られて止まっていれば、入力欄が空のときだけ「続けて」（§2.4） | 端末に打つことがある |
-| 5 | タスクごとの工程 | 一覧の順に1タスクずつ。**`doing` で `review_request` があれば**レビュアーを起こす（`review-requested`）、**`review` ならゲートを回す**（`gate`・マージ・`fix`・問い）。レビュアー・Chief Engineer・repo の無いタスクは飛ばす（§5 の P6a） | 台帳・端末に書く |
+| 5 | タスクごとの工程 | 一覧の順に1タスクずつ。**`doing` で `review_request` があれば**レビュアーを起こす（`review-requested`）、**`review` ならゲートを回す**（`gate`・マージ・`fix`・問い）。レビュアー・Chief Engineer・repo の無いタスク・`deliverable: candidates` のタスクは飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 6 | 届ける（経路③） | 初めて見る台帳でなければ、§4 の守りがそろったときだけ `hc send`。送ったら `Pending` を空にする | 端末に打つ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いているタスク（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
 
@@ -267,6 +267,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | `report.json` の `review_request`（`round` ≤ `review_rounds`） | レビュアーを起こす: `kanban add --parent <id> --round <round>`（子の id は `<id>-r<round>`。通し番号を使わず、detached worktree の名前 `<slug>-<id>-r<round>` と揃う） ＋ 担当の commit の detached worktree ＋ `hc run <reviewer>`（`--no-notify`）。通知 `review-requested` | 起こすかは `task.yaml` の `review`・`reviewer`（Chief of Staff が書く） |
 | `review_request.extra`（上限を超えた回） | **起こさない**。通知にして Chief of Staff へ | Chief of Staff |
 | `{"status": "review"}` | `andon gate` を回す。記録 `library/gate/<sha>.json`。通知 `gate` | ゲート（決定式） |
+| `deliverable: candidates`（調べるタスク）の `{"status": "review"}`・`review_request` | **ゲートを回さず、レビュアーも起こさない**。通知だけ（PR が無いので `report`）。候補の一覧は Chief of Staff が読んで切る。`deliverable` を最後に書いたのが Chief of Staff でなければ `pr` として読む（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） | Chief of Staff |
 | ゲートが `wait`（PR の head の GitHub の checks が走っている・まだ1つも無い。contract.md §7） | **待つ**: 控えに書かず、通知も問いも出さない。次の見回りでゲートから回し直す（checks が揃えば判定に進む。1つも無いまま `github_checks_wait_minutes` を過ぎたらゲートが `needs_human` を返す） | ゲート |
 | ゲートが `approve` ＋ `merge: auto` ＋ 委譲の `merge` がそのレベルを許す | マージ（条件表の `repos.<repo>.merge` の方式）→ `andon task finish`（`library/corrections.json` に人の手直しを集める。design.md §1.9 の (b)）。通知 `merged` | ゲート・委譲（人） |
 | ゲートが `approve` で `merge: person`、または委譲の外 | マージしない。通知 `gate` のまま止まる | 人 |

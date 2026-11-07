@@ -2,7 +2,7 @@
 // （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・人が持つ。
 //
 //	report.json の review_request   → レビュアーを起こす（kanban add --parent ＋ detached worktree ＋ hc run）
-//	{"status": "review"} に入った    → andon gate を回す
+//	{"status": "review"} に入った    → andon gate を回す（deliverable: candidates のタスクは回さない。通知だけ）
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon task finish（レビュアーのタスクも片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
@@ -168,8 +168,8 @@ func (p *project) pass() (bool, error) {
 	for _, t := range p.tasks {
 		status := t.Str("status")
 		busy = busy || status == "doing" || status == "review"
-		if isReviewer(t) || t.Str("profile") == "chief-engineer" || t.Str("repo") == "" {
-			continue // ゲートを通るのは案件 repo の担当のタスクだけ（レビュアー・Chief Engineer は Chief of Staff が見る）
+		if !p.gated(t) {
+			continue
 		}
 		rep, err := contract.ReadReport(filepath.Join(p.l.Library(t.Str("id")), "report.json"))
 		if err != nil {
@@ -188,6 +188,13 @@ func (p *project) pass() (bool, error) {
 		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
+}
+
+// gated は、タスクがインナーループ（レビュアーを起こす・ゲートを回す）を通るか。通るのは案件 repo の担当の
+// PR のタスクだけ。レビュアー・Chief Engineer・repo の無いタスク・調べるタスク（deliverable: candidates。
+// Chief of Staff が書いたものだけ信じる）は Chief of Staff が見る（通知は collect が積む）。
+func (p *project) gated(t ledger.Task) bool {
+	return !isReviewer(t) && t.Str("profile") != "chief-engineer" && t.Str("repo") != "" && !p.l.Candidates(p.rows, t)
 }
 
 func isReviewer(t ledger.Task) bool {

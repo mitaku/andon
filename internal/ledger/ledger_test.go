@@ -73,3 +73,33 @@ func TestTrustedReadsOldIds(t *testing.T) {
 		t.Fatal("the row written as A-5 does not count for A-0005")
 	}
 }
+
+// deliverable: candidates は Chief of Staff が最後に書いたときだけ信じる（ADR-0006 決めたこと 7）。
+func TestCandidates(t *testing.T) {
+	root := t.TempDir()
+	l := At(root)
+	os.MkdirAll(l.Dir, 0o755)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 2\nchief_of_staff: t5\n"), 0o644)
+	row := func(id, by, v string) Row { return Row{ID: id, By: by, Change: map[string]any{"deliverable": v}} }
+	rows := []Row{
+		row("A-0001", "terminal:t5", "candidates"),
+		row("A-0002", "terminal:t7", "candidates"),                                             // 担当が書いた
+		row("A-0003", "terminal:t5", "candidates"), row("A-0003", "terminal:t7", "candidates"), // 最後が担当
+		row("A-0004", "terminal:t5", "pr"),
+	}
+	for _, c := range []struct {
+		task Task
+		want bool
+	}{
+		{Task{"id": "A-0001", "deliverable": "candidates"}, true},
+		{Task{"id": "A-0002", "deliverable": "candidates"}, false},
+		{Task{"id": "A-0003", "deliverable": "candidates"}, false},
+		{Task{"id": "A-0004", "deliverable": "candidates"}, false}, // 履歴の値と違う
+		{Task{"id": "A-0004", "deliverable": "pr"}, false},
+		{Task{"id": "A-0005"}, false}, // 無い＝pr
+	} {
+		if got := l.Candidates(rows, c.task); got != c.want {
+			t.Errorf("Candidates(%v) = %v, want %v", c.task, got, c.want)
+		}
+	}
+}
