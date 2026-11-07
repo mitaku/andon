@@ -6,21 +6,21 @@
 
 ## 役の配置と起動（一覧）
 
-誰が・どの端末で・何をきっかけに起こすか・止まったら誰が戻すか。コードで確かめた形（`internal/boot`・`internal/chiefofstaff`・`internal/chiefengineer`・`internal/task`・`internal/dispatcher`）。ほかの文書（[dispatcher.md](dispatcher.md)・[contract.md](contract.md) §8・skill）はここへリンクする。ラベルの値の正は contract.md §8。
+誰が・どの端末で・何をきっかけに起こすか・止まったら誰が戻すか。コードで確かめた形（`internal/boot`・`internal/chiefofstaff`・`internal/chiefengineer`・`internal/issue`・`internal/dispatcher`）。ほかの文書（[dispatcher.md](dispatcher.md)・[contract.md](contract.md) §8・skill）はここへリンクする。ラベルの値の正は contract.md §8。
 
 | 役 | 端末の名前 | 出る場所（Space / tab） | 起こすのは・きっかけ | 止まったら誰が戻すか |
 |---|---|---|---|---|
 | dispatcher | `dispatcher`（セルに1つ） | 台帳が1つならその指揮側の Space の tab「dispatcher」、2つ以上なら `<セルの slug> plant` の tab「dispatcher」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起こす | boot と Chief of Staff のフックが、前に出ているものが `andon dispatcher` でなければ片付けて起こし直す（dispatcher.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければ人が `andon boot` |
 | Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | 人が `projects/<slug>/` で `andon chief-of-staff`（動いていればそれを使う） | 人が `hc kill` してから打ち直す。起き直した Chief of Staff 自身も同じ command を打てる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、打ち直せば command が数えずに片付け（keep を外して kill・rm）、起こし直して chief_of_staff を合わせる。数えるのは hc の agent が Claude Code の端末だけで、どちらとも言えない端末（人が中で使っているなど）があれば触らずに止まる |
-| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（タスクごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ dispatcher が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ。作り直しで戻った端末（top-level の argv ごと素のシェル）は、次の `andon chief-engineer` が数えずに片付けてから起こす（前のタスクは台帳に残る）。hc の agent が Claude Code でも戻った端末でもなければ止まる |
-| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ タスク（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon task start <id>` | 最初のメッセージが届かなければ dispatcher が送り直す。止まりは dispatcher が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、dispatcher が終わった端末（`finished`）として知らせる |
-| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | dispatcher。担当の `andon task review-request` の報告を拾って起こす | dispatcher が起こしたものも、担当と同じく最初のメッセージが届かなければ（`hc run` の `sent: false`、か `sent: true` でも `started: false`）ラベル `first_message.sent=false` を付けて預け、dispatcher が次の見回りでレビュアーの文を送り直す（[dispatcher.md](dispatcher.md) §5）。それ以外は担当の依頼で Chief of Staff が起こし直す |
+| Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（課題ごと） | Chief of Staff か人が `andon chief-engineer "<題>"`（1プロジェクトに1人） | 最初のメッセージが届かなければ dispatcher が送り直す。それ以外は Chief of Staff が `hc read` で見て人へ。作り直しで戻った端末（top-level の argv ごと素のシェル）は、次の `andon chief-engineer` が数えずに片付けてから起こす（前の課題は台帳に残る）。hc の agent が Claude Code でも戻った端末でもなければ止まる |
+| 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ 課題（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <題>`、tab は `<id>` | Chief of Staff が `andon issue start <id>` | 最初のメッセージが届かなければ dispatcher が送り直す。止まりは dispatcher が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、dispatcher が終わった端末（`finished`）として知らせる |
+| レビュアー | `<slug>-<レビューの id を小文字>` | 担当と同じ Space・tab に横に並ぶ | dispatcher。担当の `andon issue review-request` の報告を拾って起こす | dispatcher が起こしたものも、担当と同じく最初のメッセージが届かなければ（`hc run` の `sent: false`、か `sent: true` でも `started: false`）ラベル `first_message.sent=false` を付けて預け、dispatcher が次の見回りでレビュアーの文を送り直す（[dispatcher.md](dispatcher.md) §5）。それ以外は担当の依頼で Chief of Staff が起こし直す |
 
-- **dispatcher とゲート**: 担当の `andon task ready`（`status: review`）を拾った dispatcher が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。dispatcher が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
+- **dispatcher とゲート**: 担当の `andon issue ready`（`status: review`）を拾った dispatcher が `andon gate` を回す。ゲートは PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）を返し、**通知も問いも出さない**。dispatcher が見回りのたびにゲートから回し直す。checks が1つも無いまま 30 分たつと `needs_human`。
 - **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起こしは `hc run` で最初のメッセージを渡す。届かなかった（`sent: false`、か `sent: true` でも `started: false`＝送ったが動き出さない）ら、端末にラベル `first_message.sent=false` が付き、dispatcher が見回りで入力を受けられる状態（`idle`）になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
-- **信頼の画面**: セルでは出ない（boot と、起こす直前の `andon task start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
-- **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`task=…` の付いた端末で中身が素のシェル（起こした command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。dispatcher の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
-- **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、タスクの範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
+- **信頼の画面**: セルでは出ない（boot と、起こす直前の `andon issue start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
+- **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`issue=…` の付いた端末で中身が素のシェル（起こした command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。dispatcher の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
+- **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、課題の範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
 
 ## セルの置き方
 
@@ -28,7 +28,7 @@
 
 - `projects/<slug>/` は**セルの repo の実ディレクトリ**（symlink にしない）。台帳（`kanban/`。git の外）と、人が書くプロジェクトの事実（`project.json`: 書いてよい repo・委譲など。[contract.md](contract.md) §11）を置く。
 - ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `~/.herdr/worktrees/<repo 名>/<slug>-<id>` の worktree で働く。
-- 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon task start` が両方を確かめる）。
+- 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon issue start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
 - `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
 - **納品物 `files/`**: `andon publish` が `<日付>-<slug>` で置き、files サーバが公開する。git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。
@@ -36,7 +36,7 @@
 
 ## 0. 先に知っておくこと: 通らなかった所（直した）
 
-コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon task start` の中身が無い」（10）。
+コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon issue start` の中身が無い」（10）。
 
 P7 で見つけた F4「セルの `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物のセルの repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
 
@@ -300,7 +300,7 @@ codex login --device-auth   # Codex を使うとき
 ログインは volume（`claude`・`codex`・`gh` など）に残る。作り直しても消えない。git の資格情報（credential helper を gh にする設定）は `~/.gitconfig` にあり volume の外。初回は上の `gh auth setup-git` を打つ。そのあと `gh` にログインしていれば boot が毎起動同じ手を打つので、作り直しても戻る。
 
 - **通ったら見えるもの**: `gh auth status` が Logged in。`claude` が対話に入る。`codex login status`。
-- **落ちたら見る所**: `andon task start` が `origin の既定の branch が分からない（…）: …could not read Username…。認証が原因らしい` で止まる — `gh auth status` でログインを確かめ、`gh auth setup-git` を打つ（git の stderr が文言に添えて出る）。`gh` のスコープ（`repo`・`workflow`・`read:packages`）。device code の期限切れは打ち直す。`claude` が毎回ログインを求める — `claude` の volume が付いているか（`bin/bootstrap sh` で `ls ~/.claude`）。
+- **落ちたら見る所**: `andon issue start` が `origin の既定の branch が分からない（…）: …could not read Username…。認証が原因らしい` で止まる — `gh auth status` でログインを確かめ、`gh auth setup-git` を打つ（git の stderr が文言に添えて出る）。`gh` のスコープ（`repo`・`workflow`・`read:packages`）。device code の期限切れは打ち直す。`claude` が毎回ログインを求める — `claude` の volume が付いているか（`bin/bootstrap sh` で `ls ~/.claude`）。
 
 ## 7. Andon の repo を迎える
 
@@ -309,7 +309,7 @@ ghq get github.com/<owner>/andon        # GHQ_ROOT=/workspace/.ghq の下に入�
 ghq list
 ```
 
-- **通ったら見えるもの**: `/workspace/.ghq/github.com/<owner>/andon`。迎えた repo の根は、台帳の `config.yaml` の `repos` に載っていれば、`andon task start`・`andon chief-engineer` が起こす前に Claude Code と Codex の信頼に足す（boot と同じ手。担当とレビュアーの worktree は元の repo の根で判定されるので、信頼の画面が出ない）。
+- **通ったら見えるもの**: `/workspace/.ghq/github.com/<owner>/andon`。迎えた repo の根は、台帳の `config.yaml` の `repos` に載っていれば、`andon issue start`・`andon chief-engineer` が起こす前に Claude Code と Codex の信頼に足す（boot と同じ手。担当とレビュアーの worktree は元の repo の根で判定されるので、信頼の画面が出ない）。
 - **落ちたら見る所**: `Repository not found` — `gh auth status` と repo の権限。`could not read Username` — `gh auth status` でログインを確かめ、`andon boot` を打ち直す（boot が `gh auth setup-git` を打つ）。
 
 ## 8. プロジェクト `andon` の台帳を作る
@@ -329,15 +329,15 @@ andon delegate show          # 型と効いている値（commit の前は「無
 - **聞くもの**: 引数に無い slug・repos（1 行に 1 つ、空行で終わり）・prefix（既定は slug の `-` で区切った頭文字。`sample-site` → `SS`）・題（既定は slug）。聞いたときは最後に確かめる。標準入力が端末でなければ聞かない: slug が無ければ止まり、ほかは既定（repos 無し）。
 - **通ったら見えるもの**: `作った: projects/andon/（kanban/・project.json・AGENTS.md）`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
 - **落ちたら見る所**（どれも何も作らずに止まる）: `が既にある` — 作ってある（そのまま使う。手で作るときの `kanban init` は `already a ledger`）。`slug は英小文字・数字・-`・`repo は <host>/<owner>/<repo>`・`prefix は英大文字で始まる` — 綴り。`この端末（role=…）では打てない` — 役の端末。人の端末で打つ。`ghq get … が落ちた` — `gh auth status`。`… があるが git の clone でない` — `GHQ_ROOT` の下の空のディレクトリなどを確かめて退ける。`題に改行や制御文字がある` — 題は 1 行。`kanban init が落ちた` — 理由の文（`checkClock` ならコンテナの時計）。
-- `project.json` が無い・owner の commit でない・`repos` に無い repo のタスクは、`andon task start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無いセルは、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
+- `project.json` が無い・owner の commit でない・`repos` に無い repo の課題は、`andon issue start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無いセルは、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
 - `projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・並行の上限・独立レビューを入れる条件）は任意。無ければ並行の上限は 2。
-- タスクの id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じタスク）。
+- 課題の id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じ課題）。
 
 ### 前の置き場から移す（`.flightdeck/` → `kanban/`）
 
-台帳の置き場は 2026-11-06 に `projects/<slug>/.flightdeck/` から `projects/<slug>/kanban/` に改めた。同時に `config.yaml` の `coordinator` を `chief_of_staff` に、タスクの id を 4 桁（`A-5` → `A-0005`）に、台帳の中の `coordinator.md` を `projects/<slug>/AGENTS.md` の「Chief of Staff」の節に改めた（[ledger.md](ledger.md) の「Moving from `.flightdeck/`」・[ADR-0004](adr/0004-project-layout.md) 決めたこと 5）。前の名前を読む互換は無いので、前の版のセルを上げるときは台帳ごとに `kanban migrate` を1回打つ。台帳は今までどおり git の外（`kanban/.gitignore` の `*`。ADR-0005 決めたこと 5）。
+台帳の置き場は 2026-11-06 に `projects/<slug>/.flightdeck/` から `projects/<slug>/kanban/` に改めた。同時に `config.yaml` の `coordinator` を `chief_of_staff` に、課題の id を 4 桁（`A-5` → `A-0005`）に、台帳の中の `coordinator.md` を `projects/<slug>/AGENTS.md` の「Chief of Staff」の節に改めた（[ledger.md](ledger.md) の「Moving from `.flightdeck/`」・[ADR-0004](adr/0004-project-layout.md) 決めたこと 5）。前の名前を読む互換は無いので、前の版のセルを上げるときは台帳ごとに `kanban migrate` を1回打つ。台帳は今までどおり git の外（`kanban/.gitignore` の `*`。ADR-0005 決めたこと 5）。
 
-1. **上げる前に**: `doing`・`review` のタスクを片付ける（マージして `andon task finish`、または `todo` に戻す）。worktree・branch・端末のラベル・Space の名前に id が入っているので、`kanban migrate` はそういうタスクがあると何も変えずに止まる。確かめ方: `grep -lE '^status: (doing|review)' projects/<slug>/.flightdeck/tasks/*/task.yaml`（何も出なければよい）。
+1. **上げる前に**: `doing`・`review` の課題を片付ける（マージして `andon issue finish`、または `todo` に戻す）。worktree・branch・端末のラベル・Space の名前に id が入っているので、`kanban migrate` はそういう課題があると何も変えずに止まる。確かめ方: `grep -lE '^status: (doing|review)' projects/<slug>/.flightdeck/tasks/*/task.yaml`（何も出なければよい）。
    委譲を控える: `andon delegate show > ~/delegation-before.txt`（前の版の `andon` は `delegation.json` を読む。6 で比べる）。
 2. **image を上げて起動する**（`rebuild`）。新しい版の `kanban`・dispatcher は `.flightdeck/` を読まないので、移すまで dispatcher はその台帳を飛ばし、`kanban` は `no ledger` で止まる。
 3. **Chief of Staff と dispatcher を止める**: Chief of Staff（`hc ls --label role=chief-of-staff --label project=<slug>`）を `hc kill <address>`、次に `hc kill dispatcher`。Chief of Staff を先に止めるのは、そのターンのフックが dispatcher を起こし直すため。
@@ -351,23 +351,39 @@ andon delegate show          # 型と効いている値（commit の前は「無
    ```
 
    - `kanban migrate` がすること: `tasks/<id>/` と `task.yaml` の `id`・`parent`・`after` を 4 桁に揃える、`coordinator` を `chief_of_staff` に（値・コメント・位置はそのまま）、`.flightdeck/` を `kanban/` に、`coordinator.md` を `AGENTS.md` の末尾の `## Chief of Staff` に足して消す、dispatcher の控え（`~/.local/state/andon/dispatcher/<slug>.json`。`XDG_STATE_HOME` があればその下）の中の id を新しい id に、`project.json` が無ければ下書きを書く（`version: 1`・`project` は `config.yaml` の `title`〈無ければフォルダ名〉と `prefix`・`repos` は `config.yaml` の `repos`・`delegation` は `delegation.json` の中身そのまま。commit はしない。`delegation.json` は消さない）、`log.jsonl` に `migrate` の1行。
-   - 書き換えないもの: `log.jsonl` の前の行・`brief.md`・`report.md`・問い（読むときに `A-5` も `A-0005` と同じ id とみなす）、branch と worktree の名前、ルーチン（id を持たない）。控えには台帳の置き場の path が入っていない（プロジェクト名で引く）ので、path の書き換えは要らない。stop-check の控え（`~/.local/state/andon/stop-check/<slug>-<id>.json`）は `doing` のタスクのものなので、移したあとは読まれない。消してよい。
+   - 書き換えないもの: `log.jsonl` の前の行・`brief.md`・`report.md`・問い（読むときに `A-5` も `A-0005` と同じ id とみなす）、branch と worktree の名前、ルーチン（id を持たない）。控えには台帳の置き場の path が入っていない（プロジェクト名で引く）ので、path の書き換えは要らない。stop-check の控え（`~/.local/state/andon/stop-check/<slug>-<id>.json`）は `doing` の課題のものなので、移したあとは読まれない。消してよい。
    - 止まったとき（どれも何も変えずに止まる）: `still in doing or review` — 1 に戻る。`kanban/ is already there` — 手で作った `kanban/` があるので、中身を見てから退ける。`is not the dispatcher's state` — 控えを直すか消す（消すと初めて見る台帳として扱われる）。`delegation.json is not JSON`・`the project.json drafted … can't be read by Andon` — 理由の文を読んで `delegation.json` か `config.yaml` の `prefix`（英大文字で始まる英大文字・数字）を直す。直せなければ `project.json` を先に手で書いて commit してから打つ（あれば下書きは作らない）。`is not format 2` — `config.yaml` の `version` を引用符なしの `2` にする。`is a symbolic link` — リンクを実体に置き換える。
-5. **project.json を見て commit する**: 下書きの `project.title`・`prefix`（英大文字で始まる英大文字・数字。違えば直す）・`repos`（書いてよい repo。足りなければ足す）を確かめる。`coordinator.md` にあった並行の上限などは、`AGENTS.md` の節のままでも、`project.json` の `chief_of_staff`（`parallel`・`review_when`・`triage_max_tasks`）に写してもよい。下書きを作らなかった（もうあった）ときは、§8 の `project.json` の例と `delegation.json` の中身から手で書く。`git add project.json` し、`AGENTS.md` があれば（`coordinator.md` を移したか、前からあれば）それも `git add` して commit する（`git add project.json; [ -f AGENTS.md ] && git add AGENTS.md; git commit -m …`。どちらも人のファイル。author が `andon.toml` の `owner` であること）。`kanban/` は git の外なので commit しない。
+5. **project.json を見て commit する**: 下書きの `project.title`・`prefix`（英大文字で始まる英大文字・数字。違えば直す）・`repos`（書いてよい repo。足りなければ足す）を確かめる。`coordinator.md` にあった並行の上限などは、`AGENTS.md` の節のままでも、`project.json` の `chief_of_staff`（`parallel`・`review_when`・`triage_max_issues`）に写してもよい。下書きを作らなかった（もうあった）ときは、§8 の `project.json` の例と `delegation.json` の中身から手で書く。`git add project.json` し、`AGENTS.md` があれば（`coordinator.md` を移したか、前からあれば）それも `git add` して commit する（`git add project.json; [ -f AGENTS.md ] && git add AGENTS.md; git commit -m …`。どちらも人のファイル。author が `andon.toml` の `owner` であること）。`kanban/` は git の外なので commit しない。
    確かめる: `andon delegate show` が 1 で控えたものと同じ型と効いている値（scope ごとの行）を出す（`diff ~/delegation-before.txt <(andon delegate show)` で見比べる。前の版と言い回しが違う行は読んで比べる。`無委譲` と出たら `project.json` が commit されていないか、owner の commit でないか、形が違う。理由の文を読んで直し、commit し直す）。同じなら `git rm delegation.json delegation.md`（あるものだけ）して commit。
 6. **起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。dispatcher は Chief of Staff の最初のターンのフックか `andon boot` で起きる。控えの id は 4 に移してあるので、初めて見る台帳としては扱われない。
 7. **自分のスクリプト**: `FLIGHTDECK_ROOT` を使っていれば `KANBAN_ROOT` に改める。
+
+### 台帳を形式 3 に手で移す（`tasks/` → `issues/`。課題への改名）
+
+台帳のカードの名前を 2026-11-07 に task から「課題（issue）」に改めた（[ADR-0008](adr/0008-issue-naming.md)。台帳の形式は 3）。形式 2 の台帳は、`kanban`・`andon`・dispatcher・ゲートのどれも読まず、`config.yaml is format 2; move it by hand (docs/operate.md)` の 1 行で止まる。移す command は無いので、人が台帳ごとに次の順で手で移す（変わるのは名前だけ。[ledger.md](ledger.md) の「Changes from version 2」と同じ）。
+
+1. **`doing`・`review` の課題を片付ける**（マージして `andon task finish`、または `todo` に戻す）。ラベル `task=` を持つ担当・レビュアー・Chief Engineer の端末が居なくなる。確かめ方: `grep -lE '^status: (doing|review)' projects/<slug>/kanban/tasks/*/task.yaml` が何も出ない。
+2. **パッケージの版を上げる**（`rebuild`。`andon`・`kanban` が形式 3 を読む）。
+3. **フォルダと名前を改める**: `mv kanban/tasks kanban/issues`。各 `issues/<id>/task.yaml` を `issue.yaml` に（`for f in kanban/issues/*/task.yaml; do mv "$f" "${f%task.yaml}issue.yaml"; done`）。
+4. **`kanban/config.yaml` の `version: 2` を `version: 3` に**（コメントとほかのキーはそのまま）。
+5. **Andon が `library/` に書いた値を改める**: `issues/*/library/report.json` の `"to": "task"` を `"to": "issue"` に、`issues/*/library/questions/*.json` の `"from": "task"` を `"from": "issue"` に（`sed -i`。無ければ飛ばす。`done` の課題のものも。読む側に古い値の互換が無いため）。
+6. **dispatcher の控えを消す**: `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）。控えが守るのはレビュアーの二重起こしとゲートの重複で、動いている課題が無ければ要らない。次の見回りで作り直される。
+7. **`projects/<slug>/project.json` の `triage_max_tasks` を `triage_max_issues` に直して commit する**（無ければ何もしない。人のファイルなので author は `andon.toml` の `owner`）。
+8. **人の App の mod を置き直す**: `host-install` は今あるファイルを上書きしないので、App の設定フォルダ（「Herdr App の mod とレイアウト」）の `mods/` から Andon の mod 5つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`）を消してから `bin/bootstrap host-install` を打つ。置き直したあと、仮設の端末（ラベル `task=`）には名前が付かなくなる（新しい mod はラベル `issue=` だけを読む。仮設が止まるまでの間）。
+9. **`andon boot`**。`kanban lint` が通れば済み。
+
+`log.jsonl` の行・`brief.md`・`report.md` は触らない（過去の行は当時の言葉のまま）。動いている課題がある台帳で 3 以降をすると、端末のラベル `task=` と台帳が食い違い、dispatcher が担当を見失う。だから 1 を先に、`kanban lint` を最後に。
 
 ### 別のマシンへ引っ越す（セルを動かす）
 
 セルを別のマシン（別の PC・別のホスト）へ動かすときの手順。台帳 `kanban/` は git で追跡しない（[ADR-0005](adr/0005-cell-repo.md) 決めたこと 5）ので、セルの repo を push・clone しても台帳は付いてこない。**台帳を写すのは人が手でする**。
 
-- **写さなかったとき失うもの**: 台帳の全部（タスクの一覧と状態・`log.jsonl`・依頼書・報告・問い・ルーチン）。セルの repo（人のファイル・`wiki/`・`files/`・`projects/<slug>/AGENTS.md`）と、決定・進行中の仕事（製品の repo の `docs/`・PR と branch）は GitHub に残るので失わない。台帳が無いと新しい側の `projects/<slug>/` は空のプロジェクトになり、`kanban init` からやり直す（タスクの id は `0001` から振り直し。前の PR や branch の名前に残る id とは別物になる）。台帳に残るのは経過で、セルの寿命のもの。要らなければ写さなくてよい。
-- **写す前に `doing`・`review` を片付けておく理由**: `task.yaml` の `agent`・`worktree`・`machine` と、端末のラベル・Space・worktree・branch は、**古いマシンの**ものだから。写した先で `doing` のまま残ると、動いている担当がいないのに動いているように見え、直しは起こし直すところから始まる。片付けてから写せば（マージして `andon task finish`、または `todo` に戻す）、新しい側で起こし直す担当が減る。
+- **写さなかったとき失うもの**: 台帳の全部（課題の一覧と状態・`log.jsonl`・依頼書・報告・問い・ルーチン）。セルの repo（人のファイル・`wiki/`・`files/`・`projects/<slug>/AGENTS.md`）と、決定・進行中の仕事（製品の repo の `docs/`・PR と branch）は GitHub に残るので失わない。台帳が無いと新しい側の `projects/<slug>/` は空のプロジェクトになり、`kanban init` からやり直す（課題の id は `0001` から振り直し。前の PR や branch の名前に残る id とは別物になる）。台帳に残るのは経過で、セルの寿命のもの。要らなければ写さなくてよい。
+- **写す前に `doing`・`review` を片付けておく理由**: `issue.yaml` の `agent`・`worktree`・`machine` と、端末のラベル・Space・worktree・branch は、**古いマシンの**ものだから。写した先で `doing` のまま残ると、動いている担当がいないのに動いているように見え、直しは起こし直すところから始まる。片付けてから写せば（マージして `andon issue finish`、または `todo` に戻す）、新しい側で起こし直す担当が減る。
 
 手順（古い側 → 新しい側）:
 
-1. **古い側で止める**: 動かす直前に、`doing`・`review` のタスクを片付ける（上）。Chief of Staff（`hc ls --label role=chief-of-staff --label project=<slug>`）を `hc kill <address>`、次に `hc kill dispatcher`。Chief of Staff を先に止めるのは、そのターンのフックが dispatcher を起こし直すため。
+1. **古い側で止める**: 動かす直前に、`doing`・`review` の課題を片付ける（上）。Chief of Staff（`hc ls --label role=chief-of-staff --label project=<slug>`）を `hc kill <address>`、次に `hc kill dispatcher`。Chief of Staff を先に止めるのは、そのターンのフックが dispatcher を起こし直すため。
 2. **セルの repo を push する**（人のファイルだけが入る）: `git status --short` で `andon.toml`・`projects/*/project.json`・`AGENTS.md`・`gate.local.json`・`templates.local/`・`local/`・`wiki/`・`files/` に未 commit が無いか見て、commit（author が `andon.toml` の `owner`）して `git push`。`.env`・`.ssh/`・`.ghq/` は追跡されない（新しい側で作り直す）。
 3. **`kanban/` を写す**（手で。手段は例）:
 
@@ -380,8 +396,8 @@ andon delegate show          # 型と効いている値（commit の前は「無
 
 4. **新しい側でセルの repo を迎える**: `git clone` した repo を `~/src/<slug>-cell` に置く（または [§2](#2-セルの-repo-を作るandon-init) の `andon init` で作った repo に、clone した中身を重ねる）。続けて §3 の起動、§5〜§6 のログイン（`gh`・`claude`・Codex は中で取り直す。持ち越さない）。`.env` と `.ssh/authorized_keys` は新しい側で作る。
 5. **台帳を置く**: `tar -xzf ~/kanban-<slug>.tgz -C /workspace/projects`（セルの中で）。`cd /workspace/projects/<slug> && kanban lint ; kanban list --all`。置く前に `andon init` したセルで `kanban/` が空に作られていたら、退けてから置く（`kanban init` は `already a ledger` で止まる）。
-6. **worktree を戻す**: 未マージの PR の branch から戻る（[design.md](design.md) §5.4）。`ghq get github.com/<owner>/<repo>` で製品の repo を迎え、`doing` だったタスクの branch を取って `andon task start <id>` で worktree と端末を作り直す（branch が GitHub に push 済みであること。push 前の変更は古い側にしか無い）。
-7. **`doing` の担当を起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。写した台帳の `agent`・`worktree`・`machine`・`chief_of_staff` は古いマシンのままで、新しい側では無効。dispatcher は端末の無い `doing` の担当を `stalled` として Chief of Staff に知らせる（[dispatcher.md](dispatcher.md) §2.3）ので、それを起こし直しの印として、担当を起こし直す。1 で片付けておけば、この段のタスクは少ない。
+6. **worktree を戻す**: 未マージの PR の branch から戻る（[design.md](design.md) §5.4）。`ghq get github.com/<owner>/<repo>` で製品の repo を迎え、`doing` だった課題の branch を取って `andon issue start <id>` で worktree と端末を作り直す（branch が GitHub に push 済みであること。push 前の変更は古い側にしか無い）。
+7. **`doing` の担当を起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。写した台帳の `agent`・`worktree`・`machine`・`chief_of_staff` は古いマシンのままで、新しい側では無効。dispatcher は端末の無い `doing` の担当を `stalled` として Chief of Staff に知らせる（[dispatcher.md](dispatcher.md) §2.3）ので、それを起こし直しの印として、担当を起こし直す。1 で片付けておけば、この段の課題は少ない。
 
 ## 9. Chief of Staff を起こす
 
@@ -423,12 +439,12 @@ git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate
 
 人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。セルの `gate.local.json`）。
 
-流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → dispatcher がレビュアーを起こす → `ready`（レビュー）→ dispatcher がゲート → approve → dispatcher がマージ → `andon task finish` → 次の見回りで dispatcher が同じ repo の動いているタスクへの影響（`andon task impact`）を見て、ぶつかる・重なるものがあれば Chief of Staff に `impact` で届ける（rebase を頼むか・止めて向きを確かめるかは Chief of Staff。[dispatcher.md](dispatcher.md) §2.5）。
+流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → dispatcher がレビュアーを起こす → `ready`（レビュー）→ dispatcher がゲート → approve → dispatcher がマージ → `andon issue finish` → 次の見回りで dispatcher が同じ repo の動いている課題への影響（`andon issue impact`）を見て、ぶつかる・重なるものがあれば Chief of Staff に `impact` で届ける（rebase を頼むか・止めて向きを確かめるかは Chief of Staff。[dispatcher.md](dispatcher.md) §2.5）。
 
-担当を起こすのは Chief of Staff の `andon task start <id>`（`projects/andon/` で打つ）。worktree と branch（`~/.herdr/worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `task.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App にタスクの Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、dispatcher が起こすレビュアーは担当と同じ tab に横に並ぶ。`andon task finish` で端末が片付くと tab が空になり、Space ごと消える。
+担当を起こすのは Chief of Staff の `andon issue start <id>`（`projects/andon/` で打つ）。worktree と branch（`~/.herdr/worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `issue.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App に課題の Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、dispatcher が起こすレビュアーは担当と同じ tab に横に並ぶ。`andon issue finish` で端末が片付くと tab が空になり、Space ごと消える。
 
 - **通ったら見えるもの**: 下の「§5.1 の確かめ方」の対応表。
-- **落ちたら見る所**: `andon task start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**dispatcher が次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[dispatcher.md](dispatcher.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てば dispatcher は送らない）。信頼の画面そのものは出ないはず（boot と `andon task start` が repo の根を信頼済みにする。7）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read dispatcher`・`~/.local/state/andon/dispatcher/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `tasks/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
+- **落ちたら見る所**: `andon issue start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**dispatcher が次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[dispatcher.md](dispatcher.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てば dispatcher は送らない）。信頼の画面そのものは出ないはず（boot と `andon issue start` が repo の根を信頼済みにする。7）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read dispatcher`・`~/.local/state/andon/dispatcher/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `issues/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
 
 ## 11. dispatcher の確かめ
 
@@ -443,19 +459,19 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前の版のセルを上げるときは次のとおり。
 
-1. **上げる前に**: `status: review` のタスクと、レビュアーが動いている（`review_request` を出した）タスクが無いときに上げる。あれば片付くのを待つ（理由は 3）。
+1. **上げる前に**: `status: review` の課題と、レビュアーが動いている（`review_request` を出した）課題が無いときに上げる。あれば片付くのを待つ（理由は 3）。
 2. **image を上げて起動する**（`rebuild`）。boot が前の係の端末（名前もラベルも `courier`・`role=courier`）を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。片付けるのは前に出ているものが前の係（`andon courier`）か引数の無いシェル（作り直しで戻った中身）のときだけで、起動のログに `前の版の係の端末 <address>（courier）を片付けた` と `dispatcher を起こした` が出る。前に出ているものが取れないあいだ（作り直しの直後）は取れるまで最大 5 秒読み直し、それでも取れなければ、それ以外（人が中で何か動かしている）と同じく触らずに `… なので触らない` と書き、片付けに失敗したとき（`hc keep`・`kill`・`rm` が落ちた）も含めて、**その起動では dispatcher を起こさない**（前の係が動いたままだと二重に回る。ログに `dispatcher は起こさない` が出る）。人が `hc kill <address>` で片付けてから `andon boot` を打ち直す。ほかの端末には触らない。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
 3. **控えの置き場が替わる**: `~/.local/state/andon/courier/` は読まない。新しい `~/.local/state/andon/dispatcher/` に控えが無いので、どの台帳も**初めて見る台帳**として扱われる（[dispatcher.md](dispatcher.md) §2.1）:
    - 止まっていた間の出来事（報告・問い・止まり）は通知にしない。最初の見回りは位置を控えるだけ。Chief of Staff は起きたときと同じく台帳を自分で読む（`deck list`）。
-   - `doing` のタスクの今の `review_request` は拾う。前の係が同じ commit のレビュアーの子タスクを作っていれば、それを引き継いで二重に起こさない（起こした回として控える）。ただしその子タスクは作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。同じ commit のまま頼み直しても、引き継いだ回なので起こし直さない。担当に**新しい commit を push してから、次の回として**頼み直させる（直すものが無ければ `git commit --allow-empty`。同じ回の番号ではレビュアーの detached worktree の置き場がぶつかる。上限を超えれば Chief of Staff が `review_rounds` を上げる）。commit が変われば新しい回として dispatcher がレビュアーを起こし、作成の `by` は `terminal:dispatcher` になる（Chief of Staff が担当に `hc send` で頼む）。1 で待つのはこのためで、待てるなら待つ。
-   - すでに `status: review` のタスクはゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon task ready`）か、人が PR を見てマージし Chief of Staff が `andon task finish`。
+   - `doing` の課題の今の `review_request` は拾う。前の係が同じ commit のレビュアーの子課題を作っていれば、それを引き継いで二重に起こさない（起こした回として控える）。ただしその子課題は作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。同じ commit のまま頼み直しても、引き継いだ回なので起こし直さない。担当に**新しい commit を push してから、次の回として**頼み直させる（直すものが無ければ `git commit --allow-empty`。同じ回の番号ではレビュアーの detached worktree の置き場がぶつかる。上限を超えれば Chief of Staff が `review_rounds` を上げる）。commit が変われば新しい回として dispatcher がレビュアーを起こし、作成の `by` は `terminal:dispatcher` になる（Chief of Staff が担当に `hc send` で頼む）。1 で待つのはこのためで、待てるなら待つ。
+   - すでに `status: review` の課題はゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon issue ready`）か、人が PR を見てマージし Chief of Staff が `andon issue finish`。
    - 最初のメッセージの送り直し（`first_message.sent=false`）は2回目の見回りから。
 4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の mod とレイアウト」）。入れ直すまで、新しい tab は名前が付かない。
 5. **片付け**: 2 と 3 を確かめたら、前の控え `~/.local/state/andon/courier/` を消してよい（読む者はいない）。
 
 ## 12. 実測する（P6b と ADR-0001 S4）
 
-本物の Claude Code でしか確かめられないもの。**見る場所**を書く。落ちたら直しのタスクにする。
+本物の Claude Code でしか確かめられないもの。**見る場所**を書く。落ちたら直しの課題にする。
 
 ### ADR-0001 S4: 担当1つの最初の turn
 
@@ -484,8 +500,8 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 | # | 確かめること | どの段 | 何で見るか |
 |---|---|---|---|
 | 1 | セルがパッケージから立つ | 2・3・5・6 | セルの repo にパッケージのファイルが無い（`ls ~/src/home-cell`。`Dockerfile` は `FROM` ＋ 2行）。5 の確かめが全部通る。6 のログインがセルの中で済む |
-| 2 | 1本流れる | 10 | `kanban show <id>` の `status` が `done`。`tasks/<id>/log.jsonl` に `doing` → `review` → `done`。`tasks/<id>/library/gate/<head sha>.json` の決定が approve。PR が `MERGED`（`gh pr view <n> --json state`）。担当の端末が片付いた（`hc ls`・`git worktree list`） |
-| 3 | 人が触っていない | 10 | `jq -r '.by' /workspace/projects/andon/kanban/tasks/<id>/log.jsonl \| sort \| uniq -c` の `by` が、Chief of Staff・dispatcher・担当・レビュアーの `terminal:` だけ（人のユーザー名が無い）。Chief of Staff の turn が「依頼を受ける」と「結果を見る」の2つだけ（`hc read andon-cos`） |
+| 2 | 1本流れる | 10 | `kanban show <id>` の `status` が `done`。`issues/<id>/log.jsonl` に `doing` → `review` → `done`。`issues/<id>/library/gate/<head sha>.json` の決定が approve。PR が `MERGED`（`gh pr view <n> --json state`）。担当の端末が片付いた（`hc ls`・`git worktree list`） |
+| 3 | 人が触っていない | 10 | `jq -r '.by' /workspace/projects/andon/kanban/issues/<id>/log.jsonl \| sort \| uniq -c` の `by` が、Chief of Staff・dispatcher・担当・レビュアーの `terminal:` だけ（人のユーザー名が無い）。Chief of Staff の turn が「依頼を受ける」と「結果を見る」の2つだけ（`hc read andon-cos`） |
 | 4 | 流れたのは Andon 自身の変更 | 10 | PR の repo が `<owner>/andon`（`gh pr view <n> --json url`）。レベル A か B（ゲートの記録の `tier`） |
 | 5 | 自分をテストできる | 7・10 | セルの中で `cd /workspace/.ghq/github.com/<owner>/andon && for f in tests/*.sh; do bash "$f"; done` が green（Go・docker は repo の `mise.toml`・環境の備品に依る。`tests/image.sh` は docker が無ければ SKIP） |
 | 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設のセルの台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon のセルができるまで Andon の仕事を持っている。このセルの側では何もしない |
