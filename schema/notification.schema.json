@@ -57,7 +57,7 @@
       "type": "object", "required": ["n", "kind", "question"], "additionalProperties": false,
       "properties": {
         "n": { "description": "Question number in the task.", "type": "integer", "minimum": 1 },
-        "kind": { "description": "As in question.json.", "enum": ["business", "users", "promise", "irreversible", "line"] },
+        "kind": { "description": "As in question.json.", "enum": ["business", "users", "promise", "irreversible", "line", "scope"] },
         "question": { "description": "As in question.json.", "type": "string", "minLength": 1 }
       }
     },

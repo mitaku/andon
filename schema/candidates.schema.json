@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/candidates/1",
+  "title": "Candidates",
+  "description": "tasks/<id>/library/candidates.json: what a worker found that might be fixed but is not decided yet. Written by the worker of a survey task (its deliverable) or of a fix task that stops on scope, through `andon task candidates`, which checks it; never by hand. Rewritten whole each time and kept after finish. Read by the Chief of Staff, the person, triage and the retro; no gate or dispatcher decision reads it. Only these keys.",
+  "type": "object",
+  "required": ["candidates"],
+  "additionalProperties": false,
+  "properties": {
+    "commit": {
+      "description": "The commit the worker looked at (HEAD when written): 40 lowercase hex digits. Required for a task with a repository (the command checks it), absent for a task without one.",
+      "$ref": "#/$defs/sha"
+    },
+    "candidates": {
+      "description": "One entry per thing that might be fixed. Empty when there is none (a survey task still writes the file). ids are unique.",
+      "type": "array",
+      "uniqueKeys": ["id"],
+      "items": { "$ref": "#/$defs/candidate" }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "description": "A full git commit id: 40 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "candidate": {
+      "description": "One candidate.",
+      "type": "object",
+      "required": ["id", "text", "in_scope"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Name used by question options, answers and briefs: c1, c2, ... Unique in the list.",
+          "type": "string",
+          "pattern": "^c[1-9][0-9]*$"
+        },
+        "text": {
+          "description": "What, where and how it would be fixed, one line.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\n]*$"
+        },
+        "file": {
+          "description": "Path relative to the repository root, as in findings.json: not empty, no control characters, not absolute, no .. segment.",
+          "type": "string",
+          "pattern": "^(?!/)(?!(?:[^/]*/)*\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "line": {
+          "description": "Line number, 1 or more.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "in_scope": {
+          "description": "Inside the brief's scope (what to do and the completion condition). In a survey task: whether it answers the question.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

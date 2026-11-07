@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の7本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の8本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   5. command（andon task・andon gate・andon delegate・andon dispatcher）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh・andon-dispatcher.sh に書かせる）。
@@ -21,14 +21,14 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 schema_of() {
   case "$1" in
     2) echo task-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; *) return 1 ;;
   esac
 }
-expected="findings gate notification project question report task-keys"
+expected="candidates findings gate notification project question report task-keys"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は7本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は8本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
     ok "schema/$name の決まり"
@@ -62,6 +62,9 @@ done <<'SELF'
 1|{"type": "integer"}|true|integer は真偽値を拒む
 1|{"type": "string", "pattern": "^[a-z.]+$"}|"main.py\n"|$ は末尾の改行の前に合わない（ECMA-262）
 0|{"type": "string", "pattern": "^a[$]$"}|"a$"|文字クラスの中の $ は字のまま
+0|{"type": "array", "uniqueKeys": ["id"]}|[{"id": "c1"}, {"id": "c2"}, {"x": 1}]|uniqueKeys: 値が違えば通る（キーの無い要素は数えない）
+1|{"type": "array", "uniqueKeys": ["id"]}|[{"id": "c1"}, {"id": "c2"}, {"id": "c1"}]|uniqueKeys: 値が重なれば落ちる
+0|{"type": "array", "uniqueKeys": ["id"]}|[{"id": 1}, {"id": true}]|uniqueKeys: 1 と true は重ならない（JSON の等しさ）
 SELF
 
 # schema の決まりのうち、ECMA-262 と Python で意味が割れる表現を pattern に使わないこと（使えば lint が落ちる）
@@ -100,6 +103,7 @@ declare -A required=(
   [gate]=""
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
+  [candidates]="candidates"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
@@ -142,6 +146,7 @@ project|.delegation|version project
 project|.chief_of_staff|
 project|.delegation.grants[0]|id scope value by at evidence
 project|.delegation.grants[1].revoked|at by reason
+candidates|.candidates[0]|id text in_scope
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -159,6 +164,9 @@ fail|task-keys|.review_rounds = 2|review_rounds が数（kanban set は文字列
 fail|task-keys|.review_rounds = "0"|review_rounds が 0
 fail|task-keys|.merge = "auto-merge"|merge が auto/person でない
 fail|task-keys|.reviewer = "claude"|reviewer がレビュアーのプロファイルでない
+pass|task-keys|.deliverable = "candidates"|deliverable が candidates（調べるタスク）
+fail|task-keys|.deliverable = "survey"|deliverable が pr/candidates でない（型の名前は値でない）
+fail|task-keys|.deliverable = "Candidates"|deliverable の綴りが大文字
 pass|findings|.findings = []|指摘が無い
 fail|findings|.commit = "2a17f63"|commit が40桁でない
 fail|findings|.commit |= ascii_upcase|commit が大文字
@@ -197,6 +205,8 @@ fail|report|.acceptance[0].result = "ok"|acceptance の result が pass/fail/man
 fail|report|.next[0].to = "human"|next の to が知らない宛先
 fail|report|.remember = "x"|remember が配列でない
 fail|question|.kind = "other"|知らない kind
+pass|question|.kind = "scope" | .from = "task"|kind scope（範囲の問い）
+fail|question|.kind = "Scope"|kind の綴りが大文字
 fail|question|.question = "a\nb"|question が2行
 fail|question|.options = [.options[0]]|options が1つ
 fail|question|.options[0].pick = false|先頭が推奨案でない
@@ -208,6 +218,8 @@ fail|question|.remaining = -1|remaining が負
 fail|question|.from = "person"|from が知らない書き手
 pass|notification|.kind = "report" | .detail = {report: .detail.report}|kind report
 pass|notification|.kind = "asked" | .detail = {n: 1, kind: "line", question: "x"}|kind asked
+pass|notification|.kind = "asked" | .detail = {n: 1, kind: "scope", question: "x"}|kind asked（範囲の問い）
+fail|notification|.kind = "asked" | .detail = {n: 1, kind: "other", question: "x"}|asked の kind が知らない値
 pass|notification|.kind = "ready" | .detail = {title: "x"}|kind ready（routine 無し）
 pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_task: "A-13"}|kind review-requested
 pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json"}|kind gate
@@ -282,6 +294,24 @@ fail|project|.delegation.grants[1].revoked.at = "2026-11-31"|委譲: revoked.at 
 fail|project|del(.delegation.grants[1].revoked.reason)|委譲: revoked に reason が無い
 fail|project|.delegation.grants[0].id = "g1"|委譲: grant の id が d<n> でない
 fail|project|.delegation.grants[0] += {"note": "x"}|委譲: grant に知らないキー
+pass|candidates|del(.commit)|commit 無し（repo の無いタスク）
+pass|candidates|.candidates = []|候補が無い
+pass|candidates|.candidates[0] |= del(.file, .line)|場所を指さない候補
+pass|candidates|.candidates[0].in_scope = false|in_scope が false
+fail|candidates|.candidates[1].id = "c1"|id が重なる
+fail|candidates|.candidates += [.candidates[0] | .text = "別の文"]|id が重なる（中身が違っても）
+fail|candidates|.candidates[0].id = "1"|id が c<n> でない
+fail|candidates|.candidates[0].id = "c0"|id の番号が 0
+fail|candidates|.candidates[0].in_scope = "true"|in_scope が文字列
+fail|candidates|.candidates[0].text = ""|text が空
+fail|candidates|.candidates[0].text = "a\nb"|text が2行
+fail|candidates|.candidates[0].line = 0|line が 0
+fail|candidates|.candidates[0].file = "../outside"|file が repo の外（..）
+fail|candidates|.candidates[0].file = "/outside"|file が絶対パス
+fail|candidates|.candidates[0] += {"severity": "minor"}|候補に指摘のキー（findings と混ぜない）
+fail|candidates|.commit = "9c4e1b0"|commit が40桁でない
+fail|candidates|.commit = null|commit が null（repo の無いタスクは書かない）
+fail|candidates|.candidates = {}|candidates が配列でない
 EOF
 
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
@@ -302,6 +332,11 @@ project|.required -= ["repos"]|project の必須から repos を外す
 project|."$defs".delegation.additionalProperties = true|delegation の知らないキーを許す
 report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
 findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+$"|file の .. の段の検査を外す
+candidates|del(.properties.candidates.uniqueKeys)|候補の id の一意を外す
+candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_scope を外す
+candidates|.additionalProperties = true|候補の一覧の知らないキーを許す
+question|.properties.kind.enum -= ["scope"]|問いの kind から scope を外す
+task-keys|del(.properties.deliverable)|台帳の項目から deliverable を外す
 LOOSE
 fi
 
