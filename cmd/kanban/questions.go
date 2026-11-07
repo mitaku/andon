@@ -22,7 +22,9 @@ import (
 
 var (
 	questionStatuses = []string{"open", "answered", "received"}
-	questionKinds    = []string{"business", "users", "promise", "irreversible", "line"}
+	// questionKinds: the four kinds of decision point, line (a change to the line) and scope (which candidates a
+	// fix task should fix; for the Chief of Staff, not a decision point for the person).
+	questionKinds = []string{"business", "users", "promise", "irreversible", "line", "scope"}
 	// questionKeys are the keys kanban knows (the schema describes exactly these).
 	questionKeys = []string{"n", "text", "kind", "asked", "askedBy", "status", "answer", "answered", "answeredBy", "received"}
 )
@@ -199,7 +201,7 @@ func questionText(e env, words []string) (string, error) {
 }
 
 func cmdAsk(e env, a args) error {
-	const usage = `usage: kanban ask <id> "<text>" [--kind business|users|promise|irreversible|line]  (text - reads stdin)`
+	const usage = `usage: kanban ask <id> "<text>" [--kind business|users|promise|irreversible|line|scope]  (text - reads stdin)`
 	if len(a.rest) < 2 || a.rest[0] == "" {
 		return fail(usage)
 	}

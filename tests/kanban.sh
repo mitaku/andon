@@ -40,4 +40,17 @@ for r in $refs; do
 done
 ok "schema/ledger・docs/ledger.md・cmd/kanban が指す文書は全部ある"
 
+# 5. 範囲の問い（ADR-0006 受け入れ条件 5）: kanban ask --kind scope が通り、questions.yaml に kind: scope が残り、lint が受ける
+(
+  cd "$tmp" && mkdir scope && cd scope
+  "$kanban" init --prefix S >/dev/null
+  id=$("$kanban" add '誤字を1つ直す')
+  [ "$("$kanban" ask "$id" '誤字は1つではなく3つ。どれを直すか' --kind scope)" = "$id#1" ]
+  grep -qx '  kind: scope' "kanban/tasks/$id/questions.yaml"
+  "$kanban" show "$id" --json | grep -q '"kind": *"scope"'
+  "$kanban" lint >/dev/null
+  ! "$kanban" ask "$id" x --kind money >/dev/null 2>&1
+) || die "kanban ask --kind scope"
+ok "kanban ask --kind scope が通り、questions.yaml に kind: scope が残る（lint も受ける）"
+
 echo "kanban: $pass ok"

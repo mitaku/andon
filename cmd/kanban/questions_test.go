@@ -48,6 +48,19 @@ func deckIn(t *testing.T, cwd, stdin string, argv ...string) string {
 	return out.String()
 }
 
+// A scope question (ADR-0006: which candidates a fix task should fix) is kept with its kind, and lint takes it.
+func TestAskKindScope(t *testing.T) {
+	root := routineLedger(t)
+	kanban(t, root, "add", "Fix a typo")
+	if got := kanban(t, root, "ask", "W-0001", "Three typos, not one. Which to fix?", "--kind", "scope"); got != "W-0001#1\n" {
+		t.Fatalf("ask: %q", got)
+	}
+	if q := questionsOf(t, root, "W-0001"); len(q) != 1 || q[0]["kind"] != "scope" || q[0]["status"] != "open" {
+		t.Fatalf("after ask: %v", q)
+	}
+	kanban(t, root, "lint")
+}
+
 // One question all the way: ask → questions → answer → received, and no step skipped.
 func TestQuestionLifecycle(t *testing.T) {
 	root := routineLedger(t) // the clock is DECK_NOW
