@@ -12,7 +12,7 @@ import (
 )
 
 func TestInitWritesEveryTemplateFile(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "andon-x")
+	dir := filepath.Join(t.TempDir(), "x-cell")
 	if err := Init(Options{Slug: "x", Dir: dir, Image: "example.com/andon:test", Owner: "dev@example.com"}); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestMainArgs(t *testing.T) {
 	if rc := Main([]string{"--image", "example.com/andon:1", "y"}, nil, &out, &errb); rc != 0 {
 		t.Fatalf("rc=%d err=%s", rc, errb.String())
 	}
-	if _, err := os.Stat("andon-y/bin/bootstrap"); err != nil {
+	if _, err := os.Stat("y-cell/bin/bootstrap"); err != nil {
 		t.Error(err)
 	}
 	if rc := Main([]string{"z"}, nil, &out, &errb); rc != 0 || !strings.Contains(out.String(), "まだ埋まっていない") {

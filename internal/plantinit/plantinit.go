@@ -1,5 +1,5 @@
 // Package plantinit は andon init <slug>（docs/design.md §2.2・§5.2 の P4）。
-// 埋め込んだ雛形（repo の init/）を建屋の repo（既定 ./andon-<slug>）に写す。生成後は追従しない。
+// 埋め込んだ雛形（repo の init/）をセルの repo（既定 ./<slug>-cell）に写す。生成後は追従しない。
 // 名前が .tmpl のものは text/template で埋めて拡張子を外す。bin/ の下と *.sh は実行できる形で置く。
 package plantinit
 
@@ -22,7 +22,7 @@ import (
 
 // Usage は andon init --help の中身。
 const Usage = "usage: andon init <slug> [--dir <path>] [--image <ref>] [--owner <email>]\n" +
-	"建屋の repo の雛形を <path>（既定 ./andon-<slug>）に作る。<path> がすでにあって空でなければ何もしない。\n" +
+	"セルの repo の雛形を <path>（既定 ./<slug>-cell）に作る。<path> がすでにあって空でなければ何もしない。\n" +
 	"  --image  Dockerfile の FROM（既定は埋める場所だけを置く。bin/bootstrap は埋めるまで動かない）\n" +
 	"  --owner  andon.toml の owner（委譲のファイルを信じる commit の author の email）\n" +
 	"できたら: cd <path> → Dockerfile の FROM を確かめる → bin/bootstrap\n"
@@ -67,13 +67,13 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	o.Slug = pos[0]
 	if o.Dir == "" {
-		o.Dir = "andon-" + o.Slug
+		o.Dir = o.Slug + "-cell"
 	}
 	if err := Init(o); err != nil {
 		fmt.Fprintf(stderr, "andon init: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "建屋の repo を作った: %s\n次: cd %s → Dockerfile の FROM を確かめる → bin/bootstrap\n", o.Dir, o.Dir)
+	fmt.Fprintf(stdout, "セルの repo を作った: %s\n次: cd %s → Dockerfile の FROM を確かめる → bin/bootstrap\n", o.Dir, o.Dir)
 	if o.Image == PlaceholderImage {
 		fmt.Fprintf(stdout, "Dockerfile の FROM はまだ埋まっていない（%s）\n", PlaceholderImage)
 	}

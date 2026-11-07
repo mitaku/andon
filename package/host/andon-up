@@ -1,10 +1,11 @@
 #!/bin/sh
-# andon-up — ホストの建屋を全部起こす（PC を立ち上げたあとに1回）。起きているものは飛ばす。
+# andon-up — ホストのセルを全部起こす（PC を立ち上げたあとに1回）。起きているものは飛ばす。
 #
-#   andon-up            ${ANDON_PLANTS:-$HOME/src} の下の andon-*（bin/bootstrap を持つもの）を起こす
+#   andon-up            ${ANDON_PLANTS:-$HOME/src} の下の *-cell と andon-*（bin/bootstrap を持つもの）を起こす
+#                       （andon-* は repo の名前が <slug>-cell になる前に作ったセル）
 #
-# 置き方: 建屋の repo で bin/bootstrap host-install（~/.local/bin/andon-up に置く）。
-# このホストで起こさない建屋は ~/.config/andon/skip に1行1つ（repo の名前）。
+# 置き方: セルの repo で bin/bootstrap host-install（~/.local/bin/andon-up に置く）。
+# このホストで起こさないセルは ~/.config/andon/skip に1行1つ（repo の名前）。
 set -u
 
 plants=${ANDON_PLANTS:-$HOME/src}
@@ -17,10 +18,12 @@ fi
 
 logs=$HOME/.local/state/andon/andon-up
 mkdir -p "$logs" && chmod 700 "$logs" || exit 1
-up=0 failed=0
-for dir in "$plants"/andon-*; do
+up=0 failed=0 seen=" "
+for dir in "$plants"/*-cell "$plants"/andon-*; do
   [ -x "$dir/bin/bootstrap" ] || continue
   name=$(basename "$dir")
+  case $seen in *" $name "*) continue ;; esac # andon-<x>-cell は両方の形に当たる
+  seen="$seen$name "
   if [ -f "$skip" ] && grep -qx "$name" "$skip"; then
     echo "  - $name（このホストでは起こさない）"
     continue
@@ -33,5 +36,5 @@ for dir in "$plants"/andon-*; do
     failed=$((failed + 1))
   fi
 done
-echo "建屋: 起動 $up / 失敗 $failed"
+echo "セル: 起動 $up / 失敗 $failed"
 [ "$failed" -eq 0 ]

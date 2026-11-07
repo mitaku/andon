@@ -85,13 +85,13 @@ var commands = []command{
 	},
 	{
 		name:  "boot",
-		about: "パッケージから建屋へ配布物を生成し、portless・sshd・dispatcher を起こす（毎起動）",
+		about: "パッケージからセルへ配布物を生成し、portless・sshd・dispatcher を起こす（毎起動）",
 		usage: boot.Usage,
 		run:   boot.Main,
 	},
 	{
 		name:  "init",
-		about: "建屋の repo の雛形（andon-<slug>）を作る",
+		about: "セルの repo の雛形（<slug>-cell）を作る",
 		usage: plantinit.Usage,
 		run:   plantinit.Main,
 	},
