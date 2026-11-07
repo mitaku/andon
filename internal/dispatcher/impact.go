@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"sort"
 
@@ -42,7 +43,14 @@ func (p *project) impact(id string) bool {
 			return true
 		}
 	}
-	if rep, err := contract.ReadReport(filepath.Join(p.l.Library(id), "report.json")); err != nil || rep.PR == "" {
+	rep, err := contract.ReadReport(filepath.Join(p.l.Library(id), "report.json"))
+	if err != nil || rep.PR == "" {
+		return true
+	}
+	// 集められなかったときも Chief of Staff に知らせる（待ちの通知は届くまで控えに残るので、手で確かめるきっかけは失われない）
+	gaveUp := func(why string) bool {
+		p.logf("%s の影響を集められない（諦めて Chief of Staff に知らせる。andon task impact %s で読める）: %s", id, id, why)
+		p.notify(id, "impact", map[string]any{"pr": rep.PR, "error": clean(why, 200)})
 		return true
 	}
 	out, code, err := p.andon("", "task", "impact", id)
@@ -53,16 +61,14 @@ func (p *project) impact(id string) bool {
 	case err != nil:
 		p.st.Impact[id]++
 		if p.st.Impact[id] >= impactTries {
-			p.logf("%s の影響を集められない（%d 回。諦める。Chief of Staff は andon task impact %s で読める）: %v", id, impactTries, id, err)
-			return true
+			return gaveUp(fmt.Sprintf("%d 回打って失敗: %v", impactTries, err))
 		}
 		p.logf("%s の影響を集められない（次の見回りで打ち直す）: %v", id, err)
 		return false
 	}
 	var res contract.Impact
 	if err := json.Unmarshal([]byte(out), &res); err != nil {
-		p.logf("%s の andon task impact の出力が読めない: %v", id, err)
-		return true
+		return gaveUp("andon task impact の出力が読めない: " + err.Error())
 	}
 	detail := ImpactDetail(res)
 	if detail == nil {

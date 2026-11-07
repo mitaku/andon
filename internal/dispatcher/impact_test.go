@@ -43,4 +43,10 @@ func TestImpactDetail(t *testing.T) {
 	if got != want {
 		t.Errorf("line =\n %s\nwant\n %s", got, want)
 	}
+
+	got = line(Notification{Task: "A-1", Kind: "impact", Detail: map[string]any{"pr": res.PR, "error": "3 回打って失敗: exit status 1"}})
+	want = "A-1 impact: https://github.com/example/app/pull/1 のマージの影響を集められなかった（3 回打って失敗: exit status 1）。andon task impact A-1 を打って読む"
+	if got != want {
+		t.Errorf("line =\n %s\nwant\n %s", got, want)
+	}
 }

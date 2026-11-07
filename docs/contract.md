@@ -185,14 +185,14 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `review-requested` | `report.json` の `review_request`（dispatcher が起こしたとき） | `round`・`reviewer`・`reviewer_task` |
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス） |
 | `merged` | ゲートの approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき | `pr`・`sha` |
-| `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED のタスクに dispatcher が `andon task impact` を1回打ち、影響のあるタスクがあったとき（下の「マージのあとの影響」） | `pr`・`sha`・`tasks[]`（`task`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで） |
+| `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED のタスクに dispatcher が `andon task impact` を1回打ち、影響のあるタスクがあったとき（下の「マージのあとの影響」） | `pr`・`sha`・`tasks[]`（`task`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
 
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`task` はタスクについての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
 - 届け方: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
 - **マージのあとの影響**（`impact`）: `andon task impact <id>` は、タスクの PR がマージされたあと、同じ repo の `doing`／`review` の担当のタスク（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
-  出力は `task`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`tasks[]`。`tasks[]` の1件は `task`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更も数える）・`brief_refs[]`（マージした PR のファイルのうち、そのタスクの依頼書に path か名前が出るもの）・`error`（読めなかった理由）。
+  出力は `task`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`tasks[]`。`tasks[]` の1件は `task`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、そのタスクの依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めないときも。影響なしに倒さない）。
   影響あり（通知に載る）は `error` があるか、`contains` でなく `conflict`・`overlap`・`brief_refs` のどれかがあるもの。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff（chief-of-staff skill §7）。出力そのものは Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
 
 ```json

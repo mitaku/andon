@@ -166,8 +166,8 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 そこで**機械で分かる事実だけ**を dispatcher が集めて Chief of Staff に渡し、**判断と担当への依頼は Chief of Staff** が持つ（ADR-0006 決めたこと 14 の 機械→文→人 の順。判断の表は chief-of-staff skill §7）。
 
 - **合図はマージではなく `done` の行**。マージは2つの道で起きる（dispatcher の `merge: auto`・人のマージ）が、どちらも `andon task finish` で `done` になる（人がマージしたときは Chief of Staff が MERGED を確かめてから打つ）。`done` を拾えば1本の道で両方を拾える。Chief of Staff が打った行も拾う（影響は Chief of Staff もまだ見ていない事実なので、「自分のしたことを自分に知らせない」の外）。
-- 拾った id は控えの `Impact` に積み、5b で `andon task impact <id>` を打つ。レビュアー・Chief Engineer・repo の無いタスク・`report.json` に `pr` の無いタスクは打たない。PR が MERGED でない（マージせずにやめた）ときは command が終了コード 4 を返し、ログに1行で終える。失敗は次の見回りで打ち直し、3回で諦めてログに残す（Chief of Staff は同じ command を手で打てる）。
-- `andon task impact` は読むだけ（書くのは `git fetch` だけ）。同じ repo の `doing`／`review` の担当のタスクごとに、branch がもうマージの commit を含むか・`git merge-tree` でぶつかるか・両方が触ったファイル（worktree の commit していない変更も）・依頼書に名前が出るマージのファイル、を出す（形は contract.md §6）。GitHub の `mergeable` はマージの直後には計算中のことが多いので使わず、手元の git で決める。
+- 拾った id は控えの `Impact` に積み、5b で `andon task impact <id>` を打つ。レビュアー・Chief Engineer・repo の無いタスク・`report.json` に `pr` の無いタスクは打たない。PR が MERGED でない（マージせずにやめた）ときは command が終了コード 4 を返し、ログに1行で終える。失敗は次の見回りで打ち直し、3回で諦めて、`pr`・`error` だけの `impact` を Chief of Staff に積む（ログだけにしない。待ちの通知は届くまで控えに残るので、手で `andon task impact` を打つきっかけは失われない）。
+- `andon task impact` は読むだけ（書くのは `git fetch` だけ）。同じ repo の `doing`／`review` の担当のタスクごとに、branch がもうマージの commit を含むか・`git merge-tree` でぶつかるか・両方が触ったファイル（worktree の commit していない変更と未追跡のファイルも。worktree が読めなければ `error`）・依頼書に名前が出るマージのファイル、を出す（形は contract.md §6）。GitHub の `mergeable` はマージの直後には計算中のことが多いので使わず、手元の git で決める。
 - 影響のあるタスクが1つも無ければ知らせない（ログに1行）。あれば `impact` を1件積み、同じ巡の6で届けうる（`merged` と同じ通に載ることもある）。
 - **担当に `hc send` しない**。rebase を頼む・止めて向きを確かめるは Chief of Staff の判断（§6 の「判断しない」）。rebase そのものは担当がする（Chief of Staff も dispatcher もしない）。
 - 初めて見る台帳では `done` も位置を控えるだけで拾わない（過去のマージを流さない）。`log.jsonl` を先頭から読み直したとき（§2.2）は古い `done` も拾うが、古いマージの commit は動いている branch に含まれる（`contains`）ので、ほとんど知らせにならない。
@@ -350,7 +350,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 14 | boot の起動の段（portless・files サーバ・sshd・git の資格情報） | `andon boot` | 同じポートで 2 つ起動しようとして後の方が bind に失敗する | ⑥起こす前にポートが listen しているかを見る。`gh auth setup-git` は何度打っても同じ。lock は無い（G6） |
 | 15 | `andon publish`（`files/` への書き出し） | 打った者（担当・Chief of Staff・人） | 同じ日・同じ slug は上書き | ⑥同じ日・同じ slug の再公開は上書きと決めてある。一時ファイル＋rename。上限 20 MiB |
 | 16 | hooks（Stop・UserPromptSubmit） | Claude Code が呼ぶ（managed settings）。判断は持たず command を呼ぶだけ | #7・#11 に同じ | 呼ぶ先の command の守り（#7・#11・#1）。UserPromptSubmit の `drain --context` は読むだけで控えを書かない |
-| 17 | マージのあとの影響を集める（`andon task impact`。§2.5） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。Chief of Staff が手で打つこともある | 同じマージの `impact` が 2 度届く。command は読むだけ（`git fetch` のほか書かない）なので、事実が壊れることは無い | ②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Impact`（打ったら外す。失敗は 3 回まで）。⑥command は読むだけで何度打っても同じ事実から同じ出力。**手で打つ分は防がない**が、手で打った Chief of Staff はもう読んでいる |
+| 17 | マージのあとの影響を集める（`andon task impact`。§2.5） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。Chief of Staff が手で打つこともある | 同じマージの `impact` が 2 度届く。command は読むだけ（`git fetch` のほか書かない）なので、事実が壊れることは無い | ②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Impact`（打ったら外す。失敗は 3 回まで打ち直し、諦めたら `error` の `impact` を積む）。⑥command は読むだけで何度打っても同じ事実から同じ出力。**手で打つ分は防がない**が、手で打った Chief of Staff はもう読んでいる |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

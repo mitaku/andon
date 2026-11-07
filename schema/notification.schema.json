@@ -98,10 +98,15 @@
       }
     },
     "impact": {
-      "description": "kind impact: from `andon task impact` after a task's PR was merged. Only the running tasks it may affect; the Chief of Staff judges.",
-      "type": "object", "required": ["pr", "sha", "tasks"], "additionalProperties": false,
+      "description": "kind impact: from `andon task impact` after a task's PR was merged. Only the running tasks it may affect; the Chief of Staff judges. When the facts could not be collected, only pr and error.",
+      "type": "object", "required": ["pr"], "additionalProperties": false,
+      "oneOf": [
+        { "required": ["sha", "tasks"], "not": { "required": ["error"] } },
+        { "required": ["error"], "not": { "anyOf": [{ "required": ["sha"] }, { "required": ["tasks"] }] } }
+      ],
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
+        "error": { "description": "Why the dispatcher gave up collecting the facts (after retries).", "type": "string", "minLength": 1 },
         "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "tasks": {
           "description": "Running tasks in the same repo that conflict, overlap, are referenced by the brief, or could not be read.",

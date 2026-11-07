@@ -62,12 +62,16 @@ clean=$(task '同じファイルの別の所' doing)
 dirty=$(task 'commit していない' doing)
 brief=$(task '依頼書が指す' doing '入力（正）: doc.md の段')
 none=$(task '関係ない' doing)
+fresh=$(task 'まだ git add していない新しいファイル' doing)
+gone=$(task 'worktree が読めない' doing)
 edit "$m" doc.md 's/^a$/A merged/'
+echo merged > "$HOME/.herdr/worktrees/app/demo-$m/new.md"; git -C "$HOME/.herdr/worktrees/app/demo-$m" add new.md; git -C "$HOME/.herdr/worktrees/app/demo-$m" commit -qm new
 edit "$conf" doc.md 's/^a$/A mine/'
 edit "$clean" doc.md 's/^g$/G mine/'
 edit "$dirty" doc.md 's/^f$/F wip/' nocommit
 edit "$brief" other.md 's/^x$/y/'
 edit "$none" other.md 's/^x$/z/'
+echo new > "$HOME/.herdr/worktrees/app/demo-$fresh/new.md"   # 未追跡（マージした PR も new.md を足す）
 # レビュアー（親が m・profile *-review）は見ない
 HC_TERMINAL_ID=t5 kanban add 'レビュー' --profile codex-review --parent "$conf" --round 1 >/dev/null
 # m の PR をマージする（squash の代わりに m の commit を origin の main に入れる）
@@ -85,22 +89,26 @@ rc=0; "$andon" task impact "$m" >"$tmp/out" 2>"$tmp/err" || rc=$?
 ok 'PR がまだ MERGED でなければ終了コード 4 で何も出さない'
 
 # 2. マージしたあと: 衝突・重なり・依頼書・関係なし
-jq -n --arg o "$sha" '{state: "MERGED", mergeCommit: {oid: $o}, files: [{path: "doc.md"}]}' > "$tmp/gh/view.json"
+jq -n --arg o "$sha" '{state: "MERGED", mergeCommit: {oid: $o}, files: [{path: "doc.md"}, {path: "new.md"}]}' > "$tmp/gh/view.json"
+# worktree はあるが git として読めない（.git の指す先が消えた）
+echo "gitdir: $tmp/nowhere" > "$HOME/.herdr/worktrees/app/demo-$gone/.git"
 log0=$(wc -l < "$L/log.jsonl")
 st0=$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)
 "$andon" task impact "$m" > "$tmp/impact.json" || die "andon task impact が落ちた: $(cat "$tmp/impact.json")"
 I=$tmp/impact.json
-jq -e --arg m "$m" --arg s "$sha" '.task == $m and .sha == $s and .pr == "https://github.com/example/app/pull/1" and .files == ["doc.md"]' "$I" >/dev/null || die "頭の事実が違う: $(jq -c 'del(.tasks)' "$I")"
+jq -e --arg m "$m" --arg s "$sha" '.task == $m and .sha == $s and .pr == "https://github.com/example/app/pull/1" and .files == ["doc.md", "new.md"]' "$I" >/dev/null || die "頭の事実が違う: $(jq -c 'del(.tasks)' "$I")"
 row() { jq -c --arg t "$1" '.tasks[] | select(.task == $t)' "$I"; }
-[ "$(jq '.tasks | length' "$I")" = 5 ] || die "見るのは同じ repo の doing／review の担当の5件（自分・レビュアーを除く）: $(jq -c '[.tasks[].task]' "$I")"
+[ "$(jq '.tasks | length' "$I")" = 7 ] || die "見るのは同じ repo の doing／review の担当の7件（自分・レビュアーを除く）: $(jq -c '[.tasks[].task]' "$I")"
 row "$conf" | jq -e '.status == "review" and .conflict == true and .conflict_files == ["doc.md"] and .overlap == ["doc.md"] and .contains == false and .pr == "https://github.com/example/app/pull/9"' >/dev/null || die "衝突: $(row "$conf")"
 row "$clean" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "衝突しない重なり: $(row "$clean")"
 row "$dirty" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "commit していない変更の重なり: $(row "$dirty")"
 row "$brief" | jq -e '.conflict == false and .overlap == [] and .brief_refs == ["doc.md"]' >/dev/null || die "依頼書が指す: $(row "$brief")"
 row "$none" | jq -e '.conflict == false and .overlap == [] and .brief_refs == [] and (has("error") | not)' >/dev/null || die "関係ない: $(row "$none")"
+row "$fresh" | jq -e '.overlap == ["new.md"] and (has("error") | not)' >/dev/null || die "まだ git add していない新しいファイルの重なり: $(row "$fresh")"
+row "$gone" | jq -e '.error | contains("commit していない変更が読めない")' >/dev/null || die "worktree が読めないのに error でない: $(row "$gone")"
 [ "$(wc -l < "$L/log.jsonl")" = "$log0" ] || die '台帳に書いた'
 [ "$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)" = "$st0" ] || die 'worktree を変えた'
-ok '同じ repo の動いているタスクごとに、衝突（git merge-tree）・重なり（commit していない変更も）・依頼書の指し・関係なし を出す（台帳と worktree に書かない）'
+ok '同じ repo の動いているタスクごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めなければ error（台帳と worktree に書かない）'
 
 # 3. もう含む（rebase 済み）・branch が読めない
 git -C "$HOME/.herdr/worktrees/app/demo-$clean" -c core.editor=true rebase -q "$sha"

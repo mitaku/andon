@@ -37,7 +37,8 @@ case "\$*" in
   "pr view 7 --repo example/app --json state,mergeCommit")
     if [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
-  "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon task impact
+  "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon task impact（impactfail があれば落ちる）
+    [ ! -f \$d/impactfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},files:[.[0][] | {path: .filename}]}' \$d/files.json
     else echo '{"state":"OPEN","mergeCommit":null,"files":[]}'; fi ;;
   "api graphql "*)  # statusCheckRollup.contexts を100件ずつ（after は前のページの件数）
@@ -268,6 +269,19 @@ n0=$(jq '[.pending[] | select(.kind == "impact")] | length' "$state")
 dispatcher
 [ "$(jq '[.pending[] | select(.kind == "impact")] | length' "$state")" = "$n0" ] || die '同じマージの影響を二度知らせた'
 ok 'マージで done になったら andon task impact を1回打ち、ぶつかる・重なる・依頼書が指す動いているタスクを通知 impact にする（担当には送らない）'
+# 1c. 影響を集められない（gh が落ちる）ときは次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む
+jq --arg m "$merged_id" '.impact = {($m): 0}' "$state" > "$state.new" && mv "$state.new" "$state"
+touch "$tmp/gh/impactfail"
+dispatcher; dispatcher
+jq -e --arg m "$merged_id" '.impact[$m] == 2' "$state" >/dev/null || die "失敗の回数を控えていない: $(jq -c .impact "$state")"
+pending "$merged_id" impact | jq -e 'has("detail") and (.detail | has("error") | not)' >/dev/null || die '3 回の前に諦めた'
+dispatcher
+pending "$merged_id" impact | jq -e '.detail.pr == "https://github.com/example/app/pull/7" and (.detail.error | contains("3 回打って失敗")) and (.detail | has("tasks") | not)' >/dev/null ||
+    die "諦めたのに Chief of Staff に知らせない: $(pending "$merged_id" impact)"
+jq -e '(.impact // {}) | length == 0' "$state" >/dev/null || die '諦めたあとも控えに残った'
+emit <(pending "$merged_id" impact) notification-impact-error.json
+rm "$tmp/gh/impactfail"
+ok '影響を集められなければ次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む（ログだけにしない）'
 
 # 2. fix は担当へ hc send（Must fix が残る）
 id=$(newtask '説明を足す' auto)

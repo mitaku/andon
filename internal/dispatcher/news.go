@@ -67,6 +67,9 @@ func line(n Notification) string {
 	case "merged":
 		return head + d("pr") + " をマージして片付けた（" + clean(n.Detail["sha"], 12) + "）"
 	case "impact":
+		if e, ok := n.Detail["error"]; ok && e != nil {
+			return head + d("pr") + " のマージの影響を集められなかった（" + clean(e, 120) + "）。andon task impact " + clean(n.Task, 40) + " を打って読む"
+		}
 		s := head + d("pr") + " のマージ（" + clean(n.Detail["sha"], 12) + "）で"
 		rows, _ := n.Detail["tasks"].([]any)
 		var parts []string
