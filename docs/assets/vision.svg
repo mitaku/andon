@@ -280,9 +280,9 @@
 <rect x="1101" y="945" width="12" height="12" fill="#3d6fa8" rx="1"/>
 <path d="M1103.5 951 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
 <text x="1120" y="956" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">測る</text>
-<text x="1100" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">PR あたりの人の介在回数・自動マージ率・</text>
-<text x="1100" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">差し戻し率・時間: 設計だけ（未集計）。</text>
-<text x="1100" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">後悔しないマージの率: 無い</text>
+<text x="1100" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">一次: PR あたりの人の介在回数。</text>
+<text x="1100" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">自動マージ率・差し戻し率・時間は並べて見る。</text>
+<text x="1100" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">設計だけ（未集計）。後悔の率は測らない</text>
 <path d="M356 982 L400 982" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
 <path d="M700 982 L744 982" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
 <path d="M1044 982 L1088 982" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
