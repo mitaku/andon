@@ -227,7 +227,7 @@ A list, oldest first. Each question is named `<id>#<n>` (`FD-0012#2`).
 |---|---|---|
 | `n` | integer | **Required.** 1, 2, … within the issue; never reused. |
 | `text` | string | **Required.** The question, written for the person: what, why it matters, the options, and the agent's pick. |
-| `kind` | string | Optional. `business`, `users`, `promise` or `irreversible`: the four kinds of decision point (the decision points of [design.md](design.md) §1.3); or `line`: a change to the line itself (the gates, roles and rules the work runs on, not the product); or `scope`: which of the candidates a fix issue's agent found it should fix. A `scope` question is for the Chief of Staff, not a decision point for the person: viewers that count what needs the person leave it out. |
+| `kind` | string | Optional. `business`, `users`, `promise` or `irreversible`: the call (`business`, `users`, `promise`) and fixed-position stop (`irreversible`) decisions of [design.md](design.md) §1.3; or `line`: a change to the line itself (the gates, roles and rules the work runs on, not the product); or `scope`: which of the candidates a fix issue's agent found it should fix. A `scope` question is for the Chief of Staff, not a decision point for the person: viewers that count what needs the person leave it out. |
 | `status` | string | `open` (asked), `answered` (the answer is in the ledger), `received` (the agent has it). |
 | `asked`, `answered`, `received` | string | UTC times, as in `issue.yaml`. |
 | `askedBy`, `answeredBy` | string | As `by` in `log.jsonl`. |

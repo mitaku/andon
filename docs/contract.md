@@ -132,7 +132,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 人が「文脈なしで読めて、1通で答えられる」形。2つに書く:
 
-1. `kanban ask <id> "<text>" --kind <k>`: `questions.yaml` の `text` は人向けの描画（下の JSON から command が作る。何の判断か・事実・理由・選択肢・推奨案・あと何問）。`kind` は下の JSON の `kind` と同じ。台帳の CLI は判断の5種（`line` まで）と `scope` を受ける（`kanban ask --kind scope`。[ledger.md](ledger.md) の Questions）。
+1. `kanban ask <id> "<text>" --kind <k>`: `questions.yaml` の `text` は人向けの描画（下の JSON から command が作る。何の決断か・事実・理由・選択肢・推奨案・あと何問）。`kind` は下の JSON の `kind` と同じ。台帳の CLI は灯りの決断（`line` まで。design.md §1.3）と `scope` を受ける（`kanban ask --kind scope`。[ledger.md](ledger.md) の Questions）。
 2. `issues/<id>/library/questions/<n>.json`（`n` は台帳が付けた番号）:
 
 ```json
@@ -147,7 +147,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 | キー | 要るか | 意味 |
 |---|---|---|
-| `kind` | 必須 | `business` / `users` / `promise` / `irreversible` / `line`（判断5種。design.md §1.3）か `scope`（範囲。直す課題が候補のどれを直すかを問う。宛先は Chief of Staff で、灯りではない＝ボードの「Needs you」に数えない。`facts` に `candidates.json`〈§12〉のパスと依頼書の行、`options` は候補の `id` で書き、`from` は `issue`。[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 3・4） |
+| `kind` | 必須 | `business` / `users` / `promise` / `irreversible` / `line`（灯りの決断。design.md §1.3）か `scope`（範囲。直す課題が候補のどれを直すかを問う。宛先は Chief of Staff で、灯りではない＝ボードの「Needs you」に数えない。`facts` に `candidates.json`〈§12〉のパスと依頼書の行、`options` は候補の `id` で書き、`from` は `issue`。[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 3・4） |
 | `question` | 必須 | 1行（改行を含まない）。問いそのもの |
 | `facts[]`・`reason` | 任意 | 事実と理由。写さず、パスか URL で指す。委譲の範囲外で出す問いは `facts` に「委譲 `<scope>: <値>` の外」を1行 |
 | `options[]` | 必須（2つ以上） | `label` と `pick`。**先頭**が `pick: true`（推奨案）で、2つ目からは `pick` を書かないか `false` |

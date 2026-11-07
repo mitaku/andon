@@ -4,7 +4,7 @@
 
 **Andon — a one-person software factory.** AI coding agents take issues from a ledger through implementation, review and merge, and the human is called only for the decisions that only they can make.
 
-一人で使うソフトウェア工場。エージェントが台帳の課題を実装・レビュー・マージまで流し、人は自分にしかできない判断のときだけ呼ばれる。
+一人で使うソフトウェア工場。エージェントが台帳の課題を実装・レビュー・マージまで流し、人は自分にしかできない決断のときだけ呼ばれる。
 
 ## English summary
 
@@ -39,7 +39,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 ## 日本語
 
-設計の言葉では「選択的 Dark Factory」と呼んでいる。Dark Factory は、床に人がいないので灯りを消して回る工場のこと。Andon はそのうち、止められるものは機械（テスト・ゲート）、判断が要るものは LLM、残りだけ人が見る。名前は TPS のアンドン（人を呼ぶ灯り）から。製造業のアンドン製品ではない。設計は docs/ に PR で入る。最終的に public にするつもりで建てる（秘密と、案件や個人に固有の値は入れない。`docs/design.md` §2.6）。
+設計の言葉では「選択的 Dark Factory」と呼んでいる。Dark Factory は、床に人がいないので灯りを消して回る工場のこと。Andon はそのうち、止められるものは機械（テスト・ゲート）、判断が要るものは LLM、決断が要るものだけ人が見る。名前は TPS のアンドン（人を呼ぶ灯り）から。製造業のアンドン製品ではない。設計は docs/ に PR で入る。最終的に public にするつもりで建てる（秘密と、案件や個人に固有の値は入れない。`docs/design.md` §2.6）。
 
 今の状態: 実験的で、1人で使っている。約束（コマンド・形式）は断りなく変わる。文書は日本語が中心。1人用の repo なので、今は PR を受け付けていない。脆弱性の知らせ方は [SECURITY.md](SECURITY.md)。
 

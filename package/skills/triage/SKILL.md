@@ -54,7 +54,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 | 3 | **済んでいる**: 同じ内容の課題が done／リポジトリの文書に既に入っている（`git grep`）／docs の「決めたこと」で決まっている | `close`「済み: <どこで>」 |
 | 4 | **起きない**: 見送りの `trivial`（起きる条件を示せない）／`minor` のうち、起きる条件がその repo に無い | `close`「起きない: <理由>」 |
 | 5 | **人にしかできない**: 実機・別のセル・外部サービスの UI（Revoke・支払い・プランの変更）・人の目視が完了条件 | `person`（`kind` を付けない。`question` に期限の目安） |
-| 6 | **灯りがつく判断の4種**（事業＝何を作るか・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開・不可逆＝消す・本番・push 先・権限・秘密）、またはゲートのレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行） |
+| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕）、またはゲートのレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行） |
 | 7 | **直せて、束ねられる**: 8 の条件を満たし、同じ repo で各々が小さい（目安 50 行以下）ものが、今回の項目に 3 つ以上ある | `bundle`（同じ `bundle` 名。1課題1 PR、commit は意図ごと） |
 | 8 | **直せる**: 完了条件が 1〜3 行で書け、差分が 1 repo に収まり、レベル A か B、可逆 | `fix`（`issue` を付ける。§4） |
 | 9 | 待つものがある（`after` に書ける id・リリース待ち・作業中の課題） | `keep`（理由に待つものの id） |
@@ -65,7 +65,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 - **「人が PR #n をマージする」**: PR が open なら `close` ではなく `keep`（「待つ: PR #n のマージ」）。MERGED なら 2 で `close`。
 - **`leftover`**: PR が MERGED（repo の無い課題は done）なら `keep`「片付け待ち: andon issue finish <id>」。片付けるのは Chief of Staff で、片付けば次回は出ない。
   MERGED でない・commit していない変更があるなら 6 の `irreversible`（消してよいかは人）。
-- **`question`**（人の課題になっていない `## 人に聞くこと`）: 表のとおり 5・6 が先。4種に当たれば、推奨案があり後で変えられても `person`。
+- **`question`**（人の課題になっていない `## 人に聞くこと`）: 表のとおり 5・6 が先。灯りがつく決断に当たれば、推奨案があり後で変えられても `person`。
   5・6 に当たらず推奨案があり後で変えられるものだけが 8 の `fix`（推奨案で決めて文書の「決めたこと」に「仮（<日付>・Chief of Staff）」と書く課題）。
   例: 使い勝手の既定値は `person`（`users`）。テストの置き場や文書の節の分け方は `fix`。ask-one-by-one skill §1 と同じ線。
 - **`agents`**（`For AGENTS.md:`）: 行き先が決まっているので `fix`。同じ repo に 3 つ以上なら `bundle`（「AGENTS.md に n 行足す」。profile は `sonnet`）。
