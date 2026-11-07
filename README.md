@@ -27,7 +27,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 | [docs/contract.md](docs/contract.md), [schema/](schema/) | Machine-readable contracts (ledger keys, findings, reports, questions, notifications, gate, delegation). `schema/` is the source of truth |
 | [docs/operate.md](docs/operate.md) | How to set up a cell and run one issue |
 | [docs/dispatcher.md](docs/dispatcher.md), [docs/ledger.md](docs/ledger.md), [docs/image.md](docs/image.md) | The dispatcher (resident notifier), the ledger CLI, the container image |
-| [docs/adr/](docs/adr/), [docs/decisions.md](docs/decisions.md) | Architecture decision records and the decision log |
+| [docs/adr/](docs/adr/), [docs/decisions.md](docs/decisions.md), [docs/decisions/](docs/decisions/) | Architecture decision records and the decision log (one file per decision from 2026-11-07) |
 | `cmd/andon`, `cmd/kanban`, `internal/` | The `andon` CLI and the ledger CLI (`kanban`, alias `deck`), in Go |
 | `package/` | What is shipped into the cell at `/opt/andon`: skills, agent profiles, gate rules, managed settings, hooks, compose file, host templates |
 | `image/`, `init/` | The base image, and the template that `andon init` copies into a new cell repo |
@@ -51,7 +51,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 - [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席時の送り）、どこまで動かすか（判断はしない）
 - [docs/operate.md](docs/operate.md) — セルを立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しの課題）
 - [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。[0001 skill の配布](docs/adr/0001-skills-distribution.md): セルの中は plugin `andon` と `.agents/skills` の symlink・役の skill を system prompt に足す。外は Andon が届く所に届く。やらないこと: MCP・marketplace。[0002 Herdr App の Space](docs/adr/0002-herdr-spaces.md): 指揮側と作業側の Space・tab は課題・口は hc のラベルだけ・試してから指揮側の割り方を決め直す。[0003 課題ごとの Space](docs/adr/0003-task-spaces.md): 作業側を Space ＝ 課題にし、App の Files・Changes が課題の worktree を指す
-- [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定
+- [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
 - [REVIEW.md](REVIEW.md) — この repo のレビュアーの観点
 - [SECURITY.md](SECURITY.md) — 脆弱性の知らせ方

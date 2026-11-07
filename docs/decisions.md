@@ -1,11 +1,30 @@
 # 決定の記録
 
-Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きしない。覆したら下に新しい行を足し、古い行に「→ 覆された」と書く。**
+Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きしない。覆したら新しい決定を足し、古い決定に「→ 覆された」と書く。**
+
+**置き場（2026-11-07 から）**: 新しい決定は [decisions/](decisions/) に **1 件 1 ファイル**で足す。この文書の §1〜§22 は凍結した（行を足さない。足してよいのは古い行への「→ 覆された」の注だけ）。並べて走る PR がどれもこの表の末尾に足すと、マージのたびに次の PR がぶつかったため（[decisions/2026-11-07-decision-log-one-file-each.md](decisions/2026-11-07-decision-log-one-file-each.md)）。§ の番号と行はそのまま残すので、「decisions.md §16」のような今までの参照は生きる。
+
+`decisions/` の 1 ファイルの書き方:
+
+- 名前は `YYYY-MM-DD-<英字の短い題>.md`（決めた日。小文字・数字・`-`）。ADR は `YYYY-MM-DD-adr-NNNN-<題>.md`。名前の順がそのまま日付の順の一覧になる（一覧のファイルは作らない。作れば、それが次のぶつかる所になる）。
+- 中身は次の形。1 件に 1 ファイル。ADR 1 本にも 1 ファイル（要点と番号。中身・理由・捨てた案は ADR が正）。
+
+  ```
+  # <決定の要点を 1 行>
+
+  - 日付: YYYY-MM-DD
+  - 出典: <下の書き方。人の言葉なら日付つき・タスクの番号>
+  - 覆す: <覆す決定のファイルか「decisions.md §N の行（日付）」。覆すときだけ>
+
+  <決定の中身。今までの表の「決定」の列に当たるもの>
+  ```
+
+- 覆すとき: 新しいファイルを足して `- 覆す:` に前の決定を書き、前のファイルには `- 覆された: <新しいファイル>` の 1 行だけを足す（中身は書き換えない）。前の決定がこの文書の行なら、その行の末尾に「→ 覆された（decisions/<新しいファイル>）」と書く。
 
 出典の書き方:
 
 - **設計書 §6 問いN** — [design.md](design.md) の §6 の問いと、その「人の答え」の列。
-- **ADR-NNNN** — [adr/](adr/) の文書（Chief Engineer の題。design.md §1.8）。ADR 1本につきこの記録には1行（要点と番号）。各決定の中身・理由・捨てた案は ADR が正。
+- **ADR-NNNN** — [adr/](adr/) の文書（Chief Engineer の題。design.md §1.8）。ADR 1本につき1件（要点と番号。§14 は凍結した表、2026-11-07 から `decisions/` に1ファイル）。各決定の中身・理由・捨てた案は ADR が正。
 - **仮設の記録（private）** — 仮設の工場（Andon の前身の実装）の設計文書・ゲートの文書・トリアージの文書。private で、public の読み手には届かない。決定の中身はここに写してあるので、設計の正はこの文書。仮設の語（yard・コーディネーター・段 A/B/C・知らせ）は、Andon の語（セル・Chief of Staff・レベル A/B/C・通知）に直して写す。対応は design.md §2.4。
 
 語の改め: 2026-11-07 より前の行の「建屋」（plant）は、今の語では**セル**（cell。design.md §0.1・§2.4）。行は書き換えない。
@@ -222,7 +241,7 @@ Andon の決定を、日付と出典つきで 1 行ずつ残す。**上書きし
 | 日付 | 決定 | 出典 |
 |---|---|---|
 | 2026-11-05 | skill の配布: Claude Code 系は `/opt/andon` を plugin `andon` として `--plugin-dir` で読み（`/andon:<name>`）、役の skill を `--append-system-prompt-file` で system prompt に足す。Codex など `.agents/skills` を読むハーネス向けは boot が `~/.agents/skills/andon-<name>` の symlink。作業側の別マシンは image で立てる。PR 時の stale 検査は入れず、版の照合は `machine` と一緒（`ANDON_HOME` が checkout なら照合しない）。やらないこと: Skills over MCP・独自エージェント・marketplace での配布・Intent／npm 同梱 | [ADR-0001](adr/0001-skills-distribution.md) |
-| 2026-11-05 | Chief Engineer の題は ADR（`docs/adr/NNNN-<題>.md`。番号と状態つき。形は design.md §1.8 のまま）。decisions.md には ADR 1本につき1行。部品の生きた設計（courier・image・ledger）と核（design・contract・decisions・operate）は `docs/` 直下のまま | 人の決定 2026-11-05（Y-84 の対話） |
+| 2026-11-05 | Chief Engineer の題は ADR（`docs/adr/NNNN-<題>.md`。番号と状態つき。形は design.md §1.8 のまま）。decisions.md には ADR 1本につき1行。部品の生きた設計（courier・image・ledger）と核（design・contract・decisions・operate）は `docs/` 直下のまま → 1行の置き場を改めた（[decisions/2026-11-07-decision-log-one-file-each.md](decisions/2026-11-07-decision-log-one-file-each.md)。ADR 1本に1件は変えない） | 人の決定 2026-11-05（Y-84 の対話） |
 | 2026-11-05 | Herdr App の Space と tab: 建屋から指す口は hc のラベル `herdr.space`・`herdr.tab` だけで、書くのは Andon の command とクーリエ。Space はプロジェクト × 2 段（指揮側 `andon-<slug>`・作業側 `andon-<slug>-work`。試作 S0 の結果で確定）、tab はタスク 1 つ（レビュアーは担当と同じ tab に横に並ぶ）。id は command が決定的に作る。command は attach を打たない（出た場所を「<Space 名> / <tab 名>」で出す。人に端末を指す言い方も同じ形）。名前は建屋から付けられないので、Andon 同梱の App の mod が人の App の中でラベルから付ける（Space `<slug>`・`<slug> work`、tab `CoS`・`CE <id> <題>`・`<id> <題>`。並行して upstream に機能を頼む）。片付けは空になって消えるのに任せる。仮設の `yard task` には入れない。やらないこと: ペインの分割・`herdr-app` や建屋の `herdr` CLI・Chief of Staff による Space の操作・`where`・mod が名前以外に触ること | [ADR-0002](adr/0002-herdr-spaces.md)（Y-105・Y-106 の対話） |
 | 2026-11-06 | Herdr App の作業側は Space ＝ タスク（`herdr.space=andon-<slug>-<id>`・名前 `<id> <題>`。tab は担当の 1 つで id は今まで同じ `andon-<slug>-<id>`・名前 `<id>`。レビュアーは担当と同じ tab）。Space のフォルダが担当の worktree になり、App の Files・Changes がタスクを指す。ADR-0002 の決めたこと 1・2 の作業側を覆す。指揮側は変えない | [ADR-0003](adr/0003-task-spaces.md)（人 2026-11-06。Y-147） |
 | 2026-11-06 | 建屋の repo の `projects/<slug>/`（プロジェクトのルート）の構成: 直下の予約名と書く人・memory は置かない（アウターループで wiki へ）・auto memory は managed で OFF（`autoMemoryEnabled: false` と `env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`）。実装は別タスク（台帳の改名 Y-141 など） | [ADR-0004](adr/0004-project-layout.md)（人 2026-11-06。PR #52 のマージ。Y-161） |

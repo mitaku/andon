@@ -264,7 +264,7 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 ## 出典（読んだもの・捨てた案の出所）
 ```
 
-置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<題の英字>.md`（4桁の通し番号。先頭の状態行は `提案`／`決定（日付）`／`覆された → ADR-NNNN`。中身の形は上のとおりで、受け入れ条件と切る案が ADR の「結果」に当たる。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。人の決定 2026-11-05。最初の ADR は [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)）。[decisions.md](decisions.md) には ADR 1本につき1行（要点と番号）を足し、各決定を写し直さない。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。
+置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<題の英字>.md`（4桁の通し番号。先頭の状態行は `提案`／`決定（日付）`／`覆された → ADR-NNNN`。中身の形は上のとおりで、受け入れ条件と切る案が ADR の「結果」に当たる。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。人の決定 2026-11-05。最初の ADR は [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)）。決定の記録には ADR 1本につき1件（要点と番号）を [decisions/](decisions/) に1ファイルで足し、各決定を写し直さない（書き方は [decisions.md](decisions.md) の冒頭）。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。
 
 **Chief of Staff への渡し方**（台帳経由。約束は [contract.md](contract.md) §4・§8。新しい約束は足さない）:
 
@@ -485,7 +485,8 @@ andon/
     design.md                この文書
     contract.md              機械向けの約束の説明（正は schema/）
     dispatcher.md               dispatcher の設計（何を拾い、誰にいつどう届け、どこまで動かすか）
-    decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。ADR は1本1行）
+    decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。表は 2026-11-07 で凍結）
+    decisions/YYYY-MM-DD-<題>.md  2026-11-07 からの決定の記録（1件1ファイル。ADR は1本1件。書き方は decisions.md の冒頭）
     operate.md               セルの立て方・更新・引っ越し（人の手順）
     adr/NNNN-<題>.md         Chief Engineer の題ごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（dispatcher.md・image.md・ledger.md）は直下のまま
     assets/logo/             Andon と dispatcher の記号・ワードマーク（SVG。明るい背景用と -dark。窓の色の意味は置き場の README）
