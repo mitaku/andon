@@ -52,7 +52,7 @@ export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # 台帳の by を選ぶ（t5 が Chief of Staff、t7 が担当）
 id=$(as t5 kanban add 'andon task を足す' --profile claude)
-as t5 kanban set "$id" review=on must_fix=major "worktree=$tmp/wt" >/dev/null
+as t5 kanban set "$id" review=on must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=kanban/tasks/$id/library
 pr=https://github.com/example/app/pull/7
 export HC_TERMINAL_ID=t7
@@ -153,13 +153,13 @@ ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で r
 
 # review: off なら照合しない。review が無ければ止まる
 id2=$(as t5 kanban add 'レビュー無し' --profile codex)
-as t5 kanban set "$id2" review=off "worktree=$tmp/wt" >/dev/null
+as t5 kanban set "$id2" review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 "$andon" task report "$id2" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on でない' "$andon" task review-request "$id2" <<<'## Report'
 "$andon" task ready "$id2" >/dev/null
 ok 'ready: review: off ならレビューを照合しない。review-request は断る'
 id3=$(as t5 kanban add 'Settings 無し')
-as t5 kanban set "$id3" "worktree=$tmp/wt" review_rounds=1 >/dev/null
+as t5 kanban set "$id3" "worktree=$tmp/wt" repo=github.com/example/app review_rounds=1 >/dev/null
 "$andon" task report "$id3" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on/off でない' "$andon" task ready "$id3"
 ok 'ready: task.yaml の review が無ければ止まる'
@@ -192,6 +192,7 @@ ok 'ask: 形の違う問いは台帳に書く前に止まる'
 git init -q "$tmp/wt2"
 commit2() { echo "$1" > "$tmp/wt2/f"; git -C "$tmp/wt2" add f; git -C "$tmp/wt2" commit -qm "$1"; git -C "$tmp/wt2" rev-parse HEAD; }
 s1=$(commit2 one)
+field0() { kanban show "$1" --json | jq -r --arg k "$2" '.task[$k] // ""'; }
 # 直すタスクが範囲で止まる: candidates → ask（scope）→ stop-check は通す
 fx=$(as t5 kanban add '誤字を1つ直す' --profile claude)
 as t5 kanban set "$fx" review=off must_fix=major "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
@@ -259,14 +260,17 @@ kanban start "$sv2" >/dev/null
 "$andon" task report "$sv2" <<<'## Report' >/dev/null
 expect_fail 'pr が無い' "$andon" task ready "$sv2"
 ok 'ready: deliverable を最後に書いたのが Chief of Staff でなければ pr として PR を要る'
-# repo の無い調べるタスク: commit を書かず、HEAD を照合しない。cwd は git の外（start と同じ tasks/<id>/）で、candidates → report → ready まで通る
+# repo の無い調べるタスク: commit を書かず、HEAD を照合しない。cwd は git の外（start と同じ tasks/<id>/）で、candidates → report → ready まで通る。
+# kanban start を git の checkout の中で打つと worktree が入るが（台帳が checkout の中にあるとき）、repo が無ければ repo の無いタスクとして読む
 nr=$(as t5 kanban add '調べる: repo 無し' --profile claude)
 as t5 kanban set "$nr" deliverable=candidates review=off >/dev/null
-kanban start "$nr" >/dev/null
+(cd "$tmp/wt2" && kanban start "$nr" >/dev/null)
+[ -n "$(field0 "$nr" worktree)" ] || die 'repo 無し: kanban start が worktree を書かない（前提が崩れた）'
 pushd "kanban/tasks/$nr" >/dev/null
 ! git rev-parse HEAD >/dev/null 2>&1 || die 'repo 無し: cwd が git の中'
 "$andon" task candidates "$nr" - <<<'{"candidates":[{"id":"c1","text":"x","in_scope":false}]}' >/dev/null
 jq -e 'has("commit") | not' library/candidates.json >/dev/null
+commit2 three >/dev/null   # worktree に入った checkout の HEAD が進んでも止まらない
 "$andon" task report "$nr" --data '{"next":[{"to":"chief-of-staff","text":"candidates.json から切る"}]}' <<<'## Report' >/dev/null
 jq -e 'has("commit") | not' library/report.json >/dev/null
 emit library/report.json report-norepo.json

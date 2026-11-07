@@ -173,8 +173,10 @@ func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "rep
 
 func (c *ctx) candidatesPath() string { return filepath.Join(c.l.Library(c.id), "candidates.json") }
 
-// hasRepo は repo のあるタスクか（task.yaml の repo か worktree）。repo の無いタスクの報告と候補は commit を持たない。
-func (c *ctx) hasRepo() bool { return c.task.Str("repo") != "" || c.task.Str("worktree") != "" }
+// hasRepo は repo のあるタスクか（task.yaml の repo）。worktree では見ない: kanban start は cwd の git の根を
+// worktree に書くので、repo の無いタスクでも台帳が git の checkout の中にあれば worktree が入る。
+// repo の無いタスクの報告と候補は commit を持たない。
+func (c *ctx) hasRepo() bool { return c.task.Str("repo") != "" }
 
 // readInput は <file|-> の中身。
 func readInput(stdin io.Reader, src string) ([]byte, error) {
