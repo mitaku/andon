@@ -14,6 +14,7 @@ import (
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/chiefofstaff"
+	"andon/internal/create"
 	"andon/internal/delegate"
 	"andon/internal/dispatcher"
 	"andon/internal/gate"
@@ -43,6 +44,12 @@ var commands = []command{
 		about: "プロジェクトの Chief of Staff を起こす（動いていれば、そのまま使う）",
 		usage: chiefofstaff.Usage,
 		run:   chiefofstaff.Main,
+	},
+	{
+		name:  "create",
+		about: "プロジェクトを立てる（projects/<slug>/ に台帳・project.json の下書き・AGENTS.md。足りないものは聞く）",
+		usage: create.Usage,
+		run:   create.Main,
 	},
 	{
 		name:  "open",

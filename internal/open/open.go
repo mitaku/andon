@@ -34,10 +34,7 @@ const (
 // 差し替えられる外部とのつなぎ（テスト用）。
 var (
 	start      = chiefofstaff.Start
-	isTerminal = func(f *os.File) bool {
-		fi, err := f.Stat()
-		return err == nil && fi.Mode()&os.ModeCharDevice != 0
-	}
+	isTerminal = spawn.IsTerminal
 	// pick は fzf に lines を渡し、選ばれた行を返す。
 	pick = func(lines []string, stderr io.Writer) (string, error) {
 		c := exec.Command("fzf", "--prompt", "andon open> ", "--height", "40%", "--reverse")
