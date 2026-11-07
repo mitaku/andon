@@ -53,7 +53,7 @@ func newRetry(t *testing.T) *retryFixture {
 	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
-		tasks: []ledger.Task{{"id": "S-7", "status": "doing", "agent": "t42"}}}
+		tasks: []ledger.Issue{{"id": "S-7", "status": "doing", "agent": "t42"}}}
 	return f
 }
 
@@ -97,7 +97,7 @@ func (f *retryFixture) at(m time.Duration, cos string) []string {
 func (f *retryFixture) kinds() []string {
 	var k []string
 	for _, n := range f.p.st.Pending {
-		k = append(k, n.Task+":"+n.Kind)
+		k = append(k, n.Issue+":"+n.Kind)
 	}
 	return k
 }

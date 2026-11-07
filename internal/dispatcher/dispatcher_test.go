@@ -24,7 +24,7 @@ func TestRetry(t *testing.T) {
 		{"初めて", Reviewer{}, false, 2, 5, true},
 		{"起こした（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 5, false},
 		{"起こした回を同じ commit で頼み直した（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 9, false},
-		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerTask: "D-2", Row: 5}, true, 2, 5, true},
+		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true},
 		{"設定で起こさない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, false},
 		{"起こさなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true},
 		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true},
@@ -37,7 +37,7 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子タスクが無ければ起こしに行き、
+// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子課題が無ければ起こしに行き、
 // あれば引き継ぐ（todo でなければもう受けている。todo なら端末を照らし、live なら address を引き継ぐ）。
 func TestAdopt(t *testing.T) {
 	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
@@ -46,7 +46,7 @@ func TestAdopt(t *testing.T) {
 		"D-3": "対象: worktree `y`（detached）。commit " + c2 + "。差分は",
 	}
 	brief := func(rev string) string { return briefs[rev] }
-	tasks := []ledger.Task{
+	tasks := []ledger.Issue{
 		{"id": "D-1", "status": "doing", "profile": "claude"},
 		{"id": "D-2", "status": "done", "profile": "codex-review", "parent": "D-1", "agent": "t9"},
 		{"id": "D-3", "status": "todo", "profile": "codex-review", "parent": "D-1"},
@@ -54,13 +54,13 @@ func TestAdopt(t *testing.T) {
 	}
 	none := func(string) (string, int, bool) { return "", 0, false }
 	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief, none); ok {
-		t.Error("子タスクの無い commit を引き継いだ（起こしに行かない）")
+		t.Error("子課題の無い commit を引き継いだ（起こしに行かない）")
 	}
-	if r, ok := Adopt(tasks, "D-1", c1, brief, none); !ok || !r.Started || r.ReviewerTask != "D-2" || r.Address != "t9" {
-		t.Errorf("受けた子タスク: %+v %v（もう受けているはず）", r, ok)
+	if r, ok := Adopt(tasks, "D-1", c1, brief, none); !ok || !r.Started || r.ReviewerIssue != "D-2" || r.Address != "t9" {
+		t.Errorf("受けた子課題: %+v %v（もう受けているはず）", r, ok)
 	}
-	if r, ok := Adopt(tasks, "D-1", c2, brief, none); !ok || r.Started || r.ReviewerTask != "D-3" || r.Address != "" {
-		t.Errorf("todo で端末も無い子タスク: %+v %v（起こすところから続けるはず）", r, ok)
+	if r, ok := Adopt(tasks, "D-1", c2, brief, none); !ok || r.Started || r.ReviewerIssue != "D-3" || r.Address != "" {
+		t.Errorf("todo で端末も無い子課題: %+v %v（起こすところから続けるはず）", r, ok)
 	}
 	// todo だが端末が live（hc run は通ったが kanban start の前に落ちた）: address を引き継ぎ、hc run し直さない
 	asked := ""
@@ -73,7 +73,7 @@ func TestAdopt(t *testing.T) {
 		t.Errorf("todo で端末が live（もう受けている）: %+v %v（二重に送らないはず）", r, ok)
 	}
 	if _, ok := Adopt(tasks, "D-9", c1, brief, none); ok {
-		t.Error("ほかのタスクの子を引き継いだ")
+		t.Error("ほかの課題の子を引き継いだ")
 	}
 }
 
@@ -151,15 +151,15 @@ func TestChecksStill(t *testing.T) {
 
 func TestStatePushReplacesSameEvent(t *testing.T) {
 	s := &State{Pending: []Notification{}}
-	s.Push(Notification{Task: "D-1", Kind: "gate", Detail: map[string]any{"decision": "fix"}})
-	s.Push(Notification{Task: "D-2", Kind: "gate"})
-	s.Push(Notification{Task: "D-1", Kind: "review-requested"})
-	s.Push(Notification{Task: "D-1", Kind: "gate", Detail: map[string]any{"decision": "approve"}})
+	s.Push(Notification{Issue: "D-1", Kind: "gate", Detail: map[string]any{"decision": "fix"}})
+	s.Push(Notification{Issue: "D-2", Kind: "gate"})
+	s.Push(Notification{Issue: "D-1", Kind: "review-requested"})
+	s.Push(Notification{Issue: "D-1", Kind: "gate", Detail: map[string]any{"decision": "approve"}})
 	if len(s.Pending) != 3 {
 		t.Fatalf("len = %d, want 3: %+v", len(s.Pending), s.Pending)
 	}
 	last := s.Pending[2]
-	if last.Task != "D-1" || last.Kind != "gate" || last.Detail["decision"] != "approve" {
+	if last.Issue != "D-1" || last.Kind != "gate" || last.Detail["decision"] != "approve" {
 		t.Errorf("同じ task と kind が新しい1件に置き換わっていない: %+v", s.Pending)
 	}
 }
@@ -170,8 +170,8 @@ func TestStateLoadSave(t *testing.T) {
 	if err != nil || !first || st.Reviewers == nil || st.Gates == nil || st.Pending == nil {
 		t.Fatalf("初めて: first=%v err=%v st=%+v", first, err, st)
 	}
-	st.Reviewers["D-1@abc"] = Reviewer{Task: "D-1", Commit: "abc", Failed: "fetch", Attempts: 1, ReviewerTask: "D-2", Address: "t9"}
-	st.Gates["D-1#3"] = Gate{Task: "D-1", Decision: "approve"}
+	st.Reviewers["D-1@abc"] = Reviewer{Issue: "D-1", Commit: "abc", Failed: "fetch", Attempts: 1, ReviewerIssue: "D-2", Address: "t9"}
+	st.Gates["D-1#3"] = Gate{Issue: "D-1", Decision: "approve"}
 	if err := st.Save("demo"); err != nil {
 		t.Fatal(err)
 	}
@@ -196,8 +196,8 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	prev := strings.Repeat("a", 40)
 	rep := &contract.Report{PR: "https://github.com/example/app/pull/7",
 		ReviewRequest: &contract.ReviewRequest{Round: 2, Limit: 2, Commit: strings.Repeat("b", 40), Previous: &prev, Reviewer: "codex-review"}}
-	task := ledger.Task{"id": "D-1", "agent": "t7"}
-	b := reviewerBrief(l, task, rep, Reviewer{Task: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, "example/app", "7")
+	task := ledger.Issue{"id": "D-1", "agent": "t7"}
+	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, "example/app", "7")
 	for _, want := range []string{
 		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
 		"commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
@@ -206,12 +206,12 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 			t.Errorf("依頼書に %q が無い:\n%s", want, b)
 		}
 	}
-	if b2 := reviewerBrief(l, ledger.Task{"id": "D-1"}, rep, Reviewer{Task: "D-1", Round: 2}, "example/app", "7"); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
+	if b2 := reviewerBrief(l, ledger.Issue{"id": "D-1"}, rep, Reviewer{Issue: "D-1", Round: 2}, "example/app", "7"); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
 		t.Errorf("担当がいないのに宛先を書いた:\n%s", b2)
 	}
 }
 
-// 担当の端末のラベル herdr.space・herdr.tab をレビュアーに写す（ADR-0002 決めたこと 12・受け入れ条件 3。ADR-0003 で Space もタスクごと）。読めなければ付けない。
+// 担当の端末のラベル herdr.space・herdr.tab をレビュアーに写す（ADR-0002 決めたこと 12・受け入れ条件 3。ADR-0003 で Space も課題ごと）。読めなければ付けない。
 func TestWorkerPlace(t *testing.T) {
 	bin := t.TempDir()
 	hc := "#!/bin/sh\n[ \"$1 $3\" = 'get --json' ] || exit 9\ncase $2 in\n" +

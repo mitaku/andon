@@ -1,4 +1,4 @@
-package task
+package issue
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// start は偽の kanban と hc・本物の git（bare な origin とその clone）で見る（台帳を本物の kanban で回すのは tests/andon-task.sh）。
+// start は偽の kanban と hc・本物の git（bare な origin とその clone）で見る（台帳を本物の kanban で回すのは tests/andon-issue.sh）。
 // 偽の kanban は $FAKE_ROOT/show-<id>.json を返し、打たれたものを $LOG に書く。偽の hc は FAKE_LS・FAKE_TPL・FAKE_RUN（FAKE_RUN_RC）を返す。
 
 const startKanban = `#!/usr/bin/env bash
@@ -170,7 +170,7 @@ func TestStart(t *testing.T) {
 		"hc templates --json",
 		"hc ls --json",
 		"kanban set S-0007 branch=sample-site/S-0007-add-the-button worktree=" + f.wt(),
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label task=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd " + f.wt() + " claude タスク `sample-site/S-0007`。",
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label issue=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd " + f.wt() + " claude 課題 `sample-site/S-0007`。",
 		"依頼書は `" + brief + "`。",
 		"kanban start S-0007 | HC_TERMINAL_ID=t42 KANBAN_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
@@ -206,7 +206,7 @@ func TestStartWithoutRepo(t *testing.T) {
 	if rc != 0 || errs != "" || !strings.Contains(out, "cwd "+cwd) || strings.Contains(out, "branch") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label task=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd "+cwd+" claude") {
+	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label issue=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd "+cwd+" claude") {
 		t.Errorf("calls=%q", f.calls())
 	}
 }
@@ -305,7 +305,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	for _, want := range []string{
 		"t42（sample-site-s-0007）に最初のメッセージが届いていない: trust prompt",
 		"dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。",
-		"急ぐときだけ手で: hc send t42 \"タスク `sample-site/S-0007`。",
+		"急ぐときだけ手で: hc send t42 \"課題 `sample-site/S-0007`。",
 		"台帳は doing・agent t42 のまま",
 	} {
 		if !strings.Contains(errs, want) {
@@ -353,7 +353,7 @@ func TestStartFirstMessageNoLabel(t *testing.T) {
 
 // 担当の置き場のラベルは slug・id・題だけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7、ADR-0003）。
 func TestWorkLabels(t *testing.T) {
-	want := []string{"project=sample-site", "task=S-0007", "title=Add the button",
+	want := []string{"project=sample-site", "issue=S-0007", "title=Add the button",
 		"herdr.space=andon-sample-site-S-0007", "herdr.tab=andon-sample-site-S-0007"}
 	if got := workLabels("sample-site", "S-0007", "Add the button"); !slices.Equal(got, want) {
 		t.Errorf("got %q want %q", got, want)

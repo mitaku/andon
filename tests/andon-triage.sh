@@ -63,11 +63,11 @@ jq --arg todo "$todo" --arg person "$person" '
    (.[]|select(.kind=="agents")|{key,decision:"bundle",bundle:"docs",reason:"同じrepo",task:task(.text)}),
    (.[]|select(.kind=="question")|{key,decision:"person",reason:"人が必要",question:(.text|ltrimstr("- ")),kind:"promise",pick:"確認する"}),
    (.[]|select(.kind=="unreadable")|{key,decision:"keep",reason:"読む"})]}' "$tmp/items" > "$file"
-# Put bundle first so max-tasks 2 must create one bundle and one fix.
+# Put bundle first so max-issues 2 must create one bundle and one fix.
 jq '.items |= sort_by(if .decision=="bundle" then 0 else 1 end)' "$file" > "$tmp/sorted"; cp "$tmp/sorted" "$file"
 snapshot() { find kanban -type f -exec sha1sum {} + | sort; }
 snapshot > "$tmp/before"
-"$script" triage apply "$triage" --max-tasks 2 --dry-run > "$tmp/plan"
+"$script" triage apply "$triage" --max-issues 2 --dry-run > "$tmp/plan"
 snapshot > "$tmp/after"
 cmp "$tmp/before" "$tmp/after"
 jq -e '[.items[]|select(.decision=="keep")]|length==3' "$tmp/plan" >/dev/null
@@ -102,7 +102,7 @@ done
 cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok absent hash, assigned task and uncollected key rejected without writes'
-"$script" triage apply "$triage" --max-tasks 2 > "$tmp/summary"
+"$script" triage apply "$triage" --max-issues 2 > "$tmp/summary"
 [[ $(kanban show "$todo" --json | jq -r .issue.status) == done ]]
 tail -1 "kanban/issues/$todo/report.md" | grep -q '不要（'
 record=$(echo kanban/library/triage/*.json)

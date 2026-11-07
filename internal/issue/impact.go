@@ -1,4 +1,4 @@
-package task
+package issue
 
 import (
 	"bytes"
@@ -16,17 +16,17 @@ import (
 	"andon/internal/ledger"
 )
 
-// exitNotMerged は andon task impact で、タスクの PR がまだ MERGED でないとき（何も出さない。dispatcher は飛ばす）。
+// exitNotMerged は andon issue impact で、課題の PR がまだ MERGED でないとき（何も出さない。dispatcher は飛ばす）。
 const exitNotMerged = 4
 
 type notMerged struct{ state string }
 
 func (n notMerged) Error() string { return "PR が MERGED でない（" + n.state + "）" }
 
-// impact はタスクの PR がマージされたあと、同じ repo の動いているタスクへの影響の事実を集めて JSON で出す。
+// impact は課題の PR がマージされたあと、同じ repo の動いている課題への影響の事実を集めて JSON で出す。
 // 書くのは git fetch だけ（台帳・worktree・branch には触らない）。何度打っても同じ事実から同じ出力になる。
 func (c *ctx) impact(stdout io.Writer) error {
-	repo := c.task.Str("repo")
+	repo := c.issue.Str("repo")
 	if repo == "" {
 		return fail("%s に repo が無い", c.id)
 	}
@@ -70,7 +70,7 @@ func (c *ctx) impact(stdout io.Writer) error {
 	if _, err := git(repoDir, "cat-file", "-e", sha+"^{commit}"); err != nil {
 		return fail("マージの commit %s が %s に無い", sha, repoDir)
 	}
-	res := contract.Impact{Task: c.id, PR: rep.PR, Sha: sha, Files: []string{}, Tasks: []contract.ImpactTask{}}
+	res := contract.Impact{Issue: c.id, PR: rep.PR, Sha: sha, Files: []string{}, Issues: []contract.ImpactIssue{}}
 	for _, f := range view.Files {
 		res.Files = append(res.Files, f.Path)
 	}
@@ -85,16 +85,16 @@ func (c *ctx) impact(stdout io.Writer) error {
 			(t.Str("parent") != "" && strings.HasSuffix(t.Str("profile"), "-review")) {
 			continue
 		}
-		res.Tasks = append(res.Tasks, c.impactOf(t, repoDir, sha, res.Files))
+		res.Issues = append(res.Issues, c.impactOf(t, repoDir, sha, res.Files))
 	}
 	_, err = stdout.Write(contract.Marshal(res))
 	return err
 }
 
-// impactOf は1つのタスクについて、マージの commit との事実を集める。読めないところは Error に書いて続ける。
-func (c *ctx) impactOf(t ledger.Task, repoDir, sha string, merged []string) contract.ImpactTask {
+// impactOf は1つの課題について、マージの commit との事実を集める。読めないところは Error に書いて続ける。
+func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) contract.ImpactIssue {
 	id := t.Str("id")
-	it := contract.ImpactTask{Task: id, Title: t.Str("title"), Status: t.Str("status"), Agent: t.Str("agent"), Branch: t.Str("branch"),
+	it := contract.ImpactIssue{Issue: id, Title: t.Str("title"), Status: t.Str("status"), Agent: t.Str("agent"), Branch: t.Str("branch"),
 		ConflictFiles: []string{}, Overlap: []string{}, BriefRefs: []string{}}
 	if r, err := contract.ReadReport(filepath.Join(c.l.Library(id), "report.json")); err == nil {
 		it.PR = r.PR

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// deliverable: candidates のタスクに andon gate を打つと、回さずに理由1行と終了コード 3。記録を書かない
+// deliverable: candidates の課題に andon gate を打つと、回さずに理由1行と終了コード 3。記録を書かない
 // （ADR-0006 受け入れ条件 4）。担当が書いた deliverable は信じず、今までどおり PR を見に行く。
 func TestGateRefusesCandidates(t *testing.T) {
 	root := t.TempDir()

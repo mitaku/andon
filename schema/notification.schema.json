@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://andon.example.com/schema/notification/1",
+  "$id": "https://andon.example.com/schema/notification/2",
   "title": "Dispatcher notification",
   "description": "A notification inside the dispatcher. The text in <news> is rendered from it only when it is delivered. detail depends on kind. Only these keys.",
   "type": "object",
@@ -9,7 +9,7 @@
   "properties": {
     "at": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "$ref": "#/$defs/time" },
     "project": { "description": "Project slug.", "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
-    "task": { "description": "Task id, when the notification is about a task.", "$ref": "#/$defs/id" },
+    "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
       "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "impact", "blocked", "error", "finished", "stalled"]
@@ -38,7 +38,7 @@
   ],
   "$defs": {
     "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
-    "id": { "description": "A ledger task id: no /, \\ or :, and not . or ...", "type": "string", "pattern": "^[^/\\\\:]+$", "not": { "enum": [".", ".."] } },
+    "id": { "description": "A ledger issue id: no /, \\ or :, and not . or ...", "type": "string", "pattern": "^[^/\\\\:]+$", "not": { "enum": [".", ".."] } },
     "path": { "description": "An absolute path.", "type": "string", "pattern": "^/" },
     "pr": { "description": "URL of a pull request; owner and repo are printable ASCII without /.", "type": "string", "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$" },
     "report": {
@@ -58,26 +58,26 @@
       "description": "kind asked: from {\"question\": n, \"status\": \"open\"}, filled from the question JSON.",
       "type": "object", "required": ["n", "kind", "question"], "additionalProperties": false,
       "properties": {
-        "n": { "description": "Question number in the task.", "type": "integer", "minimum": 1 },
+        "n": { "description": "Question number in the issue.", "type": "integer", "minimum": 1 },
         "kind": { "description": "As in question.json.", "enum": ["business", "users", "promise", "irreversible", "line", "scope"] },
         "question": { "description": "As in question.json.", "type": "string", "minLength": 1 }
       }
     },
     "ready": {
-      "description": "kind ready: a task that became ready since last time (person tasks excluded).",
+      "description": "kind ready: an issue that became ready since last time (person issues excluded).",
       "type": "object", "required": ["title"], "additionalProperties": false,
       "properties": {
-        "title": { "description": "Task title.", "type": "string" },
-        "routine": { "description": "Routine that added the task, if any.", "type": "string", "minLength": 1 }
+        "title": { "description": "Issue title.", "type": "string" },
+        "routine": { "description": "Routine that added the issue, if any.", "type": "string", "minLength": 1 }
       }
     },
     "review-requested": {
       "description": "kind review-requested: the dispatcher started a reviewer for review_request.",
-      "type": "object", "required": ["round", "reviewer", "reviewer_task"], "additionalProperties": false,
+      "type": "object", "required": ["round", "reviewer", "reviewer_issue"], "additionalProperties": false,
       "properties": {
         "round": { "description": "As in review_request.", "type": "integer", "minimum": 1 },
         "reviewer": { "description": "Reviewer profile.", "enum": ["codex-review", "claude-review"] },
-        "reviewer_task": { "description": "The reviewer's task id.", "$ref": "#/$defs/id" }
+        "reviewer_issue": { "description": "The reviewer's issue id.", "$ref": "#/$defs/id" }
       }
     },
     "gate": {
@@ -90,7 +90,7 @@
       }
     },
     "merged": {
-      "description": "kind merged: the dispatcher merged and finished the task.",
+      "description": "kind merged: the dispatcher merged and finished the issue.",
       "type": "object", "required": ["pr", "sha"], "additionalProperties": false,
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
@@ -98,26 +98,26 @@
       }
     },
     "impact": {
-      "description": "kind impact: from `andon task impact` after a task's PR was merged. Only the running tasks it may affect; the Chief of Staff judges. When the facts could not be collected, only pr and error.",
+      "description": "kind impact: from `andon issue impact` after an issue's PR was merged. Only the running issues it may affect; the Chief of Staff judges. When the facts could not be collected, only pr and error.",
       "type": "object", "required": ["pr"], "additionalProperties": false,
       "oneOf": [
-        { "required": ["sha", "tasks"], "not": { "required": ["error"] } },
-        { "required": ["error"], "not": { "anyOf": [{ "required": ["sha"] }, { "required": ["tasks"] }] } }
+        { "required": ["sha", "issues"], "not": { "required": ["error"] } },
+        { "required": ["error"], "not": { "anyOf": [{ "required": ["sha"] }, { "required": ["issues"] }] } }
       ],
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
         "error": { "description": "Why the dispatcher gave up collecting the facts (after retries).", "type": "string", "minLength": 1 },
         "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
-        "tasks": {
-          "description": "Running tasks in the same repo that conflict, overlap, are referenced by the brief, or could not be read.",
+        "issues": {
+          "description": "Running issues in the same repo that conflict, overlap, are referenced by the brief, or could not be read.",
           "type": "array", "minItems": 1,
           "items": {
-            "type": "object", "required": ["task", "conflict", "overlap", "brief_refs"], "additionalProperties": false,
+            "type": "object", "required": ["issue", "conflict", "overlap", "brief_refs"], "additionalProperties": false,
             "properties": {
-              "task": { "description": "Task id.", "$ref": "#/$defs/id" },
+              "issue": { "description": "Issue id.", "$ref": "#/$defs/id" },
               "conflict": { "description": "git merge-tree of the branch and the merge commit conflicts.", "type": "boolean" },
               "overlap": { "description": "Files both changed (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
-              "brief_refs": { "description": "Merged files named in the task's brief (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "brief_refs": { "description": "Merged files named in the issue's brief (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
               "error": { "description": "Why the facts could not be read.", "type": "string", "minLength": 1 }
             }
           }

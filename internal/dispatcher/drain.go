@@ -199,10 +199,10 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	ns := append([]Notification{}, again...)
 	retry := map[string]bool{}
 	for _, n := range again {
-		retry[n.Task+"\x00"+n.Kind] = true
+		retry[n.Issue+"\x00"+n.Kind] = true
 	}
 	for _, n := range st.Pending {
-		delete(retry, n.Task+"\x00"+n.Kind) // 新しい1件に置き換わったものは1回目として数える
+		delete(retry, n.Issue+"\x00"+n.Kind) // 新しい1件に置き換わったものは1回目として数える
 		tmp := State{Pending: ns}
 		tmp.Push(n)
 		ns = tmp.Pending
@@ -215,7 +215,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 			h.Via = "prompt"
 		}
 		for _, n := range ns {
-			if retry[n.Task+"\x00"+n.Kind] {
+			if retry[n.Issue+"\x00"+n.Kind] {
 				h.Again = append(h.Again, n)
 			} else {
 				h.News = append(h.News, n)

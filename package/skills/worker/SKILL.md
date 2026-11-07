@@ -144,7 +144,7 @@ Chief of Staff には dispatcher の通知が `report` の kind で届く（`rev
 
    ```
    andon task ask "$id" - <<'EOF'
-   {"kind": "users", "question": "<問い。1行>", "options": [{"label": "<推奨案>", "pick": true}, {"label": "<ほかの案>"}], "from": "task"}
+   {"kind": "users", "question": "<問い。1行>", "options": [{"label": "<推奨案>", "pick": true}, {"label": "<ほかの案>"}], "from": "issue"}
    EOF
    ```
 

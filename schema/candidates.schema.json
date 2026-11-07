@@ -2,17 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/candidates/1",
   "title": "Candidates",
-  "description": "tasks/<id>/library/candidates.json: what a worker found that might be fixed but is not decided yet. Written by the worker of a survey task (its deliverable) or of a fix task that stops on scope, through `andon task candidates`, which checks it; never by hand. Rewritten whole each time and kept after finish. Read by the Chief of Staff, the person, triage and the retro; no gate or dispatcher decision reads it. Only these keys.",
+  "description": "issues/<id>/library/candidates.json: what a worker found that might be fixed but is not decided yet. Written by the worker of a survey issue (its deliverable) or of a fix issue that stops on scope, through `andon issue candidates`, which checks it; never by hand. Rewritten whole each time and kept after finish. Read by the Chief of Staff, the person, triage and the retro; no gate or dispatcher decision reads it. Only these keys.",
   "type": "object",
   "required": ["candidates"],
   "additionalProperties": false,
   "properties": {
     "commit": {
-      "description": "The commit the worker looked at (HEAD when written): 40 lowercase hex digits. Required for a task with a repository (the command checks it), absent for a task without one.",
+      "description": "The commit the worker looked at (HEAD when written): 40 lowercase hex digits. Required for an issue with a repository (the command checks it), absent for an issue without one.",
       "$ref": "#/$defs/sha"
     },
     "candidates": {
-      "description": "One entry per thing that might be fixed. Empty when there is none (a survey task still writes the file). ids are unique.",
+      "description": "One entry per thing that might be fixed. Empty when there is none (a survey issue still writes the file). ids are unique.",
       "type": "array",
       "uniqueKeys": ["id"],
       "items": { "$ref": "#/$defs/candidate" }
@@ -52,7 +52,7 @@
           "minimum": 1
         },
         "in_scope": {
-          "description": "Inside the brief's scope (what to do and the completion condition). In a survey task: whether it answers the question.",
+          "description": "Inside the brief's scope (what to do and the completion condition). In a survey issue: whether it answers the question.",
           "type": "boolean"
         }
       }

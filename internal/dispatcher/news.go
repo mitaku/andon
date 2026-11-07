@@ -38,7 +38,7 @@ func clean(v any, max int) string {
 func line(n Notification) string {
 	d := func(k string) string { return clean(n.Detail[k], 200) }
 	short := func(k string) string { return clean(n.Detail[k], 60) }
-	head := clean(n.Task, 40) + " " + n.Kind + ": "
+	head := clean(n.Issue, 40) + " " + n.Kind + ": "
 	switch n.Kind {
 	case "report":
 		return head + "報告 " + d("report")
@@ -53,7 +53,7 @@ func line(n Notification) string {
 		}
 		return s
 	case "review-requested":
-		return head + d("round") + " 回目のレビュアー " + short("reviewer_task") + "（" + short("reviewer") + "）を起こした"
+		return head + d("round") + " 回目のレビュアー " + short("reviewer_issue") + "（" + short("reviewer") + "）を起こした"
 	case "gate":
 		s := head + short("decision")
 		if rs, ok := n.Detail["reasons"].([]any); ok && len(rs) > 0 {
@@ -68,10 +68,10 @@ func line(n Notification) string {
 		return head + d("pr") + " をマージして片付けた（" + clean(n.Detail["sha"], 12) + "）"
 	case "impact":
 		if e, ok := n.Detail["error"]; ok && e != nil {
-			return head + d("pr") + " のマージの影響を集められなかった（" + clean(e, 120) + "）。andon task impact " + clean(n.Task, 40) + " を打って読む"
+			return head + d("pr") + " のマージの影響を集められなかった（" + clean(e, 120) + "）。andon issue impact " + clean(n.Issue, 40) + " を打って読む"
 		}
 		s := head + d("pr") + " のマージ（" + clean(n.Detail["sha"], 12) + "）で"
-		rows, _ := n.Detail["tasks"].([]any)
+		rows, _ := n.Detail["issues"].([]any)
 		var parts []string
 		for _, r := range rows {
 			m, _ := r.(map[string]any)
@@ -88,17 +88,17 @@ func line(n Notification) string {
 			if m["error"] != nil {
 				what = append(what, "読めない")
 			}
-			parts = append(parts, clean(m["task"], 40)+"（"+strings.Join(what, "・")+"）")
+			parts = append(parts, clean(m["issue"], 40)+"（"+strings.Join(what, "・")+"）")
 		}
-		return s + " " + strings.Join(parts, "; ") + "。andon task impact " + clean(n.Task, 40) + " で事実を読む"
+		return s + " " + strings.Join(parts, "; ") + "。andon issue impact " + clean(n.Issue, 40) + " で事実を読む"
 	case "stalled":
-		s := clean(n.Task, 40) + " の担当 " + short("agent") + " が止まったまま"
+		s := clean(n.Issue, 40) + " の担当 " + short("agent") + " が止まったまま"
 		if m := minutesSince(n); m >= 0 {
 			s += fmt.Sprintf(" %d 分", m)
 		}
 		return s
 	case "blocked", "error", "finished":
-		return clean(n.Task, 40) + " の担当 " + short("agent") + " が " + n.Kind
+		return clean(n.Issue, 40) + " の担当 " + short("agent") + " が " + n.Kind
 	}
 	return head + clean(n.Detail, 120)
 }

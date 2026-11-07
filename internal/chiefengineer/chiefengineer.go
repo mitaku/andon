@@ -1,19 +1,19 @@
 // Package chiefengineer は andon chief-engineer: 人と仕様・設計を対話する Chief Engineer を
-// 台帳のタスクとして起こす（docs/design.md §1.8）。
+// 台帳の課題として起こす（docs/design.md §1.8）。
 //
 //	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は台帳の repos が1つならそれ
 //	andon chief-engineer --repo <host/owner/repo> "<題>"   台帳の repos が2つ以上（か無い）とき
 //
-// することは4つ: 台帳にタスクを足す（kanban add）・案件の repo に worktree と branch を切る
-// （文書の PR をこのタスクから出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
-// タスクを doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
-// 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<タスク id> を付け、人の Herdr App の指揮側の Space に
-// タスクの tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
+// することは4つ: 台帳に課題を足す（kanban add）・案件の repo に worktree と branch を切る
+// （文書の PR をこの課題から出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
+// 課題を doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
+// 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、人の Herdr App の指揮側の Space に
+// 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
 // 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付けてから起こす。
 // hc の agent が Claude Code でも戻った端末でもない端末があれば、確かめられないとして止まる。
 //
-// 置き場（andon task start と同じ形。internal/spawn）:
+// 置き場（andon issue start と同じ形。internal/spawn）:
 //
 //	worktree  ~/.herdr/worktrees/<repo 名>/<slug>-<id>
 //	branch    <slug>/<id>-<題の英字の短い形>。origin/<既定の branch> から --no-track で切る
@@ -38,8 +38,8 @@ import (
 // Usage は andon chief-engineer の使い方。
 const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] \"<題>\"\n" +
 	"projects/<slug>/ で打つ。--repo を省くと台帳の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
-	"台帳にタスクを足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
-	"hc で Chief Engineer を起こし、タスクを doing にする。文書の PR はそのタスクから出る。\n" +
+	"台帳に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
+	"hc で Chief Engineer を起こし、課題を doing にする。文書の PR はその課題から出る。\n" +
 	"Chief Engineer が動いていれば起こさずに止まる（1プロジェクトに1人）。\n"
 
 // Profile は Chief Engineer のプロファイル（hc の template の名前）。
@@ -132,7 +132,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := json.Unmarshal([]byte(ls), &live); err != nil {
 		return die("hc ls の返事が読めない: %v", err)
 	}
-	// ラベルと live だけでは決めない: 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付ける（前のタスクは台帳に残る）。
+	// ラベルと live だけでは決めない: 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付ける（前の課題は台帳に残る）。
 	// 動いているは hc の agent が Claude Code のときだけ。どちらとも言えなければ止まる
 	var shells []*spawn.Term
 	for _, lt := range live.Terminals {
@@ -148,7 +148,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		case spawn.Restored:
 			shells = append(shells, t)
 		case spawn.Running:
-			return die("Chief Engineer が動いている: %s（%s）。新しい題は、前の題を渡してから", where(slug, t.Labels["task"], t.Labels["title"]), lt.Address)
+			return die("Chief Engineer が動いている: %s（%s）。新しい題は、前の題を渡してから", where(slug, t.Labels["issue"], t.Labels["title"]), lt.Address)
 		default:
 			return die("Chief Engineer のラベルの %s で Claude Code が動いているか確かめられないので止まる（%s）。人が使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, t.Describe(), lt.Address)
 		}
@@ -157,8 +157,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		if err := spawn.Discard(t.Address); err != nil {
 			return die("%s（Chief Engineer のラベルで中身がシェル）を片付けられない: %v", t.Address, err)
 		}
-		fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）は中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた。タスク %s は台帳に残る\n",
-			where(slug, t.Labels["task"], t.Labels["title"]), t.Address, t.Labels["task"])
+		fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）は中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた。課題 %s は台帳に残る\n",
+			where(slug, t.Labels["issue"], t.Labels["title"]), t.Address, t.Labels["issue"])
 	}
 
 	found, err := spawn.HasTemplate(Profile)
@@ -170,7 +170,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	brief := "# " + title + "\n\n" +
-		"Chief Engineer のタスク。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
+		"Chief Engineer の課題。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
 		"題は人の1行。手順は skill chief-engineer。\n"
 	id, err := output(env, brief, cli, "add", title, "--repo", repo, "--profile", Profile, "--brief", "-")
 	if err != nil || !idRe.MatchString(id) {
@@ -179,15 +179,15 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 
 	name := strings.ToLower(slug + "-" + id)
 	if !nameRe.MatchString(name) {
-		return die("端末の名前 %s が hc の決まり（a-z 0-9 - _ で32字まで）に合わない。タスク %s は todo のまま残る", name, id)
+		return die("端末の名前 %s が hc の決まり（a-z 0-9 - _ で32字まで）に合わない。課題 %s は todo のまま残る", name, id)
 	}
 	wt, err := spawn.NewWorktree(repoDir, slug, id, title)
 	if err != nil {
-		return die("%v。タスク %s は todo のまま残る", err, id)
+		return die("%v。課題 %s は todo のまま残る", err, id)
 	}
 	if _, err := output(env, "", cli, "set", id, "branch="+wt.Branch, "worktree="+wt.Path); err != nil {
 		wt.Remove()
-		return die("%s set %s branch/worktree に失敗: %v。タスク %s は todo のまま残る", cli, id, err, id)
+		return die("%s set %s branch/worktree に失敗: %v。課題 %s は todo のまま残る", cli, id, err, id)
 	}
 	undo := func() {
 		wt.Remove()
@@ -201,12 +201,12 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon chief-engineer: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
-	labels := []string{"role=" + Profile, "project=" + slug, "task=" + id, "title=" + title,
+	labels := []string{"role=" + Profile, "project=" + slug, "issue=" + id, "title=" + title,
 		"herdr.space=andon-" + slug, "herdr.tab=andon-" + slug + "-" + id}
 	run, err := spawn.Run(name, labels, cwd, Profile, msg)
 	if err != nil {
 		undo()
-		return die("%v。worktree と branch を戻した。タスク %s は todo のまま残る", err, id)
+		return die("%v。worktree と branch を戻した。課題 %s は todo のまま残る", err, id)
 	}
 
 	if _, err := spawn.OutputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {

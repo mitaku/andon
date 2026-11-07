@@ -37,7 +37,7 @@ type task struct {
 	Worktree string `json:"worktree"`
 }
 
-// personSuffix は人の判断待ちのタスクの題の末尾。
+// personSuffix は人の判断待ちの課題の題の末尾。
 const personSuffix = "（人の判断待ち）"
 
 func itemKey(slug, from, kind, text string) string {
@@ -181,14 +181,14 @@ func (l *ledger) terminalTasks() (map[string]bool, error) {
 		return nil, fail("端末一覧を読めない")
 	}
 	for _, t := range v.Terminals {
-		if s, ok := t.Labels["task"].(string); ok {
+		if s, ok := t.Labels["issue"].(string); ok {
 			got[s] = true
 		}
 	}
 	return got, nil
 }
 
-// leftover は done のタスクに worktree か端末が残っているか。
+// leftover は done の課題に worktree か端末が残っているか。
 func (l *ledger) leftover(t task, terms map[string]bool) bool {
 	wt := expandHome(t.Worktree)
 	if wt != "" {

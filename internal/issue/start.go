@@ -1,4 +1,4 @@
-package task
+package issue
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ func (n notSent) Error() string { return n.msg }
 
 var profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
-// start は台帳のタスクに担当を起こす（仮設の yard task start を移したもの。docs/contract.md §8）:
+// start は台帳の課題に担当を起こす（仮設の yard task start を移したもの。docs/contract.md §8）:
 // repo があれば（台帳の config.yaml の repos と、セルの repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起こし、kanban start で doing にして agent をその端末にする。
 // 打つのは Chief of Staff（projects/<slug>/ で）。起こせなかったら作った worktree と branch を戻す（やり直せるように）。
 // 最初のメッセージが届かなかったとき（信頼の画面など）は、台帳は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
@@ -40,7 +40,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 	if !spawn.SlugRe.MatchString(slug) {
 		return fail("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
-	if s := c.task.Str("status"); s != "todo" {
+	if s := c.issue.Str("status"); s != "todo" {
 		return fail("%s は %s（起こせるのは todo だけ）", id, s)
 	}
 	// kanban start の開始の条件（after が全部済んでいる）を、何かを作る前に確かめる
@@ -49,14 +49,14 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 	} else if !ok {
 		return fail("%s は after（%s）が済んでいない。済んでから起こす", id, strings.Join(c.after(), ", "))
 	}
-	if wt, br := c.task.Str("worktree"), c.task.Str("branch"); wt != "" || br != "" {
-		return fail("%s は起こし済み（worktree=%s branch=%s）。やり直すなら先に andon task finish", id, wt, br)
+	if wt, br := c.issue.Str("worktree"), c.issue.Str("branch"); wt != "" || br != "" {
+		return fail("%s は起こし済み（worktree=%s branch=%s）。やり直すなら先に andon issue finish", id, wt, br)
 	}
-	if m := c.task.Str("machine"); m != "" {
+	if m := c.issue.Str("machine"); m != "" {
 		// 別のマシンで起こす（hc run --on）はまだ扱わない。黙って指揮側で起こさない
-		return fail("%s は machine=%s（別のマシンで起こす）。andon task start はまだ扱わない。machine を消すか、人が起こす", id, m)
+		return fail("%s は machine=%s（別のマシンで起こす）。andon issue start はまだ扱わない。machine を消すか、人が起こす", id, m)
 	}
-	profile := c.task.Str("profile")
+	profile := c.issue.Str("profile")
 	if profile == "" {
 		return fail("%s に profile が無い（kanban set %s profile=<名前>）", id, id)
 	}
@@ -84,11 +84,11 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 		return fail("端末 %s がもう動いている（hc ls で確かめる）", name)
 	}
 
-	title := c.task.Str("title")
+	title := c.issue.Str("title")
 	cwd := filepath.Join(c.l.Dir, "issues", id)
 	undo := func() {}
 	branch := ""
-	if repo := c.task.Str("repo"); repo != "" {
+	if repo := c.issue.Str("repo"); repo != "" {
 		if !spawn.RepoRe.MatchString(repo) {
 			return fail("repo が不正: '%s'（<host>/<owner>/<repo>）", repo)
 		}
@@ -130,7 +130,7 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 
 	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {
-		fmt.Fprintf(stderr, "andon task: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
+		fmt.Fprintf(stderr, "andon issue: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
 	msg := spawn.FirstMessage(slug, id, brief)
 	run, err := spawn.Run(name, workLabels(slug, id, title), cwd, profile, msg)
@@ -148,20 +148,20 @@ func (c *ctx) start(stdout, stderr io.Writer) error {
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。%s（台帳は doing・agent %s のまま。App では %s）",
 			run.Address, name, run.Reason(), spawn.ResendHint(run.Address, msg), run.Address, place)}
 	}
-	fmt.Fprintf(stdout, "andon task: %s を %s（%s・%s）で起こした。cwd %s", id, run.Address, name, profile, cwd)
+	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で起こした。cwd %s", id, run.Address, name, profile, cwd)
 	if branch != "" {
 		fmt.Fprintf(stdout, " branch %s", branch)
 	}
 	fmt.Fprintln(stdout)
-	fmt.Fprintf(stdout, "andon task: 出た場所 %s（%s）\n", place, run.Address)
+	fmt.Fprintf(stdout, "andon issue: 出た場所 %s（%s）\n", place, run.Address)
 	return nil
 }
 
 // workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
-// herdr.space・herdr.tab で人の Herdr App にタスクごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
+// herdr.space・herdr.tab で人の Herdr App に課題ごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
 // 値は slug・id・題だけで決まり、どのマシンで起こすかに依らない（別のマシンならその machine の Space に出る。前提 7）。
 func workLabels(slug, id, title string) []string {
-	return []string{"project=" + slug, "task=" + id, "title=" + title,
+	return []string{"project=" + slug, "issue=" + id, "title=" + title,
 		"herdr.space=andon-" + slug + "-" + id, "herdr.tab=andon-" + slug + "-" + id}
 }
 
@@ -186,7 +186,7 @@ func liveNames() (map[string]bool, error) {
 	return names, nil
 }
 
-// startable は台帳の CLI の ready（todo か queued で、after が全部済んでいる）にこのタスクがあるか。
+// startable は台帳の CLI の ready（todo か queued で、after が全部済んでいる）にこの課題があるか。
 func (c *ctx) startable() (bool, error) {
 	out, err := c.l.Run("", "ready", "--json")
 	if err != nil {
@@ -209,7 +209,7 @@ func (c *ctx) startable() (bool, error) {
 // after は issue.yaml の after（並び）。
 func (c *ctx) after() []string {
 	var out []string
-	switch v := c.task["after"].(type) {
+	switch v := c.issue["after"].(type) {
 	case []any:
 		for _, a := range v {
 			if s, ok := a.(string); ok {

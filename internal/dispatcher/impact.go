@@ -9,12 +9,12 @@ import (
 	"andon/internal/contract"
 )
 
-// impactTries は andon task impact が失敗したときに打ち直す回数の上限（fetch などの一時の失敗を見回りで打ち直す）。
+// impactTries は andon issue impact が失敗したときに打ち直す回数の上限（fetch などの一時の失敗を見回りで打ち直す）。
 const impactTries = 3
 
-// impacts は done になったタスク（控えの Impact）ごとに andon task impact を1回だけ打ち、影響のあるタスクがあれば
+// impacts は done になった課題（控えの Impact）ごとに andon issue impact を1回だけ打ち、影響のある課題があれば
 // 通知 impact を積む（dispatcher.md §2.5）。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff。
-// PR の無いタスク・MERGED でない PR（やめたタスク）は打つ前か終了コード 4 で飛ばす。
+// PR の無い課題・MERGED でない PR（やめた課題）は打つ前か終了コード 4 で飛ばす。
 func (p *project) impacts() {
 	if len(p.st.Impact) == 0 {
 		return
@@ -34,9 +34,9 @@ func (p *project) impacts() {
 	}
 }
 
-// impact は1つのタスクについて打つ。true は済んだ（控えから外す）とき。
+// impact は1つの課題について打つ。true は済んだ（控えから外す）とき。
 func (p *project) impact(id string) bool {
-	// 影響を見るのは、PR を出した案件 repo の担当のタスクだけ（レビュアー・Chief Engineer の文書・repo の無いタスクは飛ばす。
+	// 影響を見るのは、PR を出した案件 repo の担当の課題だけ（レビュアー・Chief Engineer の文書・repo の無い課題は飛ばす。
 	// 写し〈巡の 3〉に無いのは、この巡で足されて done になったものだけで、それも report.json で見分ける）
 	for _, t := range p.tasks {
 		if t.Str("id") == id && (isReviewer(t) || t.Str("profile") == "chief-engineer" || t.Str("repo") == "") {
@@ -49,14 +49,14 @@ func (p *project) impact(id string) bool {
 	}
 	// 集められなかったときも Chief of Staff に知らせる（待ちの通知は届くまで控えに残るので、手で確かめるきっかけは失われない）
 	gaveUp := func(why string) bool {
-		p.logf("%s の影響を集められない（諦めて Chief of Staff に知らせる。andon task impact %s で読める）: %s", id, id, why)
+		p.logf("%s の影響を集められない（諦めて Chief of Staff に知らせる。andon issue impact %s で読める）: %s", id, id, why)
 		p.notify(id, "impact", map[string]any{"pr": rep.PR, "error": clean(why, 200)})
 		return true
 	}
-	out, code, err := p.andon("", "task", "impact", id)
+	out, code, err := p.andon("", "issue", "impact", id)
 	switch {
 	case code == 4:
-		p.logf("%s の PR はマージされていないので影響を見ない（マージせずにやめたタスク）", id)
+		p.logf("%s の PR はマージされていないので影響を見ない（マージせずにやめた課題）", id)
 		return true
 	case err != nil:
 		p.st.Impact[id]++
@@ -68,26 +68,26 @@ func (p *project) impact(id string) bool {
 	}
 	var res contract.Impact
 	if err := json.Unmarshal([]byte(out), &res); err != nil {
-		return gaveUp("andon task impact の出力が読めない: " + err.Error())
+		return gaveUp("andon issue impact の出力が読めない: " + err.Error())
 	}
 	detail := ImpactDetail(res)
 	if detail == nil {
-		p.logf("%s のマージ（%s）は動いているタスク %d 件のどれとも重ならない", id, short12(res.Sha), len(res.Tasks))
+		p.logf("%s のマージ（%s）は動いている課題 %d 件のどれとも重ならない", id, short12(res.Sha), len(res.Issues))
 		return true
 	}
 	p.notify(id, "impact", detail)
 	return true
 }
 
-// ImpactDetail は andon task impact の出力から通知 impact の detail を作る（純粋関数）。影響のあるタスクが無ければ nil。
-// 並べるファイルは1つのタスクにつき 20 まで（全部は andon task impact で読む）。
+// ImpactDetail は andon issue impact の出力から通知 impact の detail を作る（純粋関数）。影響のある課題が無ければ nil。
+// 並べるファイルは1つの課題につき 20 まで（全部は andon issue impact で読む）。
 func ImpactDetail(res contract.Impact) map[string]any {
 	var rows []any
-	for _, t := range res.Tasks {
+	for _, t := range res.Issues {
 		if !t.Affected() {
 			continue
 		}
-		row := map[string]any{"task": t.Task, "conflict": t.Conflict, "overlap": cap20(t.Overlap), "brief_refs": cap20(t.BriefRefs)}
+		row := map[string]any{"issue": t.Issue, "conflict": t.Conflict, "overlap": cap20(t.Overlap), "brief_refs": cap20(t.BriefRefs)}
 		if t.Error != "" {
 			row["error"] = t.Error
 		}
@@ -98,7 +98,7 @@ func ImpactDetail(res contract.Impact) map[string]any {
 	}
 	// 控えから読み戻したときと同じ形（[]any・map[string]any）にそろえる（<news> の描き方が1つで済む）
 	var out map[string]any
-	b, _ := json.Marshal(map[string]any{"pr": res.PR, "sha": res.Sha, "tasks": rows})
+	b, _ := json.Marshal(map[string]any{"pr": res.PR, "sha": res.Sha, "issues": rows})
 	if json.Unmarshal(b, &out) != nil {
 		return nil
 	}

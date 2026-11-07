@@ -1,4 +1,4 @@
-package task
+package issue
 
 import (
 	"bytes"
@@ -12,9 +12,9 @@ import (
 )
 
 // finish は端末と worktree を片付け、マージ済みなら branch を消し、台帳を done にする（仮設の yard task finish を移したもの）。
-// 台帳の worktree と branch が、andon task start がこのタスクに作るもの（~/.herdr/worktrees/<repo 名>/<slug>-<id> と
-// <slug>/<id>[-…]）と合うときだけ片付ける。合わなければ端末にも触らずに止まる（台帳の書き違いで別のタスクの作業物を消さない）。
-// レビュアーの子タスク（parent がこのタスクで profile が *-review）と、dispatcher が作った detached worktree
+// 台帳の worktree と branch が、andon issue start がこの課題に作るもの（~/.herdr/worktrees/<repo 名>/<slug>-<id> と
+// <slug>/<id>[-…]）と合うときだけ片付ける。合わなければ端末にも触らずに止まる（台帳の書き違いで別の課題の作業物を消さない）。
+// レビュアーの子課題（parent がこの課題で profile が *-review）と、dispatcher が作った detached worktree
 // （~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>）も片付ける。
 // マージしたかは確かめない（確かめてから打つのは打つ側。dispatcher は MERGED を見てから打つ）。
 func (c *ctx) finish(stdout io.Writer) error {
@@ -23,8 +23,8 @@ func (c *ctx) finish(stdout io.Writer) error {
 			return fail("%s が無い", cmd)
 		}
 	}
-	slug, repo := c.l.Slug, c.task.Str("repo")
-	wt, branch := c.task.Path("worktree"), c.task.Str("branch")
+	slug, repo := c.l.Slug, c.issue.Str("repo")
+	wt, branch := c.issue.Path("worktree"), c.issue.Str("branch")
 	repoDir := ""
 	if repo != "" {
 		d, err := repoDirOf(repo)
@@ -34,7 +34,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 		repoDir = d
 	}
 
-	// repo の無いタスク（レビュアーなど）は、担当の deck start が cwd（issues/<id>/）を包む checkout を書く。
+	// repo の無い課題（レビュアーなど）は、担当の deck start が cwd（issues/<id>/）を包む checkout を書く。
 	// start が作ったものではないので、git には触らず台帳から消すだけ（その checkout と一致するときだけ）
 	if repo == "" && wt != "" {
 		top, err := git(filepath.Join(c.l.Dir, "issues", c.id), "rev-parse", "--show-toplevel")
@@ -56,8 +56,8 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 		dir := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir))
 		want := filepath.Join(dir, slug+"-"+c.id)
-		// レビュアーの子タスクは、dispatcher が kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
-		if p := c.task.Str("parent"); p != "" && strings.HasSuffix(c.task.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
+		// レビュアーの子課題は、dispatcher が kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
+		if p := c.issue.Str("parent"); p != "" && strings.HasSuffix(c.issue.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
 			want, detached = wt, true
 		}
 		if wt != want {
@@ -99,7 +99,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 	}
 
-	// レビュアーの子タスクと detached worktree
+	// レビュアーの子課題と detached worktree
 	tasks, err := c.l.List()
 	if err != nil {
 		return err
@@ -108,9 +108,9 @@ func (c *ctx) finish(stdout io.Writer) error {
 		if t.Str("parent") != c.id || !strings.HasSuffix(t.Str("profile"), "-review") || t.Str("status") == "done" {
 			continue
 		}
-		child := &ctx{l: c.l, id: t.Str("id"), task: t}
+		child := &ctx{l: c.l, id: t.Str("id"), issue: t}
 		if err := child.finish(stdout); err != nil {
-			return fail("レビュアーのタスク %s を片付けられない: %v", child.id, err)
+			return fail("レビュアーの課題 %s を片付けられない: %v", child.id, err)
 		}
 	}
 	if repoDir != "" {
@@ -124,7 +124,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 	}
 
-	// 端末: このタスクのラベルのものだけ
+	// 端末: この課題のラベルのものだけ
 	if err := removeTerminals(slug, c.id); err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 	if _, err := c.l.Run("", "done", c.id); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "andon task: %s を片付けた（done）。%s\n", c.id, kept)
+	fmt.Fprintf(stdout, "andon issue: %s を片付けた（done）。%s\n", c.id, kept)
 	return nil
 }
 
@@ -223,9 +223,9 @@ func Pair(repoDir, path, line string) bool {
 	return false
 }
 
-// removeTerminals は project=<slug>・task=<id> のラベルの端末を止めて消す。
+// removeTerminals は project=<slug>・issue=<id> のラベルの端末を止めて消す。
 func removeTerminals(slug, id string) error {
-	out, err := exec.Command("hc", "ls", "--all", "--json", "--label", "project="+slug, "--label", "task="+id).Output()
+	out, err := exec.Command("hc", "ls", "--all", "--json", "--label", "project="+slug, "--label", "issue="+id).Output()
 	if err != nil {
 		return fail("hc ls に失敗")
 	}

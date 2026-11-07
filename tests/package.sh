@@ -212,10 +212,10 @@ block "$cos" '# <id> <題>' | grep -q '^横展開: ' && block "$cos" '# <id> 調
 block "$cos" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates' \
   && pass "調べるタスクの雛形の Settings に Deliverable: candidates がある" || fail "調べるタスクの雛形に Deliverable: candidates が無い"
 
-# Chief of Staff の task.yaml の予約キー: 全部書き、task-keys.schema.json に合う
+# Chief of Staff の task.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# task.yaml の予約キー' | grep '^deck set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
-if chk task-keys "$tmp/keys.json" && jq -e 'keys == ["merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
+if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
   pass "Chief of Staff は予約キー5つ（review・must_fix・reviewer・review_rounds・merge）を task.yaml に書く"
 else fail "Chief of Staff の deck set: $set_line"; fi
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \

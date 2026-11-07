@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/findings/1",
   "title": "Reviewer findings",
-  "description": "tasks/<reviewer task id>/library/findings.json, written by the reviewer. Only these keys. Missing, not JSON or not this shape: the review is missing. commit differs from the PR head: the review is stale.",
+  "description": "issues/<reviewer issue id>/library/findings.json, written by the reviewer. Only these keys. Missing, not JSON or not this shape: the review is missing. commit differs from the PR head: the review is stale.",
   "type": "object",
   "required": ["commit", "findings"],
   "additionalProperties": false,

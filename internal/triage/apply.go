@@ -24,7 +24,7 @@ func runApply(l *ledger, id string, maxTasks int, dry bool, now time.Time, stdou
 		return err
 	}
 	// 受けるのは、今回集めた key か、記録にある key（Chief of Staff が見直すとき）だけ。
-	// タスクを閉じるのは今の未担当の候補だけ（古い記録に載っていたことを理由に閉じない）。
+	// 課題を閉じるのは今の未担当の候補だけ（古い記録に載っていたことを理由に閉じない）。
 	inventory, err := l.collect()
 	if err != nil {
 		return fail("出どころを読めない")
@@ -131,7 +131,7 @@ func sourceText(key string, inventory []Item, historical []item) any {
 	return key
 }
 
-// preflight は出どころのタスクが台帳にあるかと、閉じるタスクが未担当の todo／queued かを確かめる。
+// preflight は出どころの課題が台帳にあるかと、閉じる課題が未担当の todo／queued かを確かめる。
 func (l *ledger) preflight(id string, items []item) error {
 	var sources []string
 	for _, it := range items {
@@ -154,17 +154,17 @@ func (l *ledger) preflight(id string, items []item) error {
 			continue
 		}
 		var show struct {
-			Task task `json:"issue"`
+			Issue task `json:"issue"`
 		}
 		if err := json.Unmarshal([]byte(out), &show); err != nil ||
-			(show.Task.Status != "todo" && show.Task.Status != "queued") || show.Task.Agent != "" {
+			(show.Issue.Status != "todo" && show.Issue.Status != "queued") || show.Issue.Agent != "" {
 			return fail("close の対象が未担当の todo/queued でない: %s", src)
 		}
 	}
 	return nil
 }
 
-// applyGroup は1つの決定（bundle は束）を台帳に当て、足したタスクの id を返す。
+// applyGroup は1つの決定（bundle は束）を台帳に当て、足した課題の id を返す。
 func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 	first := g[0]
 	switch first.decision() {
@@ -282,13 +282,13 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it.key(), text(it), it["reason"]))
 		}
 	}
-	b.WriteString("\n## 直す（起こしたタスク）\n| タスク | 題 | 出どころ | Review |\n|---|---|---|---|\n")
+	b.WriteString("\n## 直す（起こした課題）\n| 課題 | 題 | 出どころ | Review |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if d := it.decision(); d == "fix" || d == "bundle" {
 			b.WriteString(row(it["created_task"], it.task()["title"], it.key(), it.task()["review"]))
 		}
 	}
-	b.WriteString("\n## 人へ（人のタスク）\n| タスク | 問い | kind | 推し |\n|---|---|---|---|\n")
+	b.WriteString("\n## 人へ（人の課題）\n| 課題 | 問い | kind | 推し |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if it.decision() == "person" {
 			b.WriteString(row(it["created_task"], it["question"], orDefault(it["kind"], "判断がつかない"), orDefault(it["pick"], "なし")))

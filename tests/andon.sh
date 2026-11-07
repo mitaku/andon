@@ -10,7 +10,7 @@ cd "$tmp" || exit 2   # 台帳の外で打つ
 fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
-subs="task chief-of-staff create open chief-engineer dispatcher publish triage gate delegate boot"
+subs="issue chief-of-staff create open chief-engineer dispatcher publish triage gate delegate boot"
 
 # === andon help: 一覧 ===
 "$andon" help >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -44,8 +44,11 @@ done
 [ "$r" = 2 ] && grep -q '^usage: andon dispatcher' "$tmp/err" && pass "andon dispatcher（知らない引数）は usage で rc 2" || fail "andon dispatcher: rc=$r $(cat "$tmp/err")"
 "$andon" chief-of-staff start >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" && pass "andon chief-of-staff（知らない引数）は usage で rc 2" || fail "andon chief-of-staff: rc=$r $(cat "$tmp/err")"
-"$andon" task start X-1 extra >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '^usage: andon task' "$tmp/err" && pass "andon task start（余分な引数）は usage で rc 2" || fail "andon task start: rc=$r $(cat "$tmp/err")"
+"$andon" issue start X-1 extra >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon issue' "$tmp/err" && pass "andon issue start（余分な引数）は usage で rc 2" || fail "andon issue start: rc=$r $(cat "$tmp/err")"
+"$andon" task start X-1 >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '知らない sub-command: task' "$tmp/err" && pass "andon task は知らない command（別名なし。ADR-0008 決めたこと 7）" || fail "andon task: rc=$r $(cat "$tmp/err")"
+{ "$andon" --help; "$andon" issue --help; } 2>&1 | grep -qiw 'task' && fail "andon --help・andon issue --help に task が出る" || pass "andon --help・andon issue --help に task が出ない"
 "$andon" chief-engineer >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon chief-engineer' "$tmp/err" && pass "andon chief-engineer（引数なし）は usage で rc 2" || fail "andon chief-engineer: rc=$r $(cat "$tmp/err")"
 "$andon" publish >/dev/null 2>"$tmp/err"; r=$?

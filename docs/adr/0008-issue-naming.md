@@ -170,6 +170,14 @@
    理由: 前提 9。動いている台帳は少なく（セルフホストの前）、互換の仕掛け（別名・2 つのラベル・migrate とそのテスト）は書く量とテストを増やすのに使うのは数回。Y-141 の migrate が持っていた守り（`doing`・`review` で止まる）は手順の 1 に置き、確かめは `kanban lint` に任せる。版を 3 に上げるのは残す: 読む側が v2 の台帳を「壊れた」ではなく「古い。手順はここ」と言えるため。
    捨てた案: 2・3 の形（別名 1 版・`labels.task` の例外・`kanban migrate` の v2 → v3。人が「後方互換は気にしなくてよい」と答えた）／形式の版を上げない（フォルダ名の変更は版を上げる決まり。v2 を読む code が無いのに版が同じだと、止まる理由が言えない）／`kanban lint --fix` で移す（migrate を名前を変えて作るのと同じ）／dispatcher の控えのキーを手で書き換える（消すほうが短く、守りは要らない）。
 
+8. **2026-11-07 S3（Y-209）の実装で足したこと。7 の手順 5 のファイル名を直し、`impact` の入れ子のキーも `issue` に揃える。**
+
+   - **7 の手順 5 のファイル名の誤り**: 問いの JSON は `issues/*/questions.yaml` ではなく `issues/*/library/questions/<n>.json`（contract.md §5。`questions.yaml` は台帳の CLI のファイルで `from` を持たない）。手順 5 は「`issues/*/library/report.json` の `"to": "task"` を `"to": "issue"` に、`issues/*/library/questions/*.json` の `"from": "task"` を `"from": "issue"` に」と読む（ledger.md の手順と `tests/kanban.sh` はこの形）。3 の (2) の `questions.yaml` も同じ読み替え。
+   - **`impact` の入れ子**: 2 の表に無かった通知 `impact` の `detail.tasks[]`・その1件の `task`、`andon issue impact` の出力の `task`・`tasks[]` も `issues[]`・`issue` にした（`notification/2` の中。キーに task を残すと、表の「通知の schema」の行と食い違う）。
+   - **変えなかったもの**: トリアージの `decisions.json` の `task`（起こす課題の中身）・記録の `created_task`・`andon triage collect` の項目の kind `task` は、triage skill が形を持つので S4 に回した（`andon` が書く schema の約束ではない）。`cmd/kanban` の Go の識別子（型 `task` など）は S2 の範囲で、人の目に出ない。
+
+   理由: 7 の手順は S2 が ledger.md と `tests/kanban.sh` に写したとき正しい置き場で書いたが、この文書の本文が古い名前のままだった。`impact` は表から漏れていた（受け入れ条件 3 の「`task` を持つ例が落ちる」に当たる）。
+
 ## やらないこと（範囲の外。理由）
 
 - **読む側の互換と移す command**（v2 の台帳を読む・`task=` のラベル・`next[].to: task`・`andon task` の別名・App の mod の `labels.task`・`kanban migrate` の v2 → v3）: 決めたこと 7。既存の台帳は手で移す（仮設の端末に名前が付かなくなるのは仮設が止まるまでの間だけ）。

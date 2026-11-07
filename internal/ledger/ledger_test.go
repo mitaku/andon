@@ -50,7 +50,7 @@ func TestCanonID(t *testing.T) {
 	}
 }
 
-// レビュアーのタスクは親のすぐあとに回の順で並ぶ（番号が 4 桁を超えても）。
+// レビュアーの課題は親のすぐあとに回の順で並ぶ（番号が 4 桁を超えても）。
 func TestIdLess(t *testing.T) {
 	ids := []string{"A-10000", "A-0006", "A-0005-r10", "A-0005-r2", "A-0005", "A-0005-r1"}
 	sort.SliceStable(ids, func(i, j int) bool { return idLess(ids[i], ids[j]) })
@@ -59,7 +59,7 @@ func TestIdLess(t *testing.T) {
 	}
 }
 
-// 移す前の行（id: A-5・by: Chief of Staff）は、移したあとのタスク A-0005 の照合に数える。
+// 移す前の行（id: A-5・by: Chief of Staff）は、移したあとの課題 A-0005 の照合に数える。
 func TestTrustedReadsOldIds(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
@@ -69,7 +69,7 @@ func TestTrustedReadsOldIds(t *testing.T) {
 	if l.ChiefOfStaff() != "t5" {
 		t.Fatalf("ChiefOfStaff() = %q", l.ChiefOfStaff())
 	}
-	if !l.Trusted(l.Log(), Task{"id": "A-0005", "review": "on"}, "review") {
+	if !l.Trusted(l.Log(), Issue{"id": "A-0005", "review": "on"}, "review") {
 		t.Fatal("the row written as A-5 does not count for A-0005")
 	}
 }
@@ -88,15 +88,15 @@ func TestCandidates(t *testing.T) {
 		row("A-0004", "terminal:t5", "pr"),
 	}
 	for _, c := range []struct {
-		task Task
+		task Issue
 		want bool
 	}{
-		{Task{"id": "A-0001", "deliverable": "candidates"}, true},
-		{Task{"id": "A-0002", "deliverable": "candidates"}, false},
-		{Task{"id": "A-0003", "deliverable": "candidates"}, false},
-		{Task{"id": "A-0004", "deliverable": "candidates"}, false}, // 履歴の値と違う
-		{Task{"id": "A-0004", "deliverable": "pr"}, false},
-		{Task{"id": "A-0005"}, false}, // 無い＝pr
+		{Issue{"id": "A-0001", "deliverable": "candidates"}, true},
+		{Issue{"id": "A-0002", "deliverable": "candidates"}, false},
+		{Issue{"id": "A-0003", "deliverable": "candidates"}, false},
+		{Issue{"id": "A-0004", "deliverable": "candidates"}, false}, // 履歴の値と違う
+		{Issue{"id": "A-0004", "deliverable": "pr"}, false},
+		{Issue{"id": "A-0005"}, false}, // 無い＝pr
 	} {
 		if got := l.Candidates(rows, c.task); got != c.want {
 			t.Errorf("Candidates(%v) = %v, want %v", c.task, got, c.want)

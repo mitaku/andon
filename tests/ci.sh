@@ -8,10 +8,10 @@ ok() { echo "ok   $*"; }
 # 1. image-scope: image に入らず tests/image.sh も読まない変更だけなら false。知らないパスは true
 scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
 [ "$(scope docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人の文書だけで true"
-[ "$(scope tests/andon-task.sh tests/kanban/test-deck.mjs workflow_test.go internal/task/task_test.go)" = false ] || die "ほかの tests・Go のテストだけで true"
+[ "$(scope tests/andon-issue.sh tests/kanban/test-deck.mjs workflow_test.go internal/issue/issue_test.go)" = false ] || die "ほかの tests・Go のテストだけで true"
 [ "$(scope)" = false ] || die "変更が無いのに true"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
-  internal/task/task.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
+  internal/issue/issue.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
   package/lib/andon/x_test.go init/x_test.go image/x_test.go \
   tests/image.sh tests/lib/pty-probe.py tests/lib/run-tests.sh tests/lib/image-scope.sh docs-new/x NEW.md; do
   [ "$(scope docs/image.md "$p")" = true ] || die "$p を含むのに false"
@@ -25,11 +25,11 @@ always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh '
 [ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
 [ "$(pick docs/contract.md)" = 'tests/ci.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh が無い"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
-[ "$(pick internal/task/task_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/task/task_test.go)"
+[ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
 [ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"
 grep -q tests/image.sh <<<"$(pick package/lib/andon/x_test.go)" || die "package/ の下の _test.go で image.sh が無い"
 n_all=$(ls tests/*.sh | wc -l)
-for p in internal/task/task.go package/x NEW; do
+for p in internal/issue/issue.go package/x NEW; do
   got=$(pick "$p")
   [ "$(wc -w <<<"$got")" -eq "$n_all" ] || die "$p で全部にならない: $got"
 done

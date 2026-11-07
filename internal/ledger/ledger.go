@@ -1,8 +1,8 @@
 // Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（kanban）だけで、
 // ここはそれを打つか、台帳のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
 //
-// command（andon task・andon gate）が共有するもの: タスクの項目（issue.yaml の Andon の予約キー）と履歴の照合・
-// レビュアーのタスクの選び方・findings.json の読み方・library/ の置き場。
+// command（andon issue・andon gate）が共有するもの: 課題の項目（issue.yaml の Andon の予約キー）と履歴の照合・
+// レビュアーの課題の選び方・findings.json の読み方・library/ の置き場。
 package ledger
 
 import (
@@ -34,7 +34,7 @@ func Check() error {
 }
 
 // DispatcherBy は dispatcher が台帳の CLI を打つときの log.jsonl の by（HC_TERMINAL_ID=dispatcher で打つ）。
-// dispatcher が足したレビュアーのタスクは、Chief of Staff が足したものと同じに数える（docs/dispatcher.md §5 の P6a）。
+// dispatcher が足したレビュアーの課題は、Chief of Staff が足したものと同じに数える（docs/dispatcher.md §5 の P6a）。
 const DispatcherBy = "terminal:dispatcher"
 
 // Ledger は1つの台帳。
@@ -81,17 +81,17 @@ func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Task は台帳のタスクの項目（`show <id> --json` の .issue）。値は全部文字列（台帳の CLI がそう書く）。
-type Task map[string]any
+// Task は台帳の課題の項目（`show <id> --json` の .issue）。値は全部文字列（台帳の CLI がそう書く）。
+type Issue map[string]any
 
 // Str はキーの値。文字列でなければ空。
-func (t Task) Str(k string) string {
+func (t Issue) Str(k string) string {
 	s, _ := t[k].(string)
 	return s
 }
 
 // Path はキーの値をパスとして読む。台帳の CLI は HOME の下を `~/…` で書くことがあるので、HOME に開く。
-func (t Task) Path(k string) string {
+func (t Issue) Path(k string) string {
 	s := t.Str(k)
 	if rest, ok := strings.CutPrefix(s, "~/"); ok {
 		if home := os.Getenv("HOME"); home != "" {
@@ -101,35 +101,35 @@ func (t Task) Path(k string) string {
 	return s
 }
 
-// Show はタスクの項目を読む。
-func (l *Ledger) Show(id string) (Task, error) {
+// Show は課題の項目を読む。
+func (l *Ledger) Show(id string) (Issue, error) {
 	out, err := l.Run("", "show", id, "--json")
 	if err != nil {
 		return nil, err
 	}
 	var v struct {
-		Task Task `json:"issue"`
+		Issue Issue `json:"issue"`
 	}
-	if err := json.Unmarshal([]byte(out), &v); err != nil || v.Task == nil {
-		return nil, fmt.Errorf("タスク %s が読めない", id)
+	if err := json.Unmarshal([]byte(out), &v); err != nil || v.Issue == nil {
+		return nil, fmt.Errorf("課題 %s が読めない", id)
 	}
-	return v.Task, nil
+	return v.Issue, nil
 }
 
-// List は全部のタスク（done も）。
-func (l *Ledger) List() ([]Task, error) {
+// List は全部の課題（done も）。
+func (l *Ledger) List() ([]Issue, error) {
 	out, err := l.Run("", "list", "--all", "--json")
 	if err != nil {
 		return nil, err
 	}
-	var v []Task
+	var v []Issue
 	if err := json.Unmarshal([]byte(out), &v); err != nil {
-		return nil, errors.New("タスクの一覧が読めない")
+		return nil, errors.New("課題の一覧が読めない")
 	}
 	return v, nil
 }
 
-// Library はタスクの library/（機械向けの置き場）。
+// Library は課題の library/（機械向けの置き場）。
 func (l *Ledger) Library(id string) string {
 	return filepath.Join(l.Dir, "issues", id, "library")
 }
@@ -200,9 +200,9 @@ func (l *Ledger) Log() []Row {
 	return rows
 }
 
-// Trusted は、タスク id の key を最後に変えた log.jsonl の行の by が terminal:<chief_of_staff> で、
+// Trusted は、課題 id の key を最後に変えた log.jsonl の行の by が terminal:<chief_of_staff> で、
 // その値がいまの task の値と同じか（contract.md §2 の履歴の照合）。chief_of_staff が無ければ信じない。
-func (l *Ledger) Trusted(rows []Row, t Task, key string) bool {
+func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 	cos := l.ChiefOfStaff()
 	if cos == "" {
 		return false
@@ -223,10 +223,10 @@ func (l *Ledger) Trusted(rows []Row, t Task, key string) bool {
 	return ok && v == t.Str(key)
 }
 
-// Candidates は、タスクの成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
+// Candidates は、課題の成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
 // Chief of Staff か（contract.md §2 の履歴の照合）。照合が合わない・無い・知らない値は false（pr として読む＝安全側）。
 // 読み手は dispatcher（ゲートを回さない）と andon gate（回さずに終了コード 3）。ADR-0006 決めたこと 7。
-func (l *Ledger) Candidates(rows []Row, t Task) bool {
+func (l *Ledger) Candidates(rows []Row, t Issue) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
 }
 
@@ -264,7 +264,7 @@ func Brand(profile string) string {
 }
 
 // SettingsOf は task の予約キーを読む。
-func SettingsOf(t Task) Settings {
+func SettingsOf(t Issue) Settings {
 	s := Settings{ReviewRounds: "2", Merge: "person", Deliverable: "pr"}
 	if v := t.Str("review"); v == "on" || v == "off" {
 		s.Review = v
@@ -306,10 +306,10 @@ func machineOK(v string) bool {
 	return true
 }
 
-// Reviewer は、タスク id のレビューに数えるレビュアーのタスクのうち最新のもの（無ければ空）と、
-// 数えなかった子タスク（理由の文に使う）。数えるのは: parent が id・status が review か done・
+// Reviewer は、課題 id のレビューに数えるレビュアーの課題のうち最新のもの（無ければ空）と、
+// 数えなかった子課題（理由の文に使う）。数えるのは: parent が id・status が review か done・
 // 作成の行（log.jsonl の最初の add）の by が terminal:<chief_of_staff> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
-func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
+func (l *Ledger) Reviewer(rows []Row, tasks []Issue, t Issue) (string, []string) {
 	cos := l.ChiefOfStaff()
 	creator := map[string]string{}
 	for _, r := range rows {
@@ -320,7 +320,7 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Task, t Task) (string, []string) {
 		}
 	}
 	brand := Brand(t.Str("profile"))
-	var picked []Task
+	var picked []Issue
 	var others []string
 	for _, c := range tasks {
 		if c.Str("parent") != t.Str("id") || (c.Str("status") != "review" && c.Str("status") != "done") {
@@ -368,7 +368,7 @@ func canonNumber(id string) string {
 	return fmt.Sprintf("%s-%04d", id[:i], n)
 }
 
-// SplitRound はレビュアーのタスクの id（<親>-r<回>。A-0005-r1）を親の id と回（1 以上）に分ける。違う形なら ok が false。
+// SplitRound はレビュアーの課題の id（<親>-r<回>。A-0005-r1）を親の id と回（1 以上）に分ける。違う形なら ok が false。
 func SplitRound(id string) (parent string, round int, ok bool) {
 	i := strings.LastIndex(id, "-r")
 	if i <= 0 || i+2 == len(id) || strings.Trim(id[i+2:], "0123456789") != "" {

@@ -192,8 +192,8 @@ case $1 in
   ls) echo "$*" >>"$FAKE_HC/log"
       echo '{"terminals":[{"address":"t20","state":"live","turn":3},{"address":"t22","state":"finished"},{"address":"t21","state":"live","turn":0}]}' ;;
   get) case $2 in
-         t20) echo '{"state":"live","turn":3,"labels":{"project":"other-site","task":"D-3"}}' ;;
-         t21) echo '{"state":"live","turn":0,"labels":{"project":"sample-site","task":"D-3"}}' ;;
+         t20) echo '{"state":"live","turn":3,"labels":{"project":"other-site","issue":"D-3"}}' ;;
+         t21) echo '{"state":"live","turn":0,"labels":{"project":"sample-site","issue":"D-3"}}' ;;
          *) echo '{"error":{"kind":"not_found"}}' >&2; exit 3 ;;
        esac ;;
   *) exit 9 ;;
@@ -214,15 +214,15 @@ func TestLiveTask(t *testing.T) {
 	t.Setenv("FAKE_HC", d)
 	hostName = func() (string, error) { return "TestPlant", nil }
 	t.Cleanup(func() { hostName = os.Hostname })
-	addr, turn, ok := liveTask("sample-site", "D-3")
+	addr, turn, ok := liveIssue("sample-site", "D-3")
 	if !ok || addr != "t21" || turn != 0 {
 		t.Fatalf("別のプロジェクトの端末を引いた・自分の端末を引かない: %q %d %v", addr, turn, ok)
 	}
 	b, _ := os.ReadFile(filepath.Join(d, "log"))
-	if got := strings.TrimSpace(string(b)); got != "ls --json --label project=sample-site --label task=D-3" {
+	if got := strings.TrimSpace(string(b)); got != "ls --json --label project=sample-site --label issue=D-3" {
 		t.Errorf("hc ls を project と task で絞っていない: %q", got)
 	}
-	if _, _, ok := liveTask("third-site", "D-3"); ok {
+	if _, _, ok := liveIssue("third-site", "D-3"); ok {
 		t.Error("ラベルの合わない端末を引いた")
 	}
 }
