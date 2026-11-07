@@ -25,12 +25,14 @@ printf 'owner = "owner@example.com"\n' >"$ws/andon.toml"
 git -C "$ws" add andon.toml
 git -C "$ws" -c user.name=owner -c user.email=owner@example.com commit -q -m init
 export ANDON_WORKSPACE=$ws
-# 偽の ghq（get を log に書くだけ）と hc（HC_TERMINAL_ID が role で始まれば Chief of Staff の端末）
+# 偽の ghq（get を log に書き、空の clone を作る）と hc（HC_TERMINAL_ID が role で始まれば Chief of Staff の端末）
 export GHQ_ROOT=$tmp/ghq
-mkdir -p "$GHQ_ROOT/example.com/o/have" "$tmp/bin"
+mkdir -p "$tmp/bin"
+git init -q "$GHQ_ROOT/example.com/o/have"
 cat >"$tmp/bin/ghq" <<EOF
 #!/usr/bin/env bash
 echo "\$*" >>$tmp/ghq.log
+git init -q "\$GHQ_ROOT/\$2"
 EOF
 cat >"$tmp/bin/hc" <<'EOF'
 #!/usr/bin/env bash
@@ -83,5 +85,11 @@ r=0; "$andon" create Bad_Slug </dev/null >/dev/null 2>"$tmp/err" || r=$?
   && [ "$(jq -c '[.project, .repos]' "$ws/projects/web-app/project.json")" = '[{"title":"web-app","prefix":"WA"},[]]' ] \
   && grep -qx 'prefix: WA' "$ws/projects/web-app/kanban/config.yaml" \
   && pass "slug だけなら既定（題は slug・prefix は頭文字・repos 無し）" || fail "既定: $(cat "$tmp/err" "$ws/projects/web-app/project.json" 2>&1)"
+
+# === GHQ_ROOT の下に clone でないものがあれば止まる ===
+mkdir -p "$GHQ_ROOT/example.com/o/empty"
+r=0; "$andon" create sample-empty --repo example.com/o/empty </dev/null >/dev/null 2>"$tmp/err" || r=$?
+[ "$r" = 1 ] && grep -q 'git の clone でない' "$tmp/err" && [ ! -e "$ws/projects/sample-empty" ] \
+  && pass "clone でない置き場があれば何も作らずに止まる" || fail "clone でない: rc=$r $(cat "$tmp/err")"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

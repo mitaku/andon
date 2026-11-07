@@ -47,15 +47,7 @@ var (
 )
 
 // 差し替えられる外部とのつなぎ（テスト用）。
-// /dev/null も文字デバイスなので除く（スクリプトの </dev/null を端末とみなさない）。
-var isTerminal = func(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
-		return false
-	}
-	null, err := os.Stat(os.DevNull)
-	return err != nil || !os.SameFile(fi, null)
-}
+var isTerminal = spawn.IsTerminal
 
 // input は引数で渡されたもの（空は渡されていない。repos は hasRepo で見分ける）。
 type input struct {
@@ -198,6 +190,10 @@ func fill(in *input, a *asker) error {
 		if strings.TrimSpace(s) == "" {
 			return errors.New("題が空")
 		}
+		// 題は AGENTS.md の 1 行目の見出しになる（改行で本文を足させない）
+		if strings.IndexFunc(s, unicode.IsControl) >= 0 {
+			return errors.New("題に改行や制御文字がある（1 行で）")
+		}
 		return nil
 	}
 	asked := false
@@ -305,7 +301,20 @@ func ghqRoot() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// isClone は path が git の作業ツリーの一番上か。
+func isClone(path string) bool {
+	top, err := spawn.Output(nil, "", "git", "-C", path, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return false
+	}
+	a, err1 := filepath.EvalSymlinks(top)
+	b, err2 := filepath.EvalSymlinks(path)
+	return err1 == nil && err2 == nil && a == b
+}
+
 // fetch は repos のうち clone の無いものを ghq get で迎える。迎えた repo を返す。
+// 置き場に clone でないもの（空のディレクトリなど）があれば迎えずに止まる（task start が使えない repo を project.json に載せない）。
+// 迎えたあとも clone になっていなければ止まる。
 func fetch(repos []string, stderr io.Writer) ([]string, error) {
 	if len(repos) == 0 {
 		return nil, nil
@@ -316,17 +325,45 @@ func fetch(repos []string, stderr io.Writer) ([]string, error) {
 	}
 	var got []string
 	for _, r := range repos {
-		if st, err := os.Stat(filepath.Join(root, r)); err == nil && st.IsDir() {
-			continue
+		path := filepath.Join(root, r)
+		if _, err := os.Lstat(path); err == nil {
+			if isClone(path) {
+				continue
+			}
+			return got, fmt.Errorf("%s があるが git の clone でない（中身を確かめて退けるか、clone し直す）", path)
 		}
 		c := exec.Command("ghq", "get", r)
 		c.Stdout, c.Stderr = stderr, stderr
 		if err := c.Run(); err != nil {
 			return got, fmt.Errorf("ghq get %s が落ちた: %v", r, err)
 		}
+		if !isClone(path) {
+			return got, fmt.Errorf("ghq get %s のあとも %s が git の clone でない（GHQ_ROOT と ghq root が同じか確かめる）", r, path)
+		}
 		got = append(got, r)
 	}
 	return got, nil
+}
+
+// writeNew は path を新しく作って書く（あれば書かない。人が先に置いたものを上書きしない）。
+func writeNew(path string, b []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// quote は POSIX シェルの 1 語にする（案内のコマンドをそのまま貼れるように）。
+func quote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%+=:,./_-") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Main は andon create。
@@ -396,27 +433,47 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return err
 	}
-	// ここから先で落ちたら、作った projects/<slug> ごと退ける（作る前は無かった）
+	// ここから先で落ちたら、この command が作ったものだけを退ける。途中で人が置いたものは残す
+	// （projects/<slug> は空になったときだけ消す）。
+	var made []string
 	undo := func(err error) error {
-		_ = os.RemoveAll(dir)
+		for i := len(made) - 1; i >= 0; i-- {
+			_ = os.RemoveAll(made[i])
+		}
+		if os.Remove(dir) != nil {
+			return fmt.Errorf("%v。作ったものは退けたが、projects/%s にほかのものがあるので残した", err, in.slug)
+		}
 		return fmt.Errorf("%v。projects/%s は退けた", err, in.slug)
+	}
+	kdir := filepath.Join(dir, "kanban")
+	if _, err := os.Lstat(kdir); err == nil {
+		return undo(fmt.Errorf("%s が作る前に現れた", kdir))
 	}
 	kargs := []string{"init", "--root", dir, "--prefix", in.prefix}
 	for _, r := range in.repos {
 		kargs = append(kargs, "--repo", r)
 	}
-	if _, err := spawn.OutputIn(dir, nil, "", "kanban", kargs...); err != nil {
-		return undo(fmt.Errorf("kanban init が落ちた: %v", err))
+	_, kerr := spawn.OutputIn(dir, nil, "", "kanban", kargs...)
+	made = append(made, kdir)
+	if kerr != nil {
+		return undo(fmt.Errorf("kanban init が落ちた: %v", kerr))
 	}
-	if err := os.WriteFile(filepath.Join(dir, "project.json"), draft, 0o644); err != nil {
-		return undo(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), AgentsMD(in.title), 0o644); err != nil {
-		return undo(err)
+	for _, f := range []struct {
+		name string
+		b    []byte
+	}{{"project.json", draft}, {"AGENTS.md", AgentsMD(in.title)}} {
+		path := filepath.Join(dir, f.name)
+		if err := writeNew(path, f.b); err != nil {
+			if os.IsExist(err) {
+				err = fmt.Errorf("%s が作る前に現れた（上書きしない）", path)
+			}
+			return undo(err)
+		}
+		made = append(made, path)
 	}
 	fmt.Fprintf(stdout, "作った: %s/（kanban/・project.json・AGENTS.md）\n", rel)
 	fmt.Fprintf(stdout, "project.json と AGENTS.md は人のファイルで、commit していない。中身を見て、andon.toml の owner の email で commit する:\n")
-	fmt.Fprintf(stdout, "  cd %s && git add %s/project.json %s/AGENTS.md && git commit -m '%s'\n", ws, rel, rel, rel)
+	fmt.Fprintf(stdout, "  cd %s && git add %s/project.json %s/AGENTS.md && git commit -m %s\n", quote(ws), rel, rel, rel)
 	fmt.Fprintf(stdout, "確かめる: andon delegate show --project %s（無委譲と出る）\n", in.slug)
 	fmt.Fprintf(stdout, "Chief of Staff を起こす: andon open %s\n", in.slug)
 	return nil

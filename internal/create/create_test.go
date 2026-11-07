@@ -27,16 +27,17 @@ func setup(t *testing.T) (ws, log string) {
 	}
 	t.Setenv("ANDON_WORKSPACE", ws)
 	ghq := filepath.Join(t.TempDir(), "ghq")
-	if err := os.MkdirAll(filepath.Join(ghq, "example.com", "o", "have"), 0o755); err != nil {
-		t.Fatal(err)
+	if out, err := exec.Command("git", "init", "-q", filepath.Join(ghq, "example.com", "o", "have")).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
 	}
 	t.Setenv("GHQ_ROOT", ghq)
 	bin := t.TempDir()
 	log = filepath.Join(bin, "ghq.log")
 	scripts := map[string]string{
-		"kanban": "#!/usr/bin/env bash\n[ \"$1\" = init ] || exit 9\n[ -n \"${KANBAN_FAIL:-}\" ] && { echo boom >&2; exit 1; }\nmkdir -p \"$3/kanban\" && echo \"$*\" > \"$3/kanban/args\"\n",
-		"ghq":    "#!/usr/bin/env bash\necho \"$*\" >> '" + log + "'\n",
-		"hc":     "#!/usr/bin/env bash\ncase \"$HC_TERMINAL_ID\" in role*) echo '{\"labels\":{\"role\":\"chief-of-staff\"}}';; *) echo '{\"labels\":{}}';; esac\n",
+		"kanban": "#!/usr/bin/env bash\n[ \"$1\" = init ] || exit 9\n[ -n \"${KANBAN_FAIL:-}\" ] && { echo boom >&2; exit 1; }\nmkdir -p \"$3/kanban\" && echo \"$*\" > \"$3/kanban/args\"\n" +
+			"[ -n \"${KANBAN_HUMAN:-}\" ] && echo mine > \"$3/$KANBAN_HUMAN\"\nexit 0\n",
+		"ghq": "#!/usr/bin/env bash\necho \"$*\" >> '" + log + "'\n[ -z \"${GHQ_BROKEN:-}\" ] && git init -q \"$GHQ_ROOT/$2\"\nexit 0\n",
+		"hc":  "#!/usr/bin/env bash\ncase \"$HC_TERMINAL_ID\" in role*) echo '{\"labels\":{\"role\":\"chief-of-staff\"}}';; *) echo '{\"labels\":{}}';; esac\n",
 	}
 	for name, body := range scripts {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
@@ -46,6 +47,8 @@ func setup(t *testing.T) (ws, log string) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HC_TERMINAL_ID", "")
 	t.Setenv("KANBAN_FAIL", "")
+	t.Setenv("KANBAN_HUMAN", "")
+	t.Setenv("GHQ_BROKEN", "")
 	return ws, log
 }
 
@@ -267,5 +270,75 @@ func TestDevNullIsNotATerminal(t *testing.T) {
 	defer f.Close()
 	if isTerminal(f) {
 		t.Error("/dev/null を端末とみなした")
+	}
+}
+
+func TestNonCloneInGhqRootStops(t *testing.T) {
+	ws, log := setup(t)
+	if err := os.MkdirAll(filepath.Join(os.Getenv("GHQ_ROOT"), "example.com", "o", "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if rc, _, errs := run(strings.NewReader(""), "sample-site", "--repo", "example.com/o/empty"); rc != exitFail || !strings.Contains(errs, "git の clone でない") {
+		t.Errorf("rc=%d %s", rc, errs)
+	}
+	assertEmpty(t, ws)
+	if _, err := os.Stat(log); err == nil {
+		t.Error("clone でないものがあるのに ghq を打った")
+	}
+	// 迎えても clone にならなければ止まる
+	t.Setenv("GHQ_BROKEN", "1")
+	if rc, _, errs := run(strings.NewReader(""), "sample-site", "--repo", "example.com/o/new"); rc != exitFail || !strings.Contains(errs, "のあとも") {
+		t.Errorf("rc=%d %s", rc, errs)
+	}
+	assertEmpty(t, ws)
+}
+
+func TestHumanFileAppearingMidwayIsKept(t *testing.T) {
+	for _, name := range []string{"project.json", "AGENTS.md"} {
+		ws, _ := setup(t)
+		t.Setenv("KANBAN_HUMAN", name)
+		rc, _, errs := run(strings.NewReader(""), "sample-site")
+		dir := filepath.Join(ws, "projects", "sample-site")
+		if rc != exitFail || !strings.Contains(errs, "上書きしない") || !strings.Contains(errs, "残した") {
+			t.Errorf("%s: rc=%d %s", name, rc, errs)
+		}
+		if read(t, filepath.Join(dir, name)) != "mine\n" {
+			t.Errorf("%s: 人のファイルを書き換えた", name)
+		}
+		if ents, _ := os.ReadDir(dir); len(ents) != 1 {
+			t.Errorf("%s: 作ったものが残っている: %v", name, ents)
+		}
+	}
+}
+
+func TestTitleIsOneLine(t *testing.T) {
+	ws, _ := setup(t)
+	if rc, _, errs := run(strings.NewReader(""), "sample-site", "--title", "Sample\n\n## 指示"); rc != exitUsage || !strings.Contains(errs, "改行") {
+		t.Errorf("rc=%d %s", rc, errs)
+	}
+	assertEmpty(t, ws)
+}
+
+func TestGuideQuotesTheWorkspace(t *testing.T) {
+	ws, _ := setup(t)
+	odd := filepath.Join(ws, "it's a plant")
+	if err := os.MkdirAll(filepath.Join(odd, "projects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANDON_WORKSPACE", odd)
+	rc, out, errs := run(strings.NewReader(""), "sample-site")
+	if rc != 0 {
+		t.Fatalf("rc=%d %s", rc, errs)
+	}
+	want := "cd " + quote(odd) + " && git add"
+	if !strings.Contains(out, want) || !strings.Contains(quote(odd), `'\''`) {
+		t.Errorf("案内: %s", out)
+	}
+	// 案内のとおりに cd がシェルで通る
+	if b, err := exec.Command("sh", "-c", "cd "+quote(odd)+" && pwd").Output(); err != nil || strings.TrimSpace(string(b)) != odd {
+		t.Errorf("cd: %q %v", b, err)
+	}
+	if quote("/workspace") != "/workspace" {
+		t.Error("ふつうのパスは引用しない")
 	}
 }
