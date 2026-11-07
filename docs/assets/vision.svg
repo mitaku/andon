@@ -14,7 +14,7 @@
 <text x="52" y="162" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">ミッション（Andon が担うこと）</text>
 <text x="52" y="184" font-size="14" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">1 人のソフトウェア工場を、パッケージ（image ＋ /opt/andon）・約束（schema）・文書として建て、建屋の形と役を決め、public に配る。案件のデータは持たない。</text>
 <text x="1660" y="192" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">design.md §0・§1.6・§2.6 / README</text>
-<text x="40" y="236" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">バリュー（判断に迷ったときの優先の順。左が強い）</text>
+<text x="40" y="236" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">バリュー（判断に迷ったときの優先の順。左が強い。順は試しに置いたもの。使ってみて見直す）</text>
 <rect x="40" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
 <rect x="316" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
 <text x="332.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
