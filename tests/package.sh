@@ -186,6 +186,18 @@ q_blk=$(block "$w" 'andon task ask "$id" -' | sed '1d;$d')
 printf '%s\n' "$q_blk" >"$tmp/q.json"
 [ -n "$q_blk" ] && chk question "$tmp/q.json" && pass "worker skill の問いの例は question.schema.json に合う" || fail "問いの例: $(head -1 "$tmp/why" 2>/dev/null) $q_blk"
 
+# 工程の背骨（ADR-0006 決めたこと 9・11・12・13）: worker の工程表に6つの工程、報告の書式に ## 計画・探した範囲・計画との差。Chief of Staff の雛形に 横展開: と調べるタスクの 終了条件:
+w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w")
+miss=
+for s in 理解 計画 作業 確認 完成 振り返り; do grep -q "^| $s |" <<<"$w2" || miss="$miss $s"; done
+[ -z "$miss" ] && pass "worker skill §2 の工程表に 理解・計画・作業・確認・完成・振り返り がある" || fail "worker skill §2 の工程表に無い工程:$miss"
+w7=$(block "$w" 'PR: <https://')
+grep -q '^## 計画$' <<<"$w7" && grep -q '^探した範囲: ' <<<"$w7" && grep -q '^計画との差: ' <<<"$w7" \
+  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"
+cos=package/skills/chief-of-staff/SKILL.md
+block "$cos" '# <id> <題>' | grep -q '^横展開: ' && block "$cos" '# <id> 調べる: ' | grep -q '^終了条件: ' \
+  && pass "Chief of Staff の依頼書の雛形に 横展開: の行、調べるタスクの雛形に 終了条件: の行がある" || fail "chief-of-staff の雛形に 横展開: か 終了条件: が無い"
+
 # Chief of Staff の task.yaml の予約キー: 全部書き、task-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# task.yaml の予約キー' | grep '^deck set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
