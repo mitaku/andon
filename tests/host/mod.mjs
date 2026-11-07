@@ -26,23 +26,23 @@ await mod.link(name => {
 await mod.evaluate();
 const view = new mod.namespace.default();
 const slug = 'sample-site';
-function add({ task, title, role, work = false, machine = null, address = 't1' }) {
+function add({ issue, title, role, work = false, machine = null, address = 't1' }) {
   const prefix = machine ? `${machine}/` : '';
-  const sid = `andon-${slug}${work ? `-${task}` : ''}`;
-  const tid = `andon-${slug}-${role === 'chief-of-staff' ? 'cos' : task}`;
+  const sid = `andon-${slug}${work ? `-${issue}` : ''}`;
+  const tid = `andon-${slug}-${role === 'chief-of-staff' ? 'cos' : issue}`;
   let space = spaces.find(s => s.id === prefix + sid);
   if (!space) spaces.push(space = { id: prefix + sid, machine, name: 'unnamed', tabs: [] });
   space.tabs.push({ id: prefix + tid, name: '1' });
   terminals.push({ address: prefix + address, state: 'live', labels: {
-    project: slug, role, task, title, 'herdr.space': sid, 'herdr.tab': tid,
+    project: slug, role, issue, title, 'herdr.space': sid, 'herdr.tab': tid,
   } });
   panes.push({ terminal: prefix + address, tab: prefix + tid });
 }
 function render() { calls = []; view.render(); return calls; }
 add({ role: 'chief-of-staff' });
-add({ role: 'chief-engineer', task: 'A-1', title: '設計', address: 't2' });
-add({ task: 'A-2', title: '修正', work: true, address: 't3' });
-add({ task: 'A-2', title: '別マシン', work: true, machine: 'sample-machine', address: 't3' });
+add({ role: 'chief-engineer', issue: 'A-1', title: '設計', address: 't2' });
+add({ issue: 'A-2', title: '修正', work: true, address: 't3' });
+add({ issue: 'A-2', title: '別マシン', work: true, machine: 'sample-machine', address: 't3' });
 assert.deepEqual(render(), [
   ['space.rename', { id: 'andon-sample-site', name: slug }],
   ['tab.rename', { id: 'andon-sample-site-cos', name: 'CoS' }],
@@ -76,9 +76,9 @@ for (const [kind, { id, name }] of calls) {
   targets.find(t => t.id === id).name = name.trim();
 }
 assert.deepEqual(render(), []);
-// Reviewer has its own task/title but the worker's Space and tab. No rename, even alone.
+// Reviewer has its own issue/title but the worker's Space and tab. No rename, even alone.
 const worker = terminals[2];
-terminals.push({ ...worker, address: 't4', labels: { ...worker.labels, task: 'A-3', title: 'レビュー' } });
+terminals.push({ ...worker, address: 't4', labels: { ...worker.labels, issue: 'A-3', title: 'レビュー' } });
 panes.push({ terminal: 't4', tab: panes[2].tab });
 assert.deepEqual(render(), []);
 terminals = terminals.filter(t => t !== worker);
@@ -90,10 +90,12 @@ assert.deepEqual(render(), [['tab.rename', { id: 'andon-sample-site-A-1', name: 
 // adopted must not issue commands. Reuse an unnamed real target to catch writes.
 spaces = [{ id: 'andon-sample-site', name: 'unnamed', tabs: [{ id: 'andon-sample-site-A-1', name: '1' }] }];
 panes = [{ terminal: 't1', tab: 'andon-sample-site-A-1' }];
-const valid = { project: slug, role: 'chief-engineer', task: 'A-1', title: '設計', 'herdr.space': 'andon-sample-site' };
+const valid = { project: slug, role: 'chief-engineer', issue: 'A-1', title: '設計', 'herdr.space': 'andon-sample-site' };
 for (const labels of [{}, { ...valid, project: '' }, { ...valid, role: 'dispatcher' },
   { ...valid, 'herdr.space': 'another-space' }, { ...valid, title: '' },
-  { ...valid, role: undefined }]) { // a worker belongs in its own task's Space
+  { ...valid, role: undefined }, // a worker belongs in its own issue's Space
+  // The old label task= is not read (ADR-0008 decision 7): a terminal carrying only it is not named.
+  { project: slug, role: 'chief-engineer', task: 'A-1', title: '設計', 'herdr.space': 'andon-sample-site' }]) {
   terminals = [{ address: 't1', state: 'live', labels }];
   assert.deepEqual(render(), []);
 }
@@ -117,4 +119,11 @@ for (const [title, expected] of [
   for (const [, { name }] of calls) spaces[0].tabs[0].name = name.trim();
   assert.deepEqual(render(), []);
 }
-console.log('ok   App mod: names, idempotence, reviewer, remote placement, and rename-only API');
+// A worker that carries only the old label task= is not named either.
+spaces = [{ id: 'andon-sample-site-A-2', name: 'unnamed', tabs: [{ id: 'andon-sample-site-A-2', name: '1' }] }];
+panes = [{ terminal: 't1', tab: 'andon-sample-site-A-2' }];
+terminals = [{ address: 't1', state: 'live', labels: { project: slug, task: 'A-2', title: '修正', 'herdr.space': 'andon-sample-site-A-2' } }];
+assert.deepEqual(render(), [], 'ラベル task= を読んだ');
+terminals[0].labels = { project: slug, issue: 'A-2', title: '修正', 'herdr.space': 'andon-sample-site-A-2' };
+assert.deepEqual(render(), [['space.rename', { id: 'andon-sample-site-A-2', name: 'A-2 修正' }], ['tab.rename', { id: 'andon-sample-site-A-2', name: 'A-2' }]]);
+console.log('ok   App mod: names from issue= (not task=), idempotence, reviewer, remote placement, and rename-only API');

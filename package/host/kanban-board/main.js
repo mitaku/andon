@@ -1,4 +1,4 @@
-// Kanban board: the work ledger in kanban/ (Andon's docs/ledger.md, format 2) as a Jira-like board.
+// Kanban board: the work ledger in kanban/ (Andon's docs/ledger.md, format 3) as a Jira-like board.
 // Reads only: people and agents change the ledger with the `kanban` CLI. Shows the ledger of the
 // project the focused pane's folder belongs to, or every project's ledger in the cell, here or on
 // another machine, and never shows old contents as new: a band says when it last changed and was
@@ -12,7 +12,7 @@ import * as fs from "fs/promises";
 import { load } from "./vendor/js-yaml/js-yaml.mjs";
 
 const CHROME = "mods/workspace-chrome";
-const FORMAT = 2;
+const FORMAT = 3;
 const DEFAULT_COLUMNS = ["todo", "queued", "doing", "review", "done"];
 const LABEL = { todo: "To do", queued: "Queued", doing: "Doing", review: "Review", done: "Done" };
 const KIND = { permission: "Permission", question: "Question", auth: "Auth" };
@@ -22,7 +22,7 @@ const MAX_UP = 12;
 // Ledger files are read on the machine they are on, and refused before they are read when they are
 // a symbolic link (a reparse point on Windows) or their folder is one, or when they are too large:
 // the ledger is written by agents (changed by Andon).
-const MAX_TEXT = 256 * 1024;        // one config.yaml or task.yaml
+const MAX_TEXT = 256 * 1024;        // one config.yaml or issue.yaml
 const MAX_DOC = 1024 * 1024;        // a brief.md or report.md
 const MAX_TOTAL = 4 * 1024 * 1024;  // all that one read prints (exec's output stops at 8 MiB)
 // emit <dir> <file>: \x1f and why, or the file's text; t counts the bytes printed against $total.
@@ -31,10 +31,10 @@ const SH_EMIT = 'emit() { if [ -L "$1" ] || [ -L "$2" ]; then printf "\\037symbo
   'if [ "$s" -gt "$max" ]; then printf "\\037larger than %s bytes\\n" "$max"; return; fi; ' +
   't=$((t + s)); if [ "$t" -gt "$total" ]; then printf "\\037over %s bytes in all\\n" "$total"; return; fi; ' +
   'head -c "$max" "$2"; printf "\\n"; }; ';
-// Each task folder's name after \x1e, then its task.yaml (or \x1f and why). A fixed script: root, max, total.
-export const LIST_TASKS = SH_EMIT + 'max=$2; total=$3; t=0; [ -L "$1/kanban" ] || [ -L "$1/kanban/tasks" ] && exit 0; ' +
-  'for d in "$1"/kanban/tasks/*/; do n=${d%/}; [ -e "$n/task.yaml" ] || [ -L "$n/task.yaml" ] || continue; ' +
-  'printf "\\036%s\\n" "${n##*/}"; emit "$n" "$n/task.yaml"; done';
+// Each issue folder's name after \x1e, then its issue.yaml (or \x1f and why). A fixed script: root, max, total.
+export const LIST_ISSUES = SH_EMIT + 'max=$2; total=$3; t=0; [ -L "$1/kanban" ] || [ -L "$1/kanban/issues" ] && exit 0; ' +
+  'for d in "$1"/kanban/issues/*/; do n=${d%/}; [ -e "$n/issue.yaml" ] || [ -L "$n/issue.yaml" ] || continue; ' +
+  'printf "\\036%s\\n" "${n##*/}"; emit "$n" "$n/issue.yaml"; done';
 // Each project's slug after \x1e, then its config.yaml (or \x1f and why). A fixed script: folder, max, total.
 export const LIST_PROJECTS = SH_EMIT + 'max=$2; total=$3; t=0; for c in "$1"/projects/*/kanban/config.yaml; do ' +
   '[ -e "$c" ] || [ -L "$c" ] || continue; p=${c%/kanban/config.yaml}; printf "\\036%s\\n" "${p##*/}"; emit "$p/kanban" "$c"; done';
@@ -44,10 +44,10 @@ export const READ_FILES = SH_EMIT + 'max=$1; total=$2; t=0; i=0; shift 2; while 
 // Windows: for each path, "none", "link" (a reparse point), "dir" or its length. Paths are arguments.
 const PS_ITEMS = "foreach ($p in $args) { $i = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue; " +
   "if (-not $i) { 'none' } elseif ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) { 'link' } elseif ($i.PSIsContainer) { 'dir' } else { [string]$i.Length } }";
-// Windows: each task folder's name, a tab, then "link" or task.yaml's length. The root is the argument.
-const PS_TASKS = "param($r) $d = Join-Path $r 'kanban\\tasks'; $k = Get-Item -LiteralPath (Join-Path $r 'kanban') -Force -ErrorAction SilentlyContinue; " +
+// Windows: each issue folder's name, a tab, then "link" or issue.yaml's length. The root is the argument.
+const PS_ISSUES = "param($r) $d = Join-Path $r 'kanban\\issues'; $k = Get-Item -LiteralPath (Join-Path $r 'kanban') -Force -ErrorAction SilentlyContinue; " +
   "$t = Get-Item -LiteralPath $d -Force -ErrorAction SilentlyContinue; if (-not $t -or (($k.Attributes -bor $t.Attributes) -band [IO.FileAttributes]::ReparsePoint)) { return }; " +
-  "Get-ChildItem -LiteralPath $d -Force -Directory | ForEach-Object { $f = Get-Item -LiteralPath (Join-Path $_.FullName 'task.yaml') -Force -ErrorAction SilentlyContinue; " +
+  "Get-ChildItem -LiteralPath $d -Force -Directory | ForEach-Object { $f = Get-Item -LiteralPath (Join-Path $_.FullName 'issue.yaml') -Force -ErrorAction SilentlyContinue; " +
   "if ($f) { $s = if (($_.Attributes -bor $f.Attributes) -band [IO.FileAttributes]::ReparsePoint) { 'link' } elseif ($f.PSIsContainer) { 'dir' } else { [string]$f.Length }; \"{0}`t{1}\" -f $_.Name, $s } }";
 // A PowerShell single-quoted string (', and ‘ ’ ‚ ‛, which also end one, doubled).
 const psQuote = (a) => `'${a.replace(/['‘’‚‛]/g, (m) => m + m)}'`;
@@ -113,7 +113,8 @@ function parseYaml(text) {
 // A config.yaml as the board uses it. Readers stop at a format they don't know (ledger.md).
 function readConfig(text) {
   const c = parseYaml(text);
-  if (c.version !== FORMAT) throw new Error(c.version == null ? "this ledger is format 1; the board reads format 2 (docs/ledger.md)" : `format ${c.version} is unknown; the board reads format 2`);
+  if (c.version === 2) throw new Error("config.yaml is format 2; move it by hand (docs/operate.md)");
+  if (c.version !== FORMAT) throw new Error(c.version == null ? "this ledger is format 1; the board reads format 3 (docs/ledger.md)" : `format ${c.version} is unknown; the board reads format 3`);
   return {
     columns: Array.isArray(c.columns) && c.columns.length ? c.columns.map(String) : DEFAULT_COLUMNS,
     repos: Array.isArray(c.repos) ? c.repos.map(String) : [],
@@ -272,24 +273,24 @@ export default class KanbanBoard extends View {
     if (!this.root && this.plant) this.all = true;
   }
 
-  // Every task's text, by folder name.
-  async readTasks(root, on) {
+  // Every issue's text, by folder name.
+  async readIssues(root, on) {
     const texts = new Map();
     if (!local(on)) {
-      const r = await exec("sh", ["-c", LIST_TASKS, "kanban-board", root, String(MAX_TEXT), String(MAX_TOTAL)], { on });
-      if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/tasks");
+      const r = await exec("sh", ["-c", LIST_ISSUES, "kanban-board", root, String(MAX_TEXT), String(MAX_TOTAL)], { on });
+      if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/issues");
       for (const [id, v] of chunks(r.stdout)) texts.set(id, v);
       return texts;
     }
-    const r = await ps(PS_TASKS, root);
-    if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/tasks");
+    const r = await ps(PS_ISSUES, root);
+    if (r.code !== 0) throw new Error(r.stderr.trim() || "Cannot list kanban/issues");
     const left = { bytes: MAX_TOTAL };
     for (const line of r.stdout.split(/\r?\n/).filter((x) => x.includes("\t"))) {
       const [id, state] = line.trim().split("\t");
       const v = verdict("dir", state, MAX_TEXT, left);
       if (!v) continue;
       if (!v.read) { texts.set(id, v); continue; }
-      const text = await readTextFile(`${root}/kanban/tasks/${id}/task.yaml`).catch(() => null);
+      const text = await readTextFile(`${root}/kanban/issues/${id}/issue.yaml`).catch(() => null);
       if (text !== null) texts.set(id, { text });
     }
     return texts;
@@ -305,7 +306,7 @@ export default class KanbanBoard extends View {
     const ledger = { root, slug, name: config.title ?? slug, ...config };
     /** @type {Record<string, any>[]} */
     const tasks = [];
-    for (const [id, t] of await this.readTasks(root, on)) {
+    for (const [id, t] of await this.readIssues(root, on)) {
       const at = { id, slug, root, key: `${slug}/${id}` };
       if (t.error) { tasks.push({ ...at, broken: t.error }); continue; }
       try { tasks.push({ ...parseYaml(t.text), ...at }); }
@@ -403,7 +404,7 @@ export default class KanbanBoard extends View {
     this.detail = { key: task.key, brief: null, report: null, library: [], loading: true };
     const on = this.where?.on, detail = this.detail;
     cx.spawn(async (cx) => {
-      const base = `${task.root}/kanban/tasks/${task.id}`;
+      const base = `${task.root}/kanban/issues/${task.id}`;
       const [brief, report] = await readChecked([[base, `${base}/brief.md`], [base, `${base}/report.md`]], MAX_DOC, on).catch(() => [null, null]);
       const shown = (v) => (v?.error ? `(not shown: ${v.error})` : v?.text ?? null);
       detail.brief = shown(brief);

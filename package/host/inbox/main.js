@@ -45,12 +45,12 @@ const parentOf = (k) => {
   const machine = machineOf(k.address);
   return machine && k.parent && !k.parent.includes("/") ? `${machine}/${k.parent}` : k.parent ?? null;
 };
-// Andon's agents carry `project=<slug>` (andon task start, hc run --label). They are colleagues, not
+// Andon's agents carry `project=<slug>` (andon issue start, hc run --label). They are colleagues, not
 // helpers: each gets its own row even without a pane. One under a pane is that pane's own agent,
 // so its row is the pane's.
 // The roles a person starts and talks with (Andon's docs/contract.md §8): a turn they end is a reply.
 const TALKS_TO_YOU = new Set(["chief-of-staff", "chief-engineer"]);
-const ownRow = (k, listed) => Boolean(k.labels?.task || (k.labels?.project && !listed.has(parentOf(k))));
+const ownRow = (k, listed) => Boolean(k.labels?.issue || (k.labels?.project && !listed.has(parentOf(k))));
 const urgent = (a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
 
 // A theme color ("#rrggbb") with an alpha byte added.
@@ -169,8 +169,8 @@ export default class Inbox extends View {
         status: k.status === "error" ? "blocked" : k.status ?? "idle",
         program: k.program,
         title: k.name ?? "",
-        // "project › task", or the Chief of Staff's project alone.
-        space_name: [k.labels.project, k.labels.task].filter(Boolean).join(" › "),
+        // "project › issue", or the Chief of Staff's project alone.
+        space_name: [k.labels.project, k.labels.issue].filter(Boolean).join(" › "),
         tab: null,
         tab_name: "",
         space: null,
@@ -228,7 +228,7 @@ export default class Inbox extends View {
         kind: status === "blocked" ? (failed ? "Failed" : KIND[report.kind] ?? null) : reply ? "Reply" : null,
         reply,
         msg: short(report.msg),
-        // A `title` label (andon task start puts the task's title there) names it best.
+        // A `title` label (andon issue start puts the issue's title there) names it best.
         name: term.labels?.title || (a.paneless && a.title ? a.title : displayName(a, tab)),
         program: a.program,
         space: a.space_name,
@@ -461,7 +461,7 @@ export default class Inbox extends View {
     const when = i.section === "settled" ? i.settled.ms : i.since;
     const time = `${duration(m.now - when)}${i.approx && i.section !== "settled" ? "+" : ""}`;
     const quiet = i.section === "idle" || i.section === "settled";
-    // The Chief of Staff runs the same program as the task agents: its own glyph tells it apart.
+    // The Chief of Staff runs the same program as the issue agents: its own glyph tells it apart.
     const pic = i.talks ? svg("mods/inbox/chief-of-staff.svg").size(16).flex_none().text_color(t.accent) : icon(i.program, 16, t.foreground);
     // Only what's unusual: a named tab, a branch other than main/master, the agent's message.
     const branch = i.branch === "main" || i.branch === "master" ? null : i.branch;
