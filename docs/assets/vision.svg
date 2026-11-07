@@ -1,0 +1,322 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1142" viewBox="0 0 1720 1142" font-family="sans-serif">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9a958b"/></marker></defs>
+<rect width="1720" height="1142" fill="#fbfaf7"/>
+<text x="40" y="44" font-size="22" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">Andon の向きと工程 — ビジョン → ミッション → バリュー → ライン（役と仕組み）</text>
+<text x="1680" y="44" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">docs/vision.md · 提案 2026-11-07（Y-198）</text>
+<rect x="40" y="64" width="1640" height="62" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<circle cx="59" cy="81" r="7" fill="#d9891f"/>
+<circle cx="59" cy="79" r="2.2" fill="#fbfaf7"/>
+<path d="M55 85.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="72" y="86" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">ビジョン（目指す状態。案 A。人が決めた 2026-11-07）</text>
+<text x="52" y="108" font-size="14" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人は、自分にしかできない判断だけをする。ラインは人が見ていない間も回り、灯りがつくのはその判断のときだけ。</text>
+<text x="1660" y="116" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">D6・D7 / design.md §0・§1.1・§1.3</text>
+<rect x="40" y="140" width="1640" height="62" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<text x="52" y="162" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">ミッション（Andon が担うこと）</text>
+<text x="52" y="184" font-size="14" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">1 人のソフトウェア工場を、パッケージ（image ＋ /opt/andon）・約束（schema）・文書として建て、建屋の形と役を決め、public に配る。案件のデータは持たない。</text>
+<text x="1660" y="192" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">design.md §0・§1.6・§2.6 / README</text>
+<text x="40" y="236" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">バリュー（判断に迷ったときの優先の順。左が強い。順は試しに置いたもの。使ってみて見直す）</text>
+<rect x="40" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="316" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="332.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<text x="52" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">1 灯りは判断にだけ</text>
+<text x="52" y="288.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人を呼ぶのは 5 種の判断だけ。事実は聞かない。</text>
+<text x="52" y="306.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">灯りは呼び出し（問い）と定位置停止（不可逆・</text>
+<text x="52" y="323.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">レベル C）の 2 つ。何を作るかは人から離れない</text>
+<text x="346" y="346" font-size="10" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">D8 / §1.3・§1.10 / ADR-0006 5・14</text>
+<rect x="371" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="647" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="663.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<text x="383" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">2 戻せないものは人</text>
+<text x="383" y="288.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">不可逆は先に人へ。それ以外の</text>
+<text x="383" y="306.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">判断待ちは脇に置き、流れを</text>
+<text x="383" y="323.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">止めない</text>
+<text x="677" y="346" font-size="10" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">D5 / §1.7 の 3・§1.10</text>
+<rect x="702" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="978" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="994.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<text x="714" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">3 機械に置けるものは機械に</text>
+<text x="714" y="288.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">標準は 機械が確かめる形 → 文 →</text>
+<text x="714" y="306.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人のレビュー の順。ハーネスは</text>
+<text x="714" y="323.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">薄く、役を足さない</text>
+<text x="1008" y="346" font-size="10" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">D15 / §1.9 の 5・§2.1 / ADR-0006 14</text>
+<rect x="1033" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="1309" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1325.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<text x="1045" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">4 自工程で作り込む</text>
+<text x="1045" y="288.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">担当が理解し計画し横展開する。</text>
+<text x="1045" y="306.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">依頼書は課題と完了条件を持ち、</text>
+<text x="1045" y="323.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">手順は持たない</text>
+<text x="1339" y="346" font-size="10" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">§1.2 の 3・§1.7 / ADR-0006 9〜12</text>
+<rect x="1364" y="246" width="316" height="108" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="1640" y="253" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1656.0" y="265.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<text x="1376" y="268" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">5 記録を残し PR で直す</text>
+<text x="1376" y="288.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">機械が読む記録 → 振り返り →</text>
+<text x="1376" y="306.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">環境の PR。skill の自己書き換えは</text>
+<text x="1376" y="323.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">しない。決定は上書きしない</text>
+<text x="1670" y="346" font-size="10" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">D9・D10 / §1.4・§1.9 / 問い 22</text>
+<rect x="40" y="382" width="1640" height="86" rx="6" fill="none" stroke="#9a958b" stroke-width="1.2"/>
+<circle cx="60" cy="402" r="7" fill="#d9891f"/>
+<circle cx="60" cy="400" r="2.2" fill="#fbfaf7"/>
+<path d="M56 406.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="76" y="407" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">人が規則を定める（列の外にいる。レベル C。Andon のパッケージは常に人）</text>
+<rect x="560" y="394" width="18" height="16" rx="8" fill="#222222"/>
+<text x="569" y="406" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">3</text>
+<text x="586" y="407" font-size="11.5" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">バリュー 3: 規則は機械が読む形で持つ</text>
+<rect x="52.0" y="418" width="312.0" height="40" rx="4" fill="#f3f0ea" stroke="#9a958b" stroke-width="1"/>
+<text x="62.0" y="435" font-size="12.5" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">委譲</text>
+<text x="62.0" y="451" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">project.json の delegation</text>
+<rect x="378.0" y="418" width="312.0" height="40" rx="4" fill="#f3f0ea" stroke="#9a958b" stroke-width="1"/>
+<text x="388.0" y="435" font-size="12.5" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">ゲートの条件表</text>
+<text x="388.0" y="451" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">gate.json ＋ gate.local.json</text>
+<rect x="704.0" y="418" width="312.0" height="40" rx="4" fill="#f3f0ea" stroke="#9a958b" stroke-width="1"/>
+<text x="714.0" y="435" font-size="12.5" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">skill とプロファイル</text>
+<text x="714.0" y="451" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">package/skills・templates</text>
+<rect x="1030.0" y="418" width="312.0" height="40" rx="4" fill="#f3f0ea" stroke="#9a958b" stroke-width="1"/>
+<text x="1040.0" y="435" font-size="12.5" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">依頼書の Settings</text>
+<text x="1040.0" y="451" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">task.yaml の予約キー</text>
+<rect x="1356.0" y="418" width="312.0" height="40" rx="4" fill="#f3f0ea" stroke="#9a958b" stroke-width="1"/>
+<text x="1366.0" y="435" font-size="12.5" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">できなくする</text>
+<text x="1366.0" y="451" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">managed settings の deny・codex.rules</text>
+<path d="M198.0 468 L198.0 482" stroke="#9a958b" stroke-width="1" fill="none" stroke-dasharray="3,4"/>
+<text x="40" y="500" font-size="12" font-weight="bold" fill="#d9891f" text-anchor="start" font-family="sans-serif">01</text>
+<text x="66" y="500" font-size="20" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">入口</text>
+<text x="114" y="500" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">（Signals）</text>
+<rect x="334" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="343" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">1</text>
+<path d="M529.0 468 L529.0 482" stroke="#9a958b" stroke-width="1" fill="none" stroke-dasharray="3,4"/>
+<text x="371" y="500" font-size="12" font-weight="bold" fill="#d9891f" text-anchor="start" font-family="sans-serif">02</text>
+<text x="397" y="500" font-size="20" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">切る</text>
+<text x="445" y="500" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">（Triage）</text>
+<rect x="643" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="652" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">1</text>
+<rect x="665" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="674" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">4</text>
+<path d="M860.0 468 L860.0 482" stroke="#9a958b" stroke-width="1" fill="none" stroke-dasharray="3,4"/>
+<text x="702" y="500" font-size="12" font-weight="bold" fill="#d9891f" text-anchor="start" font-family="sans-serif">03</text>
+<text x="728" y="500" font-size="20" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">作る</text>
+<text x="776" y="500" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">（Build）</text>
+<rect x="996" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="1005" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">4</text>
+<path d="M1191.0 468 L1191.0 482" stroke="#9a958b" stroke-width="1" fill="none" stroke-dasharray="3,4"/>
+<text x="1033" y="500" font-size="12" font-weight="bold" fill="#d9891f" text-anchor="start" font-family="sans-serif">04</text>
+<text x="1059" y="500" font-size="20" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">確かめる</text>
+<text x="1147" y="500" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">（Validate）</text>
+<rect x="1305" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="1314" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">3</text>
+<rect x="1327" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="1336" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">4</text>
+<path d="M1522.0 468 L1522.0 482" stroke="#9a958b" stroke-width="1" fill="none" stroke-dasharray="3,4"/>
+<text x="1364" y="500" font-size="12" font-weight="bold" fill="#d9891f" text-anchor="start" font-family="sans-serif">05</text>
+<text x="1390" y="500" font-size="20" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">入れる</text>
+<text x="1458" y="500" font-size="12" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">（Ship and observe）</text>
+<rect x="1636" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="1645" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">1</text>
+<rect x="1658" y="488" width="18" height="16" rx="8" fill="#222222"/>
+<text x="1667" y="500" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">2</text>
+<path d="M40 512 L1680 512" stroke="#9a958b" stroke-width="1"/>
+<rect x="40" y="530" width="316" height="112" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="316" y="537" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="332.0" y="549.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<circle cx="59" cy="547" r="7" fill="#d9891f"/>
+<circle cx="59" cy="545" r="2.2" fill="#fbfaf7"/>
+<path d="M55 551.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="72" y="552" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">人 ↔ Chief Engineer の対話</text>
+<text x="52" y="572.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">仕様・設計を詰め、決めたことだけを</text>
+<text x="52" y="590.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">文書（ADR）にしてラインへ渡す。</text>
+<text x="52" y="607.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">何を作るかは人（委譲できない）。</text>
+<text x="52" y="625.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">andon chief-engineer（台帳のタスク）</text>
+<rect x="40" y="654" width="316" height="70" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="316" y="661" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="332.0" y="673.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<text x="52" y="676" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">振り返りの記録から</text>
+<text x="52" y="696.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">報告の next・学び・トリアージの候補が</text>
+<text x="52" y="714.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">次の依頼書になる（アウターループ）</text>
+<rect x="40" y="736" width="316" height="96" rx="6" fill="none" stroke="#a8a49c" stroke-width="1.2" stroke-dasharray="3,4"/>
+<rect x="316" y="743" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#a8a49c" stroke-width="0.8"/>
+<text x="332.0" y="755.5" font-size="10.5" font-weight="normal" fill="#8d8981" text-anchor="middle" font-family="sans-serif">無い</text>
+<text x="52" y="758" font-size="14" font-weight="bold" fill="#8d8981" text-anchor="start" font-family="sans-serif">外の信号（Signals の口）</text>
+<text x="52" y="778.5" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">案件 repo の main の CI の失敗・issue・</text>
+<text x="52" y="796.0" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">エラー監視の webhook が自分から入る。</text>
+<text x="52" y="813.5" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">通知 kind: signal。最初の版の後</text>
+<text x="52" y="831.0" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">（問い 23・design.md §1.9 (a)）</text>
+<rect x="371" y="530" width="316" height="136" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="647" y="537" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="663.0" y="549.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<path d="M390 540 L397 547 L390 554 L383 547 Z" fill="#4f8a5b"/>
+<text x="403" y="552" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">Chief of Staff が依頼書に切る</text>
+<text x="383" y="572.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">何が困っていて、何が出れば解けたか・</text>
+<text x="383" y="590.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">課題の完了条件・横展開・守ること。</text>
+<text x="383" y="607.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">手順は書かない。型は 調べる／直す／</text>
+<text x="383" y="625.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">決める（deliverable は提案中。PR #76）。</text>
+<text x="383" y="642.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">範囲の判断を持つ（灯りはつかない）</text>
+<rect x="371" y="678" width="316" height="84" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="647" y="685" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="663.0" y="697.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">一部</text>
+<path d="M390 688 L397 695 L390 702 L383 695 Z" fill="#4f8a5b"/>
+<text x="403" y="700" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">トリアージ（ルーチン）</text>
+<text x="383" y="720.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">溜まった next・見送り・学びを仕分ける。</text>
+<text x="383" y="738.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">andon triage collect／apply はある。</text>
+<text x="383" y="755.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">ルーチンを撃つ kanban tick が無い（ADR-0007 C1）</text>
+<rect x="371" y="774" width="316" height="58" rx="6" fill="none" stroke="#a8a49c" stroke-width="1.2" stroke-dasharray="3,4"/>
+<rect x="647" y="781" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#a8a49c" stroke-width="0.8"/>
+<text x="663.0" y="793.5" font-size="10.5" font-weight="normal" fill="#8d8981" text-anchor="middle" font-family="sans-serif">無い</text>
+<text x="383" y="796" font-size="14" font-weight="bold" fill="#8d8981" text-anchor="start" font-family="sans-serif">workstream</text>
+<text x="383" y="816.5" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">目標を持って信号を重みづけする常駐</text>
+<rect x="702" y="530" width="316" height="150" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="978" y="537" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="994.0" y="549.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<path d="M721 540 L728 547 L721 554 L714 547 Z" fill="#4f8a5b"/>
+<text x="734" y="552" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">担当の工程（背骨）</text>
+<text x="714" y="572.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">理解 → 計画 → 作業 → 確認 → 完成 →</text>
+<text x="714" y="590.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">振り返り。担当が主体。横展開は既定</text>
+<text x="714" y="607.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">（範囲の中は直し、外は候補に残す）。</text>
+<text x="714" y="625.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">自分の worktree の中だけ。報告か問いを</text>
+<text x="714" y="642.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">書くまで止まれない（stop-check）。</text>
+<text x="714" y="660.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">ADR-0006 決めたこと 9〜13</text>
+<rect x="702" y="692" width="316" height="92" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="967" y="699" width="43" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="988.5" y="711.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">提案中</text>
+<path d="M721 702 L728 709 L721 716 L714 709 Z" fill="#4f8a5b"/>
+<text x="734" y="714" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">範囲が切れないときの止まり方</text>
+<text x="714" y="734.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">候補の一覧 candidates.json と問い</text>
+<text x="714" y="752.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">kind: scope → Chief of Staff が答える。</text>
+<text x="714" y="769.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">4 種・レベル C に当たる候補だけ人へ</text>
+<rect x="702" y="796" width="316" height="36" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="967" y="803" width="43" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="988.5" y="815.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">提案中</text>
+<text x="714" y="818" font-size="12.5" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">調べるタスク（成果は候補の一覧）</text>
+<rect x="1033" y="530" width="316" height="168" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="1309" y="537" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1325.0" y="549.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<rect x="1046" y="541" width="12" height="12" fill="#3d6fa8" rx="1"/>
+<path d="M1048.5 547 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="1065" y="552" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">同じ検査をどの PR にも</text>
+<text x="1045" y="572.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">テスト（担当が通してから渡す）</text>
+<text x="1045" y="590.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">独立レビュー（別ブランド。findings.json・</text>
+<text x="1045" y="607.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">must_fix。直すのは担当）</text>
+<text x="1045" y="625.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">CI の checks（ゲートが事実に入れる）</text>
+<text x="1045" y="642.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">ゲート: レベル A／B／C を変更ごとに決め、</text>
+<text x="1045" y="660.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">approve／fix／needs_human（判断しない）</text>
+<text x="1045" y="677.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">tests/public.sh（固有の値を入れられない）</text>
+<rect x="1033" y="710" width="316" height="70" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="1309" y="717" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1325.0" y="729.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">一部</text>
+<rect x="1046" y="721" width="12" height="12" fill="#3d6fa8" rx="1"/>
+<path d="M1048.5 727 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="1065" y="732" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">受け入れ条件を走らせて報告</text>
+<text x="1045" y="752.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">report.json の acceptance[]。schema と</text>
+<text x="1045" y="770.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">ゲートにはあるが、まだ使われていない</text>
+<rect x="1033" y="792" width="316" height="40" rx="6" fill="none" stroke="#a8a49c" stroke-width="1.2" stroke-dasharray="3,4"/>
+<rect x="1309" y="799" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#a8a49c" stroke-width="0.8"/>
+<text x="1325.0" y="811.5" font-size="10.5" font-weight="normal" fill="#8d8981" text-anchor="middle" font-family="sans-serif">無い</text>
+<text x="1045" y="814" font-size="12.5" font-weight="bold" fill="#8d8981" text-anchor="start" font-family="sans-serif">検証・監視の agent（役を足さない）</text>
+<rect x="1364" y="530" width="316" height="96" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="1640" y="537" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1656.0" y="549.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<rect x="1377" y="541" width="12" height="12" fill="#3d6fa8" rx="1"/>
+<path d="M1379.5 547 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="1396" y="552" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">dispatcher がマージして片付ける</text>
+<text x="1376" y="572.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">委譲の範囲（merge の最大レベル）なら</text>
+<text x="1376" y="590.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">gh pr merge（ゲートの head を照らす）→</text>
+<text x="1376" y="607.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">andon task finish。判断はしない</text>
+<rect x="1364" y="638" width="316" height="96" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="1640" y="645" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1656.0" y="657.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<circle cx="1383" cy="655" r="7" fill="#d9891f"/>
+<circle cx="1383" cy="653" r="2.2" fill="#fbfaf7"/>
+<path d="M1379 659.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="1396" y="660" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">灯り: 人が見る</text>
+<text x="1376" y="680.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">レベル C（ラインそのものの変更）・</text>
+<text x="1376" y="698.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">不可逆・needs_human・4 種の問い。</text>
+<text x="1376" y="715.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">誰が判断するかは委譲で変わる</text>
+<rect x="1364" y="746" width="316" height="86" rx="6" fill="none" stroke="#a8a49c" stroke-width="1.2" stroke-dasharray="3,4"/>
+<rect x="1640" y="753" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#a8a49c" stroke-width="0.8"/>
+<text x="1656.0" y="765.5" font-size="10.5" font-weight="normal" fill="#8d8981" text-anchor="middle" font-family="sans-serif">無い</text>
+<text x="1376" y="768" font-size="14" font-weight="bold" fill="#8d8981" text-anchor="start" font-family="sans-serif">本番からの戻り（observe）</text>
+<text x="1376" y="788.5" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">障害・エラー・利用を PR まで遡り、</text>
+<text x="1376" y="806.0" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">次の信号にする。デプロイは案件の CI の</text>
+<text x="1376" y="823.5" font-size="12.5" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">仕事で Andon は持たない（前提 11）</text>
+<path d="M356 580 L371 580" stroke="#9a958b" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+<path d="M687 580 L702 580" stroke="#9a958b" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+<path d="M1018 580 L1033 580" stroke="#9a958b" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+<path d="M1349 580 L1364 580" stroke="#9a958b" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+<rect x="40" y="896" width="1640" height="150" rx="6" fill="none" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="8,5"/>
+<text x="56" y="920" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">アウターループ（環境を直す。振り返り）</text>
+<rect x="336" y="907" width="18" height="16" rx="8" fill="#222222"/>
+<text x="345" y="919" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">5</text>
+<text x="362" y="920" font-size="11.5" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">バリュー 5: 記録 → 振り返り → PR。observer が skill を直接書き換える形は採らない</text>
+<rect x="56" y="934" width="300" height="96" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="316" y="941" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="332.0" y="953.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<rect x="69" y="945" width="12" height="12" fill="#3d6fa8" rx="1"/>
+<path d="M71.5 951 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="88" y="956" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">記録（機械が読む形）</text>
+<text x="68" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">report.json・findings.json・ゲートの記録・</text>
+<text x="68" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">questions.yaml・log.jsonl の by。</text>
+<text x="68" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">corrections.json（人の手直し）は設計だけ</text>
+<rect x="400" y="934" width="300" height="96" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="638" y="941" width="54" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="665.0" y="953.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">設計だけ</text>
+<path d="M419 944 L426 951 L419 958 L412 951 Z" fill="#4f8a5b"/>
+<text x="432" y="956" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">振り返り（retro）</text>
+<text x="412" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">記録を読み、つまずきを拾う。</text>
+<text x="412" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">ルーチン retro と corrections.json は</text>
+<text x="412" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">設計だけ（ADR-0007 C3）</text>
+<rect x="744" y="934" width="300" height="96" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
+<rect x="1004" y="941" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1020.0" y="953.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>
+<path d="M763 944 L770 951 L763 958 L756 951 Z" fill="#4f8a5b"/>
+<circle cx="783" cy="951" r="7" fill="#d9891f"/>
+<circle cx="783" cy="949" r="2.2" fill="#fbfaf7"/>
+<path d="M779 955.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="796" y="956" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">分類 → 環境の変更の PR</text>
+<text x="756" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">テスト／レビューの観点／指針／skill。</text>
+<text x="756" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">案件側は Chief of Staff の判断、</text>
+<text x="756" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">Andon のライン（skill・ゲート）は人</text>
+<rect x="1088" y="934" width="300" height="96" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="1326" y="941" width="54" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1353.0" y="953.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">設計だけ</text>
+<rect x="1101" y="945" width="12" height="12" fill="#3d6fa8" rx="1"/>
+<path d="M1103.5 951 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="1120" y="956" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">測る</text>
+<text x="1100" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">一次: PR あたりの人の介在回数。</text>
+<text x="1100" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">自動マージ率・差し戻し率・時間は並べて見る。</text>
+<text x="1100" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">設計だけ（未集計）。後悔の率は測らない</text>
+<path d="M356 982 L400 982" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
+<path d="M700 982 L744 982" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
+<path d="M1044 982 L1088 982" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
+<rect x="1432" y="934" width="232" height="96" rx="6" fill="#fbfaf7" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="6,4"/>
+<rect x="1602" y="941" width="54" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
+<text x="1629.0" y="953.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">設計だけ</text>
+<text x="1444" y="956" font-size="14" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">その先（§5.1）</text>
+<text x="1444" y="976" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">クラウド常駐・通知の口（最終形）・</text>
+<text x="1444" y="993" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">作業側を別のマシンに・外の信号。</text>
+<text x="1444" y="1010" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">Andon の建屋で Andon のタスクとして建てる</text>
+<path d="M1562.0 832 L1562.0 850 L198.0 850 L198.0 834" stroke="#a8a49c" stroke-width="1.2" fill="none" stroke-dasharray="3,4" marker-end="url(#ah)"/>
+<text x="722" y="846" font-size="11" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">本番が示したものを次の信号にする（Andon に無い。ADR-0006 前提 11）</text>
+<path d="M1522.0 832 L1522.0 872 L18 872 L18 982 L54 982" stroke="#9a958b" stroke-width="1.2" fill="none" stroke-dasharray="4,4" marker-end="url(#ah)"/>
+<text x="1514.0" y="868" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">記録が溜まる</text>
+<path d="M894.0 1030 L894.0 1058 L30 1058 L30 476 L385 476 L385 490" stroke="#9a958b" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
+<text x="363" y="472" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="end" font-family="sans-serif">次の依頼書が楽になる（環境の PR）</text>
+<text x="40" y="1088" font-size="13" font-weight="bold" fill="#222222" text-anchor="start" font-family="sans-serif">凡例</text>
+<circle cx="100" cy="1084" r="7" fill="#d9891f"/>
+<circle cx="100" cy="1082" r="2.2" fill="#fbfaf7"/>
+<path d="M96 1088.5 q4 -5 8 0" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="114" y="1088" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">人が決める（灯り）</text>
+<path d="M250 1077 L257 1084 L250 1091 L243 1084 Z" fill="#4f8a5b"/>
+<text x="264" y="1088" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">LLM が判断する（標準の中）</text>
+<rect x="444" y="1078" width="12" height="12" fill="#3d6fa8" rx="1"/>
+<path d="M446.5 1084 l2.5 2.5 l4.5 -5" stroke="#fbfaf7" stroke-width="1.6" fill="none"/>
+<text x="464" y="1088" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">機械が確かめる・できなくする</text>
+<rect x="660" y="1075" width="34" height="16" rx="3" fill="#f3f0ea" stroke="#9a958b"/>
+<text x="702" y="1088" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">今あるもの</text>
+<rect x="790" y="1075" width="34" height="16" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-dasharray="6,4"/>
+<text x="832" y="1088" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">一部・設計だけ・提案中</text>
+<rect x="990" y="1075" width="34" height="16" rx="3" fill="none" stroke="#a8a49c" stroke-dasharray="3,4"/>
+<text x="1032" y="1088" font-size="12" font-weight="normal" fill="#8d8981" text-anchor="start" font-family="sans-serif">Andon に無いもの（ADR-0006 前提 11・design.md §1.9）</text>
+<rect x="1380" y="1076" width="18" height="16" rx="8" fill="#222222"/>
+<text x="1389" y="1088" font-size="10.5" font-weight="bold" fill="#fbfaf7" text-anchor="middle" font-family="sans-serif">1</text>
+<text x="1404" y="1088" font-size="12" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">そこで効くバリューの番号</text>
+<text x="40" y="1112" font-size="11" font-weight="normal" fill="#6b6760" text-anchor="start" font-family="sans-serif">工程の段の名前（Signals・Triage・Build・Validate・Ship and observe）は ADR-0006 前提 11 の出典の語。図の中身は Andon の工程（design.md §1.4・ADR-0006 決めたこと 9）で描き直したもの。</text>
+</svg>
