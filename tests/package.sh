@@ -199,10 +199,18 @@ for s in 理解 計画 作業 確認 完成 振り返り; do grep -q "^| $s |" <
 [ -z "$miss" ] && pass "worker skill §2 の工程表に 理解・計画・作業・確認・完成・振り返り がある" || fail "worker skill §2 の工程表に無い工程:$miss"
 w7=$(block "$w" 'PR: <https://')
 grep -q '^## 計画$' <<<"$w7" && grep -q '^探した範囲: ' <<<"$w7" && grep -q '^計画との差: ' <<<"$w7" \
-  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"
+  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"# 調べるタスクの候補の例（andon task candidates の stdin）は candidates.schema.json に合う。scope の問いは worker skill が案内する
+c_blk=$(block "$w" 'andon task candidates "$id" -' | sed '1d;$d')
+printf '%s\n' "$c_blk" >"$tmp/c.json"
+[ -n "$c_blk" ] && chk candidates "$tmp/c.json" && pass "worker skill の候補の例は candidates.schema.json に合う" || fail "候補の例: $(head -1 "$tmp/why" 2>/dev/null) $c_blk"
+grep -q 'kind: scope' "$w" && grep -q 'andon task candidates' "$w" && pass "worker skill は scope の問いと andon task candidates を案内する" || fail "worker skill に scope の問いか andon task candidates が無い"
+
 cos=package/skills/chief-of-staff/SKILL.md
 block "$cos" '# <id> <題>' | grep -q '^横展開: ' && block "$cos" '# <id> 調べる: ' | grep -q '^終了条件: ' \
   && pass "Chief of Staff の依頼書の雛形に 横展開: の行、調べるタスクの雛形に 終了条件: の行がある" || fail "chief-of-staff の雛形に 横展開: か 終了条件: が無い"
+
+block "$cos" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates' \
+  && pass "調べるタスクの雛形の Settings に Deliverable: candidates がある" || fail "調べるタスクの雛形に Deliverable: candidates が無い"
 
 # Chief of Staff の task.yaml の予約キー: 全部書き、task-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# task.yaml の予約キー' | grep '^deck set ')
