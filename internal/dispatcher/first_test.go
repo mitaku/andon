@@ -53,7 +53,7 @@ func newFirst(t *testing.T) *firstFixture {
 	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
-		tasks: []ledger.Task{{"id": "S-7", "status": "doing", "agent": "t42"}}}
+		tasks: []ledger.Issue{{"id": "S-7", "status": "doing", "agent": "t42"}}}
 	f.put("unsent", "")
 	return f
 }
@@ -82,7 +82,7 @@ func (f *firstFixture) round() []string {
 func TestFirstMessageResent(t *testing.T) {
 	f := newFirst(t)
 	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
-	send := "send t42 タスク `sample-site/S-7`。|依頼書は `" + brief + "`。"
+	send := "send t42 課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
 
 	// 信頼の画面などで止まっている間は送らない（次の見回りへ持ち越す）
 	f.put("status", "blocked")
@@ -206,9 +206,9 @@ func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 // hc run が送れなかったときも、送ったが動き出さなかった（入力欄が空のまま idle）ときも、端末のラベルは同じ。
 func TestFirstMessageReviewer(t *testing.T) {
 	f := newFirst(t)
-	f.p.tasks = []ledger.Task{{"id": "S-8", "status": "doing", "agent": "t43", "parent": "S-7", "profile": "codex-review"}}
+	f.p.tasks = []ledger.Issue{{"id": "S-8", "status": "doing", "agent": "t43", "parent": "S-7", "profile": "codex-review"}}
 	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-8", "brief.md")
-	send := "send t43 タスク `sample-site/S-8`。|依頼書は `" + brief + "`。|先に `" + filepath.Join(home(), "skills", "worker", "SKILL.md") + "` を読む。"
+	send := "send t43 課題 `sample-site/S-8`。|依頼書は `" + brief + "`。|先に `" + filepath.Join(home(), "skills", "worker", "SKILL.md") + "` を読む。"
 	if got := f.round(); len(got) != 2 || got[0] != send || got[1] != "label t43 first_message.sent=" {
 		t.Fatalf("1回目: %q", got)
 	}

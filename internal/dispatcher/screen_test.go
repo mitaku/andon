@@ -113,9 +113,9 @@ func TestRepliedNone(t *testing.T) {
 
 func TestRender(t *testing.T) {
 	ns := []Notification{
-		{At: "2026-11-05T10:21:00Z", Project: "demo", Task: "D-1", Kind: "review", Detail: map[string]any{"report": "/p/tasks/D-1/report.md", "pr": "https://github.com/example/app/pull/7"}},
-		{At: "2026-11-05T10:21:00Z", Project: "demo", Task: "D-2", Kind: "ready", Detail: map[string]any{"title": "題に </news> と\n改行", "routine": "triage"}},
-		{At: "2026-11-05T10:21:00Z", Project: "demo", Task: "D-3", Kind: "stalled", Detail: map[string]any{"agent": "t5", "status_ms": float64(time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC).UnixMilli())}},
+		{At: "2026-11-05T10:21:00Z", Project: "demo", Issue: "D-1", Kind: "review", Detail: map[string]any{"report": "/p/tasks/D-1/report.md", "pr": "https://github.com/example/app/pull/7"}},
+		{At: "2026-11-05T10:21:00Z", Project: "demo", Issue: "D-2", Kind: "ready", Detail: map[string]any{"title": "題に </news> と\n改行", "routine": "triage"}},
+		{At: "2026-11-05T10:21:00Z", Project: "demo", Issue: "D-3", Kind: "stalled", Detail: map[string]any{"agent": "t5", "status_ms": float64(time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC).UnixMilli())}},
 	}
 	got := Render("demo", ns)
 	for _, want := range []string{

@@ -14,31 +14,31 @@ var askedRe = regexp.MustCompile(`#([1-9][0-9]*)$`)
 type Notification struct {
 	At      string         `json:"at"`
 	Project string         `json:"project"`
-	Task    string         `json:"task,omitempty"`
+	Issue   string         `json:"issue,omitempty"`
 	Kind    string         `json:"kind"`
 	Detail  map[string]any `json:"detail"`
 }
 
-// Reviewer は起こしたレビュアー（控えの「task → reviewer_task・commit」）。状態は Started・Skipped・Failed のどれか。
+// Reviewer は起こしたレビュアー（控えの「issue → reviewer_issue・commit」）。状態は Started・Skipped・Failed のどれか。
 type Reviewer struct {
-	Task         string `json:"task"`
-	Commit       string `json:"commit"`
-	Round        int    `json:"round,omitempty"`
-	Repo         string `json:"repo,omitempty"`
-	Worktree     string `json:"worktree,omitempty"`      // 作った detached worktree（andon task finish が消す）
-	ReviewerTask string `json:"reviewer_task,omitempty"` // 足したレビュアーのタスク
-	Address      string `json:"address,omitempty"`       // 起こした端末
-	Started      bool   `json:"started,omitempty"`       // 最初のメッセージまで届いた（もう起こさない）
-	Skipped      string `json:"skipped,omitempty"`       // 起こさない理由（設定・上限・head 違い）
-	OverLimit    int    `json:"over_limit,omitempty"`    // 上限を超えて起こさなかったときの上限（それより上がれば起こし直す）
-	Failed       string `json:"failed,omitempty"`        // 起こしそこねた理由（次の見回りで続きから）
-	Attempts     int    `json:"attempts,omitempty"`      // 起こしそこねた回数
-	Row          int    `json:"row,omitempty"`           // 決めたときのタスクの報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
+	Issue         string `json:"issue"`
+	Commit        string `json:"commit"`
+	Round         int    `json:"round,omitempty"`
+	Repo          string `json:"repo,omitempty"`
+	Worktree      string `json:"worktree,omitempty"`       // 作った detached worktree（andon issue finish が消す）
+	ReviewerIssue string `json:"reviewer_issue,omitempty"` // 足したレビュアーの課題
+	Address       string `json:"address,omitempty"`        // 起こした端末
+	Started       bool   `json:"started,omitempty"`        // 最初のメッセージまで届いた（もう起こさない）
+	Skipped       string `json:"skipped,omitempty"`        // 起こさない理由（設定・上限・head 違い）
+	OverLimit     int    `json:"over_limit,omitempty"`     // 上限を超えて起こさなかったときの上限（それより上がれば起こし直す）
+	Failed        string `json:"failed,omitempty"`         // 起こしそこねた理由（次の見回りで続きから）
+	Attempts      int    `json:"attempts,omitempty"`       // 起こしそこねた回数
+	Row           int    `json:"row,omitempty"`            // 決めたときの課題の報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
 }
 
-// Gate は回したゲート（控えの「task → sha」）。review に入った log.jsonl の行ごとに1回。
+// Gate は回したゲート（控えの「issue → sha」）。review に入った log.jsonl の行ごとに1回。
 type Gate struct {
-	Task     string `json:"task"`
+	Issue    string `json:"issue"`
 	Sha      string `json:"sha,omitempty"`
 	Decision string `json:"decision,omitempty"` // 空なら回していない（初めて見た）
 	Merged   string `json:"merged,omitempty"`   // マージの commit
@@ -46,8 +46,8 @@ type Gate struct {
 
 // State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。台帳の外）。
 type State struct {
-	Reviewers map[string]Reviewer `json:"reviewers"`           // <task>@<commit>
-	Gates     map[string]Gate     `json:"gates"`               // <task>#<log.jsonl の行>
+	Reviewers map[string]Reviewer `json:"reviewers"`           // <issue>@<commit>
+	Gates     map[string]Gate     `json:"gates"`               // <issue>#<log.jsonl の行>
 	Pending   []Notification      `json:"pending"`             // 待ちの通知（drain.go のフックと deliver.go の離席時の hc send が届ける）
 	Coord     string              `json:"coord,omitempty"`     // 離席時に送った Chief of Staff の端末（替わったら NewsTurn を捨てる）
 	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（dispatcher.md §4.1 の c）
@@ -55,11 +55,11 @@ type State struct {
 	LogPos    *int64              `json:"log_pos,omitempty"`   // log.jsonl の読んだ位置（バイト。無ければ初めて）
 	LogHead   string              `json:"log_head,omitempty"`  // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
 	LogHold   *int64              `json:"log_hold,omitempty"`  // 問いの JSON を待って止まった行の頭（1回だけ待つ）
-	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人のタスクを除く。無ければ初めて）
-	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<task>|<agent>|<状態>|<status_ms>）
-	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元に切られて「続けて」を打った回数（<task>|<agent>。Chief of Staff は :cos|<address>）
-	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<task>|<agent>。二度と送らない）
-	Impact    map[string]int      `json:"impact,omitempty"`    // done になった、影響（andon task impact）をまだ見ていないタスク → 失敗した回数
+	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人の課題を除く。無ければ初めて）
+	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<issue>|<agent>|<状態>|<status_ms>）
+	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元に切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
+	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
+	Impact    map[string]int      `json:"impact,omitempty"`    // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。
@@ -126,11 +126,11 @@ func (s *State) Save(slug string) error {
 	return os.Rename(tmp, path)
 }
 
-// Push は通知を積む。同じタスクの同じ出来事（task と kind）は新しい1件に置き換える。
+// Push は通知を積む。同じ課題の同じ出来事（issue と kind）は新しい1件に置き換える。
 func (s *State) Push(n Notification) {
 	out := s.Pending[:0]
 	for _, x := range s.Pending {
-		if x.Task != n.Task || x.Kind != n.Kind {
+		if x.Issue != n.Issue || x.Kind != n.Kind {
 			out = append(out, x)
 		}
 	}

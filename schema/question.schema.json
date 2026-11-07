@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://andon.example.com/schema/question/1",
+  "$id": "https://andon.example.com/schema/question/2",
   "title": "Question to the person",
-  "description": "tasks/<id>/library/questions/<n>.json, where n is the number the ledger gave the question. Written by whoever asks. A command checks it, renders the person's text from it and runs `kanban ask`. Only these keys.",
+  "description": "issues/<id>/library/questions/<n>.json, where n is the number the ledger gave the question. Written by whoever asks. A command checks it, renders the person's text from it and runs `kanban ask`. Only these keys.",
   "type": "object",
   "required": ["kind", "question", "options"],
   "additionalProperties": false,
   "properties": {
     "kind": {
-      "description": "Which of the five decision kinds (line is a change to the line), or scope: which candidates a fix task should fix. A scope question goes to the Chief of Staff and does not light the andon.",
+      "description": "Which of the five decision kinds (line is a change to the line), or scope: which candidates a fix issue should fix. A scope question goes to the Chief of Staff and does not light the andon.",
       "enum": ["business", "users", "promise", "irreversible", "line", "scope"]
     },
     "question": {
@@ -50,7 +50,7 @@
     },
     "from": {
       "description": "Who asks.",
-      "enum": ["task", "gate", "retro", "chief-of-staff", "chief-engineer"]
+      "enum": ["issue", "gate", "retro", "chief-of-staff", "chief-engineer"]
     }
   },
   "$defs": {

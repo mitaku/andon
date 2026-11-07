@@ -106,19 +106,19 @@ ok '信じられる PR（report.json の pr）が無ければ記録せずに fix
 
 # 担当の手順: report → レビュアーの findings → ready
 export HC_TERMINAL_ID=t7
-"$andon" task report "$id" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
+"$andon" issue report "$id" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
 rev=$(HC_TERMINAL_ID=t5 kanban add "$id のレビュー" --parent "$id" --profile codex-review)
 mkdir -p "kanban/issues/$rev/library"
 findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > "kanban/issues/$rev/library/findings.json"; }
 findings "$head"
 HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
-"$andon" task ready "$id" >/dev/null
+"$andon" issue ready "$id" >/dev/null
 unset HC_TERMINAL_ID
 
 # 2. 委譲が無ければ approve にならない（全部人）
 got=$(gate "$id"); expect 4 needs_human 'delegation: merge=none < tier B'
 rec="$lib/gate/$head.json"
-jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and .checks == [] and .merged == false' "$rec" >/dev/null
+jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and (.review | has("issue") and (has("task") | not)) and .checks == [] and .merged == false' "$rec" >/dev/null
 grep -q 'status .*state=failure' "$tmp/gh/posted" && grep -q comment "$tmp/gh/posted"
 ok '委譲が無ければ needs_human（記録を書き、status と comment を付ける）'
 
@@ -139,7 +139,7 @@ as_owner git -C "$tmp/plant" add projects/demo/project.json; as_owner git -C "$t
 echo '{"role":"chief-of-staff"}' > "$tmp/labels"
 rc=0; HC_TERMINAL_ID=t5 "$andon" delegate grant merge B --evidence x --project demo >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'role=chief-of-staff' "$tmp/err" && ! jq -e 'has("delegation")' project.json >/dev/null || die 'Chief of Staff の端末で書けた'
-ok 'delegate: Chief of Staff・担当の端末（role= / task=）では打てない'
+ok 'delegate: Chief of Staff・担当の端末（role= / issue=）では打てない'
 as_owner "$andon" delegate grant merge B --evidence '2026-11-05 の対話' >/dev/null
 jq -e '.delegation | .version == 1 and .project == "demo" and .grants[0].id == "d1" and .grants[0].value == "B" and .grants[0].until == null' project.json >/dev/null
 jq -e '.project == {title: "Demo", prefix: "D"} and .repos == ["github.com/example/app"] and .references == ["https://example.com/spec"]' project.json >/dev/null || die "人が書いたキーを変えた: $(cat project.json)"
@@ -281,7 +281,7 @@ ok 'Must fix が残れば fix、同じ head で2度目は needs_human'
 # 10. head が進んでレビューが古ければ stale で fix
 pr docs/a.md 4 y
 export HC_TERMINAL_ID=t7
-"$andon" task report "$id" <<<'## Report' >/dev/null
+"$andon" issue report "$id" <<<'## Report' >/dev/null
 unset HC_TERMINAL_ID
 got=$(gate "$id"); expect 1 fix 'review stale'
 jq -e --arg c "$(jq -r .commit "kanban/issues/$rev/library/findings.json")" '.review.state == "stale" and .review.commit == $c' "$lib/gate/$head.json" >/dev/null
@@ -291,14 +291,14 @@ ok 'レビューが古い commit を見ていれば stale で fix（記録の形
 # 11. レベル C の変更は委譲 merge B の外
 pr package/gate.json 1
 export HC_TERMINAL_ID=t7
-"$andon" task report "$id" <<<'## Report' >/dev/null
+"$andon" issue report "$id" <<<'## Report' >/dev/null
 unset HC_TERMINAL_ID
 findings "$head"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and (.tier_reasons | any(contains("package/gate.json")))' "$tmp/out" >/dev/null
 ok 'レベル C の変更は委譲 merge B の外で needs_human'
 
-# 12. deliverable: candidates（調べるタスク）にはゲートが無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
+# 12. deliverable: candidates（調べる課題）にはゲートが無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
 sid=$(HC_TERMINAL_ID=t5 kanban add 'docs の誤りを調べる' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates branch=survey "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 rm -f "$tmp/gh/posted"

@@ -224,7 +224,7 @@ type Candidate struct {
 	InScope *bool   `json:"in_scope"`
 }
 
-// Candidates は candidates.json（担当が andon task candidates で書く）。commit は repo の無いタスクでは書かない。
+// Candidates は candidates.json（担当が andon issue candidates で書く）。commit は repo の無い課題では書かない。
 type Candidates struct {
 	Commit     string      `json:"commit,omitempty"`
 	Candidates []Candidate `json:"candidates"`
@@ -314,9 +314,9 @@ type Next struct {
 	Text string `json:"text"`
 }
 
-// Report は report.json（担当が書く。command が書く）。commit は repo のあるタスクでは必須で、確かめるのは andon task report・ready。
+// Report は report.json（担当が書く。command が書く）。commit は repo のある課題では必須で、確かめるのは andon issue report・ready。
 type Report struct {
-	Commit        string         `json:"commit,omitempty"` // repo の無いタスクでは書かない
+	Commit        string         `json:"commit,omitempty"` // repo の無い課題では書かない
 	PR            string         `json:"pr,omitempty"`
 	ReviewRequest *ReviewRequest `json:"review_request,omitempty"`
 	Waived        []Waived       `json:"waived,omitempty"`
@@ -362,8 +362,8 @@ func (r *Report) Check() error {
 		}
 	}
 	for _, n := range r.Next {
-		if n.Text == "" || (n.To != "person" && n.To != "chief-of-staff" && n.To != "task") {
-			return errors.New("next は {to: person|chief-of-staff|task, text}")
+		if n.Text == "" || (n.To != "person" && n.To != "chief-of-staff" && n.To != "issue") {
+			return errors.New("next は {to: person|chief-of-staff|issue, text}")
 		}
 	}
 	for _, s := range append(append([]string{}, r.Remember...), r.AgentsMD...) {
@@ -466,7 +466,7 @@ func ParseQuestion(b []byte) (*Question, error) {
 		return nil, errors.New("remaining が負")
 	}
 	switch q.From {
-	case "", "task", "gate", "retro", "chief-of-staff", "chief-engineer":
+	case "", "issue", "gate", "retro", "chief-of-staff", "chief-engineer":
 	default:
 		return nil, fmt.Errorf("from が知らない書き手: %q", q.From)
 	}

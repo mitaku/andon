@@ -3,7 +3,7 @@
 #   1. schema/ の8本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
-#   5. command（andon task・andon gate・andon delegate・andon dispatcher）が書いた JSON が schema を通る（tests/andon-task.sh・andon-gate.sh・andon-dispatcher.sh に書かせる）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh に書かせる）。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,11 +20,11 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 # 節の番号 → schema（contract.md の冒頭の表と同じ）
 schema_of() {
   case "$1" in
-    2) echo task-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
+    2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
     6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; *) return 1 ;;
   esac
 }
-expected="candidates findings gate notification project question report task-keys"
+expected="candidates findings gate issue-keys notification project question report"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
@@ -36,6 +36,13 @@ for name in $expected; do
     ng "schema/$name の決まり"; printf '     %s\n' "$out"
   fi
 done
+
+# 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1; do
+  id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
+  if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
+done
+[ ! -e "$schema_dir/task-keys.schema.json" ] && ok "schema/task-keys.schema.json は無い" || ng "schema/task-keys.schema.json が残る"
 
 # validate <schema 名> <instance のファイル> → 0 通る / 1 落ちる / 2 検査できない
 validate() { python3 "$check_py" validate "$schema_dir/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
@@ -95,9 +102,9 @@ done
 # 3a. 知らないキー・無いキー（例から機械的に作る）
 # 必須のキーは schema から読まず、ここで固定する（schema の必須を外す変更がテストからも消えないように）
 declare -A required=(
-  [task-keys]=""
+  [issue-keys]=""
   [findings]="commit findings"
-  [report]=""   # commit は repo のあるタスクでだけ必須（andon task report・ready が確かめる。ADR-0006 の repo の無い調べるタスク）
+  [report]=""   # commit は repo のある課題でだけ必須（andon issue report・ready が確かめる。ADR-0006 の repo の無い調べる課題）
   [question]="kind question options"
   [notification]="at project kind detail"
   [gate]=""
@@ -111,7 +118,7 @@ mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出�
 }
 for key in "${!first[@]}"; do
   name="${key%-record}"; src="${first[$key]}"
-  if [ "$key" != task-keys ]; then   # 台帳の項目は台帳の形式に倣って知らないキーを許す
+  if [ "$key" != issue-keys ]; then   # 台帳の項目は台帳の形式に倣って知らないキーを許す
     expect fail "$name" "$(mutate "$src" '. + {"x_unknown": 1}')" "$key: 知らないキー x_unknown を足すと落ちる"
   fi
   for k in ${required[$key]}; do
@@ -136,7 +143,7 @@ report|.next[0]|to text
 question|.options[0]|label pick
 notification|.detail|report pr
 gate|.repos[]|
-gate-record|.review|state must_fix_open waived task commit
+gate-record|.review|state must_fix_open waived issue commit
 gate-record|.checks[0]|cmd ok
 gate-record|.github_checks|state names
 gate-record|.acceptance|pass fail manual
@@ -156,17 +163,17 @@ while IFS='|' read -r want key rest; do
   name="${key%-record}"
   expect "$want" "$name" "$(mutate "${first[$key]}" "$expr")" "$key: $desc"
 done <<'EOF'
-pass|task-keys|. + {"links": ["https://example.com"]}|台帳の形式のキーは通る
-pass|task-keys|{}|予約キーが1つも無くても通る（無いときの振る舞いは読み手が持つ）
-fail|task-keys|.review = "yes"|review が on/off でない
-fail|task-keys|.must_fix = "Major"|must_fix の綴りが大文字
-fail|task-keys|.review_rounds = 2|review_rounds が数（kanban set は文字列で書く）
-fail|task-keys|.review_rounds = "0"|review_rounds が 0
-fail|task-keys|.merge = "auto-merge"|merge が auto/person でない
-fail|task-keys|.reviewer = "claude"|reviewer がレビュアーのプロファイルでない
-pass|task-keys|.deliverable = "candidates"|deliverable が candidates（調べるタスク）
-fail|task-keys|.deliverable = "survey"|deliverable が pr/candidates でない（型の名前は値でない）
-fail|task-keys|.deliverable = "Candidates"|deliverable の綴りが大文字
+pass|issue-keys|. + {"links": ["https://example.com"]}|台帳の形式のキーは通る
+pass|issue-keys|{}|予約キーが1つも無くても通る（無いときの振る舞いは読み手が持つ）
+fail|issue-keys|.review = "yes"|review が on/off でない
+fail|issue-keys|.must_fix = "Major"|must_fix の綴りが大文字
+fail|issue-keys|.review_rounds = 2|review_rounds が数（kanban set は文字列で書く）
+fail|issue-keys|.review_rounds = "0"|review_rounds が 0
+fail|issue-keys|.merge = "auto-merge"|merge が auto/person でない
+fail|issue-keys|.reviewer = "claude"|reviewer がレビュアーのプロファイルでない
+pass|issue-keys|.deliverable = "candidates"|deliverable が candidates（調べる課題）
+fail|issue-keys|.deliverable = "survey"|deliverable が pr/candidates でない（型の名前は値でない）
+fail|issue-keys|.deliverable = "Candidates"|deliverable の綴りが大文字
 pass|findings|.findings = []|指摘が無い
 fail|findings|.commit = "2a17f63"|commit が40桁でない
 fail|findings|.commit |= ascii_upcase|commit が大文字
@@ -187,7 +194,7 @@ pass|findings|.findings[0].file = "..hidden/x"|.. で始まる名前は .. の�
 fail|findings|.findings[0].file = "\u2028/../../outside"|file の .. の段の前に行区切り文字 U+2028
 fail|findings|.findings[0].file = "a/\u2028b/../../../outside"|file の途中の段に U+2028
 pass|report|{commit}|commit だけでも通る
-pass|report|{}|commit 無し（repo の無いタスク）でも通る
+pass|report|{}|commit 無し（repo の無い課題）でも通る
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
 fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない
@@ -204,9 +211,10 @@ fail|report|.pr = "https://github.com/own er/andon/pull/1"|pr の owner に空�
 fail|report|.pr = "https://github.com/\u00e9/andon/pull/1"|pr の owner に ASCII の外の字
 fail|report|.acceptance[0].result = "ok"|acceptance の result が pass/fail/manual でない
 fail|report|.next[0].to = "human"|next の to が知らない宛先
+fail|report|.next[0].to = "task"|古い宛先 to: task（report/2 は issue）
 fail|report|.remember = "x"|remember が配列でない
 fail|question|.kind = "other"|知らない kind
-pass|question|.kind = "scope" | .from = "task"|kind scope（範囲の問い）
+pass|question|.kind = "scope" | .from = "issue"|kind scope（範囲の問い）
 fail|question|.kind = "Scope"|kind の綴りが大文字
 fail|question|.question = "a\nb"|question が2行
 fail|question|.options = [.options[0]]|options が1つ
@@ -217,22 +225,23 @@ pass|question|.options[1].pick = false|2つ目の pick: false は通る
 fail|question|.options[0] += {"note": "x"}|選択肢に知らないキー
 fail|question|.remaining = -1|remaining が負
 fail|question|.from = "person"|from が知らない書き手
+fail|question|.from = "task"|古い書き手 from: task（question/2 は issue）
 pass|notification|.kind = "report" | .detail = {report: .detail.report}|kind report
 pass|notification|.kind = "asked" | .detail = {n: 1, kind: "line", question: "x"}|kind asked
 pass|notification|.kind = "asked" | .detail = {n: 1, kind: "scope", question: "x"}|kind asked（範囲の問い）
 fail|notification|.kind = "asked" | .detail = {n: 1, kind: "other", question: "x"}|asked の kind が知らない値
 pass|notification|.kind = "ready" | .detail = {title: "x"}|kind ready（routine 無し）
-pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_task: "A-13"}|kind review-requested
+pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_issue: "A-13"}|kind review-requested
 pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json"}|kind gate
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|kind merged
-pass|notification|.kind = "stalled" | .detail = {agent: "t7", status_ms: 1793845966681} | del(.task)|kind stalled（task 無し）
-pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
-fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: []}|impact の tasks が空
+pass|notification|.kind = "stalled" | .detail = {agent: "t7", status_ms: 1793845966681} | del(.issue)|kind stalled（issue 無し）
+pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "3 回打って失敗"}|kind impact（集められなかった）
-fail|notification|.kind = "impact" | .detail = {pr: .detail.pr}|impact に tasks も error も無い
-fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "x", sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: [], brief_refs: []}]}|impact に error と tasks の両方
-fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: []}]}|impact の tasks の1件に brief_refs が無い
-fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: [], brief_refs: [], screen: "x"}]}|impact の tasks の1件に知らないキー
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr}|impact に issues も error も無い
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "x", sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: []}]}|impact に error と issues の両方
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: []}]}|impact の issues の1件に brief_refs が無い
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: [], screen: "x"}]}|impact の issues の1件に知らないキー
 fail|notification|del(.detail.pr)|review の detail に pr が無い
 fail|notification|.detail += {"text": "x"}|detail に知らないキー
 fail|notification|.kind = "asked"|asked なのに detail が review の形
@@ -240,21 +249,25 @@ fail|notification|.kind = "signal"|signal はまだ schema に無い
 fail|notification|.at = "2026-11-04 09:00:00"|at が UTC の形でない
 fail|notification|.at = "2026-02-30T09:00:00Z"|at が暦に無い日
 fail|notification|.at = "2026-11-04T24:00:00Z"|at の時が 24
-fail|notification|.task = "../x"|task が id の形でない
+fail|notification|.issue = "../x"|issue が id の形でない
+fail|notification|.task = .issue | del(.issue)|古いキー task（notification/2 は issue。ADR-0008）
+fail|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_task: "A-13"}|古いキー reviewer_task
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", tasks: [{task: "A-14", conflict: false, overlap: [], brief_refs: []}]}|古いキー tasks・task（impact）
 pass|gate|{}|条件表は空でも通る（gate.local.json）
 fail|gate|.repos[] += {"auto": true}|条件表の repos に知らないキー
 fail|gate|.repos[].merge = "fast-forward"|merge の方法が知らない値
 fail|gate|.repos[].tier_overrides["AGENTS.md"] = "D"|tier_overrides の値が A/B/C でない
 fail|gate|.size_review_lines = "500"|size_review_lines が文字列
 fail|gate|.repos[] += {"github_checks": "off"}|github_checks が知らない値
-pass|gate-record|.review = {state: "missing", must_fix_open: 0, waived: 0}|review が missing（task・commit 無し）
-pass|gate-record|.review = {state: "off", must_fix_open: 0, waived: 0}|review が off（task・commit 無し）
-pass|gate-record|.review.state = "stale"|review が stale（task・commit あり）
-fail|gate-record|del(.review.task)|current なのに task が無い
+pass|gate-record|.review = {state: "missing", must_fix_open: 0, waived: 0}|review が missing（issue・commit 無し）
+pass|gate-record|.review = {state: "off", must_fix_open: 0, waived: 0}|review が off（issue・commit 無し）
+pass|gate-record|.review.state = "stale"|review が stale（issue・commit あり）
+fail|gate-record|del(.review.issue)|current なのに issue が無い
+fail|gate-record|.review.task = .review.issue | del(.review.issue)|古いキー review.task（gate/2 は issue）
 fail|gate-record|del(.review.commit)|current なのに commit が無い
 fail|gate-record|.review.state = "stale" | del(.review.commit)|stale なのに commit が無い
-fail|gate-record|.review.state = "missing"|missing なのに task・commit がある
-fail|gate-record|.review = {state: "off", task: "A-13", must_fix_open: 0, waived: 0}|off なのに task がある
+fail|gate-record|.review.state = "missing"|missing なのに issue・commit がある
+fail|gate-record|.review = {state: "off", issue: "A-13", must_fix_open: 0, waived: 0}|off なのに issue がある
 fail|gate-record|.at = "2026-13-01T09:10:00Z"|at の月が 13
 fail|gate-record|.review.state = "unknown"|review.state が知らない値
 fail|gate-record|.decision = "approved"|decision が知らない値
@@ -278,7 +291,8 @@ fail|project|del(.delegation.project)|delegation が今の委譲と違う形（p
 fail|project|.delegation = {preset: "work", grants: []}|delegation が今の委譲と違う形（version・project が無い）
 fail|project|.chief_of_staff.parallel = 0|parallel が 0
 fail|project|.chief_of_staff.review_when = "外向きの面"|review_when が配列でない
-fail|project|.chief_of_staff.triage_max_tasks = "3"|triage_max_tasks が文字列
+fail|project|.chief_of_staff.triage_max_issues = "3"|triage_max_issues が文字列
+fail|project|.chief_of_staff.triage_max_tasks = .chief_of_staff.triage_max_issues | del(.chief_of_staff.triage_max_issues)|古いキー triage_max_tasks（project/2 は triage_max_issues）
 fail|project|.delegation.version = 2|委譲: 知らない version
 fail|project|.delegation.version = "1"|委譲: version が文字列
 fail|project|.delegation.preset = "free"|委譲: 知らない preset
@@ -302,7 +316,7 @@ fail|project|.delegation.grants[1].revoked.at = "2026-11-31"|委譲: revoked.at 
 fail|project|del(.delegation.grants[1].revoked.reason)|委譲: revoked に reason が無い
 fail|project|.delegation.grants[0].id = "g1"|委譲: grant の id が d<n> でない
 fail|project|.delegation.grants[0] += {"note": "x"}|委譲: grant に知らないキー
-pass|candidates|del(.commit)|commit 無し（repo の無いタスク）
+pass|candidates|del(.commit)|commit 無し（repo の無い課題）
 pass|candidates|.candidates = []|候補が無い
 pass|candidates|.candidates[0] |= del(.file, .line)|場所を指さない候補
 pass|candidates|.candidates[0].in_scope = false|in_scope が false
@@ -318,7 +332,7 @@ fail|candidates|.candidates[0].file = "../outside"|file が repo の外（..）
 fail|candidates|.candidates[0].file = "/outside"|file が絶対パス
 fail|candidates|.candidates[0] += {"severity": "minor"}|候補に指摘のキー（findings と混ぜない）
 fail|candidates|.commit = "9c4e1b0"|commit が40桁でない
-fail|candidates|.commit = null|commit が null（repo の無いタスクは書かない）
+fail|candidates|.commit = null|commit が null（repo の無い課題は書かない）
 fail|candidates|.candidates = {}|candidates が配列でない
 EOF
 
@@ -344,16 +358,16 @@ candidates|del(.properties.candidates.uniqueKeys)|候補の id の一意を外�
 candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_scope を外す
 candidates|.additionalProperties = true|候補の一覧の知らないキーを許す
 question|.properties.kind.enum -= ["scope"]|問いの kind から scope を外す
-task-keys|del(.properties.deliverable)|台帳の項目から deliverable を外す
+issue-keys|del(.properties.deliverable)|台帳の項目から deliverable を外す
 LOOSE
 fi
 
-# 5. command の出力（tests/andon-task.sh・andon-gate.sh・andon-dispatcher.sh が ANDON_EMIT_DIR に写したもの）。
+# 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh が ANDON_EMIT_DIR に写したもの）。
 #    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-task andon-gate andon-dispatcher; do
+  for t in andon-issue andon-gate andon-dispatcher; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -365,15 +379,15 @@ if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
       if [ -f "$tmp/emit/$file" ]; then expect pass "$name" "$tmp/emit/$file" "command の出力: $desc が schema/$name を通る"
       else ng "command の出力: $desc（$file）が無い"; fi
     done <<'EMIT'
-report-1.json|report|andon task report の report.json
-report-review-request.json|report|andon task review-request の report.json
-task-keys.json|task-keys|andon task show の settings
-question.json|question|andon task ask の questions/<n>.json
-question-scope.json|question|andon task ask の questions/<n>.json（kind: scope）
-candidates.json|candidates|andon task candidates の candidates.json
-report-norepo.json|report|andon task report の report.json（repo の無いタスク。commit 無し）
-candidates-norepo.json|candidates|andon task candidates の candidates.json（repo の無いタスク。commit 無し）
-task-keys-candidates.json|task-keys|andon task show の settings（deliverable: candidates）
+report-1.json|report|andon issue report の report.json
+report-review-request.json|report|andon issue review-request の report.json
+issue-keys.json|issue-keys|andon issue show の settings
+question.json|question|andon issue ask の questions/<n>.json
+question-scope.json|question|andon issue ask の questions/<n>.json（kind: scope）
+candidates.json|candidates|andon issue candidates の candidates.json
+report-norepo.json|report|andon issue report の report.json（repo の無い課題。commit 無し）
+candidates-norepo.json|candidates|andon issue candidates の candidates.json（repo の無い課題。commit 無し）
+issue-keys-candidates.json|issue-keys|andon issue show の settings（deliverable: candidates）
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
@@ -383,7 +397,7 @@ question-gate.json|question|andon dispatcher が needs_human で出した問い�
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
 notification-merged.json|notification|andon dispatcher の通知 merged
-notification-impact.json|notification|andon dispatcher の通知 impact（andon task impact から）
+notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
 notification-impact-error.json|notification|andon dispatcher の通知 impact（集められず諦めたとき）
 notification-asked.json|notification|andon dispatcher の通知 asked
 notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report

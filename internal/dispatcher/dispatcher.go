@@ -2,8 +2,8 @@
 // （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・人が持つ。
 //
 //	report.json の review_request   → レビュアーを起こす（kanban add --parent ＋ detached worktree ＋ hc run）
-//	{"status": "review"} に入った    → andon gate を回す（deliverable: candidates のタスクは回さない。通知だけ）
-//	approve ＋ merge: auto ＋ 委譲    → マージ → andon task finish（レビュアーのタスクも片付ける）
+//	{"status": "review"} に入った    → andon gate を回す（deliverable: candidates の課題は回さない。通知だけ）
+//	approve ＋ merge: auto ＋ 委譲    → マージ → andon issue finish（レビュアーの課題も片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
@@ -12,7 +12,7 @@
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
 // 離席時だけの hc send（deliver.go。経路③）。dispatcher.md §3。
-// 台帳に書くのは台帳の CLI と andon task … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
+// 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
 package dispatcher
 
 import (
@@ -102,7 +102,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // Dispatcher は1つのセルの dispatcher。
 type Dispatcher struct {
 	WS    string    // セルの repo
-	Andon string    // andon のバイナリ（gate・task を打つ）
+	Andon string    // andon のバイナリ（gate・issue を打つ）
 	Log   io.Writer // ログ（1行ずつ）
 }
 
@@ -110,7 +110,7 @@ func (c *Dispatcher) logf(format string, a ...any) {
 	fmt.Fprintf(c.Log, "andon dispatcher: "+format+"\n", a...)
 }
 
-// Pass はセルの台帳を1回ずつ回す。動いているタスク（doing・review）があれば busy。
+// Pass はセルの台帳を1回ずつ回す。動いている課題（doing・review）があれば busy。
 func (c *Dispatcher) Pass(only string) bool {
 	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", "kanban", "config.yaml"))
 	sort.Strings(cfgs)
@@ -138,7 +138,7 @@ type project struct {
 	st    *State
 	first bool
 	rows  []ledger.Row
-	tasks []ledger.Task
+	tasks []ledger.Issue
 }
 
 func (p *project) logf(format string, a ...any) { p.c.logf(p.l.Slug+": "+format, a...) }
@@ -191,25 +191,25 @@ func (p *project) pass() (bool, error) {
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
 }
 
-// gated は、タスクがインナーループ（レビュアーを起こす・ゲートを回す）を通るか。通るのは案件 repo の担当の
-// PR のタスクだけ。レビュアー・Chief Engineer・repo の無いタスク・調べるタスク（deliverable: candidates。
+// gated は、課題がインナーループ（レビュアーを起こす・ゲートを回す）を通るか。通るのは案件 repo の担当の
+// PR の課題だけ。レビュアー・Chief Engineer・repo の無い課題・調べる課題（deliverable: candidates。
 // Chief of Staff が書いたものだけ信じる）は Chief of Staff が見る（通知は collect が積む）。
-func (p *project) gated(t ledger.Task) bool {
+func (p *project) gated(t ledger.Issue) bool {
 	return !isReviewer(t) && t.Str("profile") != "chief-engineer" && t.Str("repo") != "" && !p.l.Candidates(p.rows, t)
 }
 
-func isReviewer(t ledger.Task) bool {
+func isReviewer(t ledger.Issue) bool {
 	return t.Str("parent") != "" && strings.HasSuffix(t.Str("profile"), "-review")
 }
 
 // trusted は予約キー key が無い（既定で読む）か、Chief of Staff が最後に書いたものか（contract.md §2 の履歴の照合）。
-func (p *project) trusted(t ledger.Task, key string) bool {
+func (p *project) trusted(t ledger.Issue, key string) bool {
 	return t.Str(key) == "" || p.l.Trusted(p.rows, t, key)
 }
 
-// notify は通知を控えに積む（同じタスクの同じ出来事は新しい1件に置き換える）。
+// notify は通知を控えに積む（同じ課題の同じ出来事は新しい1件に置き換える）。
 func (p *project) notify(task, kind string, detail map[string]any) {
-	p.st.Push(Notification{At: now(), Project: p.l.Slug, Task: task, Kind: kind, Detail: detail})
+	p.st.Push(Notification{At: now(), Project: p.l.Slug, Issue: task, Kind: kind, Detail: detail})
 }
 
 func (p *project) reportPath(id string) string {
@@ -270,10 +270,10 @@ func repoDir(repo string) (string, error) {
 	return filepath.Join(root, repo), nil
 }
 
-// ask は問い（contract.md §5）を andon task ask で出し、通知 asked を積む。
+// ask は問い（contract.md §5）を andon issue ask で出し、通知 asked を積む。
 func (p *project) ask(id string, q contract.Question) {
 	b, _ := json.Marshal(q)
-	out, _, err := p.andon(string(b), "task", "ask", id, "-")
+	out, _, err := p.andon(string(b), "issue", "ask", id, "-")
 	if err != nil {
 		p.logf("%s の問いを出せない: %v", id, err)
 		return

@@ -4,7 +4,7 @@
 
 | 節 | schema |
 |---|---|
-| §2 台帳の項目 | `schema/task-keys.schema.json` |
+| §2 台帳の項目 | `schema/issue-keys.schema.json` |
 | §3 指摘 | `schema/findings.schema.json` |
 | §4 報告の機械向けの部分 | `schema/report.schema.json` |
 | §5 問い | `schema/question.schema.json` |
@@ -13,7 +13,7 @@
 | §11 プロジェクトの事実と委譲 | `schema/project.schema.json` |
 | §12 候補の一覧 | `schema/candidates.schema.json` |
 
-- 読み手: command（`andon task …`・`andon gate`・`andon triage`・`andon delegate`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
 - 台帳の形式（ledger-format v2。別プロジェクトの持ち物）は**変えない**。Andon のキーは「Any other key is allowed and kept」の上に置く。形式そのものに触れたいことは design.md §3.2 の相談に並べた。台帳の CLI と形式を Andon に移したら（§3.5）、「変えない」は「形式の版で変える」になる。それまでこの文書は v2 の上に乗る。
 
@@ -21,25 +21,25 @@
 
 1. **Markdown を読まない。** 依頼書・報告・レビューの報告・skill は人と AI のもの。機械が判定に使う値は、ここに並ぶ JSON／YAML のキーにだけ持つ（人の決定 2026-11-04。仮設の工場で Markdown を正規表現で読む形は端が尽きなかった）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起こさない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `task.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
-5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `tasks/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.task/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
-6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon task`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-task.sh`・`tests/andon-gate.sh` に書かせる）。
+5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
+6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
 
 ## 1. 置き場と書き手
 
 ```
 projects/<slug>/kanban/
   config.yaml                     chief_of_staff（kanban config set。Chief of Staff の端末）
-  tasks/<id>/
-    task.yaml                     台帳の項目 ＋ Andon の予約キー（§2。Chief of Staff が kanban set）
+  issues/<id>/
+    issue.yaml                     台帳の項目 ＋ Andon の予約キー（§2。Chief of Staff が kanban set）
     brief.md                      人・AI 用（Settings は写し。機械は読まない）
     report.md                     人・AI 用（機械は読まない）
     questions.yaml                台帳の問い（§5。text は人向け）
     library/
       report.json                 担当（§4）
-      findings.json               レビュアー（§3。レビュアーのタスクの側）
-      candidates.json             担当（§12。調べるタスクの成果と、範囲の問いで止まる直すタスク）
+      findings.json               レビュアー（§3。レビュアーの課題の側）
+      candidates.json             担当（§12。調べる課題の成果と、範囲の問いで止まる直す課題）
       questions/<n>.json          問うた者（§5）
       gate/<head sha>.json        dispatcher（§7。ゲートの記録）
       corrections.json            dispatcher（finish のとき。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
@@ -48,7 +48,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ```
 
-## 2. 台帳の項目（`task.yaml` の Andon の予約キー）
+## 2. 台帳の項目（`issue.yaml` の Andon の予約キー）
 
 依頼書の `## Settings` の**正**。Chief of Staff が `kanban set <id> review=on must_fix=major …` で書く。依頼書の欄は人が読む写し。
 
@@ -59,31 +59,31 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `reviewer` | プロファイルの名前（`codex-review` / `claude-review`） | 既定: 実装のプロファイルと別ブランド（Claude → `codex-review`、Codex → `claude-review`） | Chief of Staff | dispatcher（起こす）・ゲート（別ブランドの照合） | レビュアーのプロファイル |
 | `review_rounds` | 1 以上の整数（を表す文字列。下の注） | 既定: `"2"` | Chief of Staff | dispatcher・担当 | 頼める回数の上限。超えた回は `report.json` の `review_request.extra` で頼み、起こすかは dispatcher ではなく Chief of Staff が決める |
 | `merge` | `auto` / `person` | 既定: `person`（安全側） | Chief of Staff | dispatcher・ゲート | `auto`: ゲートが approve し、委譲（§11）の `merge` がそのレベルを許していれば dispatcher がマージし finish する。`person`: approve でも止まり、人に通知する。**委譲の範囲を広げることはできない**（狭めるだけ） |
-| `machine` | 端末の土台の machine の名前 | 既定: 指揮側と同じマシン | Chief of Staff | `andon task start`・dispatcher | 作業側（担当・レビュアー）を起こすマシン |
-| `deliverable` | `pr` / `candidates` | 既定: `pr` | Chief of Staff（依頼書の Settings の `Deliverable:` の写し） | `andon task ready`・dispatcher・`andon gate`・ボード・担当 | タスクの成果の形。`pr`: PR（直すタスク・Chief Engineer の文書）。`candidates`: PR を出さず `library/candidates.json`（§12）が成果（調べるタスク）。`andon task ready` は `pr` の代わりに `candidates.json` が在って形が合い（repo があれば）`commit` が `HEAD` と同じことを確かめる。dispatcher は `review` の通知だけ届けてゲートを回さず、`review_request` があっても起こさない。`andon gate` を手で打てば回さずに終了コード 3（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） |
+| `machine` | 端末の土台の machine の名前 | 既定: 指揮側と同じマシン | Chief of Staff | `andon issue start`・dispatcher | 作業側（担当・レビュアー）を起こすマシン |
+| `deliverable` | `pr` / `candidates` | 既定: `pr` | Chief of Staff（依頼書の Settings の `Deliverable:` の写し） | `andon issue ready`・dispatcher・`andon gate`・ボード・担当 | 課題の成果の形。`pr`: PR（直す課題・Chief Engineer の文書）。`candidates`: PR を出さず `library/candidates.json`（§12）が成果（調べる課題）。`andon issue ready` は `pr` の代わりに `candidates.json` が在って形が合い（repo があれば）`commit` が `HEAD` と同じことを確かめる。dispatcher は `review` の通知だけ届けてゲートを回さず、`review_request` があっても起こさない。`andon gate` を手で打てば回さずに終了コード 3（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） |
 
-`kanban show <id> --json` の `.task`（Andon の予約キー以外は台帳の形式のキー）:
+`kanban show <id> --json` の `.issue`（Andon の予約キー以外は台帳の形式のキー）:
 
 ```json
-{"id": "A-0012", "title": "andon task ready を足す", "status": "doing",
+{"id": "A-0012", "title": "andon issue ready を足す", "status": "doing",
  "review": "on", "must_fix": "major", "reviewer": "codex-review",
  "review_rounds": "2", "merge": "person", "machine": "vps", "deliverable": "pr"}
 ```
 
 - **値は全部文字列**。`kanban set` は値を文字列で書くので、`review_rounds` も `"2"`（1 以上の整数を表す数字の列）。YAML に手で `review_rounds: 2` と書いた数は schema を通らない（読み手は「無い」として既定を使う）。
 - 台帳の形式は知らないキーを許して保つので、この schema は**知らないキーを拒まない**。どれも必須ではない（無いときの振る舞いは上の表）。
-- **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の chief_of_staff>` で、その値が今の `task.yaml` と同じときだけ信じる。違えば `needs_human`。`chief_of_staff` が無ければ信じない。`log.jsonl` の id は 4 桁に揃えて読む（移す前の行は `A-5` のまま。[ledger.md](ledger.md) の Writing）。
-- **レビュアーのタスク**（`parent` が元のタスクで `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<chief_of_staff>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon task ready` がレビューに数える。id は `<元のタスクの id>-r<回>`（`A-0005-r1`。dispatcher が `kanban add --round <回>` で付ける。2026-11-06 より前の子は通し番号のまま読む。[ledger.md](ledger.md) の Writing）。数えるのは id の形ではなく `parent` と `profile`。
+- **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の chief_of_staff>` で、その値が今の `issue.yaml` と同じときだけ信じる。違えば `needs_human`。`chief_of_staff` が無ければ信じない。`log.jsonl` の id は 4 桁に揃えて読む（移す前の行は `A-5` のまま。[ledger.md](ledger.md) の Writing）。
+- **レビュアーの課題**（`parent` が元の課題で `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<chief_of_staff>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon issue ready` がレビューに数える。id は `<元の課題の id>-r<回>`（`A-0005-r1`。dispatcher が `kanban add --round <回>` で付ける。2026-11-06 より前の子は通し番号のまま読む。[ledger.md](ledger.md) の Writing）。数えるのは id の形ではなく `parent` と `profile`。
 - 値の綴りは小文字（`machine` を除く）。知らない値は「無い」と同じ。
-- 読み手が `kanban show <id> --json` の `.task` から取る（ファイルを直接読まない）。
+- 読み手が `kanban show <id> --json` の `.issue` から取る（ファイルを直接読まない）。
 
 ## 3. 指摘（`findings.json`）
 
-レビュアーのタスクの `library/findings.json`（キーはこの名前だけ）:
+レビュアーの課題の `library/findings.json`（キーはこの名前だけ）:
 
 ```json
 {"commit": "2a17f63e53ac7f9554d78782e2bfc4d079454455",
- "findings": [{"severity": "major", "file": "package/lib/andon/task", "line": 120}]}
+ "findings": [{"severity": "major", "file": "internal/issue/issue.go", "line": 120}]}
 ```
 
 | キー | 値 | 意味 |
@@ -99,41 +99,41 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 ## 4. 報告の機械向けの部分（`report.json`）
 
-担当のタスクの `library/report.json`。担当が書き直すたびに全体を書く（`report.md` と同じ）。書き手は担当。`kanban report` の直前に書く——dispatcher は `log.jsonl` の `{"report": "write"}` を合図に `report.json` を読む（新しい合図の種類を足さない）。
+担当の課題の `library/report.json`。担当が書き直すたびに全体を書く（`report.md` と同じ）。書き手は担当。`kanban report` の直前に書く——dispatcher は `log.jsonl` の `{"report": "write"}` を合図に `report.json` を読む（新しい合図の種類を足さない）。
 
 ```json
 {"commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
  "pr": "https://github.com/<owner>/andon/pull/12",
  "review_request": {"round": 1, "limit": 2, "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "previous": null, "reviewer": "codex-review", "extra": false},
- "waived": [{"severity": "minor", "file": "package/lib/andon/task", "line": 88, "reason": "起きる条件がこの repo に無い"}],
- "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-task.sh"}],
+ "waived": [{"severity": "minor", "file": "internal/issue/issue.go", "line": 88, "reason": "起きる条件がこの repo に無い"}],
+ "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-issue.sh"}],
  "next": [{"to": "person", "text": "PR #12 を読む（レベル C: package/gate.json）"},
-          {"to": "chief-of-staff", "text": "マージ後に andon task finish A-0012"},
-          {"to": "task", "text": "lib/andon/triage が足すタスクにも review・must_fix を書く"}],
+          {"to": "chief-of-staff", "text": "マージ後に andon issue finish A-0012"},
+          {"to": "issue", "text": "lib/andon/triage が足す課題にも review・must_fix を書く"}],
  "remember": ["機械が判定に使うものは Markdown に埋めない"],
  "agents_md": ["テストは bash tests/*.sh"]}
 ```
 
 | キー | 要るか | 読み手 | 意味 |
 |---|---|---|---|
-| `commit` | repo のあるタスクでは必須（schema では任意。`andon task report` が書き、`andon task ready` が確かめる）。repo の無いタスクでは書かない | dispatcher・ゲート | 書いた時点の HEAD（40桁・小文字）。`andon task ready` が `HEAD` ＝ `commit` ＝ PR の head を確かめる |
-| `pr` | PR を出したら必須（schema では任意。確かめるのは `andon task ready`） | ゲート・dispatcher | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む。`https://github.com/<owner>/<repo>/pull/<n>` で、owner と repo は `/` を除く印字できる ASCII |
+| `commit` | repo のある課題では必須（schema では任意。`andon issue report` が書き、`andon issue ready` が確かめる）。repo の無い課題では書かない | dispatcher・ゲート | 書いた時点の HEAD（40桁・小文字）。`andon issue ready` が `HEAD` ＝ `commit` ＝ PR の head を確かめる |
+| `pr` | PR を出したら必須（schema では任意。確かめるのは `andon issue ready`） | ゲート・dispatcher | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む。`https://github.com/<owner>/<repo>/pull/<n>` で、owner と repo は `/` を除く印字できる ASCII |
 | `review_request` | レビューを頼むときだけ。中の6つのキーは全部必須（`previous` は初回 `null`、`round`・`limit` は 1 以上の整数） | dispatcher | dispatcher が `kanban add --parent <id>` ＋ detached worktree ＋ `hc run <reviewer>` で起こす。`round` ≤ `limit` でなければ起こさない（`extra: true` なら Chief of Staff の判断待ち）。`previous` があれば再レビュー（差分 `previous..commit` だけ）。`commit` が PR の head と違えば起こさない |
 | `waived` | 任意 | トリアージ・振り返り | 見送った指摘（`findings.json` と同じ3つ ＋ `reason`） |
 | `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command かユースケースの実行の跡のパス。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |
-| `next[]` | 任意 | トリアージ | `to` は `person` / `chief-of-staff` / `task`（次のタスクに切るもの） |
+| `next[]` | 任意 | トリアージ | `to` は `person` / `chief-of-staff` / `issue`（次の課題に切るもの） |
 | `remember[]`・`agents_md[]` | 任意 | トリアージ・振り返り | 人用の報告の `## Remember`・`For AGENTS.md:` の機械向けの写し |
 
-- 担当の `andon task ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーのタスクの `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
-- 担当の `andon task review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。
-- 作業側（別のマシン）の担当は同じ command を打つ。command は `<worktree>.task/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
+- 担当の `andon issue ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーの課題の `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
+- 担当の `andon issue review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。
+- 作業側（別のマシン）の担当は同じ command を打つ。command は `<worktree>.issue/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
 
 ## 5. 問いの形
 
 人が「文脈なしで読めて、1通で答えられる」形。2つに書く:
 
 1. `kanban ask <id> "<text>" --kind <k>`: `questions.yaml` の `text` は人向けの描画（下の JSON から command が作る。何の判断か・事実・理由・選択肢・推奨案・あと何問）。`kind` は下の JSON の `kind` と同じ。台帳の CLI は判断の5種（`line` まで）と `scope` を受ける（`kanban ask --kind scope`。[ledger.md](ledger.md) の Questions）。
-2. `tasks/<id>/library/questions/<n>.json`（`n` は台帳が付けた番号）:
+2. `issues/<id>/library/questions/<n>.json`（`n` は台帳が付けた番号）:
 
 ```json
 {"kind": "line",
@@ -147,24 +147,24 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 | キー | 要るか | 意味 |
 |---|---|---|
-| `kind` | 必須 | `business` / `users` / `promise` / `irreversible` / `line`（判断5種。design.md §1.3）か `scope`（範囲。直すタスクが候補のどれを直すかを問う。宛先は Chief of Staff で、灯りではない＝ボードの「Needs you」に数えない。`facts` に `candidates.json`〈§12〉のパスと依頼書の行、`options` は候補の `id` で書き、`from` は `task`。[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 3・4） |
+| `kind` | 必須 | `business` / `users` / `promise` / `irreversible` / `line`（判断5種。design.md §1.3）か `scope`（範囲。直す課題が候補のどれを直すかを問う。宛先は Chief of Staff で、灯りではない＝ボードの「Needs you」に数えない。`facts` に `candidates.json`〈§12〉のパスと依頼書の行、`options` は候補の `id` で書き、`from` は `issue`。[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 3・4） |
 | `question` | 必須 | 1行（改行を含まない）。問いそのもの |
 | `facts[]`・`reason` | 任意 | 事実と理由。写さず、パスか URL で指す。委譲の範囲外で出す問いは `facts` に「委譲 `<scope>: <値>` の外」を1行 |
 | `options[]` | 必須（2つ以上） | `label` と `pick`。**先頭**が `pick: true`（推奨案）で、2つ目からは `pick` を書かないか `false` |
 | `remaining` | 任意 | この問いのあとに続く問いの数（「あと N 問」。0 以上の整数） |
-| `from` | 任意 | `task` / `gate` / `retro` / `chief-of-staff` / `chief-engineer` |
+| `from` | 任意 | `issue` / `gate` / `retro` / `chief-of-staff` / `chief-engineer` |
 
 範囲の問い（`kind: scope`）:
 
 ```json
 {"kind": "scope",
  "question": "誤字は1つではなく3つ。どれを直すか",
- "facts": ["kanban/tasks/A-0012/library/candidates.json", "依頼書の「やること」: docs の誤字を1つ直す"],
- "options": [{"label": "c1〜c3 を全部この PR で", "pick": true}, {"label": "c1 だけ。c2・c3 は別のタスク"}, {"label": "全部別のタスク（この依頼は閉じる）"}],
- "from": "task"}
+ "facts": ["kanban/issues/A-0012/library/candidates.json", "依頼書の「やること」: docs の誤字を1つ直す"],
+ "options": [{"label": "c1〜c3 を全部この PR で", "pick": true}, {"label": "c1 だけ。c2・c3 は別の課題"}, {"label": "全部別の課題（この依頼は閉じる）"}],
+ "from": "issue"}
 ```
 
-- 書き手: 担当（`andon task ask <id> <json>`）、dispatcher（ゲートの `needs_human`。`from: gate`）、Chief of Staff・Chief Engineer（人に出すとき）。command が JSON を検証して `text` を描き、`kanban ask` を打つ。
+- 書き手: 担当（`andon issue ask <id> <json>`）、dispatcher（ゲートの `needs_human`。`from: gate`）、Chief of Staff・Chief Engineer（人に出すとき）。command が JSON を検証して `text` を描き、`kanban ask` を打つ。
 - 読み手: Chief of Staff（`kanban questions --json` と並べて読む）・通知の口（将来）・ボードの返事欄（相談 F2）。答えは今までどおり `kanban answer`・`kanban received`。
 
 ## 6. 通知
@@ -172,8 +172,8 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（文は JSON から作る。文から推さない）。拾い方・届ける経路・離席の判定の理由は [dispatcher.md](dispatcher.md)。
 
 ```json
-{"at": "2026-11-04T09:00:00Z", "project": "andon", "task": "A-0012", "kind": "review",
- "detail": {"report": "/workspace/projects/andon/kanban/tasks/A-0012/report.md", "pr": "https://github.com/<owner>/andon/pull/12"}}
+{"at": "2026-11-04T09:00:00Z", "project": "andon", "issue": "A-0012", "kind": "review",
+ "detail": {"report": "/workspace/projects/andon/kanban/issues/A-0012/report.md", "pr": "https://github.com/<owner>/andon/pull/12"}}
 ```
 
 | `kind` | 元 | `detail` |
@@ -181,28 +181,28 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `report` | `log.jsonl` の `{"report": "write" \| "append"}` | `report` のパス |
 | `review` | `{"status": "review"}` | `report`・`pr` |
 | `asked` | `{"question": n, "status": "open"}` | `n`・`kind`・`question`（§5 の JSON から） |
-| `ready` | `kanban ready --json` の前回との差（人のタスクを除く） | `title`・`routine` |
-| `review-requested` | `report.json` の `review_request`（dispatcher が起こしたとき） | `round`・`reviewer`・`reviewer_task` |
+| `ready` | `kanban ready --json` の前回との差（人の課題を除く） | `title`・`routine` |
+| `review-requested` | `report.json` の `review_request`（dispatcher が起こしたとき） | `round`・`reviewer`・`reviewer_issue` |
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス） |
 | `merged` | ゲートの approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき | `pr`・`sha` |
-| `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED のタスクに dispatcher が `andon task impact` を1回打ち、影響のあるタスクがあったとき（下の「マージのあとの影響」） | `pr`・`sha`・`tasks[]`（`task`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
+| `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED の課題に dispatcher が `andon issue impact` を1回打ち、影響のある課題があったとき（下の「マージのあとの影響」） | `pr`・`sha`・`issues[]`（`issue`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
 
-- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`task` はタスクについての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
+- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` だけ任意）。
 - 届け方: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
-- **マージのあとの影響**（`impact`）: `andon task impact <id>` は、タスクの PR がマージされたあと、同じ repo の `doing`／`review` の担当のタスク（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
-  出力は `task`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`tasks[]`。`tasks[]` の1件は `task`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、そのタスクの依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めない・在るかを確かめられない〈権限など。無いのとは分ける〉ときも。影響なしに倒さない）。
+- **マージのあとの影響**（`impact`）: `andon issue impact <id>` は、課題の PR がマージされたあと、同じ repo の `doing`／`review` の担当の課題（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
+  出力は `issue`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`issues[]`。`issues[]` の1件は `issue`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、その課題の依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めない・在るかを確かめられない〈権限など。無いのとは分ける〉ときも。影響なしに倒さない）。
   影響あり（通知に載る）は `error` があるか、`contains` でなく `conflict`・`overlap`・`brief_refs` のどれかがあるもの。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff（chief-of-staff skill §7）。出力そのものは Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
 
 ```json
-{"at": "2026-11-07T09:00:00Z", "project": "andon", "task": "A-0012", "kind": "impact",
+{"at": "2026-11-07T09:00:00Z", "project": "andon", "issue": "A-0012", "kind": "impact",
  "detail": {"pr": "https://github.com/<owner>/andon/pull/12", "sha": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
-            "tasks": [{"task": "A-0014", "conflict": true, "overlap": ["docs/design.md"], "brief_refs": ["docs/design.md"]}]}}
+            "issues": [{"issue": "A-0014", "conflict": true, "overlap": ["docs/design.md"], "brief_refs": ["docs/design.md"]}]}}
 ```
 
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの依頼ではない。足すことが無ければ `<no-reply>`」）。`news.replied=<turn>` のラベルも同じ（ボードとの約束）。
-- dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・③で送った turn と端末・フックで渡した端末・起こしたレビュアー（`task` → `reviewer_task`・`commit`）・回したゲート（`task` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。dispatcher の行の `by` は `terminal:dispatcher`）。控えの中の形は dispatcher だけが読むので約束にしない（schema は無い）。
+- dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・③で送った turn と端末・フックで渡した端末・起こしたレビュアー（`issue` → `reviewer_issue`・`commit`）・回したゲート（`issue` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。dispatcher の行の `by` は `terminal:dispatcher`）。控えの中の形は dispatcher だけが読むので約束にしない（schema は無い）。
 
 ## 7. ゲートの条件表と記録
 
@@ -222,42 +222,42 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 
 - キーはどれも必須ではない（`gate.local.json` は置き換えるキーだけを持つ）。知らないキーは拒む。`repos.<repo>.merge` は `merge` / `squash` / `rebase`、`tier_overrides` の値は `A` / `B` / `C`。重ねたあとに `size_review_lines`・`size_human_lines`・`github_checks_wait_minutes` が無ければ、ゲートは誤り（終了コード 3）。
 - `repos.<repo>.github_checks`: PR の head に GitHub の checks（Actions の CI など）が要るか。`required`（既定）は1つも無ければ待ち、`optional` は1つも無くても通す（CI の無い repo）。どちらでも、在る checks は通っていなければ止める。
-- `github_checks_wait_minutes`: `required` の repo で checks が1つも無いとき、タスクが `review` に入った `log.jsonl` の行の `at` からこの分だけ待ち、過ぎたら `needs_human`（push の直後で checks がまだ付いていないのと、CI が無いのとを分ける）。
+- `github_checks_wait_minutes`: `required` の repo で checks が1つも無いとき、課題が `review` に入った `log.jsonl` の行の `at` からこの分だけ待ち、過ぎたら `needs_human`（push の直後で checks がまだ付いていないのと、CI が無いのとを分ける）。
 
-**記録** `tasks/<id>/library/gate/<head sha>.json`（dispatcher が書く。`--dry-run` では書かない）:
+**記録** `issues/<id>/library/gate/<head sha>.json`（dispatcher が書く。`--dry-run` では書かない）:
 
 ```json
 {"at": "2026-11-04T09:10:00Z", "id": "A-0012", "pr": "https://github.com/<owner>/andon/pull/12", "head": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
- "tier": "B", "tier_reasons": ["package/lib/andon/task は tier_b_paths"], "changed_lines": 212,
+ "tier": "B", "tier_reasons": ["internal/issue/issue.go は tier_b_paths"], "changed_lines": 212,
  "checks": [{"cmd": "bash tests/*.sh", "ok": true}],
  "github_checks": {"state": "success", "names": ["tests"]},
- "review": {"state": "current", "task": "A-0013", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "must_fix_open": 0, "waived": 1},
+ "review": {"state": "current", "issue": "A-0013", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "must_fix_open": 0, "waived": 1},
  "acceptance": {"pass": 3, "fail": 0, "manual": 0},
  "delegation": {"merge": "B", "ok": true},
  "decision": "approve", "reasons": [], "merged": true}
 ```
 
 - `at` は ゲートが PR の head の GitHub の checks を読んだ時刻（`github_checks` はそのとき読んだもの）。ゲートを始めた時刻ではない（条件表の `check` を回すあいだに checks が変わっても、記録は読んだ時刻と中身で揃う）。
-- キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`）/ `stale`（違う）/ `missing`（無い・読めない）/ `off`（タスクの `review: off`）。`current`・`stale` では `task` と `commit` が必須、`missing`・`off` では2つとも書かない。`delegation.merge` は委譲が無ければ `none`。
+- キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`）/ `stale`（違う）/ `missing`（無い・読めない）/ `off`（課題の `review: off`）。`current`・`stale` では `issue` と `commit` が必須、`missing`・`off` では2つとも書かない。`delegation.merge` は委譲が無ければ `none`。
 - `decision` と `reasons[]` は決定式（純粋関数）の出力そのまま。PR のコメントと commit status（`andon/gate`）には同じ内容を写す（記録の正は台帳の側）。
 - `github_checks`: PR の head の GitHub の checks（GraphQL の `pullRequest.headRefOid` と head の commit の `statusCheckRollup.contexts` を、100件ずつ全ページ読む。ページの間に head が動いたら判定しない。ゲート自身の commit status `andon/gate` は数えない。同じ check〈CheckRun は app・workflow の id〈表示名でなく GraphQL の `Workflow.id`。別ファイルの同じ表示名の workflow を束ねない〉・名前、status は context〉の実行が複数あれば、最新〈CheckRun は `databaseId`、status は `createdAt`〉の1つだけを数える＝再実行の前の failure を数えない。新旧を判別できない〈同じ時刻・同じ id〉ときは悪い方を残す）を1つの状態にまとめたもの。`state` は一番悪いもの: `failure`（failure・cancelled・timed_out・startup_failure・status の error）＞ `unknown`（action_required・stale・知らない値）＞ `pending`（終わっていない・status の pending・expected）＞ `success`（success・skipped・neutral。neutral は GitHub のブランチ保護と同じく通す）。1つも無ければ `none`（ゲート自身の `andon/gate` だけのときも）。`names` はその状態にした checks の名前（`success` では通した checks 全部。`none` では空）。
 - GitHub の checks の決定: `failure` → `fix`（担当が直せるもの）。`unknown` → `needs_human`。`pending`、または `required` の repo で `none` → **`wait`**（ほかに止める理由が無いときだけ。止める理由があればそちらを返す）。`none` のまま `github_checks_wait_minutes` を過ぎたら `needs_human`。`pending` は時間で人へ上げない（走り終われば success か failure になる）。checks が通っていないあいだは条件表の `check` を回さない。
 - **`wait` は記録に書かない**: `andon gate` は記録の形を stdout に出して終了コード 5 で返すが、`gate/<head>.json`・PR のコメント・commit status は書かない（見回りのたびに PR を埋めない）。読み手（dispatcher）は控えに書かず、次の見回りでゲートから回し直す。
 - `delegation`: 読んだ委譲の `merge` の値と、判定のレベルがその中か（§11）。外なら approve でも `decision: needs_human`、`reasons[]` に `delegation: merge=B < tier C`。
-- 読み手: dispatcher（approve → `merge: auto` ＋ 委譲の範囲内なら、マージの直前に PR の head と GitHub の checks を読み直し、head が記録の `head` のまま・checks が通る状態のときだけマージ → `andon task finish`。違えば打たず、次の見回りでゲートから回し直す。残る隙間: マージの直前の読み直しと `gh pr merge` の間に、同じ head のまま checks が走り直した・落ちたときは止められない（`--match-head-commit` が固定するのは head だけ）。サーバーの側で checks を強制できるのはブランチ保護（ruleset）だけで、private の repo の Free のプランでは使えないので、この隙間は受け入れる。public にしたら ruleset で既定ブランチに required checks を付けて塞ぐ（public にする手順に入れてある）。wait → 控えに書かずに次の見回りで回し直す。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・人。
+- 読み手: dispatcher（approve → `merge: auto` ＋ 委譲の範囲内なら、マージの直前に PR の head と GitHub の checks を読み直し、head が記録の `head` のまま・checks が通る状態のときだけマージ → `andon issue finish`。違えば打たず、次の見回りでゲートから回し直す。残る隙間: マージの直前の読み直しと `gh pr merge` の間に、同じ head のまま checks が走り直した・落ちたときは止められない（`--match-head-commit` が固定するのは head だけ）。サーバーの側で checks を強制できるのはブランチ保護（ruleset）だけで、private の repo の Free のプランでは使えないので、この隙間は受け入れる。public にしたら ruleset で既定ブランチに required checks を付けて塞ぐ（public にする手順に入れてある）。wait → 控えに書かずに次の見回りで回し直す。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・人。
 
 ## 8. 端末の土台（hc）との約束
 
 | 何 | 形 | 書き手 | 読み手 |
 |---|---|---|---|
-| 担当・レビュアーの端末の名前 | `<slug>-<id を小文字>`（`a-z 0-9 - _`、32字まで） | `andon task start`・dispatcher | dispatcher・ボード |
+| 担当・レビュアーの端末の名前 | `<slug>-<id を小文字>`（`a-z 0-9 - _`、32字まで） | `andon issue start`・dispatcher | dispatcher・ボード |
 | Chief of Staff の端末の名前 | `<slug>-cos`（cwd は台帳の root） | `andon chief-of-staff` | `andon chief-of-staff`（動いているものを使うときに名前と cwd を照らす） |
-| ラベル | `role=chief-of-staff \| dispatcher \| chief-engineer`・`project=<slug>`・`task=<id>`・`title=<題>`・`news.replied=<turn>`・`first_message.sent=false`（最初のメッセージが届かなかった〈`hc run` の `first_message` が `sent: false`、か `started: false`〉担当・Chief Engineer・レビュアー。`andon task start`・`andon chief-engineer`・dispatcher〈レビュアー〉が付け、dispatcher が送り直して外す。[dispatcher.md](dispatcher.md) §5） | command・dispatcher | ボード・dispatcher・フック（自分のタスクを引く） |
-| Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（持ち主は Herdr App。id は command が決める: Chief of Staff は `andon-<slug>`・`andon-<slug>-cos`、Chief Engineer は `andon-<slug>`・`andon-<slug>-<id>`、担当は `andon-<slug>-<id>`・`andon-<slug>-<id>`（Space ＝ タスク。[ADR-0003](adr/0003-task-spaces.md)。machine に依らない。`machine` 付きのタスクを `andon task start` はまだ起こさない。ADR-0002 決めたこと 19）、レビュアーは担当の端末（台帳の `agent`）の値を `hc get --json` で読んで写す（読めなければ付けない）。dispatcher は台帳が1つなら `andon-<slug>`・`andon-<slug>-dispatcher`、2つ以上なら `andon-<セルの slug>-plant`・`andon-<セルの slug>-dispatcher`（セルの slug は hostname。ADR-0002 決めたこと 21）。`where` は App が書く出力で、Andon は読まず書かない。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・dispatcher（自分の端末のラベルは boot とフックの `dispatcher.Ensure` が付ける）。`andon task finish` は触らない（端末の kill・rm で tab が空になって消える） | Herdr App |
-| 人に端末を指す言い方 | `<Space 名> / <tab 名>`（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site / CE A-0003 Billing の設計`・`A-0012 ログインの直し / A-0012`）。address は末尾に `（t7）` と添えるだけ。Andon の command は `hc attach` を打たず、最後に出た場所をこの形で出す | `andon chief-of-staff`・`andon chief-engineer`・`andon task start`・Chief of Staff | 人 |
-| template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon task start`（`hc templates` で存在を確かめる） |
+| ラベル | `role=chief-of-staff \| dispatcher \| chief-engineer`・`project=<slug>`・`issue=<id>`・`title=<題>`・`news.replied=<turn>`・`first_message.sent=false`（最初のメッセージが届かなかった〈`hc run` の `first_message` が `sent: false`、か `started: false`〉担当・Chief Engineer・レビュアー。`andon issue start`・`andon chief-engineer`・dispatcher〈レビュアー〉が付け、dispatcher が送り直して外す。[dispatcher.md](dispatcher.md) §5） | command・dispatcher | ボード・dispatcher・フック（自分の課題を引く） |
+| Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（持ち主は Herdr App。id は command が決める: Chief of Staff は `andon-<slug>`・`andon-<slug>-cos`、Chief Engineer は `andon-<slug>`・`andon-<slug>-<id>`、担当は `andon-<slug>-<id>`・`andon-<slug>-<id>`（Space ＝ 課題。[ADR-0003](adr/0003-task-spaces.md)。machine に依らない。`machine` 付きの課題を `andon issue start` はまだ起こさない。ADR-0002 決めたこと 19）、レビュアーは担当の端末（台帳の `agent`）の値を `hc get --json` で読んで写す（読めなければ付けない）。dispatcher は台帳が1つなら `andon-<slug>`・`andon-<slug>-dispatcher`、2つ以上なら `andon-<セルの slug>-plant`・`andon-<セルの slug>-dispatcher`（セルの slug は hostname。ADR-0002 決めたこと 21）。`where` は App が書く出力で、Andon は読まず書かない。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon issue start`・dispatcher（自分の端末のラベルは boot とフックの `dispatcher.Ensure` が付ける）。`andon issue finish` は触らない（端末の kill・rm で tab が空になって消える） | Herdr App |
+| 人に端末を指す言い方 | `<Space 名> / <tab 名>`（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site / CE A-0003 Billing の設計`・`A-0012 ログインの直し / A-0012`）。address は末尾に `（t7）` と添えるだけ。Andon の command は `hc attach` を打たず、最後に出た場所をこの形で出す | `andon chief-of-staff`・`andon chief-engineer`・`andon issue start`・Chief of Staff | 人 |
+| template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon issue start`（`hc templates` で存在を確かめる） |
 | 台帳の `agent` | 端末の address。作業側が別のマシンなら `<machine>/t7`（相談 F4） | `kanban start`（担当）・dispatcher（作業側の代筆） | dispatcher・ボード |
-| 起こし方 | `hc run --bg --outlive-parent --no-notify --name … --label … --cwd … [--on <machine>] <profile> "<最初の3行>"` | `andon task start`・dispatcher | — |
+| 起こし方 | `hc run --bg --outlive-parent --no-notify --name … --label … --cwd … [--on <machine>] <profile> "<最初の3行>"` | `andon issue start`・dispatcher | — |
 | 状態 | `hc events`（dispatcher）か `hc ls --json`（見回り）。`working`・`idle`・`done`・`blocked`・`error`・`finished` | hc | dispatcher |
 
 ## 9. フック
@@ -268,19 +268,20 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 |---|---|---|---|
 | Chief of Staff | `Stop` | `andon dispatcher drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の turn の終わり（入力の `prompt_id`・`session_id` が合う）なら確かめ済みにし、答え（`last_assistant_message`）が `<no-reply>` だけなら `news.replied=<turn>` を書く。合わなければ渡した通知を1回だけ届け直す |
 | Chief of Staff | `UserPromptSubmit` | `andon dispatcher drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ）。前にフックで渡した `<news>` の turn の終わりを見ていなければ（中断）、その通知を1回だけ届け直す |
-| 担当 | `Stop` | `andon task stop-check`（端末のラベル `task=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無く、待ちでもなければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。待ち（通す）は、自分の問いが開いたまま（その問いの最後の行が `open`）か、`report.json` に `review_request` があり、その `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え（`answered`）・レビューが届いたあとは待ちではない。続けて止めるのは3回まで。控えが書けなければ通す。レビュアーも同じ |
+| 担当 | `Stop` | `andon issue stop-check`（端末のラベル `issue=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無く、待ちでもなければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。待ち（通す）は、自分の問いが開いたまま（その問いの最後の行が `open`）か、`report.json` に `review_request` があり、その `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え（`answered`）・レビューが届いたあとは待ちではない。続けて止めるのは3回まで。控えが書けなければ通す。レビュアーも同じ |
 
 - フックの実体は `package/hooks/stop`・`user-prompt-submit`（image では `/opt/andon/hooks/`）。どの端末でも同じフックが走り、役は command がラベルで見分ける（どちらでもなければ何も出さない）。
 
 - 要実測: `Stop` の `decision: block` で続きの turn が始まること、`UserPromptSubmit` の `additionalContext` が文脈に入ること、Codex の同等物（最初の版は Claude Code だけ）。
-- フックが落ちたとき（command が無い・台帳が見つからない）は**通す**（止めない。dispatcher のログに1行）。フックは守りの1枚で、唯一の守りではない（`andon task ready` と dispatcher の照合が残る）。
+- フックが落ちたとき（command が無い・台帳が見つからない）は**通す**（止めない。dispatcher のログに1行）。フックは守りの1枚で、唯一の守りではない（`andon issue ready` と dispatcher の照合が残る）。
 
 ## 10. 互換と版
 
-- `schema/*.schema.json` の `$id` に版（`https://andon.example.com/schema/<名前>/<版>`。例 `https://andon.example.com/schema/report/1`。URL は識別子で、取りに行かない）。`tests/schema.sh` が `$id` の形・draft 2020-12・`description` と識別子が英語であることも確かめる。読み手は `$id` ではなく**キーの有無**で振る舞う（原則4）。
+- `schema/*.schema.json` の `$id` に版（`https://andon.example.com/schema/<名前>/<版>`。例 `https://andon.example.com/schema/report/2`。URL は識別子で、取りに行かない）。`tests/schema.sh` が `$id` の形・draft 2020-12・`description` と識別子が英語であることも確かめる。読み手は `$id` ではなく**キーの有無**で振る舞う（原則4）。
 - キーを足す: 版を上げない。`docs/contract.md` と `tests/schema.sh` の例を足す。
 - キーを消す・意味を変える: 版を上げ、古い版を読む側を1版だけ残す（セルの `FROM` の版上げが追いつくまで）。
 - ledger-format の `version` が上がったら、Andon の command は台帳の CLI の言うとおりに止まる（ledger-format の規則）。
+- **版 2（`notification`・`report`・`question`・`gate`・`project`。[ADR-0008](adr/0008-issue-naming.md)）**: 台帳のカードの名前を task から issue に改めた。`task` → `issue`・`reviewer_task` → `reviewer_issue`・`tasks[]` → `issues[]`（`impact`）・`review.task` → `review.issue`・`next[].to` と問いの `from` の値 `task` → `issue`・`triage_max_tasks` → `triage_max_issues`。`task-keys` は `issue-keys`（`/1`。中のキーは同じ）に改名。この版上げだけは古い版を読む側を残さない（ADR-0008 決めたこと 7。既存の台帳と `project.json` は手で移す）。ラベル `task=` も `issue=` に改め、`task=` は読まない。
 
 ## 11. プロジェクトの事実と委譲（`project.json`）
 
@@ -301,17 +302,17 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
       "by": "owner", "at": "2026-11-05", "until": "2026-12-31",
       "evidence": "移行中はデプロイを人が見る",
       "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]},
- "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_tasks": 3}}
+ "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3}}
 ```
 
 | キー | 要るか | 意味 |
 |---|---|---|
 | `version` | 必須 | この形式の版（整数の `1`） |
-| `project` | 必須 | `{title, prefix}`（2つとも必須）。`title` は人に見せる名前、`prefix` はタスクの id の接頭字（英大文字で始まる英大文字・数字） |
-| `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon task start` はタスクの `repo` がここに無ければ起こさない。台帳の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
+| `project` | 必須 | `{title, prefix}`（2つとも必須）。`title` は人に見せる名前、`prefix` は課題の id の接頭字（英大文字で始まる英大文字・数字） |
+| `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon issue start` は課題の `repo` がここに無ければ起こさない。台帳の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
 | `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部人） |
-| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_tasks`（1回のトリアージで起こすタスクの上限。1 以上。既定 3） |
+| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起こす課題の上限。1 以上。既定 3） |
 
 `delegation` の中:
 
@@ -334,18 +335,18 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 1. セルの repo の **HEAD** の `projects/<slug>/project.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
 2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部人）・**書いてよい repo 無し**として読む。無い・JSON でない・schema を通らない・`delegation.project` が違う・`version` を知らない、も同じ（原則2）。`delegation` が無ければ無委譲。
-3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがあるセルは、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは台帳の改名のタスク（ADR-0004 決めたこと 5 の 4）。
+3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがあるセルは、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは台帳の改名の課題（ADR-0004 決めたこと 5 の 4）。
 4. `delegation.preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。
-5. 読み手ごとに見るもの: ゲート＝`merge`。dispatcher と `andon task …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon task start`＝`repos`（タスクの `repo` が無ければ起こさない）。Chief of Staff＝委譲の全部（起きるたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
+5. 読み手ごとに見るもの: ゲート＝`merge`。dispatcher と `andon issue …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon issue start`＝`repos`（課題の `repo` が無ければ起こさない）。Chief of Staff＝委譲の全部（起きるたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
 6. Andon のセルの `andon` プロジェクトは `preset` を `andon` 以外にできない（command が拒む。`merge` の上限 `B`・`line-change: none`）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
 
-**書き方**: `project.json` は人が書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲は人がセルの repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command はセルの repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更を人の commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `task=` があれば拒む）。
+**書き方**: `project.json` は人が書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲は人がセルの repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command はセルの repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更を人の commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `issue=` があれば拒む）。
 
-**依頼書の Settings との関係**: `task.yaml` の `merge: auto` は委譲の `merge` の範囲の中でだけ効く（§2）。委譲の外なら、ゲートは approve でも `needs_human`（§7 の `delegation`）。
+**依頼書の Settings との関係**: `issue.yaml` の `merge: auto` は委譲の `merge` の範囲の中でだけ効く（§2）。委譲の外なら、ゲートは approve でも `needs_human`（§7 の `delegation`）。
 
 ## 12. 候補の一覧（`candidates.json`）
 
-担当のタスクの `library/candidates.json`。調べて見つけた、直すかもしれないが決めていないもの（候補）の一覧。調べるタスク（`deliverable: candidates`。§2）の成果で、直すタスクが範囲の問い（§5 の `kind: scope`）で止まるときにも同じ形で書く。担当は手で書かず、`andon task candidates <id> <json|->` で書く（打てるのはそのタスクの担当の端末〈`task.yaml` の `agent` ＝ `HC_TERMINAL_ID`〉だけ。command が形を確かめ、repo があれば `commit` に `HEAD` を入れる。入力に `commit` は書かない。形が違えば書かずに終了コード 1 と理由1行で、前の一覧はそのまま）。書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（`finish` でも残る）。
+担当の課題の `library/candidates.json`。調べて見つけた、直すかもしれないが決めていないもの（候補）の一覧。調べる課題（`deliverable: candidates`。§2）の成果で、直す課題が範囲の問い（§5 の `kind: scope`）で止まるときにも同じ形で書く。担当は手で書かず、`andon issue candidates <id> <json|->` で書く（打てるのはその課題の担当の端末〈`issue.yaml` の `agent` ＝ `HC_TERMINAL_ID`〉だけ。command が形を確かめ、repo があれば `commit` に `HEAD` を入れる。入力に `commit` は書かない。形が違えば書かずに終了コード 1 と理由1行で、前の一覧はそのまま）。書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（`finish` でも残る）。
 
 ```json
 {"commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
@@ -355,7 +356,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
    {"id": "c3", "text": "README の英語の段に古い command 名。直し方は語の置換だけでなく段の書き直し", "file": "README.md", "line": 30, "in_scope": false}]}
 ```
 
-repo の無いタスク（`commit` を書かない）で、候補が無かったとき:
+repo の無い課題（`commit` を書かない）で、候補が無かったとき:
 
 ```json
 {"candidates": []}
@@ -363,15 +364,15 @@ repo の無いタスク（`commit` を書かない）で、候補が無かった
 
 | キー | 要るか | 意味 |
 |---|---|---|
-| `commit` | repo のあるタスクでは必須（schema では任意。確かめるのは `andon task candidates`・`andon task ready`）。repo の無いタスクでは書かない | 見た commit（書いた時点の `HEAD`。40桁・小文字）。古くなった候補を見分ける |
+| `commit` | repo のある課題では必須（schema では任意。確かめるのは `andon issue candidates`・`andon issue ready`）。repo の無い課題では書かない | 見た commit（書いた時点の `HEAD`。40桁・小文字）。古くなった候補を見分ける |
 | `candidates[]` | 必須（空でもよい） | 1件＝直すかもしれないもの1つ |
 | `candidates[].id` | 必須 | `c1`・`c2` …（`c` と 1 以上の数）。一覧の中で一意。問いの選択肢・答え・依頼書から指す名前 |
 | `candidates[].text` | 必須。1行 | 何が・どこに・どう直すか（直し方を含む）。人と Chief of Staff が読む |
 | `candidates[].file`・`line` | 任意 | 場所を指せるとき。形は `findings.json`（§3）と同じ（repo からの相対パス・1 以上の整数） |
-| `candidates[].in_scope` | 必須。真偽値 | 依頼書の範囲（やること・完了条件）の中か。直すタスクでは、中なら直し、外なら残す・問うの振り分けの元。調べるタスクでは「問いの答えに当たるか」 |
+| `candidates[].in_scope` | 必須。真偽値 | 依頼書の範囲（やること・完了条件）の中か。直す課題では、中なら直し、外なら残す・問うの振り分けの元。調べる課題では「問いの答えに当たるか」 |
 
-- 書き手は担当（調べるタスク・止まる直すタスク）。読み手: Chief of Staff（切る・範囲の問いに答える）・人（ボードと報告から）・トリアージ（将来）・振り返り（候補の数・`in_scope` の比）。ゲートも dispatcher も判定に使わない。形を固定するのは、問いの `facts` と依頼書の `links` が同じ形で指せるように。
-- `id` の一意は、schema では検査器の拡張のキーワード `uniqueKeys`（`package/lib/andon/schema_check.py`。標準の JSON Schema に無い）で書く。ほかの検査器はこれを飛ばすので、`andon task candidates` も確かめる。
+- 書き手は担当（調べる課題・止まる直す課題）。読み手: Chief of Staff（切る・範囲の問いに答える）・人（ボードと報告から）・トリアージ（将来）・振り返り（候補の数・`in_scope` の比）。ゲートも dispatcher も判定に使わない。形を固定するのは、問いの `facts` と依頼書の `links` が同じ形で指せるように。
+- `id` の一意は、schema では検査器の拡張のキーワード `uniqueKeys`（`package/lib/andon/schema_check.py`。標準の JSON Schema に無い）で書く。ほかの検査器はこれを飛ばすので、`andon issue candidates` も確かめる。
 - 人が読む分は報告の `## Report` に同じ一覧を表で写す（1行1候補。`id`・場所・何・範囲の中か）。
-- 候補が多い（目安 10 を超える）とき、調べるタスクは全部書き、直すタスクは「数と種類」を問いに書いて候補は代表だけ。
+- 候補が多い（目安 10 を超える）とき、調べる課題は全部書き、直す課題は「数と種類」を問いに書いて候補は代表だけ。
 - レビュアーの `findings.json`（§3。直す前提の指摘で、ゲートが数える）とは別の約束。混ぜない。

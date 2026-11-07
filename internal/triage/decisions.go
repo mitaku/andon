@@ -180,7 +180,7 @@ func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 	return data, items, true
 }
 
-// capTasks は起こすタスク（fix と、bundle の束）を入力の順に max まで数え、超えたものを keep にする。
+// capTasks は起こす課題（fix と、bundle の束）を入力の順に max まで数え、超えたものを keep にする。
 func capTasks(items []item, max int) []item {
 	got := make([]item, 0, len(items))
 	var groups []string

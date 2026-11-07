@@ -141,7 +141,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	}
 	r.ID = ledger.CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
 	c, id := r.Change, r.ID
-	// done は Chief of Staff が打った finish（人がマージしたあと）も拾う: 影響（andon task impact）は Chief of Staff もまだ見ていない事実
+	// done は Chief of Staff が打った finish（人がマージしたあと）も拾う: 影響（andon issue impact）は Chief of Staff もまだ見ていない事実
 	if c["status"] == "done" {
 		if p.st.Impact == nil {
 			p.st.Impact = map[string]int{}
@@ -160,7 +160,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	case c["question"] != nil && c["status"] == "open":
 		return p.asked(id, c["question"], pos)
 	case c["status"] == "review":
-		// detail の pr は report.json から。PR の無い報告（レビュアー・repo の無いタスク）は report として知らせる
+		// detail の pr は report.json から。PR の無い報告（レビュアー・repo の無い課題）は report として知らせる
 		rep, err := contract.ReadReport(filepath.Join(p.l.Library(id), "report.json"))
 		if err == nil && rep.PR != "" {
 			p.notify(id, "review", map[string]any{"report": p.reportPath(id), "pr": rep.PR})
@@ -171,7 +171,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	return true
 }
 
-// asked は問いの行を通知 asked にする（中身は library/questions/<n>.json）。andon task ask は台帳に書いてから JSON を置くので、
+// asked は問いの行を通知 asked にする（中身は library/questions/<n>.json）。andon issue ask は台帳に書いてから JSON を置くので、
 // JSON がまだ無ければ1回だけ次の見回りまで待つ。それでも無い・読めなければ飛ばしてログに残す。
 func (p *project) asked(id string, v any, pos int64) bool {
 	f, ok := v.(float64)
@@ -200,10 +200,10 @@ func (p *project) asked(id string, v any, pos int64) bool {
 
 // ---------------------------------------------------------------- ready の差
 
-// readReady は kanban ready --json の人のタスクを除いた id の集まりを前回と比べ、増えたものを積む。
+// readReady は kanban ready --json の人の課題を除いた id の集まりを前回と比べ、増えたものを積む。
 func (p *project) readReady() {
 	out, err := p.l.Run("", "ready", "--json")
-	var tasks []ledger.Task
+	var tasks []ledger.Issue
 	if err == nil {
 		err = json.Unmarshal([]byte(out), &tasks)
 	}
@@ -260,7 +260,7 @@ type Seen struct {
 	Status    string // status.state
 	Msg       string // status.msg（program が状態に添えた文。Claude Code は error のとき API のエラーの文を入れる。Codex は入れない）
 	StatusMs  int64
-	Reviewing bool // 子のレビュアーのタスクが todo／doing
+	Reviewing bool // 子のレビュアーの課題が todo／doing
 	Unsent    bool // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
 }
 
@@ -324,7 +324,7 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	return Verdict{}
 }
 
-// watch は doing のタスクの担当を端末の土台で見る（見回りで hc get）。
+// watch は doing の課題の担当を端末の土台で見る（見回りで hc get）。
 func (p *project) watch(now time.Time) {
 	nowMs := now.UnixMilli()
 	reviewing := map[string]bool{}
@@ -392,7 +392,7 @@ func (p *project) watch(now time.Time) {
 		}
 		sent[k] = true
 	}
-	// Chief of Staff の分（retryChief が持つ。キーは cosKey で始まり、タスクの id とは重ならない）は持ち越す
+	// Chief of Staff の分（retryChief が持つ。キーは cosKey で始まり、課題の id とは重ならない）は持ち越す
 	for k := range p.st.Sent {
 		if strings.HasPrefix(k, cosKey) {
 			sent[k] = true
@@ -425,7 +425,7 @@ func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) 
 	return next, true
 }
 
-// cosKey は控えの Retry・Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: はタスクの id に使えない）。
+// cosKey は控えの Retry・Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: は課題の id に使えない）。
 const cosKey = ":cos|"
 
 // retryChief は Chief of Staff の端末が提供元に切られて止まったとき、担当と同じ間隔で「続けて」を打つ（dispatcher.md §2.4）。
@@ -494,12 +494,12 @@ func (p *project) retryIfEmpty(cos string, c *terminal) bool {
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
-// （dispatcher.md §5 の「起こしそこねたら続きから」。andon task start・andon chief-engineer が終了コード 3 で預けたものと、
+// （dispatcher.md §5 の「起こしそこねたら続きから」。andon issue start・andon chief-engineer が終了コード 3 で預けたものと、
 // dispatcher が起こしたレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
 // 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
 // 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
 // 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
-func (p *project) sendFirst(t ledger.Task, agent, status string, done bool) (keep bool) {
+func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (keep bool) {
 	id := t.Str("id")
 	switch {
 	case done:

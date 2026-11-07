@@ -8,29 +8,29 @@ package main
 type dsNotification struct {
 	At      string         `json:"at"`
 	Project string         `json:"project"`
-	Task    string         `json:"task,omitempty"`
+	Issue   string         `json:"issue,omitempty"`
 	Kind    string         `json:"kind"`
 	Detail  map[string]any `json:"detail"`
 }
 
 type dsReviewer struct {
-	Task         string `json:"task"`
-	Commit       string `json:"commit"`
-	Round        int    `json:"round,omitempty"`
-	Repo         string `json:"repo,omitempty"`
-	Worktree     string `json:"worktree,omitempty"`
-	ReviewerTask string `json:"reviewer_task,omitempty"`
-	Address      string `json:"address,omitempty"`
-	Started      bool   `json:"started,omitempty"`
-	Skipped      string `json:"skipped,omitempty"`
-	OverLimit    int    `json:"over_limit,omitempty"`
-	Failed       string `json:"failed,omitempty"`
-	Attempts     int    `json:"attempts,omitempty"`
-	Row          int    `json:"row,omitempty"`
+	Issue         string `json:"issue"`
+	Commit        string `json:"commit"`
+	Round         int    `json:"round,omitempty"`
+	Repo          string `json:"repo,omitempty"`
+	Worktree      string `json:"worktree,omitempty"`
+	ReviewerIssue string `json:"reviewer_issue,omitempty"`
+	Address       string `json:"address,omitempty"`
+	Started       bool   `json:"started,omitempty"`
+	Skipped       string `json:"skipped,omitempty"`
+	OverLimit     int    `json:"over_limit,omitempty"`
+	Failed        string `json:"failed,omitempty"`
+	Attempts      int    `json:"attempts,omitempty"`
+	Row           int    `json:"row,omitempty"`
 }
 
 type dsGate struct {
-	Task     string `json:"task"`
+	Issue    string `json:"issue"`
 	Sha      string `json:"sha,omitempty"`
 	Decision string `json:"decision,omitempty"`
 	Merged   string `json:"merged,omitempty"`

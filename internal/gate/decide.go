@@ -119,7 +119,7 @@ func (t *Table) matchesC(path string) bool {
 	return false
 }
 
-// Classify は変更のレベルを決める（純粋関数）。reviewOn はタスクの review: on。
+// Classify は変更のレベルを決める（純粋関数）。reviewOn は課題の review: on。
 func (t *Table) Classify(repo RepoTable, files []File, diff string, reviewOn bool) (Classified, error) {
 	var c, b []string
 	lines := 0
@@ -358,7 +358,7 @@ func SummarizeChecks(items []CheckItem) GitHubChecks {
 	return g
 }
 
-// ChecksOverdue は、タスクが最後に review に入った log.jsonl の行の at から limit 分を過ぎたか（純粋関数）。
+// ChecksOverdue は、課題が最後に review に入った log.jsonl の行の at から limit 分を過ぎたか（純粋関数）。
 // その行が無い・at が読めなければ過ぎたとみなす（安全側。needs_human に倒れる）。
 func ChecksOverdue(rows []ledger.Row, id string, now time.Time, limit int) bool {
 	at := ""

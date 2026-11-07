@@ -197,7 +197,7 @@ func TestSummary(t *testing.T) {
 
 func TestMainUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {"bogus"}, {"apply"}, {"collect", "--limit"}, {"collect", "--limit", "x"},
-		{"collect", "--limit", "1234567"}, {"collect", "--max-tasks", "1"}, {"apply", "T-1", "--limit", "1"}, {"collect", "--dry-run"}} {
+		{"collect", "--limit", "1234567"}, {"collect", "--max-issues", "1"}, {"apply", "T-1", "--limit", "1"}, {"collect", "--dry-run"}} {
 		var out, errb bytes.Buffer
 		if rc := Main(args, nil, &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon triage") {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errb.String())

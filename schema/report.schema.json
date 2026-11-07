@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://andon.example.com/schema/report/1",
-  "title": "Machine part of a task report",
-  "description": "tasks/<id>/library/report.json, written by the task's agent right before `kanban report`, whole each time. Only these keys. pr is required once a PR is open; that is checked by `andon task ready`, not by this schema.",
+  "$id": "https://andon.example.com/schema/report/2",
+  "title": "Machine part of an issue report",
+  "description": "issues/<id>/library/report.json, written by the issue's agent right before `kanban report`, whole each time. Only these keys. pr is required once a PR is open; that is checked by `andon issue ready`, not by this schema.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "commit": {
-      "description": "HEAD when the report was written. Required for a task with a repository (andon task report writes it and andon task ready checks it); absent for a task without one.",
+      "description": "HEAD when the report was written. Required for an issue with a repository (andon issue report writes it and andon issue ready checks it); absent for an issue without one.",
       "$ref": "#/$defs/sha"
     },
     "pr": {
-      "description": "URL of the task's pull request; owner and repo are printable ASCII without /. The gate reads only this.",
+      "description": "URL of the issue's pull request; owner and repo are printable ASCII without /. The gate reads only this.",
       "type": "string",
       "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$"
     },
@@ -27,7 +27,7 @@
           "minimum": 1
         },
         "limit": {
-          "description": "review_rounds of the task. The dispatcher starts a reviewer only when round <= limit.",
+          "description": "review_rounds of the issue. The dispatcher starts a reviewer only when round <= limit.",
           "type": "integer",
           "minimum": 1
         },
@@ -86,7 +86,7 @@
         "required": ["to", "text"],
         "additionalProperties": false,
         "properties": {
-          "to": { "description": "person, chief-of-staff, or task (to be cut into a next task).", "enum": ["person", "chief-of-staff", "task"] },
+          "to": { "description": "person, chief-of-staff, or issue (to be cut into a next issue).", "enum": ["person", "chief-of-staff", "issue"] },
           "text": { "description": "One line, imperative.", "type": "string", "minLength": 1 }
         }
       }

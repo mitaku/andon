@@ -1,4 +1,4 @@
-package task
+package issue
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// ready の照合は偽の kanban と gh・本物の git で見る（振る舞いの全体は tests/andon-task.sh）。
+// ready の照合は偽の kanban と gh・本物の git で見る（振る舞いの全体は tests/andon-issue.sh）。
 // 偽の kanban は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> を置くだけ。
 
 const fakeDeck = `#!/bin/sh
@@ -33,8 +33,8 @@ type fixture struct {
 	wt       string
 	head     string
 	task     map[string]any
-	reviewer map[string]any // nil ならレビュアーのタスクは無い
-	by       string         // レビュアーのタスクを足した端末
+	reviewer map[string]any // nil ならレビュアーの課題は無い
+	by       string         // レビュアーの課題を足した端末
 	report   string         // report.json の中身（空なら置かない）
 	findings string         // レビュアーの findings.json の commit（空なら置かない）
 	prHead   string

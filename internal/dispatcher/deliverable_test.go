@@ -8,7 +8,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// ゲートを回す（レビュアーを起こす）のは案件 repo の担当の PR のタスクだけ。
+// ゲートを回す（レビュアーを起こす）のは案件 repo の担当の PR の課題だけ。
 // deliverable: candidates は Chief of Staff が書いたときだけ飛ばす（ADR-0006 受け入れ条件 3）。
 func TestGated(t *testing.T) {
 	l := ledger.At(t.TempDir())
@@ -21,15 +21,15 @@ func TestGated(t *testing.T) {
 	const repo = "github.com/example/app"
 	for _, c := range []struct {
 		name string
-		task ledger.Task
+		task ledger.Issue
 		want bool
 	}{
-		{"直すタスク", ledger.Task{"id": "D-0003", "repo": repo, "profile": "claude"}, true},
-		{"調べるタスク（Chief of Staff が書いた）", ledger.Task{"id": "D-0001", "repo": repo, "profile": "claude", "deliverable": "candidates"}, false},
-		{"調べるタスク（担当が書いた＝pr として読む）", ledger.Task{"id": "D-0002", "repo": repo, "profile": "claude", "deliverable": "candidates"}, true},
-		{"repo の無いタスク", ledger.Task{"id": "D-0004", "profile": "claude"}, false},
-		{"Chief Engineer", ledger.Task{"id": "D-0005", "repo": repo, "profile": "chief-engineer"}, false},
-		{"レビュアー", ledger.Task{"id": "D-0003-r1", "repo": repo, "profile": "codex-review", "parent": "D-0003"}, false},
+		{"直す課題", ledger.Issue{"id": "D-0003", "repo": repo, "profile": "claude"}, true},
+		{"調べる課題（Chief of Staff が書いた）", ledger.Issue{"id": "D-0001", "repo": repo, "profile": "claude", "deliverable": "candidates"}, false},
+		{"調べる課題（担当が書いた＝pr として読む）", ledger.Issue{"id": "D-0002", "repo": repo, "profile": "claude", "deliverable": "candidates"}, true},
+		{"repo の無い課題", ledger.Issue{"id": "D-0004", "profile": "claude"}, false},
+		{"Chief Engineer", ledger.Issue{"id": "D-0005", "repo": repo, "profile": "chief-engineer"}, false},
+		{"レビュアー", ledger.Issue{"id": "D-0003-r1", "repo": repo, "profile": "codex-review", "parent": "D-0003"}, false},
 	} {
 		if got := p.gated(c.task); got != c.want {
 			t.Errorf("%s: gated = %v, want %v", c.name, got, c.want)

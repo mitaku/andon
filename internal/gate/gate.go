@@ -1,5 +1,5 @@
 // Package gate は andon gate（docs/contract.md §7。仮設のゲート lib/yard/gate を Go に移したもの）。
-// 台帳のタスクの PR を、issue.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
+// 台帳の課題の PR を、issue.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
 // ゲートの条件表・委譲（project.json の delegation）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
 // Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
@@ -27,10 +27,10 @@ import (
 
 // Usage は andon gate --help の中身。
 const Usage = "usage: andon gate <id> [--dry-run]\n" +
-	"台帳のタスクの PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
+	"台帳の課題の PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は issues/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
 	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
-	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates のタスクも。回さない）。\n"
+	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates の課題も。回さない）。\n"
 
 const (
 	exitFix   = 1
@@ -215,8 +215,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "", err
 	}
 	if l.Candidates(l.Log(), t) {
-		// 調べるタスクの成果は PR ではなく候補の一覧で、Chief of Staff が読んで切る（ADR-0006 決めたこと 7）。記録しない
-		return nil, "", errors.New("deliverable: candidates のタスクにゲートは無い（候補の一覧は Chief of Staff が読む）")
+		// 調べる課題の成果は PR ではなく候補の一覧で、Chief of Staff が読んで切る（ADR-0006 決めたこと 7）。記録しない
+		return nil, "", errors.New("deliverable: candidates の課題にゲートは無い（候補の一覧は Chief of Staff が読む）")
 	}
 	ws := delegate.Workspace()
 	table, warn, err := LoadTable(getenv("ANDON_HOME", "/opt/andon"), ws)
@@ -230,11 +230,11 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	// L1 台帳: PR の場所は report.json の pr だけ（Markdown も issue.yaml の pr も読まない）
 	rep, err := contract.ReadReport(filepath.Join(l.Library(id), "report.json"))
 	if err != nil {
-		return nil, "report.json が無い・形が違う（andon task report）", nil
+		return nil, "report.json が無い・形が違う（andon issue report）", nil
 	}
 	owner, name, number, ok := contract.ParsePR(rep.PR)
 	if !ok {
-		return nil, "report.json に pr が無い（andon task report --pr）", nil
+		return nil, "report.json に pr が無い（andon issue report --pr）", nil
 	}
 	repo := t.Str("repo")
 	switch {
@@ -260,13 +260,13 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	rec := &Record{At: now.Format("2006-01-02T15:04:05Z"), ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
 	facts := Facts{PROpen: pv.State == "OPEN" && !pv.IsDraft}
 	if t.Str("status") != "review" {
-		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("台帳のタスクが review でない（%s）", t.Str("status")))
+		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("台帳の課題が review でない（%s）", t.Str("status")))
 	}
 	if pv.HeadRefName != t.Str("branch") {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("PR の branch（%s）が issue.yaml の branch と違う", pv.HeadRefName))
 	}
 	if rep.Commit != head {
-		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon task ready からやり直す）")
+		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
 	}
 
 	files, err := prFiles(slug, number)

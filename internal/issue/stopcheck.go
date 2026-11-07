@@ -1,4 +1,4 @@
-package task
+package issue
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ type stopState struct {
 }
 
 // stopCheck は担当・レビュアーの Stop フック（contract.md §9）。台帳が doing で、前回の通過（無ければ doing に入った行）以後に
-// 報告・review・問いのどれも log.jsonl に無く、待ち（waiting）でもなければ {"decision": "block"}。id を省くと自分の端末のラベル task= から引く。
+// 報告・review・問いのどれも log.jsonl に無く、待ち（waiting）でもなければ {"decision": "block"}。id を省くと自分の端末のラベル issue= から引く。
 // 担当の端末でない・台帳が読めないときは何も出さずに通す。
 func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && !idRe.MatchString(args[0])) {
@@ -40,12 +40,12 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	id := ""
 	if len(args) == 1 {
 		id = ledger.CanonID(args[0])
-	} else if id = ownTask(); id == "" {
+	} else if id = ownIssue(); id == "" {
 		return 0 // 担当・レビュアーの端末ではない
 	}
 	pass := func(why string) int {
 		if why != "" {
-			fmt.Fprintf(stderr, "andon task stop-check: %s（通す）\n", why)
+			fmt.Fprintf(stderr, "andon issue stop-check: %s（通す）\n", why)
 		}
 		return 0
 	}
@@ -106,8 +106,8 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err := save(); err != nil { // 止めた回数を数えられないなら止めない（止め続けない側に倒す）
 		return pass("控えが書けない: " + err.Error())
 	}
-	reason := fmt.Sprintf("%s は doing のまま、報告も問いも台帳に無い。報告（andon task report。レビューを頼むなら review-request）か"+
-		"問い（andon task ask）を書いてから止まる。終わったなら andon task ready まで。", id)
+	reason := fmt.Sprintf("%s は doing のまま、報告も問いも台帳に無い。報告（andon issue report。レビューを頼むなら review-request）か"+
+		"問い（andon issue ask）を書いてから止まる。終わったなら andon issue ready まで。", id)
 	b, _ := json.Marshal(map[string]string{"decision": "block", "reason": reason})
 	fmt.Fprintln(stdout, string(b))
 	return 0
@@ -128,7 +128,7 @@ func returned(c map[string]any) bool {
 // waiting は、担当が待つのが正しい状態か: 自分の問いが開いたまま（最後の行が open で、answered が来ていない）か、
 // report.json の review_request の commit を指すレビュアーの findings.json がまだ無い（CheckReview が current でない）。
 // 答え・レビューが届いたあとは待ちではない（受けて動く）。
-func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Task) bool {
+func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue) bool {
 	id := t.Str("id")
 	open := map[any]bool{}
 	for _, r := range rows {
@@ -152,8 +152,8 @@ func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Task) bool {
 	return l.CheckReview(rows, tasks, t, rep.ReviewRequest.Commit, "", nil).State != "current"
 }
 
-// ownTask は自分の端末（HC_TERMINAL_ID）のラベル task=。読めなければ空。
-func ownTask() string {
+// ownIssue は自分の端末（HC_TERMINAL_ID）のラベル issue=。読めなければ空。
+func ownIssue() string {
 	addr := os.Getenv("HC_TERMINAL_ID")
 	if addr == "" {
 		return ""
@@ -165,10 +165,10 @@ func ownTask() string {
 	var t struct {
 		Labels map[string]string `json:"labels"`
 	}
-	if json.Unmarshal(out, &t) != nil || !idRe.MatchString(t.Labels["task"]) {
+	if json.Unmarshal(out, &t) != nil || !idRe.MatchString(t.Labels["issue"]) {
 		return ""
 	}
-	return t.Labels["task"]
+	return t.Labels["issue"]
 }
 
 func stopStatePath(slug, id string) string {

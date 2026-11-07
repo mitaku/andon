@@ -1,4 +1,4 @@
-// Package spawn はエージェントを起こす command（andon chief-of-staff・andon chief-engineer・andon task start）が
+// Package spawn はエージェントを起こす command（andon chief-of-staff・andon chief-engineer・andon issue start）が
 // 共有するもの: コマンドを打つ・repo の置き場・worktree と branch を切る・hc の template を確かめる・hc run を打つ。
 //
 // 置き場（docs/contract.md §8）:
@@ -132,11 +132,11 @@ func (s *Started) Reason() string {
 // dispatcher が見回りで拾い、端末が入力を受けられるようになったら最初のメッセージを送って外す（contract.md §8・dispatcher.md §5）。
 const FirstLabel = "first_message.sent"
 
-// FirstMessage は担当（andon task start）と Chief Engineer（andon chief-engineer）の最初のメッセージ（タスクの2行）。
+// FirstMessage は担当（andon issue start）と Chief Engineer（andon chief-engineer）の最初のメッセージ（課題の2行）。
 // skill はプロファイルの command が system prompt に足すので、ここには書かない（ADR-0001 決定 3）。
 // dispatcher が送り直すときも同じ文を組む。brief は依頼書の絶対パス。
 func FirstMessage(slug, id, brief string) string {
-	return fmt.Sprintf("タスク `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
+	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
 }
 
 // MarkUnsent は端末に FirstLabel=false を付ける（dispatcher に送り直しを預ける）。
@@ -239,7 +239,7 @@ func defaultBranchError(repoDir string, cause error) error {
 	return errors.New(msg)
 }
 
-// WorktreePath は ~/.herdr/worktrees/<repo 名>/<slug>-<id>（andon task finish が片付ける置き場と同じ）。
+// WorktreePath は ~/.herdr/worktrees/<repo 名>/<slug>-<id>（andon issue finish が片付ける置き場と同じ）。
 func WorktreePath(repoDir, slug, id string) string {
 	return filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir), slug+"-"+id)
 }

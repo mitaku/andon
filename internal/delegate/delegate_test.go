@@ -133,7 +133,7 @@ func projectOf(d string) string {
 func TestParseProject(t *testing.T) {
 	full := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"},
  "repos": ["github.com/example/sample-site"], "references": ["github.com/example/design-notes", "https://example.com/spec"],
- "delegation": ` + sample + `, "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面"], "triage_max_tasks": 3}}`
+ "delegation": ` + sample + `, "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面"], "triage_max_issues": 3}}`
 	p, err := ParseProject([]byte(full), "sample-site")
 	if err != nil || p.Project.Prefix != "S" || len(p.Repos) != 1 || *p.ChiefOfStaff.Parallel != 2 {
 		t.Fatalf("%+v %v", p, err)

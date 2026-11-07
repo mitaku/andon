@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# `andon task impact`（マージのあとの影響の事実。docs/contract.md §6・docs/dispatcher.md §2.5）。本物の台帳の CLI（kanban）と git、偽の gh で回す。
-# origin とその clone（GHQ_ROOT）に、マージした PR と、同じ repo で動いているタスクの branch を作り、衝突・重なり・依頼書の指し・もう含む・
+# `andon issue impact`（マージのあとの影響の事実。docs/contract.md §6・docs/dispatcher.md §2.5）。本物の台帳の CLI（kanban）と git、偽の gh で回す。
+# origin とその clone（GHQ_ROOT）に、マージした PR と、同じ repo で動いている課題の branch を作り、衝突・重なり・依頼書の指し・もう含む・
 # 無関係・読めない branch を見分けることを見る。台帳にも worktree にも書かない（読むだけ）。GitHub と本物の hc には出ない。
 set -euo pipefail
 for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
@@ -85,7 +85,7 @@ jq -n --arg c "$(git -C "$app" rev-parse "demo/$conf")" '{commit: $c, pr: "https
 
 # 1. MERGED でなければ終了コード 4（何も出さない）
 echo '{"state":"OPEN","mergeCommit":null,"files":[]}' > "$tmp/gh/view.json"
-rc=0; "$andon" task impact "$m" >"$tmp/out" 2>"$tmp/err" || rc=$?
+rc=0; "$andon" issue impact "$m" >"$tmp/out" 2>"$tmp/err" || rc=$?
 [ "$rc" = 4 ] && [ ! -s "$tmp/out" ] && grep -q 'MERGED でない（OPEN）' "$tmp/err" || die "MERGED でないのに rc=$rc: $(cat "$tmp/err")"
 ok 'PR がまだ MERGED でなければ終了コード 4 で何も出さない'
 
@@ -99,11 +99,11 @@ HC_TERMINAL_ID=t5 kanban set "$locked" "worktree=$tmp/locked/wt" >/dev/null
 chmod 000 "$tmp/locked"
 log0=$(wc -l < "$L/log.jsonl")
 st0=$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)
-"$andon" task impact "$m" > "$tmp/impact.json" || die "andon task impact が落ちた: $(cat "$tmp/impact.json")"
+"$andon" issue impact "$m" > "$tmp/impact.json" || die "andon issue impact が落ちた: $(cat "$tmp/impact.json")"
 I=$tmp/impact.json
-jq -e --arg m "$m" --arg s "$sha" '.task == $m and .sha == $s and .pr == "https://github.com/example/app/pull/1" and .files == ["doc.md", "new.md"]' "$I" >/dev/null || die "頭の事実が違う: $(jq -c 'del(.tasks)' "$I")"
-row() { jq -c --arg t "$1" '.tasks[] | select(.task == $t)' "$I"; }
-[ "$(jq '.tasks | length' "$I")" = 8 ] || die "見るのは同じ repo の doing／review の担当の8件（自分・レビュアーを除く）: $(jq -c '[.tasks[].task]' "$I")"
+jq -e --arg m "$m" --arg s "$sha" '.issue == $m and .sha == $s and .pr == "https://github.com/example/app/pull/1" and .files == ["doc.md", "new.md"]' "$I" >/dev/null || die "頭の事実が違う: $(jq -c 'del(.issues)' "$I")"
+row() { jq -c --arg t "$1" '.issues[] | select(.issue == $t)' "$I"; }
+[ "$(jq '.issues | length' "$I")" = 8 ] || die "見るのは同じ repo の doing／review の担当の8件（自分・レビュアーを除く）: $(jq -c '[.issues[].issue]' "$I")"
 row "$conf" | jq -e '.status == "review" and .conflict == true and .conflict_files == ["doc.md"] and .overlap == ["doc.md"] and .contains == false and .pr == "https://github.com/example/app/pull/9"' >/dev/null || die "衝突: $(row "$conf")"
 row "$clean" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "衝突しない重なり: $(row "$clean")"
 row "$dirty" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "commit していない変更の重なり: $(row "$dirty")"
@@ -117,20 +117,20 @@ fi
 row "$gone" | jq -e '.error | contains("commit していない変更が読めない")' >/dev/null || die "worktree が読めないのに error でない: $(row "$gone")"
 [ "$(wc -l < "$L/log.jsonl")" = "$log0" ] || die '台帳に書いた'
 [ "$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)" = "$st0" ] || die 'worktree を変えた'
-ok '同じ repo の動いているタスクごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めない・確かめられなければ error（台帳と worktree に書かない）'
+ok '同じ repo の動いている課題ごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めない・確かめられなければ error（台帳と worktree に書かない）'
 
 # 3. もう含む（rebase 済み）・branch が読めない
 git -C "$HOME/.herdr/worktrees/app/demo-$clean" -c core.editor=true rebase -q "$sha"
 git -C "$app" worktree remove --force "$HOME/.herdr/worktrees/app/demo-$none"; git -C "$app" branch -q -D "demo/$none"
-"$andon" task impact "$m" > "$I"
+"$andon" issue impact "$m" > "$I"
 row "$clean" | jq -e '.contains == true and .overlap == [] and .conflict == false' >/dev/null || die "もう含む: $(row "$clean")"
 row "$none" | jq -e '.error | contains("demo/'"$none"'")' >/dev/null || die "branch が読めない: $(row "$none")"
 ok 'branch がもうマージの commit を含めば contains、branch が読めなければ error で続ける'
 
-# 4. repo・pr が無いタスクは理由1行で止まる
+# 4. repo・pr が無い課題は理由1行で止まる
 x=$(HC_TERMINAL_ID=t5 kanban add 'repo の無い' --profile claude)
-expect=0; "$andon" task impact "$x" >/dev/null 2>"$tmp/err" || expect=$?
-[ "$expect" = 1 ] && grep -q 'repo が無い' "$tmp/err" || die "repo の無いタスクで rc=$expect: $(cat "$tmp/err")"
-ok 'repo の無いタスクは終了コード 1 と理由1行'
+expect=0; "$andon" issue impact "$x" >/dev/null 2>"$tmp/err" || expect=$?
+[ "$expect" = 1 ] && grep -q 'repo が無い' "$tmp/err" || die "repo の無い課題で rc=$expect: $(cat "$tmp/err")"
+ok 'repo の無い課題は終了コード 1 と理由1行'
 
 echo "all passed ($pass)"

@@ -67,7 +67,7 @@ func TestParseCandidates(t *testing.T) {
 		t.Errorf("読んだ形: %+v", c.Candidates)
 	}
 	for name, ok := range map[string]string{
-		"commit 無し（repo の無いタスク）": `{"candidates":[{"id":"c1","text":"x","in_scope":false}]}`,
+		"commit 無し（repo の無い課題）": `{"candidates":[{"id":"c1","text":"x","in_scope":false}]}`,
 		"候補 0": `{"candidates":[]}`,
 	} {
 		if _, err := ParseCandidates([]byte(ok)); err != nil {
@@ -155,5 +155,23 @@ func TestDecodeRejectsCaseVariantKeys(t *testing.T) {
 	}
 	if err := Decode([]byte(`{"commit":"`+sha+`","findings":[],"Findings":null}`), &Findings{}); err == nil {
 		t.Error("findings.json: Findings: null が通ってしまう")
+	}
+}
+
+// ADR-0008 決めたこと 2・7: next[].to と問いの from の値は issue。古い task は読む互換を持たず落ちる。
+func TestIssueNotTask(t *testing.T) {
+	r := `{"commit":"` + sha + `","next":[{"to":"issue","text":"x"}]}`
+	if _, err := ParseReport([]byte(r)); err != nil {
+		t.Errorf("next[].to: issue が通らない: %v", err)
+	}
+	if _, err := ParseReport([]byte(strings.Replace(r, `"issue"`, `"task"`, 1))); err == nil {
+		t.Error("next[].to: task が通ってしまう")
+	}
+	q := `{"kind":"scope","question":"q","options":[{"label":"a","pick":true},{"label":"b"}],"from":"issue"}`
+	if _, err := ParseQuestion([]byte(q)); err != nil {
+		t.Errorf("from: issue が通らない: %v", err)
+	}
+	if _, err := ParseQuestion([]byte(strings.Replace(q, `"issue"`, `"task"`, 1))); err == nil {
+		t.Error("from: task が通ってしまう")
 	}
 }

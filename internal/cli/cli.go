@@ -18,10 +18,10 @@ import (
 	"andon/internal/delegate"
 	"andon/internal/dispatcher"
 	"andon/internal/gate"
+	"andon/internal/issue"
 	"andon/internal/open"
 	"andon/internal/plantinit"
 	"andon/internal/publish"
-	"andon/internal/task"
 	"andon/internal/triage"
 )
 
@@ -34,10 +34,10 @@ type command struct {
 
 var commands = []command{
 	{
-		name:  "task",
+		name:  "issue",
 		about: "担当を起こす（start）・担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）",
-		usage: task.Usage,
-		run:   task.Main,
+		usage: issue.Usage,
+		run:   issue.Main,
 	},
 	{
 		name:  "chief-of-staff",
@@ -59,7 +59,7 @@ var commands = []command{
 	},
 	{
 		name:  "chief-engineer",
-		about: "人と仕様・設計を対話する Chief Engineer を、台帳のタスクとして起こす",
+		about: "人と仕様・設計を対話する Chief Engineer を、台帳の課題として起こす",
 		usage: chiefengineer.Usage,
 		run:   chiefengineer.Main,
 	},
@@ -97,7 +97,7 @@ var commands = []command{
 	},
 	{
 		name:  "gate",
-		about: "台帳のタスクの PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
+		about: "台帳の課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
 		usage: gate.Usage,
 		run:   gate.Main,
 	},

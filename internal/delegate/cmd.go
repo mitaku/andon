@@ -26,7 +26,7 @@ const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text
 	"scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 	"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
 	"       line-change(none/project/plant)。narrow は今の値より広げない。--project を省くと cwd の projects/<slug>/。\n" +
-	"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か task= がある）では打てない。\n"
+	"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か issue= がある）では打てない。\n"
 
 const (
 	exitFail  = 1
@@ -121,7 +121,7 @@ func project(ws, given string) (string, error) {
 	return "", errors.New("プロジェクトが分からない（projects/<slug>/ で打つか --project <slug>）")
 }
 
-// AgentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か task=）。
+// AgentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か issue=）。
 // 役の端末なら why を添えた誤り。読めなければ打たせない（安全側）。人のファイルを書く command（delegate・create）が使う。
 func AgentTerminal(why string) error {
 	id := os.Getenv("HC_TERMINAL_ID")
@@ -138,7 +138,7 @@ func AgentTerminal(why string) error {
 	if json.Unmarshal(out, &t) != nil {
 		return fmt.Errorf("端末 %s のラベルが読めない。人の端末で打つ", id)
 	}
-	for _, k := range []string{"role", "task"} {
+	for _, k := range []string{"role", "issue"} {
 		if v, ok := t.Labels[k]; ok {
 			return fmt.Errorf("この端末（%s=%s）では打てない。%s", k, v, why)
 		}

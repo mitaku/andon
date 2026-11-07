@@ -31,9 +31,9 @@ type ProjectInfo struct {
 
 // ChiefOfStaff は Chief of Staff の設定値（読むのは Chief of Staff。無いキーは skill の既定）。
 type ChiefOfStaff struct {
-	Parallel       *int     `json:"parallel,omitempty"`
-	ReviewWhen     []string `json:"review_when,omitempty"`
-	TriageMaxTasks *int     `json:"triage_max_tasks,omitempty"`
+	Parallel        *int     `json:"parallel,omitempty"`
+	ReviewWhen      []string `json:"review_when,omitempty"`
+	TriageMaxIssues *int     `json:"triage_max_issues,omitempty"`
 }
 
 var (
@@ -89,8 +89,8 @@ func ParseProject(b []byte, slug string) (*Project, error) {
 		}
 	}
 	if c := p.ChiefOfStaff; c != nil {
-		if (c.Parallel != nil && *c.Parallel < 1) || (c.TriageMaxTasks != nil && *c.TriageMaxTasks < 1) {
-			return nil, errors.New("chief_of_staff の parallel・triage_max_tasks は 1 以上")
+		if (c.Parallel != nil && *c.Parallel < 1) || (c.TriageMaxIssues != nil && *c.TriageMaxIssues < 1) {
+			return nil, errors.New("chief_of_staff の parallel・triage_max_issues は 1 以上")
 		}
 		if slices.Contains(c.ReviewWhen, "") {
 			return nil, errors.New("chief_of_staff.review_when に空の条件がある")

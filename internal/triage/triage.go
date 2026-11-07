@@ -24,7 +24,7 @@ import (
 
 // Usage は andon triage の使い方。
 const Usage = "usage: andon triage collect [--limit N]                    台帳の未処理を JSON に集める（読むだけ）\n" +
-	"       andon triage apply <id> [--max-tasks N] [--dry-run] decisions.json を台帳に当てる\n"
+	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を台帳に当てる\n"
 
 var (
 	idRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
@@ -69,7 +69,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	for len(args) > 0 {
 		switch {
-		case (cmd == "collect" && args[0] == "--limit") || (cmd == "apply" && args[0] == "--max-tasks"):
+		case (cmd == "collect" && args[0] == "--limit") || (cmd == "apply" && args[0] == "--max-issues"):
 			if len(args) < 2 || !numberRe.MatchString(args[1]) {
 				return usage()
 			}

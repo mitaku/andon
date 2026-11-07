@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://andon.example.com/schema/project/1",
+  "$id": "https://andon.example.com/schema/project/2",
   "title": "Project",
   "description": "projects/<slug>/project.json in the cell's repository: the facts machines read about one project. Written only by the person (`andon delegate` writes the delegation part). Readers read it at HEAD and trust it only when the last commit's author is the owner in andon.toml; otherwise, or when it does not pass this schema, nothing is delegated and no repository may be written (the safe side). Only these keys.",
   "type": "object",
@@ -30,14 +30,14 @@
           "minLength": 1
         },
         "prefix": {
-          "description": "Prefix of task ids (<prefix>-<n>): upper-case letters and digits, starting with a letter.",
+          "description": "Prefix of issue ids (<prefix>-<n>): upper-case letters and digits, starting with a letter.",
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9]*$"
         }
       }
     },
     "repos": {
-      "description": "Repositories this project may write (tasks are started only in these; the ledger's config.yaml repos is a subset). Empty: none. Entries are unique (checked by the command).",
+      "description": "Repositories this project may write (issues are started only in these; the ledger's config.yaml repos is a subset). Empty: none. Entries are unique (checked by the command).",
       "type": "array",
       "items": {
         "$ref": "#/$defs/repo"
@@ -69,7 +69,7 @@
       "additionalProperties": false,
       "properties": {
         "parallel": {
-          "description": "How many tasks may be doing or in review at once. Default 2.",
+          "description": "How many issues may be doing or in review at once. Default 2.",
           "type": "integer",
           "minimum": 1
         },
@@ -81,8 +81,8 @@
             "minLength": 1
           }
         },
-        "triage_max_tasks": {
-          "description": "How many tasks one triage may start (andon triage apply --max-tasks). Default 3.",
+        "triage_max_issues": {
+          "description": "How many issues one triage may start (andon triage apply --max-issues). Default 3.",
           "type": "integer",
           "minimum": 1
         }

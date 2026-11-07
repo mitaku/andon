@@ -25,7 +25,7 @@ import (
 //
 // 根は「セルの repo」と「台帳に載った案件の repo（セルの projects/*/kanban/config.yaml の repos にあり、
 // <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
-// Chief of Staff と人で、andon task start が起こしてよいのもその repo だけ）。担当・レビュアーの worktree は
+// Chief of Staff と人で、andon issue start が起こしてよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（~/.herdr/worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
 //   - Claude Code 2.1.318: git の外は cwd から親へ / まで遡る。git の中は repo の根で止まり、それより上の親は効かない。
 //     worktree は元の repo の根の信頼が効く（worktree の置き場の親は効かない）。
@@ -37,7 +37,7 @@ func Trust(e Env) error {
 	return errors.Join(trustClaude(e), trustCodex(e))
 }
 
-// TrustFromOS は環境変数の Env で Trust する。andon task start・andon chief-engineer が起こす直前に打つ
+// TrustFromOS は環境変数の Env で Trust する。andon issue start・andon chief-engineer が起こす直前に打つ
 // （boot のあとに ghq get で迎えた repo の根も足すため。docs/operate.md の 7）。ログは log へ。
 func TrustFromOS(log io.Writer) error {
 	e := EnvFromOS(log)
@@ -139,7 +139,7 @@ func trustClaude(e Env) error {
 		}
 		return nil
 	}
-	return e.skipTrust("%s が読むたびに書き換わる（%d 回。次の起動か andon task start で足す）", path, claudeTries)
+	return e.skipTrust("%s が読むたびに書き換わる（%d 回。次の起動か andon issue start で足す）", path, claudeTries)
 }
 
 // claudeTries は .claude.json が読むたびに書き換わるとき、やり直す回数。
