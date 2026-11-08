@@ -31,4 +31,13 @@ expect fail "リストが無くても秘密の形には落ちる" "$tmp/secret" 
 out="$(ANDON_PUBLIC_DENYLIST="$tmp/none.txt" bash "$here/public.sh" "$tmp/deny" 2>&1)"
 case "$out" in *"固有の値は見ていない"*) echo "ok   リストが無い旨を1行出す" ;; *) echo "FAIL リストが無い旨が出ない"; fail=1 ;; esac
 
+# 当たったとき、行の中身と語を出力に出さない（public のログに値が残らないように）。出すのは種類・ファイル名・行番号だけ。
+mkdir "$tmp/leak"
+printf 'line one\nsee forbidden-example and AKIA%s here\n' "ABCDEFGHIJKLMNOP" > "$tmp/leak/a.md"
+out="$(ANDON_PUBLIC_DENYLIST="$tmp/list.txt" bash "$here/public.sh" "$tmp/leak" 2>&1 || true)"
+leak=""
+case "$out" in *forbidden-example*|*ABCDEFGHIJKLMNOP*|*"see "*) leak=1 ;; esac
+case "$out" in *"[secret] a.md:2"*"[denylist] a.md:2"*) ;; *) leak="${leak}形" ;; esac
+if [ -z "$leak" ]; then echo "ok   当たりは種類とファイル名:行番号だけを出し、中身と語を出さない"; else echo "FAIL 当たりの出力に中身か語が出ている、または形が違う: $out"; fail=1; fi
+
 exit "$fail"
