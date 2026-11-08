@@ -31,14 +31,20 @@ denylist_abs=""
 if [ -f "$denylist" ]; then denylist_abs="$(cd "$(dirname "$denylist")" && pwd)/$(basename "$denylist")"; fi
 fail=0
 
+# 当たりは「[種類] ファイル名:行番号」だけを出す。行の中身と当たった語は出さない
+# （public の repo では Actions のログも公開される。秘密や固有の値がログに残らないように）。
+report() { # report <ラベル> <ファイル> <行番号の並び>
+  local n
+  for n in $3; do echo "[$1] ${2#"$root"/}:$n"; done
+}
+
 scan() { # scan <ラベル> <grep の引数...>
   local label=$1; shift
-  local f
+  local f nums
   for f in "${files[@]}"; do
     [ "$f" = "$denylist_abs" ] && continue          # 禁止リストそのものは検査しない
-    if grep -InHE -e "$@" -- "$f" 2>/dev/null | sed "s|^$root/||; s|^|[$label] |"; then
-      fail=1
-    fi
+    nums="$(grep -InE -e "$@" -- "$f" 2>/dev/null | cut -d: -f1 || true)"
+    if [ -n "$nums" ]; then report "$label" "$f" "$nums"; fail=1; fi
   done
 }
 
@@ -49,9 +55,8 @@ if [ -f "$denylist" ]; then
     case "$word" in ''|'#'*) continue ;; esac
     for f in "${files[@]}"; do
       [ "$f" = "$denylist_abs" ] && continue
-      if grep -InHiF -e "$word" -- "$f" 2>/dev/null | sed "s|^$root/||; s|^|[denylist] |"; then
-        fail=1
-      fi
+      nums="$(grep -IniF -e "$word" -- "$f" 2>/dev/null | cut -d: -f1 || true)"
+      if [ -n "$nums" ]; then report "denylist" "$f" "$nums"; fail=1; fi
     done
   done < "$denylist"
 fi
