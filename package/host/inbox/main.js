@@ -50,6 +50,8 @@ const parentOf = (k) => {
 // so its row is the pane's.
 // The roles a person starts and talks with (Andon's docs/contract.md §8): a turn they end is a reply.
 const TALKS_TO_YOU = new Set(["chief-of-staff", "chief-engineer"]);
+// Each of those roles has its own icon (Lucide clipboard-list, drafting-compass); anything else keeps the program's.
+export const ROLE_ICON = { "chief-of-staff": "mods/inbox/chief-of-staff.svg", "chief-engineer": "mods/inbox/chief-engineer.svg" };
 const ownRow = (k, listed) => Boolean(k.labels?.issue || (k.labels?.project && !listed.has(parentOf(k))));
 const urgent = (a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
 
@@ -224,6 +226,7 @@ export default class Inbox extends View {
         settled,
         turn,
         talks,
+        role: lead?.labels?.role ?? null,
         peek: peek?.address ?? (a.paneless ? a.address : null),
         kind: status === "blocked" ? (failed ? "Failed" : KIND[report.kind] ?? null) : reply ? "Reply" : null,
         reply,
@@ -462,7 +465,7 @@ export default class Inbox extends View {
     const time = `${duration(m.now - when)}${i.approx && i.section !== "settled" ? "+" : ""}`;
     const quiet = i.section === "idle" || i.section === "settled";
     // The Chief of Staff runs the same program as the issue agents: its own glyph tells it apart.
-    const pic = i.talks ? svg("mods/inbox/chief-of-staff.svg").size(16).flex_none().text_color(t.accent) : icon(i.program, 16, t.foreground);
+    const pic = i.talks ? svg(ROLE_ICON[i.role]).size(16).flex_none().text_color(t.accent) : icon(i.program, 16, t.foreground);
     // Only what's unusual: a named tab, a branch other than main/master, the agent's message.
     const branch = i.branch === "main" || i.branch === "master" ? null : i.branch;
     const tail = [i.tab !== i.name && !/^\d+$/.test(i.tab) ? i.tab : null, branch, i.msg].filter(Boolean).join(" · ");
