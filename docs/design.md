@@ -4,7 +4,7 @@
 - **読み手の前提**（人、2026-11-05）: この文書は **Andon の repo だけを読む人**のために書く。今動いている工場（以下「仮設の工場」。§3 で棚卸しする）を知らなくても読める。仮設の道具の名前（yard・deck・flightdeck）は §3 と §5 にだけ出し、本文の役と部品は Andon の名前で呼ぶ（§0.1）。語彙はリーン開発（Lean Software Development・Kanban Method）の英語を先に置き、トヨタ生産方式（TPS）を出典として添える（§1.7）。
 - 人の決定（日付つき）:
   - 2026-11-04: 自分のソフトウェアファクトリーに **Andon** と名前を付けて育てる。Andon は**工場そのもの（構造）の名前**で、今の実装（仮設の工場）はそれを成す形の1つ。Andon はこの repo `<owner>/andon` に一から建て、一定できあがったら Andon 専用のセルを用意し、Andon の上で Andon を開発する（セルフホスト）。理由: 今は道具が散らばっていて管理しにくい。
-  - 2026-11-04: **最終的に public にする**つもりで開発する（今は private。§2.6）。
+  - 2026-11-04: **最終的に public にする**つもりで開発する（2026-11-09 に public にした。§2.6）。
   - 2026-11-04: 台帳の CLI と形式は、Andon に合わせた名前で Andon のモノレポに入れてよい（§3.5。段取りは持ち主と決める）。
   - 2026-11-04: 部品と役の名前は TPS の語彙を調べて当てる。ソフトウェアに移された系譜（リーン開発・Kanban Method）も同じ表に（§1.7）。
   - 2026-11-04: **仕様・設計を人と対話する役（Chief Engineer）を、ラインを回す役（Chief of Staff）と分ける**（§1.8）。
@@ -337,7 +337,7 @@ Andon が自分を設計するとき（セルフホスト、Andon のセルの�
 | 人の接点 | 段に固定（spec・code・product review）。「いつでも入れる」 | **変更ごとにゲートがレベルを決める**。灯りがつく条件（§1.3 の決断） |
 | 自己改善 | observer agent が skill を直す | **振り返り → PR**（人か Chief of Staff の判断を通る。上の 5） |
 | 入口 | トラッカー・chat・監視・端末 | 人と Chief Engineer の対話と振り返り。外からの issue は無い |
-| 公開性 | 製品は閉じた beta。Warp の端末は OSS、factory の現場（build.warp.dev）は公開 | 道具は public（予定）、現場は private |
+| 公開性 | 製品は閉じた beta。Warp の端末は OSS、factory の現場（build.warp.dev）は公開 | 道具は public、現場は private |
 
 Andon が**後で借りてよいもの**: factory app の「pending items」（＝ボードの Needs you。もう在る）、PR あたりの人の介在回数とコストの表（§5.1 に指標として入れた）、実課題の replay によるプロファイルの比較（記録 §4 が揃ってから。§6 問い22）。
 
@@ -725,7 +725,7 @@ Andon が使う部品のうち public でないものを洗い出した（`gh re
 | cc-shiori（<owner>。plugin の marketplace） | **public**（MIT） | セルの settings の `extraKnownMarketplaces` | そのまま。ただしセルの `andon.toml` から足す形（Andon の既定には入れない） |
 | <owner>/skills（自作 skill） | private | 仮設では `~/.claude/skills` の symlink | Andon の依存にしない。セルの設定（`andon.toml` の `skills_repo`）で指す |
 | template-yard・example-yard | private | 仮設。この文書が入力として指す | public の読み手に届かない。決定は `docs/decisions.md` に写す（P1）ので、設計の正はそこ。仮設への参照は「仮設の記録（private）」と印を付けて残す |
-| base image（`ghcr.io/<owner>/andon`） | private の予定（§6 問い5） | パッケージ | public にするときは image も public に（中に private の部品が無いことが条件＝上の deck の行） |
+| base image（`ghcr.io/<owner>/andon`） | **Public**（2026-11-09。匿名で pull できる） | パッケージ | image を public にした（中に private の部品が無いことが条件＝上の deck の行） |
 | aqua・Claude Code・Codex・portless・Playwright・mise・uv | public | 備品 | そのまま |
 
 相談に足すもの（§3.2 の続き）:
@@ -810,7 +810,7 @@ andon/
 | 通知 | dispatcher の中の JSON（`kind`・`project`・`issue`・`at`・`detail`）。届けるときだけ `<news>` の文に描く | dispatcher | Chief of Staff（フック経由）・ボード（`news.replied`） | 仮設の通知の種類。外の信号 `signal` は最初の版の後（§1.9） |
 | 受け入れ条件の検証 | `report.json` の `acceptance[]`（Chief Engineer の受け入れ条件の番号・`pass`／`fail`／`manual`・証拠） | 担当 | ゲート・振り返り | §1.9 の (a)。任意キー（版は上げない） |
 | 人の手直し | `issues/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上の人の直し・指摘の覆し） | dispatcher（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で |
-| ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `issues/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（private の repo ではブランチ保護が効かないので、ゲートが CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・dispatcher（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
+| ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `issues/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（ブランチ保護（ruleset）はサーバー側で効くが、ゲートも CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・dispatcher（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | 端末の土台との約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`issue`・`title`・`news.replied`・template の名前＝プロファイル | command・dispatcher | ボード・dispatcher | 今のまま |
 | フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）、担当の `Stop`（報告か問いが無ければ止まれない） | boot が生成 | Claude Code | 要実測 |
 | 委譲 | セルの repo の `projects/<slug>/delegation.json`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | 人（`andon delegate`。照合は commit の author） | Chief of Staff（起きるたび）・ゲート（`merge` の最大レベル）・dispatcher と command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |
