@@ -226,6 +226,19 @@ await check('App の mod は課題を issue の名前で読み、古い名前（
   }
 });
 
+await check('inbox: Chief of Staff と Chief Engineer は役ごとに別のアイコンを選ぶ（ADR-0002 決めたこと 18）', async () => {
+  const ns = await load(`${HOST}/inbox`, { machines: () => [], setAgentOrder: () => {}, nextCommand: () => null, shared: () => ({}), setShared: () => {} });
+  const icons = ns.ROLE_ICON;
+  assert.ok(icons, 'ROLE_ICON が読めない');
+  assert.deepEqual(Object.keys(icons).sort(), ['chief-engineer', 'chief-of-staff']);
+  assert.notEqual(icons['chief-of-staff'], icons['chief-engineer'], '役が同じアイコンを使っている');
+  for (const file of Object.values(icons)) {
+    const svgFile = await readFile(`${HOST}/inbox/${file.replace(/^mods\/inbox\//, '')}`, 'utf8');
+    assert.match(svgFile, /stroke-width="1\.5"/, `${file} の stroke-width が 1.5 でない`);
+  }
+  assert.ok(new Set(await Promise.all(Object.values(icons).map((f) => readFile(`${HOST}/inbox/${f.replace(/^mods\/inbox\//, '')}`, 'utf8')))).size === 2, '2 つの svg の中身が同じ');
+});
+
 await check('kanban-board: 1 回の読みで出す量に上限がある（固定 script）', async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-total-'));
   try {

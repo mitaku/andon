@@ -42,6 +42,7 @@ A row (radius 8, padding 6×8, gap 9), like Herdr's agents rows: the program ico
 
 - `mod.json`: `{ "place": "none", "title": "Inbox", "focusable": true }`. The `andon` layout is Herdr's `main` with this mod in place of `agents` (left column: `workspace-chrome` brand, this mod at weight 2 with min 120, `spaces` at weight 1, the `workspace-chrome` footer; right: `tabs`, the shown tab with `pane` headers, `files` / `changes`, `workspace-status`).
 - `herdr`: `agents()`, `terminals()` (labels, `turn`, `status_ms`, `report`, `parent`), `spaces()` (tab names and `named`), `machines()`, `focused().agent`, `setAgentOrder(needs + done + working)`, `run`, `hc(["label", addr, "settled=…"])`, `notify` on failure, `nextCommand()`, `theme()`, `localStorage`.
+- `ROLE_ICON` (exported): the icon file of each role that talks with you (`chief-of-staff.svg`, `chief-engineer.svg`); a row of such a role draws it instead of the program's icon.
 - `name.js`: the display name: a named tab, else a telling title (not a path, `user@host` or the program's name; a leading mark stripped), else the program's name.
 - A label write is kept as pending so the row moves at once; it's dropped when `terminals()` shows the same value, or on failure (then an error notification).
 

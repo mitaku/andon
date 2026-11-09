@@ -260,7 +260,7 @@ herdr-app do layout.switch --name andon
 
 この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon`（ほかの mod も同じ形で）を実行し（Windows の App は Windows 側で実行する）、レイアウト `andon` で `sample-site / CoS`・`sample-site / CE A-0001 設計`・`A-0002 修正 / A-0002` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
-mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、台帳が2つ以上のときのセルの Space を `<セルの slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない。
+mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、台帳が2つ以上のときのセルの Space を `<セルの slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない（それは inbox が描く: CoS は `clipboard-list`、CE は `drafting-compass`。App 自身のサイドバーには効かない）。
 
 API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
 
