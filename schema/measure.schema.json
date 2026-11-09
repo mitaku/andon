@@ -81,13 +81,34 @@
     "counter": {
       "description": "Counter metrics, read next to auto_merge: what gets worse if merging is made too easy.",
       "type": "object",
-      "required": ["reverted", "follow_ups", "reopened"],
+      "required": ["reverted", "follow_ups", "reopened", "corrected"],
       "additionalProperties": false,
       "properties": {
         "reverted": { "description": "Merged ledger pull requests reverted by a pull request merged in the period (title starts with Revert, body names owner/repo#n or the URL).", "$ref": "#/$defs/count" },
         "follow_ups": { "description": "Issues created in the period whose links, or whose merged pull request's body, hold the URL of another issue's merged pull request.", "$ref": "#/$defs/count" },
         "reopened": {
           "description": "Reopened by the person, per gate tier: issues with one or more corrections among merged_prs, and dispatcher-merged pull requests reverted in the period.",
+          "type": "object",
+          "required": ["corrections", "by_tier"],
+          "additionalProperties": false,
+          "properties": {
+            "corrections": { "description": "recorded: the ledger has a corrections.json. none: no record yet, so the corrections part is not counted.", "enum": ["recorded", "none"] },
+            "by_tier": {
+              "description": "Tier of the merged gate record, else of the latest gate record; none when there is no gate record.",
+              "type": "object",
+              "required": ["A", "B", "C", "none"],
+              "additionalProperties": false,
+              "properties": {
+                "A": { "description": "Tier A.", "$ref": "#/$defs/count" },
+                "B": { "description": "Tier B.", "$ref": "#/$defs/count" },
+                "C": { "description": "Tier C.", "$ref": "#/$defs/count" },
+                "none": { "description": "No gate record.", "$ref": "#/$defs/count" }
+              }
+            }
+          }
+        },
+        "corrected": {
+          "description": "Issues among merged_prs with one or more corrections (corrections.json), per gate tier. Unlike reopened, reverts are not counted.",
           "type": "object",
           "required": ["corrections", "by_tier"],
           "additionalProperties": false,

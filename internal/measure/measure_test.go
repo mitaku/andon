@@ -58,7 +58,7 @@ func fakeLedger(t *testing.T) string {
 		`{"at": "2026-11-02T07:00:00Z", "id": "S-0002", "pr": "`+repoURL+`2", "tier": "B", "decision": "fix", "merged": false}`)
 	put(t, filepath.Join(k, "issues/S-0002/library/gate/cccc.json"),
 		`{"at": "2026-11-02T11:00:00Z", "id": "S-0002", "pr": "`+repoURL+`2", "tier": "B", "decision": "needs_human", "merged": false}`)
-	put(t, filepath.Join(k, "issues/S-0002/library/corrections.json"), `[{"kind": "answer"}]`)
+	put(t, filepath.Join(k, "issues/S-0002/library/corrections.json"), `{"at": "2026-11-04T00:00:00Z", "corrections": [{"kind": "answer"}]}`)
 	put(t, filepath.Join(k, "issues/S-0002/questions.yaml"),
 		"- n: 1\n  text: x\n  asked: \"2026-11-02T03:00:00Z\"\n  status: received\n  answered: \"2026-11-02T05:00:00Z\"\n")
 	put(t, filepath.Join(k, "issues/S-0002-r1/issue.yaml"),
@@ -154,6 +154,9 @@ func TestMeasureMatchesHandCount(t *testing.T) {
 		{"(8) reopened A", c.Reopened.ByTier["A"], 1},
 		{"(8) reopened B", c.Reopened.ByTier["B"], 1},
 		{"(8) reopened C", c.Reopened.ByTier["C"], 0},
+		{"(8) corrected A（revert は数えない）", c.Corrected.ByTier["A"], 0},
+		{"(8) corrected B", c.Corrected.ByTier["B"], 1},
+		{"(8) corrected corrections", c.Corrected.Corrections, "recorded"},
 		{"skipped", len(res.Skipped), 1},
 	}
 	for _, x := range checks {

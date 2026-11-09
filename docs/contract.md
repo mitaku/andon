@@ -399,7 +399,8 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
    "auto_merge": {"count": 1, "rate": 0.5},
    "gate": {"records": 3, "fix": 1, "needs_human": 1, "rate": 0.67}},
  "counter": {"reverted": 1, "follow_ups": 1,
-   "reopened": {"corrections": "recorded", "by_tier": {"A": 1, "B": 1, "C": 0, "none": 0}}},
+   "reopened": {"corrections": "recorded", "by_tier": {"A": 1, "B": 1, "C": 0, "none": 0}},
+   "corrected": {"corrections": "recorded", "by_tier": {"A": 0, "B": 1, "C": 0, "none": 0}}},
  "prs": [
    {"issue": "S-0001", "pr": "https://github.com/example/sample-site/pull/1", "merged_at": "2026-11-01T06:00:00Z",
     "tier": "A", "auto": true, "human_touches": 1, "lead_time_hours": 6, "reverted": true, "corrections": false},
@@ -422,6 +423,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `counter.reverted` | 期間にマージされた PR のうち題が `Revert ` で始まり、本文が `<owner>/<repo>#<n>` か URL で台帳のマージされた PR を指すもの、が指す PR の数 |
 | `counter.follow_ups` | 期間に作られた課題のうち、`links` か、マージされた自分の PR の本文が、別の課題のマージされた PR の URL を含むもの |
 | `counter.reopened` | 人が開け直した数をゲートのレベルごとに: `merged_prs` のうち `corrections.json` に1件以上ある課題と、期間に revert された自動マージの PR（重なれば1回）。`corrections` は台帳に `corrections.json` が1つも無ければ `none`（記録なし） |
+| `counter.corrected` | 人の手直しがあった課題の数をゲートのレベルごとに: `merged_prs` のうち `corrections.json`（§14）の `corrections` に1件以上ある課題（`reopened` と違い revert は数えない）。`corrections` は `reopened` と同じ |
 | `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、在るが読めないファイル、PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
 
 - 書き手は `andon measure` だけ（出力するだけ）。読み手は人と振り返り（委譲を広げる根拠）。ゲートも dispatcher も判定に使わない。

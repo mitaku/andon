@@ -11,6 +11,7 @@ design.md §1.9 の (b) の表の 1〜3 を `issues/<id>/library/corrections.jso
 - **人のコメント**: PR の会話欄のコメント・レビューの本文・インラインのレビューコメント（設計の表の 2「レビューのコメント」）のうち、`andon gate: ` で始まらないもの（ゲートは人と同じ token でコメントを書く）。インラインでは `user.type` が `Bot` のものも除く。会話欄とレビューの本文は `gh pr view` が bot を見分ける項目を返さないので除かない（多めに拾う）。
 - **答えが推奨案と違う**: 台帳の答え（自由文）が推奨案の `label` と字で違うもの。意味は読まない（同じ意味の言い換えも拾う。多めに拾い、振り返りが捨てる）。ゲートの問い（`from: gate`）は推奨どおりでも `override` に入れ、`answer` には入れない。範囲の問い（`kind: scope`）は Chief of Staff の答えなので拾わない。
 - **人が覆した指摘**: マージした PR の `waived` のうち `must_fix` 以上（Chief of Staff が書いた `must_fix`。無ければ全部）。ゲートは担当がレビュアーを覆したものを `needs_human` にするので、マージされたなら人が通した。
+- **数える**: `andon measure` の `counter.corrected` に、マージされた PR のうち `corrections` が1件以上ある課題の数をゲートのレベルごとに出す（`counter.reopened` は revert も混ぜるので、人の手直しだけの数を別に置く）。measure は `corrections` の配列を持たない `corrections.json` を飛ばした記録にする。
 
 捨てた案:
 

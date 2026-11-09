@@ -165,7 +165,9 @@ measure|.efficiency|merged_prs human_touches auto_merge gate
 measure|.efficiency.human_touches|total per_pr
 measure|.efficiency.auto_merge|count rate
 measure|.efficiency.gate|records fix needs_human rate
-measure|.counter|reverted follow_ups reopened
+measure|.counter|reverted follow_ups reopened corrected
+measure|.counter.corrected|corrections by_tier
+measure|.counter.corrected.by_tier|A B C none
 measure|.counter.reopened|corrections by_tier
 measure|.counter.reopened.by_tier|A B C none
 measure|.prs[0]|issue pr merged_at tier auto human_touches lead_time_hours reverted corrections
