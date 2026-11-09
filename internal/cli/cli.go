@@ -19,6 +19,7 @@ import (
 	"andon/internal/dispatcher"
 	"andon/internal/gate"
 	"andon/internal/issue"
+	"andon/internal/measure"
 	"andon/internal/open"
 	"andon/internal/plantinit"
 	"andon/internal/publish"
@@ -82,6 +83,12 @@ var commands = []command{
 		usage: triage.Usage +
 			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
 		run: triage.Main,
+	},
+	{
+		name:  "measure",
+		about: "台帳と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
+		usage: measure.Usage,
+		run:   measure.Main,
 	},
 	{
 		name:  "boot",

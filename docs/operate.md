@@ -507,7 +507,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 | 5 | 自分をテストできる | 7・10 | セルの中で `cd /workspace/.ghq/github.com/<owner>/andon && for f in tests/*.sh; do bash "$f"; done` が green（Go・docker は repo の `mise.toml`・環境の備品に依る。`tests/image.sh` は docker が無ければ SKIP） |
 | 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設のセルの台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon のセルができるまで Andon の仕事を持っている。このセルの側では何もしない |
 
-数える指標（design.md §5.1 の最後）の最初の1回は、10 の `log.jsonl` から数える: 人の `by` の行の数（介在回数）・依頼書からマージまでの時間・ゲートの `fix`＋`needs_human` の数。
+数える指標（design.md §5.1 の最後）の最初の1回は、10 の `log.jsonl` から数える: 人の `by` の行の数（介在回数）・依頼書からマージまでの時間・ゲートの `fix`＋`needs_human` の数。数えるのは `andon measure --since <日付> --until <日付>`（`projects/andon/` で打つ。読むだけ。`--json` は [contract.md](contract.md) §13 の形）。
 
 ## 14. 版を切る
 

@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/measure/1",
+  "title": "Measure",
+  "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json and GitHub's merged pull requests. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
+  "type": "object",
+  "required": ["project", "since", "until", "days", "flow", "efficiency", "counter", "prs", "skipped"],
+  "additionalProperties": false,
+  "properties": {
+    "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
+    "since": { "description": "First day of the period, UTC, YYYY-MM-DD.", "$ref": "#/$defs/date" },
+    "until": { "description": "Last day of the period, included, UTC, YYYY-MM-DD.", "$ref": "#/$defs/date" },
+    "days": { "description": "Days in the period.", "type": "integer", "minimum": 1 },
+    "flow": {
+      "description": "Flow: lead time, wait per state, questions open, throughput and WIP (Little's law).",
+      "type": "object",
+      "required": ["lead_time", "wait", "question_open", "closed", "wip_end"],
+      "additionalProperties": false,
+      "properties": {
+        "lead_time": { "description": "From the issue's creation to its pull request's merge, for pull requests merged in the period: count and median hours.", "$ref": "#/$defs/stat" },
+        "wait": {
+          "description": "Ledger status (every column but the last) -> issues that spent time in it during the period, and the mean hours each spent there. Reviewer issues are left out.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stat" }
+        },
+        "question_open": { "description": "Questions open (asked, not yet answered) during the period: count and mean hours open within it.", "$ref": "#/$defs/stat" },
+        "closed": {
+          "description": "Issues moved to the last column in the period, and per day.",
+          "type": "object",
+          "required": ["count", "per_day"],
+          "additionalProperties": false,
+          "properties": {
+            "count": { "description": "Issues closed.", "$ref": "#/$defs/count" },
+            "per_day": { "description": "count / days, two decimals.", "type": "number", "minimum": 0 }
+          }
+        },
+        "wip_end": { "description": "Issues in progress (neither the first column, queued, nor the last) at the end of the period.", "$ref": "#/$defs/count" }
+      }
+    },
+    "efficiency": {
+      "description": "Efficiency, per pull request merged in the period. Read next to counter.",
+      "type": "object",
+      "required": ["merged_prs", "human_touches", "auto_merge", "gate"],
+      "additionalProperties": false,
+      "properties": {
+        "merged_prs": { "description": "Ledger pull requests (report.json pr) merged in the period.", "$ref": "#/$defs/count" },
+        "human_touches": {
+          "description": "log.jsonl lines of those issues whose by is not terminal: or routine:, and per pull request (the primary metric).",
+          "type": "object",
+          "required": ["total", "per_pr"],
+          "additionalProperties": false,
+          "properties": {
+            "total": { "description": "Lines.", "$ref": "#/$defs/count" },
+            "per_pr": { "description": "total / merged_prs; null when none merged.", "$ref": "#/$defs/rate" }
+          }
+        },
+        "auto_merge": {
+          "description": "Pull requests merged by the dispatcher (a gate record with merged true), and the rate among merged_prs.",
+          "type": "object",
+          "required": ["count", "rate"],
+          "additionalProperties": false,
+          "properties": {
+            "count": { "description": "Merged by the dispatcher.", "$ref": "#/$defs/count" },
+            "rate": { "description": "count / merged_prs; null when none merged.", "$ref": "#/$defs/rate" }
+          }
+        },
+        "gate": {
+          "description": "Gate records written in the period, and the send-back rate (fix + needs_human) / records.",
+          "type": "object",
+          "required": ["records", "fix", "needs_human", "rate"],
+          "additionalProperties": false,
+          "properties": {
+            "records": { "description": "Gate records.", "$ref": "#/$defs/count" },
+            "fix": { "description": "Records with decision fix.", "$ref": "#/$defs/count" },
+            "needs_human": { "description": "Records with decision needs_human.", "$ref": "#/$defs/count" },
+            "rate": { "description": "(fix + needs_human) / records; null when none.", "$ref": "#/$defs/rate" }
+          }
+        }
+      }
+    },
+    "counter": {
+      "description": "Counter metrics, read next to auto_merge: what gets worse if merging is made too easy.",
+      "type": "object",
+      "required": ["reverted", "follow_ups", "reopened"],
+      "additionalProperties": false,
+      "properties": {
+        "reverted": { "description": "Merged ledger pull requests reverted by a pull request merged in the period (title starts with Revert, body names owner/repo#n or the URL).", "$ref": "#/$defs/count" },
+        "follow_ups": { "description": "Issues created in the period whose links, or whose merged pull request's body, hold the URL of another issue's merged pull request.", "$ref": "#/$defs/count" },
+        "reopened": {
+          "description": "Reopened by the person, per gate tier: issues with one or more corrections among merged_prs, and dispatcher-merged pull requests reverted in the period.",
+          "type": "object",
+          "required": ["corrections", "by_tier"],
+          "additionalProperties": false,
+          "properties": {
+            "corrections": { "description": "recorded: the ledger has a corrections.json. none: no record yet, so the corrections part is not counted.", "enum": ["recorded", "none"] },
+            "by_tier": {
+              "description": "Tier of the merged gate record, else of the latest gate record; none when there is no gate record.",
+              "type": "object",
+              "required": ["A", "B", "C", "none"],
+              "additionalProperties": false,
+              "properties": {
+                "A": { "description": "Tier A.", "$ref": "#/$defs/count" },
+                "B": { "description": "Tier B.", "$ref": "#/$defs/count" },
+                "C": { "description": "Tier C.", "$ref": "#/$defs/count" },
+                "none": { "description": "No gate record.", "$ref": "#/$defs/count" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "prs": {
+      "description": "The ledger pull requests merged in the period, one each, by issue id.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/pr" }
+    },
+    "skipped": {
+      "description": "Records not counted because they could not be read: a log.jsonl line, a file, or a repository whose merged pull requests could not be listed.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/skip" }
+    }
+  },
+  "$defs": {
+    "date": { "description": "UTC date, YYYY-MM-DD.", "type": "string", "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$" },
+    "count": { "description": "A count, 0 or more.", "type": "integer", "minimum": 0 },
+    "rate": { "description": "Two decimals, or null when the denominator is 0.", "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+    "stat": {
+      "description": "How many were counted, and hours (mean or median, two decimals; null when count is 0).",
+      "type": "object",
+      "required": ["count", "hours"],
+      "additionalProperties": false,
+      "properties": {
+        "count": { "description": "How many were counted.", "$ref": "#/$defs/count" },
+        "hours": { "description": "Hours, or null when count is 0.", "$ref": "#/$defs/rate" }
+      }
+    },
+    "pr": {
+      "description": "One merged pull request of the ledger.",
+      "type": "object",
+      "required": ["issue", "pr", "merged_at", "tier", "auto", "human_touches", "lead_time_hours", "reverted", "corrections"],
+      "additionalProperties": false,
+      "properties": {
+        "issue": { "description": "Issue id.", "type": "string", "pattern": "^[^/\\\\:]+$" },
+        "pr": { "description": "URL of the pull request.", "type": "string", "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$" },
+        "merged_at": { "description": "When GitHub merged it, UTC, YYYY-MM-DDTHH:MM:SSZ.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+        "tier": { "description": "Gate tier (see counter.reopened.by_tier), none when there is no gate record.", "enum": ["A", "B", "C", "none"] },
+        "auto": { "description": "Merged by the dispatcher.", "type": "boolean" },
+        "human_touches": { "description": "log.jsonl lines of the issue by the person.", "$ref": "#/$defs/count" },
+        "lead_time_hours": { "description": "From the issue's creation to the merge; null when the creation time is unknown.", "$ref": "#/$defs/rate" },
+        "reverted": { "description": "Reverted by a pull request merged in the period.", "type": "boolean" },
+        "corrections": { "description": "The issue's corrections.json has one or more entries.", "type": "boolean" }
+      }
+    },
+    "skip": {
+      "description": "One record not counted.",
+      "type": "object",
+      "required": ["source", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "description": "Path relative to the project (kanban/log.jsonl, kanban/issues/<id>/...), or github.com/<owner>/<repo>.", "type": "string", "minLength": 1 },
+        "line": { "description": "Line number in a log.jsonl, 1 or more.", "type": "integer", "minimum": 1 },
+        "reason": { "description": "Why, one line.", "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" }
+      }
+    }
+  }
+}
