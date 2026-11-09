@@ -61,10 +61,9 @@ URL（`http://files.<セル>.localhost:<番号>/…`）は変わらない。
 
 ## 1. image を取る
 
-**やること**: private の image を取る。GHCR の package は private なので、`read:packages` を持つ token が要る。
+**やること**: image を取る。GHCR の package `andon` は Public なので、`docker login` なしで pull できる（token は要らない）。
 
 ```bash
-printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
 docker pull ghcr.io/<owner>/andon:<版>      # <版> は vX.Y.Z（配る版）。tag を切るまでは、いまある 40桁の commit SHA の版
 ```
 
@@ -72,7 +71,7 @@ docker pull ghcr.io/<owner>/andon:<版>      # <版> は vX.Y.Z（配る版）�
 
 - **通ったら見えるもの**: `docker image ls ghcr.io/<owner>/andon` に行が出る。
 - **落ちたら見る所**:
-  - `denied`・`unauthorized` — token に `read:packages` があるか。組織の package なら SSO の承認。package の「Manage access」にこのアカウントがあるか。
+  - `denied`・`unauthorized` — image の名前（`ghcr.io/<owner>/andon`）と owner の綴りを見る。古い `docker login` の資格情報が邪魔をしていることがある（`docker logout ghcr.io` してから pull し直す）。fork や自前の registry に置いた private の image を取るときだけ、`read:packages` を持つ token で `docker login` する。
   - `manifest unknown` — GHCR に版が出るのは `vX.Y.Z` の tag を push して tests の job が通ったときだけ（[image.md](image.md)）。main へのマージでは出ない。P7 のように tag を切る前のセルは、すでに GHCR にある 40桁の commit SHA の版（main へのマージで出していた頃のもの）を使う。その版のまま、日々の直しは 3 の「andon を直してセルで試す」で手元で焼く。
   - `no matching manifest` — 配布は Linux amd64 だけ（[image.md](image.md)）。
 
