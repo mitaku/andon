@@ -213,6 +213,23 @@ block "$cos" '# <id> <題>' | grep -q '^横展開: ' && block "$cos" '# <id> 調
 block "$cos" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates' \
   && pass "調べる課題の雛形の Settings に Deliverable: candidates がある" || fail "調べる課題の雛形に Deliverable: candidates が無い"
 
+# ADR-0009 受け入れ条件 3: 人の入口・打つコマンド・依頼書の原則と範囲の外・差し戻し・wiki の節
+[ "$(grep -m1 '^## ' "$cos")" = '## 人の入口' ] && block "$cos" 'andon chief-engineer --brief - "<題>"' | grep -q '^経緯: ' \
+  && ! grep -qE 'andon chief-engineer[^。]*を勧め|題として人に勧め|人に題を勧め' "$cos" \
+  && pass "Chief of Staff の skill の先頭は「人の入口」で、andon chief-engineer --brief - を自分で打つ（人に勧めない）" || fail "chief-of-staff の先頭に「人の入口」が無いか、andon chief-engineer を人に勧める文が残る"
+grep -q '^- 打つコマンドは .*`andon chief-engineer`' "$cos" \
+  && pass "Chief of Staff の打つコマンドの一覧に andon chief-engineer がある" || fail "chief-of-staff の打つコマンドの一覧に andon chief-engineer が無い"
+sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$cos" | grep -q 'repo を読めば分かること（作法・構造・直し方）は書かず' \
+  && grep -q '^| 守ること | 範囲の外（今回やらないこと）' "$cos" \
+  && pass "依頼書の欄の読み方の頭に原則の1行、守ることの説明に 範囲の外" || fail "chief-of-staff §2 に依頼書の原則か 範囲の外 が無い"
+grep -q '## 差し戻し（<日付>）' "$cos" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$cos" && grep -q '依頼書を直した新しい課題を `deck add`' "$cos" \
+  && pass "差し戻しは依頼書への追記で数え、2回で通らなければ新しい課題に切る" || fail "chief-of-staff に差し戻しの追記か切り直しの手順が無い"
+cos11=$(sed -n '/^## 11\. wiki$/,/^## ルール$/p' "$cos")
+miss=""; for k in '何を' 'いつ（ingest）' '形' 'lint'; do grep -q "^- \*\*$k\*\*: " <<<"$cos11" || miss="$miss $k"; done
+[ -z "$miss" ] && pass "Chief of Staff の skill に wiki の節（何を・いつ・形・lint）がある" || fail "chief-of-staff の wiki の節に無い項:$miss"
+# ADR-0009 受け入れ条件 4: Chief of Staff の template が wiki を道具の届く場所に足す
+case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /workspace/wiki "*) pass "Chief of Staff の template の command に --add-dir /workspace/wiki" ;; *) fail "Chief of Staff の template に --add-dir /workspace/wiki が無い" ;; esac
+
 # Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^deck set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"

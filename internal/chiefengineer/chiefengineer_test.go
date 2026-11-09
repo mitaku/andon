@@ -217,7 +217,7 @@ func TestNoLedger(t *testing.T) {
 
 // 文書（design.md・skill・README）に書いた andon chief-engineer の呼び出しを、そのまま打って通る
 func TestDocumentedInvocations(t *testing.T) {
-	re := regexp.MustCompile("andon chief-engineer((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?) \"<題>\"")
+	re := regexp.MustCompile("andon chief-engineer((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?)( --brief -)? \"<題>\"")
 	files, _ := filepath.Glob("../../package/skills/*/SKILL.md")
 	files = append(files, "../../docs/design.md", "../../README.md")
 	found := 0
@@ -232,10 +232,16 @@ func TestDocumentedInvocations(t *testing.T) {
 			if strings.Contains(m[1], "--repo") && !strings.Contains(m[1], "[") {
 				args = []string{"--repo", "github.com/example/sample-site", "題"}
 			}
+			in := ""
+			if m[2] != "" {
+				args = append([]string{"--brief", "-"}, args...)
+				in = "経緯: 人の言葉の写し\n"
+			}
 			t.Run(file+":"+m[0], func(t *testing.T) {
 				newFake(t)
-				if rc, _, errs := runMain(args...); rc != 0 {
-					t.Errorf("%s: rc=%d err=%q", m[0], rc, errs)
+				var out, errb bytes.Buffer
+				if rc := Main(args, strings.NewReader(in), &out, &errb); rc != 0 {
+					t.Errorf("%s: rc=%d err=%q", m[0], rc, errb.String())
 				}
 			})
 		}
