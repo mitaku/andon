@@ -41,13 +41,14 @@ before=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 export KANBAN_ROOT=$tmp/sample-site
 "$andon" measure --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
 jq -e '.efficiency.merged_prs == 1 and .efficiency.auto_merge.rate == 1 and .efficiency.human_touches.total == 1
-  and .counter.reverted == 1 and .counter.reopened.by_tier.A == 1 and .counter.reopened.corrections == "none"
+  and .counter.reverted == 1 and .counter.reopened.by_tier.A == 1 and .counter.reopened.corrections == "none" and .counter.corrected == {corrections: "none", by_tier: {A: 0, B: 0, C: 0, none: 0}}
   and .flow.lead_time.hours == 6 and .flow.closed.count == 1
   and (.skipped | length) == 1 and .skipped[0].line == 4' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
 echo 'ok --json: 自動マージ・revert・飛ばした行'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
 head -1 "$tmp/table" | grep -q '^価値: 未計測'
+grep -q '^  人の手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
 grep '自動マージ率' "$tmp/table" | grep -q '対抗: revert 1本'
 grep -q 'kanban/log.jsonl:4' "$tmp/table"
 echo 'ok 表: 価値: 未計測が先頭・自動マージ率の行に対抗の指標・飛ばした行'

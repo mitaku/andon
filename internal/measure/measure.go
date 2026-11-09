@@ -110,6 +110,7 @@ type Counter struct {
 	Reverted  int      `json:"reverted"`
 	FollowUps int      `json:"follow_ups"`
 	Reopened  Reopened `json:"reopened"`
+	Corrected Reopened `json:"corrected"` // 人の手直しがあった課題の数（revert を含めない。ゲートのレベルごと）
 }
 
 // Reopened は人が開け直した数（ゲートのレベルごと）。
@@ -453,9 +454,11 @@ func Measure(o Options) (*Result, error) {
 	if anyCorrections {
 		c.Reopened.Corrections = "recorded"
 	}
+	c.Corrected = Reopened{Corrections: c.Reopened.Corrections, ByTier: map[string]int{"A": 0, "B": 0, "C": 0, "none": 0}}
 	for _, x := range res.PRs {
 		if x.Corrections {
 			c.Reopened.ByTier[x.Tier]++
+			c.Corrected.ByTier[x.Tier]++
 		}
 	}
 	// 自動マージした PR の revert（期間の外でマージされたものも、revert が期間の中なら数える）
@@ -745,29 +748,21 @@ func (r *reader) gates(lib string) []gateRec {
 	return out
 }
 
-// corrections は corrections.json に1件以上あるか。形は A-0003 が決めるので、配列か object の要素の数で見る。
+// corrections は corrections.json（contract.md §14）の corrections に1件以上あるか。形が違えば飛ばした記録にする。
 func (r *reader) corrections(lib string) bool {
 	path := filepath.Join(lib, "corrections.json")
 	b, ok := r.read(path)
 	if !ok {
 		return false
 	}
-	var v any
-	if json.Unmarshal(b, &v) != nil {
-		r.skip(r.rel(path), 0, "JSON でない")
+	var v struct {
+		Corrections *[]json.RawMessage `json:"corrections"`
+	}
+	if json.Unmarshal(b, &v) != nil || v.Corrections == nil {
+		r.skip(r.rel(path), 0, "corrections の配列を持つ JSON でない")
 		return false
 	}
-	switch x := v.(type) {
-	case []any:
-		return len(x) > 0
-	case map[string]any:
-		for _, e := range x {
-			if a, ok := e.([]any); ok && len(a) > 0 {
-				return true
-			}
-		}
-	}
-	return false
+	return len(*v.Corrections) > 0
 }
 
 func (r *reader) hasCorrections(t *issue) bool {
@@ -975,6 +970,8 @@ func Table(w io.Writer, res *Result, states []string) {
 	t := c.Reopened.ByTier
 	fmt.Fprintf(w, "  自動マージ率                   %s ｜ 対抗: revert %d本・同じ箇所の課題 %d件・人が開け直した A %d・B %d・C %d・レベル無し %d（%s）\n",
 		pct(e.AutoMerge.Rate, e.AutoMerge.Count, e.MergedPRs), c.Reverted, c.FollowUps, t["A"], t["B"], t["C"], t["none"], corr)
+	k := c.Corrected.ByTier
+	fmt.Fprintf(w, "  人の手直しがあった課題         A %d・B %d・C %d・レベル無し %d（%s）\n", k["A"], k["B"], k["C"], k["none"], corr)
 	gate := none
 	if e.Gate.Rate != nil {
 		gate = fmt.Sprintf("%.0f%%（fix %d・needs_human %d / %d）", *e.Gate.Rate*100, e.Gate.Fix, e.Gate.NeedsHuman, e.Gate.Records)

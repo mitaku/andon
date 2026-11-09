@@ -49,7 +49,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 - [docs/vision.md](docs/vision.md) — ビジョン・ミッション・バリューの1枚（それぞれ既存の決定に遡れる形）と、工程・役・仕組みの図（今あるもの・無いものを分けて描く）。提案
 - [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・dispatcher・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
-- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲・候補・流れの数え）。正は `schema/`（JSON Schema 9本。`tests/schema.sh` が例と突き合わせる）
+- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲・候補・流れの数え・人の手直し）。正は `schema/`（JSON Schema 10本。`tests/schema.sh` が例と突き合わせる）
 - [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席時の送り）、どこまで動かすか（判断はしない）
 - [docs/operate.md](docs/operate.md) — セルを立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しの課題）
 - [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。[0001 skill の配布](docs/adr/0001-skills-distribution.md): セルの中は plugin `andon` と `.agents/skills` の symlink・役の skill を system prompt に足す。外は Andon が届く所に届く。やらないこと: MCP・marketplace。[0002 Herdr App の Space](docs/adr/0002-herdr-spaces.md): 指揮側と作業側の Space・tab は課題・口は hc のラベルだけ・試してから指揮側の割り方を決め直す。[0003 課題ごとの Space](docs/adr/0003-task-spaces.md): 作業側を Space ＝ 課題にし、App の Files・Changes が課題の worktree を指す

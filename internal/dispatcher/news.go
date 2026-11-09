@@ -91,6 +91,8 @@ func line(n Notification) string {
 			parts = append(parts, clean(m["issue"], 40)+"（"+strings.Join(what, "・")+"）")
 		}
 		return s + " " + strings.Join(parts, "; ") + "。andon issue impact " + clean(n.Issue, 40) + " で事実を読む"
+	case "corrections":
+		return head + "人の手直しを集められなかった（" + clean(n.Detail["error"], 120) + "）。corrections.json は書いていない"
 	case "stalled":
 		s := clean(n.Issue, 40) + " の担当 " + short("agent") + " が止まったまま"
 		if m := minutesSince(n); m >= 0 {

@@ -149,6 +149,13 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		if _, ok := p.st.Impact[id]; !ok {
 			p.st.Impact[id] = 0
 		}
+		// 人の手直しも同じ done の行から1回だけ集める（corrections.go）
+		if p.st.Corrections == nil {
+			p.st.Corrections = map[string]int{}
+		}
+		if _, ok := p.st.Corrections[id]; !ok {
+			p.st.Corrections[id] = 0
+		}
 		return true
 	}
 	if r.By == by {

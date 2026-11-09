@@ -61,11 +61,12 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 3 | 台帳を1回だけ読む | 課題の一覧と `log.jsonl` の全行を**この1回だけ**読む。以降の段はこの写しを使う | 読むだけ |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、`Pending` へ積む（§2.2・§2.3） | 控えに書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
-| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` に積む（§2.5） | |
+| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` に積む（§2.5・§2.6） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。提供元に切られて止まっていれば、入力欄が空のときだけ「続けて」（§2.4） | 端末に打つことがある |
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起こす（`review-requested`）、**`review` ならゲートを回す**（`gate`・マージ・`fix`・問い）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
+| 5c | 人の手直し | 控えの `Corrections` の課題ごとに `library/corrections.json` を1回だけ書く（§2.6）。もう在れば書かない | 台帳の `library/` と控えに書く |
 | 6 | 届ける（経路③） | 初めて見る台帳でなければ、§4 の守りがそろったときだけ `hc send`。送ったら `Pending` を空にする | 端末に打つ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いている課題（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
 
@@ -95,6 +96,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | ゲートが判定した | dispatcher が回した `andon gate` の結果（P6a） | `gate` |
 | マージして片付けた | approve ＋ `merge: auto` ＋ 委譲の範囲内（P6a） | `merged` |
 | マージのあと、動いている課題にぶつかる・重なる | `log.jsonl` の `{"status": "done"}`（dispatcher と Chief of Staff の finish）→ `andon issue impact`（§2.5） | `impact` |
+| 片付けた課題の人の手直しを集められなかった | `log.jsonl` の `{"status": "done"}` → `corrections.json`（§2.6）が次の見回りでも集められない | `corrections` |
 | 担当が止まった・落ちた・終わった・静か | 端末の土台の状態（§2.3） | `blocked`・`error`・`finished`・`stalled` |
 | 外の信号（main の CI の失敗・webhook） | **最初の版の後**（design.md §1.9 の (a)・§6 問い23） | `signal` |
 
@@ -171,6 +173,15 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 影響のある課題が1つも無ければ知らせない（ログに1行）。あれば `impact` を1件積み、同じ巡の6で届けうる（`merged` と同じ通に載ることもある）。
 - **担当に `hc send` しない**。rebase を頼む・止めて向きを確かめるは Chief of Staff の判断（§6 の「判断しない」）。rebase そのものは担当がする（Chief of Staff も dispatcher もしない）。
 - 初めて見る台帳では `done` も位置を控えるだけで拾わない（過去のマージを流さない）。`log.jsonl` を先頭から読み直したとき（§2.2）は古い `done` も拾うが、古いマージの commit は動いている branch に含まれる（`contains`）ので、ほとんど知らせにならない。
+
+### 2.6 人の手直し
+
+人がエージェントの仕事を直した跡（design.md §1.9 の (b) の表の 1〜3）を、振り返りの入力として課題の `library/corrections.json` に1回だけ集める。形と拾う規則は [contract.md](contract.md) §14。
+
+- **合図は §2.5 と同じ `done` の行**。拾った id は控えの `Corrections` に積み、5c で集める。`corrections.json` がもう在れば書かない（同じ finish を2度拾っても1回）。レビュアーの課題には書かない。
+- 読むのは台帳（`kanban show --json` の `questions`・`library/questions/<n>.json`・`report.json`・予約キー `must_fix`）と、`report.json` に `pr` があれば `gh pr view --json state,commits,comments,reviews`・インラインのレビューコメント（`gh api …/pulls/<n>/comments`）と人の commit ごとの `gh api …/commits/<sha>`。
+- 手直しが無ければ空の配列で書く。読めないものがあれば書かず、次の見回りで1回だけ打ち直し、それも駄目なら通知 `corrections`（`error`）を積んで控えから外す（「集めていない」をファイルの無さで残し、Chief of Staff が手で集めるか決める）。
+- 判断はしない。拾うのは事実だけで、どれを定義（テスト・`REVIEW.md`・`AGENTS.md`・skill）の直しにするかは振り返り（PR を通る）。
 
 ---
 
@@ -351,6 +362,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 15 | `andon publish`（`files/` への書き出し） | 打った者（担当・Chief of Staff・人） | 同じ日・同じ slug は上書き | ⑥同じ日・同じ slug の再公開は上書きと決めてある。一時ファイル＋rename。上限 20 MiB |
 | 16 | hooks（Stop・UserPromptSubmit） | Claude Code が呼ぶ（managed settings）。判断は持たず command を呼ぶだけ | #7・#11 に同じ | 呼ぶ先の command の守り（#7・#11・#1）。UserPromptSubmit の `drain --context` は読むだけで控えを書かない |
 | 17 | マージのあとの影響を集める（`andon issue impact`。§2.5） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。Chief of Staff が手で打つこともある | 同じマージの `impact` が 2 度届く。command は読むだけ（`git fetch` のほか書かない）なので、事実が壊れることは無い | ②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Impact`（打ったら外す。失敗は 3 回まで打ち直し、諦めたら `error` の `impact` を積む）。⑥command は読むだけで何度打っても同じ事実から同じ出力。**手で打つ分は防がない**が、手で打った Chief of Staff はもう読んでいる |
+| 18 | 人の手直しを集める（`corrections.json`。§2.6） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。ほかの書き手はいない | `corrections.json` が書き直される（`at` が替わる）。2 度目の読みの間に PR のコメントが増えていれば中身も替わる | ④`corrections.json` が在れば書かない（ファイルが「集めた」の印）＋②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Corrections`（書いたら外す。失敗は次の見回りの 1 回だけ打ち直し、諦めたら `corrections` を積んで外す）。書くのは一時ファイル＋rename |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

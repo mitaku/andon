@@ -68,4 +68,6 @@ type dispatcherState struct {
 	Retry     map[string]dsResend   `json:"retry,omitempty"`
 	First     map[string]bool       `json:"first,omitempty"`
 	Impact    map[string]int        `json:"impact,omitempty"`
+	// Issues done whose corrections.json is not collected yet → failed tries
+	Corrections map[string]int `json:"corrections,omitempty"`
 }

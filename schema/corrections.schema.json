@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/corrections/1",
+  "title": "Corrections",
+  "description": "issues/<id>/library/corrections.json: where a person corrected the agents' work on one issue. Written once by the dispatcher when it sees the issue finished (done); never rewritten and never by hand. An empty list means it looked and found none; no file means it did not collect. Read by the retro; no gate or dispatcher decision reads it. Only these keys.",
+  "type": "object",
+  "required": [
+    "at",
+    "corrections"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "description": "When the dispatcher collected it: UTC, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.",
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "corrections": {
+      "description": "One entry per correction. Empty when there was none.",
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/answer"
+          },
+          {
+            "$ref": "#/$defs/pr"
+          },
+          {
+            "$ref": "#/$defs/override_finding"
+          },
+          {
+            "$ref": "#/$defs/override_question"
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "description": "A full git commit id: 40 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "text": {
+      "description": "Text as written (not empty).",
+      "type": "string",
+      "minLength": 1
+    },
+    "answer": {
+      "description": "A question (not from the gate, not scope) whose answer is not the recommended option's label.",
+      "type": "object",
+      "required": [
+        "kind",
+        "question",
+        "decision_kind",
+        "recommended",
+        "picked"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Type of correction.",
+          "const": "answer"
+        },
+        "question": {
+          "description": "The question's number n in questions.yaml.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "decision_kind": {
+          "description": "The question's kind (question.schema.json), to count misses by kind.",
+          "enum": [
+            "business",
+            "users",
+            "promise",
+            "irreversible",
+            "line"
+          ]
+        },
+        "recommended": {
+          "description": "Label of the option with pick: true.",
+          "$ref": "#/$defs/text"
+        },
+        "picked": {
+          "description": "The answer in the ledger, as given.",
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "pr": {
+      "description": "What a person did on the issue's pull request: comments that are not the gate's (conversation, review bodies, inline review comments not by a bot), and commits pushed after the worker's last reported commit. At least one of the two is not empty.",
+      "type": "object",
+      "required": [
+        "kind",
+        "comments",
+        "human_commits"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "comments": {
+              "description": "At least one comment.",
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "human_commits": {
+              "description": "At least one commit.",
+              "minItems": 1
+            }
+          }
+        }
+      ],
+      "properties": {
+        "kind": {
+          "description": "Type of correction.",
+          "const": "pr"
+        },
+        "comments": {
+          "description": "Conversation comments, review bodies, then inline review comments, each oldest first.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "author",
+              "at",
+              "body"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "author": {
+                "description": "GitHub login.",
+                "$ref": "#/$defs/text"
+              },
+              "at": {
+                "description": "When it was written (as GitHub gives it).",
+                "$ref": "#/$defs/text"
+              },
+              "body": {
+                "description": "The comment.",
+                "$ref": "#/$defs/text"
+              },
+              "file": {
+                "description": "Inline review comments only: path relative to the repository root.",
+                "$ref": "#/$defs/text"
+              },
+              "line": {
+                "description": "Inline review comments only: line number, 1 or more.",
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "human_commits": {
+          "description": "Commits on the pull request after report.json's commit, oldest first.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "sha",
+              "headline",
+              "files"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "sha": {
+                "description": "The commit.",
+                "$ref": "#/$defs/sha"
+              },
+              "headline": {
+                "description": "First line of the commit message.",
+                "type": "string"
+              },
+              "files": {
+                "description": "Files the commit changed.",
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "override_finding": {
+      "description": "A waived finding at or above must_fix in a merged pull request: the gate passes that only through a person.",
+      "type": "object",
+      "required": [
+        "kind",
+        "finding",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Type of correction.",
+          "const": "override"
+        },
+        "finding": {
+          "description": "The finding as in findings.json.",
+          "type": "object",
+          "required": [
+            "severity",
+            "file",
+            "line"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "description": "Severity.",
+              "enum": [
+                "critical",
+                "major",
+                "minor",
+                "trivial"
+              ]
+            },
+            "file": {
+              "description": "Path relative to the repository root.",
+              "$ref": "#/$defs/text"
+            },
+            "line": {
+              "description": "Line number, 1 or more.",
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "reason": {
+          "description": "The waived entry's reason.",
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "override_question": {
+      "description": "An answered question the gate asked (from: gate, its needs_human).",
+      "type": "object",
+      "required": [
+        "kind",
+        "question",
+        "recommended",
+        "answer"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Type of correction.",
+          "const": "override"
+        },
+        "question": {
+          "description": "The question's number n in questions.yaml.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "recommended": {
+          "description": "Label of the option with pick: true.",
+          "$ref": "#/$defs/text"
+        },
+        "answer": {
+          "description": "The answer in the ledger, as given.",
+          "$ref": "#/$defs/text"
+        }
+      }
+    }
+  }
+}

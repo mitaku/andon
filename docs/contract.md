@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -13,6 +13,7 @@
 | §11 プロジェクトの事実と委譲 | `schema/project.schema.json` |
 | §12 候補の一覧 | `schema/candidates.schema.json` |
 | §13 流れの数え（`andon measure --json` の出力） | `schema/measure.schema.json` |
+| §14 人の手直し | `schema/corrections.schema.json` |
 
 - 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
@@ -22,7 +23,7 @@
 
 1. **Markdown を読まない。** 依頼書・報告・レビューの報告・skill は人と AI のもの。機械が判定に使う値は、ここに並ぶ JSON／YAML のキーにだけ持つ（人の決定 2026-11-04。仮設の工場で Markdown を正規表現で読む形は端が尽きなかった）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起こさない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
@@ -43,7 +44,7 @@ projects/<slug>/kanban/
       candidates.json             担当（§12。調べる課題の成果と、範囲の問いで止まる直す課題）
       questions/<n>.json          問うた者（§5）
       gate/<head sha>.json        dispatcher（§7。ゲートの記録）
-      corrections.json            dispatcher（finish のとき。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
+      corrections.json            dispatcher（§14。finish〈done〉のとき1回だけ。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
@@ -189,6 +190,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス） |
 | `merged` | ゲートの approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき | `pr`・`sha` |
 | `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED の課題に dispatcher が `andon issue impact` を1回打ち、影響のある課題があったとき（下の「マージのあとの影響」） | `pr`・`sha`・`issues[]`（`issue`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
+| `corrections` | `log.jsonl` の `{"status": "done"}` の課題の `corrections.json`（§14）を、次の見回りの打ち直しでも集められなかったとき（書いていない） | `error` |
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
 
@@ -397,7 +399,8 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
    "auto_merge": {"count": 1, "rate": 0.5},
    "gate": {"records": 3, "fix": 1, "needs_human": 1, "rate": 0.67}},
  "counter": {"reverted": 1, "follow_ups": 1,
-   "reopened": {"corrections": "recorded", "by_tier": {"A": 1, "B": 1, "C": 0, "none": 0}}},
+   "reopened": {"corrections": "recorded", "by_tier": {"A": 1, "B": 1, "C": 0, "none": 0}},
+   "corrected": {"corrections": "recorded", "by_tier": {"A": 0, "B": 1, "C": 0, "none": 0}}},
  "prs": [
    {"issue": "S-0001", "pr": "https://github.com/example/sample-site/pull/1", "merged_at": "2026-11-01T06:00:00Z",
     "tier": "A", "auto": true, "human_touches": 1, "lead_time_hours": 6, "reverted": true, "corrections": false},
@@ -420,8 +423,42 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `counter.reverted` | 期間にマージされた PR のうち題が `Revert ` で始まり、本文が `<owner>/<repo>#<n>` か URL で台帳のマージされた PR を指すもの、が指す PR の数 |
 | `counter.follow_ups` | 期間に作られた課題のうち、`links` か、マージされた自分の PR の本文が、別の課題のマージされた PR の URL を含むもの |
 | `counter.reopened` | 人が開け直した数をゲートのレベルごとに: `merged_prs` のうち `corrections.json` に1件以上ある課題と、期間に revert された自動マージの PR（重なれば1回）。`corrections` は台帳に `corrections.json` が1つも無ければ `none`（記録なし） |
+| `counter.corrected` | 人の手直しがあった課題の数をゲートのレベルごとに: `merged_prs` のうち `corrections.json`（§14）の `corrections` に1件以上ある課題（`reopened` と違い revert は数えない）。`corrections` は `reopened` と同じ |
 | `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、在るが読めないファイル、PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
 
 - 書き手は `andon measure` だけ（出力するだけ）。読み手は人と振り返り（委譲を広げる根拠）。ゲートも dispatcher も判定に使わない。
 - 数えるものが無ければ件数は 0、率・平均・中央値は `null`（表は「記録なし」）で、終了コード 0。台帳の `config.yaml` が読めない・版が 3 でないときだけ終了コード 1。
 - レビュアーの課題（`<id>-r<k>`・`profile` が `-review` で終わる）は流れにも効率にも数えない。
+## 14. 人の手直し（`corrections.json`）
+
+課題の `library/corrections.json`。人がエージェントの仕事を直した跡（[design.md](design.md) §1.9 の (b) の表の 1〜3）を、振り返りの入力として1か所に集める。書き手は dispatcher だけで、`log.jsonl` の `{"status": "done"}` の行（`andon issue finish`。Chief of Staff の `kanban done` も）を拾った課題ごとに**1回だけ**書く。もう在れば書き直さない（同じ finish を2度拾っても1回）。レビュアーの課題には書かない。
+
+- **空の配列は「無かった」、ファイルが無いのは「集めていない」。** 手直しが無ければ `{"at": …, "corrections": []}` を書く。`gh` か台帳が読めなければ書かず、次の見回りで1回だけ打ち直す。それも駄目なら書かずに通知 `corrections`（§6。`detail` は `error`）を Chief of Staff へ積む。
+- 読み手は振り返りだけ。ゲートも dispatcher も判定に使わない。端末に送った文（表の 4）と Chief Engineer の推奨案を覆したこと（表の 5）は拾わない（文の解析になる）。
+
+```json
+{"at": "2026-11-09T09:00:00Z",
+ "corrections": [
+   {"kind": "answer", "question": 2, "decision_kind": "users", "recommended": "CSV だけ", "picked": "CSV と Excel"},
+   {"kind": "pr",
+    "comments": [{"author": "<owner>", "at": "2026-11-09T08:40:00Z", "body": "見出しの語は台帳の語に揃える"}],
+    "human_commits": [{"sha": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "headline": "見出しの語を直す", "files": ["docs/a.md"]}]},
+   {"kind": "override", "finding": {"severity": "major", "file": "internal/issue/issue.go", "line": 88}, "reason": "起きる条件がこの repo に無い"},
+   {"kind": "override", "question": 3, "recommended": "人が PR を読んでマージする", "answer": "担当に直させる"}]}
+```
+
+手直しが無かったとき:
+
+```json
+{"at": "2026-11-09T09:00:00Z", "corrections": []}
+```
+
+| `kind` | 元 | 拾う規則 | キー |
+|---|---|---|---|
+| `answer` | `questions.yaml`（`kanban show --json` の `questions`）＋ `library/questions/<n>.json` | 答えがある（`answered`・`received`）問いのうち、ゲートの問い（`from: gate`）と範囲の問い（`kind: scope`。Chief of Staff が答える）を除き、答え（前後の空白を除く）が推奨案（`pick: true`）の `label` と違うもの。問いの JSON が無い問い（`andon issue ask` を通らない）は推奨案が分からないので拾わない | `question`（`n`）・`decision_kind`（問いの `kind`）・`recommended`・`picked`（台帳の答えのまま） |
+| `pr` | `gh pr view <n> --json state,commits,comments,reviews`・`gh api --paginate --slurp repos/<owner>/<repo>/pulls/<n>/comments`（インラインのレビューコメント）・人の commit ごとに `gh api repos/<owner>/<repo>/commits/<sha>` | コメント（会話欄・レビューの本文・インラインのレビューコメント）のうち `andon gate: ` で始まらないもの（ゲートのコメントは同じ token で書かれる）と本文の無いもの・インラインでは `user.type` が `Bot` のものを除いたものと、PR の commit のうち `report.json` の `commit`（担当の最後の報告）より後のもの。`report.json` の `commit` が PR に無ければ commit は数えない。どちらも無ければ書かない | `comments[]`（`author`・`at`・`body`。インラインのレビューコメントは `file`・`line` も）・`human_commits[]`（`sha`・`headline`・`files[]`） |
+| `override`（指摘） | `report.json` の `waived` ＋ PR の `state` | PR が `MERGED` で、`waived` のうち `must_fix`（Chief of Staff が書いたもの。無ければ全部）以上の重さのもの。ゲートは担当がレビュアーを覆したものを人へ回す（`needs_human`）ので、マージされたなら人が通した | `finding`（`severity`・`file`・`line`）・`reason` |
+| `override`（問い） | `questions.yaml` ＋ `library/questions/<n>.json` | 答えがあるゲートの問い（`from: gate`。`needs_human` への人の答え）。推奨案どおりの答えも拾う | `question`・`recommended`・`answer` |
+
+- 人の commit を author の email で見分けない: 担当も repo の持ち主の noreply アドレスで commit するので、email では人と担当が分かれない（[decisions/2026-11-09-corrections-json.md](decisions/2026-11-09-corrections-json.md)）。
+- 拾うのは事実だけで、手直しの意味は読まない（答えが推奨案と同じ意味の別の言い方でも `answer` に入る。振り返りが読んで捨てる）。多めに拾い、少なく拾わない。
