@@ -2,6 +2,7 @@ package issue
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,7 +31,7 @@ printf 'hc %s\n' "$*" >>"$LOG"
 case $1 in
   ls) echo "$FAKE_LS" ;;
   templates) echo "$FAKE_TPL" ;;
-  run) [ "${FAKE_RUN_RC:-0}" = 0 ] || { echo "boom" >&2; exit 1; }; echo "$FAKE_RUN" ;;
+  run) printf '%s\0' "${@:2}" >"$FAKE_ROOT/run-args"; [ "${FAKE_RUN_RC:-0}" = 0 ] || { echo "boom" >&2; exit 1; }; echo "$FAKE_RUN" ;;
   label) [ "${FAKE_LABEL_RC:-0}" = 0 ] || { echo "no label" >&2; exit 1; } ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
 esac
@@ -100,14 +101,14 @@ func gitT(t *testing.T, dir string, args ...string) {
 	}
 }
 
-func (f *startFixture) run() (int, string, string) {
+func (f *startFixture) run(flags ...string) (int, string, string) {
 	f.t.Helper()
 	b := js(map[string]any{"issue": f.task})
 	if err := os.WriteFile(filepath.Join(f.root, "show-S-0007.json"), []byte(b), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
 	var out, errb bytes.Buffer
-	rc := Main([]string{"start", "S-0007"}, strings.NewReader(""), &out, &errb)
+	rc := Main(append([]string{"start", "S-0007"}, flags...), strings.NewReader(""), &out, &errb)
 	return rc, out.String(), errb.String()
 }
 
@@ -212,59 +213,7 @@ func TestStartWithoutRepo(t *testing.T) {
 }
 
 func TestStartRefuses(t *testing.T) {
-	for _, c := range []struct {
-		name, want string
-		edit       func(f *startFixture)
-	}{
-		{"not todo", "S-0007 は doing（起こせるのは todo だけ）", func(f *startFixture) { f.task["status"] = "doing" }},
-		{"queued", "S-0007 は queued", func(f *startFixture) { f.task["status"] = "queued" }},
-		{"started", "S-0007 は起こし済み", func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
-		{"machine", "machine=remote1（別のマシンで起こす）", func(f *startFixture) { f.task["machine"] = "remote1" }},
-		{"no profile", "S-0007 に profile が無い", func(f *startFixture) { delete(f.task, "profile") }},
-		{"option profile", "profile が不正", func(f *startFixture) { f.task["profile"] = "--help" }},
-		{"no brief", "依頼書（brief.md）が無い", func(f *startFixture) {
-			os.Remove(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"))
-		}},
-		{"no template", "プロファイル fable の template が無い", func(f *startFixture) { f.task["profile"] = "fable" }},
-		{"live name", "端末 sample-site-s-0007 がもう動いている", func(f *startFixture) {
-			t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","name":"sample-site-s-0007"}]}`)
-		}},
-		{"bad repo", "repo が不正", func(f *startFixture) { f.task["repo"] = "example/sample-site" }},
-		{"no clone", "リポジトリが無い", func(f *startFixture) {
-			f.task["repo"] = "github.com/example/none"
-			f.addRepo("github.com/example/none")
-		}},
-		{"not in repos", "repo github.com/example/other が台帳の config.yaml の repos に無い", func(f *startFixture) {
-			// clone はあるが、このプロジェクトの repo ではない
-			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
-			f.task["repo"] = "github.com/example/other"
-		}},
-		{"not in project repos", "repo github.com/example/other が projects/sample-site/project.json の repos に無い", func(f *startFixture) {
-			// 台帳の config.yaml にはあるが、人が書いた project.json の repos に無い
-			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
-			f.task["repo"] = "github.com/example/other"
-			f.addRepo("github.com/example/other")
-		}},
-		{"no project.json", "セルの repo の HEAD に projects/sample-site/project.json が無い", func(f *startFixture) {
-			gitT(t, f.plant, "rm", "-q", "projects/sample-site/project.json")
-			gitT(t, f.plant, "-c", "user.name=o", "-c", "user.email=owner@example.com", "commit", "-q", "-m", "rm")
-		}},
-		{"project.json not by owner", "author（x <agent@example.com>）が owner でない", func(f *startFixture) {
-			f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site"]}`, "agent@example.com")
-		}},
-		{"project.json broken", "project.json の形が違う", func(f *startFixture) {
-			f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"}}`, "owner@example.com")
-		}},
-		{"after", "S-0007 は after（S-0006）が済んでいない", func(f *startFixture) {
-			f.task["after"] = []any{"S-0006"}
-			os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(`[{"id":"S-0008"}]`), 0o644)
-		}},
-		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", func(f *startFixture) {
-			// clone は fetch していないが、origin にだけ同名の branch がある
-			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-0007-add-the-button")
-			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-0007-add-the-button")
-		}},
-	} {
+	for _, c := range startRefusals(t) {
 		t.Run(c.name, func(t *testing.T) {
 			f := newStart(t)
 			c.edit(f)
@@ -279,6 +228,65 @@ func TestStartRefuses(t *testing.T) {
 				t.Errorf("worktree か branch を作った: %q", f.branches())
 			}
 		})
+	}
+}
+
+type startRefusal struct {
+	name, want string
+	hc         bool // hc を呼ぶか作る直前の確かめ（--dry-run では確かめない）
+	edit       func(f *startFixture)
+}
+
+func startRefusals(t *testing.T) []startRefusal {
+	return []startRefusal{
+		{"not todo", "S-0007 は doing（起こせるのは todo だけ）", false, func(f *startFixture) { f.task["status"] = "doing" }},
+		{"queued", "S-0007 は queued", false, func(f *startFixture) { f.task["status"] = "queued" }},
+		{"started", "S-0007 は起こし済み", false, func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
+		{"machine", "machine=remote1（別のマシンで起こす）", false, func(f *startFixture) { f.task["machine"] = "remote1" }},
+		{"no profile", "S-0007 に profile が無い", false, func(f *startFixture) { delete(f.task, "profile") }},
+		{"option profile", "profile が不正", false, func(f *startFixture) { f.task["profile"] = "--help" }},
+		{"no brief", "依頼書（brief.md）が無い", false, func(f *startFixture) {
+			os.Remove(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"))
+		}},
+		{"no template", "プロファイル fable の template が無い", true, func(f *startFixture) { f.task["profile"] = "fable" }},
+		{"live name", "端末 sample-site-s-0007 がもう動いている", true, func(f *startFixture) {
+			t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","name":"sample-site-s-0007"}]}`)
+		}},
+		{"bad repo", "repo が不正", false, func(f *startFixture) { f.task["repo"] = "example/sample-site" }},
+		{"no clone", "リポジトリが無い", false, func(f *startFixture) {
+			f.task["repo"] = "github.com/example/none"
+			f.addRepo("github.com/example/none")
+		}},
+		{"not in repos", "repo github.com/example/other が台帳の config.yaml の repos に無い", false, func(f *startFixture) {
+			// clone はあるが、このプロジェクトの repo ではない
+			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
+			f.task["repo"] = "github.com/example/other"
+		}},
+		{"not in project repos", "repo github.com/example/other が projects/sample-site/project.json の repos に無い", false, func(f *startFixture) {
+			// 台帳の config.yaml にはあるが、人が書いた project.json の repos に無い
+			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
+			f.task["repo"] = "github.com/example/other"
+			f.addRepo("github.com/example/other")
+		}},
+		{"no project.json", "セルの repo の HEAD に projects/sample-site/project.json が無い", false, func(f *startFixture) {
+			gitT(t, f.plant, "rm", "-q", "projects/sample-site/project.json")
+			gitT(t, f.plant, "-c", "user.name=o", "-c", "user.email=owner@example.com", "commit", "-q", "-m", "rm")
+		}},
+		{"project.json not by owner", "author（x <agent@example.com>）が owner でない", false, func(f *startFixture) {
+			f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site"]}`, "agent@example.com")
+		}},
+		{"project.json broken", "project.json の形が違う", false, func(f *startFixture) {
+			f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"}}`, "owner@example.com")
+		}},
+		{"after", "S-0007 は after（S-0006）が済んでいない", false, func(f *startFixture) {
+			f.task["after"] = []any{"S-0006"}
+			os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(`[{"id":"S-0008"}]`), 0o644)
+		}},
+		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", true, func(f *startFixture) {
+			// clone は fetch していないが、origin にだけ同名の branch がある
+			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-0007-add-the-button")
+			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-0007-add-the-button")
+		}},
 	}
 }
 
@@ -367,4 +375,156 @@ func read(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// noHc は呼ばれたら落ちる偽の hc にする（--dry-run は hc を1回も呼ばない）。
+func (f *startFixture) noHc() {
+	f.t.Helper()
+	bin := filepath.Join(filepath.Dir(f.log), "bin", "hc")
+	if err := os.WriteFile(bin, []byte("#!/usr/bin/env bash\nprintf 'hc %s\\n' \"$*\" >>\"$LOG\"\necho 'hc は呼ばない' >&2\nexit 99\n"), 0o755); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+func (f *startFixture) dryJSON() startPlan {
+	f.t.Helper()
+	rc, out, errs := f.run("--dry-run", "--json")
+	if rc != 0 || errs != "" {
+		f.t.Fatalf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	}
+	var p startPlan
+	if err := json.Unmarshal([]byte(out), &p); err != nil {
+		f.t.Fatalf("JSON でない: %v\n%s", err, out)
+	}
+	return p
+}
+
+// runArgs は偽の hc が書いた hc run の引数（run の後ろ）。
+func (f *startFixture) runArgs() []string {
+	f.t.Helper()
+	b, err := os.ReadFile(filepath.Join(f.root, "run-args"))
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSuffix(string(b), "\x00"), "\x00")
+}
+
+func TestStartDryRunCallsNoHc(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		flags []string
+		edit  func(f *startFixture)
+	}{
+		{"json", []string{"--dry-run", "--json"}, func(*startFixture) {}},
+		{"human", []string{"--dry-run"}, func(*startFixture) {}},
+		{"without repo", []string{"--dry-run"}, func(f *startFixture) { delete(f.task, "repo") }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.noHc()
+			c.edit(f)
+			rc, out, errs := f.run(c.flags...)
+			if rc != 0 || errs != "" || out == "" {
+				t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+			if f.has("hc ") || f.has("kanban set") || f.has("kanban start") {
+				t.Errorf("hc を呼んだか台帳を書いた: %q", f.calls())
+			}
+			if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") {
+				t.Errorf("worktree か branch を作った: %q", f.branches())
+			}
+			// 信頼の設定（boot.TrustFromOS）も書かない
+			for _, p := range []string{filepath.Join(f.home, ".claude.json"), filepath.Join(f.home, ".codex")} {
+				if _, err := os.Stat(p); err == nil {
+					t.Errorf("%s を書いた", p)
+				}
+			}
+		})
+	}
+}
+
+func TestStartDryRunHuman(t *testing.T) {
+	f := newStart(t)
+	f.noHc()
+	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# 題\n完了条件: 押せる\n"), 0o644)
+	rc, out, _ := f.run("--dry-run")
+	brief := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
+	for _, want := range []string{
+		"乾いた実行", "sample-site-s-0007", "claude", f.wt(), "sample-site/S-0007-add-the-button",
+		"herdr.space=andon-sample-site-S-0007",
+		"ok      delegation", "skipped template",
+		"最初のメッセージ（hc run に渡す文）:\n課題 `sample-site/S-0007`。\n依頼書は `" + brief + "`。\n",
+		"依頼書（" + brief + "）:\n# 題\n完了条件: 押せる\n",
+	} {
+		if rc != 0 || !strings.Contains(out, want) {
+			t.Errorf("rc=%d %q が無い:\n%s", rc, want, out)
+		}
+	}
+}
+
+// --dry-run が出すものは、本番で hc run に渡すものと1文字も違わない（最初のメッセージ・名前・ラベル・cwd・プロファイル）。
+func TestStartDryRunMatchesRun(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		edit func(f *startFixture)
+	}{
+		{"repo", func(*startFixture) {}},
+		{"without repo", func(f *startFixture) { delete(f.task, "repo") }},
+		{"japanese title", func(f *startFixture) { f.task["title"] = "返事の下書き「ボタン」\t" }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			c.edit(f)
+			p := f.dryJSON()
+			if rc, _, errs := f.run(); rc != 0 {
+				t.Fatalf("本番 rc=%d err=%q", rc, errs)
+			}
+			want := []string{"--json", "--bg", "--outlive-parent", "--no-notify", "--name", p.Terminal}
+			for _, l := range p.Labels {
+				want = append(want, "--label", l)
+			}
+			want = append(want, "--cwd", p.Cwd, p.Profile, p.FirstMessage)
+			if got := f.runArgs(); !slices.Equal(got, want) {
+				t.Errorf("hc run の引数が違う:\n got %q\nwant %q", got, want)
+			}
+			if got := f.runArgs(); got[len(got)-1] != p.FirstMessage {
+				t.Errorf("最初のメッセージが違う:\n got %q\nwant %q", got[len(got)-1], p.FirstMessage)
+			}
+			if b, _ := os.ReadFile(p.BriefPath); p.Brief != string(b) || p.Brief == "" {
+				t.Errorf("依頼書の全文が違う: %q", p.Brief)
+			}
+			if _, has := f.task["repo"]; has && !f.has("kanban set S-0007 branch="+p.Branch+" worktree="+p.Worktree) {
+				t.Errorf("branch・worktree が本番と違う: %+v calls=%q", p, f.calls())
+			}
+		})
+	}
+}
+
+// 止まる課題（書けない repo など）では、--dry-run も本番と同じ終了コードと理由1行を返す。
+func TestStartDryRunRefusesLikeRun(t *testing.T) {
+	for _, c := range startRefusals(t) {
+		if c.hc {
+			continue // hc を呼ぶ・作る直前の確かめは --dry-run ではしない
+		}
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			c.edit(f)
+			rc, out, errs := f.run()
+			f.noHc()
+			drc, dout, derrs := f.run("--dry-run")
+			jrc, jout, jerrs := f.run("--dry-run", "--json")
+			if rc != exitFail || drc != rc || jrc != rc || derrs != errs || jerrs != errs || out != "" || dout != "" || jout != "" {
+				t.Errorf("本番 rc=%d err=%q / dry rc=%d err=%q / json rc=%d err=%q", rc, errs, drc, derrs, jrc, jerrs)
+			}
+		})
+	}
+}
+
+func TestStartUsage(t *testing.T) {
+	for _, flags := range [][]string{{"--json"}, {"--dry-run", "--dry-run"}, {"--dry"}, {"--json", "--json", "--dry-run"}} {
+		var out, errb bytes.Buffer
+		if rc := Main(append([]string{"start", "S-0007"}, flags...), strings.NewReader(""), &out, &errb); rc != exitUsage || !strings.HasPrefix(errb.String(), "usage:") {
+			t.Errorf("%q: rc=%d err=%q", flags, rc, errb.String())
+		}
+	}
 }
