@@ -6,6 +6,7 @@
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon issue finish（レビュアーの課題も片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
+//	review の PR を人がマージした      → ゲートの問いを閉じて andon issue finish（1分に1回だけ gh pr view。humanmerge.go）
 //	{"status": "done"} の行            → library/corrections.json を1回だけ書く（人の手直し。corrections.go）
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //	担当・Chief of Staff が提供元に切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
@@ -184,8 +185,10 @@ func (p *project) pass() (bool, error) {
 			}
 		case "review":
 			p.review(t, rep)
+			p.humanMerge(t, rep, time.Now()) // 人が GitHub でマージした（dispatcher.md §2.7）
 		}
 	}
+	p.forget()
 	p.impacts()     // マージのあとの影響（dispatcher.md §2.5）
 	p.corrections() // 人の手直し（dispatcher.md §2.6・contract.md §14）
 	if !p.first {

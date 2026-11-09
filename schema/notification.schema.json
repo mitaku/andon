@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "impact", "corrections", "blocked", "error", "finished", "stalled"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "blocked", "error", "finished", "stalled"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -31,6 +31,8 @@
       "then": { "properties": { "detail": { "$ref": "#/$defs/gate" } } } },
     { "if": { "properties": { "kind": { "const": "merged" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/merged" } } } },
+    { "if": { "properties": { "kind": { "const": "closed" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/closed" } } } },
     { "if": { "properties": { "kind": { "const": "impact" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/impact" } } } },
     { "if": { "properties": { "kind": { "const": "corrections" } } },
@@ -92,12 +94,20 @@
       }
     },
     "merged": {
-      "description": "kind merged: the dispatcher merged and finished the issue.",
+      "description": "kind merged: the dispatcher merged and finished the issue, or (by: person) found that a person merged an issue in review and finished it. held: it did not finish, and why.",
       "type": "object", "required": ["pr", "sha"], "additionalProperties": false,
+      "if": { "required": ["held"] }, "then": { "required": ["by"] },
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
-        "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
+        "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "by": { "description": "Only when a person merged on GitHub (absent when the dispatcher merged).", "const": "person" },
+        "held": { "description": "Why the dispatcher did not finish the issue (an open question not from the gate, or finish failed).", "type": "string", "minLength": 1 }
       }
+    },
+    "closed": {
+      "description": "kind closed: the pull request of an issue in review was closed without merging. Not finished; notified once.",
+      "type": "object", "required": ["pr"], "additionalProperties": false,
+      "properties": { "pr": { "description": "The closed pull request.", "$ref": "#/$defs/pr" } }
     },
     "corrections": {
       "description": "kind corrections: the dispatcher could not collect a finished issue's corrections.json (after one retry) and did not write it.",

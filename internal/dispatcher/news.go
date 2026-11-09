@@ -65,7 +65,15 @@ func line(n Notification) string {
 		}
 		return s + " 記録 " + d("record")
 	case "merged":
-		return head + d("pr") + " をマージして片付けた（" + clean(n.Detail["sha"], 12) + "）"
+		if n.Detail["by"] != "person" {
+			return head + d("pr") + " をマージして片付けた（" + clean(n.Detail["sha"], 12) + "）"
+		}
+		if h, ok := n.Detail["held"]; ok && h != nil {
+			return head + d("pr") + " は人がマージした（" + clean(n.Detail["sha"], 12) + "）が、片付けていない: " + clean(h, 200)
+		}
+		return head + d("pr") + " は人がマージした（" + clean(n.Detail["sha"], 12) + "）。ゲートの問いを閉じて片付けた"
+	case "closed":
+		return head + d("pr") + " はマージされずに閉じた。片付けていない"
 	case "impact":
 		if e, ok := n.Detail["error"]; ok && e != nil {
 			return head + d("pr") + " のマージの影響を集められなかった（" + clean(e, 120) + "）。andon issue impact " + clean(n.Issue, 40) + " を打って読む"

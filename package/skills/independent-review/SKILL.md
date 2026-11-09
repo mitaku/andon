@@ -65,7 +65,7 @@ dispatcher が書く（`internal/dispatcher` の `reviewerBrief`。型を変え�
   Chief of Staff の判断で追加の回（直した差分だけ）を起こしてよい（`review_rounds` を上げる。chief-of-staff skill の §6）。minor 以下だけが残るときは見送り。
   追加の回でも同じ指摘が続いて収まらないと見たら、人の判断待ちにする（ask-one-by-one skill の §3）。
 - **照合**: 最後のレビュアーの `findings.json` の `commit` と PR の head の一致は `andon issue ready`（担当）と `andon gate`（dispatcher）が確かめる。
-- **片付け**: 元の課題の `andon issue finish`（dispatcher がマージしたときは dispatcher、人がマージしたときは Chief of Staff）が、レビュアーの子課題と detached の worktree も片付ける。
+- **片付け**: 元の課題の `andon issue finish`（dispatcher がマージしたときも、人が `review` の課題をマージしたときも dispatcher。dispatcher.md §2.7）が、レビュアーの子課題と detached の worktree も片付ける。
 - 台帳のルーチン（`on: [review]`）でレビューを自動で足すことはしない。入れる条件は Chief of Staff の判断で、依頼書は PR ごとに変わるので。
 
 ## pstack を使う repo

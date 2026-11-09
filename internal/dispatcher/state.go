@@ -62,6 +62,8 @@ type State struct {
 	Impact    map[string]int      `json:"impact,omitempty"`    // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 	// done になった、人の手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
 	Corrections map[string]int `json:"corrections,omitempty"`
+	// review の課題の PR を人がマージしたかの控え（humanmerge.go。dispatcher.md §2.7）
+	Watch map[string]Watch `json:"watch,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。
