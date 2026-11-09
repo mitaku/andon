@@ -310,6 +310,15 @@ func machineOK(v string) bool {
 // 数えなかった子課題（理由の文に使う）。数えるのは: parent が id・status が review か done・
 // 作成の行（log.jsonl の最初の add）の by が terminal:<chief_of_staff> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
 func (l *Ledger) Reviewer(rows []Row, tasks []Issue, t Issue) (string, []string) {
+	picked, others := l.reviewers(rows, tasks, t)
+	if len(picked) == 0 {
+		return "", others
+	}
+	return picked[len(picked)-1], others
+}
+
+// reviewers は Reviewer の数えるレビュアーの課題を古い順（updated・id の順）に全部返す。
+func (l *Ledger) reviewers(rows []Row, tasks []Issue, t Issue) ([]string, []string) {
 	cos := l.ChiefOfStaff()
 	creator := map[string]string{}
 	for _, r := range rows {
@@ -334,9 +343,6 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Issue, t Issue) (string, []string)
 			others = append(others, c.Str("id"))
 		}
 	}
-	if len(picked) == 0 {
-		return "", others
-	}
 	sort.SliceStable(picked, func(i, j int) bool {
 		a, b := picked[i], picked[j]
 		if a.Str("updated") != b.Str("updated") {
@@ -344,7 +350,11 @@ func (l *Ledger) Reviewer(rows []Row, tasks []Issue, t Issue) (string, []string)
 		}
 		return idLess(a.Str("id"), b.Str("id"))
 	})
-	return picked[len(picked)-1].Str("id"), others
+	ids := make([]string, len(picked))
+	for i, c := range picked {
+		ids[i] = c.Str("id")
+	}
+	return ids, others
 }
 
 // CanonID は人が打った id を台帳の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。docs/ledger.md の Ids）。

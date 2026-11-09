@@ -261,7 +261,7 @@ func (c *ctx) show(stdout io.Writer) error {
 		}
 		s := ledger.SettingsOf(c.issue)
 		out["head"] = head
-		out["review"] = c.l.CheckReview(rows, tasks, c.issue, head, s.MustFix, waived)
+		out["review"] = c.l.CheckReview(rows, tasks, c.issue, head, s.MustFix, waived, nil)
 	}
 	_, err = stdout.Write(contract.Marshal(out))
 	return err
@@ -450,7 +450,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, s.MustFix, r.Waived)
+		rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, s.MustFix, r.Waived, nil)
 		if rv.State != "current" {
 			return fail("レビューが %s: %s", rv.State, rv.Reason)
 		}

@@ -383,3 +383,14 @@ func ownerPlant(t *testing.T, local string) string {
 	}
 	return ws
 }
+
+func TestAddedLines(t *testing.T) {
+	diff := "diff --git a/a.go b/a.go\n--- a/a.go\n+++ b/a.go\n@@ -1,3 +1,4 @@\n ctx\n+add2\n-old\n ctx3\n+add4\n\\ No newline at end of file\n" +
+		"diff --git a/gone.go b/gone.go\n--- a/gone.go\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n" +
+		"diff --git a/n.md b/n.md\nnew file mode 100644\n--- /dev/null\n+++ b/n.md\n@@ -0,0 +1,2 @@\n++++ not a header\n+b\n"
+	got := AddedLines(diff)
+	want := map[string]map[int]bool{"a.go": {2: true, 4: true}, "n.md": {1: true, 2: true}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("AddedLines = %v, want %v", got, want)
+	}
+}

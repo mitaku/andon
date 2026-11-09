@@ -160,9 +160,10 @@ func Marshal(v any) []byte {
 
 // Finding は findings.json の1件（contract.md §3）。
 type Finding struct {
-	Severity string `json:"severity"`
-	File     string `json:"file"`
-	Line     *int   `json:"line"`
+	Severity    string `json:"severity"`
+	File        string `json:"file"`
+	Line        *int   `json:"line"`
+	Preexisting bool   `json:"preexisting,omitempty"` // 課題の前からあった問題（ゲートは must_fix に数えない。差分で足した行なら数える）
 }
 
 // Findings は findings.json（レビュアーが書く）。
@@ -356,7 +357,7 @@ func (r *Report) Check() error {
 		}
 	}
 	for _, w := range r.Waived {
-		if err := (Finding{w.Severity, w.File, w.Line}).check(); err != nil {
+		if err := (Finding{Severity: w.Severity, File: w.File, Line: w.Line}).check(); err != nil {
 			return fmt.Errorf("waived: %v", err)
 		}
 		if w.Reason == "" {

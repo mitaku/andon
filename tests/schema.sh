@@ -218,6 +218,10 @@ pass|findings|.findings[0].file = "src/main.py"|file が repo からの相対パ
 pass|findings|.findings[0].file = "..hidden/x"|.. で始まる名前は .. の段ではない
 fail|findings|.findings[0].file = "\u2028/../../outside"|file の .. の段の前に行区切り文字 U+2028
 fail|findings|.findings[0].file = "a/\u2028b/../../../outside"|file の途中の段に U+2028
+pass|findings|.findings[0].preexisting = true|preexisting が true（課題の前からあった問題）
+pass|findings|.findings[0].preexisting = false|preexisting が false
+fail|findings|.findings[0].preexisting = "true"|preexisting が文字列
+fail|findings|.findings[0].preexisting = null|preexisting が null
 pass|report|{commit}|commit だけでも通る
 pass|report|{}|commit 無し（repo の無い課題）でも通る
 fail|report|.pr = "#12"|pr が URL でない

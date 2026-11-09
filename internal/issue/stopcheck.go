@@ -154,7 +154,7 @@ func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue) bool {
 	if err != nil {
 		return false
 	}
-	return l.CheckReview(rows, tasks, t, rep.ReviewRequest.Commit, "", nil).State != "current"
+	return l.CheckReview(rows, tasks, t, rep.ReviewRequest.Commit, "", nil, nil).State != "current"
 }
 
 // ownIssue は自分の端末（HC_TERMINAL_ID）のラベル issue=。読めなければ空。

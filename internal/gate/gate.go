@@ -352,7 +352,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		if err != nil {
 			return nil, "", err
 		}
-		rec.Review = l.CheckReview(rows, tasks, t, head, s.MustFix, rep.Waived)
+		rec.Review = l.CheckReview(rows, tasks, t, head, s.MustFix, rep.Waived, AddedLines(string(diff)))
 	}
 	facts.Review = rec.Review
 	if gated && (!facts.ReviewRequired || rec.Review.State == "current") && checks.Passed(facts.ChecksOptional) {

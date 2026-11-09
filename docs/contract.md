@@ -85,7 +85,8 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 ```json
 {"commit": "2a17f63e53ac7f9554d78782e2bfc4d079454455",
- "findings": [{"severity": "major", "file": "internal/issue/issue.go", "line": 120}]}
+ "findings": [{"severity": "major", "file": "internal/issue/issue.go", "line": 120},
+              {"severity": "major", "file": "internal/ledger/ledger.go", "line": 40, "preexisting": true}]}
 ```
 
 | キー | 値 | 意味 |
@@ -94,10 +95,15 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `findings[].severity` | `critical` / `major` / `minor` / `trivial` | 重さ。起きる条件を具体的に示せないものは `trivial` |
 | `findings[].file` | repo からの相対パス（空でなく、制御文字・改行が無く、`/` で始まらず、`..` の段を含まない） | — |
 | `findings[].line` | 1 以上の整数 | — |
+| `findings[].preexisting` | 真偽（任意。無ければ `false`） | 課題の前からあった問題（差分の外の古い問題）。ゲートは `must_fix` に数えない。ただし `file`・`line` が PR の差分で足した行なら数える（[decisions/2026-11-09-review-preexisting.md](decisions/2026-11-09-review-preexisting.md)） |
 
 - 無い・JSON でない・形が違う → missing。`commit` 違い → stale。報告の Markdown は読まない。
-- 書き手はレビュアー。読み手: ゲート（`must_fix` 以上の件数）・担当（振り分け。`must_fix` 以上を直し、未満は `report.json` の `waived` に理由つきで残す）・振り返り（繰り返し出た指摘を観点へ）。
-- 将来キーを足すなら（例: `title`・`kind`）版を上げずに足せる（原則4）。最初の版では足さない。
+- 書き手はレビュアー。読み手: ゲート（`must_fix` 以上の件数）・担当（振り分け。`must_fix` 以上を直し、未満は `report.json` の `waived` に理由つきで残す。`preexisting: true` は振り分けない）・振り返り（繰り返し出た指摘を観点へ）。
+- ゲートが `must_fix` に数えないもの（どちらも機械が記録から決める。申告でゲートを緩めない）:
+  - `preexisting: true` の指摘（場所が PR の差分で足した行なら数える）。
+  - **2回目以降の回**の critical でない指摘で、**前の回**の `findings.json` に同じ `file` の指摘が無いもの（新しい指摘。2回目以降は直しの確認だけ。[decisions/2026-11-09-review-later-rounds.md](decisions/2026-11-09-review-later-rounds.md)）。回は台帳から決める: ゲートが数えるレビュアーの子課題を古い順に並べ、最新の1つの前で `findings.json` が読めて `commit` が最新と違う最初のものが前の回（`andon issue review-request` の数え方と同じ）。無ければ1回目。
+- `andon issue ready`・`andon issue show` の照合は `preexisting` の場所を確かめない（PR の差分を持たない下見）。正はゲート。
+- 将来キーを足すなら（例: `title`・`kind`）版を上げずに足せる（原則4）。
 
 ## 4. 報告の機械向けの部分（`report.json`）
 
