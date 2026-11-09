@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"andon/internal/delegate"
@@ -85,25 +86,31 @@ func genGitAuthor(e Env) error {
 	}
 
 	// 今の includeIf が want と同じ並び・同じ値なら書かない。違えば boot の分を外して、この順に足し直す。
+	// boot の include（値が boot のファイル）だけを見る。want と同じ並び・同じ値なら書かない。
+	// 違えば boot の行だけを外して、この順に足し直す（同じ条件の、人が置いた include には触らない）。
 	have, err := cfg("--get-regexp", `^includeif\.gitdir:.*\.path$`)
 	if err != nil {
 		return err
 	}
-	var cur []string
+	owned := map[string]bool{}
+	for _, w := range want {
+		owned[w[1]] = true
+	}
+	var cur, lines []string
 	for _, line := range strings.Split(strings.TrimSpace(have), "\n") {
-		if line != "" {
+		if i := strings.LastIndexByte(line, ' '); i >= 0 && owned[line[i+1:]] {
 			cur = append(cur, line)
 		}
 	}
-	var lines []string
 	for _, w := range want {
 		lines = append(lines, "includeif."+w[0]+".path "+w[1])
 	}
-	if hasInOrder(cur, lines) {
+	if slices.Equal(cur, lines) {
 		return nil
 	}
-	for _, w := range want {
-		if _, err := cfg("--unset-all", "includeIf."+w[0]+".path"); err != nil {
+	for _, line := range cur {
+		i := strings.LastIndexByte(line, ' ')
+		if _, err := cfg("--unset-all", line[:i], "^"+regexp.QuoteMeta(line[i+1:])+"$"); err != nil {
 			return err
 		}
 	}
@@ -114,23 +121,6 @@ func genGitAuthor(e Env) error {
 	}
 	e.logf("git の作者: %s に includeIf を書いた", gc)
 	return nil
-}
-
-// hasInOrder は want の行が cur にこの順で（1つずつ）あるか。
-func hasInOrder(cur, want []string) bool {
-	i := 0
-	for _, c := range cur {
-		if i < len(want) && c == want[i] {
-			i++
-		} else {
-			for _, w := range want {
-				if c == w {
-					return false // 重なっている
-				}
-			}
-		}
-	}
-	return i == len(want)
 }
 
 // ownerName は owner の email から作者の名前を作る（noreply なら login、ほかは @ の前）。

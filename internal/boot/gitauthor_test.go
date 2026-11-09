@@ -125,6 +125,42 @@ func TestGitAuthorReorders(t *testing.T) {
 	}
 }
 
+// 同じ条件（gitdir:<ws>/・gitdir:<GHQ_ROOT>/）に人が置いた include は、並べ直すときも消さない。
+func TestGitAuthorKeepsOtherIncludes(t *testing.T) {
+	f, e, repos := gitFixture(t, testOwner)
+	gc := filepath.Join(f.home, ".gitconfig")
+	product := filepath.Join(f.home, ".config", "andon", "git", "product.gitconfig")
+	human := filepath.Join(f.home, "human.gitconfig")
+	put(t, human, "[alias]\n\tst = status\n")
+	// 人の include（両方の条件）と、逆の並びの boot の include
+	put(t, gc, "[includeIf \"gitdir:"+f.ws+"/\"]\n\tpath = "+human+"\n"+
+		"[includeIf \"gitdir:"+e.GhqRoot+"/\"]\n\tpath = "+human+"\n"+
+		"[includeIf \"gitdir:"+e.GhqRoot+"/\"]\n\tpath = "+product+"\n")
+	for range 2 {
+		if err := genGitAuthor(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body := read(t, gc)
+	if n := strings.Count(body, human); n != 2 {
+		t.Errorf("人の include が %d 個（2 のはず）:\n%s", n, body)
+	}
+	if n := strings.Count(body, product); n != 1 {
+		t.Errorf("product の include が %d 個:\n%s", n, body)
+	}
+	for _, r := range []string{"cell", "product"} {
+		if got := gitIn(t, f, repos[r], "config", "alias.st"); got != "status" {
+			t.Errorf("%s で人の include が効かない: %q", r, got)
+		}
+	}
+	if got := gitIn(t, f, repos["product"], "config", "user.email"); got != testOwner {
+		t.Errorf("案件の repo の作者: %q\n%s", got, body)
+	}
+	if got := gitIn(t, f, repos["cell"], "config", "user.email"); got != AgentEmail {
+		t.Errorf("セルの repo の作者: %q\n%s", got, body)
+	}
+}
+
 // 人が ~/.gitconfig に書いた user.* は上書きしない（2回打っても）。
 func TestGitAuthorKeepsHuman(t *testing.T) {
 	f, e, repos := gitFixture(t, testOwner)
