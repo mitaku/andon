@@ -374,3 +374,68 @@ func TestUnreadableRecordsAreSkippedWithoutAbsolutePath(t *testing.T) {
 		t.Errorf("--json に台帳の絶対パスが出る: %s", js)
 	}
 }
+
+func skippedSources(res *Result) map[string]string {
+	got := map[string]string{}
+	for _, s := range res.Skipped {
+		got[s.Source] = s.Reason
+	}
+	return got
+}
+
+func TestUnreadableDirectoriesAreSkippedNotDropped(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root は読み取り権限を無視する")
+	}
+	root := fakeLedger(t)
+	k := filepath.Join(root, "kanban")
+	dirs := []string{
+		"issues/S-0003",              // 辿れない課題のディレクトリ（skip の出どころは中の issue.yaml）
+		"issues/S-0002/library/gate", // 読めないゲートのディレクトリ
+	}
+	for _, d := range dirs {
+		p := filepath.Join(k, d)
+		if err := os.Chmod(p, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(p, 0o755) })
+	}
+	res, err := Measure(opts(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := skippedSources(res)
+	for _, d := range dirs {
+		src := "kanban/" + d
+		if d == "issues/S-0003" {
+			src += "/issue.yaml"
+		}
+		why, ok := got[src]
+		if !ok {
+			t.Errorf("読めない %s が飛ばした記録に無い: %+v", d, res.Skipped)
+			continue
+		}
+		if strings.Contains(why, root) || strings.Contains(why, "/") {
+			t.Errorf("%s の理由にパスが入る: %q", d, why)
+		}
+	}
+	js, _ := json.Marshal(res)
+	if strings.Contains(string(js), root) || !strings.Contains(string(js), "kanban/issues/S-0003") {
+		t.Errorf("--json の飛ばした記録が合わない: %s", js)
+	}
+}
+
+func TestUnreadableAnsweredIsSkippedNotUnanswered(t *testing.T) {
+	root := fakeLedger(t)
+	k := filepath.Join(root, "kanban")
+	put(t, filepath.Join(k, "issues/S-0002/questions.yaml"),
+		"- n: 1\n  text: x\n  asked: \"2026-11-02T03:00:00Z\"\n  status: received\n  answered: \"yesterday\"\n")
+	res, err := Measure(opts(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	why, ok := skippedSources(res)["kanban/issues/S-0002/questions.yaml"]
+	if !ok || !strings.Contains(why, "answered") {
+		t.Errorf("読めない answered が飛ばした記録に無い: %+v", res.Skipped)
+	}
+}
