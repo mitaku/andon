@@ -195,7 +195,12 @@ EOF
 ```
 
 - `commit` は command が `HEAD` を書く。`pr` は `--pr` で（省くと前の `report.json` の `pr` を引き継ぐ）。
-- `--data` は任意のキーの JSON object: `waived`・`acceptance`・`next`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。
+- `--data` は任意のキーの JSON object: `waived`・`acceptance`・`risk`・`next`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr` のほかは引き継がないので、打つたびに全部を渡す。
+- `acceptance`: 依頼書か Chief Engineer の文書に受け入れ条件（A1, A2, …）があれば、1つずつ `{"id": "A1", "result": "pass", "evidence": "<テストの command か実行の跡のパス>"}` を書く。`result` は通した `pass`・通せない `fail`・人が見る `manual`。`fail` があるとゲートは `fix`、`manual` があるとレベルを1つ上げる。条件が無ければ書かない。
+  受け入れ条件のテストは、先に落ちるのを確かめる（直す前か、直した所を戻して）。
+- `risk`: 変更そのものが revert で戻らないなら `{"risk": {"one_way": true, "impact": ["<何に届くか。人が読む>"]}}`。ゲートはレベルを C に上げる（人が見る）。true にするのは、例えば:
+  本番のデータを移す・消す（列や表を落とす migration）／外に出たものを消す・書き換える（公開した版・送ったメール・外の API の約束）／履歴を消す（force push・branch や記録の削除）。
+  戻せる変更は `risk` を書かない。`false` と書いてもレベルは下がらない。
 - 形が違えば command が書く前に止まる（理由1行）。直して打ち直す。
 
 人が読む報告の書式（毎回全体を書き直す）:
