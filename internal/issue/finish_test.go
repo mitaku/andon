@@ -143,3 +143,34 @@ func TestCompareAndDeleteBranch(t *testing.T) {
 		t.Error("進んだ branch が無くなった")
 	}
 }
+
+// 別の worktree が checkout している branch は、消さない（その worktree の HEAD が壊れる）
+func TestBranchCheckedOut(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	tmp := t.TempDir()
+	repo, wt := filepath.Join(tmp, "repo"), filepath.Join(tmp, "wt")
+	for _, args := range [][]string{
+		{"init", "-q", repo},
+		{"-C", repo, "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-q", "--allow-empty", "-m", "base"},
+		{"-C", repo, "branch", "topic"},
+		{"-C", repo, "worktree", "add", "-q", wt, "topic"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	if !branchCheckedOut(repo, "topic") {
+		t.Error("worktree が使っている branch を使用中と見ない")
+	}
+	if branchCheckedOut(repo, "other") {
+		t.Error("誰も使っていない branch を使用中と見た")
+	}
+	if out, err := exec.Command("git", "-C", repo, "worktree", "remove", wt).CombinedOutput(); err != nil {
+		t.Fatalf("worktree remove: %v %s", err, out)
+	}
+	if branchCheckedOut(repo, "topic") {
+		t.Error("worktree を消したあとも使用中と見た")
+	}
+}

@@ -155,7 +155,9 @@ func (c *ctx) finish(stdout io.Writer) error {
 					} else if tip, why := c.mergedPRHead(repoDir, branch); tip != "" {
 						// squash マージは branch の commit が main に入らない。MERGED の PR の head と先が同じなら作業は失われない。
 						// 確かめた SHA を期待値にして消す（確かめたあとに branch が進んでいたら消えない）
-						if _, err := git(repoDir, "update-ref", "-d", "refs/heads/"+branch, tip); err != nil {
+						if branchCheckedOut(repoDir, branch) {
+							kept = fmt.Sprintf(" branch %s はほかの worktree が使っているので残した", branch)
+						} else if _, err := git(repoDir, "update-ref", "-d", "refs/heads/"+branch, tip); err != nil {
 							kept = fmt.Sprintf(" branch %s は確かめたあとに動いたので残した", branch)
 						}
 					} else {
@@ -195,6 +197,21 @@ func (c *ctx) mergedPRHead(repoDir, branch string) (string, string) {
 		return "", "PR の head のあとに commit が足されている"
 	}
 	return tip, ""
+}
+
+// branchCheckedOut は branch をどれかの worktree が checkout しているか（git branch -D の保護と同じ。update-ref -d には無い）。
+// 一覧が読めなければ使われているものとして扱う。
+func branchCheckedOut(repoDir, branch string) bool {
+	out, err := git(repoDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return true
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if l == "branch refs/heads/"+branch {
+			return true
+		}
+	}
+	return false
 }
 
 // MainCheckout は path が repo の本体の checkout（git worktree list の先頭）か。repoDir と path の両方から見る
