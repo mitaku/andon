@@ -44,22 +44,18 @@ var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
 // Record はゲートの記録（schema/gate.schema.json の record）。
 type Record struct {
-	At           string        `json:"at"`
-	ID           string        `json:"id"`
-	PR           string        `json:"pr"`
-	Head         string        `json:"head"`
-	Tier         string        `json:"tier"`
-	TierReasons  []string      `json:"tier_reasons"`
-	ChangedLines int           `json:"changed_lines"`
-	Checks       []Check       `json:"checks"`
-	GitHubChecks GitHubChecks  `json:"github_checks"`
-	Review       ledger.Review `json:"review"`
-	Acceptance   struct {
-		Pass   int `json:"pass"`
-		Fail   int `json:"fail"`
-		Manual int `json:"manual"`
-	} `json:"acceptance"`
-	Delegation struct {
+	At           string          `json:"at"`
+	ID           string          `json:"id"`
+	PR           string          `json:"pr"`
+	Head         string          `json:"head"`
+	Tier         string          `json:"tier"`
+	TierReasons  []string        `json:"tier_reasons"`
+	ChangedLines int             `json:"changed_lines"`
+	Checks       []Check         `json:"checks"`
+	GitHubChecks GitHubChecks    `json:"github_checks"`
+	Review       ledger.Review   `json:"review"`
+	Acceptance   AcceptanceCount `json:"acceptance"`
+	Delegation   struct {
 		Merge string `json:"merge"`
 		OK    bool   `json:"ok"`
 	} `json:"delegation"`
@@ -320,21 +316,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	for _, a := range rep.Acceptance {
-		switch a.Result {
-		case "pass":
-			rec.Acceptance.Pass++
-		case "fail":
-			rec.Acceptance.Fail++
-		case "manual":
-			rec.Acceptance.Manual++
-		}
-	}
+	cl, rec.Acceptance = FromReport(cl, rep)
 	tier := cl.Tier
-	if rec.Acceptance.Manual > 0 && tier != "C" {
-		tier = Raise(tier)
-		cl.TierReasons = append(cl.TierReasons, fmt.Sprintf("受け入れ条件の manual が %d 件（1つ上げた）", rec.Acceptance.Manual))
-	}
 	facts.Tier, facts.AcceptanceFail = tier, rec.Acceptance.Fail
 	rec.Tier, rec.TierReasons, rec.ChangedLines = tier, cl.TierReasons, cl.ChangedLines
 

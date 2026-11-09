@@ -140,6 +140,7 @@ findings|.findings[0]|severity file line
 report|.review_request|round limit commit previous reviewer extra
 report|.waived[0]|severity file line reason
 report|.acceptance[0]|id result evidence
+report|.risk|one_way
 report|.next[0]|to text
 question|.options[0]|label pick
 notification|.detail|report pr
@@ -224,6 +225,11 @@ fail|report|.pr = "https://github.com/\ufeffowner/andon/pull/1"|pr の owner に
 fail|report|.pr = "https://github.com/own er/andon/pull/1"|pr の owner に空白
 fail|report|.pr = "https://github.com/\u00e9/andon/pull/1"|pr の owner に ASCII の外の字
 fail|report|.acceptance[0].result = "ok"|acceptance の result が pass/fail/manual でない
+pass|report|del(.risk)|risk の無い古い report.json
+pass|report|.risk = {"one_way": false}|risk の one_way: false（impact 無し）
+fail|report|.risk.one_way = "true"|risk.one_way が真偽でない
+fail|report|.risk.impact = [""]|risk.impact に空の行
+fail|report|.risk.impact = "x"|risk.impact が配列でない
 fail|report|.next[0].to = "human"|next の to が知らない宛先
 fail|report|.next[0].to = "task"|古い宛先 to: task（report/2 は issue）
 fail|report|.remember = "x"|remember が配列でない

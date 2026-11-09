@@ -308,6 +308,12 @@ type Acceptance struct {
 	Evidence string `json:"evidence"`
 }
 
+// Risk は担当の一方通行の申告（変更そのものが戻せないか）。機械が読むのは one_way だけで、impact は人が読む欄。
+type Risk struct {
+	OneWay *bool    `json:"one_way"`
+	Impact []string `json:"impact,omitempty"`
+}
+
 // Next は宛先つきの次の一手。
 type Next struct {
 	To   string `json:"to"`
@@ -321,6 +327,7 @@ type Report struct {
 	ReviewRequest *ReviewRequest `json:"review_request,omitempty"`
 	Waived        []Waived       `json:"waived,omitempty"`
 	Acceptance    []Acceptance   `json:"acceptance,omitempty"`
+	Risk          *Risk          `json:"risk,omitempty"`
 	Next          []Next         `json:"next,omitempty"`
 	Remember      []string       `json:"remember,omitempty"`
 	AgentsMD      []string       `json:"agents_md,omitempty"`
@@ -359,6 +366,16 @@ func (r *Report) Check() error {
 	for _, a := range r.Acceptance {
 		if a.ID == "" || a.Evidence == "" || (a.Result != "pass" && a.Result != "fail" && a.Result != "manual") {
 			return errors.New("acceptance は {id, result: pass|fail|manual, evidence}")
+		}
+	}
+	if k := r.Risk; k != nil {
+		if k.OneWay == nil {
+			return errors.New("risk に one_way（true/false）が無い")
+		}
+		for _, s := range k.Impact {
+			if s == "" {
+				return errors.New("risk.impact に空の行")
+			}
 		}
 	}
 	for _, n := range r.Next {

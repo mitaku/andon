@@ -14,6 +14,11 @@ func TestParseReport(t *testing.T) {
 	if _, err := ParseReport([]byte(good)); err != nil {
 		t.Fatal(err)
 	}
+	for _, risk := range []string{`{"one_way":true,"impact":["本番の表の列を消す"]}`, `{"one_way":false}`} {
+		if _, err := ParseReport([]byte(strings.Replace(good, `"pr"`, `"risk":`+risk+`,"pr"`, 1))); err != nil {
+			t.Errorf("risk %s: %v", risk, err)
+		}
+	}
 	for name, bad := range map[string]string{
 		"知らないキー":                strings.Replace(good, `"pr"`, `"x":1,"pr"`, 1),
 		"previous が無い":          strings.Replace(good, `"previous":null,`, ``, 1),
@@ -22,6 +27,11 @@ func TestParseReport(t *testing.T) {
 		"waived の file が .. の段": strings.Replace(good, `"a/b"`, `"a/../../b"`, 1),
 		"reviewer が知らない":        strings.Replace(good, "codex-review", "claude", 1),
 		"後ろに余り":                 good + "{}",
+		"risk に one_way が無い":    strings.Replace(good, `"pr"`, `"risk":{"impact":["x"]},"pr"`, 1),
+		"risk.one_way が null":   strings.Replace(good, `"pr"`, `"risk":{"one_way":null},"pr"`, 1),
+		"risk.one_way が文字列":     strings.Replace(good, `"pr"`, `"risk":{"one_way":"true"},"pr"`, 1),
+		"risk.impact に空の行":      strings.Replace(good, `"pr"`, `"risk":{"one_way":true,"impact":[""]},"pr"`, 1),
+		"risk に知らないキー":          strings.Replace(good, `"pr"`, `"risk":{"one_way":true,"level":"A"},"pr"`, 1),
 	} {
 		if _, err := ParseReport([]byte(bad)); err == nil {
 			t.Errorf("%s: 通ってしまう", name)

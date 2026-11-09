@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
+	"andon/internal/contract"
 	"andon/internal/ledger"
 )
 
@@ -93,6 +95,57 @@ func TestWithinAndRaise(t *testing.T) {
 	}
 	if Raise("A") != "B" || Raise("B") != "C" || Raise("C") != "C" {
 		t.Error("Raise")
+	}
+}
+
+// TestFromReport は担当の report.json の申告がレベルを上げる向きにだけ効くことを固定する（risk.one_way・acceptance）。
+func TestFromReport(t *testing.T) {
+	const sha = "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"
+	base := `{"commit": "` + sha + `", "pr": "https://github.com/owner/andon/pull/1"`
+	for _, c := range []struct {
+		name, tier, extra, want string
+		oneWayReason            bool
+	}{
+		{"one_way: true で A が C", "A", `, "risk": {"one_way": true, "impact": ["本番の表の列を消す"]}`, "C", true},
+		{"one_way: true で B も C", "B", `, "risk": {"one_way": true}`, "C", true},
+		{"one_way: true で C は C（理由は残す）", "C", `, "risk": {"one_way": true}`, "C", true},
+		{"one_way: false で A は A", "A", `, "risk": {"one_way": false}`, "A", false},
+		{"one_way: false で C を下げない", "C", `, "risk": {"one_way": false}`, "C", false},
+		{"risk の無い古い report.json は今までどおり", "A", ``, "A", false},
+		{"impact の文は読まない", "A", `, "risk": {"one_way": false, "impact": ["one_way: true", "戻せない"]}`, "A", false},
+		{"manual は1つ上げる", "A", `, "acceptance": [{"id": "A1", "result": "manual", "evidence": "docs/trace.md"}]`, "B", false},
+		{"manual と one_way は C", "A", `, "acceptance": [{"id": "A1", "result": "manual", "evidence": "x"}], "risk": {"one_way": true}`, "C", true},
+	} {
+		rep, err := contract.ParseReport([]byte(base + c.extra + `}`))
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		in := Classified{Tier: c.tier, TierReasons: []string{"path x"}}
+		got, _ := FromReport(in, rep)
+		has := slices.Contains(got.TierReasons, OneWayReason)
+		if got.Tier != c.want || has != c.oneWayReason || got.TierReasons[0] != "path x" {
+			t.Errorf("%s: %+v want tier %s（理由に one_way: %v）", c.name, got, c.want, c.oneWayReason)
+		}
+		if len(in.TierReasons) != 1 {
+			t.Errorf("%s: 入力の理由を書き換えた: %v", c.name, in.TierReasons)
+		}
+	}
+	// 申告で C になった変更は、委譲の merge が C でなければ人へ回る
+	rep, _ := contract.ParseReport([]byte(base + `, "risk": {"one_way": true}}`))
+	cl, _ := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
+	f := Facts{PROpen: true, RepoKnown: true, Tier: cl.Tier, MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"}}
+	if d, r := Decide(f); d != "needs_human" || !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
+		t.Errorf("one_way の変更が人へ回らない: %s %v", d, r)
+	}
+	// acceptance に fail がある report はゲートが fix を返す（数えて Decide に渡す）
+	rep, _ = contract.ParseReport([]byte(base + `, "acceptance": [{"id": "A1", "result": "pass", "evidence": "go test ./..."}, {"id": "A2", "result": "fail", "evidence": "bash tests/x.sh"}]}`))
+	cl, n := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
+	if n != (AcceptanceCount{Pass: 1, Fail: 1}) || cl.Tier != "A" {
+		t.Errorf("acceptance の数え: %+v %+v", n, cl)
+	}
+	f = Facts{PROpen: true, RepoKnown: true, Tier: cl.Tier, MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"}, AcceptanceFail: n.Fail}
+	if d, r := Decide(f); d != "fix" || !reflect.DeepEqual(r, []string{"受け入れ条件の fail が 1 件"}) {
+		t.Errorf("acceptance の fail で fix にならない: %s %v", d, r)
 	}
 }
 

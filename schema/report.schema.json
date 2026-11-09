@@ -78,6 +78,16 @@
         }
       }
     },
+    "risk": {
+      "description": "The agent's own statement of whether the change itself cannot be undone (a data migration, a delete, a promise to the outside). It only raises the gate's tier: one_way true makes it C; false or absent never lowers it.",
+      "type": "object",
+      "required": ["one_way"],
+      "additionalProperties": false,
+      "properties": {
+        "one_way": { "description": "true when the change cannot be undone by a revert. The gate reads only this.", "type": "boolean" },
+        "impact": { "description": "What the change reaches, for people. The gate does not read it.", "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
     "next": {
       "description": "Next steps, each addressed.",
       "type": "array",
