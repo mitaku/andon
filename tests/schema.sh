@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の8本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の9本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh に書かせる）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-measure.sh に書かせる）。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,14 +21,14 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; *) return 1 ;;
   esac
 }
-expected="candidates findings gate issue-keys notification project question report"
+expected="candidates findings gate issue-keys measure notification project question report"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は8本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は9本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
     ok "schema/$name の決まり"
@@ -38,7 +38,7 @@ for name in $expected; do
 done
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -111,6 +111,7 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
+  [measure]="project since until days flow efficiency counter prs skipped"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
@@ -154,6 +155,19 @@ project|.chief_of_staff|
 project|.delegation.grants[0]|id scope value by at evidence
 project|.delegation.grants[1].revoked|at by reason
 candidates|.candidates[0]|id text in_scope
+measure|.flow|lead_time wait question_open closed wip_end
+measure|.flow.lead_time|count hours
+measure|.flow.wait.todo|count hours
+measure|.flow.closed|count per_day
+measure|.efficiency|merged_prs human_touches auto_merge gate
+measure|.efficiency.human_touches|total per_pr
+measure|.efficiency.auto_merge|count rate
+measure|.efficiency.gate|records fix needs_human rate
+measure|.counter|reverted follow_ups reopened
+measure|.counter.reopened|corrections by_tier
+measure|.counter.reopened.by_tier|A B C none
+measure|.prs[0]|issue pr merged_at tier auto human_touches lead_time_hours reverted corrections
+measure|.skipped[0]|source reason
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -334,6 +348,21 @@ fail|candidates|.candidates[0] += {"severity": "minor"}|候補に指摘のキー
 fail|candidates|.commit = "9c4e1b0"|commit が40桁でない
 fail|candidates|.commit = null|commit が null（repo の無い課題は書かない）
 fail|candidates|.candidates = {}|candidates が配列でない
+pass|measure|.prs = [] | .skipped = [] | .efficiency.auto_merge.rate = null | .flow.lead_time.hours = null|記録が無い（空の配列・率が null）
+pass|measure|.skipped[0] |= del(.line)|飛ばした記録に line が無い（ファイル・repo）
+pass|measure|.flow.wait = {}|待ち時間の状態が無い
+fail|measure|.flow.wait.todo = 1|待ち時間の値が {count, hours} でない
+fail|measure|.efficiency.auto_merge.rate = -0.5|率が負
+fail|measure|.efficiency.auto_merge.rate = "50%"|率が文字列
+fail|measure|.flow.wip_end = -1|WIP が負
+fail|measure|.flow.closed.count = 1.5|件数が整数でない
+fail|measure|.days = 0|days が 0
+fail|measure|.since = "2026/11/01"|since が YYYY-MM-DD でない
+fail|measure|.counter.reopened.corrections = "unknown"|corrections が recorded/none でない
+fail|measure|.prs[0].tier = "D"|tier が A/B/C/none でない
+fail|measure|.prs[0].pr = "#1"|pr が URL でない
+fail|measure|.skipped[0].line = 0|飛ばした行の line が 0
+fail|measure|.skipped[0].reason = "a\nb"|飛ばした理由が2行
 EOF
 
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
@@ -359,6 +388,8 @@ candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_
 candidates|.additionalProperties = true|候補の一覧の知らないキーを許す
 question|.properties.kind.enum -= ["scope"]|問いの kind から scope を外す
 issue-keys|del(.properties.deliverable)|台帳の項目から deliverable を外す
+measure|.required -= ["skipped"]|流れの数えの必須から skipped を外す
+measure|."$defs".rate.anyOf[0].minimum = -1|率の負を許す
 LOOSE
 fi
 
@@ -367,7 +398,7 @@ fi
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-issue andon-gate andon-dispatcher; do
+  for t in andon-issue andon-gate andon-dispatcher andon-measure; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -398,6 +429,8 @@ notification-review-requested.json|notification|andon dispatcher の通知 revie
 notification-gate.json|notification|andon dispatcher の通知 gate
 notification-merged.json|notification|andon dispatcher の通知 merged
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
+measure.json|measure|andon measure --json の出力
+measure-empty.json|measure|andon measure --json の出力（記録が無い台帳）
 notification-impact-error.json|notification|andon dispatcher の通知 impact（集められず諦めたとき）
 notification-asked.json|notification|andon dispatcher の通知 asked
 notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report

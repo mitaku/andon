@@ -12,8 +12,9 @@
 | §7 ゲートの条件表と記録 | `schema/gate.schema.json`（条件表か記録のどちらか一方に合う） |
 | §11 プロジェクトの事実と委譲 | `schema/project.schema.json` |
 | §12 候補の一覧 | `schema/candidates.schema.json` |
+| §13 流れの数え（`andon measure --json` の出力） | `schema/measure.schema.json` |
 
-- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
 - 台帳の形式（ledger-format v2。別プロジェクトの持ち物）は**変えない**。Andon のキーは「Any other key is allowed and kept」の上に置く。形式そのものに触れたいことは design.md §3.2 の相談に並べた。台帳の CLI と形式を Andon に移したら（§3.5）、「変えない」は「形式の版で変える」になる。それまでこの文書は v2 の上に乗る。
 
@@ -376,3 +377,49 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 - 人が読む分は報告の `## Report` に同じ一覧を表で写す（1行1候補。`id`・場所・何・範囲の中か）。
 - 候補が多い（目安 10 を超える）とき、調べる課題は全部書き、直す課題は「数と種類」を問いに書いて候補は代表だけ。
 - レビュアーの `findings.json`（§3。直す前提の指摘で、ゲートが数える）とは別の約束。混ぜない。
+
+## 13. 流れの数え（`andon measure --json` の出力）
+
+`andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` が、1つの台帳の期間の流れ・効率・対抗の指標を数えて出す（[決定](decisions/2026-11-09-measure-flow-metrics.md)）。**読むだけで、何も書かない・保存しない**。この節はその `--json` の形で、置き場は無い（標準出力だけ）。人向けの表（`--json` 無し）は先頭が「価値: 未計測」の1行で、流れ → 効率の順に並び、自動マージ率の行に対抗の指標を並べる。表は人が読むもので、機械は読まない。
+
+読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`）・`questions.yaml`（`asked`・`answered`）・`report.json`（`pr`）・ゲートの記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、台帳の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）。期間は UTC の日付で両端を含む（既定は今日までの7日）。
+
+```json
+{"project": "sample-site", "since": "2026-11-01", "until": "2026-11-04", "days": 4,
+ "flow": {"lead_time": {"count": 2, "hours": 9},
+   "wait": {"todo": {"count": 3, "hours": 1.33}, "queued": {"count": 0, "hours": null},
+            "doing": {"count": 3, "hours": 19}, "review": {"count": 2, "hours": 10.5}},
+   "question_open": {"count": 1, "hours": 2},
+   "closed": {"count": 2, "per_day": 0.5}, "wip_end": 1},
+ "efficiency": {"merged_prs": 2, "human_touches": {"total": 3, "per_pr": 1.5},
+   "auto_merge": {"count": 1, "rate": 0.5},
+   "gate": {"records": 3, "fix": 1, "needs_human": 1, "rate": 0.67}},
+ "counter": {"reverted": 1, "follow_ups": 1,
+   "reopened": {"corrections": "recorded", "by_tier": {"A": 1, "B": 1, "C": 0, "none": 0}}},
+ "prs": [
+   {"issue": "S-0001", "pr": "https://github.com/example/sample-site/pull/1", "merged_at": "2026-11-01T06:00:00Z",
+    "tier": "A", "auto": true, "human_touches": 1, "lead_time_hours": 6, "reverted": true, "corrections": false},
+   {"issue": "S-0002", "pr": "https://github.com/example/sample-site/pull/2", "merged_at": "2026-11-02T12:00:00Z",
+    "tier": "B", "auto": false, "human_touches": 2, "lead_time_hours": 12, "reverted": false, "corrections": true}],
+ "skipped": [{"source": "kanban/log.jsonl", "line": 8, "reason": "JSON の object でない"}]}
+```
+
+| キー | 数え方 |
+|---|---|
+| `flow.lead_time` | 期間にマージされた台帳の PR の、課題の `created` から `mergedAt` まで（中央値の時間） |
+| `flow.wait.<status>` | `log.jsonl` の `change.status` を辿り、期間の中でその状態にいた時間の、1件あたりの平均（最後の列を除く。入った時刻は `created`、`after` のある課題は `queued` から） |
+| `flow.question_open` | `asked` から `answered`（無ければ期間の終わり）までの、期間の中の時間の1問あたりの平均 |
+| `flow.closed` | 期間に最後の列へ動いた課題の数と、日数で割った値 |
+| `flow.wip_end` | 期間の終わりに、最初の列・`queued`・最後の列のどれでもない課題の数 |
+| `efficiency.merged_prs` | `report.json` の `pr`（無ければ最後のゲートの記録の `pr`）が、期間に GitHub でマージされた課題の数 |
+| `efficiency.human_touches` | その課題の `log.jsonl` の行のうち `by` が `terminal:`・`routine:` でないもの（一次の指標）。`per_pr` はマージした PR あたり |
+| `efficiency.auto_merge` | そのうちゲートの記録が `merged: true`（dispatcher がマージ）のもの |
+| `efficiency.gate` | 期間に書かれたゲートの記録と、差し戻し率（`fix` ＋ `needs_human`）÷ 記録（[design.md](design.md) §5.1） |
+| `counter.reverted` | 期間にマージされた PR のうち題が `Revert ` で始まり、本文が `<owner>/<repo>#<n>` か URL で台帳のマージされた PR を指すもの、が指す PR の数 |
+| `counter.follow_ups` | 期間に作られた課題のうち、`links` か、マージされた自分の PR の本文が、別の課題のマージされた PR の URL を含むもの |
+| `counter.reopened` | 人が開け直した数をゲートのレベルごとに: `merged_prs` のうち `corrections.json` に1件以上ある課題と、期間に revert された自動マージの PR（重なれば1回）。`corrections` は台帳に `corrections.json` が1つも無ければ `none`（記録なし） |
+| `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、在るが読めないファイル、PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
+
+- 書き手は `andon measure` だけ（出力するだけ）。読み手は人と振り返り（委譲を広げる根拠）。ゲートも dispatcher も判定に使わない。
+- 数えるものが無ければ件数は 0、率・平均・中央値は `null`（表は「記録なし」）で、終了コード 0。台帳の `config.yaml` が読めない・版が 3 でないときだけ終了コード 1。
+- レビュアーの課題（`<id>-r<k>`・`profile` が `-review` で終わる）は流れにも効率にも数えない。

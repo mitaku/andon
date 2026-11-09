@@ -133,7 +133,7 @@ flowchart TB
 | Ship（入れる） | ゲートが通し委譲の範囲ならマージして片付ける。レベル C と不可逆は人（灯り） | dispatcher・人 | `gh pr merge --match-head-commit`・`andon task finish`・ゲートの記録 | **ある** |
 | and observe（見る） | 本番が示したものを次の信号にする（障害を PR まで遡る） | — | — | **無い**（ADR-0006 前提 11。デプロイは案件の CI の仕事で Andon は持たない） |
 | アウターループ | 記録（報告・指摘・ゲートの記録・問い・人の手直し）→ 振り返り → 分類（テスト／観点／指針／skill）→ 環境の変更の PR | 振り返りのルーチン・Chief of Staff（案件側）・人（Andon のライン） | `report.json`・`findings.json`・`gate/<sha>.json`・`questions.yaml`・`corrections.json`・ルーチン `retro` | **一部**（記録はある。`corrections.json` と `retro` は設計だけ＝ADR-0007 C3） |
-| 測る | PR あたりの人の介在回数（一次。人の答え 2026-11-07）。自動マージ率・ゲートの差し戻し率は並べて見る。依頼書からマージまでの時間 | 振り返り | `log.jsonl` の `by`・`report.json`・ゲートの記録から数える | **設計だけ**（最初の1回も未集計。ADR-0007 E6） |
+| 測る | PR あたりの人の介在回数（一次。人の答え 2026-11-07）。自動マージ率・ゲートの差し戻し率は並べて見る。依頼書からマージまでの時間 | 振り返り | `andon measure`（`log.jsonl` の `by`・`report.json`・ゲートの記録から数える。2026-11-09 に待ち時間・流量・WIP・対抗の指標を足した。[decisions/2026-11-09-measure-flow-metrics.md](decisions/2026-11-09-measure-flow-metrics.md)） | **ある**（command。実測の記録はこれから） |
 | | 後悔しないマージの率 | — | — | **測らない**（人の答え 2026-11-07: 後悔は測りにくい。本番からの戻りも無い） |
 | その先 | クラウド常駐・通知の口（最終形）・作業側を別のマシンに | — | `machine`・通知の JSON | **設計だけ**（design.md §5.1「その先」、ADR-0007 E5） |
 
