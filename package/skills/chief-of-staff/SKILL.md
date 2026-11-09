@@ -408,7 +408,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 - **形**: 1ファイル1件（`wiki/<日付>-<短い名>.md`）。front matter に `date`・`source`（課題の番号・PR・人の発言の日付）。`index.md` に1行で足し、痩せたまま保つ。`log.md` は作らない（履歴はセルの repo の git）。
 - **lint**: 書く前に `index.md` の近い項を読む。矛盾すれば古いページを上書きせず、末尾に `→ 覆された（<新しいページ>）` を1行足す。定期の課題は起こさない。
 - **query**: 課題を切るとき（§1）と、Chief Engineer の「読む」が `index.md` を引く。
-- **commit・push**: `git -C /workspace add wiki && git -C /workspace commit -m "wiki: <要点>" && git -C /workspace push`。wiki の外を一緒に commit しない。
+- **commit・push**: `git -C /workspace add wiki && git -C /workspace commit --only -m "wiki: <要点>" -- wiki && git -C /workspace push`（`--only -- wiki` で、wiki の外が staged でも commit に入れない）。
 
 ## ルール
 

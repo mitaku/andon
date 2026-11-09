@@ -226,6 +226,7 @@ grep -q '## 差し戻し（<日付>）' "$cos" && grep -q '`## 差し戻し` が
   && pass "差し戻しは依頼書への追記で数え、2回で通らなければ新しい課題に切る" || fail "chief-of-staff に差し戻しの追記か切り直しの手順が無い"
 cos11=$(sed -n '/^## 11\. wiki$/,/^## ルール$/p' "$cos")
 miss=""; for k in '何を' 'いつ（ingest）' '形' 'lint'; do grep -q "^- \*\*$k\*\*: " <<<"$cos11" || miss="$miss $k"; done
+grep -q 'commit --only -m "wiki: <要点>" -- wiki' <<<"$cos11" || miss="$miss commit（--only -- wiki）"
 [ -z "$miss" ] && pass "Chief of Staff の skill に wiki の節（何を・いつ・形・lint）がある" || fail "chief-of-staff の wiki の節に無い項:$miss"
 # ADR-0009 受け入れ条件 4: Chief of Staff の template が wiki を道具の届く場所に足す
 case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /workspace/wiki "*) pass "Chief of Staff の template の command に --add-dir /workspace/wiki" ;; *) fail "Chief of Staff の template に --add-dir /workspace/wiki が無い" ;; esac
