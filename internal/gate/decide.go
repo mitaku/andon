@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"andon/internal/contract"
 	"andon/internal/ledger"
 )
 
@@ -212,6 +213,44 @@ func Raise(tier string) string {
 		return tiers[i+1]
 	}
 	return tier
+}
+
+// AcceptanceCount は report.json の acceptance[] の件数（ゲートの記録の acceptance）。
+type AcceptanceCount struct {
+	Pass   int `json:"pass"`
+	Fail   int `json:"fail"`
+	Manual int `json:"manual"`
+}
+
+// OneWayReason は担当が risk.one_way: true と申告してレベルを C にしたときの理由。
+const OneWayReason = "担当の申告: one_way"
+
+// FromReport は Classify の判定に担当の report.json を足す（純粋関数）。担当の申告はレベルを上げる向きにだけ効く:
+// acceptance に manual があれば1つ上げ、risk.one_way が true なら C にする。false・無しでは何もしない（下げない）。
+// risk.impact は人が読む欄で、ここでは読まない。
+func FromReport(cl Classified, rep *contract.Report) (Classified, AcceptanceCount) {
+	var n AcceptanceCount
+	for _, a := range rep.Acceptance {
+		switch a.Result {
+		case "pass":
+			n.Pass++
+		case "fail":
+			n.Fail++
+		case "manual":
+			n.Manual++
+		}
+	}
+	reasons := append([]string{}, cl.TierReasons...)
+	if n.Manual > 0 && cl.Tier != "C" {
+		cl.Tier = Raise(cl.Tier)
+		reasons = append(reasons, fmt.Sprintf("受け入れ条件の manual が %d 件（1つ上げた）", n.Manual))
+	}
+	if rep.Risk != nil && rep.Risk.OneWay != nil && *rep.Risk.OneWay {
+		cl.Tier = "C"
+		reasons = append(reasons, OneWayReason)
+	}
+	cl.TierReasons = reasons
+	return cl, n
 }
 
 // Within は tier が委譲の merge の範囲の中か（none は何も通さない）。
