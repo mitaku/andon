@@ -35,7 +35,8 @@ type Watch struct {
 //	CLOSED                         → 片付けない。通知 closed を1回だけ
 func (p *project) humanMerge(t ledger.Issue, rep *contract.Report, now time.Time) {
 	id := t.Str("id")
-	if rep.PR == "" {
+	// 見るのは issue.yaml の repo の PR だけ（ほかの repo の PR がマージされても、この課題は片付かない）
+	if owner, name, _, ok := contract.ParsePR(rep.PR); !ok || "github.com/"+owner+"/"+name != t.Str("repo") {
 		return
 	}
 	for _, g := range p.st.Gates {

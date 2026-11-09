@@ -34,7 +34,7 @@ cat > "$tmp/bin/gh" <<EOF
 d=$tmp/gh
 case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
-  "pr view 7 --repo example/app --json state,mergeCommit")   # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
+  "pr view 7 --repo example/"*" --json state,mergeCommit")   # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
     echo x >> \$d/states
     if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
     elif [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
@@ -510,6 +510,20 @@ n=$(wc -l < "$tmp/gh/states"); watch_due "$hm"; dispatcher
 rm "$tmp/gh/closed"
 HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null   # 前の節の課題と同じ PR 7 を使うので、ここで片付ける
 ok 'PR がマージされずに閉じたら片付けず、通知 closed を1回だけ積む（もう聞き直さない）'
+
+# 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
+hm=$(newtask '別の repo の PR' person)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/other/pull/7
+(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
+person_merges
+n=$(wc -l < "$tmp/gh/states"); dispatcher; watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die '別の repo の PR がマージされたのを見て片付けた'
+[ "$(wc -l < "$tmp/gh/states")" = "$n" ] && [ "$(pending "$hm" merged)" = null ] || die '別の repo の PR を GitHub に聞いた・知らせた'
+rm -f "$tmp/gh/merged"
+HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null
+ok 'issue.yaml の repo と違う repo の PR は、マージされていても見ず、片付けない'
 
 # 5. 上限を超えた回（extra）は起こさない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null

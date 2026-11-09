@@ -189,7 +189,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 `merge: person` やゲートの `needs_human` の課題は、人が GitHub で PR をマージしても台帳は `review` のまま残る。気づくのが Chief of Staff だけだと、ゲートの問い（`from: gate`）は開いたまま、finish も影響（§2.5）も走らず、finish は開いた問いで止まるので Chief of Staff が `kanban answer`・`kanban received` を手で打つことになる。
 そこで dispatcher が見回りで PR の状態を見て、**dispatcher が自分でマージしたときと同じ道**（finish → `done` の行 → 次の巡で §2.5・§2.6）に乗せる。マージはしない（拾うのはマージ済みのものだけ）。ゲートの判定も変えない。
 
-- **見るのは `review` にいて `report.json` に `pr` がある、インナーループを通る課題だけ**（§5 の P6a と同じ見分け）。dispatcher が自分でマージした課題（控えの `Gates[].Merged`）は見ない。
+- **見るのは `review` にいて `report.json` に `pr` がある、インナーループを通る課題だけ**（§5 の P6a と同じ見分け）。PR の repo が `issue.yaml` の `repo` と違えば見ない（ほかの repo の PR がマージされても、この課題は片付かない）。dispatcher が自分でマージした課題（控えの `Gates[].Merged`）は見ない。
 - **GitHub に聞くのは PR ごとに1分に1回**（`gh pr view <n> --repo <owner/repo> --json state,mergeCommit`）。待ちがあると見回りは5秒ごとなので、打った時刻を控えの `Watch` に持つ（gh の上限を食わない）。MERGED・CLOSED と分かったら、もう聞かない。
 - **MERGED**: その課題のまだ受け取られていない問いを見る（`kanban questions --json` と `library/questions/<n>.json` の `from`）。
   - ゲートの問い（`from: gate`。重なったものも）は、`open` なら「人がマージした（<PR>）」と `kanban answer` し、`kanban received` して閉じる。そのあと `andon issue finish` し、通知 `merged`（`by: person`）を積む。
