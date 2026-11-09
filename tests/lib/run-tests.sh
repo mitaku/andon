@@ -6,6 +6,7 @@
 #   引数が無ければ tests/*.sh 全部。ANDON_TEST_SKIP（空白区切りのパス）は走らせず、表に skip と出す。
 #   並べる数は ANDON_TEST_JOBS（既定は nproc）。長いもの（image.sh・schema.sh）を先に起こす。
 # tests/*.sh は互いに独立（一時ディレクトリだけに書く。docker を使うのは image.sh だけ）であることを前提にする。
+#   ただし mise の道具の置き場は共有なので、go を mise で使うときは並べる前に mise install を一度打つ。
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -21,6 +22,12 @@ done
 for f in "${all[@]}"; do
   case " tests/image.sh tests/schema.sh " in *" $f "*) ;; *) queue+=("$f") ;; esac
 done
+
+# go が PATH に無く mise で焼くとき（tests/lib/andon.sh・kanban.sh）は、並べる前に一度だけ mise install する。
+# 入っていない道具を並べた mise exec が同時に入れると、入れ終わる前の go を exec して「go couldn't exec」で落ちる。
+if [ -z "${ANDON_BIN:-}${KANBAN_BIN:-}" ] && ! command -v go >/dev/null && command -v mise >/dev/null; then
+  mise install >&2 || echo "mise install に失敗（このまま回す）" >&2
+fi
 
 logs=$(mktemp -d)
 trap 'rm -rf "$logs"' EXIT
