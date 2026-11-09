@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"andon/internal/chiefengineer"
 	"andon/internal/contract"
 	"andon/internal/ledger"
 )
@@ -24,7 +25,7 @@ type stopState struct {
 }
 
 // stopCheck は担当・レビュアーの Stop フック（contract.md §9）。台帳が doing で、前回の通過（無ければ doing に入った行）以後に
-// 報告・review・問いのどれも log.jsonl に無く、待ち（waiting）でもなければ {"decision": "block"}。id を省くと自分の端末のラベル issue= から引く。
+// 報告・review・問いのどれも log.jsonl に無く、待ち（waiting）でもなければ {"decision": "block"}。Chief Engineer の課題（profile chief-engineer）は止めない。id を省くと自分の端末のラベル issue= から引く。
 // 担当の端末でない・台帳が読めないときは何も出さずに通す。
 func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && !idRe.MatchString(args[0])) {
@@ -74,6 +75,10 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return os.WriteFile(path, append(b, '\n'), 0o644)
 	}
 	if t.Str("status") != "doing" {
+		return pass("")
+	}
+	// Chief Engineer の課題は止めない: 人と端末で対話している間、報告も問いも書かずにターンを終えるのが正常（ADR-0009 決めたこと 10）
+	if t.Str("profile") == chiefengineer.Profile {
 		return pass("")
 	}
 	base := st.Pass

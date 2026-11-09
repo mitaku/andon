@@ -3,15 +3,16 @@
 //
 //	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は台帳の repos が1つならそれ
 //	andon chief-engineer --repo <host/owner/repo> "<題>"   台帳の repos が2つ以上（か無い）とき
+//	andon chief-engineer --brief - "<題>"                 経緯（人の言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
 // することは4つ: 台帳に課題を足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこの課題から出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
 // 課題を doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
 // 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、人の Herdr App の指揮側の Space に
 // 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
-// 1プロジェクトに Chief Engineer は1人（WIP 制限）なので、動いていれば起こさずに止まる。
-// 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付けてから起こす。
-// hc の agent が Claude Code でも戻った端末でもない端末があれば、確かめられないとして止まる。
+// --brief - の文は依頼書の既定の行の下に続ける（Chief Engineer が最初に読むのは依頼書なので、送り直しが要っても残る）。
+// Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。動いている端末があっても起こす。
+// 作り直しで戻った端末（top-level の argv ごと素のシェル）だけは片付けてから起こす。それ以外の端末には触らない。
 //
 // 置き場（andon issue start と同じ形。internal/spawn）:
 //
@@ -36,11 +37,12 @@ import (
 )
 
 // Usage は andon chief-engineer の使い方。
-const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] \"<題>\"\n" +
+const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<題>\"\n" +
 	"projects/<slug>/ で打つ。--repo を省くと台帳の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
 	"台帳に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起こし、課題を doing にする。文書の PR はその課題から出る。\n" +
-	"Chief Engineer が動いていれば起こさずに止まる（1プロジェクトに1人）。\n"
+	"--brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。\n" +
+	"Chief Engineer は1プロジェクトに複数いてよい。作り直しで戻った端末だけ片付けてから起こす。\n"
 
 // Profile は Chief Engineer のプロファイル（hc の template の名前）。
 const Profile = "chief-engineer"
@@ -61,11 +63,20 @@ var (
 var output = spawn.Output
 
 // Main は andon chief-engineer を走らせ、終了コードを返す。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	repo, title, ok := parseArgs(args)
+func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	repo, title, withBrief, ok := parseArgs(args)
 	if !ok {
 		fmt.Fprint(stderr, Usage)
 		return exitUsage
+	}
+	extra := ""
+	if withBrief {
+		b, err := io.ReadAll(stdin)
+		extra = strings.TrimSpace(strings.ReplaceAll(string(b), "\r\n", "\n"))
+		if err != nil || extra == "" {
+			fmt.Fprintf(stderr, "andon chief-engineer: --brief - の stdin が空（経緯を渡すか、--brief を省く）\n")
+			return exitUsage
+		}
 	}
 	die := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "andon chief-engineer: "+format+"\n", a...)
@@ -118,7 +129,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	env := []string{"KANBAN_ROOT=" + root}
 
-	// 1プロジェクトに1人
+	// 作り直しで戻った端末を探す（動いている Chief Engineer は数えない。ADR-0009 決めたこと 3）
 	ls, err := output(nil, "", "hc", "ls", "--json", "--label", "role="+Profile, "--label", "project="+slug)
 	if err != nil {
 		return die("hc ls に失敗: %v", err)
@@ -132,8 +143,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := json.Unmarshal([]byte(ls), &live); err != nil {
 		return die("hc ls の返事が読めない: %v", err)
 	}
-	// ラベルと live だけでは決めない: 作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず、片付ける（前の課題は台帳に残る）。
-	// 動いているは hc の agent が Claude Code のときだけ。どちらとも言えなければ止まる
+	// ラベルと live だけでは決めない: 作り直しで戻った端末（top-level の argv ごと素のシェル）だけ片付ける（前の課題は台帳に残る）。
+	// 動いている・どちらとも言えない端末には触らない
 	var shells []*spawn.Term
 	for _, lt := range live.Terminals {
 		t, err := spawn.Look(lt.Address)
@@ -144,13 +155,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		if t.Labels == nil {
 			t.Labels = lt.Labels
 		}
-		switch t.Kind() {
-		case spawn.Restored:
+		if t.Kind() == spawn.Restored {
 			shells = append(shells, t)
-		case spawn.Running:
-			return die("Chief Engineer が動いている: %s（%s）。新しい題は、前の題を渡してから", where(slug, t.Labels["issue"], t.Labels["title"]), lt.Address)
-		default:
-			return die("Chief Engineer のラベルの %s で Claude Code が動いているか確かめられないので止まる（%s）。人が使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, t.Describe(), lt.Address)
 		}
 	}
 	for _, t := range shells {
@@ -172,6 +178,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	brief := "# " + title + "\n\n" +
 		"Chief Engineer の課題。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
 		"題は人の1行。手順は skill chief-engineer。\n"
+	if extra != "" {
+		brief += "\n" + extra + "\n"
+	}
 	id, err := output(env, brief, cli, "add", title, "--repo", repo, "--profile", Profile, "--brief", "-")
 	if err != nil || !idRe.MatchString(id) {
 		return die("%s add に失敗: %v %q", cli, err, id)
@@ -230,26 +239,31 @@ func where(slug, id, title string) string {
 	return slug + " / CE " + id + " " + title
 }
 
-// parseArgs は --repo <r>（--repo=<r> も）と題1つを受ける。
-func parseArgs(args []string) (repo, title string, ok bool) {
+// parseArgs は --repo <r>（--repo=<r> も）・--brief -（--brief=- も。stdin のほかは受けない）と題1つを受ける。
+func parseArgs(args []string) (repo, title string, brief, ok bool) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
+		case (a == "--brief" && i+1 < len(args) && args[i+1] == "-" || a == "--brief=-") && !brief:
+			brief = true
+			if a == "--brief" {
+				i++
+			}
 		case a == "--repo" && i+1 < len(args) && repo == "":
 			repo = args[i+1]
 			i++
 		case strings.HasPrefix(a, "--repo=") && repo == "":
 			repo = strings.TrimPrefix(a, "--repo=")
 		case strings.HasPrefix(a, "-") || title != "":
-			return "", "", false
+			return "", "", false, false
 		default:
 			title = strings.TrimSpace(a)
 			if title == "" || strings.ContainsAny(a, "\r\n") {
-				return "", "", false
+				return "", "", false, false
 			}
 		}
 	}
-	return repo, title, title != ""
+	return repo, title, brief, title != ""
 }
 
 // ledgerRepos は台帳の config.yaml の repos を読む。台帳の CLI に repos を出す口が無いので、

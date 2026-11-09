@@ -102,3 +102,21 @@ func TestStopCheckReviewRequested(t *testing.T) {
 		t.Fatal("レビューが届いたのに止めなかった")
 	}
 }
+
+// Chief Engineer の課題（profile chief-engineer）は、報告も問いも無いターンでも止めない（ADR-0009 決めたこと 10）。ほかの profile は今のまま。
+func TestStopCheckPassesChiefEngineer(t *testing.T) {
+	f := newFixture(t)
+	f.reviewer, f.report = nil, ""
+	f.task["profile"] = "chief-engineer"
+	for i := 0; i < 2; i++ {
+		if out := f.stopCheck(); out != "" {
+			t.Fatalf("Chief Engineer の課題を止めた（%d 回目）: %s", i+1, out)
+		}
+	}
+	for _, p := range []string{"claude", "codex", "codex-review"} {
+		f.task["profile"] = p
+		if !blocked(f.stopCheck()) {
+			t.Errorf("profile %s の doing の課題を止めなかった", p)
+		}
+	}
+}

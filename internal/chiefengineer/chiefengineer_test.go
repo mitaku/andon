@@ -317,16 +317,20 @@ func TestBadSlug(t *testing.T) {
 	}
 }
 
-func TestAlreadyRunning(t *testing.T) {
+// Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。動いている端末があっても起こし、その端末には触らない。
+func TestStartsWhileAnotherRunning(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
-	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: sample-site / CE S-3 Billing の設計（t9）") || f.has("kanban add") || f.has("hc run") {
-		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	if rc != 0 || errs != "" || !strings.Contains(out, "S-7（題）を t42") {
+		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+	if !f.has("kanban add") || !f.has("hc run") || f.has("hc keep") || f.has("hc kill") || f.has("hc rm") {
+		t.Errorf("起こしていない・動いている端末に触った: %q", f.calls())
 	}
 }
 
-// 作り直しで中身が素のシェルに替わって戻った Chief Engineer の端末は、動いているとは数えない。片付けてから起こす。
+// 作り直しで中身が素のシェルに替わって戻った Chief Engineer の端末は片付けてから起こす。
 func TestShellChiefEngineerIsReplaced(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
@@ -342,7 +346,21 @@ func TestShellChiefEngineerIsReplaced(t *testing.T) {
 	}
 }
 
-// 人がシェルで使っている・agent が Claude Code でない端末は、片付けず「動いている」とも言わない（確かめられないとして止まる）。
+// 動いている端末と戻った端末が並んでいれば、戻った端末だけ片付けて起こす。
+func TestRunningKeptShellReplaced(t *testing.T) {
+	f := newFake(t)
+	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t8","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-2","title":"A"}},{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"B"}}]}`)
+	t.Setenv("FAKE_GET2", `{"address":"t9","argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`)
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	if rc != 0 || errs != "" || !strings.Contains(out, "CE S-3 B（t9）は中身がシェルに替わっていた") {
+		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+	if !f.has("hc kill t9") || f.has("hc kill t8") || f.has("hc keep t8") || !f.has("hc run") {
+		t.Errorf("calls=%q", f.calls())
+	}
+}
+
+// 人がシェルで使っている・agent が Claude Code でない端末は、片付けない（起こすのは止めない）。
 func TestUnsureChiefEngineerKept(t *testing.T) {
 	for _, get := range []string{
 		`{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`,
@@ -353,23 +371,56 @@ func TestUnsureChiefEngineerKept(t *testing.T) {
 		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
 		t.Setenv("FAKE_GET", get)
 		rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-		if rc != exitFail || strings.Contains(errs, "Chief Engineer が動いている") || !strings.Contains(errs, "確かめられないので止まる") {
+		if rc != 0 || errs != "" {
 			t.Errorf("%s: rc=%d err=%q", get, rc, errs)
 		}
-		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("kanban add") {
-			t.Errorf("%s: 人の端末に触った・課題を足した: %q", get, f.calls())
+		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || !f.has("kanban add") {
+			t.Errorf("%s: 人の端末に触った・起こしていない: %q", get, f.calls())
 		}
 	}
 }
 
-// 起動の直後: 最初の hc get には agent の情報がまだ無く、読み直すと status.app=claude-code。動いているとして止まる（二重に起こさない）。
-func TestChiefEngineerAgentAppearsLater(t *testing.T) {
+// --brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。省けば既定の行だけ。
+func TestBriefFromStdin(t *testing.T) {
+	head := "# 題\n\nChief Engineer の課題。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
+		"題は人の1行。手順は skill chief-engineer。\n"
+	for _, args := range [][]string{{"--brief", "-", "題"}, {"題", "--brief=-"}} {
+		f := newFake(t)
+		var out, errb bytes.Buffer
+		in := "## 経緯\r\n人: 「請求を月ごとにしたい」\n出典: docs/billing.md\n\n"
+		rc := Main(append([]string{"--repo", "github.com/example/sample-site"}, args...), strings.NewReader(in), &out, &errb)
+		if rc != 0 {
+			t.Fatalf("%q: rc=%d err=%q", args, rc, errb.String())
+		}
+		brief, _ := os.ReadFile(f.log + ".brief")
+		want := head + "\n## 経緯\n人: 「請求を月ごとにしたい」\n出典: docs/billing.md\n"
+		if string(brief) != want {
+			t.Errorf("%q: brief=%q\nwant %q", args, brief, want)
+		}
+	}
 	f := newFake(t)
-	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
-	t.Setenv("FAKE_GET1", `{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"sh","argv":["sh","-c","claude"]}}`)
-	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "Chief Engineer が動いている: sample-site / CE S-3 Billing の設計（t9）") || f.has("kanban add") || f.has("hc run") || f.has("hc kill") {
-		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	var out, errb bytes.Buffer
+	if rc := Main([]string{"--repo", "github.com/example/sample-site", "題"}, strings.NewReader("読まない"), &out, &errb); rc != 0 {
+		t.Fatalf("rc=%d err=%q", rc, errb.String())
+	}
+	if brief, _ := os.ReadFile(f.log + ".brief"); string(brief) != head {
+		t.Errorf("--brief 無しで依頼書が変わった: %q", brief)
+	}
+}
+
+// --brief - の stdin が空なら、何もせずに usage の終了コード。stdin のほかの値は受けない。
+func TestBriefBad(t *testing.T) {
+	f := newFake(t)
+	var out, errb bytes.Buffer
+	rc := Main([]string{"--repo", "github.com/example/sample-site", "--brief", "-", "題"}, strings.NewReader(" \n"), &out, &errb)
+	if rc != exitUsage || !strings.Contains(errb.String(), "--brief - の stdin が空") || f.has("hc") || f.has("kanban") {
+		t.Errorf("rc=%d err=%q calls=%q", rc, errb.String(), f.calls())
+	}
+	r := "--repo=github.com/example/sample-site"
+	for _, args := range [][]string{{r, "--brief", "題"}, {r, "--brief", "x.md", "題"}, {r, "--brief=x", "題"}, {r, "--brief", "-", "--brief", "-", "題"}} {
+		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
+			t.Errorf("%q: rc=%d err=%q", args, rc, errs)
+		}
 	}
 }
 
