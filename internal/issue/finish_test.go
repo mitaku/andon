@@ -95,21 +95,51 @@ func TestMergedPRHead(t *testing.T) {
 	report(`{"commit": "` + tip + `", "pr": "https://github.com/example/app/pull/7"}`)
 
 	view("MERGED", tip)
-	if ok, why := c.mergedPRHead(repo, "x/T-0001"); !ok {
+	if got, why := c.mergedPRHead(repo, "x/T-0001"); got != tip {
 		t.Errorf("MERGED で head が先と同じなのに消せない: %s", why)
 	}
 	view("OPEN", tip)
-	if ok, why := c.mergedPRHead(repo, "x/T-0001"); ok || !strings.Contains(why, "MERGED でない") {
-		t.Errorf("OPEN の PR の branch を消そうとした: %v %q", ok, why)
+	if got, why := c.mergedPRHead(repo, "x/T-0001"); got != "" || !strings.Contains(why, "MERGED でない") {
+		t.Errorf("OPEN の PR の branch を消そうとした: %q %q", got, why)
 	}
 	view("MERGED", tip)
 	run("commit", "-q", "--allow-empty", "-m", "after the PR")
 	run("checkout", "-q", "-B", "x/T-0001")
-	if ok, why := c.mergedPRHead(repo, "x/T-0001"); ok || !strings.Contains(why, "commit が足されている") {
-		t.Errorf("PR のあとに commit が足された branch を消そうとした: %v %q", ok, why)
+	if got, why := c.mergedPRHead(repo, "x/T-0001"); got != "" || !strings.Contains(why, "commit が足されている") {
+		t.Errorf("PR のあとに commit が足された branch を消そうとした: %q %q", got, why)
 	}
 	os.WriteFile(filepath.Join(tmp, "fail"), nil, 0o644)
-	if ok, _ := c.mergedPRHead(repo, "x/T-0001"); ok {
+	if got, _ := c.mergedPRHead(repo, "x/T-0001"); got != "" {
 		t.Error("PR が読めないのに消そうとした")
+	}
+}
+
+// 確かめた SHA を期待値にした update-ref -d は、確かめたあとに branch が進んでいれば消さない
+func TestCompareAndDeleteBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	repo := filepath.Join(t.TempDir(), "repo")
+	run := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=a", "-c", "user.email=a@example.com"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	run("commit", "-q", "--allow-empty", "-m", "base")
+	run("branch", "b")
+	old := run("rev-parse", "refs/heads/b")
+	run("checkout", "-q", "-B", "b")
+	run("commit", "-q", "--allow-empty", "-m", "later")
+	run("checkout", "-q", "--detach")
+	if _, err := git(repo, "update-ref", "-d", "refs/heads/b", old); err == nil {
+		t.Error("進んだ branch を消した")
+	}
+	if _, err := git(repo, "rev-parse", "--verify", "refs/heads/b"); err != nil {
+		t.Error("進んだ branch が無くなった")
 	}
 }

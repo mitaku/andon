@@ -152,9 +152,12 @@ func (c *ctx) finish(stdout io.Writer) error {
 				default:
 					if _, err := git(repoDir, "merge-base", "--is-ancestor", "refs/heads/"+branch, "refs/remotes/origin/"+def); err == nil {
 						git(repoDir, "branch", "-D", branch)
-					} else if ok, why := c.mergedPRHead(repoDir, branch); ok {
-						// squash マージは branch の commit が main に入らない。MERGED の PR の head と先が同じなら作業は失われない
-						git(repoDir, "branch", "-D", branch)
+					} else if tip, why := c.mergedPRHead(repoDir, branch); tip != "" {
+						// squash マージは branch の commit が main に入らない。MERGED の PR の head と先が同じなら作業は失われない。
+						// 確かめた SHA を期待値にして消す（確かめたあとに branch が進んでいたら消えない）
+						if _, err := git(repoDir, "update-ref", "-d", "refs/heads/"+branch, tip); err != nil {
+							kept = fmt.Sprintf(" branch %s は確かめたあとに動いたので残した", branch)
+						}
 					} else {
 						kept = fmt.Sprintf(" branch %s は origin/%s に入っていないので残した（%s）", branch, def, why)
 					}
@@ -169,12 +172,12 @@ func (c *ctx) finish(stdout io.Writer) error {
 	return nil
 }
 
-// mergedPRHead は、この課題の PR（report.json の pr）が MERGED で、その head の commit が branch の先と同じか。
-// 違えば理由を返す（PR のあとに commit が足された branch や、マージされていない branch は消さない）。
-func (c *ctx) mergedPRHead(repoDir, branch string) (bool, string) {
+// mergedPRHead は、この課題の PR（report.json の pr）が MERGED で、その head の commit が branch の先と同じなら、その SHA を返す。
+// 違えば空と理由を返す（PR のあとに commit が足された branch や、マージされていない branch は消さない）。
+func (c *ctx) mergedPRHead(repoDir, branch string) (string, string) {
 	rep, err := c.previous()
 	if err != nil || rep == nil || rep.PR == "" {
-		return false, "report.json に pr が無い"
+		return "", "report.json に pr が無い"
 	}
 	var view struct {
 		State      string `json:"state"`
@@ -182,16 +185,16 @@ func (c *ctx) mergedPRHead(repoDir, branch string) (bool, string) {
 	}
 	out, err := exec.Command("gh", "pr", "view", rep.PR, "--json", "state,headRefOid").Output()
 	if err != nil || json.Unmarshal(out, &view) != nil {
-		return false, "PR を読めない"
+		return "", "PR を読めない"
 	}
 	if view.State != "MERGED" {
-		return false, "PR が MERGED でない: " + view.State
+		return "", "PR が MERGED でない: " + view.State
 	}
 	tip, err := git(repoDir, "rev-parse", "refs/heads/"+branch)
 	if err != nil || tip != view.HeadRefOid {
-		return false, "PR の head のあとに commit が足されている"
+		return "", "PR の head のあとに commit が足されている"
 	}
-	return true, ""
+	return tip, ""
 }
 
 // MainCheckout は path が repo の本体の checkout（git worktree list の先頭）か。repoDir と path の両方から見る
