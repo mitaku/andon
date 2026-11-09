@@ -26,6 +26,8 @@ esac
 
 const fakeKanban = `#!/usr/bin/env bash
 printf 'kanban %s\n' "$*" >>"$FAKE_HC/log"
+case "$*" in *agent=*) [ -e "$FAKE_HC/set-agent-fails" ] && { echo 'lock busy' >&2; exit 1; } ;; esac
+exit 0
 `
 
 // 実測の Claude Code の使用量の上限の文（pickup_test の ProviderError と同じ）。
@@ -103,5 +105,20 @@ func TestFallbackRestarts(t *testing.T) {
 	}
 	if len(f.p.st.Pending) != 0 {
 		t.Fatalf("起こし直したのに知らせた: %q", f.kinds())
+	}
+}
+
+// 起こし直したあと台帳の agent を書けなければ、起こした端末を片付けて起こし直さなかったことにする（今の見回りは error を知らせる）。
+func TestFallbackAgentNotRecorded(t *testing.T) {
+	f := newFallback(t, "codex")
+	if err := os.WriteFile(filepath.Join(f.d, "set-agent-fails"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := f.at(0, "")
+	if n := len(got); n < 2 || got[n-2] != "kill t60" || got[n-1] != "rm t60" {
+		t.Fatalf("起こした端末を片付けていない: %q", got)
+	}
+	if k := f.kinds(); !slices.Equal(k, []string{"S-7-r1:error"}) {
+		t.Fatalf("起こし直せなかったのに知らせない: %q", k)
 	}
 }

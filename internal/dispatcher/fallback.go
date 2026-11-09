@@ -61,7 +61,15 @@ func (p *project) fallback(t ledger.Issue, agent string) bool {
 		return false
 	}
 	if _, err := p.l.Run("", "set", rev, "agent="+started.Address); err != nil {
-		p.logf("%s の agent を %s にできない: %v", rev, started.Address, err)
+		// 台帳が新しい端末を指さなければ見回りが追えない。起こした端末を片付け、課題は止まった端末を指したまま
+		// （次の見回りで端末が無い〈finished〉として Chief of Staff に知らせる）
+		for _, args := range [][]string{{"kill", started.Address}, {"rm", started.Address}} {
+			if _, _, kerr := run("", nil, "", "hc", args...); kerr != nil {
+				p.logf("%s の起こし直した端末 %s を片付けられない: %v", rev, started.Address, kerr)
+			}
+		}
+		p.logf("%s の agent を %s にできない（起こした端末を片付けた。次の見回りで finished として知らせる）: %v", rev, started.Address, err)
+		return false
 	}
 	if !started.First.Delivered() {
 		// 届いていなければ見回りの sendFirst に1回だけの送り直しを預ける（startReviewer と同じ）

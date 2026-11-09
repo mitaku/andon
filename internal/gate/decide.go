@@ -499,7 +499,16 @@ func AddedLines(diff string) map[string]map[int]bool {
 		case strings.HasPrefix(l, "diff --git "):
 			file, hunk = "", false
 		case !hunk && strings.HasPrefix(l, "+++ "):
-			file = strings.TrimPrefix(strings.TrimPrefix(l, "+++ "), "b/")
+			file = strings.TrimPrefix(l, "+++ ")
+			if strings.HasPrefix(file, `"`) {
+				// 非 ASCII・引用符を含む名前は C 形式で引用される（"b/\350\250\255.go"）。Go の引用の解き方で同じ byte に戻る
+				if u, err := strconv.Unquote(file); err == nil {
+					file = u
+				} else {
+					file = ""
+				}
+			}
+			file = strings.TrimPrefix(file, "b/")
 			if file == "/dev/null" {
 				file = ""
 			}
