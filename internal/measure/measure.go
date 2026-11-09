@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"os/exec"
@@ -591,13 +592,28 @@ func (r *reader) config() ([]string, error) {
 	return c.Columns, nil
 }
 
+// read は記録のファイルを読む。無ければ ok が false（まだ無い記録）。ほかの理由で読めなければ、
+// 飛ばした記録に相対パスと理由（絶対パスを含まない）を出して ok が false。
+func (r *reader) read(path string) ([]byte, bool) {
+	b, err := os.ReadFile(path)
+	if err == nil {
+		return b, true
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		why := "読み取りの誤り"
+		var pe *fs.PathError
+		if errors.As(err, &pe) {
+			why = pe.Err.Error()
+		}
+		r.skip(r.rel(path), 0, "読めない（%s）", why)
+	}
+	return nil, false
+}
+
 func (r *reader) log() []logRow {
 	path := filepath.Join(r.dir, "log.jsonl")
-	b, err := os.ReadFile(path)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			r.skip(r.rel(path), 0, "読めない（%v）", err)
-		}
+	b, ok := r.read(path)
+	if !ok {
 		return nil
 	}
 	var rows []logRow
@@ -620,6 +636,10 @@ func (r *reader) log() []logRow {
 			r.skip(r.rel(path), i+1, "at が UTC の時刻（YYYY-MM-DDTHH:MM:SSZ）でない")
 			continue
 		}
+		if v.By == "" {
+			r.skip(r.rel(path), i+1, "by が無い（誰の行か分からないので人の介在に数えない）")
+			continue
+		}
 		row := logRow{at: at, by: v.By, id: ledger.CanonID(v.ID), add: v.Change["add"] != nil}
 		// 問いの行（{"question": n, "status": …}）の status は問いの状態で、課題の状態ではない
 		if s, ok := v.Change["status"]; ok && v.Change["question"] == nil {
@@ -638,7 +658,10 @@ func (r *reader) issues() []*issue {
 	var out []*issue
 	for _, path := range dirs {
 		id := filepath.Base(filepath.Dir(path))
-		b, err := os.ReadFile(path)
+		b, ok := r.read(path)
+		if !ok {
+			continue
+		}
 		var v struct {
 			Created string   `yaml:"created"`
 			After   []string `yaml:"after"`
@@ -646,11 +669,8 @@ func (r *reader) issues() []*issue {
 			Profile string   `yaml:"profile"`
 			Parent  string   `yaml:"parent"`
 		}
-		if err == nil {
-			err = yaml.Unmarshal(b, &v)
-		}
-		if err != nil {
-			r.skip(r.rel(path), 0, "issue.yaml を読めない")
+		if yaml.Unmarshal(b, &v) != nil {
+			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
 		t := &issue{id: id, after: len(v.After) > 0, links: v.Links}
@@ -677,8 +697,8 @@ func (r *reader) issues() []*issue {
 
 func (r *reader) reportPR(lib string) string {
 	path := filepath.Join(lib, "report.json")
-	b, err := os.ReadFile(path)
-	if err != nil {
+	b, ok := r.read(path)
+	if !ok {
 		return ""
 	}
 	var v struct {
@@ -695,7 +715,10 @@ func (r *reader) gates(lib string) []gateRec {
 	files, _ := filepath.Glob(filepath.Join(lib, "gate", "*.json"))
 	var out []gateRec
 	for _, path := range files {
-		b, err := os.ReadFile(path)
+		b, ok := r.read(path)
+		if !ok {
+			continue
+		}
 		var v struct {
 			At       string `json:"at"`
 			PR       string `json:"pr"`
@@ -703,10 +726,7 @@ func (r *reader) gates(lib string) []gateRec {
 			Decision string `json:"decision"`
 			Merged   bool   `json:"merged"`
 		}
-		if err == nil {
-			err = json.Unmarshal(b, &v)
-		}
-		if err != nil {
+		if json.Unmarshal(b, &v) != nil {
 			r.skip(r.rel(path), 0, "ゲートの記録が JSON の object でない")
 			continue
 		}
@@ -728,8 +748,8 @@ func (r *reader) gates(lib string) []gateRec {
 // corrections は corrections.json に1件以上あるか。形は A-0003 が決めるので、配列か object の要素の数で見る。
 func (r *reader) corrections(lib string) bool {
 	path := filepath.Join(lib, "corrections.json")
-	b, err := os.ReadFile(path)
-	if err != nil {
+	b, ok := r.read(path)
+	if !ok {
 		return false
 	}
 	var v any
@@ -756,8 +776,8 @@ func (r *reader) hasCorrections(t *issue) bool {
 }
 
 func (r *reader) questions(path string) []span {
-	b, err := os.ReadFile(path)
-	if err != nil {
+	b, ok := r.read(path)
+	if !ok {
 		return nil
 	}
 	var v []struct {

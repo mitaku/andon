@@ -298,3 +298,76 @@ func snapshot(t *testing.T, root string) string {
 	}
 	return b.String()
 }
+
+func TestLineWithoutByIsSkippedNotHuman(t *testing.T) {
+	root := fakeLedger(t)
+	f, err := os.OpenFile(filepath.Join(root, "kanban/log.jsonl"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 有効な JSON だが by が無い（log.jsonl は20行目まで。この行は21行目）
+	if _, err := f.WriteString(`{"at":"2026-11-01T03:00:00Z","id":"S-0001","change":{"report":"write"}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	res, err := Measure(opts(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Efficiency.HumanTouches.Total; got != 3 {
+		t.Errorf("by の無い行を人の介在に数えた: %d", got)
+	}
+	found := false
+	for _, s := range res.Skipped {
+		if s.Source == "kanban/log.jsonl" && s.Line == 21 && strings.Contains(s.Reason, "by") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("by の無い行が飛ばした記録に無い: %+v", res.Skipped)
+	}
+}
+
+func TestUnreadableRecordsAreSkippedWithoutAbsolutePath(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root は読み取り権限を無視する")
+	}
+	root := fakeLedger(t)
+	k := filepath.Join(root, "kanban")
+	files := []string{
+		"log.jsonl",
+		"issues/S-0002/questions.yaml",
+		"issues/S-0002/library/report.json",
+		"issues/S-0002/library/corrections.json",
+		"issues/S-0002/library/gate/bbbb.json",
+	}
+	for _, f := range files {
+		p := filepath.Join(k, f)
+		if err := os.Chmod(p, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(p, 0o644) })
+	}
+	res, err := Measure(opts(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, s := range res.Skipped {
+		got[s.Source] = s.Reason
+	}
+	for _, f := range files {
+		why, ok := got["kanban/"+f]
+		if !ok {
+			t.Errorf("読めない %s が飛ばした記録に無い: %+v", f, res.Skipped)
+			continue
+		}
+		if strings.Contains(why, root) || strings.Contains(why, "/") {
+			t.Errorf("%s の理由にパスが入る: %q", f, why)
+		}
+	}
+	js, _ := json.Marshal(res)
+	if strings.Contains(string(js), root) {
+		t.Errorf("--json に台帳の絶対パスが出る: %s", js)
+	}
+}

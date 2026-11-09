@@ -418,7 +418,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `counter.reverted` | 期間にマージされた PR のうち題が `Revert ` で始まり、本文が `<owner>/<repo>#<n>` か URL で台帳のマージされた PR を指すもの、が指す PR の数 |
 | `counter.follow_ups` | 期間に作られた課題のうち、`links` か、マージされた自分の PR の本文が、別の課題のマージされた PR の URL を含むもの |
 | `counter.reopened` | 人が開け直した数をゲートのレベルごとに: `merged_prs` のうち `corrections.json` に1件以上ある課題と、期間に revert された自動マージの PR（重なれば1回）。`corrections` は台帳に `corrections.json` が1つも無ければ `none`（記録なし） |
-| `skipped[]` | 読めなかった記録（`log.jsonl` の行・ファイル・PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない |
+| `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、在るが読めないファイル、PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
 
 - 書き手は `andon measure` だけ（出力するだけ）。読み手は人と振り返り（委譲を広げる根拠）。ゲートも dispatcher も判定に使わない。
 - 数えるものが無ければ件数は 0、率・平均・中央値は `null`（表は「記録なし」）で、終了コード 0。台帳の `config.yaml` が読めない・版が 3 でないときだけ終了コード 1。
