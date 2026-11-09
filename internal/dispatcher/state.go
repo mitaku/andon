@@ -60,6 +60,8 @@ type State struct {
 	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元に切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
 	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
 	Impact    map[string]int      `json:"impact,omitempty"`    // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
+	// done になった、人の手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
+	Corrections map[string]int `json:"corrections,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

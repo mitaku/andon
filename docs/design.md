@@ -366,7 +366,7 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 
 振り返り（ルーチン。アウターループ）は `corrections.json` を**記録の1つとして読み**、つまずきを テスト（機械的に止められる）／レビュアーの観点（`REVIEW.md`）／指針（`AGENTS.md`）／skill・ゲート（Andon のライン）に振り分けて PR にする（§1.4）。**Warp と違える所**: observer が skill をその場で書き換えるのではなく、**まとめて・PR で・判断を通して**直す（案件側は Chief of Staff、Andon のラインは人。§6 問い22）。理由は上の 5 と同じで、skill の自己書き換えは「ラインそのものの変更」。速さは落ちるが、履歴が PR に残り、同じ手直しが2度起きたときだけ直す（1度の手直しを規則にすると規則が太る）。
 
-この2つを足しても、新しい役は増えない。増えるのは**記録2つ**（`acceptance[]`・`corrections.json`）と**通知1種**（`signal`）だけで、どれも「機械が読む形」（§4）の上に乗る。
+この2つを足しても、新しい役は増えない。増えるのは**記録2つ**（`acceptance[]`・`corrections.json`）と**通知1種**（`signal`）だけで（`corrections.json` を集められなかったときの通知 `corrections` は [decisions/2026-11-09-corrections-json.md](decisions/2026-11-09-corrections-json.md)）、どれも「機械が読む形」（§4）の上に乗る。
 
 **判断と決断の置き場**（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 14）: 決断（情報が無い中で決める）は人か、委譲（§1.10）の中の Chief of Staff。判断（情報があれば理屈で出る）は標準にして下ろし、標準は **機械が確かめる形（schema・command の照合・ゲートの条件表・テスト）→ 文（skill・依頼書の雛形・`AGENTS.md`）→ 人のレビュー** の順に置く。文に置いた標準が守られないときは、文を増やす前に機械の段へ下ろせないかを見る。
 
@@ -500,6 +500,7 @@ andon/
     gate.schema.json         ゲートの条件表と記録
     project.schema.json      プロジェクトの事実と委譲（§1.10。contract.md §11）
     candidates.schema.json   候補の一覧（調べる課題の成果。contract.md §12。ADR-0006）
+    corrections.schema.json  人の手直し（dispatcher が finish のときに集める。contract.md §14。§1.9 の (b)）
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
     lib/andon/               command が読む資材（中身のソースは internal/<sub>）。sub-command: issue・chief-of-staff・chief-engineer・dispatcher・gate・triage・publish・delegate・boot・init（言語は §2.7）
@@ -810,7 +811,7 @@ andon/
 | 通知 | dispatcher の中の JSON（`kind`・`project`・`issue`・`at`・`detail`）。届けるときだけ `<news>` の文に描く | dispatcher | Chief of Staff（フック経由）・ボード（`news.replied`） | 仮設の通知の種類。外の信号 `signal` は最初の版の後（§1.9） |
 | 受け入れ条件の検証 | `report.json` の `acceptance[]`（Chief Engineer の受け入れ条件の番号・`pass`／`fail`／`manual`・証拠） | 担当 | ゲート・振り返り | §1.9 の (a)。任意キー（版は上げない） |
 | 一方通行の申告 | `report.json` の `risk`（`one_way`・`impact`） | 担当 | ゲート（`one_way` だけ）・人（`impact`） | `one_way: true` でレベルを C に上げる。`false`・無しで下げない（[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)）。任意キー（版は上げない） |
-| 人の手直し | `issues/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上の人の直し・指摘の覆し） | dispatcher（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で |
+| 人の手直し | `issues/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上の人の直し・指摘の覆し） | dispatcher（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で。形は [contract.md](contract.md) §14 |
 | ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `issues/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（ブランチ保護（ruleset）はサーバー側で効くが、ゲートも CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・dispatcher（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | 端末の土台との約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`issue`・`title`・`news.replied`・template の名前＝プロファイル | command・dispatcher | ボード・dispatcher | 今のまま |
 | フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）、担当の `Stop`（報告か問いが無ければ止まれない） | boot が生成 | Claude Code | 要実測 |

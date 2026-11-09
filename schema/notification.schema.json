@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "impact", "blocked", "error", "finished", "stalled"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "impact", "corrections", "blocked", "error", "finished", "stalled"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -33,6 +33,8 @@
       "then": { "properties": { "detail": { "$ref": "#/$defs/merged" } } } },
     { "if": { "properties": { "kind": { "const": "impact" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/impact" } } } },
+    { "if": { "properties": { "kind": { "const": "corrections" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/corrections" } } } },
     { "if": { "properties": { "kind": { "enum": ["blocked", "error", "finished", "stalled"] } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } }
   ],
@@ -95,6 +97,15 @@
       "properties": {
         "pr": { "description": "The merged pull request.", "$ref": "#/$defs/pr" },
         "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "corrections": {
+      "description": "kind corrections: the dispatcher could not collect a finished issue's corrections.json (after one retry) and did not write it.",
+      "type": "object",
+      "required": ["error"],
+      "additionalProperties": false,
+      "properties": {
+        "error": { "description": "Why it gave up.", "type": "string", "minLength": 1 }
       }
     },
     "impact": {

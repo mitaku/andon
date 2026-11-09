@@ -36,6 +36,12 @@ case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view 7 --repo example/app --json state,mergeCommit")
     if [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
+  "pr view 7 --repo example/app --json state,commits,comments,reviews")   # 人の手直し（prcfail があれば落ちる。prc.json があればその中身）
+    [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
+    if [ -f \$d/prc.json ]; then cat \$d/prc.json
+    else jq --arg s "\$(if [ -f \$d/merged ]; then echo MERGED; else echo OPEN; fi)" '{state:\$s,commits:[{oid:.headRefOid,messageHeadline:"x"}],comments:[],reviews:[]}' \$d/view.json; fi ;;
+  "api repos/example/app/commits/"*) echo '{"files":[{"filename":"docs/b.md"}]}' ;;
+  "api --paginate --slurp repos/example/app/pulls/7/comments") if [ -f \$d/inline.json ]; then cat \$d/inline.json; else echo '[[]]'; fi ;;   # インラインのレビューコメント
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
   "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon issue impact（impactfail があれば落ちる）
     [ ! -f \$d/impactfail ] || { echo "HTTP 502" >&2; exit 1; }
@@ -286,6 +292,89 @@ jq -e '(.impact // {}) | length == 0' "$state" >/dev/null || die '諦めたあ�
 emit <(pending "$merged_id" impact) notification-impact-error.json
 rm "$tmp/gh/impactfail"
 ok '影響を集められなければ次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む（ログだけにしない）'
+
+# 1d. 人の手直し: done の行ごとに1回だけ library/corrections.json を書く（書き手は dispatcher。contract.md §14）
+# 1 の課題は推奨どおり・人の commit もコメントも無く、waived は must_fix（major）より軽い → 空の配列で書いてある
+cj() { echo "$L/issues/$1/library/corrections.json"; }
+jq -e '.corrections == [] and (.at | test("^[0-9-]{10}T[0-9:]{8}Z$"))' "$(cj "$merged_id")" >/dev/null || die "手直しの無い課題に空の配列を書いていない: $(cat "$(cj "$merged_id")" 2>/dev/null)"
+[ ! -e "$(cj "$merged_id-r1")" ] || die 'レビュアーの課題に corrections.json を書いた'
+jq -e '(.corrections // {}) | length == 0' "$state" >/dev/null || die "済んだ corrections が控えに残った: $(jq -c .corrections "$state")"
+emit "$(cj "$merged_id")" corrections-empty.json
+ok '手直しの無い課題は finish（done）のあと corrections.json に空の配列を書く（レビュアーの課題には書かない）'
+cos_done() { HC_TERMINAL_ID=t5 kanban done "$1" >/dev/null; }   # Chief of Staff が片付ける（done の行）
+# 1d-1. 推奨と違う答え → answer
+id=$(newtask '書き出しの形式を決める' person)
+(cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 "$andon" issue ask "$id" - >/dev/null <<'JSON'
+{"kind": "users", "question": "書き出しは CSV だけか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "CSV と Excel"}], "from": "issue"}
+JSON
+)
+HC_TERMINAL_ID=t5 kanban answer "$id#1" "CSV と Excel" >/dev/null
+(cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban received "$id#1" >/dev/null)
+cos_done "$id"; dispatcher
+jq -e '.corrections == [{kind: "answer", question: 1, decision_kind: "users", recommended: "CSV だけ", picked: "CSV と Excel"}]' "$(cj "$id")" >/dev/null ||
+    die "推奨と違う答えが answer の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
+emit "$(cj "$id")" corrections-answer.json
+# 同じ finish を2度拾っても書き直さない（控えに戻しても、在る corrections.json はそのまま）
+before=$(cat "$(cj "$id")")
+jq --arg m "$id" '.corrections = {($m): 0}' "$state" > "$state.new" && mv "$state.new" "$state"
+sleep 1; dispatcher
+[ "$(cat "$(cj "$id")")" = "$before" ] || die '同じ finish を2度拾って corrections.json を書き直した'
+jq -e '(.corrections // {}) | length == 0' "$state" >/dev/null || die '書いてある課題が控えに残った'
+ok '問いの答えが推奨案と違えば answer を1件書く。同じ finish を2度拾っても書き直さない'
+# 1d-2. 担当の最後の報告より後に人が積んだ commit → pr
+id=$(newtask '見出しを直す' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+human=$(printf 'f%.0s' $(seq 40))
+jq -n --arg h "$head" --arg x "$human" '{state: "MERGED", commits: [{oid: $h, messageHeadline: "docs/a.md"}, {oid: $x, messageHeadline: "人が直した"}],
+  comments: [{author: {login: "plant-bot"}, body: "andon gate: **approve**（commit x）", createdAt: "2026-11-09T00:00:00Z"}]}' > "$tmp/gh/prc.json"
+cos_done "$id"; dispatcher
+jq -e --arg x "$human" '.corrections == [{kind: "pr", comments: [], human_commits: [{sha: $x, headline: "人が直した", files: ["docs/b.md"]}]}]' "$(cj "$id")" >/dev/null ||
+    die "人の commit が pr の1件になっていない（ゲートのコメントを数えた？）: $(cat "$(cj "$id")" 2>/dev/null)"
+emit "$(cj "$id")" corrections-pr.json
+rm "$tmp/gh/prc.json"
+ok 'PR に担当の最後の報告より後の commit があれば pr を1件書く（ゲートのコメントは数えない）'
+# 1d-2b. インラインのレビューコメントだけがある PR → pr（Bot のものは数えない。空の配列にしない）
+id=$(newtask '用語を揃える' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+jq -n '[[{user: {login: "o", type: "User"}, body: "ここは台帳の語にする", created_at: "2026-11-09T01:00:00Z", path: "docs/a.md", line: 1},
+        {user: {login: "ci", type: "Bot"}, body: "lint", created_at: "2026-11-09T01:01:00Z", path: "docs/a.md", line: 1}]]' > "$tmp/gh/inline.json"
+cos_done "$id"; dispatcher
+jq -e '.corrections == [{kind: "pr", comments: [{author: "o", at: "2026-11-09T01:00:00Z", body: "ここは台帳の語にする", file: "docs/a.md", line: 1}], human_commits: []}]' "$(cj "$id")" >/dev/null ||
+    die "インラインのレビューコメントが pr の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
+emit "$(cj "$id")" corrections-pr-inline.json
+rm "$tmp/gh/inline.json"
+ok 'インラインのレビューコメントだけの PR でも pr を1件書く（Bot のコメントは数えない）'
+# 1d-3. must_fix 以上の指摘を waive してマージした → override
+id=$(newtask '例外を足す' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7 --data '{"waived":[{"severity":"major","file":"docs/a.md","line":1,"reason":"人がこのままでよいと言った"}]}'
+echo "$head" > "$tmp/gh/merged"
+cos_done "$id"; dispatcher
+jq -e '.corrections == [{kind: "override", finding: {severity: "major", file: "docs/a.md", line: 1}, reason: "人がこのままでよいと言った"}]' "$(cj "$id")" >/dev/null ||
+    die "人が waive した指摘が override の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
+emit "$(cj "$id")" corrections-override.json
+ok 'must_fix 以上の waived がマージされたら override を1件書く'
+# 1d-4. gh が落ちたら書かず、次の見回りで1回だけ打ち直す。それも落ちたら書かずに通知 corrections を積む
+id=$(newtask '表を足す' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+touch "$tmp/gh/prcfail"
+cos_done "$id"; dispatcher
+[ ! -e "$(cj "$id")" ] || die 'gh が落ちたのに corrections.json を書いた（集めていないのに「無かった」にした）'
+jq -e --arg m "$id" '.corrections[$m] == 1' "$state" >/dev/null || die "失敗の回数を控えていない: $(jq -c .corrections "$state")"
+rm "$tmp/gh/prcfail"; dispatcher
+jq -e '.corrections == []' "$(cj "$id")" >/dev/null || die '次の見回りで打ち直していない'
+rm "$(cj "$id")"
+jq --arg m "$id" '.corrections = {($m): 0}' "$state" > "$state.new" && mv "$state.new" "$state"
+touch "$tmp/gh/prcfail"; dispatcher; dispatcher
+[ ! -e "$(cj "$id")" ] || die '2 回とも落ちたのに書いた'
+pending "$id" corrections | jq -e '.detail.error | contains("2 回打って失敗")' >/dev/null || die "諦めたのに Chief of Staff に知らせない: $(pending "$id" corrections)"
+jq -e '(.corrections // {}) | length == 0' "$state" >/dev/null || die '諦めたあとも控えに残った'
+emit <(pending "$id" corrections) notification-corrections.json
+rm "$tmp/gh/prcfail"
+ok 'gh が落ちたら書かずに次の見回りで1回だけ打ち直し、それも落ちたら書かずに Chief of Staff に通知 corrections を積む'
 
 # 2. fix は担当へ hc send（Must fix が残る）
 id=$(newtask '説明を足す' auto)

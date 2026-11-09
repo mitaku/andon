@@ -6,6 +6,7 @@
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon issue finish（レビュアーの課題も片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
+//	{"status": "done"} の行            → library/corrections.json を1回だけ書く（人の手直し。corrections.go）
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //	担当・Chief of Staff が提供元に切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
 //
@@ -13,6 +14,7 @@
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
 // 離席時だけの hc send（deliver.go。経路③）。dispatcher.md §3。
 // 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
+// 例外は dispatcher が書き手の library/ のファイル（ゲートの記録の merged・corrections.json。contract.md §1）。
 package dispatcher
 
 import (
@@ -184,7 +186,8 @@ func (p *project) pass() (bool, error) {
 			p.review(t, rep)
 		}
 	}
-	p.impacts() // マージのあとの影響（dispatcher.md §2.5）
+	p.impacts()     // マージのあとの影響（dispatcher.md §2.5）
+	p.corrections() // 人の手直し（dispatcher.md §2.6・contract.md §14）
 	if !p.first {
 		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}

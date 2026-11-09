@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の9本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の10本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-measure.sh に書かせる）。
@@ -21,14 +21,14 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; *) return 1 ;;
   esac
 }
-expected="candidates findings gate issue-keys measure notification project question report"
+expected="candidates corrections findings gate issue-keys measure notification project question report"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は9本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は10本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
     ok "schema/$name の決まり"
@@ -38,7 +38,7 @@ for name in $expected; do
 done
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -112,6 +112,7 @@ declare -A required=(
   [project]="version project repos"
   [candidates]="candidates"
   [measure]="project since until days flow efficiency counter prs skipped"
+  [corrections]="at corrections"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
@@ -169,6 +170,13 @@ measure|.counter.reopened|corrections by_tier
 measure|.counter.reopened.by_tier|A B C none
 measure|.prs[0]|issue pr merged_at tier auto human_touches lead_time_hours reverted corrections
 measure|.skipped[0]|source reason
+corrections|.corrections[0]|kind question decision_kind recommended picked
+corrections|.corrections[1]|kind comments human_commits
+corrections|.corrections[1].comments[0]|author at body
+corrections|.corrections[1].human_commits[0]|sha headline files
+corrections|.corrections[2]|kind finding reason
+corrections|.corrections[2].finding|severity file line
+corrections|.corrections[3]|kind question recommended answer
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -265,6 +273,8 @@ fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a
 fail|notification|del(.detail.pr)|review の detail に pr が無い
 fail|notification|.detail += {"text": "x"}|detail に知らないキー
 fail|notification|.kind = "asked"|asked なのに detail が review の形
+pass|notification|.kind = "corrections" | .detail = {error: "2 回打って失敗"}|kind corrections（集められなかった）
+fail|notification|.kind = "corrections" | .detail = {error: ""}|corrections の error が空
 fail|notification|.kind = "signal"|signal はまだ schema に無い
 fail|notification|.at = "2026-11-04 09:00:00"|at が UTC の形でない
 fail|notification|.at = "2026-02-30T09:00:00Z"|at が暦に無い日
@@ -369,6 +379,23 @@ fail|measure|.prs[0].tier = "D"|tier が A/B/C/none でない
 fail|measure|.prs[0].pr = "#1"|pr が URL でない
 fail|measure|.skipped[0].line = 0|飛ばした行の line が 0
 fail|measure|.skipped[0].reason = "a\nb"|飛ばした理由が2行
+pass|corrections|.corrections = []|手直しが無い（空の配列）
+fail|corrections|.corrections = null|corrections が null（集めていないなら書かない）
+fail|corrections|.at = "2026-02-30T09:00:00Z"|at が暦に無い日
+fail|corrections|.corrections[0].kind = "comment"|知らない kind（端末に送った文は拾わない）
+fail|corrections|.corrections[0].decision_kind = "scope"|answer の decision_kind に scope（範囲の問いは Chief of Staff の答え）
+fail|corrections|.corrections[0].question = 0|question が 0
+fail|corrections|.corrections[0].picked = ""|picked が空
+fail|corrections|.corrections[1].comments = [] | .corrections[1].human_commits = []|pr にコメントも commit も無い
+pass|corrections|.corrections[1].comments = []|pr に commit だけ
+pass|corrections|.corrections[1].human_commits = []|pr にコメントだけ
+pass|corrections|.corrections[1].comments[0] += {file: "docs/a.md", line: 3}|インラインのレビューコメント（file・line つき）
+fail|corrections|.corrections[1].comments[0].line = 0|コメントの line が 0
+fail|corrections|.corrections[1].human_commits[0].sha = "9c4e1b0"|human_commits の sha が40桁でない
+fail|corrections|.corrections[2].finding.severity = "blocker"|override の指摘に知らない severity
+fail|corrections|.corrections[2].finding.line = 0|override の指摘の line が 0
+fail|corrections|.corrections[2] += {"answer": "x"}|指摘の override に問いのキーが混ざる
+fail|corrections|.corrections[3].kind = "answer"|問いの override を answer にすると形が合わない
 EOF
 
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
@@ -396,6 +423,9 @@ question|.properties.kind.enum -= ["scope"]|問いの kind から scope を外�
 issue-keys|del(.properties.deliverable)|台帳の項目から deliverable を外す
 measure|.required -= ["skipped"]|流れの数えの必須から skipped を外す
 measure|."$defs".rate.anyOf[0].minimum = -1|率の負を許す
+corrections|.required -= ["corrections"]|手直しの必須から corrections を外す
+corrections|."$defs".pr.anyOf = [{}]|pr の「コメントか commit のどちらか」を外す
+notification|.properties.kind.enum -= ["corrections"]|通知の kind から corrections を外す
 LOOSE
 fi
 
@@ -437,6 +467,12 @@ notification-merged.json|notification|andon dispatcher の通知 merged
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
 measure.json|measure|andon measure --json の出力
 measure-empty.json|measure|andon measure --json の出力（記録が無い台帳）
+corrections-empty.json|corrections|andon dispatcher の corrections.json（手直し無し）
+corrections-answer.json|corrections|andon dispatcher の corrections.json（answer）
+corrections-pr.json|corrections|andon dispatcher の corrections.json（pr）
+corrections-pr-inline.json|corrections|andon dispatcher の corrections.json（pr。インラインのレビューコメント）
+corrections-override.json|corrections|andon dispatcher の corrections.json（override）
+notification-corrections.json|notification|andon dispatcher の通知 corrections（集められなかった）
 notification-impact-error.json|notification|andon dispatcher の通知 impact（集められず諦めたとき）
 notification-asked.json|notification|andon dispatcher の通知 asked
 notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report
