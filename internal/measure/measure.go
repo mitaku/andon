@@ -613,6 +613,44 @@ func (r *reader) read(path string) ([]byte, bool) {
 	return nil, false
 }
 
+// names はディレクトリの中の項目（名前順）。ディレクトリが無ければ空（まだ無い記録）。
+// ほかの理由で読めなければ、飛ばした記録に相対パスと理由（絶対パスを含まない）を出して空。
+func (r *reader) names(dir string) []fs.DirEntry {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			why := "読み取りの誤り"
+			var pe *fs.PathError
+			if errors.As(err, &pe) {
+				why = pe.Err.Error()
+			}
+			r.skip(r.rel(dir), 0, "ディレクトリを読めない（%s）", why)
+		}
+		return nil
+	}
+	return ents
+}
+
+func (r *reader) subdirs(dir string) []string {
+	var out []string
+	for _, e := range r.names(dir) {
+		if e.IsDir() {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+func (r *reader) files(dir, ext string) []string {
+	var out []string
+	for _, e := range r.names(dir) {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ext) {
+			out = append(out, filepath.Join(dir, e.Name()))
+		}
+	}
+	return out
+}
+
 func (r *reader) log() []logRow {
 	path := filepath.Join(r.dir, "log.jsonl")
 	b, ok := r.read(path)
@@ -657,10 +695,9 @@ func (r *reader) log() []logRow {
 }
 
 func (r *reader) issues() []*issue {
-	dirs, _ := filepath.Glob(filepath.Join(r.dir, "issues", "*", "issue.yaml"))
 	var out []*issue
-	for _, path := range dirs {
-		id := filepath.Base(filepath.Dir(path))
+	for _, id := range r.subdirs(filepath.Join(r.dir, "issues")) {
+		path := filepath.Join(r.dir, "issues", id, "issue.yaml")
 		b, ok := r.read(path)
 		if !ok {
 			continue
@@ -715,9 +752,8 @@ func (r *reader) reportPR(lib string) string {
 }
 
 func (r *reader) gates(lib string) []gateRec {
-	files, _ := filepath.Glob(filepath.Join(lib, "gate", "*.json"))
 	var out []gateRec
-	for _, path := range files {
+	for _, path := range r.files(filepath.Join(lib, "gate"), ".json") {
 		b, ok := r.read(path)
 		if !ok {
 			continue
@@ -791,7 +827,14 @@ func (r *reader) questions(path string) []span {
 			r.skip(r.rel(path), 0, "問い %d の asked が UTC の時刻でない", q.N)
 			continue
 		}
-		to, _ := parseAt(q.Answered)
+		var to time.Time
+		if q.Answered != "" {
+			to, ok = parseAt(q.Answered)
+			if !ok {
+				r.skip(r.rel(path), 0, "問い %d の answered が UTC の時刻でない", q.N)
+				continue
+			}
+		}
 		out = append(out, span{from, to})
 	}
 	return out
