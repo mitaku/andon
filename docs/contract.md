@@ -263,6 +263,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`） | boot が生成 | `andon issue start`（`hc templates` で存在を確かめる） |
 | 台帳の `agent` | 端末の address。作業側が別のマシンなら `<machine>/t7`（相談 F4） | `kanban start`（担当）・dispatcher（作業側の代筆） | dispatcher・ボード |
 | 起こし方 | `hc run --bg --outlive-parent --no-notify --name … --label … --cwd … [--on <machine>] <profile> "<最初の3行>"` | `andon issue start`・dispatcher | — |
+| 乾いた実行 | `andon issue start <id> --dry-run [--json]`: 確かめ（本番と同じ順・同じ理由・同じ終了コード）だけを通し、hc を呼ばず、端末・worktree・branch・ラベル・信頼の設定を作らず台帳も書かずに、上の名前・ラベル・cwd・プロファイル・最初のメッセージ（`hc run` に渡す文そのもの）と依頼書の全文・worktree・branch・確かめの結果（`ok`／hc を呼ぶものと作る直前のものは `skipped`）を出す。`--json` の形は人と評価が読む出力で、schema に無い（機械は判定に使わない。[決定](decisions/2026-11-09-issue-start-dry-run.md)） | `andon issue start` | 人・Chief of Staff |
 | 状態 | `hc events`（dispatcher）か `hc ls --json`（見回り）。`working`・`idle`・`done`・`blocked`・`error`・`finished` | hc | dispatcher |
 
 ## 9. フック

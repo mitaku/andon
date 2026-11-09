@@ -9,6 +9,7 @@
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
 //	candidates <id> <file|->  候補の一覧の JSON を検査し、library/candidates.json に置く（repo があれば commit は HEAD）
 //	start <id>            worktree と branch を切り、hc run で担当を起こし、kanban start で結ぶ（Chief of Staff が打つ）
+//	                      （--dry-run は確かめだけ通し、起こすときに渡すものを出す。--json で JSON）
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
 //	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
@@ -44,8 +45,10 @@ const Usage = "usage: andon issue show <id>                                  予
 	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
 	"       andon issue impact <id>                                マージした PR と、同じ repo の動いている課題の重なり・衝突を JSON で出す\n" +
 	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
-	"       andon issue start <id>                                 担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
+	"       andon issue start <id> [--dry-run [--json]]            担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
 	"                                                          （最初のメッセージが届かなければ終了コード 3。dispatcher が送り直す）\n" +
+	"                                                          （--dry-run は確かめだけ通し、hc を呼ばず何も作らずに、渡すもの〈最初のメッセージ・依頼書・\n" +
+	"                                                          ラベル・端末の名前・worktree・branch・プロファイル・確かめの結果〉を出す）\n" +
 	"       andon issue stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
 	"                                                          （id を省くと端末のラベル issue=。担当でなければ何も出さない）\n" +
 	"--data は report.json の任意のキー（pr・waived・acceptance・risk・next・remember・agents_md）の JSON object。\n" +
@@ -130,10 +133,21 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		err = withIssue(id, func(c *ctx) error { return c.impact(stdout) })
 	case "start":
-		if len(rest) > 0 {
+		var dry, asJSON bool
+		for _, a := range rest {
+			switch {
+			case a == "--dry-run" && !dry:
+				dry = true
+			case a == "--json" && !asJSON:
+				asJSON = true
+			default:
+				return usage()
+			}
+		}
+		if asJSON && !dry {
 			return usage()
 		}
-		err = withIssue(id, func(c *ctx) error { return c.start(stdout, stderr) })
+		err = withIssue(id, func(c *ctx) error { return c.start(stdout, stderr, dry, asJSON) })
 	default:
 		return usage()
 	}

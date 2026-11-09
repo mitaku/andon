@@ -331,7 +331,17 @@ KANBAN_ROOT= kanban init --prefix S --repo github.com/example/app --repo github.
 export KANBAN_ROOT=$PWD HC_TERMINAL_ID=t5
 kanban config set chief_of_staff=t5 >/dev/null
 s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude --brief - <<<'# Add the button')
+# 乾いた実行: 本物の台帳で、hc を呼ばず、何も作らず台帳も書かずに、起こすときに渡すものを出す
+hcn=$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true); before=$(wc -l < kanban/log.jsonl)
+"$andon" issue start "$s1" --dry-run --json > "$tmp/dry" || die "dry-run が落ちた"
+[ "$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true)" = "$hcn" ] && [ "$(wc -l < kanban/log.jsonl)" = "$before" ] && [ "$(field "$s1" status)" = todo ] && [ ! -e "$HOME/.herdr/worktrees/app/demo-$s1" ] \
+  || die "dry-run が hc を呼んだか何かを作った: $(cat "$tmp/hc/log")"
+jq -e --arg id "$s1" --arg wt "$HOME/.herdr/worktrees/app/demo-$s1" '.dry_run and .terminal == ("demo-" + ($id | ascii_downcase)) and .worktree == $wt and .cwd == $wt
+  and .branch == "demo/\($id)-add-the-button" and .profile == "claude" and (.brief | startswith("# Add the button"))
+  and ([.checks[] | select(.result == "ok") | .name] | index("delegation") != null)' "$tmp/dry" >/dev/null || die "dry-run の中身: $(cat "$tmp/dry")"
+ok 'start --dry-run: hc を呼ばず worktree・台帳に触れずに、端末の名前・worktree・branch・プロファイル・依頼書・確かめの結果を出す'
 "$andon" issue start "$s1" > "$tmp/out"
+[ "$(jq -r .first_message "$tmp/dry")" = "$(printf '課題 `demo/%s`。\n依頼書は `%s`。' "$s1" "$(jq -r .brief_path "$tmp/dry")")" ] || die "dry-run の最初のメッセージの形: $(jq .first_message "$tmp/dry")"
 lc=$(tr A-Z a-z <<<"$s1")
 wt=$HOME/.herdr/worktrees/app/demo-$s1
 br=demo/$s1-add-the-button

@@ -194,10 +194,7 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 	if _, err := g("fetch", "-q", "origin", "+refs/heads/"+def+":refs/remotes/origin/"+def); err != nil {
 		return nil, fmt.Errorf("origin/%s を fetch できない（%s）", def, repoDir)
 	}
-	branch := slug + "/" + id
-	if short := ShortTitle(title); short != "" {
-		branch += "-" + short
-	}
+	branch := BranchName(slug, id, title)
 	if _, err := g("check-ref-format", "--branch", branch); err != nil {
 		return nil, fmt.Errorf("branch 名が不正: %s", branch)
 	}
@@ -237,6 +234,15 @@ func defaultBranchError(repoDir string, cause error) error {
 		msg += "。認証が原因らしい: gh auth status でログインを確かめ、gh auth setup-git で git の資格情報を gh にする（boot が起動のたびに打つ。gh auth login のあと andon boot を打ち直してもよい）"
 	}
 	return errors.New(msg)
+}
+
+// BranchName は担当の branch の名前: <slug>/<id>-<題の英字の短い形>（題に英字が無ければ <slug>/<id>）。
+func BranchName(slug, id, title string) string {
+	branch := slug + "/" + id
+	if short := ShortTitle(title); short != "" {
+		branch += "-" + short
+	}
+	return branch
 }
 
 // WorktreePath は ~/.herdr/worktrees/<repo 名>/<slug>-<id>（andon issue finish が片付ける置き場と同じ）。
