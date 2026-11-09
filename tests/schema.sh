@@ -264,6 +264,12 @@ pass|notification|.kind = "ready" | .detail = {title: "x"}|kind ready（routine 
 pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_issue: "A-13"}|kind review-requested
 pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json"}|kind gate
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|kind merged
+pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person"}|kind merged（人がマージした）
+pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person", held: "x"}|kind merged（人がマージしたが片付けていない）
+fail|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", held: "x"}|merged の held に by が無い
+fail|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "dispatcher"}|merged の by が person でない
+pass|notification|.kind = "closed" | .detail = {pr: .detail.pr}|kind closed
+fail|notification|.kind = "closed" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|closed に知らないキー
 pass|notification|.kind = "stalled" | .detail = {agent: "t7", status_ms: 1793845966681} | del(.issue)|kind stalled（issue 無し）
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
@@ -466,6 +472,9 @@ question-gate.json|question|andon dispatcher が needs_human で出した問い�
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
 notification-merged.json|notification|andon dispatcher の通知 merged
+notification-merged-person.json|notification|andon dispatcher の通知 merged（人がマージした）
+notification-merged-held.json|notification|andon dispatcher の通知 merged（人がマージしたが片付けていない）
+notification-closed.json|notification|andon dispatcher の通知 closed
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
 measure.json|measure|andon measure --json の出力
 measure-empty.json|measure|andon measure --json の出力（記録が無い台帳）

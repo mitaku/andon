@@ -70,4 +70,14 @@ type dispatcherState struct {
 	Impact    map[string]int        `json:"impact,omitempty"`
 	// Issues done whose corrections.json is not collected yet → failed tries
 	Corrections map[string]int `json:"corrections,omitempty"`
+	// Issues in review whose pull request is watched for a person's merge
+	Watch map[string]dsWatch `json:"watch,omitempty"`
+}
+
+type dsWatch struct {
+	PR    string `json:"pr"`
+	At    string `json:"at,omitempty"`
+	State string `json:"state,omitempty"`
+	Sha   string `json:"sha,omitempty"`
+	Held  string `json:"held,omitempty"`
 }

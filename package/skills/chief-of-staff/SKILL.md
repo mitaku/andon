@@ -304,11 +304,11 @@ Chief of Staff が決めるのは、依頼書の Settings（§2。`review`・`re
    ほかの理由（conflict・base・作者・予約キーを信じられない・Must fix の見送り・同じ head で2度目の Must fix・ゲートが判定できない）は、人へ（§8 の1問ずつ）。
    直せば済むと人が答えたら、担当へ `hc send` で理由を返す（担当が `deck start` で戻して直し、同じ手順で返す）。
 3. 人にマージを頼む（1行: 課題の番号（題）・PR の URL・何が変わったか・レビューの回数と結果・見送った指摘）。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
-   人がマージしたら §7。
+   人がマージしたら、dispatcher が次の見回り（1分以内）で拾い、この問いを「人がマージした」と閉じて片付ける（§7）。`deck answer`・`deck received` を手で打たない。
 
 ### approve で止まったとき（`<id> gate: approve` のあと `merged` が来ない）
 
-`merge: person`、または `merge: auto` を最後に書いたのが Chief of Staff でない。人にマージを頼む（上の3と同じ1行）。
+`merge: person`、または `merge: auto` を最後に書いたのが Chief of Staff でない。人にマージを頼む（上の3と同じ1行）。人がマージしたあとは §7。
 
 ### 上限を超えた回（`<id> report` で、dispatcher がレビュアーを起こさなかった）
 
@@ -329,11 +329,19 @@ minor 以下だけが残っているなら起こさず、見送りに残して `
 
 ## 7. 片付け
 
-- dispatcher がマージしたもの（`<id> merged`）は、dispatcher が `andon issue finish` 済み。
+- dispatcher がマージしたもの（`<id> merged: <PR> をマージして片付けた`）は、dispatcher が `andon issue finish` 済み。
+- 人がマージしたもの（`review` の課題）も dispatcher が見回りで拾う（PR ごとに1分に1回）。届く行で決める:
+
+  | 届く行 | dispatcher がしたこと | すること |
+  |---|---|---|
+  | `<id> merged: <PR> は人がマージした（…）。ゲートの問いを閉じて片付けた` | ゲートの問い（`from: gate`）を「人がマージした」と閉じ、`andon issue finish` 済み | 何もしない（wiki だけ。下） |
+  | `<id> merged: <PR> は人がマージした（…）が、片付けていない: <理由>` | 片付けていない（ゲートの外の問いが開いている・finish が失敗した） | 理由の問いを先に閉じる（担当の問いなら答えを返す・要らなくなった問いなら `deck answer`・`deck received`）か、finish の理由を直す。dispatcher が次の巡で片付ける |
+  | `<id> closed: <PR> はマージされずに閉じた` | 何もしない（片付けていない） | 人が閉じた理由を確かめ、やめるなら人の go を取って `andon issue finish <id>`、出し直すなら担当へ返す |
+
 - どちらのマージでも、finish のあと dispatcher が動いている課題への影響を見て、影響があれば `<id> impact` で届く（下の「マージのあとの影響」）。
 - 調べる課題（`deliverable: candidates`）は PR が無いので、報告と `candidates.json` を読んで直す課題を切ったあと（切らない候補は報告の Next に残っている）、人の go は要らず `andon issue finish <id>`。commit していない変更があって止まったら、担当に捨てさせる（報告の Next に「commit は捨ててよい」と書かせる）。
-- 人がマージしたものは、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
-  commit していない変更があると止まる。そのときは担当に聞くか、人へ。
+- dispatcher が止まっている・`review` を通らなかった課題を人がマージしたときだけ、手で片付ける: `gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
+  開いた問いがあると止まる。commit していない変更があっても止まる。そのときは担当に聞くか、人へ。
 - マージせずにやめる課題は、**人の go を取ってから** `andon issue finish <id>`（branch は残る）。
 - レビュアーの課題は、元の課題の `andon issue finish` で片付く。元の課題をやめずにレビュアーだけ残っていれば `andon issue finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
 - finish のたびに、報告の `## Remember` と確かめた事実から、次に効くものだけを wiki に書く（§11）。

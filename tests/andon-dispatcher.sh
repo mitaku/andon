@@ -34,8 +34,10 @@ cat > "$tmp/bin/gh" <<EOF
 d=$tmp/gh
 case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
-  "pr view 7 --repo example/app --json state,mergeCommit")
-    if [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
+  "pr view 7 --repo example/"*" --json state,mergeCommit")   # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
+    echo x >> \$d/states
+    if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
+    elif [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
   "pr view 7 --repo example/app --json state,commits,comments,reviews")   # 人の手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
@@ -429,6 +431,99 @@ dispatcher
 pending "$id" gate | jq -e '.detail.decision == "approve"' >/dev/null || die '通知 gate が無い'
 [ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'merge: person なのにマージした'
 ok 'merge: person は approve でもマージせず、通知 gate で止まる（人がマージする）'
+
+# 4b. 人が GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
+#     ゲートの問い（from: gate。重なったものも）を「人がマージした」と閉じ、andon issue finish し、通知 merged（by: person）を積む。
+#     次の巡で影響（impact）と人の手直し（corrections）も dispatcher がマージしたときと同じ道で拾う。dispatcher.md §2.7
+watch_due() { # watch_due <id>: その課題だけ、次の見回りで GitHub に聞く（ほかの review の課題は聞かない）
+    jq --arg t "$1" '.watch |= with_entries(.value.at = (if .key == $t then "2000-01-01T00:00:00Z" else "2999-01-01T00:00:00Z" end))' "$state" > "$state.new" && mv "$state.new" "$state"
+}
+person_merges() { git -C "$tmp/origin" update-ref refs/heads/main "$head"; echo "$head" > "$tmp/gh/merged"; }
+hm=$(newtask '人がマージする課題' person)
+work "$hm" package/gate.json
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+as_worker "$hm" review-request
+dispatcher
+review_by "$(kanban list --all --json | jq -r --arg p "$hm" '[.[] | select(.parent == $p)] | last | .id')" '[]'
+as_worker "$hm" ready
+dispatcher
+jq -e '.from == "gate"' "$L/issues/$hm/library/questions/1.json" >/dev/null || die '前提: needs_human の問いが無い'
+HC_TERMINAL_ID=dispatcher "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"irreversible","question":"重なったゲートの問い","options":[{"label":"人が見る","pick":true},{"label":"x"}],"from":"gate"}'
+HC_TERMINAL_ID=t5 kanban answer "$hm#2" '人が見る' >/dev/null   # answered のまま（received でない）
+n=$(wc -l < "$tmp/gh/states")
+watch_due "$hm"; dispatcher; dispatcher
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die "1分たたないうちに同じ PR を GitHub に聞き直した: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
+kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die 'OPEN の PR の課題を片付けた'
+merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
+person_merges
+watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "人がマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
+kanban questions --json | jq -e --arg t "$hm" 'all(.[]; .id != $t)' >/dev/null || die "ゲートの問いが閉じていない: $(kanban questions --json | jq -c --arg t "$hm" 'map(select(.id == $t))')"
+grep -q '人がマージした（https://github.com/example/app/pull/7）' "$L/issues/$hm/questions.yaml" || die 'ゲートの問いに「人がマージした」と記録していない'
+pending "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）が無い: $(pending "$hm" merged)"
+[ "$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)" = "$merges" ] || die '人がマージする課題に gh pr merge を打った'
+jq -e --arg t "$hm" '(.watch // {}) | has($t) | not' "$state" >/dev/null || die '片付けたあとも控えに残った'
+emit <(pending "$hm" merged) notification-merged-person.json
+dispatcher
+jq -e --arg t "$hm" '((.impact // {}) | has($t) | not) and ((.corrections // {}) | has($t) | not)' "$state" >/dev/null || die "人のマージのあと impact・corrections を拾っていない: $(jq -c '{impact, corrections}' "$state")"
+[ -e "$(cj "$hm")" ] || die '人のマージのあと corrections.json を書いていない'
+ok '人が GitHub でマージしたら、次の見回りでゲートの問い（重なったものも）を閉じて finish し、通知 merged（by: person）・impact・corrections を同じ道で回す。PR は1分に1回だけ見る'
+
+# 4c. 人がマージしたが、ゲートの外の問い（担当の ask）が開いている → 片付けずに知らせる（1回）。問いが閉じたら次の巡で片付ける
+hm=$(newtask '問いが残る課題' person)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"users","question":"どちらにする","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}')
+(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
+dispatcher
+person_merges
+watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die 'ゲートの外の問いが開いているのに片付けた'
+pending "$hm" merged | jq -e --arg q "$hm#1" '.detail.by == "person" and (.detail.held | contains($q))' >/dev/null || die "片付けない理由を知らせていない: $(pending "$hm" merged)"
+emit <(pending "$hm" merged) notification-merged-held.json
+jq --arg t "$hm" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+n=$(wc -l < "$tmp/gh/states"); dispatcher
+[ "$(pending "$hm" merged)" = null ] || die '同じ理由で二度知らせた'
+[ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die 'MERGED と分かった PR を GitHub に聞き直した'
+HC_TERMINAL_ID=t5 kanban answer "$hm#1" A >/dev/null; HC_TERMINAL_ID=t7 kanban received "$hm#1" >/dev/null
+dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "問いが閉じたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
+pending "$hm" merged | jq -e '.detail.by == "person" and (.detail | has("held") | not)' >/dev/null || die "片付けた通知が無い: $(pending "$hm" merged)"
+ok '人がマージしてもゲートの外の問いが開いていれば片付けずに1回だけ知らせ、問いが閉じたら次の巡で片付ける（GitHub には聞き直さない）'
+
+# 4d. PR がマージされずに閉じた → 片付けず、通知 closed を1回だけ
+hm=$(newtask '閉じた PR の課題' person)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
+dispatcher
+touch "$tmp/gh/closed"
+watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die '閉じた PR の課題を片付けた'
+pending "$hm" closed | jq -e '.detail == {pr: "https://github.com/example/app/pull/7"}' >/dev/null || die "通知 closed が無い: $(pending "$hm" closed)"
+emit <(pending "$hm" closed) notification-closed.json
+jq --arg t "$hm" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+n=$(wc -l < "$tmp/gh/states"); watch_due "$hm"; dispatcher
+[ "$(pending "$hm" closed)" = null ] && [ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die '閉じた PR を二度知らせた・聞き直した'
+rm "$tmp/gh/closed"
+HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null   # 前の節の課題と同じ PR 7 を使うので、ここで片付ける
+ok 'PR がマージされずに閉じたら片付けず、通知 closed を1回だけ積む（もう聞き直さない）'
+
+# 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
+hm=$(newtask '別の repo の PR' person)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/other/pull/7
+(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
+person_merges
+n=$(wc -l < "$tmp/gh/states"); dispatcher; watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die '別の repo の PR がマージされたのを見て片付けた'
+[ "$(wc -l < "$tmp/gh/states")" = "$n" ] && [ "$(pending "$hm" merged)" = null ] || die '別の repo の PR を GitHub に聞いた・知らせた'
+rm -f "$tmp/gh/merged"
+HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null
+ok 'issue.yaml の repo と違う repo の PR は、マージされていても見ず、片付けない'
 
 # 5. 上限を超えた回（extra）は起こさない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null

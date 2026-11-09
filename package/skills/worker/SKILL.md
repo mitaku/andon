@@ -245,4 +245,4 @@ Chief of Staff から**ほかの課題のマージで前提が変わった**と�
 - どちらも、頼まれていない rebase や向きの変更はしない（main が進んだだけでは、自分からは rebase しない。ぶつかるかは dispatcher と Chief of Staff が見ている）。
 
 `andon issue show <id>` で、いまの予約キー・`report.json`・レビューの照合を読める（読むだけ）。
-マージと片付け（`andon issue finish`）は dispatcher（`merge: auto`）か、人と Chief of Staff がする。
+マージは dispatcher（`merge: auto`）か人がする。片付け（`andon issue finish`）は dispatcher（人がマージした PR も見回りで拾う）か Chief of Staff がする。
