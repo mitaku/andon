@@ -52,13 +52,27 @@ Claude Code の managed settings の deny のうちコマンドの頭で引く�
 
 **Claude Code と同じ広さではない。** rules は token の頭の一致で、引数の値を読み飛ばせない。Codex が拒むのは直接の形（絶対パスを含む）と、引数を取らない wrapper（`env`・`command`・`exec`・`nohup`・`nice`・`sudo`・`xargs`）の形だけ。Claude Code の deny が見る、引数を取る wrapper（`timeout 30 …`・`env FOO=bar …`）・先頭の代入（`FOO=bar gh pr merge`）・`$( )` の中は拒めない（`tests/image.sh` が「拒めないことが分かっている形」として持つ）。守る相手は間違える担当で、偽る担当ではない（下の「残る危険」と同じ D1）。マージを本当に止めるのはゲートと、public にしたあとのブランチ保護。
 
-人のファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当が人のファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない。
+人のファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当が人のファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない（セルの repo の既定の作者は owner でない。下の「git の作者」）。
 
 deny のうち `Bash(git diff *--output*)` などは allow の穴を塞ぐもので、allow を持たない Codex には引かない。2か所の一覧は `tests/package.sh` が突き合わせる。Codex 自身の危険の判定（`rm -f` など）は `never` の下では確認ではなく拒否になる。
 
 Codex のフックは配っていない（フックは Claude Code だけ。[contract.md](contract.md)）ので、フックの信頼の画面は出ない。
 
 `tests/image.sh` は、モデルを呼ばずに `codex debug prompt-input` の permissions の文（実効の設定から組む）と `codex execpolicy check` で確かめる。
+
+## git の作者
+
+セルの `~` は作り直すと消えるので、git の既定の作者は boot が毎起動書く（`internal/boot/gitauthor.go`）。`~/.gitconfig` に `includeIf` を2つ、この順に置く（後ろが勝つ）:
+
+| 当たる repo | include するファイル | 作者 |
+|---|---|---|
+| `gitdir:/workspace/`（セルの repo） | `~/.config/andon/git/cell.gitconfig` | `Andon agent <andon-agent@cell.invalid>`。owner と一致しない |
+| `gitdir:$GHQ_ROOT/`（案件の repo と、その worktree。worktree は元の repo の gitdir で当たる） | `~/.config/andon/git/product.gitconfig` | `andon.toml` の `owner`（名前は noreply なら login、ほかは `@` の前） |
+
+- セルの repo の作者を owner にしないのは、委譲の照合（[contract.md](contract.md) §11。`project.json`・`gate.local.json` を最後に変えた commit の author ＝ owner）を、担当や Chief of Staff の commit が素通りしないため。上の Codex の段のとおり、Codex の担当には人のファイルの deny が引けず、この照合が守り。
+- 人が owner のファイルを commit するときは、ホストの checkout で打つか、セルの中なら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner> git commit …`・`andon delegate grant` も同じ環境変数で）。セルの repo の `git config user.email`（repo の中だけの設定）で合わせない: その設定はセルの中の担当にも効き、照合が素通りになる。
+- `owner` が空・`andon.toml` に無いときは、案件の repo もセルの作者で書く（commit は通り、owner は名乗らない。委譲はもともと無委譲として読まれる）。ログに1行出す。
+- `~/.gitconfig` に `user.name` か `user.email` が直に書いてあれば、人の設定として何もしない（ログに `触らない`）。boot の `includeIf` 以外の節（`gh auth setup-git` の credential helper など）には触らない。何度打っても同じ。
 
 ## CI と配布
 

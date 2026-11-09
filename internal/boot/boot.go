@@ -8,6 +8,7 @@
 //	<pkg>/codex.rules                         → ~/.codex/rules/andon.rules（＋ ~/.codex/config.toml に足りない承認・sandbox の既定だけ）
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
 //	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
+//	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
 // 信頼済みにする（trust.go。足りない所だけ足す）、portless・files サーバ・sshd・dispatcher の起動。
@@ -39,7 +40,7 @@ const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
-	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定。\n" +
+	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
@@ -149,6 +150,7 @@ func Generate(e Env) error {
 		{"Codex の rules", genCodexRules},
 		{"skill", genSkills},
 		{"herdr の設定", genHerdr},
+		{"git の作者", genGitAuthor},
 		{"Claude Code の起動リンク", linkClaude},
 		{"herdr-core の起動リンク", linkHerdrCore},
 		{".claude.json", rescueClaudeJSON},
