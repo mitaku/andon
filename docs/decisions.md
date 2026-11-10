@@ -29,6 +29,8 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 
 語の改め: 2026-11-07 より前の行の「建屋」（plant）は、今の語では**セル**（cell。design.md §0.1・§2.4）。行は書き換えない。
 
+語の改め（2026-11-10 から）: ふだんカタカナで言う語をカタカナに戻す置き換え（費用→コスト・持ち主→オーナーなど。[ADR-0013](adr/0013-short-role-names-and-plain-japanese.md) 決めたこと 4）だけは、凍結した行と `decisions/` の古いファイルにも及ぶ。語だけで、決定の中身は変えない（[decisions/2026-11-10-word-replacement-reaches-frozen-records.md](decisions/2026-11-10-word-replacement-reaches-frozen-records.md)）。
+
 ## 1. 設計書 §6 の人の答え（27 問）
 
 | 日付 | 決定 | 出典 |

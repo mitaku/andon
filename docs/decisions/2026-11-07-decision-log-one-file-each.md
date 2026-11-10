@@ -2,6 +2,7 @@
 
 - 日付: 2026-11-07
 - 出典: 人（2026-11-07「decision.md がコンフリクトを誘発している」）、Y-199
+- 覆された（一部。語の置き換えだけ）: [2026-11-10-word-replacement-reaches-frozen-records.md](2026-11-10-word-replacement-reaches-frozen-records.md)
 
 決定の記録の置き場を改める。今までは [decisions.md](../decisions.md) の表の末尾に 1 行ずつ足していたので、並べて走る PR がどれも同じ所を触り、1 本マージされるたびに次の PR が rebase を要した（直近の main の 30 commit のうち 12 がこのファイルを触っていた）。
 
