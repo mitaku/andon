@@ -43,6 +43,8 @@ type dsHookNews struct {
 	PromptID  string           `json:"prompt_id,omitempty"`
 	News      []dsNotification `json:"news,omitempty"`
 	Again     []dsNotification `json:"again,omitempty"`
+	Turn      *int             `json:"turn,omitempty"`
+	AckBefore string           `json:"ack_before,omitempty"`
 }
 
 type dsResend struct {
@@ -76,6 +78,8 @@ type dispatcherState struct {
 	Approved map[string]dsNotification `json:"approved,omitempty"`
 	// Record-only notifications not yet appended to <slug>.recorded.jsonl
 	Unrecorded []dsNotification `json:"unrecorded,omitempty"`
+	// news.replied written, by what (ack or no-reply)
+	Replied map[string]int `json:"replied,omitempty"`
 }
 
 type dsWatch struct {

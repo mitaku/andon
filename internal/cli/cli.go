@@ -72,6 +72,12 @@ var commands = []command{
 		run:   dispatcher.Main,
 	},
 	{
+		name:  "news",
+		about: "Chief of Staff が届いた <news> に人へ言うことが無いと示す（ack。ラベル news.ack=<turn>）",
+		usage: dispatcher.NewsUsage,
+		run:   dispatcher.NewsMain,
+	},
+	{
 		name:  "publish",
 		about: "生成したファイルを files/ へ公開し、URL を返す",
 		usage: "usage: andon publish <file> [slug]\n" +

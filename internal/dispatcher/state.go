@@ -68,6 +68,8 @@ type State struct {
 	Approved map[string]Notification `json:"approved,omitempty"`
 	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
 	Unrecorded []Notification `json:"unrecorded,omitempty"`
+	// news.replied を書いた数を、何で書いたか（ack・no-reply）ごとに（移行の間。ADR-0010 決めたこと 6。ack.go）
+	Replied map[string]int `json:"replied,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。
@@ -79,6 +81,8 @@ type HookNews struct {
 	PromptID  string         `json:"prompt_id,omitempty"`
 	News      []Notification `json:"news,omitempty"`
 	Again     []Notification `json:"again,omitempty"`
+	Turn      *int           `json:"turn,omitempty"`       // 渡したときの端末の turn（ラベル news.ack と照らす。ADR-0010 決めたこと 5）
+	AckBefore string         `json:"ack_before,omitempty"` // 渡したときのラベル news.ack の値（同じ turn の前の ack を数えない）
 }
 
 // StatePath は控えの置き場。

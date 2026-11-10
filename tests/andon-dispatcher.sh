@@ -818,6 +818,50 @@ cstop p0 '<no-reply>' true >/dev/null
 [ "$(grep -c 'news.replied' "$tmp/hc/labels")" = 2 ] || die '確かめ済みの <news> に二度 news.replied を書いた'
 ok '送信で渡した <news> は turn の Stop まで控えに残し、中断されたら次の送信で1回だけ届け直す。news.replied は prompt_id で照合した turn だけ（違う turn の Stop では書かず届け直す）'
 
+# 12c. andon news ack（ADR-0010 決めたこと 4〜6）: Chief of Staff の端末だけに news.ack=<turn> を書き、
+# 渡した turn に ack があれば答えの文に関わらず news.replied を書く（移行の間は <no-reply> だけの答えでも書く）
+replied() { grep -c 'news.replied' "$tmp/hc/labels"; }
+cos working 7
+out=$(HC_TERMINAL_ID=t5 "$andon" news ack) && tail -1 "$tmp/hc/labels" | grep -qx 't5 news.ack=7' || die "Chief of Staff の端末に news.ack=<turn> を書かない: $out"
+term t7 working 1 project=demo issue=A-0001
+labels=$(wc -l < "$tmp/hc/labels")
+HC_TERMINAL_ID=t7 "$andon" news ack >/dev/null 2>&1 && die 'Chief of Staff でない端末の ack が 0 で終わった'
+[ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die 'Chief of Staff でない端末に news.ack を書いた'
+# 渡し中が無い（控えに hook が無い）ときの ack は news.replied を書かせない
+n=$(replied)
+term t5 working 7 role=chief-of-staff project=demo news.ack=7
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false,"last_assistant_message":"了解"}' >/dev/null
+[ "$(replied)" = "$n" ] || die '渡し中が無いのに ack で news.replied を書いた'
+# Stop で渡し（turn 8）、続きのターンで ack して人向けの文も返した: 文に関わらず書く。2回 ack しても1回だけ
+id=$(event 'ack する通知')
+term t5 working 8 role=chief-of-staff project=demo news.ack=7
+cstop p8 '見た' | jq -e --arg id "$id" '.reason | contains("\($id) report:")' >/dev/null || die 'Stop で <news> を渡さない'
+jq -e '.hook.turn == 8 and .hook.ack_before == "7"' "$state" >/dev/null || die '渡したときの turn と news.ack を控えていない'
+HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null && HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null || die 'ack が通らない'
+term t5 working 8 role=chief-of-staff project=demo news.ack=8
+cstop p8 '片付けた。人へ言うことは無い' true >/dev/null
+cstop p8 '片付けた。人へ言うことは無い' true >/dev/null
+[ "$(replied)" = $((n + 1)) ] && tail -1 "$tmp/hc/labels" | grep -qx 't5 news.replied=8' || die 'ack したターンに news.replied を1回だけ書かない'
+jq -e '.replied.ack == 1' "$state" >/dev/null || die 'ack で書いたことを控えに数えない'
+# ack の無いターン（前のターンの値のまま）は、<no-reply> でなければ書かない
+id=$(event 'ack しない通知')
+term t5 working 9 role=chief-of-staff project=demo news.ack=8
+cstop p9 'x' >/dev/null
+cstop p9 '人への答え' true >/dev/null
+[ "$(replied)" = $((n + 1)) ] || die 'ack の無いターンに news.replied を書いた'
+# 移行の間: ack が無くても答えが <no-reply> だけなら書き、no-reply と数える
+id=$(event '<no-reply> で答える通知')
+cstop p9 'x' >/dev/null
+cstop p9 '<no-reply>' true >/dev/null
+[ "$(replied)" = $((n + 2)) ] && jq -e '.replied["no-reply"] >= 1 and .replied.ack == 1' "$state" >/dev/null || die '移行の間の <no-reply> に news.replied を書かない・数えない'
+# 同じ turn（Stop の block の続きは turn が進まない）で、渡す前にもう ack していたら、その ack は数えない
+id=$(event '前の ack が残る通知')
+term t5 working 9 role=chief-of-staff project=demo news.ack=9
+cstop p9 'x' >/dev/null
+cstop p9 '人への答え' true >/dev/null
+[ "$(replied)" = $((n + 2)) ] || die '渡す前の同じ turn の ack で news.replied を書いた'
+ok 'andon news ack は Chief of Staff の端末だけに news.ack=<turn> を書き、渡した turn に ack があれば文に関わらず news.replied を1回だけ書く（渡し中が無い・前の ack は数えない。移行の間は <no-reply> も受けて数える）'
+
 # 13. 離席時だけ hc send（状態 idle・入力欄が空・前の <news> の turn が進んでいる）
 id=$(event '離席の通知')
 cos idle 4
@@ -850,6 +894,16 @@ screen '❯' '❯'
 dispatcher
 [ "$(sent)" = 2 ] && grep -q "^send t5 <news" "$tmp/hc/log" && grep -q "$id2 report:" "$tmp/hc/sent" || die 'done の Chief of Staff に --if なしで送らない'
 ok '離席時だけ hc send（idle か done・入力欄が空・薄い字は空・hc read と一致・許可の一覧の列だけ・前の turn が進んでから。idle は --if idle）'
+
+# 13a. ③で送った turn（5）に ack があれば、画面の答えに関わらず news.replied を書く
+jq -e '.news_turn == 5' "$state" >/dev/null || die '③で送った turn を控えていない'
+term t5 idle 6 role=chief-of-staff project=demo news.ack=5
+printf '❯ <news project="demo">\n  x\n  </news>\n\n● 確かめた\n\n%s\n❯\n%s\n' "$rule" "$rule" > "$tmp/hc/screen-t5"
+n=$(jq '.replied.ack // 0' "$state")
+dispatcher
+grep -qx 't5 news.replied=6' "$tmp/hc/labels" && jq -e --argjson n "$n" '.replied.ack == $n + 1 and has("news_turn") == false' "$state" >/dev/null ||
+    die '③で送った turn の ack に news.replied を書かない'
+ok '③で送った turn に andon news ack があれば、画面の答えを読まずに news.replied を書く'
 
 # 14. doing で報告無しの Stop が block（担当・レビュアーの Stop フック。stop-check）
 id=$(newtask '止まる前に報告する' person)
