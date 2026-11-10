@@ -26,6 +26,7 @@ JSON Schemas for editors and checks: [config.v3.schema.json](../schema/ledger/co
 | 2026-11-03 | `tasks/<id>/questions.yaml`, the ledger's `library/`, `log.jsonl` lines `{"question": …}` | [Questions](#questions) |
 | 2026-11-07 | `questions.yaml` `kind: scope` (`kanban ask --kind scope`) | [Questions](#issuesidquestionsyaml) |
 | 2026-11-10 | `issue.yaml` `not_before` (a date; `kanban ready` holds the issue back until then) | [`issue.yaml`](#issuesidissueyaml), [Status rules](#status-rules) |
+| 2026-11-10 | `issue.yaml` `session` (the agent's harness session id) | [`issue.yaml`](#issuesidissueyaml) |
 
 A board that reads the files itself and does not know `not_before` will show such an issue as ready before its day (it ignores a key it doesn't know, as above). The person who keeps such a board should be told once; `kanban ready` is the one place that holds the issue back.
 
@@ -119,6 +120,7 @@ chief_of_staff: t2              # optional; the Chief of Staff's terminal
 | `agent` | string | The terminal working on it: its herdr-core address **on the ledger's own machine** (`t3`, not `vps/t3`), the way herdr-core records a `parent`. A tab or terminal name is also accepted by readers. A machine-qualified address (`<machine>/t7`, as herdr-core prints it for a terminal on another machine) may also appear; readers (work-board) already read it that way. |
 | `branch` | string | The issue's git branch. |
 | `worktree` | string | The issue's worktree folder (`~` allowed). |
+| `session` | string | The id of the agent's harness session (a lowercase UUID), so the yard can resume the same conversation after the terminal is lost. The yard writes it; the ledger only keeps it. |
 | `links` | list of strings | `http(s)` URLs, or paths relative to the root. |
 | `routine` | string | The name of the routine that added it (see Routines). |
 | `not_before` | string | A date, `YYYY-MM-DD`: `kanban ready` does not list the issue before that day. Whatever its status. Read in `config.yaml`'s `timezone` (UTC when there is none), so the issue shows from the first moment of that day there. `kanban lint` reports a value that is not a date; such a value hides nothing. |

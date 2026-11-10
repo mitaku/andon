@@ -10,6 +10,7 @@ package spawn
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -137,6 +138,22 @@ const FirstLabel = "first_message.sent"
 // dispatcher が送り直すときも同じ文を組む。brief は依頼書の絶対パス。
 func FirstMessage(slug, id, brief string) string {
 	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
+}
+
+// SessionLabel は担当・Chief Engineer の端末に付けるラベルの名前。値はハーネスのセッションの id（台帳の session と同じ）。
+// hc の template は呼び手の環境変数を渡さないので、template の command・resume の行が andon issue session で読む（ADR-0012 決めたこと 14）。
+const SessionLabel = "session"
+
+// SessionRe はセッションの id（小文字の UUID。Claude Code の --session-id・Codex の記録の id）。
+var SessionRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// NewSession は Claude Code の --session-id に渡す新しい id（UUID v4）。
+func NewSession() string {
+	var b [16]byte
+	rand.Read(b[:])
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // MarkUnsent は端末に FirstLabel=false を付ける（dispatcher に送り直しを預ける）。

@@ -4,6 +4,7 @@
 //
 //	<pkg>/settings.json                       → managed settings（/etc/claude-code/managed-settings.json）
 //	<pkg>/templates/*.md ＋ <ws>/templates.local/*.md → ~/.config/herdr-core/templates/<name>.md（本文の /opt/andon は <pkg> に）
+//	                                            frontmatter に resume: があれば <name>-resume.md も（command がその行。ADR-0012 決めたこと 13）
 //	<pkg>/environment.md ＋ <ws>/AGENTS.local.md → <claude>/CLAUDE.md（@ の2行）・~/.codex/AGENTS.md（連結）
 //	<pkg>/codex.rules                         → ~/.codex/rules/andon.rules（＋ ~/.codex/config.toml に足りない承認・sandbox の既定だけ）
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
@@ -333,12 +334,64 @@ func genTemplates(e Env) error {
 		if err == nil {
 			b, err = Template(b, e.Package)
 		}
-		if err == nil {
-			err = e.generate(filepath.Join(dst, name), b, 0o644)
+		if err != nil {
+			errs = append(errs, err)
+			continue
 		}
-		errs = append(errs, err)
+		base, resume := SplitResume(b)
+		errs = append(errs, e.generate(filepath.Join(dst, name), base, 0o644))
+		// 同じ名前のファイル（<name>-resume.md）が置いてあれば、そちらが勝つ
+		if rn := strings.TrimSuffix(name, ".md") + "-resume.md"; resume != nil && files[rn] == "" {
+			errs = append(errs, e.generate(filepath.Join(dst, rn), resume, 0o644))
+		}
 	}
 	return errors.Join(errs...)
+}
+
+// SplitResume はプロファイルの frontmatter の resume: の行を分ける（ADR-0012 決めたこと 13 の 1）。
+// base は resume: の行を除いたプロファイル（hc に知らないキーを渡さない）。resume は止まった端末を続きから起こす
+// <name>-resume のプロファイル: name は <name>-resume、command は resume: の値、description に「（続きから）」、本文は同じ。
+// resume: が無い・frontmatter が無い（--- で始まらない・閉じない）なら b をそのまま返し、resume は nil。
+func SplitResume(b []byte) (base, resume []byte) {
+	lines := strings.SplitAfter(string(b), "\n")
+	if len(lines) == 0 || strings.TrimRight(lines[0], "\r\n") != "---" {
+		return b, nil
+	}
+	end, at := -1, -1
+	for i := 1; i < len(lines); i++ {
+		ln := strings.TrimRight(lines[i], "\r\n")
+		if ln == "---" {
+			end = i
+			break
+		}
+		if strings.HasPrefix(ln, "resume: ") && at < 0 {
+			at = i
+		}
+	}
+	if end < 0 || at < 0 {
+		return b, nil
+	}
+	cmd := strings.TrimSpace(strings.TrimPrefix(strings.TrimRight(lines[at], "\r\n"), "resume: "))
+	var bs, rs strings.Builder
+	for i, ln := range lines {
+		if i == at {
+			continue
+		}
+		bs.WriteString(ln)
+		if i > 0 && i < end {
+			k := strings.TrimRight(ln, "\r\n")
+			switch {
+			case strings.HasPrefix(k, "name: "):
+				ln = k + "-resume\n"
+			case strings.HasPrefix(k, "command: "):
+				ln = "command: " + cmd + "\n"
+			case strings.HasPrefix(k, "description: "):
+				ln = k + "（続きから）\n"
+			}
+		}
+		rs.WriteString(ln)
+	}
+	return []byte(bs.String()), []byte(rs.String())
 }
 
 // safePath は command の引数に quote なしで置いても1つの引数のままでいられるパス。
