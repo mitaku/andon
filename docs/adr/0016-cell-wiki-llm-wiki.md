@@ -46,13 +46,43 @@
 
 ## やらないこと（範囲の外。理由）
 
-## 受け入れ条件
+- 検索ツール（qmd など）・embedding・Obsidian などの閲覧の道具・画像の取り込み・Marp などの出力の形（前提 5。規模が小さく、原典も任意としている）。
+- wiki の担当（案 C）とセルの repo を相手にする担当の形（決めたこと 1。書き手は Chief of Staff のまま）。
+- lint の定期の課題（ルーチン）（決めたこと 6。ルーチンの形がまだ無い）。
+- 決定・仕様・作法を wiki に写すこと（前提 4）。指摘・ゲートの記録を `raw/` に写すこと（決めたこと 2）。
+- プロジェクトごとの wiki（ADR-0005 の決めたこと 1 のまま。固有のものは front matter の `project`）。
+- wiki のための command（`andon wiki …`）。手順は skill §11 の本文（今の §11 の「command は無い」を保つ）。finish のときの記録の写しを `andon issue finish` が自動でするかは開いている問い 1。
 
-## 価値の仮説
+## 受け入れ条件（テストできる形。どの継ぎ目でテストするかを先に。既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく）
+
+継ぎ目は `tests/package.sh`（skill の本文の検査。ADR-0009 の受け入れ条件 3 の形）と `tests/andon-init.sh`（雛形）、それにセルでの実測。
+
+1. **skill §11**: `package/skills/chief-of-staff/SKILL.md` §11 に、層（`raw/`・`sources/`・`entities/`・`topics/`・`overview.md`・`index.md`・`log.md`）・3つの操作（ingest・query・lint）とその時期（決めたこと 4・6・7・8）・元資料の3種（決めたこと 2）・移行の手順（決めたこと 10）がある。「1ファイル1件（`wiki/<日付>-<短い名>.md`）」「`log.md` は作らない」の行が無い。`tests/package.sh` の wiki の節の検査を新しい項に合わせる（`commit --only -- wiki` の行は保つ）。
+2. **雛形**: `init/wiki/` に `index.md`（種類ごとの節）・`log.md`（空。先頭の形の説明1行）・`raw/`・`sources/`・`entities/`・`topics/` がある（空のフォルダは `.gitkeep`）。`tests/andon-init.sh` の一覧に足す。
+3. **読む側**: `package/skills/chief-engineer/SKILL.md` の「読む」と `chief-of-staff/SKILL.md` §1 の query が「`index.md` → ページ」の順で読み、出典つきで答える形を指す。
+4. **文書**: `docs/design.md`（§1.5 の表の wiki・§3 のセルの repo の表）と ADR-0005 の表の `wiki/` の行（「1 ファイル 1 件・日付・出典・痩せた `index.md`」）が ADR-0016 を指す（上書きせず「→ ADR-0016」を足す）。
+5. **セルでの実測**（`package/` の変更はセルで実測する決まり。マージ後、Chief of Staff がする）: このセルの `wiki/` が新しい形になり、`raw/` に 2026-11-10 の発言の写し、`entities/owner.md`、`index.md` に種類ごとの節、`log.md` に `ingest` の項が5つ以上ある。古い `<日付>-<短い名>.md` が無い。repo へ出す3件の課題が台帳にある。
+
+## 価値の仮説（P6 で形を決める）
+
+ページが実体・概念ごとに育てば、Chief Engineer の「読む」と Chief of Staff が課題を切るときに wiki が引かれ、同じつまずき（例: rebase のあとのレビューの頼み直し）が2度目から起きなくなる。見るもの: `log.md` の `query` の項の数（月ごと）と、lint で見つかった矛盾の数。効かなければ（query が月に0のまま）、wiki に書く範囲（前提 4）か書き手（案 C）を疑う。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
+| 案 | 中身 | 受け入れ条件 | 依存 |
+|---|---|---|---|
+| K1 | skill §11 の書き直し＋ `init/wiki/` の雛形＋ `tests/package.sh`・`tests/andon-init.sh`＋ chief-engineer skill の「読む」＋ design.md・ADR-0005 の表の指し直し（1本の PR。レベル C） | 1〜4 | — |
+| K2a | Chief of Staff の起き直しの予約キーの書き直しを chief-of-staff skill へ | （K1 と別。今の wiki の1件目を repo へ） | — |
+| K2b | rebase のあとのレビューの頼み直しを chief-of-staff skill（か worker skill）へ | 同上（4件目） | — |
+| K2c | 英語の用語を直訳しない、を ADR-0013 の線で glossary か chief-of-staff skill の人への書き方へ | 同上（5件目） | — |
+| — | このセルの wiki の移行（決めたこと 10）は課題にせず、Chief of Staff が K1 のマージ後に新しい §11 の手順で自分でする（受け入れ条件 5） | 5 | K1 のマージ |
+| K3 | 観察: 1か月後に `log.md` の `query`・`lint` の数を見る（価値の仮説。P6 の形が決まるまでは人の課題） | — | K1 のマージ＋移行 |
+
 ## 開いている問い（残った問い。決断の種類つき）
+
+1. finish のときの `report.md`・`corrections.json` の `raw/` への写しを、`andon issue finish` が自動でするか（今は Chief of Staff の手。`line`。実測で手が重ければ）。
+2. 振り返りのルーチンができたとき、lint をそこへ移すか（決めたこと 6 に書いた向き。`line`）。
+3. 複数のセルで同じ `topics/` が育ったとき、セルをまたぐ横展をどうするか（design.md §1.7 の yokoten。今は無し。`line`）。
 
 ## 出典（読んだもの・捨てた案の出所）
 
