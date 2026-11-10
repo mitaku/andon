@@ -23,6 +23,7 @@ import (
 	"andon/internal/open"
 	"andon/internal/plantinit"
 	"andon/internal/publish"
+	"andon/internal/signal"
 	"andon/internal/triage"
 )
 
@@ -83,6 +84,12 @@ var commands = []command{
 		usage: triage.Usage +
 			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
 		run: triage.Main,
+	},
+	{
+		name:  "signal",
+		about: "外の出所（GitHub の main の CI・issue）の信号を読んで記録する（collect）・出所のトークンを置く（auth）",
+		usage: signal.Usage,
+		run:   signal.Main,
 	},
 	{
 		name:  "measure",

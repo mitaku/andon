@@ -10,6 +10,6 @@ _andon() {
     return 0
   fi
   [ "$COMP_CWORD" -eq 1 ] || return 0
-  COMPREPLY=($(compgen -W "task chief-of-staff open chief-engineer dispatcher publish triage boot init gate delegate help" -- "$cur"))
+  COMPREPLY=($(compgen -W "issue chief-of-staff create open chief-engineer dispatcher publish triage signal measure boot init gate delegate help" -- "$cur"))
 }
 complete -F _andon andon

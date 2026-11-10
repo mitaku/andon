@@ -26,6 +26,8 @@ services:
       - codex:/opt/andon-home/.codex
       - agents:/opt/andon-home/.agents
       - gh:/opt/andon-home/.config/gh
+      # 外の信号の出所のトークン（andon signal auth。ADR-0011 決めたこと 10）
+      - signals:/opt/andon-home/.config/andon/signals
       - herdr:/opt/andon-home/.config/herdr
       - herdr-core:/opt/andon-home/.config/herdr-core
       - ssh:/opt/andon-home/.ssh
@@ -38,6 +40,7 @@ volumes:
   codex:
   agents:
   gh:
+  signals:
   herdr:
   herdr-core:
   ssh:

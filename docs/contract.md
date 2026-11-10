@@ -350,10 +350,10 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | キー | 要るか | 意味 |
 |---|---|---|
 | `source` | 必須 | `github-ci`（案件 repo の main の CI の失敗）/ `github-issues`（open の issue）/ `sentry` / `linear` / `cloudflare`（Workers の Issues） |
-| `repo` | 任意 | 出所の repo（`<host>/<owner>/<repo>`）。`repos` か `references` の中のものに限る（command が照合する。schema では見ない） |
+| `repo` | 任意 | 出所の repo（`<host>/<owner>/<repo>`）。`repos` か `references` の中のものに限る（command が照合する。schema では見ない）。GitHub の出所で無ければ `repos` の全部を読む |
 | `weight` | 必須 | `now`（通知 `signal` ですぐ Chief of Staff へ。§6）/ `later`（記録だけ。トリアージが拾う） |
 | `every` | 任意 | 読む間隔（分。整数。1 以上）。既定 10 |
-| `filter` | 任意 | 出所の検索の語をそのまま（`github-issues` なら GitHub の検索の語。例 `label:bug`）。空にしない |
+| `filter` | 任意 | 出所の検索の語をそのまま（`github-issues` なら GitHub の検索の語。例 `label:bug`。`gh issue list --search` に手を加えず渡す）。空にしない。無ければ open の issue 全部（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 9） |
 | `write_back` | 任意 | `andon issue finish` がこの出所のトラッカー（課題の `links` の URL）に1コメント書くか。既定 `false`（書くのは人だけなので、`true` が委譲の印） |
 | `org`・`project` | 任意 | GitHub 以外の出所の中の場所（Sentry の organization と project など）。空にしない |
 
@@ -540,6 +540,14 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `release` | 任意 | 見えたリリースの名前（マージ commit の SHA。§16）。出所が持つときだけ |
 
 - **本文・スタックトレースは持たない**（記録を大きくしない・外の人の文を写さない）。担当が読むときに `url` から取る。
+
+`andon signal collect` の当て方（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 3・8・9）:
+
+- 出所と repo の組ごとに1回読み、見えたものは `count` を 1 増やして `last_seen`・`url`・`title`・`weight`・`release` を今の値にする。初めてなら `count`・`episodes` が 1、`delivered_episode` が 0。`active: false` のものがまた見えたら `active: true` にして `episodes` を 1 増やす。その組の記録で見えなかったものは `active: false`。**`delivered_episode` は collect が触らない**（書くのは届けた dispatcher）。
+- `github-ci`: main の CI（`gh api repos/<owner>/<repo>/actions/runs?branch=main&status=completed`。pull request の run は除く）を workflow のファイルごとに見て、最新の結果（成功・失敗・時間切れ・起動の失敗。取り消しと飛ばしは数えない）が失敗なら信号。`key` は `<repo>/<workflow のファイル名>@main`、`title` は `<workflow の名前>: <run の題>`、`release` は run の `head_sha`（main の commit）。
+- `github-issues`: open の issue（`gh issue list --state open`。`filter` があれば `--search` にそのまま）。`key` は `<repo>#<番号>`。
+- 読めなかった組（API が落ちた・`gh` の資格情報が無い）は、その組の記録を変えずに飛ばして1行出す（終了コード 1。次に打てば読み直す）。1組も読めなければ記録を書かない。`signals` が無い・`project.json` が無ければ何も読まず書かない。Sentry・Linear・Cloudflare は読む command がまだ無く、トークン（`andon signal auth`）が無ければそう、あれば「まだ無い」と1行出して飛ばす（止まらない）。
+- 出所へは書かない（GitHub は `gh` の token が書ける token でも、打つのは読む API だけ）。
 - 機械が読むのはこの schema のキーだけ。`title` で判定しない。
 
 ## 16. リリースの名前（案件の CI との約束）
