@@ -5,6 +5,24 @@
 - 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
 - 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
 
+## v0.0.8 — 2026-11-10
+
+記録だけの通知を Chief of Staff に届けず ack で答えるようにし、外の信号（GitHub の main の CI・issue）を読む command を足した版。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` は触っていない）。
+
+### 変わったこと
+
+- **記録だけの通知を Chief of Staff に届けない**: dispatcher がインナーループで自分で進めた結果（`review-requested`・ゲートを回す課題の `review`・`gate` の `fix`／`needs_human`・`merge: auto` で進む `approve`・`held` の無い `merged`・レビュアーの課題の `report`）は `<news>` に載らず、`~/.local/state/andon/dispatcher/<slug>.recorded.jsonl` に1行ずつ足す。人の判断が要るもの（マージしない `approve`・`held` のある `merged`・`asked` など）は今までどおり届く。`merge: auto` の `approve` はマージにも問いにも進まず10分たったときだけ1回届く。（[ADR-0010](docs/adr/0010-news-ack.md) 決めたこと 1・2・7。#120）。
+- **`andon signal collect`・`andon signal auth`**: `project.json` の `signals` に書いた外の出所のうち、`github-ci`（案件 repo の main の CI の失敗）と `github-issues`（open の issue）を `gh` で読み、信号の記録（`<slug>.signals.json`）に書く。出所へは書かない。読めなかった組は記録を変えずに飛ばす。Sentry・Linear・Cloudflare は読む command がまだ無い。`signal auth` は出所のトークンを置く（置き場 `~/.config/andon/signals` は新しい volume）。`project.json` の `repo` と `filter` の読み方を `docs/contract.md` §15 に足した（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) S2、決めたこと 3・8・9・10。#133）。
+- **`andon news ack`**: Chief of Staff が届いた `<news>` に「人に言うことが無い」と示す command。端末のラベル `news.ack=<turn>` を書き、dispatcher がそのターンが終わったときに `news.replied` を書く（答えの文は読まない）。移行の間は、ack が無くても答えが `<no-reply>` だけなら今までどおり `news.replied` を書く（次の版で外す）。同じ turn の前の ack は数えない（ADR-0010 決めたこと 4〜6・8。#138）。chief-of-staff skill も `<no-reply>` から `andon news ack` に揃えた（#141）。
+- **レビュアーの `deck start` が worktree と branch を上書きしない**: dispatcher が最初の `start` で決めたレビュアーの課題の `worktree`・`branch` を、あとの `start` が打った場所から取り直して壊さない（#122）。
+- **文書（動作は変えない）**: [ADR-0015](docs/adr/0015-inbox-needs-you.md)（App の inbox を Needs you と Projects の 2 つに絞る。#140）、[ADR-0014](docs/adr/0014-issue-estimate.md)（課題の見込みと実際のズレを測り Chief of Staff に届ける。提案。一律の上限で担当を止めない。実装はまだ無い。#134）を足し、[ADR-0007](docs/adr/0007-interim-gap-inventory.md)（暫定のすき間の一覧）を引っ越しのあとの今に合わせて出し直した（#135）。
+
+### 上げるときにすること
+
+- image を上げて `rebuild` する。台帳の形式（3）・schema の版（`/2`）は変わらず、前の版の台帳・`library/` はそのまま読める。**互換のための手作業は無い**。
+- 新しい volume `signals`（`~/.config/andon/signals`）はセルの compose に足してあり、`rebuild` で作られる。外の信号を使うときだけ `project.json` の `signals` を書き、`andon signal auth` でトークンを置く（置かなければ何も読まない）。
+- 記録だけの通知は `<news>` に出なくなる。経緯を見たいときは `log.jsonl`（全部の出来事の正）か `<slug>.recorded.jsonl` を読む。
+
 ## v0.0.7 — 2026-11-10
 
 v0.0.6 の release が出なかった分を直して出し直す版。v0.0.6 の tag の release の run が、イメージのビルド中の `apt` の取得が 404 で落ち、イメージも release も出なかった。v0.0.6 の tag は動かさず、直しを含めて v0.0.7 として切る。**台帳の形式（3）・schema の版（`/2`）は変わらない**。
