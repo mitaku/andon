@@ -557,7 +557,29 @@ func waitingOn(t *task, all map[string]*task, cfg config) []string {
 
 func isReady(t *task, all map[string]*task, cfg config) bool {
 	s := t.status()
-	return (s == "todo" || s == "queued") && len(waitingOn(t, all, cfg)) == 0
+	return (s == "todo" || s == "queued") && len(waitingOn(t, all, cfg)) == 0 && !notYet(t, cfg)
+}
+
+// notBeforeLayout is the form of an issue's not_before: a date, YYYY-MM-DD.
+const notBeforeLayout = "2006-01-02"
+
+// notYet is true when the issue has a not_before that is still in the future: its date, read in
+// config.yaml's timezone (UTC when there is none or it can't be read), is later than today there.
+// A not_before that isn't a date hides nothing (lint reports it).
+func notYet(t *task, cfg config) bool {
+	v := t.d.str("not_before")
+	if v == "" {
+		return false
+	}
+	day, err := time.Parse(notBeforeLayout, v)
+	if err != nil {
+		return false
+	}
+	loc, err := loadLocation(cfg)
+	if err != nil {
+		loc = time.UTC
+	}
+	return clock().In(loc).Format(notBeforeLayout) < day.Format(notBeforeLayout)
 }
 
 func tilde(p string) string {
