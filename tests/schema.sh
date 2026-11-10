@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の10本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の11本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-measure.sh に書かせる）。
@@ -21,14 +21,14 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections findings gate issue-keys measure notification project question report"
+expected="candidates corrections findings gate issue-keys measure notification project question report signal"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は10本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は11本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
     ok "schema/$name の決まり"
@@ -38,7 +38,7 @@ for name in $expected; do
 done
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -113,6 +113,7 @@ declare -A required=(
   [candidates]="candidates"
   [measure]="project since until days flow efficiency counter prs skipped"
   [corrections]="at corrections"
+  [signal]="signals"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
@@ -180,6 +181,10 @@ corrections|.corrections[1].human_commits[0]|sha headline files
 corrections|.corrections[2]|kind finding reason
 corrections|.corrections[2].finding|severity file line
 corrections|.corrections[3]|kind question recommended answer
+project|.signals[0]|source weight
+project|.signals[2]|source weight
+signal|.signals[0]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
+signal|.signals[1]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -294,7 +299,11 @@ fail|notification|.detail += {"text": "x"}|detail に知らないキー
 fail|notification|.kind = "asked"|asked なのに detail が review の形
 pass|notification|.kind = "corrections" | .detail = {error: "2 回打って失敗"}|kind corrections（集められなかった）
 fail|notification|.kind = "corrections" | .detail = {error: ""}|corrections の error が空
-fail|notification|.kind = "signal"|signal はまだ schema に無い
+pass|notification|.kind = "signal" | .detail = {source: "github-ci", key: "github.com/example/app/ci.yml@main", url: "https://github.com/example/app/actions/runs/1", title: "x", weight: "now"} | del(.issue)|kind signal（issue 無し）
+fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", weight: "now"}|signal の detail に title が無い
+fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", title: "x", weight: "now", count: 2}|signal の detail に知らないキー（記録のキー）
+fail|notification|.kind = "signal" | .detail = {source: "datadog", key: "x", url: "https://example.com/x", title: "x", weight: "now"}|signal の source が知らない出所
+fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", title: "a\nb", weight: "now"}|signal の title が2行
 fail|notification|.at = "2026-11-04 09:00:00"|at が UTC の形でない
 fail|notification|.at = "2026-02-30T09:00:00Z"|at が暦に無い日
 fail|notification|.at = "2026-11-04T24:00:00Z"|at の時が 24
@@ -343,6 +352,19 @@ fail|project|.chief_of_staff.review_when = "外向きの面"|review_when が配�
 fail|project|.chief_of_staff.triage_max_issues = "3"|triage_max_issues が文字列
 fail|project|.chief_of_staff.triage_max_tasks = .chief_of_staff.triage_max_issues | del(.chief_of_staff.triage_max_issues)|古いキー triage_max_tasks（project/2 は triage_max_issues）
 fail|project|.delegation.version = 2|委譲: 知らない version
+pass|project|.signals = []|signals が空（何も取りに行かない）
+pass|project|del(.signals)|signals が無い
+pass|project|.signals = [{source: "github-ci", weight: "now"}]|signals: repo も任意のキーも無い出所
+fail|project|.signals[0].weight = "soon"|signals: weight が now/later でない
+fail|project|.signals[0].weight = "Now"|signals: weight の綴りが大文字
+fail|project|.signals[0].source = "datadog"|signals: source が enum の外
+fail|project|.signals[0].repo = "https://example.com/x"|signals: repo が <host>/<owner>/<repo> でない
+fail|project|.signals[0].every = 0|signals: every が 0
+fail|project|.signals[0].every = "10"|signals: every が文字列
+fail|project|.signals[1].filter = ""|signals: filter が空
+fail|project|.signals[1].write_back = "yes"|signals: write_back が真偽値でない
+fail|project|.signals[2].org = null|signals: org が null
+fail|project|.signals = {}|signals が配列でない
 fail|project|.delegation.version = "1"|委譲: version が文字列
 fail|project|.delegation.preset = "free"|委譲: 知らない preset
 pass|project|.delegation = {version: 1, project: "sample-site"}|委譲: preset も grants も無くても通る（型 work）
@@ -415,6 +437,24 @@ fail|corrections|.corrections[2].finding.severity = "blocker"|override の指摘
 fail|corrections|.corrections[2].finding.line = 0|override の指摘の line が 0
 fail|corrections|.corrections[2] += {"answer": "x"}|指摘の override に問いのキーが混ざる
 fail|corrections|.corrections[3].kind = "answer"|問いの override を answer にすると形が合わない
+pass|signal|.signals = []|まだ何も見ていない（空の配列）
+pass|signal|del(.signals[0].release)|release が無い
+fail|signal|.signals[1].fingerprint = .signals[0].fingerprint|fingerprint が重なる
+fail|signal|.signals[0].fingerprint = "AF3C0A047C19A9C56867FE43AFE6794DD408EB8F"|fingerprint が大文字
+fail|signal|.signals[0].fingerprint = "af3c0a0"|fingerprint が40桁でない
+fail|signal|.signals[0].weight = "soon"|weight が now/later でない
+fail|signal|.signals[0].source = "datadog"|source が enum の外
+fail|signal|.signals[0].title = "a\nb"|title が2行
+fail|signal|.signals[0].key = ""|key が空
+fail|signal|.signals[0].url = "http://example.com/x"|url が https でない
+fail|signal|.signals[0].count = 0|count が 0
+fail|signal|.signals[0].episodes = 0|episodes が 0
+fail|signal|.signals[0].delivered_episode = -1|delivered_episode が負
+fail|signal|.signals[0].active = "yes"|active が真偽値でない
+fail|signal|.signals[0].first_seen = "2026-02-30T09:00:00Z"|first_seen が暦に無い日
+fail|signal|.signals[0].release = "9c4e1b0"|release が40桁でない
+fail|signal|.signals[0] += {"body": "stack trace"}|本文を持つ（持たない）
+fail|signal|.signals = {}|signals が配列でない
 EOF
 
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
@@ -445,6 +485,13 @@ measure|."$defs".rate.anyOf[0].minimum = -1|率の負を許す
 corrections|.required -= ["corrections"]|手直しの必須から corrections を外す
 corrections|."$defs".pr.anyOf = [{}]|pr の「コメントか commit のどちらか」を外す
 notification|.properties.kind.enum -= ["corrections"]|通知の kind から corrections を外す
+notification|.properties.kind.enum -= ["signal"]|通知の kind から signal を外す
+notification|."$defs".signal.additionalProperties = true|通知 signal の detail の知らないキーを許す
+project|."$defs".signal.properties.weight.enum += ["soon"]|signals の weight を緩める
+project|."$defs".signal.required -= ["source"]|signals の必須から source を外す
+signal|del(.properties.signals.uniqueKeys)|信号の fingerprint の一意を外す
+signal|."$defs".signal.required -= ["delivered_episode"]|信号の必須から delivered_episode を外す
+signal|."$defs".signal.additionalProperties = true|信号の知らないキーを許す
 LOOSE
 fi
 

@@ -331,6 +331,7 @@ andon delegate show          # 型と効いている値（commit の前は「無
 - **通ったら見えるもの**: `作った: projects/andon/（kanban/・project.json・AGENTS.md）`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
 - **落ちたら見る所**（どれも何も作らずに止まる）: `が既にある` — 作ってある（そのまま使う。手で作るときの `kanban init` は `already a ledger`）。`slug は英小文字・数字・-`・`repo は <host>/<owner>/<repo>`・`prefix は英大文字で始まる` — 綴り。`この端末（role=…）では打てない` — 役の端末。人の端末で打つ。`ghq get … が落ちた` — `gh auth status`。`… があるが git の clone でない` — `GHQ_ROOT` の下の空のディレクトリなどを確かめて退ける。`題に改行や制御文字がある` — 題は 1 行。`kanban init が落ちた` — 理由の文（`checkClock` ならコンテナの時計）。
 - `project.json` が無い・owner の commit でない・`repos` に無い repo の課題は、`andon issue start` が起こさない（理由を1行出す）。移す前の `delegation.json` しか無いセルは、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
+- 外の信号の出所（`project.json` の `signals`。[contract.md](contract.md) §11）は、**セルの image を `signals` を知る版に上げてから**書く。古い版の `andon` は知らないキーとして `project.json` ごと弾き、無委譲・repo 無しに倒れて担当を一切起こせない。
 - `projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・並行の上限・独立レビューを入れる条件）は任意。無ければ並行の上限は 2。
 - 課題の id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じ課題）。
 

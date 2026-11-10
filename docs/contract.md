@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -14,6 +14,7 @@
 | §12 候補の一覧 | `schema/candidates.schema.json` |
 | §13 流れの数え（`andon measure --json` の出力） | `schema/measure.schema.json` |
 | §14 人の手直し | `schema/corrections.schema.json` |
+| §15 信号の記録 | `schema/signal.schema.json` |
 
 - 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
@@ -23,7 +24,7 @@
 
 1. **Markdown を読まない。** 依頼書・報告・レビューの報告・skill は人と AI のもの。機械が判定に使う値は、ここに並ぶ JSON／YAML のキーにだけ持つ（人の決定 2026-11-04。仮設の工場で Markdown を正規表現で読む形は端が尽きなかった）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起こさない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）は dispatcher、委譲は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と信号の記録（§15）は dispatcher、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
@@ -48,6 +49,7 @@ projects/<slug>/kanban/
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
+~/.local/state/andon/dispatcher/<slug>.signals.json   dispatcher（§15。外の信号の記録。台帳の外）
 ```
 
 ## 2. 台帳の項目（`issue.yaml` の Andon の予約キー）
@@ -201,7 +203,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED の課題に dispatcher が `andon issue impact` を1回打ち、影響のある課題があったとき（下の「マージのあとの影響」） | `pr`・`sha`・`issues[]`（`issue`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
 | `corrections` | `log.jsonl` の `{"status": "done"}` の課題の `corrections.json`（§14）を、次の見回りの打ち直しでも集められなかったとき（書いていない） | `error` |
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
-| `signal`（最初の版の後。design.md §1.9 の (a)。schema にはまだ無い。入れるときに `kind` と `detail` を足す） | 外の信号: 案件 repo の main の CI の失敗・依存の更新・issue・エラー監視の webhook | `source`・`url`・`summary`（1行）。Chief of Staff がトリアージの候補にする |
+| `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
 
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` と `merged` の `by`・`held` だけ任意。`held` は `by` と一緒）。
 - 届け方: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
@@ -213,6 +215,12 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 {"at": "2026-11-07T09:00:00Z", "project": "andon", "issue": "A-0012", "kind": "impact",
  "detail": {"pr": "https://github.com/<owner>/andon/pull/12", "sha": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
             "issues": [{"issue": "A-0014", "conflict": true, "overlap": ["docs/design.md"], "brief_refs": ["docs/design.md"]}]}}
+```
+
+```json
+{"at": "2026-11-10T09:00:00Z", "project": "sample-site", "kind": "signal",
+ "detail": {"source": "github-ci", "key": "github.com/example/sample-site/ci.yml@main", "url": "https://github.com/example/sample-site/actions/runs/1",
+            "title": "ci: test failed on main", "weight": "now"}}
 ```
 
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの依頼ではない。足すことが無ければ `<no-reply>`」）。`news.replied=<turn>` のラベルも同じ（ボードとの約束）。
@@ -317,7 +325,11 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
       "by": "owner", "at": "2026-11-05", "until": "2026-12-31",
       "evidence": "移行中はデプロイを人が見る",
       "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]},
- "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3}}
+ "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3},
+ "signals": [
+   {"source": "github-ci", "repo": "github.com/example/sample-site", "weight": "now"},
+   {"source": "github-issues", "repo": "github.com/example/sample-site", "weight": "later", "every": 30, "filter": "label:bug", "write_back": true},
+   {"source": "sentry", "weight": "later", "org": "example", "project": "sample-site"}]}
 ```
 
 | キー | 要るか | 意味 |
@@ -328,6 +340,21 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部人） |
 | `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起こす課題の上限。1 以上。既定 3） |
+| `signals` | 任意 | 外の信号の出所（下の表。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 11）。無い・空なら何も取りに行かない |
+
+`signals[]` の1件（読むのは `andon signal collect`。§15）:
+
+| キー | 要るか | 意味 |
+|---|---|---|
+| `source` | 必須 | `github-ci`（案件 repo の main の CI の失敗）/ `github-issues`（open の issue）/ `sentry` / `linear` / `cloudflare`（Workers の Issues） |
+| `repo` | 任意 | 出所の repo（`<host>/<owner>/<repo>`）。`repos` か `references` の中のものに限る（command が照合する。schema では見ない） |
+| `weight` | 必須 | `now`（通知 `signal` ですぐ Chief of Staff へ。§6）/ `later`（記録だけ。トリアージが拾う） |
+| `every` | 任意 | 読む間隔（分。整数。1 以上）。既定 10 |
+| `filter` | 任意 | 出所の検索の語をそのまま（`github-issues` なら GitHub の検索の語。例 `label:bug`）。空にしない |
+| `write_back` | 任意 | `andon issue finish` がこの出所のトラッカー（課題の `links` の URL）に1コメント書くか。既定 `false`（書くのは人だけなので、`true` が委譲の印） |
+| `org`・`project` | 任意 | GitHub 以外の出所の中の場所（Sentry の organization と project など）。空にしない |
+
+- **`signals` を書くのは、セルの image を `signals` を知る版に上げてから**。古い版の `andon` は知らないキーとして弾き（schema の `additionalProperties: false` と command の `DisallowUnknownFields`）、`project.json` を読めないものとして**無委譲・書いてよい repo 無し**に倒れる（担当を一切起こせず、`andon delegate` も打てない）。原則4（知らないキーは無視）と `project.json` の扱い（原則6・読み方の 2）は食い違っていて、`signals` もそれを引き継ぐ（直すのは別の決定）。
 
 `delegation` の中:
 
@@ -439,6 +466,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 - 書き手は `andon measure` だけ（出力するだけ）。読み手は人と振り返り（委譲を広げる根拠）。ゲートも dispatcher も判定に使わない。
 - 数えるものが無ければ件数は 0、率・平均・中央値は `null`（表は「記録なし」）で、終了コード 0。台帳の `config.yaml` が読めない・版が 3 でないときだけ終了コード 1。
 - レビュアーの課題（`<id>-r<k>`・`profile` が `-review` で終わる）は流れにも効率にも数えない。
+
 ## 14. 人の手直し（`corrections.json`）
 
 課題の `library/corrections.json`。人がエージェントの仕事を直した跡（[design.md](design.md) §1.9 の (b) の表の 1〜3）を、振り返りの入力として1か所に集める。書き手は dispatcher だけで、`log.jsonl` の `{"status": "done"}` の行（`andon issue finish`。Chief of Staff の `kanban done` も）を拾った課題ごとに**1回だけ**書く。もう在れば書き直さない（同じ finish を2度拾っても1回）。レビュアーの課題には書かない。
@@ -472,3 +500,48 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 - 人の commit を author の email で見分けない: 担当も repo の持ち主の noreply アドレスで commit するので、email では人と担当が分かれない（[decisions/2026-11-09-corrections-json.md](decisions/2026-11-09-corrections-json.md)）。
 - 拾うのは事実だけで、手直しの意味は読まない（答えが推奨案と同じ意味の別の言い方でも `answer` に入る。振り返りが読んで捨てる）。多めに拾い、少なく拾わない。
+
+## 15. 信号の記録（`<slug>.signals.json`）
+
+外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は台帳の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect`）だけ、読み手はトリアージ・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
+
+```json
+{"signals": [
+  {"source": "github-ci", "project": "sample-site", "key": "github.com/example/sample-site/ci.yml@main",
+   "url": "https://github.com/example/sample-site/actions/runs/1", "title": "ci: test failed on main", "weight": "now",
+   "fingerprint": "af3c0a047c19a9c56867fe43afe6794dd408eb8f",
+   "first_seen": "2026-11-10T09:00:00Z", "last_seen": "2026-11-10T09:30:00Z", "count": 4, "active": true,
+   "episodes": 2, "delivered_episode": 2, "release": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"},
+  {"source": "github-issues", "project": "sample-site", "key": "github.com/example/sample-site#12",
+   "url": "https://github.com/example/sample-site/issues/12", "title": "Export to CSV breaks on empty rows", "weight": "later",
+   "fingerprint": "561bb4dd6370728a1136f4231fb62a4645b98e4a",
+   "first_seen": "2026-11-10T09:00:00Z", "last_seen": "2026-11-10T09:00:00Z", "count": 1, "active": true,
+   "episodes": 1, "delivered_episode": 0}]}
+```
+
+| キー | 要るか | 意味 |
+|---|---|---|
+| `signals[]` | 必須 | 信号1件ごとに1つ（`fingerprint` は重ならない）。まだ何も見ていなければ空 |
+| `source` | 必須 | 出所（§11 の `signals[].source` と同じ値） |
+| `project` | 必須 | プロジェクトの slug |
+| `key` | 必須 | 出所の中の id。CI は `<repo>/<workflow>@main`、issue は `<repo>#<n>`、Sentry・Cloudflare・Linear はその issue の id |
+| `url` | 必須 | 人と担当が読む所（`https`） |
+| `title` | 必須 | 出所の題をそのまま1行（制御文字なし）。**信用しない**: 外の人の文なので、描くときは「信用しない」の囲いに入れる |
+| `weight` | 必須 | 出所の `weight`（§11）の写し |
+| `fingerprint` | 必須 | `source` と改行と `key` をつないだ文字列の SHA-1（小文字の16進40字）。Sentry・Cloudflare は出所のまとめ（issue）が `key` なので、まとめ方は出所に従う |
+| `first_seen`・`last_seen` | 必須 | 最初と最後に見た時刻（UTC の `YYYY-MM-DDTHH:MM:SSZ`） |
+| `count` | 必須 | 見た巡の数（1 以上） |
+| `active` | 必須 | 最後の巡で見えたか（`false`: CI が通った・issue が閉じた・resolved） |
+| `episodes` | 必須 | 出来事の数。最初は 1、消えてまた出るたびに 1 増える |
+| `delivered_episode` | 必須 | 通知 `signal`（§6）で届けた出来事の番号。届けていなければ 0（`later` は常に 0） |
+| `release` | 任意 | 見えたリリースの名前（マージ commit の SHA。§16）。出所が持つときだけ |
+
+- **本文・スタックトレースは持たない**（記録を大きくしない・外の人の文を写さない）。担当が読むときに `url` から取る。
+- 機械が読むのはこの schema のキーだけ。`title` で判定しない。
+
+## 16. リリースの名前（案件の CI との約束）
+
+エラー → PR → 課題を辿れるように、**案件の CI はリリースの名前をマージ commit の SHA（40字）にする**（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 17）。Sentry の release、Cloudflare の Worker の version の tag がこれに当たる。付けるのは案件の CI の仕事で、Andon は形だけ約束する（command は足さない）。
+
+- 信号の記録（§15）は出所が持てば `release` にその SHA を写す。
+- 辿るのは担当（トリアージ・観察）で、手で: `gh pr list --search <sha> --state merged` で PR を、台帳の `pr` キーで課題を引く。
