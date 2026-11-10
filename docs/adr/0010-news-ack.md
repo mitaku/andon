@@ -92,6 +92,12 @@
 
    理由: Chief of Staff の skill は image に焼かれ、セルの Chief of Staff は起き直すまで古い skill のまま `<no-reply>` を返しうる。1版だけ両方を受ければ、image を上げたセルの Chief of Staff が起き直すまでの間も `news.replied` が書かれる（contract.md §10 の「古い版を読む側を1版だけ残す」と同じ長さ）。
 
+7. **2026-11-10 決めたこと 1 の表の2つの行を、実装（A-0010）で今ある項目に合わせて読む。**（[decisions/2026-11-10-record-only-gated-review-held-merged.md](../decisions/2026-11-10-record-only-gated-review-held-merged.md)）
+
+   - `review` を記録だけにするのは、dispatcher がゲートを回す課題（`gated`）だけ。Chief Engineer の課題に加えて、調べる課題（`deliverable: candidates`）・repo の無い課題など、ゲートを回さない課題の `review` は届ける（記録だけの理由「dispatcher がゲートを回す」が成り立たないため。ゲートを回さない課題を記録だけにすると、誰も読まない）。
+   - `merged` のうち `held`（人がマージしたが片付けていない。dispatcher.md §2.7）は届ける（記録だけの理由「マージして片付けた」が成り立たない。Chief of Staff が問いを閉じるか finish する）。
+   - 表に無い `kind`（`closed`・`corrections`）は今までどおり届ける。
+
 ## やらないこと（範囲の外。理由）
 
 1. **コード・schema・contract.md・dispatcher.md・skill を、この PR で直すこと**: この文書は提案。写すのは実装の課題（依頼書に切る案）。

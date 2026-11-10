@@ -495,7 +495,10 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 	record := ""
 	if contract.IsSHA(res.Head) {
 		record = filepath.Join(p.l.Library(id), "gate", res.Head+".json")
-		p.notify(id, "gate", map[string]any{"decision": res.Decision, "reasons": nonNil(res.Reasons), "record": record})
+		f := p.facts(id)
+		f.AutoMerge = res.Decision == "approve" && p.autoMerge(t, res)
+		p.put(Notification{At: now(), Project: p.l.Slug, Issue: id, Kind: "gate",
+			Detail: map[string]any{"decision": res.Decision, "reasons": nonNil(res.Reasons), "record": record}}, f)
 	}
 	switch res.Decision {
 	case "approve":
@@ -547,7 +550,7 @@ func (p *project) fix(t ledger.Issue, res gateResult, record string) {
 // （呼び手は控えに書かず、次の見回りでゲートから回し直す）。
 func (p *project) approve(t ledger.Issue, rep *contract.Report, res gateResult, record string, g *Gate) (regate bool) {
 	id := t.Str("id")
-	if ledger.SettingsOf(t).Merge != "auto" || !p.l.Trusted(p.rows, t, "merge") || !res.Delegation.OK {
+	if !p.autoMerge(t, res) {
 		return false
 	}
 	stop := func(why string) {

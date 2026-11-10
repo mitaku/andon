@@ -64,6 +64,10 @@ type State struct {
 	Corrections map[string]int `json:"corrections,omitempty"`
 	// review の課題の PR を人がマージしたかの控え（humanmerge.go。dispatcher.md §2.7）
 	Watch map[string]Watch `json:"watch,omitempty"`
+	// 記録だけにした gate の approve（merge: auto）で、merged も asked もまだ無いもの（route.go の stuck。ADR-0010 決めたこと 1）
+	Approved map[string]Notification `json:"approved,omitempty"`
+	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
+	Unrecorded []Notification `json:"unrecorded,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

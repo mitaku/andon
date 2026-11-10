@@ -13,7 +13,7 @@
 //
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
-// 離席時だけの hc send（deliver.go。経路③）。dispatcher.md §3。
+// 離席時だけの hc send（deliver.go。経路③）。dispatcher.md §3。届けない kind は記録だけ（route.go の表。§3.2）。
 // 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
 // 例外は dispatcher が書き手の library/ のファイル（ゲートの記録の merged・corrections.json。contract.md §1）。
 package dispatcher
@@ -44,7 +44,7 @@ const Usage = "usage: andon dispatcher [--project <slug>]          回り続け�
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
 	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
-	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。\n"
+	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。届けない通知は横の <slug>.recorded.jsonl に1行ずつ。\n"
 
 // Name は dispatcher の端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
 const Name = "dispatcher"
@@ -189,8 +189,9 @@ func (p *project) pass() (bool, error) {
 		}
 	}
 	p.forget()
-	p.impacts()     // マージのあとの影響（dispatcher.md §2.5）
-	p.corrections() // 人の手直し（dispatcher.md §2.6・contract.md §14）
+	p.impacts()         // マージのあとの影響（dispatcher.md §2.5）
+	p.corrections()     // 人の手直し（dispatcher.md §2.6・contract.md §14）
+	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
 	if !p.first {
 		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}
@@ -213,9 +214,9 @@ func (p *project) trusted(t ledger.Issue, key string) bool {
 	return t.Str(key) == "" || p.l.Trusted(p.rows, t, key)
 }
 
-// notify は通知を控えに積む（同じ課題の同じ出来事は新しい1件に置き換える）。
+// notify は通知を扱いの表（route.go）のとおりに、控えに積む（同じ課題の同じ出来事は新しい1件に置き換える）か記録だけにする。
 func (p *project) notify(task, kind string, detail map[string]any) {
-	p.st.Push(Notification{At: now(), Project: p.l.Slug, Issue: task, Kind: kind, Detail: detail})
+	p.put(Notification{At: now(), Project: p.l.Slug, Issue: task, Kind: kind, Detail: detail}, p.facts(task))
 }
 
 func (p *project) reportPath(id string) string {
