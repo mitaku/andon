@@ -25,6 +25,9 @@ JSON Schemas for editors and checks: [config.v3.schema.json](../schema/ledger/co
 | 2026-11-03 | `log.jsonl` lines `{"config": …}`, written by `kanban config set` | [`log.jsonl`](#logjsonl) |
 | 2026-11-03 | `tasks/<id>/questions.yaml`, the ledger's `library/`, `log.jsonl` lines `{"question": …}` | [Questions](#questions) |
 | 2026-11-07 | `questions.yaml` `kind: scope` (`kanban ask --kind scope`) | [Questions](#issuesidquestionsyaml) |
+| 2026-11-10 | `issue.yaml` `not_before` (a date; `kanban ready` holds the issue back until then) | [`issue.yaml`](#issuesidissueyaml), [Status rules](#status-rules) |
+
+A board that reads the files itself and does not know `not_before` will show such an issue as ready before its day (it ignores a key it doesn't know, as above). The person who keeps such a board should be told once; `kanban ready` is the one place that holds the issue back.
 
 ### Moved without a version change (2026-11-06)
 
@@ -118,6 +121,7 @@ chief_of_staff: t2              # optional; the Chief of Staff's terminal
 | `worktree` | string | The issue's worktree folder (`~` allowed). |
 | `links` | list of strings | `http(s)` URLs, or paths relative to the root. |
 | `routine` | string | The name of the routine that added it (see Routines). |
+| `not_before` | string | A date, `YYYY-MM-DD`: `kanban ready` does not list the issue before that day. Whatever its status. Read in `config.yaml`'s `timezone` (UTC when there is none), so the issue shows from the first moment of that day there. `kanban lint` reports a value that is not a date; such a value hides nothing. |
 | `created`, `updated` | string | UTC time, `YYYY-MM-DDTHH:MM:SSZ`. Written as strings (quoted in YAML when needed). |
 
 Any other key is allowed and kept.
@@ -136,7 +140,7 @@ Any other key is allowed and kept.
 
 - **Done** is the last column (`done` by default).
 - **Waiting:** an issue waits on each id in `after` that is missing, unreadable, or not done.
-- **Ready:** status is `todo` or `queued` and it waits on nothing. (`kanban ready` lists these.)
+- **Ready:** status is `todo` or `queued`, it waits on nothing, and its `not_before` (if any) is today or earlier. (`kanban ready` lists these.) `not_before` only hides an issue from `kanban ready`; it changes no status and `after` still holds an issue back as well, so an issue with both shows once both are met.
 - `queued` means "added with something to wait for". When the last thing it waits for is done, `kanban done` moves it to the first column.
 - **Needs you is not a status.** It comes from the agent's live state in herdr-core (blocked), never from the ledger. An issue's open questions (see Questions) are in the ledger; they are not a status either.
 - Who may change what (for example, that only the Chief of Staff moves an issue to `done`) is not part of the format. The yard's skills decide it.

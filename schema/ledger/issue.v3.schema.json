@@ -73,6 +73,11 @@
       "pattern": "^[^/\\\\:]+$",
       "not": { "enum": [".", ".."] }
     },
+    "not_before": {
+      "description": "A date, YYYY-MM-DD: kanban ready does not list the issue before that day (read in config.yaml timezone, else UTC). Whatever the status; after still holds it back as well.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
     "created": {
       "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, written as a string.",
       "type": "string",

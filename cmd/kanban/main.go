@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -26,7 +27,7 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
   kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make kanban/ (config.yaml, issues/)
   kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--brief file|-]
   kanban list [--status s] [--repo r] [--all] [--json]
-  kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for
+  kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for (and no not_before ahead)
   kanban show <id> [--json]
   kanban start <id> [--force] [--repo r]    doing; agent from $HC_TERMINAL_ID; branch and worktree from git
   kanban set <id> key=value …               empty value removes the key; after/links take a,b
@@ -912,6 +913,11 @@ func cmdLint(e env, a args) error {
 		}
 		if p := t.d.str("parent"); p != "" && all[p] == nil {
 			problems = append(problems, fmt.Sprintf("%s: parent %s, which doesn't exist", t.id, p))
+		}
+		if v := t.d.str("not_before"); v != "" {
+			if _, err := time.Parse(notBeforeLayout, v); err != nil {
+				problems = append(problems, fmt.Sprintf("%s: not_before %q is not a date (YYYY-MM-DD)", t.id, v))
+			}
 		}
 		if c := canonID(t.id); c != t.id {
 			problems = append(problems, fmt.Sprintf("%s: not written as an id is (%s), so kanban reads it as another issue", t.id, c))
