@@ -72,7 +72,7 @@ From a working folder, in order:
 
 1. `$KANBAN_ROOT`, if set (it must hold `kanban/config.yaml`). The Chief of Staff sets it for each agent it starts.
 2. The nearest folder at or above the working folder that holds `kanban/config.yaml` with a whole-number `version`. `kanban/` is a plain name, so a `kanban/` folder without one (in a product's repository, say) is not a ledger and the walk goes on.
-3. **From the repository.** Take the main checkout: the parent of `git rev-parse --path-format=absolute --git-common-dir`, so a worktree anywhere (`~/.herdr/worktrees/…`) leads to its repository. Walk up from the main checkout. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2) and keep the ledgers whose `repos` match the main checkout (see `repos` below). Stop at the first folder where any match.
+3. **From the repository.** Take the main checkout: the parent of `git rev-parse --path-format=absolute --git-common-dir`, so a worktree anywhere (`/workspace/.worktrees/…`) leads to its repository. Walk up from the main checkout. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2) and keep the ledgers whose `repos` match the main checkout (see `repos` below). Stop at the first folder where any match.
    - One match: that ledger.
    - More than one: an error that names them; set `$KANBAN_ROOT`.
    - None, up to the top: there is no ledger.

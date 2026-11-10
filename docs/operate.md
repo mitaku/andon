@@ -27,7 +27,7 @@
 セルの repo（`~/src/<slug>-cell`。コンテナの `/workspace`）と、製品の repo（ソース）を分ける。
 
 - `projects/<slug>/` は**セルの repo の実ディレクトリ**（symlink にしない）。台帳（`kanban/`。git の外）と、人が書くプロジェクトの事実（`project.json`: 書いてよい repo・委譲など。[contract.md](contract.md) §11）を置く。
-- ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `~/.herdr/worktrees/<repo 名>/<slug>-<id>` の worktree で働く。
+- ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `/workspace/.worktrees/<repo 名>/<slug>-<id>` の worktree で働く（セルの repo の中。置き場の `.gitignore` が `*` なのでセルの git には出ない。[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 6）。
 - 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon issue start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
 - `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
@@ -442,7 +442,7 @@ git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate
 
 流れ（人が触らないところ）: 依頼書 → 担当を起こす → PR → `review-request` → dispatcher がレビュアーを起こす → `ready`（レビュー）→ dispatcher がゲート → approve → dispatcher がマージ → `andon issue finish` → 次の見回りで dispatcher が同じ repo の動いている課題への影響（`andon issue impact`）を見て、ぶつかる・重なるものがあれば Chief of Staff に `impact` で届ける（rebase を頼むか・止めて向きを確かめるかは Chief of Staff。[dispatcher.md](dispatcher.md) §2.5）。
 
-担当を起こすのは Chief of Staff の `andon issue start <id>`（`projects/andon/` で打つ）。worktree と branch（`~/.herdr/worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `issue.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App に課題の Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、dispatcher が起こすレビュアーは担当と同じ tab に横に並ぶ。`andon issue finish` で端末が片付くと tab が空になり、Space ごと消える。
+担当を起こすのは Chief of Staff の `andon issue start <id>`（`projects/andon/` で打つ）。worktree と branch（`/workspace/.worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `issue.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App に課題の Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、dispatcher が起こすレビュアーは担当と同じ tab に横に並ぶ。`andon issue finish` で端末が片付くと tab が空になり、Space ごと消える。
 
 - **通ったら見えるもの**: 下の「§5.1 の確かめ方」の対応表。
 - **落ちたら見る所**: `andon issue start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**dispatcher が次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[dispatcher.md](dispatcher.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てば dispatcher は送らない）。信頼の画面そのものは出ないはず（boot と `andon issue start` が repo の根を信頼済みにする。7）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read dispatcher`・`~/.local/state/andon/dispatcher/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `issues/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。

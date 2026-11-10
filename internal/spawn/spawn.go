@@ -3,7 +3,7 @@
 //
 // 置き場（docs/contract.md §8）:
 //
-//	worktree  ~/.herdr/worktrees/<repo 名>/<slug>-<id>
+//	worktree  <セルの repo>/.worktrees/<repo 名>/<slug>-<id>（レビュアーは …-r<回>。置き場の根の .gitignore は *）
 //	branch    <slug>/<id>-<題の英字の短い形>。origin/<既定の branch> から --no-track で切る
 //	repo      $GHQ_ROOT（無ければ ghq root）/<host/owner/repo>
 package spawn
@@ -211,7 +211,7 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 	if _, err := os.Lstat(path); err == nil {
 		return nil, fmt.Errorf("worktree の置き場がもうある: %s", path)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := MakeWorktreeDir(path); err != nil {
 		return nil, err
 	}
 	if _, err := g("worktree", "add", "-q", "--no-track", "-b", branch, path, "refs/remotes/origin/"+def); err != nil {
@@ -245,9 +245,42 @@ func BranchName(slug, id, title string) string {
 	return branch
 }
 
-// WorktreePath は ~/.herdr/worktrees/<repo 名>/<slug>-<id>（andon issue finish が片付ける置き場と同じ）。
+// WorktreeHome は worktree の置き場の根: <セルの repo>/.worktrees（ANDON_WORKSPACE。既定 /workspace。ADR-0012 決めたこと 6）。
+// セルの repo は delegate.Workspace と同じ決まりで引く（delegate が spawn を読むので、ここでは環境変数を直に読む）。
+func WorktreeHome() string {
+	ws := os.Getenv("ANDON_WORKSPACE")
+	if ws == "" {
+		ws = "/workspace"
+	}
+	return filepath.Join(ws, ".worktrees")
+}
+
+// LegacyWorktreeHome は旧の置き場の根 ~/.herdr/worktrees（andon issue finish が片付けるときだけ受ける）。
+func LegacyWorktreeHome() string {
+	return filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees")
+}
+
+// WorktreePath は <置き場の根>/<repo 名>/<slug>-<id>（andon issue finish が片付ける置き場と同じ）。
 func WorktreePath(repoDir, slug, id string) string {
-	return filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir), slug+"-"+id)
+	return filepath.Join(WorktreeHome(), filepath.Base(repoDir), slug+"-"+id)
+}
+
+// ReviewerWorktreePath はレビュアーの detached worktree: <置き場の根>/<repo 名>/<slug>-<id>-r<回>。
+func ReviewerWorktreePath(repoDir, slug, id string, round int) string {
+	return fmt.Sprintf("%s-r%d", WorktreePath(repoDir, slug, id), round)
+}
+
+// MakeWorktreeDir は worktree path の親を作り、置き場の根に .gitignore（*）が無ければ書く
+// （セルの repo の git status に出さない。セルの追跡される .gitignore は触らない）。
+func MakeWorktreeDir(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	ignore := filepath.Join(WorktreeHome(), ".gitignore")
+	if _, err := os.Lstat(ignore); err == nil {
+		return nil
+	}
+	return os.WriteFile(ignore, []byte("*\n"), 0o644)
 }
 
 // Remove は NewWorktree が作ったものを戻す（起こせなかったとき。やり直せるように）。

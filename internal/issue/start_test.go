@@ -101,6 +101,16 @@ func gitT(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	c := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	out, err := c.Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return string(out)
+}
+
 func (f *startFixture) run(flags ...string) (int, string, string) {
 	f.t.Helper()
 	b := js(map[string]any{"issue": f.task})
@@ -129,7 +139,7 @@ func (f *startFixture) addRepo(repo string) {
 }
 
 func (f *startFixture) wt() string {
-	return filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "sample-site-S-0007")
+	return filepath.Join(f.plant, ".worktrees", "sample-site", "sample-site-S-0007")
 }
 
 func (f *startFixture) calls() []string {
@@ -162,6 +172,13 @@ func TestStart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(f.wt(), ".git")); err != nil || !strings.Contains(f.branches(), "sample-site/S-0007-add-the-button") {
 		t.Errorf("worktree か branch が無い: %v %q", err, f.branches())
+	}
+	// 置き場はセルの repo の .worktrees（ADR-0012 決めたこと 6）。中の .gitignore（*）でセルの repo の git status に出ない
+	if b, err := os.ReadFile(filepath.Join(f.plant, ".worktrees", ".gitignore")); err != nil || string(b) != "*\n" {
+		t.Errorf(".worktrees/.gitignore = %q, %v", b, err)
+	}
+	if st := gitOut(t, f.plant, "status", "--short"); strings.Contains(st, ".worktrees") {
+		t.Errorf("セルの repo の git status に .worktrees が出る:\n%s", st)
 	}
 	brief := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
 	want := []string{

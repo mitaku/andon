@@ -37,7 +37,7 @@ Chief of Staff が依頼書を書くときにこの条件で決め、Settings �
 担当が `andon issue review-request` で `report.json` に `review_request` を書くと、dispatcher（`andon dispatcher`）が拾って起こす（`docs/dispatcher.md` §5）。
 Chief of Staff は起こさない。起こすのは、`issue.yaml` の `review: on`（Chief of Staff が書いたもの）で、`round` が `review_rounds` 以下で、`commit` が PR の head のときだけ。回ごとに新しい課題:
 
-1. PR の head を読む worktree を detached で作る: `~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>`（commit は `review_request.commit`）。
+1. PR の head を読む worktree を detached で作る: `/workspace/.worktrees/<repo 名>/<slug>-<id>-r<回>`（commit は `review_request.commit`）。
 2. 依頼書（4の型）で `deck add "<id> のレビュー（<回> 回目）" --profile <reviewer> --parent <id> --round <回> --brief -`（by は `terminal:dispatcher`。ゲートは dispatcher と Chief of Staff が足したレビュアーだけを数える）。
    新しい id は `<id>-r<回>`（通し番号を使わない）。`--repo` は付けない（cwd は `issues/<新しい id>/`）。
 3. `hc run --bg --outlive-parent --no-notify --name <slug>-<新しい id> … <reviewer>` で起こし、`deck start <新しい id>`。通知 `review-requested` を Chief of Staff へ積む。

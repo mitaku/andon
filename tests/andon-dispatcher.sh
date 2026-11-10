@@ -127,14 +127,14 @@ newtask() { # newtask <題> <merge> → id
     local id; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app)
     HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major merge="$2" >/dev/null
     git -C "$app" fetch -q origin
-    git -C "$app" worktree add -q -b "demo/$id" "$HOME/.herdr/worktrees/app/demo-$id" origin/main
-    HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$HOME/.herdr/worktrees/app/demo-$id" >/dev/null  # andon issue start の代わり
-    (cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
+    git -C "$app" worktree add -q -b "demo/$id" "$ANDON_WORKSPACE/.worktrees/app/demo-$id" origin/main
+    HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$ANDON_WORKSPACE/.worktrees/app/demo-$id" >/dev/null  # andon issue start の代わり
+    (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
     echo "t7 $id" >> "$tmp/hc/live"
     echo "$id"
 }
 work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実をその head にする
-    local wt=$HOME/.herdr/worktrees/app/demo-$1
+    local wt=$ANDON_WORKSPACE/.worktrees/app/demo-$1
     mkdir -p "$wt/$(dirname "$2")"; echo "x$RANDOM" >> "$wt/$2"
     git -C "$wt" add -A; git -C "$wt" commit -qm "$2"; git -C "$wt" push -q origin "HEAD:demo/$1"
     head=$(git -C "$wt" rev-parse HEAD)
@@ -144,8 +144,8 @@ work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実�
     printf '+++ b/%s\n+x\n' "$2" > "$tmp/gh/diff"
     rm -f "$tmp/gh/merged"
 }
-restart() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 kanban start "$1" >/dev/null); }  # 直しが届いた担当
-as_worker() { (cd "$HOME/.herdr/worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 "$andon" issue "$2" "$1" "${@:3}" <<<'## Report' >/dev/null); }
+restart() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 kanban start "$1" >/dev/null); }  # 直しが届いた担当
+as_worker() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 "$andon" issue "$2" "$1" "${@:3}" <<<'## Report' >/dev/null); }
 review_by() { # review_by <レビュアーの id> <findings>: レビュアーが findings.json を書いて review にする
     mkdir -p "$L/issues/$1/library"
     jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$L/issues/$1/library/findings.json"
@@ -216,10 +216,10 @@ raddr=$(jq -r --arg k "$id@$head" '.reviewers[$k].address' "$state")
 kanban show "$rev" --json | jq -e --arg p "$id" --arg a "$raddr" '.issue.profile == "codex-review" and .issue.status == "doing" and .issue.agent == $a and ($a | startswith("t")) and .issue.parent == $p' >/dev/null ||
     die "レビュアーの課題の項目が違う: $(kanban show "$rev" --json)"
 jq -e --arg r "$rev" 'select(.id == $r and has("change") and .change.add != null) | .by == "terminal:dispatcher"' "$L/log.jsonl" >/dev/null || die 'レビュアーの課題の作成が dispatcher でない'
-rwt=$HOME/.herdr/worktrees/app/demo-$id-r1
+rwt=$ANDON_WORKSPACE/.worktrees/app/demo-$id-r1
 [ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die 'detached worktree が head に無い'
 # 台帳（$tmp/plant/projects/demo）はセルの git の中にあるが、レビュアーの課題の作業場所は detached worktree（branch は無い）
-kanban show "$rev" --json | jq -e '.issue.worktree == "~/.herdr/worktrees/app/demo-'"$id"'-r1" and (.issue.branch // "") == ""' >/dev/null ||
+kanban show "$rev" --json | jq -e --arg w "$rwt" '.issue.worktree == $w and (.issue.branch // "") == ""' >/dev/null ||
     die "レビュアーの課題の worktree・branch が detached worktree でない（セルの本体を書いた）: $(kanban show "$rev" --json | jq -c '.issue | {worktree, branch}')"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(echo "$rev" | tr A-Z a-z) .*--cwd $L/issues/$rev codex-review" "$tmp/hc/log" || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
 grep -q "hc send t7 " "$L/issues/$rev/brief.md" && grep -q 'Chief of Staff・dispatcher へは送らない' "$L/issues/$rev/brief.md" || die 'レビュアーの依頼書に宛先（担当 t7）が無い'
@@ -249,7 +249,7 @@ jq -e '.decision == "approve" and .merged == true and .tier == "B"' "$rec" >/dev
 grep -qx "pr merge 7 --repo example/app --squash --match-head-commit $head" "$tmp/gh/merges" || die 'マージの打ち方が違う'
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die '課題が done でない'
 kanban show "$rev" --json | jq -e '.issue.status == "done"' >/dev/null || die 'レビュアーの課題が done でない'
-[ ! -e "$HOME/.herdr/worktrees/app/demo-$id" ] && [ ! -e "$rwt" ] || die 'worktree が残った'
+[ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$id" ] && [ ! -e "$rwt" ] || die 'worktree が残った'
 ! git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'origin/main に入った branch が残った'
 ! grep -q " $id\$\| $rev\$" "$tmp/hc/live" || die '端末が残った'
 pending "$id" gate | jq -e --arg r "$rec" '.detail == {decision: "approve", reasons: [], record: $r}' >/dev/null || die '通知 gate が無い'
@@ -306,12 +306,12 @@ ok '手直しの無い課題は finish（done）のあと corrections.json に�
 cos_done() { HC_TERMINAL_ID=t5 kanban done "$1" >/dev/null; }   # Chief of Staff が片付ける（done の行）
 # 1d-1. 推奨と違う答え → answer
 id=$(newtask '書き出しの形式を決める' person)
-(cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 "$andon" issue ask "$id" - >/dev/null <<'JSON'
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 "$andon" issue ask "$id" - >/dev/null <<'JSON'
 {"kind": "users", "question": "書き出しは CSV だけか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "CSV と Excel"}], "from": "issue"}
 JSON
 )
 HC_TERMINAL_ID=t5 kanban answer "$id#1" "CSV と Excel" >/dev/null
-(cd "$HOME/.herdr/worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban received "$id#1" >/dev/null)
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban received "$id#1" >/dev/null)
 cos_done "$id"; dispatcher
 jq -e '.corrections == [{kind: "answer", question: 1, decision_kind: "users", recommended: "CSV だけ", picked: "CSV と Excel"}]' "$(cj "$id")" >/dev/null ||
     die "推奨と違う答えが answer の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
@@ -473,8 +473,8 @@ ok '人が GitHub でマージしたら、次の見回りでゲートの問い�
 hm=$(newtask '問いが残る課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
-(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"users","question":"どちらにする","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}')
-(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"users","question":"どちらにする","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}')
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
 HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
 dispatcher
 person_merges
@@ -496,7 +496,7 @@ ok '人がマージしてもゲートの外の問いが開いていれば片付�
 hm=$(newtask '閉じた PR の課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
-(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
 HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
 dispatcher
 touch "$tmp/gh/closed"
@@ -515,7 +515,7 @@ ok 'PR がマージされずに閉じたら片付けず、通知 closed を1回�
 hm=$(newtask '別の repo の PR' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/other/pull/7
-(cd "$HOME/.herdr/worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
 HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
 person_merges
 n=$(wc -l < "$tmp/gh/states"); dispatcher; watch_due "$hm"; dispatcher
@@ -553,7 +553,7 @@ cp "$L/issues/$id/library/report.json" "$L/issues/$sid/library/report.json"   # 
 runs=$(grep -c '^run' "$tmp/hc/log"); posted=$(grep -c '^status' "$tmp/gh/posted")
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates の課題の review_request でレビュアーを起こした'
-(cd "$HOME/.herdr/worktrees/app/demo-$sid" && HC_TERMINAL_ID=t7 kanban review "$sid" >/dev/null)
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$sid" && HC_TERMINAL_ID=t7 kanban review "$sid" >/dev/null)
 dispatcher
 [ "$(grep -c '^status' "$tmp/gh/posted")" = "$posted" ] && [ ! -e "$L/issues/$sid/library/gate" ] || die 'candidates の課題にゲートを回した'
 jq -e --arg t "$sid" '[.gates | to_entries[] | select(.value.issue == $t)] == []' "$state" >/dev/null || die "candidates の課題のゲートを控えた: $(jq -c .gates "$state")"
@@ -563,10 +563,10 @@ ok 'deliverable: candidates の課題は review_request でレビュアーを起
 
 # 6. andon issue finish（人がマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')
-[ "$revs" -ge 2 ] && ls -d "$HOME/.herdr/worktrees/app/demo-$id-r"* >/dev/null || die 'レビュアーの子課題・detached worktree が無い（前提）'
+[ "$revs" -ge 2 ] && ls -d "$ANDON_WORKSPACE/.worktrees/app/demo-$id-r"* >/dev/null || die 'レビュアーの子課題・detached worktree が無い（前提）'
 HC_TERMINAL_ID=t5 "$andon" issue finish "$id" >/dev/null
 kanban list --all --json | jq -e --arg p "$id" 'all(.[] | select(.id == $p or .parent == $p); .status == "done")' >/dev/null || die '子課題が done でない'
-! ls -d "$HOME/.herdr/worktrees/app/demo-$id"* >/dev/null 2>&1 || die 'worktree が残った'
+! ls -d "$ANDON_WORKSPACE/.worktrees/app/demo-$id"* >/dev/null 2>&1 || die 'worktree が残った'
 git -C "$app" show-ref --verify --quiet "refs/heads/demo/$id" || die 'マージしていない branch を消した'
 ok 'andon issue finish はレビュアーの子課題と detached worktree も片付け、origin に入っていない branch は残す'
 dispatcher
@@ -846,7 +846,7 @@ ok '離席時だけ hc send（idle か done・入力欄が空・薄い字は空�
 
 # 14. doing で報告無しの Stop が block（担当・レビュアーの Stop フック。stop-check）
 id=$(newtask '止まる前に報告する' person)
-wt=$HOME/.herdr/worktrees/app/demo-$id
+wt=$ANDON_WORKSPACE/.worktrees/app/demo-$id
 term t7 idle 1 project=demo "issue=$id"
 stop() { (cd "$wt" && HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<"{\"stop_hook_active\":${1:-false}}"); }
 out=$(stop)

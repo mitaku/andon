@@ -35,7 +35,8 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    | `wiki/` | 建屋を横断する知識。1 ファイル 1 件・日付・出典・痩せた `index.md`。プロジェクト固有の事実も index の節か front matter の印で**ここ**に置く（プロジェクトに wiki は作らない） | Chief of Staff（D12） | する | — |
    | `files/` | 納品物（人に URL で届けるもの。`andon publish` が `<日付>-<slug>` で置き、files サーバが公開する）。**今の `artifacts/` の改名** | `andon publish`（担当・Chief of Staff・人） | する（大きいものは開いている問い 1） | — |
    | `.env`・`.env.*`・`.ssh/`・`.andon/`・`.ghq/`・`.codex/` | 秘密・番号・鍵・パッケージの取り出し・迎えた repo・ハーネスの状態 | 人／boot | しない（`init/.gitignore` のまま） | — |
-   | worktree・端末・伝令の控え | `~/.herdr/worktrees/`・hc・`~/.local/state/andon/` | 機械 | 建屋の外 | space（作業側）・pane |
+   | worktree | `/workspace/.worktrees/`（7） | 機械 | しない（中の `.gitignore`） | space（作業側） |
+   | 端末・伝令の控え | hc・`~/.local/state/andon/` | 機械 | 建屋の外 | pane |
 
    理由: 直下の既存の雛形（`init/`）を変えず、`wiki/`・`files/` の 2 つを「建て直しに要る」側に置いただけ。`artifacts` → `files` は「生成物」の語感を消し、納品物の面（files サーバのルート）と名前を揃える。
    捨てた案: `artifacts/` のまま——`.gitignore` 済みで、建て直すと納品物が消える／`projects/<slug>/wiki/`——段が増えると「どこに書くか」の迷いが増え、1 プロジェクトの建屋で空の段ができる。段は「製品 repo の `docs/` → 建屋の `wiki/` → 持ち主の wiki（建屋の外）」の 3 つで足りる／建屋ルートに `.claude/`——開いている問い 4。
