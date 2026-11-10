@@ -9,15 +9,15 @@
 
 人（2026-11-07）: 「Task の主は How だが、解消したいのは Why/What。それを言葉にすれば issue」。1 回目の提案（語だけ改め、識別子は `task` のまま）への答え: 「そこまで task⇒issue は大したことじゃないと思っている。issue の中に task が内包されるものだから、理解の阻害をしないほうがいいように思う」。欄の名前は「解決すべき問題 みたいな書き方でもいいかも」。2 回目の提案（別名 1 版・mod の例外・`kanban migrate`）への答え: 「まださほど動いていないから後方互換は気にしなくていいよ」。
 
-言い直すと: 台帳のカード 1 枚が持つべきものは「何が困っていて（Why）、何が出れば解けたか（What＝完了条件）」で、どう直すか（How）は担当が理解と計画で決める（ADR-0006 決めたこと 9・10・12）。出典（曽根。ADR-0006 前提 9）でも「課題を整理して**作業（タスク）**に分解する」で、task は課題ではなく作業の側の語。だから名前は **課題（issue）が作業（task）を内包する**形にし、識別子もその形で読めるようにする——`andon issue start` で課題を起こし、担当がその中で task（作業）を計画する。1 回目の提案が識別子を残した理由（費用・外の Issue との衝突）は、人の判断で「理解を妨げないこと」より軽いとされた。費用は払い、衝突は書き分けで持つ。互換の仕掛け（別名・2 つのラベル・移す command）は、動いている台帳が少ない今は書かず、既存の台帳は手で移す。
+言い直すと: 台帳のカード 1 枚が持つべきものは「何が困っていて（Why）、何が出れば解けたか（What＝完了条件）」で、どう直すか（How）は担当が理解と計画で決める（ADR-0006 決めたこと 9・10・12）。出典（曽根。ADR-0006 前提 9）でも「課題を整理して**作業（タスク）**に分解する」で、task は課題ではなく作業の側の語。だから名前は **課題（issue）が作業（task）を内包する**形にし、識別子もその形で読めるようにする——`andon issue start` で課題を起動し、担当がその中で task（作業）を計画する。1 回目の提案が識別子を残した理由（コスト・外の Issue との衝突）は、人の判断で「理解を妨げないこと」より軽いとされた。コストは払い、衝突は書き分けで持つ。互換の仕掛け（別名・2 つのラベル・移す command）は、動いている台帳が少ない今は書かず、既存の台帳は手で移す。
 
 ## 前提（番号。依頼書と現地から取ったもの）
 
-1. **人（2026-11-07。答え 1）**: 語も識別子も `issue` に改める。台帳のカード＝issue、その中に担当が計画で切る task（作業）が入る、という包含が名前で読めるようにする。費用は大きな理由にしない。
+1. **人（2026-11-07。答え 1）**: 語も識別子も `issue` に改める。台帳のカード＝issue、その中に担当が計画で切る task（作業）が入る、という包含が名前で読めるようにする。コストは大きな理由にしない。
 2. **ADR-0006 前提 10・決めたこと 9**: 課題＝台帳のカード（「何が困っていて、何が出れば解けたか」と完了条件）。作業＝担当が計画で課題を分けた単位（台帳に乗らない。終了条件は担当が置く）。この 2 語は Y-191（S2）が glossary に足す。
 3. **design.md §1.7 命名の方針 1・2**: 識別子の英語は、系譜の語と TPS の語が競えば系譜の語。`task` は「TPS に重なる語が無い」として英語のまま（§3.5 の表）。リーン開発・Kanban Method の系譜で台帳のカードは work item（glossary の今の括弧もこれ）、issue はトラッカー（GitHub・Jira）の系譜の語。→ この文書は §3.5 の表の `task` の行を覆す（`issue` は系譜の語ではないが、人が「包含が読める」ことを取った）。
 4. **glossary skill**: 見出しの括弧は識別子に使う英語。今の見出しは「タスク（work item）」だが識別子は `task` で、括弧と識別子が食い違っている（この文書で直す）。「避ける: チケット、issue、job」。
-5. **ADR-0006 決めたこと 14**: 判断の標準は 機械が確かめる形 → 文 → 人のレビュー の順に置く。名前が変えるのは読む人と agent の判断の向きで、機械の判定は変わらない。→ 改名の効き目は文にあり、識別子の改名は「名前で包含が読める」ための費用（前提 1）。
+5. **ADR-0006 決めたこと 14**: 判断の標準は 機械が確かめる形 → 文 → 人のレビュー の順に置く。名前が変えるのは読む人と agent の判断の向きで、機械の判定は変わらない。→ 改名の効き目は文にあり、識別子の改名は「名前で包含が読める」ためのコスト（前提 1）。
 6. **現地の実測（andon main `96f40f6`。`grep -c 'タスク'`・`grep -ci 'task'`。横展開＝task／タスクが人の目に出る所を数えた）**:
 
    | 場所 | 「タスク」（日本語の文） | `task`（識別子・英語） | 人の目に出るか |
@@ -93,7 +93,7 @@
    | 仮設（yard の `yard-task`・`deck`・`.flightdeck/`） | — | 触らない | 仮設は止まるまで当時の言葉のまま |
 
    理由: 前提 1。包含を名前で読むには、人と agent が打つ `andon issue start`・読む `issues/<id>/issue.yaml`・ボードが読むラベルまで同じ語でなければ、「`task` は課題」の注が残る。読む側に互換を作らないのは Y-141 と同じ（2 つの名前を読む code は、どちらが正か分からなくなる。decisions.md §16）。App の mod の `labels.task` だけは例外: App は 1 つで、仮設の端末（`task=`）も同じ App に出ているので、仮設が止まるまでは名前が付かなくなる。
-   捨てた案（1 回目の提案。識別子は `task` のまま）: 効き目は文にあり（前提 5）、`issue` は外のものの語（前提 7）、費用は Y-141 の約 2 倍で形式の版が上がる——人が「費用は大きな理由にしない」「理解を妨げないほうが大事」と答えた（前提 1）。／`card`・`item`（かんばんの語。衝突しない）: 包含（課題 ⊃ 作業）が読めない。／schema の `$id` を上げず、キーだけ改める: ledger.md と contract.md §10 の決まり（キーの改名は版を上げる）に反する。／App の mod に `labels.task` を残さない: 仮設の端末の名前が消える（人が毎日見る面）。
+   捨てた案（1 回目の提案。識別子は `task` のまま）: 効き目は文にあり（前提 5）、`issue` は外のものの語（前提 7）、コストは Y-141 の約 2 倍で形式の版が上がる——人が「コストは大きな理由にしない」「理解を妨げないほうが大事」と答えた（前提 1）。／`card`・`item`（かんばんの語。衝突しない）: 包含（課題 ⊃ 作業）が読めない。／schema の `$id` を上げず、キーだけ改める: ledger.md と contract.md §10 の決まり（キーの改名は版を上げる）に反する。／App の mod に `labels.task` を残さない: 仮設の端末の名前が消える（人が毎日見る面）。
 
 3. **2026-11-07 移し方。台帳の形式を v3 にし、`kanban migrate` が v2 の台帳を 1 回で移す。別名は `andon task` だけ、1 版。**
 
@@ -125,8 +125,8 @@
    - command と schema で外のものを持つときは `links`（今の予約キー）だけ。`issue` の語を外のものの識別子に使わない（信号の入口（design.md §1.9）が入っても、外の Issue は `signal` の中身で、台帳の課題は `issue`）。
    - Backlog の「課題」（Backlog の日本語 UI の語）と台帳の課題が同じ文に出るときは「Backlog の課題 <キー>」と書く。
 
-   理由: 前提 7。語を 1 つにした代わりに、外のものには必ず持ち主の名前を添える。識別子では `issue` が台帳のもの、外のものは `links` と `signal` で、名前が重ならない。
-   捨てた案: 台帳のカードを別の語にして衝突を避ける（1 回目の提案。前提 1）／外のものを「外部 Issue」と呼ぶ（持ち主の名前のほうが読める）。
+   理由: 前提 7。語を 1 つにした代わりに、外のものには必ずオーナーの名前を添える。識別子では `issue` が台帳のもの、外のものは `links` と `signal` で、名前が重ならない。
+   捨てた案: 台帳のカードを別の語にして衝突を避ける（1 回目の提案。前提 1）／外のものを「外部 Issue」と呼ぶ（オーナーの名前のほうが読める）。
 
 6. **2026-11-07 変える範囲と順（実装のタスクが直す。この文書の PR では変えない）。Y-191〜Y-195 のマージのあと、形式 → command → 文・mod の順。**
 
@@ -160,7 +160,7 @@
      3. `mv kanban/tasks kanban/issues`、各 `issues/<id>/task.yaml` を `issue.yaml` に。
      4. `kanban/config.yaml` の `version: 2` を `version: 3` に。
      5. `issues/*/library/report.json` の `"to": "task"` を `"to": "issue"` に、`issues/*/questions.yaml` の `from: task` を `from: issue` に（`sed`。無ければ飛ばす）。
-     6. dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）を消す。控えが守るのはレビュアーの二重起こしとゲートの重複で、動いている課題が無ければ要らず、次の見回りで作り直される。
+     6. dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）を消す。控えが守るのはレビュアーの二重起動とゲートの重複で、動いている課題が無ければ要らず、次の見回りで作り直される。
      7. `projects/<slug>/project.json` の `triage_max_tasks` を `triage_max_issues` に直して commit（無ければ何もしない）。
      8. 人の App の mod を置き直す（`host-install` は今あるものを上書きしないので、Andon の mod を消してから）。
      9. `andon boot`。`kanban lint` が通れば済み。
@@ -174,7 +174,7 @@
 
    - **7 の手順 5 のファイル名の誤り**: 問いの JSON は `issues/*/questions.yaml` ではなく `issues/*/library/questions/<n>.json`（contract.md §5。`questions.yaml` は台帳の CLI のファイルで `from` を持たない）。手順 5 は「`issues/*/library/report.json` の `"to": "task"` を `"to": "issue"` に、`issues/*/library/questions/*.json` の `"from": "task"` を `"from": "issue"` に」と読む（ledger.md の手順と `tests/kanban.sh` はこの形）。3 の (2) の `questions.yaml` も同じ読み替え。
    - **`impact` の入れ子**: 2 の表に無かった通知 `impact` の `detail.tasks[]`・その1件の `task`、`andon issue impact` の出力の `task`・`tasks[]` も `issues[]`・`issue` にした（`notification/2` の中。キーに task を残すと、表の「通知の schema」の行と食い違う）。
-   - **変えなかったもの**: トリアージの `decisions.json` の `task`（起こす課題の中身）・記録の `created_task`・`andon triage collect` の項目の kind `task` は、triage skill が形を持つので S4 に回した（`andon` が書く schema の約束ではない）。`cmd/kanban` の Go の識別子（型 `task` など）は S2 の範囲で、人の目に出ない。
+   - **変えなかったもの**: トリアージの `decisions.json` の `task`（起動する課題の中身）・記録の `created_task`・`andon triage collect` の項目の kind `task` は、triage skill が形を持つので S4 に回した（`andon` が書く schema の約束ではない）。`cmd/kanban` の Go の識別子（型 `task` など）は S2 の範囲で、人の目に出ない。
 
    理由: 7 の手順は S2 が ledger.md と `tests/kanban.sh` に写したとき正しい置き場で書いたが、この文書の本文が古い名前のままだった。`impact` は表から漏れていた（受け入れ条件 3 の「`task` を持つ例が落ちる」に当たる）。
 
@@ -191,7 +191,7 @@
 ## 受け入れ条件（テストできる形。どの継ぎ目でテストするかを先に）
 
 1. **形式（`tests/kanban.sh`・`tests/kanban/test-deck.mjs`・`go test ./cmd/kanban/... ./internal/ledger/...`）**: `kanban init` が `version: 3` と `issues/` を作る。`kanban add` が `issues/<id>/issue.yaml` を書く。`kanban show --json` が `.issue`、`list --json` が `.issues`。`version: 2` の台帳は全部の sub command（`migrate` を含む）が「format 2; move it by hand (docs/operate.md)」の 1 行で止まる（終了コード 1。何も書かない）。v2 の台帳の写しに operate.md の手順（7 の 3〜7）を当てると `kanban lint` が通り、`list`・`show` が読める。
-2. **command（`tests/andon-issue.sh`・`tests/andon.sh`・`go test ./...`）**: `andon issue start|finish|ready|report|stop-check|ask|review-request|show|candidates` が今の `andon task` と同じ振る舞い。`andon task <sub>` は知らない command として止まり、`andon --help`・`andon issue --help` に `task` が出ない。起こした端末のラベルが `issue=<id>`（`task=` は無い）。担当の最初のメッセージが「課題 `<slug>/<id>`。依頼書は …」。`cmd/`・`internal/` の日本語の文字列に「タスク」が無い（`grep -rn 'タスク' --include='*.go' cmd internal` が空）。`andon triage apply --max-issues` が効き、書く依頼書の最初の欄が `解決すべき問題:`。
+2. **command（`tests/andon-issue.sh`・`tests/andon.sh`・`go test ./...`）**: `andon issue start|finish|ready|report|stop-check|ask|review-request|show|candidates` が今の `andon task` と同じ振る舞い。`andon task <sub>` は知らない command として止まり、`andon --help`・`andon issue --help` に `task` が出ない。起動した端末のラベルが `issue=<id>`（`task=` は無い）。担当の最初のメッセージが「課題 `<slug>/<id>`。依頼書は …」。`cmd/`・`internal/` の日本語の文字列に「タスク」が無い（`grep -rn 'タスク' --include='*.go' cmd internal` が空）。`andon triage apply --max-issues` が効き、書く依頼書の最初の欄が `解決すべき問題:`。
 3. **schema（`tests/schema.sh`）**: `issue-keys.schema.json` があり `task-keys.schema.json` が無い。notification／report／question／gate／project の `$id` が `/2`。contract.md の例が全部通る。`task`・`reviewer_task`・`triage_max_tasks`・`to: task`・`from: task` を持つ例が落ちる。
 4. **dispatcher とゲート（`tests/andon-dispatcher.sh`・`tests/andon-gate.sh`）**: 通知が `issue`・`reviewer_issue` で届く。ゲートの記録が `review.issue`。dispatcher の控えのキーが `issue`。レビュアーの端末のラベルが `issue=<親>-r<回>`。
 5. **パッケージ（`tests/package.sh`）**: glossary に「課題（issue）」「作業（task）」の項と包含の図があり、「タスク（work item）」の項が無く、「タスク」は「避ける」の行と仮設の語の表にしか無い。skill 6 本と template 7 本に「タスク」と `andon task` が無い。chief-of-staff skill §2 の雛形の最初の欄が `解決すべき問題:` で `やること:` が無い。worker skill が「解決すべき問題」と古い「やること」の両方を読むと書いてある。`package/hooks/stop` が `andon issue stop-check` を打つ。

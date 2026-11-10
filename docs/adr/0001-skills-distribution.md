@@ -29,7 +29,7 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
    捨てた案: managed settings に `directory` 型の marketplace を登録して強制（人が手で打つ `claude` にも効くが、`~/.claude/plugins` の登録と「not cached」の落とし穴が増える。必要が出たら）／`~/.claude/skills/andon/` を skills-directory plugin にする（plugin の中身は root の外へ出る symlink を捨てる規則があり、`/opt/andon` を指す形が通るか要実測）／admin の置き場（`/etc/claude-code/.claude/skills`・`/etc/codex/skills`。managed の方針で利用者・project の skill を止めるときに要る）／利用者ローカルの `andon-` 接頭字の symlink のまま（名前空間が付かない）。
    副作用（承知の上）: `/opt/andon/hooks/hooks.json`・`agents/`・`commands/` を置けば plugin の部品として読まれる（今は空。将来 P6b のフックをここに乗せる選択肢になる）。
 3. **2026-11-05 Claude Code 系のプロファイルは `--append-system-prompt-file` で役の skill を system prompt に足す。** hc の template の `command` に `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md` を加え、本文の「先に `/opt/andon/skills/<役>/SKILL.md` を読む」の行を消す（最初のメッセージはタスクの2行だけ）。glossary など役の skill が名前で指す skill は、2 の plugin（Claude Code）と置き場（Codex）から発見させる（注入しない）。Codex 系のプロファイル（`codex`・`codex-review`）は今の形（最初のメッセージで絶対パスを指す）のまま。
-   理由: skill が最初の turn の前に文脈に入り、読み飛ばす余地が無い。既定の system prompt を保つ（`--append-system-prompt-file` は末尾に足すだけ）。版は session の最初に固定される（`--system-prompt-snapshot` の既定）。
+   理由: skill が最初の turn の前にコンテキストに入り、読み飛ばす余地が無い。既定の system prompt を保つ（`--append-system-prompt-file` は末尾に足すだけ）。版は session の最初に固定される（`--system-prompt-snapshot` の既定）。
    捨てた案: `claude --agent <役>`（agent 定義の本文で system prompt が置き換わる危険。空の本文なら保てるが、プロファイルが hc の template と agent 定義の2ファイルになる。人が退けた 2026-11-05）／注入せず発見だけに任せる（description で選ばせる。読み飛ばしの余地が残る）／今のまま最初のメッセージで読ませる。
 4. **2026-11-05 作業側の別マシンは Andon の image で立てる**（同じ `bootstrap`。design.md §1.5）。だから skill を `andon` の binary に go:embed しない。
    捨てた案: binary だけのマシンに `andon skill path <name>` で出す（写しが2つになる。再開の条件: binary だけで担当を動かすマシンが要るとき）。
@@ -51,7 +51,7 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 
 1. **`andon boot`（偽の HOME。`tests/andon-boot.sh`・`internal/boot/boot_test.go`）**: 2回打って同じ結果で、`~/.agents/skills/andon-<name>` が `<pkg>/skills/<name>` を指す symlink。パッケージから消えた skill の `andon-*` リンクは外れ、`andon-` で始まらないもの（利用者の skill）には触らない。`~/.claude/skills/andon-*` の古いリンクは外す（仮設の形からの移行）。`.agents/skills` が symlink（仮設の形）なら今の `.claude/skills` と同じく止める。
 2. **`package/`（`tests/package.sh`）**: `package/.claude-plugin/plugin.json` があり `name` が `andon`。Claude Code 系の template（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`claude-review`）の `command` が `--plugin-dir /opt/andon` と `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md` を持ち、その skill が `package/skills/` にある。本文に「先に … を読む」の行が無い。Codex 系（`codex`・`codex-review`）は本文で `/opt/andon/skills/<役>/SKILL.md` を指す（今のまま）。`andon chief-engineer` の最初のメッセージ（`internal/chiefengineer`）も「先に読む」の行を落とす（`chiefengineer_test.go`）。
-3. **建屋で実測（P4 以降の決まり。報告に書く）**: `--plugin-dir` と `--append-system-prompt-file` で起こした担当が、`/andon:worker` の名で skill を持ち、最初の turn で役の skill の手順（`deck start`）を打つ。`ANDON_HOME=<checkout>/package` で起こしたとき checkout の plugin と skill が入る（boot が template を生成するとき、本文の `/opt/andon` を `ANDON_HOME` に置き換える。これが決定 5 の「開発中の回避の口」の実体）。
+3. **建屋で実測（P4 以降の決まり。報告に書く）**: `--plugin-dir` と `--append-system-prompt-file` で起動した担当が、`/andon:worker` の名で skill を持ち、最初の turn で役の skill の手順（`deck start`）を打つ。`ANDON_HOME=<checkout>/package` で起動したとき checkout の plugin と skill が入る（boot が template を生成するとき、本文の `/opt/andon` を `ANDON_HOME` に置き換える。これが決定 5 の「開発中の回避の口」の実体）。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
@@ -60,7 +60,7 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 | S1 | この文書の PR（design.md §1.8・§2.2・§2.3 と decisions.md・README・chief-engineer skill から指す） | `bash tests/*.sh` green | — |
 | S2 | boot: `~/.agents/skills/andon-<name>` の symlink（`~/.claude/skills/andon-*` は外す）＋ template 生成時の `/opt/andon` → `ANDON_HOME` の置換 ＋ tests | 受け入れ条件 1 と 3 の置換 | S1 のマージ |
 | S3 | package: `.claude-plugin/plugin.json`・Claude Code 系 template に `--plugin-dir` と `--append-system-prompt-file`・「先に読む」の行を消す・`andon chief-engineer` の最初のメッセージ・tests | 受け入れ条件 2 | S1 のマージ（S2 と並行可） |
-| S4 | 建屋で実測（担当1つを起こして最初の turn を見る） | 受け入れ条件 3。落ちたら直しのタスク | S2・S3・建屋（P7） |
+| S4 | 建屋で実測（担当1つを起動して最初の turn を見る） | 受け入れ条件 3。落ちたら直しのタスク | S2・S3・建屋（P7） |
 | — | `andon version` と `--on <machine>` での照合（回避の口つき） | `machine` を建てるタスクに添える（決定 5） | `machine` |
 
 ## 開いている問い（残った問い。判断の種類つき）
@@ -76,6 +76,6 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 - Claude Code: skills（置き場と優先。enterprise＝managed settings のディレクトリの `.claude/skills/`） https://code.claude.com/docs/en/skills 、plugins https://code.claude.com/docs/en/plugins 、plugin の読み込み https://code.claude.com/docs/en/plugins/loading 、組織の管理（`extraKnownMarketplaces`・`enabledPlugins`・`strictPluginOnlyCustomization`・seed） https://code.claude.com/docs/en/plugins/org 、marketplace のホスト https://code.claude.com/docs/en/plugins/host-marketplace 、managed settings https://code.claude.com/docs/en/managed-settings 、settings https://code.claude.com/docs/en/settings
 - Codex: skills（置き場 `.agents/skills`・`~/.agents/skills`・`/etc/codex/skills`。配布は plugin） https://developers.openai.com/codex/skills
 - Claude Code の plugin（`--plugin-dir` でその場で読む・`.claude-plugin/plugin.json`・`/<plugin>:<skill>` の名前空間・root の外へ出る symlink は捨てる） https://code.claude.com/docs/en/plugins/manifest-reference 、https://code.claude.com/docs/en/plugins/components
-- Claude Code の `--agent`（主セッションを agent 定義で起こす。managed settings のディレクトリの `.claude/agents/` が最優先。空の prompt なら既定の system prompt を保つ〈v2.1.281 以降〉。`skills` で skill の全文を起動時に注入） https://code.claude.com/docs/en/sub-agents 、CLI https://code.claude.com/docs/en/cli-reference
+- Claude Code の `--agent`（主セッションを agent 定義で起動する。managed settings のディレクトリの `.claude/agents/` が最優先。空の prompt なら既定の system prompt を保つ〈v2.1.281 以降〉。`skills` で skill の全文を起動時に注入） https://code.claude.com/docs/en/sub-agents 、CLI https://code.claude.com/docs/en/cli-reference
 - Vercel の `skills` CLI（`npx skills add <owner>/<repo>` で GitHub の repo から 79 のエージェントの置き場へ写す。見つけるのは repo の `skills/`・`.claude/skills/`・`.agents/skills/` などで、`package/skills/` は直接パスを指すときだけ） https://github.com/vercel-labs/skills （README・docs/creating-skills.md・docs/commands.md・docs/agents.md）
 - TanStack Intent（npm の package に skill を同梱し、`npx @tanstack/intent list|load` で読む。版は package と一緒に上がる） https://tanstack.com/table/v9/docs/agent-skills

@@ -6,7 +6,7 @@
 
 ## 問題
 
-ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab をタスクごとにした。App の Space は 1 つの作業の置き場で、Files・Changes の欄は Space のフォルダ（最初の端末の cwd の git の根）を指す。作業側の Space が 1 つだと、そのフォルダは最初に起きた担当の worktree になり、ほかのタスクの worktree は App から見えない。人はタスク（＝worktree）ごとに Space があるほうがよいと言った（人 2026-11-06。P7 のあと）。
+ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab をタスクごとにした。App の Space は 1 つの作業の置き場で、Files・Changes の欄は Space のフォルダ（最初の端末の cwd の git の根）を指す。作業側の Space が 1 つだと、そのフォルダは最初に起動した担当の worktree になり、ほかのタスクの worktree は App から見えない。人はタスク（＝worktree）ごとに Space があるほうがよいと言った（人 2026-11-06。P7 のあと）。
 
 ## 決めたこと
 
