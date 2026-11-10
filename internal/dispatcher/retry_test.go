@@ -252,6 +252,22 @@ func TestWorkingMoving(t *testing.T) {
 	}
 }
 
+// hc read が失敗し続けても、status.msg が替わっていれば進んでいるとみて stalled を届けない（A-0036 のレビュー 1 回目）。
+func TestWorkingMovingMsgOnly(t *testing.T) {
+	f := newRetry(t) // 画面のファイルを置かない: 偽の hc read は失敗する
+	for i, m := range []time.Duration{1, 15, 30, 45} {
+		f.term("t42", "working", fmt.Sprintf("ツール %c を回す", 'a'+i), 0, false)
+		f.at(m*time.Minute, "")
+	}
+	if k := f.kinds(); len(k) != 0 {
+		t.Fatalf("msg が替わっている担当に stalled を届けた: %q", k)
+	}
+	f.at(66*time.Minute, "")
+	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:stalled" {
+		t.Fatalf("msg も画面も 20 分動かないのに stalled を届けない: %q", k)
+	}
+}
+
 // Chief Engineer（profile chief-engineer）の端末の stalled・blocked は記録だけで、error は届ける（A-0036）。
 func TestEngineerWatch(t *testing.T) {
 	f := newRetry(t)

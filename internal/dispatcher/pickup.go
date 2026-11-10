@@ -340,40 +340,41 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	return Verdict{}
 }
 
-// Moved は working の担当の進みの控え: status.msg と画面の要約（Progress）と、それが最後に替わった時刻（dispatcher の時計）。
+// Moved は working の担当の進みの控え: status.msg と画面の要約（別々に持つ。画面が読めない回も msg は比べる）と、
+// どちらかが最後に替わった時刻（dispatcher の時計）。
 type Moved struct {
-	Sum string `json:"sum"`
-	At  int64  `json:"at"`
+	Msg    string `json:"msg"`
+	Screen string `json:"screen,omitempty"` // 空は画面をまだ読めていない
+	At     int64  `json:"at"`
 }
 
-// Progress は status.msg と画面の要約。画面は字だけを見る（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）。
-func Progress(msg, screen string) string {
+// Progress は画面の要約。字だけを見る（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）。
+func Progress(screen string) string {
 	var b strings.Builder
-	b.WriteString(msg)
-	b.WriteByte(0)
 	for _, r := range screen {
 		if unicode.IsLetter(r) {
 			b.WriteRune(r)
 		}
 	}
-	sum := sha256.Sum256([]byte(b.String()))
+	return digest(b.String())
+}
+
+func digest(s string) string {
+	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
 }
 
-// moved は working の担当の進みを控えに映す（prev が前の控え）。画面が読めなければ前の控えのまま（無ければ今を起点にする）。
+// moved は working の担当の進みを控えに映す（prev が前の控え）。status.msg か画面が替われば今を、替わらなければ前の時刻を持つ。
+// 画面が読めない回は画面を比べず、前の画面の要約を持ち越す（msg は比べる）。初めて見たら今を起点にする。
 func moved(prev Moved, had bool, msg string, screen func() (string, error), nowMs int64) Moved {
-	text, err := screen()
-	if err != nil {
-		if had {
-			return prev
-		}
-		return Moved{At: nowMs}
+	next := Moved{Msg: digest(msg), Screen: prev.Screen, At: prev.At}
+	if text, err := screen(); err == nil {
+		next.Screen = Progress(text)
 	}
-	sum := Progress(msg, text)
-	if !had || sum != prev.Sum {
-		return Moved{Sum: sum, At: nowMs}
+	if !had || next.Msg != prev.Msg || next.Screen != prev.Screen {
+		next.At = nowMs
 	}
-	return prev
+	return next
 }
 
 // watch は doing の課題の担当を端末の土台で見る（見回りで hc get）。

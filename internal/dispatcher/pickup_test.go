@@ -100,7 +100,7 @@ func TestMoved(t *testing.T) {
 	scr := func(s string) func() (string, error) { return func() (string, error) { return s, nil } }
 	fail := func() (string, error) { return "", errors.New("hc read") }
 	first := moved(Moved{}, false, "go test を回す", scr("✻ Thinking… (3m 2s · ↓ 1.2k tokens)\nRead x.go"), now-60_000)
-	if first.At != now-60_000 || first.Sum == "" {
+	if first.At != now-60_000 || first.Screen == "" || first.Msg == "" {
 		t.Fatalf("初めて見たら今を起点にする: %+v", first)
 	}
 	if m := moved(first, true, "go test を回す", scr("✶ Thinking… (24m 9s · ↓ 8.4k tokens)\nRead x.go"), now); m != first {
@@ -112,8 +112,16 @@ func TestMoved(t *testing.T) {
 	if m := moved(first, true, "テストを読む", scr("✻ Thinking… (3m 2s · ↓ 1.2k tokens)\nRead x.go"), now); m.At != now {
 		t.Fatalf("status.msg の替わりを進みに数えない: %+v", m)
 	}
-	if m := moved(first, true, "テストを読む", fail, now); m != first {
-		t.Fatalf("画面が読めないのに控えを替えた: %+v", m)
+	if m := moved(first, true, "go test を回す", fail, now); m != first {
+		t.Fatalf("画面が読めず msg も同じなのに控えを替えた: %+v", m)
+	}
+	// 画面が読めない間も msg の替わりは進みに数え、画面の要約は持ち越す
+	m := moved(first, true, "テストを読む", fail, now)
+	if m.At != now || m.Screen != first.Screen {
+		t.Fatalf("画面が読めない回に msg の替わりを進みに数えない: %+v", m)
+	}
+	if m2 := moved(m, true, "テストを読む", fail, now+60_000); m2 != m {
+		t.Fatalf("画面が読めず msg も同じなのに控えを替えた: %+v", m2)
 	}
 	if m := moved(Moved{}, false, "", fail, now); m.At != now {
 		t.Fatalf("控えも画面も無いときは今を起点にする: %+v", m)

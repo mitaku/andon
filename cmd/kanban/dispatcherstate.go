@@ -56,8 +56,9 @@ type dsResend struct {
 }
 
 type dsMoved struct {
-	Sum string `json:"sum"`
-	At  int64  `json:"at"`
+	Msg    string `json:"msg"`
+	Screen string `json:"screen,omitempty"`
+	At     int64  `json:"at"`
 }
 
 type dispatcherState struct {

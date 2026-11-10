@@ -126,7 +126,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | `working` のまま20分で、`status.msg` も画面も20分動かない | 知らせる（`stalled`）。1つのターンで長く働いているだけ（ツールを回して `status.msg` か画面が替わる）なら知らせない |
 
 - 同じ状態（同じ `status_ms`）につき1回だけ知らせる。
-- `working` の進みは、見回りごとに `status.msg`（Claude Code は今のツールの説明を入れる）と画面（`hc read` の最後の 40 行）の字だけ（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）を控えの `Moved`（`<issue>|<agent>`）に要約して比べ、替わった時刻（dispatcher の時計）を持つ。初めて見た `working` はその時刻を起点にする。画面が読めない回は前の控えのまま。
+- `working` の進みは、見回りごとに `status.msg`（Claude Code は今のツールの説明を入れる）と画面（`hc read` の最後の 40 行）の字だけ（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）を控えの `Moved`（`<issue>|<agent>`）に別々に要約して比べ、どちらかが替わった時刻（dispatcher の時計）を持つ。初めて見た `working` はその時刻を起点にする。画面が読めない回は画面を比べず（前の要約を持ち越す）、`status.msg` だけ比べる。
 - Chief Engineer の課題（`profile: chief-engineer`）の `stalled`・`blocked` は記録だけ（§3.2）。
 - `agent` は `<address>` か `<machine>/<address>`（[contract.md](contract.md) §8）。`hc get` が `not_found` を返したときだけ端末が無い（`finished`）とし、ほかの失敗の間は前の状態（知らせた状態・続きを打った回数）を保つ。
 - 「続けて」の間・回数・ほかの送り直しとの関係は §2.4。
