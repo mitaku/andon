@@ -10,7 +10,7 @@ import (
 )
 
 // keyOrder is where kanban puts a key it adds. Keys a person put elsewhere stay where they are.
-var keyOrder = []string{"id", "title", "status", "repo", "parent", "phase", "after", "profile", "who", "agent", "branch", "worktree", "links", "routine", "not_before", "created", "updated"}
+var keyOrder = []string{"id", "title", "status", "repo", "parent", "phase", "after", "profile", "who", "agent", "branch", "worktree", "session", "links", "routine", "not_before", "created", "updated"}
 
 // doc is one YAML file kept as a node tree, so that changing a value keeps the
 // comments and the order of everything else.

@@ -62,6 +62,11 @@
       "description": "The issue's worktree folder (~ allowed).",
       "type": "string"
     },
+    "session": {
+      "description": "The id of the agent's harness session (a UUID, lowercase), so the yard can resume it after its terminal is lost. The yard writes it; the ledger only keeps it.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
     "links": {
       "description": "http(s) URLs, or paths relative to the root.",
       "type": "array",

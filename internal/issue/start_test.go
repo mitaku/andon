@@ -6,10 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 )
+
+var sessionRe = regexp.MustCompile(`session=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
 // start は偽の kanban と hc・本物の git（bare な origin とその clone）で見る（台帳を本物の kanban で回すのは tests/andon-issue.sh）。
 // 偽の kanban は $FAKE_ROOT/show-<id>.json を返し、打たれたものを $LOG に書く。偽の hc は FAKE_LS・FAKE_TPL・FAKE_RUN（FAKE_RUN_RC）を返す。
@@ -188,12 +191,20 @@ func TestStart(t *testing.T) {
 		"hc templates --json",
 		"hc ls --json",
 		"kanban set S-0007 branch=sample-site/S-0007-add-the-button worktree=" + f.wt(),
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label issue=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd " + f.wt() + " claude 課題 `sample-site/S-0007`。",
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label issue=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --label session=",
 		"依頼書は `" + brief + "`。",
 		"kanban start S-0007 | HC_TERMINAL_ID=t42 KANBAN_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
+		"kanban set S-0007 session=",
 	}
 	calls := f.calls()
+	// Claude 系は Andon が決めたセッションの id をラベルで渡し、同じ id を台帳の session に書く（ADR-0012 決めたこと 11）
+	if len(calls) == len(want) {
+		m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd ` + regexp.QuoteMeta(f.wt()) + ` claude 課題`).FindStringSubmatch(calls[6])
+		if m == nil || !strings.HasPrefix(calls[10], "kanban set S-0007 session="+m[1]+" ") {
+			t.Errorf("session のラベルと台帳が合わない:\n%s\n%s", calls[6], calls[10])
+		}
+	}
 	if len(calls) != len(want) {
 		t.Fatalf("calls:\n%s", strings.Join(calls, "\n"))
 	}
@@ -224,7 +235,8 @@ func TestStartWithoutRepo(t *testing.T) {
 	if rc != 0 || errs != "" || !strings.Contains(out, "cwd "+cwd) || strings.Contains(out, "branch") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	if f.has("kanban set") || !f.has("start-cwd "+cwd) || !f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label issue=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --cwd "+cwd+" claude") {
+	if f.has("kanban set S-0007 branch") || !f.has("start-cwd "+cwd) || !f.has("kanban set S-0007 session=") ||
+		!f.has("hc run --json --bg --outlive-parent --no-notify --name sample-site-s-0007 --label project=sample-site --label issue=S-0007 --label title=Add the button --label herdr.space=andon-sample-site-S-0007 --label herdr.tab=andon-sample-site-S-0007 --label session=") {
 		t.Errorf("calls=%q", f.calls())
 	}
 }
@@ -501,7 +513,15 @@ func TestStartDryRunMatchesRun(t *testing.T) {
 				want = append(want, "--label", l)
 			}
 			want = append(want, "--cwd", p.Cwd, p.Profile, p.FirstMessage)
-			if got := f.runArgs(); !slices.Equal(got, want) {
+			// session の値だけは起こすたびに新しい（Claude 系の --session-id。ADR-0012 決めたこと 11）
+			norm := func(a []string) []string {
+				out := slices.Clone(a)
+				for i := range out {
+					out[i] = sessionRe.ReplaceAllString(out[i], "session=<id>")
+				}
+				return out
+			}
+			if got := f.runArgs(); !slices.Equal(norm(got), norm(want)) || !slices.Contains(norm(want), "session=<id>") {
 				t.Errorf("hc run の引数が違う:\n got %q\nwant %q", got, want)
 			}
 			if got := f.runArgs(); got[len(got)-1] != p.FirstMessage {

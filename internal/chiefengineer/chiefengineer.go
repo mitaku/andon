@@ -11,8 +11,8 @@
 // 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、人の Herdr App の指揮側の Space に
 // 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // --brief - の文は依頼書の既定の行の下に続ける（Chief Engineer が最初に読むのは依頼書なので、送り直しが要っても残る）。
-// Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。動いている端末があっても起こす。
-// 作り直しで戻った端末（top-level の argv ごと素のシェル）だけは片付けてから起こす。それ以外の端末には触らない。
+// Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。ほかの Chief Engineer の端末には触らない
+// （作り直しで戻った端末も片付けない。その課題は doing のまま残り、andon issue resume で続きから起こす。ADR-0012 決めたこと 12）。
 //
 // 置き場（andon issue start と同じ形。internal/spawn）:
 //
@@ -22,7 +22,6 @@
 package chiefengineer
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -42,7 +41,7 @@ const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -
 	"台帳に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起こし、課題を doing にする。文書の PR はその課題から出る。\n" +
 	"--brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。\n" +
-	"Chief Engineer は1プロジェクトに複数いてよい。作り直しで戻った端末だけ片付けてから起こす。\n"
+	"Chief Engineer は1プロジェクトに複数いてよい。ほかの Chief Engineer の端末には触らない（止まったものは andon issue resume）。\n"
 
 // Profile は Chief Engineer のプロファイル（hc の template の名前）。
 const Profile = "chief-engineer"
@@ -129,44 +128,6 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	env := []string{"KANBAN_ROOT=" + root}
 
-	// 作り直しで戻った端末を探す（動いている Chief Engineer は数えない。ADR-0009 決めたこと 3）
-	ls, err := output(nil, "", "hc", "ls", "--json", "--label", "role="+Profile, "--label", "project="+slug)
-	if err != nil {
-		return die("hc ls に失敗: %v", err)
-	}
-	var live struct {
-		Terminals []struct {
-			Address string            `json:"address"`
-			Labels  map[string]string `json:"labels"`
-		} `json:"terminals"`
-	}
-	if err := json.Unmarshal([]byte(ls), &live); err != nil {
-		return die("hc ls の返事が読めない: %v", err)
-	}
-	// ラベルと live だけでは決めない: 作り直しで戻った端末（top-level の argv ごと素のシェル）だけ片付ける（前の課題は台帳に残る）。
-	// 動いている・どちらとも言えない端末には触らない
-	var shells []*spawn.Term
-	for _, lt := range live.Terminals {
-		t, err := spawn.Look(lt.Address)
-		if err != nil {
-			return die("%v", err)
-		}
-		t.Address = lt.Address
-		if t.Labels == nil {
-			t.Labels = lt.Labels
-		}
-		if t.Kind() == spawn.Restored {
-			shells = append(shells, t)
-		}
-	}
-	for _, t := range shells {
-		if err := spawn.Discard(t.Address); err != nil {
-			return die("%s（Chief Engineer のラベルで中身がシェル）を片付けられない: %v", t.Address, err)
-		}
-		fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）は中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた。課題 %s は台帳に残る\n",
-			where(slug, t.Labels["issue"], t.Labels["title"]), t.Address, t.Labels["issue"])
-	}
-
 	found, err := spawn.HasTemplate(Profile)
 	if err != nil {
 		return die("%v", err)
@@ -210,8 +171,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon chief-engineer: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
-	labels := []string{"role=" + Profile, "project=" + slug, "issue=" + id, "title=" + title,
-		"herdr.space=andon-" + slug, "herdr.tab=andon-" + slug + "-" + id}
+	// セッションの id は Andon が決めて渡し（template の command が端末のラベルから読む）、台帳の session に書く（ADR-0012 決めたこと 11）
+	session := spawn.NewSession()
+	labels := append(Labels(slug, id, title), spawn.SessionLabel+"="+session)
 	run, err := spawn.Run(name, labels, cwd, Profile, msg)
 	if err != nil {
 		undo()
@@ -220,6 +182,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	if _, err := spawn.OutputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {
 		return die("%s start %s に失敗: %v（端末 %s は起きている）", cli, id, err, run.Address)
+	}
+	if _, err := output(env, "", cli, "set", id, "session="+session); err != nil {
+		return die("%s set %s session=%s に失敗: %v（端末 %s は起きている。resume するには台帳に session を手で書く）", cli, id, session, err, run.Address)
 	}
 
 	place := where(slug, id, title)
@@ -232,6 +197,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起こした。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
 	fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 	return 0
+}
+
+// Labels は Chief Engineer の端末のラベル（andon issue resume も同じものを付ける）。指揮側の Space に課題の tab として出す。
+func Labels(slug, id, title string) []string {
+	return []string{"role=" + Profile, "project=" + slug, "issue=" + id, "title=" + title,
+		"herdr.space=andon-" + slug, "herdr.tab=andon-" + slug + "-" + id}
 }
 
 // where は人に端末を指す言い方「<Space 名> / <tab 名>」（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける。

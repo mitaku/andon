@@ -612,3 +612,40 @@ func TestHerdrCoreLink(t *testing.T) {
 		t.Fatalf("hc を書き換えた: %q", b)
 	}
 }
+
+// resume: のあるプロファイルは、resume: を除いた <name>.md と、command がその行の <name>-resume.md になる（ADR-0012 決めたこと 13 の 1）。
+// templates.local が同じ名前で勝てば、勝った側（resume: が無ければ -resume も無い）。<name>-resume.md が置いてあればそれが勝つ。
+func TestGenerateResumeTemplates(t *testing.T) {
+	f := newFixture(t)
+	put(t, filepath.Join(f.pkg, "templates", "claude.md"), "---\nname: claude\ndescription: 担当\ncommand: claude --plugin-dir /opt/andon\nresume: claude --plugin-dir /opt/andon --resume \"$s\"\n---\n本文\n")
+	put(t, filepath.Join(f.pkg, "templates", "codex.md"), "---\nname: codex\ndescription: Codex\ncommand: codex --no-daemon\nresume: codex --no-daemon resume \"$s\"\n---\n本文\n")
+	put(t, filepath.Join(f.ws, "templates.local", "codex.md"), "---\nname: codex\ncommand: codex --no-daemon\n---\nセルの codex\n")
+	put(t, filepath.Join(f.pkg, "templates", "fable.md"), "---\nname: fable\ncommand: claude\nresume: claude --continue\n---\n本文\n")
+	put(t, filepath.Join(f.ws, "templates.local", "fable-resume.md"), "---\nname: fable-resume\ncommand: claude --resume x\n---\nセルの resume\n")
+	if err := genTemplates(f.env()); err != nil {
+		t.Fatal(err)
+	}
+	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates")
+	for name, want := range map[string]string{
+		"claude.md":        "---\nname: claude\ndescription: 担当\ncommand: claude --plugin-dir " + f.pkg + "\n---\n本文\n",
+		"claude-resume.md": "---\nname: claude-resume\ndescription: 担当（続きから）\ncommand: claude --plugin-dir " + f.pkg + " --resume \"$s\"\n---\n本文\n",
+		"codex.md":         "---\nname: codex\ncommand: codex --no-daemon\n---\nセルの codex\n",
+		"fable.md":         "---\nname: fable\ncommand: claude\n---\n本文\n",
+		"fable-resume.md":  "---\nname: fable-resume\ncommand: claude --resume x\n---\nセルの resume\n",
+	} {
+		if s := read(t, filepath.Join(tpl, name)); s != want {
+			t.Errorf("%s = %q\nwant %q", name, s, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(tpl, "codex-resume.md")); err == nil {
+		t.Error("templates.local の codex（resume: 無し）が勝ったのに codex-resume.md を作った")
+	}
+}
+
+func TestSplitResumeLeavesOthers(t *testing.T) {
+	for _, in := range []string{"セルだけ\n", "---\nname: x\nresume: y\n", "---\nname: x\n---\nresume: y\n"} {
+		if base, resume := SplitResume([]byte(in)); string(base) != in || resume != nil {
+			t.Errorf("%q: base=%q resume=%q", in, base, resume)
+		}
+	}
+}

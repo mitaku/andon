@@ -55,3 +55,10 @@ func TestFirstDelivered(t *testing.T) {
 		t.Errorf("Reason()=%q", r)
 	}
 }
+
+func TestNewSession(t *testing.T) {
+	a, b := NewSession(), NewSession()
+	if !SessionRe.MatchString(a) || a == b || a[14] != '4' {
+		t.Errorf("NewSession: %q %q", a, b)
+	}
+}

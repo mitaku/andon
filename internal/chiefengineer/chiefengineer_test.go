@@ -168,14 +168,14 @@ func TestStartsChiefEngineer(t *testing.T) {
 	calls := f.calls()
 	want := []string{
 		"kanban root",
-		"hc ls --json --label role=chief-engineer --label project=sample-site",
 		"hc templates --json",
 		"kanban add Billing の設計 --repo github.com/example/sample-site --profile chief-engineer --brief - | HC_TERMINAL_ID=t1 KANBAN_ROOT=" + f.root,
 		"kanban set S-7 branch=sample-site/S-7-billing worktree=" + f.wt() + " |",
-		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label issue=S-7 --label title=Billing の設計 --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-S-7 --cwd " + f.wt() + " chief-engineer 課題 `sample-site/S-7`。",
+		"hc run --json --bg --outlive-parent --no-notify --name sample-site-s-7 --label role=chief-engineer --label project=sample-site --label issue=S-7 --label title=Billing の設計 --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-S-7 --label session=",
 		"依頼書は `" + f.root + "/kanban/issues/S-7/brief.md`。",
 		"kanban start S-7 | HC_TERMINAL_ID=t42 KANBAN_ROOT=" + f.root,
 		"start-cwd " + f.wt(),
+		"kanban set S-7 session=",
 	}
 	if len(calls) != len(want) {
 		t.Fatalf("calls:\n%s", strings.Join(calls, "\n"))
@@ -192,6 +192,11 @@ func TestStartsChiefEngineer(t *testing.T) {
 	brief, _ := os.ReadFile(f.log + ".brief")
 	if !strings.HasPrefix(string(brief), "# Billing の設計\n") {
 		t.Errorf("brief=%q", brief)
+	}
+	// 渡したセッションの id（ラベル）と台帳に書いた id が同じ（ADR-0012 決めたこと 11）
+	m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd ` + regexp.QuoteMeta(f.wt()) + ` chief-engineer `).FindStringSubmatch(calls[4])
+	if m == nil || !spawn.SessionRe.MatchString(m[1]) || !strings.HasPrefix(calls[len(calls)-1], "kanban set S-7 session="+m[1]+" ") {
+		t.Errorf("session のラベルと台帳が合わない:\n%s\n%s", calls[4], calls[len(calls)-1])
 	}
 }
 
@@ -336,52 +341,19 @@ func TestStartsWhileAnotherRunning(t *testing.T) {
 	}
 }
 
-// 作り直しで中身が素のシェルに替わって戻った Chief Engineer の端末は片付けてから起こす。
-func TestShellChiefEngineerIsReplaced(t *testing.T) {
+// 作り直しで素のシェルに替わった Chief Engineer の端末も片付けない（その課題は andon issue resume が続きから起こす。ADR-0012 決めたこと 12）。
+// hc ls・hc get も打たない（ほかの Chief Engineer の端末を見ない）。
+func TestShellChiefEngineerIsLeft(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t9","argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`)
 	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != 0 || errs != "" || !strings.Contains(out, "sample-site / CE S-3 Billing の設計（t9）は中身がシェルに替わっていた") {
+	if rc != 0 || errs != "" || !strings.Contains(out, "S-7（題）を t42") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	for _, c := range []string{"hc keep t9 --off", "hc kill t9", "hc rm t9", "kanban add", "hc run"} {
-		if !f.has(c) {
-			t.Errorf("%s を打っていない: %q", c, f.calls())
-		}
-	}
-}
-
-// 動いている端末と戻った端末が並んでいれば、戻った端末だけ片付けて起こす。
-func TestRunningKeptShellReplaced(t *testing.T) {
-	f := newFake(t)
-	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t8","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-2","title":"A"}},{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"B"}}]}`)
-	t.Setenv("FAKE_GET2", `{"address":"t9","argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`)
-	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != 0 || errs != "" || !strings.Contains(out, "CE S-3 B（t9）は中身がシェルに替わっていた") {
-		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
-	}
-	if !f.has("hc kill t9") || f.has("hc kill t8") || f.has("hc keep t8") || !f.has("hc run") {
-		t.Errorf("calls=%q", f.calls())
-	}
-}
-
-// 人がシェルで使っている・agent が Claude Code でない端末は、片付けない（起こすのは止めない）。
-func TestUnsureChiefEngineerKept(t *testing.T) {
-	for _, get := range []string{
-		`{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`,
-		`{"argv":["/bin/bash"],"status":null,"foreground":{"name":"vim","argv":["vim"]}}`,
-		`{"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"vim","argv":["/usr/bin/vim"]}}`,
-	} {
-		f := newFake(t)
-		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
-		t.Setenv("FAKE_GET", get)
-		rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-		if rc != 0 || errs != "" {
-			t.Errorf("%s: rc=%d err=%q", get, rc, errs)
-		}
-		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || !f.has("kanban add") {
-			t.Errorf("%s: 人の端末に触った・起こしていない: %q", get, f.calls())
+	for _, c := range []string{"hc ls", "hc get", "hc keep", "hc kill", "hc rm"} {
+		if f.has(c) {
+			t.Errorf("%s を打った: %q", c, f.calls())
 		}
 	}
 }

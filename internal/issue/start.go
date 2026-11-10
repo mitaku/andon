@@ -15,6 +15,7 @@ import (
 	"andon/internal/boot"
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
 
@@ -39,6 +40,7 @@ type startPlan struct {
 	Repo         string       `json:"repo,omitempty"`
 	Worktree     string       `json:"worktree,omitempty"`
 	Branch       string       `json:"branch,omitempty"`
+	Session      string       `json:"session,omitempty"`
 	FirstMessage string       `json:"first_message"`
 	BriefPath    string       `json:"brief_path"`
 	Brief        string       `json:"brief"`
@@ -108,6 +110,11 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	// 台帳を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
 	if _, err := spawn.OutputIn(p.Cwd, []string{"KANBAN_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
+	}
+	if p.Session != "" {
+		if _, err := c.l.Run("", "set", id, "session="+p.Session); err != nil {
+			return fail("kanban set %s session=%s に失敗: %v（端末 %s は起きている。resume するには台帳に session を手で書く）", id, p.Session, err, run.Address)
+		}
 	}
 	place := id + " " + p.Title + " / " + id // 人に端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
 	if !run.First.Delivered() {
@@ -202,31 +209,9 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 
 	p.Cwd = filepath.Join(c.l.Dir, "issues", id)
 	if repo := c.issue.Str("repo"); repo != "" {
-		if !spawn.RepoRe.MatchString(repo) {
-			return nil, fail("repo が不正: '%s'（<host>/<owner>/<repo>）", repo)
-		}
-		if !slices.Contains(c.l.Repos(), repo) {
-			return nil, fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
-		}
-		p.check("repos", "ok", "%s は台帳の config.yaml の repos にある", repo)
-		// 書いてよい repo の正はセルの repo の HEAD の project.json（人だけが書く。author 照合）。読めなければ repo 無し（安全側）
-		ws := delegate.Workspace()
-		proj, err := delegate.ReadProject(ws, slug)
-		if errors.Is(err, delegate.ErrAbsent) {
-			return nil, fail("repo %s を書いてよいか分からない: セルの repo の HEAD に %s が無い（人が書いて commit する）", repo, delegate.ProjectRel(slug))
-		} else if err != nil {
-			return nil, fail("repo %s を書いてよいか分からない: %v", repo, err)
-		}
-		if !slices.Contains(proj.Repos, repo) {
-			return nil, fail("repo %s が %s の repos に無い（このプロジェクトが書いてよい repo でない）", repo, delegate.ProjectRel(slug))
-		}
-		p.check("delegation", "ok", "%s は %s の repos にある（書いてよい）", repo, delegate.ProjectRel(slug))
-		repoDir, err := spawn.RepoPath(repo)
+		repoDir, err := c.writableRepo(repo, p.check)
 		if err != nil {
-			return nil, fail("%v", err)
-		}
-		if _, err := git(repoDir, "rev-parse", "--git-dir"); err != nil {
-			return nil, fail("リポジトリが無い: %s（ghq get する）", repoDir)
+			return nil, err
 		}
 		p.Repo, p.repoDir = repo, repoDir
 		p.Worktree, p.Branch = spawn.WorktreePath(repoDir, slug, id), spawn.BranchName(slug, id, p.Title)
@@ -236,8 +221,47 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		}
 	}
 	p.Labels = workLabels(slug, id, p.Title)
+	// Claude 系はセッションの id を Andon が決めて渡し（template の command が端末のラベルから読む）、台帳の session に書く。
+	// Codex 系は id を決める口が無いので、resume のときに記録から引く（ADR-0012 決めたこと 11）
+	if ledger.Brand(p.Profile) == "claude" {
+		p.Session = spawn.NewSession()
+		p.Labels = append(p.Labels, spawn.SessionLabel+"="+p.Session)
+	}
 	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath)
 	return p, nil
+}
+
+// writableRepo は課題の repo を書いてよいかを確かめ、clone の置き場を返す（start と resume の確かめ）:
+// 形・台帳の config.yaml の repos・セルの repo の HEAD の project.json の repos（人だけが書く。author 照合）・clone があること。
+func (c *ctx) writableRepo(repo string, check func(name, result, format string, a ...any)) (string, error) {
+	slug := c.l.Slug
+	if !spawn.RepoRe.MatchString(repo) {
+		return "", fail("repo が不正: '%s'（<host>/<owner>/<repo>）", repo)
+	}
+	if !slices.Contains(c.l.Repos(), repo) {
+		return "", fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
+	}
+	check("repos", "ok", "%s は台帳の config.yaml の repos にある", repo)
+	// 書いてよい repo の正はセルの repo の HEAD の project.json（人だけが書く。author 照合）。読めなければ repo 無し（安全側）
+	ws := delegate.Workspace()
+	proj, err := delegate.ReadProject(ws, slug)
+	if errors.Is(err, delegate.ErrAbsent) {
+		return "", fail("repo %s を書いてよいか分からない: セルの repo の HEAD に %s が無い（人が書いて commit する）", repo, delegate.ProjectRel(slug))
+	} else if err != nil {
+		return "", fail("repo %s を書いてよいか分からない: %v", repo, err)
+	}
+	if !slices.Contains(proj.Repos, repo) {
+		return "", fail("repo %s が %s の repos に無い（このプロジェクトが書いてよい repo でない）", repo, delegate.ProjectRel(slug))
+	}
+	check("delegation", "ok", "%s は %s の repos にある（書いてよい）", repo, delegate.ProjectRel(slug))
+	repoDir, err := spawn.RepoPath(repo)
+	if err != nil {
+		return "", fail("%v", err)
+	}
+	if _, err := git(repoDir, "rev-parse", "--git-dir"); err != nil {
+		return "", fail("リポジトリが無い: %s（ghq get する）", repoDir)
+	}
+	return repoDir, nil
 }
 
 // print は --dry-run の人向けの出力。
@@ -255,6 +279,7 @@ func (p *startPlan) print(w io.Writer) {
 	row("repo", p.Repo)
 	row("worktree", p.Worktree)
 	row("branch", p.Branch)
+	row("session", p.Session)
 	fmt.Fprintln(w, "ラベル:")
 	for _, l := range p.Labels {
 		fmt.Fprintf(w, "  %s\n", l)

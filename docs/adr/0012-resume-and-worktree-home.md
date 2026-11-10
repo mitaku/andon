@@ -70,6 +70,17 @@
    5. レビュアーの戻す commit は、親の `review_request.commit` でなく、そのレビュアーの課題の依頼書の `commit <sha>` から取る（回がずれない）。
    6. [operate.md](../operate.md) に「セルの repo で `git clean -x` を打たない（`.worktrees` が消える。`git status` には出ないが `git clean -ndx` は消すと言う）」を1行。
 
+14. **2026-11-10 実装で決めた細部**（R2 の担当 A-0038。推奨案で進めた。戻すなら一言）:
+   1. セッションの id は端末のラベル `session=<id>` で渡し、template の行が `andon issue session`（自分の端末のこのラベルを出す。無ければ何も出さずに 0）で読む。Claude 系の `command` は `s=$(andon issue session); … ${s:+--session-id "$s"}`、`resume:` は `… --resume "$s"`、Codex 系の `resume:` は `codex --no-daemon resume "$s"`。
+      理由（実測 2026-11-10・hc 0.1.17）: hc の template の `command` は固定の行で、`hc run` は呼び手の環境変数を端末に渡さない（`FOO=… hc run … sh -c 'echo $FOO'` が空）。端末の中にあるのは `HC_TERMINAL_ID` だけで、ラベルは起動するときに付く。11 の「`--session-id <uuid>` で渡す」と 13 の 1 の「template 名＋task で起動する」を両立させる口がこれだった。ラベルが無ければ（人が `hc run claude` で起動したなど）`--session-id` を付けない今の行と同じ。
+      捨てた案: 課題ごとに template を書く（boot の持ち物の置き場に課題の数だけ増える）／argv で起動する（13 の 1 で捨てた）。
+   2. boot は `resume:` の行を元の template から除いて書く（hc に知らないキーを渡さない。hc が frontmatter の知らないキーをどう扱うかは確かめていない）。`<profile>-resume` の本文は元と同じ。
+   3. lock は dispatcher の控えの lock（`lockState`）でなく、同じ置き場の別のファイル `<slug>.issue.lock`（13 の 4 を改める）。
+      理由: dispatcher は見回りの間、控えの lock を持ったまま `andon issue finish` を打つ。finish が同じ lock を取ると呼び手を待って止まる（R4 で dispatcher が `resume` を打っても同じ）。resume・finish・start が互いに重ならないことは別のファイルでも守れる。
+   4. 素のシェルの端末は、起動する前に片付ける（13 の 2 の「旧の素のシェルを片付けるのも届いた後」を改める）。
+      理由: hc の名前は live の端末の中で1つで、素のシェルで戻った端末は live のまま同じ名前を持つ。中身はシェルだけで失うものは無く、台帳は今どおり届いてから書く（届かなければ起動した端末も片付け、台帳は変えない）。
+   5. resume は repo の無い課題（cwd `issues/<id>/`）も起動する（worktree は戻さない）。Chief Engineer のラベルは `andon chief-engineer` と同じもの（`chiefengineer.Labels`）。
+
 ## やらないこと（範囲の外。理由）
 
 - Chief of Staff と dispatcher の起動し直し（[operate.md](../operate.md) に手順がある。前提 5）。
@@ -115,6 +126,7 @@
 1. コンパクションの制御（人 2026-11-10。「むしろコンパクションをコントロールするとかのほうが大事かも」）。長く生きる担当・Chief Engineer のコンテキストをいつ・どう圧縮するか。決断の種類: 範囲（別の題にするか）。
 2. 人が意図して `hc kill` した担当を dispatcher が1回 resume してしまう。抑える口（台帳の status を `paused` のようにする／ラベル）を足すか。決断の種類: 仕様（この版では受け入れた）。
 3. 対話の `codex resume --last`・`codex resume <id>` が記録の無い cwd／無い id で何をするか（反論で `exec` だけ実測。黙って新規）。R2 の担当が実測し、非 0 で止まるかを確かめる。決断の種類: 事実（人には聞かない）。
+   **答え（実測 2026-11-10・Codex 0.166.0・hc の端末で対話のまま）**: `codex --no-daemon resume <無い id>` は「ERROR: No saved session found with ID <id>. Run `codex resume` without an ID to choose from existing sessions.」を出して終了コード 1 で終わる（端末は finished。keep なら素のシェルに替わり、dispatcher は Gone と見る）。`codex --no-daemon resume --last` は記録の無い cwd で黙って新しいセッションを始める（live・idle のまま）。Andon は起動する前に記録から id を引いて `resume <id>` で起動するので（決めたこと 11）、`--last` は使わない。
 4. herdr が端末を戻し切る前に dispatcher が not_found を見て同じ名前で起動する競合（反論の疑い。証明されていない）。R4 の実測で見る。決断の種類: 事実。
 5. 今 `doing` で止まっている A-0033（旧の置き場）と、`todo` に戻した A-0010（worktree の記録を失った。セッション `7a11eb7e-…` は残っている）の扱い。A-0033 は R2 のあと resume で戻る。A-0010 は手で `--resume <id>` するか、fresh で起動する。決断の種類: 運用（Chief of Staff が人に1問）。
 
