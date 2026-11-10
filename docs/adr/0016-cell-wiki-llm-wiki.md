@@ -22,6 +22,9 @@
 2. **2026-11-10 元資料（`wiki/raw/`）は3種。** (1) 人の発言の写し（Chief of Staff が対話から、言葉のまま・日付つき）、(2) 人が持ち込む外の資料（記事・資料）、(3) 課題を finish したときの記録の写し（人向けの報告 `report.md` と人の手直し `corrections.json`。finish 後は不変）。指摘（findings）・ゲートの記録は写さず、必要なら台帳を指す。元資料は書いたら変えない（原典の immutable）。
    理由: 今は記録に残っていない人の発言が残り、台帳がセルの寿命（ADR-0005 決めたこと 5）でも wiki がセルの repo だけで完結する。
    捨てた案: 発言と外の資料だけ（台帳を指すだけ）——セルを建て直すと出典が消える／library/ を丸ごと写す——raw/ がラインのノイズで太る。
+3. **2026-11-10 wiki の層のページは4種をフォルダで分ける。** `sources/`（元資料に1対1の要約）・`entities/`（実体: 役・部品・案件・オーナー。例 `entities/owner.md`・`entities/dispatcher.md`）・`topics/`（概念・運用の題。例「rebase のあとのレビューの頼み直し」）・`overview.md`（まとめ1枚）。原典の comparisons・synthesis は topics と overview に吸う。
+   理由: 実体と概念が育つ場所が決まり、オーナーの志向は `entities/owner.md` に集まる。
+   捨てた案: 原典の6種そのまま——小さい wiki に空の種類ができる／フォルダで分けず front matter の kind だけ——ファイル一覧で形が見えない。
 
 ## やらないこと（範囲の外。理由）
 
