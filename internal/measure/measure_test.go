@@ -477,6 +477,7 @@ func valueLedger(t *testing.T) string {
 	issue("E-0008", "claude", "", "")
 	// 通常の epic の子課題（観察の課題ではない）は、E-0005 を「無し」から外さない
 	issue("E-0009", "claude", "E-0005", "")
+	put(t, filepath.Join(k, "issues/E-0009/issue.yaml"), "id: E-0009\ntitle: t\nstatus: done\ncreated: \"2026-11-01T00:00:00Z\"\nprofile: claude\nparent: E-0005\nnot_before: \"2026-11-12\"\n")
 	// 不正な result は黙って落とさず skipped に出す
 	issue("E-0010", "claude", "E-0001", "")
 	put(t, filepath.Join(k, "issues/E-0010/library/report.json"), `{"observation": {"result": "later"}}`)

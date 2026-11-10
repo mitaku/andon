@@ -475,7 +475,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 |---|---|
 | `value.observed` | 期間に報告された観察の課題（`report.json` に `observation` があり、`log.jsonl` で最初に `review`〈なければ最後の列〉へ動いた時刻が期間の中のもの。レビュアーの課題は数えない）の数と、`observation.result` の内訳（`hit`・`miss`・`unknown`）。観察の課題は `parent` が観察する Chief Engineer の課題（`profile: chief-engineer`） |
 | `value.days_to_observe` | 上のうち `parent` が Chief Engineer の課題のもの、の「Chief Engineer の課題が最後に最後の列へ動いた時刻から観察の報告まで」の日数（中央値。報告のほうが早いものは数えない）。数えるものが無ければ `days` は `null` |
-| `value.no_hypothesis` | 期間に最後の列へ動いた Chief Engineer の課題のうち、`parent` に指す観察の課題（`report.json` に `observation` があるか、`not_before` が置かれた非レビュアーの課題。通常の epic の子課題は数えない）が無いもの＝価値の仮説が「無し」の題（ADR-0011 決めたこと 4）。観察の課題を足す前に done になったものも数える |
+| `value.no_hypothesis` | 期間に最後の列へ動いた Chief Engineer の課題のうち、`parent` に指す観察の課題（`report.json` に `observation` がある非レビュアーの課題。通常の epic の子課題は `not_before` を持っていても数えない）が無いもの＝価値の仮説が「無し」の題（ADR-0011 決めたこと 4）。観察の課題を足す前、または観察の報告が出る前の題も数える（報告が出ると外れる） |
 | `flow.lead_time` | 期間にマージされた台帳の PR の、課題の `created` から `mergedAt` まで（中央値の時間） |
 | `flow.wait.<status>` | `log.jsonl` の `change.status` を辿り、期間の中でその状態にいた時間の、1件あたりの平均（最後の列を除く。入った時刻は `created`、`after` のある課題は `queued` から） |
 | `flow.question_open` | `asked` から `answered`（無ければ期間の終わり）までの、期間の中の時間の1問あたりの平均 |

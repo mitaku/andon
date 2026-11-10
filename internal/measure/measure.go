@@ -174,20 +174,19 @@ type logRow struct {
 }
 
 type issue struct {
-	id        string
-	created   time.Time
-	added     time.Time
-	after     bool
-	links     []string
-	reviewer  bool
-	pr        string
-	gates     []gateRec
-	corr      bool
-	asked     []span
-	profile   string
-	parent    string
-	notBefore bool   // 見る日（not_before）が置かれている＝観察の課題（ADR-0011 決めたこと 7）
-	obs       string // report.json の observation.result（観察の報告が無ければ空）
+	id       string
+	created  time.Time
+	added    time.Time
+	after    bool
+	links    []string
+	reviewer bool
+	pr       string
+	gates    []gateRec
+	corr     bool
+	asked    []span
+	profile  string
+	parent   string
+	obs      string // report.json の observation.result（観察の報告が無ければ空）
 }
 
 type span struct{ from, to time.Time } // to がゼロなら開いたまま
@@ -494,8 +493,8 @@ func Measure(o Options) (*Result, error) {
 		if t.reviewer || t.parent == "" {
 			continue
 		}
-		if t.obs != "" || t.notBefore {
-			hasChild[t.parent] = true // 通常の epic の子課題は観察の課題に数えない
+		if t.obs != "" {
+			hasChild[t.parent] = true // 観察の報告を持つ子だけ（通常の epic の子課題や not_before だけの課題は数えない）
 		}
 		if t.obs == "" {
 			continue
@@ -781,18 +780,17 @@ func (r *reader) issues() []*issue {
 			continue
 		}
 		var v struct {
-			Created   string   `yaml:"created"`
-			After     []string `yaml:"after"`
-			Links     []string `yaml:"links"`
-			Profile   string   `yaml:"profile"`
-			Parent    string   `yaml:"parent"`
-			NotBefore string   `yaml:"not_before"`
+			Created string   `yaml:"created"`
+			After   []string `yaml:"after"`
+			Links   []string `yaml:"links"`
+			Profile string   `yaml:"profile"`
+			Parent  string   `yaml:"parent"`
 		}
 		if yaml.Unmarshal(b, &v) != nil {
 			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
-		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent), notBefore: v.NotBefore != ""}
+		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent)}
 		t.created, _ = parseAt(v.Created)
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
