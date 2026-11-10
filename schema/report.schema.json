@@ -101,6 +101,17 @@
         }
       }
     },
+    "observation": {
+      "description": "Only for an observation issue (ADR-0011): the result of checking a value hypothesis of the Chief Engineer's document against the signals. Nothing in the line acts on it; the Chief of Staff tells the owner in one line.",
+      "type": "object",
+      "required": ["hypothesis", "result", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "hypothesis": { "description": "The value hypothesis that was checked, in one line.", "type": "string", "minLength": 1 },
+        "result": { "description": "hit: it held; miss: it did not; unknown: the signals do not tell.", "enum": ["hit", "miss", "unknown"] },
+        "evidence": { "description": "What was read to decide: signal keys, URLs or paths.", "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
     "remember": {
       "description": "Machine copy of the report's Remember section.",
       "type": "array",

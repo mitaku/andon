@@ -136,6 +136,11 @@ func TestDecodeRejectsNullAndWrongTypes(t *testing.T) {
 		"waived が null":                  strings.Replace(r, `}`, `,"waived":null}`, 1),
 		"next の要素が null":                 strings.Replace(r, `}`, `,"next":[null]}`, 1),
 		"review_request が null":          strings.Replace(r, `}`, `,"review_request":null}`, 1),
+		"observation が null":             strings.Replace(r, `}`, `,"observation":null}`, 1),
+		"observation.result が enum の外":   strings.Replace(r, `}`, `,"observation":{"hypothesis":"h","result":"maybe","evidence":[]}}`, 1),
+		"observation.hypothesis が空":      strings.Replace(r, `}`, `,"observation":{"hypothesis":"","result":"hit","evidence":[]}}`, 1),
+		"observation.evidence が無い":       strings.Replace(r, `}`, `,"observation":{"hypothesis":"h","result":"hit"}}`, 1),
+		"observation.evidence に空の行":      strings.Replace(r, `}`, `,"observation":{"hypothesis":"h","result":"hit","evidence":[""]}}`, 1),
 		"review_request.reviewer が null": strings.Replace(r, `}`, `,"review_request":{"round":1,"limit":2,"commit":"`+sha+`","previous":null,"reviewer":null,"extra":false}}`, 1),
 	} {
 		if _, err := ParseReport([]byte(bad)); err == nil {
@@ -183,5 +188,18 @@ func TestIssueNotTask(t *testing.T) {
 	}
 	if _, err := ParseQuestion([]byte(strings.Replace(q, `"issue"`, `"task"`, 1))); err == nil {
 		t.Error("from: task が通ってしまう")
+	}
+}
+
+// ADR-0011 決めたこと 7: observation は3つとも必須で、result は hit/miss/unknown だけ。unknown は証拠が空でも通る。
+func TestReportObservation(t *testing.T) {
+	for _, res := range []string{"hit", "miss", "unknown"} {
+		ok := `{"observation":{"hypothesis":"h","result":"` + res + `","evidence":["signal:abc"]}}`
+		if _, err := ParseReport([]byte(ok)); err != nil {
+			t.Errorf("observation %s が通らない: %v", res, err)
+		}
+	}
+	if _, err := ParseReport([]byte(`{"observation":{"hypothesis":"h","result":"unknown","evidence":[]}}`)); err != nil {
+		t.Errorf("証拠が空の unknown が通らない: %v", err)
 	}
 }

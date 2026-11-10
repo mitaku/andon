@@ -119,6 +119,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
  "next": [{"to": "person", "text": "PR #12 を読む（レベル C: package/gate.json）"},
           {"to": "chief-of-staff", "text": "マージ後に andon issue finish A-0012"},
           {"to": "issue", "text": "lib/andon/triage が足す課題にも review・must_fix を書く"}],
+ "observation": {"hypothesis": "返事の下書きボタンで返信にかかる時間が減る", "result": "hit", "evidence": ["signal:3f9a1c"]},
  "remember": ["機械が判定に使うものは Markdown に埋めない"],
  "agents_md": ["テストは bash tests/*.sh"]}
 ```
@@ -132,6 +133,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command かユースケースの実行の跡のパス。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |
 | `risk` | 任意（変更そのものが戻せないとき） | ゲート・人 | 担当の一方通行の申告 `{"one_way": true \| false, "impact": ["…"]}`（`one_way` は必須、`impact` は任意）。`one_way: true` はデータの移行・消す操作・外への約束のように revert で戻らない変更。ゲートはレベルを C に上げ、`tier_reasons` に「担当の申告: one_way」と書く。`false`・無しでレベルを下げない（申告は厳しくする向きにだけ効く。原則2）。ゲートが読むのは `one_way` だけで、`impact` は人が読む欄。足しても版は上げない（原則4。[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)） |
 | `next[]` | 任意 | トリアージ | `to` は `person` / `chief-of-staff` / `issue`（次の課題に切るもの） |
+| `observation` | 観察の課題（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 7）の報告でだけ | Chief of Staff・Chief Engineer・measure | Chief Engineer の文書の価値の仮説を、信号の記録で確かめた結果 `{"hypothesis", "result": "hit" \| "miss" \| "unknown", "evidence": []}`（3つとも必須。`evidence` は読んだ信号の key・URL・パスで、空の配列も可）。ラインは結果で何もしない（Chief of Staff がオーナーに1行で返す）。足しても版は上げない（原則4） |
 | `remember[]`・`agents_md[]` | 任意 | トリアージ・振り返り | 人用の報告の `## Remember`・`For AGENTS.md:` の機械向けの写し |
 
 - 担当の `andon issue ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーの課題の `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
