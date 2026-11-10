@@ -9,6 +9,7 @@
 #   5. statusline が JSON を読んで1行を出す。
 #   6. skill の機械向けの手順が command（andon issue …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 #   7. 課題（issue）への改名（ADR-0008 受け入れ条件 5）: glossary の項・欄名・skill と template に旧語が無い。
+#   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2）: 用語集の CE・決まりの文・人への書き方の節・作った語、CE skill の問いの出し方、ask-one-by-one の読み手。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -284,5 +285,29 @@ grep -q '解決すべき問題' package/skills/triage/SKILL.md && ! grep -q 'や
   && pass "triage skill とルーチンの依頼書の欄名が 解決すべき問題" || fail "triage の欄名が 解決すべき問題 でない"
 grep -q 'andon issue stop-check' package/hooks/stop \
   && pass "package/hooks/stop が andon issue stop-check を打つ" || fail "package/hooks/stop が andon issue stop-check を打たない"
+
+# === 8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2） ===
+g=package/skills/glossary/SKILL.md
+grep -q '^\*\*Chief Engineer\*\*（chief-engineer。略して CE）:' "$g" && grep -q '^\*\*Chief of Staff\*\*（chief-of-staff。略して CoS）:' "$g" \
+  && pass "用語集の Chief Engineer の項に「略して CE」がある" || fail "用語集に CE の略称が無い"
+grep -q '^- \*\*役と部品の語はここにある語だけを使う\*\*' "$g" && grep -q 'ふだんカタカナで言う語（コスト・プロファイル・テンプレート・コンテキスト・オーナー・ログ・パス）はカタカナのまま' "$g" \
+  && grep -q '訳語を新しく作らない。迷ったら同僚に口で言うときの言い方にする' "$g" \
+  && pass "用語集に「役と部品の語」の1行目とカタカナの決まりの文がある" || fail "用語集の1行目かカタカナの決まりの文が無い"
+how=$(sed -n '/^## 人への書き方$/,/^## /p' "$g")
+n=$(grep -c '^- ' <<<"$how")
+[ "$n" = 7 ] && grep -q '^- 結論を先に書く（BLUF）' <<<"$how" && grep -q '状況・経緯・見立て・推奨の順に書く（SBAR）' <<<"$how" \
+  && grep -q '「・」で語を詰めない' <<<"$how" && grep -q '1文に1つのこと' <<<"$how" && grep -q '括弧には識別子だけ' <<<"$how" \
+  && grep -q '番号で参照しない' <<<"$how" && grep -q '灯り → 人の判断待ち、レベル C → 人がマージ' <<<"$how" \
+  && grep -q '^コードと、人が別の形を求めたときは、この決まりから除く' <<<"$how" \
+  && pass "用語集の「人への書き方」の節に7行と但し書きがある" || fail "用語集の「人への書き方」の節（行の数 $n）"
+# 作った語は「避ける」の行と仮設の語の表にしか出ない。残す語（検査・継ぎ目・条件表・控え）は消さない
+left=$(sed '/^## 仮設の語/,$d' "$g" | grep -nE '席|端末の土台|持ち主|提供元' | grep -v '^[0-9]*:_避ける_' || true)
+[ -z "$left" ] && pass "用語集に「席」「端末の土台」「持ち主」「提供元」が正式な語として出ない" || fail "用語集に作った語が残る: $left"
+grep -q '^\*\*検査\*\*（checks）:' "$g" && grep -q '条件表' "$g" \
+  && pass "用語集の残す語（検査・条件表）は残る" || fail "用語集から残す語が消えた"
+! grep -q '一度に出すのは互いに依らない問いの全部' "$ce" && grep -q 'ask-one-by-one skill §2 に従う（1回の返事で1問）' "$ce" \
+  && pass "CE skill の問いの出し方は ask-one-by-one §2 を指す（束で出す行が無い）" || fail "CE skill の問いの出し方が ask-one-by-one §2 を指していない"
+fm package/skills/ask-one-by-one/SKILL.md description | grep -q 'Chief Engineer（CE）' \
+  && pass "ask-one-by-one の description の読み手に CE がある" || fail "ask-one-by-one の description に CE が無い"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
