@@ -39,7 +39,7 @@
             "days": { "description": "Median days, or null when count is 0.", "$ref": "#/$defs/rate" }
           }
         },
-        "no_hypothesis": { "description": "Chief Engineer issues that moved to the last column in the period and have no observation issue (a hypothesis written as none).", "$ref": "#/$defs/count" }
+        "no_hypothesis": { "description": "Chief Engineer issues that moved to the last column in the period and have no observation issue (a non-reviewer child by parent whose report.json has an observation or that has a not_before; an ordinary epic child does not count), i.e. a hypothesis written as none.", "$ref": "#/$defs/count" }
       }
     },
     "flow": {

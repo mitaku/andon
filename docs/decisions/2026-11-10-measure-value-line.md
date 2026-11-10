@@ -15,4 +15,5 @@ ADR に書かれていなかったので、ここで置いたこと:
 
 - **観察の課題と Chief Engineer の課題を結ぶのは `issue.yaml` の `parent`**（台帳の既存のキー。新しいキーは足さない）。観察の課題を足す Chief of Staff の skill〈ADR-0011 S7〉が `--parent <Chief Engineer の課題>` で足す前提。`parent` が Chief Engineer の課題でない観察の報告は (a) には数えるが (b) の日数には入れない。
 - **報告した時刻**は、観察の課題が `log.jsonl` で最初に `review`（なければ最後の列）へ動いた時刻（`report.json` に時刻が無いため）。
+- **観察の課題の見分け**は、`parent` が Chief Engineer の課題で、`report.json` に `observation` があるか、`not_before`（見る日。ADR 決めたこと 7）が置かれた非レビュアーの課題。通常の epic の子課題は観察の課題に数えない。不正な `observation.result` は数えず `skipped` に出す。
 - **(c) は「観察の課題が無い」ことで導く**。文書の価値の仮説は Markdown で機械が読まない（ADR 決めたこと 12）ので、「無し」と書いたかは見ない。観察の課題をまだ足していない done の題も入る。
