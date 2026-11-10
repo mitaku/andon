@@ -124,7 +124,7 @@ flowchart LR
   ENV -. "次の課題が楽になる" .-> B
 ```
 
-- ラインの入口は **Chief Engineer**（§1.8）: 人と仕様・設計を対話し、文書にして Chief of Staff へ渡す。Chief of Staff はそれを依頼書に切る。
+- 人の入口は **Chief of Staff**（§1.8）。何を作るかを詰めるときだけ **Chief Engineer** が人と仕様・設計を対話し（起こすのは Chief of Staff。人が直接打ってもよい）、文書にして Chief of Staff へ渡す。Chief of Staff はそれを依頼書に切る。
 - 担当の工程の背骨は **理解 → 計画 → 作業 → 確認 → 完成 → 振り返り**（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 9〜11）。担当が主体で、依頼書（課題と完了条件）を自分で理解して作業に分け、作業ごとに終了条件を置く。**横展開**（同じ種類のものをほかにも探す）は既定で、範囲の中は直し、外は残し、範囲を決めないと作業が切れないときだけ止まる（候補の一覧 `candidates.json` と `scope` の問いで止まり、答えるのは Chief of Staff）。
 - 依頼の完了条件が「分かる・候補が出る」なら、インナーループの入口に**調べる課題**が入る（`deliverable: candidates`）。担当は直さず候補の一覧と報告を返し、Chief of Staff が候補から直す課題を切る。調べる課題にゲートと独立レビューは無い（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 1・7）。
 - インナーループは**dispatcher が回す**（レビュアーの起動・ゲート・マージ・片付け）。Chief of Staff はラインを回す判断だけ（依頼書に切る・`needs_human` の検収・問いの中継）。仕様・設計の会話は Chief of Staff の仕事ではない。
@@ -228,8 +228,8 @@ Andon が**持つ**のは パッケージ・約束・文書と、セルの形。
 
 | 役 | 本業 | 人との会話 | 持つ判断 | 起こし方・寿命 | プロファイル |
 |---|---|---|---|---|---|
-| **Chief Engineer** | 人に問いを重ねて仕様・設計を詰め、文書にして渡す。**実装も課題切りもしない** | **する**（本業。人が直接話す） | 無い（決めるのは人。Chief Engineer は推奨案を出す） | 人がプロジェクトの場所で `andon chief-engineer "<題>"`。1題＝1課題。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
-| **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起こす・検収・振り返り・wiki | `needs_human` の問いの中継と受付だけ | 課題の範囲内の許可・範囲（候補のどれを直すか。委譲と判断の4種の中で）・案件側のアウターループ | 人が `andon chief-of-staff`。常駐 | `chief-of-staff` |
+| **Chief Engineer** | 人に問いを重ねて仕様・設計を詰め、文書にして渡す。**実装も課題切りもしない** | **する**（本業。人が直接話す） | 無い（決めるのは人。Chief Engineer は推奨案を出す） | Chief of Staff か人が `andon chief-engineer "<題>"`。1題＝1課題。同時に複数いてよい。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
+| **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起こす・検収・振り返り・wiki | **人の入口**（依頼の受付・`needs_human` の問いの中継）。何を作るかを詰める話は Chief Engineer を起こして渡す | 課題の範囲内の許可・範囲（候補のどれを直すか。委譲と判断の4種の中で）・案件側のアウターループ | 人が `andon chief-of-staff`。常駐 | `chief-of-staff` |
 | dispatcher | 通知・レビュアーの起動・ゲート・片付け | しない | しない | セルに1つ常駐 | — |
 | 担当・レビュアー | 1課題・1レビュー | 問いは台帳経由 | 自工程の品質 | Chief of Staff（dispatcher）が起こす | `claude`・`codex`・`*-review` |
 
@@ -275,7 +275,8 @@ sequenceDiagram
   participant L as 台帳
   participant K as dispatcher
   participant C as Chief of Staff
-  H->>CE: andon chief-engineer "<題>"（kanban add ＋ start）
+  H->>C: 設計の話（人の入口は Chief of Staff）
+  C->>CE: andon chief-engineer "<題>" --brief -（kanban add ＋ start。経緯を依頼書に）
   loop 問いを重ねる
     CE->>H: 問いの束（番号・推奨案・あと何問）
     H->>CE: 番号で答える
@@ -288,9 +289,9 @@ sequenceDiagram
   C->>L: S-1 を finish（文書の PR がマージされたら）
 ```
 
-- Chief Engineer は**台帳の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は台帳の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<題>"` で選ぶ。依頼書は人の1行の題。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は人が対話の中でした）。文書の PR のマージは案件のゲートの規則どおり（docs がレベル A／B なら自動。Andon 自身の `docs/design.md` はレベル C で人）。
+- Chief Engineer は**台帳の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は台帳の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<題>"` で選ぶ。依頼書は題の下に、Chief of Staff が経緯（人の言葉の写し・読んだもの・決めたこと・出典）を `--brief -` で渡す。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は人が対話の中でした）。文書の PR のマージは案件のゲートの規則どおり（docs がレベル A／B なら自動。Andon 自身の `docs/design.md` はレベル C で人）。
 - 渡すものは**文書だけ**（文脈のポインタ。chief-of-staff の「context pointers」）。会話の記録は渡さない。Chief of Staff が切った依頼書は文書の節を `links` で指す。
-- Chief Engineer が同時に2人いない（1プロジェクト1題。WIP 制限）。前の題が終わらないまま新しい題を始めたいときは、前の題を「開いている問い」つきで一度渡す。
+- Chief Engineer は同時に複数いてよい（1題＝1課題。Andon 自身の docs はレベル C で、文書の PR のマージ待ちの間も別の題を止めないため。[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 3）。
 
 **プロファイルと人の呼び出し方**（案。推奨つき）:
 
