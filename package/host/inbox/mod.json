@@ -1,1 +1,1 @@
-{ "place": "none", "title": "Inbox", "focusable": true, "overlay": { "kind": "dialog", "width": 0.92, "height": 0.88 } }
+{ "place": "none", "title": "Inbox", "focusable": true }

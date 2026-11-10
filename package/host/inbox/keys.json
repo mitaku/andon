@@ -1,8 +1,6 @@
 {
   "global": {
     "ctrl-shift-j": "inbox.next",
-    "ctrl-shift-d": "inbox.settle",
-    "ctrl-shift-h": "inbox.focus",
-    "ctrl-shift-u": "mod.open:inbox"
+    "ctrl-shift-h": "inbox.focus"
   }
 }

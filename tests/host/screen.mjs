@@ -239,6 +239,90 @@ await check('inbox: Chief of Staff と Chief Engineer は役ごとに別のア�
   assert.ok(new Set(await Promise.all(Object.values(icons).map((f) => readFile(`${HOST}/inbox/${f.replace(/^mods\/inbox\//, '')}`, 'utf8')))).size === 2, '2 つの svg の中身が同じ');
 });
 
+// The inbox against a fake API: its sections (ADR-0015 acceptance 1).
+async function inbox(state) {
+  const store = {};
+  const calls = { hc: 0, run: [] };
+  const ns = await load(`${HOST}/inbox`, {
+    agents: () => state.agents ?? [], terminals: () => state.terms ?? [], spaces: () => [], panes: () => [], machines: () => [],
+    focused: () => null, theme: () => ({}), setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
+    shared: (k) => store[k] ?? null, setShared: (k, v) => { store[k] = v; },
+    run: (cmd, args) => calls.run.push([cmd, args]),
+    hc: () => { calls.hc++; throw new Error('the inbox called hc'); },
+    notify: () => { throw new Error('the inbox posted a notification'); },
+  });
+  const v = new ns.default();
+  v.init({}, { focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after() {} }, spawn: () => {} });
+  return { v, calls };
+}
+
+await check('inbox: 節は Needs you と Projects の 2 つ。担当は blocked のときだけ、役は常に出る（ADR-0015 決めたこと 1〜4）', async () => {
+  const program = { name: 'Claude Code', key: 'claude' };
+  const term = (address, status, labels, extra = {}) => ({ address, state: 'live', status, labels, program, turn: 1, ...extra });
+  const state = { terms: [
+    term('t1', 'idle', { project: 'sample-site', role: 'chief-of-staff' }),
+    term('t2', 'idle', { project: 'sample-site', role: 'chief-engineer', issue: 'A-0002', title: 'Billing design' }),
+    term('t3', 'blocked', { project: 'sample-site', issue: 'A-0003', title: 'Blocked' }),
+    term('t4', 'done', { project: 'sample-site', issue: 'A-0004', title: 'Done' }),
+    term('t5', 'working', { project: 'sample-site', issue: 'A-0005', title: 'Working' }),
+    term('t6', 'idle', { project: 'sample-site', issue: 'A-0006', title: 'Idle' }, { turn: 9 }),
+    term('t7', 'idle', { role: 'dispatcher' }),
+    term('t8', 'error', { role: 'dispatcher' }),
+    term('t9', 'working', { project: 'other-site', role: 'chief-of-staff' }),
+    term('t10', 'idle', { project: 'other-site', role: 'chief-engineer', issue: 'B-0001' }),
+    term('t11', 'idle', { project: 'other-site', role: 'chief-engineer', issue: 'B-0000' }),
+  ], agents: [
+    // A pane's agent with a paneless sub-agent that failed: the parent needs you, by peeking the sub-agent.
+    { address: 't20', status: 'working', program, title: 'helper', space_name: 'sample' },
+    // dispatcher in a pane.
+    { address: 't7', status: 'idle', program, title: 'dispatcher', space_name: 'plant' },
+    { address: 't8', status: 'idle', program, title: 'dispatcher', space_name: 'plant' },
+  ] };
+  state.terms.push(term('t20', 'working', {}), term('t21', 'error', {}, { parent: 't20' }));
+  const { v, calls } = await inbox(state);
+  let m = v.model();
+  for (const k of ['done', 'working', 'idle', 'settled']) assert.ok(!(k in m), `m に ${k} がある`);
+  const ids = (rows) => [...rows].map((i) => i.address);
+  assert.deepEqual(ids(m.projects), ['t9', 't11', 't10', 't1', 't2'], 'プロジェクトの名前順 → CoS → CE（題の順）でない');
+  assert.deepEqual(ids(m.needs).sort(), ['t20', 't3', 't8'].sort());
+  assert.equal(m.needs.find((i) => i.address === 't20').peek, 't21', 'sub-agent の error で親を peek しない');
+  for (const a of ['t4', 't5', 't6', 't7']) assert.ok(!ids(m.rows).includes(a), `${a} が出た`);
+  assert.deepEqual(ids(m.rows), [...ids(m.needs), ...ids(m.projects)]);
+
+  // The Chief of Staff: working stays in Projects, done (unseen) is a Reply, blocked needs you.
+  state.terms[0].status = 'working';
+  assert.ok(ids(v.model().projects).includes('t1'));
+  state.terms[0].status = 'done';
+  m = v.model();
+  assert.equal(m.needs.find((i) => i.address === 't1')?.kind, 'Reply');
+  assert.ok(!ids(m.projects).includes('t1'), '役の行が 2 つある');
+  // Decision 7 (provisional): opening a paneless role's reply hides it for that turn.
+  v.open(m.needs.find((i) => i.address === 't1'));
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.run.at(-1))), ['terminal.peek', { terminal: 't1' }]);
+  assert.ok(ids(v.model().projects).includes('t1'), '開いたあとも Needs you にいる');
+  state.terms[0].turn = 2;
+  assert.ok(ids(v.model().needs).includes('t1'), 'turn が進んだのに Needs you に出ない');
+  state.terms[0].status = 'blocked';
+  assert.ok(ids(v.model().needs).includes('t1'));
+  v.command('next', { notify() {} });
+  assert.equal(calls.hc, 0, 'hc を呼んだ');
+});
+
+await check('inbox: settle とボードのダイアログが無い（mod.json・keys.json・main.js。ADR-0015 決めたこと 5・6）', async () => {
+  const mod = JSON.parse(await readFile(`${HOST}/inbox/mod.json`, 'utf8'));
+  assert.ok(!('overlay' in mod), 'mod.json に overlay がある');
+  const keys = Object.values(JSON.parse(await readFile(`${HOST}/inbox/keys.json`, 'utf8')).global);
+  for (const k of ['inbox.settle', 'mod.open:inbox']) assert.ok(!keys.includes(k), `keys.json に ${k} がある`);
+  for (const k of ['inbox.next', 'inbox.focus']) assert.ok(keys.includes(k), `keys.json に ${k} が無い`);
+  const src = await readFile(`${HOST}/inbox/main.js`, 'utf8');
+  assert.doesNotMatch(src, /\bhc\(|settled|mod\.open", \{ name: "inbox"/, 'main.js に settle か hc かボードが残る');
+  for (const doc of ['README.md', 'RECIPE.md']) {
+    const text = await readFile(`${HOST}/inbox/${doc}`, 'utf8');
+    assert.match(text, /\*\*Projects\*\*/, `${doc} に Projects の節が無い`);
+    assert.doesNotMatch(text, /\*\*Done\*\*|\bSettled\b|^## The board|\| `d` \|/m, `${doc} に Done・棚・settle・ボードが残る`);
+  }
+});
+
 await check('kanban-board: 1 回の読みで出す量に上限がある（固定 script）', async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-total-'));
   try {

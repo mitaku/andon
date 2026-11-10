@@ -232,7 +232,7 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 | mod | 何をする | 中身 |
 |---|---|---|
 | `andon` | Space・tab に名前を付ける（下の段） | `package/host/andon/` |
-| `inbox` | 人を待つエージェントの列（Needs you・Done）。Chief of Staff と Chief Engineer の turn の終わりは返事として出る | `package/host/inbox/README.md` |
+| `inbox` | 人が手を動かすもの（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。読むだけでラベルを書かない（ADR-0015） | `package/host/inbox/README.md` |
 | `kanban-board` | 台帳 `projects/<slug>/kanban/` を読むだけのボード（`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
@@ -256,7 +256,7 @@ herdr-app do layout.switch --name andon
 
 レイアウト `andon` は App の標準の `main` の agents の欄を `inbox` にし、pane の見出しを `context-header`、Files を `files-plus` にしたもの。名前付けの block（`{ "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }`）を左の列に最初から持つので、レイアウトを複製して block を足す手は要らない。自分のレイアウトを使い続けるなら、その常に表示する row または column の `children` にこの block を1つ加える（他の block は残す）。
 
-キーは人のもの（`keys.json`・`settings.json` は `host-install` が触らない）。使うなら各 mod の README の Keys の断片（`inbox` の `ctrl-shift-j`・`ctrl-shift-d`・`ctrl-shift-h`・`ctrl-shift-u`、`kanban-board` の `ctrl-shift-y`。同じ断片が各 mod の `keys.json`）を自分の `keys.json` に足す。
+キーは人のもの（`keys.json`・`settings.json` は `host-install` が触らない）。使うなら各 mod の README の Keys の断片（`inbox` の `ctrl-shift-j`・`ctrl-shift-h`、`kanban-board` の `ctrl-shift-y`。同じ断片が各 mod の `keys.json`）を自分の `keys.json` に足す。前の inbox の `ctrl-shift-d`（`inbox.settle`）・`ctrl-shift-u`（`mod.open:inbox`）は無くなったので、足してあれば自分の `keys.json` から消す（残しても unknown command になるだけ）。
 
 この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon`（ほかの mod も同じ形で）を実行し（Windows の App は Windows 側で実行する）、レイアウト `andon` で `sample-site / CoS`・`sample-site / CE A-0001 設計`・`A-0002 修正 / A-0002` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
