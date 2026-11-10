@@ -1,7 +1,9 @@
 package dispatcher
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,27 +110,75 @@ func (p *project) flush() {
 	if len(p.st.Unrecorded) == 0 {
 		return
 	}
-	var buf []byte
-	for _, n := range p.st.Unrecorded {
-		b, _ := json.Marshal(n)
-		buf = append(append(buf, b...), '\n')
+	lines := make([][]byte, len(p.st.Unrecorded))
+	for i, n := range p.st.Unrecorded {
+		lines[i], _ = json.Marshal(n)
 	}
-	path := RecordedPath(p.l.Slug)
-	err := os.MkdirAll(filepath.Dir(path), 0o755)
-	if err == nil {
-		var f *os.File
-		if f, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
-			_, err = f.Write(buf)
-			if cerr := f.Close(); err == nil {
-				err = cerr
-			}
-		}
-	}
-	if err != nil {
+	if err := appendLines(RecordedPath(p.l.Slug), lines); err != nil {
 		p.logf("記録だけの通知を書けない（%d 件を控えに残し、次の見回りで書き直す）: %v", len(p.st.Unrecorded), err)
 		return
 	}
 	p.st.Unrecorded = nil
+}
+
+// write はファイルへの書き込み（テストが一部だけ書いて失敗する書き手に替える）。
+var write = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
+
+// appendLines は lines を1行ずつ path に追記する。
+//   - 前に書けていた分は書かない: ファイルの末尾が lines の先頭の何行かと同じなら、その行を飛ばす
+//     （追記のあと控えを保存する前に落ちた・前の回が書けたのに失敗を返した、を二重に書かない）。
+//   - 一部だけ書いて失敗したら、書く前の大きさに切り詰める（半端な行を残さない）。
+func appendLines(path string, lines [][]byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	size := fi.Size()
+	var all []byte
+	for _, l := range lines {
+		all = append(append(all, l...), '\n')
+	}
+	tail := make([]byte, min(size, int64(len(all))))
+	if _, err := f.ReadAt(tail, size-int64(len(tail))); err != nil {
+		return err
+	}
+	done := 0
+	for k, n := len(lines), len(all); k > 0; k-- { // 書けていた先頭の k 行（長い順に照らす）
+		if bytes.HasSuffix(tail, all[:n]) && lineStart(f, size-int64(n)) {
+			done = n
+			break
+		}
+		n -= len(lines[k-1]) + 1
+	}
+	buf := all[done:]
+	if len(buf) == 0 {
+		return nil
+	}
+	if _, err := write(f, buf); err != nil {
+		if terr := f.Truncate(size); terr != nil {
+			return fmt.Errorf("%v（書く前の大きさに戻せない: %v）", err, terr)
+		}
+		return err
+	}
+	return f.Sync()
+}
+
+// lineStart は path の off の1つ前が改行か（off が行の頭か）。
+func lineStart(f *os.File, off int64) bool {
+	if off == 0 {
+		return true
+	}
+	b := make([]byte, 1)
+	_, err := f.ReadAt(b, off-1)
+	return err == nil && b[0] == '\n'
 }
 
 // stuck は記録だけにした approve のうち、approveWait たっても merged も asked も無いものを1回だけ届ける。

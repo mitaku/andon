@@ -187,3 +187,47 @@ func TestRecordRetry(t *testing.T) {
 		t.Fatal("同じ記録を二度書いた")
 	}
 }
+
+// 一部だけ書いて失敗したら半端な行を残さず、書き直しは書けていない行だけを足す（控えを保存する前に落ちても二重に書かない）。
+func TestAppendLinesPartial(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "demo.recorded.jsonl")
+	a, b, c := []byte(`{"n":1}`), []byte(`{"n":2}`), []byte(`{"n":3}`)
+	if err := appendLines(path, [][]byte{a}); err != nil {
+		t.Fatal(err)
+	}
+	defer func(w func(*os.File, []byte) (int, error)) { write = w }(write)
+	write = func(f *os.File, p []byte) (int, error) {
+		n, _ := f.Write(p[:len(p)/2])
+		return n, os.ErrDeadlineExceeded
+	}
+	if err := appendLines(path, [][]byte{b, c}); err == nil {
+		t.Fatal("一部だけ書いた失敗を返さない")
+	}
+	if got, _ := os.ReadFile(path); string(got) != "{\"n\":1}\n" {
+		t.Fatalf("半端な行を残した: %q", got)
+	}
+	write = func(f *os.File, p []byte) (int, error) { return f.Write(p) }
+	for i := 0; i < 2; i++ { // 2回目は「追記のあと控えを保存する前に落ちた」書き直し
+		if err := appendLines(path, [][]byte{b, c}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, _ := os.ReadFile(path); string(got) != "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n" {
+		t.Fatalf("書き直しで二重に書いた・順が違う: %q", got)
+	}
+	// 先頭の1行だけ書けていた（その位置が行の頭）なら、残りだけを足す
+	if err := appendLines(path, [][]byte{c, []byte(`{"n":4}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n{\"n\":4}\n" {
+		t.Fatalf("書けていた行を飛ばさない: %q", got)
+	}
+	// 行の途中と一致しただけ（"x{"n":5}" の末尾）は書けていたことにしない
+	os.WriteFile(path, []byte("{\"m\":0,\"n\":5}\n"), 0o644)
+	if err := appendLines(path, [][]byte{[]byte(`"n":5}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "{\"m\":0,\"n\":5}\n\"n\":5}\n" {
+		t.Fatalf("行の途中の一致で飛ばした: %q", got)
+	}
+}
