@@ -4,13 +4,44 @@
   "title": "Measure",
   "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json and GitHub's merged pull requests. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
-  "required": ["project", "since", "until", "days", "flow", "efficiency", "counter", "prs", "skipped"],
+  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "prs", "skipped"],
   "additionalProperties": false,
   "properties": {
     "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
     "since": { "description": "First day of the period, UTC, YYYY-MM-DD.", "$ref": "#/$defs/date" },
     "until": { "description": "Last day of the period, included, UTC, YYYY-MM-DD.", "$ref": "#/$defs/date" },
     "days": { "description": "Days in the period.", "type": "integer", "minimum": 1 },
+    "value": {
+      "description": "Value (ADR-0011): did the value hypotheses of the Chief Engineer's documents come true. Derived from observation issues' report.json observation and the Chief Engineer issues; nothing new is written. An observation issue is a non-reviewer issue whose parent is the Chief Engineer issue (profile chief-engineer) it observes.",
+      "type": "object",
+      "required": ["observed", "days_to_observe", "no_hypothesis"],
+      "additionalProperties": false,
+      "properties": {
+        "observed": {
+          "description": "Observation issues whose report (first move to review, else the last column) falls in the period, by report.json observation.result.",
+          "type": "object",
+          "required": ["count", "hit", "miss", "unknown"],
+          "additionalProperties": false,
+          "properties": {
+            "count": { "description": "Observation reports in the period.", "$ref": "#/$defs/count" },
+            "hit": { "description": "result hit.", "$ref": "#/$defs/count" },
+            "miss": { "description": "result miss.", "$ref": "#/$defs/count" },
+            "unknown": { "description": "result unknown.", "$ref": "#/$defs/count" }
+          }
+        },
+        "days_to_observe": {
+          "description": "From the Chief Engineer issue's last move to the last column to its observation issue's report, for the reports in the period: count and median days (two decimals; null when count is 0).",
+          "type": "object",
+          "required": ["count", "days"],
+          "additionalProperties": false,
+          "properties": {
+            "count": { "description": "How many were counted.", "$ref": "#/$defs/count" },
+            "days": { "description": "Median days, or null when count is 0.", "$ref": "#/$defs/rate" }
+          }
+        },
+        "no_hypothesis": { "description": "Chief Engineer issues that moved to the last column in the period and have no observation issue (a hypothesis written as none).", "$ref": "#/$defs/count" }
+      }
+    },
     "flow": {
       "description": "Flow: lead time, wait per state, questions open, throughput and WIP (Little's law).",
       "type": "object",

@@ -111,7 +111,7 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
-  [measure]="project since until days flow efficiency counter prs skipped"
+  [measure]="project since until days value flow efficiency counter prs skipped"
   [corrections]="at corrections"
   [signal]="signals"
 )
@@ -159,6 +159,9 @@ project|.chief_of_staff|
 project|.delegation.grants[0]|id scope value by at evidence
 project|.delegation.grants[1].revoked|at by reason
 candidates|.candidates[0]|id text in_scope
+measure|.value|observed days_to_observe no_hypothesis
+measure|.value.observed|count hit miss unknown
+measure|.value.days_to_observe|count days
 measure|.flow|lead_time wait question_open closed wip_end
 measure|.flow.lead_time|count hours
 measure|.flow.wait.todo|count hours
@@ -412,6 +415,11 @@ fail|measure|.flow.wait.todo = 1|待ち時間の値が {count, hours} でない
 fail|measure|.efficiency.auto_merge.rate = -0.5|率が負
 fail|measure|.efficiency.auto_merge.rate = "50%"|率が文字列
 fail|measure|.flow.wip_end = -1|WIP が負
+fail|measure|.value.observed.hit = -1|仮説を確かめた数が負
+fail|measure|.value.days_to_observe.days = "3"|見るまでの日数が文字列
+fail|measure|.value.no_hypothesis = 1.5|仮説「無し」の数が整数でない
+fail|measure|del(.value)|価値が無い
+pass|measure|.value.days_to_observe = {count: 0, days: null}|見るまでの日数が null（観察が無い）
 fail|measure|.flow.closed.count = 1.5|件数が整数でない
 fail|measure|.days = 0|days が 0
 fail|measure|.since = "2026/11/01"|since が YYYY-MM-DD でない

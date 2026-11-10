@@ -444,12 +444,14 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 ## 13. 流れの数え（`andon measure --json` の出力）
 
-`andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` が、1つの台帳の期間の流れ・効率・対抗の指標を数えて出す（[決定](decisions/2026-11-09-measure-flow-metrics.md)）。**読むだけで、何も書かない・保存しない**。この節はその `--json` の形で、置き場は無い（標準出力だけ）。人向けの表（`--json` 無し）は先頭が「価値: 未計測」の1行で、流れ → 効率の順に並び、自動マージ率の行に対抗の指標を並べる。表は人が読むもので、機械は読まない。
+`andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` が、1つの台帳の期間の流れ・効率・対抗の指標を数えて出す（[決定](decisions/2026-11-09-measure-flow-metrics.md)）。**読むだけで、何も書かない・保存しない**。この節はその `--json` の形で、置き場は無い（標準出力だけ）。人向けの表（`--json` 無し）は先頭が「価値: 仮説を確かめた数 …」の1行で、価値 → 流れ → 効率の順に並び（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 18。[決定](decisions/2026-11-10-measure-value-line.md)）、自動マージ率の行に対抗の指標を並べる。表は人が読むもので、機械は読まない。
 
-読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`）・`questions.yaml`（`asked`・`answered`）・`report.json`（`pr`）・ゲートの記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、台帳の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）。期間は UTC の日付で両端を含む（既定は今日までの7日）。
+読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`・`parent`）・`questions.yaml`（`asked`・`answered`）・`report.json`（`pr`・`observation.result`）・ゲートの記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、台帳の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）。期間は UTC の日付で両端を含む（既定は今日までの7日）。
 
 ```json
 {"project": "sample-site", "since": "2026-11-01", "until": "2026-11-04", "days": 4,
+ "value": {"observed": {"count": 3, "hit": 1, "miss": 1, "unknown": 1},
+   "days_to_observe": {"count": 2, "days": 3.75}, "no_hypothesis": 1},
  "flow": {"lead_time": {"count": 2, "hours": 9},
    "wait": {"todo": {"count": 3, "hours": 1.33}, "queued": {"count": 0, "hours": null},
             "doing": {"count": 3, "hours": 19}, "review": {"count": 2, "hours": 10.5}},
@@ -471,6 +473,9 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 | キー | 数え方 |
 |---|---|
+| `value.observed` | 期間に報告された観察の課題（`report.json` に `observation` があり、`log.jsonl` で最初に `review`〈なければ最後の列〉へ動いた時刻が期間の中のもの。レビュアーの課題は数えない）の数と、`observation.result` の内訳（`hit`・`miss`・`unknown`）。観察の課題は `parent` が観察する Chief Engineer の課題（`profile: chief-engineer`） |
+| `value.days_to_observe` | 上のうち `parent` が Chief Engineer の課題のもの、の「Chief Engineer の課題が最後に最後の列へ動いた時刻から観察の報告まで」の日数（中央値。報告のほうが早いものは数えない）。数えるものが無ければ `days` は `null` |
+| `value.no_hypothesis` | 期間に最後の列へ動いた Chief Engineer の課題のうち、`parent` に指す非レビュアーの課題（観察の課題）が無いもの＝価値の仮説が「無し」の題（ADR-0011 決めたこと 4）。観察の課題を足す前に done になったものも数える |
 | `flow.lead_time` | 期間にマージされた台帳の PR の、課題の `created` から `mergedAt` まで（中央値の時間） |
 | `flow.wait.<status>` | `log.jsonl` の `change.status` を辿り、期間の中でその状態にいた時間の、1件あたりの平均（最後の列を除く。入った時刻は `created`、`after` のある課題は `queued` から） |
 | `flow.question_open` | `asked` から `answered`（無ければ期間の終わり）までの、期間の中の時間の1問あたりの平均 |
