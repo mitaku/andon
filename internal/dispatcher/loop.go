@@ -213,7 +213,7 @@ func (p *project) reviewerWorktree(t ledger.Issue, round int) string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(dir), fmt.Sprintf("%s-%s-r%d", p.l.Slug, t.Str("id"), round))
+	return spawn.ReviewerWorktreePath(dir, p.l.Slug, t.Str("id"), round)
 }
 
 // startLedger はレビュアーの課題を doing にし、agent を端末 addr にする（kanban start）。
@@ -272,7 +272,7 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		if _, _, err := run("", nil, "", "git", "-C", dir, "fetch", "-q", "https://github.com/"+owner+"/"+name, rr.Commit); err != nil {
 			return "PR の head を fetch できない: " + err.Error(), false
 		}
-		if err := os.MkdirAll(filepath.Dir(wt), 0o755); err != nil {
+		if err := spawn.MakeWorktreeDir(wt); err != nil {
 			return err.Error(), false
 		}
 		if _, _, err := run("", nil, "", "git", "-C", dir, "worktree", "add", "-q", "--detach", wt, rr.Commit); err != nil {

@@ -115,7 +115,7 @@ func (f *fake) config(repos string) {
 }
 
 func (f *fake) wt() string {
-	return filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "sample-site-S-7")
+	return filepath.Join(filepath.Dir(filepath.Dir(f.root)), ".worktrees", "sample-site", "sample-site-S-7") // <ANDON_WORKSPACE>/.worktrees
 }
 
 func (f *fake) branches() string {

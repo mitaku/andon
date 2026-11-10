@@ -37,7 +37,7 @@ bash tests/image.sh
 | git の repo の根 → repo の中の dir | 効く | 効く（画面に「Trusting will apply to the repository root」と出る） |
 | repo の根より上の親 → repo の中の dir | 効かない（根で止まる） | 効かない |
 | 元の repo の根 → その worktree | 効く | 効く |
-| worktree の置き場（`~/.herdr/worktrees`）→ worktree | 効かない | 効かない |
+| worktree の置き場（実測は旧の `~/.herdr/worktrees`。今の `/workspace/.worktrees` も worktree の根より上の親）→ worktree | 効かない | 効かない |
 
 `tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起こしても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。版を上げたら同じ表を測り直す。
 

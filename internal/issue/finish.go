@@ -9,13 +9,21 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"andon/internal/spawn"
 )
 
+// worktreeHomes は finish が受ける置き場の根: 今の置き場と旧の置き場（1版だけ。ADR-0012 決めたこと 6）。
+func worktreeHomes() []string {
+	return []string{spawn.WorktreeHome(), spawn.LegacyWorktreeHome()}
+}
+
 // finish は端末と worktree を片付け、マージ済みなら branch を消し、台帳を done にする（仮設の yard task finish を移したもの）。
-// 台帳の worktree と branch が、andon issue start がこの課題に作るもの（~/.herdr/worktrees/<repo 名>/<slug>-<id> と
+// 台帳の worktree と branch が、andon issue start がこの課題に作るもの（spawn.WorktreePath: <セルの repo>/.worktrees/<repo 名>/<slug>-<id> と
 // <slug>/<id>[-…]）と合うときだけ片付ける。合わなければ端末にも触らずに止まる（台帳の書き違いで別の課題の作業物を消さない）。
+// 旧の置き場（~/.herdr/worktrees/<repo 名>/…。ADR-0012 決めたこと 6 の前に起きた課題）の値も対として受ける。
 // レビュアーの子課題（parent がこの課題で profile が *-review）と、dispatcher が作った detached worktree
-// （~/.herdr/worktrees/<repo 名>/<slug>-<id>-r<回>）も片付ける。
+// （<置き場>/<repo 名>/<slug>-<id>-r<回>）も片付ける。
 // マージしたかは確かめない（確かめてから打つのは打つ側。dispatcher は MERGED を見てから打つ）。
 func (c *ctx) finish(stdout io.Writer) error {
 	for _, cmd := range []string{"git", "hc"} {
@@ -54,11 +62,21 @@ func (c *ctx) finish(stdout io.Writer) error {
 		if MainCheckout(repoDir, wt) {
 			return fail("%s の worktree が repo の本体の checkout: %s（消さない。台帳の worktree・branch を確かめる）", c.id, wt)
 		}
-		dir := filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir))
-		want := filepath.Join(dir, slug+"-"+c.id)
-		// レビュアーの子課題は、dispatcher が kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
-		if p := c.issue.Str("parent"); p != "" && strings.HasSuffix(c.issue.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
-			want, detached = wt, true
+		want := ""
+		for _, home := range worktreeHomes() {
+			dir := filepath.Join(home, filepath.Base(repoDir))
+			// レビュアーの子課題は、dispatcher が kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
+			if p := c.issue.Str("parent"); p != "" && strings.HasSuffix(c.issue.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
+				want, detached = wt, true
+				break
+			}
+			if p := filepath.Join(dir, slug+"-"+c.id); wt == p {
+				want = p
+				break
+			}
+		}
+		if want == "" {
+			want = spawn.WorktreePath(repoDir, slug, c.id)
 		}
 		if wt != want {
 			return fail("%s の worktree が %s でない: %s", c.id, want, wt)
@@ -114,7 +132,11 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 	}
 	if repoDir != "" {
-		olds, _ := filepath.Glob(filepath.Join(os.Getenv("HOME"), ".herdr", "worktrees", filepath.Base(repoDir), slug+"-"+c.id+"-r*"))
+		var olds []string
+		for _, home := range worktreeHomes() {
+			m, _ := filepath.Glob(filepath.Join(home, filepath.Base(repoDir), slug+"-"+c.id+"-r*"))
+			olds = append(olds, m...)
+		}
 		for _, p := range olds {
 			if Pair(repoDir, p, "detached") && !MainCheckout(repoDir, p) {
 				if _, err := git(repoDir, "worktree", "remove", "--force", p); err != nil {

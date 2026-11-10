@@ -16,7 +16,7 @@
 //
 // 置き場（andon issue start と同じ形。internal/spawn）:
 //
-//	worktree  ~/.herdr/worktrees/<repo 名>/<slug>-<id>
+//	worktree  <セルの repo>/.worktrees/<repo 名>/<slug>-<id>
 //	branch    <slug>/<id>-<題の英字の短い形>。origin/<既定の branch> から --no-track で切る
 //	repo      $GHQ_ROOT（無ければ ghq root）/<host/owner/repo>
 package chiefengineer

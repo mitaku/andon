@@ -334,20 +334,20 @@ s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude 
 # 乾いた実行: 本物の台帳で、hc を呼ばず、何も作らず台帳も書かずに、起こすときに渡すものを出す
 hcn=$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true); before=$(wc -l < kanban/log.jsonl)
 "$andon" issue start "$s1" --dry-run --json > "$tmp/dry" || die "dry-run が落ちた"
-[ "$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true)" = "$hcn" ] && [ "$(wc -l < kanban/log.jsonl)" = "$before" ] && [ "$(field "$s1" status)" = todo ] && [ ! -e "$HOME/.herdr/worktrees/app/demo-$s1" ] \
+[ "$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true)" = "$hcn" ] && [ "$(wc -l < kanban/log.jsonl)" = "$before" ] && [ "$(field "$s1" status)" = todo ] && [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s1" ] \
   || die "dry-run が hc を呼んだか何かを作った: $(cat "$tmp/hc/log")"
-jq -e --arg id "$s1" --arg wt "$HOME/.herdr/worktrees/app/demo-$s1" '.dry_run and .terminal == ("demo-" + ($id | ascii_downcase)) and .worktree == $wt and .cwd == $wt
+jq -e --arg id "$s1" --arg wt "$ANDON_WORKSPACE/.worktrees/app/demo-$s1" '.dry_run and .terminal == ("demo-" + ($id | ascii_downcase)) and .worktree == $wt and .cwd == $wt
   and .branch == "demo/\($id)-add-the-button" and .profile == "claude" and (.brief | startswith("# Add the button"))
   and ([.checks[] | select(.result == "ok") | .name] | index("delegation") != null)' "$tmp/dry" >/dev/null || die "dry-run の中身: $(cat "$tmp/dry")"
 ok 'start --dry-run: hc を呼ばず worktree・台帳に触れずに、端末の名前・worktree・branch・プロファイル・依頼書・確かめの結果を出す'
 "$andon" issue start "$s1" > "$tmp/out"
 [ "$(jq -r .first_message "$tmp/dry")" = "$(printf '課題 `demo/%s`。\n依頼書は `%s`。' "$s1" "$(jq -r .brief_path "$tmp/dry")")" ] || die "dry-run の最初のメッセージの形: $(jq .first_message "$tmp/dry")"
 lc=$(tr A-Z a-z <<<"$s1")
-wt=$HOME/.herdr/worktrees/app/demo-$s1
+wt=$ANDON_WORKSPACE/.worktrees/app/demo-$s1
 br=demo/$s1-add-the-button
 [ -d "$wt" ] && [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = "$br" ] || die "worktree か branch が無い: $(cat "$tmp/out")"
 [ -z "$(git -C "$wt" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" ] || die 'branch に upstream がある'
-[ "$(field "$s1" status)" = doing ] && [ "$(field "$s1" agent)" = t42 ] && [ "$(field "$s1" branch)" = "$br" ] && [ "$(field "$s1" worktree)" = "~/.herdr/worktrees/app/demo-$s1" ] \
+[ "$(field "$s1" status)" = doing ] && [ "$(field "$s1" agent)" = t42 ] && [ "$(field "$s1" branch)" = "$br" ] && [ "$(field "$s1" worktree)" = "$wt" ] \
   || die "台帳: $(kanban show "$s1" --json | jq -c .issue)"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label project=demo --label issue=$s1 --label title=Add the button --label herdr.space=andon-demo-$s1 --label herdr.tab=andon-demo-$s1 --cwd $wt claude 課題 \`demo/$s1\`。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
@@ -355,6 +355,10 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label p
 grep -q "$s1 を t42（demo-$lc・claude）で起こした。cwd $wt branch $br" "$tmp/out" || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = "andon issue: 出た場所 $s1 Add the button / $s1（t42）" ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
 jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == "terminal:t42"' kanban/log.jsonl >/dev/null || die 'doing にしたのが担当の端末でない'
+[ "$(cat "$ANDON_WORKSPACE/.worktrees/.gitignore")" = '*' ] && ! git -C "$ANDON_WORKSPACE" status --short | grep -q worktrees \
+  || die "置き場の .gitignore が * でないか、セルの repo の git status に出る: $(git -C "$ANDON_WORKSPACE" status --short)"
+git -C "$ANDON_WORKSPACE" diff --quiet HEAD -- .gitignore && [ ! -e "$ANDON_WORKSPACE/.gitignore" ] || die 'セルの追跡される .gitignore に触った'
+ok 'start: 置き場はセルの repo の .worktrees/<repo 名>/<slug>-<id>。中の .gitignore（*）で git status に出ない（ADR-0012 決めたこと 6）'
 ok 'start: worktree と branch（upstream 無し）・hc run（名前・ラベル・herdr.space と herdr.tab・cwd・最初のメッセージ）・kanban start で doing と agent・出た場所'
 
 
@@ -366,7 +370,7 @@ s2=$(kanban add '依頼書の無い課題' --repo github.com/example/app --profi
 expect_fail '依頼書（brief.md）が無い' "$andon" issue start "$s2"
 s3=$(kanban add 'プロファイルの無いもの' --repo github.com/example/app --profile fable --brief - <<<'# x')
 expect_fail 'プロファイル fable の template が無い' "$andon" issue start "$s3"
-[ ! -e "$HOME/.herdr/worktrees/app/demo-$s2" ] && [ ! -e "$HOME/.herdr/worktrees/app/demo-$s3" ] || die '止まる前に worktree を作った'
+[ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s2" ] && [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s3" ] || die '止まる前に worktree を作った'
 ok 'start: 依頼書が無い・template が無いなら何も作らずに止まる'
 
 # 台帳の repos に無い repo（clone はある）・未完了の after・origin にだけある同名の branch は、何も作らずに止まる
@@ -393,7 +397,7 @@ GIT_AUTHOR_EMAIL=agent@example.com git -C "$tmp/plant" commit -qam 'agent が re
 expect_fail 'author（t <agent@example.com>）が owner でない' "$andon" issue start "$s9"
 git -C "$tmp/plant" reset -q --hard HEAD~1
 for x in "$s6" "$s7" "$s8" "$s9"; do
-  [ ! -e "$HOME/.herdr/worktrees/app/demo-$x" ] && [ ! -e "$HOME/.herdr/worktrees/other/demo-$x" ] && [ "$(field "$x" status)" = todo ] && [ -z "$(field "$x" branch)$(field "$x" worktree)" ] \
+  [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$x" ] && [ ! -e "$ANDON_WORKSPACE/.worktrees/other/demo-$x" ] && [ "$(field "$x" status)" = todo ] && [ -z "$(field "$x" branch)$(field "$x" worktree)" ] \
     || die "$x: 止まる前に作った: $(kanban show "$x" --json | jq -c .issue)"
   ! grep -q "issue=$x " "$tmp/hc/log" || die "$x: hc run を打った"
 done
@@ -405,7 +409,7 @@ s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brie
 echo 1 > "$tmp/hc/run-rc"
 expect_fail 'hc run に失敗' "$andon" issue start "$s4"
 rm "$tmp/hc/run-rc"
-[ ! -e "$HOME/.herdr/worktrees/app/demo-$s4" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s4-run-fails" \
+[ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s4" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s4-run-fails" \
   && [ "$(field "$s4" status)" = todo ] && [ -z "$(field "$s4" branch)$(field "$s4" worktree)" ] || die "戻していない: $(kanban show "$s4" --json | jq -c .issue)"
 "$andon" issue start "$s4" >/dev/null || die 'やり直せない'
 ok 'start: hc run が落ちたら worktree・branch・台帳の欄を戻す（やり直せる）'
@@ -430,5 +434,16 @@ ok 'start: 最初のメッセージが届かなければ終了コード 3・端�
 [ ! -e "$wt" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/$br" && [ "$(field "$s1" status)" = done ] && ! grep -q " $s1\$" "$tmp/hc/live" \
   || die "finish で片付かない: $(kanban show "$s1" --json | jq -c .issue)"
 ok 'start が作った worktree・branch・端末を finish が片付ける（ラベルに触らない。hc は ls・kill・rm だけ）'
+
+# 旧の置き場（~/.herdr/worktrees。ADR-0012 の前に起きた課題）の値の課題も finish が片付ける
+s10=$(kanban add 'Old home' --repo github.com/example/app --profile claude --brief - <<<'# x')
+owt=$HOME/.herdr/worktrees/app/demo-$s10
+git -C "$appdir" worktree add -q -b "demo/$s10-old-home" "$owt" origin/main
+kanban set "$s10" "branch=demo/$s10-old-home" "worktree=$owt" >/dev/null
+(cd "$owt" && HC_TERMINAL_ID=t77 kanban start "$s10" >/dev/null)
+"$andon" issue finish "$s10" >/dev/null || die "旧の置き場の課題を finish できない"
+[ ! -e "$owt" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s10-old-home" && [ "$(field "$s10" status)" = done ] \
+  || die "旧の置き場の worktree が片付かない: $(kanban show "$s10" --json | jq -c .issue)"
+ok 'finish: 旧の置き場（~/.herdr/worktrees/<repo 名>/<slug>-<id>）の値の課題も片付ける'
 
 echo "all passed ($pass)"
