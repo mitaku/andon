@@ -98,6 +98,12 @@
    - `merged` のうち `held`（人がマージしたが片付けていない。dispatcher.md §2.7）は届ける（記録だけの理由「マージして片付けた」が成り立たない。Chief of Staff が問いを閉じるか finish する）。
    - 表に無い `kind`（`closed`・`corrections`）は今までどおり届ける。
 
+8. **2026-11-10 決めたこと 5 の「要実測」の結果と、同じ turn の前の ack。**（[decisions/2026-11-10-news-ack-same-turn.md](../decisions/2026-11-10-news-ack-same-turn.md)。課題 A-0011）
+
+   - `Stop` の `decision: block` で始まる続きは、hc の `turn` を進めない（担当の端末で確かめた）。控える値は決めたこと 5 のまま。
+   - 同じ `turn` の中で ack のあとに block で次の `<news>` を渡すと、前の ack と見分けられない。経路①②は渡すときのラベル `news.ack` の値も控え、渡す前からその値なら数えない（安全側）。
+   - `andon news ack` は渡し中かどうかを見ない（決めたこと 4 のまま）。渡し中が無いときの ack は、照らす控えが無いので `news.replied` にならない。
+
 ## やらないこと（範囲の外。理由）
 
 1. **コード・schema・contract.md・dispatcher.md・skill を、この PR で直すこと**: この文書は提案。写すのは実装の課題（依頼書に切る案）。
