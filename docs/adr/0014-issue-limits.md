@@ -57,28 +57,64 @@
    理由: レビュアーの課題は dispatcher が作り、見込む人がいない。Chief Engineer は人との対話で長さが決まらない。見込みの無い課題を既定の段で通知すると「見込んでいない」と「中と見込んだ」が区別できなくなる。記録に残せば Chief of Staff が書くようになる。
    捨てた案: 無ければ既定の段（中）／レビュアーにも既定の見込み。
 
+9. **2026-11-10 記録は measure に足す。振り返りが読む**（人）。`andon measure` の課題ごとの行に、見込みの分・担当の見込みの分（報告にあれば）・実際の分（待ちを除く）・比を足し、全体に「見込みの中に収まった割合」と「見込み無しの数」を足す（`measure.schema.json` にキーを足す。版は上げない）。新しい記録のファイルは作らない。
+   理由: 台帳と `report.json` から数えられ、A-0054（トークン数）と同じ行に並ぶ。振り返りは measure を読む（P1 の置き場）。
+   捨てた案: 通知だけで記録は足さない（見込みの立て方が良くなったかを後で言えない）／課題ごとの `library/` にズレの JSON（置き場と schema が1つ増える）。
+
+10. **2026-11-10 構造の案の比べ（Chief Engineer の整理。人が「決めた」と言うまでは推奨）**: 上の 1〜9 は次の案 A。
+   | 案 | 形 | 大きさ | 捨てたもの・リスク |
+   |---|---|---|---|
+   | **A（採る）** | 見込みは Chief of Staff が台帳に、実際は dispatcher が台帳から、ズレは通知と measure | dispatcher に数える行・通知の kind 1つ・予約キー 1つ・report.json と measure のキー・skill の文 | フックもハーネスの記録も触らない。両ブランドに効く。ターン数は測れない |
+   | B（元の題） | Claude のフック（PostToolBatch）がターン数と時間を数え、上限で担当を止めて報告と問いを書かせる | フックの command・予算の問いの kind・settings.json・Codex は A-0055 待ち | 一律の上限は判断を含み、正当に長い仕事を殺す（人が捨てた）。Codex に効かない |
+   | C（最小） | 見込みを台帳に書き、measure でズレを出すだけ（通知なし） | 予約キーと measure のキーだけ | 走っている間の方向修正ができない（前提 2 の困りごとが残る） |
+
 ## やらないこと（範囲の外。理由）
 
 - レビュアー・Chief Engineer の課題への見込み（決めたこと 8）。
+- ターン数・トークン数の見込みとズレ（決めたこと 1。トークン数は A-0054 が測ってから別の題）。
+- 担当を止める・割り込む（決めたこと 7）。
+- 見込みから「分ける」を機械で決めること（決めたこと 3。Chief of Staff の判断）。
+- Codex のフック（A-0055）。この設計はフックを使わないので結果に依らない。
 - 一律の上限で担当を止めること（人。2026-11-10。「上限そのものが要らない」「時間がかかることを実行しているなら仕方がない」。上限は判断を含み、正当に時間の掛かる仕事を殺す）。
 - 費用（ドル）の上限・見込み（人。2026-11-10。フックは費用を受けない。課題ごとのトークン数は A-0054 で測り、単価表は別の題）。
 
-## 受け入れ条件
+## 受け入れ条件（テストできる形。継ぎ目は 台帳の `log.jsonl`＋`report.json` → `andon measure --json`・dispatcher の判定（`pickup.go` の `Judge` と同じ偽の台帳のシェルテスト〈`tests/andon-dispatcher.sh` の形〉）・schema の例（`tests/schema.sh`）・セルの実測、の4つ。高いものから）
 
-（対話中）
+1. **予約キー**: `kanban set <id> estimate=<段>` で書いた課題を `kanban show --json` で読むと `.issue.estimate` が段の名で返り、`schema/issue-keys.schema.json` が段の enum を持つ。知らない値は「無い」と同じ（既存の値の読み方と同じ）。
+2. **実際の時間**: 偽の `log.jsonl`（doing に入った行・問いの open／answered・`review_request` と `findings.json` の時刻）から、待ちを除いた分が決まった値で出る（Go の単体テスト。問いが open のまま・レビュー待ちのまま・待ちが無い、の3つ）。
+3. **通知**: 偽の台帳で実際が見込みの 1 倍・2 倍・4 倍を超えた見回りで、それぞれ1回だけ新しい kind の通知が積まれ、同じ段で2回積まれない。見込みの無い課題・レビュアーの課題・Chief Engineer の課題には積まれない。`detail` が `notification.schema.json` を通る。
+4. **担当への1行**: 通知を積んだ見回りで担当の端末に固定の1行が `hc send` され（偽の `hc` が記録）、担当が `doing` でない・端末が無いときは送らない。
+5. **報告の欄**: `report.json` の担当の見込みの欄が schema を通り、`andon issue report` が受ける。無くてもよい。
+6. **measure**: `andon measure --json` の課題ごとの行に見込みの分・担当の見込みの分・実際の分・比が出て、全体に収まった割合と見込み無しの数が出る。見込みの無い課題は「無し」（0 と区別）。`measure.schema.json` を通る。
+7. **文書**: `contract.md` §2・§4・§6・§13、`dispatcher.md`、Chief of Staff・worker の skill に見込みの行がある。`tests/public.sh` が通る。
+8. **実測**（切る案の最後）: セルで見込み「小」の課題を1つ流し、30 分を超えたときに Chief of Staff の `<news>` と担当の画面に1行が届く。
 
 ## 価値の仮説
 
-（対話中）
+- **仮説**: 見込みとズレが見えると、Chief of Staff の依頼書の切り方と見込みの立て方が良くなり、見込みの中に収まる課題の割合が上がる。走っている間の方向修正で、stalled・使用量の上限で止まる課題が減る。
+- **測り方**: `andon measure` の「見込みの中に収まった割合」と「見込み無しの数」を週ごとに見る（P1 の記録）。stalled の通知の数（measure に足す A-0012 の形と同じ口）。
+- **形**: ADR-0011 の価値の仮説と同じ（観察の課題を切る案の最後に置く）。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
-（対話中）
+- **E1 見込みの予約キーと依頼書の行**: `issue-keys.schema.json` に `estimate`（段の enum。小・中・大の英字）、`contract.md` §2 の表に行、Chief of Staff の skill の Settings の雛形に `Estimate:` の行と段の目安（小 30・中 60・大 120。目安。大きければ分けることも検討）。依存なし。
+- **E2 実際の時間を数える**: 台帳の `log.jsonl` と課題の `library/` から待ちを除いた分を出す関数（`internal/ledger` か `internal/dispatcher`）。単体テスト。依存なし（E3 が使う）。
+- **E3 dispatcher の通知と担当への1行**: 新しい kind（`estimate`。`detail`: `estimate`〈段〉・`estimate_minutes`・`worked_minutes`・`ratio`・`stage`〈1・2・4〉）を `notification.schema.json` と `contract.md` §6 に足し、見回りで積む（同じ段につき1回。控えに積んだ段）。担当の端末へ固定の1行。`dispatcher.md` §2.3 に書く。依存: E1・E2。
+- **E4 担当の見込みの欄**: `report.schema.json` に `estimate`（`size`・`reason`）、worker の skill の `## 計画` に「依頼書の見込みと違うと見たら1行」。`contract.md` §4。依存: E1。
+- **E5 measure の欄**: `measure.schema.json` と `andon measure` に見込みの分・担当の見込みの分・実際の分・比・収まった割合・見込み無しの数。`contract.md` §13。依存: E1・E2・E4。A-0054（トークン数）・A-0012・A-0029 も measure を触るので、順は Chief of Staff が並べる。
+- **E6 観察: 見込みの効き**: 2 週ほど流して measure の割合と stalled の数を見る（価値の仮説）。依存: E1〜E5。
 
 ## 開いている問い
 
-（対話中）
+（対話で出し切った。残れば人が離席したあとに問いの JSON で置く）
 
 ## 出典
 
-（対話中）
+- 人の言葉（2026-11-10。この対話。「問題」の段に写し）。
+- A-0007 の依頼書・報告・`library/candidates.json`（c1〜c13。Claude の `--max-turns`・`--max-budget-usd` は print 専用。フックで数えて止める案 c4・c10・c11 は案 B として捨てた）。
+- A-0054（measure にトークン数）・A-0055（Codex の goals とフック）の依頼書。
+- Claude Code 2.1.322 の hooks の文書（PostToolBatch は毎バッチ走り `continue: false` で止められる。Stop はターンの終わりだけ。`/goal` は上限でなく続けさせる口）・cli-reference（`--max-turns`・`--max-budget-usd` は print のみ）。2026-11-10 に取得。
+- [dispatcher.md](../dispatcher.md) §2.3（stalled の 15 分・20 分、`status_ms` ごとに1回）、`internal/dispatcher/pickup.go`（`Judge`・`Reviewing`）。
+- [contract.md](../contract.md) §2（予約キー）・§4（`report.json`）・§6（通知の kind）・§9（フックは判断を持たない）・§13（measure）。
+- [ADR-0012](0012-resume-and-worktree-home.md)（`session=` ラベルと `andon issue session`。案 B で値を渡す型として読んだ）、[ADR-0011](0011-signals-and-value-loop.md)（価値の仮説と観察の課題の形）、[ADR-0006](0006-survey-fix-decide.md) 決めたこと 14（判断と決断の置き場）。
+- レクチャー §2 の表の最後の行（Osmani の「任せきりの run に上限」）・§5（P8 は先に調べる）・§2「足すのは記録・指標・約束のキーだけ」。
