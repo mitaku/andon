@@ -321,6 +321,13 @@ type Next struct {
 	Text string `json:"text"`
 }
 
+// Observation は観察の課題の結果（ADR-0011 決めたこと 7）。
+type Observation struct {
+	Hypothesis string   `json:"hypothesis"`
+	Result     string   `json:"result"`
+	Evidence   []string `json:"evidence"`
+}
+
 // Report は report.json（担当が書く。command が書く）。commit は repo のある課題では必須で、確かめるのは andon issue report・ready。
 type Report struct {
 	Commit        string         `json:"commit,omitempty"` // repo の無い課題では書かない
@@ -330,6 +337,7 @@ type Report struct {
 	Acceptance    []Acceptance   `json:"acceptance,omitempty"`
 	Risk          *Risk          `json:"risk,omitempty"`
 	Next          []Next         `json:"next,omitempty"`
+	Observation   *Observation   `json:"observation,omitempty"`
 	Remember      []string       `json:"remember,omitempty"`
 	AgentsMD      []string       `json:"agents_md,omitempty"`
 }
@@ -384,6 +392,16 @@ func (r *Report) Check() error {
 			return errors.New("next は {to: person|chief-of-staff|issue, text}")
 		}
 	}
+	if o := r.Observation; o != nil {
+		if o.Hypothesis == "" || (o.Result != "hit" && o.Result != "miss" && o.Result != "unknown") {
+			return errors.New("observation は {hypothesis, result: hit|miss|unknown, evidence[]}")
+		}
+		for _, s := range o.Evidence {
+			if s == "" {
+				return errors.New("observation.evidence に空の行")
+			}
+		}
+	}
 	for _, s := range append(append([]string{}, r.Remember...), r.AgentsMD...) {
 		if s == "" {
 			return errors.New("remember・agents_md に空の行")
@@ -408,6 +426,16 @@ func ParseReport(b []byte) (*Report, error) {
 			if _, ok := raw.RR[k]; !ok {
 				return nil, fmt.Errorf("review_request に %s が無い", k)
 			}
+		}
+	}
+	if r.Observation != nil {
+		// evidence は必須（空の配列は可）。無いと null になるので、生で確かめる。
+		var raw struct {
+			O map[string]json.RawMessage `json:"observation"`
+		}
+		_ = json.Unmarshal(b, &raw)
+		if v, ok := raw.O["evidence"]; !ok || string(v) == "null" {
+			return nil, errors.New("observation に evidence が無い")
 		}
 	}
 	if err := r.Check(); err != nil {

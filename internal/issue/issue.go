@@ -51,7 +51,7 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          ラベル・端末の名前・worktree・branch・プロファイル・確かめの結果〉を出す）\n" +
 	"       andon issue stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
 	"                                                          （id を省くと端末のラベル issue=。担当でなければ何も出さない）\n" +
-	"--data は report.json の任意のキー（pr・waived・acceptance・risk・next・remember・agents_md）の JSON object。\n" +
+	"--data は report.json の任意のキー（pr・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
 	"--pr を省くと前の report.json の pr を引き継ぐ。\n"
 
 const (

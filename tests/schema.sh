@@ -142,6 +142,7 @@ report|.review_request|round limit commit previous reviewer extra
 report|.waived[0]|severity file line reason
 report|.acceptance[0]|id result evidence
 report|.risk|one_way
+report|.observation|hypothesis result evidence
 report|.next[0]|to text
 question|.options[0]|label pick
 notification|.detail|report pr
@@ -223,6 +224,12 @@ pass|findings|.findings[0].preexisting = false|preexisting が false
 fail|findings|.findings[0].preexisting = "true"|preexisting が文字列
 fail|findings|.findings[0].preexisting = null|preexisting が null
 pass|report|{commit}|commit だけでも通る
+pass|report|.observation = {"hypothesis": "返事の下書きボタンで返信が速くなる", "result": "hit", "evidence": ["signal:abc123"]}|observation（hit・証拠つき）
+pass|report|.observation = {"hypothesis": "h", "result": "unknown", "evidence": []}|observation の unknown は証拠が空でも通る
+fail|report|.observation = {"hypothesis": "h", "result": "maybe", "evidence": []}|observation.result が enum の外
+fail|report|.observation = {"hypothesis": "", "result": "hit", "evidence": []}|observation.hypothesis が空
+fail|report|.observation = {"hypothesis": "h", "result": "hit"}|observation に evidence が無い
+fail|report|.observation = {"hypothesis": "h", "result": "hit", "evidence": [""]}|observation.evidence に空の行
 pass|report|{}|commit 無し（repo の無い課題）でも通る
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
