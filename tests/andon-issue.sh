@@ -294,7 +294,9 @@ export ANDON_WORKSPACE="$tmp/plant"
 # セルの repo（人のもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
 git init -q "$tmp/plant"; mkdir -p "$tmp/plant/projects/demo"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
-echo '{"version": 1, "project": {"title": "Demo", "prefix": "S"}, "repos": ["github.com/example/app"]}' > "$tmp/plant/projects/demo/project.json"
+# signals 入りでも start が通る（ADR-0011 受け入れ条件 12。signals を知らない版は project.json ごと弾いて起こせなくなる）
+echo '{"version": 1, "project": {"title": "Demo", "prefix": "S"}, "repos": ["github.com/example/app"],
+ "signals": [{"source": "github-ci", "repo": "github.com/example/app", "weight": "now"}, {"source": "github-issues", "weight": "later", "filter": "label:bug"}]}' > "$tmp/plant/projects/demo/project.json"
 git -C "$tmp/plant" add -A; GIT_AUTHOR_EMAIL=owner@example.com git -C "$tmp/plant" commit -qm plant
 git init -q --bare -b main "$tmp/origin.git"
 git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/app" 2>/dev/null

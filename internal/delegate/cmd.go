@@ -270,3 +270,6 @@ func revoke(f *File, id, reason, today string) (string, error) {
 	}
 	return "", fmt.Errorf("grant %s が無い", id)
 }
+
+// ProjectSlug はプロジェクトの slug（given か、cwd が projects/<slug>/ の下ならその slug）。andon signal も使う。
+func ProjectSlug(ws, given string) (string, error) { return project(ws, given) }
