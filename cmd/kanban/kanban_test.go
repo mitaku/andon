@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -630,5 +631,31 @@ func TestReviewerAddWithABrokenTask(t *testing.T) {
 	}
 	if got := kanban(t, root, "add", "review", "--parent", "A-0001", "--profile", "codex-review", "--round", "1"); got != "A-0001-r1\n" {
 		t.Fatalf("with --round: %q", got)
+	}
+}
+
+// A reviewer's issue keeps the worktree and branch it was given, from any cwd; a worker's issue still takes them from git.
+func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
+	root := ledger(t) // W-0001
+	kanban(t, root, "add", "review", "--parent", "W-0001", "--profile", "codex-review")
+	kanban(t, root, "set", "W-0001-r1", "worktree=~/wt/sample-r1")
+
+	repo := t.TempDir()
+	for _, c := range [][]string{{"init", "-b", "main"}, {"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--allow-empty", "-m", "x"}} {
+		if out, err := exec.Command("git", append([]string{"-C", repo}, c...)...).CombinedOutput(); err != nil {
+			t.Skipf("git: %v %s", err, out)
+		}
+	}
+	for _, cwd := range []string{repo, root} {
+		kanban(t, cwd, "start", "W-0001-r1")
+		got, _ := os.ReadFile(taskFile(root, "W-0001-r1"))
+		if !strings.Contains(string(got), "worktree: ~/wt/sample-r1") || strings.Contains(string(got), "branch: main") {
+			t.Fatalf("reviewer's worktree/branch changed from %s:\n%s", cwd, got)
+		}
+	}
+	kanban(t, repo, "start", "W-0001")
+	got, _ := os.ReadFile(taskFile(root, "W-0001"))
+	if !strings.Contains(string(got), "branch: main") {
+		t.Fatalf("a worker's issue should still take its branch from git:\n%s", got)
 	}
 }

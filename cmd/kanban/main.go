@@ -613,8 +613,13 @@ func cmdStart(e env, a args) error {
 		if w := waitingOn(t, all, cfg); len(w) > 0 && !a.has("force") {
 			return fail("%s waits for %s (--force to start anyway)", id, strings.Join(w, ", "))
 		}
-		branch := git(e.cwd, "rev-parse", "--abbrev-ref", "HEAD")
-		top := git(e.cwd, "rev-parse", "--show-toplevel")
+		// A reviewer's issue (--parent and a *-review profile) keeps the worktree and branch the dispatcher
+		// gave it (a detached worktree): whatever cwd it starts from, they are not inferred again.
+		var branch, top string
+		if !(t.d.str("parent") != "" && isReviewProfile(t.d.str("profile"))) {
+			branch = git(e.cwd, "rev-parse", "--abbrev-ref", "HEAD")
+			top = git(e.cwd, "rev-parse", "--show-toplevel")
+		}
 		t.d.setStr("status", "doing")
 		t.d.setStr("updated", now())
 		if agent := os.Getenv("HC_TERMINAL_ID"); agent != "" {
