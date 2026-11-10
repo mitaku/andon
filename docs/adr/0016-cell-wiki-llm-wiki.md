@@ -25,6 +25,9 @@
 3. **2026-11-10 wiki の層のページは4種をフォルダで分ける。** `sources/`（元資料に1対1の要約）・`entities/`（実体: 役・部品・案件・オーナー。例 `entities/owner.md`・`entities/dispatcher.md`）・`topics/`（概念・運用の題。例「rebase のあとのレビューの頼み直し」）・`overview.md`（まとめ1枚）。原典の comparisons・synthesis は topics と overview に吸う。
    理由: 実体と概念が育つ場所が決まり、オーナーの志向は `entities/owner.md` に集まる。
    捨てた案: 原典の6種そのまま——小さい wiki に空の種類ができる／フォルダで分けず front matter の kind だけ——ファイル一覧で形が見えない。
+4. **2026-11-10 ingest は、元資料を `raw/` に置いたその場で1件ずつ（原典どおり）。** 置く時＝人の発言を写したとき・人が資料を置いて「取り込んで」と言ったとき・finish で記録を写したとき。取り込み＝`sources/` に要約ページを書き、関わる `entities/`・`topics/` を直し、`index.md` と `log.md` に足す。
+   理由: 元資料と wiki がずれない。
+   捨てた案: 溜めてまとめて（人が頼んだときか週1）——未取り込みが溜まり index が古くなる／finish のときだけ（今の §11）——人の発言と外の資料が次の finish まで待つ。
 
 ## やらないこと（範囲の外。理由）
 
