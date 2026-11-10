@@ -256,7 +256,7 @@ How the Chief of Staff gathers and asks is the yard's skill, not the format. The
 - **Every question asked is in the document.** The Chief of Staff's document for the person (a page in the ledger's `library/`) lists the `<id>#<n>` of every question it holds, and the time `kanban questions` was read. A question that is merged with another lists all of their names; its answer is written to each.
 - **Nothing is left behind.** After the person answers, `kanban questions --open` lists what is still open; it goes into the next document.
 - **Every answer arrives.** A question `answered` but not `received` is one the agent never got.
-- **Every stopped agent has asked.** An issue whose agent is stopped (Needs you, or idle with the issue not in review or done) but has no `open` question asked outside the ledger. Viewers that see both herdr-core and the ledger (work-board, inbox) show it.
+- **Every stopped agent has asked.** An issue whose agent is stopped (Needs you, or idle with the issue not in review or done) but has no `open` question asked outside the ledger. Viewers that see both herdr-core and the ledger (kanban-board) show it.
 
 ## `log.jsonl`
 
