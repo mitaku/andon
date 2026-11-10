@@ -267,7 +267,7 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `report`（レビュアーの課題） | 記録だけ | 結果の宛先は元の課題の担当で、Chief of Staff は中継しない |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起こす・rebase を頼む・人へ知らせる・続きを促す |
 
-- **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。読み手はボード。
+- **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。読み手はボード。
 - **10分**は dispatcher の時計で、記録した approve の `at` から測る（見回りが1分ごとなので、merge queue の repo でも10巡は待つ）。仮の値で、ほかの間（§2.1）と同じくコードの定数（`approveWait`）。回し直したゲート（§2.1.1 の 5 の読み直しで次の巡に持ち越した approve）では測り直さない。ゲートが別の答えを出した・`review` から出た課題の分は捨てる。
 - 課題の見分けは今ある項目だけ（`gated`・`isReviewer`。新しいキーは足さない）。
 

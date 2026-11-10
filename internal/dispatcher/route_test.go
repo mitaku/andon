@@ -156,3 +156,34 @@ func TestApproveStuck(t *testing.T) {
 		t.Fatalf("merge: person の approve をすぐ届けない: %+v", p.st.Pending)
 	}
 }
+
+// 記録の置き場に書けなければ控えに残して届けず、書けるようになったら1行だけ書く。
+func TestRecordRetry(t *testing.T) {
+	p := routeProject(t)
+	path := RecordedPath("demo")
+	if err := os.MkdirAll(path, 0o755); err != nil { // 置き場に同名のディレクトリ
+		t.Fatal(err)
+	}
+	p.notify("D-0001", "gate", map[string]any{"decision": "fix", "reasons": []string{"x"}, "record": "/r.json"})
+	if len(p.st.Pending) != 0 || len(p.st.Unrecorded) != 1 {
+		t.Fatalf("書けなかった記録を控えに残さない: pending %+v unrecorded %+v", p.st.Pending, p.st.Unrecorded)
+	}
+	if err := p.st.Save("demo"); err != nil {
+		t.Fatal(err)
+	}
+	st, _, err := LoadState("demo")
+	if err != nil || len(st.Unrecorded) != 1 {
+		t.Fatalf("控えを読み直すと残っていない: %+v %v", st.Unrecorded, err)
+	}
+	p.st = st
+	os.Remove(path)
+	p.stuck(time.Now())
+	got := recorded(t)
+	if len(got) != 1 || got[0].Kind != "gate" || len(p.st.Unrecorded) != 0 {
+		t.Fatalf("書けるようになったのに1行だけ書かない: %+v unrecorded %+v", got, p.st.Unrecorded)
+	}
+	p.stuck(time.Now())
+	if len(recorded(t)) != 1 {
+		t.Fatal("同じ記録を二度書いた")
+	}
+}

@@ -74,6 +74,8 @@ type dispatcherState struct {
 	Watch map[string]dsWatch `json:"watch,omitempty"`
 	// Record-only gate approvals (merge: auto) with no merged or asked yet
 	Approved map[string]dsNotification `json:"approved,omitempty"`
+	// Record-only notifications not yet appended to <slug>.recorded.jsonl
+	Unrecorded []dsNotification `json:"unrecorded,omitempty"`
 }
 
 type dsWatch struct {

@@ -96,28 +96,45 @@ func (p *project) put(n Notification, f Facts) {
 	}
 }
 
-// record は通知を記録だけの置き場に1行足す（追記だけ。書き手は dispatcher だけ）。
+// record は通知を記録だけの置き場に1行足す（追記だけ。書き手は dispatcher だけ）。書けなければ控えの Unrecorded に残し、
+// 次に書くとき（record・見回りの flush）に先に書く（記録から落とさない。順も保つ）。
 func (p *project) record(n Notification) {
+	p.st.Unrecorded = append(p.st.Unrecorded, n)
+	p.flush()
+}
+
+// flush は控えの Unrecorded を記録だけの置き場にまとめて追記する。書けたら空にする。
+func (p *project) flush() {
+	if len(p.st.Unrecorded) == 0 {
+		return
+	}
+	var buf []byte
+	for _, n := range p.st.Unrecorded {
+		b, _ := json.Marshal(n)
+		buf = append(append(buf, b...), '\n')
+	}
 	path := RecordedPath(p.l.Slug)
-	b, _ := json.Marshal(n)
 	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	if err == nil {
 		var f *os.File
 		if f, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
-			_, err = f.Write(append(b, '\n'))
+			_, err = f.Write(buf)
 			if cerr := f.Close(); err == nil {
 				err = cerr
 			}
 		}
 	}
 	if err != nil {
-		p.logf("記録だけの通知を書けない（%s %s）: %v", n.Issue, n.Kind, err)
+		p.logf("記録だけの通知を書けない（%d 件を控えに残し、次の見回りで書き直す）: %v", len(p.st.Unrecorded), err)
+		return
 	}
+	p.st.Unrecorded = nil
 }
 
 // stuck は記録だけにした approve のうち、approveWait たっても merged も asked も無いものを1回だけ届ける。
 // review にいない課題（人が戻した・片付けた）は捨てる。
 func (p *project) stuck(now time.Time) {
+	p.flush() // 前に書けなかった記録
 	for id, n := range p.st.Approved {
 		if p.status(id) != "review" {
 			delete(p.st.Approved, id)
