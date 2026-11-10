@@ -71,6 +71,9 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    理由: (c) が「在る」と書かれていながら無かった継ぎ目を塞ぐ。守る相手は間違える担当（D1）なので、道具と Bash の普通の形で足りる。
    捨てた案: `Write(…)` で書く——今の版では当たらない／`Read` の deny も足す——読むのは要る（Chief of Staff が `project.json` を読む）。
 
+7. **2026-11-10 worktree の置き場はセルの repo の中 `/workspace/.worktrees/<repo 名>/<slug>-<id>`（[ADR-0012](0012-resume-and-worktree-home.md) 決めたこと 6）。** 決めたこと 2 の表の「worktree・端末・伝令の控え」の行のうち worktree は `~/.herdr/worktrees/` から移り、追跡は「しない」（Andon が置き場に書く `.gitignore` の `*`。セルの `.gitignore` は触らない）。端末と控えは変わらない。
+   理由: `~/.herdr` はボリュームに無く、コンテナの起き直しで worktree が消えた（2026-11-10）。本体の checkout（`.ghq/`）と同じ bind mount に置けば片方だけ消えない。
+
 ## やらないこと（範囲の外。理由）
 
 - **複数人の建屋**（前提 1）。人のファイルの照合を 1 人から複数へ広げるのは別の ADR。
