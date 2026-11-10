@@ -136,6 +136,10 @@ dead=$(as t5 kanban add "$id のレビュー（結果なし）" --parent "$id" -
 "$andon" issue review-request "$id" <<<'## Report' >/dev/null
 jq -e --arg p "$c2" '.review_request | .round == 6 and .previous == $p' "$lib/report.json" >/dev/null
 ok 'review-request: 結果の無いレビュアーの課題の次の回になる（previous は結果のある回のまま）'
+# 後続の検査は c2 の状態で続ける
+git -C "$tmp/wt" reset -q --hard "$c2"
+echo "$c2" > "$tmp/prhead"
+"$andon" issue report "$id" <<<'## Report' >/dev/null
 
 # report.json の形が壊れていれば止まる
 cp "$lib/report.json" "$tmp/good"
