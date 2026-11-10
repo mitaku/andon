@@ -50,6 +50,11 @@ func ProviderError(text string) bool {
 	return !authErrRe.MatchString(text) && !allowanceErrRe.MatchString(text) && providerErrRe.MatchString(text)
 }
 
+// AllowanceError は文が使用量の上限（usage limit・quota・billing など。待っても直らない）で止まったものか（認証の失敗は含めない）。
+func AllowanceError(text string) bool {
+	return !authErrRe.MatchString(text) && allowanceErrRe.MatchString(text)
+}
+
 // collect は通知の元を拾う（pass が控えの lock を持って呼ぶ）。
 func (p *project) collect(cos string) {
 	p.readReady()
@@ -273,9 +278,10 @@ type Seen struct {
 
 // Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
 type Verdict struct {
-	Kind  string
-	Key   string // 同じ状態につき1回だけ知らせるための鍵
-	Retry bool
+	Kind      string
+	Key       string // 同じ状態につき1回だけ知らせるための鍵
+	Retry     bool
+	Allowance bool // error が使用量の上限（待っても直らない）。レビュアーなら fallback で起こし直せるか見る
 }
 
 // ScreenCut は画面から、Codex がターンを止めたときに出すエラーの行（行頭が ■ の最後の行。実測 Codex 0.166.0）だけを返す。
@@ -307,7 +313,7 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 		}
 		// 最初のメッセージが届いていない端末に「続けて」は意味が無い（続ける仕事を受け取っていない）。知らせる
 		if s.Unsent || !ProviderError(text) {
-			return Verdict{Kind: "error", Key: key}
+			return Verdict{Kind: "error", Key: key, Allowance: !s.Unsent && AllowanceError(text)}
 		}
 		r = r.Saw(s, nowMs) // 呼び手が映していなくても同じ答えにする
 		if r.N >= len(retryAfter) {
@@ -394,6 +400,9 @@ func (p *project) watch(now time.Time) {
 			continue
 		}
 		k := rk + "|" + v.Key
+		if v.Allowance && isReviewer(t) && !p.first && !p.st.Sent[k] && p.fallback(t, agent) {
+			continue // 起こし直した（次の見回りからは新しい端末を見る）
+		}
 		if !p.st.Sent[k] && !p.first {
 			p.notify(id, v.Kind, map[string]any{"agent": agent, "status_ms": s.StatusMs})
 		}

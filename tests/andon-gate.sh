@@ -278,6 +278,33 @@ jq -e '.review.must_fix_open == 1' "$rec" >/dev/null
 got=$(gate "$id"); expect 4 needs_human '2度目'
 ok 'Must fix が残れば fix、同じ head で2度目は needs_human'
 
+# 9b. preexisting: true の指摘は Must fix に数えない。ただし PR の差分で足した行に当たれば数える（申告でゲートを緩めない）
+printf 'diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -1,0 +2 @@\n+x\n' > "$tmp/gh/diff"
+findings "$head" '[{"severity":"major","file":"docs/a.md","line":1,"preexisting":true},{"severity":"critical","file":"docs/old.md","line":3,"preexisting":true}]'
+got=$(gate "$id" --dry-run); expect 0 approve
+jq -e '.review.must_fix_open == 0' "$tmp/out" >/dev/null || die 'preexisting を数えた'
+findings "$head" '[{"severity":"major","file":"docs/a.md","line":2,"preexisting":true}]'
+got=$(gate "$id" --dry-run); expect 1 fix 'Must fix 以上が 1 件'
+printf '+++ b/docs/a.md\n+x\n' > "$tmp/gh/diff"
+ok 'preexisting: true の Must fix 以上だけなら fix にしない（PR が足した行の指摘は preexisting でも数える）'
+
+# 9c. 2回目以降のレビューは直しの確認だけ: 前の回の findings.json に同じ file の指摘が無い critical でない指摘は数えない
+findings "$(git -C "$tmp/origin" rev-parse HEAD~1)" '[{"severity":"major","file":"docs/a.md","line":1}]'
+rev1=$rev
+rev=$(HC_TERMINAL_ID=t5 kanban add "$id のレビュー（2 回目）" --parent "$id" --profile codex-review)
+[ "$rev" != "$rev1" ] || die '2回目のレビュアーの課題が足せない'
+mkdir -p "kanban/issues/$rev/library"
+findings "$head" '[{"severity":"major","file":"docs/new.md","line":3}]'
+HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
+got=$(gate "$id" --dry-run); expect 0 approve
+jq -e --arg r "$rev" '.review.issue == $r and .review.must_fix_open == 0' "$tmp/out" >/dev/null || die "2回目の新しい major を数えた: $(cat "$tmp/out")"
+findings "$head" '[{"severity":"critical","file":"docs/new.md","line":3}]'
+got=$(gate "$id" --dry-run); expect 1 fix 'Must fix 以上が 1 件'
+findings "$head" '[{"severity":"major","file":"docs/a.md","line":9}]'
+got=$(gate "$id" --dry-run); expect 1 fix 'Must fix 以上が 1 件'
+findings "$head" '[]'
+ok '2回目のレビューで新しい major だけなら fix にしない（critical と、前の回と同じ file の指摘は数える）'
+
 # 10. head が進んでレビューが古ければ stale で fix
 pr docs/a.md 4 y
 export HC_TERMINAL_ID=t7

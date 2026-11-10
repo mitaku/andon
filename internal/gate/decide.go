@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -487,3 +488,50 @@ func Decide(f Facts) (string, []string) {
 	}
 	return "approve", []string{}
 }
+
+// AddedLines は PR の差分（gh pr diff の unified diff）から、足した行を file（新しい側のパス）→ 行番号で返す（純粋関数）。
+// レビュアーの preexisting の指摘がこの行に当たれば、課題の前からあったはずがないのでゲートは数える（ledger.CheckReview）。
+func AddedLines(diff string) map[string]map[int]bool {
+	added := map[string]map[int]bool{}
+	file, line, hunk := "", 0, false
+	for _, l := range strings.Split(diff, "\n") {
+		switch {
+		case strings.HasPrefix(l, "diff --git "):
+			file, hunk = "", false
+		case !hunk && strings.HasPrefix(l, "+++ "):
+			file = strings.TrimPrefix(l, "+++ ")
+			if strings.HasPrefix(file, `"`) {
+				// 非 ASCII・引用符を含む名前は C 形式で引用される（"b/\350\250\255.go"）。Go の引用の解き方で同じ byte に戻る
+				if u, err := strconv.Unquote(file); err == nil {
+					file = u
+				} else {
+					file = ""
+				}
+			}
+			file = strings.TrimPrefix(file, "b/")
+			if file == "/dev/null" {
+				file = ""
+			}
+		case strings.HasPrefix(l, "@@ "):
+			hunk = false
+			if m := hunkRe.FindStringSubmatch(l); m != nil {
+				line, _ = strconv.Atoi(m[1])
+				hunk = true
+			}
+		case !hunk:
+		case strings.HasPrefix(l, "+"):
+			if file != "" {
+				if added[file] == nil {
+					added[file] = map[int]bool{}
+				}
+				added[file][line] = true
+			}
+			line++
+		case strings.HasPrefix(l, " "), l == "":
+			line++
+		}
+	}
+	return added
+}
+
+var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@`)
