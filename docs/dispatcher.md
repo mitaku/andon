@@ -123,9 +123,11 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | `error` で、レビュアーが使用量の上限で止まった（§2.8） | もう一方のレビューのプロファイルが担当と別ブランドなら**起こし直す**（知らせない）。保てなければ知らせる（`error`） |
 | `error`（それ以外） | 知らせる |
 | `idle`／`done` のまま15分 | 知らせる（`stalled`）。ただし子のレビュアーの課題（`parent: <id>`）が `todo`／`doing` の間はレビュー待ちで静かなだけなので除く |
-| `working` のまま20分 | 知らせる（`stalled`） |
+| `working` のまま20分で、`status.msg` も画面も20分動かない | 知らせる（`stalled`）。1つのターンで長く働いているだけ（ツールを回して `status.msg` か画面が替わる）なら知らせない |
 
 - 同じ状態（同じ `status_ms`）につき1回だけ知らせる。
+- `working` の進みは、見回りごとに `status.msg`（Claude Code は今のツールの説明を入れる）と画面（`hc read` の最後の 40 行）の字だけ（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）を控えの `Moved`（`<issue>|<agent>`）に要約して比べ、替わった時刻（dispatcher の時計）を持つ。初めて見た `working` はその時刻を起点にする。画面が読めない回は前の控えのまま。
+- Chief Engineer の課題（`profile: chief-engineer`）の `stalled`・`blocked` は記録だけ（§3.2）。
 - `agent` は `<address>` か `<machine>/<address>`（[contract.md](contract.md) §8）。`hc get` が `not_found` を返したときだけ端末が無い（`finished`）とし、ほかの失敗の間は前の状態（知らせた状態・続きを打った回数）を保つ。
 - 「続けて」の間・回数・ほかの送り直しとの関係は §2.4。
 - 画面を読むのは「提供元に切られたか」の見分けだけ（§2.4。Claude Code は `status.msg` で足り、画面を読むのは Codex）。通知には画面の文を入れない（担当の画面は外から来た文を含みうる。Chief of Staff に渡すのは台帳と状態の事実だけ）。
@@ -163,7 +165,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 **ほかの送り直しと二重に送らない**:
 
 - **最初のメッセージの送り直し**（§5）: 最初のメッセージがまだ届いていない端末（ラベル `first_message.sent=false` で控えの `First` にも無い）には「続けて」を打たない（続ける仕事を受け取っていない）。`error` として知らせる。最初のメッセージの送り直しは `idle` のときだけで、`error` の間は送らないので、同じ見回りで2つが同じ端末に届くことは無い。控えの `First` にある（送ったがラベルを外せなかった）端末は届いたとみて、続きを打つ。
-- **`stalled`**: 「続けて」は `error` のときだけ、`stalled` は `idle`・`done`・`working` のときだけで、状態で分かれる。`stalled` は知らせるだけで打たない。打ったあと `working` のまま 20 分たてば `stalled` を知らせる。
+- **`stalled`**: 「続けて」は `error` のときだけ、`stalled` は `idle`・`done`・`working` のときだけで、状態で分かれる。`stalled` は知らせるだけで打たない。打ったあと `working` のまま、`status.msg` も画面も 20 分動かなければ `stalled` を知らせる（§2.3）。
 - **経路③の `<news>`**（§3）: Chief of Staff に送るのは `idle`・`done` のときだけで、「続けて」は `error` のときだけ。
 
 ### 2.5 マージのあとの影響
@@ -265,6 +267,7 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `merged`（`held` が無い） | 記録だけ | dispatcher（か人）がマージして片付けた。影響は `impact` で別に届く |
 | `merged`（`held` あり） | 届ける | 片付けていない理由を読んで、問いを閉じる・`andon issue finish` する |
 | `report`（レビュアーの課題） | 記録だけ | 結果の宛先は元の課題の担当で、Chief of Staff は中継しない |
+| `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer は人と直接話す役で、人の返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff は人への問いに答えない。`ready` は `andon chief-engineer` が起こした直後で、もう起きている。`error`・`finished`・`review`（文書の PR）は届ける |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起こす・rebase を頼む・人へ知らせる・続きを促す |
 
 - **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード。

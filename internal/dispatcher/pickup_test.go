@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -81,11 +82,41 @@ func TestJudge(t *testing.T) {
 		{"idle 15分・レビュー待ち", Seen{Status: "idle", StatusMs: min(15), Reviewing: true}, none, Resend{}, Verdict{}},
 		{"working 20分", Seen{Status: "working", StatusMs: min(20)}, none, Resend{}, Verdict{Kind: "stalled", Key: "working|" + itoa(min(20))}},
 		{"working 19分", Seen{Status: "working", StatusMs: min(19)}, none, Resend{}, Verdict{}},
+		{"working 30分・画面か msg が3分前に動いた（1ターンで長く働いている）", Seen{Status: "working", StatusMs: min(30), Moved: min(3)}, none, Resend{}, Verdict{}},
+		{"working 30分・画面も msg も20分動かない", Seen{Status: "working", StatusMs: min(30), Moved: min(20)}, none, Resend{}, Verdict{Kind: "stalled", Key: "working|" + itoa(min(30))}},
+		{"working 20分・進みを見たのは今（見回りの起点）", Seen{Status: "working", StatusMs: min(20), Moved: now}, none, Resend{}, Verdict{}},
 	}
 	for _, c := range cases {
 		if got := Judge(c.s, c.screen, c.r, now); got != c.want {
 			t.Errorf("%s: Judge = %+v, want %+v", c.name, got, c.want)
 		}
+	}
+}
+
+// working の進み: status.msg か画面の字が替われば動いた時刻を今にする。経過の時計・回る印・数字だけの替わりは進みに数えない。
+// 画面が読めなければ前の控えのまま（A-0036）。
+func TestMoved(t *testing.T) {
+	const now = int64(10_000_000_000)
+	scr := func(s string) func() (string, error) { return func() (string, error) { return s, nil } }
+	fail := func() (string, error) { return "", errors.New("hc read") }
+	first := moved(Moved{}, false, "go test を回す", scr("✻ Thinking… (3m 2s · ↓ 1.2k tokens)\nRead x.go"), now-60_000)
+	if first.At != now-60_000 || first.Sum == "" {
+		t.Fatalf("初めて見たら今を起点にする: %+v", first)
+	}
+	if m := moved(first, true, "go test を回す", scr("✶ Thinking… (24m 9s · ↓ 8.4k tokens)\nRead x.go"), now); m != first {
+		t.Fatalf("時計・印・数字だけの替わりを進みに数えた: %+v", m)
+	}
+	if m := moved(first, true, "go test を回す", scr("✻ Thinking… (3m 2s · ↓ 1.2k tokens)\nRead x.go\nEdit y.go"), now); m.At != now {
+		t.Fatalf("画面の替わりを進みに数えない: %+v", m)
+	}
+	if m := moved(first, true, "テストを読む", scr("✻ Thinking… (3m 2s · ↓ 1.2k tokens)\nRead x.go"), now); m.At != now {
+		t.Fatalf("status.msg の替わりを進みに数えない: %+v", m)
+	}
+	if m := moved(first, true, "テストを読む", fail, now); m != first {
+		t.Fatalf("画面が読めないのに控えを替えた: %+v", m)
+	}
+	if m := moved(Moved{}, false, "", fail, now); m.At != now {
+		t.Fatalf("控えも画面も無いときは今を起点にする: %+v", m)
 	}
 }
 

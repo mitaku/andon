@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"andon/internal/contract"
 	"andon/internal/ledger"
@@ -272,8 +273,9 @@ type Seen struct {
 	Status    string // status.state
 	Msg       string // status.msg（program が状態に添えた文。Claude Code は error のとき API のエラーの文を入れる。Codex は入れない）
 	StatusMs  int64
-	Reviewing bool // 子のレビュアーの課題が todo／doing
-	Unsent    bool // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
+	Reviewing bool  // 子のレビュアーの課題が todo／doing
+	Moved     int64 // working の間に status.msg か画面が最後に動いた時刻（dispatcher の時計の Unix ミリ秒）。0 は見ていない
+	Unsent    bool  // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
 }
 
 // Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
@@ -331,10 +333,47 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 		}
 	case (s.Status == "idle" || s.Status == "done") && age >= idleAfter && !s.Reviewing:
 		return Verdict{Kind: "stalled", Key: key}
-	case s.Status == "working" && age >= workingAfter:
+	case s.Status == "working" && age >= workingAfter && (s.Moved == 0 || time.Duration(nowMs-s.Moved)*time.Millisecond >= workingAfter):
+		// 1つのターンで長く働いているだけ（status.msg か画面が動いている）なら知らせない
 		return Verdict{Kind: "stalled", Key: key}
 	}
 	return Verdict{}
+}
+
+// Moved は working の担当の進みの控え: status.msg と画面の要約（Progress）と、それが最後に替わった時刻（dispatcher の時計）。
+type Moved struct {
+	Sum string `json:"sum"`
+	At  int64  `json:"at"`
+}
+
+// Progress は status.msg と画面の要約。画面は字だけを見る（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）。
+func Progress(msg, screen string) string {
+	var b strings.Builder
+	b.WriteString(msg)
+	b.WriteByte(0)
+	for _, r := range screen {
+		if unicode.IsLetter(r) {
+			b.WriteRune(r)
+		}
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
+
+// moved は working の担当の進みを控えに映す（prev が前の控え）。画面が読めなければ前の控えのまま（無ければ今を起点にする）。
+func moved(prev Moved, had bool, msg string, screen func() (string, error), nowMs int64) Moved {
+	text, err := screen()
+	if err != nil {
+		if had {
+			return prev
+		}
+		return Moved{At: nowMs}
+	}
+	sum := Progress(msg, text)
+	if !had || sum != prev.Sum {
+		return Moved{Sum: sum, At: nowMs}
+	}
+	return prev
 }
 
 // watch は doing の課題の担当を端末の土台で見る（見回りで hc get）。
@@ -346,7 +385,7 @@ func (p *project) watch(now time.Time) {
 			reviewing[t.Str("parent")] = true
 		}
 	}
-	sent, retry, first := map[string]bool{}, map[string]Resend{}, map[string]bool{}
+	sent, retry, first, mv := map[string]bool{}, map[string]Resend{}, map[string]bool{}, map[string]Moved{}
 	for _, t := range p.tasks {
 		id, agent := t.Str("id"), t.Str("agent")
 		if t.Str("status") != "doing" || t.Str("who") == "person" || agent == "" {
@@ -370,6 +409,9 @@ func (p *project) watch(now time.Time) {
 			if p.st.First[rk] {
 				first[rk] = true
 			}
+			if m, had := p.st.Moved[rk]; had {
+				mv[rk] = m
+			}
 			continue
 		}
 		if s.Unsent && !p.first && p.sendFirst(t, agent, s.Status, p.st.First[rk]) {
@@ -378,6 +420,11 @@ func (p *project) watch(now time.Time) {
 		// 控えに「送った」があればラベルが残っていても届いたとみる（続きを打ってよい）
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
+		if s.Status == "working" && !s.Gone {
+			prev, had := p.st.Moved[rk]
+			m := moved(prev, had, s.Msg, func() (string, error) { return hcOut("read", agent, "--lines", "40") }, nowMs)
+			mv[rk], s.Moved = m, m.At
+		}
 		r = r.Saw(s, nowMs)
 		v := Judge(s, func() string { out, _ := hcOut("read", agent, "--lines", "40"); return out }, r, nowMs)
 		if v.Retry && !p.first {
@@ -419,7 +466,7 @@ func (p *project) watch(now time.Time) {
 			retry[k] = r
 		}
 	}
-	p.st.Sent, p.st.Retry, p.st.First = sent, retry, first
+	p.st.Sent, p.st.Retry, p.st.First, p.st.Moved = sent, retry, first, mv
 }
 
 // countResend は打つ前に、回数と時刻を1つ進めた控えを保存する（打ってから pass の最後の保存の前に dispatcher が落ちても、

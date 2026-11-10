@@ -43,6 +43,14 @@ func TestRouteOf(t *testing.T) {
 		{"error", "error", nil, Facts{}, Deliver},
 		{"finished", "finished", nil, Facts{}, Deliver},
 		{"stalled", "stalled", nil, Facts{}, Deliver},
+		{"Chief Engineer の stalled", "stalled", nil, Facts{Engineer: true}, Record},
+		{"Chief Engineer の blocked", "blocked", nil, Facts{Engineer: true}, Record},
+		{"Chief Engineer の ready", "ready", nil, Facts{Engineer: true}, Record},
+		{"Chief Engineer の error", "error", nil, Facts{Engineer: true}, Deliver},
+		{"Chief Engineer の finished", "finished", nil, Facts{Engineer: true}, Deliver},
+		{"Chief Engineer の review（文書の PR）", "review", nil, Facts{Engineer: true}, Deliver},
+		{"Chief Engineer の report", "report", nil, Facts{Engineer: true}, Deliver},
+		{"Chief Engineer の asked", "asked", nil, Facts{Engineer: true}, Deliver},
 	} {
 		if got := RouteOf(Notification{Kind: c.kind, Detail: c.d}, c.f); got != c.want {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)
@@ -115,6 +123,30 @@ func TestRecordOnly(t *testing.T) {
 	}
 	if len(recorded(t)) != 5 {
 		t.Fatal("届けた通知を記録に書いた")
+	}
+}
+
+// Chief Engineer の課題（profile chief-engineer）の stalled・blocked・ready は記録だけ。error・finished と、
+// 担当の同じ通知は今どおり届く（A-0036）。
+func TestEngineerRecordOnly(t *testing.T) {
+	p := routeProject(t)
+	at := map[string]any{"agent": "t9", "status_ms": 1}
+	p.notify("D-0002", "stalled", at)
+	p.notify("D-0002", "blocked", at)
+	p.notify("D-0002", "ready", map[string]any{"title": "設計"})
+	if len(p.st.Pending) != 0 {
+		t.Fatalf("Chief Engineer の止まり・ready を積んだ: %+v", p.st.Pending)
+	}
+	if got := recorded(t); len(got) != 3 || got[0].Kind != "stalled" || got[1].Kind != "blocked" || got[2].Kind != "ready" {
+		t.Fatalf("記録が1行ずつでない: %+v", got)
+	}
+	p.notify("D-0002", "error", at)
+	p.notify("D-0002", "finished", at)
+	p.notify("D-0003", "stalled", at)
+	p.notify("D-0003", "blocked", at)
+	p.notify("D-0003", "ready", map[string]any{"title": "x"})
+	if len(p.st.Pending) != 5 {
+		t.Fatalf("届ける通知を積まない: %+v", p.st.Pending)
 	}
 }
 
