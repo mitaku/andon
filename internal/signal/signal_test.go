@@ -127,6 +127,25 @@ func TestCollectGitHub(t *testing.T) {
 	if ci = find(f, repo+"/ci.yml@main"); !ci.Active || ci.Count != 3 || ci.Episodes != 2 || ci.DeliveredEpisode != 1 {
 		t.Errorf("また失敗: %+v", ci)
 	}
+
+	// 読んだ 100 件に ci.yml の結果の出た run が無い（取り消しだけ・ページの外）なら、失敗中の記録を消えたことにしない。
+	// issue が上限まで返ったら、その外があるかもしれないので、見えなかった issue を消えたことにしない（レビュー 1 回目）
+	g.ci = `{"workflow_runs": [{"path": ".github/workflows/ci.yml", "name": "ci", "event": "push", "conclusion": "cancelled", "html_url": "https://github.com/example/sample-site/actions/runs/8"},
+ {"path": ".github/workflows/lint.yml", "name": "lint", "event": "push", "conclusion": "success", "html_url": "https://github.com/example/sample-site/actions/runs/9"}]}`
+	g.issues = `[{"number": 14, "title": "New", "url": "https://github.com/example/sample-site/issues/14"}]`
+	defer func(n int) { issueLimit = n }(issueLimit)
+	issueLimit = 1
+	o.Now = t0.Add(40 * time.Minute)
+	f = collect(t, o)
+	if ci = find(f, repo+"/ci.yml@main"); !ci.Active || ci.Count != 3 || ci.Episodes != 2 {
+		t.Errorf("ページの外の CI が消えた: %+v", ci)
+	}
+	if is := find(f, repo+"#12"); !is.Active {
+		t.Errorf("上限まで返ったのに issue を消えたことにした: %+v", is)
+	}
+	if is := find(f, repo+"#14"); !is.Active || is.Count != 1 {
+		t.Errorf("上限の中の issue: %+v", is)
+	}
 }
 
 func writeFile(t *testing.T, path string, f *File) {

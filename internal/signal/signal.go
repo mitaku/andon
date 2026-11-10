@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -159,12 +160,13 @@ func Collect(o Options, w io.Writer) (int, error) {
 			}
 			done[unit] = true
 			var seen []Seen
+			var judged func(key string) bool
 			var prefix string
 			if s.Source == "github-ci" {
-				seen, err = readCI(o.GH, repo)
+				seen, judged, err = readCI(o.GH, repo)
 				prefix = repo + "/"
 			} else {
-				seen, err = readIssues(o.GH, repo, s.Filter)
+				seen, judged, err = readIssues(o.GH, repo, s.Filter)
 				prefix = repo + "#"
 			}
 			if err != nil {
@@ -173,7 +175,7 @@ func Collect(o Options, w io.Writer) (int, error) {
 				continue
 			}
 			read++
-			n, again, gone := merge(f, o.Slug, s.Source, s.Weight, prefix, seen, now)
+			n, again, gone := merge(f, o.Slug, s.Source, s.Weight, prefix, seen, judged, now)
 			fmt.Fprintf(w, "%s: 見えている %d 件（新しい %d・また出た %d・消えた %d）\n", unit, len(seen), n, again, gone)
 		}
 	}
@@ -187,9 +189,9 @@ func Collect(o Options, w io.Writer) (int, error) {
 }
 
 // merge は1つの出所（source と repo）を1回読んだ結果を記録に当てる。見えたものは count を1増やし、
-// 消えていたもの（active: false）がまた見えたら episodes を1増やす。この出所の記録で見えなかったものは active: false。
-// delivered_episode は dispatcher が書くので触らない（ADR-0011 決めたこと 8）。
-func merge(f *File, slug, source, weight, prefix string, seen []Seen, now string) (added, again, gone int) {
+// 消えていたもの（active: false）がまた見えたら episodes を1増やす。この出所の記録で見えなかったもののうち、
+// 読んだ範囲で結果が分かったもの（judged）は active: false。分からなかったもの（読める件数の外）は変えない。delivered_episode は dispatcher が書くので触らない（ADR-0011 決めたこと 8）。
+func merge(f *File, slug, source, weight, prefix string, seen []Seen, judged func(string) bool, now string) (added, again, gone int) {
 	at := map[string]int{}
 	for i, r := range f.Signals {
 		at[r.Fingerprint] = i
@@ -219,7 +221,7 @@ func merge(f *File, slug, source, weight, prefix string, seen []Seen, now string
 	}
 	for i := range f.Signals {
 		r := &f.Signals[i]
-		if r.Source == source && r.Project == slug && strings.HasPrefix(r.Key, prefix) && r.Active && !hit[r.Fingerprint] {
+		if r.Source == source && r.Project == slug && strings.HasPrefix(r.Key, prefix) && r.Active && !hit[r.Fingerprint] && judged(r.Key) {
 			r.Active = false
 			gone++
 		}
@@ -235,11 +237,12 @@ func split(repo string) (string, string) {
 
 // readCI は repo の main の CI を読み、workflow ごとに最新の結果が失敗のものを返す（key は <repo>/<workflow のファイル名>@main）。
 // 見るのは結果の出た run（成功・失敗・時間切れ・起動の失敗）だけで、取り消し・飛ばしは workflow の状態を決めない。
-func readCI(gh GH, repo string) ([]Seen, error) {
+// 読むのは新しい 100 件で、その中に結果の出た run の無い workflow は judged が false（消えたことにしない）。
+func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 	host, name := split(repo)
 	b, err := gh("api", "--hostname", host, "repos/"+name+"/actions/runs?branch=main&status=completed&per_page=100")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var res struct {
 		WorkflowRuns []struct {
@@ -253,7 +256,7 @@ func readCI(gh GH, repo string) ([]Seen, error) {
 		} `json:"workflow_runs"`
 	}
 	if err := jsonDecode(b, &res); err != nil {
-		return nil, fmt.Errorf("gh api の応答が読めない: %v", err)
+		return nil, nil, fmt.Errorf("gh api の応答が読めない: %v", err)
 	}
 	decided := map[string]bool{}
 	var out []Seen
@@ -273,18 +276,19 @@ func readCI(gh GH, repo string) ([]Seen, error) {
 		}
 		out = append(out, s)
 	}
-	return out, nil
+	return out, func(key string) bool { return decided[strings.TrimSuffix(strings.TrimPrefix(key, repo+"/"), "@main")] }, nil
 }
 
 // readIssues は repo の open の issue を読む（key は <repo>#<n>）。filter は GitHub の検索の語としてそのまま渡す（決めたこと 9）。
-func readIssues(gh GH, repo string, filter *string) ([]Seen, error) {
-	args := []string{"issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title,url"}
+// 上限（issueLimit 件）まで返ったら、その外があるかもしれないので judged は false（どれも消えたことにしない）。
+func readIssues(gh GH, repo string, filter *string) ([]Seen, func(string) bool, error) {
+	args := []string{"issue", "list", "--repo", repo, "--state", "open", "--limit", strconv.Itoa(issueLimit), "--json", "number,title,url"}
 	if filter != nil {
 		args = append(args, "--search", *filter)
 	}
 	b, err := gh(args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var res []struct {
 		Number int    `json:"number"`
@@ -292,7 +296,7 @@ func readIssues(gh GH, repo string, filter *string) ([]Seen, error) {
 		URL    string `json:"url"`
 	}
 	if err := jsonDecode(b, &res); err != nil {
-		return nil, fmt.Errorf("gh issue list の応答が読めない: %v", err)
+		return nil, nil, fmt.Errorf("gh issue list の応答が読めない: %v", err)
 	}
 	var out []Seen
 	for _, r := range res {
@@ -301,8 +305,12 @@ func readIssues(gh GH, repo string, filter *string) ([]Seen, error) {
 		}
 		out = append(out, Seen{Key: fmt.Sprintf("%s#%d", repo, r.Number), URL: r.URL, Title: line(r.Title)})
 	}
-	return out, nil
+	complete := len(res) < issueLimit
+	return out, func(string) bool { return complete }, nil
 }
+
+// issueLimit は1回に読む issue の上限。
+var issueLimit = 1000
 
 // RunGH は本物の gh。誤りには stderr の最後の行を添える。
 func RunGH(args ...string) ([]byte, error) {
