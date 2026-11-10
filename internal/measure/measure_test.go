@@ -178,11 +178,14 @@ func TestTableOrderAndCounterNextToAutoMerge(t *testing.T) {
 	Table(&b, res, columnsOrder(res))
 	out := b.String()
 	lines := strings.Split(out, "\n")
-	if !strings.HasPrefix(lines[0], "価値: 未計測") {
-		t.Errorf("先頭が「価値: 未計測」でない: %q", lines[0])
+	if !strings.HasPrefix(lines[0], "価値: 仮説を確かめた数 記録なし") {
+		t.Errorf("先頭が価値の行でない: %q", lines[0])
 	}
-	if i, j := strings.Index(out, "\n流れ\n"), strings.Index(out, "\n効率\n"); i < 0 || j < 0 || i > j {
-		t.Errorf("流れ → 効率 の順でない:\n%s", out)
+	if strings.Contains(out, "未計測") {
+		t.Errorf("「未計測」が残っている:\n%s", out)
+	}
+	if i, j, k := strings.Index(out, "\n価値\n"), strings.Index(out, "\n流れ\n"), strings.Index(out, "\n効率\n"); i < 0 || j < 0 || k < 0 || i > j || j > k {
+		t.Errorf("価値 → 流れ → 効率 の順でない:\n%s", out)
 	}
 	found := false
 	for _, ln := range lines {
@@ -437,5 +440,99 @@ func TestUnreadableAnsweredIsSkippedNotUnanswered(t *testing.T) {
 	why, ok := skippedSources(res)["kanban/issues/S-0002/questions.yaml"]
 	if !ok || !strings.Contains(why, "answered") {
 		t.Errorf("読めない answered が飛ばした記録に無い: %+v", res.Skipped)
+	}
+}
+
+// valueLedger は価値の行の偽の台帳（ADR-0011 決めたこと 18）。期間 2026-11-01〜2026-11-10 で手で数えた値:
+//
+//	E-0001 Chief Engineer の課題。11-02 00:00 に done。観察 E-0002（parent）が 11-04 12:00 に review・hit → 2.5 日。
+//	E-0003 Chief Engineer の課題。11-03 00:00 に done。観察 E-0004 が 11-08 00:00 に review・unknown → 5 日。
+//	E-0005 Chief Engineer の課題。11-05 00:00 に done。観察の課題が無い（価値の仮説「無し」）。
+//	E-0006 Chief Engineer の課題。11-12 に done（期間の外）。観察の課題が無い → 数えない。
+//	E-0007 観察の課題だが parent が Chief Engineer でない（E-0008）。11-06 に review・miss → 数えるが日数には入れない。
+//
+//	(a) 確かめた 3 件（hit 1・miss 1・unknown 1）  (b) 日数 (2.5, 5) の中央値 3.75、2 件  (c) 仮説「無し」 1 件
+func valueLedger(t *testing.T) string {
+	root := filepath.Join(t.TempDir(), "sample-site")
+	k := filepath.Join(root, "kanban")
+	put(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: E\n")
+	issue := func(id, profile, parent, obs string) {
+		y := "id: " + id + "\ntitle: t\nstatus: done\ncreated: \"2026-11-01T00:00:00Z\"\nprofile: " + profile + "\n"
+		if parent != "" {
+			y += "parent: " + parent + "\n"
+		}
+		put(t, filepath.Join(k, "issues", id, "issue.yaml"), y)
+		if obs != "" {
+			put(t, filepath.Join(k, "issues", id, "library/report.json"),
+				`{"observation": {"hypothesis": "h", "result": "`+obs+`", "evidence": []}}`)
+		}
+	}
+	issue("E-0001", "chief-engineer", "", "")
+	issue("E-0002", "claude", "E-0001", "hit")
+	issue("E-0003", "chief-engineer", "", "")
+	issue("E-0004", "claude", "E-0003", "unknown")
+	issue("E-0005", "chief-engineer", "", "")
+	issue("E-0006", "chief-engineer", "", "")
+	issue("E-0007", "claude", "E-0008", "miss")
+	issue("E-0008", "claude", "", "")
+	// 通常の epic の子課題（観察の課題ではない）は、E-0005 を「無し」から外さない
+	issue("E-0009", "claude", "E-0005", "")
+	put(t, filepath.Join(k, "issues/E-0009/issue.yaml"), "id: E-0009\ntitle: t\nstatus: done\ncreated: \"2026-11-01T00:00:00Z\"\nprofile: claude\nparent: E-0005\nnot_before: \"2026-11-12\"\n")
+	// 不正な result は黙って落とさず skipped に出す
+	issue("E-0010", "claude", "E-0001", "")
+	put(t, filepath.Join(k, "issues/E-0010/library/report.json"), `{"observation": {"result": "later"}}`)
+	st := func(at, id, status string) string {
+		return `{"at":"` + at + `","by":"terminal:t1","id":"` + id + `","change":{"status":"` + status + `"}}`
+	}
+	log := strings.Join([]string{
+		st("2026-11-02T00:00:00Z", "E-0001", "done"), st("2026-11-04T12:00:00Z", "E-0002", "review"),
+		st("2026-11-03T00:00:00Z", "E-0003", "done"), st("2026-11-08T00:00:00Z", "E-0004", "review"),
+		st("2026-11-05T00:00:00Z", "E-0005", "done"), st("2026-11-12T00:00:00Z", "E-0006", "done"),
+		st("2026-11-06T00:00:00Z", "E-0007", "review"), ``,
+	}, "\n")
+	put(t, filepath.Join(k, "log.jsonl"), log)
+	return root
+}
+
+func TestValueMatchesHandCount(t *testing.T) {
+	o := opts(valueLedger(t))
+	o.Until, o.Now = day("2026-11-10"), day("2026-11-20")
+	res, err := Measure(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := res.Value
+	checks := []struct {
+		name      string
+		got, want any
+	}{
+		{"(a) observed", v.Observed.Count, 3},
+		{"(a) hit", v.Observed.Hit, 1},
+		{"(a) miss", v.Observed.Miss, 1},
+		{"(a) unknown", v.Observed.Unknown, 1},
+		{"(b) days count", v.DaysToObserve.Count, 2},
+		{"(b) days median", val(v.DaysToObserve.Days), 3.75},
+		{"(c) no hypothesis", v.NoHypothesis, 1},
+		{"skipped（不正な result）", len(res.Skipped), 1},
+	}
+	for _, x := range checks {
+		if x.got != x.want {
+			t.Errorf("%s: got %v, want %v", x.name, x.got, x.want)
+		}
+	}
+	var b bytes.Buffer
+	Table(&b, res, columnsOrder(res))
+	for _, want := range []string{"価値: 仮説を確かめた数 3件（hit 1・miss 1・unknown 1）", "3.75日（中央値。2件）", "価値の仮説「無し」の題         1"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("表に %q が無い:\n%s", want, b.String())
+		}
+	}
+	// 期間を狭めると、期間の外の報告・done は数えない
+	o.Since, o.Until = day("2026-11-07"), day("2026-11-10")
+	if res, err = Measure(o); err != nil {
+		t.Fatal(err)
+	}
+	if v := res.Value; v.Observed.Count != 1 || v.Observed.Unknown != 1 || v.DaysToObserve.Count != 1 || val(v.DaysToObserve.Days) != 5.0 || v.NoHypothesis != 0 {
+		t.Errorf("狭めた期間: %+v", v)
 	}
 }

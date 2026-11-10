@@ -61,11 +61,33 @@ type Result struct {
 	Since      string     `json:"since"`
 	Until      string     `json:"until"`
 	Days       int        `json:"days"`
+	Value      Value      `json:"value"`
 	Flow       Flow       `json:"flow"`
 	Efficiency Efficiency `json:"efficiency"`
 	Counter    Counter    `json:"counter"`
 	PRs        []PR       `json:"prs"`
 	Skipped    []Skip     `json:"skipped"`
+}
+
+// Value は価値（ADR-0011 決めたこと 18）。観察の課題の報告 `observation` と Chief Engineer の課題から導く。
+type Value struct {
+	Observed      Observed `json:"observed"`        // (a) 期間に報告された観察の結果の内訳
+	DaysToObserve DaysStat `json:"days_to_observe"` // (b) Chief Engineer の課題の done から観察の報告まで（中央値）
+	NoHypothesis  int      `json:"no_hypothesis"`   // (c) 期間に done になった Chief Engineer の課題のうち、観察の課題が無いもの
+}
+
+// Observed は仮説を確かめた数。
+type Observed struct {
+	Count   int `json:"count"`
+	Hit     int `json:"hit"`
+	Miss    int `json:"miss"`
+	Unknown int `json:"unknown"`
+}
+
+// DaysStat は件数と日数の中央値（無ければ null）。
+type DaysStat struct {
+	Count int      `json:"count"`
+	Days  *float64 `json:"days"`
 }
 
 // Flow は流れ（Little の法則の3つと、依頼書からマージまで）。
@@ -162,6 +184,9 @@ type issue struct {
 	gates    []gateRec
 	corr     bool
 	asked    []span
+	profile  string
+	parent   string
+	obs      string // report.json の observation.result（観察の報告が無ければ空）
 }
 
 type span struct{ from, to time.Time } // to がゼロなら開いたまま
@@ -447,6 +472,58 @@ func Measure(o Options) (*Result, error) {
 	}
 	f.Closed = Closed{Count: closed, PerDay: round(float64(closed) / float64(res.Days))}
 
+	// 価値（ADR-0011 決めたこと 18）。観察の課題は parent が Chief Engineer の課題。
+	v := &res.Value
+	var doneAt, reportedAt = map[string]time.Time{}, map[string]time.Time{}
+	for _, row := range rows {
+		if row.status == "" {
+			continue
+		}
+		if row.status == last {
+			doneAt[row.id] = row.at // 最後に done へ動いた時刻
+		}
+		if _, seen := reportedAt[row.id]; !seen && (row.status == "review" || row.status == last) {
+			reportedAt[row.id] = row.at // 報告を返した（review か done に最初に動いた）時刻
+		}
+	}
+	hasChild := map[string]bool{}
+	var days []float64
+	for _, id := range ids {
+		t := byID[id]
+		if t.reviewer || t.parent == "" {
+			continue
+		}
+		if t.obs != "" {
+			hasChild[t.parent] = true // 観察の報告を持つ子だけ（通常の epic の子課題や not_before だけの課題は数えない）
+		}
+		if t.obs == "" {
+			continue
+		}
+		at, ok := reportedAt[id]
+		if !ok || !in(at) {
+			continue
+		}
+		v.Observed.Count++
+		switch t.obs {
+		case "hit":
+			v.Observed.Hit++
+		case "miss":
+			v.Observed.Miss++
+		default:
+			v.Observed.Unknown++
+		}
+		if d, ok := doneAt[t.parent]; ok && byID[t.parent] != nil && byID[t.parent].profile == "chief-engineer" && !at.Before(d) {
+			days = append(days, at.Sub(d).Hours()/24)
+		}
+	}
+	v.DaysToObserve = DaysStat{Count: len(days), Days: median(days)}
+	for _, id := range ids {
+		t := byID[id]
+		if d, ok := doneAt[id]; ok && t.profile == "chief-engineer" && !t.reviewer && in(d) && !hasChild[id] {
+			v.NoHypothesis++
+		}
+	}
+
 	// 対抗の指標
 	c := &res.Counter
 	c.Reverted = len(revertedPR)
@@ -713,7 +790,7 @@ func (r *reader) issues() []*issue {
 			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
-		t := &issue{id: id, after: len(v.After) > 0, links: v.Links}
+		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent)}
 		t.created, _ = parseAt(v.Created)
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
@@ -728,6 +805,7 @@ func (r *reader) issues() []*issue {
 				}
 			}
 		}
+		t.obs = r.observation(lib)
 		t.corr = r.corrections(lib)
 		t.asked = r.questions(filepath.Join(r.dir, "issues", id, "questions.yaml"))
 		out = append(out, t)
@@ -749,6 +827,28 @@ func (r *reader) reportPR(lib string) string {
 		return ""
 	}
 	return v.PR
+}
+
+// observation は観察の報告の result（hit・miss・unknown）。無ければ空。
+func (r *reader) observation(lib string) string {
+	path := filepath.Join(lib, "report.json")
+	b, ok := r.read(path)
+	if !ok {
+		return ""
+	}
+	var v struct {
+		Observation *struct {
+			Result any `json:"result"`
+		} `json:"observation"`
+	}
+	if json.Unmarshal(b, &v) != nil || v.Observation == nil {
+		return ""
+	}
+	if res, _ := v.Observation.Result.(string); res == "hit" || res == "miss" || res == "unknown" {
+		return res
+	}
+	r.skip(r.rel(path), 0, "observation.result が hit・miss・unknown のどれでもない。この観察は数えていない")
+	return ""
 }
 
 func (r *reader) gates(lib string) []gateRec {
@@ -983,8 +1083,20 @@ func pct(r *float64, n, d int) string {
 
 // Table は人向けの表。価値 → 流れ → 効率の順で、自動マージ率の行に対抗の指標を並べる。
 func Table(w io.Writer, res *Result, states []string) {
-	fmt.Fprintln(w, "価値: 未計測（価値のループができてから入る。docs/decisions/2026-11-09-measure-flow-metrics.md）")
+	val := res.Value
+	obs := none
+	if val.Observed.Count > 0 {
+		obs = fmt.Sprintf("%d件（hit %d・miss %d・unknown %d）", val.Observed.Count, val.Observed.Hit, val.Observed.Miss, val.Observed.Unknown)
+	}
+	fmt.Fprintf(w, "価値: 仮説を確かめた数 %s\n", obs)
 	fmt.Fprintf(w, "プロジェクト %s・期間 %s〜%s（%d日。UTC）\n", res.Project, res.Since, res.Until, res.Days)
+	fmt.Fprintln(w, "\n価値")
+	seen := none
+	if val.DaysToObserve.Days != nil {
+		seen = fmt.Sprintf("%.2f日（中央値。%d件）", *val.DaysToObserve.Days, val.DaysToObserve.Count)
+	}
+	fmt.Fprintf(w, "  題から結果を見るまで           %s\n", seen)
+	fmt.Fprintf(w, "  価値の仮説「無し」の題         %d\n", val.NoHypothesis)
 	f, e, c := res.Flow, res.Efficiency, res.Counter
 	fmt.Fprintln(w, "\n流れ")
 	fmt.Fprintf(w, "  依頼書からマージまで（中央値）  %s\n", hours(f.LeadTime))
