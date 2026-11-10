@@ -5,6 +5,32 @@
 - 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
 - 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
 
+## v0.0.6 — 2026-11-10
+
+止まった担当と Chief Engineer を同じ worktree でセッションの続きから起こせるようにし、worktree の置き場をセルの repo の中へ移した版。台帳に任意のキー（`session`・`not_before`）、`report.json` に任意の `observation`、信号の記録の schema が入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（足したキーは全部任意）。
+
+### 変わったこと
+
+- **`andon issue resume <id> [--fresh] [--dry-run]`**: セルが起き直して端末が素のシェルに戻った（か端末が無い）`doing` の担当と Chief Engineer を、同じ worktree・branch のままセッションの続きから起こす。worktree が消えていれば戻す。セッションの記録が無ければ止まり、人の go で `--fresh`（新しいセッション。前の `report.md` を読ませる）。Claude 系は起こすときに Andon がセッションの id を決めて台帳の `session` に書く（Codex 系は `resume` のときに記録から引く）。ラベル `session=<id>` を足し、template の `command`・`resume:` の行が `andon issue session` で読む。`start`・`resume`・`finish` は台帳ごとの issue lock を持つ。`andon chief-engineer` は戻った端末を片付けなくなった。レビュアーは対象外。**dispatcher はまだ自動では打たない**（打つのは Chief of Staff か人。[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) 決めたこと 3・7・9・11〜14。#129）。
+- **worktree の置き場が `/workspace/.worktrees/<repo 名>/<slug>-<id>` に**（旧は `~/.herdr/worktrees`）。セルの repo の中なので、セルが起き直しても残る。置き場の根に `.gitignore`（`*`）を書くので、セルの git には出ない。`start`・dispatcher・`finish` の 3 か所の置き場を揃えた（[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) 決めたこと 6。#123 #125）。
+- **台帳の `not_before`**: `YYYY-MM-DD` を書くと、`kanban ready` がその日まで出さない（status も `after` も変えない）。日は `config.yaml` の `timezone`（無ければ UTC）で読む。`kanban lint` が日付でない値を報告する（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) 決めたこと 7。#119）。
+- **`report.json` に `observation`**: 観察の課題の報告で、価値の仮説と信号で確かめた結果（`hit`・`miss`・`unknown`）と根拠を書く。任意。ラインは結果で何もしない（ADR-0011 決めたこと 7。#121）。
+- **信号の記録の schema**: `schema/signal.schema.json`（`<slug>.signals.json`）、通知 `signal`、`project.json` の `signals`（外の信号の出所）。**schema と受け口だけで、信号を取りに行く command はまだ無い**（ADR-0011 の S1。#127）。
+- **用語集**: Chief Engineer の略称 CE、カタカナの決まり、「人への書き方」の節（結論を先に・文で書く・括弧は識別子だけ）。CE の問いは ask-one-by-one の §2 に（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) 決めたこと 2・3・5・6。#126）。
+- **ADR と決定の記録の語を置き換えた**: ふだんカタカナで言う語をカタカナに戻した（費用→コスト・持ち主→オーナーなど）。凍結した行にも及ぶが、語だけで決定の中身は変えない（ADR-0013 決めたこと 1・4。#128）。
+- **文書**: ADR-0012（resume と置き場。#123）と ADR-0013（役の呼び名と人に向けた日本語。#124）を足した。ADR-0012 は提案、ADR-0013 は決定（状態は各 ADR の冒頭）。ADR-0011（提案）の実装はここまでで S1（schema）・`not_before`・`observation` だけ。
+
+### 上げるときにすること
+
+- image を上げて `rebuild` する。台帳の形式（3）・schema の版（`/2`）は変わらず、足したキー（`session`・`not_before`・`observation`・`signals`・通知の `signal`）は任意で、前の版の台帳・`library/` はそのまま読める。**互換のための手作業は無い**。
+- **`<profile>-resume` の template は `rebuild` の boot が作る**（boot は起動のたびにプロファイルを作り直す）。別に boot をやり直す手は要らない。ただし、セルの `templates.local/` に `claude`・`sonnet`・`fable`・`codex`・`chief-engineer` を置き替えた複製があれば、それには `resume:` の行が無く、`<profile>-resume` が作られない（`resume` が「template が無い」で止まる）。複製に `package/templates/` の `resume:` の行を足す。
+- **動いている課題の worktree は旧の置き場のまま**（`~/.herdr/worktrees/…`）。台帳の `worktree` の値が正で、動き続ける。`andon issue finish` は旧の置き場の値も対として受けるが、**1 版だけ**（[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) 決めたこと 6）。旧の置き場は image の外にあるので、セルが起き直すと消える。上げるときに `doing` の課題が残っていれば、先に片付けるか、上げたあとに `resume` で戻す（`resume` は台帳の値の旧の置き場のまま戻す）。新しく起こす課題から `/workspace/.worktrees` になる。
+- **上げる前に起こした担当は、台帳に `session` が無い**。そうした課題を `resume` すると「セッションを記録する前に起きた課題」で止まる。続けるなら人の go で `andon issue resume --fresh <id>`。上げたあとに `start` した課題から続きから起こせる。
+- **セルの repo で `git clean -x`（`-dx` も）を打たない**。`/workspace/.worktrees` は `.gitignore` で除いているので、`git status` には出ないが、`git clean -x` は ignore を無視して worktree ごと消す（[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) 決めたこと 13 の 6）。消す前に `git clean -ndx` で確かめる。
+- `not_before` を書くのは、台帳の `kanban` がこの版以降のとき。ファイルを自分で読む板（mod など）は知らないキーを無視するので、日付の前でも `ready` に見える。`kanban ready` だけが止める（[docs/ledger.md](docs/ledger.md)）。
+- 外の信号の出所（`project.json` の `signals`）は、**image を上げてから**書く。古い版の `andon` は知らないキーとして `project.json` ごと弾き、担当を一切起こせなくなる（[contract.md](docs/contract.md) §11・[docs/operate.md](docs/operate.md)）。信号を取りに行く command はこの版には無い。
+- 起き直したあとの扱いは [docs/operate.md](docs/operate.md) 冒頭「役の配置と起動（一覧）」の担当・Chief Engineer の行（`resume`）。
+
 ## v0.0.5 — 2026-11-10
 
 人の入口を Chief of Staff にし、マージの検知・人の手直しの記録・流れの数え・レビューを詰まらせない工夫が入った版。**台帳の形式・schema の版は変わらない**（足したキーは全部任意）。
