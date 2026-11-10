@@ -475,6 +475,11 @@ func valueLedger(t *testing.T) string {
 	issue("E-0006", "chief-engineer", "", "")
 	issue("E-0007", "claude", "E-0008", "miss")
 	issue("E-0008", "claude", "", "")
+	// 通常の epic の子課題（観察の課題ではない）は、E-0005 を「無し」から外さない
+	issue("E-0009", "claude", "E-0005", "")
+	// 不正な result は黙って落とさず skipped に出す
+	issue("E-0010", "claude", "E-0001", "")
+	put(t, filepath.Join(k, "issues/E-0010/library/report.json"), `{"observation": {"result": "later"}}`)
 	st := func(at, id, status string) string {
 		return `{"at":"` + at + `","by":"terminal:t1","id":"` + id + `","change":{"status":"` + status + `"}}`
 	}
@@ -507,6 +512,7 @@ func TestValueMatchesHandCount(t *testing.T) {
 		{"(b) days count", v.DaysToObserve.Count, 2},
 		{"(b) days median", val(v.DaysToObserve.Days), 3.75},
 		{"(c) no hypothesis", v.NoHypothesis, 1},
+		{"skipped（不正な result）", len(res.Skipped), 1},
 	}
 	for _, x := range checks {
 		if x.got != x.want {

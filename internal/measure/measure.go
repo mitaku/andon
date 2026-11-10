@@ -174,19 +174,20 @@ type logRow struct {
 }
 
 type issue struct {
-	id       string
-	created  time.Time
-	added    time.Time
-	after    bool
-	links    []string
-	reviewer bool
-	pr       string
-	gates    []gateRec
-	corr     bool
-	asked    []span
-	profile  string
-	parent   string
-	obs      string // report.json の observation.result（観察の報告が無ければ空）
+	id        string
+	created   time.Time
+	added     time.Time
+	after     bool
+	links     []string
+	reviewer  bool
+	pr        string
+	gates     []gateRec
+	corr      bool
+	asked     []span
+	profile   string
+	parent    string
+	notBefore bool   // 見る日（not_before）が置かれている＝観察の課題（ADR-0011 決めたこと 7）
+	obs       string // report.json の observation.result（観察の報告が無ければ空）
 }
 
 type span struct{ from, to time.Time } // to がゼロなら開いたまま
@@ -493,7 +494,9 @@ func Measure(o Options) (*Result, error) {
 		if t.reviewer || t.parent == "" {
 			continue
 		}
-		hasChild[t.parent] = true
+		if t.obs != "" || t.notBefore {
+			hasChild[t.parent] = true // 通常の epic の子課題は観察の課題に数えない
+		}
 		if t.obs == "" {
 			continue
 		}
@@ -778,17 +781,18 @@ func (r *reader) issues() []*issue {
 			continue
 		}
 		var v struct {
-			Created string   `yaml:"created"`
-			After   []string `yaml:"after"`
-			Links   []string `yaml:"links"`
-			Profile string   `yaml:"profile"`
-			Parent  string   `yaml:"parent"`
+			Created   string   `yaml:"created"`
+			After     []string `yaml:"after"`
+			Links     []string `yaml:"links"`
+			Profile   string   `yaml:"profile"`
+			Parent    string   `yaml:"parent"`
+			NotBefore string   `yaml:"not_before"`
 		}
 		if yaml.Unmarshal(b, &v) != nil {
 			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
-		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent)}
+		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent), notBefore: v.NotBefore != ""}
 		t.created, _ = parseAt(v.Created)
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
@@ -829,22 +833,23 @@ func (r *reader) reportPR(lib string) string {
 
 // observation は観察の報告の result（hit・miss・unknown）。無ければ空。
 func (r *reader) observation(lib string) string {
-	b, ok := r.read(filepath.Join(lib, "report.json"))
+	path := filepath.Join(lib, "report.json")
+	b, ok := r.read(path)
 	if !ok {
 		return ""
 	}
 	var v struct {
 		Observation *struct {
-			Result string `json:"result"`
+			Result any `json:"result"`
 		} `json:"observation"`
 	}
 	if json.Unmarshal(b, &v) != nil || v.Observation == nil {
 		return ""
 	}
-	switch v.Observation.Result {
-	case "hit", "miss", "unknown":
-		return v.Observation.Result
+	if res, _ := v.Observation.Result.(string); res == "hit" || res == "miss" || res == "unknown" {
+		return res
 	}
+	r.skip(r.rel(path), 0, "observation.result が hit・miss・unknown のどれでもない。この観察は数えていない")
 	return ""
 }
 
