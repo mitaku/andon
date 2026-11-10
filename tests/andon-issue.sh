@@ -327,7 +327,7 @@ printf '%s\n' "\$*" >>\$d/log
 case \$1 in
   ls) issue=; for a in "\$@"; do case \$a in issue=*) issue=\${a#issue=};; esac; done
       awk -v t="\$issue" 't == "" || \$3 == t {print \$1, \$2}' \$d/live | jq -Rn '{terminals: [inputs | split(" ") | {address: .[0], name: .[1], state: "live"}]}' ;;
-  templates) echo '{"templates":[{"name":"claude"},{"name":"codex"},{"name":"claude-resume"},{"name":"codex-resume"},{"name":"chief-engineer"},{"name":"chief-engineer-resume"}]}' ;;
+  templates) echo '{"templates":[{"name":"claude"},{"name":"codex"},{"name":"claude-resume"},{"name":"codex-resume"},{"name":"chief-engineer"},{"name":"chief-engineer-resume"},{"name":"codex-review-resume"},{"name":"claude-review-resume"}]}' ;;
   get) if [ -e \$d/get-\$2 ]; then cat \$d/get-\$2
        elif grep -q "^\$2 " \$d/live; then echo '{"state":"live","argv":["sh","-c","claude"],"foreground":{"argv":["sh","-c","claude"]},"labels":{}}'
        else echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; fi ;;
@@ -569,11 +569,55 @@ kanban set "$r3" status=doing "worktree=$tmp/elsewhere" "branch=demo/$r3" >/dev/
 expect_fail '置き場' "$andon" issue resume "$r3" --dry-run
 kanban set "$r3" machine=vps >/dev/null
 expect_fail 'machine=vps' "$andon" issue resume "$r3" --dry-run
-r4=$(kanban add "$r1 のレビュー" --parent "$r1" --profile codex-review --brief - <<<'# x')
-kanban set "$r4" status=doing >/dev/null
-expect_fail 'レビュアー' "$andon" issue resume "$r4" --dry-run
 [ ! -e "$tmp/elsewhere" ] || die '置き場の外に worktree を作った'
-ok 'resume: 置き場の外の worktree の値・machine のある課題・レビュアーは理由を言って止まる'
+ok 'resume: 置き場の外の worktree の値・machine のある課題は理由を言って止まる'
+
+# レビュアー: detached worktree を依頼書の commit で同じパスに戻し、cwd issues/<rev>/ で <profile>-resume を起こす（ADR-0012 決めたこと 8・13 の 5）
+git -C "$appdir" commit -q --allow-empty -m reviewed; rc=$(git -C "$appdir" rev-parse HEAD); prev=$(git -C "$appdir" rev-parse HEAD~1)
+rv=$(kanban add "$r1 のレビュー（2 回目）" --repo github.com/example/app --parent "$r1" --profile codex-review --round 2 --brief - <<EOF
+# $r1 のレビュー（2 回目）
+再レビュー: 前の回の commit $prev。見るのは \`git diff $prev..$rc\` だけ。
+対象: worktree \`x\`（detached）。commit $rc。差分は \`gh pr diff x\`。
+EOF
+)
+rvwt=$ANDON_WORKSPACE/.worktrees/app/demo-$rv; rvcwd=$PWD/kanban/issues/$rv
+git -C "$appdir" worktree add -q --detach "$rvwt" "$rc"
+(cd "$rvwt" && HC_TERMINAL_ID=t90 kanban start "$rv" >/dev/null)
+rm -rf "$rvwt"
+expect_fail "cwd $rvcwd の Codex の記録が無い" "$andon" issue resume "$rv" --dry-run
+rvs=55555555-5555-7555-8555-555555555555
+meta "$rvs" "$rvcwd" 2026-11-10T05:00:00.000Z > "$cs/rollout-r.jsonl"
+"$andon" issue resume "$rv" --dry-run --json > "$tmp/dry" || die "レビュアーの resume --dry-run が落ちた"
+jq -e --arg wt "$rvwt" --arg cwd "$rvcwd" --arg c "$rc" --arg s "$rvs" --arg id "$rv" --arg p "$r1" '.reviewer and .template == "codex-review-resume"
+  and .worktree == $wt and .cwd == $cwd and .commit == $c and .restore == "add" and .branch == null and .session == $s
+  and .labels == ["project=demo", "issue=\($id)", "title=\($p) のレビュー（2 回目）", "herdr.space=andon-demo-\($p)", "herdr.tab=andon-demo-\($p)", "session=\($s)"]' "$tmp/dry" >/dev/null \
+  || die "レビュアーの resume の計画: $(cat "$tmp/dry")"
+[ ! -e "$rvwt" ] || die 'dry-run が worktree を作った'
+: > "$tmp/hc/log"
+"$andon" issue resume "$rv" > "$tmp/out" || die "レビュアーの resume が落ちた: $(cat "$tmp/out")"
+[ "$(git -C "$rvwt" rev-parse HEAD)" = "$rc" ] && ! git -C "$rvwt" symbolic-ref -q HEAD >/dev/null || die "detached worktree が commit $rc に戻っていない: $(cat "$tmp/out")"
+grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
+[ "$(field "$rv" agent)" != t90 ] && [ "$(field "$rv" status)" = doing ] && [ "$(field "$rv" session)" = "$rvs" ] && [ "$(field "$rv" worktree)" = "$rvwt" ] && [ -z "$(field "$rv" branch)" ] \
+  || die "レビュアーの台帳: $(kanban show "$rv" --json | jq -c .issue)"
+ok 'resume: レビュアーは detached worktree を依頼書の対象の commit（前の回の commit でなく）で同じパスに戻し、cwd issues/<rev>/ で codex-review-resume を起こす'
+
+# レビュアーの worktree があれば触らない。claude-review は台帳の session で claude-review-resume
+sed -i "/^$(field "$rv" agent) /d" "$tmp/hc/live"; echo note > "$rvwt/note.txt"
+rcs=66666666-6666-4666-8666-666666666666; : > "$HOME/.claude/projects/-x/$rcs.jsonl"
+kanban set "$rv" profile=claude-review "session=$rcs" >/dev/null
+"$andon" issue resume "$rv" --dry-run --json | jq -e --arg s "$rcs" '.restore == "keep" and .template == "claude-review-resume" and .session == $s' >/dev/null \
+  || die "claude-review の resume の計画: $("$andon" issue resume "$rv" --dry-run --json)"
+"$andon" issue resume "$rv" >/dev/null && [ "$(cat "$rvwt/note.txt")" = note ] || die 'レビュアーの worktree があると resume できないか、触った'
+ok 'resume: レビュアーの worktree があれば触らずに起こす。claude-review は台帳の session で claude-review-resume'
+
+# 依頼書に対象の commit が無い・parent が無いレビュアーは止まる
+r4=$(kanban add "$r1 のレビュー" --repo github.com/example/app --parent "$r1" --profile codex-review --brief - <<<'# x')
+kanban set "$r4" status=doing "worktree=$ANDON_WORKSPACE/.worktrees/app/demo-$r4" >/dev/null
+expect_fail '対象の commit' "$andon" issue resume "$r4" --dry-run
+r6=$(kanban add 'orphan' --repo github.com/example/app --profile codex-review --brief - <<<'# x')
+kanban set "$r6" status=doing >/dev/null
+expect_fail 'parent が無い' "$andon" issue resume "$r6" --dry-run
+ok 'resume: 依頼書に対象の commit が無い・parent の無いレビュアーは理由を言って止まる'
 
 # Chief Engineer: ラベルは指揮側の Space（role=chief-engineer・herdr.space=andon-<slug>）
 r5=$(kanban add 'CE topic' --repo github.com/example/app --profile chief-engineer --brief - <<<'# x')

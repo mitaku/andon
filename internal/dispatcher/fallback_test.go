@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -100,8 +101,13 @@ func TestFallbackRestarts(t *testing.T) {
 		!strings.Contains(got[3], " claude-review 課題 `sample-site/S-7-r1`。") {
 		t.Fatalf("hc run が違う: %q", got[3])
 	}
-	if last := got[len(got)-1]; last != "kanban set S-7-r1 agent=t60" { // 最初のメッセージは複数行なので run の行は割れる
-		t.Fatalf("agent を替えていない: %q", last)
+	// Claude 系のレビュアーはセッションの id をラベル session で渡し、台帳の session に書く（andon issue resume が続きから起こす。ADR-0012 決めたこと 8）
+	m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd `).FindStringSubmatch(got[3])
+	if m == nil {
+		t.Fatalf("hc run に session のラベルが無い: %q", got[3])
+	}
+	if last := got[len(got)-1]; last != "kanban set S-7-r1 agent=t60 session="+m[1] { // 最初のメッセージは複数行なので run の行は割れる
+		t.Fatalf("agent と session を替えていない: %q", last)
 	}
 	if len(f.p.st.Pending) != 0 {
 		t.Fatalf("起こし直したのに知らせた: %q", f.kinds())
