@@ -653,6 +653,12 @@ func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
 			t.Fatalf("reviewer's worktree/branch changed from %s:\n%s", cwd, got)
 		}
 	}
+	// the first start (the dispatcher's, from the detached worktree) sets it when it is still empty
+	kanban(t, root, "add", "review 2", "--parent", "W-0001", "--profile", "claude-review")
+	kanban(t, repo, "start", "W-0001-r2")
+	if got, _ := os.ReadFile(taskFile(root, "W-0001-r2")); !strings.Contains(string(got), "worktree: ") {
+		t.Fatalf("the first start should set the worktree:\n%s", got)
+	}
 	kanban(t, repo, "start", "W-0001")
 	got, _ := os.ReadFile(taskFile(root, "W-0001"))
 	if !strings.Contains(string(got), "branch: main") {
