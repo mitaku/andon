@@ -87,6 +87,13 @@
           "minimum": 1
         }
       }
+    },
+    "signals": {
+      "description": "Outside sources the dispatcher reads (andon signal collect). Absent or empty: nothing is read. Written only by the owner. That repo is one of repos or references is checked by the command, not by this schema.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/signal"
+      }
     }
   },
   "$defs": {
@@ -351,6 +358,62 @@
           "items": {
             "$ref": "#/$defs/grant"
           }
+        }
+      }
+    },
+    "signal": {
+      "description": "One source of outside signals.",
+      "type": "object",
+      "required": [
+        "source",
+        "weight"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "description": "Which source.",
+          "enum": [
+            "github-ci",
+            "github-issues",
+            "sentry",
+            "linear",
+            "cloudflare"
+          ]
+        },
+        "repo": {
+          "description": "Repository the source is about; one of repos or references (checked by the command).",
+          "$ref": "#/$defs/repo"
+        },
+        "weight": {
+          "description": "now: delivered at once as a notification. later: recorded only, picked up by triage.",
+          "enum": [
+            "now",
+            "later"
+          ]
+        },
+        "every": {
+          "description": "Minutes between reads. Default 10.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "filter": {
+          "description": "Search words of the source, passed as they are (for github-issues, GitHub's search words).",
+          "type": "string",
+          "minLength": 1
+        },
+        "write_back": {
+          "description": "Whether andon issue finish writes one comment to this source's tracker. Default false.",
+          "type": "boolean"
+        },
+        "org": {
+          "description": "Organization in the source (sources other than GitHub).",
+          "type": "string",
+          "minLength": 1
+        },
+        "project": {
+          "description": "Project in the source (sources other than GitHub).",
+          "type": "string",
+          "minLength": 1
         }
       }
     },

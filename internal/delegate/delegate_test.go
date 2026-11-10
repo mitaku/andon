@@ -1,11 +1,15 @@
 package delegate
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"andon/internal/contract"
 )
 
 const sample = `{"version": 1, "project": "sample-site", "preset": "hobby",
@@ -130,6 +134,34 @@ func projectOf(d string) string {
 	return `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"], "delegation": ` + d + `}`
 }
 
+// signalsOf は signals に出所 sig を1つ持つ project.json（references に読むだけの repo と URL）。
+func signalsOf(sig string) string {
+	return `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"],
+ "references": ["github.com/example/design-notes", "https://example.com/spec"], "signals": [` + sig + `]}`
+}
+
+// ADR-0011 受け入れ条件 1: signals の正しい形は通り、書き直しても（andon delegate grant）そのまま残る。
+func TestParseProjectSignals(t *testing.T) {
+	j := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"],
+ "references": ["github.com/example/design-notes"],
+ "signals": [{"source": "github-ci", "repo": "github.com/example/sample-site", "weight": "now"},
+  {"source": "github-issues", "repo": "github.com/example/design-notes", "weight": "later", "every": 30, "filter": "label:bug", "write_back": false},
+  {"source": "sentry", "weight": "later", "org": "example", "project": "sample-site"}]}`
+	p, err := ParseProject([]byte(j), "sample-site")
+	if err != nil || len(p.Signals) != 3 || *p.Signals[1].Every != 30 || *p.Signals[1].Filter != "label:bug" || *p.Signals[2].Org != "example" {
+		t.Fatalf("%+v %v", p, err)
+	}
+	var back, want any
+	_ = json.Unmarshal(contract.Marshal(p), &back)
+	_ = json.Unmarshal([]byte(j), &want)
+	if !reflect.DeepEqual(back.(map[string]any)["signals"], want.(map[string]any)["signals"]) {
+		t.Errorf("書き直すと signals が変わる: %s", contract.Marshal(p))
+	}
+	if p, err := ParseProject([]byte(signalsOf(`{"source":"github-ci","weight":"now"}`)), "sample-site"); err != nil || p.Signals[0].Repo != nil {
+		t.Errorf("repo の無い出所: %+v %v", p, err)
+	}
+}
+
 func TestParseProject(t *testing.T) {
 	full := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"},
  "repos": ["github.com/example/sample-site"], "references": ["github.com/example/design-notes", "https://example.com/spec"],
@@ -154,6 +186,18 @@ func TestParseProject(t *testing.T) {
 		"delegation の形":        `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"delegation":{"version":1,"project":"other"}}`,
 		"parallel が 0":         `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"chief_of_staff":{"parallel":0}}`,
 		"cos に知らないキー":          `{"version":1,"project":{"title":"x","prefix":"S"},"repos":[],"chief_of_staff":{"goal":"x"}}`,
+		"signals の weight":     signalsOf(`{"source":"github-ci","repo":"github.com/example/sample-site","weight":"soon"}`),
+		"signals の weight が無い": signalsOf(`{"source":"github-ci","repo":"github.com/example/sample-site"}`),
+		"signals の source":     signalsOf(`{"source":"datadog","weight":"later"}`),
+		"signals の source が無い": signalsOf(`{"weight":"later"}`),
+		"signals の repo が外":    signalsOf(`{"source":"github-issues","repo":"github.com/example/other","weight":"later"}`),
+		"signals の repo が URL": signalsOf(`{"source":"github-issues","repo":"https://example.com/spec","weight":"later"}`),
+		"signals の repo が空":    signalsOf(`{"source":"github-issues","repo":"","weight":"later"}`),
+		"signals の every が 0":  signalsOf(`{"source":"github-ci","weight":"now","every":0}`),
+		"signals の filter が空":  signalsOf(`{"source":"github-issues","weight":"later","filter":""}`),
+		"signals の write_back": signalsOf(`{"source":"linear","weight":"later","write_back":"yes"}`),
+		"signals に知らないキー":      signalsOf(`{"source":"sentry","weight":"later","token":"x"}`),
+		"signals の null":       signalsOf(`{"source":"sentry","weight":"later","org":null}`),
 	} {
 		if _, err := ParseProject([]byte(j), "sample-site"); err == nil {
 			t.Errorf("%s: 通ってしまう", name)

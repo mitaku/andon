@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "blocked", "error", "finished", "stalled"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -37,6 +37,8 @@
       "then": { "properties": { "detail": { "$ref": "#/$defs/impact" } } } },
     { "if": { "properties": { "kind": { "const": "corrections" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/corrections" } } } },
+    { "if": { "properties": { "kind": { "const": "signal" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/signal" } } } },
     { "if": { "properties": { "kind": { "enum": ["blocked", "error", "finished", "stalled"] } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } }
   ],
@@ -108,6 +110,19 @@
       "description": "kind closed: the pull request of an issue in review was closed without merging. Not finished; notified once.",
       "type": "object", "required": ["pr"], "additionalProperties": false,
       "properties": { "pr": { "description": "The closed pull request.", "$ref": "#/$defs/pr" } }
+    },
+    "signal": {
+      "description": "kind signal: a signal of weight now seen for the first time in an episode (copied from the signal record, schema/signal.schema.json).",
+      "type": "object",
+      "required": ["source", "key", "url", "title", "weight"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "description": "As in the signal record.", "enum": ["github-ci", "github-issues", "sentry", "linear", "cloudflare"] },
+        "key": { "description": "As in the signal record.", "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001f\\u007f]*$" },
+        "url": { "description": "As in the signal record.", "type": "string", "pattern": "^https://[!-~]+$" },
+        "title": { "description": "As in the signal record. Untrusted: rendered inside the untrusted fence.", "type": "string", "pattern": "^[^\\u0000-\\u001f\\u007f]*$" },
+        "weight": { "description": "As in the signal record.", "enum": ["now", "later"] }
+      }
     },
     "corrections": {
       "description": "kind corrections: the dispatcher could not collect a finished issue's corrections.json (after one retry) and did not write it.",

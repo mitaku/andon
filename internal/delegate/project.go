@@ -21,6 +21,7 @@ type Project struct {
 	References   []string        `json:"references,omitempty"`
 	Delegation   json.RawMessage `json:"delegation,omitempty"`
 	ChiefOfStaff *ChiefOfStaff   `json:"chief_of_staff,omitempty"`
+	Signals      []Signal        `json:"signals,omitempty"`
 }
 
 // ProjectInfo は題と接頭字。
@@ -35,6 +36,21 @@ type ChiefOfStaff struct {
 	ReviewWhen      []string `json:"review_when,omitempty"`
 	TriageMaxIssues *int     `json:"triage_max_issues,omitempty"`
 }
+
+// Signal は外の信号の出所1つ（contract.md §11・ADR-0011 決めたこと 11）。読むのは andon signal collect。
+type Signal struct {
+	Source    string  `json:"source"`
+	Repo      *string `json:"repo,omitempty"`
+	Weight    string  `json:"weight"`
+	Every     *int    `json:"every,omitempty"`
+	Filter    *string `json:"filter,omitempty"`
+	WriteBack *bool   `json:"write_back,omitempty"`
+	Org       *string `json:"org,omitempty"`
+	Project   *string `json:"project,omitempty"`
+}
+
+// SignalSources は signals[].source の値（schema/project.schema.json と schema/signal.schema.json の enum と同じ）。
+var SignalSources = []string{"github-ci", "github-issues", "sentry", "linear", "cloudflare"}
 
 var (
 	prefixRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
@@ -96,12 +112,36 @@ func ParseProject(b []byte, slug string) (*Project, error) {
 			return nil, errors.New("chief_of_staff.review_when に空の条件がある")
 		}
 	}
+	if err := checkSignals(p.Signals, p.Repos, p.References); err != nil {
+		return nil, err
+	}
 	if p.Delegation != nil {
 		if _, err := Parse(p.Delegation, slug); err != nil {
 			return nil, fmt.Errorf("delegation: %v", err)
 		}
 	}
 	return &p, nil
+}
+
+// checkSignals は signals の各出所を確かめる。repo は repos か references の中のものに限る（ADR-0011 決めたこと 11）。
+func checkSignals(ss []Signal, repos, refs []string) error {
+	for i, s := range ss {
+		at := fmt.Sprintf("signals[%d]", i)
+		switch {
+		case !slices.Contains(SignalSources, s.Source):
+			return fmt.Errorf("%s.source が知らない出所: %q", at, s.Source)
+		case s.Weight != "now" && s.Weight != "later":
+			return fmt.Errorf("%s.weight が now/later でない: %q", at, s.Weight)
+		case s.Every != nil && *s.Every < 1:
+			return fmt.Errorf("%s.every は 1 以上", at)
+		case (s.Filter != nil && *s.Filter == "") || (s.Org != nil && *s.Org == "") || (s.Project != nil && *s.Project == ""):
+			return fmt.Errorf("%s の filter・org・project が空", at)
+		}
+		if r := s.Repo; r != nil && (!spawn.RepoRe.MatchString(*r) || !slices.Contains(repos, *r) && !slices.Contains(refs, *r)) {
+			return fmt.Errorf("%s.repo の %q が repos にも references にも無い", at, *r)
+		}
+	}
+	return nil
 }
 
 func uniq(s []string) []string {

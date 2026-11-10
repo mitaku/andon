@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/signal/1",
+  "title": "Signals",
+  "description": "~/.local/state/andon/dispatcher/<slug>.signals.json (under XDG_STATE_HOME when set): the record of outside signals of one project, one entry per signal. Written only by the dispatcher (andon signal collect); read by triage, measure and the board. No body or stack trace is kept (a worker reads it from the source). Only these keys.",
+  "type": "object",
+  "required": ["signals"],
+  "additionalProperties": false,
+  "properties": {
+    "signals": {
+      "description": "One entry per signal (per fingerprint). Empty when nothing has been seen. fingerprints are unique.",
+      "type": "array",
+      "uniqueKeys": ["fingerprint"],
+      "items": { "$ref": "#/$defs/signal" }
+    }
+  },
+  "$defs": {
+    "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
+    "line": { "description": "One line: no control characters.", "type": "string", "pattern": "^[^\\u0000-\\u001f\\u007f]*$" },
+    "signal": {
+      "description": "One signal.",
+      "type": "object",
+      "required": ["source", "project", "key", "url", "title", "weight", "fingerprint", "first_seen", "last_seen", "count", "active", "episodes", "delivered_episode"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "description": "Where it came from (as in project.json signals[].source).", "enum": ["github-ci", "github-issues", "sentry", "linear", "cloudflare"] },
+        "project": { "description": "Project slug.", "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+        "key": { "description": "Id inside the source: <repo>/<workflow>@main for CI, <repo>#<n> for an issue, the issue id for Sentry, Cloudflare and Linear.", "minLength": 1, "$ref": "#/$defs/line" },
+        "url": { "description": "Where a person or a worker reads it.", "type": "string", "pattern": "^https://[!-~]+$" },
+        "title": { "description": "The source's title as it is, one line. Untrusted: shown only inside the untrusted fence.", "$ref": "#/$defs/line" },
+        "weight": { "description": "now: delivered at once as a notification. later: recorded only, picked up by triage.", "enum": ["now", "later"] },
+        "fingerprint": { "description": "SHA-1 of source, a newline and key: 40 lowercase hex digits.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "first_seen": { "description": "When it was first seen.", "$ref": "#/$defs/time" },
+        "last_seen": { "description": "When it was last seen.", "$ref": "#/$defs/time" },
+        "count": { "description": "How many collects have seen it.", "type": "integer", "minimum": 1 },
+        "active": { "description": "Seen by the last collect (false: the CI passed, the issue was closed or resolved).", "type": "boolean" },
+        "episodes": { "description": "How many times it appeared: 1 at first, one more each time it disappeared and appeared again.", "type": "integer", "minimum": 1 },
+        "delivered_episode": { "description": "The episode last delivered as a notification; 0 when none (always 0 for later).", "type": "integer", "minimum": 0 },
+        "release": { "description": "The release it was seen in: the merge commit's SHA, when the source has one.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    }
+  }
+}
