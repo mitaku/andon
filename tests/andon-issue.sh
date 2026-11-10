@@ -128,6 +128,15 @@ jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line
 expect_fail 'レビューはもうある' "$andon" issue review-request "$id" <<<'## Report'
 ok 'review-request: HEAD のレビューがあれば頼まない'
 
+# 結果を残さず止まったレビュアーの課題があっても、次の依頼の回は被らない（id <id>-rN が空いている）
+c3=$(commit three)
+echo "$c3" > "$tmp/prhead"
+dead=$(as t5 kanban add "$id のレビュー（結果なし）" --parent "$id" --profile codex-review --round 5)
+"$andon" issue report "$id" <<<'## Report' >/dev/null
+"$andon" issue review-request "$id" <<<'## Report' >/dev/null
+jq -e --arg p "$c2" '.review_request | .round == 6 and .previous == $p' "$lib/report.json" >/dev/null
+ok 'review-request: 結果の無いレビュアーの課題の次の回になる（previous は結果のある回のまま）'
+
 # report.json の形が壊れていれば止まる
 cp "$lib/report.json" "$tmp/good"
 jq '. + {"x_unknown": 1}' "$tmp/good" > "$lib/report.json"

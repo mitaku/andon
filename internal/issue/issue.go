@@ -423,17 +423,22 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 // rounds は今度の回と前回の commit を数える: レビュアーの子課題（profile が *-review）の findings.json の
 // commit のうち、違うものの数 ＋ 1。古い commit を見たレビューは前の回と同じ commit なので数が増えない
 // （同じ回のまま頼み直す）。HEAD のレビューがもうあれば頼まない。
+// 結果の無いレビュアーの課題（<id>-rN）があれば、回は N の次以降にする（課題 id が被らない）。
 func (c *ctx) rounds(head string) (int, *string, error) {
 	tasks, err := c.l.List()
 	if err != nil {
 		return 0, nil, err
 	}
 	seen := map[string]bool{}
+	taken := 0 // 結果の有無に関わらず、台帳にあるレビュアーの課題（<id>-rN）の最大の N
 	var last *string
 	lastAt := ""
 	for _, t := range tasks {
 		if t.Str("parent") != c.id || !strings.HasSuffix(t.Str("profile"), "-review") {
 			continue
+		}
+		if _, n, ok := ledger.SplitRound(t.Str("id")); ok && n > taken {
+			taken = n
 		}
 		f, err := contract.ReadFindings(filepath.Join(c.l.Library(t.Str("id")), "findings.json"))
 		if err != nil {
@@ -448,7 +453,9 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 			last, lastAt = &commit, at
 		}
 	}
-	return len(seen) + 1, last, nil
+	// 結果を残さず止まったレビュアーの課題も台帳に残り、その N は使えない（dispatcher の kanban add --round が落ちる）。
+	// 数え方の決まりは変えず（previous も結果のある回だけ）、番号が被るときだけ空いた先へ送る
+	return max(len(seen), taken) + 1, last, nil
 }
 
 func (c *ctx) ready(stdout io.Writer) error {
