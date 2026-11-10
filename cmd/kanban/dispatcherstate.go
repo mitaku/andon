@@ -72,6 +72,8 @@ type dispatcherState struct {
 	Corrections map[string]int `json:"corrections,omitempty"`
 	// Issues in review whose pull request is watched for a person's merge
 	Watch map[string]dsWatch `json:"watch,omitempty"`
+	// Record-only gate approvals (merge: auto) with no merged or asked yet
+	Approved map[string]dsNotification `json:"approved,omitempty"`
 }
 
 type dsWatch struct {

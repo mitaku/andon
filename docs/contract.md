@@ -50,6 +50,7 @@ projects/<slug>/kanban/
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.signals.json   dispatcher（§15。外の信号の記録。台帳の外）
+~/.local/state/andon/dispatcher/<slug>.recorded.jsonl   dispatcher（§6。記録だけの通知。1行1件・追記だけ。台帳の外）
 ```
 
 ## 2. 台帳の項目（`issue.yaml` の Andon の予約キー）
@@ -184,6 +185,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 ## 6. 通知
 
 dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（文は JSON から作る。文から推さない）。拾い方・届ける経路・離席の判定の理由は [dispatcher.md](dispatcher.md)。
+`kind`（と今ある項目）ごとに「届ける」か「記録だけ」かが決まっている（下の「届けるか」。ADR-0010 決めたこと 1・7）。記録だけの通知は `<news>` に載らず、下の記録だけの置き場に1行ずつ書かれる。
 
 ```json
 {"at": "2026-11-04T09:00:00Z", "project": "andon", "issue": "A-0012", "kind": "review",
@@ -205,8 +207,24 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
 
+- **届けるか**（表の正は `internal/dispatcher/route.go` の `RouteOf`。理由は ADR-0010 決めたこと 1・7）:
+
+  | `kind`（と条件） | 扱い |
+  |---|---|
+  | `review-requested` | 記録だけ |
+  | `review`（dispatcher がゲートを回す課題） | 記録だけ |
+  | `review`（ゲートを回さない課題: Chief Engineer の課題〈`profile: chief-engineer`〉・調べる課題など） | 届ける |
+  | `gate`（`decision: fix`・`needs_human`） | 記録だけ（`needs_human` は同じ巡の `asked` で届く） |
+  | `gate`（`decision: approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） |
+  | `gate`（`decision: approve`。`merge: auto` でマージに進む） | 記録だけ。記録の `at` から10分たっても同じ課題の `merged` も `asked` も無ければ、そのとき同じ通知を1回だけ届ける（`review` から出た課題は数えない） |
+  | `merged`（`held` が無い） | 記録だけ |
+  | `merged`（`held` あり。片付けていない） | 届ける |
+  | `report`（レビュアーの課題: `parent` があり `profile` が `*-review`） | 記録だけ |
+  | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`blocked`・`error`・`finished`・`stalled` | 届ける |
+
+- **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。読み手はボード（記録の一覧）。届けた通知はここに書かない。全部の出来事の一覧は台帳の `log.jsonl` が正で、この記録はその代わりではない。
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` と `merged` の `by`・`held` だけ任意。`held` は `by` と一緒）。
-- 届け方: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
+- 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
 - **マージのあとの影響**（`impact`）: `andon issue impact <id>` は、課題の PR がマージされたあと、同じ repo の `doing`／`review` の担当の課題（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
   出力は `issue`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`issues[]`。`issues[]` の1件は `issue`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、その課題の依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めない・在るかを確かめられない〈権限など。無いのとは分ける〉ときも。影響なしに倒さない）。
   影響あり（通知に載る）は `error` があるか、`contains` でなく `conflict`・`overlap`・`brief_refs` のどれかがあるもの。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff（chief-of-staff skill §7）。出力そのものは Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。

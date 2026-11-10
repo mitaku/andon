@@ -59,7 +59,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 1 | 控えの lock | `drain`（フック）と控えを取り合わないよう、控えの lock を巡の終わりまで持つ | — |
 | 2 | 控えを読む | 控え（初めてなら「初めて見る台帳」＝`first`）を読む | 読むだけ |
 | 3 | 台帳を1回だけ読む | 課題の一覧と `log.jsonl` の全行を**この1回だけ**読む。以降の段はこの写しを使う | 読むだけ |
-| 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、`Pending` へ積む（§2.2・§2.3） | 控えに書く |
+| 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` に積む（§2.5・§2.6） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
@@ -68,6 +68,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 5a | 人のマージの控えを捨てる | `review` にいない課題の控えの `Watch` を捨てる（§2.7） | 控えに書く |
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
 | 5c | 人の手直し | 控えの `Corrections` の課題ごとに `library/corrections.json` を1回だけ書く（§2.6）。もう在れば書かない | 台帳の `library/` と控えに書く |
+| 5d | approve のまま止まった | 記録だけにした `gate` の approve（`merge: auto`。控えの `Approved`）のうち、10分たっても `merged` も `asked` も無いものを `Pending` へ1回だけ積む。`review` にいない課題の分は捨てる（§3.2） | 控えに書く |
 | 6 | 届ける（経路③） | 初めて見る台帳でなければ、§4 の守りがそろったときだけ `hc send`。送ったら `Pending` を空にする | 端末に打つ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いている課題（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
 
@@ -107,6 +108,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - **Chief of Staff 自身が起こした変化は知らせない**（`by` が `terminal:<chief_of_staff>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起こした変化は知らせる。
 - 積むとき、**同じ課題の同じ出来事は新しい1件に置き換える**。
 - `review` の `detail.pr` は `report.json` の `pr`。PR の無い報告（レビュアー・repo の無い課題）は `report` として知らせる（schema が `pr` を要するため）。
+- 拾った通知を Chief of Staff に届けるか、記録だけにするかは §3.2 の表で決まる。この表の `kind` はどれも拾い続け、記録だけのものも消さない。
 - 問いの JSON（`library/questions/<n>.json`）は台帳の行のあとに置かれるので、無ければ1回だけ次の見回りまで待つ（その行から読み直す）。それでも無い・読めなければ飛ばしてログに残す。
 
 ### 2.3 止まった担当の見分け
@@ -214,6 +216,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 ## 3. 誰に・いつ・どう届けるか
 
 宛先は**プロジェクトの Chief of Staff だけ**。人には届けない（人はボードで台帳と端末を見る）。担当に届けるのは P6a の `fix` だけ（§5）。
+届けるのは §3.2 の表で「届ける」の通知だけ。「記録だけ」の通知は経路①②③のどれにも載らず、③の `hc send` のきっかけにもならない（待ちに数えない）。
 
 通知は dispatcher の中で JSON のまま積み（contract.md §6）、**届けるときだけ** `<news>` の文に描く。経路は3つで、どれも同じ JSON から同じ文を描く。
 
@@ -245,6 +248,28 @@ S-0009 の担当 t5 が working のまま 21 分
 - **まとめて1通**: Chief of Staff は複数をまとめて1回で答えるほうが安い。
 - **末尾の1行**: 通知はデータで、依頼ではない。Chief of Staff は台帳を読んで動き、人に言うことが無ければ `<no-reply>` とだけ返す。
 - **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: ③で送ったあと、Chief of Staff のターンが終わって答えが `<no-reply>` だけなら、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。①②で届けたターンも同じ規則で書く（こちらは画面ではなく、次の `Stop` フックの入力の `last_assistant_message` が `<no-reply>` だけかで決める。decisions.md §15）。
+
+### 3.2 届けるか・記録だけか
+
+Chief of Staff が受けて、すること（判断・人への1行・担当への依頼）がある通知だけを届ける。インナーループが自分で次の工程に進めた結果と、別の通知で同じことが届くものは記録だけにする（ADR-0010 決めたこと 1・7）。表の正はコードの1か所（`internal/dispatcher/route.go` の `RouteOf`）で、contract.md §6 の表と同じ。
+
+| `kind`（と条件） | 扱い | 受けたら何をするか（記録だけにする理由） |
+|---|---|---|
+| `review-requested` | 記録だけ | dispatcher がレビュアーを起こした。Chief of Staff は何もしない |
+| `review`（ゲートを回す課題） | 記録だけ | dispatcher がゲートを回す。判断が要れば `gate`（approve で止まった）・`asked` で届く |
+| `review`（ゲートを回さない課題: Chief Engineer の課題・調べる課題など。§5 の P6a で飛ばす課題） | 届ける | Chief Engineer の文書を受けて課題に切る・候補を読む |
+| `gate`（`fix`） | 記録だけ | dispatcher が理由を担当へ返した |
+| `gate`（`needs_human`） | 記録だけ | 同じ巡で `asked`（`from: gate`）が届く |
+| `gate`（`approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） | 人にマージを頼む |
+| `gate`（`approve`。`merge: auto` でマージに進む） | 記録だけ。10分たっても同じ課題の `merged` も `asked` も無ければ1回だけ届ける（§2.1.1 の 5d） | ふつうは同じ巡で `merged` まで進む。進まないときだけ Chief of Staff が確かめる |
+| `merged`（`held` が無い） | 記録だけ | dispatcher（か人）がマージして片付けた。影響は `impact` で別に届く |
+| `merged`（`held` あり） | 届ける | 片付けていない理由を読んで、問いを閉じる・`andon issue finish` する |
+| `report`（レビュアーの課題） | 記録だけ | 結果の宛先は元の課題の担当で、Chief of Staff は中継しない |
+| `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起こす・rebase を頼む・人へ知らせる・続きを促す |
+
+- **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。読み手はボード。
+- **10分**は dispatcher の時計で、記録した approve の `at` から測る（見回りが1分ごとなので、merge queue の repo でも10巡は待つ）。仮の値で、ほかの間（§2.1）と同じくコードの定数（`approveWait`）。回し直したゲート（§2.1.1 の 5 の読み直しで次の巡に持ち越した approve）では測り直さない。ゲートが別の答えを出した・`review` から出た課題の分は捨てる。
+- 課題の見分けは今ある項目だけ（`gated`・`isReviewer`。新しいキーは足さない）。
 
 ---
 
