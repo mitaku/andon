@@ -38,6 +38,7 @@ func TestRouteOf(t *testing.T) {
 		{"impact", "impact", nil, Facts{}, Deliver},
 		{"closed", "closed", nil, Facts{}, Deliver},
 		{"corrections", "corrections", nil, Facts{}, Deliver},
+		{"signal", "signal", nil, Facts{}, Deliver},
 		{"blocked", "blocked", nil, Facts{}, Deliver},
 		{"error", "error", nil, Facts{}, Deliver},
 		{"finished", "finished", nil, Facts{}, Deliver},
