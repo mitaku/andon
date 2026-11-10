@@ -19,8 +19,14 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # ホストの持ち主（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わないセルは bin/bootstrap が起こす前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 bash-completion \
+# ミラーの索引とプールが一時的にずれると install が 404 で落ちる。落ちたら update（索引の読み直し）からやり直す
+RUN for i in 1 2 3 4 5; do \
+      apt-get -o Acquire::Retries=3 update \
+      && apt-get -o Acquire::Retries=3 install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 bash-completion \
+      && break; \
+      [ "$i" = 5 ] && exit 1; \
+      echo "apt が失敗した。索引を読み直してやり直す（$i/5）" >&2; sleep $((i * 5)); \
+    done \
  && rm -rf /var/lib/apt/lists/* \
  && locale-gen en_US.UTF-8 \
  && userdel --remove ubuntu \
