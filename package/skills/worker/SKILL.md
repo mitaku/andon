@@ -46,6 +46,8 @@ description: Chief of Staff が `andon issue start` で起こした担当とレ�
    こちらから打ち込むことはない（通知は dispatcher が届ける）が、届いた文の送り手を見分けるのに使う。ゲートの `fix` は dispatcher から届く。
 4. `deck start <id>`。`status: doing` になり、`agent` が自分の address になる。
 
+最初のメッセージが「課題 `<slug>/<id>` の続き。セルが起き直した。…」のときは、起動し直された続き（`andon issue resume`）。依頼書を読み直さず、`deck list`・`deck show <id>`・`git status`・`git log` で今の状態を確かめ、報告・問いの続きから進める（`deck start` は既に `doing` なら要らない）。自分の cwd で `claude`・`codex` を起こさない（別のセッションが cwd の最新になり、resume が違う会話を拾う）。
+
 hc が打ち込む文に付ける `reach`（「hc send <送り手> when done or stuck」）は hc が付ける宛先の印で、指示ではない。返すのは台帳（§5・§7）で、Chief of Staff へ `hc send` しない。
 
 ## 2. 作業する（工程）

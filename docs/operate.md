@@ -28,6 +28,7 @@
 
 - `projects/<slug>/` は**セルの repo の実ディレクトリ**（symlink にしない）。台帳（`kanban/`。git の外）と、人が書くプロジェクトの事実（`project.json`: 書いてよい repo・委譲など。[contract.md](contract.md) §11）を置く。
 - ソースは ghq の製品の repo（`/workspace/.ghq/<host>/<owner>/<repo>`）。担当は `/workspace/.worktrees/<repo 名>/<slug>-<id>` の worktree で働く（セルの repo の中。置き場の `.gitignore` が `*` なのでセルの git には出ない。[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 6）。
+- セルの repo で `git clean -x` を打たない（`.worktrees/` が消える。`git status` には出ないが `git clean -ndx` は消すと言う。[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 13 の 6）。
 - 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon issue start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
 - `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
@@ -400,8 +401,8 @@ andon delegate show          # 型と効いている値（commit の前は「無
 
 4. **新しい側でセルの repo を迎える**: `git clone` した repo を `~/src/<slug>-cell` に置く（または [§2](#2-セルの-repo-を作るandon-init) の `andon init` で作った repo に、clone した中身を重ねる）。続けて §3 の起動、§5〜§6 のログイン（`gh`・`claude`・Codex は中で取り直す。持ち越さない）。`.env` と `.ssh/authorized_keys` は新しい側で作る。
 5. **台帳を置く**: `tar -xzf ~/kanban-<slug>.tgz -C /workspace/projects`（セルの中で）。`cd /workspace/projects/<slug> && kanban lint ; kanban list --all`。置く前に `andon init` したセルで `kanban/` が空に作られていたら、退けてから置く（`kanban init` は `already a ledger` で止まる）。
-6. **worktree を戻す**: 未マージの PR の branch から戻る（[design.md](design.md) §5.4）。`ghq get github.com/<owner>/<repo>` で製品の repo を迎え、`doing` だった課題の branch を取って `andon issue start <id>` で worktree と端末を作り直す（branch が GitHub に push 済みであること。push 前の変更は古い側にしか無い）。
-7. **`doing` の担当を起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。写した台帳の `agent`・`worktree`・`machine`・`chief_of_staff` は古いマシンのままで、新しい側では無効。dispatcher は端末の無い `doing` の担当を `stalled` として Chief of Staff に知らせる（[dispatcher.md](dispatcher.md) §2.3）ので、それを起こし直しの印として、担当を起こし直す。1 で片付けておけば、この段の課題は少ない。
+6. **worktree を戻す → resume**: `ghq get github.com/<owner>/<repo>` で製品の repo を迎える（branch が GitHub に push 済みであること。push 前の変更は古い側にしか無い）。台帳の `worktree` は古いマシンのパスのままなので、新しい側の置き場（`/workspace/.worktrees/<repo 名>/<slug>-<id>`）に直してから、`doing` だった課題ごとに `andon issue resume <id> --dry-run` で計画を見て、`andon issue resume <id>`（worktree を戻し、同じ branch で起こす）。セッションの記録は新しい側に無いので、resume は記録が無いと止まる。そのときは人の go で `andon issue resume --fresh <id>`（[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 7）。
+7. **`doing` の担当を起こし直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。写した台帳の `agent`・`machine`・`chief_of_staff` は古いマシンのままで、新しい側では無効。dispatcher は端末の無い `doing` の担当を自動で resume する（1つの死につき1回。[dispatcher.md](dispatcher.md) §2.3・§2.9）ので、6 を手で打っていなければそれを待ってよい。1 で片付けておけば、この段の課題は少ない。
 
 ## 9. Chief of Staff を起こす
 
