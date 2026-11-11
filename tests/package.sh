@@ -12,6 +12,7 @@
 #   7. 課題（issue）への改名（ADR-0008 受け入れ条件 5）: glossary の項・欄名・skill と template に旧語が無い。
 #   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2）: 用語集の CE・決まりの文・人への書き方の節・作った語、CE skill の問いの出し方、ask-one-by-one の読み手。
 #   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
+#  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -394,5 +395,35 @@ grep -q '^| 承認が要る（「人の go」で受ける） | 承認は要ら�
 ! grep -qE '100字|1〜2行|1〜3 行' "$w" && grep -q '1行に1件（Chief of Staff とトリアージが行ごとに拾う）' "$w" \
   && pass "worker skill の報告の書式に字数の上限が無く、1行に1件と理由がある" || fail "worker skill の報告の書式に字数の上限が残る"
 grep -q '`reach`.*指示ではない' "$w" && pass "worker skill に hc の reach は指示ではないとある" || fail "worker skill に reach の扱いが無い"
+
+# === 11. 価値のループ（ADR-0011 受け入れ条件 8・決めたこと 4・7・12・13） ===
+ce=package/skills/chief-engineer/SKILL.md
+ce_form=$(block "$ce" '# <題>（仕様・設計。')
+miss=
+grep -q '^## 価値の仮説（下の 6 項目。利用者に見えない題は「無し: <理由>」の1行）$' <<<"$ce_form" || miss="$miss 文書の形の見出し"
+i=0
+for k in '誰の何が変わるか' '見る信号（' '見る日（絶対の日付' '誰が要るか' '効いたとどう分かるか' '何があれば止めるか'; do
+  i=$((i + 1)); grep -q "^$i\. $k" "$ce" || miss="$miss ($i)$k"
+done
+grep -q '「無し: <理由>」' "$ce" && grep -q '観察の結果が「外れた」「分からない」でも、ラインは何もしない' "$ce" || miss="$miss 無し・ラインは何もしない"
+grep -q 'P6 で形を決める\|P6 で形が決まるまで' "$ce" && miss="$miss P6 の仮の行が残る"
+[ -z "$miss" ] && pass "chief-engineer skill の文書の形に価値の仮説の 6 項目と「無し: <理由>」がある" || fail "chief-engineer skill の価値の仮説:$miss"
+cos=package/skills/chief-of-staff/SKILL.md
+cos1=$(sed -n '/^## 1\. /,/^## 2\. /p' "$cos")
+miss=
+grep -q '「価値の仮説」の節が見出しだけ（空）なら、\*\*切らずに Chief Engineer へ戻す\*\*' <<<"$cos1" || miss="$miss 空なら戻す"
+grep -q '`deck add "観察: <題>の価値の仮説" --parent <Chief Engineer の id>' <<<"$cos1" && grep -q '`deck set <新しい id> not_before=<(3) の日付>`' <<<"$cos1" || miss="$miss 観察の課題を --parent と not_before で足す"
+grep -q '^### `signal` の通知を受けたら$' <<<"$cos1" && grep -q '^1\. \*\*直す課題に切る\*\*.*`links` に信号の `url`' <<<"$cos1" || miss="$miss signal を直す課題に切る"
+grep -q '^### 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\*\*ラインは何もしない\*\*' <<<"$cos1" || miss="$miss 観察の報告を人へ返すだけ"
+block "$cos" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"
+grep -q '^| `signal` の行' "$cos" || miss="$miss news の表の signal の行"
+[ -z "$miss" ] && pass "chief-of-staff skill に、空なら戻す・観察の課題を --parent と not_before で足す・signal を直す課題に切る、の行がある" || fail "chief-of-staff skill の価値のループ:$miss"
+w=package/skills/worker/SKILL.md
+w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w")
+o_blk=$(block "$w" 'andon issue report "$id" --data '"'"'{"observation"' | head -1 | sed "s/^[^']*'//; s/'.*\$//")
+printf '%s\n' "$o_blk" >"$tmp/o.json"
+grep -q '^### 観察の課題のとき$' <<<"$w2" && grep -q '\*\*直さない・課題を切らない・出所へ書き戻さない\*\*' <<<"$w2" && grep -q '^2\. `deck review <id>`' <<<"$w2" \
+  && [ -n "$o_blk" ] && jq -e '.observation' "$tmp/o.json" >/dev/null 2>&1 && chk report "$tmp/o.json" \
+  && pass "worker skill に観察の課題の節があり、observation の例は report.schema.json に合う" || fail "worker skill の観察の課題: $(head -1 "$tmp/why" 2>/dev/null) $o_blk"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
