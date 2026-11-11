@@ -494,10 +494,10 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 |---|---|---|
 | **Stop の block** — turn 中の通知が、Stop で続きの turn として届く | Chief of Staff が長めの turn にいる間に、担当を `deck review` させて通知を積む | Chief of Staff の画面で、turn の終わりに自動で次の turn が始まり `<news>` を読む。控えの `hook` に渡した turn。担当側: `doing` で報告も問いも無いまま止まろうとすると block（`stop-check` の控え `~/.local/state/andon/stop-check/<slug>-<id>.json`） |
 | **additionalContext** — 人が送信したとき、待ちが文脈に添えられる | 通知が積まれている間に、人が何か送る | Chief of Staff に「いま添えられた通知を言って」と聞く。待ちが無くても `<delegation project="…">` が毎回添えられる |
-| **離席時だけ `hc send`** — 入力欄が空で idle のときだけ送る | Chief of Staff を idle にし、人は何も打たず5秒以上待つ。次に入力欄に書きかけを置いて同じことをする | 空のとき: `hc read` に `<news>` が入る。書きかけのとき: **送られない**（次の回に持ち越す）。薄い字（候補）を書きかけと見誤らない（dispatcher.md §4.3） |
+| **待ち役** — 離席中は Stop の `asyncRewake` のフックが合図で起こす（入力欄へは打たない） | Chief of Staff をターンの終わりで待たせ、入力欄に書きかけを置いたまま、担当に報告を書かせて通知を積む | 数秒で Chief of Staff に新しいターンが始まり（画面は「Stop hook feedback」）、何も書かずに終わったあと、その Stop で `<news>` が1回だけ届く。**書きかけは入力欄にそのまま残る**。dispatcher の端末（`hc read dispatcher`）から Chief of Staff への `hc send` が無い（dispatcher.md §4） |
 | **Esc のあとの届け直し** — 渡した turn を中断したら1回だけ届け直す | `<news>` を渡された turn を Esc で止める | 次の turn で同じ通知が**1回だけ**もう一度届く（控えの `hook` から消えるまで）。2回以上届くなら落ち |
 
-落ちたら: `/etc/claude-code/managed-settings.json` の `hooks`（`/opt/andon/hooks/stop`・`user-prompt-submit`）が付いているか。フックは落ちたら通す作りなので、**フックが何も出さない**ときは、`andon dispatcher drain` を手で打って出力を見る。
+落ちたら: `/etc/claude-code/managed-settings.json` の `hooks`（`/opt/andon/hooks/stop`・`stop-wait`・`user-prompt-submit`）が付いているか。フックは落ちたら通す作りなので、**フックが何も出さない**ときは、`andon dispatcher drain` を手で打って出力を見る。
 
 ## 13. §5.1 の確かめ方への対応表
 

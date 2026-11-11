@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 )
 
-// 離席の判定（docs/dispatcher.md §4）のうち、画面を読む純粋な関数。端末の土台（hc）を打つのは deliver.go。
+// 入力欄の読み方（docs/dispatcher.md §4.4・§4.5。Chief of Staff への「続けて」の守り）のうち、画面を読む純粋な関数。端末の土台（hc）を打つのは deliver.go。
 //
 //	Screen       hc attach --observe の ANSI の列から、薄い字も残した画面と薄い字を空白に替えた画面を組み直す
 //	InputBox     入力欄（最後の2本の罫線の間）の行を、比べられる形で出す
@@ -19,7 +19,7 @@ import (
 var ruleRe = regexp.MustCompile(`^\s*(─){20,}\s*$`)
 
 // screenModes は ?…h/l で許すモード（字に関わらない。47・1047・1049 は画面の切り替え）。
-// 端末の土台が待機中の Claude Code の画面を描き直すときに出す列（dispatcher.md §4.3 の 3）。
+// 端末の土台が待機中の Claude Code の画面を描き直すときに出す列（dispatcher.md §4.5 の 3）。
 var screenModes = map[string]bool{
 	"1": true, "9": true, "25": true, "47": true, "66": true, "1000": true, "1001": true, "1002": true, "1003": true,
 	"1004": true, "1005": true, "1006": true, "1015": true, "1016": true, "1047": true, "1049": true, "2004": true,
@@ -33,7 +33,7 @@ type cell struct {
 
 // Screen は ANSI の列 raw を組み直し、薄い字も残した画面 all と、薄い字（SGR 2）を空白に替えた画面 undim を返す。
 // 解釈するのは許可の一覧にある列だけで、一覧に無い列・読み切れない列・dim が分からない間の空白でない字・
-// UTF-8 でない・何も描かれないときは ok=false（送らない）。dispatcher.md §4.3。
+// UTF-8 でない・何も描かれないときは ok=false（送らない）。dispatcher.md §4.5。
 func Screen(raw []byte) (all, undim string, ok bool) {
 	if !utf8.Valid(raw) {
 		return "", "", false
@@ -336,7 +336,7 @@ func InputBox(screen string) (box []string, ok bool) {
 	return box, true
 }
 
-// InputState は入力欄の様子（dispatcher.md §4.2）: 2本の罫線の間が ❯ だけの1行なら empty、❯ の後ろに字があれば text、
+// InputState は入力欄の様子（dispatcher.md §4.4）: 2本の罫線の間が ❯ だけの1行なら empty、❯ の後ろに字があれば text、
 // 2行以上なら draft、罫線が2本無い・間が ❯ で始まらないなら unknown。
 func InputState(screen string) string {
 	lines, r2, r1 := rules(screen)

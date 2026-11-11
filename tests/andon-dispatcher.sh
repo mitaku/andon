@@ -770,7 +770,7 @@ event() { # event <題>: dispatcher が通知 report を積む出来事（担当
 }
 sent() { cat "$tmp/hc/sent" 2>/dev/null | grep -c '^t5	'; }
 
-# 11. turn 中の通知が Stop で届く（Chief of Staff が working の間、dispatcher は hc send しない）
+# 11. turn 中の通知が Stop で届く（dispatcher は Chief of Staff に hc send しない）
 cos working 3
 screen '❯' '❯'
 id=$(event 'ターンの中の通知')
@@ -785,7 +785,7 @@ out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assi
 ! grep -qx 't5 news.replied=3' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '<no-reply> だけの答え（ack なし）に news.replied を書いた・確かめ済みにしない'
 out=$(HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<'{}')
 [ -z "$out" ] || die "Chief of Staff でも担当でもない端末で何か出した: $out"
-ok 'turn 中の通知は Chief of Staff の Stop フック（drain）が block の reason で渡し（末尾は andon news ack の1行）、答えが <no-reply> だけでは news.replied を書かない'
+ok 'turn 中の通知は Chief of Staff の Stop フック（drain）が additionalContext で渡し（末尾は andon news ack の1行）、答えが <no-reply> だけでは news.replied を書かない'
 
 # 12. 送信時に添えられる（UserPromptSubmit。委譲の一覧も同じ口で）
 id=$(event '送信時の通知')
@@ -892,48 +892,83 @@ cstop p9 '人への答え' true >/dev/null
 [ "$(replied)" = $((n + 1)) ] || die '渡す前の同じ turn の ack で news.replied を書いた'
 ok 'andon news ack は Chief of Staff の端末だけに news.ack=<turn> を書き、渡した turn に ack があれば文に関わらず news.replied を1回だけ書く（渡し中が無い・前の ack は数えない。<no-reply> だけの答えでは書かない）'
 
-# 13. 離席時だけ hc send（状態 idle・入力欄が空・前の <news> の turn が進んでいる）
-id=$(event '離席の通知')
+# 13. 離席中は待ち役（Stop の asyncRewake のフック。andon dispatcher wait）が合図だけを打つ。dispatcher は Chief of Staff の入力欄へ打たない
+# （hc send も attach --observe も呼ばない。ADR-0019 決めたこと 1・3・8・9、受け入れ条件 1）
 cos idle 4
-screen '❯ これを直して' '❯ これを直して'
-dispatcher
-[ "$(sent)" = 0 ] || die '人の書きかけがあるのに hc send した'
-screen '❯' '❯ 前の文'
-dispatcher
-[ "$(sent)" = 0 ] || die 'hc read と組み直した画面が違うのに hc send した'
-screen '❯ Try "fix lint"' $'❯ \e[7m\e[2mTry "fix lint"\e[0m\e[?7h'
-dispatcher
-[ "$(sent)" = 0 ] || die '許可の一覧に無い列があるのに hc send した'
-screen '❯ Try "fix lint"' $'❯ \e[2mTry "fix lint"\e[22m'
-cos working 4
-dispatcher
-[ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
-cos idle 4
-dispatcher
-[ "$(sent)" = 1 ] && grep -q "^send --if idle t5 <news project=\"demo\">" "$tmp/hc/log" || die "薄い字のサジェストだけの入力欄に hc send --if idle しない: $(grep '^send' "$tmp/hc/log" | tail -1)"
-grep -q "^t5	<news project=\"demo\">" "$tmp/hc/sent" && grep -q "$id report:" "$tmp/hc/sent" || die '<news> の文が違う'
-jq -e '.pending == [] and .news_turn == 4' "$state" >/dev/null || die '送った turn を控えていない'
-id2=$(event '答えている途中の通知')
-dispatcher
-[ "$(sent)" = 1 ] || die '前の <news> の turn が進んでいないのに送った'
-cos done 5
-printf '❯ <news project="demo">\n  %s report: x\n  </news>\n\n● <no-reply>\n\n%s\n❯\n%s\n' "$id" "$rule" "$rule" > "$tmp/hc/screen-t5"
-dispatcher
-! grep -q 't5 news.replied=5' "$tmp/hc/labels" && jq -e 'has("news_turn") | not' "$state" >/dev/null || die '③で送った <news> の ack の無い <no-reply> に news.replied を書いた・控えた turn を捨てない'
 screen '❯' '❯'
+logs=$(wc -l < "$tmp/hc/log") dlogs=$(wc -l < "$tmp/dispatcher.log")
+id=$(event '離席の通知')
+cos done 4
 dispatcher
-[ "$(sent)" = 2 ] && grep -q "^send t5 <news" "$tmp/hc/log" && grep -q "$id2 report:" "$tmp/hc/sent" || die 'done の Chief of Staff に --if なしで送らない'
-ok '離席時だけ hc send（idle か done・入力欄が空・薄い字は空・hc read と一致・許可の一覧の列だけ・前の turn が進んでから。idle は --if idle）'
+! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^send t5 \|^send --if idle t5 \|^attach --observe t5$' || die "見回りが Chief of Staff に hc send・attach --observe した: $(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep '^send\|^attach' | head -3)"
+[ "$(sent)" = 0 ] || die '見回りが Chief of Staff に <news> を送った'
+tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log" | grep -q 't5 に届ける待ちが 1 件あるが、待ち役がいない' || die '待ち役がいないことをログに書かない（同じ待ちに1回だけは Go のテスト。--once は毎回新しいプロセス）'
+waitf=$tmp/state/andon/dispatcher/demo.json.wait
+wstart() { # wstart <名前> [<andon dispatcher wait の引数>…]: 待ち役を背景で起こす（引数が無ければフックの stop-wait そのもの）。終了コードは $tmp/<名前>.rc
+    local n=$1; shift
+    rm -f "$tmp/$n.rc" "$tmp/$n.err"
+    if [ $# = 0 ]; then set -- sh "$hooks/stop-wait"; else set -- "$andon" dispatcher wait "$@"; fi
+    (rc=0; HC_TERMINAL_ID=t5 "$@" </dev/null 2>"$tmp/$n.err" || rc=$?; echo $rc > "$tmp/$n.rc~"; mv "$tmp/$n.rc~" "$tmp/$n.rc") &
+    local was; was=$(jq -r .token "$waitf" 2>/dev/null || true)
+    for _ in $(seq 50); do   # 起きて届けを書いた（か、もう終わった）まで待つ
+        [ -e "$tmp/$n.rc" ] && break
+        t=$(jq -r .token "$waitf" 2>/dev/null || true); [ -n "$t" ] && [ "$t" != "$was" ] && break
+        sleep 0.1
+    done
+}
+wend() { # wend <名前> <秒>: 終わるまで待って終了コードを出す（終わらなければ空）
+    for _ in $(seq $(( $2 * 10 ))); do [ -e "$tmp/$1.rc" ] && { cat "$tmp/$1.rc"; return; }; sleep 0.1; done
+}
+before=$(cat "$state")
+wstart w1
+[ "$(wend w1 5)" = 2 ] && grep -qx 'andon: 通知が待っている。これは合図で、人の依頼ではない。何も書かずにターンを終える（通知はターンの終わりに <news> で届く）。' "$tmp/w1.err" ||
+    die "届ける待ちがあり Chief of Staff が done なのに、待ち役が合図で 2 にならない: $(cat "$tmp/w1.rc" "$tmp/w1.err" 2>/dev/null)"
+[ "$before" = "$(cat "$state")" ] || die '待ち役が待ち・控えを書き替えた'
+[ ! -e "$waitf" ] || die '合図で終わった待ち役の届けが残った'
+# 合図で始まったターンの終わりの Stop で、drain が <news> を1回だけ渡す（続きの Stop で確かめ済み。次の送信で出ない）
+cos working 5
+out=$(cstop w5 '' false)
+jq -e --arg id "$id" '.hookSpecificOutput.additionalContext | contains("\($id) report:")' <<<"$out" >/dev/null || die "合図のあとの Stop で <news> を渡さない: $out"
+cstop w5 'x' true >/dev/null
+jq -e '.pending == [] and (has("hook") | not)' "$state" >/dev/null || die '渡した <news> を確かめ済みにしない'
+ups w6 | grep -q "$id report:" && die '待ち役で起こして Stop で渡した <news> を、次の送信でもう一度渡した'
+ok '届ける待ちがあり Chief of Staff が idle・done なら、待ち役（stop-wait）が合図の1行で 2 に終わり（待ち・控えは書かない）、続く Stop の drain が <news> を1回だけ渡す。見回りは Chief of Staff に hc send・attach --observe をせず、待ち役がいなければログに1行'
 
-# 13a. ③で送った turn（5）に ack があれば、画面の答えに関わらず news.replied を書く
-jq -e '.news_turn == 5' "$state" >/dev/null || die '③で送った turn を控えていない'
-term t5 idle 6 role=chief-of-staff project=demo news.ack=5
-printf '❯ <news project="demo">\n  x\n  </news>\n\n● 確かめた\n\n%s\n❯\n%s\n' "$rule" "$rule" > "$tmp/hc/screen-t5"
-n=$(jq '.replied.ack // 0' "$state")
+# 13a. 待ちが無い間・working の間は終わらない。次の待ち役が起きたら前のは 0 で終わる。止められたら 0。担当の端末では待たずに 0
+cos done 6
+wstart w2
+sleep 1.5
+[ -z "$(wend w2 0)" ] || die "待ちが無いのに待ち役が終わった: $(cat "$tmp/w2.rc")"
+cos working 6
+id=$(event '働いている間の通知')
+sleep 1.5
+[ -z "$(wend w2 0)" ] || die 'Chief of Staff が working の間に待ち役が終わった'
+logs=$(wc -l < "$tmp/dispatcher.log")
 dispatcher
-grep -qx 't5 news.replied=6' "$tmp/hc/labels" && jq -e --argjson n "$n" '.replied.ack == $n + 1 and has("news_turn") == false' "$state" >/dev/null ||
-    die '③で送った turn の ack に news.replied を書かない'
-ok '③で送った turn に andon news ack があれば、画面の答えを読まずに news.replied を書く'
+! tail -n +"$((logs + 1))" "$tmp/dispatcher.log" | grep -q '待ち役がいない' || die '待ち役が生きているのに、いないとログに書いた'
+wstart w3
+[ "$(wend w2 5)" = 0 ] && [ ! -s "$tmp/w2.err" ] || die "次の待ち役が起きても、前の待ち役が静かに 0 で終わらない: $(cat "$tmp/w2.rc" "$tmp/w2.err" 2>/dev/null)"
+[ -z "$(wend w3 1)" ] || die '新しい待ち役が残らない'
+kill -TERM "$(jq -r .pid "$waitf")"
+[ "$(wend w3 5)" = 0 ] && [ ! -e "$waitf" ] || die "止められた待ち役が 0 で終わらない・届けを残した: $(cat "$tmp/w3.rc" 2>/dev/null)"
+term t7 idle 1 project=demo issue=A-0001
+rc=0; HC_TERMINAL_ID=t7 timeout 5 sh "$hooks/stop-wait" </dev/null || rc=$?
+[ "$rc" = 0 ] || die "担当の端末で待ち役が待った・0 で通さない: $rc"
+rc=0; HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/stop-wait" </dev/null || rc=$?
+[ "$rc" = 0 ] || die 'andon が無いときに通さない'
+ok '待ち役は待ちが無い間・working の間は終わらず、次の待ち役が起きたら前のは静かに 0、止められたら 0。Chief of Staff でない端末・andon が無ければ待たずに 0'
+
+# 13b. timeout の少し前まで打つ機会が無ければ、張り直しの合図で 2（働いている間は張り直さず 0。そのターンの Stop で次が起きる）
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false}' >/dev/null   # 13a の待ちを①で渡して空にする
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true}' >/dev/null
+cos idle 7
+wstart w4 --timeout 2
+[ "$(wend w4 5)" = 2 ] && grep -qx 'andon: 待ち役の張り直し。これは合図で、人の依頼ではない。何も書かずにターンを終える。' "$tmp/w4.err" ||
+    die "timeout の前に張り直しの合図で 2 にならない: $(cat "$tmp/w4.rc" "$tmp/w4.err" 2>/dev/null)"
+cos working 7
+wstart w5 --timeout 2
+[ "$(wend w5 5)" = 0 ] && [ ! -s "$tmp/w5.err" ] || die "working の Chief of Staff に張り直しの合図を打った: $(cat "$tmp/w5.rc" "$tmp/w5.err" 2>/dev/null)"
+ok 'timeout の 9 割まで打つ機会が無ければ、待ち役が張り直しの合図で 2 に終わる（working なら静かに 0）'
 
 # 14. doing で報告無しの Stop が block（担当・レビュアーの Stop フック。stop-check）
 id=$(newtask '止まる前に報告する' person)
@@ -964,7 +999,7 @@ term t7 idle 1
 ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通過以後に報告か問いがあれば通す。続けて止めるのは3回まで・控えが書けなければ通す）'
 
 # === 通知の元（dispatcher.md §2.2・§2.3。contract.md §6）===
-# 別の台帳 pick（Chief of Staff t6。偽の hc get --json は無いので経路③では送らない）で、拾う元ごとに正負を見る
+# 別の台帳 pick（Chief of Staff t6。偽の hc get --json は無いので待ち役の見張りはログも書かない）で、拾う元ごとに正負を見る
 mkdir -p "$tmp/plant/projects/pick"
 cd "$tmp/plant/projects/pick"
 env -u KANBAN_ROOT kanban init --prefix P >/dev/null

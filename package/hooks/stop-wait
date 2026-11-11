@@ -1,0 +1,6 @@
+#!/bin/sh
+# Claude Code の Stop フック（asyncRewake。docs/contract.md §9。managed settings が呼ぶ）。待ち役 andon dispatcher wait を起こすだけ。
+# 届ける通知が待ちにあり Chief of Staff が入力を待っていれば、合図の1行で終了コード 2。Claude Code が入力欄を通らずに新しいターンを始める。
+# Chief of Staff でない端末・andon が無い・落ちたときは 0 で通す。--timeout はこのフックの timeout と同じ値（tests/package.sh が突き合わせる）。
+command -v andon >/dev/null 2>&1 || exit 0
+exec andon dispatcher wait --timeout 7200

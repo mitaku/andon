@@ -554,7 +554,7 @@ func (p *project) retryChief(cos string, now time.Time) {
 }
 
 // retryIfEmpty は Chief of Staff に続きを打つ。入力欄 → 状態の順に読み直し、同じ error のまま入力欄が空のときだけ打つ
-// （人が打ちかけていれば、それに続けて送ってしまうので。§4.2 の inputEmpty。罫線の無い入力欄〈Codex〉は空と確かめられないので打たない）。
+// （人が打ちかけていれば、それに続けて送ってしまうので。§4.4 の inputEmpty。罫線の無い入力欄〈Codex〉は空と確かめられないので打たない）。
 func (p *project) retryIfEmpty(cos string, c *terminal) bool {
 	if !inputEmpty(cos) {
 		return false

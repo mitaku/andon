@@ -274,7 +274,7 @@ For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべ�
 
 1. `andon issue report <id> <<'EOF'` … `EOF`（ヒアドキュメントで渡す。worktree に報告のファイルを作らない）。
 2. `andon issue ready <id>`。command が確かめてから `deck review` する。止まったら理由の1行に従って直し、1 からやり直す。ここまで。Chief of Staff へ `hc send` しない。
-   dispatcher が、Chief of Staff の入力欄が空のときに `<id> review` の通知で届ける（人の書きかけに貼り付かないように）。
+   dispatcher が `<id> review` の通知で届ける（Chief of Staff のフックが渡す。入力欄へは打たない）。
 
 `doing` のまま報告も問いも書かずにターンを終えると、`Stop` フック（`andon issue stop-check`）が止めて理由を返す。報告か問いを書いてから止まる。問いの答えや、`review-request` のあとレビュアーの結果を待つだけのターンは止めない（届いたら受けて動く）。
 そのあとは待つ。`review` に入ると dispatcher がゲート（`andon gate`）を回し、`approve` ＋ `merge: auto` ＋ 委譲の範囲内ならマージして片付ける。
