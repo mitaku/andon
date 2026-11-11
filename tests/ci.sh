@@ -7,8 +7,9 @@ ok() { echo "ok   $*"; }
 
 # 1. image-scope: image に入らず tests/image.sh も読まない変更だけなら false。知らないパスは true
 scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
-[ "$(scope docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人の文書だけで true"
+[ "$(scope docs/image.md README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人の文書だけで true"
 [ "$(scope tests/andon-issue.sh tests/kanban/test-deck.mjs workflow_test.go internal/issue/issue_test.go)" = false ] || die "ほかの tests・Go のテストだけで true"
+[ "$(scope CHANGELOG.md)" = false ] || die "CHANGELOG.md だけで true"
 [ "$(scope)" = false ] || die "変更が無いのに true"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
   internal/issue/issue.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
@@ -23,6 +24,7 @@ ok "image-scope: 文書・ほかの tests だけなら飛ばし、image に入�
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
 always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh '
 [ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
+[ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
 [ "$(pick docs/contract.md)" = 'tests/ci.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh が無い"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"

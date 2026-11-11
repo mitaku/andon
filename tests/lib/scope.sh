@@ -24,7 +24,7 @@ while IFS= read -r p; do
     tests/lib/*) all=true ;;
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
     # Go のテスト（go test ./... が見る）・人の文書は、いつもの分だけ
-    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | README.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     *) all=true ;;
   esac
 done
