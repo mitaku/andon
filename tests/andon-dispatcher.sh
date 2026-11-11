@@ -991,8 +991,20 @@ p5=$(as_cos kanban add 'tick が落ちても拾う')
 pk
 grep -q 'pick: kanban tick が通らない' "$tmp/dispatcher.log" || die "tick の失敗をログに書かない: $(tail -3 "$tmp/dispatcher.log")"
 pp "$p5" ready | jq -e 'length == 1' >/dev/null || die "tick が落ちた巡で ready を拾わない: $(pp "$p5" ready)"
-rm "$P/routines/bad.yaml" "$P/routines/weekly.yaml"; clear_pending
-ok 'dispatcher の巡で kanban tick を打ち、足した課題を同じ巡の ready の差で拾う。tick の失敗はログ1行で巡を止めない'
+rm "$P/routines/bad.yaml"; clear_pending
+# 初めて見る台帳（控えが無い）でも、tick が足した課題は拾う（前からある ready は流さない）。二度は拾わない
+as_cos kanban done "$pw" --force >/dev/null   # open: 1 で止まらないように
+echo '{"weekly": "2026-01-01T00:00:00Z"}' > "$P/state/routines.json"
+rm "$pst"
+pk
+pw2=$(kanban list --json | jq -r --arg o "$pw" '.[] | select(.routine == "weekly" and .id != $o) | .id')
+[ -n "$pw2" ] || die "初めて見る台帳の巡で kanban tick が撃たれない"
+jq -e --arg p "$pw2" '[.pending[] | select(.kind == "ready")] | length == 1 and .[0].issue == $p and .[0].detail.routine == "weekly"' "$pst" >/dev/null \
+  || die "初めて見る台帳で tick が足した課題だけを拾わない: $(jq -c '[.pending[] | select(.kind == "ready")]' "$pst")"
+clear_pending; pk
+[ "$(jq '[.pending[] | select(.kind == "ready")] | length' "$pst")" = 0 ] || die '初めて見る台帳で tick が足した課題を二度拾った'
+rm "$P/routines/weekly.yaml"
+ok 'dispatcher の巡で kanban tick を打ち、足した課題を同じ巡の ready の差で拾う（初めて見る台帳でも）。tick の失敗はログ1行で巡を止めない'
 
 # 17. log.jsonl: report・問い・review。Chief of Staff 自身の行は拾わない。同じ課題の同じ出来事は新しい1件に置き換える
 as_w kanban start "$p2" >/dev/null

@@ -201,8 +201,12 @@ func (p *project) pass() (bool, error) {
 
 // tick は kanban tick を1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。
 // 打つのは dispatcher だけ（cron は置かない）。同じ時刻を二度撃たない守りは台帳の側（kanban/.lock と state/routines.json）。
-// 失敗はログに1行で、巡は止めない。
+// 失敗はログに1行で、巡は止めない。前回の ready が無い（初めて見る台帳）ときは、tick の前の ready を先に控える。
+// 過去の ready は流さず、tick が足した課題だけを collect の ready の差で拾う（次の巡で届く）。
 func (p *project) tick() {
+	if p.st.Ready == nil {
+		p.readReady()
+	}
 	if _, err := p.l.Run("", "tick"); err != nil {
 		p.logf("kanban tick が通らない（巡は続ける）: %v", err)
 	}

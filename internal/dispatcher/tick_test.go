@@ -74,8 +74,12 @@ func TestPassTicks(t *testing.T) {
 	}
 	for _, round := range []string{"初めて見る台帳", "2巡目"} {
 		c.Pass("")
-		if got := strings.Join(calls(), " "); got != "list tick ready" {
-			t.Errorf("%s: 打った順 %q（list tick ready のはず）", round, got)
+		want := "list tick ready"
+		if round == "初めて見る台帳" {
+			want = "list ready tick ready" // tick の前の ready を基準に控える
+		}
+		if got := strings.Join(calls(), " "); got != want {
+			t.Errorf("%s: 打った順 %q（%s のはず）", round, got, want)
 		}
 	}
 	if logb.Len() != 0 {
