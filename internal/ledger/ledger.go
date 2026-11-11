@@ -300,8 +300,7 @@ func SettingsOf(t Issue) Settings {
 	if v := t.Str("deliverable"); v == "candidates" {
 		s.Deliverable = v
 	}
-	switch v := t.Str("estimate"); v {
-	case "small", "medium", "large":
+	if v := t.Str("estimate"); EstimateMinutes(v) > 0 {
 		s.Estimate = v
 	}
 	return s
