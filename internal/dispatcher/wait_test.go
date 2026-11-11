@@ -135,6 +135,53 @@ func TestWaitRearms(t *testing.T) {
 	}
 }
 
+// 張り直しの時刻に端末が一時に読めなくても待ち役を失わない: 読めるようになれば張り直す。95% まで読めなければ合図を打たずに 0。
+func TestWaitRearmSurvivesHcError(t *testing.T) {
+	f := waitFixture(t)
+	old := waitUnit
+	waitUnit = 50 * time.Millisecond // --timeout 60 → 3 秒。張り直し 2.7 秒、諦め 2.85 秒
+	t.Cleanup(func() { waitUnit = old })
+	f.pending(0)
+	start := time.Now()
+	r := startWait("--timeout", "60")
+	time.Sleep(100 * time.Millisecond) // 起きた後に壊す（起きるときの読みは通す）
+	broken := filepath.Join(f.d, "t1.json")
+	if err := os.WriteFile(broken, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2750*time.Millisecond - time.Since(start)) // 張り直しの時刻 2.7 秒を過ぎるまで読めない
+	if _, ok := r.done(t, time.Millisecond); ok {
+		t.Fatal("張り直しの時刻に端末が読めないだけで待ち役が終わった")
+	}
+	f.cos("idle")
+	code, ok := r.done(t, 2*time.Second)
+	if !ok || code != 2 || strings.TrimSpace(r.stderr.String()) != WaitRearm {
+		t.Fatalf("読めるようになっても張り直さない: %v %d %q", ok, code, r.stderr.String())
+	}
+
+	if err := os.WriteFile(broken, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r = startWait("--timeout", "60") // 起きるときに読めなければ 0
+	if code, ok := r.done(t, time.Second); !ok || code != 0 {
+		t.Fatalf("起きるときに端末が読めないのに待った: %v %d", ok, code)
+	}
+	f.cos("idle")
+	start = time.Now()
+	r = startWait("--timeout", "60")
+	time.Sleep(100 * time.Millisecond)
+	if err := os.WriteFile(broken, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, ok = r.done(t, 4*time.Second)
+	if !ok || code != 0 || r.stderr.Len() != 0 {
+		t.Fatalf("読めないまま諦めの時刻を過ぎても 0 で終わらない: %v %d %q", ok, code, r.stderr.String())
+	}
+	if d := time.Since(start); d < 2800*time.Millisecond || d >= 3*time.Second {
+		t.Fatalf("諦めた時刻が 95%% の前後でない: %v", d)
+	}
+}
+
 // Chief of Staff の端末でなければ待たずに 0。控えが読めなければ 0（待ちは①②で届く）。
 func TestWaitPassesThrough(t *testing.T) {
 	f := waitFixture(t)
