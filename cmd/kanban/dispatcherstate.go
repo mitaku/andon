@@ -55,6 +55,12 @@ type dsResend struct {
 	Sent  int64 `json:"sent,omitempty"`
 }
 
+type dsMoved struct {
+	Msg    string `json:"msg"`
+	Screen string `json:"screen,omitempty"`
+	At     int64  `json:"at"`
+}
+
 type dispatcherState struct {
 	Reviewers map[string]dsReviewer `json:"reviewers"`
 	Gates     map[string]dsGate     `json:"gates"`
@@ -69,6 +75,7 @@ type dispatcherState struct {
 	Sent      map[string]bool       `json:"sent,omitempty"`
 	Retry     map[string]dsResend   `json:"retry,omitempty"`
 	First     map[string]bool       `json:"first,omitempty"`
+	Moved     map[string]dsMoved    `json:"moved,omitempty"`
 	Impact    map[string]int        `json:"impact,omitempty"`
 	// Issues done whose corrections.json is not collected yet → failed tries
 	Corrections map[string]int `json:"corrections,omitempty"`

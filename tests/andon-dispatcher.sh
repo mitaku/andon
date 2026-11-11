@@ -1034,7 +1034,13 @@ r=$(st_task 'レビュー待ち' w26); termp w26 done "$old_idle"; as_cos kanban
 w=$(st_task 'working が長い' w27); termp w27 working "$old_work"
 q=$(st_task '静か（短い）' w28); termp w28 idle "$fresh"
 k=$(st_task 'working（短い）' w29); termp w29 working "$fresh"
+m=$(st_task 'working が長いが進む' w30); termp w30 working "$old_work"; printf 'Read a.go\n' > "$tmp/hc/screen-w30"
 pk
+[ "$(pp "$w" stalled)" = '[]' ] || die '初めて見た working を、進みを見ないうちに stalled で知らせた'
+jq --arg w "$w|w27" --arg m "$m|w30" '.moved[$w].at = 0 | .moved[$m].at = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"   # 前に見てから 20 分たった
+printf 'Read a.go\nEdit b.go\n' > "$tmp/hc/screen-w30"   # w30 の画面は動いた。w27 は動かない
+pk
+[ "$(pp "$m" stalled)" = '[]' ] || die '画面が動いている working の担当を stalled で知らせた'
 pp "$g" finished | jq -e '.[0].detail == {agent: "w21", status_ms: 0}' >/dev/null || die "端末の無い担当を finished で知らせない: $(pp "$g" finished)"
 pp "$b" blocked | jq -e --argjson ms "$fresh" '.[0].detail == {agent: "w22", status_ms: $ms}' >/dev/null || die "blocked を知らせない: $(pp "$b" blocked)"
 pp "$e" error | jq -e 'length == 1' >/dev/null || die '提供元でない error を知らせない'
@@ -1049,7 +1055,24 @@ clear_pending; pk
 termp w22 blocked "$(now_ms)"
 pk
 pp "$b" blocked | jq -e 'length == 1' >/dev/null || die '新しい status_ms の blocked を知らせない'
-ok '止まった担当: 端末が無い（finished）・blocked・提供元でない error・idle 15分・working 20分を知らせ、レビュー待ち・短いものは知らせず、同じ status_ms につき1回'
+ok '止まった担当: 端末が無い（finished）・blocked・提供元でない error・idle 15分・working で画面も msg も 20分動かないを知らせ、レビュー待ち・短いもの・進んでいる working は知らせず、同じ status_ms につき1回'
+
+# 18b. Chief Engineer の課題（profile chief-engineer）の ready・stalled・blocked は記録だけ、error は届ける（A-0036）
+prec=${pst%.json}.recorded.jsonl
+rec_n() { jq -c --arg t "$1" --arg k "$2" 'select(.issue == $t and .kind == $k)' "$prec" 2>/dev/null | wc -l; }
+ce=$(as_cos kanban add '設計を詰める' --profile chief-engineer)
+clear_pending; pk
+[ "$(pp "$ce" ready)" = '[]' ] && [ "$(rec_n "$ce" ready)" = 1 ] || die "Chief Engineer の ready を届けた・記録しない: $(jq -c .pending "$pst")"
+HC_TERMINAL_ID=w31 kanban start "$ce" >/dev/null; termp w31 idle "$old_idle"
+pk
+termp w31 blocked "$fresh"
+pk
+[ "$(pp "$ce" stalled)" = '[]' ] && [ "$(pp "$ce" blocked)" = '[]' ] && [ "$(rec_n "$ce" stalled)" = 1 ] && [ "$(rec_n "$ce" blocked)" = 1 ] \
+  || die "Chief Engineer の止まりを届けた・記録しない: $(jq -c .pending "$pst")"
+termp w31 error "$(now_ms)"; printf 'Error: tool crashed\n' > "$tmp/hc/screen-w31"
+pk
+pp "$ce" error | jq -e '.[0].detail.agent == "w31"' >/dev/null || die "Chief Engineer の error を届けない: $(jq -c .pending "$pst")"
+ok 'Chief Engineer の課題の ready・stalled・blocked は記録だけにし、error は届ける'
 
 # 19. 提供元に切られたら自分で続きを打つ（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら知らせる（dispatcher.md §2.4）
 v=$(st_task 'error（混雑）' w23); termp w23 error "$fresh"; printf '› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n' > "$tmp/hc/screen-w23"

@@ -208,7 +208,7 @@ func TestRetryNotWithFirstMessage(t *testing.T) {
 	}
 }
 
-// stalled とは重ならない: 打ったあとの working は 20 分までは静か、20 分で stalled を知らせるが打たない。
+// stalled とは重ならない: 打ったあとの working は 20 分までは静か、画面も msg も 20 分動かなければ stalled を知らせるが打たない。
 func TestRetryThenStalled(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", cutMsg, 0, false)
@@ -217,6 +217,7 @@ func TestRetryThenStalled(t *testing.T) {
 		t.Fatalf("打っていない: %q", got)
 	}
 	f.term("t42", "working", "", time.Minute+time.Second, false)
+	f.at(2*time.Minute, "") // working を見た（画面と msg を控える）
 	if got := f.at(20*time.Minute, ""); got != nil || len(f.p.st.Pending) != 0 {
 		t.Fatalf("20 分たたないのに: %q %q", got, f.kinds())
 	}
@@ -225,6 +226,68 @@ func TestRetryThenStalled(t *testing.T) {
 	}
 	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:stalled" {
 		t.Fatalf("stalled を知らせていない: %q", k)
+	}
+}
+
+// 1つのターンで長く働いている担当（working のまま。status.msg か画面が動いている）には stalled を届けない。
+// 画面も msg も 20 分動かなくなったら届ける（A-0036）。
+func TestWorkingMoving(t *testing.T) {
+	f := newRetry(t)
+	f.term("t42", "working", "go test を回す", 0, false)
+	for i, m := range []time.Duration{1, 10, 19, 28, 37, 46} {
+		f.screen("t42", fmt.Sprintf("✻ Working… (%dm)\n%s", m, strings.Repeat("Edit x.go\n", i+1)))
+		f.at(m*time.Minute, "")
+	}
+	if k := f.kinds(); len(k) != 0 {
+		t.Fatalf("進んでいる担当に stalled を届けた: %q", k)
+	}
+	f.screen("t42", "✻ Working… (60m)\n"+strings.Repeat("Edit x.go\n", 6)) // 時計だけ進む
+	f.at(60*time.Minute, "")
+	if k := f.kinds(); len(k) != 0 {
+		t.Fatalf("動いて 20 分たたないのに: %q", k)
+	}
+	f.at(66*time.Minute, "")
+	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:stalled" {
+		t.Fatalf("画面も msg も 20 分動かないのに stalled を届けない: %q", k)
+	}
+}
+
+// hc read が失敗し続けても、status.msg が替わっていれば進んでいるとみて stalled を届けない（A-0036 のレビュー 1 回目）。
+func TestWorkingMovingMsgOnly(t *testing.T) {
+	f := newRetry(t) // 画面のファイルを置かない: 偽の hc read は失敗する
+	for i, m := range []time.Duration{1, 15, 30, 45} {
+		f.term("t42", "working", fmt.Sprintf("ツール %c を回す", 'a'+i), 0, false)
+		f.at(m*time.Minute, "")
+	}
+	if k := f.kinds(); len(k) != 0 {
+		t.Fatalf("msg が替わっている担当に stalled を届けた: %q", k)
+	}
+	f.at(66*time.Minute, "")
+	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:stalled" {
+		t.Fatalf("msg も画面も 20 分動かないのに stalled を届けない: %q", k)
+	}
+}
+
+// Chief Engineer（profile chief-engineer）の端末の stalled・blocked は記録だけで、error は届ける（A-0036）。
+func TestEngineerWatch(t *testing.T) {
+	f := newRetry(t)
+	f.p.l.Slug = "sample-site"
+	f.p.tasks[0]["profile"] = "chief-engineer"
+	f.term("t42", "idle", "", 0, false)
+	f.at(30*time.Minute, "")
+	f.term("t42", "blocked", "", 31*time.Minute, false)
+	f.at(32*time.Minute, "")
+	if k := f.kinds(); len(k) != 0 {
+		t.Fatalf("Chief Engineer の止まりを届けた: %q", k)
+	}
+	f.term("t42", "error", "Error: tool crashed", 33*time.Minute, false)
+	f.at(34*time.Minute, "")
+	if k := f.kinds(); len(k) != 1 || k[0] != "S-7:error" {
+		t.Fatalf("Chief Engineer の error を届けない: %q", k)
+	}
+	b, err := os.ReadFile(RecordedPath("sample-site"))
+	if err != nil || strings.Count(string(b), "\n") != 2 || !strings.Contains(string(b), `"stalled"`) || !strings.Contains(string(b), `"blocked"`) {
+		t.Fatalf("記録に stalled と blocked が無い: %q %v", b, err)
 	}
 }
 

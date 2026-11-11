@@ -59,6 +59,7 @@ type State struct {
 	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<issue>|<agent>|<状態>|<status_ms>）
 	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元に切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
 	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
+	Moved     map[string]Moved    `json:"moved,omitempty"`     // working の担当の status.msg と画面の要約と、それが最後に動いた時刻（<issue>|<agent>。止まったかの見分け）
 	Impact    map[string]int      `json:"impact,omitempty"`    // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 	// done になった、人の手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
 	Corrections map[string]int `json:"corrections,omitempty"`

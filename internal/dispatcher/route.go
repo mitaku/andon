@@ -26,6 +26,7 @@ type Facts struct {
 	Gated     bool // dispatcher がゲートを回す課題（gated。Chief Engineer・レビュアー・repo の無い課題・調べる課題でない）
 	Reviewer  bool // レビュアーの課題（isReviewer）
 	AutoMerge bool // gate の approve のあと dispatcher がマージに進む（merge: auto を Chief of Staff が書いた・委譲の範囲内）
+	Engineer  bool // Chief Engineer の課題（profile chief-engineer）
 }
 
 // RouteOf は通知の扱いの表（ADR-0010 決めたこと 1・7）。表に無い kind は届ける（安全側）。
@@ -57,6 +58,10 @@ func RouteOf(n Notification, f Facts) Route {
 		if f.Reviewer {
 			return Record
 		}
+	case "stalled", "blocked", "ready":
+		if f.Engineer {
+			return Record // 人と話していて人の返事を待つのが普通・起こし済み。Chief of Staff は答えられない（ADR-0010 決めたこと 1）
+		}
 	}
 	return Deliver
 }
@@ -73,7 +78,7 @@ func RecordedPath(slug string) string {
 func (p *project) facts(id string) Facts {
 	for _, t := range p.tasks {
 		if t.Str("id") == id {
-			return Facts{Gated: p.gated(t), Reviewer: isReviewer(t)}
+			return Facts{Gated: p.gated(t), Reviewer: isReviewer(t), Engineer: t.Str("profile") == "chief-engineer"}
 		}
 	}
 	return Facts{}
