@@ -99,7 +99,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
 | `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
 | `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、Dockerfile の golang の版を `mise.toml` と突き合わせる |
-| `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
+| `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
 **手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（セルで 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。
@@ -111,7 +111,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/ledger.md`・`tests/kanban/` | `kanban.sh` を足す |
 | `docs/adr/` | `package.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
-| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md` など | 足さない |
+| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`CHANGELOG.md` など | 足さない |
 | `tests/lib/` | `image.sh` 以外の全部 |
 | それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`.github/` と知らないパス） | `image.sh` 以外の全部 |
 | CI の表で「走らせる」もの | `image.sh` も（Docker が無ければ SKIP） |

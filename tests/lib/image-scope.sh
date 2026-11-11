@@ -17,7 +17,7 @@ while IFS= read -r p; do
     # image に入らない場所の Go のテスト（go build は読まない。package/ の下は image に丸ごと入るので含めない）・
     # 人の文書・ほかの tests
     cmd/*_test.go | internal/*_test.go | docs/* | tests/*) ;;
-    README.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・
     # mise.toml・.github/ と、まだ無いパス）は要る
     *) need=true ;;
