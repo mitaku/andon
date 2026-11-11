@@ -8,11 +8,12 @@
 //	<pkg>/environment.md ＋ <ws>/AGENTS.local.md → <claude>/CLAUDE.md（@ の2行）・~/.codex/AGENTS.md（連結）
 //	<pkg>/codex.rules                         → ~/.codex/rules/andon.rules（＋ ~/.codex/config.toml に足りない承認・sandbox の既定だけ）
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
+//	<tools> に同梱の skill（playwright-cli）     → <claude>/skills/<name>・~/.agents/skills/<name>（symlink。extskills.go）
 //	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
 //	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
-// 信頼済みにする（trust.go。足りない所だけ足す）、portless・files サーバ・sshd・dispatcher の起動。
+// 信頼済みにする（trust.go。足りない所だけ足す）、外の skill（gh skill。extskills.go）、portless・files サーバ・sshd・dispatcher の起動。
 // 起動は道具が無ければ飛ばし、失敗しても続ける（セルは立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
 package boot
@@ -41,7 +42,8 @@ const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
-	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
+	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
+	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、gh skill update --all で上げる（一覧が空なら打たない）。\n" +
 	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
@@ -51,6 +53,7 @@ const DefaultPackage = "/opt/andon"
 // Env は boot が読み書きする場所。テストで差し替える。
 type Env struct {
 	Package         string // パッケージ（ANDON_HOME。既定 /opt/andon）
+	Tools           string // イメージの備品の置き場（ANDON_TOOLS。既定 /opt/andon-tools）。同梱の skill の実体がある
 	Workspace       string // セルの repo（ANDON_WORKSPACE。既定 /workspace）
 	GhqRoot         string // 案件の repo の置き場（GHQ_ROOT）。空なら信頼の根に案件の repo を足さない
 	Home            string // HOME
@@ -71,6 +74,7 @@ func EnvFromOS(log io.Writer) Env {
 	self, _ := os.Executable()
 	return Env{
 		Package:         getenv("ANDON_HOME", DefaultPackage),
+		Tools:           getenv("ANDON_TOOLS", DefaultTools),
 		Workspace:       getenv("ANDON_WORKSPACE", "/workspace"),
 		GhqRoot:         os.Getenv("GHQ_ROOT"),
 		Home:            home,
@@ -466,6 +470,7 @@ func genCodexAgents(e Env) error {
 // 外す・張り替えるのは boot が張ったリンク（andon-* で、パッケージの skills の直下を指す symlink）だけ。
 // それ以外の andon-*（利用者が置いたもの・実ディレクトリ）には触らず、ログに1行出す。
 // パッケージから消えた skill のリンクは外す。前の置き場 <claude>/skills の boot のリンクも外す（二重に読まれるのを避ける）。
+// 同梱の skill（備品の置き場の下を指す symlink）は両方の置き場に張る（genBundledSkills。ADR-0018 決めたこと 5）。
 func genSkills(e Env) error {
 	dir := filepath.Join(e.Home, ".agents", "skills")
 	if isSymlink(dir) {
@@ -490,10 +495,11 @@ func genSkills(e Env) error {
 		}
 		errs = append(errs, e.symlink(want[name], link))
 	}
+	errs = append(errs, e.genBundledSkills(dir))
 	if old := filepath.Join(e.claudeDir(), "skills"); isSymlink(old) {
-		e.logf("%s が symlink（仮設の形）なので andon-* を外さない", old)
+		e.logf("%s が symlink（仮設の形）なので andon-* と同梱の skill に触らない", old)
 	} else {
-		errs = append(errs, e.unlinkAndon(old, nil))
+		errs = append(errs, e.unlinkAndon(old, nil), e.genBundledSkills(old))
 	}
 	return errors.Join(errs...)
 }

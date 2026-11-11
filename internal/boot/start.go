@@ -34,6 +34,7 @@ func Start(e Env) {
 	}{
 		{"Claude Code の記録", fixClaudeInstall},
 		{"git の資格情報", setupGitCredentials},
+		{"外の skill", installGhSkills},
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},

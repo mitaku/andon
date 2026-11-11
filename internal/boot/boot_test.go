@@ -37,7 +37,7 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) env() Env {
 	return Env{
-		Package: f.pkg, Workspace: f.ws, Home: f.home, ClaudeDir: f.claude,
+		Package: f.pkg, Tools: filepath.Join(f.root, "opt", "andon-tools"), Workspace: f.ws, Home: f.home, ClaudeDir: f.claude,
 		ManagedSettings: f.managed, Hostname: "example-plant",
 		LookPath: func(string) (string, error) { return "", errors.New("無い") },
 		Log:      &f.log,
