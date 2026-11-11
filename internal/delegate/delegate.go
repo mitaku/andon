@@ -299,9 +299,15 @@ func Owner(ws string) string {
 	return ""
 }
 
-func git(ws string, args ...string) (string, error) {
+func git(ws string, args ...string) (string, error) { return gitEnv(ws, nil, args...) }
+
+// gitEnv は env（KEY=VALUE）を足して git を打つ。
+func gitEnv(ws string, env []string, args ...string) (string, error) {
 	var errb bytes.Buffer
 	c := exec.Command("git", append([]string{"-C", ws}, args...)...)
+	if env != nil {
+		c.Env = append(os.Environ(), env...)
+	}
 	c.Stderr = &errb
 	out, err := c.Output()
 	if err != nil {
