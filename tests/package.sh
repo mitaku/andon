@@ -63,6 +63,15 @@ done
 # Codex 系: 本文で役の skill を絶対パスで指す（今のまま）
 for p in codex codex-review; do
   f=package/templates/$p.md
+  for field in command resume; do
+    value=$(fm "$f" "$field")
+    for key in features.memories memories.generate_memories memories.use_memories; do
+      case " $value " in
+        *" -c $key=false "*) pass "プロファイル $p の $field が $key を無効化する" ;;
+        *) fail "プロファイル $p の $field に -c $key=false が無い" ;;
+      esac
+    done
+  done
   case " $(fm "$f" command) " in *--plugin-dir*|*--append-system-prompt-file*) fail "プロファイル $p（Codex）の command に Claude Code の口がある"; continue ;; esac
   grep -q '`/opt/andon/skills/worker/SKILL.md` を最初に読み' "$f" && [ -f package/skills/worker/SKILL.md ] \
     && pass "プロファイル $p（Codex）は本文で worker skill を指す" || fail "プロファイル $p（Codex）が本文で worker skill を指していない"

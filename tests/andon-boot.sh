@@ -17,7 +17,9 @@ mkdir -p "$pkg/templates" "$pkg/skills/worker" "$ws/templates.local" "$home" "$t
 echo '{"permissions":{"deny":["Bash(gh pr merge:*)"]}}' >"$pkg/settings.json"
 cp "$(dirname "$0")/../package/codex.rules" "$pkg/codex.rules"
 printf -- '---\nname: claude\n---\nパッケージ\n' >"$pkg/templates/claude.md"
-printf -- '---\nname: codex\n---\n`/opt/andon/skills/worker/SKILL.md` を読む\n' >"$pkg/templates/codex.md"
+for p in codex codex-review; do
+  cp "$(dirname "$0")/../package/templates/$p.md" "$pkg/templates/$p.md"
+done
 printf -- '---\nname: claude\n---\nセル\n' >"$ws/templates.local/claude.md"
 echo worker >"$pkg/skills/worker/SKILL.md"
 mkdir -p "$home/.claude/skills"
@@ -66,8 +68,18 @@ grep -q 'セル' "$home/.config/herdr-core/templates/claude.md" && pass "プロ�
 [ -d "$home/.claude/skills/alpha" ] && [ -d "$home/.agents/skills/alpha" ] && grep -qx 'skill update --all' "$tmp/gh-calls" \
   && pass "外の skill を gh skill install（エージェントごと）で入れ、update --all を打つ" || fail "外の skill: $(cat "$tmp/gh-calls")"
 grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
+# 配布した起動・再開の引数は、信頼した repo の .codex/config.toml より強い層で記憶を止める。
+for p in codex codex-review codex-resume codex-review-resume; do
+  value=$(sed -n 's/^command: //p' "$home/.config/herdr-core/templates/$p.md")
+  for key in features.memories memories.generate_memories memories.use_memories; do
+    case " $value " in
+      *" -c $key=false "*) pass "生成した $p が $key を無効化する" ;;
+      *) fail "生成した $p に -c $key=false が無い" ;;
+    esac
+  done
+done
 # Codex の承認・sandbox の既定は config.toml の先頭の塊（最初の空行まで）。信頼の表はその後ろに続く
-[ "$(sed -n '2,3p' "$home/.codex/config.toml")" = 'approval_policy = "never"
+grep -qxF 'features = { memories = false }' "$home/.codex/config.toml" && grep -qxF 'memories = { generate_memories = false, use_memories = false }' "$home/.codex/config.toml" && [ "$(sed -n '4,5p' "$home/.codex/config.toml")" = 'approval_policy = "never"
 sandbox_mode = "danger-full-access"' ] && cmp -s "$pkg/codex.rules" "$home/.codex/rules/andon.rules" \
   && pass "Codex の承認・sandbox の既定と rules を置く" || fail "Codex の既定: $(cat "$home/.codex/config.toml")"
 repo=$ws/.ghq/github.com/example/sample-site
