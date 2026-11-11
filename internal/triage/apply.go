@@ -102,11 +102,23 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 			return err
 		}
 		// 本文と理由を記録に残してから、仕分けの済んだ memory を消す（ADR-0020 決めたこと 5）。keep は残す。
+		// 収集のあと書き換わったものは消さずに残し、理由を記録に書く（新しい中身は次のトリアージで拾う。A-0155）。
+		kept := false
 		for _, it := range g {
 			if p := memoryPath[it.key()]; p != "" && it.decision() != "keep" {
-				if err := removeMemory(p); err != nil {
+				removed, err := removeMemory(p, it.key())
+				if err != nil {
 					return err
 				}
+				if !removed {
+					it["memory_kept"] = memoryChanged
+					kept = true
+				}
+			}
+		}
+		if kept {
+			if err := save(); err != nil {
+				return err
 			}
 		}
 	}
@@ -117,6 +129,9 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	_, err = io.WriteString(stdout, md)
 	return err
 }
+
+// memoryChanged は消さずに残した memory の理由（記録の memory_kept）。
+const memoryChanged = "収集のあと書き換わったので消さずに残した（次のトリアージで拾い直す）"
 
 func toAny(items []item) []any {
 	got := make([]any, len(items))
@@ -314,6 +329,15 @@ func summary(slug, date string, goal any, items []item) string {
 		if it.decision() == "keep" {
 			b.WriteString(row(it.key(), text(it), it["reason"]))
 		}
+	}
+	var kept []string
+	for _, it := range items {
+		if it["memory_kept"] != nil {
+			kept = append(kept, it.key())
+		}
+	}
+	if len(kept) > 0 {
+		b.WriteString("\n## 消さずに残した memory\n" + memoryChanged + ": " + strings.Join(kept, ", ") + "\n")
 	}
 	return b.String()
 }

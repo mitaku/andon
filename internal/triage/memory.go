@@ -1,6 +1,8 @@
 package triage
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"sort"
@@ -73,15 +75,26 @@ func memoryFrom(name string) string {
 }
 
 // removeMemory は仕分けの済んだ memory のファイルと、目録（MEMORY.md）でそれを指す行を消す。
-// 目録の行は同時書き込みで欠けうるので、無くても落ちない（A-0144）。
-func removeMemory(path string) error {
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return fail("memory を消せない: %s", filepath.Base(path))
+// 消す前に今の本文を収集のときの key（本文の sha1）と照らし、違えば（収集のあと書き換わった）ファイルも目録の行も残して false を返す（A-0155）。
+// ファイルがもう無ければ消えたものとして目録の行を消す。目録の行は同時書き込みで欠けうるので、無くても落ちない（A-0144）。
+func removeMemory(path, key string) (bool, error) {
+	body, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		sum := sha1.Sum(body)
+		if !strings.HasSuffix(key, ":"+hex.EncodeToString(sum[:])) {
+			return false, nil
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return false, fail("memory を消せない: %s", filepath.Base(path))
+		}
+	case !os.IsNotExist(err):
+		return false, fail("memory を読めない: %s", filepath.Base(path))
 	}
 	index := filepath.Join(filepath.Dir(path), memoryIndex)
 	b, err := os.ReadFile(index)
 	if err != nil {
-		return nil
+		return true, nil
 	}
 	link := "(" + filepath.Base(path) + ")"
 	lines := strings.SplitAfter(string(b), "\n")
@@ -92,15 +105,15 @@ func removeMemory(path string) error {
 		}
 	}
 	if len(kept) == len(lines) {
-		return nil
+		return true, nil
 	}
 	tmp := index + ".triage.tmp"
 	if err := os.WriteFile(tmp, []byte(strings.Join(kept, "")), 0o644); err != nil {
-		return fail("目録を書けない")
+		return true, fail("目録を書けない")
 	}
 	if err := os.Rename(tmp, index); err != nil {
 		os.Remove(tmp)
-		return fail("目録を書けない")
+		return true, fail("目録を書けない")
 	}
-	return nil
+	return true, nil
 }

@@ -52,8 +52,8 @@ func TestRemoveMemory(t *testing.T) {
 	a := filepath.Join(dir, "a.md")
 	os.WriteFile(a, []byte("A"), 0o644)
 	os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte("# 目録\n- [A](a.md) — a\n- [AB](ab.md) — ab\n"), 0o644)
-	if err := removeMemory(a); err != nil {
-		t.Fatal(err)
+	if removed, err := removeMemory(a, itemKey("demo", "a", "memory", "A")); err != nil || !removed {
+		t.Fatal(removed, err)
 	}
 	if _, err := os.Stat(a); !os.IsNotExist(err) {
 		t.Error("file remains")
@@ -63,7 +63,32 @@ func TestRemoveMemory(t *testing.T) {
 		t.Errorf("index %q", b)
 	}
 	// 目録もファイルも無くても落ちない。
-	if err := removeMemory(filepath.Join(t.TempDir(), "gone.md")); err != nil {
+	if _, err := removeMemory(filepath.Join(t.TempDir(), "gone.md"), itemKey("demo", "gone", "memory", "")); err != nil {
 		t.Error(err)
+	}
+}
+
+// 収集のあと消す前に同じファイルが書き換わったら、ファイルも目録の行も残す（A-0155）。
+func TestRemoveMemoryKeepsChanged(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.md")
+	index := "- [A](a.md) — a\n"
+	os.WriteFile(a, []byte("A"), 0o644)
+	os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte(index), 0o644)
+	l := &ledger{slug: "demo", memory: dir, now: time.Now()}
+	got, err := l.memoryItems()
+	if err != nil || len(got) != 1 {
+		t.Fatal(got, err)
+	}
+	os.WriteFile(a, []byte("A と新しい学び"), 0o644)
+	removed, err := removeMemory(got[0].path, got[0].Key)
+	if err != nil || removed {
+		t.Fatal(removed, err)
+	}
+	if b, _ := os.ReadFile(a); string(b) != "A と新しい学び" {
+		t.Errorf("file %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "MEMORY.md")); string(b) != index {
+		t.Errorf("index %q", b)
 	}
 }
