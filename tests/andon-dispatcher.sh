@@ -44,6 +44,9 @@ case "\$*" in
     else jq --arg s "\$(if [ -f \$d/merged ]; then echo MERGED; else echo OPEN; fi)" '{state:\$s,commits:[{oid:.headRefOid,messageHeadline:"x"}],comments:[],reviews:[]}' \$d/view.json; fi ;;
   "api repos/example/app/commits/"*) echo '{"files":[{"filename":"docs/b.md"}]}' ;;
   "api --paginate --slurp repos/example/app/pulls/7/comments") if [ -f \$d/inline.json ]; then cat \$d/inline.json; else echo '[[]]'; fi ;;   # インラインのレビューコメント
+  "pr view 7 --repo example/app --json state,mergeCommit,headRefOid")   # gh pr merge が失敗したあとの読み直し
+    if [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
+    else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
   "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon issue impact（impactfail があれば落ちる）
     [ ! -f \$d/impactfail ] || { echo "HTTP 502" >&2; exit 1; }
@@ -61,10 +64,11 @@ case "\$*" in
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
   "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted
     if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi ;;  # ゲートの最後の書き込み。マージの前に状態を変える
-  "pr merge 7 --repo example/app "*)
+  "pr merge 7 --repo example/app "*)   # race があれば、人が直前に同じ head でマージしていて失敗する
     echo "\$*" >> \$d/merges
     h=\$(jq -r .headRefOid \$d/view.json)
-    git -C $tmp/origin update-ref refs/heads/main "\$h" && echo "\$h" > \$d/merged ;;
+    git -C $tmp/origin update-ref refs/heads/main "\$h" && echo "\$h" > \$d/merged
+    if [ -f \$d/race ]; then rm \$d/race; echo "Pull request example/app#7 was already merged" >&2; exit 1; fi ;;
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
 esac
 EOF
@@ -518,6 +522,28 @@ n=$(wc -l < "$tmp/gh/states"); watch_due "$hm"; dispatcher
 rm "$tmp/gh/closed"
 HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null   # 前の節の課題と同じ PR 7 を使うので、ここで片付ける
 ok 'PR がマージされずに閉じたら片付けず、通知 closed を1回だけ積む（もう聞き直さない）'
+
+# 4d-2. merge: auto の課題を、dispatcher の gh pr merge の直前に人が同じ head でマージした → gh pr merge は失敗するが、
+#     読み直して MERGED・head がゲートと同じなら問い（irreversible の誤報）を出さず、人がマージしたときの道（§2.7）で片付ける
+hm=$(newtask '人が先にマージする' auto)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+as_worker "$hm" review-request
+dispatcher
+review_by "$hm-r1" '[]'
+as_worker "$hm" ready
+touch "$tmp/gh/race"; watch_due none
+merges=$(wc -l < "$tmp/gh/merges"); n=$(wc -l < "$tmp/gh/states")
+dispatcher
+[ "$(wc -l < "$tmp/gh/merges")" = $((merges + 1)) ] || die '前提: gh pr merge を打っていない'
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "人が先にマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
+! grep -q " $hm をマージしない" "$tmp/dispatcher.log" && [ "$(pending "$hm" asked)" = null ] && [ "$(recorded "$hm" asked)" = null ] || die "人が先にマージしただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$hm/library/gate/$head.json" >/dev/null || die "人のマージなのにゲートの記録に merged を書いた: $(cat "$L/issues/$hm/library/gate/$head.json")"
+recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
+jq -e --arg t "$hm" '[.pending[] | select(.issue == $t and (.kind == "asked" or .kind == "merged"))] == [] and ((.approved // {}) | has($t) | not) and ((.watch // {}) | has($t) | not)' "$state" >/dev/null ||
+    die "問い・merged を待ちに積んだ・approve の待ちや控えを残した: $(jq -c '{pending, approved, watch}' "$state")"
+[ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die '読み直しのあと、同じ PR を §2.7 の見回りで聞き直した'
+ok 'merge: auto でも人が先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（ゲートの記録の merged は書かない）'
 
 # 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
 hm=$(newtask '別の repo の PR' person)
