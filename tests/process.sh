@@ -4,6 +4,7 @@
 #   2. process/**/*.yaml と見本（tests/process/process/）が schema を通る（andon process json で JSON にして schema_check.py へ）。
 #      ワークストリームの triggers[].start と steps[].next[].id が steps[] に在る。
 #   3. 見本を壊すと落ちる（知らないキー・enum の外・必須の欠け・やる者の種類に合わないキー・在らない id）。
+#   3b. process/states/ の transitions[].once: true が on の「§7.2 #<n>」で dispatcher.md §7.2 の行を指す（受け入れ条件 4）。
 #   4. andon process render --check: repo の docs/process/ と見本の生成物（tests/process/docs/process/）が作り直しても変わらない。
 #      生成物に機械が読む塊（```json・```yaml）が無い。
 # 道具は python3（標準ライブラリだけ）と jq と andon（tests/lib/andon.sh）。
@@ -98,6 +99,65 @@ st|del(.title)|title が無い
 st|.states[0].record = "Pending"|record が <記録>:<項目> でない
 st|.positions = ["sample-LogPos"]|positions[] が <記録>:<項目> でない
 BAD
+
+# 3b. 「2 回走らせない」の導出（受け入れ条件 4）: process/states/ の transitions[].once: true の 1 件ごとに、
+#     on が「§7.2 #<n>」で dispatcher.md §7.2 の行を指し、その行の 走らせる者・二重に走ったら・今の守り が空でない。
+# once_rows <dispatcher.md> → §7.2 の表の行のうち、走らせる者・二重に走ったら・今の守り が空でない行の # を 1 行 1 つ
+once_rows() {
+  python3 - "$1" <<'PY'
+import re, sys
+lines = open(sys.argv[1], encoding="utf-8").read().split("\n")
+inside = False
+for l in lines:
+    if l.startswith("### "):
+        inside = l.startswith("### 7.2 ")
+        continue
+    if not inside or not l.startswith("|"):
+        continue
+    cells = [c.strip() for c in re.split(r"(?<!\\)\|", l.strip())[1:-1]]
+    if len(cells) == 5 and cells[0].isdigit() and all(cells[2:5]):
+        print(cells[0])
+PY
+}
+# once_check <JSON の定義> <行の # の一覧のファイル> → 0 揃う / 1 食い違う（理由は stdout に 1 行ずつ）
+once_check() {
+  jq -r '.transitions[]? | select(.once == true) | "\(.from) → \(.to)\t\(.on)"' "$1" | {
+    bad=0
+    while IFS=$'\t' read -r edge on; do
+      n=$(printf '%s\n' "$on" | grep -oE '§7\.2 #[0-9]+' | head -1 | sed 's/.*#//') || true
+      if [ -z "$n" ]; then echo "$edge: once: true なのに on が §7.2 #<n> を指さない"; bad=1
+      elif ! grep -qx "$n" "$2"; then echo "$edge: §7.2 #$n の行が無いか、走らせる者・二重に走ったら・今の守り が空"; bad=1; fi
+    done
+    exit "$bad"
+  }
+}
+once_rows docs/dispatcher.md >"$tmp/rows"
+[ -s "$tmp/rows" ] && ok "dispatcher.md §7.2 の表が読める（$(wc -l <"$tmp/rows") 行）" || ng "dispatcher.md §7.2 の表が読めない"
+nonce=0
+for f in process/states/*.yaml; do
+  [ -e "$f" ] || continue
+  "$andon" process json "$f" >"$tmp/def.json"
+  nonce=$((nonce + $(jq '[.transitions[]? | select(.once == true)] | length' "$tmp/def.json")))
+  if out=$(once_check "$tmp/def.json" "$tmp/rows"); then ok "$f の once: true が dispatcher.md §7.2 の行を指す"
+  else ng "$f の once: true が §7.2 と食い違う"; printf '     %s\n' "$out"; fi
+done
+[ "$nonce" -gt 0 ] && ok "once: true の移り方が $nonce 件ある" || ng "once: true の移り方が 1 件も無い"
+# 壊すと落ちる（§7.2 を指さない・在らない行を指す・守りの欄が空の行を指す）
+printf '%s\n' '| # | 処理 | 走らせる者 | 二重に走ったら | 今の守り |' '|---|---|---|---|---|' \
+  '| 1 | 見本 | dispatcher | 二度起きる | 控え |' '| 2 | 見本 | dispatcher | 二度起きる |  |' >"$tmp/table"
+printf '### 7.2 表\n\n' | cat - "$tmp/table" >"$tmp/disp.md"
+once_rows "$tmp/disp.md" >"$tmp/rows-sample"
+[ "$(cat "$tmp/rows-sample")" = 1 ] && ok "§7.2 の行の読み方: 守りの欄が空の行は数えない" || ng "§7.2 の行の読み方が違う: $(tr '\n' ' ' <"$tmp/rows-sample")"
+while IFS='|' read -r on desc; do
+  jq -n --arg on "$on" '{transitions: [{from: "a", to: "b", on: $on, by: "machine", once: true}]}' >"$tmp/once.json"
+  if once_check "$tmp/once.json" "$tmp/rows-sample" >/dev/null; then ng "壊した once が通る: $desc"; else ok "壊した once は落ちる: $desc"; fi
+done <<'BAD'
+起こす|§7.2 を指さない
+起こす（§7.2 #9）|在らない行を指す
+起こす（§7.2 #2）|守りの欄が空の行を指す
+BAD
+jq -n '{transitions: [{from: "a", to: "b", on: "起こす（§7.2 #1）", by: "machine", once: true}, {from: "b", to: "c", on: "x", by: "ai"}]}' >"$tmp/once.json"
+once_check "$tmp/once.json" "$tmp/rows-sample" >/dev/null && ok "§7.2 の行を指す once は通る（once で無い移り方は見ない）" || ng "§7.2 の行を指す once が落ちる"
 
 # 4. 生成
 if "$andon" process render --check . 2>"$tmp/why"; then ok "docs/process/ は process/ から作り直しても変わらない"

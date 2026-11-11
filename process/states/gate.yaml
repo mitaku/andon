@@ -1,0 +1,35 @@
+name: gate
+title: ゲートとマージ
+source: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・6。控えの Gates の 1 件（課題と log.jsonl の行ごと）が Decision・Merged で状態を持つ
+states:
+  - id: waiting
+    title: 待つ（review に入った行ごと。ゲートが wait なら控えに書かず次の見回りで回し直す）
+    record: dispatcher:Gates
+  - id: approved
+    title: approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ）
+    record: dispatcher:Approved
+  - id: held
+    title: approve だがマージしない（merge person・委譲の外。人のマージの見張りへ）
+  - id: fix
+    title: fix（理由を担当へ送った）
+  - id: needs-human
+    title: needs_human（問いを出した）
+  - id: merged
+    title: マージした
+  - id: finished
+    title: 片付けた
+transitions:
+  - { from: "[*]", to: waiting, on: "review に入った", by: machine }
+  - { from: waiting, to: approved, on: "ゲートを回す（approve・merge auto・委譲の範囲内。§7.2 #4）", by: machine, command: andon gate, once: true }
+  - { from: waiting, to: held, on: "ゲートを回す（approve・merge person か委譲の外。§7.2 #4）", by: machine, command: andon gate, once: true }
+  - { from: waiting, to: fix, on: "ゲートを回す（fix。理由を担当へ hc send。§7.2 #4）", by: machine, command: andon gate, once: true }
+  - { from: waiting, to: needs-human, on: "ゲートを回す（needs_human。問いを出す。§7.2 #4）", by: machine, command: andon gate, once: true }
+  - { from: approved, to: merged, on: "マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）", by: machine, command: gh pr merge --match-head-commit, once: true }
+  - { from: approved, to: waiting, on: "読み直すと head か checks が替わっていた（次の見回りでゲートから）", by: machine }
+  - { from: approved, to: approved, on: "10 分たっても merged も asked も無い（届ける待ちに 1 回だけ積む）", by: machine }
+  - { from: approved, to: "[*]", on: "gh pr merge の前に人がマージしていた（人のマージの見張りへ）", by: machine }
+  - { from: merged, to: finished, on: "マージして片付ける（§7.2 #5）", by: machine, command: andon issue finish, once: true }
+  - { from: held, to: "[*]", on: "人がマージするか決める", by: person }
+  - { from: fix, to: "[*]", on: "担当が直して doing に戻った", by: deck, command: kanban start }
+  - { from: needs-human, to: "[*]", on: "人が答えた", by: person }
+  - { from: finished, to: "[*]", on: "終わり", by: machine }

@@ -1,0 +1,22 @@
+name: reviewer
+title: レビュアーの起動
+source: dispatcher.md §5（P6a）・§2.8・decisions/2026-11-09-reviewer-allowance-fallback.md・ADR-0017 決めたこと 4 の (4)。控えの Reviewers の 1 件（課題と commit ごと）が Started・Skipped・Failed・Attempts・OverLimit で状態を持つ
+states:
+  - id: starting
+    title: 起こし中（worktree → 子課題 → 端末 → 最初のメッセージ。起こしそこねた段と回数を控え、続きから）
+    record: dispatcher:Reviewers
+  - id: started
+    title: 起こした（もう起こさない）
+  - id: skipped
+    title: 見送った（設定・上限を超えた回・head 違い。理由つき）
+  - id: fallback
+    title: 使用量の上限で止まり、別ブランドのレビューのプロファイルで起こし直した
+transitions:
+  - { from: "[*]", to: starting, on: "review_request を拾った（review on・回が上限の中・commit が PR の head）", by: machine }
+  - { from: "[*]", to: skipped, on: "起こさない（設定・上限を超えた回・head 違い）", by: machine }
+  - { from: skipped, to: starting, on: "頼み直した（報告の行が増えた）・review_rounds が上がった", by: machine }
+  - { from: starting, to: starting, on: "起こしそこねた（fetch・hc run・信頼の画面。次の見回りで続きから）", by: machine }
+  - { from: starting, to: started, on: "レビュアーを起こす（§7.2 #3）", by: machine, command: hc run, once: true }
+  - { from: started, to: fallback, on: "使用量の上限で止まった（もう一方が担当と別ブランドのときだけ。1 回だけ）", by: machine, command: hc run }
+  - { from: started, to: "[*]", on: "レビュアーが報告を返した", by: ai, command: kanban review }
+  - { from: fallback, to: "[*]", on: "レビュアーが報告を返した", by: ai, command: kanban review }

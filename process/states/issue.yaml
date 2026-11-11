@@ -1,0 +1,24 @@
+name: issue
+title: 課題
+source: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。記録は台帳で、dispatcher の控えに項目を持たない
+states:
+  - id: queued
+    title: 待つ課題がある（queued）
+  - id: todo
+    title: 引き取れるのを待つ（todo）
+  - id: doing
+    title: 担当が働いている（doing）
+  - id: review
+    title: 返した（review）
+  - id: done
+    title: 片付けた（done）
+transitions:
+  - { from: "[*]", to: todo, on: "課題を足した", by: deck, command: kanban add }
+  - { from: "[*]", to: queued, on: "after つきで課題を足した", by: deck, command: kanban add }
+  - { from: queued, to: todo, on: "待つ課題が全部 done になった", by: deck, command: kanban done }
+  - { from: todo, to: doing, on: "担当を起こした（§7.2 #10）", by: ai, command: andon issue start, once: true }
+  - { from: doing, to: doing, on: "報告・レビュー依頼・候補の一覧・問いを書いた", by: ai, command: andon issue report・review-request・candidates・ask }
+  - { from: doing, to: review, on: "確かめて返した", by: ai, command: andon issue ready }
+  - { from: review, to: doing, on: "直しが届いた", by: deck, command: kanban start }
+  - { from: review, to: done, on: "マージのあと片付けた", by: machine, command: andon issue finish }
+  - { from: done, to: "[*]", on: "終わり", by: deck }

@@ -1,0 +1,20 @@
+name: aftermath
+title: 片付けのあとの仕事（影響と手直し）
+source: dispatcher.md §2.5・§2.6・ADR-0017 決めたこと 4 の (7)。控えの Impact と Corrections が同じ形（課題 → 失敗した回数）で、待ちと打ち直しを持つ
+states:
+  - id: pending
+    title: 待ち（done の行を拾って積んだ。打ち直しは失敗した回数を控える）
+    record: [dispatcher:Impact, dispatcher:Corrections]
+  - id: done
+    title: 済み（控えから外した）
+  - id: gave-up
+    title: 諦めた（error を知らせた）
+transitions:
+  - { from: "[*]", to: pending, on: "done の行を拾った（初めて見る台帳では拾わない）", by: machine }
+  - { from: pending, to: done, on: "マージのあとの影響を集める（§7.2 #17）", by: machine, command: andon issue impact, once: true }
+  - { from: pending, to: done, on: "人の手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）", by: machine, once: true }
+  - { from: pending, to: done, on: "打たない課題だった（レビュアー・Chief Engineer・repo が無い・pr が無い・PR が MERGED でない）", by: machine }
+  - { from: pending, to: pending, on: "失敗した（次の見回りで打ち直す）", by: machine }
+  - { from: pending, to: gave-up, on: "影響は 3 回・手直しは 2 回で諦めた", by: machine }
+  - { from: done, to: "[*]", on: "終わり", by: machine }
+  - { from: gave-up, to: "[*]", on: "Chief of Staff が手で打つか決める", by: ai }
