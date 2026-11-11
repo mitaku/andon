@@ -166,6 +166,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.rows = p.l.Log()
+	p.tick()       // ルーチンの schedule（dispatcher.md §2.1。足した課題は collect の ready の差で拾う）
 	p.collect(cos) // 通知の元（dispatcher.md §2.2・§2.3）
 	busy := false
 	for _, t := range p.tasks {
@@ -196,6 +197,19 @@ func (p *project) pass() (bool, error) {
 		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
 	}
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
+}
+
+// tick は kanban tick を1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。
+// 打つのは dispatcher だけ（cron は置かない）。同じ時刻を二度撃たない守りは台帳の側（kanban/.lock と state/routines.json）。
+// 失敗はログに1行で、巡は止めない。前回の ready が無い（初めて見る台帳）ときは、tick の前の ready を先に控える。
+// 過去の ready は流さず、tick が足した課題だけを collect の ready の差で拾う（次の巡で届く）。
+func (p *project) tick() {
+	if p.st.Ready == nil {
+		p.readReady()
+	}
+	if _, err := p.l.Run("", "tick"); err != nil {
+		p.logf("kanban tick が通らない（巡は続ける）: %v", err)
+	}
 }
 
 // gated は、課題がインナーループ（レビュアーを起こす・ゲートを回す）を通るか。通るのは案件 repo の担当の

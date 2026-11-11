@@ -189,7 +189,7 @@ A routine needs `schedule`, `on`, or both. Any other key is allowed and kept.
 
 ### Firing
 
-- **Time:** `kanban tick` fires each routine whose `schedule` had a time after its last firing and up to now. Times missed while nothing ran `kanban tick` fire once, not once each. The yard runs `kanban tick` every 5 minutes (a cron entry: the yard's job).
+- **Time:** `kanban tick` fires each routine whose `schedule` had a time after its last firing and up to now. Times missed while nothing ran `kanban tick` fire once, not once each. In Andon, the dispatcher runs `kanban tick` once a pass, for a ledger whose Chief of Staff is live (no cron entry; [dispatcher.md](dispatcher.md) §2.1.1).
 - **The first time** `kanban` sees a routine with a command that writes the state (`kanban tick`, `kanban routine list`), it records that time in `state/routines.json` as if the routine had fired then, and doesn't fire it. The schedule counts from that time. The routine file's creation and change times are not used.
 - **Events:** a `kanban` command that moves an issue into a status (`start`, `review`, `done`, `set status=`) fires, in the same lock, each routine whose `on` lists that status.
 - **Each firing**, under the lock: skip it if `paused`, or if `open` of its issues are not done (log the skip). Else add an issue with `title`, `brief`, `profile`, `repo`, `routine: <name>` and status `todo` (the first column), as `kanban add` would, and log it. A skipped firing is still a firing: its time is recorded, so a schedule time that was skipped doesn't fire later.
