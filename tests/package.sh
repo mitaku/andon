@@ -245,9 +245,14 @@ case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /work
 # Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^deck set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
-if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
-  pass "Chief of Staff は予約キー5つ（review・must_fix・reviewer・review_rounds・merge）を issue.yaml に書く"
+if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["estimate","merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
+  pass "Chief of Staff は予約キー6つ（review・must_fix・reviewer・review_rounds・merge・estimate）を issue.yaml に書く"
 else fail "Chief of Staff の deck set: $set_line"; fi
+# ADR-0014 受け入れ条件 7（E1）: 雛形の Settings に Estimate の行（段の名）、起き直しで打ち直す予約キーに estimate
+block package/skills/chief-of-staff/SKILL.md '# <id> <題>' | grep -qx -- '- Estimate: 中' \
+  && block package/skills/chief-of-staff/SKILL.md '# <id> 調べる: ' | grep -qx -- '- Estimate: 小' \
+  && grep -q '同じ値で `deck set <id> review=… .*`estimate`' package/skills/chief-of-staff/SKILL.md \
+  && pass "Chief of Staff の雛形に Estimate の行があり、起き直しで estimate も打ち直す" || fail "chief-of-staff に Estimate の行か起き直しの estimate が無い"
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
 # インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起こす手順が残っていない

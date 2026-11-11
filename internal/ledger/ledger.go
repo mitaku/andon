@@ -230,6 +230,15 @@ func (l *Ledger) Candidates(rows []Row, t Issue) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
 }
 
+// Estimate は、課題の見込みの段（予約キー estimate の small・medium・large）を、最後に書いたのが Chief of Staff のときだけ返す
+// （contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは空（見込み無し）。ADR-0014 決めたこと 2・11 の 5。
+func (l *Ledger) Estimate(rows []Row, t Issue) string {
+	if v := SettingsOf(t).Estimate; v != "" && l.Trusted(rows, t, "estimate") {
+		return v
+	}
+	return ""
+}
+
 // Settings は issue.yaml の Andon の予約キー（contract.md §2）。無い・知らない値は空（読み手が安全側に倒す）。
 // 既定があるキー（reviewer・review_rounds・merge）は既定で埋める。
 type Settings struct {
@@ -240,6 +249,7 @@ type Settings struct {
 	Merge        string `json:"merge"`
 	Machine      string `json:"machine,omitempty"`
 	Deliverable  string `json:"deliverable"`
+	Estimate     string `json:"estimate,omitempty"`
 }
 
 // Severities は重い順。
@@ -289,6 +299,10 @@ func SettingsOf(t Issue) Settings {
 	}
 	if v := t.Str("deliverable"); v == "candidates" {
 		s.Deliverable = v
+	}
+	switch v := t.Str("estimate"); v {
+	case "small", "medium", "large":
+		s.Estimate = v
 	}
 	return s
 }
