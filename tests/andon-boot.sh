@@ -67,7 +67,7 @@ grep -q 'セル' "$home/.config/herdr-core/templates/claude.md" && pass "プロ�
   && pass "外の skill を gh skill install（エージェントごと）で入れ、update --all を打つ" || fail "外の skill: $(cat "$tmp/gh-calls")"
 grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
 # Codex の承認・sandbox の既定は config.toml の先頭の塊（最初の空行まで）。信頼の表はその後ろに続く
-[ "$(sed -n '2,3p' "$home/.codex/config.toml")" = 'approval_policy = "never"
+grep -qxF 'features = { memories = false }' "$home/.codex/config.toml" && grep -qxF 'memories = { generate_memories = false, use_memories = false }' "$home/.codex/config.toml" && [ "$(sed -n '4,5p' "$home/.codex/config.toml")" = 'approval_policy = "never"
 sandbox_mode = "danger-full-access"' ] && cmp -s "$pkg/codex.rules" "$home/.codex/rules/andon.rules" \
   && pass "Codex の承認・sandbox の既定と rules を置く" || fail "Codex の既定: $(cat "$home/.codex/config.toml")"
 repo=$ws/.ghq/github.com/example/sample-site

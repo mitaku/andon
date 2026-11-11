@@ -119,7 +119,8 @@ trust_level = "untrusted"
 # trust_level の無い表
 
 [features]
-hooks = true`)
+hooks = true
+memories = false`)
 	if err := Generate(e); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +150,7 @@ hooks = true`)
 	}
 
 	toml := withoutCodexDefaults(read(t, codex))
-	if !strings.HasPrefix(toml, `model = "m"  # 利用者のもの`+"\n") || !strings.Contains(toml, "[features]\nhooks = true\n") {
+	if !strings.HasPrefix(toml, `model = "m"  # 利用者のもの`+"\n") || !strings.Contains(toml, "[features]\nhooks = true\nmemories = false\n") {
 		t.Errorf("ほかの設定が変わった:\n%s", toml)
 	}
 	if !strings.Contains(toml, `[projects."`+ws+`"]`+"\ntrust_level = \"untrusted\"\n") || strings.Count(toml, ws+`"]`) != 1 {
@@ -158,7 +159,7 @@ hooks = true`)
 	if !strings.Contains(toml, `[projects.'`+repo+`']`+"\ntrust_level = \"trusted\"\n# trust_level の無い表\n") || strings.Count(toml, repo) != 1 {
 		t.Errorf("trust_level の無い表に1行足していない:\n%s", toml)
 	}
-	if !strings.HasSuffix(toml, "hooks = true\n\n[projects."+quoteTOML(roots[2])+"]\ntrust_level = \"trusted\"\n") {
+	if !strings.HasSuffix(toml, "memories = false\n\n[projects."+quoteTOML(roots[2])+"]\ntrust_level = \"trusted\"\n") {
 		t.Errorf("無い表を末尾に足していない:\n%s", toml)
 	}
 
