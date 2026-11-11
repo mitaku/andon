@@ -776,8 +776,8 @@ screen '❯' '❯'
 id=$(event 'ターンの中の通知')
 [ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"見た"}')
-jq -e --arg id "$id" '.decision == "block" and (.reason | startswith("<news project=\"demo\">\n") and contains("\n\($id) report: 報告 ") and endswith("人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。\n</news>"))' <<<"$out" >/dev/null ||
-    die "Stop が <news> で block しない: $out"
+jq -e --arg id "$id" '(has("decision") | not) and .hookSpecificOutput.hookEventName == "Stop" and (.hookSpecificOutput.additionalContext | startswith("<news project=\"demo\">\n") and contains("\n\($id) report: 報告 ") and endswith("人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。\n</news>"))' <<<"$out" >/dev/null ||
+    die "Stop が <news> を additionalContext で渡さない: $out"
 jq -e '.pending == [] and .hook.terminal == "t5" and .hook.via == "stop"' "$state" >/dev/null || die '取り出した待ちが控えに残った・渡した turn を控えていない'
 : >> "$tmp/hc/labels"
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assistant_message":"<no-reply>"}')
@@ -839,7 +839,7 @@ ups p4 >/dev/null
 cos working 6
 out=$(cstop p0 'x')
 [ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die '別の turn（prompt_id 違い）の Stop で news.replied を書いた'
-jq -e --arg id "$id" '.decision == "block" and (.reason | contains("\($id) report:"))' <<<"$out" >/dev/null || die "確かめていない <news> をその Stop で届け直さない: $out"
+jq -e --arg id "$id" '(has("decision") | not) and (.hookSpecificOutput.additionalContext | contains("\($id) report:"))' <<<"$out" >/dev/null || die "確かめていない <news> をその Stop で届け直さない: $out"
 term t5 working 6 role=chief-of-staff project=demo news.ack=6
 r=$(grep -c 'news.replied' "$tmp/hc/labels" || true)
 cstop p0 'x' true >/dev/null
@@ -865,7 +865,7 @@ HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false,"last_assistant
 # Stop で渡し（turn 8）、続きのターンで ack して人向けの文も返した: 文に関わらず書く。2回 ack しても1回だけ
 id=$(event 'ack する通知')
 term t5 working 8 role=chief-of-staff project=demo news.ack=7
-cstop p8 '見た' | jq -e --arg id "$id" '.reason | contains("\($id) report:")' >/dev/null || die 'Stop で <news> を渡さない'
+cstop p8 '見た' | jq -e --arg id "$id" '.hookSpecificOutput.additionalContext | contains("\($id) report:")' >/dev/null || die 'Stop で <news> を渡さない'
 jq -e '.hook.turn == 8 and .hook.ack_before == "7"' "$state" >/dev/null || die '渡したときの turn と news.ack を控えていない'
 HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null && HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null || die 'ack が通らない'
 term t5 working 8 role=chief-of-staff project=demo news.ack=8

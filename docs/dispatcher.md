@@ -242,13 +242,13 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 | # | 経路 | いつ | 打つもの | 書きかけに貼り付くか |
 |---|---|---|---|---|
-| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon dispatcher drain`（slug は端末のラベルから）→ 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}` で続きのターンにする | 貼り付かない（入力欄を通らない） |
+| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon dispatcher drain`（slug は端末のラベルから）→ 待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}` で続きのターンにする（`decision: block` は画面に「Stop hook error」と出るのでやめた。[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 6） | 貼り付かない（入力欄を通らない） |
 | ② | Chief of Staff の `UserPromptSubmit` フック | 人が送ったとき | 同じ（`--context`）＋ 委譲の一覧。`additionalContext` に添える | 貼り付かない（人の文の横に文脈として入る） |
 | ③ | 離席時だけ `hc send` | ①②が来ない間（Chief of Staff がターンを終えて入力を待っていて、人も打っていない） | §4 の守りがそろったら `hc send --if idle` | 判定が外れたときだけ（§4.4） |
 
 - **①②が主、③が残り。** ターンの中で起きた出来事は①で、人が戻って打てば②で届く。③が要るのは「Chief of Staff が待っていて、人も離れている」ときだけ——そのとき誰も Chief of Staff を起こさないので、ラインが止まる。
 - `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（`andon news ack` があったかもここで見る。§3.1）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
-- ①の `block` が続きのターンを始めること、②の `additionalContext` が文脈に入ることは**要実測**（P6b。contract.md §9）。
+- ①の `additionalContext` が続きのターンを始めること、②の `additionalContext` が文脈に入ることは**要実測**（P6b。contract.md §9）。
 - フックが落ちたとき（command が無い・台帳が見つからない）は**通す**。待ちは dispatcher に残り、次の口で届く。
 
 ### 3.1 `<news>` の文

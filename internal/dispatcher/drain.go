@@ -20,7 +20,7 @@ import (
 // DrainUsage は andon dispatcher drain の使い方。
 const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>] < フックの入力の JSON\n" +
 	"Chief of Staff の Stop・UserPromptSubmit フックが打つ（package/hooks/。contract.md §9）。待ちの通知を全部取り出して <news> に描く。\n" +
-	"  既定（Stop）: 待ちがあれば {\"decision\": \"block\", \"reason\": \"<news>…</news>\"}。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
+	"  既定（Stop）: 待ちがあれば {\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"<news>…</news>\"}}（続きのターンになる）。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
 	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
@@ -139,7 +139,7 @@ type hookInput struct {
 }
 
 // sameTurn は、Stop の入力 in が、フックで <news> を渡した turn（h）の終わりか。
-// prompt_id（と session_id）があれば照合する。Stop の block で渡したものは続きの turn（stop_hook_active）の終わりだけ。
+// prompt_id（と session_id）があれば照合する。Stop で渡したもの（additionalContext の続き）は続きの turn（stop_hook_active）の終わりだけ。
 func sameTurn(h *HookNews, addr string, in hookInput) bool {
 	if h.Terminal != addr {
 		return false
@@ -237,7 +237,8 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		if news == "" {
 			return nil, nil
 		}
-		return map[string]any{"decision": "block", "reason": news}, nil
+		// block でなく additionalContext で返す（続きのターンになるのは同じで、画面が「Stop hook error」にならない。ADR-0019 決めたこと 6）
+		return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": news}}, nil
 	}
 	ctx := news
 	var d, dc bytes.Buffer
