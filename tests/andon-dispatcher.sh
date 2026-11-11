@@ -77,7 +77,7 @@ checks() { jq -n --arg s "$1" --arg c "${2:-}" '[{__typename: "CheckRun", name: 
 mkdir -p "$tmp/gh"; checks COMPLETED SUCCESS
 # 偽の hc: 生きている端末は $tmp/hc/live（address issue の行）。run は t9, t10 … を返し、打ったものを $tmp/hc/log に。
 # run の first_message は $tmp/hc/first の中身（無ければ届いた: sent・started が true）
-# get --json は $tmp/hc/term-<addr>.json、read は screen-<addr>、attach --observe は ansi-<addr>（無ければ何も出さない）
+# get --json は $tmp/hc/term-<addr>.json、read は screen-<addr>。attach は無い（打てば 99 で落ちる。dispatcher は入力欄を読まない）
 cat > "$tmp/bin/hc" <<EOF
 #!/bin/bash
 d=$tmp/hc
@@ -87,7 +87,6 @@ case \$1 in
        grep -q "^\$2 " \$d/live || { echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; }
        [ "\${3:-}" != --json ] || cat \$d/term-\$2.json 2>/dev/null ;;
   read) cat \$d/screen-\$2 2>/dev/null ;;                        # hc read <addr> [--lines n]: 文字だけの画面
-  attach) [ "\$2" = --observe ] && cat \$d/ansi-\$3 2>/dev/null ;;  # hc attach --observe <addr>: ANSI の画面
   label) echo "\$2 \$3" >> \$d/labels ;;
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 9) )); echo \$((n + 1)) > \$d/next
        task=\$(printf '%s\n' "\$@" | sed -n 's/^issue=//p')
@@ -749,17 +748,12 @@ ok 'ゲートのあと委譲の merge が取り消されたら gh pr merge を�
 # フックは package/hooks/ を Claude Code と同じに打つ（stdin にフックの入力の JSON、HC_TERMINAL_ID は自分の端末）
 ln -sf "$andon" "$tmp/bin/andon"
 hooks=$andon_root/package/hooks
-rule=$(printf '─%.0s' $(seq 30))
 term() { # term <addr> <状態> <turn> [<k=v>…]: 偽の hc get --json
     local a=$1 s=$2 n=$3; shift 3
     printf '%s\n' "$@" | jq -R 'select(. != "") | split("=") | {(.[0]): .[1]}' | jq -s --arg a "$a" --arg s "$s" --argjson n "$n" \
         '{address: $a, state: "live", status: {state: $s}, turn: $n, labels: (add // {})}' > "$tmp/hc/term-$a.json"
 }
 cos() { term t5 "$1" "$2" role=chief-of-staff project=demo; }
-screen() { # screen <入力欄の文字> <入力欄の ANSI>: Chief of Staff の画面（hc read と attach --observe）
-    printf '● 前の答え\n%s\n%s\n%s\n  model │ 12%%\n' "$rule" "$1" "$rule" > "$tmp/hc/screen-t5"
-    printf '\033[!p\033[?1049l\033[?1049h\033[2J\033[H● 前の答え\r\n%s\r\n%s\033[0m\r\n%s\r\n  model │ 12%%' "$rule" "$2" "$rule" > "$tmp/hc/ansi-t5"
-}
 event() { # event <題>: dispatcher が通知 report を積む出来事（担当が報告を書く。届ける kind）。id を返す
     local id; id=$(newtask "$1" person)
     work "$id" docs/a.md
@@ -772,7 +766,6 @@ sent() { cat "$tmp/hc/sent" 2>/dev/null | grep -c '^t5	'; }
 
 # 11. turn 中の通知が Stop で届く（dispatcher は Chief of Staff に hc send しない）
 cos working 3
-screen '❯' '❯'
 id=$(event 'ターンの中の通知')
 [ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"見た"}')
@@ -895,7 +888,6 @@ ok 'andon news ack は Chief of Staff の端末だけに news.ack=<turn> を書�
 # 13. 離席中は待ち役（Stop の asyncRewake のフック。andon dispatcher wait）が合図だけを打つ。dispatcher は Chief of Staff の入力欄へ打たない
 # （hc send も attach --observe も呼ばない。ADR-0019 決めたこと 1・3・8・9、受け入れ条件 1）
 cos idle 4
-screen '❯' '❯'
 logs=$(wc -l < "$tmp/hc/log") dlogs=$(wc -l < "$tmp/dispatcher.log")
 id=$(event '離席の通知')
 cos done 4
@@ -933,6 +925,16 @@ cstop w5 'x' true >/dev/null
 jq -e '.pending == [] and (has("hook") | not)' "$state" >/dev/null || die '渡した <news> を確かめ済みにしない'
 ups w6 | grep -q "$id report:" && die '待ち役で起こして Stop で渡した <news> を、次の送信でもう一度渡した'
 ok '届ける待ちがあり Chief of Staff が idle・done なら、待ち役（stop-wait）が合図の1行で 2 に終わり（待ち・控えは書かない）、続く Stop の drain が <news> を1回だけ渡す。見回りは Chief of Staff に hc send・attach --observe をせず、待ち役がいなければログに1行'
+
+# 13-cut. Chief of Staff が提供元に切られて error で止まっても、見回りは「続けて」を打たない（hc send も attach も呼ばない）。ログに1行だけ（ADR-0019 決めたこと 4）
+cos error 4
+jq '.status.msg = "API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment."' "$tmp/hc/term-t5.json" > "$tmp/hc/t5~" && mv "$tmp/hc/t5~" "$tmp/hc/term-t5.json"
+logs=$(wc -l < "$tmp/hc/log") dlogs=$(wc -l < "$tmp/dispatcher.log") sends=$(sent || true)
+dispatcher; dispatcher
+! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^send t5 \|^send --if idle t5 \|^attach' || die "切られた Chief of Staff に hc send・attach した: $(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep '^send\|^attach' | head -3)"
+[ "$(sent)" = "$sends" ] || die '切られた Chief of Staff に続きを送った'
+[ "$(tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log" | grep -c 't5 は提供元に切られて止まった。続きは打たない')" = 1 ] || die "切られた Chief of Staff のログが1行でない: $(tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log")"
+ok 'Chief of Staff が提供元に切られて error で止まっても、見回りは hc send・attach を打たず、同じ止まりにログを1行だけ残す'
 
 # 13a. 待ちが無い間・working の間は終わらない。次の待ち役が起きたら前のは 0 で終わる。止められたら 0。担当の端末では待たずに 0
 cos done 6

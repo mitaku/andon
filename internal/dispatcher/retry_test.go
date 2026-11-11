@@ -12,14 +12,14 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc（提供元に切られたときの再送を見る）: get は $D/<addr>.json（無ければ not_found）、read と attach --observe は $D/<addr>.screen。
+// 偽の hc（提供元に切られたときの再送を見る）: get は $D/<addr>.json（無ければ not_found）、read は $D/<addr>.screen。attach は $D/log に1行。
 // send は $D/log に「send <addr> <本文>」を1行。label も1行（通れば $D/<addr>.unsent を消す。get が読むのは json の labels だけ）。
 const retryHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
   get) [ -e "$d/$2.json" ] || { echo '{"error":{"kind":"not_found"}}' >&2; exit 3; }; cat "$d/$2.json" ;;
   read) cat "$d/$2.screen" 2>/dev/null ;;
-  attach) cat "$d/$3.screen" 2>/dev/null ;;
+  attach) printf 'attach %s\n' "${*:2}" >>"$d/log" ;;
   send) printf 'send %s %s\n' "$2" "$(printf '%s' "$3" | tr '\n' '|')" >>"$d/log" ;;
   label) printf 'label %s\n' "${*:2}" >>"$d/log" ;;
   *) echo "unexpected hc $1" >&2; exit 9 ;;
@@ -85,13 +85,19 @@ func (f *retryFixture) at(m time.Duration, cos string) []string {
 	now := f.t0.Add(m)
 	f.p.watch(now)
 	if cos != "" {
-		f.p.retryChief(cos, now)
+		f.p.chiefCut(cos)
 	}
 	b, _ := os.ReadFile(filepath.Join(f.d, "log"))
 	if s := strings.TrimSpace(string(b)); s != "" {
 		return strings.Split(s, "\n")
 	}
 	return nil
+}
+
+// sent は偽の hc の log（打ったもの）を返す。
+func (f *retryFixture) sent() string {
+	b, _ := os.ReadFile(filepath.Join(f.d, "log"))
+	return strings.TrimSpace(string(b))
 }
 
 func (f *retryFixture) kinds() []string {
@@ -291,69 +297,55 @@ func TestEngineerWatch(t *testing.T) {
 	}
 }
 
-// Chief of Staff も同じ間隔で続けるが、入力欄が空と確かめられたときだけ打つ。確かめられない回も数え、打ち切ったらログに1行で止める。
-func TestRetryChief(t *testing.T) {
+// Chief of Staff には「続けて」を打たない（ADR-0019 決めたこと 4）: 提供元に切られて止まったら、hc send も attach --observe も
+// 呼ばず、同じ止まりにログを1行だけ残す（通知も積まない）。error・working の間は持ち越し、ほかに戻ったら区切る。
+func TestChiefCut(t *testing.T) {
 	f := newRetry(t)
 	f.p.tasks = nil
-	empty := "● 前の答え\n" + rule + "\n❯ \n" + rule + "\n  ⏵⏵ auto mode on\n"
-	typing := "● 前の答え\n" + rule + "\n❯ 人が打ちかけ\n" + rule + "\n"
+	logged := func() int { return strings.Count(f.log.String(), "続きは打たない") }
 	f.term("t1", "error", cutMsg, 0, false)
-	f.screen("t1", empty)
-	f.at(0, "t1")
-	if got := f.at(59*time.Second, "t1"); got != nil {
-		t.Fatalf("1 分たたないうちに打った: %q", got)
+	for _, m := range []time.Duration{0, time.Minute, 30 * time.Minute, 2 * time.Hour} {
+		for _, got := range f.at(m, "t1") {
+			if strings.HasPrefix(got, "send ") || strings.HasPrefix(got, "attach ") {
+				t.Fatalf("%v: Chief of Staff に打った・入力欄を読んだ: %q", m, got)
+			}
+		}
 	}
-	if got := f.at(time.Minute, "t1"); len(got) != 1 || got[0] != "send t1 "+RetryText {
-		t.Fatalf("入力欄が空なのに打っていない: %q", got)
+	if n := logged(); n != 1 {
+		t.Fatalf("切られた止まりのログが %d 行: %s", n, f.log.String())
 	}
-	// 人が打ちかけている: 打たないが 2 回目に数える
-	f.screen("t1", typing)
-	if got := f.at(3*time.Minute, "t1"); got != nil {
-		t.Fatalf("打ちかけの入力欄に打った: %q", got)
+	if len(f.p.st.Pending) != 0 || len(f.p.st.Retry) != 0 {
+		t.Fatalf("Chief of Staff の分を通知・回数に積んだ: %q %+v", f.kinds(), f.p.st.Retry)
 	}
-	if r := f.p.st.Retry[cosKey+"t1"]; r.N != 2 {
-		t.Fatalf("打たなかった回を数えていない: %+v", r)
+	// Claude Code 自身のやり直し（working）を挟んでまた切られても同じ止まり。担当の見回り（watch）を挟んでも控えは消えない
+	f.term("t1", "working", "", 3*time.Hour, false)
+	f.at(3*time.Hour, "t1")
+	f.term("t1", "error", cutMsg, 4*time.Hour, false)
+	f.at(4*time.Hour, "t1")
+	if n := logged(); n != 1 {
+		t.Fatalf("working を挟んだ同じ止まりで %d 行: %s", n, f.log.String())
 	}
-	// 罫線の無い入力欄（Codex）は空と確かめられないので打たない
-	f.screen("t1", "› Ask Codex to do anything\n")
-	if got := f.at(7*time.Minute, "t1"); got != nil {
-		t.Fatalf("読めない入力欄に打った: %q", got)
+	// done に戻れば区切り、次に切られたらもう1行
+	f.term("t1", "done", "", 5*time.Hour, false)
+	f.at(5*time.Hour, "t1")
+	f.term("t1", "error", cutMsg, 6*time.Hour, false)
+	f.at(6*time.Hour, "t1")
+	if n := logged(); n != 2 {
+		t.Fatalf("区切ったあとの止まりで %d 行: %s", n, f.log.String())
 	}
-	f.screen("t1", empty)
-	if got := f.at(15*time.Minute, "t1"); len(got) != 1 {
-		t.Fatalf("4 回目: %q", got)
+	// 提供元でない error（認証）はログに書かない（人は Herdr App の error で気づく）
+	f = newRetry(t)
+	f.p.tasks = nil
+	f.term("t1", "error", "API Error: 401 unauthorized · Please run /login", 0, false)
+	if got := f.at(time.Hour, "t1"); got != nil || logged() != 0 {
+		t.Fatalf("提供元でない error で打った・ログに書いた: %q %s", got, f.log.String())
 	}
-	// 5 回目に切られた: 打たずにログに1行（知らせる相手が止まっているので通知は積まない）
-	f.term("t1", "error", cutMsg, 20*time.Minute, false)
-	if got := f.at(20*time.Minute, "t1"); got != nil {
-		t.Fatalf("打ち切ったのに打った: %q", got)
-	}
-	f.at(61*time.Minute, "t1")
-	if n := strings.Count(f.log.String(), "もう打たない"); n != 1 {
-		t.Fatalf("打ち切りのログが %d 行: %s", n, f.log.String())
-	}
-	if len(f.p.st.Pending) != 0 {
-		t.Fatalf("Chief of Staff の分を通知に積んだ: %q", f.kinds())
-	}
-	// done に戻れば区切る。担当の見回り（watch）を挟んでも Chief of Staff の回数は消えない
-	f.term("t1", "error", cutMsg, 70*time.Minute, false)
-	f.p.st.Retry[cosKey+"t1"] = Resend{N: 1, At: f.t0.Add(70 * time.Minute).UnixMilli()}
-	f.p.watch(f.t0.Add(71 * time.Minute))
-	if r := f.p.st.Retry[cosKey+"t1"]; r.N != 1 {
-		t.Fatalf("watch が Chief of Staff の回数を消した: %+v", r)
-	}
-	f.term("t1", "done", "", 72*time.Minute, false)
-	f.at(73*time.Minute, "t1")
-	if _, ok := f.p.st.Retry[cosKey+"t1"]; ok {
-		t.Fatal("done に戻ったのに回数が残っている")
-	}
-	// 初めて見る台帳では打たない
+	// 初めて見る台帳では書かない
 	f = newRetry(t)
 	f.p.tasks, f.p.first = nil, true
 	f.term("t1", "error", cutMsg, 0, false)
-	f.screen("t1", empty)
-	if got := f.at(30*time.Minute, "t1"); got != nil {
-		t.Fatalf("初めて見る台帳で打った: %q", got)
+	if got := f.at(30*time.Minute, "t1"); got != nil || logged() != 0 {
+		t.Fatalf("初めて見る台帳で打った・書いた: %q", got)
 	}
 }
 
