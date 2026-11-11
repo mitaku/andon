@@ -204,3 +204,57 @@ func TestParseProject(t *testing.T) {
 		}
 	}
 }
+
+// grant は端末の git の user が owner と違っても、andon.toml の owner を author と committer にして commit する（読み手が信じる）。
+// owner が andon.toml に無ければ commit せずに止まる。
+func TestGrantCommitsAsOwner(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	t.Setenv("HC_TERMINAL_ID", "")
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+	run := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", ws}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("init", "-q")
+	run("config", "user.name", "Andon agent")
+	run("config", "user.email", "agent@example.com")
+	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte(`owner = "owner@example.com"`+"\n"), 0o644)
+	os.MkdirAll(filepath.Join(ws, "projects", "sample-site"), 0o755)
+	os.WriteFile(filepath.Join(ws, ProjectRel("sample-site")), []byte(projectOf(sample)), 0o644)
+	run("add", "-A")
+	run("-c", "user.name=Owner", "-c", "user.email=owner@example.com", "commit", "-qm", "init")
+
+	var out, errb strings.Builder
+	if rc := Main([]string{"grant", "profile", "true", "--evidence", "x", "--project", "sample-site"}, nil, &out, &errb); rc != 0 {
+		t.Fatalf("grant: %d %s", rc, errb.String())
+	}
+	if got := run("log", "-1", "--format=%an <%ae> / %cn <%ce>"); got != "Owner <owner@example.com> / Owner <owner@example.com>" {
+		t.Errorf("author / committer: %s", got)
+	}
+	if r := Read(ws, "sample-site", "2026-11-10"); !r.Trusted || r.Effective["profile"] != true {
+		t.Errorf("grant の commit を信じない: %+v", r)
+	}
+
+	// owner が andon.toml に無ければ commit しない
+	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte("# owner が無い\n"), 0o644)
+	head := run("rev-parse", "HEAD")
+	errb.Reset()
+	if rc := Main([]string{"grant", "merge", "A", "--evidence", "x", "--project", "sample-site"}, nil, &out, &errb); rc != 1 || !strings.Contains(errb.String(), "owner が無い") {
+		t.Errorf("owner が無いのに: %d %s", rc, errb.String())
+	}
+	if run("rev-parse", "HEAD") != head || run("status", "--porcelain", "--", ProjectRel("sample-site")) != "" {
+		t.Error("owner が無いのに書いた")
+	}
+}
