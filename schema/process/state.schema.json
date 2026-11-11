@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/process-state/1",
+  "title": "State machine",
+  "description": "process/states/<name>.yaml: the life of one thing (an issue, a worker, a notification...) as states and transitions (ADR-0017 decision 16), written by hand as YAML. Only name, title and source are required. `andon process render` makes docs/process/<name>.md from it. No machine reads it at run time. Only these keys.",
+  "type": "object",
+  "required": ["name", "title", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "The identifier: the lowercase English name, same as the file name without .yaml.",
+      "$ref": "#/$defs/id"
+    },
+    "title": {
+      "description": "The name a person reads.",
+      "$ref": "#/$defs/text"
+    },
+    "source": {
+      "description": "Where the definition comes from (ledger.md, an ADR and its decision numbers).",
+      "$ref": "#/$defs/text"
+    },
+    "states": {
+      "description": "The states. ids are unique.",
+      "type": "array",
+      "uniqueKeys": ["id"],
+      "items": { "$ref": "#/$defs/state" }
+    },
+    "positions": {
+      "description": "Record fields that are not states: positions and data (the form dispatcher:LogPos).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/field" }
+    },
+    "transitions": {
+      "description": "The transitions between states.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/transition" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "An identifier: lowercase ASCII letters, digits and '-', starting with a letter.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "text": {
+      "description": "Text a person reads. Not empty.",
+      "type": "string",
+      "minLength": 1
+    },
+    "field": {
+      "description": "A record file and its top-level field: <record>:<Field> (dispatcher:Pending, signals:active).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*:[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "end": {
+      "description": "A state id, or [*] for the start or the end.",
+      "type": "string",
+      "pattern": "^([a-z][a-z0-9-]*|\\[\\*\\])$"
+    },
+    "state": {
+      "description": "One state.",
+      "type": "object",
+      "required": ["id", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "description": "The identifier of the state, unique in the file.", "$ref": "#/$defs/id" },
+        "title": { "description": "The name a person reads.", "$ref": "#/$defs/text" },
+        "record": {
+          "description": "The record fields that hold this state. One or a list.",
+          "oneOf": [
+            { "$ref": "#/$defs/field" },
+            { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/field" } }
+          ]
+        }
+      }
+    },
+    "transition": {
+      "description": "One transition.",
+      "type": "object",
+      "required": ["from", "to", "on", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "description": "The state before.", "$ref": "#/$defs/end" },
+        "to": { "description": "The state after.", "$ref": "#/$defs/end" },
+        "on": { "description": "What happens.", "$ref": "#/$defs/text" },
+        "by": {
+          "description": "Who moves it: machine (dispatcher, gate, a command), ai, person or deck (the ledger CLI).",
+          "enum": ["machine", "ai", "person", "deck"]
+        },
+        "command": { "description": "The command that is run, if any.", "$ref": "#/$defs/text" },
+        "once": { "description": "true when it must not happen twice (the dispatcher.md section 7 table comes from these).", "type": "boolean" }
+      }
+    }
+  }
+}

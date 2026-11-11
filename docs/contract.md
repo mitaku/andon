@@ -16,6 +16,8 @@
 | §14 人の手直し | `schema/corrections.schema.json` |
 | §15 信号の記録 | `schema/signal.schema.json` |
 
+`schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
+
 - 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
 - 台帳の形式（ledger-format v2。別プロジェクトの持ち物）は**変えない**。Andon のキーは「Any other key is allowed and kept」の上に置く。形式そのものに触れたいことは design.md §3.2 の相談に並べた。台帳の CLI と形式を Andon に移したら（§3.5）、「変えない」は「形式の版で変える」になる。それまでこの文書は v2 の上に乗る。

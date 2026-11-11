@@ -1,0 +1,45 @@
+# tests/process.sh の見本（中身のある 1 本）。架空の定義で、本物は process/ にある。
+name: sample-watch
+title: 見本の見守り（Sample watch）
+purpose: 担当の進みを見て、ズレたときだけ手を打つ
+triggers:
+  - name: estimate
+    kind: notification
+    notification: estimate
+    start: read
+  - name: every-hour
+    kind: interval
+    every: 60
+    start: tick
+steps:
+  - id: tick
+    title: 間隔で記録を読む
+    by: machine
+    input: [dispatcher.Sent]
+    output: [notification.estimate]
+    command: andon issue sample
+    record: sample.json
+    once: true
+    next: [{ id: read }]
+  - id: read
+    title: 通知と計画を読む
+    by: ai
+    input: [notification.estimate, report.plan, hc.state]
+    output: []
+    skill: chief-of-staff#5
+    decides: [途中報告を書かせる, 分ける]
+    asks:
+      - { question: 期限を延ばすか, kind: business }
+    next: [{ id: act, when: 手を打つ }, { id: done, when: 見るだけ }]
+  - id: act
+    title: 人が決める
+    by: person
+    input: [人の言葉]
+    output: [hc send]
+    next: [{ id: done }]
+  - id: done
+    title: 記録を残す
+    by: ai
+    skill: [chief-of-staff#5, worker#7]
+    output: [wiki]
+counts: [issue.doing_hours]

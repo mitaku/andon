@@ -20,6 +20,8 @@ while IFS= read -r p; do
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
     docs/adr/*) run[tests/package.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
+    # 流れと状態の定義（ADR-0017）
+    process/* | schema/process/* | docs/process/* | tests/process/*) run[tests/process.sh]=1 ;;
     tests/lib/pty-probe.py | tests/image.sh) ;; # image-scope が見る
     tests/lib/*) all=true ;;
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;

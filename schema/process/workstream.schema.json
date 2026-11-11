@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/process-workstream/1",
+  "title": "Workstream",
+  "description": "process/workstreams/<name>.yaml: one standing job of the Chief of Staff (ADR-0017 decision 16), written by hand as YAML. Only name, title and purpose are required (a workstream without content has just these three). `andon process render` makes docs/process/<name>.md from it; tests/process.sh checks that every id in triggers[].start and steps[].next[] is a step. No machine reads it at run time. Only these keys.",
+  "type": "object",
+  "required": ["name", "title", "purpose"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "The identifier: the lowercase English name, same as the file name without .yaml.",
+      "$ref": "#/$defs/id"
+    },
+    "title": {
+      "description": "The name a person reads (Japanese with the English name in parentheses).",
+      "$ref": "#/$defs/text"
+    },
+    "purpose": {
+      "description": "What the workstream is for, one line.",
+      "$ref": "#/$defs/text"
+    },
+    "triggers": {
+      "description": "What starts the workstream. Each one names the first step.",
+      "type": "array",
+      "uniqueKeys": ["name"],
+      "items": { "$ref": "#/$defs/trigger" }
+    },
+    "steps": {
+      "description": "The steps (the body of the process). One step is one node of the diagram. ids are unique.",
+      "type": "array",
+      "uniqueKeys": ["id"],
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "counts": {
+      "description": "What is counted for this workstream: keys of andon measure.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/text" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "An identifier: lowercase ASCII letters, digits and '-', starting with a letter.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "text": {
+      "description": "Text a person reads. Not empty.",
+      "type": "string",
+      "minLength": 1
+    },
+    "texts": {
+      "description": "A list of texts.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/text" }
+    },
+    "trigger": {
+      "description": "One trigger.",
+      "type": "object",
+      "required": ["name", "kind", "start"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "description": "The identifier of the trigger, unique in the file.", "$ref": "#/$defs/id" },
+        "kind": {
+          "description": "person: a person asks; notification: a notification of the given kind arrives; interval: every so often; date: on a day; event: something else happens (a report, a merge).",
+          "enum": ["person", "notification", "interval", "date", "event"]
+        },
+        "notification": { "description": "For kind notification: the notification kind (docs/contract.md section 6).", "$ref": "#/$defs/text" },
+        "every": {
+          "description": "For kind interval: minutes, or the name of the project.json key that holds the interval (the number is not copied here).",
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "start": { "description": "The id of the first step.", "$ref": "#/$defs/id" }
+      },
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "notification" } } }, "then": { "required": ["notification"] } },
+        { "if": { "properties": { "kind": { "const": "interval" } } }, "then": { "required": ["every"] } }
+      ]
+    },
+    "next": {
+      "description": "A following step. when labels the branch when there is more than one way.",
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "description": "The id of the following step.", "$ref": "#/$defs/id" },
+        "when": { "description": "When this way is taken (the branch label).", "$ref": "#/$defs/text" }
+      }
+    },
+    "ask": {
+      "description": "A thing to ask the person, with the kind of decision (the light).",
+      "type": "object",
+      "required": ["question", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "question": { "description": "What is asked, one line.", "$ref": "#/$defs/text" },
+        "kind": {
+          "description": "The decision kind that lights the andon (docs/contract.md section 5, without scope).",
+          "enum": ["business", "users", "promise", "irreversible", "line"]
+        }
+      }
+    },
+    "step": {
+      "description": "One step. command, record and once only for by machine; skill, decides and asks only for by ai.",
+      "type": "object",
+      "required": ["id", "title", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "description": "The identifier of the step, unique in the file.", "$ref": "#/$defs/id" },
+        "title": { "description": "What the step does, short.", "$ref": "#/$defs/text" },
+        "by": {
+          "description": "Who does it: machine (dispatcher, gate, a command), ai (Chief of Staff, Chief Engineer, a worker) or person.",
+          "enum": ["machine", "ai", "person"]
+        },
+        "input": { "description": "What comes in: ledger keys, records, notifications, command output, the person's words.", "$ref": "#/$defs/texts" },
+        "output": { "description": "What goes out: ledger, records, notifications, wiki, hc send.", "$ref": "#/$defs/texts" },
+        "next": {
+          "description": "The following steps. None means the workstream ends here.",
+          "type": "array",
+          "uniqueKeys": ["id"],
+          "items": { "$ref": "#/$defs/next" }
+        },
+        "command": { "description": "For by machine: the command that does the step.", "$ref": "#/$defs/text" },
+        "record": { "description": "For by machine: the command's own record file.", "$ref": "#/$defs/text" },
+        "once": { "description": "For by machine: true when the step must not happen twice.", "type": "boolean" },
+        "skill": {
+          "description": "For by ai: the SKILL sections that say how (the form chief-of-staff#5). One or a list.",
+          "oneOf": [
+            { "$ref": "#/$defs/skill" },
+            { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/skill" } }
+          ]
+        },
+        "decides": { "description": "For by ai: what the AI may decide by itself.", "$ref": "#/$defs/texts" },
+        "asks": {
+          "description": "For by ai: what the AI asks the person.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ask" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "by": { "const": "machine" } } },
+          "then": { "not": { "anyOf": [{ "required": ["skill"] }, { "required": ["decides"] }, { "required": ["asks"] }] } }
+        },
+        {
+          "if": { "properties": { "by": { "const": "ai" } } },
+          "then": { "not": { "anyOf": [{ "required": ["command"] }, { "required": ["record"] }, { "required": ["once"] }] } }
+        },
+        {
+          "if": { "properties": { "by": { "const": "person" } } },
+          "then": { "not": { "anyOf": [{ "required": ["command"] }, { "required": ["record"] }, { "required": ["once"] }, { "required": ["skill"] }, { "required": ["decides"] }, { "required": ["asks"] }] } }
+        }
+      ]
+    },
+    "skill": {
+      "description": "A SKILL section: the skill name, optionally '#' and the section.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(#[0-9A-Za-z.-]+)?$"
+    }
+  }
+}
