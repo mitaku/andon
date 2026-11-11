@@ -113,3 +113,37 @@ func TestToJSONKeepsScalarTypes(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+func TestRenderRefusesSymlinks(t *testing.T) {
+	for name, link := range map[string]string{"docs": "docs", "docs/process": "docs/process", "生成物": "docs/process/watch.md", "消す生成物": "docs/process/old.md"} {
+		t.Run(name, func(t *testing.T) {
+			root, outside := t.TempDir(), t.TempDir()
+			write(t, root, "process/workstreams/watch.yaml", watch)
+			write(t, outside, "stale.md", "外のファイル\n")
+			target := outside
+			if strings.HasSuffix(link, ".md") {
+				target = filepath.Join(outside, "stale.md")
+				if err := os.MkdirAll(filepath.Join(root, "docs/process"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.MkdirAll(filepath.Dir(filepath.Join(root, link)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, filepath.Join(root, link)); err != nil {
+				t.Fatal(err)
+			}
+			for _, check := range []bool{true, false} {
+				if _, err := Render(root, check); err == nil || !strings.Contains(err.Error(), "symlink") {
+					t.Fatalf("check=%v: err=%v", check, err)
+				}
+			}
+			ents, _ := os.ReadDir(outside)
+			if len(ents) != 1 || ents[0].Name() != "stale.md" {
+				t.Fatalf("外が変わった: %v", ents)
+			}
+			if b, _ := os.ReadFile(filepath.Join(outside, "stale.md")); string(b) != "外のファイル\n" {
+				t.Fatalf("外のファイルが書き換わった: %q", b)
+			}
+		})
+	}
+}

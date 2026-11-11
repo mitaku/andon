@@ -252,6 +252,10 @@ func Render(root string, check bool) ([]string, error) {
 		}
 	}
 
+	// 書く・消す先が symlink なら止まる（repo の外へ書いたり、外のファイルを消したりしない）
+	if err := noLink(root, filepath.Join("docs", "process")); err != nil {
+		return nil, err
+	}
 	var changed []string
 	have, err := filepath.Glob(filepath.Join(root, "docs", "process", "*.md"))
 	if err != nil {
@@ -265,6 +269,9 @@ func Render(root string, check bool) ([]string, error) {
 		if _, ok := want[rel]; ok {
 			continue
 		}
+		if err := noLink(root, rel); err != nil {
+			return nil, err
+		}
 		changed = append(changed, filepath.ToSlash(rel)) // 定義の無い生成物
 		if !check {
 			if err := os.Remove(f); err != nil {
@@ -273,6 +280,9 @@ func Render(root string, check bool) ([]string, error) {
 		}
 	}
 	for rel, body := range want {
+		if err := noLink(root, rel); err != nil {
+			return nil, err
+		}
 		old, err := os.ReadFile(filepath.Join(root, rel))
 		if err == nil && bytes.Equal(old, body) {
 			continue
@@ -292,6 +302,26 @@ func Render(root string, check bool) ([]string, error) {
 	}
 	sort.Strings(changed)
 	return changed, nil
+}
+
+// noLink は root の下の rel のどの段（docs・docs/process・ファイル）も symlink でないことを確かめる。無い段はよい。
+func noLink(root, rel string) error {
+	p := root
+	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
+		p = filepath.Join(p, part)
+		fi, err := os.Lstat(p)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			r, _ := filepath.Rel(root, p)
+			return fmt.Errorf("%s が symlink（生成物の置き場は repo の中の普通のディレクトリとファイルだけ）", filepath.ToSlash(r))
+		}
+	}
+	return nil
 }
 
 var byName = map[string]string{"machine": "機械", "ai": "AI", "person": "人", "deck": "台帳の CLI"}
