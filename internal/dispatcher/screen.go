@@ -14,7 +14,6 @@ import (
 //	Screen       hc attach --observe の ANSI の列から、薄い字も残した画面と薄い字を空白に替えた画面を組み直す
 //	InputBox     入力欄（最後の2本の罫線の間）の行を、比べられる形で出す
 //	InputState   入力欄が empty・text・draft・unknown のどれか
-//	RepliedNone  最後の </news> のあとの答えが <no-reply> だけか
 
 // ruleRe は罫線の行（─ が20字以上）。
 var ruleRe = regexp.MustCompile(`^\s*(─){20,}\s*$`)
@@ -359,45 +358,4 @@ func InputState(screen string) string {
 		return "empty"
 	}
 	return "text"
-}
-
-var (
-	userLineRe = regexp.MustCompile(`^\s*❯`)
-	answerRe   = regexp.MustCompile(`^\s*●\s*`)
-	breakRe    = regexp.MustCompile(`^\s*$|^\s*(⎿|✻)`)
-)
-
-// RepliedNone は、画面で最後の </news> の行より後に人の行（❯ で始まる行。入力欄を除く）が無く、
-// 最後の答え（● で始まる塊）が <no-reply> だけか（dispatcher.md §3.1 の news.replied）。
-func RepliedNone(screen string) bool {
-	lines, r2, _ := rules(screen)
-	end := len(lines) - 1
-	if r2 >= 0 {
-		end = r2 - 1
-	}
-	from := -1
-	for i := end; i >= 0; i-- {
-		if strings.Contains(lines[i], "</news>") {
-			from = i
-			break
-		}
-	}
-	if from < 0 {
-		return false
-	}
-	ans, in := "", false
-	for i := from + 1; i <= end; i++ {
-		s := nbsp(lines[i])
-		switch {
-		case userLineRe.MatchString(s):
-			return false
-		case answerRe.MatchString(s):
-			ans, in = answerRe.ReplaceAllString(s, ""), true
-		case breakRe.MatchString(s):
-			in = false
-		case in:
-			ans += " " + strings.TrimLeftFunc(s, unicode.IsSpace)
-		}
-	}
-	return strings.TrimRightFunc(ans, unicode.IsSpace) == "<no-reply>"
 }

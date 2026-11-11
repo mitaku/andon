@@ -85,7 +85,7 @@ type dispatcherState struct {
 	Approved map[string]dsNotification `json:"approved,omitempty"`
 	// Record-only notifications not yet appended to <slug>.recorded.jsonl
 	Unrecorded []dsNotification `json:"unrecorded,omitempty"`
-	// news.replied written, by what (ack or no-reply)
+	// news.replied written, by what (ack; no-reply only in state from older versions)
 	Replied map[string]int `json:"replied,omitempty"`
 }
 

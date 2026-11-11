@@ -24,27 +24,15 @@ func (p *project) deliver(coord string) {
 	if p.st.Coord != coord { // Chief of Staff が替わったら、前の端末の turn の控えは捨てる
 		p.st.Coord, p.st.NewsTurn = coord, nil
 	}
-	// 前の <news> の答え: turn が進んでいれば、送った turn に andon news ack があるか（移行の間は、答えが <no-reply> だけか）を見る（1回だけ）
+	// 前の <news> の答え: turn が進んでいれば、送った turn に andon news ack があるかを見る（1回だけ。画面の答えは読まない）
 	if p.st.NewsTurn != nil {
 		if c.Turn <= *p.st.NewsTurn { // c: まだ答えている途中
 			return
 		}
-		by := ""
 		if acked(c, p.st.NewsTurn, "") {
-			by = "ack"
-		} else {
-			screen, err := hcOut("read", coord, "--lines", "200")
-			if err != nil {
-				return
-			}
-			if RepliedNone(screen) {
-				by = "no-reply"
-			}
-		}
-		if by != "" {
 			if label(coord, c.Turn) == nil {
-				p.st.countReplied(by)
-				p.logf("%s の turn %d は %s。news.replied=%d を書いた", coord, c.Turn, by, c.Turn)
+				p.st.countReplied("ack")
+				p.logf("%s の turn %d は ack。news.replied=%d を書いた", coord, c.Turn, c.Turn)
 			} else {
 				p.logf("%s に news.replied を書けなかった", coord)
 			}
