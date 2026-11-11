@@ -41,7 +41,8 @@ case "$rev" in
   "$want" | "$want-dirty") ;;
   *) echo "FAIL image: label org.opencontainers.image.revision が checkout の commit でない（$rev / $want）" >&2; exit 1 ;;
 esac
-docker run --rm --network none andon:test bash -euc '
+# seccomp はセルの compose（package/compose.yaml）と同じ unconfined。Chromium の sandbox は user namespace を作り、docker の既定の seccomp はそれを拒む
+docker run --rm --network none --security-opt seccomp=unconfined andon:test bash -euc '
   test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
   ! getent passwd ubuntu
   kanban --version
@@ -56,6 +57,32 @@ docker run --rm --network none andon:test bash -euc '
   printf "{\"commit\": \"%040d\"}\n" 0 > /tmp/report.json
   python3 /opt/andon/lib/andon/schema_check.py validate /opt/andon/schema/report.schema.json /tmp/report.json
   test -d "$PLAYWRIGHT_BROWSERS_PATH"
+  # 担当が画面を見て確かめる道具（ADR-0018 受け入れ条件 1）: playwright-cli（`playwright cli` の wrapper）が PATH で引け、
+  # 設定なしで Chromium を開き（~/.playwright/cli.config.json）、出力が worktree の git に出ない。/opt/andon-tools/bin は PATH に無いまま
+  case ":$PATH:" in *:/opt/andon-tools/bin:*) echo "/opt/andon-tools/bin が PATH にある" >&2; exit 1 ;; esac
+  test "$(command -v playwright-cli)" = /opt/andon-home/.local/bin/playwright-cli
+  test "$(command -v playwright)" = /opt/andon-home/.local/bin/playwright
+  # 出力は1度取ってから grep する（grep -q の早抜けで SIGPIPE になり、pipefail で偽になる）
+  out=$(playwright-cli --version)
+  grep -qx "Version [0-9.]*" <<<"$out"
+  mkdir /tmp/site /tmp/wt
+  echo "<h1>andon</h1><button>ok</button>" >/tmp/site/index.html
+  (cd /tmp/site && exec python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1) &
+  srv=$!
+  for _ in $(seq 50); do curl -fs -o /dev/null http://127.0.0.1:8765/ && break; sleep 0.1; done
+  git -C /tmp/wt init -q
+  cd /tmp/wt
+  playwright-cli open http://127.0.0.1:8765/ >/dev/null
+  out=$(playwright-cli snapshot)
+  grep -q "button \"ok\" \[ref=e[0-9]*\]" <<<"$out"
+  playwright-cli screenshot >/dev/null
+  playwright-cli close >/dev/null
+  png=$(find /tmp/playwright-cli -name "*.png")
+  test "$(wc -l <<<"$png")" = 1
+  test "$(head -c 8 "$png" | od -An -tx1 | tr -d " ")" = 89504e470d0a1a0a
+  test -z "$(git status --porcelain --ignored)"
+  cd /workspace
+  kill "$srv"
   hc --version
   node --version
   python3 --version

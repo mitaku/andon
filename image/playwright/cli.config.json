@@ -1,0 +1,6 @@
+{
+  "browser": {
+    "browserName": "chromium"
+  },
+  "outputDir": "/tmp/playwright-cli"
+}
