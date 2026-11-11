@@ -52,7 +52,9 @@ export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # 台帳の by を選ぶ（t5 が Chief of Staff、t7 が担当）
 id=$(as t5 kanban add 'andon issue を足す' --profile claude)
-as t5 kanban set "$id" review=on must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+expect_fail "$id は todo（andon issue ready は doing の課題にだけ打てる" "$andon" issue ready "$id"
+ok 'ready: 定義（process/states/issue.yaml）に無い移り方（todo から ready）は断る（ADR-0017 受け入れ条件 11）'
+as t5 kanban set "$id" status=doing review=on must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=kanban/issues/$id/library
 pr=https://github.com/example/app/pull/7
 export HC_TERMINAL_ID=t7
@@ -166,13 +168,16 @@ ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で r
 
 # review: off なら照合しない。review が無ければ止まる
 id2=$(as t5 kanban add 'レビュー無し' --profile codex)
-as t5 kanban set "$id2" review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+as t5 kanban set "$id2" status=doing review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 "$andon" issue report "$id2" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on でない' "$andon" issue review-request "$id2" <<<'## Report'
 "$andon" issue ready "$id2" >/dev/null
 ok 'ready: review: off ならレビューを照合しない。review-request は断る'
+expect_fail "$id2 は review（andon issue review-request は doing の課題にだけ打てる" "$andon" issue review-request "$id2" <<<'## Report'
+[ "$(kanban show "$id2" --json | jq -r .issue.status)" = review ] || die '断ったのに status が変わった'
+ok 'review-request: review の課題には打てない（定義に無い移り方）'
 id3=$(as t5 kanban add 'Settings 無し')
-as t5 kanban set "$id3" "worktree=$tmp/wt" repo=github.com/example/app review_rounds=1 >/dev/null
+as t5 kanban set "$id3" status=doing "worktree=$tmp/wt" repo=github.com/example/app review_rounds=1 >/dev/null
 "$andon" issue report "$id3" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on/off でない' "$andon" issue ready "$id3"
 ok 'ready: issue.yaml の review が無ければ止まる'

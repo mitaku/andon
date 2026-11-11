@@ -89,9 +89,15 @@ export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 git clone -q "$tmp/origin" "$tmp/wt"
 id=$(HC_TERMINAL_ID=t5 kanban add 'docs を直す' --profile claude)
-HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$id" status=doing review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=kanban/issues/$id/library
 gate() { local rc=0; "$andon" gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
+# rereport: 担当が直して返し直す（doing に戻し、andon issue report、台帳を review へ。andon issue は review の課題に report を打てない）
+rereport() {
+    HC_TERMINAL_ID=t5 kanban set "$id" status=doing >/dev/null
+    HC_TERMINAL_ID=t7 "$andon" issue report "$id" <<<'## Report' >/dev/null
+    HC_TERMINAL_ID=t7 kanban review "$id" >/dev/null
+}
 expect() { # expect <rc> <decision> <理由に含む語>
     local rc=$1; shift
     [ "$got" = "$rc" ] && jq -e --arg d "$1" --arg w "${2:-}" '.decision == $d and ($w == "" or any(.reasons[]; contains($w)))' "$tmp/out" >/dev/null ||
@@ -307,9 +313,7 @@ ok '2回目のレビューで新しい major だけなら fix にしない（cri
 
 # 10. head が進んでレビューが古ければ stale で fix
 pr docs/a.md 4 y
-export HC_TERMINAL_ID=t7
-"$andon" issue report "$id" <<<'## Report' >/dev/null
-unset HC_TERMINAL_ID
+rereport
 got=$(gate "$id"); expect 1 fix 'review stale'
 jq -e --arg c "$(jq -r .commit "kanban/issues/$rev/library/findings.json")" '.review.state == "stale" and .review.commit == $c' "$lib/gate/$head.json" >/dev/null
 emit "$lib/gate/$head.json" gate-record-stale.json
@@ -317,9 +321,7 @@ ok 'レビューが古い commit を見ていれば stale で fix（記録の形
 
 # 11. レベル C の変更は委譲 merge B の外
 pr package/gate.json 1
-export HC_TERMINAL_ID=t7
-"$andon" issue report "$id" <<<'## Report' >/dev/null
-unset HC_TERMINAL_ID
+rereport
 findings "$head"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and (.tier_reasons | any(contains("package/gate.json")))' "$tmp/out" >/dev/null
@@ -329,9 +331,7 @@ ok 'レベル C の変更は委譲 merge B の外で needs_human'
 echo '{"screen_paths": ["web/**"], "repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
 as_owner git -C "$tmp/plant" commit -qam 'screen_paths で画面を指す'
 pr web/a.css 1
-export HC_TERMINAL_ID=t7
-"$andon" issue report "$id" <<<'## Report' >/dev/null
-unset HC_TERMINAL_ID
+rereport
 findings "$head"
 got=$(gate "$id" --dry-run); expect 1 fix 'screen_paths: web/a.css に当たるが画面の証拠（添付）が無い'
 jq -e '.tier == "B" and .github_checks.state == "success"' "$tmp/out" >/dev/null || die "添付の無い fix の記録の形が違う: $(cat "$tmp/out")"
@@ -342,9 +342,7 @@ got=$(gate "$id" --dry-run); expect 0 approve
 jq '.comments = [] | .body = "## Summary\n\n![after](https://github.com/user-attachments/assets/0a1b2c3d-4e5f-6789-abcd-ef0123456789)"' "$tmp/gh/view.json" > "$tmp/v.json" && cp "$tmp/v.json" "$tmp/gh/view.json"
 got=$(gate "$id" --dry-run); expect 0 approve
 pr docs/b.md 1
-export HC_TERMINAL_ID=t7
-"$andon" issue report "$id" <<<'## Report' >/dev/null
-unset HC_TERMINAL_ID
+rereport
 findings "$head"
 got=$(gate "$id" --dry-run); expect 0 approve
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"

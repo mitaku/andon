@@ -154,6 +154,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 - 担当の `andon issue ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーの課題の `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
 - 担当の `andon issue review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。
+- `andon issue start`・`report`・`review-request`・`candidates`・`ask`・`ready`・`finish` は、課題の今の `status` から打てるものが [`process/states/issue.yaml`](../process/states/issue.yaml) の移り方（`command`）に在るときだけ動く。無ければ台帳に書く前に終了コード 1 と理由1行で断る（例: `todo` の課題への `ready`、`done` の課題への `review-request`）。定義はバイナリに埋め込んである。`by: deck` の移り方（担当の `deck start`、レビュアー・Chief Engineer の `deck report`・`deck review`）は `kanban` を直に打つので断らない（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 15）。
 - 作業側（別のマシン）の担当は同じ command を打つ。command は `<worktree>.issue/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
 
 ## 5. 問いの形

@@ -148,10 +148,10 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	if !spawn.SlugRe.MatchString(slug) {
 		return nil, fail("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
-	if s := c.issue.Str("status"); s != "todo" {
-		return nil, fail("%s は %s（起こせるのは todo だけ）", id, s)
+	if err := allowed("start", id, c.issue.Str("status")); err != nil {
+		return nil, err
 	}
-	p.check("status", "ok", "todo")
+	p.check("status", "ok", "%s", c.issue.Str("status"))
 	// kanban start の開始の条件（after が全部済んでいる）を、何かを作る前に確かめる
 	if ok, err := c.startable(); err != nil {
 		return nil, err
