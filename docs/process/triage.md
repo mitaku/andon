@@ -11,6 +11,7 @@
 | routine | 通知 | 通知 `ready` | `start` |
 | person | 人の依頼 |  | `add` |
 | signal | 通知 | 通知 `signal` | `signal` |
+| review | 通知 | 通知 `review` | `check` |
 
 ## 流れ
 
@@ -23,6 +24,7 @@ flowchart LR
   t_routine(("routine")):::event
   t_person(("person")):::event
   t_signal(("signal")):::event
+  t_review(("review")):::event
   subgraph lane_machine["機械"]
     s_collect("溜まったものを拾う"):::machine
     s_apply("仕分けを台帳に当てる"):::machine
@@ -40,11 +42,12 @@ flowchart LR
   t_routine --> s_start
   t_person --> s_add
   t_signal --> s_signal
+  t_review --> s_check
   s_signal -->|"台帳（直す課題。links に信号の url）"| fin
   s_add -->|"台帳（トリアージの課題）"| s_start
   s_start -->|"hc（担当の端末）・台帳（doing）"| s_collect
   s_collect -->|"library/items.json"| s_sort
-  s_sort -->|"library/decisions.json・報告"| s_check
+  s_sort -->|"library/decisions.json・報告・台帳（review）"| fin
   s_check --> g_check
   g_check -->|"閉じる理由が読めない"| s_sort
   g_check -->|"読める"| s_apply
@@ -62,7 +65,7 @@ flowchart LR
 | `add` | 人のゴールでトリアージの課題を足す | AI | `人の言葉（ゴール）`・`台帳（動いているトリアージ）` | `台帳（トリアージの課題）` | `start` |
 | `start` | 仕分けの担当を起こす | AI | `notification.ready`・`台帳（並行の上限）` | `hc（担当の端末）`・`台帳（doing）` | `collect` |
 | `collect` | 溜まったものを拾う | 機械 | `台帳（報告・見送り・問い・todo・片付けの残り）` | `library/items.json` | `sort` |
-| `sort` | 項目ごとに確かめて仕分ける | AI | `library/items.json`・`PR と repo と台帳の実物` | `library/decisions.json`・`報告` | `check` |
+| `sort` | 項目ごとに確かめて仕分ける | AI | `library/items.json`・`PR と repo と台帳の実物` | `library/decisions.json`・`報告`・`台帳（review）` | 終わり |
 | `check` | 仕分けを確かめる | AI | `notification.review`・`報告`・`library/decisions.json`・`andon triage apply --dry-run の出力` |  | `sort`（閉じる理由が読めない）・`apply`（読める） |
 | `apply` | 仕分けを台帳に当てる | 機械 | `library/decisions.json` | `台帳（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json` | `finish` |
 | `finish` | トリアージの課題を片付ける | 機械 | `台帳（review）` | `台帳（done）` | `follow` |
@@ -83,13 +86,13 @@ flowchart LR
 | `signal` | `chief-of-staff#1` | 直す課題に切る・依頼書の要点 | レベル C の直しを進めてよいか（line） |
 | `add` | `chief-of-staff#10` | 足すか（同時に 1 つ） |  |
 | `start` | `chief-of-staff#10`・`chief-of-staff#3` | 人に聞かずに起こす |  |
-| `sort` | `triage#3`・`triage#4` | close・fix・bundle・keep |  |
+| `sort` | `triage#3`・`triage#4`・`worker#7` | close・fix・bundle・keep |  |
 | `check` | `chief-of-staff#10` | 担当に戻す・適用する |  |
 | `follow` | `chief-of-staff#10`・`ask-one-by-one` | fix と bundle の課題を起こす・片付け待ちを finish する | 何を作るか（person に仕分けた項目）（business）・使い勝手の好み（person に仕分けた項目）（users）・外との約束と公開（person に仕分けた項目）（promise）・消す・本番・権限（person に仕分けた項目）（irreversible） |
 
 見るもの（手順の入るものの和）: `notification.signal`・`人の言葉（ゴール）`・`台帳（動いているトリアージ）`・`notification.ready`・`台帳（並行の上限）`・`台帳（報告・見送り・問い・todo・片付けの残り）`・`library/items.json`・`PR と repo と台帳の実物`・`notification.review`・`報告`・`library/decisions.json`・`andon triage apply --dry-run の出力`・`台帳（review）`・`library/triage/<日付>-<id>.md`・`台帳（人の課題）`
 
-残すもの（手順の出るものの和）: `台帳（直す課題。links に信号の url）`・`台帳（トリアージの課題）`・`hc（担当の端末）`・`台帳（doing）`・`library/items.json`・`library/decisions.json`・`報告`・`台帳（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json`・`台帳（done）`・`herdr notification`・`人への 1 問`
+残すもの（手順の出るものの和）: `台帳（直す課題。links に信号の url）`・`台帳（トリアージの課題）`・`hc（担当の端末）`・`台帳（doing）`・`library/items.json`・`library/decisions.json`・`報告`・`台帳（review）`・`台帳（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json`・`台帳（done）`・`herdr notification`・`人への 1 問`
 
 ## 数えるもの
 

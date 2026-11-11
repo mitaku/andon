@@ -15,6 +15,11 @@ triggers:
     kind: notification
     notification: signal
     start: signal
+  # 仕分けの担当が報告して課題が review に入った（repo の無い課題なので届く）
+  - name: review
+    kind: notification
+    notification: review
+    start: check
 steps:
   - id: signal
     title: 外のお知らせを直す課題に切る
@@ -53,10 +58,9 @@ steps:
     title: 項目ごとに確かめて仕分ける
     by: ai
     input: [library/items.json, PR と repo と台帳の実物]
-    output: [library/decisions.json, 報告]
-    skill: [triage#3, triage#4]
+    output: [library/decisions.json, 報告, 台帳（review）]
+    skill: [triage#3, triage#4, worker#7]
     decides: [close, fix, bundle, keep]
-    next: [{ id: check }]
   - id: check
     title: 仕分けを確かめる
     by: ai

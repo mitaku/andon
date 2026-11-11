@@ -224,8 +224,10 @@ any(.steps[]; (.input // []) | index("report.plan"))@手順の入るものに re
 any(.steps[]; .by == "ai" and ((.decides // []) as $d | ["途中報告を書かせる", "分ける", "起こし直す", "延長する"] | all(. as $x | $d | index($x))))@AI の手順の decides に 途中報告を書かせる・分ける・起こし直す・延長する
 any(.counts[]; startswith("flow.wait."))@数えるものに状態ごとの時間（flow.wait.<status>）
 WATCH
-# 壊すと落ちる
 "$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"
+jq -e 'any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")' "$tmp/ws.json" >/dev/null &&
+  ok "仕分け: 通知 review から check（仕分けを確かめる）が始まる" || ng "仕分けに 通知 review → check のきっかけが無い"
+# 壊すと落ちる
 jq 'del(.counts)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: counts が無い" || ng "counts が無いのに通る"
 jq '(.steps[] | select(.by == "machine")) |= del(.command)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: by machine に command が無い" || ng "command が無いのに通る"
 jq '(.steps[] | select(.by == "ai")) |= (.skill = "chief-of-staff#99")' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(skill_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: 在らない SKILL の節" || ng "在らない SKILL の節が通る"
