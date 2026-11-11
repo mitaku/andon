@@ -239,7 +239,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 
 - **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード（記録の一覧）。届けた通知はここに書かない。全部の出来事の一覧は台帳の `log.jsonl` が正で、この記録はその代わりではない。
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` と `merged` の `by`・`held` だけ任意。`held` は `by` と一緒）。
-- 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
+- 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる）。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。③人が離席のときだけ `hc send --if idle`（入力欄が空のとき）。どれも同じ JSON から同じ文を描く。
 - **マージのあとの影響**（`impact`）: `andon issue impact <id>` は、課題の PR がマージされたあと、同じ repo の `doing`／`review` の担当の課題（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
   出力は `issue`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`issues[]`。`issues[]` の1件は `issue`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、その課題の依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めない・在るかを確かめられない〈権限など。無いのとは分ける〉ときも。影響なしに倒さない）。
   影響あり（通知に載る）は `error` があるか、`contains` でなく `conflict`・`overlap`・`brief_refs` のどれかがあるもの。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff（chief-of-staff skill §7）。出力そのものは Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
@@ -327,14 +327,14 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 | 誰の | イベント | 打つもの | 返すもの |
 |---|---|---|---|
-| Chief of Staff | `Stop` | `andon dispatcher drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の turn の終わり（入力の `prompt_id`・`session_id` が合う）なら確かめ済みにし、端末のラベル `news.ack` が渡したときに控えた `turn` と同じなら `news.replied=<turn>` を書く（答えの文〈`last_assistant_message`〉は読まない。§6）。合わなければ渡した通知を1回だけ届け直す |
+| Chief of Staff | `Stop` | `andon dispatcher drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる。`decision: block` と違い画面に「Stop hook error」が出ない。[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 6）。無ければ何も返さない。前にフックで渡した `<news>` の turn の終わり（入力の `prompt_id`・`session_id` が合う）なら確かめ済みにし、端末のラベル `news.ack` が渡したときに控えた `turn` と同じなら `news.replied=<turn>` を書く（答えの文〈`last_assistant_message`〉は読まない。§6）。合わなければ渡した通知を1回だけ届け直す |
 | Chief of Staff | `UserPromptSubmit` | `andon dispatcher drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ）。前にフックで渡した `<news>` の turn の終わりを見ていなければ（中断）、その通知を1回だけ届け直す |
 | 担当 | `Stop` | `andon issue stop-check`（端末のラベル `issue=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無く、待ちでもなければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。待ち（通す）は、自分の問いが開いたまま（その問いの最後の行が `open`）か、`report.json` に `review_request` があり、その `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え（`answered`）・レビューが届いたあとは待ちではない。続けて止めるのは3回まで。控えが書けなければ通す。レビュアーも同じ。Chief Engineer の課題（`profile: chief-engineer`）は止めない（[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 10） |
 
 - フックの実体は `package/hooks/stop`・`user-prompt-submit`（image では `/opt/andon/hooks/`）。どの端末でも同じフックが走り、役は command がラベルで見分ける（どちらでもなければ何も出さない）。
 
 - 実測（2026-11-10。担当の端末の `andon issue stop-check` の block）: `Stop` の `decision: block` で始まる続きは、hc の `turn` を進めない（block の前と同じ値）。だから①で渡したときに控える `turn` と、続きで打つ `andon news ack` の値は同じになる（§6）。
-- 要実測: `Stop` の `decision: block` で続きの turn が始まること、`UserPromptSubmit` の `additionalContext` が文脈に入ること、Codex の同等物（最初の版は Claude Code だけ）。
+- 要実測: Chief of Staff の `Stop` の `additionalContext` で続きの turn が始まり「Stop hook error」が出ないこと、その続きが hc の `turn` を進めるか（進むなら `andon news ack` の照らし方を合わせる）、`UserPromptSubmit` の `additionalContext` が文脈に入ること、Codex の同等物（最初の版は Claude Code だけ）。
 - フックが落ちたとき（command が無い・台帳が見つからない）は**通す**（止めない。dispatcher のログに1行）。フックは守りの1枚で、唯一の守りではない（`andon issue ready` と dispatcher の照合が残る）。
 
 ## 10. 互換と版
