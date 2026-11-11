@@ -20,7 +20,7 @@ import (
 // DrainUsage は andon dispatcher drain の使い方。
 const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>] < フックの入力の JSON\n" +
 	"Chief of Staff の Stop・UserPromptSubmit フックが打つ（package/hooks/。contract.md §9）。待ちの通知を全部取り出して <news> に描く。\n" +
-	"  既定（Stop）: 待ちがあれば {\"decision\": \"block\", \"reason\": \"<news>…</news>\"}。前にフックで渡した <news> の turn に andon news ack があれば（移行の間は答えが <no-reply> だけでも）news.replied を書く\n" +
+	"  既定（Stop）: 待ちがあれば {\"decision\": \"block\", \"reason\": \"<news>…</news>\"}。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
 	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
@@ -133,10 +133,9 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 // hookInput は Claude Code のフックの入力のうち drain が読むもの。
 type hookInput struct {
-	SessionID            string `json:"session_id"`
-	PromptID             string `json:"prompt_id"`
-	StopHookActive       bool   `json:"stop_hook_active"`
-	LastAssistantMessage string `json:"last_assistant_message"`
+	SessionID      string `json:"session_id"`
+	PromptID       string `json:"prompt_id"`
+	StopHookActive bool   `json:"stop_hook_active"`
 }
 
 // sameTurn は、Stop の入力 in が、フックで <news> を渡した turn（h）の終わりか。
@@ -184,20 +183,13 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	}
 	changed := false
 	// 前にフックで渡した <news>。渡した turn が Stop で終わったら確かめ済み（ラベル news.ack が渡したときの turn と同じなら news.replied を書く。
-	// 移行の間は、答えが <no-reply> だけでも書く。ADR-0010 決めたこと 5・6）。
+	// 答えの文は読まない。ADR-0010 決めたこと 5・6）。
 	// 終わりを見ないまま別の turn が来た（人が中断した・フックの出力が捨てられた）なら、まだ届けていない1回目の分だけ届け直す
 	var again []Notification
 	if h := st.Hook; h != nil {
 		if !context && sameTurn(h, addr, in) {
-			by := ""
-			switch {
-			case acked(self, h.Turn, h.AckBefore):
-				by = "ack"
-			case strings.TrimSpace(in.LastAssistantMessage) == "<no-reply>":
-				by = "no-reply"
-			}
-			if by != "" && self != nil && label(addr, self.Turn) == nil {
-				st.countReplied(by)
+			if acked(self, h.Turn, h.AckBefore) && label(addr, self.Turn) == nil {
+				st.countReplied("ack")
 			}
 		} else {
 			again = h.News // 届け直しは1回だけ（h.Again は捨てる）

@@ -59,7 +59,7 @@ func acked(t *terminal, turn *int, before string) bool {
 	return ok && v == strconv.Itoa(*turn) && v != before
 }
 
-// countReplied は news.replied を何で書いたか（ack・no-reply）を控えに数える（移行の間。ADR-0010 決めたこと 6）。
+// countReplied は news.replied を何で書いたかを控えに数える（ack だけ。<no-reply> は v0.0.9 で外した。ADR-0010 決めたこと 6）。
 func (s *State) countReplied(by string) {
 	if s.Replied == nil {
 		s.Replied = map[string]int{}

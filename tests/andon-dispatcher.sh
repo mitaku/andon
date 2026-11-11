@@ -775,15 +775,16 @@ screen '❯' '❯'
 id=$(event 'ターンの中の通知')
 [ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"見た"}')
-jq -e --arg id "$id" '.decision == "block" and (.reason | startswith("<news project=\"demo\">\n") and contains("\n\($id) report: 報告 ") and endswith("「<no-reply>」とだけ返す。\n</news>"))' <<<"$out" >/dev/null ||
+jq -e --arg id "$id" '.decision == "block" and (.reason | startswith("<news project=\"demo\">\n") and contains("\n\($id) report: 報告 ") and endswith("人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。\n</news>"))' <<<"$out" >/dev/null ||
     die "Stop が <news> で block しない: $out"
 jq -e '.pending == [] and .hook.terminal == "t5" and .hook.via == "stop"' "$state" >/dev/null || die '取り出した待ちが控えに残った・渡した turn を控えていない'
+: >> "$tmp/hc/labels"
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assistant_message":"<no-reply>"}')
 [ -z "$out" ] || die "待ちが無いのに block した: $out"
-grep -qx 't5 news.replied=3' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '<no-reply> だけの答えに news.replied を書かない'
+! grep -qx 't5 news.replied=3' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '<no-reply> だけの答え（ack なし）に news.replied を書いた・確かめ済みにしない'
 out=$(HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<'{}')
 [ -z "$out" ] || die "Chief of Staff でも担当でもない端末で何か出した: $out"
-ok 'turn 中の通知は Chief of Staff の Stop フック（drain）が block の reason で渡し、答えが <no-reply> だけなら news.replied を書く'
+ok 'turn 中の通知は Chief of Staff の Stop フック（drain）が block の reason で渡し（末尾は andon news ack の1行）、答えが <no-reply> だけでは news.replied を書かない'
 
 # 12. 送信時に添えられる（UserPromptSubmit。委譲の一覧も同じ口で）
 id=$(event '送信時の通知')
@@ -793,7 +794,7 @@ jq -e --arg id "$id" '.hookSpecificOutput.hookEventName == "UserPromptSubmit" an
     die "additionalContext に待ちと委譲が無い: $out"
 jq -e '.pending == []' "$state" >/dev/null || die '添えた待ちが残った'
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"了解"}' >/dev/null
-! grep -q 'news.replied=3$' <(tail -n +2 "$tmp/hc/labels") || die '人への答えに news.replied を書いた'
+! grep -q 'news.replied=3$' "$tmp/hc/labels" || die '人への答えに news.replied を書いた'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"もう一つ"}')
 jq -e '.hookSpecificOutput.additionalContext | (contains("<news") | not) and contains("<delegation")' <<<"$out" >/dev/null || die "待ちが無いときに委譲だけを添えない: $out"
 out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}'); rc=$?
@@ -835,17 +836,19 @@ cstop p3 '<no-reply>' >/dev/null
 id=$(event '照合する送信')
 ups p4 >/dev/null
 cos working 6
-out=$(cstop p0 '<no-reply>')
+out=$(cstop p0 'x')
 [ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die '別の turn（prompt_id 違い）の Stop で news.replied を書いた'
 jq -e --arg id "$id" '.decision == "block" and (.reason | contains("\($id) report:"))' <<<"$out" >/dev/null || die "確かめていない <news> をその Stop で届け直さない: $out"
-cstop p0 '<no-reply>' true >/dev/null
-grep -qx 't5 news.replied=6' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '届け直した turn の <no-reply> に news.replied を書かない'
-cstop p0 '<no-reply>' true >/dev/null
-[ "$(grep -c 'news.replied' "$tmp/hc/labels")" = 2 ] || die '確かめ済みの <news> に二度 news.replied を書いた'
+term t5 working 6 role=chief-of-staff project=demo news.ack=6
+r=$(grep -c 'news.replied' "$tmp/hc/labels" || true)
+cstop p0 'x' true >/dev/null
+grep -qx 't5 news.replied=6' "$tmp/hc/labels" && jq -e 'has("hook") | not' "$state" >/dev/null || die '届け直した turn の ack に news.replied を書かない'
+cstop p0 'x' true >/dev/null
+[ "$(grep -c 'news.replied' "$tmp/hc/labels")" = $((r + 1)) ] || die '確かめ済みの <news> に二度 news.replied を書いた'
 ok '送信で渡した <news> は turn の Stop まで控えに残し、中断されたら次の送信で1回だけ届け直す。news.replied は prompt_id で照合した turn だけ（違う turn の Stop では書かず届け直す）'
 
 # 12c. andon news ack（ADR-0010 決めたこと 4〜6）: Chief of Staff の端末だけに news.ack=<turn> を書き、
-# 渡した turn に ack があれば答えの文に関わらず news.replied を書く（移行の間は <no-reply> だけの答えでも書く）
+# 渡した turn に ack があれば答えの文に関わらず news.replied を書く（<no-reply> だけの答えでは書かない。ADR-0010 決めたこと 6・受け入れ条件 6）
 replied() { grep -c 'news.replied' "$tmp/hc/labels"; }
 cos working 7
 out=$(HC_TERMINAL_ID=t5 "$andon" news ack) && tail -1 "$tmp/hc/labels" | grep -qx 't5 news.ack=7' || die "Chief of Staff の端末に news.ack=<turn> を書かない: $out"
@@ -854,7 +857,7 @@ labels=$(wc -l < "$tmp/hc/labels")
 HC_TERMINAL_ID=t7 "$andon" news ack >/dev/null 2>&1 && die 'Chief of Staff でない端末の ack が 0 で終わった'
 [ "$(wc -l < "$tmp/hc/labels")" = "$labels" ] || die 'Chief of Staff でない端末に news.ack を書いた'
 # 渡し中が無い（控えに hook が無い）ときの ack は news.replied を書かせない
-n=$(replied)
+n=$(replied) a=$(jq '.replied.ack // 0' "$state")
 term t5 working 7 role=chief-of-staff project=demo news.ack=7
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false,"last_assistant_message":"了解"}' >/dev/null
 [ "$(replied)" = "$n" ] || die '渡し中が無いのに ack で news.replied を書いた'
@@ -868,25 +871,25 @@ term t5 working 8 role=chief-of-staff project=demo news.ack=8
 cstop p8 '片付けた。人へ言うことは無い' true >/dev/null
 cstop p8 '片付けた。人へ言うことは無い' true >/dev/null
 [ "$(replied)" = $((n + 1)) ] && tail -1 "$tmp/hc/labels" | grep -qx 't5 news.replied=8' || die 'ack したターンに news.replied を1回だけ書かない'
-jq -e '.replied.ack == 1' "$state" >/dev/null || die 'ack で書いたことを控えに数えない'
-# ack の無いターン（前のターンの値のまま）は、<no-reply> でなければ書かない
+jq -e --argjson a "$a" '.replied.ack == $a + 1' "$state" >/dev/null || die 'ack で書いたことを控えに数えない'
+# ack の無いターン（前のターンの値のまま）は書かない
 id=$(event 'ack しない通知')
 term t5 working 9 role=chief-of-staff project=demo news.ack=8
 cstop p9 'x' >/dev/null
 cstop p9 '人への答え' true >/dev/null
 [ "$(replied)" = $((n + 1)) ] || die 'ack の無いターンに news.replied を書いた'
-# 移行の間: ack が無くても答えが <no-reply> だけなら書き、no-reply と数える
+# <no-reply> の受け口は外した: ack が無ければ、答えが <no-reply> だけでも書かない・数えない
 id=$(event '<no-reply> で答える通知')
 cstop p9 'x' >/dev/null
 cstop p9 '<no-reply>' true >/dev/null
-[ "$(replied)" = $((n + 2)) ] && jq -e '.replied["no-reply"] >= 1 and .replied.ack == 1' "$state" >/dev/null || die '移行の間の <no-reply> に news.replied を書かない・数えない'
+[ "$(replied)" = $((n + 1)) ] && jq -e --argjson a "$a" '(.replied | has("no-reply") | not) and .replied.ack == $a + 1 and (has("hook") | not)' "$state" >/dev/null || die 'ack の無い <no-reply> だけの答えに news.replied を書いた・数えた'
 # 同じ turn（Stop の block の続きは turn が進まない）で、渡す前にもう ack していたら、その ack は数えない
 id=$(event '前の ack が残る通知')
 term t5 working 9 role=chief-of-staff project=demo news.ack=9
 cstop p9 'x' >/dev/null
 cstop p9 '人への答え' true >/dev/null
-[ "$(replied)" = $((n + 2)) ] || die '渡す前の同じ turn の ack で news.replied を書いた'
-ok 'andon news ack は Chief of Staff の端末だけに news.ack=<turn> を書き、渡した turn に ack があれば文に関わらず news.replied を1回だけ書く（渡し中が無い・前の ack は数えない。移行の間は <no-reply> も受けて数える）'
+[ "$(replied)" = $((n + 1)) ] || die '渡す前の同じ turn の ack で news.replied を書いた'
+ok 'andon news ack は Chief of Staff の端末だけに news.ack=<turn> を書き、渡した turn に ack があれば文に関わらず news.replied を1回だけ書く（渡し中が無い・前の ack は数えない。<no-reply> だけの答えでは書かない）'
 
 # 13. 離席時だけ hc send（状態 idle・入力欄が空・前の <news> の turn が進んでいる）
 id=$(event '離席の通知')
@@ -915,7 +918,7 @@ dispatcher
 cos done 5
 printf '❯ <news project="demo">\n  %s report: x\n  </news>\n\n● <no-reply>\n\n%s\n❯\n%s\n' "$id" "$rule" "$rule" > "$tmp/hc/screen-t5"
 dispatcher
-grep -qx 't5 news.replied=5' "$tmp/hc/labels" || die '③で送った <news> の <no-reply> に news.replied を書かない'
+! grep -q 't5 news.replied=5' "$tmp/hc/labels" && jq -e 'has("news_turn") | not' "$state" >/dev/null || die '③で送った <news> の ack の無い <no-reply> に news.replied を書いた・控えた turn を捨てない'
 screen '❯' '❯'
 dispatcher
 [ "$(sent)" = 2 ] && grep -q "^send t5 <news" "$tmp/hc/log" && grep -q "$id2 report:" "$tmp/hc/sent" || die 'done の Chief of Staff に --if なしで送らない'

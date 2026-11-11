@@ -89,28 +89,6 @@ func TestInputBox(t *testing.T) {
 	}
 }
 
-func TestRepliedNone(t *testing.T) {
-	news := "❯ <news project=\"demo\">\n  D-1 review: 報告 x\n  </news>\n\n"
-	box := rule + "\n❯\n" + rule + "\n"
-	cases := []struct {
-		name   string
-		screen string
-		want   bool
-	}{
-		{"<no-reply> だけ", news + "● <no-reply>\n\n" + box, true},
-		{"ほかの文がある", news + "● D-1 を見た。\n  マージしてよい\n\n" + box, false},
-		{"続きの行がつながる", news + "● <no-\n  reply>\n" + box, false},
-		{"ツールを使ってから <no-reply>", news + "● Bash(kanban list)\n  ⎿ ok\n\n● <no-reply>\n" + box, true},
-		{"あとに人の行がある", news + "● <no-reply>\n\n❯ 次これ\n\n● はい\n" + box, false},
-		{"</news> が無い", "● <no-reply>\n" + box, false},
-	}
-	for _, c := range cases {
-		if got := RepliedNone(c.screen); got != c.want {
-			t.Errorf("%s: %v（want %v）", c.name, got, c.want)
-		}
-	}
-}
-
 func TestRender(t *testing.T) {
 	ns := []Notification{
 		{At: "2026-11-05T10:21:00Z", Project: "demo", Issue: "D-1", Kind: "review", Detail: map[string]any{"report": "/p/tasks/D-1/report.md", "pr": "https://github.com/example/app/pull/7"}},

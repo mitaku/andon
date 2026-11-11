@@ -69,7 +69,7 @@ type State struct {
 	Approved map[string]Notification `json:"approved,omitempty"`
 	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
 	Unrecorded []Notification `json:"unrecorded,omitempty"`
-	// news.replied を書いた数を、何で書いたか（ack・no-reply）ごとに（移行の間。ADR-0010 決めたこと 6。ack.go）
+	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前の版の控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
 	Replied map[string]int `json:"replied,omitempty"`
 }
 

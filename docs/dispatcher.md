@@ -231,7 +231,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | ③ | 離席時だけ `hc send` | ①②が来ない間（Chief of Staff がターンを終えて入力を待っていて、人も打っていない） | §4 の守りがそろったら `hc send --if idle` | 判定が外れたときだけ（§4.4） |
 
 - **①②が主、③が残り。** ターンの中で起きた出来事は①で、人が戻って打てば②で届く。③が要るのは「Chief of Staff が待っていて、人も離れている」ときだけ——そのとき誰も Chief of Staff を起こさないので、ラインが止まる。
-- `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（`andon news ack` があったか〈移行の間は答えが `<no-reply>` だけか〉もここで見る。§3.1）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
+- `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（`andon news ack` があったかもここで見る。§3.1）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
 - ①の `block` が続きのターンを始めること、②の `additionalContext` が文脈に入ることは**要実測**（P6b。contract.md §9）。
 - フックが落ちたとき（command が無い・台帳が見つからない）は**通す**。待ちは dispatcher に残り、次の口で届く。
 
@@ -245,13 +245,13 @@ S-0010 review: 報告 issues/S-0010/report.md（PR https://github.com/<owner>/sa
 S-0011 asked: 問い 1（irreversible）
 S-0012 ready: 「依存の版上げ」（ルーチン triage）
 S-0009 の担当 t5 が working のまま 21 分
-これは台帳と端末の土台から拾った通知で、人からの新しい依頼ではない。足すことが無ければ「<no-reply>」とだけ返す。
+これは台帳とhcから拾った通知で、人からの新しい依頼ではない。人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。
 </news>
 ```
 
 - **まとめて1通**: Chief of Staff は複数をまとめて1回で答えるほうが安い。
-- **末尾の1行**: 通知はデータで、依頼ではない。Chief of Staff は台帳を読んで動き、人に言うことが無ければ `<no-reply>` とだけ返す。
-- **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: `<news>` を渡したターンが終わって、そのターンに Chief of Staff が `andon news ack`（ラベル `news.ack=<turn>`）を打っていれば、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。照らすのは、渡したときに控えた端末の `turn` とラベル `news.ack` の値で、答えの文は読まない（③は見回りが turn の進みを見たとき、①②は次の `Stop` フック）。①②で渡す前から同じ値の `news.ack` があった（同じ turn の前の ack）ら数えない。移行の間（ack を入れた版）は、ack が無くても答えが `<no-reply>` だけなら今までどおり書く（③は画面、①②は `last_assistant_message`。decisions.md §15）。どちらで書いたかは控えの `replied` に数える。形は contract.md §6、決定は [ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6・8。
+- **末尾の1行**: 通知はデータで、依頼ではない。Chief of Staff は台帳を読んで動き、人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える（文は ADR-0010 決めたこと 3。①②③のどれで届いても同じ）。
+- **`news.replied=<turn>`**（ボードとの約束。持ち主はボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: `<news>` を渡したターンが終わって、そのターンに Chief of Staff が `andon news ack`（ラベル `news.ack=<turn>`）を打っていれば、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「人が見る返事」に数えない。照らすのは、渡したときに控えた端末の `turn` とラベル `news.ack` の値で、答えの文は読まない（③は見回りが turn の進みを見たとき、①②は次の `Stop` フック）。①②で渡す前から同じ値の `news.ack` があった（同じ turn の前の ack）ら数えない。ack の無いターンは、答えが `<no-reply>` だけでも書かない（`<no-reply>` の受け口は ack を入れた版〈v0.0.8〉の次の版で外した）。書いた数は控えの `replied` に数える（`ack`）。形は contract.md §6、決定は [ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6・8。
 
 ### 3.2 届けるか・記録だけか
 
@@ -408,7 +408,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 4 | ゲートを回す | dispatcher（`review` に入った `log.jsonl` の行ごとに 1 回）。Chief of Staff が `andon gate` を手で打つこともある | 記録 `library/gate/<head>.json` が上書きされる・PR に commit status とコメントが二重に付く。判定は同じ事実から決まるので**同じ決定**（事実が間に変わっていれば後の方が新しい） | ②控えの `Gates`（`<issue>#<行>`）。**手で打つ分は防がない**（G2） |
 | 5 | マージして片付ける | dispatcher（approve ＋ `merge: auto` ＋ 委譲の範囲内）。`merge: person` は人 | 2 度目の `gh pr merge` が失敗する。人が先にマージしたときも同じ。head が替わっていれば止まる | ⑤`--match-head-commit`（判定した head だけ）＋マージ直前の読み直し（`stillAuthorized`・`ChecksStill`）＋②控えの `Gates[].Merged`。`finish` は④台帳の `worktree`・`branch` が空なら何も消さない（本体の checkout は消さない）。`gh pr merge` が失敗したら `gh pr view --json state,mergeCommit,headRefOid` を読み直し、`MERGED` で head がゲートの記録の `head` と同じなら**問いを出さず**、人がマージしたときの道（§2.7）で片付ける（控えの `Watch` に MERGED を置き、同じ巡で finish。ゲートの記録の `merged` は書かない）。違えば今までどおり `irreversible` の問い |
 | 6 | 担当の最初のメッセージの送り直し・提供元に切られたときの「続けて」（担当・レビュアー・Chief of Staff。§2.4・P6a） | dispatcher | 同じメッセージを 2 度送る・「続けて」を 5 回以上打つ・最初のメッセージの前に「続けて」を打つ | ③ラベル `first_message.sent=false`（送ったら外す）＋②控えの `First`（送る前に「送りかけ」を保存。外しそこねても二度と送らない）・`Retry`（回数。4 回まで。打つ前に保存する。最初のメッセージが届いていない端末には打たない）。送っている最中に落ちたら**送らない側に倒れる**（`stalled` で気づく） |
-| 7 | 通知を Chief of Staff へ届ける（§3） | dispatcher（経路③の `hc send`）と、Chief of Staff 自身のフック（経路①②の `drain`） | 同じ通知が 2 度届く（`<news>` が二重） | ①控えの lock（#2 と同じ）＋②控えの `Pending`（届けたら空にする）・`Hook`・`NewsTurn`（同じ turn に 2 度送らない）。`<no-reply>` で `news.replied` を書く。迷ったら送らない |
+| 7 | 通知を Chief of Staff へ届ける（§3） | dispatcher（経路③の `hc send`）と、Chief of Staff 自身のフック（経路①②の `drain`） | 同じ通知が 2 度届く（`<news>` が二重） | ①控えの lock（#2 と同じ）＋②控えの `Pending`（届けたら空にする）・`Hook`・`NewsTurn`（同じ turn に 2 度送らない）。`andon news ack` があれば `news.replied` を書く。迷ったら送らない |
 | 8 | `kanban tick`（routine の `schedule`） | dispatcher だけ（1 巡の 3a。§2.1.1）。cron は置かない。人が `kanban tick`・`kanban routine run` を手で打つことはある | schedule の時刻に 2 度課題が足される | 台帳の側にある: ①台帳の lock（`kanban/.lock`。書き手は 1 つ）の中で `state/routines.json` の「最後に撃った時刻」を読んで書く＝同じ時刻は 1 度だけ撃つ。逃した時刻は 1 度にまとめる。`open`（未完了の数）で積み上げを止める。手で打つ分も同じ lock と時刻で守られる |
 | 9 | 台帳への書き込み（`kanban`） | 打つ者は誰でも（Chief of Staff・担当・dispatcher・人）。ファイルは台帳の CLI だけが書く | 同時の書き込みで id の重複・行の混ざり | ①`kanban/.lock`（書き手は 1 つ。待つのは 10 秒）。書き込みは一時ファイル＋rename |
 | 10 | 担当・Chief of Staff・Chief Engineer を起こす（`andon issue start`・`chief-of-staff`・`chief-engineer`） | Chief of Staff（人が `chief-of-staff` を打つ） | 同じ課題の worktree と branch が二重に作られる・Chief of Staff が 2 人になる | ④台帳（`todo` だけ起こせる・`worktree`・`branch` が空でなければ起こし済みで断る）。1 プロジェクト 1 人は③ラベル `role=chief-of-staff`・`project=` の live な端末を数えて 2 人以上なら止まる。起こせなかったら worktree と branch を戻す。`andon issue start`・`resume`・`finish` は台帳ごとの issue lock（`<slug>.issue.lock`。控えの lock とは別）を命令の間持つ。**`andon chief-of-staff`・`andon chief-engineer` の「見る→起こす」の間は塞がない**（G5） |
