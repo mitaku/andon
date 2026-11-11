@@ -147,3 +147,39 @@ func TestRenderRefusesSymlinks(t *testing.T) {
 		})
 	}
 }
+
+// 確かめたあと書く・消す前に docs/process を外への symlink に差し替えても、外は変わらない（os.Root が止める）。
+func TestRenderSwapAfterCheckStaysInside(t *testing.T) {
+	for name, stale := range map[string]bool{"書く": false, "消す": true} {
+		t.Run(name, func(t *testing.T) {
+			root, outside := t.TempDir(), t.TempDir()
+			write(t, root, "process/workstreams/watch.yaml", watch)
+			write(t, root, "docs/process/README.md", "人が書く\n")
+			write(t, outside, "old.md", "外のファイル\n")
+			if stale {
+				write(t, root, "docs/process/old.md", "定義の無い生成物\n")
+			}
+			dir := filepath.Join(root, "docs/process")
+			afterCheck = func() {
+				if err := os.Rename(dir, dir+".moved"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, dir); err != nil {
+					t.Fatal(err)
+				}
+				afterCheck = func() {}
+			}
+			t.Cleanup(func() { afterCheck = func() {} })
+			if _, err := Render(root, false); err == nil {
+				t.Fatal("差し替えた先へ書いた・消した")
+			}
+			ents, _ := os.ReadDir(outside)
+			if len(ents) != 1 || ents[0].Name() != "old.md" {
+				t.Fatalf("外が変わった: %v", ents)
+			}
+			if b, _ := os.ReadFile(filepath.Join(outside, "old.md")); string(b) != "外のファイル\n" {
+				t.Fatalf("外のファイルが書き換わった: %q", b)
+			}
+		})
+	}
+}

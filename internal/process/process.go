@@ -13,7 +13,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -252,29 +254,35 @@ func Render(root string, check bool) ([]string, error) {
 		}
 	}
 
-	// 書く・消す先が symlink なら止まる（repo の外へ書いたり、外のファイルを消したりしない）
+	// 書く・消す先が symlink なら止まる（repo の外へ書いたり、外のファイルを消したりしない）。読む・書く・消すは
+	// os.Root を通すので、確かめたあとに差し替えられても root の外へは出ない。
 	if err := noLink(root, filepath.Join("docs", "process")); err != nil {
 		return nil, err
 	}
-	var changed []string
-	have, err := filepath.Glob(filepath.Join(root, "docs", "process", "*.md"))
+	r, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
-	for _, f := range have {
-		rel, _ := filepath.Rel(root, f)
-		if filepath.Base(f) == "README.md" {
+	defer r.Close()
+	var changed []string
+	have, err := fs.Glob(r.FS(), "docs/process/*.md")
+	if err != nil {
+		return nil, err
+	}
+	for _, rel := range have {
+		if path.Base(rel) == "README.md" {
 			continue
 		}
-		if _, ok := want[rel]; ok {
+		if _, ok := want[filepath.FromSlash(rel)]; ok {
 			continue
 		}
 		if err := noLink(root, rel); err != nil {
 			return nil, err
 		}
-		changed = append(changed, filepath.ToSlash(rel)) // 定義の無い生成物
+		changed = append(changed, rel) // 定義の無い生成物
 		if !check {
-			if err := os.Remove(f); err != nil {
+			afterCheck()
+			if err := r.Remove(rel); err != nil {
 				return nil, err
 			}
 		}
@@ -283,19 +291,21 @@ func Render(root string, check bool) ([]string, error) {
 		if err := noLink(root, rel); err != nil {
 			return nil, err
 		}
-		old, err := os.ReadFile(filepath.Join(root, rel))
+		slash := filepath.ToSlash(rel)
+		old, err := r.ReadFile(slash)
 		if err == nil && bytes.Equal(old, body) {
 			continue
 		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
-		changed = append(changed, filepath.ToSlash(rel))
+		changed = append(changed, slash)
 		if !check {
-			if err := os.MkdirAll(filepath.Join(root, "docs", "process"), 0o755); err != nil {
+			afterCheck()
+			if err := r.MkdirAll("docs/process", 0o755); err != nil {
 				return nil, err
 			}
-			if err := os.WriteFile(filepath.Join(root, rel), body, 0o644); err != nil {
+			if err := r.WriteFile(slash, body, 0o644); err != nil {
 				return nil, err
 			}
 		}
@@ -303,6 +313,9 @@ func Render(root string, check bool) ([]string, error) {
 	sort.Strings(changed)
 	return changed, nil
 }
+
+// afterCheck はテストが確かめと書く・消すの間に差し替えをはさむ口。
+var afterCheck = func() {}
 
 // noLink は root の下の rel のどの段（docs・docs/process・ファイル）も symlink でないことを確かめる。無い段はよい。
 func noLink(root, rel string) error {
