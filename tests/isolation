@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# tests/isolation [<tests/x.sh>...]
+#
+# 検査がセルの本物（台帳・HOME）に書かないことを確かめる。手で打つ（全部を回すので数分かかる。tests/run は拾わない）。
+# 一時ディレクトリに偽のセル（番兵）を作り、セルと同じ形にして go test ./... と tests/*.sh を回す:
+#   - repo の写し（今の作業ツリーごと）を <ws>/.ghq/example.com/owner/andon に置き、
+#     その repo を repos に持つ台帳 <ws>/projects/sample/kanban を置く（git の main checkout から台帳を探す道）。
+#   - KANBAN_ROOT・HOME・CLAUDE_CONFIG_DIR・ANDON_HOME・CODEX_HOME・ANDON_WORKSPACE・GHQ_ROOT・HC_* を番兵へ向ける。
+#   - TMPDIR を repo の写しの中に置く（担当が一時ディレクトリを worktree の中に置いたときと同じ）。
+# 番兵の台帳と HOME の下のファイルが1つでも変われば、変わったものを出して 1 で終わる。検査の失敗も 1。
+# 引数があれば tests/*.sh はそれだけ（go test ./... は毎回回す）。
+set -euo pipefail
+src=$(cd "$(dirname "$0")/.." && pwd)
+tmp=$(mktemp -d)
+trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
+
+# 道具は本物の置き場のまま使う（HOME を替える前に決める。go と node のキャッシュは番兵の外）
+gobin=$(command -v go || mise which go 2>/dev/null || true)
+[ -n "$gobin" ] || { echo "FAIL go が無い" >&2; exit 1; }
+nodebin=$(command -v node || mise which node 2>/dev/null || true)
+path="$(dirname "$gobin")${nodebin:+:$(dirname "$nodebin")}:$PATH"
+gocache=$(PATH=$path go env GOCACHE) gomodcache=$(PATH=$path go env GOMODCACHE)
+
+ws=$tmp/ws
+repo=$ws/.ghq/example.com/owner/andon
+mkdir -p "$ws/.ghq/example.com/owner" "$ws/projects/sample" "$ws/home/.claude" "$ws/home/.codex" "$ws/home/.config/go"
+git clone -q "$src" "$repo"
+(cd "$src" && git diff HEAD --binary) | (cd "$repo" && git apply --allow-empty)
+(cd "$src" && git ls-files --others --exclude-standard -z) | (cd "$src" && xargs -0r cp --parents -t "$repo")
+(cd "$ws/projects/sample" && env -u KANBAN_ROOT PATH="$path" HC_TERMINAL_ID=t1 bash -c '
+  kanban init --prefix S --repo example.com/owner/andon >/dev/null
+  kanban add "番兵の課題" >/dev/null
+  kanban config set chief_of_staff=t1 >/dev/null')
+printf '# 番兵\n' >"$ws/home/.claude/CLAUDE.md"
+printf '{}\n' >"$ws/home/.claude/settings.json"
+printf '# 番兵\n' >"$ws/home/.codex/config.toml"
+mkdir -p "$repo/tests/.task-tmp"
+
+# 数えないのは go の道具が自分で書く telemetry（~/.config/go。検査ではなく go が書く）だけ
+snap() { (cd "$ws" && find projects home -path home/.config/go -prune -o -print0 | sort -z | xargs -0 stat -c '%n %F %s %Y' &&
+  find projects home -path home/.config/go -prune -o -type f -print0 | sort -z | xargs -0 sha256sum); }
+before=$(snap)
+
+cell=(env PATH="$path" GOCACHE="$gocache" GOMODCACHE="$gomodcache" TMPDIR="$repo/tests/.task-tmp"
+  KANBAN_ROOT="$ws/projects/sample" HOME="$ws/home" CLAUDE_CONFIG_DIR="$ws/home/.claude" CODEX_HOME="$ws/home/.codex"
+  ANDON_HOME="$ws/home" ANDON_WORKSPACE="$ws" GHQ_ROOT="$ws/.ghq"
+  HC_TERMINAL_ID=t1 HC_SCOPE=sentinel HC_TERMINAL_SOCKET="$ws/hc.sock")
+failed=0
+(cd "$repo" && "${cell[@]}" go test ./...) || failed=1
+(cd "$repo" && "${cell[@]}" bash tests/lib/run-tests.sh "$@") || failed=1
+
+after=$(snap)
+if [ "$before" != "$after" ]; then
+  echo "FAIL 検査が番兵（セルの本物の代わり）に書いた:" >&2
+  diff <(echo "$before") <(echo "$after") >&2 || true
+  exit 1
+fi
+echo "ok   番兵の台帳（projects/sample）と HOME は変わらなかった"
+[ "$failed" = 0 ] || { echo "FAIL 検査が落ちた（上の出力）" >&2; exit 1; }

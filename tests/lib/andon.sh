@@ -2,6 +2,7 @@
 #   ANDON_BIN があればそれを使う（CI が先に焼いたもの）。無ければ go build で一時ディレクトリに焼く。
 #   go が無ければ（mise があれば mise exec で）、どちらも無ければ skip して終わる。
 # 呼ぶ側は $tmp（後片付けする一時ディレクトリ）を先に作っておく。
+. "$(dirname "${BASH_SOURCE[0]}")/isolate.sh"
 andon_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 if [ -n "${ANDON_BIN:-}" ]; then
   andon=$ANDON_BIN
