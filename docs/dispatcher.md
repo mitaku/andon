@@ -247,7 +247,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | ③ | 離席時だけ `hc send` | ①②が来ない間（Chief of Staff がターンを終えて入力を待っていて、人も打っていない） | §4 の守りがそろったら `hc send --if idle` | 判定が外れたときだけ（§4.4） |
 
 - **①②が主、③が残り。** ターンの中で起きた出来事は①で、人が戻って打てば②で届く。③が要るのは「Chief of Staff が待っていて、人も離れている」ときだけ——そのとき誰も Chief of Staff を起こさないので、ラインが止まる。
-- `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（`andon news ack` があったかもここで見る。§3.1）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
+- `drain` は待ちを全部取り出して空にし、渡した turn（端末・`prompt_id`）と通知を控えに書いてから出力する。その turn の `Stop` が来たら確かめ済み（`andon news ack` があったかもここで見る。§3.1）。来ないまま別の turn が来たら（人が中断した・フックの出力が捨てられた）、渡した通知を1回だけ届け直す。見回りが控えの lock を持っていて `Stop` の `drain` が lock を諦めたときも、その `Stop` が渡した turn の終わりなら、lock の外の控え（`<slug>.json.stop`）に残し、次の `drain` が確かめ済みにする（見回りの巡の間に終わった turn の通知を、次の送信で届け直さない。[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 7）。①②はターンの中で渡すので、③の守り c（前の `<news>` のターンが進んでいる）には数えない。
 - ①の `additionalContext` が続きのターンを始めること、②の `additionalContext` が文脈に入ることは**要実測**（P6b。contract.md §9）。
 - フックが落ちたとき（command が無い・台帳が見つからない）は**通す**。待ちは dispatcher に残り、次の口で届く。
 
@@ -431,7 +431,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | # | 処理 | 走らせる者（指揮側のマシンで 1 つ） | 二重に走ったら | 今の守り |
 |---|---|---|---|---|
 | 1 | dispatcher 自身の起動 | `andon boot` の `dispatcher` の段と、Chief of Staff の Stop フック（`drain` の `ensure`）。**どちらも `Ensure`** | 2 つの `andon dispatcher` が同じ台帳を回す（同じレビュアーを起こす・同じ PR をマージしにいく） | ①`.terminal.lock`（取れなければ `ErrBusy` ですぐ諦める）＋③端末の名前 `dispatcher`（`Ensure` は名前で引き、live なら起こさない）。前の版の係の端末が残っていれば起こさない（boot の `dropStaleRoles`）。**手で `andon dispatcher` を別のシェルで打つのは防がない**（7.3 の G1。ただし下の #2 の lock が巡の中身を直列にする） |
-| 2 | dispatcher の 1 巡（§2.1.1 の 0〜7） | dispatcher。プロジェクトごとに直列 | 同じ出来事を二度拾う・二度通知する・二度起こす | ①控えの lock（`<slug>.json.lock`）を巡の終わりまで持つ（待たずに諦める。取れなければその巡のそのプロジェクトは飛ばしてログに 1 行）。`drain`（フック）も同じ lock を取る（10 秒待って、取れなければ通して次の口へ）。②控えの位置（`log_pos`・`ready`・`Sent`・`Retry`・`First`） |
+| 2 | dispatcher の 1 巡（§2.1.1 の 0〜7） | dispatcher。プロジェクトごとに直列 | 同じ出来事を二度拾う・二度通知する・二度起こす | ①控えの lock（`<slug>.json.lock`）を巡の終わりまで持つ（待たずに諦める。取れなければその巡のそのプロジェクトは飛ばしてログに 1 行）。`drain`（フック）も同じ lock を取る（10 秒待って、取れなければ通して次の口へ。`Stop` が渡した turn の終わりだったことは `<slug>.json.stop` に残し、次の `drain` が確かめ済みにする）。②控えの位置（`log_pos`・`ready`・`Sent`・`Retry`・`First`） |
 | 3 | レビュアーを起こす（P6a） | dispatcher（`review_request` を拾ったとき） | 同じ commit のレビュアーが 2 人いる（指摘が二重・端末と費用が二重） | ②控えの `Reviewers`（`<issue>@<commit>`）＋④台帳の子課題（控えが無いときは parent・依頼書の commit で引き継ぐ）＋③ラベル `project=`・`issue=<子>` の live な端末（`hc run` は通ったが `kanban start` の前に落ちた分）。起こしそこねは続きから |
 | 4 | ゲートを回す | dispatcher（`review` に入った `log.jsonl` の行ごとに 1 回）。Chief of Staff が `andon gate` を手で打つこともある | 記録 `library/gate/<head>.json` が上書きされる・PR に commit status とコメントが二重に付く。判定は同じ事実から決まるので**同じ決定**（事実が間に変わっていれば後の方が新しい） | ②控えの `Gates`（`<issue>#<行>`）。**手で打つ分は防がない**（G2） |
 | 5 | マージして片付ける | dispatcher（approve ＋ `merge: auto` ＋ 委譲の範囲内）。`merge: person` は人 | 2 度目の `gh pr merge` が失敗する。人が先にマージしたときも同じ。head が替わっていれば止まる | ⑤`--match-head-commit`（判定した head だけ）＋マージ直前の読み直し（`stillAuthorized`・`ChecksStill`）＋②控えの `Gates[].Merged`。`finish` は④台帳の `worktree`・`branch` が空なら何も消さない（本体の checkout は消さない）。`gh pr merge` が失敗したら `gh pr view --json state,mergeCommit,headRefOid` を読み直し、`MERGED` で head がゲートの記録の `head` と同じなら**問いを出さず**、人がマージしたときの道（§2.7）で片付ける（控えの `Watch` に MERGED を置き、同じ巡で finish。ゲートの記録の `merged` は書かない）。違えば今までどおり `irreversible` の問い |
