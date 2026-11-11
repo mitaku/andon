@@ -47,7 +47,7 @@ EOF
    「2人いる」で止まったら、自分以外の1人を人に知らせる（規約1。自分で止めない）。
    **アドレスが変わったら、開いている課題（`done` と、レビュアーの課題 `-rN` を除く）の予約キーを、今の値のまま `deck set` で書き直す。**
    予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起こさず、ゲートは `needs_human` を返す。
-   課題ごとに `deck show <id>` で今の値を読み、同じ値で `deck set <id> review=… must_fix=… reviewer=… review_rounds=… merge=…`（§2 の表。`deliverable`・`machine` があれば同じく）と打つ。値は変えない。
+   課題ごとに `deck show <id>` で今の値を読み、同じ値で `deck set <id> review=… must_fix=… reviewer=… review_rounds=… merge=…`（§2 の表。`estimate`・`deliverable`・`machine` があれば同じく）と打つ。値は変えない。`estimate` を打ち忘れると見込みが「無し」に落ち、ズレの通知が黙る。
 2. `projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節を見る（目標・指示・並行の上限・独立レビューを入れる条件）。無ければ並行の上限は 2。
 3. 下の「毎ターン」をして、§5 の止まった検知をする。
 
@@ -114,6 +114,7 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 - Must fix: major
 - Review rounds: 2
 - Merge: person
+- Estimate: 中
 
 頼まれていない稀なケースや将来のケースのために設計しない。
 完成まで面倒を見て。成果は PR にし、報告に差分の要約・テスト結果・## Remember を書いて。
@@ -132,7 +133,7 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 | 完了条件 | 課題の完了条件（状態・テスト・確認の方法）。担当は書き換えない。作業の終了条件は担当が計画で置く |
 | 横展開 | 既定（同じ repo の中・同じ種類・同じ直し方・「守ること」の場所を除く・テストを除いて 500 行未満）と違うときだけ |
 | 守ること | 範囲の外（今回やらないこと）・触らない場所・打たないコマンド・同時の課題・中止の条件 |
-| Settings | Review・Reviewer・Must fix・Review rounds・Merge |
+| Settings | Review・Reviewer・Must fix・Review rounds・Merge・Estimate |
 
 - 「解決すべき問題」に手順（どのファイルをどう直すか、の列）を書いていたら、担当の計画を代わりにしている印。手がかりに縮めるか、場所が1つに決まっているなら完了条件に状態として書く（「docs/design.md:42 の『建家』が『セル』になっている」）。
 
@@ -150,9 +151,10 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 ## Settings
 - Deliverable: candidates ★調べる
 - Review: off
+- Estimate: 小
 ```
 
-- 依頼書の Settings に `Deliverable: candidates` を書き、**Chief of Staff の端末で** `deck set <id> deliverable=candidates` も打つ（正は `issue.yaml`。写しだけでは dispatcher と `andon issue ready` は `pr` として読む）。型の既定は `pr`。
+- 依頼書の Settings に `Deliverable: candidates` を書き、**Chief of Staff の端末で** `deck set <id> deliverable=candidates estimate=small` も打つ（正は `issue.yaml`。写しだけでは dispatcher と `andon issue ready` は `pr` として読む）。型の既定は `pr`。
 - 調べる課題は repo を持ってよい（worktree で読む・走らせる。push はしない）。読むだけで足りるなら repo の無い課題でもよい（`--repo` を付けない。cwd は `issues/<id>/`、読むのは `.ghq/` の checkout）。
 - 担当は `andon issue candidates`（`library/candidates.json`）→ `andon issue report` → `andon issue ready` で終える。`ready` は PR の代わりに `candidates.json` を確かめる。ゲートは回らず、独立レビューも無い（`Review: off`）。通知は `<id> report` で届く。
 - 届いたら `candidates.json` と報告を読み、候補を §4 の範囲の判断と同じ表（場所・レベル・種類・直し方）で直す課題に切り、調べる課題は `andon issue finish <id>`（§7）。切らなかった候補は捨てない（担当の報告の Next に1行ずつ残っていて、トリアージが拾う）。
@@ -163,7 +165,7 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 
 ```
 # issue.yaml の予約キー（依頼書の Settings の正）
-deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person
+deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium
 ```
 
 | キー（依頼書の行） | 値 | 既定 | 変えるとき |
@@ -174,6 +176,7 @@ deck set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 me
 | `review_rounds`（Review rounds） | 1 以上の数 | `2` | 人が変えたときだけ |
 | `merge`（Merge） | `auto` / `person` | `person` | `auto` は**委譲がこのプロジェクトのマージを任せているときだけ**（委譲の `merge` が無ければ `person`）。`auto` でも、マージするのはゲートが approve し、変更のレベルが委譲の範囲の中のときだけ（委譲を広げることはできない） |
 | `deliverable`（Deliverable） | `pr` / `candidates` | `pr` | 調べる課題（成果が候補の一覧で PR が無い。§2 の雛形）のときだけ `candidates`。`deck set <id> deliverable=candidates` |
+| `estimate`（Estimate） | `small` / `medium` / `large`（依頼書には段の名 小・中・大） | 無し（書かないと見込み無しと数える） | 担当の課題（直す・調べる）には毎回書く。小 30 分・中 60 分・大 120 分（待ちを除いた実働の目安。上限ではない）。大雑把でよい。大を超えそうなら課題を分けることも検討する（Stacked PR も使える。分けるかは決まりにせず、ズレの記録から学んで決める）。レビュアー・Chief Engineer の課題には書かない |
 | `machine` | マシンの名前 | 書かない（指揮側と同じ） | 作業側を別のマシンで起こすときだけ `machine=<名前>` を足す |
 
 - **既定から変えた行には、行末に `★` と短い理由を付ける**（例 `- Review: on ★新しい module`）。

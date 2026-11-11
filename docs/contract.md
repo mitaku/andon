@@ -68,20 +68,31 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `merge` | `auto` / `person` | 既定: `person`（安全側） | Chief of Staff | dispatcher・ゲート | `auto`: ゲートが approve し、委譲（§11）の `merge` がそのレベルを許していれば dispatcher がマージし finish する。`person`: approve でも止まり、人に通知する。**委譲の範囲を広げることはできない**（狭めるだけ） |
 | `machine` | 端末の土台の machine の名前 | 既定: 指揮側と同じマシン | Chief of Staff | `andon issue start`・dispatcher | 作業側（担当・レビュアー）を起こすマシン |
 | `deliverable` | `pr` / `candidates` | 既定: `pr` | Chief of Staff（依頼書の Settings の `Deliverable:` の写し） | `andon issue ready`・dispatcher・`andon gate`・ボード・担当 | 課題の成果の形。`pr`: PR（直す課題・Chief Engineer の文書）。`candidates`: PR を出さず `library/candidates.json`（§12）が成果（調べる課題）。`andon issue ready` は `pr` の代わりに `candidates.json` が在って形が合い（repo があれば）`commit` が `HEAD` と同じことを確かめる。dispatcher は `review` の通知だけ届けてゲートを回さず、`review_request` があっても起こさない。`andon gate` を手で打てば回さずに終了コード 3（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） |
+| `estimate` | `small` / `medium` / `large`（段→分は下の表） | 見込み無し（既定の段で埋めない。比べず、記録に「見込み無し」と数える） | Chief of Staff（依頼書を切るとき。依頼書の Settings の `Estimate:` の写し。段の名 小・中・大） | dispatcher・`andon measure`・担当 | 課題の大きさの見込み（目安であって上限ではない）。担当の課題（直す・調べる）だけ。レビュアー・Chief Engineer の課題には置かない（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 2・3・8） |
 
 `kanban show <id> --json` の `.issue`（Andon の予約キー以外は台帳の形式のキー）:
 
 ```json
 {"id": "A-0012", "title": "andon issue ready を足す", "status": "doing",
  "review": "on", "must_fix": "major", "reviewer": "codex-review",
- "review_rounds": "2", "merge": "person", "machine": "vps", "deliverable": "pr"}
+ "review_rounds": "2", "merge": "person", "machine": "vps", "deliverable": "pr",
+ "estimate": "medium"}
 ```
+
+`estimate` の段→分（値の意味。待ちを除いた実働の目安で、規則ではない。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 3・11 の 7）:
+
+| 値（依頼書の Settings の段の名） | 分 |
+|---|---|
+| `small`（小） | 30 |
+| `medium`（中） | 60 |
+| `large`（大） | 120 |
 
 - **値は全部文字列**。`kanban set` は値を文字列で書くので、`review_rounds` も `"2"`（1 以上の整数を表す数字の列）。YAML に手で `review_rounds: 2` と書いた数は schema を通らない（読み手は「無い」として既定を使う）。
 - 台帳の形式は知らないキーを許して保つので、この schema は**知らないキーを拒まない**。どれも必須ではない（無いときの振る舞いは上の表）。
 - **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の chief_of_staff>` で、その値が今の `issue.yaml` と同じときだけ信じる。違えば `needs_human`。`chief_of_staff` が無ければ信じない。`log.jsonl` の id は 4 桁に揃えて読む（移す前の行は `A-5` のまま。[ledger.md](ledger.md) の Writing）。
 - **レビュアーの課題**（`parent` が元の課題で `profile` が実装と別ブランドの `*-review`）は、作成の行（最初の `add`）の `by` が `terminal:<chief_of_staff>` か `terminal:dispatcher`（dispatcher が起こしたもの）のときだけ、ゲートと `andon issue ready` がレビューに数える。id は `<元の課題の id>-r<回>`（`A-0005-r1`。dispatcher が `kanban add --round <回>` で付ける。2026-11-06 より前の子は通し番号のまま読む。[ledger.md](ledger.md) の Writing）。数えるのは id の形ではなく `parent` と `profile`。
 - 値の綴りは小文字（`machine` を除く）。知らない値は「無い」と同じ。
+- `estimate` も履歴の照合を要る（最後に変えたのが Chief of Staff でなければ「無い」）。要らないと担当が自分の課題の見込みを書き換えてズレを消せる。Chief of Staff が起き直してアドレスが変わったら、ほかの予約キーと一緒に打ち直す（打ち直さないと見込みが「無し」になる。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 11 の 5）。
 - 読み手が `kanban show <id> --json` の `.issue` から取る（ファイルを直接読まない）。
 
 ## 3. 指摘（`findings.json`）

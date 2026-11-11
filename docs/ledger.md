@@ -136,6 +136,7 @@ Any other key is allowed and kept.
 | `must_fix` | The lightest severity of finding the agent must fix. |
 | `merge` | Who merges. |
 | `machine` | The machine the issue's agent runs on. |
+| `estimate` | A rough size of the issue (`small`, `medium`, `large`). |
 | `pr` | The URL of the issue's pull request; the one place the gate reads it from. |
 
 ### Status rules

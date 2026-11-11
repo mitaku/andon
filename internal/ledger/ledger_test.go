@@ -103,3 +103,38 @@ func TestCandidates(t *testing.T) {
 		}
 	}
 }
+
+// estimate は small・medium・large だけを読み、Chief of Staff が最後に書いたときだけ信じる（ADR-0014 受け入れ条件 1）。
+func TestEstimate(t *testing.T) {
+	root := t.TempDir()
+	l := At(root)
+	os.MkdirAll(l.Dir, 0o755)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
+	row := func(id, by, v string) Row { return Row{ID: id, By: by, Change: map[string]any{"estimate": v}} }
+	rows := []Row{
+		row("A-0001", "terminal:t5", "medium"),
+		row("A-0002", "terminal:t7", "large"),                                        // 担当が書いた
+		row("A-0003", "terminal:t5", "small"), row("A-0003", "terminal:t7", "large"), // 最後が担当
+		row("A-0004", "terminal:t5", "中"), // 段の名は値でない
+		row("A-0005", "terminal:t5", "small"),
+	}
+	for _, c := range []struct {
+		task     Issue
+		settings string
+		estimate string
+	}{
+		{Issue{"id": "A-0001", "estimate": "medium"}, "medium", "medium"},
+		{Issue{"id": "A-0002", "estimate": "large"}, "large", ""},
+		{Issue{"id": "A-0003", "estimate": "large"}, "large", ""},
+		{Issue{"id": "A-0004", "estimate": "中"}, "", ""},
+		{Issue{"id": "A-0005", "estimate": "large"}, "large", ""}, // 履歴の値と違う
+		{Issue{"id": "A-0006"}, "", ""},                           // 無い＝見込み無し（既定で埋めない）
+	} {
+		if got := SettingsOf(c.task).Estimate; got != c.settings {
+			t.Errorf("SettingsOf(%v).Estimate = %q, want %q", c.task, got, c.settings)
+		}
+		if got := l.Estimate(rows, c.task); got != c.estimate {
+			t.Errorf("Estimate(%v) = %q, want %q", c.task, got, c.estimate)
+		}
+	}
+}
