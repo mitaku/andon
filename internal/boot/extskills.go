@@ -138,14 +138,15 @@ func (e Env) ghSkillList() ([]ghSkill, error) {
 	return list, nil
 }
 
-// ghTimeout は gh skill の1回の打ち込みの上限（ネットワークが詰まっても起動を止めきらない）。
+// ghTimeout は外の skill の手全体（auth status・install・update --all）の上限。ネットワークが詰まっても
+// 打ち込みごとに待ち直さず、期限が来たら残りを打たずに戻る（起動の最後の手なので、ほかの起動は待たせない）。
 var ghTimeout = 2 * time.Minute
 
 // installGhSkills は外の skill の一覧を gh skill install で入れ、gh skill update --all で上げる。
 // 一覧が空なら何も打たない。gh が無い・ログインしていなければ飛ばして1行残す（gh auth setup-git と同じ扱い）。
 // 入れるのは置き場（Claude Code は <claude>/skills、Codex は ~/.agents/skills）に同じ名前が無いときだけ
 // （利用者の skill を上書きしない。入っているものは update が上げる）。gh skill install の --agent は1つしか効かないので
-// エージェントごとに打つ。gh の出力はログに出さない（失敗のときだけ最後の1行）。
+// エージェントごとに打つ。gh の出力はログに出さない（失敗のときだけ最後の1行）。全体で ghTimeout まで。
 func installGhSkills(e Env) error {
 	list, err := e.ghSkillList()
 	if err != nil || len(list) == 0 {
@@ -156,9 +157,9 @@ func installGhSkills(e Env) error {
 		e.logf("gh が無い。外の skill（%d 件）は入れない", len(list))
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), ghTimeout)
+	defer cancel()
 	run := func(args ...string) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), ghTimeout)
-		defer cancel()
 		cmd := exec.CommandContext(ctx, gh, args...)
 		cmd.Dir = e.Home // project scope（cwd の git repo）に触れない
 		cmd.Env = append(os.Environ(), "HOME="+e.Home, "CLAUDE_CONFIG_DIR="+e.claudeDir(), "GH_PROMPT_DISABLED=1")
@@ -169,7 +170,17 @@ func installGhSkills(e Env) error {
 		return nil
 	}
 	var errs []error
+	timedOut := func() bool {
+		if ctx.Err() == nil {
+			return false
+		}
+		errs = append(errs, fmt.Errorf("%s を過ぎたので残りを打たない", ghTimeout))
+		return true
+	}
 	for _, s := range list {
+		if timedOut() {
+			return errors.Join(errs...)
+		}
 		for _, ag := range []struct{ agent, dir string }{
 			{"claude-code", filepath.Join(e.claudeDir(), "skills")},
 			{"codex", filepath.Join(e.Home, ".agents", "skills")},
@@ -183,6 +194,9 @@ func installGhSkills(e Env) error {
 			}
 			e.logf("入れた: %s %s（%s）", s.repo, s.skill, ag.agent)
 		}
+	}
+	if timedOut() {
+		return errors.Join(errs...)
 	}
 	if out, err := run("skill", "update", "--all"); err != nil {
 		errs = append(errs, fmt.Errorf("gh skill update --all: %v: %s", err, lastLine(out)))

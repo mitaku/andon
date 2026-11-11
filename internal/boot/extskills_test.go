@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // bundled は備品の置き場に同梱の skill（playwright-cli）の実体を置き、その場所を返す。
@@ -225,5 +226,39 @@ func TestInstallGhSkillsNotLoggedIn(t *testing.T) {
 	f.log.Reset()
 	if err := installGhSkills(f.env()); err != nil || !strings.Contains(f.log.String(), "gh が無い") {
 		t.Errorf("gh が無いとき: %v %q", err, f.log.String())
+	}
+}
+
+// GitHub が応答しないとき、打ち込みごとに待ち直さず、全体の期限で残り（2つ目の install・update --all）を打たずに戻る。
+func TestInstallGhSkillsSharedDeadline(t *testing.T) {
+	f := newFixture(t)
+	calls := filepath.Join(f.root, "gh-calls")
+	gh := filepath.Join(f.root, "bin", "gh")
+	put(t, gh, "#!/bin/sh\necho \"$*\" >> "+calls+"\n[ \"$*\" = \"auth status\" ] && exit 0\nexec sleep 5\n")
+	if err := os.Chmod(gh, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e := f.env()
+	e.LookPath = func(n string) (string, error) {
+		if n == "gh" {
+			return gh, nil
+		}
+		return "", errors.New("無い")
+	}
+	put(t, filepath.Join(f.pkg, GhSkillsFile), "example/skills alpha\n")
+	old := ghTimeout
+	ghTimeout = 300 * time.Millisecond
+	defer func() { ghTimeout = old }()
+
+	start := time.Now()
+	err := installGhSkills(e)
+	if d := time.Since(start); d > 3*time.Second {
+		t.Errorf("全体の期限で戻らない: %v", d)
+	}
+	if err == nil || !strings.Contains(err.Error(), "残りを打たない") {
+		t.Errorf("期限切れを返さない: %v", err)
+	}
+	if got := ghCalls(t, calls); got != "auth status\nskill install example/skills alpha --agent claude-code --scope user\n" {
+		t.Errorf("期限のあとも打った: %q", got)
 	}
 }

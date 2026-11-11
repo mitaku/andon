@@ -34,12 +34,12 @@ func Start(e Env) {
 	}{
 		{"Claude Code の記録", fixClaudeInstall},
 		{"git の資格情報", setupGitCredentials},
-		{"外の skill", installGhSkills},
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},
 		{"前の版の係の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
+		{"外の skill", installGhSkills}, // ネットワークが要るので最後（ほかの起動を待たせない）
 	} {
 		if step.name == "dispatcher" && oldLive {
 			e.logf("前の版の係の端末が残っているので dispatcher は起こさない（二重に回さない）。人が hc kill <address> で片付けてから andon boot を打ち直す")

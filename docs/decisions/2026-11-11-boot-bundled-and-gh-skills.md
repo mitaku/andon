@@ -7,4 +7,4 @@
 
 外の skill の一覧は、パッケージの `gh-skills.txt`（既定は注だけで空）とセルの `local/gh-skills.txt` を合わせたもの。1行に `<owner>/<repo> <skill>`、空行と `#` からの行は飛ばし、形の違う行はログに1行出して飛ばす。boot の起動（`Start`。ネットワークが要るので生成でなく起動の手）が、gh がログイン済みなら、置き場に同じ名前が無いものだけを `gh skill install <repo> <skill> --agent <agent> --scope user`（latest）で入れ、毎起動 `gh skill update --all` を打つ。一覧が空なら gh を打たない。gh が無い・ログインしていなければ飛ばして1行。
 
-`gh skill install` の `--agent` は値を1つしか取らない（gh 2.103.3 で実測: `--agent claude-code --agent codex` は最後の codex だけに入る）ので、claude-code と codex で1回ずつ打つ。置き場に同じ名前があれば打たないのは、gh が「already installed」で rc 1 を返すのと、利用者の同名の skill を `--force` で潰さないため（入っているものは `update --all` が上げる）。gh の出力はログに出さない（失敗のときだけ最後の1行）。1回の打ち込みは 2 分で切る。
+`gh skill install` の `--agent` は値を1つしか取らない（gh 2.103.3 で実測: `--agent claude-code --agent codex` は最後の codex だけに入る）ので、claude-code と codex で1回ずつ打つ。置き場に同じ名前があれば打たないのは、gh が「already installed」で rc 1 を返すのと、利用者の同名の skill を `--force` で潰さないため（入っているものは `update --all` が上げる）。gh の出力はログに出さない（失敗のときだけ最後の1行）。外の skill の手は起動の最後（dispatcher のあと）に置き、全体で 2 分の期限を共有する（GitHub が応答しなくても、打ち込みごとに待ち直さず残りを打たずに戻る）。
