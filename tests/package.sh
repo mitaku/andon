@@ -232,6 +232,7 @@ for k in '`raw/`' '`sources/`' '`entities/`' '`topics/`' '`overview.md`' '`index
 for k in '人の発言' '外の資料' '課題の記録'; do grep -q "^  - $k: " <<<"$cos11" || miss="$miss 元資料:$k"; done
 grep -qF '## [YYYY-MM-DD] ingest | <題>' <<<"$cos11" && grep -q 'ingest 約10件ごと' <<<"$cos11" && grep -q '`index.md` → ページの順' <<<"$cos11" || miss="$miss log の形・lint の時期・query の順"
 grep -q 'commit --only -m "wiki: <要点>" -- wiki' <<<"$cos11" || miss="$miss commit（--only -- wiki）"
+grep -q '書く前に秘密.*`<伏せた: 種類>`' <<<"$cos11" || miss="$miss raw/ に書く前に秘密を伏せる"
 grep -qE '1ファイル1件|`log.md` は作らない' <<<"$cos11" && miss="$miss 前の形の行が残る"
 [ -z "$miss" ] && pass "Chief of Staff の skill の wiki の節が LLM Wiki の形（層・ingest・query・lint・元資料・移行。ADR-0016）" || fail "chief-of-staff の wiki の節:$miss"
 # ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff §1）が index.md → ページの順で引く

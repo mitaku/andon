@@ -422,6 +422,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
   - `index.md` — 目録。種類ごとの節（Sources・Entities・Topics）に、ページごとに1行（リンク・1行の要約）。query は最初にこれを読む。
   - `log.md` — 追記だけの時系列。ingest・query・lint の1件に1項で、先頭を `## [YYYY-MM-DD] ingest | <題>`（`query`・`lint` も同じ形）に揃える。`grep '^## \[' wiki/log.md` で引ける。
 - **元資料を置くとき**（置いたらその場で ingest）:
+  - 書く前に秘密（token・鍵・パスワード）と、人が出さないでと言った個人の情報を `<伏せた: 種類>` に置き換える（「言葉のまま」の唯一の例外）。伏せたかを確かめられない資料は写さず、台帳か元の場所を指すだけにする。
   - 人の発言: 人の答えが推奨案と違ったとき・志向や理由が見えたとき（§8）・人が「残して」と言ったとき。決断そのものは問いの答えと ADR に残るので写さない。
   - 外の資料: 人が資料を置いて「取り込んで」と言ったとき。
   - 課題の記録: `andon issue finish` のあと（dispatcher の `merged` の片付けも）、台帳の `issues/<id>/report.md` と `issues/<id>/library/corrections.json`（あれば）を `raw/<id>/` に写す。調べる課題・トリアージも同じ。
