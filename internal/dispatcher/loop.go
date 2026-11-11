@@ -612,6 +612,14 @@ func (p *project) approve(t ledger.Issue, rep *contract.Report, res gateResult, 
 		return true
 	}
 	if _, _, err := run("", nil, "", "gh", "pr", "merge", number, "--repo", slug, "--"+method, "--match-head-commit", res.Head); err != nil {
+		// 人が先にマージしていた（ゲートが判定した head のまま MERGED）なら誤報の問いを出さず、人がマージしたときの道（§2.7）へ渡す。
+		// 同じ巡の humanMerge が GitHub に聞き直さずに片付ける。ゲートの記録の merged は書かない（dispatcher がマージした印）
+		out, _, verr := run("", nil, "", "gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid")
+		if sha, ok := MergedBefore(out, res.Head); verr == nil && ok {
+			p.logf("%s の PR %s は gh pr merge の前に同じ head でマージされていた（%s）。問いを出さず人のマージとして片付ける", id, rep.PR, short12(sha))
+			p.st.Watch[id] = Watch{PR: rep.PR, State: "MERGED", Sha: sha}
+			return false
+		}
 		stop("gh pr merge に失敗: " + err.Error())
 		return false
 	}
@@ -682,6 +690,24 @@ func ChecksStill(gateHead, nowHead string, checks gate.GitHubChecks, optional bo
 		return false, fmt.Sprintf("GitHub の checks がゲートのあとに変わった（%s: %s）", checks.State, strings.Join(checks.Names, ", "))
 	}
 	return true, ""
+}
+
+// MergedBefore は、gh pr merge が失敗したあとに読み直した PR（gh pr view --json state,mergeCommit,headRefOid の返事）が、
+// ゲートの判定した head のまま、もうマージされていたか（純粋関数。dispatcher.md §7.2 #5）。そうならマージの commit を返す。
+// MERGED でない・head が違う・返事が読めないときは false（今までどおり問いにする）。
+func MergedBefore(view, gateHead string) (string, bool) {
+	var v struct {
+		State       string `json:"state"`
+		HeadRefOid  string `json:"headRefOid"`
+		MergeCommit *struct {
+			Oid string `json:"oid"`
+		} `json:"mergeCommit"`
+	}
+	if json.Unmarshal([]byte(view), &v) != nil || v.State != "MERGED" || !contract.IsSHA(gateHead) || v.HeadRefOid != gateHead ||
+		v.MergeCommit == nil || !contract.IsSHA(v.MergeCommit.Oid) {
+		return "", false
+	}
+	return v.MergeCommit.Oid, true
 }
 
 func short12(s string) string {
