@@ -106,7 +106,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 | 変更 | image の build と runtime の検査 | 理由 |
 |---|---|---|
-| `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
+| `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`process/states/issue.yaml`（`andon` に埋め込む）・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
 | `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
 | `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、Dockerfile の golang の版を `mise.toml` と突き合わせる |
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
