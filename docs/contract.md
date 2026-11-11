@@ -242,8 +242,8 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
             "title": "ci: test failed on main", "weight": "now"}}
 ```
 
-- `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの依頼ではない。足すことが無ければ `<no-reply>`」。末尾の1行を `andon news ack` に替えるのは chief-of-staff skill と一緒。ADR-0010 決めたこと 3）。`news.replied=<turn>` のラベルの意味（そのターンは人が見る返事ではない）・名前・値も同じ（ボードとの約束）。
-- **「人に言うことが無い」の申告**（[ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6）: Chief of Staff は `andon news ack` を打つ。command は自分の端末（`HC_TERMINAL_ID`）を `hc get` で読み、ラベル `role=chief-of-staff` があればそのときの `turn` で `news.ack=<turn>` を書く（上書き。無ければ書かずに終了コード 1）。dispatcher は `<news>` を渡すときにその端末の `turn` を控え（経路①②は控えの `hook`、③は送ったときの `turn`）、渡したターンが終わったとき `news.ack` が控えた値と同じなら `news.replied=<そのときの turn>` を書く（答えの文は読まない）。経路①②では、渡すときにラベルがもうその値だった（同じ turn の前の ack。`Stop` の block の続きは hc の `turn` が進まない）ら数えない。ack の無いターンは書かない（人が見る返事に数える）。移行の間（ack を入れた版）は、ack が無くても答えが `<no-reply>` だけなら今までどおり書く。どちらで書いたかは控えに数える（`replied`）。次の版で `<no-reply>` の照合を外す。
+- `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの新しい依頼ではない。人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える」。ADR-0010 決めたこと 3）。`news.replied=<turn>` のラベルの意味（そのターンは人が見る返事ではない）・名前・値も同じ（ボードとの約束）。
+- **「人に言うことが無い」の申告**（[ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6）: Chief of Staff は `andon news ack` を打つ。command は自分の端末（`HC_TERMINAL_ID`）を `hc get` で読み、ラベル `role=chief-of-staff` があればそのときの `turn` で `news.ack=<turn>` を書く（上書き。無ければ書かずに終了コード 1）。dispatcher は `<news>` を渡すときにその端末の `turn` を控え（経路①②は控えの `hook`、③は送ったときの `turn`）、渡したターンが終わったとき `news.ack` が控えた値と同じなら `news.replied=<そのときの turn>` を書く（答えの文は読まない）。経路①②では、渡すときにラベルがもうその値だった（同じ turn の前の ack。`Stop` の block の続きは hc の `turn` が進まない）ら数えない。ack の無いターンは、答えが `<no-reply>` だけでも書かない（人が見る返事に数える。`<no-reply>` の照合は ack を入れた版〈v0.0.8〉の次の版で外した。決めたこと 6）。書いた数は控えに数える（`replied`）。
 - dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・③で送った turn と端末・フックで渡した端末・起こしたレビュアー（`issue` → `reviewer_issue`・`commit`）・回したゲート（`issue` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。dispatcher の行の `by` は `terminal:dispatcher`）。控えの中の形は dispatcher だけが読むので約束にしない（schema は無い）。
 
 ## 7. ゲートの条件表と記録
@@ -312,7 +312,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 
 | 誰の | イベント | 打つもの | 返すもの |
 |---|---|---|---|
-| Chief of Staff | `Stop` | `andon dispatcher drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の turn の終わり（入力の `prompt_id`・`session_id` が合う）なら確かめ済みにし、端末のラベル `news.ack` が渡したときに控えた `turn` と同じなら（移行の間は、答え〈`last_assistant_message`〉が `<no-reply>` だけでも）`news.replied=<turn>` を書く（§6）。合わなければ渡した通知を1回だけ届け直す |
+| Chief of Staff | `Stop` | `andon dispatcher drain`（端末のラベル `role=chief-of-staff`・`project=` から slug を引く） | 待ちがあれば `{"decision": "block", "reason": "<news>…</news>"}`。無ければ何も返さない。前にフックで渡した `<news>` の turn の終わり（入力の `prompt_id`・`session_id` が合う）なら確かめ済みにし、端末のラベル `news.ack` が渡したときに控えた `turn` と同じなら `news.replied=<turn>` を書く（答えの文〈`last_assistant_message`〉は読まない。§6）。合わなければ渡した通知を1回だけ届け直す |
 | Chief of Staff | `UserPromptSubmit` | `andon dispatcher drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ）。前にフックで渡した `<news>` の turn の終わりを見ていなければ（中断）、その通知を1回だけ届け直す |
 | 担当 | `Stop` | `andon issue stop-check`（端末のラベル `issue=` から id を引く） | 台帳が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無く、待ちでもなければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも台帳に無い。…"}`。待ち（通す）は、自分の問いが開いたまま（その問いの最後の行が `open`）か、`report.json` に `review_request` があり、その `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え（`answered`）・レビューが届いたあとは待ちではない。続けて止めるのは3回まで。控えが書けなければ通す。レビュアーも同じ。Chief Engineer の課題（`profile: chief-engineer`）は止めない（[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 10） |
 
