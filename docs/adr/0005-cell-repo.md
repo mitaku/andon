@@ -34,7 +34,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    | `projects/<slug>/` | プロジェクト（ADR-0004）。指揮側の Space | ADR-0004 の表 | する（**台帳 `kanban/` を除く**。5） | space（指揮側） |
    | `wiki/` | 建屋を横断する知識。1 ファイル 1 件・日付・出典・痩せた `index.md`（→ 形は [ADR-0016](0016-cell-wiki-llm-wiki.md)）。プロジェクト固有の事実も index の節か front matter の印で**ここ**に置く（プロジェクトに wiki は作らない） | Chief of Staff（D12） | する | — |
    | `files/` | 納品物（人に URL で届けるもの。`andon publish` が `<日付>-<slug>` で置き、files サーバが公開する）。**今の `artifacts/` の改名** | `andon publish`（担当・Chief of Staff・人） | する（大きいものは開いている問い 1） | — |
-   | `.env`・`.env.*`・`.ssh/`・`.andon/`・`.ghq/`・`.codex/` | 秘密・番号・鍵・パッケージの取り出し・追加した repo・ハーネスの状態 | 人／boot | しない（`init/.gitignore` のまま） | — |
+   | `.env`・`.env.*`・`.ssh/`・`.andon/`・`.ghq/`・`.codex/` | 秘密・番号・鍵・パッケージの取り出し・追加した repo・ハーネスの状態 | 人／boot | しない（`init/.gitignore` のまま。→ ADR-0020: auto memory の置き場 `memory/` も足した） | — |
    | worktree | `/workspace/.worktrees/`（7） | 機械 | しない（中の `.gitignore`） | space（作業側） |
    | 端末・伝令の控え | hc・`~/.local/state/andon/` | 機械 | 建屋の外 | pane |
 

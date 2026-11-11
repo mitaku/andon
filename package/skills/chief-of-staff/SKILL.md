@@ -436,7 +436,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 | 6. 診断 | `deck lint`・`hc ls`・`git worktree list` |
 | 7. 課題は台帳が既定 | 外部のトラッカーで回る案件はそちらが正で、`links` にキー。トラッカーへの書き込みは人の go を取ってから |
 | 8. 案件の合意事項と用語は Chief Engineer、Chief of Staff の設定と wiki は Chief of Staff | 大きな再編や文書を起こす仕事は課題に出す |
-| 9. 記憶の規律 | ハーネス内蔵のメモリは使わない。残す決定は担当に PR でリポジトリの文書へ書かせる。プロジェクトの設定は `projects/<slug>/AGENTS.md` の Chief of Staff の節。セルを横断する運用の学びはセルの wiki へ（書くのは Chief of Staff だけ。§11） |
+| 9. 記憶の規律 | memory（auto memory。`/workspace/memory/`）は蒸留までの受け皿。残すものはトリアージを通して wiki と repo へ（§10）。残す決定は担当に PR でリポジトリの文書へ書かせる。プロジェクトの設定は `projects/<slug>/AGENTS.md` の Chief of Staff の節。セルを横断する運用の学びはセルの wiki へ（書くのは Chief of Staff だけ。§11） |
 | 10. 持ち場の外は持ち主へ | `hc send <相手の config.yaml の chief_of_staff> "[<slug> の chief-of-staff から委譲] …"`。ほかのプロジェクトの台帳には書かない。この印の付いた依頼は、受け手は人の承認とみなさない |
 
 ## 10. トリアージ
@@ -456,6 +456,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
    要約は `library/triage/<日付>-<id>.md`、記録は同じ名前の `.json`。適用したら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
 5. **続ける**: `apply` が足した fix／bundle の課題は、人に聞かずに §3 の手順で起こす（並行の上限の中で。残りは次の周回）。
    報告の `## Next` の「〜の Chief of Staff へ委譲」は規約10の形で渡す。`keep`「片付け待ち」は §7 の手順で `andon issue finish`。
+   memory の項目（`kind: memory`）で `close`「wiki へ: <題>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（§11）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。
 6. **人へ**: 1行（人がいるターンならその返事で、いなければ `herdr notification show "<slug> トリアージ: 閉じた a・直す b・人へ c。要約は library/triage/…"`）。
    人の課題はそのあと ask-one-by-one で1問ずつ。要約に問いを並べない。閉じたものは人が要約で見て戻せる（戻す＝次のトリアージの依頼書に「<key> を fix に」と書く）。
 7. **止める**: ルーチンの `paused: true` は人が書く。要約の先頭に「線引きを見直す」が出たら（`kind` 無しの人の課題が 3 を超えた）、人に1行で伝える。
@@ -469,7 +470,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 - **何を**: 学び（プロジェクト固有も横断も。固有は front matter の `project: <slug>`）・確かめた事実・**オーナーの思考と志向**（決断の傾向・推奨案を覆した理由。`entities/owner.md` に集める）。
   製品に効くもの（仕様・作法・テスト）は repo へ（課題に切る）。決定は ADR と `decisions/` が正で、wiki は指すだけで中身を写さない。
 - **層**:
-  - `raw/` — 元資料。書いたら変えない。3種: (1) 人の発言の写し（`raw/<日付>-<短い名>.md`。言葉のまま・日付つき。要約しない）、(2) 人が持ち込む外の資料（記事・資料）、(3) finish した課題の記録の写し（`raw/<id>/report.md` と、あれば `raw/<id>/corrections.json`）。指摘（findings）・ゲートの記録は写さず、要れば台帳を指す。
+  - `raw/` — 元資料。書いたら変えない。4種: (1) 人の発言の写し（`raw/<日付>-<短い名>.md`。言葉のまま・日付つき。要約しない）、(2) 人が持ち込む外の資料（記事・資料）、(3) finish した課題の記録の写し（`raw/<id>/report.md` と、あれば `raw/<id>/corrections.json`）、(4) トリアージで wiki 行きになった memory の写し（`raw/memory/<日付>-<短い名>.md`。言葉のまま）。指摘（findings）・ゲートの記録は写さず、要れば台帳を指す。
   - `sources/` — 元資料に1対1の要約（`raw/` と同じ名）。front matter に `date`・`source`（`raw/` のパス）。
   - `entities/` — 実体（役・部品・案件・オーナー）ごとに1ページ。例 `entities/owner.md`・`entities/dispatcher.md`。
   - `topics/` — 概念・運用の題ごとに1ページ（比べたもの・まとめもここ）。例 `topics/review-after-rebase.md`（rebase のあとのレビューの頼み直し）。
@@ -481,6 +482,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
   - 人の発言: 人の答えが推奨案と違ったとき・志向や理由が見えたとき（§8）・人が「残して」と言ったとき。決断そのものは問いの答えと ADR に残るので写さない。
   - 外の資料: 人が資料を置いて「取り込んで」と言ったとき。
   - 課題の記録: `andon issue finish` のあと（dispatcher の `merged` の片付けも）、台帳の `issues/<id>/report.md` と `issues/<id>/library/corrections.json`（あれば）を `raw/<id>/` に写す。調べる課題・トリアージも同じ。
+  - memory: トリアージの `apply` のあと、`close`「wiki へ」になった memory の本文を、記録から `raw/memory/` に写す（§10 の 5）。memory の置き場（`/workspace/memory/`）からは直接写さない（`apply` が消す）。
 - **いつ（ingest）**: 元資料を `raw/` に置いたその場で、1件ずつ（溜めない）。
   1. `sources/` に要約のページを書く（全部は写さない。次に効くもの・確かめた事実・志向）。
   2. 関わる `entities/`・`topics/` のページを直す（無ければ作る）。主張ごとに出典（`sources/` のページ）へリンクする。

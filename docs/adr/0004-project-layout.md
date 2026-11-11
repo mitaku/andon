@@ -18,7 +18,7 @@
 4. 人のファイルの照合（contract.md §11）は「人のファイルをエージェントが commit しない」で成り立ち、エージェントが commit してよい場所は表で決める（ADR-0005 決めたこと 4）。
 5. 台帳は 1 プロジェクトに 1 つ、書くのは台帳の CLI（`kanban`）だけ（D14・D17）。追跡しない（ADR-0005 決めたこと 5。3 は同日に覆された）。
 6. 製品の仕様・設計・用語・合意事項は製品の repo の `docs/`（design.md §1.8・§6 問い21）。
-7. アウターループ（design.md §1.4）の出口は テスト／レビューの観点（`REVIEW.md`）／指針（`AGENTS.md`）／skill／wiki／削る。**memory は置かない**。Claude Code の auto memory は managed settings で切ってある（`package/settings.json` の `autoMemoryEnabled: false`）。
+7. アウターループ（design.md §1.4）の出口は テスト／レビューの観点（`REVIEW.md`）／指針（`AGENTS.md`）／skill／wiki／削る。**memory は置かない**。Claude Code の auto memory は managed settings で切ってある（`package/settings.json` の `autoMemoryEnabled: false`）。→ 覆された（[ADR-0020](0020-auto-memory-as-intake.md)。auto memory は全部の役に入れ、置き場は `/workspace/memory/`。`projects/<slug>/` の下に `memory/` を作らない線は保つ）
 8. 先輩プロジェクト shepherdr（0.2 → 1.0 → 2.x → 3.x）は、project フォルダの同居（`memory/`・`inbox/`・`uploads/`・`scratch/`・`threads/`）を 1.0 で全部外し、以後戻していない。残したのは repo の `AGENTS.md` と、オーナーの home のタスクだけ（出典）。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
@@ -44,7 +44,7 @@
    理由: Chief of Staff の cwd なので、ハーネス固有の置き場（`.claude/`）と `AGENTS.md` を標準の名前で置けば、Claude Code も Codex も特別な配り方なしに読む。守りは `project.json`（照合）と managed deny にあり、指針と手順では緩められないので、`AGENTS.md`・`.claude/` はエージェントが書いてよい（shepherdr 1.0「repo の file は事実だけ、guard を緩められない」と同じ線）。`AGENTS.md` を薄く保つのは、全エージェントの毎 turn のコンテキストに必ず載り、増えた分を全員が毎回払い、古い行は腐り、長いほど守られないから（shepherdr 3.x「`For AGENTS.md:` は 1 行、指揮役が真偽を判断」も同じ警戒）。アウターループの出口は機械優先の順（テスト → `REVIEW.md` → skill → wiki → 削る）で、`AGENTS.md` に足すのはどれにも置けず毎回要るものだけ。振り返りは足した行数と削った行数を報告に書く。
    捨てた案: 1 回目の提案（直下は人のファイル 4 つだけ・台帳は外）——前提 2 で理由が消えた／`chief-of-staff.md` を残す——読み手が同じ（Chief of Staff）なので 2 つ要らない／`projects/<slug>/skills/` を新設——ハーネス固有の置き場がある。
 
-2. **2026-11-06 memory は置かない。調べものの中間成果物は台帳の `library/`。** 「memory」と呼ばれるものは 3 つに分かれ、それぞれ家がある:
+2. **2026-11-06 memory は置かない。調べものの中間成果物は台帳の `library/`。** 「memory」と呼ばれるものは 3 つに分かれ、それぞれ家がある（「memory は置かない」→ 覆された（[ADR-0020](0020-auto-memory-as-intake.md)。memory は蒸留までの受け皿。3つの家の表は保つ））:
    | 中身 | 家 | 読まれ方 |
    |---|---|---|
    | 続き（何をしていたか） | 台帳（brief・report・log）と worktree。タスク内のメモは `tasks/<id>/library/` | 起動したときに台帳を読む |
@@ -52,7 +52,7 @@
    | 事実（指示ではない。顧客の事情・環境の癖・まだ文書に無い決定） | 建屋の `wiki/` | **引く**。自動ではコンテキストに載せない |
    - memory と wiki の違いは「押すか引くか」だけ。自動でコンテキストに載る memory は名前を変えた `AGENTS.md` の肥大（shepherdr 0.2 の `MEMORY.md` は次の brief に全部流れた）。
    - 担当の「覚えておいて」（`report.json` の `remember[]`）は出力であって保存場所ではない。Chief of Staff のトリアージが wiki／skill／削る のどれかへ振り、宛先の無いものは捨てる。
-   - ハーネスの auto memory は managed で OFF（前提 7）。環境変数 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=0` が `autoMemoryEnabled: false` より優先して強制オンにする（公式の環境変数の表）ので、managed の `env` に `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` も入れる（S4）。
+   - ハーネスの auto memory は managed で OFF（前提 7）。環境変数 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=0` が `autoMemoryEnabled: false` より優先して強制オンにする（公式の環境変数の表）ので、managed の `env` に `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` も入れる（S4）。→ 覆された（[ADR-0020](0020-auto-memory-as-intake.md)。managed で `autoMemoryEnabled: true`・`autoMemoryDirectory: "/workspace/memory"`、`env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY` は外す）
    - **調べものの中間成果物**（調査メモ・比べた表・見つけたものの一覧）はそのタスクの `kanban/tasks/<id>/library/`。タスクをまたいで人に出すまとめは `kanban/library/`。決める前の案（設計の代案）は Chief Engineer の文書そのもの（worktree の `docs/`・ADR の「提案」）で台帳には写さない。**正は repo**——決まったものは PR で製品の repo の `docs/`（Andon なら ADR）へ出し、台帳に残るのは経過。調べるタスクの型（結果は報告だけ、続きは「ほかに気づいたこと」の一覧で名前だけ残す。shepherdr 1.0 の research-only task）は Y-158 が決める。
    捨てた案: `memory/`（0.2 の形）／`projects/<slug>/research/`——予約名を増やす理由が無い／製品の repo の `docs/` に中間成果物を PR——決まっていないものが正に混ざる。
 
@@ -100,7 +100,7 @@
 1. **台帳の CLI（`go test ./cmd/kanban/...`・`tests/kanban.sh`）**: 台帳の探索は `kanban/config.yaml` があり形式の版が読めるときだけ台帳とし、製品の repo の中の `kanban/` を誤認しない。`kanban migrate` が決めたこと 5 の 1・3・5・6 を打ち、`doing`・`review` があれば移さない。
 2. **schema（`tests/schema.sh`）**: `schema/project.schema.json` があり、`init/` の例と `tests/` の見本が通る。`repos` が無い・知らないキー・`delegation` が今の `delegation.schema.json` と違う形は落ちる。`andon task start` がタスクの `repos` ⊆ プロジェクトの `repos` を確かめ、外れていれば起動しない（`tests/andon-task.sh`）。
 3. **建屋の雛形（`tests/andon-init.sh`）**: `andon init x` の `projects/` が空（プロジェクトは `kanban init` が作る）。
-4. **パッケージ（`tests/package.sh`）**: skill・template・hooks に `.flightdeck`・`coordinator.md`・`delegation.json` が残っていない。`settings.json` の `env` に `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` がある。
+4. **パッケージ（`tests/package.sh`）**: skill・template・hooks に `.flightdeck`・`coordinator.md`・`delegation.json` が残っていない。`settings.json` の `env` に `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` がある。→ 覆された（[ADR-0020](0020-auto-memory-as-intake.md) 受け入れ条件 2）
 5. **建屋で実測（P4 以降の決まり。報告に書く）**: 移した建屋で Chief of Staff と伝令が起き直り、`kanban lint` が通り、`andon delegate show` が移す前と同じ。Chief of Staff の cwd `projects/<slug>/` で `.claude/skills/` の skill が読まれ、建屋ルートの設定と重なるかを記す。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
