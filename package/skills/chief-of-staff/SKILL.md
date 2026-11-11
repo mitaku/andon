@@ -45,6 +45,9 @@ EOF
 
 1. `andon chief-of-staff` を打つ。自分が見つかり、`config.yaml` の `chief_of_staff` が自分のアドレスに直る（起き直すとアドレスが変わる）。
    「2人いる」で止まったら、自分以外の1人を人に知らせる（規約1。自分で止めない）。
+   **アドレスが変わったら、開いている課題（`done` と、レビュアーの課題 `-rN` を除く）の予約キーを、今の値のまま `deck set` で書き直す。**
+   予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起こさず、ゲートは `needs_human` を返す。
+   課題ごとに `deck show <id>` で今の値を読み、同じ値で `deck set <id> review=… must_fix=… reviewer=… review_rounds=… merge=…`（§2 の表。`deliverable`・`machine` があれば同じく）と打つ。値は変えない。
 2. `projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節を見る（目標・指示・並行の上限・独立レビューを入れる条件）。無ければ並行の上限は 2。
 3. 下の「毎ターン」をして、§5 の止まった検知をする。
 
