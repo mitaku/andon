@@ -69,9 +69,15 @@ RUN npm config set prefix /opt/andon-tools \
  && npm install -g "playwright@${PLAYWRIGHT_VERSION}" "portless@${PORTLESS_VERSION}" \
  && npm cache clean --force \
  && rm -rf "${HOME}/.npm" \
- && mkdir -p "${HOME}/.local/bin"
+ && mkdir -p "${HOME}/.local/bin" "${HOME}/.playwright"
 COPY --chown=andon:andon --chmod=755 image/agent-wrapper /opt/andon-home/.local/bin/agent-wrapper
-RUN ln -s agent-wrapper "${HOME}/.local/bin/portless"
+RUN ln -s agent-wrapper "${HOME}/.local/bin/portless" \
+ && ln -s agent-wrapper "${HOME}/.local/bin/playwright"
+# 担当が画面を見て確かめる道具（ADR-0018）: playwright-cli は `playwright cli` の wrapper。
+# 設定は ~/.playwright/cli.config.json（cwd に依らず効く全体の設定。~/.playwright は volume に無いので image に焼く）:
+# ブラウザを焼いた Chromium に（既定は Google Chrome を探して落ちる）、出力を worktree の外の /tmp/playwright-cli に（既定は cwd の .playwright-cli/）
+COPY --chown=andon:andon --chmod=755 image/playwright-cli /opt/andon-home/.local/bin/playwright-cli
+COPY --chown=andon:andon image/playwright/cli.config.json /opt/andon-home/.playwright/cli.config.json
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/andon-home/.cache/ms-playwright
 ARG INSTALL_BROWSERS=1
 RUN if [ "${INSTALL_BROWSERS}" = 1 ]; then /opt/andon-tools/bin/playwright install --with-deps chromium; fi

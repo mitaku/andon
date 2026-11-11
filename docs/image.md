@@ -25,6 +25,14 @@ bash tests/image.sh
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `セルの名前:ディレクトリ (git のブランチ)`。色は控えめ。
 
+## 画面を見る道具（playwright-cli）
+
+担当が自分の変更を画面で確かめる道具は、焼いてある Playwright に同梱の `playwright cli`（[ADR-0018](adr/0018-screen-check-tooling.md)）。新しい備品は足さず、配線だけを焼く。
+
+- **入口**: `playwright`（`portless` と同じく `image/agent-wrapper` 経由でセル固定の node で起こす）と `playwright-cli`（`playwright cli "$@"` を呼ぶ wrapper。`image/playwright-cli`）を `~/.local/bin` に置く。実体の置き場 `/opt/andon-tools/bin` は PATH に入れない。
+- **設定**: `~/.playwright/cli.config.json`（`image/playwright/cli.config.json`）。cwd に依らず効く全体の設定で、ブラウザを焼いた Chromium に（同梱の既定は Google Chrome を探して落ちる）、出力（スナップショット・スクリーンショット）を `/tmp/playwright-cli` に置く（同梱の既定は cwd の `.playwright-cli/` で、担当の worktree の git に出る）。`~/.playwright` は volume に無いので image に焼く。
+- **確かめ**: `tests/image.sh` がネットワークを切ったコンテナで、コンテナの中の静的ページを `open` → `snapshot`（ref が出る）→ `screenshot`（PNG）→ `close` し、git の worktree に何も出ないことを見る。
+
 ## 信頼の画面（Claude Code・Codex）
 
 セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起こす直前の `andon task start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
