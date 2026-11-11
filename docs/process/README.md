@@ -22,6 +22,11 @@ Chief of Staff の定常の仕事（ワークストリーム）と、もの（�
 
 状態の図は、状態（四角）と移り方（矢印。文字は何が起きたら）。黒い丸は始まりと終わり。
 
+## 記録との対応
+
+- 状態の定義は、dispatcher の控え（`~/.local/state/andon/dispatcher/<slug>.json`）の一番上の項目を 1 つずつ、どれか 1 本の状態か「状態でない項目」（拾う位置とデータ）に割り当てる。項目を足す・消すときは定義も直す（テストが照らす）。
+- 「2 回起きてはいけない」移り方は、「何が起きたら」の終わりに（§7.2 #番号）と書いて、[dispatcher.md](../dispatcher.md) §7.2「Nothing runs twice」の表の行（走らせる者・二重に走ったら・今の守り）を指す。
+
 ## 直すとき
 
 1. `process/workstreams/<名>.yaml` か `process/states/<名>.yaml` を直す。形は `schema/process/` にある。決めた理由は ADR に書き、YAML には短い補足だけ。

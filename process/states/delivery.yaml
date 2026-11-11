@@ -1,0 +1,34 @@
+name: delivery
+title: 通知の配達
+source: dispatcher.md §2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5。拾う位置（log.jsonl の位置と ready の前回）は状態でないので、ここに置く
+states:
+  - id: pending
+    title: 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える）
+    record: dispatcher:Pending
+  - id: away-sent
+    title: 離席時に hc send で渡した（経路③。送った端末と turn を控える）
+    record: [dispatcher:Coord, dispatcher:NewsTurn]
+  - id: hooked
+    title: フックで渡した（経路①②。渡した turn を控える）
+    record: dispatcher:Hook
+  - id: acked
+    title: 確かめた（news.replied を書いた数を控える）
+    record: dispatcher:Replied
+  - id: unrecorded
+    title: 記録だけの置き場に書けなかった
+    record: dispatcher:Unrecorded
+  - id: recorded
+    title: 記録だけにした（届けない）
+positions: [dispatcher:LogPos, dispatcher:LogHead, dispatcher:LogHold, dispatcher:Ready]
+transitions:
+  - { from: "[*]", to: pending, on: "届ける通知を拾った", by: machine }
+  - { from: "[*]", to: recorded, on: "記録だけの通知を拾った", by: machine }
+  - { from: "[*]", to: unrecorded, on: "記録だけの通知を置き場に書けなかった", by: machine }
+  - { from: unrecorded, to: recorded, on: "次の見回りで先に書いた", by: machine }
+  - { from: pending, to: hooked, on: "通知を Chief of Staff へ届ける（ターンの終わり・人が送った。経路①②。§7.2 #7）", by: machine, command: andon dispatcher drain, once: true }
+  - { from: pending, to: away-sent, on: "通知を Chief of Staff へ届ける（離席の守りがそろった。経路③。§7.2 #7）", by: machine, command: hc send --if idle, once: true }
+  - { from: hooked, to: acked, on: "渡した turn の Stop が来た", by: ai }
+  - { from: hooked, to: hooked, on: "確かめないまま別の turn が来た（1 回だけ届け直す）", by: machine }
+  - { from: away-sent, to: acked, on: "news を渡した turn が進んだ", by: ai }
+  - { from: acked, to: "[*]", on: "終わり", by: machine }
+  - { from: recorded, to: "[*]", on: "終わり", by: machine }
