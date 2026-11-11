@@ -293,6 +293,9 @@ fail|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a
 pass|notification|.kind = "closed" | .detail = {pr: .detail.pr}|kind closed
 fail|notification|.kind = "closed" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|closed に知らないキー
 pass|notification|.kind = "stalled" | .detail = {agent: "t7", status_ms: 1793845966681} | del(.issue)|kind stalled（issue 無し）
+pass|notification|.kind = "resumed" | .detail = {agent: "t9", from: "t7"}|kind resumed
+fail|notification|.kind = "resumed" | .detail = {agent: "t9"}|resumed に from が無い
+fail|notification|.kind = "resumed" | .detail = {agent: "t9", from: "t7", status_ms: 0}|resumed に知らないキー
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "3 回打って失敗"}|kind impact（集められなかった）
@@ -501,6 +504,7 @@ corrections|."$defs".pr.anyOf = [{}]|pr の「コメントか commit のどち�
 notification|.properties.kind.enum -= ["corrections"]|通知の kind から corrections を外す
 notification|.properties.kind.enum -= ["signal"]|通知の kind から signal を外す
 notification|."$defs".signal.additionalProperties = true|通知 signal の detail の知らないキーを許す
+notification|."$defs".resumed.required -= ["from"]|通知 resumed の必須から from を外す
 project|."$defs".signal.properties.weight.enum += ["soon"]|signals の weight を緩める
 project|."$defs".signal.required -= ["source"]|signals の必須から source を外す
 signal|del(.properties.signals.uniqueKeys)|信号の fingerprint の一意を外す
@@ -566,6 +570,7 @@ notification-finished.json|notification|andon dispatcher の通知 finished（�
 notification-blocked.json|notification|andon dispatcher の通知 blocked
 notification-error.json|notification|andon dispatcher の通知 error
 notification-stalled.json|notification|andon dispatcher の通知 stalled
+notification-resumed.json|notification|andon dispatcher の記録だけの通知 resumed（Gone の担当を resume した）
 EMIT
   fi
 fi

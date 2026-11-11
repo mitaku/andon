@@ -276,6 +276,7 @@ type Seen struct {
 	Reviewing bool  // 子のレビュアーの課題が todo／doing
 	Moved     int64 // working の間に status.msg か画面が最後に動いた時刻（dispatcher の時計の Unix ミリ秒）。0 は見ていない
 	Unsent    bool  // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
+	Turn      int   // hc の turn（終えたターンの数。resume した端末が働き始めたかの見分け）
 }
 
 // Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
@@ -421,6 +422,9 @@ func (p *project) watch(now time.Time) {
 		// 控えに「送った」があればラベルが残っていても届いたとみる（続きを打ってよい）
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
+		if rs, had := p.st.Resumed[id]; had && !s.Gone && rs.Agent == agent && s.Turn >= 1 {
+			p.worked(id) // 起こした端末が働き始めた。控えを消してその場で保存する
+		}
 		if s.Status == "working" && !s.Gone {
 			prev, had := p.st.Moved[rk]
 			m := moved(prev, had, s.Msg, func() (string, error) { return hcOut("read", agent, "--lines", "40") }, nowMs)
@@ -447,6 +451,9 @@ func (p *project) watch(now time.Time) {
 		if v.Kind == "" {
 			continue
 		}
+		if s.Gone && p.resumeGone(t, agent) {
+			continue // resume で起こした（次の見回りからは新しい端末を見る）。起こせなければ今どおり finished
+		}
 		k := rk + "|" + v.Key
 		if v.Allowance && isReviewer(t) && !p.first && !p.st.Sent[k] && p.fallback(t, agent) {
 			continue // 起こし直した（次の見回りからは新しい端末を見る）
@@ -468,6 +475,7 @@ func (p *project) watch(now time.Time) {
 		}
 	}
 	p.st.Sent, p.st.Retry, p.st.First, p.st.Moved = sent, retry, first, mv
+	p.keepResumed()
 }
 
 // countResend は打つ前に、回数と時刻を1つ進めた控えを保存する（打ってから pass の最後の保存の前に dispatcher が落ちても、
@@ -640,7 +648,7 @@ func (p *project) seen(agent string) (Seen, bool) {
 		// 作り直しで top-level の argv ごと素のシェルに替わって戻った端末（状態を報告しないので stalled にもならない）。終わった端末として知らせる
 		return Seen{Gone: true, StatusMs: t.StatusMs}, true
 	}
-	return Seen{Status: t.Status.State, Msg: t.Status.Msg, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false"}, true
+	return Seen{Status: t.Status.State, Msg: t.Status.Msg, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false", Turn: t.Turn}, true
 }
 
 // retry は端末に続きを打つ。担当は人が打つ端末ではないので離席の守りは要らない。Chief of Staff は retryIfEmpty を通して打つ。
@@ -668,5 +676,8 @@ func (s *State) ensure() {
 	}
 	if s.Approved == nil {
 		s.Approved = map[string]Notification{}
+	}
+	if s.Resumed == nil {
+		s.Resumed = map[string]Resumed{}
 	}
 }

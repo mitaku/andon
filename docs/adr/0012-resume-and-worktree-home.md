@@ -85,6 +85,13 @@
    2. あれば触らない確かめは「その repo の detached の worktree として登録されていること」だけ（HEAD が依頼書の commit かは見ない。レビュアーが自分で checkout を動かすことは無く、動いていても消さないほうを取る）。無ければ commit がその repo にあることを確かめて `--detach` で戻す（fetch はしない。dispatcher が起こすときに fetch した object は clone に残る）。
    3. レビュアーのラベルは `project`・`issue`・`title` と、元の課題の担当の Space・tab（`herdr.space`・`herdr.tab` = `andon-<slug>-<元の id>`。`andon issue start` が担当に付ける値）。dispatcher のように担当の端末から写さない（起き直しでは担当の端末も死んでいて読めない）。
    4. Claude 系のレビュアー（`claude-review`）にもセッションの id を渡す: dispatcher がレビュアーを起こすとき（使用量の上限で起こし直すときも）ラベル `session=<id>` を付けて台帳の `session` に書く（Codex 系へ起こし直すときは消す）。`claude-review`・`codex-review` の template に `resume:` を足す（受け入れ条件 3 をレビュアーでも成り立たせるため。dispatcher の自動〈R4〉には触らない）。
+16. **2026-11-11 実装で決めた細部**（R4 の担当 A-0040。推奨案で進めた。戻すなら一言）:
+   1. 「1つの死につき1回」の控えは dispatcher の控えの `Resumed`（課題 → Gone を見た端末 `from` と起こした端末 `agent`）。打つ前に保存し（打っている間に落ちても同じ死へ二度打たない）、台帳の `agent` が `from` か `agent` と同じ Gone なら打たない。台帳の `agent` が別の値に替わった（Chief of Staff が `--fresh` を打った・レビュアーを起こし直した）あとの死は別の死として1回打つ。
+   2. 「働き始めた」は hc の `turn` ≥ 1（終えたターンの数。最初のメッセージを受けて動いている間は 0）。resume が最初のメッセージを届けた直後はまだ 0 なので、最初のターンを終える前に死んだ端末は「働かずに死んだ」として `finished` を届ける。
+   3. resume が起こせない（記録が無い・`machine` のある課題・profile が無い・最初のメッセージが届かない）ときは、その死にもう打たず、今どおり `finished` を届ける（決めたこと 7 の「人の go で `--fresh`」へ）。ログに `andon issue resume` の理由の1行を残す。
+   4. 初めて見る台帳では、そのとき Gone だった端末を控えに「見た」（`from` だけ）と持ち、次の見回りでも打たない（`finished` も今どおり知らせない）。
+   5. 記録だけの通知 `resumed` の `detail` は `agent`（起こした端末）・`from`（Gone を見た端末）の2つ（`schema/notification.schema.json`）。
+   6. 受け入れ条件 7（コンテナを起き直す実測）と開いている問い 4 は、担当がセルの中から測れない（起き直すと担当自身も Chief of Staff も dispatcher も死に、入っている dispatcher はこの PR の前の版）。マージして image を上げたあと、人がコンテナを起き直して測る（報告の `## Next`）。
 
 ## やらないこと（範囲の外。理由）
 

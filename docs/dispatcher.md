@@ -63,7 +63,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` に積む（§2.5・§2.6） | |
-| 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある |
+| 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・提供元に切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある・端末を起こすことがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。提供元に切られて止まっていれば、入力欄が空のときだけ「続けて」（§2.4） | 端末に打つことがある |
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起こす（`review-requested`）、**`review` ならゲートを回し**（`gate`・マージ・`fix`・問い）、**続けて人がマージしたかを見る**（PR ごとに1分に1回だけ `gh pr view`。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 5a | 人のマージの控えを捨てる | `review` にいない課題の控えの `Watch` を捨てる（§2.7） | 控えに書く |
@@ -101,6 +101,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | マージのあと、動いている課題にぶつかる・重なる | `log.jsonl` の `{"status": "done"}`（dispatcher と Chief of Staff の finish）→ `andon issue impact`（§2.5） | `impact` |
 | 片付けた課題の人の手直しを集められなかった | `log.jsonl` の `{"status": "done"}` → `corrections.json`（§2.6）が次の見回りでも集められない | `corrections` |
 | 担当が止まった・落ちた・終わった・静か | 端末の土台の状態（§2.3） | `blocked`・`error`・`finished`・`stalled` |
+| 担当の端末が Gone で、resume で起こした | 端末の土台の状態（§2.9） | `resumed` |
 | 外の信号（main の CI の失敗・webhook） | **最初の版の後**（design.md §1.9 の (a)・§6 問い23） | `signal` |
 
 - `log.jsonl` は前回の続きから読む。読んだ位置は dispatcher の控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
@@ -118,7 +119,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 | 状態 | 知らせるか |
 |---|---|
-| 端末が無い・終わった | 知らせる（`finished`） |
+| 端末が無い・終わった・素のシェル（Gone） | **自分で `andon issue resume` を1回打つ**（§2.9。記録だけの `resumed`）。打たない・起こせないときは知らせる（`finished`） |
 | `blocked` | 知らせる（権限の確認など。問いは台帳に来るので、残るのはハーネスの確認だけの見込み） |
 | `error` で、提供元に切られた（§2.4 の見分け） | **自分で「続けて」を打つ**（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら打たずに知らせる（`error`）。認証の失敗・使用量の上限は提供元に切られたとみなさない |
 | `error` で、レビュアーが使用量の上限で止まった（§2.8） | もう一方のレビューのプロファイルが担当と別ブランドなら**起こし直す**（知らせない）。保てなければ知らせる（`error`） |
@@ -215,6 +216,21 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 途中で失敗したら起こし直さず、ログに1行。端末を片付けたあとの失敗は、次の見回りで端末が無い（`finished`）として知らせる。
 - 担当・Chief of Staff の使用量の上限は今どおり知らせる（人が枠を足すか待つかを決める）。初めて見る台帳では起こし直さない。
 
+### 2.9 止まった担当の自動 resume
+
+`doing` の課題の端末（担当・レビュアー・Chief Engineer。台帳の `agent`）が Gone（`hc get` が `not_found`・live でない・top-level の argv も前に出ているものも素のシェル）なら、`andon issue resume <id>` を1回打つ（[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 4・13 の 3）。resume は判断でなく復旧（同じことをもう一度）なので、人の go を待たない。
+
+- 起こせたら記録だけの通知 `resumed`（`agent`: 起こした端末・`from`: Gone を見た端末）を書き、`finished` は知らせない。次の見回りからは台帳の新しい `agent` を見る。
+- **1つの死につき1回**: 控えの `Resumed`（課題 → Gone を見た端末 `from` と起こした端末 `agent`）を、打つ前に保存する（打っている間に落ちても、再開後に同じ死へ二度打たない）。
+  - 起こした端末が働かないまま（`turn` 0 のまま）また Gone なら、打たずに今どおり `finished` を知らせる（Chief of Staff が人に1問し、人の go で `andon issue resume --fresh`）。
+  - 起こした端末が働き始めたら（`turn` ≥ 1）控えを消す。そのあと死んだら、また1回打つ。
+  - resume が起こせない（記録が無い・ハーネスが拒んだ・最初のメッセージが届かない・`machine` のある課題・profile が無い）ときは、ログに理由を1行書いて `finished` を知らせ、その死にはもう打たない。
+- 初めて見る台帳（控えが無い）では打たない。そのとき Gone だった端末は控えに「見た」とだけ持ち、次の見回りでも打たない（§2.8 のレビュアーの起こし直しと同じ）。
+- `resume`・`finish`・`start` は台帳ごとの issue lock（`<slug>.issue.lock`）を命令の間ずっと持つので、resume の間に打たれた `andon issue finish` は待つ（§7.2 #10）。
+- 控えの `Resumed` は `doing` でなくなった課題の分を捨てる。
+- 人が意図して `hc kill` した端末も1回は resume される（ADR-0012 開いている問い 2）。止めたいときは `andon issue finish` か台帳の status を変える。
+- Chief of Staff と dispatcher 自身の起こし直しはしない（§5 の P3b・[operate.md](operate.md)）。
+
 ---
 
 ## 3. 誰に・いつ・どう届けるか
@@ -260,6 +276,7 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `kind`（と条件） | 扱い | 受けたら何をするか（記録だけにする理由） |
 |---|---|---|
 | `review-requested` | 記録だけ | dispatcher がレビュアーを起こした。Chief of Staff は何もしない |
+| `resumed` | 記録だけ | dispatcher が Gone の端末を resume で起こした（§2.9）。起こせない・働かずにまた Gone なら `finished` で届く |
 | `review`（ゲートを回す課題） | 記録だけ | dispatcher がゲートを回す。判断が要れば `gate`（approve で止まった）・`asked` で届く |
 | `review`（ゲートを回さない課題: Chief Engineer の課題・調べる課題など。§5 の P6a で飛ばす課題） | 届ける | Chief Engineer の文書を受けて課題に切る・候補を読む |
 | `gate`（`fix`） | 記録だけ | dispatcher が理由を担当へ返した |
@@ -347,7 +364,7 @@ dispatcher は一度に作らず、ラインの手に合わせて育てる（des
 **端末を起こす・中身を戻す**: 端末はセルに1つで、名前は `dispatcher`。`hc run --keep` で起こすので、core が起き直すと（`hc server restart`・Herdr App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで、中身がシェルに替わる（hc は元の command を打ち直さない）。
 そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon dispatcher`」で動いていると見る。無ければ起こす。シェルなら、そのシェルには打ち込まず（入力欄に人の打ちかけがあれば、それに足して実行してしまう）、dispatcher 専用の端末なので `hc keep --off`・`hc kill`・`hc rm` で片付けて、同じ名前・ラベルで起こし直す（名前で引くと片付けた端末に当たりうるので address で打つ）。前に何も出ていない（替わる途中）・シェルでも `andon dispatcher` でもないもの（人が何か動かしている）が出ているときは触らない。
 確かめるのは boot（毎起動）と Chief of Staff のフック（`andon dispatcher drain`。毎ターン）。core の起き直しは boot を通らないが、dispatcher が回るのは Chief of Staff が生きている台帳だけ（§2.1）で、Chief of Staff が動けば必ずフックが走るので、これで足りる。
-作り直し（`bin/bootstrap down` のあと作り直す）のあとは、herdr-core が前の端末を名前とラベルのまま中身を素のシェルにして戻し、戻った直後は前に出ているものがまだ取れないことがある。boot は取れるまで数秒読み直してから同じ見分けをし、取れないままなら「確かめられなかった」とログに書く（「すでに動いている」とは書かない。フックは待たずに次のターンに任せる）。Chief of Staff・Chief Engineer の戻った端末（top-level の argv ごと素のシェル。起こした端末は template の command のまま）はそれぞれの command の打ち直しで、担当・レビュアーの戻った端末は見回りが終わった端末（`finished`）として知らせて戻す（2026-11-06 の P7）。
+作り直し（`bin/bootstrap down` のあと作り直す）のあとは、herdr-core が前の端末を名前とラベルのまま中身を素のシェルにして戻し、戻った直後は前に出ているものがまだ取れないことがある。boot は取れるまで数秒読み直してから同じ見分けをし、取れないままなら「確かめられなかった」とログに書く（「すでに動いている」とは書かない。フックは待たずに次のターンに任せる）。Chief of Staff・Chief Engineer の戻った端末（top-level の argv ごと素のシェル。起こした端末は template の command のまま）はそれぞれの command の打ち直しで、担当・レビュアー・Chief Engineer の戻った端末は見回りが Gone と見て `andon issue resume` で続きから起こす（§2.9。起こせなければ `finished` で知らせる）。
 dispatcher 自身の見張りでは戻せない（止まっているのは dispatcher）。hc にも元の command を打ち直す機能は無い。複数のフックと boot が重なっても二重に打たないよう、確かめは lock の中で1つずつ（2026-11-06 の P7）。
 
 ### P6a: インナーループを回す
@@ -432,6 +449,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 17 | マージのあとの影響を集める（`andon issue impact`。§2.5） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。Chief of Staff が手で打つこともある | 同じマージの `impact` が 2 度届く。command は読むだけ（`git fetch` のほか書かない）なので、事実が壊れることは無い | ②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Impact`（打ったら外す。失敗は 3 回まで打ち直し、諦めたら `error` の `impact` を積む）。⑥command は読むだけで何度打っても同じ事実から同じ出力。**手で打つ分は防がない**が、手で打った Chief of Staff はもう読んでいる |
 | 18 | 人の手直しを集める（`corrections.json`。§2.6） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。ほかの書き手はいない | `corrections.json` が書き直される（`at` が替わる）。2 度目の読みの間に PR のコメントが増えていれば中身も替わる | ④`corrections.json` が在れば書かない（ファイルが「集めた」の印）＋②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Corrections`（書いたら外す。失敗は次の見回りの 1 回だけ打ち直し、諦めたら `corrections` を積んで外す）。書くのは一時ファイル＋rename |
 | 19 | 人がマージした PR を拾って片付ける（§2.7） | dispatcher（`review` の課題の PR ごとに1分に1回 `gh pr view`）。Chief of Staff が手で `andon issue finish` することもある | ゲートの問いを二度閉じようとする・finish が二度走る（2 度目は `done` の課題なので台帳の CLI が受けるか止まる）。通知 `merged` が二度届く | ①控えの lock（#2）＋②控えの `Watch`（MERGED・CLOSED と分かった PR はもう聞かない・同じ `held` は二度知らせない・片付けたら外す）＋④台帳の `status`（`review` でなくなれば見ない）。マージは打たない |
+| 20 | 止まった担当の自動 resume（§2.9） | dispatcher（Gone を見た見回り。1 巡の 4c）。Chief of Staff が人の go で `andon issue resume` を手で打つこともある | 同じ課題に担当が 2 人起きる・同じ死に何度も打つ・コンテキストを失ったまま起こし続ける | ②控えの `Resumed`（打つ前に保存。Gone を見た端末と起こした端末。起こした端末が `turn` 0 のまま Gone なら打たない）＋④台帳（`doing` で `agent` が Gone のときだけ。起こす直前に status と agent を読み直す）＋③端末の名前 `<slug>-<id>`（live なら resume が止まる）＋①issue lock（`resume`・`finish`・`start` を直列にする。#10） |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

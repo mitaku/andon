@@ -32,7 +32,7 @@ type Facts struct {
 // RouteOf は通知の扱いの表（ADR-0010 決めたこと 1・7）。表に無い kind は届ける（安全側）。
 func RouteOf(n Notification, f Facts) Route {
 	switch n.Kind {
-	case "review-requested":
+	case "review-requested", "resumed":
 		return Record
 	case "review":
 		if f.Gated {

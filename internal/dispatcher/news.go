@@ -72,6 +72,8 @@ func line(n Notification) string {
 			return head + d("pr") + " は人がマージした（" + clean(n.Detail["sha"], 12) + "）が、片付けていない: " + clean(h, 200)
 		}
 		return head + d("pr") + " は人がマージした（" + clean(n.Detail["sha"], 12) + "）。ゲートの問いを閉じて片付けた"
+	case "resumed":
+		return clean(n.Issue, 40) + " の担当 " + short("from") + " が止まったので、resume して " + short("agent") + " で続きから起こした"
 	case "closed":
 		return head + d("pr") + " はマージされずに閉じた。片付けていない"
 	case "impact":

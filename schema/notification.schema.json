@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -40,7 +40,9 @@
     { "if": { "properties": { "kind": { "const": "signal" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/signal" } } } },
     { "if": { "properties": { "kind": { "enum": ["blocked", "error", "finished", "stalled"] } } },
-      "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } }
+      "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } },
+    { "if": { "properties": { "kind": { "const": "resumed" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/resumed" } } } }
   ],
   "$defs": {
     "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
@@ -166,6 +168,14 @@
       "properties": {
         "agent": { "description": "Terminal address.", "type": "string", "minLength": 1 },
         "status_ms": { "description": "status_ms of the terminal host: Unix time in milliseconds when it entered this state.", "type": "integer", "minimum": 0 }
+      }
+    },
+    "resumed": {
+      "description": "kind resumed: the agent's terminal of a doing issue was gone, and the dispatcher ran andon issue resume once and started it again from its session.",
+      "type": "object", "required": ["agent", "from"], "additionalProperties": false,
+      "properties": {
+        "agent": { "description": "Address of the terminal resume started.", "type": "string", "minLength": 1 },
+        "from": { "description": "Address of the terminal that was gone.", "type": "string", "minLength": 1 }
       }
     }
   }

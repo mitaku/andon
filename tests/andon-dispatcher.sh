@@ -97,6 +97,7 @@ case \$1 in
         printf '%s\t%s\n' "\$2" "\$3" >> \$d/sent ;;
   ls) task=\$(printf '%s\n' "\$@" | sed -n 's/^issue=//p')
       awk -v t="\$task" '\$2 == t { printf "%s{\"address\":\"%s\",\"state\":\"live\"}", (n++ ? "," : ""), \$1 }' \$d/live | { printf '{"terminals":['; cat; printf ']}\n'; } ;;
+  templates) echo '{"templates":[{"name":"claude"},{"name":"claude-resume"}]}' ;;
   kill|keep) ;;
   rm) sed -i "/^\$2 /d" \$d/live ;;
   *) exit 99 ;;
@@ -1203,5 +1204,28 @@ pk
 pp "$u" error | jq -e 'length == 1' >/dev/null || die '送れないまま4回を超えても error で知らせない'
 rm "$tmp/hc/sendfail"
 ok '提供元のエラーで続きを送れなかった試行も回数と時刻に数え、上限を超えたら error で知らせる'
+
+# 24. 端末が Gone の doing の担当は andon issue resume で続きから起こす（1つの死につき1回。ADR-0012 決めたこと 4。dispatcher.md §2.9）
+sid=11111111-2222-4333-8444-555555555555
+export CLAUDE_CONFIG_DIR=$HOME/.claude; mkdir -p "$CLAUDE_CONFIG_DIR/projects/x"; : > "$CLAUDE_CONFIG_DIR/projects/x/$sid.jsonl"   # セッションの記録（中身は読まない）
+rs=$(echo '# 続きから' | as_cos kanban add 'resume する' --profile claude --brief -)
+as_cos kanban set "$rs" session=$sid >/dev/null
+HC_TERMINAL_ID=w50 kanban start "$rs" >/dev/null   # w50 は live に無い（起き直しで消えた）
+clear_pending; pk
+na=$(kanban show "$rs" --json | jq -r .issue.agent)
+[ "$na" != w50 ] && grep -q "^run .*--name pick-$(tr A-Z a-z <<<"$rs") .*--label issue=$rs .*--label session=$sid .*claude-resume " "$tmp/hc/log" \
+  || die "Gone の担当を resume で起こさない: agent=$na $(grep "issue=$rs" "$tmp/hc/log"; tail -3 "$tmp/dispatcher.log")"
+[ "$(kanban show "$rs" --json | jq -r .issue.status)" = doing ] && [ "$(pp "$rs" finished)" = '[]' ] || die "resume で起こしたのに finished を知らせた・doing でない: $(jq -c .pending "$pst")"
+jq -cs --arg t "$rs" '[.[] | select(.issue == $t and .kind == "resumed")]' "$prec" | jq -e --arg a "$na" 'length == 1 and .[0].detail == {agent: $a, from: "w50"}' >/dev/null \
+  || die "記録だけの resumed が無い・形が違う: $(cat "$prec")"
+emit <(jq -cs --arg t "$rs" '[.[] | select(.issue == $t and .kind == "resumed")][0]' "$prec") notification-resumed.json
+jq -n --arg a "$na" '{address: $a, state: "live", status: {state: "working"}, status_ms: 1, turn: 0, labels: {}, argv: ["claude"]}' > "$tmp/hc/term-$na.json"
+pk
+runs=$(grep -c "issue=$rs .*claude-resume" "$tmp/hc/log")
+sed -i "/^$na /d" "$tmp/hc/live"   # 働かないまま（turn 0）また死んだ
+pk
+[ "$(grep -c "issue=$rs .*claude-resume" "$tmp/hc/log")" = "$runs" ] || die '働かずに死んだ端末にまた resume を打った'
+pp "$rs" finished | jq -e --arg a "$na" 'length == 1 and .[0].detail.agent == $a' >/dev/null || die "働かずに死んだ端末を finished で知らせない: $(jq -c .pending "$pst")"
+ok 'Gone の doing の担当は resume で起こして記録だけの resumed を書き、働かないまままた Gone なら打たずに finished を知らせる'
 
 echo "all passed ($pass)"

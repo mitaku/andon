@@ -48,6 +48,7 @@
    | `impact` | 届ける | rebase を頼む・止めて向きを確かめる（skill §7） |
    | `blocked`・`error`・`finished`・`stalled` | 届ける | 許可の確認・人へ知らせる・続きを促す（skill §4・§5）。プロバイダに切られた `error` は、dispatcher が「続けて」を4回打ったあと5回目に切られたときだけ（dispatcher.md §2.4。今と同じ） |
    | `signal`（最初の版の後。P6 の後） | 届ける | トリアージの候補にする |
+   | `resumed`（[ADR-0012](0012-resume-and-worktree-home.md) 決めたこと 4 で足した） | **記録だけ** | dispatcher が Gone の担当を `andon issue resume` で続きから起こした。Chief of Staff は何もしない。起こせない・働かずにまた Gone なら `finished` で届く（dispatcher.md §2.9） |
 
    - 「届ける」は今と同じ経路（①②③。dispatcher.md §3）で、同じ `<news>` の文に描く。「記録だけ」は `<news>` に載せず、③の `hc send` のきっかけにもしない（待ちに数えない）。
    - `gate: approve` の 10 分は dispatcher の時計で、記録だけの行の `at` から測る。見回りが1分ごとなので、マージが遅い repo（merge queue）でも10巡は待つ。値は仮の値で、ほかの間（dispatcher.md §2.1）と同じく設定で替えられる。
