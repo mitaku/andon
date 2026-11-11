@@ -25,6 +25,7 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/globs" }
         },
+        "screen_paths": { "description": "Paths of the screen (globs). A PR whose changed files match one needs a GitHub attachment (https://github.com/user-attachments/assets/<id>) in its body or a comment, or the gate returns fix. Default: none.", "$ref": "#/$defs/globs" },
         "tier_c_added_line_patterns": {
           "description": "Regular expressions; an added line matching one makes the change tier C.",
           "type": "array",
