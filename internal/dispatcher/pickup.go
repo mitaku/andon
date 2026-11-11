@@ -61,8 +61,8 @@ func (p *project) collect(cos string) {
 	p.readReady()
 	p.readLog(cos)
 	now := time.Now()
-	p.watch(now)
-	p.retryChief(cos, now)
+	p.watch(now, cos)
+	p.chiefCut(cos)
 }
 
 // ---------------------------------------------------------------- log.jsonl の続き
@@ -292,7 +292,7 @@ type Verdict struct {
 func ScreenCut(screen string) string {
 	lines := strings.Split(screen, "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(nbsp(lines[i])); strings.HasPrefix(l, "■") {
+		if l := strings.TrimSpace(strings.ReplaceAll(lines[i], "\u00a0", " ")); strings.HasPrefix(l, "■") {
 			return l
 		}
 	}
@@ -379,7 +379,7 @@ func moved(prev Moved, had bool, msg string, screen func() (string, error), nowM
 }
 
 // watch は doing の課題の担当を端末の土台で見る（見回りで hc get）。
-func (p *project) watch(now time.Time) {
+func (p *project) watch(now time.Time, cos string) {
 	nowMs := now.UnixMilli()
 	reviewing := map[string]bool{}
 	for _, t := range p.tasks {
@@ -392,6 +392,9 @@ func (p *project) watch(now time.Time) {
 		id, agent := t.Str("id"), t.Str("agent")
 		if t.Str("status") != "doing" || t.Str("who") == "person" || agent == "" {
 			continue
+		}
+		if agent == cos {
+			continue // Chief of Staff の端末は人が打つので、担当として見ない（打たない。chiefCut が見る。ADR-0019 決めたこと 4）
 		}
 		if !idRe.MatchString(id) || !agentRe.MatchString(agent) {
 			continue
@@ -463,15 +466,10 @@ func (p *project) watch(now time.Time) {
 		}
 		sent[k] = true
 	}
-	// Chief of Staff の分（retryChief が持つ。キーは cosKey で始まり、課題の id とは重ならない）は持ち越す
+	// Chief of Staff の分（chiefCut が持つ。キーは cosKey で始まり、課題の id とは重ならない）は持ち越す
 	for k := range p.st.Sent {
 		if strings.HasPrefix(k, cosKey) {
 			sent[k] = true
-		}
-	}
-	for k, r := range p.st.Retry {
-		if strings.HasPrefix(k, cosKey) {
-			retry[k] = r
 		}
 	}
 	p.st.Sent, p.st.Retry, p.st.First, p.st.Moved = sent, retry, first, mv
@@ -497,20 +495,16 @@ func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) 
 	return next, true
 }
 
-// cosKey は控えの Retry・Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: は課題の id に使えない）。
+// cosKey は控えの Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: は課題の id に使えない）。
 const cosKey = ":cos|"
 
-// retryChief は Chief of Staff の端末が提供元に切られて止まったとき、担当と同じ間隔で「続けて」を打つ（dispatcher.md §2.4）。
-// Chief of Staff は人が打つ端末なので、入力欄が空と確かめられたときだけ打つ（確かめられなければ打たず、その試行も数える）。
-// 打ち切ったら、知らせる相手（Chief of Staff）が止まっているので、ログに1行残して止める。人は Herdr App の error で気づく。
-func (p *project) retryChief(cos string, now time.Time) {
+// chiefCut は Chief of Staff の端末が提供元に切られて error で止まったとき、ログに1行だけ残す（dispatcher.md §2.4）。
+// 「続けて」は打たない: Chief of Staff は人が打つ端末で、hc send は人の書きかけに続けて送ってしまう（ADR-0019 決めたこと 4）。
+// 知らせる相手（Chief of Staff）が止まっているので通知も積まない。人は Herdr App の error で気づく。同じ止まりには1回
+// （error・working の間は持ち越し、ほかに戻ったら区切る。Claude Code 自身のやり直しで working を挟んでも1回）。
+func (p *project) chiefCut(cos string) {
 	key := cosKey + cos
-	for k := range p.st.Retry { // 替わった前の Chief of Staff の分は捨てる
-		if strings.HasPrefix(k, cosKey) && k != key {
-			delete(p.st.Retry, k)
-		}
-	}
-	for k := range p.st.Sent {
+	for k := range p.st.Sent { // 替わった前の Chief of Staff の分は捨てる
 		if strings.HasPrefix(k, cosKey) && !strings.HasPrefix(k, key+"|") {
 			delete(p.st.Sent, k)
 		}
@@ -520,49 +514,25 @@ func (p *project) retryChief(cos string, now time.Time) {
 	}
 	c, err := hcGet(cos)
 	if err != nil || c.State != "live" {
-		return // 取れない間は前の回数を保つ
+		return // 取れない間は前の控えを保つ
 	}
 	if c.Status.State != "error" && c.Status.State != "working" {
-		// 回数は error・working の間は持ち越し、ほかに戻ったら区切る（担当と同じ）
-		delete(p.st.Retry, key)
-		delete(p.st.Sent, key+"|retry-out")
+		delete(p.st.Sent, key+"|cut")
 		return
 	}
-	s := Seen{Status: c.Status.State, Msg: c.Status.Msg, StatusMs: c.StatusMs}
-	r := p.st.Retry[key].Saw(s, now.UnixMilli())
-	if r.kept() {
-		p.st.Retry[key] = r
+	if c.Status.State != "error" || p.st.Sent[key+"|cut"] {
+		return
 	}
-	v := Judge(s, func() string { out, _ := hcOut("read", cos, "--lines", "40"); return out }, r, now.UnixMilli())
-	switch {
-	case v.Retry:
-		next, ok := p.countResend(key, r, now.UnixMilli())
-		if !ok {
-			p.logf("Chief of Staff %s に続きを打たない（控えを書けない。次の見回りで）", cos)
-			return
-		}
-		r = next
-		if p.retryIfEmpty(cos, c) {
-			p.logf("Chief of Staff %s に続きを打った（提供元に切られた、%d 回目）", cos, r.N)
-		} else {
-			p.logf("Chief of Staff %s に続きを打たなかった（入力欄が空と確かめられない・送れない。%d 回目に数える）", cos, r.N)
-		}
-	case v.Key == "retry-out" && !p.st.Sent[key+"|retry-out"]:
-		p.st.Sent[key+"|retry-out"] = true
-		p.logf("Chief of Staff %s は提供元に %d 回続けて切られた。もう打たない（人が Herdr App の error で気づく）", cos, len(retryAfter)+1)
+	text := c.Status.Msg
+	if text == "" {
+		out, _ := hcOut("read", cos, "--lines", "40")
+		text = ScreenCut(out)
 	}
-}
-
-// retryIfEmpty は Chief of Staff に続きを打つ。入力欄 → 状態の順に読み直し、同じ error のまま入力欄が空のときだけ打つ
-// （人が打ちかけていれば、それに続けて送ってしまうので。§4.4 の inputEmpty。罫線の無い入力欄〈Codex〉は空と確かめられないので打たない）。
-func (p *project) retryIfEmpty(cos string, c *terminal) bool {
-	if !inputEmpty(cos) {
-		return false
+	if !ProviderError(text) {
+		return
 	}
-	if c2, err := hcGet(cos); err != nil || c2.Status.State != "error" || c2.StatusMs != c.StatusMs || c2.Turn != c.Turn {
-		return false
-	}
-	return p.retry(cos)
+	p.st.Sent[key+"|cut"] = true
+	p.logf("Chief of Staff %s は提供元に切られて止まった。続きは打たない（人が Herdr App の error で気づく）", cos)
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
@@ -651,7 +621,7 @@ func (p *project) seen(agent string) (Seen, bool) {
 	return Seen{Status: t.Status.State, Msg: t.Status.Msg, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false", Turn: t.Turn}, true
 }
 
-// retry は端末に続きを打つ。担当は人が打つ端末ではないので離席の守りは要らない。Chief of Staff は retryIfEmpty を通して打つ。
+// retry は担当・レビュアーの端末に続きを打つ（人が打つ端末ではない）。Chief of Staff には打たない（chiefCut）。
 func (p *project) retry(agent string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/worker.yaml`](../../process/states/worker.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §2.3・§2.4・§2.9（止まった担当の自動 resume）・§5（最初のメッセージの送り直し）・ADR-0017 決めたこと 4 の (2)・5・ADR-0012 決めたこと 4。hc の状態（idle・working・blocked・error・done・無い）の上に dispatcher が置く判定。担当・レビュアーの端末（Chief of Staff の「続けて」は控えの Retry の :cos の鍵で同じ形）
+出所: dispatcher.md §2.3・§2.4・§2.9（止まった担当の自動 resume）・§5（最初のメッセージの送り直し）・ADR-0017 決めたこと 4 の (2)・5・ADR-0012 決めたこと 4。hc の状態（idle・working・blocked・error・done・無い）の上に dispatcher が置く判定。担当・レビュアーの端末（Chief of Staff には「続けて」を打たない。dispatcher.md §2.4）
 
 ## 図
 
