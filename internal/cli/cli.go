@@ -22,6 +22,7 @@ import (
 	"andon/internal/measure"
 	"andon/internal/open"
 	"andon/internal/plantinit"
+	"andon/internal/process"
 	"andon/internal/publish"
 	"andon/internal/signal"
 	"andon/internal/triage"
@@ -102,6 +103,12 @@ var commands = []command{
 		about: "台帳と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
 		usage: measure.Usage,
 		run:   measure.Main,
+	},
+	{
+		name:  "process",
+		about: "流れと状態の定義（process/ の YAML）から人が読む docs/process/<名>.md を作る（render）",
+		usage: process.Usage,
+		run:   process.Main,
 	},
 	{
 		name:  "boot",
