@@ -23,6 +23,7 @@ type Item struct {
 	Repo    string `json:"repo"`
 	Text    string `json:"text"`
 	AgeDays int64  `json:"age_days"`
+	path    string // kind: memory の項目のファイル（apply が消す）
 }
 
 // ledgerIssue は台帳の CLI の list --json の1件のうち、ここが読むキー。
@@ -130,6 +131,15 @@ func (l *ledger) collect() ([]Item, error) {
 		}
 		for _, ln := range reportLines(body) {
 			emit(ln.kind, ln.text)
+		}
+	}
+	mem, err := l.memoryItems()
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range mem {
+		if _, dup := byKey[it.Key]; !seen[it.Key] && !dup {
+			byKey[it.Key] = it
 		}
 	}
 	items := make([]Item, 0, len(byKey))

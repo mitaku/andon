@@ -9,6 +9,8 @@ trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/kanban.sh"
 script=$andon
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
+# auto memory の置き場（<ANDON_WORKSPACE>/memory）は、memory の節まで作らない（無くても collect は落ちない）。
+export ANDON_WORKSPACE="$tmp/ws"
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET KANBAN_ROOT
 mkdir -p "$HOME" "$tmp/demo" "$tmp/bin"
 # Optional terminal inventory is empty; gh is a tripwire.
@@ -132,4 +134,38 @@ jq '{goal:"戻す",collected,items:[(.items[]|select(.decision=="bundle"))][0:1]
 "$script" triage apply "$revisit" --dry-run > "$tmp/revisit"
 jq -e '.items[0].text != "spoofed text"' "$tmp/revisit" >/dev/null
 echo 'ok recorded key can be revisited; decisions text is not trusted'
+# kind: memory（ADR-0020）。置き場の直下の .md が1件1項目。目録（MEMORY.md）は項目にしない。
+mem=$ANDON_WORKSPACE/memory
+mkdir -p "$mem"
+"$script" triage collect --limit 100 > "$tmp/mem0"
+jq -e 'all(.[]; .kind != "memory")' "$tmp/mem0" >/dev/null
+echo 'ok memory: empty folder gives no items'
+printf -- '---\nname: a\n---\nテストは go test で回す。\n' > "$mem/feedback_a.md"
+printf -- 'b の注意。理由: 古い\n' > "$mem/project_b.md"
+printf -- 'c は次回\n' > "$mem/note c.md"
+printf -- '- [A](feedback_a.md) — a\n- [C](note c.md) — c\n- [X](other.md) — x\n' > "$mem/MEMORY.md"
+"$script" triage collect --limit 100 > "$tmp/mem1"
+jq -e '[.[]|select(.kind=="memory")] | length==3 and (map(.key)|unique|length)==3 and all(.text|length>0) and all(.repo=="")' "$tmp/mem1" >/dev/null
+jq -e '[.[]|select(.kind=="memory").from]|sort == ["feedback_a","note-c","project_b"]' "$tmp/mem1" >/dev/null
+jq -e --arg t "$(cat "$mem/feedback_a.md")" '[.[]|select(.from=="feedback_a")][0].text == ($t+"\n")' "$tmp/mem1" >/dev/null
+jq -e 'all(.[]; .text|contains("[A](feedback_a.md)")|not)' "$tmp/mem1" >/dev/null
+echo 'ok memory: one item per file, text is the body, index is not an item'
+distill=$(kanban add distill)
+mkdir -p "kanban/issues/$distill/library"
+jq '{goal:"memory",collected:"2026-11-11T00:00:00Z",items:
+  [(.[]|select(.from=="feedback_a")|{key,decision:"close",reason:"済み: AGENTS.md にある"}),
+   (.[]|select(.from=="project_b")|{key,decision:"close",reason:"理由が当てはまらない"}),
+   (.[]|select(.from=="note-c")|{key,decision:"keep",reason:"待つ: T-1"})]}' "$tmp/mem1" > "kanban/issues/$distill/library/decisions.json"
+"$script" triage apply "$distill" --dry-run >/dev/null
+[[ -f $mem/feedback_a.md && -f $mem/project_b.md ]]
+echo 'ok memory: dry-run keeps files'
+"$script" triage apply "$distill" >/dev/null
+[[ ! -e $mem/feedback_a.md && ! -e $mem/project_b.md && -f "$mem/note c.md" ]]
+[[ $(cat "$mem/MEMORY.md") == $'- [C](note c.md) — c\n- [X](other.md) — x' ]]
+rec=$(ls kanban/library/triage/*-"$distill".json)
+jq -e '[.items[]|select(.decision=="close")] | length==2 and all(.text|length>0) and all(.reason|length>0)' "$rec" >/dev/null
+jq -e '[.items[]|select(.decision=="close").text]|any(contains("テストは go test で回す。"))' "$rec" >/dev/null
+"$script" triage collect --limit 100 > "$tmp/mem2"
+jq -e '[.[]|select(.kind=="memory").from] == ["note-c"]' "$tmp/mem2" >/dev/null
+echo 'ok memory: apply removes sorted files and index lines (missing line is fine), keep stays, record has body and reason'
 echo 'all passed'
