@@ -388,7 +388,6 @@ func (p *project) watch(now time.Time) {
 		}
 	}
 	sent, retry, first, mv := map[string]bool{}, map[string]Resend{}, map[string]bool{}, map[string]Moved{}
-	worked := map[string]bool{} // resume で起こした端末が働き始めた課題（控えの Resumed から消す）
 	for _, t := range p.tasks {
 		id, agent := t.Str("id"), t.Str("agent")
 		if t.Str("status") != "doing" || t.Str("who") == "person" || agent == "" {
@@ -424,7 +423,7 @@ func (p *project) watch(now time.Time) {
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
 		if rs, had := p.st.Resumed[id]; had && !s.Gone && rs.Agent == agent && s.Turn >= 1 {
-			worked[id] = true
+			p.worked(id) // 起こした端末が働き始めた。控えを消してその場で保存する
 		}
 		if s.Status == "working" && !s.Gone {
 			prev, had := p.st.Moved[rk]
@@ -476,7 +475,7 @@ func (p *project) watch(now time.Time) {
 		}
 	}
 	p.st.Sent, p.st.Retry, p.st.First, p.st.Moved = sent, retry, first, mv
-	p.keepResumed(worked)
+	p.keepResumed()
 }
 
 // countResend は打つ前に、回数と時刻を1つ進めた控えを保存する（打ってから pass の最後の保存の前に dispatcher が落ちても、

@@ -68,15 +68,30 @@ func (p *project) resumeGone(t ledger.Issue, agent string) bool {
 	}
 	p.st.Resumed[id] = Resumed{From: agent, Agent: next}
 	p.notify(id, "resumed", map[string]any{"agent": next, "from": agent})
+	// 起こした端末もその場で保存する（巡の最後の保存の前に落ちて、起こした端末が働かずに死んでも二度打たない）
+	if err := p.st.Save(p.l.Slug); err != nil {
+		p.logf("%s の resume の控えを保存できない（巡の最後にもう一度保存する）: %v", id, err)
+	}
 	p.logf("%s の担当 %s は Gone。resume して %s で起こした", id, agent, next)
 	return true
 }
 
-// keepResumed は見回りの終わりに控えの Resumed を整える: doing でなくなった課題の分を捨て、
-// 起こした端末が働き始めた（worked）課題の分を消す。
-func (p *project) keepResumed(worked map[string]bool) {
+// worked は resume で起こした端末が働き始めた（turn ≥ 1）課題 id の控えを消し、その場で保存する
+// （巡の最後の保存の前に dispatcher が落ちても〈起き直しでは担当と一緒に落ちる〉、次に死んだときまた1回打てるように）。
+// 保存できなければ控えを戻し、次の見回りでもう一度消す。
+func (p *project) worked(id string) {
+	prev := p.st.Resumed[id]
+	delete(p.st.Resumed, id)
+	if err := p.st.Save(p.l.Slug); err != nil {
+		p.st.Resumed[id] = prev
+		p.logf("%s の resume の控えを消せない（次の見回りで）: %v", id, err)
+	}
+}
+
+// keepResumed は見回りの終わりに、控えの Resumed から doing でなくなった課題の分を捨てる。
+func (p *project) keepResumed() {
 	for id := range p.st.Resumed {
-		if worked[id] || p.status(id) != "doing" {
+		if p.status(id) != "doing" {
 			delete(p.st.Resumed, id)
 		}
 	}

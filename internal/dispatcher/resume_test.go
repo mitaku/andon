@@ -169,6 +169,9 @@ func TestResumeOnceThenFinished(t *testing.T) {
 	if r := f.p.st.Resumed["S-7"]; r != (Resumed{From: "t42", Agent: "t43"}) {
 		t.Fatalf("控え: %+v", r)
 	}
+	if saved, _, err := LoadState(f.p.l.Slug); err != nil || saved.Resumed["S-7"] != (Resumed{From: "t42", Agent: "t43"}) {
+		t.Fatalf("起こした端末をその場で保存していない: %+v %v", saved, err)
+	}
 	// 起こした端末が live で turn 0（まだ働いていない）: 控えは残る
 	f.agent("t43")
 	f.live("t43", 0)
@@ -201,6 +204,14 @@ func TestResumeAgainAfterWork(t *testing.T) {
 	f.round()
 	if _, ok := f.p.st.Resumed["S-7"]; ok {
 		t.Fatal("働き始めたのに控えを消さない")
+	}
+	// 消したことはその場で保存してある（巡の最後の保存の前に落ちても、次に死んだらまた打てる）
+	saved, _, err := LoadState(f.p.l.Slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := saved.Resumed["S-7"]; ok {
+		t.Fatal("働き始めて控えを消したことを保存していない")
 	}
 	os.Remove(filepath.Join(f.d, "t43.json"))
 	f.put("next", "t44")
