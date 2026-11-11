@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -174,6 +175,9 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	ensure() // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)
 	if err != nil {
+		if !context {
+			noteStop(slug, addr, self, in) // 渡した turn の終わりは控えの外に残す（lock を待たない。次の drain が確かめ済みにする）
+		}
 		return nil, err
 	}
 	defer unlock()
@@ -182,6 +186,15 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return nil, err
 	}
 	changed := false
+	// lock が取れなかった Stop で見た、渡した turn の終わり（noteStop）。同じ印にだけ当てる
+	if n, ok := takeStop(slug); ok {
+		if h := st.Hook; h != nil && reflect.DeepEqual(n.Hook, *h) {
+			if n.Acked {
+				st.countReplied("ack")
+			}
+			st.Hook, changed = nil, true
+		}
+	}
 	// 前にフックで渡した <news>。渡した turn が Stop で終わったら確かめ済み（ラベル news.ack が渡したときの turn と同じなら news.replied を書く。
 	// 答えの文は読まない。ADR-0010 決めたこと 5・6）。
 	// 終わりを見ないまま別の turn が来た（人が中断した・フックの出力が捨てられた）なら、まだ届けていない1回目の分だけ届け直す
@@ -252,6 +265,51 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return nil, nil
 	}
 	return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, nil
+}
+
+// stopNote は、控えの lock が取れなかった Stop が、フックで渡した <news>（Hook）の turn の終わりだったことの控え。
+// 見回りは lock を巡の終わりまで持つので、続きのターンの Stop が lock を諦めると、渡した印が残って
+// 次の送信で届け直していた（ADR-0019 決めたこと 7）。Hook を書くのは drain だけなので、lock の外で読んでよい。
+type stopNote struct {
+	Hook  HookNews `json:"hook"`  // 終わりを見た印（次の drain の Hook と同じときだけ確かめ済みにする）
+	Acked bool     `json:"acked"` // その turn に andon news ack があった（news.replied はもう書いた。数えるのは次の drain）
+}
+
+func stopPath(slug string) string { return StatePath(slug) + ".stop" }
+
+// noteStop は lock の外で控えを読み、Stop の入力 in が渡した turn の終わりなら控えに残す。落ちたら何もしない（届け直しになるだけ）。
+func noteStop(slug, addr string, self *terminal, in hookInput) {
+	st, _, err := LoadState(slug)
+	if err != nil || st.Hook == nil || !sameTurn(st.Hook, addr, in) {
+		return
+	}
+	n := stopNote{Hook: *st.Hook}
+	if acked(self, st.Hook.Turn, st.Hook.AckBefore) && label(addr, self.Turn) == nil {
+		n.Acked = true
+	}
+	b, err := json.Marshal(n)
+	if err != nil {
+		return
+	}
+	path := stopPath(slug)
+	if os.WriteFile(path+".tmp", b, 0o644) == nil {
+		os.Rename(path+".tmp", path)
+	}
+}
+
+// takeStop は noteStop の控えを取り出す（先に名前を替えるので、取り出したあとに書かれた控えは次の drain に残る）。
+func takeStop(slug string) (stopNote, bool) {
+	var n stopNote
+	path := stopPath(slug)
+	if os.Rename(path, path+".taken") != nil {
+		return n, false
+	}
+	b, err := os.ReadFile(path + ".taken")
+	os.Remove(path + ".taken")
+	if err != nil {
+		return n, false
+	}
+	return n, json.Unmarshal(b, &n) == nil
 }
 
 // ensure は dispatcher の端末を確かめる（dispatcher.Ensure）。落ちても drain は通す（stderr に1行。フックは捨てる）。
