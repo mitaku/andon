@@ -6,6 +6,7 @@
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
 #      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
 #      settings の deny が人のファイル（ADR-0005 決めたこと 4 の (c)）の書き換えを Edit(//workspace/…) で拒む。
+#      settings の deny が force-with-lease で main に当たる形を断り、自分の branch への形は allow のまま（当たる・当たらないの例）。
 #   5. statusline が JSON を読んで1行を出す。
 #   6. skill の機械向けの手順が command（andon issue …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 #   7. 課題（issue）への改名（ADR-0008 受け入れ条件 5）: glossary の項・欄名・skill と template に旧語が無い。
@@ -135,6 +136,44 @@ while IFS= read -r d; do
   jq -e --arg c "$cmd" '.permissions.allow | any(startswith("Bash(" + $c + " ") or startswith("Bash(" + $c + ")") or startswith("Bash(" + $c + ":"))' package/settings.json >/dev/null || bad="$bad [$d]"
 done < <(jq -r '.permissions.deny[] | select(startswith("Bash(")) | select(test("^Bash\\([^*]*:\\*\\)$") | not)' package/settings.json)
 [ -z "$bad" ] && pass "頭の線でない deny は allow の穴を塞ぐものだけ（Codex の rules に要らない）" || fail "頭の線でも allow の穴塞ぎでもない deny（Codex の rules にどう引くか決める）:$bad"
+# force-with-lease は自分の課題の branch だけに通し、main に当たる形は deny で断る（docs/decisions/2026-11-10-force-with-lease-own-branch-only.md）。
+# Claude Code の当て方を写す: 規則は命令の全体に当て、* は空を含む任意の文字列。末尾の「 *」が唯一の * なら、空白の無い素の命令にも当たる（:* も同じ）
+out=$(python3 - package/settings.json <<'EOF'
+import json, re, sys
+perm = json.load(open(sys.argv[1], encoding="utf-8"))["permissions"]
+def rules(kind):
+    return [r[5:-1] for r in perm[kind] if r.startswith("Bash(") and r.endswith(")")]
+def hit(rule, cmd):
+    if rule.endswith(":*"):
+        rule = rule[:-2] + " *"
+    if rule.endswith(" *") and rule.count("*") == 1 and cmd == rule[:-2]:
+        return True
+    return re.fullmatch(".*".join(re.escape(p) for p in rule.split("*")), cmd, re.S) is not None
+def verdict(cmd):
+    if any(hit(r, cmd) for r in rules("deny")):
+        return "deny"
+    return "allow" if any(hit(r, cmd) for r in rules("allow")) else "ask"
+cases = {
+    "allow": ["git push --force-with-lease", "git push --force-with-lease origin HEAD",
+              "git push --force-with-lease origin andon/A-0001-fix-main-page",
+              "git push --force-with-lease origin HEAD:andon/A-0001-maintenance"],
+    "deny": ["git push --force-with-lease origin main", "git push origin main --force-with-lease",
+             "git push --force-with-lease origin HEAD:main", "git push origin HEAD:main --force-with-lease",
+             "git push --force-with-lease origin andon/A-0001-x:main", "git push --force-with-lease origin +HEAD:main",
+             "git push --force-with-lease origin +main", "git push --force-with-lease origin refs/heads/main",
+             "git push --force-with-lease origin HEAD:refs/heads/main", "git push origin HEAD:refs/heads/main --force-with-lease",
+             "git push --force-with-lease=main:abc123 origin HEAD:main", "git push --force-with-lease origin main andon/A-0001-x",
+             "git push --force-with-lease --all origin", "git push --all --force-with-lease", "git push --mirror --force-with-lease origin"],
+}
+for want, cmds in cases.items():
+    for c in cmds:
+        got = verdict(c)
+        print(("ok   " if got == want else "FAIL ") + f"force-with-lease の許可ルール: {c} → {got}（期待 {want}）")
+EOF
+)
+while IFS= read -r l; do
+  case "$l" in "ok   "*) pass "${l#ok   }" ;; *) fail "${l#FAIL }" ;; esac
+done <<<"$out"
 # 人のファイル（ADR-0005 決めたこと 4 の (c)）への書き換えを deny する。今の Claude Code は Write・NotebookEdit・MultiEdit を Edit(path) の規則で引き、
 # Write(path) の規則は受け付けても当たらない。絶対パスは //（単独の / は設定の置き場からの相対）。Codex には同じ線を引けない（docs/image.md）
 for f in andon.toml AGENTS.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json'; do
