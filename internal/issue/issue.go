@@ -16,6 +16,7 @@
 //	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
+// 定義（process/states/issue.yaml）に無い移り方（今の status で打てないサブコマンド）は断る（transition.go）。
 // 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。start で最初のメッセージが届かなければ 3。impact で PR がまだ MERGED でなければ 4。
 package issue
 
@@ -91,6 +92,16 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon issue %s: id が不正: %q\n", sub, id)
 		return exitUsage
 	}
+	// guard は定義（process/states/issue.yaml）に無い移り方を、何かを書く前に断る（ADR-0017 決めたこと 15）。
+	// start は自分の確かめの順の中で見る（start.go。--dry-run の確かめの一覧に載せる）。
+	guard := func(f func(*ctx) error) func(*ctx) error {
+		return func(c *ctx) error {
+			if err := allowed(sub, c.id, c.issue.Str("status")); err != nil {
+				return err
+			}
+			return f(c)
+		}
+	}
 	var err error
 	switch sub {
 	case "show":
@@ -111,32 +122,32 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			}
 			rest = rest[2:]
 		}
-		err = withIssue(id, func(c *ctx) error { return c.report(stdin, stdout, pr, data) })
+		err = withIssue(id, guard(func(c *ctx) error { return c.report(stdin, stdout, pr, data) }))
 	case "review-request":
 		if len(rest) > 0 {
 			return usage()
 		}
-		err = withIssue(id, func(c *ctx) error { return c.reviewRequest(stdin, stdout) })
+		err = withIssue(id, guard(func(c *ctx) error { return c.reviewRequest(stdin, stdout) }))
 	case "ready":
 		if len(rest) > 0 {
 			return usage()
 		}
-		err = withIssue(id, func(c *ctx) error { return c.ready(stdout) })
+		err = withIssue(id, guard(func(c *ctx) error { return c.ready(stdout) }))
 	case "ask":
 		if len(rest) != 1 {
 			return usage()
 		}
-		err = withIssue(id, func(c *ctx) error { return c.ask(stdin, stdout, rest[0]) })
+		err = withIssue(id, guard(func(c *ctx) error { return c.ask(stdin, stdout, rest[0]) }))
 	case "candidates":
 		if len(rest) != 1 {
 			return usage()
 		}
-		err = withIssue(id, func(c *ctx) error { return c.candidates(stdin, stdout, rest[0]) })
+		err = withIssue(id, guard(func(c *ctx) error { return c.candidates(stdin, stdout, rest[0]) }))
 	case "finish":
 		if len(rest) > 0 {
 			return usage()
 		}
-		err = withLockedIssue(id, func(c *ctx) error { return c.finish(stdout) })
+		err = withLockedIssue(id, guard(func(c *ctx) error { return c.finish(stdout) }))
 	case "impact":
 		if len(rest) > 0 {
 			return usage()

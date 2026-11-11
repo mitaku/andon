@@ -9,6 +9,7 @@ COPY embed.go ./
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY init/ init/
+COPY process/states/issue.yaml process/states/issue.yaml
 # kanban --version に出す版（image/build.sh が commit の短い SHA を渡す）
 ARG ANDON_VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \

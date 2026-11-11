@@ -41,5 +41,5 @@ stateDiagram-v2
 | `starting` | `starting` | 起こしそこねた（fetch・hc run・信頼の画面。次の見回りで続きから） | 機械 |  |  |
 | `starting` | `started` | レビュアーを起こす（§7.2 #3） | 機械 | `hc run` | はい |
 | `started` | `fallback` | 使用量の上限で止まった（もう一方が担当と別ブランドのときだけ。1 回だけ） | 機械 | `hc run` |  |
-| `started` | （始まり・終わり） | レビュアーが報告を返した | AI | `kanban review` |  |
-| `fallback` | （始まり・終わり） | レビュアーが報告を返した | AI | `kanban review` |  |
+| `started` | （始まり・終わり） | レビュアーが報告を返した | 台帳の CLI | `kanban review` |  |
+| `fallback` | （始まり・終わり） | レビュアーが報告を返した | 台帳の CLI | `kanban review` |  |

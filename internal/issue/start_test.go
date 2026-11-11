@@ -268,7 +268,7 @@ type startRefusal struct {
 
 func startRefusals(t *testing.T) []startRefusal {
 	return []startRefusal{
-		{"not todo", "S-0007 は doing（起こせるのは todo だけ）", false, func(f *startFixture) { f.task["status"] = "doing" }},
+		{"not todo", "S-0007 は doing（andon issue start は todo の課題にだけ打てる。process/states/issue.yaml）", false, func(f *startFixture) { f.task["status"] = "doing" }},
 		{"queued", "S-0007 は queued", false, func(f *startFixture) { f.task["status"] = "queued" }},
 		{"started", "S-0007 は起こし済み", false, func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
 		{"machine", "machine=remote1（別のマシンで起こす）", false, func(f *startFixture) { f.task["machine"] = "remote1" }},

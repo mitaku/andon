@@ -7,3 +7,9 @@ import "embed"
 //
 //go:embed all:init
 var Init embed.FS
+
+// IssueStates は課題の状態の定義（process/states/issue.yaml。ADR-0017 決めたこと 15）。andon issue … が、
+// 定義に無い移り方を断るのに読む。
+//
+//go:embed process/states/issue.yaml
+var IssueStates []byte
