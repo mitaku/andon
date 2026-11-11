@@ -1,8 +1,9 @@
 // Package triage は台帳の溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・人に聞くこと、
-// 担当の無い todo、人の判断待ち、片付けの残り）を集め（collect）、仕分けの決定を台帳に当てる（apply）。
+// 担当の無い todo、人の判断待ち、片付けの残り）とセルの auto memory（<ANDON_WORKSPACE>/memory の1件1ファイル）を集め（collect）、
+// 仕分けの決定を台帳に当てる（apply）。
 //
 // collect は読むだけ。apply は判断を持たず、decisions.json を検査してから台帳の CLI を打つ。
-// 台帳を書くのは台帳の CLI（kanban）だけで、ここは record（library/triage/）だけを書く。
+// 台帳を書くのは台帳の CLI（kanban）だけで、ここは record（library/triage/）を書き、仕分けの済んだ memory のファイルと目録の行を消す。
 package triage
 
 import (
@@ -117,11 +118,12 @@ func (e limitError) Error() string { return fmt.Sprintf("over limit %d", e.limit
 
 // ledger は1つの台帳。kanban（メソッド）は台帳の CLI をこの台帳に向けて打つ。
 type ledger struct {
-	cli  string // 打つ台帳の CLI
-	root string // プロジェクトの根（kanban の親）
-	slug string
-	dir  string // <root>/kanban
-	now  time.Time
+	cli    string // 打つ台帳の CLI
+	root   string // プロジェクトの根（kanban の親）
+	slug   string
+	dir    string // <root>/kanban
+	memory string // auto memory の置き場（空なら拾わない）
+	now    time.Time
 }
 
 func openLedger() (*ledger, error) {
@@ -139,7 +141,7 @@ func openLedger() (*ledger, error) {
 		return nil, fail("台帳が見つからない")
 	}
 	root := strings.TrimRight(string(out), "\n")
-	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), now: time.Now()}
+	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: memoryDir(), now: time.Now()}
 	if !slugRe.MatchString(l.slug) {
 		return nil, fail("slug が不正")
 	}

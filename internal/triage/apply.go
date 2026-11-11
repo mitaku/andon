@@ -34,8 +34,12 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		return err
 	}
 	current := map[string]string{}
+	memoryPath := map[string]string{}
 	for _, it := range inventory {
 		current[it.Key] = it.Text
+		if it.path != "" {
+			memoryPath[it.Key] = it.path
+		}
 	}
 	var historical []item
 	for _, r := range records {
@@ -97,6 +101,14 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		if err := save(); err != nil {
 			return err
 		}
+		// 本文と理由を記録に残してから、仕分けの済んだ memory を消す（ADR-0020 決めたこと 5）。keep は残す。
+		for _, it := range g {
+			if p := memoryPath[it.key()]; p != "" && it.decision() != "keep" {
+				if err := removeMemory(p); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	md := summary(l.slug, date, result["goal"], done)
 	if err := os.WriteFile(base+".md", []byte(md), 0o644); err != nil {
@@ -135,6 +147,9 @@ func sourceText(key string, inventory []Item, historical []item) any {
 func (l *ledger) preflight(id string, items []item) error {
 	var sources []string
 	for _, it := range items {
+		if it.keyPart(2) == "memory" { // 出どころは課題でなく memory のファイル
+			continue
+		}
 		sources = append(sources, it.keyPart(1))
 	}
 	slices.Sort(sources)
