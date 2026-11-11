@@ -1,13 +1,13 @@
 // Context header: a pane's header that says which work this is and what it waits for.
 //   { "tab": "active", "pane": { "header": { "content": { "mod": "context-header" }, "height": 46 } } }
 // Line 1: the program's icon, the name (a named tab, else the agent's own title), the status,
-// how long it has been in it, and the settled mark. Line 2: machine · space · tab · branch · folder,
+// how long it has been in it. Line 2: machine · space · tab · branch · folder,
 // or, while blocked, what the agent asks. Hovering shows split, zoom and close for this pane.
 // Props from the app: { pane, terminal }. Click: focus the pane. Nothing is written.
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { panes, terminals, spaces, props, run, theme, home, hc, notify } from "herdr";
+import { panes, terminals, spaces, props, run, theme, home } from "herdr";
 import { displayName } from "./name.js";
 
 const CHROME = "mods/workspace-chrome";
@@ -85,8 +85,6 @@ export default class ContextHeader extends View {
       since: term.status_ms ?? tab?.changed_at ?? null,
       kind: p.status === "blocked" ? KIND[report.kind] ?? null : null,
       msg: p.status === "blocked" ? short(report.msg) : "",
-      settled: Boolean(term.labels?.settled),
-      turn: term.turn ?? 0,
       kids: kids.length,
       where: [machine ?? "This computer", space?.name, tabName].filter((x) => x && x !== name),
       branch: p.branch && p.branch !== "main" && p.branch !== "master" ? p.branch : null,
@@ -102,22 +100,6 @@ export default class ContextHeader extends View {
         run(command, args);
       })
       .child(svg(`mods/pane/${name}.svg`).size(14));
-  }
-
-  // Settles this pane's agent: the same `settled=<ms>:<turn>` label inbox writes
-  // (ctrl-shift-d there also opens the next one; this button only settles).
-  settleButton(t, f) {
-    return div().id(`ch-s-${f.p.pane}`).p(3).rounded(4).text_color(t.dim)
-      .hover((s) => s.bg(t.hover).text_color(t.foreground))
-      .tooltip("Settle (ctrl-shift-d)")
-      .on_click((_e, cx) => {
-        cx.stop_propagation();
-        cx.spawn(async () => {
-          const r = await hc(["label", f.p.terminal, `settled=${Date.now()}:${f.turn}`]).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
-          if (r.code !== 0) notify({ title: "Couldn't settle", body: `${f.p.terminal}: ${(r.stderr || r.stdout || "").trim()}`, level: "error" });
-        });
-      })
-      .child(svg(`${CHROME}/check.svg`).size(14));
   }
 
   mark(t, f) {
@@ -157,10 +139,8 @@ export default class ContextHeader extends View {
         .when(Boolean(pic), (el) => el.child(pic))
         .child(div().flex_1().min_w(0).truncate().font_medium().text_color(t.foreground).child(f.name))
         .when(f.kids > 0, (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(`${f.kids} sub-agent${f.kids > 1 ? "s" : ""}`)))
-        .when(f.settled && f.status !== "blocked" && f.status !== "working", (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child("settled")))
         .when(Boolean(f.since) && f.agent, (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(duration(Date.now() - f.since))))
         .when(Boolean(mark), (el) => el.child(mark))
-        .when(this.hovered && f.agent && !f.settled, (el) => el.child(this.settleButton(t, f)))
         .when(this.hovered, (el) => el
           .child(this.button(t, `ch-r-${pane}`, "split-right", "pane.split", { direction: "right", pane }))
           .child(this.button(t, `ch-d-${pane}`, "split-down", "pane.split", { direction: "down", pane }))
