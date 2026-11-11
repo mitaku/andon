@@ -55,12 +55,13 @@ func (p *project) fallback(t ledger.Issue, agent string) bool {
 		p.logf("%s の profile を替えられない（端末 %s は片付けた。次の見回りで finished として知らせる）: %v", rev, agent, err)
 		return false
 	}
-	started, err := p.runReviewer(parent, rev, t.Str("title"), to)
+	started, session, err := p.runReviewer(parent, rev, t.Str("title"), to)
 	if err != nil {
 		p.logf("%s のレビュアーを %s で起こせない（次の見回りで finished として知らせる）: %v", rev, to, err)
 		return false
 	}
-	if _, err := p.l.Run("", "set", rev, "agent="+started.Address); err != nil {
+	// session は新しい端末のもの（Codex 系は空にして消す。resume が記録から引く）
+	if _, err := p.l.Run("", "set", rev, "agent="+started.Address, "session="+session); err != nil {
 		// 台帳が新しい端末を指さなければ見回りが追えない。起こした端末を片付け、課題は止まった端末を指したまま
 		// （次の見回りで端末が無い〈finished〉として Chief of Staff に知らせる）
 		for _, args := range [][]string{{"kill", started.Address}, {"rm", started.Address}} {

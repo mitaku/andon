@@ -80,6 +80,11 @@
    4. 素のシェルの端末は、起動する前に片付ける（13 の 2 の「旧の素のシェルを片付けるのも届いた後」を改める）。
       理由: hc の名前は live の端末の中で1つで、素のシェルで戻った端末は live のまま同じ名前を持つ。中身はシェルだけで失うものは無く、台帳は今どおり届いてから書く（届かなければ起動した端末も片付け、台帳は変えない）。
    5. resume は repo の無い課題（cwd `issues/<id>/`）も起動する（worktree は戻さない）。Chief Engineer のラベルは `andon chief-engineer` と同じもの（`chiefengineer.Labels`）。
+15. **2026-11-10 実装で決めた細部**（R3 の担当 A-0039。推奨案で進めた。戻すなら一言）:
+   1. レビュアーの戻す commit は、dispatcher が依頼書に書く「対象: worktree `…`（detached）。commit <sha>。」の行から読む（13 の 5）。同じ依頼書の「再レビュー: 前の回の commit <sha>。」は読まない。行が無ければ止まる。
+   2. あれば触らない確かめは「その repo の detached の worktree として登録されていること」だけ（HEAD が依頼書の commit かは見ない。レビュアーが自分で checkout を動かすことは無く、動いていても消さないほうを取る）。無ければ commit がその repo にあることを確かめて `--detach` で戻す（fetch はしない。dispatcher が起こすときに fetch した object は clone に残る）。
+   3. レビュアーのラベルは `project`・`issue`・`title` と、元の課題の担当の Space・tab（`herdr.space`・`herdr.tab` = `andon-<slug>-<元の id>`。`andon issue start` が担当に付ける値）。dispatcher のように担当の端末から写さない（起き直しでは担当の端末も死んでいて読めない）。
+   4. Claude 系のレビュアー（`claude-review`）にもセッションの id を渡す: dispatcher がレビュアーを起こすとき（使用量の上限で起こし直すときも）ラベル `session=<id>` を付けて台帳の `session` に書く（Codex 系へ起こし直すときは消す）。`claude-review`・`codex-review` の template に `resume:` を足す（受け入れ条件 3 をレビュアーでも成り立たせるため。dispatcher の自動〈R4〉には触らない）。
 
 ## やらないこと（範囲の外。理由）
 

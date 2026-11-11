@@ -301,7 +301,7 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		r.Address = "" // 端末が無くなった: 起こし直す
 	}
 	if r.Address == "" {
-		started, err := p.runReviewer(t, rev, title, s.Reviewer)
+		started, session, err := p.runReviewer(t, rev, title, s.Reviewer)
 		if err != nil {
 			return fmt.Sprintf("hc run に失敗（%s は todo のまま。次の見回りで起こし直す）: %v", rev, err), false
 		}
@@ -309,6 +309,11 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		serr := p.startLedger(rev, r.Address, r.Worktree)
 		if serr != nil {
 			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, serr)
+		}
+		if session != "" {
+			if _, err := p.l.Run("", "set", rev, "session="+session); err != nil {
+				p.logf("%s の台帳に session=%s を書けない（resume するには手で書く）: %v", rev, session, err)
+			}
 		}
 		if started.First.Delivered() {
 			return "", false
@@ -341,19 +346,24 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 
 // runReviewer はレビュアーの課題 rev の端末を profile で起こす（hc run。名前は <slug>-<rev>、cwd は issues/<rev>/、最初のメッセージは reviewerFirst）。
 // t は元の課題（担当の端末と同じ Space・tab に並べる）。startReviewer と、使用量の上限で起こし直す fallback が使う。
-func (p *project) runReviewer(t ledger.Issue, rev, title, profile string) (spawn.Started, error) {
+// Claude 系はセッションの id を決めてラベル session で渡し（template の command が読む）、session に返す。呼び手が台帳の session に書く
+// （andon issue resume が続きから起こす。ADR-0012 決めたこと 8・11）。Codex 系は空（resume のときに記録から引く）。
+func (p *project) runReviewer(t ledger.Issue, rev, title, profile string) (started spawn.Started, session string, err error) {
 	// --no-notify: 止まった・終わったは dispatcher が端末の土台から拾う（contract.md §8）
 	args := []string{"run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", strings.ToLower(p.l.Slug + "-" + rev),
 		"--label", "project=" + p.l.Slug, "--label", "issue=" + rev, "--label", "title=" + title}
 	for _, l := range workerPlace(t.Str("agent")) {
 		args = append(args, "--label", l)
 	}
+	if ledger.Brand(profile) == "claude" {
+		session = spawn.NewSession()
+		args = append(args, "--label", spawn.SessionLabel+"="+session)
+	}
 	out, _, err := run("", nil, "", "hc", append(args, "--cwd", filepath.Join(p.l.Dir, "issues", rev), profile, p.reviewerFirst(rev))...)
-	var started spawn.Started
 	if err == nil && (json.Unmarshal([]byte(out), &started) != nil || started.Address == "") {
 		err = fmt.Errorf("hc run の出力が読めない: %q", strings.TrimSpace(out))
 	}
-	return started, err
+	return started, session, err
 }
 
 // reviewerFirst はレビュアーの課題 rev の最初のメッセージ（起こすときと、届かなかったのを sendFirst が送り直すときで同じ文）。

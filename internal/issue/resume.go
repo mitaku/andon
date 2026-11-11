@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -35,7 +36,9 @@ type resumePlan struct {
 	Repo         string       `json:"repo,omitempty"`
 	Worktree     string       `json:"worktree,omitempty"`
 	Branch       string       `json:"branch,omitempty"`
-	Restore      string       `json:"restore,omitempty"` // add（git worktree add で戻す）・keep（あるので触らない）
+	Commit       string       `json:"commit,omitempty"`   // レビュアー: detached worktree を戻す commit（依頼書の commit <sha>）
+	Reviewer     bool         `json:"reviewer,omitempty"` // profile *-review の子課題（cwd issues/<rev>/。ADR-0012 決めたこと 8）
+	Restore      string       `json:"restore,omitempty"`  // add（git worktree add で戻す）・keep（あるので触らない）
 	Session      string       `json:"session,omitempty"`
 	FirstMessage string       `json:"first_message"`
 	BriefPath    string       `json:"brief_path"`
@@ -85,10 +88,14 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 		if err := mk(p.Worktree); err != nil {
 			return fail("worktree の置き場を作れない: %v", err)
 		}
-		if _, err := git(p.repoDir, "worktree", "add", "-q", p.Worktree, p.Branch); err != nil {
+		add, at := []string{"worktree", "add", "-q", p.Worktree, p.Branch}, "branch "+p.Branch
+		if p.Reviewer {
+			add, at = []string{"worktree", "add", "-q", "--detach", p.Worktree, p.Commit}, "commit "+p.Commit+"（detached）"
+		}
+		if _, err := git(p.repoDir, add...); err != nil {
 			return fail("worktree を戻せない: %v。台帳は変えていない", err)
 		}
-		fmt.Fprintf(stdout, "andon issue: worktree %s を branch %s で戻した\n", p.Worktree, p.Branch)
+		fmt.Fprintf(stdout, "andon issue: worktree %s を %s で戻した\n", p.Worktree, at)
 	}
 
 	if err := boot.TrustFromOS(io.Discard); err != nil {
@@ -168,7 +175,11 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	case !profileRe.MatchString(p.Profile):
 		return nil, fail("profile が不正: '%s'", p.Profile)
 	case strings.HasSuffix(p.Profile, "-review"):
-		return nil, fail("%s はレビュアー（profile %s）。andon issue resume はまだ扱わない", id, p.Profile)
+		// レビュアー: 元の課題（parent）の子。detached worktree を依頼書の commit で戻し、cwd issues/<rev>/ で起こす（ADR-0012 決めたこと 8・13 の 5）
+		if c.issue.Str("parent") == "" {
+			return nil, fail("%s は profile %s だが parent が無い（dispatcher が起こしたレビュアーでない）", id, p.Profile)
+		}
+		p.Reviewer = true
 	}
 	p.BriefPath = filepath.Join(c.l.Dir, "issues", id, "brief.md")
 	if b, err := os.ReadFile(p.BriefPath); err != nil || len(b) == 0 {
@@ -208,10 +219,16 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 			return nil, err
 		}
 		p.Repo, p.repoDir = repo, repoDir
-		if err := c.restorePlan(p); err != nil {
-			return nil, err
+		if p.Reviewer {
+			if err := c.reviewerRestorePlan(p); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := c.restorePlan(p); err != nil {
+				return nil, err
+			}
+			p.Cwd = p.Worktree
 		}
-		p.Cwd = p.Worktree
 	}
 
 	// セッション
@@ -257,9 +274,12 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		return nil, fail("template %s が無い（andon boot が resume: の行から作る。templates.local のプロファイルに resume: が無ければ --fresh で起こす）", p.Template)
 	}
 
-	if p.Profile == chiefengineer.Profile {
+	switch {
+	case p.Profile == chiefengineer.Profile:
 		p.Labels = chiefengineer.Labels(slug, id, p.Title)
-	} else {
+	case p.Reviewer:
+		p.Labels = ReviewerLabels(slug, id, p.Title, c.issue.Str("parent"))
+	default:
 		p.Labels = workLabels(slug, id, p.Title)
 	}
 	if p.Session != "" {
@@ -316,6 +336,63 @@ func (c *ctx) restorePlan(p *resumePlan) error {
 	return nil
 }
 
+// ReviewerLabels はレビュアーの端末のラベル: 自分の課題と、元の課題の担当の Space・tab（dispatcher の runReviewer が担当の端末から写すのと同じ値。
+// 担当の端末は andon issue start の workLabels で andon-<slug>-<元の id>）。
+func ReviewerLabels(slug, id, title, parent string) []string {
+	return []string{"project=" + slug, "issue=" + id, "title=" + title,
+		"herdr.space=andon-" + slug + "-" + parent, "herdr.tab=andon-" + slug + "-" + parent}
+}
+
+// reviewCommitRe は dispatcher がレビュアーの依頼書に書く対象の行（「対象: worktree `…`（detached）。commit <sha>。」）の commit。
+var reviewCommitRe = regexp.MustCompile(`(?m)^対象: .*?commit ([0-9a-f]{40})。`)
+
+// reviewerRestorePlan はレビュアーの detached worktree を戻す手を決める（ADR-0012 決めたこと 8・13 の 5）。
+// 戻す commit は親の review_request.commit でなく、そのレビュアーの依頼書の commit（回がずれない）。パスは台帳の値をそのまま使うが、
+// dispatcher がこの課題に作る置き場（今か旧の置き場の <repo 名>/<slug>-<rev>）でなければ止まる。
+// あれば detached の worktree であることだけ確かめて触らない。cwd は issues/<rev>/（台帳の Dir の下。worktree ではない）。
+func (c *ctx) reviewerRestorePlan(p *resumePlan) error {
+	slug, id := c.l.Slug, c.id
+	b, _ := os.ReadFile(p.BriefPath)
+	m := reviewCommitRe.FindSubmatch(b)
+	if m == nil {
+		return fail("%s の依頼書に対象の commit（「対象: … commit <40桁の sha>。」の行）が無い", id)
+	}
+	p.Commit = string(m[1])
+	p.Worktree = c.issue.Path("worktree")
+	if p.Worktree == "" {
+		return fail("%s の台帳に worktree が無い", id)
+	}
+	ok := false
+	for _, home := range worktreeHomes() {
+		if p.Worktree == filepath.Join(home, filepath.Base(p.repoDir), slug+"-"+id) {
+			ok = true
+		}
+	}
+	if !ok {
+		return fail("%s の worktree が置き場（%s）でない: %s", id, spawn.WorktreePath(p.repoDir, slug, id), p.Worktree)
+	}
+	fi, err := os.Lstat(p.Worktree)
+	switch {
+	case err == nil && fi.Mode()&os.ModeSymlink != 0:
+		return fail("%s の worktree が symlink: %s", id, p.Worktree)
+	case err == nil:
+		if !Pair(p.repoDir, p.Worktree, "detached") {
+			return fail("%s は %s の detached の worktree でない。触らない", p.Worktree, p.repoDir)
+		}
+		p.Restore = "keep"
+		p.check("worktree", "ok", "%s はある（触らない）", p.Worktree)
+	case os.IsNotExist(err):
+		if _, err := git(p.repoDir, "cat-file", "-e", p.Commit+"^{commit}"); err != nil {
+			return fail("worktree %s が無く、commit %s も %s に無い（戻せない）", p.Worktree, p.Commit, p.repoDir)
+		}
+		p.Restore = "add"
+		p.check("worktree", "ok", "%s が無い。git worktree add --detach で commit %s から戻す", p.Worktree, p.Commit)
+	default:
+		return fail("worktree を読めない: %v", err)
+	}
+	return nil
+}
+
 // print は --dry-run の人向けの出力。
 func (p *resumePlan) print(w io.Writer) {
 	fmt.Fprintf(w, "andon issue: %s を起こし直す乾いた実行（hc run を打たず、worktree・端末を作らず台帳も書かない）\n", p.ID)
@@ -333,6 +410,7 @@ func (p *resumePlan) print(w io.Writer) {
 	row("repo", p.Repo)
 	row("worktree", strings.TrimSpace(p.Worktree+" "+map[string]string{"add": "（戻す）", "keep": "（ある）"}[p.Restore]))
 	row("branch", p.Branch)
+	row("commit", p.Commit)
 	row("session", p.Session)
 	fmt.Fprintln(w, "ラベル:")
 	for _, l := range p.Labels {
