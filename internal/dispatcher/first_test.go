@@ -71,7 +71,7 @@ func (f *firstFixture) rm(name string) { os.Remove(filepath.Join(f.d, name)) }
 func (f *firstFixture) round() []string {
 	f.t.Helper()
 	f.rm("log")
-	f.p.watch(time.Now())
+	f.p.watch(time.Now(), "")
 	b, _ := os.ReadFile(filepath.Join(f.d, "log"))
 	if s := strings.TrimSpace(string(b)); s != "" {
 		return strings.Split(s, "\n")

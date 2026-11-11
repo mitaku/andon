@@ -83,7 +83,7 @@ func (f *retryFixture) at(m time.Duration, cos string) []string {
 	f.t.Helper()
 	os.Remove(filepath.Join(f.d, "log"))
 	now := f.t0.Add(m)
-	f.p.watch(now)
+	f.p.watch(now, cos)
 	if cos != "" {
 		f.p.chiefCut(cos)
 	}
@@ -339,6 +339,18 @@ func TestChiefCut(t *testing.T) {
 	f.term("t1", "error", "API Error: 401 unauthorized · Please run /login", 0, false)
 	if got := f.at(time.Hour, "t1"); got != nil || logged() != 0 {
 		t.Fatalf("提供元でない error で打った・ログに書いた: %q %s", got, f.log.String())
+	}
+	// Chief of Staff の端末が doing の課題の agent でも、担当の見回り（watch）から「続けて」を打たない
+	f = newRetry(t)
+	f.p.tasks = []ledger.Issue{{"id": "S-8", "status": "doing", "agent": "t1"}}
+	f.term("t1", "error", cutMsg, 0, false)
+	for _, m := range []time.Duration{0, time.Minute, 3 * time.Minute, 7 * time.Minute, 15 * time.Minute, time.Hour} {
+		if got := f.at(m, "t1"); got != nil {
+			t.Fatalf("%v: 課題の agent になった Chief of Staff に打った: %q", m, got)
+		}
+	}
+	if logged() != 1 || len(f.p.st.Pending) != 0 {
+		t.Fatalf("課題の agent になった Chief of Staff のログ・通知: %s %q", f.log.String(), f.kinds())
 	}
 	// 初めて見る台帳では書かない
 	f = newRetry(t)

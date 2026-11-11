@@ -61,7 +61,7 @@ func (p *project) collect(cos string) {
 	p.readReady()
 	p.readLog(cos)
 	now := time.Now()
-	p.watch(now)
+	p.watch(now, cos)
 	p.chiefCut(cos)
 }
 
@@ -379,7 +379,7 @@ func moved(prev Moved, had bool, msg string, screen func() (string, error), nowM
 }
 
 // watch は doing の課題の担当を端末の土台で見る（見回りで hc get）。
-func (p *project) watch(now time.Time) {
+func (p *project) watch(now time.Time, cos string) {
 	nowMs := now.UnixMilli()
 	reviewing := map[string]bool{}
 	for _, t := range p.tasks {
@@ -392,6 +392,9 @@ func (p *project) watch(now time.Time) {
 		id, agent := t.Str("id"), t.Str("agent")
 		if t.Str("status") != "doing" || t.Str("who") == "person" || agent == "" {
 			continue
+		}
+		if agent == cos {
+			continue // Chief of Staff の端末は人が打つので、担当として見ない（打たない。chiefCut が見る。ADR-0019 決めたこと 4）
 		}
 		if !idRe.MatchString(id) || !agentRe.MatchString(agent) {
 			continue

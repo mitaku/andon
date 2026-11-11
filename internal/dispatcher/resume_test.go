@@ -96,7 +96,7 @@ func (f *resumeFixture) live(addr string, turn int) {
 func (f *resumeFixture) round() []string {
 	f.t.Helper()
 	os.Remove(filepath.Join(f.d, "andon"))
-	f.p.watch(time.Now())
+	f.p.watch(time.Now(), "")
 	b, _ := os.ReadFile(filepath.Join(f.d, "andon"))
 	if s := strings.TrimSpace(string(b)); s != "" {
 		return strings.Split(s, "\n")
