@@ -135,7 +135,7 @@ flowchart LR
 
 - 人は決断だけする。実装・レビュー・ゲート・片付け・通知の仕分けは人の仕事ではない。
 - セルは増え、散らばる。手元（WSL）にも、クラウド常駐（PC を閉じても回る）にもある。どちらも**同じセルの repo・同じパッケージ・同じ bootstrap**。
-- セルの中の2段（指揮側／作業側）は、**マシンの境**にもできる。指揮側（人・Chief of Staff・dispatcher・ゲート・台帳・wiki）は1つのマシン、作業側（担当・レビュアー）は同じマシンでも別のマシンでもよい。台帳は指揮側に1つ。作業側からの入口は `andon issue …` の command に閉じ、別のマシンなら command が端末の土台（hc）越しに写す。人の Herdr App の画面でもこの2段で分ける（指揮側の Space と課題ごとの Space。[ADR-0002](adr/0002-herdr-spaces.md)・[ADR-0003](adr/0003-task-spaces.md)）。
+- セルの中の2段（指揮側／作業側）は、**マシンの境**にもできる。指揮側（人・Chief of Staff・dispatcher・ゲート・台帳・wiki〈形は [ADR-0016](adr/0016-cell-wiki-llm-wiki.md)〉）は1つのマシン、作業側（担当・レビュアー）は同じマシンでも別のマシンでもよい。台帳は指揮側に1つ。作業側からの入口は `andon issue …` の command に閉じ、別のマシンなら command が端末の土台（hc）越しに写す。人の Herdr App の画面でもこの2段で分ける（指揮側の Space と課題ごとの Space。[ADR-0002](adr/0002-herdr-spaces.md)・[ADR-0003](adr/0003-task-spaces.md)）。
 - **常駐・定期の処理は、指揮側のマシンで 1 者だけが走らせる**。どの処理を誰が・二重に走ったら何が起きるか・今の守りと無い所は [dispatcher.md](dispatcher.md) §7 の表。作業側を別のマシンに出す前の前提を確かめるのに使う。
 - 返す口は、まずは各セルの Chief of Staff の端末、最終的には通知。だから問いの形を今から揃える。
 - 騙す担当への備えは今は持たない（履歴は固定のプログラムが作り、照合は後から足せる形にだけ）。理由（人）: 偽ろうとするならもっと簡単に偽れるので、そこを塞いでも割に合わない。
@@ -239,7 +239,7 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 
 参考にしたもの（出典は付録。**本文は複製しない**。要点だけ取り、Andon の語で書き直す）: mattpocock/skills の `grilling`（決定を木の形で持つ・今出せる問いだけ出す・一度に出す問いの束・事実と判断の分離・終わりの確認）・`grill-me`（何を・いつ）・`to-spec`（決めたことだけ書く・テストの継ぎ目を先に）・`to-tickets`（縦に薄く切る・依存を書く）・`handoff`。pstack（poteto 作。Claude Code の plugin `cursor/pstack`）の `in-your-own-words`（目的の言い直し）・`sharpen`（深く、大きくではなく）・`architect`（構造の違う案を2つ以上）・`interrogate`（反論は走らせて証明したものだけ）・`show-me-your-work`（決定の履歴）。gstack の `office-hours`（前提への反論・代案 A/B/C・設計書の形）・`plan-ceo-review`（範囲の4モード: 広げる・選んで広げる・保つ・減らす）・`plan-eng-review`（構造・端・テスト表。これは担当とレビュアーの側で使う）。
 
-1. **読む（事実は Chief Engineer の仕事）。** 人に聞く前に自分で調べる: 案件のマスタ（用語・合意事項）・repo の docs・セルの wiki の index・台帳（進行中の課題と開いている問い）・決定の記録。環境にある事実は副エージェント（新しい文脈）に取りに行かせ、待つ間も別の枝を進める。**人に事実を聞かない。人に聞くのは判断だけ。**
+1. **読む（事実は Chief Engineer の仕事）。** 人に聞く前に自分で調べる: 案件のマスタ（用語・合意事項）・repo の docs・セルの wiki（`index.md` → ページの順で引き、出典つきで使う。[ADR-0016](adr/0016-cell-wiki-llm-wiki.md)）・台帳（進行中の課題と開いている問い）・決定の記録。環境にある事実は副エージェント（新しい文脈）に取りに行かせ、待つ間も別の枝を進める。**人に事実を聞かない。人に聞くのは判断だけ。**
 2. **言い直す。** 人の目的と困りごとを自分の言葉で1段落に書き、人が直す（pstack `in-your-own-words`）。ここで題の大きさを見る: 1セッションに収まらない題は先に割る（grill-me の「問いが200になったら範囲が大きすぎる」）。
 3. **前提を並べる。** 「本当にこの問題か」「何もしないとどうなるか」「既にあるもので済む部分」「配り方（新しい部品なら利用者にどう届くか）」を**同意する／しない**の文で並べ、人が1つずつ返す（office-hours Phase 3）。同じ前提で2度失敗していたら前提を疑う（pstack attack-the-premise）。
 4. **問いを重ねる（本体）。** 設計を**決定の一覧**として持ち（前提 → それに依る決定 → さらに依る決定、の順。木の形）、前提が済んで**今出せる問い**だけを出す。問いの形は台帳の問い（[contract.md](contract.md) §5）と同じ: **何の判断か・事実・理由・選択肢・推奨案・あと何問**。「はい」で推奨案が通る文にする。一度に出すのは互いに依らない問いの全部（番号つき）、人は番号で答える。答えが返るたびに一覧を組み直す。**推奨案は出すが決めない**: 自分で答えて進んだら骨格の違反（grilling の「事実は skill の仕事、判断は人の仕事」）。
@@ -529,7 +529,7 @@ andon/
 
 - **`package/` はセルに効くもの、それ以外は Andon を建てる人と担当のためのもの。** `/opt/andon` の中身は `package/` と同じ構成（`/opt/andon/bin/andon` …）。
 - 仮設の command 6本と入口・起動・bootstrap・ラッパーは、`package/lib/andon/` と `init/` に名前を変えて移る（§3）。
-- `wiki/` は**セルの repo** に置く（Andon 本体の repo ではない）。セルフホストのセル（Andon 自身の）の wiki は、そのセルの repo にある。
+- `wiki/` は**セルの repo** に置く（Andon 本体の repo ではない）。セルフホストのセル（Andon 自身の）の wiki は、そのセルの repo にある。形（元資料の `raw/` と育つページ・`index.md`・`log.md`）は [ADR-0016](adr/0016-cell-wiki-llm-wiki.md)。
 
 ### 2.3 パッケージがどこに効くか（symlink の網を生成に替える）
 
@@ -675,7 +675,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 |---|---|---|
 | 雛形から降りたもの全部（`bin/`・`lib/`・`.claude/`・`.devcontainer/`・`Dockerfile`・`compose.yaml`・`.aqua/aqua.yaml` …） | **仮設のまま**（Andon には写さない） | 正は template-yard。example は Andon ができるまで仮設として動かし続ける |
 | `AGENTS.md` の案件の部分（projects の一覧・直接フォワード・pin の注記） | セルの `AGENTS.local.md` の形 | 引っ越しのとき（§5.4）に写す |
-| `memory/`（index.md だけ・空） | セルの `wiki/` の種 | Andon のセルの repo に `wiki/index.md` を置く |
+| `memory/`（index.md だけ・空） | セルの `wiki/` の種 | Andon のセルの repo に `wiki/index.md` を置く。→ 形は [ADR-0016](adr/0016-cell-wiki-llm-wiki.md)（`raw/`・`sources/`・`entities/`・`topics/`・`index.md`・`log.md`） |
 | `projects/<slug>/`（仮設では symlink と実ディレクトリ。Andon では実ディレクトリだけ）・`projects/*/.flightdeck/`（台帳。git の外） | 案件データ。**移し方は後**（§5.4 に線だけ） | セルの repo の形は同じ（`projects/`）。台帳はディレクトリごと写す |
 | `local/setup.sh`・`.aqua/local.yaml`・`compose.override.yaml`・`.ssh/authorized_keys`・`.env`・`merge-gate.json`（描画済み） | セルの repo の形（`init/` と同じ名前） | 今の「派生側が触る場所」がそのままセルの repo の中身になる。`merge-gate.json` は `gate.local.json`（上書きだけ） |
 | `.cruft.json` | 捨てる | — |

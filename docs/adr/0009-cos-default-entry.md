@@ -46,7 +46,7 @@
 7. **2026-11-09 wiki の手順を Chief of Staff の skill に書く（command にしない）。** 形は Karpathy の LLM wiki（原資料は読むだけ・wiki は LLM が育てる・決まりは指示文に。操作は ingest・query・lint。出典は下）。
    - **何を**: 学び（プロジェクト固有でも横断でも。固有は front matter の印）・確かめた事実・**オーナーの思考と志向**（決断の傾向・推奨案を覆した理由）。製品に効くもの（仕様・作法・テスト）は repo へ（前提 3）。決定は ADR と `decisions/`（wiki には写さない）。
    - **いつ（ingest）**: 課題の片付け（`andon issue finish`）のとき報告の Remember と確かめた事実から。人の答え（推奨案と違う答え・志向が見えた）のとき。
-   - **形**: ADR-0005 のまま（1ファイル1件・日付・出典・痩せた `index.md`）。`log.md` は足さず、セルの repo の git の履歴で代える。
+   - **形**: ADR-0005 のまま（1ファイル1件・日付・出典・痩せた `index.md`）。`log.md` は足さず、セルの repo の git の履歴で代える。→ 覆された（[ADR-0016](0016-cell-wiki-llm-wiki.md)。元資料の層・育つページ・`log.md`）
    - **lint**: 書くたびに `index.md` の近い項を読み、矛盾すれば古いページに「→ 覆された（新しいページ）」を1行足す（上書きしない。`decisions/` と同じ規律）。定期の課題は起動しない。
    - **query**: Chief Engineer の「読む」（既にある）と、Chief of Staff が切るとき index を引く。
    - **道具**: Chief of Staff の template に `--add-dir /workspace/wiki`（design.md §2.3 が書いているとおりに直す）。commit・push は Chief of Staff（問い10）。書き手は Chief of Staff だけ（問い21）。

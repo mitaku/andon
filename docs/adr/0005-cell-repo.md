@@ -32,7 +32,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    | `AGENTS.md`・`AGENTS.local.md` | 建屋の指針（薄く。行数の上限は ADR-0004 の lint と同じ）。`.local` は boot が生成する環境メモ | 人／boot | する／しない | — |
    | `gate.local.json`・`templates.local/`・`local/`・`bin/` | ゲートの上書き・プロファイルの上書き・備品・`bootstrap` | **人** | する | — |
    | `projects/<slug>/` | プロジェクト（ADR-0004）。指揮側の Space | ADR-0004 の表 | する（**台帳 `kanban/` を除く**。5） | space（指揮側） |
-   | `wiki/` | 建屋を横断する知識。1 ファイル 1 件・日付・出典・痩せた `index.md`。プロジェクト固有の事実も index の節か front matter の印で**ここ**に置く（プロジェクトに wiki は作らない） | Chief of Staff（D12） | する | — |
+   | `wiki/` | 建屋を横断する知識。1 ファイル 1 件・日付・出典・痩せた `index.md`（→ 形は [ADR-0016](0016-cell-wiki-llm-wiki.md)）。プロジェクト固有の事実も index の節か front matter の印で**ここ**に置く（プロジェクトに wiki は作らない） | Chief of Staff（D12） | する | — |
    | `files/` | 納品物（人に URL で届けるもの。`andon publish` が `<日付>-<slug>` で置き、files サーバが公開する）。**今の `artifacts/` の改名** | `andon publish`（担当・Chief of Staff・人） | する（大きいものは開いている問い 1） | — |
    | `.env`・`.env.*`・`.ssh/`・`.andon/`・`.ghq/`・`.codex/` | 秘密・番号・鍵・パッケージの取り出し・追加した repo・ハーネスの状態 | 人／boot | しない（`init/.gitignore` のまま） | — |
    | worktree | `/workspace/.worktrees/`（7） | 機械 | しない（中の `.gitignore`） | space（作業側） |
