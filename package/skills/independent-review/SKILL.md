@@ -29,7 +29,7 @@ Chief of Staff が依頼書を書くときにこの条件で決め、Settings �
 - **実装と別ブランド**。依頼書の Settings の `Reviewer`（既定 `codex-review`）。
   - Claude が書いたもの（profile `claude`・`sonnet`・`fable`）→ `codex-review`。
   - Codex が書いたもの（profile `codex`）→ `claude-review`。
-- **モデルは軽いものが既定**。重いモデルは過剰で、起きにくい指摘を増やす。2つのレビュアーのプロファイルはそれに合わせてある。
+- **強さはプロファイルの template が決める**（`package/templates/`）。`codex-review` は gpt-6-luna・effort max、`claude-review` は opus・effort medium。依頼書でモデルや effort を変えない。
 - プロファイルは hc の template（`hc templates`）。無ければ人に作ってもらうよう頼む。Chief of Staff は作らない。
 
 ## 3. レビュアーを起こす（dispatcher）
