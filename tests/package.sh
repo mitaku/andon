@@ -10,6 +10,7 @@
 #   6. skill の機械向けの手順が command（andon issue …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 #   7. 課題（issue）への改名（ADR-0008 受け入れ条件 5）: glossary の項・欄名・skill と template に旧語が無い。
 #   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2）: 用語集の CE・決まりの文・人への書き方の節・作った語、CE skill の問いの出し方、ask-one-by-one の読み手。
+#   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -324,5 +325,24 @@ grep -q '^\*\*検査\*\*（checks）:' "$g" && grep -q '条件表' "$g" \
   && pass "CE skill の問いの出し方は ask-one-by-one §2 を指す（束で出す行が無い）" || fail "CE skill の問いの出し方が ask-one-by-one §2 を指していない"
 fm package/skills/ask-one-by-one/SKILL.md description | grep -q 'Chief Engineer（CE）' \
   && pass "ask-one-by-one の description の読み手に CE がある" || fail "ask-one-by-one の description に CE が無い"
+
+# === 9. 画面の確かめ（ADR-0018 受け入れ条件 4） ===
+jq -e '.allowManagedPermissionRulesOnly == true' package/settings.json >/dev/null \
+  && pass "settings は許可の規則を managed だけにする（allowManagedPermissionRulesOnly。skill の allowed-tools を効かせない）" || fail "settings に allowManagedPermissionRulesOnly: true が無い"
+w=package/skills/worker/SKILL.md
+w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w"); w3=$(sed -n '/^## 3\. /,/^## 4\. /p' "$w"); w7=$(sed -n '/^## 7\. /,$p' "$w")
+grep -q '^| 確認 |.*画面' <<<"$w2" && grep -q '画面に触れる変更は、確認の工程で画面を見て確かめる' <<<"$w2" \
+  && grep -q '`127\.0\.0\.1`' <<<"$w2" && grep -q 'playwright-cli open http://127\.0\.0\.1:' <<<"$w2" && grep -q '→ `screenshot`' <<<"$w2" \
+  && pass "worker skill §2 の確認の工程に、127.0.0.1 の dev サーバを playwright-cli で確かめスクリーンショットを撮る段がある" || fail "worker skill §2 に画面の確かめの段が無い"
+grep -q 'gh pr create --attach' <<<"$w3" && grep -q 'gh pr comment <n> --attach' <<<"$w3" \
+  && pass "worker skill §3 に gh pr create／comment --attach がある" || fail "worker skill §3 に --attach が無い"
+grep -q '`evidence` には、PR の添付の URL.*撮った command' <<<"$w7" \
+  && pass "worker skill §7 の acceptance[].evidence に添付の URL と command" || fail "worker skill §7 に添付の URL と command の段が無い"
+grep -q 'screen_paths.*画面の証拠.*major' package/skills/independent-review/SKILL.md \
+  && grep -q 'screen_paths.*添付が無い.*（major）' internal/dispatcher/loop.go \
+  && pass "independent-review の依頼書の型（skill と dispatcher の reviewerBrief）に画面の証拠の観点（major）がある" || fail "independent-review の型に画面の証拠の観点が無い"
+grep -q '人が見るブラウザは無い' package/environment.md && ! grep -qE '(^|[^見る])ブラウザは無い' package/environment.md \
+  && grep -q '担当が画面を見て確かめるには `playwright-cli`' package/environment.md \
+  && pass "environment.md は「人が見るブラウザは無い」と playwright-cli を案内する" || fail "environment.md の「ブラウザは無い」が直っていない"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

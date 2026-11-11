@@ -55,12 +55,17 @@ description: Chief of Staff が `andon issue start` で起こした担当とレ�
 | 理解 | 依頼書の「なぜ」と完了条件から、何が困っていて何が出れば解けたかを自分の言葉で言い直す。分かっていないこと・依頼書と現地で分かること・条件（守ること・横展開の範囲）を分ける。現地を読む（grep・テスト・記録）。**横展開**: 同じ種類のものがほかに無いか探す（下） | 報告の `## Report` の冒頭 1〜3 行（言い直しと、探した範囲） |
 | 計画 | 課題を作業に分け、作業ごとに終了条件を置く（何をしたら終わりか。中止の条件があればそれも）。作業の列が依頼書の完了条件に届くかを確かめる | 報告の `## 計画`（作業を1行ずつ。終了条件つき。作業が1つなら1行） |
 | 作業 | 計画の作業を順に。終了条件を満たしたら次へ | commit |
-| 確認 | 作業の結果を依頼書の完了条件に当てる。テスト・独立レビュー（§4）・リポジトリの検査（§3） | テストの結果・レビューの記録 |
+| 確認 | 作業の結果を依頼書の完了条件に当てる。テスト・独立レビュー（§4）・リポジトリの検査（§3）・画面に触れる変更は画面の確かめ（下） | テストの結果・レビューの記録・スクリーンショット |
 | 完成 | 報告と `andon issue ready`（§7）。何を・どこまで・どう探したか、計画と実際の差 | 報告・PR |
 | 振り返り | 次の課題への学びと、計画と実際の差 | `## Remember`・`For AGENTS.md:` |
 
 - **完了条件と終了条件は別のもの。** 完了条件（依頼書。Chief of Staff が書く）は課題が解けたと言える状態で、担当は書き換えない。終了条件（計画。担当が置く）はその作業をいつ終えるか（直した・テストが通った・読む範囲を読み切った・N 件まで）。
   自分の作業が終わったことは、課題が解けたことではない。確認の工程で完了条件に当て直す。
+- **画面に触れる変更は、確認の工程で画面を見て確かめる**（依頼書の完了条件に「画面の証拠」が無くても）。dev サーバを `127.0.0.1` で立て、`playwright-cli` で開いて操作し、スクリーンショットを撮る:
+  `playwright-cli open http://127.0.0.1:<port>` → `snapshot`（要素の ref を見る）→ `click`・`fill` など → `screenshot` → `close`。使い方は skill `playwright-cli`。
+  - 撮るのは変更後を必ず。見た目の直しなら前後の対。リファクタやバックエンドだけの変更には要らない。
+  - 撮った画像は PR に添付する（§3）。repo に commit しない（出力は worktree の外の `/tmp/playwright-cli` に出る）。
+  - 差分が条件表の `screen_paths` に当たるのに PR に画像の添付が無いと、ゲートは `fix` で戻す。
 - **横展開**（同じ種類のものをほかにも探す）は既定。指された1か所と同じ種類（同じ誤字・同じ壊れ方のリンク・同じ原因で落ちるテスト・同じ古い名前）を、理解の工程で範囲の中から探す。手は現地に合わせる（`grep`・テスト・リンクの検査）。
   - 範囲は依頼書の `横展開:` の行。無ければ既定: 同じ repo の中・同じ種類・同じ直し方・「守ること」の場所を除く・合計がテストを除いて 500 行未満。
   - 範囲の中は直す（止まらない）。範囲の外は直さず、報告の `## Next`（`next[]` の `to: issue`）に1行ずつ残す。
@@ -110,6 +115,7 @@ Chief of Staff には dispatcher の通知が `report` の kind で届く（`rev
 1. commit の前に検査を通す。どれを回すかはリポジトリの AGENTS.md（型・lint・テスト・`scripts/check`）。無ければ README とテストの置き場から決める。
 2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。rebase のあとの force push は `git push --force-with-lease` だけで、押してよいのは自分の課題の branch だけ（許可ルールは `package/settings.json`。main と他人の branch には打たない。`--force` は使わない）。
 3. PR を出す（`gh pr create`）。本文に、やったこと・テスト結果・見送ったレビューの指摘（§4）。
+   画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（PR を出したあとなら `gh pr comment <n> --attach <画像>`。1枚 10 MB まで）。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。ゲートと dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す:
    `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` → `hc wait <その名前>` → `hc read <その名前>` → `hc rm <その名前>`。
@@ -200,6 +206,7 @@ EOF
 - `--data` は任意のキーの JSON object: `waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr` のほかは引き継がないので、打つたびに全部を渡す。
 - `acceptance`: 依頼書か Chief Engineer の文書に受け入れ条件（A1, A2, …）があれば、1つずつ `{"id": "A1", "result": "pass", "evidence": "<テストの command か実行の跡のパス>"}` を書く。`result` は通した `pass`・通せない `fail`・人が見る `manual`。`fail` があるとゲートは `fix`、`manual` があるとレベルを1つ上げる。条件が無ければ書かない。
   受け入れ条件のテストは、先に落ちるのを確かめる（直す前か、直した所を戻して）。
+  画面の確かめ（§2）の `evidence` には、PR の添付の URL（`https://github.com/user-attachments/assets/<id>`）と撮った command（`playwright-cli` の列）を書く。
 - `risk`: 変更そのものが revert で戻らないなら `{"risk": {"one_way": true, "impact": ["<何に届くか。人が読む>"]}}`。ゲートはレベルを C に上げる（人が見る）。true にするのは、例えば:
   本番のデータを移す・消す（列や表を落とす migration）／外に出たものを消す・書き換える（公開した版・送ったメール・外の API の約束）／履歴を消す（force push・branch や記録の削除）。
   戻せる変更は `risk` を書かない。`false` と書いてもレベルは下がらない。

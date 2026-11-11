@@ -62,6 +62,8 @@ Claude Code の managed settings の deny のうちコマンドの頭で引く�
 
 人のファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当が人のファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない（セルの repo の既定の作者は owner でない。下の「git の作者」）。
 
+Claude Code の許可の規則は managed だけが効く（`package/settings.json` の `allowManagedPermissionRulesOnly: true`。[ADR-0018](adr/0018-screen-check-tooling.md) 決めたこと 6）。skill の frontmatter の `allowed-tools`（同梱の `playwright-cli` の skill は `Bash(npx:*)`・`Bash(npm:*)` を持つ）と user・project・local の `allow` は無視され、許可の確認は Chief of Staff が答える。足りない allow は `package/settings.json` に足す。
+
 deny のうち `Bash(git diff *--output*)` などは allow の穴を塞ぐもので、allow を持たない Codex には引かない。2か所の一覧は `tests/package.sh` が突き合わせる。Codex 自身の危険の判定（`rm -f` など）は `never` の下では確認ではなく拒否になる。
 
 Codex のフックは配っていない（フックは Claude Code だけ。[contract.md](contract.md)）ので、フックの信頼の画面は出ない。
