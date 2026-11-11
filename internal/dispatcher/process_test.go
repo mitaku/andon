@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"andon/internal/process"
+	"andon/internal/signal"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -100,6 +101,23 @@ func TestStateFieldsInProcess(t *testing.T) {
 	seen := recordFields(t, filepath.Join("..", "..", "process", "states"), "dispatcher")
 	for _, m := range mismatches("dispatcher", topFields(State{}), seen) {
 		t.Error("State: " + m)
+	}
+}
+
+// TestSignalFieldsInProcess は信号の記録 1 件（internal/signal の Record。<slug>.signals.json）の一番上の項目が、
+// process/states/ に signals:<項目> で 1 回ずつ出ることを見る（ADR-0017 受け入れ条件 3。Active・Episodes・
+// DeliveredEpisode が states[].record、残りが positions[]）。
+func TestSignalFieldsInProcess(t *testing.T) {
+	dir := filepath.Join("..", "..", "process", "states")
+	seen := recordFields(t, dir, "signals")
+	for _, m := range mismatches("signals", topFields(signal.Record{}), seen) {
+		t.Error("signal.Record: " + m)
+	}
+	for f, where := range seen {
+		state := f == "Active" || f == "Episodes" || f == "DeliveredEpisode"
+		if len(where) == 1 && strings.HasSuffix(where[0], ":positions") == state {
+			t.Errorf("signals:%s の置き場が違う（%s）。状態は Active・Episodes・DeliveredEpisode だけ", f, where[0])
+		}
 	}
 }
 
