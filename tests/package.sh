@@ -10,7 +10,8 @@
 #   5. statusline が JSON を読んで1行を出す。
 #   6. skill の機械向けの手順が command（andon issue …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 #   7. 課題（issue）への改名（ADR-0008 受け入れ条件 5）: glossary の項・欄名・skill と template に旧語が無い。
-#   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2）: 用語集の CE・決まりの文・人への書き方の節・作った語、CE skill の問いの出し方、ask-one-by-one の読み手。
+#   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
+#      用語集は書き方の節と語の決まりを持たず writing.md を指す、CE skill の問いの出し方、ask-one-by-one の読み手。
 #   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
@@ -90,7 +91,7 @@ if python3 package/lib/andon/schema_check.py validate schema/gate.schema.json pa
   pass "package/gate.json は gate.schema.json に合う"
 else fail "package/gate.json: $(head -1 "$tmp/why")"; fi
 jq -e 'has("repos") | not' package/gate.json >/dev/null && pass "package/gate.json に repos が無い（セルの gate.local.json へ）" || fail "package/gate.json に repos がある"
-for p in package/skills/ package/templates/ package/gate.json package/settings.json package/codex.rules; do
+for p in package/skills/ package/templates/ package/gate.json package/settings.json package/codex.rules package/writing.md; do
   jq -e --arg p "${p%/}" '.tier_c_paths | map(rtrimstr("/**")) | index($p)' package/gate.json >/dev/null \
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
@@ -346,16 +347,34 @@ grep -q 'andon issue stop-check' package/hooks/stop \
 g=package/skills/glossary/SKILL.md
 grep -q '^\*\*Chief Engineer\*\*（chief-engineer。略して CE）:' "$g" && grep -q '^\*\*Chief of Staff\*\*（chief-of-staff。略して CoS）:' "$g" \
   && pass "用語集の Chief Engineer の項に「略して CE」がある" || fail "用語集に CE の略称が無い"
-grep -q '^- \*\*役と部品の語はここにある語だけを使う\*\*' "$g" && grep -q 'ふだんカタカナで言う語（コスト・プロファイル・テンプレート・コンテキスト・オーナー・ログ・パス）はカタカナのまま' "$g" \
-  && grep -q '訳語を新しく作らない。迷ったら同僚に口で言うときの言い方にする' "$g" \
-  && pass "用語集に「役と部品の語」の1行目とカタカナの決まりの文がある" || fail "用語集の1行目かカタカナの決まりの文が無い"
-how=$(sed -n '/^## 人への書き方$/,/^## /p' "$g")
+# 用語集（受け入れ条件 8 の用語集の分）: 書き方の節と語の決まり3つを持たず、writing.md を指す。モデルからは呼べないまま
+grep -q '^- \*\*役と部品の語はここにある語だけを使う\*\*' "$g" && ! grep -q '^## 人への書き方' "$g" && grep -q '^disable-model-invocation: true$' "$g" \
+  && ! grep -qE 'ふだんカタカナで言う語|訳語を新しく作らない|作った訳語|文の中では略称で' "$g" \
+  && grep -q '^- 人への書き方と語の決まり.*は `/opt/andon/writing.md` に従う' "$g" \
+  && pass "用語集は書き方の節と語の決まりを持たず writing.md を指す（disable-model-invocation は残る）" || fail "用語集に書き方の節か語の決まりが残る、か writing.md を指していない"
+iss=$(sed -n '/^\*\*課題\*\*（issue）:/,/^_避ける_/p' "$g")
+! grep -q '「番号（題）」' <<<"$iss" && grep -q '`/opt/andon/writing.md` の番号の決まりに従う' <<<"$iss" \
+  && pass "用語集の課題の項は番号（題）の決まりを自分で言わず writing.md を指す" || fail "用語集の課題の項が writing.md を指していない"
+# writing.md（受け入れ条件 7）: 読み手を人に返す文に絞り、箇条書きは11行、但し書き・語の決まり3つ・用語集のパス
+wr=package/writing.md
+how=$(sed -n '1,/^## /p' "$wr")
 n=$(grep -c '^- ' <<<"$how")
-[ "$n" = 8 ] && grep -q '^- 結論を先に書く（BLUF）' <<<"$how" && grep -q '状況・経緯・見立て・推奨の順に書く（SBAR）' <<<"$how" \
-  && grep -q '「・」で語を詰めない' <<<"$how" && grep -q '1文に1つのこと' <<<"$how" && grep -q '括弧には識別子だけ' <<<"$how" \
-  && grep -q '番号で参照しない' <<<"$how" && grep -q "英語の用語を直訳した語は使わない" <<<"$how" && grep -q '灯り → 人の判断待ち、レベル C → 人がマージ' <<<"$how" \
+[ "$n" = 11 ] && grep -q '^CoS・CE・担当が人に返す文' <<<"$how" \
+  && grep -q '^- 結論を先に書く（BLUF）' <<<"$how" && grep -q '状況・経緯・見立て・推奨の順に書く（SBAR）' <<<"$how" \
+  && grep -q '「・」で語を詰めない' <<<"$how" && grep -q '1文に1つのこと' <<<"$how" \
+  && grep -q "英語の用語を直訳した語は使わない" <<<"$how" && grep -q '灯り → 人の判断待ち、レベル C → 人がマージ' <<<"$how" \
+  && grep -q '^- 括弧に説明を入れない。説明は文にする。括弧に入れるのは識別子と、番号に添える題だけ。' <<<"$how" \
+  && grep -q '^- 番号だけで指さない。.*`S-0004（返事の下書きボタン）`.*同じ返事の2度目からは番号だけでよい。' <<<"$how" \
+  && grep -q '^- 読む人は道具の呼び出しも、読んだファイルも、途中の考えも見ていない。' <<<"$how" \
+  && grep -q '^- つながる考えは段落の文で書く。箇条書きは別々の項目を並べるときに使う。' <<<"$how" \
+  && grep -q '^- 作業の途中で自分が付けた呼び名や略称を使わない。' <<<"$how" \
   && grep -q '^コードと、人が別の形を求めたときは、この決まりから除く' <<<"$how" \
-  && pass "用語集の「人への書き方」の節に8行と但し書きがある" || fail "用語集の「人への書き方」の節（行の数 $n）"
+  && pass "writing.md は人に返す文に絞り、書き方の11行と但し書きがある" || fail "writing.md の書き方の節（行の数 $n）"
+! grep -qE '括弧には識別子だけ|番号で参照しない' "$wr" && pass "writing.md に古い字面（括弧には識別子だけ・番号で参照しない）が無い" || fail "writing.md に古い字面が残る"
+grep -q 'Chief of Staff を CoS、Chief Engineer を CE と書く' "$wr" \
+  && grep -q 'ふだんカタカナで言う語（コスト・プロファイル・テンプレート・コンテキスト・オーナー・ログ・パス）はカタカナのまま' "$wr" \
+  && grep -q '訳語を新しく作らない。迷ったら同僚に口で言うときの言い方にする' "$wr" && grep -q '`/opt/andon/skills/glossary/SKILL.md`' "$wr" \
+  && pass "writing.md に語の決まり3つと用語集のパスがある" || fail "writing.md に語の決まりか用語集のパスが無い"
 # 作った語は「避ける」の行と仮設の語の表にしか出ない。残す語（検査・継ぎ目・条件表・控え）は消さない
 left=$(sed '/^## 仮設の語/,$d' "$g" | grep -nE '席|端末の土台|持ち主|提供元' | grep -v '^[0-9]*:_避ける_' || true)
 [ -z "$left" ] && pass "用語集に「席」「端末の土台」「持ち主」「提供元」が正式な語として出ない" || fail "用語集に作った語が残る: $left"
