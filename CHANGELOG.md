@@ -5,6 +5,32 @@
 - 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
 - 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
 
+## v0.0.9 — 2026-11-11
+
+dispatcher がルーチンを撃つようになり、`<news>` の答えを ack だけにし、Claude のプロファイルをモデルの別名に揃えた版。仕事の流れと状態の定義（ADR-0017）の器と、セルの wiki の新しい形（ADR-0016）が入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/process/` は新しいファイルで、既存の schema は変えていない）。
+
+### 変わったこと
+
+- **dispatcher が `kanban tick` を打つ**: 1 巡の 3（台帳を読む）と 4（拾う）の間で 1 回打ち、ルーチンの `schedule` が来たものを課題にする。cron は置かない（[ADR-0007](docs/adr/0007-interim-gap-inventory.md) 切る案 R1。#148）。
+- **`<news>` の答えは `andon news ack` だけ**: 末尾の 1 行を「人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える」に直し、`<no-reply>` だけの答えで `news.replied` を書く移行の道を外した（[ADR-0010](docs/adr/0010-news-ack.md) 決めたこと 3・6。#154）。
+- **Claude のプロファイルはモデルの別名で起こす**: `opus`・`sonnet`・`fable` に揃え（版を書かない）、`fable` と `chief-engineer` は `--effort` を外して既定（Fable 5.2 は medium）にした（#157）。
+- **dispatcher の誤報と雑音を減らした**: 人が先に同じ head をマージしていたら `gh pr merge` の失敗を問いにせず片付ける（R2。#153）。Chief Engineer の stalled・blocked・ready は記録だけにし、進んでいる working を stalled にしない（#145）。
+- **`andon issue resume` がレビュアーにも効く**（[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) 決めたこと 8・13 の 5。#144）。
+- **`andon delegate` が `andon.toml` の owner を author と committer にして commit する**: 人の端末の git の設定に関わらず、委譲がそのまま信じられる（#155）。
+- **セルの wiki を LLM Wiki の形に**: `raw/`・`sources/`・`entities/`・`topics/`・`overview.md`・`index.md`・`log.md` と ingest・query・lint（[ADR-0016](docs/adr/0016-cell-wiki-llm-wiki.md) K1。#149）。前の 3 件の手順は chief-of-staff skill と glossary へ（K2。#152）。
+- **App の inbox を Needs you と Projects の 2 つに**: Done・棚・settle・ボードのダイアログを消した（[ADR-0015](docs/adr/0015-inbox-needs-you.md) I2。#142）。context-header の hover の ✓（settle）も消した（#150）。
+- **流れと状態の定義の器**: `schema/process/`・`process/`・`andon process render`・`tests/process.sh`（[ADR-0017](docs/adr/0017-process-definitions.md) P1。#151）。中身の定義は次の版から。
+- **`andon measure` の先頭に価値の行**（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) 決めたこと 18。#137）。
+- **CI**: CHANGELOG.md だけの PR では image の検査を飛ばす（#147）。
+- **文書（動作は変えない）**: [ADR-0016](docs/adr/0016-cell-wiki-llm-wiki.md)（#143）・[ADR-0017](docs/adr/0017-process-definitions.md)（#146）・[ADR-0018](docs/adr/0018-screen-check-tooling.md)（担当が画面を確かめる道具。実装はまだ。#156）を足した。
+
+### 上げるときにすること
+
+- image を上げて `rebuild` する。台帳の形式・schema の版は変わらず、**互換のための手作業は無い**。
+- **App の mod を置き直す**: inbox と context-header が変わったので、App の設定フォルダの `mods/` から Andon の mod 5 つを消して `bin/bootstrap host-install`（[docs/operate.md](docs/operate.md) の「Herdr App の mod とレイアウト」）。
+- **セルの wiki を新しい形へ移す**（前の形のページが残るセルだけ。chief-of-staff skill §11 の「移行」。Chief of Staff が 1 回する）。
+- `<no-reply>` だけの答えは `news.replied` にならない。Chief of Staff は `andon news ack` で答える。
+
 ## v0.0.8 — 2026-11-10
 
 記録だけの通知を Chief of Staff に届けず ack で答えるようにし、外の信号（GitHub の main の CI・issue）を読む command を足した版。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` は触っていない）。
