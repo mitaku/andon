@@ -173,6 +173,12 @@ func TestDecide(t *testing.T) {
 		{"同じ head で2度目", func(f *Facts) { f.Review.MustFixOpen = 1; f.PreviousMustFix = true }, "needs_human"},
 		{"Must fix を見送った", func(f *Facts) { f.Review.WaivedHeavy = 1 }, "needs_human"},
 		{"受け入れ条件の fail", func(f *Facts) { f.AcceptanceFail = 1 }, "fix"},
+		{"screen_paths に当たるのに添付が無い", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"} }, "fix"},
+		{"添付が無くても委譲の外は人へ", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"}; f.Tier = "C" }, "needs_human"},
+		{"添付が無ければ checks を待たずに担当へ", func(f *Facts) {
+			f.ScreenMissing = []string{"web/a.css"}
+			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
+		}, "fix"},
 		{"レビュー不要なら missing でも通る", func(f *Facts) { f.ReviewRequired = false; f.Review.State = "off" }, "approve"},
 		{"GitHub の checks が落ちた", func(f *Facts) { f.GitHubChecks = GitHubChecks{"failure", []string{"test"}} }, "fix"},
 		{"GitHub の checks が走っている", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}} }, "wait"},
@@ -213,6 +219,44 @@ func TestDecide(t *testing.T) {
 	}
 	if _, r := Decide(func() Facts { f := good; f.Tier = "C"; return f }()); !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
 		t.Errorf("委譲の理由の形: %v", r)
+	}
+}
+
+// TestScreen は ADR-0018 受け入れ条件 3: screen_paths に当たる差分は PR に GitHub の添付が要る。
+func TestScreen(t *testing.T) {
+	if got := pkgTable(t).ScreenFiles(RepoTable{}, []File{{Path: "web/a.css"}}); len(got) != 0 {
+		t.Errorf("既定の条件表（screen_paths 無し）で当たった: %v", got)
+	}
+	tb := &Table{ScreenPaths: []string{"web/**", "**/*.css"}}
+	files := []File{{Path: "app/web/x.tsx"}, {Path: "app/b.css"}, {Path: "app/go/main.go"}, {Path: "app/web/new.tsx", PreviousPath: "app/old/old.css"}, {Path: "app/b.css"}}
+	if got, want := tb.ScreenFiles(RepoTable{StripPrefix: "app/"}, files), []string{"web/x.tsx", "b.css", "web/new.tsx", "old/old.css"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("ScreenFiles: %v want %v", got, want)
+	}
+	if got := tb.ScreenFiles(RepoTable{}, []File{{Path: "internal/gate/gate.go"}}); len(got) != 0 {
+		t.Errorf("画面でないファイルに当たった: %v", got)
+	}
+	for name, c := range map[string]struct {
+		texts []string
+		want  bool
+	}{
+		"gh --attach の画像（本文）": {[]string{"## Summary\n\n![login](https://github.com/user-attachments/assets/0a1b2c3d-4e5f-6789-abcd-ef0123456789)\n"}, true},
+		"Web で上げた画像（img タグ）":  {[]string{"", `<img width="400" alt="x" src="https://github.com/user-attachments/assets/1f2e3d4c-0000-1111-2222-333344445555" />`}, true},
+		"動画（URL だけ）・コメント":     {[]string{"本文", "動画\nhttps://github.com/user-attachments/assets/abcdef01-2345-6789-abcd-ef0123456789"}, true},
+		"添付が無い":               {[]string{"## Summary\nテストを直した", "andon gate: **fix**"}, false},
+		"書き換えられていない相対パス":      {[]string{"![x](./login.png)"}, false},
+		"外の画像の URL":           {[]string{"![x](https://example.com/a.png)"}, false},
+		"添付のファイル（画像・動画でない）":   {[]string{"[log.zip](https://github.com/user-attachments/files/123/log.zip)"}, false},
+		"assets だけで id が無い":   {[]string{"https://github.com/user-attachments/assets/"}, false},
+		"本文もコメントも無い":          {nil, false},
+	} {
+		if got := HasAttachment(c.texts); got != c.want {
+			t.Errorf("%s: %v want %v", name, got, c.want)
+		}
+	}
+	_, r := Decide(Facts{PROpen: true, RepoKnown: true, Tier: "A", MergeLevel: "A", GitHubChecks: GitHubChecks{State: "success"},
+		ScreenMissing: []string{"web/a.css", "web/b.tsx"}})
+	if want := []string{"screen_paths: web/a.css に当たるが画面の証拠（添付）が無い", "screen_paths: web/b.tsx に当たるが画面の証拠（添付）が無い"}; !reflect.DeepEqual(r, want) {
+		t.Errorf("理由の形: %v", r)
 	}
 }
 
@@ -353,11 +397,15 @@ func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
 		"Check が文字列（大小文字違い）":   `{"repos": {"github.com/example/app": {"Check": "true"}}}`,
 		"Repos（大小文字違い）":        `{"Repos": {}}`,
 		"github_checks が知らない値": `{"repos": {"github.com/example/app": {"github_checks": "off"}}}`,
+		"screen_paths が文字列":    `{"screen_paths": "web/**"}`,
 	} {
 		ws := ownerPlant(t, local)
 		if _, warn, err := LoadTable(pkg, ws); err == nil {
 			t.Errorf("%s: 通ってしまう（warn %q）", name, warn)
 		}
+	}
+	if tb, _, err := LoadTable(pkg, ownerPlant(t, `{"screen_paths": ["web/**"]}`)); err != nil || !reflect.DeepEqual(tb.ScreenPaths, []string{"web/**"}) {
+		t.Errorf("gate.local.json の screen_paths が効かない: %v", err)
 	}
 	ws := ownerPlant(t, `{"repos": {"github.com/example/app": {"check": []}}}`)
 	if tb, warn, err := LoadTable(pkg, ws); err != nil || warn != "" || tb.Repos["github.com/example/app"].Check == nil {

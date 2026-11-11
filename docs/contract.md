@@ -261,7 +261,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 
 ## 7. ゲートの条件表と記録
 
-**条件表** `package/gate.json`（既定）＋ セルの `gate.local.json`（上書き。深い併合ではなく、キーごとの置き換え）。仮設のゲートの条件表のキー（`size_review_lines`・`size_human_lines`・`test_paths`・`tier_a_paths`・`tier_b_paths`・`tier_c_paths`・`tier_c_path_exceptions`・`tier_c_added_line_patterns`・`repos{merge, strip_prefix, check[]}`）に、`repos.<repo>.tier_overrides`（パスの glob → レベル）・`repos.<repo>.github_checks`・`github_checks_wait_minutes`（下）を足す。既定の条件表で案件 repo の `AGENTS.md`・`REVIEW.md` は **B**（人の決定 2026-11-05。design.md §6 問い7。Andon の repo とセルの repo は C のまま）。条件表を変えるのはレベル C（人）。
+**条件表** `package/gate.json`（既定）＋ セルの `gate.local.json`（上書き。深い併合ではなく、キーごとの置き換え）。仮設のゲートの条件表のキー（`size_review_lines`・`size_human_lines`・`test_paths`・`tier_a_paths`・`tier_b_paths`・`tier_c_paths`・`tier_c_path_exceptions`・`tier_c_added_line_patterns`・`repos{merge, strip_prefix, check[]}`）に、`repos.<repo>.tier_overrides`（パスの glob → レベル）・`repos.<repo>.github_checks`・`github_checks_wait_minutes`・`screen_paths`（下）を足す。既定の条件表で案件 repo の `AGENTS.md`・`REVIEW.md` は **B**（人の決定 2026-11-05。design.md §6 問い7。Andon の repo とセルの repo は C のまま）。条件表を変えるのはレベル C（人）。
 
 ```json
 {"size_review_lines": 500, "size_human_lines": 1000, "github_checks_wait_minutes": 30,
@@ -278,6 +278,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 - キーはどれも必須ではない（`gate.local.json` は置き換えるキーだけを持つ）。知らないキーは拒む。`repos.<repo>.merge` は `merge` / `squash` / `rebase`、`tier_overrides` の値は `A` / `B` / `C`。重ねたあとに `size_review_lines`・`size_human_lines`・`github_checks_wait_minutes` が無ければ、ゲートは誤り（終了コード 3）。
 - `repos.<repo>.github_checks`: PR の head に GitHub の checks（Actions の CI など）が要るか。`required`（既定）は1つも無ければ待ち、`optional` は1つも無くても通す（CI の無い repo）。どちらでも、在る checks は通っていなければ止める。
 - `github_checks_wait_minutes`: `required` の repo で checks が1つも無いとき、課題が `review` に入った `log.jsonl` の行の `at` からこの分だけ待ち、過ぎたら `needs_human`（push の直後で checks がまだ付いていないのと、CI が無いのとを分ける）。
+- `screen_paths`: 画面のファイルの glob の配列（既定は無し＝空。案件の `gate.local.json` で `web/**`・`**/*.css` などを指す。ADR-0018 決めたこと 2）。PR の変更されたファイル（`strip_prefix` を外し、rename の元も）が当たり、PR の本文とコメントのどれにも GitHub の添付の URL（`https://github.com/user-attachments/assets/<id>`。`gh pr create`／`comment --attach` と Web の画面で上げた画像・動画）が無ければ `fix`、`reasons[]` に当たったファイルごとに `screen_paths: <file> に当たるが画面の証拠（添付）が無い`。外の画像の URL・書き換えられていない相対パス（`![x](./a.png)`）・画像でない添付（`user-attachments/files/`）は添付と数えない。どの commit で撮ったかは見ない。
 
 **記録** `issues/<id>/library/gate/<head sha>.json`（dispatcher が書く。`--dry-run` では書かない）:
 

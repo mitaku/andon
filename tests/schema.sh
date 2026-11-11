@@ -323,6 +323,9 @@ fail|gate|.repos[].merge = "fast-forward"|merge の方法が知らない値
 fail|gate|.repos[].tier_overrides["AGENTS.md"] = "D"|tier_overrides の値が A/B/C でない
 fail|gate|.size_review_lines = "500"|size_review_lines が文字列
 fail|gate|.repos[] += {"github_checks": "off"}|github_checks が知らない値
+pass|gate|{screen_paths: ["web/**", "**/*.css"]}|screen_paths は glob の配列（ADR-0018）
+fail|gate|{screen_paths: "web/**"}|screen_paths が文字列
+fail|gate|{screen_paths: [""]}|screen_paths に空の glob
 pass|gate-record|.review = {state: "missing", must_fix_open: 0, waived: 0}|review が missing（issue・commit 無し）
 pass|gate-record|.review = {state: "off", must_fix_open: 0, waived: 0}|review が off（issue・commit 無し）
 pass|gate-record|.review.state = "stale"|review が stale（issue・commit あり）

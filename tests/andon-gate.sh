@@ -325,6 +325,32 @@ got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and (.tier_reasons | any(contains("package/gate.json")))' "$tmp/out" >/dev/null
 ok 'レベル C の変更は委譲 merge B の外で needs_human'
 
+# 11b. screen_paths（ADR-0018 受け入れ条件 3）: 当たる差分の PR に GitHub の添付が無ければ fix。本文かコメントに添付があれば通る
+echo '{"screen_paths": ["web/**"], "repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
+as_owner git -C "$tmp/plant" commit -qam 'screen_paths で画面を指す'
+pr web/a.css 1
+export HC_TERMINAL_ID=t7
+"$andon" issue report "$id" <<<'## Report' >/dev/null
+unset HC_TERMINAL_ID
+findings "$head"
+got=$(gate "$id" --dry-run); expect 1 fix 'screen_paths: web/a.css に当たるが画面の証拠（添付）が無い'
+jq -e '.tier == "B" and .github_checks.state == "success"' "$tmp/out" >/dev/null || die "添付の無い fix の記録の形が違う: $(cat "$tmp/out")"
+jq '.body = "![x](./a.png)" | .comments = [{body: "andon gate: **fix**"}]' "$tmp/gh/view.json" > "$tmp/v.json" && cp "$tmp/v.json" "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 1 fix 'screen_paths: web/a.css'
+jq '.comments += [{body: "![after](https://github.com/user-attachments/assets/0a1b2c3d-4e5f-6789-abcd-ef0123456789)"}]' "$tmp/gh/view.json" > "$tmp/v.json" && cp "$tmp/v.json" "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 0 approve
+jq '.comments = [] | .body = "## Summary\n\n![after](https://github.com/user-attachments/assets/0a1b2c3d-4e5f-6789-abcd-ef0123456789)"' "$tmp/gh/view.json" > "$tmp/v.json" && cp "$tmp/v.json" "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 0 approve
+pr docs/b.md 1
+export HC_TERMINAL_ID=t7
+"$andon" issue report "$id" <<<'## Report' >/dev/null
+unset HC_TERMINAL_ID
+findings "$head"
+got=$(gate "$id" --dry-run); expect 0 approve
+echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
+as_owner git -C "$tmp/plant" commit -qam 'screen_paths を戻す'
+ok 'screen_paths に当たる差分は PR の本文かコメントに GitHub の添付（user-attachments）が無ければ fix、あれば通す。当たらない差分は要らない'
+
 # 12. deliverable: candidates（調べる課題）にはゲートが無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
 sid=$(HC_TERMINAL_ID=t5 kanban add 'docs の誤りを調べる' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates branch=survey "worktree=$tmp/wt" repo=github.com/example/app >/dev/null

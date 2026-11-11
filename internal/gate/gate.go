@@ -128,6 +128,19 @@ type prView struct {
 	Author            struct {
 		Login string `json:"login"`
 	} `json:"author"`
+	Body     string `json:"body"`
+	Comments []struct {
+		Body string `json:"body"`
+	} `json:"comments"`
+}
+
+// texts は PR の本文とコメントの本文（添付を探す先）。
+func (pv prView) texts() []string {
+	out := []string{pv.Body}
+	for _, c := range pv.Comments {
+		out = append(out, c.Body)
+	}
+	return out
 }
 
 // LoadTable は条件表を読む: パッケージの gate.json に、セルの gate.local.json のキーを1つずつ置き換えて重ねる。
@@ -244,7 +257,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	slug := owner + "/" + name
 
 	var pv prView
-	b, err := gh("pr", "view", number, "--repo", slug, "--json", "state,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,author,changedFiles,isCrossRepository")
+	b, err := gh("pr", "view", number, "--repo", slug, "--json", "state,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,author,changedFiles,isCrossRepository,body,comments")
 	if err != nil {
 		return nil, "", err
 	}
@@ -312,6 +325,9 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 
 	rt, known := table.Repos[repo]
 	facts.RepoKnown = known
+	if screen := table.ScreenFiles(rt, files); len(screen) > 0 && !HasAttachment(pv.texts()) {
+		facts.ScreenMissing = screen
+	}
 	cl, err := table.Classify(rt, files, string(diff), s.Review == "on")
 	if err != nil {
 		return nil, "", err

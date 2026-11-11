@@ -24,6 +24,7 @@ type Table struct {
 	TierCPathExceptions    map[string][]string  `json:"tier_c_path_exceptions,omitempty"`
 	TierCAddedLinePatterns []string             `json:"tier_c_added_line_patterns,omitempty"`
 	GitHubChecksWait       *int                 `json:"github_checks_wait_minutes,omitempty"`
+	ScreenPaths            []string             `json:"screen_paths,omitempty"`
 	Repos                  map[string]RepoTable `json:"repos,omitempty"`
 }
 
@@ -190,6 +191,34 @@ func (t *Table) Classify(repo RepoTable, files []File, diff string, reviewOn boo
 		return Classified{"B", b, lines}, nil
 	}
 	return Classified{"A", []string{}, lines}, nil
+}
+
+// ScreenFiles は差分のうち条件表の screen_paths に当たるパス（純粋関数。strip_prefix を外し、rename の元も見る）。
+// 画面に触れる変更で、PR に画面の証拠（添付）が要る（ADR-0018 決めたこと 2）。
+func (t *Table) ScreenFiles(repo RepoTable, files []File) []string {
+	hit := []string{}
+	for _, f := range files {
+		ps := []string{strings.TrimPrefix(f.Path, repo.StripPrefix)}
+		if f.PreviousPath != "" && f.PreviousPath != f.Path {
+			ps = append(ps, strings.TrimPrefix(f.PreviousPath, repo.StripPrefix))
+		}
+		for _, p := range ps {
+			if matchAny(t.ScreenPaths, p) && !slices.Contains(hit, p) {
+				hit = append(hit, p)
+			}
+		}
+	}
+	return hit
+}
+
+// attachmentRe は GitHub の添付の URL（gh pr create／comment --attach と Web の画面で上げた画像・動画）。
+// gh は本文に ![alt](https://github.com/user-attachments/assets/<id>) を足し、動画は URL だけを置く。
+// 外の画像の URL や書き換えられていない相対パス（![x](./a.png)）は添付でない。
+var attachmentRe = regexp.MustCompile(`https://github\.com/user-attachments/assets/[0-9A-Za-z][0-9A-Za-z-]*`)
+
+// HasAttachment は PR の本文かコメントのどれかに GitHub の添付があるか（純粋関数）。
+func HasAttachment(texts []string) bool {
+	return slices.ContainsFunc(texts, attachmentRe.MatchString)
 }
 
 func override(o map[string]string, p string) (string, bool) {
@@ -429,6 +458,7 @@ type Facts struct {
 	ChecksOptional  bool         // 条件表の repos.<repo>.github_checks が optional（1件も無くてよい）
 	ChecksOverdue   bool         // review に入ってから github_checks_wait_minutes を過ぎた
 	ChecksWait      int          // github_checks_wait_minutes（理由の文に入れる）
+	ScreenMissing   []string     // screen_paths に当たるのに PR に添付が無いファイル
 }
 
 // Decide は決定式（純粋関数）。decision と reasons を返す。approve の reasons は空。
@@ -476,6 +506,13 @@ func Decide(f Facts) (string, []string) {
 	}
 	if f.AcceptanceFail > 0 {
 		return "fix", []string{fmt.Sprintf("受け入れ条件の fail が %d 件", f.AcceptanceFail)}
+	}
+	if len(f.ScreenMissing) > 0 {
+		reasons := make([]string, len(f.ScreenMissing))
+		for i, p := range f.ScreenMissing {
+			reasons[i] = "screen_paths: " + p + " に当たるが画面の証拠（添付）が無い"
+		}
+		return "fix", reasons
 	}
 	// 待ち（wait）は、ほかに止める理由が無く GitHub の checks だけが揃っていないとき
 	switch g := f.GitHubChecks; {
