@@ -5,7 +5,8 @@ description: 台帳のトリアージを受け持つ担当が読む。依頼書�
 
 # triage
 
-**台帳に溜まったもの（報告の `## Next`・見送り・`## Remember`・`For AGENTS.md:`・`## 人に聞くこと`・担当の無い todo・人の判断待ち・片付けの残り）を、
+**台帳に溜まったもの（報告の `## Next`・見送り・`## Remember`・`For AGENTS.md:`・`## 人に聞くこと`・担当の無い todo・人の判断待ち・片付けの残り）と、
+セルの auto memory（`/workspace/memory/` の1件1ファイル）を、
 1つのゴールの下で項目ごとに仕分ける。** 拾うのは `andon triage collect`、台帳に手を入れるのは Chief of Staff が打つ `andon triage apply`。
 あなたは**確かめて仕分ける**だけで、決めたことは `decisions.json` と報告に書く。
 
@@ -34,7 +35,8 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 
 - 出力は項目の JSON 配列（`key`・`kind`・`from`・`repo`・`text`・`age_days`）。古い順に並ぶ。前回までに仕分けた `key` は出ない（`keep` は出る）。
 - `kind` は `issue`（担当の無い todo／queued）・`person`（人の判断待ち）・`next`・`waived`（見送り）・`remember`・`agents`（`For AGENTS.md:`）・
-  `question`（`## 人に聞くこと`）・`leftover`（done なのに worktree か端末が残っている）・`unreadable`（報告が読めない）。
+  `question`（`## 人に聞くこと`）・`leftover`（done なのに worktree か端末が残っている）・`unreadable`（報告が読めない）・
+  `memory`（`/workspace/memory/` の直下の `.md` 1件。`from` はファイル名から作った名前、`text` はファイルの本文。目録の `MEMORY.md` は項目にならない）。
 - **終了コード 4**（項目が上限 50 を超えた）: 依頼書に件数の指定（「古い順に N 件」）があればそれ、無ければ 50。
   `--limit` を増やして全件を取り、**先頭（古い順）から N 件だけ**仕分ける。残りは decisions.json に入れない（次回も出る）。報告に残りの件数を書く。
 - 拾うのは機械なので、見出しで切っただけの行も混じる（見送りの見出しの行・「ここまで」の行など）。そういう行も1項目として仕分ける（`close`「その場限り」でよい）。
@@ -73,6 +75,16 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   この台帳が Andon 自身のプロジェクトでなければ `close`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`「その場限り」。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`「読んだ: 拾うものなし」。
+- **`memory`**（auto memory の1件。どの役のセッションも書く注意書き・事実で、仕分けるまで全部の役に自動で載り続ける）:
+  書いてある事実と理由を、今の実物で確かめる（`git -C <repo> grep`・docs・`deck show`）。memory は受け皿で、残す家ではない。行き先は次のどれか:
+  (a) 事実か理由が今は当てはまらない・理由の無い「〜しない」「必ず確認する」の類（控えや確認を増やすだけ）→ `close`「当てはまらない: <確かめ方>」。
+  (b) 既に wiki・`AGENTS.md`・skill・docs にある → 3 の `close`「済み: <どこで>」。
+  (c) その repo の作法・テスト・docs の直し → `agents`・`remember` (a) と同じく `fix`（`brief` に memory の本文を引用する）。Andon の skill・パッケージの直しは `remember` (b) と同じ。
+  (d) セルやプロジェクトの事実・学びで、長く残す価値がある → `close`「wiki へ: <題>」とし、報告の `## Next` に「Chief of Staff: wiki へ ingest（raw/memory/ に写す）: <key>」を1行。
+  (e) その場限り・続き（台帳にあるべきもの）・決定（文書の PR にあるべきもの） → `close`「その場限り」。
+  (f) 確かめるのに待つものがある → `keep`。`keep` のファイルは残り、次回も出る。
+  `apply` は `keep` 以外に仕分けた memory のファイルと、目録でそれを指す行を消す。本文と理由はトリアージの記録（`library/triage/`）に残る。
+  ファイルが collect のあとに書き換わると key が変わり、`apply` は止まる（collect からやり直す）。
 - **`issue`**（担当の無い todo／queued）を `close` できるのは、今も担当が無い todo／queued のときだけ（`apply` が確かめる）。`close` すると `apply` がその報告の末尾に理由を足して done にする。
 
 人に届くものを減らす線（ask-one-by-one skill §1 と同じ）: 5 と 6 と 10 だけが人へ行く。`kind` 無しの `person` は「エージェントで決められたのでは」と要約で目立つので、
