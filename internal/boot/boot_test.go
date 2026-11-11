@@ -508,6 +508,7 @@ func TestMainWithFakeHome(t *testing.T) {
 	}
 	t.Setenv("PATH", bin)
 	t.Setenv("HOME", f.home)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(f.home, ".local", "state")) // dispatcher の lock も一時の HOME の下に。受け継いだ置き場に書かない
 	t.Setenv("CLAUDE_CONFIG_DIR", f.claude)
 	t.Setenv("ANDON_HOME", f.pkg)
 	t.Setenv("ANDON_WORKSPACE", f.ws)

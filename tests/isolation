@@ -5,7 +5,8 @@
 # 一時ディレクトリに偽のセル（番兵）を作り、セルと同じ形にして go test ./... と tests/*.sh を回す:
 #   - repo の写し（今の作業ツリーごと）を <ws>/.ghq/example.com/owner/andon に置き、
 #     その repo を repos に持つ台帳 <ws>/projects/sample/kanban を置く（git の main checkout から台帳を探す道）。
-#   - KANBAN_ROOT・HOME・CLAUDE_CONFIG_DIR・ANDON_HOME・CODEX_HOME・ANDON_WORKSPACE・GHQ_ROOT・HC_* を番兵へ向ける。
+#   - KANBAN_ROOT・HOME・CLAUDE_CONFIG_DIR・ANDON_HOME・CODEX_HOME・ANDON_WORKSPACE・GHQ_ROOT・XDG_STATE_HOME・XDG_CONFIG_HOME・
+#     XDG_DATA_HOME・HC_* を番兵へ向ける（XDG_* は番兵の HOME の下。セルで値があってもなくても同じ置き場を見る）。
 #   - TMPDIR を repo の写しの中に置く（担当が一時ディレクトリを worktree の中に置いたときと同じ）。
 # 番兵の台帳と HOME の下のファイルが1つでも変われば、変わったものを出して 1 で終わる。検査の失敗も 1。
 # 引数があれば tests/*.sh はそれだけ（go test ./... は毎回回す）。
@@ -23,7 +24,7 @@ gocache=$(PATH=$path go env GOCACHE) gomodcache=$(PATH=$path go env GOMODCACHE)
 
 ws=$tmp/ws
 repo=$ws/.ghq/example.com/owner/andon
-mkdir -p "$ws/.ghq/example.com/owner" "$ws/projects/sample" "$ws/home/.claude" "$ws/home/.codex" "$ws/home/.config/go"
+mkdir -p "$ws/.ghq/example.com/owner" "$ws/projects/sample" "$ws/home/.local/state" "$ws/home/.local/share" "$ws/home/.claude" "$ws/home/.codex" "$ws/home/.config/go"
 git clone -q "$src" "$repo"
 (cd "$src" && git diff HEAD --binary) | (cd "$repo" && git apply --allow-empty)
 (cd "$src" && git ls-files --others --exclude-standard -z) | (cd "$src" && xargs -0r cp --parents -t "$repo")
@@ -44,6 +45,7 @@ before=$(snap)
 cell=(env PATH="$path" GOCACHE="$gocache" GOMODCACHE="$gomodcache" TMPDIR="$repo/tests/.task-tmp"
   KANBAN_ROOT="$ws/projects/sample" HOME="$ws/home" CLAUDE_CONFIG_DIR="$ws/home/.claude" CODEX_HOME="$ws/home/.codex"
   ANDON_HOME="$ws/home" ANDON_WORKSPACE="$ws" GHQ_ROOT="$ws/.ghq"
+  XDG_STATE_HOME="$ws/home/.local/state" XDG_CONFIG_HOME="$ws/home/.config" XDG_DATA_HOME="$ws/home/.local/share"
   HC_TERMINAL_ID=t1 HC_SCOPE=sentinel HC_TERMINAL_SOCKET="$ws/hc.sock")
 failed=0
 (cd "$repo" && "${cell[@]}" go test ./...) || failed=1
