@@ -52,7 +52,26 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 - [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲・候補・流れの数え・人の手直し）。正は `schema/`（JSON Schema 10本。`tests/schema.sh` が例と突き合わせる）
 - [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席時の送り）、どこまで動かすか（判断はしない）
 - [docs/operate.md](docs/operate.md) — セルを立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しの課題）
-- [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。[0001 skill の配布](docs/adr/0001-skills-distribution.md): セルの中は plugin `andon` と `.agents/skills` の symlink・役の skill を system prompt に足す。外は Andon が届く所に届く。やらないこと: MCP・marketplace。[0002 Herdr App の Space](docs/adr/0002-herdr-spaces.md): 指揮側と作業側の Space・tab は課題・口は hc のラベルだけ・試してから指揮側の割り方を決め直す。[0003 課題ごとの Space](docs/adr/0003-task-spaces.md): 作業側を Space ＝ 課題にし、App の Files・Changes が課題の worktree を指す。[0007 仮設の工場にあって Andon に無いものの棚卸し](docs/adr/0007-interim-gap-inventory.md)（提案）: 2026-11-06 の表と塞ぐ順を残し、引っ越し（2026-11-09）のあとの区分を 済・残る・やらない に付け直した。残るものは依頼書に切る案 R1〜R9
+- [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。全部の地図:
+  - [0001 skill の配布](docs/adr/0001-skills-distribution.md): 決定
+  - [0002 Herdr App の Space と tab への役の置き方](docs/adr/0002-herdr-spaces.md): 決定（作業側の Space と tab は 0003 が覆した）
+  - [0003 作業側の Space を課題ごとにする](docs/adr/0003-task-spaces.md): 決定
+  - [0004 `projects/<slug>/` の構成](docs/adr/0004-project-layout.md): 決定
+  - [0005 セルの repo の直下と、追跡・持ち運び・守り](docs/adr/0005-cell-repo.md): 決定
+  - [0006 調べる・決める・直すを分ける](docs/adr/0006-survey-fix-decide.md): 提案
+  - [0007 仮設の工場にあって Andon に無いものの棚卸しと、塞ぐ順](docs/adr/0007-interim-gap-inventory.md): 提案
+  - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 提案
+  - [0009 Chief of Staff を人の既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定
+  - [0010 通知を「記録だけ」と「届ける」に分ける（`andon news ack`）](docs/adr/0010-news-ack.md): 提案
+  - [0011 信号の受け口と価値のループ](docs/adr/0011-signals-and-value-loop.md): 提案
+  - [0012 止まった担当を resume で起動し直す・worktree の置き場](docs/adr/0012-resume-and-worktree-home.md): 提案
+  - [0013 役の呼び名を短くし、人に向けた日本語をふだんの言い方に揃える](docs/adr/0013-short-role-names-and-plain-japanese.md): 決定
+  - [0014 課題の見込みと実際のズレを測り、Chief of Staff に届ける](docs/adr/0014-issue-estimate.md): 提案
+  - [0015 inbox を Needs you と役への入口に絞る](docs/adr/0015-inbox-needs-you.md): 提案
+  - [0016 セルの wiki を LLM Wiki の手法に乗せる](docs/adr/0016-cell-wiki-llm-wiki.md): 決定
+  - [0017 仕事の流れと状態を定義し、その上で見張り役（dispatcher）を細くする](docs/adr/0017-process-definitions.md): 決定
+  - [0018 担当が画面を見て確かめる道具](docs/adr/0018-screen-check-tooling.md): 決定
+  - [0019 人の書きかけに `<news>` を混ぜない](docs/adr/0019-cos-input-box.md): 提案
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
 - [REVIEW.md](REVIEW.md) — この repo のレビュアーの観点
