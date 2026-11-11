@@ -47,35 +47,7 @@ func (f *retryFixture) sent() string {
 	return strings.TrimSpace(string(b))
 }
 
-// 送る直前の確かめ（d）の observe の間に人が打ち始めたら、<news> を送らず次の回に持ち越す（A-0127。dispatcher.md §4.4）。
-// 文字の確かめ（hc read）が observe より前にあると、空と読んだまま送ってしまう。
-func TestDeliverTypingDuringObserve(t *testing.T) {
-	f := typingFixture(t, "2") // 1 回目は b、2 回目は d の入力欄の確かめ
-	f.term("t1", "idle", "", 0, false)
-	f.p.st.Pending = []Notification{{Project: "sample-site", Issue: "S-7", Kind: "report", Detail: map[string]any{}}}
-	f.p.deliver("t1")
-	if got := f.sent(); got != "" {
-		t.Fatalf("打ち始めた入力欄に <news> を送った: %q", got)
-	}
-	if len(f.p.st.Pending) != 1 {
-		t.Fatalf("送らなかった通知を持ち越していない: %+v", f.p.st.Pending)
-	}
-	// 人が書きかけのままなら、次の回も送らない
-	f.p.deliver("t1")
-	if got := f.sent(); got != "" {
-		t.Fatalf("書きかけの入力欄に <news> を送った: %q", got)
-	}
-	// 打ち始めが無ければ送る（確かめが送りを止めすぎていない）
-	f = typingFixture(t, "0")
-	f.term("t1", "idle", "", 0, false)
-	f.p.st.Pending = []Notification{{Project: "sample-site", Issue: "S-7", Kind: "report", Detail: map[string]any{}}}
-	f.p.deliver("t1")
-	if got := f.sent(); got != "send t1" || len(f.p.st.Pending) != 0 {
-		t.Fatalf("空の入力欄に送らない: %q %+v", got, f.p.st.Pending)
-	}
-}
-
-// Chief of Staff への続きの送り直し（retryIfEmpty）も同じ確かめを通る（横展開）。
+// Chief of Staff への続きの送り直し（retryIfEmpty）は、observe の間に人が打ち始めたら打たない（A-0127。W5 で消すまで）。
 func TestRetryChiefTypingDuringObserve(t *testing.T) {
 	f := typingFixture(t, "1")
 	f.term("t1", "error", cutMsg, 0, false)

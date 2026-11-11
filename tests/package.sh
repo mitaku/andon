@@ -194,6 +194,10 @@ for ev in Stop:stop UserPromptSubmit:user-prompt-submit; do
     && [ -x "package/hooks/${ev#*:}" ] && sh -n "package/hooks/${ev#*:}" \
     && pass "${ev%%:*} フックは package/hooks/${ev#*:} を指す" || fail "${ev%%:*} フック: package/hooks/${ev#*:}"
 done
+# 待ち役（ADR-0019 決めたこと 1・9）: Stop に asyncRewake のフックが timeout つきで在り、待ち役に渡す --timeout がその timeout と同じ
+wt=$(jq -r '[.hooks.Stop[].hooks[] | select(.command == "/opt/andon/hooks/stop-wait" and .asyncRewake == true and (.timeout | type) == "number")][0].timeout // empty' package/settings.json)
+[ -n "$wt" ] && [ -x package/hooks/stop-wait ] && sh -n package/hooks/stop-wait && grep -q "andon dispatcher wait --timeout $wt\$" package/hooks/stop-wait \
+  && pass "Stop の待ち役は asyncRewake のフック（timeout $wt 秒。--timeout も同じ）" || fail "Stop に asyncRewake の待ち役のフックが無い・timeout が待ち役の --timeout と違う"
 
 # 全フックの command が、セルに在るファイルだけを指す（/opt/andon/ は package/ の写し。$HOME 配下は image に無い）
 cmds=$(jq -r '[.hooks[][].hooks[].command] | .[]' package/settings.json)

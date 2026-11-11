@@ -65,8 +65,6 @@ type dispatcherState struct {
 	Reviewers map[string]dsReviewer `json:"reviewers"`
 	Gates     map[string]dsGate     `json:"gates"`
 	Pending   []dsNotification      `json:"pending"`
-	Coord     string                `json:"coord,omitempty"`
-	NewsTurn  *int                  `json:"news_turn,omitempty"`
 	Hook      *dsHookNews           `json:"hook,omitempty"`
 	LogPos    *int64                `json:"log_pos,omitempty"`
 	LogHead   string                `json:"log_head,omitempty"`

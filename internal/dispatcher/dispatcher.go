@@ -12,8 +12,8 @@
 //	担当・Chief of Staff が提供元に切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
 //
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
-// 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）と、
-// 離席時だけの hc send（deliver.go。経路③）。dispatcher.md §3。届けない kind は記録だけ（route.go の表。§3.2）。
+// 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、
+// 離席中は Stop フックの待ち役（wait.go。経路③）が合図で Chief of Staff を起こす。dispatcher は入力欄へ <news> を打たない。dispatcher.md §3。届けない kind は記録だけ（route.go の表。§3.2）。
 // 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
 // 例外は dispatcher が書き手の library/ のファイル（ゲートの記録の merged・corrections.json。contract.md §1）。
 package dispatcher
@@ -40,9 +40,10 @@ import (
 const Usage = "usage: andon dispatcher [--project <slug>]          回り続ける（hc の端末 dispatcher の中で動く）\n" +
 	"       andon dispatcher --once [--project <slug>]   1回だけ回して終わる\n" +
 	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
+	"       andon dispatcher wait [--timeout <秒>] [--project <slug>]   待ち役（Chief of Staff の Stop フックが asyncRewake で起こす）\n" +
 	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
-	"待ちの通知は、Chief of Staff がターンを終えて入力を待ち、入力欄が空のときだけ hc send で届ける（ほかはフックの drain）。\n" +
+	"待ちの通知は Chief of Staff のフック（drain）が届ける。離席中は待ち役（wait）が合図で Chief of Staff を起こす（入力欄へは打たない）。\n" +
 	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
 	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。届けない通知は横の <slug>.recorded.jsonl に1行ずつ。\n"
 
@@ -59,6 +60,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	once, only := false, ""
 	if len(args) > 0 && args[0] == "drain" {
 		return Drain(args[1:], stdin, stdout, stderr)
+	}
+	if len(args) > 0 && args[0] == "wait" {
+		return WaitMain(args[1:], stdin, stderr)
 	}
 	for i := 0; i < len(args); i++ {
 		switch {
@@ -107,6 +111,8 @@ type Dispatcher struct {
 	WS    string    // セルの repo
 	Andon string    // andon のバイナリ（gate・issue を打つ）
 	Log   io.Writer // ログ（1行ずつ）
+
+	unwaited map[string]string // 待ち役がいないとログに書いた待ち（台帳ごと。同じ待ちを二度書かない）
 }
 
 func (c *Dispatcher) logf(format string, a ...any) {
@@ -194,7 +200,7 @@ func (p *project) pass() (bool, error) {
 	p.corrections()     // 人の手直し（dispatcher.md §2.6・contract.md §14）
 	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
 	if !p.first {
-		p.deliver(cos) // 経路③: 離席時だけ（dispatcher.md §3・§4）
+		p.unwaited(cos) // 経路③は待ち役。dispatcher は打たず、待ち役がいなければログに1行（dispatcher.md §3・§4）
 	}
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
 }

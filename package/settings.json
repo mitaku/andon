@@ -82,6 +82,12 @@
             "type": "command",
             "command": "/opt/andon/hooks/stop",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "/opt/andon/hooks/stop-wait",
+            "timeout": 7200,
+            "asyncRewake": true
           }
         ]
       }

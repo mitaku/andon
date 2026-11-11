@@ -5,9 +5,6 @@ states:
   - id: pending
     title: 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える）
     record: dispatcher:Pending
-  - id: away-sent
-    title: 離席時に hc send で渡した（経路③。送った端末と turn を控える）
-    record: [dispatcher:Coord, dispatcher:NewsTurn]
   - id: hooked
     title: フックで渡した（経路①②。渡した turn を控える）
     record: dispatcher:Hook
@@ -26,9 +23,8 @@ transitions:
   - { from: "[*]", to: unrecorded, on: "記録だけの通知を置き場に書けなかった", by: machine }
   - { from: unrecorded, to: recorded, on: "次の見回りで先に書いた", by: machine }
   - { from: pending, to: hooked, on: "通知を Chief of Staff へ届ける（ターンの終わり・人が送った。経路①②。§7.2 #7）", by: machine, command: andon dispatcher drain, once: true }
-  - { from: pending, to: away-sent, on: "通知を Chief of Staff へ届ける（離席の守りがそろった。経路③。§7.2 #7）", by: machine, command: hc send --if idle, once: true }
+  - { from: pending, to: pending, on: "人が離れている間に Chief of Staff を起こす（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4）", by: machine, command: andon dispatcher wait }
   - { from: hooked, to: acked, on: "渡した turn の Stop が来た", by: ai }
   - { from: hooked, to: hooked, on: "確かめないまま別の turn が来た（1 回だけ届け直す）", by: machine }
-  - { from: away-sent, to: acked, on: "news を渡した turn が進んだ", by: ai }
   - { from: acked, to: "[*]", on: "終わり", by: machine }
   - { from: recorded, to: "[*]", on: "終わり", by: machine }

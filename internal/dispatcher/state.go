@@ -46,21 +46,19 @@ type Gate struct {
 
 // State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。台帳の外）。
 type State struct {
-	Reviewers map[string]Reviewer `json:"reviewers"`           // <issue>@<commit>
-	Gates     map[string]Gate     `json:"gates"`               // <issue>#<log.jsonl の行>
-	Pending   []Notification      `json:"pending"`             // 待ちの通知（drain.go のフックと deliver.go の離席時の hc send が届ける）
-	Coord     string              `json:"coord,omitempty"`     // 離席時に送った Chief of Staff の端末（替わったら NewsTurn を捨てる）
-	NewsTurn  *int                `json:"news_turn,omitempty"` // 離席時に <news> を送った turn（dispatcher.md §4.1 の c）
-	Hook      *HookNews           `json:"hook,omitempty"`      // フックで渡して、その turn の終わりをまだ見ていない <news>
-	LogPos    *int64              `json:"log_pos,omitempty"`   // log.jsonl の読んだ位置（バイト。無ければ初めて）
-	LogHead   string              `json:"log_head,omitempty"`  // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
-	LogHold   *int64              `json:"log_hold,omitempty"`  // 問いの JSON を待って止まった行の頭（1回だけ待つ）
-	Ready     *[]string           `json:"ready,omitempty"`     // 前回の ready の id（人の課題を除く。無ければ初めて）
-	Sent      map[string]bool     `json:"sent,omitempty"`      // 知らせた担当の状態（<issue>|<agent>|<状態>|<status_ms>）
-	Retry     map[string]Resend   `json:"retry,omitempty"`     // 提供元に切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
-	First     map[string]bool     `json:"first,omitempty"`     // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
-	Moved     map[string]Moved    `json:"moved,omitempty"`     // working の担当の status.msg と画面の要約と、それが最後に動いた時刻（<issue>|<agent>。止まったかの見分け）
-	Impact    map[string]int      `json:"impact,omitempty"`    // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
+	Reviewers map[string]Reviewer `json:"reviewers"`          // <issue>@<commit>
+	Gates     map[string]Gate     `json:"gates"`              // <issue>#<log.jsonl の行>
+	Pending   []Notification      `json:"pending"`            // 待ちの通知（drain.go のフックが届ける。離席中は wait.go の待ち役が合図で起こす）
+	Hook      *HookNews           `json:"hook,omitempty"`     // フックで渡して、その turn の終わりをまだ見ていない <news>
+	LogPos    *int64              `json:"log_pos,omitempty"`  // log.jsonl の読んだ位置（バイト。無ければ初めて）
+	LogHead   string              `json:"log_head,omitempty"` // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
+	LogHold   *int64              `json:"log_hold,omitempty"` // 問いの JSON を待って止まった行の頭（1回だけ待つ）
+	Ready     *[]string           `json:"ready,omitempty"`    // 前回の ready の id（人の課題を除く。無ければ初めて）
+	Sent      map[string]bool     `json:"sent,omitempty"`     // 知らせた担当の状態（<issue>|<agent>|<状態>|<status_ms>）
+	Retry     map[string]Resend   `json:"retry,omitempty"`    // 提供元に切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
+	First     map[string]bool     `json:"first,omitempty"`    // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
+	Moved     map[string]Moved    `json:"moved,omitempty"`    // working の担当の status.msg と画面の要約と、それが最後に動いた時刻（<issue>|<agent>。止まったかの見分け）
+	Impact    map[string]int      `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 	// done になった、人の手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
 	Corrections map[string]int `json:"corrections,omitempty"`
 	// review の課題の PR を人がマージしたかの控え（humanmerge.go。dispatcher.md §2.7）
