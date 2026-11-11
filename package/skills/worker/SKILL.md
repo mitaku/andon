@@ -108,7 +108,7 @@ Chief of Staff には dispatcher の通知が `report` の kind で届く（`rev
 ## 3. 検査・commit・PR
 
 1. commit の前に検査を通す。どれを回すかはリポジトリの AGENTS.md（型・lint・テスト・`scripts/check`）。無ければ README とテストの置き場から決める。
-2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。
+2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。rebase のあとの force push は `git push --force-with-lease` だけで、押してよいのは自分の課題の branch だけ（許可ルールは `package/settings.json`。main と他人の branch には打たない。`--force` は使わない）。
 3. PR を出す（`gh pr create`）。本文に、やったこと・テスト結果・見送ったレビューの指摘（§4）。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。ゲートと dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す:
