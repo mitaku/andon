@@ -1,0 +1,4 @@
+# 外の skill の一覧（ADR-0018）。andon boot が gh のログインがあれば毎起動
+# gh skill install <owner>/<repo> <skill>（latest。Claude Code と Codex の user scope）で入れ、gh skill update --all で上げる。
+# 1行に「<owner>/<repo> <skill>」。# からは注。セルで足すなら /workspace/local/gh-skills.txt に同じ形で書く。
+# 既定は空（同梱の playwright-cli は boot が symlink で張る）。

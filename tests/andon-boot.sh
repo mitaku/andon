@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tests/andon-boot.sh — andon boot を偽の HOME・偽のセル・偽のパッケージで2回打つ。
-# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink・信頼）が揃い、2回目で何も変わらないこと。
-# PATH には andon の置き場だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace に触らない）。
+# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink・同梱の skill の symlink・信頼）と
+# 外の skill（偽の gh で gh skill install／update --all）が揃い、2回目で何も変わらないこと。
+# PATH には andon の置き場と偽の gh だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace・/opt/andon-tools に触らない）。
 set -u
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -27,9 +28,25 @@ ln -s "$tmp/mine" "$home/.agents/skills/andon-mine"             # 利用者が a
 mkdir -p "$ws/.ghq/github.com/example/sample-site/.git" "$ws/.ghq/github.com/example/unlisted/.git" "$ws/projects/demo/kanban"
 printf 'version: 3\nrepos:\n  - github.com/example/sample-site\n' >"$ws/projects/demo/kanban/config.yaml" # 台帳に載った repo だけが信頼の根
 cp "$andon" "$tmp/path/andon"
+# 同梱の skill（ADR-0018 決めたこと 5）: 備品の置き場の実体と、boot が前に張った古いリンク（外れること）
+tools=$tmp/opt/andon-tools bundled=$tmp/opt/andon-tools/lib/node_modules/playwright/node_modules/playwright-core/lib/tools/skills/playwright-cli
+mkdir -p "$bundled" && echo playwright-cli >"$bundled/SKILL.md"
+ln -s "$tools/lib/gone" "$home/.agents/skills/gone-tool"
+# 外の skill: 偽の gh（ログイン済み。呼ばれた引数を控え、skill install で置き場にディレクトリを作る）とセルの一覧
+cat >"$tmp/path/gh" <<EOF
+#!/bin/sh
+echo "\$*" >>"$tmp/gh-calls"
+if [ "\$1 \$2" = "skill install" ]; then
+  case "\$6" in claude-code) d="\$CLAUDE_CONFIG_DIR/skills" ;; codex) d="\$HOME/.agents/skills" ;; *) exit 2 ;; esac
+  PATH=/usr/bin:/bin mkdir -p "\$d/\$4"
+fi
+exit 0
+EOF
+chmod +x "$tmp/path/gh"
+mkdir -p "$ws/local" && printf '# 注\nexample/skills alpha\n' >"$ws/local/gh-skills.txt"
 
 boot() {
-  env -i PATH="$tmp/path" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+  env -i PATH="$tmp/path" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" ANDON_TOOLS="$tools" \
     ANDON_HOME="$pkg" ANDON_WORKSPACE="$ws" ANDON_MANAGED_SETTINGS="$managed" GHQ_ROOT="$ws/.ghq" \
     andon boot >"$tmp/out" 2>"$tmp/err"
 }
@@ -43,6 +60,11 @@ grep -q 'セル' "$home/.config/herdr-core/templates/claude.md" && pass "プロ�
 @$ws/AGENTS.local.md" ] && pass "CLAUDE.md は2行" || fail "CLAUDE.md: $(cat "$home/.claude/CLAUDE.md")"
 [ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
 [ ! -L "$home/.claude/skills/andon-worker" ] && [ -L "$home/.claude/skills/mine" ] && [ "$(readlink "$home/.agents/skills/andon-mine")" = "$tmp/mine" ] && pass "boot が張った andon-* だけ外す" || fail "~/.claude/skills: $(ls -l "$home/.claude/skills")"
+[ "$(readlink "$home/.agents/skills/playwright-cli")" = "$bundled" ] && [ "$(readlink "$home/.claude/skills/playwright-cli")" = "$bundled" ] \
+  && [ ! -L "$home/.agents/skills/gone-tool" ] && pass "同梱の skill の symlink（<claude>/skills と ~/.agents/skills。備品の置き場を指す古いリンクは外す）" \
+  || fail "同梱の skill: $(ls -l "$home/.agents/skills" "$home/.claude/skills")"
+[ -d "$home/.claude/skills/alpha" ] && [ -d "$home/.agents/skills/alpha" ] && grep -qx 'skill update --all' "$tmp/gh-calls" \
+  && pass "外の skill を gh skill install（エージェントごと）で入れ、update --all を打つ" || fail "外の skill: $(cat "$tmp/gh-calls")"
 grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
 # Codex の承認・sandbox の既定は config.toml の先頭の塊（最初の空行まで）。信頼の表はその後ろに続く
 [ "$(sed -n '2,3p' "$home/.codex/config.toml")" = 'approval_policy = "never"
@@ -60,7 +82,9 @@ snap >"$tmp/snap1"
 boot; r=$?
 snap >"$tmp/snap2"
 [ "$r" = 0 ] && cmp -s "$tmp/snap1" "$tmp/snap2" && pass "2回打っても同じ（冪等）" || fail "2回目: rc=$r $(diff "$tmp/snap1" "$tmp/snap2")"
-grep -qE '生成:|リンク:|外した:|信頼を足した' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
+grep -qE '生成:|リンク:|外した:|信頼を足した|入れた:' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
+[ "$(grep -c '^skill install' "$tmp/gh-calls")" = 2 ] && [ "$(grep -c '^skill update --all$' "$tmp/gh-calls")" = 2 ] \
+  && pass "2回目は入っている skill を入れ直さず update --all だけ" || fail "gh の呼び出し: $(cat "$tmp/gh-calls")"
 
 "$andon" boot extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon boot' "$tmp/err" && pass "引数を取らない（usage で rc 2）" || fail "boot extra: rc=$r"
