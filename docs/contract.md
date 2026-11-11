@@ -548,7 +548,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 ## 15. 信号の記録（`<slug>.signals.json`）
 
-外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は台帳の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect`）だけ、読み手はトリアージ・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
+外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は台帳の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect`）だけ、読み手はトリアージ・観察の課題の担当・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
 
 ```json
 {"signals": [
