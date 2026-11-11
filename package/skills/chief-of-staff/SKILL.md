@@ -80,7 +80,7 @@ EOF
   | `codex-review`・`claude-review` | レビュアー（§2 の Reviewer。independent-review の §2） |
 - 切るときに、その課題が触りそうな場所（ファイル・節）を依頼書の「解決すべき問題」（手がかりとして）「守ること」に書く。§3 の1で、動いている課題とぶつからないかを確かめる材料になる。
   ぶつかるものは `--after` で並べるか、1つの課題に束ねる。
-- 切る前に wiki の `index.md` を引く（§11 の query）。
+- 切る前に wiki を引く（§11 の query。`index.md` → ページの順）。効くページがあれば、依頼書の手がかりにページを出典として書く。
 - 外部のトラッカーで回る案件は、そちらが正。課題の `links` にキーを書く（`deck set <id> links=<キー>`）。中身は写さない（規約7）。
 
 ### Chief Engineer の文書を受けたら
@@ -343,7 +343,7 @@ minor 以下だけが残っているなら起こさず、見送りに残して `
   開いた問いがあると止まる。commit していない変更があっても止まる。そのときは担当に聞くか、人へ。
 - マージせずにやめる課題は、**人の go を取ってから** `andon issue finish <id>`（branch は残る）。
 - レビュアーの課題は、元の課題の `andon issue finish` で片付く。元の課題をやめずにレビュアーだけ残っていれば `andon issue finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
-- finish のたびに、報告の `## Remember` と確かめた事実から、次に効くものだけを wiki に書く（§11）。
+- finish のたびに、報告と人の手直しを wiki の `raw/` に写して ingest する（§11）。
 - 残りの見つけ方（規約4・6）: `deck list`（`doing`・`review` のまま古いもの）、`hc ls --label project=<slug>`、`git worktree list`、`deck lint`。
 
 ### マージのあとの影響（`<id> impact`）
@@ -369,7 +369,7 @@ minor 以下だけが残っているなら起こさず、見送りに残して `
 ## 8. 人への質問
 
 ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・待ちの問いは台帳の人の課題）。
-人の答えが推奨案と違った・人の志向が見えたときは、その理由を wiki に書く（§11）。
+人の答えが推奨案と違った・人の志向が見えたときは、人の言葉を wiki の `raw/` に写して ingest する（§11）。
 
 ## 9. 規約1〜10
 
@@ -407,14 +407,36 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 
 ## 11. wiki
 
-セルの `/workspace/wiki/`（セルの repo）。書くのは Chief of Staff だけで、Chief Engineer と担当は読むだけ。手順はこの節が正（command は無い）。
+セルの `/workspace/wiki/`（セルの repo）。形は LLM Wiki: 書いたら変えない元資料の層（`raw/`）と、Chief of Staff が育てる wiki の層（`sources/`・`entities/`・`topics/`・`overview.md`）を分け、`index.md`（目録）と `log.md`（時系列）を置き、ingest・query・lint で回す。
+書くのは Chief of Staff だけで、Chief Engineer と担当は読むだけ。人は wiki のページを書かない（元資料を持ち込む・問う・読んで直させる）。手順はこの節が正（command は無い）。
+セルに固有の慣習（そのセルで増えた実体の名・書き方の癖）はセルの `AGENTS.local.md` に書く。wiki の中に規約のファイルは置かない。
 
-- **何を**: 学び（プロジェクト固有も横断も。固有は front matter の `project: <slug>`）・確かめた事実・**オーナーの思考と志向**（決断の傾向・推奨案を覆した理由）。
-  製品に効くもの（仕様・作法・テスト）は repo へ（課題に切る）。決定は ADR と `decisions/` が正で、wiki に写さない。
-- **いつ（ingest）**: `andon issue finish` のとき（報告の `## Remember` と確かめた事実から。全部は写さない）。人の答えが推奨案と違った・志向が見えたとき（§8）。
-- **形**: 1ファイル1件（`wiki/<日付>-<短い名>.md`）。front matter に `date`・`source`（課題の番号・PR・人の発言の日付）。`index.md` に1行で足し、痩せたまま保つ。`log.md` は作らない（履歴はセルの repo の git）。
-- **lint**: 書く前に `index.md` の近い項を読む。矛盾すれば古いページを上書きせず、末尾に `→ 覆された（<新しいページ>）` を1行足す。定期の課題は起こさない。
-- **query**: 課題を切るとき（§1）と、Chief Engineer の「読む」が `index.md` を引く。
+- **何を**: 学び（プロジェクト固有も横断も。固有は front matter の `project: <slug>`）・確かめた事実・**オーナーの思考と志向**（決断の傾向・推奨案を覆した理由。`entities/owner.md` に集める）。
+  製品に効くもの（仕様・作法・テスト）は repo へ（課題に切る）。決定は ADR と `decisions/` が正で、wiki は指すだけで中身を写さない。
+- **層**:
+  - `raw/` — 元資料。書いたら変えない。3種: (1) 人の発言の写し（`raw/<日付>-<短い名>.md`。言葉のまま・日付つき。要約しない）、(2) 人が持ち込む外の資料（記事・資料）、(3) finish した課題の記録の写し（`raw/<id>/report.md` と、あれば `raw/<id>/corrections.json`）。指摘（findings）・ゲートの記録は写さず、要れば台帳を指す。
+  - `sources/` — 元資料に1対1の要約（`raw/` と同じ名）。front matter に `date`・`source`（`raw/` のパス）。
+  - `entities/` — 実体（役・部品・案件・オーナー）ごとに1ページ。例 `entities/owner.md`・`entities/dispatcher.md`。
+  - `topics/` — 概念・運用の題ごとに1ページ（比べたもの・まとめもここ）。例 `topics/review-after-rebase.md`（rebase のあとのレビューの頼み直し）。
+  - `overview.md` — wiki 全体のまとめ1枚。
+  - `index.md` — 目録。種類ごとの節（Sources・Entities・Topics）に、ページごとに1行（リンク・1行の要約）。query は最初にこれを読む。
+  - `log.md` — 追記だけの時系列。ingest・query・lint の1件に1項で、先頭を `## [YYYY-MM-DD] ingest | <題>`（`query`・`lint` も同じ形）に揃える。`grep '^## \[' wiki/log.md` で引ける。
+- **元資料を置くとき**（置いたらその場で ingest）:
+  - 人の発言: 人の答えが推奨案と違ったとき・志向や理由が見えたとき（§8）・人が「残して」と言ったとき。決断そのものは問いの答えと ADR に残るので写さない。
+  - 外の資料: 人が資料を置いて「取り込んで」と言ったとき。
+  - 課題の記録: `andon issue finish` のあと（dispatcher の `merged` の片付けも）、台帳の `issues/<id>/report.md` と `issues/<id>/library/corrections.json`（あれば）を `raw/<id>/` に写す。調べる課題・トリアージも同じ。
+- **いつ（ingest）**: 元資料を `raw/` に置いたその場で、1件ずつ（溜めない）。
+  1. `sources/` に要約のページを書く（全部は写さない。次に効くもの・確かめた事実・志向）。
+  2. 関わる `entities/`・`topics/` のページを直す（無ければ作る）。主張ごとに出典（`sources/` のページ）へリンクする。
+  3. `index.md` に足し、直したページの1行も直す。全体の見え方が変われば `overview.md` も直す。
+  4. `log.md` の末尾に `## [YYYY-MM-DD] ingest | <題>` と、触ったページを1行。
+- **query**: 引く口は3つ — Chief Engineer の「読む」・課題を切るとき（§1）・人が Chief of Staff に聞いたとき。`index.md` → ページの順で読み、出典（`sources/` のページか `raw/` の元資料）つきで答える。
+  人に答えたもののうち次も使えるものは `topics/` のページにして（戻すかは自分の判断）、`index.md` に足し、`log.md` に `## [YYYY-MM-DD] query | <問い>` を足す。
+- **lint**: ingest 約10件ごと（`log.md` の前の `lint` の項から `ingest` の項を数える）と、人が頼んだとき。定期の課題は起こさない。
+  見るもの: ページ間の矛盾・新しい元資料に覆された古い主張・孤立ページ（入るリンクが無い）・名前は出るのにページが無い重要な概念・リンク漏れ。
+  矛盾は古いページを上書きせず、末尾に `→ 覆された（<新しいページ>）` を1行足す。終わったら `log.md` に `## [YYYY-MM-DD] lint | <見つけた数と直した数>`。
+- **移行**（前の形の `wiki/<日付>-<短い名>.md` が残るセルで1回）: 無いフォルダと `log.md` を足す（形は `andon init` の雛形と同じ）。
+  前のページの人の言葉の部分を `raw/` に発言の写しとして置き直し、上の ingest をし直す（`entities/owner.md` と `topics/` ができる）。repo に置くべき手順は直す課題に切り、wiki のページは skill・ADR を指すだけにする。前のページは消す（git に残る）。
 - **commit・push**: `git -C /workspace add wiki && git -C /workspace commit --only -m "wiki: <要点>" -- wiki && git -C /workspace push`（`--only -- wiki` で、wiki の外が staged でも commit に入れない）。
 
 ## ルール

@@ -25,9 +25,12 @@ sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" ANDON_W
 cd "$tmp" || exit 1
 "$andon" init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && [ ! -s "$tmp/err" ] && pass "andon init x は rc 0" || fail "init: rc=$r $(cat "$tmp/out" "$tmp/err")"
-for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate.local.json AGENTS.local.md wiki/index.md files/.gitkeep projects/.gitkeep .gitignore .dockerignore; do
+for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate.local.json AGENTS.local.md wiki/index.md wiki/log.md wiki/overview.md wiki/raw/.gitkeep wiki/sources/.gitkeep wiki/entities/.gitkeep wiki/topics/.gitkeep files/.gitkeep projects/.gitkeep .gitignore .dockerignore; do
   [ -f "x-cell/$f" ] || fail "x-cell/$f が無い"
 done
+for h in '## Sources' '## Entities' '## Topics'; do grep -qx "$h" x-cell/wiki/index.md || fail "wiki/index.md に $h の節が無い"; done
+[ "$(grep -c '^## ' x-cell/wiki/log.md)" = 0 ] && grep -q '^追記だけの時系列。.*`## \[YYYY-MM-DD\] ingest | <題>`' x-cell/wiki/log.md \
+  && pass "wiki の雛形: index.md に種類ごとの節、log.md は空で先頭の形の説明だけ（ADR-0016）" || fail "wiki/log.md: $(cat x-cell/wiki/log.md)"
 grep -qx 'files/' x-cell/.gitignore && fail ".gitignore が files/ を除いている" || pass "files/ は追跡する（.gitignore に無い）"
 grep -qx 'artifacts/' x-cell/.gitignore && fail ".gitignore に artifacts/ が残っている" || pass ".gitignore に artifacts/ が無い"
 [ -x x-cell/bin/bootstrap ] && [ -x x-cell/local/setup.sh ] && pass "bin/bootstrap と local/setup.sh は実行できる" || fail "実行の権限"

@@ -226,9 +226,18 @@ sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$cos" | grep -q 'repo を読め
 grep -q '## 差し戻し（<日付>）' "$cos" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$cos" && grep -q '依頼書を直した新しい課題を `deck add`' "$cos" \
   && pass "差し戻しは依頼書への追記で数え、2回で通らなければ新しい課題に切る" || fail "chief-of-staff に差し戻しの追記か切り直しの手順が無い"
 cos11=$(sed -n '/^## 11\. wiki$/,/^## ルール$/p' "$cos")
-miss=""; for k in '何を' 'いつ（ingest）' '形' 'lint'; do grep -q "^- \*\*$k\*\*: " <<<"$cos11" || miss="$miss $k"; done
+# ADR-0016 受け入れ条件 1: 層・3つの操作・元資料の3種・移行があり、前の形（1ファイル1件・log.md は作らない）が無い
+miss=""; for k in '何を' '層' '元資料を置くとき' 'いつ（ingest）' 'query' 'lint' '移行'; do grep -q "^- \*\*$k\*\*" <<<"$cos11" || miss="$miss $k"; done
+for k in '`raw/`' '`sources/`' '`entities/`' '`topics/`' '`overview.md`' '`index.md`' '`log.md`'; do grep -q "^  - $k — " <<<"$cos11" || miss="$miss 層$k"; done
+for k in '人の発言' '外の資料' '課題の記録'; do grep -q "^  - $k: " <<<"$cos11" || miss="$miss 元資料:$k"; done
+grep -qF '## [YYYY-MM-DD] ingest | <題>' <<<"$cos11" && grep -q 'ingest 約10件ごと' <<<"$cos11" && grep -q '`index.md` → ページの順' <<<"$cos11" || miss="$miss log の形・lint の時期・query の順"
 grep -q 'commit --only -m "wiki: <要点>" -- wiki' <<<"$cos11" || miss="$miss commit（--only -- wiki）"
-[ -z "$miss" ] && pass "Chief of Staff の skill に wiki の節（何を・いつ・形・lint）がある" || fail "chief-of-staff の wiki の節に無い項:$miss"
+grep -qE '1ファイル1件|`log.md` は作らない' <<<"$cos11" && miss="$miss 前の形の行が残る"
+[ -z "$miss" ] && pass "Chief of Staff の skill の wiki の節が LLM Wiki の形（層・ingest・query・lint・元資料・移行。ADR-0016）" || fail "chief-of-staff の wiki の節:$miss"
+# ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff §1）が index.md → ページの順で引く
+grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引く。使った事実は出典' package/skills/chief-engineer/SKILL.md \
+  && sed -n '/^## 1\. /,/^## 2\. /p' "$cos" | grep -q 'wiki を引く（§11 の query。`index.md` → ページの順）' \
+  && pass "Chief Engineer の「読む」と Chief of Staff §1 が wiki を index.md → ページの順で引く" || fail "読む側が index.md → ページの順を指していない"
 # ADR-0009 受け入れ条件 4: Chief of Staff の template が wiki を道具の届く場所に足す
 case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /workspace/wiki "*) pass "Chief of Staff の template の command に --add-dir /workspace/wiki" ;; *) fail "Chief of Staff の template に --add-dir /workspace/wiki が無い" ;; esac
 
