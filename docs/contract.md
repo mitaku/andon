@@ -87,6 +87,8 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `medium`（中） | 60 |
 | `large`（大） | 120 |
 
+表の正は `internal/ledger` の `EstimateMinutes`（Go の定数はこれ1つ。dispatcher と `andon measure` が読む）。待ちを除いた実働の数え方（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 5）は同じ所の `Worked`。
+
 - **値は全部文字列**。`kanban set` は値を文字列で書くので、`review_rounds` も `"2"`（1 以上の整数を表す数字の列）。YAML に手で `review_rounds: 2` と書いた数は schema を通らない（読み手は「無い」として既定を使う）。
 - 台帳の形式は知らないキーを許して保つので、この schema は**知らないキーを拒まない**。どれも必須ではない（無いときの振る舞いは上の表）。
 - **履歴の照合**: ゲートと dispatcher は、`log.jsonl` でそのキーを最後に変えた行の `by` が `terminal:<config.yaml の chief_of_staff>` で、その値が今の `issue.yaml` と同じときだけ信じる。違えば `needs_human`。`chief_of_staff` が無ければ信じない。`log.jsonl` の id は 4 桁に揃えて読む（移す前の行は `A-5` のまま。[ledger.md](ledger.md) の Writing）。
