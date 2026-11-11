@@ -41,7 +41,8 @@ case "$rev" in
   "$want" | "$want-dirty") ;;
   *) echo "FAIL image: label org.opencontainers.image.revision が checkout の commit でない（$rev / $want）" >&2; exit 1 ;;
 esac
-docker run --rm --network none andon:test bash -euc '
+# seccomp はセルの compose（package/compose.yaml）と同じ unconfined。Chromium の sandbox は user namespace を作り、docker の既定の seccomp はそれを拒む
+docker run --rm --network none --security-opt seccomp=unconfined andon:test bash -euc '
   test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
   ! getent passwd ubuntu
   kanban --version
