@@ -6,7 +6,7 @@ A two-line pane header: what this terminal's work is, where it lives, and what i
 
 On the theme's `background`, 1px `border` under it, 10px side padding, 46px high (set by the layout):
 
-- Line 1 (20px, 12.5px text): the program icon (14px, `dim` when tinted), the name (`foreground`, medium, truncating), then on the right in 11px `dim`: `n sub-agent(s)`, `settled`, the time in the current state (`<1m`, `5m`, `2h`, `3d`), and the status mark.
+- Line 1 (20px, 12.5px text): the program icon (14px, `dim` when tinted), the name (`foreground`, medium, truncating), then on the right in 11px `dim`: `n sub-agent(s)`, the time in the current state (`<1m`, `5m`, `2h`, `3d`), and the status mark.
 - Line 2 (16px, 11.5px, `dim`): `This computer` or the machine name · space · named tab · branch (not main/master) · folder (`~` for home). While blocked with a message: the message in `blocked`, cut to 120 characters.
 
 ## How it behaves
@@ -15,7 +15,6 @@ On the theme's `background`, 1px `border` under it, 10px side padding, 46px high
 - Name: a tab someone named; else the terminal title when it says something (not a path, not `user@host`, not the program's name); else the program's name. Plain shells show their title.
 - Time: the core's `status_ms`, else the tab's `changed_at`. Redraws every 30s.
 - Sub-agents: live terminals whose `parent` is this one (prefixing the machine for remote ones) and that have no pane.
-- `settled` shows while the terminal carries the `settled` label (written by inbox) and isn't working or blocked.
 - Hover shows four 14px icon buttons (`mods/pane/split-right.svg`, `split-down`, `zoom`/`unzoom`, `close`) running `pane.split`, `pane.zoom`, `pane.close` for this pane; a click on the header runs `pane.focus`.
 
 ## Built from
