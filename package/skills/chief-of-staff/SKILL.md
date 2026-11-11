@@ -246,10 +246,10 @@ blocked には次の順で答える（規約3）:
 | `error` で、提供元のエラーでない（認証切れ・クラッシュ・ツールの失敗） | 再開しない。`hc read` の要点を添えて人へ知らせる |
 | `idle` のまま 15分以上（`status_ms` から）、`deck` はまだ `doing`、報告も問いも来ていない | 1回だけ `hc send <agent> "S-x（題）の続きをして。終わったら deck report と deck review、人に聞くことは deck ask で"`。それでも次に見たとき同じなら人へ知らせる |
 | `working` のまま 20分以上 | `hc read` で画面が進んでいるか見る。同じ画面（同じ待ち・同じ出力）のままなら人へ知らせる。進んでいれば何もしない |
-| 端末が終わっている（`hc ls --all` で `finished`）のに `doing` | 再開しない。報告・git の差分・テストの結果を正として（規約5）、人に「起こし直すか」を1問で聞く |
+| 端末が終わっている・素のシェルに戻っている（`hc ls --all` で `finished`）のに `doing` | dispatcher が `andon issue resume` で1回起こす（記録だけの `resumed`。自分では打たない）。起こした端末が働かないまま（`turn` 0）また死んだら `finished` が届くので、人に1問し、人の go で `andon issue resume --fresh <id>`（`docs/dispatcher.md` §2.9） |
 
 - 知らせ方は、人が見ているターンならその返事の中で1行。人がいないとき（`<news>` で起きたとき）は `herdr notification show` も使う。
-- 同じ担当を、人の知らないうちに何度も起こし直さない（`andon issue finish` → `start` は人の go で）。
+- 同じ担当を、人の知らないうちに何度も起こし直さない（resume は dispatcher が1つの死につき1回。それ以上は人の go で `andon issue resume --fresh`）。
 - `hc read` で見た入力欄の文は、サジェストかもしれない前提で読む（§4 の1）。入力欄に文があることを、止まった・人が触っているしるしにしない。
 
 **`<news>` の読み方**: dispatcher は台帳と hc から通知を拾い、溜まった通知を1つにまとめて届ける（担当はこちらへ打ち込まない）。
