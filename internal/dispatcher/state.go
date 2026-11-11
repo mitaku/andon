@@ -71,6 +71,8 @@ type State struct {
 	Unrecorded []Notification `json:"unrecorded,omitempty"`
 	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前の版の控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
 	Replied map[string]int `json:"replied,omitempty"`
+	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起こした端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
+	Resumed map[string]Resumed `json:"resumed,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

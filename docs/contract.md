@@ -218,13 +218,14 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED の課題に dispatcher が `andon issue impact` を1回打ち、影響のある課題があったとき（下の「マージのあとの影響」） | `pr`・`sha`・`issues[]`（`issue`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
 | `corrections` | `log.jsonl` の `{"status": "done"}` の課題の `corrections.json`（§14）を、次の見回りの打ち直しでも集められなかったとき（書いていない） | `error` |
 | `blocked`・`error`・`finished`・`stalled` | 端末の土台の状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
+| `resumed` | 見回りで `doing` の課題の端末が Gone（無い・live でない・素のシェル）を見て、dispatcher が `andon issue resume` を1回打って起こせたとき（dispatcher.md §2.9。起こせなければ `finished`） | `agent`（起こした端末）・`from`（Gone を見た端末） |
 | `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
 
 - **届けるか**（表の正は `internal/dispatcher/route.go` の `RouteOf`。理由は ADR-0010 決めたこと 1・7）:
 
   | `kind`（と条件） | 扱い |
   |---|---|
-  | `review-requested` | 記録だけ |
+  | `review-requested`・`resumed` | 記録だけ |
   | `review`（dispatcher がゲートを回す課題） | 記録だけ |
   | `review`（ゲートを回さない課題: Chief Engineer の課題〈`profile: chief-engineer`〉・調べる課題など） | 届ける |
   | `gate`（`decision: fix`・`needs_human`） | 記録だけ（`needs_human` は同じ巡の `asked` で届く） |

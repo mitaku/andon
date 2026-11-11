@@ -1,6 +1,6 @@
 name: worker
 title: 担当の端末
-source: dispatcher.md §2.3・§2.4・§5（最初のメッセージの送り直し）・ADR-0017 決めたこと 4 の (2)・5。hc の状態（idle・working・blocked・error・done・無い）の上に dispatcher が置く判定。担当・レビュアーの端末（Chief of Staff の「続けて」は控えの Retry の :cos の鍵で同じ形）
+source: dispatcher.md §2.3・§2.4・§2.9（止まった担当の自動 resume）・§5（最初のメッセージの送り直し）・ADR-0017 決めたこと 4 の (2)・5・ADR-0012 決めたこと 4。hc の状態（idle・working・blocked・error・done・無い）の上に dispatcher が置く判定。担当・レビュアーの端末（Chief of Staff の「続けて」は控えの Retry の :cos の鍵で同じ形）
 states:
   - id: first-pending
     title: 最初のメッセージが届いていない（ラベル first_message.sent=false。送りかけを控える）
@@ -16,6 +16,9 @@ states:
   - id: stopped
     title: 止まったと知らせた（blocked・error・finished・stalled。同じ状態は 1 回だけ）
     record: dispatcher:Sent
+  - id: resumed
+    title: 端末が Gone で resume を打った（Gone を見た端末と起こした端末を控える。起こした端末が働き始めたら消す）
+    record: dispatcher:Resumed
 transitions:
   - { from: "[*]", to: working, on: "起こして最初のメッセージが届いた", by: ai, command: andon issue start }
   - { from: "[*]", to: first-pending, on: "起こしたが最初のメッセージが届かなかった", by: ai, command: andon issue start }
@@ -26,8 +29,12 @@ transitions:
   - { from: working, to: cut, on: "提供元に切られた（混雑・rate limit・接続・5xx の error）", by: machine }
   - { from: cut, to: working, on: "提供元に切られたときの「続けて」を打った（1・2・4・8 分あと。4 回まで。§7.2 #6）", by: machine, once: true }
   - { from: cut, to: stopped, on: "5 回目に切られた", by: machine }
-  - { from: working, to: stopped, on: "blocked・ほかの error・status.msg も画面も 20 分動かない（stalled）・端末が無い（finished）", by: machine }
-  - { from: idle, to: stopped, on: "idle・done のまま 15 分（stalled。子のレビュアーが動いている間は除く）・端末が無い（finished）", by: machine }
+  - { from: working, to: stopped, on: "blocked・ほかの error・status.msg も画面も 20 分動かない（stalled）・端末が無い（finished。resume で起こせない・その死にもう打った・初めて見る台帳）", by: machine }
+  - { from: idle, to: stopped, on: "idle・done のまま 15 分（stalled。子のレビュアーが動いている間は除く）・端末が無い（finished。resume のときと同じ）", by: machine }
   - { from: stopped, to: working, on: "動き出した（新しい status_ms）", by: ai }
+  - { from: working, to: resumed, on: "端末が Gone（無い・live でない・素のシェル）で、その死にまだ打っていない（初めて見る台帳では打たない）。resume を 1 回（§7.2 #20）", by: machine, command: andon issue resume, once: true }
+  - { from: idle, to: resumed, on: "端末が Gone で、その死にまだ打っていない。resume を 1 回（§7.2 #20）", by: machine, command: andon issue resume, once: true }
+  - { from: resumed, to: working, on: "起こした端末が働き始めた（turn ≥ 1。控えを消す）", by: ai }
+  - { from: resumed, to: stopped, on: "起こした端末が働かないまま（turn 0）また Gone（finished）", by: machine }
   - { from: idle, to: "[*]", on: "課題を片付けた", by: machine, command: andon issue finish }
   - { from: stopped, to: "[*]", on: "課題を片付けた", by: machine, command: andon issue finish }

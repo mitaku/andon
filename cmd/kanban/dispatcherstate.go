@@ -87,6 +87,13 @@ type dispatcherState struct {
 	Unrecorded []dsNotification `json:"unrecorded,omitempty"`
 	// news.replied written, by what (ack; no-reply only in state from older versions)
 	Replied map[string]int `json:"replied,omitempty"`
+	// Issues the dispatcher ran andon issue resume for → the gone terminal and the one it started
+	Resumed map[string]dsResumed `json:"resumed,omitempty"`
+}
+
+type dsResumed struct {
+	From  string `json:"from"`
+	Agent string `json:"agent,omitempty"`
 }
 
 type dsWatch struct {
