@@ -53,8 +53,9 @@ func (p *project) deliver(coord string) {
 	if c3, err := hcGet(coord); err != nil || c3.Status.State != status || c3.Turn != c.Turn {
 		return
 	}
-	// done は --if idle に拒まれるので、確かめた直後に --if なしで送る。どちらも hc send 自身が人の手が止まるのを待つ。
-	// ここから hc send が打つまでの間に人が打ち始めると、通知はその文に続けて送られうる（dispatcher.md §4.4。ゼロにはできない）
+	// done は --if idle に拒まれるので、確かめた直後に --if なしで送る。
+	// ここから hc send が打つまでの間に人が打ち始めると、hc send は人の手が止まるまで待ってから、その書きかけに続けて送る
+	// （待ちは取り消せない。dispatcher.md §4.4。dispatcher だけでは塞げない）。最後の hc read からここまでを短く保つ
 	args := []string{"send", coord, msg}
 	if status == "idle" {
 		args = []string{"send", "--if", "idle", coord, msg}
@@ -82,12 +83,13 @@ func hcOut(args ...string) (string, error) {
 
 // inputEmpty は入力欄が空か（dispatcher.md §4.2・§4.3）。文字の正は hc read。attach で組み直した入力欄（薄い字も残したもの）が
 // hc read の入力欄と一字も違わないときだけ、薄い字を除いて決める。違う・取れない・読めないなら false（送らない）。
+// hc read は observe（最大 3 秒）のあとに読む: 文字の確かめを hc send の直前に寄せる（observe の間に人が打ち始めれば、ここで食い違う。§4.4）。
 func inputEmpty(addr string) bool {
-	text, err := hcOut("read", addr)
+	raw, err := observe(addr)
 	if err != nil {
 		return false
 	}
-	raw, err := observe(addr)
+	text, err := hcOut("read", addr)
 	if err != nil {
 		return false
 	}
