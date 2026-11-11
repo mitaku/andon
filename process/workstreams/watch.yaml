@@ -1,0 +1,79 @@
+# 見守りの段は ADR-0014 のまま（ADR-0017 決めたこと 9）。担当には送らない・止めない。
+name: watch
+title: 見守り（Watch）
+purpose: 担当の進みを見て、ズレたときだけ CoS が手を打つ
+triggers:
+  - name: patrol
+    kind: interval
+    every: 1
+    start: look
+  - name: estimate
+    kind: notification
+    notification: estimate
+    start: read
+  - name: stalled
+    kind: notification
+    notification: stalled
+    start: read
+  - name: error
+    kind: notification
+    notification: error
+    start: read
+  - name: finished
+    kind: notification
+    notification: finished
+    start: read
+  # Chief of Staff が起きたとき・人と話すターンの最初（hc get で doing の担当を見る）
+  - name: wake
+    kind: event
+    start: read
+steps:
+  - id: look
+    title: 担当の端末と実働を見る
+    by: machine
+    input: [issue.estimate, log.status, hc.state, hc.status_ms]
+    output: [notification.estimate, notification.stalled, notification.error, notification.finished, hc send（「続けて」）]
+    command: andon dispatcher
+    record: dispatcher/<slug>.json
+    next: [{ id: resume, when: 端末が Gone }, { id: read, when: 通知を積んだ }]
+  - id: resume
+    title: 死んだ担当を 1 回起こす
+    by: machine
+    input: [hc.state, issue.session]
+    output: [hc（起こした端末）, notification.resumed, notification.finished]
+    command: andon issue resume
+    record: dispatcher/<slug>.json
+    once: true
+    next: [{ id: read, when: 起こせなかった }]
+  - id: read
+    title: 通知と計画を読む
+    by: ai
+    input: [notification.estimate, notification.stalled, notification.error, notification.finished, report.plan, hc.state, hc read の画面]
+    output: []
+    skill: chief-of-staff#5
+    decides: [途中報告を書かせる, 分ける, 起こし直す, 延長する, 続きを 1 回促す]
+    next: [{ id: act, when: 手を打つ }, { id: tell, when: 人へ知らせる }, { id: done, when: 見るだけ }]
+  - id: act
+    title: 担当に手を打つ
+    by: ai
+    input: [report.plan, hc read の画面]
+    output: [hc send（担当へ）, 台帳（分けた課題）]
+    skill: chief-of-staff#5
+    decides: [送る文, 分けた課題の範囲]
+  - id: tell
+    title: 人へ知らせる
+    by: ai
+    input: [hc read の画面]
+    output: [herdr notification, 人への 1 問]
+    skill: [chief-of-staff#5, ask-one-by-one]
+    decides: [知らせる文]
+    asks:
+      - { question: 死んだまま起きない担当を新しいセッションで起こし直すか（andon issue resume --fresh）, kind: business }
+  - id: done
+    title: 見るだけで終える
+    by: ai
+    input: ["<news>"]
+    output: [news.ack]
+    skill: chief-of-staff#5
+    decides: [何もしない]
+counts: [flow.wait.todo, flow.wait.queued, flow.wait.doing, flow.wait.review]
