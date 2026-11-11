@@ -1,0 +1,21 @@
+name: signal
+title: 外のお知らせ（信号）
+source: ADR-0011 決めたこと 8・16・contract.md §15・ADR-0017 決めたこと 4 の (8)・5 の (c)。記録は <slug>.signals.json の 1 件（フィンガープリントごと）。状態は active・episodes・delivered_episode の 3 つで、残りは出所のデータと位置
+states:
+  - id: active
+    title: 見えている・まだ届けていない（いまの出来事の番号が episodes。weight が later はずっとここで、トリアージが拾う）
+    record: [signals:Active, signals:Episodes]
+  - id: delivered
+    title: 見えている・この出来事を届けた（delivered_episode が episodes と同じ。count が増えても届け直さない）
+    record: signals:DeliveredEpisode
+  - id: gone
+    title: 消えた（active が false。CI が通った・issue が閉じた）
+positions: [signals:Source, signals:Project, signals:Key, signals:URL, signals:Title, signals:Weight, signals:Fingerprint, signals:FirstSeen, signals:LastSeen, signals:Count, signals:Release]
+transitions:
+  - { from: "[*]", to: active, on: "出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0）", by: machine, command: andon signal collect }
+  - { from: active, to: active, on: "また見えた（count を 1 増やし、last_seen・url・title・weight・release を今の値に）", by: machine, command: andon signal collect }
+  - { from: active, to: delivered, on: "weight が now の出来事を Chief of Staff へ届けた（通知 signal。delivered_episode を episodes にする。書くのは andon signal の口で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 の行と once は配る課題 S3 が足す）", by: machine, command: "andon signal delivered <source> <episode>（仮）" }
+  - { from: delivered, to: delivered, on: "また見えた（count だけ増える。届け直さない）", by: machine, command: andon signal collect }
+  - { from: active, to: gone, on: "読んだ範囲で見えなくなった（結果が分からないものは変えない）", by: machine, command: andon signal collect }
+  - { from: delivered, to: gone, on: "読んだ範囲で見えなくなった（結果が分からないものは変えない）", by: machine, command: andon signal collect }
+  - { from: gone, to: active, on: "また見えた（新しい出来事。active を true にし episodes を 1 増やす。now なら届け直す）", by: machine, command: andon signal collect }
