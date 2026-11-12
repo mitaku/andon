@@ -77,7 +77,7 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 		t.Errorf("生き返ったあとの留守で出し直していない: %q", logb.String())
 	}
 
-	// hc get が一時に落ちた（not_found でない）巡は、留守にしない（控えの留守の記録を作らない）。ログは1行
+	// hc get が一時に落ちた（not_found でない）巡は、留守にせず、その台帳を回さない（kanban を打たない・控えの留守の記録を作らない）。ログは1行
 	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // 生き返る（留守の記録は戻った巡で消える）
 		t.Fatal(err)
 	}
@@ -87,8 +87,12 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 		t.Fatal(err)
 	}
 	logb.Reset()
+	os.Remove(filepath.Join(d, "log"))
 	c.Pass("")
 	c.Pass("")
+	if b, _ := os.ReadFile(filepath.Join(d, "log")); len(b) > 0 {
+		t.Errorf("確かめられない巡で台帳を回した（kanban を打った）: %q", b)
+	}
 	if st, _, err := LoadState("sample-site"); err != nil || st.Away != nil {
 		t.Errorf("hc get の一時の失敗を留守にした: %+v %v", st.Away, err)
 	}

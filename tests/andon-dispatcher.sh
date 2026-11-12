@@ -1176,13 +1176,14 @@ term t7 idle 1
 ok 'doing で報告・問いの無い Stop は block（stop-check。前回の通過以後に報告か問いがあれば通す。続けて止めるのは3回まで・控えが書けなければ通す）'
 
 # === 通知の元（dispatcher.md §2.2・§2.3。contract.md §6）===
-# 別の台帳 pick（Chief of Staff t6。偽の hc get --json は無いので待ち役の見張りはログも書かない）で、拾う元ごとに正負を見る
+# 別の台帳 pick（Chief of Staff t6。working なので待ち役の見張りはログも書かない）で、拾う元ごとに正負を見る
 mkdir -p "$tmp/plant/projects/pick"
 cd "$tmp/plant/projects/pick"
 env -u KANBAN_ROOT kanban init --prefix P >/dev/null
 export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t6 >/dev/null
 echo "t6 chief-of-staff" >> "$tmp/hc/live"
+echo '{"address":"t6","state":"live","status":{"state":"working"},"labels":{}}' > "$tmp/hc/term-t6.json"
 P=$PWD/kanban
 pk() { "$andon" dispatcher --once --project pick 2>>"$tmp/dispatcher.log"; }
 pst=$tmp/state/andon/dispatcher/pick.json

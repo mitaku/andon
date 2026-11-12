@@ -258,14 +258,13 @@ func (c *Dispatcher) Pass(only string) bool {
 
 // project は1つの台帳を1回回す間のもの。
 type project struct {
-	c      *Dispatcher
-	l      *ledger.Ledger
-	st     *State
-	first  bool
-	away   bool // 配る段を飛ばす巡（Chief of Staff の端末が無い〈留守〉か、確かめられない。ADR-0017 決めたこと 8）
-	unsure bool // Chief of Staff の端末を確かめられない巡（hc get の一時の失敗）。控えの留守の記録は変えない
-	rows   []ledger.Row
-	tasks  []ledger.Issue
+	c     *Dispatcher
+	l     *ledger.Ledger
+	st    *State
+	first bool
+	away  bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
+	rows  []ledger.Row
+	tasks []ledger.Issue
 }
 
 func (p *project) logf(format string, a ...any) {
@@ -284,12 +283,12 @@ func (p *project) pass() (bool, error) {
 		p.away = true
 		p.absent(cos, reason) // 配る段だけ飛ばす（dispatcher.md §2.1）
 	case unsure != "":
-		// 留守かを確かめられない: 留守にはせず（控えの留守の記録を変えない）、配る段だけ飛ばして回す。ログは同じ理由に1回
-		p.away, p.unsure = true, true
+		// 留守かを確かめられない（hc get の一時の失敗）: 留守と取り違えないよう、この巡はこの台帳を回さない（次の巡で確かめ直す）。ログは同じ理由に1回
 		if p.c.skip[p.l.Slug] != unsure {
 			p.c.mark(p.l.Slug, unsure)
-			p.logf("Chief of Staff の端末を確かめられない（%s）。留守にはせず、この巡は配る段だけ飛ばす", unsure)
+			p.logf("Chief of Staff の端末を確かめられない（%s）。この巡はこの台帳を回さない", unsure)
 		}
+		return false, nil
 	default:
 		delete(p.c.skip, p.l.Slug)
 	}
@@ -303,9 +302,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.st, p.first = st, first
-	if !p.unsure {
-		p.markAway(now())
-	}
+	p.markAway(now())
 	if p.tasks, err = p.l.List(); err != nil {
 		return false, err
 	}
