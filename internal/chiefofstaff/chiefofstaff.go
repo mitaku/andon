@@ -103,7 +103,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		return die("hc ls の返事が読めない: %v", err)
 	}
 	// ラベルと live だけでは決めない: 作り直しで戻った端末は、ラベルはそのままで top-level の argv ごと素のシェル。
-	// 動いているは hc の agent が Claude Code のときだけ。どちらとも言えなければ、片付けも使いもせず止まる
+	// 動いているのは hc の agent が Claude Code のときだけ。どちらとも言えなければ、片付けも使いもせず止まる
 	var addrs, shells []string
 	var cur *spawn.Term
 	for _, lt := range live.Terminals {
