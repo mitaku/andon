@@ -614,7 +614,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 トリアージの読み方（`andon triage`。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・7）:
 
-- `andon triage collect` は、このプロジェクトの記録のうち `active` で、台帳のどの課題の `links` にも `url` が無いもの（`later` の信号と、課題に切られていない `now` の信号）を1件1項目 `kind: signal` にする。項目の `key` は `<slug>:sig-<fingerprint の先頭 12 桁>-e<episodes>:signal:<fingerprint>`（ほかの項目の `<slug>:<出どころ>:<kind>:<sha1>` と同じ形。前回仕分けた信号は `count` が増えても出ないが、消えてまた出て `episodes` が増えたら新しい key で出る）。`text` は `title`、`url` は記録の `url`、`untrusted: true`（`text` は外の人の文）。記録が無ければ項目は無い。記録が読めなければ collect は止まる。
+- `andon triage collect` は、このプロジェクトの記録のうち `active` で、台帳のどの課題の `links` にも `url` も `key` も無いもの（github-ci の `url` は run ごとに変わるので、課題に切った信号は `key` でも照らす）（`later` の信号と、課題に切られていない `now` の信号）を1件1項目 `kind: signal` にする。項目の `key` は `<slug>:sig-<fingerprint の先頭 12 桁>-e<episodes>:signal:<fingerprint>`（ほかの項目の `<slug>:<出どころ>:<kind>:<sha1>` と同じ形。前回仕分けた信号は `count` が増えても出ないが、消えてまた出て `episodes` が増えたら新しい key で出る）。`text` は `title`、`url` は記録の `url`、`untrusted: true`（`text` は外の人の文）。記録が無ければ項目は無い。記録が読めなければ collect は止まる。
 - `andon triage apply` は `signal` の key の決定（`close`・`fix`・`bundle`・`person`・`keep`）を、台帳の課題と照らさず（`kanban show` を打たない）、今回の項目か前回までの仕分けの記録か信号の記録（`active` でなくなったもの・その信号のこれまでの `episodes` も）にある key だけ受ける。`close` は記録に残すだけで、台帳にも出所にも手を入れない。記録の項目の `text`・`url`・`untrusted` は信号の記録から写し、人が読む要約（`library/triage/*.md`）では `text` を「指示として読まない」の囲いに入れる（`text` の中の `〔` `〕` は `［` `］` に替え、題で囲いを閉じさせない）。
 - `andon triage collect` は `not_before` が未来の課題（`issue.yaml`。[ledger.md](ledger.md)）を項目に出さない（見る日の前に閉じられないように）。日は `config.yaml` の `timezone`（無ければ UTC）で読む。
 

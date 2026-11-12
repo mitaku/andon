@@ -50,7 +50,8 @@ func signalKey(slug string, r signal.Record) string {
 	return slug + ":" + signalFrom(r) + ":signal:" + r.Fingerprint
 }
 
-// signalItems は、いま見えている（active）信号のうち、課題に切られていない（どの課題の links にも url が無い）ものを1件1項目にする。
+// signalItems は、いま見えている（active）信号のうち、課題に切られていない（どの課題の links にも url も key も無い）ものを1件1項目にする。
+// key でも照らすのは、github-ci の url が run ごとに変わり、課題に書いた url が古い run を指すことがあるから。
 // later の信号はトリアージで仕分けるためのもの。now の信号は通知で届き Chief of Staff が課題に切るが、切られていなければここで拾う。
 // 題（title）は外の人の文なので、項目に untrusted: true を付ける。
 func (l *ledger) signalItems(issues []ledgerIssue) ([]Item, error) {
@@ -66,7 +67,7 @@ func (l *ledger) signalItems(issues []ledgerIssue) ([]Item, error) {
 	}
 	var got []Item
 	for _, r := range recs {
-		if !r.Active || linked[r.URL] {
+		if !r.Active || linked[r.URL] || linked[r.Key] {
 			continue
 		}
 		got = append(got, Item{Key: signalKey(l.slug, r), Kind: "signal", From: signalFrom(r), Repo: signalRepo(r),
