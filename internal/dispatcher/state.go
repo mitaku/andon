@@ -71,6 +71,8 @@ type State struct {
 	Replied map[string]int `json:"replied,omitempty"`
 	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起こした端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
 	Resumed map[string]Resumed `json:"resumed,omitempty"`
+	// ゲートが GitHub の checks の pending で wait を返した head（<issue>#<log.jsonl の行> → head。loop.go の review）
+	Waits map[string]string `json:"waits,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

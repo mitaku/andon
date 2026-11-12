@@ -685,4 +685,7 @@ func (s *State) ensure() {
 	if s.Resumed == nil {
 		s.Resumed = map[string]Resumed{}
 	}
+	if s.Waits == nil {
+		s.Waits = map[string]string{}
+	}
 }

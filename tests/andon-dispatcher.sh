@@ -32,6 +32,7 @@ git config --global url."file://$tmp/origin".insteadOf https://github.com/exampl
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 d=$tmp/gh
+echo "\$*" >> \$d/calls   # 打ったもの（REST の回数を数える）
 case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view 7 --repo example/"*" --json state,mergeCommit")   # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
@@ -54,13 +55,11 @@ case "\$*" in
     else echo '{"state":"OPEN","mergeCommit":null,"files":[]}'; fi ;;
   "api graphql "*)  # statusCheckRollup.contexts を100件ずつ（after は前のページの件数）
     off=\$(printf '%s\n' "\$@" | sed -n 's/^after=//p'); echo "graphql \${off:-0}" >> \$d/pages
-    jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {repository: {pullRequest: {headRefOid: \$v[0].headRefOid,
+    jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {viewer: {login: "plant-bot"}, repository: {defaultBranchRef: {name: "main"}, pullRequest: {headRefOid: \$v[0].headRefOid,
       commits: {nodes: [{commit: {oid: \$v[0].headRefOid, statusCheckRollup: (if length == 0 then null else
         {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
-  "api repos/example/app --jq .default_branch") echo main ;;
-  "api user --jq .login") echo plant-bot ;;
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
   "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted
     if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi ;;  # ゲートの最後の書き込み。マージの前に状態を変える
@@ -698,17 +697,24 @@ dispatcher
 checks IN_PROGRESS
 gate_through "$id"
 merges=$(wc -l < "$tmp/gh/merges")
+rest() { grep -cE '^api --paginate --slurp repos/[^ ]+/pulls/[0-9]+/files$|^pr diff |^api user|^api repos/[^/ ]+/[^/ ]+ ' "$tmp/gh/calls" || true; }   # ゲートが読む REST
+: > "$tmp/gh/calls"
+dispatcher
+[ "$(rest)" = 2 ] || die "ゲートの1回で読む REST が files・diff の2回でない: $(cat "$tmp/gh/calls")"
+: > "$tmp/gh/calls"
 dispatcher
 dispatcher
+[ "$(rest)" = 0 ] && grep -q '^api graphql ' "$tmp/gh/calls" || die "checks が走っている間の見回りで REST を読んだ・checks を読んでいない: $(cat "$tmp/gh/calls")"
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'checks が走っているのにマージした'
-[ "$(grep -c "$id のゲートは GitHub の checks を待つ: GitHub の checks がまだ走っている: test" "$tmp/dispatcher.log")" = 2 ] || die '見回りのたびにゲートを回し直していない'
+[ "$(grep -c "$id のゲートは GitHub の checks を待つ: GitHub の checks がまだ走っている: test" "$tmp/dispatcher.log")" = 1 ] &&
+    [ "$(grep -c "$id は GitHub の checks を待つ（ゲートは回さない）" "$tmp/dispatcher.log")" = 2 ] || die 'wait のあと checks が走っている間もゲートを回し直した'
 jq -e --arg t "$id" '([.gates[] | select(.issue == $t)] | length) == 0 and ([.pending[] | select(.issue == $t and (.kind == "gate" or .kind == "asked"))] | length) == 0' "$state" >/dev/null ||
     die 'wait を控えに書いた・通知 gate か問いを出した'
 [ ! -e "$L/issues/$id/library/questions" ] && [ ! -e "$L/issues/$id/library/gate" ] || die 'wait で問い・ゲートの記録を書いた'
 checks COMPLETED SUCCESS
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'checks が通ったのにマージしない'
-ok 'GitHub の checks が走っている間はゲートが wait。dispatcher は控えに書かず問いも出さず、見回りのたびに回し直し、通ればマージする'
+ok 'GitHub の checks が走っている間はゲートが wait。dispatcher は控えの gates に書かず問いも出さず、同じ head の checks が走っている間はゲートを回さず（REST 0 回）、通ればマージする'
 
 # 9c. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
 id=$(newtask 'CI が走り直す' auto)

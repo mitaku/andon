@@ -462,6 +462,7 @@ type gateResult struct {
 		Merge string `json:"merge"`
 		OK    bool   `json:"ok"`
 	} `json:"delegation"`
+	GitHubChecks gate.GitHubChecks `json:"github_checks"` // wait のとき、pending か none かを見分ける
 }
 
 // review は review に入った課題にゲートを回す（review に入った log.jsonl の行ごとに1回）。
@@ -485,6 +486,12 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 		p.st.Gates[key] = g
 		return
 	}
+	if h, ok := p.st.Waits[key]; ok && stillPending(rep.PR, h) {
+		// wait を返した head の checks がまだ走っている: ゲートを回さない（GraphQL の checks だけを読み、REST を使わない）
+		p.logf("%s は GitHub の checks を待つ（ゲートは回さない）: head %s の checks がまだ走っている", id, short12(h))
+		return
+	}
+	delete(p.st.Waits, key)
 	out, code, err := p.andon("", "gate", id)
 	var res gateResult
 	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal([]byte(out), &res) != nil {
@@ -500,6 +507,10 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 	if res.Decision == "wait" {
 		// GitHub の checks が揃っていない: 控えに書かず、次の見回りでゲートから回し直す（通知もしない）
 		p.logf("%s のゲートは GitHub の checks を待つ: %s", id, strings.Join(res.Reasons, "／"))
+		if res.GitHubChecks.State == "pending" && contract.IsSHA(res.Head) {
+			// checks が1つも無い（none）の待ちは控えない。github_checks_wait_minutes を過ぎたかはゲートが見る
+			p.st.Waits[key] = res.Head
+		}
 		return
 	}
 	g.Sha, g.Decision = res.Head, res.Decision
@@ -536,6 +547,17 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
 	p.st.Gates[key] = g
+}
+
+// stillPending は、PR の head が wait を返したときの head のままで、その GitHub の checks がまだ走っているか（GraphQL を1回）。
+// 読めなければ false（ゲートを回して確かめる）。
+func stillPending(pr, waited string) bool {
+	owner, name, number, ok := contract.ParsePR(pr)
+	if !ok {
+		return false
+	}
+	head, checks, err := gate.ReadChecks(number, owner+"/"+name)
+	return err == nil && head == waited && checks.State == "pending"
 }
 
 // fix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。
