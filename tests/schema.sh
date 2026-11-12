@@ -111,7 +111,7 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
-  [measure]="project since until days value flow efficiency counter news prs skipped"
+  [measure]="project since until days value flow efficiency counter news prs tokens skipped"
   [corrections]="at corrections"
   [signal]="signals"
   [delivered]="at project acked news"
@@ -180,6 +180,8 @@ measure|.prs[0]|issue pr merged_at tier auto human_touches lead_time_hours rever
 measure|.skipped[0]|source reason
 measure|.news|threshold kinds candidates
 measure|.news.kinds[0]|kind delivered acked rate recorded
+measure|.tokens[0]|issue source usage
+measure|.tokens[0].usage|input output cache_read cache_write
 delivered|.news[0]|kind
 corrections|.corrections[0]|kind question decision_kind recommended picked
 corrections|.corrections[1]|kind comments human_commits
@@ -438,6 +440,13 @@ fail|measure|.news.kinds[0].acked = -1|素通りの数が負
 fail|measure|.news.kinds[0].rate = "80%"|素通りの率が文字列
 fail|measure|.news.candidates = "report"|候補が配列でない
 fail|measure|del(.news)|通知の節が無い
+pass|measure|.tokens = []|期間に動いた課題が無い
+pass|measure|.tokens[0].usage = null|記録が無い課題（usage が null）
+fail|measure|.tokens[0].usage = 0|記録が無いのを 0 と書く
+fail|measure|.tokens[0].usage.output = -1|トークン数が負
+fail|measure|.tokens[0].usage.input = 1.5|トークン数が整数でない
+fail|measure|.tokens[0].source = "none"|source が claude/codex でない
+fail|measure|.tokens[0] += {"dollars": 1}|ドルの欄を足す
 pass|delivered|.acked = false|ack の無いターン
 pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
 fail|delivered|.news = []|渡した通知が無い

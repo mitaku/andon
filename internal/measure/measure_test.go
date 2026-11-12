@@ -665,3 +665,119 @@ func TestNewsNoCandidate(t *testing.T) {
 		t.Errorf("記録が無いのに「記録なし」が出ない:\n%s", b.String())
 	}
 }
+
+// fakeTokens は偽の Claude Code・Codex の記録。期間 2026-11-01〜04 に log.jsonl の行がある課題は S-0001・S-0002・S-0002-r1・S-0003。
+//
+//	S-0001（claude。session aaaa…）: 要求 req_1 が content block ごとに3行（同じ usage）→ 1回だけ。req_2 が1行。
+//	       requestId の無い行は message.id（msg_3）で2行 → 1回。synthetic の行（id も無い）は数えない。サブエージェントの req_4 が1行。
+//	       入力 1+2+3+4=10・出力 10+20+30+40=100・キャッシュ読み 100+200+300+400=1000・キャッシュ書き 5+6+7+8=26
+//	S-0002（claude。session bbbb…）: 記録が無い → usage null（0 と分ける）
+//	S-0002-r1（codex。cwd は台帳の issues/S-0002-r1）: rollout 2本（起き直し）。それぞれ最後の token_count を足す。
+//	       1本目 input 500（cached 300・write 50）・output 40、2本目 input 200（cached 100）・output 10
+//	       → 入力 (500-300-50)+(200-100)=250・出力 50・キャッシュ読み 400・キャッシュ書き 50
+//	S-0003（claude。session 無し）→ usage null
+func fakeTokens(t *testing.T, o Options) Options {
+	home := t.TempDir()
+	o.ClaudeDir = filepath.Join(home, "claude")
+	o.CodexSessions = filepath.Join(home, "codex", "sessions")
+	k := filepath.Join(o.Root, "kanban")
+	a := "aaaaaaaa-0000-4000-8000-000000000001"
+	put(t, filepath.Join(k, "issues/S-0001/issue.yaml"), "id: S-0001\ntitle: one\nstatus: done\ncreated: \"2026-11-01T00:00:00Z\"\nsession: "+a+"\n")
+	put(t, filepath.Join(k, "issues/S-0002/issue.yaml"),
+		"id: S-0002\ntitle: two\nstatus: done\ncreated: \"2026-11-02T00:00:00Z\"\nsession: bbbbbbbb-0000-4000-8000-000000000002\n")
+	usage := func(req, id string, in, out, cr, cw int) string {
+		r := ""
+		if req != "" {
+			r = `"requestId":"` + req + `",`
+		}
+		return fmt.Sprintf(`{"type":"assistant",%s"message":{"id":"%s","usage":{"input_tokens":%d,"output_tokens":%d,"cache_read_input_tokens":%d,"cache_creation_input_tokens":%d}}}`,
+			r, id, in, out, cr, cw)
+	}
+	main := filepath.Join(o.ClaudeDir, "projects", "-sample-worktree", a+".jsonl")
+	put(t, main, strings.Join([]string{
+		`{"type":"user","message":{"content":"x"}}`,
+		usage("req_1", "msg_1", 1, 10, 100, 5),
+		usage("req_1", "msg_1", 1, 10, 100, 5),
+		usage("req_1", "msg_1", 1, 10, 100, 5),
+		usage("req_2", "msg_2", 2, 20, 200, 6),
+		usage("", "msg_3", 3, 30, 300, 7),
+		usage("", "msg_3", 3, 30, 300, 7),
+		usage("", "", 9, 9, 9, 9),
+	}, "\n")+"\n")
+	put(t, filepath.Join(strings.TrimSuffix(main, ".jsonl"), "subagents", "agent-x.jsonl"), usage("req_4", "msg_4", 4, 40, 400, 8)+"\n"+usage("req_1", "msg_1", 1, 10, 100, 5)+"\n")
+	cwd, _ := filepath.Abs(filepath.Join(k, "issues", "S-0002-r1"))
+	meta := `{"type":"session_meta","payload":{"id":"x","cwd":"` + cwd + `"}}`
+	count := func(in, cr, cw, out int) string {
+		return fmt.Sprintf(`{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":%d,"output_tokens":%d}}}}`, in, cr, cw, out)
+	}
+	day := filepath.Join(o.CodexSessions, "2026", "11", "02")
+	put(t, filepath.Join(day, "rollout-1.jsonl"), meta+"\n"+count(100, 50, 0, 5)+"\n"+`{"type":"event_msg","payload":{"type":"token_count","info":null}}`+"\n"+count(500, 300, 50, 40)+"\n")
+	put(t, filepath.Join(day, "rollout-2.jsonl"), meta+"\n"+count(200, 100, 0, 10)+"\n")
+	put(t, filepath.Join(day, "rollout-3.jsonl"), `{"type":"session_meta","payload":{"id":"y","cwd":"/elsewhere"}}`+"\n"+count(9999, 0, 0, 9999)+"\n")
+	return o
+}
+
+func TestTokensCountEachRequestOnce(t *testing.T) {
+	o := fakeTokens(t, opts(fakeLedger(t)))
+	res, err := Measure(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Tokens{}
+	var order []string
+	for _, x := range res.Tokens {
+		got[x.Issue] = x
+		order = append(order, x.Issue)
+	}
+	if strings.Join(order, " ") != "S-0001 S-0002 S-0002-r1 S-0003" {
+		t.Errorf("課題の並び: %v", order)
+	}
+	want := map[string]*TokenUsage{
+		"S-0001":    {Input: 10, Output: 100, CacheRead: 1000, CacheWrite: 26},
+		"S-0002":    nil,
+		"S-0002-r1": {Input: 250, Output: 50, CacheRead: 400, CacheWrite: 50},
+		"S-0003":    nil,
+	}
+	for id, w := range want {
+		g := got[id]
+		switch {
+		case w == nil && g.Usage != nil:
+			t.Errorf("%s: 記録が無いのに %+v", id, *g.Usage)
+		case w != nil && (g.Usage == nil || *g.Usage != *w):
+			t.Errorf("%s: %+v、want %+v", id, g.Usage, *w)
+		}
+	}
+	if got["S-0002-r1"].Source != "codex" || got["S-0001"].Source != "claude" {
+		t.Errorf("source: %+v", res.Tokens)
+	}
+	js, _ := json.Marshal(got["S-0002"])
+	if string(js) != `{"issue":"S-0002","source":"claude","usage":null}` {
+		t.Errorf("記録の無い課題の形: %s", js)
+	}
+	var b bytes.Buffer
+	Table(&b, res, columnsOrder(res))
+	if !strings.Contains(b.String(), "S-0001       claude 入力 10・出力 100・キャッシュ読み 1000・キャッシュ書き 26") ||
+		!strings.Contains(b.String(), "S-0003       claude 記録なし") {
+		t.Errorf("トークンの節が違う:\n%s", b.String())
+	}
+}
+
+func TestTokensBrokenLineIsSkipped(t *testing.T) {
+	o := fakeTokens(t, opts(fakeLedger(t)))
+	main, _ := filepath.Glob(filepath.Join(o.ClaudeDir, "projects", "*", "aaaaaaaa-0000-4000-8000-000000000001.jsonl"))
+	b, _ := os.ReadFile(main[0])
+	put(t, main[0], string(b)+`{"type":"assistant","requestId":"req_9","message":{"usage":{"input_tokens":`+"\n")
+	res, err := Measure(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := skippedSources(res)
+	if _, ok := src["claude/aaaaaaaa-0000-4000-8000-000000000001.jsonl"]; !ok {
+		t.Errorf("壊れた行が飛ばした記録に無い: %+v", res.Skipped)
+	}
+	for _, s := range res.Skipped {
+		if filepath.IsAbs(s.Source) || strings.Contains(s.Reason, o.ClaudeDir) {
+			t.Errorf("飛ばした記録に絶対パス: %+v", s)
+		}
+	}
+}

@@ -4,7 +4,8 @@
 // 読むだけ。台帳にも library/ にも書かず、集計を保存しない。読むもの: log.jsonl・issues/<id>/issue.yaml・
 // questions.yaml・library/report.json・library/gate/<sha>.json・library/corrections.json と、
 // GitHub のマージされた PR の一覧（gh pr list。repo ごとに1回）と、dispatcher の記録だけの通知
-// （<slug>.recorded.jsonl）・届けた通知の記録（<slug>.delivered.jsonl）。Markdown は読まない。
+// （<slug>.recorded.jsonl）・届けた通知の記録（<slug>.delivered.jsonl）と、担当とレビュアーのセッションの記録
+// （Claude Code・Codex。トークン数だけ。tokens.go）。Markdown は読まない。
 // 読めない記録は止まらずに飛ばし、飛ばした件数と理由を出す（黙って 0 に数えない）。
 package measure
 
@@ -32,7 +33,8 @@ import (
 // Usage は andon measure の使い方。
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
 	"台帳（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
-	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・人が開け直した数）と、通知の kind ごとの素通りの数を数える。\n" +
+	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・人が開け直した数）と、通知の kind ごとの素通りの数と、\n" +
+	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）を数える。\n" +
 	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
 
@@ -46,6 +48,8 @@ type Options struct {
 	GH func(repo string) ([]byte, error)
 	// Recorded・Delivered は dispatcher の記録だけの通知と届けた通知の記録（contract.md §6・§17）のパス。空なら読まない。
 	Recorded, Delivered string
+	// ClaudeDir は Claude Code の設定の置き場（projects/ の親）、CodexSessions は Codex の記録の置き場（sessions）。空なら読まない。
+	ClaudeDir, CodexSessions string
 }
 
 // Stat は件数と平均か中央値（件数が 0 なら null）。
@@ -72,6 +76,7 @@ type Result struct {
 	Counter    Counter    `json:"counter"`
 	News       News       `json:"news"`
 	PRs        []PR       `json:"prs"`
+	Tokens     []Tokens   `json:"tokens"`
 	Skipped    []Skip     `json:"skipped"`
 }
 
@@ -212,6 +217,8 @@ type issue struct {
 	profile  string
 	parent   string
 	obs      string // report.json の observation.result（観察の報告が無ければ空）
+	session  string // issue.yaml の session（Claude Code のセッション）
+	worktree string // issue.yaml の worktree
 }
 
 type span struct{ from, to time.Time } // to がゼロなら開いたまま
@@ -606,6 +613,7 @@ func Measure(o Options) (*Result, error) {
 	}
 
 	res.News = r.news(o, in)
+	res.Tokens = r.tokens(o, ids, byID, active(rows, in))
 
 	sort.SliceStable(r.skipped, func(i, j int) bool {
 		if r.skipped[i].Source != r.skipped[j].Source {
@@ -807,17 +815,20 @@ func (r *reader) issues() []*issue {
 			continue
 		}
 		var v struct {
-			Created string   `yaml:"created"`
-			After   []string `yaml:"after"`
-			Links   []string `yaml:"links"`
-			Profile string   `yaml:"profile"`
-			Parent  string   `yaml:"parent"`
+			Created  string   `yaml:"created"`
+			After    []string `yaml:"after"`
+			Links    []string `yaml:"links"`
+			Profile  string   `yaml:"profile"`
+			Parent   string   `yaml:"parent"`
+			Session  string   `yaml:"session"`
+			Worktree string   `yaml:"worktree"`
 		}
 		if yaml.Unmarshal(b, &v) != nil {
 			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
-		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent)}
+		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent),
+			session: v.Session, worktree: v.Worktree}
 		t.created, _ = parseAt(v.Created)
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
@@ -1151,7 +1162,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	slug := filepath.Base(root)
 	res, err := Measure(Options{Root: root, Since: since, Until: until, Now: now, GH: GH,
-		Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug)})
+		Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug),
+		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions()})
 	if err != nil {
 		fmt.Fprintf(stderr, "andon measure: %v\n", err)
 		return 1
@@ -1212,7 +1224,7 @@ func pct(r *float64, n, d int) string {
 	return fmt.Sprintf("%.0f%%（%d / %d）", *r*100, n, d)
 }
 
-// Table は人向けの表。価値 → 流れ → 効率 → 通知の順で、自動マージ率の行に対抗の指標を並べる。
+// Table は人向けの表。価値 → 流れ → 効率 → トークン → 通知の順で、自動マージ率の行に対抗の指標を並べる。
 func Table(w io.Writer, res *Result, states []string) {
 	val := res.Value
 	obs := none
@@ -1263,6 +1275,7 @@ func Table(w io.Writer, res *Result, states []string) {
 		gate = fmt.Sprintf("%.0f%%（fix %d・needs_human %d / %d）", *e.Gate.Rate*100, e.Gate.Fix, e.Gate.NeedsHuman, e.Gate.Records)
 	}
 	fmt.Fprintf(w, "  ゲートの差し戻し率             %s\n", gate)
+	tokensTable(w, res.Tokens)
 	newsTable(w, res.News)
 	if len(res.Skipped) == 0 {
 		return
@@ -1291,4 +1304,19 @@ func newsTable(w io.Writer, n News) {
 		cand = strings.Join(n.Candidates, "・")
 	}
 	fmt.Fprintf(w, "  記録だけへ移す候補（%.0f%%以上が素通り。移すかは人が決める）  %s\n", n.Threshold*100, cand)
+}
+
+// tokensTable はトークンの節（期間に動いた課題ごと。記録が無い課題は「記録なし」で、0 と分ける）。
+func tokensTable(w io.Writer, ts []Tokens) {
+	fmt.Fprintln(w, "\nトークン（期間に動いた課題ごと。課題の記録の全体。入力・出力・キャッシュ読み・キャッシュ書き）")
+	if len(ts) == 0 {
+		fmt.Fprintf(w, "  %s\n", none)
+	}
+	for _, t := range ts {
+		u := none
+		if t.Usage != nil {
+			u = fmt.Sprintf("入力 %d・出力 %d・キャッシュ読み %d・キャッシュ書き %d", t.Usage.Input, t.Usage.Output, t.Usage.CacheRead, t.Usage.CacheWrite)
+		}
+		fmt.Fprintf(w, "  %-12s %-6s %s\n", t.Issue, t.Source, u)
+	}
 }

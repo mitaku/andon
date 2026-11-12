@@ -26,7 +26,7 @@ export PATH="$tmp/bin:$PATH"
 k=$tmp/sample-site/kanban
 mkdir -p "$k/issues/S-0001/library/gate"
 printf 'version: 3\nprefix: S\n' >"$k/config.yaml"
-printf 'id: S-0001\ntitle: one\nstatus: done\ncreated: "2026-11-01T00:00:00Z"\n' >"$k/issues/S-0001/issue.yaml"
+printf 'id: S-0001\ntitle: one\nstatus: done\ncreated: "2026-11-01T00:00:00Z"\nsession: 11111111-0000-4000-8000-000000000001\n' >"$k/issues/S-0001/issue.yaml"
 printf '{"pr": "%s/1"}\n' "$pr" >"$k/issues/S-0001/library/report.json"
 printf '{"at": "2026-11-01T06:00:00Z", "id": "S-0001", "pr": "%s/1", "tier": "A", "decision": "approve", "merged": true}\n' "$pr" \
   >"$k/issues/S-0001/library/gate/aaaa.json"
@@ -46,6 +46,12 @@ cat >"$d/sample-site.delivered.jsonl" <<'EOF'
 {"at":"2026-11-01T05:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0001","kind":"report"}]}
 EOF
 printf '{"at":"2026-11-01T06:00:00Z","project":"sample-site","issue":"S-0001","kind":"merged","detail":{"pr":"%s/1"}}\n' "$pr" >"$d/sample-site.recorded.jsonl"
+# セッションの記録（一時の置き場）: S-0001 の要求 req_1 が content block ごとに2行（同じ usage）→ 1回だけ数える。Codex の記録は無い
+export CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex
+mkdir -p "$CLAUDE_CONFIG_DIR/projects/-sample"
+u='{"type":"assistant","requestId":"req_1","message":{"id":"msg_1","usage":{"input_tokens":3,"output_tokens":40,"cache_read_input_tokens":500,"cache_creation_input_tokens":60}}}'
+printf '%s\n%s\n' "$u" "$u" >"$CLAUDE_CONFIG_DIR/projects/-sample/11111111-0000-4000-8000-000000000001.jsonl"
+records=$(find "$tmp/claude" -type f -exec sha1sum {} + | sort)
 before=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 export KANBAN_ROOT=$tmp/sample-site
 "$andon" measure --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
@@ -55,19 +61,22 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
   and .flow.lead_time.hours == 6 and .flow.closed.count == 1
   and (.skipped | length) == 1 and .skipped[0].line == 4
   and .news.kinds == [{kind: "merged", delivered: 0, acked: 0, rate: null, recorded: 1}, {kind: "report", delivered: 2, acked: 2, rate: 1, recorded: 0}]
-  and .news.candidates == ["report"]' "$tmp/out.json" >/dev/null
+  and .news.candidates == ["report"]
+  and .tokens == [{issue: "S-0001", source: "claude", usage: {input: 3, output: 40, cache_read: 500, cache_write: 60}}]' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
-echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り'
+echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
 head -1 "$tmp/table" | grep -q '^価値: 仮説を確かめた数 記録なし'
 grep -q '^  人の手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
 grep '自動マージ率' "$tmp/table" | grep -q '対抗: revert 1本'
 grep -q 'kanban/log.jsonl:4' "$tmp/table"
 grep -q '^  記録だけへ移す候補.*  report$' "$tmp/table"
+grep -q '^  S-0001  *claude 入力 3・出力 40・キャッシュ読み 500・キャッシュ書き 60$' "$tmp/table"
 echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標・飛ばした行・記録だけへ移す候補'
 after=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 [ "$before" = "$after" ]
-echo 'ok 台帳に何も書かない'
+[ "$records" = "$(find "$tmp/claude" -type f -exec sha1sum {} + | sort)" ]
+echo 'ok 台帳にもセッションの記録にも何も書かない'
 
 # 記録が1件も無いプロジェクト: 0 と「記録なし」で終了コード 0（gh は打たない）
 mkdir -p "$tmp/empty/kanban"
@@ -76,7 +85,7 @@ printf '#!/bin/sh\necho forbidden-gh >&2\nexit 99\n' >"$tmp/bin/gh"
 export KANBAN_ROOT=$tmp/empty
 "$andon" measure --json >"$tmp/empty.json"
 jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .flow.closed.count == 0
-  and .prs == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
+  and .prs == [] and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'
