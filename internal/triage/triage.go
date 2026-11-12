@@ -1,5 +1,6 @@
 // Package triage は台帳の溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・人に聞くこと、
-// 担当の無い todo、人の判断待ち、片付けの残り）とセルの auto memory（<ANDON_WORKSPACE>/memory の1件1ファイル）を集め（collect）、
+// 担当の無い todo、人の判断待ち、片付けの残り）とセルの auto memory（<ANDON_WORKSPACE>/memory の1件1ファイル）と
+// 外の信号の記録（<slug>.signals.json の、課題に切られていない active な信号）を集め（collect）、
 // 仕分けの決定を台帳に当てる（apply）。
 //
 // collect は読むだけ。apply は判断を持たず、decisions.json を検査してから台帳の CLI を打つ。
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	ledgercli "andon/internal/ledger"
+	"andon/internal/signal"
 )
 
 // Usage は andon triage の使い方。
@@ -118,12 +120,14 @@ func (e limitError) Error() string { return fmt.Sprintf("over limit %d", e.limit
 
 // ledger は1つの台帳。kanban（メソッド）は台帳の CLI をこの台帳に向けて打つ。
 type ledger struct {
-	cli    string // 打つ台帳の CLI
-	root   string // プロジェクトの根（kanban の親）
-	slug   string
-	dir    string // <root>/kanban
-	memory string // auto memory の置き場（空なら拾わない）
-	now    time.Time
+	cli     string // 打つ台帳の CLI
+	root    string // プロジェクトの根（kanban の親）
+	slug    string
+	dir     string // <root>/kanban
+	memory  string // auto memory の置き場（空なら拾わない）
+	signals string // 信号の記録（<slug>.signals.json。空なら拾わない）
+	tz      string // config.yaml の timezone（not_before を読む。空なら UTC）
+	now     time.Time
 }
 
 func openLedger() (*ledger, error) {
@@ -145,6 +149,8 @@ func openLedger() (*ledger, error) {
 	if !slugRe.MatchString(l.slug) {
 		return nil, fail("slug が不正")
 	}
+	l.signals = signal.Path(l.slug)
+	l.tz = ledgercli.At(root).Timezone()
 	return l, nil
 }
 

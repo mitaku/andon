@@ -135,13 +135,19 @@ func (l *Ledger) Library(id string) string {
 }
 
 // ChiefOfStaff は config.yaml の chief_of_staff（Chief of Staff の端末）。無ければ空。
-func (l *Ledger) ChiefOfStaff() string {
+func (l *Ledger) ChiefOfStaff() string { return l.configStr("chief_of_staff") }
+
+// Timezone は config.yaml の timezone（ルーチンの schedule と not_before を読む IANA の名前）。無ければ空（UTC）。
+func (l *Ledger) Timezone() string { return l.configStr("timezone") }
+
+// configStr は config.yaml の行頭の `<key>: <値>` の値（引用符と行末のコメントを除く）。無ければ空。
+func (l *Ledger) configStr(key string) string {
 	b, err := os.ReadFile(filepath.Join(l.Dir, "config.yaml"))
 	if err != nil {
 		return ""
 	}
 	for _, line := range strings.Split(string(b), "\n") {
-		if v, ok := strings.CutPrefix(line, "chief_of_staff:"); ok {
+		if v, ok := strings.CutPrefix(line, key+":"); ok {
 			if i := strings.Index(v, " #"); i >= 0 {
 				v = v[:i]
 			}

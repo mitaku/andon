@@ -612,6 +612,12 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 - 出所へは書かない（GitHub は `gh` の token が書ける token でも、打つのは読む API だけ）。
 - 機械が読むのはこの schema のキーだけ。`title` で判定しない。
 
+トリアージの読み方（`andon triage`。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・7）:
+
+- `andon triage collect` は、このプロジェクトの記録のうち `active` で、台帳のどの課題の `links` にも `url` が無いもの（`later` の信号と、課題に切られていない `now` の信号）を1件1項目 `kind: signal` にする。項目の `key` は `<slug>:<source>:signal:<fingerprint>`（ほかの項目の `<slug>:<出どころ>:<kind>:<sha1>` と同じ形。`fingerprint` が変わらない限り同じ key なので、前回仕分けた信号は `count`・`episodes` が増えても出ない）。`text` は `title`、`url` は記録の `url`、`untrusted: true`（`text` は外の人の文）。記録が無ければ項目は無い。記録が読めなければ collect は止まる。
+- `andon triage apply` は `signal` の key の決定（`close`・`fix`・`bundle`・`person`・`keep`）を、台帳の課題と照らさず（`kanban show` を打たない）、今回の項目か前回までの仕分けの記録か信号の記録（`active` でなくなったものも）にある key だけ受ける。`close` は記録に残すだけで、台帳にも出所にも手を入れない。記録の項目の `text`・`url`・`untrusted` は信号の記録から写す。
+- `andon triage collect` は `not_before` が未来の課題（`issue.yaml`。[ledger.md](ledger.md)）を項目に出さない（見る日の前に閉じられないように）。日は `config.yaml` の `timezone`（無ければ UTC）で読む。
+
 ## 16. リリースの名前（案件の CI との約束）
 
 エラー → PR → 課題を辿れるように、**案件の CI はリリースの名前をマージ commit の SHA（40字）にする**（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 17）。Sentry の release、Cloudflare の Worker の version の tag がこれに当たる。付けるのは案件の CI の仕事で、Andon は形だけ約束する（command は足さない）。
