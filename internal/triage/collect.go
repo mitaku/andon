@@ -23,19 +23,24 @@ type Item struct {
 	Repo    string `json:"repo"`
 	Text    string `json:"text"`
 	AgeDays int64  `json:"age_days"`
-	path    string // kind: memory の項目のファイル（apply が消す）
+	// kind: signal の項目だけ: 人と担当が読む所と、text（出所の題）が外の人の文であることの印。
+	URL       string `json:"url,omitempty"`
+	Untrusted bool   `json:"untrusted,omitempty"`
+	path      string // kind: memory の項目のファイル（apply が消す）
 }
 
 // ledgerIssue は台帳の CLI の list --json の1件のうち、ここが読むキー。
 type ledgerIssue struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Status   string `json:"status"`
-	Repo     string `json:"repo"`
-	Created  string `json:"created"`
-	Who      string `json:"who"`
-	Agent    string `json:"agent"`
-	Worktree string `json:"worktree"`
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Status    string   `json:"status"`
+	Repo      string   `json:"repo"`
+	Created   string   `json:"created"`
+	Who       string   `json:"who"`
+	Agent     string   `json:"agent"`
+	Worktree  string   `json:"worktree"`
+	Links     []string `json:"links"`
+	NotBefore string   `json:"not_before"`
 }
 
 // personSuffix は人の判断待ちの課題の題の末尾。
@@ -107,7 +112,8 @@ func (l *ledger) collect() ([]Item, error) {
 				byKey[k] = Item{Key: k, Kind: kind, From: t.ID, Repo: t.Repo, Text: text, AgeDays: age}
 			}
 		}
-		if t.Status == "todo" || t.Status == "queued" {
+		// not_before が未来の課題は、見る日まで出さない（閉じられないように。ADR-0011 決めたこと 7）。
+		if (t.Status == "todo" || t.Status == "queued") && !notYet(t.NotBefore, l.tz, l.now) {
 			if t.Who == "person" || strings.HasSuffix(t.Title, personSuffix) {
 				emit("person", t.Title)
 			} else if t.Agent == "" {
@@ -137,7 +143,11 @@ func (l *ledger) collect() ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, it := range mem {
+	sig, err := l.signalItems(issues)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range append(mem, sig...) {
 		if _, dup := byKey[it.Key]; !seen[it.Key] && !dup {
 			byKey[it.Key] = it
 		}

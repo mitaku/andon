@@ -45,9 +45,17 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	for _, r := range records {
 		historical = append(historical, r.items...)
 	}
+	// 信号の項目は、collect のあと active でなくなった（CI が通った・issue が閉じた）ものも記録の信号と照らして受ける。
+	signals, err := l.loadSignals()
+	if err != nil {
+		return err
+	}
 	for _, it := range items {
 		_, inCurrent := current[it.key()]
 		known := inCurrent || slices.ContainsFunc(historical, func(h item) bool { return h.key() == it.key() })
+		if it.keyPart(2) == "signal" && !known {
+			_, known = knownSignal(it.key(), signals, l.slug)
+		}
 		closesIssue := it.decision() == "close" && (it.keyPart(2) == "issue" || it.keyPart(2) == "person")
 		if !known || (closesIssue && !inCurrent) {
 			return fail("key が収集項目・記録に無い、または close 対象が現在の未担当項目でない")
@@ -56,6 +64,9 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	// 人に見せる本文は出どころのもの。decisions.json の text は信じない。
 	for _, it := range items {
 		it["text"] = sourceText(it.key(), inventory, historical)
+		if r, ok := knownSignal(it.key(), signals, l.slug); ok && it.keyPart(2) == "signal" {
+			it["text"], it["url"], it["untrusted"] = r.Title, r.URL, true
+		}
 	}
 	items = capIssues(items, maxIssues)
 	data["items"] = toAny(items)
@@ -159,10 +170,11 @@ func sourceText(key string, inventory []Item, historical []item) any {
 }
 
 // preflight は出どころの課題が台帳にあるかと、閉じる課題が未担当の todo／queued かを確かめる。
+// memory と signal の項目は出どころが課題ではないので、kanban show で照らさない。
 func (l *ledger) preflight(id string, items []item) error {
 	var sources []string
 	for _, it := range items {
-		if it.keyPart(2) == "memory" { // 出どころは課題でなく memory のファイル
+		if k := it.keyPart(2); k == "memory" || k == "signal" { // 出どころは課題でなく memory のファイル・信号の記録
 			continue
 		}
 		sources = append(sources, it.keyPart(1))
@@ -289,6 +301,9 @@ func summary(slug, date string, goal any, items []item) string {
 	is := func(d string) func(item) bool { return func(it item) bool { return it.decision() == d } }
 	text := func(it item) any {
 		if t, ok := it["text"]; ok && t != nil && t != false {
+			if s, ok := t.(string); ok && it["untrusted"] == true {
+				return untrustedText(s)
+			}
 			return t
 		}
 		return it.key()
