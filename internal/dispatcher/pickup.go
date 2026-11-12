@@ -500,7 +500,7 @@ const cosKey = ":cos|"
 
 // chiefCut は Chief of Staff の端末が提供元に切られて error で止まったとき、ログに1行だけ残す（dispatcher.md §2.4）。
 // 「続けて」は打たない: Chief of Staff は人が打つ端末で、hc send は人の書きかけに続けて送ってしまう（ADR-0019 決めたこと 4）。
-// 知らせる相手（Chief of Staff）が止まっているので通知も積まない。人は Herdr App の error で気づく。同じ止まりには1回
+// 起こすのは StopFailure のフック（rewake.go。ADR-0019 決めたこと 10）。知らせる相手が止まっているので通知も積まない。同じ止まりには1回
 // （error・working の間は持ち越し、ほかに戻ったら区切る。Claude Code 自身のやり直しで working を挟んでも1回）。
 func (p *project) chiefCut(cos string) {
 	key := cosKey + cos
@@ -532,7 +532,7 @@ func (p *project) chiefCut(cos string) {
 		return
 	}
 	p.st.Sent[key+"|cut"] = true
-	p.logf("Chief of Staff %s は提供元に切られて止まった。続きは打たない（人が Herdr App の error で気づく）", cos)
+	p.logf("Chief of Staff %s は提供元に切られて止まった。続きは打たない（StopFailure のフックが起こす。5 回で止まれば人が Herdr App の error で気づく）", cos)
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る

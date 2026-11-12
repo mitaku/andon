@@ -172,6 +172,9 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	if !slugRe.MatchString(slug) {
 		return nil, fmt.Errorf("プロジェクトの名前が不正: %q", slug)
 	}
+	if !context {
+		ResetRewake(slug) // ターンが通った: 提供元に切られた回数を数え直す（rewake.go）
+	}
 	ensure() // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)
 	if err != nil {

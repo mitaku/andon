@@ -208,6 +208,10 @@ done
 wt=$(jq -r '[.hooks.Stop[].hooks[] | select(.command == "/opt/andon/hooks/stop-wait" and .asyncRewake == true and (.timeout | type) == "number")][0].timeout // empty' package/settings.json)
 [ -n "$wt" ] && [ -x package/hooks/stop-wait ] && sh -n package/hooks/stop-wait && grep -q "andon dispatcher wait --timeout $wt\$" package/hooks/stop-wait \
   && pass "Stop の待ち役は asyncRewake のフック（timeout $wt 秒。--timeout も同じ）" || fail "Stop に asyncRewake の待ち役のフックが無い・timeout が待ち役の --timeout と違う"
+# 提供元に切られた Chief of Staff を起こす（ADR-0019 決めたこと 10）: StopFailure に asyncRewake のフックが、最後の待ち（8 分）より長い timeout つきで在る
+ft=$(jq -r '[.hooks.StopFailure[].hooks[] | select(.command == "/opt/andon/hooks/stop-failure" and .asyncRewake == true and (.timeout | type) == "number")][0].timeout // empty' package/settings.json)
+[ -n "$ft" ] && [ "$ft" -gt 480 ] && [ -x package/hooks/stop-failure ] && sh -n package/hooks/stop-failure && grep -q '^exec andon dispatcher rewake$' package/hooks/stop-failure \
+  && pass "StopFailure は asyncRewake のフック（timeout $ft 秒。8 分の待ちより長い）で andon dispatcher rewake を打つ" || fail "StopFailure に asyncRewake の rewake のフックが無い・timeout が 8 分以下"
 
 # 全フックの command が、セルに在るファイルだけを指す（/opt/andon/ は package/ の写し。$HOME 配下は image に無い）
 cmds=$(jq -r '[.hooks[][].hooks[].command] | .[]' package/settings.json)

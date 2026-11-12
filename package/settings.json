@@ -91,6 +91,18 @@
           }
         ]
       }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/andon/hooks/stop-failure",
+            "timeout": 600,
+            "asyncRewake": true
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
