@@ -716,6 +716,29 @@ dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'checks が通ったのにマージしない'
 ok 'GitHub の checks が走っている間はゲートが wait。dispatcher は控えの gates に書かず問いも出さず、同じ head の checks が走っている間はゲートを回さず（REST 0 回）、通ればマージする'
 
+# 9c. checks が1つも無い（none）間も、review から github_checks_wait_minutes を過ぎるまではゲートを回さない（REST 0 回）。過ぎたらゲートの needs_human
+id=$(newtask 'CI がまだ付かない' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+dispatcher
+echo '[]' > "$tmp/gh/rollup.json"
+gate_through "$id"
+: > "$tmp/gh/calls"
+dispatcher
+[ "$(rest)" = 2 ] && grep -q "$id のゲートは GitHub の checks を待つ: GitHub の checks がまだ1つも無い" "$tmp/dispatcher.log" || die "none の wait でゲートを回していない: $(cat "$tmp/gh/calls")"
+: > "$tmp/gh/calls"
+dispatcher
+dispatcher
+[ "$(rest)" = 0 ] && [ "$(grep -c "$id は GitHub の checks を待つ（ゲートは回さない）" "$tmp/dispatcher.log")" = 2 ] || die "checks が1つも無い間の見回りで REST を読んだ: $(cat "$tmp/gh/calls")"
+cp "$L/log.jsonl" "$tmp/log.bak"   # review に入った時刻を昔にする（同じ長さの時刻なので読んだ位置はずれない）
+jq -c --arg id "$id" 'if .id == $id and .change.status == "review" then .at = "2020-01-01T00:00:00Z" else . end' "$tmp/log.bak" > "$L/log.jsonl"
+dispatcher
+q=$L/issues/$id/library/questions/1.json
+jq -e '.from == "gate" and (.facts | any(contains("1つも無いまま")))' "$q" >/dev/null || die "待ち時間を過ぎた none でゲートの needs_human の問いが出ない: $(cat "$q" 2>/dev/null)"
+checks COMPLETED SUCCESS
+ok 'GitHub の checks が1つも無い間も、github_checks_wait_minutes を過ぎるまではゲートを回さず（REST 0 回）、過ぎたらゲートが needs_human を返して問いになる'
+
 # 9c. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
 id=$(newtask 'CI が走り直す' auto)
 work "$id" docs/a.md

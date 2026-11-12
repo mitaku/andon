@@ -3,10 +3,10 @@ title: ゲートとマージ
 source: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・6。控えの Gates の 1 件（課題と log.jsonl の行ごと）が Decision・Merged で状態を持つ
 states:
   - id: waiting
-    title: 待つ（review に入った行ごと。ゲートが checks の1つも無い wait なら控えに書かず次の見回りで回し直す）
+    title: 待つ（review に入った行ごと。ゲートを回す）
     record: dispatcher:Gates
   - id: checks-pending
-    title: GitHub の checks が走っている（ゲートが wait を返した head を控える。その head の checks が走っている間はゲートを回さない）
+    title: GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない）
     record: dispatcher:Waits
   - id: approved
     title: approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ）
@@ -27,9 +27,9 @@ transitions:
   - { from: waiting, to: held, on: "ゲートを回す（approve・merge person か委譲の外。§7.2 #4）", by: machine, command: andon gate, once: true }
   - { from: waiting, to: fix, on: "ゲートを回す（fix。理由を担当へ hc send。§7.2 #4）", by: machine, command: andon gate, once: true }
   - { from: waiting, to: needs-human, on: "ゲートを回す（needs_human。問いを出す。§7.2 #4）", by: machine, command: andon gate, once: true }
-  - { from: waiting, to: checks-pending, on: "ゲートを回す（wait。PR の head の GitHub の checks が走っている）", by: machine, command: andon gate }
-  - { from: checks-pending, to: checks-pending, on: "同じ head の checks がまだ走っている（GraphQL の checks だけを読み、REST を読むゲートは回さない）", by: machine }
-  - { from: checks-pending, to: waiting, on: "head が動いた・checks が揃った・読めない（その見回りでゲートから）", by: machine }
+  - { from: waiting, to: checks-pending, on: "ゲートを回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い）", by: machine, command: andon gate }
+  - { from: checks-pending, to: checks-pending, on: "同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読むゲートは回さない）", by: machine }
+  - { from: checks-pending, to: waiting, on: "head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りでゲートから）", by: machine }
   - { from: approved, to: merged, on: "マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）", by: machine, command: gh pr merge --match-head-commit, once: true }
   - { from: approved, to: waiting, on: "読み直すと head か checks が替わっていた（次の見回りでゲートから）", by: machine }
   - { from: approved, to: approved, on: "10 分たっても merged も asked も無い（届ける待ちに 1 回だけ積む）", by: machine }

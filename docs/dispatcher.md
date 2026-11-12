@@ -80,7 +80,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - **台帳の写しは3で固定する。** 3a の `tick` が足した課題も写しには出ない（5 の工程は次の巡から。`todo` なので 5 ですることは無い）。届くのは 4a の `ready` の差だけで、`tick` が書いた `log.jsonl` の行は次の巡に 4b が読む（`report`・`review`・`asked` ではないので積まない）。4・5・6 で dispatcher 自身が書いたもの（ゲートの記録・レビュアーの課題の作成・マージ・`finish`）は、同じ巡の中では写しに出ない。台帳に書いた `log.jsonl` の行は**次の巡**で拾う。
 - **報告と止まりが同時でも、どちらも失わない。** 4b（`report`）→4c（`blocked`）の順に積み、種類が違えば置き換えず、1通の `<news>` に積んだ順で並ぶ。優先順位は付けない（どちらを先に見るかは Chief of Staff）。置き換わるのは**同じ課題の同じ種類**だけ（§2.2）。
 - **4 で積んだものは、同じ巡の6で届けうる。** 例: `review` に入った（4b の `review`）課題のゲートが5で回れば、`review` と `gate` が同じ巡で1通になる。`approve` から `merged` まで進めば `merged` も同じ通に載る。
-- **ゲートが `wait` のとき**は控えの `Gates` に書かず、通知も出さない。次の巡でゲートから回し直す（5）。checks が走っている `wait` は、その head を控えの `Waits` に書き、次の巡からは PR の head と checks だけを GraphQL で読む。head が同じで checks がまだ走っていればゲートを回さない（ゲートは1回で REST を files・diff の2回読むので、待つ間は読まない）。
+- **ゲートが `wait` のとき**は控えの `Gates` に書かず、通知も出さない。次の巡でゲートから回し直す（5）。`wait` を返した head は控えの `Waits` に書き、次の巡からは PR の head と checks だけを GraphQL で読む。head が同じで、checks がまだ走っているか、1つも無く `github_checks_wait_minutes` の内ならゲートを回さない（ゲートは1回で REST を files・diff の2回読むので、待つ間は読まない）。
 - **5 の中**では、1課題につき `doing` の工程か `review` の工程のどちらか1つだけが走る（状態は排他）。別の課題の工程は互いに独立で、一覧の順に走る（ある課題の失敗で後ろを止めない）。
 - **初めて見る台帳**（2）は、4 は位置を控えるだけで送らない。5 のうち、いま止まっている `doing` の `review_request` は拾い、`review` のゲートは回さず記録だけ置く。6 は飛ばす（§2.1）。
 - **控えの保存は7の1回が基本。** 例外は最初のメッセージの送り直しと「続けて」（4c・4d）で、送る前に「送りかけ」・回数だけ先に保存する（二度送らないため。§2.4・§5）。途中で落ちた巡の積みは残らないが、次の巡が同じ出来事を台帳から拾い直す（拾う元が台帳なので失われない。§1 の3）。
@@ -357,7 +357,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | `review_request.extra`（上限を超えた回） | **起こさない**。通知にして Chief of Staff へ | Chief of Staff |
 | `{"status": "review"}` | `andon gate` を回す。記録 `library/gate/<sha>.json`。通知 `gate` | ゲート（決定式） |
 | `deliverable: candidates`（調べる課題）の `{"status": "review"}`・`review_request` | **ゲートを回さず、レビュアーも起こさない**。通知だけ（PR が無いので `report`）。候補の一覧は Chief of Staff が読んで切る。`deliverable` を最後に書いたのが Chief of Staff でなければ `pr` として読む（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） | Chief of Staff |
-| ゲートが `wait`（PR の head の GitHub の checks が走っている・まだ1つも無い。contract.md §7） | **待つ**: 控えの `Gates` に書かず、通知も問いも出さない。次の見回りでゲートから回し直す（checks が揃えば判定に進む。1つも無いまま `github_checks_wait_minutes` を過ぎたらゲートが `needs_human` を返す）。checks が走っている間は、控えの `Waits` の head の checks だけを読み、head が動くか checks が揃うまでゲートを回さない | ゲート |
+| ゲートが `wait`（PR の head の GitHub の checks が走っている・まだ1つも無い。contract.md §7） | **待つ**: 控えの `Gates` に書かず、通知も問いも出さない。次の見回りでゲートから回し直す（checks が揃えば判定に進む。1つも無いまま `github_checks_wait_minutes` を過ぎたらゲートが `needs_human` を返す）。待つ間は、控えの `Waits` の head の checks だけを読み、head が動く・checks が揃う・1つも無いまま待ち時間を過ぎるまでゲートを回さない | ゲート |
 | ゲートが `approve` ＋ `merge: auto` ＋ 委譲の `merge` がそのレベルを許す | マージ（条件表の `repos.<repo>.merge` の方式）→ `andon issue finish`（`library/corrections.json` に人の手直しを集める。design.md §1.9 の (b)）。通知 `merged` | ゲート・委譲（人） |
 | ゲートが `approve` で `merge: person`、または委譲の外 | マージしない。通知 `gate` のまま止まる | 人 |
 | `review` の課題の PR を人がマージした（1分に1回だけ `gh pr view`。§2.7） | ゲートの問いを「人がマージした」と閉じて `andon issue finish`。通知 `merged`（`by: person`）。ゲートの外の問いが開いていれば片付けずに通知 `merged`（`held`）。マージせずに閉じた PR は通知 `closed` を1回 | 人（マージ） |
