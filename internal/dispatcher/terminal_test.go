@@ -237,7 +237,8 @@ func TestLiveTask(t *testing.T) {
 }
 
 // 台帳の数が変わって Place が変わった（台帳なしで起きたあと andon create した）: 動いている dispatcher でも、
-// 見回りの合間なら片付けて今の Place で起こし直す。見回りの途中（PassLock を持っている）なら触らない。
+// 見回りの合間なら片付けて今の Place で起こし直す。見回りの途中（PassLock を持っている）と、
+// PassLock を作らない前の版の dispatcher（ファイルが無い）なら触らない。
 func TestEnsureMovesToPlace(t *testing.T) {
 	d, _ := newEnsure(t)
 	ws := t.TempDir()
@@ -254,6 +255,11 @@ func TestEnsureMovesToPlace(t *testing.T) {
 		did, err := Ensure("/opt/andon/bin/andon", ws, 0)
 		b, _ := os.ReadFile(filepath.Join(d, "log"))
 		return did, strings.TrimSpace(string(b)), err
+	}
+
+	// PassLock のファイルが無い: 動いているのは見回りの間 lock を持たない前の版。止めず、理由を返す
+	if did, calls, err := round(); !errors.Is(err, ErrOldDispatcher) || did != "" || calls != "" {
+		t.Fatalf("前の版の dispatcher を止めた・黙った: %q %q %v", did, calls, err)
 	}
 
 	unpass, err := flock.TryLock(PassLock())

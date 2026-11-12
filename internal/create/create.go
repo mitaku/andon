@@ -423,16 +423,16 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// placeWait は、dispatcher を置き直すときに見回りの終わりを待つ上限。
-var placeWait = 5 * time.Minute
-
 // placeDispatcher は台帳を足したあと dispatcher の置き場を今の台帳の数に合わせる（dispatcher.Ensure。#98）。
 // 合わせられなくても台帳はできているので止めない（次の Chief of Staff のフックか boot が合わせる）。
 func placeDispatcher(ws string, stdout, stderr io.Writer) {
 	self, err := os.Executable()
 	if err == nil {
 		var did string
-		if did, err = dispatcher.EnsureAfterCreate(self, ws, 5*time.Second, placeWait); err == nil && did != "" {
+		waiting := func() {
+			fmt.Fprintln(stderr, "andon create: dispatcher の見回りが終わるのを待ってから置き場を合わせる（Ctrl-C で抜けてよい。台帳はできている。次の Chief of Staff のフックか boot が合わせる）")
+		}
+		if did, err = dispatcher.EnsureAfterCreate(self, ws, 5*time.Second, waiting); err == nil && did != "" {
 			fmt.Fprintf(stdout, "%s\n", did)
 		}
 	}

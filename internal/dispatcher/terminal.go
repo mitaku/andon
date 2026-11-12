@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,16 +64,21 @@ func IsDispatcher(argv []string) bool {
 // keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
 // シェルでも andon dispatcher でもないもの（人が何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string, wait time.Duration) (string, error) {
-	return ensureTerm(andon, cwd, wait, 0)
+	return ensureTerm(andon, cwd, wait, nil)
 }
 
-// EnsureAfterCreate は andon create のあとの Ensure。置き直すときに見回りの途中なら、終わるまで passWait まで待つ
-// （台帳を足したあと、フックが来なくても置き場を合わせる）。待っても終わらなければ触らない（次のフックか boot に任せる）。
-func EnsureAfterCreate(andon, cwd string, wait, passWait time.Duration) (string, error) {
-	return ensureTerm(andon, cwd, wait, passWait)
+// EnsureAfterCreate は andon create のあとの Ensure。置き直すときに見回りの途中なら、終わるまで待つ（期限は無い。
+// 台帳を足したあと、フックが来なくても置き場を合わせる）。待ち始めるときに waiting を1回呼ぶ。
+func EnsureAfterCreate(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
+	return ensureTerm(andon, cwd, wait, waiting)
 }
 
-func ensureTerm(andon, cwd string, wait, passWait time.Duration) (string, error) {
+// ErrOldDispatcher は、置き場が今の Place と違うが、動いている dispatcher が見回りの間 PassLock を持たない前の版なので
+// 置き直さなかった（見回りの途中で止めうる）。端末が起き直す（core の起き直し・セルの作り直し）と今の版で合う。
+var ErrOldDispatcher = errors.New("動いている dispatcher は見回りの間 lock を持たない前の版なので、置き直さない")
+
+// ensureTerm の waiting が nil なら、見回りの途中のときは待たずに触らない。
+func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
 	unlock, err := ensureLock()
 	if err != nil {
 		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
@@ -101,11 +107,16 @@ func ensureTerm(andon, cwd string, wait, passWait time.Duration) (string, error)
 		if t.Address == "" {
 			return "", fmt.Errorf("hc get %s に address が無い", Name)
 		}
+		// PassLock のファイルは、この版の dispatcher が見回るたびに作る。無ければ動いているのは前の版で、
+		// lock が取れても見回りの合間とは限らない
+		if _, err := os.Stat(PassLock()); errors.Is(err, fs.ErrNotExist) {
+			return "", fmt.Errorf("%w（%s の置き場は %s・%s、今の台帳の数では %s・%s）", ErrOldDispatcher, t.Address, t.Labels["herdr.space"], t.Labels["herdr.tab"], space, tab)
+		}
 		// 見回りの途中で止めない。lock は起こし直すまで持つ（新しい dispatcher は外れるのを待ってから回る）
 		unpass, err := flock.TryLock(PassLock())
-		for end := time.Now().Add(passWait); errors.Is(err, flock.ErrBusy) && time.Now().Before(end); {
-			time.Sleep(ensurePoll)
-			unpass, err = flock.TryLock(PassLock())
+		if errors.Is(err, flock.ErrBusy) && waiting != nil {
+			waiting()
+			unpass, err = flock.Lock(PassLock())
 		}
 		if errors.Is(err, flock.ErrBusy) {
 			return "", nil

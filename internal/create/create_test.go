@@ -374,7 +374,7 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 }
 
 // 台帳が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起こし直す（#98）。
-// 見回りの途中（PassLock を持っている）なら、終わるのを待ってから起こし直す。
+// 見回りの途中（PassLock を持っている）なら、待つと1行知らせ、終わるのを待ってから起こし直す（期限は無い）。
 func TestCreateMovesDispatcherToProjectSpace(t *testing.T) {
 	ws, _ := setup(t)
 	d := os.Getenv("FAKE_HC")
@@ -398,8 +398,8 @@ func TestCreateMovesDispatcherToProjectSpace(t *testing.T) {
 	}()
 	rc, out, errs := run(strings.NewReader(""), "sample-site")
 	<-done
-	if rc != 0 || errs != "" {
-		t.Fatalf("rc=%d %s %s", rc, out, errs)
+	if rc != 0 || !strings.Contains(errs, "見回りが終わるのを待って") {
+		t.Fatalf("待つことを知らせない: rc=%d %s %s", rc, out, errs)
 	}
 	got := strings.Split(strings.TrimSpace(read(t, filepath.Join(d, "log"))), "\n")
 	if len(got) != 4 || got[0] != "keep t9 --off" || got[1] != "kill t9" || got[2] != "rm t9" ||
