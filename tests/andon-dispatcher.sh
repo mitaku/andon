@@ -1176,7 +1176,7 @@ clear_pending; pk
 ! grep -q '^w23	' "$tmp/hc/sent" 2>/dev/null && jq -e --arg k "$v|w23" '.retry[$k].since > 0 and .retry[$k].n == 0' "$pst" >/dev/null || die '初めて見た切断にすぐ打った・見た時刻を控えない'
 jq --arg k "$v|w23" '.retry[$k].since = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"   # 見てから 1 分たった
 pk
-[ "$(grep -c "^w23	提供元（モデルの API）に切られて止まった。止まる前の続きを" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元に切られた担当に続きを打たない・知らせた'
+[ "$(grep -c "^w23	一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元に切られた担当に続きを打たない・知らせた'
 pk
 [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die '2分を待たずに続きを打った'
 jq --arg k "$v|w23" '.retry[$k] = {n: 4, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
