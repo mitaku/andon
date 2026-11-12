@@ -204,7 +204,7 @@ func Collect(o Options, w io.Writer) (int, error) {
 			}
 			if err != nil {
 				failed++
-				fmt.Fprintf(w, "%s: 読めないので記録を変えずに飛ばす（次に打ち直す）: %v\n", unit, err)
+				fmt.Fprintf(w, "%s: 読めないので信号の記録は変えずに飛ばす（read_at は進める。次に打ち直す）: %v\n", unit, err)
 				continue
 			}
 			read++
