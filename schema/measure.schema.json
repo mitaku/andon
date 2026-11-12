@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/measure/1",
   "title": "Measure",
-  "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl). Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
+  "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
-  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "skipped"],
+  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "tokens", "skipped"],
   "additionalProperties": false,
   "properties": {
     "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
@@ -196,8 +196,13 @@
       "type": "array",
       "items": { "$ref": "#/$defs/pr" }
     },
+    "tokens": {
+      "description": "Issues with one or more log.jsonl lines in the period (reviewer issues included), by issue id, with the tokens of the issue's whole session records (not cut by the period). Never converted to money.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/tokens" }
+    },
     "skipped": {
-      "description": "Records not counted because they could not be read: a log.jsonl line, a line of the dispatcher's notification records, a file, or a repository whose merged pull requests could not be listed.",
+      "description": "Records not counted because they could not be read: a log.jsonl line, a line of the dispatcher's notification records, a line or file of a session record, a file, or a repository whose merged pull requests could not be listed.",
       "type": "array",
       "items": { "$ref": "#/$defs/skip" }
     }
@@ -233,13 +238,40 @@
         "corrections": { "description": "The issue's corrections.json has one or more entries.", "type": "boolean" }
       }
     },
+    "tokens": {
+      "description": "Tokens of one issue.",
+      "type": "object",
+      "required": ["issue", "source", "usage"],
+      "additionalProperties": false,
+      "properties": {
+        "issue": { "description": "Issue id.", "type": "string", "pattern": "^[^/\\\\:]+$" },
+        "source": { "description": "Record looked up, by the profile's brand: claude (the Claude Code session in issue.yaml session, with its subagents; each requestId counted once) or codex (every Codex rollout whose cwd is the issue's folder in the ledger or its worktree; the last total_token_usage of each, summed).", "enum": ["claude", "codex"] },
+        "usage": {
+          "description": "Token counts, or null when no record was found (not the same as 0).",
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["input", "output", "cache_read", "cache_write"],
+              "additionalProperties": false,
+              "properties": {
+                "input": { "description": "Input tokens neither read from nor written to the cache.", "type": "integer", "minimum": 0 },
+                "output": { "description": "Output tokens (Codex reasoning included).", "type": "integer", "minimum": 0 },
+                "cache_read": { "description": "Input tokens read from the cache.", "type": "integer", "minimum": 0 },
+                "cache_write": { "description": "Input tokens written to the cache.", "type": "integer", "minimum": 0 }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
     "skip": {
       "description": "One record not counted.",
       "type": "object",
       "required": ["source", "reason"],
       "additionalProperties": false,
       "properties": {
-        "source": { "description": "Path relative to the project (kanban/log.jsonl, kanban/issues/<id>/...), or github.com/<owner>/<repo>.", "type": "string", "minLength": 1 },
+        "source": { "description": "Path relative to the project (kanban/log.jsonl, kanban/issues/<id>/...), github.com/<owner>/<repo>, dispatcher/<file>, claude/<session>.jsonl (or claude/<session>/<file> for a subagent), or codex/<rollout file>.", "type": "string", "minLength": 1 },
         "line": { "description": "Line number in a log.jsonl, 1 or more.", "type": "integer", "minimum": 1 },
         "reason": { "description": "Why, one line.", "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" }
       }
