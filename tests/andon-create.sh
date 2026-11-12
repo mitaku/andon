@@ -36,6 +36,11 @@ git init -q "\$GHQ_ROOT/\$2"
 EOF
 cat >"$tmp/bin/hc" <<'EOF'
 #!/usr/bin/env bash
+# dispatcher の端末は無い（andon create のあとの置き場の確かめは run を打つだけ）
+case "$1 $2" in
+  'get dispatcher') echo '{"error":{"kind":"not_found"}}' >&2; exit 3 ;;
+  run*) exit 0 ;;
+esac
 case "$HC_TERMINAL_ID" in role*) echo '{"labels":{"role":"chief-of-staff"}}' ;; *) echo '{"labels":{}}' ;; esac
 EOF
 chmod +x "$tmp/bin/ghq" "$tmp/bin/hc"

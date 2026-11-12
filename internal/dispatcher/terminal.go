@@ -63,6 +63,16 @@ func IsDispatcher(argv []string) bool {
 // keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
 // シェルでも andon dispatcher でもないもの（人が何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string, wait time.Duration) (string, error) {
+	return ensureTerm(andon, cwd, wait, 0)
+}
+
+// EnsureAfterCreate は andon create のあとの Ensure。置き直すときに見回りの途中なら、終わるまで passWait まで待つ
+// （台帳を足したあと、フックが来なくても置き場を合わせる）。待っても終わらなければ触らない（次のフックか boot に任せる）。
+func EnsureAfterCreate(andon, cwd string, wait, passWait time.Duration) (string, error) {
+	return ensureTerm(andon, cwd, wait, passWait)
+}
+
+func ensureTerm(andon, cwd string, wait, passWait time.Duration) (string, error) {
 	unlock, err := ensureLock()
 	if err != nil {
 		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
@@ -93,6 +103,10 @@ func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 		}
 		// 見回りの途中で止めない。lock は起こし直すまで持つ（新しい dispatcher は外れるのを待ってから回る）
 		unpass, err := flock.TryLock(PassLock())
+		for end := time.Now().Add(passWait); errors.Is(err, flock.ErrBusy) && time.Now().Before(end); {
+			time.Sleep(ensurePoll)
+			unpass, err = flock.TryLock(PassLock())
+		}
 		if errors.Is(err, flock.ErrBusy) {
 			return "", nil
 		} else if err != nil {

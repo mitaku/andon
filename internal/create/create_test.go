@@ -8,8 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"andon/internal/delegate"
+	"andon/internal/dispatcher"
+	"andon/internal/flock"
 )
 
 // setup は偽のセル（git の repo・projects/）と、偽の kanban・ghq・hc を PATH の先頭に置く。
@@ -26,6 +29,8 @@ func setup(t *testing.T) (ws, log string) {
 		}
 	}
 	t.Setenv("ANDON_WORKSPACE", ws)
+	t.Setenv("XDG_STATE_HOME", t.TempDir()) // dispatcher の lock を本物の控えの置き場に作らない
+	t.Setenv("FAKE_HC", t.TempDir())
 	ghq := filepath.Join(t.TempDir(), "ghq")
 	if out, err := exec.Command("git", "init", "-q", filepath.Join(ghq, "example.com", "o", "have")).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, out)
@@ -39,7 +44,11 @@ func setup(t *testing.T) (ws, log string) {
 			"[ -n \"${KANBAN_TASK:-}\" ] && mkdir -p \"$3/kanban/issues/S-0001\" && echo mine > \"$3/kanban/issues/S-0001/brief.md\"\n" +
 			"[ -n \"${KANBAN_HUMAN:-}\" ] && echo mine > \"$3/$KANBAN_HUMAN\"\nexit 0\n",
 		"ghq": "#!/usr/bin/env bash\necho \"$*\" >> '" + log + "'\n[ -z \"${GHQ_BROKEN:-}\" ] && git init -q \"$GHQ_ROOT/$2\"\nexit 0\n",
-		"hc":  "#!/usr/bin/env bash\ncase \"$HC_TERMINAL_ID\" in role*) echo '{\"labels\":{\"role\":\"chief-of-staff\"}}';; *) echo '{\"labels\":{}}';; esac\n",
+		// get dispatcher は $FAKE_HC/term（無ければ not_found）。run・keep・kill・rm は $FAKE_HC/log に足す
+		"hc": "#!/usr/bin/env bash\ncase \"$1 $2\" in\n" +
+			"  'get dispatcher') [ -e \"$FAKE_HC/term\" ] && exec cat \"$FAKE_HC/term\"; echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3 ;;\n" +
+			"  run*|keep*|kill*|rm*) echo \"$*\" >> \"$FAKE_HC/log\"; rm -f \"$FAKE_HC/term\"; exit 0 ;;\nesac\n" +
+			"case \"$HC_TERMINAL_ID\" in role*) echo '{\"labels\":{\"role\":\"chief-of-staff\"}}';; *) echo '{\"labels\":{}}';; esac\n",
 	}
 	for name, body := range scripts {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
@@ -361,5 +370,43 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 		if _, err := os.Lstat(filepath.Join(dir, gone)); err == nil {
 			t.Errorf("作った %s が残っている", gone)
 		}
+	}
+}
+
+// 台帳が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起こし直す（#98）。
+// 見回りの途中（PassLock を持っている）なら、終わるのを待ってから起こし直す。
+func TestCreateMovesDispatcherToProjectSpace(t *testing.T) {
+	ws, _ := setup(t)
+	d := os.Getenv("FAKE_HC")
+	plant, _ := dispatcher.Place(ws) // 台帳が無いときの置き場
+	term := `{"address":"t9","state":"live","labels":{"herdr.space":"` + plant + `","herdr.tab":"x"},"foreground":{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}}`
+	if err := os.WriteFile(filepath.Join(d, "term"), []byte(term), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unpass, err := flock.TryLock(dispatcher.PassLock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		time.Sleep(700 * time.Millisecond)
+		if _, err := os.Stat(filepath.Join(d, "log")); err == nil {
+			t.Error("見回りの途中で dispatcher を止めた")
+		}
+		unpass()
+	}()
+	rc, out, errs := run(strings.NewReader(""), "sample-site")
+	<-done
+	if rc != 0 || errs != "" {
+		t.Fatalf("rc=%d %s %s", rc, out, errs)
+	}
+	got := strings.Split(strings.TrimSpace(read(t, filepath.Join(d, "log"))), "\n")
+	if len(got) != 4 || got[0] != "keep t9 --off" || got[1] != "kill t9" || got[2] != "rm t9" ||
+		!strings.Contains(got[3], "--label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-dispatcher") {
+		t.Fatalf("置き直さない: %q", got)
+	}
+	if !strings.Contains(out, "andon-sample-site") {
+		t.Errorf("置き直したことを出さない: %q", out)
 	}
 }
