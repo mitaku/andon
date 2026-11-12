@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -42,7 +42,9 @@
     { "if": { "properties": { "kind": { "enum": ["blocked", "error", "finished", "stalled"] } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/terminal" } } } },
     { "if": { "properties": { "kind": { "const": "resumed" } } },
-      "then": { "properties": { "detail": { "$ref": "#/$defs/resumed" } } } }
+      "then": { "properties": { "detail": { "$ref": "#/$defs/resumed" } } } },
+    { "if": { "properties": { "kind": { "const": "estimate" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/estimate" } } } }
   ],
   "$defs": {
     "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
@@ -176,6 +178,17 @@
       "properties": {
         "agent": { "description": "Address of the terminal resume started.", "type": "string", "minLength": 1 },
         "from": { "description": "Address of the terminal that was gone.", "type": "string", "minLength": 1 }
+      }
+    },
+    "estimate": {
+      "description": "kind estimate: the worked time of a doing issue (waits excluded) went over its estimate times stage. Once per stage; nothing is sent to the agent.",
+      "type": "object", "required": ["estimate", "estimate_minutes", "worked_minutes", "ratio", "stage"], "additionalProperties": false,
+      "properties": {
+        "estimate": { "description": "The issue's estimate key.", "enum": ["small", "medium", "large"] },
+        "estimate_minutes": { "description": "Minutes of the estimate (contract.md section 2).", "type": "integer", "minimum": 1 },
+        "worked_minutes": { "description": "Worked minutes, waits excluded, rounded down.", "type": "integer", "minimum": 0 },
+        "ratio": { "description": "worked / estimate, two decimals.", "type": "number", "minimum": 0 },
+        "stage": { "description": "Times the estimate it went over.", "enum": [1, 2, 4] }
       }
     }
   }

@@ -77,6 +77,10 @@ type State struct {
 	GHReset string `json:"gh_reset,omitempty"`
 	// ゲートが続けて gh の上限で落ちたときの、前の待ち（分。1・2・4…60。上限で落ちずにゲートが返れば 0）
 	GHWait int `json:"gh_wait,omitempty"`
+	// 見込みを超えた段を知らせた課題（<issue>|estimate|<見込みの値>|<段>。estimate.go。ADR-0014 決めたこと 6）
+	Estimate map[string]bool `json:"estimate,omitempty"`
+	// 担当の端末が Gone だと見た時刻（課題 → 端末と時刻。estimate.go が実働から死んでいた区間を引く。ADR-0014 決めたこと 5）
+	Gone map[string][]GoneAt `json:"gone,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

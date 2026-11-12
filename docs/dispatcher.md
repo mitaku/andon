@@ -65,7 +65,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` に積む（§2.5・§2.6） | |
-| 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled` | 端末に打つことがある・端末を起動することがある |
+| 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4） | ログだけ |
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` ならゲートを回し**（`gate`・マージ・`fix`・問い）、**続けて人がマージしたかを見る**（PR ごとに1分に1回だけ `gh pr view`。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 5a | 人のマージの控えを捨てる | `review` にいない課題の控えの `Watch` を捨てる（§2.7） | 控えに書く |
@@ -105,6 +105,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 片付けた課題の人の手直しを集められなかった | `log.jsonl` の `{"status": "done"}` → `corrections.json`（§2.6）が次の見回りでも集められない | `corrections` |
 | 担当が止まった・落ちた・終わった・静か | hcの状態（§2.3） | `blocked`・`error`・`finished`・`stalled` |
 | 担当の端末が Gone で、resume で起動した | hcの状態（§2.9） | `resumed` |
+| 担当の実働が見込みの 1・2・4 倍を超えた | 課題の一覧・`log.jsonl`・控えの `Gone`（§2.10） | `estimate` |
 | 外の信号（main の CI の失敗・webhook） | **最初の版の後**（design.md §1.9 の (a)・§6 問い23） | `signal` |
 
 - `log.jsonl` は前回の続きから読む。読んだ位置は dispatcher の控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
@@ -235,11 +236,22 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 人が意図して `hc kill` した端末も1回は resume される（ADR-0012 開いている問い 2）。止めたいときは `andon issue finish` か台帳の status を変える。
 - Chief of Staff と dispatcher 自身の起動し直しはしない（§5 の P3b・[operate.md](operate.md)）。
 
+### 2.10 見込みとのズレ
+
+`doing` の担当の課題（レビュアー・Chief Engineer・人の課題を除く。調べる課題は含む）ごとに、見回り（1 巡の 4c の続き）で実働を数え、見込みの 1・2・4 倍を超えたら Chief of Staff に `estimate` を届ける（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 5〜8・11）。一律の上限で担当を止めるのではなく、見込みが外れたという事実を届ける。方向修正（担当の画面を読んで `hc send`・見込みを改める・分ける・切り直す）は Chief of Staff がする。
+
+- **見込み**は予約キー `estimate`（contract.md §2。段→分は 30・60・120）で、最後に書いたのが Chief of Staff のときだけ読む。無い・知らない値・照合が合わない課題は比べず、通知も出さない（measure が「見込み無し」と数える）。
+- **実働**は待ちを除いた時間（`internal/ledger` の `Worked`。`doing` の区間の総和から、自分の問いが `open` の区間・レビュアーの子課題の `add` から `review` まで・端末が死んでいた区間を引く）。死んでいた区間の始まりは、見回りが担当の端末を Gone と見た時刻で、控えの `Gone`（課題 → 端末と時刻。同じ端末の死は最初の1回）に持つ。終わりは台帳の次の `agent` の行（resume か起動し直し）。
+- **段ごとに1回**: 控えの `Estimate`（`<issue>|estimate|<見込みの値>|<段>`）に知らせた段を持つ。一度に複数の段を超えていたら（見回りが止まっていた）上の段を1件だけ積み、下の段も知らせたことにする。待ちの通知は同じ課題の同じ種類を置き換えるので（§2.2）、届く前に次の段を超えたら新しい段の1件になる（控えには両方が残る）。
+- 控えは課題が最初の列に戻る（`todo`・`queued`・`done`・台帳から消えた）まで持ち越す（`review` ⇄ `doing` の行き来では鳴り直さない）。`done → todo → doing` の起こし直しは実働も段も数え直し。Chief of Staff が見込みを改めたら（`kanban set` の打ち直し）、古い値の段は捨てて新しい見込みで数え直す。
+- 初めて見る台帳（控えが無い）では、今の段を控えるだけで積まない（控えを失ったときに段を鳴らし直さない）。
+- **担当には何もしない**: 担当の端末へ `hc send` しない・止めない。担当の正規の止まり方は「報告を書いてターンを終える」なので、1行でも送ると担当は Chief of Staff を待つ側に回り、`blocked` の間は届かずに失われる（ADR-0014 決めたこと 7）。
+
 ---
 
 ## 3. 誰に・いつ・どう届けるか
 
-宛先は**プロジェクトの Chief of Staff だけ**。人には届けない（人はボードで台帳と端末を見る）。担当に届けるのは P6a の `fix` だけ（§5）。
+宛先は**プロジェクトの Chief of Staff だけ**。人には届けない（人はボードで台帳と端末を見る）。担当に届けるのは P6a の `fix` だけ（§5）。担当のこと（止まった・見込みを超えた〈§2.10〉）も Chief of Staff にだけ届け、担当には送らない。
 届けるのは §3.2 の表で「届ける」の通知だけ。「記録だけ」の通知は経路①②のどちらにも載らず、③の待ち役の合図のきっかけにもならない（待ちに数えない）。
 
 通知は dispatcher の中で JSON のまま積み（contract.md §6）、**届けるときだけ** `<news>` の文に描く。`<news>` を渡すのは①②の `drain` の1人で、どれも同じ JSON から同じ文を描く。③は中身を運ばない合図で、Chief of Staff を起動するだけ。**dispatcher は Chief of Staff の入力欄へ `<news>` を打たない**（[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 1）。
@@ -292,6 +304,7 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `report`（レビュアーの課題） | 記録だけ | 結果の宛先は元の課題の担当で、Chief of Staff は中継しない |
 | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer は人と直接話す役で、人の返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff は人への問いに答えない。`ready` は `andon chief-engineer` が起動した直後で、もう起動している。`error`・`finished`・`review`（文書の PR）は届ける |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起動する・rebase を頼む・人へ知らせる・続きを促す |
+| `estimate` | 届ける | 見込みが外れた。担当の画面を読み、要れば `hc send`（続ける・見込みを改める・分ける・切り直す）（§2.10） |
 
 - **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボードと `andon measure`。
 - **届けた通知の記録**は同じ所の `<slug>.delivered.jsonl`（contract.md §17）。`drain` がフックで渡した `<news>` のターンの終わりを見たときに1行（時刻・`acked`・渡した通知の `issue` と `kind`）。追記だけで、書けなくても届けは止めない。`andon measure` が記録だけの置き場と合わせて、kind ごとの素通り（ack で終わった数）を数える（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
@@ -435,6 +448,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 18 | 人の手直しを集める（`corrections.json`。§2.6） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回）。ほかの書き手はいない | `corrections.json` が書き直される（`at` が替わる）。2 度目の読みの間に PR のコメントが増えていれば中身も替わる | ④`corrections.json` が在れば書かない（ファイルが「集めた」の印）＋②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Corrections`（書いたら外す。失敗は次の見回りの 1 回だけ打ち直し、諦めたら `corrections` を積んで外す）。書くのは一時ファイル＋rename |
 | 19 | 人がマージした PR を拾って片付ける（§2.7） | dispatcher（`review` の課題の PR ごとに1分に1回 `gh pr view`）。Chief of Staff が手で `andon issue finish` することもある | ゲートの問いを二度閉じようとする・finish が二度走る（2 度目は `done` の課題なので台帳の CLI が受けるか止まる）。通知 `merged` が二度届く | ①控えの lock（#2）＋②控えの `Watch`（MERGED・CLOSED と分かった PR はもう聞かない・同じ `held` は二度知らせない・片付けたら外す）＋④台帳の `status`（`review` でなくなれば見ない）。マージは打たない |
 | 20 | 止まった担当の自動 resume（§2.9） | dispatcher（Gone を見た見回り。1 巡の 4c）。Chief of Staff が人の go で `andon issue resume` を手で打つこともある | 同じ課題に担当が 2 人起動する・同じ死に何度も打つ・コンテキストを失ったまま起動し続ける | ②控えの `Resumed`（打つ前に保存。Gone を見た端末と起動した端末。起動した端末が `turn` 0 のまま Gone なら打たない）＋④台帳（`doing` で `agent` が Gone のときだけ。起動する直前に status と agent を読み直す）＋③端末の名前 `<slug>-<id>`（live なら resume が止まる）＋①issue lock（`resume`・`finish`・`start` を直列にする。#10） |
+| 21 | 見込みとのズレを届ける（§2.10） | dispatcher（1 巡の 4c の続き）。ほかに打つ者はいない | 同じ段の `estimate` が 2 度届く | ①控えの lock（#2）＋②控えの `Estimate`（`<issue>\|estimate\|<見込みの値>\|<段>`。積んだ巡の終わりに保存。保存の前に落ちたら次の巡で同じ段をもう一度積む＝届くのは1度か2度で、落ちることは無い） |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

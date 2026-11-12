@@ -62,6 +62,7 @@ func (p *project) collect(cos string) {
 	p.readLog(cos)
 	now := time.Now()
 	p.watch(now, cos)
+	p.estimate(now, cos) // 見込みとのズレ（dispatcher.md §2.10）
 	p.chiefCut(cos)
 }
 
@@ -419,6 +420,9 @@ func (p *project) watch(now time.Time, cos string) {
 			}
 			continue
 		}
+		if s.Gone {
+			p.sawGone(id, agent, now) // 実働から死んでいた区間を引く（estimate.go）
+		}
 		if s.Unsent && !p.first && p.sendFirst(t, agent, s.Status, p.st.First[rk]) {
 			first[rk] = true
 		}
@@ -687,5 +691,11 @@ func (s *State) ensure() {
 	}
 	if s.Waits == nil {
 		s.Waits = map[string]string{}
+	}
+	if s.Estimate == nil {
+		s.Estimate = map[string]bool{}
+	}
+	if s.Gone == nil {
+		s.Gone = map[string][]GoneAt{}
 	}
 }

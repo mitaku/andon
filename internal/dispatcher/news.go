@@ -103,6 +103,8 @@ func line(n Notification) string {
 		return s + " " + strings.Join(parts, "; ") + "。andon issue impact " + clean(n.Issue, 40) + " で事実を読む"
 	case "corrections":
 		return head + "人の手直しを集められなかった（" + clean(n.Detail["error"], 120) + "）。corrections.json は書いていない"
+	case "estimate":
+		return head + "実働 " + d("worked_minutes") + " 分が見込み（" + short("estimate") + " " + d("estimate_minutes") + " 分）の " + d("stage") + " 倍を超えた（比 " + d("ratio") + "）"
 	case "stalled":
 		s := clean(n.Issue, 40) + " の担当 " + short("agent") + " が止まったまま"
 		if m := minutesSince(n); m >= 0 {
