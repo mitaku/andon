@@ -289,7 +289,7 @@ grep -q '^- 打つコマンドは .*`andon chief-engineer`' "$cos" \
 sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$cos" | grep -q 'repo を読めば分かること（作法・構造・直し方）は書かず' \
   && grep -q '^| 守ること | 範囲の外（今回やらないこと）' "$cos" \
   && pass "依頼書の欄の読み方の頭に原則の1行、守ることの説明に 範囲の外" || fail "chief-of-staff §2 に依頼書の原則か 範囲の外 が無い"
-grep -q '## 差し戻し（<日付>）' "$cos" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$cos" && grep -q '依頼書を直した新しい課題を `deck add`' "$cos" \
+grep -q '## 差し戻し（<日付>）' "$cos" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$cos" && grep -q '依頼書を直した新しい課題を `kanban add`' "$cos" \
   && pass "差し戻しは依頼書への追記で数え、2回で通らなければ新しい課題に切る" || fail "chief-of-staff に差し戻しの追記か切り直しの手順が無い"
 cos11=$(sed -n '/^## 11\. wiki$/,/^## ルール$/p' "$cos")
 # ADR-0016 受け入れ条件 1: 層・3つの操作・元資料の3種・移行があり、前の形（1ファイル1件・log.md は作らない）が無い
@@ -315,15 +315,15 @@ grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引�
 case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /workspace/wiki "*) pass "Chief of Staff の template の command に --add-dir /workspace/wiki" ;; *) fail "Chief of Staff の template に --add-dir /workspace/wiki が無い" ;; esac
 
 # Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
-set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^deck set ')
+set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^kanban set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
 if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["estimate","merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
   pass "Chief of Staff は予約キー6つ（review・must_fix・reviewer・review_rounds・merge・estimate）を issue.yaml に書く"
-else fail "Chief of Staff の deck set: $set_line"; fi
+else fail "Chief of Staff の kanban set: $set_line"; fi
 # ADR-0014 受け入れ条件 7（E1）: 雛形の Settings に Estimate の行（段の名）、起き直しで打ち直す予約キーに estimate
 block package/skills/chief-of-staff/SKILL.md '# <id> <題>' | grep -qx -- '- Estimate: 中' \
   && block package/skills/chief-of-staff/SKILL.md '# <id> 調べる: ' | grep -qx -- '- Estimate: 小' \
-  && grep -q '同じ値で `deck set <id> review=… .*`estimate`' package/skills/chief-of-staff/SKILL.md \
+  && grep -q '同じ値で `kanban set <id> review=… .*`estimate`' package/skills/chief-of-staff/SKILL.md \
   && pass "Chief of Staff の雛形に Estimate の行があり、起き直しで estimate も打ち直す" || fail "chief-of-staff に Estimate の行か起き直しの estimate が無い"
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
@@ -348,10 +348,10 @@ grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && gre
 ce1=$(sed -n '/^1\. \*\*読む/,/^2\. /p' "$ce"); ce2=$(sed -n '/^2\. \*\*言い直す/,/^3\. /p' "$ce")
 grep -q '前の価値の仮説の結果' <<<"$ce1" && block "$ce" '# <題>（仕様・設計' | grep -q '^## 価値の仮説' \
   && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の席が無い"
-grep -q '決断が無ければ文書を書かずに返す' <<<"$ce2" && grep -q '"to": "chief-of-staff", "text": "直す課題に切る: ' <<<"$ce2" && grep -q 'deck review <id>' <<<"$ce2" \
+grep -q '決断が無ければ文書を書かずに返す' <<<"$ce2" && grep -q '"to": "chief-of-staff", "text": "直す課題に切る: ' <<<"$ce2" && grep -q 'kanban review <id>' <<<"$ce2" \
   && pass "Chief Engineer は「言い直す」で決断が無ければ文書を書かず next で返す" || fail "chief-engineer の「言い直す」に文書なしで返す段が無い"
-left=$(grep -nE 'deck ask [^-]*"<|deck set <id> pr=' package/skills/*/SKILL.md || true)
-[ -z "$left" ] && pass "skill に JSON を通らない deck ask と issue.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
+left=$(grep -nE 'kanban ask [^-]*"<|kanban set <id> pr=' package/skills/*/SKILL.md || true)
+[ -z "$left" ] && pass "skill に JSON を通らない kanban ask と issue.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
 
 # === 7. 課題（issue）／作業（task）への改名（ADR-0008 受け入れ条件 5・4・2 の欄名） ===
 g=package/skills/glossary/SKILL.md
@@ -468,7 +468,7 @@ cos=package/skills/chief-of-staff/SKILL.md
 cos1=$(sed -n '/^## 1\. /,/^## 2\. /p' "$cos")
 miss=
 grep -q '「価値の仮説」の節が見出しだけ（空）なら、\*\*切らずに Chief Engineer へ戻す\*\*' <<<"$cos1" || miss="$miss 空なら戻す"
-grep -q '`deck add "観察: <題>の価値の仮説" --parent <Chief Engineer の id>' <<<"$cos1" && grep -q '`deck set <新しい id> not_before=<(3) の日付>`' <<<"$cos1" || miss="$miss 観察の課題を --parent と not_before で足す"
+grep -q '`kanban add "観察: <題>の価値の仮説" --parent <Chief Engineer の id>' <<<"$cos1" && grep -q '`kanban set <新しい id> not_before=<(3) の日付>`' <<<"$cos1" || miss="$miss 観察の課題を --parent と not_before で足す"
 grep -q '^### `signal` の通知を受けたら$' <<<"$cos1" && grep -q '^1\. \*\*直す課題に切る\*\*.*`links` に信号の `url`' <<<"$cos1" || miss="$miss signal を直す課題に切る"
 grep -q '^### 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\*\*ラインは何もしない\*\*' <<<"$cos1" || miss="$miss 観察の報告を人へ返すだけ"
 block "$cos" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"
@@ -482,7 +482,7 @@ w=package/skills/worker/SKILL.md
 w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w")
 o_blk=$(block "$w" 'andon issue report "$id" --data '"'"'{"observation"' | head -1 | sed "s/^[^']*'//; s/'.*\$//")
 printf '%s\n' "$o_blk" >"$tmp/o.json"
-grep -q '^### 観察の課題のとき$' <<<"$w2" && grep -q '\*\*直さない・課題を切らない・出所へ書き戻さない\*\*' <<<"$w2" && grep -q '^2\. `deck review <id>`' <<<"$w2" \
+grep -q '^### 観察の課題のとき$' <<<"$w2" && grep -q '\*\*直さない・課題を切らない・出所へ書き戻さない\*\*' <<<"$w2" && grep -q '^2\. `kanban review <id>`' <<<"$w2" \
   && [ -n "$o_blk" ] && jq -e '.observation' "$tmp/o.json" >/dev/null 2>&1 && chk report "$tmp/o.json" \
   && pass "worker skill に観察の課題の節があり、observation の例は report.schema.json に合う" || fail "worker skill の観察の課題: $(head -1 "$tmp/why" 2>/dev/null) $o_blk"
 

@@ -92,7 +92,7 @@ Andon の今の灯り（design.md §1.3 の5種＝問いになる4種＋レベ�
 | 呼び出し（紐を引く → 灯り → 責任者が来る。ラインは止まらない） | 問い `kind: business` / `users` / `promise`（§1.3 の 1〜3） | `questions.yaml`・ask-one-by-one skill・委譲 `project.json`（誰が来るか） |
 | 定位置停止（周期の終わりの決まった位置で止まる） | 問い `kind: irreversible`（§1.3 の 4。操作の直前）・ゲートのレベル C（§1.3 の 5。ラインを変える PR のマージ） | ゲートの条件表・`needs_human`・`delete-remote` を人に残す委譲 |
 | 自働化（設備が異常を検知して止まる） | 灯りではない。テスト・独立レビューの `must_fix`・`tests/public.sh`・deny は担当へ戻る | CI の checks・findings.json・managed settings |
-| 表示盤（稼働の状態・計画と実績） | 台帳の状態（`deck list`・ボード）。計画と実績（率）は設計だけ | 台帳・§4 の「測る」 |
+| 表示盤（稼働の状態・計画と実績） | 台帳の状態（`kanban list`・ボード）。計画と実績（率）は設計だけ | 台帳・§4 の「測る」 |
 
 トヨタに無い灯り（何を作るか・ラインの変更）と Andon に無い灯り（自動停止で人が来る・率の表示）は §5 の 12〜15。この言い方はこの文書だけで、skill と design.md の語（「4種」「5種」）は ADR-0008 のあとの語の統一のタスクで改める。
 

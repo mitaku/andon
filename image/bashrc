@@ -11,7 +11,7 @@ HISTFILESIZE=200000
 HISTCONTROL=ignoreboth:erasedups
 case ";$PROMPT_COMMAND;" in *";history -a;"*) ;; *) PROMPT_COMMAND="history -a${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;; esac
 
-# Tab 補完。git・gh・hc・andon・deck・kanban・just・mise を最初の Tab を待たずに登録する
+# Tab 補完。git・gh・hc・andon・kanban・just・mise を最初の Tab を待たずに登録する
 if ! shopt -oq posix && [ -f /usr/share/bash-completion/bash_completion ]; then
   . /usr/share/bash-completion/bash_completion
   for _c in git gh hc andon kanban just mise; do

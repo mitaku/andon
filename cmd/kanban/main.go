@@ -2,7 +2,7 @@
 //
 // Copied from herdr-flightdeck's cmd/deck at tag deck-v0.4.0 on 2026-11-05 and licensed
 // under Apache-2.0 from that day (docs/decisions.md §7, §12). The behaviour is deck-v0.4.0's;
-// only the command's name changed. deck is an alias of kanban for one version.
+// only the command's name changed.
 // One folder per issue (issues/<id>/issue.yaml, brief.md, report.md, library/),
 // written under an OS file lock, atomically, and logged to log.jsonl.
 // issue.yaml is edited as a YAML node tree, so a person's comments and key order stay.
@@ -51,8 +51,7 @@ Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A re
 (--parent and a --profile ending in -review) is <parent>-r<k> for round k (W-0001-r1) and takes no number.
 The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
 whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
-repo is filled in from the current checkout when it matches one of repos.
-deck is another name for kanban (for one version); both print this help.`
+repo is filled in from the current checkout when it matches one of repos.`
 
 // version is set at build time (-ldflags "-X main.version=…"); a plain go build says dev.
 var version = "dev"

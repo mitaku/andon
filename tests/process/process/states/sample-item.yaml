@@ -15,4 +15,4 @@ transitions:
   - { from: "[*]", to: waiting, on: 通知が積まれた, by: machine }
   - { from: waiting, to: handed, on: "入力欄が空: 渡す", by: machine, command: andon dispatcher, once: true }
   - { from: handed, to: done, on: ack, by: ai }
-  - { from: done, to: "[*]", on: 片付けた, by: deck }
+  - { from: done, to: "[*]", on: 片付けた, by: kanban }

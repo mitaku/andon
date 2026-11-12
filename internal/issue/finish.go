@@ -42,7 +42,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 		repoDir = d
 	}
 
-	// repo の無い課題（レビュアーなど）は、担当の deck start が cwd（issues/<id>/）を包む checkout を書く。
+	// repo の無い課題（レビュアーなど）は、担当の kanban start が cwd（issues/<id>/）を包む checkout を書く。
 	// start が作ったものではないので、git には触らず台帳から消すだけ（その checkout と一致するときだけ）
 	if repo == "" && wt != "" {
 		top, err := git(filepath.Join(c.l.Dir, "issues", c.id), "rev-parse", "--show-toplevel")

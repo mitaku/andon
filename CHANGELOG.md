@@ -5,6 +5,10 @@
 - 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
 - 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
 
+## 未リリース
+
+- **台帳の CLI の別名 `deck` を外した**: image の `/usr/local/bin/deck`・Tab 補完・`kanban --help` の行を消し、skill・文書・コード・テストの台帳の CLI を指す `deck` を `kanban` にした（A-0050）。上げるときは image を焼き直す（`rebuild`）。
+
 ## v0.0.10 — 2026-11-12
 
 離席中の Chief of Staff を、入力欄へ打たずに起こす形（ADR-0019）に替えた版。dispatcher は `<news>` を入力欄へ `hc send` しなくなり、Stop の待ち役が合図で起こす。ほかに、担当が画面を見て確かめる道具（ADR-0018）、止まった担当の自動の resume（ADR-0012）、課題の見込みと実働（ADR-0014）、仕事の流れと状態の定義（ADR-0017）、人への書き方の置き場 `package/writing.md`（ADR-0013）、triage が拾う memory（ADR-0020）が入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` の変更は項目と値を足しただけ）。auto memory そのもの（ADR-0020 の M3）はまだ入っていない。

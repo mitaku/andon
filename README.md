@@ -30,7 +30,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 | [docs/operate.md](docs/operate.md) | How to set up a cell and run one issue |
 | [docs/dispatcher.md](docs/dispatcher.md), [docs/ledger.md](docs/ledger.md), [docs/image.md](docs/image.md) | The dispatcher (resident notifier), the ledger CLI, the container image |
 | [docs/adr/](docs/adr/), [docs/decisions.md](docs/decisions.md), [docs/decisions/](docs/decisions/) | Architecture decision records and the decision log (one file per decision from 2026-11-07) |
-| `cmd/andon`, `cmd/kanban`, `internal/` | The `andon` CLI and the ledger CLI (`kanban`, alias `deck`), in Go |
+| `cmd/andon`, `cmd/kanban`, `internal/` | The `andon` CLI and the ledger CLI (`kanban`), in Go |
 | `package/` | What is shipped into the cell at `/opt/andon`: skills, agent profiles, gate rules, managed settings, hooks, compose file, host templates |
 | `image/`, `init/` | The base image, and the template that `andon init` copies into a new cell repo |
 | `tests/` | Shell tests run on every pull request, including `tests/public.sh` (no secrets or personal values) |

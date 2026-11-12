@@ -66,7 +66,7 @@ func TestAllowsDefinedMove(t *testing.T) {
 	}
 }
 
-// 定義の andon issue の command は moves と同じ集まりで、by: deck の移り方は kanban のコマンドだけ（断らない）。
+// 定義の andon issue の command は moves と同じ集まりで、by: kanban の移り方は kanban のコマンドだけ（断らない）。
 func TestDefinitionMatchesMoves(t *testing.T) {
 	f, err := froms(andon.IssueStates)
 	if err != nil {
@@ -87,11 +87,11 @@ func TestDefinitionMatchesMoves(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tr := range sm.Transitions {
-		if tr.By == "deck" && tr.Command != "" && !strings.HasPrefix(tr.Command, "kanban ") {
-			t.Errorf("by: deck の移り方（%s → %s）の command が kanban でない: %s", tr.From, tr.To, tr.Command)
+		if tr.By == "kanban" && tr.Command != "" && !strings.HasPrefix(tr.Command, "kanban ") {
+			t.Errorf("by: kanban の移り方（%s → %s）の command が kanban でない: %s", tr.From, tr.To, tr.Command)
 		}
-		if tr.By != "deck" && strings.HasPrefix(tr.Command, "kanban ") {
-			t.Errorf("kanban を直に打つ移り方（%s → %s）が by: deck でない: %s", tr.From, tr.To, tr.By)
+		if tr.By != "kanban" && strings.HasPrefix(tr.Command, "kanban ") {
+			t.Errorf("kanban を直に打つ移り方（%s → %s）が by: kanban でない: %s", tr.From, tr.To, tr.By)
 		}
 	}
 }

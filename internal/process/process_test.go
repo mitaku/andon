@@ -37,7 +37,7 @@ func TestRenderWritesChecksAndPrunes(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "process/workstreams/watch.yaml", watch)
 	write(t, root, "process/states/item.yaml", "name: item\ntitle: もの\nsource: ADR-0017\n"+
-		"states: [{ id: a, title: A, record: d:Pending }]\ntransitions: [{ from: \"[*]\", to: a, on: 積む, by: deck }]\n")
+		"states: [{ id: a, title: A, record: d:Pending }]\ntransitions: [{ from: \"[*]\", to: a, on: 積む, by: kanban }]\n")
 	write(t, root, "docs/process/README.md", "人が書く\n")
 	write(t, root, "docs/process/old.md", "定義の無い生成物\n")
 
