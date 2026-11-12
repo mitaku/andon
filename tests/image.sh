@@ -46,7 +46,7 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
   ! getent passwd ubuntu
   kanban --version
-  ! command -v kanban
+  ! command -v deck >/dev/null || { echo "deck が残っている" >&2; exit 1; }
   test -d /opt/andon
   andon help | grep -q "andon <sub-command>"
   test "$(readlink -f /usr/local/bin/andon)" = /opt/andon/bin/andon
