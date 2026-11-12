@@ -3,6 +3,7 @@
 版ごとに、人の目に効く変更と、上げるときにすることを書く。細かい変更は各版の範囲の commit（`git log <前の版>..<版>`）で遡れる。`(#n)` は PR の番号。
 
 - 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
+- `package/host/` の雛形を変えた版には、「上げるときにすること」に **host-install** の項を足す（変わったファイル。退避の手順は [docs/operate.md](docs/operate.md) の「版を上げるとき: host-install が置いたものを退避する」）。
 - 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
 
 ## 未リリース
