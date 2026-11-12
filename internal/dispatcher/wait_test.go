@@ -163,7 +163,7 @@ func TestWaitRearmSurvivesHcError(t *testing.T) {
 		t.Fatal(err)
 	}
 	r = startWait("--timeout", "60") // 起きるときに読めなければ 0
-	if code, ok := r.done(t, time.Second); !ok || code != 0 {
+	if code, ok := r.done(t, 10*time.Second); !ok || code != 0 {
 		t.Fatalf("起きるときに端末が読めないのに待った: %v %d", ok, code)
 	}
 	f.cos("idle")
@@ -190,14 +190,14 @@ func TestWaitPassesThrough(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.d, "t42.json"), []byte(`{"state":"live","status":{"state":"idle"},"labels":{"project":"sample-site","issue":"S-7"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if code, ok := startWait().done(t, time.Second); !ok || code != 0 {
+	if code, ok := startWait().done(t, 10*time.Second); !ok || code != 0 {
 		t.Fatalf("担当の端末で待った: %v %d", ok, code)
 	}
 	t.Setenv("HC_TERMINAL_ID", "t1")
 	if err := os.WriteFile(StatePath("sample-site"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if code, ok := startWait().done(t, time.Second); !ok || code != 0 {
+	if code, ok := startWait().done(t, 10*time.Second); !ok || code != 0 {
 		t.Fatalf("控えが読めないのに通さない: %v %d", ok, code)
 	}
 }
@@ -219,8 +219,11 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 	f.cos("working")
 	f.pending(0)
 	r := startWait("--timeout", "60")
-	for i := 0; i < 100 && !liveWaiter("sample-site", "t1"); i++ {
+	for i := 0; i < 1000 && !liveWaiter("sample-site", "t1"); i++ { // 遅い CI でも待つ（上限 10 秒）
 		time.Sleep(10 * time.Millisecond)
+	}
+	if !liveWaiter("sample-site", "t1") {
+		t.Fatal("待ち役が起動しない")
 	}
 	f.cos("idle")
 	f.pending(1)
@@ -230,5 +233,5 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 	if strings.Contains(f.log.String(), "待ち役がいない") {
 		t.Fatalf("待ち役がいるのにいないと書いた: %q", f.log.String())
 	}
-	r.done(t, 2*time.Second)
+	r.done(t, 10*time.Second)
 }
