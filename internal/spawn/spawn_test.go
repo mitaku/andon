@@ -2,6 +2,8 @@ package spawn
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -60,5 +62,20 @@ func TestNewSession(t *testing.T) {
 	a, b := NewSession(), NewSession()
 	if !SessionRe.MatchString(a) || a == b || a[14] != '4' {
 		t.Errorf("NewSession: %q %q", a, b)
+	}
+}
+
+func TestGuide(t *testing.T) {
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	if g := Guide(); g != "" {
+		t.Errorf("ファイルが無いのに入った: %q", g)
+	}
+	if err := os.WriteFile(filepath.Join(ws, GuideFile), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want := "\n人の指針 `" + filepath.Join(ws, GuideFile) + "` も読む。"
+	if g := Guide(); g != want {
+		t.Errorf("got %q want %q", g, want)
 	}
 }

@@ -25,6 +25,7 @@
 2. **2026-11-10 担当向けの指針の口は、worktree の置き場に依らせない。** セルの repo の見える所に1ファイル（名前は仮に `AGENTS.worker.md`。切る案で確定）を人が書き、Andon が担当とレビュアーを起動する最初のメッセージで両ブランドとも明示して指す（あるときだけ）。
    理由: 実測（下の出典）で、Claude Code は worktree の根より上の `AGENTS.md` を読むが Codex は読まない。置き場の上に置くと効き方がブランド（Claude は暗黙・Codex は届かない）と役（Chief Engineer にも効く・cwd が `issues/<rev>/` のレビュアーには効かない）でちぐはぐになる。Andon の役の区別で「誰に効くか」を決めれば、ハーネスが親を遡る仕様にも依らない。
    捨てた案: `/workspace/.worktrees/AGENTS.md` を置いて Claude に自動で読ませ、Codex とレビュアーには明示の1行（人の最初の案。人が書くファイルが機械の持ち物の隠しディレクトリに入る）／この題ではやらない。
+   名前の確定（2026-11-12。A-0042）: `AGENTS.worker.md`、置き場はセルの repo の直下（`$ANDON_WORKSPACE`。既定 `/workspace`）。あるときだけ、`andon issue start`（`resume --fresh` も）と dispatcher のレビュアー（送り直しも）の最初のメッセージに「人の指針 `<パス>` も読む」の1行が入る。中身は人が書き、Andon は書かない。[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表に1行。
 3. **2026-11-10 入口は新しい command `andon issue resume <id> [--dry-run] [--fresh]`。** 起動できるのは `doing` で、台帳に `worktree`（repo のある課題）があり、端末（`agent`）が無い・終わっている・素のシェル（`spawn.BareShell`）の課題だけ。動いていれば「端末 … がもう動いている」で止まる。`start` は「新しく作る」の一本道のまま変えない。
    理由: ライフサイクルに「死んだ → resume → doing」の辺を足す（人: finish → todo → start はおかしい）。条件の違う2つを1つの動詞に畳むと `--dry-run` と失敗の文言が濁る。
    捨てた案: `start` が条件を見て自動で切り替わる／両方。

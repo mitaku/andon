@@ -140,6 +140,23 @@ func FirstMessage(slug, id, brief string) string {
 	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
 }
 
+// GuideFile は人が書く担当・レビュアー向けの指針のファイル名（セルの repo の直下。ADR-0012 決めたこと 2）。中身は Andon が書かない。
+const GuideFile = "AGENTS.worker.md"
+
+// Guide は指針のファイルがあるときだけ、最初のメッセージに足す1行（先頭の改行つき）を返す。無ければ空。
+// 置き場はセルの repo（ANDON_WORKSPACE。既定 /workspace）。Claude・Codex の両方に明示で指す。
+func Guide() string {
+	ws := os.Getenv("ANDON_WORKSPACE")
+	if ws == "" {
+		ws = "/workspace"
+	}
+	p := filepath.Join(ws, GuideFile)
+	if st, err := os.Stat(p); err != nil || st.IsDir() {
+		return ""
+	}
+	return fmt.Sprintf("\n人の指針 `%s` も読む。", p)
+}
+
 // SessionLabel は担当・Chief Engineer の端末に付けるラベルの名前。値はハーネスのセッションの id（台帳の session と同じ）。
 // hc の template は呼び手の環境変数を渡さないので、template の command・resume の行が andon issue session で読む（ADR-0012 決めたこと 14）。
 const SessionLabel = "session"

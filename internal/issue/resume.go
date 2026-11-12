@@ -57,7 +57,7 @@ func ResumeMessage(slug, id string) string {
 
 // FreshMessage は --fresh で起こした端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。
 func FreshMessage(slug, id, brief, report string) string {
-	return spawn.FirstMessage(slug, id, brief) + fmt.Sprintf("\n前の担当の会話は続けられなかった。前の担当の報告 `%s`（あれば）を読み、worktree と台帳の今の状態から続ける。", report)
+	return spawn.FirstMessage(slug, id, brief) + spawn.Guide() + fmt.Sprintf("\n前の担当の会話は続けられなかった。前の担当の報告 `%s`（あれば）を読み、worktree と台帳の今の状態から続ける。", report)
 }
 
 // resume は止まった担当・Chief Engineer を、同じ worktree・branch・cwd でハーネスのセッションの続きから起こす（ADR-0012 決めたこと 3・7・9・11・13）。

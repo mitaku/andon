@@ -35,6 +35,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    | `wiki/` | 建屋を横断する知識。1 ファイル 1 件・日付・出典・痩せた `index.md`（→ 形は [ADR-0016](0016-cell-wiki-llm-wiki.md)）。プロジェクト固有の事実も index の節か front matter の印で**ここ**に置く（プロジェクトに wiki は作らない） | Chief of Staff（D12） | する | — |
    | `files/` | 納品物（人に URL で届けるもの。`andon publish` が `<日付>-<slug>` で置き、files サーバが公開する）。**今の `artifacts/` の改名** | `andon publish`（担当・Chief of Staff・人） | する（大きいものは開いている問い 1） | — |
    | `.env`・`.env.*`・`.ssh/`・`.andon/`・`.ghq/`・`.codex/` | 秘密・番号・鍵・パッケージの取り出し・追加した repo・ハーネスの状態 | 人／boot | しない（`init/.gitignore` のまま。→ ADR-0020: auto memory の置き場 `memory/` も足した） | — |
+   | `AGENTS.worker.md` | 担当とレビュアーだけに効く指針（任意。あるときだけ `andon issue start`・dispatcher のレビュアーの最初のメッセージが「読む」と指す。→ [ADR-0012](0012-resume-and-worktree-home.md) 決めたこと 2） | **人** | する | — |
    | worktree | `/workspace/.worktrees/`（7） | 機械 | しない（中の `.gitignore`） | space（作業側） |
    | 端末・伝令の控え | hc・`~/.local/state/andon/` | 機械 | 建屋の外 | pane |
 

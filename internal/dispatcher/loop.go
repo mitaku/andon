@@ -369,7 +369,7 @@ func (p *project) runReviewer(t ledger.Issue, rev, title, profile string) (start
 // reviewerFirst はレビュアーの課題 rev の最初のメッセージ（起こすときと、届かなかったのを sendFirst が送り直すときで同じ文）。
 func (p *project) reviewerFirst(rev string) string {
 	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
-		p.l.Slug, rev, filepath.Join(p.l.Dir, "issues", rev, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md"))
+		p.l.Slug, rev, filepath.Join(p.l.Dir, "issues", rev, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md")) + spawn.Guide()
 }
 
 // workerPlace は担当の端末（issue.yaml の agent）のラベル herdr.space・herdr.tab を "k=v" で返す。レビュアーに同じ値を付け、
