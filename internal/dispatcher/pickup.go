@@ -35,8 +35,8 @@ const (
 // 個数（4）を打ち切ると、5 回目に切られたところで打つのをやめて知らせる（dispatcher.md §2.4。shepherdr〈MIT〉と同じ間隔）。
 var retryAfter = []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute}
 
-// RetryText は提供元に切られた端末に打つ文。人の依頼と取り違えないよう、送り手と範囲を書く。
-const RetryText = "提供元（モデルの API）に切られて止まった。止まる前の続きを、今の許可の範囲で続けて（dispatcher から。人の依頼ではない）"
+// RetryText は提供元に切られた端末に打つ文。やり直しに承認が要らないことと、送り手を書く。
+const RetryText = "一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）"
 
 var (
 	authErrRe      = regexp.MustCompile(`(?i)unauthori[sz]ed|\b401\b|\b403\b|invalid api key|/login|authenticat|oauth token`)
