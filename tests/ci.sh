@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI の tests の job と手元の tests/run が使う道具（tests/lib/image-scope.sh・scope.sh・run-tests.sh）の振る舞い。
+# CI の go・tests の job と手元の tests/run が使う道具（tests/lib/image-scope.sh・docs-scope.sh・scope.sh・run-tests.sh）の振る舞い。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 die() { echo "FAIL ci: $*" >&2; exit 1; }
@@ -19,13 +19,27 @@ for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report
 done
 ok "image-scope: 文書・ほかの tests だけなら飛ばし、image に入るもの・知らないパスでは走らせる"
 
+# 1a. docs-scope: 変更が全部 docs/ の下か root の人の文書なら true。コード・tests・知らないパスが1つでも混ざれば、空でも false
+docs() { printf '%s\n' "$@" | bash tests/lib/docs-scope.sh; }
+[ "$(docs docs/adr/0023-x.md docs/decisions/2026-11-12-x.md)" = true ] || die "ADR と決定の記録だけで false（PR #218 の形）"
+[ "$(docs docs/assets/logo/x.svg README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = true ] || die "人の文書だけで false"
+[ "$(docs)" = false ] || die "変更が無いのに true"
+for p in internal/issue/issue.go workflow_test.go tests/README.md tests/lib/docs-scope.sh .github/workflows/go.yml \
+  package/skills/worker/SKILL.md schema/report.schema.json go.mod docs-new/x NEW.md; do
+  [ "$(docs docs/image.md "$p")" = false ] || die "$p を含むのに true"
+done
+# 判定の付いたあとも入力を終わりまで読む（CI は pipefail で git diff から渡す）
+( set -o pipefail; { echo internal/x.go; seq 100000 | sed 's|^|docs/|'; } | bash tests/lib/docs-scope.sh >/dev/null ) || die "途中で抜けて前のコマンドが落ちる"
+ok "docs-scope: 文書だけなら true、コード・tests・知らないパスが混ざるか空なら false"
+
 # 1b. scope（手元の tests/run --changed）: 文書だけならいつもの分、触った test とそれが読む文書の分を足し、
 #     コードや知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
 always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh '
 [ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
 [ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
-[ "$(pick docs/contract.md)" = 'tests/ci.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh が無い"
+[ "$(pick docs/contract.md)" = 'tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh・package.sh が無い: $(pick docs/contract.md)"
+[ "$(pick docs/no-such-doc.md)" = "tests/ci.sh tests/kanban.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh " ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
 [ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"

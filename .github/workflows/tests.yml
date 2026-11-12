@@ -8,8 +8,9 @@ permissions:
   contents: read
 jobs:
   # PR と main の push: image を焼いて検査するだけ。token に packages の書き込みを持たせない。
-  # 速くする3つ（docs/image.md の「CI の所要時間」）: andon・kanban を1回だけ焼いて渡す・tests/*.sh を並べる・
-  # PR の変更が image に関係しなければ tests/image.sh を飛ばす（job は成功で終わる。main の push では必ず全部走る）
+  # 速くする4つ（docs/image.md の「CI の所要時間」）: andon・kanban を1回だけ焼いて渡す・tests/*.sh を並べる・
+  # PR の変更が image に関係しなければ tests/image.sh を飛ばす・文書だけの PR は文書を読む tests/*.sh だけ
+  # （job は成功で終わる。main の push では必ず全部走る）
   tests:
     if: github.ref_type != 'tag'
     runs-on: ubuntu-24.04
@@ -25,18 +26,26 @@ jobs:
         id: scope
         run: |
           set -euo pipefail
-          # PR の merge commit の1つ目の親が base。PR 以外（main の push）は必ず image まで見る
+          # PR の merge commit の1つ目の親が base。PR 以外（main の push）は必ず image まで全部見る
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             # rename は元と先の両方を出す（image に入るものを外へ動かしても飛ばさない）
             git diff --name-only --no-renames HEAD^1 HEAD | tee "$RUNNER_TEMP/changed"
             image=$(bash tests/lib/image-scope.sh <"$RUNNER_TEMP/changed")
+            docs=$(bash tests/lib/docs-scope.sh <"$RUNNER_TEMP/changed")
           else
-            image=true
+            image=true docs=false
           fi
           echo "image=$image" >>"$GITHUB_OUTPUT"
           if [ "$image" != true ]; then
             echo "ANDON_TEST_SKIP=tests/image.sh" >>"$GITHUB_ENV"
             echo "::notice title=tests/image.sh::image に関係する変更が無いので、image の build と runtime の検査を飛ばす"
+          fi
+          # 文書だけの PR は、変えた文書を読む tests/*.sh だけ（tests/lib/scope.sh。空なら全部）
+          if [ "$docs" = true ]; then
+            bash tests/lib/scope.sh <"$RUNNER_TEMP/changed" | tee "$RUNNER_TEMP/tests"
+            echo "::notice title=tests/*.sh::文書だけの変更なので、文書を読む検査だけを走らせる: $(tr '\n' ' ' <"$RUNNER_TEMP/tests")"
+          else
+            : >"$RUNNER_TEMP/tests"
           fi
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
@@ -61,7 +70,8 @@ jobs:
             export ANDON_PUBLIC_DENYLIST="$RUNNER_TEMP/public-denylist"
             printf '%s\n' "$ANDON_PUBLIC_DENYLIST_CONTENT" > "$ANDON_PUBLIC_DENYLIST"
           fi
-          bash tests/lib/run-tests.sh
+          mapfile -t tests <"$RUNNER_TEMP/tests"
+          bash tests/lib/run-tests.sh "${tests[@]}"
   # vX.Y.Z の tag の push だけ: tag の名前と main に含まれる commit かを確かめ、同じ job の中で
   # tests/*.sh（image/build.sh で焼いた andon:test の検査を含む）を通した image を GHCR へ push する。
   # packages: write はこの job だけ（workflow_test.go が確かめる）
