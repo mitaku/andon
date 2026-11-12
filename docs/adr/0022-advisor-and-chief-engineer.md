@@ -1,6 +1,6 @@
-# ADR-0021: Chief Engineer の役は残し、Chief of Staff に Advisor（Fable）を試験運用で付ける（仕様・設計。2026-11-12。Chief Engineer の課題 A-0161）
+# ADR-0022: Chief Engineer の役は残し、Chief of Staff に Advisor（Fable）を試験運用で付ける（仕様・設計。2026-11-12。Chief Engineer の課題 A-0161）
 
-- 状態: **提案（2026-11-12）**。人が 2026-11-12 に「決めた」と言った（Chief Engineer の対話 A-0161）。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0021-advisor-and-chief-engineer.md](../decisions/2026-11-12-adr-0021-advisor-and-chief-engineer.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。試験運用の結果（見る日 2026-11-27）は「決めたこと」に下から足す。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。
+- 状態: **提案（2026-11-12）**。人が 2026-11-12 に「決めた」と言った（Chief Engineer の対話 A-0161）。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md](../decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。試験運用の結果（見る日 2026-11-27）は「決めたこと」に下から足す。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。
 - 主題: Claude Code の Advisor（メインのモデルが途中で強いモデルに助言を求める機能）を使えば、仕様・設計を人と対話する役（Chief Engineer。[design.md](../design.md) §1.8）を外せるか。結論は「外さない。Advisor は Chief of Staff の判断を強めるために、試験運用で付ける」。プロファイルと skill の変更は Andon のラインの変更（レベル C。人がマージ）。
 - 語は [design.md](../design.md) §0.1。機械が読む形（`contract.md`・`schema/`）は変えない。
 - 入力: 依頼書 A-0161（人の発言 2026-11-12 と Chief of Staff の経緯）、design.md §1.8、[ADR-0009](0009-cos-default-entry.md)、[ADR-0001](0001-skills-distribution.md)、[ADR-0004](0004-project-layout.md)、`package/templates/chief-engineer.md`・`chief-of-staff.md`、`package/skills/chief-of-staff/SKILL.md`・`chief-engineer/SKILL.md`、台帳（これまでの Chief Engineer の課題 13 件）、セルの wiki、Advisor とカスタムエージェントの公式の説明（出典）。
@@ -62,7 +62,7 @@
 5. **2026-11-12 効いたかは、オーナーの目視で 2026-11-27 に見る**（下の「価値の仮説」）。advisor が呼ばれた回数を数える信号は足さない。
    捨てた案: 価値の仮説を置かない（担当へ広げるかを決める材料が残らない）。
 6. **2026-11-12 試験運用として入れる**（前提 3）。試験運用のあいだは次のとおり。
-   - design.md §1.8 の役の表と本文は書き換えない。Chief of Staff のプロファイルを書いている所に「Advisor（Fable）を試験運用。ADR-0021」と1行で指すだけ。
+   - design.md §1.8 の役の表と本文は書き換えない。Chief of Staff のプロファイルを書いている所に「Advisor（Fable）を試験運用。ADR-0022」と1行で指すだけ。
    - 見る日（2026-11-27）に、オーナーが「続ける・止める・広げる」を決める。結果はこの ADR の「決めたこと」に下から足す。
    - 止めるときは、プロファイルのフラグと skill の1行を戻す（1つの PR）。
    - プランの利用上限に当たってラインが止まったら、見る日を待たずに止める。
