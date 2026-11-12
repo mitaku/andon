@@ -134,7 +134,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
  "pr": "https://github.com/<owner>/andon/pull/12",
  "review_request": {"round": 1, "limit": 2, "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "previous": null, "reviewer": "codex-review", "extra": false},
  "waived": [{"severity": "minor", "file": "internal/issue/issue.go", "line": 88, "reason": "起きる条件がこの repo に無い"}],
- "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-issue.sh"}],
+ "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-issue.sh（出力 library/A1.log）"}],
  "risk": {"one_way": true, "impact": ["sample-site の本番の表 orders から列 note を消す"]},
  "next": [{"to": "person", "text": "PR #12 を読む（レベル C: package/gate.json）"},
           {"to": "chief-of-staff", "text": "マージ後に andon issue finish A-0012"},
@@ -150,7 +150,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `pr` | PR を出したら必須（schema では任意。確かめるのは `andon issue ready`） | ゲート・dispatcher | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む。`https://github.com/<owner>/<repo>/pull/<n>` で、owner と repo は `/` を除く印字できる ASCII |
 | `review_request` | レビューを頼むときだけ。中の6つのキーは全部必須（`previous` は初回 `null`、`round`・`limit` は 1 以上の整数） | dispatcher | dispatcher が `kanban add --parent <id>` ＋ detached worktree ＋ `hc run <reviewer>` で起こす。`round` ≤ `limit` でなければ起こさない（`extra: true` なら Chief of Staff の判断待ち）。`previous` があれば再レビュー（差分 `previous..commit` だけ）。`commit` が PR の head と違えば起こさない |
 | `waived` | 任意 | トリアージ・振り返り | 見送った指摘（`findings.json` と同じ3つ ＋ `reason`） |
-| `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command かユースケースの実行の跡のパス。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |
+| `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command と、その出力（ユースケースの実行の跡を含む）のパス。証拠になるのは、その commit で走らせた本物の出力だけで、前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストの結果は証拠でない。本物の証拠が無い条件は `pass` と書かない。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |
 | `risk` | 任意（変更そのものが戻せないとき） | ゲート・人 | 担当の一方通行の申告 `{"one_way": true \| false, "impact": ["…"]}`（`one_way` は必須、`impact` は任意）。`one_way: true` はデータの移行・消す操作・外への約束のように revert で戻らない変更。ゲートはレベルを C に上げ、`tier_reasons` に「担当の申告: one_way」と書く。`false`・無しでレベルを下げない（申告は厳しくする向きにだけ効く。原則2）。ゲートが読むのは `one_way` だけで、`impact` は人が読む欄。足しても版は上げない（原則4。[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)） |
 | `next[]` | 任意 | トリアージ | `to` は `person` / `chief-of-staff` / `issue`（次の課題に切るもの） |
 | `observation` | 観察の課題（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 7）の報告でだけ | Chief of Staff・Chief Engineer・measure | Chief Engineer の文書の価値の仮説を、信号の記録で確かめた結果 `{"hypothesis", "result": "hit" \| "miss" \| "unknown", "evidence": []}`（3つとも必須。`evidence` は読んだ信号の key・URL・パスで、空の配列も可）。ラインは結果で何もしない（Chief of Staff がオーナーに1行で返す）。足しても版は上げない（原則4） |

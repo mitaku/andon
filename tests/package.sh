@@ -16,6 +16,7 @@
 #  12. auto memory（ADR-0020 受け入れ条件 2・6）: settings が入れる向き・環境メモの書き方・chief-of-staff skill の規約9・§10・§11。
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
 #      CoS skill の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
+#  14. 受け入れ条件の証拠の質（ADR-0007 R5）: contract.md §4 の acceptance[] の行・CE skill・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -492,5 +493,14 @@ for f in package/environment.md package/skills/chief-of-staff/SKILL.md; do
   grep -q '台帳の問いとボードで足りる' "$f" || miss="$miss $f(足りる)"
 done
 [ -z "$miss" ] && pass "environment.md と chief-of-staff skill が herdr notification show を「TUI が動いているときだけ」と書く" || fail "herdr notification show の文言:$miss"
+
+# === 14. 受け入れ条件の証拠の質（ADR-0007 R5・A4） ===
+miss=
+c4=$(sed -n '/^## 4\. /,/^## 5\. /p' docs/contract.md | grep '^| `acceptance\[\]` |')
+for f in "$c4" "$(grep '^\*\*受け入れ条件の節\*\*' "$ce")" "$(grep '^- `acceptance`:' "$w")"; do
+  grep -q 'テストの command と' <<<"$f" && grep -q '出力' <<<"$f" && grep -q 'staged な）出力' <<<"$f" && grep -q 'mock に置き換えたテスト' <<<"$f" && grep -q '証拠でない' <<<"$f" \
+    || miss="$miss [$(cut -c1-30 <<<"$f")]"
+done
+[ -z "$miss" ] && pass "contract.md §4 の acceptance[] の行・CE skill の受け入れ条件の節・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない、とある" || fail "受け入れ条件の証拠の質:$miss"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

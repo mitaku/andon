@@ -74,7 +74,7 @@
         "properties": {
           "id": { "description": "Number of the acceptance criterion (A1, ...).", "type": "string", "minLength": 1 },
           "result": { "description": "fail makes the gate answer fix; manual raises the tier by one.", "enum": ["pass", "fail", "manual"] },
-          "evidence": { "description": "The test command, or the path of the trace of a use case run.", "type": "string", "minLength": 1 }
+          "evidence": { "description": "The test command and the path of its output (including the trace of a use case run). Staged output and tests that mock the seam under test are not evidence.", "type": "string", "minLength": 1 }
         }
       }
     },
