@@ -182,9 +182,23 @@ rebuild_from() {
   from=$tag
 }
 
+# 手元の image が FROM の image の上に焼かれたもの（FROM の層が頭に並ぶ）でないと分かれば止まる。
+# 同じ slug で立て直したセルは、前のセルの image を名前ごと拾う。FROM の image が手元に無ければ分からないので通す。
+# 作り直しは人が打つ（ここでは image を消さない・焼き直さない）
+require_from() {
+  local fmt base layers
+  fmt=$(printf '%s%s join .RootFS.Layers " " }}' '{' '{')
+  base=$(docker image inspect --format "$fmt" "$from" 2>/dev/null) || return 0
+  layers=$(docker image inspect --format "$fmt" "$image" 2>/dev/null) || return 0
+  case "$layers " in "$base "*) return 0 ;; esac
+  die "手元の $image は Dockerfile の FROM（$from）から焼いたものでない（前のセルの image か、FROM を変えたあと）。bin/bootstrap rebuild で作り直す"
+}
+
 ensure_image() {
   if [ "$dry" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then
     build
+  else
+    require_from
   fi
 }
 
