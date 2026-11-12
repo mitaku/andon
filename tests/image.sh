@@ -20,7 +20,7 @@ if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
 fi
 tmp=$(mktemp -d)
 plant=$tmp/andon-imgtest
-# セルの compose を片付ける。boot がコンテナの利用者で /workspace に書いたものは root で持ち主を戻してから消す
+# セルの compose を片付ける。boot がコンテナの利用者で /workspace に書いたものは root でオーナーを戻してから消す
 # compose の補間に要る値は bin/bootstrap と同じものを渡す
 dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
 cleanup() {
@@ -98,7 +98,7 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$out"
   grep -q "PS1=.*__git_ps1" <<<"$out"
   test "$(tail -1 <<<"$out")" -gt 0
-  # ログインシェル（ssh が起こす形）でも ~/.profile → ~/.bashrc で同じものが読まれること
+  # ログインシェル（ssh が起動する形）でも ~/.profile → ~/.bashrc で同じものが読まれること
   login=$(bash -lic "complete -p hc; echo HISTFILE=\$HISTFILE" 2>/dev/null)
   grep -q " hc\$" <<<"$login"
   grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$login"
@@ -136,9 +136,9 @@ BUILDX_BUILDER=default "$plant/bin/bootstrap" up
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
 if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
-  ! grep -qF '持ち主を直した: /opt/andon-home/.config/gh（uid 1001 → 1000）' <<<"$boot_log"; then
+  ! grep -qF 'オーナーを直した: /opt/andon-home/.config/gh（uid 1001 → 1000）' <<<"$boot_log"; then
   printf '%s\n' "$boot_log" >&2
-  echo 'FAIL image: compose の起動で andon boot が ready まで走らない（sshd・volume の持ち主の行も見る）' >&2
+  echo 'FAIL image: compose の起動で andon boot が ready まで走らない（sshd・volume のオーナーの行も見る）' >&2
   exit 1
 fi
 dc exec -T dev bash -euc '
@@ -186,8 +186,8 @@ dc exec -T dev bash -euc '
     -o LogLevel=ERROR andon@127.0.0.1 hostname)" = imgtest
 '
 # (c) boot がセルの repo（/workspace）を信頼済みにしたので、セルの claude と codex を /workspace の下の新しい dir で
-# 起こしても信頼の画面が出ない。対照に、信頼の根の外の新しい repo（/tmp）では出ることも見る（画面を読めていることの確かめ）。
-# 本物のセルの repo は git なので、ここでも git にしてから起こす（andon init の直後は git でない）。最初の画面だけ読んで止める。
+# 起動しても信頼の画面が出ない。対照に、信頼の根の外の新しい repo（/tmp）では出ることも見る（画面を読めていることの確かめ）。
+# 本物のセルの repo は git なので、ここでも git にしてから起動する（andon init の直後は git でない）。最初の画面だけ読んで止める。
 # claude は onboarding を済ませた形に、codex は偽の鍵の auth.json を置く（どちらも信頼の画面の前に出る画面を飛ばすため。
 # 外へは何も送らない。偽の鍵は見たあと消す）
 dc exec -T dev bash -c 'cat >/tmp/pty-probe.py' <tests/lib/pty-probe.py

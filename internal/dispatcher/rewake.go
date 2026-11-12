@@ -12,23 +12,23 @@ import (
 
 // RewakeUsage は andon dispatcher rewake の使い方。
 const RewakeUsage = "usage: andon dispatcher rewake [--project <slug>] < フックの入力の JSON\n" +
-	"Chief of Staff の StopFailure フックが asyncRewake で起こす（package/hooks/stop-failure。contract.md §9。ADR-0019 決めたこと 10）。\n" +
+	"Chief of Staff の StopFailure フックが asyncRewake で起動する（package/hooks/stop-failure。contract.md §9。ADR-0019 決めたこと 10）。\n" +
 	"入力の error が server_error・rate_limit なら、続けて切られた 1〜4 回目はそれぞれ 1・2・4・8 分あとに合図の1行を stderr に書いて終了コード 2\n" +
-	"（Claude Code が入力欄を通らずに新しいターンを始め、切られたターンの続きをする）。5 回目からは起こさず、ログに1行書いて 0。\n" +
+	"（Claude Code が入力欄を通らずに新しいターンを始め、切られたターンの続きをする）。5 回目からは起動せず、ログに1行書いて 0。\n" +
 	"回数は控えの横の <slug>.json.rewake に持ち、Chief of Staff の Stop（drain）が消す（ターンが通ったら数え直す）。\n" +
 	"待ったあと、端末が error のままで回数も変わっていない（人が打ったターンが通っていない・また切られていない）ときだけ合図する。\n" +
 	"Chief of Staff の端末（ラベル role=chief-of-staff）でない・ほかの error・落ちたときは、待たずに終了コード 0。\n"
 
-// RewakeSignal は合図の文（stderr。Claude Code が system reminder でモデルに見せる）。起こしたターンには切られたユーザー文がそのまま入る（A-0135 の実測）。
-const RewakeSignal = "andon: 提供元に切られて止まったターンを起こした。これは合図で、人の依頼ではない。止まる前の続きを、今の許可の範囲で続ける。"
+// RewakeSignal は合図の文（stderr。Claude Code が system reminder でモデルに見せる）。起動したターンには切られたユーザー文がそのまま入る（A-0135 の実測）。
+const RewakeSignal = "andon: プロバイダに切られて止まったターンを起動した。これは合図で、人の依頼ではない。止まる前の続きを、今の許可の範囲で続ける。"
 
-// rewakeMax は合図で起こす回数（1・2・4・8 分）。rewakeUnit は待つ間の1単位（テストで縮める）。
+// rewakeMax は合図で起動する回数（1・2・4・8 分）。rewakeUnit は待つ間の1単位（テストで縮める）。
 var (
 	rewakeMax  = 4
 	rewakeUnit = time.Minute
 )
 
-// rewakeErrors は起こす error（StopFailure の入力の error。提供元の混雑・rate limit。待てば通るもの）。
+// rewakeErrors は起動する error（StopFailure の入力の error。プロバイダの混雑・rate limit。待てば通るもの）。
 var rewakeErrors = map[string]bool{"server_error": true, "rate_limit": true}
 
 // rewakeCount は回数の控え（<slug>.json.rewake）。
@@ -87,15 +87,15 @@ func RewakeMain(args []string, stdin io.Reader, stderr io.Writer) int {
 	c.Count++
 	b, _ := json.Marshal(c)
 	if os.MkdirAll(filepath.Dir(path), 0o755) != nil || os.WriteFile(path+".tmp", b, 0o644) != nil || os.Rename(path+".tmp", path) != nil {
-		return 0 // 回数を持てなければ起こさない（上限を超えて起こし続けない）
+		return 0 // 回数を持てなければ起動しない（上限を超えて起動し続けない）
 	}
 	if c.Count > rewakeMax {
-		rewakeLog(slug, fmt.Sprintf("Chief of Staff %s は提供元に切られて %d 回目（%s）。起こさない（人が Herdr App の error で気づく）", addr, c.Count, in.Error))
+		rewakeLog(slug, fmt.Sprintf("Chief of Staff %s はプロバイダに切られて %d 回目（%s）。起動しない（人が Herdr App の error で気づく）", addr, c.Count, in.Error))
 		return 0
 	}
 	time.Sleep(time.Duration(1<<(c.Count-1)) * rewakeUnit)
-	// 起こすのは、切られたターンがまだ止まったままのときだけ: 端末が error のままで、回数が自分の書いた値のまま
-	// （待つ間に人が打ったターンが通れば Stop の drain が消し、また切られれば次のフックが進める）。読めなければ起こさない。
+	// 起動するのは、切られたターンがまだ止まったままのときだけ: 端末が error のままで、回数が自分の書いた値のまま
+	// （待つ間に人が打ったターンが通れば Stop の drain が消し、また切られれば次のフックが進める）。読めなければ起動しない。
 	var now rewakeCount
 	b, err = os.ReadFile(path)
 	if err != nil || json.Unmarshal(b, &now) != nil || now.Count != c.Count {

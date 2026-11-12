@@ -33,11 +33,11 @@ import (
 // Usage は andon create --help の中身。
 const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <題>]\n" +
 	"人がセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に台帳（kanban/）・project.json の下書き・\n" +
-	"AGENTS.md の雛形を作り、repo を ghq get で迎える（無いものだけ）。project.json と AGENTS.md は commit しない（人が見て commit する）。\n" +
+	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（人が見て commit する）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
 	"slug は英小文字・数字・-。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
-	"台帳を作ったあと、dispatcher の置き場が台帳の数に合わなければ、見回りの終わりを待って起こし直す。\n"
+	"台帳を作ったあと、dispatcher の置き場が台帳の数に合わなければ、見回りの終わりを待って起動し直す。\n"
 
 const (
 	exitFail  = 1
@@ -315,9 +315,9 @@ func isClone(path string) bool {
 	return err1 == nil && err2 == nil && a == b
 }
 
-// fetch は repos のうち clone の無いものを ghq get で迎える。迎えた repo を返す。
-// 置き場に clone でないもの（空のディレクトリなど）があれば迎えずに止まる（issue start が使えない repo を project.json に載せない）。
-// 迎えたあとも clone になっていなければ止まる。
+// fetch は repos のうち clone の無いものを ghq get で追加する。追加した repo を返す。
+// 置き場に clone でないもの（空のディレクトリなど）があれば追加せずに止まる（issue start が使えない repo を project.json に載せない）。
+// 追加したあとも clone になっていなければ止まる。
 func fetch(repos []string, stderr io.Writer) ([]string, error) {
 	if len(repos) == 0 {
 		return nil, nil
@@ -442,10 +442,10 @@ func placeDispatcher(ws string, stdout, stderr io.Writer) {
 }
 
 func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error {
-	// repo を先に迎える（落ちたら projects/<slug> は作らない）
+	// repo を先に追加する（落ちたら projects/<slug> は作らない）
 	got, err := fetch(in.repos, stderr)
 	for _, r := range got {
-		fmt.Fprintf(stdout, "迎えた: %s（ghq get）\n", r)
+		fmt.Fprintf(stdout, "追加した: %s（ghq get）\n", r)
 	}
 	if err != nil {
 		return fmt.Errorf("%v。projects/%s は作っていない", err, in.slug)
@@ -499,6 +499,6 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 	fmt.Fprintf(stdout, "project.json と AGENTS.md は人のファイルで、commit していない。中身を見て、andon.toml の owner の email で commit する:\n")
 	fmt.Fprintf(stdout, "  cd %s && git add %s/project.json %s/AGENTS.md && git commit -m %s\n", quote(ws), rel, rel, rel)
 	fmt.Fprintf(stdout, "確かめる: andon delegate show --project %s（無委譲と出る）\n", in.slug)
-	fmt.Fprintf(stdout, "Chief of Staff を起こす: andon open %s\n", in.slug)
+	fmt.Fprintf(stdout, "Chief of Staff を起動する: andon open %s\n", in.slug)
 	return nil
 }

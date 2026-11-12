@@ -173,7 +173,7 @@ func TestStart(t *testing.T) {
 	if rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
-	if !strings.Contains(out, "S-0007 を t42（sample-site-s-0007・claude）で起こした。cwd "+f.wt()+" branch sample-site/S-0007-add-the-button") {
+	if !strings.Contains(out, "S-0007 を t42（sample-site-s-0007・claude）で起動した。cwd "+f.wt()+" branch sample-site/S-0007-add-the-button") {
 		t.Errorf("out=%q", out)
 	}
 	if _, err := os.Stat(filepath.Join(f.wt(), ".git")); err != nil || !strings.Contains(f.branches(), "sample-site/S-0007-add-the-button") {
@@ -216,7 +216,7 @@ func TestStart(t *testing.T) {
 			t.Errorf("call %d:\n got %q\nwant %q", i, calls[i], want[i])
 		}
 	}
-	// 起こす前に案件の repo の根を信頼に足す（boot のあとに迎えた repo でも信頼の画面を出さない）
+	// 起動する前に案件の repo の根を信頼に足す（boot のあとに追加した repo でも信頼の画面を出さない）
 	repo, _ := filepath.EvalSymlinks(f.repoDir)
 	if cj := read(t, filepath.Join(f.home, ".claude.json")); !strings.Contains(cj, `"`+repo+`": {`) || !strings.Contains(cj, `"hasTrustDialogAccepted": true`) {
 		t.Errorf(".claude.json に repo の根の信頼が無い:\n%s", cj)
@@ -273,8 +273,8 @@ func startRefusals(t *testing.T) []startRefusal {
 	return []startRefusal{
 		{"not todo", "S-0007 は doing（andon issue start は todo の課題にだけ打てる。process/states/issue.yaml）", false, func(f *startFixture) { f.task["status"] = "doing" }},
 		{"queued", "S-0007 は queued", false, func(f *startFixture) { f.task["status"] = "queued" }},
-		{"started", "S-0007 は起こし済み", false, func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
-		{"machine", "machine=remote1（別のマシンで起こす）", false, func(f *startFixture) { f.task["machine"] = "remote1" }},
+		{"started", "S-0007 は起動済み", false, func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
+		{"machine", "machine=remote1（別のマシンで起動する）", false, func(f *startFixture) { f.task["machine"] = "remote1" }},
 		{"no profile", "S-0007 に profile が無い", false, func(f *startFixture) { delete(f.task, "profile") }},
 		{"option profile", "profile が不正", false, func(f *startFixture) { f.task["profile"] = "--help" }},
 		{"no brief", "依頼書（brief.md）が無い", false, func(f *startFixture) {
@@ -516,7 +516,7 @@ func TestStartDryRunMatchesRun(t *testing.T) {
 				want = append(want, "--label", l)
 			}
 			want = append(want, "--cwd", p.Cwd, p.Profile, p.FirstMessage)
-			// session の値だけは起こすたびに新しい（Claude 系の --session-id。ADR-0012 決めたこと 11）
+			// session の値だけは起動するたびに新しい（Claude 系の --session-id。ADR-0012 決めたこと 11）
 			norm := func(a []string) []string {
 				out := slices.Clone(a)
 				for i := range out {

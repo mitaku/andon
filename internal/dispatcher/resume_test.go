@@ -37,7 +37,7 @@ esac
 const resumeAndon = `#!/usr/bin/env bash
 d=$FAKE_HC
 echo "$*" >>"$d/andon"
-[ -e "$d/resume-rc" ] && { echo "起こせない" >&2; exit "$(cat "$d/resume-rc")"; }
+[ -e "$d/resume-rc" ] && { echo "起動できない" >&2; exit "$(cat "$d/resume-rc")"; }
 printf '{"issue":{"id":"%s","status":"doing","agent":"%s"}}\n' "$3" "$(cat "$d/next")" >"$d/show.json"
 `
 
@@ -142,8 +142,8 @@ func TestResumeGoneRule(t *testing.T) {
 		{"初めて見る死", Resumed{}, false, false, true},
 		{"初めて見る台帳", Resumed{}, false, true, false},
 		{"同じ死にもう打った", Resumed{From: "t42"}, true, false, false},
-		{"同じ死にもう打って起こせた（台帳が戻った）", Resumed{From: "t42", Agent: "t43"}, true, false, false},
-		{"起こした端末が働かずに死んだ", Resumed{From: "t41", Agent: "t42"}, true, false, false},
+		{"同じ死にもう打って起動できた（台帳が戻った）", Resumed{From: "t42", Agent: "t43"}, true, false, false},
+		{"起動した端末が働かずに死んだ", Resumed{From: "t41", Agent: "t42"}, true, false, false},
 		{"控えは別の死（台帳の agent が替わった）", Resumed{From: "t40", Agent: "t41"}, true, false, true},
 	} {
 		if got := ResumeGone(c.prev, c.had, "t42", c.first); got != c.want {
@@ -152,7 +152,7 @@ func TestResumeGoneRule(t *testing.T) {
 	}
 }
 
-// Gone を見たら resume を1回打ち、記録だけの resumed を書き、finished は知らせない。起こした端末が働かないまま
+// Gone を見たら resume を1回打ち、記録だけの resumed を書き、finished は知らせない。起動した端末が働かないまま
 // また Gone なら打たずに finished を知らせる。
 func TestResumeOnceThenFinished(t *testing.T) {
 	f := newResume(t)
@@ -161,7 +161,7 @@ func TestResumeOnceThenFinished(t *testing.T) {
 		t.Fatalf("Gone の担当に resume を打たない: %q（%s）", got, f.log.String())
 	}
 	if p := f.pending(); len(p) != 0 {
-		t.Fatalf("resume で起こしたのに知らせた: %q", p)
+		t.Fatalf("resume で起動したのに知らせた: %q", p)
 	}
 	if r := f.recorded(); len(r) != 1 || r[0].Issue != "S-7" || r[0].Detail["agent"] != "t43" || r[0].Detail["from"] != "t42" {
 		t.Fatalf("記録だけの resumed が無い・形が違う: %+v", r)
@@ -170,9 +170,9 @@ func TestResumeOnceThenFinished(t *testing.T) {
 		t.Fatalf("控え: %+v", r)
 	}
 	if saved, _, err := LoadState(f.p.l.Slug); err != nil || saved.Resumed["S-7"] != (Resumed{From: "t42", Agent: "t43"}) {
-		t.Fatalf("起こした端末をその場で保存していない: %+v %v", saved, err)
+		t.Fatalf("起動した端末をその場で保存していない: %+v %v", saved, err)
 	}
-	// 起こした端末が live で turn 0（まだ働いていない）: 控えは残る
+	// 起動した端末が live で turn 0（まだ働いていない）: 控えは残る
 	f.agent("t43")
 	f.live("t43", 0)
 	f.round()
@@ -243,7 +243,7 @@ func TestResumeNotOnFirst(t *testing.T) {
 	}
 }
 
-// resume が起こせなければ今どおり finished を知らせ、同じ死にはもう打たない。doing でなくなったら控えを捨てる。
+// resume が起動できなければ今どおり finished を知らせ、同じ死にはもう打たない。doing でなくなったら控えを捨てる。
 func TestResumeFails(t *testing.T) {
 	f := newResume(t)
 	f.put("resume-rc", "1")
@@ -251,13 +251,13 @@ func TestResumeFails(t *testing.T) {
 		t.Fatalf("resume を打たない: %q", got)
 	}
 	if p := f.pending(); len(p) != 1 || p[0] != "S-7:finished:t42" {
-		t.Fatalf("起こせないのに finished を知らせない: %q", p)
+		t.Fatalf("起動できないのに finished を知らせない: %q", p)
 	}
-	if !strings.Contains(f.log.String(), "resume で起こせない") {
+	if !strings.Contains(f.log.String(), "resume で起動できない") {
 		t.Fatalf("ログに理由が無い: %s", f.log.String())
 	}
 	if got := f.round(); got != nil {
-		t.Fatalf("起こせなかった死にまた打った: %q", got)
+		t.Fatalf("起動できなかった死にまた打った: %q", got)
 	}
 	f.p.tasks[0]["status"] = "done"
 	f.round()

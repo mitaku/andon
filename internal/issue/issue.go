@@ -8,9 +8,9 @@
 //	                      （deliverable: candidates なら PR の代わりに candidates.json を確かめる）
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
 //	candidates <id> <file|->  候補の一覧の JSON を検査し、library/candidates.json に置く（repo があれば commit は HEAD）
-//	start <id>            worktree と branch を切り、hc run で担当を起こし、kanban start で結ぶ（Chief of Staff が打つ）
-//	                      （--dry-run は確かめだけ通し、起こすときに渡すものを出す。--json で JSON）
-//	resume <id>           止まった担当・Chief Engineer を同じ worktree でセッションの続きから起こす（--fresh は新しいセッション。ADR-0012）
+//	start <id>            worktree と branch を切り、hc run で担当を起動し、kanban start で結ぶ（Chief of Staff が打つ）
+//	                      （--dry-run は確かめだけ通し、起動するときに渡すものを出す。--json で JSON）
+//	resume <id>           止まった担当・Chief Engineer を同じ worktree でセッションの続きから起動する（--fresh は新しいセッション。ADR-0012）
 //	session               自分の端末のラベル session を出す（template の command・resume の行が読む）
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
 //	                      （links に write_back: true の出所の issue があれば、そこに結果を1コメント書く。writeback.go）
@@ -50,11 +50,11 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
 	"       andon issue impact <id>                                マージした PR と、同じ repo の動いている課題の重なり・衝突を JSON で出す\n" +
 	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
-	"       andon issue start <id> [--dry-run [--json]]            担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
+	"       andon issue start <id> [--dry-run [--json]]            担当を起動する: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
 	"                                                          （最初のメッセージが届かなければ終了コード 3。dispatcher が送り直す）\n" +
 	"                                                          （--dry-run は確かめだけ通し、hc を呼ばず何も作らずに、渡すもの〈最初のメッセージ・依頼書・\n" +
 	"                                                          ラベル・端末の名前・worktree・branch・プロファイル・確かめの結果〉を出す）\n" +
-	"       andon issue resume <id> [--fresh] [--dry-run [--json]]   止まった担当・Chief Engineer を続きから起こす（doing で端末が無い・終わった・素のシェル）\n" +
+	"       andon issue resume <id> [--fresh] [--dry-run [--json]]   止まった担当・Chief Engineer を続きから起動する（doing で端末が無い・終わった・素のシェル）\n" +
 	"                                                          （worktree が無ければ戻し、<profile>-resume の template でセッションの続きから。\n" +
 	"                                                          記録が無い・最初のメッセージが届かなければ台帳を変えずに終了コード 1。\n" +
 	"                                                          --fresh は同じ worktree で新しいセッション〈人の go のあと〉）\n" +

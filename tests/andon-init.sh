@@ -17,7 +17,7 @@ cp -R "$andon_root/package" "$img/opt/andon"
 for t in bash cat cmp cp dirname grep head install mkdir mktemp mv printf rm sed tail; do
   ln -s "$(command -v "$t")" "$tmp/path/$t"
 done
-# 偽の stat: bin/bootstrap が見るセルの repo の持ち主（stat -c %u）。既定は 1000、FAKE_OWNER で変える
+# 偽の stat: bin/bootstrap が見るセルの repo のオーナー（stat -c %u）。既定は 1000、FAKE_OWNER で変える
 printf '#!/bin/bash\necho "${FAKE_OWNER:-1000}"\n' >"$tmp/path/stat"
 chmod 755 "$tmp/path/stat"
 sandbox() { env -i PATH="$tmp/path" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
@@ -141,14 +141,14 @@ sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '数字だけ' "$tmp/err" && pass "host-install は数字でない番号で止まる" || fail "番号の検査: rc=$r $(cat "$tmp/out" "$tmp/err")"
 rm .env
 
-# セルの repo の持ち主が uid 1000 でなければ、起こす前に止まって回り道を出す（down・status・host-install は止めない）
+# セルの repo のオーナーが uid 1000 でなければ、起動する前に止まって回り道を出す（down・status・host-install は止めない）
 for sub in "" up sh rebuild; do
   sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run $sub >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 1 ] && grep -q 'uid 1001' "$tmp/err" && grep -q '回り道' "$tmp/err" && ! grep -q 'docker' "$tmp/out" \
-    && pass "持ち主が 1001 なら '${sub:-enter}' は起こす前に止まる" || fail "持ち主 1001 で ${sub:-enter}: rc=$r $(cat "$tmp/out" "$tmp/err")"
+    && pass "オーナーが 1001 なら '${sub:-enter}' は起動する前に止まる" || fail "オーナー 1001 で ${sub:-enter}: rc=$r $(cat "$tmp/out" "$tmp/err")"
 done
 sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run down >"$tmp/out" 2>"$tmp/err"; r=$?
-[ "$r" = 0 ] && pass "持ち主が 1001 でも down は通る" || fail "持ち主 1001 で down: rc=$r $(cat "$tmp/err")"
+[ "$r" = 0 ] && pass "オーナーが 1001 でも down は通る" || fail "オーナー 1001 で down: rc=$r $(cat "$tmp/err")"
 
 # rebuild --from: andon の checkout から image/build.sh で base image を焼き、FROM をそれにして build・up する（偽の docker）
 co=$tmp/co
@@ -202,23 +202,23 @@ grep -qxF "FROM: $tag（commit: $sha）" "$tmp/out" && pass "status は FROM と
 dsandbox bash bin/bootstrap status >"$tmp/out" 2>&1
 grep -qxF "FROM: $tag（commit: 手元に無い）" "$tmp/out" && pass "status は image が手元に無いと言う" || fail "status（無い）: $(cat "$tmp/out")"
 
-# up: 手元の image が FROM の上に焼かれていないと分かれば、起こさずに rebuild を打てと止まる（#96）
+# up: 手元の image が FROM の上に焼かれていないと分かれば、起動せずに rebuild を打てと止まる（#96）
 base=$'2026-11-02T00:00:00Z ENV HOME=/opt/andon-home\n2026-11-01T00:00:00Z COPY . /opt/andon'
 cell=$'2026-11-03T00:00:00Z RUN local/setup.sh\n'"$base"
 up_ok="$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d)"
 dsandbox FAKE_REVISION=x FAKE_FROM_HISTORY="$base" FAKE_IMAGE_HISTORY=$'2026-10-03T00:00:00Z RUN local/setup.sh\n2026-10-01T00:00:00Z COPY . /opt/andon' bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q "FROM（$tag）から焼いたものでない" "$tmp/err" && grep -q 'bin/bootstrap rebuild' "$tmp/err" && ! grep -qE '^\[build\]|\[(up|rm|rmi)\]' "$log" \
-  && pass "up は前の FROM で焼いた古い image なら起こさず rebuild を打てと止まる（docker を消さない・焼かない）" || fail "up（古い）: rc=$r $(cat "$tmp/err" "$log")"
+  && pass "up は前の FROM で焼いた古い image なら起動せず rebuild を打てと止まる（docker を消さない・焼かない）" || fail "up（古い）: rc=$r $(cat "$tmp/err" "$log")"
 # 層を作らない段（ENV）だけが違う FROM でも止まる（A-0177 のレビュー）
 dsandbox FAKE_REVISION=x FAKE_FROM_HISTORY="$base" FAKE_IMAGE_HISTORY=$'2026-11-03T00:00:00Z RUN local/setup.sh\n2026-10-20T00:00:00Z ENV HOME=/home/andon\n2026-11-01T00:00:00Z COPY . /opt/andon' bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q 'bin/bootstrap rebuild' "$tmp/err" && ! grep -qF "$up_ok" "$log" \
   && pass "up は FROM と ENV の段だけ違う image でも止まる" || fail "up（ENV 違い）: rc=$r $(cat "$tmp/err" "$log")"
 dsandbox FAKE_REVISION=x FAKE_FROM_HISTORY="$base" FAKE_IMAGE_HISTORY="$cell" bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -qF "$up_ok" "$log" && ! grep -q '^\[build\]' "$log" \
-  && pass "up は FROM の上に焼いた image ならそのまま起こす" || fail "up（合う）: rc=$r $(cat "$tmp/err" "$log")"
+  && pass "up は FROM の上に焼いた image ならそのまま起動する" || fail "up（合う）: rc=$r $(cat "$tmp/err" "$log")"
 dsandbox FAKE_REVISION=x FAKE_IMAGE_HISTORY="$cell" bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -qF "$up_ok" "$log" \
-  && pass "up は FROM の image が手元に無ければ（照らせないので）そのまま起こす" || fail "up（FROM 無し）: rc=$r $(cat "$tmp/err" "$log")"
+  && pass "up は FROM の image が手元に無ければ（照らせないので）そのまま起動する" || fail "up（FROM 無し）: rc=$r $(cat "$tmp/err" "$log")"
 
 echo x >"$co/new-file"
 dsandbox bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>&1
@@ -271,7 +271,7 @@ else
   echo "skip docker compose config（docker compose が無い）"
 fi
 
-# andon-up: <slug>-cell と前の形の andon-<slug> を1回ずつ起こす（偽の docker と HOME。本物の docker に触らない）
+# andon-up: <slug>-cell と前の形の andon-<slug> を1回ずつ起動する（偽の docker と HOME。本物の docker に触らない）
 up=$tmp/up && mkdir -p "$up/src" "$up/home" "$up/path"
 printf '#!/bin/sh\nexit 0\n' >"$up/path/docker" && chmod 755 "$up/path/docker"
 for d in a-cell andon-b andon-c-cell d; do
@@ -281,6 +281,6 @@ for d in a-cell andon-b andon-c-cell d; do
 done
 env -i PATH="$up/path:/usr/bin:/bin" HOME="$up/home" ANDON_PLANTS="$up/src" sh "$andon_root/package/host/andon-up" >"$tmp/out" 2>&1; r=$?
 got=$(sort "$up/started" 2>/dev/null | tr '\n' ' ')
-[ "$r" = 0 ] && [ "$got" = "a-cell andon-b andon-c-cell " ] && pass "andon-up は *-cell と andon-* を1回ずつ起こす" || fail "andon-up: rc=$r 起こした: $got $(cat "$tmp/out")"
+[ "$r" = 0 ] && [ "$got" = "a-cell andon-b andon-c-cell " ] && pass "andon-up は *-cell と andon-* を1回ずつ起動する" || fail "andon-up: rc=$r 起動した: $got $(cat "$tmp/out")"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

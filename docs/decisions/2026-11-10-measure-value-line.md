@@ -1,7 +1,7 @@
 # measure の先頭「価値: 未計測」を価値の行に替える（ADR-0011 決めたこと 18）
 
 - 日付: 2026-11-10
-- 出典: [ADR-0011](../adr/0011-signals-and-value-loop.md) 決めたこと 18・切る案 S8・課題 A-0029。[2026-11-09 の決定](2026-11-09-measure-flow-metrics.md)が「価値のループができてから入る」と置いた席を埋める
+- 出典: [ADR-0011](../adr/0011-signals-and-value-loop.md) 決めたこと 18・切る案 S8・課題 A-0029。[2026-11-09 の決定](2026-11-09-measure-flow-metrics.md)が「価値のループができてから入る」と置いた枠を埋める
 
 `andon measure` の先頭は、価値のループ（観察の課題の `report.json` の `observation`）ができたので、「価値: 未計測」の1行を価値の行に替えた。並べ方は 価値 → 流れ → 効率のまま。`--json` に `value` を足した（[contract.md](../contract.md) §13・`schema/measure.schema.json`）。
 

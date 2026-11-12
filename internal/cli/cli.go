@@ -38,13 +38,13 @@ type command struct {
 var commands = []command{
 	{
 		name:  "issue",
-		about: "担当を起こす（start）・担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）",
+		about: "担当を起動する（start）・担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）",
 		usage: issue.Usage,
 		run:   issue.Main,
 	},
 	{
 		name:  "chief-of-staff",
-		about: "プロジェクトの Chief of Staff を起こす（動いていれば、そのまま使う）",
+		about: "プロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う）",
 		usage: chiefofstaff.Usage,
 		run:   chiefofstaff.Main,
 	},
@@ -62,13 +62,13 @@ var commands = []command{
 	},
 	{
 		name:  "chief-engineer",
-		about: "人と仕様・設計を対話する Chief Engineer を、台帳の課題として起こす",
+		about: "人と仕様・設計を対話する Chief Engineer を、台帳の課題として起動する",
 		usage: chiefengineer.Usage,
 		run:   chiefengineer.Main,
 	},
 	{
 		name:  "dispatcher",
-		about: "台帳を回り、インナーループ（レビュアーを起こす・ゲート・merge: auto のマージと片付け）を回す。通知を届ける口はまだ無い",
+		about: "台帳を回り、インナーループ（レビュアーを起動する・ゲート・merge: auto のマージと片付け）を回す。通知を届ける口はまだ無い",
 		usage: dispatcher.Usage,
 		run:   dispatcher.Main,
 	},
@@ -112,7 +112,7 @@ var commands = []command{
 	},
 	{
 		name:  "boot",
-		about: "パッケージからセルへ配布物を生成し、portless・sshd・dispatcher を起こす（毎起動）",
+		about: "パッケージからセルへ配布物を生成し、portless・sshd・dispatcher を起動する（毎起動）",
 		usage: boot.Usage,
 		run:   boot.Main,
 	},

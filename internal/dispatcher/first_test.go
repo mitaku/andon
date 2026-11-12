@@ -207,7 +207,7 @@ func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 	}
 }
 
-// dispatcher が起こしたレビュアー（startReviewer がラベルを付けたもの）にも、見回りで1回だけ送り直す。文はレビュアーの最初のメッセージ。
+// dispatcher が起動したレビュアー（startReviewer がラベルを付けたもの）にも、見回りで1回だけ送り直す。文はレビュアーの最初のメッセージ。
 // hc run が送れなかったときも、送ったが動き出さなかった（入力欄が空のまま idle）ときも、端末のラベルは同じ。
 func TestFirstMessageReviewer(t *testing.T) {
 	f := newFirst(t)

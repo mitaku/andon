@@ -20,7 +20,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// resumePlan は andon issue resume が起こす前に決めるもの。--dry-run はこれを出して終わる。
+// resumePlan は andon issue resume が起動する前に決めるもの。--dry-run はこれを出して終わる。
 type resumePlan struct {
 	DryRun       bool         `json:"dry_run"`
 	Fresh        bool         `json:"fresh"`
@@ -50,20 +50,20 @@ func (p *resumePlan) check(name, result, format string, a ...any) {
 	p.Checks = append(p.Checks, startCheck{Name: name, Result: result, Detail: fmt.Sprintf(format, a...)})
 }
 
-// ResumeMessage は resume で起こした端末への最初のメッセージ（ADR-0012 決めたこと 3）。
+// ResumeMessage は resume で起動した端末への最初のメッセージ（ADR-0012 決めたこと 3）。
 func ResumeMessage(slug, id string) string {
 	return fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`kanban list`）と git の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id)
 }
 
-// FreshMessage は --fresh で起こした端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。
+// FreshMessage は --fresh で起動した端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。
 // guide は指針の行（spawn.Guide()）。担当とレビュアーのときだけ渡す（Chief Engineer には空）。
 func FreshMessage(slug, id, brief, report, guide string) string {
 	return spawn.FirstMessage(slug, id, brief) + guide + fmt.Sprintf("\n前の担当の会話は続けられなかった。前の担当の報告 `%s`（あれば）を読み、worktree と台帳の今の状態から続ける。", report)
 }
 
-// resume は止まった担当・Chief Engineer を、同じ worktree・branch・cwd でハーネスのセッションの続きから起こす（ADR-0012 決めたこと 3・7・9・11・13）。
-// 起こせるのは doing で、端末（台帳の agent）が無い・終わっている・素のシェルの課題だけ。worktree が無ければ戻し（あれば触らない）、
-// <profile>-resume の template（Claude 系は --resume <session>、Codex 系は resume <id>）で起こす。--fresh は <profile> の template で新しいセッション。
+// resume は止まった担当・Chief Engineer を、同じ worktree・branch・cwd でハーネスのセッションの続きから起動する（ADR-0012 決めたこと 3・7・9・11・13）。
+// 起動できるのは doing で、端末（台帳の agent）が無い・終わっている・素のシェルの課題だけ。worktree が無ければ戻し（あれば触らない）、
+// <profile>-resume の template（Claude 系は --resume <session>、Codex 系は resume <id>）で起動する。--fresh は <profile> の template で新しいセッション。
 // 記録が無い・最初のメッセージが届かないなら非 0 で止まり、台帳を変えない。届いたら台帳の agent（と session）を書く。
 func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	p, err := c.resumePlan(dry, fresh)
@@ -102,15 +102,15 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon issue: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
-	// 起こす直前にもう一度読む（lock の外で台帳が書き換えられていれば起こさない）
+	// 起動する直前にもう一度読む（lock の外で台帳が書き換えられていれば起動しない）
 	now, err := c.l.Show(id)
 	if err != nil {
 		return err
 	}
 	if s, a := now.Str("status"), now.Str("agent"); s != "doing" || a != p.Agent {
-		return fail("%s の台帳が変わった（status %s・agent %s）。起こしていない", id, s, a)
+		return fail("%s の台帳が変わった（status %s・agent %s）。起動していない", id, s, a)
 	}
-	// hc の名前は live の端末の中で1つなので、素のシェルの端末は起こす前に片付ける（中身はシェルだけで、失うものは無い）
+	// hc の名前は live の端末の中で1つなので、素のシェルの端末は起動する前に片付ける（中身はシェルだけで、失うものは無い）
 	if p.AgentState == "bare_shell" {
 		if err := spawn.Discard(p.Agent); err != nil {
 			return fail("素のシェルの端末 %s を片付けられない: %v。台帳は変えていない", p.Agent, err)
@@ -123,9 +123,9 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	if !run.First.Delivered() {
 		why := run.Reason()
 		if err := spawn.Discard(run.Address); err != nil {
-			return fail("%s（%s）に最初のメッセージが届かない: %s。起こした端末を片付けられない（%v）。台帳は変えていない", run.Address, p.Terminal, why, err)
+			return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末を片付けられない（%v）。台帳は変えていない", run.Address, p.Terminal, why, err)
 		}
-		return fail("%s（%s）に最初のメッセージが届かない: %s。起こした端末は片付けた。台帳は変えていない", run.Address, p.Terminal, why)
+		return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末は片付けた。台帳は変えていない", run.Address, p.Terminal, why)
 	}
 	set := []string{"set", id, "agent=" + run.Address}
 	if p.Session != c.issue.Str("session") {
@@ -141,7 +141,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	if fresh {
 		how = "新しいセッションで"
 	}
-	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で%s起こした。cwd %s", id, run.Address, p.Terminal, p.Template, how, p.Cwd)
+	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で%s起動した。cwd %s", id, run.Address, p.Terminal, p.Template, how, p.Cwd)
 	if p.Session != "" {
 		fmt.Fprintf(stdout, " session %s", p.Session)
 	}
@@ -149,7 +149,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	return nil
 }
 
-// resumePlan は起こす前の確かめを通し、起こすときに渡すものを決める。何も作らず、台帳も書かない。
+// resumePlan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、台帳も書かない。
 // dry でも hc get（止まった端末の様子）と hc ls（名前）は打つ（読むだけ）。template の有無は dry では確かめない。
 func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	for _, cmd := range []string{"git", "hc"} {
@@ -163,7 +163,7 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		return nil, fail("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
 	if s := c.issue.Str("status"); s != "doing" {
-		return nil, fail("%s は %s（起こし直せるのは doing だけ。todo なら andon issue start）", id, s)
+		return nil, fail("%s は %s（起動し直せるのは doing だけ。todo なら andon issue start）", id, s)
 	}
 	p.check("status", "ok", "doing")
 	if m := c.issue.Str("machine"); m != "" {
@@ -176,9 +176,9 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	case !profileRe.MatchString(p.Profile):
 		return nil, fail("profile が不正: '%s'", p.Profile)
 	case strings.HasSuffix(p.Profile, "-review"):
-		// レビュアー: 元の課題（parent）の子。detached worktree を依頼書の commit で戻し、cwd issues/<rev>/ で起こす（ADR-0012 決めたこと 8・13 の 5）
+		// レビュアー: 元の課題（parent）の子。detached worktree を依頼書の commit で戻し、cwd issues/<rev>/ で起動する（ADR-0012 決めたこと 8・13 の 5）
 		if c.issue.Str("parent") == "" {
-			return nil, fail("%s は profile %s だが parent が無い（dispatcher が起こしたレビュアーでない）", id, p.Profile)
+			return nil, fail("%s は profile %s だが parent が無い（dispatcher が起動したレビュアーでない）", id, p.Profile)
 		}
 		p.Reviewer = true
 	}
@@ -191,7 +191,7 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		return nil, fail("端末の名前 %s が hc の決まり（a-z 0-9 - _ で32字まで）に合わない", p.Terminal)
 	}
 
-	// 止まった端末: 無い・終わっている・素のシェルだけ起こし直す。動いていれば止まる
+	// 止まった端末: 無い・終わっている・素のシェルだけ起動し直す。動いていれば止まる
 	p.Agent, p.AgentState = c.issue.Str("agent"), "none"
 	if p.Agent != "" {
 		t, err := lookTerm(p.Agent)
@@ -272,7 +272,7 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	} else if found, err := spawn.HasTemplate(p.Template); err != nil {
 		return nil, fail("%v", err)
 	} else if !found {
-		return nil, fail("template %s が無い（andon boot が resume: の行から作る。templates.local のプロファイルに resume: が無ければ --fresh で起こす）", p.Template)
+		return nil, fail("template %s が無い（andon boot が resume: の行から作る。templates.local のプロファイルに resume: が無ければ --fresh で起動する）", p.Template)
 	}
 
 	switch {
@@ -400,7 +400,7 @@ func (c *ctx) reviewerRestorePlan(p *resumePlan) error {
 
 // print は --dry-run の人向けの出力。
 func (p *resumePlan) print(w io.Writer) {
-	fmt.Fprintf(w, "andon issue: %s を起こし直す乾いた実行（hc run を打たず、worktree・端末を作らず台帳も書かない）\n", p.ID)
+	fmt.Fprintf(w, "andon issue: %s を起動し直す乾いた実行（hc run を打たず、worktree・端末を作らず台帳も書かない）\n", p.ID)
 	row := func(k, v string) {
 		if v != "" {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
@@ -421,7 +421,7 @@ func (p *resumePlan) print(w io.Writer) {
 	for _, l := range p.Labels {
 		fmt.Fprintf(w, "  %s\n", l)
 	}
-	fmt.Fprintln(w, "起こす前の確かめ:")
+	fmt.Fprintln(w, "起動する前の確かめ:")
 	for _, ch := range p.Checks {
 		fmt.Fprintf(w, "  %-7s %-10s %s\n", ch.Result, ch.Name, ch.Detail)
 	}

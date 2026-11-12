@@ -12,7 +12,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc（提供元に切られたときの再送を見る）: get は $D/<addr>.json（無ければ not_found）、read は $D/<addr>.screen。attach は $D/log に1行。
+// 偽の hc（プロバイダに切られたときの再送を見る）: get は $D/<addr>.json（無ければ not_found）、read は $D/<addr>.screen。attach は $D/log に1行。
 // send は $D/log に「send <addr> <本文>」を1行。label も1行（通れば $D/<addr>.unsent を消す。get が読むのは json の labels だけ）。
 const retryHc = `#!/usr/bin/env bash
 d=$FAKE_HC
@@ -162,7 +162,7 @@ func TestRetryWorkerIntervals(t *testing.T) {
 	}
 }
 
-// 提供元でない error・認証（blocked）・使用量の上限には打たない。
+// プロバイダでない error・認証（blocked）・使用量の上限には打たない。
 func TestRetryWorkerNotProvider(t *testing.T) {
 	for _, c := range []struct{ state, msg, screen, kind string }{
 		{"error", "Error: tool crashed", "", "error"},
@@ -297,7 +297,7 @@ func TestEngineerWatch(t *testing.T) {
 	}
 }
 
-// Chief of Staff には「続けて」を打たない（ADR-0019 決めたこと 4）: 提供元に切られて止まったら、hc send も attach --observe も
+// Chief of Staff には「続けて」を打たない（ADR-0019 決めたこと 4）: プロバイダに切られて止まったら、hc send も attach --observe も
 // 呼ばず、同じ止まりにログを1行だけ残す（通知も積まない）。error・working の間は持ち越し、ほかに戻ったら区切る。
 func TestChiefCut(t *testing.T) {
 	f := newRetry(t)
@@ -333,12 +333,12 @@ func TestChiefCut(t *testing.T) {
 	if n := logged(); n != 2 {
 		t.Fatalf("区切ったあとの止まりで %d 行: %s", n, f.log.String())
 	}
-	// 提供元でない error（認証）はログに書かない（人は Herdr App の error で気づく）
+	// プロバイダでない error（認証）はログに書かない（人は Herdr App の error で気づく）
 	f = newRetry(t)
 	f.p.tasks = nil
 	f.term("t1", "error", "API Error: 401 unauthorized · Please run /login", 0, false)
 	if got := f.at(time.Hour, "t1"); got != nil || logged() != 0 {
-		t.Fatalf("提供元でない error で打った・ログに書いた: %q %s", got, f.log.String())
+		t.Fatalf("プロバイダでない error で打った・ログに書いた: %q %s", got, f.log.String())
 	}
 	// Chief of Staff の端末が doing の課題の agent でも、担当の見回り（watch）から「続けて」を打たない
 	f = newRetry(t)
@@ -361,7 +361,7 @@ func TestChiefCut(t *testing.T) {
 	}
 }
 
-// 端末の土台の時計（status_ms）が dispatcher の時計とずれていても、間は dispatcher が切断を見た時刻から測る。
+// hc の時計（status_ms）が dispatcher の時計とずれていても、間は dispatcher が切断を見た時刻から測る。
 // 打ってから status_ms が変われば、その値が打った時刻より前（端末の時計が遅れている）でも新しい切断とみる。
 func TestRetryClockSkew(t *testing.T) {
 	for _, skew := range []time.Duration{-30 * time.Minute, 30 * time.Minute} {

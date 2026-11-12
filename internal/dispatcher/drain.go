@@ -24,7 +24,7 @@ const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>]
 	"  既定（Stop）: 待ちがあれば {\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"<news>…</news>\"}}（続きのターンになる）。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
-	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起こし直す（core が起き直したあと）。\n" +
+	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起動し直す（core が起き直したあと）。\n" +
 	"落ちたとき（台帳・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
 
 // lockWait は drain が控えの lock を待つ長さ。dispatcher の見回りが持っていれば、待ちは次の口で届く。
@@ -63,7 +63,7 @@ type terminal struct {
 	State  string `json:"state"`
 	Status struct {
 		State string `json:"state"`
-		Msg   string `json:"msg"` // 状態に添えた文（Claude Code の error の API のエラー。提供元に切られたかの見分けにだけ読む）
+		Msg   string `json:"msg"` // 状態に添えた文（Claude Code の error の API のエラー。プロバイダに切られたかの見分けにだけ読む）
 	} `json:"status"`
 	StatusMs int64             `json:"status_ms"`
 	Turn     int               `json:"turn"`
@@ -173,7 +173,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return nil, fmt.Errorf("プロジェクトの名前が不正: %q", slug)
 	}
 	if !context {
-		ResetRewake(slug) // ターンが通った: 提供元に切られた回数を数え直す（rewake.go）
+		ResetRewake(slug) // ターンが通った: プロバイダに切られた回数を数え直す（rewake.go）
 	}
 	ensure() // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)

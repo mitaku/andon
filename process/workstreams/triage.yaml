@@ -44,12 +44,12 @@ steps:
     decides: [足すか（同時に 1 つ）]
     next: [{ id: start }]
   - id: start
-    title: 仕分けの担当を起こす
+    title: 仕分けの担当を起動する
     by: ai
     input: [notification.ready, 台帳（並行の上限）]
     output: [hc（担当の端末）, 台帳（doing）]
     skill: [chief-of-staff#10, chief-of-staff#3]
-    decides: [人に聞かずに起こす]
+    decides: [人に聞かずに起動する]
     next: [{ id: collect }]
   - id: collect
     title: 溜まったものを拾う
@@ -90,12 +90,12 @@ steps:
     command: andon issue finish
     next: [{ id: follow }]
   - id: follow
-    title: 足した課題を起こし、人へ伝える
+    title: 足した課題を起動し、人へ伝える
     by: ai
     input: [library/triage/<日付>-<id>.md, 台帳（人の課題）]
     output: [hc（担当の端末）, herdr notification, 人への 1 問]
     skill: [chief-of-staff#10, ask-one-by-one]
-    decides: [fix と bundle の課題を起こす, 片付け待ちを finish する]
+    decides: [fix と bundle の課題を起動する, 片付け待ちを finish する]
     asks:
       - { question: 何を作るか（person に仕分けた項目）, kind: business }
       - { question: 使い勝手の好み（person に仕分けた項目）, kind: users }

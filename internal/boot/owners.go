@@ -18,7 +18,7 @@ var HomeVolumes = []string{
 	".config/herdr-core", ".ssh", ".portless", ".local/state",
 }
 
-// fixOwners は HOME の volume の置き場の持ち主が boot を打つ利用者でなければ、sudo で中身ごと渡す
+// fixOwners は HOME の volume の置き場のオーナーが boot を打つ利用者でなければ、sudo で中身ごと渡す
 // （andon の uid が変わる前の image で作った volume を、作り直さずに使うため）。無い置き場は飛ばす。
 func fixOwners(e Env) error {
 	var errs []error
@@ -37,14 +37,14 @@ func fixOwners(e Env) error {
 		}
 		sudo, err := e.LookPath("sudo")
 		if err != nil {
-			return fmt.Errorf("%s の持ち主が uid %d で、sudo が無い", dir, sys.Uid)
+			return fmt.Errorf("%s のオーナーが uid %d で、sudo が無い", dir, sys.Uid)
 		}
 		owner := fmt.Sprintf("%d:%d", e.Uid, e.Gid)
 		if out, err := exec.Command(sudo, "-n", "chown", "-R", owner, dir).CombinedOutput(); err != nil {
 			errs = append(errs, fmt.Errorf("sudo chown -R %s %s: %v: %s", owner, dir, err, strings.TrimSpace(string(out))))
 			continue
 		}
-		e.logf("持ち主を直した: %s（uid %d → %d）", dir, sys.Uid, e.Uid)
+		e.logf("オーナーを直した: %s（uid %d → %d）", dir, sys.Uid, e.Uid)
 	}
 	return errors.Join(errs...)
 }

@@ -55,7 +55,7 @@ func line(n Notification) string {
 		}
 		return s
 	case "review-requested":
-		return head + d("round") + " 回目のレビュアー " + short("reviewer_issue") + "（" + short("reviewer") + "）を起こした"
+		return head + d("round") + " 回目のレビュアー " + short("reviewer_issue") + "（" + short("reviewer") + "）を起動した"
 	case "gate":
 		s := head + short("decision")
 		if rs, ok := n.Detail["reasons"].([]any); ok && len(rs) > 0 {
@@ -75,7 +75,7 @@ func line(n Notification) string {
 		}
 		return head + d("pr") + " は人がマージした（" + clean(n.Detail["sha"], 12) + "）。ゲートの問いを閉じて片付けた"
 	case "resumed":
-		return clean(n.Issue, 40) + " の担当 " + short("from") + " が止まったので、resume して " + short("agent") + " で続きから起こした"
+		return clean(n.Issue, 40) + " の担当 " + short("from") + " が止まったので、resume して " + short("agent") + " で続きから起動した"
 	case "closed":
 		return head + d("pr") + " はマージされずに閉じた。片付けていない"
 	case "impact":

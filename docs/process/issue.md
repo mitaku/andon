@@ -16,7 +16,7 @@ stateDiagram-v2
   [*] --> s_todo: 課題を足した
   [*] --> s_queued: after つきで課題を足した
   s_queued --> s_todo: 待つ課題が全部 done になった
-  s_todo --> s_doing: 担当を起こした（§7.2 #10）
+  s_todo --> s_doing: 担当を起動した（§7.2 #10）
   s_todo --> s_todo: 人の課題（who： person）に問いを置いた（ask-one-by-one skill §3）
   s_doing --> s_doing: 報告・レビュー依頼・候補の一覧・問いを書いた
   s_doing --> s_review: 確かめて返した
@@ -48,7 +48,7 @@ stateDiagram-v2
 | （始まり・終わり） | `todo` | 課題を足した | 台帳の CLI | `kanban add` |  |
 | （始まり・終わり） | `queued` | after つきで課題を足した | 台帳の CLI | `kanban add` |  |
 | `queued` | `todo` | 待つ課題が全部 done になった | 台帳の CLI | `kanban done` |  |
-| `todo` | `doing` | 担当を起こした（§7.2 #10） | AI | `andon issue start` | はい |
+| `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
 | `todo` | `todo` | 人の課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
 | `doing` | `doing` | 報告・レビュー依頼・候補の一覧・問いを書いた | AI | `andon issue report・review-request・candidates・ask` |  |
 | `doing` | `review` | 確かめて返した | AI | `andon issue ready` |  |

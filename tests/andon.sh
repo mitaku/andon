@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/andon.sh — 入口 andon（振り分け・一覧・--help・知らない sub-command）。
-# 中身（publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。台帳も hc も起こさない。
+# 中身（publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。台帳も hc も起動しない。
 set -u
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -31,7 +31,7 @@ for old in coordinator; do
   [ "$r" = 2 ] && pass "仮設の名前（$old）は sub-command にならない" || fail "$old: rc=$r"
 done
 
-# === andon <sub> --help: 使い方を出して rc 0（中身は起こさない） ===
+# === andon <sub> --help: 使い方を出して rc 0（中身は起動しない） ===
 for s in $subs; do
   "$andon" "$s" --help >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 0 ] && grep -q "^usage: andon $s" "$tmp/out" && [ ! -s "$tmp/err" ] \

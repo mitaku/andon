@@ -217,7 +217,7 @@ done
 wt=$(jq -r '[.hooks.Stop[].hooks[] | select(.command == "/opt/andon/hooks/stop-wait" and .asyncRewake == true and (.timeout | type) == "number")][0].timeout // empty' package/settings.json)
 [ -n "$wt" ] && [ -x package/hooks/stop-wait ] && sh -n package/hooks/stop-wait && grep -q "andon dispatcher wait --timeout $wt\$" package/hooks/stop-wait \
   && pass "Stop の待ち役は asyncRewake のフック（timeout $wt 秒。--timeout も同じ）" || fail "Stop に asyncRewake の待ち役のフックが無い・timeout が待ち役の --timeout と違う"
-# 提供元に切られた Chief of Staff を起こす（ADR-0019 決めたこと 10）: StopFailure に asyncRewake のフックが、最後の待ち（8 分）より長い timeout つきで在る
+# プロバイダに切られた Chief of Staff を起動する（ADR-0019 決めたこと 10）: StopFailure に asyncRewake のフックが、最後の待ち（8 分）より長い timeout つきで在る
 ft=$(jq -r '[.hooks.StopFailure[].hooks[] | select(.command == "/opt/andon/hooks/stop-failure" and .asyncRewake == true and (.timeout | type) == "number")][0].timeout // empty' package/settings.json)
 [ -n "$ft" ] && [ "$ft" -gt 480 ] && [ -x package/hooks/stop-failure ] && sh -n package/hooks/stop-failure && grep -q '^exec andon dispatcher rewake$' package/hooks/stop-failure \
   && pass "StopFailure は asyncRewake のフック（timeout $ft 秒。8 分の待ちより長い）で andon dispatcher rewake を打つ" || fail "StopFailure に asyncRewake の rewake のフックが無い・timeout が 8 分以下"
@@ -342,12 +342,12 @@ block package/skills/chief-of-staff/SKILL.md '# <id> <題>' | grep -qx -- '- Est
   && pass "Chief of Staff の雛形に Estimate の行があり、起き直しで estimate も打ち直す" || fail "chief-of-staff に Estimate の行か起き直しの estimate が無い"
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
-# インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起こす手順が残っていない
+# インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起動する手順が残っていない
 cos6=$(sed -n '/^## 6\. /,/^## 7\. /p' package/skills/chief-of-staff/SKILL.md)
 grep -q '^## 6\. レビューとゲート（人の判断が要るときだけ）' <<<"$cos6" && grep -q '^### `needs_human` のとき' <<<"$cos6" \
   && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
   && ! grep -qE 'worktree add --detach|andon issue start "\$new"' package/skills/independent-review/SKILL.md \
-  && pass "Chief of Staff の §6 は needs_human のときだけ。レビュアーを起こすのとゲートは dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起こす手順・ゲートを手で回す手順が残る"
+  && pass "Chief of Staff の §6 は needs_human のときだけ。レビュアーを起動するのとゲートは dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起動する手順・ゲートを手で回す手順が残る"
 grep -q '元の課題（`issue.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元の課題の担当だけ' package/skills/independent-review/SKILL.md \
   && pass "レビュアーの結果の宛先は parent の課題の担当だけ（Chief of Staff へ送らない）" || fail "レビュアーの宛先が parent の課題の担当に固定されていない"
 
@@ -362,7 +362,7 @@ grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && gre
   && pass "Chief Engineer の skill に WIP の行（1プロジェクトに1題・前の題が終わらないまま）が無い" || fail "chief-engineer に WIP の行が残る"
 ce1=$(sed -n '/^1\. \*\*読む/,/^2\. /p' "$ce"); ce2=$(sed -n '/^2\. \*\*言い直す/,/^3\. /p' "$ce")
 grep -q '前の価値の仮説の結果' <<<"$ce1" && block "$ce" '# <題>（仕様・設計' | grep -q '^## 価値の仮説' \
-  && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の席が無い"
+  && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の見出しが無い"
 grep -q '決断が無ければ文書を書かずに返す' <<<"$ce2" && grep -q '"to": "chief-of-staff", "text": "直す課題に切る: ' <<<"$ce2" && grep -q 'kanban review <id>' <<<"$ce2" \
   && pass "Chief Engineer は「言い直す」で決断が無ければ文書を書かず next で返す" || fail "chief-engineer の「言い直す」に文書なしで返す段が無い"
 left=$(grep -nE 'kanban ask [^-]*"<|kanban set <id> pr=' package/skills/*/SKILL.md || true)
@@ -422,7 +422,7 @@ grep -q 'Chief of Staff を CoS、Chief Engineer を CE と書く' "$wr" \
   && pass "writing.md に語の決まり3つと用語集のパスがある" || fail "writing.md に語の決まりか用語集のパスが無い"
 # 作った語は「避ける」の行と仮設の語の表にしか出ない。残す語（検査・継ぎ目・条件表・控え）は消さない
 left=$(sed '/^## 仮設の語/,$d' "$g" | grep -nE '席|端末の土台|持ち主|提供元' | grep -v '^[0-9]*:_避ける_' || true)
-[ -z "$left" ] && pass "用語集に「席」「端末の土台」「持ち主」「提供元」が正式な語として出ない" || fail "用語集に作った語が残る: $left"
+[ -z "$left" ] && pass "用語集に作った語（避ける語）が正式な語として出ない" || fail "用語集に作った語が残る: $left"
 grep -q '^\*\*検査\*\*（checks）:' "$g" && grep -q '条件表' "$g" \
   && pass "用語集の残す語（検査・条件表）は残る" || fail "用語集から残す語が消えた"
 ! grep -q '一度に出すのは互いに依らない問いの全部' "$ce" && grep -q 'ask-one-by-one skill §2 に従う（1回の返事で1問）' "$ce" \
@@ -524,7 +524,7 @@ done
 # hc の手引き（A-0192）: 全役が読む environment.md に「hc --skill を読む」の1行がある
 grep -q 'skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill`' package/environment.md \
   && sed -n '/^## 0\. 起動したとき/,/^毎ターン/p' package/skills/chief-of-staff/SKILL.md | grep -q '`hc --skill` を1回読む' \
-  && pass "environment.md は要るときだけ、chief-of-staff skill §0 は起きたときに hc --skill を読む" || fail "hc --skill を読む行（environment.md か chief-of-staff §0）が無い"
+  && pass "environment.md は要るときだけ、chief-of-staff skill §0 は起動したときに hc --skill を読む" || fail "hc --skill を読む行（environment.md か chief-of-staff §0）が無い"
 
 # === 14. 受け入れ条件の証拠の質（ADR-0007 R5・A4） ===
 miss=

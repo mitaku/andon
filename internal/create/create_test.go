@@ -107,7 +107,7 @@ func TestAllArgsMakesTheProjectWithoutCommitting(t *testing.T) {
 		t.Errorf("AGENTS.md: %q", md)
 	}
 	if got := read(t, log); got != "get example.com/o/new\n" {
-		t.Errorf("ghq は無いものだけ迎える: %q", got)
+		t.Errorf("ghq は無いものだけ追加する: %q", got)
 	}
 	if gitOut(t, ws, "rev-parse", "HEAD") != head || !strings.Contains(gitOut(t, ws, "status", "--porcelain", "--untracked-files=all"), "?? projects/sample-site/project.json") {
 		t.Error("commit した、または project.json が未追跡でない")
@@ -297,7 +297,7 @@ func TestNonCloneInGhqRootStops(t *testing.T) {
 	if _, err := os.Stat(log); err == nil {
 		t.Error("clone でないものがあるのに ghq を打った")
 	}
-	// 迎えても clone にならなければ止まる
+	// 追加しても clone にならなければ止まる
 	t.Setenv("GHQ_BROKEN", "1")
 	if rc, _, errs := run(strings.NewReader(""), "sample-site", "--repo", "example.com/o/new"); rc != exitFail || !strings.Contains(errs, "のあとも") {
 		t.Errorf("rc=%d %s", rc, errs)
@@ -373,8 +373,8 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 	}
 }
 
-// 台帳が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起こし直す（#98）。
-// 見回りの途中（PassLock を持っている）なら、待つと1行知らせ、終わるのを待ってから起こし直す（期限は無い）。
+// 台帳が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起動し直す（#98）。
+// 見回りの途中（PassLock を持っている）なら、待つと1行知らせ、終わるのを待ってから起動し直す（期限は無い）。
 func TestCreateMovesDispatcherToProjectSpace(t *testing.T) {
 	ws, _ := setup(t)
 	d := os.Getenv("FAKE_HC")

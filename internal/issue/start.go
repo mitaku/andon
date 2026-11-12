@@ -28,7 +28,7 @@ func (n notSent) Error() string { return n.msg }
 
 var profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
-// startPlan は andon issue start が起こす前に決めるもの（確かめを通ったあと）。--dry-run はこれを出して終わる。
+// startPlan は andon issue start が起動する前に決めるもの（確かめを通ったあと）。--dry-run はこれを出して終わる。
 type startPlan struct {
 	DryRun       bool         `json:"dry_run"`
 	ID           string       `json:"id"`
@@ -48,7 +48,7 @@ type startPlan struct {
 	repoDir      string
 }
 
-// startCheck は起こす前の確かめ1つの結果。result は ok（通った）か skipped（--dry-run では確かめない: hc を呼ぶもの・作るもの）。
+// startCheck は起動する前の確かめ1つの結果。result は ok（通った）か skipped（--dry-run では確かめない: hc を呼ぶもの・作るもの）。
 // 通らなかった確かめは startCheck にならず、本番と同じ理由1行と終了コード 1 で止まる。
 type startCheck struct {
 	Name   string `json:"name"`
@@ -60,11 +60,11 @@ func (p *startPlan) check(name, result, format string, a ...any) {
 	p.Checks = append(p.Checks, startCheck{Name: name, Result: result, Detail: fmt.Sprintf(format, a...)})
 }
 
-// start は台帳の課題に担当を起こす（仮設の yard task start を移したもの。docs/contract.md §8）:
-// repo があれば（台帳の config.yaml の repos と、セルの repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起こし、kanban start で doing にして agent をその端末にする。
-// 打つのは Chief of Staff（projects/<slug>/ で）。起こせなかったら作った worktree と branch を戻す（やり直せるように）。
+// start は台帳の課題に担当を起動する（仮設の yard task start を移したもの。docs/contract.md §8）:
+// repo があれば（台帳の config.yaml の repos と、セルの repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起動し、kanban start で doing にして agent をその端末にする。
+// 打つのは Chief of Staff（projects/<slug>/ で）。起動できなかったら作った worktree と branch を戻す（やり直せるように）。
 // 最初のメッセージが届かなかったとき（信頼の画面など）は、台帳は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
-// dry は --dry-run: 確かめ（plan）だけを本番と同じ順・同じ理由で通し、hc を呼ばず、何も作らず台帳も書かずに、起こすときに渡すものを出す。
+// dry は --dry-run: 確かめ（plan）だけを本番と同じ順・同じ理由で通し、hc を呼ばず、何も作らず台帳も書かずに、起動するときに渡すものを出す。
 func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	p, err := c.plan(dry)
 	if err != nil {
@@ -97,7 +97,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 		p.Cwd, p.Branch = wt.Path, wt.Branch
 	}
 
-	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
+	// 信頼の画面を出さない: boot のあとに追加した repo の根も、起動する前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon issue: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
@@ -121,7 +121,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。%s（台帳は doing・agent %s のまま。App では %s）",
 			run.Address, p.Terminal, run.Reason(), spawn.ResendHint(run.Address, p.FirstMessage), run.Address, place)}
 	}
-	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で起こした。cwd %s", id, run.Address, p.Terminal, p.Profile, p.Cwd)
+	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で起動した。cwd %s", id, run.Address, p.Terminal, p.Profile, p.Cwd)
 	if p.Branch != "" {
 		fmt.Fprintf(stdout, " branch %s", p.Branch)
 	}
@@ -130,7 +130,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	return nil
 }
 
-// plan は起こす前の確かめを通し、起こすときに渡すものを決める。何も作らず、台帳も書かない。
+// plan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、台帳も書かない。
 // dry のときは hc を呼ぶ確かめ（template・動いている端末）を飛ばし、worktree と branch は作らずに名前だけ決める
 // （origin の branch・worktree の置き場の確かめは、本番で作る直前にする）。通らなければ本番と同じ理由1行で止まる。
 func (c *ctx) plan(dry bool) (*startPlan, error) {
@@ -156,7 +156,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	if ok, err := c.startable(); err != nil {
 		return nil, err
 	} else if !ok {
-		return nil, fail("%s は after（%s）が済んでいない。済んでから起こす", id, strings.Join(c.after(), ", "))
+		return nil, fail("%s は after（%s）が済んでいない。済んでから起動する", id, strings.Join(c.after(), ", "))
 	}
 	if a := c.after(); len(a) > 0 {
 		p.check("after", "ok", "済んでいる（%s）", strings.Join(a, ", "))
@@ -164,11 +164,11 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		p.check("after", "ok", "after なし")
 	}
 	if wt, br := c.issue.Str("worktree"), c.issue.Str("branch"); wt != "" || br != "" {
-		return nil, fail("%s は起こし済み（worktree=%s branch=%s）。やり直すなら先に andon issue finish", id, wt, br)
+		return nil, fail("%s は起動済み（worktree=%s branch=%s）。やり直すなら先に andon issue finish", id, wt, br)
 	}
 	if m := c.issue.Str("machine"); m != "" {
-		// 別のマシンで起こす（hc run --on）はまだ扱わない。黙って指揮側で起こさない
-		return nil, fail("%s は machine=%s（別のマシンで起こす）。andon issue start はまだ扱わない。machine を消すか、人が起こす", id, m)
+		// 別のマシンで起動する（hc run --on）はまだ扱わない。黙って指揮側で起動しない
+		return nil, fail("%s は machine=%s（別のマシンで起動する）。andon issue start はまだ扱わない。machine を消すか、人が起動する", id, m)
 	}
 	p.Profile = c.issue.Str("profile")
 	if p.Profile == "" {
@@ -266,7 +266,7 @@ func (c *ctx) writableRepo(repo string, check func(name, result, format string, 
 
 // print は --dry-run の人向けの出力。
 func (p *startPlan) print(w io.Writer) {
-	fmt.Fprintf(w, "andon issue: %s を起こす乾いた実行（hc を呼ばず、worktree・branch・端末・ラベルを作らず、台帳も書かない）\n", p.ID)
+	fmt.Fprintf(w, "andon issue: %s を起動する乾いた実行（hc を呼ばず、worktree・branch・端末・ラベルを作らず、台帳も書かない）\n", p.ID)
 	row := func(k, v string) {
 		if v != "" {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
@@ -284,7 +284,7 @@ func (p *startPlan) print(w io.Writer) {
 	for _, l := range p.Labels {
 		fmt.Fprintf(w, "  %s\n", l)
 	}
-	fmt.Fprintln(w, "起こす前の確かめ:")
+	fmt.Fprintln(w, "起動する前の確かめ:")
 	for _, ch := range p.Checks {
 		fmt.Fprintf(w, "  %-7s %-10s %s\n", ch.Result, ch.Name, ch.Detail)
 	}
@@ -299,7 +299,7 @@ func (p *startPlan) print(w io.Writer) {
 
 // workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
 // herdr.space・herdr.tab で人の Herdr App に課題ごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
-// 値は slug・id・題だけで決まり、どのマシンで起こすかに依らない（別のマシンならその machine の Space に出る。前提 7）。
+// 値は slug・id・題だけで決まり、どのマシンで起動するかに依らない（別のマシンならその machine の Space に出る。前提 7）。
 func workLabels(slug, id, title string) []string {
 	return []string{"project=" + slug, "issue=" + id, "title=" + title,
 		"herdr.space=andon-" + slug + "-" + id, "herdr.tab=andon-" + slug + "-" + id}

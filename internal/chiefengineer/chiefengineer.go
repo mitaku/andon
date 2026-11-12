@@ -1,18 +1,18 @@
 // Package chiefengineer は andon chief-engineer: 人と仕様・設計を対話する Chief Engineer を
-// 台帳の課題として起こす（docs/design.md §1.8）。
+// 台帳の課題として起動する（docs/design.md §1.8）。
 //
 //	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は台帳の repos が1つならそれ
 //	andon chief-engineer --repo <host/owner/repo> "<題>"   台帳の repos が2つ以上（か無い）とき
 //	andon chief-engineer --brief - "<題>"                 経緯（人の言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
 // することは4つ: 台帳に課題を足す（kanban add）・案件の repo に worktree と branch を切る
-// （文書の PR をこの課題から出すため）・端末の土台でプロファイル chief-engineer を起こす（hc run）・
+// （文書の PR をこの課題から出すため）・hc でプロファイル chief-engineer を起動する（hc run）・
 // 課題を doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
 // 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、人の Herdr App の指揮側の Space に
 // 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // --brief - の文は依頼書の既定の行の下に続ける（Chief Engineer が最初に読むのは依頼書なので、送り直しが要っても残る）。
 // Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。ほかの Chief Engineer の端末には触らない
-// （作り直しで戻った端末も片付けない。その課題は doing のまま残り、andon issue resume で続きから起こす。ADR-0012 決めたこと 12）。
+// （作り直しで戻った端末も片付けない。その課題は doing のまま残り、andon issue resume で続きから起動する。ADR-0012 決めたこと 12）。
 //
 // 置き場（andon issue start と同じ形。internal/spawn）:
 //
@@ -39,7 +39,7 @@ import (
 const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<題>\"\n" +
 	"projects/<slug>/ で打つ。--repo を省くと台帳の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
 	"台帳に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
-	"hc で Chief Engineer を起こし、課題を doing にする。文書の PR はその課題から出る。\n" +
+	"hc で Chief Engineer を起動し、課題を doing にする。文書の PR はその課題から出る。\n" +
 	"--brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。\n" +
 	"Chief Engineer は1プロジェクトに複数いてよい。ほかの Chief Engineer の端末には触らない（止まったものは andon issue resume）。\n"
 
@@ -167,7 +167,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足す
 	msg := spawn.FirstMessage(slug, id, filepath.Join(root, "kanban", "issues", id, "brief.md"))
 
-	// 信頼の画面を出さない: boot のあとに迎えた repo の根も、起こす前に足す（boot と同じ手。足りていれば何も書かない）
+	// 信頼の画面を出さない: boot のあとに追加した repo の根も、起動する前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon chief-engineer: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
@@ -194,7 +194,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 		return exitFirst
 	}
-	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起こした。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
+	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起動した。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
 	fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 	return 0
 }

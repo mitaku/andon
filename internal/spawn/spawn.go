@@ -1,4 +1,4 @@
-// Package spawn はエージェントを起こす command（andon chief-of-staff・andon chief-engineer・andon issue start）が
+// Package spawn はエージェントを起動する command（andon chief-of-staff・andon chief-engineer・andon issue start）が
 // 共有するもの: コマンドを打つ・repo の置き場・worktree と branch を切る・hc の template を確かめる・hc run を打つ。
 //
 // 置き場（docs/contract.md §8）:
@@ -188,8 +188,8 @@ func ResendHint(addr, msg string) string {
 	return fmt.Sprintf("dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。信頼の画面などは App のその tab で答える）。急ぐときだけ手で: hc send %s %q", addr, msg)
 }
 
-// Run は hc run --json --bg --outlive-parent --no-notify で template を起こす（contract.md §8 の起こし方）。
-// --no-notify: 止まった・終わったは dispatcher が端末の土台から拾う。labels は "k=v" の並び。
+// Run は hc run --json --bg --outlive-parent --no-notify で template を起動する（contract.md §8 の起動のしかた）。
+// --no-notify: 止まった・終わったは dispatcher が hc から拾う。labels は "k=v" の並び。
 func Run(name string, labels []string, cwd, template, msg string) (*Started, error) {
 	args := []string{"run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", name}
 	for _, l := range labels {
@@ -317,7 +317,7 @@ func MakeWorktreeDir(path string) error {
 	return os.WriteFile(ignore, []byte("*\n"), 0o644)
 }
 
-// Remove は NewWorktree が作ったものを戻す（起こせなかったとき。やり直せるように）。
+// Remove は NewWorktree が作ったものを戻す（起動できなかったとき。やり直せるように）。
 func (w *Worktree) Remove() {
 	Output(nil, "", "git", "-C", w.RepoDir, "worktree", "remove", "--force", w.Path)
 	Output(nil, "", "git", "-C", w.RepoDir, "branch", "-D", w.Branch)

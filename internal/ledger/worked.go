@@ -23,7 +23,7 @@ type span struct{ from, to time.Time }
 //
 //   - 課題の change.status が doing の区間の総和。入りは「doing でない status の後の最初の doing」（andon issue start と
 //     担当の kanban start で doing の行が2本ある）。問いの行（change.question がある）の status は見ない。
-//     status が todo か queued に戻ったら（done → todo → doing の起こし直し）、それまでの区間を捨てて数え直す。
+//     status が todo か queued に戻ったら（done → todo → doing の起動し直し）、それまでの区間を捨てて数え直す。
 //   - そこから次の待ちを引く（重なりは1回だけ）:
 //     自分の問いが open の区間（open の行の by が dispatcher・terminal:<cos> でない問い。answered などで閉じる）、
 //     レビュー待ち（parent が id で profile が *-review の子課題の add の行から、その子の最初の review か done の行まで）、

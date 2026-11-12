@@ -1,4 +1,4 @@
-// Package chiefofstaff は andon chief-of-staff: プロジェクトの Chief of Staff を起こす（動いていれば、そのまま使う）。
+// Package chiefofstaff は andon chief-of-staff: プロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う）。
 //
 //	andon chief-of-staff   projects/<slug>/ で打つ。最後に出た場所を「<Space 名> / <tab 名>」で出す
 //
@@ -6,12 +6,12 @@
 //  1. ラベル role=chief-of-staff project=<slug> の、動いている端末を探す。1つならそれを使う（名前と cwd が合うときだけ）。
 //     2つ以上なら止まる（1プロジェクトに1人）。数えるのは hc の agent が Claude Code の端末だけ。
 //     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
-//  2. 無ければプロファイル chief-of-staff で起こす（名前 <slug>-cos・cwd は台帳の root）。
+//  2. 無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos・cwd は台帳の root）。
 //     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos で人の Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
 //  3. その address を台帳の config.yaml の chief_of_staff に書く（違うときだけ。kanban config set）。
 //  4. 出た場所を「<Space 名> / <tab 名>」（<slug> / CoS）で出す。hc attach は打たない（ADR-0002 決めたこと 14・17）。
 //
-// 打つのは人（プロジェクトで Chief of Staff と話すとき）か、起き直した Chief of Staff 自身（自分が見つかるので起こし直さない）。
+// 打つのは人（プロジェクトで Chief of Staff と話すとき）か、起き直した Chief of Staff 自身（自分が見つかるので起動し直さない）。
 package chiefofstaff
 
 import (
@@ -31,7 +31,7 @@ import (
 
 // Usage は andon chief-of-staff の使い方。
 const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。人の Herdr App の <slug> / CoS に出る\n" +
-	"動いていればそれを使い、無ければプロファイル chief-of-staff で起こす（名前 <slug>-cos）。\n" +
+	"動いていればそれを使い、無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos）。\n" +
 	"台帳の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
 	"最初のメッセージが届かなかった（信頼の画面など）ときは終了コード 3 と、App のその tab で答えたあとに打つ hc send を出す。\n"
 
@@ -53,7 +53,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return Start("", stdout, stderr)
 }
 
-// Start は dir（空なら今のディレクトリ）から台帳を探して、そのプロジェクトの Chief of Staff を起こす／使う。
+// Start は dir（空なら今のディレクトリ）から台帳を探して、そのプロジェクトの Chief of Staff を起動する／使う。
 // andon open <slug> が projects/<slug> を指して呼ぶ（cd はしない）。
 func Start(dir string, stdout, stderr io.Writer) int {
 	die := func(format string, a ...any) int {
@@ -83,8 +83,8 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		return die("%s が無いか symlink", config)
 	}
 
-	// 1プロジェクトに1人。数えてから起こして config.yaml に書くまで lock を持つ（同時に2本打っても2人にしない。G5 を塞いだ。
-	// dispatcher.md §7.2 #10）。後の方は待ち、先の方が起こした端末を数えて使う
+	// 1プロジェクトに1人。数えてから起動して config.yaml に書くまで lock を持つ（同時に2本打っても2人にしない。G5 を塞いだ。
+	// dispatcher.md §7.2 #10）。後の方は待ち、先の方が起動した端末を数えて使う
 	unlock, err := flock.Lock(Lock(slug))
 	if err != nil {
 		return die("%v", err)
@@ -143,7 +143,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 			return die("%s はラベルが %s の Chief of Staff だが、名前（%s）か cwd（%s）が合わない（名前 %s・cwd %s のはず）。hc ls で確かめる", addr, slug, t.Name, t.Cwd, name, root)
 		}
 		if t.Labels["herdr.space"] != space || t.Labels["herdr.tab"] != tab {
-			// ラベルを付ける前に起きた端末。付け直さない（置き場は起こすときのラベルだけで決める）
+			// ラベルを付ける前に起きた端末。付け直さない（置き場は起動するときのラベルだけで決める）
 			where = "App の Space の外（herdr.space・herdr.tab のラベルより前に起きた端末）"
 		}
 	} else {
@@ -159,7 +159,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return die("%v", err)
 		}
-		addr, how = run.Address, "起こした"
+		addr, how = run.Address, "起動した"
 	}
 
 	if l.ChiefOfStaff() != addr {
@@ -179,7 +179,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// Lock は andon chief-of-staff が「数える→起こす→config.yaml に書く」の間持つ lock のパス（控えの置き場の <slug>.cos.lock）。
+// Lock は andon chief-of-staff が「数える→起動する→config.yaml に書く」の間持つ lock のパス（控えの置き場の <slug>.cos.lock）。
 func Lock(slug string) string {
 	return filepath.Join(filepath.Dir(dispatcher.StatePath(slug)), slug+".cos.lock")
 }

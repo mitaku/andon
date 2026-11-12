@@ -23,7 +23,7 @@ triggers:
     kind: notification
     notification: finished
     start: read
-  # Chief of Staff が起きたとき・人と話すターンの最初（hc get で doing の担当を見る）
+  # Chief of Staff が起動したとき・人と話すターンの最初（hc get で doing の担当を見る）
   - name: wake
     kind: event
     start: read
@@ -37,21 +37,21 @@ steps:
     record: dispatcher/<slug>.json
     next: [{ id: resume, when: 端末が Gone }, { id: read, when: 通知を積んだ }]
   - id: resume
-    title: 死んだ担当を 1 回起こす
+    title: 死んだ担当を 1 回起動する
     by: machine
     input: [hc.state, issue.session]
-    output: [hc（起こした端末）, notification.resumed, notification.finished]
+    output: [hc（起動した端末）, notification.resumed, notification.finished]
     command: andon issue resume
     record: dispatcher/<slug>.json
     once: true
-    next: [{ id: read, when: 起こせなかった }]
+    next: [{ id: read, when: 起動できなかった }]
   - id: read
     title: 通知と計画を読む
     by: ai
     input: [notification.estimate, notification.stalled, notification.error, notification.finished, report.plan, hc.state, hc read の画面]
     output: []
     skill: chief-of-staff#5
-    decides: [途中報告を書かせる, 分ける, 起こし直す, 延長する, 続きを 1 回促す]
+    decides: [途中報告を書かせる, 分ける, 起動し直す, 延長する, 続きを 1 回促す]
     next: [{ id: act, when: 手を打つ }, { id: tell, when: 人へ知らせる }, { id: done, when: 見るだけ }]
   - id: act
     title: 担当に手を打つ
@@ -68,7 +68,7 @@ steps:
     skill: [chief-of-staff#5, ask-one-by-one]
     decides: [知らせる文]
     asks:
-      - { question: 死んだまま起きない担当を新しいセッションで起こし直すか（andon issue resume --fresh）, kind: business }
+      - { question: 死んだまま起きない担当を新しいセッションで起動し直すか（andon issue resume --fresh）, kind: business }
   - id: done
     title: 見るだけで終える
     by: ai

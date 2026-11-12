@@ -329,7 +329,7 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it.key(), text(it), it["reason"]))
 		}
 	}
-	b.WriteString("\n## 直す（起こした課題）\n| 課題 | 題 | 出どころ | Review |\n|---|---|---|---|\n")
+	b.WriteString("\n## 直す（起動した課題）\n| 課題 | 題 | 出どころ | Review |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if d := it.decision(); d == "fix" || d == "bundle" {
 			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))

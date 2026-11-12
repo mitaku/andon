@@ -1,4 +1,4 @@
-"""pty-probe: 端末の program を pty で起こし、<秒> のあいだ画面に出た文字を ANSI を除いて標準出力に出して止める。
+"""pty-probe: 端末の program を pty で起動し、<秒> のあいだ画面に出た文字を ANSI を除いて標準出力に出して止める。
 
 usage: python3 pty-probe.py <秒> <cwd> <program> [args...]
 （stdin から読ませるときは python3 - <秒> <cwd> <program> …）

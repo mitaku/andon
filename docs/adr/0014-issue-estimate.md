@@ -7,7 +7,7 @@
 
 ## 問題（人の言葉で。言い直しの段落）
 
-最初の題は「離席中・夜間に流す担当に、課題ごとのターン数・時間（・費用）の上限を掛ける」だった。対話で人が向きを変えた（2026-11-10）: 「上限は一律に定めるものではなく、測るべきは見込みとのズレである」。費用（ドル）は外す。
+最初の題は「離席中・夜間に流す担当に、課題ごとのターン数・時間（・コスト）の上限を掛ける」だった。対話で人が向きを変えた（2026-11-10）: 「上限は一律に定めるものではなく、測るべきは見込みとのズレである」。コスト（ドル）は外す。
 
 言い直し（人が「合っている」と言った）: 一律の上限で担当を止めるのは違う。課題にはそれぞれの大きさの見込みがあり、守らせるべきは「見込みと実際のズレ」。課題ごとに見込み（ターン数・時間のどちらか・両方）を置き、実際を数え、ズレを記録して見えるようにする。ズレが大きい課題は、止めるのではなく、見込みが外れたという事実として Chief of Staff（と振り返り）に届き、依頼書の切り方・見込みの立て方が良くなっていく。好ましい流れ（人）: ズレが大きい → Chief of Staff（dispatcher 経由でも）が気付く → 方向修正を行う → 再開する。
 
@@ -25,7 +25,7 @@
 
 1. **2026-11-10 見込みと実際の単位は時間だけ**（人）。
    理由: 時間は Chief of Staff が見込める（「2時間」）。台帳だけで数えられ、フックが要らず、Claude と Codex の両方に同じに効く。
-   捨てた案: 時間とトークン（A-0054 のトークン数の欄が入ってから別の題。トークンは費用に近く見込むのが難しい）／時間とターン（Claude の PostToolBatch フックでしか数えられず、Codex は A-0055 待ち。実装が増える）。
+   捨てた案: 時間とトークン（A-0054 のトークン数の欄が入ってから別の題。トークンはコストに近く見込むのが難しい）／時間とターン（Claude の PostToolBatch フックでしか数えられず、Codex は A-0055 待ち。実装が増える）。
 
 2. **2026-11-10 見込みを書くのは Chief of Staff（依頼書を切るとき）。大雑把でよい**（人）。依頼書の Settings に見込みの行、正は `issue.yaml` の予約キー（`kanban set`。形は切る案で確定）。
    - 見込みは大・中・小のような粗い段（人の例: 中 60 分・小 30 分）。細かく見積もらない。
@@ -46,7 +46,7 @@
    - 自分の問いが `open` の区間（`by` が dispatcher・Chief of Staff でない問い。ゲートの問いは `review` の列で開くので、`doing` の区間と重なる分だけ）。
    - レビュー待ち: レビュアーの子課題（`parent` が自分・`profile` が `*-review`）の `add` の行から、その子の `status: review` の行まで（`report.json` の `review_request` は次の報告で消え、`findings.json` に時刻が無いので使わない）。
    - 端末が死んでいた区間: dispatcher が Gone を見た時刻から、台帳の resume の `agent` の行まで（dispatcher の控え。前提 3）。
-   `done → todo → doing` で起こし直した課題は、最初の列に戻ったら数え直し。
+   `done → todo → doing` で起動し直した課題は、最初の列に戻ったら数え直し。
    理由: 見込み（担当の仕事の大きさ）と同じものを比べる。人が問いに答えない時間・人が `review` で見ている時間・死んでいた時間をズレに数えない。
    捨てた案: 壁時計そのまま（単純だが、人の不在がズレに混ざる）／両方を記録（届けるのは待ちを除いた時間で足りる。壁時計は measure の lead time が既にある）／stop-check の「待ち」の判定をそのまま使う（課題の open の問いを `by` で見分けないので、ゲートの問いが開いている間の実働が待ちに落ちる。実物 A-0005）。
 6. **2026-11-10 ズレは、見込みを超えたとき1回、その後は2倍・4倍と倍ごとに1回、dispatcher が Chief of Staff に届ける**（人）。通知に新しい `kind`（`estimate`。`detail` に見込みの段・見込みの分・実際の分・比・段〈1・2・4〉）を足す（約束の変更）。dispatcher は見回りのたびに `doing` の課題の実際（決めたこと 5）を数え、超えた段ごとに1回だけ積む。
@@ -90,7 +90,7 @@
 - 見込みから「分ける」を機械で決めること（決めたこと 3。Chief of Staff の判断）。
 - Codex のフック（A-0055）。この設計はフックを使わないので結果に依らない。
 - 一律の上限で担当を止めること（人。2026-11-10。「上限そのものが要らない」「時間がかかることを実行しているなら仕方がない」。上限は判断を含み、正当に時間の掛かる仕事を殺す）。
-- 費用（ドル）の上限・見込み（人。2026-11-10。フックは費用を受けない。課題ごとのトークン数は A-0054 で測り、単価表は別の題）。
+- コスト（ドル）の上限・見込み（人。2026-11-10。フックはコストを受けない。課題ごとのトークン数は A-0054 で測り、単価表は別の題）。
 
 ## 受け入れ条件（テストできる形。継ぎ目は 台帳の `log.jsonl`＋dispatcher の控え → dispatcher の判定（偽の台帳と偽の `hc` のシェルテスト〈`tests/andon-dispatcher.sh` の形〉）・`andon measure --json`・schema の例（`tests/schema.sh`）・セルの実測、の4つ。高いものから）
 
@@ -125,7 +125,7 @@
 ## 出典
 
 - 人の言葉（2026-11-10。この対話。「問題」の段に写し）。
-- 反論（2026-11-10。別の文脈の読むだけのサブエージェント）: 証明つき 9 件。台帳の実物（A-0005 のゲートの問いと `review` ⇄ `doing`、A-0033 の起き直し、A-0010 の `done → todo → doing`、`doing` の行が2本）、`schema/report.schema.json`・`findings.schema.json`（時刻のキーが無い）、`internal/issue/issue.go`（報告は毎回作り直し・`pr` だけ引き継ぐ）、`internal/dispatcher/pickup.go`・`state.go`（控えは判定のキー1つ・同じ issue＋kind は置き換え）、`internal/ledger/ledger.go`（照合は今の `chief_of_staff` と比べる）、`internal/measure/measure.go`（`prs[]` はマージされた PR だけ）、`package/skills/worker/SKILL.md`（担当は `andon issue …` だけ・毎回全体を書き直す）、hc 0.1.17 の `hc send`（blocked を拒む）。確かめられなかった疑い: `working` 中の `hc send` が Claude／Codex の担当にいつ入るか、控えを失ったときに段が鳴り直すか。
+- 反論（2026-11-10。別のコンテキストの読むだけのサブエージェント）: 証明つき 9 件。台帳の実物（A-0005 のゲートの問いと `review` ⇄ `doing`、A-0033 の起き直し、A-0010 の `done → todo → doing`、`doing` の行が2本）、`schema/report.schema.json`・`findings.schema.json`（時刻のキーが無い）、`internal/issue/issue.go`（報告は毎回作り直し・`pr` だけ引き継ぐ）、`internal/dispatcher/pickup.go`・`state.go`（控えは判定のキー1つ・同じ issue＋kind は置き換え）、`internal/ledger/ledger.go`（照合は今の `chief_of_staff` と比べる）、`internal/measure/measure.go`（`prs[]` はマージされた PR だけ）、`package/skills/worker/SKILL.md`（担当は `andon issue …` だけ・毎回全体を書き直す）、hc 0.1.17 の `hc send`（blocked を拒む）。確かめられなかった疑い: `working` 中の `hc send` が Claude／Codex の担当にいつ入るか、控えを失ったときに段が鳴り直すか。
 - A-0007 の依頼書・報告・`library/candidates.json`（c1〜c13。Claude の `--max-turns`・`--max-budget-usd` は print 専用。フックで数えて止める案 c4・c10・c11 は案 B として捨てた）。
 - A-0054（measure にトークン数）・A-0055（Codex の goals とフック）の依頼書。
 - Claude Code 2.1.322 の hooks の文書（PostToolBatch は毎バッチ走り `continue: false` で止められる。Stop はターンの終わりだけ。`/goal` は上限でなく続けさせる口）・cli-reference（`--max-turns`・`--max-budget-usd` は print のみ）。2026-11-10 に取得。

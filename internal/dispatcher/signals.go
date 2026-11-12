@@ -18,7 +18,7 @@ import (
 // 控えを失った巡でも同じ規則で届く。積んだ待ちを控えに保存してから delivered を書く（落ちても届けそこねない。
 // 保存のあと delivered の前に落ちたら、次の巡で同じ信号を積み直し、待ちの中では置き換わる）。
 // gh の上限でゲートを止めている間（控えの GHReset）は collect を打たない（届けるのは続ける）。
-// project.json に signals が無ければ何も打たない（読むかの正は collect。ここは巡ごとにコマンドを起こさないための下見）。
+// project.json に signals が無ければ何も打たない（読むかの正は collect。ここは巡ごとにコマンドを起動しないための下見）。
 func (p *project) signals(at time.Time) {
 	slug := p.l.Slug
 	if !hasSignals(filepath.Join(p.l.Root, "project.json")) {

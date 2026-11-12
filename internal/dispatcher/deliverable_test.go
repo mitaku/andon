@@ -8,7 +8,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// ゲートを回す（レビュアーを起こす）のは案件 repo の担当の PR の課題だけ。
+// ゲートを回す（レビュアーを起動する）のは案件 repo の担当の PR の課題だけ。
 // deliverable: candidates は Chief of Staff が書いたときだけ飛ばす（ADR-0006 受け入れ条件 3）。
 func TestGated(t *testing.T) {
 	l := ledger.At(t.TempDir())

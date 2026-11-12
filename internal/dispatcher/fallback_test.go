@@ -61,7 +61,7 @@ func TestFallbackRule(t *testing.T) {
 		{"codex", "codex-review", "claude-review", true},
 		{"codex", "claude-review", "", false},
 		{"claude", "claude-review", "codex-review", true},
-		{"codex", "reviewer", "", false}, // 知らないプロファイルは起こし直さない
+		{"codex", "reviewer", "", false}, // 知らないプロファイルは起動し直さない
 	} {
 		if got, ok := Fallback(c.impl, c.reviewer); got != c.want || ok != c.ok {
 			t.Errorf("Fallback(%q, %q) = %q, %v; want %q, %v", c.impl, c.reviewer, got, ok, c.want, c.ok)
@@ -79,7 +79,7 @@ func TestFallbackRule(t *testing.T) {
 func TestFallbackKeepsBrand(t *testing.T) {
 	f := newFallback(t, "claude")
 	if got := f.at(0, ""); got != nil {
-		t.Fatalf("起こし直そうとした: %q", got)
+		t.Fatalf("起動し直そうとした: %q", got)
 	}
 	if k := f.kinds(); !slices.Equal(k, []string{"S-7-r1:error"}) {
 		t.Fatalf("error を知らせていない: %q", k)
@@ -89,19 +89,19 @@ func TestFallbackKeepsBrand(t *testing.T) {
 	}
 }
 
-// 担当が codex 系で codex-review が上限: 端末を片付け、profile と逃げた理由を台帳に書き、claude-review で起こし直す。知らせない。
+// 担当が codex 系で codex-review が上限: 端末を片付け、profile と逃げた理由を台帳に書き、claude-review で起動し直す。知らせない。
 func TestFallbackRestarts(t *testing.T) {
 	f := newFallback(t, "codex")
 	got := f.at(0, "")
 	want := []string{"kill t50", "rm t50", "kanban set S-7-r1 profile=claude-review fallback=codex-review → claude-review（使用量の上限で止まった。端末 t50）"}
 	if len(got) < 5 || !slices.Equal(got[:3], want) {
-		t.Fatalf("起こし直しの手順が違う: %q", got)
+		t.Fatalf("起動し直しの手順が違う: %q", got)
 	}
 	if !strings.HasPrefix(got[3], "run run ") || !strings.Contains(got[3], "--name sample-site-s-7-r1") || !strings.Contains(got[3], "--label issue=S-7-r1") ||
 		!strings.Contains(got[3], " claude-review 課題 `sample-site/S-7-r1`。") {
 		t.Fatalf("hc run が違う: %q", got[3])
 	}
-	// Claude 系のレビュアーはセッションの id をラベル session で渡し、台帳の session に書く（andon issue resume が続きから起こす。ADR-0012 決めたこと 8）
+	// Claude 系のレビュアーはセッションの id をラベル session で渡し、台帳の session に書く（andon issue resume が続きから起動する。ADR-0012 決めたこと 8）
 	m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd `).FindStringSubmatch(got[3])
 	if m == nil {
 		t.Fatalf("hc run に session のラベルが無い: %q", got[3])
@@ -110,11 +110,11 @@ func TestFallbackRestarts(t *testing.T) {
 		t.Fatalf("agent と session を替えていない: %q", last)
 	}
 	if len(f.p.st.Pending) != 0 {
-		t.Fatalf("起こし直したのに知らせた: %q", f.kinds())
+		t.Fatalf("起動し直したのに知らせた: %q", f.kinds())
 	}
 }
 
-// 起こし直したあと台帳の agent を書けなければ、起こした端末を片付けて起こし直さなかったことにする（今の見回りは error を知らせる）。
+// 起動し直したあと台帳の agent を書けなければ、起動した端末を片付けて起動し直さなかったことにする（今の見回りは error を知らせる）。
 func TestFallbackAgentNotRecorded(t *testing.T) {
 	f := newFallback(t, "codex")
 	if err := os.WriteFile(filepath.Join(f.d, "set-agent-fails"), nil, 0o644); err != nil {
@@ -122,9 +122,9 @@ func TestFallbackAgentNotRecorded(t *testing.T) {
 	}
 	got := f.at(0, "")
 	if n := len(got); n < 2 || got[n-2] != "kill t60" || got[n-1] != "rm t60" {
-		t.Fatalf("起こした端末を片付けていない: %q", got)
+		t.Fatalf("起動した端末を片付けていない: %q", got)
 	}
 	if k := f.kinds(); !slices.Equal(k, []string{"S-7-r1:error"}) {
-		t.Fatalf("起こし直せなかったのに知らせない: %q", k)
+		t.Fatalf("起動し直せなかったのに知らせない: %q", k)
 	}
 }

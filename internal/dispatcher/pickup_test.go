@@ -22,7 +22,7 @@ func TestProviderError(t *testing.T) {
 		"Rate limit reached. Try again later":                true,
 		"API Error: 503 service unavailable":                 true,
 		"connection reset by peer":                           true,
-		"API Error: 401 unauthorized · Please run /login":    false, // 認証の失敗は提供元のエラーでない
+		"API Error: 401 unauthorized · Please run /login":    false, // 認証の失敗はプロバイダのエラーでない
 		"API Error: 529 overloaded · authentication_error":   false,
 		"Error: ENOENT: no such file or directory, open 'x'": false,
 		// 使用量の上限は待っても直らない
@@ -58,8 +58,8 @@ func TestJudge(t *testing.T) {
 		{"端末が無い", Seen{Gone: true}, none, Resend{}, Verdict{Kind: "finished", Key: "gone"}},
 		{"blocked", Seen{Status: "blocked", StatusMs: 5}, none, Resend{}, Verdict{Kind: "blocked", Key: "blocked|5"}},
 		{"認証は blocked（Claude Code の実測）", Seen{Status: "blocked", Msg: "Invalid API key · Fix external API key", StatusMs: 5}, none, Resend{}, Verdict{Kind: "blocked", Key: "blocked|5"}},
-		{"提供元でない error", Seen{Status: "error", StatusMs: 5}, other, Resend{}, Verdict{Kind: "error", Key: "error|5"}},
-		{"msg が提供元でなければ画面は読まない", Seen{Status: "error", Msg: "Error: tool crashed", StatusMs: 5}, none, Resend{}, Verdict{Kind: "error", Key: "error|5"}},
+		{"プロバイダでない error", Seen{Status: "error", StatusMs: 5}, other, Resend{}, Verdict{Kind: "error", Key: "error|5"}},
+		{"msg がプロバイダでなければ画面は読まない", Seen{Status: "error", Msg: "Error: tool crashed", StatusMs: 5}, none, Resend{}, Verdict{Kind: "error", Key: "error|5"}},
 		{"初めて見た切断はすぐには打たない（端末の時計が遅れていても）", Seen{Status: "error", Msg: cut, StatusMs: 1}, none, Resend{}, Verdict{}},
 		{"msg で見分ける（Claude Code）・見て1分", Seen{Status: "error", Msg: cut, StatusMs: c1}, none, Resend{Cut: c1, Since: min(1)}, Verdict{Retry: true}},
 		{"画面の ■ の行で見分ける（Codex）・見て1分", Seen{Status: "error", StatusMs: c1}, busy, Resend{Cut: c1, Since: min(1)}, Verdict{Retry: true}},
@@ -128,7 +128,7 @@ func TestMoved(t *testing.T) {
 	}
 }
 
-// 画面で見るのは Codex のエラーの行（行頭が ■ の最後の行）だけ。エージェントの出力やファイルの中身に提供元の語があっても見ない。
+// 画面で見るのは Codex のエラーの行（行頭が ■ の最後の行）だけ。エージェントの出力やファイルの中身にプロバイダの語があっても見ない。
 func TestScreenCut(t *testing.T) {
 	for screen, want := range map[string]bool{
 		"› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n› Ask Codex to do anything\n":     true,

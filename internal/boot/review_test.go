@@ -152,7 +152,7 @@ func TestFilesAliasFailureIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := f.env()
-	e.Self = "/nonexistent/andon" // 待ち受けがあるので起こさない
+	e.Self = "/nonexistent/andon" // 待ち受けがあるので起動しない
 	e.LookPath = func(n string) (string, error) {
 		if n == "portless" {
 			return portless, nil

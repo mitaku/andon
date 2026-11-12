@@ -28,7 +28,7 @@ func TestHomeVolumesMatchCompose(t *testing.T) {
 	}
 }
 
-// 持ち主が違う置き場だけを sudo chown -R で渡し、無い置き場は飛ばす。
+// オーナーが違う置き場だけを sudo chown -R で渡し、無い置き場は飛ばす。
 func TestFixOwnersChownsOtherOwner(t *testing.T) {
 	f := newFixture(t)
 	for _, d := range []string{".ssh", ".config/gh"} {
@@ -52,17 +52,17 @@ func TestFixOwnersChownsOtherOwner(t *testing.T) {
 	if got := read(t, calls); got != want {
 		t.Errorf("sudo の呼び出し:\n%s\nwant:\n%s", got, want)
 	}
-	if !strings.Contains(f.log.String(), "持ち主を直した: "+filepath.Join(f.home, ".ssh")) {
+	if !strings.Contains(f.log.String(), "オーナーを直した: "+filepath.Join(f.home, ".ssh")) {
 		t.Errorf("ログ: %s", f.log.String())
 	}
 
-	// 持ち主が同じなら何もしない
+	// オーナーが同じなら何もしない
 	os.Remove(calls)
 	e.Uid, e.Gid = os.Getuid(), os.Getgid()
 	if err := fixOwners(e); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(calls); err == nil {
-		t.Errorf("持ち主が同じなのに sudo を打った: %s", read(t, calls))
+		t.Errorf("オーナーが同じなのに sudo を打った: %s", read(t, calls))
 	}
 }

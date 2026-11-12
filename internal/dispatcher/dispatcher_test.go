@@ -22,11 +22,11 @@ func TestRetry(t *testing.T) {
 		want  bool
 	}{
 		{"初めて", Reviewer{}, false, 2, 5, true},
-		{"起こした（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 5, false},
-		{"起こした回を同じ commit で頼み直した（二重に起こさない）", Reviewer{Started: true, Row: 5}, true, 2, 9, false},
-		{"起こしそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true},
-		{"設定で起こさない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, false},
-		{"起こさなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true},
+		{"起動した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 5, false},
+		{"起動した回を同じ commit で頼み直した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 9, false},
+		{"起動しそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true},
+		{"設定で起動しない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, false},
+		{"起動しなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true},
 		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true},
 		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, false},
 		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true},
@@ -37,7 +37,7 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子課題が無ければ起こしに行き、
+// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子課題が無ければ起動しに行き、
 // あれば引き継ぐ（todo でなければもう受けている。todo なら端末を照らし、live なら address を引き継ぐ）。
 func TestAdopt(t *testing.T) {
 	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
@@ -54,13 +54,13 @@ func TestAdopt(t *testing.T) {
 	}
 	none := func(string) (string, int, bool) { return "", 0, false }
 	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief, none); ok {
-		t.Error("子課題の無い commit を引き継いだ（起こしに行かない）")
+		t.Error("子課題の無い commit を引き継いだ（起動しに行かない）")
 	}
 	if r, ok := Adopt(tasks, "D-1", c1, brief, none); !ok || !r.Started || r.ReviewerIssue != "D-2" || r.Address != "t9" {
 		t.Errorf("受けた子課題: %+v %v（もう受けているはず）", r, ok)
 	}
 	if r, ok := Adopt(tasks, "D-1", c2, brief, none); !ok || r.Started || r.ReviewerIssue != "D-3" || r.Address != "" {
-		t.Errorf("todo で端末も無い子課題: %+v %v（起こすところから続けるはず）", r, ok)
+		t.Errorf("todo で端末も無い子課題: %+v %v（起動するところから続けるはず）", r, ok)
 	}
 	// todo だが端末が live（hc run は通ったが kanban start の前に落ちた）: address を引き継ぎ、hc run し直さない
 	asked := ""

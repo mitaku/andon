@@ -127,6 +127,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `public.sh`・`public-selftest.sh` | repo の全部のファイル（秘密・禁止の語） | いつも |
 | `smoke.sh` | `README.md`・`LICENSE`・`docs/decisions.md`・`docs/decisions/` があるか・形 | いつも |
 | `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
+| `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md` |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
@@ -138,7 +139,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 | 変えたもの | 走らせる `tests/*.sh` |
 |---|---|
-| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`（安く全体を見るもの） |
+| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`・`words.sh`・`words-selftest.sh`（安く全体を見るもの） |
 | `docs/contract.md` | `schema.sh`・`package.sh` を足す（例を schema と、§4 の行を skill と突き合わせる） |
 | `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |

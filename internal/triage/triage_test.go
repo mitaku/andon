@@ -155,7 +155,7 @@ func TestCapIssuesCountsBundleOnce(t *testing.T) {
 	if want := []string{"bundle", "fix", "bundle", "keep", "close"}; !reflect.DeepEqual(decisions, want) {
 		t.Errorf("got %v want %v", decisions, want)
 	}
-	if got[3].str("reason") != "次回（起こす上限）: 直せる" || in[3].decision() != "fix" {
+	if got[3].str("reason") != "次回（起動する上限）: 直せる" || in[3].decision() != "fix" {
 		t.Errorf("keep の理由・元を書き換えない: %v / %v", got[3], in[3])
 	}
 	groups := applyGroups(got)

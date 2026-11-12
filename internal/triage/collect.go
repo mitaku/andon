@@ -182,7 +182,7 @@ func expandHome(p string) string {
 	return p
 }
 
-// terminalIssues は hc の端末のうち、このプロジェクトのものの issue ラベル。hc が無ければ空（起こさない）。
+// terminalIssues は hc の端末のうち、このプロジェクトのものの issue ラベル。hc が無ければ空（起動しない）。
 func (l *ledger) terminalIssues() (map[string]bool, error) {
 	got := map[string]bool{}
 	if _, err := exec.LookPath("hc"); err != nil {

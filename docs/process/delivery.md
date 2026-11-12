@@ -18,7 +18,7 @@ stateDiagram-v2
   [*] --> s_unrecorded: 記録だけの通知を置き場に書けなかった
   s_unrecorded --> s_recorded: 次の見回りで先に書いた
   s_pending --> s_hooked: 通知を Chief of Staff へ届ける（ターンの終わり・人が送った。経路①②。§7.2 #7）
-  s_pending --> s_pending: 人が離れている間に Chief of Staff を起こす（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4）
+  s_pending --> s_pending: 人が離れている間に Chief of Staff を起動する（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4）
   s_hooked --> s_acked: 渡した turn の Stop が来た
   s_hooked --> s_hooked: 確かめないまま別の turn が来た（1 回だけ届け直す）
   s_acked --> [*]: 終わり
@@ -46,7 +46,7 @@ stateDiagram-v2
 | （始まり・終わり） | `unrecorded` | 記録だけの通知を置き場に書けなかった | 機械 |  |  |
 | `unrecorded` | `recorded` | 次の見回りで先に書いた | 機械 |  |  |
 | `pending` | `hooked` | 通知を Chief of Staff へ届ける（ターンの終わり・人が送った。経路①②。§7.2 #7） | 機械 | `andon dispatcher drain` | はい |
-| `pending` | `pending` | 人が離れている間に Chief of Staff を起こす（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4） | 機械 | `andon dispatcher wait` |  |
+| `pending` | `pending` | 人が離れている間に Chief of Staff を起動する（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4） | 機械 | `andon dispatcher wait` |  |
 | `hooked` | `acked` | 渡した turn の Stop が来た | AI |  |  |
 | `hooked` | `hooked` | 確かめないまま別の turn が来た（1 回だけ届け直す） | 機械 |  |  |
 | `acked` | （始まり・終わり） | 終わり | 機械 |  |  |
