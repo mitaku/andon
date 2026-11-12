@@ -168,4 +168,28 @@ jq -e '[.items[]|select(.decision=="close").text]|any(contains("テストは go 
 "$script" triage collect --limit 100 > "$tmp/mem2"
 jq -e '[.[]|select(.kind=="memory").from] == ["note-c"]' "$tmp/mem2" >/dev/null
 echo 'ok memory: apply removes sorted files and index lines (missing line is fine), keep stays, record has body and reason'
+# 収集のあと消す前に同じファイルが書き換わったら消さない（A-0155）。apply の途中（kanban add のとき）に別のセッションが追記する。
+printf -- 'race の学び\n' > "$mem/race.md"
+printf -- 'gone の学び\n' > "$mem/gone.md"
+printf -- '- [R](race.md) — r\n- [G](gone.md) — g\n' >> "$mem/MEMORY.md"
+"$script" triage collect --limit 100 > "$tmp/mem3"
+race=$(kanban add race)
+mkdir -p "kanban/issues/$race/library"
+jq '{goal:"memory",collected:"2026-11-11T00:00:00Z",items:
+  [(.[]|select(.from=="race")|{key,decision:"fix",reason:"直せる",issue:{title:"race",repo:"example.invalid/me/app",profile:"claude",review:"off",brief:"解決すべき問題: race"}}),
+   (.[]|select(.from=="gone")|{key,decision:"close",reason:"要らない"})]}' "$tmp/mem3" > "kanban/issues/$race/library/decisions.json"
+mkdir -p "$tmp/race-bin"
+printf '#!/bin/sh
+[ "$1" = add ] && echo "書きかけの新しい学び" >> "%s/race.md"
+exec "%s" "$@"
+' "$mem" "$kanban" > "$tmp/race-bin/kanban"
+chmod +x "$tmp/race-bin/kanban"
+PATH="$tmp/race-bin:$PATH" "$script" triage apply "$race" > "$tmp/race-md"
+[[ $(cat "$mem/race.md") == $'race の学び\n書きかけの新しい学び' && ! -e $mem/gone.md ]]
+grep -q '(race.md)' "$mem/MEMORY.md" && ! grep -q '(gone.md)' "$mem/MEMORY.md"
+rec=$(ls kanban/library/triage/*-"$race".json)
+jq -e '[.items[]|select(.memory_kept)] | length==1 and .[0].decision=="fix" and (.[0].created_issue|length>0)' "$rec" >/dev/null
+jq -e '[.items[]|select(.decision=="close")][0] | has("memory_kept")|not' "$rec" >/dev/null
+grep -q '消さずに残した memory' "$tmp/race-md"
+echo 'ok memory: a file rewritten after collect is kept with its index line, reason in the record'
 echo 'all passed'

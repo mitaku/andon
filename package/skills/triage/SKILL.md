@@ -83,7 +83,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   (d) セルやプロジェクトの事実・学びで、長く残す価値がある → `close`「wiki へ: <題>」とし、報告の `## Next` に「Chief of Staff: wiki へ ingest（raw/memory/ に写す）: <key>」を1行。
   (e) その場限り・続き（台帳にあるべきもの）・決定（文書の PR にあるべきもの） → `close`「その場限り」。
   (f) 確かめるのに待つものがある → `keep`。`keep` のファイルは残り、次回も出る。
-  `apply` は `keep` 以外に仕分けた memory のファイルと、目録でそれを指す行を消す。本文と理由はトリアージの記録（`library/triage/`）に残る。
+  `apply` は `keep` 以外に仕分けた memory のファイルと、目録でそれを指す行を消す。本文と理由はトリアージの記録（`library/triage/`）に残る。収集のあと書き換わったファイルは消さずに残り（記録に `memory_kept`）、次のトリアージで拾い直す。
   ファイルが collect のあとに書き換わると key が変わり、`apply` は止まる（collect からやり直す）。
 - **`issue`**（担当の無い todo／queued）を `close` できるのは、今も担当が無い todo／queued のときだけ（`apply` が確かめる）。`close` すると `apply` がその報告の末尾に理由を足して done にする。
 
