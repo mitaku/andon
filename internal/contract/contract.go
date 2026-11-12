@@ -333,6 +333,7 @@ type Report struct {
 	Commit        string         `json:"commit,omitempty"` // repo の無い課題では書かない
 	PR            string         `json:"pr,omitempty"`
 	ReviewRequest *ReviewRequest `json:"review_request,omitempty"`
+	Estimate      *Estimate      `json:"estimate,omitempty"` // 担当の見込み。andon issue report が前の報告から引き継ぐ
 	Waived        []Waived       `json:"waived,omitempty"`
 	Acceptance    []Acceptance   `json:"acceptance,omitempty"`
 	Risk          *Risk          `json:"risk,omitempty"`
@@ -340,6 +341,12 @@ type Report struct {
 	Observation   *Observation   `json:"observation,omitempty"`
 	Remember      []string       `json:"remember,omitempty"`
 	AgentsMD      []string       `json:"agents_md,omitempty"`
+}
+
+// Estimate は担当の見込み（依頼書の見込みと違うと見たときだけ。ADR-0014 決めたこと 4）。課題の見込み（issue.yaml の estimate）は変えない。
+type Estimate struct {
+	Size   string `json:"size"`
+	Reason string `json:"reason"`
 }
 
 // Check は report.json の形を schema/report.schema.json と同じ決まりで確かめる。
@@ -362,6 +369,11 @@ func (r *Report) Check() error {
 			return errors.New("review_request.previous が sha でも null でもない")
 		case q.Reviewer != "codex-review" && q.Reviewer != "claude-review":
 			return errors.New("review_request.reviewer が codex-review/claude-review でない")
+		}
+	}
+	if e := r.Estimate; e != nil {
+		if (e.Size != "small" && e.Size != "medium" && e.Size != "large") || e.Reason == "" {
+			return errors.New("estimate は {size: small|medium|large, reason}")
 		}
 	}
 	for _, w := range r.Waived {

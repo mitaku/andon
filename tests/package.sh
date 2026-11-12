@@ -340,6 +340,10 @@ block package/skills/chief-of-staff/SKILL.md '# <id> <題>' | grep -qx -- '- Est
   && block package/skills/chief-of-staff/SKILL.md '# <id> 調べる: ' | grep -qx -- '- Estimate: 小' \
   && grep -q '同じ値で `kanban set <id> review=… .*`estimate`' package/skills/chief-of-staff/SKILL.md \
   && pass "Chief of Staff の雛形に Estimate の行があり、起き直しで estimate も打ち直す" || fail "chief-of-staff に Estimate の行か起き直しの estimate が無い"
+# ADR-0014 受け入れ条件 5・7（E4）: worker の報告の雛形の ## 計画 に見込みの反論の1行、--data に estimate（引き継ぐ）
+grep -q '^- 見込み: <段>（依頼書は <段>）。<理由>' package/skills/worker/SKILL.md \
+  && grep -q '`estimate`（§2 の見込みの反論）も `--data` に無ければ前の `report.json` から引き継ぐ' package/skills/worker/SKILL.md \
+  && pass "worker の報告の ## 計画 に見込みの反論の1行があり、report.json の estimate は引き継ぐ" || fail "worker に見込みの反論の1行か estimate の引き継ぎが無い"
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
 # インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起こす手順が残っていない
