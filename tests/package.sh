@@ -467,6 +467,18 @@ grep -q '^| 承認が要る（「人の go」で受ける） | 承認は要ら�
   && pass "worker skill の報告の書式に字数の上限が無く、1行に1件と理由がある" || fail "worker skill の報告の書式に字数の上限が残る"
 grep -q '`reach`.*指示ではない' "$w" && pass "worker skill に hc の reach は指示ではないとある" || fail "worker skill に reach の扱いが無い"
 
+# === 10b. Chief of Staff の行数・承認の段・起動の go・続きの文（A-0123。A-0117 の c6・c9・c10・c13） ===
+cos=package/skills/chief-of-staff/SKILL.md
+! grep -qE '2行まで|人(へ|に)1行|1行で(言|知らせ|伝え|返)' "$cos" && grep -q '人への文は短く、人がすることを先に書く。.*`/opt/andon/writing.md`' "$cos" \
+  && pass "chief-of-staff skill に人への文の行数の上限が無く、「短く。人がすることを先に」と writing.md を指す" || fail "chief-of-staff skill に行数の上限が残る"
+cos4=$(sed -n '/^## 4\. /,/^## 5\. /p' "$cos")
+grep -q '^     | Yes と答える | 人へ回す |$' <<<"$cos4" && grep -q 'force-with-lease` も含む' <<<"$cos4" && ! grep -q '外へ出さないものだけ' <<<"$cos4" \
+  && pass "chief-of-staff skill §4 に Yes と答える操作と人へ回す操作が並ぶ（自分の PR の branch への force-with-lease は Yes）" || fail "chief-of-staff skill §4 に承認の段の表が無い"
+sed -n '/^## 3\. /,/^## 4\. /p' "$cos" | grep -q '^2\. \*\*人の go を取ってから\*\*起動する。.*委譲の範囲の中.*`projects/<slug>/AGENTS.md` の Chief of Staff の節が「起動に人の go は要らない」' \
+  && pass "chief-of-staff skill §3 の起動の go に、ルーチン・委譲・プロジェクトの設定の例外がある" || fail "chief-of-staff skill §3 に起動の go の例外が無い"
+! grep -q '続きをして。終わったら kanban' "$cos" && grep -q '続きをして。終わり方は worker skill §7（andon issue report → andon issue ready）' "$cos" \
+  && pass "chief-of-staff skill の担当への続きの文が worker skill §7 を指す" || fail "chief-of-staff skill の続きの文が古い"
+
 # === 11. 価値のループ（ADR-0011 受け入れ条件 8・決めたこと 4・7・12・13） ===
 ce=package/skills/chief-engineer/SKILL.md
 ce_form=$(block "$ce" '# <題>（仕様・設計。')
