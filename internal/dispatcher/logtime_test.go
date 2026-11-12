@@ -38,3 +38,16 @@ func TestLogLineHasTimestamp(t *testing.T) {
 		t.Errorf("no config: got %q want %q", got, want)
 	}
 }
+
+// 実行環境に zoneinfo が無くても（time/tzdata を持っているので）台帳の timezone で出る。
+func TestLogTimezoneWithoutSystemZoneinfo(t *testing.T) {
+	t.Setenv("ZONEINFO", "/nonexistent")
+	t.Setenv("GOROOT", "/nonexistent")
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "kanban"), 0o755)
+	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\ntimezone: Asia/Tokyo\n"), 0o644)
+	p := &project{l: ledger.At(root)}
+	if got := p.location().String(); got != "Asia/Tokyo" {
+		t.Errorf("zoneinfo が無いと UTC に落ちる: %q", got)
+	}
+}

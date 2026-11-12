@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	_ "time/tzdata" // 実行環境に zoneinfo が無くても台帳の timezone を引けるようにする
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
@@ -199,7 +200,7 @@ func (c *Dispatcher) Pass(only string) bool {
 		p.l.Env = []string{"HC_TERMINAL_ID=" + Name}
 		b, err := p.pass()
 		if err != nil {
-			c.logf("%s: %v", p.l.Slug, err)
+			p.logf("%v", err)
 		}
 		busy = busy || b
 	}
