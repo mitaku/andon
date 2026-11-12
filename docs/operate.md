@@ -162,6 +162,33 @@ bin/bootstrap host-install
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
 - **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。
 
+### 版を上げるとき: host-install が置いたものを退避する
+
+`host-install` は今あるファイルを上書きしないので、版を上げて打ち直すと、前の版が置いたものは `! … はすでにあり、雛形と違う` と出て古いままになる。**その版の CHANGELOG の「host-install」の項に「雛形が変わった」とあるときだけ**、打ち直す前に次を退避する（`~/.local/bin/andon-up` など、自分で手を入れたものは先に差分を見て、残したい行を控える）。
+
+| 置かれるもの | 置き場 |
+|---|---|
+| `andon-up` | `~/.local/bin/andon-up` |
+| herdr の設定 | `~/.config/herdr/config.toml` |
+| ssh config | `~/.ssh/config.d/<project>.conf`（`andon-home.conf`） |
+| cloud-init の雛形 | セルの repo の `.andon/cloud-init.yaml` |
+| App の mod 5つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`。ディレクトリ） | App の設定フォルダの `mods/<名前>` |
+| App のレイアウト | App の設定フォルダの `layouts/andon.json`・`andon.svg` |
+
+```bash
+bak=~/andon-host-backup-$(date +%Y%m%d); mkdir -p "$bak"
+mv ~/.local/bin/andon-up ~/.config/herdr/config.toml ~/.ssh/config.d/andon-home.conf "$bak"/   # 変わったものだけでよい
+mv .andon/cloud-init.yaml "$bak"/                                                               # セルの repo で
+# App の mod とレイアウトは、変わったものだけ（例は inbox とレイアウト。mod は同じ名前の別ディレクトリへ）
+app=${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}
+mv "$app"/mods/inbox "$bak"/mod-inbox
+mv "$app"/layouts/andon.json "$app"/layouts/andon.svg "$bak"/
+bin/bootstrap host-install      # 全部 + になる。= は同じ、! が残るのは退避していないもの
+```
+
+- ファイルは名前が同じなので、`mv` の先に重ねない（日付を変える）。`.env` の `SSH_PORT`・`PORTLESS_PORT` を変えたときも ssh config は同じ手順。
+- 退避した古いものに手で足した設定があれば、打ち直したあとのファイルへ戻す。`keys.json`・`settings.json` は `host-install` が触らないので退避は要らない。
+
 ### 手元の端末から SSH で入る
 
 `host-install` が置いた ssh config（`~/.ssh/config.d/andon-home.conf`）の `Host andon-home` で、手元の端末からセルの中へ入る。sshd は**公開鍵が置いてあるときだけ**起きる。鍵は人の手元にある既存のものを使う（作り方はここでは扱わない）。
@@ -520,5 +547,6 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 版ごとの変更と「上げるときにすること」は [CHANGELOG.md](../CHANGELOG.md) に書く。**書くのは版を切るときだけ**で、PR ごとには触らない（全部の PR が版と CHANGELOG を触るとぶつかるので、その形は持たない。[design.md](design.md) §5）。
 
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前の版からの範囲は `git log <前の版>..origin/main`。各版に「変わったこと」（人の目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
+   `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト）を変えた版は、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「版を上げるとき」](#版を上げるとき-host-install-が置いたものを退避する)）を書く。変えていない版は書かない。
 2. **マージ**（人か Chief of Staff）。
 3. **annotated tag**: マージした commit に `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>"` を打って push する（打つのは人。tag の push で GHCR に image が出る。[image.md](image.md) の「CI と配布」）。
