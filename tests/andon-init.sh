@@ -157,13 +157,17 @@ cp "$andon_root/image/build.sh" "$andon_root/image/Dockerfile" "$co/image/"
 git -C "$co" init -q && git -C "$co" add . && git -C "$co" -c user.name=t -c user.email=t@example.com commit -qm init
 sha=$(git -C "$co" rev-parse HEAD)
 cp -P "$tmp/path/"* "$tmp/dpath/"
-for t in git env; do ln -s "$(command -v "$t")" "$tmp/dpath/$t"; done
+for t in git env seq; do ln -s "$(command -v "$t")" "$tmp/dpath/$t"; done
 # 偽の docker: 1回の呼び出しを1行に、argv を1つずつ [ ] で囲んで記録する（空白を含む引数の境界も比べる）。git は FAKE_SHA を答え、image inspect は FAKE_REVISION を答える
 cat >"$tmp/dpath/docker" <<'SH'
 #!/bin/bash
 { printf '[%s]' "$@"; echo; } >>"$FAKE_DOCKER_LOG"
 case "$*" in
   *"rev-parse HEAD") echo "$FAKE_SHA" ;;
+  *"compose "*" logs dev") echo '[andon boot] ready' ;;
+  "history "*) # 履歴（新しい段が上）: andon-x:local は FAKE_IMAGE_HISTORY、ほか（FROM）は FAKE_FROM_HISTORY。空なら手元に無い
+    case "${*: -1}" in andon-x:local) h=${FAKE_IMAGE_HISTORY:-} ;; *) h=${FAKE_FROM_HISTORY:-} ;; esac
+    [ -n "$h" ] && printf '%s\n' "$h" || exit 1 ;;
   "image inspect"*) [ -n "${FAKE_REVISION:-}" ] && echo "$FAKE_REVISION" || exit 1 ;;
 esac
 exit 0
@@ -197,6 +201,24 @@ dsandbox FAKE_REVISION="$sha" bash bin/bootstrap status >"$tmp/out" 2>&1
 grep -qxF "FROM: $tag（commit: $sha）" "$tmp/out" && pass "status は FROM と元の commit を出す" || fail "status: $(cat "$tmp/out")"
 dsandbox bash bin/bootstrap status >"$tmp/out" 2>&1
 grep -qxF "FROM: $tag（commit: 手元に無い）" "$tmp/out" && pass "status は image が手元に無いと言う" || fail "status（無い）: $(cat "$tmp/out")"
+
+# up: 手元の image が FROM の上に焼かれていないと分かれば、起こさずに rebuild を打てと止まる（#96）
+base=$'2026-11-02T00:00:00Z ENV HOME=/opt/andon-home\n2026-11-01T00:00:00Z COPY . /opt/andon'
+cell=$'2026-11-03T00:00:00Z RUN local/setup.sh\n'"$base"
+up_ok="$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d)"
+dsandbox FAKE_REVISION=x FAKE_FROM_HISTORY="$base" FAKE_IMAGE_HISTORY=$'2026-10-03T00:00:00Z RUN local/setup.sh\n2026-10-01T00:00:00Z COPY . /opt/andon' bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q "FROM（$tag）から焼いたものでない" "$tmp/err" && grep -q 'bin/bootstrap rebuild' "$tmp/err" && ! grep -qE '^\[build\]|\[(up|rm|rmi)\]' "$log" \
+  && pass "up は前の FROM で焼いた古い image なら起こさず rebuild を打てと止まる（docker を消さない・焼かない）" || fail "up（古い）: rc=$r $(cat "$tmp/err" "$log")"
+# 層を作らない段（ENV）だけが違う FROM でも止まる（A-0177 のレビュー）
+dsandbox FAKE_REVISION=x FAKE_FROM_HISTORY="$base" FAKE_IMAGE_HISTORY=$'2026-11-03T00:00:00Z RUN local/setup.sh\n2026-10-20T00:00:00Z ENV HOME=/home/andon\n2026-11-01T00:00:00Z COPY . /opt/andon' bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'bin/bootstrap rebuild' "$tmp/err" && ! grep -qF "$up_ok" "$log" \
+  && pass "up は FROM と ENV の段だけ違う image でも止まる" || fail "up（ENV 違い）: rc=$r $(cat "$tmp/err" "$log")"
+dsandbox FAKE_REVISION=x FAKE_FROM_HISTORY="$base" FAKE_IMAGE_HISTORY="$cell" bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -qF "$up_ok" "$log" && ! grep -q '^\[build\]' "$log" \
+  && pass "up は FROM の上に焼いた image ならそのまま起こす" || fail "up（合う）: rc=$r $(cat "$tmp/err" "$log")"
+dsandbox FAKE_REVISION=x FAKE_IMAGE_HISTORY="$cell" bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -qF "$up_ok" "$log" \
+  && pass "up は FROM の image が手元に無ければ（照らせないので）そのまま起こす" || fail "up（FROM 無し）: rc=$r $(cat "$tmp/err" "$log")"
 
 echo x >"$co/new-file"
 dsandbox bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>&1
