@@ -1393,4 +1393,26 @@ pk
 pp "$rs" finished | jq -e --arg a "$na" 'length == 1 and .[0].detail.agent == $a' >/dev/null || die "働かずに死んだ端末を finished で知らせない: $(jq -c .pending "$pst")"
 ok 'Gone の doing の担当は resume で起こして記録だけの resumed を書き、働かないまままた Gone なら打たずに finished を知らせる'
 
+# 25. 実働が見込みを超えた担当の課題は、段ごとに1回 estimate を Chief of Staff に積み、担当には何も打たない（ADR-0014 決めたこと 6・7。dispatcher.md §2.10）
+es=$(st_task '見込みを超える' w60); termp w60 working "$fresh"
+as_cos kanban set "$es" estimate=small >/dev/null
+# doing に入った行の時刻を mins 分前に書き換える（同じ長さの時刻なので、読んだ位置は替わらない）
+doing_ago() { local at; at=$(date -u -d "-$1 min" +%Y-%m-%dT%H:%M:%SZ)
+  sed -i -E "/\"id\":\"$es\".*\"status\":\"doing\"/ s/\"at\":\"[^\"]*\"/\"at\":\"$at\"/" "$P/log.jsonl"; }
+doing_ago 29
+clear_pending; pk
+[ "$(pp "$es" estimate)" = '[]' ] || die "見込みを超える前に estimate を積んだ: $(pp "$es" estimate)"
+doing_ago 31
+clear_pending; pk
+pp "$es" estimate | jq -e 'length == 1 and .[0].detail.estimate == "small" and .[0].detail.estimate_minutes == 30 and .[0].detail.stage == 1 and .[0].detail.worked_minutes == 31' >/dev/null \
+  || die "見込みの 1 倍を超えた estimate が無い・形が違う: $(jq -c .pending "$pst")"
+emit <(pp "$es" estimate | jq '.[0]') notification-estimate.json
+clear_pending; pk
+[ "$(pp "$es" estimate)" = '[]' ] || die "同じ段の estimate をもう一度積んだ: $(pp "$es" estimate)"
+doing_ago 61
+pk
+pp "$es" estimate | jq -e 'length == 1 and .[0].detail.stage == 2' >/dev/null || die "2 倍を超えた estimate が無い: $(pp "$es" estimate)"
+! grep -q '^send w60 ' "$tmp/hc/log" || die "見込みを超えた担当に hc send を打った: $(grep '^send w60 ' "$tmp/hc/log")"
+ok '実働が見込みの 1 倍・2 倍を超えた見回りでそれぞれ1回だけ estimate を積み、担当には hc send を打たない'
+
 echo "all passed ($pass)"

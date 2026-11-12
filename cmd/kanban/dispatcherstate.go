@@ -90,6 +90,15 @@ type dispatcherState struct {
 	Waits   map[string]string    `json:"waits,omitempty"`
 	GHReset string               `json:"gh_reset,omitempty"`
 	GHWait  int                  `json:"gh_wait,omitempty"`
+	// Estimate stages already notified (<issue>|estimate|<value>|<stage>)
+	Estimate map[string]bool `json:"estimate,omitempty"`
+	// When the dispatcher saw an issue's terminal gone (issue → terminal and Unix ms)
+	Gone map[string][]dsGoneAt `json:"gone,omitempty"`
+}
+
+type dsGoneAt struct {
+	Agent string `json:"agent"`
+	At    int64  `json:"at"`
 }
 
 type dsResumed struct {

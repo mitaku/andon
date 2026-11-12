@@ -1,0 +1,17 @@
+name: estimate
+title: 見込みとのズレ
+source: dispatcher.md §2.10・ADR-0014 決めたこと 5〜8・11 の 4。doing の担当の課題ごと。実働（待ちを除いた時間）を見込み（予約キー estimate）と比べ、超えた段を控える。担当の端末が Gone だと見た時刻は状態でないので positions に置く（実働から死んでいた区間を引く）
+states:
+  - id: within
+    title: 見込みの中（実働が見込みを超えていない・見込みが無い）
+  - id: over
+    title: 見込みの 1・2・4 倍を超えたと知らせた（段ごとに 1 回。課題・見込みの値・段の組を控える）
+    record: dispatcher:Estimate
+positions: [dispatcher:Gone]
+transitions:
+  - { from: "[*]", to: within, on: "課題が doing に入った", by: ai, command: kanban start }
+  - { from: within, to: over, on: "実働が見込みの 1 倍を超えた。estimate を Chief of Staff に届ける（担当には送らない。初めて見る台帳では控えるだけ。§7.2 #21）", by: machine, once: true }
+  - { from: over, to: over, on: "実働が見込みの次の段（2・4 倍）を超えた。estimate を 1 回届ける（§7.2 #21）", by: machine, once: true }
+  - { from: over, to: within, on: "Chief of Staff が見込みを改めた（古い値の段を捨てて数え直す）", by: ai, command: kanban set }
+  - { from: within, to: "[*]", on: "最初の列に戻った（todo・queued・done。控えを捨てる）", by: machine }
+  - { from: over, to: "[*]", on: "最初の列に戻った（todo・queued・done。控えを捨てる）", by: machine }
