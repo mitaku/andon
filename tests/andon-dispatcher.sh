@@ -86,7 +86,7 @@ case \$1 in
   get) [ ! -f "\$d/getfail" ] || ! grep -qx "\$2" \$d/getfail || { echo '{"error":{"kind":"internal","message":"x"}}' >&2; exit 1; }  # 一時の失敗
        grep -q "^\$2 " \$d/live || { echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; }
        [ "\${3:-}" != --json ] || cat \$d/term-\$2.json 2>/dev/null ;;
-  read) cat \$d/screen-\$2 2>/dev/null ;;                        # hc read <addr> [--lines n]: 文字だけの画面
+  read) cat \$d/screen-\$2 2>/dev/null || : ;;                      # hc read <addr> [--lines n]: 文字だけの画面
   label) echo "\$2 \$3" >> \$d/labels ;;
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 9) )); echo \$((n + 1)) > \$d/next
        task=\$(printf '%s\n' "\$@" | sed -n 's/^issue=//p')

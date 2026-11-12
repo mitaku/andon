@@ -541,6 +541,7 @@ func (p *project) chiefCut(cos string) {
 // 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
 // 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
 // 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
+// 送る前に入力欄を読み（hc read）、前に貼った文の1行目が残っていれば貼り直さず Enter だけ押す（LeftInInput。ADR-0007 R6）。
 func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (keep bool) {
 	id := t.Str("id")
 	switch {
@@ -552,6 +553,14 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 		if isReviewer(t) {
 			msg = p.reviewerFirst(id) // dispatcher が起こしたレビュアー（startReviewer と同じ文）
 		}
+		// 前に貼った文が入力欄に残っていれば（hc send が貼ったが Enter が効かなかった。ADR-0007 B5）、貼り直さず Enter だけ押す。
+		// 読めなければ送らない（重ねないほうに倒す。次の見回りで読み直す）
+		screen, err := hcOut("read", agent)
+		if err != nil {
+			p.logf("%s の担当 %s の入力欄を読めない（最初のメッセージは次の見回りで送る）: %v", id, agent, err)
+			return false
+		}
+		left := LeftInInput(screen, strings.SplitN(msg, "\n", 2)[0])
 		// 送る前に控えへ「送りかけ」を書いて保存する（送ってからラベルを外す前に dispatcher が落ちても、再開後に二度送らない。
 		// 送っている間に落ちたときは届いたか分からないまま送らない側に倒れる。担当は idle のままなので stalled で Chief of Staff に届く）
 		rk := id + "|" + agent
@@ -561,9 +570,13 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 			p.logf("%s の担当 %s に最初のメッセージを送らない（控えを書けない。次の見回りで）: %v", id, agent, err)
 			return false
 		}
+		args := []string{"send", agent, msg}
+		if left {
+			args = []string{"keys", agent, "enter"}
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "hc", "send", agent, msg)
+		cmd := exec.CommandContext(ctx, "hc", args...)
 		cmd.Env = withoutTerminal()
 		if err := cmd.Run(); err != nil {
 			// 送る前の保存と対: 送りかけをその場で消して保存する（pass の最後の保存より前に落ちても、次の見回りで送り直す）
@@ -574,7 +587,11 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 			p.logf("%s の担当 %s に最初のメッセージを送れない（次の見回りで送り直す）: %v", id, agent, err)
 			return false
 		}
-		p.logf("%s の担当 %s に最初のメッセージを送った（起こしたときに届かなかった分）", id, agent)
+		if left {
+			p.logf("%s の担当 %s の入力欄に最初のメッセージが残っていた。Enter だけ押した（貼り直さない）", id, agent)
+		} else {
+			p.logf("%s の担当 %s に最初のメッセージを送った（起こしたときに届かなかった分）", id, agent)
+		}
 	default:
 		return false // blocked・error: 画面が入力を受けられるようになるまで待つ
 	}
@@ -583,6 +600,24 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 	if err := cmd.Run(); err != nil {
 		p.logf("%s の担当 %s のラベル %s を外せない（控えに送ったと持つ）: %v", id, agent, spawn.FirstLabel, err)
 		return true
+	}
+	return false
+}
+
+// LeftInInput は画面（hc read）の入力欄の行に、最初のメッセージの1行目 first が残っているか。
+// 入力欄の行は、プロンプトの印（Claude Code の ❯、Codex の ›）で始まる最後の行（その上の同じ印の行は送った文の写し）。
+// 入力欄の薄い字のサジェストは色が無いと文と見分けられないが、1行目は課題の slug と id を含むので、まだ会話に入っていない文と
+// 同じ行がサジェストに出ることはない。印の無い画面（読めない形）は残っていないとみる（今までどおり送る）。
+func LeftInInput(screen, first string) bool {
+	if first = strings.TrimSpace(first); first == "" {
+		return false
+	}
+	lines := strings.Split(screen, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		l := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(l, "❯") || strings.HasPrefix(l, "›") {
+			return strings.Contains(l, first)
+		}
 	}
 	return false
 }
