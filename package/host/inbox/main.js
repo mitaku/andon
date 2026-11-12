@@ -17,6 +17,16 @@ const MEMORY = "inbox.memory";
 // Before the mod was renamed from focus-queue (2026-11-04).
 const OLD_MEMORY = "focus-queue.memory";
 const MSG_MAX = 60;
+// Andon's lights (ADR-0023), the logo's colors rather than the theme's: amber, answer it and it
+// moves on; red, its turn failed and needs looking into. `lamp` fills, `ink` writes on it.
+// The andon mod's lantern (../andon/brand.js) lights in the same colors.
+const GLOW = {
+  amber: { lamp: "#F0A202", ink: "#1F2328" },
+  red: { lamp: "#D8453B", ink: "#FFFFFF" },
+};
+const glowOf = (i) => (i.kind === "Failed" ? "red" : "amber");
+// What the lantern at the top of the column shows: red, amber, or null (unlit). Every copy sees it.
+const LANTERN = "inbox.lantern";
 
 const machineOf = (addr) => (addr.includes("/") ? addr.split("/")[0] : null);
 const LOCAL = "local";
@@ -40,9 +50,6 @@ const TALKS_TO_YOU = new Set(["chief-of-staff", "chief-engineer"]);
 export const ROLE_ICON = { "chief-of-staff": "mods/inbox/chief-of-staff.svg", "chief-engineer": "mods/inbox/chief-engineer.svg" };
 const ownRow = (k, listed) => Boolean(k.labels?.issue || (k.labels?.project && !listed.has(parentOf(k))));
 const urgent = (a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
-
-// A theme color ("#rrggbb") with an alpha byte added.
-const alpha = (color, aa) => /** @type {`#${string}`} */ (`${color}${aa}`);
 
 // The program's icon from Herdr's program table: a one-color glyph or a picture.
 function icon(p, size, color) {
@@ -201,6 +208,10 @@ export default class Inbox extends View {
     // Every machine, with how many wait on it and whether it is connected.
     const hosts = [{ name: LOCAL, away: false }, ...machines().filter((x) => x.name).map((x) => ({ name: x.name, away: x.layout === "unavailable" }))];
     const waits = (i) => i.section === "needs";
+    // The lantern speaks for every row that needs you, whatever the pick or filter hides.
+    const lit = items.filter(waits).map(glowOf);
+    const lantern = lit.includes("red") ? "red" : lit.length ? "amber" : null;
+    if ((shared(LANTERN) ?? null) !== lantern) setShared(LANTERN, lantern);
     const picked = this.picked?.filter((n) => hosts.some((x) => x.name === n)) ?? null;
     const here = (i) => !picked || picked.includes(i.machine);
     const pick = (id) => items.filter((i) => i.section === id && match(i) && here(i));
@@ -319,10 +330,11 @@ export default class Inbox extends View {
     this.pickMachines(next.length === all.length ? null : all.filter((n) => next.includes(n)));
   }
 
-  // The status mark, drawn as Herdr's own agents list draws it.
+  // The status mark, drawn as Herdr's own agents list draws it; a row that needs you is lit.
   mark(t, i) {
     if (i.status === "blocked" || i.reply) {
-      return div().flex_none().px(6).h(18).rounded(5).bg(alpha(t.blocked, "26")).text_size(10.5).font_semibold().text_color(t.blocked)
+      const g = GLOW[glowOf(i)];
+      return div().flex_none().px(6).h(18).rounded(5).bg(g.lamp).text_size(10.5).font_semibold().text_color(g.ink)
         .flex().items_center().child(i.kind ?? "Needs you");
     }
     if (i.status === "working") return svg(`${CHROME}/spinner.svg`).size(12).mx(1).flex_none().text_color(t.working).spin(900);
@@ -446,8 +458,10 @@ export default class Inbox extends View {
       .children(rows).child(all);
   }
 
-  heading(t, label, count, color) {
+  // A section's heading; `lamp` puts a lit dot before it.
+  heading(t, label, count, color, lamp = null) {
     return h_flex().px(8).pt(8).h(30).gap(6).flex_none().items_center().text_size(11).font_medium()
+      .when(Boolean(lamp), (el) => el.child(div().size(7).flex_none().rounded(4).bg(lamp)))
       .child(div().text_color(color).child(label))
       .child(div().text_color(t.dim).child(String(count)));
   }
@@ -465,7 +479,7 @@ export default class Inbox extends View {
         .child(svg(`${CHROME}/search.svg`).size(12).flex_none().text_color(t.dim))
         .child(div().child(`${this.filter}${this.typing ? "▏" : ""}`)));
     }
-    if (m.needs.length) body.push(this.heading(t, "Needs you", m.needs.length, t.blocked), ...m.needs.map((i) => this.row(t, m, i, keyboard)));
+    if (m.needs.length) body.push(this.heading(t, "Needs you", m.needs.length, t.foreground, GLOW.amber.lamp), ...m.needs.map((i) => this.row(t, m, i, keyboard)));
     else body.push(div().px(8).py(12).text_size(12).text_color(t.dim).child(this.filter ? "Nothing matches." : "Nothing needs you."));
     if (m.projects.length) body.push(this.heading(t, "Projects", m.projects.length, t.dim), ...m.projects.map((i) => this.row(t, m, i, keyboard)));
     const note = m.machines.length ? this.pickerNote(t, m) : null;

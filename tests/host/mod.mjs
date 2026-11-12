@@ -4,7 +4,10 @@ import vm from 'node:vm';
 
 let terminals = [], panes = [], spaces = [], calls = [];
 const context = vm.createContext({});
-const api = new vm.SyntheticModule(['terminals', 'panes', 'spaces', 'run'], function () {
+// The brand's imports (a copy with props {brand: true} draws the sidebar's top): unused by naming.
+const unused = ['props', 'theme', 'window', 'shared', 'setShared', 'layout'];
+const api = new vm.SyntheticModule(['terminals', 'panes', 'spaces', 'run', ...unused], function () {
+  for (const k of unused) this.setExport(k, () => undefined);
   this.setExport('terminals', () => terminals);
   this.setExport('panes', () => panes);
   this.setExport('spaces', () => spaces);
@@ -13,16 +16,23 @@ const api = new vm.SyntheticModule(['terminals', 'panes', 'spaces', 'run'], func
     calls.push([name, JSON.parse(JSON.stringify(args))]);
   });
 }, { context });
-const ui = new vm.SyntheticModule(['View', 'div'], function () {
+const ui = new vm.SyntheticModule(['View', 'div', 'svg'], function () {
   this.setExport('View', class {});
   this.setExport('div', () => ({}));
+  this.setExport('svg', () => ({}));
 }, { context });
+const base = new vm.SyntheticModule(['h_flex'], function () { this.setExport('h_flex', () => ({})); }, { context });
+const brand = new vm.SourceTextModule(await readFile('package/host/andon/brand.js', 'utf8'), { context });
 const mod = new vm.SourceTextModule(await readFile('package/host/andon/main.js', 'utf8'), { context });
-await mod.link(name => {
+const link = name => {
   if (name === 'herdr') return api;
   if (name === 'gpui-kit') return ui;
+  if (name === 'gpui-base') return base;
+  if (name === './brand.js') return brand;
   throw Error(`Unexpected import: ${name}`);
-});
+};
+await brand.link(link);
+await mod.link(link);
 await mod.evaluate();
 const view = new mod.namespace.default();
 const slug = 'sample-site';

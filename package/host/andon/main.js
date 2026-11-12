@@ -1,10 +1,13 @@
 import { View, div } from "gpui-kit";
-import { terminals, panes, spaces, run } from "herdr";
+import { terminals, panes, spaces, run, props } from "herdr";
+import { brand } from "./brand.js";
 
 // Read the actual pane placement: labels contain machine-local ids, while
 // spaces/panes use qualified ids for remote machines. Never create a target.
+// A copy with props {brand: true} draws the top of the sidebar instead and names nothing.
 export default class Andon extends View {
   render() {
+    if (props()?.brand) return brand();
     const all = new Map(terminals().map(t => [t.address, t]));
     const tabs = new Map();
     for (const space of spaces()) {
