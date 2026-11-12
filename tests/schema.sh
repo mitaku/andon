@@ -600,13 +600,13 @@ EMIT
   fi
 fi
 
-# 6. contract.md §8（端末の土台との約束）の表に Herdr App の置き場のラベルと人に端末を指す言い方がある（ADR-0002 受け入れ条件 4）。
+# 6. contract.md §8（hc との約束）の表に Herdr App の置き場のラベルと人に端末を指す言い方がある（ADR-0002 受け入れ条件 4）。
 # 端末のラベルは schema に入れず §8 の表だけで持つので、行があることをここで見る
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   sec8="$(awk '/^## 8\. /{on=1; next} /^## /{on=0} on' docs/contract.md)"
   row="$(grep '^| Herdr App の置き場のラベル |' <<<"$sec8" || true)"
-  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q '持ち主は Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
-    ok "contract.md §8: herdr.space・herdr.tab の行（持ち主 Herdr App・書き手 command と dispatcher・読み手 App）"
+  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q 'オーナーは Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
+    ok "contract.md §8: herdr.space・herdr.tab の行（オーナー Herdr App・書き手 command と dispatcher・読み手 App）"
   else ng "contract.md §8 に herdr.space・herdr.tab の行が無い・形が違う"; fi
   if grep -q '^| 人に端末を指す言い方 | `<Space 名> / <tab 名>`' <<<"$sec8"; then ok "contract.md §8: 人に端末を指す言い方の行"
   else ng "contract.md §8 に人に端末を指す言い方の行が無い"; fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 # playwright-cli: Playwright に同梱の agent CLI（`playwright cli`）の入口（ADR-0018）。
-# symlink では引数を足せないので wrapper にする。playwright は隣の agent-wrapper（セル固定の node で /opt/andon-tools/bin のものを起こす）
+# symlink では引数を足せないので wrapper にする。playwright は隣の agent-wrapper（セル固定の node で /opt/andon-tools/bin のものを起動する）
 set -euo pipefail
 exec "$(dirname "$0")/playwright" cli "$@"

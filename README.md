@@ -51,7 +51,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 - [docs/vision.md](docs/vision.md) — ビジョン・ミッション・バリューの1枚（それぞれ既存の決定に遡れる形）と、工程・役・仕組みの図（今あるもの・無いものを分けて描く）。提案
 - [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・dispatcher・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
-- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・端末の土台・フック・委譲・候補・流れの数え・人の手直し）。正は `schema/`（JSON Schema 10本。`tests/schema.sh` が例と突き合わせる）
+- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・hc・フック・委譲・候補・流れの数え・人の手直し）。正は `schema/`（JSON Schema 10本。`tests/schema.sh` が例と突き合わせる）
 - [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席中の待ち役）、どこまで動かすか（判断はしない）
 - [docs/operate.md](docs/operate.md) — セルを立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しの課題）
 - [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。全部の地図:
@@ -95,10 +95,10 @@ Andon は一人のソフトウェア工場で、セルはその中の持ち場�
 
 | 考え方 | 何がうれしいか |
 |---|---|
-| **セルの repo が、プロジェクトに要るものを持つ。** プロジェクトの指針（`projects/<slug>/AGENTS.md`）と skill（`projects/<slug>/.claude/skills/`）・セルの指針（`AGENTS.local.md`）・wiki・台帳（`projects/<slug>/kanban/`） | エージェントは起きるたびに、同じ場所から同じコンテキストを読む。指針・skill・wiki は git の履歴に残るので、別のマシンへ持ち運べ、壊れても clone から立て直せる。台帳は同じディレクトリにあるが git の外に置く（経過の記録で、セルの寿命のもの）。 |
+| **セルの repo が、プロジェクトに要るものを持つ。** プロジェクトの指針（`projects/<slug>/AGENTS.md`）と skill（`projects/<slug>/.claude/skills/`）・セルの指針（`AGENTS.local.md`）・wiki・台帳（`projects/<slug>/kanban/`） | エージェントは起動するたびに、同じ場所から同じコンテキストを読む。指針・skill・wiki は git の履歴に残るので、別のマシンへ持ち運べ、壊れても clone から立て直せる。台帳は同じディレクトリにあるが git の外に置く（経過の記録で、セルの寿命のもの）。 |
 | **イメージが境界になる。** セルは案件（信頼の境界）ごとに1つ立てる | 案件のあいだで、ファイル・資格情報・ログインが混ざらない。境界の中では、エージェントに「このフォルダを信頼するか」を毎回聞かずに任せられる。 |
 | **要る道具はイメージが持つ。** エージェントの CLI（Claude Code・Codex）・端末の herdr と hc・Playwright と焼いたブラウザ・Andon の command と skill（`/opt/andon`） | どのセルでも同じ道具が同じ版で揃い、ホストに要るのは docker と bash だけ。セルに固有の道具は、セルの repo の `local/` で足す。セルの repo にパッケージのファイルは無いので、Andon を直したら `FROM` の版を上げる PR 1本で全セルへ広がる。 |
-| **案件の repo は、セルの中へ迎え入れるだけ。** `.ghq/` に clone し、担当は課題ごとの worktree（`.worktrees/`）で働く | 案件の repo に台帳・セルの設定・作業の途中のものを置かない。案件の repo に入るのは担当の PR だけで、ふだんの git の repo のまま使える。`.ghq/` と `.worktrees/` はセルの git の外。 |
+| **案件の repo は、セルの中へ追加するだけ。** `.ghq/` に clone し、担当は課題ごとの worktree（`.worktrees/`）で働く | 案件の repo に台帳・セルの設定・作業の途中のものを置かない。案件の repo に入るのは担当の PR だけで、ふだんの git の repo のまま使える。`.ghq/` と `.worktrees/` はセルの git の外。 |
 
 何を追跡し何を外すか・別のマシンへの動かし方は [ADR-0005](docs/adr/0005-cell-repo.md)、`projects/<slug>/` の中は [ADR-0004](docs/adr/0004-project-layout.md)、wiki の形は [ADR-0016](docs/adr/0016-cell-wiki-llm-wiki.md)、語は [docs/design.md](docs/design.md) §0.1、パッケージがセルのどこに効くかは同じく §2.3、イメージの中身は [docs/image.md](docs/image.md)。
 

@@ -1,6 +1,6 @@
 # bin/bootstrap がイメージから取り出すもの（パッケージの持ち物。この repo では追跡しない）
 .andon/
-# 迎えた repo（それぞれが独立した git repo）
+# 追加した repo（それぞれが独立した git repo）
 .ghq/
 # 秘密と番号（SSH_PORT・PORTLESS_PORT・FILES_PORT）
 .env
