@@ -39,14 +39,12 @@ case "\$*" in
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
   "api graphql "*)  # statusCheckRollup.contexts を100件ずつ（after は前のページの件数）
     off=\$(printf '%s\n' "\$@" | sed -n 's/^after=//p'); echo "graphql \${off:-0}" >> \$d/pages
-    jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {repository: {pullRequest: {headRefOid: \$v[0].headRefOid,
+    jq --argjson off "\${off:-0}" --slurpfile v \$d/view.json '{data: {viewer: {login: "plant-bot"}, repository: {defaultBranchRef: {name: "main"}, pullRequest: {headRefOid: \$v[0].headRefOid,
       commits: {nodes: [{commit: {oid: \$v[0].headRefOid, statusCheckRollup: (if length == 0 then null else
         {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
-  "api repos/example/app --jq .default_branch") echo main ;;
-  "api user --jq .login") echo plant-bot ;;
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
   "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted ;;
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
@@ -127,6 +125,15 @@ rec="$lib/gate/$head.json"
 jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and (.review | has("issue") and (has("task") | not)) and .checks == [] and .merged == false' "$rec" >/dev/null
 grep -q 'status .*state=failure' "$tmp/gh/posted" && grep -q comment "$tmp/gh/posted"
 ok '委譲が無ければ needs_human（記録を書き、status と comment を付ける）'
+
+# 2a. base と作者は checks と同じ GraphQL の既定ブランチ・viewer と比べる（REST の repos/<slug>・user は打たない。打てば偽の gh が 99 で落ちる）
+cp "$tmp/gh/view.json" "$tmp/view0.json"
+jq '.baseRefName = "develop"' "$tmp/view0.json" > "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 4 needs_human 'base が既定ブランチでない'
+jq '.author.login = "someone-else"' "$tmp/view0.json" > "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 4 needs_human '作者がセルの gh アカウントでない'
+cp "$tmp/view0.json" "$tmp/gh/view.json"
+ok 'base が既定ブランチでない・作者が gh のアカウントでなければ needs_human（どちらも GraphQL で読む）'
 
 # 2b. 同時に2本（dispatcher の巡と手の andon gate）: 後の run は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（書かない・写さない）
 posted=$(wc -l < "$tmp/gh/posted")

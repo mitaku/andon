@@ -297,25 +297,11 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	def, err := gh("api", "repos/"+slug, "--jq", ".default_branch")
-	if err != nil {
-		return nil, "", err
-	}
-	actor, err := gh("api", "user", "--jq", ".login")
-	if err != nil {
-		return nil, "", err
-	}
 	if len(files) != pv.ChangedFiles {
 		facts.Blockers = append(facts.Blockers, "files の件数が changedFiles と合わない（一覧の上限・取得中の変更）")
 	}
 	if pv.MergeStateStatus == "DIRTY" {
 		facts.Blockers = append(facts.Blockers, "conflict")
-	}
-	if pv.BaseRefName != strings.TrimSpace(string(def)) {
-		facts.Blockers = append(facts.Blockers, "base が既定ブランチでない")
-	}
-	if pv.Author.Login != strings.TrimSpace(string(actor)) {
-		facts.Blockers = append(facts.Blockers, "作者がセルの gh アカウントでない")
 	}
 	if pv.IsCrossRepository {
 		facts.Blockers = append(facts.Blockers, "fork の PR")
@@ -354,12 +340,20 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 
 	// files・diff は head と別に取っている。取り直して動いていれば判定しない。
 	// GitHub の checks は head と同じ1回で読む（判定する head の checks だけを見る）
-	after, checks, err := ReadChecks(number, slug)
+	// 既定ブランチとセルの gh アカウントも同じ GraphQL で読む（変わらない値に REST の上限を使わない）
+	cr, err := readChecks(number, slug)
 	if err != nil {
 		return nil, "", err
 	}
+	after, checks := cr.Head, cr.Checks
 	if after != head {
 		return nil, fmt.Sprintf("判定の途中で PR の head が動いた（%s → %s）。取り直す", head, after), nil
+	}
+	if pv.BaseRefName != cr.DefaultBranch {
+		facts.Blockers = append(facts.Blockers, "base が既定ブランチでない")
+	}
+	if pv.Author.Login != cr.Viewer {
+		facts.Blockers = append(facts.Blockers, "作者がセルの gh アカウントでない")
 	}
 	// 記録の at は GitHub の checks を読んだ時刻（判定の事実のうち最後に外から読んだもの）。
 	// ゲートを始めた時刻にすると、その後に通った checks を前もって通ったように見せる（P7・v0.0.3）
@@ -502,8 +496,10 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 }
 
 // checksQuery は PR の head と、その commit の statusCheckRollup の contexts を100件ずつ読む。
+// gh のアカウント（viewer）と repo の既定ブランチも一緒に読む（ゲートが作者と base を見る）。
 const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
-  repository(owner: $owner, name: $name) { pullRequest(number: $number) { headRefOid
+  viewer { login }
+  repository(owner: $owner, name: $name) { defaultBranchRef { name } pullRequest(number: $number) { headRefOid
     commits(last: 1) { nodes { commit { oid statusCheckRollup { contexts(first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes { __typename
@@ -513,15 +509,29 @@ const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $afte
 // checksPages は読むページの上限（100件ずつ。超えたら読めないとして止める）。
 const checksPages = 50
 
-// ReadChecks は PR の head と、その head の GitHub の checks を全ページ読む（dispatcher もマージの直前に使う）。
+// ReadChecks は PR の head と、その head の GitHub の checks を全ページ読む（dispatcher がマージの直前と checks 待ちに使う）。
 // ページの間に head が動いたら、動いた先の head を返す（呼び手は自分の head と比べて止める）。
 func ReadChecks(number, slug string) (string, GitHubChecks, error) {
+	cr, err := readChecks(number, slug)
+	return cr.Head, cr.Checks, err
+}
+
+// checksRead は checksQuery で読んだもの。
+type checksRead struct {
+	Head          string
+	Checks        GitHubChecks
+	DefaultBranch string // repo の既定ブランチ
+	Viewer        string // gh のアカウント（login）
+}
+
+func readChecks(number, slug string) (checksRead, error) {
+	var cr checksRead
 	owner, name, _ := strings.Cut(slug, "/")
 	head, after := "", ""
 	var items []CheckItem
 	for page := 0; ; page++ {
 		if page == checksPages {
-			return "", GitHubChecks{}, fmt.Errorf("GitHub の checks が %d 件を超えて読みきれない", checksPages*100)
+			return checksRead{}, fmt.Errorf("GitHub の checks が %d 件を超えて読みきれない", checksPages*100)
 		}
 		args := []string{"api", "graphql", "-f", "query=" + checksQuery, "-f", "owner=" + owner, "-f", "name=" + name, "-F", "number=" + number}
 		if after != "" {
@@ -529,11 +539,17 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 		}
 		b, err := gh(args...)
 		if err != nil {
-			return "", GitHubChecks{}, err
+			return checksRead{}, err
 		}
 		var v struct {
 			Data struct {
+				Viewer struct {
+					Login string `json:"login"`
+				} `json:"viewer"`
 				Repository struct {
+					DefaultBranchRef *struct {
+						Name string `json:"name"`
+					} `json:"defaultBranchRef"`
 					PullRequest struct {
 						HeadRefOid string `json:"headRefOid"`
 						Commits    struct {
@@ -566,10 +582,15 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 		}
 		pr := &v.Data.Repository.PullRequest
 		if json.Unmarshal(b, &v) != nil || !contract.IsSHA(pr.HeadRefOid) || len(pr.Commits.Nodes) != 1 || pr.Commits.Nodes[0].Commit.Oid != pr.HeadRefOid {
-			return "", GitHubChecks{}, errors.New("PR の head と checks が読めない")
+			return checksRead{}, errors.New("PR の head と checks が読めない")
 		}
+		if v.Data.Viewer.Login == "" || v.Data.Repository.DefaultBranchRef == nil || v.Data.Repository.DefaultBranchRef.Name == "" {
+			return checksRead{}, errors.New("gh のアカウントと repo の既定ブランチが読めない")
+		}
+		cr.Viewer, cr.DefaultBranch = v.Data.Viewer.Login, v.Data.Repository.DefaultBranchRef.Name
 		if head != "" && pr.HeadRefOid != head {
-			return pr.HeadRefOid, GitHubChecks{}, nil // 読んでいる間に head が動いた
+			cr.Head = pr.HeadRefOid
+			return cr, nil // 読んでいる間に head が動いた
 		}
 		head = pr.HeadRefOid
 		roll := pr.Commits.Nodes[0].Commit.StatusCheckRollup
@@ -588,10 +609,11 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 			break
 		}
 		if after = roll.Contexts.PageInfo.EndCursor; after == "" {
-			return "", GitHubChecks{}, errors.New("GitHub の checks の続きのページが読めない")
+			return checksRead{}, errors.New("GitHub の checks の続きのページが読めない")
 		}
 	}
-	return head, SummarizeChecks(items), nil
+	cr.Head, cr.Checks = head, SummarizeChecks(items)
+	return cr, nil
 }
 
 // postGitHub は記録を PR の commit status（andon/gate）とコメントに写す。失敗しても判定は変えない。
