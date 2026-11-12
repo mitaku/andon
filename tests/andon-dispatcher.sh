@@ -972,6 +972,29 @@ wstart w5 --timeout 2
 [ "$(wend w5 5)" = 0 ] && [ ! -s "$tmp/w5.err" ] || die "working の Chief of Staff に張り直しの合図を打った: $(cat "$tmp/w5.rc" "$tmp/w5.err" 2>/dev/null)"
 ok 'timeout の 9 割まで打つ機会が無ければ、待ち役が張り直しの合図で 2 に終わる（working なら静かに 0）'
 
+# 13c. 提供元に切られた Chief of Staff を起こす StopFailure のフック（andon dispatcher rewake。ADR-0019 決めたこと 10）。
+# 待って合図する筋と、待ち役と同時に合図しても <news> が1回だけなのは Go のテスト（rewake_test.go。待ちが分の単位）。ここはすぐ 0 で通す筋と、Stop で数え直す筋
+rwf=$tmp/state/andon/dispatcher/demo.json.rewake
+rw() { # rw <端末> <入力>: フックそのものを打って終了コードを出す（5 秒で切る。待ったら 124）
+    local rc=0; HC_TERMINAL_ID=$1 timeout 5 sh "$hooks/stop-failure" <<<"$2" 2>"$tmp/rw.err" || rc=$?; echo "$rc"
+}
+cos error 8
+for in in '{"error":"authentication_failed"}' '{"error":"billing_error"}' '{}'; do
+    [ "$(rw t5 "$in")" = 0 ] && [ ! -s "$tmp/rw.err" ] || die "ほかの error で起こした・待った: $in"
+done
+term t7 error 1 project=demo issue=A-0001
+[ "$(rw t7 '{"error":"server_error"}')" = 0 ] || die '担当の端末で起こした・待った'
+[ ! -e "$rwf" ] || die '起こさない入力で回数を数えた'
+rc=0; HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/stop-failure" <<<'{"error":"server_error"}' || rc=$?
+[ "$rc" = 0 ] || die 'andon が無いときに通さない'
+echo '{"count":4}' > "$rwf"
+[ "$(rw t5 '{"error":"rate_limit"}')" = 0 ] && [ ! -s "$tmp/rw.err" ] || die '5 回目に起こした・待った'
+grep -q 't5 は提供元に切られて 5 回目（rate_limit）。起こさない' "$rwf.log" || die "5 回目のログが無い: $(cat "$rwf.log" 2>/dev/null)"
+cos done 8
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false}' >/dev/null
+[ ! -e "$rwf" ] || die 'Chief of Staff の Stop（ターンが通った）で回数を数え直さない'
+ok 'StopFailure のフックは、ほかの error・担当の端末・andon が無いときは待たずに 0、5 回目は 0 とログ1行。Chief of Staff の Stop で回数を数え直す'
+
 # 14. doing で報告無しの Stop が block（担当・レビュアーの Stop フック。stop-check）
 id=$(newtask '止まる前に報告する' person)
 wt=$ANDON_WORKSPACE/.worktrees/app/demo-$id

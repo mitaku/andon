@@ -41,6 +41,7 @@ const Usage = "usage: andon dispatcher [--project <slug>]          回り続け�
 	"       andon dispatcher --once [--project <slug>]   1回だけ回して終わる\n" +
 	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
 	"       andon dispatcher wait [--timeout <秒>] [--project <slug>]   待ち役（Chief of Staff の Stop フックが asyncRewake で起こす）\n" +
+	"       andon dispatcher rewake [--project <slug>]   提供元に切られた Chief of Staff を起こす（StopFailure フックが asyncRewake で起こす）\n" +
 	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起こす・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は Chief of Staff のフック（drain）が届ける。離席中は待ち役（wait）が合図で Chief of Staff を起こす（入力欄へは打たない）。\n" +
@@ -63,6 +64,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if len(args) > 0 && args[0] == "wait" {
 		return WaitMain(args[1:], stdin, stderr)
+	}
+	if len(args) > 0 && args[0] == "rewake" {
+		return RewakeMain(args[1:], stdin, stderr)
 	}
 	for i := 0; i < len(args); i++ {
 		switch {
