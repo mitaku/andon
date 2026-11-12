@@ -33,7 +33,11 @@ cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 d=$tmp/gh
 echo "\$*" >> \$d/calls   # 打ったもの（REST の回数を数える）
+case "\$*" in   # ghfail があれば、ゲートの最初の pr view がその文を stderr に出して落ちる
+  "pr view 7 --repo example/app --json state,isDraft,"*) [ ! -f \$d/ghfail ] || { cat \$d/ghfail >&2; exit 1; } ;;
+esac
 case "\$*" in
+  "api rate_limit") cat \$d/rate_limit.json ;;
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view 7 --repo example/"*" --json state,mergeCommit")   # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
     echo x >> \$d/states
@@ -738,6 +742,72 @@ q=$L/issues/$id/library/questions/1.json
 jq -e '.from == "gate" and (.facts | any(contains("1つも無いまま")))' "$q" >/dev/null || die "待ち時間を過ぎた none でゲートの needs_human の問いが出ない: $(cat "$q" 2>/dev/null)"
 checks COMPLETED SUCCESS
 ok 'GitHub の checks が1つも無い間も、github_checks_wait_minutes を過ぎるまではゲートを回さず（REST 0 回）、過ぎたらゲートが needs_human を返して問いになる'
+
+# 9d. ゲートが gh の上限（rate limit）で落ちたら、問いにせず控えの gates にも書かず、gh api rate_limit の reset までゲートを回さない
+id=$(newtask 'gh の上限' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+dispatcher
+gate_through "$id"
+reset=$(( $(date +%s) + 3600 ))
+jq -n --argjson r "$reset" '{resources: {core: {limit: 5000, remaining: 4000, reset: ($r + 600)}, graphql: {limit: 5000, remaining: 0, reset: $r}}}' > "$tmp/gh/rate_limit.json"
+printf 'GraphQL: API rate limit exceeded for user ID 1.\n' > "$tmp/gh/ghfail"
+merges=$(wc -l < "$tmp/gh/merges")
+dispatcher
+jq -e --arg t "$id" --arg r "$(date -u -d "@$reset" +%Y-%m-%dT%H:%M:%SZ)" '.gh_reset == $r and ([.gates[] | select(.issue == $t)] | length) == 0 and
+    ([.pending[] | select(.issue == $t and (.kind == "gate" or .kind == "asked"))] | length) == 0' "$state" >/dev/null ||
+    die "rate limit で控えに書いた・問いを出した・reset を graphql の値にしていない: $(jq -c '{gh_reset, pending: [.pending[] | select(.issue == "'"$id"'")]}' "$state")"
+[ ! -e "$L/issues/$id/library/questions" ] && grep -q "$id のゲートは gh の上限（rate limit）で落ちた" "$tmp/dispatcher.log" || die 'rate limit で問いを書いた・ログに無い'
+rm "$tmp/gh/ghfail"
+: > "$tmp/gh/calls"
+dispatcher
+[ ! -s "$tmp/gh/calls" ] || ! grep -qE '^pr view 7 --repo example/app --json state,isDraft|^api graphql ' "$tmp/gh/calls" || die "reset の前にゲート・checks を読んだ: $(cat "$tmp/gh/calls")"
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'reset の前にマージした'
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"   # reset を過ぎた
+dispatcher
+[ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'reset を過ぎてもゲートを回し直さない'
+jq -e '(.gh_wait // 0) == 0' "$state" >/dev/null || die "上限で落ちずにゲートが返ったのに gh_wait が残る: $(jq -c .gh_wait "$state")"
+ok 'ゲートが gh の上限で落ちたら、問いにも控えの gates にもせず、gh api rate_limit の reset まで回さない。過ぎたら回し直してマージする'
+
+# 9d2. secondary rate limit（rate_limit の残りがある。Retry-After は gh の出力に出ない）は1分から待ち、続けて落ちるたびに倍にする
+id=$(newtask 'gh の secondary 上限' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+dispatcher
+gate_through "$id"
+jq -n '{resources: {core: {remaining: 4000, reset: 0}, graphql: {remaining: 4000, reset: 0}}}' > "$tmp/gh/rate_limit.json"
+printf 'gh: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (HTTP 403)\n' > "$tmp/gh/ghfail"
+waited() { # waited <分>: gh_wait がその分で、gh_reset が今からおよそその分後
+    jq -e --argjson m "$1" --argjson now "$(date +%s)" '.gh_wait == $m and ((.gh_reset | fromdate) - $now - $m * 60 | fabs) < 30' "$state" >/dev/null ||
+        die "secondary rate limit の待ちが $1 分でない: $(jq -c '{gh_wait, gh_reset}' "$state")"
+}
+dispatcher; waited 1
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
+dispatcher; waited 2
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
+dispatcher; waited 4
+[ ! -e "$L/issues/$id/library/questions" ] || die 'secondary rate limit で問いを書いた'
+rm "$tmp/gh/ghfail"
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
+dispatcher
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && jq -e '(.gh_wait // 0) == 0' "$state" >/dev/null || die 'secondary rate limit が明けてもマージしない・gh_wait が残る'
+ok 'secondary rate limit（Retry-After は読めない）は1分から待ち、続けて上限で落ちるたびに2分・4分と延ばし、明ければ回し直して待ちを戻す'
+
+# 9e. rate limit 以外でゲートが落ちた（終了コード 3）なら、今どおり needs_human の問い
+id=$(newtask 'gh が落ちる' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+dispatcher
+gate_through "$id"
+printf 'HTTP 502: Bad Gateway\n' > "$tmp/gh/ghfail"
+dispatcher
+rm "$tmp/gh/ghfail"
+jq -e '.from == "gate" and (.question | contains("判定できなかった"))' "$L/issues/$id/library/questions/1.json" >/dev/null &&
+    jq -e '(.gh_reset // "") == ""' "$state" >/dev/null || die "rate limit でない終了コード 3 が needs_human の問いにならない: $(cat "$L/issues/$id/library/questions/1.json" 2>/dev/null)"
+ok 'rate limit でない gh の失敗でゲートが落ちたら、今どおり needs_human の問いにする（上限の控えは付けない）'
 
 # 9c. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
 id=$(newtask 'CI が走り直す' auto)

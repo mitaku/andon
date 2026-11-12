@@ -314,10 +314,18 @@ func run(dir string, env []string, stdin string, name string, args ...string) (s
 		if i := strings.IndexByte(msg, '\n'); i >= 0 {
 			msg = msg[:i]
 		}
-		return string(out), code, fmt.Errorf("%s %s: %v %s", name, strings.Join(args[:min(2, len(args))], " "), err, msg)
+		return string(out), code, &runError{fmt.Sprintf("%s %s: %v %s", name, strings.Join(args[:min(2, len(args))], " "), err, msg), errb.String()}
 	}
 	return string(out), 0, nil
 }
+
+// runError は run の err。Error は stderr の1行目まで、Stderr は stderr の全部。
+type runError struct {
+	msg    string
+	Stderr string
+}
+
+func (e *runError) Error() string { return e.msg }
 
 // andon は自分（andon）をこの台帳の根で打つ（by は terminal:dispatcher）。
 func (p *project) andon(stdin string, args ...string) (string, int, error) {

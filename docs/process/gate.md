@@ -10,6 +10,7 @@
 stateDiagram-v2
   state "待つ（review に入った行ごと。ゲートを回す）" as s_waiting
   state "GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない）" as s_checks_pending
+  state "gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない）" as s_rate_limited
   state "approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ）" as s_approved
   state "approve だがマージしない（merge person・委譲の外。人のマージの見張りへ）" as s_held
   state "fix（理由を担当へ送った）" as s_fix
@@ -24,6 +25,9 @@ stateDiagram-v2
   s_waiting --> s_checks_pending: ゲートを回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い）
   s_checks_pending --> s_checks_pending: 同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読むゲートは回さない）
   s_checks_pending --> s_waiting: head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りでゲートから）
+  s_waiting --> s_rate_limited: ゲートを回す（gh の rate limit で落ちた。問いにも控えの Gates にもしない）
+  s_rate_limited --> s_rate_limited: reset の時刻の前（ゲートも checks も読まない）
+  s_rate_limited --> s_waiting: reset の時刻を過ぎた（その見回りでゲートから）
   s_approved --> s_merged: マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）
   s_approved --> s_waiting: 読み直すと head か checks が替わっていた（次の見回りでゲートから）
   s_approved --> s_approved: 10 分たっても merged も asked も無い（届ける待ちに 1 回だけ積む）
@@ -41,6 +45,7 @@ stateDiagram-v2
 |---|---|---|
 | `waiting` | 待つ（review に入った行ごと。ゲートを回す） | `dispatcher:Gates` |
 | `checks-pending` | GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない） | `dispatcher:Waits` |
+| `rate-limited` | gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない） | `dispatcher:GHReset`・`dispatcher:GHWait` |
 | `approved` | approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ） | `dispatcher:Approved` |
 | `held` | approve だがマージしない（merge person・委譲の外。人のマージの見張りへ） |  |
 | `fix` | fix（理由を担当へ送った） |  |
@@ -60,6 +65,9 @@ stateDiagram-v2
 | `waiting` | `checks-pending` | ゲートを回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い） | 機械 | `andon gate` |  |
 | `checks-pending` | `checks-pending` | 同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読むゲートは回さない） | 機械 |  |  |
 | `checks-pending` | `waiting` | head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りでゲートから） | 機械 |  |  |
+| `waiting` | `rate-limited` | ゲートを回す（gh の rate limit で落ちた。問いにも控えの Gates にもしない） | 機械 | `andon gate` |  |
+| `rate-limited` | `rate-limited` | reset の時刻の前（ゲートも checks も読まない） | 機械 |  |  |
+| `rate-limited` | `waiting` | reset の時刻を過ぎた（その見回りでゲートから） | 機械 |  |  |
 | `approved` | `merged` | マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5） | 機械 | `gh pr merge --match-head-commit` | はい |
 | `approved` | `waiting` | 読み直すと head か checks が替わっていた（次の見回りでゲートから） | 機械 |  |  |
 | `approved` | `approved` | 10 分たっても merged も asked も無い（届ける待ちに 1 回だけ積む） | 機械 |  |  |
