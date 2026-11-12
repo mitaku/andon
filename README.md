@@ -75,6 +75,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0018 担当が画面を見て確かめる道具](docs/adr/0018-screen-check-tooling.md): 決定
   - [0019 人の書きかけに `<news>` を混ぜない](docs/adr/0019-cos-input-box.md): 提案
   - [0020 auto memory を気づきの受け皿にして wiki へ蒸留する](docs/adr/0020-auto-memory-as-intake.md): 提案
+  - [0021 pstack をセルに入れて試す](docs/adr/0021-pstack-in-cell.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
 - [REVIEW.md](REVIEW.md) — この repo のレビュアーの観点
