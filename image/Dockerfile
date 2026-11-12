@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
  && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/andon ./cmd/andon
 
 # andon は uid・gid 1000（ubuntu の既定の利用者を外して空ける）。セルの repo を /workspace に bind mount するので、
-# ホストの持ち主（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わないセルは bin/bootstrap が起こす前に止める
+# ホストのオーナー（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わないセルは bin/bootstrap が起動する前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 # ミラーの索引とプールが一時的にずれると install が 404 で落ちる。落ちたら update（索引の読み直し）からやり直す

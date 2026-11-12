@@ -62,12 +62,12 @@ require_docker() {
 }
 
 # セルの andon は uid 1000 で動く（image/Dockerfile）。セルの repo は /workspace に bind mount するので、
-# 持ち主が違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起こす前に止める。
+# オーナーが違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起動する前に止める。
 require_owner() {
   local owner
-  owner=$(stat -c %u "$root") || die "セルの repo（$root）の持ち主が読めない"
+  owner=$(stat -c %u "$root") || die "セルの repo（$root）のオーナーが読めない"
   [ "$owner" = 1000 ] && return 0
-  die "セルの repo（$root）の持ち主が uid $owner。セルの andon は uid 1000 で動くので、/workspace を読み書きできない。
+  die "セルの repo（$root）のオーナーが uid $owner。セルの andon は uid 1000 で動くので、/workspace を読み書きできない。
   回り道: uid 1000 の利用者でセルの repo を作り直して（andon init）、そこから打つ（docs/operate.md の 3）"
 }
 

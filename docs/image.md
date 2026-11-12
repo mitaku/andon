@@ -29,17 +29,17 @@ bash tests/image.sh
 
 担当が自分の変更を画面で確かめる道具は、焼いてある Playwright に同梱の `playwright cli`（[ADR-0018](adr/0018-screen-check-tooling.md)）。新しい備品は足さず、配線だけを焼く。
 
-- **入口**: `playwright`（`portless` と同じく `image/agent-wrapper` 経由でセル固定の node で起こす）と `playwright-cli`（`playwright cli "$@"` を呼ぶ wrapper。`image/playwright-cli`）を `~/.local/bin` に置く。実体の置き場 `/opt/andon-tools/bin` は PATH に入れない。
+- **入口**: `playwright`（`portless` と同じく `image/agent-wrapper` 経由でセル固定の node で起動する）と `playwright-cli`（`playwright cli "$@"` を呼ぶ wrapper。`image/playwright-cli`）を `~/.local/bin` に置く。実体の置き場 `/opt/andon-tools/bin` は PATH に入れない。
 - **設定**: `~/.playwright/cli.config.json`（`image/playwright/cli.config.json`）。cwd に依らず効く全体の設定で、ブラウザを焼いた Chromium に（同梱の既定は Google Chrome を探して落ちる）、出力（スナップショット・スクリーンショット）を `/tmp/playwright-cli` に置く（同梱の既定は cwd の `.playwright-cli/` で、担当の worktree の git に出る）。`~/.playwright` は volume に無いので image に焼く。
 - **確かめ**: `tests/image.sh` がネットワークを切ったコンテナで、コンテナの中の静的ページを `open` → `snapshot`（ref が出る）→ `screenshot`（PNG）→ `close` し、git の worktree に何も出ないことを見る。
 
 ## 信頼の画面（Claude Code・Codex）
 
-セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起こす直前の `andon task start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
+セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起動する直前の `andon task start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
 
-足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起こし、最初の画面だけを読んだ）:
+足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起動し、最初の画面だけを読んだ）:
 
-| 信頼した所 → 起こした所 | Claude Code 2.1.318 | Codex 0.166.0 |
+| 信頼した所 → 起動した所 | Claude Code 2.1.318 | Codex 0.166.0 |
 |---|---|---|
 | git の外の親 → その下の dir | 効く（`/` まで親を遡る） | 信頼の画面がもともと出ない |
 | git の repo の根 → repo の中の dir | 効く | 効く（画面に「Trusting will apply to the repository root」と出る） |
@@ -47,7 +47,7 @@ bash tests/image.sh
 | 元の repo の根 → その worktree | 効く | 効く |
 | worktree の置き場（実測は旧の `~/.herdr/worktrees`。今の `/workspace/.worktrees` も worktree の根より上の親）→ worktree | 効かない | 効かない |
 
-`tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起こしても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。版を上げたら同じ表を測り直す。
+`tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起動しても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。版を上げたら同じ表を測り直す。
 
 ## Codex の承認と sandbox
 

@@ -14,4 +14,4 @@ Secrets or personal values found in this repository or its history also count as
 
 ## 日本語
 
-脆弱性は GitHub の private vulnerability reporting（この repo の **Security** タブ → **Report a vulnerability**）で知らせてください。このボタンは、repo が public で、持ち主がこの機能を有効にしているときだけ出ます。ボタンが見えないときは、非公開の報告先を求めることだけを書いた issue を立ててください。脆弱性の中身は issue にも、ほかの public な場所にも書かないでください。対象（ファイル・コマンド・image の tag）・再現の手順・想定する影響を添えてください。1人の project なので、返事の期限は約束できません。repo やその履歴に秘密や個人に固有の値を見つけたときも、同じ方法で知らせてください。
+脆弱性は GitHub の private vulnerability reporting（この repo の **Security** タブ → **Report a vulnerability**）で知らせてください。このボタンは、repo が public で、オーナーがこの機能を有効にしているときだけ出ます。ボタンが見えないときは、非公開の報告先を求めることだけを書いた issue を立ててください。脆弱性の中身は issue にも、ほかの public な場所にも書かないでください。対象（ファイル・コマンド・image の tag）・再現の手順・想定する影響を添えてください。1人の project なので、返事の期限は約束できません。repo やその履歴に秘密や個人に固有の値を見つけたときも、同じ方法で知らせてください。
