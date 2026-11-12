@@ -18,6 +18,7 @@
 #      CoS skill の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
 #  14. 受け入れ条件の証拠の質（ADR-0007 R5）: contract.md §4 の acceptance[] の行・CE skill・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない。
 #  15. Advisor（ADR-0022 受け入れ条件 1・2）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
+#  16. 日報（ADR-0024 受け入れ条件 A1・A2）: worker skill の日報の節と工程表の振り返り、CoS skill の差し戻しの1行、用語集の「日報」。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -521,5 +522,16 @@ for f in "$c4" "$(grep '^\*\*受け入れ条件の節\*\*' "$ce")" "$(grep '^- `
     || miss="$miss [$(cut -c1-30 <<<"$f")]"
 done
 [ -z "$miss" ] && pass "contract.md §4 の acceptance[] の行・CE skill の受け入れ条件の節・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない、とある" || fail "受け入れ条件の証拠の質:$miss"
+
+# === 16. 日報（ADR-0024 A1・A2） ===
+miss=
+j=$(sed -n '/^### 日報（`library\/journal\.md`）/,/^### /p' "$w")
+for k in 'issues/<id>/library/journal.md' 'その場で' '報告を書く前に' '## 感じたこと' '## 改善できそうなこと' '判定に使われない' '差し戻されない' '秘密・資格情報は書かない'; do
+  grep -qF -- "$k" <<<"$j" || miss="$miss [$k]"
+done
+grep '^| 振り返り |' "$w" | grep -q '日報' || miss="$miss [工程表の振り返り]"
+grep -q '日報.*検収の判定に使わない。日報の中身.*を理由に差し戻さない' "$cos" || miss="$miss [CoS skill]"
+grep -q '^\*\*日報\*\*' package/skills/glossary/SKILL.md || miss="$miss [用語集]"
+[ -z "$miss" ] && pass "worker skill に日報の節（置き場・時機・2つの見出し・判定に使わない・秘密）と工程表の振り返り、CoS skill に差し戻さない1行、用語集に日報がある" || fail "日報:$miss"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
