@@ -7,7 +7,7 @@
 - セル（案件ごとの長寿命のコンテナ）の中。`hostname` がセルの名前（slug）。セルの repo は `/workspace`。
 - リポジトリは `/workspace/.ghq` の下（`ghq list`・`ghq get github.com/<owner>/<repo>`）。`projects/` の下に clone を置かない。
 - プロジェクトの台帳は `projects/<slug>/kanban/`。台帳は台帳の CLI（`kanban`）で読み書きする。
-- このシェルは herdr のペインの中。端末は `hc`（`hc ls`・`hc get`・`hc read`・`hc send`）。長く走らせるものはペインか `hc run --bg` で起こす（一時的なシェルで起こしたものは一緒に片付く）。
+- このシェルは herdr のペインの中。端末は `hc`（`hc ls`・`hc get`・`hc read`・`hc send`）。長く走らせるものはペインか `hc run --bg` で起こす（一時的なシェルで起こしたものは一緒に片付く）。skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill` で手引きを読む（状態の意味・終了コード。版で変わるので写さない。毎回は読まない）。
 - Andon の仕事の入口は `andon`（`andon help`）。パッケージは `/opt/andon`（読むだけ）。
 
 ## 道具と認証

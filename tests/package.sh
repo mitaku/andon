@@ -508,6 +508,11 @@ for f in package/environment.md package/skills/chief-of-staff/SKILL.md; do
 done
 [ -z "$miss" ] && pass "environment.md と chief-of-staff skill が herdr notification show を「TUI が動いているときだけ」と書く" || fail "herdr notification show の文言:$miss"
 
+# hc の手引き（A-0192）: 全役が読む environment.md に「hc --skill を読む」の1行がある
+grep -q 'skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill`' package/environment.md \
+  && sed -n '/^## 0\. 起きたとき/,/^毎ターン/p' package/skills/chief-of-staff/SKILL.md | grep -q '`hc --skill` を1回読む' \
+  && pass "environment.md は要るときだけ、chief-of-staff skill §0 は起きたときに hc --skill を読む" || fail "hc --skill を読む行（environment.md か chief-of-staff §0）が無い"
+
 # === 14. 受け入れ条件の証拠の質（ADR-0007 R5・A4） ===
 miss=
 c4=$(sed -n '/^## 4\. /,/^## 5\. /p' docs/contract.md | grep '^| `acceptance\[\]` |')

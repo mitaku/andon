@@ -49,8 +49,9 @@ EOF
    **アドレスが変わったら、開いている課題（`done` と、レビュアーの課題 `-rN` を除く）の予約キーを、今の値のまま `kanban set` で書き直す。**
    予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起こさず、ゲートは `needs_human` を返す。
    課題ごとに `kanban show <id>` で今の値を読み、同じ値で `kanban set <id> review=… must_fix=… reviewer=… review_rounds=… merge=…`（§2 の表。`estimate`・`deliverable`・`machine` があれば同じく）と打つ。値は変えない。`estimate` を打ち忘れると見込みが「無し」に落ち、ズレの通知が黙る。
-2. `projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節を見る（目標・指示・並行の上限・独立レビューを入れる条件）。無ければ並行の上限は 2。
-3. 下の「毎ターン」をして、§5 の止まった検知をする。
+2. `hc --skill` を1回読む（hc の状態の意味・終了コードの一次情報。版で変わるので写さない）。
+3. `projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節を見る（目標・指示・並行の上限・独立レビューを入れる条件）。無ければ並行の上限は 2。
+4. 下の「毎ターン」をして、§5 の止まった検知をする。
 
 毎ターン（人の発言・届いた文を処理する前に）:
 
