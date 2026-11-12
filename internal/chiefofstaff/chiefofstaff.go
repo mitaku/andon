@@ -2,7 +2,7 @@
 //
 //	andon chief-of-staff   projects/<slug>/ で打つ。最後に出た場所を「<Space 名> / <tab 名>」で出す
 //
-// することは4つ:
+// することは4つ（1〜3 は <slug>.cos.lock を持って1つずつ）:
 //  1. ラベル role=chief-of-staff project=<slug> の、動いている端末を探す。1つならそれを使う（名前と cwd が合うときだけ）。
 //     2つ以上なら止まる（1プロジェクトに1人）。数えるのは hc の agent が Claude Code の端末だけ。
 //     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"andon/internal/dispatcher"
+	"andon/internal/flock"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -81,7 +83,13 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		return die("%s が無いか symlink", config)
 	}
 
-	// 1プロジェクトに1人
+	// 1プロジェクトに1人。数えてから起こして config.yaml に書くまで lock を持つ（同時に2本打っても2人にしない。G5 を塞いだ。
+	// dispatcher.md §7.2 #10）。後の方は待ち、先の方が起こした端末を数えて使う
+	unlock, err := flock.Lock(Lock(slug))
+	if err != nil {
+		return die("%v", err)
+	}
+	defer unlock()
 	ls, err := spawn.Output(nil, "", "hc", "ls", "--json", "--label", "role="+Profile, "--label", "project="+slug)
 	if err != nil {
 		return die("hc ls に失敗: %v", err)
@@ -169,6 +177,11 @@ func Start(dir string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "andon chief-of-staff: %s の Chief of Staff は %s（%s・%s）。config.yaml の chief_of_staff: %s\n", slug, addr, name, how, addr)
 	fmt.Fprintf(stdout, "andon chief-of-staff: 出た場所 %s（%s）\n", where, addr)
 	return 0
+}
+
+// Lock は andon chief-of-staff が「数える→起こす→config.yaml に書く」の間持つ lock のパス（控えの置き場の <slug>.cos.lock）。
+func Lock(slug string) string {
+	return filepath.Join(filepath.Dir(dispatcher.StatePath(slug)), slug+".cos.lock")
 }
 
 // sameDir は a と b が同じディレクトリか（symlink を解いて比べる）。

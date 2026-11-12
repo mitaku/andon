@@ -22,6 +22,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/flock"
 	"andon/internal/ledger"
 )
 
@@ -207,6 +208,7 @@ func getenv(k, def string) string {
 }
 
 func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
+	began := time.Now()
 	if err := ledger.Check(); err != nil {
 		return nil, "", err
 	}
@@ -255,6 +257,15 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "issue.yaml に branch が無い", nil
 	}
 	slug := owner + "/" + name
+	if !dry {
+		// 記録を書いて PR に写す run は課題ごとに1つずつ（G2 を塞いだ。dispatcher.md §7.2 #4）。
+		// 待った間にほかの run が同じ head の記録を書いていれば、それを返して書かない・写さない（下の written）
+		unlock, err := flock.Lock(filepath.Join(l.Library(id), ".gate.lock"))
+		if err != nil {
+			return nil, "", err
+		}
+		defer unlock()
+	}
 
 	var pv prView
 	b, err := gh("pr", "view", number, "--repo", slug, "--json", "state,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,author,changedFiles,isCrossRepository,body,comments")
@@ -381,8 +392,15 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	path := filepath.Join(l.Library(id), "gate", head+".json")
 	if prev, err := os.ReadFile(path); err == nil {
 		var p Record
-		if json.Unmarshal(prev, &p) == nil && p.Decision == "fix" && p.Review.MustFixOpen > 0 {
-			facts.PreviousMustFix = true
+		if json.Unmarshal(prev, &p) == nil {
+			if !dry && written(path, began) {
+				// 同時に打たれたほかの run が、この run が lock を待つ間に同じ head を記録した（dispatcher の巡と手の andon gate）。
+				// 同じ事実から決めた記録なので、それを返す（「同じ head で2度目の Must fix」に数えない・PR に二重に付けない）
+				return &p, "", nil
+			}
+			if p.Decision == "fix" && p.Review.MustFixOpen > 0 {
+				facts.PreviousMustFix = true
+			}
 		}
 	}
 	rec.Decision, rec.Reasons = Decide(facts)
@@ -397,6 +415,12 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	}
 	postGitHub(slug, number, rec, stderr)
 	return rec, "", nil
+}
+
+// written は path の記録が began より後に書かれたか（この run が lock を待つ間に、ほかの run が書いた）。
+func written(path string, began time.Time) bool {
+	fi, err := os.Stat(path)
+	return err == nil && !fi.ModTime().Before(began)
 }
 
 func contains(xs []string, x string) bool {

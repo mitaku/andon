@@ -35,6 +35,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"andon/internal/flock"
 )
 
 // Usage は andon boot --help の中身。
@@ -117,6 +119,13 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := fixOwners(env); err != nil {
 		env.logf("volume の持ち主の修正に失敗（続行する）: %v", err)
 	}
+	// boot は1つずつ（G6 を塞いだ。dispatcher.md §7.2 #13・#14）。後の方は待ってから、同じ内容は書き直さずに通る
+	unlock, err := flock.Lock(env.lockPath())
+	if err != nil {
+		fmt.Fprintf(stderr, "andon boot: %v\n", err)
+		return 1
+	}
+	defer unlock()
 	if err := Generate(env); err != nil {
 		fmt.Fprintf(stderr, "andon boot: %v\n", err)
 		Start(env)
@@ -245,6 +254,11 @@ func (e Env) generate(path string, data []byte, mode fs.FileMode) error {
 
 func (e Env) statePath() string {
 	return filepath.Join(e.Home, ".local", "state", "andon", "boot.json")
+}
+
+// lockPath は andon boot が生成と起動の段の間持つ lock（boot.json と同じ置き場の boot.lock）。
+func (e Env) lockPath() string {
+	return filepath.Join(filepath.Dir(e.statePath()), "boot.lock")
 }
 
 func (e Env) loadState() map[string]string {

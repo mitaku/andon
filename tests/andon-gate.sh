@@ -128,6 +128,18 @@ jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.st
 grep -q 'status .*state=failure' "$tmp/gh/posted" && grep -q comment "$tmp/gh/posted"
 ok '委譲が無ければ needs_human（記録を書き、status と comment を付ける）'
 
+# 2b. 同時に2本（dispatcher の巡と手の andon gate）: 後の run は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（書かない・写さない）
+posted=$(wc -l < "$tmp/gh/posted")
+exec 9>"$lib/.gate.lock"; flock 9
+"$andon" gate "$id" >"$tmp/out" 2>"$tmp/err" & bg=$!
+sleep 1   # 後の run が lock を待ち始める
+jq '.reasons = ["ほかの run の記録"]' "$rec" > "$tmp/rec" && mv "$tmp/rec" "$rec"
+flock -u 9; exec 9>&-
+got=0; wait "$bg" || got=$?
+expect 4 needs_human 'ほかの run の記録'
+[ "$(wc -l < "$tmp/gh/posted")" = "$posted" ] && jq -e '.reasons == ["ほかの run の記録"]' "$rec" >/dev/null || die "lock を待つ間に書かれた記録を上書きした・PR に二重に付けた: $(tail -2 "$tmp/gh/posted")"
+ok '同時に打たれたゲートは lock を待ち、待つ間にほかが書いた同じ head の記録を返す（上書きしない・PR に二重に付けない）'
+
 # 3. andon delegate: 人が委譲を書く（project.json の delegation。project.json は先に人が書く）
 rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'project.json が無い' "$tmp/err" && [ ! -e project.json ] || die 'project.json が無いのに書けた'

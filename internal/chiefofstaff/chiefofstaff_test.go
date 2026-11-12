@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"andon/internal/flock"
 	"andon/internal/spawn"
 )
 
@@ -62,6 +63,7 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("KANBAN_ROOT", "")
+	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state")) // <slug>.cos.lock を一時の置き場に。セルの本物に書かない
 	t.Setenv("FAKE_LS", `{"terminals":[]}`)
 	t.Setenv("FAKE_GET", `{}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}`)
@@ -151,6 +153,31 @@ func TestStartsChiefOfStaff(t *testing.T) {
 	}
 	if f.chief_of_staff() != "t42" {
 		t.Errorf("chief_of_staff=%q", f.chief_of_staff())
+	}
+}
+
+// 同時に2本打っても2人にしない: lock を持たれている間は数えずに待ち、外れたら数えて起こす（dispatcher.md §7.2 #10）
+func TestWaitsForLock(t *testing.T) {
+	f := newFake(t)
+	unlock, err := flock.Lock(Lock("sample-site"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan int)
+	go func() { rc, _, _ := runMain(); done <- rc }()
+	time.Sleep(200 * time.Millisecond)
+	if f.has("hc ls") {
+		unlock()
+		t.Fatalf("lock を持たれているのに数えた: %q", f.calls())
+	}
+	unlock()
+	select {
+	case rc := <-done:
+		if rc != 0 || !f.has("hc run") {
+			t.Fatalf("rc=%d calls=%q", rc, f.calls())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("lock が外れても終わらない")
 	}
 }
 
