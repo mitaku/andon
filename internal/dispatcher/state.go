@@ -81,6 +81,8 @@ type State struct {
 	Estimate map[string]bool `json:"estimate,omitempty"`
 	// 担当の端末が Gone だと見た時刻（課題 → 端末と時刻。estimate.go が実働から死んでいた区間を引く。ADR-0014 決めたこと 5）
 	Gone map[string][]GoneAt `json:"gone,omitempty"`
+	// memory の件数が線を超えて memory を積んだ（線の下に戻ると false。memory.go。ADR-0020 決めたこと 4）
+	MemoryOver bool `json:"memory_over,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

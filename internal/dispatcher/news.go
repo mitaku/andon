@@ -110,6 +110,8 @@ func line(n Notification) string {
 	case "signal":
 		// 題は外の人の文。区切りと制御文字を消し、囲いの中に置く（ADR-0011 決めたこと 16）
 		return "signal: " + short("source") + " " + d("key") + "（" + d("url") + "）" + signal.Untrusted(d("title"))
+	case "memory":
+		return "memory: memory が " + d("count") + " 件で線（" + d("line") + " 件）を超えた。臨時のトリアージを足すかを決める"
 	case "stalled":
 		s := clean(n.Issue, 40) + " の担当 " + short("agent") + " が止まったまま"
 		if m := minutesSince(n); m >= 0 {

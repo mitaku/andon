@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate"]
+      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate", "memory"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -44,7 +44,9 @@
     { "if": { "properties": { "kind": { "const": "resumed" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/resumed" } } } },
     { "if": { "properties": { "kind": { "const": "estimate" } } },
-      "then": { "properties": { "detail": { "$ref": "#/$defs/estimate" } } } }
+      "then": { "properties": { "detail": { "$ref": "#/$defs/estimate" } } } },
+    { "if": { "properties": { "kind": { "const": "memory" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/memory" } } } }
   ],
   "$defs": {
     "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
@@ -189,6 +191,14 @@
         "worked_minutes": { "description": "Worked minutes, waits excluded, rounded down.", "type": "integer", "minimum": 0 },
         "ratio": { "description": "worked / estimate, two decimals.", "type": "number", "minimum": 0 },
         "stage": { "description": "Times the estimate it went over.", "enum": [1, 2, 4] }
+      }
+    },
+    "memory": {
+      "description": "kind memory: the cell's auto memory files (the index MEMORY.md excluded) went over the line. Once until the count falls back to the line or below. No issue.",
+      "type": "object", "required": ["count", "line"], "additionalProperties": false,
+      "properties": {
+        "count": { "description": "Number of memory files.", "type": "integer", "minimum": 1 },
+        "line": { "description": "The line it went over (count > line).", "type": "integer", "minimum": 0 }
       }
     }
   }

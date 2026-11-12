@@ -13,8 +13,8 @@ import (
 // memoryIndex は memory の目録。項目にしない（ADR-0020）。
 const memoryIndex = "MEMORY.md"
 
-// memoryDir は auto memory の置き場: <セルの repo>/memory（ANDON_WORKSPACE。既定 /workspace。ADR-0020 決めたこと 2）。
-func memoryDir() string {
+// MemoryDir は auto memory の置き場: <セルの repo>/memory（ANDON_WORKSPACE。既定 /workspace。ADR-0020 決めたこと 2）。
+func MemoryDir() string {
 	ws := os.Getenv("ANDON_WORKSPACE")
 	if ws == "" {
 		ws = "/workspace"
@@ -28,19 +28,13 @@ func (l *ledger) memoryItems() ([]Item, error) {
 	if l.memory == "" {
 		return nil, nil
 	}
-	entries, err := os.ReadDir(l.memory)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
+	entries, err := MemoryFiles(l.memory)
 	if err != nil {
-		return nil, fail("memory の置き場を読めない")
+		return nil, err
 	}
 	var got []Item
 	for _, e := range entries {
 		name := e.Name()
-		if !e.Type().IsRegular() || !strings.HasSuffix(name, ".md") || name == memoryIndex {
-			continue
-		}
 		path := filepath.Join(l.memory, name)
 		body, err := os.ReadFile(path)
 		if err != nil {
@@ -55,6 +49,25 @@ func (l *ledger) memoryItems() ([]Item, error) {
 		got = append(got, Item{Key: itemKey(l.slug, from, "memory", text), Kind: "memory", From: from, Text: text, AgeDays: age, path: path})
 	}
 	sort.Slice(got, func(i, j int) bool { return got[i].path < got[j].path })
+	return got, nil
+}
+
+// MemoryFiles は置き場の直下の memory のファイル（.md の普通のファイル。目録を除く）。置き場が無ければ空。
+// トリアージが拾うものと dispatcher が数えるもの（ADR-0020 決めたこと 4 の量の線）は、この1つで決まる。
+func MemoryFiles(dir string) ([]os.DirEntry, error) {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fail("memory の置き場を読めない")
+	}
+	got := entries[:0]
+	for _, e := range entries {
+		if name := e.Name(); e.Type().IsRegular() && strings.HasSuffix(name, ".md") && name != memoryIndex {
+			got = append(got, e)
+		}
+	}
 	return got, nil
 }
 

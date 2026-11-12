@@ -65,6 +65,7 @@ func (p *project) collect(cos string) {
 	p.estimate(now, cos) // 見込みとのズレ（dispatcher.md §2.10）
 	p.chiefCut(cos)
 	p.signals(now) // 外の信号（dispatcher.md §2.1.1 の 4e）
+	p.memory()     // auto memory の量の線（dispatcher.md §2.11）
 }
 
 // ---------------------------------------------------------------- log.jsonl の続き

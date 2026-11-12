@@ -307,6 +307,9 @@ fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_mi
 fail|notification|.kind = "estimate" | .detail = {estimate: "中", estimate_minutes: 60, worked_minutes: 61, ratio: 1.02, stage: 1}|estimate の値が段の名
 fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 31, ratio: 1.03}|estimate に stage が無い
 fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 31, ratio: 1.03, stage: 1, agent: "t7"}|estimate に知らないキー
+pass|notification|.kind = "memory" | .detail = {count: 31, line: 30} | del(.issue)|kind memory（issue 無し）
+fail|notification|.kind = "memory" | .detail = {count: 31} | del(.issue)|memory に line が無い
+fail|notification|.kind = "memory" | .detail = {count: 31, line: 30, dir: "/x"} | del(.issue)|memory に知らないキー
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "3 回打って失敗"}|kind impact（集められなかった）
@@ -539,6 +542,7 @@ notification|.properties.kind.enum -= ["signal"]|通知の kind から signal �
 notification|."$defs".signal.additionalProperties = true|通知 signal の detail の知らないキーを許す
 notification|."$defs".resumed.required -= ["from"]|通知 resumed の必須から from を外す
 notification|."$defs".estimate.properties.stage.enum += [3]|通知 estimate の段を緩める
+notification|."$defs".memory.required -= ["line"]|通知 memory の必須から line を外す
 project|."$defs".signal.properties.weight.enum += ["soon"]|signals の weight を緩める
 project|."$defs".signal.required -= ["source"]|signals の必須から source を外す
 signal|del(.properties.signals.uniqueKeys)|信号の fingerprint の一意を外す
@@ -608,6 +612,7 @@ notification-error.json|notification|andon dispatcher の通知 error
 notification-stalled.json|notification|andon dispatcher の通知 stalled
 notification-resumed.json|notification|andon dispatcher の記録だけの通知 resumed（Gone の担当を resume した）
 notification-estimate.json|notification|andon dispatcher の通知 estimate（実働が見込みを超えた）
+notification-memory.json|notification|andon dispatcher の通知 memory（memory の件数が線を超えた）
 EMIT
   fi
 fi

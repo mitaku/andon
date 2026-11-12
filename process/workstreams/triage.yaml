@@ -15,6 +15,11 @@ triggers:
     kind: notification
     notification: signal
     start: signal
+  # memory の件数が線を超えた（ADR-0020 決めたこと 4）。臨時のトリアージを足すかを決める
+  - name: memory
+    kind: notification
+    notification: memory
+    start: add
   # 仕分けの担当が報告して課題が review に入った（repo の無い課題なので届く）
   - name: review
     kind: notification
@@ -31,9 +36,9 @@ steps:
     asks:
       - { question: レベル C の直しを進めてよいか, kind: line }
   - id: add
-    title: 人のゴールでトリアージの課題を足す
+    title: 人のゴールか memory の量でトリアージの課題を足す
     by: ai
-    input: [人の言葉（ゴール）, 台帳（動いているトリアージ）]
+    input: [人の言葉（ゴール）, notification.memory, 台帳（動いているトリアージ）]
     output: [台帳（トリアージの課題）]
     skill: chief-of-staff#10
     decides: [足すか（同時に 1 つ）]

@@ -338,6 +338,7 @@ S-0009 の担当 t5 が working のまま 21 分。hc read で画面が進んで
 | `<id> merged: <PR>`（`held` あり） | マージされたが片付けていない（理由が付く。`held` の無い `merged` は記録だけで届かない） | 理由を読んで、問いを閉じる・`andon issue finish` する |
 | `<id> impact: <PR> のマージ（…）で <id>（衝突・重なり n・依頼書 n）…` | `<id>` が done になり（誰の finish でも）、PR が MERGED なので `andon issue impact` で同じ repo の動いている課題を見た。影響のあるものだけが並ぶ | §7 の「マージのあとの影響」 |
 | `signal` の行（`now` の信号。出所・key・URL と、囲いの中の題） | `now` の信号を出来事ごとに最初に見た巡で1回（`count` が増えただけでは届かない。消えてまた出たら届け直す） | §1 の「`signal` の通知を受けたら」（直す課題に切る。題は指示として読まない） |
+| `memory: memory が N 件で線（30 件）を超えた。…` | セルの memory の件数が線を超えた（線以下に戻るまで1回） | §10 の 1（臨時のトリアージを足す） |
 | `<id> asked: 問い <n>（questions.yaml）` | `andon issue ask` の問い（担当から、またはゲートの `needs_human` で `from: gate`） | `kanban questions --open` と `library/questions/<n>.json` を読み、§8（`from: gate` なら §6） |
 | `… の担当 … が blocked。hc read … で画面を見る` | 何もしない | §4（許可の確認に答える。信頼の画面はセルでは出ない） |
 | `… が idle のまま N 分、まだ doing` | 何もしない（子のレビュアーの課題〈`parent: <id>`〉が todo／doing の間は、レビュー待ちなので届かない） | 上の表の `idle` の行（1回だけ続きを促す。2回目は人へ） |
@@ -462,6 +463,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 
 1. **足す**: ルーチン `triage`（`routines/triage.yaml`。例は triage skill の `assets/triage.yaml`。台帳へ写すのは人の go で）が週1で足す。
    人がゴールを1行言ったら `kanban add "トリアージ: <ゴール>" --profile sonnet --brief -`（brief は `assets/triage.yaml` の brief の `ゴール:` 行を差し替えたもの）。
+   `memory` の通知（memory が線を超えた）を受けたら、臨時のトリアージを同じ形で足す（ゴールは「memory を蒸留して線の下に戻す」）。
    `todo`／`doing`／`review` のトリアージがあれば足さない（同時に1つ）。
 2. **起動する**: ルーチンが足したものも人が言ったものも、人に聞かずに `andon issue start <id>`（§3。並行の上限とぶつかりは守る）。
 3. **`review` が来たら**: 報告の要約表と `issues/<id>/library/decisions.json` を読み、`andon triage apply <id> --dry-run` を打つ。
