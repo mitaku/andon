@@ -91,9 +91,9 @@ RUN uv python install 3.14.10 --default \
  && echo 'eval "$(direnv hook bash)"' >> "${HOME}/.bashrc" \
  && echo '[ -r /etc/andon-bashrc ] && . /etc/andon-bashrc' >> "${HOME}/.bashrc"
 ENV CLAUDE_CONFIG_DIR=/opt/andon-home/.claude
-ARG CLAUDE_VERSION=2.1.318
-ARG CLAUDE_SHA256_AMD64=708c77b204db30086ff6f1ed34577bda03e1be74ced80557cbf7b54249ebf0bd
-ARG CLAUDE_SHA256_ARM64=53a0d7e219d7b0804ecba5dbc002745e89f786cc946d2de85a6470d5b2d1fb06
+ARG CLAUDE_VERSION=2.1.322
+ARG CLAUDE_SHA256_AMD64=bfb3703ad5380242328459bc62ada4bde8ae7ba57c6e1eeadb9c00e08874c478
+ARG CLAUDE_SHA256_ARM64=f220ca50ea4f3222043ff83cc224a1262e0196e9897acc0871efa94235b0c1fd
 RUN case "$(dpkg --print-architecture)" in \
       amd64) platform=linux-x64; checksum="${CLAUDE_SHA256_AMD64}" ;; \
       arm64) platform=linux-arm64; checksum="${CLAUDE_SHA256_ARM64}" ;; \
