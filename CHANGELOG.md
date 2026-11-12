@@ -8,7 +8,38 @@
 
 ## 未リリース
 
-- **台帳の CLI の別名 `deck` を外した**: image の `/usr/local/bin/deck`・Tab 補完・`kanban --help` の行を消し、skill・文書・コード・テストの台帳の CLI を指す `deck` を `kanban` にした（A-0050）。上げるときは image を焼き直す（`rebuild`）。
+（まだ無い）
+
+## v0.0.11 — 2026-11-12
+
+サイドバーに行燈の見た目が入り、Chief of Staff に Advisor（Fable）を試験運用で付け、auto memory を全部の役に入れた版。ほかに、台帳の CLI の別名 `deck` の廃止、pstack の試用（ADR-0021）、担当の日報（ADR-0024）、dispatcher と gate の rate limit・lock の守りが入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` の変更は項目と値を足しただけ）。
+
+### 変わったこと
+
+- **台帳の CLI の別名 `deck` を外した**: image の `/usr/local/bin/deck`・Tab 補完・`kanban --help` の行を消し、skill・文書・コード・テストの台帳の CLI を指す `deck` を `kanban` にした（#211）。
+- **サイドバーに「あんどん」らしさを出した**（[ADR-0023](docs/adr/0023-sidebar-andon-look.md)）: Inbox の Needs you を、答えれば進む行は琥珀、失敗して止まった行は赤にし、一番上を Herdr のロゴから Andon の行燈にした（L2・L3。#222）。畳んだ列には行燈を出さなくてよい（#218。ADR は #217）。
+- **Chief of Staff に Advisor（Fable）を試験運用で付けた**（[ADR-0022](docs/adr/0022-advisor-and-chief-engineer.md)）: Chief Engineer の役は残す。`chief-of-staff` のプロファイルに `--advisor fable` を足した（V1。#224。ADR は #212）。
+- **auto memory を全部の役に入れた**（[ADR-0020](docs/adr/0020-auto-memory-as-intake.md) M3）: managed settings で `autoMemoryEnabled: true`、置き場は `/workspace/memory`。環境メモ・chief-of-staff skill・`init/.gitignore` も合わせた（#192）。
+- **提供元に切られた Chief of Staff を `StopFailure` のフックで起こす**（[ADR-0019](docs/adr/0019-cos-input-box.md) 決めたこと 10）: `hooks/stop-failure` が `andon dispatcher rewake` を打つ（#198）。
+- **dispatcher と gate の守りを足した**: gate が gh の rate limit で落ちたら問いにせず reset まで待って回し直す（#228）。gate の checks 待ちの回し直しで REST を読まない（#221）。dispatcher・gate・chief-of-staff・boot の lock（[ADR-0007](docs/adr/0007-interim-gap-inventory.md) R7。#209）。最初のメッセージを送り直す前に入力欄を読み、残っていれば Enter だけ押す（#201）。dispatcher の端末の出力の行に時刻を付けた（#231）。見回りが Chief of Staff に送らないことを確かめる検査の競合を直した（#207・#232）。
+- **全役が `hc` の手引きを読む**: 環境メモと chief-of-staff skill に `hc --skill` を読む行を足した。Chief of Staff は起きたとき、ほかの役は要るときだけ読む（#229）。
+- **担当の指針**: 担当が課題ごとに日報（過程・感想・改善の思いつき）を書く（[ADR-0024](docs/adr/0024-worker-journal.md)。#227）。最初のメッセージで `AGENTS.worker.md` を指す（[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) R6。#204）。受け入れ条件の証拠の質を書いた（R5・A4。#203）。worker skill に読み返しの 1 行を足し、日本語の脱字を直した（#223）。`writing.md` に URL を全角の括弧・文字と離して書く決まりを足した（#214）。
+- **pstack を試す**（[ADR-0021](docs/adr/0021-pstack-in-cell.md)）: 担当の作法を外の pstack から借りる。plugin の登録と自動更新は、セルの利用者の `settings.json` に書かれた状態を正とする（#210・#215・#213。`design.md` の出所は #216）。パッケージの既定は変えない。
+- **triage**: `kind: signal` の項目を拾い、`apply` が signal の key を通す（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) S4。#206）。課題に切られた信号を `links` の `url` に加えて `key` でも照らす（github-ci の run ごとの url に対応。#226）。
+- **`andon issue finish` が出所の issue に結果を書き戻す**（ADR-0011 S9）: `write_back: true` の GitHub issue に 1 コメント書く（#205）。
+- **`andon measure`**: 課題ごとのトークン数（#208）と、通知の素通りの数（#202）を足した。
+- **`bin/bootstrap up` が古い image で黙って起きない**: 手元の image が Dockerfile の FROM から焼いたものでないと分かれば、起こさず `rebuild` を打つよう止める（#219）。
+- **image**: Claude Code を 2.1.318 から 2.1.322 に上げた。
+- **README と文書**: セルの考え方とよさの節と English summary の Why a cell（#200）、`herdr notification show` の文言（#199）、host-install の退避の手順（#225）、CI で文書だけの PR は文書を読む検査だけを走らせる（#220）。
+
+### 上げるときにすること
+
+- image を上げて `rebuild` する。台帳の形式（3）・schema の版（`/2`）は変わらず、前の版の台帳・`library/` はそのまま読める。**台帳のための手作業は無い**。
+- **`deck` を打っているものは `kanban` に直す**: image から別名 `deck` を外したので、セルの中のスクリプトや手順書で `deck` を打っていれば `kanban` にする。
+- **Chief of Staff を起こし直す**: managed settings（auto memory・`StopFailure` のフック）・プロファイル（`--advisor fable`）・skill の変更は、動いている Claude Code に効かない。Chief of Staff（と動いている担当）を `hc kill` して `andon chief-of-staff` で起こし直す（[docs/operate.md](docs/operate.md) の Chief of Staff の行）。dispatcher は boot が起こし直す。
+- **前の雛形で作ったセルは `.gitignore` に `memory/` を足す**: セルの repo で `grep -qx 'memory/' .gitignore || echo 'memory/' >> .gitignore` を 1 回打つ（`/workspace/memory/` を git で追わない。[docs/operate.md](docs/operate.md) §2）。
+- **host-install**: サイドバーの行燈で `package/host/` の `andon` の mod（`main.js`・`brand.js`・`lantern-*.svg`・`LICENSE`・`README.md`）、`inbox` の mod、レイアウト（`layouts/andon.json`・`andon.svg`）が変わった。`andon-up`・herdr の設定・ssh config・cloud-init の雛形は変わっていない。`host-install` は今あるファイルを上書きしないので、App の設定フォルダの `mods/andon`・`mods/inbox` と `layouts/andon.json`・`layouts/andon.svg` を退避してから `bin/bootstrap host-install` を打つ（[docs/operate.md](docs/operate.md) §4「版を上げるとき: host-install が置いたものを退避する」）。置き直さなければ、前の見た目のまま動く。
+- **pstack を使うなら**: セルの利用者の `~/.claude/settings.json` に `extraKnownMarketplaces`（`cursor-plugins`）と `enabledPlugins`（`pstack@cursor-plugins`）を書く。書かなければ何も入らない。
 
 ## v0.0.10 — 2026-11-12
 
