@@ -49,7 +49,8 @@ const Usage = "usage: andon dispatcher [--project <slug>]          回り続け�
 	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起動する・ゲートを回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は Chief of Staff のフック（drain）が届ける。離席中は待ち役（wait）が合図で Chief of Staff を起動する（入力欄へは打たない）。\n" +
-	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
+	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない間（留守）も回し、配る段だけ止める（戻った最初の <news> に留守の1行）。\n" +
+	"chief_of_staff が設定に無い台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
 	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。届けない通知は横の <slug>.recorded.jsonl に1行ずつ。\n"
 
 // Name は dispatcher の端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
@@ -150,33 +151,44 @@ type Dispatcher struct {
 	Now   func() time.Time // ログの時刻（無ければ time.Now。検査用）
 
 	unwaited map[string]string // 待ち役がいないとログに書いた待ち（台帳ごと。同じ待ちを二度書かない）
-	skip     map[string]string // 台帳を飛ばしているとログに書いた理由（台帳ごと。同じ理由を二度書かない）
+	skip     map[string]string // 台帳を飛ばしている・留守だとログに書いた理由（台帳ごと。同じ理由を二度書かない）
 }
 
 // cosDown は Chief of Staff の端末が生きていない理由（生きていれば空）。
 func cosDown(cos string) string {
-	if cos == "" {
-		return "config.yaml の chief_of_staff が空"
-	}
 	if exec.Command("hc", "get", cos).Run() != nil {
 		return "端末 " + cos + " が live でない"
 	}
 	return ""
 }
 
-// skipped は台帳を飛ばし始めたとき（理由が変わったときも）ログに1行と、人に気づける通知を1つ出す。同じ理由が続く間は出さない。
-func (p *project) skipped(cos, reason string) {
+// skipped は台帳を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、人に気づける通知を1つ出す。
+// 同じ理由が続く間は出さない。
+func (p *project) skipped(reason string) {
 	if p.c.skip[p.l.Slug] == reason {
 		return
 	}
-	if p.c.skip == nil {
-		p.c.skip = map[string]string{}
-	}
-	p.c.skip[p.l.Slug] = reason
-	p.logf("台帳を飛ばす（宛先 %q: %s。レビュアーも人のマージも拾わない）", cos, reason)
+	p.c.mark(p.l.Slug, reason)
+	p.logf("台帳を飛ばす（%s。レビュアーも人のマージも拾わない）", reason)
 	cmd := exec.Command("herdr", "notification", "show", "andon dispatcher: "+p.l.Slug+" を飛ばしている", "--body", reason)
 	cmd.Env = withoutTerminal()
 	_ = cmd.Run() // herdr が無い・失敗でも巡は続ける（ログの1行は出ている）
+}
+
+// absent は Chief of Staff の留守に入ったとき（理由が変わったときも）ログに1行だけ出す（ADR-0017 決めたこと 8）。
+func (p *project) absent(cos, reason string) {
+	if p.c.skip[p.l.Slug] == reason {
+		return
+	}
+	p.c.mark(p.l.Slug, reason)
+	p.logf("Chief of Staff の留守（宛先 %q: %s）。配る段だけ止め、拾う・コマンドを打つ段は回す。届ける通知は待ちに積む", cos, reason)
+}
+
+func (c *Dispatcher) mark(slug, reason string) {
+	if c.skip == nil {
+		c.skip = map[string]string{}
+	}
+	c.skip[slug] = reason
 }
 
 func (c *Dispatcher) logf(format string, a ...any) { c.logIn(time.UTC, format, a...) }
@@ -227,6 +239,7 @@ type project struct {
 	l     *ledger.Ledger
 	st    *State
 	first bool
+	away  bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
 	rows  []ledger.Row
 	tasks []ledger.Issue
 }
@@ -238,11 +251,16 @@ func (p *project) logf(format string, a ...any) {
 // pass の段の順は docs/dispatcher.md §2.1.1 の表で固定している。変えるときは表も直す。
 func (p *project) pass() (bool, error) {
 	cos := p.l.ChiefOfStaff()
-	if reason := cosDown(cos); reason != "" {
-		p.skipped(cos, reason) // Chief of Staff が起動したときに台帳を自分で読む（dispatcher.md §2.1）
+	if cos == "" {
+		p.skipped("config.yaml の chief_of_staff が空") // 留守と区別する（ADR-0017 決めたこと 8 の (a)）
 		return false, nil
 	}
-	delete(p.c.skip, p.l.Slug)
+	if reason := cosDown(cos); reason != "" {
+		p.away = true
+		p.absent(cos, reason) // 配る段だけ飛ばす（dispatcher.md §2.1）
+	} else {
+		delete(p.c.skip, p.l.Slug)
+	}
 	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
 	if err != nil {
 		return false, err
@@ -253,6 +271,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.st, p.first = st, first
+	p.markAway(now())
 	if p.tasks, err = p.l.List(); err != nil {
 		return false, err
 	}
@@ -284,10 +303,28 @@ func (p *project) pass() (bool, error) {
 	p.impacts()         // マージのあとの影響（dispatcher.md §2.5）
 	p.corrections()     // 人の手直し（dispatcher.md §2.6・contract.md §14）
 	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
-	if !p.first {
+	if !p.first && !p.away {
 		p.unwaited(cos) // 経路③は待ち役。dispatcher は打たず、待ち役がいなければログに1行（dispatcher.md §3・§4）
 	}
 	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
+}
+
+// markAway は控えの留守の記録を巡の始めに合わせる（ADR-0017 決めたこと 8 の (b)）。留守に入ったら始まりを書き、
+// 戻ったら終わりを書く（消すのは戻った最初の <news> を描いた drain）。留守の間に何も積まなかったら、戻ったときに消す。
+// 終わりを書いたあと drain の前にまた留守になったら、同じ留守の続きとして終わりを消す。
+func (p *project) markAway(at string) {
+	a := p.st.Away
+	switch {
+	case p.away && a == nil:
+		p.st.Away = &Away{Since: at}
+	case p.away:
+		a.Until = ""
+	case a == nil:
+	case a.Count == 0:
+		p.st.Away = nil
+	case a.Until == "":
+		a.Until = at
+	}
 }
 
 // tick は kanban tick を1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。

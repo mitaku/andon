@@ -43,10 +43,13 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 ### 2.1 見回り
 
 - セルの各プロジェクトの台帳を回る。**待ちが無ければ1分ごと、待ちがあれば5秒ごと**（仮の値。設定で替えられる）。
-- プロジェクトの Chief of Staff（`config.yaml` の `chief_of_staff`）の端末が生きていなければ、その台帳は丸ごと飛ばす（飛ばし始めたときにログへ1行〈台帳・宛先・理由〉と `herdr notification show` を1つ。同じ理由が続く間は繰り返さず、理由が変わるか、生き返ってまた飛ばしたときに出し直す）。Chief of Staff は起動したときに台帳を自分で読むので、留守の間に積む必要が無い。
+- プロジェクトの Chief of Staff（`config.yaml` の `chief_of_staff`）の端末が生きていない間（**留守**）も、その台帳は回す。止めるのは配る段（§2.1.1 の 4d・6）だけで、拾う・記録する・コマンドを打つ段（`kanban tick`・レビュアーの起動・ゲートとそのあとのマージと片付け〈委譲の範囲の中〉・人のマージの拾い・影響・手直し・`andon signal collect`）は同じ判定で回し、届ける通知は `Pending` に積む（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 8）。留守に入ったときはログへ1行（台帳・宛先・理由。同じ理由が続く間は繰り返さず、戻ってまた留守になったら出し直す）。
+  - 留守の始まりは控えの `Away` に持つ（`since`。留守の間に積んだ通知の数を `count` に、**置き換えの前の数**で数える）。戻ったと見た巡で `until` を書く。留守の間に何も積まなかったら、戻った巡で消す。
+  - 戻った最初の `<news>` は今と同じ1通で、先頭に「留守の間（`since`〜`until`）に N 件」の1行が付く（経路①②の `drain`。経路③の待ち役は合図だけなので、そのターンの終わりに①で付く）。付けたら `Away` を消す。要約はしない（Chief of Staff は起動したときに台帳を自分で読む）。
+  - `chief_of_staff` が設定に無い台帳は、今どおり丸ごと飛ばす（留守と区別する。飛ばし始めたときにログへ1行〈台帳・理由〉と `herdr notification show` を1つ）。
 - 端末に出すログは1行ずつで、頭に秒までの時刻（RFC 3339）が付く。時刻は台帳の `config.yaml` の `timezone` で、無ければ UTC。台帳に属さない行は UTC。機械が読む記録（控え・`log.jsonl`・`recorded.jsonl`）には付けない。例:
   `2026-11-12T16:05:09+09:00 andon dispatcher: andon: A-0050 のレビュー（2 回目）を A-0050-r2（t15y）で起動した`
-- 1 巡ごとに `kanban tick` を 1 回打つ（ルーチンの `schedule` が来たものを課題にする。置き場は §2.1.1 の 3a）。台帳の CLI の仕事を、周期を持つ dispatcher が代わりに起動するだけ。打つのは dispatcher だけで、cron は置かない（§7.2 #8）。Chief of Staff がいない台帳は飛ばすので、留守の間の時刻は Chief of Staff が戻った最初の巡で 1 度にまとめて撃たれる（台帳の決まり）。
+- 1 巡ごとに `kanban tick` を 1 回打つ（ルーチンの `schedule` が来たものを課題にする。置き場は §2.1.1 の 3a）。台帳の CLI の仕事を、周期を持つ dispatcher が代わりに起動するだけ。打つのは dispatcher だけで、cron は置かない（§7.2 #8）。Chief of Staff の留守の間も打つ（足した課題の `ready` は待ちに積む）。
 - **初めて見る台帳**（控えが無い）は、通知の元（§2.2・§2.3）について今の ready と `log.jsonl` の位置を控えるだけで送らない（過去の出来事を一度に流さない）。
   ただし `doing` の課題の今の `review_request`（§5）は拾う。commit が PR の head と同じことを確かめてから起動するので、過去の出来事ではなく、いま止まっている工程だから（dispatcher が止まっている間に出たレビュー依頼を取りこぼさない。2026-11-06 の P7）。
   二重に起動しない守りは控えではなく台帳で持つ: その commit のレビュアーの子課題がもうあれば引き継ぐ（§5 の「二度起動しない」）。
@@ -57,16 +60,16 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 | # | 段 | 何をする | 読み・書き |
 |---|---|---|---|
-| 0 | 生きているか | Chief of Staff の端末を `hc get`。無ければこのプロジェクトは**丸ごと飛ばす**（下の段も回らない。§2.1） | 読むだけ |
+| 0 | 留守か | `chief_of_staff` が設定に無ければこのプロジェクトは**丸ごと飛ばす**（下の段も回らない）。Chief of Staff の端末を `hc get` し、無ければ**留守**（配る段 4d・6 だけ飛ばし、ほかは回す。§2.1） | 読むだけ |
 | 1 | 控えの lock | `drain`（フック）と控えを取り合わないよう、控えの lock を巡の終わりまで持つ | — |
-| 2 | 控えを読む | 控え（初めてなら「初めて見る台帳」＝`first`）を読む | 読むだけ |
+| 2 | 控えを読む | 控え（初めてなら「初めて見る台帳」＝`first`）を読む。留守なら `Away` の始まりを、戻ったなら終わりを書く（§2.1） | 読むだけ・控えに書く |
 | 3 | 台帳を1回だけ読む | 課題の一覧と `log.jsonl` の全行を**この1回だけ**読む。以降の段はこの写しを使う | 読むだけ |
 | 3a | ルーチンを撃つ（`tick`） | `kanban tick` を 1 回打つ。足した課題は 3 の写しに無いが、4a の `ready` の差で同じ巡に拾う。初めて見る台帳（前回の ready が無い）は、打つ前の ready を先に控え、`tick` が足した分だけを拾う（過去の ready は流さない。届けるのは次の巡の 6）。失敗（読めないルーチン・lock が取れない）はログに 1 行で、巡は止めない（§2.1） | 台帳に書く（台帳の CLI） |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` に積む（§2.5・§2.6） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
-| 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4） | ログだけ |
+| 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4）。留守なら端末が無いので何もしない | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限でゲートを止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る台帳でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
 | 4f | memory の量 | セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory`）の件数を数え、線（30 件）を超えたら `memory` を1度積む（§2.11。初めて見る台帳でも積む） | 控えに書く |
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` ならゲートを回し**（`gate`・マージ・`fix`・問い）、**続けて人がマージしたかを見る**（PR ごとに1分に1回だけ `gh pr view`。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
@@ -74,7 +77,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
 | 5c | 人の手直し | 控えの `Corrections` の課題ごとに `library/corrections.json` を1回だけ書く（§2.6）。もう在れば書かない | 台帳の `library/` と控えに書く |
 | 5d | approve のまま止まった | 記録だけにした `gate` の approve（`merge: auto`。控えの `Approved`）のうち、10分たっても `merged` も `asked` も無いものを `Pending` へ1回だけ積む。`review` にいない課題の分は捨てる（§3.2） | 控えに書く |
-| 6 | 届ける（経路③） | 初めて見る台帳でなければ、§4 の守りがそろったときだけ `hc send`。送ったら `Pending` を空にする | 端末に打つ |
+| 6 | 届ける（経路③の見張り） | 初めて見る台帳でも留守でもなければ、届ける待ちがあり Chief of Staff が入力を待っているのに待ち役がいないときだけログに1行（dispatcher は打たない。届けるのは①②の `drain`。§4.2）。留守の間は飛ばす（待ちは `Pending` に残る） | ログだけ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いている課題（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
 
 `kanban tick`（§2.1）は**3 と 4 の間**（3a）に置く。ルーチンが足した課題を同じ巡の `ready`（4a）で拾えるように。
@@ -115,7 +118,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 位置には最初の行の hash を添える。台帳の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
 - **ready は履歴ではなく差で拾う。** ルーチンが足した課題・`queued` から戻った課題・人が足した課題を、同じ1本の道で拾える（出来事ごとに拾い方を増やさない）。
 - **Chief of Staff 自身が起動した変化は知らせない**（`by` が `terminal:<chief_of_staff>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起動した変化は知らせる。
-- 積むとき、**同じ課題の同じ出来事は新しい1件に置き換える**。課題の無い `signal` は、同じ信号（`detail` の `source` と `key`。fingerprint はこの2つから決まる）だけを置き換える（別の信号どうしは消し合わない）。
+- 積むとき、**同じ課題の同じ出来事は新しい1件に置き換える**。課題の無い `signal` は、同じ信号（`detail` の `source` と `key`。fingerprint はこの2つから決まる）だけを置き換える（別の信号どうしは消し合わない）。`asked` は問いの `n` ごとの出来事で、同じ課題の2つ目の問いが1つ目を消さない（ADR-0017 決めたこと 8 の (d)）。
 - `review` の `detail.pr` は `report.json` の `pr`。PR の無い報告（レビュアー・repo の無い課題）は `report` として知らせる（schema が `pr` を要するため）。
 - 拾った通知を Chief of Staff に届けるか、記録だけにするかは §3.2 の表で決まる。この表の `kind` はどれも拾い続け、記録だけのものも消さない。
 - 問いの JSON（`library/questions/<n>.json`）は台帳の行のあとに置かれるので、無ければ1回だけ次の見回りまで待つ（その行から読み直す）。それでも無い・読めなければ飛ばしてログに残す。
@@ -385,7 +388,7 @@ dispatcher は一度に作らず、ラインの手に合わせて育てる（des
 **端末を起動する・中身を戻す**: 端末はセルに1つで、名前は `dispatcher`。`hc run --keep` で起動するので、core が起動し直すと（`hc server restart`・Herdr App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで、中身がシェルに替わる（hc は元の command を打ち直さない）。
 そこで「端末がある」ではなく「前に出ているもの（`hc get` の `foreground.argv`）が `andon dispatcher`」で動いていると見る。無ければ起動する。シェルなら、そのシェルには打ち込まず（入力欄に人の打ちかけがあれば、それに足して実行してしまう）、dispatcher 専用の端末なので `hc keep --off`・`hc kill`・`hc rm` で片付けて、同じ名前・ラベルで起動し直す（名前で引くと片付けた端末に当たりうるので address で打つ）。前に何も出ていない（替わる途中）・シェルでも `andon dispatcher` でもないもの（人が何か動かしている）が出ているときは触らない。
 `andon dispatcher` が動いていても、置き場のラベル（`herdr.space`・`herdr.tab`）が今の置き場と違えば、同じ手で片付けて今の置き場で起動し直す。今の置き場は台帳の数で決まり、台帳が1つならそのプロジェクトの Space、それ以外はセルの名前の Space になる（[contract.md](contract.md) §8）。台帳が無いまま起動したあとで `andon create` したときなどに、この違いが出る。見回りの途中では止めない。dispatcher は1回の見回りの間だけ lock（控えの置き場の `.pass.lock`）を持ち、確かめる側はそれが取れたときだけ起動し直す。取れなければ触らず、次のフックか boot に任せる。`andon create` は台帳を作ったあと同じ確かめをし、見回りの途中ならそれが終わるまで待つ。フックが来なくても、これで置き場が合う。`.pass.lock` のファイルが無ければ、動いているのは見回りの間 lock を持たない前の版なので置き直さず、その旨を返す（端末が起動し直すと今の版で合う）。
-確かめるのは boot（毎起動）と Chief of Staff のフック（`andon dispatcher drain`。毎ターン）。core の起動し直しは boot を通らないが、dispatcher が回るのは Chief of Staff が生きている台帳だけ（§2.1）で、Chief of Staff が動けば必ずフックが走るので、これで足りる。
+確かめるのは boot（毎起動）と、Chief of Staff のフック（`andon dispatcher drain`。毎ターン）と、担当・レビュアーの Stop フック（`andon issue stop-check`。毎ターン）。core の起動し直しは boot を通らない。dispatcher は Chief of Staff の留守にも回る（§2.1）ので、Chief of Staff のフックだけでは留守の間に戻せない。留守の間に動いているのは担当なので、担当のターンの終わりにも同じ確かめを打つ（ADR-0017 決めたこと 8 の (e)。[decisions/2026-11-12-dispatcher-ensure-from-worker-hook.md](decisions/2026-11-12-dispatcher-ensure-from-worker-hook.md)）。誰も動いていない間は戻らないが、その間は拾う出来事も担当の側からは出ない。
 作り直し（`bin/bootstrap down` のあと作り直す）のあとは、herdr-core が前の端末を名前とラベルのまま中身を素のシェルにして戻し、戻った直後は前に出ているものがまだ取れないことがある。boot は取れるまで数秒読み直してから同じ見分けをし、取れないままなら「確かめられなかった」とログに書く（「すでに動いている」とは書かない。フックは待たずに次のターンに任せる）。Chief of Staff・Chief Engineer の戻った端末（top-level の argv ごと素のシェル。起動した端末は template の command のまま）はそれぞれの command の打ち直しで、担当・レビュアー・Chief Engineer の戻った端末は見回りが Gone と見て `andon issue resume` で続きから起動する（§2.9。起動できなければ `finished` で知らせる）。
 dispatcher 自身の見張りでは戻せない（止まっているのは dispatcher）。hc にも元の command を打ち直す機能は無い。複数のフックと boot が重なっても二重に打たないよう、確かめは lock の中で1つずつ（2026-11-06 の P7）。
 
@@ -453,7 +456,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 
 | # | 処理 | 走らせる者（指揮側のマシンで 1 つ） | 二重に走ったら | 今の守り |
 |---|---|---|---|---|
-| 1 | dispatcher 自身の起動 | `andon boot` の `dispatcher` の段と、Chief of Staff の Stop フック（`drain` の `ensure`）。**どちらも `Ensure`** | 2 つの `andon dispatcher` が同じ台帳を回す（同じレビュアーを起動する・同じ PR をマージしにいく） | ①`.terminal.lock`（取れなければ `ErrBusy` ですぐ諦める）＋③端末の名前 `dispatcher`（`Ensure` は名前で引き、live なら起動しない）。前の版の係の端末が残っていれば起動しない（boot の `dropStaleRoles`）。手で `andon dispatcher` を別のシェルで打つ分は、①`.dispatcher.lock`（控えの置き場。`andon dispatcher` が先頭で待たずに取り、終わるまで持つ。取れなければ 1 行出して 0 で終わる。`--once` も同じ）が防ぐ |
+| 1 | dispatcher 自身の起動 | `andon boot` の `dispatcher` の段と、Chief of Staff の Stop・UserPromptSubmit フック（`drain`）と、担当・レビュアーの Stop フック（`andon issue stop-check`。Chief of Staff の留守の分。ADR-0017 決めたこと 8 の (e)）。**どれも `Ensure`**（フックは `EnsureFromHook`） | 2 つの `andon dispatcher` が同じ台帳を回す（同じレビュアーを起動する・同じ PR をマージしにいく） | ①`.terminal.lock`（取れなければ `ErrBusy` ですぐ諦める）＋③端末の名前 `dispatcher`（`Ensure` は名前で引き、live なら起動しない）。前の版の係の端末が残っていれば起動しない（boot の `dropStaleRoles`）。手で `andon dispatcher` を別のシェルで打つ分は、①`.dispatcher.lock`（控えの置き場。`andon dispatcher` が先頭で待たずに取り、終わるまで持つ。取れなければ 1 行出して 0 で終わる。`--once` も同じ）が防ぐ |
 | 2 | dispatcher の 1 巡（§2.1.1 の 0〜7） | dispatcher。プロジェクトごとに直列 | 同じ出来事を二度拾う・二度通知する・二度起動する | ①控えの lock（`<slug>.json.lock`）を巡の終わりまで持つ（待たずに諦める。取れなければその巡のそのプロジェクトは飛ばしてログに 1 行）。`drain`（フック）も同じ lock を取る（10 秒待って、取れなければ通して次の口へ。`Stop` が渡した turn の終わりだったことは `<slug>.json.stop` に残し、次の `drain` が確かめ済みにする）。②控えの位置（`log_pos`・`ready`・`Sent`・`Retry`・`First`） |
 | 3 | レビュアーを起動する（P6a） | dispatcher（`review_request` を拾ったとき） | 同じ commit のレビュアーが 2 人いる（指摘が二重・端末とコストが二重） | ②控えの `Reviewers`（`<issue>@<commit>`）＋④台帳の子課題（控えが無いときは parent・依頼書の commit で引き継ぐ）＋③ラベル `project=`・`issue=<子>` の live な端末（`hc run` は通ったが `kanban start` の前に落ちた分）。起動しそこねは続きから |
 | 4 | ゲートを回す | dispatcher（`review` に入った `log.jsonl` の行ごとに 1 回）。Chief of Staff が `andon gate` を手で打つこともある | 記録 `library/gate/<head>.json` が上書きされる・PR に commit status とコメントが二重に付く。判定は同じ事実から決まるので**同じ決定**（事実が間に変わっていれば後の方が新しい） | ②控えの `Gates`（`<issue>#<行>`）。手で打つ分と重なっても、①課題ごとの lock（`library/.gate.lock`。記録を書く run が PR を読む前から写し終えるまで持つ。取れるまで待つ。`--dry-run` は取らない）が 1 つずつにし、待つ間にほかの run が同じ head の記録を書いていれば、後の run はそれを返して書かない・写さない（「同じ head で 2 度目の Must fix」にも数えない）。間を置いて打てば、今までどおり 2 度目として決め直す |

@@ -315,7 +315,7 @@ func isOldDispatcher(argv []string) bool {
 }
 
 // startDispatcher は dispatcher の端末を確かめる（dispatcher.Ensure。無ければ起動し、中身がシェルに替わっていれば片付けて起動し直す）。
-// --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff のフックも同じ確かめを打つ。
+// --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff と担当のフックも同じ確かめを打つ。
 // 作り直しの直後は、戻った端末の前に出ているものがまだ取れないことがあるので、dispatcherWait まで読み直す。
 // 何もしなかったときは理由ごとに書き分ける（動いている・確かめられなかった・ほかが確かめている）。
 func startDispatcher(e Env) error {
@@ -325,7 +325,7 @@ func startDispatcher(e Env) error {
 	did, err := dispatcher.Ensure(filepath.Join(e.Package, "bin", "andon"), e.Workspace, dispatcherWait)
 	switch {
 	case errors.Is(err, dispatcher.ErrBusy):
-		did = "dispatcher の端末はほかが確かめている（boot は確かめなかった。Chief of Staff のフックが続ける）"
+		did = "dispatcher の端末はほかが確かめている（boot は確かめなかった。Chief of Staff と担当のフックが続ける）"
 	case errors.Is(err, dispatcher.ErrUnsure):
 		did = fmt.Sprintf("%v。動いているとはみなさない（hc get dispatcher --json の foreground がシェルなら andon boot を打ち直す）", err)
 	case err != nil:

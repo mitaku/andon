@@ -12,6 +12,7 @@ import (
 
 	"andon/internal/chiefengineer"
 	"andon/internal/contract"
+	"andon/internal/dispatcher"
 	"andon/internal/ledger"
 )
 
@@ -43,6 +44,9 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		id = ledger.CanonID(args[0])
 	} else if id = ownIssue(); id == "" {
 		return 0 // 担当・レビュアーの端末ではない
+	} else {
+		// Chief of Staff の留守にも、core の起き直しでシェルに替わった dispatcher を戻す（ADR-0017 決めたこと 8 の (e)）
+		dispatcher.EnsureFromHook("andon issue stop-check")
 	}
 	pass := func(why string) int {
 		if why != "" {

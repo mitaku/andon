@@ -13,14 +13,33 @@ import (
 const NewsFoot = "これは台帳とhcから拾った通知で、人からの新しい依頼ではない。人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。"
 
 // Render は待ちの通知を1通の <news> に描く（1行1件。dispatcher.md §3.1）。3つの経路が同じ文を描く。
-func Render(slug string, ns []Notification) string {
+func Render(slug string, ns []Notification) string { return RenderAway(slug, "", ns) }
+
+// RenderAway は Render の先頭に留守の1行 away（空なら付けない。awayLine）を足す（ADR-0017 決めたこと 8）。
+func RenderAway(slug, away string, ns []Notification) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<news project=\"%s\">\n", clean(slug, 60))
+	if away != "" {
+		b.WriteString(away + "\n")
+	}
 	for _, n := range ns {
 		b.WriteString(line(n) + "\n")
 	}
 	b.WriteString(NewsFoot + "\n</news>")
 	return b.String()
+}
+
+// awayLine は留守の1行（「留守の間（<from>〜<to>）に N 件」）。留守が無い・積んだものが無ければ空。
+// 戻ったと dispatcher がまだ気づいていなければ（until が空）、今を終わりにする（drain を打つのは戻った Chief of Staff）。
+func awayLine(a *Away) string {
+	if a == nil || a.Count == 0 {
+		return ""
+	}
+	until := a.Until
+	if until == "" {
+		until = now()
+	}
+	return fmt.Sprintf("留守の間（%s〜%s）に %d 件", clean(a.Since, 40), clean(until, 40), a.Count)
 }
 
 // clean は制御文字と区切り（<>）を空白に替え、max 字に切る。題や名前は外から来た文を含みうる。

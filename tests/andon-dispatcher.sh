@@ -167,22 +167,27 @@ review_by() { # review_by <レビュアーの id> <findings>: レビュアーが
     HC_TERMINAL_ID=t9 kanban review "$1" >/dev/null
 }
 
-# 0. Chief of Staff の端末が生きていなければ台帳を飛ばす。初めて見る台帳は通知の元を控えるだけだが、今の review_request は拾う
+# 0. Chief of Staff の端末が生きていなくても（留守）台帳は回す（配る段だけ飛ばす。ADR-0017 決めたこと 8）。chief_of_staff が設定に無い台帳は飛ばす。
+#    初めて見る台帳は通知の元を控えるだけだが、今の review_request は拾う
 id=$(newtask '初めて見た台帳のレビュー依頼' person)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
+kanban config set chief_of_staff= >/dev/null
+dispatcher
+[ ! -e "$state" ] && ! grep -qs '^run' "$tmp/hc/log" || die 'chief_of_staff が設定に無いのに回った'
+kanban config set chief_of_staff=t5 >/dev/null
 sed -i '/^t5 /d' "$tmp/hc/live"
 dispatcher
-[ ! -e "$state" ] || die 'Chief of Staff がいないのに回った'
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die "留守の初めて見た台帳で済んでいない review_request を拾わない: $(grep ^run "$tmp/hc/log" || :)"
+jq -e --arg k "$id@$head" '(.reviewers | length) == 1 and .reviewers[$k].started == true and .pending == [] and (.away.since | length) > 0 and .away.count == 0' "$state" >/dev/null && recorded "$id" review-requested | jq -e . >/dev/null ||
+    die "初めて見た台帳で控え・通知が違う（report・ready を流した・留守を控えない）: $(jq -c '{reviewers, pending, away}' "$state")"
+grep -q '留守（宛先 "t5"' "$tmp/dispatcher.log" || die '留守の1行がログに無い'
 echo "t5 chief-of-staff" >> "$tmp/hc/live"
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die "初めて見た台帳の済んでいない review_request を拾わない: $(grep ^run "$tmp/hc/log")"
-jq -e --arg k "$id@$head" '(.reviewers | length) == 1 and .reviewers[$k].started == true and .pending == []' "$state" >/dev/null && recorded "$id" review-requested | jq -e . >/dev/null ||
-    die "初めて見た台帳で控え・通知が違う（report・ready を流した）: $(jq -c '{reviewers, pending}' "$state")"
-dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起動した'
-ok 'Chief of Staff の端末が無ければ飛ばし、初めて見る台帳でも済んでいない review_request は拾う（過去の report・ready は流さない）'
+jq -e 'has("away") | not' "$state" >/dev/null || die "何も積まなかった留守を戻ったあとも控えに残した: $(jq -c .away "$state")"
+ok 'chief_of_staff が設定に無ければ飛ばし、Chief of Staff の留守でも回して初めて見る台帳の済んでいない review_request は拾う（過去の report・ready は流さない）'
 
 # 0b. 控えを無くしても（初めて見た台帳と同じ）、台帳にその commit のレビュアーがもういれば二重に起動しない
 cp "$state" "$tmp/state.bak"; rm "$state"
@@ -215,8 +220,9 @@ dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起動した回を同じ commit で頼み直したら二重に起動した'
 ok '同じ commit の出し直しは、前回が起動せずに終わっていれば拾い、起動していれば二重に起動しない'
 
-# 1. 一周: review-request → レビュアーを起動する → レビュー → ready → ゲート → マージ → finish
+# 1. 一周: review-request → レビュアーを起動する → レビュー → ready → ゲート → マージ → finish。Chief of Staff は留守（端末が無い）でも回る（ADR-0017 決めたこと 8）
 id=$(newtask 'docs を直す' auto)
+sed -i '/^t5 /d' "$tmp/hc/live"
 mark=$(wc -l < "$L/log.jsonl")
 # 担当 t7 は andon issue start のラベルで App の課題の Space の tab にいる（ADR-0003）。レビュアーは同じ値を付ける
 echo '{"address":"t7","state":"live","labels":{"issue":"'"$id"'","herdr.space":"andon-demo-'"$id"'","herdr.tab":"andon-demo-'"$id"'","where":"x / y"}}' > "$tmp/hc/term-t7.json"
@@ -279,7 +285,8 @@ emit "$rec" gate-record-merged.json
 ok 'review に入ったらゲートを回し、approve ＋ merge: auto ＋ 委譲 B でマージ（squash・head を固定）して finish（レビュアーと worktree も）'
 tail -n +"$((mark + 1))" "$L/log.jsonl" | jq -e -s 'all(.by != "terminal:t5")' >/dev/null || die 'Chief of Staff が台帳に書いた'
 [ ! -e "$tmp/hc/sent" ] || die "誰かに hc send した: $(cat "$tmp/hc/sent")"
-ok 'その間 Chief of Staff（t5）は台帳に1行も書いていない・誰にも hc send していない'
+ok 'その間 Chief of Staff（t5）は留守で、台帳に1行も書いていない・誰にも hc send していない'
+echo "t5 chief-of-staff" >> "$tmp/hc/live"
 
 # 1b. マージのあと（done の行）、同じ repo の動いている課題への影響を andon issue impact で1回だけ集めて知らせる
 # 0・0c の課題は同じ docs/a.md を別の行で足した branch（doing）なので、ぶつかり・重なる。判断は Chief of Staff（通知だけ）
@@ -476,8 +483,10 @@ watch_due "$hm"; dispatcher; dispatcher
 kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die 'OPEN の PR の課題を片付けた'
 merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
 person_merges
+sed -i '/^t5 /d' "$tmp/hc/live"   # 人のマージは Chief of Staff の留守でも拾う（ADR-0017 決めたこと 8）
 watch_due "$hm"; dispatcher
-kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "人がマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
+echo "t5 chief-of-staff" >> "$tmp/hc/live"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "留守の間に人がマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
 kanban questions --json | jq -e --arg t "$hm" 'all(.[]; .id != $t)' >/dev/null || die "ゲートの問いが閉じていない: $(kanban questions --json | jq -c --arg t "$hm" 'map(select(.id == $t))')"
 grep -q '人がマージした（https://github.com/example/app/pull/7）' "$L/issues/$hm/questions.yaml" || die 'ゲートの問いに「人がマージした」と記録していない'
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null && [ "$(pending "$hm" merged)" = null ] ||
@@ -488,7 +497,7 @@ emit <(recorded "$hm" merged) notification-merged-person.json
 dispatcher
 jq -e --arg t "$hm" '((.impact // {}) | has($t) | not) and ((.corrections // {}) | has($t) | not)' "$state" >/dev/null || die "人のマージのあと impact・corrections を拾っていない: $(jq -c '{impact, corrections}' "$state")"
 [ -e "$(cj "$hm")" ] || die '人のマージのあと corrections.json を書いていない'
-ok '人が GitHub でマージしたら、次の見回りでゲートの問い（重なったものも）を閉じて finish し、通知 merged（by: person）・impact・corrections を同じ道で回す。PR は1分に1回だけ見る'
+ok '人が GitHub でマージしたら（Chief of Staff の留守でも）、次の見回りでゲートの問い（重なったものも）を閉じて finish し、通知 merged（by: person）・impact・corrections を同じ道で回す。PR は1分に1回だけ見る'
 
 # 4c. 人がマージしたが、ゲートの外の問い（担当の ask）が開いている → 片付けずに知らせる（1回）。問いが閉じたら次の巡で片付ける
 hm=$(newtask '問いが残る課題' person)
@@ -900,6 +909,33 @@ out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}
 [ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
 ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
 
+# 12-away. 留守の間に積んだ通知は待ちに残り（asked は問いの n ごと）、戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」の1行が付く。
+#          N は置き換えの前の数（ADR-0017 決めたこと 8 の (c)(d)）
+sed -i '/^t5 /d' "$tmp/hc/live"
+aw=$(event '留守の間の報告')
+askq() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$aw" && HC_TERMINAL_ID=t7 "$andon" issue ask "$aw" - >/dev/null <<<"{\"kind\":\"users\",\"question\":\"$1\",\"options\":[{\"label\":\"a\",\"pick\":true},{\"label\":\"b\"}],\"from\":\"issue\"}"); }
+askq '1つ目の問い'; askq '2つ目の問い'
+as_worker "$aw" report --pr https://github.com/example/app/pull/7   # 同じ課題の report は置き換わる（数には入る）
+dispatcher
+jq -e --arg t "$aw" '([.pending[] | select(.issue == $t and .kind == "asked") | .detail.n] == [1, 2]) and ([.pending[] | select(.issue == $t and .kind == "report")] | length) == 1
+    and .away.count == 4 and (.away | has("until") | not)' "$state" >/dev/null ||
+    die "留守の間の待ち・数が違う（asked が n ごとでない・置き換えの後の数で数えた）: $(jq -c '{pending: [.pending[] | {issue, kind, n: .detail.n}], away}' "$state")"
+echo "t5 chief-of-staff" >> "$tmp/hc/live"
+dispatcher
+since=$(jq -r .away.since "$state"); until=$(jq -r .away.until "$state")
+[ "$until" != null ] || die '戻ったのに留守の終わりを控えない'
+out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false,"last_assistant_message":"x"}')
+jq -e --arg l "留守の間（$since〜$until）に 4 件" --arg t "$aw" '.hookSpecificOutput.additionalContext | startswith("<news project=\"demo\">\n\($l)\n")
+    and contains("\n\($t) asked: 問い 1（users）\n") and contains("\n\($t) asked: 問い 2（users）\n")' <<<"$out" >/dev/null ||
+    die "戻った最初の <news> に留守の1行・n ごとの asked が無い: $out"
+jq -e 'has("away") | not' "$state" >/dev/null || die '留守の1行を渡したあとも控えに残した'
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assistant_message":"x"}' >/dev/null
+aw2=$(event '戻ったあとの報告')
+out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false,"last_assistant_message":"y"}')
+jq -e '.hookSpecificOutput.additionalContext | contains("留守") | not' <<<"$out" >/dev/null || die "留守の1行を二度付けた: $out"
+HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true,"last_assistant_message":"y"}' >/dev/null
+ok '留守の間の通知は待ちに積み（asked は n ごと）、戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」（置き換えの前の数）を1回だけ付ける'
+
 # 12a. core が起き直して dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフックが片付けて起動し直す（シェルには打ち込まない）
 echo '{"address":"t3","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-dispatcher.json"
 logs=$(wc -l < "$tmp/hc/log")
@@ -915,7 +951,17 @@ fg_dispatcher
 logs=$(wc -l < "$tmp/hc/log")
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"x"}' >/dev/null
 ! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^run \|^kill \|^rm ' || die '中身が andon dispatcher の dispatcher を起動し直した'
-ok 'dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）が片付けて同じ名前・ラベルで起動し直す（シェルに打ち込まない・動いていれば触らない）'
+# 担当の Stop フック（stop-check）も同じ確かめを打つ（Chief of Staff の留守にも戻す。ADR-0017 決めたこと 8 の (e)）
+sed -i '/^t5 /d' "$tmp/hc/live"
+echo '{"address":"t3","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-dispatcher.json"
+echo '{"address":"t7","state":"live","labels":{"issue":"'"$aw2"'"}}' > "$tmp/hc/term-t7.json"
+logs=$(wc -l < "$tmp/hc/log")
+HC_TERMINAL_ID=t7 sh "$hooks/stop" <<<'{}' >/dev/null
+got=$(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -v '^get \|^ls ')
+[ "$got" = "$want" ] || die "担当の Stop フックがシェルに替わった dispatcher を起動し直さない: $got"
+rm "$tmp/hc/term-t7.json"; fg_dispatcher
+echo "t5 chief-of-staff" >> "$tmp/hc/live"
+ok 'dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）と担当の Stop フック（stop-check）が片付けて同じ名前・ラベルで起動し直す（シェルに打ち込まない・動いていれば触らない）'
 
 # 12b. UserPromptSubmit で渡したあと turn が中断された（Stop が来ない）ら、次の送信で1回だけ届け直す。news.replied は渡した turn の答えにだけ
 ups() { HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"prompt\":\"x\"}" | jq -r '.hookSpecificOutput.additionalContext'; }
@@ -1227,7 +1273,7 @@ pk
 [ "$(pp "$p2" asked | jq -r '.[0].detail.n')" = 1 ] && jq -e '.log_hold != null' "$pst" >/dev/null || die '問いの JSON を待たない'
 mkdir -p "$P/issues/$p2/library/questions"; echo "$qjson" > "$P/issues/$p2/library/questions/2.json"
 pk
-pp "$p2" asked | jq -e 'length == 1 and .[0].detail.n == 2' >/dev/null && jq -e 'has("log_hold") | not' "$pst" >/dev/null || die "遅れて置かれた問いの JSON を拾わない: $(pp "$p2" asked)"
+pp "$p2" asked | jq -e '[.[].detail.n] == [1, 2]' >/dev/null && jq -e 'has("log_hold") | not' "$pst" >/dev/null || die "遅れて置かれた問いの JSON を拾わない（2つ目の問いが1つ目を消した）: $(pp "$p2" asked)"
 as_w kanban ask "$p2" 'JSON の無い問い' >/dev/null
 as_w kanban report "$p2" --append <<<'その後' >/dev/null
 clear_pending; pk; pk

@@ -347,8 +347,8 @@ S-0009 の担当 t5 が working のまま 21 分。hc read で画面が進んで
 | `… が error`（プロバイダに5回目に切られた） | dispatcher が 1・2・4・8分あとに「続けて」を4回打ったあと（5回目は打たない） | 人へ知らせる。自分で再送し直さない |
 | `… の端末が終わっている（…）のに doing` | 何もしない | 上の表の最後の行（人に「起動し直すか」を1問） |
 
-dispatcher は、この Chief of Staff の端末が live でない台帳を飛ばす。起動し直したら（`andon chief-of-staff` で address を合わせたら）次の見回りから届く。
-止まっている間の出来事は、起動したときに台帳を自分で読む（§0）。dispatcher の様子は `hc read dispatcher`。
+この Chief of Staff の端末が live でない間（留守）も、dispatcher は拾う・レビュアーの起動・ゲートとマージと片付けを回し、届ける通知を待ちに積む。起動し直したら（`andon chief-of-staff` で address を合わせたら）最初の `<news>` の先頭に「留守の間（いつ〜いつ）に N 件」の1行が付く。
+留守の間の出来事は、起動したときに台帳を自分で読む（§0）。dispatcher の様子は `hc read dispatcher`。
 dispatcher の端末が素のシェルのまま（core が起動し直したあと）でも、自分の端末のフックが毎ターン確かめて、端末を片付けて起動し直す。`hc send dispatcher` で手で打ち込まない（二重に起動する・打ちかけに足す）。
 戻らなければ（`hc get dispatcher --json` の `foreground.argv` が `andon dispatcher` にならない）、人へ「`andon boot` を打ち直すか」を1問。
 dispatcher が止まっていた間に出たレビュー依頼も、起動し直した dispatcher が拾う（初めて見る台帳でも）。担当に頼み直させなくてよい。

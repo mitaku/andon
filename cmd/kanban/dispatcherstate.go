@@ -96,6 +96,14 @@ type dispatcherState struct {
 	Gone map[string][]dsGoneAt `json:"gone,omitempty"`
 	// The memory count went over the line and memory was notified (false again below the line)
 	MemoryOver bool `json:"memory_over,omitempty"`
+	// The Chief of Staff's absence: when it began and ended, and how many notifications were queued
+	Away *dsAway `json:"away,omitempty"`
+}
+
+type dsAway struct {
+	Since string `json:"since"`
+	Until string `json:"until,omitempty"`
+	Count int    `json:"count"`
 }
 
 type dsGoneAt struct {

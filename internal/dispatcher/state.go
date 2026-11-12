@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -83,6 +84,15 @@ type State struct {
 	Gone map[string][]GoneAt `json:"gone,omitempty"`
 	// memory の件数が線を超えて memory を積んだ（線の下に戻ると false。memory.go。ADR-0020 決めたこと 4）
 	MemoryOver bool `json:"memory_over,omitempty"`
+	// Chief of Staff の留守（端末が無い間。配る段だけ止めて、積んだ数を数える。ADR-0017 決めたこと 8。drain が戻った最初の <news> に1行付けて消す）
+	Away *Away `json:"away,omitempty"`
+}
+
+// Away は Chief of Staff の留守の記録（ADR-0017 決めたこと 8 の (b)）。
+type Away struct {
+	Since string `json:"since"`           // 留守に気づいた巡の時刻
+	Until string `json:"until,omitempty"` // 端末が戻ったと気づいた巡の時刻（空なら留守の最中か、drain が先に気づいた）
+	Count int    `json:"count"`           // 留守の間に待ちに積んだ通知の数（置き換えの前の数。決めたこと 8 の (d)）
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。
@@ -151,25 +161,31 @@ func (s *State) Save(slug string) error {
 	return os.Rename(tmp, path)
 }
 
-// Push は通知を積む。同じ課題の同じ出来事（issue と kind）は新しい1件に置き換える。
-// signal は issue が無いので、同じ信号（detail の source と key。fingerprint はこの2つから決まる）だけを置き換える
-// （ADR-0011 決めたこと 8 の改め。別の信号どうしは消し合わない）。
+// Push は通知を積む。同じ出来事（eventKey が同じ）は新しい1件に置き換える。留守の間は積んだ数を数える（置き換えの前の数）。
 func (s *State) Push(n Notification) {
 	out := s.Pending[:0]
 	for _, x := range s.Pending {
-		if !sameEvent(x, n) {
+		if eventKey(x) != eventKey(n) {
 			out = append(out, x)
 		}
 	}
 	s.Pending = append(out, n)
+	if s.Away != nil && s.Away.Until == "" {
+		s.Away.Count++
+	}
 }
 
-func sameEvent(a, b Notification) bool {
-	if a.Issue != b.Issue || a.Kind != b.Kind {
-		return false
+// eventKey は通知の出来事の名前。同じ名前の通知は新しい1件に置き換える（課題と kind）。
+// signal は issue が無いので、同じ信号（detail の source と key。fingerprint はこの2つから決まる）だけ
+// （ADR-0011 決めたこと 8 の改め。別の信号どうしは消し合わない）。asked は問いの n ごと
+// （同じ課題の2つ目の問いが1つ目を消さない。ADR-0017 決めたこと 8 の (d)）。
+func eventKey(n Notification) string {
+	k := n.Issue + "\x00" + n.Kind
+	switch n.Kind {
+	case "signal":
+		k += "\x00" + fmt.Sprint(n.Detail["source"]) + "\x00" + fmt.Sprint(n.Detail["key"])
+	case "asked":
+		k += "\x00" + fmt.Sprint(n.Detail["n"])
 	}
-	if a.Kind == "signal" {
-		return a.Detail["source"] == b.Detail["source"] && a.Detail["key"] == b.Detail["key"]
-	}
-	return true
+	return k
 }
