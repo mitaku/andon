@@ -301,6 +301,9 @@ func summary(slug, date string, goal any, items []item) string {
 	is := func(d string) func(item) bool { return func(it item) bool { return it.decision() == d } }
 	text := func(it item) any {
 		if t, ok := it["text"]; ok && t != nil && t != false {
+			if s, ok := t.(string); ok && it["untrusted"] == true {
+				return untrustedText(s)
+			}
 			return t
 		}
 		return it.key()

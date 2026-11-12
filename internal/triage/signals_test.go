@@ -74,12 +74,33 @@ func TestSignalItems(t *testing.T) {
 			t.Errorf("item %+v", it)
 		}
 	}
-	if want := "demo:github-issues:signal:" + signal.Fingerprint("github-issues", "github.com/example/app#1"); got[0].Key != want {
+	fp := signal.Fingerprint("github-issues", "github.com/example/app#1")
+	if want := "demo:sig-" + fp[:12] + "-e1:signal:" + fp; got[0].Key != want {
 		t.Errorf("key %q, want %q", got[0].Key, want)
 	}
 	// 記録が無ければ項目は無い。
 	l.signals = filepath.Join(t.TempDir(), "none.json")
 	if got, err := l.signalItems(nil); err != nil || len(got) != 0 {
 		t.Errorf("missing file: %v %v", got, err)
+	}
+}
+
+func TestKnownSignal(t *testing.T) {
+	fp := signal.Fingerprint("github-ci", "github.com/example/app/ci.yml@main")
+	recs := []signal.Record{{Source: "github-ci", Fingerprint: fp, Episodes: 2}}
+	for _, c := range []struct {
+		key  string
+		want bool
+	}{
+		{"demo:sig-" + fp[:12] + "-e1:signal:" + fp, true}, // 前の出来事
+		{"demo:sig-" + fp[:12] + "-e2:signal:" + fp, true},
+		{"demo:sig-" + fp[:12] + "-e3:signal:" + fp, false}, // まだ無い出来事
+		{"other:sig-" + fp[:12] + "-e1:signal:" + fp, false},
+		{"demo:sig-000000000000-e1:signal:" + fp, false},
+		{"demo:github-ci:signal:" + fp, false},
+	} {
+		if _, got := knownSignal(c.key, recs, "demo"); got != c.want {
+			t.Errorf("knownSignal(%q) = %v, want %v", c.key, got, c.want)
+		}
 	}
 }
