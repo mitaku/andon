@@ -31,11 +31,11 @@ const (
 	workingAfter = 20 * time.Minute // working のまま、これ以上で stalled
 )
 
-// retryAfter は提供元に切られた端末に「続けて」を打つまでの間。i 回目に切られたら retryAfter[i-1] あとに打つ。
+// retryAfter はプロバイダに切られた端末に「続けて」を打つまでの間。i 回目に切られたら retryAfter[i-1] あとに打つ。
 // 個数（4）を打ち切ると、5 回目に切られたところで打つのをやめて知らせる（dispatcher.md §2.4。shepherdr〈MIT〉と同じ間隔）。
 var retryAfter = []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute}
 
-// RetryText は提供元に切られた端末に打つ文。やり直しに承認が要らないことと、送り手を書く。
+// RetryText はプロバイダに切られた端末に打つ文。やり直しに承認が要らないことと、送り手を書く。
 const RetryText = "一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）"
 
 var (
@@ -45,7 +45,7 @@ var (
 	agentRe        = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9_.-]{0,62}/)?[A-Za-z0-9_-]{1,40}$`) // <address> か <machine>/<address>（contract.md §8）
 )
 
-// ProviderError は文（hc の status.msg か画面）が、提供元の混雑・rate limit・接続・5xx で切られたものか。
+// ProviderError は文（hc の status.msg か画面）が、プロバイダの混雑・rate limit・接続・5xx で切られたものか。
 // 待てば通る見込みのものだけで、認証の失敗と使用量の上限（待っても直らない）は含めない。dispatcher.md §2.4。
 func ProviderError(text string) bool {
 	return !authErrRe.MatchString(text) && !allowanceErrRe.MatchString(text) && providerErrRe.MatchString(text)
@@ -248,8 +248,8 @@ func (p *project) readReady() {
 
 // ---------------------------------------------------------------- 止まった担当
 
-// Resend は提供元に切られて「続けて」を打った回数と時刻（dispatcher.md §2.4）。打てなかった試行も数える。
-// 時刻はどれも dispatcher の時計（Unix ミリ秒）。端末の status_ms は端末の土台の時計なので、時刻としては比べず、
+// Resend はプロバイダに切られて「続けて」を打った回数と時刻（dispatcher.md §2.4）。打てなかった試行も数える。
+// 時刻はどれも dispatcher の時計（Unix ミリ秒）。端末の status_ms は hc の時計なので、時刻としては比べず、
 // 切断の見分け（同じ error か・新しく切られたか）にだけ使う。
 type Resend struct {
 	N     int   `json:"n"`
@@ -287,11 +287,11 @@ type Verdict struct {
 	Kind      string
 	Key       string // 同じ状態につき1回だけ知らせるための鍵
 	Retry     bool
-	Allowance bool // error が使用量の上限（待っても直らない）。レビュアーなら fallback で起こし直せるか見る
+	Allowance bool // error が使用量の上限（待っても直らない）。レビュアーなら fallback で起動し直せるか見る
 }
 
 // ScreenCut は画面から、Codex がターンを止めたときに出すエラーの行（行頭が ■ の最後の行。実測 Codex 0.166.0）だけを返す。
-// 無ければ空。画面のほかの行（エージェントの出力・ファイルの中身）は、提供元の語を含んでいても見分けに使わない。
+// 無ければ空。画面のほかの行（エージェントの出力・ファイルの中身）は、プロバイダの語を含んでいても見分けに使わない。
 func ScreenCut(screen string) string {
 	lines := strings.Split(screen, "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -303,7 +303,7 @@ func ScreenCut(screen string) string {
 }
 
 // Judge は担当の様子 s から、知らせるか・続きを打つかを決める（dispatcher.md §2.3・§2.4）。
-// 提供元に切られたかは status.msg で見分け、無ければ（Codex）screen の ■ の行（ScreenCut）を読む。screen は error で msg が無いときだけ読む。
+// プロバイダに切られたかは status.msg で見分け、無ければ（Codex）screen の ■ の行（ScreenCut）を読む。screen は error で msg が無いときだけ読む。
 func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 	key := s.Status + "|" + strconv.FormatInt(s.StatusMs, 10)
 	age := time.Duration(nowMs-s.StatusMs) * time.Millisecond
@@ -381,7 +381,7 @@ func moved(prev Moved, had bool, msg string, screen func() (string, error), nowM
 	return next
 }
 
-// watch は doing の課題の担当を端末の土台で見る（見回りで hc get）。
+// watch は doing の課題の担当を hc で見る（見回りで hc get）。
 func (p *project) watch(now time.Time, cos string) {
 	nowMs := now.UnixMilli()
 	reviewing := map[string]bool{}
@@ -432,7 +432,7 @@ func (p *project) watch(now time.Time, cos string) {
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
 		if rs, had := p.st.Resumed[id]; had && !s.Gone && rs.Agent == agent && s.Turn >= 1 {
-			p.worked(id) // 起こした端末が働き始めた。控えを消してその場で保存する
+			p.worked(id) // 起動した端末が働き始めた。控えを消してその場で保存する
 		}
 		if s.Status == "working" && !s.Gone {
 			prev, had := p.st.Moved[rk]
@@ -445,7 +445,7 @@ func (p *project) watch(now time.Time, cos string) {
 			if next, ok := p.countResend(rk, r, nowMs); ok {
 				r = next
 				if p.retry(agent) {
-					p.logf("%s の担当 %s に続きを打った（提供元に切られた、%d 回目）", id, agent, r.N)
+					p.logf("%s の担当 %s に続きを打った（プロバイダに切られた、%d 回目）", id, agent, r.N)
 				} else {
 					p.logf("%s の担当 %s に続きを打てなかった（%d 回目に数える）", id, agent, r.N)
 				}
@@ -461,11 +461,11 @@ func (p *project) watch(now time.Time, cos string) {
 			continue
 		}
 		if s.Gone && p.resumeGone(t, agent) {
-			continue // resume で起こした（次の見回りからは新しい端末を見る）。起こせなければ今どおり finished
+			continue // resume で起動した（次の見回りからは新しい端末を見る）。起動できなければ今どおり finished
 		}
 		k := rk + "|" + v.Key
 		if v.Allowance && isReviewer(t) && !p.first && !p.st.Sent[k] && p.fallback(t, agent) {
-			continue // 起こし直した（次の見回りからは新しい端末を見る）
+			continue // 起動し直した（次の見回りからは新しい端末を見る）
 		}
 		if !p.st.Sent[k] && !p.first {
 			p.notify(id, v.Kind, map[string]any{"agent": agent, "status_ms": s.StatusMs})
@@ -504,9 +504,9 @@ func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) 
 // cosKey は控えの Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: は課題の id に使えない）。
 const cosKey = ":cos|"
 
-// chiefCut は Chief of Staff の端末が提供元に切られて error で止まったとき、ログに1行だけ残す（dispatcher.md §2.4）。
+// chiefCut は Chief of Staff の端末がプロバイダに切られて error で止まったとき、ログに1行だけ残す（dispatcher.md §2.4）。
 // 「続けて」は打たない: Chief of Staff は人が打つ端末で、hc send は人の書きかけに続けて送ってしまう（ADR-0019 決めたこと 4）。
-// 起こすのは StopFailure のフック（rewake.go。ADR-0019 決めたこと 10）。知らせる相手が止まっているので通知も積まない。同じ止まりには1回
+// 起動するのは StopFailure のフック（rewake.go。ADR-0019 決めたこと 10）。知らせる相手が止まっているので通知も積まない。同じ止まりには1回
 // （error・working の間は持ち越し、ほかに戻ったら区切る。Claude Code 自身のやり直しで working を挟んでも1回）。
 func (p *project) chiefCut(cos string) {
 	key := cosKey + cos
@@ -538,12 +538,12 @@ func (p *project) chiefCut(cos string) {
 		return
 	}
 	p.st.Sent[key+"|cut"] = true
-	p.logf("Chief of Staff %s は提供元に切られて止まった。続きは打たない（StopFailure のフックが起こす。5 回で止まれば人が Herdr App の error で気づく）", cos)
+	p.logf("Chief of Staff %s はプロバイダに切られて止まった。続きは打たない（StopFailure のフックが起動する。5 回で止まれば人が Herdr App の error で気づく）", cos)
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
-// （dispatcher.md §5 の「起こしそこねたら続きから」。andon issue start・andon chief-engineer が終了コード 3 で預けたものと、
-// dispatcher が起こしたレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
+// （dispatcher.md §5 の「起動しそこねたら続きから」。andon issue start・andon chief-engineer が終了コード 3 で預けたものと、
+// dispatcher が起動したレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
 // 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
 // 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
 // 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
@@ -557,7 +557,7 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 	case status == "idle" || status == "":
 		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "issues", id, "brief.md")) + spawn.Guide()
 		if isReviewer(t) {
-			msg = p.reviewerFirst(id) // dispatcher が起こしたレビュアー（startReviewer と同じ文）
+			msg = p.reviewerFirst(id) // dispatcher が起動したレビュアー（startReviewer と同じ文）
 		}
 		// 前に貼った文が入力欄に残っていれば（hc send が貼ったが Enter が効かなかった。ADR-0007 B5）、貼り直さず Enter だけ押す。
 		// 読めなければ送らない（重ねないほうに倒す。次の見回りで読み直す）
@@ -596,7 +596,7 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 		if left {
 			p.logf("%s の担当 %s の入力欄に最初のメッセージが残っていた。Enter だけ押した（貼り直さない）", id, agent)
 		} else {
-			p.logf("%s の担当 %s に最初のメッセージを送った（起こしたときに届かなかった分）", id, agent)
+			p.logf("%s の担当 %s に最初のメッセージを送った（起動したときに届かなかった分）", id, agent)
 		}
 	default:
 		return false // blocked・error: 画面が入力を受けられるようになるまで待つ

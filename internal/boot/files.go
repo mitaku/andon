@@ -31,7 +31,7 @@ func FilesHandler(root string) (http.Handler, error) {
 	}), nil
 }
 
-// serveFiles は andon boot serve-files <dir> <port>。boot が files サーバとして自分を起こすときの形。
+// serveFiles は andon boot serve-files <dir> <port>。boot が files サーバとして自分を起動するときの形。
 func serveFiles(dir, port string) error {
 	h, err := FilesHandler(dir)
 	if err != nil {

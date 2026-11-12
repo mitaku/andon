@@ -51,9 +51,9 @@ func TestRewakeBacksOffThenStops(t *testing.T) {
 		rewakeUnit = 300 * time.Millisecond // 待たないことを、遅い CI でも 1 単位の中で見分ける（fixture の Cleanup が戻す）
 		code, msg, took := rewake(t, `{"error":"`+kind+`"}`)
 		if code != 0 || msg != "" || took >= rewakeUnit {
-			t.Fatalf("%s: 5 回目に起こした・待った: %d %q %v", kind, code, msg, took)
+			t.Fatalf("%s: 5 回目に起動した・待った: %d %q %v", kind, code, msg, took)
 		}
-		if n := strings.Count(rewakeLogText(), "\n"); n != 1 || !strings.Contains(rewakeLogText(), "t1 は提供元に切られて 5 回目（"+kind+"）。起こさない") {
+		if n := strings.Count(rewakeLogText(), "\n"); n != 1 || !strings.Contains(rewakeLogText(), "t1 はプロバイダに切られて 5 回目（"+kind+"）。起動しない") {
 			t.Fatalf("%s: 5 回目のログが1行でない: %q", kind, rewakeLogText())
 		}
 		if after, _ := os.ReadFile(StatePath("sample-site")); !bytes.Equal(before, after) {
@@ -76,16 +76,16 @@ func TestRewakeIgnores(t *testing.T) {
 	rewakeUnit = 300 * time.Millisecond // 待たないことを、遅い CI でも 1 単位の中で見分ける（fixture の Cleanup が戻す）
 	for _, in := range []string{`{"error":"authentication_failed"}`, `{"error":"billing_error"}`, `{"error":"invalid_request"}`, `{}`, `not json`, ``} {
 		if code, msg, took := rewake(t, in); code != 0 || msg != "" || took >= rewakeUnit {
-			t.Fatalf("%q で起こした・待った: %d %q %v", in, code, msg, took)
+			t.Fatalf("%q で起動した・待った: %d %q %v", in, code, msg, took)
 		}
 	}
 	t.Setenv("HC_TERMINAL_ID", "t42") // 担当の端末（偽の hc にラベルが無い）
 	f.term("t42", "error", "API Error: 529 Overloaded.", 0, false)
 	if code, msg, took := rewake(t, `{"error":"server_error"}`); code != 0 || msg != "" || took >= rewakeUnit {
-		t.Fatalf("担当の端末で起こした・待った: %d %q %v", code, msg, took)
+		t.Fatalf("担当の端末で起動した・待った: %d %q %v", code, msg, took)
 	}
 	if _, err := os.Stat(rewakePath("sample-site")); !os.IsNotExist(err) {
-		t.Fatal("起こさない入力で回数を数えた")
+		t.Fatal("起動しない入力で回数を数えた")
 	}
 }
 
@@ -117,7 +117,7 @@ func TestRewakeAndWaitSignalTogetherDeliverOnce(t *testing.T) {
 	f := rewakeFixture(t)
 	f.pending(1)
 	before, _ := os.ReadFile(StatePath("sample-site"))
-	code, msg, _ := rewake(t, `{"error":"server_error"}`) // error のままの Chief of Staff を起こす
+	code, msg, _ := rewake(t, `{"error":"server_error"}`) // error のままの Chief of Staff を起動する
 	f.cos("done")                                         // 起きたターンが通った直後に、待ち役も合図する
 	w := startWait("--timeout", "60")
 	wcode, ok := w.done(t, 2*time.Second)

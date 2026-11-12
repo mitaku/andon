@@ -153,11 +153,11 @@ while IFS='|' read -r on desc; do
   jq -n --arg on "$on" '{transitions: [{from: "a", to: "b", on: $on, by: "machine", once: true}]}' >"$tmp/once.json"
   if once_check "$tmp/once.json" "$tmp/rows-sample" >/dev/null; then ng "壊した once が通る: $desc"; else ok "壊した once は落ちる: $desc"; fi
 done <<'BAD'
-起こす|§7.2 を指さない
-起こす（§7.2 #9）|在らない行を指す
-起こす（§7.2 #2）|守りの欄が空の行を指す
+起動する|§7.2 を指さない
+起動する（§7.2 #9）|在らない行を指す
+起動する（§7.2 #2）|守りの欄が空の行を指す
 BAD
-jq -n '{transitions: [{from: "a", to: "b", on: "起こす（§7.2 #1）", by: "machine", once: true}, {from: "b", to: "c", on: "x", by: "ai"}]}' >"$tmp/once.json"
+jq -n '{transitions: [{from: "a", to: "b", on: "起動する（§7.2 #1）", by: "machine", once: true}, {from: "b", to: "c", on: "x", by: "ai"}]}' >"$tmp/once.json"
 once_check "$tmp/once.json" "$tmp/rows-sample" >/dev/null && ok "§7.2 の行を指す once は通る（once で無い移り方は見ない）" || ng "§7.2 の行を指す once が落ちる"
 
 # 4. 生成
@@ -221,7 +221,7 @@ done <<'WATCH'
 any(.triggers[]; .kind == "notification" and .notification == "estimate")@きっかけに ADR-0014 の estimate の通知
 any(.triggers[]; .kind == "interval")@きっかけに間隔
 any(.steps[]; (.input // []) | index("report.plan"))@手順の入るものに report.json の plan[]（report.plan）
-any(.steps[]; .by == "ai" and ((.decides // []) as $d | ["途中報告を書かせる", "分ける", "起こし直す", "延長する"] | all(. as $x | $d | index($x))))@AI の手順の decides に 途中報告を書かせる・分ける・起こし直す・延長する
+any(.steps[]; .by == "ai" and ((.decides // []) as $d | ["途中報告を書かせる", "分ける", "起動し直す", "延長する"] | all(. as $x | $d | index($x))))@AI の手順の decides に 途中報告を書かせる・分ける・起動し直す・延長する
 any(.counts[]; startswith("flow.wait."))@数えるものに状態ごとの時間（flow.wait.<status>）
 WATCH
 "$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"

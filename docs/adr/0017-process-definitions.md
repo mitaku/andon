@@ -1,7 +1,7 @@
 # ADR-0017: 仕事の流れと状態を定義し、その上で見張り役（dispatcher）を細くする（仕様・設計。2026-11-10〜11。Chief Engineer の課題 A-0085）
 
 - 状態: **決定（2026-11-11）**。対話はオーナーが寝ている間（2026-11-10 夜）に Chief of Staff と進め、オーナーが 2026-11-11 の朝に「オーナーの確かめ」の 18 問を順に確かめて「決めた」と言った（推奨どおり 15、変えたもの 3: 決めたこと 3・8・16）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
-- 主題: Chief of Staff の定常の仕事（ワークストリーム）と、もの（課題・担当・通知・レビュアーの起動・人のマージ・外のお知らせ）の状態の移り方を、人と機械が読める定義として1か所に書くこと。その定義から「機械がやる手順」を独立したコマンドに出し、dispatcher に残すのを「定義に沿っていつ起こすか」と「通知を配る」だけにすること。
+- 主題: Chief of Staff の定常の仕事（ワークストリーム）と、もの（課題・担当・通知・レビュアーの起動・人のマージ・外のお知らせ）の状態の移り方を、人と機械が読める定義として1か所に書くこと。その定義から「機械がやる手順」を独立したコマンドに出し、dispatcher に残すのを「定義に沿っていつ起動するか」と「通知を配る」だけにすること。
 - 語は glossary skill と [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（定義のファイルと schema・出すコマンド・記録ファイルの分け方）は「決めたこと」に形を書き、実装の課題が写す（それまでは提案）。
 - 入力: 指示文 P11（オーナー。2026-11-10。セルの `files/p11-process-definitions.md`。repo の外）、オーナーの言葉（2026-11-10。「問題」の段に写し）、[dispatcher.md](../dispatcher.md) §2.1.1・§2.2〜§2.8・§3.2・§5・§7、[contract.md](../contract.md) §2・§6・§7・§15、[ledger.md](../ledger.md)（Status rules・Routines・Questions）、chief-of-staff skill §0〜§10、worker skill §2・§5・§7、[ADR-0007](0007-interim-gap-inventory.md)（C1 `kanban tick`・A5〜A7・G4）、[ADR-0010](0010-news-ack.md)（届ける／記録だけ）、[ADR-0011](0011-signals-and-value-loop.md)（外のお知らせ。決めたこと 5・6・8・16、S2・S3、Factory の常駐を外した理由）、[ADR-0013](0013-short-role-names-and-plain-japanese.md)（人に向けた言葉）、[ADR-0014](0014-issue-estimate.md)（見込みとズレ）、`internal/dispatcher/`（state.go・loop.go・pickup.go ほか。v0.0.8 相当の main `98383a6`）、台帳（A-0026 S3 は `after: A-0085` で止めてある。dispatcher を触る課題 A-0036・A-0039・A-0040・A-0062・A-0063・A-0066・A-0067・A-0070・A-0071）、[ADR-0012](0012-resume-and-worktree-home.md)（resume の R3・R4）。
 
@@ -9,7 +9,7 @@
 
 オーナー（2026-11-10）: 「dispatcher の役割の肥大化というか決定論化は今後の課題かもね」「CoS のワークストリームを定義しておくといいかもね」「さらに細かくは SKILL 化するなどもあるが、BPM を活用したいところである」「BPM と、ステートマシンあたりが明文化されていれば改善にも役に立ちそう」「BPM 自体は JSON でも YAML でもいい。コメントの残しやすさなど運用のしやすさから考えてもいい。機械用は JSON、人間用は Markdown とかでもよい」。担当がとても長く作業を続けている場合に、どういう仕組みにするのがあるべき姿か、も考えたい。
 
-言い直し（Chief of Staff が 2026-11-10 に「合っている」と言い、オーナーが 2026-11-11 に確かめた）。オーナーが困っているのは、Chief of Staff の定常の仕事（受付・仕分け・起動・見守り・受け取り・取り次ぎ）と、課題や担当といった「もの」の状態の移り方が、どこにも定義として書かれていないこと。定義が無いので、chief-of-staff skill の §1〜§10 と dispatcher.md と dispatcher の記録ファイルの項目が、黙ってその代わりを背負っている。その結果、改善したいときにどこを直せばよいか指せず、機械に任せる仕事が増えるたびに dispatcher が受け皿として太り続ける（テスト以外 15 ファイル・約 4,000 行・1巡が 12 段・1つの記録ファイルに 8 種類の状態が混ざる。指示文の「13 ファイル・約 5,500 行」はテストを含めた数に近い）。欲しいのは、仕事の流れ（ワークストリーム）と、ものの一生（ステートマシン）を人と機械が読める定義として1か所に書き、その定義から「機械がやる手順」を独立したコマンドに出して、dispatcher に残すのを「いつ起こすか」と「通知を配る」だけにすること。定義は改善の起点（定義する → 動かす → 測る → 直す）であって、外の BPM の仕組みを入れる話ではない。
+言い直し（Chief of Staff が 2026-11-10 に「合っている」と言い、オーナーが 2026-11-11 に確かめた）。オーナーが困っているのは、Chief of Staff の定常の仕事（受付・仕分け・起動・見守り・受け取り・取り次ぎ）と、課題や担当といった「もの」の状態の移り方が、どこにも定義として書かれていないこと。定義が無いので、chief-of-staff skill の §1〜§10 と dispatcher.md と dispatcher の記録ファイルの項目が、黙ってその代わりを背負っている。その結果、改善したいときにどこを直せばよいか指せず、機械に任せる仕事が増えるたびに dispatcher が受け皿として太り続ける（テスト以外 15 ファイル・約 4,000 行・1巡が 12 段・1つの記録ファイルに 8 種類の状態が混ざる。指示文の「13 ファイル・約 5,500 行」はテストを含めた数に近い）。欲しいのは、仕事の流れ（ワークストリーム）と、ものの一生（ステートマシン）を人と機械が読める定義として1か所に書き、その定義から「機械がやる手順」を独立したコマンドに出して、dispatcher に残すのを「いつ起動するか」と「通知を配る」だけにすること。定義は改善の起点（定義する → 動かす → 測る → 直す）であって、外の BPM の仕組みを入れる話ではない。
 
 ## 前提（同意済み。番号。Chief of Staff が 2026-11-10 に 1〜4 全部に同意し、オーナーが 2026-11-11 に確かめた）
 
@@ -45,7 +45,7 @@
    (1) 課題: 台帳のステータスと問いは [ledger.md](../ledger.md) を指すだけ。Andon が足すのは「課題の型と工程」の層（`deliverable`・レビュー依頼・ready・ゲート・片付け）。
    (2) 担当の端末: hc の状態（`idle`・`working`・`blocked`・`error`・`done`・無い）の上に dispatcher が置く判定（最初のメッセージ未達・「続けて」N 回・stalled・見込みの段〈ADR-0014〉・Gone を見た時刻〈ADR-0014 E3〉・resume した〈ADR-0012 R4〉）。記録の `Sent`・`Retry`・`First`（P2b で 1 つの map に畳む）。
    (3) 通知の配達: 待ち → 渡した（経路①②③）→ 確かめた（ack）。記録の `Pending`・`Coord`・`NewsTurn`・`Hook`・`Replied`・`Unrecorded`。
-   (4) レビュアーの起動: 無し → 起こし中（worktree → 子課題 → 端末 → 最初のメッセージ）→ 起こした／見送った（理由つき）／失敗 N 回／上限で別ブランドに替えて起こし直す（`fallback.go`）。記録の `Reviewers`（`Started`・`Skipped`・`Failed`・`Attempts`・`OverLimit` を状態に畳む）。
+   (4) レビュアーの起動: 無し → 起動中（worktree → 子課題 → 端末 → 最初のメッセージ）→ 起動した／見送った（理由つき）／失敗 N 回／上限で別ブランドに替えて起動し直す（`fallback.go`）。記録の `Reviewers`（`Started`・`Skipped`・`Failed`・`Attempts`・`OverLimit` を状態に畳む）。
    (5) ゲートとマージ: `review` の行ごとに 待つ → approve／fix／needs_human → マージした → 片付けた（approve のまま 10 分止まった、を含む）。記録の `Gates`・`Approved`（決めたこと 6 の (2) の記録へ）。
    (6) 人のマージの見張り: 見ている（1 分に 1 回）→ MERGED／CLOSED → 片付けた／片付けられない（理由。同じ理由は 1 回）。記録の `Watch`。
    (7) 片付けのあとの仕事（影響と手直し。同じ形）: 待ち → 打ち直し N → 済み／諦めた（通知）。記録の `Impact`・`Corrections`。
@@ -56,18 +56,18 @@
    理由: 「1つの約束に書き手は1人」を記録の中にも当てる。lock もファイルごとになり、巡の全段で1つを持たなくてよい。担当の端末の判定は hc を読むだけの判定で、別コマンドに出すと往復（別プロセスからの `hc get`）が増えるので拾う側に残す。
    書き手を 1 人に保つ細部（反論から。2026-11-10）: (a) `log.jsonl` の `done` の行を拾うのは dispatcher だけで、コマンドには `<id>` を引数で渡す（拾う位置を 3 重にしない）。(b) コマンドは出す通知を stdout の JSON で返し、`Pending` に積むのは dispatcher だけ（コマンドは `<slug>.json` に触らない。dispatcher がコマンドを同期で打つ間に同じ lock を取り合って止まらない）。(c) `<slug>.signals.json` の `delivered_episode` も dispatcher が直に書かず、`andon signal` の口（仮 `andon signal delivered <source> <episode>`）で書く。(d) settle は dispatcher の控え（`Gates[].Merged`）を読まず、ゲートの記録 `library/gate/<head>.json` の `merged` を読む（同じ巡の中で控えが保存される前に打たれても誤報にならない）。
    捨てた案: 1ファイルのまま項目を整理する（書き手が複数になる）／担当の端末の判定もコマンドに出す（往復が増える）／コマンドが `<slug>.json` の待ちに直に積む（書き手 2 人・lock の取り合い）。
-6. **2026-11-11 コマンドに出すのは 5 つ。小さく自己完結な順に 1 課題ずつ: (1) 人のマージを拾って片付ける（仮 `andon issue settle`）→ (2) ゲートのあとのマージと片付け（仮 `andon issue merge`。`andon gate` を打ち、approve と委譲の範囲なら `gh pr merge` と `finish`。記録の `Gates`・`Approved` はこの記録へ）→ (3) 手直しを集める（仮 `andon issue corrections`）→ (4) 影響の打ち直しと諦め（`andon issue impact` はもうコマンド。残るのは回数の記録だけ。回数は dispatcher が打った分だけ数える別の口〈仮 `--retry`〉で、Chief of Staff が読むために手で打った分は数えない）→ (5) レビュアーを起こす（一番大きい。使用量の上限で別ブランドに替えて起こし直す `fallback.go` と最初のメッセージの送り直しも同じコマンドと記録に入れる。ADR-0012 の resume R3〈A-0039〉・R4〈A-0040〉のあと）。「approve のまま 10 分止まった」はコマンドにしない（届ける時機の判定で、配る側が merge の記録を読んで出す）。どのコマンドも 2 回打っても同じ結果になり、自分の記録を自分で持つ（決めたこと 5）。**（Chief of Staff が選んだ。5 つ目は反論 B2 を受けて 2026-11-10 に足した）
-   理由: S3 に要るのは手順 2 の定義だけで、コマンドの切り出しは要らない（`andon signal collect` はもうコマンド）。小さいものから出して記録の形を固め、一番大きいレビュアーは resume の課題とぶつからない順で最後。マージを出さないと `Gates`・`Approved` に持ち主が無く、主題の「dispatcher に残すのは『いつ起こすか』と『通知を配る』だけ」が偽になる。
-   捨てた案: レビュアーを先に（loop.go の 722 行が先に減るが、resume の課題とぶつかる）／定義（手順 1・2）だけで止めて出すのは別の題（指示文の「この題で入れる: 手順 1〜3」と違う）／ゲートのあとのマージを dispatcher に残し主題と目安を直す（反論 B2・F3。持ち主の無い記録が残る）／ADR-0007 R2〈A-0067〉の誤報を settle に吸収する（直す所は approve の道で settle の外。反論 I1。R2 は単独で先に流す）。
+6. **2026-11-11 コマンドに出すのは 5 つ。小さく自己完結な順に 1 課題ずつ: (1) 人のマージを拾って片付ける（仮 `andon issue settle`）→ (2) ゲートのあとのマージと片付け（仮 `andon issue merge`。`andon gate` を打ち、approve と委譲の範囲なら `gh pr merge` と `finish`。記録の `Gates`・`Approved` はこの記録へ）→ (3) 手直しを集める（仮 `andon issue corrections`）→ (4) 影響の打ち直しと諦め（`andon issue impact` はもうコマンド。残るのは回数の記録だけ。回数は dispatcher が打った分だけ数える別の口〈仮 `--retry`〉で、Chief of Staff が読むために手で打った分は数えない）→ (5) レビュアーを起動する（一番大きい。使用量の上限で別ブランドに替えて起動し直す `fallback.go` と最初のメッセージの送り直しも同じコマンドと記録に入れる。ADR-0012 の resume R3〈A-0039〉・R4〈A-0040〉のあと）。「approve のまま 10 分止まった」はコマンドにしない（届ける時機の判定で、配る側が merge の記録を読んで出す）。どのコマンドも 2 回打っても同じ結果になり、自分の記録を自分で持つ（決めたこと 5）。**（Chief of Staff が選んだ。5 つ目は反論 B2 を受けて 2026-11-10 に足した）
+   理由: S3 に要るのは手順 2 の定義だけで、コマンドの切り出しは要らない（`andon signal collect` はもうコマンド）。小さいものから出して記録の形を固め、一番大きいレビュアーは resume の課題とぶつからない順で最後。マージを出さないと `Gates`・`Approved` にオーナーが無く、主題の「dispatcher に残すのは『いつ起動するか』と『通知を配る』だけ」が偽になる。
+   捨てた案: レビュアーを先に（loop.go の 722 行が先に減るが、resume の課題とぶつかる）／定義（手順 1・2）だけで止めて出すのは別の題（指示文の「この題で入れる: 手順 1〜3」と違う）／ゲートのあとのマージを dispatcher に残し主題と目安を直す（反論 B2・F3。オーナーの無い記録が残る）／ADR-0007 R2〈A-0067〉の誤報を settle に吸収する（直す所は approve の道で settle の外。反論 I1。R2 は単独で先に流す）。
 7. **2026-11-11 ルーチンは「課題を足すもの」のまま。間隔で回る機械の仕事（`kanban tick`・`andon signal collect`・人のマージの見張り・stalled・見込みのズレ）は、ワークストリーム定義の「きっかけ」に間隔つきで書き、dispatcher の 1 巡を「定義のきっかけ表のうち時が来たものを打つ」だけにする（tick もその 1 つ。打つのは dispatcher だけ）。**（指示文の推奨「何をいつ回すかはルーチンに書く」と違う。Chief of Staff が選んだ）
    理由: 台帳の形式（ledger.md・`kanban`）を変えない。ADR-0011 決めたこと 5（取得は dispatcher の巡で）・ADR-0007 R1〈A-0066〉（tick は dispatcher が打つ。G4 はこれで閉じる。まだ入っていない）と合う。「いつ回すか」が定義の 1 か所に集まる。
    細部（反論から。2026-11-10）: (a) `andon signal collect` の間隔は ADR-0011 決めたこと 5 のまま出所ごとに `project.json` の `signals[].every`。きっかけ表の行は「`signals[].every` を見る」と指すだけで、YAML に数を書かない（間隔の置き場を 2 か所にしない）。(b) R1〈A-0066〉は単独で先に流し、P11 は「tick の行をきっかけ表に移す」だけにする（反論 I2。吸収すると P10 の鎖の最後に回り、ルーチンが 1 つも動かず、R7 の lock も遅れる）。(c) [ledger.md](../ledger.md) の Routines の「The yard runs `kanban tick` every 5 minutes (a cron entry)」の 1 文だけは「dispatcher が打つ」に直す（形式ではなく誰が打つかの文。やらないこと 8 の例外）。(d) ADR-0011 受け入れ条件 9 の「§2.1.1 の順の表に collect の段がある」は、P11 のあとは「きっかけ表の行がある」と読む（ADR-0011 に下から足す）。
    捨てた案: ルーチンに「コマンドを打つ」種類を足す（台帳の CLI がコマンドを実行する側になり、ADR-0011 決めたこと 5 を覆す）／ルーチンが「取りに行く課題」を足して担当が打つ（ADR-0011 が捨てた案。読むだけの仕事に担当のターンを使う）／間隔を YAML に写す（`project.json` と二重）。
 8. **2026-11-11 「Chief of Staff の端末が無ければ飛ばす」は配る段にだけ掛ける。拾う・記録する・コマンドを打つ段（`kanban tick`・レビュアーの起動・ゲートとそのあとのマージと片付け〈`andon issue merge`。委譲の範囲の中〉・人のマージの拾い・影響・手直し・`andon signal collect`）は Chief of Staff が居なくても回し、届ける通知は待ちに積む。戻ったときは今と同じ 1 通の `<news>` で、先頭に「留守の間（いつからいつまで）に N 件」の 1 行を足すだけ。要約する小さい AI（下読み役）は入れない。**（Chief Engineer の推奨。Chief of Staff は 2026-11-10 夜に「不可逆な操作は留守にしない（マージは待つ）」を取ったが、オーナーが 2026-11-11 に Chief Engineer の案を選んだ: 委譲は人が出したもので、Chief of Staff の在席は条件でない）
-   理由: Chief of Staff は起きたときに台帳を自分で読む（skill §0）ので、届くのは「判断が要るもの」だけで足りる。新しい役も形も足さない。ADR-0007 R1 の「Chief of Staff が生きているときだけ tick」は ADR-0007 に下から改める（留守でも tick）。
-   細部（反論から。2026-11-10）: (a) `chief_of_staff` が設定に無い台帳は今どおり丸ごと飛ばす（留守と区別する）。(b) 留守の始まりは配達の記録に 1 項目持つ（決めたこと 5）。(c) 戻った最初の `<news>` は経路③（deliver）でもフック（drain）でも留守の 1 行が付く。(d) 「N 件」は置き換えの前の数で数え、問いの通知 `asked` は問いの n ごとに別に積む（同じ課題の 2 つ目の問いが 1 つ目を消さない）。(e) dispatcher 自身の起こし直し（core の起き直しで端末の中身がシェルに替わったとき）を Chief of Staff のフック以外にも持つ（boot の定期か巡ごとの自己確認。P6 で決める。今の `terminal.go` の「Chief of Staff が動けばフックが走る」の前提と dispatcher.md §7.2 #1 を直す）。
+   理由: Chief of Staff は起動したときに台帳を自分で読む（skill §0）ので、届くのは「判断が要るもの」だけで足りる。新しい役も形も足さない。ADR-0007 R1 の「Chief of Staff が生きているときだけ tick」は ADR-0007 に下から改める（留守でも tick）。
+   細部（反論から。2026-11-10）: (a) `chief_of_staff` が設定に無い台帳は今どおり丸ごと飛ばす（留守と区別する）。(b) 留守の始まりは配達の記録に 1 項目持つ（決めたこと 5）。(c) 戻った最初の `<news>` は経路③（deliver）でもフック（drain）でも留守の 1 行が付く。(d) 「N 件」は置き換えの前の数で数え、問いの通知 `asked` は問いの n ごとに別に積む（同じ課題の 2 つ目の問いが 1 つ目を消さない）。(e) dispatcher 自身の起動し直し（core の起き直しで端末の中身がシェルに替わったとき）を Chief of Staff のフック以外にも持つ（boot の定期か巡ごとの自己確認。P6 で決める。今の `terminal.go` の「Chief of Staff が動けばフックが走る」の前提と dispatcher.md §7.2 #1 を直す）。
    捨てた案: 下読み役を入れてまとめさせる（新しい役）／留守の間は記録だけにして届けない（問い・impact を見落としうる）／留守の間はゲートのあとのマージと片付けを待つ（Chief of Staff の案。不可逆な操作は留守にしない。オーナーが取らなかった）／コマンドを打つ段も留守で回さない（受け入れ条件 13 が成り立たない）。
-9. **2026-11-11 見守りの段は ADR-0014 のまま（見込みの 1・2・4 倍で Chief of Staff にだけ届ける。担当には送らない・止めない。一律の上限と費用は取らない）。見守りのワークストリーム定義は ADR-0014 を指す。途中報告を書かせる・分ける・起こし直す・延長する、は届いた Chief of Staff が決めて `hc send` する（定義の「自分で決めてよいこと」の欄）。夜間のターン数・費用の上限は取らない。**（指示文の表〈1.5 倍で担当に途中報告・2 倍で窓口が決める・夜間は上限〉と違う。Chief of Staff が選んだ）
+9. **2026-11-11 見守りの段は ADR-0014 のまま（見込みの 1・2・4 倍で Chief of Staff にだけ届ける。担当には送らない・止めない。一律の上限とコストは取らない）。見守りのワークストリーム定義は ADR-0014 を指す。途中報告を書かせる・分ける・起動し直す・延長する、は届いた Chief of Staff が決めて `hc send` する（定義の「自分で決めてよいこと」の欄）。夜間のターン数・コストの上限は取らない。**（指示文の表〈1.5 倍で担当に途中報告・2 倍で窓口が決める・夜間は上限〉と違う。Chief of Staff が選んだ）
    理由: 同日のオーナーの決定（ADR-0014）を覆さない。指示文の表の「対応」は Chief of Staff が選べる手として定義に残る。
    捨てた案: 指示文の表で ADR-0014 決めたこと 6・7 を改める（オーナーが朝に決めるなら、ADR-0014 に下から足す）。
 10. **2026-11-11 担当の計画は `report.json` の `plan[]`（1 件 `id`・`text`・`done`）。`andon issue report --data` で書き、`pr` と同じく次の報告に引き継ぐ（引き継ぎの形は ADR-0014 E4〈A-0063〉が `estimate` で入れるものに合わせる。P4 は A-0063 のあと）。進み具合は `done` の数。見守りの「見るもの」に入れる。schema にキーを足すだけで版は上げない。**（約束の変更。Chief of Staff が選んだ）
@@ -107,7 +107,7 @@
          input: [notification.estimate, report.plan, hc.state]
          output: []
          skill: chief-of-staff#5
-         decides: [途中報告を書かせる, 分ける, 起こし直す, 延長する]
+         decides: [途中報告を書かせる, 分ける, 起動し直す, 延長する]
          next: [{ id: act, when: 手を打つ }, { id: done, when: 見るだけ }]
      ```
    - 1 本のステートマシン（`process/states/<名>.yaml`）の項目: `name`・`title`・`source`（定義の出所。ledger.md・ADR の番号）・`states[]`（`id`・`title`・`record`〈記録ファイルと項目。例 `dispatcher:Pending`・`reviewers:Started`〉）・`positions[]`（状態でない項目。拾う位置とデータ。例 `dispatcher:LogPos`）・`transitions[]`（`from`・`to`・`on`〈何が起きたら〉・`by`〈`machine`／`ai`／`person`／`deck`〉・`command`〈打つコマンド。任意〉・`once`〈2 回起きてはいけないか。dispatcher.md §7 の表はここから導く〉）。
@@ -152,7 +152,7 @@
 2. **Camunda・Temporal などの外の BPM の仕組みを入れること**: 手元のセルには重く、薄く保つ方針（design.md §1.9 の 5）と合わない（指示文）。
 3. **新しい役・新しい常駐を作ること**（dispatcher を 2 つに割る・下読み役・目標を持つ workstream の常駐）: 前提 3。ADR-0011 決めたこと 2 と同じ。
 4. **ルーチンに「コマンドを打つ」種類を足すこと**: 決めたこと 7。台帳の形式を変えない。
-5. **見守りで担当に途中報告を送る・止める・夜間にターン数や費用の上限で止めること**: 決めたこと 9。ADR-0014 決めたこと 6・7・やらないこと のまま。
+5. **見守りで担当に途中報告を送る・止める・夜間にターン数やコストの上限で止めること**: 決めたこと 9。ADR-0014 決めたこと 6・7・やらないこと のまま。
 6. **詰まりの兆しのうち「同じテストが続けて落ちる」「依頼書の範囲の外のファイルを触る」を数えること**: 決めたこと 11。テストの出力を受ける口と、依頼書の機械向けの欄が先に要る。
 7. **残り 6 本のワークストリーム（受付・起動・受け取り・取り次ぎ・結果を見る・ふりかえり）の中身を書くこと**: 決めたこと 3。名前と目的だけ置き、同じ形で後から（困ったら分ける）。
 8. **`kanban`（台帳の CLI・ledger.md の形式）を変えること**: 決めたこと 15。例外は ledger.md の Routines の「誰が tick を打つか」の 1 文（決めたこと 7 の (c)。形式ではない）。
@@ -170,9 +170,9 @@
 2. **生成**: `andon process render` が `docs/process/<名>.md`（表と Mermaid の図。ワークストリームは `flowchart`、ステートマシンは `stateDiagram-v2`）を書き、作り直して差分が無い（ii）。生成物に機械が読む行は無い。
 3. **8 本のステートマシン**: `process/states/` に `issue`・`worker`・`delivery`・`reviewer`・`gate`・`human-merge`・`aftermath`・`signal` があり、dispatcher と各コマンドの記録ファイルの Go の構造体の**一番上の項目**が、どれか 1 本の `states[].record` か `positions[]` に 1 回ずつ出る（iii。`go test` が反射で項目名を読む）。P2b の時点では今の `State` だけを対象にし、P7〜P10 と merge の課題はその PR で対応表を直す。`signal` は `internal/signal` の構造体のうち `active`・`episodes`・`delivered_episode` が `states[].record`、残りが `positions[]`。
 4. **「2 回走らせない」の導出**: `transitions[].once: true` の 1 件ごとに dispatcher.md §7.2 の行（走らせる者・二重に走ったら・今の守り）がある（ii。render が §7 の表を作るか、テストが突き合わせる）。
-5. **ワークストリーム 2 本**: `process/workstreams/watch.yaml`（見守り）と `triage.yaml`（仕分け）が決めたこと 16 の項目を全部持ち（`tests/process.sh` が見る。schema は必須にしない）、`skill[]` の節が chief-of-staff skill に在る。残り 6 本は `name`・`title`・`purpose` だけのファイルがある（ii・v）。見守りの `triggers[]` に ADR-0014 の `estimate` の通知と間隔、step の `input` に `report.json` の `plan[]`、`by: ai` の step の `decides[]` に途中報告を書かせる・分ける・起こし直す・延長する、`counts[]` に状態ごとの時間（決めたこと 17）がある。
+5. **ワークストリーム 2 本**: `process/workstreams/watch.yaml`（見守り）と `triage.yaml`（仕分け）が決めたこと 16 の項目を全部持ち（`tests/process.sh` が見る。schema は必須にしない）、`skill[]` の節が chief-of-staff skill に在る。残り 6 本は `name`・`title`・`purpose` だけのファイルがある（ii・v）。見守りの `triggers[]` に ADR-0014 の `estimate` の通知と間隔、step の `input` に `report.json` の `plan[]`、`by: ai` の step の `decides[]` に途中報告を書かせる・分ける・起動し直す・延長する、`counts[]` に状態ごとの時間（決めたこと 17）がある。
 6. **留守でも拾う**: Chief of Staff の端末が無い巡で、拾う・記録する・コマンドを打つ段は回り（`kanban tick`・レビュアーの起動・ゲートとマージと片付け・人のマージの拾い・影響・手直しが進む）、配る段だけ飛ぶ。待ちは `Pending` に残り、`asked` は n ごとに別。端末が戻った最初の `<news>` の先頭に「留守の間（<from>〜<to>）に N 件」の 1 行が、経路③（deliver）でもフック（drain）でも付く。`chief_of_staff` が設定に無い台帳は丸ごと飛ぶ（iv）。
-7. **コマンド 5 つ**: `andon issue settle <id>`（人のマージを拾って片付ける）・`andon issue merge <id>`（ゲートのあとのマージと片付け）・`andon issue corrections <id>`（手直しを集める）・`andon issue impact` の打ち直しと諦めの記録（`--retry`）・`andon review start <id>`（レビュアーを起こす。上限の起こし直しと送り直しを含む）が、それぞれ自分の記録ファイル（`<slug>.<名>.json`）を持ち、2 回打っても結果が同じ（起こすのは 1 回・書くのは 1 回・通知は 1 回）。通知は stdout の JSON で返し、`Pending` に積むのは dispatcher。settle は `library/gate/<head>.json` の `merged` を読み、dispatcher のマージを人のマージと誤報しない。dispatcher の `<slug>.json` にそれらの項目が無い（iii・iv）。名前は仮で、切る案の担当が揃える。
+7. **コマンド 5 つ**: `andon issue settle <id>`（人のマージを拾って片付ける）・`andon issue merge <id>`（ゲートのあとのマージと片付け）・`andon issue corrections <id>`（手直しを集める）・`andon issue impact` の打ち直しと諦めの記録（`--retry`）・`andon review start <id>`（レビュアーを起動する。上限の起動し直しと送り直しを含む）が、それぞれ自分の記録ファイル（`<slug>.<名>.json`）を持ち、2 回打っても結果が同じ（起動するのは 1 回・書くのは 1 回・通知は 1 回）。通知は stdout の JSON で返し、`Pending` に積むのは dispatcher。settle は `library/gate/<head>.json` の `merged` を読み、dispatcher のマージを人のマージと誤報しない。dispatcher の `<slug>.json` にそれらの項目が無い（iii・iv）。名前は仮で、切る案の担当が揃える。
 8. **計画**: `report.json` の `plan[]`（`id`・`text`・`done`）が schema を通り、`andon issue report` が前の報告から A-0063 と同じ形で引き継ぐ（i・iii）。
 9. **詰まりの兆し**: 偽の worktree で、見込みの分だけ commit が無い・テストを除いた変更が 500 行超のとき、段（1・2・4 倍）の `estimate` の通知の `detail.sign` に `no-commit`／`large-diff` が載る。段の間では通知が出ない。見込みの無い課題には出ない（iv）。
 10. **大きさ**: テストが きっかけ表の行（≤ 8。定義の YAML で数える）・`<slug>.json` の一番上の項目（≤ 12。反射で数える）・テスト以外の行数（≤ 2,700）を数え、超えたら落ちる（ii・iii）。版上げの CHANGELOG にその 3 つの数がある。
@@ -202,12 +202,12 @@ Settings の既定: Review on・Must fix major・Merge person（レベル C。�
 | P3 | ワークストリーム: 見守り・仕分けの 2 本と残り 6 本の名前。chief-of-staff skill §5・§10 を定義を指す形に。glossary に決めたこと 13 の語 | 3・9・13 | 5・12 | P1 |
 | P4 | `report.json` の `plan[]`・worker skill の `## 計画` の機械向けの写し・contract.md §4 | 10 | 8 | A-0063 |
 | P5 | 詰まりの兆し (a)(b) を段の `estimate` の通知の `detail.sign` に | 11 | 9 | ADR-0014 E3〈A-0062〉・P4 |
-| P6 | 留守でも拾う・起こす・マージする。配る段だけ飛ばす。留守の始まりの記録・戻った最初の `<news>` の留守の 1 行（deliver・drain）・`asked` を n ごとに・dispatcher 自身の起こし直し・dispatcher.md §2.1 と §7.2 #1 | 8 | 6・13 | P2b・A-0036 |
+| P6 | 留守でも拾う・起動する・マージする。配る段だけ飛ばす。留守の始まりの記録・戻った最初の `<news>` の留守の 1 行（deliver・drain）・`asked` を n ごとに・dispatcher 自身の起動し直し・dispatcher.md §2.1 と §7.2 #1 | 8 | 6・13 | P2b・A-0036 |
 | P7 | 人のマージを拾って片付ける → `andon issue settle`（自分の記録。ゲートの記録の `merged` を読む） | 5・6 | 7 の settle | P2b・A-0067 |
 | P7b | ゲートのあとのマージと片付け → `andon issue merge`（自分の記録。`Gates`・`Approved` を移す。approve のまま 10 分は配る側がこの記録を読む） | 5・6 | 7 の merge | P7 |
 | P8 | 手直しを集める → `andon issue corrections`（自分の記録） | 5・6 | 7 の corrections | P2b |
 | P9 | 影響の打ち直しと諦め → `andon issue impact --retry` が自分の記録を持つ | 5・6 | 7 の impact | P2b |
-| P10 | レビュアーを起こす → `andon review start`（自分の記録。上限の起こし直しと送り直しを含む。ADR-0012 R3〈A-0039〉・R4〈A-0040〉のあと） | 5・6 | 7 の review start | P2b・A-0039・A-0040 |
+| P10 | レビュアーを起動する → `andon review start`（自分の記録。上限の起動し直しと送り直しを含む。ADR-0012 R3〈A-0039〉・R4〈A-0040〉のあと） | 5・6 | 7 の review start | P2b・A-0039・A-0040 |
 | P11 | 1 巡を「きっかけ表のうち時が来たものを打つ」に（`kanban tick` の行は R1〈A-0066〉のあとに移すだけ。signal の間隔は `project.json` を指す）。大きさのテストと CHANGELOG。dispatcher.md §2.1.1・§7.2。ledger.md の 1 文。ADR-0007・ADR-0011 に下から足す | 7・12 | 10・12 | P6〜P10・P7b・A-0066 |
 | P12 | `andon issue …` が `issue.yaml` の定義に無い移り方を断る（`by: deck` は断らない） | 15 | 11 | P2b |
 | P13 | 観察: 価値の仮説（30 日後。`not_before`） | — | — | P11 |
@@ -224,7 +224,7 @@ Settings の既定: Review on・Must fix major・Merge person（レベル C。�
 
 - 指示文 P11（オーナー。2026-11-10。セルの `files/`。repo の外）と、その「背景」の節（3 層の整理・呼び方の話・BPM と BPMN とステートマシンの区別）。オーナーの言葉は「問題」の段に写し。
 - Chief of Staff の答え（2026-11-10 夜。オーナーが寝ている間の対話。端末 andon / CoS）。オーナーの答え（2026-11-11 朝。18 問。Chief of Staff が hc で伝えた）。
-- 反論（2026-11-10。別の文脈の読むだけのサブエージェントに「この設計を壊せ」と頼んだ。証明つき 27 件・疑い 5 件。直した所は各項目の「反論から」「細部」と受け入れ条件・切る案に写した。残した疑いは「開いている問い」）。
+- 反論（2026-11-10。別のコンテキストの読むだけのサブエージェントに「この設計を壊せ」と頼んだ。証明つき 27 件・疑い 5 件。直した所は各項目の「反論から」「細部」と受け入れ条件・切る案に写した。残した疑いは「開いている問い」）。
 - [dispatcher.md](../dispatcher.md) §0・§2.1〜§2.8・§3・§5・§6・§7（§7.2 の表・§7.3 の G1〜G8・§7.4）、[contract.md](../contract.md) §0・§2・§4・§6・§7・§13・§15、[ledger.md](../ledger.md)（Status rules・Routines・Questions・`log.jsonl`）、[design.md](../design.md) §1.3・§1.7・§1.8・§1.9・§2.1〜§2.3。
 - [ADR-0007](0007-interim-gap-inventory.md)（C1・A5〜A7・G4・R1・R2・R7）、[ADR-0010](0010-news-ack.md)（決めたこと 1〜8・捨てた案 1）、[ADR-0011](0011-signals-and-value-loop.md)（前提 6・決めたこと 2・5・6・8・12・16・受け入れ条件 9・S2・S3）、[ADR-0012](0012-resume-and-worktree-home.md)（R3・R4）、[ADR-0013](0013-short-role-names-and-plain-japanese.md)、[ADR-0014](0014-issue-estimate.md)（決めたこと 1〜11・やらないこと・E1〜E6）、[ADR-0006](0006-survey-fix-decide.md) 前提 11（Factory の工程と workstream）。
 - skill: chief-of-staff（§0〜§11・`<news>` の読み方の表）、worker（§2・§5・§7）、ask-one-by-one、glossary、chief-engineer。

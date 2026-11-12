@@ -84,7 +84,7 @@ func TestEnsureDispatcher(t *testing.T) {
 	d, round := newEnsure(t)
 	term := filepath.Join(d, "term")
 
-	// 端末が無い: 起こす
+	// 端末が無い: 起動する
 	did, calls, err := round()
 	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher" {
 		t.Fatalf("端末が無いとき: %q %q %v", did, calls, err)
@@ -96,11 +96,11 @@ func TestEnsureDispatcher(t *testing.T) {
 		t.Fatalf("動いているとき: %q %q %v", did, calls, err)
 	}
 
-	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: シェルには打ち込まず、片付けて同じ名前・ラベルで起こし直す
+	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: シェルには打ち込まず、片付けて同じ名前・ラベルで起動し直す
 	putTerm(t, term, fgShell)
 	did, calls, err = round()
 	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher"}
-	if err != nil || !strings.Contains(did, "起こし直した") || strings.Join(calls, "\n") != strings.Join(want, "\n") {
+	if err != nil || !strings.Contains(did, "起動し直した") || strings.Join(calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("中身がシェルのとき: %q %q %v", did, calls, err)
 	}
 	for _, c := range calls {
@@ -120,7 +120,7 @@ func TestEnsureDispatcher(t *testing.T) {
 		t.Fatalf("別のものが出ているとき: %q %q %v", did, calls, err)
 	}
 
-	// 終わった端末（keep が外れて中身が抜けた）: 起こし直す
+	// 終わった端末（keep が外れて中身が抜けた）: 起動し直す
 	if err := os.WriteFile(term, []byte(`{"state":"finished","foreground":null}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -129,13 +129,13 @@ func TestEnsureDispatcher(t *testing.T) {
 	}
 }
 
-// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。動いているとはみなさず、片付けて起こし直す。
+// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。動いているとはみなさず、片付けて起動し直す。
 func TestEnsureSettlesThenRestarts(t *testing.T) {
 	d, round := newEnsureWait(t, time.Second)
 	putTerm(t, filepath.Join(d, "term"), "null")
 	putTerm(t, filepath.Join(d, "term.3"), `{"name":"bash","argv":["/bin/bash"]}`)
 	did, calls, err := round()
-	if err != nil || !strings.Contains(did, "起こし直した") || len(calls) != 4 || calls[0] != "keep t1 --off" || !strings.HasPrefix(calls[3], "run ") {
+	if err != nil || !strings.Contains(did, "起動し直した") || len(calls) != 4 || calls[0] != "keep t1 --off" || !strings.HasPrefix(calls[3], "run ") {
 		t.Fatalf("取れてからシェルだったとき: %q %q %v", did, calls, err)
 	}
 }
@@ -237,7 +237,7 @@ func TestLiveTask(t *testing.T) {
 }
 
 // 台帳の数が変わって Place が変わった（台帳なしで起きたあと andon create した）: 動いている dispatcher でも、
-// 見回りの合間なら片付けて今の Place で起こし直す。見回りの途中（PassLock を持っている）と、
+// 見回りの合間なら片付けて今の Place で起動し直す。見回りの途中（PassLock を持っている）と、
 // PassLock を作らない前の版の dispatcher（ファイルが無い）なら触らない。
 func TestEnsureMovesToPlace(t *testing.T) {
 	d, _ := newEnsure(t)
@@ -277,7 +277,7 @@ func TestEnsureMovesToPlace(t *testing.T) {
 		t.Fatalf("置き場が違うとき: %q\n%s\n%v", did, calls, err)
 	}
 	if u, err := flock.TryLock(PassLock()); err != nil {
-		t.Fatalf("起こし直したあとも PassLock を持っている: %v", err)
+		t.Fatalf("起動し直したあとも PassLock を持っている: %v", err)
 	} else {
 		u()
 	}

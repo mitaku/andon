@@ -495,7 +495,7 @@ func TestVersionLess(t *testing.T) {
 }
 
 // Main を環境変数だけで走らせる: 偽の HOME・偽のセル、PATH には記録するだけの偽の hc。
-// 本物の hc・HOME・/workspace に触らない。2回目は dispatcher を起こし直さない（中身が andon dispatcher のまま）。
+// 本物の hc・HOME・/workspace に触らない。2回目は dispatcher を起動し直さない（中身が andon dispatcher のまま）。
 func TestMainWithFakeHome(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
@@ -525,7 +525,7 @@ func TestMainWithFakeHome(t *testing.T) {
 	}
 	got := read(t, calls)
 	if strings.Count(got, "run ") != 1 {
-		t.Errorf("dispatcher を起こした回数が1でない:\n%s", got)
+		t.Errorf("dispatcher を起動した回数が1でない:\n%s", got)
 	}
 	for _, want := range []string{"--name dispatcher", "--label role=dispatcher", "--cwd " + f.ws, filepath.Join(f.pkg, "bin", "andon") + " dispatcher"} {
 		if !strings.Contains(got, want) {

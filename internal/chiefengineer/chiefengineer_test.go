@@ -152,7 +152,7 @@ func TestStartsChiefEngineer(t *testing.T) {
 	if rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
-	if !strings.Contains(out, "S-7（Billing の設計）を t42（sample-site-s-7）で起こした。cwd "+f.wt()+" branch sample-site/S-7-billing") {
+	if !strings.Contains(out, "S-7（Billing の設計）を t42（sample-site-s-7）で起動した。cwd "+f.wt()+" branch sample-site/S-7-billing") {
 		t.Errorf("out=%q", out)
 	}
 	// 最後に出た場所を「<Space 名> / <tab 名>」で出す。hc attach は打たない（ADR-0002 決めたこと 14・16・17）
@@ -328,7 +328,7 @@ func TestBadSlug(t *testing.T) {
 	}
 }
 
-// Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。動いている端末があっても起こし、その端末には触らない。
+// Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。動いている端末があっても起動し、その端末には触らない。
 func TestStartsWhileAnotherRunning(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
@@ -337,11 +337,11 @@ func TestStartsWhileAnotherRunning(t *testing.T) {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	if !f.has("kanban add") || !f.has("hc run") || f.has("hc keep") || f.has("hc kill") || f.has("hc rm") {
-		t.Errorf("起こしていない・動いている端末に触った: %q", f.calls())
+		t.Errorf("起動していない・動いている端末に触った: %q", f.calls())
 	}
 }
 
-// 作り直しで素のシェルに替わった Chief Engineer の端末も片付けない（その課題は andon issue resume が続きから起こす。ADR-0012 決めたこと 12）。
+// 作り直しで素のシェルに替わった Chief Engineer の端末も片付けない（その課題は andon issue resume が続きから起動する。ADR-0012 決めたこと 12）。
 // hc ls・hc get も打たない（ほかの Chief Engineer の端末を見ない）。
 func TestShellChiefEngineerIsLeft(t *testing.T) {
 	f := newFake(t)

@@ -19,7 +19,7 @@ type Notification struct {
 	Detail  map[string]any `json:"detail"`
 }
 
-// Reviewer は起こしたレビュアー（控えの「issue → reviewer_issue・commit」）。状態は Started・Skipped・Failed のどれか。
+// Reviewer は起動したレビュアー（控えの「issue → reviewer_issue・commit」）。状態は Started・Skipped・Failed のどれか。
 type Reviewer struct {
 	Issue         string `json:"issue"`
 	Commit        string `json:"commit"`
@@ -27,12 +27,12 @@ type Reviewer struct {
 	Repo          string `json:"repo,omitempty"`
 	Worktree      string `json:"worktree,omitempty"`       // 作った detached worktree（andon issue finish が消す）
 	ReviewerIssue string `json:"reviewer_issue,omitempty"` // 足したレビュアーの課題
-	Address       string `json:"address,omitempty"`        // 起こした端末
-	Started       bool   `json:"started,omitempty"`        // 最初のメッセージまで届いた（もう起こさない）
-	Skipped       string `json:"skipped,omitempty"`        // 起こさない理由（設定・上限・head 違い）
-	OverLimit     int    `json:"over_limit,omitempty"`     // 上限を超えて起こさなかったときの上限（それより上がれば起こし直す）
-	Failed        string `json:"failed,omitempty"`         // 起こしそこねた理由（次の見回りで続きから）
-	Attempts      int    `json:"attempts,omitempty"`       // 起こしそこねた回数
+	Address       string `json:"address,omitempty"`        // 起動した端末
+	Started       bool   `json:"started,omitempty"`        // 最初のメッセージまで届いた（もう起動しない）
+	Skipped       string `json:"skipped,omitempty"`        // 起動しない理由（設定・上限・head 違い）
+	OverLimit     int    `json:"over_limit,omitempty"`     // 上限を超えて起動しなかったときの上限（それより上がれば起動し直す）
+	Failed        string `json:"failed,omitempty"`         // 起動しそこねた理由（次の見回りで続きから）
+	Attempts      int    `json:"attempts,omitempty"`       // 起動しそこねた回数
 	Row           int    `json:"row,omitempty"`            // 決めたときの課題の報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
 }
 
@@ -48,14 +48,14 @@ type Gate struct {
 type State struct {
 	Reviewers map[string]Reviewer `json:"reviewers"`          // <issue>@<commit>
 	Gates     map[string]Gate     `json:"gates"`              // <issue>#<log.jsonl の行>
-	Pending   []Notification      `json:"pending"`            // 待ちの通知（drain.go のフックが届ける。離席中は wait.go の待ち役が合図で起こす）
+	Pending   []Notification      `json:"pending"`            // 待ちの通知（drain.go のフックが届ける。離席中は wait.go の待ち役が合図で起動する）
 	Hook      *HookNews           `json:"hook,omitempty"`     // フックで渡して、その turn の終わりをまだ見ていない <news>
 	LogPos    *int64              `json:"log_pos,omitempty"`  // log.jsonl の読んだ位置（バイト。無ければ初めて）
 	LogHead   string              `json:"log_head,omitempty"` // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
 	LogHold   *int64              `json:"log_hold,omitempty"` // 問いの JSON を待って止まった行の頭（1回だけ待つ）
 	Ready     *[]string           `json:"ready,omitempty"`    // 前回の ready の id（人の課題を除く。無ければ初めて）
 	Sent      map[string]bool     `json:"sent,omitempty"`     // 知らせた担当の状態（<issue>|<agent>|<状態>|<status_ms>）
-	Retry     map[string]Resend   `json:"retry,omitempty"`    // 提供元に切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
+	Retry     map[string]Resend   `json:"retry,omitempty"`    // プロバイダに切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
 	First     map[string]bool     `json:"first,omitempty"`    // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
 	Moved     map[string]Moved    `json:"moved,omitempty"`    // working の担当の status.msg と画面の要約と、それが最後に動いた時刻（<issue>|<agent>。止まったかの見分け）
 	Impact    map[string]int      `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
@@ -69,7 +69,7 @@ type State struct {
 	Unrecorded []Notification `json:"unrecorded,omitempty"`
 	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前の版の控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
 	Replied map[string]int `json:"replied,omitempty"`
-	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起こした端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
+	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起動した端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
 	Resumed map[string]Resumed `json:"resumed,omitempty"`
 	// ゲートが wait（GitHub の checks が走っている・まだ1つも無い）を返した head（<issue>#<log.jsonl の行> → head。loop.go の review）
 	Waits map[string]string `json:"waits,omitempty"`

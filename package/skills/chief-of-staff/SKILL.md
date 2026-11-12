@@ -74,7 +74,7 @@ EOF
   例: 「docs の誤字を1つ直して」→ 直す課題（`sonnet`）。担当が同じ種類を3つ見つけ、小さければ3つとも直して報告する（止まらない）。種類や直し方が違えば `## 範囲の問い` で止まる（§4）。
 - 1つの依頼に関係の無い仕事が2つあれば、課題も2つにする。順番があれば `--after <id>`（`queued` になり、前が done で `todo` に戻る）。
 - `kanban add "<題>" --repo <host/owner/repo> --profile <名前> [--after <id>]`。`profile` は Andon のプロファイルの名前だけ（`hc templates` に出るもの:
-  `claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`。`chief-of-staff`・`chief-engineer` は課題には書かない）。repo の無い課題は `--repo` を付けない（`issues/<id>/` で起こる）。
+  `claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`。`chief-of-staff`・`chief-engineer` は課題には書かない）。repo の無い課題は `--repo` を付けない（`issues/<id>/` で起動する）。
 - プロファイルの選び方（迷ったら `claude`）:
 
   | プロファイル | 使いどころ |

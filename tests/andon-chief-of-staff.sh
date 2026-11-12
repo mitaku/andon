@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# `andon chief-of-staff`（docs/design.md §1.8 の Chief of Staff を起こす）。本物の台帳の CLI（kanban）・一時の台帳・偽の hc で回す。
-# 起こす・動いていれば起こさない（二重に起こさない）・起き直したら chief_of_staff が直る・2人なら止まる・最初のメッセージが届かないときの案内。
+# `andon chief-of-staff`（docs/design.md §1.8 の Chief of Staff を起動する）。本物の台帳の CLI（kanban）・一時の台帳・偽の hc で回す。
+# 起動する・動いていれば起動しない（二重に起動しない）・起き直したら chief_of_staff が直る・2人なら止まる・最初のメッセージが届かないときの案内。
 # 本物の hc には触らない。
 set -euo pipefail
 for c in jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
@@ -65,13 +65,13 @@ cos() { sed -n 's/^chief_of_staff: *//p' kanban/config.yaml; }
 cd "$tmp"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '台帳が見つからない' "$tmp/err" && [ "$(runs)" = 0 ] || die "台帳の外で: rc=$rc $(cat "$tmp/err")"
-ok '台帳の外では起こさずに止まる'
+ok '台帳の外では起動せずに止まる'
 
 cd "$tmp/projects/demo"
 kanban init --prefix D >/dev/null
 root=$PWD
 
-# 1. 起こす
+# 1. 起動する
 "$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 1 ] || die "hc run の回数: $(runs)"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label role=chief-of-staff --label project=demo --label herdr.space=andon-demo --label herdr.tab=andon-demo-cos --cwd $root chief-of-staff プロジェクト \`demo\` の Chief of Staff。" "$tmp/hc/log" \
@@ -79,17 +79,17 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label r
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
 [ "$(cos)" = t42 ] || die "chief_of_staff: $(cos)"
 jq -e 'select(.config) | .config.chief_of_staff == "t42"' kanban/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
-grep -q 'demo の Chief of Staff は t42（demo-cos・起こした）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
+grep -q 'demo の Chief of Staff は t42（demo-cos・起動した）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = 'andon chief-of-staff: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
-ok '起こす: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
+ok '起動する: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
 
-# 2. 動いていれば起こさない（Chief of Staff 自身が起きたときに打つ形）
+# 2. 動いていれば起動しない（Chief of Staff 自身が起動したときに打つ形）
 lines=$(wc -l < kanban/log.jsonl)
 "$andon" chief-of-staff >"$tmp/out"
-[ "$(runs)" = 1 ] || die '二重に起こした'
+[ "$(runs)" = 1 ] || die '二重に起動した'
 [ "$(wc -l < kanban/log.jsonl)" = "$lines" ] || die 'chief_of_staff が合っているのに台帳を書いた'
 grep -q 't42（demo-cos・動いているものを使う）' "$tmp/out" && grep -q '出た場所 demo / CoS（t42）' "$tmp/out" || die "out: $(cat "$tmp/out")"
-ok '動いていれば起こさない（二重に起こさない）。chief_of_staff が合っていれば台帳を書かない'
+ok '動いていれば起動しない（二重に起動しない）。chief_of_staff が合っていれば台帳を書かない'
 
 # 3. 起き直した（端末が変わった）: chief_of_staff が直る
 sed -i 's/^t42 /t50 /' "$tmp/hc/live"
@@ -123,14 +123,14 @@ rm "$tmp/hc/first"
 [ ! -e "$tmp/hc/attached" ] || die "hc attach を打った: $(cat "$tmp/hc/attached")"
 ok '最初のメッセージが届かなければ終了コード 3・送り直す hc send を案内（台帳には載せる）'
 
-# 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起こし直し、chief_of_staff を合わせる
+# 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起動し直し、chief_of_staff を合わせる
 echo t43 > "$tmp/hc/shells"
 "$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 3 ] && [ "$(cos)" = t44 ] || die "戻った端末: runs=$(runs) chief_of_staff=$(cos) $(cat "$tmp/out")"
 grep -qx 'keep t43 --off' "$tmp/hc/log" && grep -qx 'kill t43' "$tmp/hc/log" && grep -qx 'rm t43' "$tmp/hc/log" || die "片付けていない: $(cat "$tmp/hc/log")"
-grep -q 't43 は Chief of Staff のラベルのまま中身がシェルに替わっていた' "$tmp/out" && grep -q 't44（demo-cos・起こした）' "$tmp/out" || die "out: $(cat "$tmp/out")"
+grep -q 't43 は Chief of Staff のラベルのまま中身がシェルに替わっていた' "$tmp/out" && grep -q 't44（demo-cos・起動した）' "$tmp/out" || die "out: $(cat "$tmp/out")"
 rm "$tmp/hc/shells"
-ok '中身がシェルに替わって戻った端末は使わず、keep を外して kill・rm し、起こし直して chief_of_staff を合わせる'
+ok '中身がシェルに替わって戻った端末は使わず、keep を外して kill・rm し、起動し直して chief_of_staff を合わせる'
 
 # 8. --no-attach は消した（ADR-0002 決めたこと 14）
 rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?

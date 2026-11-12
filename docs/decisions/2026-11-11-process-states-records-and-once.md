@@ -4,5 +4,5 @@
 - 出典: ADR-0017（決めたこと 4・5、受け入れ条件 3・4）の切る案 P2b（A-0091。担当が推奨案で進めた）
 
 - dispatcher の控え（`State`）の一番上の項目は、`process/states/` のどれか 1 本の `states[].record` か `positions[]` に**ちょうど 1 回**出る。1 つの項目（`Reviewers`・`Gates`・`Watch` のような map）が 1 本の中で複数の状態を持つときは、その項目に最初に書かれる状態に割り当て、ほかの状態は `title` と `source` で項目の中の欄（`Started`・`Decision` など）を書く。項目を状態ごとに分けるのは、その項目をコマンドの記録に移す課題（P7〜P10）。`go test ./internal/dispatcher/...` が反射で項目名を読み、抜け・重なり・余り（定義にあって `State` に無い）を落とす。
-- `transitions[].once: true` の移り方は、`on` の終わりに「（…§7.2 #番号）」と書いて dispatcher.md §7.2 の行を指す。schema には欄を足さない（ADR-0017 決めたこと 16 の項目のまま）。`tests/process.sh` が、指す行が在り、走らせる者・二重に走ったら・今の守り が空でないことを見る。§7.2 に行の無い「1 回だけ」（レビュアーの使用量の上限での起こし直し・approve のまま 10 分止まった）は、行を足すまで `once: true` にしない。
+- `transitions[].once: true` の移り方は、`on` の終わりに「（…§7.2 #番号）」と書いて dispatcher.md §7.2 の行を指す。schema には欄を足さない（ADR-0017 決めたこと 16 の項目のまま）。`tests/process.sh` が、指す行が在り、走らせる者・二重に走ったら・今の守り が空でないことを見る。§7.2 に行の無い「1 回だけ」（レビュアーの使用量の上限での起動し直し・approve のまま 10 分止まった）は、行を足すまで `once: true` にしない。
 - P2b の時点の `State` は 20 項目（ADR-0017 を書いたときの 19 に、止まったかの見分けの `Moved` が増えた）。`Moved` は担当の端末の判定として `worker` に割り当てる。`Sent`・`Retry`・`First`・`Moved` を 1 つの map に畳むのは dispatcher のコードを触るので、この課題ではしない。

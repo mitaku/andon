@@ -4,7 +4,7 @@
 # tests/*.sh を並べて走らせる。出力は1本ごとに一時ファイルへ受け、終わった順に1本ずつまとめて出す（混ざらない）。
 # 最後に1本ごとの所要時間の表を出す（GITHUB_STEP_SUMMARY があればそこにも）。1本でも落ちれば 1 で終わる。
 #   引数が無ければ tests/*.sh 全部。ANDON_TEST_SKIP（空白区切りのパス）は走らせず、表に skip と出す。
-#   並べる数は ANDON_TEST_JOBS（既定は nproc）。長いもの（image.sh・schema.sh）を先に起こす。
+#   並べる数は ANDON_TEST_JOBS（既定は nproc）。長いもの（image.sh・schema.sh）を先に起動する。
 # tests/*.sh は互いに独立（一時ディレクトリだけに書く。docker を使うのは image.sh だけ）であることを前提にする。
 #   ただし mise の道具の置き場は共有なので、go を mise で使うときは並べる前に mise install を一度打つ。
 set -uo pipefail

@@ -18,10 +18,10 @@ import (
 	"andon/internal/spawn"
 )
 
-// dispatcher の端末の中身を戻す（dispatcher.md §5 の P3b「端末を起こす・中身を戻す」）。端末は --keep で起こすので、core が起き直すと（hc server restart・
+// dispatcher の端末の中身を戻す（dispatcher.md §5 の P3b「端末を起動する・中身を戻す」）。端末は --keep で起動するので、core が起き直すと（hc server restart・
 // App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで中身がシェルに替わる。
 // hc get dispatcher が通るだけでは「動いている」と言えないので、前に出ているもの（foreground.argv）で見る。
-// 中身がシェルなら、そのシェルには打ち込まず、端末を片付けて起こし直す。
+// 中身がシェルなら、そのシェルには打ち込まず、端末を片付けて起動し直す。
 // 打つのは boot（毎起動）と Chief of Staff のフック（andon dispatcher drain。毎ターン）。core の起き直しは boot を通らないが、
 // dispatcher が回るのは Chief of Staff が生きている台帳だけで、Chief of Staff が動けばフックが走る。
 
@@ -54,9 +54,9 @@ func IsDispatcher(argv []string) bool {
 	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == "dispatcher"
 }
 
-// Ensure は dispatcher の端末を確かめ、無ければ起こし、中身がシェルに替わっていれば端末を片付けて起こし直す。
+// Ensure は dispatcher の端末を確かめ、無ければ起動し、中身がシェルに替わっていれば端末を片付けて起動し直す。
 // andon dispatcher が動いていても、置き場のラベル（herdr.space・herdr.tab）が今の Place と違えば（台帳の数が変わった）、
-// 見回りの合間（PassLock が取れたとき）だけ同じ手で片付けて起こし直す。見回りの途中なら触らず、次に打たれたときに任せる。
+// 見回りの合間（PassLock が取れたとき）だけ同じ手で片付けて起動し直す。見回りの途中なら触らず、次に打たれたときに任せる。
 // 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd はセルの repo。
 // 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
 // ほかが確かめていれば ErrBusy を返す（どちらも「動いている」ではない）。
@@ -81,7 +81,7 @@ var ErrOldDispatcher = errors.New("動いている dispatcher は見回りの間
 func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
 	unlock, err := ensureLock()
 	if err != nil {
-		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起こせなかった理由を呼び手に見せる）
+		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起動できなかった理由を呼び手に見せる）
 	}
 	defer unlock()
 	t, gone, err := getDispatcher()
@@ -96,7 +96,7 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		if err := runDispatcher(andon, cwd); err != nil {
 			return "", err
 		}
-		return "dispatcher を起こした", nil
+		return "dispatcher を起動した", nil
 	case t.Foreground == nil:
 		return "", fmt.Errorf("%w（%s は %v 待っても前に出ているものが取れない）", ErrUnsure, t.Address, wait)
 	case IsDispatcher(t.Foreground.Argv):
@@ -112,7 +112,7 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		if _, err := os.Stat(PassLock()); errors.Is(err, fs.ErrNotExist) {
 			return "", fmt.Errorf("%w（%s の置き場は %s・%s、今の台帳の数では %s・%s）", ErrOldDispatcher, t.Address, t.Labels["herdr.space"], t.Labels["herdr.tab"], space, tab)
 		}
-		// 見回りの途中で止めない。lock は起こし直すまで持つ（新しい dispatcher は外れるのを待ってから回る）
+		// 見回りの途中で止めない。lock は起動し直すまで持つ（新しい dispatcher は外れるのを待ってから回る）
 		unpass, err := flock.TryLock(PassLock())
 		if errors.Is(err, flock.ErrBusy) && waiting != nil {
 			waiting()
@@ -127,7 +127,7 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		if err := respawn(andon, cwd, t.Address); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("dispatcher の端末（%s）の置き場が今の台帳の数に合っていなかったので、%s・%s に起こし直した", t.Address, space, tab), nil
+		return fmt.Sprintf("dispatcher の端末（%s）の置き場が今の台帳の数に合っていなかったので、%s・%s に起動し直した", t.Address, space, tab), nil
 	case !shells[t.Foreground.Name]:
 		return "", fmt.Errorf("dispatcher の端末の前に %s が出ている（andon dispatcher でもシェルでもない。触らない）", t.Foreground.Name)
 	case t.Address == "":
@@ -136,7 +136,7 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 	if err := respawn(andon, cwd, t.Address); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("dispatcher の端末（%s）の中身がシェルに替わっていたので、片付けて起こし直した", t.Address), nil
+	return fmt.Sprintf("dispatcher の端末（%s）の中身がシェルに替わっていたので、片付けて起動し直した", t.Address), nil
 }
 
 // hostName はセルの名前（hostname）。セルの台帳が2つ以上のときの Space 名に使う。テストで差し替える。
@@ -162,7 +162,7 @@ func Place(ws string) (space, tab string) {
 	return "andon-" + plant + "-plant", "andon-" + plant + "-dispatcher"
 }
 
-// respawn は dispatcher の端末 addr を片付けて（keep を外して kill・rm。hc kill は終わるまで待つ）、起こし直す。
+// respawn は dispatcher の端末 addr を片付けて（keep を外して kill・rm。hc kill は終わるまで待つ）、起動し直す。
 // 名前で引くと片付けた端末（finished）に当たりうるので、address で打つ。
 func respawn(andon, cwd, addr string) error {
 	for _, args := range [][]string{{"keep", addr, "--off"}, {"kill", addr}, {"rm", addr}} {

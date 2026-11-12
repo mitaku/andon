@@ -60,7 +60,7 @@ func RouteOf(n Notification, f Facts) Route {
 		}
 	case "stalled", "blocked", "ready":
 		if f.Engineer {
-			return Record // 人と話していて人の返事を待つのが普通・起こし済み。Chief of Staff は答えられない（ADR-0010 決めたこと 1）
+			return Record // 人と話していて人の返事を待つのが普通・起動済み。Chief of Staff は答えられない（ADR-0010 決めたこと 1）
 		}
 	}
 	return Deliver

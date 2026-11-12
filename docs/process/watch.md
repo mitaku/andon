@@ -32,7 +32,7 @@ flowchart LR
   subgraph lane_machine["機械"]
     s_look("担当の端末と実働を見る"):::machine
     g_look{"分かれ道"}
-    s_resume("死んだ担当を 1 回起こす"):::machine
+    s_resume("死んだ担当を 1 回起動する"):::machine
   end
   subgraph lane_ai["AI"]
     s_read("通知と計画を読む"):::ai
@@ -50,7 +50,7 @@ flowchart LR
   s_look -->|"notification.estimate・notification.stalled・notification.error・notification.finished・hc send（「続けて」）"| g_look
   g_look -->|"端末が Gone"| s_resume
   g_look -->|"通知を積んだ"| s_read
-  s_resume -->|"起こせなかった"| s_read
+  s_resume -->|"起動できなかった"| s_read
   s_read --> g_read
   g_read -->|"手を打つ"| s_act
   g_read -->|"人へ知らせる"| s_tell
@@ -66,7 +66,7 @@ flowchart LR
 | id | 手順 | やる者 | 入るもの | 出るもの | 次 |
 |---|---|---|---|---|---|
 | `look` | 担当の端末と実働を見る | 機械 | `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms` | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）` | `resume`（端末が Gone）・`read`（通知を積んだ） |
-| `resume` | 死んだ担当を 1 回起こす | 機械 | `hc.state`・`issue.session` | `hc（起こした端末）`・`notification.resumed`・`notification.finished` | `read`（起こせなかった） |
+| `resume` | 死んだ担当を 1 回起動する | 機械 | `hc.state`・`issue.session` | `hc（起動した端末）`・`notification.resumed`・`notification.finished` | `read`（起動できなかった） |
 | `read` | 通知と計画を読む | AI | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc.state`・`hc read の画面` |  | `act`（手を打つ）・`tell`（人へ知らせる）・`done`（見るだけ） |
 | `act` | 担当に手を打つ | AI | `report.plan`・`hc read の画面` | `hc send（担当へ）`・`台帳（分けた課題）` | 終わり |
 | `tell` | 人へ知らせる | AI | `hc read の画面` | `herdr notification`・`人への 1 問` | 終わり |
@@ -83,14 +83,14 @@ flowchart LR
 
 | id | どうやるか（SKILL の節） | 自分で決めてよいこと | 人に聞くこと |
 |---|---|---|---|
-| `read` | `chief-of-staff#5` | 途中報告を書かせる・分ける・起こし直す・延長する・続きを 1 回促す |  |
+| `read` | `chief-of-staff#5` | 途中報告を書かせる・分ける・起動し直す・延長する・続きを 1 回促す |  |
 | `act` | `chief-of-staff#5` | 送る文・分けた課題の範囲 |  |
-| `tell` | `chief-of-staff#5`・`ask-one-by-one` | 知らせる文 | 死んだまま起きない担当を新しいセッションで起こし直すか（andon issue resume --fresh）（business） |
+| `tell` | `chief-of-staff#5`・`ask-one-by-one` | 知らせる文 | 死んだまま起きない担当を新しいセッションで起動し直すか（andon issue resume --fresh）（business） |
 | `done` | `chief-of-staff#5` | 何もしない |  |
 
 見るもの（手順の入るものの和）: `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms`・`issue.session`・`notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc read の画面`・`<news>`
 
-残すもの（手順の出るものの和）: `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）`・`hc（起こした端末）`・`notification.resumed`・`hc send（担当へ）`・`台帳（分けた課題）`・`herdr notification`・`人への 1 問`・`news.ack`
+残すもの（手順の出るものの和）: `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）`・`hc（起動した端末）`・`notification.resumed`・`hc send（担当へ）`・`台帳（分けた課題）`・`herdr notification`・`人への 1 問`・`news.ack`
 
 ## 数えるもの
 

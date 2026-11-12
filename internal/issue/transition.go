@@ -13,7 +13,7 @@ import (
 
 // moves は台帳の status を移す（か、移さずに書く）andon issue のサブコマンド。process/states/issue.yaml の
 // transitions[].command に「andon issue <サブコマンド>」の形で出るものだけを打てる（ADR-0017 決めたこと 15・
-// 受け入れ条件 11）。show・impact・resume・session・stop-check は移り方ではない（読むだけ・起こし直すだけ）。
+// 受け入れ条件 11）。show・impact・resume・session・stop-check は移り方ではない（読むだけ・起動し直すだけ）。
 var moves = []string{"start", "report", "review-request", "candidates", "ask", "ready", "finish"}
 
 // froms は定義（issue.yaml）から、サブコマンドごとに打ってよい status を引く。by: kanban の移り方は

@@ -10,7 +10,7 @@ import (
 
 // 作り直し（herdr-core が自分の状態から端末を戻す）や core の起き直しのあと、端末は名前とラベルをそのままに、
 // 中身が素のシェルに替わって live で戻ってくる。戻った端末は top-level の argv ごとシェルに替わる（P7 の実測: argv ["/bin/bash"]）。
-// 起こした役の端末の top-level の argv は template の command（sh -c '… claude …'）のまま。
+// 起動した役の端末の top-level の argv は template の command（sh -c '… claude …'）のまま。
 // ラベルと live だけでは「動いている」と言えないので、top-level の argv と、hc の agent の情報（status.app）で見分ける。
 
 // Shells は、前に出ていれば「中身がシェル」とみなすもの。

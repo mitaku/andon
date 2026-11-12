@@ -2,12 +2,12 @@
 # tests/lib/scope.sh < 変更されたパス（repo からの相対・1行1つ）
 #
 # 手元で「変えたものに関係する検査だけ」を走らせるとき（tests/run --changed）に、走らせる tests/*.sh を1行1つで出す。
-# 安く全体を見るもの（public・public-selftest・smoke・ci）はいつも。tests/image.sh は CI と同じ
+# 安く全体を見るもの（public・public-selftest・smoke・ci・words・words-selftest）はいつも。tests/image.sh は CI と同じ
 # tests/lib/image-scope.sh が true のときだけ。知らないパスは image.sh 以外を全部にする。表は docs/image.md の「CI の所要時間」。
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-declare -A run=([tests/public.sh]=1 [tests/public-selftest.sh]=1 [tests/smoke.sh]=1 [tests/ci.sh]=1)
+declare -A run=([tests/public.sh]=1 [tests/public-selftest.sh]=1 [tests/smoke.sh]=1 [tests/ci.sh]=1 [tests/words.sh]=1 [tests/words-selftest.sh]=1)
 all=false
 paths=()
 while IFS= read -r p; do

@@ -111,7 +111,7 @@ func runMain(args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-// 端末の様子: エージェント（hc の template は sh -c '… claude …' で起こし、agent は claude-code）と、作り直しで戻った端末（argv ごと素のシェル・agent 無し）
+// 端末の様子: エージェント（hc の template は sh -c '… claude …' で起動し、agent は claude-code）と、作り直しで戻った端末（argv ごと素のシェル・agent 無し）
 const (
 	fgAgent = `"argv":["sh","-c","claude"],"status":{"app":"claude-code"},"foreground":{"name":"sh","argv":["sh","-c","claude"]}`
 	fgShell = `"argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}`
@@ -123,7 +123,7 @@ func TestStartsChiefOfStaff(t *testing.T) {
 	if rc != 0 || errs != "" {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
-	if !strings.Contains(out, "sample-site の Chief of Staff は t42（sample-site-cos・起こした）") {
+	if !strings.Contains(out, "sample-site の Chief of Staff は t42（sample-site-cos・起動した）") {
 		t.Errorf("out=%q", out)
 	}
 	// 最後に出た場所を「<Space 名> / <tab 名>」で出す（ADR-0002 決めたこと 14・17）。address は末尾に添えるだけ
@@ -156,7 +156,7 @@ func TestStartsChiefOfStaff(t *testing.T) {
 	}
 }
 
-// 同時に2本打っても2人にしない: lock を持たれている間は数えずに待ち、外れたら数えて起こす（dispatcher.md §7.2 #10）
+// 同時に2本打っても2人にしない: lock を持たれている間は数えずに待ち、外れたら数えて起動する（dispatcher.md §7.2 #10）
 func TestWaitsForLock(t *testing.T) {
 	f := newFake(t)
 	unlock, err := flock.Lock(Lock("sample-site"))
@@ -189,7 +189,7 @@ func TestUsesRunningOne(t *testing.T) {
 	if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") || !strings.HasSuffix(out, "出た場所 sample-site / CoS（t1）\n") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
-	// 二重に起こさない。chief_of_staff が合っていれば書かない
+	// 二重に起動しない。chief_of_staff が合っていれば書かない
 	if f.has("hc run") || f.has("hc templates") || f.has("kanban config") {
 		t.Errorf("calls=%q", f.calls())
 	}
@@ -290,13 +290,13 @@ func TestUsage(t *testing.T) {
 	}
 }
 
-// 作り直しで戻った端末（ラベル・名前・cwd はそのまま、中身が素のシェル）: 使わずに片付け、起こし直して chief_of_staff を合わせる。
+// 作り直しで戻った端末（ラベル・名前・cwd はそのまま、中身が素のシェル）: 使わずに片付け、起動し直して chief_of_staff を合わせる。
 func TestShellChiefOfStaffIsReplaced(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgShell+`}`)
 	rc, out, errs := runMain()
-	if rc != 0 || errs != "" || !strings.Contains(out, "t1 は Chief of Staff のラベルのまま中身がシェルに替わっていた") || !strings.Contains(out, "t42（sample-site-cos・起こした）") {
+	if rc != 0 || errs != "" || !strings.Contains(out, "t1 は Chief of Staff のラベルのまま中身がシェルに替わっていた") || !strings.Contains(out, "t42（sample-site-cos・起動した）") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	calls := strings.Join(f.calls(), "\n")
@@ -320,7 +320,7 @@ func TestShellChiefOfStaffNotCounted(t *testing.T) {
 	}
 }
 
-// 待っても前に出ているものが取れない: 使わず・起こさず・片付けず止まる（動いているかを確かめられない）。
+// 待っても前に出ているものが取れない: 使わず・起動せず・片付けず止まる（動いているかを確かめられない）。
 func TestChiefOfStaffForegroundUnknown(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)

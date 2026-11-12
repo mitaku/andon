@@ -23,7 +23,7 @@ transitions:
   - { from: "[*]", to: unrecorded, on: "記録だけの通知を置き場に書けなかった", by: machine }
   - { from: unrecorded, to: recorded, on: "次の見回りで先に書いた", by: machine }
   - { from: pending, to: hooked, on: "通知を Chief of Staff へ届ける（ターンの終わり・人が送った。経路①②。§7.2 #7）", by: machine, command: andon dispatcher drain, once: true }
-  - { from: pending, to: pending, on: "人が離れている間に Chief of Staff を起こす（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4）", by: machine, command: andon dispatcher wait }
+  - { from: pending, to: pending, on: "人が離れている間に Chief of Staff を起動する（待ち役が合図だけを打つ。経路③。中身は運ばず、そのターンの終わりに①で渡す。§4）", by: machine, command: andon dispatcher wait }
   - { from: hooked, to: acked, on: "渡した turn の Stop が来た", by: ai }
   - { from: hooked, to: hooked, on: "確かめないまま別の turn が来た（1 回だけ届け直す）", by: machine }
   - { from: acked, to: "[*]", on: "終わり", by: machine }

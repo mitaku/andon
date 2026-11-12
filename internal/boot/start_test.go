@@ -13,7 +13,7 @@ import (
 	"andon/internal/dispatcher"
 )
 
-// authorized_keys が無いときと、あるが読めないときを別の行で出す（どちらも sshd は起こさない）。
+// authorized_keys が無いときと、あるが読めないときを別の行で出す（どちらも sshd は起動しない）。
 func TestStartSSHDNoKeysAndUnreadableKeys(t *testing.T) {
 	f := newFixture(t)
 	if err := startSSHD(f.env()); err != nil {
@@ -113,7 +113,7 @@ func TestStartDispatcherReportsLockError(t *testing.T) {
 	Start(e)
 	got := f.log.String()
 	if !strings.Contains(got, "dispatcher の準備に失敗") || strings.Contains(got, "すでに動いている") {
-		t.Errorf("起こせなかったことが見えない: %q", got)
+		t.Errorf("起動できなかったことが見えない: %q", got)
 	}
 }
 
@@ -157,7 +157,7 @@ func term(fg string) string {
 	return `{"address":"t1","state":"live","argv":["/bin/bash"],"foreground":` + fg + `}`
 }
 
-// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。「すでに動いている」と書かずに起こし直す。
+// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。「すでに動いている」と書かずに起動し直す。
 func TestStartDispatcherRestoredShell(t *testing.T) {
 	f, e, d := dispatcherFixture(t)
 	old := dispatcherWait
@@ -170,7 +170,7 @@ func TestStartDispatcherRestoredShell(t *testing.T) {
 	}
 	got := f.log.String()
 	log, _ := os.ReadFile(filepath.Join(d, "log"))
-	if strings.Contains(got, "すでに動いている") || !strings.Contains(got, "起こし直した") || !strings.Contains(string(log), "run ") {
+	if strings.Contains(got, "すでに動いている") || !strings.Contains(got, "起動し直した") || !strings.Contains(string(log), "run ") {
 		t.Errorf("log=%q hc=%q", got, log)
 	}
 }
@@ -277,8 +277,8 @@ func TestDropStaleRoles(t *testing.T) {
 	}
 }
 
-// 前の版の係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起こさない。
-// 片付けられれば起こす。
+// 前の版の係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起動しない。
+// 片付けられれば起動する。
 func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 	oldWait, oldPoll := dispatcherWait, stalePoll
 	dispatcherWait, stalePoll = 100*time.Millisecond, 10*time.Millisecond
@@ -297,7 +297,7 @@ func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 		{"人が中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), "", false, "前に出ているものが vim なので触らない"},
 		{"前に出ているものが取れない", old("null"), "", false, "取れない なので触らない"},
 		{"片付けた", running, "", true, "前の版の係の端末 t1（courier）を片付けた"},
-		{"前の係の端末が無い", "", "", true, "dispatcher を起こした"},
+		{"前の係の端末が無い", "", "", true, "dispatcher を起動した"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f, e, d := dispatcherFixture(t)
@@ -317,8 +317,8 @@ func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 			if !strings.Contains(got, c.log) {
 				t.Errorf("log=%q want %q", got, c.log)
 			}
-			if !c.started && !strings.Contains(got, "dispatcher は起こさない") {
-				t.Errorf("起こさない理由が無い: %q", got)
+			if !c.started && !strings.Contains(got, "dispatcher は起動しない") {
+				t.Errorf("起動しない理由が無い: %q", got)
 			}
 		})
 	}

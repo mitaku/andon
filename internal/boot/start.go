@@ -27,7 +27,7 @@ const (
 
 // Start は起動の手を順に打つ。道具が無ければ飛ばし、失敗は警告にして続ける。
 func Start(e Env) {
-	oldLive := false // 前の版の係の端末を片付けられなかった（dispatcher を起こさない）
+	oldLive := false // 前の版の係の端末を片付けられなかった（dispatcher を起動しない）
 	for _, step := range []struct {
 		name string
 		run  func(Env) error
@@ -42,7 +42,7 @@ func Start(e Env) {
 		{"外の skill", installGhSkills}, // ネットワークが要るので最後（ほかの起動を待たせない）
 	} {
 		if step.name == "dispatcher" && oldLive {
-			e.logf("前の版の係の端末が残っているので dispatcher は起こさない（二重に回さない）。人が hc kill <address> で片付けてから andon boot を打ち直す")
+			e.logf("前の版の係の端末が残っているので dispatcher は起動しない（二重に回さない）。人が hc kill <address> で片付けてから andon boot を打ち直す")
 			continue
 		}
 		err := step.run(e)
@@ -88,7 +88,7 @@ func listening(port string) bool {
 	return true
 }
 
-// detach は name を起こして手放す（boot が終わっても残る）。出力は logPath へ。
+// detach は name を起動して手放す（boot が終わっても残る）。出力は logPath へ。
 func detach(logPath, name string, args ...string) error {
 	out, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -159,7 +159,7 @@ func fixClaudeInstall(e Env) error {
 	return nil
 }
 
-// startPortless はアプリを名前で当てるプロキシを起こす（http://<app>.<セル名>.localhost:<番号>）。
+// startPortless はアプリを名前で当てるプロキシを起動する（http://<app>.<セル名>.localhost:<番号>）。
 func startPortless(e Env) error {
 	portless, ok := e.has("portless")
 	if !ok {
@@ -181,7 +181,7 @@ func startPortless(e Env) error {
 	return nil
 }
 
-// startFiles は納品物 files/ を読み取りで公開する files サーバ（andon boot serve-files）を起こし、
+// startFiles は納品物 files/ を読み取りで公開する files サーバ（andon boot serve-files）を起動し、
 // portless に files で登録する。返すのは実体が files/ の中にあるものだけ（FilesHandler）。
 func startFiles(e Env) error {
 	portless, ok := e.has("portless")
@@ -219,7 +219,7 @@ func startSSHD(e Env) error {
 		e.logf("ssh は無効（使うなら .ssh/authorized_keys に公開鍵を置いて再起動）")
 		return nil
 	} else if err != nil {
-		e.logf("ssh は無効（.ssh/authorized_keys があるが読めない: %v。セルの repo の持ち主と andon の uid が同じか確かめる）", err)
+		e.logf("ssh は無効（.ssh/authorized_keys があるが読めない: %v。セルの repo のオーナーと andon の uid が同じか確かめる）", err)
 		return nil
 	}
 	sudo, ok := e.has("sudo")
@@ -261,14 +261,14 @@ func startSSHD(e Env) error {
 const oldDispatcher = "courier"
 
 // errOldDispatcher は前の版の係の端末が live のまま残った（片付けなかった・片付けに失敗した）。
-// Start はその起動で dispatcher を起こさない（前の係が動いていれば二重に回る）。
+// Start はその起動で dispatcher を起動しない（前の係が動いていれば二重に回る）。
 var errOldDispatcher = errors.New("前の版の係の端末が残っている")
 
 // dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
 // （keep を外して kill・rm）。セルの upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
-// （同じ PR をマージしにいく）ので、起こす前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
+// （同じ PR をマージしにいく）ので、起動する前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
 // （作り直しで戻った中身）のときだけ片付ける。それ以外（人が中で何か動かしている・前に出ているものが取れない）と
-// 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起こさない）。
+// 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起動しない）。
 func dropStaleRoles(e Env) error {
 	hc, ok := e.has("hc")
 	if !ok {
@@ -314,7 +314,7 @@ func isOldDispatcher(argv []string) bool {
 	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == oldDispatcher
 }
 
-// startDispatcher は dispatcher の端末を確かめる（dispatcher.Ensure。無ければ起こし、中身がシェルに替わっていれば片付けて起こし直す）。
+// startDispatcher は dispatcher の端末を確かめる（dispatcher.Ensure。無ければ起動し、中身がシェルに替わっていれば片付けて起動し直す）。
 // --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff のフックも同じ確かめを打つ。
 // 作り直しの直後は、戻った端末の前に出ているものがまだ取れないことがあるので、dispatcherWait まで読み直す。
 // 何もしなかったときは理由ごとに書き分ける（動いている・確かめられなかった・ほかが確かめている）。

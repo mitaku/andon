@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `andon dispatcher`（インナーループ。docs/dispatcher.md §5 の P6a）。本物の台帳の CLI（kanban）と git・一時のセルの repo・偽の hc・偽の gh で回す。
-# Chief of Staff（t5）は台帳を用意したあと1つも打たず、review-request → レビュアーを起こす → レビュー → ready → ゲート →
+# Chief of Staff（t5）は台帳を用意したあと1つも打たず、review-request → レビュアーを起動する → レビュー → ready → ゲート →
 # マージ → finish が通ることを見る。fix は担当へ hc send、needs_human は問い（from: gate）。GitHub と本物の hc には出ない。
 # ANDON_EMIT_DIR があれば、通知・問い・ゲートの記録を写す（tests/schema.sh が schema に通す）。台帳の CLI は tests/lib/kanban.sh が焼く。
 set -euo pipefail
@@ -181,18 +181,18 @@ dispatcher
 jq -e --arg k "$id@$head" '(.reviewers | length) == 1 and .reviewers[$k].started == true and .pending == []' "$state" >/dev/null && recorded "$id" review-requested | jq -e . >/dev/null ||
     die "初めて見た台帳で控え・通知が違う（report・ready を流した）: $(jq -c '{reviewers, pending}' "$state")"
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起こした'
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '同じ review_request で二度起動した'
 ok 'Chief of Staff の端末が無ければ飛ばし、初めて見る台帳でも済んでいない review_request は拾う（過去の report・ready は流さない）'
 
-# 0b. 控えを無くしても（初めて見た台帳と同じ）、台帳にその commit のレビュアーがもういれば二重に起こさない
+# 0b. 控えを無くしても（初めて見た台帳と同じ）、台帳にその commit のレビュアーがもういれば二重に起動しない
 cp "$state" "$tmp/state.bak"; rm "$state"
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '控えを無くしたあと、もういるレビュアーを二重に起こした'
+[ "$(grep -c '^run' "$tmp/hc/log")" = 1 ] || die '控えを無くしたあと、もういるレビュアーを二重に起動した'
 grep -q "$id のレビュー（commit ${head:0:12}）は .*がもう受けている" "$tmp/dispatcher.log" || die '引き継いだことがログに無い'
 cp "$tmp/state.bak" "$state"
-ok '控えに無い review_request でも、台帳にその commit のレビュアーの子課題があれば引き継ぐ（二重に起こさない）'
+ok '控えに無い review_request でも、台帳にその commit のレビュアーの子課題があれば引き継ぐ（二重に起動しない）'
 
-# 0c. 前の版の控え（初めて見た台帳で控えただけの回）と、起こさなかった回を同じ commit で頼み直したとき
+# 0c. 前の版の控え（初めて見た台帳で控えただけの回）と、起動しなかった回を同じ commit で頼み直したとき
 id=$(newtask '止まっていた間のレビュー依頼' person)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
@@ -202,20 +202,20 @@ as_worker "$id" review-request
 HC_TERMINAL_ID=t5 kanban set "$id" review=off >/dev/null
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'review が off なのに起こした'
-jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("issue.yaml の review が on でない")' "$state" >/dev/null || die '起こさなかった回を控えていない'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'review が off なのに起動した'
+jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("issue.yaml の review が on でない")' "$state" >/dev/null || die '起動しなかった回を控えていない'
 HC_TERMINAL_ID=t5 kanban set "$id" review=on >/dev/null
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '頼み直していないのに起こし直した'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '頼み直していないのに起動し直した'
 as_worker "$id" review-request   # 同じ commit で頼み直す
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起こさなかった回を同じ commit で頼み直したのに拾わない'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起動しなかった回を同じ commit で頼み直したのに拾わない'
 as_worker "$id" review-request
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起こした回を同じ commit で頼み直したら二重に起こした'
-ok '同じ commit の出し直しは、前回が起こさずに終わっていれば拾い、起こしていれば二重に起こさない'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起動した回を同じ commit で頼み直したら二重に起動した'
+ok '同じ commit の出し直しは、前回が起動せずに終わっていれば拾い、起動していれば二重に起動しない'
 
-# 1. 一周: review-request → レビュアーを起こす → レビュー → ready → ゲート → マージ → finish
+# 1. 一周: review-request → レビュアーを起動する → レビュー → ready → ゲート → マージ → finish
 id=$(newtask 'docs を直す' auto)
 mark=$(wc -l < "$L/log.jsonl")
 # 担当 t7 は andon issue start のラベルで App の課題の Space の tab にいる（ADR-0003）。レビュアーは同じ値を付ける
@@ -250,11 +250,11 @@ grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --la
     die "レビュアーに担当の herdr.space・herdr.tab が無い（where を写した）: $(grep ^run "$tmp/hc/log")"
 grep -qx "get t7 --json" "$tmp/hc/log" || die '担当の端末を hc get --json で読んでいない'
 rm "$tmp/hc/term-t7.json"
-ok "review_request でレビュアーを起こす（kanban add --parent・by terminal:dispatcher・detached worktree〈台帳の worktree もそれ・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
+ok "review_request でレビュアーを起動する（kanban add --parent・by terminal:dispatcher・detached worktree〈台帳の worktree もそれ・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '同じ review_request で二度起こした'
-ok '同じ review_request（issue と commit）で二度起こさない'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '同じ review_request で二度起動した'
+ok '同じ review_request（issue と commit）で二度起動しない'
 
 review_by "$rev" '[{"severity":"minor","file":"docs/a.md","line":1}]'
 as_worker "$id" report --data '{"waived":[{"severity":"minor","file":"docs/a.md","line":1,"reason":"起きる条件が無い"}]}'
@@ -568,7 +568,7 @@ rm -f "$tmp/gh/merged"
 HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null
 ok 'issue.yaml の repo と違う repo の PR は、マージされていても見ず、片付けない'
 
-# 5. 上限を超えた回（extra）は起こさない（Chief of Staff が決める）
+# 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
 restart "$id"
 work "$id" docs/a.md
@@ -576,17 +576,17 @@ as_worker "$id" report
 as_worker "$id" review-request
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '上限を超えた回でレビュアーを起こした'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '上限を超えた回でレビュアーを起動した'
 pending "$id" report | jq -e '.detail.report | endswith("/report.md")' >/dev/null || die '通知 report が無い'
-grep -q '追加の回（2 回目／上限 1）' "$tmp/dispatcher.log" || die '起こさない理由がログに無い'
+grep -q '追加の回（2 回目／上限 1）' "$tmp/dispatcher.log" || die '起動しない理由がログに無い'
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '上限を超えた回を二度目の見回りで起こした'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '上限を超えた回を二度目の見回りで起動した'
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=2 >/dev/null
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die 'Chief of Staff が review_rounds を上げたのに起こさない'
-ok '上限を超えた回（extra）は起こさず通知 report。Chief of Staff が review_rounds を上げたら次の見回りで起こす'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die 'Chief of Staff が review_rounds を上げたのに起動しない'
+ok '上限を超えた回（extra）は起動せず通知 report。Chief of Staff が review_rounds を上げたら次の見回りで起動する'
 
-# 5b. deliverable: candidates（調べる課題。Chief of Staff が書いた）はインナーループを通らない: review_request があってもレビュアーを起こさず、
+# 5b. deliverable: candidates（調べる課題。Chief of Staff が書いた）はインナーループを通らない: review_request があってもレビュアーを起動せず、
 #     review に入っても andon gate を回さない（通知は届ける）。ADR-0006 受け入れ条件 3
 sid=$(newtask '誤りの候補を調べる' person)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates >/dev/null
@@ -595,14 +595,14 @@ jq '.review_request' -e "$L/issues/$id/library/report.json" >/dev/null || die '�
 cp "$L/issues/$id/library/report.json" "$L/issues/$sid/library/report.json"   # 形の合う review_request つきの報告
 runs=$(grep -c '^run' "$tmp/hc/log"); posted=$(grep -c '^status' "$tmp/gh/posted")
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates の課題の review_request でレビュアーを起こした'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates の課題の review_request でレビュアーを起動した'
 (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$sid" && HC_TERMINAL_ID=t7 kanban review "$sid" >/dev/null)
 dispatcher
 [ "$(grep -c '^status' "$tmp/gh/posted")" = "$posted" ] && [ ! -e "$L/issues/$sid/library/gate" ] || die 'candidates の課題にゲートを回した'
 jq -e --arg t "$sid" '[.gates | to_entries[] | select(.value.issue == $t)] == []' "$state" >/dev/null || die "candidates の課題のゲートを控えた: $(jq -c .gates "$state")"
 [ "$(pending "$sid" review)" != null ] || [ "$(pending "$sid" report)" != null ] || die "candidates の課題の review の通知が無い: $(jq -c .pending "$state")"
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates の課題でレビュアーを起こした'
-ok 'deliverable: candidates の課題は review_request でレビュアーを起こさず、review に入ってもゲートを回さない（通知は届ける）'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates の課題でレビュアーを起動した'
+ok 'deliverable: candidates の課題は review_request でレビュアーを起動せず、review に入ってもゲートを回さない（通知は届ける）'
 
 # 6. andon issue finish（人がマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')
@@ -626,7 +626,7 @@ kanban show "$id" --json | jq -e '.issue.status != "done"' >/dev/null || die '�
 ok 'andon issue finish は台帳の worktree が repo の本体の checkout なら、消さずに止まる'
 
 # 7. 最初のメッセージが届かなければ（送れなかった・送ったが動き出さなかった）、端末にラベル first_message.sent=false を付けて
-#    起こしたことにし、次の見回りで1回だけ送り直す（担当と同じ。dispatcher.md §5）。課題も端末も二つにしない
+#    起動したことにし、次の見回りで1回だけ送り直す（担当と同じ。dispatcher.md §5）。課題も端末も二つにしない
 for first in '{"sent":false,"reason":"t9 is still starting: its output has not settled"}' '{"sent":true,"started":false,"turn":1}'; do
   id=$(newtask "最初の文が届かない $(jq -r .sent <<<"$first")" auto)
   work "$id" docs/a.md
@@ -637,15 +637,15 @@ for first in '{"sent":false,"reason":"t9 is still starting: its output has not s
   dispatcher
   rm "$tmp/hc/first"
   key="$id@$head"
-  jq -e --arg k "$key" '.reviewers[$k] | .started == true and .reviewer_issue != null and .address != null' "$state" >/dev/null || die "ラベルを付けたのに起こしたことにならない（$first）: $(jq -c --arg k "$key" '.reviewers[$k]' "$state")"
+  jq -e --arg k "$key" '.reviewers[$k] | .started == true and .reviewer_issue != null and .address != null' "$state" >/dev/null || die "ラベルを付けたのに起動したことにならない（$first）: $(jq -c --arg k "$key" '.reviewers[$k]' "$state")"
   addr=$(jq -r --arg k "$key" '.reviewers[$k].address' "$state")
   rev=$(jq -r --arg k "$key" '.reviewers[$k].reviewer_issue' "$state")
   grep -qx "$addr first_message.sent=false" "$tmp/hc/labels" || die "届いていない端末にラベルを付けていない（$first）"
-  ! grep -q "^$addr	" "$tmp/hc/sent" 2>/dev/null || die "起こした回に送り直した（$first）"
+  ! grep -q "^$addr	" "$tmp/hc/sent" 2>/dev/null || die "起動した回に送り直した（$first）"
   # 次の見回り: レビュアーは idle のまま（入力欄が空）。同じ端末へレビュアーの最初のメッセージを1回だけ送り、ラベルを外す
   printf '{"address":"%s","state":"live","status":{"state":"idle"},"status_ms":%s,"turn":1,"labels":{"first_message.sent":"false"}}\n' "$addr" "$(date +%s%3N)" > "$tmp/hc/term-$addr.json"
   dispatcher
-  [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die "二重に起こした（$first）"
+  [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die "二重に起動した（$first）"
   [ "$(grep -c "^$addr	課題 \`demo/$rev\`。" "$tmp/hc/sent")" = 1 ] || die "同じ端末へレビュアーの最初のメッセージを送り直していない（$first）"
   grep -A2 "^$addr	課題" "$tmp/hc/sent" | grep -q "^先に \`.*/skills/worker/SKILL.md\` を読む。" || die "送り直した文がレビュアーの最初のメッセージでない（$first）"
   grep -qx "$addr first_message.sent=" "$tmp/hc/labels" || die "送り直したのにラベルを外していない（$first）"
@@ -669,11 +669,11 @@ insteadof() { git config --global --remove-section "url.file://$2" 2>/dev/null |
 insteadof "$tmp/nowhere" "$tmp/origin"
 dispatcher
 insteadof "$tmp/origin" "$tmp/nowhere"
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] && jq -e --arg k "$id@$head" '.reviewers[$k].failed | contains("fetch")' "$state" >/dev/null || die 'fetch に失敗したのに起こした・控えに失敗が無い'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] && jq -e --arg k "$id@$head" '.reviewers[$k].failed | contains("fetch")' "$state" >/dev/null || die 'fetch に失敗したのに起動した・控えに失敗が無い'
 dispatcher
-[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] && jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null || die 'fetch が戻ったのに起こさない'
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] && jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null || die 'fetch が戻ったのに起動しない'
 ! grep '^run ' "$tmp/hc/log" | tail -n 1 | grep -q 'herdr\.' || die "担当の端末のラベルが読めないのに herdr.space・herdr.tab を付けた: $(grep ^run "$tmp/hc/log" | tail -n 1)"
-ok 'fetch の一時の失敗は控えで成功と分け、次の見回りで起こす（担当の端末のラベルが読めなければ herdr.space・herdr.tab を付けない）'
+ok 'fetch の一時の失敗は控えで成功と分け、次の見回りで起動する（担当の端末のラベルが読めなければ herdr.space・herdr.tab を付けない）'
 
 # 9. ゲートのあと Chief of Staff が merge: person に変えたら、マージせず次の見回りでゲートから回し直す
 gate_through() { # gate_through <id>: レビュアーが指摘なしで返し、担当が ready まで
@@ -900,7 +900,7 @@ out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}
 [ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
 ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
 
-# 12a. core が起き直して dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフックが片付けて起こし直す（シェルには打ち込まない）
+# 12a. core が起き直して dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフックが片付けて起動し直す（シェルには打ち込まない）
 echo '{"address":"t3","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-dispatcher.json"
 logs=$(wc -l < "$tmp/hc/log")
 HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"x"}' >/dev/null
@@ -909,13 +909,13 @@ want="keep t3 --off
 kill t3
 rm t3
 run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-demo --label herdr.tab=andon-demo-dispatcher --cwd $tmp/plant -- $andon dispatcher"
-[ "$got" = "$want" ] || die "シェルに替わった dispatcher を片付けて起こし直さない: $got"
+[ "$got" = "$want" ] || die "シェルに替わった dispatcher を片付けて起動し直さない: $got"
 ! grep -q '^dispatcher	' "$tmp/hc/sent" || die 'dispatcher のシェルに打ち込んだ'
 fg_dispatcher
 logs=$(wc -l < "$tmp/hc/log")
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"x"}' >/dev/null
-! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^run \|^kill \|^rm ' || die '中身が andon dispatcher の dispatcher を起こし直した'
-ok 'dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）が片付けて同じ名前・ラベルで起こし直す（シェルに打ち込まない・動いていれば触らない）'
+! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^run \|^kill \|^rm ' || die '中身が andon dispatcher の dispatcher を起動し直した'
+ok 'dispatcher の端末の中身がシェルに替わっていたら、Chief of Staff のフック（drain）が片付けて同じ名前・ラベルで起動し直す（シェルに打ち込まない・動いていれば触らない）'
 
 # 12b. UserPromptSubmit で渡したあと turn が中断された（Stop が来ない）ら、次の送信で1回だけ届け直す。news.replied は渡した turn の答えにだけ
 ups() { HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<"{\"session_id\":\"s1\",\"prompt_id\":\"$1\",\"prompt\":\"x\"}" | jq -r '.hookSpecificOutput.additionalContext'; }
@@ -1001,7 +1001,7 @@ dispatcher
 [ "$(sent)" = 0 ] || die '見回りが Chief of Staff に <news> を送った'
 tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log" | grep -q 't5 に届ける待ちが 1 件あるが、待ち役がいない' || die '待ち役がいないことをログに書かない（同じ待ちに1回だけは Go のテスト。--once は毎回新しいプロセス）'
 waitf=$tmp/state/andon/dispatcher/demo.json.wait
-wstart() { # wstart <名前> [<andon dispatcher wait の引数>…]: 待ち役を背景で起こす（引数が無ければフックの stop-wait そのもの）。終了コードは $tmp/<名前>.rc
+wstart() { # wstart <名前> [<andon dispatcher wait の引数>…]: 待ち役を背景で起動する（引数が無ければフックの stop-wait そのもの）。終了コードは $tmp/<名前>.rc
     local n=$1; shift
     rm -f "$tmp/$n.rc" "$tmp/$n.err"
     if [ $# = 0 ]; then set -- sh "$hooks/stop-wait"; else set -- "$andon" dispatcher wait "$@"; fi
@@ -1028,18 +1028,18 @@ out=$(cstop w5 '' false)
 jq -e --arg id "$id" '.hookSpecificOutput.additionalContext | contains("\($id) report:")' <<<"$out" >/dev/null || die "合図のあとの Stop で <news> を渡さない: $out"
 cstop w5 'x' true >/dev/null
 jq -e '.pending == [] and (has("hook") | not)' "$state" >/dev/null || die '渡した <news> を確かめ済みにしない'
-ups w6 | grep -q "$id report:" && die '待ち役で起こして Stop で渡した <news> を、次の送信でもう一度渡した'
+ups w6 | grep -q "$id report:" && die '待ち役で起動して Stop で渡した <news> を、次の送信でもう一度渡した'
 ok '届ける待ちがあり Chief of Staff が idle・done なら、待ち役（stop-wait）が合図の1行で 2 に終わり（待ち・控えは書かない）、続く Stop の drain が <news> を1回だけ渡す。見回りは Chief of Staff に hc send・attach --observe をせず、待ち役がいなければログに1行'
 
-# 13-cut. Chief of Staff が提供元に切られて error で止まっても、見回りは「続けて」を打たない（hc send も attach も呼ばない）。ログに1行だけ（ADR-0019 決めたこと 4）
+# 13-cut. Chief of Staff がプロバイダに切られて error で止まっても、見回りは「続けて」を打たない（hc send も attach も呼ばない）。ログに1行だけ（ADR-0019 決めたこと 4）
 cos error 4
 jq '.status.msg = "API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment."' "$tmp/hc/term-t5.json" > "$tmp/hc/t5~" && mv "$tmp/hc/t5~" "$tmp/hc/term-t5.json"
 logs=$(wc -l < "$tmp/hc/log") dlogs=$(wc -l < "$tmp/dispatcher.log") sends=$(sent || true)
 dispatcher; dispatcher
 ! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^send t5 \|^send --if idle t5 \|^attach' || die "切られた Chief of Staff に hc send・attach した: $(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep '^send\|^attach' | head -3)"
 [ "$(sent)" = "$sends" ] || die '切られた Chief of Staff に続きを送った'
-[ "$(tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log" | grep -c 't5 は提供元に切られて止まった。続きは打たない')" = 1 ] || die "切られた Chief of Staff のログが1行でない: $(tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log")"
-ok 'Chief of Staff が提供元に切られて error で止まっても、見回りは hc send・attach を打たず、同じ止まりにログを1行だけ残す'
+[ "$(tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log" | grep -c 't5 はプロバイダに切られて止まった。続きは打たない')" = 1 ] || die "切られた Chief of Staff のログが1行でない: $(tail -n +"$((dlogs + 1))" "$tmp/dispatcher.log")"
+ok 'Chief of Staff がプロバイダに切られて error で止まっても、見回りは hc send・attach を打たず、同じ止まりにログを1行だけ残す'
 
 # 13a. 待ちが無い間・working の間は終わらない。次の待ち役が起きたら前のは 0 で終わる。止められたら 0。担当の端末では待たずに 0
 cos done 6
@@ -1077,7 +1077,7 @@ wstart w5 --timeout 2
 [ "$(wend w5 5)" = 0 ] && [ ! -s "$tmp/w5.err" ] || die "working の Chief of Staff に張り直しの合図を打った: $(cat "$tmp/w5.rc" "$tmp/w5.err" 2>/dev/null)"
 ok 'timeout の 9 割まで打つ機会が無ければ、待ち役が張り直しの合図で 2 に終わる（working なら静かに 0）'
 
-# 13c. 提供元に切られた Chief of Staff を起こす StopFailure のフック（andon dispatcher rewake。ADR-0019 決めたこと 10）。
+# 13c. プロバイダに切られた Chief of Staff を起動する StopFailure のフック（andon dispatcher rewake。ADR-0019 決めたこと 10）。
 # 待って合図する筋と、待ち役と同時に合図しても <news> が1回だけなのは Go のテスト（rewake_test.go。待ちが分の単位）。ここはすぐ 0 で通す筋と、Stop で数え直す筋
 rwf=$tmp/state/andon/dispatcher/demo.json.rewake
 rw() { # rw <端末> <入力>: フックそのものを打って終了コードを出す（5 秒で切る。待ったら 124）
@@ -1085,16 +1085,16 @@ rw() { # rw <端末> <入力>: フックそのものを打って終了コード�
 }
 cos error 8
 for in in '{"error":"authentication_failed"}' '{"error":"billing_error"}' '{}'; do
-    [ "$(rw t5 "$in")" = 0 ] && [ ! -s "$tmp/rw.err" ] || die "ほかの error で起こした・待った: $in"
+    [ "$(rw t5 "$in")" = 0 ] && [ ! -s "$tmp/rw.err" ] || die "ほかの error で起動した・待った: $in"
 done
 term t7 error 1 project=demo issue=A-0001
-[ "$(rw t7 '{"error":"server_error"}')" = 0 ] || die '担当の端末で起こした・待った'
-[ ! -e "$rwf" ] || die '起こさない入力で回数を数えた'
+[ "$(rw t7 '{"error":"server_error"}')" = 0 ] || die '担当の端末で起動した・待った'
+[ ! -e "$rwf" ] || die '起動しない入力で回数を数えた'
 rc=0; HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/stop-failure" <<<'{"error":"server_error"}' || rc=$?
 [ "$rc" = 0 ] || die 'andon が無いときに通さない'
 echo '{"count":4}' > "$rwf"
-[ "$(rw t5 '{"error":"rate_limit"}')" = 0 ] && [ ! -s "$tmp/rw.err" ] || die '5 回目に起こした・待った'
-grep -q 't5 は提供元に切られて 5 回目（rate_limit）。起こさない' "$rwf.log" || die "5 回目のログが無い: $(cat "$rwf.log" 2>/dev/null)"
+[ "$(rw t5 '{"error":"rate_limit"}')" = 0 ] && [ ! -s "$tmp/rw.err" ] || die '5 回目に起動した・待った'
+grep -q 't5 はプロバイダに切られて 5 回目（rate_limit）。起動しない' "$rwf.log" || die "5 回目のログが無い: $(cat "$rwf.log" 2>/dev/null)"
 cos done 8
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false}' >/dev/null
 [ ! -e "$rwf" ] || die 'Chief of Staff の Stop（ターンが通った）で回数を数え直さない'
@@ -1267,19 +1267,19 @@ pk
 [ "$(pp "$m" stalled)" = '[]' ] || die '画面が動いている working の担当を stalled で知らせた'
 pp "$g" finished | jq -e '.[0].detail == {agent: "w21", status_ms: 0}' >/dev/null || die "端末の無い担当を finished で知らせない: $(pp "$g" finished)"
 pp "$b" blocked | jq -e --argjson ms "$fresh" '.[0].detail == {agent: "w22", status_ms: $ms}' >/dev/null || die "blocked を知らせない: $(pp "$b" blocked)"
-pp "$e" error | jq -e 'length == 1' >/dev/null || die '提供元でない error を知らせない'
+pp "$e" error | jq -e 'length == 1' >/dev/null || die 'プロバイダでない error を知らせない'
 pp "$i" stalled | jq -e --argjson ms "$old_idle" '.[0].detail == {agent: "w25", status_ms: $ms}' >/dev/null || die "idle のまま15分を stalled で知らせない: $(pp "$i" stalled)"
 pp "$w" stalled | jq -e 'length == 1' >/dev/null || die 'working のまま20分を stalled で知らせない'
 [ "$(pp "$r" stalled)" = '[]' ] || die '子のレビュアーの課題を待つ担当を stalled で知らせた'
 [ "$(jq --arg q "$q" --arg k "$k" '[.pending[] | select(.issue == $q or .issue == $k)] | length' "$pst")" = 0 ] || die '短い idle・working を知らせた'
-! grep -q "^t2[0-9]	" "$tmp/hc/sent" 2>/dev/null || die '提供元でない error に続きを打った'
+! grep -q "^t2[0-9]	" "$tmp/hc/sent" 2>/dev/null || die 'プロバイダでない error に続きを打った'
 for f in "$g finished" "$b blocked" "$e error" "$i stalled"; do set -- $f; emit <(pp "$1" "$2" | jq '.[0]') "notification-$2.json"; done
 clear_pending; pk
 [ "$(jq '.pending | length' "$pst")" = 0 ] || die "同じ状態で二度知らせた: $(jq -c .pending "$pst")"
 termp w22 blocked "$(now_ms)"
 pk
 pp "$b" blocked | jq -e 'length == 1' >/dev/null || die '新しい status_ms の blocked を知らせない'
-ok '止まった担当: 端末が無い（finished）・blocked・提供元でない error・idle 15分・working で画面も msg も 20分動かないを知らせ、レビュー待ち・短いもの・進んでいる working は知らせず、同じ status_ms につき1回'
+ok '止まった担当: 端末が無い（finished）・blocked・プロバイダでない error・idle 15分・working で画面も msg も 20分動かないを知らせ、レビュー待ち・短いもの・進んでいる working は知らせず、同じ status_ms につき1回'
 
 # 18b. Chief Engineer の課題（profile chief-engineer）の ready・stalled・blocked は記録だけ、error は届ける（A-0036）
 prec=${pst%.json}.recorded.jsonl
@@ -1298,19 +1298,19 @@ pk
 pp "$ce" error | jq -e '.[0].detail.agent == "w31"' >/dev/null || die "Chief Engineer の error を届けない: $(jq -c .pending "$pst")"
 ok 'Chief Engineer の課題の ready・stalled・blocked は記録だけにし、error は届ける'
 
-# 19. 提供元に切られたら自分で続きを打つ（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら知らせる（dispatcher.md §2.4）
+# 19. プロバイダに切られたら自分で続きを打つ（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら知らせる（dispatcher.md §2.4）
 v=$(st_task 'error（混雑）' w23); termp w23 error "$fresh"; printf '› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n' > "$tmp/hc/screen-w23"
 clear_pending; pk
 ! grep -q '^w23	' "$tmp/hc/sent" 2>/dev/null && jq -e --arg k "$v|w23" '.retry[$k].since > 0 and .retry[$k].n == 0' "$pst" >/dev/null || die '初めて見た切断にすぐ打った・見た時刻を控えない'
 jq --arg k "$v|w23" '.retry[$k].since = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"   # 見てから 1 分たった
 pk
-[ "$(grep -c "^w23	一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die '提供元に切られた担当に続きを打たない・知らせた'
+[ "$(grep -c "^w23	一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die 'プロバイダに切られた担当に続きを打たない・知らせた'
 pk
 [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die '2分を待たずに続きを打った'
 jq --arg k "$v|w23" '.retry[$k] = {n: 4, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"
 pk
 pp "$v" error | jq -e '.[0].detail.agent == "w23"' >/dev/null && [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die "4回続きを打ってまた切られた担当を error で知らせない: $(pp "$v" error)"
-ok '提供元に切られたら自分で続きを打ち（間を空けて4回まで）、5回目に切られたら error で知らせる'
+ok 'プロバイダに切られたら自分で続きを打ち（間を空けて4回まで）、5回目に切られたら error で知らせる'
 
 # 20. log.jsonl が書き直されて前の位置より長くなっても、先頭の行が替われば先頭から読む
 old=$(stat -c %s "$P/log.jsonl")
@@ -1368,9 +1368,9 @@ jq --arg k "$u|w32" '.retry[$k].at = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$p
 pk
 pp "$u" error | jq -e 'length == 1' >/dev/null || die '送れないまま4回を超えても error で知らせない'
 rm "$tmp/hc/sendfail"
-ok '提供元のエラーで続きを送れなかった試行も回数と時刻に数え、上限を超えたら error で知らせる'
+ok 'プロバイダのエラーで続きを送れなかった試行も回数と時刻に数え、上限を超えたら error で知らせる'
 
-# 24. 端末が Gone の doing の担当は andon issue resume で続きから起こす（1つの死につき1回。ADR-0012 決めたこと 4。dispatcher.md §2.9）
+# 24. 端末が Gone の doing の担当は andon issue resume で続きから起動する（1つの死につき1回。ADR-0012 決めたこと 4。dispatcher.md §2.9）
 sid=11111111-2222-4333-8444-555555555555
 export CLAUDE_CONFIG_DIR=$HOME/.claude; mkdir -p "$CLAUDE_CONFIG_DIR/projects/x"; : > "$CLAUDE_CONFIG_DIR/projects/x/$sid.jsonl"   # セッションの記録（中身は読まない）
 rs=$(echo '# 続きから' | as_cos kanban add 'resume する' --profile claude --brief -)
@@ -1379,8 +1379,8 @@ HC_TERMINAL_ID=w50 kanban start "$rs" >/dev/null   # w50 は live に無い（�
 clear_pending; pk
 na=$(kanban show "$rs" --json | jq -r .issue.agent)
 [ "$na" != w50 ] && grep -q "^run .*--name pick-$(tr A-Z a-z <<<"$rs") .*--label issue=$rs .*--label session=$sid .*claude-resume " "$tmp/hc/log" \
-  || die "Gone の担当を resume で起こさない: agent=$na $(grep "issue=$rs" "$tmp/hc/log"; tail -3 "$tmp/dispatcher.log")"
-[ "$(kanban show "$rs" --json | jq -r .issue.status)" = doing ] && [ "$(pp "$rs" finished)" = '[]' ] || die "resume で起こしたのに finished を知らせた・doing でない: $(jq -c .pending "$pst")"
+  || die "Gone の担当を resume で起動しない: agent=$na $(grep "issue=$rs" "$tmp/hc/log"; tail -3 "$tmp/dispatcher.log")"
+[ "$(kanban show "$rs" --json | jq -r .issue.status)" = doing ] && [ "$(pp "$rs" finished)" = '[]' ] || die "resume で起動したのに finished を知らせた・doing でない: $(jq -c .pending "$pst")"
 jq -cs --arg t "$rs" '[.[] | select(.issue == $t and .kind == "resumed")]' "$prec" | jq -e --arg a "$na" 'length == 1 and .[0].detail == {agent: $a, from: "w50"}' >/dev/null \
   || die "記録だけの resumed が無い・形が違う: $(cat "$prec")"
 emit <(jq -cs --arg t "$rs" '[.[] | select(.issue == $t and .kind == "resumed")][0]' "$prec") notification-resumed.json
@@ -1391,7 +1391,7 @@ sed -i "/^$na /d" "$tmp/hc/live"   # 働かないまま（turn 0）また死ん�
 pk
 [ "$(grep -c "issue=$rs .*claude-resume" "$tmp/hc/log")" = "$runs" ] || die '働かずに死んだ端末にまた resume を打った'
 pp "$rs" finished | jq -e --arg a "$na" 'length == 1 and .[0].detail.agent == $a' >/dev/null || die "働かずに死んだ端末を finished で知らせない: $(jq -c .pending "$pst")"
-ok 'Gone の doing の担当は resume で起こして記録だけの resumed を書き、働かないまままた Gone なら打たずに finished を知らせる'
+ok 'Gone の doing の担当は resume で起動して記録だけの resumed を書き、働かないまままた Gone なら打たずに finished を知らせる'
 
 # 25. 実働が見込みを超えた担当の課題は、段ごとに1回 estimate を Chief of Staff に積み、担当には何も打たない（ADR-0014 決めたこと 6・7。dispatcher.md §2.10）
 es=$(st_task '見込みを超える' w60); termp w60 working "$fresh"

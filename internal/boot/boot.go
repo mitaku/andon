@@ -41,8 +41,8 @@ import (
 
 // Usage は andon boot --help の中身。
 const Usage = "usage: andon boot\n" +
-	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起こす。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
-	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起こす。\n" +
+	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
+	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、gh skill update --all で上げる（一覧が空なら打たない）。\n" +
@@ -64,9 +64,9 @@ type Env struct {
 	Hostname        string
 	// LookPath は道具を探す。見つからなければ、その起動は飛ばす。
 	LookPath func(string) (string, error)
-	Self     string // andon の実行ファイル（files サーバとして自分を起こす）
+	Self     string // andon の実行ファイル（files サーバとして自分を起動する）
 	Log      io.Writer
-	Uid, Gid int // boot を打つ利用者。HOME の volume の持ち主をこれに揃える（fixOwners）
+	Uid, Gid int // boot を打つ利用者。HOME の volume のオーナーをこれに揃える（fixOwners）
 }
 
 // EnvFromOS は環境変数から Env を作る。
@@ -117,7 +117,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if err := fixOwners(env); err != nil {
-		env.logf("volume の持ち主の修正に失敗（続行する）: %v", err)
+		env.logf("volume のオーナーの修正に失敗（続行する）: %v", err)
 	}
 	// boot は1つずつ（G6 を塞いだ。dispatcher.md §7.2 #13・#14）。後の方は待ってから、同じ内容は書き直さずに通る
 	unlock, err := flock.Lock(env.lockPath())
@@ -326,7 +326,7 @@ func (e Env) sudoInstall(dst string, data []byte) error {
 }
 
 // genTemplates はプロファイルを生成する。同じ名前ならセルの templates.local が勝つ。
-// 本文の /opt/andon はパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起こせるように。ADR-0001 決定 5）。
+// 本文の /opt/andon はパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起動できるように。ADR-0001 決定 5）。
 // 置き場にある、どちらにも無い名前のファイルには触らない（人が hc に入れたもの）。
 func genTemplates(e Env) error {
 	if _, err := Template(nil, e.Package); err != nil {
@@ -367,7 +367,7 @@ func genTemplates(e Env) error {
 }
 
 // SplitResume はプロファイルの frontmatter の resume: の行を分ける（ADR-0012 決めたこと 13 の 1）。
-// base は resume: の行を除いたプロファイル（hc に知らないキーを渡さない）。resume は止まった端末を続きから起こす
+// base は resume: の行を除いたプロファイル（hc に知らないキーを渡さない）。resume は止まった端末を続きから起動する
 // <name>-resume のプロファイル: name は <name>-resume、command は resume: の値、description に「（続きから）」、本文は同じ。
 // resume: が無い・frontmatter が無い（--- で始まらない・閉じない）なら b をそのまま返し、resume は nil。
 func SplitResume(b []byte) (base, resume []byte) {
@@ -646,7 +646,7 @@ func linkClaude(e Env) error {
 // linkHerdrCore は herdr-core（hc）を ~/.local/bin に揃える。正は ~/.local/bin/herdr-core で、Herdr App が
 // Add Machine・Update HC でここに置き、差し替える（版は App が決める）。無いか symlink なら image の種（aqua）へ繋ぐ。
 // 実ファイルは App の持ち物なので触らない。hc は無いときだけ herdr-core への相対 symlink にする（差し替えに付いていく）。
-// ~/.local/bin は PATH で aqua より先なので、dispatcher を起こす hc も、それが起こす core も同じ herdr-core になる。
+// ~/.local/bin は PATH で aqua より先なので、dispatcher を起動する hc も、それが起動する core も同じ herdr-core になる。
 func linkHerdrCore(e Env) error {
 	bin := filepath.Join(e.Home, ".local", "bin")
 	core := filepath.Join(bin, "herdr-core")

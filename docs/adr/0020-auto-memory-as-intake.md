@@ -84,7 +84,7 @@
 5. **量の線**: memory の件数が線を超えたとき、dispatcher が Chief of Staff に1度届ける（同じ超え方で繰り返し届けない）。
 6. **文書と指示**: 環境メモに決めたこと 6 の数行がある。chief-of-staff skill の規約 9・§10（memory の項目の反映: wiki 行きは `raw/memory/` に写して ingest）・§11（`raw/` の4種目）と triage skill（`kind: memory` の確かめ方）が直っている。ADR-0004・ADR-0016 に「→ ADR-0020」がある。
 7. **雛形**: `andon init` の `.gitignore` に `memory/` がある。
-8. **セルでの実測**（マージ後。Chief of Staff）: このセルで担当を1つ起こし、`/workspace/memory/` に書かれること・次のセッションに載ること・トリアージで拾われて消えることを1周見る。
+8. **セルでの実測**（マージ後。Chief of Staff）: このセルで担当を1つ起動し、`/workspace/memory/` に書かれること・次のセッションに載ること・トリアージで拾われて消えることを1周見る。
 
 ## 価値の仮説
 

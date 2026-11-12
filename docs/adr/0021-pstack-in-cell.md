@@ -20,9 +20,9 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
 確かめた事実（前提の裏づけ）:
 
 - 本家は `github.com/cursor/plugins` の `pstack/`（MIT。2026-11-12 の時点で 0.15.36）。skill は 57 本（`principle-*` が 24、ほか 33）、`poteto-mode` の下に playbook が 23。同じ repo の `harness/pstack/claude-code/` に、公式の Claude Code 向けの写しがある（marketplace の名前は `cursor-plugins`、plugin の名前は `pstack`）。Codex 向けは無い。
-- 57 本のうち 56 本が `disable-model-invocation: true`（名前で呼ばれたときだけ動く。モデルが自分から起こせるのは `setup-pstack` だけ）。本家の対応表（`docs/harness/claude-code.md`）は「Skill tool は pstack の skill のほとんどを拒むので、`SKILL.md` を Read して従う」と書いている。
+- 57 本のうち 56 本が `disable-model-invocation: true`（名前で呼ばれたときだけ動く。モデルが自分から起動できるのは `setup-pstack` だけ）。本家の対応表（`docs/harness/claude-code.md`）は「Skill tool は pstack の skill のほとんどを拒むので、`SKILL.md` を Read して従う」と書いている。
 - `poteto-mode` の Feature・Bug fix の playbook は、実装をサブエージェントへ任せることを必須にしている。worker skill は「サブエージェントは読むだけ」で、オーナーも「サブエージェントは調べものだけ」と言っている（セルの wiki）。
-- 原則（`principle-*`）と `in-your-own-words`・`sharpen`・`tdd`・`benchmark-checklist` はサブエージェントを起こさない。`how` は読むだけのサブエージェントを起こす。`why` は書ける型のサブエージェントを起こす。`architect`・`arena`・`swarm`・`interrogate` は、書くサブエージェントか複数モデルを起こす。
+- 原則（`principle-*`）と `in-your-own-words`・`sharpen`・`tdd`・`benchmark-checklist` はサブエージェントを起動しない。`how` は読むだけのサブエージェントを起動する。`why` は書ける型のサブエージェントを起動する。`architect`・`arena`・`swarm`・`interrogate` は、書くサブエージェントか複数モデルを起動する。
 - セルの `~/.claude` は作り直しても残る volume で、Andon の設定は managed settings に入る。利用者の plugin の登録（`~/.claude/plugins`・`~/.claude/settings.json`）は boot に上書きされない。`claude plugin marketplace add`・`claude plugin install` は非対話で打てる。
 - 今の外の skill の入れ口（`gh-skills.txt`。[ADR-0018](0018-screen-check-tooling.md)）は skill を1本ずつ入れる形で、plugin を入れる口は boot に無い。
 - このセルの担当のプロファイルは、台帳の記録で Claude Code 系が 127 件（`claude` 86・`sonnet` 39・`fable` 2）、Codex が 1 件。レビュアーは `codex-review` が 98 件。
@@ -31,7 +31,7 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
 
 1. **2026-11-12 入れるのは本家の公式の Claude Code 向けの写し（`pstack@cursor-plugins`）。plugin として入れる。** セルの中で `claude plugin marketplace add cursor/plugins` と `claude plugin install pstack@cursor-plugins`（user scope）を1回打つ。
    理由: 本文が本家そのままで作りを学べる。hook も他の CLI の起動も無く、入れただけでは何も動かない。このセルの担当はほぼ Claude Code。人の言葉「pstack cursor-plugins をpluginとして入れればいいと思います」。
-   捨てた案: michael-denyer/pstack-claude（Codex にも入り tag で固定できるが、毎セッション「`poteto-mode` を呼べ」と足す hook を持ち、方針の書き換え 57 件が本家との差になる）／ericlitman/open-pstack（Codex・Grok の CLI を起こして複数モデルで回す前提。前提 1 と合わない）／backnotprop/pstack（plugin でなく、入れ方が対話の選択だけ。`pstack:` の名前が付かず、`how`・`why` などの名前がそのまま利用者の skill の置き場に並ぶ）。
+   捨てた案: michael-denyer/pstack-claude（Codex にも入り tag で固定できるが、毎セッション「`poteto-mode` を呼べ」と足す hook を持ち、方針の書き換え 57 件が本家との差になる）／ericlitman/open-pstack（Codex・Grok の CLI を起動して複数モデルで回す前提。前提 1 と合わない）／backnotprop/pstack（plugin でなく、入れ方が対話の選択だけ。`pstack:` の名前が付かず、`how`・`why` などの名前がそのまま利用者の skill の置き場に並ぶ）。
 2. **2026-11-12 担当に数行の指示を足す。置き場はセルの `AGENTS.local.md`。** 読ませるのは、読むだけで完結する skill に限る。人が自分のセッションで名前で呼ぶ（`/pstack:<名前>`）のは自由。
    理由: 入れただけでは担当の動きは変わらない（56 本は名前で呼ばれたときだけ動く）。常時の指示があれば使った記録が溜まり、効き目を数で見られる。
    捨てた案: 入れるだけにして、人が名指ししたときだけ使う（呼ばなければ効き目が分からない）／担当とレビュアーの両方に指示する（試しの途中でレビューの厳しさが変わり、前後の数を比べにくい）。
@@ -90,10 +90,10 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
 
 継ぎ目はセルの実測だけ（Andon の repo のコードは変えないので、`tests/` に足すものは無い）。確かめた結果は課題の報告に書く。
 
-1. **入った**（P1）: セルで `claude plugin list` に `pstack@cursor-plugins` が有効で出る。セルを再起動したあとも出る。新しく起こした Claude Code のセッションで `/pstack:how` が候補に出る。入っている版の番号が報告に書いてある。
-2. **入れただけでは動かない**（P1）: 指示を足す前に起こした担当1つのセッションの記録に、pstack の skill を読んだ跡が無い。`~/.claude/rules/pstack-models.md` が無い。
+1. **入った**（P1）: セルで `claude plugin list` に `pstack@cursor-plugins` が有効で出る。セルを再起動したあとも出る。新しく起動した Claude Code のセッションで `/pstack:how` が候補に出る。入っている版の番号が報告に書いてある。
+2. **入れただけでは動かない**（P1）: 指示を足す前に起動した担当1つのセッションの記録に、pstack の skill を読んだ跡が無い。`~/.claude/rules/pstack-models.md` が無い。
 3. **自動更新が入っている**（P1）: セルの `~/.claude/settings.json` に、決めたこと 7 の2つのキー（`extraKnownMarketplaces` の `cursor-plugins` に `autoUpdate: true`、`enabledPlugins` に `pstack@cursor-plugins`）がある。セルを再起動したあとも残っている。
-4. **担当が読む**（P1）: 指示を足したあとに起こした Claude Code の担当が、決めたこと 3 の場面で、名指しされた skill の本文に辿り着いて読んでいる（セッションの記録で確かめる）。報告に「読んだ skill と、それで変えた選択」の行がある。版が上がって置き場のパスが変わっても辿り着ける書き方になっている。
+4. **担当が読む**（P1）: 指示を足したあとに起動した Claude Code の担当が、決めたこと 3 の場面で、名指しされた skill の本文に辿り着いて読んでいる（セッションの記録で確かめる）。報告に「読んだ skill と、それで変えた選択」の行がある。版が上がって置き場のパスが変わっても辿り着ける書き方になっている。
 5. **引きずられない**（P1・P2）: その担当が、サブエージェントに書かせていない・`poteto-mode` を読んでいない・人の決断を待たずに進めていない。
 6. **判定**（P2。人の手）: 見る日に、「価値の仮説」の 2 の数と、担当の「読んだ skill と変えた選択」の表が1つの報告にまとまり、人が「続ける」「全セルへの配り方を別の題にする」「やめる」のどれかを答えている。「やめる」なら、`AGENTS.local.md` の行が消え、`claude plugin uninstall pstack@cursor-plugins` のあと、新しいセッションに `pstack:` の skill が出ない。
 
@@ -124,7 +124,7 @@ P1 で CoS が決める細部（案。人の決断ではない）:
   「Claude Code の担当は、pstack（plugin `pstack@cursor-plugins`）の次の skill を、当てはまる工程で読んでから進む。理解: 複数のファイルにまたがる仕組みを変えるとき `how`。計画: 差分の大きさを決めるとき `principle-laziness-protocol` と `principle-subtract-before-you-add`、状態や分岐を持つコードを書くとき `principle-model-the-domain`、バグを直すとき `principle-fix-root-causes`。確認: テストを書く・直すとき `principle-test-behavior-not-implementation`、完成と言う前に `principle-prove-it-works`。Skill tool が拒むので、plugin の置き場の `skills/<名前>/SKILL.md` を Read する（`how` は同じ置き場の `docs/harness/claude-code.md` の対応表も読む）。報告に、読んだ skill と、それで変えた選択を1行ずつ書く。`poteto-mode` と、サブエージェントに書かせる skill（`architect`・`arena`・`swarm`・`interrogate` など）は使わない。ラインの決まりは worker skill が正。」
 - **置き場の辿り方**: plugin の置き場は `~/.claude/plugins/cache/<marketplace>/<plugin>/<版>/` で、版が上がるとパスが変わり、古い版は 14 日後に消える（Claude Code の文書）。指示には固定のパスを書かず、辿り方（`claude plugin list --json` の `installPath`）を書く。どの書き方で担当が辿り着けるかは P1 で実測する（受け入れ条件 4）。
 - **`AGENTS.local.md` は全部の役が読む。** 指示の文は「Claude Code の担当は」で始め、CoS・CE・レビュアーが自分への指示と読まないようにする。
-- **基準の数の取り方**: P2 は、指示を足した時刻より後に起こされた担当の課題だけを 30 件数える。指示を足した時刻を P1 の報告に書く。
+- **基準の数の取り方**: P2 は、指示を足した時刻より後に起動された担当の課題だけを 30 件数える。指示を足した時刻を P1 の報告に書く。
 
 ## 開いている問い（残った問い。決断の種類つき）
 

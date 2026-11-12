@@ -15,7 +15,7 @@ import (
 
 // WaitUsage は andon dispatcher wait の使い方。
 const WaitUsage = "usage: andon dispatcher wait [--timeout <秒>] [--project <slug>]\n" +
-	"Chief of Staff の Stop フックが asyncRewake で起こす待ち役（package/hooks/stop-wait。contract.md §9。ADR-0019 決めたこと 1・8・9）。\n" +
+	"Chief of Staff の Stop フックが asyncRewake で起動する待ち役（package/hooks/stop-wait。contract.md §9。ADR-0019 決めたこと 1・8・9）。\n" +
 	"届ける通知が待ちにあり、Chief of Staff の端末が idle か done になったら、合図の1行を stderr に書いて終了コード 2 で終わる\n" +
 	"（Claude Code が入力欄を通らずに新しいターンを始め、その終わりの Stop で drain が <news> を渡す）。待ちと控えは読むだけ。\n" +
 	"--timeout はフックの timeout（秒）。その 9 割まで打つ機会が無ければ、張り直しの合図で終了コード 2 で終わる（次の Stop で次の待ち役が起きる）。\n" +

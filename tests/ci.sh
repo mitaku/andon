@@ -35,11 +35,11 @@ ok "docs-scope: 文書だけなら true、コード・tests・知らないパス
 # 1b. scope（手元の tests/run --changed）: 文書だけならいつもの分、触った test とそれが読む文書の分を足し、
 #     コードや知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
-always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh '
+always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh '
 [ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
 [ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
-[ "$(pick docs/contract.md)" = 'tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh ' ] || die "contract.md で schema.sh・package.sh が無い: $(pick docs/contract.md)"
-[ "$(pick docs/no-such-doc.md)" = "tests/ci.sh tests/kanban.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh " ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
+[ "$(pick docs/contract.md)" = 'tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh ' ] || die "contract.md で schema.sh・package.sh が無い: $(pick docs/contract.md)"
+[ "$(pick docs/no-such-doc.md)" = "tests/ci.sh tests/kanban.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
 [ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"

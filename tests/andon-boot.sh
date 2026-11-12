@@ -2,7 +2,7 @@
 # tests/andon-boot.sh — andon boot を偽の HOME・偽のセル・偽のパッケージで2回打つ。
 # 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink・同梱の skill の symlink・信頼）と
 # 外の skill（偽の gh で gh skill install／update --all）が揃い、2回目で何も変わらないこと。
-# PATH には andon の置き場と偽の gh だけを置く（hc・portless・sshd を起こさない。本物の HOME と /workspace・/opt/andon-tools に触らない）。
+# PATH には andon の置き場と偽の gh だけを置く（hc・portless・sshd を起動しない。本物の HOME と /workspace・/opt/andon-tools に触らない）。
 set -u
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
