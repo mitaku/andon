@@ -54,7 +54,8 @@ func TestSignalItems(t *testing.T) {
 		rec("github-issues", "github.com/example/app#1", "later", true),
 		rec("github-issues", "github.com/example/app#2", "later", false), // 閉じた
 		rec("github-ci", "github.com/example/app/ci.yml@main", "now", true),
-		rec("github-ci", "github.com/example/app/lint.yml@main", "now", true), // 課題に切られた
+		rec("github-ci", "github.com/example/app/lint.yml@main", "now", true), // 課題に切られた（url で）
+		rec("github-ci", "github.com/example/app/e2e.yml@main", "now", true),  // 課題に切られた（key で。url は新しい run）
 	}}
 	other := rec("github-issues", "github.com/example/app#3", "later", true)
 	other.Project = "other"
@@ -63,7 +64,10 @@ func TestSignalItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := &ledger{slug: "demo", signals: path, now: time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)}
-	got, err := l.signalItems([]ledgerIssue{{ID: "T-1", Links: []string{"https://example.com/github.com/example/app/lint.yml@main"}}})
+	got, err := l.signalItems([]ledgerIssue{
+		{ID: "T-1", Links: []string{"https://example.com/github.com/example/app/lint.yml@main"}},
+		{ID: "T-2", Links: []string{"https://github.com/example/app/actions/runs/1", "github.com/example/app/e2e.yml@main"}}, // 古い run の url と key
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
