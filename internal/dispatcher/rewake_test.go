@@ -48,6 +48,7 @@ func TestRewakeBacksOffThenStops(t *testing.T) {
 				t.Fatalf("%s: %d 回目の待ちが %v より短い: %v", kind, i+1, want, took)
 			}
 		}
+		rewakeUnit = 300 * time.Millisecond // 待たないことを、遅い CI でも 1 単位の中で見分ける（fixture の Cleanup が戻す）
 		code, msg, took := rewake(t, `{"error":"`+kind+`"}`)
 		if code != 0 || msg != "" || took >= rewakeUnit {
 			t.Fatalf("%s: 5 回目に起こした・待った: %d %q %v", kind, code, msg, took)
@@ -72,6 +73,7 @@ func TestRewakeBacksOffThenStops(t *testing.T) {
 // ほかの error・読めない入力・Chief of Staff でない端末は、待たず数えずに 0。
 func TestRewakeIgnores(t *testing.T) {
 	f := rewakeFixture(t)
+	rewakeUnit = 300 * time.Millisecond // 待たないことを、遅い CI でも 1 単位の中で見分ける（fixture の Cleanup が戻す）
 	for _, in := range []string{`{"error":"authentication_failed"}`, `{"error":"billing_error"}`, `{"error":"invalid_request"}`, `{}`, `not json`, ``} {
 		if code, msg, took := rewake(t, in); code != 0 || msg != "" || took >= rewakeUnit {
 			t.Fatalf("%q で起こした・待った: %d %q %v", in, code, msg, took)
@@ -101,7 +103,7 @@ func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
 		},
 	} {
 		f := rewakeFixture(t)
-		rewakeUnit = 300 * time.Millisecond
+		rewakeUnit = 600 * time.Millisecond
 		go func() { time.Sleep(50 * time.Millisecond); during(f) }()
 		if code, msg, _ := rewake(t, `{"error":"server_error"}`); code != 0 || msg != "" {
 			t.Fatalf("%s: 止まったままでない Chief of Staff に合図を打った: %d %q", name, code, msg)
