@@ -226,12 +226,18 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 		t.Fatal("待ち役が起動しない")
 	}
 	f.cos("idle")
-	f.pending(1)
-	f.p.st.Pending[0].Issue = "S-9"
+	// 待ちは見回りの手元にだけ置き、控えには書かない（控えに書くと、待ち役はそれを読んで合図で終わり、見回りより先に届けを消す）
+	f.p.st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: "S-9", Kind: "report", Detail: map[string]any{}}}
 	f.log.Reset()
 	f.p.unwaited("t1")
 	if strings.Contains(f.log.String(), "待ち役がいない") {
 		t.Fatalf("待ち役がいるのにいないと書いた: %q", f.log.String())
 	}
-	r.done(t, 10*time.Second)
+	if !liveWaiter("sample-site", "t1") {
+		t.Fatal("見回りの間に待ち役が終わった（待ち役がいる場合を確かめていない）")
+	}
+	f.pending(1)
+	if code, ok := r.done(t, 10*time.Second); !ok || code != 2 {
+		t.Fatalf("待ち役が合図で終わらない: %v %d", ok, code)
+	}
 }
