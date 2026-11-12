@@ -15,6 +15,7 @@
 #   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
 #  12. auto memory（ADR-0020 受け入れ条件 2・6）: settings が入れる向き・環境メモの書き方・chief-of-staff skill の規約9・§10・§11。
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
+#      CoS skill の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -472,6 +473,10 @@ grep -q '^### 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\
 block "$cos" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"
 grep -q '^| `signal` の行' "$cos" || miss="$miss news の表の signal の行"
 [ -z "$miss" ] && pass "chief-of-staff skill に、空なら戻す・観察の課題を --parent と not_before で足す・signal を直す課題に切る、の行がある" || fail "chief-of-staff skill の価値のループ:$miss"
+grep -q '^| 7\. 課題は台帳が既定 | .*`write_back: true` の出所への `andon issue finish` の1コメントは委譲の中。それ以外のトラッカーへの書き込み（状態の変更・途中のコメント）は人の go' "$cos" \
+  && grep -q '`write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL' <<<"$cos1" \
+  && pass "chief-of-staff skill の規約7が write_back の1コメントを委譲の中に、ほかの書き込みを人の go に分ける（ADR-0011 決めたこと 15）" \
+  || fail "chief-of-staff skill の規約7・links の URL（write_back）"
 w=package/skills/worker/SKILL.md
 w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w")
 o_blk=$(block "$w" 'andon issue report "$id" --data '"'"'{"observation"' | head -1 | sed "s/^[^']*'//; s/'.*\$//")

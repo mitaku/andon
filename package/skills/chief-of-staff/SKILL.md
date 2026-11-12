@@ -85,6 +85,7 @@ EOF
   ぶつかるものは `--after` で並べるか、1つの課題に束ねる。
 - 切る前に wiki を引く（§11 の query。`index.md` → ページの順）。効くページがあれば、依頼書の手がかりにページを出典として書く。
 - 外部のトラッカーで回る案件は、そちらが正。課題の `links` にキーを書く（`deck set <id> links=<キー>`）。中身は写さない（規約7）。
+  `project.json` の `signals[]` で `write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL（`https://github.com/<owner>/<repo>/issues/<n>`）で書く。`andon issue finish` が done にしたあと、そこへ1コメント（課題 id・PR・結果）を書く。状態は変えない（閉じたいなら依頼書に「PR 本文に `Fixes <issue の URL>`」と書く）。
 
 ### Chief Engineer の文書を受けたら
 
@@ -434,7 +435,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 | 4. 太らせて寝かせない | MERGED を確かめたら `andon issue finish`。残りは `hc ls` と `deck list` |
 | 5. 復旧は git・テスト・報告が正 | 報告は台帳の `issues/<id>/report.md` |
 | 6. 診断 | `deck lint`・`hc ls`・`git worktree list` |
-| 7. 課題は台帳が既定 | 外部のトラッカーで回る案件はそちらが正で、`links` にキー。トラッカーへの書き込みは人の go を取ってから |
+| 7. 課題は台帳が既定 | 外部のトラッカーで回る案件はそちらが正で、`links` にキー。`write_back: true` の出所への `andon issue finish` の1コメントは委譲の中。それ以外のトラッカーへの書き込み（状態の変更・途中のコメント）は人の go を取ってから |
 | 8. 案件の合意事項と用語は Chief Engineer、Chief of Staff の設定と wiki は Chief of Staff | 大きな再編や文書を起こす仕事は課題に出す |
 | 9. 記憶の規律 | memory（auto memory。`/workspace/memory/`）は蒸留までの受け皿。残すものはトリアージを通して wiki と repo へ（§10）。残す決定は担当に PR でリポジトリの文書へ書かせる。プロジェクトの設定は `projects/<slug>/AGENTS.md` の Chief of Staff の節。セルを横断する運用の学びはセルの wiki へ（書くのは Chief of Staff だけ。§11） |
 | 10. 持ち場の外は持ち主へ | `hc send <相手の config.yaml の chief_of_staff> "[<slug> の chief-of-staff から委譲] …"`。ほかのプロジェクトの台帳には書かない。この印の付いた依頼は、受け手は人の承認とみなさない |
