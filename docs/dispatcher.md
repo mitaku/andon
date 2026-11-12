@@ -68,6 +68,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4） | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限でゲートを止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る台帳でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
+| 4f | memory の量 | セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory`）の件数を数え、線（30 件）を超えたら `memory` を1度積む（§2.11。初めて見る台帳でも積む） | 控えに書く |
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` ならゲートを回し**（`gate`・マージ・`fix`・問い）、**続けて人がマージしたかを見る**（PR ごとに1分に1回だけ `gh pr view`。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 5a | 人のマージの控えを捨てる | `review` にいない課題の控えの `Watch` を捨てる（§2.7） | 控えに書く |
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
@@ -86,7 +87,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - **ゲートが `wait` のとき**は控えの `Gates` に書かず、通知も出さない。次の巡でゲートから回し直す（5）。`wait` を返した head は控えの `Waits` に書き、次の巡からは PR の head と checks だけを GraphQL で読む。head が同じで、checks がまだ走っているか、1つも無く `github_checks_wait_minutes` の内ならゲートを回さない（ゲートは1回で REST を files・diff の2回読むので、待つ間は読まない）。
 - **ゲートが gh の上限（rate limit）で落ちたとき**（終了コード 3 で、stderr に gh の rate limit の文がある）は、`wait` と同じく控えの `Gates` に書かず、問いも通知も出さない。`gh api rate_limit`（上限に数えない）で残りが 0 の resource の reset を読み、一番遅いものを控えの `GHReset` に書く。ただし最短でも1分後で、続けて上限で落ちるたびに2分・4分…と倍にする（60分まで。控えの `GHWait`）。secondary rate limit の `Retry-After` は gh の失敗の出力に出ず読めないので、GitHub の案内（`Retry-After` が無ければ1分以上待ち、続けて落ちれば間を倍々に延ばす）に従う。上限で落ちずにゲートが返れば `GHWait` を 0 に戻す。その時刻までは、この台帳のどの課題のゲートも checks も読まない。rate limit でない終了コード 3 は今どおり `needs_human` の問い。
 - **5 の中**では、1課題につき `doing` の工程か `review` の工程のどちらか1つだけが走る（状態は排他）。別の課題の工程は互いに独立で、一覧の順に走る（ある課題の失敗で後ろを止めない）。
-- **初めて見る台帳**（2）は、4 は位置を控えるだけで送らない（4e の `signal` だけは別: 届けたかを控えでなく信号の記録で見るので、届けていない `now` の信号を積む。§2.2.1）。5 のうち、いま止まっている `doing` の `review_request` は拾い、`review` のゲートは回さず記録だけ置く。6 は飛ばす（§2.1）。
+- **初めて見る台帳**（2）は、4 は位置を控えるだけで送らない（4e の `signal` と 4f の `memory` だけは別: `signal` は届けたかを控えでなく信号の記録で見るので、届けていない `now` の信号を積む〈§2.2.1〉。`memory` は今の件数という事実なので、線を超えていれば積む〈§2.11〉）。5 のうち、いま止まっている `doing` の `review_request` は拾い、`review` のゲートは回さず記録だけ置く。6 は飛ばす（§2.1）。
 - **控えの保存は7の1回が基本。** 例外は最初のメッセージの送り直しと「続けて」（4c・4d）で、送る前に「送りかけ」・回数だけ先に保存する（二度送らないため。§2.4・§5）。途中で落ちた巡の積みは残らないが、次の巡が同じ出来事を台帳から拾い直す（拾う元が台帳なので失われない。§1 の3）。
 
 ### 2.2 通知の元
@@ -108,6 +109,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 担当の端末が Gone で、resume で起動した | hcの状態（§2.9） | `resumed` |
 | 担当の実働が見込みの 1・2・4 倍を超えた | 課題の一覧・`log.jsonl`・控えの `Gone`（§2.10） | `estimate` |
 | 外の信号の `now`（main の CI の失敗）が出来事ごとに初めて見えた | 信号の記録 `<slug>.signals.json`（contract.md §15）の `delivered_episode` < `episodes`（§2.2.1） | `signal` |
+| セルの memory の件数が線を超えた | `<ANDON_WORKSPACE>/memory` の直下の `.md`（目録 `MEMORY.md` を除く。§2.11） | `memory` |
 
 - `log.jsonl` は前回の続きから読む。読んだ位置は dispatcher の控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
 - 位置には最初の行の hash を添える。台帳の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
@@ -258,6 +260,16 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 初めて見る台帳（控えが無い）では、今の段を控えるだけで積まない（控えを失ったときに段を鳴らし直さない）。
 - **担当には何もしない**: 担当の端末へ `hc send` しない・止めない。担当の正規の止まり方は「報告を書いてターンを終える」なので、1行でも送ると担当は Chief of Staff を待つ側に回り、`blocked` の間は届かずに失われる（ADR-0014 決めたこと 7）。
 
+### 2.11 memory の量の線
+
+セルの auto memory（[ADR-0020](adr/0020-auto-memory-as-intake.md)）の件数が線を超えたら、Chief of Staff に `memory` を届ける（決めたこと 4）。蒸留（週1のトリアージ）までの間、memory の注意書きは全部の役に載り続けるので、溜まった週だけトリアージを早く回せるようにする。臨時のトリアージを足すか（同時に1つ）は Chief of Staff が決め、dispatcher は届けるだけ。
+
+- **数えるもの**: `<ANDON_WORKSPACE>/memory`（既定 `/workspace/memory`）の直下の `.md` の普通のファイルで、目録 `MEMORY.md` を除く。トリアージが `kind: memory` で拾うものと同じ（数え方の正は `internal/triage` の `MemoryFiles`）。置き場が無ければ 0 件。
+- **線**は 30 件（仮の値。実測で直す。ADR-0020 開いている問い 1）。ほかの間と同じくコードの定数（`memoryLine`）。件数が線を**超えた**（31 件以上）ときに積む。
+- **線の下に戻るまで1回**: 積んだことを控えの `MemoryOver` に持ち、件数が線以下に戻った巡で外す。超えたまま増えても積み直さない。トリアージの `apply` が消して線の下に戻ったあと、また超えたら積む。
+- セルに置き場は1つで、台帳（プロジェクト）ごとに数える。セルに台帳が複数あれば、それぞれの Chief of Staff に届く（トリアージも台帳ごとに memory を拾う）。
+- 積む巡は 4f（4e の続き）。数えられなければログに1行で、巡は止めない。
+
 ---
 
 ## 3. 誰に・いつ・どう届けるか
@@ -317,6 +329,7 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer は人と直接話す役で、人の返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff は人への問いに答えない。`ready` は `andon chief-engineer` が起動した直後で、もう起動している。`error`・`finished`・`review`（文書の PR）は届ける |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起動する・rebase を頼む・人へ知らせる・続きを促す |
 | `estimate` | 届ける | 見込みが外れた。担当の画面を読み、要れば `hc send`（続ける・見込みを改める・分ける・切り直す）（§2.10） |
+| `memory` | 届ける | memory が線を超えた。動いているトリアージが無ければ臨時のトリアージを足す（§2.11） |
 
 - **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボードと `andon measure`。
 - **届けた通知の記録**は同じ所の `<slug>.delivered.jsonl`（contract.md §17）。`drain` がフックで渡した `<news>` のターンの終わりを見たときに1行（時刻・`acked`・渡した通知の `issue` と `kind`）。追記だけで、書けなくても届けは止めない。`andon measure` が記録だけの置き場と合わせて、kind ごとの素通り（ack で終わった数）を数える（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
@@ -463,6 +476,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 21 | 見込みとのズレを届ける（§2.10） | dispatcher（1 巡の 4c の続き）。ほかに打つ者はいない | 同じ段の `estimate` が 2 度届く | ①控えの lock（#2）＋②控えの `Estimate`（`<issue>\|estimate\|<見込みの値>\|<段>`。積んだ巡の終わりに保存。保存の前に落ちたら次の巡で同じ段をもう一度積む＝届くのは1度か2度で、落ちることは無い） |
 | 22 | 外の信号を読む（`andon signal collect --due`。§2.2.1） | dispatcher（1 巡の 4e）。人が `andon signal collect` を手で打つこともある | 同じ組を every より短く読む（gh の上限を食う）・記録の書き込みが混ざる | ①記録の lock（`<slug>.signals.json.lock`。collect と delivered が取り合う。取れるまで待つ）の中で `read_at` を読んで書く＝`--due` は組ごとに every 分に1回だけ読む。手で打つ分（`--due` なし）は間隔によらず読むが、同じ lock の中で同じ規則で当てる（`count` が1つ多く増えるだけ）。⑥出所へは書かない |
 | 23 | `now` の信号を届ける（通知 `signal`。§2.2.1） | dispatcher（1 巡の 4e）だけ。`andon signal delivered` を打つのも dispatcher だけ | 同じ出来事の `signal` が 2 度届く | ④信号の記録の `delivered_episode`（届けた出来事より前・同じ出来事では書かない。書くのは①記録の lock の中）＋①控えの lock（#2）＋②控えの `Pending`（同じ信号は置き換え）。積んだ待ちを控えに保存してから `delivered` を書く。保存のあと書く前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い |
+| 24 | memory の量の線を届ける（通知 `memory`。§2.11） | dispatcher（1 巡の 4f）。ほかに打つ者はいない | 同じ超え方の `memory` が 2 度届く | ①控えの lock（#2）＋②控えの `MemoryOver`（線以下に戻るまで積まない。積んだ巡の終わりに保存。保存の前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い）＋②控えの `Pending`（課題の無い同じ種類は置き換え） |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

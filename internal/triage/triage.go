@@ -145,7 +145,7 @@ func openLedger() (*ledger, error) {
 		return nil, fail("台帳が見つからない")
 	}
 	root := strings.TrimRight(string(out), "\n")
-	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: memoryDir(), now: time.Now()}
+	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: MemoryDir(), now: time.Now()}
 	if !slugRe.MatchString(l.slug) {
 		return nil, fail("slug が不正")
 	}

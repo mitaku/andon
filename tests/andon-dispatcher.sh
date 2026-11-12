@@ -1415,4 +1415,23 @@ pp "$es" estimate | jq -e 'length == 1 and .[0].detail.stage == 2' >/dev/null ||
 ! grep -q '^send w60 ' "$tmp/hc/log" || die "見込みを超えた担当に hc send を打った: $(grep '^send w60 ' "$tmp/hc/log")"
 ok '実働が見込みの 1 倍・2 倍を超えた見回りでそれぞれ1回だけ estimate を積み、担当には hc send を打たない'
 
+# 26. memory の件数（目録 MEMORY.md を除く）が線（30）を超えたら memory を1度積み、線の下に戻るまで繰り返さない（ADR-0020 決めたこと 4。dispatcher.md §2.11）
+mem=$ANDON_WORKSPACE/memory; mkdir -p "$mem"
+pm() { jq -c '[.pending[] | select(.kind == "memory")]' "$pst"; }
+for i in $(seq 1 30); do echo "m$i" > "$mem/m$i.md"; done
+echo '- [m1](m1.md)' > "$mem/MEMORY.md"; echo x > "$mem/note.txt"
+clear_pending; pk
+[ "$(pm)" = '[]' ] || die "線ちょうど（30 件と目録・.md でないもの）で memory を積んだ: $(pm)"
+echo m31 > "$mem/m31.md"
+pk
+pm | jq -e 'length == 1 and (.[0] | has("issue") | not) and .[0].detail == {count: 31, line: 30}' >/dev/null || die "線を超えた memory が無い・形が違う: $(jq -c .pending "$pst")"
+emit <(pm | jq '.[0]') notification-memory.json
+clear_pending; echo m32 > "$mem/m32.md"; pk
+[ "$(pm)" = '[]' ] || die "線を超えたままで memory をもう一度積んだ: $(pm)"
+rm "$mem/m31.md" "$mem/m32.md"; pk
+echo m33 > "$mem/m33.md"; pk
+pm | jq -e 'length == 1 and .[0].detail.count == 31' >/dev/null || die "線の下に戻ってまた超えたのに memory を積まない: $(pm)"
+rm -r "$mem"
+ok 'memory の件数が線を超えた見回りで1度だけ memory を積み、線の下に戻ってまた超えたら積み直す'
+
 echo "all passed ($pass)"
