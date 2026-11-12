@@ -87,13 +87,25 @@ func TestRewakeIgnores(t *testing.T) {
 	}
 }
 
-// 待つ間に人が打って working に戻っていれば、合図を打たずに 0。
-func TestRewakeSkipsWhenWorking(t *testing.T) {
-	f := rewakeFixture(t)
-	rewakeUnit = 300 * time.Millisecond
-	go func() { time.Sleep(50 * time.Millisecond); f.cos("working") }()
-	if code, msg, _ := rewake(t, `{"error":"server_error"}`); code != 0 || msg != "" {
-		t.Fatalf("working の Chief of Staff に合図を打った: %d %q", code, msg)
+// 待つ間に人が打てば合図を打たずに 0: 動いている（working）・通って終わった（done・idle）・端末が読めない・
+// 通ったターンの Stop で回数が消えた・また切られて次のフックが回数を進めた。
+func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
+	for name, during := range map[string]func(f *retryFixture){
+		"working":    func(f *retryFixture) { f.cos("working") },
+		"done":       func(f *retryFixture) { f.cos("done") },
+		"idle":       func(f *retryFixture) { f.cos("idle") },
+		"読めない":       func(f *retryFixture) { os.WriteFile(f.d+"/t1.json", []byte("{"), 0o644) },
+		"Stop で数え直し": func(f *retryFixture) { ResetRewake("sample-site") },
+		"また切られた": func(f *retryFixture) {
+			os.WriteFile(rewakePath("sample-site"), []byte(`{"count":2}`), 0o644)
+		},
+	} {
+		f := rewakeFixture(t)
+		rewakeUnit = 300 * time.Millisecond
+		go func() { time.Sleep(50 * time.Millisecond); during(f) }()
+		if code, msg, _ := rewake(t, `{"error":"server_error"}`); code != 0 || msg != "" {
+			t.Fatalf("%s: 止まったままでない Chief of Staff に合図を打った: %d %q", name, code, msg)
+		}
 	}
 }
 
@@ -101,11 +113,11 @@ func TestRewakeSkipsWhenWorking(t *testing.T) {
 // 起きたターンの終わりの Stop の drain が1回渡し、もう1つの合図で起きたターンの Stop・次の人の送信では出ない。
 func TestRewakeAndWaitSignalTogetherDeliverOnce(t *testing.T) {
 	f := rewakeFixture(t)
-	f.cos("done") // 待ち役は idle・done で合図する。このフックは working でなければ合図する
 	f.pending(1)
 	before, _ := os.ReadFile(StatePath("sample-site"))
+	code, msg, _ := rewake(t, `{"error":"server_error"}`) // error のままの Chief of Staff を起こす
+	f.cos("done")                                         // 起きたターンが通った直後に、待ち役も合図する
 	w := startWait("--timeout", "60")
-	code, msg, _ := rewake(t, `{"error":"server_error"}`)
 	wcode, ok := w.done(t, 2*time.Second)
 	if code != 2 || msg != RewakeSignal || !ok || wcode != 2 || strings.TrimSpace(w.stderr.String()) != WaitSignal {
 		t.Fatalf("2つとも合図で 2 にならない: rewake %d %q / wait %v %d %q", code, msg, ok, wcode, w.stderr.String())

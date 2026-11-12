@@ -90,7 +90,7 @@
 
 10. **2026-11-12 提供元に切られて `error` で止まった Chief of Staff は、StopFailure の `asyncRewake` のフックが合図で起こす（4 の続き。W6 の実測 A-0135 の形 B）。dispatcher の「続けて」（`hc send`）は戻さない。**
    - フックは `andon dispatcher rewake`（`package/hooks/stop-failure`）。入力の `error` が `server_error`・`rate_limit` で、端末が Chief of Staff（ラベル `role=chief-of-staff`）なら、続けて切られた 1〜4 回目はそれぞれ 1・2・4・8 分あとに合図の1行で exit 2。5 回目は起こさず exit 0 とログ1行。ほかの `error`・Chief of Staff でない端末は待たずに exit 0（担当・レビュアーへの「続けて」は dispatcher のまま）。
-   - 回数は控えの横に持ち、Chief of Staff の Stop（ターンが通った）で数え直す。待つ間に `working` に戻っていれば（人が打った）合図を打たない。
+   - 回数は控えの横に持ち、Chief of Staff の Stop（ターンが通った）で数え直す。待ったあと、端末が `error` のままで回数も変わっていない（待つ間に人が打ったターンが通っていない・また切られていない）ときだけ合図する。
    - 合図は中身を運ばない（8 と同じ）。起こしたターンには切られたユーザー文がそのまま入るので、合図だけで「続けて」の代わりになる（A-0135）。待ち役と同時に exit 2 しても、`<news>` を渡すのは `drain` の1人なので2度届かない。Stop の待ち役は変えない。
    理由: 入力欄を通らずに起こせることを実測した（A-0135。書きかけも残る）。StopFailure は落ちるたびに起き、`error` の種類で見分けが付き、画面を読まずに済む。
    捨てた案: 形 A（生きている待ち役の exit 2。1 つの Stop で1回しか起こせず、最初のターンが落ちたときは待ち役がいない）／dispatcher の「続けて」を Chief of Staff に戻す（入力欄の窓が戻る）。
