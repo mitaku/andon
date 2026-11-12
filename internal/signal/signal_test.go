@@ -188,7 +188,7 @@ func TestCollectSkips(t *testing.T) {
 	g.err = errors.New("HTTP 502")
 	out.Reset()
 	failed, err := Collect(o, &out)
-	if err != nil || failed != 2 || !strings.Contains(out.String(), "読めないので記録を変えずに飛ばす") {
+	if err != nil || failed != 2 || !strings.Contains(out.String(), "読めないので信号の記録は変えずに飛ばす") {
 		t.Errorf("落ちた API: %d %v %q", failed, err, out.String())
 	}
 	if b1, _ := os.ReadFile(path); string(b0) != string(b1) || len(before.Signals) != 3 {

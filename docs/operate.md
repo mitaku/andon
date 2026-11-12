@@ -377,7 +377,7 @@ andon delegate show          # 型と効いている値（commit の前は「無
 - `project.json` が無い・owner の commit でない・`repos` に無い repo の課題は、`andon issue start` が起動しない（理由を1行出す）。移す前の `delegation.json` しか無いセルは、移すまで無委譲・repo 無しとして読まれる（読まない。安全側。移すのは台帳の改名の手順）。
 - 外の信号の出所（`project.json` の `signals`。[contract.md](contract.md) §11）は、**セルの image を `signals` を知る版に上げてから**書く。古い版の `andon` は知らないキーとして `project.json` ごと弾き、無委譲・repo 無しに倒れて担当を一切起動できない。
 - 信号を読むのは `andon signal collect`（`projects/<slug>/` で打つか `--project <slug>`。[contract.md](contract.md) §15）。GitHub（`github-ci`・`github-issues`）は `gh` の資格情報をそのまま使う。Sentry・Linear・Cloudflare のトークンは `andon signal auth <source>` がセルの中で聞いて `~/.config/andon/signals/<source>.token`（mode 600。compose の volume `signals`）に置く。**トークンは読み取り専用の scope で作る**（Linear はコメントが書けるまで。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 10・15）。置き場は守りではない（セルの中の役は同じユーザーで読める）。守りは scope。最初の版で読むのは GitHub だけで、ほかの出所は「読む command がまだ無い」と1行出して飛ばす。
-- **通ったら見えるもの**: 出所と repo ごとに `github-ci github.com/<owner>/<repo>: 見えている 1 件（新しい 1・また出た 0・消えた 0）`。**落ちたら見る所**: `読めないので記録を変えずに飛ばす` — `gh auth status`（その出所の記録は変えず、終了コード 1。次に打てば読み直す）。`信号の記録が読めない` — `~/.local/state/andon/dispatcher/<slug>.signals.json` が壊れている（退ければ次の collect が作り直す。`delivered_episode` も消えるので、`now` の信号は届け直される）。
+- **通ったら見えるもの**: 出所と repo ごとに `github-ci github.com/<owner>/<repo>: 見えている 1 件（新しい 1・また出た 0・消えた 0）`。**落ちたら見る所**: `読めないので信号の記録は変えずに飛ばす` — `gh auth status`（その出所の記録は変えず、終了コード 1。次に打てば読み直す）。`信号の記録が読めない` — `~/.local/state/andon/dispatcher/<slug>.signals.json` が壊れている（退ければ次の collect が作り直す。`delivered_episode` も消えるので、`now` の信号は届け直される）。
 - `projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・並行の上限・独立レビューを入れる条件）は任意。無ければ並行の上限は 2。
 - 課題の id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じ課題）。
 

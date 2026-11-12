@@ -72,11 +72,12 @@ jq -e '(.signals | length) == 3 and all(.signals[]; .count == 2)' "$rec" >/dev/n
 ok 'collect: CI の失敗1件と issue 2件を書き、2回目は count だけ増える。filter はそのまま。トークンの無い出所は1行で飛ばす'
 
 # 受け入れ条件 5: API が落ちたら書かず、終了コード 1
-cp "$rec" "$tmp/before"
+jq -S 'del(.read_at)' "$rec" >"$tmp/before"
+sleep 1.1 # read_at は失敗でも秒の精度の now に進む。秒をまたいでも信号の記録は変わらない
 GH_FAIL=1 "$andon" signal collect --project demo >"$tmp/out" && die "API が落ちたのに 0"
-cmp -s "$rec" "$tmp/before" || die 'API が落ちたのに記録が変わった'
-grep -q '読めないので記録を変えずに飛ばす' "$tmp/out" || die "1行が無い: $(cat "$tmp/out")"
-ok 'collect: API が落ちたら記録を変えず、終了コード 1'
+jq -S 'del(.read_at)' "$rec" | cmp -s - "$tmp/before" || die 'API が落ちたのに信号の記録が変わった'
+grep -q '読めないので信号の記録は変えずに飛ばす' "$tmp/out" || die "1行が無い: $(cat "$tmp/out")"
+ok 'collect: API が落ちたら信号の記録を変えず（read_at は進める）、終了コード 1'
 
 # 受け入れ条件 12: auth が置いたファイルが mode 600。GitHub は置かない
 printf 'tok-123\n' | "$andon" signal auth sentry 2>"$tmp/err" || die "auth が落ちた: $(cat "$tmp/err")"
