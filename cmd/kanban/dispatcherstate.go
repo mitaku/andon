@@ -89,6 +89,7 @@ type dispatcherState struct {
 	Resumed map[string]dsResumed `json:"resumed,omitempty"`
 	Waits   map[string]string    `json:"waits,omitempty"`
 	GHReset string               `json:"gh_reset,omitempty"`
+	GHWait  int                  `json:"gh_wait,omitempty"`
 }
 
 type dsResumed struct {

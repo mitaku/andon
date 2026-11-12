@@ -502,10 +502,12 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 	var res gateResult
 	if code == 3 && rateLimited(err) {
 		// gh の上限で落ちた: wait と同じく控えに書かず問いにもせず、reset の時刻まで回し直さない
-		p.st.GHReset = ghReset(time.Now().UTC()).Format(time.RFC3339)
+		p.st.GHWait = min(max(1, 2*p.st.GHWait), 60)
+		p.st.GHReset = ghReset(time.Now().UTC(), p.st.GHWait).Format(time.RFC3339)
 		p.logf("%s のゲートは gh の上限（rate limit）で落ちた。%s まで回し直さない", id, p.st.GHReset)
 		return
 	}
+	p.st.GHWait = 0
 	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal([]byte(out), &res) != nil {
 		g.Decision = "needs_human"
 		p.st.Gates[key] = g
@@ -566,10 +568,10 @@ func rateLimited(err error) bool {
 	return errors.As(err, &re) && strings.Contains(strings.ToLower(re.Stderr), "rate limit")
 }
 
-// ghReset は gh の上限が戻る時刻（gh api rate_limit。上限は数えない）。残りが 0 の resource の reset のうち一番遅いもの。
-// 読めない・どれも残っている（secondary rate limit）なら1分後（GitHub が待てと言う最短）。
-func ghReset(now time.Time) time.Time {
-	reset := now.Add(time.Minute)
+// ghReset は gh の上限が戻る時刻: wait 分後と、gh api rate_limit（上限は数えない）で残りが 0 の resource の reset のうち、一番遅いもの。
+// secondary rate limit の Retry-After は gh の失敗の出力に出ないので読めない。wait は GitHub の案内どおり1分から、続けて上限で落ちるたびに倍にする（呼び手の GHWait）。
+func ghReset(now time.Time, wait int) time.Time {
+	reset := now.Add(time.Duration(wait) * time.Minute)
 	out, _, err := run("", nil, "", "gh", "api", "rate_limit")
 	var v struct {
 		Resources map[string]struct {

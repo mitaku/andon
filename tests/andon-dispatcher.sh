@@ -767,7 +767,33 @@ dispatcher
 cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"   # reset を過ぎた
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'reset を過ぎてもゲートを回し直さない'
+jq -e '(.gh_wait // 0) == 0' "$state" >/dev/null || die "上限で落ちずにゲートが返ったのに gh_wait が残る: $(jq -c .gh_wait "$state")"
 ok 'ゲートが gh の上限で落ちたら、問いにも控えの gates にもせず、gh api rate_limit の reset まで回さない。過ぎたら回し直してマージする'
+
+# 9d2. secondary rate limit（rate_limit の残りがある。Retry-After は gh の出力に出ない）は1分から待ち、続けて落ちるたびに倍にする
+id=$(newtask 'gh の secondary 上限' auto)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+dispatcher
+gate_through "$id"
+jq -n '{resources: {core: {remaining: 4000, reset: 0}, graphql: {remaining: 4000, reset: 0}}}' > "$tmp/gh/rate_limit.json"
+printf 'gh: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (HTTP 403)\n' > "$tmp/gh/ghfail"
+waited() { # waited <分>: gh_wait がその分で、gh_reset が今からおよそその分後
+    jq -e --argjson m "$1" --argjson now "$(date +%s)" '.gh_wait == $m and ((.gh_reset | fromdate) - $now - $m * 60 | fabs) < 30' "$state" >/dev/null ||
+        die "secondary rate limit の待ちが $1 分でない: $(jq -c '{gh_wait, gh_reset}' "$state")"
+}
+dispatcher; waited 1
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
+dispatcher; waited 2
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
+dispatcher; waited 4
+[ ! -e "$L/issues/$id/library/questions" ] || die 'secondary rate limit で問いを書いた'
+rm "$tmp/gh/ghfail"
+cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
+dispatcher
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && jq -e '(.gh_wait // 0) == 0' "$state" >/dev/null || die 'secondary rate limit が明けてもマージしない・gh_wait が残る'
+ok 'secondary rate limit（Retry-After は読めない）は1分から待ち、続けて上限で落ちるたびに2分・4分と延ばし、明ければ回し直して待ちを戻す'
 
 # 9e. rate limit 以外でゲートが落ちた（終了コード 3）なら、今どおり needs_human の問い
 id=$(newtask 'gh が落ちる' auto)

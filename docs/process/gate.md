@@ -10,7 +10,7 @@
 stateDiagram-v2
   state "待つ（review に入った行ごと。ゲートを回す）" as s_waiting
   state "GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない）" as s_checks_pending
-  state "gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset まで、この台帳のゲートを回さない）" as s_rate_limited
+  state "gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない）" as s_rate_limited
   state "approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ）" as s_approved
   state "approve だがマージしない（merge person・委譲の外。人のマージの見張りへ）" as s_held
   state "fix（理由を担当へ送った）" as s_fix
@@ -45,7 +45,7 @@ stateDiagram-v2
 |---|---|---|
 | `waiting` | 待つ（review に入った行ごと。ゲートを回す） | `dispatcher:Gates` |
 | `checks-pending` | GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない） | `dispatcher:Waits` |
-| `rate-limited` | gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset まで、この台帳のゲートを回さない） | `dispatcher:GHReset` |
+| `rate-limited` | gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない） | `dispatcher:GHReset`・`dispatcher:GHWait` |
 | `approved` | approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ） | `dispatcher:Approved` |
 | `held` | approve だがマージしない（merge person・委譲の外。人のマージの見張りへ） |  |
 | `fix` | fix（理由を担当へ送った） |  |

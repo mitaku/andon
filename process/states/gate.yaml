@@ -9,8 +9,8 @@ states:
     title: GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない）
     record: dispatcher:Waits
   - id: rate-limited
-    title: gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset まで、この台帳のゲートを回さない）
-    record: dispatcher:GHReset
+    title: gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない）
+    record: [dispatcher:GHReset, dispatcher:GHWait]
   - id: approved
     title: approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ）
     record: dispatcher:Approved
