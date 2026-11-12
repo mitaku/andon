@@ -1,6 +1,8 @@
 package dispatcher
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -78,4 +80,71 @@ func asContext(out any) string {
 	h, _ := m["hookSpecificOutput"].(map[string]any)
 	s, _ := h["additionalContext"].(string)
 	return s
+}
+
+// 渡した turn の終わりを見たら、届けた通知の記録（<slug>.delivered.jsonl）に1行足す。lock の外で見た終わり（takeStop）も同じ。
+// ack が無ければ acked は false（hc が無いのでラベルを読めない）。終わりを見ていない turn は書かない。
+func TestDrainLogsDelivered(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HC_TERMINAL_ID", "")
+	defer func(w time.Duration) { lockWait = w }(lockWait)
+	lockWait = 50 * time.Millisecond
+	const slug = "demo"
+	pend := func() {
+		st, _, _ := LoadState(slug)
+		st.Pending = []Notification{
+			{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report"},
+			{At: "2026-11-11T00:00:00Z", Project: slug, Kind: "error"},
+		}
+		st.Save(slug)
+	}
+	lines := func() []string {
+		b, _ := os.ReadFile(DeliveredPath(slug))
+		if s := strings.TrimSpace(string(b)); s != "" {
+			return strings.Split(s, "\n")
+		}
+		return nil
+	}
+	// 1. 送信で渡し、別の turn が来た（終わりを見ていない）: 書かない
+	pend()
+	drain(slug, true, hookInput{SessionID: "s1", PromptID: "p1"})
+	drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"})
+	if l := lines(); len(l) != 0 {
+		t.Fatalf("終わりを見ていない turn を書いた: %q", l)
+	}
+	// 2. Stop で渡し、続きの turn の Stop を lock の外で見て、次の drain で確かめ済みにする: 1行
+	os.Remove(DeliveredPath(slug))
+	st, _, _ := LoadState(slug)
+	st.Hook = nil
+	st.Save(slug)
+	pend()
+	drain(slug, false, hookInput{SessionID: "s1", PromptID: "p3"})
+	unlock, _ := lockState(slug, 0)
+	drain(slug, false, hookInput{SessionID: "s1", PromptID: "p3", StopHookActive: true})
+	unlock()
+	drain(slug, true, hookInput{SessionID: "s1", PromptID: "p4"})
+	l := lines()
+	if len(l) != 1 {
+		t.Fatalf("届けた通知の記録が1行でない: %q", l)
+	}
+	var d Delivered
+	if err := json.Unmarshal([]byte(l[0]), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.Project != slug || d.Acked || len(d.News) != 2 || d.News[0] != (DeliveredNews{Issue: "A-0001", Kind: "report"}) || d.News[1] != (DeliveredNews{Kind: "error"}) {
+		t.Fatalf("記録の中身が違う: %+v", d)
+	}
+}
+
+// ack のあったターンは acked が true。
+func TestLogDeliveredAcked(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	logDelivered("demo", &HookNews{News: []Notification{{Issue: "A-0002", Kind: "ready"}}}, true)
+	logDelivered("demo", &HookNews{}, true) // 渡したものが無ければ書かない
+	b, _ := os.ReadFile(DeliveredPath("demo"))
+	var d Delivered
+	if err := json.Unmarshal(b, &d); err != nil || !d.Acked || len(d.News) != 1 || d.News[0].Kind != "ready" || strings.Count(string(b), "\n") != 1 {
+		t.Fatalf("ack のターンの記録が違う: %q %v", b, err)
+	}
 }

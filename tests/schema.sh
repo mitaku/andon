@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の11本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の12本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-measure.sh に書かせる）。
@@ -21,14 +21,14 @@ ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections findings gate issue-keys measure notification project question report signal"
+expected="candidates corrections delivered findings gate issue-keys measure notification project question report signal"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は11本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は12本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
     ok "schema/$name の決まり"
@@ -38,7 +38,7 @@ for name in $expected; do
 done
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -111,9 +111,10 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
-  [measure]="project since until days value flow efficiency counter prs skipped"
+  [measure]="project since until days value flow efficiency counter news prs skipped"
   [corrections]="at corrections"
   [signal]="signals"
+  [delivered]="at project acked news"
 )
 mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
   local out; out="$(mktemp "$tmp/m-XXXX.json")"
@@ -177,6 +178,9 @@ measure|.counter.reopened|corrections by_tier
 measure|.counter.reopened.by_tier|A B C none
 measure|.prs[0]|issue pr merged_at tier auto human_touches lead_time_hours reverted corrections
 measure|.skipped[0]|source reason
+measure|.news|threshold kinds candidates
+measure|.news.kinds[0]|kind delivered acked rate recorded
+delivered|.news[0]|kind
 corrections|.corrections[0]|kind question decision_kind recommended picked
 corrections|.corrections[1]|kind comments human_commits
 corrections|.corrections[1].comments[0]|author at body
@@ -429,6 +433,18 @@ fail|measure|.value.days_to_observe.days = "3"|見るまでの日数が文字列
 fail|measure|.value.no_hypothesis = 1.5|仮説「無し」の数が整数でない
 fail|measure|del(.value)|価値が無い
 pass|measure|.value.days_to_observe = {count: 0, days: null}|見るまでの日数が null（観察が無い）
+pass|measure|.news = {threshold: 0.8, kinds: [], candidates: []}|通知の記録が無い
+fail|measure|.news.kinds[0].acked = -1|素通りの数が負
+fail|measure|.news.kinds[0].rate = "80%"|素通りの率が文字列
+fail|measure|.news.candidates = "report"|候補が配列でない
+fail|measure|del(.news)|通知の節が無い
+pass|delivered|.acked = false|ack の無いターン
+pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
+fail|delivered|.news = []|渡した通知が無い
+fail|delivered|.news[0].kind = "nope"|知らない kind
+fail|delivered|.acked = "true"|acked が文字列
+fail|delivered|.at = "2026-11-12"|at が時刻でない
+fail|delivered|.news[0].issue = "a/b"|issue に /
 fail|measure|.flow.closed.count = 1.5|件数が整数でない
 fail|measure|.days = 0|days が 0
 fail|measure|.since = "2026/11/01"|since が YYYY-MM-DD でない

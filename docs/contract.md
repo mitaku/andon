@@ -15,6 +15,7 @@
 | §13 流れの数え（`andon measure --json` の出力） | `schema/measure.schema.json` |
 | §14 人の手直し | `schema/corrections.schema.json` |
 | §15 信号の記録 | `schema/signal.schema.json` |
+| §17 届けた通知の記録 | `schema/delivered.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
@@ -53,6 +54,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.signals.json   dispatcher（§15。外の信号の記録。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.recorded.jsonl   dispatcher（§6。記録だけの通知。1行1件・追記だけ。台帳の外）
+~/.local/state/andon/dispatcher/<slug>.delivered.jsonl  dispatcher（§17。届けた通知の記録。渡したターン1つに1行・追記だけ。台帳の外）
 ```
 
 ## 2. 台帳の項目（`issue.yaml` の Andon の予約キー）
@@ -240,7 +242,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ |
   | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける |
 
-- **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード（記録の一覧）。届けた通知はここに書かない。全部の出来事の一覧は台帳の `log.jsonl` が正で、この記録はその代わりではない。
+- **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード（記録の一覧）と `andon measure`（§13 の `news`）。届けた通知はここに書かない（渡したターンの終わりに §17 の記録に書く）。全部の出来事の一覧は台帳の `log.jsonl` が正で、この記録はその代わりではない。
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` と `merged` の `by`・`held` だけ任意。`held` は `by` と一緒）。
 - 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる）。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。どちらも同じ JSON から同じ文を描く。③人が離席の間は、Chief of Staff の `Stop` フックが `asyncRewake` で起こす待ち役（`andon dispatcher wait`）が、届ける待ちがあれば合図だけを打って Chief of Staff を起こし、そのターンの終わりの①で届く。dispatcher は Chief of Staff の入力欄へ打たない（[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 1・8）。
 - **マージのあとの影響**（`impact`）: `andon issue impact <id>` は、課題の PR がマージされたあと、同じ repo の `doing`／`review` の担当の課題（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
@@ -468,7 +470,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 `andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` が、1つの台帳の期間の流れ・効率・対抗の指標を数えて出す（[決定](decisions/2026-11-09-measure-flow-metrics.md)）。**読むだけで、何も書かない・保存しない**。この節はその `--json` の形で、置き場は無い（標準出力だけ）。人向けの表（`--json` 無し）は先頭が「価値: 仮説を確かめた数 …」の1行で、価値 → 流れ → 効率の順に並び（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 18。[決定](decisions/2026-11-10-measure-value-line.md)）、自動マージ率の行に対抗の指標を並べる。表は人が読むもので、機械は読まない。
 
-読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`・`parent`）・`questions.yaml`（`asked`・`answered`）・`report.json`（`pr`・`observation.result`）・ゲートの記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、台帳の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）。期間は UTC の日付で両端を含む（既定は今日までの7日）。
+読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`・`parent`）・`questions.yaml`（`asked`・`answered`）・`report.json`（`pr`・`observation.result`）・ゲートの記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、台帳の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）と、dispatcher の記録だけの通知（§6 の `<slug>.recorded.jsonl`。`at`・`kind`）・届けた通知の記録（§17 の `<slug>.delivered.jsonl`。`at`・`acked`・`news[].kind`）。期間は UTC の日付で両端を含む（既定は今日までの7日）。人向けの表の最後の節は通知で、kind ごとの数の行のあと、末尾に「記録だけへ移す候補」の1行を出す（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
 
 ```json
 {"project": "sample-site", "since": "2026-11-01", "until": "2026-11-04", "days": 4,
@@ -485,6 +487,11 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
  "counter": {"reverted": 1, "follow_ups": 1,
    "reopened": {"corrections": "recorded", "by_tier": {"A": 1, "B": 1, "C": 0, "none": 0}},
    "corrected": {"corrections": "recorded", "by_tier": {"A": 0, "B": 1, "C": 0, "none": 0}}},
+ "news": {"threshold": 0.8,
+   "kinds": [{"kind": "merged", "delivered": 0, "acked": 0, "rate": null, "recorded": 3},
+             {"kind": "ready", "delivered": 2, "acked": 1, "rate": 0.5, "recorded": 0},
+             {"kind": "report", "delivered": 5, "acked": 4, "rate": 0.8, "recorded": 0}],
+   "candidates": ["report"]},
  "prs": [
    {"issue": "S-0001", "pr": "https://github.com/example/sample-site/pull/1", "merged_at": "2026-11-01T06:00:00Z",
     "tier": "A", "auto": true, "human_touches": 1, "lead_time_hours": 6, "reverted": true, "corrections": false},
@@ -511,7 +518,9 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `counter.follow_ups` | 期間に作られた課題のうち、`links` か、マージされた自分の PR の本文が、別の課題のマージされた PR の URL を含むもの |
 | `counter.reopened` | 人が開け直した数をゲートのレベルごとに: `merged_prs` のうち `corrections.json` に1件以上ある課題と、期間に revert された自動マージの PR（重なれば1回）。`corrections` は台帳に `corrections.json` が1つも無ければ `none`（記録なし） |
 | `counter.corrected` | 人の手直しがあった課題の数をゲートのレベルごとに: `merged_prs` のうち `corrections.json`（§14）の `corrections` に1件以上ある課題（`reopened` と違い revert は数えない）。`corrections` は `reopened` と同じ |
-| `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、在るが読めないファイルとディレクトリ（課題・ゲートの記録の置き場を含む）、`answered` が UTC の時刻でない問い、`observation.result` が hit・miss・unknown のどれでもない報告、PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
+| `news.kinds[]` | 通知の kind ごとに（名前順。どちらかの記録に出た kind だけ）: `delivered` は届けた通知の記録（§17）の行のうち `at` が期間の中のものの `news[]` の数、`acked` はそのうち `acked: true` の行のもの（素通り: Chief of Staff が `andon news ack` でターンを終え、人に言うことが無かった）、`rate` は `acked` ÷ `delivered`（`delivered` が 0 なら `null`）、`recorded` は記録だけの通知（§6）の行のうち `at` が期間の中のもの |
+| `news.candidates` | `delivered` が 1 以上で `rate` が `news.threshold`（0.8）以上の kind。記録だけ（§6 の「届けるか」の表）へ移す候補で、移すかは人が決める（表の行を替えるのは ADR か決定） |
+| `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、dispatcher の通知の記録の、JSON でない・`at` が UTC の時刻でない・`kind`〈記録だけ〉か `acked`〈届けた〉が無い行と `kind` の無い通知、在るが読めないファイルとディレクトリ（課題・ゲートの記録の置き場を含む）、`answered` が UTC の時刻でない問い、`observation.result` が hit・miss・unknown のどれでもない報告、PR の一覧を読めない repo）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
 
 - 書き手は `andon measure` だけ（出力するだけ）。読み手は人と振り返り（委譲を広げる根拠）。ゲートも dispatcher も判定に使わない。
 - 数えるものが無ければ件数は 0、率・平均・中央値は `null`（表は「記録なし」）で、終了コード 0。台帳の `config.yaml` が読めない・版が 3 でないときだけ終了コード 1。
@@ -603,3 +612,24 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 - 信号の記録（§15）は出所が持てば `release` にその SHA を写す。
 - 辿るのは担当（トリアージ・観察）で、手で: `gh pr list --search <sha> --state merged` で PR を、台帳の `pr` キーで課題を引く。
+
+## 17. 届けた通知の記録（`<slug>.delivered.jsonl`）
+
+`~/.local/state/andon/dispatcher/<slug>.delivered.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）。dispatcher がフックで `<news>` を Chief of Staff に渡し、**そのターンの終わりを見たとき**に1行足す（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。§6 の記録だけの置き場と対になり、`andon measure`（§13 の `news`）が kind ごとの素通りを数える。
+
+```json
+{"at": "2026-11-12T01:00:00Z", "project": "sample-site", "acked": true,
+ "news": [{"issue": "S-0012", "kind": "report"}, {"kind": "error"}]}
+```
+
+| キー | 意味 |
+|---|---|
+| `at` | dispatcher（`andon dispatcher drain`）がそのターンの終わりを見た時刻（UTC） |
+| `project` | プロジェクトの slug |
+| `acked` | そのターンに `andon news ack` があった（端末のラベル `news.ack` が渡したときに控えた `turn` と同じ。§6）。`news.replied` を書いたターンと同じ |
+| `news[]` | そのターンで渡した通知（`issue` は課題の通知だけ・`kind`）。順は `<news>` と同じ。1件以上 |
+
+- 書き手は dispatcher だけ（`drain` が、渡した turn の終わりを Stop で見たときと、lock の外で見た終わり〈`noteStop`〉を次の `drain` で確かめ済みにしたとき）。追記だけで、書き換えも切り詰めもしない。読み手は `andon measure`。
+- 終わりを見ないまま別のターンが来た（届け直す）ターンは書かない。届け直した通知は、届け直したターンの終わりを見たときに書く。
+- 数えのための記録なので、書けなくても `<news>` の届けは止めない（`drain` の stderr に1行。その行は数えから落ちる）。
+- `<no-reply>` の照合は v0.0.9 で外したので、素通りは `acked` だけで数える（[ADR-0010](adr/0010-news-ack.md) 決めたこと 6）。この記録の前の版の控えにあった `replied`（kind を分けない合計）は読まない。

@@ -195,6 +195,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 			if n.Acked {
 				st.countReplied("ack")
 			}
+			logDelivered(slug, h, n.Acked)
 			st.Hook, changed = nil, true
 		}
 	}
@@ -204,9 +205,11 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	var again []Notification
 	if h := st.Hook; h != nil {
 		if !context && sameTurn(h, addr, in) {
-			if acked(self, h.Turn, h.AckBefore) && label(addr, self.Turn) == nil {
+			ok := acked(self, h.Turn, h.AckBefore) && label(addr, self.Turn) == nil
+			if ok {
 				st.countReplied("ack")
 			}
+			logDelivered(slug, h, ok)
 		} else {
 			again = h.News // 届け直しは1回だけ（h.Again は捨てる）
 		}
