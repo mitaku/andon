@@ -80,6 +80,8 @@ func newFixture(t *testing.T) *fixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("KANBAN_ROOT", "")
+	// 控え（dispatcher の置き場と ready の lock）は一時ディレクトリに。本物の HOME の ~/.local/state に書かない
+	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))
 	return f
 }
 

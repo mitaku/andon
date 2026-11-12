@@ -20,7 +20,7 @@ done
 # 偽の stat: bin/bootstrap が見るセルの repo の持ち主（stat -c %u）。既定は 1000、FAKE_OWNER で変える
 printf '#!/bin/bash\necho "${FAKE_OWNER:-1000}"\n' >"$tmp/path/stat"
 chmod 755 "$tmp/path/stat"
-sandbox() { env -i PATH="$tmp/path" HOME="$home" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
+sandbox() { env -i PATH="$tmp/path" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
 
 cd "$tmp" || exit 1
 "$andon" init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -170,7 +170,7 @@ SH
 chmod 755 "$tmp/dpath/docker"
 log=$tmp/docker.log
 argv() { printf '[%s]' "$@"; }
-dsandbox() { : >"$log"; env -i PATH="$tmp/dpath" HOME="$home" ANDON_IMAGE_ROOT="$img" FAKE_DOCKER_LOG="$log" FAKE_SHA="$sha" "$@"; }
+dsandbox() { : >"$log"; env -i PATH="$tmp/dpath" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_IMAGE_ROOT="$img" FAKE_DOCKER_LOG="$log" FAKE_SHA="$sha" "$@"; }
 cp Dockerfile "$tmp/Dockerfile.orig"
 tag=andon:local-${sha:0:12}
 
