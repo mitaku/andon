@@ -145,6 +145,7 @@ report|.waived[0]|severity file line reason
 report|.acceptance[0]|id result evidence
 report|.risk|one_way
 report|.estimate|size reason
+report|.plan[0]|id text done
 report|.observation|hypothesis result evidence
 report|.next[0]|to text
 question|.options[0]|label pick
@@ -253,6 +254,10 @@ pass|report|del(.estimate)|estimate の無い report.json（見込みに反論�
 fail|report|.estimate.size = "大"|estimate.size が段の名（値は英字の small/medium/large）
 fail|report|.estimate.size = 120|estimate.size が分の数
 fail|report|.estimate.reason = ""|estimate.reason が空
+pass|report|del(.plan)|plan の無い report.json
+fail|report|.plan[0].done = "yes"|plan の done が真偽でない
+fail|report|.plan[0].text = ""|plan の text が空
+fail|report|.plan[0].id = ""|plan の id が空
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
 fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない

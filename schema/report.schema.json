@@ -59,6 +59,20 @@
         "reason": { "description": "Why the agent sees it differently, in one line.", "type": "string", "minLength": 1 }
       }
     },
+    "plan": {
+      "description": "The agent's plan: the machine-readable copy of the plan section of report.md. Progress is the count of done items. andon issue report carries it over from the previous report.json when --data has none.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "done"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "description": "Unique in the plan, e.g. p1.", "type": "string", "minLength": 1 },
+          "text": { "description": "One task with its end condition, as its line in the plan section.", "type": "string", "minLength": 1 },
+          "done": { "description": "true once the task's end condition is met.", "type": "boolean" }
+        }
+      }
+    },
     "waived": {
       "description": "Findings left unfixed, with the reason.",
       "type": "array",

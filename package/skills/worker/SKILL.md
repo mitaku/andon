@@ -58,7 +58,7 @@ hc が打ち込む文に付ける `reach`（「hc send <送り手> when done or 
 | 工程 | すること | 出すもの |
 |---|---|---|
 | 理解 | 依頼書の「なぜ」と完了条件から、何が困っていて何が出れば解けたかを自分の言葉で言い直す。分かっていないこと・依頼書と現地で分かること・条件（守ること・横展開の範囲）を分ける。現地を読む（grep・テスト・記録）。**横展開**: 同じ種類のものがほかに無いか探す（下） | 報告の `## Report` の冒頭（言い直しと、探した範囲） |
-| 計画 | 課題を作業に分け、作業ごとに終了条件を置く（何をしたら終わりか。中止の条件があればそれも）。作業の列が依頼書の完了条件に届くかを確かめる。依頼書の見込み（Settings の `Estimate:`）も確かめる（下） | 報告の `## 計画`（作業を1行ずつ。終了条件つき。作業が1つなら1行） |
+| 計画 | 課題を作業に分け、作業ごとに終了条件を置く（何をしたら終わりか。中止の条件があればそれも）。作業の列が依頼書の完了条件に届くかを確かめる。依頼書の見込み（Settings の `Estimate:`）も確かめる（下） | 報告の `## 計画`（作業を1行ずつ。終了条件つき。作業が1つなら1行）と、その写しの `plan[]`（§7） |
 | 作業 | 計画の作業を順に。終了条件を満たしたら次へ | commit |
 | 確認 | 作業の結果を依頼書の完了条件に当てる。テスト・独立レビュー（§4）・リポジトリの検査（§3）・画面に触れる変更は画面の確かめ（下） | テストの結果・レビューの記録・スクリーンショット |
 | 完成 | 報告と `andon issue ready`（§7）。何を・どこまで・どう探したか、計画と実際の差 | 報告・PR |
@@ -261,8 +261,9 @@ andon issue report <id> [--pr <url>] [--data '<json>'] <<'EOF'
 EOF
 ```
 
-- `commit` は command が `HEAD` を書く。`pr` は `--pr` で（省くと前の `report.json` の `pr` を引き継ぐ）。`estimate`（§2 の見込みの反論）も `--data` に無ければ前の `report.json` から引き継ぐ。
-- `--data` は任意のキーの JSON object: `estimate`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr`・`estimate` のほかは引き継がないので、打つたびに全部を渡す。
+- `commit` は command が `HEAD` を書く。`pr` は `--pr` で（省くと前の `report.json` の `pr` を引き継ぐ）。`estimate`（§2 の見込みの反論）も `--data` に無ければ前の `report.json` から引き継ぐ。`plan`（`## 計画` の写し）も `--data` に無ければ前の `report.json` から引き継ぐ。
+- `--data` は任意のキーの JSON object: `estimate`・`plan`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr`・`estimate`・`plan` のほかは引き継がないので、打つたびに全部を渡す。
+- `plan`: `## 計画` の作業を1件ずつ `{"id": "p1", "text": "<作業。終了条件: …>", "done": false}` で写す（`id` は計画の中で一意。見込みの1行は写さない）。作業の終了条件を満たしたら `done: true` にし、計画を書き直したら `plan` も全体を書き直して渡す。Chief of Staff は `done` の数で進み具合を見る。
 - `acceptance`: 依頼書か Chief Engineer の文書に受け入れ条件（A1, A2, …）があれば、1つずつ `{"id": "A1", "result": "pass", "evidence": "<テストの command と出力のパス>"}` を書く。証拠は、この commit で走らせた本物の出力だけ。前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストは証拠でない（そうなる条件は `pass` と書かない）。`result` は通した `pass`・通せない `fail`・人が見る `manual`。`fail` があるとゲートは `fix`、`manual` があるとレベルを1つ上げる。条件が無ければ書かない。
   受け入れ条件のテストは、先に落ちるのを確かめる（直す前か、直した所を戻して）。
   画面の確かめ（§2）の `evidence` には、PR の添付の URL（`https://github.com/user-attachments/assets/<id>`）と撮った command（`playwright-cli` の列）を書く。
@@ -294,7 +295,7 @@ PR: <https://github.com/<owner>/<repo>/pull/<n>>   ← PR を出したときだ�
 For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべきもの1行>   ← あるときだけ
 ```
 
-`## 計画` は計画の工程で書いたもの。作業の途中で計画を変えたら書き直し、変えた理由は `計画との差:` に書く。`--data` の `remember` には学びと計画との差の両方を入れる。
+`## 計画` は計画の工程で書いたもの。作業の途中で計画を変えたら書き直し、変えた理由は `計画との差:` に書く。`--data` の `plan` は `## 計画` の写し、`remember` には学びと計画との差の両方を入れる。
 
 終わったら順に:
 
