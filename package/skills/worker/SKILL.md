@@ -141,6 +141,7 @@ EOF
 1. commit の前に検査を通す。どれを回すかはリポジトリの AGENTS.md（型・lint・テスト・`scripts/check`）。無ければ README とテストの置き場から決める。
 2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。rebase のあとの force push は `git push --force-with-lease` だけで、押してよいのは自分の課題の branch だけ（許可ルールは `package/settings.json`。main と他人の branch には打たない。`--force` は使わない）。
 3. PR を出す（`gh pr create`）。本文に、やったこと・テスト結果・見送ったレビューの指摘（§4）。
+   出す前に、PR 本文・報告・コメントに書いた日本語の文を声に出すつもりで読み返す（「のは」「を」などの助詞の脱字は、検査もレビューも拾わない）。
    画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（PR を出したあとなら `gh pr comment <n> --attach <画像>`。1枚 10 MB まで）。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。ゲートと dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す:

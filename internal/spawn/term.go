@@ -61,7 +61,7 @@ const AgentApp = "claude-code"
 // Kind は端末を見分ける。戻った端末は top-level の argv も前に出ているものも引数の無いシェル
 // （役のラベルの付いた端末は Andon の持ち物で、人がシェルとして使う場所ではない、と決めた。decisions.md §16）
 // （top-level がシェルでも前に別のものが出ていれば、人が中で何かしているとみて Unsure）。
-// 動いているは、top-level の argv がシェルでなく、hc の agent が Claude Code のときだけ。
+// 動いているのは、top-level の argv がシェルでなく、hc の agent が Claude Code のときだけ。
 // agent の情報が無い・別のもの・前に出ているものが取れないは Unsure。
 func (t *Term) Kind() Kind {
 	switch {
