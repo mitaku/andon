@@ -12,7 +12,7 @@
       "id": "sidebar", "type": "column", "size": { "px": 300 }, "min": 44, "max": 520,
       "background": "chrome", "resizable": false,
       "children": [
-        { "id": "brand", "type": "block", "size": { "px": 46 }, "window_drag": true, "content": { "mod": "workspace-chrome" } },
+        { "id": "brand", "type": "block", "size": { "px": 46 }, "window_drag": true, "content": { "mod": "andon", "props": { "brand": true } } },
         {
           "id": "sidebar-lists", "type": "column",
           "children": [

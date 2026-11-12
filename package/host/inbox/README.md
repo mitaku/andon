@@ -11,6 +11,12 @@ Andon's agents are rows of their own even without a pane, when they show: a term
 
 The Chief of Staff and a Chief Engineer (`role=chief-of-staff`, `role=chief-engineer`, or a pane holding one) talk with you, so a turn they end is a reply: while you haven't looked (Herdr's `done`) it is in Needs you with a `Reply` badge, and once you look (Herdr turns it `idle` by itself) it is back in Projects. One without a pane has only the core's status, which stays `done`: opening its row counts as looking, and the inbox remembers that turn (in `shared("inbox.memory")`), so the reply comes back only with a later turn (ADR-0015 decision 7, provisional). Their icon is the role's own, in the theme's accent color, not the program's (they run the same Claude Code as the issue agents): Lucide's `clipboard-list` for the Chief of Staff (`chief-of-staff.svg`), `drafting-compass` for a Chief Engineer (`chief-engineer.svg`). A terminal with a `title` label is named by it (`andon issue start` puts the issue's title there); otherwise the tab, the agent's title or the hc name.
 
+## Lights
+
+A row that needs you is lit in Andon's colors, the logo's rather than the theme's (ADR-0023): its badge is amber (`#F0A202`, dark text) when an answer moves it on (Permission, Question, Auth, Needs you, Reply), red (`#D8453B`, white text) when its turn failed (Failed). The Needs you heading has an amber dot. Nothing blinks; Herdr makes the sounds and notifications.
+
+The lantern at the top of the column (the andon mod's brand, `../andon/`) shows the same rows at a glance: red while any row that needs you failed, amber while rows wait for an answer, unlit when nothing needs you. The inbox decides it and keeps it in `shared("inbox.lantern")` (`"red"`, `"amber"` or null). It counts every row that needs you, on every machine, whatever the machine pick or filter hides (as `+3 waiting elsewhere` does).
+
 The inbox names no tabs: Andon's Spaces and tabs are named by the andon mod (`../andon/`), from the same labels.
 
 Each row, drawn like Herdr's own agents list: the program's icon; the name, how long it has waited (`3m+` means "at least": the mod hasn't seen the change itself, so it uses the core's time) and the status mark; then the machine (`This computer` or its name, with Herdr's monitor/server icon) and the space; then the tab when named, a branch other than main/master, and the agent's message when it gives one.
@@ -71,7 +77,7 @@ The commands reach only a shown copy of the mod: in a layout without it, `inbox.
 | `run("pane.go", {direction: "right"})` | `Esc` in the queue |
 | `run("mod.open", {name: "kanban-board"})` | the header's kanban-board button |
 
-Addresses come from `agents()` / `terminals()` only. No `hc`, no `exec`, no file reads, no `fetch`, no sounds, no notifications: the mod only reads. `shared("inbox.memory")`: when each agent last changed state, and the turn of a paneless role's reply you opened. `localStorage` (per copy): the machine picked.
+Addresses come from `agents()` / `terminals()` only. No `hc`, no `exec`, no file reads, no `fetch`, no sounds, no notifications: the mod only reads. `shared("inbox.memory")`: when each agent last changed state, and the turn of a paneless role's reply you opened. `shared("inbox.lantern")`: what the lantern shows. `localStorage` (per copy): the machine picked.
 
 A `settled=` label an older inbox wrote is no longer read; it ends with its terminal.
 
@@ -81,4 +87,4 @@ A `settled=` label an older inbox wrote is no longer read; it ends with its term
 
 ## Origin
 
-Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/inbox` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the roles that talk with you are `chief-of-staff` and `chief-engineer` (ADR-0002) instead of `coordinator`; it no longer names tabs (the andon mod does); the kanban-board button and the icons' file names; cut to Needs you and Projects, without Done, the shelves, settle and the board dialog (ADR-0015). The one Chief of Staff icon (`network`) became one per role. The preview picture was not copied. It was named `focus-queue` there until 2026-11-04; what such a copy remembered in `shared("focus-queue.memory")` is still read once. Under Andon's licence (Apache-2.0), with the Lucide icons under ISC as above.
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/inbox` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the roles that talk with you are `chief-of-staff` and `chief-engineer` (ADR-0002) instead of `coordinator`; it no longer names tabs (the andon mod does); the kanban-board button and the icons' file names; cut to Needs you and Projects, without Done, the shelves, settle and the board dialog (ADR-0015). The Needs you badges lit amber and red, and the lantern's state (ADR-0023). The one Chief of Staff icon (`network`) became one per role. The preview picture was not copied. It was named `focus-queue` there until 2026-11-04; what such a copy remembered in `shared("focus-queue.memory")` is still read once. Under Andon's licence (Apache-2.0), with the Lucide icons under ISC as above.

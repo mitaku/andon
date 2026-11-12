@@ -260,13 +260,13 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 
 | mod | 何をする | 中身 |
 |---|---|---|
-| `andon` | Space・tab に名前を付ける（下の段） | `package/host/andon/` |
-| `inbox` | 人が手を動かすもの（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。読むだけでラベルを書かない（ADR-0015） | `package/host/inbox/README.md` |
+| `andon` | Space・tab に名前を付ける（下の段）。もう1つの copy（props `brand`）が左の列の一番上に行燈と「Andon」を描き、窓の色で Needs you の状態を出す（ADR-0023） | `package/host/andon/README.md` |
+| `inbox` | 人が手を動かすもの（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の印は琥珀（答えれば進む）と赤（Failed）で灯る。読むだけでラベルを書かない（ADR-0015・ADR-0023） | `package/host/inbox/README.md` |
 | `kanban-board` | 台帳 `projects/<slug>/kanban/` を読むだけのボード（`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
 
-由来は前身の herdr-flightdeck（private）の `herdr-app/`（commit `afc57ac`。`work-board` を `kanban-board` に改名）。ライセンスは各 README の Origin・Licence の節（files-plus は Herdr の `files` mod の改変で Apache-2.0、同梱の Pele は MIT、inbox の Lucide のアイコンは ISC、kanban-board の js-yaml は MIT）。
+由来は前身の herdr-flightdeck（private）の `herdr-app/`（commit `afc57ac`。`work-board` を `kanban-board` に改名）。ライセンスは各 README の Origin・Licence の節（files-plus は Herdr の `files` mod の改変で Apache-2.0、andon の `brand.js` は Herdr の `workspace-chrome` の brand の改変で Apache-2.0、同梱の Pele は MIT、inbox の Lucide のアイコンは ISC、kanban-board の js-yaml は MIT）。
 
 **WSL で実行し、App は Windows 側で動く場合**は、Windows の App の設定フォルダを WSL から見たパスで `HERDR_APP_HOME` に指定する。WSL では未指定だと書き込み前に止まり、案内を出す。Windows の既定値は `%USERPROFILE%\.config\herdr-app`。App 側で `HERDR_APP_HOME` や `XDG_CONFIG_HOME` を指定しているなら、その設定に合う実際のフォルダを選ぶ。
 
@@ -283,9 +283,22 @@ WSL 内で Linux 版 App を動かしている場合も、その App の設定�
 herdr-app do layout.switch --name andon
 ```
 
-レイアウト `andon` は App の標準の `main` の agents の欄を `inbox` にし、pane の見出しを `context-header`、Files を `files-plus` にしたもの。名前付けの block（`{ "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }`）を左の列に最初から持つので、レイアウトを複製して block を足す手は要らない。自分のレイアウトを使い続けるなら、その常に表示する row または column の `children` にこの block を1つ加える（他の block は残す）。
+レイアウト `andon` は App の標準の `main` の agents の欄を `inbox` にし、左の列の一番上（brand）を `andon` mod の行燈（props `{ "brand": true }`）、pane の見出しを `context-header`、Files を `files-plus` にしたもの。フッター（Settings・Add machine）と Spaces は App 同梱の mod のまま。テーマ（色）はレイアウトが持たず、人が選んだものが効く。名前付けの block（`{ "id": "andon-names", "type": "block", "size": { "px": 1 }, "content": { "mod": "andon" } }`）を左の列に最初から持つので、レイアウトを複製して block を足す手は要らない。自分のレイアウトを使い続けるなら、その常に表示する row または column の `children` にこの block を1つ加える（他の block は残す）。
 
 キーは人のもの（`keys.json`・`settings.json` は `host-install` が触らない）。使うなら各 mod の README の Keys の断片（`inbox` の `ctrl-shift-j`・`ctrl-shift-h`、`kanban-board` の `ctrl-shift-y`。同じ断片が各 mod の `keys.json`）を自分の `keys.json` に足す。前の inbox の `ctrl-shift-d`（`inbox.settle`）・`ctrl-shift-u`（`mod.open:inbox`）は無くなったので、足してあれば自分の `keys.json` から消す（残しても unknown command になるだけ）。
+
+**新しい版に置き直す**（mod かレイアウトが変わった版のあと。`host-install` は今あるものを上書きしないので、人が App のあるマシンで1回打つ）:
+
+```bash
+app="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"   # WSL＋Windows の App なら上の HERDR_APP_HOME のパス
+old="$app-andon-old-$(date +%Y%m%d%H%M)"; mkdir -p "$old/mods" "$old/layouts"     # 退避先は設定フォルダの隣
+for m in andon inbox kanban-board context-header files-plus; do [ -e "$app/mods/$m" ] && mv "$app/mods/$m" "$old/mods/"; done
+for f in andon.json andon.svg; do [ -e "$app/layouts/$f" ] && mv "$app/layouts/$f" "$old/layouts/"; done
+bin/bootstrap host-install                                              # セルの repo で（WSL なら HERDR_APP_HOME を付けて）
+for m in andon inbox kanban-board context-header files-plus; do herdr-app check "$app/mods/$m"; done
+```
+
+自分で `andon.json` を直していたなら、退避した `$old/layouts/andon.json` から写し直す。前の見た目に戻すときは、新しいものを消して `$old` の中身を戻す。
 
 この block は空で、名前付けだけを行う。別のレイアウトへ切り替えるなら、そこにも block が必要。人が App のあるマシンで `herdr-app check <App の設定フォルダ>/mods/andon`（ほかの mod も同じ形で）を実行し（Windows の App は Windows 側で実行する）、レイアウト `andon` で `sample-site / CoS`・`sample-site / CE A-0001 設計`・`A-0002 修正 / A-0002` が見えることを確認する。App のエラーは `herdr-app status` で見る。
 
@@ -403,7 +416,7 @@ andon delegate show          # 型と効いている値（commit の前は「無
 5. **Andon が `library/` に書いた値を改める**: `issues/*/library/report.json` の `"to": "task"` を `"to": "issue"` に、`issues/*/library/questions/*.json` の `"from": "task"` を `"from": "issue"` に（`sed -i`。無ければ飛ばす。`done` の課題のものも。読む側に古い値の互換が無いため）。
 6. **dispatcher の控えを消す**: `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）。控えが守るのはレビュアーの二重起こしとゲートの重複で、動いている課題が無ければ要らない。次の見回りで作り直される。
 7. **`projects/<slug>/project.json` の `triage_max_tasks` を `triage_max_issues` に直して commit する**（無ければ何もしない。人のファイルなので author は `andon.toml` の `owner`）。
-8. **人の App の mod を置き直す**: `host-install` は今あるファイルを上書きしないので、App の設定フォルダ（「Herdr App の mod とレイアウト」）の `mods/` から Andon の mod 5つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`）を消してから `bin/bootstrap host-install` を打つ。置き直したあと、仮設の端末（ラベル `task=`）には名前が付かなくなる（新しい mod はラベル `issue=` だけを読む。仮設が止まるまでの間）。
+8. **人の App の mod を置き直す**: `host-install` は今あるファイルを上書きしないので、「Herdr App の mod とレイアウト」の「新しい版に置き直す」のとおり、Andon の mod 5つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`）とレイアウト `andon` を退避してから `bin/bootstrap host-install` を打つ。置き直したあと、仮設の端末（ラベル `task=`）には名前が付かなくなる（新しい mod はラベル `issue=` だけを読む。仮設が止まるまでの間）。
 9. **`andon boot`**。`kanban lint` が通れば済み。
 
 `log.jsonl` の行・`brief.md`・`report.md` は触らない（過去の行は当時の言葉のまま）。動いている課題がある台帳で 3 以降をすると、端末のラベル `task=` と台帳が食い違い、dispatcher が担当を見失う。だから 1 を先に、`kanban lint` を最後に。

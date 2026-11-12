@@ -9,7 +9,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 const HOST = 'package/host';
-const MODS = ['inbox', 'kanban-board', 'context-header', 'files-plus'];
+const MODS = ['andon', 'inbox', 'kanban-board', 'context-header', 'files-plus'];
 let failed = 0;
 async function check(name, fn) {
   try { await fn(); console.log(`ok   ${name}`); }
@@ -59,16 +59,42 @@ await check('レイアウト andon は名前付けの block（andon-names・mod 
 
 // Every herdr export the mods import, doing nothing; a test overrides what it looks at.
 const FAKE_HERDR = Object.fromEntries(['settings', 'appHome', 'agents', 'terminals', 'panes', 'spaces', 'focused', 'exec', 'readTextFile', 'watchFolder',
-  'run', 'theme', 'props', 'closeOverlay', 'window', 'home', 'hc', 'notify'].map((k) => [k, () => null]));
+  'run', 'theme', 'props', 'closeOverlay', 'window', 'home', 'hc', 'notify', 'shared', 'setShared', 'layout'].map((k) => [k, () => null]));
+
+const el = new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : () => el), apply: () => el });
+const NO_UI = { View: class {}, div: () => el, svg: () => el, image: () => el, v_flex: () => el, h_flex: () => el, TextView: {} };
+
+// Elements that remember what was called on them: { kind, file, calls: [[method, args]], kids }.
+// `when` runs its branch when the condition holds, as the App does.
+function recordingUi() {
+  const make = (kind, file) => {
+    const node = { kind, file, calls: [], kids: [] };
+    const p = new Proxy(node, { get: (t, k) => {
+      if (k in t) return t[k];
+      if (k === 'then') return undefined;
+      return (...a) => {
+        t.calls.push([k, a]);
+        if (k === 'child' && a[0] && typeof a[0] === 'object') t.kids.push(a[0]);
+        if (k === 'children') t.kids.push(...a[0]);
+        if (k === 'when' && a[0]) a[1](p);
+        return p;
+      };
+    } });
+    return p;
+  };
+  return { View: class {}, div: () => make('div'), svg: (f) => make('svg', f), image: (f) => make('image', f), v_flex: () => make('flex'), h_flex: () => make('flex'), TextView: {} };
+}
+const walk = (n, out = []) => { out.push(n); n.kids.forEach((k) => walk(k, out)); return out; };
+const args = (n, method) => n.calls.filter(([k]) => k === method).map(([, a]) => a);
+const last = (n, method) => args(n, method).at(-1)?.[0];
+const byId = (root, id) => walk(root).find((n) => last(n, 'id') === id);
 
 // Loads a mod's main.js in a VM with fake herdr, gpui and fs modules. Relative imports are loaded too.
-async function load(dir, herdr) {
+async function load(dir, herdr, ui = NO_UI) {
   const context = vm.createContext({ console });
   const synthetic = (exports) => new vm.SyntheticModule(Object.keys(exports), function () {
     for (const [k, v] of Object.entries(exports)) this.setExport(k, v);
   }, { context });
-  const el = new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : () => el), apply: () => el });
-  const ui = { View: class {}, div: () => el, svg: () => el, image: () => el, v_flex: () => el, h_flex: () => el, TextView: {} };
   const known = {
     herdr: synthetic({ ...FAKE_HERDR, ...herdr }),
     'gpui-kit': synthetic({ View: ui.View, div: ui.div, svg: ui.svg, image: ui.image }),
@@ -240,20 +266,20 @@ await check('inbox: Chief of Staff と Chief Engineer は役ごとに別のア�
 });
 
 // The inbox against a fake API: its sections (ADR-0015 acceptance 1).
-async function inbox(state) {
+async function inbox(state, ui = NO_UI, theme = {}) {
   const store = {};
   const calls = { hc: 0, run: [] };
   const ns = await load(`${HOST}/inbox`, {
     agents: () => state.agents ?? [], terminals: () => state.terms ?? [], spaces: () => [], panes: () => [], machines: () => [],
-    focused: () => null, theme: () => ({}), setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
+    focused: () => null, theme: () => theme, setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
     shared: (k) => store[k] ?? null, setShared: (k, v) => { store[k] = v; },
     run: (cmd, args) => calls.run.push([cmd, args]),
     hc: () => { calls.hc++; throw new Error('the inbox called hc'); },
     notify: () => { throw new Error('the inbox posted a notification'); },
-  });
+  }, ui);
   const v = new ns.default();
   v.init({}, { focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after() {} }, spawn: () => {} });
-  return { v, calls };
+  return { v, calls, store };
 }
 
 await check('inbox: 節は Needs you と Projects の 2 つ。担当は blocked のときだけ、役は常に出る（ADR-0015 決めたこと 1〜4）', async () => {
@@ -321,6 +347,121 @@ await check('inbox: settle とボードのダイアログが無い（mod.json・
     assert.match(text, /\*\*Projects\*\*/, `${doc} に Projects の節が無い`);
     assert.doesNotMatch(text, /\*\*Done\*\*|\bSettled\b|^## The board|\| `d` \|/m, `${doc} に Done・棚・settle・ボードが残る`);
   }
+});
+
+// The logo's colors (docs/assets/logo/README.md): amber and red, each with its highlight.
+const AMBER = '#F0A202', AMBER_HI = '#FFD36B', RED = '#D8453B', RED_HI = '#F29A92';
+const THEME = { blocked: '#123456', foreground: '#202020', dim: '#808080', muted: '#606060', chrome: '#f0f0f0', accent: '#3366cc', working: '#2288aa', idle: '#999999',
+  hover: '#e0e0e0', selected: '#dddddd' };
+const colors = (root) => walk(root).flatMap((n) => [...args(n, 'bg'), ...args(n, 'text_color')].map((a) => a[0]));
+const sampleProgram = { name: 'Claude Code', key: 'claude' };
+const sampleTerm = (address, status, labels, extra = {}) => ({ address, state: 'live', status, labels, program: sampleProgram, turn: 1, ...extra });
+
+await check('inbox: Needs you の灯りは、答えれば進む行（Permission・Question・Auth・種類なし・Reply）が琥珀、Failed が赤。テーマの blocked 色を使わない（ADR-0023 決めたこと 1）', async () => {
+  const state = { terms: [
+    sampleTerm('t1', 'done', { project: 'sample-site', role: 'chief-of-staff' }),
+    sampleTerm('t2', 'blocked', { project: 'sample-site', issue: 'A-0002', title: 'Permission' }, { report: { kind: 'permission' } }),
+    sampleTerm('t3', 'blocked', { project: 'sample-site', issue: 'A-0003', title: 'Question' }, { report: { kind: 'question' } }),
+    sampleTerm('t4', 'blocked', { project: 'sample-site', issue: 'A-0004', title: 'Auth' }, { report: { kind: 'auth' } }),
+    sampleTerm('t5', 'blocked', { project: 'sample-site', issue: 'A-0005', title: 'No kind' }),
+    sampleTerm('t6', 'error', { project: 'sample-site', issue: 'A-0006', title: 'Failed' }),
+    sampleTerm('t7', 'idle', { project: 'sample-site', role: 'chief-engineer', issue: 'A-0007', title: 'Design' }),
+  ] };
+  const { v } = await inbox(state, recordingUi(), THEME);
+  const m = v.model();
+  const kinds = Object.fromEntries(m.needs.map((i) => [i.address, i.kind]));
+  assert.deepEqual(kinds, { t1: 'Reply', t2: 'Permission', t3: 'Question', t4: 'Auth', t5: null, t6: 'Failed' });
+  for (const i of m.needs) {
+    const fill = last(v.mark(THEME, i), 'bg');
+    assert.equal(fill, i.address === 't6' ? RED : AMBER, `${i.address}（${i.kind}）の灯りの色`);
+  }
+  const tree = v.render({});
+  assert.ok(!colors(tree).includes(THEME.blocked), 'テーマの blocked 色で塗った');
+  assert.ok(colors(tree).includes(AMBER), 'Needs you の見出しに琥珀が無い');
+  // A row that only lives in Projects is not lit.
+  const projects = m.projects.map((i) => colors(v.mark(THEME, i))).flat();
+  assert.ok(!projects.includes(AMBER) && !projects.includes(RED), 'Projects の行が灯った');
+});
+
+await check('inbox: 行燈の状態は Needs you から決まる。空なら消灯・答え待ちだけなら琥珀・Failed があれば赤。開いた役の返事では灯らない（ADR-0023 決めたこと 3）', async () => {
+  const state = { terms: [sampleTerm('t1', 'idle', { project: 'sample-site', role: 'chief-of-staff' })] };
+  const { v, store } = await inbox(state);
+  const lantern = () => { const m = v.model(); return [store['inbox.lantern'] ?? null, m.needs.length]; };
+  assert.deepEqual(lantern(), [null, 0], '呼ぶ行が無いのに灯った');
+  state.terms[0].status = 'done';
+  assert.deepEqual(lantern(), ['amber', 1], '役の返事で琥珀にならない');
+  state.terms.push(sampleTerm('t2', 'error', { project: 'sample-site', issue: 'A-0002', title: 'Failed' }));
+  assert.deepEqual(lantern(), ['red', 2], 'Failed があるのに赤でない');
+  state.terms.pop();
+  assert.deepEqual(lantern(), ['amber', 1]);
+  // Opening a paneless role's reply is looking (ADR-0015 decision 7): the inbox drops it, so does the lantern.
+  v.open(v.model().needs[0]);
+  assert.deepEqual(lantern(), [null, 0], '見た返事で灯ったまま');
+  // A filter hides rows from the column, not from the lantern.
+  state.terms[0].turn = 2;
+  v.filter = 'nothing matches this';
+  assert.deepEqual(lantern(), ['amber', 0], '絞り込みで行燈が消えた');
+});
+
+// The andon mod's copy that draws the top of the sidebar (props {brand: true}).
+async function brand({ lit = null, px = 300 } = {}) {
+  const store = { 'inbox.lantern': lit };
+  const calls = [];
+  const ns = await load(`${HOST}/andon`, {
+    props: () => ({ brand: true }), theme: () => THEME, shared: (k) => store[k] ?? null, setShared: (k, val) => { store[k] = val; },
+    layout: () => ({ id: 'root', children: [{ id: 'sidebar', size: { px } }] }), window: () => ({ platform: 'linux' }),
+    run: (cmd, a) => calls.push([cmd, a]),
+    terminals: () => { throw new Error('the brand read terminals'); }, panes: () => [], spaces: () => [],
+  }, recordingUi());
+  return { tree: new ns.default().render(), calls };
+}
+
+await check('andon（brand）: 一番上の行燈は琥珀・赤・消灯をロゴの色で灯し、色が変わるときだけ不透明度で移る。名前付けはしない（ADR-0023 決めたこと 2〜4）', async () => {
+  const shown = (tree) => Object.fromEntries(['amber', 'red'].map((n) => [n, last(byId(tree, `lantern-${n}`), 'opacity')]));
+  for (const [lit, want] of [[null, { amber: 0, red: 0 }], ['amber', { amber: 1, red: 0 }], ['red', { amber: 0, red: 1 }]]) {
+    const { tree, calls } = await brand({ lit });
+    assert.deepEqual(shown(tree), want, `${lit} の灯り方`);
+    assert.equal(calls.length, 0, `名前付けの command を出した: ${JSON.stringify(calls)}`);
+  }
+  const { tree } = await brand({ lit: 'red' });
+  for (const [n, lamp, hi] of [['amber', AMBER, AMBER_HI], ['red', RED, RED_HI]]) {
+    const light = byId(tree, `lantern-${n}`);
+    assert.deepEqual(colors(light), [lamp, hi], `${n} の窓の色`);
+    const [prop, policy] = args(light, 'transition')[0] ?? [];
+    assert.equal(prop, 'opacity', `${n} が不透明度で移らない`);
+    assert.ok(policy.duration >= 300, `${n} の移り変わりが速すぎる`);
+    assert.equal(args(light, 'loop').length + args(light, 'frames').length, 0, `${n} が明滅する`);
+  }
+  const text = walk(tree).flatMap((n) => args(n, 'child').map((a) => a[0])).filter((c) => typeof c === 'string');
+  assert.ok(text.includes('Andon') && !text.includes('Herdr'), `記号の横の字: ${text}`);
+  assert.ok(!walk(tree).some((n) => n.kind === 'image'), 'Herdr のロゴの絵が残る');
+  for (const id of ['search', 'sidebar-toggle']) assert.ok(byId(tree, id), `${id} のボタンが無い`);
+  assert.ok(!colors(tree).includes(THEME.blocked), 'テーマの blocked 色で塗った');
+  // A folded sidebar (the rail) has no lantern; the button to unfold it stays.
+  const rail = (await brand({ lit: 'red', px: 44 })).tree;
+  assert.ok(!byId(rail, 'lantern') && byId(rail, 'sidebar-toggle'), '畳んだ列に行燈が出たか、開くボタンが無い');
+  for (const file of ['lantern-frame.svg', 'lantern-window.svg', 'lantern-glow.svg']) await readFile(`${HOST}/andon/${file}`, 'utf8');
+});
+
+await check('inbox と andon（brand）は描き直しのタイマーを足していない（移り変わりは App の transition。ADR-0023 決めたこと 4）', async () => {
+  for (const f of ['andon/main.js', 'andon/brand.js']) assert.doesNotMatch(await readFile(`${HOST}/${f}`, 'utf8'), /\btimer\b/, `${f} にタイマーがある`);
+  const timers = (await readFile(`${HOST}/inbox/main.js`, 'utf8')).match(/timer\.\w+\(/g) ?? [];
+  assert.deepEqual(timers, ['timer.every('], `inbox のタイマー: ${timers}`);
+});
+
+await check('レイアウト andon: brand の block は andon mod（props brand）を指し、根に theme・colors が無く、名前付けとフッターが残る（ADR-0023 受け入れ条件 1）', async () => {
+  const layout = JSON.parse(await readFile(`${HOST}/layouts/andon.json`, 'utf8'));
+  const blocks = [];
+  const walkLayout = (n) => { if (n.type === 'block') blocks.push(n); (n.children ?? []).forEach(walkLayout); };
+  walkLayout(layout);
+  const find = (id) => blocks.find((b) => b.id === id);
+  assert.deepEqual(find('brand')?.content, { mod: 'andon', props: { brand: true } });
+  assert.ok(!('theme' in layout) && !('colors' in layout), '根に theme か colors がある');
+  assert.deepEqual(find('andon-names')?.content, { mod: 'andon' });
+  assert.deepEqual(find('sidebar-footer')?.content, { mod: 'workspace-chrome', props: { footer: true } });
+  const picture = await readFile(`${HOST}/layouts/andon.svg`, 'utf8');
+  for (const word of ['Needs you', 'Projects', 'Andon']) assert.ok(picture.includes(`>${word}`), `見本の絵に ${word} が無い`);
+  for (const word of ['Focus', 'Done', 'Working', 'Settled']) assert.ok(!picture.includes(`>${word}`), `見本の絵に古い ${word} が残る`);
 });
 
 await check('kanban-board: 1 回の読みで出す量に上限がある（固定 script）', async () => {
