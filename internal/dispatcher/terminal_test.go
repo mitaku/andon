@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"andon/internal/flock"
 )
 
 // 偽の hc: get dispatcher は $D/term（無ければ not_found）を返す。run・send・keep・kill・rm は打たれたものを $D/log に1行ずつ。
@@ -59,9 +61,16 @@ func newEnsureWait(t *testing.T, wait time.Duration) (d string, round func() (st
 	}
 }
 
+// putTerm は置き場のラベルが /srv/plant の Place（台帳なし: セルの名前の Space）に合う端末を置く。
 func putTerm(t *testing.T, path, fg string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(`{"address":"t1","state":"live","argv":["/bin/sh"],"foreground":`+fg+`}`), 0o644); err != nil {
+	putTermAt(t, path, fg, "andon-testplant-plant", "andon-testplant-dispatcher")
+}
+
+func putTermAt(t *testing.T, path, fg, space, tab string) {
+	t.Helper()
+	labels := `{"role":"dispatcher","herdr.space":"` + space + `","herdr.tab":"` + tab + `"}`
+	if err := os.WriteFile(path, []byte(`{"address":"t1","state":"live","argv":["/bin/sh"],"labels":`+labels+`,"foreground":`+fg+`}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -224,6 +233,59 @@ func TestLiveTask(t *testing.T) {
 	}
 	if _, _, ok := liveIssue("third-site", "D-3"); ok {
 		t.Error("ラベルの合わない端末を引いた")
+	}
+}
+
+// 台帳の数が変わって Place が変わった（台帳なしで起きたあと andon create した）: 動いている dispatcher でも、
+// 見回りの合間なら片付けて今の Place で起こし直す。見回りの途中（PassLock を持っている）と、
+// PassLock を作らない前の版の dispatcher（ファイルが無い）なら触らない。
+func TestEnsureMovesToPlace(t *testing.T) {
+	d, _ := newEnsure(t)
+	ws := t.TempDir()
+	putTermAt(t, filepath.Join(d, "term"), fgDispatcher, "andon-testplant-plant", "andon-testplant-dispatcher")
+	cfg := filepath.Join(ws, "projects", "sample-site", "kanban", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	round := func() (string, string, error) {
+		os.Remove(filepath.Join(d, "log"))
+		did, err := Ensure("/opt/andon/bin/andon", ws, 0)
+		b, _ := os.ReadFile(filepath.Join(d, "log"))
+		return did, strings.TrimSpace(string(b)), err
+	}
+
+	// PassLock のファイルが無い: 動いているのは見回りの間 lock を持たない前の版。止めず、理由を返す
+	if did, calls, err := round(); !errors.Is(err, ErrOldDispatcher) || did != "" || calls != "" {
+		t.Fatalf("前の版の dispatcher を止めた・黙った: %q %q %v", did, calls, err)
+	}
+
+	unpass, err := flock.TryLock(PassLock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if did, calls, err := round(); err != nil || did != "" || calls != "" {
+		t.Fatalf("見回りの途中で止めた: %q %q %v", did, calls, err)
+	}
+	unpass()
+
+	did, calls, err := round()
+	want := "keep t1 --off\nkill t1\nrm t1\nrun --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-dispatcher --cwd " + ws + " -- /opt/andon/bin/andon dispatcher"
+	if err != nil || !strings.Contains(did, "andon-sample-site") || calls != want {
+		t.Fatalf("置き場が違うとき: %q\n%s\n%v", did, calls, err)
+	}
+	if u, err := flock.TryLock(PassLock()); err != nil {
+		t.Fatalf("起こし直したあとも PassLock を持っている: %v", err)
+	} else {
+		u()
+	}
+
+	// 置き場が合っていれば何もしない
+	putTermAt(t, filepath.Join(d, "term"), fgDispatcher, "andon-sample-site", "andon-sample-site-dispatcher")
+	if did, calls, err := round(); err != nil || did != "" || calls != "" {
+		t.Fatalf("合っているのに打った: %q %q %v", did, calls, err)
 	}
 }
 

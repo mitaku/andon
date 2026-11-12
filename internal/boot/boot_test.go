@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"andon/internal/dispatcher"
 )
 
 // fixture は偽の HOME・偽のセル・偽のパッケージを一時ディレクトリに作る。
@@ -499,10 +501,11 @@ func TestMainWithFakeHome(t *testing.T) {
 	f.fullPackage(t)
 	bin := filepath.Join(f.root, "bin")
 	calls := filepath.Join(f.root, "hc-calls")
+	space, tab := dispatcher.Place(f.ws)
 	put(t, filepath.Join(bin, "hc"), "#!/bin/sh\nPATH=/usr/bin:/bin\necho \"$*\" >> '"+calls+"'\n"+
 		"[ \"$1\" = ls ] && { echo '{\"terminals\":[]}'; exit 0; }\n"+
 		"[ \"$1\" = get ] && { grep -q '^run ' '"+calls+"' || { echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3; }; "+
-		"echo '{\"state\":\"live\",\"foreground\":{\"name\":\"andon\",\"argv\":[\""+filepath.Join(f.pkg, "bin", "andon")+"\",\"dispatcher\"]}}'; }\nexit 0\n")
+		"echo '{\"address\":\"t1\",\"state\":\"live\",\"labels\":{\"herdr.space\":\""+space+"\",\"herdr.tab\":\""+tab+"\"},\"foreground\":{\"name\":\"andon\",\"argv\":[\""+filepath.Join(f.pkg, "bin", "andon")+"\",\"dispatcher\"]}}'; }\nexit 0\n")
 	if err := os.Chmod(filepath.Join(bin, "hc"), 0o755); err != nil {
 		t.Fatal(err)
 	}

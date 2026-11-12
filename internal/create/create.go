@@ -21,10 +21,12 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/dispatcher"
 	"andon/internal/spawn"
 )
 
@@ -34,7 +36,8 @@ const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--p
 	"AGENTS.md の雛形を作り、repo を ghq get で迎える（無いものだけ）。project.json と AGENTS.md は commit しない（人が見て commit する）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
-	"slug は英小文字・数字・-。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n"
+	"slug は英小文字・数字・-。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
+	"台帳を作ったあと、dispatcher の置き場が台帳の数に合わなければ、見回りの終わりを待って起こし直す。\n"
 
 const (
 	exitFail  = 1
@@ -416,7 +419,26 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon create: %v\n", err)
 		return exitFail
 	}
+	placeDispatcher(ws, stdout, stderr)
 	return 0
+}
+
+// placeDispatcher は台帳を足したあと dispatcher の置き場を今の台帳の数に合わせる（dispatcher.Ensure。#98）。
+// 合わせられなくても台帳はできているので止めない（次の Chief of Staff のフックか boot が合わせる）。
+func placeDispatcher(ws string, stdout, stderr io.Writer) {
+	self, err := os.Executable()
+	if err == nil {
+		var did string
+		waiting := func() {
+			fmt.Fprintln(stderr, "andon create: dispatcher の見回りが終わるのを待ってから置き場を合わせる（Ctrl-C で抜けてよい。台帳はできている。次の Chief of Staff のフックか boot が合わせる）")
+		}
+		if did, err = dispatcher.EnsureAfterCreate(self, ws, 5*time.Second, waiting); err == nil && did != "" {
+			fmt.Fprintf(stdout, "%s\n", did)
+		}
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "andon create: dispatcher の置き場を確かめられなかった（次の Chief of Staff のフックか boot で合わせる）: %v\n", err)
+	}
 }
 
 func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error {

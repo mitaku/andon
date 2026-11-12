@@ -110,7 +110,14 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	defer unlock()
 	c := &Dispatcher{WS: delegate.Workspace(), Andon: self, Log: stderr}
 	for {
+		// 見回りの間は PassLock を持つ（Ensure が置き直すのは合間だけ）
+		unpass, err := flock.Lock(PassLock())
+		if err != nil {
+			fmt.Fprintf(stderr, "andon dispatcher: %v\n", err)
+			return exitFail
+		}
 		busy := c.Pass(only)
+		unpass()
 		if once {
 			return 0
 		}
@@ -126,6 +133,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // SingletonLock は andon dispatcher（巡を回す本体）が動いている間持つ lock のパス（控えの置き場の .dispatcher.lock）。
 func SingletonLock() string {
 	return filepath.Join(filepath.Dir(StatePath("x")), ".dispatcher.lock")
+}
+
+// PassLock は andon dispatcher が1回の見回り（Pass）の間だけ持つ lock のパス。Ensure は取れたときだけ置き直す。
+func PassLock() string {
+	return filepath.Join(filepath.Dir(StatePath("x")), ".pass.lock")
 }
 
 // Dispatcher は1つのセルの dispatcher。

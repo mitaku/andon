@@ -370,7 +370,7 @@ git add project.json AGENTS.md && git commit -m 'projects/andon'
 andon delegate show          # 型と効いている値（commit の前は「無委譲」）
 ```
 
-- **`andon create` がすること**: `projects/<slug>/` に台帳（`kanban init`。prefix と repos を渡す）・`project.json` の下書き（`version`・`project`〈題・prefix〉・`repos`。`delegation` は無し＝無委譲。Andon が読むのと同じ検査を通す）・`AGENTS.md` の雛形（薄い地図の見出しだけ。[ADR-0004](adr/0004-project-layout.md) 決めたこと 1）を作り、`repos` のうち `GHQ_ROOT` の下に clone の無いものを `ghq get` で迎える。**commit はしない**（人のファイル）。最後に commit の仕方と `andon open <slug>` を出す。
+- **`andon create` がすること**: `projects/<slug>/` に台帳（`kanban init`。prefix と repos を渡す）・`project.json` の下書き（`version`・`project`〈題・prefix〉・`repos`。`delegation` は無し＝無委譲。Andon が読むのと同じ検査を通す）・`AGENTS.md` の雛形（薄い地図の見出しだけ。[ADR-0004](adr/0004-project-layout.md) 決めたこと 1）を作り、`repos` のうち `GHQ_ROOT` の下に clone の無いものを `ghq get` で迎える。**commit はしない**（人のファイル）。最後に commit の仕方と `andon open <slug>` を出す。台帳の数が変わって dispatcher の置き場（Space）が変わるなら、dispatcher が1回の見回りを終えるのを待って、今の置き場に起こし直す（待つときは1行出す。Ctrl-C で抜けても台帳はできていて、次の Chief of Staff のフックか boot が合わせる）。
 - **聞くもの**: 引数に無い slug・repos（1 行に 1 つ、空行で終わり）・prefix（既定は slug の `-` で区切った頭文字。`sample-site` → `SS`）・題（既定は slug）。聞いたときは最後に確かめる。標準入力が端末でなければ聞かない: slug が無ければ止まり、ほかは既定（repos 無し）。
 - **通ったら見えるもの**: `作った: projects/andon/（kanban/・project.json・AGENTS.md）`。`config.yaml` に `prefix: A` と `repos`。`kanban lint` が問題なし。
 - **落ちたら見る所**（どれも何も作らずに止まる）: `が既にある` — 作ってある（そのまま使う。手で作るときの `kanban init` は `already a ledger`）。`slug は英小文字・数字・-`・`repo は <host>/<owner>/<repo>`・`prefix は英大文字で始まる` — 綴り。`この端末（role=…）では打てない` — 役の端末。人の端末で打つ。`ghq get … が落ちた` — `gh auth status`。`… があるが git の clone でない` — `GHQ_ROOT` の下の空のディレクトリなどを確かめて退ける。`題に改行や制御文字がある` — 題は 1 行。`kanban init が落ちた` — 理由の文（`checkClock` ならコンテナの時計）。

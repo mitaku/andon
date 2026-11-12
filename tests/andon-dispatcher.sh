@@ -110,7 +110,7 @@ export PATH="$tmp/bin:$PATH"
 echo "t5 chief-of-staff" > "$tmp/hc/live"
 # dispatcher の端末（Chief of Staff のフックの drain が中身を確かめる。terminal.go）。中身は andon dispatcher
 echo "dispatcher role" >> "$tmp/hc/live"
-fg_dispatcher() { echo '{"address":"dispatcher","state":"live","foreground":{"name":"andon","argv":["'"$andon"'","dispatcher"]}}' > "$tmp/hc/term-dispatcher.json"; }
+fg_dispatcher() { echo '{"address":"dispatcher","state":"live","labels":{"herdr.space":"andon-demo","herdr.tab":"andon-demo-dispatcher"},"foreground":{"name":"andon","argv":["'"$andon"'","dispatcher"]}}' > "$tmp/hc/term-dispatcher.json"; }
 fg_dispatcher
 
 # セルの repo（人のもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
