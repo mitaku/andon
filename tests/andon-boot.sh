@@ -98,6 +98,16 @@ grep -qE '生成:|リンク:|外した:|信頼を足した|入れた:' "$tmp/out
 [ "$(grep -c '^skill install' "$tmp/gh-calls")" = 2 ] && [ "$(grep -c '^skill update --all$' "$tmp/gh-calls")" = 2 ] \
   && pass "2回目は入っている skill を入れ直さず update --all だけ" || fail "gh の呼び出し: $(cat "$tmp/gh-calls")"
 
+# 2本同時に打てば後の方は boot.lock を待つ（dispatcher.md §7.2 #13・#14）
+lock=$home/.local/state/andon/boot.lock
+exec 9>"$lock"; flock 9
+boot & bg=$!
+sleep 1
+kill -0 "$bg" 2>/dev/null && ! grep -q ready "$tmp/out" && waited=1 || waited=0
+flock -u 9; exec 9>&-
+wait "$bg"; r=$?
+[ "$waited" = 1 ] && [ "$r" = 0 ] && grep -q ready "$tmp/out" && pass "boot.lock を持たれている間は待ち、外れたら済ませる" || fail "boot.lock: waited=$waited rc=$r $(cat "$tmp/out" "$tmp/err")"
+
 "$andon" boot extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon boot' "$tmp/err" && pass "引数を取らない（usage で rc 2）" || fail "boot extra: rc=$r"
 

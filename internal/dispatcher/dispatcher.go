@@ -33,6 +33,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/flock"
 	"andon/internal/ledger"
 )
 
@@ -95,6 +96,17 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon dispatcher: 自分のパスが分からない: %v\n", err)
 		return exitFail
 	}
+	// 1つのセルに dispatcher は1本（G1 を塞いだ。dispatcher.md §7.2 #1）。lock はプロセスが終わるまで持つ
+	unlock, err := flock.TryLock(SingletonLock())
+	if errors.Is(err, flock.ErrBusy) {
+		fmt.Fprintln(stderr, "andon dispatcher: ほかの andon dispatcher が動いているので終わる（"+SingletonLock()+"）")
+		return 0
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "andon dispatcher: %v\n", err)
+		return exitFail
+	}
+	defer unlock()
 	c := &Dispatcher{WS: delegate.Workspace(), Andon: self, Log: stderr}
 	for {
 		busy := c.Pass(only)
@@ -108,6 +120,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			time.Sleep(time.Minute)
 		}
 	}
+}
+
+// SingletonLock は andon dispatcher（巡を回す本体）が動いている間持つ lock のパス（控えの置き場の .dispatcher.lock）。
+func SingletonLock() string {
+	return filepath.Join(filepath.Dir(StatePath("x")), ".dispatcher.lock")
 }
 
 // Dispatcher は1つのセルの dispatcher。

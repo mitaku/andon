@@ -128,6 +128,12 @@ pending() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.issue == $t a
 recorded_log=$tmp/state/andon/dispatcher/demo.recorded.jsonl   # 記録だけの通知（ADR-0010 決めたこと 2）
 recorded() { if [ -f "$recorded_log" ]; then jq -cs --arg t "$1" --arg k "$2" '[.[] | select(.issue == $t and .kind == $k)] | last' "$recorded_log"; else echo null; fi; }
 
+# ほかの andon dispatcher が .dispatcher.lock を持っていれば、巡を回さずに 0 で終わる（dispatcher.md §7.2 #1）
+mkdir -p "$tmp/state/andon/dispatcher"
+r=0; flock "$tmp/state/andon/dispatcher/.dispatcher.lock" "$andon" dispatcher --once --project demo 2>"$tmp/g1" || r=$?
+[ "$r" = 0 ] && grep -q 'ほかの andon dispatcher が動いている' "$tmp/g1" && [ ! -e "$state" ] || die "lock を持たれていても巡を回した: rc=$r $(cat "$tmp/g1")"
+ok 'andon dispatcher は .dispatcher.lock をほかが持っていれば巡を回さずに終わる'
+
 # Chief of Staff が課題を切る（t5 が予約キーを書く）。担当 t7 が worktree で作業し、PR 7 を出す
 newtask() { # newtask <題> <merge> → id
     local id; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app)
