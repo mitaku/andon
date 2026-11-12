@@ -113,6 +113,33 @@ type Dispatcher struct {
 	Log   io.Writer // ログ（1行ずつ）
 
 	unwaited map[string]string // 待ち役がいないとログに書いた待ち（台帳ごと。同じ待ちを二度書かない）
+	skip     map[string]string // 台帳を飛ばしているとログに書いた理由（台帳ごと。同じ理由を二度書かない）
+}
+
+// cosDown は Chief of Staff の端末が生きていない理由（生きていれば空）。
+func cosDown(cos string) string {
+	if cos == "" {
+		return "config.yaml の chief_of_staff が空"
+	}
+	if exec.Command("hc", "get", cos).Run() != nil {
+		return "端末 " + cos + " が live でない"
+	}
+	return ""
+}
+
+// skipped は台帳を飛ばし始めたとき（理由が変わったときも）ログに1行と、人に気づける通知を1つ出す。同じ理由が続く間は出さない。
+func (p *project) skipped(cos, reason string) {
+	if p.c.skip[p.l.Slug] == reason {
+		return
+	}
+	if p.c.skip == nil {
+		p.c.skip = map[string]string{}
+	}
+	p.c.skip[p.l.Slug] = reason
+	p.logf("台帳を飛ばす（宛先 %q: %s。レビュアーも人のマージも拾わない）", cos, reason)
+	cmd := exec.Command("herdr", "notification", "show", "andon dispatcher: "+p.l.Slug+" を飛ばしている", "--body", reason)
+	cmd.Env = withoutTerminal()
+	_ = cmd.Run() // herdr が無い・失敗でも巡は続ける（ログの1行は出ている）
 }
 
 func (c *Dispatcher) logf(format string, a ...any) {
@@ -155,9 +182,11 @@ func (p *project) logf(format string, a ...any) { p.c.logf(p.l.Slug+": "+format,
 // pass の段の順は docs/dispatcher.md §2.1.1 の表で固定している。変えるときは表も直す。
 func (p *project) pass() (bool, error) {
 	cos := p.l.ChiefOfStaff()
-	if cos == "" || exec.Command("hc", "get", cos).Run() != nil {
-		return false, nil // Chief of Staff が起きたときに台帳を自分で読む（dispatcher.md §2.1）
+	if reason := cosDown(cos); reason != "" {
+		p.skipped(cos, reason) // Chief of Staff が起きたときに台帳を自分で読む（dispatcher.md §2.1）
+		return false, nil
 	}
+	delete(p.c.skip, p.l.Slug)
 	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
 	if err != nil {
 		return false, err

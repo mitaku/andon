@@ -68,6 +68,7 @@ func TestPassTicks(t *testing.T) {
 	if got := calls(); len(got) != 0 {
 		t.Errorf("Chief of Staff がいない台帳で kanban を打った: %q", got)
 	}
+	logb.Reset() // 飛ばした 1 行は skip_test.go で見る
 
 	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
 		t.Fatal(err)
