@@ -26,6 +26,15 @@
 - 生成した HTML などは `andon publish <file>` で `files/` へ出し、返った URL を伝える。
 - 人に気づいてほしいことは `herdr notification show` で出す。
 
+## 気づきを残す（auto memory）
+
+- Claude Code の auto memory は `/workspace/memory/`（git の外）。全部の repo・役・セッションが、このフォルダと1つの `MEMORY.md`（目録）を共有する。Codex の記憶は切ってあり、Codex で動く役は報告の `## Remember` で残す。
+- memory は蒸留までの受け皿。週1のトリアージで仕分けられ、wiki か repo へ出るか捨てられて、ファイルは消える。
+- 1件1ファイルの `.md` を、フォルダの直下に書く（トリアージが拾うのは直下の `.md` だけ。`.md` 以外は許可の確認で止まる）。
+- 書くのは、確かめた事実と、起きた条件と理由のついた学び。本文に課題番号（無ければ repo）を書く。
+- 続き・決定・秘密は書かない。続きは台帳、決定は文書の PR へ。
+- memory に書いても、報告の `## Remember` は今までどおり書く。
+
 ## 気をつけること
 
 - 止めるときは `pkill -f` を使わない（自分のスクリプトにも当たる）。ポートから PID を引いて `kill` する。

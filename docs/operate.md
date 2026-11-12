@@ -99,6 +99,7 @@ cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 - **通ったら見えるもの**: `~/src/home-cell/` に `Dockerfile`（`FROM` ＋ 2行）・`andon.toml`（`slug = "home"`）・`bin/bootstrap`・`local/`・`gate.local.json`・`AGENTS.local.md`・`wiki/`・`projects/`。標準出力に `セルの repo を作った`。パッケージのファイルは無い（design.md §5.1 の 1）。
 - **落ちたら見る所**: 取り出しの `docker run` が落ちた（`manifest unknown` など）— 1 の pull を先に通す。`~/.local/bin/andon.new` が残っていれば消す。`はすでにあり、空でない` — 上書きしない。別の `--dir` か、中身を退避する。`slug は英小文字・数字・-` — slug の綴り。
 - セルの repo を git で持つなら `git init` して commit する（`.ghq/`・`.env` などは雛形の `.gitignore` が外している）。
+- 前の雛形で作ったセルは、auto memory を入れた版（[ADR-0020](adr/0020-auto-memory-as-intake.md)）に上げるとき、セルの repo で `grep -qx 'memory/' .gitignore || echo 'memory/' >> .gitignore` を1回打つ（`/workspace/memory/` を git で追わない）。
 
 ## 3. 起動する（`bin/bootstrap`）
 

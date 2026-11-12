@@ -8,3 +8,5 @@
 # 公開鍵（置くマシンごとに違う）
 .ssh/
 .codex/
+# auto memory の置き場（蒸留までの受け皿。トリアージで wiki と repo へ出して消す）
+memory/

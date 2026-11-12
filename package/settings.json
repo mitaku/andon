@@ -1,10 +1,10 @@
 {
   "env": {
-    "ENABLE_TOOL_SEARCH": "auto",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
+    "ENABLE_TOOL_SEARCH": "auto"
   },
   "includeCoAuthoredBy": false,
-  "autoMemoryEnabled": false,
+  "autoMemoryEnabled": true,
+  "autoMemoryDirectory": "/workspace/memory",
   "language": "Japanese",
   "allowManagedPermissionRulesOnly": true,
   "permissions": {

@@ -33,6 +33,7 @@ for h in '## Sources' '## Entities' '## Topics'; do grep -qx "$h" x-cell/wiki/in
   && pass "wiki の雛形: index.md に種類ごとの節、log.md は空で先頭の形の説明だけ（ADR-0016）" || fail "wiki/log.md: $(cat x-cell/wiki/log.md)"
 grep -qx 'files/' x-cell/.gitignore && fail ".gitignore が files/ を除いている" || pass "files/ は追跡する（.gitignore に無い）"
 grep -qx 'artifacts/' x-cell/.gitignore && fail ".gitignore に artifacts/ が残っている" || pass ".gitignore に artifacts/ が無い"
+grep -qx 'memory/' x-cell/.gitignore && pass ".gitignore が memory/（auto memory の置き場）を除く（ADR-0020）" || fail ".gitignore に memory/ が無い"
 [ -x x-cell/bin/bootstrap ] && [ -x x-cell/local/setup.sh ] && pass "bin/bootstrap と local/setup.sh は実行できる" || fail "実行の権限"
 [ "$(grep -c . x-cell/Dockerfile)" = 3 ] && head -n 1 x-cell/Dockerfile | grep -qx 'FROM example.com/andon:test' && pass "Dockerfile は FROM ＋ 2行" || fail "Dockerfile: $(cat x-cell/Dockerfile)"
 grep -qx 'slug = "x"' x-cell/andon.toml && grep -qx 'owner = "dev@example.com"' x-cell/andon.toml && pass "andon.toml に slug と owner" || fail "andon.toml: $(cat x-cell/andon.toml)"

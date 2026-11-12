@@ -13,6 +13,7 @@
 #   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
 #      用語集は書き方の節と語の決まりを持たず writing.md を指す、CE skill の問いの出し方、ask-one-by-one の読み手。
 #   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
+#  12. auto memory（ADR-0020 受け入れ条件 2・6）: settings が入れる向き・環境メモの書き方・chief-of-staff skill の規約9・§10・§11。
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
@@ -111,7 +112,11 @@ for p in 'projects/*/project.json' gate.local.json andon.toml; do
 done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
-jq -e '.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY == "1"' package/settings.json >/dev/null && pass "settings の env が auto memory を止める（CLAUDE_CODE_DISABLE_AUTO_MEMORY=1。autoMemoryEnabled:false より優先して効く）" || fail "settings の env に CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 が無い"
+# ADR-0020 受け入れ条件 2: auto memory を入れ、置き場は /workspace/memory。env で止めない。
+# 置き場の .md は Claude Code が自分で書き込みを許すので、allow に足さない（A-0144 の実測 (c)）
+jq -e '.autoMemoryEnabled == true and .autoMemoryDirectory == "/workspace/memory" and ((.env // {}) | has("CLAUDE_CODE_DISABLE_AUTO_MEMORY") | not)' package/settings.json >/dev/null \
+  && ! jq -r '.permissions.allow[]' package/settings.json | grep -q '/workspace/memory' \
+  && pass "settings が auto memory を入れ、置き場は /workspace/memory（env で止めない・allow に足さない。ADR-0020）" || fail "settings の auto memory が ADR-0020 の形でない"
 # Codex の rules（package/codex.rules）は、deny のうちコマンドの頭で引く線（Bash(<語…>:*)）と同じ一覧。
 # それ以外の deny（Bash(git diff *--output*) など）は allow の穴を塞ぐもので、allow の無い Codex（承認は never）には要らない。
 # その印として、頭の線でない deny は allow のどれかと同じコマンドで始まること（新しい種類の deny を足したら、ここで止まって決める）
@@ -288,12 +293,18 @@ cos11=$(sed -n '/^## 11\. wiki$/,/^## ルール$/p' "$cos")
 # ADR-0016 受け入れ条件 1: 層・3つの操作・元資料の3種・移行があり、前の形（1ファイル1件・log.md は作らない）が無い
 miss=""; for k in '何を' '層' '元資料を置くとき' 'いつ（ingest）' 'query' 'lint' '移行'; do grep -q "^- \*\*$k\*\*" <<<"$cos11" || miss="$miss $k"; done
 for k in '`raw/`' '`sources/`' '`entities/`' '`topics/`' '`overview.md`' '`index.md`' '`log.md`'; do grep -q "^  - $k — " <<<"$cos11" || miss="$miss 層$k"; done
-for k in '人の発言' '外の資料' '課題の記録'; do grep -q "^  - $k: " <<<"$cos11" || miss="$miss 元資料:$k"; done
+for k in '人の発言' '外の資料' '課題の記録' 'memory'; do grep -q "^  - $k: " <<<"$cos11" || miss="$miss 元資料:$k"; done
 grep -qF '## [YYYY-MM-DD] ingest | <題>' <<<"$cos11" && grep -q 'ingest 約10件ごと' <<<"$cos11" && grep -q '`index.md` → ページの順' <<<"$cos11" || miss="$miss log の形・lint の時期・query の順"
 grep -q 'commit --only -m "wiki: <要点>" -- wiki' <<<"$cos11" || miss="$miss commit（--only -- wiki）"
 grep -q '書く前に秘密.*`<伏せた: 種類>`' <<<"$cos11" || miss="$miss raw/ に書く前に秘密を伏せる"
 grep -qE '1ファイル1件|`log.md` は作らない' <<<"$cos11" && miss="$miss 前の形の行が残る"
 [ -z "$miss" ] && pass "Chief of Staff の skill の wiki の節が LLM Wiki の形（層・ingest・query・lint・元資料・移行。ADR-0016）" || fail "chief-of-staff の wiki の節:$miss"
+# ADR-0020 受け入れ条件 6: 規約9は memory を受け皿とし、§10 が wiki 行きの memory を raw/memory/ に写し、§11 の raw/ は4種
+grep -q '^| 9\. 記憶の規律 | memory（auto memory。`/workspace/memory/`）は蒸留までの受け皿。残すものはトリアージを通して wiki と repo へ' "$cos" \
+  && ! grep -q 'ハーネス内蔵のメモリは使わない' "$cos" \
+  && sed -n '/^## 10\. トリアージ$/,/^## 11\. wiki$/p' "$cos" | grep -q '`close`「wiki へ: <題>」のものは、記録.*の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest' \
+  && grep -q '^  - `raw/` — 元資料。書いたら変えない。4種: .*(4) トリアージで wiki 行きになった memory の写し（`raw/memory/' <<<"$cos11" \
+  && pass "Chief of Staff の skill: 規約9・§10・§11 が memory を蒸留までの受け皿として扱う（ADR-0020）" || fail "chief-of-staff の規約9・§10・§11 が ADR-0020 の形でない"
 # ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff §1）が index.md → ページの順で引く
 grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引く。使った事実は出典' package/skills/chief-engineer/SKILL.md \
   && sed -n '/^## 1\. /,/^## 2\. /p' "$cos" | grep -q 'wiki を引く（§11 の query。`index.md` → ページの順）' \
@@ -420,6 +431,13 @@ grep -q 'screen_paths.*画面の証拠.*major' package/skills/independent-review
 grep -q '人が見るブラウザは無い' package/environment.md && ! grep -qE '(^|[^見る])ブラウザは無い' package/environment.md \
   && grep -q '担当が画面を見て確かめるには `playwright-cli`' package/environment.md \
   && pass "environment.md は「人が見るブラウザは無い」と playwright-cli を案内する" || fail "environment.md の「ブラウザは無い」が直っていない"
+# ADR-0020 受け入れ条件 6（決めたこと 6・A-0144 の c2・c3）: 環境メモに memory への書き方
+envmem=$(sed -n '/^## 気づきを残す（auto memory）$/,/^## /p' package/environment.md)
+miss=""
+for k in '`/workspace/memory/`' '蒸留までの受け皿' '週1のトリアージ' '1件1ファイルの `.md` を、フォルダの直下に書く' '確かめた事実と、起きた条件と理由のついた学び' '本文に課題番号（無ければ repo）を書く' '続き・決定・秘密は書かない' '報告の `## Remember` は今までどおり書く' 'Codex の記憶は切ってあり'; do
+  grep -qF -- "$k" <<<"$envmem" || miss="$miss $k"
+done
+[ -z "$miss" ] && pass "environment.md に memory への書き方（受け皿・直下の .md・条件と理由・課題番号・続き/決定/秘密は書かない・Remember は残す。ADR-0020）" || fail "environment.md の memory の節:$miss"
 
 # === 10. 承認の段・書く場所・字数・reach（A-0122。A-0117 の c7・c8・c11・c17） ===
 w=package/skills/worker/SKILL.md

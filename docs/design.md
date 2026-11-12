@@ -681,7 +681,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `projects/<slug>/`（仮設では symlink と実ディレクトリ。Andon では実ディレクトリだけ）・`projects/*/.flightdeck/`（台帳。git の外） | 案件データ。**移し方は後**（§5.4 に線だけ） | セルの repo の形は同じ（`projects/`）。台帳はディレクトリごと写す |
 | `local/setup.sh`・`.aqua/local.yaml`・`compose.override.yaml`・`.ssh/authorized_keys`・`.env`・`merge-gate.json`（描画済み） | セルの repo の形（`init/` と同じ名前） | 今の「派生側が触る場所」がそのままセルの repo の中身になる。`merge-gate.json` は `gate.local.json`（上書きだけ） |
 | `.cruft.json` | 捨てる | — |
-| `files/`（納品物。追跡する。ADR-0005）・`.ghq/`・`.codex/` | セルの中の置き場。`files/` 以外は gitignore | — |
+| `files/`（納品物。追跡する。ADR-0005）・`.ghq/`・`.codex/`・`memory/`（auto memory の置き場。[ADR-0020](adr/0020-auto-memory-as-intake.md)） | セルの中の置き場。`files/` 以外は gitignore | — |
 
 **ホスト（WSL・Windows）**: 上の `docs/wsl/*`・`docs/windows/*` のとおり `package/host/` に取り込む。「ホストには docker と bash だけ」の原則に、「それ以外に置くものはパッケージの `host/` から `host-install` で写す」を足す。
 
