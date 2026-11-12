@@ -98,11 +98,12 @@ PR と main の push は、tests の job（`packages` の権限を持たない�
 
 ### CI の所要時間
 
-tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の3つで縮める。どれも check の名前（`tests`）は変えず、飛ばすときも job は成功で終わる。
+tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の4つで縮める。どれも check の名前（`tests`・`go`）は変えず、飛ばすときも job は成功で終わる（ゲートは PR の head の checks が揃うのを待つので、workflow ごと `paths` で外さない）。
 
 - **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す（go の workflow と同じ）。
 - **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。
 - **image に関係しない PR では `tests/image.sh` を飛ばす**（下の表）。
+- **文書だけの PR では、文書を読む検査だけを走らせる**（下の「文書だけの PR」）。go の job もこれに従う。
 
 **image の build の cache は使わない。** buildx の GitHub Actions cache（`type=gha`、`mode=max`）を試したが、Go だけを変えた PR で `tests/image.sh` が 224 秒から 307 秒に延びた。約 1 GiB の層を cache から取り込む時間と、docker-container の builder から docker へ渡す `--load`（約 70 秒）が、build で浮く時間を上回る。cache を持たないので、release の job が PR の書いたものを読む心配も無い。
 
@@ -116,13 +117,31 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
+**文書だけの PR では、文書を読む検査だけを走らせる。** PR の変更が全部 `docs/` の下（ADR・決定の記録・設計書・`docs/assets/`）か、root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` のときを、`tests/lib/docs-scope.sh` が文書だけと判定する。`tests/README.md` やコード・知らないパスが1つでも混ざれば全部走る。main の push と tag では必ず全部走る。
+
+- go の job: gofmt・vet・`go test ./...`・build・`tests/andon*.sh`・`kanban.sh` を飛ばし、文書を読む Go のテスト（`internal/chiefengineer` の `TestDocumentedInvocations`。`docs/design.md`・`README.md` に書いた `andon chief-engineer` の呼び出しを打つ）だけを走らせる。
+- tests の job: `tests/lib/scope.sh` が選ぶ `tests/*.sh` だけを走らせる（下の「手元は関係する検査だけ」の表と同じ）。文書を読む検査は次のとおり。
+
+| 検査 | 読む文書 | 文書だけの PR で走らせるとき |
+|---|---|---|
+| `public.sh`・`public-selftest.sh` | repo の全部のファイル（秘密・禁止の語） | いつも |
+| `smoke.sh` | `README.md`・`LICENSE`・`docs/decisions.md`・`docs/decisions/` があるか・形 | いつも |
+| `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
+| `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md` |
+| `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
+| `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
+| `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
+
+ほかの `tests/*.sh`（`andon-*.sh`・`host.sh`・`sshd-env.sh`・`image.sh`）は、文書をコメントやテストの中の例の名前として書くだけで、repo の文書を読まない。
+
 **手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（セルで 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。
 
 | 変えたもの | 走らせる `tests/*.sh` |
 |---|---|
 | どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`（安く全体を見るもの） |
-| `docs/contract.md` | `schema.sh` を足す（例を schema と突き合わせる） |
-| `docs/ledger.md`・`tests/kanban/` | `kanban.sh` を足す |
+| `docs/contract.md` | `schema.sh`・`package.sh` を足す（例を schema と、§4 の行を skill と突き合わせる） |
+| `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
+| `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`CHANGELOG.md` など | 足さない |

@@ -6,22 +6,49 @@ on:
 permissions:
   contents: read
 jobs:
+  # 文書だけの PR（tests/lib/docs-scope.sh）は、文書を読む Go のテストだけを走らせて成功で終わる。
+  # job と check の名前は変えない（ゲートは PR の head の checks が揃うのを待つ）。main の push では必ず全部走る
   go:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Decide whether the checks are needed
+        id: scope
+        run: |
+          set -euo pipefail
+          # PR の merge commit の1つ目の親が base。rename は元と先の両方を出す
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            docs=$(git diff --name-only --no-renames HEAD^1 HEAD | bash tests/lib/docs-scope.sh)
+          else
+            docs=false
+          fi
+          echo "docs=$docs" >>"$GITHUB_OUTPUT"
+          if [ "$docs" = true ]; then
+            echo "::notice title=go::文書だけの変更なので、gofmt・vet・build と tests/*.sh を飛ばし、文書を読む Go のテストだけを走らせる"
+          fi
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: go test (documents only)
+        if: steps.scope.outputs.docs == 'true'
+        # docs/design.md・README.md に書いた andon chief-engineer の呼び出しを打つ
+        run: go test -run '^TestDocumentedInvocations$' ./internal/chiefengineer
       - name: gofmt
+        if: steps.scope.outputs.docs != 'true'
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: go vet
+        if: steps.scope.outputs.docs != 'true'
         run: go vet ./...
       - name: go test
+        if: steps.scope.outputs.docs != 'true'
         run: go test ./...
       - name: go build
+        if: steps.scope.outputs.docs != 'true'
         run: go build -o "$RUNNER_TEMP/andon" ./cmd/andon
       - name: kanban build (4 targets)
+        if: steps.scope.outputs.docs != 'true'
         run: |
           set -e
           for t in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
@@ -29,6 +56,7 @@ jobs:
           done
           go build -ldflags "-X main.version=${GITHUB_SHA::12}" -o "$RUNNER_TEMP/kanban" ./cmd/kanban
       - name: tests/andon*.sh・kanban.sh
+        if: steps.scope.outputs.docs != 'true'
         env:
           ANDON_BIN: ${{ runner.temp }}/andon
           KANBAN_BIN: ${{ runner.temp }}/kanban

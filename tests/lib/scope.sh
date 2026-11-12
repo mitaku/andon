@@ -15,8 +15,11 @@ while IFS= read -r p; do
   paths+=("$p")
   # root の Go のテスト（workflow_test.go など。image に入らない）
   case "$p" in */*) ;; *_test.go) continue ;; esac
+  # kanban.sh は schema/ledger・docs/ledger.md・cmd/kanban が指す docs/ の文書があるかを見る。消した・動かした文書で足す
+  case "$p" in docs/*) [ -e "$p" ] || run[tests/kanban.sh]=1 ;; esac
   case "$p" in
-    docs/contract.md) run[tests/schema.sh]=1 ;;
+    # contract.md は例を schema と（schema.sh）、§4 の acceptance[] の行を skill と（package.sh）突き合わせる
+    docs/contract.md) run[tests/schema.sh]=1 run[tests/package.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
     docs/adr/*) run[tests/package.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
