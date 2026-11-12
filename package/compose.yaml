@@ -3,11 +3,11 @@
 # 番号はセルの .env（SSH_PORT・PORTLESS_PORT・FILES_PORT）。ANDON_IMAGE・ANDON_SLUG は bootstrap が渡す。
 services:
   dev:
-    image: ${ANDON_IMAGE:?bin/bootstrap から起こす}
-    # 毎起動、パッケージから配布物を生成し、portless・sshd・dispatcher を起こしてから待つ
+    image: ${ANDON_IMAGE:?bin/bootstrap から起動する}
+    # 毎起動、パッケージから配布物を生成し、portless・sshd・dispatcher を起動してから待つ
     command: ["bash", "-c", "andon boot; exec sleep infinity"]
     # コンテナのホスト名をセルの名前にする（プロンプトと portless の名前に出る）
-    hostname: ${ANDON_SLUG:?bin/bootstrap から起こす}
+    hostname: ${ANDON_SLUG:?bin/bootstrap から起動する}
     init: true
     # codex の sandbox（bwrap）は user namespace を作る。docker の既定の seccomp はそれを拒む
     security_opt:

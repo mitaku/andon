@@ -9,7 +9,7 @@ brief: |
   ゴール: 前回のトリアージのあとに増えた項目を全部仕分け、台帳の未処理を 0 にする（既定のゴール）。
   解決すべき問題: /opt/andon/skills/triage/SKILL.md を読み、その手順で `andon triage collect` → 項目ごとに確かめて仕分け →
   issues/<自分の id>/library/decisions.json と報告（要約表）→ kanban report → kanban review。
-  守ること: 読むだけ。台帳にもリポジトリにも書かない（書くのは自分の issues/<id>/library/ と報告）。エージェントを起こさない。
+  守ること: 読むだけ。台帳にもリポジトリにも書かない（書くのは自分の issues/<id>/library/ と報告）。エージェントを起動しない。
   `andon triage apply` は --dry-run だけ打つ。Chief of Staff へ hc send しない。
   完了条件: decisions.json が仕分けた全項目に decision と理由を持ち、`andon triage apply <自分の id> --dry-run` が通る。
 schedule: "0 9 * * 1"

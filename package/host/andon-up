@@ -1,18 +1,18 @@
 #!/bin/sh
-# andon-up — ホストのセルを全部起こす（PC を立ち上げたあとに1回）。起きているものは飛ばす。
+# andon-up — ホストのセルを全部起動する（PC を立ち上げたあとに1回）。起動しているものは飛ばす。
 #
-#   andon-up            ${ANDON_PLANTS:-$HOME/src} の下の *-cell と andon-*（bin/bootstrap を持つもの）を起こす
+#   andon-up            ${ANDON_PLANTS:-$HOME/src} の下の *-cell と andon-*（bin/bootstrap を持つもの）を起動する
 #                       （andon-* は repo の名前が <slug>-cell になる前に作ったセル）
 #
 # 置き方: セルの repo で bin/bootstrap host-install（~/.local/bin/andon-up に置く）。
-# このホストで起こさないセルは ~/.config/andon/skip に1行1つ（repo の名前）。
+# このホストで起動しないセルは ~/.config/andon/skip に1行1つ（repo の名前）。
 set -u
 
 plants=${ANDON_PLANTS:-$HOME/src}
 skip=$HOME/.config/andon/skip
 
 if ! docker info >/dev/null 2>&1; then
-  echo "✗ docker デーモンに繋がらない。先に docker を起こす" >&2
+  echo "✗ docker デーモンに繋がらない。先に docker を起動する" >&2
   exit 1
 fi
 
@@ -25,7 +25,7 @@ for dir in "$plants"/*-cell "$plants"/andon-*; do
   case $seen in *" $name "*) continue ;; esac # andon-<x>-cell は両方の形に当たる
   seen="$seen$name "
   if [ -f "$skip" ] && grep -qx "$name" "$skip"; then
-    echo "  - $name（このホストでは起こさない）"
+    echo "  - $name（このホストでは起動しない）"
     continue
   fi
   if "$dir/bin/bootstrap" up >"$logs/$name.log" 2>&1; then

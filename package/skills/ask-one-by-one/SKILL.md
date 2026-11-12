@@ -59,7 +59,7 @@ kanban set "$id" who=person
 続けて `andon issue ask "$id" -` に問いの JSON を stdin で渡す（`kind`・`question`・`options`〈先頭が推奨案〉・`facts` に出どころ・`from: chief-of-staff`。worker skill §5 の1）。
 command が形を確かめ、台帳に問い、`library/questions/<n>.json` に置く。`brief.md` は人が読む写し。
 
-- 題は問いを1行、末尾に「（人の判断待ち）」。`--profile` を付けない（エージェントを起こさない課題）。足したら `kanban set <id> who=person`。
+- 題は問いを1行、末尾に「（人の判断待ち）」。`--profile` を付けない（エージェントを起動しない課題）。足したら `kanban set <id> who=person`。
 - `kind` は灯りの決断（`business`／`users`／`promise`／`irreversible`／`line`＝ラインの変更）のどれか。
   これに当たらないもの（§1 の1の人にしかできないもの・どれとも決められないもの）は問いの JSON にできないので、`brief.md` の `kind: 判断がつかない` だけで貯める（`kanban ask` もしない）。人にしかできないものは推奨案の代わりに期限の目安を書く。
   トリアージの `andon triage apply` が足す人の課題も同じ形（出どころ・kind・推奨案・理由）。
