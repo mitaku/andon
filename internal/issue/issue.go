@@ -61,8 +61,8 @@ const Usage = "usage: andon issue show <id>                                  予
 	"       andon issue session                                    自分の端末（HC_TERMINAL_ID）のラベル session を出す（template が読む）\n" +
 	"       andon issue stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
 	"                                                          （id を省くと端末のラベル issue=。担当でなければ何も出さない）\n" +
-	"--data は report.json の任意のキー（pr・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
-	"--pr を省くと前の report.json の pr を引き継ぐ。\n"
+	"--data は report.json の任意のキー（pr・estimate・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
+	"--pr を省くと前の report.json の pr を、--data に estimate が無ければ前の estimate を引き継ぐ。\n"
 
 const (
 	exitFail  = 1
@@ -378,13 +378,18 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 	if pr != "" {
 		r.PR = pr
 	}
-	if r.PR == "" {
+	if r.PR == "" || r.Estimate == nil {
 		prev, err := c.previous()
 		if err != nil {
 			return err
 		}
 		if prev != nil {
-			r.PR = prev.PR
+			if r.PR == "" {
+				r.PR = prev.PR
+			}
+			if r.Estimate == nil {
+				r.Estimate = prev.Estimate
+			}
 		}
 	}
 	return c.write(r, md, stdout)
