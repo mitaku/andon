@@ -12,7 +12,7 @@ description: 台帳のトリアージを受け持つ担当が読む。依頼書�
 
 - 手順の土台は worker skill（`kanban start`・報告の書式・`kanban report`／`kanban review`）。この SKILL はその上に仕分けの手順を足す。
 - トリアージは repo の無い課題。cwd は台帳の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告（`kanban report`）だけ。
-- 用語は glossary skill に従う。
+- 書き方と語は `/opt/andon/writing.md` に従う。語の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`。
 
 | する | しない |
 |---|---|

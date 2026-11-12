@@ -1,6 +1,6 @@
 # Andon の環境メモ（セル）
 
-エージェントが毎セッション読む、セルの環境のこと。セルに固有のことはセルの `AGENTS.local.md`、プロジェクトの決まりは各リポジトリの `AGENTS.md` にある。用語は `/andon:glossary` に従う。
+エージェントが毎セッション読む、セルの環境のこと。セルに固有のことはセルの `AGENTS.local.md`、プロジェクトの決まりは各リポジトリの `AGENTS.md` にある。書き方と語は `/opt/andon/writing.md` に従う（語の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`）。
 
 ## いる場所
 

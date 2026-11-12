@@ -6,7 +6,7 @@ description: Chief of Staff が `andon issue start` で起動した担当とレ�
 # worker
 
 **あなたは台帳の1つの課題を受け持つ担当。** 起動したのは Chief of Staff で、人の窓口も Chief of Staff。
-用語は glossary skill に従う（担当・レビュアー・台帳・課題・依頼書・報告・通知）。台帳の CLI は `kanban`。
+書き方と語は `/opt/andon/writing.md` に従う（担当・レビュアー・台帳・課題・依頼書・報告・通知の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`）。台帳の CLI は `kanban`。
 機械（dispatcher・ゲート）が読むのは Andon の約束（`contract.md`・`schema/`）の JSON と `issue.yaml` の項目だけで、Markdown は人が読む写し。
 機械向けの JSON（`report.json`・問いの JSON）は `andon issue …` が書いて形を確かめる。担当は `library/` の JSON を手で書かない（レビュアーの `findings.json` を除く。§6）。
 方針は自工程完結（built-in quality）: 自分の工程でテストとレビューを通し、不良を後工程に渡さない。
@@ -87,7 +87,7 @@ hc が打ち込む文に付ける `reach`（「hc send <送り手> when done or 
   ほかの課題の worktree・台帳のほかの場所（台帳は `andon issue …` と `kanban` だけで書く）・セルの repo（`/workspace`）にはファイルを書かない。ほかの担当の作業と台帳の記録を壊すため。
   一時ファイル・ビルドやテストのキャッシュ・ツールの出力は一時の置き場（`/tmp` や scratchpad）に書いてよい。成果にはしない。
 - 書く仕事・長い仕事・範囲の外の仕事を見つけたら、自分でせず報告の `## Next` に1行書く。
-- 報告・問い・`hc send` の文でほかの課題に触れるときは「番号（題）」の形で書く（例 `S-0004（返事の下書きボタン）`。題が長ければ要点に縮める）。
+- 報告・問い・`hc send` の文でほかの課題に触れるときの番号の書き方は `/opt/andon/writing.md` の番号の決まりに従う。
 - 推奨案で進めて後から戻せる選択は、推奨案で進めて報告に「〜は〜で進めた（戻すなら一言）」と書く。
 - 人の決断が要るもの（範囲外の操作・承認の要る操作〈§5 の表〉・方針）に当たったら §5。
 
@@ -283,9 +283,9 @@ PR: <https://github.com/<owner>/<repo>/pull/<n>>   ← PR を出したときだ�
 - 見込み: <段>（依頼書は <段>）。<理由>   ← 依頼書の見込みと違うと見たときだけ
 - 作業 1: <何をするか>。終了条件: <何をしたら終わりか>
 ## 人に聞くこと        ← §5 のときだけ
-- <問い>（推奨案: <案>）
+- <問い>。推奨案は <案>
 ## 範囲の問い          ← §2 の (a)〜(d) で止まるときだけ
-- <どれを直すか>（推奨案: <案>）
+- <どれを直すか>。推奨案は <案>
 ## Next
 <Chief of Staff か人がする次の一手。1行に1件（Chief of Staff とトリアージが行ごとに拾う）。命令形で、どの課題・どのファイルかをその行に残す。片付けも書く>
 ## Remember
