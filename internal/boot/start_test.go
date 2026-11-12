@@ -197,7 +197,8 @@ func TestStartDispatcherUnsure(t *testing.T) {
 // 前に andon dispatcher が出ていれば「すでに動いている」。
 func TestStartDispatcherRunning(t *testing.T) {
 	f, e, d := dispatcherFixture(t)
-	put(t, filepath.Join(d, "term"), term(`{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}`))
+	space, tab := dispatcher.Place(e.Workspace)
+	put(t, filepath.Join(d, "term"), `{"address":"t1","state":"live","labels":{"herdr.space":"`+space+`","herdr.tab":"`+tab+`"},"foreground":{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}}`)
 	if err := startDispatcher(e); err != nil {
 		t.Fatal(err)
 	}
