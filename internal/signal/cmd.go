@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,13 +27,16 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "collect":
-		given := ""
-		switch rest := args[1:]; {
-		case len(rest) == 0:
-		case len(rest) == 2 && rest[0] == "--project":
-			given = rest[1]
-		default:
-			return usage()
+		given, due := "", false
+		for rest := args[1:]; len(rest) > 0; {
+			switch {
+			case rest[0] == "--due" && !due:
+				due, rest = true, rest[1:]
+			case rest[0] == "--project" && len(rest) > 1 && given == "":
+				given, rest = rest[1], rest[2:]
+			default:
+				return usage()
+			}
 		}
 		ws := delegate.Workspace()
 		slug, err := delegate.ProjectSlug(ws, given)
@@ -48,12 +52,34 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "andon signal collect: %v\n", err)
 			return 1
 		}
-		failed, err := Collect(Options{Slug: slug, Project: p, Path: Path(slug), TokenDir: TokenDir(), Now: time.Now(), GH: RunGH}, stdout)
+		failed, err := Collect(Options{Slug: slug, Project: p, Path: Path(slug), TokenDir: TokenDir(), Now: time.Now(), GH: RunGH, Due: due}, stdout)
 		if err != nil {
 			fmt.Fprintf(stderr, "andon signal collect: %v\n", err)
 			return 1
 		}
 		if failed > 0 {
+			return 1
+		}
+		return 0
+	case "delivered":
+		rest, given := args[1:], ""
+		if len(rest) == 4 && rest[0] == "--project" {
+			given, rest = rest[1], rest[2:]
+		}
+		if len(rest) != 2 {
+			return usage()
+		}
+		episode, err := strconv.Atoi(rest[1])
+		if err != nil {
+			return usage()
+		}
+		slug, err := delegate.ProjectSlug(delegate.Workspace(), given)
+		if err != nil {
+			fmt.Fprintf(stderr, "andon signal delivered: %v\n", err)
+			return 2
+		}
+		if _, err := Delivered(Path(slug), rest[0], episode); err != nil {
+			fmt.Fprintf(stderr, "andon signal delivered: %v\n", err)
 			return 1
 		}
 		return 0

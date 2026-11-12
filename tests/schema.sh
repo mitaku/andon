@@ -486,6 +486,9 @@ fail|corrections|.corrections[2] += {"answer": "x"}|指摘の override に問い
 fail|corrections|.corrections[3].kind = "answer"|問いの override を answer にすると形が合わない
 pass|signal|.signals = []|まだ何も見ていない（空の配列）
 pass|signal|del(.signals[0].release)|release が無い
+pass|signal|del(.read_at)|read_at が無い（まだ読みに行っていない）
+fail|signal|.read_at = {"github-ci github.com/example/sample-site": "2026-11-10 09:30"}|read_at の時刻が形の外
+fail|signal|.read_at = []|read_at が object でない
 fail|signal|.signals[1].fingerprint = .signals[0].fingerprint|fingerprint が重なる
 fail|signal|.signals[0].fingerprint = "AF3C0A047C19A9C56867FE43AFE6794DD408EB8F"|fingerprint が大文字
 fail|signal|.signals[0].fingerprint = "af3c0a0"|fingerprint が40桁でない
@@ -544,12 +547,12 @@ signal|."$defs".signal.additionalProperties = true|信号の知らないキー�
 LOOSE
 fi
 
-# 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-measure.sh・andon-signal.sh が ANDON_EMIT_DIR に写したもの）。
+# 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh が ANDON_EMIT_DIR に写したもの）。
 #    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-issue andon-gate andon-dispatcher andon-measure andon-signal; do
+  for t in andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-signal; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -588,6 +591,8 @@ measure-empty.json|measure|andon measure --json の出力（記録が無い台�
 corrections-empty.json|corrections|andon dispatcher の corrections.json（手直し無し）
 corrections-answer.json|corrections|andon dispatcher の corrections.json（answer）
 signals.json|signal|andon signal collect の信号の記録
+signals-delivered.json|signal|andon dispatcher が collect と delivered で書いた信号の記録（read_at・delivered_episode）
+notification-signal.json|notification|andon dispatcher の通知 signal（now の信号）
 corrections-pr.json|corrections|andon dispatcher の corrections.json（pr）
 corrections-pr-inline.json|corrections|andon dispatcher の corrections.json（pr。インラインのレビューコメント）
 corrections-override.json|corrections|andon dispatcher の corrections.json（override）

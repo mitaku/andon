@@ -64,6 +64,7 @@ func (p *project) collect(cos string) {
 	p.watch(now, cos)
 	p.estimate(now, cos) // 見込みとのズレ（dispatcher.md §2.10）
 	p.chiefCut(cos)
+	p.signals(now) // 外の信号（dispatcher.md §2.1.1 の 4e）
 }
 
 // ---------------------------------------------------------------- log.jsonl の続き

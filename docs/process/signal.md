@@ -13,7 +13,7 @@ stateDiagram-v2
   state "消えた（active が false。CI が通った・issue が閉じた）" as s_gone
   [*] --> s_active: 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0）
   s_active --> s_active: また見えた（count を 1 増やし、last_seen・url・title・weight・release を今の値に）
-  s_active --> s_delivered: weight が now の出来事を Chief of Staff へ届けた（通知 signal。delivered_episode を episodes にする。書くのは andon signal の口で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 の行と once は配る課題 S3 が足す）
+  s_active --> s_delivered: weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23）
   s_delivered --> s_delivered: また見えた（count だけ増える。届け直さない）
   s_active --> s_gone: 読んだ範囲で見えなくなった（結果が分からないものは変えない）
   s_delivered --> s_gone: 読んだ範囲で見えなくなった（結果が分からないものは変えない）
@@ -34,10 +34,10 @@ stateDiagram-v2
 
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
-| （始まり・終わり） | `active` | 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0） | 機械 | `andon signal collect` |  |
-| `active` | `active` | また見えた（count を 1 増やし、last_seen・url・title・weight・release を今の値に） | 機械 | `andon signal collect` |  |
-| `active` | `delivered` | weight が now の出来事を Chief of Staff へ届けた（通知 signal。delivered_episode を episodes にする。書くのは andon signal の口で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 の行と once は配る課題 S3 が足す） | 機械 | `andon signal delivered <source> <episode>（仮）` |  |
-| `delivered` | `delivered` | また見えた（count だけ増える。届け直さない） | 機械 | `andon signal collect` |  |
-| `active` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect` |  |
-| `delivered` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect` |  |
-| `gone` | `active` | また見えた（新しい出来事。active を true にし episodes を 1 増やす。now なら届け直す） | 機械 | `andon signal collect` |  |
+| （始まり・終わり） | `active` | 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0） | 機械 | `andon signal collect --due` |  |
+| `active` | `active` | また見えた（count を 1 増やし、last_seen・url・title・weight・release を今の値に） | 機械 | `andon signal collect --due` |  |
+| `active` | `delivered` | weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23） | 機械 | `andon signal delivered <fingerprint> <episode>` | はい |
+| `delivered` | `delivered` | また見えた（count だけ増える。届け直さない） | 機械 | `andon signal collect --due` |  |
+| `active` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect --due` |  |
+| `delivered` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect --due` |  |
+| `gone` | `active` | また見えた（新しい出来事。active を true にし episodes を 1 増やす。now なら届け直す） | 機械 | `andon signal collect --due` |  |

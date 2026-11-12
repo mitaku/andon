@@ -10,6 +10,8 @@
 //	{"status": "done"} の行            → library/corrections.json を1回だけ書く（人の手直し。corrections.go）
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //	担当・Chief of Staff が提供元に切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
+//	project.json の signals           → andon signal collect --due（組ごとに every 分に1回）。届けていない now の信号を
+//	                                     通知 signal で積み、andon signal delivered で届けたと書く（signals.go。§2.2.1）
 //
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、

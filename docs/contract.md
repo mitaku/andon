@@ -569,7 +569,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 ## 15. 信号の記録（`<slug>.signals.json`）
 
-外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は台帳の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect`）だけ、読み手はトリアージ・観察の課題の担当・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
+外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は台帳の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect` と、`delivered_episode` だけを書く `andon signal delivered`。どちらも記録の lock `<slug>.signals.json.lock` の中で書く）だけ、読み手はトリアージ・観察の課題の担当・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
 
 ```json
 {"signals": [
@@ -582,7 +582,9 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
    "url": "https://github.com/example/sample-site/issues/12", "title": "Export to CSV breaks on empty rows", "weight": "later",
    "fingerprint": "561bb4dd6370728a1136f4231fb62a4645b98e4a",
    "first_seen": "2026-11-10T09:00:00Z", "last_seen": "2026-11-10T09:00:00Z", "count": 1, "active": true,
-   "episodes": 1, "delivered_episode": 0}]}
+   "episodes": 1, "delivered_episode": 0}],
+ "read_at": {"github-ci github.com/example/sample-site": "2026-11-10T09:30:00Z",
+             "github-issues github.com/example/sample-site": "2026-11-10T09:30:00Z"}}
 ```
 
 | キー | 要るか | 意味 |
@@ -601,17 +603,24 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `episodes` | 必須 | 出来事の数。最初は 1、消えてまた出るたびに 1 増える |
 | `delivered_episode` | 必須 | 通知 `signal`（§6）で届けた出来事の番号。届けていなければ 0（`later` は常に 0） |
 | `release` | 任意 | 見えたリリースの名前（マージ commit の SHA。§16）。出所が持つときだけ |
+| `read_at` | 任意 | 出所と repo の組（`"<source> <repo>"`）ごとに、collect が最後に読みに行った時刻（読めなかったときも）。`collect --due` の間隔に使う。まだ読みに行っていなければ無い |
 
 - **本文・スタックトレースは持たない**（記録を大きくしない・外の人の文を写さない）。担当が読むときに `url` から取る。
 
 `andon signal collect` の当て方（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 3・8・9）:
 
+- `--due`（dispatcher の巡が打つ）は、組ごとに `read_at` から `every` 分（§11。既定 10）たったものだけを読む。読みに行った組は、読めても読めなくても `read_at` を今にする（gh が落ちている・上限のときも `every` より短く読みに行かない）。`--due` が無ければ（人が手で打つ）全部の組を読む。
 - 出所と repo の組ごとに1回読み、見えたものは `count` を 1 増やして `last_seen`・`url`・`title`・`weight`・`release` を今の値にする。初めてなら `count`・`episodes` が 1、`delivered_episode` が 0。`active: false` のものがまた見えたら `active: true` にして `episodes` を 1 増やす。その組の記録で見えなかったものは `active: false`。ただし読んだ範囲で結果が分からなかったもの（下の CI の 100 件・issue の上限）は変えない（読めていないものを「消えた」にしない）。**`delivered_episode` は collect が触らない**（書くのは届けた dispatcher）。
 - `github-ci`: main の CI（`gh api repos/<owner>/<repo>/actions/runs?branch=main&status=completed`。pull request の run は除く）を workflow のファイルごとに見て、最新の結果（成功・失敗・時間切れ・起動の失敗。取り消しと飛ばしは数えない）が失敗なら信号。読むのは新しい 100 件で、その中に結果の出た run の無い workflow は今の記録のまま。`key` は `<repo>/<workflow のファイル名>@main`、`title` は `<workflow の名前>: <run の題>`、`release` は run の `head_sha`（main の commit）。
 - `github-issues`: open の issue（`gh issue list --state open`。`filter` があれば `--search` にそのまま。上限 1000 件で、上限まで返ったら見えなかった issue も今の記録のまま）。`key` は `<repo>#<番号>`。
-- 読めなかった組（API が落ちた・`gh` の資格情報が無い）は、その組の記録を変えずに飛ばして1行出す（終了コード 1。次に打てば読み直す）。1組も読めなければ記録を書かない。`signals` が無い・`project.json` が無ければ何も読まず書かない。Sentry・Linear・Cloudflare は読む command がまだ無く、トークン（`andon signal auth`）が無ければそう、あれば「まだ無い」と1行出して飛ばす（止まらない）。
+- 読めなかった組（API が落ちた・`gh` の資格情報が無い）は、その組の信号の記録を変えずに飛ばして1行出す（終了コード 1。`read_at` だけ書く。`--due` なら `every` 分のあとに読み直す）。読みに行った組が無ければ何も書かない。`signals` が無い・`project.json` が無ければ何も読まず書かない。Sentry・Linear・Cloudflare は読む command がまだ無く、トークン（`andon signal auth`）が無ければそう、あれば「まだ無い」と1行出して飛ばす（止まらない）。
 - 出所へは書かない（GitHub は `gh` の token が書ける token でも、打つのは読む API だけ）。
 - 機械が読むのはこの schema のキーだけ。`title` で判定しない。
+
+届け方（dispatcher。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8、[dispatcher.md](dispatcher.md) §2.2.1）:
+
+- dispatcher は1巡ごとに `collect --due` を打ち、記録のうち `weight: now`・`active`・`delivered_episode` < `episodes` のものを通知 `signal`（§6）で積む。積んだ待ちを控えに保存してから、1件ずつ `andon signal delivered [--project <slug>] <fingerprint> <episode>` で `delivered_episode` を `episodes` にする。
+- `andon signal delivered` は、記録に無い信号・`episodes` を超える出来事は断る（終了コード 1）。もう届けた出来事（`delivered_episode` 以上）なら何も書かない。打つのは dispatcher だけ。
 
 トリアージの読み方（`andon triage`。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・7）:
 
