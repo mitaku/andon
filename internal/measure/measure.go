@@ -46,6 +46,8 @@ type Options struct {
 	Now   time.Time
 	// GH は repo（<owner>/<repo>）のマージされた PR の一覧を gh pr list --json number,url,title,body,mergedAt の形で返す。
 	GH func(repo string) ([]byte, error)
+	// State は dispatcher の控え（<slug>.json）のパス。gone（端末が死んでいた時刻）だけ読む。空なら読まない。
+	State string
 	// Recorded・Delivered は dispatcher の記録だけの通知と届けた通知の記録（contract.md §6・§17）のパス。空なら読まない。
 	Recorded, Delivered string
 	// ClaudeDir は Claude Code の設定の置き場（projects/ の親）、CodexSessions は Codex の記録の置き場（sessions）。空なら読まない。
@@ -76,6 +78,8 @@ type Result struct {
 	Counter    Counter    `json:"counter"`
 	News       News       `json:"news"`
 	PRs        []PR       `json:"prs"`
+	Estimate   Estimate   `json:"estimate"`
+	Issues     []Issue    `json:"issues"`
 	Tokens     []Tokens   `json:"tokens"`
 	Skipped    []Skip     `json:"skipped"`
 }
@@ -184,6 +188,24 @@ type PR struct {
 	Corrections  bool     `json:"corrections"`
 }
 
+// Estimate は見込みとのズレの全体（ADR-0014 決めたこと 9）。数えるのは issues[] の課題。
+type Estimate struct {
+	Count  int      `json:"count"`  // 見込みのあった課題
+	Within int      `json:"within"` // そのうち実働が見込みの中に収まった（比が 1 以下）
+	Rate   *float64 `json:"rate"`   // within ÷ count（count が 0 なら null）
+	None   int      `json:"none"`   // 見込みの無い課題
+}
+
+// Issue は期間に最後の列へ動いた担当の課題1件の見込みと実際（ADR-0014 決めたこと 9・11 の 6）。
+// 見込みが無ければ分と比は null（0 と分ける）。
+type Issue struct {
+	Issue                string   `json:"issue"`
+	EstimateMinutes      *int     `json:"estimate_minutes"`       // 予約キー estimate の分（Chief of Staff が書いたときだけ）
+	AgentEstimateMinutes *int     `json:"agent_estimate_minutes"` // report.json の estimate.size の分（担当の見込み）
+	WorkedMinutes        int      `json:"worked_minutes"`         // 実働（待ちを除く。ledger.Worked）
+	Ratio                *float64 `json:"ratio"`                  // 実働 ÷ 見込み
+}
+
 // Skip は飛ばした記録1件。
 type Skip struct {
 	Source string `json:"source"`
@@ -219,6 +241,8 @@ type issue struct {
 	obs      string // report.json の observation.result（観察の報告が無ければ空）
 	session  string // issue.yaml の session（Claude Code のセッション）
 	worktree string // issue.yaml の worktree
+	agentEst string // report.json の estimate.size（担当の見込み）
+	raw      ledger.Issue
 }
 
 type span struct{ from, to time.Time } // to がゼロなら開いたまま
@@ -612,6 +636,7 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
+	res.Estimate, res.Issues = r.estimates(o, ids, byID, doneAt, in)
 	res.News = r.news(o, in)
 	res.Tokens = r.tokens(o, ids, byID, active(rows, in))
 
@@ -814,6 +839,12 @@ func (r *reader) issues() []*issue {
 		if !ok {
 			continue
 		}
+		var raw ledger.Issue
+		if yaml.Unmarshal(b, &raw) != nil {
+			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
+			continue
+		}
+		raw["id"] = id
 		var v struct {
 			Created  string   `yaml:"created"`
 			After    []string `yaml:"after"`
@@ -828,12 +859,12 @@ func (r *reader) issues() []*issue {
 			continue
 		}
 		t := &issue{id: id, after: len(v.After) > 0, links: v.Links, profile: v.Profile, parent: ledger.CanonID(v.Parent),
-			session: v.Session, worktree: v.Worktree}
+			session: v.Session, worktree: v.Worktree, raw: raw}
 		t.created, _ = parseAt(v.Created)
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
 		lib := filepath.Join(r.dir, "issues", id, "library")
-		t.pr = r.reportPR(lib)
+		t.pr, t.agentEst = r.report(lib)
 		t.gates = r.gates(lib)
 		if t.pr == "" {
 			var latest time.Time
@@ -851,20 +882,24 @@ func (r *reader) issues() []*issue {
 	return out
 }
 
-func (r *reader) reportPR(lib string) string {
+// report は report.json の pr と、担当の見込み estimate.size。
+func (r *reader) report(lib string) (pr, est string) {
 	path := filepath.Join(lib, "report.json")
 	b, ok := r.read(path)
 	if !ok {
-		return ""
+		return "", ""
 	}
 	var v struct {
-		PR string `json:"pr"`
+		PR       string `json:"pr"`
+		Estimate struct {
+			Size string `json:"size"`
+		} `json:"estimate"`
 	}
 	if json.Unmarshal(b, &v) != nil {
 		r.skip(r.rel(path), 0, "JSON の object でない")
-		return ""
+		return "", ""
 	}
-	return v.PR
+	return v.PR, v.Estimate.Size
 }
 
 // observation は観察の報告の result（hit・miss・unknown）。無ければ空。
@@ -1162,7 +1197,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	slug := filepath.Base(root)
 	res, err := Measure(Options{Root: root, Since: since, Until: until, Now: now, GH: GH,
-		Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug),
+		State: dispatcher.StatePath(slug), Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug),
 		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions()})
 	if err != nil {
 		fmt.Fprintf(stderr, "andon measure: %v\n", err)
@@ -1275,6 +1310,7 @@ func Table(w io.Writer, res *Result, states []string) {
 		gate = fmt.Sprintf("%.0f%%（fix %d・needs_human %d / %d）", *e.Gate.Rate*100, e.Gate.Fix, e.Gate.NeedsHuman, e.Gate.Records)
 	}
 	fmt.Fprintf(w, "  ゲートの差し戻し率             %s\n", gate)
+	estimateTable(w, res.Estimate, res.Issues)
 	tokensTable(w, res.Tokens)
 	newsTable(w, res.News)
 	if len(res.Skipped) == 0 {

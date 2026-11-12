@@ -62,7 +62,8 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
   and (.skipped | length) == 1 and .skipped[0].line == 4
   and .news.kinds == [{kind: "merged", delivered: 0, acked: 0, rate: null, recorded: 1}, {kind: "report", delivered: 2, acked: 2, rate: 1, recorded: 0}]
   and .news.candidates == ["report"]
-  and .tokens == [{issue: "S-0001", source: "claude", usage: {input: 3, output: 40, cache_read: 500, cache_write: 60}}]' "$tmp/out.json" >/dev/null
+  and .tokens == [{issue: "S-0001", source: "claude", usage: {input: 3, output: 40, cache_read: 500, cache_write: 60}}]
+  and .estimate == {count: 0, within: 0, rate: null, none: 1} and (.issues | map(.issue)) == ["S-0001"] and .issues[0].estimate_minutes == null' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
 echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
@@ -85,7 +86,7 @@ printf '#!/bin/sh\necho forbidden-gh >&2\nexit 99\n' >"$tmp/bin/gh"
 export KANBAN_ROOT=$tmp/empty
 "$andon" measure --json >"$tmp/empty.json"
 jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .flow.closed.count == 0
-  and .prs == [] and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
+  and .prs == [] and .issues == [] and .estimate == {count: 0, within: 0, rate: null, none: 0} and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'

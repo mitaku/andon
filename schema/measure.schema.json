@@ -4,7 +4,7 @@
   "title": "Measure",
   "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
-  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "tokens", "skipped"],
+  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "estimate", "issues", "tokens", "skipped"],
   "additionalProperties": false,
   "properties": {
     "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
@@ -196,6 +196,23 @@
       "type": "array",
       "items": { "$ref": "#/$defs/pr" }
     },
+    "estimate": {
+      "description": "Estimates against what happened (ADR-0014), over the issues in issues.",
+      "type": "object",
+      "required": ["count", "within", "rate", "none"],
+      "additionalProperties": false,
+      "properties": {
+        "count": { "description": "Issues with an estimate.", "$ref": "#/$defs/count" },
+        "within": { "description": "Of those, issues whose worked time stayed within the estimate (ratio 1 or less).", "$ref": "#/$defs/count" },
+        "rate": { "description": "within / count; null when count is 0.", "$ref": "#/$defs/rate" },
+        "none": { "description": "Issues without an estimate.", "$ref": "#/$defs/count" }
+      }
+    },
+    "issues": {
+      "description": "Agents' issues (reviewer, Chief Engineer and person issues left out; survey issues included) whose last move to the last column falls in the period, by issue id.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    },
     "tokens": {
       "description": "Issues with one or more log.jsonl lines in the period (reviewer issues included), by issue id, with the tokens of the issue's whole session records (not cut by the period). Never converted to money.",
       "type": "array",
@@ -219,6 +236,19 @@
       "properties": {
         "count": { "description": "How many were counted.", "$ref": "#/$defs/count" },
         "hours": { "description": "Hours, or null when count is 0.", "$ref": "#/$defs/rate" }
+      }
+    },
+    "issue": {
+      "description": "One agent's issue: its estimate and its worked time. Minutes and ratio are null when there is no estimate, to tell it apart from 0.",
+      "type": "object",
+      "required": ["issue", "estimate_minutes", "agent_estimate_minutes", "worked_minutes", "ratio"],
+      "additionalProperties": false,
+      "properties": {
+        "issue": { "description": "Issue id.", "type": "string", "pattern": "^[^/\\\\:]+$" },
+        "estimate_minutes": { "description": "Minutes of the issue key estimate (30, 60 or 120), read only when the Chief of Staff wrote it last; null when none.", "anyOf": [{ "enum": [30, 60, 120] }, { "type": "null" }] },
+        "agent_estimate_minutes": { "description": "Minutes of report.json estimate.size, the agent's own estimate; null when none.", "anyOf": [{ "enum": [30, 60, 120] }, { "type": "null" }] },
+        "worked_minutes": { "description": "Worked minutes, waits left out: time in doing, less the issue's own open questions, waiting for the reviewer issues, and the terminal being gone (the dispatcher's state).", "$ref": "#/$defs/count" },
+        "ratio": { "description": "worked_minutes / estimate_minutes, two decimals; null when there is no estimate.", "$ref": "#/$defs/rate" }
       }
     },
     "pr": {
