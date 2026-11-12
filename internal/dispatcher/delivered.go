@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -39,9 +40,26 @@ func logDelivered(slug string, h *HookNews, acked bool) {
 	}
 	b, err := json.Marshal(d)
 	if err == nil {
-		err = appendLines(DeliveredPath(slug), [][]byte{b})
+		err = appendLine(DeliveredPath(slug), b)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "andon dispatcher drain: 届けた通知の記録を書けない（数えから落ちる）: %v\n", err)
 	}
+}
+
+// appendLine は1行を追記する。appendLines と違い、末尾に同じ行があっても飛ばさない
+// （同じ秒に同じ通知を渡した別のターンは別の行。書き直しはしないので二重に書くことも無い）。
+func appendLine(path string, b []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(append(b, '\n')); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }

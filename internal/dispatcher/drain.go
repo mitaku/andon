@@ -192,7 +192,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	// lock が取れなかった Stop で見た、渡した turn の終わり（noteStop）。同じ印にだけ当てる
 	if n, ok := takeStop(slug); ok {
 		if h := st.Hook; h != nil && reflect.DeepEqual(n.Hook, *h) {
-			if n.Acked {
+			if n.Replied {
 				st.countReplied("ack")
 			}
 			logDelivered(slug, h, n.Acked)
@@ -205,11 +205,11 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	var again []Notification
 	if h := st.Hook; h != nil {
 		if !context && sameTurn(h, addr, in) {
-			ok := acked(self, h.Turn, h.AckBefore) && label(addr, self.Turn) == nil
-			if ok {
+			ok := acked(self, h.Turn, h.AckBefore)
+			if ok && label(addr, self.Turn) == nil {
 				st.countReplied("ack")
 			}
-			logDelivered(slug, h, ok)
+			logDelivered(slug, h, ok) // 素通りはラベルの一致で決める（news.replied を書けたかとは分ける）
 		} else {
 			again = h.News // 届け直しは1回だけ（h.Again は捨てる）
 		}
@@ -277,8 +277,9 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 // 見回りは lock を巡の終わりまで持つので、続きのターンの Stop が lock を諦めると、渡した印が残って
 // 次の送信で届け直していた（ADR-0019 決めたこと 7）。Hook を書くのは drain だけなので、lock の外で読んでよい。
 type stopNote struct {
-	Hook  HookNews `json:"hook"`  // 終わりを見た印（次の drain の Hook と同じときだけ確かめ済みにする）
-	Acked bool     `json:"acked"` // その turn に andon news ack があった（news.replied はもう書いた。数えるのは次の drain）
+	Hook    HookNews `json:"hook"`              // 終わりを見た印（次の drain の Hook と同じときだけ確かめ済みにする）
+	Acked   bool     `json:"acked"`             // その turn に andon news ack があった（届けた通知の記録に書くのは次の drain）
+	Replied bool     `json:"replied,omitempty"` // news.replied を書けた（数えるのは次の drain）
 }
 
 func stopPath(slug string) string { return StatePath(slug) + ".stop" }
@@ -290,8 +291,9 @@ func noteStop(slug, addr string, self *terminal, in hookInput) {
 		return
 	}
 	n := stopNote{Hook: *st.Hook}
-	if acked(self, st.Hook.Turn, st.Hook.AckBefore) && label(addr, self.Turn) == nil {
+	if acked(self, st.Hook.Turn, st.Hook.AckBefore) {
 		n.Acked = true
+		n.Replied = label(addr, self.Turn) == nil
 	}
 	b, err := json.Marshal(n)
 	if err != nil {
