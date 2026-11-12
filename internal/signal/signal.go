@@ -27,7 +27,7 @@ import (
 
 // Usage は andon signal の使い方。
 const Usage = "usage: andon signal collect [--due] [--project <slug>]   project.json の signals の出所を読み、信号の記録を書く\n" +
-	"       andon signal delivered [--project <slug>] <fingerprint> <episode>   通知 signal で届けた出来事を記録に書く（dispatcher が打つ）\n" +
+	"       andon signal delivered [--project <slug>] <fingerprint> <episode>   通知 signal で届けた出来事を記録に書く（dispatcher だけ。HC_TERMINAL_ID=dispatcher）\n" +
 	"       andon signal auth <source>             出所のトークンをセルの中で聞いて置く（sentry・linear・cloudflare）\n" +
 	"collect は projects/<slug>/ で打つか --project。記録は ~/.local/state/andon/dispatcher/<slug>.signals.json\n" +
 	"（XDG_STATE_HOME があればその下。docs/contract.md §15）。signals が無ければ何も読まず、何も書かない。\n" +

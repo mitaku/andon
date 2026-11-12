@@ -128,6 +128,19 @@ later; dispatcher
 emit "$rec" signals-delivered.json
 ok '控えを失った巡でも、届けていない now の信号だけを積む（届けた信号は積み直さない）'
 
+# andon signal delivered を打つのは dispatcher だけ（HC_TERMINAL_ID=dispatcher）。担当の端末・未設定なら断り、記録を変えない
+web=github.com/example/web/lint.yml@main
+jq --arg k "$web" '(.signals[] | select(.key == $k) | .delivered_episode) = 0' "$rec" >"$tmp/r" && mv "$tmp/r" "$rec"
+fp=$(jq -r --arg k "$web" '.signals[] | select(.key == $k) | .fingerprint' "$rec")
+cp "$rec" "$tmp/before"
+for who in t7 ''; do
+  r=0; HC_TERMINAL_ID=$who "$andon" signal delivered --project demo "$fp" 1 2>"$tmp/err" || r=$?
+  [ "$r" = 2 ] && grep -q '打つのは dispatcher だけ' "$tmp/err" && cmp -s "$rec" "$tmp/before" || die "dispatcher でない（$who）のに通った: rc=$r $(cat "$tmp/err")"
+done
+HC_TERMINAL_ID=dispatcher "$andon" signal delivered --project demo "$fp" 1 || die 'dispatcher が打てない'
+[ "$(ep "$web")" = '[true,1,1,1]' ] || die "dispatcher が打っても書かない: $(ep "$web")"
+ok 'andon signal delivered は dispatcher（HC_TERMINAL_ID=dispatcher）以外から打つと断り、記録を変えない'
+
 # gh の上限でゲートを止めている間（控えの gh_reset）は collect を打たない
 drained
 jq --arg t "$(date -u -d '+30 min' +%Y-%m-%dT%H:%M:%SZ)" '.gh_reset = $t' "$state" >"$tmp/s" && mv "$tmp/s" "$state"

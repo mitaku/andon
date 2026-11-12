@@ -620,7 +620,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 届け方（dispatcher。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8、[dispatcher.md](dispatcher.md) §2.2.1）:
 
 - dispatcher は1巡ごとに `collect --due` を打ち、記録のうち `weight: now`・`active`・`delivered_episode` < `episodes` のものを通知 `signal`（§6）で積む。積んだ待ちを控えに保存してから、1件ずつ `andon signal delivered [--project <slug>] <fingerprint> <episode>` で `delivered_episode` を `episodes` にする。
-- `andon signal delivered` は、記録に無い信号・`episodes` を超える出来事は断る（終了コード 1）。もう届けた出来事（`delivered_episode` 以上）なら何も書かない。打つのは dispatcher だけ。
+- `andon signal delivered` は、記録に無い信号・`episodes` を超える出来事は断る（終了コード 1）。もう届けた出来事（`delivered_episode` 以上）なら何も書かない。打つのは dispatcher だけで、`HC_TERMINAL_ID=dispatcher` でなければ記録を変えずに終了コード 2 で断る（担当が打って `now` の信号が届かなくなるのを止める。同じユーザーなので守りではない）。
 
 トリアージの読み方（`andon triage`。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・7）:
 
