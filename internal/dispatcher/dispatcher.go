@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	_ "time/tzdata" // 実行環境に zoneinfo が無くても台帳の timezone を引けるようにする
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
@@ -129,9 +130,10 @@ func SingletonLock() string {
 
 // Dispatcher は1つのセルの dispatcher。
 type Dispatcher struct {
-	WS    string    // セルの repo
-	Andon string    // andon のバイナリ（gate・issue を打つ）
-	Log   io.Writer // ログ（1行ずつ）
+	WS    string           // セルの repo
+	Andon string           // andon のバイナリ（gate・issue を打つ）
+	Log   io.Writer        // ログ（1行ずつ。頭に時刻）
+	Now   func() time.Time // ログの時刻（無ければ time.Now。検査用）
 
 	unwaited map[string]string // 待ち役がいないとログに書いた待ち（台帳ごと。同じ待ちを二度書かない）
 	skip     map[string]string // 台帳を飛ばしているとログに書いた理由（台帳ごと。同じ理由を二度書かない）
@@ -163,8 +165,25 @@ func (p *project) skipped(cos, reason string) {
 	_ = cmd.Run() // herdr が無い・失敗でも巡は続ける（ログの1行は出ている）
 }
 
-func (c *Dispatcher) logf(format string, a ...any) {
-	fmt.Fprintf(c.Log, "andon dispatcher: "+format+"\n", a...)
+func (c *Dispatcher) logf(format string, a ...any) { c.logIn(time.UTC, format, a...) }
+
+// logIn は行の頭に秒までの時刻（RFC 3339。loc の時刻）を付けて書く。機械が読む記録（控え・log.jsonl）は変えない。
+func (c *Dispatcher) logIn(loc *time.Location, format string, a ...any) {
+	now := time.Now
+	if c.Now != nil {
+		now = c.Now
+	}
+	fmt.Fprintf(c.Log, now().In(loc).Format(time.RFC3339)+" andon dispatcher: "+format+"\n", a...)
+}
+
+// location は台帳の config.yaml の timezone（無い・読めなければ UTC）。
+func (l *project) location() *time.Location {
+	if tz := l.l.Timezone(); tz != "" && tz != "Local" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
 }
 
 // Pass はセルの台帳を1回ずつ回す。動いている課題（doing・review）があれば busy。
@@ -181,7 +200,7 @@ func (c *Dispatcher) Pass(only string) bool {
 		p.l.Env = []string{"HC_TERMINAL_ID=" + Name}
 		b, err := p.pass()
 		if err != nil {
-			c.logf("%s: %v", p.l.Slug, err)
+			p.logf("%v", err)
 		}
 		busy = busy || b
 	}
@@ -198,7 +217,9 @@ type project struct {
 	tasks []ledger.Issue
 }
 
-func (p *project) logf(format string, a ...any) { p.c.logf(p.l.Slug+": "+format, a...) }
+func (p *project) logf(format string, a ...any) {
+	p.c.logIn(p.location(), p.l.Slug+": "+format, a...)
+}
 
 // pass の段の順は docs/dispatcher.md §2.1.1 の表で固定している。変えるときは表も直す。
 func (p *project) pass() (bool, error) {
