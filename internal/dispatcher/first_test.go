@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 // 偽の hc: read は $D/screen（無ければ空の入力欄。$D/read-rc があれば落ちる）、keys は $D/log に1行（$D/send-rc で落ちる）。get は $D/status（無ければ idle）と top-level の argv（$D/argv。無ければ sh -c claude）と前に出ているもの（$D/fg。無ければ null）とラベル（$D/unsent があれば first_message.sent=false）を返す。
@@ -314,5 +315,18 @@ func TestLeftInInput(t *testing.T) {
 		if got := LeftInInput(c.screen, first); got != c.want {
 			t.Errorf("%s: %v", c.name, got)
 		}
+	}
+}
+
+func TestReviewerFirstGuide(t *testing.T) {
+	f := newFirst(t)
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	if m := f.p.reviewerFirst("S-8"); strings.Contains(m, spawn.GuideFile) {
+		t.Errorf("ファイルが無いのに指している: %q", m)
+	}
+	os.WriteFile(filepath.Join(ws, spawn.GuideFile), []byte("x"), 0o644)
+	if m := f.p.reviewerFirst("S-8"); !strings.Contains(m, filepath.Join(ws, spawn.GuideFile)) {
+		t.Errorf("ファイルがあるのに指していない: %q", m)
 	}
 }

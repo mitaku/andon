@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"andon/internal/spawn"
 )
 
 var sessionRe = regexp.MustCompile(`session=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
@@ -564,5 +566,17 @@ func TestStartUsage(t *testing.T) {
 		if rc := Main(append([]string{"start", "S-0007"}, flags...), strings.NewReader(""), &out, &errb); rc != exitUsage || !strings.HasPrefix(errb.String(), "usage:") {
 			t.Errorf("%q: rc=%d err=%q", flags, rc, errb.String())
 		}
+	}
+}
+
+func TestStartFirstMessageGuide(t *testing.T) {
+	f := newStart(t)
+	ws := os.Getenv("ANDON_WORKSPACE") // newStart が置いたセルの repo
+	if m := f.dryJSON().FirstMessage; strings.Contains(m, spawn.GuideFile) {
+		t.Errorf("ファイルが無いのに指している: %q", m)
+	}
+	os.WriteFile(filepath.Join(ws, spawn.GuideFile), []byte("x"), 0o644)
+	if m := f.dryJSON().FirstMessage; !strings.Contains(m, filepath.Join(ws, spawn.GuideFile)) {
+		t.Errorf("ファイルがあるのに指していない: %q", m)
 	}
 }
