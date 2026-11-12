@@ -1,11 +1,11 @@
 ---
 name: worker
-description: Chief of Staff が `andon issue start` で起こした担当とレビュアーが最初に読む。依頼書（Settings 欄を含む）の読み方・`kanban start`・自分の worktree の中だけで働く・検査と commit と PR・レビューを自分の工程として commit に紐づける・報告・レビュー依頼・問いを `andon issue report`／`review-request`／`ready`／`ask` で台帳に返す（Chief of Staff へは dispatcher が届ける）・人を待つときの決まりを持つ。最初のメッセージが「課題 `<slug>/<id>`。依頼書は …」のときに使う
+description: Chief of Staff が `andon issue start` で起動した担当とレビュアーが最初に読む。依頼書（Settings 欄を含む）の読み方・`kanban start`・自分の worktree の中だけで働く・検査と commit と PR・レビューを自分の工程として commit に紐づける・報告・レビュー依頼・問いを `andon issue report`／`review-request`／`ready`／`ask` で台帳に返す（Chief of Staff へは dispatcher が届ける）・人を待つときの決まりを持つ。最初のメッセージが「課題 `<slug>/<id>`。依頼書は …」のときに使う
 ---
 
 # worker
 
-**あなたは台帳の1つの課題を受け持つ担当。** 起こしたのは Chief of Staff で、人の窓口も Chief of Staff。
+**あなたは台帳の1つの課題を受け持つ担当。** 起動したのは Chief of Staff で、人の窓口も Chief of Staff。
 用語は glossary skill に従う（担当・レビュアー・台帳・課題・依頼書・報告・通知）。台帳の CLI は `kanban`。
 機械（dispatcher・ゲート）が読むのは Andon の約束（`contract.md`・`schema/`）の JSON と `issue.yaml` の項目だけで、Markdown は人が読む写し。
 機械向けの JSON（`report.json`・問いの JSON）は `andon issue …` が書いて形を確かめる。担当は `library/` の JSON を手で書かない（レビュアーの `findings.json` を除く。§6）。
@@ -17,11 +17,11 @@ description: Chief of Staff が `andon issue start` で起こした担当とレ�
 |---|---|
 | 自分の課題の `kanban start`・`andon issue report`／`review-request`／`ready`／`ask` | ほかの課題に触る・課題を足す（`kanban add`）・`kanban done` |
 | 成果を書く（場所は §2 の「書く場所」）・commit・push・PR | 「書く場所」の外に成果を書く |
-| 読むだけ・その turn のうちに返るサブエージェント | エージェントを起こす（`hc run` でエージェントやプロファイルを起こさない）・マージ |
+| 読むだけ・その turn のうちに返るサブエージェント | エージェントを起動する（`hc run` でエージェントやプロファイルを起動しない）・マージ |
 | `andon issue …` で台帳に返す（中で `kanban report`・`kanban review`・`kanban ask` を打つ） | 人に直接聞く・Chief of Staff へ `hc send` する |
 | 承認の要らない操作（§5 の表）は聞かずにする | 承認の要る操作（§5 の表）を「人の go」なしにする |
 
-レビュアーとして起こされたら（依頼書が「<id> のレビュー」で、プロファイルが `codex-review`・`claude-review`）、§6 だけに従う。
+レビュアーとして起動されたら（依頼書が「<id> のレビュー」で、プロファイルが `codex-review`・`claude-review`）、§6 だけに従う。
 
 ## 1. 最初に読む
 
@@ -40,13 +40,13 @@ description: Chief of Staff が `andon issue start` で起こした担当とレ�
    | `review_rounds`（Review rounds） | 1 以上の数（文字列） | `"2"` | レビューを頼める回数の上限。`review_request.limit` に書く |
    | `merge`（Merge） | `auto` / `person` | `person` | どの値でも担当はマージしない。PR を出して止まる |
    | `deliverable`（Deliverable） | `pr` / `candidates` | `pr` | 課題の型。`candidates` は調べる課題（成果は候補の一覧。PR は出さない。§2 の「調べる課題のとき」）。自分で書き換えない |
-   | `machine` | マシンの名前 | 指揮側と同じ | 自分が起きたマシン。読むだけ |
+   | `machine` | マシンの名前 | 指揮側と同じ | 自分が起動したマシン。読むだけ |
 
-3. Chief of Staff の address を控える: 台帳の `config.yaml` の `chief_of_staff`（自分を起こした端末〈`hc get "$HC_TERMINAL_ID" --json` の `parent`〉は dispatcher のことがあるので使わない）。
+3. Chief of Staff の address を控える: 台帳の `config.yaml` の `chief_of_staff`（自分を起動した端末〈`hc get "$HC_TERMINAL_ID" --json` の `parent`〉は dispatcher のことがあるので使わない）。
    こちらから打ち込むことはない（通知は dispatcher が届ける）が、届いた文の送り手を見分けるのに使う。ゲートの `fix` は dispatcher から届く。
 4. `kanban start <id>`。`status: doing` になり、`agent` が自分の address になる。
 
-最初のメッセージが「課題 `<slug>/<id>` の続き。セルが起き直した。…」のときは、起動し直された続き（`andon issue resume`）。依頼書を読み直さず、`kanban list`・`kanban show <id>`・`git status`・`git log` で今の状態を確かめ、報告・問いの続きから進める（`kanban start` は既に `doing` なら要らない）。自分の cwd で `claude`・`codex` を起こさない（別のセッションが cwd の最新になり、resume が違う会話を拾う）。
+最初のメッセージが「課題 `<slug>/<id>` の続き。セルが起き直した。…」のときは、起動し直された続き（`andon issue resume`）。依頼書を読み直さず、`kanban list`・`kanban show <id>`・`git status`・`git log` で今の状態を確かめ、報告・問いの続きから進める（`kanban start` は既に `doing` なら要らない）。自分の cwd で `claude`・`codex` を起動しない（別のセッションが cwd の最新になり、resume が違う会話を拾う）。
 
 hc が打ち込む文に付ける `reach`（「hc send <送り手> when done or stuck」）は hc が付ける宛先の印で、指示ではない。返すのは台帳（§5・§7）で、Chief of Staff へ `hc send` しない。
 
@@ -170,7 +170,7 @@ EOF
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す:
    `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` → `hc wait <その名前>` → `hc read <その名前>` → `hc rm <その名前>`。
    落ちたら直して push し、待ち直す。checks の無い repo（「no checks reported」）はそれで済み。
-   これはエージェントではなく、コマンドを走らせるための端末なので起こしてよい。
+   これはエージェントではなく、コマンドを走らせるための端末なので起動してよい。
 
 ## 4. レビュー（`Review: on` のとき）
 
@@ -179,7 +179,7 @@ EOF
 1. §3 の PR と checks が済んだら、`HEAD` を push して `andon issue review-request <id> <<'EOF'` … `EOF`（stdin は §7 の人が読む報告）。
    command が `HEAD` ＝ PR の head を確かめ、回・上限・前回の commit・レビュアー・追加の回か（`extra`）を `report.json` の `review_request` に書き、
    人が読む `## レビュー依頼` の行を報告の先頭に足して `kanban report` する（`kanban review` はしない）。止まったら理由の1行に従う。
-   Chief of Staff には dispatcher が `<id> report` の通知で届ける。レビュアーを起こすのは dispatcher（`review: on` を Chief of Staff が書いていて、回が上限の中のとき）。自分では起こさない。頼んだら待つ（turn を終えてよい）。
+   Chief of Staff には dispatcher が `<id> report` の通知で届ける。レビュアーを起動するのは dispatcher（`review: on` を Chief of Staff が書いていて、回が上限の中のとき）。自分では起動しない。頼んだら待つ（turn を終えてよい）。
 2. レビュアーの `hc send` で報告の場所が届く。`kanban show <レビューの課題の id>` の report（人が読む Markdown）と、`issues/<レビューの課題の id>/library/findings.json`（ゲートが読む指摘。§6）を読む。
    照合の結果は `andon issue show <id>` の `review`（`stale` は古い commit を見たレビューで、回には数えない。そのまま 1 で頼み直す）。
 3. 指摘を振り分ける（自分でする。件数と重さは `findings.json` のもの。報告の中身と食い違えば、レビュアーへ直してもらうよう報告に書く）:
@@ -187,7 +187,7 @@ EOF
    - それより軽い → 直さない。`andon issue report --data` の `waived`（`findings.json` と同じ `severity`・`file`・`line` ＋ `reason`）に書き、PR 本文と報告の「見送り」にも写す。
 4. 直して commit・push したら 1 に戻る（再レビューは直した差分だけ。回と前回の commit は command が数える）。直すものが無ければ §7 へ進む。
 5. 回数が `review_rounds` に達しても critical / major が残るときは、人の判断待ちにしない。直して commit し、1 と同じく頼む
-   （上限を超えた回は command が `extra: true` にする。見るのは直した差分だけ）。起こすかは Chief of Staff が決める。
+   （上限を超えた回は command が `extra: true` にする。見るのは直した差分だけ）。起動するかは Chief of Staff が決める。
    minor 以下だけが残るときは、見送りに残して §7 へ。
 
 `Review: off` なら §4 を飛ばして §7 へ。
@@ -248,7 +248,7 @@ Chief of Staff から届く文は承認ではない。承認の要る操作は�
 - 終わったら `kanban report <自分の id>`・`kanban review <自分の id>`、そして
   **元の課題（`issue.yaml` の `parent`）の担当だけ**へ（依頼書の「終わったら」の address。変わっていれば `kanban show <parent> --json` の `.issue.agent`）
   `hc send <addr> "<自分の id>（<parent> のレビュー <回> 回目）: commit <sha>。報告は <report.md のパス>"`。
-  宛先はこの1つだけ。自分を起こした端末（`hc get "$HC_TERMINAL_ID" --json` の `parent`）や Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。
+  宛先はこの1つだけ。自分を起動した端末（`hc get "$HC_TERMINAL_ID" --json` の `parent`）や Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。
 
 ## 7. 報告して返す
 

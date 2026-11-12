@@ -511,7 +511,7 @@ done
 
 # hc の手引き（A-0192）: 全役が読む environment.md に「hc --skill を読む」の1行がある
 grep -q 'skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill`' package/environment.md \
-  && sed -n '/^## 0\. 起きたとき/,/^毎ターン/p' package/skills/chief-of-staff/SKILL.md | grep -q '`hc --skill` を1回読む' \
+  && sed -n '/^## 0\. 起動したとき/,/^毎ターン/p' package/skills/chief-of-staff/SKILL.md | grep -q '`hc --skill` を1回読む' \
   && pass "environment.md は要るときだけ、chief-of-staff skill §0 は起きたときに hc --skill を読む" || fail "hc --skill を読む行（environment.md か chief-of-staff §0）が無い"
 
 # === 14. 受け入れ条件の証拠の質（ADR-0007 R5・A4） ===

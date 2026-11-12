@@ -18,12 +18,12 @@ description: 台帳のトリアージを受け持つ担当が読む。依頼書�
 |---|---|
 | `andon triage collect`・`andon triage apply <自分の id> --dry-run` | `andon triage apply` を `--dry-run` 無しで打つ（打つのは Chief of Staff） |
 | 確かめるために読む（`gh pr view`・`git -C <repo> grep`・`kanban show`・`git worktree list`・docs） | `kanban add`・`kanban done`・`kanban set`（ほかの課題）・元の報告を書き換える |
-| `issues/<id>/library/decisions.json` と報告を書く | リポジトリに書く・commit・PR・エージェントを起こす |
+| `issues/<id>/library/decisions.json` と報告を書く | リポジトリに書く・commit・PR・エージェントを起動する |
 
 ## 1. ゴールを読む
 
 - 依頼書の `ゴール:` の行（人が言ったときは1行目の「トリアージ: <ゴール>」）が、**今回どの項目を扱うか**のフィルタ。
-  ゴールの外の項目は閉じず、起こさず、`keep`（理由にゴールを書く）。
+  ゴールの外の項目は閉じず、起動せず、`keep`（理由にゴールを書く）。
 - 既定のゴール（ルーチンの依頼書）: 前回のトリアージのあとに増えた項目を全部仕分け、台帳の未処理を 0 にする。
 - ゴールが新しい仕事（「〜を作る」）なら仕分けず、報告の `## Next` に「普通の課題に切る: <要点>」と書いて返す。
 
@@ -126,7 +126,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   - `review` はレベル B（command・スクリプト・案件の `.claude/skills/**`）か independent-review skill §1 の条件に当たれば `on`。`profile` は chief-of-staff skill §1 の表で選ぶ（文書の小直しは `sonnet`）。
   - レベル C に当たる変更は `fix` にしない（表の 6 で `person`）。
 - `person` は `question`（1行・`-` で始めない）が必須。`kind` は `business`／`users`／`promise`／`irreversible` か書かない。`kind` があれば `pick`（推奨案）が必須。
-- `fix`／`bundle` が上限（既定 3。bundle は 1 つで数える）を超えた分は、`apply` が `keep`「次回（起こす上限）」に落とす。並べる順（先に書いたものが残る）＝優先の順。
+- `fix`／`bundle` が上限（既定 3。bundle は 1 つで数える）を超えた分は、`apply` が `keep`「次回（起動する上限）」に落とす。並べる順（先に書いたものが残る）＝優先の順。
 
 書いたら確かめる:
 

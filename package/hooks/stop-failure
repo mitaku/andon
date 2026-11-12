@@ -1,6 +1,6 @@
 #!/bin/sh
 # Claude Code の StopFailure フック（asyncRewake。docs/contract.md §9。managed settings が呼ぶ）。andon dispatcher rewake を呼ぶだけ。
-# Chief of Staff が提供元に切られて（error が server_error・rate_limit）止まったら、1・2・4・8 分あとに合図の1行で終了コード 2。
+# Chief of Staff がプロバイダに切られて（error が server_error・rate_limit）止まったら、1・2・4・8 分あとに合図の1行で終了コード 2。
 # Claude Code が入力欄を通らずに新しいターンを始める。5 回目・ほかの error・Chief of Staff でない端末・andon が無い・落ちたときは 0。
 command -v andon >/dev/null 2>&1 || exit 0
 exec andon dispatcher rewake
