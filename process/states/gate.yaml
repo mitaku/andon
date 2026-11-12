@@ -8,6 +8,9 @@ states:
   - id: checks-pending
     title: GitHub の checks を待つ（ゲートが wait を返した head を控える。その head の checks が走っている・1つも無く待ち時間の内の間はゲートを回さない）
     record: dispatcher:Waits
+  - id: rate-limited
+    title: gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset まで、この台帳のゲートを回さない）
+    record: dispatcher:GHReset
   - id: approved
     title: approve（merge auto・委譲の範囲内。記録だけにして merged か asked を待つ）
     record: dispatcher:Approved
@@ -30,6 +33,9 @@ transitions:
   - { from: waiting, to: checks-pending, on: "ゲートを回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い）", by: machine, command: andon gate }
   - { from: checks-pending, to: checks-pending, on: "同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読むゲートは回さない）", by: machine }
   - { from: checks-pending, to: waiting, on: "head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りでゲートから）", by: machine }
+  - { from: waiting, to: rate-limited, on: "ゲートを回す（gh の rate limit で落ちた。問いにも控えの Gates にもしない）", by: machine, command: andon gate }
+  - { from: rate-limited, to: rate-limited, on: "reset の時刻の前（ゲートも checks も読まない）", by: machine }
+  - { from: rate-limited, to: waiting, on: "reset の時刻を過ぎた（その見回りでゲートから）", by: machine }
   - { from: approved, to: merged, on: "マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）", by: machine, command: gh pr merge --match-head-commit, once: true }
   - { from: approved, to: waiting, on: "読み直すと head か checks が替わっていた（次の見回りでゲートから）", by: machine }
   - { from: approved, to: approved, on: "10 分たっても merged も asked も無い（届ける待ちに 1 回だけ積む）", by: machine }

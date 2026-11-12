@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -485,6 +486,12 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 		p.st.Gates[key] = g
 		return
 	}
+	if until, err := time.Parse(time.RFC3339, p.st.GHReset); err == nil && time.Now().Before(until) {
+		// gh の上限（rate limit）が戻るまで、ゲートも checks も読まない
+		p.logf("%s のゲートは gh の上限が戻る %s まで回さない", id, p.st.GHReset)
+		return
+	}
+	p.st.GHReset = ""
 	if h, ok := p.st.Waits[key]; ok && p.stillWaiting(id, rep.PR, h) {
 		// wait を返した head の checks がまだ揃っていない: ゲートを回さない（GraphQL の checks だけを読み、REST を使わない）
 		p.logf("%s は GitHub の checks を待つ（ゲートは回さない）: head %s の checks がまだ揃っていない", id, short12(h))
@@ -493,6 +500,12 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 	delete(p.st.Waits, key)
 	out, code, err := p.andon("", "gate", id)
 	var res gateResult
+	if code == 3 && rateLimited(err) {
+		// gh の上限で落ちた: wait と同じく控えに書かず問いにもせず、reset の時刻まで回し直さない
+		p.st.GHReset = ghReset(time.Now().UTC()).Format(time.RFC3339)
+		p.logf("%s のゲートは gh の上限（rate limit）で落ちた。%s まで回し直さない", id, p.st.GHReset)
+		return
+	}
 	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal([]byte(out), &res) != nil {
 		g.Decision = "needs_human"
 		p.st.Gates[key] = g
@@ -545,6 +558,34 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
 	p.st.Gates[key] = g
+}
+
+// rateLimited は andon gate が gh の上限（primary・secondary の rate limit）で落ちたか（stderr の gh の文）。
+func rateLimited(err error) bool {
+	var re *runError
+	return errors.As(err, &re) && strings.Contains(strings.ToLower(re.Stderr), "rate limit")
+}
+
+// ghReset は gh の上限が戻る時刻（gh api rate_limit。上限は数えない）。残りが 0 の resource の reset のうち一番遅いもの。
+// 読めない・どれも残っている（secondary rate limit）なら1分後（GitHub が待てと言う最短）。
+func ghReset(now time.Time) time.Time {
+	reset := now.Add(time.Minute)
+	out, _, err := run("", nil, "", "gh", "api", "rate_limit")
+	var v struct {
+		Resources map[string]struct {
+			Remaining int   `json:"remaining"`
+			Reset     int64 `json:"reset"`
+		} `json:"resources"`
+	}
+	if err != nil || json.Unmarshal([]byte(out), &v) != nil {
+		return reset
+	}
+	for _, r := range v.Resources {
+		if t := time.Unix(r.Reset, 0).UTC(); r.Remaining == 0 && t.After(reset) {
+			reset = t
+		}
+	}
+	return reset
 }
 
 // stillWaiting は、PR の head が wait を返したときの head のままで、ゲートを回しても wait になる checks のままか（GraphQL を1回）。

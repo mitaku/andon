@@ -73,6 +73,8 @@ type State struct {
 	Resumed map[string]Resumed `json:"resumed,omitempty"`
 	// ゲートが wait（GitHub の checks が走っている・まだ1つも無い）を返した head（<issue>#<log.jsonl の行> → head。loop.go の review）
 	Waits map[string]string `json:"waits,omitempty"`
+	// ゲートが gh の上限（rate limit）で落ちたとき、上限が戻る時刻（RFC3339。loop.go の review）。それまでゲートを回さない
+	GHReset string `json:"gh_reset,omitempty"`
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。

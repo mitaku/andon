@@ -88,6 +88,7 @@ type dispatcherState struct {
 	// Issues the dispatcher ran andon issue resume for → the gone terminal and the one it started
 	Resumed map[string]dsResumed `json:"resumed,omitempty"`
 	Waits   map[string]string    `json:"waits,omitempty"`
+	GHReset string               `json:"gh_reset,omitempty"`
 }
 
 type dsResumed struct {
