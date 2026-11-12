@@ -150,12 +150,24 @@ func (s *State) Save(slug string) error {
 }
 
 // Push は通知を積む。同じ課題の同じ出来事（issue と kind）は新しい1件に置き換える。
+// signal は issue が無いので、同じ信号（detail の source と key。fingerprint はこの2つから決まる）だけを置き換える
+// （ADR-0011 決めたこと 8 の改め。別の信号どうしは消し合わない）。
 func (s *State) Push(n Notification) {
 	out := s.Pending[:0]
 	for _, x := range s.Pending {
-		if x.Issue != n.Issue || x.Kind != n.Kind {
+		if !sameEvent(x, n) {
 			out = append(out, x)
 		}
 	}
 	s.Pending = append(out, n)
+}
+
+func sameEvent(a, b Notification) bool {
+	if a.Issue != b.Issue || a.Kind != b.Kind {
+		return false
+	}
+	if a.Kind == "signal" {
+		return a.Detail["source"] == b.Detail["source"] && a.Detail["key"] == b.Detail["key"]
+	}
+	return true
 }

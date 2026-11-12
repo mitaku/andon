@@ -56,6 +56,8 @@
 
    理由: 困りごと 2・3 は「受けても何もしない通知が届く」ことから来る。kind（と今あるキー）で線を引けば、判断は機械で決まり（決定式）、Chief of Staff の skill の表から「何もしない」の行が消える。線を Chief of Staff に引かせる（届けてから「無視してよい」と書く）のでは、ターンが減らない。
 
+   - **2026-11-12 `signal` の行を改める**（[ADR-0011](0011-signals-and-value-loop.md) 決めたこと 6・8 の実装。課題 A-0026）: `signal` は `weight: now` の信号だけを、出来事（`episodes`）ごとに1回**届ける**。Chief of Staff は直す課題に切る（トリアージの候補にはしない）。`later` の信号は通知にせず（記録だけの置き場にも書かない）、信号の記録 `<slug>.signals.json` をトリアージが拾う。待ちの中の置き換えの組は、課題が無いので (`kind`, 同じ信号〈`detail` の `source` と `key`〉) にする。表の行は上の「最初の版の後」のまま残し、この行で読む。
+
 2. **2026-11-09 記録だけの通知も消さない。dispatcher が控えの横に JSON Lines で追記する。** 置き場は `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控え `<slug>.json` と同じ所）。1行が1件の通知で、形は通知の JSON そのもの（contract.md §6。`schema/notification.schema.json` に通る）。新しいキーも新しい schema も足さない。
 
    - 書き手は dispatcher だけ（記録だけと決めた通知を、積む代わりにここへ1行足す）。読み手はボード（記録の一覧として見せる）。読み手の実装は別の課題で、Andon の約束としては「この置き場・1行1件・通知の schema」までを contract.md §1・§6 に書く。

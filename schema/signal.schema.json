@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/signal/1",
   "title": "Signals",
-  "description": "~/.local/state/andon/dispatcher/<slug>.signals.json (under XDG_STATE_HOME when set): the record of outside signals of one project, one entry per signal. Written only by the dispatcher (andon signal collect); read by triage, measure and the board. No body or stack trace is kept (a worker reads it from the source). Only these keys.",
+  "description": "~/.local/state/andon/dispatcher/<slug>.signals.json (under XDG_STATE_HOME when set): the record of outside signals of one project, one entry per signal. Written only by the dispatcher (andon signal collect, and andon signal delivered for delivered_episode); read by triage, measure and the board. No body or stack trace is kept (a worker reads it from the source). Only these keys.",
   "type": "object",
   "required": ["signals"],
   "additionalProperties": false,
@@ -12,6 +12,11 @@
       "type": "array",
       "uniqueKeys": ["fingerprint"],
       "items": { "$ref": "#/$defs/signal" }
+    },
+    "read_at": {
+      "description": "When andon signal collect last went to read each pair of source and repo (\"<source> <repo>\"), whether or not the read succeeded. collect --due reads a pair only when every minutes (default 10) have passed since then.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/time" }
     }
   },
   "$defs": {

@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"andon/internal/signal"
 )
 
 func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdout io.Writer) error {
@@ -302,7 +304,7 @@ func summary(slug, date string, goal any, items []item) string {
 	text := func(it item) any {
 		if t, ok := it["text"]; ok && t != nil && t != false {
 			if s, ok := t.(string); ok && it["untrusted"] == true {
-				return untrustedText(s)
+				return signal.Untrusted(s)
 			}
 			return t
 		}

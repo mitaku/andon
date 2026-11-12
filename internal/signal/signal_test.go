@@ -264,3 +264,111 @@ func mustMarshal(f *File) string {
 	b.Write(contract.Marshal(f))
 	return b.String()
 }
+
+// ADR-0011 受け入れ条件 9（every）: --due は出所と repo の組ごとに、前に読みに行った時刻から every 分（既定 10）たつまで読まない。
+// 読めなかった組も時刻を書く（gh が落ちている間も every より短く読みに行かない）。--due でなければいつも読む。
+func TestCollectDue(t *testing.T) {
+	every := 30
+	r := repo
+	p := &delegate.Project{Repos: []string{repo}, Signals: []delegate.Signal{
+		{Source: "github-ci", Repo: &r, Weight: "now"},
+		{Source: "github-issues", Weight: "later", Every: &every}}}
+	g := &fake{ci: ciRed, issues: issues2}
+	t0 := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	o := Options{Slug: "x", Project: p, Path: filepath.Join(t.TempDir(), "x.signals.json"), Now: t0, GH: g.gh, Due: true}
+	reads := func(at time.Duration) (ci, issues int) {
+		t.Helper()
+		g.calls = nil
+		o.Now = t0.Add(at)
+		var out strings.Builder
+		Collect(o, &out)
+		for _, c := range g.calls {
+			if c[0] == "api" {
+				ci++
+			} else {
+				issues++
+			}
+		}
+		return
+	}
+	for _, c := range []struct {
+		at         time.Duration
+		ci, issues int
+	}{{0, 1, 1}, {time.Minute, 0, 0}, {9*time.Minute + 59*time.Second, 0, 0}, {10 * time.Minute, 1, 0}, {19 * time.Minute, 0, 0}, {20 * time.Minute, 1, 0}, {29 * time.Minute, 0, 0}, {30 * time.Minute, 1, 1}} {
+		if ci, issues := reads(c.at); ci != c.ci || issues != c.issues {
+			t.Errorf("%v: CI %d 回・issue %d 回（want %d・%d）", c.at, ci, issues, c.ci, c.issues)
+		}
+	}
+	f, _ := Load(o.Path)
+	if f.ReadAt["github-ci "+repo] != "2026-11-10T09:30:00Z" || f.ReadAt["github-issues "+repo] != "2026-11-10T09:30:00Z" {
+		t.Errorf("read_at: %v", f.ReadAt)
+	}
+
+	// 読めなかった組も、次に読むのは every のあと（記録は変えない）
+	g.err = errors.New("HTTP 403 API rate limit exceeded")
+	if ci, _ := reads(40 * time.Minute); ci != 1 {
+		t.Fatalf("40 分: CI を読みに行かない")
+	}
+	g.err = nil
+	if ci, _ := reads(41 * time.Minute); ci != 0 {
+		t.Error("読めなかった組を every より前に読み直した")
+	}
+	if after, _ := Load(o.Path); !reflect.DeepEqual(after.Signals, f.Signals) {
+		t.Error("読めなかったのに記録が変わった")
+	}
+
+	// --due でなければ、間隔によらず読む（人が手で打つ）
+	o.Due = false
+	if ci, issues := reads(42 * time.Minute); ci != 1 || issues != 1 {
+		t.Errorf("--due でないのに読まない: %d %d", ci, issues)
+	}
+}
+
+// ADR-0011 決めたこと 8・ADR-0017 決めたこと 5 の (c): delivered は届けた出来事を delivered_episode に書く。
+// 同じか前の出来事では書かない（1回だけ）。記録に無い信号・まだ無い出来事は誤り。Undelivered は届ける now の信号だけを返す。
+func TestDelivered(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.signals.json")
+	rec := func(key, weight string, active bool, episodes, delivered int) Record {
+		return Record{Source: "github-ci", Project: "x", Key: key, URL: "https://example.com/" + key, Title: key, Weight: weight,
+			Fingerprint: Fingerprint("github-ci", key), FirstSeen: "2026-11-10T09:00:00Z", LastSeen: "2026-11-10T09:00:00Z",
+			Count: 1, Active: active, Episodes: episodes, DeliveredEpisode: delivered}
+	}
+	f := &File{Signals: []Record{rec("a", "now", true, 1, 0), rec("b", "now", true, 2, 1), rec("c", "now", true, 1, 1),
+		rec("d", "now", false, 1, 0), rec("e", "later", true, 1, 0)}}
+	f.Signals = append(f.Signals, rec("f", "now", true, 1, 0))
+	f.Signals[5].Project = "other"
+	writeFile(t, path, f)
+	var got []string
+	for _, r := range Undelivered(f, "x") {
+		got = append(got, r.Key)
+	}
+	if strings.Join(got, ",") != "a,b" {
+		t.Errorf("Undelivered: %v（a: 初めて・b: また出た。c は届けた・d は消えた・e は later・f は別のプロジェクト）", got)
+	}
+
+	fp := Fingerprint("github-ci", "b")
+	if wrote, err := Delivered(path, fp, 2); err != nil || !wrote {
+		t.Fatalf("b の 2: %v %v", wrote, err)
+	}
+	if wrote, err := Delivered(path, fp, 2); err != nil || wrote {
+		t.Errorf("同じ出来事を2回書いた: %v %v", wrote, err)
+	}
+	if wrote, err := Delivered(path, fp, 1); err != nil || wrote {
+		t.Errorf("前の出来事で戻した: %v %v", wrote, err)
+	}
+	for _, c := range []struct {
+		fp string
+		e  int
+	}{{fp, 3}, {fp, 0}, {Fingerprint("github-ci", "zz"), 1}} {
+		if _, err := Delivered(path, c.fp, c.e); err == nil {
+			t.Errorf("%s %d: 通った", c.fp, c.e)
+		}
+	}
+	after, _ := Load(path)
+	if b := find(after, "b"); b.DeliveredEpisode != 2 || b.Episodes != 2 || b.Count != 1 {
+		t.Errorf("b: %+v", b)
+	}
+	if len(Undelivered(after, "x")) != 1 {
+		t.Errorf("b を届けたあとも残る: %+v", Undelivered(after, "x"))
+	}
+}
