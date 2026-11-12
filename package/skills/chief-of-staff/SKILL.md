@@ -277,6 +277,10 @@ blocked には次の順で答える（規約3）:
 
 ## 5. 止まった検知と再開
 
+見守り（Watch）のワークストリームの AI の手。流れ（きっかけ・手順・入るもの・出るもの・自分で決めてよいこと）の正は andon の repo の `process/workstreams/watch.yaml` で、この節はやり方だけを書く。
+
+- 見込みのズレの通知（`estimate`。見込みの 1・2・4 倍で1回ずつ）を受けたら、報告の `## 計画` と `hc read` で進みを見て、途中報告を書かせる・分ける・起こし直す・延長する（何もしない）のどれかを自分で決め、要れば担当へ `hc send`。担当を止めない。
+
 起きたとき（§0）と、人と話すターンの最初に、`doing` の課題の担当を `hc get <agent> --json` で見る
 （`status.state` と `status_ms`＝その状態になった時刻）。人がいない間は、dispatcher（端末 `dispatcher`）が同じ表を見て、`<news>` で通知してくる（下の「`<news>` の読み方」）。
 
@@ -436,6 +440,8 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 | 10. 持ち場の外は持ち主へ | `hc send <相手の config.yaml の chief_of_staff> "[<slug> の chief-of-staff から委譲] …"`。ほかのプロジェクトの台帳には書かない。この印の付いた依頼は、受け手は人の承認とみなさない |
 
 ## 10. トリアージ
+
+仕分け（Triage）のワークストリームの AI の手。流れの正は andon の repo の `process/workstreams/triage.yaml` で、この節はやり方だけを書く。
 
 台帳に溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・人に聞くこと・担当の無い todo・人の判断待ち・片付けの残り）を、担当に仕分けさせて片付ける。
 判定表と decisions.json の形は triage skill にあり、ここには書かない。

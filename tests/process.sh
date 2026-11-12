@@ -7,6 +7,7 @@
 #   3b. process/states/ の transitions[].once: true が on の「§7.2 #<n>」で dispatcher.md §7.2 の行を指す（受け入れ条件 4）。
 #   4. andon process render --check: repo の docs/process/ と見本の生成物（tests/process/docs/process/）が作り直しても変わらない。
 #      生成物に機械が読む塊（```json・```yaml）が無い。
+#   5. ワークストリームが 8 本。見守り・仕分けは決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 6 本は name・title・purpose だけ（受け入れ条件 5）。
 # 道具は python3（標準ライブラリだけ）と jq と andon（tests/lib/andon.sh）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -174,5 +175,62 @@ for f in tests/process/process/workstreams/sample-watch.yaml tests/process/proce
     state) grep -q '^stateDiagram-v2$' "$md" && ok "$md は stateDiagram-v2" || ng "$md に stateDiagram-v2 が無い" ;;
   esac
 done
+
+# 5. ワークストリーム（受け入れ条件 5。ADR-0017 決めたこと 3・9・16）
+#    8 本がそろう。中身のある見守り・仕分けは項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 6 本は name・title・purpose だけ。
+#    by: ai の step の skill が package/skills/<名>/SKILL.md の節（「## <n>.」の見出し）を指す。
+want="intake launch observe receive relay retrospective triage watch"
+have=$(find process/workstreams -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort | tr '\n' ' ' | sed 's/ $//')
+[ "$have" = "$want" ] && ok "ワークストリームが 8 本ある" || ng "ワークストリームが 8 本でない: $have"
+# full_check <JSON> → 決めたこと 16 の項目が欠けた所を 1 行 1 つ
+full_check() {
+  jq -r '
+    (["triggers", "steps", "counts"][] as $k | select((.[$k] // []) | length == 0) | "\($k) が無い"),
+    (.steps[]? | . as $s
+      | (["input", "output"][] | select($s[.] == null) | "\($s.id): \(.) が無い"),
+        (if $s.by == "machine" then (["command"][] | select($s[.] == null) | "\($s.id): \(.) が無い")
+         elif $s.by == "ai" then (["skill", "decides"][] | select($s[.] == null) | "\($s.id): \(.) が無い")
+         else empty end))' "$1"
+}
+# skill_check <JSON> → 在らない SKILL の節を 1 行 1 つ
+skill_check() {
+  jq -r '.steps[]? | select(.by == "ai") | .skill | if type == "array" then .[] else . end' "$1" | sort -u |
+    while IFS= read -r ref; do
+      name=${ref%%#*} sec=; [ "$name" != "$ref" ] && sec=${ref#*#}
+      md=package/skills/$name/SKILL.md
+      if [ ! -f "$md" ]; then echo "$ref: $md が無い"
+      elif [ -n "$sec" ] && ! grep -qE "^## ${sec//./\\.}\. " "$md"; then echo "$ref: $md に「## $sec.」の節が無い"; fi
+    done
+}
+for n in watch triage; do
+  "$andon" process json "process/workstreams/$n.yaml" >"$tmp/ws.json"
+  out=$(full_check "$tmp/ws.json")
+  [ -z "$out" ] && ok "$n.yaml が決めたこと 16 の項目を全部持つ" || { ng "$n.yaml の項目が欠ける"; printf '     %s\n' "$out"; }
+  out=$(skill_check "$tmp/ws.json")
+  [ -z "$out" ] && ok "$n.yaml の skill が SKILL の節を指す" || { ng "$n.yaml の skill が在らない節を指す"; printf '     %s\n' "$out"; }
+done
+for n in intake launch observe receive relay retrospective; do
+  keys=$("$andon" process json "process/workstreams/$n.yaml" | jq -c 'keys')
+  [ "$keys" = '["name","purpose","title"]' ] && ok "$n.yaml は name・title・purpose だけ" || ng "$n.yaml のキーが name・title・purpose でない: $keys"
+done
+"$andon" process json process/workstreams/watch.yaml >"$tmp/ws.json"
+while IFS='@' read -r filter desc; do
+  [ -n "$filter" ] || continue
+  jq -e "$filter" "$tmp/ws.json" >/dev/null && ok "見守り: $desc" || ng "見守りに無い: $desc"
+done <<'WATCH'
+any(.triggers[]; .kind == "notification" and .notification == "estimate")@きっかけに ADR-0014 の estimate の通知
+any(.triggers[]; .kind == "interval")@きっかけに間隔
+any(.steps[]; (.input // []) | index("report.plan"))@手順の入るものに report.json の plan[]（report.plan）
+any(.steps[]; .by == "ai" and ((.decides // []) as $d | ["途中報告を書かせる", "分ける", "起こし直す", "延長する"] | all(. as $x | $d | index($x))))@AI の手順の decides に 途中報告を書かせる・分ける・起こし直す・延長する
+any(.counts[]; startswith("flow.wait."))@数えるものに状態ごとの時間（flow.wait.<status>）
+WATCH
+"$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"
+jq -e 'any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")' "$tmp/ws.json" >/dev/null &&
+  ok "仕分け: 通知 review から check（仕分けを確かめる）が始まる" || ng "仕分けに 通知 review → check のきっかけが無い"
+# 壊すと落ちる
+jq 'del(.counts)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: counts が無い" || ng "counts が無いのに通る"
+jq '(.steps[] | select(.by == "machine")) |= del(.command)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: by machine に command が無い" || ng "command が無いのに通る"
+jq '(.steps[] | select(.by == "ai")) |= (.skill = "chief-of-staff#99")' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(skill_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: 在らない SKILL の節" || ng "在らない SKILL の節が通る"
+jq '(.steps[] | select(.by == "ai")) |= (.skill = "no-such-skill")' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(skill_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: 在らない SKILL" || ng "在らない SKILL が通る"
 
 exit "$fail"

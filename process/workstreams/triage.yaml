@@ -1,0 +1,99 @@
+# 判定表と decisions.json の形は triage skill が正。ここは流れだけ。
+name: triage
+title: 仕分け（Triage）
+purpose: 台帳に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・人へ回すを決める
+triggers:
+  # ルーチン triage（週 1）が足した課題の ready
+  - name: routine
+    kind: notification
+    notification: ready
+    start: start
+  - name: person
+    kind: person
+    start: add
+  - name: signal
+    kind: notification
+    notification: signal
+    start: signal
+  # 仕分けの担当が報告して課題が review に入った（repo の無い課題なので届く）
+  - name: review
+    kind: notification
+    notification: review
+    start: check
+steps:
+  - id: signal
+    title: 外のお知らせを直す課題に切る
+    by: ai
+    input: [notification.signal]
+    output: [台帳（直す課題。links に信号の url）]
+    skill: chief-of-staff#1
+    decides: [直す課題に切る, 依頼書の要点]
+    asks:
+      - { question: レベル C の直しを進めてよいか, kind: line }
+  - id: add
+    title: 人のゴールでトリアージの課題を足す
+    by: ai
+    input: [人の言葉（ゴール）, 台帳（動いているトリアージ）]
+    output: [台帳（トリアージの課題）]
+    skill: chief-of-staff#10
+    decides: [足すか（同時に 1 つ）]
+    next: [{ id: start }]
+  - id: start
+    title: 仕分けの担当を起こす
+    by: ai
+    input: [notification.ready, 台帳（並行の上限）]
+    output: [hc（担当の端末）, 台帳（doing）]
+    skill: [chief-of-staff#10, chief-of-staff#3]
+    decides: [人に聞かずに起こす]
+    next: [{ id: collect }]
+  - id: collect
+    title: 溜まったものを拾う
+    by: machine
+    input: [台帳（報告・見送り・問い・todo・片付けの残り）]
+    output: [library/items.json]
+    command: andon triage collect
+    record: library/items.json
+    next: [{ id: sort }]
+  - id: sort
+    title: 項目ごとに確かめて仕分ける
+    by: ai
+    input: [library/items.json, PR と repo と台帳の実物]
+    output: [library/decisions.json, 報告, 台帳（review）]
+    skill: [triage#3, triage#4, worker#7]
+    decides: [close, fix, bundle, keep]
+  - id: check
+    title: 仕分けを確かめる
+    by: ai
+    input: [notification.review, 報告, library/decisions.json, andon triage apply --dry-run の出力]
+    output: []
+    skill: chief-of-staff#10
+    decides: [担当に戻す, 適用する]
+    next: [{ id: sort, when: 閉じる理由が読めない }, { id: apply, when: 読める }]
+  - id: apply
+    title: 仕分けを台帳に当てる
+    by: machine
+    input: [library/decisions.json]
+    output: [台帳（閉じた・足した課題）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
+    command: andon triage apply
+    record: library/triage/<日付>-<id>.json
+    next: [{ id: finish }]
+  - id: finish
+    title: トリアージの課題を片付ける
+    by: machine
+    input: [台帳（review）]
+    output: [台帳（done）]
+    command: andon issue finish
+    next: [{ id: follow }]
+  - id: follow
+    title: 足した課題を起こし、人へ伝える
+    by: ai
+    input: [library/triage/<日付>-<id>.md, 台帳（人の課題）]
+    output: [hc（担当の端末）, herdr notification, 人への 1 問]
+    skill: [chief-of-staff#10, ask-one-by-one]
+    decides: [fix と bundle の課題を起こす, 片付け待ちを finish する]
+    asks:
+      - { question: 何を作るか（person に仕分けた項目）, kind: business }
+      - { question: 使い勝手の好み（person に仕分けた項目）, kind: users }
+      - { question: 外との約束と公開（person に仕分けた項目）, kind: promise }
+      - { question: 消す・本番・権限（person に仕分けた項目）, kind: irreversible }
+counts: [flow.closed, flow.wip_end, flow.wait.todo]
