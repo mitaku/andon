@@ -38,6 +38,7 @@ EOF
 - `projects/<slug>/` で打つ。台帳の repos が2つ以上なら `--repo <host/owner/repo>` を足す。Chief Engineer は1プロジェクトに同時に何人いてもよい。
 - 起こしたら人に1行で、`出た場所` の行を写して「続きはそちらで」と伝える。仕様・設計を詰めるのは Chief Engineer と人で、自分は詰めない。
 - 人が自分で `andon chief-engineer` を打ってもよい。
+- 振り分けに迷うとき（直す課題か Chief Engineer か）と、2回差し戻して切り直すとき（§6）は、advisor に相談してから決める。
 
 ## 0. 起きたとき・毎ターンの最初に読むもの
 

@@ -17,6 +17,7 @@
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
 #      CoS skill の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
 #  14. 受け入れ条件の証拠の質（ADR-0007 R5）: contract.md §4 の acceptance[] の行・CE skill・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない。
+#  15. Advisor（ADR-0022 受け入れ条件 1・2）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -313,6 +314,19 @@ grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引�
   && pass "Chief Engineer の「読む」と Chief of Staff §1 が wiki を index.md → ページの順で引く" || fail "読む側が index.md → ページの順を指していない"
 # ADR-0009 受け入れ条件 4: Chief of Staff の template が wiki を道具の届く場所に足す
 case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /workspace/wiki "*) pass "Chief of Staff の template の command に --add-dir /workspace/wiki" ;; *) fail "Chief of Staff の template に --add-dir /workspace/wiki が無い" ;; esac
+# ADR-0022 受け入れ条件 1・2: Advisor（Fable）は Chief of Staff だけ。skill の「人の入口」に相談する場面の1行
+case " $(fm package/templates/chief-of-staff.md command) " in *" --advisor fable "*) pass "Chief of Staff の template の command に --advisor fable" ;; *) fail "Chief of Staff の template に --advisor fable が無い" ;; esac
+left=
+for p in $profiles; do
+  [ "$p" = chief-of-staff ] && continue
+  for field in command resume; do
+    case " $(fm "package/templates/$p.md" "$field") " in *--advisor*) left="$left $p.$field" ;; esac
+  done
+done
+[ -z "$left" ] && pass "chief-of-staff のほかのプロファイルの command・resume に --advisor が無い" || fail "--advisor が付いている:$left"
+sed -n '/^## 人の入口$/,/^## 0\. /p' "$cos" | grep 'advisor に相談してから決める' | grep -q '振り分けに迷うとき' \
+  && sed -n '/^## 人の入口$/,/^## 0\. /p' "$cos" | grep 'advisor に相談してから決める' | grep -q '2回差し戻して切り直すとき' \
+  && pass "Chief of Staff の skill の「人の入口」に advisor に相談する場面（振り分けに迷うとき・2回差し戻して切り直すとき）" || fail "Chief of Staff の skill の「人の入口」に advisor の1行が無い"
 
 # Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
 set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^kanban set ')

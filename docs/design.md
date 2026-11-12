@@ -233,6 +233,8 @@ Andon が**持つ**のは パッケージ・約束・文書と、セルの形。
 | dispatcher | 通知・レビュアーの起動・ゲート・片付け | しない | しない | セルに1つ常駐 | — |
 | 担当・レビュアー | 1課題・1レビュー | 問いは台帳経由 | 自工程の品質 | Chief of Staff（dispatcher）が起こす | `claude`・`codex`・`*-review` |
 
+`chief-of-staff` のプロファイルには Advisor（Fable）を試験運用で付けている（起動行の `--advisor fable`。[ADR-0022](adr/0022-advisor-and-chief-engineer.md)）。
+
 mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切る（to-tickets）・実装を回す・retro」を1つの役に持たせる。Andon はそれを **Chief Engineer（問いと spec）／Chief of Staff（tickets と回すことと振り返り）**に割る。割る線は「人と話すか」。名前は mattpocock の語をそのまま取る（人の決定 2026-11-05。TPS の対応は §1.7 のチームリーダー）。
 
 #### Chief Engineer の SKILL の骨格（`package/skills/chief-engineer/SKILL.md`。短く書く。決まった手順は command へ）
