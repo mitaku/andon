@@ -5,6 +5,39 @@
 - 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
 - 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
 
+## v0.0.10 — 2026-11-12
+
+離席中の Chief of Staff を、入力欄へ打たずに起こす形（ADR-0019）に替えた版。dispatcher は `<news>` を入力欄へ `hc send` しなくなり、Stop の待ち役が合図で起こす。ほかに、担当が画面を見て確かめる道具（ADR-0018）、止まった担当の自動の resume（ADR-0012）、課題の見込みと実働（ADR-0014）、仕事の流れと状態の定義（ADR-0017）、人への書き方の置き場 `package/writing.md`（ADR-0013）、triage が拾う memory（ADR-0020）が入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` の変更は項目と値を足しただけ）。auto memory そのもの（ADR-0020 の M3）はまだ入っていない。
+
+### 変わったこと
+
+- **離席中は待ち役が Chief of Staff を起こし、入力欄へ `<news>` を打たない**（[ADR-0019](docs/adr/0019-cos-input-box.md) W4・W5）: Stop の `asyncRewake` のフック `hooks/stop-wait` が `andon dispatcher wait` を起こし、届ける通知があって Chief of Staff が入力待ちなら合図の 1 行で新しいターンを始める。入力欄の書きかけは残る。timeout は 7200 秒で、その 9 割で張り直す。dispatcher の入力欄の確かめ・離席時の `hc send`・「続けて」を打つ道・控えの `coord`・`news_turn` は消した（#184・#189。前の確かめの寄せは #165）。
+- **Stop の drain は `additionalContext` で渡す**: `decision: block` をやめ、画面の「Stop hook error」を出さない。控えの lock を諦めても、渡した turn の終わりを控えの外に残し、次の送信で `<news>` を届け直さない（#174・#181）。
+- **止まった担当を 1 回だけ自動で起こし直す**: 端末が Gone の `doing` の担当を、dispatcher が `andon issue resume` で 1 回起こす（通知の kind に `resumed`。[ADR-0012](docs/adr/0012-resume-and-worktree-home.md) R4。#173）。resume の文書・Chief of Staff の止まった担当の表・worker と Chief Engineer の続きの読み方・`git clean -x` の注意（R5。#176）。
+- **`andon issue` が定義に無い状態の移り方を断る**: `process/states/issue.yaml` を `andon` に埋め込み、無い移り方は打てない（[ADR-0017](docs/adr/0017-process-definitions.md) P12。#177）。
+- **仕事の流れと状態の定義**: 残り 7 本のステートマシンと記録の項目の対応表（P2b。#159）、外のお知らせの一生 `process/states/signal.yaml`（P2a。#166）、見守り・仕分けの定義と残り 6 本のワークストリームの名前・Chief of Staff skill §5・§10・用語集（P3。#188）。
+- **課題の見込みと実働**: 予約キー `estimate`（`small`・`medium`・`large`）と依頼書の Estimate の行（[ADR-0014](docs/adr/0014-issue-estimate.md) E1。#162）。待ちを除いた実働を `log.jsonl` と Gone の時刻から数える `ledger.Worked` と、段→分の表（E2。#182）。
+- **担当が画面を見て確かめる**（[ADR-0018](docs/adr/0018-screen-check-tooling.md)）: image に `playwright-cli` の wrapper と PATH、焼いた Chromium と出力先 `/tmp/playwright-cli` の既定を入れた（S2。#161）。boot が同梱の skill を symlink で張り、外の skill を `gh skill` で入れる口（`package/gh-skills.txt`・セルの `local/gh-skills.txt`。S3。#179）。ゲートに `screen_paths`（画面のパスを変える PR は GitHub の添付が無いと `fix`。既定は無し。S4。#163）。skill・設定・文書を画面の確かめに揃えた（`allowManagedPermissionRulesOnly`・worker §2・§3・§7・independent-review の観点・environment.md。S5。#167）。
+- **managed の許可ルールだけが効く**: `allowManagedPermissionRulesOnly: true`。担当の `git push --force-with-lease` を通す許可を足し（`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` の env は消した。#160）、main・`--all`・`--mirror` に当たる形は managed の deny で断る（#169）。
+- **Codex の自動の記憶を止める**: boot が `~/.codex/config.toml` の `features.memories`・`memories.generate_memories`・`memories.use_memories` を `false` にし、`codex`・`codex-review` のプロファイルは同じ `-c` を渡す（#183）。
+- **`fable` と `chief-engineer` は `--effort high` を明示して起こす**（#168。[design.md](docs/design.md) §1.8 の表も合わせた）。
+- **人への書き方を `package/writing.md` に置き、boot が全役に入れる**: 番号の 2 行と 3 行・語の決まり・用語集のパス（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) V1。#175・#185）。ADR-0013 の改めで、細かい書き方の推敲を yomiyasu に任せられるかをセル 1 つで試す（#190）。
+- **triage が memory を拾う**: `collect` が `/workspace/memory` の 1 件 1 ファイルを `kind: memory` で拾い、`apply` が `keep` 以外の memory と目録の行を消す。収集のあと書き換わったものは消さず、記録に `memory_kept` を書く（[ADR-0020](docs/adr/0020-auto-memory-as-intake.md) 決めたこと 3・5。#191・#193）。auto memory を書かせる側（M3）はまだ無い。
+- **skill の手直し**: worker（承認の表・書く場所を 1 か所に・報告の字数・hc の reach は指示ではない。#171）、Chief Engineer の「読む」から常設の副エージェントを外す（#164）、価値の仮説の 6 項目・観察の課題（`--parent` と `not_before`）・signal の受け方・worker の観察の報告（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) S7。#180）、`AGENTS.md`・`REVIEW.md` の古い注意書き（#172）。
+- **検査**: 検査をセルの本物の台帳と HOME から切り離し、偽のセルで確かめる `tests/isolation`（#187）。
+- **文書（動作は変えない）**: [ADR-0019](docs/adr/0019-cos-input-box.md)（#170）・[ADR-0020](docs/adr/0020-auto-memory-as-intake.md)（提案。#186）を足し、README の ADR の地図を 0001〜0019 に揃えた（#178）。
+
+### 上げるときにすること
+
+- image を上げて `rebuild` する。台帳の形式（3）・schema の版（`/2`）は変わらず、前の版の台帳・`library/` はそのまま読める（`schema/` は項目・値を足しただけ）。**台帳のための手作業は無い**。dispatcher の控え（`<slug>.json`）に残る `coord`・`news_turn` は読み捨てる。
+- **Chief of Staff を起こし直す**: 待ち役の Stop フック（`stop-wait`）と `allowManagedPermissionRulesOnly` は managed settings の変更で、動いている Claude Code には効かない。Chief of Staff（と動いている担当）を `hc kill` して `andon chief-of-staff` で起こし直す（[docs/operate.md](docs/operate.md) の Chief of Staff の行）。dispatcher は boot が起こし直す。効いたかは operate の「待ち役」の確かめ（`hc read dispatcher` に Chief of Staff への `hc send` が無いこと）。
+- **managed の許可ルールだけが効く**: セルで user・project・local の `allow` に頼っていた許可は無視される。必要なものは `package/settings.json` に足す（足りなければ Chief of Staff が許可の確認に答える）。
+- **Codex の設定が書き換わる**: `~/.codex/config.toml` に `memories`・`features` の表がすでにあって `false` でないと、boot が TOML を作り直し、元を `config.toml.bak` に退避する（表が無ければ先頭に足すだけ）。既存の記憶ファイルは消えない。動いている Codex は起こし直すまで前の設定のまま。
+- **外の skill を使うなら**: セルの `local/gh-skills.txt` に `<owner>/<repo> <skill>` を書き、`gh auth login` 済みにする（既定は空。書かなければ何も入れない。同梱の `playwright-cli` は boot が張る）。
+- **画面を変える PR に添付を求めるなら**: セルの `gate.local.json` の `screen_paths` に画面のパスを書く（既定は無しで、何も変わらない）。
+- **App の mod の置き直しは要らない**（`package/host` は変わっていない）。
+- `memories`／auto memory: ADR-0020 の M3（auto memory を有効にして気づきを書かせる側）は入っていないので、`CLAUDE_CODE_DISABLE_AUTO_MEMORY` と `autoMemoryEnabled: false` は前の版のまま。`/workspace/memory` に置いたファイルがあれば triage が拾う。
+
 ## v0.0.9 — 2026-11-11
 
 dispatcher がルーチンを撃つようになり、`<news>` の答えを ack だけにし、Claude のプロファイルをモデルの別名に揃えた版。仕事の流れと状態の定義（ADR-0017）の器と、セルの wiki の新しい形（ADR-0016）が入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/process/` は新しいファイルで、既存の schema は変えていない）。
