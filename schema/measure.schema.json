@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/measure/1",
   "title": "Measure",
-  "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json and GitHub's merged pull requests. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
+  "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl). Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
-  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "prs", "skipped"],
+  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "skipped"],
   "additionalProperties": false,
   "properties": {
     "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
@@ -161,13 +161,43 @@
         }
       }
     },
+    "news": {
+      "description": "Notifications per kind: how many were delivered to the Chief of Staff, how many of those ended in a turn with andon news ack (passed through: nothing to tell the person), and how many were recorded only. Counted from the lines of <slug>.delivered.jsonl and <slug>.recorded.jsonl whose at falls in the period.",
+      "type": "object",
+      "required": ["threshold", "kinds", "candidates"],
+      "additionalProperties": false,
+      "properties": {
+        "threshold": { "description": "A kind whose rate is this or more is a candidate.", "type": "number", "minimum": 0 },
+        "kinds": {
+          "description": "One entry per kind seen in either record, by kind name.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "delivered", "acked", "rate", "recorded"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "description": "Notification kind.", "type": "string", "minLength": 1 },
+              "delivered": { "description": "Delivered in a turn whose end the dispatcher saw.", "$ref": "#/$defs/count" },
+              "acked": { "description": "Of delivered, those whose turn had andon news ack.", "$ref": "#/$defs/count" },
+              "rate": { "description": "acked / delivered, or null when delivered is 0.", "$ref": "#/$defs/rate" },
+              "recorded": { "description": "Recorded only, not delivered.", "$ref": "#/$defs/count" }
+            }
+          }
+        },
+        "candidates": {
+          "description": "Kinds with delivered above 0 and rate at or above threshold: candidates to move to recorded only. The person decides.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "prs": {
       "description": "The ledger pull requests merged in the period, one each, by issue id.",
       "type": "array",
       "items": { "$ref": "#/$defs/pr" }
     },
     "skipped": {
-      "description": "Records not counted because they could not be read: a log.jsonl line, a file, or a repository whose merged pull requests could not be listed.",
+      "description": "Records not counted because they could not be read: a log.jsonl line, a line of the dispatcher's notification records, a file, or a repository whose merged pull requests could not be listed.",
       "type": "array",
       "items": { "$ref": "#/$defs/skip" }
     }

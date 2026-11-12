@@ -3,7 +3,8 @@
 //
 // 読むだけ。台帳にも library/ にも書かず、集計を保存しない。読むもの: log.jsonl・issues/<id>/issue.yaml・
 // questions.yaml・library/report.json・library/gate/<sha>.json・library/corrections.json と、
-// GitHub のマージされた PR の一覧（gh pr list。repo ごとに1回）。Markdown は読まない。
+// GitHub のマージされた PR の一覧（gh pr list。repo ごとに1回）と、dispatcher の記録だけの通知
+// （<slug>.recorded.jsonl）・届けた通知の記録（<slug>.delivered.jsonl）。Markdown は読まない。
 // 読めない記録は止まらずに飛ばし、飛ばした件数と理由を出す（黙って 0 に数えない）。
 package measure
 
@@ -24,13 +25,15 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"andon/internal/dispatcher"
 	"andon/internal/ledger"
 )
 
 // Usage は andon measure の使い方。
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
 	"台帳（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
-	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・人が開け直した数）を数える。読むだけで、何も書かない。\n" +
+	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・人が開け直した数）と、通知の kind ごとの素通りの数を数える。\n" +
+	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
 
 // Options は数える入力。
@@ -41,6 +44,8 @@ type Options struct {
 	Now   time.Time
 	// GH は repo（<owner>/<repo>）のマージされた PR の一覧を gh pr list --json number,url,title,body,mergedAt の形で返す。
 	GH func(repo string) ([]byte, error)
+	// Recorded・Delivered は dispatcher の記録だけの通知と届けた通知の記録（contract.md §6・§17）のパス。空なら読まない。
+	Recorded, Delivered string
 }
 
 // Stat は件数と平均か中央値（件数が 0 なら null）。
@@ -65,6 +70,7 @@ type Result struct {
 	Flow       Flow       `json:"flow"`
 	Efficiency Efficiency `json:"efficiency"`
 	Counter    Counter    `json:"counter"`
+	News       News       `json:"news"`
 	PRs        []PR       `json:"prs"`
 	Skipped    []Skip     `json:"skipped"`
 }
@@ -140,6 +146,25 @@ type Reopened struct {
 	Corrections string         `json:"corrections"` // recorded: corrections.json が1つでもある。none: 1つも無い（記録なし）
 	ByTier      map[string]int `json:"by_tier"`
 }
+
+// News は Chief of Staff へ届けた通知の素通り（kind ごと。docs/decisions/2026-11-12-measure-news-pass-through.md）。
+type News struct {
+	Threshold  float64    `json:"threshold"`  // 素通りの割合がこれ以上の kind を候補にする
+	Kinds      []NewsKind `json:"kinds"`      // kind の名前順
+	Candidates []string   `json:"candidates"` // 記録だけへ移す候補（移すかは人が決める）
+}
+
+// NewsKind は kind 1つの数。
+type NewsKind struct {
+	Kind      string   `json:"kind"`
+	Delivered int      `json:"delivered"` // 届けて、渡したターンの終わりを見た数
+	Acked     int      `json:"acked"`     // そのうち andon news ack で終わったターンの数（素通り）
+	Rate      *float64 `json:"rate"`      // acked ÷ delivered（delivered が 0 なら null）
+	Recorded  int      `json:"recorded"`  // 記録だけにして届けなかった数
+}
+
+// passThrough は記録だけへ移す候補の閾値（8割以上が素通り）。
+const passThrough = 0.8
 
 // PR は期間にマージされた台帳の PR 1本。
 type PR struct {
@@ -580,6 +605,8 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
+	res.News = r.news(o, in)
+
 	sort.SliceStable(r.skipped, func(i, j int) bool {
 		if r.skipped[i].Source != r.skipped[j].Source {
 			return r.skipped[i].Source < r.skipped[j].Source
@@ -952,6 +979,108 @@ func (r *reader) github(gh func(string) ([]byte, error), repo string) ([]ghPR, e
 	return list, nil
 }
 
+// news は記録だけの通知と届けた通知の記録から、期間の中（行の at）の kind ごとの数を数える。
+func (r *reader) news(o Options, in func(time.Time) bool) News {
+	by := map[string]*NewsKind{}
+	get := func(kind string) *NewsKind {
+		if by[kind] == nil {
+			by[kind] = &NewsKind{Kind: kind}
+		}
+		return by[kind]
+	}
+	r.jsonl(o.Recorded, func(src string, line int, b []byte) {
+		var v struct {
+			At   string `json:"at"`
+			Kind string `json:"kind"`
+		}
+		if json.Unmarshal(b, &v) != nil || v.Kind == "" {
+			r.skip(src, line, "kind を持つ JSON の object でない")
+			return
+		}
+		at, ok := parseAt(v.At)
+		if !ok {
+			r.skip(src, line, "at が UTC の時刻（YYYY-MM-DDTHH:MM:SSZ）でない")
+			return
+		}
+		if in(at) {
+			get(v.Kind).Recorded++
+		}
+	})
+	r.jsonl(o.Delivered, func(src string, line int, b []byte) {
+		var v struct {
+			At    string `json:"at"`
+			Acked *bool  `json:"acked"`
+			News  []struct {
+				Kind string `json:"kind"`
+			} `json:"news"`
+		}
+		if json.Unmarshal(b, &v) != nil || v.Acked == nil {
+			r.skip(src, line, "acked を持つ JSON の object でない")
+			return
+		}
+		at, ok := parseAt(v.At)
+		if !ok {
+			r.skip(src, line, "at が UTC の時刻（YYYY-MM-DDTHH:MM:SSZ）でない")
+			return
+		}
+		if !in(at) {
+			return
+		}
+		for _, n := range v.News {
+			if n.Kind == "" {
+				r.skip(src, line, "news に kind の無い通知がある。その1件は数えていない")
+				continue
+			}
+			k := get(n.Kind)
+			k.Delivered++
+			if *v.Acked {
+				k.Acked++
+			}
+		}
+	})
+	out := News{Threshold: passThrough, Kinds: []NewsKind{}, Candidates: []string{}}
+	names := make([]string, 0, len(by))
+	for k := range by {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		k := *by[name]
+		k.Rate = ratio(k.Acked, k.Delivered)
+		out.Kinds = append(out.Kinds, k)
+		if k.Delivered > 0 && float64(k.Acked) >= passThrough*float64(k.Delivered) {
+			out.Candidates = append(out.Candidates, name)
+		}
+	}
+	return out
+}
+
+// jsonl は JSON Lines のファイルを1行ずつ f に渡す（空の行は飛ばす）。パスが空・ファイルが無ければ何もしない（まだ無い記録）。
+// 飛ばした記録の source は dispatcher の置き場からの名前（絶対パスを書かない）。
+func (r *reader) jsonl(path string, f func(src string, line int, b []byte)) {
+	if path == "" {
+		return
+	}
+	src := "dispatcher/" + filepath.Base(path)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			why := "読み取りの誤り"
+			var pe *fs.PathError
+			if errors.As(err, &pe) {
+				why = pe.Err.Error()
+			}
+			r.skip(src, 0, "読めない（%s）", why)
+		}
+		return
+	}
+	for i, line := range strings.Split(string(b), "\n") {
+		if strings.TrimSpace(line) != "" {
+			f(src, i+1, []byte(line))
+		}
+	}
+}
+
 // GH は gh pr list でマージされた PR を読む。
 func GH(repo string) ([]byte, error) {
 	out, err := exec.Command("gh", "pr", "list", "--repo", repo, "--state", "merged", "--limit", "1000",
@@ -1020,7 +1149,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 		root = l.Root
 	}
-	res, err := Measure(Options{Root: root, Since: since, Until: until, Now: now, GH: GH})
+	slug := filepath.Base(root)
+	res, err := Measure(Options{Root: root, Since: since, Until: until, Now: now, GH: GH,
+		Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug)})
 	if err != nil {
 		fmt.Fprintf(stderr, "andon measure: %v\n", err)
 		return 1
@@ -1081,7 +1212,7 @@ func pct(r *float64, n, d int) string {
 	return fmt.Sprintf("%.0f%%（%d / %d）", *r*100, n, d)
 }
 
-// Table は人向けの表。価値 → 流れ → 効率の順で、自動マージ率の行に対抗の指標を並べる。
+// Table は人向けの表。価値 → 流れ → 効率 → 通知の順で、自動マージ率の行に対抗の指標を並べる。
 func Table(w io.Writer, res *Result, states []string) {
 	val := res.Value
 	obs := none
@@ -1132,6 +1263,7 @@ func Table(w io.Writer, res *Result, states []string) {
 		gate = fmt.Sprintf("%.0f%%（fix %d・needs_human %d / %d）", *e.Gate.Rate*100, e.Gate.Fix, e.Gate.NeedsHuman, e.Gate.Records)
 	}
 	fmt.Fprintf(w, "  ゲートの差し戻し率             %s\n", gate)
+	newsTable(w, res.News)
 	if len(res.Skipped) == 0 {
 		return
 	}
@@ -1143,4 +1275,20 @@ func Table(w io.Writer, res *Result, states []string) {
 		}
 		fmt.Fprintf(w, "  %s  %s\n", loc, s.Reason)
 	}
+}
+
+// newsTable は通知の節（kind ごとの素通りと、末尾に記録だけへ移す候補）。
+func newsTable(w io.Writer, n News) {
+	fmt.Fprintln(w, "\n通知（Chief of Staff へ届けた数と、andon news ack で終わった素通り）")
+	if len(n.Kinds) == 0 {
+		fmt.Fprintf(w, "  %s\n", none)
+	}
+	for _, k := range n.Kinds {
+		fmt.Fprintf(w, "  %-18s 届けた %d・素通り %s・記録だけ %d\n", k.Kind, k.Delivered, pct(k.Rate, k.Acked, k.Delivered), k.Recorded)
+	}
+	cand := "なし"
+	if len(n.Candidates) > 0 {
+		cand = strings.Join(n.Candidates, "・")
+	}
+	fmt.Fprintf(w, "  記録だけへ移す候補（%.0f%%以上が素通り。移すかは人が決める）  %s\n", n.Threshold*100, cand)
 }

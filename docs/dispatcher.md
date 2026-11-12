@@ -290,7 +290,8 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer は人と直接話す役で、人の返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff は人への問いに答えない。`ready` は `andon chief-engineer` が起こした直後で、もう起きている。`error`・`finished`・`review`（文書の PR）は届ける |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起こす・rebase を頼む・人へ知らせる・続きを促す |
 
-- **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード。
+- **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボードと `andon measure`。
+- **届けた通知の記録**は同じ所の `<slug>.delivered.jsonl`（contract.md §17）。`drain` がフックで渡した `<news>` のターンの終わりを見たときに1行（時刻・`acked`・渡した通知の `issue` と `kind`）。追記だけで、書けなくても届けは止めない。`andon measure` が記録だけの置き場と合わせて、kind ごとの素通り（ack で終わった数）を数える（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
 - **10分**は dispatcher の時計で、記録した approve の `at` から測る（見回りが1分ごとなので、merge queue の repo でも10巡は待つ）。仮の値で、ほかの間（§2.1）と同じくコードの定数（`approveWait`）。回し直したゲート（§2.1.1 の 5 の読み直しで次の巡に持ち越した approve）では測り直さない。ゲートが別の答えを出した・`review` から出た課題の分は捨てる。
 - 課題の見分けは今ある項目だけ（`gated`・`isReviewer`。新しいキーは足さない）。
 

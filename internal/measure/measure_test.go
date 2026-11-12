@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,6 +241,7 @@ func TestMainEmptyProjectExitsZero(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "empty")
 	put(t, filepath.Join(root, "kanban/config.yaml"), "version: 3\n")
 	t.Setenv("KANBAN_ROOT", root)
+	t.Setenv("XDG_STATE_HOME", t.TempDir()) // dispatcher の置き場をセルの本物から外す
 	for _, args := range [][]string{nil, {"--json"}} {
 		var out, errb bytes.Buffer
 		if rc := Main(args, nil, &out, &errb); rc != 0 || errb.Len() != 0 {
@@ -534,5 +536,132 @@ func TestValueMatchesHandCount(t *testing.T) {
 	}
 	if v := res.Value; v.Observed.Count != 1 || v.Observed.Unknown != 1 || v.DaysToObserve.Count != 1 || val(v.DaysToObserve.Days) != 5.0 || v.NoHypothesis != 0 {
 		t.Errorf("狭めた期間: %+v", v)
+	}
+}
+
+// fakeNews は偽の dispatcher の記録（届けた通知の記録と記録だけの通知）を置き、Options に足す。
+//
+// 期間 2026-11-01〜2026-11-04 で手で数えた値:
+//
+//	届けたターン（期間の中）: ①report・ready（ack）②report（ack）③report・asked（ack なし）④report（ack）⑤ready（ack なし）⑥report（ack）
+//	  期間の外: 10-31 の report（ack）・11-05 の asked（ack）は数えない。壊れた行 1・kind の無い通知 1 は飛ばす。
+//	  report: 届けた 5・素通り 4（①②④⑥）= 0.8 → 候補（8割ちょうど）
+//	  ready:  届けた 2・素通り 1 = 0.5
+//	  asked:  届けた 1・素通り 0 = 0
+//	記録だけ（期間の中）: merged 3・review-requested 1。期間の外の merged 1 は数えない。壊れた行 1 は飛ばす。
+//	  merged: 届けた 0・rate null・記録だけ 3 → 候補にしない（届けていない）
+func fakeNews(t *testing.T, o Options) Options {
+	dir := filepath.Join(t.TempDir(), "andon", "dispatcher")
+	o.Delivered = filepath.Join(dir, "sample-site.delivered.jsonl")
+	o.Recorded = filepath.Join(dir, "sample-site.recorded.jsonl")
+	put(t, o.Delivered, strings.Join([]string{
+		`{"at":"2026-10-31T23:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0001","kind":"report"}]}`,
+		`{"at":"2026-11-01T01:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0001","kind":"report"},{"issue":"S-0002","kind":"ready"}]}`,
+		`{"at":"2026-11-01T02:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0001","kind":"report"}]}`,
+		`{"at":"2026-11-02T01:00:00Z","project":"sample-site","acked":false,"news":[{"issue":"S-0002","kind":"report"},{"issue":"S-0002","kind":"asked"}]}`,
+		`broken`,
+		`{"at":"2026-11-02T03:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0002","kind":"report"},{"issue":"S-0003"}]}`,
+		`{"at":"2026-11-03T01:00:00Z","project":"sample-site","acked":false,"news":[{"issue":"S-0003","kind":"ready"}]}`,
+		`{"at":"2026-11-04T23:59:59Z","project":"sample-site","acked":true,"news":[{"kind":"report"}]}`,
+		`{"at":"2026-11-05T00:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0003","kind":"asked"}]}`,
+	}, "\n")+"\n")
+	put(t, o.Recorded, strings.Join([]string{
+		`{"at":"2026-10-31T00:00:00Z","project":"sample-site","issue":"S-0001","kind":"merged","detail":{}}`,
+		`{"at":"2026-11-01T06:00:00Z","project":"sample-site","issue":"S-0001","kind":"merged","detail":{}}`,
+		`{"at":"2026-11-02T05:00:00Z","project":"sample-site","issue":"S-0002","kind":"review-requested","detail":{}}`,
+		`{"at":"2026-11-02T12:00:00Z","project":"sample-site","issue":"S-0002","kind":"merged","detail":{}}`,
+		`{"at":"nope","project":"sample-site","kind":"merged","detail":{}}`,
+		`{"at":"2026-11-04T00:00:00Z","project":"sample-site","issue":"S-0003","kind":"merged","detail":{}}`,
+	}, "\n")+"\n")
+	return o
+}
+
+func TestNewsMatchesHandCount(t *testing.T) {
+	res, err := Measure(fakeNews(t, opts(fakeLedger(t))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := func(x float64) *float64 { return &x }
+	want := []NewsKind{
+		{Kind: "asked", Delivered: 1, Acked: 0, Rate: f(0)},
+		{Kind: "merged", Recorded: 3},
+		{Kind: "ready", Delivered: 2, Acked: 1, Rate: f(0.5)},
+		{Kind: "report", Delivered: 5, Acked: 4, Rate: f(0.8)},
+		{Kind: "review-requested", Recorded: 1},
+	}
+	got := res.News.Kinds
+	if len(got) != len(want) {
+		t.Fatalf("kind の数が違う: %+v", got)
+	}
+	for i, w := range want {
+		g := got[i]
+		if g.Kind != w.Kind || g.Delivered != w.Delivered || g.Acked != w.Acked || g.Recorded != w.Recorded || val(g.Rate) != val(w.Rate) {
+			t.Errorf("%s: got {届けた %d 素通り %d 率 %v 記録だけ %d} want {%d %d %v %d}",
+				w.Kind, g.Delivered, g.Acked, val(g.Rate), g.Recorded, w.Delivered, w.Acked, val(w.Rate), w.Recorded)
+		}
+	}
+	if res.News.Threshold != 0.8 {
+		t.Errorf("閾値が 0.8 でない: %v", res.News.Threshold)
+	}
+	// 候補は閾値（8割）以上の kind だけ: report（0.8 ちょうど）は出し、ready（0.5）・asked（0）・届けていない merged は出さない
+	if c := res.News.Candidates; len(c) != 1 || c[0] != "report" {
+		t.Errorf("候補が report だけでない: %v", c)
+	}
+	var skipped []string
+	for _, s := range res.Skipped {
+		if strings.HasPrefix(s.Source, "dispatcher/") {
+			skipped = append(skipped, fmt.Sprintf("%s:%d", s.Source, s.Line))
+		}
+	}
+	if strings.Join(skipped, " ") != "dispatcher/sample-site.delivered.jsonl:5 dispatcher/sample-site.delivered.jsonl:6 dispatcher/sample-site.recorded.jsonl:5" {
+		t.Errorf("飛ばした記録が違う: %v", skipped)
+	}
+	var b bytes.Buffer
+	Table(&b, res, columnsOrder(res))
+	out := b.String()
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	cand := -1
+	for i, ln := range lines {
+		if strings.HasPrefix(ln, "  記録だけへ移す候補") {
+			cand = i
+		}
+	}
+	if cand < 0 || !strings.HasSuffix(lines[cand], "  report") || strings.Contains(lines[cand], "ready") {
+		t.Fatalf("候補の行が report だけでない:\n%s", out)
+	}
+	// 候補の行は表の末尾（後ろは飛ばした記録の一覧だけ）
+	if cand+1 < len(lines) && (lines[cand+1] != "" || !strings.HasPrefix(lines[cand+2], "飛ばした記録")) {
+		t.Errorf("候補の行が表の末尾でない:\n%s", out)
+	}
+	if !strings.Contains(out, "report             届けた 5・素通り 80%（4 / 5）・記録だけ 0") {
+		t.Errorf("report の行が違う:\n%s", out)
+	}
+}
+
+// 閾値を下回れば候補の行は「なし」。記録が無ければ通知の節は「記録なし」。
+func TestNewsNoCandidate(t *testing.T) {
+	o := opts(fakeLedger(t))
+	dir := t.TempDir()
+	o.Delivered = filepath.Join(dir, "x.delivered.jsonl")
+	o.Recorded = filepath.Join(dir, "x.recorded.jsonl")
+	put(t, o.Delivered, `{"at":"2026-11-01T01:00:00Z","project":"x","acked":true,"news":[{"kind":"report"},{"kind":"error"}]}`+"\n"+
+		`{"at":"2026-11-01T02:00:00Z","project":"x","acked":false,"news":[{"kind":"report"},{"kind":"error"}]}`+"\n")
+	res, err := Measure(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.News.Candidates) != 0 {
+		t.Errorf("5割の kind が候補に出た: %v", res.News.Candidates)
+	}
+	var b bytes.Buffer
+	Table(&b, res, columnsOrder(res))
+	if !strings.Contains(b.String(), "記録だけへ移す候補（80%以上が素通り。移すかは人が決める）  なし") {
+		t.Errorf("候補なしの行が無い:\n%s", b.String())
+	}
+	res, _ = Measure(opts(fakeLedger(t))) // 記録の置き場を渡さない（まだ無い記録）
+	b.Reset()
+	Table(&b, res, columnsOrder(res))
+	if !strings.Contains(b.String(), "通知（Chief of Staff へ届けた数と、andon news ack で終わった素通り）\n  記録なし\n") {
+		t.Errorf("記録が無いのに「記録なし」が出ない:\n%s", b.String())
 	}
 }

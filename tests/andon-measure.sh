@@ -37,6 +37,15 @@ cat >"$k/log.jsonl" <<'EOF'
 {"at":"broken
 {"at":"2026-11-01T07:00:00Z","by":"terminal:t1","id":"S-0001","change":{"status":"done"}}
 EOF
+# dispatcher の置き場（記録だけの通知・届けた通知の記録）は一時の XDG_STATE_HOME に置く: report を2回届けて2回とも ack、merged を1回記録だけ
+export XDG_STATE_HOME=$tmp/state
+d=$XDG_STATE_HOME/andon/dispatcher
+mkdir -p "$d"
+cat >"$d/sample-site.delivered.jsonl" <<'EOF'
+{"at":"2026-11-01T03:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0001","kind":"report"}]}
+{"at":"2026-11-01T05:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0001","kind":"report"}]}
+EOF
+printf '{"at":"2026-11-01T06:00:00Z","project":"sample-site","issue":"S-0001","kind":"merged","detail":{"pr":"%s/1"}}\n' "$pr" >"$d/sample-site.recorded.jsonl"
 before=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 export KANBAN_ROOT=$tmp/sample-site
 "$andon" measure --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
@@ -44,15 +53,18 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
   and .efficiency.merged_prs == 1 and .efficiency.auto_merge.rate == 1 and .efficiency.human_touches.total == 1
   and .counter.reverted == 1 and .counter.reopened.by_tier.A == 1 and .counter.reopened.corrections == "none" and .counter.corrected == {corrections: "none", by_tier: {A: 0, B: 0, C: 0, none: 0}}
   and .flow.lead_time.hours == 6 and .flow.closed.count == 1
-  and (.skipped | length) == 1 and .skipped[0].line == 4' "$tmp/out.json" >/dev/null
+  and (.skipped | length) == 1 and .skipped[0].line == 4
+  and .news.kinds == [{kind: "merged", delivered: 0, acked: 0, rate: null, recorded: 1}, {kind: "report", delivered: 2, acked: 2, rate: 1, recorded: 0}]
+  and .news.candidates == ["report"]' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
-echo 'ok --json: 自動マージ・revert・飛ばした行'
+echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
 head -1 "$tmp/table" | grep -q '^価値: 仮説を確かめた数 記録なし'
 grep -q '^  人の手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
 grep '自動マージ率' "$tmp/table" | grep -q '対抗: revert 1本'
 grep -q 'kanban/log.jsonl:4' "$tmp/table"
-echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標・飛ばした行'
+grep -q '^  記録だけへ移す候補.*  report$' "$tmp/table"
+echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標・飛ばした行・記録だけへ移す候補'
 after=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 [ "$before" = "$after" ]
 echo 'ok 台帳に何も書かない'
@@ -64,7 +76,7 @@ printf '#!/bin/sh\necho forbidden-gh >&2\nexit 99\n' >"$tmp/bin/gh"
 export KANBAN_ROOT=$tmp/empty
 "$andon" measure --json >"$tmp/empty.json"
 jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .flow.closed.count == 0
-  and .prs == [] and .skipped == []' "$tmp/empty.json" >/dev/null
+  and .prs == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'
