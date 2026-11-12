@@ -22,6 +22,8 @@ esac
 
 const tickHc = `#!/bin/sh
 [ "$1" = get ] && [ -e "$FAKE_KANBAN/cos" ] && { echo '{"state":"live","status":{"state":"idle"},"labels":{}}'; exit 0; }
+[ "$1" = get ] && [ -e "$FAKE_KANBAN/hcfail" ] && { echo '{"error":{"kind":"internal","message":"x"}}' >&2; exit 1; }
+echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2
 exit 3
 `
 

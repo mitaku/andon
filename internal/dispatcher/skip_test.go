@@ -58,7 +58,7 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 	c.Pass("")
 	c.Pass("")
 	out = logb.String()
-	if strings.Count(out, "留守") != 1 || strings.Contains(out, "台帳を飛ばす") || !strings.Contains(out, "t42") || !strings.Contains(out, "live でない") {
+	if strings.Count(out, "留守") != 1 || strings.Contains(out, "台帳を飛ばす") || !strings.Contains(out, "t42") || !strings.Contains(out, "が無い") {
 		t.Errorf("留守の 1 行（台帳・宛先・理由）が 1 回だけ出ていない: %q", out)
 	}
 	if n := notes(); n != 1 {
@@ -75,5 +75,24 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 	c.Pass("")
 	if strings.Count(logb.String(), "留守") != 2 {
 		t.Errorf("生き返ったあとの留守で出し直していない: %q", logb.String())
+	}
+
+	// hc get が一時に落ちた（not_found でない）巡は、留守にしない（控えの留守の記録を作らない）。ログは1行
+	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // 生き返る（留守の記録は戻った巡で消える）
+		t.Fatal(err)
+	}
+	c.Pass("")
+	os.Remove(filepath.Join(d, "cos"))
+	if err := os.WriteFile(filepath.Join(d, "hcfail"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	logb.Reset()
+	c.Pass("")
+	c.Pass("")
+	if st, _, err := LoadState("sample-site"); err != nil || st.Away != nil {
+		t.Errorf("hc get の一時の失敗を留守にした: %+v %v", st.Away, err)
+	}
+	if out := logb.String(); strings.Count(out, "確かめられない") != 1 || strings.Contains(out, "留守（") {
+		t.Errorf("確かめられない巡のログが1行でない・留守と書いた: %q", out)
 	}
 }

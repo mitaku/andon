@@ -154,12 +154,35 @@ type Dispatcher struct {
 	skip     map[string]string // 台帳を飛ばしている・留守だとログに書いた理由（台帳ごと。同じ理由を二度書かない）
 }
 
-// cosDown は Chief of Staff の端末が生きていない理由（生きていれば空）。
-func cosDown(cos string) string {
-	if exec.Command("hc", "get", cos).Run() != nil {
-		return "端末 " + cos + " が live でない"
+// cosDown は Chief of Staff の端末が無い（留守）理由。hc が端末を無い（not_found）・live でないと答えたときだけ返す。
+// hc get が一時に落ちた（ほかのエラー・形が読めない）ときは unsure に理由を返し、留守にしない（取り違えて留守の記録を作らない）。
+func cosDown(cos string) (reason, unsure string) {
+	cmd := exec.Command("hc", "get", cos, "--json")
+	cmd.Env = withoutTerminal()
+	var errb bytes.Buffer
+	cmd.Stderr = &errb
+	out, err := cmd.Output()
+	if err != nil {
+		var e struct {
+			Error struct {
+				Kind string `json:"kind"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(bytes.TrimSpace(errb.Bytes()), &e) == nil && e.Error.Kind == "not_found" {
+			return "端末 " + cos + " が無い", ""
+		}
+		return "", fmt.Sprintf("hc get %s: %v %s", cos, err, strings.TrimSpace(errb.String()))
 	}
-	return ""
+	var t struct {
+		State string `json:"state"`
+	}
+	if json.Unmarshal(out, &t) != nil || t.State == "" {
+		return "", "hc get " + cos + " の形が読めない"
+	}
+	if t.State != "live" {
+		return "端末 " + cos + " が live でない（" + t.State + "）", ""
+	}
+	return "", ""
 }
 
 // skipped は台帳を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、人に気づける通知を1つ出す。
@@ -235,13 +258,14 @@ func (c *Dispatcher) Pass(only string) bool {
 
 // project は1つの台帳を1回回す間のもの。
 type project struct {
-	c     *Dispatcher
-	l     *ledger.Ledger
-	st    *State
-	first bool
-	away  bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
-	rows  []ledger.Row
-	tasks []ledger.Issue
+	c      *Dispatcher
+	l      *ledger.Ledger
+	st     *State
+	first  bool
+	away   bool // 配る段を飛ばす巡（Chief of Staff の端末が無い〈留守〉か、確かめられない。ADR-0017 決めたこと 8）
+	unsure bool // Chief of Staff の端末を確かめられない巡（hc get の一時の失敗）。控えの留守の記録は変えない
+	rows   []ledger.Row
+	tasks  []ledger.Issue
 }
 
 func (p *project) logf(format string, a ...any) {
@@ -255,10 +279,18 @@ func (p *project) pass() (bool, error) {
 		p.skipped("config.yaml の chief_of_staff が空") // 留守と区別する（ADR-0017 決めたこと 8 の (a)）
 		return false, nil
 	}
-	if reason := cosDown(cos); reason != "" {
+	switch reason, unsure := cosDown(cos); {
+	case reason != "":
 		p.away = true
 		p.absent(cos, reason) // 配る段だけ飛ばす（dispatcher.md §2.1）
-	} else {
+	case unsure != "":
+		// 留守かを確かめられない: 留守にはせず（控えの留守の記録を変えない）、配る段だけ飛ばして回す。ログは同じ理由に1回
+		p.away, p.unsure = true, true
+		if p.c.skip[p.l.Slug] != unsure {
+			p.c.mark(p.l.Slug, unsure)
+			p.logf("Chief of Staff の端末を確かめられない（%s）。留守にはせず、この巡は配る段だけ飛ばす", unsure)
+		}
+	default:
 		delete(p.c.skip, p.l.Slug)
 	}
 	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
@@ -271,7 +303,9 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.st, p.first = st, first
-	p.markAway(now())
+	if !p.unsure {
+		p.markAway(now())
+	}
 	if p.tasks, err = p.l.List(); err != nil {
 		return false, err
 	}
