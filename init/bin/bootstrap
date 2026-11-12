@@ -182,15 +182,17 @@ rebuild_from() {
   from=$tag
 }
 
-# 手元の image が FROM の image の上に焼かれたもの（FROM の層が頭に並ぶ）でないと分かれば止まる。
+# 手元の image が FROM の image の上に焼かれたもの（FROM の履歴が末尾に並ぶ）でないと分かれば止まる。
+# 履歴は段ごとの作った日時と命令で、層を作らない ENV などの段も入る（層だけでは設定の違いを見落とす）。
 # 同じ slug で立て直したセルは、前のセルの image を名前ごと拾う。FROM の image が手元に無ければ分からないので通す。
 # 作り直しは人が打つ（ここでは image を消さない・焼き直さない）
 require_from() {
-  local fmt base layers
-  fmt=$(printf '%s%s join .RootFS.Layers " " }}' '{' '{')
-  base=$(docker image inspect --format "$fmt" "$from" 2>/dev/null) || return 0
-  layers=$(docker image inspect --format "$fmt" "$image" 2>/dev/null) || return 0
-  case "$layers " in "$base "*) return 0 ;; esac
+  local fmt base hist
+  fmt=$(printf '%s%s.CreatedAt}} %s%s.CreatedBy}}' '{' '{' '{' '{')
+  base=$(docker history --no-trunc --format "$fmt" "$from" 2>/dev/null) || return 0
+  hist=$(docker history --no-trunc --format "$fmt" "$image" 2>/dev/null) || return 0
+  [ -n "$base" ] || return 0
+  case $'\n'"$hist" in *$'\n'"$base") return 0 ;; esac
   die "手元の $image は Dockerfile の FROM（$from）から焼いたものでない（前のセルの image か、FROM を変えたあと）。bin/bootstrap rebuild で作り直す"
 }
 
