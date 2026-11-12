@@ -25,7 +25,7 @@ transitions:
   - { from: "[*]", to: away, on: "Chief of Staff の端末が無い巡に届ける通知を拾った（留守の始まりを控える）", by: machine }
   - { from: away, to: away, on: "留守の間にまた届ける通知を拾った（数を足す）", by: machine }
   - { from: away, to: pending, on: "Chief of Staff の端末が戻った（留守の終わりを控える）", by: machine }
-  - { from: away, to: hooked, on: "戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②）", by: machine, command: andon dispatcher drain, once: true }
+  - { from: away, to: hooked, on: "戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②。§7.2 #7）", by: machine, command: andon dispatcher drain, once: true }
   - { from: "[*]", to: recorded, on: "記録だけの通知を拾った", by: machine }
   - { from: "[*]", to: unrecorded, on: "記録だけの通知を置き場に書けなかった", by: machine }
   - { from: unrecorded, to: recorded, on: "次の見回りで先に書いた", by: machine }

@@ -18,7 +18,7 @@ stateDiagram-v2
   [*] --> s_away: Chief of Staff の端末が無い巡に届ける通知を拾った（留守の始まりを控える）
   s_away --> s_away: 留守の間にまた届ける通知を拾った（数を足す）
   s_away --> s_pending: Chief of Staff の端末が戻った（留守の終わりを控える）
-  s_away --> s_hooked: 戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②）
+  s_away --> s_hooked: 戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②。§7.2 #7）
   [*] --> s_recorded: 記録だけの通知を拾った
   [*] --> s_unrecorded: 記録だけの通知を置き場に書けなかった
   s_unrecorded --> s_recorded: 次の見回りで先に書いた
@@ -51,7 +51,7 @@ stateDiagram-v2
 | （始まり・終わり） | `away` | Chief of Staff の端末が無い巡に届ける通知を拾った（留守の始まりを控える） | 機械 |  |  |
 | `away` | `away` | 留守の間にまた届ける通知を拾った（数を足す） | 機械 |  |  |
 | `away` | `pending` | Chief of Staff の端末が戻った（留守の終わりを控える） | 機械 |  |  |
-| `away` | `hooked` | 戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②） | 機械 | `andon dispatcher drain` | はい |
+| `away` | `hooked` | 戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②。§7.2 #7） | 機械 | `andon dispatcher drain` | はい |
 | （始まり・終わり） | `recorded` | 記録だけの通知を拾った | 機械 |  |  |
 | （始まり・終わり） | `unrecorded` | 記録だけの通知を置き場に書けなかった | 機械 |  |  |
 | `unrecorded` | `recorded` | 次の見回りで先に書いた | 機械 |  |  |
