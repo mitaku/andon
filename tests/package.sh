@@ -480,4 +480,12 @@ grep -q '^### 観察の課題のとき$' <<<"$w2" && grep -q '\*\*直さない�
   && [ -n "$o_blk" ] && jq -e '.observation' "$tmp/o.json" >/dev/null 2>&1 && chk report "$tmp/o.json" \
   && pass "worker skill に観察の課題の節があり、observation の例は report.schema.json に合う" || fail "worker skill の観察の課題: $(head -1 "$tmp/why" 2>/dev/null) $o_blk"
 
+# === 13. herdr notification show の文言（ADR-0007 R3・B7）===
+miss=
+for f in package/environment.md package/skills/chief-of-staff/SKILL.md; do
+  grep -n 'herdr notification show' "$f" | grep -q 'TUI' || miss="$miss $f"
+  grep -q '台帳の問いとボードで足りる' "$f" || miss="$miss $f(足りる)"
+done
+[ -z "$miss" ] && pass "environment.md と chief-of-staff skill が herdr notification show を「TUI が動いているときだけ」と書く" || fail "herdr notification show の文言:$miss"
+
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

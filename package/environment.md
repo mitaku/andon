@@ -24,7 +24,7 @@
 - dev サーバはコンテナの中で `127.0.0.1` に listen し、`portless alias <app> <port>` で名前を付ける。人は `http://<app>.<セルの名前>.localhost:<PORTLESS_PORT>` で見る（番号はセルの `.env`）。`0.0.0.0` も compose の書き換えも要らない。
 - フロントから別のアプリを呼ぶときも portless の名前で呼ぶ（`localhost:<port>` は人の手元を指す）。
 - 生成した HTML などは `andon publish <file>` で `files/` へ出し、返った URL を伝える。
-- 人に気づいてほしいことは `herdr notification show` で出す。
+- 人に気づいてほしいことは `herdr notification show` で出す。herdr（TUI）が動いているときだけ効く（Herdr App で使う人には届かない）。無ければ台帳の問いとボードで足りる。
 
 ## 気づきを残す（auto memory）
 
