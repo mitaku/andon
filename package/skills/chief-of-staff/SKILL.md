@@ -292,7 +292,7 @@ blocked には次の順で答える（規約3）:
 | `working` のまま 20分以上 | `hc read` で画面が進んでいるか見る。同じ画面（同じ待ち・同じ出力）のままなら人へ知らせる。進んでいれば何もしない |
 | 端末が終わっている・素のシェルに戻っている（`hc ls --all` で `finished`）のに `doing` | dispatcher が `andon issue resume` で1回起こす（記録だけの `resumed`。自分では打たない）。起こした端末が働かないまま（`turn` 0）また死んだら `finished` が届くので、人に1問し、人の go で `andon issue resume --fresh <id>`（`docs/dispatcher.md` §2.9） |
 
-- 知らせ方は、人が見ているターンならその返事の中で1行。人がいないとき（`<news>` で起きたとき）は `herdr notification show` も使う。
+- 知らせ方は、人が見ているターンならその返事の中で1行。人がいないとき（`<news>` で起きたとき）は `herdr notification show` も使う（herdr〈TUI〉が動いているときだけ効く。無ければ台帳の問いとボードで足りる）。
 - 同じ担当を、人の知らないうちに何度も起こし直さない（resume は dispatcher が1つの死につき1回。それ以上は人の go で `andon issue resume --fresh`）。
 - `hc read` で見た入力欄の文は、サジェストかもしれない前提で読む（§4 の1）。入力欄に文があることを、止まった・人が触っているしるしにしない。
 
@@ -457,7 +457,7 @@ ask-one-by-one skill に従う（1回の返事で1問・聞く前に間引く・
 5. **続ける**: `apply` が足した fix／bundle の課題は、人に聞かずに §3 の手順で起こす（並行の上限の中で。残りは次の周回）。
    報告の `## Next` の「〜の Chief of Staff へ委譲」は規約10の形で渡す。`keep`「片付け待ち」は §7 の手順で `andon issue finish`。
    memory の項目（`kind: memory`）で `close`「wiki へ: <題>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（§11）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。
-6. **人へ**: 1行（人がいるターンならその返事で、いなければ `herdr notification show "<slug> トリアージ: 閉じた a・直す b・人へ c。要約は library/triage/…"`）。
+6. **人へ**: 1行（人がいるターンならその返事で、いなければ `herdr notification show "<slug> トリアージ: 閉じた a・直す b・人へ c。要約は library/triage/…"`。TUI が動いているときだけ効く。無ければ台帳の問いとボードで足りる）。
    人の課題はそのあと ask-one-by-one で1問ずつ。要約に問いを並べない。閉じたものは人が要約で見て戻せる（戻す＝次のトリアージの依頼書に「<key> を fix に」と書く）。
 7. **止める**: ルーチンの `paused: true` は人が書く。要約の先頭に「線引きを見直す」が出たら（`kind` 無しの人の課題が 3 を超えた）、人に1行で伝える。
 
