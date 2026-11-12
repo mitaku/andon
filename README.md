@@ -12,6 +12,8 @@
 
 The design calls this a *selective dark factory*. A "dark factory" is a factory that runs with the lights off because no person is on the floor. Andon is selective: machines stop what machines can decide (tests, gates), language models handle what needs judgment, and a person sees only what is left. The name comes from the andon cord and light of the Toyota Production System. Andon is not a manufacturing-floor andon product.
 
+**Why a cell.** Andon is a one-person factory, and a cell is one station in it: one per trust boundary, not one root for the whole factory. The root directory of each cell is itself a git repository (the *cell repo*, `/workspace` in the container). Everything the cell's agents need hangs from that root: projects with their ledger, project instructions and skills (`projects/<slug>/`), the cell's wiki (`wiki/`), the cell's own instructions (`AGENTS.local.md`), and the client repositories it works on (`.ghq/`). So instructions, skills and the wiki are versioned, can be moved to another machine, and the cell can be rebuilt from a clone; the ledger stays outside git as a log that lives with the cell. The container image draws the boundary and carries the tools (Claude Code, Codex, herdr and hc, Playwright with a pre-installed browser, and Andon itself under `/opt/andon`), so every cell has the same tools at the same versions, the host needs only Docker and bash, and an Andon upgrade is one pull request that bumps `FROM`. Client repositories are only cloned into the cell; workers change them through pull requests from per-issue worktrees, and the ledger and the cell settings never go into them. Details (Japanese): [The cell](#セルの考え方), [ADR-0005](docs/adr/0005-cell-repo.md), [ADR-0016](docs/adr/0016-cell-wiki-llm-wiki.md).
+
 **Who it is for.** One developer who already runs several coding agents in terminals and wants them to keep working while the developer is away, without giving up control of merges and irreversible operations. It is built for its author's own use first.
 
 **Status.** Experimental. It is used by one person, and the interfaces change without notice. Most documents are written in Japanese; English is added only where needed. There are no releases with compatibility promises yet; what changed in each tagged version, and what to do when upgrading, is in [CHANGELOG.md](CHANGELOG.md). The host must be Linux or WSL with Docker and bash. The cell image bundles agent CLIs (Claude Code, Codex) and the terminal workspace herdr; you bring your own accounts for them.
@@ -82,6 +84,21 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 ### ディレクトリ
 
 `docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/` の `bin/`・`cmd/kanban/`）。`package/` には skill（`skills/`）・プロファイル（`templates/`）・ゲートの条件表（`gate.json`）・managed settings の既定（`settings.json`）・statusline（`lib/andon/`）・Claude Code のフック（`hooks/`。Stop・UserPromptSubmit）・セルの compose（`compose.yaml`）・ホスト用の雛形（`host/`）が入っている（セルへ配る仕組みはまだ無い）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
+
+### セルの考え方
+
+Andon は一人のソフトウェア工場で、セルはその中の持ち場にあたる。信頼の境界（1つの顧客・1つの趣味など）ごとに1つ立てて長く動かし続けるコンテナで、セルの repo（`<slug>-cell`。コンテナの中の `/workspace`）と、それを動かすイメージの2つでできている。
+
+考え方の中心は、**セルごとのルートディレクトリがそのまま git のリポジトリ（セルの repo）になっている**こと。プロジェクト（`projects/<slug>/`）・案件の repo（`.ghq/`）・wiki（`wiki/`）・セルの指針（`AGENTS.local.md`）は、みなこのディレクトリの下にある。根は工場全体に1つではなく、セルごとに1つある。ホームディレクトリに近いと考えてよい。設定とコンテキストが置いてあり、作業はいつもここから始まる。
+
+| 考え方 | 何がうれしいか |
+|---|---|
+| **セルの repo が、プロジェクトに要るものを持つ。** プロジェクトの指針（`projects/<slug>/AGENTS.md`）と skill（`projects/<slug>/.claude/skills/`）・セルの指針（`AGENTS.local.md`）・wiki・台帳（`projects/<slug>/kanban/`） | エージェントは起きるたびに、同じ場所から同じコンテキストを読む。指針・skill・wiki は git の履歴に残るので、別のマシンへ持ち運べ、壊れても clone から立て直せる。台帳は同じディレクトリにあるが git の外に置く（経過の記録で、セルの寿命のもの）。 |
+| **イメージが境界になる。** セルは案件（信頼の境界）ごとに1つ立てる | 案件のあいだで、ファイル・資格情報・ログインが混ざらない。境界の中では、エージェントに「このフォルダを信頼するか」を毎回聞かずに任せられる。 |
+| **要る道具はイメージが持つ。** エージェントの CLI（Claude Code・Codex）・端末の herdr と hc・Playwright と焼いたブラウザ・Andon の command と skill（`/opt/andon`） | どのセルでも同じ道具が同じ版で揃い、ホストに要るのは docker と bash だけ。セルに固有の道具は、セルの repo の `local/` で足す。セルの repo にパッケージのファイルは無いので、Andon を直したら `FROM` の版を上げる PR 1本で全セルへ広がる。 |
+| **案件の repo は、セルの中へ迎え入れるだけ。** `.ghq/` に clone し、担当は課題ごとの worktree（`.worktrees/`）で働く | 案件の repo に台帳・セルの設定・作業の途中のものを置かない。案件の repo に入るのは担当の PR だけで、ふだんの git の repo のまま使える。`.ghq/` と `.worktrees/` はセルの git の外。 |
+
+何を追跡し何を外すか・別のマシンへの動かし方は [ADR-0005](docs/adr/0005-cell-repo.md)、`projects/<slug>/` の中は [ADR-0004](docs/adr/0004-project-layout.md)、wiki の形は [ADR-0016](docs/adr/0016-cell-wiki-llm-wiki.md)、語は [docs/design.md](docs/design.md) §0.1、パッケージがセルのどこに効くかは同じく §2.3、イメージの中身は [docs/image.md](docs/image.md)。
 
 ### セルを立てる
 
