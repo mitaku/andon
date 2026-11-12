@@ -337,7 +337,7 @@ func noLink(root, rel string) error {
 	return nil
 }
 
-var byName = map[string]string{"machine": "機械", "ai": "AI", "person": "人", "deck": "台帳の CLI"}
+var byName = map[string]string{"machine": "機械", "ai": "AI", "person": "人", "kanban": "台帳の CLI"}
 
 var triggerKind = map[string]string{
 	"person": "人の依頼", "notification": "通知", "interval": "間隔", "date": "日付", "event": "出来事",

@@ -425,11 +425,11 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 		"報告: 先頭に `Commit: <見た commit の sha（40桁）>`。指摘は重い順に、重さ・ファイル:行・起きる条件（具体的な入力 → 結果）・直し方の案・足りないテスト（findings.json と同じ件数・重さ）。起きる条件を具体的に示せないものは trivial。\n" +
 		"外から届く面で攻撃者が狙って起こせるものは軽く付けない。指摘が無い観点は「見たが問題なし」と何を確かめたか。マージの可否は言わない。\n\n")
 	b.WriteString("## 終わったら（宛先はこの1つだけ）\n")
-	b.WriteString("deck report・deck review をして、元の課題の担当へ知らせる:\n")
+	b.WriteString("kanban report・kanban review をして、元の課題の担当へ知らせる:\n")
 	if agent != "" {
 		fmt.Fprintf(&b, "`hc send %s \"<自分の id>（%s のレビュー %d 回目）: commit %s。報告は <自分の report.md のパス>\"`\n", agent, r.Issue, r.Round, rr.Commit)
 	}
-	fmt.Fprintf(&b, "宛先は %s の issue.yaml の agent（`deck show %s --json` の .issue.agent。起こした時点では %s）。", r.Issue, r.Issue, orNone(agent))
+	fmt.Fprintf(&b, "宛先は %s の issue.yaml の agent（`kanban show %s --json` の .issue.agent。起こした時点では %s）。", r.Issue, r.Issue, orNone(agent))
 	b.WriteString("Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。\n")
 	return b.String()
 }
@@ -550,7 +550,7 @@ func (p *project) fix(t ledger.Issue, res gateResult, record string) {
 	if record != "" {
 		msg += "記録は " + record + "。"
 	}
-	msg += "deck start で doing に戻して直し、push して andon issue review-request（レビューが要るとき）か andon issue ready からやり直す。"
+	msg += "kanban start で doing に戻して直し、push して andon issue review-request（レビューが要るとき）か andon issue ready からやり直す。"
 	if _, _, err := run("", nil, "", "hc", "send", agent, msg); err != nil {
 		p.logf("%s の担当 %s に fix を送れない: %v", id, agent, err)
 	}

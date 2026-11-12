@@ -114,13 +114,13 @@ RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.conf
 COPY package/ /opt/andon/
 # skill の手順が JSON を確かめる schema（package/lib/andon/schema_check.py が読む。ANDON_SCHEMA の既定）
 COPY schema/ /opt/andon/schema/
-# 台帳の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。deck は1版だけの別名（docs/design.md §3.5 の K5）
+# 台帳の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。
 COPY --from=bin --chmod=755 /out/kanban /usr/local/bin/kanban
 # andon の CLI（cmd/andon）。kanban と同じく段 bin が焼く。
 # compose の `andon boot` と、ホストが取り出す口（docs/operate.md の 2）がこれを使う
 COPY --from=bin --chmod=755 /out/andon /opt/andon/bin/andon
 # 対話 bash の設定（~/.bashrc の末尾が読む）と Tab 補完。gh・just・mise は各 CLI が生成するもの、hc は --help の一覧から作る
-# （hc に生成の口が無い）、andon・kanban・deck はサブコマンド名だけの小さな補完（image/completions/）
+# （hc に生成の口が無い）、andon・kanban はサブコマンド名だけの小さな補完（image/completions/）
 COPY --chmod=644 image/bashrc /etc/andon-bashrc
 COPY --chmod=644 image/completions/ /tmp/andon-completions/
 # 生成は andon で（aqua の道具は andon の持ち物。root が走らせると cache が root の持ち物になる）
@@ -133,7 +133,6 @@ RUN mkdir /tmp/andon-gen \
  && printf '_hc() {\n  [ "$COMP_CWORD" -eq 1 ] || return 0\n  COMPREPLY=($(compgen -W "%s" -- "${COMP_WORDS[COMP_CWORD]}"))\n}\ncomplete -F _hc hc\n' "$words" > /tmp/andon-gen/hc
 USER root
 RUN ln -s /opt/andon/bin/andon /usr/local/bin/andon \
- && ln -s kanban /usr/local/bin/deck \
  && install -m 644 /tmp/andon-gen/* /tmp/andon-completions/* /usr/share/bash-completion/completions/ \
  && rm -rf /tmp/andon-gen /tmp/andon-completions
 USER andon

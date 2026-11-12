@@ -1,6 +1,6 @@
 ---
 name: ask-one-by-one
-description: 台帳（deck）と hc のプロジェクトの Chief of Staff（CoS）と Chief Engineer（CE）が人に質問・確認するときに読む。1回の返事で聞くのは1問だけ・まだ聞いていない問いは台帳の人の課題に貯めて順に出す・担当の質問は聞く前に間引く（人にしかできないか・灯りがつく判断の4種か）、の3つを持つ。担当からの質問や委譲・届いた通知から人の判断が要るものが出たとき、報告に質問を並べそうになったときに使う
+description: 台帳（kanban）と hc のプロジェクトの Chief of Staff（CoS）と Chief Engineer（CE）が人に質問・確認するときに読む。1回の返事で聞くのは1問だけ・まだ聞いていない問いは台帳の人の課題に貯めて順に出す・担当の質問は聞く前に間引く（人にしかできないか・灯りがつく判断の4種か）、の3つを持つ。担当からの質問や委譲・届いた通知から人の判断が要るものが出たとき、報告に質問を並べそうになったときに使う
 ---
 
 # ask-one-by-one
@@ -39,7 +39,7 @@ description: 台帳（deck）と hc のプロジェクトの Chief of Staff（Co
 4. 他にも待っている問いがあれば「あと N 問」を question 本文の末尾に入れる（例「…どちらにしますか？（あと2問）」）。header は短い分類語。
 5. 1回の呼び出しで questions は1つだけ（ツールは4つまで渡せるが、1問ずつを優先する）。
 6. **聞く前に、もう答えが出ていないか確かめる**。人は担当の画面で直接答えたり、PR を自分でマージしたりする
-   （`hc read <agent>`・`deck list`・`gh pr view` で確認）。答え済みの問いを出すと拒否される。拒否されたら、画面と人の直前の発言を読み直す。
+   （`hc read <agent>`・`kanban list`・`gh pr view` で確認）。答え済みの問いを出すと拒否される。拒否されたら、画面と人の直前の発言を読み直す。
 7. 本文の報告は質問の前に短く。報告に質問を混ぜない。
 
 ## 3. 待ちの問いは台帳の人の課題
@@ -47,25 +47,25 @@ description: 台帳（deck）と hc のプロジェクトの Chief of Staff（Co
 まだ聞いていない問いは、台帳の人の課題にして貯める。問いそのものは**問いの JSON**（contract.md §5・`question.schema.json`）にして、その課題に置く（機械と通知の口はこちらを読む）:
 
 ```
-id=$(deck add "PR #12 の push 先を fork に変えてよいか（人の判断待ち）" --brief - <<'EOF'
+id=$(kanban add "PR #12 の push 先を fork に変えてよいか（人の判断待ち）" --brief - <<'EOF'
 出どころ: S-0007（返事の下書きボタン。担当 t9 が止まっている）
 kind: irreversible
 推奨案: 変えない。upstream に直接 PR を出す（権限はある）
 EOF
 )
-deck set "$id" who=person
+kanban set "$id" who=person
 ```
 
 続けて `andon issue ask "$id" -` に問いの JSON を stdin で渡す（`kind`・`question`・`options`〈先頭が推奨案〉・`facts` に出どころ・`from: chief-of-staff`。worker skill §5 の1）。
 command が形を確かめ、台帳に問い、`library/questions/<n>.json` に置く。`brief.md` は人が読む写し。
 
-- 題は問いを1行、末尾に「（人の判断待ち）」。`--profile` を付けない（エージェントを起こさない課題）。足したら `deck set <id> who=person`。
+- 題は問いを1行、末尾に「（人の判断待ち）」。`--profile` を付けない（エージェントを起こさない課題）。足したら `kanban set <id> who=person`。
 - `kind` は灯りの決断（`business`／`users`／`promise`／`irreversible`／`line`＝ラインの変更）のどれか。
-  これに当たらないもの（§1 の1の人にしかできないもの・どれとも決められないもの）は問いの JSON にできないので、`brief.md` の `kind: 判断がつかない` だけで貯める（`deck ask` もしない）。人にしかできないものは推奨案の代わりに期限の目安を書く。
+  これに当たらないもの（§1 の1の人にしかできないもの・どれとも決められないもの）は問いの JSON にできないので、`brief.md` の `kind: 判断がつかない` だけで貯める（`kanban ask` もしない）。人にしかできないものは推奨案の代わりに期限の目安を書く。
   トリアージの `andon triage apply` が足す人の課題も同じ形（出どころ・kind・推奨案・理由）。
 - **出す順**: 止めている作業が多いもの → `kind: 判断がつかない` → 不可逆な操作の決断待ち（`irreversible`）→ それ以外。
-- **答えが出たら** `deck answer <id>#<n> "<答え>"` → `deck received <id>#<n>` → `deck done <id>`（問いの無い人の課題は `deck done` だけ）。決定は担当へ `hc send`、残す方針は担当に PR でリポジトリの文書へ書かせる（規約9）。
-- 聞いたが答えがまだのものは `todo` のまま残す。同じ問いを2つ足さない（足す前に `deck list` で題を見る）。
+- **答えが出たら** `kanban answer <id>#<n> "<答え>"` → `kanban received <id>#<n>` → `kanban done <id>`（問いの無い人の課題は `kanban done` だけ）。決定は担当へ `hc send`、残す方針は担当に PR でリポジトリの文書へ書かせる（規約9）。
+- 聞いたが答えがまだのものは `todo` のまま残す。同じ問いを2つ足さない（足す前に `kanban list` で題を見る）。
 
 ## 4. 委譲・届いた文から生まれた決断
 

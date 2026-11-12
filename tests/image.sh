@@ -46,8 +46,7 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
   ! getent passwd ubuntu
   kanban --version
-  test "$(kanban --help)" = "$(deck --help)"
-  test "$(readlink /usr/local/bin/deck)" = kanban
+  ! command -v deck >/dev/null || { echo "deck が残っている" >&2; exit 1; }
   test -d /opt/andon
   andon help | grep -q "andon <sub-command>"
   test "$(readlink -f /usr/local/bin/andon)" = /opt/andon/bin/andon
@@ -94,8 +93,8 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   jq --version
   usage --version
   # 対話の bash（bash -ic）に Tab 補完・履歴・プロンプト・fzf が入っていること。HISTFILE は volume（state）の下
-  out=$(bash -ic "complete -p git gh hc andon deck just mise; echo HISTFILE=\$HISTFILE; echo PS1=\$PS1; (bind -X; bind -s) | grep -c fzf" 2>/dev/null)
-  for c in git gh hc andon deck just mise; do grep -q " $c\$" <<<"$out" || { echo "no completion for $c" >&2; exit 1; }; done
+  out=$(bash -ic "complete -p git gh hc andon kanban just mise; echo HISTFILE=\$HISTFILE; echo PS1=\$PS1; (bind -X; bind -s) | grep -c fzf" 2>/dev/null)
+  for c in git gh hc andon kanban just mise; do grep -q " $c\$" <<<"$out" || { echo "no completion for $c" >&2; exit 1; }; done
   grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$out"
   grep -q "PS1=.*__git_ps1" <<<"$out"
   test "$(tail -1 <<<"$out")" -gt 0
@@ -180,7 +179,7 @@ dc exec -T dev bash -euc '
     test "$(codex execpolicy check $rules bash -lc "$c" | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 拒めないはずの「$c」が rules に当たる（docs と tests を直す）" >&2; exit 1; }
   done
   # 担当・レビュアーが台帳（projects/<slug>/kanban とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
-  for c in "git push -u origin HEAD" "deck report T-1" "deck review T-1" "tee /workspace/projects/p/kanban/tasks/T-1/library/findings.json"; do
+  for c in "git push -u origin HEAD" "kanban report T-1" "kanban review T-1" "tee /workspace/projects/p/kanban/tasks/T-1/library/findings.json"; do
     test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]"
   done
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

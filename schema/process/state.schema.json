@@ -84,8 +84,8 @@
         "to": { "description": "The state after.", "$ref": "#/$defs/end" },
         "on": { "description": "What happens.", "$ref": "#/$defs/text" },
         "by": {
-          "description": "Who moves it: machine (dispatcher, gate, a command), ai, person or deck (the ledger CLI).",
-          "enum": ["machine", "ai", "person", "deck"]
+          "description": "Who moves it: machine (dispatcher, gate, a command), ai, person or kanban (the ledger CLI).",
+          "enum": ["machine", "ai", "person", "kanban"]
         },
         "command": { "description": "The command that is run, if any.", "$ref": "#/$defs/text" },
         "once": { "description": "true when it must not happen twice (the dispatcher.md section 7 table comes from these).", "type": "boolean" }

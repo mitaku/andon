@@ -16,7 +16,7 @@ import (
 // 受け入れ条件 11）。show・impact・resume・session・stop-check は移り方ではない（読むだけ・起こし直すだけ）。
 var moves = []string{"start", "report", "review-request", "candidates", "ask", "ready", "finish"}
 
-// froms は定義（issue.yaml）から、サブコマンドごとに打ってよい status を引く。by: deck の移り方は
+// froms は定義（issue.yaml）から、サブコマンドごとに打ってよい status を引く。by: kanban の移り方は
 // kanban のコマンドなので入らない（断らない）。command の「andon issue a・b」は a と b の両方。
 func froms(def []byte) (map[string][]string, error) {
 	var sm process.StateMachine

@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-// CLI は台帳の CLI の名前。別名の deck には落ちない（同じ名前の古い deck が版違いの振る舞いで動くのを避ける）。
+// CLI は台帳の CLI の名前。
 const CLI = "kanban"
 
 // Missing は台帳の CLI が PATH に無いときの言い方（入れ方の案内つき）。

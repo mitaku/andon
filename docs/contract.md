@@ -20,7 +20,7 @@
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
 - 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
-- 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`。同じ command）。
+- 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`）。
 - 台帳の形式（ledger-format v2。別プロジェクトの持ち物）は**変えない**。Andon のキーは「Any other key is allowed and kept」の上に置く。形式そのものに触れたいことは design.md §3.2 の相談に並べた。台帳の CLI と形式を Andon に移したら（§3.5）、「変えない」は「形式の版で変える」になる。それまでこの文書は v2 の上に乗る。
 
 ## 0. 原則
@@ -158,7 +158,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 - 担当の `andon issue ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーの課題の `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
 - 担当の `andon issue review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。
-- `andon issue start`・`report`・`review-request`・`candidates`・`ask`・`ready`・`finish` は、課題の今の `status` から打てるものが [`process/states/issue.yaml`](../process/states/issue.yaml) の移り方（`command`）に在るときだけ動く。無ければ台帳に書く前に終了コード 1 と理由1行で断る（例: `todo` の課題への `ready`、`done` の課題への `review-request`）。定義はバイナリに埋め込んである。`by: deck` の移り方（担当の `deck start`、レビュアー・Chief Engineer の `deck report`・`deck review`）は `kanban` を直に打つので断らない（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 15）。
+- `andon issue start`・`report`・`review-request`・`candidates`・`ask`・`ready`・`finish` は、課題の今の `status` から打てるものが [`process/states/issue.yaml`](../process/states/issue.yaml) の移り方（`command`）に在るときだけ動く。無ければ台帳に書く前に終了コード 1 と理由1行で断る（例: `todo` の課題への `ready`、`done` の課題への `review-request`）。定義はバイナリに埋め込んである。`by: kanban` の移り方（担当の `kanban start`、レビュアー・Chief Engineer の `kanban report`・`kanban review`）は `kanban` を直に打つので断らない（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 15）。
 - 作業側（別のマシン）の担当は同じ command を打つ。command は `<worktree>.issue/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
 
 ## 5. 問いの形

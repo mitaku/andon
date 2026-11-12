@@ -22,12 +22,12 @@ var defaultColumns = []string{"todo", "queued", "doing", "review", "done"}
 
 const lockWait = 10 * time.Second
 
-// deckError is a failure meant for the person: one line on stderr, exit code 1.
-type deckError struct{ msg string }
+// ledgerError is a failure meant for the person: one line on stderr, exit code 1.
+type ledgerError struct{ msg string }
 
-func (e deckError) Error() string { return e.msg }
+func (e ledgerError) Error() string { return e.msg }
 
-func fail(format string, a ...any) error { return deckError{fmt.Sprintf(format, a...)} }
+func fail(format string, a ...any) error { return ledgerError{fmt.Sprintf(format, a...)} }
 
 // clock is the time now, or $DECK_NOW (RFC 3339) when set: tests set it so that routines
 // fire without waiting for the real clock. dispatch refuses a DECK_NOW it can't read.
@@ -254,7 +254,7 @@ func withLock(root string, wait time.Duration, fn func() error) error {
 func lockIn(dir string, wait time.Duration, fn func() error) error {
 	path := filepath.Join(dir, ".lock")
 	if fi, err := os.Lstat(path); err == nil && fi.IsDir() {
-		return fail("%s is a folder (left by the old node deck); remove it", path)
+		return fail("%s is a folder (left by the old node kanban); remove it", path)
 	}
 	// Checked before anything is written, so a refused log doesn't leave a task half-changed.
 	for _, p := range []string{path, filepath.Join(dir, "log.jsonl")} {

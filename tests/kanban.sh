@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 台帳の CLI（kanban。cmd/kanban）の振る舞い。herdr-flightdeck の deck-v0.4.0 の振る舞いテスト
-# （tests/kanban/test-deck.mjs。写しのまま）を、ここで焼いた kanban に当てる。加えて deck の別名と --version。
+# （tests/kanban/test-deck.mjs。写しのまま）を、ここで焼いた kanban に当てる。加えて --version。
 # node が要る（CI では無ければ失敗、手元では skip）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,13 +20,11 @@ out=$(DECK_BIN="$kanban" node tests/kanban/test-deck.mjs) || { echo "$out"; die 
 echo "$out" | tail -1 | grep -qE ': [0-9]+ passed, 0 failed$' || { echo "$out"; die "test-deck.mjs の結果の行"; }
 ok "test-deck.mjs（$(echo "$out" | tail -1 | sed 's/.*: //')）"
 
-# 2. deck は kanban の別名（1版だけ。K5）: 同じバイナリを deck の名前で打っても help は同じ
-ln -s "$kanban" "$tmp/deck"
+# 2. help の1行目。別名 deck は無い
 help_out=$("$kanban" --help)
-[ "$help_out" = "$("$tmp/deck" --help)" ] || die "kanban --help と deck --help が違う"
 head -n 1 <<<"$help_out" | grep -q '^kanban: ' || die "kanban --help の1行目"
-grep -q '^deck is another name for kanban' <<<"$help_out" || die "kanban --help に deck の別名が無い"
-ok "kanban --help と deck --help が同じ"
+! grep -qw 'deck' <<<"$help_out" || die "kanban --help に deck が残っている"
+ok "kanban --help"
 
 # 3. --version（K4 で足す）。go build のままなら dev、CI は -X main.version で版を入れる
 "$kanban" --version | grep -qE '^kanban [^ ]+$' || die "kanban --version: $("$kanban" --version)"

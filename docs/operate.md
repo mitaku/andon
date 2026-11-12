@@ -451,7 +451,7 @@ git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate
 担当を起こすのは Chief of Staff の `andon issue start <id>`（`projects/andon/` で打つ）。worktree と branch（`/workspace/.worktrees/andon/andon-<id>`・`andon/<id>-<題の英字>`）・`hc run`（プロファイルは `issue.yaml` の `profile`）・`kanban start`（`doing`・`agent` がその端末）を1行でする。担当はラベル `herdr.space=andon-andon-<id>`・`herdr.tab=andon-andon-<id>` で App に課題の Space として出て（最後の行 `出た場所 <id> <題> / <id>`。ADR-0003）、dispatcher が起こすレビュアーは担当と同じ tab に横に並ぶ。`andon issue finish` で端末が片付くと tab が空になり、Space ごと消える。
 
 - **通ったら見えるもの**: 下の「§5.1 の確かめ方」の対応表。
-- **落ちたら見る所**: `andon issue start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**dispatcher が次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[dispatcher.md](dispatcher.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てば dispatcher は送らない）。信頼の画面そのものは出ないはず（boot と `andon issue start` が repo の根を信頼済みにする。7）。担当が `deck start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read dispatcher`・`~/.local/state/andon/dispatcher/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `issues/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
+- **落ちたら見る所**: `andon issue start` が終了コード 3（`最初のメッセージが届いていない`。信頼の画面など）— 台帳はもう `doing`。画面が止まっていれば App のその tab（か `hc read <address>`）で答える。最初のメッセージは**dispatcher が次の見回りで送り直す**（端末のラベル `first_message.sent=false`。[dispatcher.md](dispatcher.md) §5）。急ぐときだけ、出た `hc send` を手で打つ（打てば dispatcher は送らない）。信頼の画面そのものは出ないはず（boot と `andon issue start` が repo の根を信頼済みにする。7）。担当が `kanban start` を打たない — ADR-0001 の S4（下）。PR が出ない・checks が落ちる — `gh pr checks`。`review-request` を拾わない — `hc read dispatcher`・`~/.local/state/andon/dispatcher/<slug>.json`。ゲートが `needs_human` — 台帳の問い（`kanban questions`、`from: gate`）と `issues/<id>/library/gate/<head sha>.json` の `reasons`。マージされない — 条件表の `repos.<repo>.merge`。
 
 ## 11. dispatcher の確かめ
 
@@ -469,9 +469,9 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 1. **上げる前に**: `status: review` の課題と、レビュアーが動いている（`review_request` を出した）課題が無いときに上げる。あれば片付くのを待つ（理由は 3）。
 2. **image を上げて起動する**（`rebuild`）。boot が前の係の端末（名前もラベルも `courier`・`role=courier`）を片付けて（keep を外して kill・rm）、`dispatcher` を起こす。片付けるのは前に出ているものが前の係（`andon courier`）か引数の無いシェル（作り直しで戻った中身）のときだけで、起動のログに `前の版の係の端末 <address>（courier）を片付けた` と `dispatcher を起こした` が出る。前に出ているものが取れないあいだ（作り直しの直後）は取れるまで最大 5 秒読み直し、それでも取れなければ、それ以外（人が中で何か動かしている）と同じく触らずに `… なので触らない` と書き、片付けに失敗したとき（`hc keep`・`kill`・`rm` が落ちた）も含めて、**その起動では dispatcher を起こさない**（前の係が動いたままだと二重に回る。ログに `dispatcher は起こさない` が出る）。人が `hc kill <address>` で片付けてから `andon boot` を打ち直す。ほかの端末には触らない。前の tab `andon-<x>-courier` は端末が無くなれば App から消える。
 3. **控えの置き場が替わる**: `~/.local/state/andon/courier/` は読まない。新しい `~/.local/state/andon/dispatcher/` に控えが無いので、どの台帳も**初めて見る台帳**として扱われる（[dispatcher.md](dispatcher.md) §2.1）:
-   - 止まっていた間の出来事（報告・問い・止まり）は通知にしない。最初の見回りは位置を控えるだけ。Chief of Staff は起きたときと同じく台帳を自分で読む（`deck list`）。
+   - 止まっていた間の出来事（報告・問い・止まり）は通知にしない。最初の見回りは位置を控えるだけ。Chief of Staff は起きたときと同じく台帳を自分で読む（`kanban list`）。
    - `doing` の課題の今の `review_request` は拾う。前の係が同じ commit のレビュアーの子課題を作っていれば、それを引き継いで二重に起こさない（起こした回として控える）。ただしその子課題は作成の `by` が前の名前（`terminal:courier`）なので、**ゲートはそのレビューを数えない**。同じ commit のまま頼み直しても、引き継いだ回なので起こし直さない。担当に**新しい commit を push してから、次の回として**頼み直させる（直すものが無ければ `git commit --allow-empty`。同じ回の番号ではレビュアーの detached worktree の置き場がぶつかる。上限を超えれば Chief of Staff が `review_rounds` を上げる）。commit が変われば新しい回として dispatcher がレビュアーを起こし、作成の `by` は `terminal:dispatcher` になる（Chief of Staff が担当に `hc send` で頼む）。1 で待つのはこのためで、待てるなら待つ。
-   - すでに `status: review` の課題はゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`deck start <id>` で `doing` に戻してから `andon issue ready`）か、人が PR を見てマージし Chief of Staff が `andon issue finish`。
+   - すでに `status: review` の課題はゲートを回さない（初めて見た `review` の行は控えるだけ）。担当に `review` へ入り直させる（`kanban start <id>` で `doing` に戻してから `andon issue ready`）か、人が PR を見てマージし Chief of Staff が `andon issue finish`。
    - 最初のメッセージの送り直し（`first_message.sent=false`）は2回目の見回りから。
 4. **人の手元**: App の名前付け mod を入れ直す（`mods/andon/` を退避してから `host-install`。上の「Herdr App の mod とレイアウト」）。入れ直すまで、新しい tab は名前が付かない。
 5. **片付け**: 2 と 3 を確かめたら、前の控え `~/.local/state/andon/courier/` を消してよい（読む者はいない）。
@@ -484,7 +484,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md) の受け入れ条件 3。10 の担当（`--plugin-dir /opt/andon` と `--append-system-prompt-file …/worker/SKILL.md` で起きる）を、**最初の turn が終わる前に** `hc read andon-a-1` で見る。
 
-- 最初のメッセージに「先に SKILL.md を読む」の行が無いのに、担当が**最初に `deck start <id>` を打つ**。
+- 最初のメッセージに「先に SKILL.md を読む」の行が無いのに、担当が**最初に `kanban start <id>` を打つ**。
 - `/andon:worker` の名で skill を持つ（担当の画面で `/` を打って候補を見る）。
 - `ANDON_HOME=<checkout>/package` で起こした担当（開発中の回避の口）は、checkout の plugin と skill が入る（`hc templates` の本文の `/opt/andon` が `ANDON_HOME` に置き換わっている）。
 - 落ちたら: boot の生成（5 の `~/.agents/skills`・template の本文）、`package/.claude-plugin/plugin.json`、template の `command`（`--plugin-dir`・`--append-system-prompt-file`）。
@@ -493,7 +493,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 | 見ること | どう起こすか | どこで見るか |
 |---|---|---|
-| **Stop の block** — turn 中の通知が、Stop で続きの turn として届く | Chief of Staff が長めの turn にいる間に、担当を `deck review` させて通知を積む | Chief of Staff の画面で、turn の終わりに自動で次の turn が始まり `<news>` を読む。控えの `hook` に渡した turn。担当側: `doing` で報告も問いも無いまま止まろうとすると block（`stop-check` の控え `~/.local/state/andon/stop-check/<slug>-<id>.json`） |
+| **Stop の block** — turn 中の通知が、Stop で続きの turn として届く | Chief of Staff が長めの turn にいる間に、担当を `kanban review` させて通知を積む | Chief of Staff の画面で、turn の終わりに自動で次の turn が始まり `<news>` を読む。控えの `hook` に渡した turn。担当側: `doing` で報告も問いも無いまま止まろうとすると block（`stop-check` の控え `~/.local/state/andon/stop-check/<slug>-<id>.json`） |
 | **additionalContext** — 人が送信したとき、待ちが文脈に添えられる | 通知が積まれている間に、人が何か送る | Chief of Staff に「いま添えられた通知を言って」と聞く。待ちが無くても `<delegation project="…">` が毎回添えられる |
 | **待ち役** — 離席中は Stop の `asyncRewake` のフックが合図で起こす（入力欄へは打たない） | Chief of Staff をターンの終わりで待たせ、入力欄に書きかけを置いたまま、担当に報告を書かせて通知を積む | 数秒で Chief of Staff に新しいターンが始まり（画面は「Stop hook feedback」）、何も書かずに終わったあと、その Stop で `<news>` が1回だけ届く。**書きかけは入力欄にそのまま残る**。dispatcher の端末（`hc read dispatcher`）から Chief of Staff への `hc send` が無い（dispatcher.md §4） |
 | **Esc のあとの届け直し** — 渡した turn を中断したら1回だけ届け直す | `<news>` を渡された turn を Esc で止める | 次の turn で同じ通知が**1回だけ**もう一度届く（控えの `hook` から消えるまで）。2回以上届くなら落ち |
@@ -511,7 +511,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 | 3 | 人が触っていない | 10 | `jq -r '.by' /workspace/projects/andon/kanban/issues/<id>/log.jsonl \| sort \| uniq -c` の `by` が、Chief of Staff・dispatcher・担当・レビュアーの `terminal:` だけ（人のユーザー名が無い）。Chief of Staff の turn が「依頼を受ける」と「結果を見る」の2つだけ（`hc read andon-cos`） |
 | 4 | 流れたのは Andon 自身の変更 | 10 | PR の repo が `<owner>/andon`（`gh pr view <n> --json url`）。レベル A か B（ゲートの記録の `tier`） |
 | 5 | 自分をテストできる | 7・10 | セルの中で `cd /workspace/.ghq/github.com/<owner>/andon && for f in tests/*.sh; do bash "$f"; done` が green（Go・docker は repo の `mise.toml`・環境の備品に依る。`tests/image.sh` は docker が無ければ SKIP） |
-| 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設のセルの台帳と端末に異常が無い（`deck lint`・`hc ls`）。仮設のプロジェクトが、Andon のセルができるまで Andon の仕事を持っている。このセルの側では何もしない |
+| 6 | 仮設は止まっていない | （ホスト・仮設側） | 仮設のセルの台帳と端末に異常が無い（`kanban lint`・`hc ls`）。仮設のプロジェクトが、Andon のセルができるまで Andon の仕事を持っている。このセルの側では何もしない |
 
 数える指標（design.md §5.1 の最後）の最初の1回は、10 の `log.jsonl` から数える: 人の `by` の行の数（介在回数）・依頼書からマージまでの時間・ゲートの `fix`＋`needs_human` の数。数えるのは `andon measure --since <日付> --until <日付>`（`projects/andon/` で打つ。読むだけ。`--json` は [contract.md](contract.md) §13 の形）。
 

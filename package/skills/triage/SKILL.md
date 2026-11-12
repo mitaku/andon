@@ -10,14 +10,14 @@ description: 台帳のトリアージを受け持つ担当が読む。依頼書�
 1つのゴールの下で項目ごとに仕分ける。** 拾うのは `andon triage collect`、台帳に手を入れるのは Chief of Staff が打つ `andon triage apply`。
 あなたは**確かめて仕分ける**だけで、決めたことは `decisions.json` と報告に書く。
 
-- 手順の土台は worker skill（`deck start`・報告の書式・`deck report`／`deck review`）。この SKILL はその上に仕分けの手順を足す。
-- トリアージは repo の無い課題。cwd は台帳の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告（`deck report`）だけ。
+- 手順の土台は worker skill（`kanban start`・報告の書式・`kanban report`／`kanban review`）。この SKILL はその上に仕分けの手順を足す。
+- トリアージは repo の無い課題。cwd は台帳の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告（`kanban report`）だけ。
 - 用語は glossary skill に従う。
 
 | する | しない |
 |---|---|
 | `andon triage collect`・`andon triage apply <自分の id> --dry-run` | `andon triage apply` を `--dry-run` 無しで打つ（打つのは Chief of Staff） |
-| 確かめるために読む（`gh pr view`・`git -C <repo> grep`・`deck show`・`git worktree list`・docs） | `deck add`・`deck done`・`deck set`（ほかの課題）・元の報告を書き換える |
+| 確かめるために読む（`gh pr view`・`git -C <repo> grep`・`kanban show`・`git worktree list`・docs） | `kanban add`・`kanban done`・`kanban set`（ほかの課題）・元の報告を書き換える |
 | `issues/<id>/library/decisions.json` と報告を書く | リポジトリに書く・commit・PR・エージェントを起こす |
 
 ## 1. ゴールを読む
@@ -47,7 +47,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 7（bundle）は他の項目を見ないと決まらないので、先に全項目を見て「直せる」ものを repo ごとに数えてから当てる。`reason` は1行（改行を入れない）。
 
 確かめ方の例: `gh pr view <n> --repo <owner/repo> --json state`・`git -C "$GHQ_ROOT/<repo>" grep -n <語>`・`git ls-remote --heads`・
-`deck show <id>`（同じ内容の課題が done か）・`git worktree list`・`hc ls --all --label project=<slug>`・docs の「決めたこと」の表。
+`kanban show <id>`（同じ内容の課題が done か）・`git worktree list`・`hc ls --all --label project=<slug>`・docs の「決めたこと」の表。
 
 | 順 | 条件 | decision |
 |---|---|---|
@@ -76,7 +76,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`「その場限り」。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`「読んだ: 拾うものなし」。
 - **`memory`**（auto memory の1件。どの役のセッションも書く注意書き・事実で、仕分けるまで全部の役に自動で載り続ける）:
-  書いてある事実と理由を、今の実物で確かめる（`git -C <repo> grep`・docs・`deck show`）。memory は受け皿で、残す家ではない。行き先は次のどれか:
+  書いてある事実と理由を、今の実物で確かめる（`git -C <repo> grep`・docs・`kanban show`）。memory は受け皿で、残す家ではない。行き先は次のどれか:
   (a) 事実か理由が今は当てはまらない・理由の無い「〜しない」「必ず確認する」の類（控えや確認を増やすだけ）→ `close`「当てはまらない: <確かめ方>」。
   (b) 既に wiki・`AGENTS.md`・skill・docs にある → 3 の `close`「済み: <どこで>」。
   (c) その repo の作法・テスト・docs の直し → `agents`・`remember` (a) と同じく `fix`（`brief` に memory の本文を引用する）。Andon の skill・パッケージの直しは `remember` (b) と同じ。
@@ -145,6 +145,6 @@ decisions.json: issues/<id>/library/decisions.json。`andon triage apply <id> --
 ## Remember
 ```
 
-- 問いを `## 人に聞くこと` に並べない（人の問いは `apply` が人の課題にし、Chief of Staff が1問ずつ出す）。`deck ask` もしない（誰も待っていない問いなので）。
-- `deck report <id>` → `deck review <id>`。Chief of Staff へ `hc send` しない（dispatcher が届ける）。
-- 直しが届いたら（`<hc from=…>`）、`deck start <id>` で戻し、decisions.json を直して `--dry-run` から通し直す。
+- 問いを `## 人に聞くこと` に並べない（人の問いは `apply` が人の課題にし、Chief of Staff が1問ずつ出す）。`kanban ask` もしない（誰も待っていない問いなので）。
+- `kanban report <id>` → `kanban review <id>`。Chief of Staff へ `hc send` しない（dispatcher が届ける）。
+- 直しが届いたら（`<hc from=…>`）、`kanban start <id>` で戻し、decisions.json を直して `--dry-run` から通し直す。

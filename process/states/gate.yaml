@@ -30,6 +30,6 @@ transitions:
   - { from: approved, to: "[*]", on: "gh pr merge の前に人がマージしていた（人のマージの見張りへ）", by: machine }
   - { from: merged, to: finished, on: "マージして片付ける（§7.2 #5）", by: machine, command: andon issue finish, once: true }
   - { from: held, to: "[*]", on: "人がマージするか決める", by: person }
-  - { from: fix, to: "[*]", on: "担当が直して doing に戻った", by: deck, command: kanban start }
+  - { from: fix, to: "[*]", on: "担当が直して doing に戻った", by: kanban, command: kanban start }
   - { from: needs-human, to: "[*]", on: "人が答えた", by: person }
   - { from: finished, to: "[*]", on: "終わり", by: machine }

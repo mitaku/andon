@@ -52,7 +52,7 @@ func (p *resumePlan) check(name, result, format string, a ...any) {
 
 // ResumeMessage は resume で起こした端末への最初のメッセージ（ADR-0012 決めたこと 3）。
 func ResumeMessage(slug, id string) string {
-	return fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`deck list`）と git の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id)
+	return fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`kanban list`）と git の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id)
 }
 
 // FreshMessage は --fresh で起こした端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。

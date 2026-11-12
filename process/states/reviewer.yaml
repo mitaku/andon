@@ -18,5 +18,5 @@ transitions:
   - { from: starting, to: starting, on: "起こしそこねた（fetch・hc run・信頼の画面。次の見回りで続きから）", by: machine }
   - { from: starting, to: started, on: "レビュアーを起こす（§7.2 #3）", by: machine, command: hc run, once: true }
   - { from: started, to: fallback, on: "使用量の上限で止まった（もう一方が担当と別ブランドのときだけ。1 回だけ）", by: machine, command: hc run }
-  - { from: started, to: "[*]", on: "レビュアーが報告を返した", by: deck, command: kanban review }
-  - { from: fallback, to: "[*]", on: "レビュアーが報告を返した", by: deck, command: kanban review }
+  - { from: started, to: "[*]", on: "レビュアーが報告を返した", by: kanban, command: kanban review }
+  - { from: fallback, to: "[*]", on: "レビュアーが報告を返した", by: kanban, command: kanban review }

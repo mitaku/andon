@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/issue.yaml`](../../process/states/issue.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。andon issue … は、ここに無い移り方（今の status から打てないサブコマンド）を断る（by が deck の移り方は kanban を直に打つもので、断らない）。記録は台帳で、dispatcher の控えに項目を持たない
+出所: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。andon issue … は、ここに無い移り方（今の status から打てないサブコマンド）を断る（by が kanban の移り方は kanban を直に打つもので、断らない）。記録は台帳で、dispatcher の控えに項目を持たない
 
 ## 図
 

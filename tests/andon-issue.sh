@@ -560,7 +560,7 @@ hcn=$(wc -l < "$tmp/hc/log"); before=$(wc -l < kanban/log.jsonl)
   || die "resume --dry-run が読むほかに hc を打ったか何かを作った: $(tail -n +"$((hcn + 1))" "$tmp/hc/log")"
 jq -e --arg wt "$rwt" --arg br "$rbr" --arg s "$sess" --arg a "$a1" '.dry_run and .template == "claude-resume" and .agent == $a and .agent_state == "bare_shell"
   and .worktree == $wt and .cwd == $wt and .branch == $br and .restore == "add" and .session == $s and (.labels | index("session=" + $s) != null)
-  and (.first_message | test("の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`deck list`）と git の状態を確かめ、続きから。"))' "$tmp/dry" >/dev/null \
+  and (.first_message | test("の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`kanban list`）と git の状態を確かめ、続きから。"))' "$tmp/dry" >/dev/null \
   || die "resume --dry-run の計画: $(cat "$tmp/dry")"
 ok 'resume --dry-run: doing で素のシェルの課題は、worktree のパス・branch・起こす template・cwd・session・最初のメッセージの計画を出す（hc は読むだけ）'
 
