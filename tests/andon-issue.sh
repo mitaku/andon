@@ -523,6 +523,11 @@ ok 'finish: write_back が無い・false・github-issues でない出所なら�
 
 : > "$tmp/gh-issue"
 setsignals '[{"source": "github-issues", "weight": "later", "write_back": true}]'
+w5=$(wbissue 'PR still open' "$iss")
+echo OPEN > "$tmp/prstate"
+"$andon" issue finish "$w5" > "$tmp/out" 2>/dev/null || die 'PR が OPEN だと finish が落ちた'
+[ "$(field "$w5" status)" = done ] && [ ! -s "$tmp/gh-issue" ] && grep -q "トラッカーへ書けなかった（PR が MERGED でも CLOSED でもない" "$tmp/out" || die "OPEN の PR で書いた・言わない: $(cat "$tmp/out")"
+ok 'finish: PR が OPEN（MERGED でも CLOSED でもない）なら「閉じ」と書かずに1行出す（レビュー A-0030-r1）'
 w4=$(wbissue 'PR unreadable' "$iss")
 rm "$tmp/prstate"
 "$andon" issue finish "$w4" > "$tmp/out" 2>/dev/null || die 'PR が読めないと finish が落ちた'

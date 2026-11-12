@@ -80,7 +80,8 @@ func trackers(p *delegate.Project, links []string) []string {
 	return out
 }
 
-// outcome は report.json の pr と結果（マージ／閉じ）。PR が無ければ閉じ。PR が読めなければ誤り（結果を書き違えない）。
+// outcome は report.json の pr と結果（MERGED ならマージ、CLOSED なら閉じ）。PR が無ければ閉じ。
+// PR が読めない・OPEN など MERGED でも CLOSED でもなければ誤り（結果を書き違えない。外へのコメントは戻せない）。
 func (c *ctx) outcome() (string, string, error) {
 	rep, err := c.previous()
 	if err != nil {
@@ -93,10 +94,14 @@ func (c *ctx) outcome() (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("PR を読めない: %s", rep.PR)
 	}
-	if strings.TrimSpace(string(out)) == "MERGED" {
+	switch st := strings.TrimSpace(string(out)); st {
+	case "MERGED":
 		return rep.PR, "マージ", nil
+	case "CLOSED":
+		return rep.PR, "閉じ（マージせず）", nil
+	default: // OPEN など: マージも閉じもしていない PR の結果は書けない（やめた課題の PR が開いたまま、など）
+		return "", "", fmt.Errorf("PR が MERGED でも CLOSED でもない: %s %s", rep.PR, st)
 	}
-	return rep.PR, "閉じ（マージせず）", nil
 }
 
 // links は issue.yaml の links（並び）。
