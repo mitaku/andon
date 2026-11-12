@@ -19,9 +19,11 @@
 - **課題の見込みと実働**: 予約キー `estimate`（`small`・`medium`・`large`）と依頼書の Estimate の行（[ADR-0014](docs/adr/0014-issue-estimate.md) E1。#162）。待ちを除いた実働を `log.jsonl` と Gone の時刻から数える `ledger.Worked` と、段→分の表（E2。#182）。
 - **担当が画面を見て確かめる**（[ADR-0018](docs/adr/0018-screen-check-tooling.md)）: image に `playwright-cli` の wrapper と PATH、焼いた Chromium と出力先 `/tmp/playwright-cli` の既定を入れた（S2。#161）。boot が同梱の skill を symlink で張り、外の skill を `gh skill` で入れる口（`package/gh-skills.txt`・セルの `local/gh-skills.txt`。S3。#179）。ゲートに `screen_paths`（画面のパスを変える PR は GitHub の添付が無いと `fix`。既定は無し。S4。#163）。skill・設定・文書を画面の確かめに揃えた（`allowManagedPermissionRulesOnly`・worker §2・§3・§7・independent-review の観点・environment.md。S5。#167）。
 - **managed の許可ルールだけが効く**: `allowManagedPermissionRulesOnly: true`。担当の `git push --force-with-lease` を通す許可を足し（`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` の env は消した。#160）、main・`--all`・`--mirror` に当たる形は managed の deny で断る（#169）。
+- **dispatcher が live でない Chief of Staff の台帳を飛ばすとき 1 行出す**: Chief of Staff の端末が live でない台帳を飛ばし始めたとき、ログ 1 行と herdr 通知を出す（#194）。
+- **dispatcher の再開の文に、やり直しの許しを書く**: 提供元のエラーのあとの「続けて」に、やり直しに承認が要らないことを足した（#195）。
 - **Codex の自動の記憶を止める**: boot が `~/.codex/config.toml` の `features.memories`・`memories.generate_memories`・`memories.use_memories` を `false` にし、`codex`・`codex-review` のプロファイルは同じ `-c` を渡す（#183）。
 - **`fable` と `chief-engineer` は `--effort high` を明示して起こす**（#168。[design.md](docs/design.md) §1.8 の表も合わせた）。
-- **人への書き方を `package/writing.md` に置き、boot が全役に入れる**: 番号の 2 行と 3 行・語の決まり・用語集のパス（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) V1。#175・#185）。ADR-0013 の改めで、細かい書き方の推敲を yomiyasu に任せられるかをセル 1 つで試す（#190）。
+- **人への書き方を `package/writing.md` に置いた。全役に配るのは次の版（V3）**: 番号の 2 行と 3 行・語の決まり・用語集のパス（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) V1。#175・#185）。ADR-0013 の改めで、細かい書き方の推敲を yomiyasu に任せられるかをセル 1 つで試す（#190）。
 - **triage が memory を拾う**: `collect` が `/workspace/memory` の 1 件 1 ファイルを `kind: memory` で拾い、`apply` が `keep` 以外の memory と目録の行を消す。収集のあと書き換わったものは消さず、記録に `memory_kept` を書く（[ADR-0020](docs/adr/0020-auto-memory-as-intake.md) 決めたこと 3・5。#191・#193）。auto memory を書かせる側（M3）はまだ無い。
 - **skill の手直し**: worker（承認の表・書く場所を 1 か所に・報告の字数・hc の reach は指示ではない。#171）、Chief Engineer の「読む」から常設の副エージェントを外す（#164）、価値の仮説の 6 項目・観察の課題（`--parent` と `not_before`）・signal の受け方・worker の観察の報告（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) S7。#180）、`AGENTS.md`・`REVIEW.md` の古い注意書き（#172）。
 - **検査**: 検査をセルの本物の台帳と HOME から切り離し、偽のセルで確かめる `tests/isolation`（#187）。
