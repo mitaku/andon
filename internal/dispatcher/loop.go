@@ -485,6 +485,12 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 		p.st.Gates[key] = g
 		return
 	}
+	if h, ok := p.st.Waits[key]; ok && p.stillWaiting(id, rep.PR, h) {
+		// wait を返した head の checks がまだ揃っていない: ゲートを回さない（GraphQL の checks だけを読み、REST を使わない）
+		p.logf("%s は GitHub の checks を待つ（ゲートは回さない）: head %s の checks がまだ揃っていない", id, short12(h))
+		return
+	}
+	delete(p.st.Waits, key)
 	out, code, err := p.andon("", "gate", id)
 	var res gateResult
 	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal([]byte(out), &res) != nil {
@@ -500,6 +506,9 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 	if res.Decision == "wait" {
 		// GitHub の checks が揃っていない: 控えに書かず、次の見回りでゲートから回し直す（通知もしない）
 		p.logf("%s のゲートは GitHub の checks を待つ: %s", id, strings.Join(res.Reasons, "／"))
+		if contract.IsSHA(res.Head) {
+			p.st.Waits[key] = res.Head
+		}
 		return
 	}
 	g.Sha, g.Decision = res.Head, res.Decision
@@ -536,6 +545,28 @@ func (p *project) review(t ledger.Issue, rep *contract.Report) {
 			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
 	p.st.Gates[key] = g
+}
+
+// stillWaiting は、PR の head が wait を返したときの head のままで、ゲートを回しても wait になる checks のままか（GraphQL を1回）。
+// checks が走っている（pending）か、1つも無く（none）review に入ってから github_checks_wait_minutes を過ぎていない。
+// 読めない・過ぎた・揃ったなら false（ゲートを回す。期限を過ぎた none はゲートが needs_human を返す）。
+func (p *project) stillWaiting(id, pr, waited string) bool {
+	owner, name, number, ok := contract.ParsePR(pr)
+	if !ok {
+		return false
+	}
+	head, checks, err := gate.ReadChecks(number, owner+"/"+name)
+	if err != nil || head != waited {
+		return false
+	}
+	switch checks.State {
+	case "pending":
+		return true
+	case "none":
+		table, _, err := gate.LoadTable(home(), p.c.WS)
+		return err == nil && !gate.ChecksOverdue(p.rows, id, time.Now().UTC(), *table.GitHubChecksWait)
+	}
+	return false
 }
 
 // fix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。
