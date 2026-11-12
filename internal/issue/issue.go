@@ -13,6 +13,7 @@
 //	resume <id>           止まった担当・Chief Engineer を同じ worktree でセッションの続きから起こす（--fresh は新しいセッション。ADR-0012）
 //	session               自分の端末のラベル session を出す（template の command・resume の行が読む）
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
+//	                      （links に write_back: true の出所の issue があれば、そこに結果を1コメント書く。writeback.go）
 //	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
@@ -46,6 +47,7 @@ const Usage = "usage: andon issue show <id>                                  予
 	"       andon issue ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon issue candidates <id> <candidates.json|->        候補の一覧を検査して library/candidates.json に書く（commit は command が書く）\n" +
 	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
+	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
 	"       andon issue impact <id>                                マージした PR と、同じ repo の動いている課題の重なり・衝突を JSON で出す\n" +
 	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
 	"       andon issue start <id> [--dry-run [--json]]            担当を起こす: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
@@ -147,7 +149,13 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if len(rest) > 0 {
 			return usage()
 		}
-		err = withLockedIssue(id, guard(func(c *ctx) error { return c.finish(stdout) }))
+		err = withLockedIssue(id, guard(func(c *ctx) error {
+			if err := c.finish(stdout); err != nil {
+				return err
+			}
+			c.writeBack(stdout) // done になってから。書けなくても finish は戻さない（ADR-0011 決めたこと 15）
+			return nil
+		}))
 	case "impact":
 		if len(rest) > 0 {
 			return usage()

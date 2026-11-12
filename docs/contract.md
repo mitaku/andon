@@ -396,9 +396,10 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `weight` | 必須 | `now`（通知 `signal` ですぐ Chief of Staff へ。§6）/ `later`（記録だけ。トリアージが拾う） |
 | `every` | 任意 | 読む間隔（分。整数。1 以上）。既定 10 |
 | `filter` | 任意 | 出所の検索の語をそのまま（`github-issues` なら GitHub の検索の語。例 `label:bug`。`gh issue list --search` に手を加えず渡す）。空にしない。無ければ open の issue 全部（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 9） |
-| `write_back` | 任意 | `andon issue finish` がこの出所のトラッカー（課題の `links` の URL）に1コメント書くか。既定 `false`（書くのは人だけなので、`true` が委譲の印） |
+| `write_back` | 任意 | `andon issue finish` がこの出所のトラッカー（課題の `links` の URL）に1コメント書くか。既定 `false`（書くのは人だけなので、`true` が委譲の印）。下の「書き戻し」 |
 | `org`・`project` | 任意 | GitHub 以外の出所の中の場所（Sentry の organization と project など）。空にしない |
 
+- **書き戻し**（`write_back: true`。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 15）: `andon issue finish` が課題を done にしたあと、課題の `links` のうち、`write_back: true` の `github-issues` の出所の repo（`repo` が無ければ `repos` の全部）の issue の URL（`https://github.com/<owner>/<repo>/issues/<n>`）ごとに、`gh issue comment` で1コメント書く。本文は課題 id・PR の URL（`report.json` の `pr`。無ければ「無し」）・結果（PR が MERGED なら「マージ」、それ以外は「閉じ」）。**状態は変えない**（打つのは `gh issue comment` だけ）。`done` の課題には finish を打てないので、1つの課題で1回。PR の状態が読めない・書けないときは書かずに1行出し、finish は戻さない（手で書く）。レビュアーの課題では書かない。今書けるのは GitHub の issue だけで、Linear は読む command と一緒に足す（決めたこと 3）。
 - **`signals` を書くのは、セルの image を `signals` を知る版に上げてから**。古い版の `andon` は知らないキーとして弾き（schema の `additionalProperties: false` と command の `DisallowUnknownFields`）、`project.json` を読めないものとして**無委譲・書いてよい repo 無し**に倒れる（担当を一切起こせず、`andon delegate` も打てない）。原則4（知らないキーは無視）と `project.json` の扱い（原則6・読み方の 2）は食い違っていて、`signals` もそれを引き継ぐ（直すのは別の決定）。
 
 `delegation` の中:

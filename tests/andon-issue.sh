@@ -20,11 +20,17 @@ export GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 unset KANBAN_ROOT
 mkdir -p "$HOME" "$tmp/demo" "$tmp/bin"
-# 偽の gh: pr view <url> --json headRefOid -q .headRefOid → $tmp/prhead
+# 偽の gh: pr view <url> --json headRefOid -q .headRefOid → $tmp/prhead、pr view <url> --json state -q .state → $tmp/prstate。
+# issue comment <url> --body <本文> は $tmp/gh-issue に「comment <url>」の行、本文を $tmp/gh-body に足す（外へ出さない）
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
-[ "\$1 \$2" = "pr view" ] && [ "\$4 \$5" = "--json headRefOid" ] || { echo "unexpected gh \$*" >&2; exit 99; }
-cat "$tmp/prhead"
+case "\$1 \$2 \$4 \$5" in
+  "pr view --json headRefOid") cat "$tmp/prhead" ;;
+  "pr view --json state") cat "$tmp/prstate" ;;
+  "issue comment --body "*) [ "\$4" = --body ] && [ \$# = 5 ] || { echo "unexpected gh \$*" >&2; exit 99; }
+    echo "comment \$3" >> "$tmp/gh-issue"; printf '%s\n' "\$5" >> "$tmp/gh-body" ;;
+  *) echo "\$1 \$2 \$3" >> "$tmp/gh-issue"; echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -470,6 +476,58 @@ kanban set "$s10" "branch=demo/$s10-old-home" "worktree=$owt" >/dev/null
 [ ! -e "$owt" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s10-old-home" && [ "$(field "$s10" status)" = done ] \
   || die "旧の置き場の worktree が片付かない: $(kanban show "$s10" --json | jq -c .issue)"
 ok 'finish: 旧の置き場（~/.herdr/worktrees/<repo 名>/<slug>-<id>）の値の課題も片付ける'
+
+# finish の書き戻し（ADR-0011 決めたこと 15・受け入れ条件 13）: write_back: true の出所（github-issues。repo が無ければ repos の全部）の
+# issue の URL を links に持つ課題の finish で、その issue に1コメント（課題 id・PR・結果）を1回だけ書く。状態は変えない（gh は issue comment だけ）
+setsignals() {
+  jq --argjson s "$1" '.signals = $s' "$tmp/plant/projects/demo/project.json" > "$tmp/p.json" && cp "$tmp/p.json" "$tmp/plant/projects/demo/project.json"
+  GIT_AUTHOR_EMAIL=owner@example.com git -C "$tmp/plant" commit -qam "signals: $1"
+}
+wbissue() {  # wbissue <題> <links…>: links と report.json の pr を持つ、repo の無い課題
+  local x; x=$(kanban add "$1" --profile claude); shift
+  kanban set "$x" "links=$(IFS=,; echo "$*")" >/dev/null
+  mkdir -p "kanban/issues/$x/library"; jq -n --arg pr "$pr" '{pr: $pr}' > "kanban/issues/$x/library/report.json"
+  echo "$x"
+}
+rm -f "$tmp/gh-issue" "$tmp/gh-body"
+setsignals '[{"source": "github-issues", "weight": "later", "write_back": true}]'
+iss=https://github.com/example/app/issues/3
+w1=$(wbissue 'Write back' "$iss" "$iss" https://github.com/example/other/issues/4 https://example.com/x)
+echo MERGED > "$tmp/prstate"
+"$andon" issue finish "$w1" > "$tmp/out" || die "write_back の課題を finish できない"
+[ "$(field "$w1" status)" = done ] && [ "$(cat "$tmp/gh-issue")" = "comment $iss" ] || die "1コメントでない・repos に無い repo にも書いた・状態に触れた: $(cat "$tmp/gh-issue")"
+grep -q "課題 $w1 " "$tmp/gh-body" && grep -qF -- "- PR: $pr" "$tmp/gh-body" && grep -q -- '- 結果: マージ' "$tmp/gh-body" || die "本文に課題 id・PR・結果が無い: $(cat "$tmp/gh-body")"
+grep -q "$w1 の結果を $iss に書いた" "$tmp/out" || die "書いたことを出していない: $(cat "$tmp/out")"
+expect_fail "$w1 は done" "$andon" issue finish "$w1"
+[ "$(wc -l < "$tmp/gh-issue")" = 1 ] || die '2回目の finish で書いた'
+ok 'finish: write_back: true の出所の issue に1コメント（課題 id・PR・結果）を1回だけ書く（状態は変えない。repos に無い repo・トラッカーでない links には書かない。ADR-0011 受け入れ条件 13）'
+
+: > "$tmp/gh-issue"
+echo CLOSED > "$tmp/prstate"
+setsignals '[{"source": "github-issues", "repo": "github.com/example/app", "weight": "later", "write_back": true}]'
+w2=$(wbissue 'Closed' "$iss")
+"$andon" issue finish "$w2" >/dev/null
+[ "$(cat "$tmp/gh-issue")" = "comment $iss" ] && tail -n 3 "$tmp/gh-body" | grep -q -- '- 結果: 閉じ（マージせず）' || die "閉じた PR の結果: $(cat "$tmp/gh-body")"
+ok 'finish: マージされずに閉じた PR は「閉じ」と書く（出所の repo を書いたときはその repo の issue に）'
+
+for sig in '[{"source": "github-issues", "weight": "later", "write_back": false}]' \
+           '[{"source": "github-issues", "weight": "later"}]' \
+           '[{"source": "github-ci", "weight": "now", "write_back": true}]'; do
+  : > "$tmp/gh-issue"
+  setsignals "$sig"
+  w3=$(wbissue 'No write back' "$iss")
+  "$andon" issue finish "$w3" >/dev/null
+  [ "$(field "$w3" status)" = done ] && [ ! -s "$tmp/gh-issue" ] || die "write_back が true の github-issues でないのに書いた（$sig）: $(cat "$tmp/gh-issue")"
+done
+ok 'finish: write_back が無い・false・github-issues でない出所なら書かない'
+
+: > "$tmp/gh-issue"
+setsignals '[{"source": "github-issues", "weight": "later", "write_back": true}]'
+w4=$(wbissue 'PR unreadable' "$iss")
+rm "$tmp/prstate"
+"$andon" issue finish "$w4" > "$tmp/out" 2>/dev/null || die 'PR が読めないと finish が落ちた'
+[ "$(field "$w4" status)" = done ] && [ ! -s "$tmp/gh-issue" ] && grep -q "トラッカーへ書けなかった（PR を読めない" "$tmp/out" || die "PR が読めないのに書いた・言わない: $(cat "$tmp/out")"
+ok 'finish: PR の状態が読めなければ書かずに1行出す（結果を書き違えない。片付けは戻さない）'
 
 # resume: 止まった担当を同じ worktree でセッションの続きから起こす（ADR-0012 決めたこと 3・7・11・13。受け入れ条件 1・2・3・5）
 grep "issue=$s4 " "$tmp/hc/log" | grep -q 'session=' && die 'Codex 系の start がセッションの id を渡した（Codex は決める口が無い）'
