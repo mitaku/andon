@@ -144,6 +144,7 @@ report|.review_request|round limit commit previous reviewer extra
 report|.waived[0]|severity file line reason
 report|.acceptance[0]|id result evidence
 report|.risk|one_way
+report|.estimate|size reason
 report|.observation|hypothesis result evidence
 report|.next[0]|to text
 question|.options[0]|label pick
@@ -248,6 +249,10 @@ fail|report|.observation = {"hypothesis": "", "result": "hit", "evidence": []}|o
 fail|report|.observation = {"hypothesis": "h", "result": "hit"}|observation に evidence が無い
 fail|report|.observation = {"hypothesis": "h", "result": "hit", "evidence": [""]}|observation.evidence に空の行
 pass|report|{}|commit 無し（repo の無い課題）でも通る
+pass|report|del(.estimate)|estimate の無い report.json（見込みに反論しない）
+fail|report|.estimate.size = "大"|estimate.size が段の名（値は英字の small/medium/large）
+fail|report|.estimate.size = 120|estimate.size が分の数
+fail|report|.estimate.reason = ""|estimate.reason が空
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
 fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない

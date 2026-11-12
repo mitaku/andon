@@ -49,6 +49,16 @@
         }
       }
     },
+    "estimate": {
+      "description": "The agent's own estimate when it differs from the issue's estimate (issue.yaml, written by the Chief of Staff). It never changes the issue's estimate; the dispatcher keeps comparing with that one. andon issue report carries it over from the previous report.json when --data has none.",
+      "type": "object",
+      "required": ["size", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "size": { "description": "As the issue key estimate.", "enum": ["small", "medium", "large"] },
+        "reason": { "description": "Why the agent sees it differently, in one line.", "type": "string", "minLength": 1 }
+      }
+    },
     "waived": {
       "description": "Findings left unfixed, with the reason.",
       "type": "array",
