@@ -19,6 +19,8 @@
 - **課題の見込みと実働**: 予約キー `estimate`（`small`・`medium`・`large`）と依頼書の Estimate の行（[ADR-0014](docs/adr/0014-issue-estimate.md) E1。#162）。待ちを除いた実働を `log.jsonl` と Gone の時刻から数える `ledger.Worked` と、段→分の表（E2。#182）。
 - **担当が画面を見て確かめる**（[ADR-0018](docs/adr/0018-screen-check-tooling.md)）: image に `playwright-cli` の wrapper と PATH、焼いた Chromium と出力先 `/tmp/playwright-cli` の既定を入れた（S2。#161）。boot が同梱の skill を symlink で張り、外の skill を `gh skill` で入れる口（`package/gh-skills.txt`・セルの `local/gh-skills.txt`。S3。#179）。ゲートに `screen_paths`（画面のパスを変える PR は GitHub の添付が無いと `fix`。既定は無し。S4。#163）。skill・設定・文書を画面の確かめに揃えた（`allowManagedPermissionRulesOnly`・worker §2・§3・§7・independent-review の観点・environment.md。S5。#167）。
 - **managed の許可ルールだけが効く**: `allowManagedPermissionRulesOnly: true`。担当の `git push --force-with-lease` を通す許可を足し（`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` の env は消した。#160）、main・`--all`・`--mirror` に当たる形は managed の deny で断る（#169）。
+- **dispatcher が live でない Chief of Staff の台帳を飛ばすとき 1 行出す**: Chief of Staff の端末が live でない台帳を飛ばし始めたとき、ログ 1 行と herdr 通知を出す（#194）。
+- **dispatcher の再開の文に、やり直しの許しを書く**: 提供元のエラーのあとの「続けて」に、やり直しに承認が要らないことを足した（#195）。
 - **Codex の自動の記憶を止める**: boot が `~/.codex/config.toml` の `features.memories`・`memories.generate_memories`・`memories.use_memories` を `false` にし、`codex`・`codex-review` のプロファイルは同じ `-c` を渡す（#183）。
 - **`fable` と `chief-engineer` は `--effort high` を明示して起こす**（#168。[design.md](docs/design.md) §1.8 の表も合わせた）。
 - **人への書き方を `package/writing.md` に置いた。全役に配るのは次の版（V3）**: 番号の 2 行と 3 行・語の決まり・用語集のパス（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) V1。#175・#185）。ADR-0013 の改めで、細かい書き方の推敲を yomiyasu に任せられるかをセル 1 つで試す（#190）。
