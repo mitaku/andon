@@ -24,10 +24,12 @@ func (r *reader) estimates(o Options, ids []string, byID map[string]*issue, done
 	}
 	for _, id := range ids {
 		t := byID[id]
-		if d, ok := doneAt[id]; !ok || !in(d) || t.reviewer || t.profile == "chief-engineer" || t.raw.Str("who") == "person" {
+		d, ok := doneAt[id]
+		if !ok || !in(d) || t.reviewer || t.profile == "chief-engineer" || t.raw.Str("who") == "person" {
 			continue
 		}
-		worked := ledger.Worked(rows, tasks, id, cos, gone[id], o.Now)
+		// 実働は期間に閉じたときまでで数える（閉じたあとに起動し直した作業を混ぜない）
+		worked := ledger.Worked(until(rows, d), tasks, id, cos, gone[id], d)
 		x := Issue{Issue: id, WorkedMinutes: int(worked.Minutes())}
 		if m := ledger.EstimateMinutes(t.agentEst); m > 0 {
 			x.AgentEstimateMinutes = &m
@@ -47,6 +49,16 @@ func (r *reader) estimates(o Options, ids []string, byID map[string]*issue, done
 	}
 	sum.Rate = ratio(sum.Within, sum.Count)
 	return sum, out
+}
+
+// until は log.jsonl の行のうち時刻が t まで（含む）のもの。rows は時刻の順。
+func until(rows []ledger.Row, t time.Time) []ledger.Row {
+	for i, r := range rows {
+		if at, err := time.Parse(time.RFC3339, r.At); err == nil && at.After(t) {
+			return rows[:i]
+		}
+	}
+	return rows
 }
 
 // gone は dispatcher の控えの gone（課題 → 担当の端末が Gone だと見た時刻）。無ければ空。

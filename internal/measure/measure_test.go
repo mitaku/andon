@@ -787,7 +787,7 @@ func TestTokensBrokenLineIsSkipped(t *testing.T) {
 //	S-0011 見込み medium（Chief of Staff）・担当の見込み large。doing 01:00〜02:30 の 90 分から、自分の問い 10 分・
 //	       レビュー待ち（S-0011-r1 の add 02:00〜review 02:20）20 分・死んでいた区間（gone 02:25〜agent 02:28）3 分を引いて 57 分。比 0.95（収まった）
 //	S-0012 見込み small を書いたのが Chief of Staff でない → 見込み無し。実働 30 分
-//	S-0013 見込み small（Chief of Staff）。実働 45 分。比 1.5（収まらない）
+//	S-0013 見込み small（Chief of Staff）。実働 45 分。比 1.5（収まらない）。期間のあとに起動し直した doing（11-02 02:00〜）は数えない
 //	S-0014 Chief Engineer の課題・S-0011-r1 レビュアーの課題・S-0015 期間の前に閉じた課題は載らない
 func TestMeasureEstimate(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "sample-site")
@@ -824,13 +824,16 @@ func TestMeasureEstimate(t *testing.T) {
 		row("04:30", "terminal:t3", "S-0012", `{"status":"done"}`),
 		row("05:00", "terminal:t4", "S-0013", `{"status":"doing"}`),
 		row("05:45", "terminal:t4", "S-0013", `{"status":"done"}`),
+		// 期間のあと（11-02）に起動し直して doing のまま: 期間に閉じたときまでの実働 45 分だけを数える
+		`{"at":"2026-11-02T01:00:00Z","by":"terminal:t0","id":"S-0013","change":{"status":"todo"}}`,
+		`{"at":"2026-11-02T02:00:00Z","by":"terminal:t4","id":"S-0013","change":{"status":"doing"}}`,
 		row("06:00", "terminal:t6", "S-0014", `{"status":"doing"}`),
 		row("09:00", "terminal:t6", "S-0014", `{"status":"done"}`),
 	}, "\n")+"\n")
 	gone := time.Date(2026, 11, 1, 2, 25, 0, 0, time.UTC).UnixMilli()
 	state := filepath.Join(t.TempDir(), "sample-site.json")
 	put(t, state, fmt.Sprintf(`{"gone": {"S-0011": [{"agent": "t1", "at": %d}]}}`, gone))
-	res, err := Measure(Options{Root: root, Since: day("2026-11-01"), Until: day("2026-11-01"), Now: day("2026-11-02"),
+	res, err := Measure(Options{Root: root, Since: day("2026-11-01"), Until: day("2026-11-01"), Now: day("2026-11-03"),
 		GH: func(string) ([]byte, error) { return []byte("[]"), nil }, State: state})
 	if err != nil {
 		t.Fatal(err)
