@@ -11,7 +11,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc: get は $D/status（無ければ idle）と top-level の argv（$D/argv。無ければ sh -c claude）と前に出ているもの（$D/fg。無ければ null）とラベル（$D/unsent があれば first_message.sent=false）を返す。
+// 偽の hc: read は $D/screen（無ければ空の入力欄。$D/read-rc があれば落ちる）、keys は $D/log に1行（$D/send-rc で落ちる）。get は $D/status（無ければ idle）と top-level の argv（$D/argv。無ければ sh -c claude）と前に出ているもの（$D/fg。無ければ null）とラベル（$D/unsent があれば first_message.sent=false）を返す。
 // send は $D/send-rc があればその終了コードで落ちる。label は $D/label-rc があれば落ち、通れば $D/unsent を消す。
 // 打たれたものは $D/log に1行ずつ（send は本文の改行を | にして）。
 const firstHc = `#!/usr/bin/env bash
@@ -23,6 +23,10 @@ case $1 in
     argv='["sh","-c","claude"]'; [ -e "$d/argv" ] && argv=$(cat "$d/argv")
     printf '{"state":"live","status":{"state":"%s"},"status_ms":%s,"turn":0,"labels":%s,"argv":%s,"foreground":%s}\n' "$(cat "$d/status" 2>/dev/null || echo idle)" "$(date +%s%3N)" "$labels" "$argv" "$fg" ;;
   send) printf 'send %s %s\n' "$2" "$(printf '%s' "$3" | tr '\n' '|')" >>"$d/log"
+    [ -e "$d/send-rc" ] && exit "$(cat "$d/send-rc")"; exit 0 ;;
+  read) [ -e "$d/read-rc" ] && exit "$(cat "$d/read-rc")"
+    if [ -e "$d/screen" ]; then cat "$d/screen"; else printf '────\n❯ \n────\n'; fi ;;
+  keys) printf 'keys %s\n' "${*:2}" >>"$d/log"
     [ -e "$d/send-rc" ] && exit "$(cat "$d/send-rc")"; exit 0 ;;
   label) printf 'label %s\n' "${*:2}" >>"$d/log"
     [ -e "$d/label-rc" ] && exit "$(cat "$d/label-rc")"; rm -f "$d/unsent" ;;
@@ -237,5 +241,78 @@ func TestSeenBareShellIsGone(t *testing.T) {
 	f.put("fg", `{"name":"sh","argv":["sh","-c","claude"]}`)
 	if s, ok := f.p.seen("t42"); !ok || s.Gone {
 		t.Fatalf("起動したエージェントを終わったとみた: %+v %v", s, ok)
+	}
+}
+
+// 前に貼った最初のメッセージが入力欄に残っていれば、貼り直さず Enter だけ押す（ADR-0007 R6）。
+func TestFirstMessageLeftInInput(t *testing.T) {
+	f := newFirst(t)
+	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
+	f.put("screen", "\n────\n❯ 課題 `sample-site/S-7`。\n  依頼書は `"+brief+"`。\n────\n  ? for shortcuts\n")
+	if got := f.round(); len(got) != 2 || got[0] != "keys t42 enter" || got[1] != "label t42 first_message.sent=" {
+		t.Fatalf("残っている入力欄: %q", got)
+	}
+	if !strings.Contains(f.log.String(), "Enter だけ押した") {
+		t.Errorf("Enter だけ押したことがログに無い: %s", f.log.String())
+	}
+	if got := f.round(); got != nil {
+		t.Fatalf("押したあとにまた打った: %q", got)
+	}
+
+	// 入力欄にサジェストが出ている（色が無いと文と見分けられない）: 残っているとはみず、送る
+	f = newFirst(t)
+	f.put("screen", "────\n❯ Try \"fix lint errors\"\n────\n")
+	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 課題 ") {
+		t.Fatalf("サジェストの入力欄: %q", got)
+	}
+
+	// 画面の上に同じ行（送った文の写し）があっても、入力欄が空なら送る
+	f = newFirst(t)
+	f.put("screen", "❯ 課題 `sample-site/S-7`。\n\n⏺ 読む\n────\n❯ \n────\n")
+	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 課題 ") {
+		t.Fatalf("入力欄が空: %q", got)
+	}
+
+	// Enter を押せなかった: 送りかけを消し、ラベルを残して次の見回りでまた読む
+	f = newFirst(t)
+	f.put("screen", "› 課題 `sample-site/S-7`。\n  依頼書は `x`。\n")
+	f.put("send-rc", "1")
+	if got := f.round(); len(got) != 1 || got[0] != "keys t42 enter" {
+		t.Fatalf("押せない: %q", got)
+	}
+	if f.p.st.First["S-7|t42"] {
+		t.Error("押せなかったのに控えに送ったと持っている")
+	}
+
+	// 入力欄を読めない: 送らない（重ねないほうに倒す）。次の見回りで読み直す
+	f = newFirst(t)
+	f.put("read-rc", "1")
+	if got := f.round(); got != nil {
+		t.Fatalf("読めないのに打った: %q", got)
+	}
+	f.rm("read-rc")
+	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 ") {
+		t.Fatalf("読めるようになったのに送らない: %q", got)
+	}
+}
+
+func TestLeftInInput(t *testing.T) {
+	first := "課題 `sample-site/S-7`。"
+	for _, c := range []struct {
+		name, screen string
+		want         bool
+	}{
+		{"Claude Code の入力欄に残っている", "────\n❯ 課題 `sample-site/S-7`。\n  依頼書は `b`。\n────\n", true},
+		{"Codex の入力欄に残っている", "› 課題 `sample-site/S-7`。\n  依頼書は `b`。\n\n  ⏎ send\n", true},
+		{"空の入力欄", "────\n❯ \n────\n", false},
+		{"サジェスト", "────\n❯ Try \"refactor <filepath>\"\n────\n", false},
+		{"Codex のサジェスト", "› Improve documentation in @filename\n", false},
+		{"ほかの課題の文", "❯ 課題 `sample-site/S-70`。\n", false},
+		{"上に写しがあり入力欄は空", "❯ 課題 `sample-site/S-7`。\n⏺ ok\n❯ \n", false},
+		{"印の無い画面", "課題 `sample-site/S-7`。\n", false},
+	} {
+		if got := LeftInInput(c.screen, first); got != c.want {
+			t.Errorf("%s: %v", c.name, got)
+		}
 	}
 }
