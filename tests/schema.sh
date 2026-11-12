@@ -111,7 +111,7 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
-  [measure]="project since until days value flow efficiency counter news prs tokens skipped"
+  [measure]="project since until days value flow efficiency counter news prs estimate issues tokens skipped"
   [corrections]="at corrections"
   [signal]="signals"
   [delivered]="at project acked news"
@@ -181,6 +181,8 @@ measure|.prs[0]|issue pr merged_at tier auto human_touches lead_time_hours rever
 measure|.skipped[0]|source reason
 measure|.news|threshold kinds candidates
 measure|.news.kinds[0]|kind delivered acked rate recorded
+measure|.estimate|count within rate none
+measure|.issues[0]|issue estimate_minutes agent_estimate_minutes worked_minutes ratio
 measure|.tokens[0]|issue source usage
 measure|.tokens[0].usage|input output cache_read cache_write
 delivered|.news[0]|kind

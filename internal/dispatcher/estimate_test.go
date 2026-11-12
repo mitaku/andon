@@ -190,7 +190,8 @@ func TestEstimateExcludesGone(t *testing.T) {
 	}
 }
 
-// 最初の列に戻った（todo・queued・done・台帳から消えた）課題の控えは捨てる。review の間は持ち越す。
+// 最初の列に戻った（todo・queued・done・台帳から消えた）課題の段の控えは捨てる。review の間は持ち越す。
+// Gone は done のあとも残し（andon measure が読む）、todo・queued に戻るか台帳から消えたら捨てる。
 func TestEstimateForget(t *testing.T) {
 	f := newEstimate(t)
 	f.round(200)
@@ -200,8 +201,13 @@ func TestEstimateForget(t *testing.T) {
 	if len(f.p.st.Estimate) != 3 || len(f.p.st.Gone["S-7"]) != 1 {
 		t.Fatalf("review の間に控えを捨てた: %v %v", f.p.st.Estimate, f.p.st.Gone)
 	}
-	f.p.tasks[0]["status"] = "todo"
+	f.p.tasks[0]["status"] = "done"
 	f.round(202)
+	if len(f.p.st.Estimate) != 0 || len(f.p.st.Gone["S-7"]) != 1 {
+		t.Fatalf("done で段を残した・Gone を捨てた（measure が読む）: %v %v", f.p.st.Estimate, f.p.st.Gone)
+	}
+	f.p.tasks[0]["status"] = "todo"
+	f.round(203)
 	if len(f.p.st.Estimate) != 0 || len(f.p.st.Gone) != 0 {
 		t.Fatalf("todo に戻った課題の控えが残る: %v %v", f.p.st.Estimate, f.p.st.Gone)
 	}

@@ -88,8 +88,15 @@ func (p *project) estimate(now time.Time, cos string) {
 			delete(p.st.Estimate, k)
 		}
 	}
+	// Gone は done のあとも残す（andon measure が閉じた課題の実働から死んでいた区間を引く）。最初の列に戻るか台帳から消えたら捨てる。
+	live := map[string]bool{}
+	for _, t := range p.tasks {
+		if s := t.Str("status"); s != "todo" && s != "queued" && s != "" {
+			live[t.Str("id")] = true
+		}
+	}
 	for id := range p.st.Gone {
-		if _, ok := keep[id]; !ok {
+		if !live[id] {
 			delete(p.st.Gone, id)
 		}
 	}
