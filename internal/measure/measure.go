@@ -1095,7 +1095,7 @@ func (r *reader) news(o Options, in func(time.Time) bool) News {
 		k := *by[name]
 		k.Rate = ratio(k.Acked, k.Delivered)
 		out.Kinds = append(out.Kinds, k)
-		if k.Delivered > 0 && float64(k.Acked) >= passThrough*float64(k.Delivered) {
+		if k.Rate != nil && *k.Rate >= passThrough { // 表に出す丸めた rate で決める（contract.md §13）
 			out.Candidates = append(out.Candidates, name)
 		}
 	}

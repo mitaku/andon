@@ -638,6 +638,27 @@ func TestNewsMatchesHandCount(t *testing.T) {
 	}
 }
 
+// 候補は表に出す丸めた rate で決める（contract.md §13）。79 / 99 は rate 0.8 なので候補。
+func TestNewsCandidateByRoundedRate(t *testing.T) {
+	o := opts(fakeLedger(t))
+	dir := t.TempDir()
+	o.Delivered = filepath.Join(dir, "x.delivered.jsonl")
+	o.Recorded = filepath.Join(dir, "x.recorded.jsonl")
+	news := func(n int) string { return strings.TrimSuffix(strings.Repeat(`{"kind":"report"},`, n), ",") }
+	put(t, o.Delivered, `{"at":"2026-11-01T01:00:00Z","project":"x","acked":true,"news":[`+news(79)+`]}`+"\n"+
+		`{"at":"2026-11-01T02:00:00Z","project":"x","acked":false,"news":[`+news(20)+`]}`+"\n")
+	res, err := Measure(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k := res.News.Kinds; len(k) != 1 || k[0].Rate == nil || *k[0].Rate != 0.8 {
+		t.Fatalf("kinds: %+v", k)
+	}
+	if c := res.News.Candidates; len(c) != 1 || c[0] != "report" {
+		t.Errorf("rate 0.8 の kind が候補に出ない: %v", c)
+	}
+}
+
 // 閾値を下回れば候補の行は「なし」。記録が無ければ通知の節は「記録なし」。
 func TestNewsNoCandidate(t *testing.T) {
 	o := opts(fakeLedger(t))
