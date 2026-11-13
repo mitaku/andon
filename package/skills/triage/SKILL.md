@@ -60,7 +60,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 | 3 | **済んでいる**: 同じ内容の課題が done／リポジトリの文書に既に入っている（`git grep`）／docs の「決めたこと」で決まっている | `close`「済み: <どこで>」 |
 | 4 | **起きない**: 見送りの `trivial`（起きる条件を示せない）／`minor` のうち、起きる条件がその repo に無い | `close`「起きない: <理由>」 |
 | 5 | **人にしかできない**: 実機・別のセル・外部サービスの UI（Revoke・支払い・プランの変更）・人の目視が完了条件 | `person`（`kind` を付けない。`question` に期限の目安） |
-| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕）、またはゲートのレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行） |
+| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕）、またはゲートのレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行。レベル C で4つのどれにも当たらないもの〈ラインの変更など〉は `kind` を付けない） |
 | 7 | **直せて、束ねられる**: 8 の条件を満たし、同じ repo で各々が小さい（目安 50 行以下）ものが、今回の項目に 3 つ以上ある | `bundle`（同じ `bundle` 名。1課題1 PR、commit は意図ごと） |
 | 8 | **直せる**: 完了条件が 1〜3 行で書け、差分が 1 repo に収まり、レベル A か B、可逆 | `fix`（`issue` を付ける。§4） |
 | 9 | 待つものがある（`after` に書ける id・リリース待ち・作業中の課題） | `keep`（理由に待つものの id） |
@@ -75,7 +75,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   5・6 に当たらず推奨案があり後で変えられるものだけが 8 の `fix`（推奨案で決めて文書の「決めたこと」に「仮（<日付>・Chief of Staff）」と書く課題）。
   例: 使い勝手の既定値は `person`（`users`）。テストの置き場や文書の節の分け方は `fix`。ask-one-by-one skill §1 と同じ線。
 - **`agents`**（`For AGENTS.md:`）: 行き先が決まっているので `fix`。同じ repo に 3 つ以上なら `bundle`（「AGENTS.md に n 行足す」。profile は `sonnet`）。
-- **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（レベル C）。
+- **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（レベル C。`kind` を付けない）。
   この台帳が Andon 自身のプロジェクトでなければ `close`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`「その場限り」。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`「読んだ: 拾うものなし」。
