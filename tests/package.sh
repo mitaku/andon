@@ -182,7 +182,7 @@ cases = {
     "allow": ["git push --force-with-lease", "git push --force-with-lease origin HEAD",
               "git push --force-with-lease origin andon/A-0001-fix-main-page",
               "git push --force-with-lease origin HEAD:andon/A-0001-maintenance",
-              "git push --force-with-lease --force-if-includes origin HEAD", "git push --force-with-lease origin andon/A-0001-delete-tags"],
+              "git push --force-with-lease origin andon/A-0001-delete-tags"],
     "deny": ["git push --force-with-lease origin main", "git push origin main --force-with-lease",
              "git push --force-with-lease origin HEAD:main", "git push origin HEAD:main --force-with-lease",
              "git push --force-with-lease origin andon/A-0001-x:main", "git push --force-with-lease origin +HEAD:main",
@@ -198,7 +198,15 @@ cases = {
              "git push --force-with-lease origin +:andon/A-0001-x", "git push --force-with-lease --prune origin HEAD",
              "git push --force-with-lease --tags", "git push --force-with-lease origin --tags", "git push --force-with-lease --follow-tags origin HEAD",
              "git push --force-with-lease origin tag v1.0.0", "git push --force-with-lease origin refs/tags/v1.0.0",
-             "git push --force-with-lease origin HEAD:refs/tags/v1.0.0"],
+             "git push --force-with-lease origin HEAD:refs/tags/v1.0.0",
+             # allow は「git push --force-with-lease」と「git push --force-with-lease origin <1語>」だけ。1語は旗でも + でもない（A-0200 のレビュー）
+             "git push --force-with-lease origin -fu",
+             "git push --force-with-lease origin -uf HEAD", "git push --force-with-lease origin HEAD -vf",
+             "git push --force-with-lease origin +v1.0", "git push --force-with-lease origin +HEAD:andon/A-0001-x",
+             "git push --force-with-lease origin HEAD andon/A-0001-x"],
+    # origin より前に旗を置く形は allow に当たらず、人に聞く（-fu も --force-if-includes も）
+    "ask": ["git push --force-with-lease upstream HEAD", "git push --force-with-lease -u origin HEAD",
+            "git push --force-with-lease -fu origin HEAD:refs/heads/andon/review", "git push --force-with-lease --force-if-includes origin HEAD"],
 }
 for want, cmds in cases.items():
     for c in cmds:
