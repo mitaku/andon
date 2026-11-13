@@ -125,7 +125,20 @@ func line(n Notification) string {
 	case "corrections":
 		return head + "人の手直しを集められなかった（" + clean(n.Detail["error"], 120) + "）。corrections.json は書いていない"
 	case "estimate":
-		return head + "実働 " + d("worked_minutes") + " 分が見込み（" + short("estimate") + " " + d("estimate_minutes") + " 分）の " + d("stage") + " 倍を超えた（比 " + d("ratio") + "）"
+		s := head + "実働 " + d("worked_minutes") + " 分が見込み（" + short("estimate") + " " + d("estimate_minutes") + " 分）の " + d("stage") + " 倍を超えた（比 " + d("ratio") + "）"
+		var sign []string
+		switch v := n.Detail["sign"].(type) {
+		case []string: // 積んだ巡のうちに配るとき
+			sign = v
+		case []any: // 控えから読み直したとき
+			for _, x := range v {
+				sign = append(sign, clean(x, 20))
+			}
+		}
+		if len(sign) > 0 {
+			s += "。兆し: " + strings.Join(sign, "・")
+		}
+		return s
 	case "signal":
 		// 題は外の人の文。区切りと制御文字を消し、囲いの中に置く（ADR-0011 決めたこと 16）
 		return "signal: " + short("source") + " " + d("key") + "（" + d("url") + "）" + signal.Untrusted(d("title"))

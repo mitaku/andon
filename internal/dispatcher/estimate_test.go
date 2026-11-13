@@ -1,8 +1,12 @@
 package dispatcher
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -210,5 +214,109 @@ func TestEstimateForget(t *testing.T) {
 	f.round(203)
 	if len(f.p.st.Estimate) != 0 || len(f.p.st.Gone) != 0 {
 		t.Fatalf("todo に戻った課題の控えが残る: %v %v", f.p.st.Estimate, f.p.st.Gone)
+	}
+}
+
+// worktree は偽の worktree を作る: origin（main に1行）を clone し、t0 から base 分あとに切った枝で、files を
+// t0 から at 分あとの commit にする（at < 0 なら commit せず作業ツリーに置くだけ）。
+func (f *estimateFixture) worktree(at int, files map[string]int) string {
+	f.t.Helper()
+	d := f.t.TempDir()
+	f.t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	f.t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	git := func(dir string, min int, args ...string) {
+		f.t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=a", "-c", "user.email=a@example.com", "-C", dir}, args...)...)
+		date := f.at(min).Format(time.RFC3339)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+date, "GIT_COMMITTER_DATE="+date)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			f.t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	origin, wt := filepath.Join(d, "origin"), filepath.Join(d, "wt")
+	git(d, 0, "init", "-q", "-b", "main", origin)
+	if err := os.WriteFile(filepath.Join(origin, "README.md"), []byte("a\n"), 0o644); err != nil {
+		f.t.Fatal(err)
+	}
+	git(origin, -10, "add", ".")
+	git(origin, -10, "commit", "-q", "-m", "base")
+	git(d, 0, "clone", "-q", origin, wt)
+	git(wt, 0, "switch", "-q", "-c", "work")
+	for name, n := range files {
+		p := filepath.Join(wt, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			f.t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(strings.Repeat("x\n", n)), 0o644); err != nil {
+			f.t.Fatal(err)
+		}
+	}
+	git(wt, 0, "add", ".")
+	if at >= 0 {
+		git(wt, at, "commit", "-q", "-m", "work")
+	}
+	return wt
+}
+
+// signOf は min 分あとの見回りで積んだ estimate の段と detail.sign を返す。
+func (f *estimateFixture) signOf(min int) (int, any) {
+	f.t.Helper()
+	stage := f.round(min)
+	for _, n := range f.p.st.Pending {
+		if n.Kind == "estimate" {
+			return stage, n.Detail["sign"]
+		}
+	}
+	return stage, nil
+}
+
+// 詰まりの兆し（ADR-0017 受け入れ条件 9）: 偽の worktree で、見込み（小 30 分）の分だけ commit が無い・テストを除いた変更が
+// 500 行を超えたとき、段の estimate の detail.sign に no-commit・large-diff が載る。段の間では通知が出ない。
+func TestEstimateSign(t *testing.T) {
+	f := newEstimate(t)
+	f.p.tasks[0]["worktree"] = f.worktree(5, map[string]int{"main.go": 300, "web/app.js": 201})
+	if stage, sign := f.signOf(31); stage != 1 || !reflect.DeepEqual(sign, []string{"large-diff"}) {
+		t.Fatalf("commit から 26 分・501 行: 段 %d sign %v", stage, sign)
+	}
+	if stage, _ := f.signOf(50); stage != 0 {
+		t.Fatalf("段の間に積んだ: %d", stage)
+	}
+	if stage, sign := f.signOf(61); stage != 2 || !reflect.DeepEqual(sign, []string{"no-commit", "large-diff"}) {
+		t.Fatalf("commit から 56 分・501 行: 段 %d sign %v", stage, sign)
+	}
+	// Chief of Staff の <news> の1行に兆しが載る（控えから読み直した通知でも）
+	n := f.p.st.Pending[0]
+	b, _ := json.Marshal(n)
+	var back Notification
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []Notification{n, back} {
+		if l := line(m); l != "S-7 estimate: 実働 61 分が見込み（small 30 分）の 2 倍を超えた（比 2.03）。兆し: no-commit・large-diff" {
+			t.Errorf("<news> の1行: %s", l)
+		}
+	}
+
+	// テスト（tests/ の下・*_test.*）は数えない。commit が見込みの中なら兆しは無く、sign を置かない
+	f = newEstimate(t)
+	f.p.tasks[0]["worktree"] = f.worktree(5, map[string]int{"main.go": 500, "tests/a.sh": 900, "pkg/tests/b.sh": 900, "x_test.go": 900})
+	if stage, sign := f.signOf(31); stage != 1 || sign != nil {
+		t.Fatalf("テストを除いて 500 行・commit から 26 分: 段 %d sign %v", stage, sign)
+	}
+
+	// 一度も commit していない（HEAD は main の commit）: commit の無い時間は main の commit から数え、まだ commit していない変更も数える
+	f = newEstimate(t)
+	f.p.tasks[0]["worktree"] = f.worktree(-1, map[string]int{"main.go": 10})
+	if stage, sign := f.signOf(31); stage != 1 || !reflect.DeepEqual(sign, []string{"no-commit"}) {
+		t.Fatalf("commit 無し: 段 %d sign %v", stage, sign)
+	}
+
+	// 見込みの無い課題には出ない
+	f = newEstimate(t)
+	f.p.tasks[0]["worktree"] = f.worktree(-1, map[string]int{"main.go": 900})
+	delete(f.p.tasks[0], "estimate")
+	f.p.rows = f.p.rows[1:]
+	if stage, _ := f.signOf(200); stage != 0 {
+		t.Fatalf("見込みの無い課題に積んだ: %d", stage)
 	}
 }

@@ -190,7 +190,9 @@
         "estimate_minutes": { "description": "Minutes of the estimate (contract.md section 2).", "type": "integer", "minimum": 1 },
         "worked_minutes": { "description": "Worked minutes, waits excluded, rounded down.", "type": "integer", "minimum": 0 },
         "ratio": { "description": "worked / estimate, two decimals.", "type": "number", "minimum": 0 },
-        "stage": { "description": "Times the estimate it went over.", "enum": [1, 2, 4] }
+        "stage": { "description": "Times the estimate it went over.", "enum": [1, 2, 4] },
+        "sign": { "description": "Signs of being stuck, counted with git in the issue's worktree: no-commit (no commit for the estimate's minutes), large-diff (over 500 changed lines, tests excluded). Only when there is one.",
+          "type": "array", "minItems": 1, "items": { "enum": ["no-commit", "large-diff"] } }
       }
     },
     "memory": {

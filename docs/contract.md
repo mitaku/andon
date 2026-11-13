@@ -229,7 +229,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `corrections` | `log.jsonl` の `{"status": "done"}` の課題の `corrections.json`（§14）を、次の見回りの打ち直しでも集められなかったとき（書いていない） | `error` |
 | `blocked`・`error`・`finished`・`stalled` | hcの状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `resumed` | 見回りで `doing` の課題の端末が Gone（無い・live でない・素のシェル）を見て、dispatcher が `andon issue resume` を1回打って起動できたとき（dispatcher.md §2.9。起動できなければ `finished`） | `agent`（起動した端末）・`from`（Gone を見た端末） |
-| `estimate` | 見回りで、`doing` の担当の課題（レビュアー・Chief Engineer・人の課題を除く）の実働（待ちを除いた時間。§2 の `Worked`）が、見込み（§2 の `estimate`。Chief of Staff が書いたものだけ）の 1・2・4 倍を超えたとき。段ごとに1回（一度に複数の段を超えたら上の段だけ）。見込みの無い課題には出さない。担当には何も送らない（dispatcher.md §2.10。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 6〜8） | `estimate`（段の値）・`estimate_minutes`（見込みの分）・`worked_minutes`（実働の分。切り捨て）・`ratio`（実働÷見込み。小数2桁）・`stage`（`1`・`2`・`4`） |
+| `estimate` | 見回りで、`doing` の担当の課題（レビュアー・Chief Engineer・人の課題を除く）の実働（待ちを除いた時間。§2 の `Worked`）が、見込み（§2 の `estimate`。Chief of Staff が書いたものだけ）の 1・2・4 倍を超えたとき。段ごとに1回（一度に複数の段を超えたら上の段だけ）。見込みの無い課題には出さない。担当には何も送らない（dispatcher.md §2.10。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 6〜8） | `estimate`（段の値）・`estimate_minutes`（見込みの分）・`worked_minutes`（実働の分。切り捨て）・`ratio`（実働÷見込み。小数2桁）・`stage`（`1`・`2`・`4`）・`sign`（詰まりの兆し。兆しがあるときだけ。下の表） |
 | `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
 | `memory` | 見回りで、セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory` の直下の `.md`。目録 `MEMORY.md` を除く）の件数が線（30 件）を超えたとき。線以下に戻るまで1回。`issue` は無い（dispatcher.md §2.11。[ADR-0020](adr/0020-auto-memory-as-intake.md) 決めたこと 4） | `count`（件数）・`line`（線） |
 
@@ -250,7 +250,14 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled`・`estimate`・`memory` | 届ける |
 
 - **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード（記録の一覧）と `andon measure`（§13 の `news`）。届けた通知はここに書かない（渡したターンの終わりに §17 の記録に書く）。全部の出来事の一覧は台帳の `log.jsonl` が正で、この記録はその代わりではない。
-- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine` と `merged` の `by`・`held` だけ任意。`held` は `by` と一緒）。
+- `estimate` の `sign` は、段の通知を積むときに課題の worktree（`issue.yaml` の `worktree`）の git で数えた兆しの配列（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 11）。段の間には数えず、兆しだけで通知を出さない。worktree が無い・git で読めない兆しは数えない。
+
+  | 値 | 兆し |
+  |---|---|
+  | `no-commit` | worktree の `HEAD` の commit（一度も commit していなければ切った元の commit）から、見込みの分より長く経った |
+  | `large-diff` | `origin/HEAD` との merge-base から作業ツリーまでの変更（追跡しているファイル）の、足した行と消した行の和が 500 を超えた。テスト（`tests` という名のディレクトリの下と、名前が `*_test.*` のファイル）とバイナリは数えない |
+
+- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine`、`merged` の `by`・`held`、`estimate` の `sign` だけ任意。`held` は `by` と一緒）。
 - 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる）。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。どちらも同じ JSON から同じ文を描く。③人が離席の間は、Chief of Staff の `Stop` フックが `asyncRewake` で起動する待ち役（`andon dispatcher wait`）が、届ける待ちがあれば合図だけを打って Chief of Staff を起動し、そのターンの終わりの①で届く。dispatcher は Chief of Staff の入力欄へ打たない（[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 1・8）。
 - **マージのあとの影響**（`impact`）: `andon issue impact <id>` は、課題の PR がマージされたあと、同じ repo の `doing`／`review` の担当の課題（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
   出力は `issue`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`issues[]`。`issues[]` の1件は `issue`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、その課題の依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めない・在るかを確かめられない〈権限など。無いのとは分ける〉ときも。影響なしに倒さない）。
