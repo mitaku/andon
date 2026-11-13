@@ -352,9 +352,8 @@ func readConfig(root string) (config, error) {
 // issueFileName is each issue's own file, issues/<id>/issue.yaml.
 const issueFileName = "issue.yaml"
 
-func issuesDir(root string) string    { return filepath.Join(ledgerDir(root), "issues") }
-func taskDir(root, id string) string  { return filepath.Join(issuesDir(root), id) }
-func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), issueFileName) }
+func issuesDir(root string) string   { return filepath.Join(ledgerDir(root), "issues") }
+func taskDir(root, id string) string { return filepath.Join(issuesDir(root), id) }
 
 // numberOf is the number of a task's id: 5 for A-0005, and for a reviewer's A-0005-r1 too (its parent's).
 func numberOf(id string) int {

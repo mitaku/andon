@@ -1,8 +1,8 @@
-// Behaviour tests for kanban (the ledger's CLI), copied unchanged from herdr-flightdeck's
-// herdr-app/cli/test-deck.mjs at tag deck-v0.4.0 (docs/decisions.md §7, §12); only these lines differ,
-// and (Y-141) the ledger's folder kanban/, KANBAN_ROOT, chief_of_staff and four-digit ids (W-0001); (Y-208) format 3: issues/<id>/issue.yaml and show --json .issue.
+// Behaviour tests for kanban (the ledger's CLI), copied from herdr-flightdeck's
+// herdr-app/cli/test-deck.mjs at tag deck-v0.4.0 (docs/decisions.md §7, §12) and changed since: these lines,
+// (Y-141) the ledger's folder kanban/, KANBAN_ROOT, chief_of_staff and four-digit ids (W-0001); (Y-208) format 3: issues/<id>/issue.yaml and show --json .issue.
 // tests/kanban.sh runs it: DECK_BIN=<path to a kanban executable> node tests/kanban/test-deck.mjs
-// Without DECK_BIN it looks for bin/deck (bin/deck.exe on Windows) at the repo root. Uses a temporary folder only.
+// Without DECK_BIN it looks for bin/kanban (bin/kanban.exe on Windows) at the repo root. Uses a temporary folder only.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,9 +10,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const bin = resolve(process.env.DECK_BIN
-  || join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", process.platform === "win32" ? "deck.exe" : "deck"));
+  || join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", process.platform === "win32" ? "kanban.exe" : "kanban"));
 if (!existsSync(bin)) {
-  console.error(`no deck at ${bin}: run \`go build -o bin/deck ./cmd/deck\` at the repo root, or set DECK_BIN`);
+  console.error(`no kanban at ${bin}: run \`go build -o bin/kanban ./cmd/kanban\` at the repo root, or set DECK_BIN`);
   process.exit(1);
 }
 const cmd = bin, pre = [];

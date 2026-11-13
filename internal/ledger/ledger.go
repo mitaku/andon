@@ -81,7 +81,7 @@ func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Task は台帳の課題の項目（`show <id> --json` の .issue）。値は全部文字列（台帳の CLI がそう書く）。
+// Issue は台帳の課題の項目（`show <id> --json` の .issue）。値は全部文字列（台帳の CLI がそう書く）。
 type Issue map[string]any
 
 // Str はキーの値。文字列でなければ空。
@@ -207,7 +207,7 @@ func (l *Ledger) Log() []Row {
 }
 
 // Trusted は、課題 id の key を最後に変えた log.jsonl の行の by が terminal:<chief_of_staff> で、
-// その値がいまの task の値と同じか（contract.md §2 の履歴の照合）。chief_of_staff が無ければ信じない。
+// その値がいまの課題の値と同じか（contract.md §2 の履歴の照合）。chief_of_staff が無ければ信じない。
 func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 	cos := l.ChiefOfStaff()
 	if cos == "" {
@@ -279,7 +279,7 @@ func Brand(profile string) string {
 	return "claude"
 }
 
-// SettingsOf は task の予約キーを読む。
+// SettingsOf は課題の予約キーを読む。
 func SettingsOf(t Issue) Settings {
 	s := Settings{ReviewRounds: "2", Merge: "person", Deliverable: "pr"}
 	if v := t.Str("review"); v == "on" || v == "off" {
@@ -325,18 +325,9 @@ func machineOK(v string) bool {
 	return true
 }
 
-// Reviewer は、課題 id のレビューに数えるレビュアーの課題のうち最新のもの（無ければ空）と、
-// 数えなかった子課題（理由の文に使う）。数えるのは: parent が id・status が review か done・
+// reviewers は、課題 t のレビューに数えるレビュアーの課題を古い順（updated・id の順）に全部と、
+// 数えなかった子課題（理由の文に使う）を返す。数えるのは: parent が t の id・status が review か done・
 // 作成の行（log.jsonl の最初の add）の by が terminal:<chief_of_staff> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
-func (l *Ledger) Reviewer(rows []Row, tasks []Issue, t Issue) (string, []string) {
-	picked, others := l.reviewers(rows, tasks, t)
-	if len(picked) == 0 {
-		return "", others
-	}
-	return picked[len(picked)-1], others
-}
-
-// reviewers は Reviewer の数えるレビュアーの課題を古い順（updated・id の順）に全部返す。
 func (l *Ledger) reviewers(rows []Row, tasks []Issue, t Issue) ([]string, []string) {
 	cos := l.ChiefOfStaff()
 	creator := map[string]string{}

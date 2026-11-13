@@ -177,6 +177,9 @@ func deckFails(t *testing.T, cwd, stdin string, argv ...string) string {
 	return msg
 }
 
+// taskFile is where an issue's issue.yaml is.
+func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), issueFileName) }
+
 func ledger(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "root")

@@ -1,8 +1,7 @@
 // kanban changes the work ledger in kanban/ (docs/ledger.md; docs/design.md §3.5).
 //
-// Copied from herdr-flightdeck's cmd/deck at tag deck-v0.4.0 on 2026-11-05 and licensed
-// under Apache-2.0 from that day (docs/decisions.md §7, §12). The behaviour is deck-v0.4.0's;
-// only the command's name changed.
+// Started as a copy of herdr-flightdeck's cmd/deck at tag deck-v0.4.0 on 2026-11-05 and licensed
+// under Apache-2.0 from that day (docs/decisions.md §7, §12). Andon has changed it since (docs/ledger.md).
 // One folder per issue (issues/<id>/issue.yaml, brief.md, report.md, library/),
 // written under an OS file lock, atomically, and logged to log.jsonl.
 // issue.yaml is edited as a YAML node tree, so a person's comments and key order stay.
@@ -25,7 +24,7 @@ import (
 const help = `kanban: a project's work ledger in kanban/ (format 3; one folder per issue)
 
   kanban init [--root dir] [--prefix W] [--repo host/owner/repo]…  make kanban/ (config.yaml, issues/)
-  kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--brief file|-]
+  kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--status s] [--brief file|-]
   kanban list [--status s] [--repo r] [--all] [--json]
   kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for (and no not_before ahead)
   kanban show <id> [--json]
@@ -51,7 +50,9 @@ Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A re
 (--parent and a --profile ending in -review) is <parent>-r<k> for round k (W-0001-r1) and takes no number.
 The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
 whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
-repo is filled in from the current checkout when it matches one of repos.`
+repo is filled in from the current checkout when it matches one of repos.
+add, start, set, review, done, ask, answer, received, config set and routine run also take --json
+(what they wrote, as JSON).`
 
 // version is set at build time (-ldflags "-X main.version=…"); a plain go build says dev.
 var version = "dev"
@@ -277,7 +278,7 @@ func readInput(e env, name string) (string, error) {
 func cmdAdd(e env, a args) error {
 	title := strings.TrimSpace(strings.Join(a.rest, " "))
 	if title == "" {
-		return fail(`usage: kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--brief file|-]`)
+		return fail(`usage: kanban add "title" [--repo r] [--profile p] [--parent id [--round k]] [--after id,…] [--phase id] [--status s] [--brief file|-]`)
 	}
 	cfg, err := readConfig(e.root)
 	if err != nil {
@@ -791,7 +792,7 @@ func cmdDone(e env, a args) error {
 		tasks := allTasks(e.root)
 		all := byID(tasks)
 		for _, o := range tasks {
-			if o.broken != "" || o.status() != "queued" || !contains(o.after(), id) || len(waitingOn(o, all, cfg)) > 0 {
+			if o.broken != "" || o.status() != "queued" || !slices.Contains(o.after(), id) || len(waitingOn(o, all, cfg)) > 0 {
 				continue
 			}
 			o.d.setStr("status", cfg.columns[0])
@@ -825,15 +826,6 @@ func cmdDone(e env, a args) error {
 	e.out(a, o, text)
 	printFired(e, a, f)
 	return nil
-}
-
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
 }
 
 func cmdReport(e env, a args) error {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 台帳の CLI（kanban。cmd/kanban）の振る舞い。herdr-flightdeck の deck-v0.4.0 の振る舞いテスト
-# （tests/kanban/test-deck.mjs。写しのまま）を、ここで焼いた kanban に当てる。加えて --version。
+# 台帳の CLI（kanban。cmd/kanban）の振る舞い。herdr-flightdeck の deck-v0.4.0 から写して Andon が直してきた
+# 振る舞いテスト（tests/kanban/test-deck.mjs）を、ここで焼いた kanban に当てる。加えて --version。
 # node が要る（CI では無ければ失敗、手元では skip）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
