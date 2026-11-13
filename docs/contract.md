@@ -134,6 +134,8 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
  "pr": "https://github.com/<owner>/andon/pull/12",
  "review_request": {"round": 1, "limit": 2, "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "previous": null, "reviewer": "codex-review", "extra": false},
  "estimate": {"size": "large", "reason": "直す所が3つの package にまたがる"},
+ "plan": [{"id": "p1", "text": "schema に足す。終了条件: tests/schema.sh が通る", "done": true},
+          {"id": "p2", "text": "andon issue report で引き継ぐ。終了条件: tests/andon-issue.sh が通る", "done": false}],
  "waived": [{"severity": "minor", "file": "internal/issue/issue.go", "line": 88, "reason": "起きる条件がこの repo に無い"}],
  "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-issue.sh（出力 library/A1.log）"}],
  "risk": {"one_way": true, "impact": ["sample-site の本番の表 orders から列 note を消す"]},
@@ -151,6 +153,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `pr` | PR を出したら必須（schema では任意。確かめるのは `andon issue ready`） | ゲート・dispatcher | 今の報告の `PR:` 行の代わり。ゲートはこれだけを読む。`https://github.com/<owner>/<repo>/pull/<n>` で、owner と repo は `/` を除く印字できる ASCII |
 | `review_request` | レビューを頼むときだけ。中の6つのキーは全部必須（`previous` は初回 `null`、`round`・`limit` は 1 以上の整数） | dispatcher | dispatcher が `kanban add --parent <id>` ＋ detached worktree ＋ `hc run <reviewer>` で起動する。`round` ≤ `limit` でなければ起動しない（`extra: true` なら Chief of Staff の判断待ち）。`previous` があれば再レビュー（差分 `previous..commit` だけ）。`commit` が PR の head と違えば起動しない |
 | `estimate` | 任意（担当が依頼書の見込みと違うと見たときだけ） | Chief of Staff・`andon measure` | 担当の見込み `{"size": "small" \| "medium" \| "large", "reason": "…"}`（2つとも必須。`size` は §2 の `estimate` と同じ値、`reason` は1行）。担当は止まらず進み、報告の `## 計画` にも同じ1行を書く。課題の見込み（§2 の `estimate`）は変えず、dispatcher のズレの通知は Chief of Staff の見込みと比べたまま。`andon issue report` は `--data` に無ければ前の `report.json` から引き継ぐ（`pr` と同じ。担当は毎回全体を書き直すので、引き継がないと最終の報告から消える）。足しても版は上げない（原則4。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 4・11 の 3） |
+| `plan[]` | 任意（担当が計画を書いたら） | Chief of Staff（見守り） | 担当の計画。報告の `## 計画` の機械向けの写しで、1 件 `{"id", "text", "done": true \| false}`（3つとも必須。`id` は計画の中で一意な短い名〈`p1` など〉、`text` は作業と終了条件の1行、`done` は終了条件を満たしたか）。進み具合は `done` の数。見守り（`process/workstreams/watch.yaml` の `report.plan`）が読む。`andon issue report` は `--data` に無ければ前の `report.json` から引き継ぎ、あれば丸ごと置き換える（`estimate` と同じ）。足しても版は上げない（原則4。[ADR-0017](adr/0017-process-definitions.md) 決めたこと 10） |
 | `waived` | 任意 | トリアージ・振り返り | 見送った指摘（`findings.json` と同じ3つ ＋ `reason`） |
 | `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command と、その出力（ユースケースの実行の跡を含む）のパス。証拠になるのは、その commit で走らせた本物の出力だけで、前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストの結果は証拠でない。本物の証拠が無い条件は `pass` と書かない。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |
 | `risk` | 任意（変更そのものが戻せないとき） | ゲート・人 | 担当の一方通行の申告 `{"one_way": true \| false, "impact": ["…"]}`（`one_way` は必須、`impact` は任意）。`one_way: true` はデータの移行・消す操作・外への約束のように revert で戻らない変更。ゲートはレベルを C に上げ、`tier_reasons` に「担当の申告: one_way」と書く。`false`・無しでレベルを下げない（申告は厳しくする向きにだけ効く。原則2）。ゲートが読むのは `one_way` だけで、`impact` は人が読む欄。足しても版は上げない（原則4。[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)） |

@@ -22,6 +22,9 @@ func TestParseReport(t *testing.T) {
 	if _, err := ParseReport([]byte(strings.Replace(good, `"pr"`, `"estimate":{"size":"large","reason":"3つの package にまたがる"},"pr"`, 1))); err != nil {
 		t.Errorf("estimate: %v", err)
 	}
+	if _, err := ParseReport([]byte(strings.Replace(good, `"pr"`, `"plan":[{"id":"p1","text":"schema に足す","done":true},{"id":"p2","text":"引き継ぐ","done":false}],"pr"`, 1))); err != nil {
+		t.Errorf("plan: %v", err)
+	}
 	for name, bad := range map[string]string{
 		"知らないキー":                strings.Replace(good, `"pr"`, `"x":1,"pr"`, 1),
 		"previous が無い":          strings.Replace(good, `"previous":null,`, ``, 1),
@@ -37,6 +40,9 @@ func TestParseReport(t *testing.T) {
 		"risk に知らないキー":          strings.Replace(good, `"pr"`, `"risk":{"one_way":true,"level":"A"},"pr"`, 1),
 		"estimate の段が段の名":       strings.Replace(good, `"pr"`, `"estimate":{"size":"大","reason":"x"},"pr"`, 1),
 		"estimate に reason が無い": strings.Replace(good, `"pr"`, `"estimate":{"size":"large"},"pr"`, 1),
+		"plan に done が無い":       strings.Replace(good, `"pr"`, `"plan":[{"id":"p1","text":"x"}],"pr"`, 1),
+		"plan の text が空":        strings.Replace(good, `"pr"`, `"plan":[{"id":"p1","text":"","done":false}],"pr"`, 1),
+		"plan の done が文字列":      strings.Replace(good, `"pr"`, `"plan":[{"id":"p1","text":"x","done":"no"}],"pr"`, 1),
 	} {
 		if _, err := ParseReport([]byte(bad)); err == nil {
 			t.Errorf("%s: 通ってしまう", name)

@@ -344,6 +344,10 @@ block package/skills/chief-of-staff/SKILL.md '# <id> <題>' | grep -qx -- '- Est
 grep -q '^- 見込み: <段>（依頼書は <段>）。<理由>' package/skills/worker/SKILL.md \
   && grep -q '`estimate`（§2 の見込みの反論）も `--data` に無ければ前の `report.json` から引き継ぐ' package/skills/worker/SKILL.md \
   && pass "worker の報告の ## 計画 に見込みの反論の1行があり、report.json の estimate は引き継ぐ" || fail "worker に見込みの反論の1行か estimate の引き継ぎが無い"
+# ADR-0017 受け入れ条件 8（P4）: worker は ## 計画 を report.json の plan[] に写し、plan は引き継ぐ
+grep -q '`plan`（`## 計画` の写し）も `--data` に無ければ前の `report.json` から引き継ぐ' package/skills/worker/SKILL.md \
+  && grep -q '^- `plan`: `## 計画` の作業を1件ずつ `{"id": "p1", "text": ".*", "done": false}` で写す' package/skills/worker/SKILL.md \
+  && pass "worker は ## 計画 を report.json の plan[] に写し、plan は引き継ぐ" || fail "worker に plan[] の写しか引き継ぎが無い"
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
 # インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起動する手順が残っていない

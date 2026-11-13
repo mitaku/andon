@@ -334,6 +334,7 @@ type Report struct {
 	PR            string         `json:"pr,omitempty"`
 	ReviewRequest *ReviewRequest `json:"review_request,omitempty"`
 	Estimate      *Estimate      `json:"estimate,omitempty"` // 担当の見込み。andon issue report が前の報告から引き継ぐ
+	Plan          []PlanItem     `json:"plan,omitempty"`     // 担当の計画（## 計画 の写し）。andon issue report が前の報告から引き継ぐ
 	Waived        []Waived       `json:"waived,omitempty"`
 	Acceptance    []Acceptance   `json:"acceptance,omitempty"`
 	Risk          *Risk          `json:"risk,omitempty"`
@@ -347,6 +348,13 @@ type Report struct {
 type Estimate struct {
 	Size   string `json:"size"`
 	Reason string `json:"reason"`
+}
+
+// PlanItem は担当の計画の1件（ADR-0017 決めたこと 10）。進み具合は done の数。
+type PlanItem struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	Done *bool  `json:"done"`
 }
 
 // Check は report.json の形を schema/report.schema.json と同じ決まりで確かめる。
@@ -374,6 +382,11 @@ func (r *Report) Check() error {
 	if e := r.Estimate; e != nil {
 		if (e.Size != "small" && e.Size != "medium" && e.Size != "large") || e.Reason == "" {
 			return errors.New("estimate は {size: small|medium|large, reason}")
+		}
+	}
+	for _, p := range r.Plan {
+		if p.ID == "" || p.Text == "" || p.Done == nil {
+			return errors.New("plan[] は {id, text, done: true|false}")
 		}
 	}
 	for _, w := range r.Waived {

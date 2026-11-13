@@ -76,14 +76,20 @@ ok 'report: --data の知らないキー・command のキー・知らない宛�
 expect_fail 'estimate は' "$andon" issue report "$id" --data '{"estimate":{"size":"中","reason":"x"}}' <<<'## Report'
 [ ! -e "$lib/report.json" ] || die 'report.json が書かれた'
 ok 'report: estimate の段が small・medium・large でなければ書く前に止まる'
-"$andon" issue report "$id" --pr "$pr" --data '{"estimate":{"size":"large","reason":"直す所が3つの package にまたがる"},"next":[{"to":"chief-of-staff","text":"マージ後に片付ける"}],"remember":["x"]}' <<<'## Report' >/dev/null
+expect_fail 'plan' "$andon" issue report "$id" --data '{"plan":[{"id":"p1","text":"x"}]}' <<<'## Report'
+[ ! -e "$lib/report.json" ] || die 'report.json が書かれた'
+ok 'report: plan[] に done が無ければ書く前に止まる'
+"$andon" issue report "$id" --pr "$pr" --data '{"estimate":{"size":"large","reason":"直す所が3つの package にまたがる"},"plan":[{"id":"p1","text":"schema に足す。終了条件: tests/schema.sh が通る","done":true},{"id":"p2","text":"引き継ぐ。終了条件: tests/andon-issue.sh が通る","done":false}],"next":[{"to":"chief-of-staff","text":"マージ後に片付ける"}],"remember":["x"]}' <<<'## Report' >/dev/null
 jq -e --arg c "$c1" --arg pr "$pr" '.commit == $c and .pr == $pr and .estimate.size == "large" and .next[0].to == "chief-of-staff" and (has("review_request") | not)' "$lib/report.json" >/dev/null
 grep -q '## Report' "kanban/issues/$id/report.md"
 emit "$lib/report.json" report-1.json
 ok 'report: commit は HEAD、pr と --data を書き、台帳に報告する'
 "$andon" issue report "$id" <<<'## Report' >/dev/null
-jq -e --arg pr "$pr" '.pr == $pr and .estimate.size == "large" and (has("next") | not)' "$lib/report.json" >/dev/null
-ok 'report: --pr を省くと前の pr を、--data に estimate が無ければ前の estimate を引き継ぎ、ほかは書き直す（ADR-0014 決めたこと 11 の 3）'
+jq -e --arg pr "$pr" '.pr == $pr and .estimate.size == "large" and ([.plan[] | select(.done)] | length) == 1 and (has("next") | not)' "$lib/report.json" >/dev/null
+ok 'report: --pr を省くと前の pr を、--data に estimate・plan が無ければ前のそれを引き継ぎ、ほかは書き直す（ADR-0014 決めたこと 11 の 3・ADR-0017 決めたこと 10）'
+"$andon" issue report "$id" --data '{"plan":[{"id":"p1","text":"schema に足す","done":true},{"id":"p2","text":"引き継ぐ","done":true}]}' <<<'## Report' >/dev/null
+jq -e '([.plan[] | select(.done)] | length) == 2 and .estimate.size == "large"' "$lib/report.json" >/dev/null
+ok 'report: --data の plan は前の plan を置き換える（進み具合は done の数）'
 
 # review-request（1 回目）
 "$andon" issue review-request "$id" <<<'## Report' >/dev/null
