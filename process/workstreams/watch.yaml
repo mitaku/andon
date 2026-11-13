@@ -50,7 +50,7 @@ steps:
     by: ai
     input: [notification.estimate, notification.stalled, notification.error, notification.finished, report.plan, hc.state, hc read の画面]
     output: []
-    skill: chief-of-staff#5
+    skill: chief-of-staff/playbooks/watch.md
     decides: [途中報告を書かせる, 分ける, 起動し直す, 延長する, 続きを 1 回促す]
     next: [{ id: act, when: 手を打つ }, { id: tell, when: 人へ知らせる }, { id: done, when: 見るだけ }]
   - id: act
@@ -58,14 +58,14 @@ steps:
     by: ai
     input: [report.plan, hc read の画面]
     output: [hc send（担当へ）, 台帳（分けた課題）]
-    skill: chief-of-staff#5
+    skill: chief-of-staff/playbooks/watch.md
     decides: [送る文, 分けた課題の範囲]
   - id: tell
     title: 人へ知らせる
     by: ai
     input: [hc read の画面]
     output: [herdr notification, 人への 1 問]
-    skill: [chief-of-staff#5, ask-one-by-one]
+    skill: [chief-of-staff/playbooks/watch.md, ask-one-by-one]
     decides: [知らせる文]
     asks:
       - { question: 死んだまま起きない担当を新しいセッションで起動し直すか（andon issue resume --fresh）, kind: business }
@@ -74,6 +74,6 @@ steps:
     by: ai
     input: ["<news>"]
     output: [news.ack]
-    skill: chief-of-staff#5
+    skill: chief-of-staff/playbooks/watch.md
     decides: [何もしない]
 counts: [flow.wait.todo, flow.wait.queued, flow.wait.doing, flow.wait.review]

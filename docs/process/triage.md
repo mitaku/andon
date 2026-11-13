@@ -84,14 +84,14 @@ flowchart LR
 
 ## AI がやる手順
 
-| id | どうやるか（SKILL の節） | 自分で決めてよいこと | 人に聞くこと |
+| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |
 |---|---|---|---|
-| `signal` | `chief-of-staff#1` | 直す課題に切る・依頼書の要点 | レベル C の直しを進めてよいか（line） |
-| `add` | `chief-of-staff#10` | 足すか（同時に 1 つ） |  |
-| `start` | `chief-of-staff#10`・`chief-of-staff#3` | 人に聞かずに起動する |  |
+| `signal` | `chief-of-staff/playbooks/cut.md` | 直す課題に切る・依頼書の要点 | レベル C の直しを進めてよいか（line） |
+| `add` | `chief-of-staff/playbooks/triage.md` | 足すか（同時に 1 つ） |  |
+| `start` | `chief-of-staff/playbooks/triage.md`・`chief-of-staff/playbooks/start.md` | 人に聞かずに起動する |  |
 | `sort` | `triage#3`・`triage#4`・`worker#7` | close・fix・bundle・keep |  |
-| `check` | `chief-of-staff#10` | 担当に戻す・適用する |  |
-| `follow` | `chief-of-staff#10`・`ask-one-by-one` | fix と bundle の課題を起動する・片付け待ちを finish する | 何を作るか（person に仕分けた項目）（business）・使い勝手の好み（person に仕分けた項目）（users）・外との約束と公開（person に仕分けた項目）（promise）・消す・本番・権限（person に仕分けた項目）（irreversible） |
+| `check` | `chief-of-staff/playbooks/triage.md` | 担当に戻す・適用する |  |
+| `follow` | `chief-of-staff/playbooks/triage.md`・`ask-one-by-one` | fix と bundle の課題を起動する・片付け待ちを finish する | 何を作るか（person に仕分けた項目）（business）・使い勝手の好み（person に仕分けた項目）（users）・外との約束と公開（person に仕分けた項目）（promise）・消す・本番・権限（person に仕分けた項目）（irreversible） |
 
 見るもの（手順の入るものの和）: `notification.signal`・`人の言葉（ゴール）`・`notification.memory`・`台帳（動いているトリアージ）`・`notification.ready`・`台帳（並行の上限）`・`台帳（報告・見送り・問い・todo・片付けの残り）`・`library/items.json`・`PR と repo と台帳の実物`・`notification.review`・`報告`・`library/decisions.json`・`andon triage apply --dry-run の出力`・`台帳（review）`・`library/triage/<日付>-<id>.md`・`台帳（人の課題）`
 

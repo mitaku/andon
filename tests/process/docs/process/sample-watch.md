@@ -60,7 +60,7 @@ flowchart LR
 
 ## AI がやる手順
 
-| id | どうやるか（SKILL の節） | 自分で決めてよいこと | 人に聞くこと |
+| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |
 |---|---|---|---|
 | `read` | `chief-of-staff#5` | 途中報告を書かせる・分ける | 期限を延ばすか（business） |
 | `done` | `chief-of-staff#5`・`worker#7` |  |  |
