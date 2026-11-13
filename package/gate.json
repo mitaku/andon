@@ -10,7 +10,7 @@
                    "package/environment.md", "package/writing.md", "package/compose.yaml", "package/host/**",
                    "gate.local.json", "andon.toml", "templates.local/**", "projects/*/project.json", "projects/*/delegation.json",
                    "hooks/**", ".github/workflows/**", "tests/public*.sh", ".envrc", ".env.example", ".aqua/aqua-policy.yaml",
-                   "**/.mcp.json", "**/AGENTS.md", "**/AGENTS.override.md", "**/AGENTS.local.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
+                   "**/.mcp.json", "**/AGENTS.md", "**/AGENTS.override.md", "**/AGENTS.local.md", "**/AGENTS.worker.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
                    "**/.claude/**", "**/.codex/**", ".aqua/registry.yaml", ".aqua/aqua-checksums.json",
                    "**/renovate.json*", "**/.renovaterc*"],
   "tier_c_path_exceptions": {"**/.claude/**": ["**/.claude/skills/**"]},
