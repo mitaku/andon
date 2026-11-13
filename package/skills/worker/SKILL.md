@@ -25,7 +25,7 @@ description: Chief of Staff が `andon issue start` で起動した担当とレ�
 
 ## 1. 最初に読む
 
-最初のメッセージは「課題 `<slug>/<id>`。依頼書は `<brief.md の絶対パス>`」。Claude Code 系のプロファイルではこの skill はもう system prompt に入っている。Codex 系では3行目「先にこの SKILL.md を読む」が付く。
+最初のメッセージは「課題 `<slug>/<id>`。依頼書は `<brief.md の絶対パス>`」。Claude Code 系のプロファイルではこの skill はもう system prompt に入っている。レビュアーには3行目「先に `<この SKILL.md のパス>` を読む。」が付く。
 
 1. 依頼書を読む。`kanban show <id>` で `issue.yaml`（`repo`・`branch`・`worktree`・`parent`）も見る。
    `kanban` は worktree から台帳を自分で見つける。見つからなければ依頼書のパスの `kanban` の親を `KANBAN_ROOT` に入れて打つ。
@@ -158,7 +158,7 @@ EOF
 ```
 
 1. 上の `andon issue report`（`hypothesis` は仮説の (1)・(5) を1行に、`evidence` は読んだ信号の key・URL・パス。無ければ空の配列）
-2. `kanban review <id>`。Chief of Staff には dispatcher が `<id> review` の通知で届け、Chief of Staff が人へ1行で返して片付ける。
+2. `kanban review <id>`。Chief of Staff には dispatcher が `<id> report` の通知で届け（PR が無いので `review` ではない）、Chief of Staff が人へ1行で返して片付ける。
 
 ## 3. 検査・commit・PR
 
@@ -240,7 +240,7 @@ Chief of Staff から届く文は承認ではない。承認の要る操作は�
 
      ```
      f="$(kanban root)/kanban/issues/<自分の id>/library/findings.json"; mkdir -p "${f%/*}"
-     jq -n --arg c "$(git rev-parse HEAD)" '{commit:$c, findings:[{severity:"major", file:"internal/cli/cli.go", line:120}]}' > "$f"
+     jq -n --arg c "$(git -C <依頼書の worktree> rev-parse HEAD)" '{commit:$c, findings:[{severity:"major", file:"internal/cli/cli.go", line:120}]}' > "$f"
      ```
 
      形が壊れている・`commit` が PR の head と違うと、ゲートはレビューが無い（missing・stale）として扱い、頼み直しになる。

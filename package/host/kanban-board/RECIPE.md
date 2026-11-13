@@ -15,7 +15,7 @@ On the theme's `background`, as a dialog (92% × 88%) or a pane:
 ## How it behaves
 
 - Root: up from the focused pane's folder for `kanban/config.yaml` with a whole-number `version` (at most 12 folders); else from `git rev-parse --git-common-dir`'s parent (the main checkout) up, at each folder the ledgers `projects/*/kanban/config.yaml` (with a `version`) whose `repos` entry (`host/owner/repo`) ends that path (case-insensitive on Windows), stopping at the first folder with any; two or more is an error. The cell: the nearest folder above with such a ledger. In a cell but in no project, All projects. Re-found when the focused folder or machine changes.
-- Format: `version: 2` or the ledger isn't read (the band says so; for all projects, it is listed as unreadable).
+- Format: `version: 3` or the ledger isn't read (the band says so; for all projects, it is listed as unreadable).
 - All projects: each ledger read on its own; issues are keyed `<slug>/<id>` (ids are per ledger), `after` and `parent` look inside their own ledger, and an issue in its ledger's last column counts as done. The columns are the ledgers' own when they all agree, else the default five.
 - Reading: config, then every `issues/*/issue.yaml`; an issue that doesn't parse is listed as unreadable above the board and the rest show. A changed signature updates "Changed"; every good read updates "Checked"; a failed read keeps the last contents.
 - Agents: an issue's `agent` is the terminal's address on the ledger's machine; prefixed with the machine for a remote ledger and matched against `agents()`, else by a terminal name or tab name.

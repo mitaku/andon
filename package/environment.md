@@ -17,7 +17,7 @@
 - CLI は aqua（セルの `local/aqua.yaml`。イメージの `/opt/andon-aqua/aqua.yaml` は触らない）、言語ランタイムはリポジトリの `mise.toml`。`apt install` は最後の手段。
 - Playwright のブラウザはイメージに焼いてある（`PLAYWRIGHT_BROWSERS_PATH`）。入れ直さない。
 - 担当が画面を見て確かめるには `playwright-cli`（焼いた Chromium を使う。使い方は skill `playwright-cli`）。dev サーバは `127.0.0.1` で立てて開く。
-- 秘密をファイルに書かない（`.env` にも）。認証の資格情報は道具が自分の置き場に置く（`gh auth login`・`claude login`・`andon signal auth`）。自分でファイルに書かない。
+- 秘密をファイルに書かない（`.env` にも）。認証の資格情報は道具が自分の置き場に置く（`gh auth login`・`claude auth login`・`andon signal auth`）。自分でファイルに書かない。
 
 ## 人に見せる
 

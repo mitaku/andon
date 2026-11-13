@@ -19,7 +19,7 @@
 ## 起動したら1回
 
 1. `andon chief-of-staff` を打つ。自分が見つかり、`config.yaml` の `chief_of_staff` が自分のアドレスに直る（起動し直すとアドレスが変わる）。
-   Chief of Staff は1プロジェクトに1人（規約1）: 形は `config.yaml` の `chief_of_staff` と、ラベル `role=chief-of-staff project=<slug>`。起動するのは人が打つ `andon chief-of-staff`（動いていれば使う・2人なら止まる・そのまま画面に乗る）。
+   Chief of Staff は1プロジェクトに1人（規約1）: 形は `config.yaml` の `chief_of_staff` と、ラベル `role=chief-of-staff project=<slug>`。起動するのは人が打つ `andon chief-of-staff`（動いていれば使う・2人なら止まる）。
    「2人いる」で止まったら、自分以外の1人を人に知らせる（自分で止めない）。
    **アドレスが変わったら、開いている課題（`done` と、レビュアーの課題 `-rN` を除く）の予約キーを、今の値のまま `kanban set` で書き直す。**
    予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起動せず、ゲートは `needs_human` を返す。
@@ -30,6 +30,6 @@
 
 ## 毎ターン（人の発言・届いた文を処理する前に）
 
-- `kanban list --json` — 課題と状態（todo・queued・doing・review・done）。
+- `kanban list --json` — 課題とステータス（todo・queued・doing・review・done）。
 - `hc ls --json --label project=<slug>` — 動いている担当と状態（idle・working・blocked・error）。
 - **状態の正は hc の状態**。画面の文字から推さない。
