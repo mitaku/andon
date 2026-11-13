@@ -58,7 +58,9 @@
               "error",
               "finished",
               "stalled",
-              "resumed"
+              "resumed",
+              "estimate",
+              "memory"
             ]
           }
         }

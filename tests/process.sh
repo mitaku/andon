@@ -61,7 +61,7 @@ mapfile -t defs < <(find process tests/process/process -name '*.yaml' 2>/dev/nul
 for f in "${defs[@]}"; do
   if check "$f"; then ok "$f が schema を通る"; else ng "$f が通らない"; sed 's/^/     /' "$tmp/why"; fi
 done
-stray=$(find process -type f ! -name '*.yaml' ! -name .gitkeep 2>/dev/null | sort)
+stray=$(find process -type f ! -name '*.yaml' 2>/dev/null | sort)
 [ -z "$stray" ] && ok "process/ には定義の YAML だけ" || ng "process/ に YAML でないファイル: $stray"
 stray=$(find process -name '*.yaml' ! -path 'process/workstreams/*' ! -path 'process/states/*' 2>/dev/null | sort)
 [ -z "$stray" ] && ok "process/ の YAML は workstreams/ か states/ に在る" || ng "置き場の外の YAML: $stray"
