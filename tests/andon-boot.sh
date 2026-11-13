@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/andon-boot.sh — andon boot を偽の HOME・偽のセル・偽のパッケージで2回打つ。
-# 生成（managed settings・プロファイル・CLAUDE.md の2行・~/.agents/skills の symlink・同梱の skill の symlink・信頼）と
+# 生成（managed settings・プロファイル・CLAUDE.md の3行・~/.agents/skills の symlink・同梱の skill の symlink・信頼）と
 # 外の skill（偽の gh で gh skill install／update --all）が揃い、2回目で何も変わらないこと。
 # PATH には andon の置き場と偽の gh だけを置く（hc・portless・sshd を起動しない。本物の HOME と /workspace・/opt/andon-tools に触らない）。
 set -u
@@ -22,6 +22,9 @@ for p in codex codex-review; do
 done
 printf -- '---\nname: claude\n---\nセル\n' >"$ws/templates.local/claude.md"
 echo worker >"$pkg/skills/worker/SKILL.md"
+echo '# 環境' >"$pkg/environment.md"
+echo '用語集は `/opt/andon/skills/glossary/SKILL.md`' >"$pkg/writing.md"
+echo '# 案件' >"$ws/AGENTS.local.md"
 mkdir -p "$home/.claude/skills"
 ln -s "$pkg/skills/worker" "$home/.claude/skills/andon-worker" # 前の置き場（外れること）
 ln -s "$tmp/mine" "$home/.claude/skills/mine"                   # 利用者の skill（残ること）
@@ -59,7 +62,10 @@ boot; r=$?
 grep -q 'gh pr merge' "$managed" && pass "managed settings を生成する" || fail "managed settings: $(cat "$managed" 2>&1)"
 grep -q 'セル' "$home/.config/herdr-core/templates/claude.md" && pass "プロファイルを生成する（セルの templates.local が勝つ）" || fail "プロファイル"
 [ "$(cat "$home/.claude/CLAUDE.md")" = "@$pkg/environment.md
-@$ws/AGENTS.local.md" ] && pass "CLAUDE.md は2行" || fail "CLAUDE.md: $(cat "$home/.claude/CLAUDE.md")"
+@$pkg/writing.md
+@$ws/AGENTS.local.md" ] && pass "CLAUDE.md は3行" || fail "CLAUDE.md: $(cat "$home/.claude/CLAUDE.md")"
+[ "$(cat "$home/.codex/AGENTS.md")" = "$(printf '# 環境\n\n用語集は `%s/skills/glossary/SKILL.md`\n\n# 案件' "$pkg")" ] \
+  && pass "Codex の AGENTS.md は3本の連結（writing.md の /opt/andon を ANDON_HOME に置き換える）" || fail "Codex の AGENTS.md: $(cat "$home/.codex/AGENTS.md")"
 [ "$(readlink "$home/.agents/skills/andon-worker")" = "$pkg/skills/worker" ] && pass "skill の symlink（~/.agents/skills）" || fail "skill"
 [ ! -L "$home/.claude/skills/andon-worker" ] && [ -L "$home/.claude/skills/mine" ] && [ "$(readlink "$home/.agents/skills/andon-mine")" = "$tmp/mine" ] && pass "boot が張った andon-* だけ外す" || fail "~/.claude/skills: $(ls -l "$home/.claude/skills")"
 [ "$(readlink "$home/.agents/skills/playwright-cli")" = "$bundled" ] && [ "$(readlink "$home/.claude/skills/playwright-cli")" = "$bundled" ] \
