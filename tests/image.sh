@@ -148,8 +148,10 @@ dc exec -T dev bash -euc '
   for t in claude sonnet fable codex codex-review claude-review chief-of-staff chief-engineer; do
     test -s "$HOME/.config/herdr-core/templates/$t.md"
   done
-  test "$(cat "$CLAUDE_CONFIG_DIR/CLAUDE.md")" = "$(printf "@/opt/andon/environment.md\n@/workspace/AGENTS.local.md")"
+  test "$(cat "$CLAUDE_CONFIG_DIR/CLAUDE.md")" = "$(printf "@/opt/andon/environment.md\n@/opt/andon/writing.md\n@/workspace/AGENTS.local.md")"
   test -s /opt/andon/environment.md
+  test -s /opt/andon/writing.md
+  grep -qF "$(head -1 /opt/andon/writing.md)" "$HOME/.codex/AGENTS.md"
   test -s /workspace/AGENTS.local.md
   test "$(readlink "$HOME/.agents/skills/andon-worker")" = /opt/andon/skills/worker
   test "$(stat -c %u:%g "$HOME/.config/gh" "$HOME/.config/gh/hosts.yml" | sort -u)" = 1000:1000

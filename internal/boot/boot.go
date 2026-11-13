@@ -5,7 +5,8 @@
 //	<pkg>/settings.json                       → managed settings（/etc/claude-code/managed-settings.json）
 //	<pkg>/templates/*.md ＋ <ws>/templates.local/*.md → ~/.config/herdr-core/templates/<name>.md（本文の /opt/andon は <pkg> に）
 //	                                            frontmatter に resume: があれば <name>-resume.md も（command がその行。ADR-0012 決めたこと 13）
-//	<pkg>/environment.md ＋ <ws>/AGENTS.local.md → <claude>/CLAUDE.md（@ の2行）・~/.codex/AGENTS.md（連結）
+//	<pkg>/environment.md ＋ <pkg>/writing.md ＋ <ws>/AGENTS.local.md → <claude>/CLAUDE.md（@ の3行）・~/.codex/AGENTS.md
+//	                                            （連結。writing.md の /opt/andon は <pkg> に）
 //	<pkg>/codex.rules                         → ~/.codex/rules/andon.rules（＋ ~/.codex/config.toml に足りない承認・sandbox の既定だけ）
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
 //	<tools> に同梱の skill（playwright-cli）     → <claude>/skills/<name>・~/.agents/skills/<name>（symlink。extskills.go）
@@ -44,7 +45,7 @@ const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
-	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の2行・Codex の AGENTS.md・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
+	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、gh skill update --all で上げる（一覧が空なら打たない）。\n" +
 	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
@@ -452,24 +453,31 @@ func isPathByte(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("._@+-", c) >= 0 || c >= 0x80
 }
 
-// ClaudeMD は <claude>/CLAUDE.md の中身（2行）。
+// ClaudeMD は <claude>/CLAUDE.md の中身（3行）。
 func ClaudeMD(pkg, ws string) string {
-	return "@" + filepath.Join(pkg, "environment.md") + "\n@" + filepath.Join(ws, "AGENTS.local.md") + "\n"
+	return "@" + filepath.Join(pkg, "environment.md") + "\n@" + filepath.Join(pkg, "writing.md") + "\n@" + filepath.Join(ws, "AGENTS.local.md") + "\n"
 }
 
 func genClaudeMD(e Env) error {
 	return e.generate(filepath.Join(e.claudeDir(), "CLAUDE.md"), []byte(ClaudeMD(e.Package, e.Workspace)), 0o644)
 }
 
-// genCodexAgents は Codex の AGENTS.md を連結で生成する（Codex は @ で読まない）。無いほうは飛ばす。
+// genCodexAgents は Codex の AGENTS.md を連結で生成する（Codex は @ で読まない）。無いものは飛ばす。
+// writing.md の中の /opt/andon（用語集のパス）はパッケージの置き場に置き換える（ADR-0013 決めたこと 15）。
 func genCodexAgents(e Env) error {
 	var parts [][]byte
-	for _, p := range []string{filepath.Join(e.Package, "environment.md"), filepath.Join(e.Workspace, "AGENTS.local.md")} {
+	writing := filepath.Join(e.Package, "writing.md")
+	for _, p := range []string{filepath.Join(e.Package, "environment.md"), writing, filepath.Join(e.Workspace, "AGENTS.local.md")} {
 		b, err := os.ReadFile(p)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		} else if err != nil {
 			return err
+		}
+		if p == writing {
+			if b, err = Template(b, e.Package); err != nil {
+				return err
+			}
 		}
 		if len(b) > 0 && b[len(b)-1] != '\n' {
 			b = append(b, '\n')

@@ -108,6 +108,7 @@ func (f *fixture) fullPackage(t *testing.T) {
 	put(t, filepath.Join(f.pkg, "templates", "sonnet.md"), "---\nname: sonnet\n---\nパッケージの sonnet\n")
 	put(t, filepath.Join(f.pkg, "templates", ".gitkeep"), "")
 	put(t, filepath.Join(f.pkg, "environment.md"), "# セルの環境\n")
+	put(t, filepath.Join(f.pkg, "writing.md"), "# 書き方\n用語集は `/opt/andon/skills/glossary/SKILL.md`\n")
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
 	put(t, filepath.Join(f.pkg, "skills", "glossary", "SKILL.md"), "glossary\n")
 	put(t, filepath.Join(f.pkg, "host", "herdr", "config.toml"), "[ui]\n")
@@ -146,12 +147,14 @@ func TestGenerateWritesEverything(t *testing.T) {
 		t.Error(".gitkeep をプロファイルにしている")
 	}
 
-	want := "@" + filepath.Join(f.pkg, "environment.md") + "\n@" + filepath.Join(f.ws, "AGENTS.local.md") + "\n"
+	want := "@" + filepath.Join(f.pkg, "environment.md") + "\n@" + filepath.Join(f.pkg, "writing.md") + "\n@" + filepath.Join(f.ws, "AGENTS.local.md") + "\n"
 	if s := read(t, filepath.Join(f.claude, "CLAUDE.md")); s != want {
 		t.Errorf("CLAUDE.md = %q, want %q", s, want)
 	}
-	if s := read(t, filepath.Join(f.home, ".codex", "AGENTS.md")); s != "# セルの環境\n\n# 案件の部分\n" {
-		t.Errorf("Codex の AGENTS.md = %q", s)
+	// Codex は @ で読まないので3本を連結し、writing.md の用語集のパスはパッケージの置き場を指す。
+	wantCodex := "# セルの環境\n\n# 書き方\n用語集は `" + filepath.Join(f.pkg, "skills", "glossary", "SKILL.md") + "`\n\n# 案件の部分\n"
+	if s := read(t, filepath.Join(f.home, ".codex", "AGENTS.md")); s != wantCodex {
+		t.Errorf("Codex の AGENTS.md = %q, want %q", s, wantCodex)
 	}
 	for _, name := range []string{"worker", "glossary"} {
 		if to, err := os.Readlink(filepath.Join(f.home, ".agents", "skills", "andon-"+name)); err != nil || to != filepath.Join(f.pkg, "skills", name) {
@@ -196,7 +199,7 @@ func TestGenerateWithEmptyPackage(t *testing.T) {
 	if s := read(t, f.managed); s != "{}\n" {
 		t.Errorf("managed settings = %q", s)
 	}
-	if s := read(t, filepath.Join(f.claude, "CLAUDE.md")); strings.Count(s, "\n") != 2 {
+	if s := read(t, filepath.Join(f.claude, "CLAUDE.md")); strings.Count(s, "\n") != 3 {
 		t.Errorf("CLAUDE.md = %q", s)
 	}
 	first := snapshot(t, f.root)

@@ -468,7 +468,7 @@ Andon で「人の手直し」が起きる所は5つしか無い。全部、既�
 | 読み手 | 置き場 | 形 | 決まり |
 |---|---|---|---|
 | **人** | `README.md`・`docs/` | Markdown（図は Mermaid）。判断点・理由・決定の記録 | 機械が読まない。文の形に約束を持たせない |
-| **AI**（Chief of Staff・Chief Engineer・担当・レビュアー） | `package/skills/*/SKILL.md`・`package/environment.md`・`package/templates/*.md`（プロファイルの本文）・repo ルートの `AGENTS.md`・`REVIEW.md` | Markdown。省略しない | 機械が読まない。手順のうち決まったものは command に移し、文には「いつ・何を打つか」だけ残す |
+| **AI**（Chief of Staff・Chief Engineer・担当・レビュアー） | `package/skills/*/SKILL.md`・`package/environment.md`・`package/writing.md`・`package/templates/*.md`（プロファイルの本文）・repo ルートの `AGENTS.md`・`REVIEW.md` | Markdown。省略しない | 機械が読まない。手順のうち決まったものは command に移し、文には「いつ・何を打つか」だけ残す |
 | **機械**（command・dispatcher・ゲート・フック・ボード） | `schema/`・`package/gate.json`・`package/settings.json`・`package/hooks/`・台帳の項目・`library/*.json` | JSON Schema・JSON・YAML のキー | Markdown を読まない。無い・読めない・知らない値は安全側に倒す（[contract.md](contract.md)） |
 
 3つの決まり:
@@ -509,6 +509,7 @@ andon/
     lib/andon/               command が読む資材（中身のソースは internal/<sub>）。sub-command: issue・chief-of-staff・chief-engineer・dispatcher・gate・triage・publish・delegate・boot・init（言語は §2.7）
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
+    writing.md               AI 用: 人への書き方（全役が人に返す文の決まり。エージェントの設定ファイルが @ で読む）
     templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
     hooks/                   ハーネスのフック（Stop・UserPromptSubmit。dispatcher と command を呼ぶだけ）
     gate.json                ゲートの条件表の既定
@@ -542,7 +543,7 @@ andon/
 | イメージの備品（`/opt/andon-tools`）に同梱の skill（`playwright-cli`） | `~/.claude/skills/<name>`（`CLAUDE_CONFIG_DIR/skills`）と `~/.agents/skills/<name>` | boot が備品の実体への symlink を張る（版はイメージと揃う）。`/opt/andon-tools` の下を指す symlink は boot のもの（張り替え・外す）。同じ名前の利用者の skill には触らない。[ADR-0018](adr/0018-screen-check-tooling.md) 決めたこと 5 |
 | `/opt/andon/gh-skills.txt`（既定は空）＋ セルの `local/gh-skills.txt` | `~/.claude/skills/<skill>` と `~/.agents/skills/<skill>` | 1行に `<owner>/<repo> <skill>`。boot が gh のログインがあれば、置き場に同じ名前が無いものを `gh skill install`（latest。`--agent` は1つしか効かないので claude-code と codex で1回ずつ。`--scope user`）で入れ、毎起動 `gh skill update --all` で上げる。一覧が空なら打たない。ログインしていなければ飛ばして1行。[ADR-0018](adr/0018-screen-check-tooling.md) 前提 4 |
 | `/opt/andon/templates/*.md` ＋ セルの `templates.local/` | `~/.config/herdr-core/templates/` | boot が**生成**（パッケージにセルの上書きを重ねる。本文の `/opt/andon` は `ANDON_HOME` に置き換える）。Claude Code 系の command に `--plugin-dir /opt/andon` と `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md`（役の skill を system prompt に足す。[ADR-0001](adr/0001-skills-distribution.md)）。Chief of Staff の template に `--add-dir`（wiki・projects）とフックが入る |
-| `/opt/andon/environment.md` ＋ セルの `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**2行**（`@/opt/andon/environment.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは連結して生成（要実測） |
+| `/opt/andon/environment.md` ＋ `/opt/andon/writing.md` ＋ セルの `AGENTS.local.md` | `~/.claude/CLAUDE.md`・Codex の `~/.codex/AGENTS.md` | boot が書く**3行**（`@/opt/andon/environment.md`・`@/opt/andon/writing.md`・`@/workspace/AGENTS.local.md`）。Codex 向けは3本を連結して生成し、`writing.md` の中の `/opt/andon` はパッケージの置き場に置き換える（ADR-0013 決めたこと 8・15） |
 | `/opt/andon/settings.json`（deny・allow・hooks）＋ `andon.toml` | `/etc/claude-code/managed-settings.json` | boot が生成して置く（root）。managed は最優先でセッションから書き換えられない。設定ファイルを HOME に symlink する仮設の形は**やめる** |
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |
 | `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
