@@ -408,6 +408,20 @@ grep -q '^- \*\*役と部品の語はここにある語だけを使う\*\*' "$g"
 iss=$(sed -n '/^\*\*課題\*\*（issue）:/,/^_避ける_/p' "$g")
 ! grep -q '「番号（題）」' <<<"$iss" && grep -q '`/opt/andon/writing.md` の番号の決まりに従う' <<<"$iss" \
   && pass "用語集の課題の項は番号（題）の決まりを自分で言わず writing.md を指す" || fail "用語集の課題の項が writing.md を指していない"
+# skill 4本と environment.md（受け入れ条件 8 の残り）: 「glossary skill に従う」が無く、writing.md か用語集のパスを指す。番号（題）の決まりは writing.md を指す。報告の書式に「（推奨案:」が無い
+left=""
+for f in package/environment.md package/skills/worker/SKILL.md package/skills/chief-of-staff/SKILL.md package/skills/chief-engineer/SKILL.md package/skills/triage/SKILL.md; do
+  grep -qE 'glossary skill に従う|/andon:glossary' "$f" && left="$left [$f:旧い言い方]"
+  grep -q '/opt/andon/writing.md' "$f" && grep -q '/opt/andon/skills/glossary/SKILL.md' "$f" || left="$left [$f:パスが無い]"
+done
+[ -z "$left" ] && pass "worker・CoS・CE・triage の skill と environment.md は writing.md と用語集のパスを指す" || fail "「glossary skill に従う」が残るか、パスが無い:$left"
+left=""
+for f in package/skills/worker/SKILL.md package/skills/chief-of-staff/SKILL.md package/skills/ask-one-by-one/SKILL.md; do
+  grep -q '「番号（題）」の形' "$f" && left="$left [$f:番号（題）の決まり]"
+  grep -q '/opt/andon/writing.md` の番号の決まりに従う' "$f" || left="$left [$f:writing.md を指していない]"
+done
+[ -z "$left" ] && pass "CoS・worker・ask-one-by-one の skill は番号（題）の決まりを自分で言わず writing.md を指す" || fail "skill が番号の決まりを自分で言うか、writing.md を指していない:$left"
+! grep -q '（推奨案:' package/skills/worker/SKILL.md && pass "worker skill の報告の書式に「（推奨案:」が無い" || fail "worker skill の報告の書式に「（推奨案:」が残る"
 # writing.md（受け入れ条件 7）: 読み手を人に返す文に絞り、箇条書きは11行、但し書き・語の決まり3つ・用語集のパス
 wr=package/writing.md
 how=$(sed -n '1,/^## /p' "$wr")
