@@ -10,6 +10,17 @@ cd "$tmp" || exit 2   # 台帳の外で打つ
 fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
+# === tests/lib/isolate.sh: 受け継いだ置き場をセルの本物から外す（A-0200） ===
+# セルの値を持って source したとき、HOME より先に読む置き場は外れ、既定がセルの本物を指すものは一時ディレクトリの中を指す
+got=$(env ANDON_WORKSPACE=/workspace GHQ_ROOT=/workspace/.ghq XDG_CONFIG_HOME=/x/config XDG_DATA_HOME=/x/data XDG_STATE_HOME=/x/state \
+  KANBAN_ROOT=/x/k CLAUDE_CONFIG_DIR=/x/c CODEX_HOME=/x/cx ANDON_HOME=/x/a HC_TERMINAL_ID=t1 tmp="$tmp/iso" bash -c '
+  mkdir -p "$tmp"; . "$1"
+  for v in KANBAN_ROOT CLAUDE_CONFIG_DIR CODEX_HOME ANDON_HOME XDG_STATE_HOME XDG_CONFIG_HOME XDG_DATA_HOME HC_TERMINAL_ID; do
+    [ -z "${!v+x}" ] || echo "$v が残る"
+  done
+  for v in ANDON_WORKSPACE GHQ_ROOT; do case "${!v}" in "$tmp"/*) ;; *) echo "$v=${!v}" ;; esac; done' _ "$andon_root/tests/lib/isolate.sh" 2>&1)
+[ -z "$got" ] && pass "isolate.sh は受け継いだ置き場を外し、ANDON_WORKSPACE・GHQ_ROOT を一時ディレクトリの中へ向ける" || fail "isolate.sh: $got"
+
 subs="issue chief-of-staff create open chief-engineer dispatcher news publish triage signal measure process boot init gate delegate"
 
 # === andon help: 一覧 ===

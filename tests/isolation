@@ -8,7 +8,8 @@
 #   - KANBAN_ROOT・HOME・CLAUDE_CONFIG_DIR・ANDON_HOME・CODEX_HOME・ANDON_WORKSPACE・GHQ_ROOT・XDG_STATE_HOME・XDG_CONFIG_HOME・
 #     XDG_DATA_HOME・HC_* を番兵へ向ける（XDG_* は番兵の HOME の下。セルで値があってもなくても同じ置き場を見る）。
 #   - TMPDIR を repo の写しの中に置く（担当が一時ディレクトリを worktree の中に置いたときと同じ）。
-# 番兵の台帳と HOME の下のファイルが1つでも変われば、変わったものを出して 1 で終わる。検査の失敗も 1。
+# 番兵（セルの repo の根 <ws> の下。repo の写しと go の telemetry を除く）のファイルが1つでも変われば、変わったものを出して 1 で終わる。
+# 台帳と HOME のほか、ANDON_WORKSPACE（<ws>）と GHQ_ROOT（<ws>/.ghq）の下に書いたものも見る。検査の失敗も 1。
 # 引数があれば tests/*.sh はそれだけ（go test ./... は毎回回す）。
 set -euo pipefail
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -35,11 +36,13 @@ git clone -q "$src" "$repo"
 printf '# 番兵\n' >"$ws/home/.claude/CLAUDE.md"
 printf '{}\n' >"$ws/home/.claude/settings.json"
 printf '# 番兵\n' >"$ws/home/.codex/config.toml"
+printf '# 番兵\n' >"$ws/AGENTS.local.md"
 mkdir -p "$repo/tests/.task-tmp"
 
-# 数えないのは go の道具が自分で書く telemetry（~/.config/go。検査ではなく go が書く）だけ
-snap() { (cd "$ws" && find projects home -path home/.config/go -prune -o -print0 | sort -z | xargs -0 stat -c '%n %F %s %Y' &&
-  find projects home -path home/.config/go -prune -o -type f -print0 | sort -z | xargs -0 sha256sum); }
+# 数えないのは、検査が動く repo の写し（TMPDIR もこの中）と、go の道具が自分で書く telemetry（~/.config/go。検査ではなく go が書く）だけ
+skip=(-path ./.ghq/example.com/owner/andon -prune -o -path ./home/.config/go -prune -o)
+snap() { (cd "$ws" && find . "${skip[@]}" -print0 | sort -z | xargs -0 stat -c '%n %F %s %Y' &&
+  find . "${skip[@]}" -type f -print0 | sort -z | xargs -0 sha256sum); }
 before=$(snap)
 
 cell=(env PATH="$path" GOCACHE="$gocache" GOMODCACHE="$gomodcache" TMPDIR="$repo/tests/.task-tmp"
@@ -57,5 +60,5 @@ if [ "$before" != "$after" ]; then
   diff <(echo "$before") <(echo "$after") >&2 || true
   exit 1
 fi
-echo "ok   番兵の台帳（projects/sample）と HOME は変わらなかった"
+echo "ok   番兵（台帳 projects/sample・HOME・セルの repo の根・GHQ_ROOT）は変わらなかった"
 [ "$failed" = 0 ] || { echo "FAIL 検査が落ちた（上の出力）" >&2; exit 1; }
