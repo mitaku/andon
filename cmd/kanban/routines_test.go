@@ -331,6 +331,19 @@ func TestRoutineList(t *testing.T) {
 	}
 }
 
+// paused is a YAML boolean: True pauses as true does, and false doesn't.
+func TestPausedIsReadAsABoolean(t *testing.T) {
+	root := routineLedger(t)
+	writeRoutine(t, root, "capital", "title: Capital\non: [review]\npaused: True\n")
+	writeRoutine(t, root, "off", "title: Off\non: [review]\npaused: false\n")
+	if out := kanban(t, root, "routine", "run", "capital"); !strings.Contains(out, "paused") {
+		t.Fatalf("paused: True fired: %q", out)
+	}
+	if out := kanban(t, root, "routine", "run", "off"); !strings.Contains(out, "W-0001") {
+		t.Fatalf("paused: false didn't fire: %q", out)
+	}
+}
+
 func TestLintRoutines(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "ok", "title: Fine\nschedule: \"*/5 * * * *\"\nrepo: github.com/x/app\n")
@@ -339,6 +352,7 @@ func TestLintRoutines(t *testing.T) {
 	writeRoutine(t, root, "badcron", "title: x\nschedule: \"0 25 * * *\"\n")
 	writeRoutine(t, root, "badrepo", "title: x\non: [done]\nrepo: github.com/x/other\n")
 	writeRoutine(t, root, "zero", "title: x\non: [done]\nopen: 0\n")
+	writeRoutine(t, root, "pausedyes", "title: x\non: [done]\npaused: yes\n")
 	writeRoutine(t, root, "broken", "title: [unclosed\n")
 	badName := runtime.GOOS != "windows" // Windows has no file named a:b (it is a stream of a)
 	if badName {
@@ -352,6 +366,7 @@ func TestLintRoutines(t *testing.T) {
 		"routines/badcron.yaml: schedule",
 		"routines/badrepo.yaml: repo github.com/x/other is not in config.yaml repos",
 		"routines/zero.yaml: open must be a whole number of 1 or more",
+		"routines/pausedyes.yaml: paused must be true or false",
 		"routines/broken.yaml: ",
 		"routines/a:b.yaml: ",
 	} {

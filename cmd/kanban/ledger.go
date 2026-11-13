@@ -584,10 +584,14 @@ func notYet(t *task, cfg config) bool {
 
 func tilde(p string) string {
 	home, err := os.UserHomeDir()
-	if p == "" || err != nil || !strings.HasPrefix(p, home) {
+	if p == "" || err != nil || home == "" {
 		return p
 	}
-	return "~" + strings.ReplaceAll(p[len(home):], `\`, "/")
+	rest, ok := strings.CutPrefix(p, home)
+	if !ok || (rest != "" && !os.IsPathSeparator(rest[0])) {
+		return p
+	}
+	return "~" + strings.ReplaceAll(rest, `\`, "/")
 }
 
 func splitList(v string) []string {

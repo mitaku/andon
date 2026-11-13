@@ -634,6 +634,36 @@ func TestReviewerAddWithABrokenTask(t *testing.T) {
 	}
 }
 
+// start writes a worktree under HOME as ~/…, and one whose path only begins with HOME's text (a sibling
+// directory) in full: readers open ~/ and nothing else.
+func TestStartShortensOnlyWorktreesUnderHome(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("HOME is not what os.UserHomeDir reads on Windows")
+	}
+	root := ledger(t) // W-0001
+	kanban(t, root, "add", "second")
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", filepath.Join(base, "h"))
+	for id, dir := range map[string]string{"W-0001": filepath.Join(base, "h", "src", "repo"), "W-0002": filepath.Join(base, "h2", "repo")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command("git", "-C", dir, "init", "-b", "main").CombinedOutput(); err != nil {
+			t.Skipf("git: %v %s", err, out)
+		}
+		kanban(t, dir, "start", id)
+	}
+	if got, _ := os.ReadFile(taskFile(root, "W-0001")); !strings.Contains(string(got), "worktree: ~/src/repo\n") {
+		t.Errorf("a worktree under HOME should be written as ~/src/repo:\n%s", got)
+	}
+	if got, _ := os.ReadFile(taskFile(root, "W-0002")); !strings.Contains(string(got), "worktree: "+filepath.Join(base, "h2", "repo")+"\n") {
+		t.Errorf("a worktree beside HOME should be written in full:\n%s", got)
+	}
+}
+
 // A reviewer's issue keeps the worktree and branch it was given, from any cwd; a worker's issue still takes them from git.
 func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
 	root := ledger(t) // W-0001
