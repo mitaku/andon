@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -251,7 +252,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	switch {
 	case repo != "github.com/"+owner+"/"+name:
 		return nil, fmt.Sprintf("issue.yaml の repo（%s）と PR の repo（%s/%s）が違う", repo, owner, name), nil
-	case !contains(l.Repos(), repo):
+	case !slices.Contains(l.Repos(), repo):
 		return nil, "台帳の config.yaml の repos にこの repo が無い", nil
 	case t.Str("branch") == "":
 		return nil, "issue.yaml に branch が無い", nil
@@ -276,8 +277,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "", errors.New("PR が読めない")
 	}
 	head := pv.HeadRefOid
-	now := time.Now().UTC()
-	rec := &Record{At: now.Format("2006-01-02T15:04:05Z"), ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
+	rec := &Record{ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
 	facts := Facts{PROpen: pv.State == "OPEN" && !pv.IsDraft}
 	if t.Str("status") != "review" {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("台帳の課題が review でない（%s）", t.Str("status")))
@@ -315,9 +315,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.SettingsReason = "issue.yaml の review・must_fix が無い・知らない値（Chief of Staff が kanban set する）"
 	case !l.Trusted(rows, t, "review") || !l.Trusted(rows, t, "must_fix"):
 		facts.SettingsReason = "issue.yaml の review・must_fix を最後に書いたのが Chief of Staff（config.yaml の chief_of_staff）でない・記録と値が違う"
-	}
-	if s.Merge == "auto" && !l.Trusted(rows, t, "merge") {
-		s.Merge = "person" // 信じられない auto は無いのと同じ（既定 person）
 	}
 
 	rt, known := table.Repos[repo]
@@ -357,7 +354,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	}
 	// 記録の at は GitHub の checks を読んだ時刻（判定の事実のうち最後に外から読んだもの）。
 	// ゲートを始めた時刻にすると、その後に通った checks を前もって通ったように見せる（P7・v0.0.3）
-	now = time.Now().UTC()
+	now := time.Now().UTC()
 	rec.At = now.Format("2006-01-02T15:04:05Z")
 	rec.GitHubChecks = checks
 	facts.GitHubChecks, facts.ChecksOptional = checks, rt.GitHubChecks == "optional"
@@ -415,15 +412,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 func written(path string, began time.Time) bool {
 	fi, err := os.Stat(path)
 	return err == nil && !fi.ModTime().Before(began)
-}
-
-func contains(xs []string, x string) bool {
-	for _, v := range xs {
-		if v == x {
-			return true
-		}
-	}
-	return false
 }
 
 // prFiles は PR の変更されたファイル（REST を全ページ。GraphQL の files は100件で切れ、rename 元も無い）。

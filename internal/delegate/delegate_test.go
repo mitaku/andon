@@ -1,6 +1,7 @@
 package delegate
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -201,6 +202,26 @@ func TestParseProject(t *testing.T) {
 	} {
 		if _, err := ParseProject([]byte(j), "sample-site"); err == nil {
 			t.Errorf("%s: 通ってしまう", name)
+		}
+	}
+}
+
+// show は --project と --json だけを受ける。grant・revoke の option は、projects/<slug>/ で打っても使い方の誤りになる。
+func TestShowRefusesOtherCommandsOptions(t *testing.T) {
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	dir := filepath.Join(ws, "projects", "sample-site")
+	os.MkdirAll(dir, 0o755)
+	t.Chdir(dir)
+	var out, errb bytes.Buffer
+	if rc := Main([]string{"show"}, nil, &out, &errb); rc != 0 || !strings.Contains(out.String(), "sample-site: 無委譲") {
+		t.Fatalf("show: rc=%d out=%q err=%q", rc, out.String(), errb.String())
+	}
+	for _, o := range []string{"--reason", "--evidence", "--until"} {
+		out.Reset()
+		errb.Reset()
+		if rc := Main([]string{"show", o, "x"}, nil, &out, &errb); rc != exitUsage || out.Len() != 0 || !strings.HasPrefix(errb.String(), "usage: andon delegate") {
+			t.Errorf("show %s x: rc=%d out=%q err=%q", o, rc, out.String(), errb.String())
 		}
 	}
 }

@@ -68,7 +68,7 @@ var commands = []command{
 	},
 	{
 		name:  "dispatcher",
-		about: "台帳を回り、インナーループ（レビュアーを起動する・ゲート・merge: auto のマージと片付け）を回す。通知を届ける口はまだ無い",
+		about: "台帳を回り、インナーループ（レビュアーを起動する・ゲート・merge: auto のマージと片付け）を回す。待ちの通知は Chief of Staff のフック（drain）が届ける",
 		usage: dispatcher.Usage,
 		run:   dispatcher.Main,
 	},
@@ -82,7 +82,7 @@ var commands = []command{
 		name:  "publish",
 		about: "生成したファイルを files/ へ公開し、URL を返す",
 		usage: "usage: andon publish <file> [slug]\n" +
-			"/workspace/files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n",
+			"セルの repo（ANDON_WORKSPACE。無ければ /workspace）の files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n",
 		run: publish.Main,
 	},
 	{
@@ -112,7 +112,7 @@ var commands = []command{
 	},
 	{
 		name:  "boot",
-		about: "パッケージからセルへ配布物を生成し、portless・sshd・dispatcher を起動する（毎起動）",
+		about: "パッケージからセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する（毎起動）",
 		usage: boot.Usage,
 		run:   boot.Main,
 	},

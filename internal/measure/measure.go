@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -1226,21 +1227,12 @@ func columnsOrder(res *Result) []string {
 	}
 	var rest []string
 	for s := range res.Flow.Wait {
-		if !contains(order, s) {
+		if !slices.Contains(order, s) {
 			rest = append(rest, s)
 		}
 	}
 	sort.Strings(rest)
 	return append(out, rest...)
-}
-
-func contains(xs []string, s string) bool {
-	for _, x := range xs {
-		if x == s {
-			return true
-		}
-	}
-	return false
 }
 
 const none = "記録なし"

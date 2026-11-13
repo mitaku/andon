@@ -97,6 +97,30 @@ func TestMainUsage(t *testing.T) {
 	}
 }
 
+// andon publish は ANDON_WORKSPACE のセルへ書く（ほかの command と同じ。検査が本物の /workspace/files に書かない）。
+func TestMainPublishesIntoTheCellOfTheEnvironment(t *testing.T) {
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	src := filepath.Join(t.TempDir(), "report.html")
+	if err := os.WriteFile(src, []byte("<p>x</p>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if rc := Main([]string{src, "weekly"}, nil, &out, &errb); rc != 0 {
+		t.Fatalf("rc=%d err=%q", rc, errb.String())
+	}
+	made, _ := filepath.Glob(filepath.Join(ws, "files", "*-weekly.html"))
+	if len(made) != 1 {
+		t.Fatalf("files/ に1つ書くはず: %v", made)
+	}
+	if got, _ := os.ReadFile(made[0]); string(got) != "<p>x</p>" {
+		t.Errorf("%s: %q", made[0], got)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(out.String()), "/"+filepath.Base(made[0])) {
+		t.Errorf("URL: %q", out.String())
+	}
+}
+
 func TestPublishSameFileKeepsContent(t *testing.T) {
 	e := env(t)
 	if _, err := Publish(e, writeTemp(t, "weekly.html", "<p>v1</p>"), ""); err != nil {
