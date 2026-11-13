@@ -175,7 +175,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	if !context {
 		ResetRewake(slug) // ターンが通った: プロバイダに切られた回数を数え直す（rewake.go）
 	}
-	ensure() // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
+	EnsureFromHook("andon dispatcher drain") // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)
 	if err != nil {
 		if !context {
@@ -218,17 +218,18 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	ns := append([]Notification{}, again...)
 	retry := map[string]bool{}
 	for _, n := range again {
-		retry[n.Issue+"\x00"+n.Kind] = true
+		retry[eventKey(n)] = true
 	}
 	for _, n := range st.Pending {
-		delete(retry, n.Issue+"\x00"+n.Kind) // 新しい1件に置き換わったものは1回目として数える
+		delete(retry, eventKey(n)) // 新しい1件に置き換わったものは1回目として数える
 		tmp := State{Pending: ns}
 		tmp.Push(n)
 		ns = tmp.Pending
 	}
 	var news string
 	if len(ns) > 0 {
-		news = Render(slug, ns)
+		news = RenderAway(slug, awayLine(st.Away), ns) // 戻った最初の <news> に留守の1行（ADR-0017 決めたこと 8 の (c)）
+		st.Away = nil
 		h := &HookNews{Terminal: addr, Via: "stop", SessionID: in.SessionID, PromptID: in.PromptID}
 		if self != nil {
 			turn := self.Turn
@@ -238,7 +239,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 			h.Via = "prompt"
 		}
 		for _, n := range ns {
-			if retry[n.Issue+"\x00"+n.Kind] {
+			if retry[eventKey(n)] {
 				h.Again = append(h.Again, n)
 			} else {
 				h.News = append(h.News, n)
@@ -320,8 +321,10 @@ func takeStop(slug string) (stopNote, bool) {
 	return n, json.Unmarshal(b, &n) == nil
 }
 
-// ensure は dispatcher の端末を確かめる（dispatcher.Ensure）。落ちても drain は通す（stderr に1行。フックは捨てる）。
-func ensure() {
+// EnsureFromHook は dispatcher の端末を確かめる（dispatcher.Ensure）。打つのは Chief of Staff のフック（drain）と、
+// 担当・レビュアーの Stop フック（andon issue stop-check）。Chief of Staff の留守にも core の起き直しから戻すため
+// （ADR-0017 決めたこと 8 の (e)。dispatcher.md §7.2 #1）。落ちてもフックは通す（stderr に1行。who はその頭）。
+func EnsureFromHook(who string) {
 	self, err := os.Executable()
 	if err != nil {
 		return
@@ -330,9 +333,9 @@ func ensure() {
 	if did, err := Ensure(self, delegate.Workspace(), 0); errors.Is(err, ErrBusy) {
 		return
 	} else if err != nil {
-		fmt.Fprintf(os.Stderr, "andon dispatcher drain: dispatcher の端末を確かめられない: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s: dispatcher の端末を確かめられない: %v\n", who, err)
 	} else if did != "" {
-		fmt.Fprintf(os.Stderr, "andon dispatcher drain: %s\n", did)
+		fmt.Fprintf(os.Stderr, "%s: %s\n", who, did)
 	}
 }
 

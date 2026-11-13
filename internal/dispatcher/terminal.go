@@ -22,8 +22,9 @@ import (
 // App の Add Machine や Update HC で serve が替わる）名前とラベルはそのままで中身がシェルに替わる。
 // hc get dispatcher が通るだけでは「動いている」と言えないので、前に出ているもの（foreground.argv）で見る。
 // 中身がシェルなら、そのシェルには打ち込まず、端末を片付けて起動し直す。
-// 打つのは boot（毎起動）と Chief of Staff のフック（andon dispatcher drain。毎ターン）。core の起き直しは boot を通らないが、
-// dispatcher が回るのは Chief of Staff が生きている台帳だけで、Chief of Staff が動けばフックが走る。
+// 打つのは boot（毎起動）と、Chief of Staff のフック（andon dispatcher drain）と担当・レビュアーの Stop フック（andon issue stop-check）
+// （どちらも毎ターン。EnsureFromHook）。core の起き直しは boot を通らない。dispatcher は Chief of Staff の留守にも回るので、
+// 留守の間に動いている担当のフックからも戻す（ADR-0017 決めたこと 8 の (e)）。
 
 // shells は、dispatcher の端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、人が抜けたあと）。
 var shells = spawn.Shells

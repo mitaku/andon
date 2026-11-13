@@ -22,10 +22,13 @@ esac
 
 const tickHc = `#!/bin/sh
 [ "$1" = get ] && [ -e "$FAKE_KANBAN/cos" ] && { echo '{"state":"live","status":{"state":"idle"},"labels":{}}'; exit 0; }
+[ "$1" = get ] && [ -e "$FAKE_KANBAN/hcfail" ] && { echo '{"error":{"kind":"internal","message":"x"}}' >&2; exit 1; }
+echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2
 exit 3
 `
 
-// kanban tick は Chief of Staff が生きている台帳だけ、1巡の 3（台帳を読む）と 4（ready の差）の間に1回打つ。
+// kanban tick は 1巡の 3（台帳を読む）と 4（ready の差）の間に1回打つ。Chief of Staff の留守（端末が無い）でも打ち、
+// chief_of_staff が設定に無い台帳では打たない（ADR-0017 決めたこと 8）。
 // 失敗はログに1行で、巡は止めない（dispatcher.md §2.1.1・§7.2 #8。ADR-0007 の切る案 R1）。
 func TestPassTicks(t *testing.T) {
 	d := t.TempDir()
@@ -46,7 +49,7 @@ func TestPassTicks(t *testing.T) {
 	if err := os.MkdirAll(led, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(led, "config.yaml"), []byte("timezone: UTC\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var logb bytes.Buffer
@@ -66,15 +69,20 @@ func TestPassTicks(t *testing.T) {
 
 	c.Pass("")
 	if got := calls(); len(got) != 0 {
-		t.Errorf("Chief of Staff がいない台帳で kanban を打った: %q", got)
+		t.Errorf("chief_of_staff が設定に無い台帳で kanban を打った: %q", got)
 	}
-	logb.Reset() // 飛ばした 1 行は skip_test.go で見る
-
-	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, round := range []string{"初めて見る台帳", "2巡目"} {
-		c.Pass("")
+		if round == "2巡目" {
+			// 飛ばした 1 行・留守の 1 行は skip_test.go で見る。ここで留守から戻る
+			logb.Reset()
+			if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		c.Pass("") // 初めて見る台帳は留守のまま（留守でも tick を打つ）
 		want := "list tick ready"
 		if round == "初めて見る台帳" {
 			want = "list ready tick ready" // tick の前の ready を基準に控える

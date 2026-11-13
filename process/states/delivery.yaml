@@ -1,10 +1,13 @@
 name: delivery
 title: 通知の配達
-source: dispatcher.md §2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5。拾う位置（log.jsonl の位置と ready の前回）は状態でないので、ここに置く
+source: dispatcher.md §2.1・§2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5・8。拾う位置（log.jsonl の位置と ready の前回）は状態でないので、ここに置く
 states:
   - id: pending
-    title: 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える）
+    title: 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える。asked は問いの n ごと）
     record: dispatcher:Pending
+  - id: away
+    title: 留守の待ち（Chief of Staff の端末が無い間。配る段だけ止め、積んだ数を置き換えの前の数で数える）
+    record: dispatcher:Away
   - id: hooked
     title: フックで渡した（経路①②。渡した turn を控える）
     record: dispatcher:Hook
@@ -19,6 +22,10 @@ states:
 positions: [dispatcher:LogPos, dispatcher:LogHead, dispatcher:LogHold, dispatcher:Ready]
 transitions:
   - { from: "[*]", to: pending, on: "届ける通知を拾った", by: machine }
+  - { from: "[*]", to: away, on: "Chief of Staff の端末が無い巡に届ける通知を拾った（留守の始まりを控える）", by: machine }
+  - { from: away, to: away, on: "留守の間にまた届ける通知を拾った（数を足す）", by: machine }
+  - { from: away, to: pending, on: "Chief of Staff の端末が戻った（留守の終わりを控える）", by: machine }
+  - { from: away, to: hooked, on: "戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」を付けて渡した（経路①②。§7.2 #7）", by: machine, command: andon dispatcher drain, once: true }
   - { from: "[*]", to: recorded, on: "記録だけの通知を拾った", by: machine }
   - { from: "[*]", to: unrecorded, on: "記録だけの通知を置き場に書けなかった", by: machine }
   - { from: unrecorded, to: recorded, on: "次の見回りで先に書いた", by: machine }
