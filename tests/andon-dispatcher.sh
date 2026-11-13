@@ -39,19 +39,21 @@ esac
 case "\$*" in
   "api rate_limit") cat \$d/rate_limit.json ;;
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
-  "pr view 7 --repo example/"*" --json state,mergeCommit")   # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
+  "pr view 7 --repo example/"*" --json state,mergeCommit")   # dispatcher がマージしたあとの読み直し。打った回数を states に
     echo x >> \$d/states
     if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
     elif [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
+  "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid")   # andon issue settle と gh pr merge が失敗したあとの読み直し。
+    echo x >> \$d/states                                                  # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
+    if [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
+    elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
+    else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
   "pr view 7 --repo example/app --json state,commits,comments,reviews")   # 人の手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
     else jq --arg s "\$(if [ -f \$d/merged ]; then echo MERGED; else echo OPEN; fi)" '{state:\$s,commits:[{oid:.headRefOid,messageHeadline:"x"}],comments:[],reviews:[]}' \$d/view.json; fi ;;
   "api repos/example/app/commits/"*) echo '{"files":[{"filename":"docs/b.md"}]}' ;;
   "api --paginate --slurp repos/example/app/pulls/7/comments") if [ -f \$d/inline.json ]; then cat \$d/inline.json; else echo '[[]]'; fi ;;   # インラインのレビューコメント
-  "pr view 7 --repo example/app --json state,mergeCommit,headRefOid")   # gh pr merge が失敗したあとの読み直し
-    if [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
-    else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
   "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon issue impact（impactfail があれば落ちる）
     [ ! -f \$d/impactfail ] || { echo "HTTP 502" >&2; exit 1; }
@@ -463,8 +465,10 @@ ok 'merge: person は approve でもマージせず、通知 gate で止まる�
 # 4b. 人が GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
 #     ゲートの問い（from: gate。重なったものも）を「人がマージした」と閉じ、andon issue finish し、通知 merged（by: person）を積む。
 #     次の巡で影響（impact）と人の手直し（corrections）も dispatcher がマージしたときと同じ道で拾う。dispatcher.md §2.7
+settled=${state%.json}.settle.json   # andon issue settle の記録（書き手は settle だけ。ADR-0017 決めたこと 5）
 watch_due() { # watch_due <id>: その課題だけ、次の見回りで GitHub に聞く（ほかの review の課題は聞かない）
-    jq --arg t "$1" '.watch |= with_entries(.value.at = (if .key == $t then "2000-01-01T00:00:00Z" else "2999-01-01T00:00:00Z" end))' "$state" > "$state.new" && mv "$state.new" "$state"
+    [ -f "$settled" ] || return 0
+    jq --arg t "$1" 'with_entries(.value.at = (if .key == $t then "2000-01-01T00:00:00Z" else "2999-01-01T00:00:00Z" end))' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
 }
 person_merges() { git -C "$tmp/origin" update-ref refs/heads/main "$head"; echo "$head" > "$tmp/gh/merged"; }
 hm=$(newtask '人がマージする課題' person)
@@ -493,7 +497,8 @@ grep -q '人がマージした（https://github.com/example/app/pull/7）' "$L/i
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null && [ "$(pending "$hm" merged)" = null ] ||
     die "通知 merged（by: person）を記録だけにしていない: $(recorded "$hm" merged)"
 [ "$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)" = "$merges" ] || die '人がマージする課題に gh pr merge を打った'
-jq -e --arg t "$hm" '(.watch // {}) | has($t) | not' "$state" >/dev/null || die '片付けたあとも控えに残った'
+jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die '片付けたあとも settle の記録に残った'
+jq -e 'has("watch") | not' "$state" >/dev/null || die 'dispatcher の控えに人のマージの項目がある（settle の記録に持つ）'
 emit <(recorded "$hm" merged) notification-merged-person.json
 dispatcher
 jq -e --arg t "$hm" '((.impact // {}) | has($t) | not) and ((.corrections // {}) | has($t) | not)' "$state" >/dev/null || die "人のマージのあと impact・corrections を拾っていない: $(jq -c '{impact, corrections}' "$state")"
@@ -559,9 +564,10 @@ kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "�
 ! grep -q " $hm をマージしない" "$tmp/dispatcher.log" && [ "$(pending "$hm" asked)" = null ] && [ "$(recorded "$hm" asked)" = null ] || die "人が先にマージしただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
 jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$hm/library/gate/$head.json" >/dev/null || die "人のマージなのにゲートの記録に merged を書いた: $(cat "$L/issues/$hm/library/gate/$head.json")"
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
-jq -e --arg t "$hm" '[.pending[] | select(.issue == $t and (.kind == "asked" or .kind == "merged"))] == [] and ((.approved // {}) | has($t) | not) and ((.watch // {}) | has($t) | not)' "$state" >/dev/null ||
-    die "問い・merged を待ちに積んだ・approve の待ちや控えを残した: $(jq -c '{pending, approved, watch}' "$state")"
-[ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die '読み直しのあと、同じ PR を §2.7 の見回りで聞き直した'
+jq -e --arg t "$hm" '[.pending[] | select(.issue == $t and (.kind == "asked" or .kind == "merged"))] == [] and ((.approved // {}) | has($t) | not)' "$state" >/dev/null ||
+    die "問い・merged を待ちに積んだ・approve の待ちを残した: $(jq -c '{pending, approved}' "$state")"
+jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 2)) ] || die "読み直しと settle のほかに同じ PR を聞いた: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
 ok 'merge: auto でも人が先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（ゲートの記録の merged は書かない）'
 
 # 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
@@ -577,6 +583,33 @@ kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die '
 rm -f "$tmp/gh/merged"
 HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null
 ok 'issue.yaml の repo と違う repo の PR は、マージされていても見ず、片付けない'
+
+# 4f. andon issue settle は 2 回打っても同じ結果（GitHub に聞くのは 1 分に 1 回・通知は 1 回・finish は 1 回）。dispatcher が
+#     自分でマージした PR（ゲートの記録 library/gate/<head>.json の merged が true）は、dispatcher の控えを読まずに見分けて片付けない
+#     （同じ巡で finish が失敗しても人のマージと誤報しない）。ADR-0017 決めたこと 5 の (d)・受け入れ条件 7
+settle() { HC_TERMINAL_ID=dispatcher "$andon" issue settle "$1"; }
+hm=$(newtask 'dispatcher がマージした課題' person)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
+person_merges
+mkdir -p "$L/issues/$hm/library/gate"
+jq -n --arg h "$head" '{head: $h, decision: "approve", merged: true}' > "$L/issues/$hm/library/gate/$head.json"
+watch_due "$hm"; n=$(wc -l < "$tmp/gh/states")
+a=$(settle "$hm"); b=$(settle "$hm")
+[ "$a" = "$b" ] && jq -e '.state == "auto" and .notify == []' <<<"$a" >/dev/null || die "dispatcher がマージした PR を人のマージとした・2 回で結果が違う: $a / $b"
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die 'MERGED と分かった PR を GitHub に聞き直した'
+kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die 'dispatcher がマージした課題を settle が片付けた'
+rm "$L/issues/$hm/library/gate/$head.json"   # 人がマージした（ゲートの記録に merged が無い）
+a=$(settle "$hm"); b=$(settle "$hm")
+jq -e --arg h "$head" '.state == "finished" and .notify == [{kind: "merged", detail: {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}}]' <<<"$a" >/dev/null ||
+    die "人のマージを片付けて通知を返さない: $a"
+jq -e '.state == "skip" and .notify == []' <<<"$b" >/dev/null || die "2 回目にまた片付けた・知らせた: $b"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die '人のマージを settle が片付けない'
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die '2 回目に GitHub に聞き直した'
+rm -f "$tmp/gh/merged"
+ok 'andon issue settle は 2 回打っても同じ（聞く・知らせる・片付けるのは 1 回）。ゲートの記録の merged が true なら dispatcher のマージとして片付けない'
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
