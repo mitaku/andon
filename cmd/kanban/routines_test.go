@@ -292,10 +292,10 @@ func TestPausedAndRun(t *testing.T) {
 	if out := kanban(t, root, "routine", "run", "manual"); !strings.Contains(out, "open") {
 		t.Fatalf("run while open: %q", out)
 	}
-	deckFails(t, root, "", "routine", "run", "nope")
-	deckFails(t, root, "", "routine", "run", "../x")
-	deckFails(t, root, "", "routine", "run")
-	deckFails(t, root, "", "routine", "what")
+	kanbanFails(t, root, "", "routine", "run", "nope")
+	kanbanFails(t, root, "", "routine", "run", "../x")
+	kanbanFails(t, root, "", "routine", "run")
+	kanbanFails(t, root, "", "routine", "what")
 	want := []string{"nightly skipped paused by routine:nightly", "nightly skipped paused by routine:nightly",
 		"manual fired W-0001 by routine:manual", "manual skipped open by routine:manual"}
 	if l := routineLog(t, root); strings.Join(l, "|") != strings.Join(want, "|") {
@@ -381,7 +381,7 @@ func TestLintRoutines(t *testing.T) {
 		t.Errorf("exit %d:\n%s", code, out.String())
 	}
 	// A broken routine doesn't stop tick for the others, but tick says so.
-	deckFails(t, root, "", "tick")
+	kanbanFails(t, root, "", "tick")
 	if s := readState(t, root); s["ok"] == "" {
 		t.Fatalf("tick skipped the good routine: %v", s)
 	}
@@ -399,8 +399,8 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 	outDir := t.TempDir()
 	stateDir := filepath.Join(root, "kanban", "state")
 	symlink(t, outDir, stateDir)
-	deckFails(t, root, "", "tick")
-	deckFails(t, root, "", "routine", "list")
+	kanbanFails(t, root, "", "tick")
+	kanbanFails(t, root, "", "routine", "list")
 	if entries, _ := os.ReadDir(outDir); len(entries) != 0 {
 		t.Fatal("wrote through the state link")
 	}
@@ -408,7 +408,7 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 	os.MkdirAll(stateDir, 0o755)
 	out := sentinelFile(t, "routines.json", "{}\n")
 	symlink(t, out, filepath.Join(stateDir, "routines.json"))
-	deckFails(t, root, "", "tick")
+	kanbanFails(t, root, "", "tick")
 	assertUnchanged(t, out, "{}\n")
 
 	// A routine file that is a link, or a routines/ that is a link, is not read.
@@ -423,16 +423,16 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 	}
 	os.RemoveAll(filepath.Join(root2, "kanban", "routines"))
 	symlink(t, elsewhere, filepath.Join(root2, "kanban", "routines"))
-	deckFails(t, root2, "", "routine", "list")
+	kanbanFails(t, root2, "", "routine", "list")
 }
 
 func TestRoutineCommandsRefuseOtherVersions(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "r", "title: R\nschedule: \"* * * * *\"\n")
 	os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 4\n"), 0o644)
-	deckFails(t, root, "", "tick")
-	deckFails(t, root, "", "routine", "list")
-	deckFails(t, root, "", "routine", "run", "r")
+	kanbanFails(t, root, "", "tick")
+	kanbanFails(t, root, "", "routine", "list")
+	kanbanFails(t, root, "", "routine", "run", "r")
 	if exists(filepath.Join(root, "kanban", "state")) || exists(filepath.Join(root, "kanban", ".lock")) {
 		t.Fatal("wrote to a ledger of another version")
 	}
@@ -441,6 +441,6 @@ func TestRoutineCommandsRefuseOtherVersions(t *testing.T) {
 func TestBadDeckNowIsRefused(t *testing.T) {
 	root := routineLedger(t)
 	t.Setenv("DECK_NOW", "tomorrow")
-	deckFails(t, root, "", "tick")
-	deckFails(t, root, "", "add", "x")
+	kanbanFails(t, root, "", "tick")
+	kanbanFails(t, root, "", "add", "x")
 }

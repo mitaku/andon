@@ -127,7 +127,7 @@ func keysOf(m map[string]any) []string {
 	return out
 }
 
-func TestWhatDeckWritesFitsTheSchemas(t *testing.T) {
+func TestWhatKanbanWritesFitsTheSchemas(t *testing.T) {
 	cfgSchema, taskSchema := loadSchema(t, "config.v3.schema.json"), loadSchema(t, "issue.v3.schema.json")
 	root := filepath.Join(t.TempDir(), "root")
 	t.Setenv("KANBAN_ROOT", root)
