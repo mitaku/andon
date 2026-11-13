@@ -698,3 +698,20 @@ func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
 		t.Fatalf("a worker's issue should still take its branch from git:\n%s", got)
 	}
 }
+
+// --help after a command prints the help; after --, every word is a word, not a flag.
+func TestHelpFlagAndDoubleDash(t *testing.T) {
+	root := ledger(t)
+	for _, argv := range [][]string{{"add", "--help"}, {"list", "--help"}, {"set", "W-0001", "--help"}} {
+		if out := kanban(t, root, argv...); !strings.Contains(out, "kanban add \"title\"") {
+			t.Fatalf("kanban %v: %q", argv, out)
+		}
+	}
+	if n := len(allTasks(root)); n != 1 {
+		t.Fatalf("--help added an issue: %d", n)
+	}
+	kanban(t, root, "add", "--profile", "p", "--", "--help is not a flag")
+	if got := readYAML(t, taskFile(root, "W-0002")); got["title"] != "--help is not a flag" || got["profile"] != "p" {
+		t.Fatalf("W-0002: %v", got)
+	}
+}

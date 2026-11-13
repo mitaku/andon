@@ -52,6 +52,7 @@ Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A re
 The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
 whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
 repo is filled in from the current checkout when it matches one of repos.
+After --, every word is a word, not a flag: kanban add -- "--title that starts with --". --help prints this.
 add, start, set, review, done, ask, answer, received, config set and routine run also take --json
 (what they wrote, as JSON).`
 
@@ -61,7 +62,7 @@ var version = "dev"
 var (
 	listKeys  = map[string]bool{"after": true, "links": true}
 	fixedKeys = map[string]bool{"id": true, "created": true}
-	boolFlags = map[string]bool{"json": true, "append": true, "force": true, "all": true, "open": true}
+	boolFlags = map[string]bool{"json": true, "append": true, "force": true, "all": true, "open": true, "help": true}
 )
 
 type args struct {
@@ -76,6 +77,10 @@ func parseArgs(argv []string) (args, error) {
 	a := args{flags: map[string]string{}, all: map[string][]string{}}
 	for i := 0; i < len(argv); i++ {
 		s := argv[i]
+		if s == "--" { // the rest are words, also those that start with --
+			a.rest = append(a.rest, argv[i+1:]...)
+			break
+		}
 		if !strings.HasPrefix(s, "--") {
 			a.rest = append(a.rest, s)
 			continue
@@ -158,6 +163,10 @@ func dispatch(argv []string, cwd string, stdin io.Reader, stdout io.Writer) erro
 	a, err := parseArgs(argv[1:])
 	if err != nil {
 		return err
+	}
+	if a.has("help") {
+		fmt.Fprintln(stdout, help)
+		return nil
 	}
 	if err := checkClock(); err != nil {
 		return err
