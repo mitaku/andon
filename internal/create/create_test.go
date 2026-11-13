@@ -191,12 +191,25 @@ func TestBadInputsStopBeforeAnything(t *testing.T) {
 	for _, args := range [][]string{
 		{"Sample"}, {"-x"}, {"a_b"}, {"sample", "--prefix", "s1"}, {"sample", "--repo", "github.com/o"},
 		{"sample", "--repo", "example.com/o/r", "--repo", "example.com/o/r"}, {"sample", "--title", " "}, {"sample", "other"}, {"sample", "--repo"},
+		{strings.Repeat("a", 29)}, // andon chief-of-staff takes 28 at most (<slug>-cos is a terminal name of 32 at most)
 	} {
 		if rc, _, errs := run(strings.NewReader(""), args...); rc != exitUsage {
 			t.Errorf("%v: rc=%d %s", args, rc, errs)
 		}
 	}
 	assertEmpty(t, ws)
+}
+
+// The longest slug andon chief-of-staff takes is made.
+func TestSlugOf28IsMade(t *testing.T) {
+	ws, _ := setup(t)
+	slug := strings.Repeat("a", 28)
+	if rc, _, errs := run(strings.NewReader(""), slug); rc != 0 {
+		t.Fatalf("rc=%d %s", rc, errs)
+	}
+	if _, err := os.Stat(filepath.Join(ws, "projects", slug, "kanban")); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestKanbanInitFailureLeavesNothing(t *testing.T) {

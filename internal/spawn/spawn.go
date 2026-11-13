@@ -30,6 +30,9 @@ var (
 	SlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 )
 
+// MaxSlug は slug の長さの上限。Chief of Staff の端末の名前 <slug>-cos が NameRe の32字に収まる。
+const MaxSlug = 32 - len("-cos")
+
 // Output はコマンドを打ち、stdout を返す（前後の空白を除く）。stderr は失敗のときだけ err に入れる。
 func Output(env []string, stdin, name string, args ...string) (string, error) {
 	return OutputIn("", env, stdin, name, args...)
