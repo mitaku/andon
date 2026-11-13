@@ -10,7 +10,6 @@
 //	<pkg>/codex.rules                         → ~/.codex/rules/andon.rules（＋ ~/.codex/config.toml に足りない承認・sandbox の既定だけ）
 //	<pkg>/skills/<name>/                      → ~/.agents/skills/andon-<name>（symlink。Codex など .agents/skills を読むハーネス向け）
 //	<tools> に同梱の skill（playwright-cli）     → <claude>/skills/<name>・~/.agents/skills/<name>（symlink。extskills.go）
-//	<pkg>/host/herdr/*.toml                   → ~/.config/herdr/…
 //	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
@@ -45,7 +44,7 @@ const Usage = "usage: andon boot\n" +
 	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
-	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・herdr の設定・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
+	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、gh skill update --all で上げる（一覧が空なら打たない）。\n" +
 	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
@@ -164,7 +163,6 @@ func Generate(e Env) error {
 		{"Codex の設定", genCodexConfig},
 		{"Codex の rules", genCodexRules},
 		{"skill", genSkills},
-		{"herdr の設定", genHerdr},
 		{"git の作者", genGitAuthor},
 		{"Claude Code の起動リンク", linkClaude},
 		{"herdr-core の起動リンク", linkHerdrCore},
@@ -575,26 +573,6 @@ func (e Env) unlinkAndon(dir string, keep map[string]string) error {
 func isSymlink(p string) bool {
 	st, err := os.Lstat(p)
 	return err == nil && st.Mode()&fs.ModeSymlink != 0
-}
-
-// genHerdr はパッケージの herdr の設定を volume へ写す。パッケージに無ければ何もしない。
-func genHerdr(e Env) error {
-	cfg := filepath.Join(e.Home, ".config", "herdr")
-	var errs []error
-	for src, dst := range map[string]string{
-		"config.toml":      filepath.Join(cfg, "config.toml"),
-		"file-viewer.toml": filepath.Join(cfg, "plugins", "config", "herdr-file-viewer", "config.toml"),
-	} {
-		b, err := os.ReadFile(filepath.Join(e.Package, "host", "herdr", src))
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err == nil {
-			err = e.generate(dst, b, 0o644)
-		}
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
 }
 
 // symlink は link → target にする。すでにそうなら何もしない。実ディレクトリがあれば触らない。

@@ -111,7 +111,6 @@ func (f *fixture) fullPackage(t *testing.T) {
 	put(t, filepath.Join(f.pkg, "writing.md"), "# 書き方\n用語集は `/opt/andon/skills/glossary/SKILL.md`\n")
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
 	put(t, filepath.Join(f.pkg, "skills", "glossary", "SKILL.md"), "glossary\n")
-	put(t, filepath.Join(f.pkg, "host", "herdr", "config.toml"), "[ui]\n")
 	put(t, filepath.Join(f.pkg, "codex.rules"), "prefix_rule(pattern = [\"gh\", \"pr\", \"merge\"], decision = \"forbidden\")\n")
 	put(t, filepath.Join(f.ws, "templates.local", "sonnet.md"), "---\nname: sonnet\n---\nセルの sonnet\n")
 	put(t, filepath.Join(f.ws, "templates.local", "local-only.md"), "セルだけ\n")
@@ -163,9 +162,6 @@ func TestGenerateWritesEverything(t *testing.T) {
 	}
 	if _, err := os.Lstat(filepath.Join(f.claude, "skills")); err == nil {
 		t.Error("<claude>/skills を作った（Claude Code は plugin で読む）")
-	}
-	if s := read(t, filepath.Join(f.home, ".config", "herdr", "config.toml")); s != "[ui]\n" {
-		t.Errorf("herdr の設定 = %q", s)
 	}
 }
 

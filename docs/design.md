@@ -664,7 +664,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `.devcontainer/scripts/post-create.sh`・`post-start.sh`（246 行）・`initialize.sh`、`bin/yard-boot`（162 行） | 400 超 | 取り込む（畳む） | `package/lib/andon/boot` 1本。symlink の自己修復を**生成**に替える（§2.3）。残るのは portless・sshd・dispatcher の起動・Claude Code の起動リンク・設定の救出 |
 | `.devcontainer/devcontainer.json` | — | **捨てる** | devcontainer CLI に依存しない方針（今も便宜だけ）。VS Code から入る必要が出たら `init/` に薄い雛形を足す |
 | `.devcontainer/sshd_config` | — | 取り込む | `image/`（焼く） |
-| `.devcontainer/herdr/config.toml`・`file-viewer.toml` | — | 取り込む | `package/host/herdr/`（セルの中の herdr の設定の雛形。boot が volume へ写す。セルの repo が実体を持つ今の形はやめる） |
+| `.devcontainer/herdr/config.toml`・`file-viewer.toml` | — | **捨てる** | セルの中の herdr の設定は配らない。ホストの herdr の雛形は `package/host/herdr-config.toml`（`host-install` が置く） |
 | `.devcontainer/herdr-core/templates/*.md`（7つ） | — | 取り込む | `package/templates/`。boot がセルの `templates.local/` を重ねて `~/.config/herdr-core/templates/` に生成 |
 | `.devcontainer/herdr-auto-title/`（python のフック） | — | **捨てる** | 使わない。tab 名は Andon 同梱の App の mod が付ける（[ADR-0002](adr/0002-herdr-spaces.md)）。image に焼かず、managed settings のフックにも付けない |
 | `.claude/settings.json`（permissions・plugins・env・statusLine） | — | 取り込む（形を変える） | `package/settings.json`（managed settings の既定）。boot が生成（§2.3）。plugins の有効化はセルの `andon.toml` から |
