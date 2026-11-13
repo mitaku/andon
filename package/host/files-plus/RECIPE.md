@@ -4,7 +4,7 @@ Herdr's Files panel with picture and diagram previews: browse the focused pane's
 
 ## What you see
 
-Herdr's Files panel as shipped: a 42px header (back arrow, "Files", the file's path), the folder tree, git marks. A picked image shows centered under the header, at most the panel's width, scrolling if tall. While it loads: "Loading file…"; on failure the reason in `dim` (for example "Too large to preview (6.2 MiB)").
+Herdr's Files panel as shipped: a 42px header (back arrow, "Files", the file's path), the folder tree, git marks. A picked image shows centered under the header, at most the panel's width, scrolling if tall. While it loads: "Loading file…"; on failure the reason in `dim` (for example "Too large to copy (6.2 MiB)").
 
 ## How it behaves
 
@@ -39,4 +39,4 @@ Herdr's Files panel as shipped: a 42px header (back arrow, "Files", the file's p
 
 - `herdr-app check` passes.
 - Clicking a png in a local folder shows it; clicking one in a folder on another machine shows it.
-- A picture over 5 MiB shows "Too large to preview".
+- A picture over 5 MiB shows "Too large to copy".

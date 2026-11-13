@@ -1,8 +1,8 @@
 #cloud-config
 # クラウドの VM にセルを1つ立てる雛形。<…> を埋めて VM の user-data に渡す。
 # ホストに入れるのは docker と git だけ。ログイン（gh・claude・codex）はセルの中で取る。
-# VM に入ったら: git clone <セルの repo> ~/src/andon-<slug> → docker pull（image は Public。login は要らない）
-#   → ~/src/andon-<slug>/bin/bootstrap
+# VM に入ったら: git clone <セルの repo> ~/src/<slug>-cell → docker pull（image は Public。login は要らない）
+#   → ~/src/<slug>-cell/bin/bootstrap
 package_update: true
 packages:
   - docker.io

@@ -16,7 +16,7 @@ The `andon` layout (`../layouts/andon.json`) uses it for the Files panel. In you
 
 - **This computer (Windows):** PowerShell copies the file.
 - **Another machine:** `stat` and `base64` run there; the text is written here and PowerShell decodes it.
-- Pictures over 5 MiB are not fetched ("Too large to preview").
+- Pictures over 5 MiB are not fetched ("Too large to copy").
 - The cache is named by machine, path, size and time, so an edited picture is fetched again. Pictures older than a week, and all but the newest 50, are removed when the panel starts. The cache is plain files in the app home: don't preview pictures you wouldn't leave there.
 
 ## Diagrams
