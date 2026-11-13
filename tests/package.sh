@@ -2,6 +2,7 @@
 # tests/package.sh — package/ の skill・プロファイル・ゲートの条件表・managed settings・statusline（design.md §2.2・§2.4）。
 #   1. skill 7つとプロファイル 8つがそろい、frontmatter の name がディレクトリ名・ファイル名と同じ。
 #   2. plugin.json の name が andon。Claude Code 系のプロファイルは command で plugin と役の skill を運び（本文で読ませない）、Codex 系は本文で skill を指す。
+#  2b. 前の置き場の名前が残っていない（ADR-0004 受け入れ条件 4 の前半）。
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
 #      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
@@ -13,12 +14,14 @@
 #   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
 #      用語集は書き方の節と語の決まりを持たず writing.md を指す、CE skill の問いの出し方、ask-one-by-one の読み手。
 #   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
-#  12. auto memory（ADR-0020 受け入れ条件 2・6）: settings が入れる向き・環境メモの書き方・chief-of-staff の規約9・トリアージ・wiki の手引き。
+#  10. 承認の段・書く場所・字数・reach（A-0122）。10b. Chief of Staff の行数・承認の段・起動の go・続きの文（A-0123）。
+#  12. auto memory（ADR-0020 受け入れ条件 2・6。4 と 6 の節の中）: settings が入れる向き・環境メモの書き方・chief-of-staff の規約9・トリアージ・wiki の手引き。
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
 #      CoS の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
 #  17. CoS の原則と手引き（A-0195）: SKILL.md は役・原則・手引きの目次・手引きの扱い・規約の行き先だけで 10KB 以下、目次の手引きが全部在り、手引きの先頭に「読む時」と「消す条件」。
+#  13. herdr notification show の文言（ADR-0007 R3）。
 #  14. 受け入れ条件の証拠の質（ADR-0007 R5）: contract.md §4 の acceptance[] の行・CE skill・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない。
-#  15. Advisor（ADR-0022 受け入れ条件 1・2）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
+#  15. Advisor（ADR-0022 受け入れ条件 1・2。6 の節の中）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
 #  16. 日報（ADR-0024 受け入れ条件 A1・A2）: worker skill の日報の節と工程表の振り返り、CoS skill の差し戻しの1行、用語集の「日報」。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
@@ -239,6 +242,8 @@ done <<<"$cmds"
 out=$(printf '%s' '{"model":{"display_name":"Sample"},"context_window":{"used_percentage":42},"cwd":"/tmp"}' | bash package/lib/andon/statusline 2>"$tmp/err")
 case $out in *Sample*42%*) [ ! -s "$tmp/err" ] && pass "statusline は model と context% を出す" || fail "statusline の stderr: $(cat "$tmp/err")" ;;
   *) fail "statusline の出力: $out" ;; esac
+out=$(printf '%s' '{"model":{"display_name":"Sample"},"context_window":{"used_percentage":42},"cwd":"/tmp","cost":{"total_duration_ms":3725000},"effort":{"level":"high"}}' | HOME=$tmp bash package/lib/andon/statusline)
+case $out in *1h2m*high*) pass "statusline は入力の cost.total_duration_ms と effort.level を出す" ;; *) fail "statusline の時間と effort: $out" ;; esac
 out=$(printf '' | bash package/lib/andon/statusline)
 [ "$out" = Claude ] && pass "statusline は空の入力で Claude" || fail "statusline（空）: $out"
 
@@ -270,7 +275,8 @@ for s in 理解 計画 作業 確認 完成 振り返り; do grep -q "^| $s |" <
 [ -z "$miss" ] && pass "worker skill §2 の工程表に 理解・計画・作業・確認・完成・振り返り がある" || fail "worker skill §2 の工程表に無い工程:$miss"
 w7=$(block "$w" 'PR: <https://')
 grep -q '^## 計画$' <<<"$w7" && grep -q '^探した範囲: ' <<<"$w7" && grep -q '^計画との差: ' <<<"$w7" \
-  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"# 調べる課題の候補の例（andon issue candidates の stdin）は candidates.schema.json に合う。scope の問いは worker skill が案内する
+  && pass "worker skill の報告の書式に ## 計画・探した範囲・計画との差がある" || fail "worker skill の報告の書式に ## 計画・探した範囲・計画との差が無い"
+# 調べる課題の候補の例（andon issue candidates の stdin）は candidates.schema.json に合う。scope の問いは worker skill が案内する
 c_blk=$(block "$w" 'andon issue candidates "$id" -' | sed '1d;$d')
 printf '%s\n' "$c_blk" >"$tmp/c.json"
 [ -n "$c_blk" ] && chk candidates "$tmp/c.json" && pass "worker skill の候補の例は candidates.schema.json に合う" || fail "候補の例: $(head -1 "$tmp/why" 2>/dev/null) $c_blk"
@@ -294,7 +300,7 @@ grep -q '^- 打つコマンドは .*`andon chief-engineer`' "$pb/wake.md" \
   && pass "Chief of Staff の打つコマンドの一覧に andon chief-engineer がある" || fail "chief-of-staff の打つコマンドの一覧に andon chief-engineer が無い"
 sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$pb/brief.md" | grep -q 'repo を読めば分かること（作法・構造・直し方）は書かず' \
   && grep -q '^| 守ること | 範囲の外（今回やらないこと）' "$pb/brief.md" \
-  && pass "依頼書の欄の読み方の頭に原則の1行、守ることの説明に 範囲の外" || fail "chief-of-staff §2 に依頼書の原則か 範囲の外 が無い"
+  && pass "依頼書の欄の読み方の頭に原則の1行、守ることの説明に 範囲の外" || fail "brief.md に依頼書の原則か 範囲の外 が無い"
 grep -q '^8\. \*\*2回通らなければ、手直しを重ねない\*\*' "$cos" \
   && grep -q '## 差し戻し（<日付>）' "$pb/gate.md" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$pb/gate.md" && grep -q '依頼書を直した新しい課題を `kanban add`' "$pb/gate.md" \
   && pass "差し戻しは依頼書への追記で数え、2回で通らなければ新しい課題に切る" || fail "chief-of-staff に差し戻しの追記か切り直しの手順が無い"
