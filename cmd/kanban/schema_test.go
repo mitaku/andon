@@ -281,3 +281,46 @@ func TestQuestionsFitTheSchema(t *testing.T) {
 		}
 	}
 }
+
+// kanban lint and the routine schema say the same about a routine: a key written with another
+// type than the schema's (null included) is a problem, and a routine with a problem doesn't fire.
+func TestLintAgreesWithTheRoutineSchema(t *testing.T) {
+	schema := loadSchema(t, "routine.v3.schema.json")
+	cfg, err := readConfig(routineLedger(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{
+		"title: T\nbrief: B\nprofile: p\nrepo: github.com/x/app\nschedule: '0 9 * * 1-5'\non: [done]\nopen: 2\npaused: false\nmine: kept\n",
+		"title: T\non: [done, review]\n",
+		"title: T\non: [done]\npaused: true\n",
+		"title: T\non: [done]\npaused: null\n",
+		"title: T\non: [done]\npaused:\n",
+		"title: T\non: [done]\npaused: 'true'\n",
+		"title: T\non: done\n",
+		"title: T\non: [done, [review]]\n",
+		"title: T\nschedule: '0 9 * * *'\non: null\n",
+		"title: T\non: [done]\nopen: '2'\n",
+		"title: T\non: [done]\nopen: null\n",
+		"title: T\non: [done]\nopen: 1.5\n",
+		"title: T\non: [done]\nschedule: null\n",
+		"title: T\non: [done]\nbrief: [a]\n",
+		"title: T\non: [done]\nbrief: null\n",
+		"title: T\non: [done]\nprofile: 3\n",
+		"title: 2026\non: [done]\n",
+	} {
+		var m map[string]any
+		if err := yaml.Unmarshal([]byte(body), &m); err != nil {
+			t.Fatal(err)
+		}
+		d, err := parseDoc([]byte(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bad := check(schema, m, "doc")
+		problems := (&routine{name: "r", d: d}).problems(cfg)
+		if (len(bad) == 0) != (len(problems) == 0) {
+			t.Errorf("%q: schema %v, lint %v", body, bad, problems)
+		}
+	}
+}
