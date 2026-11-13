@@ -374,8 +374,8 @@ grep -q 'cwd は案件の repo の自分の worktree' "$ce" && grep -q '`pr`＝�
 grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -q 'andon issue ask "$id" -' package/skills/ask-one-by-one/SKILL.md \
   && pass "Chief Engineer と Chief of Staff の問いは問いの JSON の手順を使う" || fail "問いの JSON の手順を指していない"
 # ADR-0009 受け入れ条件 5: WIP の行が無い・読むに価値の仮説の結果・文書の形に価値の仮説の見出し・言い直すで決断が無ければ next で返す
-! grep -qE '1プロジェクトに1題|前の題が終わらないまま' "$ce" \
-  && pass "Chief Engineer の skill に WIP の行（1プロジェクトに1題・前の題が終わらないまま）が無い" || fail "chief-engineer に WIP の行が残る"
+! grep -qE '1プロジェクトに1題|前の題が終わらないまま' "$ce" package/skills/glossary/SKILL.md \
+  && pass "Chief Engineer の skill と用語集に WIP の行（1プロジェクトに1題・前の題が終わらないまま）が無い" || fail "chief-engineer か用語集に WIP の行が残る"
 ce1=$(sed -n '/^1\. \*\*読む/,/^2\. /p' "$ce"); ce2=$(sed -n '/^2\. \*\*言い直す/,/^3\. /p' "$ce")
 grep -q '前の価値の仮説の結果' <<<"$ce1" && block "$ce" '# <題>（仕様・設計' | grep -q '^## 価値の仮説' \
   && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の見出しが無い"

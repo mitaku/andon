@@ -36,7 +36,7 @@ blocked には次の順で答える（規約3: blocked は正常。範囲内だ�
 
 ## 範囲の問い
 
-担当が `## 範囲の問い`（見つけたもののどれを直すか）を返したら、**範囲の判断は自分のもの**で、人に灯りはつかない。担当は `library/candidates.json`（候補の一覧。`id`・`text`・`in_scope`）を書き、`kind: scope` の問い（台帳では `（scope）` つきで `<id>#<n>`）を出している。まず `candidates.json` を読む（`andon issue show <id>` でも）。候補ごとに次の4つを見る:
+担当が `## 範囲の問い`（見つけたもののどれを直すか）を返したら、**範囲の判断は自分のもの**で、人に灯りはつかない。担当は `library/candidates.json`（候補の一覧。`id`・`text`・`in_scope`）を書き、`kind: scope` の問い（台帳では `（scope）` つきで `<id>#<n>`）を出している。まず `candidates.json` を読む。候補ごとに次の4つを見る:
 
 | 候補が | 自分で決める | 人へ（1問ずつ） | Chief Engineer へ |
 |---|---|---|---|

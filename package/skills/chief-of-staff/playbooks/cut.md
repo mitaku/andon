@@ -71,7 +71,7 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 
 ## 観察の課題の報告を受けたら
 
-観察の課題（`parent` が Chief Engineer の課題で、依頼書が「観察:」）の担当は `report.json` に `observation`（`hypothesis`・`result: hit | miss | unknown`・`evidence[]`）を書いて `kanban review` する。通知は `<id> review` で届く。
+観察の課題（`parent` が Chief Engineer の課題で、依頼書が「観察:」）の担当は `report.json` に `observation`（`hypothesis`・`result: hit | miss | unknown`・`evidence[]`）を書いて `kanban review` する。通知は `<id> report` で届く（PR が無いので `review` ではない）。
 
 1. `issues/<id>/library/report.json` の `observation` を読み、人へ返す: 「<Chief Engineer の id>（題）の価値の仮説: 当たった／外れた／分からない。証拠 <`evidence` のパス・URL>」。
 2. 結果が「外れた」「分からない」でも、**ラインは何もしない**（直す課題・調べる課題・revert を自分で切らない）。次（戻す・直す・諦める）は人が Chief Engineer と決める（何を作るかは委譲できない）。

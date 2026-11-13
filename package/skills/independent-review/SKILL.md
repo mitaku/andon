@@ -40,8 +40,8 @@ Chief of Staff は起動しない。起動するのは、`issue.yaml` の `revie
 1. PR の head を読む worktree を detached で作る: `/workspace/.worktrees/<repo 名>/<slug>-<id>-r<回>`（commit は `review_request.commit`）。
 2. 依頼書（4の型）で `kanban add "<id> のレビュー（<回> 回目）" --profile <reviewer> --parent <id> --round <回> --brief -`（by は `terminal:dispatcher`。ゲートは dispatcher と Chief of Staff が足したレビュアーだけを数える）。
    新しい id は `<id>-r<回>`（通し番号を使わない）。`--repo` は付けない（cwd は `issues/<新しい id>/`）。
-3. `hc run --bg --outlive-parent --no-notify --name <slug>-<新しい id> … <reviewer>` で起動し、`kanban start <新しい id>`。通知 `review-requested` を Chief of Staff へ積む。
-   信頼の画面は、cwd（`issues/<新しい id>/`）と 1 の worktree のときだけ Chief of Staff が答える。codex を初めて使う repo のフックの確認画面は人へ回す。
+3. `hc run --bg --outlive-parent --no-notify --name <slug>-<新しい id> … <reviewer>` で起動し、`kanban start <新しい id>`。通知 `review-requested` は記録だけで、Chief of Staff へは届かない。
+   信頼の画面はセルでは出ない。出たら答えずに人へ回す（`chief-of-staff/playbooks/blocked.md`）。codex を初めて使う repo のフックの確認画面も人へ回す。
 
 上限を超えた回（`extra: true`）は起動せず、通知 `report` で Chief of Staff へ渡す。起動すると決めたら `kanban set <id> review_rounds=<回>`（dispatcher が次の見回りで起動する。chief-of-staff skill の `playbooks/gate.md`）。
 

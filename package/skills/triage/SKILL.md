@@ -39,7 +39,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 - `kind` は `issue`（担当の無い todo／queued）・`person`（人の判断待ち）・`next`・`waived`（見送り）・`remember`・`agents`（`For AGENTS.md:`）・
   `question`（`## 人に聞くこと`）・`leftover`（done なのに worktree か端末が残っている）・`unreadable`（報告が読めない）・
   `memory`（`/workspace/memory/` の直下の `.md` 1件。`from` はファイル名から作った名前、`text` はファイルの本文。目録の `MEMORY.md` は項目にならない）・
-  `signal`（信号の記録 `<slug>.signals.json` のうち、いま見えていて〈`active`〉どの課題の `links` にも `url` が無いもの1件。`later` の信号と、課題に切られていない `now` の信号。
+  `signal`（信号の記録 `<slug>.signals.json` のうち、いま見えていて〈`active`〉どの課題の `links` にも `url` も `key` も無いもの1件。`later` の信号と、課題に切られていない `now` の信号。
   `from` は `sig-<fingerprint の先頭 12 桁>-e<episodes>`、`text` は出所の題、`url` は出所の場所、`repo` は GitHub の出所なら key の repo）。
 - **終了コード 4**（項目が上限 50 を超えた）: 依頼書に件数の指定（「古い順に N 件」）があればそれ、無ければ 50。
   `--limit` を増やして全件を取り、**先頭（古い順）から N 件だけ**仕分ける。残りは decisions.json に入れない（次回も出る）。報告に残りの件数を書く。

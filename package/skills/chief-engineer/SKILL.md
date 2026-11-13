@@ -73,7 +73,7 @@ description: Chief of Staff（か人）が `andon chief-engineer "<題>"` で起
 1. 文書を commit し、worker skill §3 の手順で push・PR・checks。
 2. worker skill §7 の手順で `report.json` を書く: `pr`＝文書の PR、`next='[{"to": "chief-of-staff", "text": "<文書のパス> を依頼書に切る"}]'`（開いている問いがあれば `{"to": "person", …}` も）。
 3. 人が読む報告（worker skill §7 の書式）: `## Report` に文書のパス・決めたことの数・開いている問いの数・人が「決めた」と言った日。
-4. `kanban report <id>` → `kanban review <id>`。Chief of Staff へ `hc send` しない（dispatcher が届ける）。Chief of Staff はあなたの課題を検収しない（検収は人が対話の中でした）。文書の PR がマージされたら Chief of Staff が片付ける。
+4. `kanban review <id>`（報告は 2・3 の `andon issue report` で書いてある。`kanban report` を打ち直すと空になる）。Chief of Staff へ `hc send` しない（dispatcher が届ける）。Chief of Staff はあなたの課題を検収しない（検収は人が対話の中でした）。文書の PR がマージされたら Chief of Staff が片付ける。
 5. Chief of Staff が「価値の仮説が空」と戻してきたら（`<hc from=…>` の印つき）、人と 6 項目か「無し: <理由>」を決めて文書を直し、1 から同じ手順で返す。
 
 ## 取らないもの
