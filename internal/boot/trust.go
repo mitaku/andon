@@ -27,9 +27,9 @@ import (
 // <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
 // Chief of Staff と人で、andon issue start が起動してよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（<セルの repo>/.worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
-//   - Claude Code 2.1.318: git の外は cwd から親へ / まで遡る。git の中は repo の根で止まり、それより上の親は効かない。
+//   - Claude Code: git の外は cwd から親へ / まで遡る。git の中は repo の根で止まり、それより上の親は効かない。
 //     worktree は元の repo の根の信頼が効く（worktree の置き場の親は効かない）。
-//   - Codex 0.166.0: git の外では信頼の画面を出さない。git の中は repo の根で判定し、worktree は元の repo の根で判定する
+//   - Codex: git の外では信頼の画面を出さない。git の中は repo の根で判定し、worktree は元の repo の根で判定する
 //     （置き場の親は効かない。worktree そのものの根でも効く）。
 
 // Trust は信頼の根を Claude Code と Codex の両方で信頼済みにする（足りない所だけ足す。boot の生成の2つと同じ手）。

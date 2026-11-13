@@ -68,7 +68,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `reviewer` | プロファイルの名前（`codex-review` / `claude-review`） | 既定: 実装のプロファイルと別ブランド（Claude → `codex-review`、Codex → `claude-review`） | Chief of Staff | dispatcher（起動する）・ゲート（別ブランドの照合） | レビュアーのプロファイル |
 | `review_rounds` | 1 以上の整数（を表す文字列。下の注） | 既定: `"2"` | Chief of Staff | dispatcher・担当 | 頼める回数の上限。超えた回は `report.json` の `review_request.extra` で頼み、起動するかは dispatcher ではなく Chief of Staff が決める |
 | `merge` | `auto` / `person` | 既定: `person`（安全側） | Chief of Staff | dispatcher・ゲート | `auto`: ゲートが approve し、委譲（§11）の `merge` がそのレベルを許していれば dispatcher がマージし finish する。`person`: approve でも止まり、人に通知する。**委譲の範囲を広げることはできない**（狭めるだけ） |
-| `machine` | hcの machine の名前 | 既定: 指揮側と同じマシン | Chief of Staff | `andon issue start`・dispatcher | 作業側（担当・レビュアー）を起動するマシン |
+| `machine` | hcの machine の名前 | 既定: 指揮側と同じマシン | Chief of Staff | `andon issue start`・dispatcher | 作業側（担当・レビュアー）を起動するマシン。**まだ使えない**: `machine` のある課題は `andon issue start` と `resume` が起動せずに止まる（黙って指揮側で起動しない） |
 | `deliverable` | `pr` / `candidates` | 既定: `pr` | Chief of Staff（依頼書の Settings の `Deliverable:` の写し） | `andon issue ready`・dispatcher・`andon gate`・ボード・担当 | 課題の成果の形。`pr`: PR（直す課題・Chief Engineer の文書）。`candidates`: PR を出さず `library/candidates.json`（§12）が成果（調べる課題）。`andon issue ready` は `pr` の代わりに `candidates.json` が在って形が合い（repo があれば）`commit` が `HEAD` と同じことを確かめる。dispatcher は `review` の通知だけ届けてゲートを回さず、`review_request` があっても起動しない。`andon gate` を手で打てば回さずに終了コード 3（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） |
 | `estimate` | `small` / `medium` / `large`（段→分は下の表） | 見込み無し（既定の段で埋めない。比べず、記録に「見込み無し」と数える） | Chief of Staff（依頼書を切るとき。依頼書の Settings の `Estimate:` の写し。段の名 小・中・大） | dispatcher・`andon measure`・担当 | 課題の大きさの見込み（目安であって上限ではない）。担当の課題（直す・調べる）だけ。レビュアー・Chief Engineer の課題には置かない（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 2・3・8） |
 
@@ -164,7 +164,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 - 担当の `andon issue ready <id>`: `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーの課題の `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。最後に書いたのが Chief of Staff のときだけ。ほかは `pr` として読む）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
 - 担当の `andon issue review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。
 - `andon issue start`・`report`・`review-request`・`candidates`・`ask`・`ready`・`finish` は、課題の今の `status` から打てるものが [`process/states/issue.yaml`](../process/states/issue.yaml) の移り方（`command`）に在るときだけ動く。無ければ台帳に書く前に終了コード 1 と理由1行で断る（例: `todo` の課題への `ready`、`done` の課題への `review-request`）。定義はバイナリに埋め込んである。`by: kanban` の移り方（担当の `kanban start`、レビュアー・Chief Engineer の `kanban report`・`kanban review`）は `kanban` を直に打つので断らない（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 15）。
-- 作業側（別のマシン）の担当は同じ command を打つ。command は `<worktree>.issue/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
+- 作業側（別のマシン）の担当は同じ command を打つ（設計だけ。`machine` を使う起動はまだ使えない。上の `machine` の行）。command は `<worktree>.issue/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
 
 ## 5. 問いの形
 

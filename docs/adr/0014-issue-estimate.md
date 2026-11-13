@@ -1,6 +1,6 @@
 # ADR-0014: 課題の見込みと実際のズレを測り、Chief of Staff に届ける（仕様・設計。2026-11-10。課題 A-0056）
 
-- 状態: **提案（2026-11-10）**。人が 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0056）。人が PR をマージした日が決定の日。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-10）**。人が 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0056）。人が PR をマージした日が決定の日。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: 課題ごとの大きさの見込みを置き、実際を数え、見込みとのズレを記録して Chief of Staff（と振り返り）に届ける形。一律の上限で担当を止めることはしない。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
 - 入力: 題（人の1行。2026-11-10）、A-0007 の依頼書（人の依頼。Addy Osmani の「任せきりの run の5つの問い」のうち andon に無いのがガードレールだけ）と報告・`library/candidates.json`（c1〜c13）、A-0055 の依頼書（Codex。進行中）、A-0054 の依頼書（トークン数。待ち）、[dispatcher.md](../dispatcher.md) §2.3・§2.4、[contract.md](../contract.md) §2・§5・§6・§9、[ADR-0012](0012-resume-and-worktree-home.md)（resume・`session=` ラベル）、`internal/issue/stopcheck.go`・`start.go`・`lock.go`、`internal/dispatcher/pickup.go`・`drain.go`、`package/settings.json`・`package/hooks/stop`・`package/templates/*.md`、Claude Code 2.1.322 の hooks・cli-reference・goal の文書（2026-11-10 に取得）。

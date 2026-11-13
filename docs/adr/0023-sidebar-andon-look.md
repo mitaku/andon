@@ -1,6 +1,6 @@
 # ADR-0023: サイドバーに「あんどん」らしさを見た目で出す（仕様・設計。2026-11-12。Chief Engineer の課題 A-0163）
 
-- 状態: **提案（2026-11-12）**。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0023-sidebar-andon-look.md](../decisions/2026-11-12-adr-0023-sidebar-andon-look.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-12）**。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0023-sidebar-andon-look.md](../decisions/2026-11-12-adr-0023-sidebar-andon-look.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: Andon 同梱の App のレイアウト `andon` の左の列（サイドバー）の見た目。働き（何を出すか・並び・キー）は [ADR-0015](0015-inbox-needs-you.md) のまま変えない。
 - 語は [design.md](../design.md) §0.1。この題は新しい約束（端末のラベル・schema・台帳の形）を足さない（前提 3）。
 - 入力: 依頼書 A-0163（人の発言 2026-11-12 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、`package/host/layouts/andon.json`、[design.md](../design.md) §1.1・§6 問い1（モチーフ）、[assets/logo/README.md](../assets/logo/README.md)（ロゴの色と形）、[vision.md](../vision.md) §3（灯りの言い方）、[ADR-0002](0002-herdr-spaces.md) 決めたこと 18、[ADR-0015](0015-inbox-needs-you.md)、Herdr App の mod guide と同梱の `workspace-chrome`（出典の節）。

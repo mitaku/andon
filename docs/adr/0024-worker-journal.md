@@ -1,6 +1,6 @@
 # ADR-0024: 担当が課題ごとに日報（過程・感想・改善の思いつき）を書く（仕様・設計。2026-11-12。Chief Engineer の課題 A-0186）
 
-- 状態: **提案（2026-11-12）**。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0024-worker-journal.md](../decisions/2026-11-12-adr-0024-worker-journal.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-12）**。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0024-worker-journal.md](../decisions/2026-11-12-adr-0024-worker-journal.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: 担当が課題ごとに書く日報（過程・感じたこと・改善できそうなこと）の中身・時機・置き場。誰がいつ読んで環境を直すことにつなげるかは、たまった日報を見てから別の題で決める（前提 1）。
 - 語は [design.md](../design.md) §0.1。
 - 入力: 依頼書 A-0186（人の発言 2026-11-12 と Chief of Staff の経緯）、worker skill §2・§7（工程表と報告の書式）、[ADR-0017](0017-process-definitions.md) 決めたこと 3・10（ふりかえりのワークストリーム・`plan[]`）、[ADR-0020](0020-auto-memory-as-intake.md)（auto memory の蒸留）、[design.md](../design.md) §1.9 (b)（人の手直しから学ぶ）、chief-of-staff skill §10・§11（トリアージ・wiki）、台帳の実数（「読んだ事実」）。

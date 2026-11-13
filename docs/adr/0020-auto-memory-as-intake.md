@@ -1,6 +1,6 @@
 # ADR-0020: auto memory を気づきの受け皿にして wiki へ蒸留する（仕様・設計。2026-11-11。Chief Engineer の課題 A-0143）
 
-- 状態: **提案（2026-11-11）**。人が 2026-11-11 に「決めた」と言った（Chief Engineer の対話 A-0143）。人が PR をマージした日が決定の日（[decisions/2026-11-11-adr-0020-auto-memory-as-intake.md](../decisions/2026-11-11-adr-0020-auto-memory-as-intake.md)）。実装は「依頼書に切る案」のとおり別の課題。
+- 状態: **決定（2026-11-11）**。人が 2026-11-11 に「決めた」と言った（Chief Engineer の対話 A-0143）。人が PR をマージした日が決定の日（[decisions/2026-11-11-adr-0020-auto-memory-as-intake.md](../decisions/2026-11-11-adr-0020-auto-memory-as-intake.md)）。実装は「依頼書に切る案」のとおり別の課題。
 - 主題: ハーネスの自動の記憶（Claude Code の auto memory・Codex の memories）を入れ直すか、入れるならどの役に・どこへ置き・誰がいつ蒸留するか、wiki との線引き。[ADR-0004](0004-project-layout.md) 決めたこと 2（memory は置かない）を覆すかどうかを含む。
 - 語は [design.md](../design.md) §0.1。
 - 入力: 依頼書 A-0143（人の発言 2026-11-11 と Chief of Staff の経緯）、ADR-0004 決めたこと 2、[ADR-0016](0016-cell-wiki-llm-wiki.md)、[ADR-0007](0007-interim-gap-inventory.md) C5・R9、`package/settings.json`、`package/skills/chief-of-staff/SKILL.md` 規約 9・§11、`package/compose.yaml`、セルの wiki。
