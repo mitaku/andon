@@ -46,7 +46,7 @@
       "type": "string"
     },
     "timezone": {
-      "description": "An IANA time zone (Asia/Tokyo) in which routines' schedule is read. Default UTC.",
+      "description": "An IANA time zone (Asia/Tokyo) in which routines' schedule and an issue's not_before are read. Default UTC.",
       "type": "string"
     }
   }

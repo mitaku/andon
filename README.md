@@ -25,11 +25,12 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 | Path | What is there |
 |---|---|
 | [docs/design.md](docs/design.md) | What Andon is, its vocabulary, the repo layout and tool choices (the main design document) |
-| [docs/vision.md](docs/vision.md) | Vision, mission and values on one page, with a figure of the line (stages, roles, mechanisms, and what Andon does not have yet). Proposal |
+| [docs/vision.md](docs/vision.md) | Vision, mission and values on one page, with a figure of the line (stages, roles, mechanisms, and what Andon does not have yet) |
 | [docs/contract.md](docs/contract.md), [schema/](schema/) | Machine-readable contracts (ledger keys, findings, reports, questions, notifications, gate, delegation). `schema/` is the source of truth |
 | [docs/operate.md](docs/operate.md) | How to set up a cell and run one issue |
 | [docs/dispatcher.md](docs/dispatcher.md), [docs/ledger.md](docs/ledger.md), [docs/image.md](docs/image.md) | The dispatcher (resident notifier), the ledger CLI, the container image |
 | [docs/adr/](docs/adr/), [docs/decisions.md](docs/decisions.md), [docs/decisions/](docs/decisions/) | Architecture decision records and the decision log (one file per decision from 2026-11-07) |
+| [process/](process/), [docs/process/](docs/process/) | Definitions of the Chief of Staff's workstreams and of the state machines (YAML), and the pages rendered from them ([ADR-0017](docs/adr/0017-process-definitions.md)) |
 | `cmd/andon`, `cmd/kanban`, `internal/` | The `andon` CLI and the ledger CLI (`kanban`), in Go |
 | `package/` | What is shipped into the cell at `/opt/andon`: skills, agent profiles, gate rules, managed settings, hooks, compose file, host templates |
 | `image/`, `init/` | The base image, and the template that `andon init` copies into a new cell repo |
@@ -41,7 +42,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 ## 日本語
 
-設計の言葉では「選択的 Dark Factory」と呼んでいる。Dark Factory は、床に人がいないので灯りを消して回る工場のこと。Andon はそのうち、止められるものは機械（テスト・ゲート）、判断が要るものは LLM、決断が要るものだけ人が見る。名前は TPS のアンドン（人を呼ぶ灯り）から。製造業のアンドン製品ではない。設計は docs/ に PR で入る。最終的に public にするつもりで建てる（秘密と、案件や個人に固有の値は入れない。`docs/design.md` §2.6）。
+設計の言葉では「選択的 Dark Factory」と呼んでいる。Dark Factory は、床に人がいないので灯りを消して回る工場のこと。Andon はそのうち、止められるものは機械（テスト・ゲート）、判断が要るものは LLM、決断が要るものだけ人が見る。名前は TPS のアンドン（人を呼ぶ灯り）から。製造業のアンドン製品ではない。設計は docs/ に PR で入る。public の repo（2026-11-09 から。秘密と、案件や個人に固有の値は入れない。`docs/design.md` §2.6）。
 
 文書と commit メッセージにある `Y-<数>`（`Y-123` など）は、前身の仮設の工場の台帳の番号で、この repo の課題の id（`A-0001` の形）とは別物。履歴は書き換えない。
 
@@ -49,10 +50,13 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 ### 文書の地図
 
-- [docs/vision.md](docs/vision.md) — ビジョン・ミッション・バリューの1枚（それぞれ既存の決定に遡れる形）と、工程・役・仕組みの図（今あるもの・無いものを分けて描く）。提案
+- [docs/vision.md](docs/vision.md) — ビジョン・ミッション・バリューの1枚（それぞれ既存の決定に遡れる形）と、工程・役・仕組みの図（今あるもの・無いものを分けて描く）
 - [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・dispatcher・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
-- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・hc・フック・委譲・候補・流れの数え・人の手直し）。正は `schema/`（JSON Schema 10本。`tests/schema.sh` が例と突き合わせる）
+- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・hc・フック・委譲・候補・流れの数え・人の手直し・信号の記録・届けた通知の記録）。正は `schema/`（JSON Schema。`tests/schema.sh` が例と突き合わせる）
 - [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席中の待ち役）、どこまで動かすか（判断はしない）
+- [docs/ledger.md](docs/ledger.md) — 台帳の形式（形式 3）と台帳の CLI `kanban` の約束（英語）
+- [docs/image.md](docs/image.md) — セルの image の中身・ビルド・検査・CI と配布
+- [docs/process/](docs/process/) — Chief of Staff の定常の仕事（ワークストリーム）と、課題・担当・通知などの状態の移り方の定義。`process/` の YAML から `andon process render` が作る（[ADR-0017](docs/adr/0017-process-definitions.md)）
 - [docs/operate.md](docs/operate.md) — セルを立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しの課題）
 - [docs/adr/](docs/adr/) — Chief Engineer の題ごとの ADR（番号・状態つき。設計書 §1.8）。全部の地図:
   - [0001 skill の配布](docs/adr/0001-skills-distribution.md): 決定
@@ -77,7 +81,10 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0020 auto memory を気づきの受け皿にして wiki へ蒸留する](docs/adr/0020-auto-memory-as-intake.md): 提案
   - [0021 pstack をセルに入れて試す](docs/adr/0021-pstack-in-cell.md): 決定
   - [0022 Chief Engineer の役は残し、Chief of Staff に Advisor（Fable）を試験運用で付ける](docs/adr/0022-advisor-and-chief-engineer.md): 提案
+  - [0023 サイドバーに「あんどん」らしさを見た目で出す](docs/adr/0023-sidebar-andon-look.md): 提案
+  - [0024 担当が課題ごとに日報（過程・感想・改善の思いつき）を書く](docs/adr/0024-worker-journal.md): 提案
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
+- [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
 - [REVIEW.md](REVIEW.md) — この repo のレビュアーの観点
 - [SECURITY.md](SECURITY.md) — 脆弱性の知らせ方
@@ -85,7 +92,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 ### ディレクトリ
 
-`docs/design.md` §2.2 の構成のとおり。中身がまだ無いディレクトリは `.gitkeep` だけを置く（`schema/ledger/`・`package/` の `bin/`・`cmd/kanban/`）。`package/` には skill（`skills/`）・プロファイル（`templates/`）・ゲートの条件表（`gate.json`）・managed settings の既定（`settings.json`）・statusline（`lib/andon/`）・Claude Code のフック（`hooks/`。Stop・UserPromptSubmit）・セルの compose（`compose.yaml`）・ホスト用の雛形（`host/`）が入っている（セルへ配る仕組みはまだ無い）。中身は P3 以降の PR で入る（手の順は設計書 §5.2）。
+`docs/design.md` §2.2 の構成のとおり。`package/` には skill（`skills/`）・プロファイル（`templates/`）・ゲートの条件表（`gate.json`）・managed settings の既定（`settings.json`）・環境メモと書き方（`environment.md`・`writing.md`）・statusline と schema の検査器（`lib/andon/`）・Claude Code のフック（`hooks/`。Stop・StopFailure・UserPromptSubmit）・セルの compose（`compose.yaml`）・ホスト用の雛形（`host/`）が入っている。image がこれを `/opt/andon` に焼き（`package/bin/` は `.gitkeep` だけで、`andon` と `kanban` は image のビルドで入る）、セルの中では `andon boot` が設定・プロファイル・skill のリンクを置く（[docs/image.md](docs/image.md)）。
 
 ### セルの考え方
 
@@ -119,7 +126,8 @@ bin/bootstrap host-install                  # ホストの andon-up・ssh config
 ### テスト
 
 ```bash
-for f in tests/*.sh; do bash "$f"; done
+go test ./...
+tests/run --changed     # 変えたものに関係する tests/*.sh だけ。引数なしで全部
 ```
 
-PR ごとに GitHub Actions が同じものを回す（`.github/workflows/tests.yml`）。`tests/public.sh` は、秘密の形とrepo の外に置いた固有の値の禁止リストを全ファイルに当てる（`tests/README.md`）。
+PR ごとに GitHub Actions が回す（`.github/workflows/go.yml`・`tests.yml`。文書だけの PR は文書を読む検査だけを走らせ、image に関係しない PR は image の検査を飛ばす）。`tests/public.sh` は、秘密の形と repo の外に置いた固有の値の禁止リストを全ファイルに当てる（[tests/README.md](tests/README.md)）。

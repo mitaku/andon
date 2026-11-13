@@ -31,7 +31,7 @@
 - セルの repo で `git clean -x` を打たない（`.worktrees/` が消える。`git status` には出ないが `git clean -ndx` は消すと言う。[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 13 の 6）。
 - 台帳とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon issue start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
-- `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)（どちらも提案。マージで決定。実装は台帳の改名と一緒）。
+- `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（台帳は追跡しない）・別のマシンへの動かし方・人のファイルの守りは [ADR-0005](adr/0005-cell-repo.md)。
 - **納品物 `files/`**: `andon publish` が `<日付>-<slug>` で置き、files サーバが公開する。git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。
 - **symlink にしない理由**: 委譲は「人だけが書く」。これを、セルの repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
 
@@ -401,7 +401,7 @@ andon delegate show          # 型と効いている値（commit の前は「無
    - `kanban migrate` がすること: `tasks/<id>/` と `task.yaml` の `id`・`parent`・`after` を 4 桁に揃える、`coordinator` を `chief_of_staff` に（値・コメント・位置はそのまま）、`.flightdeck/` を `kanban/` に、`coordinator.md` を `AGENTS.md` の末尾の `## Chief of Staff` に足して消す、dispatcher の控え（`~/.local/state/andon/dispatcher/<slug>.json`。`XDG_STATE_HOME` があればその下）の中の id を新しい id に、`project.json` が無ければ下書きを書く（`version: 1`・`project` は `config.yaml` の `title`〈無ければフォルダ名〉と `prefix`・`repos` は `config.yaml` の `repos`・`delegation` は `delegation.json` の中身そのまま。commit はしない。`delegation.json` は消さない）、`log.jsonl` に `migrate` の1行。
    - 書き換えないもの: `log.jsonl` の前の行・`brief.md`・`report.md`・問い（読むときに `A-5` も `A-0005` と同じ id とみなす）、branch と worktree の名前、ルーチン（id を持たない）。控えには台帳の置き場の path が入っていない（プロジェクト名で引く）ので、path の書き換えは要らない。stop-check の控え（`~/.local/state/andon/stop-check/<slug>-<id>.json`）は `doing` の課題のものなので、移したあとは読まれない。消してよい。
    - 止まったとき（どれも何も変えずに止まる）: `still in doing or review` — 1 に戻る。`kanban/ is already there` — 手で作った `kanban/` があるので、中身を見てから退ける。`is not the dispatcher's state` — 控えを直すか消す（消すと初めて見る台帳として扱われる）。`delegation.json is not JSON`・`the project.json drafted … can't be read by Andon` — 理由の文を読んで `delegation.json` か `config.yaml` の `prefix`（英大文字で始まる英大文字・数字）を直す。直せなければ `project.json` を先に手で書いて commit してから打つ（あれば下書きは作らない）。`is not format 2` — `config.yaml` の `version` を引用符なしの `2` にする。`is a symbolic link` — リンクを実体に置き換える。
-5. **project.json を見て commit する**: 下書きの `project.title`・`prefix`（英大文字で始まる英大文字・数字。違えば直す）・`repos`（書いてよい repo。足りなければ足す）を確かめる。`coordinator.md` にあった並行の上限などは、`AGENTS.md` の節のままでも、`project.json` の `chief_of_staff`（`parallel`・`review_when`・`triage_max_issues`）に写してもよい。下書きを作らなかった（もうあった）ときは、§8 の `project.json` の例と `delegation.json` の中身から手で書く。`git add project.json` し、`AGENTS.md` があれば（`coordinator.md` を移したか、前からあれば）それも `git add` して commit する（`git add project.json; [ -f AGENTS.md ] && git add AGENTS.md; git commit -m …`。どちらも人のファイル。author が `andon.toml` の `owner` であること）。`kanban/` は git の外なので commit しない。
+5. **project.json を見て commit する**: 下書きの `project.title`・`prefix`（英大文字で始まる英大文字・数字。違えば直す）・`repos`（書いてよい repo。足りなければ足す）を確かめる。`coordinator.md` にあった並行の上限などは、`AGENTS.md` の節のままでも、`project.json` の `chief_of_staff`（`parallel`・`review_when`・`triage_max_issues`）に写してもよい。下書きを作らなかった（もうあった）ときは、[contract.md](contract.md) §11 の `project.json` の例と `delegation.json` の中身から手で書く。`git add project.json` し、`AGENTS.md` があれば（`coordinator.md` を移したか、前からあれば）それも `git add` して commit する（`git add project.json; [ -f AGENTS.md ] && git add AGENTS.md; git commit -m …`。どちらも人のファイル。author が `andon.toml` の `owner` であること）。`kanban/` は git の外なので commit しない。
    確かめる: `andon delegate show` が 1 で控えたものと同じ型と効いている値（scope ごとの行）を出す（`diff ~/delegation-before.txt <(andon delegate show)` で見比べる。前の版と言い回しが違う行は読んで比べる。`無委譲` と出たら `project.json` が commit されていないか、owner の commit でないか、形が違う。理由の文を読んで直し、commit し直す）。同じなら `git rm delegation.json delegation.md`（あるものだけ）して commit。
 6. **起動し直す**: `andon chief-of-staff`（`config.yaml` の `chief_of_staff` が新しい address に直る）。dispatcher は Chief of Staff の最初のターンのフックか `andon boot` で起動する。控えの id は 4 に移してあるので、初めて見る台帳としては扱われない。
 7. **自分のスクリプト**: `FLIGHTDECK_ROOT` を使っていれば `KANBAN_ROOT` に改める。
@@ -463,7 +463,7 @@ andon open andon            # 同じこと。どこからでも打てる（slug 
 - **App から起動した端末が `env: 'claude': No such file or directory`（exit 127）で落ち、終了コード 3 になる** — App の serve に image の環境が渡っていない（4 の「Herdr App からセルへつなぐ」）。直した image に上げ、App で machine を繋ぎ直してから打ち直す。`config.yaml` の `chief_of_staff` が落ちた端末を指したままでも、打ち直せば新しく起動した address に書き換わる（落ちた端末は `hc ls` に出ないので数えない）。
 - **最初のメッセージが届いたかは** Chief of Staff の画面（`hc read <address>`）で、台帳を読み始めたかで見る。`andon chief-of-staff` の終了コード 0 だけでは分からない（hook で止まっても 0 で返った）。入力欄にメッセージが残って動かないときは、`UserPromptSubmit operation blocked by hook` の行が出ていないかを見る。
 - **落ちた Chief of Staff を起動し直す**: image を上げ直し（`bin/bootstrap` で作り直す）、落ちた端末を `hc kill <address>` してから `andon chief-of-staff`。`hc server restart` が `no systemd user manager here: the core ends with whatever started it` を出すのは、systemd の無いコンテナであるセルでは正常（core は起動した側と一緒に終わる）。
-- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面はセルでは出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff は dispatcher が見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起動した Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起動するが skill が効かない — 10 の S4 の確かめ。dispatcher がこの台帳を飛ばす — `chief_of_staff` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、dispatcher が通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[dispatcher.md](dispatcher.md) §2.1）。通知は1回の見回りのあとに効く。dispatcher の端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起動し直す（[dispatcher.md](dispatcher.md) §5）。
+- **落ちたら見る所**: `プロファイル … の template が無い` — 5 の `ls ~/.config/herdr-core/templates`（boot の生成）。`Chief of Staff が 2 人いる` — `hc ls --label role=chief-of-staff --label project=andon` を見て1人に減らす（`hc kill`）。`最初のメッセージが届いていない` — App のその tab（か `hc read <address>`）で画面を見る。信頼の画面はセルでは出ないはず（上の「信頼の画面」）。出ていれば想定外なので人が答えてから、出た `hc send` を打つ（終了コード 3。Chief of Staff は dispatcher が見張らないので手で送る）。`出た場所 App の Space の外` — ラベルより前に起動した Chief of Staff を使った。`hc kill` してから打ち直すと Space に出る。起動するが skill が効かない — 12 の S4 の確かめ。dispatcher がこの台帳を飛ばす — `chief_of_staff` の端末が live でない（`hc get <address>`）。**初めて見る台帳は、dispatcher が通知の元を控えるだけで送らない**（今のレビュー依頼は拾う。[dispatcher.md](dispatcher.md) §2.1）。通知は1回の見回りのあとに効く。dispatcher の端末が素のシェルのまま — 次の Chief of Staff のターン（フック）か `andon boot` が端末を片付けて起動し直す（[dispatcher.md](dispatcher.md) §5）。
 
 ## 10. 小さい PR を1本流す
 
@@ -480,10 +480,10 @@ andon delegate show                                              # 同じく pro
 git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate.local.json
 ```
 
-- 人のファイルの commit はホストのこの checkout で打つ。セルの中で打つなら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner の email> andon delegate grant …`）。セルの中の既定の作者は、セルの repo では owner でない（[image.md](image.md) の「git の作者」）。`git config user.email`（repo の中だけの設定）で合わせない: セルの中の担当にも効き、委譲の照合が素通りになる。
+- 人のファイルの commit はホストのこの checkout で打つ。セルの中で `git commit` を打つなら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner の email> git commit …`）。`andon delegate grant` は、自分で `andon.toml` の `owner` を作者にして commit する（端末の git の user は使わない）。セルの中の既定の作者は、セルの repo では owner でない（[image.md](image.md) の「git の作者」）。`git config user.email`（repo の中だけの設定）で合わせない: セルの中の担当にも効き、委譲の照合が素通りになる。
 - `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先に人が書く。無い・commit していない変更がある・最後の commit が owner でない、なら書かない）。Chief of Staff・担当・dispatcher の端末では打てない（人が打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
-- **通ったら見えるもの**: `grant` が `projects/andon/project.json: …` の1行だけを出し、`注意:` の行が出ない。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
-- **落ちたら見る所**: `注意: commit の author（… <…>）が andon.toml の owner（…）でない。読み手は無委譲として読む` — commit の作者が owner でなかった（セルの中で作者を明示せずに打った・ホストの email が違う）。作者を owner にして、`project.json` を直す commit を打ち直す（`git commit --amend --reset-author` で author を直すか、`grant` を打ち直す）。`注意: andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
+- **通ったら見えるもの**: `grant` が `projects/andon/project.json: …` の1行を出す。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
+- **落ちたら見る所**: `projects/andon/project.json を最後に変えた commit の author（… <…>）が owner でない` — `project.json` を最後に変えた commit の作者が owner でなかった（セルの中で作者を明示せずに打った・ホストの email が違う）。`grant` は書かずに止まる。中身を確かめ、作者を owner にして commit し直してから（`git commit --amend --reset-author` など）、`grant` を打ち直す。`andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。ゲートが `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 
 人は依頼を1つ渡す。Chief of Staff が依頼書に切る。Andon 自身の小さい変更（レベル A か B。例: 文書の誤字・テストの追加）を選ぶ。依頼書の Settings は `Review: on`・`Merge: auto`（design.md §5.1 の 2）。ゲートの条件表の `repos` に `github.com/<owner>/andon` を入れておく（レベルの決めは人。セルの `gate.local.json`）。
 
@@ -498,7 +498,7 @@ git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate
 
 ```bash
 hc get dispatcher ; hc read dispatcher                       # 見回りの記録
-jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> は台帳のプロジェクト名なら andon.json）
+jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロジェクトの slug>.json）
 ```
 
 控えは `~/.local/state/andon/dispatcher/<プロジェクト名>.json`（`XDG_STATE_HOME` があればその下）。待ちの通知は `pending`、フックで渡したものは `hook` に残る。通知は台帳と端末の状態から拾う（[dispatcher.md](dispatcher.md) §2.2・§2.3）。**通ったら見えるもの**: 10 の流れの各段（`review`・`ready`・`gate`・`merged`）が、Chief of Staff に `<news>` として1通にまとまって届く。
@@ -523,7 +523,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 ### ADR-0001 S4: 担当1つの最初の turn
 
-[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md) の受け入れ条件 3。10 の担当（`--plugin-dir /opt/andon` と `--append-system-prompt-file …/worker/SKILL.md` で起動する）を、**最初の turn が終わる前に** `hc read andon-a-1` で見る。
+[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md) の受け入れ条件 3。10 の担当（`--plugin-dir /opt/andon` と `--append-system-prompt-file …/worker/SKILL.md` で起動する）を、**最初の turn が終わる前に** `hc read andon-a-0001` で見る。
 
 - 最初のメッセージに「先に SKILL.md を読む」の行が無いのに、担当が**最初に `kanban start <id>` を打つ**。
 - `/andon:worker` の名で skill を持つ（担当の画面で `/` を打って候補を見る）。
@@ -539,7 +539,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 | **待ち役** — 離席中は Stop の `asyncRewake` のフックが合図で起動する（入力欄へは打たない） | Chief of Staff をターンの終わりで待たせ、入力欄に書きかけを置いたまま、担当に報告を書かせて通知を積む | 数秒で Chief of Staff に新しいターンが始まり（画面は「Stop hook feedback」）、何も書かずに終わったあと、その Stop で `<news>` が1回だけ届く。**書きかけは入力欄にそのまま残る**。dispatcher の端末（`hc read dispatcher`）から Chief of Staff への `hc send` が無い（dispatcher.md §4） |
 | **Esc のあとの届け直し** — 渡した turn を中断したら1回だけ届け直す | `<news>` を渡された turn を Esc で止める | 次の turn で同じ通知が**1回だけ**もう一度届く（控えの `hook` から消えるまで）。2回以上届くなら落ち |
 
-落ちたら: `/etc/claude-code/managed-settings.json` の `hooks`（`/opt/andon/hooks/stop`・`stop-wait`・`user-prompt-submit`）が付いているか。フックは落ちたら通す作りなので、**フックが何も出さない**ときは、`andon dispatcher drain` を手で打って出力を見る。
+落ちたら: `/etc/claude-code/managed-settings.json` の `hooks`（`/opt/andon/hooks/stop`・`stop-wait`・`stop-failure`・`user-prompt-submit`）が付いているか。フックは落ちたら通す作りなので、**フックが何も出さない**ときは、`andon dispatcher drain` を手で打って出力を見る。
 
 ## 13. §5.1 の確かめ方への対応表
 
@@ -558,7 +558,7 @@ jq . ~/.local/state/andon/dispatcher/home.json 2>/dev/null   # 控え（<slug> �
 
 ## 14. 版を切る
 
-版ごとの変更と「上げるときにすること」は [CHANGELOG.md](../CHANGELOG.md) に書く。**書くのは版を切るときだけ**で、PR ごとには触らない（全部の PR が版と CHANGELOG を触るとぶつかるので、その形は持たない。[design.md](design.md) §5）。
+版ごとの変更と「上げるときにすること」は [CHANGELOG.md](../CHANGELOG.md) に書く。**書くのは版を切るときだけ**で、PR ごとには触らない（全部の PR が版と CHANGELOG を触るとぶつかるので、その形は持たない。[design.md](design.md) §3.3）。
 
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前の版からの範囲は `git log <前の版>..origin/main`。各版に「変わったこと」（人の目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
    `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト）を変えた版は、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「版を上げるとき」](#版を上げるとき-host-install-が置いたものを退避する)）を書く。変えていない版は書かない。

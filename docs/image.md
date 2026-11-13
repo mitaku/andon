@@ -14,7 +14,7 @@ bash tests/image.sh
 
 台帳の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は、`image/Dockerfile` の最初の段 `bin`（golang の image。版は `mise.toml` の go と揃え、`tests/image.sh` が確かめる）で linux の静的バイナリに焼き、`/usr/local/bin/kanban`・`/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。`kanban --version` は commit の先頭12文字。別名 `deck` は置かない。private release の取得や取得用 token は使わない（人の決定 2026-11-05、decisions.md §9）。ホストは同じ `andon` を image から取り出して使う（[operate.md](operate.md) の 2）。
 
-テストは `andon:test` を作り、ネットワークを切ったコンテナで `/opt/andon`・`andon help` と主要な CLI を確かめる。同じ image の actionlint・ghalint・pinact で イメージ配布 workflow（tests.yml）の構文・権限・固定 SHA も検査する。対話の bash（`bash -ic`・`bash -lic`）で補完・`HISTFILE`・プロンプト・fzf のキー割り当てが効くことと、`rg`・`fzf`・`jq` が動くことも見る。続けてセルを立てる道を通す: image から取り出した `andon` で `andon init` → `bin/bootstrap up`（`FROM andon:test`）→ compose の起動で `andon boot` が `ready` まで走り、managed settings・プロファイル・`CLAUDE.md` の2行（`environment.md` と `AGENTS.local.md`）・skill のリンクができたことを確かめる。Docker が使えなければローカルは SKIP を表示し、CI は失敗する。
+テストは `andon:test` を作り、ネットワークを切ったコンテナで `/opt/andon`・`andon help` と主要な CLI を確かめる。同じ image の actionlint・ghalint・pinact で イメージ配布 workflow（tests.yml）の構文・権限・固定 SHA も検査する。対話の bash（`bash -ic`・`bash -lic`）で補完・`HISTFILE`・プロンプト・fzf のキー割り当てが効くことと、`rg`・`fzf`・`jq` が動くことも見る。続けてセルを立てる道を通す: image から取り出した `andon` で `andon init` → `bin/bootstrap up`（`FROM andon:test`）→ compose の起動で `andon boot` が `ready` まで走り、managed settings・プロファイル・`CLAUDE.md` の3行（`environment.md`・`writing.md`・`AGENTS.local.md`）・skill のリンクができたことを確かめる。Docker が使えなければローカルは SKIP を表示し、CI は失敗する。
 
 ## セルの bash（対話）
 
@@ -35,7 +35,7 @@ bash tests/image.sh
 
 ## 信頼の画面（Claude Code・Codex）
 
-セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起動する直前の `andon task start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
+セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起動する直前の `andon issue start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
 
 足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起動し、最初の画面だけを読んだ）:
 
@@ -84,7 +84,7 @@ Codex のフックは配っていない（フックは Claude Code だけ。[con
 | `gitdir:$GHQ_ROOT/`（案件の repo と、その worktree。worktree は元の repo の gitdir で当たる） | `~/.config/andon/git/product.gitconfig` | `andon.toml` の `owner`（名前は noreply なら login、ほかは `@` の前） |
 
 - セルの repo の作者を owner にしないのは、委譲の照合（[contract.md](contract.md) §11。`project.json`・`gate.local.json` を最後に変えた commit の author ＝ owner）を、担当や Chief of Staff の commit が素通りしないため。上の Codex の段のとおり、Codex の担当には人のファイルの deny が引けず、この照合が守り。
-- 人が owner のファイルを commit するときは、ホストの checkout で打つか、セルの中なら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner> git commit …`・`andon delegate grant` も同じ環境変数で）。セルの repo の `git config user.email`（repo の中だけの設定）で合わせない: その設定はセルの中の担当にも効き、照合が素通りになる。
+- 人が owner のファイルを commit するときは、ホストの checkout で打つか、セルの中なら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner> git commit …`。`andon delegate grant` は自分で owner を作者にして commit する）。セルの repo の `git config user.email`（repo の中だけの設定）で合わせない: その設定はセルの中の担当にも効き、照合が素通りになる。
 - `owner` が空・`andon.toml` に無いときは、案件の repo もセルの作者で書く（commit は通り、owner は名乗らない。委譲はもともと無委譲として読まれる）。ログに1行出す。
 - `~/.gitconfig` に `user.name` か `user.email` が直に書いてあれば、人の設定として何もしない（ログに `触らない`）。boot の `includeIf` 以外の節（`gh auth setup-git` の credential helper など）には触らない。何度打っても同じ。
 

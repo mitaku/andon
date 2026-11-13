@@ -28,7 +28,7 @@
 
 最初の到達点（§5.1）: **Andon のセルを1つ立て、その中で Andon 自身の PR が1本、人がレベル C と不可逆な操作以外に触らずに流れる。** そこまでを §5.2 の手に切った。
 
-この文書の決定が何に仕えているか（ビジョン・ミッション・バリュー）と、工程・役・仕組みを1枚にした図は [vision.md](vision.md)（提案。決定は変えず、食い違いは開いている問いにしてある）。
+この文書の決定が何に仕えているか（ビジョン・ミッション・バリュー）と、工程・役・仕組みを1枚にした図は [vision.md](vision.md)（決定は変えず、食い違いは開いている問いにしてある）。
 
 ### 0.1 語彙（この文書の語と英語）
 
@@ -64,7 +64,7 @@
 | **インナーループ／アウターループ** | inner／outer loop | 内側＝ライン。外側＝振り返り。合わせて**ダブルループ** |
 | **仮設の工場** | interim factory | 今動いている工場。Andon を建てる間だけ使い、保守は運用を止めない程度（§3・§5） |
 | **セルフホスト** | self-hosting | Andon のセルの中で Andon を開発する状態 |
-| **外部の部品** | — | Andon が使うが持たないもの。hc **hc**（herdr-core。エージェント用の永続する端末。Apache-2.0）、人の Interface **Herdr App** と**ボード**（herdr-flightdeck。全セルの自分待ちを1画面で見る Web ボードと画面の mod。別プロジェクトの持ち物） |
+| **外部の部品** | — | Andon が使うが持たないもの。**hc**（herdr-core。エージェント用の永続する端末。Apache-2.0）、人の Interface **Herdr App** と**ボード**（herdr-flightdeck。全セルの自分待ちを1画面で見る Web ボードと画面の mod。別プロジェクトの持ち物） |
 
 ---
 
@@ -90,7 +90,7 @@
 これをリーン開発の語で言い直すと、Andon が守る原則は4つ:
 
 1. **流れ（flow）を止めない。** 課題は pull で流れ（担当は依頼書を引き取り、dispatcher が次の工程を起動する）、人の判断待ちは流れを止めずに脇に置く（§1.3）。
-2. **仕掛り（WIP）を制限する。** 同時に走る担当の数・1プロジェクトに1題の設計・レビューの往復の上限（§1.7）。
+2. **仕掛り（WIP）を制限する。** 同時に走る担当の数・レビューの往復の上限（§1.7）。
 3. **品質を作り込む（build quality in）。** テストで見つけるのではなく工程で作り込む: 担当は自分の工程でテストを通してから渡し、ゲートは異常なら止める（§1.3・§4）。
 4. **全体を見て直す（see the whole）。** 部分ではなく流れ全体を測り（§5.1 の指標）、振り返りが環境を直す（§1.4）。
 
@@ -182,7 +182,7 @@ Andon が**持つ**のは パッケージ・約束・文書と、セルの形。
 | | 6 品質を作り込む（build quality in。build integrity in とも） | 検査で見つけるのではなく工程で作り込む | テスト・ゲート・独立レビュー（TPS の自働化・自工程完結と同じ当て。英語ではこちらが通じる） |
 | | 7 全体を見る（see the whole） | 部分最適でなく流れ全体を見る | アウターループ・セルを横断する wiki・俯瞰（台帳と端末の一覧）・バリューストリーム（下） |
 | **Kanban Method**（David J. Anderson『Kanban: Successful Evolutionary Change for Your Technology Business』2010。2005 年に名付けた） | 見える化（visualize） | 仕事の流れを板に出す | 台帳とボード（大部屋。下） |
-| | WIP 制限（limit work in progress） | 工程ごとの仕掛りに上限を置き、pull で流す | **同時に走る担当の数**（セルの設定）・Chief Engineer は1プロジェクト1題・レビューの往復の上限（`review_rounds`） |
+| | WIP 制限（limit work in progress） | 工程ごとの仕掛りに上限を置き、pull で流す | **同時に走る担当の数**（セルの設定）・レビューの往復の上限（`review_rounds`） |
 | | 流れの管理（manage flow） | 流れを測り、滞りを減らす | dispatcher の周期・平準化（下）・`stalled` の通知 |
 | | 方針の明示（make policies explicit） | いつ動かしてよいかを明文化する | ゲートの条件表・設定・依頼書の Settings・委譲のファイル（**機械が読む形**にする。§4・§1.10） |
 | | フィードバックの輪（implement feedback loops） | 定期の振り返りと測定 | 通知・振り返りのルーチン |
@@ -491,10 +491,14 @@ andon/
     decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。表は 2026-11-07 で凍結）
     decisions/YYYY-MM-DD-<題>.md  2026-11-07 からの決定の記録（1件1ファイル。ADR は1本1件。書き方は decisions.md の冒頭）
     operate.md               セルの立て方・更新・引っ越し（人の手順）
+    vision.md                ビジョン・ミッション・バリューと、工程・役・仕組みの図
+    ledger.md  image.md      台帳の形式と台帳の CLI・セルの image
+    process/                 仕事の流れと状態の定義の、人が読む頁（process/ の YAML から andon process render が作る。ADR-0017）
     adr/NNNN-<題>.md         Chief Engineer の題ごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（dispatcher.md・image.md・ledger.md）は直下のまま
     assets/logo/             Andon と dispatcher の記号・ワードマーク（SVG。明るい背景用と -dark。窓の色の意味は置き場の README）
   schema/                    機械用（約束の正。JSON Schema）
-    ledger/                  台帳の形式（台帳の CLI を移したら。§3.5）
+    ledger/                  台帳の形式（形式 3。config・issue・questions・routine。§3.5）
+    process/                 流れと状態の定義の形（workstream・state。ADR-0017）
     issue-keys.schema.json    台帳の項目のうち Andon の予約キー（review・must_fix・…）
     findings.schema.json     レビュアーの指摘
     report.schema.json       報告の機械向けの部分
@@ -503,29 +507,35 @@ andon/
     gate.schema.json         ゲートの条件表と記録
     project.schema.json      プロジェクトの事実と委譲（§1.10。contract.md §11）
     candidates.schema.json   候補の一覧（調べる課題の成果。contract.md §12。ADR-0006）
-    corrections.schema.json  人の手直し（dispatcher が finish のときに集める。contract.md §14。§1.9 の (b)）
+    corrections.schema.json  人の手直し（dispatcher が finish のあとの巡で集める。contract.md §14。§1.9 の (b)）
+    measure.schema.json      流れの数え（andon measure --json の出力。contract.md §13）
+    signal.schema.json       信号の記録（contract.md §15。ADR-0011）
+    delivered.schema.json    届けた通知の記録（contract.md §17）
+  process/                   仕事の流れ（workstreams/）と状態（states/）の定義（YAML。ADR-0017。states/issue.yaml は andon に埋め込む）
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
-    lib/andon/               command が読む資材（中身のソースは internal/<sub>）。sub-command: issue・chief-of-staff・chief-engineer・dispatcher・gate・triage・publish・delegate・boot・init（言語は §2.7）
+    lib/andon/               command が読む資材（statusline・schema の検査器 schema_check.py）。sub-command の中身のソースは internal/<sub>（一覧は andon help。言語は §2.7）
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     writing.md               AI 用: 人への書き方（全役が人に返す文の決まり。エージェントの設定ファイルが @ で読む）
     templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
-    hooks/                   ハーネスのフック（Stop・UserPromptSubmit。dispatcher と command を呼ぶだけ）
+    hooks/                   ハーネスのフック（Stop・StopFailure・UserPromptSubmit。dispatcher と command を呼ぶだけ）
     gate.json                ゲートの条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）
     codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
+    gh-skills.txt            boot が gh skill で入れる外の skill の一覧（§2.3）
     compose.yaml             セルの compose（bootstrap がイメージから取り出す）
-    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形・Windows の ps1）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus）・レイアウト layouts/andon.json
+    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus）・レイアウト layouts/andon.json
   image/                     base image
     Dockerfile               備品・Claude Code・Codex・hc・台帳の CLI・package/ の COPY
     aqua/                    備品の宣言（aqua.yaml・registry・checksums・policy）
   init/                      セルの repo の雛形（andon init が写す。生成後は追従しない）
-    andon.toml  Dockerfile  bin/bootstrap  .aqua/local.yaml  local/setup.sh
-    compose.override.yaml  AGENTS.local.md  gate.local.json  templates.local/  .ssh/  wiki/
-    projects/<slug>/project.json     プロジェクトの事実と委譲の例（`delegation` は型 work。§1.10。ADR-0004）
+    andon.toml.tmpl  Dockerfile.tmpl  bin/bootstrap  local/aqua.yaml  local/setup.sh
+    AGENTS.local.md  gate.local.json  wiki/  files/  projects/  .gitignore  .dockerignore
   cmd/andon/  internal/      andon の Go のソース（cmd/andon が入口、internal/<sub> が中身。go.mod は repo の根）
-  cmd/kanban/                台帳の CLI（Go。移したら。名前は §3.5）
+  cmd/kanban/                台帳の CLI（Go。名前は §3.5）
+  embed.go                   andon に埋め込む資材（init/ と process/states/issue.yaml）
+  CHANGELOG.md  SECURITY.md  版ごとの変更・脆弱性の知らせ方
   tests/                     テスト（bash。偽の hc・試しの台帳・schema の検証・image のビルド。Go は go test）
   .github/workflows/         image を焼いて検査する・tests（ghcr へは v* の tag だけ）
 ```
@@ -570,7 +580,7 @@ andon/
 | 来歴・道しるべ・推し | 履歴・指針・推奨案 | 替える | 一般の語で（§1.7 の方針4） |
 | **deck**（台帳の CLI と形式） | **`kanban`**（推奨。§3.5） | Andon に移す案（人の方向。段取りはオーナーと） | 移すまでは外部の部品のまま。形式は変えず、Andon は「任意のキー」の上に予約キーを置く（§4） |
 | **flightdeck**（Web ボード・画面の mod） | **ボード**。「人の Interface」（大部屋） | 外部の部品 | 別プロジェクト（herdr-flightdeck）の持ち物。台帳のファイルを直接読む（CLI を呼ばない）ので、CLI を移しても形式が同じなら動く |
-| **hc**（herdr-core） | そのまま **hc**。「hc」 | 外部の部品 | Andon が土台に求めるのは5つ（永続 PTY・状態・起動する・ラベル・別のマシンに届く）＋ `hc events` |
+| **hc**（herdr-core） | そのまま **hc** | 外部の部品 | Andon が土台に求めるのは5つ（永続 PTY・状態・起動する・ラベル・別のマシンに届く）＋ `hc events` |
 | **Herdr App** | そのまま。「人の Interface」 | 外部の部品 | 画面の mod はボードの持ち物 |
 | （無い。コーディネーターが兼ねていた） | **Chief Engineer**（`chief-engineer`。出典は主査） | 新しい役 | 人と仕様・設計を対話する役（§1.8）。名前は §6 問い18 |
 | プロジェクト・台帳・課題・依頼書・報告・問い・プロファイル・ルーチン・レビュアー・ゲート | そのまま | 変えない | 一般の語 |
@@ -584,7 +594,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 - **セルの外でも動く**: `tests/*.sh` は偽の hc・試しの台帳・一時 HOME で回り、台帳の CLI と `hc` があれば（aqua）どの checkout でも通る。
 - **checkout の command をそのまま試せる**: `ANDON_HOME=<checkout>/package` で `bin/andon` が `/opt/andon` の代わりに checkout の `lib`・`skills`・`gate.json` を見る。セルフホストの担当が、自分の worktree の command を自分のセルで試せる（dispatcher・ゲートは `--dry-run` で）。
 - **image はローカルでも焼ける**: `docker build -f image/Dockerfile .` で同じものができる。CI は同じ手順を回すだけ。
-- **AGENTS.md は指針だけ**: この repo の `AGENTS.md` は「テストは `bash tests/*.sh`」「`package/` の変更はセルで実測」「schema を変えたら contract.md と tests」の数行。
+- **AGENTS.md は指針だけ**: この repo の `AGENTS.md` は「テストは `go test ./...` と `tests/run --changed`」「`package/` の変更はセルで実測」「schema を変えたら contract.md と tests」の数行。
 
 ### 2.6 最初の commit から public に耐える形
 
@@ -637,7 +647,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 - **template-yard**: セルの雛形の repo（cookiecutter。派生したセルは cruft で更新を取り込む）。command・skill・設定・Dockerfile・ホスト用のスクリプトの正。
 - **example-yard**: 今動いているセル1つ（`/workspace`）。雛形から降りたものと、案件のデータ。
 - **herdr-flightdeck**: 別プロジェクトの持ち物。台帳の CLI **deck** と形式（ledger-format v2）、人の Interface（Web ボード・画面の mod）。
-- **hc**（herdr-core）と **Herdr App**: hcと人の Interface。外部の部品。
+- **hc**（herdr-core）と **Herdr App**: エージェント用の端末と人の Interface。外部の部品。
 
 扱いは3つ: **取り込む**（Andon の repo に移し、Andon が持つ）／**外部の部品**（Andon が使うが持たない。約束で繋ぐ）／**捨てる**（Andon では要らない）。herdr-flightdeck は別プロジェクトの持ち物なので、取り込みたいものは §3.2 に「相談したいこと」として並べ、ここでは決めない。
 
@@ -812,19 +822,19 @@ andon/
 | 台帳の項目（依頼書の Settings の正） | `issue.yaml` の予約キー `review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine`・`deliverable`（`pr`／`candidates`。調べる課題の印）・`estimate`（`small`／`medium`／`large`。見込み。ADR-0014） | Chief of Staff（`kanban set`。履歴は `log.jsonl` の `by` で照合） | ゲート・dispatcher・担当 | 仮設で進行中の「ゲートが台帳の項目を読む」形 |
 | 候補 | `issues/<id>/library/candidates.json`（`commit`・`candidates[]` の `id`・`text`・`file`・`line`・`in_scope`） | 担当（`andon issue candidates`） | Chief of Staff（切る・範囲の問いに答える）・人・トリアージ・振り返り。ゲートと dispatcher は判定に読まない | ADR-0006。contract.md §12 |
 | 指摘 | `issues/<レビュアーの id>/library/findings.json` | レビュアー | ゲート・担当（振り分け）・振り返り | 同上（形そのまま） |
-| 報告の機械向けの部分 | `issues/<id>/library/report.json`（`commit`・`pr`・`review_request`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`） | 担当 | dispatcher（レビュアーの起動・ready の一致）・ゲート（`pr`）・トリアージ・振り返り | 仮設の報告の `PR:` 行・`## レビュー依頼`・`## Next`（宛先の印を足す） |
+| 報告の機械向けの部分 | `issues/<id>/library/report.json`（`commit`・`pr`・`review_request`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`・`estimate`・`plan`） | 担当 | dispatcher（レビュアーの起動・ready の一致）・ゲート（`pr`）・トリアージ・振り返り | 仮設の報告の `PR:` 行・`## レビュー依頼`・`## Next`（宛先の印を足す） |
 | 問い | `questions.yaml`（台帳の CLI。人向けの `text`）＋ `issues/<id>/library/questions/<n>.json`（判断の種類・事実・理由・選択肢・推奨案・あと何問） | 担当・dispatcher（ゲートの `needs_human`）・Chief of Staff | Chief of Staff・通知の口・ボード | 「1通で答えられる形」・1問ずつの作法 |
-| 通知 | dispatcher の中の JSON（`kind`・`project`・`issue`・`at`・`detail`）。届けるときだけ `<news>` の文に描く | dispatcher | Chief of Staff（フック経由）・ボード（`news.replied`） | 仮設の通知の種類。外の信号 `signal` は最初の版の後（§1.9） |
+| 通知 | dispatcher の中の JSON（`kind`・`project`・`issue`・`at`・`detail`）。届けるときだけ `<news>` の文に描く | dispatcher | Chief of Staff（フック経由）・ボード（`news.replied`） | 仮設の通知の種類。外の信号 `signal` は ADR-0011 で入った（contract.md §6・§15） |
 | 受け入れ条件の検証 | `report.json` の `acceptance[]`（Chief Engineer の受け入れ条件の番号・`pass`／`fail`／`manual`・証拠） | 担当 | ゲート・振り返り | §1.9 の (a)。任意キー（版は上げない） |
 | 一方通行の申告 | `report.json` の `risk`（`one_way`・`impact`） | 担当 | ゲート（`one_way` だけ）・人（`impact`） | `one_way: true` でレベルを C に上げる。`false`・無しで下げない（[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)）。任意キー（版は上げない） |
 | 人の手直し | `issues/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上の人の直し・指摘の覆し） | dispatcher（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で。形は [contract.md](contract.md) §14 |
 | ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `issues/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（ブランチ保護（ruleset）はサーバー側で効くが、ゲートも CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・dispatcher（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | hcとの約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`issue`・`title`・`news.replied`・template の名前＝プロファイル | command・dispatcher | ボード・dispatcher | 今のまま |
-| フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）、担当の `Stop`（報告か問いが無ければ止まれない） | boot が生成 | Claude Code | 要実測 |
-| 委譲 | セルの repo の `projects/<slug>/delegation.json`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | 人（`andon delegate`。照合は commit の author） | Chief of Staff（起動するたび）・ゲート（`merge` の最大レベル）・dispatcher と command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |
+| フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）・`Stop` の待ち役（離席中に合図で起動する）・`StopFailure`（プロバイダに切られたら起動し直す）、担当の `Stop`（報告か問いが無ければ止まれない。contract.md §9） | boot が生成 | Claude Code | 要実測 |
+| 委譲 | セルの repo の `projects/<slug>/project.json` の `delegation`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | 人（`andon delegate`。照合は commit の author） | Chief of Staff（起動するたび）・ゲート（`merge` の最大レベル）・dispatcher と command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |
 | 仕様・設計の受け渡し | Chief Engineer の課題の `report.json`（`pr`＝文書の PR・`next[{to: chief-of-staff}]`）と端末のラベル `role=chief-engineer`。**新しい約束は足さない** | Chief Engineer | dispatcher（通知）・Chief of Staff（文書を読んで依頼書に切る） | §1.8 |
 
-原則は6つ（contract.md §0）: 無い・読めない・知らない値は安全側／読み手は知らないキーを無視し、書き手は保つ（ledger-format と同じ）／1つの約束に1人の書き手／形式の正は `schema/`、版は schema の `$id`／台帳の形式は変えない（任意キーの上に置く）／Markdown は人と AI のもので、機械は読まない。
+原則は6つ（contract.md §0）: Markdown は人と AI のもので、機械は読まない／無い・読めない・知らない値は安全側／1つの約束に1人の書き手／読み手は知らないキーを無視し、書き手は保つ（ledger-format と同じ）／置き場は台帳の中／形は小さく、テストで固定する。
 
 ---
 ## 5. 仮設からの引っ越しとセルフホストの線
