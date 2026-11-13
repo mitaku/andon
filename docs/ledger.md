@@ -144,7 +144,7 @@ Any other key is allowed and kept.
 - **Done** is the last column (`done` by default).
 - **Waiting:** an issue waits on each id in `after` that is missing, unreadable, or not done.
 - **Ready:** status is `todo` or `queued`, it waits on nothing, and its `not_before` (if any) is today or earlier. (`kanban ready` lists these.) `not_before` only hides an issue from `kanban ready`; it changes no status and `after` still holds an issue back as well, so an issue with both shows once both are met.
-- `queued` means "added with something to wait for". When the last thing it waits for is done, `kanban done` moves it to the first column.
+- `queued` means "added with something to wait for". When the last thing it waits for is done, `kanban done` (or `kanban set <id> status=<last column>`) moves it to the first column.
 - **Needs you is not a status.** It comes from the agent's live state in herdr-core (blocked), never from the ledger. An issue's open questions (see Questions) are in the ledger; they are not a status either.
 - Who may change what (for example, that only the Chief of Staff moves an issue to `done`) is not part of the format. The yard's skills decide it.
 
@@ -186,7 +186,7 @@ paused: false                      # true: never fires
 | `open` | integer | Fires only while fewer than this many of the issues it added are not done. Default 1. This is what keeps a slow routine from piling up issues, and a routine from feeding itself. |
 | `paused` | boolean | `true`: never fires. |
 
-A routine needs `schedule`, `on`, or both. Any other key is allowed and kept.
+A routine needs `schedule`, `on`, or both. A key in the table that is there holds its type: an empty value (`null`) or another type (`on: done`, `open: "2"`) is a problem that `kanban lint` reports, and a routine with a problem doesn't fire. Any other key is allowed and kept.
 
 ### Firing
 
@@ -248,7 +248,7 @@ Any other key is allowed and kept.
 - `kanban questions` (Chief of Staff): lists the `open` and `answered` questions of the ledger, oldest first; `--open` only the open ones, `--json` for programs. This is where the Chief of Staff starts every time, not from what it remembers.
 - `kanban answer <id>#<n> "<answer>"` (Chief of Staff): writes the answer; `answered`. The Chief of Staff then passes it to the issue's agent.
 - `kanban received <id>#<n>` (the issue's agent): `received`. The question is closed.
-- `kanban done` refuses an issue with an `open` or `answered` question (it says which). `--force` closes it anyway and logs that.
+- `kanban done` refuses an issue with an `open` or `answered` question (it says which). `--force` closes it anyway and logs that. `kanban set <id> status=<last column>` checks the same, takes the same `--force`, and frees the same issues.
 
 ### What the Chief of Staff does with them
 

@@ -302,3 +302,35 @@ func TestQuestionsLinkIsRefused(t *testing.T) {
 		t.Fatalf("questions: %q", got)
 	}
 }
+
+// kanban set status=done is kanban done: it stops on questions not received (--force closes
+// anyway and logs which), and it frees the issues that waited for it.
+func TestSetStatusDoneIsDone(t *testing.T) {
+	root := ledger(t)
+	kanban(t, root, "add", "Next", "--after", "W-0001") // W-0002, queued
+	kanban(t, root, "ask", "W-0001", "one")
+	msg := kanbanFails(t, root, "", "set", "W-0001", "status=done")
+	if !strings.Contains(msg, "W-0001#1 (open)") || !strings.Contains(msg, "--force") {
+		t.Fatalf("set status=done: %q", msg)
+	}
+	if s := readYAML(t, taskFile(root, "W-0001"))["status"]; s != "todo" {
+		t.Fatalf("status after a refused set: %v", s)
+	}
+	out := kanban(t, root, "set", "W-0001", "status=done", "--force")
+	if !strings.Contains(out, "now ready: W-0002") {
+		t.Fatalf("set status=done --force: %q", out)
+	}
+	lines := logLines(t, root)
+	var forced, freed bool
+	for _, l := range lines {
+		c, _ := l["change"].(map[string]any)
+		forced = forced || (l["id"] == "W-0001" && c["status"] == "done" && fmt.Sprint(c["forced"]) == "[1]")
+		freed = freed || (l["id"] == "W-0002" && c["status"] == "todo" && c["freedBy"] == "W-0001")
+	}
+	if !forced || !freed {
+		t.Fatalf("log: %v", lines)
+	}
+	if s := readYAML(t, taskFile(root, "W-0002"))["status"]; s != "todo" {
+		t.Fatalf("W-0002: %v", s)
+	}
+}

@@ -29,7 +29,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
   kanban ready [--repo r] [--json]          todo/queued with nothing left to wait for (and no not_before ahead)
   kanban show <id> [--json]
   kanban start <id> [--force] [--repo r]    doing; agent from $HC_TERMINAL_ID; branch and worktree from git
-  kanban set <id> key=value …               empty value removes the key; after/links take a,b
+  kanban set <id> key=value … [--force]     empty value removes the key; after/links take a,b;
+                                            status=done checks and frees what done does
   kanban review <id> | kanban done <id> [--force]  done refuses an issue with questions not received
   kanban report <id> [--append] < file      write report.md
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
@@ -677,6 +678,7 @@ func cmdSet(e env, a args) error {
 		return err
 	}
 	var t *task
+	var freed []string
 	f, err := withEvents(e, cfg, func(f *firing) error {
 		if t, err = readTask(e.root, id); err != nil {
 			return err
@@ -713,6 +715,17 @@ func cmdSet(e env, a args) error {
 				change.set(k, v)
 			}
 		}
+		_, moved := change.vals["status"]
+		done := moved && t.status() == cfg.done()
+		if done {
+			forced, err := closing(e.root, id, a.has("force"))
+			if err != nil {
+				return err
+			}
+			if len(forced) > 0 {
+				change.set("forced", forced)
+			}
+		}
 		t.d.setStr("updated", now())
 		if err := writeTask(e.root, t); err != nil {
 			return err
@@ -720,15 +733,21 @@ func cmdSet(e env, a args) error {
 		if err := appendLog(e.root, id, change); err != nil {
 			return err
 		}
-		if _, set := change.vals["status"]; set && t.status() != was && t.status() != "" {
-			return f.entered(t, t.status())
+		if moved && t.status() != was && t.status() != "" {
+			if err := f.entered(t, t.status()); err != nil {
+				return err
+			}
 		}
-		return nil
+		if !done {
+			return nil
+		}
+		freed, err = freeWaiting(e.root, cfg, f, id)
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	e.out(a, t.json(), id+" updated")
+	e.out(a, t.json(), id+" updated"+nowReady(freed))
 	printFired(e, a, f)
 	return nil
 }
@@ -751,25 +770,16 @@ func cmdDone(e env, a args) error {
 	if err != nil {
 		return err
 	}
-	freed := []string{}
+	var freed []string
 	f, err := withEvents(e, cfg, func(f *firing) error {
 		t, err := readTask(e.root, id)
 		if err != nil {
 			return err
 		}
 		was := t.status()
-		// A question not received keeps the task open (docs/ledger.md, Questions); --force closes it and logs which.
-		var forced []int
-		q, err := readQuestions(e.root, id)
-		if err != nil && !a.has("force") {
-			return fail("%s (--force to close anyway)", firstLine(err.Error()))
-		}
-		if err == nil {
-			nums, names := notReceived(q)
-			if len(nums) > 0 && !a.has("force") {
-				return fail("%s has questions not received: %s (--force to close anyway)", id, strings.Join(names, ", "))
-			}
-			forced = nums
+		forced, err := closing(e.root, id, a.has("force"))
+		if err != nil {
+			return err
 		}
 		t.d.setStr("status", cfg.done())
 		t.d.setStr("updated", now())
@@ -789,29 +799,8 @@ func cmdDone(e env, a args) error {
 				return err
 			}
 		}
-		tasks := allTasks(e.root)
-		all := byID(tasks)
-		for _, o := range tasks {
-			if o.broken != "" || o.status() != "queued" || !slices.Contains(o.after(), id) || len(waitingOn(o, all, cfg)) > 0 {
-				continue
-			}
-			o.d.setStr("status", cfg.columns[0])
-			o.d.setStr("updated", now())
-			if err := writeTask(e.root, o); err != nil {
-				return err
-			}
-			change := &omap{}
-			change.set("status", cfg.columns[0])
-			change.set("freedBy", id)
-			if err := appendLog(e.root, o.id, change); err != nil {
-				return err
-			}
-			if err := f.entered(o, cfg.columns[0]); err != nil {
-				return err
-			}
-			freed = append(freed, o.id)
-		}
-		return nil
+		freed, err = freeWaiting(e.root, cfg, f, id)
+		return err
 	})
 	if err != nil {
 		return err
@@ -819,13 +808,63 @@ func cmdDone(e env, a args) error {
 	o := &omap{}
 	o.set("id", id)
 	o.set("ready", freed)
-	text := id + " done"
-	if len(freed) > 0 {
-		text += "; now ready: " + strings.Join(freed, ", ")
-	}
-	e.out(a, o, text)
+	e.out(a, o, id+" done"+nowReady(freed))
 	printFired(e, a, f)
 	return nil
+}
+
+// closing is what an issue must pass to move to done (kanban done, set status=done): a question
+// not received keeps it open (docs/ledger.md, Questions). force closes it anyway; the numbers it
+// closed past come back, for the log.
+func closing(root, id string, force bool) ([]int, error) {
+	q, err := readQuestions(root, id)
+	if err != nil {
+		if force {
+			return nil, nil
+		}
+		return nil, fail("%s (--force to close anyway)", firstLine(err.Error()))
+	}
+	nums, names := notReceived(q)
+	if len(nums) > 0 && !force {
+		return nil, fail("%s has questions not received: %s (--force to close anyway)", id, strings.Join(names, ", "))
+	}
+	return nums, nil
+}
+
+// freeWaiting moves each queued task that waited for id, done now, and has nothing left to wait
+// for, to the first column; it logs and fires each move and returns the ids it moved.
+func freeWaiting(root string, cfg config, f *firing, id string) ([]string, error) {
+	freed := []string{}
+	tasks := allTasks(root)
+	all := byID(tasks)
+	for _, o := range tasks {
+		if o.broken != "" || o.status() != "queued" || !slices.Contains(o.after(), id) || len(waitingOn(o, all, cfg)) > 0 {
+			continue
+		}
+		o.d.setStr("status", cfg.columns[0])
+		o.d.setStr("updated", now())
+		if err := writeTask(root, o); err != nil {
+			return nil, err
+		}
+		change := &omap{}
+		change.set("status", cfg.columns[0])
+		change.set("freedBy", id)
+		if err := appendLog(root, o.id, change); err != nil {
+			return nil, err
+		}
+		if err := f.entered(o, cfg.columns[0]); err != nil {
+			return nil, err
+		}
+		freed = append(freed, o.id)
+	}
+	return freed, nil
+}
+
+func nowReady(freed []string) string {
+	if len(freed) == 0 {
+		return ""
+	}
+	return "; now ready: " + strings.Join(freed, ", ")
 }
 
 func cmdReport(e env, a args) error {
