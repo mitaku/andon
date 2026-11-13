@@ -25,6 +25,16 @@ expect fail "禁止リストは大文字小文字を区別しない" "$tmp/denyc
 expect fail "アクセスキーの形に当たると落ちる" "$tmp/secret" "$tmp/list.txt"
 expect fail "password= の形に当たると落ちる"   "$tmp/pass"   "$tmp/list.txt"
 expect fail "秘密鍵の見出しに当たると落ちる"   "$tmp/pem"    "$tmp/list.txt"
+# 秘密の語は大文字でも当たる（A-0200）
+mkdir "$tmp/passuc";  echo 'PASS''WORD = "hunter2hunter2hunter2"' > "$tmp/passuc/a.md"
+expect fail "PASSWORD= の形（大文字）に当たると落ちる" "$tmp/passuc" "$tmp/list.txt"
+# tests/.task-tmp（tests/isolation の一時置き場）は見ない
+mkdir -p "$tmp/tasktmp/tests/.task-tmp/x"; echo "see forbidden-example here" > "$tmp/tasktmp/tests/.task-tmp/x/a.md"
+expect pass "tests/.task-tmp の中は見ない" "$tmp/tasktmp" "$tmp/list.txt"
+# 禁止リストの空行と # の行は語ではない（空の語で全部に当たらない）
+printf '# コメント\n\nforbidden-example\n' > "$tmp/list2.txt"
+expect pass "禁止リストの空行と # の行は語として当てない" "$tmp/clean" "$tmp/list2.txt"
+expect fail "空行と # の行のあとの語は当てる"           "$tmp/deny"  "$tmp/list2.txt"
 # リストが無いときは秘密の形だけ見て通る（固有の値は見ない）
 expect pass "リストが無ければ固有の値は見ずに通る" "$tmp/deny" "$tmp/none.txt"
 expect fail "リストが無くても秘密の形には落ちる" "$tmp/secret" "$tmp/none.txt"
@@ -38,6 +48,10 @@ out="$(ANDON_PUBLIC_DENYLIST="$tmp/list.txt" bash "$here/public.sh" "$tmp/leak" 
 leak=""
 case "$out" in *forbidden-example*|*ABCDEFGHIJKLMNOP*|*"see "*) leak=1 ;; esac
 case "$out" in *"[secret] a.md:2"*"[denylist] a.md:2"*) ;; *) leak="${leak}形" ;; esac
+# ファイル名に : があっても、行番号を切り違えない
+mkdir "$tmp/colon"; printf 'x\nsee forbidden-example\n' > "$tmp/colon/a:1.md"
+out="$(ANDON_PUBLIC_DENYLIST="$tmp/list.txt" bash "$here/public.sh" "$tmp/colon" 2>&1 || true)"
+case "$out" in *"[denylist] a:1.md:2"*) echo "ok   ファイル名に : があっても行番号を出す" ;; *) echo "FAIL ファイル名に : があるときの当たり: $out"; fail=1 ;; esac
 if [ -z "$leak" ]; then echo "ok   当たりは種類とファイル名:行番号だけを出し、中身と語を出さない"; else echo "FAIL 当たりの出力に中身か語が出ている、または形が違う: $out"; fail=1; fi
 
 exit "$fail"
