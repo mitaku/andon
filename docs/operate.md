@@ -20,7 +20,7 @@
 - **最初のメッセージ**: 担当・Chief Engineer・レビュアーの起動は `hc run` で最初のメッセージを渡す。届かなかった（`sent: false`、か `sent: true` でも `started: false`＝送ったが動き出さない）ら、端末にラベル `first_message.sent=false` が付き、dispatcher が見回りで入力を受けられる状態（`idle`）になるのを待って送り直す。人が手で打つのは、急ぐときだけ。
 - **信頼の画面**: セルでは出ない（boot と、起動する直前の `andon issue start`・`andon chief-engineer` が repo の根を信頼済みにする。[image.md](image.md)）。出たら想定外なので、Chief of Staff は `hc keys` で答えず、人へ。
 - **役のラベルの付いた端末は Andon の持ち物**: ラベル `role=chief-of-staff`・`role=chief-engineer`・`issue=…` の付いた端末で中身が素のシェル（起動した command も前に出ているものも引数の無いシェル）なら、作り直しで戻ったものとして `andon chief-of-staff`・`andon chief-engineer` が片付ける。人がシェルとして使う場所ではないので、シェルが要るなら別の端末を開く。dispatcher の `finished` の知らせ（担当・レビュアーの戻った端末）は知らせるだけで、片付けはしない。
-- **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、課題の範囲内のものだけ（skill chief-of-staff の §4）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
+- **Chief of Staff が答えてよい範囲**: 担当の許可の確認で、課題の範囲内のものだけ（skill chief-of-staff の `playbooks/blocked.md`）。範囲外・不可逆は人。auto mode の判定が `hc keys` を拒んだら、許可ルールを足さず人へ回す。
 
 ## セルの置き方
 

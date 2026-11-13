@@ -43,7 +43,7 @@ Chief of Staff は起動しない。起動するのは、`issue.yaml` の `revie
 3. `hc run --bg --outlive-parent --no-notify --name <slug>-<新しい id> … <reviewer>` で起動し、`kanban start <新しい id>`。通知 `review-requested` を Chief of Staff へ積む。
    信頼の画面は、cwd（`issues/<新しい id>/`）と 1 の worktree のときだけ Chief of Staff が答える。codex を初めて使う repo のフックの確認画面は人へ回す。
 
-上限を超えた回（`extra: true`）は起動せず、通知 `report` で Chief of Staff へ渡す。起動すると決めたら `kanban set <id> review_rounds=<回>`（dispatcher が次の見回りで起動する。chief-of-staff skill の §6）。
+上限を超えた回（`extra: true`）は起動せず、通知 `report` で Chief of Staff へ渡す。起動すると決めたら `kanban set <id> review_rounds=<回>`（dispatcher が次の見回りで起動する。chief-of-staff skill の `playbooks/gate.md`）。
 
 ## 4. 依頼書の型
 
@@ -63,7 +63,7 @@ dispatcher が書く（`internal/dispatcher` の `reviewerBrief`。型を変え�
   （指摘・重さ・理由）。起きにくい問題の修正を重ねると、直した差分に次の起きにくい指摘が出て、レビューが収束しない。
   見送りは捨てるのではなく、人が後で拾えるように残す。Chief of Staff は指摘を中継しない（レビュアーの `hc send` は担当に直接届く）。
 - **周回の上限**: Settings の `Review rounds`（既定 2）。上限を使い切っても critical / major が残るときは、人の判断待ちにせず、
-  Chief of Staff の判断で追加の回（直した差分だけ）を起動してよい（`review_rounds` を上げる。chief-of-staff skill の §6）。minor 以下だけが残るときは見送り。
+  Chief of Staff の判断で追加の回（直した差分だけ）を起動してよい（`review_rounds` を上げる。chief-of-staff skill の `playbooks/gate.md`）。minor 以下だけが残るときは見送り。
   追加の回でも同じ指摘が続いて収まらないと見たら、人の判断待ちにする（ask-one-by-one skill の §3）。
 - **ゲートが数えない指摘**（どちらも機械が記録から決める。contract.md §3）: `preexisting: true`（PR の差分で足した行なら数える）と、2回目以降の回の critical でない新しい指摘（前の回の `findings.json` に同じ file の指摘が無いもの）。担当は振り分けない（直さない・`waived` にも書かない）。課題の前からの問題を直すかは Chief of Staff が報告の名前を読んで決める（切るなら課題にする）。
 - **レビュアーが使用量の上限で止まったら**: dispatcher が、もう一方のレビューのプロファイルが担当と別ブランドのときだけ起動し直す（子課題の `profile` を替え、`fallback` に元と先と理由を書く。`docs/dispatcher.md` §2.8）。保てなければ今どおり `error` で届く。Chief of Staff は `reviewer` を書き換えない。

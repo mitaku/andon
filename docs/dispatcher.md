@@ -195,7 +195,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 ### 2.5 マージのあとの影響
 
 1本がマージされると、同じ repo で動いている担当（`doing`・`review`）の前提が変わる: main とぶつかる、同じファイルを触っている、依頼書の入力（ADR・設計書）が書き換わった。放っておくと担当は古い前提のまま進み、ぶつかりはゲートの `conflict`（マージの直前）まで分からない。
-そこで**機械で分かる事実だけ**を dispatcher が集めて Chief of Staff に渡し、**判断と担当への依頼は Chief of Staff** が持つ（ADR-0006 決めたこと 14 の 機械→文→人 の順。判断の表は chief-of-staff skill §7）。
+そこで**機械で分かる事実だけ**を dispatcher が集めて Chief of Staff に渡し、**判断と担当への依頼は Chief of Staff** が持つ（ADR-0006 決めたこと 14 の 機械→文→人 の順。判断の表は chief-of-staff skill の `playbooks/finish.md`）。
 
 - **合図はマージではなく `done` の行**。マージは2つの道で起きる（dispatcher の `merge: auto`・人のマージ）が、どちらも `andon issue finish` で `done` になる（人がマージしたときは、dispatcher が見回りで MERGED を見つけて打つ。§2.7。Chief of Staff が手で打っても同じ）。`done` を拾えば1本の道で両方を拾える。Chief of Staff が打った行も拾う（影響は Chief of Staff もまだ見ていない事実なので、「自分のしたことを自分に知らせない」の外）。
 - 拾った id は控えの `Impact` に積み、5b で `andon issue impact <id>` を打つ。レビュアー・Chief Engineer・repo の無い課題・`report.json` に `pr` の無い課題は打たない。PR が MERGED でない（マージせずにやめた）ときは command が終了コード 4 を返し、ログに1行で終える。失敗は次の見回りで打ち直し、3回で諦めて、`pr`・`error` だけの `impact` を Chief of Staff に積む（ログだけにしない。待ちの通知は届くまで控えに残るので、手で `andon issue impact` を打つきっかけは失われない）。
@@ -225,7 +225,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
   - **ゲートの外の問い**（担当の `ask` など。問いの JSON が無いものも）が開いていれば、**片付けず**に通知 `merged`（`by: person`・`held` に理由）を1回だけ積む。finish の拒みを黙って越えないため。問いが閉じたら次の巡で片付ける（GitHub には聞き直さない）。finish が失敗したときも同じ（`held` に理由。同じ理由では二度知らせない）。
   - ゲートの記録の `merged` は書かない（`merged: true` は dispatcher がマージした印。contract.md §7・§13 の `auto_merge`）。
 - **`merge: auto` で dispatcher の `gh pr merge` の直前に人がマージしていた**ときも、この道に乗せる。`gh pr merge` の失敗のあと読み直した PR が `MERGED` で、head がゲートの判定した head と同じなら、問い（`irreversible`）を出さず、控えの `Watch` に MERGED を置く。同じ巡の見回りが GitHub に聞き直さずに上のとおり片付ける（通知 `merged` は `by: person`）。head が違えば今までどおり問いにする（§7.2 の #5）。
-- **CLOSED**（マージなし）: 片付けない。通知 `closed` を1回だけ積む。やめるかは Chief of Staff と人が決める（chief-of-staff skill §7）。
+- **CLOSED**（マージなし）: 片付けない。通知 `closed` を1回だけ積む。やめるかは Chief of Staff と人が決める（chief-of-staff skill の `playbooks/finish.md`）。
 - 控えの `Watch` は `review` にいなくなった課題（片付いた・`doing` に戻った）から捨てる。`report.json` の `pr` が替われば新しい PR として見直す。
 
 ### 2.8 レビュアーが使用量の上限で止まったとき

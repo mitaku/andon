@@ -123,7 +123,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 - `decision` は 5 値。`reason` は空にしない・改行しない。`goal` と `collected`（collect を打った時刻）も空にしない。
 - `fix`／`bundle` は `issue`（`title`・`repo`＝`host/owner/repo`・`profile`・`review`＝`on`／`off`・`brief`）が必須。`bundle` は `bundle` 名も必須で、同じ名前は同じ repo に限る。
   - `brief` は `apply` が依頼書の「解決すべき問題:」の下に置く（完了条件・守ること は汎用の1行しか付かない）ので、**具体的な完了条件と守ることは `brief` の中に書く**。出どころ（`<id>` の何の行か）も1行。
-  - `review` はレベル B（command・スクリプト・案件の `.claude/skills/**`）か independent-review skill §1 の条件に当たれば `on`。`profile` は chief-of-staff skill §1 の表で選ぶ（文書の小直しは `sonnet`）。
+  - `review` はレベル B（command・スクリプト・案件の `.claude/skills/**`）か independent-review skill §1 の条件に当たれば `on`。`profile` は chief-of-staff skill の `playbooks/cut.md` の表で選ぶ（文書の小直しは `sonnet`）。
   - レベル C に当たる変更は `fix` にしない（表の 6 で `person`）。
 - `person` は `question`（1行・`-` で始めない）が必須。`kind` は `business`／`users`／`promise`／`irreversible` か書かない。`kind` があれば `pick`（推奨案）が必須。
 - `fix`／`bundle` が上限（既定 3。bundle は 1 つで数える）を超えた分は、`apply` が `keep`「次回（起動する上限）」に落とす。並べる順（先に書いたものが残る）＝優先の順。

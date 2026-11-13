@@ -13,9 +13,10 @@
 #   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
 #      用語集は書き方の節と語の決まりを持たず writing.md を指す、CE skill の問いの出し方、ask-one-by-one の読み手。
 #   9. 画面の確かめ（ADR-0018 受け入れ条件 4）: managed だけの許可・worker skill §2・§3・§7・independent-review の観点・environment.md。
-#  12. auto memory（ADR-0020 受け入れ条件 2・6）: settings が入れる向き・環境メモの書き方・chief-of-staff skill の規約9・§10・§11。
+#  12. auto memory（ADR-0020 受け入れ条件 2・6）: settings が入れる向き・環境メモの書き方・chief-of-staff の規約9・トリアージ・wiki の手引き。
 #  11. 価値のループ（ADR-0011 受け入れ条件 8）: CE skill の価値の仮説の 6 項目・CoS skill の空なら戻す・観察の課題・signal の受け方・worker skill の観察の課題（observation の例は schema に通す）。
-#      CoS skill の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
+#      CoS の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
+#  17. CoS の原則と手引き（A-0195）: SKILL.md は役・原則・手引きの目次・手引きの扱い・規約の行き先だけで 10KB 以下、目次の手引きが全部在り、手引きの先頭に「読む時」と「消す条件」。
 #  14. 受け入れ条件の証拠の質（ADR-0007 R5）: contract.md §4 の acceptance[] の行・CE skill・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない。
 #  15. Advisor（ADR-0022 受け入れ条件 1・2）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
 #  16. 日報（ADR-0024 受け入れ条件 A1・A2）: worker skill の日報の節と工程表の振り返り、CoS skill の差し戻しの1行、用語集の「日報」。
@@ -93,7 +94,7 @@ left=$(grep -rnE '\.flightdeck|FLIGHTDECK_ROOT|coordinator\.md|delegation\.(json
 
 # === 3. 仮設の語 ===
 # 用語集は「## 仮設の語」の節より前だけ、「_避ける_」の行を除いて見る。動詞の「知らせる」は語ではないので「の知らせ」だけを見る
-for f in package/skills/*/SKILL.md package/skills/*/assets/* package/templates/*.md; do
+for f in package/skills/*/SKILL.md package/skills/*/playbooks/*.md package/skills/*/assets/* package/templates/*.md; do
   case $f in package/skills/glossary/SKILL.md) sed '/^## 仮設の語/,$d; /^_避ける_/d' "$f" ;; *) cat "$f" ;; esac >"$tmp/body"
   hits=$(grep -nE -i '\byard\b|yard-|template-yard|コーディネーター|担当エージェント|の知らせ|推し|段 ?[ABC]\b|merge-gate|/workspace/\.claude' "$tmp/body" || true)
   [ -z "$hits" ] && pass "$f に仮設の語が無い" || fail "$f に仮設の語: $(echo "$hits" | head -3)"
@@ -275,25 +276,29 @@ printf '%s\n' "$c_blk" >"$tmp/c.json"
 [ -n "$c_blk" ] && chk candidates "$tmp/c.json" && pass "worker skill の候補の例は candidates.schema.json に合う" || fail "候補の例: $(head -1 "$tmp/why" 2>/dev/null) $c_blk"
 grep -q 'kind: scope' "$w" && grep -q 'andon issue candidates' "$w" && pass "worker skill は scope の問いと andon issue candidates を案内する" || fail "worker skill に scope の問いか andon issue candidates が無い"
 
-cos=package/skills/chief-of-staff/SKILL.md
-block "$cos" '# <id> <題>' | grep -q '^横展開: ' && block "$cos" '# <id> 調べる: ' | grep -q '^終了条件: ' \
+# Chief of Staff の skill は原則（SKILL.md）と手引き（playbooks/*.md）に分かれる。検査は中身の在る手引きを見る
+cos=package/skills/chief-of-staff/SKILL.md pb=package/skills/chief-of-staff/playbooks
+cosall=$(cat "$cos" "$pb"/*.md)
+block "$pb/brief.md" '# <id> <題>' | grep -q '^横展開: ' && block "$pb/brief.md" '# <id> 調べる: ' | grep -q '^終了条件: ' \
   && pass "Chief of Staff の依頼書の雛形に 横展開: の行、調べる課題の雛形に 終了条件: の行がある" || fail "chief-of-staff の雛形に 横展開: か 終了条件: が無い"
 
-block "$cos" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates' \
+block "$pb/brief.md" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates' \
   && pass "調べる課題の雛形の Settings に Deliverable: candidates がある" || fail "調べる課題の雛形に Deliverable: candidates が無い"
 
 # ADR-0009 受け入れ条件 3: 人の入口・打つコマンド・依頼書の原則と範囲の外・差し戻し・wiki の節
-[ "$(grep -m1 '^## ' "$cos")" = '## 人の入口' ] && block "$cos" 'andon chief-engineer --brief - "<題>"' | grep -q '^経緯: ' \
-  && ! grep -qE 'andon chief-engineer[^。]*を勧め|題として人に勧め|人に題を勧め' "$cos" \
-  && pass "Chief of Staff の skill の先頭は「人の入口」で、andon chief-engineer --brief - を自分で打つ（人に勧めない）" || fail "chief-of-staff の先頭に「人の入口」が無いか、andon chief-engineer を人に勧める文が残る"
-grep -q '^- 打つコマンドは .*`andon chief-engineer`' "$cos" \
+grep -q '^1\. \*\*自分で作らない\*\*。.*自分で Chief Engineer を起動して経緯を渡す' "$cos" \
+  && [ "$(grep -m1 '^## ' "$pb/cut.md")" = '## 人の入口' ] && block "$pb/cut.md" 'andon chief-engineer --brief - "<題>"' | grep -q '^経緯: ' \
+  && ! grep -qE 'andon chief-engineer[^。]*を勧め|題として人に勧め|人に題を勧め' <<<"$cosall" \
+  && pass "Chief of Staff の原則1が自分で Chief Engineer を起動すると言い、切る手引きの先頭は「人の入口」で andon chief-engineer --brief - を自分で打つ（人に勧めない）" || fail "chief-of-staff の原則1か cut.md の先頭に「人の入口」が無いか、andon chief-engineer を人に勧める文が残る"
+grep -q '^- 打つコマンドは .*`andon chief-engineer`' "$pb/wake.md" \
   && pass "Chief of Staff の打つコマンドの一覧に andon chief-engineer がある" || fail "chief-of-staff の打つコマンドの一覧に andon chief-engineer が無い"
-sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$cos" | grep -q 'repo を読めば分かること（作法・構造・直し方）は書かず' \
-  && grep -q '^| 守ること | 範囲の外（今回やらないこと）' "$cos" \
+sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$pb/brief.md" | grep -q 'repo を読めば分かること（作法・構造・直し方）は書かず' \
+  && grep -q '^| 守ること | 範囲の外（今回やらないこと）' "$pb/brief.md" \
   && pass "依頼書の欄の読み方の頭に原則の1行、守ることの説明に 範囲の外" || fail "chief-of-staff §2 に依頼書の原則か 範囲の外 が無い"
-grep -q '## 差し戻し（<日付>）' "$cos" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$cos" && grep -q '依頼書を直した新しい課題を `kanban add`' "$cos" \
+grep -q '^8\. \*\*2回通らなければ、手直しを重ねない\*\*' "$cos" \
+  && grep -q '## 差し戻し（<日付>）' "$pb/gate.md" && grep -q '`## 差し戻し` が2つあってまだ通らない' "$pb/gate.md" && grep -q '依頼書を直した新しい課題を `kanban add`' "$pb/gate.md" \
   && pass "差し戻しは依頼書への追記で数え、2回で通らなければ新しい課題に切る" || fail "chief-of-staff に差し戻しの追記か切り直しの手順が無い"
-cos11=$(sed -n '/^## 11\. wiki$/,/^## ルール$/p' "$cos")
+cos11=$(cat "$pb/wiki.md")
 # ADR-0016 受け入れ条件 1: 層・3つの操作・元資料の3種・移行があり、前の形（1ファイル1件・log.md は作らない）が無い
 miss=""; for k in '何を' '層' '元資料を置くとき' 'いつ（ingest）' 'query' 'lint' '移行'; do grep -q "^- \*\*$k\*\*" <<<"$cos11" || miss="$miss $k"; done
 for k in '`raw/`' '`sources/`' '`entities/`' '`topics/`' '`overview.md`' '`index.md`' '`log.md`'; do grep -q "^  - $k — " <<<"$cos11" || miss="$miss 層$k"; done
@@ -303,16 +308,17 @@ grep -q 'commit --only -m "wiki: <要点>" -- wiki' <<<"$cos11" || miss="$miss c
 grep -q '書く前に秘密.*`<伏せた: 種類>`' <<<"$cos11" || miss="$miss raw/ に書く前に秘密を伏せる"
 grep -qE '1ファイル1件|`log.md` は作らない' <<<"$cos11" && miss="$miss 前の形の行が残る"
 [ -z "$miss" ] && pass "Chief of Staff の skill の wiki の節が LLM Wiki の形（層・ingest・query・lint・元資料・移行。ADR-0016）" || fail "chief-of-staff の wiki の節:$miss"
-# ADR-0020 受け入れ条件 6: 規約9は memory を受け皿とし、§10 が wiki 行きの memory を raw/memory/ に写し、§11 の raw/ は4種
-grep -q '^| 9\. 記憶の規律 | memory（auto memory。`/workspace/memory/`）は蒸留までの受け皿。残すものはトリアージを通して wiki と repo へ' "$cos" \
-  && ! grep -q 'ハーネス内蔵のメモリは使わない' "$cos" \
-  && sed -n '/^## 10\. トリアージ$/,/^## 11\. wiki$/p' "$cos" | grep -q '`close`「wiki へ: <題>」のものは、記録.*の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest' \
+# ADR-0020 受け入れ条件 6: 規約9は memory を受け皿とし、トリアージが wiki 行きの memory を raw/memory/ に写し、wiki の raw/ は4種
+grep -q '^| 9\. 記憶の規律 | 11 | `wiki.md` |$' "$cos" && grep -q '^11\. \*\*学びは層で分けて残す\*\*。.*memory は蒸留までの受け皿' "$cos" \
+  && grep -q '^記憶の規律（規約9）: memory（auto memory。`/workspace/memory/`）は蒸留までの受け皿。残すものはトリアージを通して wiki と repo へ' "$pb/wiki.md" \
+  && ! grep -q 'ハーネス内蔵のメモリは使わない' <<<"$cosall" \
+  && grep -q '`close`「wiki へ: <題>」のものは、記録.*の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest' "$pb/triage.md" \
   && grep -q '^  - `raw/` — 元資料。書いたら変えない。4種: .*(4) トリアージで wiki 行きになった memory の写し（`raw/memory/' <<<"$cos11" \
-  && pass "Chief of Staff の skill: 規約9・§10・§11 が memory を蒸留までの受け皿として扱う（ADR-0020）" || fail "chief-of-staff の規約9・§10・§11 が ADR-0020 の形でない"
-# ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff §1）が index.md → ページの順で引く
+  && pass "Chief of Staff の skill: 原則11・規約9・トリアージ・wiki の手引きが memory を蒸留までの受け皿として扱う（ADR-0020）" || fail "chief-of-staff の原則11・規約9・triage.md・wiki.md が ADR-0020 の形でない"
+# ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff の切る手引き）が index.md → ページの順で引く
 grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引く。使った事実は出典' package/skills/chief-engineer/SKILL.md \
-  && sed -n '/^## 1\. /,/^## 2\. /p' "$cos" | grep -q 'wiki を引く（§11 の query。`index.md` → ページの順）' \
-  && pass "Chief Engineer の「読む」と Chief of Staff §1 が wiki を index.md → ページの順で引く" || fail "読む側が index.md → ページの順を指していない"
+  && grep -q 'wiki を引く（`wiki.md` の query。`index.md` → ページの順）' "$pb/cut.md" \
+  && pass "Chief Engineer の「読む」と Chief of Staff の cut.md が wiki を index.md → ページの順で引く" || fail "読む側が index.md → ページの順を指していない"
 # ADR-0009 受け入れ条件 4: Chief of Staff の template が wiki を道具の届く場所に足す
 case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /workspace/wiki "*) pass "Chief of Staff の template の command に --add-dir /workspace/wiki" ;; *) fail "Chief of Staff の template に --add-dir /workspace/wiki が無い" ;; esac
 # ADR-0022 受け入れ条件 1・2: Advisor（Fable）は Chief of Staff だけ。skill の「人の入口」に相談する場面の1行
@@ -325,20 +331,20 @@ for p in $profiles; do
   done
 done
 [ -z "$left" ] && pass "chief-of-staff のほかのプロファイルの command・resume に --advisor が無い" || fail "--advisor が付いている:$left"
-sed -n '/^## 人の入口$/,/^## 0\. /p' "$cos" | grep 'advisor に相談してから決める' | grep -q '振り分けに迷うとき' \
-  && sed -n '/^## 人の入口$/,/^## 0\. /p' "$cos" | grep 'advisor に相談してから決める' | grep -q '2回差し戻して切り直すとき' \
+sed -n '/^## 人の入口$/,/^## 切り方$/p' "$pb/cut.md" | grep 'advisor に相談してから決める' | grep -q '振り分けに迷うとき' \
+  && sed -n '/^## 人の入口$/,/^## 切り方$/p' "$pb/cut.md" | grep 'advisor に相談してから決める' | grep -q '2回差し戻して切り直すとき' \
   && pass "Chief of Staff の skill の「人の入口」に advisor に相談する場面（振り分けに迷うとき・2回差し戻して切り直すとき）" || fail "Chief of Staff の skill の「人の入口」に advisor の1行が無い"
 
 # Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
-set_line=$(block package/skills/chief-of-staff/SKILL.md '# issue.yaml の予約キー' | grep '^kanban set ')
+set_line=$(block "$pb/brief.md" '# issue.yaml の予約キー' | grep '^kanban set ')
 printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
 if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["estimate","merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
   pass "Chief of Staff は予約キー6つ（review・must_fix・reviewer・review_rounds・merge・estimate）を issue.yaml に書く"
 else fail "Chief of Staff の kanban set: $set_line"; fi
 # ADR-0014 受け入れ条件 7（E1）: 雛形の Settings に Estimate の行（段の名）、起き直しで打ち直す予約キーに estimate
-block package/skills/chief-of-staff/SKILL.md '# <id> <題>' | grep -qx -- '- Estimate: 中' \
-  && block package/skills/chief-of-staff/SKILL.md '# <id> 調べる: ' | grep -qx -- '- Estimate: 小' \
-  && grep -q '同じ値で `kanban set <id> review=… .*`estimate`' package/skills/chief-of-staff/SKILL.md \
+block "$pb/brief.md" '# <id> <題>' | grep -qx -- '- Estimate: 中' \
+  && block "$pb/brief.md" '# <id> 調べる: ' | grep -qx -- '- Estimate: 小' \
+  && grep -q '同じ値で `kanban set <id> review=… .*`estimate`' "$pb/wake.md" \
   && pass "Chief of Staff の雛形に Estimate の行があり、起き直しで estimate も打ち直す" || fail "chief-of-staff に Estimate の行か起き直しの estimate が無い"
 # ADR-0014 受け入れ条件 5・7（E4）: worker の報告の雛形の ## 計画 に見込みの反論の1行、--data に estimate（引き継ぐ）
 grep -q '^- 見込み: <段>（依頼書は <段>）。<理由>' package/skills/worker/SKILL.md \
@@ -348,14 +354,16 @@ grep -q '^- 見込み: <段>（依頼書は <段>）。<理由>' package/skills/
 grep -q '`plan`（`## 計画` の写し）も `--data` に無ければ前の `report.json` から引き継ぐ' package/skills/worker/SKILL.md \
   && grep -q '^- `plan`: `## 計画` の作業を1件ずつ `{"id": "p1", "text": ".*", "done": false}` で写す' package/skills/worker/SKILL.md \
   && pass "worker は ## 計画 を report.json の plan[] に写し、plan は引き継ぐ" || fail "worker に plan[] の写しか引き継ぎが無い"
-grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' package/skills/chief-of-staff/SKILL.md \
+grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' "$pb/brief.md" \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
 # インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節は人の判断が要るときだけ。レビュアーを手で起動する手順が残っていない
-cos6=$(sed -n '/^## 6\. /,/^## 7\. /p' package/skills/chief-of-staff/SKILL.md)
-grep -q '^## 6\. レビューとゲート（人の判断が要るときだけ）' <<<"$cos6" && grep -q '^### `needs_human` のとき' <<<"$cos6" \
+cos6=$(cat "$pb/gate.md")
+grep -q '^3\. \*\*作った者に合否を決めさせない\*\*。.*指摘を中継しない・ゲートを手で回さない・マージしない' "$cos" \
+  && grep -q '^# レビューとゲート（人の判断が要るときだけ）' <<<"$cos6" && grep -q '^## `needs_human` のとき' <<<"$cos6" \
+  && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cosall" \
   && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
   && ! grep -qE 'worktree add --detach|andon issue start "\$new"' package/skills/independent-review/SKILL.md \
-  && pass "Chief of Staff の §6 は needs_human のときだけ。レビュアーを起動するのとゲートは dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起動する手順・ゲートを手で回す手順が残る"
+  && pass "Chief of Staff の原則3とゲートの手引きは needs_human のときだけ。レビュアーを起動するのとゲートは dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起動する手順・ゲートを手で回す手順が残る"
 grep -q '元の課題（`issue.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元の課題の担当だけ' package/skills/independent-review/SKILL.md \
   && pass "レビュアーの結果の宛先は parent の課題の担当だけ（Chief of Staff へ送らない）" || fail "レビュアーの宛先が parent の課題の担当に固定されていない"
 
@@ -373,7 +381,7 @@ grep -q '前の価値の仮説の結果' <<<"$ce1" && block "$ce" '# <題>（仕
   && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の見出しが無い"
 grep -q '決断が無ければ文書を書かずに返す' <<<"$ce2" && grep -q '"to": "chief-of-staff", "text": "直す課題に切る: ' <<<"$ce2" && grep -q 'kanban review <id>' <<<"$ce2" \
   && pass "Chief Engineer は「言い直す」で決断が無ければ文書を書かず next で返す" || fail "chief-engineer の「言い直す」に文書なしで返す段が無い"
-left=$(grep -nE 'kanban ask [^-]*"<|kanban set <id> pr=' package/skills/*/SKILL.md || true)
+left=$(grep -nE 'kanban ask [^-]*"<|kanban set <id> pr=' package/skills/*/SKILL.md package/skills/*/playbooks/*.md || true)
 [ -z "$left" ] && pass "skill に JSON を通らない kanban ask と issue.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
 
 # === 7. 課題（issue）／作業（task）への改名（ADR-0008 受け入れ条件 5・4・2 の欄名） ===
@@ -387,8 +395,8 @@ left=$(grep -n 'タスク' "$g" | grep -v '^[0-9]*:_避ける_' | grep -v '^[0-9
 # skill 7本と template 8本に「タスク」と andon task・旧欄名・旧キーが無い（glossary は上で見た）
 left=$(grep -rnE 'タスク|andon task|to: task|from: task|max-tasks|created_task|task\.yaml|kanban/tasks' package/skills package/templates --exclude-dir=glossary || true)
 [ -z "$left" ] && pass "skill と template に「タスク」・andon task・旧キーが無い" || fail "旧語が残る: $left"
-sed -n '/^# <id> <題>$/,/^```$/p' "$cos" | sed -n '2p' | grep -q '^解決すべき問題:' \
-  && ! grep -q '^やること:' "$cos" && pass "chief-of-staff §2 の雛形の最初の欄が 解決すべき問題: で、やること: が無い" || fail "chief-of-staff の雛形の最初の欄が 解決すべき問題: でない"
+sed -n '/^# <id> <題>$/,/^```$/p' "$pb/brief.md" | sed -n '2p' | grep -q '^解決すべき問題:' \
+  && ! grep -q '^やること:' <<<"$cosall" && pass "chief-of-staff の brief.md の雛形の最初の欄が 解決すべき問題: で、やること: が無い" || fail "chief-of-staff の雛形の最初の欄が 解決すべき問題: でない"
 grep -q '古い依頼書の「やること」欄は「解決すべき問題」と同じ欄として読む' package/skills/worker/SKILL.md \
   && pass "worker skill は 解決すべき問題 と古い やること の両方を読む" || fail "worker skill に古い やること 欄の読み替えが無い"
 grep -q '解決すべき問題' package/skills/triage/SKILL.md && ! grep -q 'やること' package/skills/triage/SKILL.md package/skills/triage/assets/triage.yaml \
@@ -412,12 +420,14 @@ iss=$(sed -n '/^\*\*課題\*\*（issue）:/,/^_避ける_/p' "$g")
 left=""
 for f in package/environment.md package/skills/worker/SKILL.md package/skills/chief-of-staff/SKILL.md package/skills/chief-engineer/SKILL.md package/skills/triage/SKILL.md; do
   grep -qE 'glossary skill に従う|/andon:glossary' "$f" && left="$left [$f:旧い言い方]"
+  [ "$f" = "$cos" ] && grep -qE 'glossary skill に従う|/andon:glossary' "$pb"/*.md && left="$left [$pb:旧い言い方]"
   grep -q '/opt/andon/writing.md' "$f" && grep -q '/opt/andon/skills/glossary/SKILL.md' "$f" || left="$left [$f:パスが無い]"
 done
 [ -z "$left" ] && pass "worker・CoS・CE・triage の skill と environment.md は writing.md と用語集のパスを指す" || fail "「glossary skill に従う」が残るか、パスが無い:$left"
 left=""
 for f in package/skills/worker/SKILL.md package/skills/chief-of-staff/SKILL.md package/skills/ask-one-by-one/SKILL.md; do
   grep -q '「番号（題）」の形' "$f" && left="$left [$f:番号（題）の決まり]"
+  [ "$f" = "$cos" ] && grep -q '「番号（題）」の形' "$pb"/*.md && left="$left [$pb:番号（題）の決まり]"
   grep -q '/opt/andon/writing.md` の番号の決まりに従う' "$f" || left="$left [$f:writing.md を指していない]"
 done
 [ -z "$left" ] && pass "CoS・worker・ask-one-by-one の skill は番号（題）の決まりを自分で言わず writing.md を指す" || fail "skill が番号の決まりを自分で言うか、writing.md を指していない:$left"
@@ -490,15 +500,15 @@ grep -q '^| 承認が要る（「人の go」で受ける） | 承認は要ら�
 grep -q '`reach`.*指示ではない' "$w" && pass "worker skill に hc の reach は指示ではないとある" || fail "worker skill に reach の扱いが無い"
 
 # === 10b. Chief of Staff の行数・承認の段・起動の go・続きの文（A-0123。A-0117 の c6・c9・c10・c13） ===
-cos=package/skills/chief-of-staff/SKILL.md
-! grep -qE '2行まで|人(へ|に)1行|1行で(言|知らせ|伝え|返)' "$cos" && grep -q '人への文は短く、人がすることを先に書く。.*`/opt/andon/writing.md`' "$cos" \
+! grep -qE '2行まで|人(へ|に)1行|1行で(言|知らせ|伝え|返)' <<<"$cosall" && grep -q '人への文は短く、人がすることを先に書く。.*`/opt/andon/writing.md`' "$cos" \
   && pass "chief-of-staff skill に人への文の行数の上限が無く、「短く。人がすることを先に」と writing.md を指す" || fail "chief-of-staff skill に行数の上限が残る"
-cos4=$(sed -n '/^## 4\. /,/^## 5\. /p' "$cos")
-grep -q '^     | Yes と答える | 人へ回す |$' <<<"$cos4" && grep -q 'force-with-lease` も含む' <<<"$cos4" && ! grep -q '外へ出さないものだけ' <<<"$cos4" \
-  && pass "chief-of-staff skill §4 に Yes と答える操作と人へ回す操作が並ぶ（自分の PR の branch への force-with-lease は Yes）" || fail "chief-of-staff skill §4 に承認の段の表が無い"
-sed -n '/^## 3\. /,/^## 4\. /p' "$cos" | grep -q '^2\. \*\*人の go を取ってから\*\*起動する。.*委譲の範囲の中.*`projects/<slug>/AGENTS.md` の Chief of Staff の節が「起動に人の go は要らない」' \
-  && pass "chief-of-staff skill §3 の起動の go に、ルーチン・委譲・プロジェクトの設定の例外がある" || fail "chief-of-staff skill §3 に起動の go の例外が無い"
-! grep -q '続きをして。終わったら kanban' "$cos" && grep -q '続きをして。終わり方は worker skill §7（andon issue report → andon issue ready）' "$cos" \
+cos4=$(cat "$pb/blocked.md")
+grep -q '^     | Yes と答える | 人へ回す |$' <<<"$cos4" && grep -q 'force-with-lease` も含む' <<<"$cos4" && ! grep -q '外へ出さないものだけ' <<<"$cosall" \
+  && grep -q '^4\. \*\*後戻りできない操作は人の go\*\*。.*線は worker skill §5 と同じ' "$cos" \
+  && pass "chief-of-staff の原則4が worker skill §5 の線を指し、blocked.md に Yes と答える操作と人へ回す操作が並ぶ（自分の PR の branch への force-with-lease は Yes）" || fail "chief-of-staff の原則4か blocked.md に承認の段の表が無い"
+grep -q '^2\. \*\*人の go を取ってから\*\*起動する。.*委譲の範囲の中.*`projects/<slug>/AGENTS.md` の Chief of Staff の節が「起動に人の go は要らない」' "$pb/start.md" \
+  && pass "chief-of-staff の start.md の起動の go に、ルーチン・委譲・プロジェクトの設定の例外がある" || fail "chief-of-staff の start.md に起動の go の例外が無い"
+! grep -q '続きをして。終わったら kanban' <<<"$cosall" && grep -q '続きをして。終わり方は worker skill §7（andon issue report → andon issue ready）' "$pb/watch.md" \
   && pass "chief-of-staff skill の担当への続きの文が worker skill §7 を指す" || fail "chief-of-staff skill の続きの文が古い"
 
 # === 11. 価値のループ（ADR-0011 受け入れ条件 8・決めたこと 4・7・12・13） ===
@@ -513,19 +523,19 @@ done
 grep -q '「無し: <理由>」' "$ce" && grep -q '観察の結果が「外れた」「分からない」でも、ラインは何もしない' "$ce" || miss="$miss 無し・ラインは何もしない"
 grep -q 'P6 で形を決める\|P6 で形が決まるまで' "$ce" && miss="$miss P6 の仮の行が残る"
 [ -z "$miss" ] && pass "chief-engineer skill の文書の形に価値の仮説の 6 項目と「無し: <理由>」がある" || fail "chief-engineer skill の価値の仮説:$miss"
-cos=package/skills/chief-of-staff/SKILL.md
-cos1=$(sed -n '/^## 1\. /,/^## 2\. /p' "$cos")
+cos1=$(cat "$pb/cut.md")
 miss=
 grep -q '「価値の仮説」の節が見出しだけ（空）なら、\*\*切らずに Chief Engineer へ戻す\*\*' <<<"$cos1" || miss="$miss 空なら戻す"
 grep -q '`kanban add "観察: <題>の価値の仮説" --parent <Chief Engineer の id>' <<<"$cos1" && grep -q '`kanban set <新しい id> not_before=<(3) の日付>`' <<<"$cos1" || miss="$miss 観察の課題を --parent と not_before で足す"
-grep -q '^### `signal` の通知を受けたら$' <<<"$cos1" && grep -q '^1\. \*\*直す課題に切る\*\*.*`links` に信号の `url` と `key`' <<<"$cos1" || miss="$miss signal を直す課題に切る"
-grep -q '^### 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\*\*ラインは何もしない\*\*' <<<"$cos1" || miss="$miss 観察の報告を人へ返すだけ"
-block "$cos" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"
-grep -q '^| `signal` の行' "$cos" || miss="$miss news の表の signal の行"
+grep -q '^## `signal` の通知を受けたら$' <<<"$cos1" && grep -q '^1\. \*\*直す課題に切る\*\*.*`links` に信号の `url` と `key`' <<<"$cos1" || miss="$miss signal を直す課題に切る"
+grep -q '^## 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\*\*ラインは何もしない\*\*' <<<"$cos1" || miss="$miss 観察の報告を人へ返すだけ"
+block "$pb/brief.md" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"
+grep -q '^| `signal` の行' "$pb/watch.md" || miss="$miss news の表の signal の行"
 [ -z "$miss" ] && pass "chief-of-staff skill に、空なら戻す・観察の課題を --parent と not_before で足す・signal を直す課題に切る、の行がある" || fail "chief-of-staff skill の価値のループ:$miss"
-grep -q '^| 7\. 課題は台帳が既定 | .*`write_back: true` の出所への `andon issue finish` の1コメントは委譲の中。それ以外のトラッカーへの書き込み（状態の変更・途中のコメント）は人の go' "$cos" \
+grep -q '^| 7\. 課題は台帳が既定 | 4・6 | `cut.md` |$' "$cos" \
+  && grep -q '^  `write_back: true` の出所への `andon issue finish` の1コメントは委譲の中。それ以外のトラッカーへの書き込み（状態の変更・途中のコメント）は人の go' <<<"$cos1" \
   && grep -q '`write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL' <<<"$cos1" \
-  && pass "chief-of-staff skill の規約7が write_back の1コメントを委譲の中に、ほかの書き込みを人の go に分ける（ADR-0011 決めたこと 15）" \
+  && pass "chief-of-staff の規約7（cut.md）が write_back の1コメントを委譲の中に、ほかの書き込みを人の go に分ける（ADR-0011 決めたこと 15）" \
   || fail "chief-of-staff skill の規約7・links の URL（write_back）"
 w=package/skills/worker/SKILL.md
 w2=$(sed -n '/^## 2\. /,/^## 3\. /p' "$w")
@@ -537,16 +547,17 @@ grep -q '^### 観察の課題のとき$' <<<"$w2" && grep -q '\*\*直さない�
 
 # === 13. herdr notification show の文言（ADR-0007 R3・B7）===
 miss=
-for f in package/environment.md package/skills/chief-of-staff/SKILL.md; do
+for f in package/environment.md "$pb/watch.md" "$pb/triage.md"; do
   grep -n 'herdr notification show' "$f" | grep -q 'TUI' || miss="$miss $f"
   grep -q '台帳の問いとボードで足りる' "$f" || miss="$miss $f(足りる)"
 done
-[ -z "$miss" ] && pass "environment.md と chief-of-staff skill が herdr notification show を「TUI が動いているときだけ」と書く" || fail "herdr notification show の文言:$miss"
+left=$(grep -n 'herdr notification show' "$cos" "$pb"/*.md | grep -v 'TUI' || true); [ -n "$left" ] && miss="$miss TUI の無い行:$left"
+[ -z "$miss" ] && pass "environment.md と chief-of-staff の手引き（watch.md・triage.md）が herdr notification show を「TUI が動いているときだけ」と書く" || fail "herdr notification show の文言:$miss"
 
 # hc の手引き（A-0192）: 全役が読む environment.md に「hc --skill を読む」の1行がある
 grep -q 'skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill`' package/environment.md \
-  && sed -n '/^## 0\. 起動したとき/,/^毎ターン/p' package/skills/chief-of-staff/SKILL.md | grep -q '`hc --skill` を1回読む' \
-  && pass "environment.md は要るときだけ、chief-of-staff skill §0 は起動したときに hc --skill を読む" || fail "hc --skill を読む行（environment.md か chief-of-staff §0）が無い"
+  && sed -n '/^## 起動したら1回$/,/^## 毎ターン/p' "$pb/wake.md" | grep -q '`hc --skill` を1回読む' \
+  && pass "environment.md は要るときだけ、chief-of-staff の wake.md は起動したときに hc --skill を読む" || fail "hc --skill を読む行（environment.md か chief-of-staff の wake.md）が無い"
 
 # === 14. 受け入れ条件の証拠の質（ADR-0007 R5・A4） ===
 miss=
@@ -564,8 +575,29 @@ for k in 'issues/<id>/library/journal.md' 'その場で' '報告を書く前に'
   grep -qF -- "$k" <<<"$j" || miss="$miss [$k]"
 done
 grep '^| 振り返り |' "$w" | grep -q '日報' || miss="$miss [工程表の振り返り]"
-grep -q '日報.*検収の判定に使わない。日報の中身.*を理由に差し戻さない' "$cos" || miss="$miss [CoS skill]"
+grep -q '日報.*検収の判定に使わない。日報の中身.*を理由に差し戻さない' "$pb/gate.md" || miss="$miss [CoS skill]"
 grep -q '^\*\*日報\*\*' package/skills/glossary/SKILL.md || miss="$miss [用語集]"
 [ -z "$miss" ] && pass "worker skill に日報の節（置き場・時機・2つの見出し・判定に使わない・秘密）と工程表の振り返り、CoS skill に差し戻さない1行、用語集に日報がある" || fail "日報:$miss"
+
+# === 17. Chief of Staff の原則と手引き（A-0195） ===
+# SKILL.md（毎ターン system prompt に載る）は役・原則・手引きの目次・手引きの扱い・規約の行き先だけで 10KB 以下。
+# 目次の手引きは全部在り、在る手引きは全部目次に載り、どれも先頭に「読む時」と「消す条件」を持つ。template は SKILL.md を載せたまま、手引きの置き場を --add-dir で足す。
+miss=
+[ "$(wc -c <"$cos")" -le 10240 ] || miss="$miss [SKILL.md が $(wc -c <"$cos") バイト]"
+got=$(grep '^## ' "$cos" | tr '\n' '|')
+[ "$got" = '## 原則（モデルや command が替わっても守る）|## 手引き（状況が来たら読む）|## 手引きの扱い|## 規約1〜10 の行き先|' ] || miss="$miss [SKILL.md の節: $got]"
+for i in 1 2 3 4 5 6 7 8 9 10 11; do grep -q "^$i\. \*\*" "$cos" || miss="$miss [原則 $i]"; done
+grep -q '`/opt/andon/skills/chief-of-staff/playbooks/`' "$cos" || miss="$miss [手引きの置き場]"
+listed=$(sed -n '/^## 手引き（状況が来たら読む）$/,/^## 手引きの扱い$/p' "$cos" | grep -o '| `[a-z-]*\.md` |$' | tr -d '|` ' | sort | tr '\n' ' ')
+have=$(cd "$pb" && ls -1 *.md | sort | tr '\n' ' ')
+[ -n "$have" ] && [ "$listed" = "$have" ] || miss="$miss [目次と手引きが食い違う: 目次 $listed／在る $have]"
+for f in "$pb"/*.md; do
+  [ "$(sed -n 1p "$f")" = '---' ] && [ -n "$(fm "$f" 読む時)" ] && [ -n "$(fm "$f" 消す条件)" ] || miss="$miss [$f の先頭に 読む時・消す条件 が無い]"
+done
+for n in $(seq 1 10); do grep -q "^| $n\. .* | \`[a-z]*\.md\` |$" "$cos" || miss="$miss [規約 $n の行き先]"; done
+case " $(fm package/templates/chief-of-staff.md command) " in *" --append-system-prompt-file /opt/andon/skills/chief-of-staff/SKILL.md "*) ;; *) miss="$miss [template が SKILL.md を載せていない]" ;; esac
+# 手引きは Read で読む。/opt/andon は作業の場の外で、--add-dir が無いと Read が許可の確認で止まる（A-0195 の実測）
+case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /opt/andon/skills/chief-of-staff/playbooks "*) ;; *) miss="$miss [template に手引きの --add-dir が無い]" ;; esac
+[ -z "$miss" ] && pass "chief-of-staff の SKILL.md は原則と目次だけで 10KB 以下、目次の手引きが全部在り、どれも 読む時・消す条件 を持つ" || fail "chief-of-staff の原則と手引き:$miss"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

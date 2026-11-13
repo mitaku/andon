@@ -81,12 +81,12 @@ flowchart LR
 
 ## AI がやる手順
 
-| id | どうやるか（SKILL の節） | 自分で決めてよいこと | 人に聞くこと |
+| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |
 |---|---|---|---|
-| `read` | `chief-of-staff#5` | 途中報告を書かせる・分ける・起動し直す・延長する・続きを 1 回促す |  |
-| `act` | `chief-of-staff#5` | 送る文・分けた課題の範囲 |  |
-| `tell` | `chief-of-staff#5`・`ask-one-by-one` | 知らせる文 | 死んだまま起きない担当を新しいセッションで起動し直すか（andon issue resume --fresh）（business） |
-| `done` | `chief-of-staff#5` | 何もしない |  |
+| `read` | `chief-of-staff/playbooks/watch.md` | 途中報告を書かせる・分ける・起動し直す・延長する・続きを 1 回促す |  |
+| `act` | `chief-of-staff/playbooks/watch.md` | 送る文・分けた課題の範囲 |  |
+| `tell` | `chief-of-staff/playbooks/watch.md`・`ask-one-by-one` | 知らせる文 | 死んだまま起きない担当を新しいセッションで起動し直すか（andon issue resume --fresh）（business） |
+| `done` | `chief-of-staff/playbooks/watch.md` | 何もしない |  |
 
 見るもの（手順の入るものの和）: `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms`・`issue.session`・`notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc read の画面`・`<news>`
 

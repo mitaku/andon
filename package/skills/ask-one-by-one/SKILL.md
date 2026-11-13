@@ -12,9 +12,9 @@ description: 台帳（kanban）と hc のプロジェクトの Chief of Staff（
 
 担当から質問が来たら、人に上げる前に振り分ける。
 
-- **その課題の範囲内の許可**なら Chief of Staff が自分で答える（規約3。`hc read <agent>` → `hc keys <agent> …`、chief-of-staff skill の §4）。
+- **その課題の範囲内の許可**なら Chief of Staff が自分で答える（規約3。`hc read <agent>` → `hc keys <agent> …`、chief-of-staff skill の `playbooks/blocked.md`）。
   決定を返すのは `hc send <agent> "<決定>"`。
-- **範囲の問い**（`kind: scope` の問い。担当の報告の `## 範囲の問い`。見つけたもののどれを直すか。候補は担当の `library/candidates.json`）は Chief of Staff が自分で答える（chief-of-staff skill §4 の表）。人に上げるのは、候補のうち判断の4種・レベル C・委譲の外に当たるものだけで、その候補についてだけ問いにする（範囲の問いのまま人へ出さない）。
+- **範囲の問い**（`kind: scope` の問い。担当の報告の `## 範囲の問い`。見つけたもののどれを直すか。候補は担当の `library/candidates.json`）は Chief of Staff が自分で答える（chief-of-staff skill の `playbooks/blocked.md` の範囲の問いの表）。人に上げるのは、候補のうち判断の4種・レベル C・委譲の外に当たるものだけで、その候補についてだけ問いにする（範囲の問いのまま人へ出さない）。
 - **委譲の範囲の中**（人がこのプロジェクトで Chief of Staff に任せたもの）なら聞かない。委譲に従って進め、報告に1行残す。
 - **推奨案で進めて後から戻せるもの**は質問にしない。推奨案で進め、報告に「〜は推奨案の〜で進めた（戻すなら一言）」と1行書く。
   設計文書の「人の決断」のうち、推奨案があり後で変えられるものも同じ（仮決め）。「決めたこと」の表に「仮（<日付>・Chief of Staff）」と書き、人が違うと言ったら直す。

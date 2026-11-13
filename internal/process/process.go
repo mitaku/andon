@@ -460,7 +460,7 @@ func RenderWorkstream(w Workstream, src string) []byte {
 			}
 		}
 		if len(ai) > 0 {
-			b.WriteString("\n## AI がやる手順\n\n| id | どうやるか（SKILL の節） | 自分で決めてよいこと | 人に聞くこと |\n|---|---|---|---|\n")
+			b.WriteString("\n## AI がやる手順\n\n| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |\n|---|---|---|---|\n")
 			for _, s := range ai {
 				var asks []string
 				for _, a := range s.Asks {

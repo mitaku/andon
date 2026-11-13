@@ -178,7 +178,7 @@ done
 
 # 5. ワークストリーム（受け入れ条件 5。ADR-0017 決めたこと 3・9・16）
 #    8 本がそろう。中身のある見守り・仕分けは項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 6 本は name・title・purpose だけ。
-#    by: ai の step の skill が package/skills/<名>/SKILL.md の節（「## <n>.」の見出し）を指す。
+#    by: ai の step の skill が package/skills/<名>/SKILL.md の節（「## <n>.」の見出し）か、package/skills の下の手引きのファイル（<名>/playbooks/<x>.md）を指す。
 want="intake launch observe receive relay retrospective triage watch"
 have=$(find process/workstreams -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort | tr '\n' ' ' | sed 's/ $//')
 [ "$have" = "$want" ] && ok "ワークストリームが 8 本ある" || ng "ワークストリームが 8 本でない: $have"
@@ -196,6 +196,7 @@ full_check() {
 skill_check() {
   jq -r '.steps[]? | select(.by == "ai") | .skill | if type == "array" then .[] else . end' "$1" | sort -u |
     while IFS= read -r ref; do
+      case $ref in */*) [ -f "package/skills/$ref" ] || echo "$ref: package/skills/$ref が無い"; continue ;; esac
       name=${ref%%#*} sec=; [ "$name" != "$ref" ] && sec=${ref#*#}
       md=package/skills/$name/SKILL.md
       if [ ! -f "$md" ]; then echo "$ref: $md が無い"
@@ -232,5 +233,6 @@ jq 'del(.counts)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.
 jq '(.steps[] | select(.by == "machine")) |= del(.command)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: by machine に command が無い" || ng "command が無いのに通る"
 jq '(.steps[] | select(.by == "ai")) |= (.skill = "chief-of-staff#99")' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(skill_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: 在らない SKILL の節" || ng "在らない SKILL の節が通る"
 jq '(.steps[] | select(.by == "ai")) |= (.skill = "no-such-skill")' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(skill_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: 在らない SKILL" || ng "在らない SKILL が通る"
+jq '(.steps[] | select(.by == "ai")) |= (.skill = "chief-of-staff/playbooks/no-such.md")' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(skill_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: 在らない手引き" || ng "在らない手引きが通る"
 
 exit "$fail"
