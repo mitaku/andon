@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/process-state/1",
   "title": "State machine",
-  "description": "process/states/<name>.yaml: the life of one thing (an issue, a worker, a notification...) as states and transitions (ADR-0017 decision 16), written by hand as YAML. Only name, title and source are required. `andon process render` makes docs/process/<name>.md from it. No machine reads it at run time. Only these keys.",
+  "description": "process/states/<name>.yaml: the life of one thing (an issue, a worker, a notification...) as states and transitions (ADR-0017 decision 16), written by hand as YAML. Only name, title and source are required. `andon process render` makes docs/process/<name>.md from it. Only issue.yaml is read at run time: `andon issue` refuses a status change that it does not define (ADR-0017 decision 15). Only these keys.",
   "type": "object",
   "required": ["name", "title", "source"],
   "additionalProperties": false,

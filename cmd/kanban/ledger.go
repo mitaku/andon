@@ -352,9 +352,8 @@ func readConfig(root string) (config, error) {
 // issueFileName is each issue's own file, issues/<id>/issue.yaml.
 const issueFileName = "issue.yaml"
 
-func issuesDir(root string) string    { return filepath.Join(ledgerDir(root), "issues") }
-func taskDir(root, id string) string  { return filepath.Join(issuesDir(root), id) }
-func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), issueFileName) }
+func issuesDir(root string) string   { return filepath.Join(ledgerDir(root), "issues") }
+func taskDir(root, id string) string { return filepath.Join(issuesDir(root), id) }
 
 // numberOf is the number of a task's id: 5 for A-0005, and for a reviewer's A-0005-r1 too (its parent's).
 func numberOf(id string) int {
@@ -584,10 +583,14 @@ func notYet(t *task, cfg config) bool {
 
 func tilde(p string) string {
 	home, err := os.UserHomeDir()
-	if p == "" || err != nil || !strings.HasPrefix(p, home) {
+	if p == "" || err != nil || home == "" {
 		return p
 	}
-	return "~" + strings.ReplaceAll(p[len(home):], `\`, "/")
+	rest, ok := strings.CutPrefix(p, home)
+	if !ok || (rest != "" && !os.IsPathSeparator(rest[0])) {
+		return p
+	}
+	return "~" + strings.ReplaceAll(rest, `\`, "/")
 }
 
 func splitList(v string) []string {

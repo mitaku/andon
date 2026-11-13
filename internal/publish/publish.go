@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"andon/internal/delegate"
 )
 
 // MaxSize は公開できる 1 ファイルの上限（バイト）。files/ は git で追跡する（ADR-0005）ので、
@@ -25,7 +27,7 @@ const DefaultPort = "1355"
 
 // Env は公開先を決める値。テストで差し替える。
 type Env struct {
-	Workspace string    // セルの作業場（既定 /workspace）
+	Workspace string    // セルの repo（ANDON_WORKSPACE。無ければ /workspace）
 	Hostname  string    // URL のホスト名に使うセルの名前
 	Now       time.Time // 日付
 }
@@ -45,7 +47,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 2 {
 		slug = args[1]
 	}
-	url, err := Publish(Env{Workspace: "/workspace", Hostname: host, Now: time.Now()}, args[0], slug)
+	url, err := Publish(Env{Workspace: delegate.Workspace(), Hostname: host, Now: time.Now()}, args[0], slug)
 	if err != nil {
 		fmt.Fprintf(stderr, "andon publish: %v\n", err)
 		return 1

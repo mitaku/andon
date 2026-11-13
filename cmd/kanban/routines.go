@@ -64,7 +64,19 @@ func readRoutines(root string) ([]*routine, error) {
 
 func (r *routine) schedule() string { return r.d.str("schedule") }
 func (r *routine) on() []string     { return r.d.list("on") }
-func (r *routine) paused() bool     { return r.d.str("paused") == "true" }
+
+// paused is the routine's paused key, a YAML boolean; default false.
+func (r *routine) paused() (bool, error) {
+	n := r.d.get("paused")
+	if isNull(n) {
+		return false, nil
+	}
+	var v bool
+	if n.Kind != yaml.ScalarNode || n.ShortTag() != "!!bool" || n.Decode(&v) != nil {
+		return false, fail("paused must be true or false")
+	}
+	return v, nil
+}
 
 // open is how many of its tasks may be not done; default 1.
 func (r *routine) open() (int, error) {
@@ -103,6 +115,9 @@ func (r *routine) problems(cfg config) []string {
 		out = append(out, fmt.Sprintf("repo %s is not in config.yaml repos", repo))
 	}
 	if _, err := r.open(); err != nil {
+		out = append(out, err.Error())
+	}
+	if _, err := r.paused(); err != nil {
 		out = append(out, err.Error())
 	}
 	return out
@@ -202,8 +217,9 @@ func (f *firing) fire(r *routine) error {
 	result := &omap{}
 	result.set("routine", r.name)
 	open, _ := r.open()
+	paused, _ := r.paused()
 	switch {
-	case r.paused():
+	case paused:
 		result.set("skipped", "paused")
 	case notDone(allTasks(f.root), f.cfg, r.name) >= open:
 		result.set("skipped", "open")
@@ -382,13 +398,14 @@ func routineList(e env, a args) error {
 			}
 			since, _ := f.since(r)
 			open, _ := r.open()
+			paused, _ := r.paused()
 			o.set("title", r.d.str("title"))
 			parts := []string{padEnd(r.name, 12)}
 			var next any
 			if s := r.schedule(); s != "" {
 				o.set("schedule", s)
 				parts = append(parts, fmt.Sprintf("schedule %q", s))
-				if c, _ := parseCron(s); c != nil && !r.paused() {
+				if c, _ := parseCron(s); c != nil && !paused {
 					if t, ok := c.next(since, loc); ok {
 						next = t.UTC().Format(timeLayout)
 					}
@@ -404,13 +421,13 @@ func routineList(e env, a args) error {
 			n := notDone(tasks, cfg, r.name)
 			o.set("notDone", n)
 			o.set("open", open)
-			o.set("paused", r.paused())
+			o.set("paused", paused)
 			parts = append(parts, fmt.Sprintf("last %v", last))
 			if next != nil {
 				parts = append(parts, fmt.Sprintf("next %v", next))
 			}
 			parts = append(parts, fmt.Sprintf("open %d/%d", n, open))
-			if r.paused() {
+			if paused {
 				parts = append(parts, "paused")
 			}
 			values = append(values, o)

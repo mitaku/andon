@@ -39,7 +39,7 @@ func questionLog(t *testing.T, root string) []string {
 	return out
 }
 
-func deckIn(t *testing.T, cwd, stdin string, argv ...string) string {
+func kanbanIn(t *testing.T, cwd, stdin string, argv ...string) string {
 	t.Helper()
 	var out, errb bytes.Buffer
 	if code := run(argv, cwd, strings.NewReader(stdin), &out, &errb); code != 0 {
@@ -69,9 +69,9 @@ func TestQuestionLifecycle(t *testing.T) {
 	if got := kanban(t, root, "ask", "W-0001", "CSV only, or CSV and Excel?", "--kind", "business"); got != "W-0001#1\n" {
 		t.Fatalf("ask: %q", got)
 	}
-	deckFails(t, root, "", "ask", "W-0001", "x", "--kind", "money")
-	deckFails(t, root, "", "ask", "W-0001", "  ")
-	deckFails(t, root, "", "ask", "W-0009", "x")
+	kanbanFails(t, root, "", "ask", "W-0001", "x", "--kind", "money")
+	kanbanFails(t, root, "", "ask", "W-0001", "  ")
+	kanbanFails(t, root, "", "ask", "W-0009", "x")
 	q := questionsOf(t, root, "W-0001")
 	if len(q) != 1 || q[0]["n"] != 1 || q[0]["status"] != "open" || q[0]["kind"] != "business" || q[0]["asked"] != "2026-11-02T08:00:00Z" || q[0]["askedBy"] != "terminal:t3" {
 		t.Fatalf("after ask: %v", q)
@@ -82,10 +82,10 @@ func TestQuestionLifecycle(t *testing.T) {
 		t.Fatalf("questions: %q", got)
 	}
 	// No step skipped: received needs answered, answer needs open.
-	deckFails(t, root, "", "received", "W-0001#1")
+	kanbanFails(t, root, "", "received", "W-0001#1")
 	t.Setenv("HC_TERMINAL_ID", "t2")
-	deckIn(t, root, "CSV only for now.\n", "answer", "W-0001#1", "-")
-	deckFails(t, root, "", "answer", "W-0001#1", "again")
+	kanbanIn(t, root, "CSV only for now.\n", "answer", "W-0001#1", "-")
+	kanbanFails(t, root, "", "answer", "W-0001#1", "again")
 	if got := kanban(t, root, "questions", "--open"); got != "(no questions)\n" {
 		t.Fatalf("questions --open after answer: %q", got)
 	}
@@ -96,10 +96,10 @@ func TestQuestionLifecycle(t *testing.T) {
 	}
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, root, "received", "W-0001#1")
-	deckFails(t, root, "", "received", "W-0001#1")
-	deckFails(t, root, "", "answer", "W-0001#1", "late")
-	deckFails(t, root, "", "answer", "W-0001#2", "none")
-	deckFails(t, root, "", "answer", "W-0001", "no number")
+	kanbanFails(t, root, "", "received", "W-0001#1")
+	kanbanFails(t, root, "", "answer", "W-0001#1", "late")
+	kanbanFails(t, root, "", "answer", "W-0001#2", "none")
+	kanbanFails(t, root, "", "answer", "W-0001", "no number")
 	if got := kanban(t, root, "questions"); got != "(no questions)\n" {
 		t.Fatalf("questions after received: %q", got)
 	}
@@ -160,7 +160,7 @@ func TestDoneStopsOnQuestions(t *testing.T) {
 	kanban(t, root, "ask", "W-0001", "one")
 	kanban(t, root, "ask", "W-0001", "two")
 	kanban(t, root, "answer", "W-0001#2", "yes")
-	msg := deckFails(t, root, "", "done", "W-0001")
+	msg := kanbanFails(t, root, "", "done", "W-0001")
 	if !strings.Contains(msg, "W-0001#1 (open)") || !strings.Contains(msg, "W-0001#2 (answered)") || !strings.Contains(msg, "--force") {
 		t.Fatalf("done: %q", msg)
 	}
@@ -284,19 +284,19 @@ func TestLintQuestions(t *testing.T) {
 		t.Errorf("lint flagged a good question:\n%s", out.String())
 	}
 	// kanban doesn't write a file it can't read whole.
-	deckFails(t, root, "", "ask", "W-0001", "more")
+	kanbanFails(t, root, "", "ask", "W-0001", "more")
 	os.WriteFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"), []byte("n: 1\n"), 0o644)
-	deckFails(t, root, "", "ask", "W-0001", "more")
-	deckFails(t, root, "", "done", "W-0001")
+	kanbanFails(t, root, "", "ask", "W-0001", "more")
+	kanbanFails(t, root, "", "done", "W-0001")
 }
 
 func TestQuestionsLinkIsRefused(t *testing.T) {
 	root := ledger(t)
 	out := sentinelFile(t, "questions.yaml", "- n: 1\n  text: outside\n  status: open\n")
 	symlink(t, out, filepath.Join(taskDir(root, "W-0001"), "questions.yaml"))
-	deckFails(t, root, "", "ask", "W-0001", "x")
-	deckFails(t, root, "", "answer", "W-0001#1", "x")
-	deckFails(t, root, "", "done", "W-0001")
+	kanbanFails(t, root, "", "ask", "W-0001", "x")
+	kanbanFails(t, root, "", "answer", "W-0001#1", "x")
+	kanbanFails(t, root, "", "done", "W-0001")
 	assertUnchanged(t, out, "- n: 1\n  text: outside\n  status: open\n")
 	if got := kanban(t, root, "questions"); !strings.Contains(got, "unreadable") {
 		t.Fatalf("questions: %q", got)

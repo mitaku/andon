@@ -65,7 +65,7 @@ func TestAKanbanFolderInARepositoryIsNotALedger(t *testing.T) {
 		t.Fatalf("add from the repository: %q", out)
 	}
 	t.Setenv("KANBAN_ROOT", repo)
-	deckFails(t, repo, "", "list")
+	kanbanFails(t, repo, "", "list")
 }
 
 // kanban migrate moves .flightdeck/ to kanban/: the folder (still out of git), chief_of_staff, the ids,
@@ -141,7 +141,7 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	}
 	// kanban migrate leaves format 2: every command stops until the person moves it by hand.
 	t.Setenv("KANBAN_ROOT", root)
-	deckFails(t, root, "", "list")
+	kanbanFails(t, root, "", "list")
 	moveByHand(t, root)
 	// A-5#1 still answers: the question kept its number (log.jsonl says A-5).
 	kanban(t, root, "answer", "A-5#1", "this")
@@ -163,7 +163,7 @@ func TestMigrateStopsOnDoingOrReview(t *testing.T) {
 		put(t, filepath.Join(old, "config.yaml"), "version: 2\nprefix: A\ncoordinator: t5\n")
 		put(t, filepath.Join(old, "tasks", "A-1", "task.yaml"), "id: A-1\ntitle: one\nstatus: done\n")
 		put(t, filepath.Join(old, "tasks", "A-2", "task.yaml"), "id: A-2\ntitle: two\nstatus: "+status+"\n")
-		msg := deckFails(t, root, "", "migrate")
+		msg := kanbanFails(t, root, "", "migrate")
 		if !strings.Contains(msg, "A-2 ("+status+")") {
 			t.Fatalf("%s: %q", status, msg)
 		}
@@ -179,10 +179,10 @@ func TestMigrateStopsOnDoingOrReview(t *testing.T) {
 func TestMigrateRefusesWithoutOldOrWithNew(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	root := t.TempDir()
-	deckFails(t, root, "", "migrate")
+	kanbanFails(t, root, "", "migrate")
 	put(t, filepath.Join(root, ".flightdeck", "config.yaml"), "version: 2\n")
 	os.MkdirAll(filepath.Join(root, "kanban"), 0o755)
-	deckFails(t, root, "", "migrate")
+	kanbanFails(t, root, "", "migrate")
 	assertUnchanged(t, filepath.Join(root, ".flightdeck", "config.yaml"), "version: 2\n")
 }
 
@@ -230,7 +230,7 @@ func TestMigrateRefusesALinkedTaskFolder(t *testing.T) {
 	elsewhere := filepath.Join(t.TempDir(), "A-5")
 	put(t, filepath.Join(elsewhere, "task.yaml"), "id: A-5\ntitle: five\nstatus: todo\n")
 	symlink(t, elsewhere, filepath.Join(old, "tasks", "A-5"))
-	deckFails(t, root, "", "migrate")
+	kanbanFails(t, root, "", "migrate")
 	if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(old, "tasks", "A-1")) {
 		t.Fatal("something moved")
 	}
@@ -249,7 +249,7 @@ func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
 	file := filepath.Join(state, "andon", "dispatcher", "app.json")
 	for _, bad := range []string{"{not json", "[]", `{"reviewers": []}`} {
 		put(t, file, bad)
-		deckFails(t, root, "", "migrate")
+		kanbanFails(t, root, "", "migrate")
 		if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(old, "tasks", "A-5")) {
 			t.Fatalf("%s: something moved", bad)
 		}
@@ -271,7 +271,7 @@ func TestMigrateProjectDraft(t *testing.T) {
 	put(t, filepath.Join(root, ".flightdeck", "config.yaml"), "version: 2\nprefix: A\ntitle: App\nrepos:\n  - github.com/x/app\n")
 	for _, bad := range []string{"[1]", "{}", "{not json", `{"version": 1, "project": "app", "preset": "hobby", "grants": [{"id": "x"}]}`} {
 		put(t, filepath.Join(root, "delegation.json"), bad)
-		deckFails(t, root, "", "migrate")
+		kanbanFails(t, root, "", "migrate")
 		if exists(filepath.Join(root, "kanban")) || !exists(filepath.Join(root, ".flightdeck", "config.yaml")) || exists(filepath.Join(root, "project.json")) {
 			t.Fatalf("%s: something moved", bad)
 		}
@@ -295,7 +295,7 @@ func TestMigrateNeedsAnIntegerVersion(t *testing.T) {
 	cfg := filepath.Join(root, ".flightdeck", "config.yaml")
 	put(t, cfg, "version: '2'\nprefix: A\n")
 	put(t, filepath.Join(root, ".flightdeck", "tasks", "A-1", "task.yaml"), "id: A-1\ntitle: one\nstatus: todo\n")
-	deckFails(t, root, "", "migrate")
+	kanbanFails(t, root, "", "migrate")
 	assertUnchanged(t, cfg, "version: '2'\nprefix: A\n")
 	if exists(filepath.Join(root, "kanban")) || exists(filepath.Join(root, "project.json")) || !exists(filepath.Join(root, ".flightdeck", "tasks", "A-1")) {
 		t.Fatal("something moved")

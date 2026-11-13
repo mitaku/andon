@@ -57,23 +57,18 @@ if git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   [ -n "$(git -C "$cwd" status --porcelain 2>/dev/null)" ] && dirty="*"
 fi
 
-# session duration (best effort; GNU date)
+# session duration (the payload's cost.total_duration_ms)
 dur=""
-start=$(jqv '.session.start_time // empty')
-if [ -n "$start" ]; then
-  start_epoch=$(date -d "$start" +%s 2>/dev/null || true)
-  if [ -n "$start_epoch" ]; then
-    elapsed=$(( $(date +%s) - start_epoch ))
-    if [ "$elapsed" -ge 3600 ]; then dur="$(( elapsed / 3600 ))h$(( (elapsed % 3600) / 60 ))m"
-    elif [ "$elapsed" -ge 60 ]; then dur="$(( elapsed / 60 ))m"
-    else dur="${elapsed}s"
-    fi
+elapsed=$(jqv '(.cost.total_duration_ms // empty) / 1000 | floor')
+if [ -n "$elapsed" ]; then
+  if [ "$elapsed" -ge 3600 ]; then dur="$(( elapsed / 3600 ))h$(( (elapsed % 3600) / 60 ))m"
+  elif [ "$elapsed" -ge 60 ]; then dur="$(( elapsed / 60 ))m"
+  else dur="${elapsed}s"
   fi
 fi
 
-# effort level (from user settings, if present)
-effort="default"
-[ -f "$HOME/.claude/settings.json" ] && effort=$(jq -r '.effortLevel // "default"' "$HOME/.claude/settings.json" 2>/dev/null)
+# effort level (the payload's effort.level; absent when the model has none)
+effort=$(jqv '.effort.level // "default"')
 
 pct_color=$(color_for_pct "$pct")
 

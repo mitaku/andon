@@ -58,7 +58,7 @@ func newFake(t *testing.T) *fake {
 	if err := os.MkdirAll(filepath.Join(f.root, "kanban"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	f.setCoordinator("t1")
+	f.setChiefOfStaff("t1")
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
@@ -73,7 +73,7 @@ func newFake(t *testing.T) *fake {
 	return f
 }
 
-func (f *fake) setCoordinator(addr string) {
+func (f *fake) setChiefOfStaff(addr string) {
 	f.t.Helper()
 	body := "version: 3\nprefix: S\ncolumns:\n  - todo\n  - done\nphases: []\nrepos: []\nchief_of_staff: " + addr + "\n"
 	if err := os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte(body), 0o644); err != nil {
@@ -195,9 +195,9 @@ func TestUsesRunningOne(t *testing.T) {
 	}
 }
 
-func TestFixesCoordinator(t *testing.T) {
+func TestFixesChiefOfStaffAddress(t *testing.T) {
 	f := newFake(t)
-	f.setCoordinator("t3") // 起き直す前の address
+	f.setChiefOfStaff("t3") // 起き直す前の address
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t8"}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t8","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
 	if rc, _, errs := runMain(); rc != 0 || errs != "" {
@@ -368,7 +368,7 @@ func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
 		`"argv":["sh","-c","claude"],"status":{"app":"codex"},"foreground":{"name":"sh","argv":["sh","-c","claude"]}`,
 	} {
 		f := newFake(t)
-		f.setCoordinator("t3")
+		f.setChiefOfStaff("t3")
 		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
 		t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+term+`}`)
 		rc, out, errs := runMain()

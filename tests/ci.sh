@@ -41,11 +41,13 @@ always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh test
 [ "$(pick docs/contract.md)" = 'tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh ' ] || die "contract.md で schema.sh・package.sh が無い: $(pick docs/contract.md)"
 [ "$(pick docs/no-such-doc.md)" = "tests/ci.sh tests/kanban.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
+[ "$(pick tests/host/mod.mjs)" = "tests/ci.sh tests/host.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "tests/host/ で host.sh が無い: $(pick tests/host/mod.mjs)"
+grep -q tests/process.sh <<<"$(pick process/states/gate.yaml)" && ! grep -q tests/andon-issue.sh <<<"$(pick process/states/gate.yaml)" || die "埋め込まない状態の定義で process.sh を足すだけにならない: $(pick process/states/gate.yaml)"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
 [ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"
 grep -q tests/image.sh <<<"$(pick package/lib/andon/x_test.go)" || die "package/ の下の _test.go で image.sh が無い"
 n_all=$(ls tests/*.sh | wc -l)
-for p in internal/issue/issue.go package/x NEW; do
+for p in internal/issue/issue.go package/x process/states/issue.yaml NEW; do
   got=$(pick "$p")
   [ "$(wc -w <<<"$got")" -eq "$n_all" ] || die "$p で全部にならない: $got"
 done

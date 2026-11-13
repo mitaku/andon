@@ -10,7 +10,7 @@ cd "$tmp" || exit 2   # 台帳の外で打つ
 fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
-subs="issue chief-of-staff create open chief-engineer dispatcher news publish triage gate delegate boot"
+subs="issue chief-of-staff create open chief-engineer dispatcher news publish triage signal measure process boot init gate delegate"
 
 # === andon help: 一覧 ===
 "$andon" help >"$tmp/out" 2>"$tmp/err"; r=$?

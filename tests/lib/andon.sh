@@ -1,6 +1,6 @@
 # tests/*.sh が source する: andon のバイナリを用意し、$andon に入れる。
 #   ANDON_BIN があればそれを使う（CI が先に焼いたもの）。無ければ go build で一時ディレクトリに焼く。
-#   go が無ければ（mise があれば mise exec で）、どちらも無ければ skip して終わる。
+#   go が無ければ（mise があれば mise exec で）、どちらも無ければ skip して終わる（CI では落とす）。
 # 呼ぶ側は $tmp（後片付けする一時ディレクトリ）を先に作っておく。
 . "$(dirname "${BASH_SOURCE[0]}")/isolate.sh"
 andon_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -13,6 +13,7 @@ else
   elif command -v mise >/dev/null; then
     (cd "$andon_root" && mise exec -- go build -o "$andon" ./cmd/andon) || { echo "FAIL go build" >&2; exit 1; }
   else
+    if [ "${CI:-false}" = true ]; then echo 'FAIL CI requires go (or ANDON_BIN)' >&2; exit 1; fi
     echo "skip: go が無い（ANDON_BIN も無い）"; exit 0
   fi
 fi

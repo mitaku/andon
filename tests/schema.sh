@@ -3,7 +3,9 @@
 #   1. schema/ の12本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-measure.sh に書かせる）。
+#   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon signal）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh に書かせる）。
+#   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -472,6 +474,7 @@ fail|measure|.tokens[0].source = "none"|source が claude/codex でない
 fail|measure|.tokens[0] += {"dollars": 1}|ドルの欄を足す
 pass|delivered|.acked = false|ack の無いターン
 pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
+pass|delivered|.news = [{kind: "estimate", issue: "S-0001"}, {kind: "memory"}]|見込みとのズレと memory の量の通知（notification の kind は全部通る）
 fail|delivered|.news = []|渡した通知が無い
 fail|delivered|.news[0].kind = "nope"|知らない kind
 fail|delivered|.acked = "true"|acked が文字列

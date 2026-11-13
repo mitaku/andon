@@ -20,8 +20,8 @@
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
 - 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
-- 台帳の CLI をこの文書では `kanban` と書く（[design.md](design.md) §3.5。仮設の工場では `deck`）。
-- 台帳の形式（ledger-format v2。別プロジェクトの持ち物）は**変えない**。Andon のキーは「Any other key is allowed and kept」の上に置く。形式そのものに触れたいことは design.md §3.2 の相談に並べた。台帳の CLI と形式を Andon に移したら（§3.5）、「変えない」は「形式の版で変える」になる。それまでこの文書は v2 の上に乗る。
+- 台帳の CLI は `kanban`（`cmd/kanban`。command と形式は [ledger.md](ledger.md)）。
+- 台帳の形式（形式 3。[ledger.md](ledger.md)・`schema/ledger/`）は Andon が持つ（[design.md](design.md) §3.5 で移した）。Andon のキーは「Any other key is allowed and kept」の上に置き、形式そのものを変えるときは形式の版で変える。
 
 ## 0. 原則
 
@@ -239,7 +239,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   |---|---|
   | `review-requested`・`resumed` | 記録だけ |
   | `review`（dispatcher がゲートを回す課題） | 記録だけ |
-  | `review`（ゲートを回さない課題: Chief Engineer の課題〈`profile: chief-engineer`〉・調べる課題など） | 届ける |
+  | `review`（ゲートを回さない課題のうち PR のあるもの: Chief Engineer の課題〈`profile: chief-engineer`〉など。PR の無い調べる課題・観察の課題は `report` で届く） | 届ける |
   | `gate`（`decision: fix`・`needs_human`） | 記録だけ（`needs_human` は同じ巡の `asked` で届く） |
   | `gate`（`decision: approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） |
   | `gate`（`decision: approve`。`merge: auto` でマージに進む） | 記録だけ。記録の `at` から10分たっても同じ課題の `merged` も `asked` も無ければ、そのとき同じ通知を1回だけ届ける（`review` から出た課題は数えない） |
@@ -276,8 +276,8 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 ```
 
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「人からの新しい依頼ではない。人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える」。ADR-0010 決めたこと 3）。`news.replied=<turn>` のラベルの意味（そのターンは人が見る返事ではない）・名前・値も同じ（ボードとの約束）。
-- **「人に言うことが無い」の申告**（[ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6）: Chief of Staff は `andon news ack` を打つ。command は自分の端末（`HC_TERMINAL_ID`）を `hc get` で読み、ラベル `role=chief-of-staff` があればそのときの `turn` で `news.ack=<turn>` を書く（上書き。無ければ書かずに終了コード 1）。dispatcher は `<news>` を渡すときにその端末の `turn` を控え（経路①②は控えの `hook`、③は送ったときの `turn`）、渡したターンが終わったとき `news.ack` が控えた値と同じなら `news.replied=<そのときの turn>` を書く（答えの文は読まない）。経路①②では、渡すときにラベルがもうその値だった（同じ turn の前の ack。`Stop` の block の続きは hc の `turn` が進まない）ら数えない。ack の無いターンは、答えが `<no-reply>` だけでも書かない（人が見る返事に数える。`<no-reply>` の照合は ack を入れた版〈v0.0.8〉の次の版で外した。決めたこと 6）。書いた数は控えに数える（`replied`）。
-- dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・③で送った turn と端末・フックで渡した端末・起動したレビュアー（`issue` → `reviewer_issue`・`commit`）・回したゲート（`issue` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。dispatcher の行の `by` は `terminal:dispatcher`）。控えの中の形は dispatcher だけが読むので約束にしない（schema は無い）。
+- **「人に言うことが無い」の申告**（[ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6）: Chief of Staff は `andon news ack` を打つ。command は自分の端末（`HC_TERMINAL_ID`）を `hc get` で読み、ラベル `role=chief-of-staff` があればそのときの `turn` で `news.ack=<turn>` を書く（上書き。無ければ書かずに終了コード 1）。dispatcher は `<news>` を渡すときにその端末の `turn` を控え（控えの `hook`。③の待ち役は合図だけで、渡すのは①）、渡したターンが終わったとき `news.ack` が控えた値と同じなら `news.replied=<そのときの turn>` を書く（答えの文は読まない）。経路①②では、渡すときにラベルがもうその値だった（同じ turn の前の ack。`Stop` の block の続きは hc の `turn` が進まない）ら数えない。ack の無いターンは、答えが `<no-reply>` だけでも書かない（人が見る返事に数える。`<no-reply>` の照合は ack を入れた版〈v0.0.8〉の次の版で外した。決めたこと 6）。書いた数は控えに数える（`replied`）。
+- dispatcher の控え `~/.local/state/andon/dispatcher/<slug>.json`（`XDG_STATE_HOME` があればその下）: `log.jsonl` の読んだ位置（相談 F1 が入れば cursor）・前回の ready・待ちの通知・フックで渡した端末・起動したレビュアー（`issue` → `reviewer_issue`・`commit`）・回したゲート（`issue` → `sha`）。台帳には書かない（台帳に書くのは台帳の CLI 経由の行だけ。dispatcher の行の `by` は `terminal:dispatcher`）。控えの中の形は dispatcher だけが読むので約束にしない（schema は無い）。
 
 ## 7. ゲートの条件表と記録
 
@@ -328,7 +328,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 |---|---|---|---|
 | 担当・レビュアーの端末の名前 | `<slug>-<id を小文字>`（`a-z 0-9 - _`、32字まで） | `andon issue start`・`andon issue resume`・dispatcher | dispatcher・ボード |
 | Chief of Staff の端末の名前 | `<slug>-cos`（cwd は台帳の root） | `andon chief-of-staff` | `andon chief-of-staff`（動いているものを使うときに名前と cwd を照らす） |
-| ラベル | `role=chief-of-staff \| dispatcher \| chief-engineer`・`project=<slug>`・`issue=<id>`・`title=<題>`・`news.replied=<turn>`（dispatcher が書く。§6）・`news.ack=<turn>`（Chief of Staff の「人に言うことが無い」の申告。`andon news ack` だけが書き、dispatcher〈`drain` と見回り〉が読む。§6）・`session=<id>`（ハーネスのセッションの id。台帳の `session` と同じ値。hc の template は呼び手の環境変数を渡さないので、template の `command`・`resume` の行が `andon issue session` で自分の端末のこのラベルを読み、Claude 系は `--session-id`／`--resume`、Codex 系は `resume <id>` に渡す。`andon issue start`〈Claude 系〉・`andon chief-engineer`・`andon issue resume`・dispatcher〈Claude 系のレビュアー〉が付ける。[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 11・14）・`first_message.sent=false`（最初のメッセージが届かなかった〈`hc run` の `first_message` が `sent: false`、か `started: false`〉担当・Chief Engineer・レビュアー。`andon issue start`・`andon chief-engineer`・dispatcher〈レビュアー〉が付け、dispatcher が送り直して外す。[dispatcher.md](dispatcher.md) §5） | command・dispatcher | ボード・dispatcher・フック（自分の課題を引く） |
+| ラベル | `role=chief-of-staff \| dispatcher \| chief-engineer`・`project=<slug>`・`issue=<id>`・`title=<題>`・`news.replied=<turn>`（dispatcher が書く。§6）・`news.ack=<turn>`（Chief of Staff の「人に言うことが無い」の申告。`andon news ack` だけが書き、dispatcher〈`drain`〉が読む。§6）・`session=<id>`（ハーネスのセッションの id。台帳の `session` と同じ値。hc の template は呼び手の環境変数を渡さないので、template の `command`・`resume` の行が `andon issue session` で自分の端末のこのラベルを読み、Claude 系は `--session-id`／`--resume`、Codex 系は `resume <id>` に渡す。`andon issue start`〈Claude 系〉・`andon chief-engineer`・`andon issue resume`・dispatcher〈Claude 系のレビュアー〉が付ける。[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 11・14）・`first_message.sent=false`（最初のメッセージが届かなかった〈`hc run` の `first_message` が `sent: false`、か `started: false`〉担当・Chief Engineer・レビュアー。`andon issue start`・`andon chief-engineer`・dispatcher〈レビュアー〉が付け、dispatcher が送り直して外す。[dispatcher.md](dispatcher.md) §5） | command・dispatcher | ボード・dispatcher・フック（自分の課題を引く） |
 | Herdr App の置き場のラベル | `herdr.space=<id>`・`herdr.tab=<id>`（オーナーは Herdr App。id は command が決める: Chief of Staff は `andon-<slug>`・`andon-<slug>-cos`、Chief Engineer は `andon-<slug>`・`andon-<slug>-<id>`、担当は `andon-<slug>-<id>`・`andon-<slug>-<id>`（Space ＝ 課題。[ADR-0003](adr/0003-task-spaces.md)。machine に依らない。`machine` 付きの課題を `andon issue start` はまだ起動しない。ADR-0002 決めたこと 19）、レビュアーは担当の端末（台帳の `agent`）の値を `hc get --json` で読んで写す（読めなければ付けない）。dispatcher は台帳が1つなら `andon-<slug>`・`andon-<slug>-dispatcher`、2つ以上なら `andon-<セルの slug>-plant`・`andon-<セルの slug>-dispatcher`（セルの slug は hostname。ADR-0002 決めたこと 21）。`where` は App が書く出力で、Andon は読まず書かない。[ADR-0002](adr/0002-herdr-spaces.md)） | `andon chief-of-staff`・`andon chief-engineer`・`andon issue start`・`andon issue resume`（止まる前と同じ値。レビュアーは元の課題の担当の値 `andon-<slug>-<元の id>`）・dispatcher（自分の端末のラベルは boot とフックの `dispatcher.Ensure` が付ける。台帳の数が変わって値が変われば、見回りの合間に起動し直して今の値で付ける）。`andon issue finish` は触らない（端末の kill・rm で tab が空になって消える） | Herdr App |
 | 人に端末を指す言い方 | `<Space 名> / <tab 名>`（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site / CE A-0003 Billing の設計`・`A-0012 ログインの直し / A-0012`）。address は末尾に `（t7）` と添えるだけ。Andon の command は `hc attach` を打たず、最後に出た場所をこの形で出す | `andon chief-of-staff`・`andon chief-engineer`・`andon issue start`・Chief of Staff | 人 |
 | template の名前 | プロファイルの名前そのもの（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`）。プロファイルの frontmatter に `resume:` の行があれば、boot がその行を `command` にした `<profile>-resume` も作る（止まった端末をセッションの続きから起動する。元の template からは `resume:` を除く。`templates.local/` が同じ名前で勝てば勝った側から作る） | boot が生成 | `andon issue start`・`andon issue resume`（`hc templates` で存在を確かめる） |

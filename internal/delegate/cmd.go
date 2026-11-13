@@ -66,8 +66,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	today := time.Now().UTC().Format("2006-01-02")
+	_, withProject := opt["--project"]
 	switch {
-	case sub == "show" && len(pos) == 0 && len(opt) <= 1:
+	case sub == "show" && len(pos) == 0 && (len(opt) == 0 || len(opt) == 1 && withProject):
 		r := Read(ws, slug, today)
 		if asJSON {
 			stdout.Write(contract.Marshal(r))
