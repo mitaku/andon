@@ -20,5 +20,5 @@ changed=$( {
   git ls-files --others --exclude-standard
 } | sort -u)
 mapfile -t tests < <(bash tests/lib/scope.sh <<<"$changed")
-echo "変えたもの（$(git rev-parse --short "$base") から）: $(wc -l <<<"${changed:-}" | tr -d ' ') 個 → 走らせる: ${tests[*]}"
+echo "変えたもの（$(git rev-parse --short "$base") から）: $(grep -c . <<<"$changed" || true) 個 → 走らせる: ${tests[*]}"
 exec bash tests/lib/run-tests.sh "${tests[@]}"

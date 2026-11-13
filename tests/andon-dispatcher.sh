@@ -1320,7 +1320,7 @@ pp "$i" stalled | jq -e --argjson ms "$old_idle" '.[0].detail == {agent: "w25", 
 pp "$w" stalled | jq -e 'length == 1' >/dev/null || die 'working のまま20分を stalled で知らせない'
 [ "$(pp "$r" stalled)" = '[]' ] || die '子のレビュアーの課題を待つ担当を stalled で知らせた'
 [ "$(jq --arg q "$q" --arg k "$k" '[.pending[] | select(.issue == $q or .issue == $k)] | length' "$pst")" = 0 ] || die '短い idle・working を知らせた'
-! grep -q "^t2[0-9]	" "$tmp/hc/sent" 2>/dev/null || die 'プロバイダでない error に続きを打った'
+! grep -q "^w24	" "$tmp/hc/sent" 2>/dev/null || die 'プロバイダでない error に続きを打った'
 for f in "$g finished" "$b blocked" "$e error" "$i stalled"; do set -- $f; emit <(pp "$1" "$2" | jq '.[0]') "notification-$2.json"; done
 clear_pending; pk
 [ "$(jq '.pending | length' "$pst")" = 0 ] || die "同じ状態で二度知らせた: $(jq -c .pending "$pst")"

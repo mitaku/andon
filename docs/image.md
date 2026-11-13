@@ -142,12 +142,13 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`・`words.sh`・`words-selftest.sh`（安く全体を見るもの） |
 | `docs/contract.md` | `schema.sh`・`package.sh` を足す（例を schema と、§4 の行を skill と突き合わせる） |
 | `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
+| `tests/host/` | `host.sh` を足す |
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`CHANGELOG.md` など | 足さない |
 | `tests/lib/` | `image.sh` 以外の全部 |
-| それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`.github/` と知らないパス） | `image.sh` 以外の全部 |
+| それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`.github/`・andon に埋め込む `process/states/issue.yaml` と知らないパス） | `image.sh` 以外の全部 |
 | CI の表で「走らせる」もの | `image.sh` も（Docker が無ければ SKIP） |
 
 ## 残る危険

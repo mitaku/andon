@@ -452,6 +452,8 @@ rm "$tmp/hc/run-rc"
 [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s4" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s4-run-fails" \
   && [ "$(field "$s4" status)" = todo ] && [ -z "$(field "$s4" branch)$(field "$s4" worktree)" ] || die "戻していない: $(kanban show "$s4" --json | jq -c .issue)"
 "$andon" issue start "$s4" >/dev/null || die 'やり直せない'
+grep -q "issue=$s4 " "$tmp/hc/log" || die 'やり直した start が hc run を打っていない'
+! grep "issue=$s4 " "$tmp/hc/log" | grep -q 'session=' || die 'Codex 系の start がセッションの id を渡した（Codex は決める口が無い）'
 ok 'start: hc run が落ちたら worktree・branch・台帳の欄を戻す（やり直せる）'
 
 # 最初のメッセージが届かない（信頼の画面など）
@@ -544,7 +546,6 @@ rm "$tmp/prstate"
 ok 'finish: PR の状態が読めなければ書かずに1行出す（結果を書き違えない。片付けは戻さない）'
 
 # resume: 止まった担当を同じ worktree でセッションの続きから起動する（ADR-0012 決めたこと 3・7・11・13。受け入れ条件 1・2・3・5）
-grep "issue=$s4 " "$tmp/hc/log" | grep -q 'session=' && die 'Codex 系の start がセッションの id を渡した（Codex は決める口が無い）'
 r1=$(kanban add 'Resume me' --repo github.com/example/app --profile claude --brief - <<<'# Resume me')
 expect_fail "は todo" "$andon" issue resume "$r1" --dry-run
 "$andon" issue start "$r1" >/dev/null

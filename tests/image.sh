@@ -181,7 +181,7 @@ dc exec -T dev bash -euc '
     test "$(codex execpolicy check $rules bash -lc "$c" | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 拒めないはずの「$c」が rules に当たる（docs と tests を直す）" >&2; exit 1; }
   done
   # 担当・レビュアーが台帳（projects/<slug>/kanban とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
-  for c in "git push -u origin HEAD" "kanban report T-1" "kanban review T-1" "tee /workspace/projects/p/kanban/tasks/T-1/library/findings.json"; do
+  for c in "git push -u origin HEAD" "kanban report A-0001" "kanban review A-0001" "tee /workspace/projects/p/kanban/issues/A-0001-r1/library/findings.json"; do
     test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]"
   done
   test "$(ssh -i /workspace/.ssh/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
