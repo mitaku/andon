@@ -319,6 +319,9 @@ fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_mi
 fail|notification|.kind = "estimate" | .detail = {estimate: "中", estimate_minutes: 60, worked_minutes: 61, ratio: 1.02, stage: 1}|estimate の値が段の名
 fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 31, ratio: 1.03}|estimate に stage が無い
 fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 31, ratio: 1.03, stage: 1, agent: "t7"}|estimate に知らないキー
+pass|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 61, ratio: 2.03, stage: 2, sign: ["no-commit", "large-diff"]}|estimate に詰まりの兆し
+fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 61, ratio: 2.03, stage: 2, sign: []}|estimate の sign が空（兆しが無ければ置かない）
+fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_minutes: 30, worked_minutes: 61, ratio: 2.03, stage: 2, sign: ["slow"]}|estimate の sign が知らない値
 pass|notification|.kind = "memory" | .detail = {count: 31, line: 30} | del(.issue)|kind memory（issue 無し）
 fail|notification|.kind = "memory" | .detail = {count: 31} | del(.issue)|memory に line が無い
 fail|notification|.kind = "memory" | .detail = {count: 31, line: 30, dir: "/x"} | del(.issue)|memory に知らないキー

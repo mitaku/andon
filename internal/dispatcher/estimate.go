@@ -73,13 +73,17 @@ func (p *project) estimate(now time.Time, cos string) {
 			continue
 		}
 		ratio := worked.Minutes() / float64(est)
-		p.notify(id, "estimate", map[string]any{
+		detail := map[string]any{
 			"estimate":         v,
 			"estimate_minutes": est,
 			"worked_minutes":   int(worked.Minutes()),
 			"ratio":            math.Round(ratio*100) / 100,
 			"stage":            top,
-		})
+		}
+		if s := signs(t.Str("worktree"), est, now); len(s) > 0 {
+			detail["sign"] = s
+		}
+		p.notify(id, "estimate", detail)
 	}
 	for k := range p.st.Estimate {
 		id, rest, _ := strings.Cut(k, "|estimate|")
@@ -104,4 +108,60 @@ func (p *project) estimate(now time.Time, cos string) {
 
 func estimateKey(id, v string, stage int) string {
 	return id + "|estimate|" + v + "|" + strconv.Itoa(stage)
+}
+
+// diffLimit は large-diff の線（テストを除いた変更の行数。横展開の既定の上限と同じ）。
+const diffLimit = 500
+
+// signs は段の estimate に乗せる詰まりの兆し（ADR-0017 決めたこと 11）を、課題の worktree の git で数える。
+// no-commit: worktree の HEAD の commit から見込みの分より長く経った。large-diff: origin/HEAD との merge-base から
+// 作業ツリーまでの変更（追跡しているファイル。テストを除く）が diffLimit 行を超えた。worktree が無い・git で読めない兆しは数えない。
+func signs(wt string, est int, now time.Time) []string {
+	if wt == "" {
+		return nil
+	}
+	git := func(args ...string) (string, bool) {
+		out, _, err := run("", nil, "", "git", append([]string{"-C", wt}, args...)...)
+		return strings.TrimSpace(out), err == nil
+	}
+	var s []string
+	if out, ok := git("log", "-1", "--format=%ct"); ok {
+		if ct, err := strconv.ParseInt(out, 10, 64); err == nil && now.Sub(time.Unix(ct, 0)) > time.Duration(est)*time.Minute {
+			s = append(s, "no-commit")
+		}
+	}
+	if base, ok := git("merge-base", "HEAD", "origin/HEAD"); ok {
+		if out, ok := git("diff", "--numstat", "--no-renames", base); ok && changedLines(out) > diffLimit {
+			s = append(s, "large-diff")
+		}
+	}
+	return s
+}
+
+// changedLines は git diff --numstat の足した行と消した行の和。テスト（tests という名のディレクトリの下と、
+// 名前が *_test.* のファイル）と、行で数えないファイル（バイナリ）は数えない。
+func changedLines(numstat string) int {
+	n := 0
+	for _, ln := range strings.Split(numstat, "\n") {
+		f := strings.SplitN(ln, "\t", 3)
+		if len(f) != 3 || isTestPath(f[2]) {
+			continue
+		}
+		a, err1 := strconv.Atoi(f[0])
+		d, err2 := strconv.Atoi(f[1])
+		if err1 == nil && err2 == nil {
+			n += a + d
+		}
+	}
+	return n
+}
+
+func isTestPath(p string) bool {
+	dirs := strings.Split(p, "/")
+	for _, d := range dirs[:len(dirs)-1] {
+		if d == "tests" {
+			return true
+		}
+	}
+	return strings.Contains(dirs[len(dirs)-1], "_test.")
 }
