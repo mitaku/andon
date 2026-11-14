@@ -158,7 +158,7 @@ func TestEstimate(t *testing.T) {
 func TestConfigReadsReposAnyForm(t *testing.T) {
 	for body, want := range map[string]string{
 		"version: 3\nrepos:\n  - github.com/example/a\n  - \"github.com/example/b\"\n": "github.com/example/a github.com/example/b",
-		"version: 3\nrepos: [github.com/example/a, 'github.com/example/b']\n":           "github.com/example/a github.com/example/b",
+		"version: 3\nrepos: [github.com/example/a, 'github.com/example/b']\n":          "github.com/example/a github.com/example/b",
 		"version: 3\nrepos: []\n": "",
 		"version: 3\n":            "",
 	} {
