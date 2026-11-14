@@ -41,7 +41,7 @@ const RetryText = "一時のエラーで止まった。やり直しに承認は�
 var (
 	authErrRe      = regexp.MustCompile(`(?i)unauthori[sz]ed|\b401\b|\b403\b|invalid api key|/login|authenticat|oauth token`)
 	allowanceErrRe = regexp.MustCompile(`(?i)usage limit|hit your [a-z ]*limit|\bquota\b|billing|credit balance`)
-	providerErrRe  = regexp.MustCompile(`(?i)overloaded|at capacity|rate.?limit|too many requests|\b429\b|API Error: 5[0-9]{2}|\b(500|502|503|504|529)\b|internal server error|service unavailable|bad gateway|connection (error|reset|refused|closed)|ECONNRESET|stream disconnected|stopped arriving|request timed out|high demand|混雑`)
+	providerErrRe  = regexp.MustCompile(`(?i)overloaded|at capacity|rate.?limit|too many requests|\b429\b|API Error: 5[0-9]{2}|\b(500|502|503|504|529)\b|internal server error|service unavailable|bad gateway|connection (error|reset|refused|closed)|ECONNRESET|stream disconnected|stopped arriving|connection lost|request timed out|high demand|混雑`)
 	agentRe        = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9_.-]{0,62}/)?[A-Za-z0-9_-]{1,40}$`) // <address> か <machine>/<address>（contract.md §8）
 )
 

@@ -164,7 +164,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 | | Claude Code | Codex |
 |---|---|---|
-| 切られたとき（529・5xx・接続の切れ） | 自分で約 3 分やり直してから、hc の状態が `error`。`status.msg` にエラーの文（`API Error: 529 Overloaded. …`・`API Error: The response stopped arriving. …`） | すぐ `error`。`status.msg` は無く、画面の最後に `■ We’re currently experiencing high demand, …` か `Selected model is at capacity. …` |
+| 切られたとき（529・5xx・接続の切れ） | 自分で約 3 分やり直してから、hc の状態が `error`。`status.msg` にエラーの文（`API Error: 529 Overloaded. …`・`API Error: The response stopped arriving. …`・`API Error: Connection lost mid-response.`） | すぐ `error`。`status.msg` は無く、画面の最後に `■ We’re currently experiencing high demand, …` か `Selected model is at capacity. …` |
 | 認証の失敗 | `blocked`（`kind: auth`・`msg: Invalid API key · …`）。`error` にならないので、ここには来ない | `error`。画面とセッションの記録に `unexpected status 401 Unauthorized: …` |
 | 入力欄 | 切られたあとも空で、`hc send` を受ける。打てば `working` に戻り、また切られれば新しい `status_ms` の `error` | 同じ（`›` の入力欄。罫線は無い） |
 

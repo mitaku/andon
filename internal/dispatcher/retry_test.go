@@ -180,6 +180,13 @@ func TestRetryWorkerNotProvider(t *testing.T) {
 			t.Errorf("%s %q: 知らせ方: %q", c.state, c.msg, k)
 		}
 	}
+	// 応答の途中で接続が切れた文（実測。A-0096 の担当が約12時間止まった）
+	g := newRetry(t)
+	g.term("t42", "error", "API Error: Connection lost mid-response.", 0, false)
+	g.at(0, "")
+	if got := g.at(time.Minute, ""); len(got) != 1 || got[0] != resend {
+		t.Fatalf("Connection lost mid-response に打っていない: %q", got)
+	}
 	// Codex は msg を出さないので画面で見分ける（実測の文）
 	f := newRetry(t)
 	f.term("t42", "error", "", 0, false)
