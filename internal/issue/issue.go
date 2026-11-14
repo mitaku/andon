@@ -15,6 +15,7 @@
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
 //	                      （links に write_back: true の出所の issue があれば、そこに結果を1コメント書く。writeback.go）
 //	settle <id>           review の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（積む通知を JSON で出す。dispatcher が打つ）
+//	merge <id>            review の課題にゲートを回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして finish する（積む通知を JSON で出す。dispatcher が打つ）
 //	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
@@ -52,6 +53,8 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
 	"       andon issue settle <id>                                review の課題の PR を人がマージしていたら、ゲートの問いを閉じて片付ける\n" +
 	"                                                          （PR ごとに1分に1回 gh pr view。積む通知を JSON で出す。2回打っても同じ）\n" +
+	"       andon issue merge <id>                                 review の課題にゲートを回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして片付ける\n" +
+	"                                                          （review に入った行ごとに1回。fix は担当へ、needs_human は問い。積む通知を JSON で出す）\n" +
 	"       andon issue impact <id>                                マージした PR と、同じ repo の動いている課題の重なり・衝突を JSON で出す\n" +
 	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
 	"       andon issue start <id> [--dry-run [--json]]            担当を起動する: worktree と branch・hc run・kanban start（Chief of Staff が打つ）\n" +
@@ -165,6 +168,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return usage()
 		}
 		err = withLockedIssue(id, func(c *ctx) error { return c.settle(stdout, stderr, time.Now()) })
+	case "merge":
+		if len(rest) > 0 {
+			return usage()
+		}
+		err = withLockedIssue(id, func(c *ctx) error { return c.merge(stdout, stderr, time.Now()) })
 	case "impact":
 		if len(rest) > 0 {
 			return usage()
