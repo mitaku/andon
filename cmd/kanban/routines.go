@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // IANA time zones on machines without them (Windows)
@@ -63,16 +62,26 @@ func readRoutines(root string) ([]*routine, error) {
 }
 
 func (r *routine) schedule() string { return r.d.str("schedule") }
-func (r *routine) on() []string     { return r.d.list("on") }
+
+// The readers follow schema/ledger/routine.v3.schema.json: a key that is there holds the
+// schema's type. A null, or a value of another type, is a problem (kanban lint), and a routine
+// with a problem doesn't fire. A missing key takes its default.
+
+// on is the statuses the routine fires on: a list of strings.
+func (r *routine) on() []string {
+	if n := r.d.get("on"); !isList(n) {
+		return nil
+	}
+	return r.d.list("on")
+}
 
 // paused is the routine's paused key, a YAML boolean; default false.
 func (r *routine) paused() (bool, error) {
-	n := r.d.get("paused")
-	if isNull(n) {
+	if r.d.index("paused") < 0 {
 		return false, nil
 	}
 	var v bool
-	if n.Kind != yaml.ScalarNode || n.ShortTag() != "!!bool" || n.Decode(&v) != nil {
+	if n := r.d.get("paused"); !isTagged(n, "!!bool") || n.Decode(&v) != nil {
 		return false, fail("paused must be true or false")
 	}
 	return v, nil
@@ -80,15 +89,33 @@ func (r *routine) paused() (bool, error) {
 
 // open is how many of its tasks may be not done; default 1.
 func (r *routine) open() (int, error) {
-	n := r.d.get("open")
-	if isNull(n) {
+	if r.d.index("open") < 0 {
 		return 1, nil
 	}
-	v, err := strconv.Atoi(n.Value)
-	if n.Kind != yaml.ScalarNode || err != nil || v < 1 {
+	n := r.d.get("open")
+	var v int
+	if !isTagged(n, "!!int") || n.Decode(&v) != nil || v < 1 {
 		return 0, fail("open must be a whole number of 1 or more")
 	}
 	return v, nil
+}
+
+// isTagged is a scalar of the YAML type tag (!!str, !!int, !!bool).
+func isTagged(n *yaml.Node, tag string) bool {
+	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == tag
+}
+
+// isList is a sequence of strings.
+func isList(n *yaml.Node) bool {
+	if n == nil || n.Kind != yaml.SequenceNode {
+		return false
+	}
+	for _, c := range n.Content {
+		if !isTagged(resolveAlias(c), "!!str") {
+			return false
+		}
+	}
+	return true
 }
 
 // problems are what keep a routine from firing (kanban lint reports them).
@@ -102,6 +129,14 @@ func (r *routine) problems(cfg config) []string {
 	var out []string
 	if r.d.str("title") == "" {
 		out = append(out, "no title")
+	}
+	for _, k := range []string{"title", "brief", "profile", "repo", "schedule"} {
+		if r.d.index(k) >= 0 && !isTagged(r.d.get(k), "!!str") && (k != "title" || r.d.str(k) != "") {
+			out = append(out, k+" must be a string")
+		}
+	}
+	if r.d.index("on") >= 0 && !isList(r.d.get("on")) {
+		out = append(out, "on must be a list of statuses")
 	}
 	if isNull(r.d.get("schedule")) && isNull(r.d.get("on")) {
 		out = append(out, "needs schedule or on")

@@ -231,7 +231,7 @@ func TestOpenStopsUntilDone(t *testing.T) {
 func TestEventFires(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "after-done", "title: Look at what was done\non: [done]\n")
-	writeRoutine(t, root, "on-review", "title: Review it\non: review\n")
+	writeRoutine(t, root, "on-review", "title: Review it\non: [review]\n")
 	kanban(t, root, "add", "Work")                  // W-0001
 	kanban(t, root, "add", "Other")                 // W-0002
 	kanban(t, root, "start", "W-0001")              // doing: nothing listens
@@ -341,6 +341,14 @@ func TestPausedIsReadAsABoolean(t *testing.T) {
 	}
 	if out := kanban(t, root, "routine", "run", "off"); !strings.Contains(out, "W-0001") {
 		t.Fatalf("paused: false didn't fire: %q", out)
+	}
+	// An explicit null is not a boolean: the routine has a problem and fires neither by hand nor on an event.
+	writeRoutine(t, root, "nulled", "title: Paused null\non: [review]\npaused: null\n")
+	kanbanFails(t, root, "", "routine", "run", "nulled")
+	kanban(t, root, "start", "W-0001")
+	kanban(t, root, "review", "W-0001")
+	if n := taskCount(root); n != 1 {
+		t.Fatalf("paused: null fired: %d issues", n)
 	}
 }
 

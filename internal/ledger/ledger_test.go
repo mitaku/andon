@@ -74,6 +74,21 @@ func TestTrustedReadsOldIds(t *testing.T) {
 	}
 }
 
+// Log は kanban が書く長さ（16 MiB まで）の行を読み、その先の行も読む。長い行で読むのを止めると、
+// 後の行（Chief of Staff が書いた予約キー）が無いことになる。
+func TestLogReadsLongLinesAndWhatFollows(t *testing.T) {
+	root := t.TempDir()
+	l := At(root)
+	os.MkdirAll(l.Dir, 0o755)
+	long := `{"at":"x","by":"terminal:t9","id":"A-0001","change":{"report":"` + strings.Repeat("a", 8<<20) + `"}}`
+	last := `{"at":"y","by":"terminal:t5","id":"A-0001","change":{"review":"on"}}`
+	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(long+"\n"+last+"\n"), 0o644)
+	rows := l.Log()
+	if len(rows) != 2 || rows[1].By != "terminal:t5" {
+		t.Fatalf("rows: %d", len(rows))
+	}
+}
+
 // deliverable: candidates は Chief of Staff が最後に書いたときだけ信じる（ADR-0006 決めたこと 7）。
 func TestCandidates(t *testing.T) {
 	root := t.TempDir()

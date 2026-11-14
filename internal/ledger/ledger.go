@@ -195,7 +195,7 @@ func (l *Ledger) Log() []Row {
 	defer f.Close()
 	var rows []Row
 	s := bufio.NewScanner(f)
-	s.Buffer(make([]byte, 1<<20), 1<<20)
+	s.Buffer(make([]byte, 64<<10), 16<<20) // kanban と同じ1行の上限（cmd/kanban の loggedNumber）
 	for s.Scan() {
 		var r Row
 		if json.Unmarshal(s.Bytes(), &r) == nil {
