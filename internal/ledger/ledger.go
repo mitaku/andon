@@ -371,7 +371,7 @@ func (l *Ledger) reviewers(rows []Row, tasks []Issue, t Issue) ([]string, []stri
 // どちらの形でもなければそのまま。台帳の CLI（kanban）の canonID と同じ。
 func CanonID(id string) string {
 	if base, k, ok := SplitRound(id); ok {
-		return fmt.Sprintf("%s-r%d", canonNumber(base), k)
+		return RoundID(canonNumber(base), k)
 	}
 	return canonNumber(id)
 }
@@ -387,6 +387,9 @@ func canonNumber(id string) string {
 	}
 	return fmt.Sprintf("%s-%04d", id[:i], n)
 }
+
+// RoundID は課題 parent の k 回目のレビュアーの課題の id（<親>-r<回>。A-0005-r1）。kanban add に --parent と --round を渡すと付く id。
+func RoundID(parent string, k int) string { return fmt.Sprintf("%s-r%d", parent, k) }
 
 // SplitRound はレビュアーの課題の id（<親>-r<回>。A-0005-r1）を親の id と回（1 以上）に分ける。違う形なら ok が false。
 func SplitRound(id string) (parent string, round int, ok bool) {

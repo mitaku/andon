@@ -164,9 +164,13 @@ work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実�
 }
 restart() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 kanban start "$1" >/dev/null); }  # 直しが届いた担当
 as_worker() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 "$andon" issue "$2" "$1" "${@:3}" <<<'## Report' >/dev/null); }
-review_by() { # review_by <レビュアーの id> <findings>: レビュアーが findings.json を書いて review にする
-    mkdir -p "$L/issues/$1/library"
-    jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$L/issues/$1/library/findings.json"
+review_by() { # review_by <レビュアーの id> <findings>: レビュアーが依頼書の示す置き場に findings.json を書いて review にする
+    # 置き場は依頼書から読む（dispatcher の依頼書が台帳の外を指せば、ゲートは findings.json を読めず落ちる。A-0216）
+    local f
+    f=$(grep -o '`[^`]*/findings\.json`' "$L/issues/$1/brief.md" | tr -d '`' || true)
+    [ "$(printf '%s\n' "$f" | grep -c .)" = 1 ] || die "レビュアーの依頼書に findings.json の置き場が1つでない: $f"
+    mkdir -p "${f%/*}"
+    jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$f"
     HC_TERMINAL_ID=t9 kanban review "$1" >/dev/null
 }
 
