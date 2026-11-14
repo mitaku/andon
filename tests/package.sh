@@ -114,7 +114,7 @@ for p in package/skills/ package/templates/ package/gate.json package/settings.j
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
 # 人だけが書くファイル（author 照合の対象）は、PR に入ればレベル C（contract.md §11・§7）
-for p in 'projects/*/project.json' gate.local.json andon.toml; do
+for p in 'projects/*/project.json' gate.local.json andon.toml '**/AGENTS.local.md' '**/AGENTS.worker.md'; do
   jq -e --arg p "$p" '.tier_c_paths | index($p)' package/gate.json >/dev/null \
     && pass "人のファイル $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
@@ -162,6 +162,7 @@ done < <(jq -r '.permissions.deny[] | select(startswith("Bash(")) | select(test(
 [ -z "$bad" ] && pass "頭の線でない deny は allow の穴を塞ぐものだけ（Codex の rules に要らない）" || fail "頭の線でも allow の穴塞ぎでもない deny（Codex の rules にどう引くか決める）:$bad"
 # force-with-lease は自分の課題の branch だけに通し、main に当たる形は deny で断る（docs/decisions/2026-11-10-force-with-lease-own-branch-only.md）。
 # Claude Code の当て方を写す: 規則は命令の全体に当て、* は空を含む任意の文字列。末尾の「 *」が唯一の * なら、空白の無い素の命令にも当たる（:* も同じ）
+# 末尾の :* は「 *」と読まれるので、refspec の「:<ref>」で終わる形は末尾を :** と書く（* が2つ続いても任意の文字列）
 out=$(python3 - package/settings.json <<'EOF'
 import json, re, sys
 perm = json.load(open(sys.argv[1], encoding="utf-8"))["permissions"]
@@ -180,14 +181,32 @@ def verdict(cmd):
 cases = {
     "allow": ["git push --force-with-lease", "git push --force-with-lease origin HEAD",
               "git push --force-with-lease origin andon/A-0001-fix-main-page",
-              "git push --force-with-lease origin HEAD:andon/A-0001-maintenance"],
+              "git push --force-with-lease origin HEAD:andon/A-0001-maintenance",
+              "git push --force-with-lease origin andon/A-0001-delete-tags"],
     "deny": ["git push --force-with-lease origin main", "git push origin main --force-with-lease",
              "git push --force-with-lease origin HEAD:main", "git push origin HEAD:main --force-with-lease",
              "git push --force-with-lease origin andon/A-0001-x:main", "git push --force-with-lease origin +HEAD:main",
              "git push --force-with-lease origin +main", "git push --force-with-lease origin refs/heads/main",
              "git push --force-with-lease origin HEAD:refs/heads/main", "git push origin HEAD:refs/heads/main --force-with-lease",
              "git push --force-with-lease=main:abc123 origin HEAD:main", "git push --force-with-lease origin main andon/A-0001-x",
-             "git push --force-with-lease --all origin", "git push --all --force-with-lease", "git push --mirror --force-with-lease origin"],
+             "git push --force-with-lease --all origin", "git push --all --force-with-lease", "git push --mirror --force-with-lease origin",
+             # --force は許さない・消す形と tag の形も通さない（A-0200）
+             "git push --force-with-lease --force", "git push --force-with-lease --force origin HEAD", "git push --force-with-lease origin HEAD --force",
+             "git push --force-with-lease -f origin HEAD", "git push --force-with-lease origin HEAD -f",
+             "git push --force-with-lease --delete origin andon/A-0001-x", "git push --force-with-lease origin --delete andon/A-0001-x",
+             "git push --force-with-lease -d origin andon/A-0001-x", "git push --force-with-lease origin :andon/A-0001-x",
+             "git push --force-with-lease origin +:andon/A-0001-x", "git push --force-with-lease --prune origin HEAD",
+             "git push --force-with-lease --tags", "git push --force-with-lease origin --tags", "git push --force-with-lease --follow-tags origin HEAD",
+             "git push --force-with-lease origin tag v1.0.0", "git push --force-with-lease origin refs/tags/v1.0.0",
+             "git push --force-with-lease origin HEAD:refs/tags/v1.0.0",
+             # allow は「git push --force-with-lease」と「git push --force-with-lease origin <1語>」だけ。1語は旗でも + でもない（A-0200 のレビュー）
+             "git push --force-with-lease origin -fu",
+             "git push --force-with-lease origin -uf HEAD", "git push --force-with-lease origin HEAD -vf",
+             "git push --force-with-lease origin +v1.0", "git push --force-with-lease origin +HEAD:andon/A-0001-x",
+             "git push --force-with-lease origin HEAD andon/A-0001-x"],
+    # origin より前に旗を置く形は allow に当たらず、人に聞く（-fu も --force-if-includes も）
+    "ask": ["git push --force-with-lease upstream HEAD", "git push --force-with-lease -u origin HEAD",
+            "git push --force-with-lease -fu origin HEAD:refs/heads/andon/review", "git push --force-with-lease --force-if-includes origin HEAD"],
 }
 for want, cmds in cases.items():
     for c in cmds:
@@ -200,7 +219,7 @@ while IFS= read -r l; do
 done <<<"$out"
 # 人のファイル（ADR-0005 決めたこと 4 の (c)）への書き換えを deny する。今の Claude Code は Write・NotebookEdit・MultiEdit を Edit(path) の規則で引き、
 # Write(path) の規則は受け付けても当たらない。絶対パスは //（単独の / は設定の置き場からの相対）。Codex には同じ線を引けない（docs/image.md）
-for f in andon.toml AGENTS.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json'; do
+for f in andon.toml AGENTS.md AGENTS.worker.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json'; do
   jq -e --arg r "Edit(//workspace/$f)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
     && pass "settings は人のファイル /workspace/$f の書き換えを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
 done

@@ -19,46 +19,50 @@ secret_patterns=(
   'sk-ant-[A-Za-z0-9_-]{20,}'
   'xox[abprs]-[A-Za-z0-9-]{10,}'
   '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+)
+# 大文字小文字を区別せずに当てる形（PASSWORD=・Api_Key: も）
+secret_patterns_i=(
   '(password|passwd|secret|token|api_?key)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9/+_.-]{12,}'
 )
 
 files=()
 while IFS= read -r -d '' f; do files+=("$f"); done < <(
-  find "$root" -type f -not -name .git -not -path '*/.git/*' -not -path '*/node_modules/*' -print0
+  # tests/.task-tmp は tests/isolation の一時置き場（検査が書いた写しで、repo のファイルではない）
+  find "$root" -type f -not -name .git -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path "$root/tests/.task-tmp/*" -print0
 )
 
 denylist_abs=""
 if [ -f "$denylist" ]; then denylist_abs="$(cd "$(dirname "$denylist")" && pwd)/$(basename "$denylist")"; fi
+targets=()                                          # 禁止リストそのものは検査しない
+for f in "${files[@]}"; do [ "$f" = "$denylist_abs" ] || targets+=("$f"); done
 fail=0
 
 # 当たりは「[種類] ファイル名:行番号」だけを出す。行の中身と当たった語は出さない
 # （public の repo では Actions のログも公開される。秘密や固有の値がログに残らないように）。
-report() { # report <ラベル> <ファイル> <行番号の並び>
-  local n
-  for n in $3; do echo "[$1] ${2#"$root"/}:$n"; done
+report() { # report <ラベル> <ファイル> <行番号>
+  echo "[$1] ${2#"$root"/}:$3"
 }
 
-scan() { # scan <ラベル> <grep の引数...>
+# scan <ラベル> <grep の引数...>: 全ファイルに grep を1回（xargs が引数の長さで分けるときだけ数回）当てる。
+# -Z でファイル名の後ろを NUL にし、行番号だけを読む（ファイル名に : があっても切り違えない）。
+scan() {
   local label=$1; shift
-  local f nums
-  for f in "${files[@]}"; do
-    [ "$f" = "$denylist_abs" ] && continue          # 禁止リストそのものは検査しない
-    nums="$(grep -InE -e "$@" -- "$f" 2>/dev/null | cut -d: -f1 || true)"
-    if [ -n "$nums" ]; then report "$label" "$f" "$nums"; fail=1; fi
-  done
+  local f rest
+  [ "${#targets[@]}" -gt 0 ] || return 0
+  while IFS= read -r -d '' f && IFS= read -r rest; do
+    report "$label" "$f" "${rest%%:*}"; fail=1
+  done < <(printf '%s\0' "${targets[@]}" | xargs -0 grep -HInZ "$@" -- 2>/dev/null || true)
 }
 
-for p in "${secret_patterns[@]}"; do scan "secret" "$p"; done
+args=(); for p in "${secret_patterns[@]}"; do args+=(-e "$p"); done
+scan "secret" -E "${args[@]}"
+args=(); for p in "${secret_patterns_i[@]}"; do args+=(-e "$p"); done
+scan "secret" -iE "${args[@]}"
 
 if [ -f "$denylist" ]; then
-  while IFS= read -r word || [ -n "$word" ]; do
-    case "$word" in ''|'#'*) continue ;; esac
-    for f in "${files[@]}"; do
-      [ "$f" = "$denylist_abs" ] && continue
-      nums="$(grep -IniF -e "$word" -- "$f" 2>/dev/null | cut -d: -f1 || true)"
-      if [ -n "$nums" ]; then report "denylist" "$f" "$nums"; fail=1; fi
-    done
-  done < "$denylist"
+  words=$(mktemp); trap 'rm -f "$words"' EXIT
+  grep -v -e '^$' -e '^#' -- "$denylist" >"$words" || true   # 空行と # の行は語ではない（空の語は全行に当たる）
+  [ -s "$words" ] && scan "denylist" -iF -f "$words"
 fi
 
 if [ "$fail" -ne 0 ]; then

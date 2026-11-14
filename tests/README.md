@@ -8,9 +8,9 @@
 
 ## セルの本物から切り離す
 
-検査はセルの本物の台帳と HOME に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読むと `tests/lib/isolate.sh` も読み、一時ディレクトリから上の git の repo を探さないようにして（`GIT_CEILING_DIRECTORIES`）、受け継いだ `KANBAN_ROOT`・`CLAUDE_CONFIG_DIR`・`CODEX_HOME`・`ANDON_HOME`・`XDG_STATE_HOME`・`HC_*` を外す。台帳の CLI は、上に `kanban/` が無いと git の main checkout から上の `projects/*/kanban` を探すので、TMPDIR が repo の中にあると、一時ディレクトリで打った検査がセルの台帳に届く（[decisions/2026-11-11-tests-isolated-from-cell.md](../docs/decisions/2026-11-11-tests-isolated-from-cell.md)）。
+検査はセルの本物の台帳と HOME に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読むと `tests/lib/isolate.sh` も読み、一時ディレクトリから上の git の repo を探さないようにして（`GIT_CEILING_DIRECTORIES`）、受け継いだ `KANBAN_ROOT`・`CLAUDE_CONFIG_DIR`・`CODEX_HOME`・`ANDON_HOME`・`XDG_STATE_HOME`・`XDG_CONFIG_HOME`・`XDG_DATA_HOME`・`HC_*` を外し、`ANDON_WORKSPACE`・`GHQ_ROOT` は一時ディレクトリの中の無い場所へ向ける（外すと既定がセルの本物を指す）。台帳の CLI は、上に `kanban/` が無いと git の main checkout から上の `projects/*/kanban` を探すので、TMPDIR が repo の中にあると、一時ディレクトリで打った検査がセルの台帳に届く（[decisions/2026-11-11-tests-isolated-from-cell.md](../docs/decisions/2026-11-11-tests-isolated-from-cell.md)）。
 
-確かめるのは `tests/isolation [<tests/x.sh>...]`（手で打つ。全部で十数分）。偽のセル（番兵の台帳と HOME）を作り、`KANBAN_ROOT`・`HOME`・`CLAUDE_CONFIG_DIR`・`XDG_STATE_HOME` などを番兵へ、TMPDIR を repo の写しの中に向けて `go test ./...` と `tests/*.sh` を回す。番兵が1つでも変われば、変わったものを出して落ちる（go が自分で書く `~/.config/go` の telemetry は数えない）。`ANDON_TEST_SKIP=tests/image.sh` で image の検査を飛ばせる。
+確かめるのは `tests/isolation [<tests/x.sh>...]`（手で打つ。全部で十数分）。偽のセル（番兵の台帳と HOME と、セルの repo の根・`GHQ_ROOT`）を作り、`KANBAN_ROOT`・`HOME`・`CLAUDE_CONFIG_DIR`・`XDG_STATE_HOME` などを番兵へ、TMPDIR を repo の写しの中に向けて `go test ./...` と `tests/*.sh` を回す。番兵が1つでも変われば、変わったものを出して落ちる（go が自分で書く `~/.config/go` の telemetry は数えない）。`ANDON_TEST_SKIP=tests/image.sh` で image の検査を飛ばせる。
 
 ## public 検査の禁止リスト
 
