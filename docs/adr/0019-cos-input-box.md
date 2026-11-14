@@ -1,6 +1,6 @@
 # ADR-0019: 人の書きかけに `<news>` を混ぜない（仕様・設計。2026-11-11。Chief Engineer の課題 A-0128）
 
-- 状態: **提案（2026-11-11）**。人が 2026-11-11 に「決めた」と言った（Chief Engineer の対話 A-0128）。人が PR をマージした日が決定の日（[decisions/2026-11-11-adr-0019-cos-input-box.md](../decisions/2026-11-11-adr-0019-cos-input-box.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-11）**。人が 2026-11-11 に「決めた」と言った（Chief Engineer の対話 A-0128）。人が PR をマージした日が決定の日（[decisions/2026-11-11-adr-0019-cos-input-box.md](../decisions/2026-11-11-adr-0019-cos-input-box.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: dispatcher が Chief of Staff の入力欄へ打つ口（経路③の `<news>` と、プロバイダに切られたときの「続けて」）を、人の書きかけに混ざらない形にすること。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
 - 入力: 依頼書 A-0128（人の発言 2026-11-11 と Chief of Staff の経緯・追記）、A-0127 の報告と候補（c1〜c4）、[dispatcher.md](../dispatcher.md) §2.4・§3〜§4.4、`internal/dispatcher/deliver.go`・`pickup.go`・`drain.go`、`package/hooks/`、A-0078 の実測の行、[ADR-0010](0010-news-ack.md)。

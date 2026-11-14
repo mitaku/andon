@@ -1,6 +1,6 @@
 # ADR-0012: 止まった担当を resume で起動し直す・worktree の置き場（仕様・設計。2026-11-10。課題 A-0034）
 
-- 状態: **提案（2026-11-10）**。人が 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0034）。人が PR をマージした日が決定の日。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-10）**。人が 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0034）。人が PR をマージした日が決定の日。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: (a) セルが起き直したあと、`doing` の担当とレビュアーをハーネスのセッションの resume で続きから起動する入口と手順。(b) worktree の置き場を永続の場所へ移すこと。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
 - 入力: 題（人の1行。2026-11-10）、人の発言（2026-11-10。「再度起すときは resume したほうがいいんじゃないかなぁ」「マウントするか worktree のディレクトリを検討する必要あるね」「workspace に .worktree とかを置くとかがいいんじゃないかな？」）、Chief of Staff の経緯（A-0010・A-0033・A-0033 のレビュアーが 02:14 の起き直しで素のシェルに戻り、worktree が消えた。`andon issue start` が「branch がもうある」で止まった）、`internal/issue/start.go`・`finish.go`、`internal/spawn/spawn.go`、`internal/dispatcher/pickup.go`・`loop.go`・`fallback.go`、`package/compose.yaml`・`internal/boot/owners.go`、`package/templates/*.md`、[dispatcher.md](../dispatcher.md) §2.3・§2.8、[operate.md](../operate.md) §8（引っ越し）、[image.md](../image.md)（信頼の表）、[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表、CoS skill の止まった担当の表、Claude Code 2.1.322 と Codex 0.166.0 の `--help`、セルでの実測（別の cwd から `claude --resume <id> --fork-session` が通る。`hc get` の `keep: true` と argv・cwd・ラベルの保持）。

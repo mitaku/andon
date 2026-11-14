@@ -1,7 +1,7 @@
 # セルを立てて1本流す（手順）
 
-- 状態: **手順**（2026-11-05 起草。[design.md](design.md) §5.2 の P7 の準備）。読み手は人。ホスト（docker と bash がある Linux か WSL）で打つ。
-- 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[dispatcher.md](dispatcher.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。コードを読んで書いた。**打って確かめたものではない**（実測は P7 で人がする。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す）。
+- 状態: **手順**（2026-11-05 起草。[design.md](design.md) §5.2 の P7「セルを立てて1本流す」の手順として書き、P7 の実測と日々の運用で直しながら今の形になった）。読み手は人。ホスト（docker と bash がある Linux か WSL）で打つ。
+- 入力（正）: andon main の `README.md`・`init/`・`internal/plantinit`・`internal/boot`・`docs/image.md`・[dispatcher.md](dispatcher.md)・[adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)。節ごとに打ち直して確かめたものではなく、コードに合わせて直し続けている。この文書の「通ったら見えるもの」と食い違えば、実測が正で、この文書を直す。
 - 書き方: `<owner>`（GitHub のオーナー）・`<版>`（image の tag）・`<email>` は自分の値に置き換える。セルの名前（slug）は例として `home`。
 
 ## 役の配置と起動（一覧）
@@ -35,9 +35,9 @@
 - **納品物 `files/`**: `andon publish` が `<日付>-<slug>` で置き、files サーバが公開する。git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。
 - **symlink にしない理由**: 委譲は「人だけが書く」。これを、セルの repo は人のもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
 
-## 0. 先に知っておくこと: 通らなかった所（直した）
+## 0. 先に知っておくこと: 起草のあとに見つけて直した所
 
-コードを読んで見つけた3つは直した。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon issue start` の中身が無い」（10）。
+起草のときにコードを読んで見つけた3つは直し済みで、どれも今は通る。F1「image に `andon` が焼かれていない」と `package/environment.md` が無いこと（image が `/opt/andon/bin/andon` を持ち、`tests/image.sh` が CI の実ビルドで 2・3・5 の道を通す）、F2「`andon chief-of-staff` の中身が無い」（9）、F3「`andon issue start` の中身が無い」（10）。
 
 P7 で見つけた F4「セルの `andon` が uid 1001 で、ホストの利用者（uid 1000）の持ち物のセルの repo を読み書きできない」も直した。`andon` は uid・gid 1000 で動く（WSL・cloud-init の既定の利用者と同じ）。`.ssh/authorized_keys` が読めず `ssh は無効` になる・`mkdir /workspace/artifacts: permission denied` の警告・7 の `ghq get` と 8 の `mkdir` が落ちる、はこれが原因だった。前の image で作った volume（中身が uid 1001 の持ち物）は、boot が起動のたびに `andon` の持ち物へ直すので、作り直さなくてよい（`down -v` は要らない）。
 

@@ -1,6 +1,6 @@
 # ADR-0010: 通知を「記録だけ」と「届ける」に分け、`<no-reply>` を `andon news ack` に替える（仕様・設計。2026-11-09。課題 A-0009）
 
-- 状態: **提案（2026-11-09）**。人が PR をマージした日が決定の日（[decisions/2026-11-09-adr-0010-news-ack.md](../decisions/2026-11-09-adr-0010-news-ack.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-09）**。人が PR をマージした日が決定の日（[decisions/2026-11-09-adr-0010-news-ack.md](../decisions/2026-11-09-adr-0010-news-ack.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: dispatcher が Chief of Staff に届ける通知のうち、Chief of Staff が受けても何もしないものを届けないこと（記録には残す）。Chief of Staff が「人に言うことが無い」と示す方法を、答えの文字列（`<no-reply>`）から command（`andon news ack`）に替えること。移行のしかた。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（記録だけの通知の置き場・ラベル `news.ack`）は「決めたこと」に形を書き、実装の課題が contract.md・`schema/`・dispatcher.md・chief-of-staff skill に写す（それまでは提案）。
 - 入力: 依頼書 A-0009（人の発言と Chief of Staff の推し。2026-11-09）、[dispatcher.md](../dispatcher.md) §2.2〜§3.1・§5、[contract.md](../contract.md) §0・§6・§8・§9、chief-of-staff skill §5 の「`<news>` の読み方」の表、[decisions.md](../decisions.md) の 2026-11-03（配達役を1つに）・2026-11-05（F8・`news.replied` の決め方）の行、`internal/dispatcher/`（今の拾い方。出典）。

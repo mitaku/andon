@@ -1,6 +1,6 @@
 # Base image のビルド
 
-`image/Dockerfile` は Ubuntu 24.04 に備品と `package/`（`/opt/andon`）を焼く。CLI は `image/aqua/` の版と checksum で固定し、プロジェクトの言語は mise で管理する。Claude Code は版つきのバイナリを直接取得し、固定 SHA-256 を確認してから配置する。版と checksum の出典は [公式 manifest](https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json)。セル固有の設定と起動処理は後続の工程で足す。
+`image/Dockerfile` は Ubuntu 24.04 に備品と `package/`（`/opt/andon`）を焼く。CLI は `image/aqua/` の版と checksum で固定し、プロジェクトの言語は mise で管理する。Claude Code は版つきのバイナリを直接取得し、固定 SHA-256 を確認してから配置する。版と checksum の出典は [公式 manifest](https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json)。セル固有の設定と起動処理は boot（`andon boot`。[operate.md](operate.md)）が起動のたびに足す。
 
 ## ローカルで確かめる
 
@@ -37,9 +37,9 @@ bash tests/image.sh
 
 セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起動する直前の `andon issue start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
 
-足すのが根だけで足りる理由は、効く範囲の実測（image の版。使い捨ての HOME で各条件を起動し、最初の画面だけを読んだ）:
+足すのが根だけで足りる理由は、効く範囲の実測（測った版は image が固定しているもの。この表は版を書かない。使い捨ての HOME で各条件を起動し、最初の画面だけを読んだ）:
 
-| 信頼した所 → 起動した所 | Claude Code 2.1.318 | Codex 0.166.0 |
+| 信頼した所 → 起動した所 | Claude Code | Codex |
 |---|---|---|
 | git の外の親 → その下の dir | 効く（`/` まで親を遡る） | 信頼の画面がもともと出ない |
 | git の repo の根 → repo の中の dir | 効く | 効く（画面に「Trusting will apply to the repository root」と出る） |
@@ -47,7 +47,7 @@ bash tests/image.sh
 | 元の repo の根 → その worktree | 効く | 効く |
 | worktree の置き場（実測は旧の `~/.herdr/worktrees`。今の `/workspace/.worktrees` も worktree の根より上の親）→ worktree | 効かない | 効かない |
 
-`tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起動しても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。版を上げたら同じ表を測り直す。
+`tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起動しても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。Claude Code か Codex の版を上げたら同じ表を測り直す。
 
 ## Codex の承認と sandbox
 
@@ -92,7 +92,7 @@ Codex のフックは配っていない（フックは Claude Code だけ。[con
 
 配る版と日々のサイクルを分ける。日々の直しはセルで andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
 
-PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでのセルはそれを使う）。配布は Linux amd64 から始める。GHCR の package は private のまま運用し、公開への変更と tag を切るのは人が行う。
+PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでのセルはそれを使う）。配布は Linux amd64 から始める。GHCR の package は Public（2026-11-13 に、認証なしで tag の一覧が取れることを確かめた）。tag を切るのは人が行う。
 
 `packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
 
