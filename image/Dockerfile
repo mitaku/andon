@@ -51,7 +51,6 @@ ENV AQUA_GLOBAL_CONFIG=/opt/andon-aqua/aqua.yaml
 ENV AQUA_POLICY_CONFIG=/opt/andon-aqua/aqua-policy.yaml
 ENV GHQ_ROOT=/workspace/.ghq
 ENV CLAUDE_CODE_NO_FLICKER=1
-ENV ENABLE_TOOL_SEARCH=auto
 USER andon
 
 ARG AQUA_INSTALLER_VERSION=v4.0.5
