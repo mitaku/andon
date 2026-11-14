@@ -26,6 +26,10 @@
 ## 0. 原則
 
 1. **Markdown を読まない。** 依頼書・報告・レビューの報告・skill は人と AI のもの。機械が判定に使う値は、ここに並ぶ JSON／YAML のキーにだけ持つ（人の決定 2026-11-04。仮設の工場で Markdown を正規表現で読む形は端が尽きなかった）。
+   例外は次の3つだけで、どれも判定に使う値を読むのではなく、文から行や語を拾うか探すだけ。新しく足さない。
+   - `andon triage collect` は `done`・`review` の課題の `report.md` から `## Next`・`## Remember`・`## 人に聞くこと`・`For AGENTS.md:`・見送りの行を拾って項目にする（見出しが無い・読めない報告は `unreadable` の項目にして、トリアージの担当が自分で読む）。
+   - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
+   - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
 3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と信号の記録（§15）は dispatcher、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
@@ -39,8 +43,8 @@ projects/<slug>/kanban/
   config.yaml                     chief_of_staff（kanban config set。Chief of Staff の端末）
   issues/<id>/
     issue.yaml                     台帳の項目 ＋ Andon の予約キー（§2。Chief of Staff が kanban set）
-    brief.md                      人・AI 用（Settings は写し。機械は読まない）
-    report.md                     人・AI 用（機械は読まない）
+    brief.md                      人・AI 用（Settings は写し。機械は判定に読まない。例外は §0 の1）
+    report.md                     人・AI 用（機械は判定に読まない。例外は §0 の1）
     questions.yaml                台帳の問い（§5。text は人向け）
     library/
       report.json                 担当（§4）

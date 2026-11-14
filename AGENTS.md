@@ -4,7 +4,7 @@
 - `tests/run` を同時に2本走らせない（mise の置き場と CPU を取り合う）。`tests/isolation` は15分以上かかるので、hc の端末（`hc run --bg`）で裏に回す。`package/` を変えると `tests/run --changed` がほぼ全部を走らせて遅い。skill だけの変更なら `tests/package.sh` と CI で足りる。
 - 検査はセルの本物（台帳・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。検査の土台（`tests/lib/`・fixture・HOME や台帳を読む検査）を変えたら `tests/isolation` を打つ（偽のセルで全部を回し、番兵が変われば落ちる）。
 - この repo は public。秘密・個人の環境に固有の値（セル名・ホスト名・ポート番号・メールアドレス・ユーザー名・ホームのパス）・案件に固有の名前を入れない。例は架空の名前（`example.com`・`<owner>`・`sample-site`）で。`tests/public.sh` が検査する。禁止リストは repo の外に置く（書き方は `tests/README.md`。リストの語を repo に書かない）。`.github/workflows/**` と `tests/public*.sh` を弱める変更は人が見る。
-- 設計の正は `docs/design.md` と `docs/adr/`、決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。迷ったら推奨案で進めて報告に書く。
+- 設計の正は `docs/design.md` と `docs/adr/`、決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` で足す。迷ったら推奨案で進めて報告に書く。
 - boot の実測は `tests/andon-boot.sh` の `env -i` と一時領域の指定を使う。`HOME` だけを変える手順は使わない。
 - `package/skills` の文を `playbooks/` へ移したら、`tests/words.sh` の禁止語に当たらないか回す。
 - 否定の grep（`! grep -q <古い名前>`）には、当たる場合があることを同じ所で確かめる行を添える（添えないと、検査が何も見ていなくても通る）。
