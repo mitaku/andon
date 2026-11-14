@@ -92,6 +92,18 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: go build (andon and kanban for tests/*.sh)
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/bin/andon" ./cmd/andon
+          go build -ldflags "-X main.version=${GITHUB_SHA::12}" -o "$RUNNER_TEMP/bin/kanban" ./cmd/kanban
+          {
+            echo "ANDON_BIN=$RUNNER_TEMP/bin/andon"
+            echo "KANBAN_BIN=$RUNNER_TEMP/bin/kanban"
+          } >>"$GITHUB_ENV"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: tests/*.sh (including image build and runtime)
         env:
