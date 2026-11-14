@@ -27,13 +27,18 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	}
 	// 受けるのは、今回集めた key か、記録にある key（Chief of Staff が見直すとき）だけ。
 	// 課題を閉じるのは今の未担当の候補だけ（古い記録に載っていたことを理由に閉じない）。
-	inventory, err := l.collect()
+	// 記録と信号は1回だけ読み、集めるのと照らすのに同じものを使う。
+	records, err := l.records()
 	if err != nil {
 		return fail("出どころを読めない")
 	}
-	records, err := l.records()
+	signals, err := l.loadSignals()
 	if err != nil {
-		return err
+		return fail("出どころを読めない")
+	}
+	inventory, err := l.collectFrom(records, signals)
+	if err != nil {
+		return fail("出どころを読めない")
 	}
 	current := map[string]string{}
 	memoryPath := map[string]string{}
@@ -48,10 +53,6 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		historical = append(historical, r.items...)
 	}
 	// 信号の項目は、collect のあと active でなくなった（CI が通った・issue が閉じた）ものも記録の信号と照らして受ける。
-	signals, err := l.loadSignals()
-	if err != nil {
-		return err
-	}
 	for _, it := range items {
 		_, inCurrent := current[it.key()]
 		known := inCurrent || slices.ContainsFunc(historical, func(h item) bool { return h.key() == it.key() })
@@ -240,7 +241,7 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 	case "person":
 		brief := "出どころ: " + first.key() +
 			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
-			"\n推し: " + orDefault(first["pick"], "なし") +
+			"\n推奨案: " + orDefault(first["pick"], "なし") +
 			"\n理由: " + first.str("reason") + "\n"
 		newID, err := l.kanban(brief, "add", first.str("question")+personSuffix, "--brief", "-")
 		if err != nil {
@@ -335,7 +336,7 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))
 		}
 	}
-	b.WriteString("\n## 人へ（人の課題）\n| 課題 | 問い | kind | 推し |\n|---|---|---|---|\n")
+	b.WriteString("\n## 人へ（人の課題）\n| 課題 | 問い | kind | 推奨案 |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if it.decision() == "person" {
 			b.WriteString(row(it["created_issue"], it["question"], orDefault(it["kind"], "判断がつかない"), orDefault(it["pick"], "なし")))

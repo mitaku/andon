@@ -1,7 +1,6 @@
 package boot
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"andon/internal/delegate"
 	"andon/internal/dispatcher"
 	"andon/internal/spawn"
 )
@@ -60,24 +60,8 @@ func (e Env) has(tool string) (string, bool) {
 	return p, err == nil
 }
 
-// dotenv は <ws>/.env の key の値（最後の行）。無ければ def。
-func (e Env) dotenv(key, def string) string {
-	f, err := os.Open(filepath.Join(e.Workspace, ".env"))
-	if err != nil {
-		return def
-	}
-	defer f.Close()
-	v := def
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		if k, val, ok := strings.Cut(s.Text(), "="); ok && strings.TrimSpace(k) == key {
-			if val = strings.Trim(strings.TrimSpace(val), `"'`); val != "" {
-				v = val
-			}
-		}
-	}
-	return v
-}
+// dotenv は <ws>/.env の key の値。無ければ def。
+func (e Env) dotenv(key, def string) string { return delegate.Dotenv(e.Workspace, key, def) }
 
 func listening(port string) bool {
 	c, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 500*time.Millisecond)
@@ -300,10 +284,8 @@ func dropStaleRoles(e Env) error {
 		}
 		return fmt.Errorf("%w: %s の前に出ているものが %s なので触らない（hc kill %s で片付けてから andon boot）", errOldDispatcher, t.Address, fg, t.Address)
 	}
-	for _, args := range [][]string{{"keep", t.Address, "--off"}, {"kill", t.Address}, {"rm", t.Address}} {
-		if o, err := exec.Command(hc, args...).CombinedOutput(); err != nil {
-			return fmt.Errorf("%w: hc %s: %v: %s（hc kill %s で片付けてから andon boot）", errOldDispatcher, strings.Join(args, " "), err, strings.TrimSpace(string(o)), t.Address)
-		}
+	if err := spawn.DiscardWith(hc, t.Address); err != nil {
+		return fmt.Errorf("%w: %v（hc kill %s で片付けてから andon boot）", errOldDispatcher, err, t.Address)
 	}
 	e.logf("前の版の係の端末 %s（%s）を片付けた", t.Address, oldDispatcher)
 	return nil

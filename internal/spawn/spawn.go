@@ -65,16 +65,22 @@ func firstLine(s string) string {
 	return s
 }
 
-// RepoPath は $GHQ_ROOT（無ければ ghq root）/<repo>。
-func RepoPath(repo string) (string, error) {
-	root := os.Getenv("GHQ_ROOT")
-	if root == "" {
-		if out, err := Output(nil, "", "ghq", "root"); err == nil {
-			root = out
-		}
+// GhqRoot は案件の repo の置き場: $GHQ_ROOT、無ければ ghq root。どちらも無ければ誤り。
+func GhqRoot() (string, error) {
+	if root := os.Getenv("GHQ_ROOT"); root != "" {
+		return root, nil
 	}
-	if root == "" {
-		return "", fmt.Errorf("GHQ_ROOT が無い")
+	if out, err := Output(nil, "", "ghq", "root"); err == nil && out != "" {
+		return out, nil
+	}
+	return "", errors.New("GHQ_ROOT が無く ghq root も読めない")
+}
+
+// RepoPath は GhqRoot()/<repo>。
+func RepoPath(repo string) (string, error) {
+	root, err := GhqRoot()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(root, repo), nil
 }
