@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/contract"
 	"andon/internal/process"
 	"andon/internal/signal"
 
@@ -118,6 +119,15 @@ func TestSignalFieldsInProcess(t *testing.T) {
 		if len(where) == 1 && strings.HasSuffix(where[0], ":positions") == state {
 			t.Errorf("signals:%s の置き場が違う（%s）。状態は Active・Episodes・DeliveredEpisode だけ", f, where[0])
 		}
+	}
+}
+
+// TestSettleFieldsInProcess は andon issue settle の記録 1 件（contract.Settled。<slug>.settle.json）の一番上の項目が、
+// process/states/ に settle:<項目> で 1 回ずつ出ることを見る（ADR-0017 受け入れ条件 3・7）。
+func TestSettleFieldsInProcess(t *testing.T) {
+	seen := recordFields(t, filepath.Join("..", "..", "process", "states"), "settle")
+	for _, m := range mismatches("settle", topFields(contract.Settled{}), seen) {
+		t.Error("contract.Settled: " + m)
 	}
 }
 

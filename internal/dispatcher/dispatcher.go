@@ -327,7 +327,7 @@ func (p *project) pass() (bool, error) {
 			}
 		case "review":
 			p.review(t, rep)
-			p.humanMerge(t, rep, time.Now()) // 人が GitHub でマージした（dispatcher.md §2.7）
+			p.humanMerge(t, rep) // 人が GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		}
 	}
 	p.forget()

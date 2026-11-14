@@ -682,9 +682,6 @@ func (s *State) ensure() {
 	if s.First == nil {
 		s.First = map[string]bool{}
 	}
-	if s.Watch == nil {
-		s.Watch = map[string]Watch{}
-	}
 	if s.Approved == nil {
 		s.Approved = map[string]Notification{}
 	}
