@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"encoding/json"
-	"strings"
 
 	"andon/internal/contract"
 	"andon/internal/ledger"
@@ -38,14 +37,5 @@ func (p *project) humanMerge(t ledger.Issue, rep *contract.Report) {
 			n.Detail["held"] = clean(held, 200)
 		}
 		p.notify(id, n.Kind, n.Detail)
-	}
-}
-
-// forget は review にいない課題の控え（Waits）を捨てる（片付いた・doing に戻った）。
-func (p *project) forget() {
-	for key := range p.st.Waits {
-		if id, _, _ := strings.Cut(key, "#"); p.status(id) != "review" {
-			delete(p.st.Waits, key)
-		}
 	}
 }

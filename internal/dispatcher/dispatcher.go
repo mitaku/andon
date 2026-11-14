@@ -17,7 +17,7 @@
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、
 // 離席中は Stop フックの待ち役（wait.go。経路③）が合図で Chief of Staff を起動する。dispatcher は入力欄へ <news> を打たない。dispatcher.md §3。届けない kind は記録だけ（route.go の表。§3.2）。
 // 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
-// 例外は dispatcher が書き手の library/ のファイル（ゲートの記録の merged・corrections.json。contract.md §1）。
+// 例外は dispatcher が書き手の library/ のファイル（corrections.json。contract.md §1）。ゲートとマージは andon issue merge（loop.go の merge）。
 package dispatcher
 
 import (
@@ -326,11 +326,10 @@ func (p *project) pass() (bool, error) {
 				p.reviewRequest(t, rep)
 			}
 		case "review":
-			p.review(t, rep)
+			p.merge(t)           // ゲートとマージと片付け（andon issue merge。dispatcher.md §5 の P6a）
 			p.humanMerge(t, rep) // 人が GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		}
 	}
-	p.forget()
 	p.impacts()         // マージのあとの影響（dispatcher.md §2.5）
 	p.corrections()     // 人の手直し（dispatcher.md §2.6・contract.md §14）
 	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
