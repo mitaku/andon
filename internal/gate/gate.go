@@ -25,6 +25,7 @@ import (
 	"andon/internal/delegate"
 	"andon/internal/flock"
 	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 // Usage は andon gate --help の中身。
@@ -445,15 +446,10 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	if len(cmds) == 0 {
 		return checks, nil
 	}
-	root := os.Getenv("GHQ_ROOT")
-	if root == "" {
-		out, err := exec.Command("ghq", "root").Output()
-		if err != nil {
-			return nil, errors.New("GHQ_ROOT が無い")
-		}
-		root = strings.TrimSpace(string(out))
+	dir, err := spawn.RepoPath(repo)
+	if err != nil {
+		return nil, err
 	}
-	dir := filepath.Join(root, repo)
 	scratch, err := os.MkdirTemp("", "andon-gate-")
 	if err != nil {
 		return nil, err

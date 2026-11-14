@@ -43,7 +43,7 @@ func TestOpenUsesKanban(t *testing.T) {
 // 人が短く打った id と、移す前の log.jsonl の id は 4 桁に揃えて読む。
 func TestCanonID(t *testing.T) {
 	for in, want := range map[string]string{"A-5": "A-0005", "A-05": "A-0005", "A-0005": "A-0005", "A-12345": "A-12345", "Y-T-7": "Y-T-0007", "A-0": "A-0", "A-x": "A-x", "abc": "abc", "-5": "-5", "A-": "A-",
-		"A-5-r1": "A-0005-r1", "A-0005-r01": "A-0005-r1", "A-0005-r0": "A-0005-r0", "A-0005-r": "A-0005-r", "A-0005-rx": "A-0005-rx"} {
+		"A-5-r1": "A-0005-r1", "A-0005-r01": "A-0005-r1", "A-0005-r0": "A-0005-r0", "A-0005-r": "A-0005-r", "A-0005-rx": "A-0005-rx", "A-12345-r3": "A-12345-r3"} {
 		if got := CanonID(in); got != want {
 			t.Errorf("CanonID(%q) = %q, want %q", in, got, want)
 		}
@@ -53,7 +53,7 @@ func TestCanonID(t *testing.T) {
 // レビュアーの課題は親のすぐあとに回の順で並ぶ（番号が 4 桁を超えても）。
 func TestIdLess(t *testing.T) {
 	ids := []string{"A-10000", "A-0006", "A-0005-r10", "A-0005-r2", "A-0005", "A-0005-r1"}
-	sort.SliceStable(ids, func(i, j int) bool { return idLess(ids[i], ids[j]) })
+	sort.SliceStable(ids, func(i, j int) bool { return IDLess(ids[i], ids[j]) })
 	if got := strings.Join(ids, " "); got != "A-0005 A-0005-r1 A-0005-r2 A-0005-r10 A-0006 A-10000" {
 		t.Fatalf("got %s", got)
 	}
@@ -150,6 +150,27 @@ func TestEstimate(t *testing.T) {
 		}
 		if got := l.Estimate(rows, c.task); got != c.estimate {
 			t.Errorf("Estimate(%v) = %q, want %q", c.task, got, c.estimate)
+		}
+	}
+}
+
+// config.yaml の repos は block の並びも flow の並び（repos: [x]）も読む。chief_of_staff・timezone は引用符と行末のコメントを除く。
+func TestConfigReadsReposAnyForm(t *testing.T) {
+	for body, want := range map[string]string{
+		"version: 3\nrepos:\n  - github.com/example/a\n  - \"github.com/example/b\"\n": "github.com/example/a github.com/example/b",
+		"version: 3\nrepos: [github.com/example/a, 'github.com/example/b']\n":          "github.com/example/a github.com/example/b",
+		"version: 3\nrepos: []\n": "",
+		"version: 3\n":            "",
+	} {
+		root := t.TempDir()
+		os.MkdirAll(filepath.Join(root, "kanban"), 0o755)
+		os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte(body+"chief_of_staff: \"t1\" # the CoS\ntimezone: Asia/Tokyo\n"), 0o644)
+		l := At(root)
+		if got := strings.Join(l.Repos(), " "); got != want {
+			t.Errorf("%q: Repos = %q, want %q", body, got, want)
+		}
+		if l.ChiefOfStaff() != "t1" || l.Timezone() != "Asia/Tokyo" {
+			t.Errorf("%q: chief_of_staff %q timezone %q", body, l.ChiefOfStaff(), l.Timezone())
 		}
 	}
 }

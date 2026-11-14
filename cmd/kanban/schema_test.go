@@ -236,7 +236,7 @@ func TestSchemasRefuseWhatTheFormatRefuses(t *testing.T) {
 
 func TestQuestionsFitTheSchema(t *testing.T) {
 	schema := loadSchema(t, "questions.v3.schema.json")
-	root := ledger(t)
+	root := newLedger(t)
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, root, "ask", "W-0001", "one", "--kind", "irreversible")
 	kanban(t, root, "ask", "W-0001", "two")

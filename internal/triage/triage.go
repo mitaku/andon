@@ -23,6 +23,7 @@ import (
 
 	ledgercli "andon/internal/ledger"
 	"andon/internal/signal"
+	"andon/internal/spawn"
 )
 
 // Usage は andon triage の使い方。
@@ -31,7 +32,7 @@ const Usage = "usage: andon triage collect [--limit N]                    台帳
 
 var (
 	idRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
-	slugRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	slugRe   = spawn.SlugRe // schema の project と同じ
 	numberRe = regexp.MustCompile(`^[0-9]{1,6}$`)
 )
 

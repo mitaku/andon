@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -134,48 +133,22 @@ func (l *Ledger) Library(id string) string {
 	return filepath.Join(l.Dir, "issues", id, "library")
 }
 
-// ChiefOfStaff は config.yaml の chief_of_staff（Chief of Staff の端末）。無ければ空。
-func (l *Ledger) ChiefOfStaff() string { return l.configStr("chief_of_staff") }
-
-// Timezone は config.yaml の timezone（ルーチンの schedule と not_before を読む IANA の名前）。無ければ空（UTC）。
-func (l *Ledger) Timezone() string { return l.configStr("timezone") }
-
-// configStr は config.yaml の行頭の `<key>: <値>` の値（引用符と行末のコメントを除く）。無ければ空。
-func (l *Ledger) configStr(key string) string {
-	b, err := os.ReadFile(filepath.Join(l.Dir, "config.yaml"))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		if v, ok := strings.CutPrefix(line, key+":"); ok {
-			if i := strings.Index(v, " #"); i >= 0 {
-				v = v[:i]
-			}
-			return strings.Trim(strings.TrimSpace(v), `"'`)
-		}
-	}
-	return ""
+// ChiefOfStaff は config.yaml の chief_of_staff（Chief of Staff の端末）。無い・読めなければ空。
+func (l *Ledger) ChiefOfStaff() string {
+	c, _ := l.Config()
+	return c.ChiefOfStaff
 }
 
-// Repos は config.yaml の repos（block sequence だけを読む。ほかの書き方は空）。
+// Timezone は config.yaml の timezone（ルーチンの schedule と not_before を読む IANA の名前）。無い・読めなければ空（UTC）。
+func (l *Ledger) Timezone() string {
+	c, _ := l.Config()
+	return c.Timezone
+}
+
+// Repos は config.yaml の repos。無い・読めなければ空。
 func (l *Ledger) Repos() []string {
-	b, err := os.ReadFile(filepath.Join(l.Dir, "config.yaml"))
-	if err != nil {
-		return nil
-	}
-	var repos []string
-	inside := false
-	for _, line := range strings.Split(string(b), "\n") {
-		switch {
-		case strings.TrimRight(line, " \t") == "repos:":
-			inside = true
-		case inside && strings.HasPrefix(strings.TrimLeft(line, " \t"), "- ") && line != strings.TrimLeft(line, " \t"):
-			repos = append(repos, strings.Trim(strings.TrimSpace(strings.TrimLeft(line, " \t")[2:]), `"'`))
-		case inside && line != "" && line == strings.TrimLeft(line, " \t"):
-			inside = false
-		}
-	}
-	return repos
+	c, _ := l.Config()
+	return c.Repos
 }
 
 // Row は log.jsonl の1行（台帳の CLI が書く）。
@@ -358,66 +331,11 @@ func (l *Ledger) reviewers(rows []Row, tasks []Issue, t Issue) ([]string, []stri
 		if a.Str("updated") != b.Str("updated") {
 			return a.Str("updated") < b.Str("updated")
 		}
-		return idLess(a.Str("id"), b.Str("id"))
+		return IDLess(a.Str("id"), b.Str("id"))
 	})
 	ids := make([]string, len(picked))
 	for i, c := range picked {
 		ids[i] = c.Str("id")
 	}
 	return ids, others
-}
-
-// CanonID は人が打った id を台帳の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。docs/ledger.md の Ids）。
-// どちらの形でもなければそのまま。台帳の CLI（kanban）の canonID と同じ。
-func CanonID(id string) string {
-	if base, k, ok := SplitRound(id); ok {
-		return fmt.Sprintf("%s-r%d", canonNumber(base), k)
-	}
-	return canonNumber(id)
-}
-
-func canonNumber(id string) string {
-	i := strings.LastIndex(id, "-")
-	if i <= 0 || i == len(id)-1 || strings.Trim(id[i+1:], "0123456789") != "" {
-		return id
-	}
-	n, err := strconv.Atoi(id[i+1:])
-	if err != nil || n < 1 {
-		return id
-	}
-	return fmt.Sprintf("%s-%04d", id[:i], n)
-}
-
-// SplitRound はレビュアーの課題の id（<親>-r<回>。A-0005-r1）を親の id と回（1 以上）に分ける。違う形なら ok が false。
-func SplitRound(id string) (parent string, round int, ok bool) {
-	i := strings.LastIndex(id, "-r")
-	if i <= 0 || i+2 == len(id) || strings.Trim(id[i+2:], "0123456789") != "" {
-		return "", 0, false
-	}
-	k, err := strconv.Atoi(id[i+2:])
-	if err != nil || k < 1 {
-		return "", 0, false
-	}
-	return id[:i], k, true
-}
-
-// idLess は台帳の id（<prefix>-<n>、レビュアーは <prefix>-<n>-r<回>）を番号・回の順に比べる。
-func idLess(a, b string) bool {
-	ab, ar, _ := SplitRound(a)
-	bb, br, _ := SplitRound(b)
-	if ar == 0 {
-		ab = a
-	}
-	if br == 0 {
-		bb = b
-	}
-	if ab == bb {
-		return ar < br
-	}
-	pa, na, _ := strings.Cut(ab, "-")
-	pb, nb, _ := strings.Cut(bb, "-")
-	if pa != pb || len(na) == len(nb) {
-		return ab < bb
-	}
-	return len(na) < len(nb)
 }

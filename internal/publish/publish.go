@@ -5,7 +5,6 @@
 package publish
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -83,7 +82,7 @@ func Publish(env Env, file, slug string) (string, error) {
 	if err := copyFile(file, filepath.Join(dir, name)); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("http://files.%s.localhost:%s/%s", env.Hostname, port(filepath.Join(env.Workspace, ".env")), name), nil
+	return fmt.Sprintf("http://files.%s.localhost:%s/%s", env.Hostname, delegate.Dotenv(env.Workspace, "PORTLESS_PORT", DefaultPort), name), nil
 }
 
 // copyFile は同じディレクトリの一時ファイルに書いてから rename する。
@@ -111,32 +110,4 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.Rename(out.Name(), dst)
-}
-
-// port は .env の最後の PORTLESS_PORT= の値（引用符と空白を除く）。無ければ DefaultPort。
-func port(envFile string) string {
-	f, err := os.Open(envFile)
-	if err != nil {
-		return DefaultPort
-	}
-	defer f.Close()
-	v := ""
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if rest, ok := strings.CutPrefix(sc.Text(), "PORTLESS_PORT="); ok {
-			v = rest
-		}
-	}
-	// 仮設（cut -d= -f2）と同じく、2つ目の = より後は捨てる。
-	v, _, _ = strings.Cut(v, "=")
-	v = strings.Map(func(r rune) rune {
-		if r == '"' || r == '\'' || r == ' ' {
-			return -1
-		}
-		return r
-	}, v)
-	if v == "" {
-		return DefaultPort
-	}
-	return v
 }

@@ -189,7 +189,7 @@ func TestRoleTerminalIsRefused(t *testing.T) {
 func TestBadInputsStopBeforeAnything(t *testing.T) {
 	ws, _ := setup(t)
 	for _, args := range [][]string{
-		{"Sample"}, {"-x"}, {"a_b"}, {"sample", "--prefix", "s1"}, {"sample", "--repo", "github.com/o"},
+		{"Sample"}, {"-x"}, {"a.b"}, {"sample", "--prefix", "s1"}, {"sample", "--repo", "github.com/o"},
 		{"sample", "--repo", "example.com/o/r", "--repo", "example.com/o/r"}, {"sample", "--title", " "}, {"sample", "other"}, {"sample", "--repo"},
 		{strings.Repeat("a", 29)}, // andon chief-of-staff takes 28 at most (<slug>-cos is a terminal name of 32 at most)
 	} {
