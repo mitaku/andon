@@ -120,6 +120,12 @@ for p in 'projects/*/project.json' gate.local.json andon.toml '**/AGENTS.local.m
 done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
+# commit と PR の帰属を消すのは attribution（includeCoAuthoredBy は v2.0.62 から非推奨。false は v2.1.281 から。A-0204）
+jq -e '.attribution == false and (has("includeCoAuthoredBy") | not)' package/settings.json >/dev/null \
+  && pass "settings は attribution: false で帰属を消す（includeCoAuthoredBy を使わない）" || fail "settings の帰属の消し方が attribution: false でない"
+# ENABLE_TOOL_SEARCH は managed settings の env の1か所（Claude Code の起動のしかたによらず届く。A-0204）
+jq -e '.env.ENABLE_TOOL_SEARCH == "auto"' package/settings.json >/dev/null && ! grep -q ENABLE_TOOL_SEARCH image/Dockerfile image/sshd_config.d/andon.conf \
+  && pass "ENABLE_TOOL_SEARCH は settings の env だけに置く" || fail "ENABLE_TOOL_SEARCH が settings の env に無いか、image の ENV・sshd の SetEnv に残る"
 # ADR-0020 受け入れ条件 2: auto memory を入れ、置き場は /workspace/memory。env で止めない。
 # 置き場の .md は Claude Code が自分で書き込みを許すので、allow に足さない（A-0144 の実測 (c)）
 jq -e '.autoMemoryEnabled == true and .autoMemoryDirectory == "/workspace/memory" and ((.env // {}) | has("CLAUDE_CODE_DISABLE_AUTO_MEMORY") | not)' package/settings.json >/dev/null \
@@ -212,6 +218,13 @@ for want, cmds in cases.items():
     for c in cmds:
         got = verdict(c)
         print(("ok   " if got == want else "FAIL ") + f"force-with-lease の許可ルール: {c} → {got}（期待 {want}）")
+# * の無い規則が、同じ側の別の規則（末尾の「 *」は素の命令にも当たる）に含まれていない（A-0204）
+for kind in ("allow", "deny"):
+    rs = rules(kind)
+    dup = [f"{r} ⊂ {s}" for r in rs if "*" not in r for s in rs if s != r and hit(s, r)]
+    print(("FAIL " if dup else "ok   ") + f"settings の {kind} に別の規則で済む行が無い" + (f": {dup}" if dup else ""))
+# 末尾の「 *」が素の命令にも当たる例（この検査が重なりを見ていることの確かめ）
+print(("ok   " if verdict("git diff") == "allow" and verdict("git status") == "allow" else "FAIL ") + "素の git diff・git status は「 *」の規則で allow")
 EOF
 )
 while IFS= read -r l; do

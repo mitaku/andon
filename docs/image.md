@@ -100,7 +100,7 @@ PR と main の push は、tests の job（`packages` の権限を持たない�
 
 tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の4つで縮める。どれも check の名前（`tests`・`go`）は変えず、飛ばすときも job は成功で終わる（ゲートは PR の head の checks が揃うのを待つので、workflow ごと `paths` で外さない）。
 
-- **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す（go の workflow と同じ）。
+- **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す。release の job も同じく焼いて渡す。`tests/*.sh` を回すのは tests の workflow だけで、go の workflow は回さない（二重に回さない。`workflow_test.go` が確かめる）。
 - **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。
 - **image に関係しない PR では `tests/image.sh` を飛ばす**（下の表）。
 - **文書だけの PR では、文書を読む検査だけを走らせる**（下の「文書だけの PR」）。go の job もこれに従う。
@@ -113,13 +113,13 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 |---|---|---|
 | `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`process/states/issue.yaml`（`andon` に埋め込む）・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
 | `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
-| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、Dockerfile の golang の版を `mise.toml` と突き合わせる |
+| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、`go.mod` の go と Dockerfile の golang の版を `mise.toml` と突き合わせる |
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
 **文書だけの PR では、文書を読む検査だけを走らせる。** PR の変更が全部 `docs/` の下（ADR・決定の記録・設計書・`docs/assets/`）か、root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` のときを、`tests/lib/docs-scope.sh` が文書だけと判定する。`tests/README.md` やコード・知らないパスが1つでも混ざれば全部走る。main の push と tag では必ず全部走る。
 
-- go の job: gofmt・vet・`go test ./...`・build・`tests/andon*.sh`・`kanban.sh` を飛ばし、文書を読む Go のテスト（`internal/chiefengineer` の `TestDocumentedInvocations`。`docs/design.md`・`README.md` に書いた `andon chief-engineer` の呼び出しを打つ）だけを走らせる。
+- go の job: gofmt・vet・`go test ./...`・build を飛ばし、文書を読む Go のテスト（`internal/chiefengineer` の `TestDocumentedInvocations`。`docs/design.md`・`README.md` に書いた `andon chief-engineer` の呼び出しを打つ）だけを走らせる。
 - tests の job: `tests/lib/scope.sh` が選ぶ `tests/*.sh` だけを走らせる（下の「手元は関係する検査だけ」の表と同じ）。文書を読む検査は次のとおり。
 
 | 検査 | 読む文書 | 文書だけの PR で走らせるとき |
