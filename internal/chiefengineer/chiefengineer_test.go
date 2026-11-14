@@ -274,8 +274,9 @@ func TestLedgerRepos(t *testing.T) {
 	}{
 		{"repos:\n  - github.com/example/a\n  - github.com/example/b\n", exitUsage, "台帳の repos が 2 個（github.com/example/a・github.com/example/b）。--repo"},
 		{"repos: []\n", exitUsage, "台帳の repos が 0 個"},
-		{"", exitUsage, "repos が読めない"},
-		{"repos: [github.com/example/sample-site]\n", exitUsage, "repos が読めない"},
+		{"", exitUsage, "台帳の repos が 0 個"},
+		{"repos: [github.com/example/a, github.com/example/b]\n", exitUsage, "台帳の repos が 2 個"},
+		{"- github.com/example/sample-site\n", exitUsage, "repos が読めない"},
 	} {
 		f := newFake(t)
 		f.config(c.repos)
@@ -289,6 +290,12 @@ func TestLedgerRepos(t *testing.T) {
 	f.config("repos:\n  - \"github.com/example/sample-site\"\n")
 	if rc, _, errs := runMain("題"); rc != 0 || !f.has("kanban add 題 --repo github.com/example/sample-site ") {
 		t.Errorf("1つ: rc=%d err=%q", rc, errs)
+	}
+	// flow の並び（repos: [x]）も読む
+	f = newFake(t)
+	f.config("repos: [github.com/example/sample-site]\n")
+	if rc, _, errs := runMain("題"); rc != 0 || !f.has("kanban add 題 --repo github.com/example/sample-site ") {
+		t.Errorf("flow の並び: rc=%d err=%q", rc, errs)
 	}
 	f = newFake(t)
 	f.config("repos:\n  - github.com/example/a\n  - github.com/example/b\n")

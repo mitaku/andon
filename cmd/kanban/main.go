@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"andon/internal/ledger"
 )
 
 const help = `kanban: a project's work ledger in kanban/ (format 3; one folder per issue)
@@ -317,7 +319,7 @@ func cmdAdd(e env, a args) error {
 		if a.has("after") {
 			after = canonIDs(splitList(a.flags["after"]))
 		}
-		parent := canonID(a.flags["parent"])
+		parent := ledger.CanonID(a.flags["parent"])
 		for _, ref := range append([]string{parent}, after...) {
 			if ref != "" && all[ref] == nil {
 				return fail("no issue %s", ref)
@@ -384,11 +386,11 @@ func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 				k++
 			}
 		}
-		for all[roundID(parent, k)] != nil {
+		for all[ledger.RoundID(parent, k)] != nil {
 			k++
 		}
 	}
-	id := roundID(parent, k)
+	id := ledger.RoundID(parent, k)
 	if all[id] != nil {
 		return "", fail("issue %s is already there (round %d of %s)", id, k, parent)
 	}
@@ -403,10 +405,10 @@ func newTask(root string, cfg config, id, title string, fields map[string]string
 		n := 0
 		for _, x := range allTasks(root) {
 			if re.MatchString(x.id) {
-				n = max(n, numberOf(x.id))
+				n = max(n, ledger.NumberOf(x.id))
 			}
 		}
-		id = formatID(cfg.prefix, n+1)
+		id = ledger.FormatID(cfg.prefix, n+1)
 	}
 	if exists(taskDir(root, id)) {
 		return nil, fail("issue %s is already there", id)
@@ -539,7 +541,7 @@ func need(a args, usage string) (string, error) {
 	if len(a.rest) == 0 || a.rest[0] == "" {
 		return "", fail("usage: %s", usage)
 	}
-	return canonID(a.rest[0]), nil
+	return ledger.CanonID(a.rest[0]), nil
 }
 
 func cmdShow(e env, a args) error {
@@ -681,7 +683,7 @@ func cmdSet(e env, a args) error {
 	if len(a.rest) < 2 || a.rest[0] == "" {
 		return fail("usage: kanban set <id> key=value …  (empty value removes the key)")
 	}
-	id, pairs := canonID(a.rest[0]), a.rest[1:]
+	id, pairs := ledger.CanonID(a.rest[0]), a.rest[1:]
 	cfg, err := readConfig(e.root)
 	if err != nil {
 		return err
@@ -718,7 +720,7 @@ func cmdSet(e env, a args) error {
 				change.set(k, items)
 			default:
 				if k == "parent" {
-					v = canonID(v)
+					v = ledger.CanonID(v)
 				}
 				t.d.setStr(k, v)
 				change.set(k, v)
@@ -963,10 +965,10 @@ func cmdLint(e env, a args) error {
 				problems = append(problems, fmt.Sprintf("%s: not_before %q is not a date (YYYY-MM-DD)", t.id, v))
 			}
 		}
-		if c := canonID(t.id); c != t.id {
+		if c := ledger.CanonID(t.id); c != t.id {
 			problems = append(problems, fmt.Sprintf("%s: not written as an id is (%s), so kanban reads it as another issue", t.id, c))
 		}
-		if base, _, ok := splitRound(t.id); ok {
+		if base, _, ok := ledger.SplitRound(t.id); ok {
 			if p := t.d.str("parent"); p != base {
 				problems = append(problems, fmt.Sprintf("%s: a reviewer's id, but parent is %q, not %s", t.id, p, base))
 			}

@@ -14,7 +14,7 @@ import (
 // Format 3 (docs/ledger.md, Changes from version 2; ADR-0008): init makes version 3 and issues/,
 // add writes issues/<id>/issue.yaml, show --json says issue.
 func TestInitAndAddWriteFormat3(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	cfg := readFile(t, filepath.Join(root, "kanban", "config.yaml"))
 	if !strings.HasPrefix(cfg, "version: 3\n") {
 		t.Fatalf("config.yaml: %q", cfg)

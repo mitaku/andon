@@ -128,7 +128,7 @@ func TestQuestionLifecycle(t *testing.T) {
 
 // n is never reused, even after a person removes questions from the file by hand.
 func TestQuestionNumbersAreNotReused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	kanban(t, root, "ask", "W-0001", "one")
 	kanban(t, root, "ask", "W-0001", "two")
 	file := filepath.Join(taskDir(root, "W-0001"), "questions.yaml")
@@ -156,7 +156,7 @@ func TestQuestionNumbersAreNotReused(t *testing.T) {
 
 // done stops on a question not received; --force closes it and logs which.
 func TestDoneStopsOnQuestions(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	kanban(t, root, "ask", "W-0001", "one")
 	kanban(t, root, "ask", "W-0001", "two")
 	kanban(t, root, "answer", "W-0001#2", "yes")
@@ -213,7 +213,7 @@ func TestQuestionsOldestFirstAcrossTasks(t *testing.T) {
 
 // Two kanban ask at once get different numbers: the lock.
 func TestConcurrentAsksGetDifferentNumbers(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	var wg sync.WaitGroup
 	outs := make([]string, 10)
 	codes := make([]int, 10)
@@ -237,7 +237,7 @@ func TestConcurrentAsksGetDifferentNumbers(t *testing.T) {
 }
 
 func TestLintQuestions(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	os.WriteFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"), []byte(`- n: 1
   text: fine
   status: open
@@ -291,7 +291,7 @@ func TestLintQuestions(t *testing.T) {
 }
 
 func TestQuestionsLinkIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	out := sentinelFile(t, "questions.yaml", "- n: 1\n  text: outside\n  status: open\n")
 	symlink(t, out, filepath.Join(taskDir(root, "W-0001"), "questions.yaml"))
 	kanbanFails(t, root, "", "ask", "W-0001", "x")
@@ -306,7 +306,7 @@ func TestQuestionsLinkIsRefused(t *testing.T) {
 // kanban set status=done is kanban done: it stops on questions not received (--force closes
 // anyway and logs which), and it frees the issues that waited for it.
 func TestSetStatusDoneIsDone(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	kanban(t, root, "add", "Next", "--after", "W-0001") // W-0002, queued
 	kanban(t, root, "ask", "W-0001", "one")
 	msg := kanbanFails(t, root, "", "set", "W-0001", "status=done")

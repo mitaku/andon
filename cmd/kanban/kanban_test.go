@@ -180,7 +180,7 @@ func kanbanFails(t *testing.T, cwd, stdin string, argv ...string) string {
 // taskFile is where an issue's issue.yaml is.
 func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), issueFileName) }
 
-func ledger(t *testing.T) string {
+func newLedger(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "root")
 	os.MkdirAll(root, 0o755)
@@ -192,7 +192,7 @@ func ledger(t *testing.T) string {
 }
 
 func TestPrefixThatLeavesTasksIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	outside := filepath.Join(filepath.Dir(root), "escape")
 	for _, prefix := range []string{"../../../escape", `..\..\..\escape`, "a/b", "..", "C:x"} {
 		os.WriteFile(filepath.Join(root, "kanban", "config.yaml"), []byte("version: 3\nprefix: '"+prefix+"'\n"), 0o644)
@@ -207,7 +207,7 @@ func TestPrefixThatLeavesTasksIsRefused(t *testing.T) {
 }
 
 func TestIDThatLeavesTasksIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	// An issue.yaml one level up from issues/, which "../" ids would reach.
 	sentinel := filepath.Join(root, "kanban", "issue.yaml")
 	os.WriteFile(sentinel, []byte("title: sentinel\n"), 0o644)
@@ -252,7 +252,7 @@ func assertUnchanged(t *testing.T, path, want string) {
 }
 
 func TestTaskFolderLinkIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	outDir := t.TempDir()
 	os.WriteFile(filepath.Join(outDir, "issue.yaml"), []byte("title: outside\n"), 0o644)
 	symlink(t, outDir, filepath.Join(issuesDir(root), "escape"))
@@ -267,7 +267,7 @@ func TestTaskFolderLinkIsRefused(t *testing.T) {
 }
 
 func TestReportLinkIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	out := sentinelFile(t, "outside.md", "outside\n")
 	symlink(t, out, filepath.Join(taskDir(root, "W-0001"), "report.md"))
 	kanbanFails(t, root, "more\n", "report", "W-0001", "--append")
@@ -276,7 +276,7 @@ func TestReportLinkIsRefused(t *testing.T) {
 }
 
 func TestLogLinkIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	out := sentinelFile(t, "outside.jsonl", "outside\n")
 	logFile := filepath.Join(root, "kanban", "log.jsonl")
 	os.Remove(logFile)
@@ -289,7 +289,7 @@ func TestLogLinkIsRefused(t *testing.T) {
 }
 
 func TestTaskFileLinkIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	out := sentinelFile(t, "issue.yaml", "title: outside\n")
 	os.Remove(taskFile(root, "W-0001"))
 	symlink(t, out, taskFile(root, "W-0001"))
@@ -324,7 +324,7 @@ func TestInitWritesFormat3(t *testing.T) {
 }
 
 func TestOtherFormatVersionsAreRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	cfgFile := filepath.Join(root, "kanban", "config.yaml")
 	logFile := filepath.Join(root, "kanban", "log.jsonl")
 	before, _ := os.ReadFile(taskFile(root, "W-0001"))
@@ -461,7 +461,7 @@ func TestReposMustBeHostOwnerRepo(t *testing.T) {
 
 // who goes between profile and agent (keyOrder), wherever the other keys are.
 func TestWhoGoesBetweenProfileAndAgent(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, root, "set", "W-0001", "profile=opus")
 	kanban(t, root, "start", "W-0001")
@@ -478,7 +478,7 @@ func TestWhoGoesBetweenProfileAndAgent(t *testing.T) {
 
 // kanban config set chief_of_staff= rewrites config.yaml under the lock, keeping comments and order, and logs it.
 func TestConfigSetChiefOfStaff(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	file := filepath.Join(root, "kanban", "config.yaml")
 	os.WriteFile(file, []byte("# by hand\nversion: 3\ntitle: App # shown\nchief_of_staff: t1 # the lead\nprefix: W\nmine: kept\n"), 0o644)
 	if out := kanban(t, root, "config", "set", "chief_of_staff=t7"); out != "chief_of_staff: t7\n" {
@@ -507,7 +507,7 @@ func TestConfigSetChiefOfStaff(t *testing.T) {
 }
 
 func TestConfigLinkIsRefused(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	file := filepath.Join(root, "kanban", "config.yaml")
 	real := sentinelFile(t, "config.yaml", "version: 3\n")
 	os.Remove(file)
@@ -596,15 +596,6 @@ func TestLintChecksReviewerIDs(t *testing.T) {
 	}
 }
 
-func TestCanonID(t *testing.T) {
-	for in, want := range map[string]string{"A-5": "A-0005", "A-0005": "A-0005", "A-5-r1": "A-0005-r1", "A-0005-r01": "A-0005-r1",
-		"A-0005-r0": "A-0005-r0", "A-0005-rx": "A-0005-rx", "A-12345-r3": "A-12345-r3", "plain": "plain"} {
-		if got := canonID(in); got != want {
-			t.Errorf("canonID(%s) = %s, want %s", in, got, want)
-		}
-	}
-}
-
 // A folder named the way an id is typed (A-5, A-0005-r01) is read by no command; lint says so.
 func TestLintChecksIDsAreWrittenCanonically(t *testing.T) {
 	root := t.TempDir()
@@ -643,7 +634,7 @@ func TestStartShortensOnlyWorktreesUnderHome(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("HOME is not what os.UserHomeDir reads on Windows")
 	}
-	root := ledger(t) // W-0001
+	root := newLedger(t) // W-0001
 	kanban(t, root, "add", "second")
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -669,7 +660,7 @@ func TestStartShortensOnlyWorktreesUnderHome(t *testing.T) {
 
 // A reviewer's issue keeps the worktree and branch it was given, from any cwd; a worker's issue still takes them from git.
 func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
-	root := ledger(t) // W-0001
+	root := newLedger(t) // W-0001
 	kanban(t, root, "add", "review", "--parent", "W-0001", "--profile", "codex-review")
 	kanban(t, root, "set", "W-0001-r1", "worktree=~/wt/sample-r1")
 
@@ -701,7 +692,7 @@ func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
 
 // --help after a command prints the help; after --, every word is a word, not a flag.
 func TestHelpFlagAndDoubleDash(t *testing.T) {
-	root := ledger(t)
+	root := newLedger(t)
 	for _, argv := range [][]string{{"add", "--help"}, {"list", "--help"}, {"set", "W-0001", "--help"}} {
 		if out := kanban(t, root, argv...); !strings.Contains(out, "kanban add \"title\"") {
 			t.Fatalf("kanban %v: %q", argv, out)
