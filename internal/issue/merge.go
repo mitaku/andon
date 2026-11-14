@@ -99,9 +99,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	if w.Row != row {
 		w = contract.Merging{Row: row}
-		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれたゲートの記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
+		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head のゲートの記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
 		if fresh {
-			if g := c.gatedSince(rows[row-1].At); g != nil {
+			if g := c.gatedSince(rep.Commit, rows[row-1].At); g != nil {
 				w.Sha, w.Decision = g.Head, g.Decision
 				return &w
 			}
@@ -187,19 +187,18 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	return &w
 }
 
-// gatedSince は since 以後に書かれたこの課題のゲートの記録（library/gate/*.json の at）を返す。無ければ nil。
-func (c *ctx) gatedSince(since string) *gate.Record {
-	files, _ := filepath.Glob(filepath.Join(c.l.Library(c.id), "gate", "*.json"))
-	var last *gate.Record
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		var g gate.Record
-		if err != nil || json.Unmarshal(b, &g) != nil || g.At < since || (last != nil && g.At < last.At) {
-			continue
-		}
-		last = &g
+// gatedSince は head（report.json の commit ＝ PR の head）のゲートの記録 library/gate/<head>.json が since 以後に書かれていれば返す。
+// 見るのは今の head だけ（前の回の記録は同じ秒に書かれていても拾わない）。無ければ nil。
+func (c *ctx) gatedSince(head, since string) *gate.Record {
+	if !contract.IsSHA(head) {
+		return nil
 	}
-	return last
+	b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", head+".json"))
+	var g gate.Record
+	if err != nil || json.Unmarshal(b, &g) != nil || g.Decision == "" || g.At < since {
+		return nil
+	}
+	return &g
 }
 
 // gateResult は andon gate の出力のうち merge が読むもの（記録 contract.md §7。信じられる PR が無いときは decision・reasons だけ）。

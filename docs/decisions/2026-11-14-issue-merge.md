@@ -13,4 +13,4 @@
 - 「approve のまま 10 分」はコマンドにしない（ADR-0017 決めたこと 6）。merge は、マージに進み始めた時刻を記録の `approved` に書き、決まったら消す。dispatcher はそれを読み、10 分たっても残っていれば通知 `gate` を1回だけ積む。二度積まないための控えは `stuck`（課題 → 届けた `approved`）。dispatcher.md §7.2 には、この処理の行（#25）を足した（A-0091 の Next から頼まれた判断）。
 - 出力は stdout の JSON（`issue`・`state`・`auto`・`log[]`・`notify[]`）で、待ちに積むのは dispatcher。出力も記録も schema にしない（settle・impact と同じく、約束は通知の `detail`。形は [contract.md](../contract.md) §6）。
 - 記録の lock は台帳ごとの `<slug>.issue.lock` を使う。finish と問いは merge の中で打つ（別プロセスで打つと、同じ lock を待って止まる）。
-- 記録が無いとき（入れ替えの直後・消えたとき）は、その review 入りのあとに書かれたゲートの記録 `library/gate/*.json` を引き継ぎ、同じ行の問いや通知を出し直さない。この引き継ぎがあるので、dispatcher は初めて見る台帳でも merge を打つ（前は、ゲートを回さずに記録だけ置いた）。
+- 記録が無いとき（入れ替えの直後・消えたとき）は、今の head（`report.json` の `commit`）のゲートの記録 `library/gate/<head>.json` がその review 入りのあとに書かれていれば引き継ぎ、同じ行の問いや通知を出し直さない。この引き継ぎがあるので、dispatcher は初めて見る台帳でも merge を打つ（前は、ゲートを回さずに記録だけ置いた）。
