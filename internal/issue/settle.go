@@ -37,7 +37,7 @@ func settlePath(slug string) string {
 //	MERGED（ゲートの記録の merged が true）   → dispatcher がマージした。何もしない（approve の道が片付ける）
 //	MERGED                                   → ゲートの問い（from: gate）を「人がマージした」と閉じて finish、通知 merged（by: person）
 //	MERGED でゲートの外の問いが開いている     → 片付けずに通知 merged（held）。同じ理由では二度知らせない
-//	CLOSED                                   → 片付けない。通知 closed を1回だけ
+//	CLOSED                                   → 片付けない。通知 closed を閉じるたびに1回。開き直されうるので聞き続ける
 //
 // doing の課題（担当が働いているうちに人がマージした）も同じ道で片付ける。受け取られていない問い・commit していない変更が
 // あれば片付けずに held で知らせる（finish の拒みを越えない）。
@@ -92,7 +92,11 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 		w = contract.Settled{PR: rep.PR, Commit: rep.Commit}
 	}
 	res.State = "watching"
-	if w.State == "" {
+	// CLOSED は開き直されうるので、MERGED になるまで OPEN と同じ間隔で聞き直す（知らせるのは閉じるたびに1回）
+	if w.State != "MERGED" {
+		if w.State == "CLOSED" {
+			res.State = "closed"
+		}
 		if at, err := time.Parse("2006-01-02T15:04:05Z", w.At); err == nil && now.Sub(at) < prPoll {
 			return &w, nil
 		}
@@ -105,16 +109,17 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 		case "MERGED":
 			w.State, w.Head, w.Sha = state, head, sha
 		case "CLOSED":
+			if w.State != "CLOSED" {
+				res.Notify = append(res.Notify, contract.Notice{Kind: "closed", Detail: map[string]any{"pr": rep.PR}})
+			}
 			w.State = state
-			res.Notify = append(res.Notify, contract.Notice{Kind: "closed", Detail: map[string]any{"pr": rep.PR}})
+			res.State = "closed"
+		case "OPEN":
+			w.State = "" // 開き直された。また閉じたら知らせる
+			res.State = "watching"
 		}
 	}
-	switch w.State {
-	case "CLOSED":
-		res.State = "closed"
-		return &w, nil
-	case "MERGED":
-	default:
+	if w.State != "MERGED" {
 		return &w, nil
 	}
 	// dispatcher が自分でマージした PR は ゲートの記録の merged が true（dispatcher の控えは読まない。ADR-0017 決めたこと 5 の (d)）

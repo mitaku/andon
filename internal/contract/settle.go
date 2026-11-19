@@ -1,7 +1,7 @@
 package contract
 
 // Settled は andon issue settle の記録の1件（~/.local/state/andon/dispatcher/<slug>.settle.json の「課題 → これ」。書き手は settle だけ）。
-// State は空（見ている）・MERGED・CLOSED。MERGED・CLOSED と分かったら GitHub に聞き直さない。
+// State は空（見ている）・MERGED・CLOSED。MERGED と分かったら GitHub に聞き直さない。CLOSED は開き直されうるので聞き直す。
 type Settled struct {
 	PR     string `json:"pr"`
 	Commit string `json:"commit,omitempty"` // 見始めたときの report.json の commit（替われば見直す）
