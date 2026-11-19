@@ -242,6 +242,7 @@ func (c *ctx) stillWaiting(rows []ledger.Row, pr, waited string, now time.Time) 
 }
 
 // sendFix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。担当がいなければ通知 report。
+// 送れなければ（担当の端末が無い）通知 gate の detail に unsent（担当の address）を書く。gate が無ければ通知 report。
 func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	agent := c.issue.Str("agent")
 	if agent == "" {
@@ -255,7 +256,15 @@ func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	}
 	msg += "kanban start で doing に戻して直し、push して andon issue review-request（レビューが要るとき）か andon issue ready からやり直す。"
 	if out, err := exec.Command("hc", "send", agent, msg).CombinedOutput(); err != nil {
-		res.Log = append(res.Log, fmt.Sprintf("%s の担当 %s に fix を送れない: %v %s", c.id, agent, err, firstLine(string(out))))
+		res.Log = append(res.Log, fmt.Sprintf("%s の担当 %s に fix を送れない（Chief of Staff に届ける）: %v %s", c.id, agent, err, firstLine(string(out))))
+		// 担当の端末が無い（セルの起き直しなど）: 通知 gate に送れなかった担当を書き、dispatcher が Chief of Staff に届ける
+		for i := len(res.Notify) - 1; i >= 0; i-- {
+			if res.Notify[i].Kind == "gate" {
+				res.Notify[i].Detail["unsent"] = agent
+				return
+			}
+		}
+		res.Notify = append(res.Notify, contract.Notice{Kind: "report", Detail: map[string]any{"report": filepath.Join(c.l.Dir, "issues", c.id, "report.md")}})
 	}
 }
 

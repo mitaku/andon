@@ -325,7 +325,8 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `resumed` | 記録だけ | dispatcher が Gone の端末を resume で起動した（§2.9）。起動できない・働かずにまた Gone なら `finished` で届く |
 | `review`（ゲートを回す課題） | 記録だけ | dispatcher がゲートを回す。判断が要れば `gate`（approve で止まった）・`asked` で届く |
 | `review`（ゲートを回さない課題のうち PR のあるもの: Chief Engineer の課題など。§5 の P6a で飛ばす課題。PR の無い調べる課題・観察の課題は `report` で届く。§2.2） | 届ける | Chief Engineer の文書を受けて課題に切る |
-| `gate`（`fix`） | 記録だけ | dispatcher が理由を担当へ返した |
+| `gate`（`fix`。`unsent` が無い） | 記録だけ | dispatcher が理由を担当へ返した |
+| `gate`（`fix`。`unsent` あり） | 届ける | 担当の端末が無く（セルの起き直しなど）理由を返せなかった。`review` のまま誰も直さないので、Chief of Staff が担当を起動し直して理由を返す |
 | `gate`（`needs_human`） | 記録だけ | 同じ巡で `asked`（`from: gate`）が届く |
 | `gate`（`approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） | 人にマージを頼む |
 | `gate`（`approve`。`merge: auto` でマージに進む） | 記録だけ。10分たっても merge の記録で決まらなければ1回だけ届ける（§2.1.1 の 5d） | ふつうは同じ巡で `merged` まで進む。進まないときだけ Chief of Staff が確かめる |

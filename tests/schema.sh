@@ -603,6 +603,7 @@ gate-record-merged.json|gate|andon dispatcher がマージしたあとのゲー�
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
+notification-gate-unsent.json|notification|andon dispatcher の通知 gate（fix を担当へ送れなかった）
 notification-merged.json|notification|andon dispatcher の通知 merged
 notification-merged-person.json|notification|andon dispatcher の通知 merged（人がマージした）
 notification-merged-held.json|notification|andon dispatcher の通知 merged（人がマージしたが片付けていない）
