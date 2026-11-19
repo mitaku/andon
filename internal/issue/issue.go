@@ -503,6 +503,15 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 }
 
 func (c *ctx) ready(stdout io.Writer) error {
+	// 受け取られていない問いを残して review に入ると、ゲートとマージのあとの片付け（finish）が問いで断られる。
+	// 確かめの形は finish と kanban done（closing）と同じ
+	held, err := c.unreceived([]string{c.id})
+	if err != nil {
+		return err
+	}
+	if len(held) > 0 {
+		return fail("受け取られていない問いがあるので review にしない: %s。答えを受けて問いを received にしてから打ち直す", strings.Join(held, "・"))
+	}
 	r, err := contract.ReadReport(c.reportPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return fail("library/report.json が無い。andon issue report で書く")

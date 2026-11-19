@@ -624,7 +624,11 @@ as_worker "$qa" report --pr https://github.com/example/app/pull/7
 as_worker "$qa" review-request
 dispatcher
 review_by "$qa-r1" '[]'
-as_worker "$qa" ready
+# andon issue ready は受け取られていない問いがあれば断る（入口の守り）。ここでは ready を通らずに review へ入った課題として、
+# finish の守り（奥の守り）を確かめる。kanban review を担当の端末で直に打つ
+! as_worker "$qa" ready 2>/dev/null || die 'ready が受け取られていない問いを残したまま通った'
+kanban show "$qa" --json | jq -e '.issue.status == "doing"' >/dev/null || die "ready が断ったのに課題が doing でない: $(kanban show "$qa" --json | jq -c .issue)"
+(cd "$qwt" && HC_TERMINAL_ID=t7 kanban review "$qa" >/dev/null)
 dispatcher
 [ -e "$tmp/gh/merged" ] || die "前提: マージしていない: $(grep "$qa" "$tmp/dispatcher.log" | tail -3)"
 kanban show "$qa" --json | jq -e '.issue.status == "review"' >/dev/null || die "問いが残るのに課題が review でない: $(kanban show "$qa" --json | jq -c .issue)"
