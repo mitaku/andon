@@ -511,6 +511,11 @@ func (p *project) watch(now time.Time, cos string) {
 		if s.Gone && p.resumeGone(t, agent) {
 			continue // resume で起動した（次の見回りからは新しい端末を見る）。起動できなければ今どおり finished
 		}
+		if s.Gone && p.first {
+			// 初めて見た死は Resumed に「見た」とだけ持ち、Sent には書かない（次の見回りで打たずに finished を知らせる。
+			// Sent に書くと、resume も finished も出ないまま死んだ担当が残る。dispatcher.md §2.9）
+			continue
+		}
 		k := rk + "|" + v.Key
 		if v.Allowance && isReviewer(t) && !p.first && !p.st.Sent[k] && p.fallback(t, agent) {
 			continue // 起動し直した（次の見回りからは新しい端末を見る）
