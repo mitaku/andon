@@ -13,4 +13,5 @@
 - `go:embed` で repo のファイルを足したら、`image/Dockerfile` の `COPY` と `.dockerignore` も直す。
 - 約束の正は `schema/`。schema を変えたら `docs/contract.md` と tests も直す。
 - `package/` の変更はセルで実測する。
+- 課題の一生の動き（finish・resume・ゲートの返し方など、`model/IssueLife.tla` が写しているコード）を変える PR は、同じ PR で `model/` のモデルも直す。回すのは `model/check`（ADR-0025）。規則（`model/IssueRules.*`）・控え（`model/expected.txt`）・対応表（`model/issue-map.txt`）を弱める・消す変更は、レベル C で人が見る。
 - main へ直接 push しない。マージは人がする。
