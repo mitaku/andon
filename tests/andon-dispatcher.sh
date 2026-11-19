@@ -261,6 +261,39 @@ kanban config set chief_of_staff=t5 >/dev/null
 HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null   # あとの場面（1b のマージの影響）が数える動いている課題に残さない
 ok 'Chief of Staff のアドレスが変わって照合で見送ったレビュー依頼は、予約キーを書き直せば担当の頼み直し無しに拾い直す'
 
+# 0e. レビュアーが結果（findings.json）を残さずに返ったあと、担当が同じ commit で頼み直すと、次の回のレビュアーを起動し直す
+#     （控えが「起動した」のままでも捨てない）。頼み直す前は起動し直さない
+id=$(newtask '結果を残さずに返ったレビュー' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+runs=$(grep -c '^run' "$tmp/hc/log")
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '1 回目のレビュアーを起動しない'
+raddr=$(jq -r --arg k "$id@$head" '.reviewers[$k].address' "$state")
+HC_TERMINAL_ID=$raddr kanban review "$id-r1" >/dev/null   # findings.json を書かずに返る（置き場を誤った・書き忘れた）
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '担当が頼み直していないのに起動し直した'
+as_worker "$id" review-request   # 同じ commit で頼み直す（回は 2 に進む）
+jq -e '.review_request.round == 2' "$L/issues/$id/library/report.json" >/dev/null || die "頼み直した回が 2 でない: $(jq -c .review_request "$L/issues/$id/library/report.json")"
+: > "$tmp/dispatcher.log"
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 2))" ] || die "結果を残さずに返ったあとの頼み直しを捨てた（起動し直さない）: $(cat "$tmp/dispatcher.log")"
+kanban show "$id-r2" --json | jq -e --arg p "$id" '.issue.parent == $p and .issue.status == "doing" and .issue.profile == "codex-review"' >/dev/null ||
+    die "2 回目のレビュアーの課題が無い・違う: $(kanban list --all --json | jq -c --arg p "$id" '[.[] | select(.parent == $p) | {id, status}]')"
+[ "$(git -C "$ANDON_WORKSPACE/.worktrees/app/demo-$id-r2" rev-parse HEAD)" = "$head" ] || die '2 回目の detached worktree が head に無い'
+jq -e --arg k "$id@$head" --arg r "$id-r2" '.reviewers[$k] | .started == true and .reviewer_issue == $r and .round == 2' "$state" >/dev/null ||
+    die "起動し直した回を控えていない: $(jq -c --arg k "$id@$head" '.reviewers[$k]' "$state")"
+grep -q "$id のレビュアー $id-r1 は commit ${head:0:12} の結果を残さずに返った" "$tmp/dispatcher.log" || die '起動し直した理由がログに無い'
+recorded "$id" review-requested | jq -e --arg r "$id-r2" '.detail.round == 2 and .detail.reviewer_issue == $r' >/dev/null || die '起動し直した回の review-requested を記録していない'
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 2))" ] || die '起動し直した回を二重に起動した'
+review_by "$id-r2" '[]'
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 "$andon" issue show "$id") | jq -e --arg r "$id-r2" '.review.state == "current" and .review.issue == $r' >/dev/null ||
+    die '起動し直したレビュアーの結果がレビューに数えられない'
+HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null   # あとの場面（1b のマージの影響）が数える動いている課題に残さない
+ok 'レビュアーが結果を残さずに返ったあとの同じ commit の頼み直しは、次の回のレビュアーを起動し直す（頼み直す前は起動しない）'
+
 # 1. 一周: review-request → レビュアーを起動する → レビュー → ready → ゲート → マージ → finish。Chief of Staff は留守（端末が無い）でも回る（ADR-0017 決めたこと 8）
 id=$(newtask 'docs を直す' auto)
 sed -i '/^t5 /d' "$tmp/hc/live"

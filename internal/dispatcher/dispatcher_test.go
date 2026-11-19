@@ -19,23 +19,26 @@ func TestRetry(t *testing.T) {
 		limit   int
 		row     int
 		trusted bool
+		redo    bool
 		want    bool
 	}{
-		{"初めて", Reviewer{}, false, 2, 5, true, true},
-		{"起動した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 5, true, false},
-		{"起動した回を同じ commit で頼み直した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 9, true, false},
-		{"起動しそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true, true},
-		{"設定で起動しない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, true, false},
-		{"起動しなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true, true},
-		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true, true},
-		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, true, false},
-		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true, true},
-		{"照合で見送った・照合が外れたまま", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, false, false},
-		{"照合で見送った・Chief of Staff が書き直して照合が戻った", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, true, true},
-		{"照合の外の理由で見送った（照合が合っていても拾い直さない）", Reviewer{Skipped: "report.json に pr が無い", Row: 5}, true, 2, 5, true, false},
-		{"起動した回は照合が戻っても二重に起動しない", Reviewer{Started: true, Untrusted: true, Row: 5}, true, 2, 5, true, false},
+		{"初めて", Reviewer{}, false, 2, 5, true, false, true},
+		{"起動した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 5, true, false, false},
+		{"起動した回を同じ commit で頼み直した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 9, true, false, false},
+		{"起動しそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true, false, true},
+		{"設定で起動しない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, true, false, false},
+		{"起動しなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true, false, true},
+		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true, false, true},
+		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, true, false, false},
+		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true, false, true},
+		{"照合で見送った・照合が外れたまま", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, false, false, false},
+		{"照合で見送った・Chief of Staff が書き直して照合が戻った", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, true, false, true},
+		{"照合の外の理由で見送った（照合が合っていても拾い直さない）", Reviewer{Skipped: "report.json に pr が無い", Row: 5}, true, 2, 5, true, false, false},
+		{"起動した回は照合が戻っても二重に起動しない", Reviewer{Started: true, Untrusted: true, Row: 5}, true, 2, 5, true, false, false},
+		{"起動した回が結果を残さずに返った・まだ頼み直していない", Reviewer{Started: true, ReviewerIssue: "D-1-r1", Row: 5}, true, 2, 5, true, true, false},
+		{"起動した回が結果を残さずに返った・同じ commit で頼み直した（起動し直す）", Reviewer{Started: true, ReviewerIssue: "D-1-r1", Row: 5}, true, 2, 9, true, true, true},
 	} {
-		if got := Retry(c.prev, c.seen, c.limit, c.row, c.trusted); got != c.want {
+		if got := Retry(c.prev, c.seen, c.limit, c.row, c.trusted, c.redo); got != c.want {
 			t.Errorf("%s: Retry = %v, want %v", c.name, got, c.want)
 		}
 	}
@@ -57,27 +60,51 @@ func TestAdopt(t *testing.T) {
 		{"id": "D-4", "status": "doing", "profile": "claude", "parent": "D-1"}, // レビュアーでない子
 	}
 	none := func(string) (string, int, bool) { return "", 0, false }
-	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", brief, none); ok {
+	kept := func(string) bool { return false } // どの子課題もその commit の結果を残している
+	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", 1, brief, none, kept); ok {
 		t.Error("子課題の無い commit を引き継いだ（起動しに行かない）")
 	}
-	if r, ok := Adopt(tasks, "D-1", c1, brief, none); !ok || !r.Started || r.ReviewerIssue != "D-2" || r.Address != "t9" {
+	if r, ok := Adopt(tasks, "D-1", c1, 1, brief, none, kept); !ok || !r.Started || r.ReviewerIssue != "D-2" || r.Address != "t9" {
 		t.Errorf("受けた子課題: %+v %v（もう受けているはず）", r, ok)
 	}
-	if r, ok := Adopt(tasks, "D-1", c2, brief, none); !ok || r.Started || r.ReviewerIssue != "D-3" || r.Address != "" {
+	if r, ok := Adopt(tasks, "D-1", c2, 1, brief, none, kept); !ok || r.Started || r.ReviewerIssue != "D-3" || r.Address != "" {
 		t.Errorf("todo で端末も無い子課題: %+v %v（起動するところから続けるはず）", r, ok)
 	}
 	// todo だが端末が live（hc run は通ったが kanban start の前に落ちた）: address を引き継ぎ、hc run し直さない
 	asked := ""
 	fresh := func(rev string) (string, int, bool) { asked = rev; return "t12", 0, true }
-	if r, ok := Adopt(tasks, "D-1", c2, brief, fresh); !ok || r.Started || r.Address != "t12" || asked != "D-3" {
+	if r, ok := Adopt(tasks, "D-1", c2, 1, brief, fresh, kept); !ok || r.Started || r.Address != "t12" || asked != "D-3" {
 		t.Errorf("todo で端末が live（まだ何も受けていない）: %+v %v %q（address を引き継ぎ、最初のメッセージから）", r, ok, asked)
 	}
 	busy := func(string) (string, int, bool) { return "t12", 2, true }
-	if r, ok := Adopt(tasks, "D-1", c2, brief, busy); !ok || !r.Started || r.Address != "t12" {
+	if r, ok := Adopt(tasks, "D-1", c2, 1, brief, busy, kept); !ok || !r.Started || r.Address != "t12" {
 		t.Errorf("todo で端末が live（もう受けている）: %+v %v（二重に送らないはず）", r, ok)
 	}
-	if _, ok := Adopt(tasks, "D-9", c1, brief, none); ok {
+	if _, ok := Adopt(tasks, "D-9", c1, 1, brief, none, kept); ok {
 		t.Error("ほかの課題の子を引き継いだ")
+	}
+}
+
+// 結果（その commit の findings.json）を残さずに返ったレビュアーの子課題は、担当が頼み直した回（round がそれより後）では
+// 引き継がない（起動し直す）。同じ回の review_request や、まだ見ている子課題は今までどおり引き継ぐ。
+func TestAdoptSkipsReturnedEmpty(t *testing.T) {
+	const c1 = "1111111111111111111111111111111111111111"
+	brief := func(string) string { return "対象: worktree `x`（detached）。commit " + c1 + "。差分は" }
+	none := func(string) (string, int, bool) { return "", 0, false }
+	empty := func(rev string) bool { return rev == "D-1-r1" }
+	tasks := []ledger.Issue{
+		{"id": "D-1", "status": "doing", "profile": "claude"},
+		{"id": "D-1-r1", "status": "done", "profile": "codex-review", "parent": "D-1", "agent": "t9"},
+	}
+	if r, ok := Adopt(tasks, "D-1", c1, 2, brief, none, empty); ok {
+		t.Errorf("結果を残さずに返った前の回の子課題を引き継いだ（起動し直さない）: %+v", r)
+	}
+	if r, ok := Adopt(tasks, "D-1", c1, 1, brief, none, empty); !ok || !r.Started || r.ReviewerIssue != "D-1-r1" {
+		t.Errorf("同じ回の review_request で子課題を引き継がない: %+v %v", r, ok)
+	}
+	tasks = append(tasks, ledger.Issue{"id": "D-1-r2", "status": "todo", "profile": "codex-review", "parent": "D-1"})
+	if r, ok := Adopt(tasks, "D-1", c1, 2, brief, none, empty); !ok || r.Started || r.ReviewerIssue != "D-1-r2" {
+		t.Errorf("起動し直しかけた回の子課題（todo）を引き継がない: %+v %v", r, ok)
 	}
 }
 
