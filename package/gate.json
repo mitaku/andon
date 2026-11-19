@@ -12,7 +12,8 @@
                    "hooks/**", ".github/workflows/**", "tests/public*.sh", ".envrc", ".env.example", ".aqua/aqua-policy.yaml",
                    "**/.mcp.json", "**/AGENTS.md", "**/AGENTS.override.md", "**/AGENTS.local.md", "**/AGENTS.worker.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
                    "**/.claude/**", "**/.codex/**", ".aqua/registry.yaml", ".aqua/aqua-checksums.json",
-                   "**/renovate.json*", "**/.renovaterc*"],
+                   "**/renovate.json*", "**/.renovaterc*",
+                   "model/IssueRules.tla", "model/IssueRules.cfg", "model/expected.txt", "model/issue-map.txt"],
   "tier_c_path_exceptions": {"**/.claude/**": ["**/.claude/skills/**"]},
   "tier_c_added_line_patterns": ["0\\.0\\.0\\.0", "\\bsudo\\b", "curl[^|]*\\|\\s*(ba)?sh", "authorized_keys", "token=", "secret=", "password=", "\"renovate\"\\s*:"]
 }

@@ -446,3 +446,20 @@ func TestAddedLines(t *testing.T) {
 		t.Errorf("AddedLines = %v, want %v", got, want)
 	}
 }
+
+// 本物の package/gate.json で、モデルの規則・検査の設定・対応表はレベル C、行動のファイルだけは C にならない（ADR-0025 受け入れ条件 7）。
+func TestClassifyModelFiles(t *testing.T) {
+	tb := pkgTable(t)
+	for _, p := range []string{"model/IssueRules.tla", "model/IssueRules.cfg", "model/expected.txt", "model/issue-map.txt"} {
+		got, err := tb.Classify(RepoTable{}, []File{{Path: p, Additions: 1}}, "", false)
+		if err != nil || got.Tier != "C" {
+			t.Errorf("%s: tier=%q err=%v, want C", p, got.Tier, err)
+		}
+	}
+	for _, p := range []string{"model/IssueLife.tla", "model/broken/BrokenFinish.tla"} {
+		got, err := tb.Classify(RepoTable{}, []File{{Path: p, Additions: 1}}, "", false)
+		if err != nil || got.Tier == "C" {
+			t.Errorf("%s: tier=%q err=%v, want not C", p, got.Tier, err)
+		}
+	}
+}
