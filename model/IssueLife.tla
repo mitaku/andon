@@ -58,6 +58,7 @@ WorkerOpensPR ==
     /\ UNCHANGED <<status, worker, wt, reviewing, gate, fixSent, told, q, cancel, mergeAuto>>
 
 \* andon issue review-request（internal/issue/issue.go reviewRequest）→ dispatcher がレビュアーを起こす（internal/dispatcher/loop.go reviewRequest）
+\* ~reviewing: その commit のレビュアーが動いている間は、review-request が断る（internal/issue/issue.go rounds）
 ReviewerStarts ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~reviewing
     /\ reviewing' = TRUE

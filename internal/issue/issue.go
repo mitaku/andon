@@ -468,6 +468,8 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 // commit のうち、違うものの数 ＋ 1。古い commit を見たレビューは前の回と同じ commit なので数が増えない
 // （同じ回のまま頼み直す）。HEAD のレビューがもうあれば頼まない。
 // 結果の無いレビュアーの課題（<id>-rN）があれば、回は N の次以降にする（課題 id が被らない）。
+// HEAD を見ているレビュアーの課題がまだ動いていれば（todo・doing）、頼み直さない。頼み直すと回だけが進み、
+// dispatcher は起動した commit を二度起動しないので、知らせなしに捨てる（担当がレビューの回を1回失う）。
 func (c *ctx) rounds(head string) (int, *string, error) {
 	tasks, err := c.l.List()
 	if err != nil {
@@ -483,6 +485,11 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 		}
 		if _, n, ok := ledger.SplitRound(t.Str("id")); ok && n > taken {
 			taken = n
+		}
+		if st := t.Str("status"); st == "todo" || st == "doing" {
+			if b, err := os.ReadFile(filepath.Join(c.l.Dir, "issues", t.Str("id"), "brief.md")); err == nil && ledger.BriefReviews(string(b), head) {
+				return 0, nil, fail("commit %s のレビューはもう頼んである（%s が %s）。回は進めない。結果が届くのを待つ", head[:12], t.Str("id"), st)
+			}
 		}
 		f, err := contract.ReadFindings(filepath.Join(c.l.Library(t.Str("id")), "findings.json"))
 		if err != nil {

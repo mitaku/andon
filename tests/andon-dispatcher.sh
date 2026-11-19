@@ -229,10 +229,13 @@ dispatcher
 as_worker "$id" review-request   # 同じ commit で頼み直す
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起動しなかった回を同じ commit で頼み直したのに拾わない'
-as_worker "$id" review-request
+rows=$(wc -l < "$L/log.jsonl")
+! as_worker "$id" review-request 2>"$tmp/err" || die '起動した回のレビュアーが動いているのに、同じ commit の頼み直しを断らない'
+grep -q "もう頼んである（$id-r1 が doing）" "$tmp/err" || die "断りの理由が違う: $(cat "$tmp/err")"
+[ "$(wc -l < "$L/log.jsonl")" = "$rows" ] || die '断ったのに報告の行が増えた'
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起動した回を同じ commit で頼み直したら二重に起動した'
-ok '同じ commit の出し直しは、前回が起動せずに終わっていれば拾い、起動していれば二重に起動しない'
+ok '同じ commit の出し直しは、前回が起動せずに終わっていれば拾い、起動してレビュアーが動いていれば review-request が断る（二重にも起動しない）'
 
 # 0d. Chief of Staff が起き直してアドレスが変わると、前の Chief of Staff が書いた予約キーは照合が外れる。その間のレビュー依頼は見送るが、
 #     新しい Chief of Staff が予約キーを書き直せば、担当が頼み直さなくても次の見回りで拾い直す
