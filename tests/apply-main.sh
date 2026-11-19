@@ -6,7 +6,8 @@
 #   1 当てると中身がその commit の package/・schema/ に一致し、andon・kanban が置かれる  2 記録の3つの値
 #   3 origin/main の外の commit を断る・作業ツリーの未 commit の変更が当たらない  4 go build が落ちても半端にならない
 #   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（2回当ててから・andon と kanban を壊してから）
-#   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ  10 道具が package/ の下に無い
+#   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ  10 道具が package/ の下に無い（以上 S1）
+#   8 当てる前から動いている端末の一覧を出し、止めない  9 image/ が変わっていたら警告して当てる・状態にも出す（S2）
 set -u
 cd "$(dirname "$0")/.." || exit 2
 here=$(pwd)
@@ -73,6 +74,7 @@ cat >"$tmp/fakebin/hc" <<'EOF'
 #!/usr/bin/env bash
 c=$(jq -r .commit "$ANDON_APPLY_ROOT/applied.json" 2>/dev/null || echo none)
 echo "hc $* applied=$c" >>"$CALLS"
+[ "$1" = ls ] && { cat "$HC_LS" 2>/dev/null; exit 0; }
 [ "$1 $2" = "get dispatcher" ] && echo '{"address":"t9","state":"live","foreground":{"name":"andon","pid":'"$(cat "$DISPATCHER_PID")"'}}'
 exit 0
 EOF
@@ -90,7 +92,14 @@ grep -aq '\.pass\.lock' "$tmp/old-dispatcher" && fail "前の版の偽の dispat
 "$tmp/new-dispatcher" 600 & newd=$!
 "$tmp/old-dispatcher" 600 & oldd=$!
 trap 'kill "$newd" "$oldd" 2>/dev/null; rm -rf "$tmp"' EXIT
-export DISPATCHER_PID=$tmp/dispatcher.pid
+export DISPATCHER_PID=$tmp/dispatcher.pid HC_LS=$tmp/hc-ls.json
+cat >"$HC_LS" <<'JSON'
+{"terminals":[
+ {"address":"t3","name":"dispatcher","state":"live"},
+ {"address":"t7","name":"worker-alpha","state":"live","status":"working"},
+ {"address":"t8","name":"worker-beta","state":"live","status":"done"},
+ {"address":"t9x","name":"gone-gamma","state":"dead"}]}
+JSON
 echo "$newd" >"$DISPATCHER_PID"
 
 run() { bash "$script" "$@" >"$tmp/out" 2>&1; }
@@ -129,6 +138,13 @@ echo "dirty-marker-$$" >>"$tmp/repo/package/writing.md"
 grep -q "dirty-marker-$$" "$tmp/repo/package/writing.md" || fail "3 作業ツリーを汚せていない"
 : >"$CALLS"
 if run apply; then pass "1 origin/main の先頭を当てると rc 0"; else fail "1 当てる: $(cat "$tmp/out")"; fi
+cp "$tmp/out" "$tmp/out_apply"
+# 9. image/ が変わっていない間は警告が無い
+if ! grep -q '警告' "$tmp/out_apply" && ! grep -q 'image変更' "$tmp/out_apply"; then
+  pass "9 image/ が変わっていないときは警告が無い"
+else
+  fail "9 余計な警告: $(cat "$tmp/out_apply")"
+fi
 mkdir -p "$tmp/x1"
 git -C "$tmp/repo" archive "$c1" package schema | tar -x -C "$tmp/x1"
 if diff -r -x bin -x applied.json -x schema "$tmp/x1/package" "$img/andon" && diff -r "$tmp/x1/schema" "$img/andon/schema"; then
@@ -154,11 +170,24 @@ if ! grep -rq "dirty-marker-$$" "$img/andon"; then pass "3 作業ツリーの未
 git -C "$tmp/repo" checkout -q -- package/writing.md
 if [ "$(grep -c "^andon boot home=$img/andon applied=$c1\$" "$CALLS")" = 1 ] \
   && [ "$(grep -c "^hc kill t9 applied=$c1\$" "$CALLS")" = 1 ] && [ "$(grep -c "^hc rm t9 applied=$c1\$" "$CALLS")" = 1 ] \
-  && [ "$(grep -c "applied=none" "$CALLS")" = 0 ] \
+  && [ "$(grep -v '^hc ls ' "$CALLS" | grep -c 'applied=none')" = 0 ] \
   && [ "$(grep -n '^hc rm t9' "$CALLS" | cut -d: -f1)" -lt "$(grep -n '^andon boot' "$CALLS" | cut -d: -f1)" ]; then
   pass "7 置き換えのあとに dispatcher の片付けと andon boot が1回ずつ（片付けが先）"
 else
   fail "7 当てたあとの呼び出し: $(cat "$CALLS")"
+fi
+
+# === 8. 動いている端末の一覧を出す。止めない ===
+if grep -q 'worker-alpha' "$tmp/out_apply" && grep -q 'worker-beta' "$tmp/out_apply" \
+  && ! grep -q 'gone-gamma' "$tmp/out_apply" && ! grep -Eq '^  t[0-9a-z]+ dispatcher ' "$tmp/out_apply"; then
+  pass "8 当てる前から動いている端末（dispatcher・動いていないものを除く）を出す"
+else
+  fail "8 端末の一覧: $(cat "$tmp/out_apply")"
+fi
+if ! grep -Eq '^hc (kill|keep|rm) (t7|t8)' "$CALLS" && grep -q '^hc kill t9 ' "$CALLS"; then
+  pass "8 一覧の端末を止める呼び出しが無い（dispatcher を止める呼び出しはある）"
+else
+  fail "8 端末を止めた: $(cat "$CALLS")"
 fi
 
 # === 5b・5c. 当てたあと・main が2つ進んだあと ===
@@ -181,6 +210,23 @@ else
   fail "5 進んだあとの状態: $(cat "$tmp/out")"
 fi
 git -C "$tmp/repo" reset -q --hard origin/main
+
+# === 9. image/ が変わったら警告して当てる ===
+printf 'x\n' >"$tmp/repo/image/drift-marker.txt"
+git -C "$tmp/repo" add -A
+git -C "$tmp/repo" commit -qm drift
+git -C "$tmp/repo" push -q origin main
+if run status && grep -q '警告' "$tmp/out" && grep -q 'image/drift-marker.txt' "$tmp/out"; then
+  pass "9 状態を出す口にも image/ の変更の警告が出る"
+else
+  fail "9 状態の警告: $(cat "$tmp/out")"
+fi
+if run apply && grep -q '警告' "$tmp/out" && grep -q 'image/drift-marker.txt' "$tmp/out" \
+  && [ "$(jq -r .commit "$rec")" = "$(git -C "$tmp/repo" rev-parse origin/main)" ]; then
+  pass "9 警告を出して当てる（rc 0・記録は当てた commit）"
+else
+  fail "9 警告つきで当てる: $(cat "$tmp/out")"
+fi
 
 # === 4. go build が落ちる commit を当てても半端にならない ===
 cp -a "$img" "$tmp/before4"
