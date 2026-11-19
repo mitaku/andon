@@ -7,7 +7,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// humanMerge は review の課題の PR を人がマージしたかを andon issue settle に見させ、返った通知を積む（dispatcher.md §2.7）。
+// humanMerge は review・doing の課題の PR を人がマージしたかを andon issue settle に見させ、返った通知を積む（dispatcher.md §2.7）。
 // 拾う・片付ける・自分の記録を持つのは settle で、dispatcher は打って積むだけ（ADR-0017 決めたこと 5・6）。
 // 失敗はログに1行で、次の見回りで打ち直す（settle が PR ごとに1分に1回だけ GitHub に聞く）。
 func (p *project) humanMerge(t ledger.Issue, rep *contract.Report) {

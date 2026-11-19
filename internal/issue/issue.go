@@ -14,7 +14,7 @@
 //	session               自分の端末のラベル session を出す（template の command・resume の行が読む）
 //	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
 //	                      （links に write_back: true の出所の issue があれば、そこに結果を1コメント書く。writeback.go）
-//	settle <id>           review の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（積む通知を JSON で出す。dispatcher が打つ）
+//	settle <id>           review・doing の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（積む通知を JSON で出す。dispatcher が打つ）
 //	merge <id>            review の課題にゲートを回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして finish する（積む通知を JSON で出す。dispatcher が打つ）
 //	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
@@ -51,7 +51,7 @@ const Usage = "usage: andon issue show <id>                                  予
 	"       andon issue candidates <id> <candidates.json|->        候補の一覧を検査して library/candidates.json に書く（commit は command が書く）\n" +
 	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ。受け取られていない問いがあれば何も消さずに止まる）\n" +
 	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
-	"       andon issue settle <id>                                review の課題の PR を人がマージしていたら、ゲートの問いを閉じて片付ける\n" +
+	"       andon issue settle <id>                                review・doing の課題の PR を人がマージしていたら、ゲートの問いを閉じて片付ける\n" +
 	"                                                          （PR ごとに1分に1回 gh pr view。積む通知を JSON で出す。2回打っても同じ）\n" +
 	"       andon issue merge <id>                                 review の課題にゲートを回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして片付ける\n" +
 	"                                                          （review に入った行ごとに1回。fix は担当へ、needs_human は問い。積む通知を JSON で出す）\n" +

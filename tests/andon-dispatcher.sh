@@ -600,7 +600,7 @@ as_worker "$hm" review-request
 dispatcher
 review_by "$hm-r1" '[]'
 as_worker "$hm" ready
-touch "$tmp/gh/race"; watch_due none
+touch "$tmp/gh/race"; watch_due "$hm"   # doing のうちに聞いた分は待たせない（ほかの課題は聞かない）
 merges=$(wc -l < "$tmp/gh/merges"); n=$(wc -l < "$tmp/gh/states")
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = $((merges + 1)) ] || die '前提: gh pr merge を打っていない'
@@ -681,6 +681,38 @@ kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die '�
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die '2 回目に GitHub に聞き直した'
 rm -f "$tmp/gh/merged"
 ok 'andon issue settle は 2 回打っても同じ（聞く・知らせる・片付けるのは 1 回）。ゲートの記録の merged が true なら dispatcher のマージとして片付けない'
+
+# 4g. 担当が doing のうちに人が GitHub で PR をマージした → review のときと同じ道で片付ける（done・端末・worktree）。
+#     受け取られていない問い・commit していない変更があれば片付けず、理由つきの通知 merged（held）を理由ごとに1回だけ積む。dispatcher.md §2.7
+hm=$(newtask 'doing のうちにマージされる' person)
+dwt=$ANDON_WORKSPACE/.worktrees/app/demo-$hm
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+(cd "$dwt" && HC_TERMINAL_ID=t7 "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"users","question":"どちらにする","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}')
+n=$(wc -l < "$tmp/gh/states")
+watch_due "$hm"; dispatcher
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die "doing の課題の PR を聞いていない・聞きすぎた: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
+kanban show "$hm" --json | jq -e '.issue.status == "doing"' >/dev/null || die 'OPEN の PR の doing の課題を片付けた'
+person_merges
+watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "doing"' >/dev/null && [ -d "$dwt" ] && grep -q "^t7 $hm\$" "$tmp/hc/live" || die '問いが開いているのに doing の課題を片付けた'
+pending "$hm" merged | jq -e --arg q "$hm#1" '.detail.by == "person" and (.detail.held | contains($q))' >/dev/null || die "片付けない理由（問い）を知らせていない: $(pending "$hm" merged)"
+jq --arg t "$hm" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+n=$(wc -l < "$tmp/gh/states"); dispatcher
+[ "$(pending "$hm" merged)" = null ] && [ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die 'doing の課題で同じ理由を二度知らせた・MERGED の PR を聞き直した'
+HC_TERMINAL_ID=t5 kanban answer "$hm#1" A >/dev/null; HC_TERMINAL_ID=t7 kanban received "$hm#1" >/dev/null
+echo wip >> "$dwt/docs/a.md"   # 担当が commit していない変更
+dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "doing"' >/dev/null && [ -d "$dwt" ] && grep -q "^t7 $hm\$" "$tmp/hc/live" || die 'commit していない変更があるのに doing の課題を片付けた'
+pending "$hm" merged | jq -e '.detail.by == "person" and (.detail.held | contains("commit していない変更"))' >/dev/null || die "片付けない理由（変更）を知らせていない: $(pending "$hm" merged)"
+git -C "$dwt" checkout -q -- docs/a.md
+dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "doing のうちに人がマージした課題を片付けない: $(tail -3 "$tmp/dispatcher.log")"
+[ ! -e "$dwt" ] && ! grep -q "^t7 $hm\$" "$tmp/hc/live" || die 'doing の課題を done にしたが worktree・端末が残った'
+recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
+jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
+rm -f "$tmp/gh/merged"
+ok 'doing のうちに人がマージした PR も、review のときと同じ道で片付ける（done・端末・worktree）。問い・commit していない変更があれば片付けず、理由ごとに1回だけ知らせる'
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null

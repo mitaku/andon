@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,12 +22,15 @@ import (
 // prPoll は同じ PR を GitHub に聞く間隔（dispatcher は待ちがあると5秒ごとに打つので、gh の上限を食わない。dispatcher.md §2.7）。
 const prPoll = time.Minute
 
+// settleOn は settle が PR を見る課題の status（doing のうちに人がマージした PR も片付ける。dispatcher.md §2.7）。
+var settleOn = []string{"review", "doing"}
+
 // settlePath は settle の記録（~/.local/state/andon/dispatcher/<slug>.settle.json。書き手は andon issue settle だけ。ADR-0017 決めたこと 5）。
 func settlePath(slug string) string {
 	return filepath.Join(filepath.Dir(dispatcher.StatePath(slug)), slug+".settle.json")
 }
 
-// settle は andon issue settle: review の課題の PR を人がマージしたかを見て、マージしていたら dispatcher がマージしたときと
+// settle は andon issue settle: review か doing の課題の PR を人がマージしたかを見て、マージしていたら dispatcher がマージしたときと
 // 同じ道（ゲートの問いを閉じて finish）で片付ける。マージはしない。積む通知は stdout の JSON で返す（積むのは dispatcher）。
 // 2回打っても同じ結果になるよう、聞いた時刻・MERGED／CLOSED・知らせた理由を自分の記録に持つ（dispatcher.md §2.7）。
 //
@@ -34,6 +38,9 @@ func settlePath(slug string) string {
 //	MERGED                                   → ゲートの問い（from: gate）を「人がマージした」と閉じて finish、通知 merged（by: person）
 //	MERGED でゲートの外の問いが開いている     → 片付けずに通知 merged（held）。同じ理由では二度知らせない
 //	CLOSED                                   → 片付けない。通知 closed を1回だけ
+//
+// doing の課題（担当が働いているうちに人がマージした）も同じ道で片付ける。受け取られていない問い・commit していない変更が
+// あれば片付けずに held で知らせる（finish の拒みを越えない）。
 func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	path := settlePath(c.l.Slug)
 	rec := map[string]contract.Settled{}
@@ -44,7 +51,7 @@ func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if err := forgetOthers(c, rec); err != nil {
+	if err := forgetOthers(c, rec, settleOn...); err != nil {
 		return err
 	}
 	res := contract.Settle{Issue: c.id, State: "skip", Notify: []contract.Notice{}}
@@ -69,7 +76,7 @@ func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 
 // settleOne は1つの課題を見て res を埋め、残す記録を返す（nil なら記録から外す）。
 func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writer, now time.Time) (*contract.Settled, error) {
-	if c.issue.Str("status") != "review" {
+	if !slices.Contains(settleOn, c.issue.Str("status")) {
 		return nil, nil
 	}
 	rep, err := c.previous()

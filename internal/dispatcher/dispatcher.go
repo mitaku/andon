@@ -325,6 +325,7 @@ func (p *project) pass() (bool, error) {
 			if rep.ReviewRequest != nil {
 				p.reviewRequest(t, rep)
 			}
+			p.humanMerge(t, rep) // doing のうちに人が GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		case "review":
 			p.merge(t)           // ゲートとマージと片付け（andon issue merge。dispatcher.md §5 の P6a）
 			p.humanMerge(t, rep) // 人が GitHub でマージした（andon issue settle。dispatcher.md §2.7）

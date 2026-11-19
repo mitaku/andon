@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ func (c *ctx) merge(stdout, stderr io.Writer, now time.Time) error {
 	} else {
 		return err
 	}
-	if err := forgetOthers(c, rec); err != nil {
+	if err := forgetOthers(c, rec, "review"); err != nil {
 		return err
 	}
 	res := contract.Merge{Issue: c.id, State: "skip", Log: []string{}, Notify: []contract.Notice{}}
@@ -56,8 +57,8 @@ func (c *ctx) merge(stdout, stderr io.Writer, now time.Time) error {
 	return err
 }
 
-// forgetOthers は review にいない課題の記録を捨てる（片付いた・doing に戻った・やめた）。打たれた課題の分は呼び手が決める。
-func forgetOthers[T any](c *ctx, rec map[string]T) error {
+// forgetOthers は keep のどれにもいない課題の記録を捨てる（片付いた・doing に戻った・やめた）。打たれた課題の分は呼び手が決める。
+func forgetOthers[T any](c *ctx, rec map[string]T, keep ...string) error {
 	others := false
 	for id := range rec {
 		others = others || id != c.id
@@ -69,12 +70,12 @@ func forgetOthers[T any](c *ctx, rec map[string]T) error {
 	if err != nil {
 		return err
 	}
-	review := map[string]bool{}
+	kept := map[string]bool{}
 	for _, t := range tasks {
-		review[t.Str("id")] = t.Str("status") == "review"
+		kept[t.Str("id")] = slices.Contains(keep, t.Str("status"))
 	}
 	for id := range rec {
-		if id != c.id && !review[id] {
+		if id != c.id && !kept[id] {
 			delete(rec, id)
 		}
 	}

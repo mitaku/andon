@@ -27,5 +27,6 @@ transitions:
   - { from: review, to: done, on: "PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた", by: ai, command: andon issue finish }
   - { from: queued, to: done, on: "やめる（人の go）", by: ai, command: andon issue finish }
   - { from: todo, to: done, on: "やめる（人の go）", by: ai, command: andon issue finish }
-  - { from: doing, to: done, on: "やめる（人の go）・review を通らずに人がマージした", by: ai, command: andon issue finish }
+  - { from: doing, to: done, on: "やめる（人の go）・report.json に pr の無い課題を人がマージした", by: ai, command: andon issue finish }
+  - { from: doing, to: done, on: "doing のうちに人がマージした PR を拾って片付けた（dispatcher.md §2.7）", by: machine, command: andon issue settle }
   - { from: done, to: "[*]", on: "終わり", by: kanban }
