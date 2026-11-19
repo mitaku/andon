@@ -200,6 +200,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, "example/app", "7")
 	for _, want := range []string{
 		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
+		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`", // 台帳の中のレビュアー自身の課題（A-0216）
 		"screen_paths", "画像の添付が無い", "commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
 	} {
 		if !strings.Contains(b, want) {
