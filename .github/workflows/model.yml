@@ -1,0 +1,26 @@
+name: model
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  # 課題の一生のモデル（model/）を検査器 tla-ts で回す（ADR-0025 決めたこと 7）。検査器は外から取る npm のコードなので、
+  # この job だけで回し、秘密を渡さず、token は読むだけにする。検査器は model/package-lock.json から入れ、install の
+  # スクリプトは走らせない（model/check）。Node は runner に入っているものを使う。tests・release の job では回さない
+  # （workflow_test.go が確かめる）。job と check の名前は変えない（ゲートは PR の head の checks が揃うのを待つ）
+  model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: model/check
+        run: |
+          set -euo pipefail
+          node --version
+          model/check

@@ -10,6 +10,7 @@ scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
 [ "$(scope docs/image.md README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人の文書だけで true"
 [ "$(scope tests/andon-issue.sh tests/kanban/test-deck.mjs workflow_test.go internal/issue/issue_test.go)" = false ] || die "ほかの tests・Go のテストだけで true"
 [ "$(scope CHANGELOG.md)" = false ] || die "CHANGELOG.md だけで true"
+[ "$(scope model/IssueLife.tla model/IssueRules.tla model/expected.txt model/broken/BrokenReady.tla model/package-lock.json model/README.md)" = false ] || die "モデルだけで true"
 [ "$(scope)" = false ] || die "変更が無いのに true"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
   internal/issue/issue.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \

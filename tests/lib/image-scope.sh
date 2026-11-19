@@ -18,6 +18,8 @@ while IFS= read -r p; do
     # 人の文書・ほかの tests
     cmd/*_test.go | internal/*_test.go | docs/* | tests/*) ;;
     README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    # 課題の一生のモデルと検査器の版（ADR-0025。image に入らず、job model が回す）
+    model/*) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・
     # mise.toml・.github/ と、まだ無いパス）は要る
     *) need=true ;;
