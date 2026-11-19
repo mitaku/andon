@@ -352,6 +352,10 @@ fail|notification|.kind = "asked" | .detail = {n: 1, kind: "other", question: "x
 pass|notification|.kind = "ready" | .detail = {title: "x"}|kind ready（routine 無し）
 pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_issue: "A-13"}|kind review-requested
 pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json"}|kind gate
+pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json", no_agent: true}|kind gate（fix で担当がいない）
+fail|notification|.kind = "gate" | .detail = {decision: "approve", reasons: [], record: "/x/gate/a.json", no_agent: true}|gate の no_agent が fix でない
+fail|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json", no_agent: false}|gate の no_agent が true でない
+fail|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json", no_agent: true, unsent: "t7"}|gate に no_agent と unsent が一緒
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|kind merged
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person"}|kind merged（人がマージした）
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person", held: "x"}|kind merged（人がマージしたが片付けていない）
@@ -688,6 +692,7 @@ question-gate.json|question|andon dispatcher が needs_human で出した問い�
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
 notification-gate-unsent.json|notification|andon dispatcher の通知 gate（fix を担当へ送れなかった）
+notification-gate-no-agent.json|notification|andon dispatcher の通知 gate（fix で担当がいない）
 notification-merged.json|notification|andon dispatcher の通知 merged
 notification-merged-person.json|notification|andon dispatcher の通知 merged（人がマージした）
 notification-merged-held.json|notification|andon dispatcher の通知 merged（人がマージしたが片付けていない）

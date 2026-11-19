@@ -45,6 +45,9 @@ func RouteOf(n Notification, f Facts) Route {
 			if u, ok := n.Detail["unsent"]; ok && u != nil && u != "" {
 				return Deliver // 担当に送れなかった（担当の端末が無い）。誰にも届かず review のまま止まらないように
 			}
+			if n.Detail["no_agent"] == true {
+				return Deliver // 担当（agent）がいない。unsent と同じく、誰にも届かず止まらないように
+			}
 			return Record
 		case "needs_human":
 			return Record

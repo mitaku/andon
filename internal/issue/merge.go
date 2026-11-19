@@ -242,13 +242,14 @@ func (c *ctx) stillWaiting(rows []ledger.Row, pr, waited string, now time.Time) 
 	return false
 }
 
-// sendFix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。担当がいなければ通知 report。
-// 送れなければ（担当の端末が無い）通知 gate の detail に unsent（担当の address）を書く。gate が無ければ通知 report。
+// sendFix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。
+// 返せなければ dispatcher が Chief of Staff に届けるよう、通知 gate の detail に印を書く: 担当がいなければ no_agent、
+// 送れなければ（担当の端末が無い）unsent（担当の address）。gate が無ければ（PR の head が読めない）通知 report。
 func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	agent := c.issue.Str("agent")
 	if agent == "" {
-		res.Log = append(res.Log, fmt.Sprintf("%s のゲートが fix だが担当（agent）がいない", c.id))
-		res.Notify = append(res.Notify, contract.Notice{Kind: "report", Detail: map[string]any{"report": filepath.Join(c.l.Dir, "issues", c.id, "report.md")}})
+		res.Log = append(res.Log, fmt.Sprintf("%s のゲートが fix だが担当（agent）がいない（Chief of Staff に届ける）", c.id))
+		c.markGate(res, "no_agent", true)
 		return
 	}
 	msg := fmt.Sprintf("%s（%s）: ゲートが fix を返した。理由: %s。", c.id, short(c.issue.Str("title")), strings.Join(gr.Reasons, "／"))
@@ -259,14 +260,19 @@ func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	if out, err := exec.Command("hc", "send", agent, msg).CombinedOutput(); err != nil {
 		res.Log = append(res.Log, fmt.Sprintf("%s の担当 %s に fix を送れない（Chief of Staff に届ける）: %v %s", c.id, agent, err, firstLine(string(out))))
 		// 担当の端末が無い（セルの起き直しなど）: 通知 gate に送れなかった担当を書き、dispatcher が Chief of Staff に届ける
-		for i := len(res.Notify) - 1; i >= 0; i-- {
-			if res.Notify[i].Kind == "gate" {
-				res.Notify[i].Detail["unsent"] = agent
-				return
-			}
-		}
-		res.Notify = append(res.Notify, contract.Notice{Kind: "report", Detail: map[string]any{"report": filepath.Join(c.l.Dir, "issues", c.id, "report.md")}})
+		c.markGate(res, "unsent", agent)
 	}
+}
+
+// markGate は、この回の通知 gate の detail に key を書く（dispatcher が Chief of Staff に届ける印）。gate が無ければ通知 report を積む。
+func (c *ctx) markGate(res *contract.Merge, key string, v any) {
+	for i := len(res.Notify) - 1; i >= 0; i-- {
+		if res.Notify[i].Kind == "gate" {
+			res.Notify[i].Detail[key] = v
+			return
+		}
+	}
+	res.Notify = append(res.Notify, contract.Notice{Kind: "report", Detail: map[string]any{"report": filepath.Join(c.l.Dir, "issues", c.id, "report.md")}})
 }
 
 // approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 gate のまま止まる（人がマージする）。

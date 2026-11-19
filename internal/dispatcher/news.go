@@ -88,6 +88,9 @@ func line(n Notification) string {
 		if u, ok := n.Detail["unsent"]; ok && u != nil && u != "" {
 			s += "。担当 " + clean(u, 40) + " に送れなかった（端末が無い）"
 		}
+		if n.Detail["no_agent"] == true {
+			s += "。担当（agent）がいないので送っていない"
+		}
 		return s
 	case "merged":
 		if n.Detail["by"] != "person" {
