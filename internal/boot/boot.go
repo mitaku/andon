@@ -13,7 +13,7 @@
 //	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
-// 信頼済みにする（trust.go。足りない所だけ足す）、外の skill（gh skill。extskills.go）、portless・files サーバ・sshd・dispatcher の起動。
+// 信頼済みにする（trust.go。足りない所だけ足す。Claude Code にはプロファイルが --add-dir で渡すフォルダも）、外の skill（gh skill。extskills.go）、portless・files サーバ・sshd・dispatcher の起動。
 // 起動は道具が無ければ飛ばし、失敗しても続ける（セルは立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
 package boot
@@ -46,7 +46,7 @@ const Usage = "usage: andon boot\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、gh skill update --all で上げる（一覧が空なら打たない）。\n" +
-	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。\n" +
+	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。プロファイルの command・resume が --add-dir で渡すフォルダも .claude.json で信頼済みにする。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
 // DefaultPackage はパッケージの既定の置き場。プロファイルの本文はこのパスで書く。
@@ -331,18 +331,9 @@ func genTemplates(e Env) error {
 	if _, err := Template(nil, e.Package); err != nil {
 		return err // 1枚も書かない（今あるプロファイルを残す）
 	}
-	files := map[string]string{}
-	for _, dir := range []string{
-		filepath.Join(e.Package, "templates"),
-		filepath.Join(e.Workspace, "templates.local"),
-	} {
-		matches, err := filepath.Glob(filepath.Join(dir, "*.md"))
-		if err != nil {
-			return err
-		}
-		for _, m := range matches {
-			files[filepath.Base(m)] = m
-		}
+	files, err := e.templateFiles()
+	if err != nil {
+		return err
 	}
 	dst := filepath.Join(e.Home, ".config", "herdr-core", "templates")
 	var errs []error
@@ -363,6 +354,24 @@ func genTemplates(e Env) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// templateFiles はプロファイルの元のファイル（名前 → パス）。同じ名前ならセルの templates.local が勝つ。
+func (e Env) templateFiles() (map[string]string, error) {
+	files := map[string]string{}
+	for _, dir := range []string{
+		filepath.Join(e.Package, "templates"),
+		filepath.Join(e.Workspace, "templates.local"),
+	} {
+		matches, err := filepath.Glob(filepath.Join(dir, "*.md"))
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range matches {
+			files[filepath.Base(m)] = m
+		}
+	}
+	return files, nil
 }
 
 // SplitResume はプロファイルの frontmatter の resume: の行を分ける（ADR-0012 決めたこと 13 の 1）。
