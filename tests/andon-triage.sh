@@ -31,6 +31,7 @@ for n in one two three; do
 - $n の次
 ## Remember
 - $n の学び
+計画との差: $n の差なし
 For AGENTS.md: $n の規則
 ## 人に聞くこと
 - $n の問い
@@ -45,9 +46,22 @@ kanban set "$person" who=person >/dev/null
 mkdir "$tmp/leftover"
 kanban set T-1 "worktree=$tmp/leftover" >/dev/null
 broken=$(kanban add broken); kanban report "$broken" <<<'見出しなし'; kanban done "$broken" >/dev/null
+# 片付いた人の判断待ち（報告なし）。題の末尾の印と who の両方の形で。
+answered=$(kanban add '答えた（人の判断待ち）'); kanban done "$answered" >/dev/null
+answered_who=$(kanban add '答えた'); kanban set "$answered_who" who=person >/dev/null; kanban done "$answered_who" >/dev/null
+[[ ! -e kanban/issues/$answered/report.md && ! -e kanban/issues/$answered_who/report.md ]]
 "$script" triage collect > "$tmp/items"
 jq -e '([.[].kind] | unique) == ["agents","issue","leftover","next","person","question","remember","unreadable","waived"]' "$tmp/items" >/dev/null
 echo 'ok collect: eight kinds and unreadable'
+# 「計画との差:」の行は項目にしない。学びの行は出る（ADR-0030 受け入れ条件 3）。
+grep -q '^計画との差: one の差なし' kanban/issues/*/report.md
+jq -e '[.[]|select(.kind=="remember")] | length==3 and all(.text|endswith("の学び"))' "$tmp/items" >/dev/null
+jq -e 'all(.[]; .text|contains("計画との差")|not)' "$tmp/items" >/dev/null
+echo 'ok collect: the plan-diff line in Remember is not an item'
+# 報告の無い人の課題は項目にしない。読めない担当の報告は今までどおり出る（受け入れ条件 4）。
+jq -e --arg a "$answered" --arg w "$answered_who" 'all(.[]; .from != $a and .from != $w)' "$tmp/items" >/dev/null
+jq -e --arg b "$broken" '[.[]|select(.kind=="unreadable").from] == [$b]' "$tmp/items" >/dev/null
+echo 'ok collect: a settled person issue without a report is not unreadable'
 set +e
 "$script" triage collect --limit 1 >/dev/null 2>&1; rc=$?
 set -e

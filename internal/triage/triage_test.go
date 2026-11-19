@@ -42,6 +42,27 @@ func TestReportLines(t *testing.T) {
 	}
 }
 
+func TestReportLinesSkipsPlanDiff(t *testing.T) {
+	body := "## Report\n" +
+		"計画との差: Report の節は元から拾わない\n" +
+		"## Remember\n" +
+		"- 学び\n" +
+		"計画との差: 差なし。見送りは無い\n" +
+		"- 計画との差: 箇条書きでも\n" +
+		"  計画との差: 字下げでも\n" +
+		"- 学び 2\n" +
+		"## Next\n" +
+		"- 計画との差: Next の節では拾う"
+	want := []reportLine{
+		{"remember", "- 学び"},
+		{"remember", "- 学び 2"},
+		{"next", "- 計画との差: Next の節では拾う"},
+	}
+	if got := reportLines([]byte(body)); !reflect.DeepEqual(got, want) {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}
+
 func TestItemKeyMatchesShellSha1(t *testing.T) {
 	// printf '%s' 'abc' | sha1sum
 	if got := itemKey("demo", "T-1", "next", "abc"); got != "demo:T-1:next:a9993e364706816aba3e25717850c26c9cd0d89d" {
