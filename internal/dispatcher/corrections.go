@@ -21,7 +21,7 @@ import (
 // correctionsTries は corrections.json を集めようとする回数の上限（初めの1回 ＋ 次の見回りの1回）。
 const correctionsTries = 2
 
-// gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.go の postGitHub）。人のコメントに数えない。
+// gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.CommentPrefix。internal/gate/comment.go）。人のコメントに数えない。
 const gateCommentPrefix = "andon gate: "
 
 // QA は台帳の問い1つ（kanban show --json の questions）と、その問いの JSON（library/questions/<n>.json。無ければ nil）。

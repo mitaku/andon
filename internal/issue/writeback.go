@@ -17,7 +17,8 @@ import (
 var githubIssueRe = regexp.MustCompile(`^https://(github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)/issues/[1-9][0-9]*$`)
 
 // writeBack は課題が done になったあと、links にある write_back: true の出所のトラッカーへ1コメント書く
-// （課題 id・PR の URL・結果。ADR-0011 決めたこと 15・contract.md §11）。状態は変えない（打つのは gh issue comment だけ）。
+// （結果と PR の URL。ADR-0011 決めたこと 15・19・contract.md §11）。状態は変えない（打つのは gh issue comment だけ）。
+// 本文は外の人が読む文で、課題番号を書かない（台帳を持たない人には辿れない。ADR-0026 決めたこと 9）。
 // 書くのは GitHub の issue（github-issues の出所）だけ。書けなくても finish は戻さず、理由を1行出す。
 // finish は done の課題には打てない（process/states/issue.yaml）ので、1つの課題で書くのは1回。
 func (c *ctx) writeBack(stdout io.Writer) {
@@ -42,10 +43,7 @@ func (c *ctx) writeBack(stdout io.Writer) {
 		fmt.Fprintf(stdout, "andon issue: %s のトラッカーへ書けなかった（%v）。手で書く: %s\n", c.id, err, strings.Join(targets, " "))
 		return
 	}
-	if pr == "" {
-		pr = "無し"
-	}
-	body := fmt.Sprintf("Andon: 課題 %s が終わった。\n- PR: %s\n- 結果: %s\n", c.id, pr, result)
+	body := writeBackBody(pr, result)
 	for _, u := range targets {
 		var errb bytes.Buffer
 		cmd := exec.Command("gh", "issue", "comment", u, "--body", body)
@@ -80,7 +78,25 @@ func trackers(p *delegate.Project, links []string) []string {
 	return out
 }
 
-// outcome は report.json の pr と結果（MERGED ならマージ、CLOSED なら閉じ）。PR が無ければ閉じ。
+// 書き戻しの結果（outcome が返す）。
+const (
+	resultMerged = "merged" // PR がマージされた
+	resultClosed = "closed" // PR がマージされずに閉じられた
+	resultNoPR   = "no_pr"  // PR を作らずに終えた
+)
+
+// writeBackBody は外の Issue へ書く本文（3 つの場合。課題番号は書かない）。
+func writeBackBody(pr, result string) string {
+	switch result {
+	case resultMerged:
+		return "この Issue に対応する変更がマージされた。\nPR: " + pr + "\n"
+	case resultClosed:
+		return "この Issue に対応する変更は、マージされずに閉じられた。\nPR: " + pr + "\n"
+	}
+	return "この Issue に対応する作業は、変更（PR）を作らずに終えた。\n"
+}
+
+// outcome は report.json の pr と結果（MERGED なら merged、CLOSED なら closed）。PR が無ければ no_pr。
 // PR が読めない・OPEN など MERGED でも CLOSED でもなければ誤り（結果を書き違えない。外へのコメントは戻せない）。
 func (c *ctx) outcome() (string, string, error) {
 	rep, err := c.previous()
@@ -88,7 +104,7 @@ func (c *ctx) outcome() (string, string, error) {
 		return "", "", err
 	}
 	if rep == nil || rep.PR == "" {
-		return "", "閉じ（PR 無し）", nil
+		return "", resultNoPR, nil
 	}
 	out, err := exec.Command("gh", "pr", "view", rep.PR, "--json", "state", "-q", ".state").Output()
 	if err != nil {
@@ -96,9 +112,9 @@ func (c *ctx) outcome() (string, string, error) {
 	}
 	switch st := strings.TrimSpace(string(out)); st {
 	case "MERGED":
-		return rep.PR, "マージ", nil
+		return rep.PR, resultMerged, nil
 	case "CLOSED":
-		return rep.PR, "閉じ（マージせず）", nil
+		return rep.PR, resultClosed, nil
 	default: // OPEN など: マージも閉じもしていない PR の結果は書けない（やめた課題の PR が開いたまま、など）
 		return "", "", fmt.Errorf("PR が MERGED でも CLOSED でもない: %s %s", rep.PR, st)
 	}

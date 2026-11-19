@@ -30,7 +30,7 @@ change() { # change <path> <行>: origin に commit して head を返す
     git -C "$tmp/origin" add -A; as_agent git -C "$tmp/origin" commit -qm "$1"; git -C "$tmp/origin" rev-parse HEAD
 }
 
-# 偽の gh: PR の事実は $tmp/gh/ のファイル（GitHub の checks は rollup.json）。書き込み（status・comment）は $tmp/gh/posted に1行ずつ
+# 偽の gh: PR の事実は $tmp/gh/ のファイル（GitHub の checks は rollup.json）。書き込み（status・comment）は $tmp/gh/posted に1行ずつ、コメントの本文は $tmp/gh/bodies に足す
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 d=$tmp/gh
@@ -46,7 +46,7 @@ case "\$*" in
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
-  "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted ;;
+  "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted; printf '%s\n' "\$7" >> \$d/bodies ;;
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
 esac
 EOF
@@ -125,6 +125,14 @@ rec="$lib/gate/$head.json"
 jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and (.review | has("issue") and (has("task") | not)) and .checks == [] and .merged == false' "$rec" >/dev/null
 grep -q 'status .*state=failure' "$tmp/gh/posted" && grep -q comment "$tmp/gh/posted"
 ok '委譲が無ければ needs_human（記録を書き、status と comment を付ける）'
+# ADR-0026 A5: PR のコメントと commit status の説明文は外の人が読む文（内輪の語が無い。頭は andon gate: ）。記録の文は今までどおり
+inside='needs_human|tier|delegation|report\.json|issue\.yaml|条件表'
+jq -r '.decision, .reasons[]' "$rec" | grep -qE "$inside" || die '記録の文に内輪の語が無い（下の検査が何も見ていない）'
+head -n 1 "$tmp/gh/bodies" | grep -q '^andon gate: \*\*人の判断が要る変更です\*\*' || die "コメントの見出しが違う: $(cat "$tmp/gh/bodies")"
+! grep -iE "$inside" "$tmp/gh/bodies" || die "コメントに内輪の語: $(cat "$tmp/gh/bodies")"
+grep 'status ' "$tmp/gh/posted" | grep -q 'description=andon gate: 人の判断が要る変更です' || die "status の説明文が違う: $(cat "$tmp/gh/posted")"
+! grep 'status ' "$tmp/gh/posted" | grep -iE "$inside" || die "status の説明文に内輪の語: $(cat "$tmp/gh/posted")"
+ok 'needs_human: コメントと commit status の説明文に内輪の語が出ない（頭は andon gate: 。記録の文は変えない。ADR-0026 A5）'
 
 # 2a. base と作者は checks と同じ GraphQL の既定ブランチ・viewer と比べる（REST の repos/<slug>・user は打たない。打てば偽の gh が 99 で落ちる）
 cp "$tmp/gh/view.json" "$tmp/view0.json"

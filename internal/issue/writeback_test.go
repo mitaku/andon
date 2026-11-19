@@ -41,3 +41,22 @@ func TestTrackers(t *testing.T) {
 		t.Errorf("write_back が無いのに書く: %v", got)
 	}
 }
+
+// ADR-0026 A7: 外の Issue への本文は 3 つの場合で違い、どれにも課題番号が出ない
+func TestWriteBackBody(t *testing.T) {
+	pr := "https://github.com/example/app/pull/7"
+	cases := map[string]string{
+		resultMerged: "この Issue に対応する変更がマージされた。\nPR: " + pr + "\n",
+		resultClosed: "この Issue に対応する変更は、マージされずに閉じられた。\nPR: " + pr + "\n",
+		resultNoPR:   "この Issue に対応する作業は、変更（PR）を作らずに終えた。\n",
+	}
+	for result, want := range cases {
+		p := pr
+		if result == resultNoPR {
+			p = ""
+		}
+		if got := writeBackBody(p, result); got != want {
+			t.Errorf("%s: %q want %q", result, got, want)
+		}
+	}
+}

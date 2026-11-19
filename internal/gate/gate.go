@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -601,28 +600,16 @@ func readChecks(number, slug string) (checksRead, error) {
 }
 
 // postGitHub は記録を PR の commit status（andon/gate）とコメントに写す。失敗しても判定は変えない。
+// 写す文は外の人が読む文（comment.go）で、記録の文をそのまま写さない（ADR-0026 決めたこと 9）。
 func postGitHub(slug, number string, rec *Record, stderr io.Writer) {
 	state := "failure"
 	if rec.Decision == "approve" {
 		state = "success"
 	}
-	desc := "andon gate: " + rec.Decision + "（tier " + rec.Tier + "）"
-	if _, err := gh("api", "-X", "POST", "repos/"+slug+"/statuses/"+rec.Head, "-f", "context="+GateContext, "-f", "state="+state, "-f", "description="+desc); err != nil {
+	if _, err := gh("api", "-X", "POST", "repos/"+slug+"/statuses/"+rec.Head, "-f", "context="+GateContext, "-f", "state="+state, "-f", "description="+StatusDescription(rec)); err != nil {
 		fmt.Fprintln(stderr, "andon gate: commit status の記録に失敗:", err)
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "andon gate: **%s**（commit %s）\n\n", rec.Decision, rec.Head)
-	fmt.Fprintf(&b, "- tier %s（%s）・%d 行\n", rec.Tier, strings.Join(rec.TierReasons, "、"), rec.ChangedLines)
-	for _, c := range rec.Checks {
-		fmt.Fprintf(&b, "- check `%s`: %s\n", c.Cmd, strconv.FormatBool(c.OK))
-	}
-	fmt.Fprintf(&b, "- GitHub の checks: %s（%s 時点: %s）\n", rec.GitHubChecks.State, rec.At, strings.Join(rec.GitHubChecks.Names, ", "))
-	fmt.Fprintf(&b, "- review %s（Must fix %d・見送り %d）\n", rec.Review.State, rec.Review.MustFixOpen, rec.Review.Waived)
-	fmt.Fprintf(&b, "- delegation merge=%s（%v）\n", rec.Delegation.Merge, rec.Delegation.OK)
-	for _, r := range rec.Reasons {
-		fmt.Fprintf(&b, "- %s\n", r)
-	}
-	if _, err := gh("pr", "comment", number, "--repo", slug, "--body", b.String()); err != nil {
+	if _, err := gh("pr", "comment", number, "--repo", slug, "--body", CommentBody(rec)); err != nil {
 		fmt.Fprintln(stderr, "andon gate: コメントの記録に失敗:", err)
 	}
 }
