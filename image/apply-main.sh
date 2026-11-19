@@ -86,34 +86,43 @@ swap_dir() {
 }
 
 # andon boot を打ち直し、dispatcher を起動し直す。dispatcher の端末を片付けてから boot（boot が無い端末を起動する）。
-# 見回りの途中で止めないよう、dispatcher の見回りの鍵（internal/dispatcher の PassLock）が外れるのを待つ
+# 見回りの途中で止めないよう、dispatcher の見回りの鍵（internal/dispatcher の PassLock）が外れるのを待つ。
+# 鍵のファイルは、見回りのたびに鍵を取る版の dispatcher が作る。動いている dispatcher があるのにファイルが無ければ、
+# それは鍵を取らない前の版で、鍵が取れても見回りの合間とは限らないので止めない（internal/dispatcher の ErrOldDispatcher と同じ）
 reboot() {
   local andon=${ANDON_APPLY_ANDON:-$root/bin/andon}
   local passlock=${XDG_STATE_HOME:-$HOME/.local/state}/andon/dispatcher/.pass.lock
-  mkdir -p "$(dirname "$passlock")"
-  exec 9>>"$passlock"
-  if ! flock -w 900 9; then
-    say "警告: dispatcher の見回りが15分終わらないので起動し直さなかった。終わってから $andon boot を打ち、hc で dispatcher を起動し直す"
-    return 1
-  fi
-  if command -v hc >/dev/null; then
-    local got addr
-    if got=$(env -u HC_TERMINAL_ID hc get dispatcher --json 2>/dev/null 8<&- 9>&-) && addr=$(jq -r '.address // empty' <<<"$got") && [ -n "$addr" ]; then
-      for a in "keep $addr --off" "kill $addr" "rm $addr"; do
-        # shellcheck disable=SC2086
-        env -u HC_TERMINAL_ID hc $a >/dev/null 2>&1 8<&- 9>&- || say "警告: hc $a に失敗した"
-      done
-      say "dispatcher の端末（$addr）を片付けた"
-    fi
-  else
+  local got addr=
+  if ! command -v hc >/dev/null; then
     say "hc が無いので dispatcher は触らない"
+  elif got=$(env -u HC_TERMINAL_ID hc get dispatcher --json 2>/dev/null 8<&-); then
+    addr=$(jq -r '.address // empty' <<<"$got" 2>/dev/null || true)
+  fi
+  if [ -n "$addr" ] && [ ! -e "$passlock" ]; then
+    say "警告: 動いている dispatcher（$addr）は見回りの鍵を取らない前の版なので、止めずに残した（見回りの途中で止めない）。"
+    say "  新しい andon で動かすには、見回りの合間に hc kill $addr・hc rm $addr を打ってから $andon boot を打つ"
+    addr=
+  else
+    mkdir -p "$(dirname "$passlock")"
+    exec 9>>"$passlock"
+    if ! flock -w 900 9; then
+      say "警告: dispatcher の見回りが15分終わらないので起動し直さなかった。終わってから $andon boot を打ち、hc で dispatcher を起動し直す"
+      return 1
+    fi
+  fi
+  if [ -n "$addr" ]; then
+    for a in "keep $addr --off" "kill $addr" "rm $addr"; do
+      # shellcheck disable=SC2086
+      env -u HC_TERMINAL_ID hc $a >/dev/null 2>&1 8<&- 9>&- || say "警告: hc $a に失敗した"
+    done
+    say "dispatcher の端末（$addr）を片付けた"
   fi
   local rc=0
   # 鍵の fd は子に渡さない（boot が起動する常駐のものが持ち続けると、見回りが止まる）
   ANDON_HOME=$root "$andon" boot 8<&- 9>&- || rc=$?
   exec 9>&-
   [ "$rc" = 0 ] || { say "警告: andon boot が rc $rc で終わった（出力を見て打ち直す）"; return 1; }
-  say "andon boot を打ち直した（dispatcher は boot が起動する）"
+  say "andon boot を打ち直した（dispatcher が無ければ boot が起動する）"
 }
 
 gobin() {

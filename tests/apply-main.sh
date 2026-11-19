@@ -78,6 +78,10 @@ exit 0
 EOF
 chmod 755 "$tmp/fakebin/andon" "$tmp/fakebin/hc"
 export PATH=$tmp/fakebin:$(dirname "$gobin"):$PATH
+# 見回りの鍵（dispatcher の PassLock）。見回りのたびに鍵を取る版の dispatcher が作るファイル
+passlock=$HOME/.local/state/andon/dispatcher/.pass.lock
+mkdir -p "$(dirname "$passlock")"
+: >"$passlock"
 
 run() { bash "$script" "$@" >"$tmp/out" 2>&1; }
 same_as() { diff -r "$1" "$img/andon" >/dev/null && cmp -s "$2" "$img/bin/kanban"; }
@@ -183,6 +187,17 @@ git -C "$tmp/repo" rm -q cmd/andon/broken.go
 git -C "$tmp/repo" commit -qm fix
 git -C "$tmp/repo" push -q origin main
 
+# === 7. 鍵を取らない前の版の dispatcher は止めない ===
+rm -f "$passlock"
+: >"$CALLS"
+if run apply && [ "$(grep -c '^hc \(keep\|kill\|rm\) ' "$CALLS")" = 0 ] && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] \
+  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '前の版なので、止めずに残した' "$tmp/out" && [ ! -e "$passlock" ]; then
+  pass "7 鍵のファイルが無い（前の版の）dispatcher は止めず、boot だけ打ち直し、鍵のファイルも作らない"
+else
+  fail "7 前の版の dispatcher: $(cat "$CALLS") / $(cat "$tmp/out")"
+fi
+: >"$passlock"
+
 # === 6. 2回当ててから戻す ===
 if run apply && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ]; then
   pass "6 2回目を当てても記録のイメージの版は最初のまま"
@@ -190,10 +205,20 @@ else
   fail "6 2回目を当てる: $(cat "$tmp/out")"
 fi
 : >"$CALLS"
+# 見回りの途中（鍵を持っている）なら、外れるまで dispatcher を止めない
+flock "$passlock" sh -c 'sleep 2; echo released >>"$CALLS"' &
+holder=$!
+sleep 0.5
 if run revert && same_as "$tmp/initial/andon" "$tmp/initial/bin/kanban" && [ ! -e "$rec" ] && [ ! -e "$img/andon-image" ]; then
   pass "6 戻すと <根> と kanban が最初の中身に一致し、記録が無い（rc 0）"
 else
   fail "6 戻す: $(cat "$tmp/out")"
+fi
+wait "$holder"
+if [ "$(grep -n '^released' "$CALLS" | cut -d: -f1)" -lt "$(grep -n '^hc kill' "$CALLS" | cut -d: -f1)" ]; then
+  pass "7 見回りの鍵が外れてから dispatcher を止める"
+else
+  fail "7 見回りの途中で止めた: $(cat "$CALLS")"
 fi
 if [ "$(grep -c '^andon boot .*applied=none$' "$CALLS")" = 1 ] && [ "$(grep -c '^hc kill t9 applied=none$' "$CALLS")" = 1 ]; then
   pass "7 戻したあとにも dispatcher の片付けと andon boot が1回ずつ"
