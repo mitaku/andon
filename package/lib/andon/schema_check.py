@@ -11,6 +11,9 @@ JSON Schema（draft 2020-12）のうち、schema/ が使うキーワードだけ
   schema_check.py validate <schema.json> <instance.json>   通れば 0、落ちれば 1 と理由
   schema_check.py examples <contract.md>                    ```json の塊を「節の番号<TAB>JSON（1行）」で出す
   schema_check.py lint <schema.json>                        schema そのものの決まり（下の lint_schema）
+  schema_check.py batch <cases.tsv>                         validate・lint を1行1件でまとめて走らせる（python の起動を1回にする）
+                                                            行: `validate<TAB>schema<TAB>instance` か `lint<TAB>schema`。
+                                                            出力: 行ごとに `終了コード<TAB>理由の1行目`（validate・lint 単体と同じ終了コード）
 """
 import json
 import re
@@ -261,7 +264,30 @@ def examples(md_path):
         print(f"{sec}\t{json.dumps(doc, ensure_ascii=False)}")
 
 
+def run_case(fields):
+    """batch の1件。(終了コード, 理由の1行目)。単体の validate・lint と同じ終了コードを返す。"""
+    try:
+        if fields[0] == "validate" and len(fields) == 3:
+            schema = load(fields[1])
+            errs = Validator(schema).errors(schema, load(fields[2]))
+        elif fields[0] == "lint" and len(fields) == 2:
+            errs = lint_schema(load(fields[1]))
+        else:
+            return 2, "検査できない: batch の行の形が違う"
+    except (SchemaError, json.JSONDecodeError, OSError) as e:
+        return 2, f"検査できない: {e}"
+    return (1, errs[0]) if errs else (0, "")
+
+
 def main(argv):
+    if len(argv) == 3 and argv[1] == "batch":
+        with open(argv[2], encoding="utf-8") as f:
+            for line in f.read().split("\n"):
+                if line == "":
+                    continue
+                rc, why = run_case(line.split("\t"))
+                print(f"{rc}\t{why}".replace("\n", " "))
+        return 0
     if len(argv) >= 2 and argv[1] == "validate" and len(argv) == 4:
         schema = load(argv[2])
         inst = load(argv[3])

@@ -7,6 +7,7 @@
 #   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon signal）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh に書かせる）。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
+# 速さ: 検査は1件ずつ python を起こさず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,6 +19,31 @@ trap 'rm -rf "$tmp"' EXIT
 fail=0
 ok()  { echo "ok   $1"; }
 ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 緩めた写しの自己検査は最初の FAIL で止める
+
+# queue <終了コードの期待 0|1|2> <理由を出すか 0|1> <説明> <validate|lint> <schema> [<instance>]: 検査を溜める
+# flush: 溜めた検査を python 1回で走らせ、溜めた順に ok / FAIL を出す（期待は呼び出し側が固定する。flush が見るのは終了コードだけ）
+q_cases="$tmp/q.tsv"; q_meta="$tmp/q.meta"; : >"$q_cases"; : >"$q_meta"
+queue() {
+  local want=$1 show=$2 desc=$3; shift 3
+  printf '%s\t%s\t%s\n' "$want" "$show" "$desc" >>"$q_meta"
+  local IFS=$'\t'; printf '%s\n' "$*" >>"$q_cases"
+}
+flush() {
+  [ -s "$q_cases" ] || return 0
+  python3 "$check_py" batch "$q_cases" >"$tmp/q.out"
+  local n_in n_out; n_in="$(wc -l <"$q_cases")"; n_out="$(wc -l <"$tmp/q.out")"
+  if [ "$n_in" -ne "$n_out" ]; then ng "検査器の batch が $n_in 件に $n_out 件しか返さない"; : >"$q_cases"; : >"$q_meta"; return; fi
+  local want show desc rc why
+  while IFS=$'\t' read -r -u 3 want show desc && IFS=$'\t' read -r -u 4 rc why; do
+    if [ "$rc" -eq 2 ] && [ "$want" -ne 2 ]; then ng "$desc（検査できない: $why）"
+    elif [ "$rc" -eq "$want" ]; then
+      if [ "$show" = 1 ] && [ "$rc" -eq 1 ]; then ok "$desc（落ちる: $why）"; else ok "$desc"; fi
+    else
+      ng "$desc（rc=$rc、want $want）"; [ -z "$why" ] || printf '     %s\n' "$why"
+    fi
+  done 3<"$q_meta" 4<"$tmp/q.out"
+  : >"$q_cases"; : >"$q_meta"
+}
 
 # 節の番号 → schema（contract.md の冒頭の表と同じ）
 schema_of() {
@@ -32,12 +58,9 @@ expected="candidates corrections delivered findings gate issue-keys measure noti
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "$expected" ]; then ok "schema/ は12本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
-  if out="$(python3 "$check_py" lint "$schema_dir/$name.schema.json" 2>&1)"; then
-    ok "schema/$name の決まり"
-  else
-    ng "schema/$name の決まり"; printf '     %s\n' "$out"
-  fi
+  queue 0 0 "schema/$name の決まり" lint "$schema_dir/$name.schema.json"
 done
+flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1; do
@@ -47,23 +70,18 @@ done
 [ ! -e "$schema_dir/task-keys.schema.json" ] && ok "schema/task-keys.schema.json は無い" || ng "schema/task-keys.schema.json が残る"
 
 # validate <schema 名> <instance のファイル> → 0 通る / 1 落ちる / 2 検査できない
-validate() { python3 "$check_py" validate "$schema_dir/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
-
-expect() { # expect pass|fail <schema 名> <ファイル> <説明>
-  local want=$1 name=$2 file=$3 desc=$4 rc=0
-  validate "$name" "$file" || rc=$?
-  if [ "$rc" -eq 2 ]; then ng "$desc（検査できない: $(head -1 "$tmp/why")）"; return; fi
-  if [ "$want" = pass ] && [ "$rc" -eq 0 ]; then ok "$desc"
-  elif [ "$want" = fail ] && [ "$rc" -eq 1 ]; then ok "$desc（落ちる: $(head -1 "$tmp/why")）"
-  else ng "$desc（want $want）"; sed 's/^/     /' "$tmp/why"; fi
+expect() { # expect pass|fail <schema 名> <ファイル> <説明>（溜めるだけ。flush で走る）
+  local want=0; [ "$1" = pass ] || want=1
+  queue "$want" 1 "$4" validate "$schema_dir/$2.schema.json" "$3"
 }
 
 # 検査器そのもの（schema と instance を直に書く。終了コード ｜ schema ｜ instance ｜ 説明）
+self=0
 while IFS='|' read -r want sch inst desc; do
   case "$want" in ''|'#'*) continue ;; esac
-  printf '%s\n' "$sch" >"$tmp/self.schema.json"; printf '%s\n' "$inst" >"$tmp/self.json"
-  rc=0; python3 "$check_py" validate "$tmp/self.schema.json" "$tmp/self.json" >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq "$want" ]; then ok "検査器: $desc"; else ng "検査器: $desc（rc=$rc、want $want）"; fi
+  self=$((self + 1))
+  printf '%s\n' "$sch" >"$tmp/self-$self.schema.json"; printf '%s\n' "$inst" >"$tmp/self-$self.json"
+  queue "$want" 0 "検査器: $desc" validate "$tmp/self-$self.schema.json" "$tmp/self-$self.json"
 done <<'SELF'
 2|{"type": "string", "format": "date"}|"x"|知らないキーワード（format）で止まる
 0|{"type": "integer"}|1.0|integer は 1.0 を受ける（2020-12）
@@ -78,11 +96,12 @@ SELF
 
 # schema の決まりのうち、ECMA-262 と Python で意味が割れる表現を pattern に使わないこと（使えば lint が落ちる）
 for p in '^a.b$' '^[^/\s]+$' '^\d+$' '^\w+$' '^\bx$'; do
+  self=$((self + 1))
   jq -n --arg p "$p" '{"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://andon.example.com/schema/x/1",
-                       "description": "x", "type": "string", "pattern": $p}' >"$tmp/div.schema.json"
-  if python3 "$check_py" lint "$tmp/div.schema.json" >/dev/null 2>&1; then ng "検査器: pattern $p が lint を通ってしまう"
-  else ok "検査器: pattern $p は lint で落ちる"; fi
+                       "description": "x", "type": "string", "pattern": $p}' >"$tmp/div-$self.schema.json"
+  queue 1 0 "検査器: pattern $p は lint で落ちる" lint "$tmp/div-$self.schema.json"
 done
+flush
 
 # 2. contract.md の例
 python3 "$check_py" examples docs/contract.md >"$tmp/examples.tsv"
@@ -97,6 +116,7 @@ while IFS=$'\t' read -r sec json; do
   key="$name"; if [ "$name" = gate ] && jq -e 'has("decision")' "$f" >/dev/null; then key=gate-record; fi
   [ -n "${first[$key]:-}" ] || first[$key]="$f"
 done <"$tmp/examples.tsv"
+flush
 for key in $expected gate-record; do
   [ -n "${first[$key]:-}" ] || ng "contract.md に schema/$key の例が無い"
 done
@@ -118,17 +138,38 @@ declare -A required=(
   [signal]="signals"
   [delivered]="at project acked news"
 )
-mutate() { # mutate <元> <jq の式> → 新しいファイルの名前を出す
-  local out; out="$(mktemp "$tmp/m-XXXX.json")"
-  jq -c "$2" "$1" >"$out"; echo "$out"
+# gen <pass|fail> <例の key> <jq の式> <説明>: 例を式で壊した（変えた）ものの検査を溜める。
+# 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を起こさない）。式は1つの値を返すこと。
+gen() {
+  printf '%s\n' "$3" >>"$tmp/g-$2.expr"
+  printf '%s\t%s\n' "$1" "$4" >>"$tmp/g-$2.meta"
+}
+gen_flush() {
+  local f key name n i line want desc prog
+  for f in "$tmp"/g-*.expr; do
+    [ -e "$f" ] || continue
+    key="${f##*/g-}"; key="${key%.expr}"; name="${key%-record}"
+    prog="$(sed 's/^/(/; s/$/),/' "$f")"; prog="${prog%,}"
+    jq -c "$prog" "${first[$key]}" >"$tmp/g-$key.out"
+    n="$(wc -l <"$f")"
+    [ "$(wc -l <"$tmp/g-$key.out")" -eq "$n" ] || { ng "$key: 式 $n 本から出た値の数が違う"; continue; }
+    i=0
+    while IFS= read -r line && IFS=$'\t' read -r -u 3 want desc; do
+      i=$((i + 1))
+      printf '%s\n' "$line" >"$tmp/m-$key-$i.json"
+      expect "$want" "$name" "$tmp/m-$key-$i.json" "$key: $desc"
+    done <"$tmp/g-$key.out" 3<"$tmp/g-$key.meta"
+    rm -f "$f" "$tmp/g-$key.meta"
+  done
+  flush
 }
 for key in "${!first[@]}"; do
   name="${key%-record}"; src="${first[$key]}"
   if [ "$key" != issue-keys ]; then   # 台帳の項目は台帳の形式に倣って知らないキーを許す
-    expect fail "$name" "$(mutate "$src" '. + {"x_unknown": 1}')" "$key: 知らないキー x_unknown を足すと落ちる"
+    gen fail "$key" '. + {"x_unknown": 1}' "知らないキー x_unknown を足すと落ちる"
   fi
   for k in ${required[$key]}; do
-    expect fail "$name" "$(mutate "$src" "del(.\"$k\")")" "$key: 必須のキー $k を消すと落ちる"
+    gen fail "$key" "del(.\"$k\")" "必須のキー $k を消すと落ちる"
   done
 done
 
@@ -136,9 +177,9 @@ done
 while IFS='|' read -r key at keys; do
   case "$key" in ''|'#'*) continue ;; esac
   name="${key%-record}"; src="${first[$key]}"
-  expect fail "$name" "$(mutate "$src" "$at += {\"x_unknown\": 1}")" "$key: $at に知らないキーを足すと落ちる"
+  gen fail "$key" "$at += {\"x_unknown\": 1}" "$at に知らないキーを足すと落ちる"
   for k in $keys; do
-    expect fail "$name" "$(mutate "$src" "del($at.\"$k\")")" "$key: $at の必須のキー $k を消すと落ちる"
+    gen fail "$key" "del($at.\"$k\")" "$at の必須のキー $k を消すと落ちる"
   done
 done <<'NESTED'
 findings|.findings[0]|severity file line
@@ -207,7 +248,7 @@ while IFS='|' read -r want key rest; do
   case "$want" in ''|'#'*) continue ;; esac
   desc="${rest##*|}"; expr="${rest%|*}"
   name="${key%-record}"
-  expect "$want" "$name" "$(mutate "${first[$key]}" "$expr")" "$key: $desc"
+  gen "$want" "$key" "$expr" "$desc"
 done <<'EOF'
 pass|issue-keys|. + {"links": ["https://example.com"]}|台帳の形式のキーは通る
 pass|issue-keys|{}|予約キーが1つも無くても通る（無いときの振る舞いは読み手が持つ）
@@ -528,14 +569,20 @@ fail|signal|.signals[0] += {"body": "stack trace"}|本文を持つ（持たな�
 fail|signal|.signals = {}|signals が配列でない
 EOF
 
+gen_flush
+
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
+  # 緩めた写しごとの再実行は互いに独立なので、並べて走らせて結果を溜めた順に出す
+  par="$(nproc 2>/dev/null || echo 2)"; [ "$par" -le 8 ] || par=8
+  n=0; descs=()
   while IFS='|' read -r name expr desc; do
     case "$name" in ''|'#'*) continue ;; esac
-    loose="$tmp/loose"; rm -rf "$loose"; cp -r schema "$loose"
+    n=$((n + 1)); descs[n]="$desc"
+    loose="$tmp/loose-$n"; cp -r schema "$loose"
     jq "$expr" "schema/$name.schema.json" >"$loose/$name.schema.json"
-    if ANDON_SCHEMA_DIR="$loose" bash "$0" >/dev/null 2>&1; then ng "自己検査: $desc でも通ってしまう"
-    else ok "自己検査: $desc と落ちる"; fi
+    while [ "$(jobs -rp | wc -l)" -ge "$par" ]; do wait -n || true; done
+    { if ANDON_SCHEMA_DIR="$loose" bash "$0" >/dev/null 2>&1 </dev/null; then echo passed; else echo failed; fi >"$tmp/loose-$n.result"; } &
   done <<'LOOSE'
 findings|.required -= ["commit"]|findings の必須から commit を外す
 findings|.additionalProperties = true|findings の知らないキーを許す
@@ -567,6 +614,11 @@ signal|del(.properties.signals.uniqueKeys)|信号の fingerprint の一意を外
 signal|."$defs".signal.required -= ["delivered_episode"]|信号の必須から delivered_episode を外す
 signal|."$defs".signal.additionalProperties = true|信号の知らないキーを許す
 LOOSE
+  wait
+  for i in $(seq 1 "$n"); do
+    if [ "$(cat "$tmp/loose-$i.result")" = passed ]; then ng "自己検査: ${descs[i]} でも通ってしまう"
+    else ok "自己検査: ${descs[i]} と落ちる"; fi
+  done
 fi
 
 # 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh が ANDON_EMIT_DIR に写したもの）。
@@ -633,6 +685,7 @@ notification-resumed.json|notification|andon dispatcher の記録だけの通知
 notification-estimate.json|notification|andon dispatcher の通知 estimate（実働が見込みを超えた）
 notification-memory.json|notification|andon dispatcher の通知 memory（memory の件数が線を超えた）
 EMIT
+    flush
   fi
 fi
 
