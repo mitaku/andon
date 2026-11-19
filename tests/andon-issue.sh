@@ -186,8 +186,16 @@ id2=$(as t5 kanban add 'レビュー無し' --profile codex)
 as t5 kanban set "$id2" status=doing review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 "$andon" issue report "$id2" --pr "$pr" <<<'## Report' >/dev/null
 expect_fail 'review が on でない' "$andon" issue review-request "$id2" <<<'## Report'
+# 受け取られていない問い（open・answered）があれば、ready は断って doing のまま（finish と kanban done と同じ確かめ）
+kanban ask "$id2" 'どちらか' >/dev/null
+expect_fail "受け取られていない問いがあるので review にしない: $id2#1（open）" "$andon" issue ready "$id2"
+kanban answer "$id2#1" A >/dev/null
+expect_fail "$id2#1（answered）" "$andon" issue ready "$id2"
+[ "$(kanban show "$id2" --json | jq -r .issue.status)" = doing ] || die 'ready: 問いで断ったのに status が変わった'
+kanban received "$id2#1" >/dev/null
+ok 'ready: 受け取られていない問いがあれば断り、課題は doing のまま'
 "$andon" issue ready "$id2" >/dev/null
-ok 'ready: review: off ならレビューを照合しない。review-request は断る'
+ok 'ready: review: off ならレビューを照合しない。問いを受け取ったあとは通る。review-request は断る'
 expect_fail "$id2 は review（andon issue review-request は doing の課題にだけ打てる" "$andon" issue review-request "$id2" <<<'## Report'
 [ "$(kanban show "$id2" --json | jq -r .issue.status)" = review ] || die '断ったのに status が変わった'
 ok 'review-request: review の課題には打てない（定義に無い移り方）'

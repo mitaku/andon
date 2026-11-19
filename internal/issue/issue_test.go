@@ -18,6 +18,7 @@ case "$1" in
   root) echo "$FAKE_ROOT" ;;
   show) cat "$FAKE_ROOT/show-$2.json" ;;
   list) cat "$FAKE_ROOT/list.json" ;;
+  questions) cat "$FAKE_ROOT/questions.json" 2>/dev/null || true ;;
   review) touch "$FAKE_ROOT/reviewed-$2"; echo "$2 updated" ;;
   *) exit 9 ;;
 esac
@@ -28,17 +29,18 @@ cat "$FAKE_ROOT/prhead"
 `
 
 type fixture struct {
-	t        *testing.T
-	root     string
-	wt       string
-	head     string
-	task     map[string]any
-	reviewer map[string]any // nil ならレビュアーの課題は無い
-	by       string         // レビュアーの課題を足した端末
-	report   string         // report.json の中身（空なら置かない）
-	findings string         // レビュアーの findings.json の commit（空なら置かない）
-	prHead   string
-	state    bool // stop-check の控えの置き場を作ったか
+	t         *testing.T
+	root      string
+	wt        string
+	head      string
+	task      map[string]any
+	reviewer  map[string]any // nil ならレビュアーの課題は無い
+	by        string         // レビュアーの課題を足した端末
+	report    string         // report.json の中身（空なら置かない）
+	findings  string         // レビュアーの findings.json の commit（空なら置かない）
+	prHead    string
+	questions string // kanban questions --json の中身（空なら問いが無い）
+	state     bool   // stop-check の控えの置き場を作ったか
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -115,6 +117,9 @@ func (f *fixture) ready() (int, string, bool) {
 		f.write("kanban/issues/T-0001/library/report.json", f.report)
 	}
 	f.write("prhead", f.prHead+"\n")
+	if f.questions != "" {
+		f.write("questions.json", f.questions)
+	}
 	var out, errb bytes.Buffer
 	rc := Main([]string{"ready", "T-0001"}, strings.NewReader(""), &out, &errb)
 	_, err := os.Stat(filepath.Join(f.root, "reviewed-T-0001"))
@@ -144,6 +149,12 @@ func TestReady(t *testing.T) {
 		{"レビュー中（review でも done でもない）", func(f *fixture) { f.reviewer["status"] = "doing" }, "missing"},
 		{"review: off ならレビューを見ない", func(f *fixture) { f.task["review"] = "off"; f.reviewer = nil }, ""},
 		{"review が無ければ止まる", func(f *fixture) { delete(f.task, "review") }, "on/off でない"},
+		{"開いた問いがあれば止まる", func(f *fixture) { f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}]` }, "T-0001#1（open）"},
+		{"答えを受けていない問いがあれば止まる", func(f *fixture) { f.questions = `[{"id": "T-0001", "n": 2, "status": "answered"}]` }, "T-0001#2（answered）"},
+		{"questions.yaml が読めなければ止まる", func(f *fixture) { f.questions = `[{"id": "T-0001", "broken": "x"}]` }, "questions.yaml が読めない"},
+		{"受け取った問いと、ほかの課題の問いは見ない", func(f *fixture) {
+			f.questions = `[{"id": "T-0001", "n": 1, "status": "received"}, {"id": "T-0009", "n": 1, "status": "open"}]`
+		}, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -19,7 +19,7 @@ stateDiagram-v2
   s_todo --> s_doing: 担当を起動した（§7.2 #10）
   s_todo --> s_todo: 人の課題（who： person）に問いを置いた（ask-one-by-one skill §3）
   s_doing --> s_doing: 報告・レビュー依頼・候補の一覧・問いを書いた
-  s_doing --> s_review: 確かめて返した
+  s_doing --> s_review: 確かめて返した（受け取られていない問いが無い）
   s_doing --> s_review: Chief Engineer・トリアージが返した
   s_review --> s_review: ゲートが人の判断を問うた・片付けそこねた（from： gate）
   s_review --> s_doing: 直しが届いた
@@ -51,7 +51,7 @@ stateDiagram-v2
 | `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
 | `todo` | `todo` | 人の課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
 | `doing` | `doing` | 報告・レビュー依頼・候補の一覧・問いを書いた | AI | `andon issue report・review-request・candidates・ask` |  |
-| `doing` | `review` | 確かめて返した | AI | `andon issue ready` |  |
+| `doing` | `review` | 確かめて返した（受け取られていない問いが無い） | AI | `andon issue ready` |  |
 | `doing` | `review` | Chief Engineer・トリアージが返した | 台帳の CLI | `kanban review` |  |
 | `review` | `review` | ゲートが人の判断を問うた・片付けそこねた（from: gate） | 機械 | `andon issue ask` |  |
 | `review` | `doing` | 直しが届いた | 台帳の CLI | `kanban start` |  |

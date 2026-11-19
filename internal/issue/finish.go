@@ -210,12 +210,25 @@ func (c *ctx) finish(stdout io.Writer) error {
 	return nil
 }
 
-// closable は ids の課題がどれも kanban done で断られないか（kanban questions --json を1回読む）。
-// kanban done（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）で断る。
+// closable は ids の課題がどれも kanban done で断られないか。断られる問いがあれば片付けずに止まる理由を返す。
 func (c *ctx) closable(ids []string) error {
-	out, err := c.l.Run("", "questions", "--json")
+	held, err := c.unreceived(ids)
 	if err != nil {
 		return err
+	}
+	if len(held) > 0 {
+		return fail("%s は受け取られていない問いがあるので片付けない（端末・worktree に触っていない）: %s。問いを received にしてから打ち直す", c.id, strings.Join(held, "・"))
+	}
+	return nil
+}
+
+// unreceived は ids の課題の、受け取られていない問いを「<id>#<n>（<status>）」の形で返す（kanban questions --json を1回読む）。
+// kanban done（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）を数える。
+// finish（closable）と ready が使う。
+func (c *ctx) unreceived(ids []string) ([]string, error) {
+	out, err := c.l.Run("", "questions", "--json")
+	if err != nil {
+		return nil, err
 	}
 	var all []struct {
 		ID     string `json:"id"`
@@ -225,7 +238,7 @@ func (c *ctx) closable(ids []string) error {
 	}
 	if out != "" {
 		if err := json.Unmarshal([]byte(out), &all); err != nil {
-			return fail("問いの一覧が読めない")
+			return nil, fail("問いの一覧が読めない")
 		}
 	}
 	var held []string
@@ -241,10 +254,7 @@ func (c *ctx) closable(ids []string) error {
 			held = append(held, fmt.Sprintf("%s#%d（%s）", id, q.N, q.Status))
 		}
 	}
-	if len(held) > 0 {
-		return fail("%s は受け取られていない問いがあるので片付けない（端末・worktree に触っていない）: %s。問いを received にしてから打ち直す", c.id, strings.Join(held, "・"))
-	}
-	return nil
+	return held, nil
 }
 
 // mergedPRHead は、この課題の PR（report.json の pr）が MERGED で、その head の commit が branch の先と同じなら、その SHA を返す。
