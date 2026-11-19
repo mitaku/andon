@@ -32,6 +32,9 @@ import (
 //   - Codex: git の外では信頼の画面を出さない。git の中は repo の根で判定し、worktree は元の repo の根で判定する
 //     （置き場の親は効かない。worktree そのものの根でも効く）。
 
+// プロファイルが --add-dir で渡すフォルダは Claude Code だけで信頼済みにする（addDirs。Codex のプロファイルは --add-dir を
+// 使わない）。足すのはそのフォルダだけで、親は足さない。
+
 // Trust は信頼の根を Claude Code と Codex の両方で信頼済みにする（足りない所だけ足す。boot の生成の2つと同じ手）。
 func Trust(e Env) error {
 	return errors.Join(trustClaude(e), trustCodex(e))
@@ -73,6 +76,61 @@ func (e Env) trustRoots() []string {
 			}
 		}
 	}
+	return realDirs(cands)
+}
+
+// addDirs はプロファイルの command・resume の行が --add-dir で渡すフォルダ（実在するものを、symlink を解いた絶対パスで）。
+// Claude Code は --add-dir のフォルダも信頼を確かめ、git の外のもの（/opt/andon の下の手引きなど）は起動のたびに
+// 信頼の画面を出す（そこでの答えはそのセッションだけ）。読むのは boot が生成するのと同じ元のファイル
+// （本文の /opt/andon は Package に置き換える）で、人が hc に入れたプロファイルは読まない。
+func (e Env) addDirs() []string {
+	files, err := e.templateFiles()
+	if err != nil {
+		return nil
+	}
+	var cands []string
+	for _, name := range sortedKeys(files) {
+		b, err := os.ReadFile(files[name])
+		if err == nil {
+			b, err = Template(b, e.Package)
+		}
+		if err != nil {
+			continue
+		}
+		for _, ln := range frontmatter(b) {
+			cmd, ok := strings.CutPrefix(ln, "command: ")
+			if !ok {
+				if cmd, ok = strings.CutPrefix(ln, "resume: "); !ok {
+					continue
+				}
+			}
+			args := strings.Fields(cmd)
+			for i := 0; i+1 < len(args); i++ {
+				if args[i] == "--add-dir" && filepath.IsAbs(args[i+1]) {
+					cands = append(cands, args[i+1])
+				}
+			}
+		}
+	}
+	return realDirs(cands)
+}
+
+// frontmatter は --- で囲んだ frontmatter の行（改行を除く）。無ければ nil。
+func frontmatter(b []byte) []string {
+	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
+	if len(lines) == 0 || lines[0] != "---" {
+		return nil
+	}
+	for i := 1; i < len(lines); i++ {
+		if lines[i] == "---" {
+			return lines[1:i]
+		}
+	}
+	return nil
+}
+
+// realDirs は cands のうち実在する dir を、symlink を解いた絶対パスで、重ねずに順のまま返す。
+func realDirs(cands []string) []string {
 	var roots []string
 	seen := map[string]bool{}
 	for _, c := range cands {
@@ -109,7 +167,7 @@ func (e Env) claudeJSON() string {
 // 読み直しから rename までの短い隙間に Claude Code が書いたものは負けうる（受け入れる。docs/decisions.md）。
 func trustClaude(e Env) error {
 	path := e.claudeJSON()
-	roots := e.trustRoots()
+	roots := realDirs(append(e.trustRoots(), e.addDirs()...))
 	for try := 0; try < claudeTries; try++ {
 		b, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {

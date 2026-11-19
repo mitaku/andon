@@ -316,3 +316,102 @@ func TestTrustCodexLeavesBrokenTOML(t *testing.T) {
 		t.Errorf("読めない TOML に書いた: %s", f.log.String())
 	}
 }
+
+// 配布するプロファイルが --add-dir で渡すフォルダは、Claude Code だけで信頼済みにする（Codex には足さない）。
+// 本物の package/templates を置いて、どの --add-dir も（実在すれば）信頼済みになることを見る。
+func TestTrustAddDirsOfPackageTemplates(t *testing.T) {
+	f := newFixture(t)
+	e, roots := trustEnv(t, f)
+	src, err := filepath.Glob(filepath.Join("..", "..", "package", "templates", "*.md"))
+	if err != nil || len(src) == 0 {
+		t.Fatalf("package/templates が読めない: %v", err)
+	}
+	var dirs []string // 本物のプロファイルが --add-dir で渡すフォルダ（/opt/andon は fixture のパッケージに）
+	for _, s := range src {
+		body := read(t, s)
+		put(t, filepath.Join(f.pkg, "templates", filepath.Base(s)), body)
+		args := strings.Fields(strings.ReplaceAll(body, DefaultPackage+"/", f.pkg+"/"))
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--add-dir" {
+				dirs = append(dirs, args[i+1])
+			}
+		}
+	}
+	pb := filepath.Join(f.pkg, "skills", "chief-of-staff", "playbooks")
+	if !containsString(dirs, pb) {
+		t.Fatalf("chief-of-staff の --add-dir に %s が無い（テストの前提）: %v", pb, dirs)
+	}
+	for _, d := range dirs {
+		if strings.HasPrefix(d, f.pkg+"/") {
+			mustMkdir(t, d)
+		}
+	}
+	if err := Generate(e); err != nil {
+		t.Fatal(err)
+	}
+	got := trustedClaude(t, filepath.Join(f.claude, ".claude.json"))
+	for _, d := range dirs {
+		real, err := filepath.EvalSymlinks(d)
+		if err != nil {
+			continue // セルの外では /workspace/wiki が無い。無いフォルダは足さない
+		}
+		if !got[real] {
+			t.Errorf("--add-dir %s を信頼していない: %v", d, got)
+		}
+	}
+	// 渡したフォルダより広げない（親は足さない）
+	for _, d := range []string{filepath.Dir(pb), filepath.Join(f.pkg, "skills"), f.pkg} {
+		real, _ := filepath.EvalSymlinks(d)
+		if got[real] {
+			t.Errorf("--add-dir の親 %s を信頼した", d)
+		}
+	}
+	if toml := read(t, filepath.Join(f.home, ".codex", "config.toml")); strings.Contains(toml, "playbooks") {
+		t.Errorf("Codex に --add-dir のフォルダを足した:\n%s", toml)
+	}
+	for _, r := range roots {
+		if !got[r] {
+			t.Errorf("根 %s を信頼していない", r)
+		}
+	}
+	// 2回目は何も書かない
+	first := snapshot(t, f.root)
+	f.log.Reset()
+	if err := Generate(e); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot(t, f.root) != first || f.log.Len() != 0 {
+		t.Errorf("2回目に書いた: %s", f.log.String())
+	}
+}
+
+// --add-dir を読むのは、boot が生成するのと同じ元のファイルの command と resume の行だけ。templates.local が同じ名前の
+// パッケージのプロファイルに勝つ。無いフォルダ・相対パス・frontmatter の外と description の --add-dir は足さない。
+func TestTrustAddDirsReadsOnlyCommandLines(t *testing.T) {
+	f := newFixture(t)
+	e := f.env()
+	d := func(name string) string {
+		p := filepath.Join(f.root, "dirs", name)
+		mustMkdir(t, p)
+		real, _ := filepath.EvalSymlinks(p)
+		return real
+	}
+	cmd, resume, overridden, desc, body := d("cmd"), d("resume"), d("overridden"), d("desc"), d("body")
+	put(t, filepath.Join(f.pkg, "templates", "a.md"), "---\nname: a\ndescription: x --add-dir "+desc+"\ncommand: claude --add-dir "+cmd+
+		" --add-dir rel --add-dir "+filepath.Join(f.root, "dirs", "missing")+"\nresume: claude --resume --add-dir "+resume+"\n---\n--add-dir "+body+"\n")
+	put(t, filepath.Join(f.pkg, "templates", "b.md"), "---\nname: b\ncommand: claude --add-dir "+overridden+"\n---\n")
+	put(t, filepath.Join(f.ws, "templates.local", "b.md"), "---\nname: b\ncommand: claude\n---\n")
+	got := e.addDirs()
+	if len(got) != 2 || got[0] != cmd || got[1] != resume {
+		t.Errorf("addDirs = %v, want [%s %s]", got, cmd, resume)
+	}
+}
+
+func containsString(ss []string, s string) bool {
+	for _, x := range ss {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
