@@ -18,7 +18,7 @@ blocked には次の順で答える（規約3: blocked は正常。範囲内だ�
 
      | Yes と答える | 人へ回す |
      |---|---|
-     | 自分の課題の PR の branch（`andon/<id>…`）への push。`git push --force-with-lease` も含む（人 2026-11-10） | main・既定の branch・他人の branch への push（force でもそうでなくても） |
+     | 自分の課題の PR の branch（`andon/<id>…`）への push。`git push --force-with-lease` も含む | main・既定の branch・他人の branch への push（force でもそうでなくても） |
      | `gh pr create`・自分の PR の本文と添付の編集・checks の待ち | remote の branch・tag・リリース・データの削除や書き換え |
      | worktree の中のファイルの書き込みと削除・自分の commit の作り直し（push 前） | 本番系（デプロイ・本番のデータ・公開） |
      | 一時の置き場のファイルの作成と削除・検査とテストの実行 | 資格情報の作成・変更・持ち出し |

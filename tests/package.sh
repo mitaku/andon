@@ -521,7 +521,7 @@ grep -q '人が見るブラウザは無い' package/environment.md && ! grep -qE
 # ADR-0020 受け入れ条件 6（決めたこと 6・A-0144 の c2・c3）: 環境メモに memory への書き方
 envmem=$(sed -n '/^## 気づきを残す（auto memory）$/,/^## /p' package/environment.md)
 miss=""
-for k in '`/workspace/memory/`' '蒸留までの受け皿' '週1のトリアージ' '1件1ファイルの `.md` を、フォルダの直下に書く' '確かめた事実と、起きた条件と理由のついた学び' '本文に課題番号（無ければ repo）を書く' '続き・決定・秘密は書かない' '報告の `## Remember` は今までどおり書く' 'Codex の記憶は切ってあり'; do
+for k in '`/workspace/memory/`' '蒸留までの受け皿' '週1のトリアージ' '1件1ファイルの `.md` を、フォルダの直下に書く' '確かめた事実と、起きた条件と理由のついた学び' '本文に課題番号（無ければ repo）を書く' '続き・決定・秘密は書かない' '報告の `## Remember` を書く' 'Codex の記憶は切ってあり'; do
   grep -qF -- "$k" <<<"$envmem" || miss="$miss $k"
 done
 [ -z "$miss" ] && pass "environment.md に memory への書き方（受け皿・直下の .md・条件と理由・課題番号・続き/決定/秘密は書かない・Remember は残す。ADR-0020）" || fail "environment.md の memory の節:$miss"
