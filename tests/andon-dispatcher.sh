@@ -570,6 +570,33 @@ jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けた�
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 2)) ] || die "読み直しと settle のほかに同じ PR を聞いた: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
 ok 'merge: auto でも人が先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（ゲートの記録の merged は書かない）'
 
+# merge: auto でマージしたあと、受け取られていない担当の問いで finish が断られても、片付けかけ（review のまま worktree・端末が消える）を残さない
+# （A-0002・A-0001 の repro-b3）。finish は何も消さずに止まり、dispatcher は「片付けに失敗した」を問いにする
+qa=$(newtask '問いを残したまま通る' auto)
+qwt=$ANDON_WORKSPACE/.worktrees/app/demo-$qa
+work "$qa" docs/a.md
+(cd "$qwt" && HC_TERMINAL_ID=t7 "$andon" issue ask "$qa" - <<<'{"kind":"users","question":"どちらにするか","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}' >/dev/null)
+as_worker "$qa" report --pr https://github.com/example/app/pull/7
+as_worker "$qa" review-request
+dispatcher
+review_by "$qa-r1" '[]'
+as_worker "$qa" ready
+dispatcher
+[ -e "$tmp/gh/merged" ] || die "前提: マージしていない: $(grep "$qa" "$tmp/dispatcher.log" | tail -3)"
+kanban show "$qa" --json | jq -e '.issue.status == "review"' >/dev/null || die "問いが残るのに課題が review でない: $(kanban show "$qa" --json | jq -c .issue)"
+[ -d "$qwt" ] && git -C "$app" show-ref --verify --quiet "refs/heads/demo/$qa" && grep -q "^t7 $qa\$" "$tmp/hc/live" \
+  && [ -d "$ANDON_WORKSPACE/.worktrees/app/demo-$qa-r1" ] && kanban show "$qa-r1" --json | jq -e '.issue.status != "done"' >/dev/null \
+  || die "断られた finish が片付けかけを残した（worktree・branch・端末・レビュアー）: $(grep "$qa" "$tmp/dispatcher.log" | tail -3)"
+jq -e --arg q "$qa#1（open）" '.from == "gate" and .kind == "irreversible" and any(.facts[]; contains($q))' "$L/issues/$qa/library/questions/2.json" >/dev/null \
+  && pending "$qa" asked | jq -e '.detail.n == 2' >/dev/null || die "片付けに失敗したことを問いにしていない: $(cat "$L/issues/$qa/library/questions/2.json" 2>&1)"
+# 問いを受け取れば Chief of Staff の finish で片付く
+for q in $(kanban questions --json | jq -r --arg t "$qa" '.[] | select(.id == $t) | "\(.id)#\(.n) \(.status)"' | tr ' ' :); do
+    [ "${q#*:}" = answered ] || kanban answer "${q%%:*}" x >/dev/null; kanban received "${q%%:*}" >/dev/null
+done
+HC_TERMINAL_ID=t5 "$andon" issue finish "$qa" >/dev/null || die '問いを受け取ったあとの finish が通らない'
+[ ! -e "$qwt" ] && kanban show "$qa" --json | jq -e '.issue.status == "done"' >/dev/null || die '受け取ったあとに片付かない'
+ok 'merge: auto のマージのあと担当の問いで finish が断られても、review のまま worktree・branch・端末・レビュアーを消さずに止まり、片付けの失敗を問いにする'
+
 # 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
 hm=$(newtask '別の repo の PR' person)
 work "$hm" docs/a.md

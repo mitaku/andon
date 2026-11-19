@@ -48,7 +48,7 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          （deliverable: candidates なら PR の代わりに candidates.json）\n" +
 	"       andon issue ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon issue candidates <id> <candidates.json|->        候補の一覧を検査して library/candidates.json に書く（commit は command が書く）\n" +
-	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ）\n" +
+	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ。受け取られていない問いがあれば何も消さずに止まる）\n" +
 	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
 	"       andon issue settle <id>                                review の課題の PR を人がマージしていたら、ゲートの問いを閉じて片付ける\n" +
 	"                                                          （PR ごとに1分に1回 gh pr view。積む通知を JSON で出す。2回打っても同じ）\n" +

@@ -469,6 +469,37 @@ grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatch
 grep -q "^run .*--cwd $PWD/kanban/issues/$s5 claude " "$tmp/hc/log" || die 'repo の無い課題の cwd が issues/<id>/ でない'
 ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無い課題は issues/<id>/ で'
 
+# 受け取られていない問いがあれば、finish は何も消さずに止まる（片付けは全部か無し。A-0002・A-0001 の repro-b1）。
+# 消してから kanban done に断られると、doing のまま端末が死に、dispatcher の resume がやめた課題で担当を起動し直す
+s11=$(kanban add 'Cancel me' --repo github.com/example/app --profile claude --brief - <<<'# x')
+"$andon" issue start "$s11" >/dev/null
+wt11=$(field "$s11" worktree); br11=$(field "$s11" branch); a11=$(field "$s11" agent)
+HC_TERMINAL_ID=$a11 "$andon" issue ask "$s11" - <<<'{"kind":"users","question":"どちらにするか","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}' >/dev/null
+checked() { # checked <題>: finish が断り、端末・worktree・branch・台帳がそのまま
+    : > "$tmp/hc/log"
+    expect_fail "$1" "$andon" issue finish "$s11"
+    ! grep -q '^kill \|^rm ' "$tmp/hc/log" || die "断る finish が端末を消した: $(cat "$tmp/hc/log")"
+    [ -d "$wt11" ] && git -C "$appdir" show-ref --quiet "refs/heads/$br11" && grep -q "^$a11 " "$tmp/hc/live" \
+      && [ "$(field "$s11" status)" = doing ] && [ "$(field "$s11" agent)" = "$a11" ] && [ "$(field "$s11" worktree)" = "$wt11" ] \
+      || die "断る finish が片付けかけを残した: $(kanban show "$s11" --json | jq -c .issue)"
+}
+checked "$s11#1（open）"
+kanban answer "$s11#1" A >/dev/null
+checked "$s11#1（answered）"
+# kanban done（closing）も同じ問いで断る（確かめの形が食い違わない）
+expect_fail 'questions not received' kanban done "$s11"
+kanban received "$s11#1" >/dev/null
+# レビュアーの子課題の問いでも、親の finish は何も消さない（子を片付けてから親で止まる、をしない）
+r11=$(kanban add 'Review' --parent "$s11" --profile codex-review --brief - <<<'# x')
+kanban ask "$r11" 'どちらか' >/dev/null
+checked "$r11#1（open）"
+[ "$(field "$r11" status)" != done ] || die '子課題を done にした'
+kanban answer "$r11#1" x >/dev/null; kanban received "$r11#1" >/dev/null
+"$andon" issue finish "$s11" >/dev/null || die '問いを受け取ったあとの finish が通らない'
+[ ! -e "$wt11" ] && [ "$(field "$s11" status)" = done ] && [ "$(field "$r11" status)" = done ] && ! grep -q "^$a11 " "$tmp/hc/live" \
+  || die "受け取ったあとに片付かない: $(kanban show "$s11" --json | jq -c .issue)"
+ok 'finish: 課題かレビュアーの子課題に受け取られていない問い（open・answered）があれば、端末・worktree・branch・台帳に触らずに止まる（kanban done と同じ確かめ。受け取れば片付く）'
+
 # start が作ったものを finish が片付ける
 : > "$tmp/hc/log"
 "$andon" issue finish "$s1" >/dev/null
