@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/gate.yaml`](../../process/states/gate.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは台帳ごとなので dispatcher の控えに残す
+出所: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは台帳ごとなので dispatcher の控えに残す
 
 ## 図
 
@@ -36,8 +36,10 @@ stateDiagram-v2
   s_approved --> [*]: gh pr merge の前に人がマージしていた（人のマージの見張りへ）
   s_merged --> s_finished: マージして片付ける（finish は merge の中で打つ。§7.2 #5）
   s_held --> [*]: 人がマージするか決める
+  s_held --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head のゲートから）
   s_fix --> [*]: 担当が直して doing に戻った
   s_needs_human --> [*]: 人が答えた
+  s_needs_human --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head のゲートの問いを閉じる。その見回りで今の head のゲートから）
   s_finished --> [*]: 終わり
 ```
 
@@ -56,7 +58,7 @@ stateDiagram-v2
 | `merged` | マージした | `merge:Merged` |
 | `finished` | 片付けた |  |
 
-状態でない項目（拾う位置とデータ）: `merge:Sha`・`merge:Decision`
+状態でない項目（拾う位置とデータ）: `merge:Sha`・`merge:Decision`・`merge:Polled`
 
 ## 移り方
 
@@ -80,6 +82,8 @@ stateDiagram-v2
 | `approved` | （始まり・終わり） | gh pr merge の前に人がマージしていた（人のマージの見張りへ） | 機械 |  |  |
 | `merged` | `finished` | マージして片付ける（finish は merge の中で打つ。§7.2 #5） | 機械 | `andon issue merge` | はい |
 | `held` | （始まり・終わり） | 人がマージするか決める | 人 |  |  |
+| `held` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head のゲートから） | 機械 | `andon issue merge` |  |
 | `fix` | （始まり・終わり） | 担当が直して doing に戻った | 台帳の CLI | `kanban start` |  |
 | `needs-human` | （始まり・終わり） | 人が答えた | 人 |  |  |
+| `needs-human` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head のゲートの問いを閉じる。その見回りで今の head のゲートから） | 機械 | `andon issue merge` |  |
 | `finished` | （始まり・終わり） | 終わり | 機械 |  |  |

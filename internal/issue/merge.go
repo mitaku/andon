@@ -109,7 +109,11 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		}
 	}
 	if w.Decision != "" {
-		return &w
+		if !c.headMoved(&w, rep, res, now) {
+			return &w
+		}
+		// approve か needs_human を決めたあとに PR の head が動いた: 決めたことを捨て、今の head でゲートから回し直す
+		w = contract.Merging{Row: row}
 	}
 	if w.Wait != "" && c.stillWaiting(rows, rep.PR, w.Wait, now) {
 		// wait を返した head の checks がまだ揃っていない: ゲートを回さない（GraphQL の checks だけを読み、REST を使わない）
@@ -181,11 +185,95 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
 	w.Sha, w.Decision, w.Approved = gr.Head, gr.Decision, ""
+	w.Polled = now.UTC().Format("2006-01-02T15:04:05Z") // ゲートが今 head を読んだ。次に聞くのは1分たってから
 	res.State = gr.Decision
 	if w.Merged != "" {
 		res.State = "merged"
 	}
 	return &w
+}
+
+// headMoved は、ゲートが approve か needs_human を決めたあと（dispatcher がマージしていない）に、PR の head が判定した head から
+// 動いたかを見る。GitHub に聞くのは課題ごとに1分に1回（gh pr view を1回。聞いた時刻は記録の polled）。動いていれば
+// 前の head のゲートの問い（from: gate）を閉じて true を返す（呼び手が決めたことを捨て、ゲートを回し直す。dispatcher.md §5 の P6a）。
+// fix は担当が doing に戻って ready し直すので見ない。読めなければ次に聞く巡まで待つ（gh の上限なら rate-limited）。
+func (c *ctx) headMoved(w *contract.Merging, rep *contract.Report, res *contract.Merge, now time.Time) bool {
+	if !RegateWatched(*w) {
+		return false
+	}
+	owner, name, number, ok := contract.ParsePR(rep.PR)
+	if !ok || "github.com/"+owner+"/"+name != c.issue.Str("repo") {
+		return false
+	}
+	if at, err := time.Parse("2006-01-02T15:04:05Z", w.Polled); err == nil && now.Sub(at) < prPoll {
+		return false
+	}
+	w.Polled = now.UTC().Format("2006-01-02T15:04:05Z")
+	state, head, err := prOpenHead(number, owner+"/"+name)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "rate limit") {
+			res.State = "rate-limited"
+		}
+		res.Log = append(res.Log, fmt.Sprintf("%s の PR の head が読めない（次に聞く巡で聞き直す）: %v", c.id, err))
+		return false
+	}
+	if !HeadMoved(*w, state, head) {
+		return false
+	}
+	res.Log = append(res.Log, fmt.Sprintf("%s の PR %s の head がゲートの判定（%s）のあとに動いた（%s → %s）。ゲートを回し直す",
+		c.id, rep.PR, w.Decision, short12(w.Sha), short12(head)))
+	c.closeGateQuestions(fmt.Sprintf("PR の head がゲートのあとに動いた（%s → %s）。ゲートが今の head で回し直す", short12(w.Sha), short12(head)), res)
+	return true
+}
+
+// RegateWatched は、決めたことのある merge の記録 w が、PR の head が動いたらゲートを回し直す対象か（純粋関数）。
+// approve か needs_human で、dispatcher がマージしておらず、判定した head が sha のとき。
+func RegateWatched(w contract.Merging) bool {
+	return (w.Decision == "approve" || w.Decision == "needs_human") && w.Merged == "" && contract.IsSHA(w.Sha)
+}
+
+// HeadMoved は、聞いた PR の state と head が、ゲートの判定した head から動いた（まだ open の PR に push された）ことを示すか（純粋関数）。
+// MERGED・CLOSED は見ない（人のマージと閉じた PR は settle の道）。
+func HeadMoved(w contract.Merging, state, head string) bool {
+	return RegateWatched(w) && state == "OPEN" && contract.IsSHA(head) && head != w.Sha
+}
+
+// closeGateQuestions は、この課題のまだ受け取られていないゲートの問い（from: gate）を、open なら why と答えて受け取る
+// （前の head についての問いは、回し直したゲートが今の head で決め直す）。ゲートの外の問いには触らない。閉じられなければログに1行。
+func (c *ctx) closeGateQuestions(why string, res *contract.Merge) {
+	gateQs, _, err := c.openQuestions()
+	if err != nil {
+		res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問いを読めない: %v", c.id, err))
+		return
+	}
+	for _, q := range gateQs {
+		name := fmt.Sprintf("%s#%d", c.id, q.N)
+		if q.Status == "open" {
+			if _, err := c.l.Run("", "answer", name, why); err != nil {
+				res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
+				continue
+			}
+		}
+		if _, err := c.l.Run("", "received", name); err != nil {
+			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
+		}
+	}
+}
+
+// prOpenHead は PR の state（OPEN・MERGED・CLOSED）と head（gh pr view --json state,headRefOid。1回）。
+func prOpenHead(number, slug string) (state, head string, err error) {
+	out, err := gh("pr", "view", number, "--repo", slug, "--json", "state,headRefOid")
+	if err != nil {
+		return "", "", err
+	}
+	var v struct {
+		State      string `json:"state"`
+		HeadRefOid string `json:"headRefOid"`
+	}
+	if json.Unmarshal([]byte(out), &v) != nil {
+		return "", "", fmt.Errorf("gh pr view の返事が読めない")
+	}
+	return v.State, v.HeadRefOid, nil
 }
 
 // gatedSince は head（report.json の commit ＝ PR の head）のゲートの記録 library/gate/<head>.json が since 以後に書かれていれば返す。
