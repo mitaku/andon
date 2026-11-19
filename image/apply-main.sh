@@ -87,22 +87,26 @@ swap_dir() {
 
 # andon boot を打ち直し、dispatcher を起動し直す。dispatcher の端末を片付けてから boot（boot が無い端末を起動する）。
 # 見回りの途中で止めないよう、dispatcher の見回りの鍵（internal/dispatcher の PassLock）が外れるのを待つ。
-# 鍵のファイルは、見回りのたびに鍵を取る版の dispatcher が作る。動いている dispatcher があるのにファイルが無ければ、
-# それは鍵を取らない前の版で、鍵が取れても見回りの合間とは限らないので止めない（internal/dispatcher の ErrOldDispatcher と同じ）
+# 鍵を取るのは、見回りのたびに鍵を取る版の dispatcher だけ。前の版は鍵を取らないので、鍵が取れても見回りの合間とは限らない。
+# 版は、動いている dispatcher の実体（/proc/<pid>/exe。入れ替えたあとも動き始めたときの中身）に鍵のファイル名があるかで見る
+# （鍵のファイルがあるかでは見ない。戻したあとや作り直したあとにも、前に作られたファイルが残る）。
+# 確かめられないときは止めない
 reboot() {
   local andon=${ANDON_APPLY_ANDON:-$root/bin/andon}
   local passlock=${XDG_STATE_HOME:-$HOME/.local/state}/andon/dispatcher/.pass.lock
-  local got addr=
+  local got addr= pid=
   if ! command -v hc >/dev/null; then
     say "hc が無いので dispatcher は触らない"
   elif got=$(env -u HC_TERMINAL_ID hc get dispatcher --json 2>/dev/null 8<&-); then
     addr=$(jq -r '.address // empty' <<<"$got" 2>/dev/null || true)
+    pid=$(jq -r '.foreground.pid // empty' <<<"$got" 2>/dev/null || true)
   fi
-  if [ -n "$addr" ] && [ ! -e "$passlock" ]; then
-    say "警告: 動いている dispatcher（$addr）は見回りの鍵を取らない前の版なので、止めずに残した（見回りの途中で止めない）。"
+  if [ -n "$addr" ] && ! { [ -n "$pid" ] && grep -aq '\.pass\.lock' "/proc/$pid/exe" 2>/dev/null; }; then
+    say "警告: 動いている dispatcher（$addr）が見回りの鍵を取る版と確かめられないので、止めずに残した（見回りの途中で止めない）。"
     say "  新しい andon で動かすには、見回りの合間に hc kill $addr・hc rm $addr を打ってから $andon boot を打つ"
     addr=
-  else
+  elif [ -n "$addr" ]; then
+    # 鍵を取る版は見回りのたびにこのファイルを作るので、ここで作ってもよい
     mkdir -p "$(dirname "$passlock")"
     exec 9>>"$passlock"
     if ! flock -w 900 9; then

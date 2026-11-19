@@ -73,7 +73,7 @@ cat >"$tmp/fakebin/hc" <<'EOF'
 #!/usr/bin/env bash
 c=$(jq -r .commit "$ANDON_APPLY_ROOT/applied.json" 2>/dev/null || echo none)
 echo "hc $* applied=$c" >>"$CALLS"
-[ "$1 $2" = "get dispatcher" ] && echo '{"address":"t9","state":"live"}'
+[ "$1 $2" = "get dispatcher" ] && echo '{"address":"t9","state":"live","foreground":{"name":"andon","pid":'"$(cat "$DISPATCHER_PID")"'}}'
 exit 0
 EOF
 chmod 755 "$tmp/fakebin/andon" "$tmp/fakebin/hc"
@@ -82,6 +82,16 @@ export PATH=$tmp/fakebin:$(dirname "$gobin"):$PATH
 passlock=$HOME/.local/state/andon/dispatcher/.pass.lock
 mkdir -p "$(dirname "$passlock")"
 : >"$passlock"
+# 偽の dispatcher の実体: 鍵を取る版（実体に鍵のファイル名がある）と前の版（無い）。sleep の写しで、後ろに足した字は実行に効かない
+cp "$(command -v sleep)" "$tmp/old-dispatcher"
+cp "$(command -v sleep)" "$tmp/new-dispatcher"
+printf 'andon/dispatcher/.pass.lock' >>"$tmp/new-dispatcher"
+grep -aq '\.pass\.lock' "$tmp/old-dispatcher" && fail "前の版の偽の dispatcher に鍵のファイル名がある"
+"$tmp/new-dispatcher" 600 & newd=$!
+"$tmp/old-dispatcher" 600 & oldd=$!
+trap 'kill "$newd" "$oldd" 2>/dev/null; rm -rf "$tmp"' EXIT
+export DISPATCHER_PID=$tmp/dispatcher.pid
+echo "$newd" >"$DISPATCHER_PID"
 
 run() { bash "$script" "$@" >"$tmp/out" 2>&1; }
 same_as() { diff -r "$1" "$img/andon" >/dev/null && cmp -s "$2" "$img/bin/kanban"; }
@@ -187,16 +197,17 @@ git -C "$tmp/repo" rm -q cmd/andon/broken.go
 git -C "$tmp/repo" commit -qm fix
 git -C "$tmp/repo" push -q origin main
 
-# === 7. 鍵を取らない前の版の dispatcher は止めない ===
-rm -f "$passlock"
+# === 7. 鍵を取らない前の版の dispatcher は、鍵のファイルが残っていても止めない ===
+[ -e "$passlock" ] || fail "7 鍵のファイルが残っていない（前の版を見分ける検査が何も見ていない）"
+echo "$oldd" >"$DISPATCHER_PID"
 : >"$CALLS"
 if run apply && [ "$(grep -c '^hc \(keep\|kill\|rm\) ' "$CALLS")" = 0 ] && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] \
-  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '前の版なので、止めずに残した' "$tmp/out" && [ ! -e "$passlock" ]; then
-  pass "7 鍵のファイルが無い（前の版の）dispatcher は止めず、boot だけ打ち直し、鍵のファイルも作らない"
+  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '確かめられないので、止めずに残した' "$tmp/out"; then
+  pass "7 前の版の dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す"
 else
   fail "7 前の版の dispatcher: $(cat "$CALLS") / $(cat "$tmp/out")"
 fi
-: >"$passlock"
+echo "$newd" >"$DISPATCHER_PID"
 
 # === 6. 2回当ててから戻す ===
 if run apply && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ]; then
