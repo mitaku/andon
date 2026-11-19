@@ -226,7 +226,8 @@ func TestResumeAgainAfterWork(t *testing.T) {
 	}
 }
 
-// 初めて見る台帳では打たない（次の見回りでも、その死には打たない）。
+// 初めて見る台帳では打たず、知らせもしない。次の見回りでもその死には打たず、finished を1回だけ知らせる
+// （初めて見た巡で Sent に書くと、死んだ担当が誰にも知らされないまま残る）。
 func TestResumeNotOnFirst(t *testing.T) {
 	f := newResume(t)
 	f.put("next", "t43")
@@ -234,12 +235,26 @@ func TestResumeNotOnFirst(t *testing.T) {
 	if got := f.round(); got != nil {
 		t.Fatalf("初めて見る台帳で打った: %q", got)
 	}
+	if len(f.p.st.Pending) != 0 {
+		t.Fatalf("初めて見る台帳で知らせた: %q", f.pending())
+	}
 	f.p.first = false
 	if got := f.round(); got != nil {
 		t.Fatalf("初めて見た死に次の見回りで打った: %q", got)
 	}
-	if len(f.p.st.Pending) != 0 {
-		t.Fatalf("初めて見た台帳の死を知らせた: %q", f.pending())
+	if p := f.pending(); len(p) != 1 || p[0] != "S-7:finished:t42" {
+		t.Fatalf("初めて見た台帳の死を次の見回りで finished で知らせない: %q", p)
+	}
+	for i := 0; i < 2; i++ {
+		if got := f.round(); got != nil {
+			t.Fatalf("巡 %d で打った: %q", i+3, got)
+		}
+		if p := f.pending(); len(p) != 1 {
+			t.Fatalf("巡 %d で知らせ直した: %q", i+3, p)
+		}
+	}
+	if !f.p.st.Sent["S-7|t42|gone"] {
+		t.Fatalf("知らせたのに Sent に gone が無い: %v", f.p.st.Sent)
 	}
 }
 
