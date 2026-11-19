@@ -83,6 +83,8 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0022 Chief Engineer の役は残し、Chief of Staff に Advisor（Fable）を試験運用で付ける](docs/adr/0022-advisor-and-chief-engineer.md): 提案
   - [0023 サイドバーに「あんどん」らしさを見た目で出す](docs/adr/0023-sidebar-andon-look.md): 提案
   - [0024 担当が課題ごとに日報（過程・感想・改善の思いつき）を書く](docs/adr/0024-worker-journal.md): 提案
+  - [0025 課題の一生の規則とモデルを repo に置き、機械が確かめ続ける](docs/adr/0025-formal-model-in-repo.md): 決定
+  - [0026 PR と repo に残る文は、セルの外の読み手に通じるように書く](docs/adr/0026-pr-rules-for-outside-readers.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
