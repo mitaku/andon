@@ -21,6 +21,7 @@ import (
 	"andon/internal/issue"
 	"andon/internal/measure"
 	"andon/internal/open"
+	"andon/internal/pkgversion"
 	"andon/internal/plantinit"
 	"andon/internal/process"
 	"andon/internal/publish"
@@ -133,6 +134,12 @@ var commands = []command{
 		about: "委譲（projects/<slug>/project.json の delegation）を読む（show）・人が書く（grant・narrow・revoke）",
 		usage: delegate.Usage,
 		run:   delegate.Main,
+	},
+	{
+		name:  "version",
+		about: "パッケージの置き場の commit と、中身がその commit と食い違うかを JSON で出す（読むだけ）",
+		usage: pkgversion.Usage,
+		run:   pkgversion.Main,
 	},
 }
 

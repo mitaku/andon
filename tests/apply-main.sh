@@ -8,6 +8,7 @@
 #   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（2回当ててから・andon と kanban を壊してから）
 #   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ  10 道具が package/ の下に無い（以上 S1）
 #   8 当てる前から動いている端末の一覧を出し、止めない  9 image/ が変わっていたら警告して当てる・状態にも出す（S2）
+#   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 set -u
 cd "$(dirname "$0")/.." || exit 2
 here=$(pwd)
@@ -149,7 +150,7 @@ else
 fi
 mkdir -p "$tmp/x1"
 git -C "$tmp/repo" archive "$c1" package schema | tar -x -C "$tmp/x1"
-if diff -r -x bin -x applied.json -x schema "$tmp/x1/package" "$img/andon" && diff -r "$tmp/x1/schema" "$img/andon/schema"; then
+if diff -r -x bin -x applied.json -x version.json -x schema "$tmp/x1/package" "$img/andon" && diff -r "$tmp/x1/schema" "$img/andon/schema"; then
   pass "1 中身が c1 の package/・schema/ に一致（bin/・記録を除く）"
 else
   fail "1 中身が c1 と違う"
@@ -159,6 +160,32 @@ if "$img/andon/bin/andon" help >"$tmp/help" 2>&1 && ! grep -q image-andon "$tmp/
 else
   fail "1 <根>/bin/andon help: $(head -3 "$tmp/help")"
 fi
+# ADR-0028 P0-1: andon version が当てた commit と食い違いを返す（受け入れ条件 3・4 の土台）
+ver() { ANDON_HOME=$img/andon "$img/andon/bin/andon" version 2>&1; }
+v=$(ver)
+if [ "$(jq -r .commit <<<"$v")" = "$c1" ] && [ "$(jq -r .source <<<"$v")" = applied ] && [ "$(jq -r .drift <<<"$v")" = false ] \
+  && [ -f "$img/andon/version.json" ]; then
+  pass "P0-1 当てたあと andon version が c1・applied・食い違い無しを返す"
+else
+  fail "P0-1 当てたあとの andon version: $v"
+fi
+w=$img/andon/skills/worker/SKILL.md
+if git -C "$tmp/repo" show "$c1:package/skills/worker/SKILL.md" | diff - "$w" >/dev/null; then
+  pass "P0-1 記録の commit から当時の SKILL.md を復元すると、置き場のものと同じ"
+else
+  fail "P0-1 c1 の SKILL.md と置き場のものが違う"
+fi
+cp "$w" "$tmp/worker.bak"
+echo "# 手で足した行" >>"$w"
+v=$(ver)
+if [ "$(jq -r .drift <<<"$v")" = true ] && [ "$(jq -r .commit <<<"$v")" = "$c1" ] \
+  && ! git -C "$tmp/repo" show "$c1:package/skills/worker/SKILL.md" | diff - "$w" >/dev/null; then
+  pass "P0-1 置き場の1ファイルを書き換えると食い違いが立つ（復元したものとも違う）"
+else
+  fail "P0-1 書き換えたあとの andon version: $v"
+fi
+cp "$tmp/worker.bak" "$w"
+[ "$(ver | jq -r .drift)" = false ] || fail "P0-1 書き戻しても食い違いが消えない: $(ver)"
 [ "$("$img/bin/kanban" --version)" = "kanban ${c1:0:12}" ] && pass "1 kanban --version が c1 の先頭12文字" \
   || fail "1 kanban --version: $("$img/bin/kanban" --version)"
 rec=$img/andon/applied.json
