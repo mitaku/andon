@@ -33,6 +33,7 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
   kanban start <id> [--force] [--repo r]    doing; agent from $HC_TERMINAL_ID; branch and worktree from git
   kanban set <id> key=value … [--force]     empty value removes the key; after/links take a,b;
                                             status=done checks and frees what done does
+                                            after= on a queued issue that then waits on nothing moves it to todo
   kanban review <id> | kanban done <id> [--force]  done refuses an issue with questions not received
   kanban report <id> [--append] < file      write report.md
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
@@ -727,6 +728,14 @@ func cmdSet(e env, a args) error {
 			}
 		}
 		_, moved := change.vals["status"]
+		// A queued task whose after was rewritten to nothing left to wait for moves to the first column,
+		// as freeWaiting does after kanban done. A status set in the same command wins.
+		if _, rewired := change.vals["after"]; rewired && !moved && was == "queued" && len(waitingOn(t, byID(allTasks(e.root)), cfg)) == 0 {
+			t.d.setStr("status", cfg.columns[0])
+			change.set("status", cfg.columns[0])
+			moved = true
+			freed = []string{id}
+		}
 		done := moved && t.status() == cfg.done()
 		if done {
 			forced, err := closing(e.root, id, a.has("force"))
