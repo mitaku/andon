@@ -824,14 +824,14 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `issues[].journal` | 日報（`library/journal.md`）を丸ごと写したもの（行を読まない）。無ければ `null` |
 | `issues[].after_merge` | マージ後のこと。`report.json` の `pr` がマージされていれば GitHub から読む: repo ごとに1回の `gh pr list --repo <owner>/<repo> --state merged --limit 1000 --json number,url,title,body,mergedAt,mergeCommit` と、マージ commit ごとの `gh api repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100`。`checks.state` は check run の `conclusion` が `failure`・`timed_out`・`startup_failure`・`action_required` のものが1つでもあれば `failure`（`cancelled` は数えない）、終わっていないものがあれば `pending`、check run が無ければ `none`。`reverted_by` は、題が `Revert ` で始まり本文に `<owner>/<repo>#<n>` か PR の URL があるマージされた PR（`andon measure` と同じ照合）。PR が無い・マージされていない・一覧が読めないなら `null`。信号の記録（§15）は使わない（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 4） |
 | `issues[].reapplied` | 課題の途中でパッケージが当て直された印。当て直しの記録（パッケージの置き場の `applied.json` の `applied_at`。[ADR-0027](adr/0027-apply-package-without-rebuild.md)）が最初の起動と片付けの間にあるか、起動の記録の `package.commit` が2通り以上あれば `true`。当て直しの記録は最後の1回しか残らないので、それより前の当て直しは起動の記録の commit で拾う。起動の記録が無い・当て直しの記録が読めなければ `null`。理由は `reapplied_reasons` |
-| `typed[]` | 期間に人が端末で打った文（下の規則）。根拠として指す id は `h-<セッションログの行の uuid>`。同じ `session` の文は根拠として1件に数える（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 2）。`role` と `issue` はセッションの持ち主。2000 字を超える文は切って `truncated: true` |
+| `typed[]` | 期間に人が端末で打った文（下の規則）。根拠として指す id は `h-<セッションログの行の uuid>`。同じ `session` の文は根拠として1件に数える（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 2）。`role` と `issue` はセッションのオーナー。2000 字を超える文は切って `truncated: true` |
 | `fixes[]` | 前の振り返りが切った直し（`parent` が振り返りの課題の、`done` の課題）のうち、PR のマージ（GitHub の `mergedAt`。読めなければ `outcome.json` の `merged_at`）が打った時刻から 14 日以内のもの。`issues_after` は、マージのあとに `done` になった担当の課題の数（期間に限らない） |
 | `redacted` | 秘密の形に合って伏せた数 |
 | `skipped` | 読めなかったもの（読めない記録・GitHub）。集めるのは止めない |
 
 人が打った文の規則（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 4・14 の 1）。読むのは Claude Code のセッションログ（`<CLAUDE_CONFIG_DIR か ~/.claude>/projects/*/<session>.jsonl`。期間より前に書き終わったファイルは開かない）だけ。Codex の記録（rollout）の user の文には人の印が無いので抜かない。
 
-- **このプロジェクトのセッションだけ。** 持ち主は、起動の記録（§18）の `session` か、ログの行の `cwd`（プロジェクトの根は Chief of Staff、台帳の `issues/<id>/` と課題の `worktree` はその課題）で決める。どちらにも当たらないセッションは読まない。
+- **このプロジェクトのセッションだけ。** オーナーは、起動の記録（§18）の `session` か、ログの行の `cwd`（プロジェクトの根は Chief of Staff、台帳の `issues/<id>/` と課題の `worktree` はその課題）で決める。どちらにも当たらないセッションは読まない。
 - **抜く行**: `type` が `user`・`isSidechain`・`isMeta`・`isCompactSummary` が真でない・`origin.kind` が `human`・中身が文字列か text の block（道具の結果の block があれば抜かない）・時刻が期間の中。
 - **除く行**: セッションの最初の人の印の文（起動の最初のメッセージ）。包みのある文（先頭が `<hc from=`・`<news`・`<task-notification>`。貼った文の包み `<pasted_content …>` の内側も見る）。Andon の command が端末の外から `hc send` した定型の文（hc の包みが付かず人の印になる。dispatcher の再開の文 `dispatcher.RetryText` と、ゲートの差し戻し `issue.IsFixText`。送る側の定数で照らす）。
 - 文の意味は読まない。抜いた文はこの出力にだけ置き、PR には写さない（[ADR-0028](adr/0028-improvement-loop.md) 前提 7）。

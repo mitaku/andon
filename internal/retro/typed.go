@@ -31,7 +31,7 @@ type Typed struct {
 // maxTyped は1つの文の長さの上限（文字）。超えた分は切って truncated にする（貼った長い文書が入力を埋めないように）。
 const maxTyped = 2000
 
-// owner はセッションの持ち主（このプロジェクトの役と課題）。
+// owner はセッションのオーナー（このプロジェクトの役と課題）。
 type owner struct {
 	role  string
 	issue string
@@ -75,7 +75,7 @@ func roleOf(t *task) string {
 
 // typed は期間に人が打った文を、このプロジェクトの Claude Code のセッションログから抜く（Codex の記録には人の印が無いので抜かない）。
 //
-// セッションの持ち主は、起動の記録の session（課題と Chief of Staff）か、ログの cwd（プロジェクトの根は Chief of Staff、
+// セッションのオーナーは、起動の記録の session（課題と Chief of Staff）か、ログの cwd（プロジェクトの根は Chief of Staff、
 // 台帳の issues/<id>/ と課題の worktree はその課題）で決める。どちらにも当たらないセッションは読まない。
 // 抜く文: user の行で、本線（isSidechain でない）・isMeta でない・要約でない・人の印（origin.kind が human）があり、
 // セッションの最初の人の印の文（起動の最初のメッセージ）でなく、包み（hc send・通知）が無く、Andon の command が端末の外から送った

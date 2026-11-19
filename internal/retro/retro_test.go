@@ -295,7 +295,8 @@ func TestRedactPatterns(t *testing.T) {
 		{"Authorization: Bearer " + rep("h", 24), "Authorization: Bearer [REDACTED:bearer]"},
 		{"api_key=" + rep("i", 10), "api_key=[REDACTED:assignment]"},
 		{`GITHUB_TOKEN: ` + rep("j", 10), "GITHUB_TOKEN: [REDACTED:assignment]"},
-		{"-----BEGIN OPENSSH PRIVATE KEY-----\n" + rep("k", 40) + "\n-----END OPENSSH PRIVATE KEY-----", "[REDACTED:private-key]"},
+		// 鍵の塊の見出しは組み立てる（repo に鍵の形の文字列を置かない）
+		{"-----BEGIN OPENSSH " + "PRIVATE KEY-----\n" + rep("k", 40) + "\n-----END OPENSSH " + "PRIVATE KEY-----", "[REDACTED:private-key]"},
 		// 伏せないもの
 		{"task-assessment-for-something-long", "task-assessment-for-something-long"},
 		{"tokens: 1200 と token の数", "tokens: 1200 と token の数"},
