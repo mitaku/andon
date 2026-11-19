@@ -28,7 +28,7 @@ stateDiagram-v2
   s_queued --> s_done: やめる（人の go）
   s_todo --> s_done: やめる（人の go）
   s_doing --> s_done: やめる（人の go）・report.json に pr の無い課題を人がマージした
-  s_doing --> s_done: doing のうちに人がマージした PR を拾って片付けた（dispatcher.md §2.7）
+  s_doing --> s_done: doing のうちに人がマージした PR を andon issue settle が拾って片付けた（dispatcher.md §2.7）
   s_done --> [*]: 終わり
 ```
 
@@ -61,5 +61,5 @@ stateDiagram-v2
 | `queued` | `done` | やめる（人の go） | AI | `andon issue finish` |  |
 | `todo` | `done` | やめる（人の go） | AI | `andon issue finish` |  |
 | `doing` | `done` | やめる（人の go）・report.json に pr の無い課題を人がマージした | AI | `andon issue finish` |  |
-| `doing` | `done` | doing のうちに人がマージした PR を拾って片付けた（dispatcher.md §2.7） | 機械 | `andon issue settle` |  |
+| `doing` | `done` | doing のうちに人がマージした PR を andon issue settle が拾って片付けた（dispatcher.md §2.7） | 機械 | `andon issue finish` |  |
 | `done` | （始まり・終わり） | 終わり | 台帳の CLI |  |  |
