@@ -32,7 +32,7 @@ case "\$*" in
  {"number": 8, "url": "$pr/8", "title": "fix", "body": "", "mergedAt": "$(ago '20 days')", "mergeCommit": null}]
 JSON
   ;;
-"api repos/example/sample-site/commits/$sha/check-runs?per_page=100")
+"api --paginate repos/example/sample-site/commits/$sha/check-runs?per_page=100")
   echo '{"check_runs": [{"name": "tests", "status": "completed", "conclusion": "failure"}, {"name": "lint", "status": "completed", "conclusion": "success"}]}' ;;
 *) echo "unexpected: \$*" >&2; exit 9 ;;
 esac
@@ -127,7 +127,7 @@ echo 'ok 19: 起動と片付けの間に当て直した課題に印（起動の�
 
 after=$( (cd "$tmp" && find sample-site claude pkg -type f -exec sha1sum {} +) | sort)
 [ "$before" = "$after" ] || die "台帳かセッションログが書き換わった"
-! grep -qv '^pr list \|^api repos/' "$tmp/gh.calls" || die "gh で読む以外を打った: $(cat "$tmp/gh.calls")"
+! grep -qv '^pr list \|^api --paginate repos/' "$tmp/gh.calls" || die "gh で読む以外を打った: $(cat "$tmp/gh.calls")"
 echo 'ok 読むだけ（台帳・セッションログ・パッケージの置き場を書き換えない。gh は読むだけ）'
 
 # GitHub が読めないときも集め、マージ後のことは null・skipped に1行

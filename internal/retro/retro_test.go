@@ -135,8 +135,10 @@ func newFixture(t *testing.T) *fixture {
  {"number":4,"url":"https://github.com/example/sample-site/pull/4","title":"Revert \"ten\"","body":"Reverts example/sample-site#10","mergedAt":"` + ago(1*day) + `","mergeCommit":null},
  {"number":7,"url":"` + pr7 + `","title":"fix","body":"","mergedAt":"` + ago(3*day) + `","mergeCommit":{"oid":"7777777777777777777777777777777777777777"}},
  {"number":8,"url":"` + pr8 + `","title":"fix","body":"","mergedAt":"` + ago(20*day) + `","mergeCommit":{"oid":"8888888888888888888888888888888888888888"}}]`), nil
-		case args[0] == "api" && args[1] == "repos/example/sample-site/commits/"+sha1+"/check-runs?per_page=100":
-			return []byte(`{"check_runs":[{"name":"tests","status":"completed","conclusion":"failure"},{"name":"lint","status":"completed","conclusion":"success"},{"name":"tests","status":"completed","conclusion":"failure"}]}`), nil
+		case args[0] == "api" && args[1] == "--paginate" && args[2] == "repos/example/sample-site/commits/"+sha1+"/check-runs?per_page=100":
+			// gh api --paginate はページごとの object を続けて出す。失敗は2ページ目にだけある
+			return []byte(`{"total_count":3,"check_runs":[{"name":"lint","status":"completed","conclusion":"success"}]}
+{"total_count":3,"check_runs":[{"name":"tests","status":"completed","conclusion":"failure"},{"name":"tests","status":"completed","conclusion":"failure"}]}`), nil
 		}
 		return nil, fmt.Errorf("unexpected: %v", args)
 	}
@@ -231,6 +233,8 @@ func TestChecksState(t *testing.T) {
 		{`[{"name":"a","status":"in_progress","conclusion":null}]`, "pending"},
 		{`[{"name":"a","status":"completed","conclusion":"cancelled"}]`, "success"},
 		{`[{"name":"a","status":"completed","conclusion":"timed_out"},{"name":"b","status":"queued"}]`, "failure"},
+		// 2ページ目の失敗も数える（1ページ目は成功だけ）
+		{`[{"name":"a","status":"completed","conclusion":"success"}]}` + "\n" + `{"check_runs":[{"name":"b","status":"completed","conclusion":"failure"}]`, "failure"},
 	} {
 		g := newGitHub(&reader{}, func(...string) ([]byte, error) { return []byte(`{"check_runs":` + c.runs + `}`), nil })
 		if got := g.checks("o/r", sha1); got == nil || got.State != c.want {
@@ -294,6 +298,10 @@ func TestRedactPatterns(t *testing.T) {
 		{"eyJ" + rep("e", 12) + "." + rep("f", 12) + "." + rep("g", 12), "[REDACTED:jwt]"},
 		{"Authorization: Bearer " + rep("h", 24), "Authorization: Bearer [REDACTED:bearer]"},
 		{"api_key=" + rep("i", 10), "api_key=[REDACTED:assignment]"},
+		// 短い値も伏せる（引用あり・なし）
+		{"password=" + rep("l", 7), "password=[REDACTED:assignment]"},
+		{`pwd: "` + rep("m", 3) + `"`, `pwd: "[REDACTED:assignment]"`},
+		{"token=x", "token=[REDACTED:assignment]"},
 		{`GITHUB_TOKEN: ` + rep("j", 10), "GITHUB_TOKEN: [REDACTED:assignment]"},
 		// 鍵の塊の見出しは組み立てる（repo に鍵の形の文字列を置かない）
 		{"-----BEGIN OPENSSH " + "PRIVATE KEY-----\n" + rep("k", 40) + "\n-----END OPENSSH " + "PRIVATE KEY-----", "[REDACTED:private-key]"},
@@ -380,7 +388,7 @@ func TestReadOnly(t *testing.T) {
 		t.Error("台帳かセッションログが書き換わった")
 	}
 	for _, c := range f.calls {
-		if !strings.HasPrefix(c, "pr list ") && !strings.HasPrefix(c, "api repos/") {
+		if !strings.HasPrefix(c, "pr list ") && !strings.HasPrefix(c, "api --paginate repos/") {
 			t.Errorf("gh で読む以外を打った: %s", c)
 		}
 	}

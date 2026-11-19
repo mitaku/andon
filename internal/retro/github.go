@@ -1,7 +1,9 @@
 package retro
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"sort"
 	"strings"
 
@@ -142,17 +144,28 @@ func (g *github) afterMerge(b Bundle) *AfterMerge {
 }
 
 // checks はマージ commit の check run を読む。読めなければ nil（skipped に1行）。
+// --paginate でページを最後まで読む（gh はページごとの JSON の object を続けて出す）。
 func (g *github) checks(repo, sha string) *Checks {
-	b, err := g.gh("api", "repos/"+repo+"/commits/"+sha+"/check-runs?per_page=100")
-	var v struct {
-		CheckRuns []struct {
-			Name       string `json:"name"`
-			Status     string `json:"status"`
-			Conclusion string `json:"conclusion"`
-		} `json:"check_runs"`
+	b, err := g.gh("api", "--paginate", "repos/"+repo+"/commits/"+sha+"/check-runs?per_page=100")
+	type run struct {
+		Name       string `json:"name"`
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
 	}
+	var v struct{ CheckRuns []run }
 	if err == nil {
-		err = json.Unmarshal(b, &v)
+		dec := json.NewDecoder(bytes.NewReader(b))
+		for err == nil {
+			var page struct {
+				CheckRuns []run `json:"check_runs"`
+			}
+			if err = dec.Decode(&page); err == nil {
+				v.CheckRuns = append(v.CheckRuns, page.CheckRuns...)
+			}
+		}
+		if err == io.EOF {
+			err = nil
+		}
 	}
 	if err != nil {
 		g.r.skip("github.com/"+repo+"@"+sha, "マージ commit の checks が読めない（%v）", err)
