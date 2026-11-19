@@ -293,15 +293,19 @@ jq .settings "$tmp/show-sv" > "$tmp/settings-sv.json"; emit "$tmp/settings-sv.js
 "$andon" issue ready "$sv" >/dev/null
 [ "$(kanban show "$sv" --json | jq -r .issue.status)" = review ] || die 'ready（candidates）: review にならない'
 ok 'ready（candidates）: PR 無しで、候補 0 件の candidates.json と HEAD が揃えば review にする（show の settings に deliverable）'
-# Chief of Staff でない書き手の deliverable は信じず pr として読む（PR を要る）
-sv2=$(as t5 kanban add '調べる: 担当が自分で型を変える' --profile claude)
-as t5 kanban set "$sv2" review=off "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
-as t7 kanban set "$sv2" deliverable=candidates >/dev/null
+# Chief of Staff が起き直してアドレスが変わり、前の Chief of Staff が書いた deliverable の照合が外れても、書き直す前に PR を求めない
+sv2=$(as t5 kanban add '調べる: Chief of Staff の起き直しをまたぐ' --profile claude)
+as t5 kanban set "$sv2" review=off deliverable=candidates "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
 kanban start "$sv2" >/dev/null
+kanban config set chief_of_staff=t6 >/dev/null
+"$andon" issue report "$sv2" <<<'## Report' >/dev/null
+expect_fail 'candidates.json が無い' "$andon" issue ready "$sv2"
 "$andon" issue candidates "$sv2" - <<<'{"candidates":[]}' >/dev/null
 "$andon" issue report "$sv2" <<<'## Report' >/dev/null
-expect_fail 'pr が無い' "$andon" issue ready "$sv2"
-ok 'ready: deliverable を最後に書いたのが Chief of Staff でなければ pr として PR を要る'
+"$andon" issue ready "$sv2" >/dev/null
+[ "$(kanban show "$sv2" --json | jq -r .issue.status)" = review ] || die 'ready（照合が外れた candidates）: review にならない'
+kanban config set chief_of_staff=t5 >/dev/null
+ok 'ready: deliverable の照合が外れても（Chief of Staff の起き直しのあと）PR を求めず、candidates.json を確かめて review にする'
 # repo の無い調べる課題: commit を書かず、HEAD を照合しない。cwd は git の外（start と同じ issues/<id>/）で、candidates → report → ready まで通る。
 # kanban start を git の checkout の中で打つと worktree が入るが（台帳が checkout の中にあるとき）、repo が無ければ repo の無い課題として読む
 nr=$(as t5 kanban add '調べる: repo 無し' --profile claude)

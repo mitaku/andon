@@ -234,6 +234,30 @@ dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '起動した回を同じ commit で頼み直したら二重に起動した'
 ok '同じ commit の出し直しは、前回が起動せずに終わっていれば拾い、起動していれば二重に起動しない'
 
+# 0d. Chief of Staff が起き直してアドレスが変わると、前の Chief of Staff が書いた予約キーは照合が外れる。その間のレビュー依頼は見送るが、
+#     新しい Chief of Staff が予約キーを書き直せば、担当が頼み直さなくても次の見回りで拾い直す
+id=$(newtask '起き直しをまたぐレビュー依頼' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+kanban config set chief_of_staff=t6 >/dev/null
+as_worker "$id" review-request
+runs=$(grep -c '^run' "$tmp/hc/log")
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '照合が外れているのに起動した'
+jq -e --arg k "$id@$head" '.reviewers[$k] | (.skipped | test("最後に書いたのが Chief of Staff でない")) and .untrusted == true' "$state" >/dev/null ||
+    die "照合で見送った回を控えていない: $(jq -c --arg k "$id@$head" '.reviewers[$k]' "$state")"
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '照合が外れたままなのに起動し直した'
+HC_TERMINAL_ID=t6 kanban set "$id" review=on must_fix=major merge=person >/dev/null   # 新しい Chief of Staff が同じ値で書き直す
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '予約キーを書き直したのに、照合で見送ったレビュー依頼を拾い直さない'
+jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null || die '拾い直した回を起動したと控えていない'
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die '拾い直した回を二重に起動した'
+kanban config set chief_of_staff=t5 >/dev/null
+HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null   # あとの場面（1b のマージの影響）が数える動いている課題に残さない
+ok 'Chief of Staff のアドレスが変わって照合で見送ったレビュー依頼は、予約キーを書き直せば担当の頼み直し無しに拾い直す'
+
 # 1. 一周: review-request → レビュアーを起動する → レビュー → ready → ゲート → マージ → finish。Chief of Staff は留守（端末が無い）でも回る（ADR-0017 決めたこと 8）
 id=$(newtask 'docs を直す' auto)
 sed -i '/^t5 /d' "$tmp/hc/live"
@@ -926,6 +950,21 @@ jq -e --arg t "$sid" 'has($t) | not' "$mergerec" >/dev/null || die "candidates �
 [ "$(pending "$sid" review)" != null ] || [ "$(pending "$sid" report)" != null ] || die "candidates の課題の review の通知が無い: $(jq -c .pending "$state")"
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'candidates の課題でレビュアーを起動した'
 ok 'deliverable: candidates の課題は review_request でレビュアーを起動せず、review に入ってもゲートを回さない（通知は届ける）'
+
+# 5c. Chief of Staff が起き直してアドレスが変わり、deliverable の照合が外れても（書き直す前でも）、調べる課題は PR の課題として扱わない:
+#     ゲートを回さず（担当に「report.json に pr が無い」の fix を送らない）、返ったことを Chief of Staff に届ける（PR が無いので通知は report）
+sid=$(newtask '起き直しをまたぐ調べる課題' person)
+HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates >/dev/null
+kanban config set chief_of_staff=t6 >/dev/null
+sends=$(nsent); posted=$(grep -c '^status' "$tmp/gh/posted")
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$sid" && HC_TERMINAL_ID=t7 kanban review "$sid" >/dev/null)
+dispatcher
+[ ! -e "$L/issues/$sid/library/gate" ] && [ "$(grep -c '^status' "$tmp/gh/posted")" = "$posted" ] || die '照合が外れた調べる課題にゲートを回した'
+jq -e --arg t "$sid" 'has($t) | not' "$mergerec" >/dev/null || die "照合が外れた調べる課題に andon issue merge を打った: $(cat "$mergerec")"
+[ "$(nsent)" = "$sends" ] || die "照合が外れた調べる課題の担当に何か送った: $(tail -n 1 "$tmp/hc/sent")"
+[ "$(pending "$sid" report)" != null ] || die "照合が外れた調べる課題が返ったことが Chief of Staff に届かない: $(jq -c .pending "$state")"
+kanban config set chief_of_staff=t5 >/dev/null
+ok 'deliverable: candidates の照合が外れていても（Chief of Staff の起き直しのあと）、ゲートを回さず返ったことを Chief of Staff に届ける'
 
 # 6. andon issue finish（人がマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')

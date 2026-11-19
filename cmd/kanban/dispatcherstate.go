@@ -24,6 +24,7 @@ type dsReviewer struct {
 	Started       bool   `json:"started,omitempty"`
 	Skipped       string `json:"skipped,omitempty"`
 	OverLimit     int    `json:"over_limit,omitempty"`
+	Untrusted     bool   `json:"untrusted,omitempty"`
 	Failed        string `json:"failed,omitempty"`
 	Attempts      int    `json:"attempts,omitempty"`
 	Row           int    `json:"row,omitempty"`

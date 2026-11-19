@@ -10,7 +10,8 @@ import (
 )
 
 // deliverable: candidates の課題に andon gate を打つと、回さずに理由1行と終了コード 3。記録を書かない
-// （ADR-0006 受け入れ条件 4）。担当が書いた deliverable は信じず、今までどおり PR を見に行く。
+// （ADR-0006 受け入れ条件 4）。最後に書いたのが今の Chief of Staff でなくても PR を求めない（Chief of Staff が起き直して
+// 書き直す前。ADR-0006 決めたこと 17）。理由の文で照合が外れたことを言う。
 func TestGateRefusesCandidates(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "kanban")
@@ -48,9 +49,16 @@ func TestGateRefusesCandidates(t *testing.T) {
 		t.Error("candidates なのに記録を書いた")
 	}
 
-	// 最後に書いたのが担当（t7）なら pr として読む: report.json が無いので fix（今までどおり）
-	os.WriteFile(log, []byte(`{"at":"x","by":"terminal:t7","id":"D-0001","change":{"deliverable":"candidates"}}`+"\n"), 0o644)
-	if code, out, errs := gate(); code != exitFix || !strings.Contains(out, "report.json") {
-		t.Fatalf("担当が書いた candidates: code=%d stdout=%q stderr=%q（pr として読んで fix のはず）", code, out, errs)
+	// 最後に書いたのが今の Chief of Staff でない（前の Chief of Staff の t4）: PR を求める fix にせず、終了コード 3 と照合の理由1行
+	os.WriteFile(log, []byte(`{"at":"x","by":"terminal:t4","id":"D-0001","change":{"deliverable":"candidates"}}`+"\n"), 0o644)
+	code, out, errs = gate()
+	if code != 3 || out != "" || strings.Count(errs, "\n") != 1 || !strings.Contains(errs, "最後に書いたのが Chief of Staff でない") || strings.Contains(errs, "report.json") {
+		t.Fatalf("照合が外れた candidates: code=%d stdout=%q stderr=%q（PR を求めずに終了コード 3 と理由1行のはず）", code, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(bin, "called")); err == nil {
+		t.Error("照合が外れた candidates に gh・git を打った")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "issues", "D-0001", "library", "gate")); err == nil {
+		t.Error("照合が外れた candidates に記録を書いた")
 	}
 }

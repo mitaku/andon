@@ -226,8 +226,12 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	if l.Candidates(l.Log(), t) {
-		// 調べる課題の成果は PR ではなく候補の一覧で、Chief of Staff が読んで切る（ADR-0006 決めたこと 7）。記録しない
+	if ledger.SettingsOf(t).Deliverable == "candidates" {
+		// 調べる課題の成果は PR ではなく候補の一覧で、Chief of Staff が読んで切る（ADR-0006 決めたこと 7）。記録しない。
+		// 照合が外れていても PR を求めない（Chief of Staff が起き直して書き直す前。決めたこと 17）
+		if !l.Candidates(l.Log(), t) {
+			return nil, "", errors.New("deliverable: candidates の課題にゲートは無い（deliverable を最後に書いたのが Chief of Staff でない。PR の課題なら Chief of Staff が deliverable=pr を書く）")
+		}
 		return nil, "", errors.New("deliverable: candidates の課題にゲートは無い（候補の一覧は Chief of Staff が読む）")
 	}
 	ws := delegate.Workspace()

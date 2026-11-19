@@ -391,10 +391,12 @@ func (p *project) tick() {
 }
 
 // gated は、課題がインナーループ（レビュアーを起動する・ゲートを回す）を通るか。通るのは案件 repo の担当の
-// PR の課題だけ。レビュアー・Chief Engineer・repo の無い課題・調べる課題（deliverable: candidates。
-// Chief of Staff が書いたものだけ信じる）は Chief of Staff が見る（通知は collect が積む）。
+// PR の課題だけ。レビュアー・Chief Engineer・repo の無い課題・調べる課題（deliverable: candidates）は Chief of Staff が見る
+// （通知は collect が積む）。deliverable は照合（Chief of Staff が書いたか）が外れていても candidates なら通さない:
+// Chief of Staff が起き直してアドレスが変わると、書き直すまで照合が外れる。通さない側はマージに進まないので安全側
+// （ADR-0006 決めたこと 17）。
 func (p *project) gated(t ledger.Issue) bool {
-	return !isReviewer(t) && !isEngineer(t) && t.Str("repo") != "" && !p.l.Candidates(p.rows, t)
+	return !isReviewer(t) && !isEngineer(t) && t.Str("repo") != "" && ledger.SettingsOf(t).Deliverable != "candidates"
 }
 
 // isEngineer は Chief Engineer の課題（profile chief-engineer）か。

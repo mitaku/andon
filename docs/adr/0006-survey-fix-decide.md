@@ -302,6 +302,11 @@
 
 16. **2026-11-07 台帳のカードの語の向きは「課題（issue）」（人の答え。開いている問い 2）。この文書では識別子も glossary も変えない。改名は別の ADR。** 人の理由: タスク（task）の主は How だが、解消したいのは Why／What で、それを言葉にすれば issue。→ この文書の語（課題＝台帳のカード、作業＝担当が計画で切る単位。前提 10）はその向きに合わせてある。次の ADR で見るもの: `task` の識別子（`kanban/tasks/`・`andon task`・`task.yaml`・schema の `$id`）、glossary の「避ける: チケット・issue」、外部トラッカー（規約 7）の Issue との混同、依頼書の欄の名前（「やること」が How に寄っていないか。12）。
 
+17. **2026-11-19 `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む（7 の「照合が合わなければ `pr` として読む」を改める）。** `andon issue ready` と dispatcher は値だけを見る。ready は `pr` とレビューを要らず、`candidates.json` を確かめて `kanban review` する。dispatcher はゲートを回さず、`review_request` があってもレビュアーを起動しない。返ったことは今までどおり通知 `report` で Chief of Staff に届く。`andon gate` を手で打てば今までどおり回さずに終了コード 3 で、照合が外れていればそのことを理由の1行に書く。
+
+   理由: Chief of Staff が起き直すとアドレスが変わり、予約キーを書き直すまで照合が外れる。その間 `pr` として読むと、`review` の調べる課題にはゲートが「report.json に pr が無い」の fix を担当に送り、`doing` なら ready が PR を求めて断る。担当は出すはずのない PR を求められる（2026-11-19 に状態の図と本物のコードの再現で確かめた）。照合が守るのはマージで、`candidates` はマージに進まない側（ゲートを回さない・マージしない・Chief of Staff が読む）にある。だから照合が外れても `candidates` として読んで安全側を保てる。PR の課題に担当が自分で `candidates` を書いても、自動のマージから外れて Chief of Staff が読むだけになる。
+   捨てた案: 照合が外れたらゲートが `needs_human` を返す（dispatcher がゲートを回すので Chief of Staff に問いが立ち、書き直したあとも問いを閉じる手間が残る。ready は止まったまま）／前の Chief of Staff のアドレスも信じる（アドレスの履歴を持つ所が無い）。
+
 ## やらないこと（範囲の外。理由）
 
 - **候補から自動でタスクを切る command**（`andon task cut` など）: 切るのは Chief of Staff（Chief Engineer の文書と同じ扱い）。候補が溜まって手で切るのが重くなったら次の ADR。
