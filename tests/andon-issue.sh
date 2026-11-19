@@ -527,8 +527,8 @@ kanban set "$s10" "branch=demo/$s10-old-home" "worktree=$owt" >/dev/null
   || die "旧の置き場の worktree が片付かない: $(kanban show "$s10" --json | jq -c .issue)"
 ok 'finish: 旧の置き場（~/.herdr/worktrees/<repo 名>/<slug>-<id>）の値の課題も片付ける'
 
-# finish の書き戻し（ADR-0011 決めたこと 15・受け入れ条件 13）: write_back: true の出所（github-issues。repo が無ければ repos の全部）の
-# issue の URL を links に持つ課題の finish で、その issue に1コメント（課題 id・PR・結果）を1回だけ書く。状態は変えない（gh は issue comment だけ）
+# finish の書き戻し（ADR-0011 決めたこと 15・19、ADR-0026 決めたこと 9）: write_back: true の出所（github-issues。repo が無ければ repos の全部）の
+# issue の URL を links に持つ課題の finish で、その issue に1コメント（結果と PR の URL。課題 id は書かない）を1回だけ書く。状態は変えない（gh は issue comment だけ）
 setsignals() {
   jq --argjson s "$1" '.signals = $s' "$tmp/plant/projects/demo/project.json" > "$tmp/p.json" && cp "$tmp/p.json" "$tmp/plant/projects/demo/project.json"
   GIT_AUTHOR_EMAIL=owner@example.com git -C "$tmp/plant" commit -qam "signals: $1"
@@ -546,19 +546,29 @@ w1=$(wbissue 'Write back' "$iss" "$iss" https://github.com/example/other/issues/
 echo MERGED > "$tmp/prstate"
 "$andon" issue finish "$w1" > "$tmp/out" || die "write_back の課題を finish できない"
 [ "$(field "$w1" status)" = done ] && [ "$(cat "$tmp/gh-issue")" = "comment $iss" ] || die "1コメントでない・repos に無い repo にも書いた・状態に触れた: $(cat "$tmp/gh-issue")"
-grep -q "課題 $w1 " "$tmp/gh-body" && grep -qF -- "- PR: $pr" "$tmp/gh-body" && grep -q -- '- 結果: マージ' "$tmp/gh-body" || die "本文に課題 id・PR・結果が無い: $(cat "$tmp/gh-body")"
+[ "$(cat "$tmp/gh-body")" = "$(printf 'この Issue に対応する変更がマージされた。\nPR: %s' "$pr")" ] || die "マージの本文が違う: $(cat "$tmp/gh-body")"
+grep -q "$w1" "$tmp/out" && ! grep -qE '[A-Z]-[0-9]{4}|課題' "$tmp/gh-body" || die "外の Issue への本文に課題番号: $(cat "$tmp/gh-body")"
 grep -q "$w1 の結果を $iss に書いた" "$tmp/out" || die "書いたことを出していない: $(cat "$tmp/out")"
 expect_fail "$w1 は done" "$andon" issue finish "$w1"
 [ "$(wc -l < "$tmp/gh-issue")" = 1 ] || die '2回目の finish で書いた'
-ok 'finish: write_back: true の出所の issue に1コメント（課題 id・PR・結果）を1回だけ書く（状態は変えない。repos に無い repo・トラッカーでない links には書かない。ADR-0011 受け入れ条件 13）'
+ok 'finish: write_back: true の出所の issue に1コメント（マージされた・PR の URL。課題番号は書かない）を1回だけ書く（状態は変えない。repos に無い repo・トラッカーでない links には書かない。ADR-0011 受け入れ条件 13・ADR-0026 A7）'
 
-: > "$tmp/gh-issue"
+: > "$tmp/gh-issue"; : > "$tmp/gh-body"
 echo CLOSED > "$tmp/prstate"
 setsignals '[{"source": "github-issues", "repo": "github.com/example/app", "weight": "later", "write_back": true}]'
 w2=$(wbissue 'Closed' "$iss")
 "$andon" issue finish "$w2" >/dev/null
-[ "$(cat "$tmp/gh-issue")" = "comment $iss" ] && tail -n 3 "$tmp/gh-body" | grep -q -- '- 結果: 閉じ（マージせず）' || die "閉じた PR の結果: $(cat "$tmp/gh-body")"
-ok 'finish: マージされずに閉じた PR は「閉じ」と書く（出所の repo を書いたときはその repo の issue に）'
+[ "$(cat "$tmp/gh-issue")" = "comment $iss" ] && [ "$(cat "$tmp/gh-body")" = "$(printf 'この Issue に対応する変更は、マージされずに閉じられた。\nPR: %s' "$pr")" ] || die "閉じた PR の結果: $(cat "$tmp/gh-body")"
+! grep -qE '[A-Z]-[0-9]{4}|課題' "$tmp/gh-body" || die "外の Issue への本文に課題番号: $(cat "$tmp/gh-body")"
+ok 'finish: マージされずに閉じた PR は「閉じられた」と書く（出所の repo を書いたときはその repo の issue に。課題番号は書かない）'
+
+: > "$tmp/gh-issue"; : > "$tmp/gh-body"
+w6=$(wbissue 'No PR' "$iss")
+echo '{}' > "kanban/issues/$w6/library/report.json"
+"$andon" issue finish "$w6" >/dev/null
+[ "$(cat "$tmp/gh-issue")" = "comment $iss" ] && [ "$(cat "$tmp/gh-body")" = 'この Issue に対応する作業は、変更（PR）を作らずに終えた。' ] || die "PR の無い課題の本文: $(cat "$tmp/gh-body")"
+grep -q 'この Issue' "$tmp/gh-body" && ! grep -qE "$w6|課題" "$tmp/gh-body" || die "外の Issue への本文に課題番号: $(cat "$tmp/gh-body")"
+ok 'finish: PR の無い課題は「変更を作らずに終えた」と書く（課題番号は書かない。ADR-0026 A7）'
 
 for sig in '[{"source": "github-issues", "weight": "later", "write_back": false}]' \
            '[{"source": "github-issues", "weight": "later"}]' \

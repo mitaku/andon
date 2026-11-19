@@ -52,7 +52,7 @@ EOF
   ぶつかるものは `--after` で並べるか、1つの課題に束ねる。
 - 切る前に wiki を引く（`wiki.md` の query。`index.md` → ページの順）。効くページがあれば、依頼書の手がかりにページを出典として書く。
 - 課題は台帳が既定（規約7）。外部のトラッカーで回る案件は、そちらが正。課題の `links` にキーを書く（`kanban set <id> links=<キー>`）。中身は写さない。
-  `project.json` の `signals[]` で `write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL（`https://github.com/<owner>/<repo>/issues/<n>`）で書く。`andon issue finish` が done にしたあと、そこへ1コメント（課題 id・PR・結果）を書く。状態は変えない（閉じたいなら依頼書に「PR 本文に `Fixes <issue の URL>`」と書く）。
+  `project.json` の `signals[]` で `write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL（`https://github.com/<owner>/<repo>/issues/<n>`）で書く。`andon issue finish` が done にしたあと、そこへ1コメント（マージされたか・閉じられたか・PR を作らなかったかと、PR の URL。課題番号は書かない）を書く。状態は変えない（閉じたいなら依頼書に「PR 本文に `Fixes <issue の URL>`」と書く）。
   `write_back: true` の出所への `andon issue finish` の1コメントは委譲の中。それ以外のトラッカーへの書き込み（状態の変更・途中のコメント）は人の go を取ってから。
 
 ## Chief Engineer の文書を受けたら

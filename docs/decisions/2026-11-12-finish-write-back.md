@@ -2,6 +2,7 @@
 
 - 日付: 2026-11-12
 - 出典: ADR-0011 決めたこと 15・受け入れ条件 13。課題 A-0030（S9）
+- 覆された: [2026-11-19-gate-comment-and-write-back-for-outside-readers.md](2026-11-19-gate-comment-and-write-back-for-outside-readers.md)（書き戻しの本文だけ）
 
 - `andon issue finish` は課題を done にしたあと、`links` のうち `write_back: true` の `github-issues` の出所の repo（`repo` が無ければ `project.json` の `repos` の全部）の issue の URL ごとに、`gh issue comment` で1コメント書く。本文は課題 id・PR の URL・結果（MERGED なら「マージ」、CLOSED なら「閉じ」）。状態は変えない。
 - 書く先は今は GitHub の issue だけ。Linear は読む command が無い（ADR-0011 決めたこと 3。使う案件が出たときに足す）ので、書き戻しもそのときに足す。
