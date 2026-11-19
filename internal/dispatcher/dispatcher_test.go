@@ -13,24 +13,29 @@ import (
 
 func TestRetry(t *testing.T) {
 	for _, c := range []struct {
-		name  string
-		prev  Reviewer
-		seen  bool
-		limit int
-		row   int
-		want  bool
+		name    string
+		prev    Reviewer
+		seen    bool
+		limit   int
+		row     int
+		trusted bool
+		want    bool
 	}{
-		{"初めて", Reviewer{}, false, 2, 5, true},
-		{"起動した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 5, false},
-		{"起動した回を同じ commit で頼み直した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 9, false},
-		{"起動しそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true},
-		{"設定で起動しない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, false},
-		{"起動しなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true},
-		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true},
-		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, false},
-		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true},
+		{"初めて", Reviewer{}, false, 2, 5, true, true},
+		{"起動した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 5, true, false},
+		{"起動した回を同じ commit で頼み直した（二重に起動しない）", Reviewer{Started: true, Row: 5}, true, 2, 9, true, false},
+		{"起動しそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true, true},
+		{"設定で起動しない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, true, false},
+		{"起動しなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true, true},
+		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true, true},
+		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, true, false},
+		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true, true},
+		{"照合で見送った・照合が外れたまま", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, false, false},
+		{"照合で見送った・Chief of Staff が書き直して照合が戻った", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, true, true},
+		{"照合の外の理由で見送った（照合が合っていても拾い直さない）", Reviewer{Skipped: "report.json に pr が無い", Row: 5}, true, 2, 5, true, false},
+		{"起動した回は照合が戻っても二重に起動しない", Reviewer{Started: true, Untrusted: true, Row: 5}, true, 2, 5, true, false},
 	} {
-		if got := Retry(c.prev, c.seen, c.limit, c.row); got != c.want {
+		if got := Retry(c.prev, c.seen, c.limit, c.row, c.trusted); got != c.want {
 			t.Errorf("%s: Retry = %v, want %v", c.name, got, c.want)
 		}
 	}

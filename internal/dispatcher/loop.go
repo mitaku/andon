@@ -30,8 +30,8 @@ const retryReport = 3
 
 // reviewRequest は report.json の review_request を拾い、レビュアーを起動する（<issue>@<commit> ごとに1回）。
 // 控えの状態は3つ: 起動した（Started。もう打たない）・起動しない（Skipped。担当が頼み直す〈報告の行が増える〉か、
-// 上限を超えた回で review_rounds が上がれば起動し直す）・起動しそこねた（Failed。済んだ段〈worktree・課題・端末〉を
-// 持ったまま次の見回りで続きから）。
+// 上限を超えた回で review_rounds が上がるか、予約キーの照合で見送った回で照合が戻れば〈Chief of Staff が起き直したあと
+// 書き直した〉起動し直す）・起動しそこねた（Failed。済んだ段〈worktree・課題・端末〉を持ったまま次の見回りで続きから）。
 // 初めて見る台帳でも、今の review_request は拾う（課題が doing で commit が PR の head なので、過去の出来事ではない）。
 // 二重に起動しない守りは控えではなく台帳で持つ: その commit のレビュアーの子課題がもうあれば、それを引き継ぐ（Adopt）。
 func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
@@ -40,7 +40,8 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 	limit, _ := strconv.Atoi(ledger.SettingsOf(t).ReviewRounds)
 	row := lastReport(p.rows, id)
 	prev, seen := p.st.Reviewers[key]
-	if !Retry(prev, seen, limit, row) {
+	trusted := p.reviewKeysTrusted(t)
+	if !Retry(prev, seen, limit, row, trusted) {
 		return
 	}
 	r := prev
@@ -79,7 +80,7 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 	why, final := p.startReviewer(t, rep, &r)
 	switch {
 	case why != "" && final:
-		r.Skipped, r.Failed = why, ""
+		r.Skipped, r.Failed, r.Untrusted = why, "", !trusted
 		if rr.Round > limit {
 			r.OverLimit = limit
 		}
@@ -103,16 +104,24 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 // Retry は、控えの前の状態（seen が false なら無い）から、今度の見回りでレビュアーを起動しに行くか。
 // row はその課題の報告の最後の行（log.jsonl の何行目か）。起動しなかった回は、担当が頼み直して行が増えれば拾い直す
 // （同じ commit の出し直しでも、前回が起動せずに終わっていれば拾う。起動した回は二重に起動しない）。
-func Retry(prev Reviewer, seen bool, limit, row int) bool {
+// trusted は今の予約キーの照合（reviewKeysTrusted）。照合で見送った回は、照合が戻れば拾い直す
+// （Chief of Staff が起き直してアドレスが変わり、予約キーを書き直した。担当の頼み直しを待たない）。
+func Retry(prev Reviewer, seen bool, limit, row int, trusted bool) bool {
 	switch {
 	case !seen:
 		return true
 	case prev.Started:
 		return false // 二重に起動しない
 	case prev.Skipped != "":
-		return row > prev.Row || (prev.OverLimit > 0 && limit > prev.OverLimit)
+		return row > prev.Row || (prev.OverLimit > 0 && limit > prev.OverLimit) || (prev.Untrusted && trusted)
 	}
 	return true // 起動しそこねた: 続きから
+}
+
+// reviewKeysTrusted は、レビュアーを起動するのに読む予約キー（review・reviewer・review_rounds）を最後に書いたのが
+// 今の Chief of Staff か（startReviewer の最初の照合と同じ。値が on かは見ない）。
+func (p *project) reviewKeysTrusted(t ledger.Issue) bool {
+	return p.l.Trusted(p.rows, t, "review") && p.trusted(t, "reviewer") && p.trusted(t, "review_rounds")
 }
 
 // Adopt は、控えに無い review_request（初めて見た台帳・控えを無くした）のレビュアーの子課題が台帳にもうあるかを見る。

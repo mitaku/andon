@@ -203,8 +203,9 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 }
 
 // Candidates は、課題の成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
-// Chief of Staff か（contract.md §2 の履歴の照合）。照合が合わない・無い・知らない値は false（pr として読む＝安全側）。
-// 読み手は dispatcher（ゲートを回さない）と andon gate（回さずに終了コード 3）。ADR-0006 決めたこと 7。
+// Chief of Staff か（contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは false。
+// 読み手は andon gate（終了コード 3 の理由の文を分ける）。dispatcher と andon issue ready は照合を見ずに
+// SettingsOf の Deliverable で読む（Chief of Staff の起き直しのあと書き直す前でも PR を求めない。ADR-0006 決めたこと 7・17）。
 func (l *Ledger) Candidates(rows []Row, t Issue) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
 }

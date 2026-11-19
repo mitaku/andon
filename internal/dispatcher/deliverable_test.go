@@ -9,7 +9,8 @@ import (
 )
 
 // ゲートを回す（レビュアーを起動する）のは案件 repo の担当の PR の課題だけ。
-// deliverable: candidates は Chief of Staff が書いたときだけ飛ばす（ADR-0006 受け入れ条件 3）。
+// deliverable: candidates は飛ばす（ADR-0006 受け入れ条件 3）。最後に書いたのが今の Chief of Staff でなくても飛ばす
+// （Chief of Staff が起き直してアドレスが変わり、書き直す前。ADR-0006 決めたこと 17）。
 func TestGated(t *testing.T) {
 	l := ledger.At(t.TempDir())
 	os.MkdirAll(l.Dir, 0o755)
@@ -26,7 +27,8 @@ func TestGated(t *testing.T) {
 	}{
 		{"直す課題", ledger.Issue{"id": "D-0003", "repo": repo, "profile": "claude"}, true},
 		{"調べる課題（Chief of Staff が書いた）", ledger.Issue{"id": "D-0001", "repo": repo, "profile": "claude", "deliverable": "candidates"}, false},
-		{"調べる課題（担当が書いた＝pr として読む）", ledger.Issue{"id": "D-0002", "repo": repo, "profile": "claude", "deliverable": "candidates"}, true},
+		{"調べる課題（照合が外れた。前の Chief of Staff が書いた）", ledger.Issue{"id": "D-0002", "repo": repo, "profile": "claude", "deliverable": "candidates"}, false},
+		{"知らない deliverable は pr", ledger.Issue{"id": "D-0006", "repo": repo, "profile": "claude", "deliverable": "survey"}, true},
 		{"repo の無い課題", ledger.Issue{"id": "D-0004", "profile": "claude"}, false},
 		{"Chief Engineer", ledger.Issue{"id": "D-0005", "repo": repo, "profile": "chief-engineer"}, false},
 		{"レビュアー", ledger.Issue{"id": "D-0003-r1", "repo": repo, "profile": "codex-review", "parent": "D-0003"}, false},

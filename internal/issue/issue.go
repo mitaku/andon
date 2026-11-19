@@ -519,7 +519,9 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if err != nil {
 		return fail("library/report.json の形が違う: %v", err)
 	}
-	if c.l.Candidates(c.l.Log(), c.issue) {
+	if ledger.SettingsOf(c.issue).Deliverable == "candidates" {
+		// 照合（Chief of Staff が書いたか）は見ない: Chief of Staff が起き直したあと書き直す前でも PR を求めない。
+		// review に入った調べる課題はゲートを回さず Chief of Staff に届く（ADR-0006 決めたこと 17）
 		return c.readyCandidates(r, stdout)
 	}
 	if r.PR == "" {

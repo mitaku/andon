@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/reviewer.yaml`](../../process/states/reviewer.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §5（P6a）・§2.8・decisions/2026-11-09-reviewer-allowance-fallback.md・ADR-0017 決めたこと 4 の (4)。控えの Reviewers の 1 件（課題と commit ごと）が Started・Skipped・Failed・Attempts・OverLimit で状態を持つ
+出所: dispatcher.md §5（P6a）・§2.8・decisions/2026-11-09-reviewer-allowance-fallback.md・ADR-0017 決めたこと 4 の (4)。控えの Reviewers の 1 件（課題と commit ごと）が Started・Skipped・Failed・Attempts・OverLimit・Untrusted で状態を持つ
 
 ## 図
 
@@ -10,11 +10,11 @@
 stateDiagram-v2
   state "起動中（worktree → 子課題 → 端末 → 最初のメッセージ。起動しそこねた段と回数を控え、続きから）" as s_starting
   state "起動した（もう起動しない）" as s_started
-  state "見送った（設定・上限を超えた回・head 違い。理由つき）" as s_skipped
+  state "見送った（設定・予約キーの照合・上限を超えた回・head 違い。理由つき）" as s_skipped
   state "使用量の上限で止まり、別ブランドのレビューのプロファイルで起動し直した" as s_fallback
   [*] --> s_starting: review_request を拾った（review on・回が上限の中・commit が PR の head）
-  [*] --> s_skipped: 起動しない（設定・上限を超えた回・head 違い）
-  s_skipped --> s_starting: 頼み直した（報告の行が増えた）・review_rounds が上がった
+  [*] --> s_skipped: 起動しない（設定・予約キーの照合・上限を超えた回・head 違い）
+  s_skipped --> s_starting: 頼み直した（報告の行が増えた）・review_rounds が上がった・照合で見送った回で予約キーの照合が戻った（Chief of Staff が起き直して書き直した）
   s_starting --> s_starting: 起動しそこねた（fetch・hc run・信頼の画面。次の見回りで続きから）
   s_starting --> s_started: レビュアーを起動する（§7.2 #3）
   s_started --> s_fallback: 使用量の上限で止まった（もう一方が担当と別ブランドのときだけ。1 回だけ）
@@ -28,7 +28,7 @@ stateDiagram-v2
 |---|---|---|
 | `starting` | 起動中（worktree → 子課題 → 端末 → 最初のメッセージ。起動しそこねた段と回数を控え、続きから） | `dispatcher:Reviewers` |
 | `started` | 起動した（もう起動しない） |  |
-| `skipped` | 見送った（設定・上限を超えた回・head 違い。理由つき） |  |
+| `skipped` | 見送った（設定・予約キーの照合・上限を超えた回・head 違い。理由つき） |  |
 | `fallback` | 使用量の上限で止まり、別ブランドのレビューのプロファイルで起動し直した |  |
 
 ## 移り方
@@ -36,8 +36,8 @@ stateDiagram-v2
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
 | （始まり・終わり） | `starting` | review_request を拾った（review on・回が上限の中・commit が PR の head） | 機械 |  |  |
-| （始まり・終わり） | `skipped` | 起動しない（設定・上限を超えた回・head 違い） | 機械 |  |  |
-| `skipped` | `starting` | 頼み直した（報告の行が増えた）・review_rounds が上がった | 機械 |  |  |
+| （始まり・終わり） | `skipped` | 起動しない（設定・予約キーの照合・上限を超えた回・head 違い） | 機械 |  |  |
+| `skipped` | `starting` | 頼み直した（報告の行が増えた）・review_rounds が上がった・照合で見送った回で予約キーの照合が戻った（Chief of Staff が起き直して書き直した） | 機械 |  |  |
 | `starting` | `starting` | 起動しそこねた（fetch・hc run・信頼の画面。次の見回りで続きから） | 機械 |  |  |
 | `starting` | `started` | レビュアーを起動する（§7.2 #3） | 機械 | `hc run` | はい |
 | `started` | `fallback` | 使用量の上限で止まった（もう一方が担当と別ブランドのときだけ。1 回だけ） | 機械 | `hc run` |  |

@@ -33,6 +33,7 @@ type Reviewer struct {
 	Started       bool   `json:"started,omitempty"`        // 最初のメッセージまで届いた（もう起動しない）
 	Skipped       string `json:"skipped,omitempty"`        // 起動しない理由（設定・上限・head 違い）
 	OverLimit     int    `json:"over_limit,omitempty"`     // 上限を超えて起動しなかったときの上限（それより上がれば起動し直す）
+	Untrusted     bool   `json:"untrusted,omitempty"`      // 予約キーの照合が外れていて起動しなかった（照合が戻れば起動し直す）
 	Failed        string `json:"failed,omitempty"`         // 起動しそこねた理由（次の見回りで続きから）
 	Attempts      int    `json:"attempts,omitempty"`       // 起動しそこねた回数
 	Row           int    `json:"row,omitempty"`            // 決めたときの課題の報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
