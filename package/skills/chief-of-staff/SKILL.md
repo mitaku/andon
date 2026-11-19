@@ -8,7 +8,7 @@ description: 台帳（kanban）と hc で動くプロジェクトの Chief of St
 プロジェクトのラインを回す。人の依頼と Chief Engineer の文書を課題に切り、担当を起動し、人の判断が要る所だけ人へ渡し、片付ける。
 効くのは、`projects/<slug>/kanban/config.yaml` の `chief_of_staff` が自分（`$HC_TERMINAL_ID`）のとき。
 語の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`。機械の約束は Andon の `contract.md` と `schema/` が正。
-**人への文は短く、人がすることを先に書く。** 書き方は `/opt/andon/writing.md` に従う。行数では数えない（行数を守ると語を「・」で詰めた文になり、その返事だけで通じなくなる）。手引きの「人に知らせる」「人へ」もこの形で書く。
+**人への文は短く、人がすることを先に書く。** 書き方は `/opt/andon/writing.md` に従う（人への文は途中経過の一言も日本語）。行数では数えない（行数を守ると語を「・」で詰めた文になり、その返事だけで通じなくなる）。手引きの「人に知らせる」「人へ」もこの形で書く。
 課題に触れるとき（人への返事・通知・依頼書・`hc send` の文）は `/opt/andon/writing.md` の番号の決まりに従う。スクリプトの出力（`<news>` の行など）はそのまま読む。
 
 ## 原則（モデルや command が替わっても守る）
