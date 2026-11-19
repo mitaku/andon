@@ -72,8 +72,6 @@ type State struct {
 	Estimate map[string]bool `json:"estimate,omitempty"`
 	// 担当の端末が Gone だと見た時刻（課題 → 端末と時刻。estimate.go が実働から死んでいた区間を引く。ADR-0014 決めたこと 5）
 	Gone map[string][]GoneAt `json:"gone,omitempty"`
-	// memory の件数が線を超えて memory を積んだ（線の下に戻ると false。memory.go。ADR-0020 決めたこと 4）
-	MemoryOver bool `json:"memory_over,omitempty"`
 	// Chief of Staff の留守（端末が無い間。配る段だけ止めて、積んだ数を数える。ADR-0017 決めたこと 8。drain が戻った最初の <news> に1行付けて消す）
 	Away *Away `json:"away,omitempty"`
 }

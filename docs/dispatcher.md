@@ -72,7 +72,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4）。留守なら端末が無いので何もしない | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限でゲートを止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る台帳でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
-| 4f | memory の量 | セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory`）の件数を数え、線（30 件）を超えたら `memory` を1度積む（§2.11。初めて見る台帳でも積む） | 控えに書く |
+| 4f | memory の量 | セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory`）の件数を数え、線（30 件）を超えたら `memory` を1度積む（§2.11。初めて見る台帳でも積む。セルに1通） | 控えに書き、保存のあとで memory の記録に書く |
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` なら `andon issue merge` を打ち**（ゲートを回す・`gate`・マージと片付け・`fix`・問い。返った通知を積む。§5 の P6a）、**続けて人がマージしたかを見る**（`doing` でも `review` でも、`report.json` に `pr` があれば `andon issue settle` を打ち、返った通知を積む。GitHub に聞くのは settle が PR ごとに1分に1回だけ。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
 | 5c | 人の手直し | 控えの `Corrections` の課題ごとに `library/corrections.json` を1回だけ書く（§2.6）。もう在れば書かない | 台帳の `library/` と控えに書く |
@@ -274,8 +274,9 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 
 - **数えるもの**: `<ANDON_WORKSPACE>/memory`（既定 `/workspace/memory`）の直下の `.md` の普通のファイルで、目録 `MEMORY.md` を除く。トリアージが `kind: memory` で拾うものと同じ（数え方の正は `internal/triage` の `MemoryFiles`）。置き場が無ければ 0 件。
 - **線**は 30 件（仮の値。実測で直す。ADR-0020 開いている問い 1）。ほかの間と同じくコードの定数（`memoryLine`）。件数が線を**超えた**（31 件以上）ときに積む。
-- **線の下に戻るまで1回**: 積んだことを控えの `MemoryOver` に持ち、件数が線以下に戻った巡で外す。超えたまま増えても積み直さない。トリアージの `apply` が消して線の下に戻ったあと、また超えたら積む。
-- セルに置き場は1つで、台帳（プロジェクト）ごとに数える。セルに台帳が複数あれば、それぞれの Chief of Staff に届く（トリアージも台帳ごとに memory を拾う）。
+- **線の下に戻るまで1回**: 積んだことを memory の記録（控えの置き場の `.memory.json` の `over`）に持ち、件数が線以下に戻った巡で外す。超えたまま増えても積み直さない。トリアージの `apply` が消して線の下に戻ったあと、また超えたら積む。
+- **セルに1通**: 置き場がセルに1つなので、記録も台帳ごとの控えでなくセルに1つ持つ（[ADR-0031](adr/0031-cell-chief-of-staff.md) の S2）。セルに台帳が複数あっても、巡で先に回った台帳（名前の順。Chief of Staff が留守でも積む）の待ちに1通だけ積み、同じ巡のほかの台帳は積まない（トリアージは今までどおり台帳ごとに memory を拾う）。
+- **記録を書くのは、積んだ台帳の控えを保存したあと**。保存できなければ記録は前のままで、同じ巡のほかの台帳か次の巡がもう一度積む（届くのは1度か2度で、落ちることは無い）。記録の値は dispatcher のプロセスの中にも持つ。記録のファイルだけを書けなければログに1行で、プロセスの間はその値で積み直しを止め、次の巡で書き直す。
 - 積む巡は 4f（4e の続き）。数えられなければログに1行で、巡は止めない。
 
 
@@ -495,7 +496,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 21 | 見込みとのズレを届ける（§2.10） | dispatcher（1 巡の 4c の続き）。ほかに打つ者はいない | 同じ段の `estimate` が 2 度届く | ①控えの lock（#2）＋②控えの `Estimate`（`<issue>\|estimate\|<見込みの値>\|<段>`。積んだ巡の終わりに保存。保存の前に落ちたら次の巡で同じ段をもう一度積む＝届くのは1度か2度で、落ちることは無い） |
 | 22 | 外の信号を読む（`andon signal collect --due`。§2.2.1） | dispatcher（1 巡の 4e）。人が `andon signal collect` を手で打つこともある | 同じ組を every より短く読む（gh の上限を食う）・記録の書き込みが混ざる | ①記録の lock（`<slug>.signals.json.lock`。collect と delivered が取り合う。取れるまで待つ）の中で `read_at` を読んで書く＝`--due` は組ごとに every 分に1回だけ読む。手で打つ分（`--due` なし）は間隔によらず読むが、同じ lock の中で同じ規則で当てる（`count` が1つ多く増えるだけ）。⑥出所へは書かない |
 | 23 | `now` の信号を届ける（通知 `signal`。§2.2.1） | dispatcher（1 巡の 4e）だけ。`andon signal delivered` を打つのも dispatcher だけ | 同じ出来事の `signal` が 2 度届く | ④信号の記録の `delivered_episode`（届けた出来事より前・同じ出来事では書かない。書くのは①記録の lock の中）＋①控えの lock（#2）＋②控えの `Pending`（同じ信号は置き換え）。積んだ待ちを控えに保存してから `delivered` を書く。保存のあと書く前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い |
-| 24 | memory の量の線を届ける（通知 `memory`。§2.11） | dispatcher（1 巡の 4f）。ほかに打つ者はいない | 同じ超え方の `memory` が 2 度届く | ①控えの lock（#2）＋②控えの `MemoryOver`（線以下に戻るまで積まない。積んだ巡の終わりに保存。保存の前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い）＋②控えの `Pending`（課題の無い同じ種類は置き換え） |
+| 24 | memory の量の線を届ける（通知 `memory`。§2.11） | dispatcher（1 巡の 4f）。ほかに打つ者はいない | 同じ超え方の `memory` が 2 度届く・台帳の数だけ届く | ①`.dispatcher.lock`（#1。セルに dispatcher は1本）＋②memory の記録の `over`（セルに1つ。線以下に戻るまで、どの台帳でも積まない。積んだ台帳の控えを保存したあとに書く。保存の前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い。値はプロセスの中にも持ち、ファイルだけを書けなくても積み直さず、次の巡で書き直す）＋②控えの `Pending`（課題の無い同じ種類は置き換え） |
 | 25 | approve のまま止まったを届ける（通知 `gate`。§3.2） | dispatcher（1 巡の 5d）だけ。merge の記録を読むだけで、書かない | 同じ approve の止まりが 2 通届く | ②控えの `Stuck`（課題 → 届けた `approved`。同じ値では積まない。merge の記録の `approved` が消えるか替われば捨てる）。`approved` を書く・消すのは merge だけ（回し直しでは測り直さない） |
 | 26 | 結果の記録を書く（`outcome.json`。§2.12） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回。1 巡の 5e）。ほかの書き手はいない | `outcome.json` が書き直される（`at` が替わる）。2 度目の読みの間に PR が閉じられた・開き直された・セッションログが消えた（30 日）なら中身も替わる | ④`outcome.json` が在れば書かない（ファイルが「書いた」の印）＋②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Outcomes`（書いたら外す。失敗は次の見回りの 1 回だけ打ち直し、諦めたらログに 1 行で外す）。書くのは一時ファイル＋rename |
 

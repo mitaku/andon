@@ -65,6 +65,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 ~/.local/state/andon/dispatcher/<slug>.merge.json   andon issue merge（§6。ゲートのあとのマージと片付けの記録。dispatcher は読むだけ。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.recorded.jsonl   dispatcher（§6。記録だけの通知。1行1件・追記だけ。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.delivered.jsonl  dispatcher（§17。届けた通知の記録。渡したターン1つに1行・追記だけ。台帳の外）
+~/.local/state/andon/dispatcher/.memory.json   dispatcher（§6 の memory。線を超えたと積んだか。セルに1つ。台帳の外）
 ```
 
 ## 2. 台帳の項目（`issue.yaml` の Andon の予約キー）
@@ -241,7 +242,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `resumed` | 見回りで `doing` の課題の端末が Gone（無い・live でない・素のシェル）を見て、dispatcher が `andon issue resume` を1回打って起動できたとき（dispatcher.md §2.9。起動できなければ `finished`） | `agent`（起動した端末）・`from`（Gone を見た端末） |
 | `estimate` | 見回りで、`doing` の担当の課題（レビュアー・Chief Engineer・人の課題を除く）の実働（待ちを除いた時間。§2 の `Worked`）が、見込み（§2 の `estimate`。Chief of Staff が書いたものだけ）の 1・2・4 倍を超えたとき。段ごとに1回（一度に複数の段を超えたら上の段だけ）。見込みの無い課題には出さない。担当には何も送らない（dispatcher.md §2.10。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 6〜8） | `estimate`（段の値）・`estimate_minutes`（見込みの分）・`worked_minutes`（実働の分。切り捨て）・`ratio`（実働÷見込み。小数2桁）・`stage`（`1`・`2`・`4`）・`sign`（詰まりの兆し。兆しがあるときだけ。下の表） |
 | `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
-| `memory` | 見回りで、セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory` の直下の `.md`。目録 `MEMORY.md` を除く）の件数が線（30 件）を超えたとき。線以下に戻るまで1回。`issue` は無い（dispatcher.md §2.11。[ADR-0020](adr/0020-auto-memory-as-intake.md) 決めたこと 4） | `count`（件数）・`line`（線） |
+| `memory` | 見回りで、セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory` の直下の `.md`。目録 `MEMORY.md` を除く）の件数が線（30 件）を超えたとき。線以下に戻るまで1回で、台帳が2つ以上あってもセルに1通。`issue` は無い（dispatcher.md §2.11。[ADR-0020](adr/0020-auto-memory-as-intake.md) 決めたこと 4） | `count`（件数）・`line`（線） |
 
 - **届けるか**（表の正は `internal/dispatcher/route.go` の `RouteOf`。理由は ADR-0010 決めたこと 1・7）:
 

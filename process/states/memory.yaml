@@ -1,12 +1,12 @@
 name: memory
 title: memory の量の線
-source: dispatcher.md §2.11・ADR-0020 決めたこと 4。セルに 1 つ（auto memory の置き場 <セルの repo>/memory の件数。目録 MEMORY.md を除く）。線は仮に 30 件
+source: dispatcher.md §2.11・ADR-0020 決めたこと 4・ADR-0031 S2。セルに 1 つ（auto memory の置き場 <セルの repo>/memory の件数。目録 MEMORY.md を除く）。線は仮に 30 件。記録もセルに 1 つ（控えの置き場の .memory.json）で、台帳が 2 つ以上あっても 1 通
 states:
   - id: under
     title: 線の中（件数が線以下・置き場が無い）
   - id: over
     title: 線を超えたと知らせた（線の下に戻るまで 1 回）
-    record: dispatcher:MemoryOver
+    record: memory:Over
 transitions:
   - { from: "[*]", to: under, on: "dispatcher が台帳を回り始めた", by: machine, command: andon dispatcher }
   - { from: under, to: over, on: "件数が線を超えた。memory を Chief of Staff に届ける（§7.2 #24）", by: machine, once: true }

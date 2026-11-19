@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/memory.yaml`](../../process/states/memory.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §2.11・ADR-0020 決めたこと 4。セルに 1 つ（auto memory の置き場 <セルの repo>/memory の件数。目録 MEMORY.md を除く）。線は仮に 30 件
+出所: dispatcher.md §2.11・ADR-0020 決めたこと 4・ADR-0031 S2。セルに 1 つ（auto memory の置き場 <セルの repo>/memory の件数。目録 MEMORY.md を除く）。線は仮に 30 件。記録もセルに 1 つ（控えの置き場の .memory.json）で、台帳が 2 つ以上あっても 1 通
 
 ## 図
 
@@ -20,7 +20,7 @@ stateDiagram-v2
 | id | 状態 | 記録 |
 |---|---|---|
 | `under` | 線の中（件数が線以下・置き場が無い） |  |
-| `over` | 線を超えたと知らせた（線の下に戻るまで 1 回） | `dispatcher:MemoryOver` |
+| `over` | 線を超えたと知らせた（線の下に戻るまで 1 回） | `memory:Over` |
 
 ## 移り方
 
