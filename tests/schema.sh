@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の13本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の15本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon signal・andon chief-engineer・andon chief-of-staff）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh・andon-chief-of-staff.sh に書かせる）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro・andon signal・andon chief-engineer・andon chief-of-staff）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-retro.sh・andon-signal.sh・andon-chief-of-staff.sh に書かせる）。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 # 速さ: 検査は1件ずつ python にかけず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
@@ -49,21 +49,21 @@ flush() {
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome project question report signal"
+expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome project question report retro signal"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は14本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は15本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   queue 0 0 "schema/$name の決まり" lint "$schema_dir/$name.schema.json"
 done
 flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -139,6 +139,7 @@ declare -A required=(
   [delivered]="at project acked news"
   [launch]="at role launch issue profile template command terminal session harness package workspace repo external drift drift_reasons memory_index"
   [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
+  [retro]="project at since until previous_retro issues typed fixes redacted skipped"
 )
 # gen <pass|fail> <例の key> <jq の式> <説明>: 例を式で壊した（変えた）ものの検査を溜める。
 # 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を呼ばない）。式は1つの値を返すこと。
@@ -252,6 +253,16 @@ outcome|.gates[0]|head at tier decision reasons merged
 outcome|.sessions[0]|harness session cost
 outcome|.sessions[0].cost|models efforts turns tokens
 outcome|.sessions[0].cost.tokens|input output cache_read cache_write
+retro|.previous_retro|issue done_at
+retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome gates reviews waived corrections remember agents_md journal after_merge reapplied reapplied_reasons
+retro|.issues[0].gates[0]|head at tier decision reasons merged
+retro|.issues[0].reviews[0]|id profile findings outcome
+retro|.issues[0].after_merge|merge_commit merged_at checks reverted_by
+retro|.issues[0].after_merge.checks|state failed
+retro|.issues[0].after_merge.reverted_by[0]|pr merged_at
+retro|.typed[0]|id session at role issue text truncated
+retro|.fixes[0]|issue title retro pr merged_at issues_after
+retro|.skipped[0]|source reason
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -626,6 +637,16 @@ fail|signal|.signals[0].first_seen = "2026-02-30T09:00:00Z"|first_seen が暦に
 fail|signal|.signals[0].release = "9c4e1b0"|release が40桁でない
 fail|signal|.signals[0] += {"body": "stack trace"}|本文を持つ（持たない）
 fail|signal|.signals = {}|signals が配列でない
+pass|retro|.previous_retro = null|前の振り返りが無い
+pass|retro|.issues[0].launches = null|起動の記録の無い課題（この仕組みの前）
+pass|retro|.issues[0].after_merge = null|マージされていない課題
+pass|retro|.issues[0].reapplied = null|当て直しを確かめられない
+fail|retro|.typed[0].role = "person"|人の文の role が知らない値
+fail|retro|.typed[0].id = "u1"|人の文の id が h- で始まらない
+fail|retro|.issues[0].after_merge.checks.state = "error"|checks の state が知らない値
+fail|retro|.redacted = -1|伏せた数が負
+fail|retro|.issues[0].estimate = "中"|見込みが段の名
+
 EOF
 
 gen_flush
@@ -679,6 +700,11 @@ launch|."$defs".external.additionalProperties = true|external の知らないキ
 outcome|.properties.result.enum += ["reverted"]|結果の値に reverted を足す
 outcome|.required -= ["sessions"]|結果の記録の必須から sessions を外す
 outcome|."$defs".cost.additionalProperties = true|cost の知らないキーを許す
+retro|.required -= ["typed"]|振り返りの入力の必須から typed を外す
+retro|."$defs".bundle.required -= ["after_merge"]|束の必須から after_merge を外す
+retro|."$defs".typed.properties.role.enum += ["person"]|人の文の role を緩める
+retro|."$defs".after_merge.properties.checks.anyOf[0].properties.state.enum += ["error"]|checks の state を緩める
+retro|."$defs".fix.additionalProperties = true|前の直しの知らないキーを許す
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -687,12 +713,12 @@ LOOSE
   done
 fi
 
-# 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh が ANDON_EMIT_DIR に写したもの）。
+# 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-retro.sh・andon-signal.sh が ANDON_EMIT_DIR に写したもの）。
 #    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-signal andon-chief-of-staff; do
+  for t in andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-signal andon-chief-of-staff; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -765,6 +791,8 @@ outcome-open.json|outcome|andon dispatcher の outcome.json（PR が開いたま
 outcome-closed.json|outcome|andon dispatcher の outcome.json（PR が閉じられた）
 outcome-sessions.json|outcome|andon dispatcher の outcome.json（起動し直した2セッションのコスト）
 outcome-nolog.json|outcome|andon dispatcher の outcome.json（セッションログが無い）
+retro.json|retro|andon retro collect の出力
+retro-nogh.json|retro|andon retro collect の出力（GitHub が読めない）
 EMIT
     flush
   fi

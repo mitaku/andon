@@ -25,6 +25,7 @@ import (
 	"andon/internal/plantinit"
 	"andon/internal/process"
 	"andon/internal/publish"
+	"andon/internal/retro"
 	"andon/internal/signal"
 	"andon/internal/triage"
 )
@@ -92,6 +93,12 @@ var commands = []command{
 		usage: triage.Usage +
 			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
 		run: triage.Main,
+	},
+	{
+		name:  "retro",
+		about: "振り返りの入力を集める（collect。読むだけ）",
+		usage: retro.Usage,
+		run:   retro.Main,
 	},
 	{
 		name:  "signal",
