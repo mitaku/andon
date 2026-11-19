@@ -49,8 +49,9 @@ short() { printf '%s' "${1:0:12}"; }
 # 当てる前から動いている端末（古い skill のまま動いているもの）の一覧。止めない。dispatcher は道具が起動し直すので除く
 live_terminals() {
   command -v hc >/dev/null || return 0
-  env -u HC_TERMINAL_ID hc ls --json 2>/dev/null 8<&- 9<&- \
-    | jq -r '.terminals[]? | select(.state == "live" and .name != "dispatcher") | "  \(.address) \(.name // "-") \(.status // "-")"' 2>/dev/null || true
+  local got
+  got=$(env -u HC_TERMINAL_ID hc ls --json 8<&- 9<&-) || return 1
+  jq -r '.terminals[]? | select(.state == "live" and .name != "dispatcher") | "  \(.address) \(.name // "-") \(.status // "-")"' <<<"$got"
 }
 
 # イメージの元の commit($1)から $2 までに image/ が変わったファイルを並べて警告する（apply-main.sh 自身はイメージに入らないので除く）
@@ -199,7 +200,7 @@ apply() {
   # 最初に当てる前に、イメージの /opt/andon と kanban を退避する
   local image terminals
   image=$(image_commit)
-  terminals=$(live_terminals) # 当てる前から動いている端末
+  terminals=$(live_terminals 2>/dev/null) || { terminals=; say "警告: hc ls に失敗したので、動いている端末の一覧を出せない。hc ls で確かめる"; } # 当てる前から動いている端末
   warn_image_drift "$image" "$commit"
   if [ ! -d "$stash/andon" ]; then
     local s=$stash.new.$$
