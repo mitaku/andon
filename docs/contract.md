@@ -31,7 +31,7 @@
 
 1. **Markdown を読まない。** 依頼書・報告・レビューの報告・skill は人と AI のもの。機械が判定に使う値は、ここに並ぶ JSON／YAML のキーにだけ持つ（人の決定 2026-11-04。仮設の工場で Markdown を正規表現で読む形は端が尽きなかった）。
    例外は次の3つだけで、どれも判定に使う値を読むのではなく、文から行や語を拾うか探すだけ。新しく足さない。
-   - `andon triage collect` は `done`・`review` の課題の `report.md` から `## Next`・`## Remember`・`## 人に聞くこと`・`For AGENTS.md:`・見送りの行を拾って項目にする（見出しが無い・読めない報告は `unreadable` の項目にして、トリアージの担当が自分で読む）。
+   - `andon triage collect` は `done`・`review` の課題の `report.md` から `## Next`・`## Remember`・`## 人に聞くこと`・`For AGENTS.md:`・見送りの行を拾って項目にする（見出しが無い・読めない報告は `unreadable` の項目にして、トリアージの担当が自分で読む）。`## Remember` の「計画との差:」で始まる行と、報告が無いか見出しの無い人の課題（`who: person` か題の末尾が「（人の判断待ち）」）は `unreadable` にもせず、項目にしない（[ADR-0030](adr/0030-triage-close-safety-net.md) 決めたこと 5 の 2。振り返り〈`report.json` の `remember`〉と `andon measure` の読み方は変わらない）。
    - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
    - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。

@@ -124,9 +124,10 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 				byKey[k] = Item{Key: k, Kind: kind, From: t.ID, Repo: t.Repo, Text: text, AgeDays: age}
 			}
 		}
+		person := t.Who == "person" || strings.HasSuffix(t.Title, personSuffix)
 		// not_before が未来の課題は、見る日まで出さない（閉じられないように。ADR-0011 決めたこと 7）。
 		if (t.Status == "todo" || t.Status == "queued") && !notYet(t.NotBefore, l.tz, l.now) {
-			if t.Who == "person" || strings.HasSuffix(t.Title, personSuffix) {
+			if person {
 				emit("person", t.Title)
 			} else if t.Agent == "" {
 				emit("issue", t.Title)
@@ -144,7 +145,10 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 		}
 		body, err := os.ReadFile(filepath.Join(l.dir, "issues", t.ID, "report.md"))
 		if err != nil || !hasHeading(body) {
-			emit("unreadable", "報告が無い・読めない、または見出しが無い")
+			// 人の課題は報告を書かないのがふつう。読む中身が無いので項目にしない（ADR-0030 決めたこと 5 の 2）。
+			if !person {
+				emit("unreadable", "報告が無い・読めない、または見出しが無い")
+			}
 			continue
 		}
 		for _, ln := range reportLines(body) {
@@ -264,10 +268,15 @@ func splitLines(body []byte) []string {
 
 type reportLine struct{ kind, text string }
 
-var bulletRe = regexp.MustCompile(`^\s*[-*]`)
+var (
+	bulletRe = regexp.MustCompile(`^\s*[-*]`)
+	// planDiffRe は Remember の節の「計画との差:」の行（worker skill の報告の書式で担当が必ず書く行。箇条書きでも）。
+	planDiffRe = regexp.MustCompile(`^\s*(?:[-*]\s*)?計画との差:`)
+)
 
 // reportLines は報告から項目になる行を拾う。見出し（## ）で節を切り、
 // For AGENTS.md の行・「見送」を含む行とその下の箇条書き・Next／Remember／人に聞くこと の節の行。
+// Remember の節の「計画との差:」の行は拾わない（ADR-0030 決めたこと 5 の 2。振り返りと measure は別に読む）。
 func reportLines(body []byte) []reportLine {
 	var got []reportLine
 	section, waived := "", false
@@ -275,7 +284,7 @@ func reportLines(body []byte) []reportLine {
 		if rest, ok := strings.CutPrefix(ln, "## "); ok {
 			section, waived = rest, false
 		}
-		if strings.TrimFunc(ln, unicode.IsSpace) == "" {
+		if strings.TrimFunc(ln, unicode.IsSpace) == "" || (section == "Remember" && planDiffRe.MatchString(ln)) {
 			waived = false
 			continue
 		}
