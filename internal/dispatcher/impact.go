@@ -39,7 +39,7 @@ func (p *project) impact(id string) bool {
 	// 影響を見るのは、PR を出した案件 repo の担当の課題だけ（レビュアー・Chief Engineer の文書・repo の無い課題は飛ばす。
 	// 写し〈巡の 3〉に無いのは、この巡で足されて done になったものだけで、それも report.json で見分ける）
 	for _, t := range p.tasks {
-		if t.Str("id") == id && (isReviewer(t) || t.Str("profile") == "chief-engineer" || t.Str("repo") == "") {
+		if t.Str("id") == id && (isReviewer(t) || isEngineer(t) || t.Str("repo") == "") {
 			return true
 		}
 	}

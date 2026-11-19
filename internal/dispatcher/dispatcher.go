@@ -322,6 +322,12 @@ func (p *project) pass() (bool, error) {
 		status := t.Str("status")
 		busy = busy || status == "doing" || status == "review"
 		if !p.gated(t) {
+			if isEngineer(t) && t.Str("repo") != "" && status == "review" {
+				// Chief Engineer の文書の PR は人がマージする。ゲートは回さず、人のマージだけ見て片付ける（dispatcher.md §2.7）
+				if rep, err := contract.ReadReport(filepath.Join(p.l.Library(t.Str("id")), "report.json")); err == nil {
+					p.humanMerge(t, rep)
+				}
+			}
 			continue
 		}
 		rep, err := contract.ReadReport(filepath.Join(p.l.Library(t.Str("id")), "report.json"))
@@ -388,7 +394,12 @@ func (p *project) tick() {
 // PR の課題だけ。レビュアー・Chief Engineer・repo の無い課題・調べる課題（deliverable: candidates。
 // Chief of Staff が書いたものだけ信じる）は Chief of Staff が見る（通知は collect が積む）。
 func (p *project) gated(t ledger.Issue) bool {
-	return !isReviewer(t) && t.Str("profile") != "chief-engineer" && t.Str("repo") != "" && !p.l.Candidates(p.rows, t)
+	return !isReviewer(t) && !isEngineer(t) && t.Str("repo") != "" && !p.l.Candidates(p.rows, t)
+}
+
+// isEngineer は Chief Engineer の課題（profile chief-engineer）か。
+func isEngineer(t ledger.Issue) bool {
+	return t.Str("profile") == "chief-engineer"
 }
 
 func isReviewer(t ledger.Issue) bool {

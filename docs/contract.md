@@ -260,7 +260,8 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `gate`（`decision: fix`。`no_agent` あり。担当がいない） | 届ける |
   | `gate`（`decision: approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） |
   | `gate`（`decision: approve`。`merge: auto` でマージに進む） | 記録だけ。`andon issue merge` の記録の `approved` から10分たってもマージ・問い・別の答えのどれも決まらなければ、そのとき同じ形の通知を1回だけ届ける（`review` から出た課題は数えない） |
-  | `merged`（`held` が無い） | 記録だけ |
+  | `merged`（`held` が無い。Chief Engineer の課題でない） | 記録だけ |
+  | `merged`（`held` が無い。Chief Engineer の課題: `profile: chief-engineer`。人が文書の PR をマージした） | 届ける |
   | `merged`（`held` あり。片付けていない） | 届ける |
   | `report`（レビュアーの課題: `parent` があり `profile` が `*-review`） | 記録だけ |
   | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ |
@@ -276,7 +277,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 
 - `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine`、`gate` の `unsent`・`no_agent`、`merged` の `by`・`held`、`estimate` の `sign` だけ任意。`unsent` と `no_agent` は `decision: fix` のときだけで、一緒には書かない。`held` は `by` と一緒）。
 - 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる）。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。どちらも同じ JSON から同じ文を描く。③人が離席の間は、Chief of Staff の `Stop` フックが `asyncRewake` で起動する待ち役（`andon dispatcher wait`）が、届ける待ちがあれば合図だけを打って Chief of Staff を起動し、そのターンの終わりの①で届く。dispatcher は Chief of Staff の入力欄へ打たない（[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 1・8）。
-- **人のマージの片付け**（`merged`（`by: person`）・`closed`）: `andon issue settle <id>` は、`review` か `doing` の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（dispatcher.md §2.7）。積む通知は stdout の JSON で返し、待ちに積むのは dispatcher。
+- **人のマージの片付け**（`merged`（`by: person`）・`closed`）: `andon issue settle <id>` は、`review` か `doing` の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（dispatcher.md §2.7）。dispatcher が打つのは、インナーループを通る課題と、`review` にいる Chief Engineer の課題。積む通知は stdout の JSON で返し、待ちに積むのは dispatcher。
   出力は `issue`・`state`（`skip`〈`review` にいない・`pr` が無い・別の repo の PR〉・`watching`〈まだ OPEN か、1分たたず聞いていない〉・`auto`〈ゲートの記録の `merged` が `true`。dispatcher がマージした〉・`closed`・`held`・`finished`）・`notify[]`（`kind` と `detail`。形は上の表の `merged`・`closed`）。
   記録は `~/.local/state/andon/dispatcher/<slug>.settle.json`（課題 → `pr`・`commit`・`at`・`state`〈`MERGED`・`CLOSED`〉・`head`・`sha`・`held`。書き手は settle だけ）。2回打っても同じ結果になる（GitHub に聞く・知らせる・片付けるのは1回）。出力と記録は Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
 - **ゲートのあとのマージと片付け**（`gate`・`merged`・`asked`・`report`）: `andon issue merge <id>` は、`review` の課題にゲート（§7）を `review` に入った `log.jsonl` の行ごとに1回だけ回し、approve ＋ `merge: auto` ＋ 委譲の範囲内ならマージして finish する。`fix` は理由を担当へ `hc send`（送れなければ通知 `gate` に `unsent`、担当がいなければ `no_agent`）、`needs_human` とマージできなかったときは問い（`from: gate`）を出す（dispatcher.md §5 の P6a）。積む通知は stdout の JSON で返し、待ちに積むのは dispatcher。

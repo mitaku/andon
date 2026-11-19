@@ -863,6 +863,34 @@ jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けた�
 rm -f "$tmp/gh/merged"
 ok 'doing のうちに人がマージした PR も、review のときと同じ道で片付ける（done・端末・worktree）。問い・commit していない変更があれば片付けず、理由ごとに1回だけ知らせる'
 
+# 4h. Chief Engineer の課題（profile chief-engineer）の文書の PR を人がマージした → ゲートは回さず、review にいれば settle で片付け、
+#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（人と話している）は見ない。dispatcher.md §2.7
+ce=$(HC_TERMINAL_ID=t5 kanban add '設計を文書にする' --profile chief-engineer --repo github.com/example/app)
+cwt=$ANDON_WORKSPACE/.worktrees/app/demo-$ce
+git -C "$app" fetch -q origin
+git -C "$app" worktree add -q -b "demo/$ce" "$cwt" origin/main
+HC_TERMINAL_ID=t5 kanban set "$ce" "branch=demo/$ce" "worktree=$cwt" >/dev/null   # andon chief-engineer の代わり
+(cd "$cwt" && HC_TERMINAL_ID=t7 kanban start "$ce" >/dev/null); echo "t7 $ce" >> "$tmp/hc/live"
+work "$ce" docs/adr/0001-design.md
+as_worker "$ce" report --pr https://github.com/example/app/pull/7
+person_merges
+n=$(wc -l < "$tmp/gh/states"); watch_due "$ce"; dispatcher
+kanban show "$ce" --json | jq -e '.issue.status == "doing"' >/dev/null && [ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die 'doing の Chief Engineer の課題の PR を見た・片付けた'
+(cd "$cwt" && HC_TERMINAL_ID=t7 kanban review "$ce" >/dev/null)
+merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
+dispatcher
+kanban show "$ce" --json | jq -e '.issue.status == "done"' >/dev/null || die "人がマージした Chief Engineer の文書の PR を片付けない: $(grep "$ce" "$tmp/dispatcher.log" | tail -3)"
+[ ! -e "$cwt" ] && ! grep -q "^t7 $ce\$" "$tmp/hc/live" || die 'Chief Engineer の課題を done にしたが worktree・端末が残った'
+pending "$ce" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null ||
+    die "通知 merged（by: person）を Chief of Staff に届けない: $(pending "$ce" merged) $(recorded "$ce" merged)"
+[ "$(recorded "$ce" merged)" = null ] || die 'Chief Engineer の merged を記録だけにした'
+[ ! -e "$L/issues/$ce/library/gate" ] && [ "$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)" = "$merges" ] || die 'Chief Engineer の課題にゲートを回した・gh pr merge を打った'
+jq --arg t "$ce" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+dispatcher
+[ "$(pending "$ce" merged)" = null ] || die '片付けた Chief Engineer の課題をまた知らせた'
+rm -f "$tmp/gh/merged"
+ok 'Chief Engineer の文書の PR を人がマージしたら、ゲートを回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は見ない'
+
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
 restart "$id"
