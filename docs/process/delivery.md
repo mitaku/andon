@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/delivery.yaml`](../../process/states/delivery.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §2.1・§2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5・8。拾う位置（log.jsonl の位置と ready の前回）は状態でないので、ここに置く
+出所: dispatcher.md §2.1・§2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5・8。拾う位置（log.jsonl の位置と ready の前回）と、dispatcher 自身が積んだ問いの印（問いの行を読んだら消す）は状態でないので、ここに置く
 
 ## 図
 
@@ -41,7 +41,7 @@ stateDiagram-v2
 | `unrecorded` | 記録だけの置き場に書けなかった | `dispatcher:Unrecorded` |
 | `recorded` | 記録だけにした（届けない） |  |
 
-状態でない項目（拾う位置とデータ）: `dispatcher:LogPos`・`dispatcher:LogHead`・`dispatcher:LogHold`・`dispatcher:Ready`
+状態でない項目（拾う位置とデータ）: `dispatcher:LogPos`・`dispatcher:LogHead`・`dispatcher:LogHold`・`dispatcher:Ready`・`dispatcher:Asked`
 
 ## 移り方
 

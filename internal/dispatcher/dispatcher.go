@@ -488,4 +488,5 @@ func (p *project) ask(id string, q contract.Question) {
 		return
 	}
 	p.notify(id, "asked", map[string]any{"n": n, "kind": q.Kind, "question": q.Question})
+	p.markAsked(id, n)
 }

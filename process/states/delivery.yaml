@@ -1,6 +1,6 @@
 name: delivery
 title: 通知の配達
-source: dispatcher.md §2.1・§2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5・8。拾う位置（log.jsonl の位置と ready の前回）は状態でないので、ここに置く
+source: dispatcher.md §2.1・§2.2・§3・§3.2・§4・ADR-0010・ADR-0017 決めたこと 4 の (3)・5・8。拾う位置（log.jsonl の位置と ready の前回）と、dispatcher 自身が積んだ問いの印（問いの行を読んだら消す）は状態でないので、ここに置く
 states:
   - id: pending
     title: 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える。asked は問いの n ごと）
@@ -19,7 +19,7 @@ states:
     record: dispatcher:Unrecorded
   - id: recorded
     title: 記録だけにした（届けない）
-positions: [dispatcher:LogPos, dispatcher:LogHead, dispatcher:LogHold, dispatcher:Ready]
+positions: [dispatcher:LogPos, dispatcher:LogHead, dispatcher:LogHold, dispatcher:Ready, dispatcher:Asked]
 transitions:
   - { from: "[*]", to: pending, on: "届ける通知を拾った", by: machine }
   - { from: "[*]", to: away, on: "Chief of Staff の端末が無い巡に届ける通知を拾った（留守の始まりを控える）", by: machine }
