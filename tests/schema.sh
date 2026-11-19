@@ -7,7 +7,7 @@
 #   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon signal）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh に書かせる）。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
-# 速さ: 検査は1件ずつ python を起こさず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
+# 速さ: 検査は1件ずつ python にかけず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -139,7 +139,7 @@ declare -A required=(
   [delivered]="at project acked news"
 )
 # gen <pass|fail> <例の key> <jq の式> <説明>: 例を式で壊した（変えた）ものの検査を溜める。
-# 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を起こさない）。式は1つの値を返すこと。
+# 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を呼ばない）。式は1つの値を返すこと。
 gen() {
   printf '%s\n' "$3" >>"$tmp/g-$2.expr"
   printf '%s\t%s\n' "$1" "$4" >>"$tmp/g-$2.meta"
