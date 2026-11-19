@@ -234,7 +234,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 |---|---|---|
 | `report` | `log.jsonl` の `{"report": "write" \| "append"}` | `report` のパス |
 | `review` | `{"status": "review"}` | `report`・`pr` |
-| `asked` | `{"question": n, "status": "open"}`。dispatcher 自身が出した問い（`by` が `terminal:dispatcher`）は、この行からでなく出した巡で積む（[dispatcher.md](dispatcher.md) §2.2） | `n`・`kind`・`question`（§5 の JSON から） |
+| `asked` | `{"question": n, "status": "open"}`。dispatcher 自身が出した問い（`by` が `terminal:dispatcher`）は出した巡で積み、この行からは積み直さない（[dispatcher.md](dispatcher.md) §2.2） | `n`・`kind`・`question`（§5 の JSON から） |
 | `ready` | `kanban ready --json` の前回との差（人の課題を除く） | `title`・`routine` |
 | `review-requested` | `report.json` の `review_request`（dispatcher が起動したとき） | `round`・`reviewer`・`reviewer_issue` |
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス）、`fix` を担当へ送れなかった（担当の端末が無い）ときだけ `unsent`（担当の address）、`fix` で担当（`agent`）がいないときだけ `no_agent`（`true`） |

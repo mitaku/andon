@@ -182,9 +182,13 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		p.notify(id, "report", map[string]any{"report": p.reportPath(id)})
 	case c["question"] != nil && c["status"] == "open":
 		if r.By == ledger.DispatcherBy {
-			// dispatcher 自身が出した問い（andon issue merge のゲートの問い・ask）は、出した巡で asked を積んでいる。
-			// この行からもう一度積むと、間に drain が渡していれば Chief of Staff に2度届く
-			return true
+			// dispatcher 自身が出した問い（andon issue merge のゲートの問い・ask）は、出した巡で asked を積んで印を付けている。
+			// この行からもう一度積むと、間に drain が渡していれば Chief of Staff に2度届く。印が無いのは、積んだあと控えを
+			// 保存する前に落ちたとき（読んだ位置も戻っている）なので、この行から積み直す
+			if k := askedKey(id, c["question"]); p.st.Asked[k] {
+				delete(p.st.Asked, k)
+				return true
+			}
 		}
 		return p.asked(id, c["question"], pos)
 	case c["status"] == "review":
@@ -197,6 +201,38 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		}
 	}
 	return true
+}
+
+// markAsked は dispatcher 自身が出して積んだ問いに印を付ける（logRow がその問いの行を読んだら消す）。
+func (p *project) markAsked(id string, n any) {
+	k := askedKey(id, n)
+	if k == "" {
+		return
+	}
+	if p.st.Asked == nil {
+		p.st.Asked = map[string]bool{}
+	}
+	p.st.Asked[k] = true
+}
+
+// askedKey は問いの印の鍵（<issue>#<n>）。n は問いの行・merge の JSON の数（float64）か、ask が読んだ番号（int）。読めなければ空。
+func askedKey(id string, n any) string {
+	var i int
+	switch v := n.(type) {
+	case int:
+		i = v
+	case float64:
+		if v != float64(int(v)) {
+			return ""
+		}
+		i = int(v)
+	default:
+		return ""
+	}
+	if i < 1 {
+		return ""
+	}
+	return id + "#" + strconv.Itoa(i)
 }
 
 // asked は問いの行を通知 asked にする（中身は library/questions/<n>.json）。andon issue ask は台帳に書いてから JSON を置くので、

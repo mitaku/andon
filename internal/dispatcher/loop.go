@@ -503,6 +503,9 @@ func (p *project) merge(t ledger.Issue) {
 		g := f
 		g.AutoMerge = n.Kind == "gate" && res.Auto
 		p.put(Notification{At: now(), Project: p.l.Slug, Issue: id, Kind: n.Kind, Detail: n.Detail}, g)
+		if n.Kind == "asked" {
+			p.markAsked(id, n.Detail["n"])
+		}
 	}
 }
 

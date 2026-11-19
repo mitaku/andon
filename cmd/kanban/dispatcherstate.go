@@ -87,6 +87,8 @@ type dispatcherState struct {
 	Gone map[string][]dsGoneAt `json:"gone,omitempty"`
 	// The Chief of Staff's absence: when it began and ended, and how many notifications were queued
 	Away *dsAway `json:"away,omitempty"`
+	// Questions the dispatcher asked and queued itself, whose log.jsonl row it has not read yet (<issue>#<n>)
+	Asked map[string]bool `json:"asked,omitempty"`
 }
 
 type dsAway struct {

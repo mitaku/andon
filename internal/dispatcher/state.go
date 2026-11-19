@@ -74,6 +74,9 @@ type State struct {
 	Gone map[string][]GoneAt `json:"gone,omitempty"`
 	// Chief of Staff の留守（端末が無い間。配る段だけ止めて、積んだ数を数える。ADR-0017 決めたこと 8。drain が戻った最初の <news> に1行付けて消す）
 	Away *Away `json:"away,omitempty"`
+	// dispatcher 自身が出して積んだ問いのうち、log.jsonl の問いの行をまだ読んでいないもの（<issue>#<n>。pickup.go の logRow が
+	// 行を読んだら消す）。待ちの通知と同じ控えに保存するので、積んだのに保存の前に落ちた問いは印が無く、行から積み直せる
+	Asked map[string]bool `json:"asked,omitempty"`
 }
 
 // Away は Chief of Staff の留守の記録（ADR-0017 決めたこと 8 の (b)）。

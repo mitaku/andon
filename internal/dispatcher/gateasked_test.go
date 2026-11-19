@@ -38,7 +38,7 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 	p.readLog(cos)
 	addRow(t, logPath, `{"at":"2026-11-19T00:01:00Z","by":"terminal:dispatcher","id":"S-0007","change":{"question":1,"status":"open"}}`)
 	writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートが人に回した","facts":["PR https://github.com/example/sample-site/pull/1"],"reason":"ゲートの決定式が needs_human を返した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
-	p.put(Notification{At: now(), Project: slug, Issue: "S-0007", Kind: "asked", Detail: map[string]any{"n": 1, "kind": "line", "question": "ゲートが人に回した"}}, p.facts("S-0007"))
+	gateAsks(p, slug)
 	if err := p.st.Save(slug); err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +54,9 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 	p.readLog(cos)
 	if err := p.st.Save(slug); err != nil {
 		t.Fatal(err)
+	}
+	if len(p.st.Asked) != 0 {
+		t.Errorf("問いの行を読んだのに印が残った: %v", p.st.Asked)
 	}
 	second := stopTwice(t, slug, "p2")
 
@@ -86,6 +89,55 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 	if len(asked) != 2 || asked[0] != 1 || asked[1] != 1 {
 		t.Errorf("届けた asked の数がターンごとに %v（[1 1] のはず）。届けた記録:\n%s", asked, b)
 	}
+}
+
+// merge が保存の前に落ちたとき: 積んだ asked も印も読んだ位置も控えに無いので、次の巡が問いの行から1回だけ積み直す。
+func TestGateAskedRecoveredAfterCrash(t *testing.T) {
+	d := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HC_TERMINAL_ID", "")
+	l := ledger.At(filepath.Join(d, "projects", "sample-site"))
+	qdir := filepath.Join(l.Library("S-0007"), "questions")
+	logPath := filepath.Join(l.Dir, "log.jsonl")
+	writeFile(t, logPath, `{"at":"2026-11-19T00:00:00Z","by":"terminal:t51","id":"S-0007","change":{"status":"review"}}`+"\n")
+	slug, cos := l.Slug, "t51"
+	tasks := []ledger.Issue{{"id": "S-0007", "status": "review", "agent": "t42", "profile": "claude", "repo": "github.com/example/sample-site"}}
+	load := func() *project {
+		st, _, _ := LoadState(slug)
+		return &project{c: &Dispatcher{Log: os.Stderr}, l: l, st: st, tasks: tasks}
+	}
+	pass := func(crash bool, ask bool) {
+		p := load()
+		p.readLog(cos)
+		if ask {
+			addRow(t, logPath, `{"at":"2026-11-19T00:01:00Z","by":"terminal:dispatcher","id":"S-0007","change":{"question":1,"status":"open"}}`)
+			writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートが人に回した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
+			gateAsks(p, slug)
+		}
+		if crash {
+			return // 巡の終わりの保存の前に落ちた
+		}
+		if err := p.st.Save(slug); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pass(false, false) // 位置を控える
+	pass(true, true)   // ゲートの問いを出して積んだが、保存の前に落ちた
+	pass(false, false) // 起き直した巡: 問いの行から積み直す
+	if news := stopTwice(t, slug, "p1"); !strings.Contains(news, "問い 1") {
+		t.Fatalf("保存の前に落ちたゲートの問いが届かない: %q", news)
+	}
+	pass(false, false) // もう積まない
+	if out, err := drain(slug, false, hookInput{SessionID: "s1", PromptID: "p2"}); err != nil || out != nil {
+		t.Fatalf("ゲートの問いをもう一度渡した: %v %v", out, err)
+	}
+}
+
+// gateAsks は merge の末尾と同じく、andon issue merge が返したゲートの問い 1 の asked を積んで印を付ける。
+func gateAsks(p *project, slug string) {
+	p.put(Notification{At: now(), Project: slug, Issue: "S-0007", Kind: "asked", Detail: map[string]any{"n": float64(1), "kind": "line", "question": "ゲートが人に回した"}}, p.facts("S-0007"))
+	p.markAsked("S-0007", float64(1))
 }
 
 // stopTwice は Stop で待ちを渡し、続きのターンの Stop で確かめる（drain の①）。渡した <news> の文を返す。
