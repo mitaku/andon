@@ -40,6 +40,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
       [ "$i" = 5 ] && exit 1; \
       echo "apt が失敗した。索引を読み直してやり直す（$i/5）" >&2; sleep $((i * 5)); \
     done \
+ && date +%s >/var/lib/apt/lists/andon-updated-at \
  && locale-gen en_US.UTF-8 \
  && userdel --remove ubuntu \
  && groupadd --gid 1000 andon \
@@ -94,7 +95,8 @@ ARG INSTALL_BROWSERS=1
 RUN if [ "${INSTALL_BROWSERS}" = 1 ]; then /opt/andon-tools/bin/playwright install chromium; fi
 # Chromium の依存（playwright install-deps。--with-deps と同じ顔ぶれ）は、apt の段が取った索引で入れる。playwright は
 # 必ず apt-get update を打つので、この RUN だけ update を飛ばす apt-get を PATH の先に置く（root なので playwright は sudo を通さず sh -c で打つ）。
-# 索引が古い・無い（手元で apt の段が層の cache から来て、索引の cache が空・古い）と install が落ちるので、そのときだけ update からやり直す。
+# 飛ばすのは、索引の cache の andon-updated-at（apt の段が update した時刻）が1時間以内のときだけ。手元で apt の段が層の cache から来ると
+# 索引は前の build のもので、古ければ update する（古い索引のまま古い依存を入れない）。索引が無い・取得元と合わず install が落ちたら update からやり直す。
 # 最後に apt の取得元を元に戻す（APT_MIRROR を渡したときだけ控えがある）
 USER root
 RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -104,7 +106,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
            'if [ "$1" = update ]; then echo "apt-get update を飛ばす（索引は apt の段で取った）" >&2; exit 0; fi' \
            'exec /usr/bin/apt-get "$@"' >/tmp/andon-apt/apt-get \
       && chmod 755 /tmp/andon-apt/apt-get \
-      && { PATH=/tmp/andon-apt:$PATH /opt/andon-tools/bin/playwright install-deps chromium \
+      && at=$(cat /var/lib/apt/lists/andon-updated-at 2>/dev/null || echo 0) \
+      && if [ $(( $(date +%s) - at )) -lt 3600 ]; then skip=/tmp/andon-apt:; \
+         else skip=; echo "索引が1時間より古い（apt の段が層の cache から来た）。apt-get update から取る" >&2; fi \
+      && { PATH=$skip$PATH /opt/andon-tools/bin/playwright install-deps chromium \
            || { echo "apt の段の索引で入らなかった。apt-get update からやり直す" >&2; /opt/andon-tools/bin/playwright install-deps chromium; }; } \
       && rm -rf /tmp/andon-apt; \
     fi \
