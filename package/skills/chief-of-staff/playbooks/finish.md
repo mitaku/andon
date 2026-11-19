@@ -6,17 +6,17 @@
 # 片付け
 
 - dispatcher がマージしたもの（`<id> merged: <PR> をマージして片付けた`）は、dispatcher が `andon issue finish` 済み。
-- 人がマージしたもの（`review` の課題）も dispatcher が見回りで拾う（PR ごとに1分に1回）。届く行で決める:
+- 人がマージしたもの（`review` の課題も、担当が働いている `doing` の課題も）も dispatcher が見回りで拾う（PR ごとに1分に1回）。届く行で決める:
 
   | 届く行 | dispatcher がしたこと | すること |
   |---|---|---|
   | `<id> merged: <PR> は人がマージした（…）。ゲートの問いを閉じて片付けた` | ゲートの問い（`from: gate`）を「人がマージした」と閉じ、`andon issue finish` 済み | 何もしない（wiki だけ。下） |
-  | `<id> merged: <PR> は人がマージした（…）が、片付けていない: <理由>` | 片付けていない（ゲートの外の問いが開いている・finish が失敗した） | 理由の問いを先に閉じる（担当の問いなら答えを返す・要らなくなった問いなら `kanban answer`・`kanban received`）か、finish の理由を直す。dispatcher が次の巡で片付ける |
+  | `<id> merged: <PR> は人がマージした（…）が、片付けていない: <理由>` | 片付けていない（ゲートの外の問いが開いている・commit していない変更がある・finish が失敗した） | 理由の問いを先に閉じる（担当の問いなら答えを返す・要らなくなった問いなら `kanban answer`・`kanban received`）か、finish の理由を直す（commit していない変更は担当に聞くか、人へ）。dispatcher が次の巡で片付ける |
   | `<id> closed: <PR> はマージされずに閉じた` | 何もしない（片付けていない） | 人が閉じた理由を確かめ、やめるなら人の go を取って `andon issue finish <id>`、出し直すなら担当へ返す |
 
 - どちらのマージでも、finish のあと dispatcher が動いている課題への影響を見て、影響があれば `<id> impact` で届く（下の「マージのあとの影響」）。
 - 調べる課題（`deliverable: candidates`）は PR が無いので、報告と `candidates.json` を読んで直す課題を切ったあと（切らない候補は報告の Next に残っている）、人の go は要らず `andon issue finish <id>`。commit していない変更があって止まったら、担当に捨てさせる（報告の Next に「commit は捨ててよい」と書かせる）。
-- dispatcher が止まっているときは、`review` の課題なら `andon issue settle <id>` を打つ（dispatcher が打つのと同じ。マージを確かめ、ゲートの問いを閉じて片付ける。出力の `notify[]` が届くはずだった行）。`review` を通らなかった課題を人がマージしたときだけ、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
+- dispatcher が止まっているときは、`review`・`doing` の課題なら `andon issue settle <id>` を打つ（dispatcher が打つのと同じ。マージを確かめ、ゲートの問いを閉じて片付ける。出力の `notify[]` が届くはずだった行）。`report.json` に `pr` が無い課題を人がマージしたときだけ、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
   受け取られていない問い（`open`・`answered`。レビュアーの子課題のものも）があると、端末にも worktree にも触らずに止まる（課題は元の状態のまま）。commit していない変更があっても止まる。そのときは担当に聞くか、人へ。やめる課題も、問いを閉じて（`kanban answer`・`kanban received`）から打ち直す。
 - マージせずにやめる課題は、**人の go を取ってから** `andon issue finish <id>`（branch は残る）。
 - レビュアーの課題は、元の課題の `andon issue finish` で片付く。元の課題をやめずにレビュアーだけ残っていれば `andon issue finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
