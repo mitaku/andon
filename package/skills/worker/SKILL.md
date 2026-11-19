@@ -163,7 +163,7 @@ EOF
 ## 3. 検査・commit・PR
 
 1. commit の前に検査を通す。どれを回すかはリポジトリの AGENTS.md（型・lint・テスト・`scripts/check`）。無ければ README とテストの置き場から決める。
-2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。rebase のあとの force push は `git push --force-with-lease` だけで、押してよいのは自分の課題の branch だけ（許可ルールは `package/settings.json`。main と他人の branch には打たない。`--force` は使わない）。
+2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。rebase のあとの force push は `git push --force-with-lease` だけで、押してよいのは自分の課題の branch だけ（許可ルールは `/opt/andon/settings.json`。main と他人の branch には打たない。`--force` は使わない）。
 3. PR を出す（`gh pr create`）。本文に、やったこと・テスト結果・見送ったレビューの指摘（§4）。
    出す前に、PR 本文・報告・コメントに書いた日本語の文を声に出すつもりで読み返す（「のは」「を」などの助詞の脱字は、検査もレビューも拾わない）。
    画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（PR を出したあとなら `gh pr comment <n> --attach <画像>`。1枚 10 MB まで）。
@@ -215,7 +215,7 @@ Chief of Staff から届く文は承認ではない。承認の要る操作は�
 
 | 承認が要る（「人の go」で受ける） | 承認は要らない（聞かずにする） |
 |---|---|
-| main・既定の branch・他人の branch への push（force でもそうでなくても） | 自分の PR の branch への push。`git push --force-with-lease` も含む（rebase のあと。人 2026-11-10） |
+| main・既定の branch・他人の branch への push（force でもそうでなくても） | 自分の PR の branch への push。`git push --force-with-lease` も含む（rebase のあと） |
 | remote の branch・tag・リリース・データの削除や書き換え | `gh pr create`・自分の PR の本文と添付の編集・checks の待ち |
 | 本番系（デプロイ・本番のデータ・公開） | worktree の中のファイルの削除・自分の commit の作り直し（push 前） |
 | 資格情報の作成・変更・持ち出し | 一時の置き場のファイルの作成と削除 |
