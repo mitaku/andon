@@ -73,7 +73,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4）。留守なら端末が無いので何もしない | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限でゲートを止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る台帳でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
 | 4f | memory の量 | セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory`）の件数を数え、線（30 件）を超えたら `memory` を1度積む（§2.11。初めて見る台帳でも積む。セルに1通） | 控えに書き、保存のあとで memory の記録に書く |
-| 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` なら `andon issue merge` を打ち**（ゲートを回す・`gate`・マージと片付け・`fix`・問い。返った通知を積む。§5 の P6a）、**続けて人がマージしたかを見る**（`doing` でも `review` でも、`report.json` に `pr` があれば `andon issue settle` を打ち、返った通知を積む。GitHub に聞くのは settle が PR ごとに1分に1回だけ。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
+| 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` なら `andon issue merge` を打ち**（ゲートを回す・`gate`・マージと片付け・`fix`・問い。返った通知を積む。§5 の P6a）、**続けて人がマージしたかを見る**（`doing` でも `review` でも、`report.json` に `pr` があれば `andon issue settle` を打ち、返った通知を積む。GitHub に聞くのは settle が PR ごとに1分に1回だけ。§2.7）。レビュアー・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a）。Chief Engineer の課題はレビュアーの起動とゲートを飛ばし、`review` にいるときだけ人がマージしたかを見る（§2.7） | 台帳・端末に書く |
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
 | 5c | 人の手直し | 控えの `Corrections` の課題ごとに `library/corrections.json` を1回だけ書く（§2.6）。もう在れば書かない | 台帳の `library/` と控えに書く |
 | 5e | 結果の記録 | 控えの `Outcomes` の課題ごとに `library/outcome.json` を1回だけ書く（§2.12）。もう在れば書かない。gh の上限で止めている間（控えの `GHReset`）は打たない | 台帳の `library/` と控えに書く |
@@ -218,9 +218,10 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 `merge: person` やゲートの `needs_human` の課題は、人が GitHub で PR をマージしても台帳は `review` のまま残る。気づくのが Chief of Staff だけだと、ゲートの問い（`from: gate`）は開いたまま、finish も影響（§2.5）も走らず、finish は開いた問いで止まるので Chief of Staff が `kanban answer`・`kanban received` を手で打つことになる。
 そこで `andon issue settle <id>` が PR の状態を見て、**dispatcher が自分でマージしたときと同じ道**（finish → `done` の行 → 次の巡で §2.5・§2.6）に乗せる。マージはしない（拾うのはマージ済みのものだけ）。ゲートの判定も変えない。
-dispatcher は見回りで `review` と `doing` の課題（`report.json` に `pr` がある、インナーループを通る課題。§5 の P6a と同じ見分け）ごとに settle を打ち、返った通知（stdout の JSON の `notify[]`）を待ちに積むだけ。拾う・片付ける・覚えるのは settle で、記録は settle の記録（`<slug>.settle.json`。書き手は settle だけ）に持つ（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 5・6）。Chief of Staff が手で打っても同じ結果になる。
+dispatcher は見回りで `review` と `doing` の課題（`report.json` に `pr` がある、インナーループを通る課題。§5 の P6a と同じ見分け）と、`review` にいる Chief Engineer の課題ごとに settle を打ち、返った通知（stdout の JSON の `notify[]`）を待ちに積むだけ。拾う・片付ける・覚えるのは settle で、記録は settle の記録（`<slug>.settle.json`。書き手は settle だけ）に持つ（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 5・6）。Chief of Staff が手で打っても同じ結果になる。
 
 - **見るのは `review` か `doing` にいて `report.json` に `pr` がある課題だけ**。PR の repo が `issue.yaml` の `repo` と違えば見ない（ほかの repo の PR がマージされても、この課題は片付かない）。`review` にも `doing` にもいない課題は何もせず `state: skip` を返す。
+- **Chief Engineer の課題**（`profile: chief-engineer`）の文書の PR は人がマージする。ゲートは回さない（検収は人が対話の中でした）が、人がマージしたことは同じ道で拾う。見るのは `review` にいるときだけで、`doing` の間は見ない（人と話している途中の文書の PR をマージしても、Chief Engineer の端末を片付けない）。片付けた通知 `merged`（`by: person`）は届ける（§3.2。Chief Engineer の課題に影響〈§2.5〉は回らないので、片付いたことはこれだけで Chief of Staff に届く）。
 - **`doing` のうちに人がマージした**（担当がまだ働いている・直しの途中）ときも、`review` のときと同じ道で片付ける（done・端末・worktree）。担当の問い（`ask`）が開いていれば下の「ゲートの外の問い」、commit していない変更があれば finish の失敗として、片付けずに `held` で知らせる。
 - **GitHub に聞くのは PR ごとに1分に1回**（`gh pr view <n> --repo <owner/repo> --json state,mergeCommit,headRefOid`）。待ちがあると見回りは5秒ごとなので、打った時刻を settle の記録に持つ（gh の上限を食わない）。MERGED・CLOSED と分かったら、もう聞かない。
 - **dispatcher が自分でマージした PR** は、ゲートの記録 `library/gate/<マージされた head>.json` の `merged` が `true` であることで見分ける（dispatcher の控えは読まない。同じ巡で finish が失敗しても人のマージと誤報しない）。何もせず `state: auto` を返す（approve の道が片付ける）。
@@ -345,9 +346,10 @@ Chief of Staff が受けて、すること（判断・人への1行・担当へ�
 | `gate`（`approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） | 人にマージを頼む |
 | `gate`（`approve`。`merge: auto` でマージに進む） | 記録だけ。10分たっても merge の記録で決まらなければ1回だけ届ける（§2.1.1 の 5d） | ふつうは同じ巡で `merged` まで進む。進まないときだけ Chief of Staff が確かめる |
 | `merged`（`held` が無い） | 記録だけ | dispatcher（か人）がマージして片付けた。影響は `impact` で別に届く |
+| `merged`（`held` が無い。Chief Engineer の課題） | 届ける | 人が文書の PR をマージし、dispatcher が片付けた（§2.7）。Chief Engineer の課題に `impact` は回らないので、記録だけにすると Chief of Staff は片付いたことを知らない。人にマージを頼むのをやめ、文書から切った課題を進める |
 | `merged`（`held` あり） | 届ける | 片付けていない理由を読んで、問いを閉じる・`andon issue finish` する |
 | `report`（レビュアーの課題） | 記録だけ | 結果の宛先は元の課題の担当で、Chief of Staff は中継しない |
-| `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer は人と直接話す役で、人の返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff は人への問いに答えない。`ready` は `andon chief-engineer` が起動した直後で、もう起動している。`error`・`finished`・`review`（文書の PR）は届ける |
+| `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer は人と直接話す役で、人の返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff は人への問いに答えない。`ready` は `andon chief-engineer` が起動した直後で、もう起動している。`error`・`finished`・`review`（文書の PR）・`merged`（文書の PR を人がマージした）は届ける |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起動する・rebase を頼む・人へ知らせる・続きを促す |
 | `estimate` | 届ける | 見込みが外れた。担当の画面を読み、要れば `hc send`（続ける・見込みを改める・分ける・切り直す）（§2.10） |
 | `memory` | 届ける | memory が線を超えた。動いているトリアージが無ければ臨時のトリアージを足す（§2.11） |
@@ -425,7 +427,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | ゲートが gh の上限（rate limit）で落ちた（終了コード 3） | **待つ**: merge の記録に決めたことを書かず、通知も問いも出さない。`gh api rate_limit` の reset と、続けて落ちるたびに倍にする待ち（1分から60分まで）の遅いほうを控えの `GHReset` に書き、その時刻まではこの台帳のゲートを回さない。時刻を過ぎたあとの見回りでゲートから回し直す。rate limit でない終了コード 3 は `needs_human` と同じく問いを出す | ゲート |
 | ゲートが `approve` ＋ `merge: auto` ＋ 委譲の `merge` がそのレベルを許す | マージ（条件表の `repos.<repo>.merge` の方式）→ `andon issue finish`。通知 `merged`。`done` の行を拾った次の巡で、dispatcher が `library/corrections.json` に人の手直しを集め（design.md §1.9 の (b)）、`library/outcome.json` に結果の記録を書く（§2.12） | ゲート・委譲（人） |
 | ゲートが `approve` で `merge: person`、または委譲の外 | マージしない。通知 `gate` のまま止まる | 人 |
-| `review`・`doing` の課題の PR を人がマージした（`andon issue settle`。1分に1回だけ `gh pr view`。§2.7） | ゲートの問いを「人がマージした」と閉じて finish（settle が打つ）。通知 `merged`（`by: person`）。ゲートの外の問いが開いている・commit していない変更があれば片付けずに通知 `merged`（`held`）。マージせずに閉じた PR は通知 `closed` を1回 | 人（マージ） |
+| `review`・`doing` の課題の PR を人がマージした（`andon issue settle`。1分に1回だけ `gh pr view`。Chief Engineer の課題は `review` のときだけ見る。§2.7） | ゲートの問いを「人がマージした」と閉じて finish（settle が打つ）。通知 `merged`（`by: person`）。ゲートの外の問いが開いている・commit していない変更があれば片付けずに通知 `merged`（`held`）。マージせずに閉じた PR は通知 `closed` を1回 | 人（マージ） |
 | ゲートが `fix` | 理由を担当へ `hc send`（担当は人が打つ端末ではないので、離席の守りは要らない） | ゲート |
 | ゲートが `needs_human` | 問いを出す（contract.md §5。`from: gate`）。通知 `asked` | 人 |
 

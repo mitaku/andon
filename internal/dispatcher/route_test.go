@@ -36,6 +36,7 @@ func TestRouteOf(t *testing.T) {
 		{"merged", "merged", map[string]any{"pr": "x"}, Facts{}, Record},
 		{"merged（人・片付けた）", "merged", map[string]any{"by": "person"}, Facts{}, Record},
 		{"merged（片付けていない）", "merged", map[string]any{"by": "person", "held": "x"}, Facts{}, Deliver},
+		{"merged（Chief Engineer の文書を人がマージした）", "merged", map[string]any{"by": "person"}, Facts{Engineer: true}, Deliver},
 		{"担当の report", "report", nil, Facts{}, Deliver},
 		{"レビュアーの report", "report", nil, Facts{Reviewer: true}, Record},
 		{"ready", "ready", nil, Facts{}, Deliver},

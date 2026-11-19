@@ -61,6 +61,9 @@ func RouteOf(n Notification, f Facts) Route {
 		if h, ok := n.Detail["held"]; ok && h != nil && h != "" {
 			return Deliver // 片付けていない（ADR-0010 決めたこと 7）
 		}
+		if f.Engineer {
+			return Deliver // Chief Engineer の文書の PR を人がマージした。impact は回らないので、片付いたことはこれだけで届く
+		}
 		return Record
 	case "report":
 		if f.Reviewer {
@@ -86,7 +89,7 @@ func RecordedPath(slug string) string {
 func (p *project) facts(id string) Facts {
 	for _, t := range p.tasks {
 		if t.Str("id") == id {
-			return Facts{Gated: p.gated(t), Reviewer: isReviewer(t), Engineer: t.Str("profile") == "chief-engineer"}
+			return Facts{Gated: p.gated(t), Reviewer: isReviewer(t), Engineer: isEngineer(t)}
 		}
 	}
 	return Facts{}
