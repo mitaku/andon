@@ -242,7 +242,7 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 	}
 }
 
-// 見回りが控えの lock を持つ間は合図しない（起こしたターンの Stop の drain が lock を待ちきれず何も渡さず、
+// 見回りが控えの lock を持つ間は合図しない（起動したターンの Stop の drain が lock を待ちきれず何も渡さず、
 // 同じ Stop で起きた次の待ち役がまた合図して、中身の無いターンが続くため）。lock が空いたら合図し、そのターンの drain が渡す。
 func TestWaitHoldsWhileStateLocked(t *testing.T) {
 	f := waitFixture(t)

@@ -171,7 +171,7 @@ func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 			case err != nil:
 				// 読めなければ次の回に読み直す（一時の失敗で待ち役をなくさない。張り直しの時刻を過ぎていても last までは）
 			case waiting && len(st.Pending) > 0 && stateLocked(slug):
-				// 見回りが控えの lock を持つ間は合図しない（起こしたターンの Stop の drain が lock を待ちきれず、中身の無いターンが続く）。
+				// 見回りが控えの lock を持つ間は合図しない（起動したターンの Stop の drain が lock を待ちきれず、中身の無いターンが続く）。
 				// lock が空いた次の回に合図する。持たれたまま張り直しの時刻が来たら、張り直しの合図にする（待ち役を失わない）
 				if late {
 					leave()
