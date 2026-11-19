@@ -69,6 +69,8 @@ type dispatcherState struct {
 	Impact    map[string]int        `json:"impact,omitempty"`
 	// Issues done whose corrections.json is not collected yet → failed tries
 	Corrections map[string]int `json:"corrections,omitempty"`
+	// Issues done whose outcome.json is not written yet → failed tries
+	Outcomes map[string]int `json:"outcomes,omitempty"`
 	// Issues whose approve stayed undecided 10 minutes and was delivered → the merge record's approved
 	Stuck map[string]string `json:"stuck,omitempty"`
 	// Record-only notifications not yet appended to <slug>.recorded.jsonl

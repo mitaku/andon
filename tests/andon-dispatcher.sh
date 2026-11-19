@@ -54,6 +54,12 @@ case "\$*" in
     else jq --arg s "\$(if [ -f \$d/merged ]; then echo MERGED; else echo OPEN; fi)" '{state:\$s,commits:[{oid:.headRefOid,messageHeadline:"x"}],comments:[],reviews:[]}' \$d/view.json; fi ;;
   "api repos/example/app/commits/"*) echo '{"files":[{"filename":"docs/b.md"}]}' ;;
   "api --paginate --slurp repos/example/app/pulls/7/comments") if [ -f \$d/inline.json ]; then cat \$d/inline.json; else echo '[[]]'; fi ;;   # インラインのレビューコメント
+  "pr view 8 --repo example/app --json state,mergeCommit,mergedAt") echo '{"state":"CLOSED","mergeCommit":null,"mergedAt":null}' ;;   # 結果の記録（閉じられた PR）
+  "pr view 7 --repo example/app --json state,mergeCommit,mergedAt")   # 結果の記録（outcomefail があれば落ちる。closed・merged で PR の状態）
+    [ ! -f \$d/outcomefail ] || { echo "HTTP 502" >&2; exit 1; }
+    if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null,"mergedAt":null}'
+    elif [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},mergedAt:"2026-11-19T10:00:00Z"}'
+    else echo '{"state":"OPEN","mergeCommit":null,"mergedAt":null}'; fi ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
   "pr view https://github.com/example/app/pull/7 --json state,mergeCommit,files")   # andon issue impact（impactfail があれば落ちる）
     [ ! -f \$d/impactfail ] || { echo "HTTP 502" >&2; exit 1; }
@@ -418,6 +424,109 @@ jq -e '(.corrections // {}) | length == 0' "$state" >/dev/null || die '諦めた
 emit <(pending "$id" corrections) notification-corrections.json
 rm "$tmp/gh/prcfail"
 ok 'gh が落ちたら書かずに次の見回りで1回だけ打ち直し、それも落ちたら書かずに Chief of Staff に通知 corrections を積む'
+
+# 1e. 結果の記録: done の行ごとに1回だけ library/outcome.json を書く（書き手は dispatcher。contract.md §19。ADR-0028 受け入れ条件 5・6）
+oj() { echo "$L/issues/$1/library/outcome.json"; }
+# 1 の課題（dispatcher がマージした）: merged・マージ commit・head ごとのゲートの判定・レビュアーの数・実働。起動の記録が無いので sessions は null
+jq -e --arg h "$(jq -r .head "$L/issues/$merged_id/library/gate/"*.json | head -1)" --arg m "$merged_id" '.issue == $m and .result == "merged"
+  and .pr == "https://github.com/example/app/pull/7" and (.merge_commit | test("^[0-9a-f]{40}$")) and .merged_at == "2026-11-19T10:00:00Z"
+  and (.gates | length) == 1 and .gates[0].head == $h and .gates[0].decision == "approve" and .gates[0].merged == true and .gates[0].tier == "B"
+  and .reviewers == 1 and (.worked_minutes | type) == "number" and .sessions == null' "$(oj "$merged_id")" >/dev/null ||
+    die "マージした課題の outcome.json が違う: $(cat "$(oj "$merged_id")" 2>/dev/null)"
+emit "$(oj "$merged_id")" outcome-merged.json
+# レビュアーの課題にも書く（PR 無し。dispatcher が起動したときの起動の記録があるので sessions は配列）
+jq -e '.result == "none" and .pr == null and .reviewers == 0 and (.sessions | type) == "array" and (.sessions | length) >= 1' "$(oj "$merged_id-r1")" >/dev/null ||
+    die "レビュアーの課題の outcome.json が違う: $(cat "$(oj "$merged_id-r1")" 2>/dev/null)"
+emit "$(oj "$merged_id-r1")" outcome-reviewer.json
+jq -e '(.outcomes // {}) | length == 0' "$state" >/dev/null || die "済んだ outcomes が控えに残った: $(jq -c .outcomes "$state")"
+ok '片付いた課題に outcome.json を1回書く（マージした PR: マージ commit・head ごとのゲートの判定・レビュアーの数・実働。レビュアーの課題にも）'
+# 4通りの結果: PR 無し・開いたまま・閉じられた（マージは上）
+id=$(newtask 'PR の無い課題' person)
+cos_done "$id"; dispatcher
+jq -e --arg m "$id" '.issue == $m and .result == "none" and .pr == null and .merge_commit == null and .merged_at == null and .gates == [] and .reviewers == 0
+  and .worked_minutes >= 0 and .sessions == null' "$(oj "$id")" >/dev/null || die "PR の無い課題が none でない: $(cat "$(oj "$id")" 2>/dev/null)"
+emit "$(oj "$id")" outcome-none.json
+id=$(newtask '開いたまま片付く' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+cos_done "$id"; dispatcher
+jq -e '.result == "open" and .pr == "https://github.com/example/app/pull/7" and .merge_commit == null and .merged_at == null' "$(oj "$id")" >/dev/null ||
+    die "開いたままの PR が open でない: $(cat "$(oj "$id")" 2>/dev/null)"
+emit "$(oj "$id")" outcome-open.json
+# 2巡目でも書き直さない（控えに戻しても、在る outcome.json はそのまま）
+before=$(cat "$(oj "$id")")
+jq --arg m "$id" '.outcomes = {($m): 0}' "$state" > "$state.new" && mv "$state.new" "$state"
+sleep 1; dispatcher; dispatcher
+[ "$(cat "$(oj "$id")")" = "$before" ] || die '同じ finish を2度拾って outcome.json を書き直した'
+jq -e '(.outcomes // {}) | length == 0' "$state" >/dev/null || die '書いてある課題が控えに残った'
+id=$(newtask '閉じられた PR' person)   # PR 8（偽の gh で閉じられている。PR 7 の事実はほかの課題が使う）
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/8
+cos_done "$id"; dispatcher
+jq -e '.result == "closed" and .pr == "https://github.com/example/app/pull/8" and .merge_commit == null' "$(oj "$id")" >/dev/null ||
+    die "閉じられた PR が closed でない: $(cat "$(oj "$id")" 2>/dev/null)"
+emit "$(oj "$id")" outcome-closed.json
+# 人の課題（who: person）には書かない
+pid=$(HC_TERMINAL_ID=t5 kanban add '人が決める'); HC_TERMINAL_ID=t5 kanban set "$pid" who=person >/dev/null
+HC_TERMINAL_ID=t5 kanban done "$pid" >/dev/null; dispatcher
+[ ! -e "$(oj "$pid")" ] || die '人の課題に outcome.json を書いた'
+ok '結果は PR の状態で merged・closed・open・none の4通り。2巡目でも書き直さない。人の課題には書かない'
+# コスト: 起動の記録にある全部のセッション（起動し直して2つ）をセッションログから。ログが無ければ cost は null
+launches() { # launches <id> <session>...: 起動の記録を1行ずつ足す（andon issue start・resume --fresh の代わり）
+    local id=$1 s n=0; shift
+    mkdir -p "$L/issues/$id/library"
+    for s in "$@"; do
+        n=$((n + 1))
+        jq -nc --arg s "$s" --arg i "$id" --arg l "$([ $n = 1 ] && echo start || echo fresh)" \
+            '{at: "2026-11-19T09:00:00Z", role: "worker", launch: $l, issue: $i, profile: "claude", template: "claude", command: null, terminal: "t7",
+              session: $s, harness: {name: "claude", version: null}, package: {root: "/opt/andon", commit: null, source: "none", drift: null, reasons: ["x"]},
+              workspace: null, repo: null, external: null, drift: null, drift_reasons: ["x"], memory_index: null}' >> "$L/issues/$id/library/launches.jsonl"
+    done
+}
+s1=11111111-0000-4000-8000-000000000001; s2=22222222-0000-4000-8000-000000000002
+id=$(newtask '起動し直した課題' person)
+launches "$id" "$s1" "$s2" "$s1"
+sl() { # sl <session> <model> <effort> <prompts> <input> <output>: Claude Code のセッションログ（要求は2つ。1つは content block の2行）
+    local f=$HOME/.claude/projects/-w/$1.jsonl i
+    mkdir -p "${f%/*}"; : > "$f"
+    for i in $(seq 1 "$4"); do echo '{"type":"user","promptId":"p'"$i"'","message":{"content":"x"}}' >> "$f"; done
+    for r in a a b; do
+        jq -nc --arg r "req_$1_$r" --arg m "$2" --arg e "$3" --argjson in "$5" --argjson out "$6" \
+            '{type: "assistant", requestId: $r, effort: $e, message: {id: $r, model: $m, usage: {input_tokens: $in, output_tokens: $out, cache_read_input_tokens: 100, cache_creation_input_tokens: 10}}}' >> "$f"
+    done
+}
+sl "$s1" claude-opus-5-5 high 3 5 50
+sl "$s2" claude-sonnet-5-5 medium 2 7 70
+cos_done "$id"; dispatcher
+jq -e --arg a "$s1" --arg b "$s2" '.sessions == [
+  {harness: "claude", session: $a, cost: {models: ["claude-opus-5-5"], efforts: ["high"], turns: 3, tokens: {input: 10, output: 100, cache_read: 200, cache_write: 20}}},
+  {harness: "claude", session: $b, cost: {models: ["claude-sonnet-5-5"], efforts: ["medium"], turns: 2, tokens: {input: 14, output: 140, cache_read: 200, cache_write: 20}}}]' \
+    "$(oj "$id")" >/dev/null || die "2セッションのコストが fixture と合わない: $(jq -c .sessions "$(oj "$id")" 2>/dev/null)"
+emit "$(oj "$id")" outcome-sessions.json
+id=$(newtask 'ログの消えた課題' person)
+launches "$id" 33333333-0000-4000-8000-000000000003 44444444-0000-4000-8000-000000000004
+cos_done "$id"; dispatcher
+jq -e '.sessions | length == 2 and all(.[]; .harness == "claude" and .cost == null)' "$(oj "$id")" >/dev/null ||
+    die "セッションログが無いのに cost が null でない: $(jq -c .sessions "$(oj "$id")" 2>/dev/null)"
+emit "$(oj "$id")" outcome-nolog.json
+ok 'コストは起動の記録にある全部のセッション（同じセッションは1つ）からモデル・effort・ターン・トークンを読み、ログが無ければ null'
+# gh が落ちたら書かず、次の見回りで1回だけ打ち直す。それも落ちたらログに1行で諦める（書かない）
+id=$(newtask '状態を読めない PR' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+touch "$tmp/gh/outcomefail"
+cos_done "$id"; dispatcher
+[ ! -e "$(oj "$id")" ] && jq -e --arg m "$id" '.outcomes[$m] == 1' "$state" >/dev/null || die "gh が落ちたのに書いた・回数を控えていない: $(jq -c .outcomes "$state")"
+rm "$tmp/gh/outcomefail"; dispatcher
+jq -e '.result == "open"' "$(oj "$id")" >/dev/null || die '次の見回りで打ち直していない'
+rm "$(oj "$id")"
+jq --arg m "$id" '.outcomes = {($m): 0}' "$state" > "$state.new" && mv "$state.new" "$state"
+touch "$tmp/gh/outcomefail"; dispatcher; dispatcher
+[ ! -e "$(oj "$id")" ] || die '2 回とも落ちたのに書いた'
+jq -e '(.outcomes // {}) | length == 0' "$state" >/dev/null || die '諦めたあとも控えに残った'
+grep -q "$id の結果を集められない（2 回打って失敗" "$tmp/dispatcher.log" || die '諦めたことをログに書かない'
+rm "$tmp/gh/outcomefail"
+ok 'gh が落ちたら書かずに次の見回りで1回だけ打ち直し、それも落ちたらログに1行で諦める'
 
 # 2. fix は担当へ hc send（Must fix が残る）
 id=$(newtask '説明を足す' auto)

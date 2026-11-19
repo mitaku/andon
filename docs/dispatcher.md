@@ -68,7 +68,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 3a | ルーチンを撃つ（`tick`） | `kanban tick` を 1 回打つ。足した課題は 3 の写しに無いが、4a の `ready` の差で同じ巡に拾う。初めて見る台帳（前回の ready が無い）は、打つ前の ready を先に控え、`tick` が足した分だけを拾う（過去の ready は流さない。届けるのは次の巡の 6）。失敗（読めないルーチン・lock が取れない）はログに 1 行で、巡は止めない（§2.1） | 台帳に書く（台帳の CLI） |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
-| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` に積む（§2.5・§2.6） | |
+| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` と `Outcomes` に積む（§2.5・§2.6・§2.12） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4）。留守なら端末が無いので何もしない | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限でゲートを止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る台帳でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
@@ -76,6 +76,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 5 | 課題ごとの工程 | 一覧の順に1課題ずつ。**`doing` で `review_request` があれば**レビュアーを起動する（`review-requested`）、**`review` なら `andon issue merge` を打ち**（ゲートを回す・`gate`・マージと片付け・`fix`・問い。返った通知を積む。§5 の P6a）、**続けて人がマージしたかを見る**（`doing` でも `review` でも、`report.json` に `pr` があれば `andon issue settle` を打ち、返った通知を積む。GitHub に聞くのは settle が PR ごとに1分に1回だけ。§2.7）。レビュアー・Chief Engineer・repo の無い課題・`deliverable: candidates` の課題は飛ばす（§5 の P6a） | 台帳・端末に書く |
 | 5b | マージのあとの影響 | 控えの `Impact` の課題ごとに `andon issue impact` を1回打ち、影響のある課題があれば `impact` を積む（§2.5）。担当には打たない | 控えに書く |
 | 5c | 人の手直し | 控えの `Corrections` の課題ごとに `library/corrections.json` を1回だけ書く（§2.6）。もう在れば書かない | 台帳の `library/` と控えに書く |
+| 5e | 結果の記録 | 控えの `Outcomes` の課題ごとに `library/outcome.json` を1回だけ書く（§2.12）。もう在れば書かない。gh の上限で止めている間（控えの `GHReset`）は打たない | 台帳の `library/` と控えに書く |
 | 5d | approve のまま止まった | `andon issue merge` の記録（`<slug>.merge.json`。読むだけ）のうち、`merge: auto` の approve でマージに進み始めた時刻（`approved`）から10分たっても決まらない（マージ・問い・別の答えのどれも無い）`review` の課題を、通知 `gate` として `Pending` へ1回だけ積む（同じ `approved` では二度積まない。控えの `Stuck`。§3.2） | 控えに書く |
 | 6 | 届ける（経路③の見張り） | 初めて見る台帳でも留守でもなければ、届ける待ちがあり Chief of Staff が入力を待っているのに待ち役がいないときだけログに1行（dispatcher は打たない。届けるのは①②の `drain`。§4.2）。留守の間は飛ばす（待ちは `Pending` に残る） | ログだけ |
 | 7 | 控えを書く・lock を放す | 控えを保存する。動いている課題（`doing`／`review`）か待ちがあれば busy（次は5秒後。無ければ1分後） | 控えに書く |
@@ -277,6 +278,15 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 - セルに置き場は1つで、台帳（プロジェクト）ごとに数える。セルに台帳が複数あれば、それぞれの Chief of Staff に届く（トリアージも台帳ごとに memory を拾う）。
 - 積む巡は 4f（4e の続き）。数えられなければログに1行で、巡は止めない。
 
+
+### 2.12 結果の記録
+
+課題が片付いたときの結果（PR がマージされた・閉じられた・開いたまま・PR 無し）・head ごとのゲートの最後の判定・レビュアーの子の課題の数・実働・セッションごとのコストを、振り返りの入力として課題の `library/outcome.json` に1回だけ書く（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 7）。形と読む元は [contract.md](contract.md) §19。
+
+- **合図は §2.5・§2.6 と同じ `done` の行**。拾った id は控えの `Outcomes` に積み、5e で書く。`outcome.json` がもう在れば書かない（同じ finish を2度拾っても1回）。人の課題（`who: person`）には書かない。レビュアー・Chief Engineer・調べる課題には書く（それぞれのセッションのコストを持つ）。
+- **片付けたあとで GitHub に聞くのは PR の状態だけ**（`gh pr view --json state,mergeCommit,mergedAt`）。コストはその場でセッションログから読む（Claude Code は 30 日で消える）。数え方は `andon measure` と同じ（`internal/sessionlog`）。
+- 読めないもの（gh・台帳・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で控えから外す（通知は積まない。ファイルが無いのが「集めていない」で、読み手の振り返りは無い欄を null として読む）。gh の上限で止めている間は打たず、回数にも数えない。
+- 課題のステータスの移り方は変えない（done のあとの段だけ）。課題の一生の形式モデル（`model/`）は変えない。
 ---
 
 ## 3. 誰に・いつ・どう届けるか
@@ -409,7 +419,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | `deliverable: candidates`（調べる課題）の `{"status": "review"}`・`review_request` | **ゲートを回さず、レビュアーも起動しない**。通知だけ（PR が無いので `report`）。候補の一覧は Chief of Staff が読んで切る。`deliverable` を最後に書いたのが Chief of Staff でなければ `pr` として読む（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） | Chief of Staff |
 | ゲートが `wait`（PR の head の GitHub の checks が走っている・まだ1つも無い。contract.md §7） | **待つ**: merge の記録に決めたことを書かず、通知も問いも出さない。次の見回りでゲートから回し直す（checks が揃えば判定に進む。1つも無いまま `github_checks_wait_minutes` を過ぎたらゲートが `needs_human` を返す）。待つ間は、merge の記録の `wait` の head の checks だけを読み、head が動く・checks が揃う・1つも無いまま待ち時間を過ぎるまでゲートを回さない | ゲート |
 | ゲートが gh の上限（rate limit）で落ちた（終了コード 3） | **待つ**: merge の記録に決めたことを書かず、通知も問いも出さない。`gh api rate_limit` の reset と、続けて落ちるたびに倍にする待ち（1分から60分まで）の遅いほうを控えの `GHReset` に書き、その時刻まではこの台帳のゲートを回さない。時刻を過ぎたあとの見回りでゲートから回し直す。rate limit でない終了コード 3 は `needs_human` と同じく問いを出す | ゲート |
-| ゲートが `approve` ＋ `merge: auto` ＋ 委譲の `merge` がそのレベルを許す | マージ（条件表の `repos.<repo>.merge` の方式）→ `andon issue finish`。通知 `merged`。`done` の行を拾った次の巡で、dispatcher が `library/corrections.json` に人の手直しを集める（design.md §1.9 の (b)） | ゲート・委譲（人） |
+| ゲートが `approve` ＋ `merge: auto` ＋ 委譲の `merge` がそのレベルを許す | マージ（条件表の `repos.<repo>.merge` の方式）→ `andon issue finish`。通知 `merged`。`done` の行を拾った次の巡で、dispatcher が `library/corrections.json` に人の手直しを集め（design.md §1.9 の (b)）、`library/outcome.json` に結果の記録を書く（§2.12） | ゲート・委譲（人） |
 | ゲートが `approve` で `merge: person`、または委譲の外 | マージしない。通知 `gate` のまま止まる | 人 |
 | `review`・`doing` の課題の PR を人がマージした（`andon issue settle`。1分に1回だけ `gh pr view`。§2.7） | ゲートの問いを「人がマージした」と閉じて finish（settle が打つ）。通知 `merged`（`by: person`）。ゲートの外の問いが開いている・commit していない変更があれば片付けずに通知 `merged`（`held`）。マージせずに閉じた PR は通知 `closed` を1回 | 人（マージ） |
 | ゲートが `fix` | 理由を担当へ `hc send`（担当は人が打つ端末ではないので、離席の守りは要らない） | ゲート |
@@ -486,6 +496,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 23 | `now` の信号を届ける（通知 `signal`。§2.2.1） | dispatcher（1 巡の 4e）だけ。`andon signal delivered` を打つのも dispatcher だけ | 同じ出来事の `signal` が 2 度届く | ④信号の記録の `delivered_episode`（届けた出来事より前・同じ出来事では書かない。書くのは①記録の lock の中）＋①控えの lock（#2）＋②控えの `Pending`（同じ信号は置き換え）。積んだ待ちを控えに保存してから `delivered` を書く。保存のあと書く前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い |
 | 24 | memory の量の線を届ける（通知 `memory`。§2.11） | dispatcher（1 巡の 4f）。ほかに打つ者はいない | 同じ超え方の `memory` が 2 度届く | ①控えの lock（#2）＋②控えの `MemoryOver`（線以下に戻るまで積まない。積んだ巡の終わりに保存。保存の前に落ちたら次の巡でもう一度積む＝届くのは1度か2度で、落ちることは無い）＋②控えの `Pending`（課題の無い同じ種類は置き換え） |
 | 25 | approve のまま止まったを届ける（通知 `gate`。§3.2） | dispatcher（1 巡の 5d）だけ。merge の記録を読むだけで、書かない | 同じ approve の止まりが 2 通届く | ②控えの `Stuck`（課題 → 届けた `approved`。同じ値では積まない。merge の記録の `approved` が消えるか替われば捨てる）。`approved` を書く・消すのは merge だけ（回し直しでは測り直さない） |
+| 26 | 結果の記録を書く（`outcome.json`。§2.12） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回。1 巡の 5e）。ほかの書き手はいない | `outcome.json` が書き直される（`at` が替わる）。2 度目の読みの間に PR が閉じられた・開き直された・セッションログが消えた（30 日）なら中身も替わる | ④`outcome.json` が在れば書かない（ファイルが「書いた」の印）＋②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Outcomes`（書いたら外す。失敗は次の見回りの 1 回だけ打ち直し、諦めたらログに 1 行で外す）。書くのは一時ファイル＋rename |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 

@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -17,6 +17,7 @@
 | §15 信号の記録 | `schema/signal.schema.json` |
 | §17 届けた通知の記録 | `schema/delivered.schema.json` |
 | §18 起動の記録 | `schema/launch.schema.json` |
+| §19 結果の記録 | `schema/outcome.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
@@ -32,7 +33,7 @@
    - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
    - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と結果の記録（`outcome.json`。§19）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
@@ -55,6 +56,7 @@ projects/<slug>/kanban/
       gate/<head sha>.json        andon gate（§7。ゲートの記録。andon issue merge が回し、マージしたら merged を書く）
       corrections.json            dispatcher（§14。finish〈done〉のとき1回だけ。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
       launches.jsonl              エージェントを起動する command（§18。起動のたびに1行足す。版と起動行）
+      outcome.json                dispatcher（§19。finish〈done〉のとき1回だけ。結果・ゲートの判定・実働・セッションごとのコスト）
   chief-of-staff/launches.jsonl   andon chief-of-staff（§18。Chief of Staff は課題を持たないので台帳の直下）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
@@ -734,3 +736,42 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 - **案件の repo の `dirty` は `drift` に数えない。** 起動し直しでは worktree に担当の作業中の変更があるのが普通で、エージェントが読む文（`AGENTS.md` など）の変更とは分けられない。`repo.dirty` は事実として残し、振り返りが読む。
 - 当時の文の復元は git から: `git show <package.commit>:package/<パス>`（パッケージの置き場はこの repo の `package/` を写したもの）・セルの repo と案件の repo はそれぞれの `commit`。外の skill と plugin は版の名前だけで、文はその repo の履歴から辿る。`--model opus` のような別名が実際にどのモデルになったかは、ここには無い（片付けのあとにセッションログから読む）。
 
+## 19. 結果の記録（`outcome.json`）
+
+課題の `library/outcome.json`。課題が片付いたときの結果・head ごとのゲートの最後の判定・実働・セッションごとのコストを、振り返りの入力として1つにまとめる（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 7）。書き手は dispatcher だけで、`log.jsonl` の `{"status": "done"}` の行（`andon issue finish`。Chief of Staff の `kanban done` も）を拾った課題ごとに**1回だけ**書く。もう在れば書き直さない（同じ finish を2度拾っても1回。§14 と同じ）。人の課題（`who: person`）には書かない。レビュアー・Chief Engineer・調べる課題には書く（それぞれのセッションのコストを持つ。親に束ねるのは読み手）。読み手は振り返りだけで、ゲートも dispatcher も判定に使わない。
+
+```json
+{"at": "2026-11-19T10:00:00Z", "issue": "S-0012", "result": "merged",
+ "pr": "https://github.com/example/sample-site/pull/12", "merge_commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "merged_at": "2026-11-19T09:58:00Z",
+ "gates": [{"head": "7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f089c4e1b0d", "at": "2026-11-19T09:20:00Z", "tier": "B", "decision": "fix", "reasons": ["Must fix 以上が 1 件"], "merged": false},
+           {"head": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "at": "2026-11-19T09:55:00Z", "tier": "B", "decision": "approve", "reasons": [], "merged": true}],
+ "reviewers": 2, "worked_minutes": 95,
+ "sessions": [
+   {"harness": "claude", "session": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "cost": {"models": ["claude-opus-5-5"], "efforts": ["high"], "turns": 6, "tokens": {"input": 1200, "output": 35000, "cache_read": 2400000, "cache_write": 180000}}},
+   {"harness": "claude", "session": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "cost": null}]}
+```
+
+PR 無しで片付いた課題で、起動の記録の無い（この仕組みの前に起動した）とき:
+
+```json
+{"at": "2026-11-19T10:00:00Z", "issue": "S-0013", "result": "none", "pr": null, "merge_commit": null, "merged_at": null,
+ "gates": [], "reviewers": 0, "worked_minutes": 20, "sessions": null}
+```
+
+| キー | 意味・元 |
+|---|---|
+| `at` | dispatcher が集めた時刻（UTC） |
+| `issue` | 課題の id |
+| `result` | `merged`（PR がマージされた）・`closed`（マージされずに閉じられた）・`open`（PR が開いたまま片付いた）・`none`（`report.json` に `pr` が無い）。片付けを拾ったあとに `gh pr view <n> --repo <owner>/<repo> --json state,mergeCommit,mergedAt` で読む。CI の失敗と revert は値にしない（CI の失敗は `gates` の理由で、revert はマージ後のことなので振り返りが GitHub から読む） |
+| `pr` | `report.json` の `pr`。`none` なら `null` |
+| `merge_commit`・`merged_at` | GitHub のマージ commit と時刻。`merged` でなければ `null` |
+| `gates[]` | `library/gate/<head>.json` を1枚ずつ写したもの（`head`・`at`・`tier`・`decision`・`reasons`・`merged`）。記録は head ごとに最後の判定だけなので、同じ head で2度判定したら後の1つ。`at` の順。ゲートが回らなかった課題は空 |
+| `reviewers` | 台帳の、`parent` がこの課題でプロファイルが `*-review` の課題の数（頼み直しも数える） |
+| `worked_minutes` | 実働（分）。最後に `done` になった時刻までを、`andon measure` と同じ数え方（`ledger.Worked`。問い・レビュー・端末が死んでいた間を除く）で |
+| `sessions` | 起動の記録（§18）にある全部のセッション。起動の記録が無ければ `null`（さかのぼって作らない） |
+| `sessions[].harness`・`session` | ハーネスと、セッションの id。Claude Code は起動の記録の `session`（同じセッションは1つ。`session` が `null` の起動は1つにまとめて `cost` は `null`）。Codex は起動のときに id が決まらないので、cwd が課題の置き場（台帳の `issues/<id>/`・`issue.yaml` の `worktree`・起動の記録の `repo.path`）の rollout を、`session_meta` の id ごとに1つ。rollout が1つも無ければ `session` も `cost` も `null` の1件 |
+| `sessions[].cost` | セッションログから、書くときに読む。ログが無ければ `null`（Claude Code は既定で 30 日で消す）。トークンの数え方は `andon measure` と同じ（`internal/sessionlog`）。`models` は実際に使われたモデルの id（サブエージェントのものも。出た順）、`efforts` は effort（出た順。記録に無ければ空）、`turns` はターン数（Claude Code は本線の user の行の `promptId` の数、Codex は `turn_context` の `turn_id` の数。印が無ければ `null`） |
+
+- **ファイルが無いのは「集めていない」。** 読めないもの（gh・台帳・ゲートの記録・起動の記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目なら dispatcher のログに1行で諦める（通知は積まない。§14 の `corrections` と違い、Chief of Staff が手で集め直す口は無い。振り返りは無い欄を `null` として読む）。gh の上限で止めている間（控えの `GHReset`）は打たず、回数にも数えない。
+- 片付けたあとに状態が変わる PR（`open` のまま片付いて、あとで人がマージした）は、書いたときの状態のまま。書き直さない（「1回だけ書く」。マージ後のことは振り返りが GitHub から読む）。

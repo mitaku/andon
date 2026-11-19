@@ -8,6 +8,7 @@
 //	needs_human                     → 問い（from: gate）を出す
 //	review の PR を人がマージした      → ゲートの問いを閉じて andon issue finish（1分に1回だけ gh pr view。humanmerge.go）
 //	{"status": "done"} の行            → library/corrections.json を1回だけ書く（人の手直し。corrections.go）
+//	                                     library/outcome.json を1回だけ書く（結果の記録。outcome.go）
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //	担当・Chief of Staff がプロバイダに切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
 //	project.json の signals           → andon signal collect --due（組ごとに every 分に1回）。届けていない now の信号を
@@ -17,7 +18,7 @@
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、
 // 離席中は Stop フックの待ち役（wait.go。経路③）が合図で Chief of Staff を起動する。dispatcher は入力欄へ <news> を打たない。dispatcher.md §3。届けない kind は記録だけ（route.go の表。§3.2）。
 // 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
-// 例外は dispatcher が書き手の library/ のファイル（corrections.json。contract.md §1）。ゲートとマージは andon issue merge（loop.go の merge）。
+// 例外は dispatcher が書き手の library/ のファイル（corrections.json・outcome.json。contract.md §1）。ゲートとマージは andon issue merge（loop.go の merge）。
 package dispatcher
 
 import (
@@ -333,6 +334,7 @@ func (p *project) pass() (bool, error) {
 	}
 	p.impacts()         // マージのあとの影響（dispatcher.md §2.5）
 	p.corrections()     // 人の手直し（dispatcher.md §2.6・contract.md §14）
+	p.outcomes()        // 結果の記録（dispatcher.md §2.12・contract.md §19）
 	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
 	if !p.first && !p.away {
 		p.unwaited(cos) // 経路③は待ち役。dispatcher は打たず、待ち役がいなければログに1行（dispatcher.md §3・§4）

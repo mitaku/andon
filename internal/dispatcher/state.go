@@ -54,6 +54,8 @@ type State struct {
 	Impact    map[string]int      `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 	// done になった、人の手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
 	Corrections map[string]int `json:"corrections,omitempty"`
+	// done になった、結果の記録（outcome.json）をまだ書いていない課題 → 失敗した回数（outcome.go）
+	Outcomes map[string]int `json:"outcomes,omitempty"`
 	// approve のまま 10 分たって届けた課題 → andon issue merge の記録の approved（route.go の stuck。同じ approve では二度届けない）
 	Stuck map[string]string `json:"stuck,omitempty"`
 	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
