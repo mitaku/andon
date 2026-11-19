@@ -29,13 +29,6 @@ type dsReviewer struct {
 	Row           int    `json:"row,omitempty"`
 }
 
-type dsGate struct {
-	Issue    string `json:"issue"`
-	Sha      string `json:"sha,omitempty"`
-	Decision string `json:"decision,omitempty"`
-	Merged   string `json:"merged,omitempty"`
-}
-
 type dsHookNews struct {
 	Terminal  string           `json:"terminal"`
 	Via       string           `json:"via"`
@@ -63,7 +56,6 @@ type dsMoved struct {
 
 type dispatcherState struct {
 	Reviewers map[string]dsReviewer `json:"reviewers"`
-	Gates     map[string]dsGate     `json:"gates"`
 	Pending   []dsNotification      `json:"pending"`
 	Hook      *dsHookNews           `json:"hook,omitempty"`
 	LogPos    *int64                `json:"log_pos,omitempty"`
@@ -77,15 +69,14 @@ type dispatcherState struct {
 	Impact    map[string]int        `json:"impact,omitempty"`
 	// Issues done whose corrections.json is not collected yet → failed tries
 	Corrections map[string]int `json:"corrections,omitempty"`
-	// Record-only gate approvals (merge: auto) with no merged or asked yet
-	Approved map[string]dsNotification `json:"approved,omitempty"`
+	// Issues whose approve stayed undecided 10 minutes and was delivered → the merge record's approved
+	Stuck map[string]string `json:"stuck,omitempty"`
 	// Record-only notifications not yet appended to <slug>.recorded.jsonl
 	Unrecorded []dsNotification `json:"unrecorded,omitempty"`
 	// news.replied written, by what (ack; no-reply only in state from older versions)
 	Replied map[string]int `json:"replied,omitempty"`
 	// Issues the dispatcher ran andon issue resume for → the gone terminal and the one it started
 	Resumed map[string]dsResumed `json:"resumed,omitempty"`
-	Waits   map[string]string    `json:"waits,omitempty"`
 	GHReset string               `json:"gh_reset,omitempty"`
 	GHWait  int                  `json:"gh_wait,omitempty"`
 	// Estimate stages already notified (<issue>|estimate|<value>|<stage>)

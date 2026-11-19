@@ -31,7 +31,7 @@ func newEstimate(t *testing.T) *estimateFixture {
 		t.Fatal(err)
 	}
 	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
-	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
+	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f := &estimateFixture{t: t, t0: time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)}
 	f.p = &project{c: &Dispatcher{Log: os.Stderr}, l: ledger.At(root), st: st}

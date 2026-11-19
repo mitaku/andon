@@ -131,6 +131,15 @@ func TestSettleFieldsInProcess(t *testing.T) {
 	}
 }
 
+// TestMergeFieldsInProcess は andon issue merge の記録 1 件（contract.Merging。<slug>.merge.json）の一番上の項目が、
+// process/states/ に merge:<項目> で 1 回ずつ出ることを見る（ADR-0017 受け入れ条件 3・7）。
+func TestMergeFieldsInProcess(t *testing.T) {
+	seen := recordFields(t, filepath.Join("..", "..", "process", "states"), "merge")
+	for _, m := range mismatches("merge", topFields(contract.Merging{}), seen) {
+		t.Error("contract.Merging: " + m)
+	}
+}
+
 // TestMismatches は照合が抜けと重なりと余りを見分けることを見本で確かめる。
 func TestMismatches(t *testing.T) {
 	dir := t.TempDir()

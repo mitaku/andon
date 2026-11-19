@@ -50,7 +50,7 @@ func newRetry(t *testing.T) *retryFixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state"))
-	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
+	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
 		tasks: []ledger.Issue{{"id": "S-7", "status": "doing", "agent": "t42"}}}

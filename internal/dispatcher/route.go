@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"andon/internal/ledger"
+	"andon/internal/contract"
 )
 
 // Route は通知の扱い（ADR-0010 決めたこと 1。docs/dispatcher.md §3.2 の表）。
@@ -86,20 +86,11 @@ func (p *project) facts(id string) Facts {
 
 // put は通知を表のとおりに積む・記録する。
 func (p *project) put(n Notification, f Facts) {
-	route := RouteOf(n, f)
-	if route != Wait && (n.Kind == "merged" || n.Kind == "asked" || n.Kind == "gate") {
-		delete(p.st.Approved, n.Issue) // approve のあとに進んだ（マージした・問いになった・ゲートが別の答えを出した）
-	}
-	switch route {
+	switch RouteOf(n, f) {
 	case Deliver:
 		p.st.Push(n)
-	case Record:
+	case Record, Wait: // Wait の 10 分は stuck が andon issue merge の記録の approved で測る
 		p.record(n)
-	case Wait:
-		p.record(n)
-		if _, ok := p.st.Approved[n.Issue]; !ok { // 回し直したゲートの approve では測り直さない
-			p.st.Approved[n.Issue] = n
-		}
 	}
 }
 
@@ -186,25 +177,44 @@ func lineStart(f *os.File, off int64) bool {
 	return err == nil && b[0] == '\n'
 }
 
-// stuck は記録だけにした approve のうち、approveWait たっても merged も asked も無いものを1回だけ届ける。
-// review にいない課題（人が戻した・片付けた）は捨てる。
+// stuck は andon issue merge の記録のうち、merge: auto の approve でマージに進み始めて（approved）approveWait たっても
+// 決まらない（マージ・問い・別の答えのどれも無い）課題を、通知 gate として1回だけ届ける（配る側が merge の記録を読む。ADR-0017 決めたこと 6）。
+// 同じ approved では二度届けない（控えの Stuck）。review にいない課題は見ない。
 func (p *project) stuck(now time.Time) {
 	p.flush() // 前に書けなかった記録
-	for id, n := range p.st.Approved {
-		if p.status(id) != "review" {
-			delete(p.st.Approved, id)
-			continue
-		}
-		at, err := time.Parse("2006-01-02T15:04:05Z", n.At)
-		if err != nil || now.Sub(at) >= approveWait {
-			p.logf("%s はゲートの approve のあと %d 分マージに進まない。Chief of Staff に知らせる", id, int(approveWait.Minutes()))
-			p.st.Push(n)
-			delete(p.st.Approved, id)
+	rec := map[string]contract.Merging{}
+	if b, err := os.ReadFile(MergePath(p.l.Slug)); err == nil {
+		if err := json.Unmarshal(b, &rec); err != nil {
+			p.logf("andon issue merge の記録が読めない（approve のまま止まったかを見ない）: %v", err)
+			return
 		}
 	}
-}
-
-// autoMerge は gate の approve のあと dispatcher がマージに進むか（approve と同じ条件。loop.go）。
-func (p *project) autoMerge(t ledger.Issue, res gateResult) bool {
-	return ledger.SettingsOf(t).Merge == "auto" && p.l.Trusted(p.rows, t, "merge") && res.Delegation.OK
+	for id, at := range p.st.Stuck {
+		if rec[id].Approved != at {
+			delete(p.st.Stuck, id)
+		}
+	}
+	for id, w := range rec {
+		if w.Approved == "" || p.st.Stuck[id] == w.Approved || p.status(id) != "review" {
+			continue
+		}
+		at, err := time.Parse("2006-01-02T15:04:05Z", w.Approved)
+		if err == nil && now.Sub(at) < approveWait {
+			continue
+		}
+		p.logf("%s はゲートの approve のあと %d 分マージに進まない。Chief of Staff に知らせる", id, int(approveWait.Minutes()))
+		record := filepath.Join(p.l.Library(id), "gate", w.Sha+".json")
+		var g struct {
+			Reasons []string `json:"reasons"`
+		}
+		if b, err := os.ReadFile(record); err == nil {
+			json.Unmarshal(b, &g)
+		}
+		if g.Reasons == nil {
+			g.Reasons = []string{}
+		}
+		p.st.Push(Notification{At: w.Approved, Project: p.l.Slug, Issue: id, Kind: "gate",
+			Detail: map[string]any{"decision": "approve", "reasons": g.Reasons, "record": record}})
+		p.st.Stuck[id] = w.Approved
+	}
 }

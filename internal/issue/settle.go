@@ -44,7 +44,7 @@ func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if err := c.forgetSettled(rec); err != nil {
+	if err := forgetOthers(c, rec); err != nil {
 		return err
 	}
 	res := contract.Settle{Issue: c.id, State: "skip", Notify: []contract.Notice{}}
@@ -65,31 +65,6 @@ func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	}
 	_, err = stdout.Write(contract.Marshal(res))
 	return err
-}
-
-// forgetSettled は review にいない課題の記録を捨てる（片付いた・doing に戻った・やめた）。
-func (c *ctx) forgetSettled(rec map[string]contract.Settled) error {
-	others := false
-	for id := range rec {
-		others = others || id != c.id
-	}
-	if !others {
-		return nil
-	}
-	tasks, err := c.l.List()
-	if err != nil {
-		return err
-	}
-	review := map[string]bool{}
-	for _, t := range tasks {
-		review[t.Str("id")] = t.Str("status") == "review"
-	}
-	for id := range rec {
-		if id != c.id && !review[id] {
-			delete(rec, id)
-		}
-	}
-	return nil
 }
 
 // settleOne は1つの課題を見て res を埋め、残す記録を返す（nil なら記録から外す）。

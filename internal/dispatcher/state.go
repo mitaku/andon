@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 var askedRe = regexp.MustCompile(`#([1-9][0-9]*)$`)
@@ -37,18 +38,9 @@ type Reviewer struct {
 	Row           int    `json:"row,omitempty"`            // 決めたときの課題の報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
 }
 
-// Gate は回したゲート（控えの「issue → sha」）。review に入った log.jsonl の行ごとに1回。
-type Gate struct {
-	Issue    string `json:"issue"`
-	Sha      string `json:"sha,omitempty"`
-	Decision string `json:"decision,omitempty"` // 空なら回していない（初めて見た）
-	Merged   string `json:"merged,omitempty"`   // マージの commit
-}
-
 // State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。台帳の外）。
 type State struct {
 	Reviewers map[string]Reviewer `json:"reviewers"`          // <issue>@<commit>
-	Gates     map[string]Gate     `json:"gates"`              // <issue>#<log.jsonl の行>
 	Pending   []Notification      `json:"pending"`            // 待ちの通知（drain.go のフックが届ける。離席中は wait.go の待ち役が合図で起動する）
 	Hook      *HookNews           `json:"hook,omitempty"`     // フックで渡して、その turn の終わりをまだ見ていない <news>
 	LogPos    *int64              `json:"log_pos,omitempty"`  // log.jsonl の読んだ位置（バイト。無ければ初めて）
@@ -62,17 +54,15 @@ type State struct {
 	Impact    map[string]int      `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 	// done になった、人の手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
 	Corrections map[string]int `json:"corrections,omitempty"`
-	// 記録だけにした gate の approve（merge: auto）で、merged も asked もまだ無いもの（route.go の stuck。ADR-0010 決めたこと 1）
-	Approved map[string]Notification `json:"approved,omitempty"`
+	// approve のまま 10 分たって届けた課題 → andon issue merge の記録の approved（route.go の stuck。同じ approve では二度届けない）
+	Stuck map[string]string `json:"stuck,omitempty"`
 	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
 	Unrecorded []Notification `json:"unrecorded,omitempty"`
 	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前の版の控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
 	Replied map[string]int `json:"replied,omitempty"`
 	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起動した端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
 	Resumed map[string]Resumed `json:"resumed,omitempty"`
-	// ゲートが wait（GitHub の checks が走っている・まだ1つも無い）を返した head（<issue>#<log.jsonl の行> → head。loop.go の review）
-	Waits map[string]string `json:"waits,omitempty"`
-	// ゲートが gh の上限（rate limit）で落ちたとき、上限が戻る時刻（RFC3339。loop.go の review）。それまでゲートを回さない
+	// ゲートが gh の上限（rate limit）で落ちたとき、上限が戻る時刻（RFC3339。loop.go の merge）。それまでこの台帳の andon issue merge を打たない
 	GHReset string `json:"gh_reset,omitempty"`
 	// ゲートが続けて gh の上限で落ちたときの、前の待ち（分。1・2・4…60。上限で落ちずにゲートが返れば 0）
 	GHWait int `json:"gh_wait,omitempty"`
@@ -115,9 +105,14 @@ func StatePath(slug string) string {
 	return filepath.Join(dir, "andon", "dispatcher", slug+".json")
 }
 
+// MergePath は andon issue merge の記録（控えの横。書き手は merge だけ。dispatcher は approve のまま 10 分を読む。ADR-0017 決めたこと 5・6）。
+func MergePath(slug string) string {
+	return strings.TrimSuffix(StatePath(slug), ".json") + ".merge.json"
+}
+
 // LoadState は控えを読む。無ければ空の控えと first=true（初めて見る台帳）。
 func LoadState(slug string) (*State, bool, error) {
-	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
+	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	b, err := os.ReadFile(StatePath(slug))
 	if errors.Is(err, os.ErrNotExist) {
@@ -131,9 +126,6 @@ func LoadState(slug string) (*State, bool, error) {
 	}
 	if st.Reviewers == nil {
 		st.Reviewers = map[string]Reviewer{}
-	}
-	if st.Gates == nil {
-		st.Gates = map[string]Gate{}
 	}
 	if st.Pending == nil {
 		st.Pending = []Notification{}

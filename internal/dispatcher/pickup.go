@@ -682,14 +682,11 @@ func (s *State) ensure() {
 	if s.First == nil {
 		s.First = map[string]bool{}
 	}
-	if s.Approved == nil {
-		s.Approved = map[string]Notification{}
+	if s.Stuck == nil {
+		s.Stuck = map[string]string{}
 	}
 	if s.Resumed == nil {
 		s.Resumed = map[string]Resumed{}
-	}
-	if s.Waits == nil {
-		s.Waits = map[string]string{}
 	}
 	if s.Estimate == nil {
 		s.Estimate = map[string]bool{}

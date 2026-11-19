@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"andon/internal/contract"
-	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -92,63 +91,6 @@ func TestLastReport(t *testing.T) {
 	}
 }
 
-func TestAuthorized(t *testing.T) {
-	auto := ledger.Settings{Review: "on", MustFix: "major", Reviewer: "codex-review", ReviewRounds: "2", Merge: "auto"}
-	person := auto
-	person.Merge = "person"
-	minor := auto
-	minor.MustFix = "minor"
-	for _, c := range []struct {
-		name                string
-		before, now         ledger.Settings
-		status              string
-		trusted             bool
-		gateMerge, nowMerge string
-		tier                string
-		want                bool
-		why                 string
-	}{
-		{"変わっていない", auto, auto, "review", true, "B", "B", "B", true, ""},
-		{"merge: person に変わった", auto, person, "review", true, "B", "B", "B", false, "予約キー"},
-		{"must_fix が変わった", auto, minor, "review", true, "B", "B", "B", false, "予約キー"},
-		{"Chief of Staff でない者が書いた", auto, auto, "review", false, "B", "B", "B", false, "Chief of Staff"},
-		{"review でなくなった", auto, auto, "doing", true, "B", "B", "B", false, "review でなくなった"},
-		{"委譲を取り消した", auto, auto, "review", true, "B", "none", "B", false, "B → none"},
-		{"委譲を広げた（判定とずれる）", auto, auto, "review", true, "A", "B", "A", false, "A → B"},
-		{"委譲の外", auto, auto, "review", true, "A", "A", "B", false, "merge=A < tier B"},
-	} {
-		got, why := Authorized(c.before, c.now, c.status, c.trusted, c.gateMerge, c.nowMerge, c.tier)
-		if got != c.want || !strings.Contains(why, c.why) {
-			t.Errorf("%s: Authorized = %v %q, want %v（%q を含む）", c.name, got, why, c.want, c.why)
-		}
-	}
-}
-
-func TestChecksStill(t *testing.T) {
-	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
-	ok := gate.GitHubChecks{State: "success", Names: []string{}}
-	for _, c := range []struct {
-		name     string
-		now      string
-		checks   gate.GitHubChecks
-		optional bool
-		want     bool
-		why      string
-	}{
-		{"変わっていない", h1, ok, false, true, ""},
-		{"ゲートのあとに push された", h2, ok, false, false, "head がゲートのあとに動いた"},
-		{"checks が走り直した", h1, gate.GitHubChecks{State: "pending", Names: []string{"test"}}, false, false, "pending: test"},
-		{"checks が落ちた", h1, gate.GitHubChecks{State: "failure", Names: []string{"image"}}, false, false, "failure: image"},
-		{"checks が消えた（要る）", h1, gate.GitHubChecks{State: "none"}, false, false, "none"},
-		{"checks が無い（要らない repo）", h1, gate.GitHubChecks{State: "none"}, true, true, ""},
-	} {
-		got, why := ChecksStill(h1, c.now, c.checks, c.optional)
-		if got != c.want || !strings.Contains(why, c.why) {
-			t.Errorf("%s: ChecksStill = %v %q, want %v（%q を含む）", c.name, got, why, c.want, c.why)
-		}
-	}
-}
-
 func TestStatePushReplacesSameEvent(t *testing.T) {
 	s := &State{Pending: []Notification{}}
 	s.Push(Notification{Issue: "D-1", Kind: "gate", Detail: map[string]any{"decision": "fix"}})
@@ -167,11 +109,10 @@ func TestStatePushReplacesSameEvent(t *testing.T) {
 func TestStateLoadSave(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	st, first, err := LoadState("demo")
-	if err != nil || !first || st.Reviewers == nil || st.Gates == nil || st.Pending == nil {
+	if err != nil || !first || st.Reviewers == nil || st.Pending == nil {
 		t.Fatalf("初めて: first=%v err=%v st=%+v", first, err, st)
 	}
 	st.Reviewers["D-1@abc"] = Reviewer{Issue: "D-1", Commit: "abc", Failed: "fetch", Attempts: 1, ReviewerIssue: "D-2", Address: "t9"}
-	st.Gates["D-1#3"] = Gate{Issue: "D-1", Decision: "approve"}
 	if err := st.Save("demo"); err != nil {
 		t.Fatal(err)
 	}
