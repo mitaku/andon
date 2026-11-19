@@ -3,6 +3,7 @@ package triage
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -173,14 +174,10 @@ const (
 // 判定の commit は collect の出したものと同じでなければ通らない（ADR-0030 受け入れ条件 6）。
 func TestCheckCommits(t *testing.T) {
 	mem := "demo:note:memory:0000000000000000000000000000000000000003"
-	old := "demo:T-9:remember:0000000000000000000000000000000000000009" // 前回までの記録の key（見直し）
+	old := "demo:T-9:remember:0000000000000000000000000000000000000009" // 前回までの記録の key（見直し）。今回の項目に同じ repo が無い
 	bare := "demo:T-8:next:0000000000000000000000000000000000000008"    // repo の無い課題
-	collected := []Item{
-		{Key: k1, Kind: "next", Repo: "example.invalid/me/app", Commit: sha1a},
-		{Key: k2, Kind: "next", Repo: "example.invalid/me/app", Commit: sha1a},
-		{Key: mem, Kind: "memory"},
-	}
-	repos := map[string]string{"T-1": "example.invalid/me/app", "T-9": "example.invalid/me/app", "T-7": "example.invalid/me/other"}
+	commits := map[string]string{"example.invalid/me/app": sha1a, "example.invalid/me/lib": sha1b}
+	repos := map[string]string{"T-1": "example.invalid/me/app", "T-9": "example.invalid/me/lib", "T-7": "example.invalid/me/other", "T-8": ""}
 	it := func(key string, commit any) item {
 		i := item{"key": key, "decision": "close", "reason": "r"}
 		if commit != nil {
@@ -198,16 +195,43 @@ func TestCheckCommits(t *testing.T) {
 		{"commit が無い", it(k1, nil), false},
 		{"memory は持たない", it(mem, nil), true},
 		{"memory に commit", it(mem, sha1a), false},
-		{"見直しは repo の commit", it(old, sha1a), true},
-		{"見直しの古い commit", it(old, sha1b), false},
+		{"見直しは repo の commit", it(old, sha1b), true},
+		{"見直しの古い commit", it(old, sha1a), false},
 		{"repo の無い課題", it(bare, nil), true},
 		{"collect が取っていない repo", it("demo:T-7:next:0000000000000000000000000000000000000007", sha1a), false},
 	}
 	for _, c := range cases {
-		err := checkCommits([]item{c.item}, collected, repos)
+		err := checkCommits([]item{c.item}, commits, repos)
 		if (err == nil) != c.ok {
 			t.Errorf("%s: err=%v", c.name, err)
 		}
+	}
+	// collect の記録に commits が無ければ（前の形）、commit の無い判定でも通らない。
+	if checkCommits([]item{it(k1, nil)}, map[string]string{}, repos) == nil {
+		t.Error("commits の無い記録で、commit の無い判定が通った")
+	}
+}
+
+// 前の形（項目の配列）・commits の無い・形の合わない collect の記録は読まない。
+func TestReadCollected(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"前の形":         `[{"key":"k","kind":"next","from":"T-1","repo":"r","text":"t","age_days":0}]`,
+		"commits が無い": `{"items":[]}`,
+		"commit の形":   `{"commits":{"example.invalid/me/app":"HEAD"},"items":[]}`,
+	} {
+		p := dir + "/" + name
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readCollected(p); err == nil {
+			t.Errorf("%s が通った", name)
+		}
+	}
+	p := dir + "/ok"
+	_ = os.WriteFile(p, []byte(`{"commits":{"example.invalid/me/app":"`+sha1a+`"},"items":[]}`), 0o644)
+	if got, err := readCollected(p); err != nil || got["example.invalid/me/app"] != sha1a {
+		t.Errorf("今の形が読めない: %v %v", got, err)
 	}
 }
 

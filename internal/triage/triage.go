@@ -3,7 +3,7 @@
 // 外の信号の記録（<slug>.signals.json の、課題に切られていない active な信号）を集め（collect）、
 // 仕分けの決定を台帳に当てる（apply）。
 //
-// collect は台帳を読むだけで、書くのは項目の repo の checkout の refs/remotes/origin/<既定の branch>（最新の main を取り直す）だけ。
+// collect は台帳を読むだけで、書くのは台帳の repo の checkout の refs/remotes/origin/<既定の branch>（最新の main を取り直す）だけ。
 // apply は判断を持たず、decisions.json を検査し、見た commit を collect の記録（library/items.json）と照らしてから台帳の CLI を打つ。
 // 台帳を書くのは台帳の CLI（kanban）だけで、ここは record（library/triage/）を書き、仕分けの済んだ memory のファイルと目録の行を消す。
 package triage
@@ -28,7 +28,7 @@ import (
 )
 
 // Usage は andon triage の使い方。
-const Usage = "usage: andon triage collect [--limit N]                    台帳の未処理を JSON に集める（repo ごとに最新の main を取る）\n" +
+const Usage = "usage: andon triage collect [--limit N]                    台帳の未処理と repo ごとの最新の main を JSON に出す\n" +
 	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を台帳に当てる\n"
 
 var (

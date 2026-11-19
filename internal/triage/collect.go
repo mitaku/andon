@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -26,8 +27,8 @@ type Item struct {
 	Kind string `json:"kind"`
 	From string `json:"from"`
 	Repo string `json:"repo"`
-	// Commit は repo の最新の main（collect が取ってきたもの）。担当はこれを読んで仕分け、判定に写す（ADR-0030 決めたこと 2）。
-	// repo の無い項目と、memory・signal の項目は持たない。
+	// Commit は repo の最新の main（collect が取ってきたもの。Collected.Commits の写し）。担当はこれを読んで仕分け、
+	// 判定に写す（ADR-0030 決めたこと 2）。repo の無い項目と、memory・signal の項目は持たない。
 	Commit  string `json:"commit,omitempty"`
 	Text    string `json:"text"`
 	AgeDays int64  `json:"age_days"`
@@ -67,32 +68,62 @@ func runCollect(l *ledger, limit int, stdout, _ io.Writer) error {
 	if len(items) > limit {
 		return limitError{limit}
 	}
-	if err := stampCommits(items); err != nil {
+	repos, err := l.repos()
+	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, items)
+	commits, err := latestMains(repos)
+	if err != nil {
+		return err
+	}
+	for i, it := range items {
+		if carriesCommit(it.Kind) {
+			items[i].Commit = commits[it.Repo]
+		}
+	}
+	return writeJSON(stdout, Collected{Commits: commits, Items: items})
 }
 
-// stampCommits は項目の repo ごとに最新の main を取ってきて、その commit を項目に書く。
+// Collected は collect の出力。担当はこれをそのまま library/items.json に置き、apply が collect の記録として読む。
+// commits は台帳の repo ごとの最新の main（項目の無い repo も。前回までの記録の key を見直すときに照らす）。
+type Collected struct {
+	Commits map[string]string `json:"commits"`
+	Items   []Item            `json:"items"`
+}
+
+// repos は台帳の課題の repo（空でないもの）を重ねずに並べる。
+func (l *ledger) repos() ([]string, error) {
+	out, err := l.kanban("", "list", "--all", "--json")
+	if err != nil {
+		return nil, fail("台帳を読めない")
+	}
+	var issues []ledgerIssue
+	if err := json.Unmarshal([]byte(out), &issues); err != nil {
+		return nil, fail("台帳を読めない")
+	}
+	var got []string
+	for _, t := range issues {
+		if t.Repo != "" {
+			got = append(got, t.Repo)
+		}
+	}
+	sort.Strings(got)
+	return slices.Compact(got), nil
+}
+
+// latestMains は repo ごとに最新の main を取ってきて、その commit を返す。
 // 1つでも取れなければ止まる（古い木で仕分けさせない。ADR-0030 決めたこと 5 の 6）。
 // apply が中で集め直すときは打たない（取り直すと、担当が読んだ commit から動く）。
-func stampCommits(items []Item) error {
+func latestMains(repos []string) (map[string]string, error) {
 	commits := map[string]string{}
-	for i, it := range items {
-		if it.Repo == "" || !carriesCommit(it.Kind) {
-			continue
+	for _, repo := range repos {
+		c, err := latestMain(repo)
+		if err != nil {
+			return nil, fail("%s の最新の main を取れない（%v）。古い木で仕分けないよう止まる", repo, err)
 		}
-		c, ok := commits[it.Repo]
-		if !ok {
-			var err error
-			if c, err = latestMain(it.Repo); err != nil {
-				return fail("%s の最新の main を取れない（%v）。古い木で仕分けないよう止まる", it.Repo, err)
-			}
-			commits[it.Repo] = c
-		}
-		items[i].Commit = c
+		commits[repo] = c
 	}
-	return nil
+	return commits, nil
 }
 
 // carriesCommit は、その kind の項目が repo の commit を持つか。memory と外の信号は持たない。
@@ -147,7 +178,7 @@ func gitIn(dir string, args ...string) (string, error) {
 }
 
 // collect は台帳から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
-// 読むだけで、台帳にもリポジトリにも書かない（main を取り直すのは runCollect の stampCommits）。
+// 読むだけで、台帳にもリポジトリにも書かない（main を取り直すのは runCollect の latestMains）。
 func (l *ledger) collect() ([]Item, error) {
 	records, err := l.records()
 	if err != nil {

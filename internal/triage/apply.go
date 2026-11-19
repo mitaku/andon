@@ -180,41 +180,38 @@ func sourceText(key string, inventory []Item, historical []item) any {
 	return key
 }
 
-// readCollected は collect の記録（担当が collect の出力を置いた library/items.json）を読む。
-func readCollected(path string) ([]Item, error) {
+// readCollected は collect の記録（担当が collect の出力を置いた library/items.json）の commits を読む。
+// 前の形（項目の配列）と、commits の無いもの・形の合わない commit は断る（照らせない判定を通さない）。
+func readCollected(path string) (map[string]string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fail("library/items.json が無い（andon triage collect > library/items.json で collect の出力を置く）")
 	}
-	var got []Item
-	if err := json.Unmarshal(b, &got); err != nil {
-		return nil, fail("library/items.json を読めない（collect の出力のまま置く）")
+	var got Collected
+	if err := json.Unmarshal(b, &got); err != nil || got.Commits == nil {
+		return nil, fail("library/items.json を読めない（今の andon triage collect の出力のまま置く）")
 	}
-	return got, nil
+	for repo, c := range got.Commits {
+		if repo == "" || !commitRe.MatchString(c) {
+			return nil, fail("library/items.json の commits が不正: %s", repo)
+		}
+	}
+	return got.Commits, nil
 }
 
 // checkCommits は判定の commit（担当が見た commit）を、collect の出したものと照らす（ADR-0030 決めたこと 2）。
-// 今回の項目は items.json のその項目の commit と、前回までの記録の key（見直し）は出どころの課題の repo について
-// collect の出した commit と同じでなければならない。commit を持たない項目（repo の無い課題・memory・signal）には書かない。
-func checkCommits(items []item, collected []Item, repos map[string]string) error {
-	byKey := map[string]string{}
-	byRepo := map[string]string{}
-	for _, it := range collected {
-		byKey[it.Key] = it.Commit
-		if it.Repo != "" && it.Commit != "" {
-			byRepo[it.Repo] = it.Commit
-		}
-	}
+// repo のある課題から出た項目（今回の項目も、前回までの記録の key の見直しも）は、その課題の repo（台帳の値）について
+// collect が出した commit と同じでなければならない。commit を持たない項目（repo の無い課題・memory・signal）には書かない。
+func checkCommits(items []item, commits, repos map[string]string) error {
 	for _, it := range items {
-		want, ok := byKey[it.key()]
-		if !ok && carriesCommit(it.keyPart(2)) {
-			repo := repos[it.keyPart(1)]
-			if want, ok = byRepo[repo]; !ok && repo != "" {
-				return fail("見た commit を照らせない: %s（collect が %s の main を出していない）", it.key(), repo)
+		want := ""
+		if repo := repos[it.keyPart(1)]; carriesCommit(it.keyPart(2)) && repo != "" {
+			if want = commits[repo]; want == "" {
+				return fail("見た commit を照らせない: %s（collect の記録に %s の main が無い。collect からやり直す）", it.key(), repo)
 			}
 		}
 		if it.str("commit") != want {
-			return fail("見た commit が collect の出したもの（library/items.json の commit）と違うか無い: %s", it.key())
+			return fail("見た commit が collect の出したもの（library/items.json の commits）と違うか無い: %s", it.key())
 		}
 	}
 	return nil
