@@ -10,6 +10,33 @@
 
 （まだ無い）
 
+## v0.0.12 — 2026-11-19
+
+課題の一生の規則を形式モデルにして CI で照らし続ける形（ADR-0025）と、人のマージの拾い・マージ後の片付けを `andon issue` に出した版（ADR-0017 P7・P7b）。ほかに、課題の見込みと実働の通知（ADR-0014）、担当の日報と計画（ADR-0024・ADR-0017 P4）、「PR と repo の文は外の読み手に通じるように書く」決まり（ADR-0026）、Chief of Staff の留守でも dispatcher が回る形（ADR-0017 P6）、全体の点検が入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` の変更は項目と値を足しただけ）。
+
+### 変わったこと
+
+- **課題の一生の規則を形式モデルにして CI で確かめる**（[ADR-0025](docs/adr/0025-formal-model-in-repo.md)）: `model/` に TLA+ のモデルと規則 R1〜R6 を置き、入口 `model/check` と CI の job `model` を足した（M1。#276）。モデルと `process/states/issue.yaml` を対応表で 2 方向に照らす（M2。#279）。形式モデルの決まりと、人が見る変更の線を置いた（M3。#277。ADR は #267）。
+- **`andon issue ready` と `finish` が、受け取られていない問いを残したまま進まない**: `ready` は断って課題を `doing` のまま残し（#271）、`finish` は何も消さずに止まる（片付けは全部か無し。#265）。
+- **人のマージと、ゲートのあとのマージを `andon issue` に出した**（[ADR-0017](docs/adr/0017-process-definitions.md) P7・P7b）: 人のマージの拾いと片付けは `andon issue settle`（記録は `<slug>.settle.json`。#251）、ゲートのあとのマージと片付けは `andon issue merge`（記録は `<slug>.merge.json`。#263）。`doing` のうちに人がマージした PR も、`review` と同じ道で片付ける（#272）。
+- **dispatcher の守りと通知**: Chief of Staff の留守でも拾う・起動する・マージし、配る段だけ止める（P6。#246）。ゲートの `fix` を担当へ送れなければ、通知 `gate` に `unsent` を書いて Chief of Staff に届ける（#269）。「Connection lost mid-response」を提供元のエラーと見分ける（#264）。置き場のラベルが今の Place と違えば、見回りの合間に起こし直す（#233）。外の信号の段として `collect --due` と `now` の信号の通知 `signal` を足した（[ADR-0011](docs/adr/0011-signals-and-value-loop.md) S3。#241）。
+- **課題の見込みと実働**（[ADR-0014](docs/adr/0014-issue-estimate.md)）: `report.json` に担当の見込み `estimate`（E4。#240）、実働が見込みの 1・2・4 倍を超えたら Chief of Staff に届ける通知（E3。#237）、段の通知に詰まりの兆し `detail.sign`（`no-commit`・`large-diff`。ADR-0017 P5。#250）、`andon measure` に課題ごとの見込みと実働（E5。#244）。
+- **担当の計画と日報**: `report.json` に計画 `plan[]` を足し、`andon issue report` が引き継ぐ（ADR-0017 P4。#245）。worker skill に日報（`library/journal.md`）の節を足した（[ADR-0024](docs/adr/0024-worker-journal.md) J1。#235）。レビュアーの依頼書に `findings.json` の絶対パスを書く（#261）。
+- **memory の件数が線（30）を超えたら Chief of Staff に 1 度届ける**（[ADR-0020](docs/adr/0020-auto-memory-as-intake.md) M4。#242）。
+- **PR と repo の文を、セルの外の読み手に通じる形で書く**（[ADR-0026](docs/adr/0026-pr-rules-for-outside-readers.md)。#270）: PR と文書の書き方の決まりを直し（#273）、ゲートのコメントと外の Issue への書き戻しを外の人が読む文にした（#275）。boot が `writing.md` を 3 本目として CLAUDE.md と Codex の AGENTS.md に入れる（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) V3。#248）。skill の書き方の行を `writing.md` を指す形に直し（V2。#247）、「今」の語を docs・README（W3。#230）・`package/`（W5。#236）・`internal`・`cmd`・`tests`（W6。#239）で置き換え、`tests/words.sh` を足した。
+- **chief-of-staff skill を原則と手引き（`playbooks/`）に分けた**（ADR-0017 P9。#249）。人への文の行数の上限を外し、許可の確認の線と起動の go の例外を決まりの中に書いた（#238）。
+- **開発中のパッケージをイメージを焼き直さずにセルへ当てる道**（[ADR-0027](docs/adr/0027-apply-package-without-rebuild.md)）: `image/apply-main.sh` と検査を足した（S1。#280。ADR は #274）。
+- **実行の記録から skill とプロンプトを直し続けるループ**（[ADR-0028](docs/adr/0028-improvement-loop.md)）: ADR のみ（#284）。
+- **プロファイル `claude`・`chief-of-staff` に `--effort high` を明示した**（#268）。
+- **全体の点検**: 壊れ・食い違い・要らないものを直した（#252・#253）。CLI の壊れ 8 件（#256）、約束と skill の食い違い（contract・ledger・triage・independent-review。#259）、skill の古いパスと人向けの経緯（#266）、設計・運用・image 文書と ADR の状態行（#258）、守りの揃え直し（`AGENTS.worker.md`・`--force-with-lease`・`public.sh`・isolation。#257）、CI と設定（`tests/*.sh` の二重実行・Go の版の検査・settings の重なり。#260）、重複した読みの 1 本化（#262）、boot が何も写さない `genHerdr` を外した（#255）、AGENTS.md の作法の追加（#254）。
+- **image と CI**: build の apt を CI だけ Azure の mirror から取り、索引の取得を 1 回にした（#281）。CI の tests で `image.sh` の出力を流し、job の上限を 45 分にした（#278）。`andon-signal.sh` の API 失敗の検査を直した（#243）。
+
+### 上げるときにすること
+
+- image を上げて `rebuild` する。台帳の形式（3）・schema の版（`/2`）は変わらず、前の版の台帳・`library/` はそのまま読める。**台帳のための手作業は無く、互換を壊す変更も無い**。
+- **Chief of Staff を起こし直す**: skill（chief-of-staff・worker）・プロファイル（`--effort high`）・boot が入れる `writing.md` の変更は、動いている Claude Code に効かない。Chief of Staff（と動いている担当）を `hc kill` して `andon chief-of-staff` で起こし直す（[docs/operate.md](docs/operate.md) の Chief of Staff の行）。dispatcher は boot が起こし直す。
+- **host-install は要らない**: `package/host/` は `andon-up`・`cloud-init.yaml`・`andon` の mod（`main.js`）・`files-plus`・`kanban-board` の文言とコメントが変わっただけで、動きは変わらない。退避して打ち直さなくてよい（打ち直すなら [docs/operate.md](docs/operate.md) §4「版を上げるとき: host-install が置いたものを退避する」）。
+
 ## v0.0.11 — 2026-11-12
 
 サイドバーに行燈の見た目が入り、Chief of Staff に Advisor（Fable）を試験運用で付け、auto memory を全部の役に入れた版。ほかに、台帳の CLI の別名 `deck` の廃止、pstack の試用（ADR-0021）、担当の日報（ADR-0024）、dispatcher と gate の rate limit・lock の守りが入った。**台帳の形式（3）・schema の版（`/2`）は変わらない**（`schema/` の変更は項目と値を足しただけ）。
