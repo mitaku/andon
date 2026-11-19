@@ -54,7 +54,7 @@ steps:
   - id: collect
     title: 溜まったものを拾う
     by: machine
-    input: [台帳（報告・見送り・問い・todo・片付けの残り）]
+    input: [台帳（報告・見送り・問い・todo・片付けの残り）, repo の最新の main（origin）]
     output: [library/items.json]
     command: andon triage collect
     record: library/items.json
@@ -62,7 +62,7 @@ steps:
   - id: sort
     title: 項目ごとに確かめて仕分ける
     by: ai
-    input: [library/items.json, PR と repo と台帳の実物]
+    input: [library/items.json, PR と repo（項目の commit）と台帳の実物]
     output: [library/decisions.json, 報告, 台帳（review）]
     skill: [triage#3, triage#4, worker#7]
     decides: [close, fix, bundle, keep]
@@ -77,7 +77,7 @@ steps:
   - id: apply
     title: 仕分けを台帳に当てる
     by: machine
-    input: [library/decisions.json]
+    input: [library/decisions.json, library/items.json]
     output: [台帳（閉じた・足した課題）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
     command: andon triage apply
     record: library/triage/<日付>-<id>.json

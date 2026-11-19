@@ -4,6 +4,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -20,10 +22,13 @@ import (
 
 // Item は集めた1項目。key は <slug>:<出どころの id>:<kind>:<本文の sha1>。
 type Item struct {
-	Key     string `json:"key"`
-	Kind    string `json:"kind"`
-	From    string `json:"from"`
-	Repo    string `json:"repo"`
+	Key  string `json:"key"`
+	Kind string `json:"kind"`
+	From string `json:"from"`
+	Repo string `json:"repo"`
+	// Commit は repo の最新の main（collect が取ってきたもの）。担当はこれを読んで仕分け、判定に写す（ADR-0030 決めたこと 2）。
+	// repo の無い項目と、memory・signal の項目は持たない。
+	Commit  string `json:"commit,omitempty"`
 	Text    string `json:"text"`
 	AgeDays int64  `json:"age_days"`
 	// kind: signal の項目だけ: 人と担当が読む所と、text（出所の題）が外の人の文であることの印。
@@ -62,11 +67,87 @@ func runCollect(l *ledger, limit int, stdout, _ io.Writer) error {
 	if len(items) > limit {
 		return limitError{limit}
 	}
+	if err := stampCommits(items); err != nil {
+		return err
+	}
 	return writeJSON(stdout, items)
 }
 
+// stampCommits は項目の repo ごとに最新の main を取ってきて、その commit を項目に書く。
+// 1つでも取れなければ止まる（古い木で仕分けさせない。ADR-0030 決めたこと 5 の 6）。
+// apply が中で集め直すときは打たない（取り直すと、担当が読んだ commit から動く）。
+func stampCommits(items []Item) error {
+	commits := map[string]string{}
+	for i, it := range items {
+		if it.Repo == "" || !carriesCommit(it.Kind) {
+			continue
+		}
+		c, ok := commits[it.Repo]
+		if !ok {
+			var err error
+			if c, err = latestMain(it.Repo); err != nil {
+				return fail("%s の最新の main を取れない（%v）。古い木で仕分けないよう止まる", it.Repo, err)
+			}
+			commits[it.Repo] = c
+		}
+		items[i].Commit = c
+	}
+	return nil
+}
+
+// carriesCommit は、その kind の項目が repo の commit を持つか。memory と外の信号は持たない。
+func carriesCommit(kind string) bool { return kind != "memory" && kind != "signal" }
+
+// latestMain は repo（host/owner/repo）の checkout で origin の既定の branch を取り直し、その commit を返す。
+// 作業ツリーと手元の branch は動かさない（取り直すのは refs/remotes/origin/<既定の branch> だけ）。
+func latestMain(repo string) (string, error) {
+	dir, err := spawn.RepoPath(repo)
+	if err != nil {
+		return "", err
+	}
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return "", fmt.Errorf("checkout が無い: %s", dir)
+	}
+	sym, err := gitIn(dir, "ls-remote", "--symref", "origin", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	def := ""
+	for _, ln := range strings.Split(sym, "\n") {
+		if f := strings.Fields(ln); len(f) == 3 && f[0] == "ref:" && f[2] == "HEAD" && strings.HasPrefix(f[1], "refs/heads/") {
+			def = strings.TrimPrefix(f[1], "refs/heads/")
+		}
+	}
+	if def == "" {
+		return "", errors.New("origin の既定の branch が分からない")
+	}
+	ref := "refs/remotes/origin/" + def
+	if _, err := gitIn(dir, "fetch", "-q", "origin", "+refs/heads/"+def+":"+ref); err != nil {
+		return "", err
+	}
+	return gitIn(dir, "rev-parse", "--verify", "-q", ref+"^{commit}")
+}
+
+// gitIn は dir で git を打ち、stdout を返す（前後の空白を除く）。資格情報を尋ねて止まらないようにする。
+// SSH 鍵はセルに無いので、github.com の SSH の URL は HTTPS で読む（internal/issue の finish と同じ）。
+func gitIn(dir string, args ...string) (string, error) {
+	c := exec.Command("git", append([]string{"-C", dir, "-c", "url.https://github.com/.insteadOf=git@github.com:"}, args...)...)
+	c.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	var errb strings.Builder
+	c.Stderr = &errb
+	out, err := c.Output()
+	if err != nil {
+		msg := strings.TrimSpace(errb.String())
+		if i := strings.IndexByte(msg, '\n'); i >= 0 {
+			msg = msg[:i]
+		}
+		return "", fmt.Errorf("git %s: %v %s", args[0], err, msg)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // collect は台帳から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
-// 読むだけで、台帳にもリポジトリにも書かない。
+// 読むだけで、台帳にもリポジトリにも書かない（main を取り直すのは runCollect の stampCommits）。
 func (l *ledger) collect() ([]Item, error) {
 	records, err := l.records()
 	if err != nil {
