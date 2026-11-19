@@ -29,7 +29,8 @@ var (
 const retryReport = 3
 
 // reviewRequest は report.json の review_request を拾い、レビュアーを起動する（<issue>@<commit> ごとに1回）。
-// 控えの状態は3つ: 起動した（Started。もう打たない）・起動しない（Skipped。担当が頼み直す〈報告の行が増える〉か、
+// 控えの状態は3つ: 起動した（Started。もう打たない。ただし、そのレビュアーの課題が結果〈その commit の findings.json〉を
+// 残さずに返っていて、担当が頼み直した〈報告の行が増えた〉ら、次の回のレビュアーを起動し直す）・起動しない（Skipped。担当が頼み直す〈報告の行が増える〉か、
 // 上限を超えた回で review_rounds が上がるか、予約キーの照合で見送った回で照合が戻れば〈Chief of Staff が起き直したあと
 // 書き直した〉起動し直す）・起動しそこねた（Failed。済んだ段〈worktree・課題・端末〉を持ったまま次の見回りで続きから）。
 // 初めて見る台帳でも、今の review_request は拾う（課題が doing で commit が PR の head なので、過去の出来事ではない）。
@@ -41,19 +42,24 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 	row := lastReport(p.rows, id)
 	prev, seen := p.st.Reviewers[key]
 	trusted := p.reviewKeysTrusted(t)
-	if !Retry(prev, seen, limit, row, trusted) {
+	empty := func(rev string) bool { return p.returnedEmpty(rev, rr.Commit) }
+	redo := seen && prev.Started && empty(prev.ReviewerIssue)
+	if !Retry(prev, seen, limit, row, trusted, redo) {
 		return
 	}
 	r := prev
-	if !seen || prev.Skipped != "" {
+	if !seen || prev.Skipped != "" || prev.Started {
 		r = Reviewer{Issue: id, Commit: rr.Commit, Round: rr.Round}
+	}
+	if seen && prev.Started {
+		p.logf("%s のレビュアー %s は commit %s の結果を残さずに返った。担当が頼み直したので、%d 回目のレビュアーを起動し直す", id, prev.ReviewerIssue, rr.Commit[:12], rr.Round)
 	}
 	r.Row = row
 	if r.ReviewerIssue == "" {
-		if a, ok := Adopt(p.tasks, id, rr.Commit, func(rev string) string {
+		if a, ok := Adopt(p.tasks, id, rr.Commit, rr.Round, func(rev string) string {
 			b, _ := os.ReadFile(filepath.Join(p.l.Dir, "issues", rev, "brief.md"))
 			return string(b)
-		}, func(rev string) (string, int, bool) { return liveIssue(p.l.Slug, rev) }); ok {
+		}, func(rev string) (string, int, bool) { return liveIssue(p.l.Slug, rev) }, empty); ok {
 			r.ReviewerIssue, r.Address, r.Started = a.ReviewerIssue, a.Address, a.Started
 			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
 				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
@@ -106,12 +112,14 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 // （同じ commit の出し直しでも、前回が起動せずに終わっていれば拾う。起動した回は二重に起動しない）。
 // trusted は今の予約キーの照合（reviewKeysTrusted）。照合で見送った回は、照合が戻れば拾い直す
 // （Chief of Staff が起き直してアドレスが変わり、予約キーを書き直した。担当の頼み直しを待たない）。
-func Retry(prev Reviewer, seen bool, limit, row int, trusted bool) bool {
+// redo は、起動した回のレビュアーの課題が結果を残さずに返ったか（returnedEmpty）。返っていて担当が頼み直していれば起動し直す
+// （まだ見ている間の頼み直しは二重に起動しない）。
+func Retry(prev Reviewer, seen bool, limit, row int, trusted, redo bool) bool {
 	switch {
 	case !seen:
 		return true
 	case prev.Started:
-		return false // 二重に起動しない
+		return redo && row > prev.Row // 二重に起動しない。結果を残さずに返った回だけ、頼み直しで起動し直す
 	case prev.Skipped != "":
 		return row > prev.Row || (prev.OverLimit > 0 && limit > prev.OverLimit) || (prev.Untrusted && trusted)
 	}
@@ -130,9 +138,13 @@ func (p *project) reviewKeysTrusted(t ledger.Issue) bool {
 // todo でも端末が起きていることがある（hc run は通ったが kanban start の前に落ちた）。live（ラベル issue=<子>）の端末を引き、
 // 何か受けていれば（turn が 1 以上）もう受けている、まだなら address を引き継いで続きから（最初のメッセージを送り直す）。
 // 端末が無いときだけ、起動するところから続ける。
-func Adopt(tasks []ledger.Issue, id, commit string, brief func(rev string) string, live func(rev string) (addr string, turn int, ok bool)) (Reviewer, bool) {
+// round より前の回の子課題で、その commit の結果を残さずに返ったもの（empty）は引き継がない（担当が頼み直した回のレビュアーではない）。
+func Adopt(tasks []ledger.Issue, id, commit string, round int, brief func(rev string) string, live func(rev string) (addr string, turn int, ok bool), empty func(rev string) bool) (Reviewer, bool) {
 	for _, c := range tasks {
 		if c.Str("parent") != id || !isReviewer(c) || !ledger.BriefReviews(brief(c.Str("id")), commit) {
+			continue
+		}
+		if _, n, ok := ledger.SplitRound(c.Str("id")); ok && n < round && empty(c.Str("id")) {
 			continue
 		}
 		r := Reviewer{ReviewerIssue: c.Str("id")}
@@ -172,6 +184,16 @@ func liveIssue(slug, rev string) (string, int, bool) {
 		return t.Address, g.Turn, true
 	}
 	return "", 0, false
+}
+
+// returnedEmpty は、レビュアーの課題 rev が返っていて（review か done）、commit を見た findings.json を残していないか
+// （無い・形が違う・ほかの commit を見た）。担当の頼み直しで次の回のレビュアーを起動し直す条件（Retry・Adopt）。
+func (p *project) returnedEmpty(rev, commit string) bool {
+	if s := p.status(rev); rev == "" || (s != "review" && s != "done") {
+		return false
+	}
+	f, err := contract.ReadFindings(filepath.Join(p.l.Library(rev), "findings.json"))
+	return err != nil || f.Commit != commit
 }
 
 // status は台帳の課題 id の status（この回に読んだ一覧から）。
