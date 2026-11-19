@@ -20,15 +20,26 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # ホストのオーナー（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わないセルは bin/bootstrap が起動する前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
+# apt の取得元: 既定は ubuntu の archive・security のまま（手元と release の build）。CI の tests の job だけ image/build.sh が
+# APT_MIRROR（ANDON_APT_MIRROR から）を渡し、runner と同じ mirror へ向ける。向けた sources は playwright の段の apt が
+# 使い終わってから元に戻す（image には元の sources が残る。tests/image.sh が見る）
+ARG APT_MIRROR=
+# 索引（/var/lib/apt/lists）は build の cache に置き、playwright の段の apt と分け合う（apt-get update は build の中で1回。層には残らない）。
 # ミラーの索引とプールが一時的にずれると install が 404 で落ちる。落ちたら update（索引の読み直し）からやり直す
-RUN for i in 1 2 3 4 5; do \
+RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    if [ -n "$APT_MIRROR" ]; then \
+      cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/ubuntu.sources.orig \
+      && sed -i -E "s#^URIs: http://(archive|security)\.ubuntu\.com/ubuntu/?\$#URIs: ${APT_MIRROR}#" /etc/apt/sources.list.d/ubuntu.sources \
+      && ! grep -Eq '^URIs: http://(archive|security)\.ubuntu\.com' /etc/apt/sources.list.d/ubuntu.sources; \
+    fi \
+ && grep '^URIs:' /etc/apt/sources.list.d/ubuntu.sources | sed 's/^URIs: /apt の取得元: /' >&2 \
+ && for i in 1 2 3 4 5; do \
       apt-get -o Acquire::Retries=3 update \
       && apt-get -o Acquire::Retries=3 install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales libatomic1 bash-completion \
       && break; \
       [ "$i" = 5 ] && exit 1; \
       echo "apt が失敗した。索引を読み直してやり直す（$i/5）" >&2; sleep $((i * 5)); \
     done \
- && rm -rf /var/lib/apt/lists/* \
  && locale-gen en_US.UTF-8 \
  && userdel --remove ubuntu \
  && groupadd --gid 1000 andon \
@@ -80,7 +91,25 @@ COPY --chown=andon:andon --chmod=755 image/playwright-cli /opt/andon-home/.local
 COPY --chown=andon:andon image/playwright/cli.config.json /opt/andon-home/.playwright/cli.config.json
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/andon-home/.cache/ms-playwright
 ARG INSTALL_BROWSERS=1
-RUN if [ "${INSTALL_BROWSERS}" = 1 ]; then /opt/andon-tools/bin/playwright install --with-deps chromium; fi
+RUN if [ "${INSTALL_BROWSERS}" = 1 ]; then /opt/andon-tools/bin/playwright install chromium; fi
+# Chromium の依存（playwright install-deps。--with-deps と同じ顔ぶれ）は、apt の段が取った索引で入れる。playwright は
+# 必ず apt-get update を打つので、この RUN だけ update を飛ばす apt-get を PATH の先に置く（root なので playwright は sudo を通さず sh -c で打つ）。
+# 索引が古い・無い（手元で apt の段が層の cache から来て、索引の cache が空・古い）と install が落ちるので、そのときだけ update からやり直す。
+# 最後に apt の取得元を元に戻す（APT_MIRROR を渡したときだけ控えがある）
+USER root
+RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    if [ "${INSTALL_BROWSERS}" = 1 ]; then \
+      mkdir /tmp/andon-apt \
+      && printf '%s\n' '#!/bin/sh' \
+           'if [ "$1" = update ]; then echo "apt-get update を飛ばす（索引は apt の段で取った）" >&2; exit 0; fi' \
+           'exec /usr/bin/apt-get "$@"' >/tmp/andon-apt/apt-get \
+      && chmod 755 /tmp/andon-apt/apt-get \
+      && { PATH=/tmp/andon-apt:$PATH /opt/andon-tools/bin/playwright install-deps chromium \
+           || { echo "apt の段の索引で入らなかった。apt-get update からやり直す" >&2; /opt/andon-tools/bin/playwright install-deps chromium; }; } \
+      && rm -rf /tmp/andon-apt; \
+    fi \
+ && if [ -f /etc/apt/ubuntu.sources.orig ]; then mv /etc/apt/ubuntu.sources.orig /etc/apt/sources.list.d/ubuntu.sources; fi
+USER andon
 ARG COOKIECUTTER_VERSION=2.7.1
 ARG CRUFT_VERSION=2.16.0
 RUN uv python install 3.14.10 --default \

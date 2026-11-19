@@ -107,6 +107,10 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 **image の build の cache は使わない。** buildx の GitHub Actions cache（`type=gha`、`mode=max`）を試したが、Go だけを変えた PR で `tests/image.sh` が 224 秒から 307 秒に延びた。約 1 GiB の層を cache から取り込む時間と、docker-container の builder から docker へ渡す `--load`（約 70 秒）が、build で浮く時間を上回る。cache を持たないので、release の job が PR の書いたものを読む心配も無い。
 
+**image の build の apt は、CI の tests の job だけ Azure の mirror から取る。** 取得元が `archive.ubuntu.com`・`security.ubuntu.com` だけだと、その日の速さに引きずられる（2026-11-19 は 70〜90 kB/s で、`tests/image.sh` が 194 秒から 1358 秒に延びた）。tests の job の `tests/*.sh` を回す step だけが `ANDON_APT_MIRROR=http://azure.archive.ubuntu.com/ubuntu/`（runner と同じ mirror）を置き、`image/build.sh` がそれを build-arg の `APT_MIRROR` に渡す。`image/Dockerfile` は build の中でだけ sources をそこへ向け、playwright の段の apt が済んだら元に戻す。手元・release の job・`bin/bootstrap rebuild --from` は渡さないので、取得元は今のまま。release の job の取得元は変えない（`workflow_test.go` が確かめる）。
+
+**apt の索引は build の中で1回だけ取る。** apt の段が取った索引（`/var/lib/apt/lists`）を build の cache（`RUN --mount=type=cache`）に置き、playwright の段がそれで Chromium の依存（`playwright install-deps`。入れる顔ぶれは `--with-deps` と同じ）を入れる。playwright は必ず `apt-get update` を打つので、その RUN だけ update を飛ばす `apt-get` を PATH の先に置く。手元で apt の段が層の cache から来て索引が空・古いときは install が落ち、そのときだけ update からやり直す。索引は層に残らない。取得元と取得の回数は build のログで見る: apt の段の「apt の取得元: …」の行と `Get:` の行、playwright の段の「apt-get update を飛ばす」の行。
+
 **image に関係しない PR では `tests/image.sh` を飛ばす。** PR の変更（merge commit と base の差分。rename は元と先の両方）を `tests/lib/image-scope.sh` が分ける。飛ばしてよいのは、変更が全部、下の表の「飛ばす」に入るときだけ。知らないパスは走らせる側に倒す。main の push では必ず全部走る（release も）。
 
 | 変更 | image の build と runtime の検査 | 理由 |

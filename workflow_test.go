@@ -225,3 +225,58 @@ func TestWorkflowModelCheckOnlyInModelJob(t *testing.T) {
 		}
 	}
 }
+
+// image の build の apt を Azure の mirror へ向ける ANDON_APT_MIRROR は、tests.yml の tests の job の tests/*.sh を回す step だけに置く。
+// release の job（GHCR へ push する image を焼く）は既定の archive・security のまま。workflow・job の env に置くと release にも効くので置かない。
+func TestWorkflowAptMirrorOnlyInTestsJob(t *testing.T) {
+	b, err := os.ReadFile(".github/workflows/tests.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type step struct {
+		Run string            `yaml:"run"`
+		Env map[string]string `yaml:"env"`
+	}
+	var wf struct {
+		Env  map[string]string `yaml:"env"`
+		Jobs map[string]struct {
+			Env   map[string]string `yaml:"env"`
+			Steps []step            `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(b, &wf); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := wf.Env["ANDON_APT_MIRROR"]; ok {
+		t.Error("tests.yml の workflow の env に ANDON_APT_MIRROR がある（release の job にも効く）")
+	}
+	set := map[string]int{}
+	for name, j := range wf.Jobs {
+		if _, ok := j.Env["ANDON_APT_MIRROR"]; ok {
+			t.Errorf("tests.yml の job %s の env に ANDON_APT_MIRROR がある（step の env に置く）", name)
+		}
+		for _, s := range j.Steps {
+			if strings.Contains(s.Run, "ANDON_APT_MIRROR") {
+				t.Errorf("tests.yml の job %s の run が ANDON_APT_MIRROR に触る", name)
+			}
+			if v, ok := s.Env["ANDON_APT_MIRROR"]; ok {
+				set[name]++
+				if !strings.Contains(s.Run, "tests/lib/run-tests.sh") {
+					t.Errorf("tests.yml の job %s の、tests/*.sh を回さない step に ANDON_APT_MIRROR がある", name)
+				}
+				if v != "http://azure.archive.ubuntu.com/ubuntu/" {
+					t.Errorf("tests.yml の job %s の ANDON_APT_MIRROR が %q（runner と同じ Azure の mirror のはず）", name, v)
+				}
+			}
+		}
+	}
+	if _, ok := wf.Jobs["release"]; !ok {
+		t.Fatal("tests.yml に job release が無い")
+	}
+	if set["release"] != 0 {
+		t.Error("tests.yml の job release が ANDON_APT_MIRROR を置く（release の取得元は既定のまま）")
+	}
+	if set["tests"] != 1 {
+		t.Errorf("tests.yml の job tests で ANDON_APT_MIRROR を置く step が %d 個（tests/*.sh を回す1つのはず）", set["tests"])
+	}
+}

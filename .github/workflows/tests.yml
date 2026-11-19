@@ -64,6 +64,9 @@ jobs:
       - name: tests/*.sh (including image build and runtime)
         env:
           ANDON_PUBLIC_DENYLIST_CONTENT: ${{ secrets.ANDON_PUBLIC_DENYLIST }}
+          # image の build の apt を runner と同じ Azure の mirror から取る（image/build.sh が APT_MIRROR に渡す）。
+          # この job だけ。release の job は既定の archive・security のまま（docs/image.md の「CI の所要時間」）
+          ANDON_APT_MIRROR: http://azure.archive.ubuntu.com/ubuntu/
         run: |
           set -e
           if [ -n "$ANDON_PUBLIC_DENYLIST_CONTENT" ]; then

@@ -62,6 +62,13 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   printf "{\"commit\": \"%040d\"}\n" 0 > /tmp/report.json
   python3 /opt/andon/lib/andon/schema_check.py validate /opt/andon/schema/report.schema.json /tmp/report.json
   test -d "$PLAYWRIGHT_BROWSERS_PATH"
+  # apt の取得元は、build で mirror へ向けても（CI の ANDON_APT_MIRROR）image には元の archive・security が残る
+  grep -qx "URIs: http://archive.ubuntu.com/ubuntu/" /etc/apt/sources.list.d/ubuntu.sources
+  grep -qx "URIs: http://security.ubuntu.com/ubuntu/" /etc/apt/sources.list.d/ubuntu.sources
+  test "$(grep -c "^URIs:" /etc/apt/sources.list.d/ubuntu.sources)" = 2
+  test ! -e /etc/apt/ubuntu.sources.orig
+  # playwright の依存を root で入れても、andon の HOME に root の持ち物を残さない
+  test -z "$(find /opt/andon-home -user root -print -quit)"
   # 担当が画面を見て確かめる道具（ADR-0018 受け入れ条件 1）: playwright-cli（`playwright cli` の wrapper）が PATH で引け、
   # 設定なしで Chromium を開き（~/.playwright/cli.config.json）、出力が worktree の git に出ない。/opt/andon-tools/bin は PATH に無いまま
   case ":$PATH:" in *:/opt/andon-tools/bin:*) echo "/opt/andon-tools/bin が PATH にある" >&2; exit 1 ;; esac
