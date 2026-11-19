@@ -17,6 +17,7 @@ transitions:
   - { from: "[*]", to: queued, on: "after つきで課題を足した", by: kanban, command: kanban add }
   - { from: queued, to: todo, on: "待つ課題が全部 done になった", by: kanban, command: kanban done }
   - { from: todo, to: doing, on: "担当を起動した（§7.2 #10）", by: ai, command: andon issue start, once: true }
+  - { from: todo, to: doing, on: "Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ）", by: kanban, command: kanban start }
   - { from: todo, to: todo, on: "人の課題（who: person）に問いを置いた（ask-one-by-one skill §3）", by: ai, command: andon issue ask }
   - { from: doing, to: doing, on: "報告・レビュー依頼・候補の一覧・問いを書いた", by: ai, command: andon issue report・review-request・candidates・ask }
   - { from: doing, to: review, on: "確かめて返した（受け取られていない問いが無い）", by: ai, command: andon issue ready }
@@ -27,6 +28,8 @@ transitions:
   - { from: review, to: done, on: "PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた", by: ai, command: andon issue finish }
   - { from: queued, to: done, on: "やめる（人の go）", by: ai, command: andon issue finish }
   - { from: todo, to: done, on: "やめる（人の go）", by: ai, command: andon issue finish }
+  - { from: queued, to: done, on: "トリアージが未担当の課題を閉じた（andon triage apply の close）", by: kanban, command: kanban done }
+  - { from: todo, to: done, on: "トリアージが未担当の課題を閉じた（andon triage apply の close）", by: kanban, command: kanban done }
   - { from: doing, to: done, on: "やめる（人の go）・report.json に pr の無い課題を人がマージした", by: ai, command: andon issue finish }
   - { from: doing, to: done, on: "doing のうちに人がマージした PR を andon issue settle が拾って片付けた（dispatcher.md §2.7）", by: machine, command: andon issue finish }
   - { from: done, to: "[*]", on: "終わり", by: kanban }

@@ -17,6 +17,7 @@ model/check
 1. 本物のモデル（`IssueRules.cfg`）が規則を全部守り、どの状態からも先がある。調べる規則は控え（`expected.txt` の `rule`）と同じ集合でなければならない（規則を設定から消すと落ちる）。
 2. 状態の数が控え（`expected.txt` の `states`）と同じ。
 3. 壊した見本（`broken/`）がどれも、控え（`expected.txt` の `broken`）に書いた規則の破れで落ちる。
+4. モデルと課題の状態の定義（`process/states/issue.yaml`）が食い違わない（下の「issue.yaml と照らす」）。
 
 2 と 3 は、検査器の誤りで「破れているのに通る」を見つけるための確かめです。
 
@@ -29,10 +30,21 @@ TLC で見比べるときは、TLC と同じ旗を受けるコマンドを `MODE
 | `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・人の動き）。行動ごとに写したコードの場所 |
 | `IssueRules.tla` | 規則 R1〜R6（`IssueLife` を読む） |
 | `IssueRules.cfg` | 検査器の設定（調べる規則の並び） |
+| `issue-map.txt` | 対応表: 行動とコマンドの対応と、「モデルの外」と名指しする `issue.yaml` の行 |
+| `conform.mjs` | 状態の図と `issue.yaml` を対応表で照らす（`check` が打つ。Node の標準だけ） |
 | `expected.txt` | 調べるはずの規則・状態の数の控えと、見本ごとの落ちるはずの規則 |
 | `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動き） |
 | `check` | 入口 |
 | `package.json`・`package-lock.json` | 検査器の版 |
+
+## issue.yaml と照らす
+
+`issue.yaml` は人が書く定義で、`andon issue …` はそこに無い移り方を断ります。モデルから作るのではなく、`model/check` が 2 方向で照らします（ADR-0025 決めたこと 6）。検査器が書き出した状態の図（`-dump dot,actionlabels`。TLC も同じ旗）を、`conform.mjs` が対応表 `issue-map.txt` を介して `issue.yaml` と突き合わせます。
+
+- **モデル → issue.yaml**: 行動が `status` を動かすなら、その `from`・`to`・コマンドの行が `issue.yaml` にある。コマンドを `-` とした行動（端末が落ちる・ゲートの答えなど）は `status` を動かしてはいけない。
+- **issue.yaml → モデル**: `issue.yaml` の行（`command` の「andon issue a・b」は a と b を 1 つずつ）は、モデルで起きるか、対応表の `outside` に理由つきで名指しされている。モデルで起きる行を `outside` に書いても落ちる。
+
+`issue.yaml` に行を足したら、モデルに行動を足すか、`issue-map.txt` に `outside` の行を足すかを決めます。モデルに行動を足したら、`issue-map.txt` に `action` の行を足します。
 
 ## 規則
 

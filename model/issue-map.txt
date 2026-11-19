@@ -1,0 +1,42 @@
+# 対応表: モデル（IssueLife.tla）の行動と、課題の状態の定義（process/states/issue.yaml）のコマンド（ADR-0025 決めたこと 6）。
+# model/check がこれを使って 2 方向で照らす（model/conform.mjs）。
+#   モデル → issue.yaml: 行動が status を from から to へ動かすなら、issue.yaml にその from・to・コマンドの行がある
+#   issue.yaml → モデル: issue.yaml の行（コマンドを「・」で分けた 1 つずつ）は、モデルで起きるか、下の outside に名指しされている
+#
+# action <行動> <コマンド>
+#   コマンドは issue.yaml の command と同じ書き方（「andon issue a・b」は a と b の両方）。Init はモデルの始まり（[*] から）。
+#   - は issue.yaml の移り方に当たらない行動（status を動かさない。動かしたら落ちる）。
+action Init kanban add
+action ChiefOfStaffStarts andon issue start
+action WorkerAsks andon issue ask
+action AnswerReceived -
+action WorkerOpensPR andon issue report
+action ReviewerStarts andon issue review-request
+action ReviewerReturns -
+action WorkerReady andon issue ready
+action WorkerTerminalDies -
+action DispatcherResumes -
+action GateSaysFix -
+action GateAsksHuman andon issue ask
+action GateApproves -
+action ChiefOfStaffSendsBack -
+action WorkerTakesFix kanban start
+action DispatcherMerges andon issue finish・andon issue ask
+action HumanMerges -
+action SettleFinishes andon issue finish
+action ChiefOfStaffCancels andon issue finish
+action Done -
+
+# outside <from> <to> <コマンド> — <理由>
+#   モデルの外と名指しする issue.yaml の行。コマンドの無い行は -。ここを増やす変更は人が見る（決めたこと 8 の (イ)）。
+outside [*] queued kanban add — queued はモデルに入れていない（やらないこと 5）
+outside queued todo kanban done — queued はモデルに入れていない（やらないこと 5）
+outside queued done andon issue finish — queued はモデルに入れていない（やらないこと 5）
+outside queued done kanban done — トリアージの close。queued はモデルに入れていない（やらないこと 5）
+outside todo todo andon issue ask — 人の課題（who: person）の問い。人の課題はモデルに入れていない（やらないこと 5）
+outside todo doing kanban start — Chief Engineer の課題とレビュアーの課題の起動。PR の無い課題とレビュアーの課題はモデルに入れていない（やらないこと 5）
+outside todo done andon issue finish — 起動する前にやめる。モデルのやめるは担当を起こしたあと（ChiefOfStaffCancels）だけ
+outside todo done kanban done — トリアージの close。トリアージの一生はモデルに入れていない（やらないこと 5）
+outside doing doing andon issue candidates — 調べる課題の候補の一覧。PR の無い課題はモデルに入れていない（やらないこと 5）
+outside doing review kanban review — Chief Engineer・トリアージ・観察の課題が返す。PR の無い課題はモデルに入れていない（やらないこと 5）
+outside done [*] - — 台帳から消えるのはモデルの外（モデルは done で止まる）
