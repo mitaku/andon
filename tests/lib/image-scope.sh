@@ -18,6 +18,8 @@ while IFS= read -r p; do
     # 人の文書・ほかの tests
     cmd/*_test.go | internal/*_test.go | docs/* | tests/*) ;;
     README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    # セルに main の commit を当てる道具（ADR-0027）。image/ の下だが Dockerfile は COPY しない
+    image/apply-main.sh) ;;
     # 課題の一生のモデルと検査器の版（ADR-0025。image に入らず、job model が回す）
     model/*) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・

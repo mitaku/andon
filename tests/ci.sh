@@ -12,6 +12,9 @@ scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
 [ "$(scope CHANGELOG.md)" = false ] || die "CHANGELOG.md だけで true"
 [ "$(scope model/IssueLife.tla model/IssueRules.tla model/expected.txt model/broken/BrokenReady.tla model/package-lock.json model/README.md)" = false ] || die "モデルだけで true"
 [ "$(scope)" = false ] || die "変更が無いのに true"
+[ "$(scope image/apply-main.sh tests/apply-main.sh)" = false ] || die "image に入らない image/apply-main.sh で true"
+grep -q 'COPY .*image/apply-main' image/Dockerfile && die "image/apply-main.sh を image に入れるなら image-scope.sh も直す"
+grep -q 'COPY .*image/' image/Dockerfile || die "Dockerfile の COPY image/ の行が読めない（上の否定が何も見ていない）"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
   internal/issue/issue.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
   package/lib/andon/x_test.go init/x_test.go image/x_test.go \
@@ -55,6 +58,7 @@ done
 [ "$(wc -w <<<"$(pick tests/lib/kanban.sh)")" -eq $((n_all - 1)) ] || die "tests/lib/kanban.sh で image.sh 以外の全部にならない"
 grep -q tests/image.sh <<<"$(pick tests/lib/kanban.sh)" && die "image に関係しない tests/lib で image.sh"
 grep -q tests/image.sh <<<"$(pick tests/lib/pty-probe.py)" || die "pty-probe.py で image.sh が無い"
+[ "$(pick image/apply-main.sh)" = "tests/apply-main.sh $always" ] || die "image/apply-main.sh で apply-main.sh だけを足さない: $(pick image/apply-main.sh)"
 ok "scope: 文書だけならいつもの分、触ったものに関係する分を足し、コード・知らないパスでは全部（image.sh は image に関係するとき）"
 
 # 2. run-tests: 1本ごとに出力をまとめ（混ざらない）、表を出し、落ちたものがあれば 1。skip は走らせない

@@ -115,6 +115,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
 | `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `tests.yml` を検査し、`go.mod` の go と Dockerfile の golang の版を `mise.toml` と突き合わせる |
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
+| `image/apply-main.sh` | 飛ばす | セルに main の commit を当てる道具（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`image/` の下だが Dockerfile は COPY しない |
 | `model/` | 飛ばす | 課題の一生のモデルと検査器の版。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
@@ -147,9 +148,10 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
+| `image/apply-main.sh` | `apply-main.sh` を足す |
 | `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`CHANGELOG.md` など | 足さない |
 | `tests/lib/` | `image.sh` 以外の全部 |
-| それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`.github/`・andon に埋め込む `process/states/issue.yaml` と知らないパス） | `image.sh` 以外の全部 |
+| それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`（`apply-main.sh` を除く）・`.github/`・andon に埋め込む `process/states/issue.yaml` と知らないパス） | `image.sh` 以外の全部 |
 | CI の表で「走らせる」もの | `image.sh` も（Docker が無ければ SKIP） |
 
 ## 残る危険
