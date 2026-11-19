@@ -228,6 +228,14 @@ WATCH
 "$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"
 jq -e 'any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")' "$tmp/ws.json" >/dev/null &&
   ok "仕分け: 通知 review から check（仕分けを確かめる）が始まる" || ng "仕分けに 通知 review → check のきっかけが無い"
+while IFS='@' read -r filter desc; do
+  [ -n "$filter" ] || continue
+  jq -e "$filter" "$tmp/ws.json" >/dev/null && ok "仕分け: $desc" || ng "仕分けに無い: $desc"
+done <<'TRIAGE'
+(.steps[] | select(.id == "sort") | .decides) == ["close", "fix", "bundle", "person", "keep"]@仕分ける段の decides が close・fix・bundle・person・keep（triage skill の 5 値）
+any(.steps[]; .id == "check" and ((.decides // []) | any(contains("andon triage verdict"))) and ((.output // []) | index("library/verdicts.json")))@確かめる段に、判断の閉じと課題の閉じを読んで andon triage verdict で書く手と、その記録 library/verdicts.json
+any(.steps[]; .id == "apply" and ((.input // []) | index("library/verdicts.json")))@当てる段が Chief of Staff の判定（library/verdicts.json）を読む
+TRIAGE
 "$andon" process json process/workstreams/retrospective.yaml >"$tmp/retro.json"
 while IFS='@' read -r filter desc; do
   [ -n "$filter" ] || continue

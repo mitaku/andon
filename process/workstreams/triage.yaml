@@ -65,19 +65,19 @@ steps:
     input: [library/items.json, PR と repo（項目の commit）と台帳の実物]
     output: [library/decisions.json, 報告, 台帳（review）]
     skill: [triage#3, triage#4, worker#7]
-    decides: [close, fix, bundle, keep]
+    decides: [close, fix, bundle, person, keep]
   - id: check
     title: 仕分けを確かめる
     by: ai
-    input: [notification.review, 報告, library/decisions.json, andon triage apply --dry-run の出力]
-    output: []
+    input: [notification.review, 報告, library/decisions.json, andon triage apply --dry-run の出力（review の表）]
+    output: [library/verdicts.json]
     skill: chief-of-staff/playbooks/triage.md
-    decides: [担当に戻す, 適用する]
-    next: [{ id: sort, when: 閉じる理由が読めない }, { id: apply, when: 読める }]
+    decides: [判断の閉じと課題の閉じを 1 件ずつ閉じてよいか覆すか（andon triage verdict）, 担当に戻す, 適用する]
+    next: [{ id: sort, when: 閉じる理由が読めない・覆した }, { id: apply, when: 全部を閉じてよいと読んだ }]
   - id: apply
     title: 仕分けを台帳に当てる
     by: machine
-    input: [library/decisions.json, library/items.json]
+    input: [library/decisions.json, library/items.json, library/verdicts.json]
     output: [台帳（閉じた・足した課題）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
     command: andon triage apply
     record: library/triage/<日付>-<id>.json
