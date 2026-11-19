@@ -6,6 +6,7 @@
 #                     /opt/andon に、そこから焼いた andon・kanban を置き、andon boot を打ち直して dispatcher を起動し直す。
 #                     最初に当てる前に、イメージの /opt/andon と kanban を退避する。
 #   status            イメージの版・当てた commit・origin/main の先頭からの遅れを出す。
+#                     イメージの元の commit から当てた commit（origin/main の先頭）までに image/ が変わっていたら警告も出す。
 #   revert            退避からイメージの版へ戻し、記録を消し、andon boot を打ち直して dispatcher を起動し直す。
 # 書く先と元の repo は環境変数で差し替える（検査が一時の置き場に向ける）:
 #   ANDON_APPLY_REPO（既定はこのスクリプトの repo）・ANDON_APPLY_ROOT（/opt/andon）・ANDON_APPLY_KANBAN（/usr/local/bin/kanban）・
@@ -13,7 +14,7 @@
 # 書く先の親に書けなければ sudo で書く。andon の持ち物の置き場なら sudo は使わない。
 set -euo pipefail
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "✗ $*" >&2; exit 1; }
 say() { echo "[apply-main] $*"; }
 
@@ -44,6 +45,25 @@ lock() {
 }
 
 short() { printf '%s' "${1:0:12}"; }
+
+# 当てる前から動いている端末（古い skill のまま動いているもの）の一覧。止めない。dispatcher は道具が起動し直すので除く
+live_terminals() {
+  command -v hc >/dev/null || return 0
+  local got
+  got=$(env -u HC_TERMINAL_ID hc ls --json 8<&- 9<&-) || return 1
+  jq -e '.terminals | arrays' <<<"$got" >/dev/null 2>&1 || return 1
+  jq -r '.terminals[] | select(.state == "live" and .name != "dispatcher") | "  \(.address) \(.name // "-") \(.status // "-")"' <<<"$got"
+}
+
+# イメージの元の commit($1)から $2 までに image/ が変わったファイルを並べて警告する（apply-main.sh 自身はイメージに入らないので除く）
+warn_image_drift() {
+  local from=$1 to=$2 files
+  git -C "$repo" rev-parse --verify --quiet "$from^{commit}" >/dev/null 2>&1 || return 0
+  files=$(git -C "$repo" diff --name-only "$from" "$to" -- image ':!image/apply-main.sh' 2>/dev/null) || return 0
+  [ -n "$files" ] || return 0
+  say "警告: イメージの元の commit（$(short "$from")）から $(short "$to") までに image/ が変わっている。焼き直しが要るかもしれない（aqua の道具・Claude Code・bash の設定などはこの道具では変わらない）"
+  printf '%s\n' "$files" | sed 's/^/  image変更: /'
+}
 
 fetch() { git -C "$repo" fetch --quiet origin 2>/dev/null || say "警告: git fetch origin に失敗した。手元の origin/main で続ける"; }
 
@@ -179,8 +199,10 @@ apply() {
     || die "go build に失敗した（何も入れ替えていない）"
 
   # 最初に当てる前に、イメージの /opt/andon と kanban を退避する
-  local image
+  local image terminals
   image=$(image_commit)
+  terminals=$(live_terminals 2>/dev/null) || { terminals=; say "警告: hc ls に失敗したので、動いている端末の一覧を出せない。hc ls で確かめる"; } # 当てる前から動いている端末
+  warn_image_drift "$image" "$commit"
   if [ ! -d "$stash/andon" ]; then
     local s=$stash.new.$$
     $as_root rm -rf "$s"
@@ -204,6 +226,10 @@ apply() {
   swap_dir "$root.new.$$" "$root"
   $as_root mv -f -T --no-copy "$kanban.new.$$" "$kanban"
   say "$(short "$commit") を当てた（$root・$kanban）"
+  if [ -n "$terminals" ]; then
+    say "当てる前から動いている端末（止めていない。新しい skill は次に起動するエージェントから効く。起動し直すかは一覧を見て決める）:"
+    printf '%s\n' "$terminals" >&2
+  fi
 
   reboot || true
 }
@@ -241,6 +267,7 @@ status() {
     echo "当てた commit: 当てていない"
     base=$(git -C "$repo" rev-parse --verify --quiet "$image^{commit}" || true)
   fi
+  warn_image_drift "$image" "$head"
   if [ -n "$base" ] && behind=$(git -C "$repo" rev-list --count "$base..$head" 2>/dev/null); then
     echo "origin/main からの遅れ: $behind（origin/main は $(short "$head")）"
   else
