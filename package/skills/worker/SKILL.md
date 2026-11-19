@@ -165,7 +165,7 @@ EOF
 1. commit の前に検査を通す。どれを回すかはリポジトリの AGENTS.md（型・lint・テスト・`scripts/check`）。無ければ README とテストの置き場から決める。
 2. commit は意図ごとに。branch は `andon issue start` が作ったもの（upstream が無い）。push は `git push -u origin HEAD` で同じ名前の branch へ。rebase のあとの force push は `git push --force-with-lease` だけで、押してよいのは自分の課題の branch だけ（許可ルールは `/opt/andon/settings.json`。main と他人の branch には打たない。`--force` は使わない）。
 3. PR を出す（`gh pr create`）。PR と commit は、セルの外の人が repo と PR だけで読む（ADR-0026）。次を守る:
-   - **課題番号を書かない。** PR の題・commit の題・commit の本文に入れない（担当が積む commit も同じ。squash のマージは commit の題と本文を履歴に入れる）。題の形は repo の慣習が先で、無ければ今までの書き方のまま。revert の PR の題は GitHub の既定（`Revert "…"`）のまま。
+   - **課題番号を書かない。** PR のタイトル・commit のタイトル・commit の本文に入れない（担当が積む commit も同じ。squash のマージは commit のタイトルと本文を履歴に入れる）。タイトルの形は repo の慣習が先で、無ければ今までの書き方のまま。revert の PR のタイトルは GitHub の既定（`Revert "…"`）のまま。
    - **セルの物を指さない。** 実在の課題番号・セルのパス・wiki や台帳のページ・端末の名前を、PR にも repo のファイルにも書かない。要る事実は数や結果ごと書き切る。ほかの作業は、PR の URL か `owner/repo#n`（`#n` だけでは measure が引けない）か、何の変更かを言う言葉で指す。案件の repo では Andon の用語（セル・台帳・Chief of Staff など）も書かず、ふだんの言葉にする。Andon の repo は製品の語を書いてよい。書き方の例とテストに出る架空の番号はそのままでよい。
    - **本文は6つの見出しをこの順で**（repo が英語なら `Why`・`What changed`・`Scope`・`Tradeoffs`・`Blast Radius`・`Verification`）。必須は「変更理由」「やったこと」「検証結果と確かめ方」の3節で、残りは書くことがあるときだけ。中身の無い節は落とす。
 
@@ -178,7 +178,7 @@ EOF
      | 影響範囲 | あれば | この変更が届く先（呼び出し元・利用者・運用・戻せるか） |
      | 検証結果と確かめ方 | 必須 | 打ったコマンドと結果。読み手が自分で確かめる手順。画面の添付もここ |
 
-   - **末尾に控えを1行**: `Memo: 内部の課題番号 <id>`（repo が英語なら `Memo: internal issue <id>`）。外の Issue を閉じる行（`Fixes <url>`）は、その前に置く。
+   - **末尾にメモを1行**: `Memo: 内部の課題番号 <id>`（repo が英語なら `Memo: internal issue <id>`）。外の Issue を閉じる行（`Fixes <url>`）は、その前に置く。
    - **要点は開いたまま書き、長い物だけ `<details>`／`<summary>` に畳む**: コマンドの出力・ログ・モデル検査の出力・見送った指摘の一覧・ファイルごとの細かい変更。`<summary>` は開かなくても結果が分かる1行にする（例「`go test ./...` の出力（通った。412 件）」）。
    - **状態の移り方を変える変更は、「検証結果と確かめ方」に変更前と変更後の状態の図（Mermaid）を載せる**（必須）。repo にモデルがあれば、モデル検査の結果（調べた状態の数と、破れた規則が無いこと）も載せる。モデルが無い repo に、PR のためにモデルを作らない。変更前の図は畳んでよいが、変更後の図は畳まない。
    出す前に、PR 本文・報告・コメントに書いた日本語の文を声に出すつもりで読み返す（「のは」「を」などの助詞の脱字は、検査もレビューも拾わない）。

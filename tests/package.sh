@@ -642,8 +642,8 @@ case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /opt/
 w=package/skills/worker/SKILL.md; ce=package/skills/chief-engineer/SKILL.md
 sec3=$(sed -n '/^## 3\. 検査・commit・PR$/,/^## 4\./p' "$w")
 chk3() { grep -qF -- "$2" <<<"$sec3" && pass "ADR-0026 A1: worker §3 に $1" || fail "ADR-0026 A1: worker §3 に $1 が無い"; }
-chk3 "題・commit に課題番号を書かない" 'PR の題・commit の題・commit の本文に入れない'
-chk3 "控えの行の形" '`Memo: 内部の課題番号 <id>`（repo が英語なら `Memo: internal issue <id>`）'
+chk3 "タイトル・commit に課題番号を書かない" 'PR のタイトル・commit のタイトル・commit の本文に入れない'
+chk3 "メモの行の形" '`Memo: 内部の課題番号 <id>`（repo が英語なら `Memo: internal issue <id>`）'
 chk3 "6つの見出しと必須の3節" '必須は「変更理由」「やったこと」「検証結果と確かめ方」の3節'
 for h in 変更範囲 トレードオフ 影響範囲; do grep -q "^     | $h | あれば |" <<<"$sec3" || fail "ADR-0026 A1: worker §3 の表に $h が無い"; done
 chk3 "長い物だけ details に畳む" '長い物だけ `<details>`／`<summary>` に畳む'
@@ -661,7 +661,7 @@ d3=$(sed -n '/^# <題>（仕様・設計。日付）$/p' "$ce" docs/design.md | 
 # 否定の検査が当たる場合があること: 古い形を持つ文字列では上の検査が落ちる
 ! printf '%s\n' '# <題>（仕様・設計。日付・Chief Engineer の課題 id）' | grep -q '^# <題>（仕様・設計。日付）$' && pass "ADR-0026 A3: 古い題の行は新しい形に当たらない（検査が見ている）" || fail "ADR-0026 A3: 検査が何も見ていない"
 # ADR-0026 A4
-grep -q '^- 番号だけで指さない。この決まりはセルの中の人への文に効く。PR の題や本文・commit・repo のファイルの文は' package/writing.md \
+grep -q '^- 番号だけで指さない。この決まりはセルの中の人への文に効く。PR のタイトルや本文・commit・repo のファイルの文は' package/writing.md \
   && pass "ADR-0026 A4: writing.md の番号の決まりに範囲（セルの中の人への文。PR と repo の文は除く）がある" || fail "ADR-0026 A4: writing.md の番号の決まりに範囲が無い"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
