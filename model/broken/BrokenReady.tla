@@ -3,7 +3,7 @@
 EXTENDS IssueRules
 
 BrokenWorkerReady ==
-    /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~reviewing /\ ~q
+    /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~reviewing
     /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
     /\ UNCHANGED <<worker, wt, pr, reviewing, q, cancel, mergeAuto>>
 
