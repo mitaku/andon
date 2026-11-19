@@ -181,6 +181,11 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	case c["report"] == "write" || c["report"] == "append":
 		p.notify(id, "report", map[string]any{"report": p.reportPath(id)})
 	case c["question"] != nil && c["status"] == "open":
+		if r.By == ledger.DispatcherBy {
+			// dispatcher 自身が出した問い（andon issue merge のゲートの問い・ask）は、出した巡で asked を積んでいる。
+			// この行からもう一度積むと、間に drain が渡していれば Chief of Staff に2度届く
+			return true
+		}
 		return p.asked(id, c["question"], pos)
 	case c["status"] == "review":
 		// detail の pr は report.json から。PR の無い報告（レビュアー・repo の無い課題）は report として知らせる

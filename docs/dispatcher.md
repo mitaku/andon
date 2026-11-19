@@ -68,7 +68,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 3a | ルーチンを撃つ（`tick`） | `kanban tick` を 1 回打つ。足した課題は 3 の写しに無いが、4a の `ready` の差で同じ巡に拾う。初めて見る台帳（前回の ready が無い）は、打つ前の ready を先に控え、`tick` が足した分だけを拾う（過去の ready は流さない。届けるのは次の巡の 6）。失敗（読めないルーチン・lock が取れない）はログに 1 行で、巡は止めない（§2.1） | 台帳に書く（台帳の CLI） |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
-| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` と `Outcomes` に積む（§2.5・§2.6・§2.12） | |
+| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。dispatcher 自身が出した問いの行（`by` が `terminal:dispatcher`）も `asked` にしない（出した巡で積んでいる。§2.2）。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` と `Outcomes` に積む（§2.5・§2.6・§2.12） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4）。留守なら端末が無いので何もしない | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限でゲートを止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る台帳でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
@@ -85,7 +85,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 同じ巡で起きた出来事の扱い（上の順の帰結）:
 
-- **台帳の写しは3で固定する。** 3a の `tick` が足した課題も写しには出ない（5 の工程は次の巡から。`todo` なので 5 ですることは無い）。届くのは 4a の `ready` の差だけで、`tick` が書いた `log.jsonl` の行は次の巡に 4b が読む（`report`・`review`・`asked` ではないので積まない）。4・5・6 で dispatcher 自身が書いたもの（ゲートの記録・レビュアーの課題の作成・マージ・`finish`）は、同じ巡の中では写しに出ない。台帳に書いた `log.jsonl` の行は**次の巡**で拾う。
+- **台帳の写しは3で固定する。** 3a の `tick` が足した課題も写しには出ない（5 の工程は次の巡から。`todo` なので 5 ですることは無い）。届くのは 4a の `ready` の差だけで、`tick` が書いた `log.jsonl` の行は次の巡に 4b が読む（`report`・`review`・`asked` ではないので積まない）。4・5・6 で dispatcher 自身が書いたもの（ゲートの記録・レビュアーの課題の作成・マージ・`finish`）は、同じ巡の中では写しに出ない。台帳に書いた `log.jsonl` の行は**次の巡**で拾う。ただし dispatcher 自身が出した問いは、出した巡で `asked` を積み、次の巡では拾わない（§2.2）。
 - **報告と止まりが同時でも、どちらも失わない。** 4b（`report`）→4c（`blocked`）の順に積み、種類が違えば置き換えず、1通の `<news>` に積んだ順で並ぶ。優先順位は付けない（どちらを先に見るかは Chief of Staff）。置き換わるのは**同じ課題の同じ種類**だけ（§2.2）。
 - **4 で積んだものは、同じ巡の6で届けうる。** 例: `review` に入った（4b の `review`）課題のゲートが5で回れば、`review` と `gate` が同じ巡で1通になる。`approve` から `merged` まで進めば `merged` も同じ通に載る。
 - **ゲートが `wait` のとき**は merge の記録に決めたこと（`decision`）を書かず、通知も出さない。次の巡でゲートから回し直す（5）。`wait` を返した head は merge の記録の `wait` に書き、次の巡からは PR の head と checks だけを GraphQL で読む。head が同じで、checks がまだ走っているか、1つも無く `github_checks_wait_minutes` の内ならゲートを回さない（ゲートは1回で REST を files・diff の2回読むので、待つ間は読まない）。
@@ -119,6 +119,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 位置には最初の行の hash を添える。台帳の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
 - **ready は履歴ではなく差で拾う。** ルーチンが足した課題・`queued` から戻った課題・人が足した課題を、同じ1本の道で拾える（出来事ごとに拾い方を増やさない）。
 - **Chief of Staff 自身が起動した変化は知らせない**（`by` が `terminal:<chief_of_staff>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。人が手で起動した変化は知らせる。
+- **dispatcher 自身が出した問いは、出した巡で1回だけ積む。** `andon issue merge` のゲートの問いは merge が返す `asked` を、dispatcher が `andon issue ask` で出した問いはその場で積む。次の巡の 4b は、その問いの行（`by` が `terminal:dispatcher` の `{"question": n, "status": "open"}`）から積み直さない。積み直すと、間に drain が渡していれば同じ問いが2度届く。
 - 積むとき、**同じ課題の同じ出来事は新しい1件に置き換える**。課題の無い `signal` は、同じ信号（`detail` の `source` と `key`。fingerprint はこの2つから決まる）だけを置き換える（別の信号どうしは消し合わない）。`asked` は問いの `n` ごとの出来事で、同じ課題の2つ目の問いが1つ目を消さない（ADR-0017 決めたこと 8 の (d)）。
 - `review` の `detail.pr` は `report.json` の `pr`。PR の無い報告（レビュアー・repo の無い課題）は `report` として知らせる（schema が `pr` を要するため）。
 - 拾った通知を Chief of Staff に届けるか、記録だけにするかは §3.2 の表で決まる。この表の `kind` はどれも拾い続け、記録だけのものも消さない。
