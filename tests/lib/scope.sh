@@ -29,6 +29,8 @@ while IFS= read -r p; do
     # 流れと状態の定義（ADR-0017）。dispatcher.md §7.2 は once: true の移り方と突き合わせる
     process/* | schema/process/* | docs/process/* | tests/process/* | docs/dispatcher.md) run[tests/process.sh]=1 ;;
     tests/lib/pty-probe.py | tests/image.sh) ;; # image-scope が見る
+    # セルに main の commit を当てる道具（ADR-0027）。image に入らない
+    image/apply-main.sh) run[tests/apply-main.sh]=1 ;;
     tests/lib/*) all=true ;;
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
     # Go のテスト（go test ./... が見る）・人の文書は、いつもの分だけ

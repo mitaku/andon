@@ -152,6 +152,24 @@ bin/bootstrap status                                          # 最後の行に 
 - **落ちたら見る所**: `image/build.sh が無い` — `--from` が andon の checkout を指していないか、`image/build.sh` を持つ前の版の checkout（`git pull` する）。焼きが落ちる — 出力の `docker build` のログ（checkout の変更が原因なら直して打ち直す）。`--from` の焼き直しはセルの image が変わるだけで、volume（ログイン・履歴）は残る。
 - 手元で焼いた `andon:local-…` は増えていくので、要らなくなったら `docker image rm` で消す。ホストの `andon`（2）を合わせるなら、2 の取り出しの `ghcr.io/<owner>/andon:<版>` を `andon:local-…` に置き換えて打つ。
 
+### マージした直しを焼き直さずにセルへ当てる（`image/apply-main.sh`）
+
+Andon を開発するセル（andon の checkout を持つセル）だけで使う口（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`origin/main` に含まれる commit から、`package/`・`schema/` を `/opt/andon` に写し、`andon` と `kanban` を焼いて置く。焼き直しもセルの作り直しも要らず、動いているエージェントも止めない。セルの中で、andon の checkout から打つ。
+
+```bash
+cd /workspace/.ghq/github.com/<owner>/andon
+image/apply-main.sh status          # イメージの版・当てた commit・origin/main の先頭からの遅れ
+image/apply-main.sh apply           # origin/main の先頭を当てる（commit を渡せばそれ。origin/main に含まれるものだけ）
+image/apply-main.sh revert          # イメージの版へ戻す
+```
+
+- **何が起きるか（apply）**: `git fetch origin` → commit が `origin/main` に含まれるかを確かめる（含まれなければ断る）→ その commit に `image/apply-main.sh` があれば、それに替えて当てる（スクリプトと中身の版を揃える）→ 一時の場所に commit の中身を取り出し（作業ツリーは読まない）、`go build` で `andon`・`kanban` を焼き、`/opt/andon` の形に組む（ここで落ちたら何も変えない）→ 最初の1回だけ、イメージの `/opt/andon` と `kanban` を `/opt/andon-image` に退避する → `/opt/andon` と `/usr/local/bin/kanban` を入れ替え、記録 `/opt/andon/applied.json`（当てた commit・日時・イメージの元の commit）を置く → dispatcher の見回りの合間を待って dispatcher の端末を片付け、`andon boot` を打ち直す（dispatcher は boot が起動し直す）。`/opt` と `/usr/local/bin` は root の持ち物なので、書くところは `sudo` で書く。
+- **いつ効くか**: hooks と `andon`・`kanban` は当てた直後から全員に効く。テンプレート・managed settings・skill は、次に起動するエージェントから効く。動いているエージェントはそのまま（起動し直すかは Chief of Staff と人が決める）。
+- **revert**: 退避から `/opt/andon` と `kanban` を戻し、記録と退避を消して、同じく dispatcher を片付けて `andon boot` を打ち直す。`andon`・`kanban` が壊れていても動く（cp・mv・rm だけで戻す）。当てていなければ何もしない。
+- **消えるとき**: 当てた状態と退避はコンテナの書ける層にあるので、コンテナの再起動では残り、作り直し（`bin/bootstrap rebuild`）で消える。正はイメージのまま。
+- **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
+- **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ。
+
 ## 4. ホストの道具を置く（`host-install`）
 
 ```bash
