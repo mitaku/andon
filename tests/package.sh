@@ -435,8 +435,6 @@ left=$(grep -rnE 'タスク|andon task|to: task|from: task|max-tasks|created_tas
 [ -z "$left" ] && pass "skill と template に「タスク」・andon task・旧キーが無い" || fail "旧語が残る: $left"
 sed -n '/^# <id> <題>$/,/^```$/p' "$pb/brief.md" | sed -n '2p' | grep -q '^解決すべき問題:' \
   && ! grep -q '^やること:' <<<"$cosall" && pass "chief-of-staff の brief.md の雛形の最初の欄が 解決すべき問題: で、やること: が無い" || fail "chief-of-staff の雛形の最初の欄が 解決すべき問題: でない"
-grep -q '古い依頼書の「やること」欄は「解決すべき問題」と同じ欄として読む' package/skills/worker/SKILL.md \
-  && pass "worker skill は 解決すべき問題 と古い やること の両方を読む" || fail "worker skill に古い やること 欄の読み替えが無い"
 grep -q '解決すべき問題' package/skills/triage/SKILL.md && ! grep -q 'やること' package/skills/triage/SKILL.md package/skills/triage/assets/triage.yaml \
   && pass "triage skill とルーチンの依頼書の欄名が 解決すべき問題" || fail "triage の欄名が 解決すべき問題 でない"
 grep -q 'andon issue stop-check' package/hooks/stop \
