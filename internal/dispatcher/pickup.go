@@ -264,7 +264,8 @@ func (p *project) asked(id string, v any, pos int64) bool {
 
 // ---------------------------------------------------------------- ready の差
 
-// readReady は kanban ready --json の人の課題を除いた id の集まりを前回と比べ、増えたものを積む。
+// readReady は kanban ready --json の人の課題とレビュアーの子課題を除いた id の集まりを前回と比べ、増えたものを積む。
+// レビュアーの子課題を起動するのは dispatcher だけ（起動しそこねて todo に残っても、Chief of Staff に引き取らせない）。
 func (p *project) readReady() {
 	out, err := p.l.Run("", "ready", "--json")
 	var tasks []ledger.Issue
@@ -278,7 +279,7 @@ func (p *project) readReady() {
 	ids := []string{}
 	for _, t := range tasks {
 		id := t.Str("id")
-		if t.Str("who") == "person" || !idRe.MatchString(id) {
+		if t.Str("who") == "person" || isReviewer(t) || !idRe.MatchString(id) {
 			continue
 		}
 		ids = append(ids, id)

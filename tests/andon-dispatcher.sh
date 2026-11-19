@@ -1658,19 +1658,28 @@ pk
 jq -e --arg p "$p1" '.pending == [] and .ready == [$p] and .log_pos == ('"$(stat -c %s "$P/log.jsonl")"')' "$pst" >/dev/null || die "初めて見る台帳で積んだ・控えていない: $(jq -c '{pending, ready, log_pos}' "$pst")"
 ok '初めて見る台帳は、今の ready と log.jsonl の位置を控えるだけで積まない'
 
-# 16. ready は差で拾う（人の課題は除く・ルーチンは detail.routine）
+# 16. ready は差で拾う（人の課題とレビュアーの子課題は除く・ルーチンは detail.routine）
 p2=$(as_cos kanban add '新しく引き取れる')
 p3=$(as_cos kanban add '人がする'); as_cos kanban set "$p3" who=person >/dev/null
 p4=$(as_cos kanban add 'ルーチンが足した'); as_cos kanban set "$p4" routine=nightly >/dev/null
+# レビュアーを起動しそこねて todo に残った子課題。起動するのは dispatcher だけなので、引き取れるとは知らせない
+p5=$(as_cos kanban add --parent "$p2" "$p2 のレビュー"); as_cos kanban set "$p5" profile=codex-review >/dev/null
+# 同じ親の子課題でも、レビュアーでない（観察など）ものは知らせる
+p6=$(as_cos kanban add --parent "$p2" '観察'); as_cos kanban set "$p6" profile=sonnet >/dev/null
+kanban ready --json | jq -e --arg p "$p5" 'any(.[]; .id == $p and .profile == "codex-review" and .parent != null)' >/dev/null ||
+    die "レビュアーの子課題が kanban ready に出ない（検査が何も見ていない）: $(kanban ready --json | jq -c .)"
 pk
 pp "$p2" ready | jq -e '.[0].detail == {title: "新しく引き取れる"}' >/dev/null || die "増えた ready を拾わない: $(pp "$p2" ready)"
 pp "$p4" ready | jq -e '.[0].detail == {title: "ルーチンが足した", routine: "nightly"}' >/dev/null || die "ルーチンの ready に routine が無い: $(pp "$p4" ready)"
 [ "$(pp "$p1" ready)" = '[]' ] || die '前回もあった ready を拾った'
 [ "$(pp "$p3" ready)" = '[]' ] || die '人の課題の ready を拾った'
+[ "$(pp "$p5" ready)" = '[]' ] || die "レビュアーの子課題の ready を拾った: $(pp "$p5" ready)"
+pp "$p6" ready | jq -e '.[0].detail == {title: "観察"}' >/dev/null || die "レビュアーでない子課題の ready を拾わない: $(pp "$p6" ready)"
+jq -e --arg p "$p5" '.ready | index($p) == null' "$pst" >/dev/null || die "レビュアーの子課題を ready の控えに入れた: $(jq -c .ready "$pst")"
 emit <(pp "$p4" ready | jq '.[0]') notification-ready.json
 clear_pending; pk
 [ "$(jq '[.pending[] | select(.kind == "ready")] | length' "$pst")" = 0 ] || die '同じ ready を二度拾った'
-ok 'ready は前回との差で拾い（人の課題は除く・routine を添える）、同じものを二度拾わない'
+ok 'ready は前回との差で拾い（人の課題とレビュアーの子課題は除く・routine を添える）、同じものを二度拾わない'
 
 # 16b. 1巡の中で kanban tick を打ち、ルーチンが足した課題を同じ巡の ready の差で拾う。tick の失敗は巡を止めない
 mkdir -p "$P/routines" "$P/state"

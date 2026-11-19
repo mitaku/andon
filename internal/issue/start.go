@@ -184,6 +184,10 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	if !profileRe.MatchString(p.Profile) {
 		return nil, fail("profile が不正: '%s'", p.Profile)
 	}
+	if parent := c.issue.Str("parent"); parent != "" && strings.HasSuffix(p.Profile, "-review") {
+		// レビュアーの子課題を起動するのは dispatcher だけ（元の課題の Space に置き、レビューする commit の worktree を切る）
+		return nil, fail("%s は %s のレビュアーの課題（profile %s）。起動するのは dispatcher だけで、andon issue start は打たない", id, parent, p.Profile)
+	}
 	p.BriefPath = filepath.Join(c.l.Dir, "issues", id, "brief.md")
 	brief, err := os.ReadFile(p.BriefPath)
 	if err != nil || len(brief) == 0 {
