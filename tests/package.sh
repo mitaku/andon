@@ -236,6 +236,11 @@ for f in andon.toml AGENTS.md AGENTS.worker.md gate.local.json 'templates.local/
   jq -e --arg r "Edit(//workspace/$f)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
     && pass "settings は人のファイル /workspace/$f の書き換えを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
 done
+# 根の CLAUDE.md・.claude/CLAUDE.md は .worktrees の下の担当にも届き、repo の AGENTS.md が読まれなくなる。書き込みを deny する
+for f in CLAUDE.md .claude/CLAUDE.md; do
+  jq -e --arg r "Edit(//workspace/$f)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
+    && pass "settings は根の /workspace/$f の書き込みを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
+done
 # 移す前の委譲のファイルは読まない（contract.md §11）ので deny しない（project.json の deny が受け持つ）
 ! jq -e '.permissions.deny | any(test("delegation\\.(json|md)"))' package/settings.json >/dev/null \
   && pass "settings の deny に delegation.json・delegation.md が残っていない" || fail "settings の deny に delegation.json・delegation.md が残る"
