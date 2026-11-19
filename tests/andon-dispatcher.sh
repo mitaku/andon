@@ -741,7 +741,8 @@ kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "�
 recorded "$hm" merged | jq -e '.detail.by == "person" and (.detail | has("held") | not)' >/dev/null || die "片付けた通知を記録していない: $(recorded "$hm" merged)"
 ok '人がマージしてもゲートの外の問いが開いていれば片付けずに1回だけ知らせ、問いが閉じたら次の巡で片付ける（GitHub には聞き直さない）'
 
-# 4d. PR がマージされずに閉じた → 片付けず、通知 closed を1回だけ
+# 4d. PR がマージされずに閉じた → 片付けず、通知 closed を閉じるたびに1回。閉じた PR も1分に1回聞き直し、
+#     人が開き直してマージしたら片付ける（dispatcher.md §2.7）
 hm=$(newtask '閉じた PR の課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
@@ -754,11 +755,24 @@ kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die '
 pending "$hm" closed | jq -e '.detail == {pr: "https://github.com/example/app/pull/7"}' >/dev/null || die "通知 closed が無い: $(pending "$hm" closed)"
 emit <(pending "$hm" closed) notification-closed.json
 jq --arg t "$hm" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
-n=$(wc -l < "$tmp/gh/states"); watch_due "$hm"; dispatcher
-[ "$(pending "$hm" closed)" = null ] && [ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die '閉じた PR を二度知らせた・聞き直した'
-rm "$tmp/gh/closed"
-HC_TERMINAL_ID=t5 "$andon" issue finish "$hm" >/dev/null   # 前の節の課題と同じ PR 7 を使うので、ここで片付ける
-ok 'PR がマージされずに閉じたら片付けず、通知 closed を1回だけ積む（もう聞き直さない）'
+n=$(wc -l < "$tmp/gh/states"); dispatcher; dispatcher
+[ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die "1分たたないうちに閉じた PR を聞き直した: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
+watch_due "$hm"; dispatcher
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die "1分たっても閉じた PR を聞き直さない: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
+[ "$(pending "$hm" closed)" = null ] || die '閉じたままの PR を二度知らせた'
+rm "$tmp/gh/closed"   # 人が開き直した
+watch_due "$hm"; dispatcher
+jq -e --arg t "$hm" '.[$t].state // "" | . == ""' "$settled" >/dev/null || die "開き直した PR を CLOSED のまま記録している: $(cat "$settled")"
+touch "$tmp/gh/closed"; watch_due "$hm"; dispatcher   # また閉じた
+pending "$hm" closed | jq -e '.detail == {pr: "https://github.com/example/app/pull/7"}' >/dev/null || die "開き直したあと閉じたのに知らせない: $(pending "$hm" closed)"
+jq --arg t "$hm" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+rm "$tmp/gh/closed"; person_merges   # 開き直してマージした
+watch_due "$hm"; dispatcher
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "閉じた PR を開き直してマージしたのに片付けない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
+jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
+rm -f "$tmp/gh/merged"   # 後の節は PR 7 を OPEN から使う
+ok 'PR がマージされずに閉じたら片付けず、通知 closed を閉じるたびに1回積む。閉じた PR も1分に1回聞き直し、開き直してマージしたら片付ける'
 
 # 4d-2. merge: auto の課題を、dispatcher の gh pr merge の直前に人が同じ head でマージした → gh pr merge は失敗するが、
 #     読み直して MERGED・head がゲートと同じなら問い（irreversible の誤報）を出さず、人がマージしたときの道（§2.7）で片付ける

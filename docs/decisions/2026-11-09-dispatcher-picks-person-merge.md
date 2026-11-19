@@ -2,6 +2,7 @@
 
 - 日付: 2026-11-09
 - 出典: 人の依頼（2026-11-09。「マージ検知されるようになるといいな」）。A-0021
+- 覆された: [2026-11-19-settle-repolls-closed-pr.md](2026-11-19-settle-repolls-closed-pr.md)（CLOSED の扱いだけ）
 
 `merge: person`・ゲートの `needs_human` の課題を人が GitHub でマージしたら、dispatcher が見回りで PR の状態を見て、自分でマージしたときと同じ道（`andon issue finish` → `done` の行 → 影響と人の手直し）に乗せる（[dispatcher.md](../dispatcher.md) §2.7）。
 
