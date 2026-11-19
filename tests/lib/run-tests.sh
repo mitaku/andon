@@ -5,6 +5,8 @@
 # 最後に1本ごとの所要時間の表を出す（GITHUB_STEP_SUMMARY があればそこにも）。1本でも落ちれば 1 で終わる。
 #   引数が無ければ tests/*.sh 全部。ANDON_TEST_SKIP（空白区切りのパス）は走らせず、表に skip と出す。
 #   並べる数は ANDON_TEST_JOBS（既定は nproc）。長いもの（image.sh・schema.sh）を先に起動する。
+#   ANDON_TEST_STREAM（空白区切りのパス。既定は tests/image.sh）は溜めずに、1行ごとに「[パス] 」を付けて流す。
+#   長いものが job の上限で打ち切られても、どこまで進んだかがログに残る。終わったときは見出しだけ出す（本文は流した分）。
 # tests/*.sh は互いに独立（一時ディレクトリだけに書く。docker を使うのは image.sh だけ）であることを前提にする。
 #   ただし mise の道具の置き場は共有なので、go を mise で使うときは並べる前に mise install を一度打つ。
 set -uo pipefail
@@ -14,6 +16,7 @@ if [ "$#" -gt 0 ]; then all=("$@"); else all=(tests/*.sh); fi
 skip=" ${ANDON_TEST_SKIP:-} "
 jobs_max=${ANDON_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
 gha=${GITHUB_ACTIONS:-false}
+stream=" ${ANDON_TEST_STREAM-tests/image.sh} "
 
 queue=()
 for slow in tests/image.sh tests/schema.sh; do
@@ -44,14 +47,18 @@ reap() {
   running=$((running - 1))
   if [ "$st" -eq 0 ]; then
     result[$f]=ok
-    if [ "$gha" = true ]; then echo "::group::== $f（ok ${s}s）"; else echo "== $f（ok ${s}s）"; fi
-    cat "$logs/${f//\//_}.log"
-    [ "$gha" = true ] && echo "::endgroup::"
+    if [[ "$stream" == *" $f "* ]]; then
+      echo "== $f（ok ${s}s。出力は上に流した）"
+    else
+      if [ "$gha" = true ]; then echo "::group::== $f（ok ${s}s）"; else echo "== $f（ok ${s}s）"; fi
+      cat "$logs/${f//\//_}.log"
+      [ "$gha" = true ] && echo "::endgroup::"
+    fi
   else
     result[$f]="FAIL($st)"
     failed=1
     echo "== $f（FAIL exit $st, ${s}s）"
-    cat "$logs/${f//\//_}.log"
+    [[ "$stream" == *" $f "* ]] || cat "$logs/${f//\//_}.log"
     [ "$gha" = true ] && echo "::error title=$f::$f が exit $st で落ちた"
   fi
   return 0
@@ -61,7 +68,11 @@ for f in "${queue[@]}"; do
   case "$skip" in *" $f "*) result[$f]=skip; secs[$f]=-; continue ;; esac
   while [ "$running" -ge "$jobs_max" ]; do reap; done
   start=$EPOCHREALTIME
-  bash "$f" </dev/null >"$logs/${f//\//_}.log" 2>&1 &
+  if [[ "$stream" == *" $f "* ]]; then
+    { bash "$f" </dev/null 2>&1 | sed -u "s|^|[$f] |"; exit "${PIPESTATUS[0]}"; } &
+  else
+    bash "$f" </dev/null >"$logs/${f//\//_}.log" 2>&1 &
+  fi
   name_of[$!]=$f
   start_of[$!]=$start
   running=$((running + 1))
