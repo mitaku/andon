@@ -87,8 +87,8 @@ DispatcherResumes ==
     /\ worker' = "live" /\ wt' = "here"
     /\ UNCHANGED <<status, pr, reviewing, gate, fixSent, told, q, cancel, mergeAuto>>
 
-\* ゲートが fix（internal/issue/merge.go mergeOne → sendFix）: 理由を担当へ hc send。送れなければ通知 gate に unsent を書き、
-\* dispatcher が Chief of Staff に届ける（internal/dispatcher/route.go RouteOf。送れた fix は記録だけ）
+\* ゲートが fix（internal/issue/merge.go mergeOne → sendFix）: 理由を担当へ hc send。送れなければ通知 gate に unsent を、
+\* 担当（agent）がいなければ no_agent を書き、dispatcher が Chief of Staff に届ける（internal/dispatcher/route.go RouteOf。送れた fix は記録だけ）
 GateSaysFix ==
     /\ status = "review" /\ gate = "none" /\ pr = "open"
     /\ gate' = "fix" /\ fixSent' = (worker = "live") /\ told' = (told \/ worker # "live")

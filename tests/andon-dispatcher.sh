@@ -460,6 +460,36 @@ rm "$tmp/hc/sendfail"
 cos_done "$fx"
 ok '担当に fix を送れなければ、通知 gate（unsent）を Chief of Staff に届ける'
 
+# 2c. 担当（agent）がいなければ、通知 gate に no_agent を書いて Chief of Staff に届ける（理由と記録のパスが載る。report のパスだけにしない）
+na=$(newtask '担当がいない' auto)
+work "$na" docs/a.md
+as_worker "$na" report --pr https://github.com/example/app/pull/7
+as_worker "$na" review-request
+dispatcher
+rv=$(kanban list --all --json | jq -r --arg p "$na" '.[] | select(.parent == $p) | .id')
+review_by "$rv" '[{"severity":"major","file":"docs/a.md","line":1}]'
+as_worker "$na" ready
+HC_TERMINAL_ID=t5 kanban set "$na" agent= >/dev/null
+kanban show "$na" --json | jq -e '.issue.status == "review" and (.issue.agent // "") == ""' >/dev/null || die '担当を空にできていない（前提が崩れた）'
+reports() { jq --arg t "$na" '[.pending[] | select(.issue == $t and .kind == "report")] | length' "$state"; }
+nr=$(reports)
+dispatcher
+! grep -q "	$na（" "$tmp/hc/sent" || die '担当がいないのに fix を誰かに送った'
+rec=$L/issues/$na/library/gate/$head.json
+pending "$na" gate | jq -e --arg r "$rec" '.detail.decision == "fix" and .detail.no_agent == true and (.detail | has("unsent") | not)
+  and (.detail.reasons | any(startswith("Must fix 以上が 1 件"))) and .detail.record == $r' >/dev/null \
+  || die "担当がいない fix の理由と記録を Chief of Staff に届けない: pending=$(pending "$na" gate) recorded=$(recorded "$na" gate)"
+[ -f "$rec" ] || die "通知に載せた記録のパスにゲートの記録が無い: $rec"
+[ "$(recorded "$na" gate)" = null ] || die "担当がいない fix を記録だけにもした: $(recorded "$na" gate)"
+[ "$(reports)" = "$nr" ] || die "担当がいない fix で report のパスだけの通知も積んだ: $(pending "$na" report)"
+grep -q "$na のゲートが fix だが担当（agent）がいない" "$tmp/dispatcher.log" || die '担当がいないことをログに書かない'
+kanban show "$na" --json | jq -e '.issue.status == "review"' >/dev/null && [ ! -e "$tmp/gh/merged" ] || die 'fix なのにマージした・片付けた'
+emit <(pending "$na" gate) notification-gate-no-agent.json
+dispatcher
+[ "$(jq --arg t "$na" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state")" = 1 ] || die '同じ review 入りで二度ゲートを回して積んだ'
+cos_done "$na"
+ok '担当（agent）がいなければ、通知 gate（no_agent）に理由と記録のパスを載せて Chief of Staff に届ける'
+
 # 3. needs_human は問い（from: gate）。レベル C は委譲 merge B の外
 restart "$id"
 work "$id" package/gate.json
