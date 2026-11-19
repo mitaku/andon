@@ -412,28 +412,42 @@ func TestCheckVerdicts(t *testing.T) {
 		return m
 	}
 	items := []item{a, b, n, f}
-	if err := checkVerdicts(items, vs()); err == nil || !strings.Contains(err.Error(), "2 件足りない") {
+	if err := checkVerdicts(items, vs(), "terminal:t1"); err == nil || !strings.Contains(err.Error(), "2 件足りない") {
 		t.Errorf("判定なし: %v", err)
 	}
-	if err := checkVerdicts(items, vs(ok(a))); err == nil || !strings.Contains(err.Error(), "1 件足りない") {
+	if err := checkVerdicts(items, vs(ok(a)), "terminal:t1"); err == nil || !strings.Contains(err.Error(), "1 件足りない") {
 		t.Errorf("1 件だけ: %v", err)
 	}
 	changed := ok(b)
 	changed.Reason = "前の理由"
-	if err := checkVerdicts(items, vs(ok(a), changed)); err == nil {
+	if err := checkVerdicts(items, vs(ok(a), changed), "terminal:t1"); err == nil {
 		t.Error("理由が書き換わった判定が通った")
 	}
 	over := ok(b)
 	over.Verdict = verdictOverturn
-	if err := checkVerdicts(items, vs(ok(a), over)); err == nil || !strings.Contains(err.Error(), "覆した") {
+	if err := checkVerdicts(items, vs(ok(a), over), "terminal:t1"); err == nil || !strings.Contains(err.Error(), "覆した") {
 		t.Errorf("覆した: %v", err)
 	}
-	if verdictState(vs(ok(a), over), a) != "ok" || verdictState(vs(over), b) != "overturn" ||
-		verdictState(vs(changed), b) != "stale" || verdictState(vs(), a) != "none" {
+	st := func(v map[string]verdict, it item) string { return verdictState(v, "terminal:t1", it) }
+	if st(vs(ok(a), over), a) != "ok" || st(vs(over), b) != "overturn" || st(vs(changed), b) != "stale" || st(vs(), a) != "none" {
 		t.Error("verdictState")
 	}
+	// 書き手が今の Chief of Staff の端末でない判定（by の無いもの・別の端末）は数えない。chief_of_staff が無ければどれも数えない。
+	noBy, other := ok(a), ok(a)
+	noBy.By, other.By = "", "terminal:t9"
+	for _, v := range []verdict{noBy, other} {
+		if st(vs(v), a) != "foreign" {
+			t.Errorf("%+v: %s", v, st(vs(v), a))
+		}
+		if err := checkVerdicts([]item{a}, vs(v), "terminal:t1"); err == nil {
+			t.Errorf("%+v が通った", v)
+		}
+	}
+	if verdictState(vs(ok(a)), "", a) != "foreign" || checkVerdicts([]item{a}, vs(ok(a)), "") == nil {
+		t.Error("chief_of_staff が無いのに判定が通った")
+	}
 	fo := verdict{Key: f.key(), Verdict: verdictOverturn, Closing: "one-off", Reason: "前", By: "terminal:t1", At: "x"}
-	if err := checkVerdicts(items, vs(ok(a), ok(b), fo)); err != nil {
+	if err := checkVerdicts(items, vs(ok(a), ok(b), fo), "terminal:t1"); err != nil {
 		t.Fatal(err)
 	}
 	if a["verdict"].(obj)["verdict"] != "ok" || b["verdict"].(obj)["by"] != "terminal:t1" || n["verdict"] != nil {

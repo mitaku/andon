@@ -483,6 +483,17 @@ refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 
 dry | jq -e --arg k "$rkey" '(.review[]|select(.key==$k)).verdict=="stale"' >/dev/null
 cp "$tmp/judge-good" "$jl/decisions.json"
 echo 'ok apply: a verdict is void once the reason is rewritten (AC 10)'
+# 判定の書き手が今の Chief of Staff の端末でない記録（by が無い・別の端末）は数えない。command が書いた判定は通る。
+cp "$jl/verdicts.json" "$tmp/verdicts-good"
+for filter in "(.verdicts[]|select(.key==\"$rkey\")) |= del(.by)" "(.verdicts[]|select(.key==\"$rkey\")).by=\"terminal:t99\""; do
+    jq "$filter" "$tmp/verdicts-good" > "$jl/verdicts.json"
+    snapshot > "$tmp/before"
+    refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err"
+    snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
+    dry | jq -e --arg k "$rkey" '(.review[]|select(.key==$k)).verdict=="foreign"' >/dev/null
+done
+cp "$tmp/verdicts-good" "$jl/verdicts.json"
+echo 'ok apply: a verdict not written by the terminal of the Chief of Staff is not counted'
 # 受け入れ条件 9 の最後と 12: 2件とも「閉じてよい」なら通る。要約の「閉じた」は判断の側が先、記録に閉じ方・見た commit・判定が残る。
 "$script" triage apply "$judge" > "$tmp/judge-md"
 grep -n '^## 閉じた' "$tmp/judge-md" | cut -d: -f2- > "$tmp/judge-heads"

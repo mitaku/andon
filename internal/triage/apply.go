@@ -101,11 +101,11 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		for k, v := range data {
 			out[k] = v
 		}
-		out["review"] = reviewTable(items, verdicts)
+		out["review"] = reviewTable(items, verdicts, writer(l))
 		return writeJSON(stdout, out)
 	}
 	// 判定の要る close の全部に Chief of Staff の「閉じてよい」が無ければ、台帳にも記録の置き場にも手を入れずに断る。
-	if err := checkVerdicts(items, verdicts); err != nil {
+	if err := checkVerdicts(items, verdicts, writer(l)); err != nil {
 		return err
 	}
 

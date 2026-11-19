@@ -61,12 +61,23 @@ func (v verdict) matches(it item) bool {
 	return v.Closing == it.closing() && v.Reason == it.str("reason")
 }
 
-// state は今の判定の状態（--dry-run の表に出す）: ok・overturn・none（無い）・stale（理由か閉じ方が書き換わった）。
-func verdictState(vs map[string]verdict, it item) string {
+// writer は判定を書いてよい端末（config.yaml の chief_of_staff）の by。chief_of_staff が無ければ空で、どの判定も通さない。
+func writer(l *ledger) string {
+	if cos := ledgercli.At(l.root).ChiefOfStaff(); cos != "" {
+		return "terminal:" + cos
+	}
+	return ""
+}
+
+// verdictState は今の判定の状態（--dry-run の表に出す）: ok・overturn・none（無い）・stale（理由か閉じ方が書き換わった）・
+// foreign（書き手が今の Chief of Staff の端末でない。by の無いものも）。by は writer の値。
+func verdictState(vs map[string]verdict, by string, it item) string {
 	v, ok := vs[it.key()]
 	switch {
 	case !ok:
 		return "none"
+	case by == "" || v.By != by:
+		return "foreign"
 	case !v.matches(it):
 		return "stale"
 	default:
@@ -75,7 +86,7 @@ func verdictState(vs map[string]verdict, it item) string {
 }
 
 // reviewTable は Chief of Staff が読む判定（判断の閉じと、課題を閉じる判定）の表。--dry-run が出す。
-func reviewTable(items []item, vs map[string]verdict) []any {
+func reviewTable(items []item, vs map[string]verdict, by string) []any {
 	got := []any{}
 	for _, it := range items {
 		if !it.needsVerdict() {
@@ -83,7 +94,7 @@ func reviewTable(items []item, vs map[string]verdict) []any {
 		}
 		got = append(got, obj{
 			"key": it.key(), "kind": it.keyPart(2), "from": it.keyPart(1), "text": it["text"],
-			"closing": it.closing(), "reason": it["reason"], "verdict": verdictState(vs, it),
+			"closing": it.closing(), "reason": it["reason"], "verdict": verdictState(vs, by, it),
 		})
 	}
 	return got
@@ -91,13 +102,14 @@ func reviewTable(items []item, vs map[string]verdict) []any {
 
 // checkVerdicts は判定の要る close の全部に、今の判定に結びついた「閉じてよい」があるかを確かめる。
 // 足りなければ台帳に手を入れる前に断る。通れば items に判定（verdict）と、覆した記録（overturned）を書く。
-func checkVerdicts(items []item, vs map[string]verdict) error {
+// 判定は、書き手（by）が今の Chief of Staff の端末のものだけを数える。
+func checkVerdicts(items []item, vs map[string]verdict, by string) error {
 	var missing []string
 	for _, it := range items {
 		if !it.needsVerdict() {
 			continue
 		}
-		switch verdictState(vs, it) {
+		switch verdictState(vs, by, it) {
 		case verdictOK:
 		case verdictOverturn:
 			return fail("Chief of Staff が覆した close が残っている: %s（担当に戻し、行き先を書き直させる）", it.key())
@@ -106,13 +118,13 @@ func checkVerdicts(items []item, vs map[string]verdict) error {
 		}
 	}
 	if len(missing) > 0 {
-		return fail("Chief of Staff の判定が %d 件足りない（無いか、判定のあとで閉じ方か理由が変わった。andon triage verdict <id> <key> ok|overturn で書く）: %s",
+		return fail("Chief of Staff の判定が %d 件足りない（無い・判定のあとで閉じ方か理由が変わった・書き手が今の Chief of Staff の端末でない。andon triage verdict <id> <key> ok|overturn で書く）: %s",
 			len(missing), missing[0])
 	}
 	for _, it := range items {
 		v, ok := vs[it.key()]
 		switch {
-		case !ok:
+		case !ok || v.By != by:
 		case it.needsVerdict():
 			it["verdict"] = obj{"verdict": v.Verdict, "by": v.By, "at": v.At}
 		case v.Verdict == verdictOverturn:
