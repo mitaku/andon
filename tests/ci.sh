@@ -75,4 +75,16 @@ grep -q "^== $tmp/c.sh（FAIL exit 3" <<<"$out" || die "c.sh の FAIL が出て�
 grep -qx "| $tmp/d.sh | skip | - |" <<<"$out" || die "d.sh が skip と出ていない"
 [ ! -e "$tmp/ran" ] || die "skip した d.sh が走った"
 grep -q "| $tmp/c.sh | FAIL(3) |" "$tmp/summary" || die "GITHUB_STEP_SUMMARY に表が無い"
+# 流す指定（ANDON_TEST_STREAM）: 溜めずに「[パス] 」付きで流し、終わったときは見出しだけ。落ちたときの exit も伝わる
+printf 'echo s1; sleep 0.2; echo s2; exit 4\n' >"$tmp/s.sh"
+set +e
+out=$(ANDON_TEST_STREAM="$tmp/s.sh" bash tests/lib/run-tests.sh "$tmp/s.sh" "$tmp/a.sh")
+st=$?
+set -e
+[ "$st" = 1 ] || die "流す s.sh が落ちたのに exit $st"
+grep -qx "\[$tmp/s.sh\] s1" <<<"$out" || die "s.sh の出力が流れていない: $out"
+grep -q "^== $tmp/s.sh（FAIL exit 4" <<<"$out" || die "s.sh の exit 4 が伝わっていない"
+grep -qx 's1' <<<"$out" && die "流した出力が見出しの下に重ねて出た"
+grep -qx 'a1' <<<"$out" || die "流さない a.sh がまとまって出ていない"
+ok "run-tests: ANDON_TEST_STREAM は溜めずに印付きで流し、exit を伝える"
 ok "run-tests: 出力を1本ずつまとめ、所要時間の表・skip・落ちたときの exit 1"
