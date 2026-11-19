@@ -20,9 +20,14 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	}
 	data, items, ok := parseDecisions(b, l.slug)
 	if !ok {
-		return fail("decisions.json が不正（key・理由・issue・question を確認）")
+		return fail("decisions.json が不正（key・理由・commit・issue・question を確認）")
 	}
-	if err := l.preflight(id, items); err != nil {
+	collected, err := readCollected(filepath.Join(l.dir, "issues", id, "library", "items.json"))
+	if err != nil {
+		return err
+	}
+	repos, err := l.preflight(id, items)
+	if err != nil {
 		return err
 	}
 	// 受けるのは、今回集めた key か、記録にある key（Chief of Staff が見直すとき）だけ。
@@ -63,6 +68,9 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		if !known || (closesIssue && !inCurrent) {
 			return fail("key が収集項目・記録に無い、または close 対象が現在の未担当項目でない")
 		}
+	}
+	if err := checkCommits(items, collected, repos); err != nil {
+		return err
 	}
 	// 人に見せる本文は出どころのもの。decisions.json の text は信じない。
 	for _, it := range items {
@@ -172,9 +180,46 @@ func sourceText(key string, inventory []Item, historical []item) any {
 	return key
 }
 
-// preflight は出どころの課題が台帳にあるかと、閉じる課題が未担当の todo／queued かを確かめる。
+// readCollected は collect の記録（担当が collect の出力を置いた library/items.json）の commits を読む。
+// 前の形（項目の配列）と、commits の無いもの・形の合わない commit は断る（照らせない判定を通さない）。
+func readCollected(path string) (map[string]string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fail("library/items.json が無い（andon triage collect > library/items.json で collect の出力を置く）")
+	}
+	var got Collected
+	if err := json.Unmarshal(b, &got); err != nil || got.Commits == nil {
+		return nil, fail("library/items.json を読めない（今の andon triage collect の出力のまま置く）")
+	}
+	for repo, c := range got.Commits {
+		if repo == "" || !commitRe.MatchString(c) {
+			return nil, fail("library/items.json の commits が不正: %s", repo)
+		}
+	}
+	return got.Commits, nil
+}
+
+// checkCommits は判定の commit（担当が見た commit）を、collect の出したものと照らす（ADR-0030 決めたこと 2）。
+// repo のある課題から出た項目（今回の項目も、前回までの記録の key の見直しも）は、その課題の repo（台帳の値）について
+// collect が出した commit と同じでなければならない。commit を持たない項目（repo の無い課題・memory・signal）には書かない。
+func checkCommits(items []item, commits, repos map[string]string) error {
+	for _, it := range items {
+		want := ""
+		if repo := repos[it.keyPart(1)]; carriesCommit(it.keyPart(2)) && repo != "" {
+			if want = commits[repo]; want == "" {
+				return fail("見た commit を照らせない: %s（collect の記録に %s の main が無い。collect からやり直す）", it.key(), repo)
+			}
+		}
+		if it.str("commit") != want {
+			return fail("見た commit が collect の出したもの（library/items.json の commits）と違うか無い: %s", it.key())
+		}
+	}
+	return nil
+}
+
+// preflight は出どころの課題が台帳にあるかと、閉じる課題が未担当の todo／queued かを確かめ、出どころの課題の repo を返す。
 // memory と signal の項目は出どころが課題ではないので、kanban show で照らさない。
-func (l *ledger) preflight(id string, items []item) error {
+func (l *ledger) preflight(id string, items []item) (map[string]string, error) {
 	var sources []string
 	for _, it := range items {
 		if k := it.keyPart(2); k == "memory" || k == "signal" { // 出どころは課題でなく memory のファイル・信号の記録
@@ -183,14 +228,22 @@ func (l *ledger) preflight(id string, items []item) error {
 		sources = append(sources, it.keyPart(1))
 	}
 	slices.Sort(sources)
+	repos := map[string]string{}
 	for _, src := range slices.Compact(sources) {
 		if src == id {
-			return fail("自分自身は仕分けできない")
+			return nil, fail("自分自身は仕分けできない")
 		}
 		out, err := l.kanban("", "show", src, "--json")
 		if err != nil {
-			return fail("出どころが無い: %s", src)
+			return nil, fail("出どころが無い: %s", src)
 		}
+		var show struct {
+			Issue ledgerIssue `json:"issue"`
+		}
+		if err := json.Unmarshal([]byte(out), &show); err != nil {
+			return nil, fail("出どころを読めない: %s", src)
+		}
+		repos[src] = show.Issue.Repo
 		closes := slices.ContainsFunc(items, func(it item) bool {
 			k := it.keyPart(2)
 			return it.keyPart(1) == src && (k == "issue" || k == "person") && it.decision() == "close"
@@ -198,15 +251,11 @@ func (l *ledger) preflight(id string, items []item) error {
 		if !closes {
 			continue
 		}
-		var show struct {
-			Issue ledgerIssue `json:"issue"`
-		}
-		if err := json.Unmarshal([]byte(out), &show); err != nil ||
-			(show.Issue.Status != "todo" && show.Issue.Status != "queued") || show.Issue.Agent != "" {
-			return fail("close の対象が未担当の todo/queued でない: %s", src)
+		if (show.Issue.Status != "todo" && show.Issue.Status != "queued") || show.Issue.Agent != "" {
+			return nil, fail("close の対象が未担当の todo/queued でない: %s", src)
 		}
 	}
-	return nil
+	return repos, nil
 }
 
 // applyGroup は1つの決定（bundle は束）を台帳に当て、足した課題の id を返す。
