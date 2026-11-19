@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
 
@@ -31,6 +33,22 @@ func (c *ctx) finish(stdout io.Writer) error {
 			return fail("%s が無い", cmd)
 		}
 	}
+	// 何かを消す・書き換える前に、台帳が done を受け取るかを確かめる（片付けは全部か無し）。kanban done（closing）が断る問いが
+	// この課題かレビュアーの子課題にあれば、端末にも worktree にも触らずに止まる（片付けかけの課題に担当が戻らないように）
+	tasks, err := c.l.List()
+	if err != nil {
+		return err
+	}
+	ids := []string{c.id}
+	for _, t := range tasks {
+		if t.Str("parent") == c.id && strings.HasSuffix(t.Str("profile"), "-review") && t.Str("status") != "done" {
+			ids = append(ids, t.Str("id"))
+		}
+	}
+	if err := c.closable(ids); err != nil {
+		return err
+	}
+
 	slug, repo := c.l.Slug, c.issue.Str("repo")
 	wt, branch := c.issue.Path("worktree"), c.issue.Str("branch")
 	repoDir := ""
@@ -118,10 +136,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 	}
 
 	// レビュアーの子課題と detached worktree
-	tasks, err := c.l.List()
-	if err != nil {
-		return err
-	}
 	for _, t := range tasks {
 		if t.Str("parent") != c.id || !strings.HasSuffix(t.Str("profile"), "-review") || t.Str("status") == "done" {
 			continue
@@ -193,6 +207,43 @@ func (c *ctx) finish(stdout io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(stdout, "andon issue: %s を片付けた（done）。%s\n", c.id, kept)
+	return nil
+}
+
+// closable は ids の課題がどれも kanban done で断られないか（kanban questions --json を1回読む）。
+// kanban done（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）で断る。
+func (c *ctx) closable(ids []string) error {
+	out, err := c.l.Run("", "questions", "--json")
+	if err != nil {
+		return err
+	}
+	var all []struct {
+		ID     string `json:"id"`
+		N      int    `json:"n"`
+		Status string `json:"status"`
+		Broken string `json:"broken"`
+	}
+	if out != "" {
+		if err := json.Unmarshal([]byte(out), &all); err != nil {
+			return fail("問いの一覧が読めない")
+		}
+	}
+	var held []string
+	for _, q := range all {
+		id := ledger.CanonID(q.ID)
+		if !slices.Contains(ids, id) {
+			continue
+		}
+		switch {
+		case q.Broken != "":
+			held = append(held, fmt.Sprintf("%s（questions.yaml が読めない: %s）", id, q.Broken))
+		case q.Status == "open" || q.Status == "answered":
+			held = append(held, fmt.Sprintf("%s#%d（%s）", id, q.N, q.Status))
+		}
+	}
+	if len(held) > 0 {
+		return fail("%s は受け取られていない問いがあるので片付けない（端末・worktree に触っていない）: %s。問いを received にしてから打ち直す", c.id, strings.Join(held, "・"))
+	}
 	return nil
 }
 

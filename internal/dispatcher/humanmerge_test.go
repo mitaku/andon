@@ -21,29 +21,3 @@ func TestHumanMergeLines(t *testing.T) {
 		}
 	}
 }
-
-// gh pr merge が失敗したあと、ゲートの判定した head のまま MERGED なら人が先にマージしたとして問いにしない。
-// head が違う・MERGED でない・返事が読めないときは今までどおり問いにする（dispatcher.md §7.2 #5）。
-func TestMergedBefore(t *testing.T) {
-	head, other, merge := "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
-	for _, c := range []struct {
-		name, view string
-		want       bool
-	}{
-		{"同じ head で MERGED", `{"state":"MERGED","headRefOid":"` + head + `","mergeCommit":{"oid":"` + merge + `"}}`, true},
-		{"違う head で MERGED", `{"state":"MERGED","headRefOid":"` + other + `","mergeCommit":{"oid":"` + merge + `"}}`, false},
-		{"OPEN のまま", `{"state":"OPEN","headRefOid":"` + head + `","mergeCommit":null}`, false},
-		{"CLOSED", `{"state":"CLOSED","headRefOid":"` + head + `","mergeCommit":null}`, false},
-		{"マージの commit が無い", `{"state":"MERGED","headRefOid":"` + head + `","mergeCommit":null}`, false},
-		{"head が無い", `{"state":"MERGED","mergeCommit":{"oid":"` + merge + `"}}`, false},
-		{"読めない", `HTTP 502`, false},
-	} {
-		sha, ok := MergedBefore(c.view, head)
-		if ok != c.want || (ok && sha != merge) {
-			t.Errorf("%s: got (%q, %v), want ok=%v", c.name, sha, ok, c.want)
-		}
-	}
-	if _, ok := MergedBefore(`{"state":"MERGED","headRefOid":"","mergeCommit":{"oid":"`+merge+`"}}`, ""); ok {
-		t.Error("ゲートの head が空でも MERGED とした")
-	}
-}

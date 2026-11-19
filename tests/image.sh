@@ -2,10 +2,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# image/Dockerfile の段 bin（kanban・andon を焼く golang）の版は mise.toml の go と揃える（docker が無くても見る）
-img_go=$(sed -n 's/^FROM golang:\([0-9.]*\)-.* AS bin$/\1/p' image/Dockerfile)
+# Go の版は mise.toml の go に揃える（docker が無くても見る）: go.mod の go と、image/Dockerfile の段 bin（kanban・andon を焼く golang）
 mise_go=$(sed -n 's/^go = "\(.*\)"$/\1/p' mise.toml)
-if [ -z "$img_go" ] || [ "$img_go" != "$mise_go" ]; then
+mod_go=$(sed -n 's/^go \([0-9.]*\)$/\1/p' go.mod)
+img_go=$(sed -n 's/^FROM golang:\([0-9.]*\)-.* AS bin$/\1/p' image/Dockerfile)
+[ -n "$mise_go" ] || { echo "FAIL image: mise.toml に go の版が無い" >&2; exit 1; }
+if [ "$mod_go" != "$mise_go" ]; then
+  echo "FAIL image: go.mod の go（${mod_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
+  exit 1
+fi
+if [ "$img_go" != "$mise_go" ]; then
   echo "FAIL image: image/Dockerfile の golang（${img_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
   exit 1
 fi

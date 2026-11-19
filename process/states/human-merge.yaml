@@ -1,26 +1,27 @@
 name: human-merge
 title: 人のマージの見張り
-source: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)。控えの Watch の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ
+source: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review の課題ごとに settle を打ち、返った通知を積むだけ
 states:
   - id: watching
-    title: 見ている（PR ごとに 1 分に 1 回 gh pr view）
-    record: dispatcher:Watch
+    title: 見ている（PR ごとに 1 分に 1 回 gh pr view。State が空）
+    record: settle:State
   - id: merged
-    title: MERGED と分かった
+    title: MERGED と分かった（ゲートの記録の merged が true なら dispatcher がマージしたので、ここで止まる）
   - id: closed
     title: CLOSED（マージなし）と知らせた
   - id: held
     title: 片付けられない（ゲートの外の問いが開いている・finish が失敗した。同じ理由は 1 回だけ知らせる）
+    record: settle:Held
   - id: finished
     title: 片付けた
+positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha]
 transitions:
-  - { from: "[*]", to: watching, on: "review にいて report.json に pr がある（dispatcher がマージした課題は除く）", by: machine }
-  - { from: "[*]", to: merged, on: "dispatcher の gh pr merge の前に人がマージしていた（head が同じ）", by: machine }
-  - { from: watching, to: merged, on: "MERGED になった", by: person }
+  - { from: "[*]", to: watching, on: "review にいて report.json に pr がある（dispatcher が andon issue settle を打つ）", by: machine, command: andon issue settle }
+  - { from: watching, to: merged, on: "MERGED になった（dispatcher の gh pr merge の前に人がマージしていたときも）", by: person }
   - { from: watching, to: closed, on: "CLOSED になった", by: person }
-  - { from: merged, to: finished, on: "人がマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）", by: machine, command: andon issue finish, once: true }
-  - { from: merged, to: held, on: "ゲートの外の問いが開いている・finish が失敗した", by: machine }
-  - { from: held, to: finished, on: "人がマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）", by: machine, command: andon issue finish, once: true }
-  - { from: watching, to: "[*]", on: "review にいなくなった（控えを捨てる）", by: machine }
+  - { from: merged, to: finished, on: "人がマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）", by: machine, command: andon issue settle, once: true }
+  - { from: merged, to: held, on: "ゲートの外の問いが開いている・finish が失敗した", by: machine, command: andon issue settle }
+  - { from: held, to: finished, on: "人がマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）", by: machine, command: andon issue settle, once: true }
+  - { from: watching, to: "[*]", on: "review にいなくなった・report.json の pr か commit が替わった（記録を捨てる）", by: machine, command: andon issue settle }
   - { from: closed, to: "[*]", on: "やめるかを Chief of Staff と人が決める", by: person }
   - { from: finished, to: "[*]", on: "終わり", by: machine }

@@ -50,7 +50,7 @@ func newRetry(t *testing.T) *retryFixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state"))
-	st := &State{Reviewers: map[string]Reviewer{}, Gates: map[string]Gate{}, Pending: []Notification{}}
+	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
 		tasks: []ledger.Issue{{"id": "S-7", "status": "doing", "agent": "t42"}}}
@@ -179,6 +179,13 @@ func TestRetryWorkerNotProvider(t *testing.T) {
 		if k := f.kinds(); len(k) != 1 || k[0] != "S-7:"+c.kind {
 			t.Errorf("%s %q: 知らせ方: %q", c.state, c.msg, k)
 		}
+	}
+	// 応答の途中で接続が切れた文（実測。A-0096 の担当が約12時間止まった）
+	g := newRetry(t)
+	g.term("t42", "error", "API Error: Connection lost mid-response.", 0, false)
+	g.at(0, "")
+	if got := g.at(time.Minute, ""); len(got) != 1 || got[0] != resend {
+		t.Fatalf("Connection lost mid-response に打っていない: %q", got)
 	}
 	// Codex は msg を出さないので画面で見分ける（実測の文）
 	f := newRetry(t)

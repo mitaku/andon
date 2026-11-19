@@ -12,6 +12,7 @@ func TestProviderError(t *testing.T) {
 		// 実測（Claude Code 2.1.319 の status.msg・Codex 0.166.0 の画面とセッションの記録。docs/dispatcher.md §2.4）
 		"API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment.": true,
 		"API Error: The response stopped arriving. The response above may be incomplete.":                    true,
+		"API Error: Connection lost mid-response.":                                                           true,
 		"■ We’re currently experiencing high demand, which may cause temporary errors.":                      true,
 		"Selected model is at capacity. Please try a different model.":                                       true,
 		"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header":               false,

@@ -26,6 +26,10 @@
 ## 0. 原則
 
 1. **Markdown を読まない。** 依頼書・報告・レビューの報告・skill は人と AI のもの。機械が判定に使う値は、ここに並ぶ JSON／YAML のキーにだけ持つ（人の決定 2026-11-04。仮設の工場で Markdown を正規表現で読む形は端が尽きなかった）。
+   例外は次の3つだけで、どれも判定に使う値を読むのではなく、文から行や語を拾うか探すだけ。新しく足さない。
+   - `andon triage collect` は `done`・`review` の課題の `report.md` から `## Next`・`## Remember`・`## 人に聞くこと`・`For AGENTS.md:`・見送りの行を拾って項目にする（見出しが無い・読めない報告は `unreadable` の項目にして、トリアージの担当が自分で読む）。
+   - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
+   - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
 3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と信号の記録（§15）は dispatcher、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
@@ -39,20 +43,21 @@ projects/<slug>/kanban/
   config.yaml                     chief_of_staff（kanban config set。Chief of Staff の端末）
   issues/<id>/
     issue.yaml                     台帳の項目 ＋ Andon の予約キー（§2。Chief of Staff が kanban set）
-    brief.md                      人・AI 用（Settings は写し。機械は読まない）
-    report.md                     人・AI 用（機械は読まない）
+    brief.md                      人・AI 用（Settings は写し。機械は判定に読まない。例外は §0 の1）
+    report.md                     人・AI 用（機械は判定に読まない。例外は §0 の1）
     questions.yaml                台帳の問い（§5。text は人向け）
     library/
       report.json                 担当（§4）
       findings.json               レビュアー（§3。レビュアーの課題の側）
       candidates.json             担当（§12。調べる課題の成果と、範囲の問いで止まる直す課題）
       questions/<n>.json          問うた者（§5）
-      gate/<head sha>.json        dispatcher（§7。ゲートの記録）
+      gate/<head sha>.json        andon gate（§7。ゲートの記録。andon issue merge が回し、マージしたら merged を書く）
       corrections.json            dispatcher（§14。finish〈done〉のとき1回だけ。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.signals.json   dispatcher（§15。外の信号の記録。台帳の外）
+~/.local/state/andon/dispatcher/<slug>.merge.json   andon issue merge（§6。ゲートのあとのマージと片付けの記録。dispatcher は読むだけ。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.recorded.jsonl   dispatcher（§6。記録だけの通知。1行1件・追記だけ。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.delivered.jsonl  dispatcher（§17。届けた通知の記録。渡したターン1つに1行・追記だけ。台帳の外）
 ```
@@ -222,7 +227,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `asked` | `{"question": n, "status": "open"}` | `n`・`kind`・`question`（§5 の JSON から） |
 | `ready` | `kanban ready --json` の前回との差（人の課題を除く） | `title`・`routine` |
 | `review-requested` | `report.json` の `review_request`（dispatcher が起動したとき） | `round`・`reviewer`・`reviewer_issue` |
-| `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス） |
+| `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス）、`fix` を担当へ送れなかった（担当の端末が無い）ときだけ `unsent`（担当の address） |
 | `merged` | ゲートの approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき。または `review` の課題の PR を人がマージしたのを見つけ、ゲートの問いを閉じて finish したとき（`by: person`）・ゲートの外の問いが開いている／finish が失敗して片付けなかったとき（`by: person`・`held`。同じ理由では1回。dispatcher.md §2.7） | `pr`・`sha`、人のマージのときだけ `by`（`person`）と、片付けなかったときだけ `held`（理由） |
 | `closed` | `review` の課題の PR がマージされずに閉じた（片付けない。1回だけ。dispatcher.md §2.7） | `pr` |
 | `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED の課題に dispatcher が `andon issue impact` を1回打ち、影響のある課題があったとき（下の「マージのあとの影響」） | `pr`・`sha`・`issues[]`（`issue`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
@@ -240,9 +245,10 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `review-requested`・`resumed` | 記録だけ |
   | `review`（dispatcher がゲートを回す課題） | 記録だけ |
   | `review`（ゲートを回さない課題のうち PR のあるもの: Chief Engineer の課題〈`profile: chief-engineer`〉など。PR の無い調べる課題・観察の課題は `report` で届く） | 届ける |
-  | `gate`（`decision: fix`・`needs_human`） | 記録だけ（`needs_human` は同じ巡の `asked` で届く） |
+  | `gate`（`decision: fix`・`needs_human`。`unsent` が無い） | 記録だけ（`needs_human` は同じ巡の `asked` で届く） |
+  | `gate`（`decision: fix`。`unsent` あり。担当へ送れなかった） | 届ける |
   | `gate`（`decision: approve`。dispatcher がマージしない: `merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない） | 届ける（すぐ） |
-  | `gate`（`decision: approve`。`merge: auto` でマージに進む） | 記録だけ。記録の `at` から10分たっても同じ課題の `merged` も `asked` も無ければ、そのとき同じ通知を1回だけ届ける（`review` から出た課題は数えない） |
+  | `gate`（`decision: approve`。`merge: auto` でマージに進む） | 記録だけ。`andon issue merge` の記録の `approved` から10分たってもマージ・問い・別の答えのどれも決まらなければ、そのとき同じ形の通知を1回だけ届ける（`review` から出た課題は数えない） |
   | `merged`（`held` が無い） | 記録だけ |
   | `merged`（`held` あり。片付けていない） | 届ける |
   | `report`（レビュアーの課題: `parent` があり `profile` が `*-review`） | 記録だけ |
@@ -257,8 +263,14 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `no-commit` | worktree の `HEAD` の commit（一度も commit していなければ切った元の commit）から、見込みの分より長く経った |
   | `large-diff` | `origin/HEAD` との merge-base から作業ツリーまでの変更（追跡しているファイル）の、足した行と消した行の和が 500 を超えた。テスト（`tests` という名のディレクトリの下と、名前が `*_test.*` のファイル）とバイナリは数えない |
 
-- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine`、`merged` の `by`・`held`、`estimate` の `sign` だけ任意。`held` は `by` と一緒）。
+- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine`、`gate` の `unsent`、`merged` の `by`・`held`、`estimate` の `sign` だけ任意。`unsent` は `decision: fix` のときだけ、`held` は `by` と一緒）。
 - 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる）。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。どちらも同じ JSON から同じ文を描く。③人が離席の間は、Chief of Staff の `Stop` フックが `asyncRewake` で起動する待ち役（`andon dispatcher wait`）が、届ける待ちがあれば合図だけを打って Chief of Staff を起動し、そのターンの終わりの①で届く。dispatcher は Chief of Staff の入力欄へ打たない（[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 1・8）。
+- **人のマージの片付け**（`merged`（`by: person`）・`closed`）: `andon issue settle <id>` は、`review` の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（dispatcher.md §2.7）。積む通知は stdout の JSON で返し、待ちに積むのは dispatcher。
+  出力は `issue`・`state`（`skip`〈`review` にいない・`pr` が無い・別の repo の PR〉・`watching`〈まだ OPEN か、1分たたず聞いていない〉・`auto`〈ゲートの記録の `merged` が `true`。dispatcher がマージした〉・`closed`・`held`・`finished`）・`notify[]`（`kind` と `detail`。形は上の表の `merged`・`closed`）。
+  記録は `~/.local/state/andon/dispatcher/<slug>.settle.json`（課題 → `pr`・`commit`・`at`・`state`〈`MERGED`・`CLOSED`〉・`head`・`sha`・`held`。書き手は settle だけ）。2回打っても同じ結果になる（GitHub に聞く・知らせる・片付けるのは1回）。出力と記録は Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
+- **ゲートのあとのマージと片付け**（`gate`・`merged`・`asked`・`report`）: `andon issue merge <id>` は、`review` の課題にゲート（§7）を `review` に入った `log.jsonl` の行ごとに1回だけ回し、approve ＋ `merge: auto` ＋ 委譲の範囲内ならマージして finish する。`fix` は理由を担当へ `hc send`（送れなければ通知 `gate` に `unsent`）、`needs_human` とマージできなかったときは問い（`from: gate`）を出す（dispatcher.md §5 の P6a）。積む通知は stdout の JSON で返し、待ちに積むのは dispatcher。
+  出力は `issue`・`state`（`skip`・`wait`〈checks を待つ〉・`rate-limited`〈gh の上限。いつ回し直すかは dispatcher が台帳ごとに決める〉・`regate`〈マージの直前に読み直して変わった。次に打ったとき回し直す〉・`approve`・`fix`・`needs_human`・`merged`）・`auto`（通知 `gate` の approve のあとマージに進む）・`log[]`（dispatcher のログに書く行）・`notify[]`（`kind` と `detail`。形は上の表）。
+  記録は `~/.local/state/andon/dispatcher/<slug>.merge.json`（課題 → `row`〈review に入った行〉・`sha`・`decision`・`merged`・`wait`〈checks を待つ head〉・`approved`〈`merge: auto` の approve でマージに進み始めた時刻。決まったら消す〉。書き手は merge だけ）。dispatcher は `approved` を読んで「approve のまま10分」を届ける（§3.2 の表）。記録が無ければ、その行のあとに書かれた今の head（`report.json` の `commit`）のゲートの記録を引き継いで問いや通知を出し直さない。2回打っても同じ結果になる（ゲート・マージ・問い・通知は行ごとに1回）。出力と記録は Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
 - **マージのあとの影響**（`impact`）: `andon issue impact <id>` は、課題の PR がマージされたあと、同じ repo の `doing`／`review` の担当の課題（レビュアーを除く）ごとに、機械で分かる事実だけを JSON で出す（読むだけ。書くのは `git fetch` だけ。PR がまだ MERGED でなければ終了コード 4）。
   出力は `issue`・`pr`・`sha`（マージの commit）・`files[]`（マージした PR が触ったファイル）・`issues[]`。`issues[]` の1件は `issue`・`title`・`status`・`agent`・`branch`・`head`・`pr`・`contains`（branch がもうマージの commit を含む）・`conflict`／`conflict_files[]`（branch とマージの commit を `git merge-tree` で合わせてぶつかるか）・`overlap[]`（両方が触ったファイル。worktree の commit していない変更と、まだ `git add` していない新しいファイルも数える）・`brief_refs[]`（マージした PR のファイルのうち、その課題の依頼書に path か名前が出るもの）・`error`（読めなかった理由。worktree があるのに読めない・在るかを確かめられない〈権限など。無いのとは分ける〉ときも。影響なしに倒さない）。
   影響あり（通知に載る）は `error` があるか、`contains` でなく `conflict`・`overlap`・`brief_refs` のどれかがあるもの。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff（chief-of-staff skill の `playbooks/finish.md`）。出力そのものは Chief of Staff と dispatcher だけが読むので schema にしない（通知の `detail` が約束）。
@@ -300,7 +312,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 - `github_checks_wait_minutes`: `required` の repo で checks が1つも無いとき、課題が `review` に入った `log.jsonl` の行の `at` からこの分だけ待ち、過ぎたら `needs_human`（push の直後で checks がまだ付いていないのと、CI が無いのとを分ける）。
 - `screen_paths`: 画面のファイルの glob の配列（既定は無し＝空。案件の `gate.local.json` で `web/**`・`**/*.css` などを指す。ADR-0018 決めたこと 2）。PR の変更されたファイル（`strip_prefix` を外し、rename の元も）が当たり、PR の本文とコメントのどれにも GitHub の添付の URL（`https://github.com/user-attachments/assets/<id>`。`gh pr create`／`comment --attach` と Web の画面で上げた画像・動画）が無ければ `fix`、`reasons[]` に当たったファイルごとに `screen_paths: <file> に当たるが画面の証拠（添付）が無い`。外の画像の URL・書き換えられていない相対パス（`![x](./a.png)`）・画像でない添付（`user-attachments/files/`）は添付と数えない。どの commit で撮ったかは見ない。
 
-**記録** `issues/<id>/library/gate/<head sha>.json`（dispatcher が書く。`--dry-run` では書かない）:
+**記録** `issues/<id>/library/gate/<head sha>.json`（`andon gate` が書く。`--dry-run` では書かない。dispatcher の道では `andon issue merge` が回し、マージしたら `merged` を書く）:
 
 ```json
 {"at": "2026-11-04T09:10:00Z", "id": "A-0012", "pr": "https://github.com/<owner>/andon/pull/12", "head": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",

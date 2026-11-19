@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
+	"andon/internal/contract"
 	"andon/internal/ledger"
 )
 
@@ -25,6 +27,8 @@ func TestRouteOf(t *testing.T) {
 		{"担当の review（ゲートを回す）", "review", nil, Facts{Gated: true}, Record},
 		{"Chief Engineer・調べる課題の review（ゲートを回さない）", "review", nil, Facts{}, Deliver},
 		{"gate fix", "gate", g("fix"), Facts{}, Record},
+		{"gate fix（担当に送れなかった）", "gate", map[string]any{"decision": "fix", "unsent": "t7"}, Facts{}, Deliver},
+		{"gate fix（unsent が空）", "gate", map[string]any{"decision": "fix", "unsent": ""}, Facts{}, Record},
 		{"gate needs_human", "gate", g("needs_human"), Facts{}, Record},
 		{"gate approve（マージしない）", "gate", g("approve"), Facts{}, Deliver},
 		{"gate approve（merge: auto）", "gate", g("approve"), Facts{AutoMerge: true}, Wait},
@@ -150,41 +154,58 @@ func TestEngineerRecordOnly(t *testing.T) {
 	}
 }
 
-// approve（merge: auto）のあと approveWait たっても merged が来なければ1回だけ届け、2回目は届けない。
+// merge: auto の approve は記録だけにし、andon issue merge の記録の approved から approveWait たっても決まらなければ
+// 通知 gate を1回だけ届ける。決まった（approved が消えた）・review にいない課題は届けない。merge: person の approve はすぐ届ける。
 func TestApproveStuck(t *testing.T) {
 	p := routeProject(t)
-	approve := func(id string, auto bool) {
-		f := p.facts(id)
-		f.AutoMerge = auto
-		p.put(Notification{At: now(), Project: "demo", Issue: id, Kind: "gate", Detail: map[string]any{"decision": "approve", "reasons": []string{}, "record": "/r.json"}}, f)
+	p.tasks = append(p.tasks, ledger.Issue{"id": "D-0004", "status": "done", "profile": "claude", "repo": "github.com/example/app"})
+	head := "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"
+	at := "2026-11-14T00:00:00Z"
+	writeMerge := func(rec map[string]contract.Merging) {
+		if err := os.MkdirAll(filepath.Dir(MergePath("demo")), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := contract.Write(MergePath("demo"), rec); err != nil {
+			t.Fatal(err)
+		}
 	}
-	approve("D-0001", true)
-	approve("D-0003", true)
-	if len(p.st.Pending) != 0 || len(recorded(t)) != 2 || len(p.st.Approved) != 2 {
-		t.Fatalf("merge: auto の approve を記録だけにして測らない: pending %+v approved %+v", p.st.Pending, p.st.Approved)
+	gateRecord := filepath.Join(p.l.Library("D-0001"), "gate", head+".json")
+	os.MkdirAll(filepath.Dir(gateRecord), 0o755)
+	os.WriteFile(gateRecord, []byte(`{"decision":"approve","reasons":["L0"]}`), 0o644)
+	writeMerge(map[string]contract.Merging{
+		"D-0001": {Row: 3, Sha: head, Approved: at},                      // マージに進み始めて決まらない
+		"D-0003": {Row: 5, Sha: head, Decision: "approve", Merged: head}, // マージした
+		"D-0004": {Row: 7, Sha: head, Approved: at},                      // review にいない
+	})
+	p.put(Notification{At: at, Project: "demo", Issue: "D-0001", Kind: "gate", Detail: map[string]any{"decision": "approve", "reasons": []string{}, "record": gateRecord}}, Facts{Gated: true, AutoMerge: true})
+	if len(p.st.Pending) != 0 || len(recorded(t)) != 1 {
+		t.Fatalf("merge: auto の approve を記録だけにしない: pending %+v", p.st.Pending)
 	}
-	at := p.st.Approved["D-0001"].At
-	approve("D-0001", true) // 回し直したゲートでは測り直さない
-	if p.st.Approved["D-0001"].At != at {
-		t.Fatal("回し直したゲートで測り直した")
-	}
-	p.notify("D-0003", "merged", map[string]any{"pr": "https://github.com/example/app/pull/7", "sha": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"})
 	start, _ := time.Parse("2006-01-02T15:04:05Z", at)
 	p.stuck(start.Add(approveWait - time.Second))
 	if len(p.st.Pending) != 0 {
 		t.Fatalf("%s の前に届けた: %+v", approveWait, p.st.Pending)
 	}
 	p.stuck(start.Add(approveWait))
-	if len(p.st.Pending) != 1 || p.st.Pending[0].Issue != "D-0001" || p.st.Pending[0].Kind != "gate" {
-		t.Fatalf("approve のまま止まったのを1回届けない（merged の来た課題も届けた）: %+v", p.st.Pending)
+	want := Notification{At: at, Project: "demo", Issue: "D-0001", Kind: "gate", Detail: map[string]any{"decision": "approve", "reasons": []string{"L0"}, "record": gateRecord}}
+	if len(p.st.Pending) != 1 || !reflect.DeepEqual(p.st.Pending[0], want) {
+		t.Fatalf("approve のまま止まったのを1回だけ届けない（決まった・review にいない課題も届けた）:\n got %+v\nwant %+v", p.st.Pending, want)
 	}
 	p.st.Pending = nil
 	p.stuck(start.Add(2 * approveWait))
 	if len(p.st.Pending) != 0 {
 		t.Fatalf("2回目を届けた: %+v", p.st.Pending)
 	}
+	// 回し直して、また決まらないまま新しい approved になったら、それは届ける
+	later := "2026-11-14T01:00:00Z"
+	writeMerge(map[string]contract.Merging{"D-0001": {Row: 9, Sha: head, Approved: later}})
+	p.stuck(start.Add(time.Hour + approveWait))
+	if len(p.st.Pending) != 1 || p.st.Pending[0].At != later {
+		t.Fatalf("新しい approve のまま止まったのを届けない: %+v", p.st.Pending)
+	}
 	// merge: person（マージしない）の approve は同じ巡で届ける
-	approve("D-0003", false)
+	p.st.Pending = nil
+	p.put(Notification{At: at, Project: "demo", Issue: "D-0003", Kind: "gate", Detail: map[string]any{"decision": "approve", "reasons": []string{}, "record": gateRecord}}, Facts{Gated: true})
 	if len(p.st.Pending) != 1 || p.st.Pending[0].Issue != "D-0003" {
 		t.Fatalf("merge: person の approve をすぐ届けない: %+v", p.st.Pending)
 	}
@@ -262,5 +283,17 @@ func TestAppendLinesPartial(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "{\"m\":0,\"n\":5}\n\"n\":5}\n" {
 		t.Fatalf("行の途中の一致で飛ばした: %q", got)
+	}
+}
+
+// 担当に送れなかった fix は <news> の行に送れなかった担当を書く（送れた fix の行は今どおり）。
+func TestLineGateUnsent(t *testing.T) {
+	d := map[string]any{"decision": "fix", "reasons": []any{"Must fix 以上が 1 件"}, "record": "/r.json"}
+	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json" {
+		t.Fatalf("送れた fix の行が変わった: %q", got)
+	}
+	d["unsent"] = "t7"
+	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json。担当 t7 に送れなかった（端末が無い）" {
+		t.Fatalf("送れなかった担当を書かない: %q", got)
 	}
 }

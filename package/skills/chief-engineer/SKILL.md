@@ -36,7 +36,7 @@ description: Chief of Staff（か人）が `andon chief-engineer "<題>"` で起
 
 ## 文書の形
 
-1題1文書。人と AI が読む Markdown（機械は読まない）。書く場所は worktree の `docs/<題の英字の短い形>.md`（案件のマスタがあれば決めたことは合意事項としてマスタへ、用語の増減は案件の用語集へ）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<題の英字>.md`（次の4桁の番号。題の下に状態行 `提案`／`決定（日付）`／`覆された → ADR-NNNN`。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。決定の記録には ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` の1ファイルで足す。書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。
+1題1文書。人と AI が読む Markdown（機械は読まない）。書く場所は worktree の `docs/<題の英字の短い形>.md`（案件のマスタがあれば決めたことは合意事項としてマスタへ、用語の増減は案件の用語集へ）。repo に ADR の決まりがあればそれに従う（Andon 自身の設計は `docs/adr/` の ADR。書き方は Andon の repo の `AGENTS.md` から辿る）。
 
 ```
 # <題>（仕様・設計。日付・Chief Engineer の課題 id）

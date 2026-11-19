@@ -48,7 +48,8 @@ jobs:
         run: go test ./...
       - name: go build
         if: steps.scope.outputs.docs != 'true'
-        run: go build -o "$RUNNER_TEMP/andon" ./cmd/andon
+        run: go build -o /dev/null ./cmd/andon
+      # tests/*.sh は tests.yml が焼いた andon・kanban で回す（ここでは回さない）
       - name: kanban build (4 targets)
         if: steps.scope.outputs.docs != 'true'
         run: |
@@ -56,12 +57,3 @@ jobs:
           for t in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
             GOOS=${t%/*} GOARCH=${t#*/} go build -o /dev/null ./cmd/kanban
           done
-          go build -ldflags "-X main.version=${GITHUB_SHA::12}" -o "$RUNNER_TEMP/kanban" ./cmd/kanban
-      - name: tests/andon*.sh・kanban.sh
-        if: steps.scope.outputs.docs != 'true'
-        env:
-          ANDON_BIN: ${{ runner.temp }}/andon
-          KANBAN_BIN: ${{ runner.temp }}/kanban
-        run: |
-          set -e
-          for f in tests/andon*.sh tests/kanban.sh; do echo "== $f"; bash "$f"; done
