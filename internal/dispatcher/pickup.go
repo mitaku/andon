@@ -566,6 +566,8 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 		if isReviewer(t) {
 			msg = p.reviewerFirst(id) // dispatcher が起動したレビュアー（startReviewer と同じ文）
 		}
+		// hc run なら template の本文が前に付く。hc send は付けないので、起動のときに届くはずだった文に揃える
+		msg = spawn.WithBody(t.Str("profile"), msg)
 		// 前に貼った文が入力欄に残っていれば（hc send が貼ったが Enter が効かなかった。ADR-0007 B5）、貼り直さず Enter だけ押す。
 		// 読めなければ送らない（重ねないほうに倒す。次の見回りで読み直す）
 		screen, err := hcOut("read", agent)
@@ -619,8 +621,8 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 
 // LeftInInput は画面（hc read）の入力欄の行に、最初のメッセージの1行目 first が残っているか。
 // 入力欄の行は、プロンプトの印（Claude Code の ❯、Codex の ›）で始まる最後の行（その上の同じ印の行は送った文の写し）。
-// 入力欄の薄い字のサジェストは色が無いと文と見分けられないが、1行目は課題の slug と id を含むので、まだ会話に入っていない文と
-// 同じ行がサジェストに出ることはない。印の無い画面（読めない形）は残っていないとみる（今までどおり送る）。
+// 入力欄の薄い字のサジェストは色が無いと文と見分けられないが、1行目（template の本文の1行目。本文が無ければ課題の slug と id の行）は
+// まだ会話に入っていない文なので、同じ行がサジェストに出ることはない。印の無い画面（読めない形）は残っていないとみる（今までどおり送る）。
 func LeftInInput(screen, first string) bool {
 	if first = strings.TrimSpace(first); first == "" {
 		return false

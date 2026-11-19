@@ -101,3 +101,42 @@ func TestGhqRoot(t *testing.T) {
 		t.Error("ghq が無いのに誤りにならない")
 	}
 }
+
+// WithBody は hc run が届ける最初のメッセージ（template の本文、空行、課題の文）を組む。hc send で送り直す文はこれにする。
+func TestWithBody(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := TemplatesDir()
+	if dir != filepath.Join(home, ".config", "herdr-core", "templates") {
+		t.Fatalf("TemplatesDir=%q", dir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"worker": "---\nname: worker\ndescription: d\ncommand: claude\n---\n役目の1行目。\n役目の2行目。\n",
+		"empty":  "---\nname: empty\ndescription: d\ncommand: claude\n---\n\n",
+		"bare":   "本文だけ。\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name+".md"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	msg := "課題 `sample-site/S-1`。\n依頼書は `/x/brief.md`。"
+	for tpl, want := range map[string]string{
+		"worker":  "役目の1行目。\n役目の2行目。\n\n" + msg,
+		"bare":    "本文だけ。\n\n" + msg,
+		"empty":   msg, // 本文が空: hc run も課題の文だけを届ける
+		"missing": msg, // 読めない: 今までどおり課題の文だけ
+		"":        msg,
+	} {
+		if got := WithBody(tpl, msg); got != want {
+			t.Errorf("WithBody(%q)=%q want %q", tpl, got, want)
+		}
+	}
+	// 手で送る案内の文も本文つき（ラベルを付けられないほうの案内。hc が無いので MarkUnsent は落ちる）
+	t.Setenv("PATH", t.TempDir())
+	if got := ResendHint("t42", "worker", msg); !strings.Contains(got, fmt.Sprintf("hc send t42 %q", "役目の1行目。\n役目の2行目。\n\n"+msg)) {
+		t.Errorf("ResendHint=%q", got)
+	}
+}

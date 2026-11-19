@@ -338,6 +338,14 @@ func TestStartHcRunFails(t *testing.T) {
 func TestStartFirstMessageNotSent(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
+	// hc run は template の本文（役目の文）を課題の文の前に足して届ける。手で送る案内も同じ文にする
+	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates", "claude.md")
+	if err := os.MkdirAll(filepath.Dir(tpl), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tpl, []byte("---\nname: claude\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	rc, out, errs := f.run()
 	if rc != exitFirst || out != "" {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
@@ -345,7 +353,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	for _, want := range []string{
 		"t42（sample-site-s-0007）に最初のメッセージが届いていない: trust prompt",
 		"dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。",
-		"急ぐときだけ手で: hc send t42 \"課題 `sample-site/S-0007`。",
+		"急ぐときだけ手で: hc send t42 \"役目の1文目。\\n役目の2文目。\\n\\n課題 `sample-site/S-0007`。",
 		"台帳は doing・agent t42 のまま",
 	} {
 		if !strings.Contains(errs, want) {

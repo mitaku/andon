@@ -125,7 +125,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	place := id + " " + p.Title + " / " + id // 人に端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
 	if !run.First.Delivered() {
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。%s（台帳は doing・agent %s のまま。App では %s）",
-			run.Address, p.Terminal, run.Reason(), spawn.ResendHint(run.Address, p.FirstMessage), run.Address, place)}
+			run.Address, p.Terminal, run.Reason(), spawn.ResendHint(run.Address, p.Profile, p.FirstMessage), run.Address, place)}
 	}
 	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で起動した。cwd %s", id, run.Address, p.Terminal, p.Profile, p.Cwd)
 	if p.Branch != "" {
