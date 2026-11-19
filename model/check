@@ -4,6 +4,7 @@
 #   1. 本物のモデルが規則を全部守り、どの状態からも先がある。調べる規則は控え（expected.txt の rule）と同じ
 #   2. 状態の数が控え（expected.txt の states）と同じ
 #   3. 壊した見本（broken/）がどれも、控え（expected.txt の broken）に書いた規則の破れで落ちる
+#   4. モデルの状態の図と課題の状態の定義（process/states/issue.yaml）を、対応表（issue-map.txt）で 2 方向に照らす（conform.mjs）
 # 検査器は package-lock.json のとおりに一時の場所へ入れ（install のスクリプトは走らせない）、npm の置き場も一時の場所にする。
 # 検査器はモデルの写しを一時の場所で回すので、repo にも HOME にも書かない。
 # MODEL_CHECKER に TLC と同じ旗を受けるコマンドを渡すと、それで回す（例: "java -cp tla2tools.jar tlc2.TLC"。TLC と見比べるとき）。
@@ -31,10 +32,12 @@ fi
 mkdir -p "$tmp/run"
 cp "$here"/*.tla "$here"/*.cfg "$here"/broken/*.tla "$tmp/run/"
 
-# check <モジュール> <設定>: 検査器の出力を $tmp/out に書き、終了コードを $code に入れる
+# check <モジュール> <設定> [検査器の旗…]: 検査器の出力を $tmp/out に書き、終了コードを $code に入れる
 check() {
   code=0
-  (cd "$tmp/run" && "${checker[@]}" -config "$2" -workers 1 -metadir "$tmp/states" "$1.tla") >"$tmp/out" 2>&1 || code=$?
+  local module=$1 cfg=$2
+  shift 2
+  (cd "$tmp/run" && "${checker[@]}" -config "$cfg" -workers 1 -metadir "$tmp/states" "$@" "$module.tla") >"$tmp/out" 2>&1 || code=$?
 }
 show() { sed 's/^/     | /' "$tmp/out" | tail -40 >&2; }
 
@@ -51,7 +54,7 @@ want=$(awk '$1 == "states" { print $2 }' "$here/expected.txt")
 [ -n "$want" ] || fail "expected.txt に states の行が無い"
 
 # 1・2. 本物のモデル
-check IssueRules IssueRules.cfg
+check IssueRules IssueRules.cfg -dump dot,actionlabels "$tmp/graph.dot"
 if [ "$code" -ne 0 ] || ! grep -q "Model checking completed. No error has been found." "$tmp/out"; then
   show
   fail "モデルが規則を破った・検査器が終わらなかった（終了コード $code）"
@@ -62,6 +65,10 @@ echo "ok   規則が通る（IssueRules.cfg の INVARIANT $(wc -w <<<"$rules" | 
 for r in $rules; do echo "       $r"; done
 [ "$got" = "$want" ] || fail "状態の数が控えと違う: 数えた $got・控え $want（モデルを変えたなら expected.txt の states を直す。変えていないなら検査器を疑う）"
 echo "ok   状態の数 $got が控え（expected.txt）と同じ"
+
+# 4. issue.yaml と照らす（状態の図は TLC と同じ -dump dot,actionlabels）
+[ -s "$tmp/graph.dot" ] || fail "検査器が状態の図（-dump dot）を書かなかった"
+node "$here/conform.mjs" "$tmp/graph.dot" "$here/issue-map.txt" "$here/../process/states/issue.yaml" || fail "モデルと process/states/issue.yaml が食い違う（上の行。model/issue-map.txt と model/README.md の「issue.yaml と照らす」）"
 
 # 3. 壊した見本
 n=0

@@ -17,6 +17,7 @@ stateDiagram-v2
   [*] --> s_queued: after つきで課題を足した
   s_queued --> s_todo: 待つ課題が全部 done になった
   s_todo --> s_doing: 担当を起動した（§7.2 #10）
+  s_todo --> s_doing: Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ）
   s_todo --> s_todo: 人の課題（who： person）に問いを置いた（ask-one-by-one skill §3）
   s_doing --> s_doing: 報告・レビュー依頼・候補の一覧・問いを書いた
   s_doing --> s_review: 確かめて返した（受け取られていない問いが無い）
@@ -27,6 +28,8 @@ stateDiagram-v2
   s_review --> s_done: PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた
   s_queued --> s_done: やめる（人の go）
   s_todo --> s_done: やめる（人の go）
+  s_queued --> s_done: トリアージが未担当の課題を閉じた（andon triage apply の close）
+  s_todo --> s_done: トリアージが未担当の課題を閉じた（andon triage apply の close）
   s_doing --> s_done: やめる（人の go）・report.json に pr の無い課題を人がマージした
   s_doing --> s_done: doing のうちに人がマージした PR を andon issue settle が拾って片付けた（dispatcher.md §2.7）
   s_done --> [*]: 終わり
@@ -50,6 +53,7 @@ stateDiagram-v2
 | （始まり・終わり） | `queued` | after つきで課題を足した | 台帳の CLI | `kanban add` |  |
 | `queued` | `todo` | 待つ課題が全部 done になった | 台帳の CLI | `kanban done` |  |
 | `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
+| `todo` | `doing` | Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ） | 台帳の CLI | `kanban start` |  |
 | `todo` | `todo` | 人の課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
 | `doing` | `doing` | 報告・レビュー依頼・候補の一覧・問いを書いた | AI | `andon issue report・review-request・candidates・ask` |  |
 | `doing` | `review` | 確かめて返した（受け取られていない問いが無い） | AI | `andon issue ready` |  |
@@ -60,6 +64,8 @@ stateDiagram-v2
 | `review` | `done` | PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた | AI | `andon issue finish` |  |
 | `queued` | `done` | やめる（人の go） | AI | `andon issue finish` |  |
 | `todo` | `done` | やめる（人の go） | AI | `andon issue finish` |  |
+| `queued` | `done` | トリアージが未担当の課題を閉じた（andon triage apply の close） | 台帳の CLI | `kanban done` |  |
+| `todo` | `done` | トリアージが未担当の課題を閉じた（andon triage apply の close） | 台帳の CLI | `kanban done` |  |
 | `doing` | `done` | やめる（人の go）・report.json に pr の無い課題を人がマージした | AI | `andon issue finish` |  |
 | `doing` | `done` | doing のうちに人がマージした PR を andon issue settle が拾って片付けた（dispatcher.md §2.7） | 機械 | `andon issue finish` |  |
 | `done` | （始まり・終わり） | 終わり | 台帳の CLI |  |  |
