@@ -430,6 +430,30 @@ dispatcher
 [ "$(grep -c "	$id（" "$tmp/hc/sent")" = 1 ] || die '同じ review 入りで二度ゲートを回した'
 ok 'fix は理由を担当（issue.yaml の agent）へ hc send し、同じ review 入りでは二度回さない'
 
+# 2b. 担当の端末が無くて fix を送れなければ（セルの起き直し）、通知 gate に unsent を書いて Chief of Staff に届ける（送れた fix は上のとおり記録だけ）
+fx=$(newtask '直しが届かない' auto)
+work "$fx" docs/a.md
+as_worker "$fx" report --pr https://github.com/example/app/pull/7
+as_worker "$fx" review-request
+dispatcher
+rv=$(kanban list --all --json | jq -r --arg p "$fx" '.[] | select(.parent == $p) | .id')
+review_by "$rv" '[{"severity":"major","file":"docs/a.md","line":1}]'
+as_worker "$fx" ready
+echo t7 > "$tmp/hc/sendfail"   # 本物の hc は無い端末への send を断る
+dispatcher
+! grep -q "	$fx（" "$tmp/hc/sent" || die '送れないはずの fix が届いた（前提が崩れた）'
+pending "$fx" gate | jq -e '.detail.decision == "fix" and .detail.unsent == "t7" and (.detail.reasons | length) > 0' >/dev/null \
+  || die "送れなかった fix を Chief of Staff に届けない: pending=$(pending "$fx" gate) recorded=$(recorded "$fx" gate)"
+[ "$(recorded "$fx" gate)" = null ] || die "送れなかった fix を記録だけにもした: $(recorded "$fx" gate)"
+grep -q "$fx の担当 t7 に fix を送れない" "$tmp/dispatcher.log" || die '送れなかったことをログに書かない'
+kanban show "$fx" --json | jq -e '.issue.status == "review"' >/dev/null && [ ! -e "$tmp/gh/merged" ] || die 'fix なのにマージした・片付けた'
+emit <(pending "$fx" gate) notification-gate-unsent.json
+dispatcher
+[ "$(jq --arg t "$fx" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state")" = 1 ] || die '同じ review 入りで二度ゲートを回して積んだ'
+rm "$tmp/hc/sendfail"
+cos_done "$fx"
+ok '担当に fix を送れなければ、通知 gate（unsent）を Chief of Staff に届ける'
+
 # 3. needs_human は問い（from: gate）。レベル C は委譲 merge B の外
 restart "$id"
 work "$id" package/gate.json

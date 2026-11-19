@@ -84,7 +84,11 @@ func line(n Notification) string {
 			}
 			s += "（" + strings.Join(parts, "; ") + "）"
 		}
-		return s + " 記録 " + d("record")
+		s += " 記録 " + d("record")
+		if u, ok := n.Detail["unsent"]; ok && u != nil && u != "" {
+			s += "。担当 " + clean(u, 40) + " に送れなかった（端末が無い）"
+		}
+		return s
 	case "merged":
 		if n.Detail["by"] != "person" {
 			return head + d("pr") + " をマージして片付けた（" + clean(n.Detail["sha"], 12) + "）"

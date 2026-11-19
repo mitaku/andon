@@ -27,6 +27,8 @@ func TestRouteOf(t *testing.T) {
 		{"担当の review（ゲートを回す）", "review", nil, Facts{Gated: true}, Record},
 		{"Chief Engineer・調べる課題の review（ゲートを回さない）", "review", nil, Facts{}, Deliver},
 		{"gate fix", "gate", g("fix"), Facts{}, Record},
+		{"gate fix（担当に送れなかった）", "gate", map[string]any{"decision": "fix", "unsent": "t7"}, Facts{}, Deliver},
+		{"gate fix（unsent が空）", "gate", map[string]any{"decision": "fix", "unsent": ""}, Facts{}, Record},
 		{"gate needs_human", "gate", g("needs_human"), Facts{}, Record},
 		{"gate approve（マージしない）", "gate", g("approve"), Facts{}, Deliver},
 		{"gate approve（merge: auto）", "gate", g("approve"), Facts{AutoMerge: true}, Wait},
@@ -281,5 +283,17 @@ func TestAppendLinesPartial(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "{\"m\":0,\"n\":5}\n\"n\":5}\n" {
 		t.Fatalf("行の途中の一致で飛ばした: %q", got)
+	}
+}
+
+// 担当に送れなかった fix は <news> の行に送れなかった担当を書く（送れた fix の行は今どおり）。
+func TestLineGateUnsent(t *testing.T) {
+	d := map[string]any{"decision": "fix", "reasons": []any{"Must fix 以上が 1 件"}, "record": "/r.json"}
+	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json" {
+		t.Fatalf("送れた fix の行が変わった: %q", got)
+	}
+	d["unsent"] = "t7"
+	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json。担当 t7 に送れなかった（端末が無い）" {
+		t.Fatalf("送れなかった担当を書かない: %q", got)
 	}
 }

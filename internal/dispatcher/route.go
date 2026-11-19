@@ -41,7 +41,12 @@ func RouteOf(n Notification, f Facts) Route {
 		return Deliver // Chief Engineer の課題・調べる課題など、ゲートを回さない課題（ADR-0010 決めたこと 7）
 	case "gate":
 		switch n.Detail["decision"] {
-		case "fix", "needs_human":
+		case "fix":
+			if u, ok := n.Detail["unsent"]; ok && u != nil && u != "" {
+				return Deliver // 担当に送れなかった（担当の端末が無い）。誰にも届かず review のまま止まらないように
+			}
+			return Record
+		case "needs_human":
 			return Record
 		case "approve":
 			if f.AutoMerge {

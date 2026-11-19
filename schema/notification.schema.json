@@ -98,8 +98,10 @@
       "properties": {
         "decision": { "description": "As in the gate record.", "enum": ["approve", "fix", "needs_human"] },
         "reasons": { "description": "As in the gate record.", "type": "array", "items": { "type": "string" } },
-        "record": { "description": "Path of the gate record.", "$ref": "#/$defs/path" }
-      }
+        "record": { "description": "Path of the gate record.", "$ref": "#/$defs/path" },
+        "unsent": { "description": "Only with decision fix: the worker's address the reasons could not be sent to (its terminal is gone). The notification is then delivered to the Chief of Staff.", "type": "string", "minLength": 1 }
+      },
+      "if": { "required": ["unsent"] }, "then": { "properties": { "decision": { "const": "fix" } } }
     },
     "merged": {
       "description": "kind merged: the dispatcher merged and finished the issue, or (by: person) found that a person merged an issue in review and finished it. held: it did not finish, and why.",
