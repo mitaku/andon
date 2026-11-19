@@ -706,3 +706,68 @@ func TestHelpFlagAndDoubleDash(t *testing.T) {
 		t.Fatalf("W-0002: %v", got)
 	}
 }
+
+// A queued task whose after is rewritten so nothing is left to wait for moves to the first column, as
+// kanban done's freeWaiting does; while something is still waited for, or a status is set too, it stays put.
+func TestSetAfterFreesQueued(t *testing.T) {
+	root := newLedger(t)
+	kanban(t, root, "add", "Second")
+	kanban(t, root, "add", "Waits", "--after", "W-0001")
+	status := func(id string) string {
+		t.Helper()
+		data, _ := os.ReadFile(taskFile(root, id))
+		for _, l := range strings.Split(string(data), "\n") {
+			if s, ok := strings.CutPrefix(l, "status: "); ok {
+				return s
+			}
+		}
+		t.Fatalf("%s has no status:\n%s", id, data)
+		return ""
+	}
+	if s := status("W-0003"); s != "queued" {
+		t.Fatalf("added with after: status %s, want queued", s)
+	}
+
+	// still waits for something not done: stays queued
+	kanban(t, root, "set", "W-0003", "after=W-0002")
+	if s := status("W-0003"); s != "queued" {
+		t.Fatalf("after=W-0002 (todo): status %s, want queued", s)
+	}
+
+	// a status set in the same command wins
+	kanban(t, root, "set", "W-0003", "after=", "status=queued")
+	if s := status("W-0003"); s != "queued" {
+		t.Fatalf("after= status=queued: status %s, want queued", s)
+	}
+	kanban(t, root, "set", "W-0003", "after=W-0001")
+
+	// nothing left to wait for: todo, logged with the after change, and said so
+	if out := kanban(t, root, "set", "W-0003", "after="); !strings.Contains(out, "now ready: W-0003") {
+		t.Fatalf("after=: output %q, want now ready: W-0003", out)
+	}
+	if s := status("W-0003"); s != "todo" {
+		t.Fatalf("after=: status %s, want todo", s)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, "kanban", "log.jsonl"))
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if last := lines[len(lines)-1]; !strings.Contains(last, `"after":null`) || !strings.Contains(last, `"status":"todo"`) {
+		t.Fatalf("last log line %s, want after null and status todo", last)
+	}
+	if out := kanban(t, root, "ready"); !strings.Contains(out, "W-0003") {
+		t.Fatalf("ready: %q, want W-0003", out)
+	}
+
+	// rewritten to point at an issue that is already done: todo too
+	kanban(t, root, "add", "Waits too", "--after", "W-0002")
+	kanban(t, root, "done", "W-0001")
+	kanban(t, root, "set", "W-0004", "after=W-0001")
+	if s := status("W-0004"); s != "todo" {
+		t.Fatalf("after=W-0001 (done): status %s, want todo", s)
+	}
+
+	// a todo task given something to wait for is not moved (kanban set only frees)
+	kanban(t, root, "set", "W-0004", "after=W-0002")
+	if s := status("W-0004"); s != "todo" {
+		t.Fatalf("todo given after: status %s, want todo", s)
+	}
+}
