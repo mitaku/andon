@@ -242,6 +242,17 @@ func (c *ctx) stillWaiting(rows []ledger.Row, pr, waited string, now time.Time) 
 	return false
 }
 
+// FixMarker はゲートの差し戻しの文（sendFix）の印。端末の外から hc send するので hc の包みが付かず、
+// セッションログでは人が打った文と同じ印になる。andon retro collect はこの印で人の文から除く。
+const FixMarker = "ゲートが fix を返した。理由: "
+
+// IsFixText は s がゲートの差し戻しの文（sendFix が送る形）か。
+func IsFixText(s string) bool {
+	head, _, _ := strings.Cut(s, "\n")
+	i := strings.Index(head, "）: "+FixMarker)
+	return i > 0 && strings.Contains(head[:i], "（")
+}
+
 // sendFix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。
 // 返せなければ dispatcher が Chief of Staff に届けるよう、通知 gate の detail に印を書く: 担当がいなければ no_agent、
 // 送れなければ（担当の端末が無い）unsent（担当の address）。gate が無ければ（PR の head が読めない）通知 report。
@@ -252,7 +263,7 @@ func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 		c.markGate(res, "no_agent", true)
 		return
 	}
-	msg := fmt.Sprintf("%s（%s）: ゲートが fix を返した。理由: %s。", c.id, short(c.issue.Str("title")), strings.Join(gr.Reasons, "／"))
+	msg := fmt.Sprintf("%s（%s）: %s%s。", c.id, short(c.issue.Str("title")), FixMarker, strings.Join(gr.Reasons, "／"))
 	if record != "" {
 		msg += "記録は " + record + "。"
 	}

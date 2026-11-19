@@ -515,6 +515,7 @@ andon/
     delivered.schema.json    届けた通知の記録（contract.md §17）
     launch.schema.json       起動の記録（エージェントを起動する command が起動のたびに1行足す。contract.md §18。ADR-0028）
     outcome.schema.json      結果の記録（dispatcher が finish のあとの巡で1回だけ書く。contract.md §19。ADR-0028）
+    retro.schema.json        振り返りの入力（andon retro collect の出力。読むだけ。contract.md §20。ADR-0028）
   process/                   仕事の流れ（workstreams/）と状態（states/）の定義（YAML。ADR-0017。states/issue.yaml は andon に埋め込む）
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）

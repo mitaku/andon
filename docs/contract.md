@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -18,10 +18,11 @@
 | §17 届けた通知の記録 | `schema/delivered.schema.json` |
 | §18 起動の記録 | `schema/launch.schema.json` |
 | §19 結果の記録 | `schema/outcome.schema.json` |
+| §20 振り返りの入力（`andon retro collect` の出力） | `schema/retro.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
-- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（人の Interface）・振り返り。語は [design.md](design.md) §0.1。
 - 台帳の CLI は `kanban`（`cmd/kanban`。command と形式は [ledger.md](ledger.md)）。
 - 台帳の形式（形式 3。[ledger.md](ledger.md)・`schema/ledger/`）は Andon が持つ（[design.md](design.md) §3.5 で移した）。Andon のキーは「Any other key is allowed and kept」の上に置き、形式そのものを変えるときは形式の版で変える。
 
@@ -777,3 +778,64 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 
 - **ファイルが無いのは「集めていない」。** 読めないもの（gh・台帳・ゲートの記録・起動の記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目なら dispatcher のログに1行で諦める（通知は積まない。§14 の `corrections` と違い、Chief of Staff が手で集め直す口は無い。振り返りは無い欄を `null` として読む）。gh の上限で止めている間（控えの `GHReset`）は打たず、回数にも数えない。
 - 片付けたあとに状態が変わる PR（`open` のまま片付いて、あとで人がマージした）は、書いたときの状態のまま。書き直さない（「1回だけ書く」。マージ後のことは振り返りが GitHub から読む）。
+
+## 20. 振り返りの入力（`andon retro collect` の出力）
+
+`andon retro collect [--days N]` が、振り返り（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8 の「集める」）の入力を1つの JSON にまとめて標準出力に出す。**読むだけで、何も書かない・保存しない**。置き場は無い（§13 と同じ）。期間は打った時刻から N 日（既定 7。1〜90）。台帳のファイルを直に読む（台帳の CLI は打たない）。
+
+```json
+{"project": "sample-site", "at": "2026-11-19T12:00:00Z", "since": "2026-11-12T12:00:00Z", "until": "2026-11-19T12:00:00Z",
+ "previous_retro": {"issue": "S-0040", "done_at": "2026-11-18T09:30:00Z"},
+ "issues": [
+   {"id": "S-0012", "title": "返事の下書きボタン", "profile": "claude", "repo": "github.com/example/sample-site",
+    "done_at": "2026-11-18T10:00:00Z", "library": "/workspace/projects/sample-site/kanban/issues/S-0012/library",
+    "estimate": "medium", "agent_estimate": null, "worked_minutes": 95, "pr": "https://github.com/example/sample-site/pull/12",
+    "launches": [{"at": "2026-11-18T08:00:00Z", "role": "worker", "launch": "start", "session": "0f8fad5b-d9cb-469f-a165-70867728950e",
+                  "package": {"root": "/opt/andon", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "source": "applied", "drift": false, "reasons": []}}],
+    "outcome": {"result": "merged", "worked_minutes": 95},
+    "gates": [{"head": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "at": "2026-11-18T09:55:00Z", "tier": "B", "decision": "approve", "reasons": [], "merged": true}],
+    "reviews": [{"id": "S-0012-r1", "profile": "codex-review",
+                 "findings": {"commit": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "findings": [{"severity": "major", "file": "app/reply.ts", "line": 40}]},
+                 "outcome": null}],
+    "waived": [], "corrections": [{"kind": "answer", "question": 2, "decision_kind": "users", "recommended": "CSV だけ", "picked": "CSV と Excel"}],
+    "remember": ["返事の下書きは保存の前に空白を詰める"], "agents_md": [], "journal": "- 理解: 完了条件が2通りに読めて迷った\n",
+    "after_merge": {"merge_commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "merged_at": "2026-11-18T09:58:00Z",
+                    "checks": {"state": "failure", "failed": ["tests"]},
+                    "reverted_by": [{"pr": "https://github.com/example/sample-site/pull/13", "merged_at": "2026-11-18T15:00:00Z"}]},
+    "reapplied": false, "reapplied_reasons": []}],
+ "typed": [{"id": "h-6f1c2d3e-0000-4000-8000-000000000001", "session": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "at": "2026-11-18T11:00:00Z",
+            "role": "chief-of-staff", "issue": null, "text": "PR の題に課題番号を書かないで。鍵は [REDACTED:github]", "truncated": false}],
+ "fixes": [{"issue": "S-0041", "title": "見送りの理由を報告に必ず書かせる", "retro": "S-0040", "pr": "https://github.com/example/sample-site/pull/20",
+            "merged_at": "2026-11-16T09:00:00Z", "issues_after": 6}],
+ "redacted": 1,
+ "skipped": [{"source": "github.com/example/other", "reason": "マージされた PR の一覧が読めない（gh pr list: HTTP 404）。この repo のマージ後のことは null"}]}
+```
+
+| キー | 意味・元 |
+|---|---|
+| `previous_retro` | 片付いた振り返りの課題のうち、最後に `done` になったもの（`log.jsonl` の時刻）。振り返りの課題は、`issue.yaml` の `routine` が `retro`（ルーチン retro が足した）か、`library/retro.json`（振り返りが書くパターンの一覧）があるもの。無ければ `null` |
+| `issues[]` | 期間に `done` になった担当の課題。レビュアーの子（`parent` があり `*-review` か `<親>-r<k>`）・人の課題（`who: person`）・Chief Engineer の課題（`profile: chief-engineer`）・振り返りの課題は入れない。根拠として指す id は課題の id |
+| `issues[].launches` | 起動の記録（§18）の行を、`memory_index` を落として写したもの（全文は `library` の `launches.jsonl`）。ファイルが無ければ `null` |
+| `issues[].outcome` | 結果の記録（§19）の写し。無ければ `null`（この仕組みの前の課題） |
+| `issues[].gates` | ゲートの記録（§7）の `head`・`at`・`tier`・`decision`・`reasons`・`merged`。判定の時刻の順 |
+| `issues[].reviews` | レビュアーの子の課題ごとの `findings.json`（§3）と `outcome.json` の写し。無ければ `null` |
+| `issues[].estimate`・`agent_estimate`・`worked_minutes` | `issue.yaml` の `estimate`・`report.json` の `estimate.size`・`outcome.json` の `worked_minutes` |
+| `issues[].waived`・`remember`・`agents_md` | `report.json` の写し |
+| `issues[].corrections` | `corrections.json`（§14）の `corrections`。ファイルが無ければ `null`（集めていない） |
+| `issues[].journal` | 日報（`library/journal.md`）を丸ごと写したもの（行を読まない）。無ければ `null` |
+| `issues[].after_merge` | マージ後のこと。`report.json` の `pr` がマージされていれば GitHub から読む: repo ごとに1回の `gh pr list --repo <owner>/<repo> --state merged --limit 1000 --json number,url,title,body,mergedAt,mergeCommit` と、マージ commit ごとの `gh api --paginate repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100`（ページを最後まで読む）。`checks.state` は check run の `conclusion` が `failure`・`timed_out`・`startup_failure`・`action_required` のものが1つでもあれば `failure`（`cancelled` は数えない）、終わっていないものがあれば `pending`、check run が無ければ `none`。`reverted_by` は、題が `Revert ` で始まり本文に `<owner>/<repo>#<n>` か PR の URL があるマージされた PR（`andon measure` と同じ照合）。PR が無い・マージされていない・一覧が読めないなら `null`。信号の記録（§15）は使わない（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 4） |
+| `issues[].reapplied` | 課題の途中でパッケージが当て直された印。当て直しの記録（パッケージの置き場の `applied.json` の `applied_at`。[ADR-0027](adr/0027-apply-package-without-rebuild.md)）が最初の起動と片付けの間にあるか、起動の記録の `package.commit` が2通り以上あれば `true`。当て直しの記録は最後の1回しか残らないので、それより前の当て直しは起動の記録の commit で拾う。起動の記録が無い・当て直しの記録が読めなければ `null`。理由は `reapplied_reasons` |
+| `typed[]` | 期間に人が端末で打った文（下の規則）。根拠として指す id は `h-<セッションログの行の uuid>`。同じ `session` の文は根拠として1件に数える（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 2）。`role` と `issue` はセッションのオーナー。2000 字を超える文は切って `truncated: true` |
+| `fixes[]` | 前の振り返りが切った直し（`parent` が振り返りの課題の、`done` の課題）のうち、PR のマージ（GitHub の `mergedAt`。読めなければ `outcome.json` の `merged_at`）が打った時刻から 14 日以内のもの。`issues_after` は、マージのあとに `done` になった担当の課題の数（期間に限らない） |
+| `redacted` | 秘密の形に合って伏せた数 |
+| `skipped` | 読めなかったもの（読めない記録・GitHub）。集めるのは止めない |
+
+人が打った文の規則（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 4・14 の 1）。読むのは Claude Code のセッションログ（`<CLAUDE_CONFIG_DIR か ~/.claude>/projects/*/<session>.jsonl`。期間より前に書き終わったファイルは開かない）だけ。Codex の記録（rollout）の user の文には人の印が無いので抜かない。
+
+- **このプロジェクトのセッションだけ。** オーナーは、起動の記録（§18）の `session` か、ログの行の `cwd`（プロジェクトの根は Chief of Staff、台帳の `issues/<id>/` と課題の `worktree` はその課題）で決める。どちらにも当たらないセッションは読まない。
+- **抜く行**: `type` が `user`・`isSidechain`・`isMeta`・`isCompactSummary` が真でない・`origin.kind` が `human`・中身が文字列か text の block（道具の結果の block があれば抜かない）・時刻が期間の中。
+- **除く行**: セッションの最初の人の印の文（起動の最初のメッセージ）。包みのある文（先頭が `<hc from=`・`<news`・`<task-notification>`。貼った文の包み `<pasted_content …>` の内側も見る）。Andon の command が端末の外から `hc send` した定型の文（hc の包みが付かず人の印になる。dispatcher の再開の文 `dispatcher.RetryText` と、ゲートの差し戻し `issue.IsFixText`。送る側の定数で照らす）。
+- 文の意味は読まない。抜いた文はこの出力にだけ置き、PR には写さない（[ADR-0028](adr/0028-improvement-loop.md) 前提 7）。
+
+秘密を伏せる: 出力の JSON を書いたあと、文字列の中で秘密の形に合う所を `[REDACTED:<形の名前>]` に置き換える（鍵の名前に続く値は名前を残して値だけ）。形は秘密鍵の塊・Anthropic と OpenAI の API キー・GitHub のトークン・AWS のアクセスキー・Slack のトークン・Google の API キー・JWT・`Bearer` のトークン・`api_key`／`token`／`password` などの名前に続く値（値の長さは問わない）。一覧の正は `internal/retro/redact.go`（検査は偽の値で `internal/retro/retro_test.go`）。多めに伏せる。伏せたあと JSON として読めなければ出さずに終了コード 1。
+
