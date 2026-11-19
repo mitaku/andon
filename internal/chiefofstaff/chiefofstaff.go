@@ -25,6 +25,7 @@ import (
 
 	"andon/internal/dispatcher"
 	"andon/internal/flock"
+	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -147,7 +148,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 			where = "App の Space の外（herdr.space・herdr.tab のラベルより前に起きた端末）"
 		}
 	} else {
-		found, err := spawn.HasTemplate(Profile)
+		command, found, err := spawn.TemplateCommand(Profile)
 		if err != nil {
 			return die("%v", err)
 		}
@@ -155,9 +156,15 @@ func Start(dir string, stdout, stderr io.Writer) int {
 			return die("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", Profile)
 		}
 		// skill chief-of-staff はプロファイルの command が system prompt に足すので、最初のメッセージは読ませる行を持たない（ADR-0001 決定 3）
+		rec := launch.Gather(launch.Spec{Role: launch.RoleChiefOfStaff, Launch: launch.LaunchStart, Profile: Profile, Template: Profile,
+			Command: &command, Brand: ledger.Brand(Profile)})
 		run, err = spawn.Run(name, []string{"role=" + Profile, "project=" + slug, "herdr.space=" + space, "herdr.tab=" + tab}, root, Profile, msg)
 		if err != nil {
 			return die("%v", err)
+		}
+		rec.Terminal = run.Address
+		if err := launch.Append(launch.ChiefOfStaffPath(l.Dir), rec); err != nil {
+			fmt.Fprintf(stderr, "andon chief-of-staff: 起動の記録を書けない（起動は続ける）: %v\n", err)
 		}
 		addr, how = run.Address, "起動した"
 	}

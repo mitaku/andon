@@ -235,7 +235,7 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 使用量の上限（§2.4 の見分けの「待っても直らない」側。`usage limit`・`quota`・`billing` など）は待っても通らないので「続けて」は打たない。止まったのが**レビュアー**（`parent` があり `profile` が `*-review` の `doing` の課題）なら、もう一方のレビューのプロファイルで起動し直せるかを見る（[decisions/2026-11-09-reviewer-allowance-fallback.md](decisions/2026-11-09-reviewer-allowance-fallback.md)）。
 
 - 起動し直すのは、もう一方（`codex-review` ↔ `claude-review`）が元の課題の担当の `profile` と**別ブランド**のときだけ。担当が Claude で `codex-review` が尽きたなら `claude-review` へは逃げない（同じブランドのレビューはゲートが数えない）。今どおり `error` を知らせる。
-- 手順: 止まった端末を `hc kill`・`hc rm`（同じ名前 `<slug>-<子>` で起動するため）→ `kanban set <子> profile=<先> fallback="<元> → <先>（使用量の上限で止まった。端末 <元の端末>）"`（`by` は `terminal:dispatcher`。逃げたことは `log.jsonl` のこの1行に残る）→ §5 のレビュアーと同じ `hc run`（同じ cwd・同じ最初のメッセージ・同じ detached worktree）→ `kanban set <子> agent=<新しい端末>`。最初のメッセージが届かなければ §5 と同じくラベル `first_message.sent=false` を付けて見回りに預ける。
+- 手順: 止まった端末を `hc kill`・`hc rm`（同じ名前 `<slug>-<子>` で起動するため）→ `kanban set <子> profile=<先> fallback="<元> → <先>（使用量の上限で止まった。端末 <元の端末>）"`（`by` は `terminal:dispatcher`。逃げたことは `log.jsonl` のこの1行に残る）→ §5 のレビュアーと同じ `hc run`（同じ cwd・同じ最初のメッセージ・同じ detached worktree）→ `kanban set <子> agent=<新しい端末>`。起動の記録は `launch: fallback` で1行足す（[contract.md](contract.md) §18）。最初のメッセージが届かなければ §5 と同じくラベル `first_message.sent=false` を付けて見回りに預ける。
 - 起動し直しは1回だけ: 替えた先も上限で止まれば、その先のもう一方は担当と同じブランドになるので、知らせる。
 - 途中で失敗したら起動し直さず、ログに1行。端末を片付けたあとの失敗は、次の見回りで端末が無い（`finished`）として知らせる。
 - 担当・Chief of Staff の使用量の上限は今どおり知らせる（人が枠を足すか待つかを決める）。初めて見る台帳では起動し直さない。
@@ -403,7 +403,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 
 | 拾うもの | dispatcher がすること | 判断を持つ者 |
 |---|---|---|
-| `report.json` の `review_request`（`round` ≤ `review_rounds`） | レビュアーを起動する: `kanban add --parent <id> --round <round>`（子の id は `<id>-r<round>`。通し番号を使わず、detached worktree の名前 `<slug>-<id>-r<round>` と揃う） ＋ 担当の commit の detached worktree ＋ `hc run <reviewer>`（`--no-notify`）。通知 `review-requested` | 起動するかは `issue.yaml` の `review`・`reviewer`（Chief of Staff が書く） |
+| `report.json` の `review_request`（`round` ≤ `review_rounds`） | レビュアーを起動する: `kanban add --parent <id> --round <round>`（子の id は `<id>-r<round>`。通し番号を使わず、detached worktree の名前 `<slug>-<id>-r<round>` と揃う） ＋ 担当の commit の detached worktree ＋ `hc run <reviewer>`（`--no-notify`）＋ 起動の記録（子の `library/launches.jsonl` に1行。[contract.md](contract.md) §18）。通知 `review-requested` | 起動するかは `issue.yaml` の `review`・`reviewer`（Chief of Staff が書く） |
 | `review_request.extra`（上限を超えた回） | **起動しない**。通知にして Chief of Staff へ | Chief of Staff |
 | `{"status": "review"}` | `andon issue merge` を打つ。merge が `andon gate` を回し（記録 `library/gate/<sha>.json`）、下の行の手を打って、積む通知（`gate`・`merged`・`asked`・`report`）を返す。決めたことは merge の記録 `<slug>.merge.json`（課題 → review に入った行・判定した head・決定・マージの commit・待つ head・approve の時刻。書き手は merge だけ。contract.md §6） | ゲート（決定式） |
 | `deliverable: candidates`（調べる課題）の `{"status": "review"}`・`review_request` | **ゲートを回さず、レビュアーも起動しない**。通知だけ（PR が無いので `report`）。候補の一覧は Chief of Staff が読んで切る。`deliverable` を最後に書いたのが Chief of Staff でなければ `pr` として読む（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7） | Chief of Staff |

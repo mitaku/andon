@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の12本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の13本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon signal）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh に書かせる）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon signal・andon chief-engineer・andon chief-of-staff）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-signal.sh・andon-chief-of-staff.sh に書かせる）。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 # 速さ: 検査は1件ずつ python にかけず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
@@ -49,21 +49,21 @@ flush() {
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered findings gate issue-keys measure notification project question report signal"
+expected="candidates corrections delivered findings gate issue-keys launch measure notification project question report signal"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は12本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は13本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   queue 0 0 "schema/$name の決まり" lint "$schema_dir/$name.schema.json"
 done
 flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -137,6 +137,7 @@ declare -A required=(
   [corrections]="at corrections"
   [signal]="signals"
   [delivered]="at project acked news"
+  [launch]="at role launch issue profile template command terminal session harness package workspace repo external drift drift_reasons memory_index"
 )
 # gen <pass|fail> <例の key> <jq の式> <説明>: 例を式で壊した（変えた）ものの検査を溜める。
 # 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を呼ばない）。式は1つの値を返すこと。
@@ -241,6 +242,11 @@ project|.signals[0]|source weight
 project|.signals[2]|source weight
 signal|.signals[0]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
 signal|.signals[1]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
+launch|.harness|name version
+launch|.package|root commit source drift reasons
+launch|.workspace|path commit dirty
+launch|.repo|name path commit dirty
+launch|.external[0]|kind name path source ref version revision
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -521,6 +527,28 @@ fail|delivered|.news[0].kind = "nope"|知らない kind
 fail|delivered|.acked = "true"|acked が文字列
 fail|delivered|.at = "2026-11-12"|at が時刻でない
 fail|delivered|.news[0].issue = "a/b"|issue に /
+pass|launch|.command = null | .harness.version = null | .session = null | .external = null | .memory_index = null|取れない値は null
+pass|launch|.role = "chief-of-staff" | .issue = null | .repo = null|Chief of Staff は課題も repo も null
+pass|launch|.repo = null|repo の無い課題
+pass|launch|.drift = true | .drift_reasons = ["パッケージ: 中身が焼いたときと違う"]|食い違いの印と理由
+pass|launch|.drift = null | .drift_reasons = ["セルの repo の commit を読めない"] | .workspace.commit = null | .workspace.dirty = null|確かめられないときは null と理由
+pass|launch|.package.commit = null | .package.source = "none" | .package.drift = null | .package.reasons = ["version.json が無い"]|パッケージの版が分からない
+pass|launch|.launch = "fallback" | .role = "reviewer"|使用量の上限で起動し直したレビュアー
+pass|launch|.external = []|外の skill も plugin も無い
+fail|launch|.role = "chief-of-staff"|Chief of Staff なのに課題がある
+fail|launch|.issue = null|担当なのに課題が null
+fail|launch|.drift = true|drift が true なのに理由が無い
+fail|launch|.drift_reasons = ["x"]|drift が false なのに理由がある
+fail|launch|.role = "human"|知らない役
+fail|launch|.launch = "restart"|知らない起動のしかた
+fail|launch|.session = "abc"|session が UUID でない
+fail|launch|.package.commit = "abc"|commit が 40 桁でない
+fail|launch|.package.source = "git"|package の source が知らない値
+fail|launch|.harness.name = "gemini"|知らないハーネス
+fail|launch|.external[0].kind = "agent"|external の kind が知らない値
+fail|launch|.terminal = ""|terminal が空
+fail|launch|.at = "2026-11-19"|at が時刻でない
+fail|launch|.workspace.dirty = "no"|dirty が真偽値でない
 fail|measure|.flow.closed.count = 1.5|件数が整数でない
 fail|measure|.days = 0|days が 0
 fail|measure|.since = "2026/11/01"|since が YYYY-MM-DD でない
@@ -613,6 +641,10 @@ project|."$defs".signal.required -= ["source"]|signals の必須から source �
 signal|del(.properties.signals.uniqueKeys)|信号の fingerprint の一意を外す
 signal|."$defs".signal.required -= ["delivered_episode"]|信号の必須から delivered_episode を外す
 signal|."$defs".signal.additionalProperties = true|信号の知らないキーを許す
+launch|.required -= ["memory_index"]|起動の記録の必須から memory_index を外す
+launch|del(.else)|起動の記録の「drift が false でなければ理由がある」を外す
+launch|del(.allOf)|起動の記録の「Chief of Staff は課題が null・ほかは課題がある」を外す
+launch|."$defs".external.additionalProperties = true|external の知らないキーを許す
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -626,7 +658,7 @@ fi
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   mkdir "$tmp/emit"
   skipped=0
-  for t in andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-signal; do
+  for t in andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-signal andon-chief-of-staff; do
     if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
     elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
   done
@@ -684,6 +716,13 @@ notification-stalled.json|notification|andon dispatcher の通知 stalled
 notification-resumed.json|notification|andon dispatcher の記録だけの通知 resumed（Gone の担当を resume した）
 notification-estimate.json|notification|andon dispatcher の通知 estimate（実働が見込みを超えた）
 notification-memory.json|notification|andon dispatcher の通知 memory（memory の件数が線を超えた）
+launch-start.json|launch|andon issue start の起動の記録
+launch-drift.json|launch|andon issue start の起動の記録（パッケージの置き場が食い違う・Codex）
+launch-norepo.json|launch|andon issue start の起動の記録（repo の無い課題）
+launch-resume.json|launch|andon issue resume の起動の記録
+launch-chief-engineer.json|launch|andon chief-engineer の起動の記録
+launch-reviewer.json|launch|andon dispatcher がレビュアーを起動したときの起動の記録
+launch-chief-of-staff.json|launch|andon chief-of-staff の起動の記録
 EMIT
     flush
   fi

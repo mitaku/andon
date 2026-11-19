@@ -1,0 +1,441 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/launch/1",
+  "title": "Launch record",
+  "description": "One line of issues/<id>/library/launches.jsonl (an issue's worker, reviewer or Chief Engineer) or of <ledger>/chief-of-staff/launches.jsonl (the Chief of Staff): one agent launch, with the versions it ran on. Written only by the command that launched the agent (andon issue start, andon issue resume, the dispatcher starting a reviewer, andon chief-engineer, andon chief-of-staff), after hc run started the terminal; appended only, earlier lines are never rewritten. A value that could not be read is null. Read by the retro; no gate or dispatcher decision reads it. Only these keys.",
+  "type": "object",
+  "required": [
+    "at",
+    "role",
+    "launch",
+    "issue",
+    "profile",
+    "template",
+    "command",
+    "terminal",
+    "session",
+    "harness",
+    "package",
+    "workspace",
+    "repo",
+    "external",
+    "drift",
+    "drift_reasons",
+    "memory_index"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "description": "When the launch was gathered, just before hc run.",
+      "$ref": "#/$defs/time"
+    },
+    "role": {
+      "description": "Who was launched.",
+      "enum": [
+        "worker",
+        "reviewer",
+        "chief-engineer",
+        "chief-of-staff"
+      ]
+    },
+    "launch": {
+      "description": "start: a new terminal. resume: a stopped terminal continued its harness session (andon issue resume). fresh: a stopped terminal restarted in a new session (andon issue resume --fresh). fallback: a reviewer stopped by the usage limit, restarted with the other profile.",
+      "enum": [
+        "start",
+        "resume",
+        "fresh",
+        "fallback"
+      ]
+    },
+    "issue": {
+      "description": "The issue the agent works on; null for the Chief of Staff.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profile": {
+      "description": "Profile name (issue.yaml profile).",
+      "$ref": "#/$defs/name"
+    },
+    "template": {
+      "description": "The hc template that ran: the profile, or <profile>-resume when continuing a session.",
+      "$ref": "#/$defs/name"
+    },
+    "command": {
+      "description": "The template's command line as hc templates --json gave it (model and effort included); null when it could not be read.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "terminal": {
+      "description": "The hc address of the terminal that was started.",
+      "type": "string",
+      "minLength": 1
+    },
+    "session": {
+      "description": "The harness session id when known at launch (Claude Code, and Codex when resuming); null otherwise.",
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "harness": {
+      "description": "What runs the agent.",
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Harness brand of the profile.",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "version": {
+          "description": "First line of <name> --version; null when it could not be run.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "package": {
+      "description": "The Andon package directory and the commit it came from (andon version).",
+      "type": "object",
+      "required": [
+        "root",
+        "commit",
+        "source",
+        "drift",
+        "reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "description": "Package directory (ANDON_HOME, default /opt/andon).",
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "description": "Commit of the package; null when unknown.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "description": "Where the commit was read: applied (applied.json), image (version.json), none.",
+          "enum": [
+            "applied",
+            "image",
+            "none"
+          ]
+        },
+        "drift": {
+          "description": "The directory differs from the commit; null when it could not be checked.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reasons": {
+          "description": "Why drift is true or null.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "workspace": {
+      "description": "The cell repo (ANDON_WORKSPACE, default /workspace).",
+      "$ref": "#/$defs/checkout"
+    },
+    "repo": {
+      "description": "The project repo the agent works in (its worktree); null when the issue has no repo.",
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "path",
+            "commit",
+            "dirty"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "description": "<host>/<owner>/<repo>.",
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "path": {
+              "description": "The worktree.",
+              "type": "string"
+            },
+            "commit": {
+              "description": "HEAD of the worktree; null when unreadable.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/sha"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dirty": {
+              "description": "The worktree had uncommitted changes (the agent's own work when resuming; not counted in drift); null when unreadable.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "external": {
+      "description": "Skills installed from outside (real directories with SKILL.md under the skill folders) and Claude Code plugins; null when the folders could not be read.",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/external"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "drift": {
+      "description": "The text the agent read cannot be restored from git: the package differs from its commit, or the cell repo has uncommitted changes. null when that could not be checked.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "drift_reasons": {
+      "description": "Why drift is true or null; empty when false.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "memory_index": {
+      "description": "Copy of the auto memory index (MEMORY.md) at launch, for Claude Code; null for Codex or when there is none.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    }
+  },
+  "if": {
+    "properties": {
+      "drift": {
+        "const": false
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "drift_reasons": {
+        "const": []
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "drift_reasons": {
+        "minItems": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "chief-of-staff"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "issue": {
+            "type": "null"
+          },
+          "repo": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "issue": {
+            "$ref": "#/$defs/id"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "time": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.",
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "id": {
+      "description": "A ledger issue id: no /, \\ or :, and not . or ...",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": {
+        "enum": [
+          ".",
+          ".."
+        ]
+      }
+    },
+    "sha": {
+      "description": "A full git commit id: 40 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "name": {
+      "description": "A profile or template name.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "text": {
+      "description": "Text (not empty).",
+      "type": "string",
+      "minLength": 1
+    },
+    "checkout": {
+      "description": "A git checkout.",
+      "type": "object",
+      "required": [
+        "path",
+        "commit",
+        "dirty"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "Its directory.",
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "description": "HEAD; null when it is not a git checkout or unreadable.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dirty": {
+          "description": "Uncommitted changes (git status --porcelain, ignored files excluded); null when unreadable.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "external": {
+      "description": "One outside skill or plugin.",
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "path",
+        "source",
+        "ref",
+        "version",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "skill or plugin.",
+          "enum": [
+            "skill",
+            "plugin"
+          ]
+        },
+        "name": {
+          "description": "Skill name (frontmatter name, else the folder) or plugin name@marketplace.",
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "description": "Where it is installed.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Skill: metadata github-repo. Plugin: null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "ref": {
+          "description": "Skill: metadata github-ref. Plugin: null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "version": {
+          "description": "Skill: metadata version. Plugin: version.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "revision": {
+          "description": "Skill: metadata github-tree-sha. Plugin: gitCommitSha.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

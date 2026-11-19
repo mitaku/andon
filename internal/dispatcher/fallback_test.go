@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/launch"
 	"andon/internal/ledger"
 )
 
@@ -111,6 +113,19 @@ func TestFallbackRestarts(t *testing.T) {
 	}
 	if len(f.p.st.Pending) != 0 {
 		t.Fatalf("起動し直したのに知らせた: %q", f.kinds())
+	}
+	// 起動の記録（contract.md §18）: レビュアーの課題に launch fallback の1行
+	b, err := os.ReadFile(launch.IssuePath(f.p.l.Dir, "S-7-r1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec launch.Record
+	if err := json.Unmarshal(b, &rec); err != nil || strings.Count(string(b), "\n") != 1 {
+		t.Fatalf("起動の記録が1行の JSON でない: %q %v", b, err)
+	}
+	if rec.Role != launch.RoleReviewer || rec.Launch != launch.LaunchFallback || rec.Issue == nil || *rec.Issue != "S-7-r1" ||
+		rec.Profile != "claude-review" || rec.Terminal != "t60" || rec.Session == nil || *rec.Session != m[1] {
+		t.Fatalf("起動の記録: %s", b)
 	}
 }
 

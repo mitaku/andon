@@ -13,8 +13,10 @@ import (
 	"strings"
 
 	"andon/internal/boot"
+	"andon/internal/chiefengineer"
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -46,6 +48,7 @@ type startPlan struct {
 	Brief        string       `json:"brief"`
 	Checks       []startCheck `json:"checks"`
 	repoDir      string
+	command      *string // template の command（起動の記録の起動行。dry では読まない）
 }
 
 // startCheck は起動する前の確かめ1つの結果。result は ok（通った）か skipped（--dry-run では確かめない: hc を呼ぶもの・作るもの）。
@@ -94,18 +97,21 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 			wt.Remove()
 			c.l.Run("", "set", id, "branch=", "worktree=")
 		}
-		p.Cwd, p.Branch = wt.Path, wt.Branch
+		p.Cwd, p.Branch, p.Worktree = wt.Path, wt.Branch, wt.Path
 	}
 
 	// 信頼の画面を出さない: boot のあとに追加した repo の根も、起動する前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon issue: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
+	rec := launch.Gather(launch.Spec{Role: roleOf(p.Profile), Launch: launch.LaunchStart, Issue: id, Profile: p.Profile, Template: p.Profile,
+		Command: p.command, Session: p.Session, Repo: p.Repo, RepoPath: p.Worktree, Brand: ledger.Brand(p.Profile)})
 	run, err := spawn.Run(p.Terminal, p.Labels, p.Cwd, p.Profile, p.FirstMessage)
 	if err != nil {
 		undo()
 		return fail("%v。作った worktree と branch を戻した。%s は todo のまま", err, id)
 	}
+	c.appendLaunch(stderr, rec, run.Address)
 
 	// 台帳を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
 	if _, err := spawn.OutputIn(p.Cwd, []string{"KANBAN_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
@@ -188,10 +194,11 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	if dry {
 		p.check("template", "skipped", "hc templates を呼ばない（プロファイル %s の template があるかは確かめていない）", p.Profile)
 	} else {
-		found, err := spawn.HasTemplate(p.Profile)
+		cmd, found, err := spawn.TemplateCommand(p.Profile)
 		if err != nil {
 			return nil, fail("%v", err)
 		}
+		p.command = &cmd
 		if !found {
 			return nil, fail("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", p.Profile)
 		}
@@ -360,4 +367,24 @@ func (c *ctx) after() []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+// roleOf はプロファイルから起動の記録の役を決める（chief-engineer は Chief Engineer、*-review はレビュアー、ほかは担当）。
+func roleOf(profile string) string {
+	switch {
+	case profile == chiefengineer.Profile:
+		return launch.RoleChiefEngineer
+	case strings.HasSuffix(profile, "-review"):
+		return launch.RoleReviewer
+	}
+	return launch.RoleWorker
+}
+
+// appendLaunch は起動できた端末 addr の起動の記録（contract.md §18）を課題の library/launches.jsonl に1行足す。
+// 書けなくても起動は戻さない（端末はもう起きている）。stderr に1行出す。
+func (c *ctx) appendLaunch(stderr io.Writer, rec launch.Record, addr string) {
+	rec.Terminal = addr
+	if err := launch.Append(launch.IssuePath(c.l.Dir, c.id), rec); err != nil {
+		fmt.Fprintf(stderr, "andon issue: 起動の記録を書けない（起動は続ける）: %v\n", err)
+	}
 }

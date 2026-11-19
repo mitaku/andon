@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"fmt"
 
+	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -55,7 +56,7 @@ func (p *project) fallback(t ledger.Issue, agent string) bool {
 		p.logf("%s の profile を替えられない（端末 %s は片付けた。次の見回りで finished として知らせる）: %v", rev, agent, err)
 		return false
 	}
-	started, session, err := p.runReviewer(parent, rev, t.Str("title"), to)
+	started, session, err := p.runReviewer(parent, rev, t.Str("title"), to, launch.LaunchFallback, t.Str("worktree"))
 	if err != nil {
 		p.logf("%s のレビュアーを %s で起動できない（次の見回りで finished として知らせる）: %v", rev, to, err)
 		return false

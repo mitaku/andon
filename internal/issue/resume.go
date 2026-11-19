@@ -16,6 +16,7 @@ import (
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/contract"
+	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -44,6 +45,7 @@ type resumePlan struct {
 	BriefPath    string       `json:"brief_path"`
 	Checks       []startCheck `json:"checks"`
 	repoDir      string
+	command      *string // template の command（起動の記録の起動行。dry では読まない）
 }
 
 func (p *resumePlan) check(name, result, format string, a ...any) {
@@ -116,6 +118,12 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 			return fail("素のシェルの端末 %s を片付けられない: %v。台帳は変えていない", p.Agent, err)
 		}
 	}
+	kind := launch.LaunchResume
+	if fresh {
+		kind = launch.LaunchFresh
+	}
+	rec := launch.Gather(launch.Spec{Role: roleOf(p.Profile), Launch: kind, Issue: id, Profile: p.Profile, Template: p.Template,
+		Command: p.command, Session: p.Session, Repo: p.Repo, RepoPath: p.Worktree, Brand: ledger.Brand(p.Profile)})
 	run, err := spawn.Run(p.Terminal, p.Labels, p.Cwd, p.Template, p.FirstMessage)
 	if err != nil {
 		return fail("%v。台帳は変えていない", err)
@@ -127,6 +135,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 		}
 		return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末は片付けた。台帳は変えていない", run.Address, p.Terminal, why)
 	}
+	c.appendLaunch(stderr, rec, run.Address)
 	set := []string{"set", id, "agent=" + run.Address}
 	if p.Session != c.issue.Str("session") {
 		set = append(set, "session="+p.Session) // 空なら消す（Codex の --fresh）
@@ -269,9 +278,9 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	}
 	if dry {
 		p.check("template", "skipped", "hc templates を呼ばない（template %s があるかは確かめていない）", p.Template)
-	} else if found, err := spawn.HasTemplate(p.Template); err != nil {
+	} else if cmd, found, err := spawn.TemplateCommand(p.Template); err != nil {
 		return nil, fail("%v", err)
-	} else if !found {
+	} else if p.command = &cmd; !found {
 		return nil, fail("template %s が無い（andon boot が resume: の行から作る。templates.local のプロファイルに resume: が無ければ --fresh で起動する）", p.Template)
 	}
 
