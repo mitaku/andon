@@ -1,5 +1,5 @@
 // Package spawn はエージェントを起動する command（andon chief-of-staff・andon chief-engineer・andon issue start）が
-// 共有するもの: コマンドを打つ・repo の置き場・worktree と branch を切る・hc の template を確かめる・hc run を打つ。
+// 共有するもの: コマンドを打つ・repo の置き場・worktree と branch を切る・hc の template を確かめる（起動行を読む）・hc run を打つ。
 //
 // 置き場（docs/contract.md §8）:
 //
@@ -85,26 +85,27 @@ func RepoPath(repo string) (string, error) {
 	return filepath.Join(root, repo), nil
 }
 
-// HasTemplate は hc の template に name があるか（hc templates --json）。
-func HasTemplate(name string) (bool, error) {
+// TemplateCommand は hc の template name の command（hc templates --json。起動の記録の起動行）と、その template があるか。
+func TemplateCommand(name string) (command string, found bool, err error) {
 	out, err := Output(nil, "", "hc", "templates", "--json")
 	if err != nil {
-		return false, fmt.Errorf("hc templates に失敗: %v", err)
+		return "", false, fmt.Errorf("hc templates に失敗: %v", err)
 	}
 	var tpls struct {
 		Templates []struct {
-			Name string `json:"name"`
+			Name    string `json:"name"`
+			Command string `json:"command"`
 		} `json:"templates"`
 	}
 	if err := json.Unmarshal([]byte(out), &tpls); err != nil {
-		return false, fmt.Errorf("hc templates の返事が読めない: %v", err)
+		return "", false, fmt.Errorf("hc templates の返事が読めない: %v", err)
 	}
 	for _, t := range tpls.Templates {
 		if t.Name == name {
-			return true, nil
+			return t.Command, true, nil
 		}
 	}
-	return false, nil
+	return "", false, nil
 }
 
 // Started は hc run --json の返事。

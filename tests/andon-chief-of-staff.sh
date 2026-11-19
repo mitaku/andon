@@ -58,6 +58,7 @@ export PATH="$tmp/bin:$PATH"
 pass=0
 ok() { echo "ok   $1"; pass=$((pass + 1)); }
 die() { echo "FAIL $1" >&2; exit 1; }
+emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }   # tests/schema.sh が schema に通す
 runs() { cat "$tmp/hc/log" 2>/dev/null | grep -c '^run' || true; }
 cos() { sed -n 's/^chief_of_staff: *//p' kanban/config.yaml; }
 
@@ -83,10 +84,19 @@ grep -q 'demo の Chief of Staff は t42（demo-cos・起動した）' "$tmp/out
 [ "$(tail -n 1 "$tmp/out")" = 'andon chief-of-staff: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
 ok '起動する: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
 
+# 起動の記録（contract.md §18。ADR-0028 決めたこと 7）: Chief of Staff は課題を持たないので台帳の chief-of-staff/launches.jsonl に1件
+crec=kanban/chief-of-staff/launches.jsonl
+[ "$(wc -l < "$crec")" = 1 ] && jq -e '.role == "chief-of-staff" and .launch == "start" and .issue == null and .repo == null and .session == null
+  and .profile == "chief-of-staff" and .terminal == "t42" and .harness.name == "claude"' "$crec" >/dev/null || die "Chief of Staff の起動の記録: $(cat "$crec" 2>/dev/null)"
+kanban list >/dev/null || die '起動の記録の置き場があると台帳の CLI が読めない'
+emit "$crec" launch-chief-of-staff.json
+ok '起動する: 台帳の chief-of-staff/launches.jsonl に起動の記録が1件（課題・repo・session は null）。台帳の CLI はそのまま読める'
+
 # 2. 動いていれば起動しない（Chief of Staff 自身が起動したときに打つ形）
 lines=$(wc -l < kanban/log.jsonl)
 "$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 1 ] || die '二重に起動した'
+[ "$(wc -l < "$crec")" = 1 ] || die '起動していないのに起動の記録を足した'
 [ "$(wc -l < kanban/log.jsonl)" = "$lines" ] || die 'chief_of_staff が合っているのに台帳を書いた'
 grep -q 't42（demo-cos・動いているものを使う）' "$tmp/out" && grep -q '出た場所 demo / CoS（t42）' "$tmp/out" || die "out: $(cat "$tmp/out")"
 ok '動いていれば起動しない（二重に起動しない）。chief_of_staff が合っていれば台帳を書かない'

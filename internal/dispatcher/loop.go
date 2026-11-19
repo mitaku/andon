@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -299,7 +300,7 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		r.Address = "" // 端末が無くなった: 起動し直す
 	}
 	if r.Address == "" {
-		started, session, err := p.runReviewer(t, rev, title, s.Reviewer)
+		started, session, err := p.runReviewer(t, rev, title, s.Reviewer, launch.LaunchStart, r.Worktree)
 		if err != nil {
 			return fmt.Sprintf("hc run に失敗（%s は todo のまま。次の見回りで起動し直す）: %v", rev, err), false
 		}
@@ -346,7 +347,9 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 // t は元の課題（担当の端末と同じ Space・tab に並べる）。startReviewer と、使用量の上限で起動し直す fallback が使う。
 // Claude 系はセッションの id を決めてラベル session で渡し（template の command が読む）、session に返す。呼び手が台帳の session に書く
 // （andon issue resume が続きから起動する。ADR-0012 決めたこと 8・11）。Codex 系は空（resume のときに記録から引く）。
-func (p *project) runReviewer(t ledger.Issue, rev, title, profile string) (started spawn.Started, session string, err error) {
+// 起動できたら、起動の記録（contract.md §18）をレビュアーの課題の library/launches.jsonl に1行足す（how は start か fallback。
+// worktree は PR の head を読む detached worktree）。書けなくても起動は戻さない（ログに1行）。
+func (p *project) runReviewer(t ledger.Issue, rev, title, profile, how, worktree string) (started spawn.Started, session string, err error) {
 	// --no-notify: 止まった・終わったは dispatcher が hc から拾う（contract.md §8）
 	args := []string{"run", "--json", "--bg", "--outlive-parent", "--no-notify", "--name", strings.ToLower(p.l.Slug + "-" + rev),
 		"--label", "project=" + p.l.Slug, "--label", "issue=" + rev, "--label", "title=" + title}
@@ -357,9 +360,17 @@ func (p *project) runReviewer(t ledger.Issue, rev, title, profile string) (start
 		session = spawn.NewSession()
 		args = append(args, "--label", spawn.SessionLabel+"="+session)
 	}
+	rec := launch.Gather(launch.Spec{Role: launch.RoleReviewer, Launch: how, Issue: rev, Profile: profile, Template: profile,
+		Session: session, Repo: t.Str("repo"), RepoPath: worktree, Brand: ledger.Brand(profile)})
 	out, _, err := run("", nil, "", "hc", append(args, "--cwd", filepath.Join(p.l.Dir, "issues", rev), profile, p.reviewerFirst(rev))...)
 	if err == nil && (json.Unmarshal([]byte(out), &started) != nil || started.Address == "") {
 		err = fmt.Errorf("hc run の出力が読めない: %q", strings.TrimSpace(out))
+	}
+	if err == nil {
+		rec.Terminal = started.Address
+		if aerr := launch.Append(launch.IssuePath(p.l.Dir, rev), rec); aerr != nil {
+			p.logf("%s の起動の記録を書けない（起動は続ける）: %v", rev, aerr)
+		}
 	}
 	return started, session, err
 }

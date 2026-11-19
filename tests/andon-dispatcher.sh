@@ -264,7 +264,13 @@ grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --la
     die "レビュアーに担当の herdr.space・herdr.tab が無い（where を写した）: $(grep ^run "$tmp/hc/log")"
 grep -qx "get t7 --json" "$tmp/hc/log" || die '担当の端末を hc get --json で読んでいない'
 rm "$tmp/hc/term-t7.json"
-ok "review_request でレビュアーを起動する（kanban add --parent・by terminal:dispatcher・detached worktree〈台帳の worktree もそれ・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当）"
+# 起動の記録（contract.md §18。ADR-0028 受け入れ条件 2）: レビュアーの課題に1件。repo は PR の head を読む detached worktree
+lrec=$L/issues/$rev/library/launches.jsonl
+[ "$(wc -l < "$lrec")" = 1 ] && jq -e --arg r "$rev" --arg a "$raddr" --arg h "$head" --arg w "$rwt" '.role == "reviewer" and .launch == "start" and .issue == $r
+  and .profile == "codex-review" and .template == "codex-review" and .terminal == $a and .session == null and .repo == {name: "github.com/example/app", path: $w, commit: $h, dirty: false}' "$lrec" >/dev/null \
+  || die "レビュアーの起動の記録: $(cat "$lrec" 2>/dev/null)"
+emit "$lrec" launch-reviewer.json
+ok "review_request でレビュアーを起動する（kanban add --parent・by terminal:dispatcher・detached worktree〈台帳の worktree もそれ・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当・起動の記録）"
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '同じ review_request で二度起動した'

@@ -11,6 +11,7 @@ export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOM
 mkdir -p "$HOME"
 . "$(dirname "$0")/lib/andon.sh"
 . "$(dirname "$0")/lib/kanban.sh"
+src=$(cd "$(dirname "$0")/.." && pwd)   # この repo（起動の記録の検査がパッケージの置き場を写す元）
 # helper が go build したなら、キャッシュは一時ディレクトリにある
 if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
   [ -n "$(ls -A "$tmp/gocache" 2>/dev/null)" ] || { echo "FAIL go のキャッシュが一時ディレクトリに無い" >&2; exit 1; }
@@ -355,7 +356,7 @@ printf '%s\n' "\$*" >>\$d/log
 case \$1 in
   ls) issue=; for a in "\$@"; do case \$a in issue=*) issue=\${a#issue=};; esac; done
       awk -v t="\$issue" 't == "" || \$3 == t {print \$1, \$2}' \$d/live | jq -Rn '{terminals: [inputs | split(" ") | {address: .[0], name: .[1], state: "live"}]}' ;;
-  templates) echo '{"templates":[{"name":"claude"},{"name":"codex"},{"name":"claude-resume"},{"name":"codex-resume"},{"name":"chief-engineer"},{"name":"chief-engineer-resume"},{"name":"codex-review-resume"},{"name":"claude-review-resume"}]}' ;;
+  templates) echo '{"templates":[{"name":"claude","command":"claude --model opus --effort high"},{"name":"codex"},{"name":"claude-resume","command":"claude --model opus --effort high --resume"},{"name":"codex-resume"},{"name":"chief-engineer"},{"name":"chief-engineer-resume"},{"name":"codex-review-resume"},{"name":"claude-review-resume"}]}' ;;
   get) if [ -e \$d/get-\$2 ]; then cat \$d/get-\$2
        elif grep -q "^\$2 " \$d/live; then echo '{"state":"live","argv":["sh","-c","claude"],"foreground":{"argv":["sh","-c","claude"]},"labels":{}}'
        else echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2; exit 3; fi ;;
@@ -373,6 +374,16 @@ esac
 EOF
 chmod +x "$tmp/bin/hc"
 field() { kanban show "$1" --json | jq -r --arg k "$2" '.issue[$k] // ""'; }
+# 起動の記録（contract.md §18。ADR-0028 受け入れ条件 1〜4）の土台: ハーネスは版を返し、パッケージの置き場は
+# この repo の package/ を HEAD から写して、その commit で焼いた印（andon version stamp）を付ける。auto memory の目録はセルの repo の memory/（git の外）
+printf '#!/bin/sh\necho "9.9.9 (Claude Code)"\n' > "$tmp/bin/claude"; printf '#!/bin/sh\necho "codex-cli 9.9.9"\n' > "$tmp/bin/codex"; chmod +x "$tmp/bin/claude" "$tmp/bin/codex"
+pkgc=$(git -C "$src" rev-parse HEAD)
+mkdir -p "$tmp/pkg" && git -C "$src" archive HEAD package | tar -x -C "$tmp/pkg" --strip-components=1
+export ANDON_HOME=$tmp/pkg
+"$andon" version stamp "$pkgc" >/dev/null
+echo 'memory/' >> "$tmp/plant/.git/info/exclude"; mkdir -p "$tmp/plant/memory"; echo '- [a](a.md) — 目録の1行' > "$tmp/plant/memory/MEMORY.md"
+launches() { echo "kanban/issues/$1/library/launches.jsonl"; }
+nlaunch() { if [ -e "$(launches "$1")" ]; then wc -l < "$(launches "$1")"; else echo 0; fi; }
 # 台帳は repos に案件の repo を持つ別の台帳（slug は demo）
 mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
 KANBAN_ROOT= kanban init --prefix S --repo github.com/example/app --repo github.com/example/lib >/dev/null
@@ -408,6 +419,23 @@ jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == 
 git -C "$ANDON_WORKSPACE" diff --quiet HEAD -- .gitignore && [ ! -e "$ANDON_WORKSPACE/.gitignore" ] || die 'セルの追跡される .gitignore に触った'
 ok 'start: 置き場はセルの repo の .worktrees/<repo 名>/<slug>-<id>。中の .gitignore（*）で git status に出ない（ADR-0012 決めたこと 6）'
 ok 'start: worktree と branch（upstream 無し）・hc run（名前・ラベル・herdr.space と herdr.tab・cwd・最初のメッセージ）・kanban start で doing と agent・出た場所'
+
+# 起動の記録（ADR-0028 受け入れ条件 1）: 1件増え、欄が全部ある
+rec=$(launches "$s1")
+[ "$(nlaunch "$s1")" = 1 ] || die "起動の記録が1件でない: $(cat "$rec" 2>/dev/null)"
+jq -e --arg id "$s1" --arg pc "$pkgc" --arg pk "$ANDON_HOME" --arg wc "$(git -C "$tmp/plant" rev-parse HEAD)" --arg ws "$tmp/plant" --arg ac "$(git -C "$appdir" rev-parse origin/main)" \
+  --arg s "$(field "$s1" session)" --arg wt "$wt" '.role == "worker" and .launch == "start" and .issue == $id and .profile == "claude" and .template == "claude"
+  and .command == "claude --model opus --effort high" and .terminal == "t42" and .session == $s and .harness == {name: "claude", version: "9.9.9 (Claude Code)"}
+  and .package == {root: $pk, commit: $pc, source: "image", drift: false, reasons: []} and .workspace == {path: $ws, commit: $wc, dirty: false}
+  and .repo == {name: "github.com/example/app", path: $wt, commit: $ac, dirty: false}
+  and .external == [] and .drift == false and .drift_reasons == [] and .memory_index == "- [a](a.md) — 目録の1行\n"
+  and (.at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))' "$rec" >/dev/null || die "起動の記録の中身: $(cat "$rec")"
+emit "$rec" launch-start.json
+ok 'start: 起動の記録（library/launches.jsonl）が1件増える。起動行・ハーネスの版・パッケージ・セルの repo・案件の repo の commit・memory の目録の写しが入る（ADR-0028 受け入れ条件 1）'
+# 版から当時の文を復元できる（受け入れ条件 3）: 記録の commit の skill と、プロファイルが読む置き場の skill が同じ
+diff <(git -C "$src" show "$(jq -r .package.commit "$rec"):package/skills/worker/SKILL.md") "$(jq -r .package.root "$rec")/skills/worker/SKILL.md" >/dev/null \
+  || die "記録の commit の worker skill と置き場の worker skill が違う（食い違いの印は $(jq .drift "$rec")）"
+ok 'start: 食い違いの印が無いとき、記録のパッケージの commit の git show と置き場の skill の diff が空（ADR-0028 受け入れ条件 3）'
 
 
 expect_fail "は doing" "$andon" issue start "$s1"
@@ -459,7 +487,17 @@ expect_fail 'hc run に失敗' "$andon" issue start "$s4"
 rm "$tmp/hc/run-rc"
 [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s4" ] && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s4-run-fails" \
   && [ "$(field "$s4" status)" = todo ] && [ -z "$(field "$s4" branch)$(field "$s4" worktree)" ] || die "戻していない: $(kanban show "$s4" --json | jq -c .issue)"
+[ "$(nlaunch "$s4")" = 0 ] || die "起動できなかったのに起動の記録を書いた: $(cat "$(launches "$s4")")"
+# パッケージの置き場の1ファイルを手で書き換えてから起動する（受け入れ条件 4）
+echo '手で足した行' >> "$ANDON_HOME/skills/worker/SKILL.md"
 "$andon" issue start "$s4" >/dev/null || die 'やり直せない'
+git -C "$src" show "$pkgc:package/skills/worker/SKILL.md" > "$ANDON_HOME/skills/worker/SKILL.md"
+[ "$(nlaunch "$s4")" = 1 ] || die "やり直した start の起動の記録が1件でない"
+jq -e '.drift == true and .package.drift == true and (.drift_reasons | index("パッケージ: 中身が焼いたときと違う（手で書き換えた・足した・消した）") != null)
+  and .harness == {name: "codex", version: "codex-cli 9.9.9"} and .session == null and .memory_index == null and .command == null' "$(launches "$s4")" >/dev/null \
+  || die "置き場を書き換えた起動の記録: $(cat "$(launches "$s4")")"
+emit "$(launches "$s4")" launch-drift.json
+ok 'start: 起動できなかったら起動の記録を書かない。パッケージの置き場の1ファイルを書き換えて起動すると食い違いの印が立つ（ADR-0028 受け入れ条件 4）。Codex は session・memory の目録が null、読めない起動行も null'
 grep -q "issue=$s4 " "$tmp/hc/log" || die 'やり直した start が hc run を打っていない'
 ! grep "issue=$s4 " "$tmp/hc/log" | grep -q 'session=' || die 'Codex 系の start がセッションの id を渡した（Codex は決める口が無い）'
 ok 'start: hc run が落ちたら worktree・branch・台帳の欄を戻す（やり直せる）'
@@ -476,6 +514,9 @@ grep -q "に最初のメッセージが届いていない: trust prompt。dispat
 grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatcher に預けるラベルを付けていない'
 grep -q "^run .*--cwd $PWD/kanban/issues/$s5 claude " "$tmp/hc/log" || die 'repo の無い課題の cwd が issues/<id>/ でない'
 ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無い課題は issues/<id>/ で'
+jq -e --arg a "$addr" '.repo == null and .terminal == $a and .role == "worker"' "$(launches "$s5")" >/dev/null || die "repo の無い課題の起動の記録: $(cat "$(launches "$s5")")"
+emit "$(launches "$s5")" launch-norepo.json
+ok 'start: 最初のメッセージが届かなくても起きた端末の起動の記録は書く。repo の無い課題は repo が null'
 
 # 受け取られていない問いがあれば、finish は何も消さずに止まる（片付けは全部か無し。A-0002・A-0001 の repro-b1）。
 # 消してから kanban done に断られると、doing のまま端末が死に、dispatcher の resume がやめた課題で担当を起動し直す
@@ -602,6 +643,7 @@ sess=$(field "$r1" session); a1=$(field "$r1" agent); rwt=$ANDON_WORKSPACE/.work
 [[ $sess =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] && grep "issue=$r1 " "$tmp/hc/log" | grep -q -- "--label session=$sess --cwd $rwt claude " \
   || die "start が Claude 系にセッションの id を渡して台帳に書いていない: session=$sess $(grep "issue=$r1 " "$tmp/hc/log")"
 ok 'start: Claude 系はセッションの id を決めてラベル session で渡し、台帳の session に書く（Codex 系は渡さない）'
+r1first=$(head -n 1 "$(launches "$r1")")
 expect_fail "端末 $a1 がもう動いている" "$andon" issue resume "$r1" --dry-run
 ok 'resume --dry-run: todo・端末が動いている課題では理由を言って止まる'
 
@@ -635,6 +677,12 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(tr A-Z a-z 
   || die "hc run の形: $(grep ^run "$tmp/hc/log")"
 jq -e --arg id "$r1" --arg a "$a2" 'select(.id == $id and .change.agent == $a) | .by == "terminal:t5"' kanban/log.jsonl >/dev/null || die '台帳の agent を新しい端末にしていない'
 ok 'resume: worktree を同じパスに branch で戻し、素のシェルを片付け、同じ名前・ラベルで <profile>-resume を起動し、届いてから台帳の agent を書く（doing のまま・session は同じ）'
+r1rec=$(launches "$r1")
+[ "$(nlaunch "$r1")" = 2 ] && [ "$(head -n 1 "$r1rec")" = "$r1first" ] || die "起動し直しで起動の記録が2件にならないか、1件目が変わった: $(cat "$r1rec")"
+tail -n 1 "$r1rec" | jq -e --arg a "$a2" --arg s "$sess" '.launch == "resume" and .role == "worker" and .template == "claude-resume" and .command == "claude --model opus --effort high --resume"
+  and .terminal == $a and .session == $s' >/dev/null || die "起動し直しの記録: $(tail -n 1 "$r1rec")"
+tail -n 1 "$r1rec" > "$tmp/l.json"; emit "$tmp/l.json" launch-resume.json
+ok 'resume: 起動の記録がもう1件増え（launch resume・template claude-resume）、前の1件は変わらない（ADR-0028 受け入れ条件 2）'
 
 # 端末がまた消えた。worktree はあり、commit していない変更を置いた: 触らずに起動する
 rm -f "$tmp/hc/get-$a1"; sed -i "/^$a2 /d" "$tmp/hc/live"
@@ -652,7 +700,8 @@ rm "$tmp/hc/first"
 bad=t$(( $(cat "$tmp/hc/next") - 1 ))   # 最後に起動した端末
 [ "$(field "$r1" agent)" = "$a3" ] && grep -q "^kill $bad\$" "$tmp/hc/log" && grep -q "^rm $bad\$" "$tmp/hc/log" \
   || die "届かなかった端末を片付けていないか台帳を変えた: agent=$(field "$r1" agent) $(tail -5 "$tmp/hc/log")"
-ok 'resume: 最初のメッセージが届かなければ、起動した端末を片付けて台帳を変えずに非 0'
+[ "$(nlaunch "$r1")" = 3 ] || die "片付けた起動（最初のメッセージが届かない）を記録した: $(nlaunch "$r1") 件"
+ok 'resume: 最初のメッセージが届かなければ、起動した端末を片付けて台帳を変えずに非 0（起動の記録も足さない）'
 
 # --fresh: 同じ worktree で新しいセッション。最初のメッセージに前の担当の報告を読む1行
 : > "$tmp/hc/log"
@@ -661,7 +710,8 @@ s2=$(field "$r1" session)
 [ "$s2" != "$sess" ] && [[ $s2 =~ ^[0-9a-f-]{36}$ ]] && grep -q -- "--label session=$s2 --cwd $rwt claude 課題 \`demo/$r1\`。" "$tmp/hc/log" \
   && grep -q "前の担当の報告 \`$PWD/kanban/issues/$r1/report.md\`（あれば）を読み" "$tmp/hc/log" && [ "$(cat "$rwt/wip.txt")" = wip ] \
   || die "--fresh: session=$s2 $(cat "$tmp/hc/log")"
-ok 'resume --fresh: template の command（resume でない）・新しい session を台帳に・最初のメッセージに report.md を読む1行'
+tail -n 1 "$(launches "$r1")" | jq -e --arg s "$s2" '.launch == "fresh" and .template == "claude" and .session == $s' >/dev/null || die "--fresh の起動の記録: $(tail -n 1 "$(launches "$r1")")"
+ok 'resume --fresh: template の command（resume でない）・新しい session を台帳に・最初のメッセージに report.md を読む1行。起動の記録は launch fresh'
 
 # Codex: 記録（sessions/**/rollout-*.jsonl の先頭行 session_meta）から cwd が同じ最新の id を引く
 a4=$(field "$s4" agent); cwt=$(field "$s4" worktree); sed -i "/^$a4 /d" "$tmp/hc/live"
@@ -676,7 +726,8 @@ meta "$other" /elsewhere 2026-11-10T03:00:00.000Z > "$cs/rollout-c.jsonl"
 "$andon" issue resume "$s4" >/dev/null || die 'Codex の resume が落ちた'
 [ "$(field "$s4" session)" = "$new" ] && grep -q -- "--label session=$new --cwd $cwt codex-resume 課題 \`demo/$s4\` の続き。" "$tmp/hc/log" \
   || die "Codex の resume: session=$(field "$s4" session) $(cat "$tmp/hc/log")"
-ok 'resume: Codex 系は記録の先頭行から cwd が同じ最新の id を引き、codex-resume で起動し、引けた id を台帳の session に書く。無ければ非 0'
+tail -n 1 "$(launches "$s4")" | jq -e --arg s "$new" '.launch == "resume" and .template == "codex-resume" and .session == $s' >/dev/null || die "Codex の起動し直しの記録: $(tail -n 1 "$(launches "$s4")")"
+ok 'resume: Codex 系は記録の先頭行から cwd が同じ最新の id を引き、codex-resume で起動し、引けた id を台帳の session に書く。無ければ非 0。起動の記録の session は引けた id'
 
 # 旧の置き場（~/.herdr/worktrees）の値でも、その値のまま戻す
 r2=$(kanban add 'Old place' --repo github.com/example/app --profile claude --brief - <<<'# x')
@@ -726,7 +777,9 @@ jq -e --arg wt "$rvwt" --arg cwd "$rvcwd" --arg c "$rc" --arg s "$rvs" --arg id 
 grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
 [ "$(field "$rv" agent)" != t90 ] && [ "$(field "$rv" status)" = doing ] && [ "$(field "$rv" session)" = "$rvs" ] && [ "$(field "$rv" worktree)" = "$rvwt" ] && [ -z "$(field "$rv" branch)" ] \
   || die "レビュアーの台帳: $(kanban show "$rv" --json | jq -c .issue)"
-ok 'resume: レビュアーは detached worktree を依頼書の対象の commit（前の回の commit でなく）で同じパスに戻し、cwd issues/<rev>/ で codex-review-resume を起動する'
+jq -e --arg c "$rc" --arg wt "$rvwt" '.role == "reviewer" and .launch == "resume" and .repo.commit == $c and .repo.path == $wt' "$(launches "$rv")" >/dev/null \
+  || die "レビュアーの起動し直しの記録: $(cat "$(launches "$rv")")"
+ok 'resume: レビュアーは detached worktree を依頼書の対象の commit（前の回の commit でなく）で同じパスに戻し、cwd issues/<rev>/ で codex-review-resume を起動する。起動の記録は役 reviewer・repo の commit は対象の commit'
 
 # レビュアーの worktree があれば触らない。claude-review は台帳の session で claude-review-resume
 sed -i "/^$(field "$rv" agent) /d" "$tmp/hc/live"; echo note > "$rvwt/note.txt"
@@ -753,7 +806,10 @@ sed -i "/^$(field "$r5" agent) /d" "$tmp/hc/live"; : > "$HOME/.claude/projects/-
 "$andon" issue resume "$r5" --dry-run --json | jq -e --arg id "$r5" '.template == "chief-engineer-resume"
   and .labels[0:6] == ["role=chief-engineer", "project=demo", "issue=\($id)", "title=CE topic", "herdr.space=andon-demo", "herdr.tab=andon-demo-\($id)"]' >/dev/null \
   || die "Chief Engineer の resume の計画: $("$andon" issue resume "$r5" --dry-run --json)"
-ok 'resume: Chief Engineer は chief-engineer-resume で、指揮側の Space のラベル（role=chief-engineer）で起動する'
+"$andon" issue resume "$r5" >/dev/null || die 'Chief Engineer の resume が落ちた'
+[ "$(nlaunch "$r5")" = 2 ] && jq -s -e '[.[].role] == ["chief-engineer", "chief-engineer"] and [.[].launch] == ["start", "resume"]' "$(launches "$r5")" >/dev/null \
+  || die "Chief Engineer の起動の記録: $(cat "$(launches "$r5")")"
+ok 'resume: Chief Engineer は chief-engineer-resume で、指揮側の Space のラベル（role=chief-engineer）で起動する。起動の記録の役は chief-engineer'
 
 # lock: start・finish・resume は同じ lock を待つ（dispatcher の控えの lock とは別）
 lk=$HOME/.local/state/andon/dispatcher/demo.issue.lock
@@ -764,5 +820,14 @@ sleep 0.3; t0=$(date +%s%N)
 wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'resume が lock を待たなかった'
 flock -n "$HOME/.local/state/andon/dispatcher/demo.json.lock" true || die 'dispatcher の控えの lock を持ったまま'
 ok 'resume: 台帳の issue lock を命令の間持つ（finish・start と同じ。dispatcher の控えの lock は取らない）'
+
+# andon chief-engineer（ADR-0028 受け入れ条件 2）: Chief Engineer の課題に起動の記録が1件
+"$andon" chief-engineer --repo github.com/example/app 'Design topic' > "$tmp/out" || die "andon chief-engineer が落ちた: $(cat "$tmp/out")"
+ce=$(kanban list --json | jq -r '.[] | select(.title == "Design topic") | .id')
+[ -n "$ce" ] && [ "$(nlaunch "$ce")" = 1 ] && jq -e --arg id "$ce" --arg s "$(field "$ce" session)" --arg wt "$(field "$ce" worktree)" \
+  '.role == "chief-engineer" and .launch == "start" and .issue == $id and .profile == "chief-engineer" and .session == $s and .repo.path == $wt and .repo.commit != null' "$(launches "$ce")" >/dev/null \
+  || die "andon chief-engineer の起動の記録: $(cat "$(launches "$ce")" 2>/dev/null) $(cat "$tmp/out")"
+emit "$(launches "$ce")" launch-chief-engineer.json
+ok 'andon chief-engineer: Chief Engineer の課題に起動の記録が1件（役 chief-engineer・session・worktree の commit。ADR-0028 受け入れ条件 2）'
 
 echo "all passed ($pass)"

@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"andon/internal/boot"
+	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 )
@@ -128,7 +129,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	env := []string{"KANBAN_ROOT=" + root}
 
-	found, err := spawn.HasTemplate(Profile)
+	command, found, err := spawn.TemplateCommand(Profile)
 	if err != nil {
 		return die("%v", err)
 	}
@@ -174,10 +175,16 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// セッションの id は Andon が決めて渡し（template の command が端末のラベルから読む）、台帳の session に書く（ADR-0012 決めたこと 11）
 	session := spawn.NewSession()
 	labels := append(Labels(slug, id, title), spawn.SessionLabel+"="+session)
+	rec := launch.Gather(launch.Spec{Role: launch.RoleChiefEngineer, Launch: launch.LaunchStart, Issue: id, Profile: Profile, Template: Profile,
+		Command: &command, Session: session, Repo: repo, RepoPath: wt.Path, Brand: ledger.Brand(Profile)})
 	run, err := spawn.Run(name, labels, cwd, Profile, msg)
 	if err != nil {
 		undo()
 		return die("%v。worktree と branch を戻した。課題 %s は todo のまま残る", err, id)
+	}
+	rec.Terminal = run.Address
+	if err := launch.Append(launch.IssuePath(filepath.Join(root, "kanban"), id), rec); err != nil {
+		fmt.Fprintf(stderr, "andon chief-engineer: 起動の記録を書けない（起動は続ける）: %v\n", err)
 	}
 
 	if _, err := spawn.OutputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {

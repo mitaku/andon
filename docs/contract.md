@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -16,6 +16,7 @@
 | §14 人の手直し | `schema/corrections.schema.json` |
 | §15 信号の記録 | `schema/signal.schema.json` |
 | §17 届けた通知の記録 | `schema/delivered.schema.json` |
+| §18 起動の記録 | `schema/launch.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
@@ -31,7 +32,7 @@
    - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
    - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と信号の記録（§15）は dispatcher、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
@@ -53,6 +54,8 @@ projects/<slug>/kanban/
       questions/<n>.json          問うた者（§5）
       gate/<head sha>.json        andon gate（§7。ゲートの記録。andon issue merge が回し、マージしたら merged を書く）
       corrections.json            dispatcher（§14。finish〈done〉のとき1回だけ。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
+      launches.jsonl              エージェントを起動する command（§18。起動のたびに1行足す。版と起動行）
+  chief-of-staff/launches.jsonl   andon chief-of-staff（§18。Chief of Staff は課題を持たないので台帳の直下）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
@@ -689,3 +692,45 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 - 終わりを見ないまま別のターンが来た（届け直す）ターンは書かない。同じ内容の行（同じ秒に同じ通知を渡した別のターン）も飛ばさずに書く。届け直した通知は、届け直したターンの終わりを見たときに書く。
 - 数えのための記録なので、書けなくても `<news>` の届けは止めない（`drain` の stderr に1行。その行は数えから落ちる）。
 - `<no-reply>` の照合は v0.0.9 で外したので、素通りは `acked` だけで数える（[ADR-0010](adr/0010-news-ack.md) 決めたこと 6）。この記録の前の版の控えにあった `replied`（kind を分けない合計）は読まない。
+
+## 18. 起動の記録（`launches.jsonl`）
+
+エージェントを起動したときの版（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 3・7・14 の 5）。担当・レビュアー・Chief Engineer は課題の `library/launches.jsonl`、Chief of Staff は台帳の `chief-of-staff/launches.jsonl` に、**起動1回に1行**（JSON Lines）を足す。書き手はエージェントを起動する command（`andon issue start`・`andon issue resume`〈`--fresh` も〉・dispatcher のレビュアーの起動〈使用量の上限で起動し直すときも〉・`andon chief-engineer`・`andon chief-of-staff`）。値は `hc run` の直前に集め、`hc run` が端末を起動できたら端末の address を足して書く。追記だけで、前の行は書き換えない。読み手は振り返り（ゲートも dispatcher も判定に使わない）。
+
+```json
+{"at": "2026-11-19T09:00:00Z", "role": "worker", "launch": "start", "issue": "S-0012", "profile": "claude", "template": "claude",
+ "command": "s=$(andon issue session); claude --model opus --effort high --plugin-dir /opt/andon --append-system-prompt-file /opt/andon/skills/worker/SKILL.md ${s:+--session-id \"$s\"}",
+ "terminal": "t42", "session": "0f8fad5b-d9cb-469f-a165-70867728950e",
+ "harness": {"name": "claude", "version": "2.1.0 (Claude Code)"},
+ "package": {"root": "/opt/andon", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "source": "applied", "drift": false, "reasons": []},
+ "workspace": {"path": "/workspace", "commit": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "dirty": false},
+ "repo": {"name": "github.com/example/sample-site", "path": "/workspace/.worktrees/sample-site/sample-site-S-0012",
+          "commit": "7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f089c4e1b0d", "dirty": false},
+ "external": [{"kind": "skill", "name": "sample-skill", "path": "/home/andon/.agents/skills/sample-skill", "source": "https://github.com/example/skills",
+               "ref": "refs/tags/v1.0.0", "version": "1.0.0", "revision": "1f0e9c7b5a3d2e1f089c4e1b0d7a3f5e2c8b6d4a"}],
+ "drift": false, "drift_reasons": [], "memory_index": "- [テストは tests/run --changed](test-changed.md) — 変えたものだけ走らせる\n"}
+```
+
+| キー | 意味 |
+|---|---|
+| `at` | 集めた時刻（`hc run` の直前。UTC） |
+| `role` | `worker`・`reviewer`・`chief-engineer`・`chief-of-staff`。課題の起動ではプロファイルから決める（`chief-engineer` は Chief Engineer、`*-review` はレビュアー、ほかは担当） |
+| `launch` | `start`（新しい端末）・`resume`（止まった端末をセッションの続きから。`andon issue resume`）・`fresh`（新しいセッションで。`--fresh`）・`fallback`（使用量の上限で止まったレビュアーを別のプロファイルで） |
+| `issue` | 課題の id。Chief of Staff は `null` |
+| `profile`・`template` | プロファイルの名前と、走らせた hc の template（続きからは `<profile>-resume`） |
+| `command` | template の command（起動行。モデルと effort を含む）。起動の前に template があるかを確かめるときに `hc templates --json` から読んだもの。読めなければ `null` |
+| `terminal` | 起動した端末の address |
+| `session` | ハーネスのセッションの id。起動のときに決まらないもの（Codex の新しい起動・Chief of Staff）は `null`。片付けのあとにセッションログを引くのは、この全部の行（`issue.yaml` の `session` は起動し直しで上書きされる） |
+| `harness` | `name`（`claude`・`codex`。プロファイルのブランド）と `version`（`<name> --version` の1行目。打てなければ `null`） |
+| `package` | `andon version` の出力（パッケージの置き場の `root`・`commit`・`source`・`drift`・`reasons`） |
+| `workspace` | セルの repo（`ANDON_WORKSPACE`。既定 `/workspace`）の `commit`（HEAD）と `dirty`（`git status --porcelain` が空でない。git が無視するものは数えない）。git の checkout でなければ `null` |
+| `repo` | 案件の repo（`name`）と、エージェントが働く worktree（`path`。レビュアーは PR の head を読む detached worktree）の `commit` と `dirty`。repo の無い課題と Chief of Staff は `null` |
+| `external` | 外から入る skill（`<claude>/skills` と `~/.agents/skills` の、`SKILL.md` を持つ実ディレクトリ。Andon のパッケージと image の備品を指す symlink は数えない。Codex は `~/.agents/skills` だけ）と、Claude Code の plugin（`<claude>/plugins/installed_plugins.json`）。skill の `source`・`ref`・`version`・`revision` は `gh skill install` が `SKILL.md` の `metadata` に書く `github-repo`・`github-ref`・`version`・`github-tree-sha`、plugin の `version`・`revision` は `version`・`gitCommitSha`。無いものは `null`。置き場が無ければ `[]`、読めなければ `null` |
+| `drift` | 当時の文を git から復元できない印。`package.drift` が `true` か、セルの repo に commit していない変更がある（`workspace.dirty`）なら `true`。どちらかを確かめられず、`true` でもなければ `null` |
+| `drift_reasons` | `drift` が `true` か `null` の理由（1行ずつ）。`false` なら空 |
+| `memory_index` | auto memory の目録（`<セルの repo>/memory/MEMORY.md`）の写し。Claude Code の起動だけ（Codex は読まないので `null`）。無ければ `null` |
+
+- **取れない値は `null` と明示する**。キーは全部書く。記録が書けなくても起動は戻さない（端末はもう動いている。command の stderr か dispatcher のログに1行）。`hc run` が落ちた起動と、最初のメッセージが届かずに `andon issue resume` が片付けた起動は書かない。最初のメッセージが届かずに残った端末（`andon issue start`・`andon chief-engineer`・`andon chief-of-staff` の終了コード 3、dispatcher の送り直し）は書く。
+- **案件の repo の `dirty` は `drift` に数えない。** 起動し直しでは worktree に担当の作業中の変更があるのが普通で、エージェントが読む文（`AGENTS.md` など）の変更とは分けられない。`repo.dirty` は事実として残し、振り返りが読む。
+- 当時の文の復元は git から: `git show <package.commit>:package/<パス>`（パッケージの置き場はこの repo の `package/` を写したもの）・セルの repo と案件の repo はそれぞれの `commit`。外の skill と plugin は版の名前だけで、文はその repo の履歴から辿る。`--model opus` のような別名が実際にどのモデルになったかは、ここには無い（片付けのあとにセッションログから読む）。
+
