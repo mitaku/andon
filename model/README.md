@@ -14,7 +14,7 @@ model/check
 
 `model/check` が確かめること:
 
-1. 本物のモデル（`IssueRules.cfg`）が規則を全部守り、どの状態からも先がある。
+1. 本物のモデル（`IssueRules.cfg`）が規則を全部守り、どの状態からも先がある。調べる規則は控え（`expected.txt` の `rule`）と同じ集合でなければならない（規則を設定から消すと落ちる）。
 2. 状態の数が控え（`expected.txt` の `states`）と同じ。
 3. 壊した見本（`broken/`）がどれも、控え（`expected.txt` の `broken`）に書いた規則の破れで落ちる。
 
@@ -29,7 +29,7 @@ TLC で見比べるときは、TLC と同じ旗を受けるコマンドを `MODE
 | `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・人の動き）。行動ごとに写したコードの場所 |
 | `IssueRules.tla` | 規則 R1〜R6（`IssueLife` を読む） |
 | `IssueRules.cfg` | 検査器の設定（調べる規則の並び） |
-| `expected.txt` | 状態の数の控えと、見本ごとの落ちるはずの規則 |
+| `expected.txt` | 調べるはずの規則・状態の数の控えと、見本ごとの落ちるはずの規則 |
 | `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動き） |
 | `check` | 入口 |
 | `package.json`・`package-lock.json` | 検査器の版 |
@@ -48,7 +48,7 @@ TLC で見比べるときは、TLC と同じ旗を受けるコマンドを `MODE
 ## 変えるとき
 
 - 課題の一生の動き（finish・resume・ゲートの返し方など、行動が写しているコード）を変えたら、`IssueLife.tla` の行動とコードの場所を直します。状態の数が変わったら、`model/check` を打って `expected.txt` の `states` を直します。
-- 規則を足すときは `IssueRules.tla` に書き、`IssueRules.cfg` の `INVARIANT` に名前を足します。
+- 規則を足すときは `IssueRules.tla` に書き、`IssueRules.cfg` の `INVARIANT` と `expected.txt` の `rule` に名前を足します。
 
 ## モデルが省いたもの
 

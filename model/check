@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # model/check: 課題の一生のモデル（IssueLife.tla）が規則（IssueRules.tla）を守るかを、検査器 tla-ts で確かめる（ADR-0025）。
 # 手元も CI（.github/workflows/model.yml）もこれを打つ。全部通れば終了コード 0。
-#   1. 本物のモデルが規則を全部守り、どの状態からも先がある
+#   1. 本物のモデルが規則を全部守り、どの状態からも先がある。調べる規則は控え（expected.txt の rule）と同じ
 #   2. 状態の数が控え（expected.txt の states）と同じ
 #   3. 壊した見本（broken/）がどれも、控え（expected.txt の broken）に書いた規則の破れで落ちる
 # 検査器は package-lock.json のとおりに一時の場所へ入れ（install のスクリプトは走らせない）、npm の置き場も一時の場所にする。
@@ -41,6 +41,12 @@ show() { sed 's/^/     | /' "$tmp/out" | tail -40 >&2; }
 echo "検査器: $name"
 rules=$(sed -n 's/^INVARIANT //p' "$here/IssueRules.cfg")
 [ -n "$rules" ] || fail "IssueRules.cfg に INVARIANT の行が無い"
+need=$(awk '$1 == "rule" { print $2 }' "$here/expected.txt" | sort)
+[ -n "$need" ] || fail "expected.txt に rule の行が無い"
+have=$(tr ' ' '\n' <<<"$rules" | sed '/^$/d' | sort)
+if [ "$have" != "$need" ]; then
+  fail "IssueRules.cfg の INVARIANT が控え（expected.txt の rule）と違う: 足りない $(comm -13 <(echo "$have") <(echo "$need") | tr '\n' ' ')・控えに無い $(comm -23 <(echo "$have") <(echo "$need") | tr '\n' ' ')"
+fi
 want=$(awk '$1 == "states" { print $2 }' "$here/expected.txt")
 [ -n "$want" ] || fail "expected.txt に states の行が無い"
 
