@@ -25,7 +25,7 @@
 - **memory の件数が線（30）を超えたら Chief of Staff に 1 度届ける**（[ADR-0020](docs/adr/0020-auto-memory-as-intake.md) M4。#242）。
 - **PR と repo の文を、セルの外の読み手に通じる形で書く**（[ADR-0026](docs/adr/0026-pr-rules-for-outside-readers.md)。#270）: PR と文書の書き方の決まりを直し（#273）、ゲートのコメントと外の Issue への書き戻しを外の人が読む文にした（#275）。boot が `writing.md` を 3 本目として CLAUDE.md と Codex の AGENTS.md に入れる（[ADR-0013](docs/adr/0013-short-role-names-and-plain-japanese.md) V3。#248）。skill の書き方の行を `writing.md` を指す形に直し（V2。#247）、「今」の語を docs・README（W3。#230）・`package/`（W5。#236）・`internal`・`cmd`・`tests`（W6。#239）で置き換え、`tests/words.sh` を足した。
 - **chief-of-staff skill を原則と手引き（`playbooks/`）に分けた**（ADR-0017 P9。#249）。人への文の行数の上限を外し、許可の確認の線と起動の go の例外を決まりの中に書いた（#238）。
-- **開発中のパッケージをイメージを焼き直さずにセルへ当てる道**（[ADR-0027](docs/adr/0027-apply-package-without-rebuild.md)）: `image/apply-main.sh` と検査を足した（S1。#280。ADR は #274）。
+- **開発中のパッケージをイメージを焼き直さずにセルへ当てる道**（[ADR-0027](docs/adr/0027-apply-package-without-rebuild.md)）: `image/apply-main.sh` と検査を足し（S1。#280。ADR は #274）、動いている端末の一覧と `image/` のずれの警告を足した（S2。#283）。
 - **実行の記録から skill とプロンプトを直し続けるループ**（[ADR-0028](docs/adr/0028-improvement-loop.md)）: ADR のみ（#284）。
 - **プロファイル `claude`・`chief-of-staff` に `--effort high` を明示した**（#268）。
 - **全体の点検**: 壊れ・食い違い・要らないものを直した（#252・#253）。CLI の壊れ 8 件（#256）、約束と skill の食い違い（contract・ledger・triage・independent-review。#259）、skill の古いパスと人向けの経緯（#266）、設計・運用・image 文書と ADR の状態行（#258）、守りの揃え直し（`AGENTS.worker.md`・`--force-with-lease`・`public.sh`・isolation。#257）、CI と設定（`tests/*.sh` の二重実行・Go の版の検査・settings の重なり。#260）、重複した読みの 1 本化（#262）、boot が何も写さない `genHerdr` を外した（#255）、AGENTS.md の作法の追加（#254）。
