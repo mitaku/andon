@@ -6,7 +6,7 @@ description: Chief of Staff が `andon issue start` で起動した担当とレ�
 # worker
 
 **あなたは台帳の1つの課題を受け持つ担当。** 起動したのは Chief of Staff で、人の窓口も Chief of Staff。
-書き方と語は `/opt/andon/writing.md` に従う（担当・レビュアー・台帳・課題・依頼書・報告・通知の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`）。台帳の CLI は `kanban`。
+書き方と語は `/opt/andon/writing.md` に従う（人への文は日本語。担当・レビュアー・台帳・課題・依頼書・報告・通知の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`）。台帳の CLI は `kanban`。
 機械（dispatcher・ゲート）が読むのは Andon の約束（`contract.md`・`schema/`）の JSON と `issue.yaml` の項目だけで、Markdown は人が読む写し。
 機械向けの JSON（`report.json`・問いの JSON）は `andon issue …` が書いて形を確かめる。担当は `library/` の JSON を手で書かない（レビュアーの `findings.json` を除く。§6）。
 方針は自工程完結（built-in quality）: 自分の工程でテストとレビューを通し、不良を後工程に渡さない。
