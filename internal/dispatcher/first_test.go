@@ -55,6 +55,7 @@ func newFirst(t *testing.T) *firstFixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state")) // 送る前の控えの保存を一時の置き場へ（本物の控えに触らない）
+	t.Setenv("HOME", filepath.Join(f.d, "home"))            // template の本文（spawn.WithBody）を一時の HOME から読む。セルの本物を読まない
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
@@ -66,6 +67,18 @@ func newFirst(t *testing.T) *firstFixture {
 func (f *firstFixture) put(name, body string) {
 	f.t.Helper()
 	if err := os.WriteFile(filepath.Join(f.d, name), []byte(body), 0o644); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+// template は一時の HOME に hc の template（プロファイル）を置く。
+func (f *firstFixture) template(name, body string) {
+	f.t.Helper()
+	dir := filepath.Join(f.d, "home", ".config", "herdr-core", "templates")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		f.t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name+".md"), []byte(body), 0o644); err != nil {
 		f.t.Fatal(err)
 	}
 }
@@ -114,6 +127,28 @@ func TestFirstMessageResent(t *testing.T) {
 	// ラベルが外れたので、もう送らない（1回だけ）
 	if got := f.round(); got != nil {
 		t.Fatalf("送ったあとにまた打った: %q", got)
+	}
+}
+
+// 送り直す文は hc run が届けるはずだった文と同じ: 課題の profile の template の本文、空行、課題の文。
+// 前に貼った文が入力欄に残っているかも、その1行目（本文の1行目）で見る。
+func TestFirstMessageResentWithBody(t *testing.T) {
+	f := newFirst(t)
+	f.template("claude", "---\nname: claude\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n")
+	f.p.tasks[0]["profile"] = "claude"
+	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
+	want := "send t42 役目の1文目。|役目の2文目。||課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
+	if got := f.round(); len(got) != 2 || got[0] != want || got[1] != "label t42 first_message.sent=" {
+		t.Fatalf("本文つきで送っていない: %q", got)
+	}
+
+	// 前に貼った本文つきの文が入力欄に残っていれば、貼り直さず Enter だけ押す
+	f = newFirst(t)
+	f.template("claude", "---\nname: claude\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n")
+	f.p.tasks[0]["profile"] = "claude"
+	f.put("screen", "\n────\n❯ 役目の1文目。\n  役目の2文目。\n\n  課題 `sample-site/S-7`。\n────\n")
+	if got := f.round(); len(got) != 2 || got[0] != "keys t42 enter" {
+		t.Fatalf("残っている入力欄: %q", got)
 	}
 }
 

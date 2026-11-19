@@ -189,13 +189,45 @@ func MarkUnsent(addr string) error {
 	return err
 }
 
+// TemplatesDir は hc の template（プロファイル）の置き場。boot が ~/.config/herdr-core/templates に生成する。
+func TemplatesDir() string {
+	return filepath.Join(os.Getenv("HOME"), ".config", "herdr-core", "templates")
+}
+
+// WithBody は hc run <template> <msg> が端末に届ける最初のメッセージと同じ文を返す: template の本文（frontmatter の後ろ）、空行、msg。
+// hc send は本文を足さないので、届かなかった最初のメッセージを hc send で送り直す文（人への案内・dispatcher の送り直し）はこれで組む。
+// template が読めない・本文が空なら msg だけ。
+func WithBody(template, msg string) string {
+	b, err := os.ReadFile(filepath.Join(TemplatesDir(), template+".md"))
+	if err != nil {
+		return msg
+	}
+	body := string(b)
+	if rest, ok := strings.CutPrefix(body, "---\n"); ok {
+		if _, after, found := strings.Cut(rest, "\n---\n"); found {
+			body = after
+		}
+	}
+	if body = strings.TrimSpace(body); body == "" {
+		return msg
+	}
+	return body + "\n\n" + msg
+}
+
+// SendCommand は届かなかった最初のメッセージを手で送る行（hc send <addr> '<本文つきの文>'）。人がそのまま shell に貼れるよう、
+// 文は POSIX シェルの単引用符で包む（本文の `…` や $ を展開させず、改行は改行のまま渡す）。msg は hc run に渡した課題の文。
+func SendCommand(addr, template, msg string) string {
+	return "hc send " + addr + " '" + strings.ReplaceAll(WithBody(template, msg), "'", `'\''`) + "'"
+}
+
 // ResendHint は最初のメッセージが届かなかった端末 addr に FirstLabel を付け、人か Chief of Staff への案内を返す。
 // 送り直しは dispatcher に預ける（画面が入力を受けられるようになれば次の見回りで送る）。付けられなければ手で送る案内だけにする。
-func ResendHint(addr, msg string) string {
+// 手で送る行は SendCommand（template の本文つき）で、案内の最後に置く。
+func ResendHint(addr, template, msg string) string {
 	if err := MarkUnsent(addr); err != nil {
-		return fmt.Sprintf("ラベル %s を付けられず（%v）、dispatcher は送り直さない。hc read %s で画面を読み、答えてから手で送る: hc send %s %q", FirstLabel, err, addr, addr, msg)
+		return fmt.Sprintf("ラベル %s を付けられず（%v）、dispatcher は送り直さない。hc read %s で画面を読み、答えてから手で送る: %s", FirstLabel, err, addr, SendCommand(addr, template, msg))
 	}
-	return fmt.Sprintf("dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。信頼の画面などは App のその tab で答える）。急ぐときだけ手で: hc send %s %q", addr, msg)
+	return "dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。信頼の画面などは App のその tab で答える）。急ぐときだけ手で: " + SendCommand(addr, template, msg)
 }
 
 // Run は hc run --json --bg --outlive-parent --no-notify で template を起動する（contract.md §8 の起動のしかた）。

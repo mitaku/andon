@@ -127,7 +127,7 @@ ok '2人いれば止まる（1プロジェクトに1人）'
 echo false > "$tmp/hc/first"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
-grep -q '最初のメッセージが届いていない: trust prompt。App の demo / CoS で答えてから、次を送る: hc send t43 "プロジェクト `demo` の Chief of Staff。' "$tmp/err" || die "案内: $(cat "$tmp/err")"
+grep -q "最初のメッセージが届いていない: trust prompt。App の demo / CoS で答えてから、次を送る: hc send t43 'プロジェクト \`demo\` の Chief of Staff。" "$tmp/err" || die "案内: $(cat "$tmp/err")"
 [ "$(cos)" = t43 ] || die "届かなくても台帳に載せる: $(cos)"
 rm "$tmp/hc/first"
 [ ! -e "$tmp/hc/attached" ] || die "hc attach を打った: $(cat "$tmp/hc/attached")"

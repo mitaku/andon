@@ -64,6 +64,7 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("KANBAN_ROOT", "")
 	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state")) // <slug>.cos.lock を一時の置き場に。セルの本物に書かない
+	t.Setenv("HOME", filepath.Join(dir, "home"))            // template の本文（spawn.WithBody）を一時の HOME から読む。セルの本物を読まない
 	t.Setenv("FAKE_LS", `{"terminals":[]}`)
 	t.Setenv("FAKE_GET", `{}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}`)
@@ -248,10 +249,23 @@ func TestNoLedger(t *testing.T) {
 func TestFirstMessageNotSent(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
+	// hc run は template の本文（役目の文）を課題の文の前に足して届ける。手で送る案内も同じ文にする
+	tpl := filepath.Join(os.Getenv("HOME"), ".config", "herdr-core", "templates", "chief-of-staff.md")
+	if err := os.MkdirAll(filepath.Dir(tpl), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tpl, []byte("---\nname: chief-of-staff\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	rc, _, errs := runMain()
+	msg := "プロジェクト `sample-site` の Chief of Staff。\n台帳は `" + filepath.Join(f.root, "kanban") + "`。"
 	if rc != exitFirst || !strings.Contains(errs, "t42（sample-site-cos）に最初のメッセージが届いていない: trust prompt") ||
-		!strings.Contains(errs, "App の sample-site / CoS で答えてから、次を送る: hc send t42 \"プロジェクト `sample-site` の Chief of Staff。") {
+		!strings.Contains(errs, "App の sample-site / CoS で答えてから、次を送る: hc send t42 '役目の1文目。\n役目の2文目。\n\n"+msg+"'\n") {
 		t.Errorf("rc=%d err=%q", rc, errs)
+	}
+	// hc run に渡す課題の文は今までどおり（本文は hc が足す）
+	if !f.has("hc run ") || strings.Contains(strings.Join(f.calls(), "\n"), "役目の1文目") {
+		t.Errorf("calls=%q", f.calls())
 	}
 	// 起きた端末は台帳に載せる（起き直さずに画面に答えればよい）
 	if f.chief_of_staff() != "t42" {

@@ -196,8 +196,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	place := where(slug, id, title)
 	if !run.First.Delivered() {
-		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s。%s（App では %s）\n",
-			run.Address, name, run.Reason(), spawn.ResendHint(run.Address, msg), place)
+		// 手で送る行（ResendHint の最後）は shell にそのまま貼れるよう、文の最後に置く
+		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s（App では %s）。%s\n",
+			run.Address, name, run.Reason(), place, spawn.ResendHint(run.Address, Profile, msg))
 		fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
 		return exitFirst
 	}
