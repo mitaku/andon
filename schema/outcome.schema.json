@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/outcome/1",
+  "title": "Outcome",
+  "description": "issues/<id>/library/outcome.json: how one issue ended. Written once by the dispatcher after it sees the issue finished (done); never rewritten and never by hand. No file means it did not collect. Not written for a person's issue (who: person). Read by the retro; no gate or dispatcher decision reads it. Only these keys.",
+  "type": "object",
+  "required": [
+    "at",
+    "issue",
+    "result",
+    "pr",
+    "merge_commit",
+    "merged_at",
+    "gates",
+    "reviewers",
+    "worked_minutes",
+    "sessions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "description": "When the dispatcher collected it.",
+      "$ref": "#/$defs/time"
+    },
+    "issue": {
+      "description": "The issue the record is about.",
+      "$ref": "#/$defs/id"
+    },
+    "result": {
+      "description": "merged: the pull request was merged. closed: it was closed without merging. open: the issue was finished while it was still open. none: the issue had no pull request (report.json has no pr). Read from GitHub after the finish.",
+      "enum": [
+        "merged",
+        "closed",
+        "open",
+        "none"
+      ]
+    },
+    "pr": {
+      "description": "The pull request (report.json's pr), or null when result is none.",
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^https://github\\.com/[!-.0-~]+/[!-.0-~]+/pull/[1-9][0-9]*$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "merge_commit": {
+      "description": "The merge commit on GitHub. null unless result is merged (or GitHub did not give one).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "merged_at": {
+      "description": "When GitHub merged it. null unless result is merged (or GitHub did not give it).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gates": {
+      "description": "The gate's last decision for each head (library/gate/<head>.json), oldest first. Empty when the gate never wrote a record.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gate"
+      }
+    },
+    "reviewers": {
+      "description": "How many reviewer child issues (parent is this issue, profile *-review) the ledger has.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "worked_minutes": {
+      "description": "Working time up to the last done, without the waits (the same as andon measure: questions open, reviews, dead terminals).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "sessions": {
+      "description": "One entry per harness session in the launch record (library/launches.jsonl), in launch order. null when the issue has no launch record (it was started before launch records existed).",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/session"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "time": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.",
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "id": {
+      "description": "A ledger issue id: no /, \\ or :, and not . or ...",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": {
+        "enum": [
+          ".",
+          ".."
+        ]
+      }
+    },
+    "sha": {
+      "description": "A full git commit id: 40 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "gate": {
+      "description": "One gate record, copied.",
+      "type": "object",
+      "required": [
+        "head",
+        "at",
+        "tier",
+        "decision",
+        "reasons",
+        "merged"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "description": "The pull request head the gate judged.",
+          "$ref": "#/$defs/sha"
+        },
+        "at": {
+          "description": "When the gate read the head's GitHub checks.",
+          "$ref": "#/$defs/time"
+        },
+        "tier": {
+          "description": "Tier of the change: A, B or C.",
+          "enum": [
+            "A",
+            "B",
+            "C"
+          ]
+        },
+        "decision": {
+          "description": "The gate record's decision.",
+          "enum": [
+            "approve",
+            "fix",
+            "needs_human",
+            "wait"
+          ]
+        },
+        "reasons": {
+          "description": "The decision function's reasons, one line each. Empty on approve.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "merged": {
+          "description": "The dispatcher merged this head.",
+          "type": "boolean"
+        }
+      }
+    },
+    "session": {
+      "description": "One harness session and its cost.",
+      "type": "object",
+      "required": [
+        "harness",
+        "session",
+        "cost"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "harness": {
+          "description": "claude (Claude Code) or codex.",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "session": {
+          "description": "The session id: the launch record's for Claude Code, the rollout's session_meta id for Codex (found by the issue's working directories, since Codex has no id at launch). null when there is none.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost": {
+          "description": "Read from the session log when the dispatcher wrote this record, or null when the log was not found (Claude Code deletes logs after 30 days).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/cost"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "cost": {
+      "description": "Counted the same way as andon measure's tokens.",
+      "type": "object",
+      "required": [
+        "models",
+        "efforts",
+        "turns",
+        "tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "models": {
+          "description": "Model ids the session actually used (subagents included), in order of first use. Claude Code's <synthetic> is not a model.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "efforts": {
+          "description": "Reasoning efforts the session ran at, in order of first use. Empty when the log does not say.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "turns": {
+          "description": "Turns: Claude Code's distinct promptId on the main line, Codex's distinct turn_id. null when the log has no such mark.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokens": {
+          "type": "object",
+          "required": [
+            "input",
+            "output",
+            "cache_read",
+            "cache_write"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "input": {
+              "description": "Input tokens neither read from nor written to the cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "description": "Output tokens (Codex reasoning included).",
+              "type": "integer",
+              "minimum": 0
+            },
+            "cache_read": {
+              "description": "Input tokens read from the cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "cache_write": {
+              "description": "Input tokens written to the cache.",
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "description": "Token counts, the same as andon measure's (not dollars)."
+        }
+      }
+    }
+  }
+}

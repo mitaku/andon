@@ -49,21 +49,21 @@ flush() {
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered findings gate issue-keys launch measure notification project question report signal"
+expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome project question report signal"
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は13本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は14本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 for name in $expected; do
   queue 0 0 "schema/$name の決まり" lint "$schema_dir/$name.schema.json"
 done
 flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1; do
   id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
 done
@@ -138,6 +138,7 @@ declare -A required=(
   [signal]="signals"
   [delivered]="at project acked news"
   [launch]="at role launch issue profile template command terminal session harness package workspace repo external drift drift_reasons memory_index"
+  [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
 )
 # gen <pass|fail> <例の key> <jq の式> <説明>: 例を式で壊した（変えた）ものの検査を溜める。
 # 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を呼ばない）。式は1つの値を返すこと。
@@ -247,6 +248,10 @@ launch|.package|root commit source drift reasons
 launch|.workspace|path commit dirty
 launch|.repo|name path commit dirty
 launch|.external[0]|kind name path source ref version revision
+outcome|.gates[0]|head at tier decision reasons merged
+outcome|.sessions[0]|harness session cost
+outcome|.sessions[0].cost|models efforts turns tokens
+outcome|.sessions[0].cost.tokens|input output cache_read cache_write
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -553,6 +558,28 @@ fail|launch|.external[0].kind = "agent"|external の kind が知らない値
 fail|launch|.terminal = ""|terminal が空
 fail|launch|.at = "2026-11-19"|at が時刻でない
 fail|launch|.workspace.dirty = "no"|dirty が真偽値でない
+pass|outcome|.result = "closed" | .merge_commit = null | .merged_at = null|閉じられた PR
+pass|outcome|.result = "open" | .merge_commit = null | .merged_at = null|開いたまま片付いた PR
+pass|outcome|.result = "none" | .pr = null | .merge_commit = null | .merged_at = null | .gates = []|PR 無し
+pass|outcome|.sessions = null|起動の記録が無い（この仕組みの前の課題）
+pass|outcome|.sessions = []|セッションが無い
+pass|outcome|.sessions[0].cost.turns = null | .sessions[0].cost.efforts = []|ターンと effort の印が無い記録
+pass|outcome|.sessions[0] = {harness: "codex", session: null, cost: null}|rollout の見つからない Codex
+fail|outcome|.result = "reverted"|reverted は結果の値でない（マージ後のことは振り返りが読む）
+fail|outcome|.result = "ci_failed"|ci_failed は結果の値でない（ゲートの理由で読む）
+fail|outcome|.pr = "#12"|pr が URL でない
+fail|outcome|.merge_commit = "abc"|merge_commit が 40 桁でない
+fail|outcome|.merged_at = "2026-11-19"|merged_at が時刻でない
+fail|outcome|.gates[0].decision = "maybe"|知らない判定
+fail|outcome|.gates[0].tier = "D"|知らないレベル
+fail|outcome|.reviewers = -1|reviewers が負
+fail|outcome|.worked_minutes = 1.5|worked_minutes が整数でない
+fail|outcome|.sessions[0].harness = "gemini"|知らないハーネス
+fail|outcome|.sessions[0].session = ""|session が空
+fail|outcome|.sessions[0].cost.tokens.input = -1|トークンが負
+fail|outcome|.sessions[0].cost.tokens += {"dollars": 1}|ドルの欄を足す
+fail|outcome|.sessions[0].cost.models = [""]|モデルの id が空
+fail|outcome|.issue = "a/b"|issue に /
 fail|measure|.flow.closed.count = 1.5|件数が整数でない
 fail|measure|.days = 0|days が 0
 fail|measure|.since = "2026/11/01"|since が YYYY-MM-DD でない
@@ -649,6 +676,9 @@ launch|.required -= ["memory_index"]|起動の記録の必須から memory_index
 launch|del(.else)|起動の記録の「drift が false でなければ理由がある」を外す
 launch|del(.allOf)|起動の記録の「Chief of Staff は課題が null・ほかは課題がある」を外す
 launch|."$defs".external.additionalProperties = true|external の知らないキーを許す
+outcome|.properties.result.enum += ["reverted"]|結果の値に reverted を足す
+outcome|.required -= ["sessions"]|結果の記録の必須から sessions を外す
+outcome|."$defs".cost.additionalProperties = true|cost の知らないキーを許す
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -728,6 +758,13 @@ launch-resume.json|launch|andon issue resume の起動の記録
 launch-chief-engineer.json|launch|andon chief-engineer の起動の記録
 launch-reviewer.json|launch|andon dispatcher がレビュアーを起動したときの起動の記録
 launch-chief-of-staff.json|launch|andon chief-of-staff の起動の記録
+outcome-merged.json|outcome|andon dispatcher の outcome.json（マージした PR）
+outcome-reviewer.json|outcome|andon dispatcher の outcome.json（レビュアーの課題。PR 無し）
+outcome-none.json|outcome|andon dispatcher の outcome.json（PR 無し）
+outcome-open.json|outcome|andon dispatcher の outcome.json（PR が開いたまま）
+outcome-closed.json|outcome|andon dispatcher の outcome.json（PR が閉じられた）
+outcome-sessions.json|outcome|andon dispatcher の outcome.json（起動し直した2セッションのコスト）
+outcome-nolog.json|outcome|andon dispatcher の outcome.json（セッションログが無い）
 EMIT
     flush
   fi
