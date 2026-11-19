@@ -10,6 +10,7 @@ type Merging struct {
 	Merged   string `json:"merged,omitempty"`   // dispatcher の道でマージした commit
 	Wait     string `json:"wait,omitempty"`     // ゲートが wait を返した head（その head の checks が揃うまでゲートを回さない）
 	Approved string `json:"approved,omitempty"` // merge: auto の approve でマージに進み始めた時刻（決まったら消す。10 分たてば dispatcher が届ける）
+	Polled   string `json:"polled,omitempty"`   // approve・needs_human を決めたあと、PR の head を最後に読んだ時刻（1分に1回だけ聞く。動いていればゲートを回し直す）
 }
 
 // Merge は andon issue merge の出力（docs/contract.md の「ゲートのあとのマージと片付け」）。Notify を待ちに積むのは dispatcher。

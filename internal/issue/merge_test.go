@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/contract"
 	"andon/internal/gate"
 	"andon/internal/ledger"
 )
@@ -88,5 +89,34 @@ func TestMergedBefore(t *testing.T) {
 	}
 	if _, ok := MergedBefore(`{"state":"MERGED","headRefOid":"","mergeCommit":{"oid":"`+merge+`"}}`, ""); ok {
 		t.Error("ゲートの head が空でも MERGED とした")
+	}
+}
+
+// ゲートが approve か needs_human を決めたあと、open の PR の head が判定した head から動いたときだけ回し直す。
+// fix（担当が ready し直す）・dispatcher がマージした・人がマージした・閉じた PR は回し直さない（dispatcher.md §5 の P6a）。
+func TestHeadMoved(t *testing.T) {
+	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	m := func(decision, merged string) contract.Merging {
+		return contract.Merging{Row: 3, Sha: h1, Decision: decision, Merged: merged}
+	}
+	for _, c := range []struct {
+		name        string
+		w           contract.Merging
+		state, head string
+		want        bool
+	}{
+		{"approve のあとに push された", m("approve", ""), "OPEN", h2, true},
+		{"needs_human のあとに push された", m("needs_human", ""), "OPEN", h2, true},
+		{"head が同じ", m("approve", ""), "OPEN", h1, false},
+		{"fix は担当が ready し直す", m("fix", ""), "OPEN", h2, false},
+		{"dispatcher がマージした", m("approve", strings.Repeat("c", 40)), "OPEN", h2, false},
+		{"人が別の head でマージした（settle の道）", m("needs_human", ""), "MERGED", h2, false},
+		{"閉じた PR", m("approve", ""), "CLOSED", h2, false},
+		{"head が読めない", m("approve", ""), "OPEN", "", false},
+		{"判定した head が無い（決めていない）", contract.Merging{Row: 3, Decision: "needs_human"}, "OPEN", h2, false},
+	} {
+		if got := HeadMoved(c.w, c.state, c.head); got != c.want {
+			t.Errorf("%s: HeadMoved = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
