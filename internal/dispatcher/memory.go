@@ -60,13 +60,25 @@ func (m Memory) Save() error {
 // memory は auto memory の量の段（docs/dispatcher.md §2.11。ADR-0020 決めたこと 4）: セルの memory の置き場の
 // 件数（目録 MEMORY.md を除く。数え方はトリアージが拾うものと同じ triage.MemoryFiles）が線を超えたら、
 // Chief of Staff に memory を1度積む。記録の Over（セルに1つ）で、線の下に戻るまで同じ超え方を繰り返さない。
-// 先に回った台帳が積めば、同じ巡のほかの台帳は積まない。記録を書くのは、積んだ台帳の控えを保存したあと（saveMemory）。
+// 先に回った台帳が積めば、同じ巡のほかの台帳は積まない。記録の値はプロセスの中にも持ち（Dispatcher.memory）、
+// 書き換えるのは積んだ台帳の控えを保存したあと（saveMemory）。ファイルに書けなかった記録は、この段で書き直す。
 // 臨時のトリアージを足すかは Chief of Staff が決める（ここは届けるだけ）。
 func (p *project) memory() {
-	m, err := LoadMemory()
-	if err != nil {
-		p.logf("%v（次の巡で読み直す）", err)
-		return
+	c := p.c
+	if c.memory == nil {
+		m, err := LoadMemory()
+		if err != nil {
+			p.logf("%v（次の巡で読み直す）", err)
+			return
+		}
+		c.memory = &m
+	}
+	if c.memoryUnsaved {
+		if err := c.memory.Save(); err != nil {
+			p.logf("memory の量の線の記録を書けない（このプロセスの間は覚えておき、次の巡で書き直す）: %v", err)
+		} else {
+			c.memoryUnsaved = false
+		}
 	}
 	files, err := triage.MemoryFiles(triage.MemoryDir())
 	if err != nil {
@@ -74,7 +86,7 @@ func (p *project) memory() {
 		return
 	}
 	over := len(files) > memoryLine
-	if over == m.Over {
+	if over == c.memory.Over {
 		return
 	}
 	p.memoryOver = &over
@@ -83,13 +95,19 @@ func (p *project) memory() {
 	}
 }
 
-// saveMemory は memory の段が変えた記録を書く（pass が控えを保存したあとに呼ぶ）。控えの保存の前に落ちたら
-// 記録は前のままで、次の巡でもう一度積む（届くのは1度か2度で、落ちることは無い）。書けなければログに1行。
+// saveMemory は memory の段が変えた記録を、プロセスの中の値とファイルに書く（pass が控えを保存したあとに呼ぶ）。
+// 控えの保存の前に落ちたら記録は前のままで、ほかの台帳か次の巡でもう一度積む（届くのは1度か2度で、落ちることは無い）。
+// ファイルに書けなければログに1行で、プロセスの中の値で積み直しを止め、次の巡で書き直す。
 func (p *project) saveMemory() {
 	if p.memoryOver == nil {
 		return
 	}
-	if err := (Memory{Over: *p.memoryOver}).Save(); err != nil {
-		p.logf("memory の量の線の記録を書けない（次の巡で積み直しうる）: %v", err)
+	c := p.c
+	c.memory = &Memory{Over: *p.memoryOver}
+	if err := c.memory.Save(); err != nil {
+		c.memoryUnsaved = true
+		p.logf("memory の量の線の記録を書けない（このプロセスの間は覚えておき、次の巡で書き直す）: %v", err)
+		return
 	}
+	c.memoryUnsaved = false
 }

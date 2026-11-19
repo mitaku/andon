@@ -153,6 +153,11 @@ type Dispatcher struct {
 
 	unwaited map[string]string // 待ち役がいないとログに書いた待ち（台帳ごと。同じ待ちを二度書かない）
 	skip     map[string]string // 台帳を飛ばしている・留守だとログに書いた理由（台帳ごと。同じ理由を二度書かない）
+	// memory の量の線の記録の、このプロセスでの値（無ければまだ読んでいない）。ファイルに書けなくても、
+	// このプロセスの間は同じ超え方を積み直さない（memory.go）
+	memory *Memory
+	// memory の記録をファイルに書けなかった（次の巡の memory の段で書き直す）
+	memoryUnsaved bool
 }
 
 // cosDown は Chief of Staff の端末が無い（留守）理由。hc が端末を無い（not_found）・live でないと答えたときだけ返す。

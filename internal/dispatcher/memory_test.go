@@ -12,6 +12,7 @@ import (
 // 記録はセルに1つ（.memory.json）なので、先に回った台帳が積めば、ほかの台帳は積まない（dispatcher.md §2.11）。
 // 線を超えたまま回っても積み直さず、線の下に戻ってまた超えたら1通だけ積み直す。
 // 積んだ台帳の控えを保存できなかった巡は、記録を書かず、同じ巡のほかの台帳が積む（通知は落ちない）。
+// セルの記録だけを書けない巡も1通で、書けない間は積み直さず、書けるようになった巡で書き直す。
 func TestMemoryOncePerCell(t *testing.T) {
 	d := t.TempDir()
 	bin := filepath.Join(d, "bin")
@@ -148,5 +149,37 @@ func TestMemoryOncePerCell(t *testing.T) {
 	c.Pass("")
 	if got := memories(); total(got) != 0 {
 		t.Errorf("sample-b が積んだあとで memory をもう一度積んだ: %v", got)
+	}
+
+	// セルの記録だけを書けない巡: 積むのは1通で、書けない間もこのプロセスでは積み直さない。書けるようになった巡で書き直す
+	if err := os.Remove(filepath.Join(mem, fmt.Sprintf("m%d.md", memoryLine+4))); err != nil {
+		t.Fatal(err)
+	}
+	c.Pass("")
+	put(memoryLine + 5)
+	mtmp := MemoryPath() + ".tmp"
+	if err := os.MkdirAll(mtmp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logb.Reset()
+	for range 3 {
+		c.Pass("")
+	}
+	if got := memories(); total(got) != 1 {
+		t.Errorf("セルの記録を書けない間に memory が 1 通でない: %v（ログ %q）", got, logb.String())
+	}
+	if m, err := LoadMemory(); err != nil || m.Over || !bytes.Contains(logb.Bytes(), []byte("記録を書けない")) {
+		t.Errorf("書けない記録が書けた・ログに出ていない: %+v %v %q", m, err, logb.String())
+	}
+	if err := os.Remove(mtmp); err != nil {
+		t.Fatal(err)
+	}
+	c.Pass("")
+	if m, err := LoadMemory(); err != nil || !m.Over {
+		t.Errorf("書けるようになった巡で記録を書き直していない: %+v %v", m, err)
+	}
+	(&Dispatcher{WS: ws, Log: &logb}).Pass("") // dispatcher を起動し直しても、記録から積んだことが分かる
+	if got := memories(); total(got) != 0 {
+		t.Errorf("記録を書き直したあとで memory をもう一度積んだ: %v", got)
 	}
 }
