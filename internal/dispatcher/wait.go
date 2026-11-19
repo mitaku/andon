@@ -11,12 +11,14 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"andon/internal/flock"
 )
 
 // WaitUsage は andon dispatcher wait の使い方。
 const WaitUsage = "usage: andon dispatcher wait [--timeout <秒>] [--project <slug>]\n" +
 	"Chief of Staff の Stop フックが asyncRewake で起動する待ち役（package/hooks/stop-wait。contract.md §9。ADR-0019 決めたこと 1・8・9）。\n" +
-	"届ける通知が待ちにあり、Chief of Staff の端末が idle か done になったら、合図の1行を stderr に書いて終了コード 2 で終わる\n" +
+	"届ける通知が待ちにあり、Chief of Staff の端末が idle か done で、控えの lock をほかに持たれていなければ（見回りの巡の間は待つ）、合図の1行を stderr に書いて終了コード 2 で終わる\n" +
 	"（Claude Code が入力欄を通らずに新しいターンを始め、その終わりの Stop で drain が <news> を渡す）。待ちと控えは読むだけ。\n" +
 	"--timeout はフックの timeout（秒）。その 9 割まで打つ機会が無ければ、張り直しの合図で終了コード 2 で終わる（次の Stop で次の待ち役が起きる）。\n" +
 	"端末が一時に読めなければ読み直す。timeout の 95% まで読めなければ、殺される前に終了コード 0 で終わる。\n" +
@@ -112,6 +114,16 @@ func WaitMain(args []string, stdin io.Reader, stderr io.Writer) int {
 	return wait(slug, addr, deadline, last, stderr)
 }
 
+// stateLocked は、控えの lock をほかの誰か（見回りの巡・drain）が持っているか。取れたらすぐ放す（待たない）。
+// lock のファイルが開けないなどで分からなければ false（合図を止めない）。
+func stateLocked(slug string) bool {
+	unlock, err := flock.TryLock(StatePath(slug) + ".lock")
+	if err == nil {
+		unlock()
+	}
+	return errors.Is(err, flock.ErrBusy)
+}
+
 // wait の deadline は張り直しの時刻、last は端末が読めないまま諦める時刻（フックの timeout より前）。
 func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 	me := waiter{Terminal: addr, PID: os.Getpid(), Token: fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())}
@@ -158,6 +170,14 @@ func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 				return 0
 			case err != nil:
 				// 読めなければ次の回に読み直す（一時の失敗で待ち役をなくさない。張り直しの時刻を過ぎていても last までは）
+			case waiting && len(st.Pending) > 0 && stateLocked(slug):
+				// 見回りが控えの lock を持つ間は合図しない（起動したターンの Stop の drain が lock を待ちきれず、中身の無いターンが続く）。
+				// lock が空いた次の回に合図する。持たれたまま張り直しの時刻が来たら、張り直しの合図にする（待ち役を失わない）
+				if late {
+					leave()
+					fmt.Fprintln(stderr, WaitRearm)
+					return 2
+				}
 			case waiting && len(st.Pending) > 0:
 				leave()
 				fmt.Fprintln(stderr, WaitSignal)

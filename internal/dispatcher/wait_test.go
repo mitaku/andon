@@ -241,3 +241,51 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 		t.Fatalf("待ち役が合図で終わらない: %v %d", ok, code)
 	}
 }
+
+// 見回りが控えの lock を持つ間は合図しない（起動したターンの Stop の drain が lock を待ちきれず何も渡さず、
+// 同じ Stop で起きた次の待ち役がまた合図して、中身の無いターンが続くため）。lock が空いたら合図し、そのターンの drain が渡す。
+func TestWaitHoldsWhileStateLocked(t *testing.T) {
+	f := waitFixture(t)
+	f.pending(1)
+	unlock, err := lockState("sample-site", 0) // 見回りの巡（ゲート・resume・settle を打っている間）
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := startWait("--timeout", "60")
+	if code, ok := r.done(t, 300*time.Millisecond); ok {
+		unlock()
+		t.Fatalf("lock を持たれている間に終わった: %d %q", code, r.stderr.String())
+	}
+	if !liveWaiter("sample-site", "t1") {
+		unlock()
+		t.Fatal("lock を待つ間に待ち役が消えた")
+	}
+	unlock()
+	code, ok := r.done(t, 2*time.Second)
+	if !ok || code != 2 || strings.TrimSpace(r.stderr.String()) != WaitSignal {
+		t.Fatalf("lock が空いても合図しない: %v %d %q", ok, code, r.stderr.String())
+	}
+	old := lockWait
+	lockWait = 50 * time.Millisecond
+	defer func() { lockWait = old }()
+	out, err := drain("sample-site", false, hookInput{SessionID: "s1", PromptID: "w1"})
+	if err != nil || out == nil {
+		t.Fatalf("合図で起きたターンの drain が渡さない: %v %v", out, err)
+	}
+}
+
+// lock を持たれたまま張り直しの時刻が来たら、通知の合図ではなく張り直しの合図で 2（フックの timeout で待ち役を失わない）。
+func TestWaitRearmsWhileStateLocked(t *testing.T) {
+	f := waitFixture(t)
+	f.pending(1)
+	unlock, err := lockState("sample-site", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	r := startWait("--timeout", "1")
+	code, ok := r.done(t, 3*time.Second)
+	if !ok || code != 2 || strings.TrimSpace(r.stderr.String()) != WaitRearm {
+		t.Fatalf("張り直しの合図で終わらない: %v %d %q", ok, code, r.stderr.String())
+	}
+}
