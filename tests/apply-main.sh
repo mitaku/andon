@@ -75,6 +75,7 @@ cat >"$tmp/fakebin/hc" <<'EOF'
 c=$(jq -r .commit "$ANDON_APPLY_ROOT/applied.json" 2>/dev/null || echo none)
 echo "hc $* applied=$c" >>"$CALLS"
 [ "$1" = ls ] && [ -e "$HC_LS_FAIL" ] && { echo "herdr: 接続できない" >&2; exit 1; }
+[ "$1" = ls ] && [ -e "$HC_LS_EMPTY" ] && exit 0
 [ "$1" = ls ] && { cat "$HC_LS" 2>/dev/null; exit 0; }
 [ "$1 $2" = "get dispatcher" ] && echo '{"address":"t9","state":"live","foreground":{"name":"andon","pid":'"$(cat "$DISPATCHER_PID")"'}}'
 exit 0
@@ -93,7 +94,7 @@ grep -aq '\.pass\.lock' "$tmp/old-dispatcher" && fail "前の版の偽の dispat
 "$tmp/new-dispatcher" 600 & newd=$!
 "$tmp/old-dispatcher" 600 & oldd=$!
 trap 'kill "$newd" "$oldd" 2>/dev/null; rm -rf "$tmp"' EXIT
-export DISPATCHER_PID=$tmp/dispatcher.pid HC_LS=$tmp/hc-ls.json HC_LS_FAIL=$tmp/hc-ls-fail
+export DISPATCHER_PID=$tmp/dispatcher.pid HC_LS=$tmp/hc-ls.json HC_LS_FAIL=$tmp/hc-ls-fail HC_LS_EMPTY=$tmp/hc-ls-empty
 cat >"$HC_LS" <<'JSON'
 {"terminals":[
  {"address":"t3","name":"dispatcher","state":"live"},
@@ -220,6 +221,13 @@ else
   fail "8 hc ls の失敗: $(cat "$tmp/out")"
 fi
 rm -f "$HC_LS_FAIL"
+: >"$HC_LS_EMPTY"
+if run apply && grep -q '警告: hc ls に失敗' "$tmp/out"; then
+  pass "8 hc ls が rc 0 で空を返しても、一覧を出せない警告を出して当てる"
+else
+  fail "8 hc ls の空応答: $(cat "$tmp/out")"
+fi
+rm -f "$HC_LS_EMPTY"
 
 # === 9. image/ が変わったら警告して当てる ===
 printf 'x\n' >"$tmp/repo/image/drift-marker.txt"

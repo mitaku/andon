@@ -51,7 +51,8 @@ live_terminals() {
   command -v hc >/dev/null || return 0
   local got
   got=$(env -u HC_TERMINAL_ID hc ls --json 8<&- 9<&-) || return 1
-  jq -r '.terminals[]? | select(.state == "live" and .name != "dispatcher") | "  \(.address) \(.name // "-") \(.status // "-")"' <<<"$got"
+  jq -e '.terminals | arrays' <<<"$got" >/dev/null 2>&1 || return 1
+  jq -r '.terminals[] | select(.state == "live" and .name != "dispatcher") | "  \(.address) \(.name // "-") \(.status // "-")"' <<<"$got"
 }
 
 # イメージの元の commit($1)から $2 までに image/ が変わったファイルを並べて警告する（apply-main.sh 自身はイメージに入らないので除く）
