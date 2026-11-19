@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -19,6 +19,7 @@
 | §18 起動の記録 | `schema/launch.schema.json` |
 | §19 結果の記録 | `schema/outcome.schema.json` |
 | §20 振り返りの入力（`andon retro collect` の出力） | `schema/retro.schema.json` |
+| §21 パターンの一覧（`retro.json`） | `schema/patterns.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
@@ -34,7 +35,7 @@
    - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
    - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と結果の記録（`outcome.json`。§19）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` とパターンの一覧（`retro.json`。§21）は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と結果の記録（`outcome.json`。§19）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
@@ -58,6 +59,8 @@ projects/<slug>/kanban/
       corrections.json            dispatcher（§14。finish〈done〉のとき1回だけ。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
       launches.jsonl              エージェントを起動する command（§18。起動のたびに1行足す。版と起動行）
       outcome.json                dispatcher（§19。finish〈done〉のとき1回だけ。結果・ゲートの判定・実働・セッションごとのコスト）
+      retro.json                  振り返りの担当（§21。andon retro patterns が検査して書く。パターンの一覧）
+      retro-applied.json          andon retro apply（§21。Chief of Staff が打つ。足した課題と捨てたパターン）
   chief-of-staff/launches.jsonl   andon chief-of-staff（§18。Chief of Staff は課題を持たないので台帳の直下）
   log.jsonl                       台帳の CLI が書く。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
@@ -839,3 +842,51 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 
 秘密を伏せる: 出力の JSON を書いたあと、文字列の中で秘密の形に合う所を `[REDACTED:<形の名前>]` に置き換える（鍵の名前に続く値は名前を残して値だけ）。形は秘密鍵の塊・Anthropic と OpenAI の API キー・GitHub のトークン・AWS のアクセスキー・Slack のトークン・Google の API キー・JWT・`Bearer` のトークン・`api_key`／`token`／`password` などの名前に続く値（値の長さは問わない）。一覧の正は `internal/retro/redact.go`（検査は偽の値で `internal/retro/retro_test.go`）。多めに伏せる。伏せたあと JSON として読めなければ出さずに終了コード 1。
 
+## 21. パターンの一覧（`retro.json`）
+
+振り返りの課題の `library/retro.json`。振り返りの担当が、振り返りの入力（§20）から拾った繰り返し（パターン）と、前の直しごとの再発の数と見立てを書く（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8 の「判定を書く」）。担当は手で書かず、`andon retro patterns <id> [--days N] <json|->` で書く（打てるのはその課題の担当の端末〈`agent` ＝ `HC_TERMINAL_ID`〉で、課題が `doing` のときだけ）。入力は `patterns` と `fixes` の2つだけで、残りの欄（`retro`・`at`・`since`・`until`・`days`・`previous_retro`）は command が書く。command は打った時刻から `--days`（既定 7。collect と同じ値を渡す）の入力を集め直し（GitHub も読む）、下の検査を全部通したときだけ書く。断るときは書かずに終了コード 1 と理由1行で、前の一覧はそのまま。書き直すたびに全体を書く。
+
+```json
+{"retro": "S-0050", "at": "2026-11-19T12:00:00Z", "since": "2026-11-12T12:00:00Z", "until": "2026-11-19T12:00:00Z", "days": 7,
+ "previous_retro": {"issue": "S-0040", "done_at": "2026-11-18T09:30:00Z"},
+ "patterns": [
+   {"id": "p1", "summary": "PR の題に課題番号が入り、人が2回直した", "evidence": ["S-0012", "h-6f1c2d3e-0000-4000-8000-000000000001"],
+    "level": "test", "action": "add", "target": {"kind": "project", "repo": "github.com/example/sample-site", "paths": ["tests/pr-title.sh"]},
+    "effect": "題に課題番号が入った PR が CI で落ちる", "risk": "題の検査が、課題番号に似た語を誤って拾う", "decision": "fix", "reason": "テストで止められ、根拠が2件ある"},
+   {"id": "p2", "summary": "見送りの理由が報告に無く、検収で2回戻した", "evidence": ["S-0012", "S-0015"],
+    "level": "skill", "action": "change", "target": {"kind": "andon", "repo": "github.com/example/andon", "paths": ["package/skills/worker/SKILL.md"]},
+    "not_upstream": "見送りの理由は文で、機械が確かめる値が無い", "effect": "報告の見送りに理由が付く", "risk": "worker skill が長くなる",
+    "decision": "drop", "reason": "前の直しが2日前にマージされたばかりで、まだ効き目が分からない"}],
+ "fixes": [{"issue": "S-0041", "recurred": 0, "view": "マージのあと 6 件片付き、再発は無い。残す"}]}
+```
+
+| キー | 意味 |
+|---|---|
+| `retro`・`at`・`since`・`until`・`days` | command が書く。書いた振り返りの課題と、集めた入力の期間。`andon retro apply` は `until` と `days` で同じ期間を集め直す |
+| `previous_retro` | command が書く。集めたときの前の振り返り（期間の終わりまでに片付いた振り返りの課題のうち最後。この課題自身は数えない） |
+| `patterns[].id` | `p1`・`p2` …。一覧の中で一意。直す課題の依頼書から指す名前 |
+| `patterns[].summary` | 何が何回起きたかの1行。直す課題の題にもなる（`-` で始めない）。人のコメントや人が打った文の本文を写さない（[ADR-0028](adr/0028-improvement-loop.md) 前提 7） |
+| `patterns[].evidence` | 根拠の id。入力（§20）の `issues[].id`（課題）か `typed[].id`（人が打った文。`h-…`） |
+| `patterns[].level` | 直す先の段（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 9。効き目の確かな順）。`design`＝設計・型（schema・command の照合・状態の定義）・`test`＝テスト・lint（ゲートの条件表を含む）・`check`＝決まった手順の確かめ（hook・command の中の確かめ）・`skill`＝skill・指針（プロファイル・手引き・`AGENTS.md`・`REVIEW.md`）・`text`＝文面（最後の手段） |
+| `patterns[].action` | `add`（足す）・`change`（変える）・`remove`（削る。効いていない指示を消すのも直し） |
+| `patterns[].target` | 直す先。`kind` は `andon`（Andon のパッケージ）か `project`（案件の repo のテスト・`AGENTS.md`・`REVIEW.md` など）。`repo` は `<host>/<owner>/<repo>`（`project` は必須でプロジェクトの `repos` の中。`andon` は持っていれば書く）。`paths` は repo の中の相対パス（1つ以上） |
+| `patterns[].not_upstream` | 上の段（設計・テスト・確かめ）で止められない理由の1行。`level` が `skill` か `text` なら必須 |
+| `patterns[].effect`・`risk` | 期待する効果（何が起きなくなるか）とリスク。1行ずつ |
+| `patterns[].decision`・`reason` | `fix`（直す課題に切る）か `drop`（捨てる。持ち越さない）と、その理由の1行 |
+| `fixes[]` | 入力の `fixes[]`（前の振り返りが切った直しのうちマージから 14 日以内のもの）の全部に1件ずつ、過不足なく。`recurred` はマージのあとに同じパターンが起きた数、`view` は見立ての1行（残す・効き目の確かな段へ振り分け直す・効かなかった文を削る候補にする）。再発したものは、文を足さずに上の段か削る候補をパターンに出す（決めたこと 6） |
+
+command が断ること（`andon retro patterns` と `andon retro apply` の両方。[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8）:
+
+- 根拠が別々の2件に満たないパターン。数える単位は課題（レビュアーの子の課題は親）と、人が打った文のセッションのオーナー（担当とレビュアーのセッションはその課題、Chief of Staff のセッションはセッションごと）。同じ課題の中の2回・同じセッションの中の2回・課題とその課題の担当が打たれた文は、1件と数える（決めたこと 14 の 2）。
+- 根拠が入力に無い id を指しているパターン。
+- 根拠のどれも `previous_retro` の `done_at` より後でない（後に片付いた課題か、後に打たれた文が1件も無い）パターン（決めたこと 14 の 3）。前の振り返りが無ければ問わない。
+- `level` が `skill` か `text` なのに `not_upstream` が無いパターン。
+- `target.paths` が振り返り自身（`package/skills/retro`・`internal/retro` とその下）を指すパターン。
+- 判定（`decision`）の無いパターン。`fix` が 2 件を超える一覧（決めたこと 13）。
+- 形の誤り（知らないキー・空の文・改行・`project` の `repo` がプロジェクトの `repos` に無い）。`andon retro patterns` だけは、`fixes[]` が入力の前の直しと過不足なく合うかも確かめる（`apply` は GitHub を読まないので照らさない）。
+
+確かめないこと: そのパターンが根拠の課題で本当に起きたか。見るのは、検収する Chief of Staff と、直す PR を読むレビュアーと人。
+
+**当てる**（`andon retro apply <id> [--dry-run]`。Chief of Staff が検収して打つ）: `retro.json` を読み、`until` と `days` の期間で入力を集め直して上の検査を通し（GitHub は読まない）、`fix` のパターンごとに課題を1件 `kanban add` する。足す課題の `parent` は振り返りの課題（§20 が前の直しを見分ける印）、題は `summary`、`repo` は `target.repo`。依頼書には、要約・直す先（段・足すか変えるか削るか・repo と paths）・上の段で止められない理由・期待する効果・リスク・完了条件・守ること（改善の PR の決まり）・根拠（課題は題と片付いた時刻と PR、人が打った文は id と役と時刻だけで本文は写さない）・PR の本文に書いてよい根拠の PR・辿り方を書く。`target.kind` が `andon` で、`target.repo` が無いかプロジェクトの `repos` に無ければ、直す課題ではなく人の課題（`who: person`。題は「Andon へ伝えるか: <summary>」）にする（決めたこと 2）。`profile` と予約キー（§2）は書かない（起動する前に Chief of Staff が切る決まりで書く）。`--dry-run` は足す課題と捨てるパターンを JSON で出すだけで、何も書かない。
+
+当てた記録は振り返りの課題の `library/retro-applied.json`（書き手は `andon retro apply`。読むのは人と Chief of Staff で、機械は判定に使わないので schema は持たない）。`retro`・`applied_at`・`complete`（全部を足したら `true`）・`issues[]`（`pattern`・`issue`・`who`〈`worker` か `person`〉・`title`）・`dropped[]`（`pattern`・`reason`）。1件足すたびに書き直すので、途中で台帳の CLI が落ちても足した分が残り、打ち直すと残りから続ける。`complete` が `true` なら断る（当て済み）。

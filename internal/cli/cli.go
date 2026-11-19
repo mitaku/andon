@@ -96,7 +96,7 @@ var commands = []command{
 	},
 	{
 		name:  "retro",
-		about: "振り返りの入力を集める（collect。読むだけ）",
+		about: "振り返りの入力を集める（collect）・パターンの一覧を書く（patterns）・直す課題に切る（apply）",
 		usage: retro.Usage,
 		run:   retro.Main,
 	},

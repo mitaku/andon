@@ -32,12 +32,18 @@ import (
 )
 
 // Usage は andon retro の使い方。
-const Usage = "usage: andon retro collect [--days N]\n" +
-	"振り返りの入力を1つの JSON に集めて標準出力に出す（読むだけ。docs/contract.md §20）。\n" +
-	"直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・ゲートの判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
+const Usage = "usage: andon retro collect [--days N]                       振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）\n" +
+	"       andon retro patterns <id> [--days N] <patterns.json|->  パターンの一覧を検査して library/retro.json に書く（振り返りの担当。§21）\n" +
+	"       andon retro apply <id> [--dry-run]                      パターンの一覧の fix を直す課題に切る（Chief of Staff。§21）\n" +
+	"collect: 直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・ゲートの判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
 	"見送り・人の手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
 	"加えて、期間に人が端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のものを出す。\n" +
-	"秘密の形に合う文字列は伏せてから出す。projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
+	"秘密の形に合う文字列は伏せてから出す。\n" +
+	"patterns: collect と同じ入力を集め直し、根拠が別々の2件以上か・入力にあるか・前の振り返りより後のものがあるか・\n" +
+	"skill と文面の直しに上の段で止められない理由があるか・振り返り自身を直さないか・全部に判定があり fix が 2 件までか・前の直しの見立てが揃うかを確かめる。\n" +
+	"apply: library/retro.json を同じ窓で照らし直し、fix ごとに直す課題（parent は振り返りの課題）を1件足す。\n" +
+	"直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ、人の課題にする。記録は library/retro-applied.json。\n" +
+	"projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
 
 // 既定と上限。
 const (
@@ -60,6 +66,8 @@ type Options struct {
 	ClaudeDir string
 	// Package はパッケージの置き場（applied.json を読む）。空なら読まない。
 	Package string
+	// Exclude は前の振り返りに数えない課題（パターンの一覧を書く・当てる振り返りの課題自身）。
+	Exclude string
 }
 
 // Input は andon retro collect の出力（schema/retro.schema.json）。
@@ -197,10 +205,10 @@ func Collect(o Options) (*Input, error) {
 			retros[t.id] = true
 		}
 	}
-	// 前の振り返り: 片付いた振り返りの課題のうち最後
+	// 前の振り返り: 期間の終わりまでに片付いた振り返りの課題のうち最後（自分自身は数えない）
 	for id := range retros {
 		at, ok := done[id]
-		if !ok || byID[id].status != "done" {
+		if !ok || byID[id].status != "done" || id == o.Exclude || at.After(until) {
 			continue
 		}
 		if in.PreviousRetro == nil || at.After(mustTime(in.PreviousRetro.DoneAt)) ||
@@ -580,16 +588,28 @@ func strings1(v any) []string {
 }
 
 // Main は andon retro。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	usage := func() int { fmt.Fprint(stderr, Usage); return 2 }
-	if len(args) == 0 || args[0] != "collect" {
+	if len(args) == 0 {
 		return usage()
 	}
-	args = args[1:]
-	days := defaultDays
+	cmd, args := args[0], args[1:]
+	days, id, src, dry := defaultDays, "", "", false
+	if cmd == "patterns" || cmd == "apply" {
+		if len(args) == 0 {
+			return usage()
+		}
+		id, args = ledger.CanonID(args[0]), args[1:]
+		if !idRe.MatchString(id) {
+			fmt.Fprintf(stderr, "andon retro: id %q が不正\n", id)
+			return 2
+		}
+	} else if cmd != "collect" {
+		return usage()
+	}
 	for len(args) > 0 {
 		switch {
-		case args[0] == "--days" && len(args) >= 2:
+		case args[0] == "--days" && len(args) >= 2 && cmd != "apply":
 			n, err := strconv.Atoi(args[1])
 			if err != nil || n < 1 || n > maxDays {
 				fmt.Fprintf(stderr, "andon retro: --days は 1〜%d の数（%q）\n", maxDays, args[1])
@@ -597,9 +617,18 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			}
 			days = n
 			args = args[2:]
+		case args[0] == "--dry-run" && cmd == "apply":
+			dry = true
+			args = args[1:]
+		case cmd == "patterns" && src == "" && (args[0] == "-" || !strings.HasPrefix(args[0], "-")):
+			src = args[0]
+			args = args[1:]
 		default:
 			return usage()
 		}
+	}
+	if cmd == "patterns" && src == "" {
+		return usage()
 	}
 	root := os.Getenv("KANBAN_ROOT")
 	if root == "" {
@@ -610,21 +639,34 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 		root = l.Root
 	}
-	in, err := Collect(Options{Root: root, Now: time.Now(), Days: days, GH: GH,
-		ClaudeDir: sessionlog.ClaudeDir(), Package: pkgversion.Home()})
+	var err error
+	switch cmd {
+	case "collect":
+		err = runCollect(root, days, stdout)
+	case "patterns":
+		err = runPatterns(root, id, days, src, stdin, stdout)
+	case "apply":
+		err = runApply(root, id, dry, stdout)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "andon retro: %v\n", err)
-		return 1
-	}
-	b, _, err := Redacted(in)
-	if err != nil {
-		fmt.Fprintf(stderr, "andon retro: %v\n", err)
-		return 1
-	}
-	if _, err := stdout.Write(b); err != nil {
 		return 1
 	}
 	return 0
+}
+
+func runCollect(root string, days int, stdout io.Writer) error {
+	in, err := Collect(Options{Root: root, Now: time.Now(), Days: days, GH: GH,
+		ClaudeDir: sessionlog.ClaudeDir(), Package: pkgversion.Home()})
+	if err != nil {
+		return err
+	}
+	b, _, err := Redacted(in)
+	if err != nil {
+		return err
+	}
+	_, err = stdout.Write(b)
+	return err
 }
 
 // GH は gh を打つ。

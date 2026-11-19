@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/package.sh — package/ の skill・プロファイル・ゲートの条件表・managed settings・statusline（design.md §2.2・§2.4）。
-#   1. skill 7つとプロファイル 8つがそろい、frontmatter の name がディレクトリ名・ファイル名と同じ。
+#   1. skill 8つとプロファイル 8つがそろい、frontmatter の name がディレクトリ名・ファイル名と同じ。
 #   2. plugin.json の name が andon。Claude Code 系のプロファイルは command で plugin と役の skill を運び（本文で読ませない）、Codex 系は本文で skill を指す。
 #  2b. 前の置き場の名前が残っていない（ADR-0004 受け入れ条件 4 の前半）。
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
@@ -33,7 +33,7 @@ fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
 
-skills="ask-one-by-one chief-engineer chief-of-staff glossary independent-review triage worker"
+skills="ask-one-by-one chief-engineer chief-of-staff glossary independent-review retro triage worker"
 profiles="chief-engineer chief-of-staff claude claude-review codex codex-review fable sonnet"
 
 # frontmatter の key の値（最初の --- から次の --- まで）
@@ -41,7 +41,7 @@ fm() { awk -v k="$2" 'NR==1 && $0!="---" {exit} NR>1 && $0=="---" {exit} NR>1 &&
 
 # === 1. 顔ぶれと name ===
 got=$(cd package/skills && ls -1 | sort | tr '\n' ' ' | sed 's/ $//')
-[ "$got" = "$skills" ] && pass "package/skills は7つ（$skills）" || fail "package/skills の顔ぶれ: $got"
+[ "$got" = "$skills" ] && pass "package/skills は8つ（$skills）" || fail "package/skills の顔ぶれ: $got"
 got=$(cd package/templates && ls -1 *.md | sed 's/\.md$//' | sort | tr '\n' ' ' | sed 's/ $//')
 [ "$got" = "$profiles" ] && pass "package/templates は8つ（$profiles）" || fail "package/templates の顔ぶれ: $got"
 for s in $skills; do

@@ -1,3 +1,100 @@
+# 拾い方と判定は retro skill、パターンの一覧の形と command が断る線は docs/contract.md §21 が正。ここは流れだけ（ADR-0028 決めたこと 8）。
 name: retrospective
 title: ふりかえり（Retrospective）
-purpose: 課題の終わりと週 1 回、記録からつまずきを拾い、環境を直す
+purpose: 毎朝、直近の記録から別々に 2 回以上起きたつまずきを拾い、直す課題に切る
+triggers:
+  # ルーチン retro（毎朝 1 回）が足した課題の ready
+  - name: routine
+    kind: notification
+    notification: ready
+    start: start
+  # 人が頼んだ（kanban routine run retro で足す）
+  - name: person
+    kind: person
+    start: add
+  # 振り返りの担当が報告して課題が review に入った（repo の無い課題なので届く）
+  - name: review
+    kind: notification
+    notification: review
+    start: check
+steps:
+  - id: add
+    title: 人の依頼で振り返りの課題を足す
+    by: ai
+    input: [人の言葉, 台帳（動いている振り返り）]
+    output: [台帳（振り返りの課題。routine retro）]
+    skill: chief-of-staff/playbooks/retro.md
+    decides: [足すか（同時に 1 つ）]
+    next: [{ id: start }]
+  - id: start
+    title: 振り返りの担当を起動する
+    by: ai
+    input: [notification.ready, 台帳（並行の上限）]
+    output: [hc（担当の端末）, 台帳（doing）]
+    skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md]
+    decides: [人に聞かずに起動する]
+    next: [{ id: collect }]
+  - id: collect
+    title: 期間の記録と人が打った文を集める
+    by: machine
+    input: [台帳（片付いた課題の記録）, セッションログ, GitHub（マージ後のこと）]
+    output: [振り返りの入力（標準出力）]
+    command: andon retro collect
+    next: [{ id: find }]
+  - id: find
+    title: 繰り返しを拾い、直す先の段と判定を決める
+    by: ai
+    input: [振り返りの入力, 根拠の課題の記録]
+    output: [パターンの一覧の JSON]
+    skill: [retro#2, retro#3, retro#4, retro#5]
+    decides: [パターンにするか, 直す先の段, fix か drop か]
+    next: [{ id: write }]
+  - id: write
+    title: パターンの一覧を検査して書く
+    by: machine
+    input: [パターンの一覧の JSON, 振り返りの入力（集め直す）]
+    output: [library/retro.json]
+    command: andon retro patterns
+    record: library/retro.json
+    next: [{ id: report }]
+  - id: report
+    title: 報告して返す
+    by: ai
+    input: [library/retro.json, andon retro apply --dry-run の出力]
+    output: [報告, 台帳（review）]
+    skill: [retro#7, worker#7]
+    decides: [報告の要約]
+  - id: check
+    title: パターンの一覧を検収する
+    by: ai
+    input: [notification.review, 報告, library/retro.json, 根拠の課題の記録, andon retro apply --dry-run の出力]
+    output: []
+    skill: chief-of-staff/playbooks/retro.md
+    decides: [担当に戻す, 当てる]
+    next: [{ id: find, when: 根拠か段か理由が読めない }, { id: apply, when: 読める }]
+  - id: apply
+    title: fix を直す課題に切る
+    by: machine
+    input: [library/retro.json, 振り返りの入力（同じ期間で集め直す）]
+    output: [台帳（直す課題。parent は振り返りの課題）, 台帳（人の課題）, library/retro-applied.json]
+    command: andon retro apply
+    record: library/retro-applied.json
+    once: true
+    next: [{ id: finish }]
+  - id: finish
+    title: 振り返りの課題を片付ける
+    by: machine
+    input: [台帳（review）]
+    output: [台帳（done）]
+    command: andon issue finish
+    next: [{ id: follow }]
+  - id: follow
+    title: 直す課題を起動し、人へ伝える
+    by: ai
+    input: [library/retro-applied.json, 台帳（直す課題と人の課題）]
+    output: [台帳（直す課題の Settings）, hc（担当の端末）, 人への 1 問]
+    skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md, ask-one-by-one]
+    decides: [直す課題の Settings を書いて起動する]
+    asks:
+      - { question: Andon のパッケージの直しを Andon へ伝えるか（Andon の repo を持たないプロジェクト）, kind: line }
+counts: [flow.closed, flow.wip_end]
