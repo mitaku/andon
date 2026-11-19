@@ -122,6 +122,15 @@ func TestSignalFieldsInProcess(t *testing.T) {
 	}
 }
 
+// TestMemoryFieldsInProcess は memory の量の線の記録（Memory。セルに1つの .memory.json）の一番上の項目が、
+// process/states/ に memory:<項目> で 1 回ずつ出ることを見る（ADR-0017 受け入れ条件 3）。
+func TestMemoryFieldsInProcess(t *testing.T) {
+	seen := recordFields(t, filepath.Join("..", "..", "process", "states"), "memory")
+	for _, m := range mismatches("memory", topFields(Memory{}), seen) {
+		t.Error("Memory: " + m)
+	}
+}
+
 // TestSettleFieldsInProcess は andon issue settle の記録 1 件（contract.Settled。<slug>.settle.json）の一番上の項目が、
 // process/states/ に settle:<項目> で 1 回ずつ出ることを見る（ADR-0017 受け入れ条件 3・7）。
 func TestSettleFieldsInProcess(t *testing.T) {

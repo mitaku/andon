@@ -264,8 +264,10 @@ type project struct {
 	st    *State
 	first bool
 	away  bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
-	rows  []ledger.Row
-	tasks []ledger.Issue
+	// memory の段が変えた memory の量の線の記録（無ければ変えていない）。控えの保存のあとに書く（memory.go）
+	memoryOver *bool
+	rows       []ledger.Row
+	tasks      []ledger.Issue
 }
 
 func (p *project) logf(format string, a ...any) {
@@ -339,7 +341,11 @@ func (p *project) pass() (bool, error) {
 	if !p.first && !p.away {
 		p.unwaited(cos) // 経路③は待ち役。dispatcher は打たず、待ち役がいなければログに1行（dispatcher.md §3・§4）
 	}
-	return busy || len(p.st.Pending) > 0, p.st.Save(p.l.Slug)
+	if err := p.st.Save(p.l.Slug); err != nil {
+		return busy || len(p.st.Pending) > 0, err
+	}
+	p.saveMemory() // 積んだ memory を控えに保存してから、積んだことをセルの記録に書く（dispatcher.md §2.11）
+	return busy || len(p.st.Pending) > 0, nil
 }
 
 // markAway は控えの留守の記録を巡の始めに合わせる（ADR-0017 決めたこと 8 の (b)）。留守に入ったら始まりを書き、

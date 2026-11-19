@@ -1,0 +1,152 @@
+package dispatcher
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// ADR-0031 受け入れ条件 B4: プロジェクトが2つある偽のセルで、memory の量の通知が1回に1通だけ届く。
+// 記録はセルに1つ（.memory.json）なので、先に回った台帳が積めば、ほかの台帳は積まない（dispatcher.md §2.11）。
+// 線を超えたまま回っても積み直さず、線の下に戻ってまた超えたら1通だけ積み直す。
+// 積んだ台帳の控えを保存できなかった巡は、記録を書かず、同じ巡のほかの台帳が積む（通知は落ちない）。
+func TestMemoryOncePerCell(t *testing.T) {
+	d := t.TempDir()
+	bin := filepath.Join(d, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{"kanban": tickKanban, "hc": tickHc} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // Chief of Staff の端末は生きている
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_KANBAN", d)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
+	ws := filepath.Join(d, "ws")
+	t.Setenv("ANDON_WORKSPACE", ws)
+	slugs := []string{"sample-a", "sample-b"}
+	for i, slug := range slugs {
+		led := filepath.Join(ws, "projects", slug, "kanban")
+		if err := os.MkdirAll(led, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(led, "config.yaml"), []byte(fmt.Sprintf("chief_of_staff: t%d\n", i+1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mem := filepath.Join(ws, "memory")
+	if err := os.MkdirAll(mem, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	put := func(i int) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(mem, fmt.Sprintf("m%d.md", i)), []byte("m\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 1; i <= memoryLine; i++ {
+		put(i)
+	}
+	if err := os.WriteFile(filepath.Join(mem, "MEMORY.md"), []byte("- [m1](m1.md)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var logb bytes.Buffer
+	c := &Dispatcher{WS: ws, Log: &logb}
+	// memories は台帳ごとの待ちの memory の数を返し、待ちを空にする（Chief of Staff が受け取った）。
+	memories := func() map[string]int {
+		t.Helper()
+		got := map[string]int{}
+		for _, slug := range slugs {
+			st, _, err := LoadState(slug)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, n := range st.Pending {
+				if n.Kind == "memory" {
+					got[slug]++
+					if n.Issue != "" || fmt.Sprint(n.Detail["line"]) != fmt.Sprint(memoryLine) {
+						t.Errorf("memory の形が違う: %+v", n)
+					}
+				}
+			}
+			st.Pending = []Notification{}
+			if err := st.Save(slug); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return got
+	}
+	total := func(m map[string]int) int {
+		n := 0
+		for _, v := range m {
+			n += v
+		}
+		return n
+	}
+
+	c.Pass("")
+	if got := memories(); total(got) != 0 {
+		t.Errorf("線ちょうど（%d 件と目録）で memory を積んだ: %v", memoryLine, got)
+	}
+
+	put(memoryLine + 1)
+	c.Pass("")
+	if got := memories(); total(got) != 1 || got["sample-a"] != 1 {
+		t.Errorf("線を超えた巡の memory が 1 通でない（先に回った sample-a に 1 通のはず）: %v", got)
+	}
+	if m, err := LoadMemory(); err != nil || !m.Over {
+		t.Errorf("積んだのにセルの記録が over でない: %+v %v", m, err)
+	}
+
+	put(memoryLine + 2)
+	c.Pass("")
+	c.Pass("")
+	if got := memories(); total(got) != 0 {
+		t.Errorf("線を超えたまま memory をもう一度積んだ: %v", got)
+	}
+
+	for _, i := range []int{memoryLine + 1, memoryLine + 2} {
+		if err := os.Remove(filepath.Join(mem, fmt.Sprintf("m%d.md", i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.Pass("")
+	if m, err := LoadMemory(); err != nil || m.Over {
+		t.Errorf("線の下に戻ったのにセルの記録が over のまま: %+v %v", m, err)
+	}
+	put(memoryLine + 3)
+	c.Pass("")
+	if got := memories(); total(got) != 1 {
+		t.Errorf("線の下に戻ってまた超えた巡の memory が 1 通でない: %v", got)
+	}
+
+	// sample-a の控えを保存できない巡: sample-a が積んだ memory は残らないので、記録は書かず、sample-b が積む
+	if err := os.Remove(filepath.Join(mem, fmt.Sprintf("m%d.md", memoryLine+3))); err != nil {
+		t.Fatal(err)
+	}
+	c.Pass("")
+	put(memoryLine + 4)
+	tmp := StatePath("sample-a") + ".tmp"
+	if err := os.MkdirAll(tmp, 0o755); err != nil { // 書いてから置き換える一時のファイルを作れない
+		t.Fatal(err)
+	}
+	logb.Reset()
+	c.Pass("")
+	if err := os.Remove(tmp); err != nil {
+		t.Fatal(err)
+	}
+	if got := memories(); total(got) != 1 || got["sample-b"] != 1 {
+		t.Errorf("sample-a の控えを保存できない巡で、memory が sample-b に 1 通届かない: %v（ログ %q）", got, logb.String())
+	}
+	c.Pass("")
+	if got := memories(); total(got) != 0 {
+		t.Errorf("sample-b が積んだあとで memory をもう一度積んだ: %v", got)
+	}
+}
