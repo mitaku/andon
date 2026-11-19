@@ -516,11 +516,12 @@ andon/
     launch.schema.json       起動の記録（エージェントを起動する command が起動のたびに1行足す。contract.md §18。ADR-0028）
     outcome.schema.json      結果の記録（dispatcher が finish のあとの巡で1回だけ書く。contract.md §19。ADR-0028）
     retro.schema.json        振り返りの入力（andon retro collect の出力。読むだけ。contract.md §20。ADR-0028）
+    patterns.schema.json     パターンの一覧（振り返りの library/retro.json。andon retro patterns が書き、andon retro apply が読む。contract.md §21。ADR-0028）
   process/                   仕事の流れ（workstreams/）と状態（states/）の定義（YAML。ADR-0017。states/issue.yaml は andon に埋め込む）
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
     lib/andon/               command が読む資材（statusline・schema の検査器 schema_check.py）。sub-command の中身のソースは internal/<sub>（一覧は andon help。言語は §2.7）
-    skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・glossary
+    skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・retro・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     writing.md               AI 用: 人への書き方（全役が人に返す文の決まり。エージェントの設定ファイルが @ で読む）
     templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
@@ -834,6 +835,7 @@ andon/
 | 受け入れ条件の検証 | `report.json` の `acceptance[]`（Chief Engineer の受け入れ条件の番号・`pass`／`fail`／`manual`・証拠） | 担当 | ゲート・振り返り | §1.9 の (a)。任意キー（版は上げない） |
 | 一方通行の申告 | `report.json` の `risk`（`one_way`・`impact`） | 担当 | ゲート（`one_way` だけ）・人（`impact`） | `one_way: true` でレベルを C に上げる。`false`・無しで下げない（[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)）。任意キー（版は上げない） |
 | 人の手直し | `issues/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上の人の直し・指摘の覆し） | dispatcher（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で。形は [contract.md](contract.md) §14 |
+| パターンの一覧 | 振り返りの課題の `issues/<id>/library/retro.json`（パターンごとの要約・根拠・直す先の段・判定と、前の直しの再発の数）。当てた記録は `retro-applied.json` | 振り返りの担当（`andon retro patterns`。根拠の数・実在・新しさを command が確かめる） | Chief of Staff（検収と `andon retro apply`）・次の振り返り | ADR-0028。[contract.md](contract.md) §21 |
 | ゲートの条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `issues/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（ブランチ保護（ruleset）はサーバー側で効くが、ゲートも CI の結果を見る） | 人（条件表）・ゲート（記録） | ゲート・dispatcher（マージの直前に head と checks を読み直す）・振り返り・人 | 仮設のゲートの条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | hcとの約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`issue`・`title`・`news.replied`・template の名前＝プロファイル | command・dispatcher | ボード・dispatcher | 今のまま |
 | フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）・`Stop` の待ち役（離席中に合図で起動する）・`StopFailure`（プロバイダに切られたら起動し直す）、担当の `Stop`（報告か問いが無ければ止まれない。contract.md §9） | boot が生成 | Claude Code | 要実測 |

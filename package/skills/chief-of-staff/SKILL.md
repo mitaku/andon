@@ -40,6 +40,7 @@ description: 台帳（kanban）と hc で動くプロジェクトの Chief of St
 | ゲートが人を要する・approve で止まった・上限を超えた回・差し戻し | `gate.md` |
 | 片付け・マージのあとの影響 | `finish.md` |
 | トリアージ | `triage.md` |
+| 振り返り | `retro.md` |
 | wiki の ingest・query・lint | `wiki.md` |
 
 ## 手引きの扱い
