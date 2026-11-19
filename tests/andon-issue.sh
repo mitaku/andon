@@ -509,7 +509,7 @@ rc=0; "$andon" issue start "$s5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 rm "$tmp/hc/first"
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 addr=$(field "$s5" agent)
-grep -q "に最初のメッセージが届いていない: trust prompt。dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr \"課題 \`demo/$s5\`。" "$tmp/err" \
+grep -q "に最初のメッセージが届いていない: trust prompt。台帳は doing・agent $addr のまま.*dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr '課題 \`demo/$s5\`。" "$tmp/err" \
   && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
 grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatcher に預けるラベルを付けていない'
 grep -q "^run .*--cwd $PWD/kanban/issues/$s5 claude " "$tmp/hc/log" || die 'repo の無い課題の cwd が issues/<id>/ でない'

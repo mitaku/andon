@@ -2,7 +2,6 @@ package chiefofstaff
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -259,9 +258,9 @@ func TestFirstMessageNotSent(t *testing.T) {
 		t.Fatal(err)
 	}
 	rc, _, errs := runMain()
-	msg := "役目の1文目。\n役目の2文目。\n\nプロジェクト `sample-site` の Chief of Staff。\n台帳は `" + filepath.Join(f.root, "kanban") + "`。"
+	msg := "プロジェクト `sample-site` の Chief of Staff。\n台帳は `" + filepath.Join(f.root, "kanban") + "`。"
 	if rc != exitFirst || !strings.Contains(errs, "t42（sample-site-cos）に最初のメッセージが届いていない: trust prompt") ||
-		!strings.Contains(errs, fmt.Sprintf("App の sample-site / CoS で答えてから、次を送る: hc send t42 %q\n", msg)) {
+		!strings.Contains(errs, "App の sample-site / CoS で答えてから、次を送る: hc send t42 '役目の1文目。\n役目の2文目。\n\n"+msg+"'\n") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 	// hc run に渡す課題の文は今までどおり（本文は hc が足す）

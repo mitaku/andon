@@ -214,15 +214,20 @@ func WithBody(template, msg string) string {
 	return body + "\n\n" + msg
 }
 
+// SendCommand は届かなかった最初のメッセージを手で送る行（hc send <addr> '<本文つきの文>'）。人がそのまま shell に貼れるよう、
+// 文は POSIX シェルの単引用符で包む（本文の `…` や $ を展開させず、改行は改行のまま渡す）。msg は hc run に渡した課題の文。
+func SendCommand(addr, template, msg string) string {
+	return "hc send " + addr + " '" + strings.ReplaceAll(WithBody(template, msg), "'", `'\''`) + "'"
+}
+
 // ResendHint は最初のメッセージが届かなかった端末 addr に FirstLabel を付け、人か Chief of Staff への案内を返す。
 // 送り直しは dispatcher に預ける（画面が入力を受けられるようになれば次の見回りで送る）。付けられなければ手で送る案内だけにする。
-// 手で送る文は template の本文つき（WithBody）。msg は hc run に渡した課題の文。
+// 手で送る行は SendCommand（template の本文つき）で、案内の最後に置く。
 func ResendHint(addr, template, msg string) string {
-	msg = WithBody(template, msg)
 	if err := MarkUnsent(addr); err != nil {
-		return fmt.Sprintf("ラベル %s を付けられず（%v）、dispatcher は送り直さない。hc read %s で画面を読み、答えてから手で送る: hc send %s %q", FirstLabel, err, addr, addr, msg)
+		return fmt.Sprintf("ラベル %s を付けられず（%v）、dispatcher は送り直さない。hc read %s で画面を読み、答えてから手で送る: %s", FirstLabel, err, addr, SendCommand(addr, template, msg))
 	}
-	return fmt.Sprintf("dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。信頼の画面などは App のその tab で答える）。急ぐときだけ手で: hc send %s %q", addr, msg)
+	return "dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。信頼の画面などは App のその tab で答える）。急ぐときだけ手で: " + SendCommand(addr, template, msg)
 }
 
 // Run は hc run --json --bg --outlive-parent --no-notify で template を起動する（contract.md §8 の起動のしかた）。

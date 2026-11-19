@@ -444,8 +444,9 @@ func TestFirstMessageNotSent(t *testing.T) {
 	}
 	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
 	if rc != exitFirst || out != "andon chief-engineer: 出た場所 sample-site / CE S-7 題（t42）\n" ||
-		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt。dispatcher が見回りで送り直す") ||
-		!strings.Contains(errs, "急ぐときだけ手で: hc send t42 \"役目の1文目。\\n役目の2文目。\\n\\n課題 `sample-site/S-7`。") || !strings.Contains(errs, "（App では sample-site / CE S-7 題）") ||
+		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt（App では sample-site / CE S-7 題）。dispatcher が見回りで送り直す") ||
+		!strings.Contains(errs, "急ぐときだけ手で: hc send t42 '役目の1文目。\n役目の2文目。\n\n課題 `sample-site/S-7`。") || !strings.Contains(errs, "（App では sample-site / CE S-7 題）") ||
+		!strings.HasSuffix(errs, "`。'\n") || // 手で送る行は案内の最後（貼ったときに後ろの文を拾わない）
 		!f.has("hc label t42 first_message.sent=false") ||
 		!f.has("kanban start S-7 | HC_TERMINAL_ID=t42") || f.has("hc attach") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)

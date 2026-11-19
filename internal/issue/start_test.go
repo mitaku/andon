@@ -353,12 +353,16 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	for _, want := range []string{
 		"t42（sample-site-s-0007）に最初のメッセージが届いていない: trust prompt",
 		"dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。",
-		"急ぐときだけ手で: hc send t42 \"役目の1文目。\\n役目の2文目。\\n\\n課題 `sample-site/S-0007`。",
+		"急ぐときだけ手で: hc send t42 '役目の1文目。\n役目の2文目。\n\n課題 `sample-site/S-0007`。",
 		"台帳は doing・agent t42 のまま",
 	} {
 		if !strings.Contains(errs, want) {
 			t.Errorf("err に %q が無い: %q", want, errs)
 		}
+	}
+	// 手で送る行は案内の最後（貼ったときに後ろの文を拾わない）
+	if !strings.HasSuffix(errs, "`。'\n") {
+		t.Errorf("手で送る行が最後でない: %q", errs)
 	}
 	// 送り直しは dispatcher に預ける（端末のラベル。contract.md §8）
 	if !f.has("hc label t42 first_message.sent=false") {
