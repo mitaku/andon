@@ -133,3 +133,95 @@ func TestWorkflowShellTestsRunOnceWithPrebuiltBinaries(t *testing.T) {
 		t.Errorf("tests/*.sh を回す step が %d 個（tests.yml の tests と release の2つのはず）", runners)
 	}
 }
+
+// モデルの検査（model/check。外から取る npm の検査器 tla-ts を走らせる）は .github/workflows/model.yml の job model だけで打つ
+// （ADR-0025 決めたこと 7）。その job は PR と main の push で動き、秘密も token も参照せず、権限は contents: read だけ。
+// ほかの job（tests・release・go）と tests/*.sh は、検査器を入れない・打たない（秘密と書き込みの権限がある所で外のコードを走らせない）。
+func TestWorkflowModelCheckOnlyInModelJob(t *testing.T) {
+	type step struct {
+		Run  string         `yaml:"run"`
+		Uses string         `yaml:"uses"`
+		With map[string]any `yaml:"with"`
+	}
+	type job struct {
+		Permissions any    `yaml:"permissions"`
+		Steps       []step `yaml:"steps"`
+	}
+	readOnly := func(perm any) bool {
+		m, ok := perm.(map[string]any)
+		return ok && len(m) == 1 && m["contents"] == "read"
+	}
+	checker := func(run string) bool {
+		for _, w := range []string{"model/check", "tla-ts", "npm ", "npx "} {
+			if strings.Contains(run, w) {
+				return true
+			}
+		}
+		return false
+	}
+	files, _ := filepath.Glob(".github/workflows/*.y*ml")
+	found := 0
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wf struct {
+			On          map[string]any `yaml:"on"`
+			Permissions any            `yaml:"permissions"`
+			Jobs        map[string]job `yaml:"jobs"`
+		}
+		if err := yaml.Unmarshal(b, &wf); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		for name, j := range wf.Jobs {
+			runs := false
+			for _, s := range j.Steps {
+				runs = runs || checker(s.Run)
+			}
+			if !runs {
+				continue
+			}
+			if filepath.Base(f) != "model.yml" || name != "model" {
+				t.Errorf("%s の job %s がモデルの検査器を入れる・打つ（model.yml の job model だけのはず）", f, name)
+				continue
+			}
+			found++
+			if strings.Contains(string(b), "secrets.") || strings.Contains(string(b), "github.token") {
+				t.Errorf("%s が秘密か token を参照する", f)
+			}
+			if !readOnly(wf.Permissions) || !readOnly(j.Permissions) {
+				t.Errorf("%s の job %s の権限が contents: read だけでない（top %v・job %v）", f, name, wf.Permissions, j.Permissions)
+			}
+			pr := wf.On["pull_request"]
+			push, _ := wf.On["push"].(map[string]any)
+			branches, _ := push["branches"].([]any)
+			if _, ok := wf.On["pull_request"]; !ok || pr != nil || len(branches) != 1 || branches[0] != "main" {
+				t.Errorf("%s が PR と main の push の両方で動かない（on: %v）", f, wf.On)
+			}
+			for _, s := range j.Steps {
+				if strings.HasPrefix(s.Uses, "actions/checkout@") && s.With["persist-credentials"] != false {
+					t.Errorf("%s の job %s の checkout が persist-credentials: false でない", f, name)
+				}
+			}
+		}
+	}
+	// model.yml の job model の1つ（この検査が何も見ていなくても通るのを防ぐ）
+	if found != 1 {
+		t.Errorf("モデルの検査器を打つ job が %d 個（model.yml の job model の1つだけのはず）", found)
+	}
+	scripts, _ := filepath.Glob("tests/*.sh")
+	libs, _ := filepath.Glob("tests/lib/*.sh")
+	if len(scripts) == 0 {
+		t.Fatal("tests/*.sh が無い")
+	}
+	for _, f := range append(append(scripts, libs...), "tests/run") {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "model/check") || strings.Contains(string(b), "tla-ts") {
+			t.Errorf("%s がモデルの検査器を打つ（tests と release の job で回ってしまう）", f)
+		}
+	}
+}

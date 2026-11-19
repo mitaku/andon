@@ -1,0 +1,19 @@
+---- MODULE BrokenReady ----
+\* 壊した見本（R6 で落ちるはず）: andon issue ready が開いた問いを確かめずに review へ移す（A-0006 で直す前の動き）。
+EXTENDS IssueRules
+
+BrokenWorkerReady ==
+    /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~reviewing
+    /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
+    /\ UNCHANGED <<worker, wt, pr, reviewing, q, cancel, mergeAuto>>
+
+BrokenNext ==
+    \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ ReviewerStarts \/ ReviewerReturns \/ BrokenWorkerReady \/ WorkerTerminalDies
+    \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
+    \/ ChiefOfStaffSendsBack \/ WorkerTakesFix \/ DispatcherMerges \/ HumanMerges
+    \/ SettleFinishes \/ ChiefOfStaffCancels \/ Done
+
+BrokenSpec == Init /\ [][BrokenNext]_vars
+
+====

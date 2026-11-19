@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# model/check: 課題の一生のモデル（IssueLife.tla）が規則（IssueRules.tla）を守るかを、検査器 tla-ts で確かめる（ADR-0025）。
+# 手元も CI（.github/workflows/model.yml）もこれを打つ。全部通れば終了コード 0。
+#   1. 本物のモデルが規則を全部守り、どの状態からも先がある
+#   2. 状態の数が控え（expected.txt の states）と同じ
+#   3. 壊した見本（broken/）がどれも、控え（expected.txt の broken）に書いた規則の破れで落ちる
+# 検査器は package-lock.json のとおりに一時の場所へ入れ（install のスクリプトは走らせない）、npm の置き場も一時の場所にする。
+# 検査器はモデルの写しを一時の場所で回すので、repo にも HOME にも書かない。
+# MODEL_CHECKER に TLC と同じ旗を受けるコマンドを渡すと、それで回す（例: "java -cp tla2tools.jar tlc2.TLC"。TLC と見比べるとき）。
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+export TMPDIR="$tmp"
+
+fail() { echo "FAIL $*" >&2; exit 1; }
+
+if [ -n "${MODEL_CHECKER:-}" ]; then
+  read -ra checker <<<"$MODEL_CHECKER"
+  name=$MODEL_CHECKER
+else
+  command -v npm >/dev/null || fail "npm が無い（Node を入れる。版は repo の mise.toml）"
+  mkdir -p "$tmp/npm"
+  cp "$here/package.json" "$here/package-lock.json" "$tmp/npm/"
+  (cd "$tmp/npm" && npm_config_cache="$tmp/npm-cache" npm_config_update_notifier=false \
+    npm ci --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null) || fail "検査器を入れられない（npm ci）"
+  checker=(node "$tmp/npm/node_modules/tla-ts/dist/cli.js")
+  name="tla-ts $(sed -n 's/.*"tla-ts": *"\([^"]*\)".*/\1/p' "$here/package.json" | head -1)（Node $(node --version)）"
+fi
+
+mkdir -p "$tmp/run"
+cp "$here"/*.tla "$here"/*.cfg "$here"/broken/*.tla "$tmp/run/"
+
+# check <モジュール> <設定>: 検査器の出力を $tmp/out に書き、終了コードを $code に入れる
+check() {
+  code=0
+  (cd "$tmp/run" && "${checker[@]}" -config "$2" -workers 1 -metadir "$tmp/states" "$1.tla") >"$tmp/out" 2>&1 || code=$?
+}
+show() { sed 's/^/     | /' "$tmp/out" | tail -40 >&2; }
+
+echo "検査器: $name"
+rules=$(sed -n 's/^INVARIANT //p' "$here/IssueRules.cfg")
+[ -n "$rules" ] || fail "IssueRules.cfg に INVARIANT の行が無い"
+want=$(awk '$1 == "states" { print $2 }' "$here/expected.txt")
+[ -n "$want" ] || fail "expected.txt に states の行が無い"
+
+# 1・2. 本物のモデル
+check IssueRules IssueRules.cfg
+if [ "$code" -ne 0 ] || ! grep -q "Model checking completed. No error has been found." "$tmp/out"; then
+  show
+  fail "モデルが規則を破った・検査器が終わらなかった（終了コード $code）"
+fi
+got=$(grep -oE '[0-9,]+ distinct states found' "$tmp/out" | tail -1 | cut -d' ' -f1 | tr -d ,)
+[ -n "$got" ] || { show; fail "検査器の出力に状態の数が無い"; }
+echo "ok   規則が通る（IssueRules.cfg の INVARIANT $(wc -w <<<"$rules" | tr -d ' ') 本。どの状態からも先がある）:"
+for r in $rules; do echo "       $r"; done
+[ "$got" = "$want" ] || fail "状態の数が控えと違う: 数えた $got・控え $want（モデルを変えたなら expected.txt の states を直す。変えていないなら検査器を疑う）"
+echo "ok   状態の数 $got が控え（expected.txt）と同じ"
+
+# 3. 壊した見本
+n=0
+while read -r kind module rule; do
+  [ "$kind" = broken ] || continue
+  n=$((n + 1))
+  [ -f "$here/broken/$module.tla" ] || fail "見本 broken/$module.tla が無い"
+  sed 's/^SPECIFICATION Spec$/SPECIFICATION BrokenSpec/' "$here/IssueRules.cfg" >"$tmp/run/$module.cfg"
+  check "$module" "$module.cfg"
+  if [ "$code" -eq 0 ]; then
+    show
+    fail "見本 $module が通った（$rule の破れを見つけるはず。検査器か規則を疑う）"
+  fi
+  broke=$(sed -n 's/.*Invariant \([A-Za-z0-9_]*\) is violated.*/\1/p' "$tmp/out" | head -1)
+  if [ "$code" -ne 12 ] || [ "$broke" != "$rule" ]; then
+    show
+    fail "見本 $module が $rule の破れで落ちない（終了コード $code・破れた規則 ${broke:-なし}）"
+  fi
+  echo "ok   見本 $module は $rule の破れで落ちる"
+done <"$here/expected.txt"
+[ "$n" -gt 0 ] || fail "expected.txt に broken の行が無い（見本を回していない）"
+echo "ok   model/check: 全部通った"
