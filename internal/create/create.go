@@ -36,7 +36,7 @@ const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--p
 	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（人が見て commit する）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
-	"slug は英小文字・数字・-（28字まで）。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
+	"slug は英小文字・数字・_・-（28字まで）。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
 	"台帳を作ったあと、dispatcher の置き場が台帳の数に合わなければ、見回りの終わりを待って起動し直す。\n"
 
 const (
@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	slugRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	slugRe   = spawn.SlugRe // schema の project と同じ
 	prefixRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
 )
 
@@ -106,7 +106,7 @@ func DefaultPrefix(slug string) string {
 
 func checkSlug(s string) error {
 	if !slugRe.MatchString(s) || len(s) > spawn.MaxSlug {
-		return fmt.Errorf("slug は英小文字・数字・-（英小文字か数字で始まる・%d字まで）: %q", spawn.MaxSlug, s)
+		return fmt.Errorf("slug は英小文字・数字・_・-（英小文字か数字で始まる・%d字まで）: %q", spawn.MaxSlug, s)
 	}
 	return nil
 }
@@ -205,7 +205,7 @@ func fill(in *input, a *asker) error {
 		if a == nil {
 			return errors.New("slug が無い（端末でないので聞かない）。andon create <slug> と打つ")
 		}
-		if in.slug, err = a.ask("slug（英小文字・数字・-・28字まで。projects/<slug> になる）", "", checkSlug); err != nil {
+		if in.slug, err = a.ask("slug（英小文字・数字・_・-・28字まで。projects/<slug> になる）", "", checkSlug); err != nil {
 			return err
 		}
 		asked = true
@@ -292,18 +292,6 @@ func AgentsMD(title string) []byte {
 		"## Chief of Staff\n")
 }
 
-// ghqRoot は GHQ_ROOT（無ければ ghq root）。
-func ghqRoot() (string, error) {
-	if r := os.Getenv("GHQ_ROOT"); r != "" {
-		return r, nil
-	}
-	out, err := exec.Command("ghq", "root").Output()
-	if err != nil || strings.TrimSpace(string(out)) == "" {
-		return "", errors.New("GHQ_ROOT が無く ghq root も読めない")
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
 // isClone は path が git の作業ツリーの一番上か。
 func isClone(path string) bool {
 	top, err := spawn.Output(nil, "", "git", "-C", path, "rev-parse", "--show-toplevel")
@@ -322,7 +310,7 @@ func fetch(repos []string, stderr io.Writer) ([]string, error) {
 	if len(repos) == 0 {
 		return nil, nil
 	}
-	root, err := ghqRoot()
+	root, err := spawn.GhqRoot()
 	if err != nil {
 		return nil, err
 	}

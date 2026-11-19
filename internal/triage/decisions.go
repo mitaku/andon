@@ -88,7 +88,7 @@ func (l *ledger) records() ([]record, error) {
 }
 
 var (
-	keyRe   = regexp.MustCompile(`^[a-z0-9-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable|memory|signal):[a-f0-9]{40}$`)
+	keyRe   = regexp.MustCompile(`^[a-z0-9_-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable|memory|signal):[a-f0-9]{40}$`)
 	repoRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	tokenRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 )

@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"andon/internal/signal"
+	"andon/internal/spawn"
 )
 
 // Item は集めた1項目。key は <slug>:<出どころの id>:<kind>:<本文の sha1>。
@@ -65,6 +68,19 @@ func runCollect(l *ledger, limit int, stdout, _ io.Writer) error {
 // collect は台帳から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
 // 読むだけで、台帳にもリポジトリにも書かない。
 func (l *ledger) collect() ([]Item, error) {
+	records, err := l.records()
+	if err != nil {
+		return nil, err
+	}
+	signals, err := l.loadSignals()
+	if err != nil {
+		return nil, err
+	}
+	return l.collectFrom(records, signals)
+}
+
+// collectFrom は読んだ記録（records）と信号（signals）で collect する。
+func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item, error) {
 	out, err := l.kanban("", "list", "--all", "--json")
 	if err != nil {
 		return nil, fail("台帳を読めない")
@@ -72,10 +88,6 @@ func (l *ledger) collect() ([]Item, error) {
 	var issues []ledgerIssue
 	if err := json.Unmarshal([]byte(out), &issues); err != nil {
 		return nil, fail("台帳を読めない")
-	}
-	records, err := l.records()
-	if err != nil {
-		return nil, err
 	}
 	seen := map[string]bool{}
 	for _, r := range records {
@@ -143,10 +155,7 @@ func (l *ledger) collect() ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	sig, err := l.signalItems(issues)
-	if err != nil {
-		return nil, err
-	}
+	sig := l.signalItems(issues, signals)
 	for _, it := range append(mem, sig...) {
 		if _, dup := byKey[it.Key]; !seen[it.Key] && !dup {
 			byKey[it.Key] = it
@@ -216,8 +225,8 @@ func (l *ledger) leftover(t ledgerIssue, terms map[string]bool) bool {
 			return true
 		}
 		if t.Repo != "" {
-			root := os.Getenv("GHQ_ROOT")
-			if root == "" {
+			root, err := spawn.GhqRoot()
+			if err != nil {
 				root = filepath.Join(os.Getenv("HOME"), ".ghq")
 			}
 			repo := filepath.Join(root, t.Repo)

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"andon/internal/ledger"
+
 	"go.yaml.in/yaml/v3"
 )
 
@@ -154,7 +156,7 @@ func loggedNumber(root, id string) int {
 			ID     string         `json:"id"`
 			Change map[string]any `json:"change"`
 		}
-		if json.Unmarshal(sc.Bytes(), &l) != nil || canonID(l.ID) != id {
+		if json.Unmarshal(sc.Bytes(), &l) != nil || ledger.CanonID(l.ID) != id {
 			continue
 		}
 		if n, ok := l.Change["question"].(float64); ok {
@@ -205,7 +207,7 @@ func cmdAsk(e env, a args) error {
 	if len(a.rest) < 2 || a.rest[0] == "" {
 		return fail(usage)
 	}
-	id := canonID(a.rest[0])
+	id := ledger.CanonID(a.rest[0])
 	kind := a.flags["kind"]
 	if a.has("kind") && !slices.Contains(questionKinds, kind) {
 		return fail("--kind must be one of %s", strings.Join(questionKinds, ", "))
@@ -268,7 +270,7 @@ func parseRef(s string) (string, int, error) {
 	if err != nil || n < 1 {
 		return "", 0, fail("%q is not <id>#<n>", s)
 	}
-	return canonID(s[:i]), n, nil
+	return ledger.CanonID(s[:i]), n, nil
 }
 
 // moveQuestion moves <id>#<n> from status from to status to under the lock, setting keys.

@@ -279,3 +279,26 @@ func TestGrantCommitsAsOwner(t *testing.T) {
 		t.Error("owner が無いのに書いた")
 	}
 }
+
+// .env は最後の空でない行の値（前後の空白と引用符を除く）。無ければ既定。boot と andon publish が読む。
+func TestDotenv(t *testing.T) {
+	for body, want := range map[string]string{
+		"":          "def",
+		"OTHER=1\n": "def",
+		"PORTLESS_PORT=2000\nPORTLESS_PORT=2001\n": "2001",
+		"PORTLESS_PORT=\"2002\"\n":                 "2002",
+		"PORTLESS_PORT=' 2003 '\n":                 "2003",
+		" PORTLESS_PORT = 2004 \n":                 "2004",
+		"PORTLESS_PORT=2005\nPORTLESS_PORT=\n":     "2005",
+		"# PORTLESS_PORT=9\n":                      "def",
+	} {
+		ws := t.TempDir()
+		os.WriteFile(filepath.Join(ws, ".env"), []byte(body), 0o644)
+		if got := Dotenv(ws, "PORTLESS_PORT", "def"); got != want {
+			t.Errorf("%q: %q, want %q", body, got, want)
+		}
+	}
+	if got := Dotenv(t.TempDir(), "PORTLESS_PORT", "def"); got != "def" {
+		t.Errorf("no .env: %q", got)
+	}
+}

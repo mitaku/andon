@@ -54,11 +54,7 @@ func signalKey(slug string, r signal.Record) string {
 // key でも照らすのは、github-ci の url が run ごとに変わり、課題に書いた url が古い run を指すことがあるから。
 // later の信号はトリアージで仕分けるためのもの。now の信号は通知で届き Chief of Staff が課題に切るが、切られていなければここで拾う。
 // 題（title）は外の人の文なので、項目に untrusted: true を付ける。
-func (l *ledger) signalItems(issues []ledgerIssue) ([]Item, error) {
-	recs, err := l.loadSignals()
-	if err != nil {
-		return nil, err
-	}
+func (l *ledger) signalItems(issues []ledgerIssue, recs []signal.Record) []Item {
 	linked := map[string]bool{}
 	for _, t := range issues {
 		for _, u := range t.Links {
@@ -73,7 +69,7 @@ func (l *ledger) signalItems(issues []ledgerIssue) ([]Item, error) {
 		got = append(got, Item{Key: signalKey(l.slug, r), Kind: "signal", From: signalFrom(r), Repo: signalRepo(r),
 			Text: r.Title, AgeDays: ageDays(r.FirstSeen, l.now), URL: r.URL, Untrusted: true})
 	}
-	return got, nil
+	return got
 }
 
 // signalRepo は GitHub の出所の key（<repo>#<n>・<repo>/<workflow>@main）の先頭の host/owner/repo。ほかの出所は空。

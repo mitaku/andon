@@ -208,3 +208,14 @@ func TestMainUsage(t *testing.T) {
 		t.Errorf("bad id: rc=%d err=%q", rc, errb.String())
 	}
 }
+
+// slug は schema の project と同じ（_ を含めてよい）。項目の key も同じ slug を受ける。
+func TestSlugFollowsSchema(t *testing.T) {
+	if !slugRe.MatchString("sample_site") || slugRe.MatchString("_x") {
+		t.Error("slugRe が schema の project と違う")
+	}
+	k := itemKey("sample_site", "S-0001", "next", "x")
+	if !keyRe.MatchString(k) {
+		t.Errorf("key %q を受けない", k)
+	}
+}

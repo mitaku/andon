@@ -120,9 +120,12 @@ func Look(addr string) (*Term, error) {
 
 // Discard は端末を片付ける（keep を外して kill・rm。address で打つ）。中身がシェルに替わった役の端末に使う。
 // シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。
-func Discard(addr string) error {
+func Discard(addr string) error { return DiscardWith("hc", addr) }
+
+// DiscardWith は hc（hc の実行ファイルのパス）で Discard する。
+func DiscardWith(hc, addr string) error {
 	for _, args := range [][]string{{"keep", addr, "--off"}, {"kill", addr}, {"rm", addr}} {
-		if _, err := Output(nil, "", "hc", args...); err != nil {
+		if _, err := Output(nil, "", hc, args...); err != nil {
 			return fmt.Errorf("hc %s に失敗: %v", strings.Join(args, " "), err)
 		}
 	}

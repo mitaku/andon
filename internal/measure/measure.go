@@ -713,22 +713,22 @@ func median(xs []float64) *float64 {
 
 // config は config.yaml の columns（無ければ既定）。版が 3 でなければ止まる（台帳の形式の規則）。
 func (r *reader) config() ([]string, error) {
-	b, err := os.ReadFile(filepath.Join(r.dir, "config.yaml"))
-	if err != nil {
+	c, err := ledger.ReadConfig(r.dir)
+	var pathErr *fs.PathError
+	switch {
+	case errors.As(err, &pathErr):
 		return nil, fmt.Errorf("台帳の config.yaml を読めない（%s）", r.rel(filepath.Join(r.dir, "config.yaml")))
-	}
-	var c struct {
-		Version any      `yaml:"version"`
-		Columns []string `yaml:"columns"`
-	}
-	if err := yaml.Unmarshal(b, &c); err != nil {
+	case err != nil:
 		return nil, errors.New("台帳の config.yaml が YAML でない")
-	}
-	if v, ok := c.Version.(int); !ok || v != 3 {
-		return nil, fmt.Errorf("台帳の版が 3 でない（%v）。知らない版は読まない", c.Version)
+	case !c.VersionIs(3):
+		var v any
+		if c.HasVersion {
+			v = c.Version
+		}
+		return nil, fmt.Errorf("台帳の版が 3 でない（%v）。知らない版は読まない", v)
 	}
 	if len(c.Columns) == 0 {
-		c.Columns = []string{"todo", "queued", "doing", "review", "done"}
+		return []string{"todo", "queued", "doing", "review", "done"}, nil
 	}
 	return c.Columns, nil
 }
@@ -840,8 +840,9 @@ func (r *reader) issues() []*issue {
 		if !ok {
 			continue
 		}
+		var doc yaml.Node
 		var raw ledger.Issue
-		if yaml.Unmarshal(b, &raw) != nil {
+		if yaml.Unmarshal(b, &doc) != nil || doc.Decode(&raw) != nil {
 			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
@@ -855,7 +856,7 @@ func (r *reader) issues() []*issue {
 			Session  string   `yaml:"session"`
 			Worktree string   `yaml:"worktree"`
 		}
-		if yaml.Unmarshal(b, &v) != nil {
+		if doc.Decode(&v) != nil {
 			r.skip(r.rel(path), 0, "issue.yaml が YAML でない")
 			continue
 		}
@@ -865,7 +866,7 @@ func (r *reader) issues() []*issue {
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
 		lib := filepath.Join(r.dir, "issues", id, "library")
-		t.pr, t.agentEst = r.report(lib)
+		t.pr, t.agentEst, t.obs = r.report(lib)
 		t.gates = r.gates(lib)
 		if t.pr == "" {
 			var latest time.Time
@@ -875,7 +876,6 @@ func (r *reader) issues() []*issue {
 				}
 			}
 		}
-		t.obs = r.observation(lib)
 		t.corr = r.corrections(lib)
 		t.asked = r.questions(filepath.Join(r.dir, "issues", id, "questions.yaml"))
 		out = append(out, t)
@@ -883,12 +883,12 @@ func (r *reader) issues() []*issue {
 	return out
 }
 
-// report は report.json の pr と、担当の見込み estimate.size。
-func (r *reader) report(lib string) (pr, est string) {
+// report は report.json の pr と、担当の見込み estimate.size と、観察の報告の result（observation）。
+func (r *reader) report(lib string) (pr, est, obs string) {
 	path := filepath.Join(lib, "report.json")
 	b, ok := r.read(path)
 	if !ok {
-		return "", ""
+		return "", "", ""
 	}
 	var v struct {
 		PR       string `json:"pr"`
@@ -896,20 +896,19 @@ func (r *reader) report(lib string) (pr, est string) {
 			Size string `json:"size"`
 		} `json:"estimate"`
 	}
-	if json.Unmarshal(b, &v) != nil {
+	bad := json.Unmarshal(b, &v) != nil
+	if bad {
 		r.skip(r.rel(path), 0, "JSON の object でない")
-		return "", ""
 	}
-	return v.PR, v.Estimate.Size
+	obs = r.observation(path, b)
+	if bad {
+		return "", "", obs
+	}
+	return v.PR, v.Estimate.Size, obs
 }
 
-// observation は観察の報告の result（hit・miss・unknown）。無ければ空。
-func (r *reader) observation(lib string) string {
-	path := filepath.Join(lib, "report.json")
-	b, ok := r.read(path)
-	if !ok {
-		return ""
-	}
+// observation は report.json（path の中身 b）の観察の報告の result（hit・miss・unknown）。無ければ空。
+func (r *reader) observation(path string, b []byte) string {
 	var v struct {
 		Observation *struct {
 			Result any `json:"result"`

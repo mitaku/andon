@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"andon/internal/ledger"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -87,12 +90,8 @@ func ledgerDir(root string) string { return filepath.Join(root, ledgerName) }
 // isLedger: root/kanban/config.yaml is a mapping whose version is a YAML integer (2, not "2").
 // kanban/ is a plain name, so a kanban/ folder without that (in a product's repository, say) is not a ledger.
 func isLedger(root string) bool {
-	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
-	if err != nil {
-		return false
-	}
-	v := d.get("version")
-	return isInt(v)
+	c, err := ledger.ReadConfig(ledgerDir(root))
+	return err == nil && c.IntVersion
 }
 
 // isInt: n is a YAML integer scalar (its resolved tag is !!int; a quoted "2" is a string).
@@ -166,7 +165,7 @@ func projectsFor(checkout string) (string, []string) {
 		var found []string
 		for _, c := range configs {
 			root := filepath.Dir(filepath.Dir(c))
-			if doc, err := readDoc(c); err == nil && isLedger(root) && repoOf(doc.list("repos"), checkout) != "" {
+			if cfg, err := ledger.ReadConfig(ledgerDir(root)); err == nil && cfg.IntVersion && repoOf(cfg.Repos, checkout) != "" {
 				found = append(found, root)
 			}
 		}
@@ -313,38 +312,34 @@ func readDoc(file string) (*doc, error) {
 
 // isFormat2: root's config.yaml says version 2.
 func isFormat2(root string) bool {
-	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
-	if err != nil {
-		return false
-	}
-	v := d.get("version")
-	return isInt(v) && v.Value == "2"
+	c, err := ledger.ReadConfig(ledgerDir(root))
+	return err == nil && c.VersionIs(2)
 }
 
 // readConfig reads config.yaml and stops on any version but 3 (none means 1).
 // title and chief_of_staff are kept in the file; kanban itself doesn't use them.
 func readConfig(root string) (config, error) {
-	d, err := readDoc(filepath.Join(ledgerDir(root), "config.yaml"))
+	cfg, err := ledger.ReadConfig(ledgerDir(root))
 	if err != nil {
-		if err.Error() == "not a mapping" {
+		if errors.Is(err, ledger.ErrNotMapping) {
 			return config{}, fail("config.yaml is not a mapping")
 		}
 		return config{}, err
 	}
-	switch v := d.get("version"); {
-	case isNull(v):
+	switch {
+	case !cfg.HasVersion:
 		return config{}, fail("config.yaml has no version, so it is format 1; this kanban reads format %d only (docs/ledger.md: move the issues by hand)", formatVersion)
-	case isInt(v) && v.Value == "2":
+	case cfg.VersionIs(2):
 		return config{}, fail(errFormat2)
-	case !isInt(v) || v.Value != strconv.Itoa(formatVersion):
-		return config{}, fail("config.yaml is format version %s; this kanban reads format %d only", v.Value, formatVersion)
+	case !cfg.VersionIs(formatVersion):
+		return config{}, fail("config.yaml is format version %s; this kanban reads format %d only", cfg.Version, formatVersion)
 	}
-	c := config{prefix: "W", columns: defaultColumns, repos: d.list("repos"), timezone: d.str("timezone")}
-	if n := d.get("prefix"); !isNull(n) && n.Kind == yaml.ScalarNode {
-		c.prefix = n.Value
+	c := config{prefix: "W", columns: defaultColumns, repos: cfg.Repos, timezone: cfg.Timezone}
+	if cfg.HasPrefix {
+		c.prefix = cfg.Prefix
 	}
-	if n := d.get("columns"); n != nil && n.Kind == yaml.SequenceNode && len(n.Content) > 0 {
-		c.columns = d.list("columns")
+	if cfg.Columns != nil {
+		c.columns = cfg.Columns
 	}
 	return c, nil
 }
@@ -355,69 +350,14 @@ const issueFileName = "issue.yaml"
 func issuesDir(root string) string   { return filepath.Join(ledgerDir(root), "issues") }
 func taskDir(root, id string) string { return filepath.Join(issuesDir(root), id) }
 
-// numberOf is the number of a task's id: 5 for A-0005, and for a reviewer's A-0005-r1 too (its parent's).
-func numberOf(id string) int {
-	if base, _, ok := splitRound(id); ok {
-		id = base
-	}
-	n, _ := strconv.Atoi(id[strings.LastIndex(id, "-")+1:])
-	return n
-}
-
-// splitRound reads a reviewer's id, <parent>-r<k> (A-0005-r1): the parent's id and the round k (1 or more).
-// ok is false for any other id.
-func splitRound(id string) (parent string, k int, ok bool) {
-	i := strings.LastIndex(id, "-r")
-	if i <= 0 || i+2 == len(id) || strings.Trim(id[i+2:], "0123456789") != "" {
-		return "", 0, false
-	}
-	k, err := strconv.Atoi(id[i+2:])
-	if err != nil || k < 1 {
-		return "", 0, false
-	}
-	return id[:i], k, true
-}
-
-// roundID is the id of a reviewer's task for the parent's round k: <parent>-r<k> (A-0005-r1).
-func roundID(parent string, k int) string { return fmt.Sprintf("%s-r%d", parent, k) }
-
 // isReviewProfile is whether a task with this profile is a reviewer's (the yard's *-review profiles).
 func isReviewProfile(p string) bool { return strings.HasSuffix(p, "-review") }
 
-// idDigits is how many digits a task's number has at least, so that ids sort by name
-// (A-0005; past 9999 the number only grows, and names stop sorting in number order).
-const idDigits = 4
-
-// formatID is <prefix>-<n> with n zero-padded to idDigits.
-func formatID(prefix string, n int) string { return fmt.Sprintf("%s-%0*d", prefix, idDigits, n) }
-
-// canonID reads an id as typed: A-5, A-05 and A-0005 are the same task, A-0005; a reviewer's
-// A-5-r1 is A-0005-r1 (the round without leading zeros). Any other id comes back as it is.
-func canonID(id string) string {
-	if base, k, ok := splitRound(id); ok {
-		return roundID(canonNumber(base), k)
-	}
-	return canonNumber(id)
-}
-
-// canonNumber is canonID for <prefix>-<digits>.
-func canonNumber(id string) string {
-	i := strings.LastIndex(id, "-")
-	if i <= 0 || i == len(id)-1 || strings.Trim(id[i+1:], "0123456789") != "" {
-		return id
-	}
-	n, err := strconv.Atoi(id[i+1:])
-	if err != nil || n < 1 {
-		return id
-	}
-	return formatID(id[:i], n)
-}
-
-// canonIDs is canonID on each.
+// canonIDs is ledger.CanonID on each.
 func canonIDs(ids []string) []string {
 	out := make([]string, len(ids))
 	for i, id := range ids {
-		out[i] = canonID(id)
+		out[i] = ledger.CanonID(id)
 	}
 	return out
 }
@@ -433,18 +373,7 @@ func ids(root string) []string {
 			out = append(out, e.Name())
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		a, b := numberOf(out[i]), numberOf(out[j])
-		if a != b {
-			return a < b
-		}
-		_, ra, _ := splitRound(out[i])
-		_, rb, _ := splitRound(out[j])
-		if ra != rb {
-			return ra < rb // a reviewer's issues right after their parent, in round order
-		}
-		return out[i] < out[j]
-	})
+	sort.SliceStable(out, func(i, j int) bool { return ledger.IDLess(out[i], out[j]) })
 	return out
 }
 

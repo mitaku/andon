@@ -79,3 +79,25 @@ func TestGuide(t *testing.T) {
 		t.Errorf("got %q want %q", g, want)
 	}
 }
+
+// 案件の repo の置き場は GHQ_ROOT、無ければ ghq root。どちらも無ければ誤り。
+func TestGhqRoot(t *testing.T) {
+	t.Setenv("GHQ_ROOT", "/w/.ghq")
+	if got, err := GhqRoot(); err != nil || got != "/w/.ghq" {
+		t.Errorf("GHQ_ROOT: %q %v", got, err)
+	}
+	if got, err := RepoPath("github.com/example/app"); err != nil || got != filepath.Join("/w/.ghq", "github.com/example/app") {
+		t.Errorf("RepoPath: %q %v", got, err)
+	}
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "ghq"), []byte("#!/bin/sh\necho /from/ghq\n"), 0o755)
+	t.Setenv("PATH", bin)
+	t.Setenv("GHQ_ROOT", "")
+	if got, err := GhqRoot(); err != nil || got != "/from/ghq" {
+		t.Errorf("ghq root: %q %v", got, err)
+	}
+	t.Setenv("PATH", t.TempDir())
+	if _, err := GhqRoot(); err == nil {
+		t.Error("ghq が無いのに誤りにならない")
+	}
+}

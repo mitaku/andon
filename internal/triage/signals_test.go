@@ -64,13 +64,14 @@ func TestSignalItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := &ledger{slug: "demo", signals: path, now: time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)}
-	got, err := l.signalItems([]ledgerIssue{
-		{ID: "T-1", Links: []string{"https://example.com/github.com/example/app/lint.yml@main"}},
-		{ID: "T-2", Links: []string{"https://github.com/example/app/actions/runs/1", "github.com/example/app/e2e.yml@main"}}, // 古い run の url と key
-	})
+	recs, err := l.loadSignals()
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := l.signalItems([]ledgerIssue{
+		{ID: "T-1", Links: []string{"https://example.com/github.com/example/app/lint.yml@main"}},
+		{ID: "T-2", Links: []string{"https://github.com/example/app/actions/runs/1", "github.com/example/app/e2e.yml@main"}}, // 古い run の url と key
+	}, recs)
 	if len(got) != 2 {
 		t.Fatalf("got %d items: %+v", len(got), got)
 	}
@@ -85,8 +86,8 @@ func TestSignalItems(t *testing.T) {
 	}
 	// 記録が無ければ項目は無い。
 	l.signals = filepath.Join(t.TempDir(), "none.json")
-	if got, err := l.signalItems(nil); err != nil || len(got) != 0 {
-		t.Errorf("missing file: %v %v", got, err)
+	if recs, err := l.loadSignals(); err != nil || len(recs) != 0 {
+		t.Errorf("missing file: %v %v", recs, err)
 	}
 }
 

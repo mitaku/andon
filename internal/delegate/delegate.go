@@ -6,6 +6,7 @@
 package delegate
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/spawn"
 )
 
 // Scopes は範囲（最初の版の8つ）。
@@ -79,7 +81,7 @@ type File struct {
 }
 
 var (
-	slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
+	slugRe = spawn.SlugRe // schema の project と同じ
 	idRe   = regexp.MustCompile(`^d[1-9][0-9]*$`)
 )
 
@@ -268,6 +270,25 @@ func Workspace() string {
 		return w
 	}
 	return "/workspace"
+}
+
+// Dotenv はセルの repo ws の .env の key の値（最後の空でない行。前後の空白と引用符を除く）。無ければ def。
+func Dotenv(ws, key, def string) string {
+	f, err := os.Open(filepath.Join(ws, ".env"))
+	if err != nil {
+		return def
+	}
+	defer f.Close()
+	v := def
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		if k, val, ok := strings.Cut(s.Text(), "="); ok && strings.TrimSpace(k) == key {
+			if val = strings.TrimSpace(strings.Trim(strings.TrimSpace(val), `"'`)); val != "" {
+				v = val
+			}
+		}
+	}
+	return v
 }
 
 // Owner はセルの andon.toml の owner（git の author の email。最上段の owner = "…" の行だけを読む）。無ければ空。

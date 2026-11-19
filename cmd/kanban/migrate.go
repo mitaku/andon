@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"andon/internal/delegate"
+	"andon/internal/ledger"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -204,7 +205,7 @@ func migrateIn(root, old string) (map[string]string, error) {
 	moved := map[string]string{}
 	taken := map[string]bool{}
 	for _, it := range items {
-		n := canonID(it.id)
+		n := ledger.CanonID(it.id)
 		if taken[n] {
 			return nil, fail("not moved: two tasks become %s", n)
 		}
@@ -220,10 +221,10 @@ func migrateIn(root, old string) (map[string]string, error) {
 	for _, it := range items {
 		before := string(it.d.encode())
 		if v := it.d.str("id"); v != "" {
-			it.d.setStr("id", canonID(v))
+			it.d.setStr("id", ledger.CanonID(v))
 		}
 		if v := it.d.str("parent"); v != "" {
-			it.d.setStr("parent", canonID(v))
+			it.d.setStr("parent", ledger.CanonID(v))
 		}
 		if n := it.d.get("after"); n != nil && !isNull(n) {
 			it.d.setList("after", canonIDs(it.d.list("after")))
@@ -441,6 +442,6 @@ func sortedKeys(m map[string]string) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	slices.SortFunc(keys, func(a, b string) int { return numberOf(a) - numberOf(b) })
+	slices.SortFunc(keys, func(a, b string) int { return ledger.NumberOf(a) - ledger.NumberOf(b) })
 	return keys
 }
