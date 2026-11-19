@@ -213,6 +213,26 @@ jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' "kanban
 head -2 "kanban/issues/$id3/report.md" | grep -q '（追加）'
 ok 'review-request: 上限を超えた回は extra'
 
+# その commit を見ているレビュアーの課題がまだ動いている（todo・doing）間は、同じ commit で頼み直さない（回だけが進み、dispatcher は二重に起動しないので捨てる）
+id4=$(as t5 kanban add '同じ commit の頼み直し')
+as t5 kanban set "$id4" status=doing review=on "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+"$andon" issue report "$id4" --pr "$pr" <<<'## Report' >/dev/null
+"$andon" issue review-request "$id4" <<<'## Report' >/dev/null
+head4=$(git -C "$tmp/wt" rev-parse HEAD)
+r4=$(as t5 kanban add "$id4 のレビュー（1 回目）" --parent "$id4" --profile codex-review --round 1 --brief - <<<"対象: worktree \`x\`（detached）。commit $head4。差分は gh pr diff。")
+cp "kanban/issues/$id4/report.md" "$tmp/report4.md"
+expect_fail "commit ${head4:0:12} のレビューはもう頼んである（$r4 が todo）" "$andon" issue review-request "$id4" <<<'## Report'
+as t9 kanban start "$r4" >/dev/null
+expect_fail "もう頼んである（$r4 が doing）" "$andon" issue review-request "$id4" <<<'## Report'
+jq -e '.review_request.round == 1' "kanban/issues/$id4/library/report.json" >/dev/null || die '断ったのに回が進んだ'
+cmp -s "$tmp/report4.md" "kanban/issues/$id4/report.md" || die '断ったのに報告が書き直された'
+ok 'review-request: その commit のレビュアーの課題が todo・doing の間は「もう頼んである」と断り、回も報告も変えない'
+# レビュアーが結果を残さずに返したあとの頼み直しは、今までどおり次の回になる
+as t9 kanban review "$r4" >/dev/null
+"$andon" issue review-request "$id4" <<<'## Report' >/dev/null
+jq -e '.review_request.round == 2' "kanban/issues/$id4/library/report.json" >/dev/null
+ok 'review-request: レビュアーが返したあと（結果なし）の頼み直しは断らない'
+
 # ask
 q='{"kind":"users","question":"既定を変えるか","facts":["docs/design.md §1.10"],"options":[{"label":"変える","pick":true},{"label":"変えない"}],"remaining":1,"from":"issue"}'
 "$andon" issue ask "$id" - <<<"$q" | grep -q "$id#1"

@@ -104,3 +104,9 @@ func short(sha string) string {
 	}
 	return sha
 }
+
+// BriefReviews は、レビュアーの依頼書 brief（dispatcher の reviewerBrief が書く）が commit を見るよう頼んでいるか。
+// 依頼書は「commit <sha>。」の形で commit を書く。dispatcher の Adopt と andon issue review-request が同じ読み方をする。
+func BriefReviews(brief, commit string) bool {
+	return commit != "" && strings.Contains(brief, "commit "+commit+"。")
+}

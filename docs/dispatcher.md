@@ -434,7 +434,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 
 - **二度起動しない・二度回さない**: 起動したレビュアー（`issue` → `reviewer_issue`・`commit`）と回したゲート（`issue` → `sha`。`review` に入った `log.jsonl` の行ごと）を控えに持ち、同じ組では打たない。
   控えに無い組（初めて見た台帳・控えを無くした）は台帳を見る: parent がその課題のレビュアーで、依頼書にその commit がある課題があれば、`todo` でなければもう受けているとして起動しない。`todo` でも端末が起動していることがある（`hc run` は通ったが `kanban start` の前に落ちた）ので、ラベル `project=<slug>`・`issue=<子>` の live な端末を引く（課題の id はプロジェクトをまたいで同じことがあるので、返った端末のラベルも両方で確かめる）。何か受けていれば（`turn` が 1 以上）起動せず、まだなら address を引き継いで最初のメッセージから続ける。端末が無いときだけ起動するところから続ける。
-- **同じ commit の出し直し**: 起動しなかった回（設定・上限・head 違いなどで止めた回）は、担当が `andon issue review-request` で頼み直せば（その課題の報告の行が増えれば）拾い直す。起動した回は、同じ commit で頼み直しても二重に起動しない。
+- **同じ commit の出し直し**: 起動しなかった回（設定・上限・head 違いなどで止めた回）は、担当が `andon issue review-request` で頼み直せば（その課題の報告の行が増えれば）拾い直す。起動した回は、同じ commit で頼み直しても二重に起動しない。その commit を見ているレビュアーの課題がまだ動いている（`todo`・`doing`）間は、`andon issue review-request` が「もう頼んである」と断り、回を進めない（頼み直しても捨てられるだけで、担当がレビューの回を1回失うため）。
 - **照合で見送った回は、照合が戻れば拾い直す**: `review`・`reviewer`・`review_rounds` の履歴の照合（contract.md §2）が外れて起動しなかった回は、控えにそう残す（`untrusted`）。Chief of Staff が起き直してアドレスが変わり、予約キーを書き直して照合が戻れば、担当が頼み直さなくても次の見回りで拾い直す。拾い直して別の理由で起動しなければ、その理由で見送り直す（通知 `report` も1回）。
 - **台帳に書くときの `by` は `terminal:dispatcher`**（`HC_TERMINAL_ID=dispatcher` で打つ）。ゲートと `andon issue ready` は、作成の行の `by` が Chief of Staff か dispatcher のレビュアーを数える。
 - **レビュアーの依頼書に結果の宛先を書く**: 元の課題（`parent`）の担当（`issue.yaml` の `agent`）だけ。Chief of Staff・dispatcher へは送らせない（Chief of Staff へは dispatcher が通知で届ける）。

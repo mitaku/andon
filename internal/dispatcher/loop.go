@@ -132,7 +132,7 @@ func (p *project) reviewKeysTrusted(t ledger.Issue) bool {
 // 端末が無いときだけ、起動するところから続ける。
 func Adopt(tasks []ledger.Issue, id, commit string, brief func(rev string) string, live func(rev string) (addr string, turn int, ok bool)) (Reviewer, bool) {
 	for _, c := range tasks {
-		if c.Str("parent") != id || !isReviewer(c) || !strings.Contains(brief(c.Str("id")), "commit "+commit+"。") {
+		if c.Str("parent") != id || !isReviewer(c) || !ledger.BriefReviews(brief(c.Str("id")), commit) {
 			continue
 		}
 		r := Reviewer{ReviewerIssue: c.Str("id")}
