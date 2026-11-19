@@ -354,7 +354,7 @@ grep -q '^| 9\. 記憶の規律 | 11 | `wiki.md` |$' "$cos" && grep -q '^11\. \*
   && grep -q '^  - `raw/` — 元資料。書いたら変えない。4種: .*(4) トリアージで wiki 行きになった memory の写し（`raw/memory/' <<<"$cos11" \
   && pass "Chief of Staff の skill: 原則11・規約9・トリアージ・wiki の手引きが memory を蒸留までの受け皿として扱う（ADR-0020）" || fail "chief-of-staff の原則11・規約9・triage.md・wiki.md が ADR-0020 の形でない"
 # ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff の切る手引き）が index.md → ページの順で引く
-grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引く。使った事実は出典' package/skills/chief-engineer/SKILL.md \
+grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引く。使う事実は' package/skills/chief-engineer/SKILL.md \
   && grep -q 'wiki を引く（`wiki.md` の query。`index.md` → ページの順）' "$pb/cut.md" \
   && pass "Chief Engineer の「読む」と Chief of Staff の cut.md が wiki を index.md → ページの順で引く" || fail "読む側が index.md → ページの順を指していない"
 # ADR-0009 受け入れ条件 4: Chief of Staff の template が wiki を道具の届く場所に足す
@@ -637,5 +637,31 @@ case " $(fm package/templates/chief-of-staff.md command) " in *" --append-system
 # 手引きは Read で読む。/opt/andon は作業の場の外で、--add-dir が無いと Read が許可の確認で止まる（A-0195 の実測）
 case " $(fm package/templates/chief-of-staff.md command) " in *" --add-dir /opt/andon/skills/chief-of-staff/playbooks "*) ;; *) miss="$miss [template に手引きの --add-dir が無い]" ;; esac
 [ -z "$miss" ] && pass "chief-of-staff の SKILL.md は原則と目次だけで 10KB 以下、目次の手引きが全部在り、どれも 読む時・消す条件 を持つ" || fail "chief-of-staff の原則と手引き:$miss"
+
+# ADR-0026 受け入れ条件 A1〜A4（案 1）: PR と文書の書き方の決まりは、セルの外の読み手に通じるように
+w=package/skills/worker/SKILL.md; ce=package/skills/chief-engineer/SKILL.md
+sec3=$(sed -n '/^## 3\. 検査・commit・PR$/,/^## 4\./p' "$w")
+chk3() { grep -qF -- "$2" <<<"$sec3" && pass "ADR-0026 A1: worker §3 に $1" || fail "ADR-0026 A1: worker §3 に $1 が無い"; }
+chk3 "題・commit に課題番号を書かない" 'PR の題・commit の題・commit の本文に入れない'
+chk3 "控えの行の形" '`Memo: 内部の課題番号 <id>`（repo が英語なら `Memo: internal issue <id>`）'
+chk3 "6つの見出しと必須の3節" '必須は「変更理由」「やったこと」「検証結果と確かめ方」の3節'
+for h in 変更範囲 トレードオフ 影響範囲; do grep -q "^     | $h | あれば |" <<<"$sec3" || fail "ADR-0026 A1: worker §3 の表に $h が無い"; done
+chk3 "長い物だけ details に畳む" '長い物だけ `<details>`／`<summary>` に畳む'
+chk3 "状態の図" '変更前と変更後の状態の図（Mermaid）'
+chk3 "ほかの PR は URL か owner/repo#n" '`owner/repo#n`'
+chk3 "セルの物を指さず案件の repo は Andon の用語を書かない" '案件の repo では Andon の用語'
+# ADR-0026 A2
+grep -qF 'PR 本文の「トレードオフ」と報告の「見送り」にも写す' "$w" && pass "ADR-0026 A2: worker §4 の見送りの写し先は トレードオフ" || fail "ADR-0026 A2: worker §4 の見送りの写し先が トレードオフ でない"
+# ADR-0026 A3
+d3=$(sed -n '/^# <題>（仕様・設計。日付）$/p' "$ce" docs/design.md | wc -l)
+[ "$d3" = 2 ] && ! grep -q 'Chief Engineer の課題 id）' "$ce" docs/design.md \
+  && grep -qF '人の発言の日付だけ' "$ce" && grep -qF '人の発言の日付だけ' docs/design.md && grep -qF '人の発言の日付だけ' docs/decisions.md \
+  && ! grep -qF '`sources/` のページか `raw/` の元資料' "$ce" \
+  && pass "ADR-0026 A3: CE skill・design.md §1.8・decisions.md の出典は題に課題 id を求めず、セルの wiki と台帳を指さない" || fail "ADR-0026 A3: 文書の形か出典の書き方が古い"
+# 否定の検査が当たる場合があること: 古い形を持つ文字列では上の検査が落ちる
+! printf '%s\n' '# <題>（仕様・設計。日付・Chief Engineer の課題 id）' | grep -q '^# <題>（仕様・設計。日付）$' && pass "ADR-0026 A3: 古い題の行は新しい形に当たらない（検査が見ている）" || fail "ADR-0026 A3: 検査が何も見ていない"
+# ADR-0026 A4
+grep -q '^- 番号だけで指さない。この決まりはセルの中の人への文に効く。PR の題や本文・commit・repo のファイルの文は' package/writing.md \
+  && pass "ADR-0026 A4: writing.md の番号の決まりに範囲（セルの中の人への文。PR と repo の文は除く）がある" || fail "ADR-0026 A4: writing.md の番号の決まりに範囲が無い"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
