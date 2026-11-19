@@ -47,6 +47,15 @@ case "$rev" in
   "$want" | "$want-dirty") ;;
   *) echo "FAIL image: label org.opencontainers.image.revision が checkout の commit でない（$rev / $want）" >&2; exit 1 ;;
 esac
+# andon version が焼いた commit を返す（ADR-0028 P0-1）。汚れた checkout から焼いたなら食い違いが立つ
+ver=$(docker run --rm --network none andon:test andon version)
+case "$rev" in *-dirty | unknown) drift=true ;; *) drift=false ;; esac
+wantc=$want
+[ "$want" != unknown ] || wantc=null
+if [ "$(jq -r .commit <<<"$ver")" != "$wantc" ] || [ "$(jq -r .source <<<"$ver")" != image ] || [ "$(jq -r .drift <<<"$ver")" != "$drift" ]; then
+  echo "FAIL image: andon version が焼いた commit（$want・食い違い $drift）を返さない: $ver" >&2
+  exit 1
+fi
 # seccomp はセルの compose（package/compose.yaml）と同じ unconfined。Chromium の sandbox は user namespace を作り、docker の既定の seccomp はそれを拒む
 docker run --rm --network none --security-opt seccomp=unconfined andon:test bash -euc '
   test "$(id -un):$(id -u):$(id -g)" = andon:1000:1000
