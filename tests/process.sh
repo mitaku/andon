@@ -7,7 +7,7 @@
 #   3b. process/states/ の transitions[].once: true が on の「§7.2 #<n>」で dispatcher.md §7.2 の行を指す（受け入れ条件 4）。
 #   4. andon process render --check: repo の docs/process/ と見本の生成物（tests/process/docs/process/）が作り直しても変わらない。
 #      生成物に機械が読む塊（```json・```yaml）が無い。
-#   5. ワークストリームが 8 本。見守り・仕分けは決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 6 本は name・title・purpose だけ（受け入れ条件 5）。
+#   5. ワークストリームが 8 本。見守り・仕分け・ふりかえりは決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 5 本は name・title・purpose だけ（受け入れ条件 5。ふりかえりは ADR-0028 決めたこと 12）。
 # 道具は python3（標準ライブラリだけ）と jq と andon（tests/lib/andon.sh）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -177,7 +177,7 @@ for f in tests/process/process/workstreams/sample-watch.yaml tests/process/proce
 done
 
 # 5. ワークストリーム（受け入れ条件 5。ADR-0017 決めたこと 3・9・16）
-#    8 本がそろう。中身のある見守り・仕分けは項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 6 本は name・title・purpose だけ。
+#    8 本がそろう。中身のある見守り・仕分け・ふりかえりは項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 5 本は name・title・purpose だけ。
 #    by: ai の step の skill が package/skills/<名>/SKILL.md の節（「## <n>.」の見出し）か、package/skills の下の手引きのファイル（<名>/playbooks/<x>.md）を指す。
 want="intake launch observe receive relay retrospective triage watch"
 have=$(find process/workstreams -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort | tr '\n' ' ' | sed 's/ $//')
@@ -203,14 +203,14 @@ skill_check() {
       elif [ -n "$sec" ] && ! grep -qE "^## ${sec//./\\.}\. " "$md"; then echo "$ref: $md に「## $sec.」の節が無い"; fi
     done
 }
-for n in watch triage; do
+for n in watch triage retrospective; do
   "$andon" process json "process/workstreams/$n.yaml" >"$tmp/ws.json"
   out=$(full_check "$tmp/ws.json")
   [ -z "$out" ] && ok "$n.yaml が決めたこと 16 の項目を全部持つ" || { ng "$n.yaml の項目が欠ける"; printf '     %s\n' "$out"; }
   out=$(skill_check "$tmp/ws.json")
   [ -z "$out" ] && ok "$n.yaml の skill が SKILL の節を指す" || { ng "$n.yaml の skill が在らない節を指す"; printf '     %s\n' "$out"; }
 done
-for n in intake launch observe receive relay retrospective; do
+for n in intake launch observe receive relay; do
   keys=$("$andon" process json "process/workstreams/$n.yaml" | jq -c 'keys')
   [ "$keys" = '["name","purpose","title"]' ] && ok "$n.yaml は name・title・purpose だけ" || ng "$n.yaml のキーが name・title・purpose でない: $keys"
 done
@@ -228,6 +228,16 @@ WATCH
 "$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"
 jq -e 'any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")' "$tmp/ws.json" >/dev/null &&
   ok "仕分け: 通知 review から check（仕分けを確かめる）が始まる" || ng "仕分けに 通知 review → check のきっかけが無い"
+"$andon" process json process/workstreams/retrospective.yaml >"$tmp/retro.json"
+while IFS='@' read -r filter desc; do
+  [ -n "$filter" ] || continue
+  jq -e "$filter" "$tmp/retro.json" >/dev/null && ok "ふりかえり: $desc" || ng "ふりかえりに無い: $desc"
+done <<'RETRO'
+any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")@通知 review から check（検収）が始まる
+[.steps[] | select(.by == "machine") | .command] == ["andon retro collect", "andon retro patterns", "andon retro apply", "andon issue finish"]@機械の手順が collect → patterns → apply → finish
+any(.steps[]; .command == "andon retro apply" and .once == true and .record == "library/retro-applied.json")@当てる手順は1回だけで、記録は library/retro-applied.json
+any(.steps[]; .by == "ai" and ((.skill | if type == "array" then . else [.] end) | index("retro#3")))@AI の手順が retro skill の直す先の段（§3）を指す
+RETRO
 # 壊すと落ちる
 jq 'del(.counts)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: counts が無い" || ng "counts が無いのに通る"
 jq '(.steps[] | select(.by == "machine")) |= del(.command)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: by machine に command が無い" || ng "command が無いのに通る"
