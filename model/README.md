@@ -80,7 +80,7 @@ R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）�
 
 | 行動 | 中身 |
 |---|---|
-| `HeadMovesAfterGate` | ゲートが approve か needs_human を決めたあとに、PR の head が動く（担当か人が push した） |
+| `HeadMovesAfterGate` | ゲートが approve か needs_human を決めたあとに、PR の head が動く（担当か人が push した）。PR が閉じている間の push も入る |
 | `PRClosesOrReopens` | 人が PR をマージせずに閉じる・閉じた PR を開き直す。`andon issue settle` が聞き直して知る |
 | `MergeSettingChanges` | issue.yaml の `merge` か委譲の `merge` が変わる。モデルは 2 つを「任されている」の 1 つ（`mergeAuto`）にまとめた |
 

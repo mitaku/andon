@@ -5,7 +5,7 @@ EXTENDS IssueRules
 
 BrokenGateSaysFix ==
     /\ status = "review"
-    /\ (gate = "none" /\ pr \in {"open", "closed"}) \/ Regate
+    /\ ((gate = "none" /\ pr \in {"open", "closed"}) \/ Regate)
     /\ gate' = "fix" /\ fixSent' = (worker = "live")
     /\ dirty' = (dirty \/ result # "old")
     /\ moved' = FALSE

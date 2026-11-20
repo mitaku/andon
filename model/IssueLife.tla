@@ -146,7 +146,7 @@ Regate ==
 \* PR が閉じていれば fix（internal/gate/decide.go Decide の「PR が open でない」）。回し直しは Regate
 GateSaysFix ==
     /\ status = "review"
-    /\ (gate = "none" /\ pr \in {"open", "closed"}) \/ Regate
+    /\ ((gate = "none" /\ pr \in {"open", "closed"}) \/ Regate)
     /\ gate' = "fix" /\ fixSent' = (worker = "live") /\ told' = (worker # "live" \/ (gate = "none" /\ told))
     /\ dirty' = (dirty \/ result # "old")
     /\ moved' = FALSE
@@ -155,7 +155,7 @@ GateSaysFix ==
 \* ゲートが needs_human（internal/issue/merge.go mergeOne → askGate）: 問い（from: gate）を出す。通知 asked が届く
 GateAsksHuman ==
     /\ status = "review" /\ pr = "open"
-    /\ gate = "none" \/ Regate
+    /\ (gate = "none" \/ Regate)
     /\ gate' = "human" /\ told' = TRUE /\ moved' = FALSE
     /\ UNCHANGED <<status, worker, wt, pr, reviewVars, fixSent, q, cancel, mergeAuto, autoMerged>>
 
@@ -164,7 +164,7 @@ GateAsksHuman ==
 \* checks が走っている間は wait で何も変えない）
 GateApproves ==
     /\ status = "review" /\ pr = "open"
-    /\ gate = "none" \/ Regate
+    /\ (gate = "none" \/ Regate)
     /\ ci = "passed" /\ result = "clean"
     /\ gate' = "approve" /\ told' = ~mergeAuto /\ moved' = FALSE
     /\ UNCHANGED <<status, worker, wt, pr, reviewVars, fixSent, q, cancel, mergeAuto, autoMerged>>
@@ -232,11 +232,12 @@ ChiefOfStaffCancels ==
     /\ Finish
     /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto, moved, autoMerged>>
 
-\* 判定のあとに PR の head が動く: ゲートが approve か needs_human を決めたあと、review のうちに担当か人が PR に push した
-\* （docs/dispatcher.md の「回し直す」の行）。head が新しくなるので、CI は走り直し、レビューは古くなる（WorkerPushes と同じ）。
-\* ゲートは Regate で回し直す
+\* 判定のあとに PR の head が動く: ゲートが approve か needs_human を決めたあと、review のうちに担当か人が PR の branch に push した
+\* （docs/dispatcher.md の「回し直す」の行）。PR が閉じている間の push も入れる。開き直すと、ゲートは判定した head と違う head を
+\* 読む（headMoved と approve の ChecksStill はどちらも PR の今の head を読む）。head が新しくなるので、CI は走り直し、レビューは
+\* 古くなる（WorkerPushes と同じ）。ゲートは PR が開いてから Regate で回し直す
 HeadMovesAfterGate ==
-    /\ status = "review" /\ gate \in {"approve", "human"} /\ pr = "open"
+    /\ status = "review" /\ gate \in {"approve", "human"} /\ pr \in {"open", "closed"}
     /\ moved' = TRUE
     /\ ci' = "running" /\ headSeen' = FALSE
     /\ reviewing' = IF reviewing = {} THEN {} ELSE {"old"}
