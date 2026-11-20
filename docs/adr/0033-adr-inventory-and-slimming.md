@@ -9,9 +9,9 @@
 |---|---|---|---|
 | 1 | 32 本の冒頭に決定の索引を足し、大きい 6 本だけ本文を畳む | この ADR | まだ実装していない |
 | 2 | 畳む 6 本は 1 本 1 PR にし、レビュアーが照らして自動でマージする | この ADR | まだ実装していない |
-| 3 | これからの ADR は、実装が済んだら索引の行だけを直す | この ADR | まだ実装していない |
-| 4 | 新しい ADR は索引を必ず置き、決定の文と細部を書き分ける（仮） | この ADR | まだ実装していない |
-| 5 | 索引は 4 列の表で、「今」は 4 つの語で書く（仮） | この ADR | まだ実装していない |
+| 3 | これからの ADR は、実装が済んだら索引の行だけを直す | `package/skills/chief-engineer/SKILL.md`・`package/skills/worker/SKILL.md`・`docs/design.md` | 生きている |
+| 4 | 新しい ADR は索引を必ず置き、決定の文と細部を書き分ける（仮） | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` | 生きている |
+| 5 | 索引は 4 列の表で、「今」は 4 つの語で書く（仮） | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` | 生きている |
 | 6 | 索引がずれないことを検査で守る | `tests/adr-index.sh` | 生きている |
 | 7 | README の状態のずれと ADR-0016 の冒頭を、索引と一緒に直す（仮） | `README.md`・`docs/adr/0016-cell-wiki-llm-wiki.md` | 役目を終えた |
 
