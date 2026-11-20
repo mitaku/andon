@@ -848,7 +848,7 @@ verify_miss() {
   for k in '同時に動く検証の課題は1つ' 'select(.title | startswith("検証: "))' '前の検証が見た commit から見る' \
     'bash "$d/.claude/skills/verify-andon/scripts/features.sh" <始まり>..<当てた commit>' \
     '差分が地図の「変えたら動かすパス」に当たらない' '読む skill: .claude/skills/verify-andon/SKILL.md' \
-    '前の検証が見た commit: <始まり>' 'kanban review <id> で返す' '「当てたら」の 2 から回す'; do
+    '前の検証が見た commit: <始まり>' 'kanban review <id> で返す' '「当てたら」の 2 で始まりの commit を決め直す' '報告に見た範囲が無い（診断で止まった）ときも' 'それを当てた commit として「当てたら」の 3 から回す'; do
     grep -qF -- "$k" "$1" || m="$m [$k]"
   done
   echo "$m"
