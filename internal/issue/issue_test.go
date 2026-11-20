@@ -211,6 +211,22 @@ func TestReady(t *testing.T) {
 		{"指す記録が無い", func(f *fixture) { f.runRow(3, "", 0, "", false) }, "受け入れ条件 A1 の記録 runs/3.json が無い"},
 		{"記録の終了コードが期待と違う", func(f *fixture) { f.runRow(1, "pass", 2, f.head, false) }, "終了コード 2 が期待（pass）と違う"},
 		{"pass を期待する記録が commit していない変更のある木", func(f *fixture) { f.runRow(1, "pass", 0, f.head, true) }, "commit していない変更のある木で撮った"},
+		// ADR-0035 受け入れ条件 4: 課題が受け入れ条件の番号を持てば、その番号の行が報告に無いと断り、足りない番号を出す
+		{"番号の行が報告にあれば通る", func(f *fixture) { f.task["acceptance"] = "A1"; f.runRow(0, "", 0, "", false) }, ""},
+		{"番号の行が manual でも行があれば通る", func(f *fixture) {
+			f.task["acceptance"] = "A1"
+			f.report = strings.TrimSuffix(f.report, "}") + `, "acceptance": [{"id": "A1", "result": "manual", "evidence": "オーナーが見る"}]}`
+		}, ""},
+		{"報告に受け入れ条件の欄が無い", func(f *fixture) { f.task["acceptance"] = "A1,A4" }, "acceptance に無いので review にしない: A1・A4"},
+		{"足りない番号だけを出す", func(f *fixture) { f.task["acceptance"] = "A1,A4,A13"; f.runRow(0, "", 0, "", false) }, "acceptance に無いので review にしない: A4・A13。"},
+		{"番号の綴りが違う行は数えない", func(f *fixture) { f.task["acceptance"] = "A01"; f.runRow(0, "", 0, "", false) }, ": A01。"},
+		{"番号の形が違えば断る", func(f *fixture) { f.task["acceptance"] = "A1, A4" }, "acceptance の形が違う"},
+		{"番号が文字列でなければ断る", func(f *fixture) { f.task["acceptance"] = []any{"A1"} }, "acceptance の形が違う"},
+		{"調べる課題でも番号の行を求める", func(f *fixture) {
+			f.task["deliverable"] = "candidates"
+			f.task["review"] = "off"
+			f.task["acceptance"] = "A2"
+		}, "acceptance に無いので review にしない: A2"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

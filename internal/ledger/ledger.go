@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -267,6 +268,7 @@ type Settings struct {
 	Machine      string `json:"machine,omitempty"`
 	Deliverable  string `json:"deliverable"`
 	Estimate     string `json:"estimate,omitempty"`
+	Acceptance   string `json:"acceptance,omitempty"`
 }
 
 // Severities は重い順。
@@ -311,7 +313,7 @@ func SettingsOf(t Issue) Settings {
 	if v := t.Str("merge"); v == "auto" || v == "person" {
 		s.Merge = v
 	}
-	if v := t.Str("machine"); machineOK(v) {
+	if v := t.Str("machine"); nameOK(v) {
 		s.Machine = v
 	}
 	if v := t.Str("deliverable"); v == "candidates" {
@@ -320,10 +322,40 @@ func SettingsOf(t Issue) Settings {
 	if v := t.Str("estimate"); EstimateMinutes(v) > 0 {
 		s.Estimate = v
 	}
+	if ids, ok := AcceptanceOf(t); ok && len(ids) > 0 {
+		s.Acceptance = t.Str("acceptance")
+	}
 	return s
 }
 
-func machineOK(v string) bool {
+// AcceptanceOf は予約キー acceptance（課題が満たす受け入れ条件の番号を、報告の acceptance[].id と同じ綴りでコンマで並べた文字列。
+// A4,A13）を並びにする（ADR-0035 決めたこと 3）。キーが無ければ nil と true（番号を持たない課題）。
+// 文字列でない・空の番号・知らない文字があれば nil と false（読み手の andon issue ready は黙って通さず断る）。
+// 履歴の照合（Trusted）は見ない: 担当が書き換えても求める行が増えるか、キーを消して今までどおりになるだけで、
+// 照合を求めると Chief of Staff が起き直したあと書き直す前の課題で番号が消える。
+func AcceptanceOf(t Issue) ([]string, bool) {
+	raw, present := t["acceptance"]
+	if !present {
+		return nil, true
+	}
+	v, ok := raw.(string)
+	if !ok || v == "" {
+		return nil, false
+	}
+	var ids []string
+	for _, id := range strings.Split(v, ",") {
+		if !nameOK(id) {
+			return nil, false
+		}
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, true
+}
+
+// nameOK は英数字で始まり、英数字と . _ - だけの名前か（machine の名前と受け入れ条件の番号）。
+func nameOK(v string) bool {
 	if v == "" {
 		return false
 	}

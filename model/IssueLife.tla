@@ -122,6 +122,7 @@ ReviewerReturns ==
 \* internal/issue/merge.go closeStaleGateQuestions が閉じる）。
 \* 照合が head のレビューを読めなければ（CheckReview が current でない）断る。CI は読まない（ゲートが待つ）
 \* 受け入れ条件の行が指す記録が証拠にならなくても断る（contract.CheckRuns。担当が撮り直して打ち直すので、モデルでは歩まないだけ）
+\* 課題の予約キー acceptance が名指す受け入れ条件の行が報告に無くても断る（checkAcceptanceRows。担当が行を足して打ち直すので、モデルでは歩まないだけ）
 WorkerReady ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~q
     /\ result \in {"clean", "mustfix"}

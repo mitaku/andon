@@ -156,6 +156,36 @@ func TestEstimate(t *testing.T) {
 	}
 }
 
+// 予約キー acceptance は受け入れ条件の番号のコンマの並び（ADR-0035 決めたこと 3）。無ければ番号を持たない課題、形が違えば ok が false。
+func TestAcceptanceOf(t *testing.T) {
+	for _, c := range []struct {
+		v        any // nil ならキーが無い
+		ids      string
+		ok       bool
+		settings string
+	}{
+		{nil, "", true, ""},
+		{"A4", "A4", true, "A4"},
+		{"A4,A13,A4", "A4,A13", true, "A4,A13,A4"}, // 重なりは1つに（settings は書いたまま）
+		{"A1, A4", "", false, ""},                  // 空白
+		{"A1,,A4", "", false, ""},                  // 空の番号
+		{"", "", false, ""},
+		{[]any{"A1"}, "", false, ""}, // 文字列でない
+	} {
+		task := Issue{"id": "A-0001"}
+		if c.v != nil {
+			task["acceptance"] = c.v
+		}
+		ids, ok := AcceptanceOf(task)
+		if strings.Join(ids, ",") != c.ids || ok != c.ok {
+			t.Errorf("AcceptanceOf(%v) = %v, %v; want %q, %v", c.v, ids, ok, c.ids, c.ok)
+		}
+		if got := SettingsOf(task).Acceptance; got != c.settings {
+			t.Errorf("SettingsOf(%v).Acceptance = %q, want %q", c.v, got, c.settings)
+		}
+	}
+}
+
 // config.yaml の repos は block の並びも flow の並び（repos: [x]）も読む。chief_of_staff・timezone は引用符と行末のコメントを除く。
 func TestConfigReadsReposAnyForm(t *testing.T) {
 	for body, want := range map[string]string{
