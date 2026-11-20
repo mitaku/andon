@@ -441,6 +441,11 @@ grep -q '前の価値の仮説の結果' <<<"$ce1" && block "$ce" '# <題>（仕
   && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の見出しが無い"
 grep -q '決断が無ければ文書を書かずに返す' <<<"$ce2" && grep -q '"to": "chief-of-staff", "text": "直す課題に切る: ' <<<"$ce2" && grep -q 'kanban review <id>' <<<"$ce2" \
   && pass "Chief Engineer は「言い直す」で決断が無ければ文書を書かず next で返す" || fail "chief-engineer の「言い直す」に文書なしで返す段が無い"
+# CE の推奨案はオーナーに迎合させない（docs/decisions/2026-11-20-ce-recommend-own-best.md）。4点が役の段落にあり、決めない線は残る
+ce0=$(sed -n '/^\*\*あなたは Chief Engineer/,/^- 課題は/p' "$ce")
+grep -qF '自分のプロダクトだと思って最適と考える案にする' <<<"$ce0" && grep -qF 'オーナーの好みに合わせて推奨を変えない' <<<"$ce0" \
+  && grep -qF '事実か理由で推奨の前提を崩したときだけ' <<<"$ce0" && grep -qF '決めるのはオーナー' <<<"$ce0" && grep -qF '**推奨案は出すが決めない**' "$ce" \
+  && pass "Chief Engineer の推奨案は自分のプロダクトとして最適な案で、オーナーの好みでは変えず、前提が崩れたときだけ変え、決めるのはオーナー" || fail "chief-engineer の役の段落に推奨の立て方の4点が無いか、「推奨案は出すが決めない」が消えた"
 left=$(grep -nE 'kanban ask [^-]*"<|kanban set <id> pr=' package/skills/*/SKILL.md package/skills/*/playbooks/*.md || true)
 [ -z "$left" ] && pass "skill に JSON を通らない kanban ask と issue.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
 
