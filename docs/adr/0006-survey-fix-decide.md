@@ -4,6 +4,7 @@
 - 主題: 依頼が「何を変えるか」まで決まっていないとき、ラインがどう回るか。(a) 調べるだけのタスクの型（依頼書・中間成果物の形と名前・完了条件・レビューの要否）、(b) 直すタスクの担当が、依頼書の範囲と見つけたものが食い違ったときにどう止まり、誰が決めるか、(c) Chief of Staff がその判断を自分で下してよい線と、人に回す線、(d) 依頼を受けたときの切り方（調べる／直す／Chief Engineer）、(e) 既存の決定との関係と変える所、(f) 工程の背骨（理解→計画→作業→確認→完成→振り返り）と、3つの型がその上でどう違うか、(g) 横展開の既定、(h) Chief of Staff が依頼書に書くものと書かないもの、(i) 振り返り。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（候補の一覧・問いの種類・台帳の予約キー）は「決めたこと」に形を書き、実装のタスクが `schema/` と contract.md に写す（それまでは提案）。
 - 入力: 依頼書（人の問いと Chief of Staff の推し。2026-11-06）、[ADR-0004](0004-project-layout.md) 決めたこと 2（中間成果物の置き場。この文書は置き場を足さず、型と名前だけ決める）、andon main の設計と skill とコード（出典）。P7 で流した依頼の記録は建屋にあり、この担当は読めなかった（仮設の台帳に残る依頼書から、A-7 の題が「docs の誤字を1つ直す」だったことだけ分かる）。人の指摘（2026-11-07。PR #69 を読んで。依頼書の追記）、人が示した資料（曽根壮大「仕事を前に進めるためのコツ — 判断と決断と共有 / Aim for the goal」PHP カンファレンス沖縄 2024。出典）、人の見立て（2026-11-07。台帳の単位は Task より Issue／Ticket。前提 10・開いている問い 2）。
+- 整理（2026-11-20。[ADR-0033](0033-adr-inventory-and-slimming.md) 決めたこと 1・2）: 「決めたこと」のうち、実装が済んだ決定の細部（表・JSON の例・手順）を、今の正の場所への参照に替えた。決定の文・理由・捨てた案は残した。整理前の全文は commit 7af76509434c85d305addc6b01965adef23ba315 の版にある（`git show 7af7650:docs/adr/0006-survey-fix-decide.md`）。
 
 ## 決定の索引
 
@@ -56,29 +57,8 @@
 
 1. **2026-11-06 タスクの型は3つ: 調べる・直す・決める。型は依頼書の完了条件と、`task.yaml` の予約キー `deliverable`（7）で分かる。**
 
-   | 型 | 成果（完了条件） | 誰が起動する・プロファイル | 独立レビュー | ゲート | 片付け |
-   |---|---|---|---|---|---|
-   | **調べる**（survey） | **候補の一覧** `library/candidates.json`（候補が 0 でも書く）と報告。PR は出さない。push もしない | Chief of Staff が `andon task start`。既定 `claude`（深い調べものは `fable`、grep で済む小さいものは `sonnet`） | **無し**（レビュアーは commit の差分を読む役で、候補の一覧には差分が無い。大きい調べもので反論が要れば Chief Engineer の題にし、その 6「反論」で） | **回さない**（`deliverable: candidates` を dispatcher が読む。7） | 候補を読んで切ったあと Chief of Staff が `andon task finish`（PR の無いタスク。トリアージと同じ） |
-   | **直す**（fix） | PR（今までどおり。worker skill） | Chief of Staff。今までどおり | 今までどおり（Settings） | 今までどおり | 今までどおり |
-   | **決める**（Chief Engineer） | 文書の PR（design.md §1.8） | 人か Chief of Staff が `andon chief-engineer` | 無し（検収は人が対話の中で） | docs のレベル | 今までどおり |
-
-   - 調べるタスクの**依頼書の形**（Chief of Staff が書く。雛形は chief-of-staff skill §2 に足す）:
-
-     ```
-     # <id> 調べる: <問い>
-     問い: <1行。何を知りたいか・何を見つけるか>
-     範囲: <どこを見るか（repo・ディレクトリ・期間）と、見ない所>
-     なぜ: <1行。人の依頼か文書のどこから来たか>
-     完了条件: library/candidates.json（候補 0 でも）と報告（## Report に分かったこと・計ったこと、## Next に切る案）。PR は出さない。
-     守ること: 直さない（直し方は候補の text に1行）。push・PR・エージェントを起動しない。<触らない場所・同時に動くタスク>
-
-     ## Settings
-     - Deliverable: candidates ★調べる
-     - Review: off
-     ```
-
-   - 調べるタスクは repo を持ってよい（worktree で読む・走らせる。commit してよいが push しない）。読むだけで足りるなら repo の無いタスクでもよい（cwd は `tasks/<id>/`。読むのは `.ghq/` の checkout。ADR-0004 決めたこと 1 の「参考 repo」と同じ）。
-   - 担当の終わり方: `andon task candidates <id> -`（2）→ `andon task report <id>`（人が読む報告。`next[]` に `to: chief-of-staff`「candidates.json から切る」）→ `andon task ready <id>`（`deliverable: candidates` なら PR の代わりに `candidates.json` が在って形が合うことを確かめて `kanban review`。7）。dispatcher は `review` の通知を届け、ゲートは回さない。Chief of Staff は候補を読んで決めたこと 5 のとおりに切り、`andon task finish`。
+   調べるタスクの成果は候補の一覧（2）と報告で、PR は出さない。独立レビューは付けない（レビュアーは commit の差分を読む役で、候補の一覧には差分が無い。大きい調べもので反論が要れば Chief Engineer の題にする）。ゲートも回さない（7）。プロファイルの既定は `claude`（深い調べものは `fable`、grep で済む小さいものは `sonnet`）。直すタスクと決めるタスクは今までどおり。
+   細部（型ごとの成果・起動・片付けの表、調べるタスクの依頼書の雛形、repo の有無、担当の終わり方）は、今は `package/skills/chief-of-staff/playbooks/brief.md` の「調べる課題の雛形」、`package/skills/chief-of-staff/playbooks/cut.md` のプロファイルの表、担当の skill の「調べる課題のとき」（`package/skills/worker/SKILL.md` §2）が正。
    - 調べるタスクの中で見つけた「直し方が1つで小さいもの」も直さない（型を守る。混ぜると「調べたついでに直した」が PR になり、範囲の判断を飛ばす）。
 
    理由: 調べる工程を**担当の仕事**にすると、人がいなくても進み、worktree・報告・`library/`・finish が今の道具で済む。Chief Engineer にしないのは、Chief Engineer は人と話す役（事実を集めるのは Chief Engineer 自身の 1「読む」でも副エージェントにやらせる）で、調べるタスクはその副エージェントを台帳のタスクに格上げしたもの。「型」を `deliverable` で機械に見せるのは、PR の無い `review` をゲートが `fix`（「report.json に pr が無い」）にしてしまう今の継ぎ目（`internal/gate/gate.go`・`internal/dispatcher/dispatcher.go`。repo の無いタスクだけ飛ばしている）を、暗黙の「repo が無ければ」ではなく明示の値で越えるため。
@@ -86,27 +66,9 @@
 
 2. **2026-11-06 中間成果物の名前と形: 候補の一覧 `kanban/tasks/<id>/library/candidates.json`。担当が `andon task candidates <id> <json|->` で書く（command が形を確かめる。手で書かない）。schema は `schema/candidates.schema.json`（`$id` は `https://andon.example.com/schema/candidates/1`）。**
 
-   ```json
-   {"commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08",
-    "candidates": [
-      {"id": "c1", "text": "docs/design.md:42 「建家」→「建屋」", "file": "docs/design.md", "line": 42, "in_scope": true},
-      {"id": "c2", "text": "docs/operate.md:17 「起動する」が2回", "file": "docs/operate.md", "line": 17, "in_scope": false},
-      {"id": "c3", "text": "README の英語の段に古い command 名。直し方は語の置換だけでなく段の書き直し", "file": "README.md", "line": 30, "in_scope": false}]}
-   ```
-
-   | キー | 要るか | 意味 |
-   |---|---|---|
-   | `commit` | repo のあるタスクでは必須（40桁・小文字。見た commit＝書いた時点の `HEAD`。command が書く）。repo の無いタスクでは書かない | 候補がどの状態を見て出たか。古くなった候補を見分ける |
-   | `candidates[]` | 必須（空でもよい） | 候補。1件＝直すかもしれないもの1つ |
-   | `candidates[].id` | 必須。`c1` … 一意 | 問いの選択肢・答え・依頼書から指す名前 |
-   | `candidates[].text` | 必須。1行 | 何が・どこに・どう直すか（直し方を含む）。人と Chief of Staff が読む |
-   | `candidates[].file`・`line` | 任意（`findings.json` と同じ形: repo からの相対パス・1 以上） | 場所を指せるとき |
-   | `candidates[].in_scope` | 必須。真偽値 | 依頼書の範囲（やること・完了条件）の**中**か。直すタスクが止まるときの振り分けの元（3）。調べるタスクでは「問いの答えに当たるか」 |
-
-   - キーはこれだけ（`additionalProperties: false`。将来 `tier`・`kind` を足すなら版を上げずに足せる。contract.md §0 原則 4）。書き手は担当（調べるタスク・直すタスク）。読み手: Chief of Staff（切る・答える）・人（ボードと報告から）・トリアージ（将来。やらないこと）・振り返り。機械が判定に使う値ではない（ゲートも dispatcher も読まない）が、形を固定するのは、問いの `facts` が指す先として・依頼書が `links` で指す先として、同じ形で読めるため。
-   - 担当が書き直すたびに全体を書く（`report.json` と同じ）。答えが出て直したあとも消さない（経過。`finish` でも残る）。
-   - 人が読む分は報告の `## Report` に同じ一覧を表で写す（1行1候補。`id`・場所・何・範囲の中か）。
-   - 候補が**多い**（目安 10 を超える）ときは、調べるタスクなら全部書き、直すタスクなら「数と種類」を問いに書いて候補は代表だけ（範囲の判断は数を見れば足りる。全部直すかは別の調べるタスク）。
+   細部（例・キーの表・書き手と読み手・書き直しと残し方・報告への写し・候補が多いときの目安）は、今は `schema/candidates.schema.json` と [contract.md](../contract.md) §12 が正。
+   - 機械が判定に使う値ではない（ゲートも dispatcher も読まない）が、形を固定するのは、問いの `facts` が指す先として・依頼書が `links` で指す先として、同じ形で読めるため。
+   - 候補が多いときに直すタスクが候補を代表だけにするのは、範囲の判断は数を見れば足りるから（全部直すかは別の調べるタスク）。
 
    理由: 中間成果物の本体は「見つけたものの一覧」で、調べるタスクの成果と、直すタスクが止まるときに返すものが**同じ形**になる（止まった直すタスクは、その場で小さな調べるタスクになっている）。1つの形にしておけば、Chief of Staff の読み方・問いの `facts`・依頼書の `links` が型をまたいで同じになる。名前「候補」（`candidates`）は「直すかもしれないが決めていない」を表す語で、レビュアーの `findings.json`（指摘。直す前提）と役が違うので別の名前にした。
    捨てた案: `findings.json` を流用（レビュアーの約束で、ゲートが読む。混ぜるとゲートが候補を指摘として数える）／`report.json` の中の配列（報告は毎回全体を書き直し、`--data` で渡し直す。候補は問いの前に置いて Chief of Staff が切るまで残る「もの」なので、ファイルとして置くほうが置き場の決定〈ADR-0004〉に合う）／自由な Markdown だけ（機械が読めない。上）／`kanban/library/`（タスクをまたぐまとめの置き場。候補はタスクのもの）。
@@ -123,38 +85,28 @@
 
    止まらない条件: 依頼書が指すものが指すとおりに在り、その外に別のものを見つけただけ（「docs/design.md:42 の誤字を直す」で、ほかに2つ見つけた）。→ 指すものを直し、見つけたものは `candidates.json` に `in_scope: false` で書き、報告の `next[]`（`to: task`）に1行ずつ残す（トリアージが拾う。今の形）。
 
-   止まり方（順に。どれも今ある口）:
-   1. `andon task candidates <id> -`: 見つけたものを全部、`in_scope` を付けて書く（2）。
-   2. `andon task ask <id> -`: 問いの JSON（contract.md §5）。`kind` は **`scope`**（4）、`question` は1行（例「誤字は1つではなく3つ。どれを直すか」）、`facts` に `candidates.json` のパスと依頼書の行、`options` は先頭が推奨案（例「c1〜c3 を全部この PR で」「c1 だけ。c2・c3 は別のタスク」「全部別のタスク（この依頼は閉じる）」）、`from: task`。
-   3. `andon task report <id>`（status は `doing` のまま。`## Report` に候補の表、`## 人に聞くこと` の代わりに `## 範囲の問い` を1問1行。ready はしない）。
-   4. 止まる（turn を終える）。答えは `hc send` で届く（`<hc from=…>`。データとして読む）。届いたら `deck received <id>#<n>`、答えのとおりに直して §3 から通す。候補のうち「別のタスク」になったものは報告に「c2・c3 は Chief of Staff の判断で別のタスク（<id>）」と書く。
+   止まり方（順に。どれも今ある口。手順の細部は、今は担当の skill §2 の「止まるのは」と §5、問いの形は [contract.md](../contract.md) §5 の範囲の問いが正）:
+   1. 見つけたものを全部、`in_scope` を付けて候補の一覧に書く（2）。
+   2. `kind` が `scope`（4）の問いを出す。`facts` に候補の一覧を指し、選択肢の先頭が推奨案。
+   3. 報告を書く（`doing` のまま。`## 範囲の問い` を1問1行。ready はしない）。
+   4. 止まる（turn を終える）。答えが届いたら、答えのとおりに直す。
 
-   機械の側は**変えない**: 担当の `Stop` フック（`andon task stop-check`）は自分の問いが開いたままなら通す（contract.md §9・decisions.md §16 の Y-132）。dispatcher は `asked` の通知を Chief of Staff へ届ける（経路①②③。人が離席でも③で届くので、範囲の判断は人がいなくても進む）。ゲートは `doing` なので回らない。`kanban done` は問いが開いたままのタスクを拒む（ledger.md）。
-   答えの書き方（Chief of Staff。5）: `deck answer <id>#<n> "<答え>"` → `hc send <agent> "<答え>"`（chief-of-staff skill §4 の「決まったら」と同じ）。**依頼書は書き換えない。問いの答えが依頼書の追記**で、履歴は `questions.yaml`（`answeredBy`）と `log.jsonl`（`by`）に残る。
+   機械の側は**変えない**: 担当の `Stop` フック・dispatcher の `asked` の通知・`kanban done` が、今の形のまま問いの待ちを守る（今の正は [contract.md](../contract.md) §9 と [dispatcher.md](../dispatcher.md)）。人が離席でも通知は Chief of Staff へ届くので、範囲の判断は人がいなくても進む。
+   答えの書き方（Chief of Staff。5）: **依頼書は書き換えない。問いの答えが依頼書の追記**で、履歴は `questions.yaml`（`answeredBy`）と `log.jsonl`（`by`）に残る。手順の今の正は `package/skills/chief-of-staff/playbooks/blocked.md`。
 
    理由: 「止まる」はコスト（担当が待つ・Chief of Staff の turn）なので、止まるのは判断が本当に要るときだけにし、範囲の外の発見は「残して進む」を既定にする。人の問い（1つ頼んで3つ）は (b)——依頼書が場所を指していないので、担当が選ぶことになる——だから止まる。もし依頼書が場所を指していれば止まらない（残して進む）。止まり方を**問い**にするのは、台帳に待ちの印（open）が残り、`stop-check`・`kanban done`・ボード・`kanban questions` がそのまま効くから。
    捨てた案: 報告だけで止まる（待ちの印が台帳に残らず、`kanban done` が守れず、Chief of Staff が見落とす）／`report.json` に `scope_request` を足す（`review_request` と同じ形の二重。dispatcher に新しい段が要る）／担当が Chief of Staff へ `hc send`（通知の係を迂回する。2026-11-03 の失敗〈dispatcher.md §1〉）／見つけたら必ず止まる（コスト。範囲の外は残して進むで足りる）／範囲の外も黙って直す（前提 1）。
 
 4. **2026-11-06 問いの `kind` に `scope`（範囲）を足す（6つ目）。宛先は Chief of Staff で、人を呼ばない。**
-   - `schema/question.schema.json` の `kind` の enum に `scope` を足す（キーを足すのと同じく版は上げない。知らない読み手は「無い」として安全側＝人へ回す）。`andon task ask` も受ける。
-   - 台帳の `kanban ask --kind scope` も受ける（`cmd/kanban` の `questionKinds`。ledger.md の「Added in version 2 (no version change)」に1行）。理由: ボードが「人の判断待ち」を数えるとき `scope` を**除く**ため（灯りではない。「Needs you」に数えない）。contract.md §5 の「5つ目は台帳が受けない」の文は今の `kanban` と合っていない（受ける）ので、実装のタスクで直す。
-   - `from` は `task`（直すタスク）。調べるタスクは問いを出さない（成果が候補の一覧そのもの）。
-   - ask-one-by-one skill §1 に1行足す: `scope` の問いは**まず Chief of Staff が答える**（5 の線）。候補の中に4種・レベル C・委譲の外に当たるものがあれば、その候補についてだけ人の問いにする（`kind` はその種類。`facts` に元の `scope` の問いと `candidates.json`）。`scope` のまま人へ出さない。
+   - 問いの `kind` の enum に `scope` を足し、版は上げない（知らない読み手は「無い」として安全側＝人へ回す）。台帳の `kanban ask --kind scope` も受ける。理由: ボードが「人の判断待ち」を数えるとき `scope` を**除く**ため（灯りではない。「Needs you」に数えない）。今の正は `schema/question.schema.json`・[contract.md](../contract.md) §5・[ledger.md](../ledger.md) の Questions。
+   - 調べるタスクは問いを出さない（成果が候補の一覧そのもの）。
+   - `scope` の問いは**まず Chief of Staff が答える**（5 の線）。候補の中に4種・レベル C・委譲の外に当たるものがあれば、その候補についてだけ人の問いにする。`scope` のまま人へ出さない。今の正は `package/skills/ask-one-by-one/SKILL.md`。
    捨てた案: `kind` 無しで出す（schema で必須。誰宛てか分からない）／既存の5種のどれかを借りる（例 `line`。意味が違い、人へ回る）／Chief of Staff 宛ての別の口（`report.json` の `next[{to: chief-of-staff}]`。待ちの印が残らない。3）。
 
 5. **2026-11-06 Chief of Staff の判断点。範囲の判断は Chief of Staff のもの。委譲に新しい `scope` は足さない。**
 
-   | 候補が | Chief of Staff が自分で決める | 人へ（1問ずつ。ask-one-by-one skill） | Chief Engineer へ |
-   |---|---|---|---|
-   | 場所 | `project.json` の `repos` の中（`andon task start` が確かめるのと同じ線） | 外の repo | — |
-   | レベル | A・B（docs・tests・command。ゲートの条件表 `tier_*_paths` で見る） | C（`**/AGENTS.md`・`.claude/**`・workflows・条件表・image）。ただし委譲の `line-change` が `project`／`plant` なら、案件 repo の指針・観点（`project`）・建屋の設定（`plant`）まで自分で | — |
-   | 種類 | 4種のどれでもない（誤字・壊れたリンク・落ちるテスト・既に決まった形への揃え） | 事業（何を作るか。委譲できない）・利用者（使い勝手の好み）・約束（外向き・公開）・不可逆（消す・本番・push 先・権限・秘密） | — |
-   | 大きさ | 候補の合計が元の依頼の PR に収まる（目安: テストを除いて 500 行未満＝独立レビューの線の中）か、候補ごとに小さい直すタスクに切れる | — | — |
-   | 直し方 | 1つに決まる | — | 構造の違う案が2つ以上ある・外との約束に触る・「何を作るか」に戻る（人に `andon chief-engineer "<題>"` を勧める。chief-of-staff skill の冒頭） |
-
-   - **決め方**: 表の4列が全部「自分で」の候補だけを、推奨案どおりか、違う組み合わせで選ぶ。1つでも「人へ」の候補があれば、その候補だけ人の問いにし（ask-one-by-one skill §3 の人のタスク。`facts` に `scope` の問いと `candidates.json`）、残りは先に答えてよい（担当は答えのとおりに進み、人の分は候補のまま残す）。「Chief Engineer へ」の候補は題として人に勧め、候補のまま残す。
-   - **決めた結果の書き方**（台帳の履歴）: `deck answer <id>#<n>` の文に、候補ごとの行き先を `id` で書く（例「c1・c2 はこの PR で。c3 は別のタスク S-0012（README の英語の段）。c4 は人へ（S-0013 で聞く）」）。別のタスクにしたものは `deck add` し、依頼書の「なぜ」に元のタスクの番号と候補の `id`、`links` に `candidates.json` のパス。捨てたものは答えに理由を1行（例「c5 は起きない: その repo に条件が無い」）。記録はこれで足りる: `questions.yaml`（問い・答え・`answeredBy`）、`log.jsonl`（`by`）、新しいタスクの依頼書、担当の報告。`corrections.json`（design.md §1.9 の (b)）には、人が推奨案と違う答えをしたときだけ、今までどおり dispatcher が `finish` で写す（`scope` の問いを Chief of Staff が答えたものは人の手直しではないので写さない）。
-   - **調べるタスクの候補を切るとき**も同じ表で（問いは無いので答えは書かず、切ったタスクの依頼書と、調べるタスクの `finish` が記録）。切らなかった候補は捨てずに、調べるタスクの報告の `next[]`（`to: task`）に残す（トリアージが拾う）。
+   Chief of Staff は候補ごとに 場所・レベル・種類・大きさ・直し方 を見て、全部が自分で決められる線（`project.json` の `repos` の中・レベル A か B（委譲の `line-change` の中なら C も）・4種のどれでもない・元の PR に収まるか小さく切れる・直し方が1つ）に入る候補だけを自分で決める。外の repo・レベル C・4種に当たる候補だけを人の問いにし、構造の違う案は Chief Engineer の題として人に勧める。調べるタスクの候補を切るときも同じ表で見る。
+   細部（判断の表・決め方・決めた結果の書き方・調べるタスクの候補の切り方）は、今は `package/skills/chief-of-staff/playbooks/blocked.md` の範囲の問いの表と `package/skills/chief-of-staff/playbooks/brief.md` の調べる課題が正。`scope` の問いを Chief of Staff が答えたものを人の手直しの記録に写さないことは、[contract.md](../contract.md) §14 が正（人の手直しではないため）。
    - 委譲（`project.json` の `delegation`）に `scope` を**足さない**。範囲の判断そのものは Chief of Staff の持ち場（ラインを回す判断）で、人が見るのは候補が引き起こす**操作**の種類とレベル——それは既存の `merge`・`line-change`・`irreversible` と4種で決まる。
 
    理由: 前提 4。判断の種類は増やさず、「誰が判断するか」も委譲で変えず、Chief of Staff が今も持つ「タスクの範囲内の許可」の線を「範囲そのもの」に1段広げるだけにした。表の列は、既にある線（`repos`・レベル・4種・独立レビューの大きさ）を並べたもので、新しい基準を作っていない。
@@ -181,78 +133,41 @@
 
 7. **2026-11-06 `task.yaml` の予約キー `deliverable`: `pr`（既定）／`candidates`。書き手は Chief of Staff（`kanban set <id> deliverable=candidates`。依頼書の Settings に `Deliverable:` の行を写す）。**
 
-   | 読み手 | `candidates` のとき |
-   |---|---|
-   | `andon task ready` | `report.json` の `pr` を要らず、代わりに `library/candidates.json` が在って schema に合い（repo があれば）`commit` が `HEAD` と同じことを確かめて `kanban review` |
-   | dispatcher | `review` の通知は届けるが、`andon gate` を回さない（`internal/dispatcher/dispatcher.go` の「レビュアー・Chief Engineer・repo の無いタスクは飛ばす」の並びに足す）。`review_request` があっても起動しない |
-   | `andon gate`（手で打たれたとき） | 回さず「`deliverable: candidates` のタスクにゲートは無い」を1行出して終了コード 3（誤り。記録しない） |
-   | ボード | 型の表示（調べる） |
-   | 担当 | 自分の型を知る（`andon task show` の `settings`） |
-
+   `candidates` のとき、ready は PR の代わりに候補の一覧を確かめ、dispatcher はゲートを回さずレビュアーも起動しない。手で打たれたゲートは回さずに誤りで終わる。
+   細部（読み手ごとの振る舞いの表）は、今は [contract.md](../contract.md) §2 の `deliverable` の行と §4 の `andon issue ready`、[dispatcher.md](../dispatcher.md) の P6a の表が正（照合の読み方は 17 で改めた）。
    - 無い・知らない値は `pr`（今までどおり）。照合はほかの予約キーと同じ（`log.jsonl` で最後に書いたのが Chief of Staff でなければ信じず、`pr` として読む＝安全側）。
-   - `andon task start` は変えない（調べるタスクも worktree と branch を作る。使わないだけ）。`andon task finish` は変えない（PR の無いタスクの片付けは今もできる。commit していない変更があれば止まるのも今までどおり——調べるタスクは commit しないか、しても push しないので、`finish` の前に Chief of Staff が担当に捨てさせるか、`git worktree remove --force` の go を人から取る。報告の `## Next` に「commit は捨ててよい」と書かせる）。
+   - start と finish は変えない（調べるタスクも worktree と branch を作る。使わないだけ）。片付けの手順の今の正は `package/skills/chief-of-staff/playbooks/finish.md`。
 
    理由: 決めたこと 1。値の名前は「成果の形」で、型の名前（調べる）ではなく成果（候補）を指す——Chief Engineer のタスクは `profile` で見分けていて `deliverable` を書かない（文書の PR なので `pr` のまま）。
    捨てた案: `kind: survey`（問いの `kind` と語が重なる）／repo の無さで見分ける（暗黙。コードの調べものに worktree が要る）／`review: off` と `pr` の無さの組み合わせで推す（原則 2: 黙って既定に落とさない）。
 
 8. **2026-11-06 既存の決定との関係と、変える所の一覧（実装のタスクが直す。この文書の PR では変えない）。**
 
-   | 既存 | 関係 | 変える所 |
-   |---|---|---|
-   | design.md §1.3（判断は5種） | 変えない。範囲の判断は灯りではない（4） | §1.3 の表の下に1文「範囲の判断（候補のどれを直すか）は Chief of Staff が持ち、灯りはつかない。ADR-0006」 |
-   | design.md §1.8（役の表。Chief of Staff の「持つ判断」） | 広げる | 「タスクの範囲内の許可・案件側のアウターループ」に「範囲（候補のどれを直すか。委譲と4種の中で）」を足す |
-   | design.md §1.4（ダブルループ） | インナーループの入口に「調べる」が加わる | 図の `B 依頼書` の前に「調べる（候補）」を 1 段。文に1行 |
-   | design.md §4（機械向けの約束の表） | 行を足す | 「候補 `tasks/<id>/library/candidates.json`。書き手 担当。読み手 Chief of Staff・トリアージ・振り返り」 |
-   | design.md §1.10 委譲 | 変えない（5） | — |
-   | contract.md §1・§2・§5・新 §12 | 足す | §1 の木に `candidates.json`、§2 の表に `deliverable`、§5 の `kind` に `scope`（「台帳が受けない」の文を直す）、§12 に候補の形（2 の表と例） |
-   | `schema/` | 足す | `candidates.schema.json`（新）、`question.schema.json`（`scope`）、`task-keys.schema.json`（`deliverable`） |
-   | ledger.md | 1行 | Questions の `kind` に `scope`、「Added in version 2」に1行。`kanban ask --kind scope` |
-   | dispatcher.md §5（P6a の表） | 1行 | `deliverable: candidates` の `review` はゲートを回さず通知だけ |
-   | worker skill | §2 に止まる条件（3）、§5 に `scope` の形、新しい節「調べるタスクのとき」（1）、`## 範囲の問い` の見出し、`andon task candidates` | — |
-   | chief-of-staff skill | §1 に切り方の表と例（6）、§2 に調べるタスクの雛形と `Deliverable:` の行（1・7）、§4 の「`## 人に聞くこと`」の並びに `scope` の答え方（5）、§7 に調べるタスクの finish | — |
-   | ask-one-by-one skill §1 | 1段 | `scope` はまず Chief of Staff（5 の表）。4種に当たる候補だけ人へ |
-   | triage skill | 変えない（候補の残りは報告の `next[]` に乗り、今の `next` として拾われる） | — |
-   | glossary skill | 語を足す | **候補**（candidate）: 調べて見つけた、直すかもしれないが決めていないもの1つ。一覧は `candidates.json`。_避ける_: 指摘（レビュアーの語）・issue。**調べるタスク**（survey）・**直すタスク**（fix）: タスクの型。`deliverable` |
-   | chief-engineer skill | 1行 | 骨格 1「読む」で、事実集めが大きいときは Chief of Staff に調べるタスクを頼んでよい（`next[{to: task}]`。試作の頼み方と同じ） |
-   | `internal/task` | 足す | `candidates` の sub command、`ask` の `scope`、`ready` の `deliverable` |
-   | `internal/dispatcher`・`internal/gate` | 足す | 7 の表 |
-   | `cmd/kanban` | 足す | `--kind scope` |
-   | decisions.md §14 | 1行（この文書の PR で足す） | — |
-   | design.md §1.4（11-07） | 背骨 | インナーループの「実装（担当）」の段に「理解→計画→作業→確認」の1文と横展開の既定（9・11） |
-   | worker skill（11-07） | §2 を工程表に | §2 を 9 の工程表（理解〈横展開 11〉・計画〈`## 計画`〉・作業・確認）に、§7 の報告の書式に `## 計画`・「探した範囲」・`## Remember` の「計画との差」（13） |
-   | chief-of-staff skill（11-07） | 雛形と切り方 | §2 の雛形に `横展開:` の行と欄の読み方（12）、調べるタスクの雛形に `終了条件:`、§1 の切り方の表を 10 の表で |
-   | glossary skill（11-07） | 語を足す | **課題**・**作業**・**横展開**・**完了条件／終了条件**（9・10・11。前提 10） |
-   | この文書の 6 の表（11-07） | 10 で改めた | 1行目「書ける→直す」と3行目「書けないが小さい→依頼書に『止まる』と書く」をやめ、分かれ目を課題の完了条件の種類に |
-   | design.md §1.9（11-07） | 1 文 | 判断の標準の置き場の順（機械が確かめる形 → 文 → 人のレビュー。14）と、決断は人か委譲の中の Chief of Staff |
+   変える所の一覧（design.md・contract.md・`schema/`・ledger.md・dispatcher.md・各 skill・`internal/`・`cmd/kanban` の、どの節に何を足すか）は、実装のタスクが写し終えて役目を終えた。表は整理前の版にある（冒頭の「整理」の行）。今の正は写した先の文書とコードで、決定ごとの行き先は決定の索引の「今の正」の列にある。
 
 9. **2026-11-07 工程の背骨は 理解 → 計画 → 作業 → 確認 → 完成 → 振り返り。どの型のタスクも担当はこの順で進み、3つの型はこの背骨のどこが重いかの違い。「作業の終了条件」と「課題の完了条件」は別のもの。**
 
-   | 工程 | 担当がすること | 出すもの（残るもの） | 調べる | 直す | 決める（Chief Engineer） |
-   |---|---|---|---|---|---|
-   | 理解 | 依頼書の「なぜ」と完了条件から、何が困っていて何が出れば解けたかを自分の言葉で言い直す。未知（分かっていないこと）・既知（依頼書と現地で分かること）・条件（守ること・横展開の範囲）を分ける。現地を読む（grep・テスト・記録）。同じ種類のものがほかに無いか探す（11） | 報告の `## Report` の冒頭 1〜3 行（言い直しと、探した範囲） | 重い（成果） | 軽い〜中 | 重い（人と対話。文書の「問題」） |
-   | 計画 | 課題を作業に分け、作業ごとに終了条件を置く（何をしたら終わりか。中止の条件があればそれも）。作業の列が課題の完了条件（依頼書）に届くかを確かめる。届かない・範囲を決めないと作業が切れない → 止まる（10・3） | 報告の `## 計画`（作業 1 行ずつ。終了条件つき。小さい課題なら 1 行）。止まるときは候補の一覧と `scope` の問い（2・3・4） | 重い（候補の一覧が計画の材料） | 中 | 中（「依頼書に切る案」が計画） |
-   | 作業 | 計画の作業を順に。終了条件を満たしたら次へ | commit | 無し（直さない） | 重い | 試作だけ |
-   | 確認 | 作業の結果を課題の完了条件に当てる。テスト・独立レビュー（Settings）・`tests/public.sh` | テストの結果・レビューの記録 | 候補の `commit` が HEAD と合う（`ready` が見る） | 重い | 受け入れ条件 |
-   | 完成 | 報告と `ready`。何を・どこまで・どう探したか、計画と実際の差 | `report.md`・`report.json`・PR か `candidates.json` | `candidates.json` | PR | 文書の PR |
-   | 振り返り | 次のタスクへの学び（13） | `## Remember`・`For AGENTS.md:` | 同じ | 同じ | 同じ |
+   型ごとの重さ（工程ごとに担当がすること・出すものは、今は担当の skill の工程の表〈`package/skills/worker/SKILL.md` §2〉が正）:
+
+   | 工程 | 調べる | 直す | 決める（Chief Engineer） |
+   |---|---|---|---|
+   | 理解 | 重い（成果） | 軽い〜中 | 重い（人と対話。文書の「問題」） |
+   | 計画 | 重い（候補の一覧が計画の材料） | 中 | 中（「依頼書に切る案」が計画） |
+   | 作業 | 無し（直さない） | 重い | 試作だけ |
+   | 確認 | 候補の `commit` が HEAD と合う（`ready` が見る） | 重い | 受け入れ条件 |
+   | 完成 | `candidates.json` | PR | 文書の PR |
+   | 振り返り | 同じ | 同じ | 同じ |
 
    - **課題の完了条件**（依頼書。Chief of Staff が書く）: 課題が解けたと言える状態（テストが green・この誤りが repo に無い・原因が候補として出ている・動作確認の方法）。担当は書き換えない。
    - **作業の終了条件**（計画。担当が置く）: その作業をいつ終えるか（直した・テストが通った・読む範囲を読み切った・N 件まで）。完了条件が置けない調べものは範囲（読む所）で区切る（前提 9 の「時間で区切る」の Andon 版。担当には時計が無いので範囲で）。
-   - 工程の順は守るが、小さい課題では理解と計画は数行で済む。報告の `## 計画` は作業が 1 つなら 1 行（「作業 1: docs/design.md:42 を直す。終了条件: `tests/public.sh` ok」）。省いてよいのは、依頼書の完了条件がそのまま作業 1 つの終了条件になるとき。
+   - 小さい課題での理解と計画の書き方（`## 計画` が 1 行で済むとき）は、今は担当の skill §2 と §7 の報告の書式が正。
 
    理由: 前提 8・9（「問題の理解が浅い状態で作業をしても良い成果は生まれない」）。11-06 の決めたことは工程の出口（止まる・候補・問い）だけを決め、工程そのもの（担当が理解し計画する）を書いていなかった。背骨を 1 つにして 3 つの型を「重さの違い」に置くと、型ごとに別の手順を覚えなくてよく、skill は 1 つの工程表で済む。「作業の終了条件」と「課題の完了条件」を分けるのは、終了条件は担当が置けて（自分の工程）、完了条件は依頼の側にある（担当が変えない）から。混ぜると「自分の作業が終わった＝課題が解けた」になり、横展開も確認も抜ける。
    捨てた案: 計画を別のファイル（`library/plan.json`）にする（機械が読む判定が無い。報告の節で足りる。薄く）／計画を報告の前に別の command で出させる（turn とコストが増える。止まるときは問いが既にその役）／型ごとに別の工程表（上）。
 
 10. **2026-11-07 担当が主体（3 と 6 の言い直し。3 の止まる条件 (a)〜(e) はそのまま。6 の表の 1 行目と 3 行目を改める）。理解と計画は担当の工程で、依頼書に場所や直し方が無くても、担当が自分で理解し計画して進むのが既定。止まるのは、計画した結果「範囲を決めないと作業が切れない」ときだけ。**
 
-   - 「依頼書に場所・直し方が書けるか」は切り方の分かれ目ではなくなる。分かれ目は**課題の完了条件の種類**だけ:
-
-     | 課題の完了条件が | 切り方 |
-     |---|---|
-     | 「直っている・動く・無い」（状態） | **直すタスク 1 つ**。場所も直し方も担当が理解と計画で決める。見つかったものが範囲（11）の中なら直し、外なら候補、範囲を決めないと作業が切れなければ止まる（3） |
-     | 「分かる・候補が出る・測れる」（知ること自体が成果） | **調べるタスク**（1）→ Chief of Staff が切る（5）→ 直すタスク |
-     | 判断（構造の違う案・外との約束・何を作るか） | **Chief Engineer** |
-
+   - 「依頼書に場所・直し方が書けるか」は切り方の分かれ目ではなくなる。分かれ目は**課題の完了条件の種類**だけ: 状態（直っている・動く・無い）なら**直すタスク 1 つ**で、場所も直し方も担当が理解と計画で決める。知ること自体が成果（分かる・候補が出る・測れる）なら**調べるタスク**（1）→ Chief of Staff が切る（5）→ 直すタスク。判断（構造の違う案・外との約束・何を作るか）なら **Chief Engineer**。切り方の表の今の正は `package/skills/chief-of-staff/playbooks/cut.md` の「切り方」。
    - Chief of Staff が「調べる」を別のタスクに切るのは、**知ること自体が課題の完了条件のとき**だけ。「直してほしいが場所が分からない」は直すタスク（担当が理解する）。人が「直す前に全体の候補を見て決めたい」と言ったときは、完了条件が「候補が出る」になったので調べる。
    - 担当は依頼書に無い手順を自分で決めてよい。止まるのは、既定（11 の範囲と 5 の表）の外に出るときだけ。
    - 6 の例の読み直し: 1（誤字を 1 つ）は 11 で止まらない例になる（同じ種類で小さければ 3 つとも直して報告。種類や直し方が違えば止まる）。2〜5 はそのまま。
@@ -262,13 +177,8 @@
 
 11. **2026-11-07 横展開（同じ種類のものをほかにも探す）は直すタスクの既定。理解の工程で探し、範囲の中なら直し、外なら候補に残す。報告に「何を・どこまで・どう探したか」を書く。**
 
-   - **探す**: 指された 1 か所と同じ種類（同じ誤字・同じ壊れ方のリンク・同じ原因で落ちるテスト・同じ古い名前）を範囲の中で探す。手は現地に合わせる（`grep`・テスト・リンクの検査）。探した手を報告に残す（command 1 行）。
-   - **範囲（横展開の目安）**: 依頼書の `横展開:` の行（12）。無ければ既定——同じ repo の中・同じ種類・同じ直し方・「守ること」の場所を除く・合計が独立レビューの線（テストを除き 500 行未満）に収まる。
-   - **範囲の中**: 直す（止まらない）。3 の「止まらない条件」の「指すものを直し、見つけたものは候補」を「**範囲の中は直し、範囲の外は候補**」に改める。
-   - **範囲の外**: `candidates.json` に `in_scope: false` で残し、報告の `next[]`（`to: task`）に 1 行（3 のまま）。
-   - **止まる**: 見つけたものの種類や直し方が違って「どれを直すか」を選ぶ必要がある・範囲に収まらない・既定が効かない（依頼書が「指された箇所だけ」と書いたのに同じ誤りが多い、など）→ 3 の (b)〜(d)。
-   - **報告**: `## Report` の冒頭に「探した範囲: <何を・どこまで・どう（command）>。見つけた N 件のうち直した M 件、候補 K 件」。横展開で直した分は差分の要約に場所を列挙。
-   - 書く所: worker skill §2（理解の工程として）と §7（報告の書式）、chief-of-staff skill §2（`横展開:` の行と既定の説明）、design.md §1.4（インナーループの「実装（担当）」に 1 文）。
+   - 探し方・既定の範囲・範囲の中と外の扱い・止まるとき・報告の書き方は、今は担当の skill §2 の横展開と §7 の報告の書式（`package/skills/worker/SKILL.md`）、依頼書の `横展開:` の欄（`package/skills/chief-of-staff/playbooks/brief.md`）が正。
+   - 3 の「止まらない条件」の「指すものを直し、見つけたものは候補」を「**範囲の中は直し、範囲の外は候補**」に改める。
    - 調べるタスクでは横展開が仕事そのもの（範囲は依頼書の `範囲:`）。Chief Engineer の文書には当てない。
 
    理由: 前提 8（「ほかにも無いかを確かめることは重要」）。TPS の横展（design.md §1.7 の方針の語）を担当の工程に下ろしたもの。11-06 の 3 は「範囲の外は残して進む」で、探すことを求めていなかった。既定の範囲を置くことで、人の 11-06 の問い（1 つ頼んで 3 つ）は「3 つが同じ種類で小さければ直して報告（止まらない。人も Chief of Staff も turn ゼロ）、種類や直し方が違えば止まる」になる。
@@ -290,8 +200,7 @@
      | Settings | profile・Review・Deliverable | Who |
 
    - `When` は無い（Andon に期限は無い。終了条件は担当が置く）。
-   - 調べるタスクの雛形（1）には `終了条件:` を 1 行足す（「範囲を読み切ったら終える。候補 0 でも」）。
-   - 「やること」に手順（どのファイルをどう直すか、の列）を書いていたら、担当の計画を Chief of Staff が代わりにしている印。手がかりに縮めるか、場所が 1 つに決まっているなら完了条件に状態として書く（「docs/design.md:42 の『建家』が『建屋』になっている」）。
+   - 今の雛形と欄の読み方（調べるタスクの雛形の `終了条件:`、手順を書いてしまったときの直し方を含む）は、`package/skills/chief-of-staff/playbooks/brief.md` が正。「やること」に手順を書いていたら、担当の計画を Chief of Staff が代わりにしている印。
 
    理由: 前提 8（「Chief of Staff が切るときにも意識すべき」）・9（5W1H。他人に頼めない作業は完成の定義が曖昧な作業）。完了条件が状態で書けていれば担当は理解と計画ができる。手順まで書くと、現地で前提が崩れたときに担当が手順と現地のどちらに従うか分からなくなる（11-06 の問題そのもの）。
    捨てた案: 雛形を 5W1H の欄に作り直す（今の欄で足りる。欄を変えると既存の依頼書と skill のテストが全部変わる）／`横展開:` を Settings（`task.yaml` の予約キー）にする（機械が読まない。人と担当が読む文）。
@@ -324,7 +233,7 @@
 
 16. **2026-11-07 台帳のカードの語の向きは「課題（issue）」（人の答え。開いている問い 2）。この文書では識別子も glossary も変えない。改名は別の ADR。** 人の理由: タスク（task）の主は How だが、解消したいのは Why／What で、それを言葉にすれば issue。→ この文書の語（課題＝台帳のカード、作業＝担当が計画で切る単位。前提 10）はその向きに合わせてある。次の ADR で見るもの: `task` の識別子（`kanban/tasks/`・`andon task`・`task.yaml`・schema の `$id`）、glossary の「避ける: チケット・issue」、外部トラッカー（規約 7）の Issue との混同、依頼書の欄の名前（「やること」が How に寄っていないか。12）。
 
-17. **2026-11-19 `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む（7 の「照合が合わなければ `pr` として読む」を改める）。** `andon issue ready` と dispatcher は値だけを見る。ready は `pr` とレビューを要らず、`candidates.json` を確かめて `kanban review` する。dispatcher はゲートを回さず、`review_request` があってもレビュアーを起動しない。返ったことは今までどおり通知 `report` で Chief of Staff に届く。`andon gate` を手で打てば今までどおり回さずに終了コード 3 で、照合が外れていればそのことを理由の1行に書く。
+17. **2026-11-19 `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む（7 の「照合が合わなければ `pr` として読む」を改める）。** `andon issue ready` と dispatcher は値だけを見る。それぞれの振る舞い（ready が求めるもの・dispatcher が飛ばすもの・手で打ったゲートの終わり方）の今の正は、[contract.md](../contract.md) §2 の `deliverable` の行と §4 の `andon issue ready`、[dispatcher.md](../dispatcher.md) の P6a の表。
 
    理由: Chief of Staff が起き直すとアドレスが変わり、予約キーを書き直すまで照合が外れる。その間 `pr` として読むと、`review` の調べる課題にはゲートが「report.json に pr が無い」の fix を担当に送り、`doing` なら ready が PR を求めて断る。担当は出すはずのない PR を求められる（2026-11-19 に状態の図と本物のコードの再現で確かめた）。照合が守るのはマージで、`candidates` はマージに進まない側（ゲートを回さない・マージしない・Chief of Staff が読む）にある。だから照合が外れても `candidates` として読んで安全側を保てる。PR の課題に担当が自分で `candidates` を書いても、自動のマージから外れて Chief of Staff が読むだけになる。
    捨てた案: 照合が外れたらゲートが `needs_human` を返す（dispatcher がゲートを回すので Chief of Staff に問いが立ち、書き直したあとも問いを閉じる手間が残る。ready は止まったまま）／前の Chief of Staff のアドレスも信じる（アドレスの履歴を持つ所が無い）。
