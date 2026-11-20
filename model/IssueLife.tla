@@ -86,6 +86,16 @@ WorkerPushes ==
     /\ result' = IF result = "none" THEN "none" ELSE "old"
     /\ UNCHANGED <<status, worker, wt, pr, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
+\* 担当が PR の branch を衝突の無い rebase で既定の branch の先へ載せ直し、push した（worker skill §7。Chief of Staff に rebase を頼まれた）。
+\* head は新しくなるが PR の差分（patch-id）は変わらないので、照合はそれまでのレビューを新しい head に引き継ぐ
+\* （internal/ledger/review.go CheckReview・SamePatch）。動いているレビュアーの結果も、返れば引き継ぐ。review-request は
+\* 引き継いだレビューがあると断る（internal/issue/issue.go rounds）。走り直すのは CI だけ。
+\* 衝突を解いて差分が変わった rebase は WorkerPushes と同じ（レビューは古くなる）。担当に直すことがあるときに限らない
+WorkerRebasesSamePatch ==
+    /\ status = "doing" /\ worker = "live" /\ pr = "open"
+    /\ ci' = "running"
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
+
 \* andon issue review-request（internal/issue/issue.go reviewRequest）→ dispatcher がレビュアーを起こす（internal/dispatcher/loop.go reviewRequest）。
 \* review-request は CI を読まない（PR を出したらすぐ頼める）。断るのは internal/issue/issue.go rounds の 2 つ:
 \*   その課題のレビュアーが動いている間（見ている commit に関わらず。ADR-0032 決めたこと 8）・head のレビューの結果がもうある
@@ -267,7 +277,7 @@ Done ==
 
 Next ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
-    \/ CIFinishes \/ WorkerPushes
+    \/ CIFinishes \/ WorkerPushes \/ WorkerRebasesSamePatch
     \/ ReviewerStarts \/ ReviewerReturns \/ WorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges

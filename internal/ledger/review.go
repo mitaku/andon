@@ -1,7 +1,9 @@
 package ledger
 
 import (
+	"bytes"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -21,6 +23,8 @@ type Review struct {
 
 // CheckReview は、課題 t の最新のレビュアーの findings.json が head を指すかを確かめ、
 // must_fix 以上で waived に無い指摘を数える。must_fix が空なら数えない（読み手が安全側に倒す）。
+// findings.json の commit が head と違っても、PR の差分が同じ（SamePatch。衝突の無い rebase で head だけが変わった）なら
+// そのレビューを head に引き継いで current にする（decisions/2026-11-20-review-carry-same-patch.md）。Commit は見た commit のまま。
 // 数えない指摘が2つある（decisions/2026-11-09-review-preexisting.md・2026-11-09-review-later-rounds.md）:
 //   - preexisting: true の指摘。ただし added（PR の差分で足した行。file → 行）に当たる場所なら数える
 //     （課題で足した行が課題の前からあったはずはない。申告でゲートを緩めない）。added が nil なら場所を確かめない（担当の command の下見）。
@@ -42,7 +46,7 @@ func (l *Ledger) CheckReview(rows []Row, tasks []Issue, t Issue, head, mustFix s
 		return r
 	}
 	r.Issue, r.Commit = reviewer, f.Commit
-	if f.Commit != head {
+	if f.Commit != head && !SamePatch(t.Path("worktree"), f.Commit, head) {
 		r.State = "stale"
 		r.Reason = fmt.Sprintf("レビュー %s は commit %s を見た（head は %s）。頼み直す", reviewer, short(f.Commit), short(head))
 		return r
@@ -87,6 +91,48 @@ func (l *Ledger) previousFiles(earlier []string, commit string) map[string]bool 
 		return files
 	}
 	return nil
+}
+
+// SamePatch は、課題の worktree dir の git で、commit a と b の PR の差分の patch-id（git patch-id --stable）が同じか。
+// PR の差分は、その commit と origin/HEAD（既定の branch）の merge-base から commit までの diff とする。
+// 衝突の無い rebase は base だけを替えるので、差分は同じで patch-id も同じになる。衝突を解いて差分が変わった rebase は違う。
+// worktree が無い・commit が無い・origin/HEAD が引けない・差分が空のときは同じと言わない（引き継がずに頼み直す側に倒す）。
+func SamePatch(dir, a, b string) bool {
+	if dir == "" || a == "" || b == "" {
+		return false
+	}
+	pa, ok := patchID(dir, a)
+	if !ok {
+		return false
+	}
+	pb, ok := patchID(dir, b)
+	return ok && pa == pb
+}
+
+// patchID は commit の PR の差分の patch-id。差分はバイナリの中身も含める（--binary。含めないと中身の違うバイナリが同じに見える）。
+func patchID(dir, commit string) (string, bool) {
+	git := func(stdin []byte, args ...string) ([]byte, bool) {
+		c := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if stdin != nil {
+			c.Stdin = bytes.NewReader(stdin)
+		}
+		out, err := c.Output()
+		return out, err == nil
+	}
+	base, ok := git(nil, "merge-base", commit+"^{commit}", "refs/remotes/origin/HEAD")
+	if !ok {
+		return "", false
+	}
+	diff, ok := git(nil, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--binary", "--full-index", strings.TrimSpace(string(base)), commit)
+	if !ok || len(bytes.TrimSpace(diff)) == 0 {
+		return "", false
+	}
+	out, ok := git(diff, "patch-id", "--stable")
+	f := strings.Fields(string(out))
+	if !ok || len(f) == 0 {
+		return "", false
+	}
+	return f[0], true
 }
 
 func isWaived(x contract.Finding, waived []contract.Waived) bool {

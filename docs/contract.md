@@ -128,13 +128,14 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 | キー | 値 | 意味 |
 |---|---|---|
-| `commit` | 40桁・小文字 | 見た commit。PR の head と違えば stale |
+| `commit` | 40桁・小文字 | 見た commit。PR の head と違えば stale（PR の差分が同じなら引き継ぐ。下） |
 | `findings[].severity` | `critical` / `major` / `minor` / `trivial` | 重さ。起きる条件を具体的に示せないものは `trivial` |
 | `findings[].file` | repo からの相対パス（空でなく、制御文字・改行が無く、`/` で始まらず、`..` の段を含まない） | — |
 | `findings[].line` | 1 以上の整数 | — |
 | `findings[].preexisting` | 真偽（任意。無ければ `false`） | 課題の前からあった問題（差分の外の古い問題）。ゲートは `must_fix` に数えない。ただし `file`・`line` が PR の差分で足した行なら数える（[decisions/2026-11-09-review-preexisting.md](decisions/2026-11-09-review-preexisting.md)） |
 
 - 無い・JSON でない・形が違う → missing。`commit` 違い → stale。報告の Markdown は読まない。
+- `commit` が head と違っても、PR の差分が同じなら current として head に引き継ぐ。PR の差分は、その commit と `origin/HEAD` の merge-base から commit までの diff で、`git patch-id --stable` が同じなら同じとする（衝突の無い rebase で head だけが変わった。git は課題の worktree で打つ）。worktree・commit・`origin/HEAD` が無いときは引き継がない。`andon issue review-request` は、引き継いだレビューがあれば頼まない（[decisions/2026-11-20-review-carry-same-patch.md](decisions/2026-11-20-review-carry-same-patch.md)）。
 - 書き手はレビュアー。読み手: ゲート（`must_fix` 以上の件数）・担当（振り分け。`must_fix` 以上を直し、未満は `report.json` の `waived` に理由つきで残す。`preexisting: true` は振り分けない）・振り返り（繰り返し出た指摘を観点へ）。
 - ゲートが `must_fix` に数えないもの（どちらも機械が記録から決める。申告でゲートを緩めない）:
   - `preexisting: true` の指摘（場所が PR の差分で足した行なら数える）。
@@ -341,7 +342,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 ```
 
 - `at` は ゲートが PR の head の GitHub の checks を読んだ時刻（`github_checks` はそのとき読んだもの）。ゲートを始めた時刻ではない（条件表の `check` を回すあいだに checks が変わっても、記録は読んだ時刻と中身で揃う）。
-- キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`）/ `stale`（違う）/ `missing`（無い・読めない）/ `off`（課題の `review: off`）。`current`・`stale` では `issue` と `commit` が必須、`missing`・`off` では2つとも書かない。`delegation.merge` は委譲が無ければ `none`。
+- キーは全部必須。`review.state` は `current`（`findings.json` の `commit` が `head`、または PR の差分が同じ。§3）/ `stale`（違う）/ `missing`（無い・読めない）/ `off`（課題の `review: off`）。`current`・`stale` では `issue` と `commit` が必須、`missing`・`off` では2つとも書かない。`delegation.merge` は委譲が無ければ `none`。
 - `decision` と `reasons[]` は決定式（純粋関数）の出力そのまま。PR のコメントと commit status（`andon/gate`）の説明文は、記録から作った**外の人が読む文**で、記録の文をそのまま写さない（記録の正は台帳の側。[ADR-0026](adr/0026-pr-rules-for-outside-readers.md) 決めたこと 9）。内輪の語（`needs_human`・`tier`・`delegation`・`report.json`・`issue.yaml`・条件表）を使わない。
   - 頭は必ず `andon gate: `（dispatcher がこの頭でゲートのコメントを見分け、人の手直しから除く。§14）。続けて判定ごとの見出し: `approve` は「確かめが通った変更です」、`fix` は「作った側が直してから出し直す変更です」、`needs_human` は「人の判断が要る変更です」。commit status の説明文は、`approve` 以外では見出しに変更の区分を括弧で足す（例「andon gate: 人の判断が要る変更です（人が見る変更）」）。
   - コメントの本文は、見出しと commit のあとに、理由（`reasons[]` を1件ずつ外向けの文に直したもの）・変更の区分（`tier` の A／B／C を「自動の確かめだけで足りる変更」「レビューが要る変更」「人が見る変更」に、`tier_reasons[]` を外向けの文に直したもの）と変更の行数・検査ごとの結果・CI（`github_checks`）・レビュー・自動でマージしてよい範囲の中か外か。
