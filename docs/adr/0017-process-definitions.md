@@ -4,6 +4,7 @@
 - 主題: Chief of Staff の定常の仕事（ワークストリーム）と、もの（課題・担当・通知・レビュアーの起動・人のマージ・外のお知らせ）の状態の移り方を、人と機械が読める定義として1か所に書くこと。その定義から「機械がやる手順」を独立したコマンドに出し、dispatcher に残すのを「定義に沿っていつ起動するか」と「通知を配る」だけにすること。
 - 語は glossary skill と [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（定義のファイルと schema・出すコマンド・記録ファイルの分け方）は「決めたこと」に形を書き、実装の課題が写す（それまでは提案）。
 - 入力: 指示文 P11（オーナー。2026-11-10。セルの `files/p11-process-definitions.md`。repo の外）、オーナーの言葉（2026-11-10。「問題」の段に写し）、[dispatcher.md](../dispatcher.md) §2.1.1・§2.2〜§2.8・§3.2・§5・§7、[contract.md](../contract.md) §2・§6・§7・§15、[ledger.md](../ledger.md)（Status rules・Routines・Questions）、chief-of-staff skill §0〜§10、worker skill §2・§5・§7、[ADR-0007](0007-interim-gap-inventory.md)（C1 `kanban tick`・A5〜A7・G4）、[ADR-0010](0010-news-ack.md)（届ける／記録だけ）、[ADR-0011](0011-signals-and-value-loop.md)（外のお知らせ。決めたこと 5・6・8・16、S2・S3、Factory の常駐を外した理由）、[ADR-0013](0013-short-role-names-and-plain-japanese.md)（人に向けた言葉）、[ADR-0014](0014-issue-estimate.md)（見込みとズレ）、`internal/dispatcher/`（state.go・loop.go・pickup.go ほか。v0.0.8 相当の main `98383a6`）、台帳（A-0026 S3 は `after: A-0085` で止めてある。dispatcher を触る課題 A-0036・A-0039・A-0040・A-0062・A-0063・A-0066・A-0067・A-0070・A-0071）、[ADR-0012](0012-resume-and-worktree-home.md)（resume の R3・R4）。
+- 整理（2026-11-20。[ADR-0033](0033-adr-inventory-and-slimming.md) 決めたこと 1・2）: 「決めたこと」のうち、実装が済んだ決定の細部（表・YAML の例・項目の一覧）を、今の正の場所への参照に替えた。決定の文・理由・捨てた案は残した。実装が済んでいない決定（6・7・12 など）は触っていない。整理前の全文は commit 7af76509434c85d305addc6b01965adef23ba315 の版にある（`git show 7af7650:docs/adr/0017-process-definitions.md`）。
 
 ## 決定の索引
 
@@ -64,14 +65,15 @@
    理由: きっかけが 1 本 1 種類（人の依頼・外のお知らせと間隔・通知・間隔・報告と合否・問い・見る日・終わりと週 1）になり、改善のとき指しやすい。今の skill との対応: 受付と起動＝§1〜§3、取り次ぎ＝§4・§8、見守り＝§5、受け取り＝§6・§7、仕分け＝§10、ふりかえり＝§11 と finish の時、結果を見る＝ADR-0011 の観察の課題。
    捨てた案: 6 本にまとめる（受付＋起動、受け取り＋取り次ぎ。ファイルは減るが、きっかけが混ざる）／日本語の名だけ（開発の用語〈intake・triage・retrospective〉と揃わない。オーナーが変えた）。
 4. **2026-11-11 ものの一生（ステートマシン）は 8 本。記録ファイルの 19 項目はどれか 1 本の状態か「拾う位置」に対応し、対応表を定義の中に持つ。**（Chief of Staff が選んだ。指示文の「まず課題と担当」＋手順 2 の 4 本を広げた）
-   (1) 課題: 台帳のステータスと問いは [ledger.md](../ledger.md) を指すだけ。Andon が足すのは「課題の型と工程」の層（`deliverable`・レビュー依頼・ready・ゲート・片付け）。
-   (2) 担当の端末: hc の状態（`idle`・`working`・`blocked`・`error`・`done`・無い）の上に dispatcher が置く判定（最初のメッセージ未達・「続けて」N 回・stalled・見込みの段〈ADR-0014〉・Gone を見た時刻〈ADR-0014 E3〉・resume した〈ADR-0012 R4〉）。記録の `Sent`・`Retry`・`First`（P2b で 1 つの map に畳む）。
-   (3) 通知の配達: 待ち → 渡した（経路①②③）→ 確かめた（ack）。記録の `Pending`・`Coord`・`NewsTurn`・`Hook`・`Replied`・`Unrecorded`。
-   (4) レビュアーの起動: 無し → 起動中（worktree → 子課題 → 端末 → 最初のメッセージ）→ 起動した／見送った（理由つき）／失敗 N 回／上限で別ブランドに替えて起動し直す（`fallback.go`）。記録の `Reviewers`（`Started`・`Skipped`・`Failed`・`Attempts`・`OverLimit` を状態に畳む）。
-   (5) ゲートとマージ: `review` の行ごとに 待つ → approve／fix／needs_human → マージした → 片付けた（approve のまま 10 分止まった、を含む）。記録の `Gates`・`Approved`（決めたこと 6 の (2) の記録へ）。
-   (6) 人のマージの見張り: 見ている（1 分に 1 回）→ MERGED／CLOSED → 片付けた／片付けられない（理由。同じ理由は 1 回）。記録の `Watch`。
-   (7) 片付けのあとの仕事（影響と手直し。同じ形）: 待ち → 打ち直し N → 済み／諦めた（通知）。記録の `Impact`・`Corrections`。
-   (8) 外のお知らせ: ADR-0011 決めたこと 8・16（`active`・`episodes`・`delivered_episode`）を形にするだけ。記録は `<slug>.signals.json`（`internal/signal` の構造体のうちこの 3 つが状態。残りは出所のデータと位置）。
+   (1) 課題: 台帳のステータスと問いは [ledger.md](../ledger.md) を指すだけ。Andon が足すのは「課題の型と工程」の層。
+   (2) 担当の端末: hc の状態の上に dispatcher が置く判定。記録の `Sent`・`Retry`・`First` を 1 つの map に畳む。
+   (3) 通知の配達。
+   (4) レビュアーの起動。
+   (5) ゲートとマージ（記録は決めたこと 6 の (2) の記録へ）。
+   (6) 人のマージの見張り。
+   (7) 片付けのあとの仕事（影響と手直し。同じ形）。
+   (8) 外のお知らせ: ADR-0011 決めたこと 8・16（`active`・`episodes`・`delivered_episode`）を形にするだけ。
+   細部（1 本ごとの状態の並びと移り方、状態ごとの記録の項目）は、今は `process/states/` の YAML が正（(1) `issue.yaml`・(2) `worker.yaml`・(3) `delivery.yaml`・(4) `reviewer.yaml`・(5) `gate.yaml`・(6) `human-merge.yaml`・(7) `aftermath.yaml`・(8) `signal.yaml`）。人が読む写しは `docs/process/<名>.md`、記録との対応の決まりは [docs/process/README.md](../process/README.md) の「記録との対応」。定義は、のちに `estimate.yaml` と `memory.yaml` を足して 10 本になった。
    理由: `<slug>.json` の項目は (2)〜(7) のどれか 1 本の状態か「拾う位置」（`LogPos`・`LogHead`・`LogHold`・`Ready`。状態ではないので配達の記録の側に置く）に対応し、1 本も残さなければ「記録の項目がどの状態か」を全部指せる。(1) と (8) は `<slug>.json` に項目を持たない。
    捨てた案: 指示文の 4 本（レビュアー・配達・人のマージ・外のお知らせ）＋課題と担当だけ（ゲートと片付けのあとの項目に対応が無いまま残る）。
 5. **2026-11-11 記録ファイルを分ける。コマンドに出す仕事はそれぞれ自分の記録を、同じ置き場（`~/.local/state/andon/dispatcher/`）に別ファイルで持つ（書き手はそのコマンドだけ）。dispatcher の `<slug>.json` に残すのは配達の項目（`Pending`・`Coord`・`NewsTurn`・`Hook`・`Replied`・`Unrecorded`）と拾う位置（`LogPos`・`LogHead`・`LogHold`・`Ready`）、担当の端末の判定（`Sent`・`Retry`・`First` と ADR-0014 E3・ADR-0012 R4 の控えを 1 つの map に畳む）、留守の始まり（決めたこと 8）だけ。**（Chief of Staff が選んだ）
@@ -92,7 +94,8 @@
 9. **2026-11-11 見守りの段は ADR-0014 のまま（見込みの 1・2・4 倍で Chief of Staff にだけ届ける。担当には送らない・止めない。一律の上限とコストは取らない）。見守りのワークストリーム定義は ADR-0014 を指す。途中報告を書かせる・分ける・起動し直す・延長する、は届いた Chief of Staff が決めて `hc send` する（定義の「自分で決めてよいこと」の欄）。夜間のターン数・コストの上限は取らない。**（指示文の表〈1.5 倍で担当に途中報告・2 倍で窓口が決める・夜間は上限〉と違う。Chief of Staff が選んだ）
    理由: 同日のオーナーの決定（ADR-0014）を覆さない。指示文の表の「対応」は Chief of Staff が選べる手として定義に残る。
    捨てた案: 指示文の表で ADR-0014 決めたこと 6・7 を改める（オーナーが朝に決めるなら、ADR-0014 に下から足す）。
-10. **2026-11-11 担当の計画は `report.json` の `plan[]`（1 件 `id`・`text`・`done`）。`andon issue report --data` で書き、`pr` と同じく次の報告に引き継ぐ（引き継ぎの形は ADR-0014 E4〈A-0063〉が `estimate` で入れるものに合わせる。P4 は A-0063 のあと）。進み具合は `done` の数。見守りの「見るもの」に入れる。schema にキーを足すだけで版は上げない。**（約束の変更。Chief of Staff が選んだ）
+10. **2026-11-11 担当の計画は `report.json` の `plan[]`。`pr` と同じく次の報告に引き継ぐ。進み具合は `done` の数。見守りの「見るもの」に入れる。schema にキーを足すだけで版は上げない。**（約束の変更。Chief of Staff が選んだ）
+   細部（1 件のキー・書く口・引き継ぎの形）は、今は `schema/report.schema.json` と [contract.md](../contract.md) §4 の `plan[]` の行が正。
    理由: 今の計画は報告の Markdown の `## 計画` だけで機械が読めない。`issue.yaml` の予約キーは Chief of Staff しか書けない。担当が機械向けに書ける口は `report.json` だけ。今引き継いでいるのは `pr` だけで、`estimate` の欄と引き継ぎは A-0063 が入れる（反論 D1）。
    捨てた案: `library/plan.json` を別に置く（置き場と schema が 1 つ増える）／機械が読む計画を足さない（見守りは時間だけで見る）。
 11. **2026-11-11 詰まりの兆しは、この題では (a) commit が無い時間と (b) 変更の量の 2 つを数える。値は (a) 見込みの分だけ commit が無い（小 30・中 60・大 120 分）、(b) テストを除いた変更が 500 行超（横展開の既定の上限と同じ）。どちらも ADR-0014 の `estimate` の通知（段 1・2・4 倍を越えたとき）に `detail.sign` として乗せ、段の間では出さない（遅れてよい。新しい kind も別の通知も足さない）。見込みの無い課題は数えない（ADR-0014 決めたこと 8 のとおり通知が無い）。指揮側の worktree の git で数える。「テスト」の線はパスの規則（仮: `tests/` と `*_test.*`。P5 で決める）。**（Chief of Staff が選んだ。値は仮で、measure の外れ方を見てから直す）
@@ -111,32 +114,12 @@
    理由: ledger.md は「誰が何を変えてよいかは形式の外。セルの skill が決める」と書く。`andon issue start`（`todo` だけ）・`finish`（開いた問いで止まる）はもう一部を断っている。台帳の形式を変えず、断る場所が Andon の約束の層に揃う。
    捨てた案: `kanban` にも移り方の表を持たせて断る（台帳の形式が変わり、人が手で直す道も狭まる）。
 16. **2026-11-11 定義の書き方（指示文の推奨に、オーナーが 2026-11-11 に `steps[]`〈Step と Input／Output〉を足した。Chief Engineer が形にし、揃えるのは P1・P3 の PR）。**
-   - 1 本のワークストリーム（`process/workstreams/<名>.yaml`）の項目: `name`（英字の識別子）・`title`（人が読む名）・`purpose`（目的）・`triggers[]`（きっかけ。`kind`: `person`／`notification`／`interval`／`date`／`event`、`notification` は通知の `kind`、`interval` は `every`〈分〉か `project.json` のキーの名）・`steps[]`（手順。BPM の本体。1 件: `id`・`title`・`by`〈`machine`／`ai`／`person`〉・`input[]`〈入るもの。台帳のキー・記録・通知・コマンドの出力・人の言葉〉・`output[]`〈出るもの。台帳・記録・通知・wiki・`hc send`〉・`next[]`〈続く step の `id`。分かれ道は `when` つき〉。`by: machine` の step だけ `command`・`record`〈自分の記録ファイル〉・`once`〈2 回起きてはいけないか〉を持つ。`by: ai` の step は `skill`〈使う SKILL の節。`chief-of-staff#5` の形〉と `decides[]`〈自分で決めてよいこと〉・`asks[]`〈人に聞くこと。灯りの種類つき〉を持つ）・`counts[]`（数えるもの。measure のキー）。`triggers[]` の 1 件は `start`〈最初の step の `id`〉を持つ。`reads[]`・`leaves[]`・`tasks[]` は持たない: 見るものは step の `input` の和、残すものは `output` の和、機械のタスクは `by: machine` の step で、render がその一覧を作る（同じことを 2 か所に書かない）。schema で必須なのは `name`・`title`・`purpose` だけ（残り 6 本はこの 3 つだけのファイル）。中身のある 2 本が項目を全部持ち、`next[]` と `start` の `id` が `steps[]` に在ることは `tests/process.sh` が見る。
-   - 形の例（見守りの先頭。揃えるのは P3）:
-     ```yaml
-     name: watch
-     title: 見守り（Watch）
-     purpose: 担当の進みを見て、ズレたときだけ CoS が手を打つ
-     triggers:
-       - name: estimate
-         kind: notification
-         notification: estimate
-         start: read
-     steps:
-       - id: read
-         title: 通知と計画を読む
-         by: ai
-         input: [notification.estimate, report.plan, hc.state]
-         output: []
-         skill: chief-of-staff#5
-         decides: [途中報告を書かせる, 分ける, 起動し直す, 延長する]
-         next: [{ id: act, when: 手を打つ }, { id: done, when: 見るだけ }]
-     ```
-   - 1 本のステートマシン（`process/states/<名>.yaml`）の項目: `name`・`title`・`source`（定義の出所。ledger.md・ADR の番号）・`states[]`（`id`・`title`・`record`〈記録ファイルと項目。例 `dispatcher:Pending`・`reviewers:Started`〉）・`positions[]`（状態でない項目。拾う位置とデータ。例 `dispatcher:LogPos`）・`transitions[]`（`from`・`to`・`on`〈何が起きたら〉・`by`〈`machine`／`ai`／`person`／`deck`〉・`command`〈打つコマンド。任意〉・`once`〈2 回起きてはいけないか。dispatcher.md §7 の表はここから導く〉）。
-   - 機械が読むのは YAML だけ（schema は `schema/process/workstream.schema.json`・`state.schema.json`。未知のキーは弾く）。コメントは短い補足だけで、決めた理由は ADR に書く。
-   - 人が読む Markdown（`docs/process/<名>.md`）は `andon process render` が YAML から作る（表と Mermaid の図）。テストは作り直して差分が無いことを見る。機械は生成物を読まない。
-   - Mermaid で BPMN の形をまねる（本物の BPMN の XML は使わない）: 出来事（始まり・終わり・通知）は `((…))`、やることは `(…)` で、やる者の種類で色を分ける（機械＝dispatcher・ゲート・コマンド／AI＝CoS・CE・担当／人）、分かれ道は `{…}`、誰がやるかは subgraph の帯、作業の途中で時間が来たら別の道へ（BPMN の境界タイマー）は点線の矢印に「⏱ 見込みの 2 倍」のように書く。`steps[]` の 1 件が図の 1 つのノードで、`input`・`output` は帯の間の矢印の文字、`next[].when` は分かれ道の枝の文字。ステートマシンは `stateDiagram-v2`。
+   - 1 本のワークストリーム（`process/workstreams/<名>.yaml`）は、きっかけ（`triggers[]`）と手順（`steps[]`。BPM の本体で、1 件に Step・やる者の種類・Input／Output・続く step を持つ）と数えるもの（`counts[]`）で書く。`reads[]`・`leaves[]`・`tasks[]` は持たない: 見るもの・残すもの・機械のタスクの一覧は step から render が作る（同じことを 2 か所に書かない）。
+   - 1 本のステートマシン（`process/states/<名>.yaml`）は、状態（記録の項目つき）・状態でない項目（`positions[]`）・移り方（何が起きたら・誰が・2 回起きてはいけないか）で書く。`once` の移り方が dispatcher.md §7 の表の元になる。
+   - 機械が読むのは YAML だけで、決めた理由は ADR に書く。人が読む Markdown（表と Mermaid の図。BPMN の形をまねる。本物の BPMN の XML は使わない）は `andon process render` が YAML から作り、機械は生成物を読まない。
    - 1 本の定義ファイルは「人の 1 手」の中身を書かない。AI の 1 手の「どうやるか」は今どおり SKILL に書き、定義は `skill[]` でその節を指す。
+   - 細部（項目の一覧・必須の項目・値の種類、形の例、図の描き方）は、今は次が正。項目と値は `schema/process/workstream.schema.json`・`schema/process/state.schema.json`（ステートマシンの `by` の `deck` は、今は `kanban`）。形の例は `process/workstreams/watch.yaml` そのもの。図の形と読み方は [docs/process/README.md](../process/README.md) の「図の読み方」と `internal/process/process.go`。中身のある定義が項目を全部持つこと・`next[]` と `start` の `id` が在ること・作り直して差分が無いことは `tests/process.sh` が見る。
+   - まだ実装していない細部: 作業の途中で時間が来たら別の道へ（BPMN の境界タイマー）は点線の矢印に「⏱ 見込みの 2 倍」のように書く。今の render はこの矢印を描かない。
    理由: 指示文の「書き方の推奨」と同じ。足したのは識別子の名前と、`once` を §7 の表の元にすること、`positions[]`（反論 H1）と `by: deck`（反論 G1）、`steps[]`（オーナー。ワークストリームは BPM なので Step と Input／Output を持つべき）。
    捨てた案: 本物の BPMN 2.0 の XML（差分が読めない・AI が直すと壊しやすい・GitHub でそのまま見えない・今は流れを外の仕組みで動かさない）／JSON を正本にする（コメントが残しにくい。人が書く定義は YAML、機械が書く記録は JSON、の andon の線に合わせる）／`steps[]` を持たず `reads[]`・`leaves[]`・`tasks[]` で書く（2026-11-10 夜の形。何が何に変わるかの順が無く BPM にならない。オーナーが変えた）。
 17. **2026-11-11 課題の状態ごとの時間（`todo`→`queued`→`doing`→`review`→`done` の各区間。台帳の `log.jsonl` の status の行の差）を `andon measure` の行に足す。**（指示文の「この題で入れる: 状態ごとの時間を measure に出す」。反論 J7 で抜けに気づいた。Chief of Staff が選んだ）
