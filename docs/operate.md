@@ -586,4 +586,5 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前の版からの範囲は `git log <前の版>..origin/main`。各版に「変わったこと」（人の目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
    `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト）を変えた版は、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「版を上げるとき」](#版を上げるとき-host-install-が置いたものを退避する)）を書く。変えていない版は書かない。
 2. **マージ**（人か Chief of Staff）。
+   v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。決め直すのはオーナー）。
 3. **annotated tag**: マージした commit に `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>"` を打って push する（打つのは人。tag の push で GHCR に image が出る。[image.md](image.md) の「CI と配布」）。
