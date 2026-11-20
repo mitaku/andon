@@ -244,6 +244,30 @@ func TestStartWithoutRepo(t *testing.T) {
 	}
 }
 
+// レビュアーの課題として断るのは、parent があって profile が *-review の課題だけ。
+// 子課題（観察など）と、parent の無い *-review の課題は起動する。
+func TestStartNotReviewer(t *testing.T) {
+	for _, c := range []struct {
+		name, parent, profile string
+	}{
+		{"子課題", "S-0006", "codex"},
+		{"parent の無い -review", "", "codex-review"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"codex"},{"name":"codex-review"}]}`)
+			if c.parent != "" {
+				f.task["parent"] = c.parent
+			}
+			f.task["profile"] = c.profile
+			rc, out, errs := f.run()
+			if rc != 0 || !f.has("kanban start S-0007") {
+				t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+		})
+	}
+}
+
 func TestStartRefuses(t *testing.T) {
 	for _, c := range startRefusals(t) {
 		t.Run(c.name, func(t *testing.T) {
@@ -277,6 +301,10 @@ func startRefusals(t *testing.T) []startRefusal {
 		{"machine", "machine=remote1（別のマシンで起動する）", false, func(f *startFixture) { f.task["machine"] = "remote1" }},
 		{"no profile", "S-0007 に profile が無い", false, func(f *startFixture) { delete(f.task, "profile") }},
 		{"option profile", "profile が不正", false, func(f *startFixture) { f.task["profile"] = "--help" }},
+		{"reviewer", "S-0007 は S-0006 のレビュアーの課題（profile codex-review）。起動するのは dispatcher だけ", false, func(f *startFixture) {
+			f.task["parent"] = "S-0006"
+			f.task["profile"] = "codex-review"
+		}},
 		{"no brief", "依頼書（brief.md）が無い", false, func(f *startFixture) {
 			os.Remove(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"))
 		}},
