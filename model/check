@@ -6,16 +6,35 @@
 #   2. 状態の数が控え（expected.txt の states）と同じ
 #   3. 壊した見本（broken/）がどれも、控え（expected.txt の broken）に書いた規則の破れで落ちる（REACH の規則の見本は、INVARIANT を守ったうえで落ちる）
 #   4. モデルの状態の図と課題の状態の定義（process/states/issue.yaml）を、対応表（issue-map.txt）で 2 方向に照らす（conform.mjs）
+#   5. 下書きを調べる口（--draft）が動く: 手を入れていない写しは通る・壊した見本を下書きに渡すと控えの規則の破れで落ちる・
+#      状態の数が控えと違う写しでも規則を守っていれば通り、飛ばした確かめの名前を書く（ADR-0038 決めたこと 13）
 # 検査器は package-lock.json のとおりに一時の場所へ入れ（install のスクリプトは走らせない）、npm の置き場も一時の場所にする。
 # 検査器はモデルの写しを一時の場所で回すので、repo にも HOME にも書かない。
 # MODEL_CHECKER に TLC と同じ旗を受けるコマンドを渡すと、それで回す（例: "java -cp tla2tools.jar tlc2.TLC"。TLC と見比べるとき）。
+#
+# model/check --draft <フォルダ> [<モジュール>]: 下書きを調べる口（ADR-0038 決めたこと 13）。フォルダの直下の *.tla と *.cfg の写しに、
+# 上と同じ版の検査器と repo の reach.mjs だけを回す。モジュールの既定は IssueRules で、設定は <モジュール>.cfg（INVARIANT と REACH の行）。
+# 控え（expected.txt）・壊した見本（broken/）・対応表と状態の定義との照らし（issue-map.txt・process/states/issue.yaml）は飛ばし、
+# 飛ばしたことを出力に書く。規則を全部守り、どの状態からも先があれば終了コード 0。破れたら規則の名前と、初めの状態からの並びを書いて 1。
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
+
+fail() { echo "FAIL $*" >&2; exit 1; }
+usage() { echo "使い方: model/check [--draft <フォルダ> [<モジュール>]]" >&2; exit 2; }
+
+draft=""
+module=IssueRules
+if [ $# -gt 0 ]; then
+  [ "$1" = --draft ] && [ $# -ge 2 ] && [ $# -le 3 ] || usage
+  [ -d "$2" ] || fail "下書きのフォルダが無い: $2"
+  draft=$(cd "$2" && pwd)
+  module=${3:-IssueRules}
+  [[ "$module" =~ ^[A-Za-z0-9_]+$ ]] || fail "モジュールの名前が英数字と _ でない: $module"
+fi
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export TMPDIR="$tmp"
-
-fail() { echo "FAIL $*" >&2; exit 1; }
 
 if [ -n "${MODEL_CHECKER:-}" ]; then
   read -ra checker <<<"$MODEL_CHECKER"
@@ -30,10 +49,7 @@ else
   name="tla-ts $(sed -n 's/.*"tla-ts": *"\([^"]*\)".*/\1/p' "$here/package.json" | head -1)（Node $(node --version)）"
 fi
 
-mkdir -p "$tmp/run"
-cp "$here"/*.tla "$here"/*.cfg "$here"/broken/*.tla "$tmp/run/"
-
-# check <モジュール> <設定> [検査器の旗…]: 検査器の出力を $tmp/out に書き、終了コードを $code に入れる
+# check <モジュール> <設定> [検査器の旗…]: $tmp/run で検査器を回し、出力を $tmp/out に書き、終了コードを $code に入れる
 check() {
   code=0
   local module=$1 cfg=$2
@@ -42,25 +58,77 @@ check() {
 }
 show() { sed 's/^/     | /' "$tmp/out" | tail -40 >&2; }
 
-echo "検査器: $name"
-rules=$(sed -n 's/^INVARIANT //p' "$here/IssueRules.cfg")
-[ -n "$rules" ] || fail "IssueRules.cfg に INVARIANT の行が無い"
-# REACH の行: \* REACH <規則> <変数> = <値> EXCEPT <除く行動…>
-reaches=$(sed -n 's/^\\\* REACH \([A-Za-z0-9_][A-Za-z0-9_]*\) /\1 /p' "$here/IssueRules.cfg")
-reach_names=$(awk '{ print $1 }' <<<"$reaches" | sed '/^$/d')
-while read -r r v eq val ex _; do
-  [ -n "$r" ] || continue
-  [ "$eq" = "=" ] && [ -n "$val" ] && [ "${ex:-EXCEPT}" = EXCEPT ] || fail "IssueRules.cfg の REACH $r の行が「<規則> <変数> = <値> EXCEPT <除く行動…>」の形でない"
-done <<<"$reaches"
+# read_rules <設定>: INVARIANT の規則を $rules に、REACH の行を $reaches に、その規則の名前を $reach_names に読む
+read_rules() {
+  local cfg=$1 r v eq val ex
+  rules=$(sed -n 's/^INVARIANT //p' "$cfg")
+  [ -n "$rules" ] || fail "${cfg##*/} に INVARIANT の行が無い"
+  # REACH の行: \* REACH <規則> <変数> = <値> EXCEPT <除く行動…>
+  reaches=$(sed -n 's/^\\\* REACH \([A-Za-z0-9_][A-Za-z0-9_]*\) /\1 /p' "$cfg")
+  reach_names=$(awk '{ print $1 }' <<<"$reaches" | sed '/^$/d')
+  while read -r r v eq val ex _; do
+    [ -n "$r" ] || continue
+    [ "$eq" = "=" ] && [ -n "$val" ] && [ "${ex:-EXCEPT}" = EXCEPT ] || fail "${cfg##*/} の REACH $r の行が「<規則> <変数> = <値> EXCEPT <除く行動…>」の形でない"
+  done <<<"$reaches"
+}
 # reach <状態の図> <規則>: REACH の行のとおりに reach.mjs を打つ（出力は $tmp/reach、終了コードは $code）
 reach() {
   code=0
-  local line
+  local line r v val ex
   line=$(awk -v r="$2" '$1 == r' <<<"$reaches")
   read -r r v _ val _ ex <<<"$line"
   read -ra skip <<<"${ex:-}"
   node "$here/reach.mjs" "$1" "$r" "$v" "$val" "${skip[@]}" >"$tmp/reach" 2>&1 || code=$?
 }
+# states_of: 検査器の出力（$tmp/out）から状態の数（distinct states）を読む
+states_of() { grep -oE '[0-9,]+ distinct states found' "$tmp/out" | tail -1 | cut -d' ' -f1 | tr -d ,; }
+
+# draft_check <フォルダ> <モジュール>: 下書きを調べる口の中身。フォルダの写しに検査器と reach.mjs だけを回す
+draft_check() {
+  local dir=$1 module=$2 got broke r
+  [ -f "$dir/$module.tla" ] || fail "下書きのフォルダに $module.tla が無い: $dir"
+  [ -f "$dir/$module.cfg" ] || fail "下書きのフォルダに $module.cfg が無い: $dir"
+  echo "下書き: $dir（モジュール $module.tla・設定 $module.cfg）"
+  echo "飛ばす: 控えとの比べ（expected.txt の rule と states）・壊した見本（broken/）・状態の定義との照らし（issue-map.txt と process/states/issue.yaml。conform.mjs）"
+  mkdir -p "$tmp/run"
+  cp "$dir"/*.tla "$dir"/*.cfg "$tmp/run/"
+  read_rules "$dir/$module.cfg"
+  check "$module" "$module.cfg" -dump dot,actionlabels "$tmp/graph.dot"
+  if [ "$code" -ne 0 ] || ! grep -q "Model checking completed. No error has been found." "$tmp/out"; then
+    # 下書きでは、初めの状態から破れまでの並びを全部見せる（直す手がかり）
+    sed 's/^/     | /' "$tmp/out" >&2
+    broke=$(sed -n 's/.*Invariant \([A-Za-z0-9_]*\) is violated.*/\1/p' "$tmp/out" | head -1)
+    [ -z "$broke" ] || fail "下書きが規則 $broke を破った（上の行が初めの状態から破れまでの並び。検査器の終了コード $code）"
+    ! grep -q "Deadlock reached" "$tmp/out" || fail "下書きに先の無い状態がある（上の行が初めの状態からそこまでの並び。検査器の終了コード $code）"
+    fail "検査器が終わらなかった（終了コード $code。上の行）"
+  fi
+  got=$(states_of)
+  [ -n "$got" ] || { show; fail "検査器の出力に状態の数が無い"; }
+  echo "ok   規則が通る（$module.cfg の INVARIANT $(wc -w <<<"$rules" | tr -d ' ') 本。どの状態からも先がある）:"
+  for r in $rules; do echo "       $r"; done
+  for r in $reach_names; do
+    reach "$tmp/graph.dot" "$r"
+    if [ "$code" -ne 0 ]; then
+      sed 's/^/     | /' "$tmp/reach" >&2
+      fail "下書きが規則 $r を破った（状態の図を reach.mjs が読んだ。上の行）"
+    fi
+    cat "$tmp/reach"
+  done
+  echo "ok   状態の数 $got（控えとは比べていない）"
+  echo "ok   model/check --draft: 規則は全部通った（飛ばした確かめ: 控えとの比べ・壊した見本・状態の定義との照らし）"
+}
+
+echo "検査器: $name"
+
+if [ -n "$draft" ]; then
+  draft_check "$draft" "$module"
+  exit 0
+fi
+
+mkdir -p "$tmp/run"
+cp "$here"/*.tla "$here"/*.cfg "$here"/broken/*.tla "$tmp/run/"
+
+read_rules "$here/IssueRules.cfg"
 need=$(awk '$1 == "rule" { print $2 }' "$here/expected.txt" | sort)
 [ -n "$need" ] || fail "expected.txt に rule の行が無い"
 have=$( (tr ' ' '\n' <<<"$rules"; echo "$reach_names") | sed '/^$/d' | sort)
@@ -76,7 +144,7 @@ if [ "$code" -ne 0 ] || ! grep -q "Model checking completed. No error has been f
   show
   fail "モデルが規則を破った・検査器が終わらなかった（終了コード $code）"
 fi
-got=$(grep -oE '[0-9,]+ distinct states found' "$tmp/out" | tail -1 | cut -d' ' -f1 | tr -d ,)
+got=$(states_of)
 [ -n "$got" ] || { show; fail "検査器の出力に状態の数が無い"; }
 echo "ok   規則が通る（IssueRules.cfg の INVARIANT $(wc -w <<<"$rules" | tr -d ' ') 本。どの状態からも先がある）:"
 for r in $rules; do echo "       $r"; done
@@ -95,7 +163,27 @@ echo "ok   状態の数 $got が控え（expected.txt）と同じ"
 [ -s "$tmp/graph.dot" ] || fail "検査器が状態の図（-dump dot）を書かなかった"
 node "$here/conform.mjs" "$tmp/graph.dot" "$here/issue-map.txt" "$here/../process/states/issue.yaml" || fail "モデルと process/states/issue.yaml が食い違う（上の行。model/issue-map.txt と model/README.md の「issue.yaml と照らす」）"
 
-# 3. 壊した見本
+# 5 の下ごしらえ。draft_run <名前> <フォルダ> [<モジュール>]: 下書きを調べる口を別の一時の場所で回す
+# （出力は $tmp/draft/<名前>.out、終了コードは $code）。下書きのフォルダは $tmp/draft/<名前>/ に作る
+draft_run() {
+  set +e
+  (
+    set -e
+    tmp="$tmp/draft/$1.tmp"
+    mkdir -p "$tmp"
+    draft_check "$2" "${3:-IssueRules}"
+  ) >"$tmp/draft/$1.out" 2>&1
+  code=$?
+  set -e
+}
+draft_show() { sed 's/^/     | /' "$tmp/draft/$1.out" | tail -40 >&2; }
+# draft_copy <名前>: repo のモデルの写しを下書きのフォルダ $tmp/draft/<名前>/ に作る
+draft_copy() {
+  mkdir -p "$tmp/draft/$1"
+  cp "$here"/*.tla "$here"/*.cfg "$tmp/draft/$1/"
+}
+
+# 3. 壊した見本（5 の確かめの 1 つとして、同じ見本を下書きとしても渡す）
 n=0
 while read -r kind module rule; do
   [ "$kind" = broken ] || continue
@@ -115,19 +203,52 @@ while read -r kind module rule; do
       fail "見本 $module が $rule の破れで落ちない（reach.mjs の終了コード $code）"
     fi
     echo "ok   見本 $module は $rule の破れで落ちる（$(sed -n 's/^     行動の並び: //p' "$tmp/reach")）"
-    continue
+  else
+    check "$module" "$module.cfg"
+    if [ "$code" -eq 0 ]; then
+      show
+      fail "見本 $module が通った（$rule の破れを見つけるはず。検査器か規則を疑う）"
+    fi
+    broke=$(sed -n 's/.*Invariant \([A-Za-z0-9_]*\) is violated.*/\1/p' "$tmp/out" | head -1)
+    if [ "$code" -ne 12 ] || [ "$broke" != "$rule" ]; then
+      show
+      fail "見本 $module が $rule の破れで落ちない（終了コード $code・破れた規則 ${broke:-なし}）"
+    fi
+    echo "ok   見本 $module は $rule の破れで落ちる"
   fi
-  check "$module" "$module.cfg"
-  if [ "$code" -eq 0 ]; then
-    show
-    fail "見本 $module が通った（$rule の破れを見つけるはず。検査器か規則を疑う）"
+  draft_copy "$module"
+  cp "$here/broken/$module.tla" "$tmp/run/$module.cfg" "$tmp/draft/$module/"
+  draft_run "$module" "$tmp/draft/$module" "$module"
+  if [ "$code" -eq 0 ] || ! grep -q "^FAIL 下書きが規則 $rule を破った" "$tmp/draft/$module.out"; then
+    draft_show "$module"
+    fail "下書きを調べる口: 見本 $module を下書きに渡しても $rule の破れで落ちない（終了コード $code）"
   fi
-  broke=$(sed -n 's/.*Invariant \([A-Za-z0-9_]*\) is violated.*/\1/p' "$tmp/out" | head -1)
-  if [ "$code" -ne 12 ] || [ "$broke" != "$rule" ]; then
-    show
-    fail "見本 $module が $rule の破れで落ちない（終了コード $code・破れた規則 ${broke:-なし}）"
-  fi
-  echo "ok   見本 $module は $rule の破れで落ちる"
+  echo "ok   下書きを調べる口: 見本 $module を下書きに渡すと、$rule の名前を出して終了コード $code で落ちる"
 done <"$here/expected.txt"
 [ "$n" -gt 0 ] || fail "expected.txt に broken の行が無い（見本を回していない）"
+
+# 5. 下書きを調べる口の残りの確かめ
+# 手を入れていない写し
+draft_copy same
+draft_run same "$tmp/draft/same"
+if [ "$code" -ne 0 ] || ! grep -q "^ok   model/check --draft: 規則は全部通った" "$tmp/draft/same.out"; then
+  draft_show same
+  fail "下書きを調べる口: 手を入れていない写しが通らない（終了コード $code）"
+fi
+echo "ok   下書きを調べる口: 手を入れていない写しは終了コード 0"
+# 状態の数が控えと違い、規則は守る写し（設定の変更の行動 MergeSettingChanges を Next から外す）
+draft_copy fewer
+grep -q ' \\/ MergeSettingChanges' "$tmp/draft/fewer/IssueLife.tla" || fail "下書きを調べる口: 写しの IssueLife.tla の Next に MergeSettingChanges が無い（状態の数が違う写しを作れない。確かめの作り方を直す）"
+sed -i 's/ \\\/ MergeSettingChanges//' "$tmp/draft/fewer/IssueLife.tla"
+! grep -q ' \\/ MergeSettingChanges' "$tmp/draft/fewer/IssueLife.tla" || fail "下書きを調べる口: 写しの Next から MergeSettingChanges を外せない"
+draft_run fewer "$tmp/draft/fewer"
+fewer=$(sed -n 's/^ok   状態の数 \([0-9]*\)（控えとは比べていない）$/\1/p' "$tmp/draft/fewer.out")
+if [ "$code" -ne 0 ] || [ -z "$fewer" ] || [ "$fewer" = "$want" ]; then
+  draft_show fewer
+  fail "下書きを調べる口: 状態の数が控えと違う写しが通らない（終了コード $code・状態の数 ${fewer:-なし}・控え $want）"
+fi
+for w in expected.txt broken/ issue-map.txt process/states/issue.yaml; do
+  grep -q "^飛ばす: .*$w" "$tmp/draft/fewer.out" || { draft_show fewer; fail "下書きを調べる口: 飛ばした確かめ（$w）が出力に無い"; }
+done
+echo "ok   下書きを調べる口: 状態の数 $fewer（控え $want）の写しも規則を守れば終了コード 0 で、飛ばした確かめの名前を書く"
 echo "ok   model/check: 全部通った"
