@@ -895,8 +895,9 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - 根拠が入力に無い id を指しているパターン。
 - 根拠のどれも `previous_retro` の `done_at` より後でない（後に片付いた課題か、後に打たれた文が1件も無い）パターン（決めたこと 14 の 3）。前の振り返りが無ければ問わない。
 - `level` が `skill` か `text` なのに `not_upstream` が無いパターン。
-- `target.paths` が振り返り自身（`package/skills/retro`・`internal/retro` とその下）を指すパターン。
 - 判定（`decision`）の無いパターン。`fix` の数は確かめない（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 1）。
+
+`target.paths` が振り返り自身（`package/skills/retro`・`internal/retro` とその下）を指すパターンも断らない（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 12。Andon の版が v0.0.x の間の決まりで、決めたこと 15）。`level` が `skill` か `text` なら `not_upstream` が要るのは、ほかの直す先と同じ。
 - 形の誤り（知らないキー・空の文・改行・`project` の `repo` がプロジェクトの `repos` に無い）。`andon retro patterns` だけは、`fixes[]` が入力の前の直しと過不足なく合うかも確かめる（`apply` は GitHub を読まないので照らさない）。
 
 確かめないこと: そのパターンが根拠の課題で本当に起きたか。見るのは、検収する Chief of Staff と、直す PR を読むレビュアーと人。

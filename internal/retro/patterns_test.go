@@ -115,17 +115,24 @@ func TestNotUpstreamRequired(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 14: 振り返り自身を直す先にできない。
-func TestNotSelf(t *testing.T) {
-	for _, path := range []string{"package/skills/retro/SKILL.md", "package/skills/retro", "internal/retro/patterns.go", "./internal/retro/../retro/x.go"} {
-		p := pattern("S-0012", "S-0013")
-		p.Target = Target{Kind: "andon", Repo: "github.com/example/andon", Paths: []string{"package/skills/worker/SKILL.md", path}}
-		wantRefused(t, checkOne(t, p, patternsInput()), "振り返り自身")
+// ADR-0039 受け入れ条件 13: 振り返り自身（skill retro と andon retro）も直す先にできる（決めたこと 12）。
+// skill の段に上の段で止められない理由が要る決まりは、振り返り自身にも同じに効く。
+func TestSelfIsTarget(t *testing.T) {
+	skill := pattern("S-0012", "S-0013")
+	skill.Level = "skill"
+	skill.Target = Target{Kind: "andon", Repo: "github.com/example/andon", Paths: []string{"package/skills/retro/SKILL.md"}}
+	wantRefused(t, checkOne(t, skill, patternsInput()), "上の段で止められない理由")
+	skill.NotUpstream = "パターンの拾い方の手順の抜けで、機械が確かめる値が無い"
+	if err := checkOne(t, skill, patternsInput()); err != nil {
+		t.Fatalf("理由のある skill retro のパターンは通る: %v", err)
 	}
-	p := pattern("S-0012", "S-0013")
-	p.Target = Target{Kind: "andon", Paths: []string{"package/skills/retrospect/SKILL.md"}}
-	if err := checkOne(t, p, patternsInput()); err != nil {
-		t.Fatalf("名前が似ているだけの別の skill は通る: %v", err)
+	for _, path := range []string{"internal/retro/patterns.go", "internal/retro", "package/skills/retro"} {
+		p := pattern("S-0012", "S-0013")
+		p.Level = "design"
+		p.Target = Target{Kind: "andon", Repo: "github.com/example/andon", Paths: []string{path}}
+		if err := checkOne(t, p, patternsInput()); err != nil {
+			t.Fatalf("andon retro（%s）のパターンは通る: %v", path, err)
+		}
 	}
 }
 

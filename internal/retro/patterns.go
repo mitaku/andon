@@ -17,7 +17,8 @@ import (
 // パターンの一覧（ADR-0028 決めたこと 8 の「判定を書く」。docs/contract.md §21・schema/patterns.schema.json）。
 // 振り返りの担当が andon retro patterns で書き、Chief of Staff が andon retro apply で当てる。
 // 書くときも当てるときも、同じ検査（checkPatterns）を集めた入力に当てる。command が断るのは形と、根拠の数・実在・新しさ、
-// 上の段で止められない理由、振り返り自身を直さないこと、判定だけ。fix の数は確かめない（ADR-0039 決めたこと 1）。
+// 上の段で止められない理由、判定だけ。fix の数は確かめない（ADR-0039 決めたこと 1）。
+// 振り返り自身（skill retro と andon retro）も直す先にできる（ADR-0039 決めたこと 12。Andon の版が v0.0.x の間の決まりで、決めたこと 15）。
 // パターンが本当に起きたかは確かめない。
 
 // 段（決めたこと 9）。上から効き目の確かな順。
@@ -35,9 +36,6 @@ var (
 	// actionName は足すか変えるか削るかの日本語。
 	actionName = map[string]string{"add": "足す", "change": "変える", "remove": "削る"}
 )
-
-// selfPaths は振り返り自身（skill retro と andon retro の command）。直す先にできない（決めたこと 8・やらないこと）。
-var selfPaths = []string{"package/skills/retro", "internal/retro"}
 
 var (
 	patternIDRe = regexp.MustCompile(`^p[1-9][0-9]*$`)
@@ -145,11 +143,6 @@ func checkShape(ps []Pattern, fixes []FixView) error {
 			c := path.Clean(x)
 			if x == "" || path.IsAbs(x) || c == ".." || strings.HasPrefix(c, "../") || strings.ContainsAny(x, "\r\n") {
 				return fmt.Errorf("%s の target.paths の %q が repo の中の相対パスでない", at, x)
-			}
-			for _, s := range selfPaths {
-				if c == s || strings.HasPrefix(c, s+"/") {
-					return fmt.Errorf("%s の直す先 %s は振り返り自身（skill retro と andon retro）。振り返りは自分を直さない", at, x)
-				}
 			}
 		}
 		if len(p.Evidence) == 0 {

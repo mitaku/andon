@@ -82,7 +82,7 @@ r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/H
 - **検査を足すか変える直し**（誤りを見つけて落とすもの: テスト・lint・CI の検査・hook・command の確かめ。多くは `level: test`・`check`）は、`effect` の終わりに受け入れ条件を1文足す:
   `受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- <検査の command> の記録を、報告の acceptance の行が run で指す）。`
   `effect` は直す課題の依頼書の「期待する効果:」の行になる。落ちない検査は、足しても何も止めない。誤りを戻した木は commit していない変更があってよい（落ちることを期待する記録だけの例外）。
-- **振り返り自身**（`package/skills/retro`・`internal/retro`）は直す先にできない（command が断る）。気づいたことは報告の `## Next` に `to: person` で1行。
+- **振り返り自身**（`package/skills/retro`・`internal/retro`）も直す先にできる。ほかの直す先と同じに5段で決め、`skill`・`text` なら `not_upstream` が要る（無いと command が断る）。
 - セルの設定・依頼書の切り方・プロファイルの選び方・委譲は直す先にしない（オーナーの持ち物）。気づいたら報告の `## Next` に `to: person` で1行。
 
 ## 4. 前の直しを数える
