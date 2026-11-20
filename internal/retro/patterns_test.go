@@ -18,7 +18,8 @@ func patternsInput() *Input {
 	pr := "https://github.com/example/sample-site/pull/12"
 	return &Input{
 		Since: ago(7 * day), Until: ago(0),
-		PreviousRetro: &PrevRetro{Issue: "S-0010", DoneAt: ago(2 * day)},
+		PreviousRetro: &PrevRetroIn{Issue: "S-0010", DoneAt: ago(2 * day)},
+		Boundary:      ptr(ago(2 * day)),
 		Issues: []Bundle{
 			{ID: "S-0011", Title: "S-0011 の題", DoneAt: ago(3 * day)},
 			{ID: "S-0012", Title: "S-0012 の題", DoneAt: ago(1 * day), PR: &pr},
@@ -34,6 +35,8 @@ func patternsInput() *Input {
 		Fixes: []Fix{},
 	}
 }
+
+func ptr(s string) *string { return &s }
 
 func pattern(evidence ...string) Pattern {
 	return Pattern{ID: "p1", Summary: "PR の題に課題番号が入る", Evidence: evidence, Level: "test", Action: "add",
@@ -96,7 +99,7 @@ func TestEvidenceNewerThanPreviousRetro(t *testing.T) {
 	if err := checkOne(t, pattern("S-0011", "S-0012"), in); err != nil {
 		t.Fatalf("1件だけ後のもの: %v", err)
 	}
-	in.PreviousRetro = nil
+	in.PreviousRetro, in.Boundary = nil, nil
 	if err := checkOne(t, pattern("S-0011", "h-c"), in); err != nil {
 		t.Fatalf("前の振り返りが無ければ新しさは問わない: %v", err)
 	}
@@ -197,6 +200,13 @@ func TestFixViews(t *testing.T) {
 	}
 	if err := CheckPatterns(ps, []FixView{}, in, repos, false); err != nil {
 		t.Fatalf("当てるときは前の直しを照らさない: %v", err)
+	}
+	// 再発の数は足し算: 前の振り返りが数えた数より少なければ断る（ADR-0039 決めたこと 6）
+	two, three := 2, 3
+	in.Fixes[0].RecurredBefore = &two
+	wantRefused(t, CheckPatterns(ps, []FixView{{Issue: "S-0007", Recurred: &zero, View: "再発なし"}}, in, repos, true), "前の振り返りが数えた 2 より少ない")
+	if err := CheckPatterns(ps, []FixView{{Issue: "S-0007", Recurred: &three, View: "また起きた"}}, in, repos, true); err != nil {
+		t.Fatalf("前の数に足した数: %v", err)
 	}
 }
 

@@ -95,7 +95,7 @@
           "allOf": [{ "$ref": "#/$defs/line" }, { "not": { "pattern": "^-" } }]
         },
         "evidence": {
-          "description": "Evidence ids from the retro input: an issue id (issues[].id) or the id of text a person typed (typed[].id, h-...). The command counts two ids of the same issue (a reviewer's issue counts as its parent) or of the same Chief of Staff session as one.",
+          "description": "Evidence ids from the retro input: an issue id (issues[].id or summaries[].id) or the id of text a person typed (typed[].id, h-...). The command counts two ids of the same issue (a reviewer's issue counts as its parent) or of the same Chief of Staff session as one.",
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }

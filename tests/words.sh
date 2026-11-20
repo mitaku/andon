@@ -55,7 +55,8 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 # 前に数字も「外の」「読む」のような語も無い形を禁じる。役を指さない「人」（外の人・読む人・1人・個人・人が読む・人向け・
 # 人と AI が読む・人の名前）は通る。範囲は替え終えた場所だけで、替えるたびに role_paths に足す。
 # 範囲の外: internal/process と tests/process（流れの定義の語。替える課題が別）。例外: このファイルと tests/words-selftest.sh（落ちる例）・
-#   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」。ADR-0036 決めたこと 6）・
+#   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」、internal/retro と
+#   tests/andon-retro.sh の前の版の答え「人がマージした」。ADR-0036 決めたこと 6）・
 #   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
 #   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）。
 #   引用だけを外し、同じ行の地の文の「人」は当たる。
@@ -68,6 +69,7 @@ hits=""
   | grep -v -e '^internal/process/' -e '^tests/process/' -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^internal/triage/[^:]*:[0-9]*:.*\(人に聞くこと\|（人の判断待ち）\)' \
     -e '^tests/andon-triage\.sh:[0-9]*:.*\(人に聞くこと\|（人の判断待ち）\)' \
+    -e '^internal/retro/[^:]*:[0-9]*:.*人がマージした' -e '^tests/andon-retro\.sh:[0-9]*:.*人がマージした' \
     -e '^tests/andon-gate\.sh:[0-9]*:.*古い見出しに当たらない' \
     -e "^tests/package/06-skill-commands\.sh:[0-9]*:.*\(old_cos=\|old_docs=\|<<<'\)" \
   | perl -CSDA -Mutf8 -ne '

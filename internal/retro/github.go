@@ -122,8 +122,8 @@ func (g *github) afterMerge(b Bundle) *AfterMerge {
 	if p.MergeCommit != nil {
 		a.MergeCommit = p.MergeCommit.Oid
 	}
-	if a.MergeCommit == "" && b.Outcome != nil {
-		a.MergeCommit, _ = b.Outcome["merge_commit"].(string)
+	if a.MergeCommit == "" {
+		a.MergeCommit = b.mergeCommit
 	}
 	repo := owner + "/" + name
 	if a.MergeCommit != "" {

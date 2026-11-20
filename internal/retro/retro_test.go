@@ -201,8 +201,11 @@ func TestBundlesIssuesDoneInPeriod(t *testing.T) {
 		b.Journal == nil || *b.Journal != "迷った\n" || b.Outcome == nil || len(b.Launches) != 1 {
 		t.Errorf("束ねた記録が足りない: %+v", b)
 	}
-	if _, ok := b.Launches[0]["memory_index"]; ok {
-		t.Error("起動の記録の memory_index を落としていない")
+	if l := b.Launches[0]; l.At != ago(3*day) || l.Commit == nil || *l.Commit != sha1 || l.Model != nil {
+		t.Errorf("起動の記録は時刻・パッケージの commit・プロファイル・モデルだけ: %+v", l)
+	}
+	if o := b.Outcome; o.Result != "merged" || o.WorkedMinutes == nil || *o.WorkedMinutes != 95 || o.Cost != nil {
+		t.Errorf("結果の記録は結果・実働・コストの合計だけ: %+v", o)
 	}
 	if b3 := bundle(t, in, "A-0003"); b3.Launches == nil || b3.Outcome != nil || b3.Corrections != nil || b3.Journal != nil || b3.AfterMerge != nil {
 		t.Errorf("無い記録は null: %+v", b3)
@@ -365,7 +368,7 @@ func TestReapplied(t *testing.T) {
 		t.Errorf("A-0004 の理由 = %v", r)
 	}
 	// 起動の記録が無い課題は分からない（null）
-	if got, reasons := reapplied(Bundle{DoneAt: ago(day)}, nil, nil, nil); got != nil || len(reasons) != 1 {
+	if got, reasons := reapplied(nil, ago(day), nil, nil); got != nil || len(reasons) != 1 {
 		t.Errorf("起動の記録が無い: %v %v", got, reasons)
 	}
 }

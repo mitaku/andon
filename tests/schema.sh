@@ -96,7 +96,7 @@ flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 # 台帳の行と ready の2本は台帳の形式の版（3）
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/1 patterns/1 run/1 ledger-log/3 ledger-ready/3; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
@@ -173,7 +173,7 @@ declare -A required=(
   [delivered]="at project acked news"
   [launch]="at role launch issue profile template command terminal session harness package workspace repo external drift drift_reasons memory_index"
   [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
-  [retro]="project at since until previous_retro issues typed fixes redacted skipped"
+  [retro]="project at since until previous_retro boundary issues summaries cut typed fixes redacted skipped"
   [patterns]="retro at since until days previous_retro patterns fixes"
   [run]="id command expect exit_code started_at finished_at output output_bytes truncated"
   [ledger-log]="at by id change"   # 最初の例は課題の行。ほかの形の行は 3b で作る
@@ -292,15 +292,20 @@ outcome|.gates[0]|head at tier decision reasons merged
 outcome|.sessions[0]|harness session cost
 outcome|.sessions[0].cost|models efforts turns tokens
 outcome|.sessions[0].cost.tokens|input output cache_read cache_write
-retro|.previous_retro|issue done_at
+retro|.previous_retro|issue done_at until
 retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome gates reviews waived corrections remember agents_md journal after_merge reapplied reapplied_reasons
+retro|.issues[0].launches[0]|at profile model commit
+retro|.issues[0].outcome|result worked_minutes cost
+retro|.issues[0].outcome.cost|sessions measured tokens
+retro|.issues[0].outcome.cost.tokens|input output cache_read cache_write
 retro|.issues[0].gates[0]|head at tier decision reasons merged
 retro|.issues[0].reviews[0]|id profile findings outcome
 retro|.issues[0].after_merge|merge_commit merged_at checks reverted_by
 retro|.issues[0].after_merge.checks|state failed
 retro|.issues[0].after_merge.reverted_by[0]|pr merged_at
+retro|.summaries[0]|id title done_at pr findings gate_fixes corrections remember
 retro|.typed[0]|id session at role issue text truncated
-retro|.fixes[0]|issue title retro pr merged_at issues_after
+retro|.fixes[0]|issue title retro pr merged_at issues_after recurred_before
 retro|.skipped[0]|source reason
 patterns|.previous_retro|issue done_at
 patterns|.patterns[0]|id summary evidence level action target effect risk decision reason
@@ -700,6 +705,22 @@ fail|retro|.typed[0].id = "u1"|オーナーの文の id が h- で始まらな�
 fail|retro|.issues[0].after_merge.checks.state = "error"|checks の state が知らない値
 fail|retro|.redacted = -1|伏せた数が負
 fail|retro|.issues[0].estimate = "中"|見込みが段の名
+pass|retro|. + {"previous_retro": (.previous_retro + {"until": null}), "boundary": .previous_retro.done_at}|前の振り返りに retro.json が無い（境目は片付いた時刻）
+pass|retro|. + {"previous_retro": null, "boundary": null}|前の振り返りが無い（どの束も新しい）
+pass|retro|.cut = {"new": 130, "full": 100}|新しい束が 100 件を超えた
+fail|retro|.cut = {"new": 130}|切ったのに全文の数が無い
+fail|retro|.cut = {"new": 0, "full": 100}|切った数が 0
+pass|retro|.summaries[0].corrections = null|手直しを集めていない要約
+pass|retro|.summaries[0].pr = null|PR の無い要約
+fail|retro|.summaries[0].remember = -1|Remember の行数が負
+fail|retro|.summaries[0].findings = "major"|指摘の行が配列でない
+fail|retro|.summaries[0].journal = "x"|要約に日報がある
+pass|retro|.issues[0].outcome.cost = null|セッションの記録の無い結果
+pass|retro|.issues[0].launches[0] += {"model": null, "commit": null}|起動行にモデルが無い・パッケージの commit が無い
+fail|retro|.issues[0].launches[0].memory_index = "x"|起動の記録に目録がある
+fail|retro|.issues[0].outcome.gates = []|結果の記録にゲートの写しがある
+pass|retro|.fixes[0].recurred_before = null|前の振り返りが数えていない前の直し
+fail|retro|.fixes[0].recurred_before = -1|前の再発の数が負
 pass|patterns|.previous_retro = null|前の振り返りが無い
 pass|patterns|. + {"patterns": [], "fixes": []}|パターンも前の直しも無い
 pass|patterns|.patterns[0].target = {"kind": "andon", "paths": ["package/skills/worker/SKILL.md"]}|Andon の直しで repo を持たない
@@ -852,6 +873,11 @@ retro|."$defs".bundle.required -= ["after_merge"]|束の必須から after_merge
 retro|."$defs".typed.properties.role.enum += ["person"]|オーナーの文の role を緩める
 retro|."$defs".after_merge.properties.checks.anyOf[0].properties.state.enum += ["error"]|checks の state を緩める
 retro|."$defs".fix.additionalProperties = true|前の直しの知らないキーを許す
+retro|."$defs".summary.additionalProperties = true|要約の束の知らないキーを許す
+retro|."$defs".summary.required -= ["findings"]|要約の束の必須から findings を外す
+retro|."$defs".launch.additionalProperties = true|起動の記録の写しの知らないキーを許す
+retro|."$defs".outcome.additionalProperties = true|結果の記録の写しの知らないキーを許す
+retro|.required -= ["boundary"]|振り返りの入力の必須から boundary を外す
 patterns|."$defs".pattern.allOf = []|skill と文面の段の「上の段で止められない理由」を外す
 patterns|."$defs".pattern.properties.decision.enum += ["keep"]|判定に keep を足す
 patterns|."$defs".pattern.required -= ["decision"]|パターンの必須から decision を外す
@@ -979,6 +1005,8 @@ outcome-sessions.json|outcome|andon dispatcher の outcome.json（起動し直�
 outcome-nolog.json|outcome|andon dispatcher の outcome.json（セッションログが無い）
 retro.json|retro|andon retro collect の出力
 retro-nogh.json|retro|andon retro collect の出力（GitHub が読めない）
+retro-split.json|retro|andon retro collect の出力（全文と要約に分けた）
+retro-cut.json|retro|andon retro collect の出力（新しい束が 100 件を超えた）
 patterns.json|patterns|andon retro patterns の retro.json
 run.json|run|andon issue record の runs/<n>.json
 run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期待して落ちた）
