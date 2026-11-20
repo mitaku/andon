@@ -63,6 +63,8 @@ read_rules() {
   local cfg=$1 r v eq val ex
   rules=$(sed -n 's/^INVARIANT //p' "$cfg")
   [ -n "$rules" ] || fail "${cfg##*/} に INVARIANT の行が無い"
+  # 「どの状態からも先がある」は検査器の行き止まりの検査で確かめる。設定でその検査を切れないようにする（値に関わらず断る）
+  ! grep -qE '^[[:space:]]*CHECK_DEADLOCK([[:space:]]|$)' "$cfg" || fail "${cfg##*/} に CHECK_DEADLOCK の行がある（先の無い状態の検査を切れない。行を消す）"
   # REACH の行: \* REACH <規則> <変数> = <値> EXCEPT <除く行動…>
   reaches=$(sed -n 's/^\\\* REACH \([A-Za-z0-9_][A-Za-z0-9_]*\) /\1 /p' "$cfg")
   reach_names=$(awk '{ print $1 }' <<<"$reaches" | sed '/^$/d')
@@ -251,4 +253,16 @@ for w in expected.txt broken/ issue-map.txt process/states/issue.yaml; do
   grep -q "^飛ばす: .*$w" "$tmp/draft/fewer.out" || { draft_show fewer; fail "下書きを調べる口: 飛ばした確かめ（$w）が出力に無い"; }
 done
 echo "ok   下書きを調べる口: 状態の数 $fewer（控え $want）の写しも規則を守れば終了コード 0 で、飛ばした確かめの名前を書く"
+# 設定で先の無い状態の検査を切った写し（Next を FALSE にし、REACH の行を外す。切れると、先の無い状態だけでも通ってしまう）
+draft_copy nodeadlock
+sed -i '/^\\\* REACH /d' "$tmp/draft/nodeadlock/IssueRules.cfg"
+echo "CHECK_DEADLOCK FALSE" >>"$tmp/draft/nodeadlock/IssueRules.cfg"
+grep -q '^Next ==$' "$tmp/draft/nodeadlock/IssueLife.tla" || fail "下書きを調べる口: 写しの IssueLife.tla に「Next ==」の行が無い（確かめの作り方を直す）"
+sed -i 's/^Next ==$/Next == FALSE\nOldNext ==/' "$tmp/draft/nodeadlock/IssueLife.tla"
+draft_run nodeadlock "$tmp/draft/nodeadlock"
+if [ "$code" -eq 0 ] || ! grep -q "^FAIL IssueRules.cfg に CHECK_DEADLOCK の行がある" "$tmp/draft/nodeadlock.out"; then
+  draft_show nodeadlock
+  fail "下書きを調べる口: 設定で先の無い状態の検査を切った写しが落ちない（終了コード $code）"
+fi
+echo "ok   下書きを調べる口: 設定で先の無い状態の検査を切った写しは終了コード $code で落ちる"
 echo "ok   model/check: 全部通った"
