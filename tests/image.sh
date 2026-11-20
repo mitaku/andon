@@ -290,11 +290,10 @@ if [ "$exec_tz" != "$(printf 'TZ=Asia/Tokyo\nJST')" ] || [ "$ssh_tz" != "$exec_t
   echo "FAIL image: 時刻が JST で出ない（exec: $exec_tz / ssh: $ssh_tz）" >&2
   exit 1
 fi
-# (a1u) .env の CELL_TZ がセルの TZ になる（ホストの TZ より先）。起動し直さずに compose の補間だけを見る
-cp "$plant/.env" "$tmp/env.orig"
-echo 'CELL_TZ=Europe/Paris' >>"$plant/.env"
-cell_tz=$(TZ=UTC dc config --format json | jq -r .services.dev.environment.TZ)
-cp "$tmp/env.orig" "$plant/.env"
+# (a1u) .env の CELL_TZ がセルの TZ になる（ホストの TZ より先）。起動し直さずに compose の補間だけを見る。
+# セルの置き場は uid 1000 の持ち物で runner は書けないので、.env の写しに足したものを --env-file で渡す（.env の代わりに読まれる）
+{ cat "$plant/.env"; echo 'CELL_TZ=Europe/Paris'; } >"$tmp/cell.env"
+cell_tz=$(TZ=UTC dc --env-file "$tmp/cell.env" config --format json | jq -r .services.dev.environment.TZ)
 if [ "$cell_tz" != Europe/Paris ]; then
   echo "FAIL image: .env の CELL_TZ がセルの TZ にならない（$cell_tz）" >&2
   exit 1
