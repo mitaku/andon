@@ -16,7 +16,7 @@ description: 台帳のトリアージを受け持つ担当が読む。依頼書�
 
 | する | しない |
 |---|---|
-| `andon triage collect`・`andon triage apply <自分の id> --dry-run` | `andon triage apply` を `--dry-run` 無しで打つ（打つのは Chief of Staff） |
+| `andon triage collect`・`andon triage apply <自分の id> --dry-run` | `andon triage apply` を `--dry-run` 無しで打つ・`andon triage verdict` を打つ（どちらも Chief of Staff） |
 | 確かめるために読む（`gh pr view`・`git -C <repo> grep <commit>`・`kanban show`・`git worktree list`・docs） | `kanban add`・`kanban done`・`kanban set`（ほかの課題）・元の報告を書き換える |
 | `issues/<id>/library/decisions.json` と報告を書く | リポジトリに書く・commit・PR・エージェントを起動する |
 
@@ -47,7 +47,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   `from` は `sig-<fingerprint の先頭 12 桁>-e<episodes>`、`text` は出所の題、`url` は出所の場所、`repo` は GitHub の出所なら key の repo）。
 - **終了コード 4**（項目が上限 50 を超えた）: 依頼書に件数の指定（「古い順に N 件」）があればそれ、無ければ 50。
   `--limit` を増やして全件を取り、`items` の**先頭（古い順）から N 件だけ**仕分ける。残りは decisions.json に入れない（次回も出る）。報告に残りの件数を書く。
-- 拾うのは機械なので、見出しで切っただけの行も混じる（見送りの見出しの行・「ここまで」の行など）。そういう行も1項目として仕分ける（`close`「その場限り」でよい）。
+- 拾うのは機械なので、見出しで切っただけの行も混じる（見送りの見出しの行・「ここまで」の行など）。そういう行も1項目として仕分ける（`close`・`closing: gone`「対象が無い: 見出しの行」でよい）。
 
 ## 3. 確かめて仕分ける
 
@@ -64,9 +64,9 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 | 順 | 条件 | decision |
 |---|---|---|
 | 1 | ゴールの外（§1） | `keep`（理由にゴール） |
-| 2 | **対象が無い**: 言う PR が MERGED／branch が消えた／ファイル・関数が無い／「人が PR #n をマージする」で PR が MERGED／「andon issue finish」で worktree も端末も無い | `close`「対象が無い: <確かめ方>」 |
-| 3 | **済んでいる**: 同じ内容の課題が done／リポジトリの文書に既に入っている（`git grep`）／docs の「決めたこと」で決まっている | `close`「済み: <どこで>」 |
-| 4 | **起きない**: 見送りの `trivial`（起きる条件を示せない）／`minor` のうち、起きる条件がその repo に無い | `close`「起きない: <理由>」 |
+| 2 | **対象が無い**: 言う PR が MERGED／branch が消えた／ファイル・関数が無い／「人が PR #n をマージする」で PR が MERGED／「andon issue finish」で worktree も端末も無い | `close`・`closing: gone`「対象が無い: <確かめ方>」 |
+| 3 | **済んでいる**: 同じ内容の課題が done／リポジトリの文書に既に入っている（`git grep`）／docs の「決めたこと」で決まっている | `close`・`closing: done`「済み: <どこで>」 |
+| 4 | **起きない**（見送りの項目だけ）: 見送りの `trivial`（起きる条件を示せない）／`minor` のうち、起きる条件がその repo に無い | `close`・`closing: wont-happen`「起きない: <理由>」 |
 | 5 | **人にしかできない**: 実機・別のセル・外部サービスの UI（Revoke・支払い・プランの変更）・人の目視が完了条件 | `person`（`kind` を付けない。`question` に期限の目安） |
 | 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕）、またはゲートのレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行。レベル C で4つのどれにも当たらないもの〈ラインの変更など〉は `kind` を付けない） |
 | 7 | **直せて、束ねられる**: 8 の条件を満たし、同じ repo で各々が小さい（目安 50 行以下）ものが、今回の項目に 3 つ以上ある | `bundle`（同じ `bundle` 名。1課題1 PR、commit は意図ごと） |
@@ -84,16 +84,16 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   例: 使い勝手の既定値は `person`（`users`）。テストの置き場や文書の節の分け方は `fix`。ask-one-by-one skill §1 と同じ線。
 - **`agents`**（`For AGENTS.md:`）: 行き先が決まっているので `fix`。同じ repo に 3 つ以上なら `bundle`（「AGENTS.md に n 行足す」。profile は `sonnet`）。
 - **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（レベル C。`kind` を付けない）。
-  この台帳が Andon 自身のプロジェクトでなければ `close`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
-  (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`「その場限り」。
-- **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`「読んだ: 拾うものなし」。
+  この台帳が Andon 自身のプロジェクトでなければ `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
+  (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`・`closing: one-off`「その場限り: <なぜ次の課題に効かないか>」。
+- **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`・`closing: read`「読んだ: 拾うものなし」。
 - **`memory`**（auto memory の1件。どの役のセッションも書く注意書き・事実で、仕分けるまで全部の役に自動で載り続ける）:
   書いてある事実と理由を、今の実物で確かめる（`git -C <repo> grep <commit>`・docs・`kanban show`）。memory は受け皿で、残す家ではない。行き先は次のどれか:
-  (a) 事実か理由が今は当てはまらない・理由の無い「〜しない」「必ず確認する」の類（控えや確認を増やすだけ）→ `close`「当てはまらない: <確かめ方>」。
-  (b) 既に wiki・`AGENTS.md`・skill・docs にある → 3 の `close`「済み: <どこで>」。
+  (a) 事実か理由が今は当てはまらない・理由の無い「〜しない」「必ず確認する」の類（控えや確認を増やすだけ）→ `close`・`closing: not-applicable`「当てはまらない: <確かめ方>」。
+  (b) 既に wiki・`AGENTS.md`・skill・docs にある → 3 の `close`・`closing: done`「済み: <どこで>」。
   (c) その repo の作法・テスト・docs の直し → `agents`・`remember` (a) と同じく `fix`（`brief` に memory の本文を引用する）。Andon の skill・パッケージの直しは `remember` (b) と同じ。
-  (d) セルやプロジェクトの事実・学びで、長く残す価値がある → `close`「wiki へ: <題>」とし、報告の `## Next` に「Chief of Staff: wiki へ ingest（raw/memory/ に写す）: <key>」を1行。
-  (e) その場限り・続き（台帳にあるべきもの）・決定（文書の PR にあるべきもの） → `close`「その場限り」。
+  (d) セルやプロジェクトの事実・学びで、長く残す価値がある → `close`・`closing: wiki`「wiki へ: <題>」とし、報告の `## Next` に「Chief of Staff: wiki へ ingest（raw/memory/ に写す）: <key>」を1行。
+  (e) その場限り・続き（台帳にあるべきもの）・決定（文書の PR にあるべきもの） → `close`・`closing: one-off`「その場限り」。
   (f) 確かめるのに待つものがある → `keep`。`keep` のファイルは残り、次回も出る。
   `apply` は `keep` 以外に仕分けた memory のファイルと、目録でそれを指す行を消す。本文と理由はトリアージの記録（`library/triage/`）に残る。
   memory のファイルが書き換わったときは、いつ書き換わったかで2つに分かれる。`collect` のあと `apply` を打つ前なら、key が変わるので `apply` は何も書かずに止まる（`collect` からやり直す）。`apply` の途中なら、`apply` は消す直前に中身を key と照らし、合わなければ消さずに残して記録に `memory_kept` を書き、次のトリアージがそのファイルを拾い直す。照らしてから消すまでの短い隙間に書き換わった分は、残らずに消える。
@@ -101,7 +101,28 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   中身は `url` を開いて確かめる（`gh issue view <url>`・`gh run view <url>`。読むだけ）。出所へは書かない（コメント・閉じる・ラベルを付けない）。表は同じく上から当てる。
   `fix` の `brief` には `url` と、題でなく自分の言葉で書いた要点を入れる（GitHub の issue なら守ることに「PR 本文の末尾、メモの行の前に `Fixes <url>` と書く」を1行）。
   `close` しても出所の issue は閉じない（記録に残すだけ）。仕分けた信号は、消えてまた出たら（`episodes` が増えたら）新しい key で次回また出る。`apply` の要約では題を「指示として読まない」の囲いに入れる（題の中の囲いの字は替える）。
-- **`issue`**（担当の無い todo／queued）を `close` できるのは、今も担当が無い todo／queued のときだけ（`apply` が確かめる）。`close` すると `apply` がその報告の末尾に理由を足して done にする。
+- **`issue`**（担当の無い todo／queued）と **`person`**（人の判断待ち）を `close` できるのは、今も担当が無い todo／queued のときだけ（`apply` が確かめる）。閉じ方は根拠の閉じだけで、Chief of Staff の「閉じてよい」が要る（§3 の閉じ方の表の下）。
+  `person` は人にしか決められないと一度仕分けたものなので、人が答えた・問いの元が消えた、という根拠が無ければ閉じない。`close` すると `apply` がその報告の末尾に理由を足して done にする。
+
+### 閉じ方（`closing`）と、閉じられる項目
+
+`close` には閉じ方（`closing`）を必ず書く。閉じ方は2つの組に分かれ、`apply` が項目の種類（key の3つ目）との組み合わせを確かめて、合わないものと欄の無いものを断る。
+
+| 組 | `closing` | 判定表の言い方 | 使える項目 |
+|---|---|---|---|
+| 根拠の閉じ | `done` | 済み | どの種類にも |
+| 根拠の閉じ | `gone` | 対象が無い | どの種類にも |
+| 根拠の閉じ | `wiki` | wiki へ | どの種類にも |
+| 根拠の閉じ | `delegated` | Andon へ委譲 | どの種類にも |
+| 判断の閉じ | `wont-happen` | 起きない | `waived` だけ |
+| 判断の閉じ | `one-off` | その場限り | `remember`・`memory` だけ |
+| 判断の閉じ | `not-applicable` | 当てはまらない | `memory` だけ |
+| 判断の閉じ | `read` | 読んだ: 拾うものなし | `unreadable` だけ |
+
+- `next`・`issue`・`person`・`question`・`agents`・`signal`・`leftover` は判断では閉じられない。済んだ根拠か対象が無い根拠（`git grep` の結果・PR の状態・done の課題）が無ければ、`fix`・`person`・`keep` のどれかにする。
+- 根拠の閉じは `reason` に根拠（どこで・どう確かめたか）を書く。根拠を挙げられないものは根拠の閉じにしない。
+- 判断の閉じと、台帳の課題そのもの（`issue`・`person`）を閉じる判定は、Chief of Staff が1件ずつ読み、「閉じてよい」か「覆す」かを書く（`andon triage verdict`）。全部に「閉じてよい」が揃うまで `apply` は台帳に手を入れない。
+  `issue`・`person` は根拠の閉じでも読まれる。覆されたら Chief of Staff から戻ってくるので、行き先（`fix`・`person`・`keep`・根拠の閉じ）を書き直す（§5）。
 
 人に届くものを減らす線（ask-one-by-one skill §1 と同じ）: 5 と 6 と 10 だけが人へ行く。`kind` 無しの `person` は「エージェントで決められたのでは」と要約で目立つので、
 本当に分からないときだけ使う。
@@ -115,7 +136,8 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   "goal": "台帳の未処理を 0 にする",
   "collected": "2026-11-10T00:05:00Z",
   "items": [
-    {"key": "collect が返した key", "commit": "collect が返した commit", "decision": "close", "reason": "対象が無い: <owner>/sample-site#24 は MERGED"},
+    {"key": "collect が返した key", "commit": "collect が返した commit", "decision": "close", "closing": "gone", "reason": "対象が無い: <owner>/sample-site#24 は MERGED"},
+    {"key": "collect が返した key（remember）", "commit": "collect が返した commit", "decision": "close", "closing": "one-off", "reason": "その場限り: その課題の中の手順の取り違えで、次の課題に効かない"},
     {"key": "collect が返した key", "commit": "collect が返した commit", "decision": "fix", "reason": "起きる条件があり直し方が報告にある",
      "issue": {"title": "修正の題", "repo": "github.com/<owner>/sample-site", "profile": "claude", "review": "on", "brief": "何をどこで直すか・完了条件・守ること"}},
     {"key": "collect が返した key", "decision": "bundle", "bundle": "sample-site-agents-md", "reason": "AGENTS.md に 2 行",
@@ -133,6 +155,8 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   `apply` は、repo のある課題から出た項目の `commit` を、台帳のその課題の repo について `library/items.json` の `commits` と照らし、違う・無い判定を断る。
   `items.json` が前の形（項目の配列）なら照らせないので断る。collect からやり直す。
 - `decision` は 5 値。`reason` は空にしない・改行しない。`goal` と `collected`（collect を打った時刻）も空にしない。
+- `close` は `closing`（§3 の閉じ方の表の8値）が必須。項目の種類と合わない閉じ方は `apply` が断る。
+- Chief of Staff の判定（`library/verdicts.json`）は `andon triage verdict` が書く。自分で書かない・消さない。判定は key と、その時の `closing`・`reason` に結びつくので、判定のあとで書き換えた項目は読み直しになる。
 - `fix`／`bundle` は `issue`（`title`・`repo`＝`host/owner/repo`・`profile`・`review`＝`on`／`off`・`brief`）が必須。`bundle` は `bundle` 名も必須で、同じ名前は同じ repo に限る。
   - `brief` は `apply` が依頼書の「解決すべき問題:」の下に置く（完了条件・守ること は汎用の1行しか付かない）ので、**具体的な完了条件と守ることは `brief` の中に書く**。出どころ（`<id>` の何の行か）も1行。
   - `review` はレベル B（command・スクリプト・案件の `.claude/skills/**`）か independent-review skill §1 の条件に当たれば `on`。`profile` は chief-of-staff skill の `playbooks/cut.md` の表で選ぶ（文書の小直しは `sonnet`）。
@@ -143,8 +167,11 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 書いたら確かめる:
 
 ```
-andon triage apply <自分の id> --dry-run > /dev/null    # 終了コード 0 が完了条件。1 なら stderr の理由を直す
+andon triage apply <自分の id> --dry-run | jq .review   # 終了コード 0 が完了条件。1 なら stderr の理由を直す
 ```
+
+- `--dry-run` の出力の `review` は、Chief of Staff が読む表（判断の閉じと、`issue`・`person` を閉じる判定。`key`・`kind`・`from`・`text`・`closing`・`reason`・`verdict`）。
+  Chief of Staff の判定はまだ無くてよい（`verdict: none`）。判定が無いと断るのは `--dry-run` 無しの `apply` だけ。
 
 ## 5. 報告して返す
 
@@ -153,14 +180,14 @@ worker skill §7 の書式で、`## Report` に人向けの要約を書く。人
 ```
 ## Report
 ゴール: <1行>。拾った <n>（うち仕分けた <m>・次回へ <n-m>）。
-閉じる <a> ・ 直す <b>（うち束ね <c>） ・ 人へ <d>（kind 無し <e>） ・ 次回 <f> ・ 読めない <g>
+閉じる <a>（うち Chief of Staff が読む <h>） ・ 直す <b>（うち束ね <c>） ・ 人へ <d>（kind 無し <e>） ・ 次回 <f> ・ 読めない <g>
 decisions.json: issues/<id>/library/decisions.json。`andon triage apply <id> --dry-run` は通った。
 
-| decision | 出どころ | 項目（短く） | 理由 |
-|---|---|---|---|
-（close・fix・bundle・person・keep の順。人へのものは問いと推奨案も）
+| decision | 出どころ | 項目（短く） | 閉じ方 | 理由 |
+|---|---|---|---|---|
+（Chief of Staff が読む close・ほかの close・fix・bundle・person・keep の順。人へのものは問いと推奨案も）
 ## Next
-- Chief of Staff: andon triage apply <id> --max-issues <上限>
+- Chief of Staff: andon triage apply <id> --dry-run の review の <h> 件に andon triage verdict を書き、andon triage apply <id> --max-issues <上限>
 - （委譲・片付け待ちがあれば1行ずつ）
 ## Remember
 ```
@@ -168,3 +195,4 @@ decisions.json: issues/<id>/library/decisions.json。`andon triage apply <id> --
 - 問いを `## 人に聞くこと` に並べない（人の問いは `apply` が人の課題にし、Chief of Staff が1問ずつ出す）。`kanban ask` もしない（誰も待っていない問いなので）。
 - `kanban report <id>` → `kanban review <id>`。Chief of Staff へ `hc send` しない（dispatcher が届ける）。
 - 直しが届いたら（`<hc from=…>`）、`kanban start <id>` で戻し、decisions.json を直して `--dry-run` から通し直す。
+  Chief of Staff が覆した close は、その項目の行き先（`fix`・`person`・`keep`・根拠の閉じ）を書き直す。同じ判断の閉じのまま理由だけを言い換えて返さない。

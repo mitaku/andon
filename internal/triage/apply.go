@@ -22,6 +22,13 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	if !ok {
 		return fail("decisions.json が不正（key・理由・commit・issue・question を確認）")
 	}
+	if err := checkClosings(items); err != nil {
+		return err
+	}
+	verdicts, err := readVerdicts(verdictPath(l, id))
+	if err != nil {
+		return err
+	}
 	collected, err := readCollected(filepath.Join(l.dir, "issues", id, "library", "items.json"))
 	if err != nil {
 		return err
@@ -64,8 +71,7 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		if it.keyPart(2) == "signal" && !known {
 			_, known = knownSignal(it.key(), signals, l.slug)
 		}
-		closesIssue := it.decision() == "close" && (it.keyPart(2) == "issue" || it.keyPart(2) == "person")
-		if !known || (closesIssue && !inCurrent) {
+		if !known || (it.closesIssue() && !inCurrent) {
 			return fail("key が収集項目・記録に無い、または close 対象が現在の未担当項目でない")
 		}
 	}
@@ -90,7 +96,17 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		}
 	}
 	if dry {
-		return writeJSON(stdout, data)
+		// Chief of Staff が読む判定（判断の閉じと、課題を閉じる判定）を別の表で出す。判定はまだ要らない。
+		out := obj{}
+		for k, v := range data {
+			out[k] = v
+		}
+		out["review"] = reviewTable(items, verdicts, writer(l))
+		return writeJSON(stdout, out)
+	}
+	// 判定の要る close の全部に Chief of Staff の「閉じてよい」が無ければ、台帳にも記録の置き場にも手を入れずに断る。
+	if err := checkVerdicts(items, verdicts, writer(l)); err != nil {
+		return err
 	}
 
 	// 当てた決定を1つずつ記録する。途中で台帳の CLI が落ちても、どこまで当たったかが残り、黙って当て直されない。
@@ -373,10 +389,17 @@ func summary(slug, date string, goal any, items []item) string {
 	fmt.Fprintf(&b, "閉じた %d ・ 直す %d（うち束ね %d） ・ 人へ %d ・ 次回 %d ・ 読めない %d\n",
 		count(is("close")), created("fix", "bundle"), created("bundle"), count(is("person")), count(is("keep")),
 		count(func(it item) bool { return it.keyPart(2) == "unreadable" }))
-	b.WriteString("\n## 閉じた\n| 出どころ | 項目 | 理由 |\n|---|---|---|\n")
+	// 閉じたものは、Chief of Staff が読んだもの（判断の閉じと、課題を閉じる判定）を先に、根拠の閉じを後に出す（ADR-0030 決めたこと 5 の 5）。
+	b.WriteString("\n## 閉じた（判断の閉じと課題の閉じ。Chief of Staff が読んだ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n")
 	for _, it := range items {
-		if it.decision() == "close" {
-			b.WriteString(row(it.key(), text(it), it["reason"]))
+		if it.needsVerdict() {
+			b.WriteString(row(it.key(), text(it), it["closing"], it["reason"]))
+		}
+	}
+	b.WriteString("\n## 閉じた（根拠の閉じ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n")
+	for _, it := range items {
+		if it.decision() == "close" && !it.needsVerdict() {
+			b.WriteString(row(it.key(), text(it), orDefault(it["closing"], "なし"), it["reason"]))
 		}
 	}
 	b.WriteString("\n## 直す（起動した課題）\n| 課題 | 題 | 出どころ | Review |\n|---|---|---|---|\n")
@@ -395,6 +418,19 @@ func summary(slug, date string, goal any, items []item) string {
 	for _, it := range items {
 		if it.decision() == "keep" {
 			b.WriteString(row(it.key(), text(it), it["reason"]))
+		}
+	}
+	var overturned []item
+	for _, it := range items {
+		if it["overturned"] != nil {
+			overturned = append(overturned, it)
+		}
+	}
+	if len(overturned) > 0 {
+		b.WriteString("\n## Chief of Staff が覆した close（担当が行き先を書き直した）\n| 出どころ | 項目 | 覆した close（閉じ方: 理由） | 書き直した行き先 |\n|---|---|---|---|\n")
+		for _, it := range overturned {
+			o, _ := it["overturned"].(obj)
+			b.WriteString(row(it.key(), text(it), cell(o["closing"])+": "+cell(o["reason"]), it.decision()))
 		}
 	}
 	var kept []string

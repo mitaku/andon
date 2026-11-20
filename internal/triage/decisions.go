@@ -187,6 +187,67 @@ func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 	return data, items, true
 }
 
+// 閉じ方（decisions.json の close の closing。ADR-0030 決めたこと 5 の 1）。
+// 根拠の閉じはどの種類の項目にも使える。判断の閉じは、使える項目の種類が決まっている。
+var (
+	evidenceClosings = []string{"done", "gone", "wiki", "delegated"}
+	judgmentClosings = map[string][]string{
+		"wont-happen":    {"waived"},             // 起きない: 見送りの項目だけ
+		"one-off":        {"remember", "memory"}, // その場限り: ## Remember の行と auto memory だけ
+		"not-applicable": {"memory"},             // 当てはまらない: auto memory だけ
+		"read":           {"unreadable"},         // 読んだ: 拾うものなし: 読めない報告だけ
+	}
+)
+
+func (i item) closing() string { return i.str("closing") }
+
+// closesIssue は台帳の課題そのもの（担当の無い課題・人の判断待ち）を閉じる判定か。
+func (i item) closesIssue() bool {
+	k := i.keyPart(2)
+	return i.decision() == "close" && (k == "issue" || k == "person")
+}
+
+// judged は判断の閉じか（担当の判断だけで閉じる）。
+func (i item) judged() bool {
+	_, ok := judgmentClosings[i.closing()]
+	return i.decision() == "close" && ok
+}
+
+// needsVerdict は Chief of Staff の判定が無ければ当てない close か（判断の閉じと、課題を閉じる判定。決めたこと 1・6）。
+func (i item) needsVerdict() bool { return i.judged() || i.closesIssue() }
+
+// checkClosings は close の閉じ方の欄と、項目の種類との組み合わせを確かめる。
+// 欄の無い close・知らない値・組み合わせに合わない close を断る。close でない判定の closing は値だけ確かめる。
+func checkClosings(items []item) error {
+	for _, it := range items {
+		c, present := it["closing"]
+		if !present || c == nil {
+			if it.decision() == "close" {
+				return fail("close に閉じ方（closing）が無い: %s", it.key())
+			}
+			continue
+		}
+		cs, _ := c.(string)
+		kinds, judged := judgmentClosings[cs]
+		if !judged && !slices.Contains(evidenceClosings, cs) {
+			return fail("閉じ方（closing）が不正: %s（%v か %v）", it.key(), evidenceClosings, judgmentNames())
+		}
+		if it.decision() == "close" && judged && !slices.Contains(kinds, it.keyPart(2)) {
+			return fail("閉じ方 %s は %s の項目に使えない（使えるのは %s）: %s", cs, it.keyPart(2), strings.Join(kinds, "・"), it.key())
+		}
+	}
+	return nil
+}
+
+func judgmentNames() []string {
+	var got []string
+	for k := range judgmentClosings {
+		got = append(got, k)
+	}
+	slices.Sort(got)
+	return got
+}
+
 // capIssues は起動する課題（fix と、bundle の束）を入力の順に max まで数え、超えたものを keep にする。
 func capIssues(items []item, max int) []item {
 	got := make([]item, 0, len(items))

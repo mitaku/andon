@@ -4,7 +4,8 @@
 // 仕分けの決定を台帳に当てる（apply）。
 //
 // collect は台帳を読むだけで、書くのは台帳の repo の checkout の refs/remotes/origin/<既定の branch>（最新の main を取り直す）だけ。
-// apply は判断を持たず、decisions.json を検査し、見た commit を collect の記録（library/items.json）と照らしてから台帳の CLI を打つ。
+// apply は判断を持たず、decisions.json を検査し（close の閉じ方と項目の種類の組み合わせも）、見た commit を collect の記録（library/items.json）と照らし、
+// 判断の閉じと課題を閉じる判定に Chief of Staff の判定（verdict が書く library/verdicts.json）が揃っているかを確かめてから台帳の CLI を打つ。
 // 台帳を書くのは台帳の CLI（kanban）だけで、ここは record（library/triage/）を書き、仕分けの済んだ memory のファイルと目録の行を消す。
 package triage
 
@@ -29,7 +30,8 @@ import (
 
 // Usage は andon triage の使い方。
 const Usage = "usage: andon triage collect [--limit N]                    台帳の未処理と repo ごとの最新の main を JSON に出す\n" +
-	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を台帳に当てる\n"
+	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を台帳に当てる（--dry-run は Chief of Staff が読む判定の表 review も出す）\n" +
+	"       andon triage verdict <id> <key> ok|overturn           Chief of Staff が判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く\n"
 
 var (
 	idRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
@@ -57,14 +59,23 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return usage()
 	}
 	cmd, args := args[0], args[1:]
-	limit, maxIssues, dry, id := 50, 3, false, ""
+	limit, maxIssues, dry, id, key, value := 50, 3, false, "", "", ""
 	switch cmd {
 	case "collect":
+	case "verdict":
+		if len(args) != 3 {
+			return usage()
+		}
+		key, value = args[1], args[2]
+		fallthrough
 	case "apply":
 		if len(args) == 0 {
 			return usage()
 		}
 		id, args = ledgercli.CanonID(args[0]), args[1:]
+		if cmd == "verdict" {
+			args = nil
+		}
 		if !idRe.MatchString(id) {
 			fmt.Fprintln(stderr, "andon triage: id が不正")
 			return exitFail
@@ -94,9 +105,12 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	l, err := openLedger()
 	if err == nil {
-		if cmd == "collect" {
+		switch cmd {
+		case "collect":
 			err = runCollect(l, limit, stdout, stderr)
-		} else {
+		case "verdict":
+			err = runVerdict(l, id, key, value, time.Now().UTC(), stdout)
+		default:
 			err = runApply(l, id, maxIssues, dry, time.Now().UTC(), stdout)
 		}
 	}

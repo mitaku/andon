@@ -3,6 +3,7 @@ package triage
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -263,7 +264,8 @@ func TestCapIssuesCountsBundleOnce(t *testing.T) {
 
 func TestSummary(t *testing.T) {
 	items := []item{
-		{"key": k1, "decision": "close", "reason": "a|b", "text": "行\n本文"},
+		{"key": k1, "decision": "close", "closing": "done", "reason": "a|b", "text": "行\n本文"},
+		{"key": "demo:T-4:remember:0000000000000000000000000000000000000004", "decision": "close", "closing": "one-off", "reason": "その場限り", "text": "学び"},
 		{"key": k2, "decision": "fix", "reason": "r", "created_issue": "T-9", "issue": map[string]any{"title": "題", "review": "on"}},
 		{"key": "demo:T-3:unreadable:0000000000000000000000000000000000000003", "decision": "keep", "reason": "読む"},
 	}
@@ -272,9 +274,11 @@ func TestSummary(t *testing.T) {
 	}
 	got := summary("demo", "2026-01-02", "ゴール", items)
 	want := "線引きを見直す\n\n# トリアージ demo 2026-01-02（ゴール: ゴール）\n" +
-		"閉じた 1 ・ 直す 1（うち束ね 0） ・ 人へ 4 ・ 次回 1 ・ 読めない 1\n" +
-		"\n## 閉じた\n| 出どころ | 項目 | 理由 |\n|---|---|---|\n" +
-		"| " + k1 + " | 行 本文 | a&#124;b |\n"
+		"閉じた 2 ・ 直す 1（うち束ね 0） ・ 人へ 4 ・ 次回 1 ・ 読めない 1\n" +
+		"\n## 閉じた（判断の閉じと課題の閉じ。Chief of Staff が読んだ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n" +
+		"| demo:T-4:remember:0000000000000000000000000000000000000004 | 学び | one-off | その場限り |\n" +
+		"\n## 閉じた（根拠の閉じ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n" +
+		"| " + k1 + " | 行 本文 | done | a&#124;b |\n"
 	if !strings.HasPrefix(got, want) {
 		t.Errorf("got:\n%s", got)
 	}
@@ -287,6 +291,13 @@ func TestSummary(t *testing.T) {
 			t.Errorf("%q が無い:\n%s", line, got)
 		}
 	}
+	if strings.Contains(got, "覆した") {
+		t.Errorf("覆したものが無いのに覆した表がある:\n%s", got)
+	}
+	items[2]["overturned"] = obj{"closing": "one-off", "reason": "前の理由"}
+	if got := summary("demo", "d", "g", items); !strings.Contains(got, "| "+k2+" | "+k2+" | one-off: 前の理由 | fix |\n") {
+		t.Errorf("覆した表が無い:\n%s", got)
+	}
 	if s := summary("demo", "d", "g", nil); !strings.HasPrefix(s, "\n# トリアージ") {
 		t.Errorf("人の kind 無しが3以下なら先頭は空行: %q", s)
 	}
@@ -294,7 +305,8 @@ func TestSummary(t *testing.T) {
 
 func TestMainUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {"bogus"}, {"apply"}, {"collect", "--limit"}, {"collect", "--limit", "x"},
-		{"collect", "--limit", "1234567"}, {"collect", "--max-issues", "1"}, {"apply", "T-1", "--limit", "1"}, {"collect", "--dry-run"}} {
+		{"collect", "--limit", "1234567"}, {"collect", "--max-issues", "1"}, {"apply", "T-1", "--limit", "1"}, {"collect", "--dry-run"},
+		{"verdict"}, {"verdict", "T-1"}, {"verdict", "T-1", "k"}, {"verdict", "T-1", "k", "ok", "extra"}} {
 		var out, errb bytes.Buffer
 		if rc := Main(args, nil, &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon triage") {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errb.String())
@@ -314,5 +326,134 @@ func TestSlugFollowsSchema(t *testing.T) {
 	k := itemKey("sample_site", "S-0001", "next", "x")
 	if !keyRe.MatchString(k) {
 		t.Errorf("key %q を受けない", k)
+	}
+}
+
+func key(kind string, n int) string {
+	return fmt.Sprintf("demo:T-%d:%s:%040d", n, kind, n)
+}
+
+// 閉じ方の欄が無い close と、組み合わせに合わない判断の閉じは通らない（ADR-0030 受け入れ条件 1・2）。
+func TestCheckClosings(t *testing.T) {
+	c := func(kind, closing string) item {
+		it := item{"key": key(kind, 1), "decision": "close", "reason": "r"}
+		if closing != "" {
+			it["closing"] = closing
+		}
+		return it
+	}
+	good := []item{
+		c("waived", "wont-happen"), c("remember", "one-off"), c("memory", "one-off"), c("memory", "not-applicable"),
+		c("unreadable", "read"), c("next", "done"), c("next", "gone"), c("issue", "done"), c("person", "gone"),
+		c("signal", "gone"), c("remember", "wiki"), c("remember", "delegated"), c("leftover", "gone"),
+		{"key": key("next", 1), "decision": "keep", "reason": "r"},
+	}
+	for _, it := range good {
+		if err := checkClosings([]item{it}); err != nil {
+			t.Errorf("%v が通らない: %v", it, err)
+		}
+	}
+	bad := map[string]item{
+		"欄が無い":              c("next", ""),
+		"null":              {"key": key("next", 1), "decision": "close", "reason": "r", "closing": nil},
+		"知らない値":             c("next", "drop"),
+		"next を起きない":        c("next", "wont-happen"),
+		"remember を起きない":    c("remember", "wont-happen"),
+		"issue をその場限り":      c("issue", "one-off"),
+		"person を読んだ":       c("person", "read"),
+		"next をその場限り":       c("next", "one-off"),
+		"question を当てはまらない": c("question", "not-applicable"),
+		"agents をその場限り":     c("agents", "one-off"),
+		"signal をその場限り":     c("signal", "one-off"),
+		"leftover をその場限り":   c("leftover", "one-off"),
+		"remember を当てはまらない": c("remember", "not-applicable"),
+		"fix に知らない閉じ方":      {"key": key("next", 1), "decision": "fix", "reason": "r", "closing": "drop"},
+	}
+	for name, it := range bad {
+		if err := checkClosings([]item{it}); err == nil {
+			t.Errorf("%s が通った", name)
+		}
+	}
+}
+
+// 判定の要る close は、判断の閉じと、課題を閉じる判定（根拠の閉じでも）。
+func TestNeedsVerdict(t *testing.T) {
+	for _, tc := range []struct {
+		it   item
+		want bool
+	}{
+		{item{"key": key("remember", 1), "decision": "close", "closing": "one-off"}, true},
+		{item{"key": key("issue", 1), "decision": "close", "closing": "done"}, true},
+		{item{"key": key("person", 1), "decision": "close", "closing": "gone"}, true},
+		{item{"key": key("next", 1), "decision": "close", "closing": "done"}, false},
+		{item{"key": key("memory", 1), "decision": "close", "closing": "wiki"}, false},
+		{item{"key": key("issue", 1), "decision": "keep"}, false},
+	} {
+		if got := tc.it.needsVerdict(); got != tc.want {
+			t.Errorf("%v: %v", tc.it, got)
+		}
+	}
+}
+
+// 判定が揃わない・覆した・理由が書き換わったら断り、揃えば判定と覆した記録を項目に書く（受け入れ条件 9〜11）。
+func TestCheckVerdicts(t *testing.T) {
+	a := item{"key": key("remember", 1), "decision": "close", "closing": "one-off", "reason": "ra"}
+	b := item{"key": key("issue", 2), "decision": "close", "closing": "done", "reason": "rb"}
+	n := item{"key": key("next", 3), "decision": "close", "closing": "done", "reason": "rn"}
+	f := item{"key": key("remember", 4), "decision": "fix", "reason": "rf"}
+	ok := func(it item) verdict {
+		return verdict{Key: it.key(), Verdict: verdictOK, Closing: it.closing(), Reason: it.str("reason"), By: "terminal:t1", At: "x"}
+	}
+	vs := func(v ...verdict) map[string]verdict {
+		m := map[string]verdict{}
+		for _, x := range v {
+			m[x.Key] = x
+		}
+		return m
+	}
+	items := []item{a, b, n, f}
+	if err := checkVerdicts(items, vs(), "terminal:t1"); err == nil || !strings.Contains(err.Error(), "2 件足りない") {
+		t.Errorf("判定なし: %v", err)
+	}
+	if err := checkVerdicts(items, vs(ok(a)), "terminal:t1"); err == nil || !strings.Contains(err.Error(), "1 件足りない") {
+		t.Errorf("1 件だけ: %v", err)
+	}
+	changed := ok(b)
+	changed.Reason = "前の理由"
+	if err := checkVerdicts(items, vs(ok(a), changed), "terminal:t1"); err == nil {
+		t.Error("理由が書き換わった判定が通った")
+	}
+	over := ok(b)
+	over.Verdict = verdictOverturn
+	if err := checkVerdicts(items, vs(ok(a), over), "terminal:t1"); err == nil || !strings.Contains(err.Error(), "覆した") {
+		t.Errorf("覆した: %v", err)
+	}
+	st := func(v map[string]verdict, it item) string { return verdictState(v, "terminal:t1", it) }
+	if st(vs(ok(a), over), a) != "ok" || st(vs(over), b) != "overturn" || st(vs(changed), b) != "stale" || st(vs(), a) != "none" {
+		t.Error("verdictState")
+	}
+	// 書き手が今の Chief of Staff の端末でない判定（by の無いもの・別の端末）は数えない。chief_of_staff が無ければどれも数えない。
+	noBy, other := ok(a), ok(a)
+	noBy.By, other.By = "", "terminal:t9"
+	for _, v := range []verdict{noBy, other} {
+		if st(vs(v), a) != "foreign" {
+			t.Errorf("%+v: %s", v, st(vs(v), a))
+		}
+		if err := checkVerdicts([]item{a}, vs(v), "terminal:t1"); err == nil {
+			t.Errorf("%+v が通った", v)
+		}
+	}
+	if verdictState(vs(ok(a)), "", a) != "foreign" || checkVerdicts([]item{a}, vs(ok(a)), "") == nil {
+		t.Error("chief_of_staff が無いのに判定が通った")
+	}
+	fo := verdict{Key: f.key(), Verdict: verdictOverturn, Closing: "one-off", Reason: "前", By: "terminal:t1", At: "x"}
+	if err := checkVerdicts(items, vs(ok(a), ok(b), fo), "terminal:t1"); err != nil {
+		t.Fatal(err)
+	}
+	if a["verdict"].(obj)["verdict"] != "ok" || b["verdict"].(obj)["by"] != "terminal:t1" || n["verdict"] != nil {
+		t.Errorf("判定が項目に無い: %v %v %v", a, b, n)
+	}
+	if o, _ := f["overturned"].(obj); o["reason"] != "前" || o["closing"] != "one-off" {
+		t.Errorf("覆した記録が無い: %v", f)
 	}
 }
