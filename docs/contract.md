@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の台帳の行〈§22〉と引き取れる課題〈§23〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の台帳の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -22,6 +22,7 @@
 | §21 パターンの一覧（`retro.json`） | `schema/patterns.schema.json` |
 | §22 台帳の行（`log.jsonl`） | `schema/ledger/log.v3.schema.json` |
 | §23 引き取れる課題（`kanban ready --json` の出力） | `schema/ledger/ready.v3.schema.json` |
+| §24 走らせた記録（`runs/<n>.json`） | `schema/run.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
@@ -37,7 +38,7 @@
    - `andon issue impact` は、マージした PR のファイルの path か名前が依頼書（`brief.md`）に出るかを探す（`brief_refs`。§6 の「マージのあとの影響」）。
    - `andon issue resume` と dispatcher（起き直したレビュアーを拾うとき）は、dispatcher がレビュアーの依頼書に書いた「対象: … commit <sha>。」の行から commit を引く（§8）。
 2. **無い・読めない・知らない値は安全側に倒す。** ゲートは `needs_human`、dispatcher は送らない／起動しない、担当の command は止まって理由を1行出す。黙って既定に落とさない（既定があるキーはこの文書に「既定」と明記する）。
-3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` とパターンの一覧（`retro.json`。§21）は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と結果の記録（`outcome.json`。§19）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
+3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` とパターンの一覧（`retro.json`。§21）は担当、走らせた記録（§24）は担当が打つ `andon issue record`、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と結果の記録（`outcome.json`。§19）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
 6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。加えて `andon` は、約束の JSON を書く前に、自分に埋め込んだ `schema/` の直下の schema と照らし、合わなければ書かない。command は 0 でない終了コードで終わり、dispatcher はその巡の控えを書かずにログに1行出す（[ADR-0034](adr/0034-prevention-before-tests.md) 決めたこと 6）。検査器は Go の正規表現を使うので、`pattern` は ECMA-262・Python・Go で同じ意味になる書き方だけを使う（`schema_check.py lint` が止める）。
@@ -57,6 +58,7 @@ projects/<slug>/kanban/
       findings.json               レビュアー（§3。レビュアーの課題の側）
       candidates.json             担当（§12。調べる課題の成果と、範囲の問いで止まる直す課題）
       questions/<n>.json          問うた者（§5）
+      runs/<n>.json・<n>.log      andon issue record（§24。担当が打つ。走らせた記録と出力。書き足すだけ）
       gate/<head sha>.json        andon gate（§7。ゲートの記録。andon issue merge が回し、マージしたら merged を書く）
       corrections.json            dispatcher（§14。finish〈done〉のとき1回だけ。人の手直し: 問いの答え・PR の上の直し・指摘の覆し。design.md §1.9 の (b)）
       launches.jsonl              エージェントを起動する command（§18。起動のたびに1行足す。版と起動行）
@@ -154,7 +156,8 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
  "plan": [{"id": "p1", "text": "schema に足す。終了条件: tests/schema.sh が通る", "done": true},
           {"id": "p2", "text": "andon issue report で引き継ぐ。終了条件: tests/andon-issue.sh が通る", "done": false}],
  "waived": [{"severity": "minor", "file": "internal/issue/issue.go", "line": 88, "reason": "起きる条件がこの repo に無い"}],
- "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-issue.sh（出力 library/A1.log）"}],
+ "acceptance": [{"id": "A1", "result": "pass", "evidence": "bash tests/andon-issue.sh（出力 library/A1.log）"},
+                {"id": "A2", "result": "pass", "evidence": "go test ./internal/issue/ -run TestRecord（記録 runs/3.json）", "run": 3}],
  "risk": {"one_way": true, "impact": ["sample-site の本番の表 orders から列 note を消す"]},
  "next": [{"to": "person", "text": "PR #12 を読む（レベル C: package/gate.json）"},
           {"to": "chief-of-staff", "text": "マージ後に andon issue finish A-0012"},
@@ -172,7 +175,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `estimate` | 任意（担当が依頼書の見込みと違うと見たときだけ） | Chief of Staff・`andon measure` | 担当の見込み `{"size": "small" \| "medium" \| "large", "reason": "…"}`（2つとも必須。`size` は §2 の `estimate` と同じ値、`reason` は1行）。担当は止まらず進み、報告の `## 計画` にも同じ1行を書く。課題の見込み（§2 の `estimate`）は変えず、dispatcher のズレの通知は Chief of Staff の見込みと比べたまま。`andon issue report` は `--data` に無ければ前の `report.json` から引き継ぐ（`pr` と同じ。担当は毎回全体を書き直すので、引き継がないと最終の報告から消える）。足しても版は上げない（原則4。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 4・11 の 3） |
 | `plan[]` | 任意（担当が計画を書いたら） | Chief of Staff（見守り） | 担当の計画。報告の `## 計画` の機械向けの写しで、1 件 `{"id", "text", "done": true \| false}`（3つとも必須。`id` は計画の中で一意な短い名〈`p1` など〉、`text` は作業と終了条件の1行、`done` は終了条件を満たしたか）。進み具合は `done` の数。見守り（`process/workstreams/watch.yaml` の `report.plan`）が読む。`andon issue report` は `--data` に無ければ前の `report.json` から引き継ぎ、あれば丸ごと置き換える（`estimate` と同じ）。足しても版は上げない（原則4。[ADR-0017](adr/0017-process-definitions.md) 決めたこと 10） |
 | `waived` | 任意 | トリアージ・振り返り | 見送った指摘（`findings.json` と同じ3つ ＋ `reason`） |
-| `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command と、その出力（ユースケースの実行の跡を含む）のパス。証拠になるのは、その commit で走らせた本物の出力だけで、前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストの結果は証拠でない。本物の証拠が無い条件は `pass` と書かない。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。足しても版は上げない（原則4） |
+| `acceptance[]` | 任意（Chief Engineer の文書に受け入れ条件があるとき） | ゲート・振り返り | `{"id", "result": "pass" \| "fail" \| "manual", "evidence"}`。`evidence` はテストの command と、その出力（ユースケースの実行の跡を含む）のパス。証拠になるのは、その commit で走らせた本物の出力だけで、前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストの結果は証拠でない。本物の証拠が無い条件は `pass` と書かない。`fail` があれば `fix`、`manual` があればレベルを1つ上げる（design.md §1.9 の (a)）。`run` は任意で、証拠が走らせた記録（§24）のときにその `id`（1 以上の整数）を書く。記録でない証拠（CI の検査の名前・画面の添付の URL・`manual`）では書かない（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 2）。足しても版は上げない（原則4） |
 | `risk` | 任意（変更そのものが戻せないとき） | ゲート・人 | 担当の一方通行の申告 `{"one_way": true \| false, "impact": ["…"]}`（`one_way` は必須、`impact` は任意）。`one_way: true` はデータの移行・消す操作・外への約束のように revert で戻らない変更。ゲートはレベルを C に上げ、`tier_reasons` に「担当の申告: one_way」と書く。`false`・無しでレベルを下げない（申告は厳しくする向きにだけ効く。原則2）。ゲートが読むのは `one_way` だけで、`impact` は人が読む欄。足しても版は上げない（原則4。[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)） |
 | `next[]` | 任意 | トリアージ | `to` は `person` / `chief-of-staff` / `issue`（次の課題に切るもの） |
 | `observation` | 観察の課題（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 7）の報告でだけ | Chief of Staff・Chief Engineer・measure | Chief Engineer の文書の価値の仮説を、信号の記録で確かめた結果 `{"hypothesis", "result": "hit" \| "miss" \| "unknown", "evidence": []}`（3つとも必須。`evidence` は読んだ信号の key・URL・パスで、空の配列も可）。ラインは結果で何もしない（Chief of Staff がオーナーに1行で返す）。足しても版は上げない（原則4） |
@@ -180,7 +183,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 
 - 担当の `andon issue ready <id>`: まずこの課題に受け取られていない問い（`open`・`answered`・読めない `questions.yaml`。`kanban done`・`kanban review` と `andon issue finish` と同じ確かめ）が無いことを確かめ、あれば `doing` のまま終了コード 1 と理由1行（問いを残して `review` に入ると、マージのあとの片付けが問いで断られるため）。次に `report.json` を検証（必須キー・`commit` ＝ `git rev-parse HEAD` ＝ `gh pr view --json headRefOid`・`review: on` なら最新のレビュアーの課題の `findings.json` が `commit` を指す）してから `kanban review <id>`。合わなければ終了コード 1 と理由1行。`deliverable: candidates`（§2。履歴の照合は見ない。Chief of Staff が起き直して書き直す前でも PR を求めないため）なら `pr` とレビューを要らず、代わりに `library/candidates.json`（§12）が在って形が合い、repo があれば `report.json` と `candidates.json` の `commit` が `HEAD` と同じことを確かめる。
 - 担当の `andon issue review-request <id>`: `review_request` を `report.json` に書き（`round` は前の回から数える）、`kanban report` する。担当は `## レビュー依頼` の文を書かなくてよい。その課題のレビュアーの課題がまだ `todo`・`doing` なら、書く前に終了コード 1 で断る（回は進まない）。`HEAD` を見ている子課題（依頼書に `commit <HEAD>。` がある）なら「もう頼んである」、古い commit を見ている子課題なら「まだ動いている」と書く。レビュアーが 2 人走ると、照合が最後に終わったほうだけを読み、`ready` も頼み直しも断られて進めなくなるため（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 8）。
-- `andon issue start`・`report`・`review-request`・`candidates`・`ask`・`ready`・`finish` は、課題の今の `status` から打てるものが [`process/states/issue.yaml`](../process/states/issue.yaml) の移り方（`command`）に在るときだけ動く。無ければ台帳に書く前に終了コード 1 と理由1行で断る（例: `todo` の課題への `ready`、`done` の課題への `review-request`）。定義はバイナリに埋め込んである。`by: kanban` の移り方（担当の `kanban start`、レビュアー・Chief Engineer の `kanban report`・`kanban review`）は `kanban` を直に打つので断らない（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 15）。
+- `andon issue start`・`report`・`review-request`・`candidates`・`record`・`ask`・`ready`・`finish` は、課題の今の `status` から打てるものが [`process/states/issue.yaml`](../process/states/issue.yaml) の移り方（`command`）に在るときだけ動く。無ければ台帳に書く前に終了コード 1 と理由1行で断る（例: `todo` の課題への `ready`、`done` の課題への `review-request`）。定義はバイナリに埋め込んである。`by: kanban` の移り方（担当の `kanban start`、レビュアー・Chief Engineer の `kanban report`・`kanban review`）は `kanban` を直に打つので断らない（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 15）。
 - `andon issue start` は、レビュアーの子課題（`parent` があり `profile` が `*-review`）を、何も作らず台帳にも書かずに終了コード 1 と理由1行で断る。レビュアーを起動するのは dispatcher だけで、元の課題の担当と同じ置き場に、レビューする commit の worktree を切って起動する（[dispatcher.md](dispatcher.md) §5 の P6a）。
 - 作業側（別のマシン）の担当は同じ command を打つ（設計だけ。`machine` を使う起動はまだ使えない。上の `machine` の行）。command は `<worktree>.issue/outbox/` に書くだけで、dispatcher が引いて指揮側の `library/` に置き、`kanban report`／`review` を打つ（by は dispatcher。design.md §3.2 F5）。
 
@@ -951,3 +954,40 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 - 課題の項目は `schema/ledger/issue.v3.schema.json` の項目の写しで、`id` と `status` が必須、`status` は `todo` か `queued` に絞る。写しが issue.v3 とずれないことは `cmd/kanban` のテスト（`TestReadySchemaCopiesTheIssueSchema`）が見る。台帳の形式に倣い、知らないキー（Andon の予約キー〈§2〉を含む）は許す。
 - 本物の出力を schema に通すのは §22 と同じ `cmd/kanban` のテスト。Go のテストが偽の `kanban` に返させる ready は、補助 `internal/ledger/ledgertest` の `Ready` を通して書く。
+
+## 24. 走らせた記録（`runs/<n>.json`）
+
+担当が証拠として走らせた command の記録（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 2・8・11）。担当の課題の `library/runs/<n>.json` に記録1件、同じ番号の `library/runs/<n>.log` に出力を置く。書き手は `andon issue record <id> [--expect pass|fail] -- <command> [<arg>…]` だけで、担当は手で書かない。報告の `acceptance[]` の行は `run` にこの `id` を書いて記録を指す（§4）。
+
+`andon issue record` のすること:
+
+- `doing` の課題にだけ打てる（§4 の移り方の守り）。打てるのはその課題の担当の端末に限らない（長い検査を `hc run --bg` の端末で撮れるように）。
+- 課題の `worktree`（無ければ今のディレクトリ）で、`--` のあとの command を shell を通さずに走らせる。パイプなどが要るときは `-- bash -c '…'` と書く。標準入力は渡さない。
+- 標準出力と標準エラーを1つにまとめ、端末へ流しながら `runs/<n>.log` に残す。1 MiB を超えたら終わりの側を残し、ログの先頭に切った量の1行を置く。
+- repo のある課題では、走らせる前の `HEAD` と、commit していない変更の有無（`git status --porcelain`。追跡していないファイルも数え、無視するファイルは数えない）を記録する。
+- 記録は、終了コードが期待と違っても書く。期待（`pass` は終了コード 0、`fail` は 0 以外）と違えば終了コード 1 と理由1行で終わる。command を起動できない（無い command・打ち間違い）ときは、落ちた記録にせず何も書かずに終了コード 1。使い方の誤りは 2。
+- 番号 `n` は、`runs/` にある記録と出力の最大 ＋ 1。出力のファイルを排他で作って番号を取るので、同じ課題で並べて打っても重ならない。記録は書き足すだけで、前の記録を書き直さない。`finish` でも消さない。
+
+```json
+{"id": 3, "command": ["go", "test", "./internal/issue/", "-run", "TestRecord"],
+ "expect": "pass", "exit_code": 0,
+ "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "dirty": false,
+ "started_at": "2026-11-20T09:12:03Z", "finished_at": "2026-11-20T09:12:41Z",
+ "output": "runs/3.log", "output_bytes": 1824, "truncated": false}
+```
+
+| キー | 要るか | 意味 |
+|---|---|---|
+| `id` | 必須 | 記録の番号 `n`（1 以上）。課題の中で一意。`acceptance[].run` から指す名前 |
+| `command` | 必須 | `--` のあとに渡した command と引数（1つ以上。空の引数は無い） |
+| `expect` | 必須 | `pass`（終了コード 0 を期待する。既定）か `fail`（0 以外を期待する。誤りを戻すと検査が落ちることを示す記録。決めたこと 8） |
+| `exit_code` | 必須 | command の終了コード。signal で終わったら `-1` |
+| `commit` | repo のある課題では必須（schema では任意。書くのは `andon issue record`）。repo の無い課題では書かない | 走らせる前の worktree の `HEAD`（40桁・小文字） |
+| `dirty` | `commit` があるときだけ、必ず書く | 走らせる前に commit していない変更があったか。`pass` を期待する記録は、`false` のものだけが証拠になる。`fail` を期待する記録は、誤りを戻した木で撮るので `true` でよい（決めたこと 11） |
+| `started_at`・`finished_at` | 必須 | 始めた時刻と終わった時刻（UTC） |
+| `output` | 必須 | 出力の置き場。`library/` からの相対で、`runs/<id>.log` |
+| `output_bytes` | 必須 | command が書いた出力の全体のバイト数（切る前） |
+| `truncated` | 必須 | 上限を超えて先頭を切ったか |
+
+- 記録は担当が手でも書けるので、強さは `report.json` と同じ自己申告（決めたこと 2 の「受け入れること」）。減るのは「走らせずに pass と書く」ことで、出力が残るので Chief of Staff・人・振り返りが後から読める。
+- 記録を指す `acceptance[]` の行の確かめ（記録がある・終了コードが期待どおり・`pass` を期待する記録は commit していない変更の無い木で撮った）と、記録の `commit` が PR の head より古いことのゲートの記録への出し方は、`andon issue ready` とゲートが持つ（決めたこと 2。まだ実装していない）。

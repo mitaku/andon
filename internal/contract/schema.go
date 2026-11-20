@@ -16,7 +16,7 @@ import (
 // 約束の JSON は Write・Encode・EncodeLine で、書く前にこの schema と照らす（ADR-0034 決めたこと 6）。
 type Schema string
 
-// schema/ の直下の 16 本。
+// schema/ の直下の 17 本。
 const (
 	SchemaCandidates   Schema = "candidates"
 	SchemaCorrections  Schema = "corrections"
@@ -33,13 +33,14 @@ const (
 	SchemaQuestion     Schema = "question"
 	SchemaReport       Schema = "report"
 	SchemaRetro        Schema = "retro"
+	SchemaRun          Schema = "run"
 	SchemaSignal       Schema = "signal"
 )
 
 // Schemas は schema/ の直下の全部（テストが、埋め込んだ顔ぶれと突き合わせる）。
 var Schemas = []Schema{SchemaCandidates, SchemaCorrections, SchemaDelivered, SchemaFindings, SchemaGate, SchemaIssueKeys,
 	SchemaLaunch, SchemaMeasure, SchemaNotification, SchemaOutcome, SchemaPatterns, SchemaProject, SchemaQuestion,
-	SchemaReport, SchemaRetro, SchemaSignal}
+	SchemaReport, SchemaRetro, SchemaRun, SchemaSignal}
 
 var (
 	resolvedMu sync.Mutex

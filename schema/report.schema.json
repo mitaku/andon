@@ -98,7 +98,8 @@
         "properties": {
           "id": { "description": "Number of the acceptance criterion (A1, ...).", "type": "string", "minLength": 1 },
           "result": { "description": "fail makes the gate answer fix; manual raises the tier by one.", "enum": ["pass", "fail", "manual"] },
-          "evidence": { "description": "The test command and the path of its output (including the trace of a use case run). Staged output and tests that mock the seam under test are not evidence.", "type": "string", "minLength": 1 }
+          "evidence": { "description": "The test command and the path of its output (including the trace of a use case run). Staged output and tests that mock the seam under test are not evidence.", "type": "string", "minLength": 1 },
+          "run": { "description": "id of the run record that is the evidence (library/runs/<run>.json, written by andon issue record). Absent when the evidence is not a record (a CI check name, an attachment URL, manual).", "type": "integer", "minimum": 1 }
         }
       }
     },

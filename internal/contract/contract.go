@@ -12,6 +12,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -299,6 +300,7 @@ type Acceptance struct {
 	ID       string `json:"id"`
 	Result   string `json:"result"`
 	Evidence string `json:"evidence"`
+	Run      *int   `json:"run,omitempty"` // 証拠の記録（library/runs/<run>.json）。記録でない証拠では書かない
 }
 
 // Risk は担当の一方通行の申告（変更そのものが戻せないか）。機械が読むのは one_way だけで、impact は人が読む欄。
@@ -392,6 +394,9 @@ func (r *Report) Check() error {
 	for _, a := range r.Acceptance {
 		if a.ID == "" || a.Evidence == "" || (a.Result != "pass" && a.Result != "fail" && a.Result != "manual") {
 			return errors.New("acceptance は {id, result: pass|fail|manual, evidence}")
+		}
+		if a.Run != nil && *a.Run < 1 {
+			return errors.New("acceptance の run が 1 以上の整数でない")
 		}
 	}
 	if k := r.Risk; k != nil {
@@ -556,4 +561,67 @@ func (q *Question) Text() string {
 		fmt.Fprintf(&b, "\nあと %d 問", *q.Remaining)
 	}
 	return b.String()
+}
+
+// Run は走らせた記録 library/runs/<n>.json（contract.md §24。andon issue record だけが書く）。
+// commit と dirty は repo のある課題でだけ書き、どちらか片方だけは書かない。
+type Run struct {
+	ID          int      `json:"id"`
+	Command     []string `json:"command"`
+	Expect      string   `json:"expect"`
+	ExitCode    int      `json:"exit_code"`
+	Commit      string   `json:"commit,omitempty"`
+	Dirty       *bool    `json:"dirty,omitempty"`
+	StartedAt   string   `json:"started_at"`
+	FinishedAt  string   `json:"finished_at"`
+	Output      string   `json:"output"`
+	OutputBytes int64    `json:"output_bytes"`
+	Truncated   bool     `json:"truncated"`
+}
+
+// RunOutput は記録 n の出力の置き場（library/ からの相対）。
+func RunOutput(n int) string { return fmt.Sprintf("runs/%d.log", n) }
+
+// Met は終了コードが期待（pass は 0、fail は 0 以外）に合うか。
+func (r *Run) Met() bool { return (r.ExitCode == 0) == (r.Expect == "pass") }
+
+// Check は記録の形を schema/run.schema.json と同じ決まりで確かめる。
+func (r *Run) Check() error {
+	switch {
+	case r.ID < 1:
+		return errors.New("id が 1 以上でない")
+	case len(r.Command) == 0 || slices.Contains(r.Command, ""):
+		return errors.New("command が空か、空の引数がある")
+	case r.Expect != "pass" && r.Expect != "fail":
+		return errors.New("expect が pass/fail でない")
+	case r.ExitCode < -1:
+		return errors.New("exit_code が -1 より小さい")
+	case r.Commit != "" && !IsSHA(r.Commit):
+		return errors.New("commit が40桁・小文字でない")
+	case (r.Commit == "") != (r.Dirty == nil):
+		return errors.New("commit と dirty は両方書くか、両方書かない")
+	case r.StartedAt == "" || r.FinishedAt == "":
+		return errors.New("started_at・finished_at が無い")
+	case r.Output != RunOutput(r.ID):
+		return fmt.Errorf("output が %s でない: %q", RunOutput(r.ID), r.Output)
+	case r.OutputBytes < 0:
+		return errors.New("output_bytes が負")
+	}
+	return nil
+}
+
+// ReadRun は記録を読んで検査する。
+func ReadRun(path string) (*Run, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var r Run
+	if err := Decode(b, &r); err != nil {
+		return nil, err
+	}
+	if err := r.Check(); err != nil {
+		return nil, err
+	}
+	return &r, nil
 }

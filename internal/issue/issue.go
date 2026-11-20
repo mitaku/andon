@@ -8,6 +8,8 @@
 //	                      （deliverable: candidates なら PR の代わりに candidates.json を確かめる）
 //	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
 //	candidates <id> <file|->  候補の一覧の JSON を検査し、library/candidates.json に置く（repo があれば commit は HEAD）
+//	record <id> [--expect fail] -- <command…>  worktree で command を走らせ、出力と終了コード・commit・commit していない変更の有無・時刻を
+//	                      library/runs/<n>.json と <n>.log に残す（record.go。証拠の記録）
 //	start <id>            worktree と branch を切り、hc run で担当を起動し、kanban start で結ぶ（Chief of Staff が打つ）
 //	                      （--dry-run は確かめだけ通し、起動するときに渡すものを出す。--json で JSON）
 //	resume <id>           止まった担当・Chief Engineer を同じ worktree でセッションの続きから起動する（--fresh は新しいセッション。ADR-0012）
@@ -49,6 +51,10 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          （deliverable: candidates なら PR の代わりに candidates.json）\n" +
 	"       andon issue ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
 	"       andon issue candidates <id> <candidates.json|->        候補の一覧を検査して library/candidates.json に書く（commit は command が書く）\n" +
+	"       andon issue record <id> [--expect pass|fail] -- <command> [<arg>…]\n" +
+	"                                                          worktree で command を走らせ、記録を library/runs/<n>.json・<n>.log に書く\n" +
+	"                                                          （期待は既定で pass〈終了コード 0〉。fail は誤りを戻すと落ちることを示す記録。\n" +
+	"                                                          期待と違っても記録は書いて終了コード 1。起動できなければ書かない）\n" +
 	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ。受け取られていない問いがあれば何も消さずに止まる）\n" +
 	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
 	"       andon issue settle <id>                                review・doing の課題の PR を人がマージしていたら、ゲートの問いを閉じて片付ける\n" +
@@ -152,6 +158,16 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return usage()
 		}
 		err = withIssue(id, guard(func(c *ctx) error { return c.candidates(stdin, stdout, rest[0]) }))
+	case "record":
+		expect := "pass"
+		if len(rest) >= 2 && rest[0] == "--expect" {
+			expect, rest = rest[1], rest[2:]
+		}
+		if (expect != "pass" && expect != "fail") || len(rest) < 2 || rest[0] != "--" || rest[1] == "" {
+			return usage()
+		}
+		argv := rest[1:]
+		err = withIssue(id, guard(func(c *ctx) error { return c.record(stdout, expect, argv) }))
 	case "finish":
 		if len(rest) > 0 {
 			return usage()

@@ -368,6 +368,34 @@ expect_fail '担当' env -u HC_TERMINAL_ID "$andon" issue candidates "$fx" - <<<
 cmp -s "$tmp/fx-before.json" "$lfx/candidates.json" || die 'candidates: ほかの端末の書き込みで一覧が変わった'
 ok 'candidates: その課題の担当（agent）でない端末からは書かずに終了コード 1'
 
+# record: 走らせた記録（contract.md §24。ADR-0035 決めたこと 2・8・11）。fx は doing・repo あり・worktree は wt2
+expect_fail 'pass を期待したが終了コード 3（記録 runs/1.json は書いた）' "$andon" issue record "$fx" -- sh -c 'echo 落ちた; exit 3'
+jq -e '.id == 1 and .exit_code == 3 and .expect == "pass" and .dirty == false and .output == "runs/1.log"' "$lfx/runs/1.json" >/dev/null || die 'record: 落ちた記録が違う'
+grep -qx '落ちた' "$lfx/runs/1.log" || die 'record: 出力を残さない'
+"$andon" issue record "$fx" -- git rev-parse HEAD >"$tmp/out"
+grep -q "$fx/library/runs/2.json written（期待 pass・終了コード 0・commit " "$tmp/out" || die "record: 書いた行が無い: $(cat "$tmp/out")"
+jq -e --arg c "$(git -C "$tmp/wt2" rev-parse HEAD)" '.id == 2 and .exit_code == 0 and .commit == $c and .dirty == false and .command == ["git", "rev-parse", "HEAD"]' "$lfx/runs/2.json" >/dev/null || die 'record: 通った記録が違う'
+grep -qx "$(git -C "$tmp/wt2" rev-parse HEAD)" "$lfx/runs/2.log" || die 'record: worktree で走らせていない'
+emit "$lfx/runs/2.json" run.json
+ok 'record: worktree で走らせ、通っても落ちても記録と出力を書く（落ちたら終了コード 1）'
+echo mistake > "$tmp/wt2/mistake"
+"$andon" issue record "$fx" --expect fail -- test ! -e mistake >/dev/null
+jq -e '.id == 3 and .expect == "fail" and .exit_code == 1 and .dirty == true' "$lfx/runs/3.json" >/dev/null || die 'record: 落ちることを期待した記録が違う'
+emit "$lfx/runs/3.json" run-fail.json
+expect_fail 'fail を期待したが終了コード 0' "$andon" issue record "$fx" --expect fail -- test -e mistake
+rm "$tmp/wt2/mistake"
+expect_fail '起動できない' "$andon" issue record "$fx" -- no-such-command-andon
+[ ! -e "$lfx/runs/5.json" ] && [ ! -e "$lfx/runs/5.log" ] || die 'record: 起動できない command の記録を書いた'
+ok 'record: --expect fail は落ちて 0・通って 1。起動できない command は記録しない'
+expect_fail "$sv は review（andon issue record は doing の課題にだけ打てる" "$andon" issue record "$sv" -- true
+ok 'record: doing でない課題には打てない'
+nrr=$(as t5 kanban add '記録: repo 無し' --profile claude)
+kanban start "$nrr" >/dev/null
+"$andon" issue record "$nrr" -- true >/dev/null
+jq -e 'has("commit") or has("dirty") | not' "kanban/issues/$nrr/library/runs/1.json" >/dev/null || die 'record: repo の無い課題に commit・dirty を書いた'
+emit "kanban/issues/$nrr/library/runs/1.json" run-norepo.json
+ok 'record: repo の無い課題の記録は commit・dirty を持たない'
+
 # start: Chief of Staff（t5）が担当を起動する。案件の repo は bare な origin とその clone
 export GHQ_ROOT="$tmp/ghq"
 # start は起動する前に信頼の設定を足す（boot と同じ手）。一時の HOME に書かせ、本物の CLAUDE_CONFIG_DIR・セルの repo に触らない

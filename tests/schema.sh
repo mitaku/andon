@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の16本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
+#   1. schema/ の17本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
 #      schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
@@ -58,10 +58,10 @@ schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
     6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; 21) echo patterns ;;
-    22) echo ledger-log ;; 23) echo ledger-ready ;; *) return 1 ;;
+    22) echo ledger-log ;; 23) echo ledger-ready ;; 24) echo run ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro signal"
+expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro run signal"
 # 台帳の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
 ledger="ledger-log ledger-ready"
 schema_file() {
@@ -70,7 +70,7 @@ schema_file() {
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は16本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は17本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 actual="$(cd "$schema_dir/ledger" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "config.v3 issue.v3 log.v3 questions.v3 ready.v3 routine.v3" ]; then ok "schema/ledger/ は6本（$actual）"; else ng "schema/ledger/ の顔ぶれが違う: $actual"; fi
 for name in $expected $ledger; do
@@ -80,7 +80,7 @@ flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 # 台帳の行と ready の2本は台帳の形式の版（3）
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/1 patterns/1 ledger-log/3 ledger-ready/3; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/1 patterns/1 run/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
@@ -159,6 +159,7 @@ declare -A required=(
   [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
   [retro]="project at since until previous_retro issues typed fixes redacted skipped"
   [patterns]="retro at since until days previous_retro patterns fixes"
+  [run]="id command expect exit_code started_at finished_at output output_bytes truncated"
   [ledger-log]="at by id change"   # 最初の例は課題の行。ほかの形の行は 3b で作る
   [ledger-ready]=""                # 並び。課題の必須（id・status）は 3b で消す
 )
@@ -366,6 +367,10 @@ fail|report|.pr = "https://github.com/\ufeffowner/andon/pull/1"|pr の owner に
 fail|report|.pr = "https://github.com/own er/andon/pull/1"|pr の owner に空白
 fail|report|.pr = "https://github.com/\u00e9/andon/pull/1"|pr の owner に ASCII の外の字
 fail|report|.acceptance[0].result = "ok"|acceptance の result が pass/fail/manual でない
+pass|report|.acceptance[0].run = 1|acceptance が走らせた記録を指す
+fail|report|.acceptance[1].run = 0|acceptance の run が 0
+fail|report|.acceptance[1].run = "3"|acceptance の run が文字列（記録の id は数）
+fail|report|.acceptance[1].run = null|acceptance の run が null（記録でない証拠は書かない）
 pass|report|del(.risk)|risk の無い古い report.json
 pass|report|.risk = {"one_way": false}|risk の one_way: false（impact 無し）
 fail|report|.risk.one_way = "true"|risk.one_way が真偽でない
@@ -692,6 +697,30 @@ fail|patterns|.patterns[0].effect = "a\nb"|期待する効果に改行
 fail|patterns|.patterns[0].reason = " "|理由が空白だけ
 fail|patterns|.fixes[0].recurred = -1|再発の数が負
 fail|patterns|.days = 0|days が 0
+pass|run|. + {"expect": "fail", "exit_code": 1, "dirty": true}|落ちることを期待する記録（誤りを戻した木）
+pass|run|del(.commit, .dirty)|repo の無い課題の記録（commit も dirty も無い）
+pass|run|.exit_code = -1|signal で終わった
+pass|run|. + {"truncated": true, "output_bytes": 2097152}|出力を切った
+pass|run|. + {"id": 12, "output": "runs/12.log"}|2桁の番号
+fail|run|del(.dirty)|commit があるのに dirty が無い
+fail|run|del(.commit)|dirty があるのに commit が無い
+fail|run|.expect = "error"|expect が pass/fail でない
+fail|run|.id = 0|id が 0
+fail|run|.id = "3"|id が文字列
+fail|run|.command = []|command が空
+fail|run|.command = "go test ./..."|command が配列でない（shell の1行でない）
+fail|run|.command[0] = ""|command に空の引数
+fail|run|.exit_code = -2|exit_code が -1 より小さい
+fail|run|.exit_code = 1.5|exit_code が整数でない
+fail|run|.dirty = "no"|dirty が真偽でない
+fail|run|.commit = "9c4e1b0"|commit が40桁でない
+fail|run|.started_at = "2026-11-20 09:12:03"|started_at が UTC の RFC 3339 でない
+fail|run|.finished_at = "2026-02-30T09:00:00Z"|finished_at が暦に無い日
+fail|run|.output = "/tmp/3.log"|output が絶対パス
+fail|run|.output = "runs/../report.json"|output が runs/<n>.log でない
+fail|run|.output_bytes = -1|output_bytes が負
+fail|run|.truncated = "no"|truncated が真偽でない
+fail|run|. + {"stdout": "ok"}|出力の本文を記録に持つ（持たない）
 pass|ledger-log|.change = {"links": ["https://example.com"], "phase": null}|kanban set の並びと消したキー
 pass|ledger-log|.change = {"add": "Add the button"}|kanban add
 pass|ledger-log|.change = {"report": "append"}|kanban report --append
@@ -805,6 +834,12 @@ patterns|."$defs".pattern.properties.decision.enum += ["keep"]|判定に keep �
 patterns|."$defs".pattern.required -= ["decision"]|パターンの必須から decision を外す
 patterns|."$defs".pattern.properties.target.allOf = []|project の repo の必須を外す
 patterns|del(.properties.patterns.uniqueKeys)|パターンの id の一意を外す
+run|.required -= ["exit_code"]|記録の必須から exit_code を外す
+run|del(.else)|記録の「commit が無ければ dirty も無い」を外す
+run|del(.then)|記録の「commit があれば dirty もある」を外す
+run|.properties.expect.enum += ["error"]|記録の expect を緩める
+run|.properties.output.pattern = "^.+$"|記録の output の置き場を緩める
+report|del(.properties.acceptance.items.properties.run.minimum)|acceptance の run の下限を外す
 ledger-log|."$defs".issueLine.additionalProperties = true|課題の行の知らないキーを許す
 ledger-log|."$defs".at.pattern = "^.+$"|台帳の行の at の時刻の形を緩める
 ledger-log|."$defs".change.allOf = []|change の「問い・forced・freedBy には status」を外す
@@ -921,6 +956,9 @@ outcome-nolog.json|outcome|andon dispatcher の outcome.json（セッション�
 retro.json|retro|andon retro collect の出力
 retro-nogh.json|retro|andon retro collect の出力（GitHub が読めない）
 patterns.json|patterns|andon retro patterns の retro.json
+run.json|run|andon issue record の runs/<n>.json
+run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期待して落ちた）
+run-norepo.json|run|andon issue record の runs/<n>.json（repo の無い課題。commit 無し）
 ledger-log.jsonl|ledger-log|kanban が書いた log.jsonl（andon dispatcher がレビューからマージまで回した台帳）
 ledger-ready.json|ledger-ready|kanban ready --json の出力（人の課題・レビュアーの子課題・ルーチンの課題）
 EMIT
