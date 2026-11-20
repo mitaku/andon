@@ -32,9 +32,10 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
   kanban show <id> [--json]
   kanban start <id> [--force] [--repo r]    doing; agent from $HC_TERMINAL_ID; branch and worktree from git
   kanban set <id> key=value … [--force]     empty value removes the key; after/links take a,b;
-                                            status=done checks and frees what done does
+                                            status=done checks and frees what done does;
+                                            status=review checks what review does
                                             after= on a queued issue that then waits on nothing moves it to todo
-  kanban review <id> | kanban done <id> [--force]  done refuses an issue with questions not received
+  kanban review <id> | kanban done <id> [--force]  both refuse an issue with questions not received
   kanban report <id> [--append] < file      write report.md
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
                                             scope asks the Chief of Staff which candidates to fix)
@@ -737,8 +738,14 @@ func cmdSet(e env, a args) error {
 			freed = []string{id}
 		}
 		done := moved && t.status() == cfg.done()
-		if done {
-			forced, err := closing(e.root, id, a.has("force"))
+		// Returning an issue (into review from another status) checks what done checks: an issue
+		// returned with a question not received is refused by andon issue finish later.
+		if done || (moved && t.status() == "review" && was != "review") {
+			verb := "close"
+			if !done {
+				verb = "return it"
+			}
+			forced, err := closing(e.root, id, a.has("force"), verb)
 			if err != nil {
 				return err
 			}
@@ -797,7 +804,7 @@ func cmdDone(e env, a args) error {
 			return err
 		}
 		was := t.status()
-		forced, err := closing(e.root, id, a.has("force"))
+		forced, err := closing(e.root, id, a.has("force"), "close")
 		if err != nil {
 			return err
 		}
@@ -833,20 +840,21 @@ func cmdDone(e env, a args) error {
 	return nil
 }
 
-// closing is what an issue must pass to move to done (kanban done, set status=done): a question
-// not received keeps it open (docs/ledger.md, Questions). force closes it anyway; the numbers it
-// closed past come back, for the log.
-func closing(root, id string, force bool) ([]int, error) {
+// closing is what an issue must pass to move to done (kanban done, set status=done) or into review
+// (kanban review, set status=review): a question not received keeps it where it is (docs/ledger.md,
+// Questions). force moves it anyway; the numbers it moved past come back, for the log. verb names
+// the move in the refusal ("close", "return it").
+func closing(root, id string, force bool, verb string) ([]int, error) {
 	q, err := readQuestions(root, id)
 	if err != nil {
 		if force {
 			return nil, nil
 		}
-		return nil, fail("%s (--force to close anyway)", firstLine(err.Error()))
+		return nil, fail("%s (--force to %s anyway)", firstLine(err.Error()), verb)
 	}
 	nums, names := notReceived(q)
 	if len(nums) > 0 && !force {
-		return nil, fail("%s has questions not received: %s (--force to close anyway)", id, strings.Join(names, ", "))
+		return nil, fail("%s has questions not received: %s (--force to %s anyway)", id, strings.Join(names, ", "), verb)
 	}
 	return nums, nil
 }

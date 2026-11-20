@@ -809,7 +809,8 @@ hm=$(newtask '問いが残る課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
 (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"users","question":"どちらにする","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}')
-(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+# 入口の守り（ready・kanban review）を通らずに問いを残して review に入った課題として、--force で直に打つ
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" --force >/dev/null)
 HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
 dispatcher
 person_merges
@@ -894,10 +895,11 @@ as_worker "$qa" review-request
 dispatcher
 review_by "$qa-r1" '[]'
 # andon issue ready は受け取られていない問いがあれば断る（入口の守り）。ここでは ready を通らずに review へ入った課題として、
-# finish の守り（奥の守り）を確かめる。kanban review を担当の端末で直に打つ
+# finish の守り（奥の守り）を確かめる。kanban review も問いを確かめて断るので、--force で直に打つ
 ! as_worker "$qa" ready 2>/dev/null || die 'ready が受け取られていない問いを残したまま通った'
 kanban show "$qa" --json | jq -e '.issue.status == "doing"' >/dev/null || die "ready が断ったのに課題が doing でない: $(kanban show "$qa" --json | jq -c .issue)"
-(cd "$qwt" && HC_TERMINAL_ID=t7 kanban review "$qa" >/dev/null)
+! (cd "$qwt" && HC_TERMINAL_ID=t7 kanban review "$qa" >/dev/null 2>&1) || die 'kanban review が受け取られていない問いを残したまま通った'
+(cd "$qwt" && HC_TERMINAL_ID=t7 kanban review "$qa" --force >/dev/null)
 dispatcher
 [ -e "$tmp/gh/merged" ] || die "前提: マージしていない: $(grep "$qa" "$tmp/dispatcher.log" | tail -3)"
 kanban show "$qa" --json | jq -e '.issue.status == "review"' >/dev/null || die "問いが残るのに課題が review でない: $(kanban show "$qa" --json | jq -c .issue)"
@@ -1746,7 +1748,7 @@ ok 'log.jsonl の問いを問いの JSON から拾い（Chief of Staff の問い
 
 mkdir -p "$P/issues/$p2/library"
 jq -n '{commit: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", pr: "https://github.com/example/app/pull/7"}' > "$P/issues/$p2/library/report.json"
-as_w kanban review "$p2" >/dev/null
+as_w kanban review "$p2" --force >/dev/null   # 上の問い（open のまま）を残して review に入れる
 p5=$(as_cos kanban add 'PR の無い課題'); as_w kanban start "$p5" >/dev/null; as_w kanban review "$p5" >/dev/null
 p6=$(as_cos kanban add 'Chief of Staff がレビューに入れる'); as_cos kanban review "$p6" >/dev/null
 clear_pending; pk
