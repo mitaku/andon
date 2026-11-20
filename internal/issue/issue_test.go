@@ -284,3 +284,124 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 		})
 	}
 }
+
+// rebaseWorktree は f.wt の履歴を、根拠の出来事の形に作り直す: 課題の branch の commit x をレビューが見たあと、
+// main が衝突しない変更で進み、担当が fetch して rebase した（head は y）。conflict なら rebase で衝突を解いて差分が変わる。
+// f.head・f.prHead・f.report を y に、レビューの findings を x にする。
+func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
+	f.t.Helper()
+	git := func(args ...string) string {
+		c := exec.Command("git", append([]string{"-C", f.wt}, args...)...)
+		c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+		out, err := c.CombinedOutput()
+		if err != nil {
+			f.t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	put := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(f.wt, name), []byte(body), 0o644); err != nil {
+			f.t.Fatal(err)
+		}
+		git("add", name)
+	}
+	git("branch", "-M", "main")
+	put("a.txt", "a\n")
+	put("c.txt", "c\n")
+	git("commit", "-q", "-m", "base")
+	git("checkout", "-q", "-b", "topic")
+	put("a.txt", "a\nA\n")
+	git("commit", "-q", "-m", "topic")
+	x = git("rev-parse", "HEAD")
+	git("checkout", "-q", "main")
+	if conflict {
+		put("a.txt", "a\nM\n")
+	} else {
+		put("c.txt", "c\nC\n")
+	}
+	git("commit", "-q", "-m", "main moves")
+	git("update-ref", "refs/remotes/origin/main", "main")
+	git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	git("checkout", "-q", "topic")
+	if conflict {
+		// 衝突を解いて rebase し直したのと同じ: main の上に、解いた中身の commit を積む
+		git("reset", "-q", "--hard", "origin/main")
+		put("a.txt", "a\nM\nA\n")
+		git("commit", "-q", "-m", "topic")
+	} else {
+		git("rebase", "-q", "origin/main")
+	}
+	y = git("rev-parse", "HEAD")
+	f.head, f.prHead, f.findings = y, y, x
+	f.report = `{"commit": "` + y + `", "pr": "https://github.com/example/app/pull/7"}`
+	return x, y
+}
+
+// 衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じなら、ready はそのレビューを
+// head に引き継いで通す。衝突を解いて差分が変わった rebase は、今までどおり stale で止まる。
+func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		conflict bool
+		want     string // 空なら通る
+	}{
+		{"衝突の無い rebase", false, ""},
+		{"衝突を解いて差分が変わった rebase", true, "stale"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.rebaseWorktree(c.conflict)
+			rc, errs, reviewed := f.ready()
+			if c.want == "" {
+				if rc != 0 || !reviewed {
+					t.Fatalf("rc=%d reviewed=%v err=%q", rc, reviewed, errs)
+				}
+				return
+			}
+			if rc != 1 || reviewed || !strings.Contains(errs, c.want) {
+				t.Fatalf("want rc 1 with %q, got rc=%d reviewed=%v err=%q", c.want, rc, reviewed, errs)
+			}
+		})
+	}
+}
+
+// 衝突の無い rebase のあとの review-request は、前のレビューを引き継ぐので頼まない（レビュアーを起動しない）。
+// report.json も報告も書かない。差分が変わった rebase なら、今までどおり次の回を頼む。
+func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		conflict bool
+		want     string // 空なら頼める
+	}{
+		{"衝突の無い rebase", false, "そのレビューを引き継ぐので頼まない"},
+		{"衝突を解いて差分が変わった rebase", true, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			x, _ := f.rebaseWorktree(c.conflict)
+			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+			f.write("list.json", js([]any{f.task, f.reviewer}))
+			f.write("kanban/log.jsonl", ledgertest.Log(t, js(map[string]any{"at": "2026-11-20T00:00:00Z", "by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}})))
+			f.write("kanban/issues/T-0002/library/findings.json", `{"commit": "`+x+`", "findings": []}`)
+			f.write("kanban/issues/T-0001/library/report.json", f.report)
+			f.write("prhead", f.prHead+"\n")
+			var out, errb bytes.Buffer
+			rc := Main([]string{"review-request", "T-0001"}, strings.NewReader("## Report\n"), &out, &errb)
+			report, _ := os.ReadFile(filepath.Join(f.root, "kanban/issues/T-0001/library/report.json"))
+			_, reported := os.Stat(filepath.Join(f.root, "reported-T-0001"))
+			if c.want == "" {
+				if rc != 0 || reported != nil || !strings.Contains(string(report), `"round": 2`) {
+					t.Fatalf("rc=%d reported=%v err=%q report=%s", rc, reported == nil, errb.String(), report)
+				}
+				return
+			}
+			if rc != 1 || !strings.Contains(errb.String(), c.want) {
+				t.Fatalf("want rc 1 with %q, got rc=%d err=%q", c.want, rc, errb.String())
+			}
+			if reported == nil || string(report) != f.report {
+				t.Fatalf("断ったのに書いた: reported=%v report=%s", reported == nil, report)
+			}
+		})
+	}
+}

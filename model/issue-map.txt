@@ -13,6 +13,7 @@ action AnswerReceived -
 action WorkerOpensPR andon issue report
 action CIFinishes -
 action WorkerPushes -
+action WorkerRebasesSamePatch -
 action ReviewerStarts andon issue review-request
 action ReviewerReturns -
 action WorkerReady andon issue ready

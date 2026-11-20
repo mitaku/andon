@@ -41,7 +41,7 @@
 | 上のどれでもない | 影響なし | 何もしない |
 
 - 決めたことは、人がいるターンならその返事で知らせる（`S-0011（…）に rebase を頼んだ。S-0012（…）は止めて、向きを確かめている。`）。影響なしだけなら `andon news ack` を打って文は書かない。
-- **rebase を頼むときは、`Review: on` の課題には「review-request を打ち直して ready」まで書く**。rebase で head が変わると、最後のレビューが見た commit と食い違い、`andon issue ready` は stale で止まる。回数が `review_rounds` を超えるなら、頼む前に `kanban set <id> review_rounds=<数>` で上げておく。
+- **rebase を頼むときは、`Review: on` の課題には「review-request を打ち直して ready」まで書く**。rebase で差分が変わると、最後のレビューが見た commit と食い違い、`andon issue ready` は stale で止まる。衝突の無い rebase で差分が同じなら、review-request は前のレビューを引き継いで頼まず、担当は報告を書き直して ready へ進む。回数が `review_rounds` を超えるなら、頼む前に `kanban set <id> review_rounds=<数>` で上げておく。
 - 同じ担当に同じマージで二度頼まない。rebase を頼んだ担当が `blocked`・答えないときは `blocked.md`・`watch.md` の表で扱う。
 - **ほかの「前提が変わった」も同じ口で担当へ届ける**: 動いている課題の依頼書に追記したら、そのターンで担当へ `hc send <agent> "依頼書に追記した（<要点>）。読んでから続けて"`（台帳の依頼書は担当の画面に届かない）。
   人の答え（`blocked.md` の「人に聞くこと」）が、問うた課題のほかに動いている課題の前提にも触れるなら、その担当にも同じく知らせる。

@@ -508,7 +508,7 @@ var briefCommitRe = regexp.MustCompile(`commit ([0-9a-f]{40})。`)
 // rounds は今度の回と前回の commit を数える: レビュアーの子課題（profile が *-review）の findings.json の
 // commit のうち違うものの数と、台帳にあるレビュアーの課題（<id>-rN）の最大の N の、大きいほう ＋ 1。
 // レビュアーの課題は結果が古い commit を見ていても（stale）台帳に残るので、頼み直すたびに回は 1 つ進む。
-// HEAD のレビューがもうあれば頼まない。
+// HEAD のレビューがもうあれば頼まない。照合が読むレビューの PR の差分が HEAD と同じ（衝突の無い rebase）でも頼まない（引き継ぐ）。
 // その課題のレビュアーの課題がまだ動いていれば（todo・doing）、見ている commit に関わらず頼み直さない（ADR-0032 決めたこと 8）:
 //   - HEAD を見ている: 頼み直すと回だけが進み、dispatcher は起動した commit を二度起動しないので、知らせなしに捨てる（担当がレビューの回を1回失う）。
 //   - 古い commit を見ている: 頼み直すとレビュアーが 2 人走る。照合は最後に終わったレビュアーだけを読むので、古い commit の
@@ -553,6 +553,11 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 			commit := f.Commit
 			last, lastAt = &commit, at
 		}
+	}
+	// 衝突の無い rebase で head だけが変わり、照合が読むレビューと PR の差分が同じなら、そのレビューを head に
+	// 引き継ぐ（ledger.CheckReview）。頼むとレビュアーが同じ差分をもう一度見るので頼まない（decisions/2026-11-20-review-carry-same-patch.md）
+	if rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, "", nil, nil); rv.State == "current" {
+		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（行番号のほかは空白も含めて同じ）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue ready へ進む", head[:12], rv.Issue, rv.Commit)
 	}
 	// 結果を残さず止まったレビュアーの課題も台帳に残り、その N は使えない（dispatcher の kanban add --round が落ちる）。
 	// 数え方の決まりは変えず（previous も結果のある回だけ）、番号が被るときだけ空いた先へ送る
