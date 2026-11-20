@@ -139,14 +139,16 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `smoke.sh` | `README.md`・`LICENSE`・`docs/decisions.md`・`docs/decisions/` があるか・形 | いつも |
 | `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
-| `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md` |
+| `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む9本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
 | `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
 
 ほかの `tests/*.sh`（`andon-*.sh`・`host.sh`・`sshd-env.sh`・`image.sh`）は、文書をコメントやテストの中の例の名前として書くだけで、repo の文書を読まない。
 
-**手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（セルで 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。
+**手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（セルで 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。CI は今までどおり全部を走らせる（文書だけの PR を除く）。
+
+重い検査は、その検査が見る部分を変えたときだけ手元で回す（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 4）。コードを変えたら、重い検査を除く全部と、変えたパスを見る重い検査を走らせる。知らないパスでは、重い検査を含む全部を走らせる。
 
 | 変えたもの | 走らせる `tests/*.sh` |
 |---|---|
@@ -159,9 +161,24 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `image/apply-main.sh` | `apply-main.sh` を足す |
 | `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`CHANGELOG.md` など | 足さない |
-| `tests/lib/` | `image.sh` 以外の全部 |
-| それ以外（`cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`（`apply-main.sh` を除く）・`.github/`・andon に埋め込む `process/states/issue.yaml` と知らないパス） | `image.sh` 以外の全部 |
+| `tests/lib/scope.sh`・`docs-scope.sh`・`image-scope.sh` | 足さない（判定の道具は、いつも走る `ci.sh` が見る） |
+| `tests/lib/` のほか | `image.sh` 以外の全部 |
+| `cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`embed.go`・andon に埋め込む `process/states/issue.yaml` | 重い検査を除く全部と、変えたパスを見る重い検査（下の表） |
+| それ以外（`go.mod`・`go.sum`・`mise.toml`・`.dockerignore`・`.github/`・`model/` と知らないパス） | `image.sh` 以外の全部 |
+| `schema.sh` を走らせるとき | `schema.sh` が出力を読む9本（`andon-issue.sh`・`andon-dispatcher.sh` など。`bash tests/schema.sh --emitters`）も並べる。並べないと `schema.sh` が自分の中で1本ずつ走らせて遅い |
 | CI の表で「走らせる」もの | `image.sh` も（Docker が無ければ SKIP） |
+
+重い検査と、その検査が見る部分は次のとおり（正は `tests/lib/scope.sh` の表。`bash tests/lib/scope.sh --heavy` で出る）。Go の package は、検査が打つ command の package と、それが import する package。`tests/ci.sh` が `go list -deps` と突き合わせ、import を足して表から漏れると落ちる。`cmd/andon` と `internal/cli` は全部の command の入口なので、どの検査の部分にも入る。
+
+| 重い検査 | 見る部分 |
+|---|---|
+| `andon-dispatcher.sh` | andon issue が使う Go の package（下）・`package/gate.json`・`package/hooks/` |
+| `andon-issue.sh` | andon issue が使う Go の package |
+| `andon-gate.sh` | andon issue が使う Go の package・`package/gate.json` |
+| `apply-main.sh` | `image/apply-main.sh`・`cmd/andon`・`cmd/kanban`・`internal/cli`・`internal/pkgversion` と、`cmd/kanban` が import する `internal/ledger`・`delegate`・`spawn`・`contract` |
+| `schema.sh` | `schema/` の直下の `*.schema.json`・`docs/contract.md`・`package/lib/andon/schema_check.py` |
+
+andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`。たとえば `internal/retro/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
 
 ## 残る危険
 

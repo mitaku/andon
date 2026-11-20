@@ -36,30 +36,80 @@ done
 ( set -o pipefail; { echo internal/x.go; seq 100000 | sed 's|^|docs/|'; } | bash tests/lib/docs-scope.sh >/dev/null ) || die "途中で抜けて前のコマンドが落ちる"
 ok "docs-scope: 文書だけなら true、コード・tests・知らないパスが混ざるか空なら false"
 
-# 1b. scope（手元の tests/run --changed）: 文書だけならいつもの分、触った test とそれが読む文書の分を足し、
-#     コードや知らないパスでは全部。image.sh は image-scope と同じとき
+# 1b. scope（手元の tests/run --changed）: 文書だけならいつもの分、触った test とそれが読む文書の分を足す。コードでは
+#     重い検査を除く全部と、変えたパスを見る重い検査。知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
+has() { grep -qw -- "$2" <<<"$1"; }
 always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh '
+heavy='tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh'
+emitters=$(bash tests/schema.sh --emitters | tr '\n' ' ')
 [ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
 [ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
-[ "$(pick docs/contract.md)" = 'tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/schema.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh ' ] || die "contract.md で schema.sh・package.sh が無い: $(pick docs/contract.md)"
+# contract.md は schema.sh・package.sh。schema.sh を選んだら、読ませる emitters も並べる（schema.sh が1本ずつ回し直さない）
+got=$(pick docs/contract.md)
+for t in tests/package.sh tests/schema.sh $emitters; do has "$got" "$t" || die "contract.md で $t が無い: $got"; done
+[ "$(wc -w <<<"$got")" -eq $(($(wc -w <<<"$always $emitters") + 2)) ] || die "contract.md でほかの検査まで足す: $got"
 [ "$(pick docs/no-such-doc.md)" = "tests/ci.sh tests/kanban.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
 [ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
 [ "$(pick tests/host/mod.mjs)" = "tests/ci.sh tests/host.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "tests/host/ で host.sh が無い: $(pick tests/host/mod.mjs)"
 grep -q tests/process.sh <<<"$(pick process/states/gate.yaml)" && ! grep -q tests/andon-issue.sh <<<"$(pick process/states/gate.yaml)" || die "埋め込まない状態の定義で process.sh を足すだけにならない: $(pick process/states/gate.yaml)"
+[ "$(pick schema/process/state.schema.json)" = "tests/ci.sh tests/image.sh tests/process.sh ${always#tests/ci.sh }" ] || die "schema/process/ で schema.sh まで足す: $(pick schema/process/state.schema.json)"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
 [ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"
 grep -q tests/image.sh <<<"$(pick package/lib/andon/x_test.go)" || die "package/ の下の _test.go で image.sh が無い"
 n_all=$(ls tests/*.sh | wc -l)
-for p in internal/issue/issue.go package/x process/states/issue.yaml NEW; do
+for p in NEW go.mod mise.toml .github/workflows/tests.yml; do
   got=$(pick "$p")
-  [ "$(wc -w <<<"$got")" -eq "$n_all" ] || die "$p で全部にならない: $got"
+  [ "$(wc -w <<<"$got")" -eq "$n_all" ] || die "$p（知らないパス・全部に効くもの）で全部にならない: $got"
 done
 [ "$(wc -w <<<"$(pick tests/lib/kanban.sh)")" -eq $((n_all - 1)) ] || die "tests/lib/kanban.sh で image.sh 以外の全部にならない"
 grep -q tests/image.sh <<<"$(pick tests/lib/kanban.sh)" && die "image に関係しない tests/lib で image.sh"
 grep -q tests/image.sh <<<"$(pick tests/lib/pty-probe.py)" || die "pty-probe.py で image.sh が無い"
+[ "$(pick tests/lib/scope.sh tests/lib/docs-scope.sh)" = "$always" ] || die "判定の道具で ci.sh のほかを足す: $(pick tests/lib/scope.sh)"
 [ "$(pick image/apply-main.sh)" = "tests/apply-main.sh $always" ] || die "image/apply-main.sh で apply-main.sh だけを足さない: $(pick image/apply-main.sh)"
-ok "scope: 文書だけならいつもの分、触ったものに関係する分を足し、コード・知らないパスでは全部（image.sh は image に関係するとき）"
+ok "scope: 文書だけならいつもの分、触ったものに関係する分を足し、知らないパスでは全部（image.sh は image に関係するとき）"
+
+# 1c. scope の重い検査（ADR-0032 決めたこと 4）: コードでは軽い検査を全部と、変えたパスを見る重い検査だけ
+[ "$(bash tests/lib/scope.sh --heavy | cut -d' ' -f1 | sort -u | tr '\n' ' ')" = "$(tr ' ' '\n' <<<"$heavy" | sort | tr '\n' ' ')" ] \
+  || die "scope.sh の重い検査が $heavy でない: $(bash tests/lib/scope.sh --heavy | cut -d' ' -f1 | sort -u | tr '\n' ' ')"
+got=$(pick internal/retro/apply.go)
+for t in tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$got" "$t" && die "internal/retro/apply.go で $t: $got"; done
+has "$got" tests/andon-retro.sh || die "internal/retro/apply.go で andon-retro.sh が無い: $got"
+[ "$(wc -w <<<"$got")" -eq $((n_all - 5)) ] || die "internal/retro/apply.go で重い検査を除く全部にならない: $got"
+for t in tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$(pick internal/dispatcher/loop.go)" "$t" || die "internal/dispatcher/loop.go で $t が無い"; done
+has "$(pick internal/dispatcher/loop.go)" tests/apply-main.sh && die "internal/dispatcher/loop.go で apply-main.sh"
+got=$(pick package/skills/worker/SKILL.md)
+for t in $heavy; do has "$got" "$t" && die "skill の文で $t: $got"; done
+has "$(pick package/gate.json)" tests/andon-gate.sh && has "$(pick package/gate.json)" tests/andon-dispatcher.sh || die "package/gate.json で gate・dispatcher の検査が無い"
+has "$(pick package/lib/andon/schema_check.py)" tests/schema.sh || die "schema_check.py で schema.sh が無い"
+has "$(pick schema/report.schema.json)" tests/schema.sh || die "schema/ で schema.sh が無い"
+has "$(pick internal/pkgversion/pkgversion.go)" tests/apply-main.sh || die "internal/pkgversion で apply-main.sh が無い"
+for p in internal/cli/cli.go process/states/issue.yaml embed.go init/x; do
+  for t in tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$(pick "$p")" "$t" || die "$p（andon issue が使う）で $t が無い"; done
+done
+# 知らないパスは重い検査を含む（安全な側に倒す）
+for t in $heavy; do has "$(pick NEW)" "$t" || die "知らないパスで $t が無い"; done
+# 見る部分の Go の package は import で閉じている（cmd/andon・internal/cli は全部の入口なので除く）。
+# 重い検査が打つ package が import する package を変えても、その検査が選ばれる
+gobin=$(command -v go || mise which go 2>/dev/null || true)
+if [ -n "$gobin" ]; then
+  mod=$("$gobin" list -m)
+  while read -r t; do
+    parts=" $(bash tests/lib/scope.sh --heavy | awk -v t="$t" '$1 == t { print $2 }' | tr '\n' ' ')"
+    pkgs=$(tr ' ' '\n' <<<"$parts" | grep -E '^(cmd|internal)/[^/]+/$|^embed\.go$' | grep -vxE 'cmd/andon/|internal/cli/' \
+      | sed -e "s|^embed\.go\$|$mod|" -e "s|^|./|" -e "s|^\./$mod\$|.|" -e 's|/$||' || true)
+    [ -n "$pkgs" ] || continue
+    for d in $(cd . && "$gobin" list -deps $pkgs | grep -E "^$mod(/|\$)"); do
+      case "$d" in "$mod") part=embed.go ;; *) part=${d#"$mod"/}/ ;; esac
+      [[ "$parts" == *" $part "* ]] || die "$t の見る部分が $part を欠く（import している）"
+    done
+  done < <(bash tests/lib/scope.sh --heavy | cut -d' ' -f1 | sort -u)
+  # 否定の確かめ（die しない）が何も見ていないことを避ける: dispatcher の検査は triage を import で辿っている
+  "$gobin" list -deps ./internal/dispatcher | grep -qx "$mod/internal/triage" || die "go list -deps が import を出さない"
+  ok "scope: 重い検査の見る部分の Go の package は import で閉じている"
+elif [ "${CI:-false}" = true ]; then die "CI に go が無い"
+else echo "skip scope の import の確かめ（go が無い）"; fi
+ok "scope: 重い検査は見る部分を変えたときだけ（retro は dispatcher・schema・apply-main を外す）。知らないパスは重い検査を含む"
 
 # 2. run-tests: 1本ごとに出力をまとめ（混ざらない）、表を出し、落ちたものがあれば 1。skip は走らせない
 tmp=$(mktemp -d)
