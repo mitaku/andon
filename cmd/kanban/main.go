@@ -66,6 +66,9 @@ var version = "dev"
 var (
 	listKeys  = map[string]bool{"after": true, "links": true}
 	fixedKeys = map[string]bool{"id": true, "created": true}
+	// logKeys are the change keys only kanban writes in log.jsonl (add, report, the questions, done --force,
+	// done freeing queued). kanban set refuses them, so every line it logs fits schema/ledger/log.v3.
+	logKeys   = map[string]bool{"add": true, "report": true, "question": true, "forced": true, "freedBy": true}
 	boolFlags = map[string]bool{"json": true, "append": true, "force": true, "all": true, "open": true, "help": true}
 )
 
@@ -705,6 +708,9 @@ func cmdSet(e env, a args) error {
 			}
 			if fixedKeys[k] {
 				return fail("%s can't be changed", k)
+			}
+			if logKeys[k] {
+				return fail("%s is a log.jsonl key that kanban writes itself; kanban set can't write it", k)
 			}
 			if k == "status" && !cfg.hasColumn(v) {
 				return fail("status must be one of %s", strings.Join(cfg.columns, ", "))

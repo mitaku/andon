@@ -144,6 +144,34 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	}
 }
 
+// kanban set は log の予約キー（add・report・question・forced・freedBy）を断り、行も issue.yaml も書かない。
+// 断らなければ、change に question だけ（status 無し）などの schema/ledger/log.v3 に合わない行ができる。
+func TestSetRefusesLogKeys(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "root")
+	t.Setenv("KANBAN_ROOT", root)
+	t.Setenv("DECK_NOW", "2026-11-02T08:00:00Z")
+	kanban(t, t.TempDir(), "init", "--root", root, "--prefix", "W")
+	kanban(t, root, "add", "Work")
+	log := filepath.Join(root, "kanban", "log.jsonl")
+	before, yaml := readFile(t, log), readFile(t, taskFile(root, "W-0001"))
+	for _, k := range []string{"add", "report", "question", "forced", "freedBy"} {
+		for _, v := range []string{"x", ""} {
+			msg := kanbanFails(t, root, "", "set", "W-0001", "title=Other", k+"="+v)
+			if !strings.Contains(msg, k+" is a log.jsonl key") {
+				t.Errorf("set %s=%s: %s", k, v, msg)
+			}
+		}
+	}
+	if readFile(t, log) != before || readFile(t, taskFile(root, "W-0001")) != yaml {
+		t.Errorf("断った set が台帳を書いた:\n%s", readFile(t, log))
+	}
+	// 予約キーの外は今までどおり書け、その行は schema に合う。
+	kanban(t, root, "set", "W-0001", "review=on", "added=x")
+	if err := ledgertest.CheckLog([]byte(readFile(t, log))); err != nil {
+		t.Error(err)
+	}
+}
+
 // migratedLog は .flightdeck から移した台帳の log.jsonl の行（kanban migrate の行を含む）。
 func migratedLog(t *testing.T) []string {
 	t.Helper()
