@@ -38,37 +38,42 @@ git config --global user.email test@example.com
 git config --global init.defaultBranch main
 
 # $1 の作業ツリーを $2 へ写す: 追跡しているファイルを commit していない変更ごと、無視していない追跡外のファイルも。
-# 消したファイルと、追跡外の入れ子の repo（ls-files が dir/ で出す）は写さない。HEAD を写すと、commit していない変更が黙って試しから外れる
+# 無視している追跡外の .go も写す（go build は無視の設定に関係なくそれを組む）。消したファイルと、追跡外の入れ子の repo
+# （ls-files が dir/ で出す）は写さない。HEAD を写すと、commit していない変更が黙って試しから外れる
 copy_worktree() (
   set -o pipefail
-  cd "$1" && git ls-files -z --cached --others --exclude-standard \
+  cd "$1" && { git ls-files -z --cached --others --exclude-standard \
+    && git ls-files -z --others --ignored --exclude-standard -- '*.go'; } \
     | while IFS= read -r -d '' f; do
         case $f in */) continue ;; esac
         if [ -e "$f" ] || [ -L "$f" ]; then printf '%s\0' "$f"; fi
       done \
     | tar --null -T - -cf - | tar -x -C "$2"
 )
+# 写した repo の中身を全部 commit する。無視の設定に当たる写したファイル（無視している .go）も -f で入れる
+commit_all() { git -C "$1" add -A -f && git -C "$1" commit -qm "$2"; }
 
-# === 11. 試しの repo は作業ツリーを写す（commit していない変更・追跡外のファイル・消したファイル） ===
+# === 11. 試しの repo は作業ツリーを写す（commit していない変更・追跡外のファイル・無視している .go・消したファイル） ===
 w11=$tmp/w11
 git init -q "$w11"
 mkdir -p "$w11/cmd/x" "$w11/internal/y"
 echo 'package main // committed' >"$w11/cmd/x/main.go"
 echo 'package y' >"$w11/internal/y/gone.go"
-printf 'ignored.go\n' >"$w11/.gitignore"
+printf 'ignored_*\n' >"$w11/.gitignore"
 git -C "$w11" add -A
 git -C "$w11" commit -qm w11
 echo 'package main // uncommitted' >"$w11/cmd/x/main.go"
 echo 'package y // untracked' >"$w11/internal/y/new file.go"
 rm "$w11/internal/y/gone.go"
-echo 'package x // ignored' >"$w11/ignored.go"
-mkdir -p "$tmp/c11"
-if copy_worktree "$w11" "$tmp/c11" && grep -qx 'package main // uncommitted' "$tmp/c11/cmd/x/main.go" \
-  && [ -f "$tmp/c11/internal/y/new file.go" ] && [ -f "$tmp/c11/.gitignore" ] \
-  && [ ! -e "$tmp/c11/internal/y/gone.go" ] && [ ! -e "$tmp/c11/ignored.go" ]; then
-  pass "11 試しの repo は作業ツリーを写す（commit していない変更と追跡外のファイルを含み、消したファイルと無視するファイルを除く）"
+echo 'package main // ignored' >"$w11/cmd/x/ignored_gen.go"
+echo 'ignored' >"$w11/cmd/x/ignored_note.txt"
+git init -q "$tmp/c11"
+if copy_worktree "$w11" "$tmp/c11" && commit_all "$tmp/c11" c11 \
+  && [ "$(git -C "$tmp/c11" ls-tree -r --name-only HEAD | tr '\n' ' ')" = ".gitignore cmd/x/ignored_gen.go cmd/x/main.go internal/y/new file.go " ] \
+  && [ "$(git -C "$tmp/c11" show HEAD:cmd/x/main.go)" = 'package main // uncommitted' ]; then
+  pass "11 試しの repo は作業ツリーを写して commit する（commit していない変更・追跡外のファイル・無視している .go を含み、消したファイルと無視している .go 以外を除く）"
 else
-  fail "11 作業ツリーの写し: $(cd "$tmp/c11" 2>/dev/null && find . -type f | sort | tr '\n' ' ')"
+  fail "11 作業ツリーの写し: $(git -C "$tmp/c11" ls-tree -r --name-only HEAD 2>&1 | tr '\n' ' ')"
 fi
 
 # 試しの repo: c0（イメージの元。この repo の作業ツリー）→ c1（origin/main）。道具そのものは写さない（当てる commit のスクリプトに替わらない）
@@ -76,8 +81,7 @@ git init -q --bare "$tmp/origin.git"
 git clone -q "$tmp/origin.git" "$tmp/repo" 2>/dev/null
 copy_worktree "$here" "$tmp/repo" || { echo "FAIL 作業ツリーを試しの repo へ写せない" >&2; exit 1; }
 rm -f "$tmp/repo/image/apply-main.sh"
-git -C "$tmp/repo" add -A
-git -C "$tmp/repo" commit -qm c0
+commit_all "$tmp/repo" c0 || { echo "FAIL 試しの repo の c0 を作れない" >&2; exit 1; }
 c0=$(git -C "$tmp/repo" rev-parse HEAD)
 echo "c1" >"$tmp/repo/c1.txt"
 echo "# c1 で足した行" >>"$tmp/repo/package/writing.md"
