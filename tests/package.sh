@@ -522,13 +522,22 @@ sed -n '/^## 渡し方$/,/^## 取らないもの$/p' "$ce" | grep -qF "$model_ex
 grep -qF '"最初の実装の課題の依頼書に <モデルのパス> を添える"' "$ce" || miss="$miss [CE の next にモデルを添える行]"
 grep -qF "（渡されるのは文書だけ。$model_ex）" <<<"$cosr" || miss="$miss [cut.md の例外]"
 grep -qF '`next` に「最初の実装の課題の依頼書に <モデルのパス> を添える」があれば' <<<"$cosr" || miss="$miss [cut.md がモデルのパスを依頼書に書く]"
+# repo へ入れるのはモデルが既にある流れだけ。モデルが無い流れのモデルは repo に置かない（ADR-0038 決めたこと 5）
+model_bound='repo にその流れのモデルがあれば、実装の PR でそこへ入れる。モデルが無い流れのモデルは資料のまま使い切り、repo に新しく置かない'
+unbound='実装の PR で repo のモデル[^（あ]*へ入れる'
+cesd=$(sed -n '/^\*\*状態を動かす設計をモデルで調べる\*\*/,/^\*\*成果物の形\*\*/p' docs/design.md)
+for t in "$ces" "$cosr" "$cesd"; do
+  grep -qF "$model_bound" <<<"$t" || { miss="$miss [モデルを repo へ入れるのはモデルがある流れだけ]"; break; }
+done
+grep -qE "$unbound" "$ce" "$pb/cut.md" docs/design.md && miss="$miss [モデルの無い流れにも repo へ入れると読める文が残る]"
 # 置き場のパスは版ごとに変わるので skill に書かない（ADR-0038 決めたこと 12）
 pstack_path='plugins/cache/[^ ]*pstack/[0-9]'
 grep -qE "$pstack_path" "$ce" && miss="$miss [版の入った pstack の置き場のパスが skill にある]"
-[ -z "$miss" ] && pass "ADR-0038 A3: CE skill に statechart の段（線・案を見せる前・反論に渡す・文書の1行・資料として渡す）、渡し方の例外が CE skill と cut.md の2か所にある" \
+[ -z "$miss" ] && pass "ADR-0038 A3: CE skill に statechart の段（線・案を見せる前・反論に渡す・文書の1行・資料として渡す）、渡し方の例外が CE skill と cut.md の2か所にあり、repo へ入れるのはモデルがある流れだけ" \
   || fail "ADR-0038 A3: CE の決まりの文:$miss"
 grep -qE "$pstack_path" <<<'/opt/x/.claude/plugins/cache/cursor-plugins/pstack/0.15.43/skills/statechart/SKILL.md' \
-  && pass "ADR-0038 A3: 版の入った pstack の置き場のパスは否定の grep に当たる（検査が見ている）" || fail "ADR-0038 A3: 否定の grep が何も見ていない"
+  && grep -qE "$unbound" <<<'担当はそれを土台に実装し、実装の PR で repo のモデルへ入れる。' \
+  && pass "ADR-0038 A3: 版の入った pstack の置き場のパスと、限らずに repo へ入れる文は否定の grep に当たる（検査が見ている）" || fail "ADR-0038 A3: 否定の grep が何も見ていない"
 ! ce_order "$(printf '%s\n' '3. 「依頼書に切る案」を縦に薄く' '4. **観察の課題を1件**足す' '2. 「価値の仮説」の節が見出しだけ' '6. 切る前に、「オーナーに聞く線」（a〜g）に当たる決定')" \
   && pass "ADR-0037 A5: 線の確かめが後ろにある並びは順の検査に当たる（検査が見ている）" || fail "ADR-0037 A5: 順の検査が何も見ていない"
 # ADR-0037 受け入れ条件 6: design.md §1.8・§1.9 と dispatcher.md に古い文が残らない
