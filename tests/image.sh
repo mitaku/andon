@@ -125,12 +125,20 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   grep -q " hc\$" <<<"$login"
   grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$login"
 '
+# .github/workflows/ の全部を image の中の actionlint・ghalint・pinact に通す（ADR-0034 決めたこと 8）。
+# ファイルの名前は書かない（workflow を足せば、その workflow も見る）。actionlint は git の repo の外では
+# 引数が無いと何も見ないので、ファイルを集めて渡す。ghalint と pinact は .github/workflows/ を自分で探す。
+# 見たファイルを「ok workflow <path>」で1行ずつ出す
 docker run --rm --network none \
-  --mount "type=bind,source=$PWD/.github/workflows/tests.yml,target=/workspace/.github/workflows/tests.yml,readonly" \
+  --mount "type=bind,source=$PWD/.github/workflows,target=/workspace/.github/workflows,readonly" \
   andon:test bash -euc '
-    actionlint .github/workflows/tests.yml
+    shopt -s nullglob
+    files=(.github/workflows/*.yml .github/workflows/*.yaml)
+    test "${#files[@]}" -gt 0
+    actionlint "${files[@]}"
     ghalint run
     pinact run --fix=false --no-api
+    printf "ok workflow %s\n" "${files[@]}"
   '
 
 # セルを立てる道（docs/operate.md の 2・3・5）: ホストへ andon を取り出す → andon init → bin/bootstrap up → boot の生成物
