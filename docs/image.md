@@ -141,6 +141,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む9本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
+| `adr-index.sh` | `docs/adr/` の索引・状態行と `README.md` の ADR の一覧（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)） | `docs/adr/`・`README.md` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
 | `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
 
@@ -157,10 +158,11 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
 | `tests/host/` | `host.sh` を足す |
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
-| `docs/adr/` | `package.sh` を足す |
+| `docs/adr/` | `package.sh`・`adr-index.sh` を足す |
+| root の `README.md` | `adr-index.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `image/apply-main.sh` | `apply-main.sh` を足す |
-| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`CHANGELOG.md` など | 足さない |
+| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `CHANGELOG.md` など | 足さない |
 | `tests/lib/scope.sh`・`docs-scope.sh`・`image-scope.sh` | 足さない（判定の道具は、いつも走る `ci.sh` が見る） |
 | `tests/lib/` のほか | `image.sh` 以外の全部 |
 | `cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`embed.go`・andon に埋め込む `process/states/issue.yaml` | 重い検査を除く全部と、変えたパスを見る重い検査（下の表） |

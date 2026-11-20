@@ -70,7 +70,9 @@ while IFS= read -r p; do
     # contract.md は §4 の acceptance[] の行を skill と突き合わせる（package.sh）。例と schema は schema.sh（上の表）
     docs/contract.md) run[tests/package.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
-    docs/adr/*) run[tests/package.sh]=1 ;;
+    # adr-index.sh は ADR の索引・状態行と README の ADR の一覧を突き合わせる（ADR-0033）
+    docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;
+    README.md) run[tests/adr-index.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
     tests/host/*) run[tests/host.sh]=1 ;;
     # 流れと状態の定義（ADR-0017）。dispatcher.md §7.2 は once: true の移り方と突き合わせる。
@@ -85,7 +87,7 @@ while IFS= read -r p; do
     tests/lib/*) all=true ;;
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
     # Go のテスト（go test ./... が見る）・人の文書は、いつもの分だけ
-    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # コード・andon に埋め込むもの・image に入るもの。重い検査は上の表で足した分だけ
     cmd/* | internal/* | package/* | schema/* | init/* | image/* | embed.go) light=true ;;
     # go.mod・go.sum・mise.toml・.dockerignore・.github/・model/ とまだ無いパス

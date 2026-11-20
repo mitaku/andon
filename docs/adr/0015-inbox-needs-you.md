@@ -5,6 +5,18 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`（この題は新しい約束を足さない。前提 4）。
 - 入力: 依頼書 A-0074（人の気付き 2026-11-10 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、[ADR-0002](0002-herdr-spaces.md)（決めたこと 2・15・18・21）、[ADR-0009](0009-cos-default-entry.md)（人の入口は Chief of Staff）、[ADR-0010](0010-news-ack.md)（担当の通知は dispatcher が Chief of Staff へ）、[ledger.md](../ledger.md)（Needs you is not a status・Every stopped agent has asked）、[decisions.md](../decisions.md) 2026-11-06（mod の取り込み）、台帳 A-0036（Chief Engineer の端末の通知を Chief of Staff に届けない）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | inbox の節を Needs you と役への入口の 2 つに絞り、Done と棚を消す | `package/host/inbox/main.js` | 生きている |
+| 2 | 役への入口の節の見出しを「Projects」にする | `package/host/inbox/main.js` | 生きている |
+| 3 | 役の行は 1 つにし、人を待つ間だけ Needs you に上げる | `package/host/inbox/main.js` | 生きている |
+| 4 | dispatcher は Projects に出さない | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
+| 5 | settle を消し、mod は hc に何も書かない | `package/host/inbox/main.js` | 生きている |
+| 6 | ボードのダイアログを消す | `package/host/inbox/mod.json`・`package/host/inbox/keys.json` | 生きている |
+| 7 | ペインの無い役の返事は、人が開いた turn の間は Reply にしない（仮） | `package/host/inbox/main.js` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-10）: 「Mod の Inbox だけど、あんまり Done にも Working にも興味がないのかもしれないと思い始めてきた」「Need You とプロジェクトで動く Agent（主に CoS）へのアクセスが担保されていれば良い気がするね」「それこそが本当の Andon だしね」。

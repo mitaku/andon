@@ -4,6 +4,14 @@
 - 主題: 「工場」という語が Andon とセルのどちらを指すか。Andon とセルの定義の文。外に向けた一文の「software factory」の扱い。同じ対話で出た Chief of Staff の単位の題は [ADR-0031](0031-cell-chief-of-staff.md)（提案）に分けた。
 - 語は [design.md](../design.md) §0.1。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 「セル」の語と識別子は残し、場所の面として定義の文を直す | `package/skills/glossary/SKILL.md`・`docs/design.md` §0.1 | 生きている |
+| 2 | 表示名は残し、直後の説明を場所としくみの 2 つの面で組み直す | `README.md` | 生きている |
+| 3 | 用語集の定義を 3 か所直し、「工場」と「Kit」の項は足さない | `package/skills/glossary/SKILL.md` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-19）: 「Andon の SoftwareFactory 部分は少し定義の再構築が必要かも、やることは変わらないのだけれども工場（CELL）としての境界を作り、規律を作るものだと思った」「主語の問題だと思っている。Cell=工場だし、Andon=工場ではある。Cellは境界・空間で、Andonは工場のしくみというイメージ」「選択的DarkFactoryKitであり、HomeRepo（Matt Pocock氏命名）なんだよね」「Kitというのも変だし、セルと言う用語が必要なのかというと悩ましい。用語整理だけでもいいかも」。

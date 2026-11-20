@@ -1,6 +1,6 @@
-# セルの wiki を LLM Wiki の手法に乗せる（仕様・設計。2026-11-10・Chief Engineer の課題 A-0084）
+# ADR-0016: セルの wiki を LLM Wiki の手法に乗せる（仕様・設計。2026-11-10。Chief Engineer の課題 A-0084）
 
-決定（2026-11-10）
+- 状態: **決定（2026-11-10）**。人が決めた（[decisions/2026-11-10-adr-0016-cell-wiki-llm-wiki.md](../decisions/2026-11-10-adr-0016-cell-wiki-llm-wiki.md)）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 
 ## 問題（人の言葉で。言い直しの段落）
 

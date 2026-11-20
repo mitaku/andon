@@ -43,7 +43,9 @@ has() { grep -qw -- "$2" <<<"$1"; }
 always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh '
 heavy='tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh'
 emitters=$(bash tests/schema.sh --emitters | tr '\n' ' ')
-[ "$(pick docs/image.md README.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
+[ "$(pick docs/image.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
+[ "$(pick README.md)" = "tests/adr-index.sh $always" ] || die "README.md で adr-index.sh だけを足さない: $(pick README.md)"
+[ "$(pick docs/adr/0033-adr-inventory-and-slimming.md)" = "tests/adr-index.sh tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "ADR で adr-index.sh・package.sh が無い: $(pick docs/adr/0033-adr-inventory-and-slimming.md)"
 [ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
 # contract.md は schema.sh・package.sh。schema.sh を選んだら、読ませる emitters も並べる（schema.sh が1本ずつ回し直さない）
 got=$(pick docs/contract.md)
