@@ -272,7 +272,7 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 ## 価値の仮説（必須。誰の何が変わるか・見る信号・見る日・当たりの条件・撤退の条件の6項目。利用者に見えない題は「無し: <理由>」の1行。ADR-0011。書き方は skill `chief-engineer`）
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 ## 開いている問い（残った問い。判断の種類つき）
-## 出典（repo の中の文書・外の URL・人の発言の日付だけ。セルの wiki や台帳は指さず中身を写す。題にも課題番号を書かない。[ADR-0026](adr/0026-pr-rules-for-outside-readers.md)）
+## 出典（repo の中の文書・外の URL・オーナーの発言の日付だけ。セルの wiki や台帳は指さず中身を写す。題にも課題番号を書かない。[ADR-0026](adr/0026-pr-rules-for-outside-readers.md)）
 ```
 
 置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<題の英字>.md`（4桁の通し番号。先頭の状態行は `提案`／`決定（日付）`／`覆された → ADR-NNNN`。中身の形は上のとおりで、受け入れ条件と切る案が ADR の「結果」に当たる。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。人の決定 2026-11-05。最初の ADR は [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)）。決定の記録には ADR 1本につき1件（要点と番号）を [decisions/](decisions/) に1ファイルで足し、各決定を写し直さない（書き方は [decisions.md](decisions.md) の冒頭）。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。

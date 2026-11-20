@@ -17,7 +17,7 @@ argument-hint: "[PR の URL か番号]"
 1. 外向きの面に触れる（listen・認証・exec・秘密の扱い）
 2. 新しい module を足す
 3. テストを除いて約500行を超える
-4. 人が求めた
+4. オーナーが求めた
 
 **入れる条件はプロジェクトごとに決める**。趣味・個人のプロジェクトでは独立レビューを要らないとしてよく、
 その場合の既定は「①か④のときだけ入れる」。決めた条件は `projects/<slug>/AGENTS.md` の「Chief of Staff」の節に1行で書く。
@@ -30,13 +30,13 @@ Chief of Staff が依頼書を書くときにこの条件で決め、Settings �
   - Claude が書いたもの（profile `claude`・`sonnet`・`fable`）→ `codex-review`。
   - Codex が書いたもの（profile `codex`）→ `claude-review`。
 - **強さはプロファイルの template が決める**（`/opt/andon/templates/`。`hc templates`）。`codex-review` は gpt-6-luna・effort max、`claude-review` は opus・effort medium。依頼書でモデルや effort を変えない。
-- プロファイルは hc の template（`hc templates`）。無ければ人に作ってもらうよう頼む。Chief of Staff は作らない。
+- プロファイルは hc の template（`hc templates`）。無ければオーナーに作ってもらうよう頼む。Chief of Staff は作らない。
 
 ## 3. レビュアーを起動する（dispatcher）
 
 担当が `andon issue review-request` を打つと、dispatcher が拾ってレビュアーを起動する（回ごとに子課題 `<id>-r<回>` と detached の worktree。起動する条件と手順は `docs/dispatcher.md` §5 の P6a）。**Chief of Staff は起動しない。**
 上限を超えた回（`extra: true`）は起動されず、通知 `report` で Chief of Staff に届く。起動するかの決め方は chief-of-staff skill の `playbooks/gate.md` の「上限を超えた回」。
-信頼の画面はセルでは出ない。出たら答えずに人へ回す（`chief-of-staff/playbooks/blocked.md`）。codex を初めて使う repo のフックの確認画面も人へ回す。
+信頼の画面はセルでは出ない。出たら答えずにオーナーへ回す（`chief-of-staff/playbooks/blocked.md`）。codex を初めて使う repo のフックの確認画面もオーナーへ回す。
 
 ## 4. 依頼書の型
 

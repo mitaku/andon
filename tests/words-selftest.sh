@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # tests/words.sh が「今」の語で落ち、例外では落ちないこと（ADR-0013 受け入れ条件 3）。
+# 役を指す「人」で落ち、役を指さない「人」では落ちないこと（ADR-0036 受け入れ条件 2）。
 # 一時の根に小さな写しを作り、words.sh にその根を渡す。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -33,5 +34,14 @@ setup; sed -i 's/^## 未リリース$/&\n- 費用を数える/' "$tmp/r/CHANGELO
 # repo の中の skill の置き場（ADR-0035 決めたこと 4）も見る
 setup; mkdir -p "$tmp/r/.claude/skills/verify-andon"; echo '担当を起こす' >"$tmp/r/.claude/skills/verify-andon/SKILL.md"
 expect fail '.claude/skills/ の skill の「起こす」で落ちる'
+
+# 役を指す「人」（ADR-0036 受け入れ条件 2）: 替えた範囲（package/）に足すと落ち、役を指さない「人」は通る
+for w in '人がマージする' '人の判断待ち' '人に聞く' 'ゲートは人へ回す' '人（2026-11-10）: 「残して」'; do
+  setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect fail "package/ の「$w」で落ちる"
+done
+for w in '外の人が読む' '1人にする' '人が読む写し' 'セルに 1 人（owner）' 'ほかの人の作業' '人向けの要約' '人と AI が読む' '人の名前を写さない' 'オーナーの判断待ち'; do
+  setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect ok "package/ の「$w」は通る"
+done
+setup; echo '人がマージする' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/）の役の「人」はまだ見ない'
 
 exit "$fail"

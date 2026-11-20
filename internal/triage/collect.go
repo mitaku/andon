@@ -55,6 +55,14 @@ type ledgerIssue struct {
 // personSuffix は人の判断待ちの課題の題の末尾。
 const personSuffix = "（人の判断待ち）"
 
+// ownerSuffix は、skill が書くようになった新しい末尾（ADR-0036）。読む側は古い末尾と両方を受ける（決めたこと 6）。
+const ownerSuffix = "（オーナーの判断待ち）"
+
+// personTitle は題の末尾が、オーナーの判断待ちの印（古い形か新しい形）か。
+func personTitle(title string) bool {
+	return strings.HasSuffix(title, personSuffix) || strings.HasSuffix(title, ownerSuffix)
+}
+
 func itemKey(slug, from, kind, text string) string {
 	sum := sha1.Sum([]byte(text))
 	return slug + ":" + from + ":" + kind + ":" + hex.EncodeToString(sum[:])
@@ -236,7 +244,7 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 				byKey[k] = Item{Key: k, Kind: kind, From: t.ID, Repo: t.Repo, Text: text, AgeDays: age}
 			}
 		}
-		person := t.Who == "person" || strings.HasSuffix(t.Title, personSuffix)
+		person := t.Who == "person" || personTitle(t.Title)
 		// not_before が未来の課題は、見る日まで出さない（閉じられないように。ADR-0011 決めたこと 7）。
 		if (t.Status == "todo" || t.Status == "queued") && !notYet(t.NotBefore, l.tz, l.now) {
 			if person {
@@ -415,7 +423,7 @@ func reportLines(body []byte) []reportLine {
 				kind = "next"
 			case "Remember":
 				kind = "remember"
-			case "人に聞くこと":
+			case "人に聞くこと", "オーナーに聞くこと": // 古い見出しも読む（ADR-0036 決めたこと 6）
 				kind = "question"
 			}
 		}

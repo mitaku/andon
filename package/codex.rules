@@ -6,14 +6,14 @@
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "マージは人がする（担当・レビュアーは PR を出して止まる）",
+    justification = "マージはオーナーがする（担当・レビュアーは PR を出して止まる）",
     match = [["gh", "pr", "merge", "1", "--squash"]],
     not_match = [["gh", "pr", "view", "1"]],
 )
 prefix_rule(
     pattern = [["env", "command", "exec", "nohup", "nice", "sudo", "xargs"], "gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "マージは人がする（担当・レビュアーは PR を出して止まる）",
+    justification = "マージはオーナーがする（担当・レビュアーは PR を出して止まる）",
     match = [["env", "gh", "pr", "merge", "1"], ["xargs", "gh", "pr", "merge"]],
     not_match = [["env", "gh", "pr", "view", "1"]],
 )

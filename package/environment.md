@@ -13,19 +13,19 @@
 ## 道具と認証
 
 - git は HTTPS。資格情報は `gh` の token（`gh auth setup-git`）。SSH 鍵を作らない・持ち込まない。
-- 認証はセルの中で取る。人が見るブラウザは無いので、URL が出たら人に見せて手元で開いてもらう。device code があればそれを使う。ホストからトークンを持ち込まない。
+- 認証はセルの中で取る。オーナーが見るブラウザは無いので、URL が出たらオーナーに見せて手元で開いてもらう。device code があればそれを使う。ホストからトークンを持ち込まない。
 - CLI は aqua（セルの `local/aqua.yaml`。イメージの `/opt/andon-aqua/aqua.yaml` は触らない）、言語ランタイムはリポジトリの `mise.toml`。`apt install` は最後の手段。
 - Playwright のブラウザはイメージに焼いてある（`PLAYWRIGHT_BROWSERS_PATH`）。入れ直さない。
 - 担当が画面を見て確かめるには `playwright-cli`（焼いた Chromium を使う。使い方は skill `playwright-cli`）。dev サーバは `127.0.0.1` で立てて開く。
 - Claude Code には plugin の pstack が入っている（Codex には入らない）。pstack の skill は、役の skill か依頼書が名指したものだけを、`SKILL.md` を読んで使う。`setup-pstack` は走らせない。`pstack:` で始まる型のサブエージェントは使わない。
 - 秘密をファイルに書かない（`.env` にも）。認証の資格情報は道具が自分の置き場に置く（`gh auth login`・`claude auth login`・`andon signal auth`）。自分でファイルに書かない。
 
-## 人に見せる
+## オーナーに見せる
 
-- dev サーバはコンテナの中で `127.0.0.1` に listen し、`portless alias <app> <port>` で名前を付ける。人は `http://<app>.<セルの名前>.localhost:<PORTLESS_PORT>` で見る（番号はセルの `.env`）。`0.0.0.0` も compose の書き換えも要らない。
-- フロントから別のアプリを呼ぶときも portless の名前で呼ぶ（`localhost:<port>` は人の手元を指す）。
+- dev サーバはコンテナの中で `127.0.0.1` に listen し、`portless alias <app> <port>` で名前を付ける。オーナーは `http://<app>.<セルの名前>.localhost:<PORTLESS_PORT>` で見る（番号はセルの `.env`）。`0.0.0.0` も compose の書き換えも要らない。
+- フロントから別のアプリを呼ぶときも portless の名前で呼ぶ（`localhost:<port>` はオーナーの手元を指す）。
 - 生成した HTML などは `andon publish <file>` で `files/` へ出し、返った URL を伝える。
-- 人に気づいてほしいことは `herdr notification show` で出す。herdr（TUI）が動いているときだけ効く（Herdr App で使う人には届かない）。無ければ台帳の問いとボードで足りる。
+- オーナーに気づいてほしいことは `herdr notification show` で出す。herdr（TUI）が動いているときだけ効く（オーナーが Herdr App で使っているときは届かない）。無ければ台帳の問いとボードで足りる。
 
 ## 気づきを残す（auto memory）
 
