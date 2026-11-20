@@ -86,7 +86,7 @@ has "$(pick package/gate.json)" tests/andon-gate.sh && has "$(pick package/gate.
 has "$(pick package/lib/andon/schema_check.py)" tests/schema.sh || die "schema_check.py で schema.sh が無い"
 has "$(pick schema/report.schema.json)" tests/schema.sh || die "schema/ で schema.sh が無い"
 has "$(pick internal/pkgversion/pkgversion.go)" tests/apply-main.sh || die "internal/pkgversion で apply-main.sh が無い"
-for p in internal/cli/cli.go process/states/issue.yaml embed.go init/x; do
+for p in internal/cli/cli.go process/states/issue.yaml embed.go init/x schema/report.schema.json; do
   for t in tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$(pick "$p")" "$t" || die "$p（andon issue が使う）で $t が無い"; done
 done
 # 知らないパスは重い検査を含む（安全な側に倒す）

@@ -83,7 +83,12 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "{\"decision\": \"fix\", \"reasons\": [%q]}\n", early)
 		return exitFix
 	}
-	stdout.Write(contract.Marshal(rec))
+	b, err := contract.Encode(contract.SchemaGate, rec)
+	if err != nil {
+		fmt.Fprintf(stderr, "andon gate: 記録を出せない: %v\n", err)
+		return exitError
+	}
+	stdout.Write(b)
 	return ExitCode(rec.Decision)
 }
 
@@ -399,7 +404,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, "", err
 	}
-	if err := contract.Write(path, rec); err != nil {
+	if err := contract.Write(path, contract.SchemaGate, rec); err != nil {
 		return nil, "", err
 	}
 	postGitHub(slug, number, rec, stderr)

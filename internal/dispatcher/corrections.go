@@ -250,7 +250,7 @@ func (p *project) correction(id string) bool {
 	}
 	if err == nil {
 		if err = os.MkdirAll(filepath.Dir(path), 0o755); err == nil {
-			err = contract.Write(path, map[string]any{"at": now(), "corrections": out})
+			err = contract.Write(path, contract.SchemaCorrections, map[string]any{"at": now(), "corrections": out})
 		}
 	}
 	if err == nil {

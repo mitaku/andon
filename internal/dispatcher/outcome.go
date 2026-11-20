@@ -143,7 +143,7 @@ func (p *project) outcome(id string) bool {
 	}
 	if err == nil {
 		if err = os.MkdirAll(filepath.Dir(path), 0o755); err == nil {
-			err = contract.Write(path, o)
+			err = contract.Write(path, contract.SchemaOutcome, o)
 		}
 	}
 	if err == nil {

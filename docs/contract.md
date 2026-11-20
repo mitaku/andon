@@ -38,7 +38,7 @@
 3. **1つの約束に1人の書き手。** `issue.yaml` の予約キーは Chief of Staff、`findings.json` はレビュアー、`report.json` と `candidates.json` とパターンの一覧（`retro.json`。§21）は担当、問いの JSON は問うた者、通知とゲートの記録と人の手直し（`corrections.json`）と結果の記録（`outcome.json`。§19）と信号の記録（§15）は dispatcher、起動の記録（§18）はエージェントを起動する command、委譲と `project.json` は人。履歴は `log.jsonl` の `by`（台帳）・端末のラベル・git の author（委譲）で照合する。
 4. **読み手は知らないキーを無視し、書き手は知らないキーを保つ**（ledger-format の互換の規則と同じ）。キーを増やすのは版を上げない。キーを消す・意味を変えるのは版を上げ、`schema/` の `$id` と `docs/decisions.md` に書く。
 5. **置き場は台帳の中。** 担当が worktree の外に書いてよい唯一の場所 `issues/<id>/library/` を、機械向けの置き場にも使う。作業側が別のマシンのときは `<worktree>.issue/outbox/` に書き、dispatcher が引いて同じ場所に置く（design.md §1.5）。`project.json`（委譲を含む）だけはセルの repo（§11。書き手が人だから）。
-6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。
+6. **形は小さく、テストで固定する。** キーは名前を決めたものだけ（余分なキーは書かない。読み手は無視する）。schema は書き手の約束なので、知らないキーを拒む（`additionalProperties: false`。台帳の項目 §2 と委譲の値を除く）。`tests/schema.sh` が例と schema を突き合わせる。command（`andon issue`・`andon gate`・`andon delegate`）の出力も `tests/schema.sh` が schema に通す（`tests/andon-issue.sh`・`tests/andon-gate.sh` に書かせる）。加えて `andon` は、約束の JSON を書く前に、自分に埋め込んだ `schema/` の直下の schema と照らし、合わなければ書かない。command は 0 でない終了コードで終わり、dispatcher はその巡の控えを書かずにログに1行出す（[ADR-0034](adr/0034-prevention-before-tests.md) 決めたこと 6）。検査器は Go の正規表現を使うので、`pattern` は ECMA-262・Python・Go で同じ意味になる書き方だけを使う（`schema_check.py lint` が止める）。
 
 ## 1. 置き場と書き手
 

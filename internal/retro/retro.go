@@ -686,7 +686,7 @@ func GH(args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// Redacted は in を、秘密の形に合う文字列を伏せた JSON（2字下げ・末尾に改行）にする。伏せた数を in.Redacted に入れて返す。
+// Redacted は in を、秘密の形に合う文字列を伏せた JSON（2字下げ・末尾に改行）にし、schema/retro.schema.json と照らす。伏せた数を in.Redacted に入れて返す。
 // 伏せるのは書き出した JSON の文字列の中だけで（redact）、伏せたあとも JSON として読めることを確かめる。
 func Redacted(in *Input) ([]byte, int, error) {
 	in.Redacted = 0
@@ -695,6 +695,10 @@ func Redacted(in *Input) ([]byte, int, error) {
 	out, _ := redact(contract.Marshal(in))
 	if !json.Valid(out) {
 		return nil, 0, errors.New("秘密を伏せたあとの出力が JSON でない（伏せる形の誤り）")
+	}
+	// 書くのは伏せたあとの形なので、照らすのもその形（ADR-0034 決めたこと 6）
+	if err := contract.SchemaRetro.Check(out); err != nil {
+		return nil, 0, err
 	}
 	return out, n, nil
 }

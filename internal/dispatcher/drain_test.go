@@ -22,7 +22,7 @@ func TestDrainStopUnderLockConfirms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report"}}
+	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
 	if err := st.Save(slug); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestDrainStopUnderLockOtherTurnRetries(t *testing.T) {
 	lockWait = 50 * time.Millisecond
 	const slug = "demo"
 	st, _, _ := LoadState(slug)
-	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report"}}
+	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
 	st.Save(slug)
 	if out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p1"}); err != nil || out == nil {
 		t.Fatalf("送信で渡さない: %v %v", out, err)
@@ -95,8 +95,8 @@ func TestDrainLogsDelivered(t *testing.T) {
 	pend := func() {
 		st, _, _ := LoadState(slug)
 		st.Pending = []Notification{
-			{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report"},
-			{At: "2026-11-11T00:00:00Z", Project: slug, Kind: "error"},
+			{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}},
+			{At: "2026-11-11T00:00:00Z", Project: slug, Kind: "error", Detail: map[string]any{"agent": "t1", "status_ms": 1}},
 		}
 		st.Save(slug)
 	}
@@ -180,7 +180,7 @@ func TestDrainAckedEvenIfLabelFails(t *testing.T) {
 		t.Setenv("XDG_STATE_HOME", t.TempDir())
 		os.Remove(filepath.Join(bin, "acked"))
 		st, _, _ := LoadState(slug)
-		st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report"}}
+		st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
 		st.Save(slug)
 		if out, err := drain(slug, false, hookInput{SessionID: "s1", PromptID: "p1"}); err != nil || out == nil {
 			t.Fatalf("Stop で渡さない: %v %v", out, err)

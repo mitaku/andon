@@ -27,6 +27,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"andon/internal/contract"
 	"andon/internal/dispatcher"
 	"andon/internal/ledger"
 )
@@ -1204,12 +1205,12 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		enc := json.NewEncoder(stdout)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(res); err != nil {
+		b, err := contract.Encode(contract.SchemaMeasure, res)
+		if err != nil {
+			fmt.Fprintf(stderr, "andon measure: %v\n", err)
 			return 1
 		}
+		stdout.Write(b)
 		return 0
 	}
 	Table(stdout, res, columnsOrder(res))

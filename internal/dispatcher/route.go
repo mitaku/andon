@@ -119,7 +119,13 @@ func (p *project) flush() {
 	}
 	lines := make([][]byte, len(p.st.Unrecorded))
 	for i, n := range p.st.Unrecorded {
-		lines[i], _ = json.Marshal(n)
+		b, err := contract.EncodeLine(contract.SchemaNotification, n)
+		if err != nil {
+			// 控えの保存（State.Save）も同じ通知で落ちるので、巡は誤りで終わる（書かずに止まる）
+			p.logf("記録だけの通知が schema に合わない（%d 件を書かずに控えに残す）: %v", len(p.st.Unrecorded), err)
+			return
+		}
+		lines[i] = b
 	}
 	if err := appendLines(RecordedPath(p.l.Slug), lines); err != nil {
 		p.logf("記録だけの通知を書けない（%d 件を控えに残し、次の見回りで書き直す）: %v", len(p.st.Unrecorded), err)

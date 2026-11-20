@@ -64,7 +64,7 @@ func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	if err2 := os.MkdirAll(filepath.Dir(path), 0o755); err2 != nil {
 		return err2
 	}
-	if err2 := contract.Write(path, rec); err2 != nil {
+	if err2 := contract.WriteState(path, rec); err2 != nil {
 		return fail("settle の記録を書けない: %v", err2)
 	}
 	if err != nil {

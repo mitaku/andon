@@ -13,3 +13,9 @@ var Init embed.FS
 //
 //go:embed process/states/issue.yaml
 var IssueStates []byte
+
+// Schemas は約束の JSON の schema（schema/ の直下の *.schema.json。docs/contract.md の冒頭の表）。
+// internal/contract が、command が約束の JSON を書く前に照らすのに読む（ADR-0034 決めたこと 6）。
+//
+//go:embed schema/*.schema.json
+var Schemas embed.FS

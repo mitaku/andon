@@ -276,7 +276,10 @@ func Draft(slug, title, prefix string, repos []string) ([]byte, error) {
 	if repos == nil {
 		repos = []string{}
 	}
-	b := contract.Marshal(delegate.Project{Version: 1, Project: delegate.ProjectInfo{Title: title, Prefix: prefix}, Repos: repos})
+	b, err := contract.Encode(contract.SchemaProject, delegate.Project{Version: 1, Project: delegate.ProjectInfo{Title: title, Prefix: prefix}, Repos: repos})
+	if err != nil {
+		return nil, fmt.Errorf("project.json の下書きが schema に合わない: %v", err)
+	}
 	if _, err := delegate.ParseProject(b, slug); err != nil {
 		return nil, fmt.Errorf("project.json の下書きが Andon の検査に通らない: %v", err)
 	}
