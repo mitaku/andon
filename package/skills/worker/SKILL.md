@@ -191,21 +191,25 @@ EOF
    `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` → `hc wait <その名前>` → `hc read <その名前>` → `hc rm <その名前>`。
    落ちたら直して push し、待ち直す。checks の無い repo（「no checks reported」）はそれで済み。
    これはエージェントではなく、コマンドを走らせるための端末なので起動してよい。
+   `Review: on` なら、checks を待つ前に §4 の 1 でレビューを頼み、checks はレビューの裏で待つ。
 
 ## 4. レビュー（`Review: on` のとき）
 
 **レビューは担当の工程。** レビューの commit と自分の最後の commit の照合は `andon issue ready` がする。
 
-1. §3 の PR と checks が済んだら、`HEAD` を push して `andon issue review-request <id> <<'EOF'` … `EOF`（stdin は §7 の人が読む報告）。
+1. PR を出したらすぐ頼む。checks は裏で待つ。`HEAD` を push して `andon issue review-request <id> <<'EOF'` … `EOF`（stdin は §7 の人が読む報告）。
    command が `HEAD` ＝ PR の head を確かめ、回・上限・前回の commit・レビュアー・追加の回か（`extra`）を `report.json` の `review_request` に書き、
    人が読む `## レビュー依頼` の行を報告の先頭に足して `kanban report` する（`kanban review` はしない）。止まったら理由の1行に従う。
-   Chief of Staff には dispatcher が `<id> report` の通知で届ける。レビュアーを起動するのは dispatcher（`review: on` を Chief of Staff が書いていて、回が上限の中のとき）。自分では起動しない。頼んだら待つ（turn を終えてよい）。
+   Chief of Staff には dispatcher が `<id> report` の通知で届ける。レビュアーを起動するのは dispatcher（`review: on` を Chief of Staff が書いていて、回が上限の中のとき）。自分では起動しない。
+   頼んだら §3 の 4 の checks を待つ。通ればレビューの結果を待つ（turn を終えてよい）。
+   落ちたら、レビューの結果を待たずに直して commit・push してよい。ただし頼み直すのは、前のレビューの結果が届いてから。
+   その課題のレビュアーが動いている間は、command が別の commit の頼み直しも断る（レビュアーは1人ずつ）。
 2. レビュアーの `hc send` で報告の場所が届く。`kanban show <レビューの課題の id>` の report（人が読む Markdown）と、`issues/<レビューの課題の id>/library/findings.json`（ゲートが読む指摘。§6）を読む。
-   照合の結果は `andon issue show <id>` の `review`（`stale` は古い commit を見たレビューで、回には数えない。そのまま 1 で頼み直す）。
+   照合の結果は `andon issue show <id>` の `review`。`stale` は古い commit（CI が落ちて直す前など）を見たレビュー。レビュアーの課題が台帳に残るので、回は1つ進む。今の `HEAD` で 1 から頼み直す（上限を超えたら 5）。
 3. 指摘を振り分ける（自分でする。件数と重さは `findings.json` のもの。報告の中身と食い違えば、レビュアーへ直してもらうよう報告に書く）:
    - `Must fix` 以上 → 直す。間違いだと判断した指摘は直さず、理由を報告に書く（ゲートは人へ回す）。
    - それより軽い → 直さない。`andon issue report --data` の `waived`（`findings.json` と同じ `severity`・`file`・`line` ＋ `reason`）に書き、PR 本文の「トレードオフ」と報告の「見送り」にも写す。
-4. 直して commit・push したら 1 に戻る（再レビューは直した差分だけ。回と前回の commit は command が数える）。直すものが無ければ §7 へ進む。
+4. 直して commit・push したら 1 に戻る（再レビューは直した差分だけ。回と前回の commit は command が数える）。直すものが無ければ、checks の終わりを待たずに §7 へ進む（ゲートが checks を待つ。checks を待って `ready` を遅らせると `Stop` フックが止める）。
 5. 回数が `review_rounds` に達しても critical / major が残るときは、人の判断待ちにしない。直して commit し、1 と同じく頼む
    （上限を超えた回は command が `extra: true` にする。見るのは直した差分だけ）。起動するかは Chief of Staff が決める。
    minor 以下だけが残るときは、見送りに残して §7 へ。
