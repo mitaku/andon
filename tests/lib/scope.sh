@@ -77,6 +77,8 @@ while IFS= read -r p; do
     docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;
     README.md) run[tests/adr-index.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
+    # package.sh の節（1節1ファイル）。入口の tests/package.sh が順に読む
+    tests/package/*) run[tests/package.sh]=1 ;;
     tests/host/*) run[tests/host.sh]=1 ;;
     # 流れと状態の定義（ADR-0017）。dispatcher.md §7.2 は once: true の移り方と突き合わせる。
     # process/states/issue.yaml は andon に埋め込む（embed.go）ので、軽い検査も全部（重い検査は上の表）
