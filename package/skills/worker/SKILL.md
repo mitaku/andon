@@ -297,6 +297,9 @@ EOF
 - `acceptance`: 依頼書か Chief Engineer の文書に受け入れ条件（A1, A2, …）があれば、1つずつ `{"id": "A1", "result": "pass", "evidence": "<テストの command と出力のパス>"}` を書く。証拠は、この commit で走らせた本物の出力だけ。前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストは証拠でない（そうなる条件は `pass` と書かない）。`result` は通した `pass`・通せない `fail`・オーナーが見る `manual`。`fail` があるとゲートは `fix`、`manual` があるとレベルを1つ上げる。条件が無ければ書かない。
   受け入れ条件のテストは、先に落ちるのを確かめる（直す前か、直した所を戻して）。
   画面の確かめ（§2）の `evidence` には、PR の添付の URL（`https://github.com/user-attachments/assets/<id>`）と撮った command（`playwright-cli` の列）を書く。
+  走らせた出力を証拠にするときは `andon issue record <id> [--expect pass|fail] -- <command>` で撮り、行に `"run": <記録の番号>` を足す（記録は `library/runs/<n>.json` と `<n>.log`。手で書かない）。
+  `run` のある行は、`andon issue ready` とゲートが記録を確かめる。記録が無い、終了コードが期待と違う、`pass` を期待する記録を commit していない変更のある木で撮った、のどれかなら `ready` は断り、ゲートは `fix` を返す。commit してから撮り直して書き直す。
+  `fail` を期待する記録（誤りを戻すと検査が落ちることを示す）は、誤りを戻した木で撮ってよい。記録の commit が head より古くても断らない（ゲートが記録に出す）。CI の検査の名前・添付の URL・`manual` の行には `run` を書かない。
 - `risk`: 変更そのものが revert で戻らないなら `{"risk": {"one_way": true, "impact": ["<何に届くか。人が読む>"]}}`。ゲートはレベルを C に上げる（オーナーが見る）。true にするのは、例えば:
   本番のデータを移す・消す（列や表を落とす migration）／外に出たものを消す・書き換える（公開した版・送ったメール・外の API の約束）／履歴を消す（force push・branch や記録の削除）。
   戻せる変更は `risk` を書かない。`false` と書いてもレベルは下がらない。

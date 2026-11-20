@@ -352,6 +352,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "", err
 	}
 	cl, rec.Acceptance = FromReport(cl, rep)
+	// 受け入れ条件の行が記録を指すときだけ中身を見る。古い commit の記録は戻さず、記録に出す（ADR-0035 決めたこと 2・11）
+	facts.RunProblems, rec.Acceptance.StaleRuns = contract.CheckRuns(l.Library(id), rep.Acceptance, head)
 	tier := cl.Tier
 	facts.Tier, facts.AcceptanceFail = tier, rec.Acceptance.Fail
 	rec.Tier, rec.TierReasons, rec.ChangedLines = tier, cl.TierReasons, cl.ChangedLines

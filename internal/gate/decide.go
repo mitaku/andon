@@ -246,10 +246,12 @@ func Raise(tier string) string {
 }
 
 // AcceptanceCount は report.json の acceptance[] の件数（ゲートの記録の acceptance）。
+// StaleRuns は記録を指す行のうち、記録の commit が head と違うもの（ADR-0035 決めたこと 2。戻さず、記録に出すだけ）。
 type AcceptanceCount struct {
-	Pass   int `json:"pass"`
-	Fail   int `json:"fail"`
-	Manual int `json:"manual"`
+	Pass      int                 `json:"pass"`
+	Fail      int                 `json:"fail"`
+	Manual    int                 `json:"manual"`
+	StaleRuns []contract.StaleRun `json:"stale_runs,omitempty"`
 }
 
 // OneWayReason は担当が risk.one_way: true と申告してレベルを C にしたときの理由。
@@ -454,6 +456,7 @@ type Facts struct {
 	Review          ledger.Review
 	PreviousMustFix bool // 同じ head で Must fix が残って fix を返したことがある
 	AcceptanceFail  int
+	RunProblems     []string     // 受け入れ条件の行が指す記録が証拠にならない（contract.CheckRuns）
 	GitHubChecks    GitHubChecks // PR の head の GitHub の checks
 	ChecksOptional  bool         // 条件表の repos.<repo>.github_checks が optional（1件も無くてよい）
 	ChecksOverdue   bool         // review に入ってから github_checks_wait_minutes を過ぎた
@@ -506,6 +509,9 @@ func Decide(f Facts) (string, []string) {
 	}
 	if f.AcceptanceFail > 0 {
 		return "fix", []string{fmt.Sprintf("受け入れ条件の fail が %d 件", f.AcceptanceFail)}
+	}
+	if len(f.RunProblems) > 0 {
+		return "fix", f.RunProblems
 	}
 	if len(f.ScreenMissing) > 0 {
 		reasons := make([]string, len(f.ScreenMissing))

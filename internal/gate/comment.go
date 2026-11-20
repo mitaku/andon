@@ -147,6 +147,9 @@ var reasonRewrites = []rewrite{
 		return "直す重さの指摘を " + m[1] + " 件見送った（レビューの判断を覆した）"
 	}},
 	{regexp.MustCompile(`^受け入れ条件の fail が ([0-9]+) 件$`), func(m []string) string { return "受け入れ条件のうち " + m[1] + " 件が通っていない" }},
+	{regexp.MustCompile(`^受け入れ条件 (.+) の記録 runs/[0-9]+\.json `), func(m []string) string {
+		return "受け入れ条件 " + m[1] + " の証拠にした実行の記録が、無いか期待と合わない"
+	}},
 	{regexp.MustCompile(`^screen_paths: (.*) に当たるが画面の証拠（添付）が無い$`), func(m []string) string {
 		return "画面に触れる変更（" + m[1] + "）なのに、画面の写しの添付が無い"
 	}},

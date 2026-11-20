@@ -121,6 +121,7 @@ ReviewerReturns ==
 \* ゲートの問いのうち前の head について出たもの（staleGateQuestions）は数えない（q は担当の問いだけ。ゲートが今の head で決めたとき
 \* internal/issue/merge.go closeStaleGateQuestions が閉じる）。
 \* 照合が head のレビューを読めなければ（CheckReview が current でない）断る。CI は読まない（ゲートが待つ）
+\* 受け入れ条件の行が指す記録が証拠にならなくても断る（contract.CheckRuns。担当が撮り直して打ち直すので、モデルでは歩まないだけ）
 WorkerReady ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~q
     /\ result \in {"clean", "mustfix"}
