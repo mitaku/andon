@@ -82,7 +82,7 @@
           }
         },
         "triage_max_issues": {
-          "description": "How many issues one triage may start (andon triage apply --max-issues). Default 3.",
+          "description": "How many issues one triage may start. Read by andon triage apply (--max-issues overrides it for one run). Default 3.",
           "type": "integer",
           "minimum": 1
         }

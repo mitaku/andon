@@ -133,6 +133,31 @@ snapshot > "$tmp/after"
 cmp "$tmp/before" "$tmp/after"
 jq -e '[.items[]|select(.decision=="keep")]|length==3' "$tmp/plan" >/dev/null
 echo 'ok dry-run unchanged; cap defers two fixes'
+# --max-issues が無ければ、起動する上限はセルの repo の HEAD の project.json の chief_of_staff.triage_max_issues（contract.md §11）。
+# 無ければ 3、owner でない author の project.json は信じずに止まる。
+decisions() { jq -c '[.items[]|.decision]' "$@"; }
+"$script" triage apply "$triage" --dry-run | decisions > "$tmp/plan-default"
+[[ "$(decisions "$tmp/plan")" != "$(cat "$tmp/plan-default")" ]]
+mkdir -p "$ANDON_WORKSPACE/projects/demo"
+git -C "$ANDON_WORKSPACE" init -q
+printf 'owner = "owner@example.com"\n' > "$ANDON_WORKSPACE/andon.toml"
+printf '{"version": 1, "project": {"title": "Demo", "prefix": "T"}, "repos": [], "chief_of_staff": {"triage_max_issues": 2}}\n' > "$ANDON_WORKSPACE/projects/demo/project.json"
+git -C "$ANDON_WORKSPACE" add -A
+git -C "$ANDON_WORKSPACE" -c user.name=o -c user.email=owner@example.com commit -q -m project
+"$script" triage apply "$triage" --dry-run | decisions > "$tmp/plan-project"
+[[ "$(decisions "$tmp/plan")" == "$(cat "$tmp/plan-project")" ]]
+"$script" triage apply "$triage" --max-issues 3 --dry-run | decisions > "$tmp/plan-flag"
+[[ "$(cat "$tmp/plan-flag")" == "$(cat "$tmp/plan-default")" ]]
+printf '{"version": 1, "project": {"title": "Demo", "prefix": "T"}, "repos": [], "chief_of_staff": {"triage_max_issues": 5}}\n' > "$ANDON_WORKSPACE/projects/demo/project.json"
+git -C "$ANDON_WORKSPACE" -c user.name=x -c user.email=other@example.com commit -q -am other
+set +e
+"$script" triage apply "$triage" --dry-run >/dev/null 2> "$tmp/err"; rc=$?
+set -e
+[[ $rc == 1 ]] && grep -q '起動する上限を決められない' "$tmp/err"
+rm -rf "$ANDON_WORKSPACE"
+snapshot > "$tmp/after"
+cmp "$tmp/before" "$tmp/after"
+echo 'ok apply reads the cap from project.json; --max-issues overrides it'
 cp "$file" "$tmp/good"
 # 見た commit が古い・無いものは通らない。collect の出したものは通る（受け入れ条件 6）。
 for filter in ".items[0].commit=\"$stale\"" 'del(.items[0].commit)'; do

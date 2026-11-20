@@ -23,7 +23,7 @@
    - 失われるものが無ければ `andon triage verdict <id> <key> ok`（閉じてよい）。「その場限り」かどうかの線は判定表に無いので、ここで決める。
    - 判定は key と担当の閉じ方・理由に結びつく。担当が書き直したら、その項目は読み直す（`verdict` が `stale` になる）。判定を書くのは自分の端末だけで、担当には書かせない。書き手が今の自分の端末でない判定は数えられない（`foreign`。起き直して端末が替わったら書き直す）。
    覆したものがあれば、key と行き先の案（直す・人へ・wiki へ・次回へ）を添えて担当に `hc send` で戻す。覆したことは適用のあとの記録に残る。
-4. **適用する**: `andon triage apply <id> --max-issues <AGENTS.md の Chief of Staff の節の「トリアージ: 起動する上限 N」。無ければ 3>`。
+4. **適用する**: `andon triage apply <id>`。起動する上限は、`apply` が `projects/<slug>/project.json` の `chief_of_staff.triage_max_issues`（無ければ 3）から読む。上限は人が `project.json` に書くもので、`--max-issues` で変えない。
    `review` の全部に「閉じてよい」が揃うまで `apply` は台帳に手を入れずに断る（覆したものが残っていても断る）。終了コード 1 は理由を読み、判定が足りなければ 3 に戻り、ほかは担当に戻す。
    要約は `library/triage/<日付>-<id>.md`、記録は同じ名前の `.json`。適用したら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
 5. **続ける**: `apply` が足した fix／bundle の課題は、人に聞かずに `start.md` の手順で起動する（並行の上限の中で。残りは次の周回）。

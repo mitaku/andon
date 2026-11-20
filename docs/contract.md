@@ -428,7 +428,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon issue start` は課題の `repo` がここに無ければ起動しない。台帳の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
 | `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部人） |
-| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3） |
+| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる） |
 | `signals` | 任意 | 外の信号の出所（下の表。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 11）。無い・空なら何も取りに行かない |
 
 `signals[]` の1件（読むのは `andon signal collect`。§15）:
