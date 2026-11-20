@@ -66,12 +66,6 @@ type Record struct {
 	Merged   bool     `json:"merged"`
 }
 
-type failure struct{ msg string }
-
-func (f failure) Error() string { return f.msg }
-
-func fail(format string, a ...any) error { return failure{fmt.Sprintf(format, a...)} }
-
 // Main は andon gate。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) < 1 || len(args) > 2 || !idRe.MatchString(args[0]) || (len(args) == 2 && args[1] != "--dry-run") {

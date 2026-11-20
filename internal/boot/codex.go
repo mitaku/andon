@@ -60,7 +60,7 @@ func genCodexConfig(e Env) error {
 		} else {
 			table, ok := value.(map[string]any)
 			if !ok {
-				return fmt.Errorf("Codex の %s が表ではない: %s", policy.table, path)
+				return fmt.Errorf("%s の %s が表ではない", path, policy.table)
 			}
 			for _, field := range policy.fields {
 				if table[field] != false {

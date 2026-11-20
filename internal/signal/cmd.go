@@ -117,7 +117,7 @@ func Auth(source, dir string, stdin io.Reader, w io.Writer) error {
 	tok, err := bufio.NewReader(stdin).ReadString('\n')
 	restore()
 	fmt.Fprintln(w)
-	if err != nil && !(errors.Is(err, io.EOF) && tok != "") {
+	if err != nil && (!errors.Is(err, io.EOF) || tok == "") {
 		return errors.New("トークンが読めない（標準入力に1行で渡す）")
 	}
 	tok = strings.TrimSpace(tok)

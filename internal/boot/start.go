@@ -277,7 +277,7 @@ func dropStaleRoles(e Env) error {
 		}
 		time.Sleep(stalePoll)
 	}
-	if t.Foreground == nil || !(t.Shell() || isOldDispatcher(t.Foreground.Argv)) {
+	if t.Foreground == nil || (!t.Shell() && !isOldDispatcher(t.Foreground.Argv)) {
 		fg := "取れない"
 		if t.Foreground != nil {
 			fg = t.Foreground.Name

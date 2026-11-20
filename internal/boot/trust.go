@@ -316,7 +316,6 @@ func trustCodex(e Env) error {
 		trust bool
 	}
 	tables := map[string]*table{}
-	var cur *table
 	top := true // まだ表の見出しの前（top-level の key）
 	for i, ln := range lines {
 		if inString[i] {
@@ -330,9 +329,9 @@ func trustCodex(e Env) error {
 			if !ok {
 				return e.skipTrust("%s の見出しの escape が読めない（書かない）: %s", path, strings.TrimSpace(ln))
 			}
-			cur, top = &table{at: i}, false
+			top = false
 			if _, dup := tables[key]; !dup {
-				tables[key] = cur
+				tables[key] = &table{at: i}
 			}
 			continue
 		}
@@ -340,7 +339,7 @@ func trustCodex(e Env) error {
 			return e.skipTrust("%s の projects がこの形で読めない（書かない）: %s", path, strings.TrimSpace(ln))
 		}
 		if codexTableRe.MatchString(ln) {
-			cur, top = nil, false
+			top = false
 			continue
 		}
 	}
