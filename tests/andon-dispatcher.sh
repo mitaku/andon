@@ -1273,7 +1273,7 @@ jq -e '.from == "gate" and (.question | contains("判定できなかった"))' "
     jq -e '(.gh_reset // "") == ""' "$state" >/dev/null || die "rate limit でない終了コード 3 が needs_human の問いにならない: $(cat "$L/issues/$id/library/questions/1.json" 2>/dev/null)"
 ok 'rate limit でない gh の失敗でゲートが落ちたら、今どおり needs_human の問いにする（上限の控えは付けない）'
 
-# 9c. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
+# 9f. ゲートのあと checks が変わった・push されたら、マージの直前に読み直して打たない
 id=$(newtask 'CI が走り直す' auto)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
