@@ -503,6 +503,32 @@ ce_order() { local a b c d; a=$(line_of "$1" '「オーナーに聞く線」（a
   c=$(line_of "$1" '「依頼書に切る案」を縦に薄く'); d=$(line_of "$1" '**観察の課題を1件**足す')
   [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ -n "$d" ] && [ "$a" -lt "$b" ] && [ "$a" -lt "$c" ] && [ "$a" -lt "$d" ]; }
 ce_order "$cosr" && pass "ADR-0037 A5: cut.md は線の確かめを、価値の仮説で戻す・切る・観察の課題を足すより先に置く" || fail "ADR-0037 A5: cut.md の線の確かめが、切る手順より後にある"
+# ADR-0038 受け入れ条件 3（Chief Engineer の決まりの文）: statechart の段（当てはまる設計の線・案を見せる前・反論に渡す・
+# 文書の 1 行・資料として渡す）と、モデルのファイルを添える例外（CE の skill の渡し方と cut.md の 2 か所）
+ces=$(sed -n '/^## 状態を動かす設計をモデルで調べる$/,/^## 文書の形$/p' "$ce")
+miss=
+for k in '**当てはまる設計の線。**' '状態を動かす流れそのものを変える設計' 'モデルは反論の代わりにしない' \
+  'pstack の statechart' '`~/.claude/plugins/installed_plugins.json`' '`skills/statechart/SKILL.md`' '「本物のコードで再現する」はしない' \
+  '`issues/<id>/library/` の下' 'repo のモデルには書かない' \
+  '**案を見せる前に調べる。**' '推奨案は必ずモデルにして調べる' 'どの案を選ぶかは骨格 5 のとおりあなたが決める' \
+  '**反論にモデルも渡す。**' '反論（骨格 6）は調べたあとに走らせる' \
+  '**文書に1行書く。**' '`モデル: 調べた（規則 N 本・見つけた破れ M 件）`' '`モデル: 調べなかった（<理由>）`' \
+  '**資料として渡す。**'; do
+  grep -qF -- "$k" <<<"$ces" || miss="$miss [段: $k]"
+done
+grep -qF '状態を動かす流れを変えるか（下の「状態を動かす設計をモデルで調べる」の線）も決める' <<<"$ce2" || miss="$miss [入口で当てはまるかを決める]"
+model_ex='例外として、検討で調べたモデルのファイルは、資料として添えてよい。依頼書はそのパスを指してよい'
+sed -n '/^## 渡し方$/,/^## 取らないもの$/p' "$ce" | grep -qF "$model_ex" || miss="$miss [CE の渡し方の例外]"
+grep -qF '"最初の実装の課題の依頼書に <モデルのパス> を添える"' "$ce" || miss="$miss [CE の next にモデルを添える行]"
+grep -qF "（渡されるのは文書だけ。$model_ex）" <<<"$cosr" || miss="$miss [cut.md の例外]"
+grep -qF '`next` に「最初の実装の課題の依頼書に <モデルのパス> を添える」があれば' <<<"$cosr" || miss="$miss [cut.md がモデルのパスを依頼書に書く]"
+# 置き場のパスは版ごとに変わるので skill に書かない（ADR-0038 決めたこと 12）
+pstack_path='plugins/cache/[^ ]*pstack/[0-9]'
+grep -qE "$pstack_path" "$ce" && miss="$miss [版の入った pstack の置き場のパスが skill にある]"
+[ -z "$miss" ] && pass "ADR-0038 A3: CE skill に statechart の段（線・案を見せる前・反論に渡す・文書の1行・資料として渡す）、渡し方の例外が CE skill と cut.md の2か所にある" \
+  || fail "ADR-0038 A3: CE の決まりの文:$miss"
+grep -qE "$pstack_path" <<<'/opt/x/.claude/plugins/cache/cursor-plugins/pstack/0.15.43/skills/statechart/SKILL.md' \
+  && pass "ADR-0038 A3: 版の入った pstack の置き場のパスは否定の grep に当たる（検査が見ている）" || fail "ADR-0038 A3: 否定の grep が何も見ていない"
 ! ce_order "$(printf '%s\n' '3. 「依頼書に切る案」を縦に薄く' '4. **観察の課題を1件**足す' '2. 「価値の仮説」の節が見出しだけ' '6. 切る前に、「オーナーに聞く線」（a〜g）に当たる決定')" \
   && pass "ADR-0037 A5: 線の確かめが後ろにある並びは順の検査に当たる（検査が見ている）" || fail "ADR-0037 A5: 順の検査が何も見ていない"
 # ADR-0037 受け入れ条件 6: design.md §1.8・§1.9 と dispatcher.md に古い文が残らない

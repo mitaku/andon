@@ -8,10 +8,10 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | モデルは Chief Engineer が検討の中で書いて調べ、反論にも渡す | この ADR | まだ実装していない |
-| 2 | 調べるのは、案をオーナーに見せる前にする | この ADR | まだ実装していない |
-| 3 | モデルを書くのは、状態を動かす流れそのものを変える設計のときにする | この ADR | まだ実装していない |
-| 4 | 調べ終えたモデルは、課題の資料として開発へ渡す | この ADR | まだ実装していない |
+| 1 | モデルは Chief Engineer が検討の中で書いて調べ、反論にも渡す | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」 | 生きている |
+| 2 | 調べるのは、案をオーナーに見せる前にする | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」 | 生きている（穴を書いた案を誰が選ぶかは、この ADR の 22 が改めた） |
+| 3 | モデルを書くのは、状態を動かす流れそのものを変える設計のときにする | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」 | 生きている |
+| 4 | 調べ終えたモデルは、課題の資料として開発へ渡す | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」 | 生きている |
 | 5 | repo にモデルが無い流れのモデルを repo に置くかは、この題では決めない | この ADR | 生きている |
 | 6 | 決まりは Andon の repo の `AGENTS.md` に書く | この ADR | 覆された → この ADR の 12 |
 | 7 | 効いたかを軽い観察で確かめる | この ADR | まだ実装していない |
@@ -19,16 +19,17 @@
 | 9 | pstack の `create-formal-verification-skill` は、調べる課題を 1 つ切って試す | この ADR | まだ実装していない |
 | 10 | pstack と yomiyasu を全セルに配る設計を、この題に含める | この ADR | 生きている |
 | 11 | pstack と yomiyasu は参照で入れ、参照はパッケージの既定に書く | `package/settings.json`・`package/gh-skills.txt` | 生きている |
-| 12 | 決まりは、パッケージの Chief Engineer の skill に一般の段を、Andon に固有のことは repo の `AGENTS.md` に書く | この ADR | まだ実装していない |
-| 13 | repo のモデルの写しは、statechart と、`model/check` に足す下書きを調べる口の 2 つで調べる | `model/check`・`model/README.md` | 生きている（Chief Engineer の決まりの文と repo の `AGENTS.md` の行は、まだ実装していない） |
+| 12 | 決まりは、パッケージの Chief Engineer の skill に一般の段を、Andon に固有のことは repo の `AGENTS.md` に書く | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」・`AGENTS.md` | 生きている |
+| 13 | repo のモデルの写しは、statechart と、`model/check` に足す下書きを調べる口の 2 つで調べる | `model/check`・`model/README.md`・`AGENTS.md` | 生きている |
 | 14 | Java と TLC は、statechart を使ったセルにだけ、道具が自分で入れる | この ADR | まだ実装していない |
-| 15 | モデルのファイルを添える例外を、渡し方の決まりの 2 か所に書く | この ADR | まだ実装していない |
+| 15 | モデルのファイルを添える例外を、渡し方の決まりの 2 か所に書く | `package/skills/chief-engineer/SKILL.md` の「渡し方」・`package/skills/chief-of-staff/playbooks/cut.md` の「Chief Engineer の文書を受けたら」 | 生きている |
 | 16 | yomiyasu の推敲の決まりは、パッケージの `writing.md` に書く | `package/writing.md` | 生きている |
 | 17 | pstack を入れると載るもののうち、`setup-pstack` とサブエージェントの型は使わないと環境メモに書く | `package/environment.md` | 生きている |
 | 18 | 「既定は空」の文と、boot の検査の偽の `gh` を、同じ PR で直す | `tests/image.sh` | 生きている |
 | 19 | 版は固定せず、自動で最新に上げる | `package/settings.json`・`package/gh-skills.txt` | 生きている |
 | 20 | 2 つの試しは、材料のまとめを待たずに「標準にする」で判定し、材料は調べる課題で別にまとめる | この ADR | まだ実装していない |
 | 21 | ADR-0035 の「`create-formal-verification-skill` も使わない」は、試しの 1 回を除くと改める | この ADR | まだ実装していない |
+| 22 | 穴を書いた案は Chief Engineer が選び、線に当たる差だけオーナーに聞く | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」 | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
@@ -159,6 +160,9 @@
     決めたこと 9 の調べる課題（1 回走らせて報告する。repo には書かない）は残す。repo に取り入れないことは ADR-0035 のまま。
     理由: 同じ日の 2 つの決定がぶつかっている（事実 23）。ADR-0035 の理由は「形式モデルは ADR-0025 が既に持つ」で、課題の一生については正しい。試しが答えるのは、モデルがまだ無い流れへ形式検証をどう広げるか（決めたこと 5 が任せた問い）の材料で、ADR-0035 が見た範囲の外にある。
     捨てた案: 決めたこと 9 を取り下げる（決定は揃うが、形式検証を広げる題が、実物を 1 回も走らせずに始まる）。
+22. **2026-11-20 決めたこと 2 の「各案のリスクに書いてから選んでもらう」を、ADR-0037 の線に合わせて改める。** モデルで見つけた穴は、破れまでの道を文にして各案のリスクに書くまでは変えない。どの案を選ぶかは作り方の決定なので Chief Engineer が決め、案の違いがオーナーに聞く線に当たるときだけ、その決定を出口でオーナーに聞く。（オーナーが決めた [ADR-0037](0037-chief-engineer-autonomy.md) の決めたこと 2 に合わせる改め。決めたこと 2 は ADR-0037 より前の手順で書かれた）
+    理由: 決めたこと 2 を書いたときは、構造の案をオーナーが選ぶ手順だった。同じ日に決まった ADR-0037 で、作り方の決定と構造の案は Chief Engineer が選び、オーナーに聞くのは線の 7 種だけになった。2 の文のままでは、Chief Engineer の skill の骨格（代案は自分で選ぶ）とぶつかる。
+    捨てた案: 2 の文のまま、モデルで調べた設計だけオーナーに案を選んでもらう（statechart の当てはまる題でだけ、オーナーへの問いが増える。ADR-0037 が減らした問いを戻すことになる）。
 
 ## やらないこと（範囲の外。理由）
 
