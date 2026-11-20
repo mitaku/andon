@@ -58,7 +58,7 @@
 1. **2026-11-06 タスクの型は3つ: 調べる・直す・決める。型は依頼書の完了条件と、`task.yaml` の予約キー `deliverable`（7）で分かる。**
 
    調べるタスクの成果は候補の一覧（2）と報告で、PR は出さない。独立レビューは付けない（レビュアーは commit の差分を読む役で、候補の一覧には差分が無い。大きい調べもので反論が要れば Chief Engineer の題にする）。ゲートも回さない（7）。プロファイルの既定は `claude`（深い調べものは `fable`、grep で済む小さいものは `sonnet`）。直すタスクと決めるタスクは今までどおり。
-   細部（型ごとの成果・起動・片付けの表、調べるタスクの依頼書の雛形、repo の有無、担当の終わり方）は、今は `package/skills/chief-of-staff/playbooks/brief.md` の「調べる課題の雛形」、`package/skills/chief-of-staff/playbooks/cut.md` のプロファイルの表、担当の skill の「調べる課題のとき」（`package/skills/worker/SKILL.md` §2）が正。
+   細部（型ごとの成果・起動・片付けの表、調べるタスクの依頼書の雛形、repo の有無、担当の終わり方）は、今は `package/skills/chief-of-staff/playbooks/brief.md` の「調べる課題の雛形」、`package/skills/chief-of-staff/playbooks/cut.md` のプロファイルの表、担当の skill の「調べる課題のとき」（`package/skills/worker/SKILL.md` §2）が正。決めるタスク（Chief Engineer の起動・成果の文書の PR・検収）の細部は、[design.md](../design.md) §1.8 と `package/skills/chief-engineer/SKILL.md` が正。
    - 調べるタスクの中で見つけた「直し方が1つで小さいもの」も直さない（型を守る。混ぜると「調べたついでに直した」が PR になり、範囲の判断を飛ばす）。
 
    理由: 調べる工程を**担当の仕事**にすると、人がいなくても進み、worktree・報告・`library/`・finish が今の道具で済む。Chief Engineer にしないのは、Chief Engineer は人と話す役（事実を集めるのは Chief Engineer 自身の 1「読む」でも副エージェントにやらせる）で、調べるタスクはその副エージェントを台帳のタスクに格上げしたもの。「型」を `deliverable` で機械に見せるのは、PR の無い `review` をゲートが `fix`（「report.json に pr が無い」）にしてしまう今の継ぎ目（`internal/gate/gate.go`・`internal/dispatcher/dispatcher.go`。repo の無いタスクだけ飛ばしている）を、暗黙の「repo が無ければ」ではなく明示の値で越えるため。
