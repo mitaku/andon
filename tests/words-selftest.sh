@@ -43,6 +43,16 @@ for w in '外の人が読む' '1人にする' '人が読む写し' 'セルに 1 
   setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect ok "package/ の「$w」は通る"
 done
 setup; echo '人がマージする' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/）の役の「人」はまだ見ない'
+# docs/design.md は替えた範囲。引用（ビジョンの写し・freee の KPI 名・pstack の原則）だけは通る
+for w in '人がマージする' '人（2026-11-05）: 「残して」' '| 人の接点 | 段に固定 |'; do
+  setup; echo "$w" >"$tmp/r/docs/design.md"; expect fail "docs/design.md の「$w」で落ちる"
+done
+for w in '**Andon は「選択的 Dark Factory」。止められるものは機械、判断が要るものは LLM、残りだけ人。ラインは回り続け（AND ON）、人を呼ぶときだけ灯りがつく（アンドン）。**' \
+  'freee の KPI「人の介在率」' 'pstack の「人を待たない」を出口に当てはめること' 'オーナーの介在回数・人間の介在回数'; do
+  setup; echo "$w" >"$tmp/r/docs/design.md"; expect ok "docs/design.md の「${w:0:40}」は通る"
+done
+setup; echo 'freee の KPI「人の介在率」。人の答え 2026-11-07' >"$tmp/r/docs/design.md"
+expect fail 'docs/design.md の引用と同じ行の地の文の「人の答え」で落ちる'
 # コマンドの出力とコードと検査（internal/・init/・cmd/・tests/）も見る。流れの定義の語（internal/process/・tests/process/）はまだ見ない
 for d in internal init cmd tests; do
   setup; mkdir -p "$tmp/r/$d"; echo '"人の判断が要る"' >"$tmp/r/$d/x.go"; expect fail "$d/ の「人の判断が要る」で落ちる"

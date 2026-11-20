@@ -56,18 +56,29 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 # 人と AI が読む・人の名前）は通る。範囲は替え終えた場所だけで、替えるたびに role_paths に足す。
 # 範囲の外: internal/process と tests/process（流れの定義の語。替える課題が別）。例外: このファイルと tests/words-selftest.sh（落ちる例）・
 #   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」。ADR-0036 決めたこと 6）・
-#   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）。
+#   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
+#   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）。
+#   引用だけを外し、同じ行の地の文の「人」は当たる。
 role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?<![0-9] )(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ)'
-role_paths=(package internal init cmd tests)
+role_paths=(package internal init cmd tests docs/design.md)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
-[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnIP "$role" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$role" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
   | grep -v -e '^internal/process/' -e '^tests/process/' -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^internal/triage/[^:]*:[0-9]*:.*\(人に聞くこと\|（人の判断待ち）\)' \
     -e '^tests/andon-triage\.sh:[0-9]*:.*\(人に聞くこと\|（人の判断待ち）\)' \
     -e '^tests/andon-gate\.sh:[0-9]*:.*古い見出しに当たらない' \
-    -e "^tests/package/06-skill-commands\.sh:[0-9]*:.*\(old_cos=\|old_docs=\|<<<'\)" || true)
+    -e "^tests/package/06-skill-commands\.sh:[0-9]*:.*\(old_cos=\|old_docs=\|<<<'\)" \
+  | perl -CSDA -Mutf8 -ne '
+      BEGIN { $r = shift }
+      my ($f, $t) = /^([^:]*):\d+:(.*)$/s or next;
+      if ($f eq "docs/design.md") {
+        $t =~ s/止められるものは機械、判断が要るものは LLM、残りだけ人。ラインは回り続け（AND ON）、人を呼ぶときだけ灯りがつく（アンドン）//g;
+        $t =~ s/「人の介在率」|「人を待たない」//g;
+        $t =~ /$r/ or next;
+      }
+      print' "$role" || true)
 if [ -n "$hits" ]; then
   echo "FAIL words: 役を指す「人」が残る（ADR-0036 決めたこと 1。「オーナー」と書く）" >&2
   printf '%s\n' "$hits" | cut -c1-200 >&2
