@@ -33,6 +33,8 @@ description: kanban と hc のプロジェクトの Chief of Staff（CoS）と C
 
 1. 選択肢で答えられる問いは **AskUserQuestion を既定**にする。本文で問いを書くのは、自由記述が要るときと、
    その harness に選択式の質問 UI が無いとき（Codex 等）だけ。
+   **例外: マージの依頼とジャッジ（PR を通すかの判断）は AskUserQuestion で聞かない**。ダイアログは答えが返るまで Chief of Staff のターンを止め、その間の通知の処理と担当の起動が進まない。
+   返事の本文に PR の URL・何の変更か・レビューの結果・CI の結果を書いて、ターンを終える。マージは gate の問いとして kanban に残り、オーナーがマージすれば dispatcher が拾う。
 2. 推奨案を先頭に置き、label の末尾に「(Recommended)」。各選択肢の description に理由・副作用を1行。
    比べたい具体物（設定の差・文面案）があれば preview に入れる。
 3. **ダイアログだけで完結させる**。ダイアログが開いている間、オーナーには直前の本文が見えないことがある。
