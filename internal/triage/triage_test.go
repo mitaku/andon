@@ -42,6 +42,23 @@ func TestReportLines(t *testing.T) {
 	if hasHeading([]byte("見出しなし\n#  二つ目\n")) || !hasHeading([]byte("x\n## a\n")) {
 		t.Error("hasHeading")
 	}
+	// skill が書く新しい見出しも、古い見出しと同じに拾う（ADR-0036 決めたこと 6）
+	if got := reportLines([]byte("## オーナーに聞くこと\n- 新しい問い\n")); !reflect.DeepEqual(got, []reportLine{{"question", "- 新しい問い"}}) {
+		t.Errorf("新しい見出し: got %q", got)
+	}
+}
+
+func TestPersonTitle(t *testing.T) {
+	for title, want := range map[string]bool{
+		"端末で確認（人の判断待ち）":    true,
+		"端末で確認（オーナーの判断待ち）": true,
+		"端末で確認": false,
+		"（オーナーの判断待ち）の続き": false,
+	} {
+		if got := personTitle(title); got != want {
+			t.Errorf("personTitle(%q) = %v, want %v", title, got, want)
+		}
+	}
 }
 
 func TestReportLinesSkipsPlanDiff(t *testing.T) {
