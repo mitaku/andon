@@ -96,11 +96,10 @@ func batch(path string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "andon schema: 表が読めない: %v\n", err)
 			return 2
 		}
-		defer f.Close()
+		defer f.Close() //nolint:errcheck // 読むだけの表で、閉じる失敗は読んだ中身に効かない
 		r = f
 	}
 	w := bufio.NewWriter(stdout)
-	defer w.Flush()
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for sc.Scan() {
@@ -115,8 +114,12 @@ func batch(path string, stdin io.Reader, stdout, stderr io.Writer) int {
 		why, _, _ = strings.Cut(why, "\n")
 		fmt.Fprintf(w, "%d\t%s\n", rc, strings.ReplaceAll(why, "\t", " "))
 	}
+	// 結果を書き切れなければ、呼び手が件数の食い違いでなく失敗として受けるよう 2 で終える
+	if err := w.Flush(); err != nil {
+		fmt.Fprintf(stderr, "andon schema: 結果を書けない: %v\n", err)
+		return 2
+	}
 	if err := sc.Err(); err != nil {
-		w.Flush()
 		fmt.Fprintf(stderr, "andon schema: 表が読めない: %v\n", err)
 		return 2
 	}
