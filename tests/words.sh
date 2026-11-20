@@ -6,7 +6,7 @@
 #   費用→コスト・席→言い換え・持ち主→オーナー・逃げ口→フォールバック・文脈→コンテキスト・提供元→プロバイダ・
 #   端末の土台→hc・迎える→追加する・起こす（エージェントを）→起動する・起きたとき→起動したとき
 # 範囲の外: .github/（人が見る範囲）。例外: このファイルと tests/words-selftest.sh・用語集の「_避ける_」の行・
-#   docs/decisions.md の「語の改め」の段・tests/package.sh の用語集の検査の行・
+#   docs/decisions.md の「語の改め」の段・tests/package/08-writing.sh の用語集の検査の行・
 #   ADR-0022 の人の言葉の引用（「」の中の「席」。人がそう言った）・CHANGELOG.md の版の節（## v…。版を切ったときの記録）。
 #   ADR-0013 とその決定のファイルでは、語そのものを挙げた所（「」・``・（）の中、「X→」の形、語の表の「今」の列）だけを
 #   外す。地の文の語は当たる。
@@ -28,7 +28,7 @@ hits=$(grep -rnIP "$words" "${existing[@]}" \
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
     -e '^docs/decisions\.md:[0-9]*:語の改め（2026-11-10 から）' \
-    -e '^tests/package\.sh:[0-9]*:.*席|端末の土台|持ち主|提供元' \
+    -e '^tests/package/08-writing\.sh:[0-9]*:.*席|端末の土台|持ち主|提供元' \
     -e '^docs/adr/0022-advisor-and-chief-engineer\.md:[0-9]*:.*「[^」]*席' \
   | awk -F: -v v="${changelog_v:-0}" '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v)' \
   | perl -CSDA -Mutf8 -ne '
