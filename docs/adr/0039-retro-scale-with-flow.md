@@ -19,7 +19,7 @@
 | 9 | Andon を開発するセルで、skill に触れる PR のレベルを C から B に下げ、オーナーのマージを外す | この ADR | まだ実装していない |
 | 10 | 下げ方はセルの条件表の上書きの 1 行にし、パッケージの既定の条件表は変えない | この ADR | 生きている |
 | 11 | 自動でマージした振り返りの直しは、Chief of Staff がオーナーへの知らせに 1 行で載せる | `package/skills/chief-of-staff/playbooks/retro.md` | 生きている |
-| 12 | 振り返りは自分自身も直す先にでき、その PR もほかと同じ決まりでマージする | この ADR | まだ実装していない |
+| 12 | 振り返りは自分自身も直す先にでき、その PR もほかと同じ決まりでマージする | `internal/retro/patterns.go`・`package/skills/retro/SKILL.md`・`docs/contract.md` §21 | 生きている |
 | 13 | オーナーの持ち物についての気づきは、今のままオーナーへの 1 行で残す | この ADR | 生きている |
 | 14 | この題では statechart のモデルを書かない | この ADR | 生きている |
 | 15 | skill の自動マージと、振り返りが自分自身を直せることは、Andon の版が v0.0.x の間の決まりにする | `docs/operate.md` | 生きている |

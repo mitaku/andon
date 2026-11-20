@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # `andon retro patterns`・`andon retro apply` とルーチン retro の例。一時の台帳（kanban init のあと課題のファイルを直に置く）・偽の gh・
 # 一時の Claude Code のセッションログで回す。hc の端末は使わない（HC_TERMINAL_ID を担当の名前にするだけ）。
-# 規則の細部は internal/retro/patterns_test.go。ここはバイナリの入口・ADR-0028 の受け入れ条件 11〜17・20・ADR-0039 の受け入れ条件 1・2・断ったら何も書かないことを見る。
+# 規則の細部は internal/retro/patterns_test.go。ここはバイナリの入口・ADR-0028 の受け入れ条件 11〜17・20・ADR-0039 の受け入れ条件 1・2・13・断ったら何も書かないことを見る。
 # ANDON_EMIT_DIR があれば retro.json を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
 command -v jq >/dev/null || { echo "skip: jq が無い"; exit 0; }
@@ -102,10 +102,11 @@ refuse "skill の段に理由が無い" "上の段で止められない理由" "
 refuse "文面の段に理由が無い" "上の段で止められない理由" "$(p '["S-0012", "S-0013"]' '.patterns[0].level = "text"')"
 echo 'ok 13: skill と文面の段は、上の段で止められない理由が無ければ断る'
 
-# 14: 振り返り自身を直す先にできない
-refuse "skill retro" "振り返り自身" "$(p '["S-0012", "S-0013"]' '.patterns[0].target = {kind: "andon", paths: ["package/skills/retro/SKILL.md"]}')"
-refuse "andon retro" "振り返り自身" "$(p '["S-0012", "S-0013"]' '.patterns[0].target = {kind: "andon", paths: ["internal/retro/apply.go"]}')"
-echo 'ok 14: 振り返り自身（skill retro・andon retro）を直す先にすると断る'
+# 14: 振り返り自身も直す先にできる（ADR-0039 決めたこと 12）。skill の段の理由の決まりは同じに効く
+refuse "skill retro に理由が無い" "上の段で止められない理由" "$(p '["S-0012", "S-0013"]' '.patterns[0].level = "skill" | .patterns[0].target = {kind: "andon", paths: ["package/skills/retro/SKILL.md"]}')"
+accept "skill retro" "$(p '["S-0012", "S-0013"]' '.patterns[0].level = "skill" | .patterns[0].not_upstream = "手順の抜けで、機械が確かめる値が無い" | .patterns[0].target = {kind: "andon", paths: ["package/skills/retro/SKILL.md"]}')"
+accept "andon retro" "$(p '["S-0012", "S-0013"]' '.patterns[0].target = {kind: "andon", paths: ["internal/retro/apply.go"]}')"
+echo 'ok 14: 振り返り自身（skill retro・andon retro）も直す先にできる（skill の段は理由が無ければ断る）'
 
 # 担当の端末でない・doing でない
 rc=0; HC_TERMINAL_ID=t1 "$andon" retro patterns S-0020 - <<<"$(p '["S-0012", "S-0013"]')" >/dev/null 2>"$tmp/err" || rc=$?

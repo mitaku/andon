@@ -11,7 +11,7 @@ brief: |
   /opt/andon/skills/retro/SKILL.md を読み、その手順で `andon retro collect` → パターンを拾う → `andon retro patterns <自分の id> -` →
   `andon retro apply <自分の id> --dry-run` → 報告（andon issue report）→ kanban review。
   守ること: 読むだけ。直さない・PR を出さない・台帳の項目を片付けない（書くのは自分の issues/<id>/library/ と報告）。エージェントを起動しない。
-  `andon retro apply` は --dry-run だけ打つ。振り返り自身（skill retro と andon retro）を直す先にしない。Chief of Staff へ hc send しない。
+  `andon retro apply` は --dry-run だけ打つ。Chief of Staff へ hc send しない。
   完了条件: `andon retro patterns` が通り、全部のパターンに判定と理由があり（fix は優先の順に並べる）、前の直しの全部に再発の数と見立てがあり、
   `andon retro apply <自分の id> --dry-run` が通る。パターンが無ければ、無いことと読んだ件数を報告に書く。
 schedule: "17 8 * * *"
