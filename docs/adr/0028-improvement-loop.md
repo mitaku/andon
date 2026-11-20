@@ -13,7 +13,7 @@
 | 2 | 直す先の範囲は選んで広げる。Andon のパッケージの直しは、andon の repo を持たないセルでは人の課題にする | `internal/retro/apply.go` | 生きている |
 | 3 | 担当を起動するたびに、commit・プロファイルの起動行・ハーネスと skill の版を課題のフォルダに足す | `schema/launch.schema.json`・`internal/launch/launch.go` | 生きている |
 | 4 | 人が端末で打った文を、振り返りの入力として command が抜き出す | `internal/retro/typed.go` | 生きている（決めたこと 14 が抜く規則を改めた） |
-| 5 | 振り返りは週 1 で、直近 14 日を読み、1 回に切る直す課題は 3 件まで | この ADR | 覆された（決めたこと 13 が毎日・7 日・2 件に改めた） |
+| 5 | 振り返りは週 1 で、直近 14 日を読み、1 回に切る直す課題は 3 件まで | この ADR | 覆された → この ADR の 13（毎日・7 日・2 件に改めた） |
 | 6 | 直しが効いたかは、次の振り返りが再発を数えて確かめる | `package/skills/retro/SKILL.md` | 生きている |
 | 7 | 起動の記録と結果の記録を、課題のフォルダに足して schema を持たせる | `schema/outcome.schema.json`・`schema/launch.schema.json` | 生きている |
 | 8 | 振り返りの流れは集める・判定を書く・当てるの 3 段で、根拠の数などは command が断る | `internal/retro/patterns.go`・`process/workstreams/retrospective.yaml` | 生きている |
