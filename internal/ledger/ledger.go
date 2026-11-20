@@ -181,7 +181,7 @@ func (l *Ledger) Log() []Row {
 }
 
 // TakenByChiefOfStaff は、課題 id の agent を agent に書いた最後の行が、その時点の Chief of Staff の端末だったときに書かれたか
-// （log.jsonl の kanban config set の行で chief_of_staff の移り変わりを辿る）。Chief of Staff が自分で kanban start した課題は、
+// （log.jsonl の kanban config set の行で chief_of_staff の移り変わりを辿る。前の名前の coordinator も読む）。Chief of Staff が自分で kanban start した課題は、
 // 起き直してアドレスが変わったあとも担当の課題でない。同じアドレスが後で担当に使われても、その時点の値で見分ける。
 // 行が無い・config の行が無い台帳では false（今の chief_of_staff との比べは呼び手がする）。
 func TakenByChiefOfStaff(rows []Row, id, agent string) bool {
@@ -191,8 +191,10 @@ func TakenByChiefOfStaff(rows []Row, id, agent string) bool {
 	cos, taken := "", false
 	for _, r := range rows {
 		if r.Config != nil {
-			if v, ok := r.Config["chief_of_staff"]; ok {
-				cos, _ = v.(string) // null は消した（空）
+			for _, k := range []string{"chief_of_staff", "coordinator"} { // 2026-11-06 より前の行は coordinator（docs/ledger.md）
+				if v, ok := r.Config[k]; ok {
+					cos, _ = v.(string) // null は消した（空）
+				}
 			}
 			continue
 		}

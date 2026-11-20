@@ -191,6 +191,7 @@ func TestTakenByChiefOfStaff(t *testing.T) {
 		{"Chief of Staff が受けたあと、担当が受け直した", []Row{cos("t5"), agent("S-7", "t5"), agent("S-7", "t9")}, false},
 		{"chief_of_staff を消したあとに受けた", []Row{cos("t5"), cos(nil), agent("S-7", "t5")}, false},
 		{"config の行が無い", []Row{agent("S-7", "t5")}, false},
+		{"前の名前（coordinator）の行で Chief of Staff だったときに受けた", []Row{{By: "andon", Config: map[string]any{"coordinator": "t5"}}, agent("S-7", "t5"), cos("t6")}, true},
 		{"ほかの課題の行", []Row{cos("t5"), agent("S-8", "t5")}, false},
 	} {
 		last := ""

@@ -321,6 +321,19 @@ func TestPastChiefOfStaffIssueNotWatched(t *testing.T) {
 		t.Fatalf("前の Chief of Staff の死を控えた: %+v", f.p.st.Resumed)
 	}
 
+	// 2026-11-06 より前の台帳は、移り変わりの行が coordinator の名前で残る
+	f = newResume(t)
+	f.put("next", "t43")
+	f.p.rows = []ledger.Row{{At: "2026-11-01T00:00:00Z", By: "andon", Config: map[string]any{"coordinator": "t42"}}, agentRow, cosRow("t50")}
+	for i := 0; i < 2; i++ {
+		if got := round(f); got != nil {
+			t.Fatalf("coordinator の行: %d 回目: 前の Chief of Staff の課題に打った: %q（%s）", i+1, got, f.log.String())
+		}
+	}
+	if p := f.pending(); len(p) != 0 {
+		t.Fatalf("coordinator の行: 前の Chief of Staff の課題を知らせた: %q", p)
+	}
+
 	// 当たる場合も確かめる: 同じアドレスを Chief of Staff だったあとに担当が使ったら、担当の死として resume する
 	f = newResume(t)
 	f.put("next", "t43")
