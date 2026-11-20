@@ -26,7 +26,6 @@ var unchecked = map[string]struct {
 	"internal/boot/trust.go":            {map[string]int{"json.NewEncoder": 1}, "Claude Code・Codex の信頼の設定（約束の外のファイル）"},
 	"internal/delegate/cmd.go":          {map[string]int{"contract.Marshal": 2}, "delegate show --json の出力（schema の無い見せる形）と、project.json の中の delegation（全体を Encode で照らす）"},
 	"internal/delegate/delegate.go":     {map[string]int{"json.Marshal": 1}, "委譲の値を1つ読み直して確かめる途中の形（書かない）"},
-	"internal/dispatcher/dispatcher.go": {map[string]int{"json.Marshal": 1}, "問いを andon issue ask の stdin に渡す（書くのは ask で、そこで照らす）"},
 	"internal/dispatcher/drain.go":      {map[string]int{"json.Marshal": 1, "json.NewEncoder": 1}, "フックの出力（Claude Code への hookSpecificOutput）と、Stop の控え（schema の無い控え）"},
 	"internal/dispatcher/impact.go":     {map[string]int{"json.Marshal": 1}, "影響の結果を通知の detail の形にそろえる途中（通知は控えに書く前に State.Save が照らす）"},
 	"internal/dispatcher/memory.go":     {map[string]int{"json.Marshal": 1}, "memory の件数の控え（schema の無い控え）"},
