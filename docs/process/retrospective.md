@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/workstreams/retrospective.yaml`](../../process/workstreams/retrospective.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-目的: 毎朝、直近の記録から別々に 2 回以上起きたつまずきを拾い、直す課題に切る
+目的: 片付いた担当の課題が決めた件数たまるごとと毎朝、直近の記録から別々に 2 回以上起きたつまずきを拾い、直す課題に切る
 
 ## きっかけ
 

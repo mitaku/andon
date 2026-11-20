@@ -519,6 +519,7 @@ fail|project|.delegation = {preset: "work", grants: []}|delegation が今の委�
 fail|project|.chief_of_staff.parallel = 0|parallel が 0
 fail|project|.chief_of_staff.review_when = "外向きの面"|review_when が配列でない
 fail|project|.chief_of_staff.triage_max_issues = "3"|triage_max_issues が文字列
+fail|project|.chief_of_staff.retro_every = 0|retro_every が 0
 fail|project|.chief_of_staff.triage_max_tasks = .chief_of_staff.triage_max_issues | del(.chief_of_staff.triage_max_issues)|古いキー triage_max_tasks（project/2 は triage_max_issues）
 fail|project|.delegation.version = 2|委譲: 知らない version
 pass|project|.signals = []|signals が空（何も取りに行かない）

@@ -15,7 +15,7 @@ cd "$(dirname "$0")/../.."
 # （import を辿ると全部の package になるので、tests/ci.sh は閉じているかの確かめから除く）。
 go_issue='embed.go init/ process/states/issue.yaml schema/*.schema.json cmd/andon/ cmd/kanban/ internal/cli/
   internal/issue/ internal/dispatcher/ internal/gate/ internal/boot/ internal/chiefengineer/ internal/process/
-  internal/triage/ internal/signal/ internal/launch/ internal/sessionlog/ internal/pkgversion/
+  internal/triage/ internal/retro/ internal/signal/ internal/launch/ internal/sessionlog/ internal/pkgversion/
   internal/ledger/ internal/flock/ internal/delegate/ internal/spawn/ internal/contract/'
 declare -A heavy=(
   # andon dispatcher・andon issue・andon gate・kanban を打つ。ANDON_HOME を package/ に向け、gate.json とフックを読む

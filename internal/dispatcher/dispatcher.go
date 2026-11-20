@@ -13,6 +13,8 @@
 //	担当・Chief of Staff がプロバイダに切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
 //	project.json の signals           → andon signal collect --due（組ごとに every 分に1回）。届けていない now の信号を
 //	                                     通知 signal で積み、andon signal delivered で届けたと書く（signals.go。§2.2.1）
+//	前の振り返りのあとに片付いた担当の課題が project.json の chief_of_staff.retro_every 件（既定 25）
+//	                                  → kanban routine run retro（ルーチン retro が無い・paused・振り返りが残っていれば数えない。retro.go）
 //
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、
@@ -52,6 +54,8 @@ const Usage = "usage: andon dispatcher [--project <slug>]          回り続け�
 	"待ちの通知は Chief of Staff のフック（drain）が届ける。離席中は待ち役（wait）が合図で Chief of Staff を起動する（入力欄へは打たない）。\n" +
 	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない間（留守）も回し、配る段だけ止める（戻った最初の <news> に留守の1行）。\n" +
 	"chief_of_staff が設定に無い kanban は飛ばす。初めて見る kanban は通知の元を控えるだけ（今の review_request は拾う）。\n" +
+	"巡ごとに kanban tick を打つ。前の振り返りのあとに片付いた担当の課題が project.json の chief_of_staff.retro_every 件（既定 25）\n" +
+	"たまっていれば、その前に kanban routine run retro を打つ（ルーチン retro が無い・paused・振り返りが残っていれば数えない）。\n" +
 	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。届けない通知は横の <slug>.recorded.jsonl に1行ずつ。\n"
 
 // Name は dispatcher の端末の名前で、kanban の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
@@ -158,6 +162,8 @@ type Dispatcher struct {
 	memory *Memory
 	// memory の記録をファイルに書けなかった（次の巡の memory の段で書き直す）
 	memoryUnsaved bool
+	// 件数のきっかけの失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。retro.go）
+	retroLogged map[string]string
 }
 
 // cosDown は Chief of Staff の端末が無い（留守）理由。hc が端末を無い（not_found）・live でないと答えたときだけ返す。
@@ -315,7 +321,7 @@ func (p *project) pass() (bool, error) {
 		return false, err
 	}
 	p.rows = p.l.Log()
-	p.tick()       // ルーチンの schedule（dispatcher.md §2.1。足した課題は collect の ready の差で拾う）
+	p.tick()       // ルーチンの件数のきっかけと schedule（dispatcher.md §2.1。足した課題は collect の ready の差で拾う）
 	p.collect(cos) // 通知の元（dispatcher.md §2.2・§2.3）
 	busy := false
 	for _, t := range p.tasks {
@@ -377,14 +383,17 @@ func (p *project) markAway(at string) {
 	}
 }
 
-// tick は kanban tick を1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。
+// tick はルーチンを撃つ（1巡の 3a）。先に件数のきっかけ（retroDue。ADR-0039 決めたこと 8）を見て、続けて kanban tick を
+// 1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。
 // 打つのは dispatcher だけ（cron は置かない）。同じ時刻を二度撃たない守りは kanban の側（kanban/.lock と state/routines.json）。
-// 失敗はログに1行で、巡は止めない。前回の ready が無い（初めて見る kanban）ときは、tick の前の ready を先に控える。
-// 過去の ready は流さず、tick が足した課題だけを collect の ready の差で拾う（次の巡で届く）。
+// 件数で撃った巡に振り返りの schedule の時刻が来ても、kanban が open で撃ち損ねにする（足されない）。
+// 失敗はログに1行で、巡は止めない。前回の ready が無い（初めて見る kanban）ときは、撃つ前の ready を先に控える。
+// 過去の ready は流さず、撃って足した課題だけを collect の ready の差で拾う（次の巡で届く）。
 func (p *project) tick() {
 	if p.st.Ready == nil {
 		p.readReady()
 	}
+	p.retroDue()
 	if _, err := p.l.Run("", "tick"); err != nil {
 		p.logf("kanban tick が通らない（巡は続ける）: %v", err)
 	}

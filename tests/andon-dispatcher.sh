@@ -2014,4 +2014,58 @@ pm | jq -e 'length == 1 and .[0].detail.count == 31' >/dev/null || die "線の�
 rm -r "$mem"
 ok 'memory の件数が線を超えた見回りで1度だけ memory を積み、線の下に戻ってまた超えたら積み直す'
 
+# 27. 件数のきっかけ（ADR-0039 決めたこと 7・8。受け入れ条件 10・11。dispatcher.md §2.1.1 の 3a）。別の kanban rt で、
+#     project.json の chief_of_staff.retro_every を 3 にする（オーナーの commit）。ルーチン retro の schedule は 1 月 1 日だけ（検査の間は撃たない）
+mkdir -p "$tmp/plant/projects/rt"
+cd "$tmp/plant/projects/rt"
+env -u KANBAN_ROOT kanban init --prefix R >/dev/null
+export KANBAN_ROOT=$PWD
+kanban config set chief_of_staff=t6 >/dev/null
+R=$PWD/kanban
+echo '{"version": 1, "project": {"title": "Retro", "prefix": "R"}, "repos": [], "chief_of_staff": {"retro_every": 3}}' > project.json
+as_owner git -C "$tmp/plant" add projects/rt/project.json; as_owner git -C "$tmp/plant" commit -qm 'rt の project.json'
+mkdir -p "$R/routines"
+routine() { printf 'title: 振り返り\nbrief: 振り返り\nprofile: claude\nschedule: "0 0 1 1 *"\n%s' "${1:-}" > "$R/routines/retro.yaml"; }
+routine
+rk() { "$andon" dispatcher --once --project rt 2>>"$tmp/dispatcher.log"; }
+retros() { kanban list --all --json | jq -r '[.[] | select(.routine == "retro")] | length'; }   # ルーチン retro が足した課題の数
+open_retro() { kanban list --all --json | jq -r '[.[] | select(.routine == "retro" and .status != "done")][0].id // empty'; }
+routine_rows() { grep -c '"by":"routine:retro"' "$R/log.jsonl" || true; }   # ルーチンが撃った・撃ち損ねた行
+workers() { local i id; for i in $(seq 1 "$1"); do id=$(as_cos kanban add "担当の課題 $i" --profile claude); as_cos kanban done "$id" >/dev/null; done; }
+close_retro() { # close_retro <id>: 振り返りが集めて（retro.json の until）、1 秒あとに片付く。境目は until
+    local u; u=$(date -u +%Y-%m-%dT%H:%M:%SZ); sleep 1
+    mkdir -p "$R/issues/$1/library"
+    jq -n --arg r "$1" --arg u "$u" '{retro: $r, at: $u, since: $u, until: $u, days: 7, previous_retro: null, patterns: [], fixes: []}' > "$R/issues/$1/library/retro.json"
+    as_cos kanban done "$1" >/dev/null; sleep 1
+}
+workers 2                                   # 前の振り返りより前に片付いた担当の課題（数えない）
+as_cos kanban routine run retro >/dev/null  # 前の振り返り
+close_retro "$(open_retro)"
+rk
+[ "$(retros)" = 1 ] || die "前の振り返りより前の課題を数えて撃った: $(retros)"
+workers 2; rk
+[ "$(retros)" = 1 ] || die "件数（3）に足りない 2 件で撃った: $(retros)"
+workers 1; rk
+[ "$(retros)" = 2 ] && [ -n "$(open_retro)" ] || die "件数に達した巡で振り返りの課題を足さない: $(retros)"
+grep -q 'rt: 片付いた担当の課題が 3 件（設定 3 件）たまったので、振り返りのルーチンを撃った' "$tmp/dispatcher.log" || die "撃ったことがログに無い: $(tail -3 "$tmp/dispatcher.log")"
+rk
+[ "$(retros)" = 2 ] || die "次の巡でもう一度足した: $(retros)"
+ok '前の振り返りが集めたあとに片付いた担当の課題が設定の件数に達した巡で、振り返りの課題を 1 件足し、次の巡では足さない'
+
+close_retro "$(open_retro)"
+for i in 1 2 3; do p=$(as_cos kanban add "親 $i" --profile claude); c=$(as_cos kanban add "レビュー $i" --profile codex-review --parent "$p"); as_cos kanban done "$c" >/dev/null; done
+rk
+[ "$(retros)" = 2 ] || die "レビュアーの子の課題を数えて撃った: $(retros)"
+routine 'paused: true
+'
+workers 3; rk
+[ "$(retros)" = 2 ] || die "paused のルーチンを撃った: $(retros)"
+routine; rk
+[ "$(retros)" = 3 ] || die "paused を外した巡で撃たない（数え方が違う）: $(retros)"
+workers 3
+rows=$(routine_rows)
+rk; rk; rk
+[ "$(retros)" = 3 ] && [ "$(routine_rows)" = "$rows" ] || die "振り返りが残っている間に撃った・撃ち損ねの行を書いた: $(retros) 件・行 $rows → $(routine_rows)"
+ok '数えるのは担当の課題だけで、paused のルーチンは撃たず、振り返りが残っている間は 3 巡回しても kanban の履歴にルーチンの行を足さない'
+
 echo "all passed ($pass)"

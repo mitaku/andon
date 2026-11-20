@@ -1,0 +1,75 @@
+package retro
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"go.yaml.in/yaml/v3"
+
+	"andon/internal/ledger"
+)
+
+// 件数のきっかけの数え方（ADR-0039 決めたこと 8）。数えるのは次の振り返りが全文で読む束で、collect と同じ境目と選び方。
+
+// issues は台帳の課題の一覧を、kanban list --all --json と同じ形（id つきの issue.yaml の項目）で読む。
+func (f *split) issues() []ledger.Issue {
+	f.t.Helper()
+	ents, err := os.ReadDir(filepath.Join(f.k(), "issues"))
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	var out []ledger.Issue
+	for _, e := range ents {
+		b, err := os.ReadFile(filepath.Join(f.k(), "issues", e.Name(), "issue.yaml"))
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		var raw ledger.Issue
+		if err := yaml.Unmarshal(b, &raw); err != nil {
+			f.t.Fatal(err)
+		}
+		raw["id"] = e.Name()
+		out = append(out, raw)
+	}
+	return out
+}
+
+func (f *split) fresh() int {
+	f.t.Helper()
+	f.collect(Options{}) // log.jsonl を書く
+	return Fresh(f.root, f.issues(), ledger.At(f.root).Log(), now)
+}
+
+// 境目（前の振り返りが集めた時刻）より後に片付いた担当の課題だけを数え、collect が全文で出す束と同じ数になる。
+// レビュアーの子・振り返りの課題・期間の外は数えない。全文の上限（fullLimit）では切らない。
+func TestFreshCountsWhatNextRetroReadsInFull(t *testing.T) {
+	f, _ := boundaryFixture(t)
+	in := f.collect(Options{})
+	if got := f.fresh(); got != 25 || got != len(in.Issues) {
+		t.Fatalf("Fresh = %d（want 25・collect の全文 %d）", got, len(in.Issues))
+	}
+	defer func(n int) { fullLimit = n }(fullLimit)
+	fullLimit = 10
+	if got := f.fresh(); got != 25 {
+		t.Errorf("全文の上限で切った: %d", got)
+	}
+}
+
+// 前の振り返りが無ければ、期間（直近 7 日）に片付いた担当の課題を全部数える。前の振り返りが片付くと、その境目のあとだけを数える。
+func TestFreshWithoutPreviousRetro(t *testing.T) {
+	f := newSplit(t)
+	for i := 1; i <= 3; i++ {
+		f.issue(fmt.Sprintf("A-%04d", i), now.Add(-time.Duration(i)*time.Hour).Format(time.RFC3339))
+	}
+	f.issue("A-0009", now.Add(-8*day).Format(time.RFC3339)) // 期間の外
+	if got := f.fresh(); got != 3 {
+		t.Fatalf("前の振り返りが無いとき %d（want 3）", got)
+	}
+	f.retro("A-0010", now.Add(-90*time.Minute), now.Add(-2*time.Hour), "")
+	if got := f.fresh(); got != 1 {
+		t.Errorf("前の振り返りが集めたあとの 1 件だけを数えない: %d", got)
+	}
+}
