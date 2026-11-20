@@ -5,6 +5,7 @@
 #  2b. 前の置き場の名前が残っていない（ADR-0004 受け入れ条件 4 の前半）。
 #   3. skill とプロファイルに仮設の語が残っていない（用語集の「仮設の語」の節だけは対応表として持つ）。
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
+#      package/hooks/ の全部のフックの最初の実行行が「andon が無ければ通す」の行（ADR-0034 受け入れ条件 3）。
 #      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
 #      settings の deny が人のファイル（ADR-0005 決めたこと 4 の (c)）の書き換えを Edit(//workspace/…) で拒む。
 #      settings の deny が force-with-lease で main に当たる形を断り、自分の branch への形は allow のまま（当たる・当たらないの例）。
@@ -262,6 +263,22 @@ wt=$(jq -r '[.hooks.Stop[].hooks[] | select(.command == "/opt/andon/hooks/stop-w
 ft=$(jq -r '[.hooks.StopFailure[].hooks[] | select(.command == "/opt/andon/hooks/stop-failure" and .asyncRewake == true and (.timeout | type) == "number")][0].timeout // empty' package/settings.json)
 [ -n "$ft" ] && [ "$ft" -gt 480 ] && [ -x package/hooks/stop-failure ] && sh -n package/hooks/stop-failure && grep -q '^exec andon dispatcher rewake$' package/hooks/stop-failure \
   && pass "StopFailure は asyncRewake のフック（timeout $ft 秒。8 分の待ちより長い）で andon dispatcher rewake を打つ" || fail "StopFailure に asyncRewake の rewake のフックが無い・timeout が 8 分以下"
+# フックの 1 行目（ADR-0034 決めたこと 8・受け入れ条件 3）: package/hooks/ の全部のフックで、最初の実行行が「andon が無ければ通す」の行。
+# どこかにあることではなく、最初の実行行であること。1 行目の #!・コメントの行・空行は飛ばす。フックの名前は書かない（足したフックも見る）
+guard='command -v andon >/dev/null 2>&1 || exit 0'
+first_exec() { awk 'NR == 1 && /^#!/ {next} /^[[:space:]]*(#|$)/ {next} {print; exit}' "$1"; }
+n=0
+for h in package/hooks/*; do
+  [ -f "$h" ] || continue
+  n=$((n + 1))
+  got=$(first_exec "$h")
+  [ "$got" = "$guard" ] && pass "$h の最初の実行行は「$guard」" || fail "$h の最初の実行行が「$guard」でない: $got"
+done
+[ "$n" -gt 0 ] && pass "package/hooks/ のフック $n 本の最初の実行行を見た" || fail "package/hooks/ にフックが無い"
+# 検査が見ていることの確かめ: 守りの行の前に別の実行行を足した写しは当たらず、守りの行が後ろにあるだけでは通らない
+awk -v g="$guard" '$0 == g {print "in=$(cat)"} {print}' package/hooks/stop > "$tmp/hook-moved"
+grep -qxF "$guard" "$tmp/hook-moved" && [ "$(first_exec "$tmp/hook-moved")" != "$guard" ] \
+  && pass "守りの行の前に実行行を足したフックは、最初の実行行の検査に当たらない（検査が見ている）" || fail "フックの最初の実行行の検査が、前に足した実行行を見ていない"
 
 # 全フックの command が、セルに在るファイルだけを指す（/opt/andon/ は package/ の写し。$HOME 配下は image に無い）
 cmds=$(jq -r '[.hooks[][].hooks[].command] | .[]' package/settings.json)
