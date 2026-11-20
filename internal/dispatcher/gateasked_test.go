@@ -11,7 +11,7 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// dispatcher 自身が出したゲートの問い（andon issue merge の asked）は、出した巡で積む1通だけが届く。
+// dispatcher 自身が出した gate の問い（andon issue merge の asked）は、出した巡で積む1通だけが届く。
 // 次の巡の readLog が by terminal:dispatcher の問いの行からもう一度積まない。担当の問いの行は今までどおり積む。
 func TestGateAskedDeliveredOnce(t *testing.T) {
 	d := t.TempDir()
@@ -33,12 +33,12 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 		return &project{c: &Dispatcher{Log: os.Stderr}, l: l, st: st, tasks: tasks}
 	}
 
-	// 巡 1: readLog が位置を控える。andon issue merge がゲートの問いを出し（by terminal:dispatcher の行と問いの JSON）、
+	// 巡 1: readLog が位置を控える。andon issue merge が gate の問いを出し（by terminal:dispatcher の行と問いの JSON）、
 	// 返した asked を merge の末尾と同じ put で積む
 	p := load()
 	p.readLog(cos)
 	addRow(t, logPath, `{"at":"2026-11-19T00:01:00Z","by":"terminal:dispatcher","id":"S-0007","change":{"question":1,"status":"open"}}`)
-	writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートがオーナーに回した","facts":["PR https://github.com/example/sample-site/pull/1"],"reason":"ゲートの決定式が needs_human を返した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
+	writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"gate がオーナーに回した","facts":["PR https://github.com/example/sample-site/pull/1"],"reason":"gate の決定式が needs_human を返した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
 	gateAsks(p, slug)
 	if err := p.st.Save(slug); err != nil {
 		t.Fatal(err)
@@ -61,15 +61,15 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 	}
 	second := stopTwice(t, slug, "p2")
 
-	// 巡 2 のあとのターンが渡すのは担当の問い 2 だけ。ゲートの問い 1 は巡 1 のあとのターンで1回だけ渡した
+	// 巡 2 のあとのターンが渡すのは担当の問い 2 だけ。gate の問い 1 は巡 1 のあとのターンで1回だけ渡した
 	if !strings.Contains(first, "問い 1") {
-		t.Fatalf("巡 1 のあとのターンがゲートの問い 1 を渡さない: %q", first)
+		t.Fatalf("巡 1 のあとのターンが gate の問い 1 を渡さない: %q", first)
 	}
 	if !strings.Contains(second, "問い 2") {
 		t.Errorf("巡 2 のあとのターンが担当の問い 2 を渡さない: %q", second)
 	}
 	if strings.Contains(second, "問い 1") {
-		t.Errorf("ゲートの問い 1 が2度届いた: %q", second)
+		t.Errorf("gate の問い 1 が2度届いた: %q", second)
 	}
 	// 届けた記録（delivered.jsonl）でも asked は2ターンに1件ずつ
 	b, _ := os.ReadFile(DeliveredPath(slug))
@@ -113,7 +113,7 @@ func TestGateAskedRecoveredAfterCrash(t *testing.T) {
 		p.readLog(cos)
 		if ask {
 			addRow(t, logPath, `{"at":"2026-11-19T00:01:00Z","by":"terminal:dispatcher","id":"S-0007","change":{"question":1,"status":"open"}}`)
-			writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートがオーナーに回した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
+			writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"gate がオーナーに回した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
 			gateAsks(p, slug)
 		}
 		if crash {
@@ -124,20 +124,20 @@ func TestGateAskedRecoveredAfterCrash(t *testing.T) {
 		}
 	}
 	pass(false, false) // 位置を控える
-	pass(true, true)   // ゲートの問いを出して積んだが、保存の前に落ちた
+	pass(true, true)   // gate の問いを出して積んだが、保存の前に落ちた
 	pass(false, false) // 起き直した巡: 問いの行から積み直す
 	if news := stopTwice(t, slug, "p1"); !strings.Contains(news, "問い 1") {
-		t.Fatalf("保存の前に落ちたゲートの問いが届かない: %q", news)
+		t.Fatalf("保存の前に落ちた gate の問いが届かない: %q", news)
 	}
 	pass(false, false) // もう積まない
 	if out, err := drain(slug, false, hookInput{SessionID: "s1", PromptID: "p2"}); err != nil || out != nil {
-		t.Fatalf("ゲートの問いをもう一度渡した: %v %v", out, err)
+		t.Fatalf("gate の問いをもう一度渡した: %v %v", out, err)
 	}
 }
 
-// gateAsks は merge の末尾と同じく、andon issue merge が返したゲートの問い 1 の asked を積んで印を付ける。
+// gateAsks は merge の末尾と同じく、andon issue merge が返した gate の問い 1 の asked を積んで印を付ける。
 func gateAsks(p *project, slug string) {
-	p.put(Notification{At: now(), Project: slug, Issue: "S-0007", Kind: "asked", Detail: map[string]any{"n": float64(1), "kind": "line", "question": "ゲートがオーナーに回した"}}, p.facts("S-0007"))
+	p.put(Notification{At: now(), Project: slug, Issue: "S-0007", Kind: "asked", Detail: map[string]any{"n": float64(1), "kind": "line", "question": "gate がオーナーに回した"}}, p.facts("S-0007"))
 	p.markAsked("S-0007", float64(1))
 }
 

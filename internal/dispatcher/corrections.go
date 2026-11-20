@@ -24,7 +24,7 @@ const correctionsTries = 2
 // gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.CommentPrefix。internal/gate/comment.go）。オーナーのコメントに数えない。
 const gateCommentPrefix = "andon gate: "
 
-// QA は台帳の問い1つ（kanban show --json の questions）と、その問いの JSON（library/questions/<n>.json。無ければ nil）。
+// QA は kanban の問い1つ（`kanban show --json` の questions）と、その問いの JSON（library/questions/<n>.json。無ければ nil）。
 type QA struct {
 	N      int    `json:"n"`
 	Status string `json:"status"`
@@ -141,9 +141,9 @@ type correctionQuestion struct {
 }
 
 // Corrections は1つの課題のオーナーの手直しを並べる（純粋関数。contract.md §14 の規則）。
-//   - answer: 答えのある問い（ゲートの問いと scope を除く）で、答えが推奨案（pick: true）の label と違うもの
-//   - override（問い）: 答えのあるゲートの問い（from: gate。needs_human へのオーナーの答え）
-//   - pr: PR の上の、ゲートのものでないコメント（会話欄・レビューの本文・インラインのレビューコメント〈Bot を除く〉）と、担当の最後の報告より後の commit（humans）
+//   - answer: 答えのある問い（gate の問いと scope を除く）で、答えが推奨案（pick: true）の label と違うもの
+//   - override（問い）: 答えのある gate の問い（from: gate。needs_human へのオーナーの答え）
+//   - pr: PR の上の、gate のものでないコメント（会話欄・レビューの本文・インラインのレビューコメント〈Bot を除く〉）と、担当の最後の報告より後の commit（humans）
 //   - override（指摘）: マージした PR の waived のうち must_fix 以上のもの（must_fix が無ければ全部。安全側＝多めに拾う）
 //
 // 返すのは空でも nil でない配列。
@@ -267,7 +267,7 @@ func (p *project) correction(id string) bool {
 	return false
 }
 
-// collectCorrections は台帳と gh から1つの課題の手直しを集める。読めないものがあれば err（書かない）。
+// collectCorrections は kanban と gh から1つの課題の手直しを集める。読めないものがあれば err（書かない）。
 func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any, error) {
 	rep, err := contract.ReadReport(filepath.Join(p.l.Library(id), "report.json"))
 	if errors.Is(err, os.ErrNotExist) {
@@ -328,7 +328,7 @@ func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any,
 	return Corrections(qs, rep, mustFix, pr, humans), nil
 }
 
-// show は課題の項目と台帳の問い（kanban show --json）と、それぞれの問いの JSON（無ければ Q は nil）。
+// show は課題の項目と kanban の問い（`kanban show --json`）と、それぞれの問いの JSON（無ければ Q は nil）。
 func (p *project) show(id string) (ledger.Issue, []QA, error) {
 	out, err := p.l.Run("", "show", id, "--json")
 	if err != nil {

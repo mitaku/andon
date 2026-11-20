@@ -15,14 +15,14 @@ import (
 	"andon/internal/spawn"
 )
 
-// worktreeHomes は finish が受ける置き場の根: 今の置き場と旧の置き場（1版だけ。ADR-0012 決めたこと 6）。
+// worktreeHomes は finish が受ける置き場の根: 今の置き場と旧の置き場（1 バージョンだけ。ADR-0012 決めたこと 6）。
 func worktreeHomes() []string {
 	return []string{spawn.WorktreeHome(), spawn.LegacyWorktreeHome()}
 }
 
-// finish は端末と worktree を片付け、マージ済みなら branch を消し、台帳を done にする（仮設の yard task finish を移したもの）。
-// 台帳の worktree と branch が、andon issue start がこの課題に作るもの（spawn.WorktreePath: <セルの repo>/.worktrees/<repo 名>/<slug>-<id> と
-// <slug>/<id>[-…]）と合うときだけ片付ける。合わなければ端末にも触らずに止まる（台帳の書き違いで別の課題の作業物を消さない）。
+// finish は端末と worktree を片付け、マージ済みなら branch を消し、kanban を done にする（仮設の yard task finish を移したもの）。
+// kanban の worktree と branch が、andon issue start がこの課題に作るもの（spawn.WorktreePath: <セルの repo>/.worktrees/<repo 名>/<slug>-<id> と
+// <slug>/<id>[-…]）と合うときだけ片付ける。合わなければ端末にも触らずに止まる（kanban の書き違いで別の課題の作業物を消さない）。
 // 旧の置き場（~/.herdr/worktrees/<repo 名>/…。ADR-0012 決めたこと 6 の前に起きた課題）の値も対として受ける。
 // レビュアーの子課題（parent がこの課題で profile が *-review）と、dispatcher が作った detached worktree
 // （<置き場>/<repo 名>/<slug>-<id>-r<回>）も片付ける。
@@ -33,7 +33,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 			return fail("%s が無い", cmd)
 		}
 	}
-	// 何かを消す・書き換える前に、台帳が done を受け取るかを確かめる（片付けは全部か無し）。kanban done（closing）が断る問いが
+	// 何かを消す・書き換える前に、kanban が done を受け取るかを確かめる（片付けは全部か無し）。`kanban done`（closing）が断る問いが
 	// この課題かレビュアーの子課題にあれば、端末にも worktree にも触らずに止まる（片付けかけの課題に担当が戻らないように）
 	tasks, err := c.l.List()
 	if err != nil {
@@ -61,7 +61,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 	}
 
 	// repo の無い課題（レビュアーなど）は、担当の kanban start が cwd（issues/<id>/）を包む checkout を書く。
-	// start が作ったものではないので、git には触らず台帳から消すだけ（その checkout と一致するときだけ）
+	// start が作ったものではないので、git には触らず kanban から消すだけ（その checkout と一致するときだけ）
 	if repo == "" && wt != "" {
 		top, err := git(filepath.Join(c.l.Dir, "issues", c.id), "rev-parse", "--show-toplevel")
 		if err == nil && top == wt {
@@ -78,7 +78,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 		// 本体の checkout（git worktree list の先頭）は、置き場の検査より先に、明示的に消さない
 		if MainCheckout(repoDir, wt) {
-			return fail("%s の worktree が repo の本体の checkout: %s（消さない。台帳の worktree・branch を確かめる）", c.id, wt)
+			return fail("%s の worktree が repo の本体の checkout: %s（消さない。kanban の worktree・branch を確かめる）", c.id, wt)
 		}
 		want := ""
 		for _, home := range worktreeHomes() {
@@ -223,8 +223,8 @@ func (c *ctx) closable(ids []string) error {
 }
 
 // unreceived は ids の課題の、受け取られていない問いを「<id>#<n>（<status>）」の形で返す（kanban questions --json を1回読む）。
-// kanban done（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）を数える。
-// finish（closable）と ready が使う。skip の「<id>#<n>」は数えない（ready が、ゲートが前の head について出した問いを外す）。
+// `kanban done`（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）を数える。
+// finish（closable）と ready が使う。skip の「<id>#<n>」は数えない（ready が、gate が前の head について出した問いを外す）。
 func (c *ctx) unreceived(ids []string, skip map[string]string) ([]string, error) {
 	out, err := c.l.Run("", "questions", "--json")
 	if err != nil {

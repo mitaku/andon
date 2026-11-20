@@ -23,7 +23,7 @@ const WaitUsage = "usage: andon dispatcher wait [--timeout <秒>] [--project <sl
 	"--timeout はフックの timeout（秒）。その 9 割まで打つ機会が無ければ、張り直しの合図で終了コード 2 で終わる（次の Stop で次の待ち役が起きる）。\n" +
 	"端末が一時に読めなければ読み直す。timeout の 95% まで読めなければ、殺される前に終了コード 0 で終わる。\n" +
 	"待ち役は Chief of Staff に1つ: 後から起きた待ち役が替わり、前の待ち役は終了コード 0 で終わる。止められたときも 0。\n" +
-	"Chief of Staff の端末（ラベル role=chief-of-staff）でない・落ちたとき（台帳・控えが読めない）は、待たずに終了コード 0。\n"
+	"Chief of Staff の端末（ラベル role=chief-of-staff）でない・落ちたとき（kanban・控えが読めない）は、待たずに終了コード 0。\n"
 
 // 合図の文（stderr。Claude Code が system reminder でモデルに見せる）。中身は運ばない（ADR-0019 決めたこと 8）。
 const (

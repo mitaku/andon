@@ -79,5 +79,16 @@ setup; mkdir -p "$tmp/r/package/skills/worker"; echo '_避ける_: 台帳' >"$tm
 expect fail '用語集でない skill の「_避ける_」の行の「台帳」で落ちる'
 setup; mkdir -p "$tmp/r/.yomiyasu-words"; echo '前の版' >"$tmp/r/.yomiyasu-words/allow.txt"; expect fail '.yomiyasu-words/ の「前の版」で落ちる'
 setup; echo '台帳に書く' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/）の「台帳」はまだ見ない'
+# 古い語を読む所（ADR-0040 決めたこと 7）は通り、同じ語がほかの行にあれば落ちる
+setup; mkdir -p "$tmp/r/internal/issue"; echo 'var oldWords = [][2]string{{"台帳", "kanban"}, {"ゲート", "gate"}, {"版", "バージョン"}}' >"$tmp/r/internal/issue/settle.go"
+expect ok 'internal/issue/settle.go の読み替えの表は通る'
+setup; mkdir -p "$tmp/r/internal/issue"; echo 'return "ゲートの外の問いが開いている: "' >"$tmp/r/internal/issue/settle.go"
+expect fail 'internal/issue/settle.go の読み替えの表でない行の「ゲート」で落ちる'
+setup; mkdir -p "$tmp/r/internal/dispatcher"; echo 'var oldWords = [][2]string{{"台帳", "kanban"}}' >"$tmp/r/internal/dispatcher/x.go"
+expect fail 'internal/issue/settle.go の外の読み替えの表で落ちる'
+setup; mkdir -p "$tmp/r/tests"; echo 'jq -n --arg r "ゲートの記録 $L/x.json" \' >"$tmp/r/tests/andon-issue.sh"
+expect ok 'tests/andon-issue.sh の古い語の事実の行で問いを置く行は通る'
+setup; mkdir -p "$tmp/r/tests"; echo 'die "ゲートの記録が無い"' >"$tmp/r/tests/andon-dispatcher.sh"
+expect fail 'tests/andon-dispatcher.sh のほかの行の「ゲート」で落ちる'
 
 exit "$fail"

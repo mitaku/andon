@@ -91,13 +91,19 @@ echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）�
 # 「台帳」「ゲート」「版」（ADR-0040 決めたこと 10、受け入れ条件 2）。「台帳」と「ゲート」はどの形も、「版」は残す形
 # （最新版・初版・英語版・更新版・出版・年に続く「2006 版」・製品の名前に続く形「Go 版」）のほかを禁じる。
 # 「」の中（引用と、語そのものを挙げた所）と用語集の「_避ける_」の行は外す。バッククォートの中は外さない。
+# 古い語を読むための行も外す（ADR-0040 決めたこと 7）: internal/issue/settle.go の読み替えの表（var oldWords）と、その検査の表の行
+#   （internal/issue/settle_test.go の {" で始まる行）、古い語の事実の行で問いを置く検査（tests/andon-dispatcher.sh・
+#   tests/andon-issue.sh の --arg r "ゲートの記録 …）。
 # 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。
-old_paths=(package .yomiyasu-words)
+old_paths=(package .yomiyasu-words internal/dispatcher internal/issue tests/andon-dispatcher.sh tests/andon-issue.sh)
 existing=()
 for p in "${old_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
-[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnI -e '台帳' -e 'ゲート' -e '版' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHI -e '台帳' -e 'ゲート' -e '版' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
   | grep -v -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
+    -e '^internal/issue/settle\.go:[0-9]*:var oldWords = ' \
+    -e '^internal/issue/settle_test\.go:[0-9]*:[[:space:]]*{"' \
+    -e '^tests/andon-\(dispatcher\|issue\)\.sh:[0-9]*:jq -n --arg r "ゲートの記録 ' \
   | perl -CSDA -Mutf8 -ne '
       my ($f, $n, $t) = /^([^:]*):(\d+):(.*)$/s or next;
       1 while $t =~ s/「[^「」]*」//g;                     # 引用と、語を挙げた「」（入れ子は内から）

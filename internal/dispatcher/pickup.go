@@ -95,7 +95,7 @@ func (p *project) readLog(cos string) {
 		p.logf("log.jsonl が短くなった。新しいファイルとして先頭から読む")
 		pos, p.st.LogHold = 0, nil
 	case pos > 0 && p.st.LogHead != "" && head != p.st.LogHead:
-		// 台帳の log は追記だけ。先頭の行が替わったのは手で書き直したときなので、新しいファイルとして読む
+		// kanban の log は追記だけ。先頭の行が替わったのは手で書き直したときなので、新しいファイルとして読む
 		p.logf("log.jsonl の先頭の行が替わった。新しいファイルとして先頭から読む")
 		pos, p.st.LogHold = 0, nil
 	}
@@ -182,7 +182,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		p.notify(id, "report", map[string]any{"report": p.reportPath(id)})
 	case c["question"] != nil && c["status"] == "open":
 		if r.By == ledger.DispatcherBy {
-			// dispatcher 自身が出した問い（andon issue merge のゲートの問い・ask）は、出した巡で asked を積んで印を付けている。
+			// dispatcher 自身が出した問い（andon issue merge の gate の問い・ask）は、出した巡で asked を積んで印を付けている。
 			// この行からもう一度積むと、間に drain が渡していれば Chief of Staff に2度届く。印が無いのは、積んだあと控えを
 			// 保存する前に落ちたとき（読んだ位置も戻っている）なので、この行から積み直す
 			if k := askedKey(id, c["question"]); p.st.Asked[k] {
@@ -235,7 +235,7 @@ func askedKey(id string, n any) string {
 	return id + "#" + strconv.Itoa(i)
 }
 
-// asked は問いの行を通知 asked にする（中身は library/questions/<n>.json）。andon issue ask は台帳に書いてから JSON を置くので、
+// asked は問いの行を通知 asked にする（中身は library/questions/<n>.json）。andon issue ask は kanban に書いてから JSON を置くので、
 // JSON がまだ無ければ1回だけ次の見回りまで待つ。それでも無い・読めなければ飛ばしてログに残す。
 func (p *project) asked(id string, v any, pos int64) bool {
 	f, ok := v.(float64)

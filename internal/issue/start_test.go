@@ -17,8 +17,8 @@ import (
 
 var sessionRe = regexp.MustCompile(`session=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
-// start は偽の kanban と hc・本物の git（bare な origin とその clone）で見る（台帳を本物の kanban で回すのは tests/andon-issue.sh）。
-// 偽の kanban は $FAKE_ROOT/show-<id>.json を返し、打たれたものを $LOG に書く。偽の hc は FAKE_LS・FAKE_TPL・FAKE_RUN（FAKE_RUN_RC）を返す。
+// start は偽の kanban の CLI と hc・本物の git（bare な origin とその clone）で見る（kanban を本物の kanban の CLI で回すのは tests/andon-issue.sh）。
+// 偽の kanban の CLI は $FAKE_ROOT/show-<id>.json を返し、打たれたものを $LOG に書く。偽の hc は FAKE_LS・FAKE_TPL・FAKE_RUN（FAKE_RUN_RC）を返す。
 
 const startKanban = `#!/usr/bin/env bash
 printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${KANBAN_ROOT:-}" >>"$LOG"
@@ -86,7 +86,7 @@ func newStart(t *testing.T) *startFixture {
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban の台帳を読む
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban を読む
 
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
@@ -138,8 +138,8 @@ func (f *startFixture) project(body, email string) {
 	gitT(f.t, f.plant, "-c", "user.name=x", "-c", "user.email="+email, "commit", "-q", "-m", "project")
 }
 
-// addRepo は台帳の config.yaml の repos に足す。
-// ready は偽の kanban の ready --json の返事を置く（台帳の CLI の書く形でなければテストを落とす）。
+// addRepo は kanban の config.yaml の repos に足す。
+// ready は偽の kanban の CLI に ready --json の返事を置く（kanban の CLI の書く形でなければテストを落とす）。
 func (f *startFixture) ready(issues ...any) {
 	f.t.Helper()
 	if err := os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(ledgertest.Ready(f.t, issues...)), 0o644); err != nil {
@@ -211,11 +211,11 @@ func TestStart(t *testing.T) {
 		"kanban set S-0007 session=",
 	}
 	calls := f.calls()
-	// Claude 系は Andon が決めたセッションの id をラベルで渡し、同じ id を台帳の session に書く（ADR-0012 決めたこと 11）
+	// Claude 系は Andon が決めたセッションの id をラベルで渡し、同じ id を kanban の session に書く（ADR-0012 決めたこと 11）
 	if len(calls) == len(want) {
 		m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd ` + regexp.QuoteMeta(f.wt()) + ` claude 課題`).FindStringSubmatch(calls[6])
 		if m == nil || !strings.HasPrefix(calls[10], "kanban set S-0007 session="+m[1]+" ") {
-			t.Errorf("session のラベルと台帳が合わない:\n%s\n%s", calls[6], calls[10])
+			t.Errorf("session のラベルと kanban が合わない:\n%s\n%s", calls[6], calls[10])
 		}
 	}
 	if len(calls) != len(want) {
@@ -327,13 +327,13 @@ func startRefusals(t *testing.T) []startRefusal {
 			f.task["repo"] = "github.com/example/none"
 			f.addRepo("github.com/example/none")
 		}},
-		{"not in repos", "repo github.com/example/other が台帳の config.yaml の repos に無い", false, func(f *startFixture) {
+		{"not in repos", "repo github.com/example/other が kanban の config.yaml の repos に無い", false, func(f *startFixture) {
 			// clone はあるが、このプロジェクトの repo ではない
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
 		}},
 		{"not in project repos", "repo github.com/example/other が projects/sample-site/project.json の repos に無い", false, func(f *startFixture) {
-			// 台帳の config.yaml にはあるが、オーナーが書いた project.json の repos に無い
+			// kanban の config.yaml にはあるが、オーナーが書いた project.json の repos に無い
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
 			f.addRepo("github.com/example/other")
@@ -367,7 +367,7 @@ func TestStartHcRunFails(t *testing.T) {
 	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-0007 は todo のまま") || f.has("kanban start") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
-	// やり直せるように worktree と branch を戻し、台帳の欄も消す
+	// やり直せるように worktree と branch を戻し、kanban の欄も消す
 	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") || !f.has("kanban set S-0007 branch= worktree=") {
 		t.Errorf("戻していない: branches=%q calls=%q", f.branches(), f.calls())
 	}
@@ -392,7 +392,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 		"t42（sample-site-s-0007）に最初のメッセージが届いていない: trust prompt",
 		"dispatcher が見回りで送り直す（画面が入力を受けられるようになれば。",
 		"急ぐときだけ手で: hc send t42 '役目の1文目。\n役目の2文目。\n\n課題 `sample-site/S-0007`。",
-		"台帳は doing・agent t42 のまま",
+		"kanban は doing・agent t42 のまま",
 	} {
 		if !strings.Contains(errs, want) {
 			t.Errorf("err に %q が無い: %q", want, errs)
@@ -406,7 +406,7 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	if !f.has("hc label t42 first_message.sent=false") {
 		t.Errorf("ラベルを付けていない: calls=%q", f.calls())
 	}
-	// 起きた端末は台帳に結ぶ（worktree は残す。画面に答えて送り直せば続く）
+	// 起きた端末は kanban に結ぶ（worktree は残す。画面に答えて送り直せば続く）
 	if !f.has("kanban start S-0007 | HC_TERMINAL_ID=t42") {
 		t.Errorf("calls=%q", f.calls())
 	}
@@ -510,7 +510,7 @@ func TestStartDryRunCallsNoHc(t *testing.T) {
 				t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
 			}
 			if f.has("hc ") || f.has("kanban set") || f.has("kanban start") {
-				t.Errorf("hc を呼んだか台帳を書いた: %q", f.calls())
+				t.Errorf("hc を呼んだか kanban を書いた: %q", f.calls())
 			}
 			if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") {
 				t.Errorf("worktree か branch を作った: %q", f.branches())

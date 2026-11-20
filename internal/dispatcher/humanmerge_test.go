@@ -11,9 +11,9 @@ func TestHumanMergeLines(t *testing.T) {
 		want   string
 	}{
 		{"merged", map[string]any{"pr": pr, "sha": sha}, "A-1 merged: " + pr + " をマージして片付けた（9c4e1b0d7a3f）"},
-		{"merged", map[string]any{"pr": pr, "sha": sha, "by": "person"}, "A-1 merged: " + pr + " はオーナーがマージした（9c4e1b0d7a3f）。ゲートの問いを閉じて片付けた"},
-		{"merged", map[string]any{"pr": pr, "sha": sha, "by": "person", "held": "ゲートの外の問いが開いている: A-1#1"},
-			"A-1 merged: " + pr + " はオーナーがマージした（9c4e1b0d7a3f）が、片付けていない: ゲートの外の問いが開いている: A-1#1"},
+		{"merged", map[string]any{"pr": pr, "sha": sha, "by": "person"}, "A-1 merged: " + pr + " はオーナーがマージした（9c4e1b0d7a3f）。gate の問いを閉じて片付けた"},
+		{"merged", map[string]any{"pr": pr, "sha": sha, "by": "person", "held": "gate の外の問いが開いている: A-1#1"},
+			"A-1 merged: " + pr + " はオーナーがマージした（9c4e1b0d7a3f）が、片付けていない: gate の外の問いが開いている: A-1#1"},
 		{"closed", map[string]any{"pr": pr}, "A-1 closed: " + pr + " はマージされずに閉じた。片付けていない"},
 	} {
 		if got := line(Notification{Issue: "A-1", Kind: c.kind, Detail: c.detail}); got != c.want {

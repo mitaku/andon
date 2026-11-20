@@ -14,7 +14,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// 定義に無い移り方は、台帳の CLI を打つ前に終了コード 1 と理由1行で断る（ADR-0017 受け入れ条件 11）。
+// 定義に無い移り方は、kanban の CLI を打つ前に終了コード 1 と理由1行で断る（ADR-0017 受け入れ条件 11）。
 func TestRefusesUndefinedMove(t *testing.T) {
 	cases := []struct {
 		status string
@@ -91,7 +91,7 @@ func TestDefinitionMatchesMoves(t *testing.T) {
 			t.Errorf("by: kanban の移り方（%s → %s）の command が kanban でない: %s", tr.From, tr.To, tr.Command)
 		}
 		if tr.By != "kanban" && strings.HasPrefix(tr.Command, "kanban ") {
-			t.Errorf("kanban を直に打つ移り方（%s → %s）が by: kanban でない: %s", tr.From, tr.To, tr.By)
+			t.Errorf("kanban の CLI を直に打つ移り方（%s → %s）が by: kanban でない: %s", tr.From, tr.To, tr.By)
 		}
 	}
 }

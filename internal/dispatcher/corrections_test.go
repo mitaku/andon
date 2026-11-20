@@ -48,7 +48,7 @@ func TestCorrections(t *testing.T) {
 		human []HumanCommit
 		want  string
 	}{
-		{"手直しが無い（推奨どおりの答え・ゲートのコメントだけ・軽い waived）",
+		{"手直しが無い（推奨どおりの答え・gate のコメントだけ・軽い waived）",
 			[]QA{{N: 1, Status: "received", Answer: " CSV だけ \n", Q: q("users", "issue", "CSV だけ", "CSV と Excel")}},
 			&contract.Report{Waived: []contract.Waived{{Severity: "minor", File: "a.go", Line: &line, Reason: "r"}}}, "major",
 			func() *PRView {
@@ -66,7 +66,7 @@ func TestCorrections(t *testing.T) {
 			[]QA{{N: 2, Status: "answered", Answer: "CSV と Excel", Q: q("users", "issue", "CSV だけ", "CSV と Excel")}},
 			nil, "", nil, nil,
 			`[{"kind":"answer","question":2,"decision_kind":"users","recommended":"CSV だけ","picked":"CSV と Excel"}]`},
-		{"ゲートの問いへの答え → override（推奨どおりでも）・scope は数えない・答えの無い問いと JSON の無い問いも数えない",
+		{"gate の問いへの答え → override（推奨どおりでも）・scope は数えない・答えの無い問いと JSON の無い問いも数えない",
 			[]QA{{N: 1, Status: "received", Answer: "オーナーが PR を読んでマージする", Q: q("line", "gate", "オーナーが PR を読んでマージする", "直させる")},
 				{N: 2, Status: "received", Answer: "c2 だけ", Q: q("scope", "issue", "c1 と c2", "c2 だけ")},
 				{N: 3, Status: "open", Q: q("users", "issue", "A", "B")},
@@ -80,7 +80,7 @@ func TestCorrections(t *testing.T) {
 		{"オーナーが waive した指摘（must_fix 以上・マージ済み）→ override",
 			nil, &contract.Report{Waived: []contract.Waived{{Severity: "major", File: "a.go", Line: &line, Reason: "オーナーが許した"}}}, "major", pr("MERGED"), nil,
 			`[{"kind":"override","finding":{"severity":"major","file":"a.go","line":3},"reason":"オーナーが許した"}]`},
-		{"インラインのレビューコメントとレビューの本文 → pr（Bot のものとゲートのインラインコメントは数えない）",
+		{"インラインのレビューコメントとレビューの本文 → pr（Bot のものと gate のインラインコメントは数えない）",
 			nil, &contract.Report{Commit: sha('a')}, "major",
 			func() *PRView {
 				v := pr("MERGED", sha('a'))
@@ -98,14 +98,14 @@ func TestCorrections(t *testing.T) {
 					SubmittedAt string `json:"submittedAt"`
 				}{Body: ""})
 				var human, bot InlineComment
-				human.User.Login, human.Body, human.CreatedAt, human.Path, human.OriginalLine = "o", "ここは台帳の語", "2026-11-09T02:00:00Z", "docs/a.md", &line
+				human.User.Login, human.Body, human.CreatedAt, human.Path, human.OriginalLine = "o", "ここは kanban の語", "2026-11-09T02:00:00Z", "docs/a.md", &line
 				bot.User.Login, bot.User.Type, bot.Body = "ci", "Bot", "lint"
 				var gate InlineComment
 				gate.User.Login, gate.User.Type, gate.Body = "o", "User", "andon gate: **fix**"
 				v.Inline = []InlineComment{human, bot, gate}
 				return v
 			}(), nil,
-			`[{"kind":"pr","comments":[{"author":"?","at":"2026-11-09T01:00:00Z","body":"全体に語を揃える"},{"author":"o","at":"2026-11-09T02:00:00Z","body":"ここは台帳の語","file":"docs/a.md","line":3}],"human_commits":[]}]`},
+			`[{"kind":"pr","comments":[{"author":"?","at":"2026-11-09T01:00:00Z","body":"全体に語を揃える"},{"author":"o","at":"2026-11-09T02:00:00Z","body":"ここは kanban の語","file":"docs/a.md","line":3}],"human_commits":[]}]`},
 		{"マージしていない PR の waived は数えない",
 			nil, &contract.Report{Waived: []contract.Waived{{Severity: "major", File: "a.go", Line: &line, Reason: "r"}}}, "major", pr("CLOSED"), nil, `[]`},
 		{"must_fix が無ければ waived は全部数える（多めに拾う）",

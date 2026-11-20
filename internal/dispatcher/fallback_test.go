@@ -13,7 +13,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc に kill・rm・run を足し、偽の台帳の CLI（kanban）を置く。どちらも $FAKE_HC/log に1行ずつ書く。
+// 偽の hc に kill・rm・run を足し、偽の kanban の CLI を置く。どちらも $FAKE_HC/log に1行ずつ書く。
 const fallbackHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -91,7 +91,7 @@ func TestFallbackKeepsBrand(t *testing.T) {
 	}
 }
 
-// 担当が codex 系で codex-review が上限: 端末を片付け、profile と逃げた理由を台帳に書き、claude-review で起動し直す。知らせない。
+// 担当が codex 系で codex-review が上限: 端末を片付け、profile と逃げた理由を kanban に書き、claude-review で起動し直す。知らせない。
 func TestFallbackRestarts(t *testing.T) {
 	f := newFallback(t, "codex")
 	got := f.at(0, "")
@@ -103,7 +103,7 @@ func TestFallbackRestarts(t *testing.T) {
 		!strings.Contains(got[3], " claude-review 課題 `sample-site/S-7-r1`。") {
 		t.Fatalf("hc run が違う: %q", got[3])
 	}
-	// Claude 系のレビュアーはセッションの id をラベル session で渡し、台帳の session に書く（andon issue resume が続きから起動する。ADR-0012 決めたこと 8）
+	// Claude 系のレビュアーはセッションの id をラベル session で渡し、kanban の session に書く（andon issue resume が続きから起動する。ADR-0012 決めたこと 8）
 	m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd `).FindStringSubmatch(got[3])
 	if m == nil {
 		t.Fatalf("hc run に session のラベルが無い: %q", got[3])
@@ -129,7 +129,7 @@ func TestFallbackRestarts(t *testing.T) {
 	}
 }
 
-// 起動し直したあと台帳の agent を書けなければ、起動した端末を片付けて起動し直さなかったことにする（今の見回りは error を知らせる）。
+// 起動し直したあと kanban の agent を書けなければ、起動した端末を片付けて起動し直さなかったことにする（今の見回りは error を知らせる）。
 func TestFallbackAgentNotRecorded(t *testing.T) {
 	f := newFallback(t, "codex")
 	if err := os.WriteFile(filepath.Join(f.d, "set-agent-fails"), nil, 0o644); err != nil {

@@ -8,16 +8,16 @@ import (
 // 見回りで doing の課題の端末が Gone（無い・live でない・素のシェル）なら andon issue resume <id> を1回打つ。
 // 1つの死につき1回: 控えの Resumed に「死んだのを見た端末」と「起動した端末」を持ち、起動した端末が働かないまま
 // （turn 0 のまま）また Gone なら打たずに finished を知らせる（オーナーの go へ）。働き始めたら（turn ≥ 1）控えを消し、
-// 次に死んだらまた1回打つ。初めて見る台帳では打たない（控えに「見た」とだけ持つ）。
+// 次に死んだらまた1回打つ。初めて見る kanban では打たない（控えに「見た」とだけ持つ）。
 // resume・finish・start は同じ lock（andon issue の <slug>.issue.lock）を命令の間ずっと持つので、resume の間 finish は待つ。
 
 // Resumed は自動 resume の控えの1件（課題 id → これ）。
 type Resumed struct {
-	From  string `json:"from"`            // Gone を見た端末（そのときの台帳の agent）。この端末にはもう打たない
-	Agent string `json:"agent,omitempty"` // resume で起動した端末。空は打たなかった（初めて見た台帳）か、起動できなかった
+	From  string `json:"from"`            // Gone を見た端末（そのときの kanban の agent）。この端末にはもう打たない
+	Agent string `json:"agent,omitempty"` // resume で起動した端末。空は打たなかった（初めて見た kanban）か、起動できなかった
 }
 
-// ResumeGone は Gone の端末 agent を見たとき打つか（prev は控え、had は控えにあるか、first は初めて見る台帳か）。
+// ResumeGone は Gone の端末 agent を見たとき打つか（prev は控え、had は控えにあるか、first は初めて見る kanban か）。
 func ResumeGone(prev Resumed, had bool, agent string, first bool) bool {
 	switch {
 	case first:
@@ -63,7 +63,7 @@ func (p *project) resumeGone(t ledger.Issue, agent string) bool {
 		next = now.Str("agent")
 	}
 	if next == "" || next == agent {
-		p.logf("%s を resume したが、台帳の agent が読めない・替わっていない（finished で知らせる）: %v", id, err)
+		p.logf("%s を resume したが、kanban の agent が読めない・替わっていない（finished で知らせる）: %v", id, err)
 		return false
 	}
 	p.st.Resumed[id] = Resumed{From: agent, Agent: next}

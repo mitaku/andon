@@ -63,11 +63,11 @@ func (p *startPlan) check(name, result, format string, a ...any) {
 	p.Checks = append(p.Checks, startCheck{Name: name, Result: result, Detail: fmt.Sprintf(format, a...)})
 }
 
-// start は台帳の課題に担当を起動する（仮設の yard task start を移したもの。docs/contract.md §8）:
-// repo があれば（台帳の config.yaml の repos と、セルの repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起動し、kanban start で doing にして agent をその端末にする。
+// start は kanban の課題に担当を起動する（仮設の yard task start を移したもの。docs/contract.md §8）:
+// repo があれば（kanban の config.yaml の repos と、セルの repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起動し、`kanban start` で doing にして agent をその端末にする。
 // 打つのは Chief of Staff（projects/<slug>/ で）。起動できなかったら作った worktree と branch を戻す（やり直せるように）。
-// 最初のメッセージが届かなかったとき（信頼の画面など）は、台帳は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
-// dry は --dry-run: 確かめ（plan）だけを本番と同じ順・同じ理由で通し、hc を呼ばず、何も作らず台帳も書かずに、起動するときに渡すものを出す。
+// 最初のメッセージが届かなかったとき（信頼の画面など）は、kanban は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
+// dry は --dry-run: 確かめ（plan）だけを本番と同じ順・同じ理由で通し、hc を呼ばず、何も作らず kanban も書かずに、起動するときに渡すものを出す。
 func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	p, err := c.plan(dry)
 	if err != nil {
@@ -113,19 +113,19 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 	c.appendLaunch(stderr, rec, run.Address)
 
-	// 台帳を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
+	// kanban を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
 	if _, err := spawn.OutputIn(p.Cwd, []string{"KANBAN_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
 	}
 	if p.Session != "" {
 		if _, err := c.l.Run("", "set", id, "session="+p.Session); err != nil {
-			return fail("kanban set %s session=%s に失敗: %v（端末 %s は起きている。resume するには台帳に session を手で書く）", id, p.Session, err, run.Address)
+			return fail("kanban set %s session=%s に失敗: %v（端末 %s は起きている。resume するには kanban に session を手で書く）", id, p.Session, err, run.Address)
 		}
 	}
 	place := id + " " + p.Title + " / " + id // オーナーに端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
 	if !run.First.Delivered() {
 		// 手で送る行（ResendHint の最後）は shell にそのまま貼れるよう、文の最後に置く
-		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。台帳は doing・agent %s のまま（App では %s）。%s",
+		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。kanban は doing・agent %s のまま（App では %s）。%s",
 			run.Address, p.Terminal, run.Reason(), run.Address, place, spawn.ResendHint(run.Address, p.Profile, p.FirstMessage))}
 	}
 	fmt.Fprintf(stdout, "andon issue: %s を %s（%s・%s）で起動した。cwd %s", id, run.Address, p.Terminal, p.Profile, p.Cwd)
@@ -137,7 +137,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	return nil
 }
 
-// plan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、台帳も書かない。
+// plan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、kanban も書かない。
 // dry のときは hc を呼ぶ確かめ（template・動いている端末）を飛ばし、worktree と branch は作らずに名前だけ決める
 // （origin の branch・worktree の置き場の確かめは、本番で作る直前にする）。通らなければ本番と同じ理由1行で止まる。
 func (c *ctx) plan(dry bool) (*startPlan, error) {
@@ -153,7 +153,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	slug, id := c.l.Slug, c.id
 	p := &startPlan{DryRun: dry, ID: id, Title: c.issue.Str("title")}
 	if !spawn.SlugRe.MatchString(slug) {
-		return nil, fail("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
+		return nil, fail("slug が不正: '%s'（kanban の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
 	if err := allowed("start", id, c.issue.Str("status")); err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		}
 	}
 	p.Labels = workLabels(slug, id, p.Title)
-	// Claude 系はセッションの id を Andon が決めて渡し（template の command が端末のラベルから読む）、台帳の session に書く。
+	// Claude 系はセッションの id を Andon が決めて渡し（template の command が端末のラベルから読む）、kanban の session に書く。
 	// Codex 系は id を決める口が無いので、resume のときに記録から引く（ADR-0012 決めたこと 11）
 	if ledger.Brand(p.Profile) == "claude" {
 		p.Session = spawn.NewSession()
@@ -244,16 +244,16 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 }
 
 // writableRepo は課題の repo を書いてよいかを確かめ、clone の置き場を返す（start と resume の確かめ）:
-// 形・台帳の config.yaml の repos・セルの repo の HEAD の project.json の repos（オーナーだけが書く。author 照合）・clone があること。
+// 形・kanban の config.yaml の repos・セルの repo の HEAD の project.json の repos（オーナーだけが書く。author 照合）・clone があること。
 func (c *ctx) writableRepo(repo string, check func(name, result, format string, a ...any)) (string, error) {
 	slug := c.l.Slug
 	if !spawn.RepoRe.MatchString(repo) {
 		return "", fail("repo が不正: '%s'（<host>/<owner>/<repo>）", repo)
 	}
 	if !slices.Contains(c.l.Repos(), repo) {
-		return "", fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
+		return "", fail("repo %s が kanban の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
 	}
-	check("repos", "ok", "%s は台帳の config.yaml の repos にある", repo)
+	check("repos", "ok", "%s は kanban の config.yaml の repos にある", repo)
 	// 書いてよい repo の正はセルの repo の HEAD の project.json（オーナーだけが書く。author 照合）。読めなければ repo 無し（安全側）
 	ws := delegate.Workspace()
 	proj, err := delegate.ReadProject(ws, slug)
@@ -278,7 +278,7 @@ func (c *ctx) writableRepo(repo string, check func(name, result, format string, 
 
 // print は --dry-run の人向けの出力。
 func (p *startPlan) print(w io.Writer) {
-	fmt.Fprintf(w, "andon issue: %s を起動する乾いた実行（hc を呼ばず、worktree・branch・端末・ラベルを作らず、台帳も書かない）\n", p.ID)
+	fmt.Fprintf(w, "andon issue: %s を起動する乾いた実行（hc を呼ばず、worktree・branch・端末・ラベルを作らず、kanban も書かない）\n", p.ID)
 	row := func(k, v string) {
 		if v != "" {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
@@ -338,7 +338,7 @@ func liveNames() (map[string]bool, error) {
 	return names, nil
 }
 
-// startable は台帳の CLI の ready（todo か queued で、after が全部済んでいる）にこの課題があるか。
+// startable は kanban の CLI の ready（todo か queued で、after が全部済んでいる）にこの課題があるか。
 func (c *ctx) startable() (bool, error) {
 	out, err := c.l.Run("", "ready", "--json")
 	if err != nil {

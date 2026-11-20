@@ -56,7 +56,7 @@ func TestChecksStill(t *testing.T) {
 		why      string
 	}{
 		{"変わっていない", h1, ok, false, true, ""},
-		{"ゲートのあとに push された", h2, ok, false, false, "head がゲートのあとに動いた"},
+		{"gate のあとに push された", h2, ok, false, false, "head が gate のあとに動いた"},
 		{"checks が走り直した", h1, gate.GitHubChecks{State: "pending", Names: []string{"test"}}, false, false, "pending: test"},
 		{"checks が落ちた", h1, gate.GitHubChecks{State: "failure", Names: []string{"image"}}, false, false, "failure: image"},
 		{"checks が消えた（要る）", h1, gate.GitHubChecks{State: "none"}, false, false, "none"},
@@ -69,7 +69,7 @@ func TestChecksStill(t *testing.T) {
 	}
 }
 
-// gh pr merge が失敗したあと、ゲートの判定した head のまま MERGED ならオーナーが先にマージしたとして問いにしない。
+// gh pr merge が失敗したあと、gate の判定した head のまま MERGED ならオーナーが先にマージしたとして問いにしない。
 // head が違う・MERGED でない・返事が読めないときは今までどおり問いにする（dispatcher.md §7.2 #5）。
 func TestMergedBefore(t *testing.T) {
 	head, other, merge := "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
@@ -91,11 +91,11 @@ func TestMergedBefore(t *testing.T) {
 		}
 	}
 	if _, ok := MergedBefore(`{"state":"MERGED","headRefOid":"","mergeCommit":{"oid":"`+merge+`"}}`, ""); ok {
-		t.Error("ゲートの head が空でも MERGED とした")
+		t.Error("gate の head が空でも MERGED とした")
 	}
 }
 
-// ゲートが approve か needs_human を決めたあと、open の PR の head が判定した head から動いたときだけ回し直す。
+// gate が approve か needs_human を決めたあと、open の PR の head が判定した head から動いたときだけ回し直す。
 // fix（担当が ready し直す）・dispatcher がマージした・オーナーがマージした・閉じた PR は回し直さない（dispatcher.md §5 の P6a）。
 func TestHeadMoved(t *testing.T) {
 	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
@@ -124,14 +124,14 @@ func TestHeadMoved(t *testing.T) {
 	}
 }
 
-// ゲートの問いを閉じるとき、一覧を読んだあとにオーナーか Chief of Staff が答えていれば answer は断られる。オーナーの答えは上書きせず、
+// gate の問いを閉じるとき、一覧を読んだあとにオーナーか Chief of Staff が答えていれば answer は断られる。オーナーの答えは上書きせず、
 // そのまま received に進めて閉じる。受け取れなければ誤りを返す（merge は次に打たれたときに閉じ直す）。
 func TestCloseQuestionAfterAnswer(t *testing.T) {
 	if _, err := exec.LookPath("sh"); err != nil {
 		t.Skip("sh が無い")
 	}
 	dir := t.TempDir()
-	// 偽の kanban: 打たれた引数を calls に書く。answer は answered の印があれば断り、received は fail の印があれば断る
+	// 偽の kanban の CLI: 打たれた引数を calls に書く。answer は answered の印があれば断り、received は fail の印があれば断る
 	fake := "#!/bin/sh\necho \"$*\" >> \"$FAKE/calls\"\ncase \"$1\" in\n" +
 		"  answer) [ ! -f \"$FAKE/answered\" ] || { echo 'not open' >&2; exit 1; } ;;\n" +
 		"  received) [ ! -f \"$FAKE/fail\" ] || { echo 'not answered' >&2; exit 1; } ;;\nesac\n"

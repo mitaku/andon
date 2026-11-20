@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"andon/internal/contract"
 	"andon/internal/dispatcher"
@@ -31,12 +33,12 @@ func settlePath(slug string) string {
 }
 
 // settle は andon issue settle: review か doing の課題の PR をオーナーがマージしたかを見て、マージしていたら dispatcher がマージしたときと
-// 同じ道（ゲートの問いを閉じて finish）で片付ける。マージはしない。積む通知は stdout の JSON で返す（積むのは dispatcher）。
+// 同じ道（gate の問いを閉じて finish）で片付ける。マージはしない。積む通知は stdout の JSON で返す（積むのは dispatcher）。
 // 2回打っても同じ結果になるよう、聞いた時刻・MERGED／CLOSED・知らせた理由を自分の記録に持つ（dispatcher.md §2.7）。
 //
-//	MERGED（ゲートの記録の merged が true）   → dispatcher がマージした。何もしない（approve の道が片付ける）
-//	MERGED                                   → ゲートの問い（from: gate）を「オーナーがマージした」と閉じて finish、通知 merged（by: person）
-//	MERGED でゲートの外の問いが開いている     → 片付けずに通知 merged（held）。同じ理由では二度知らせない
+//	MERGED（gate の記録の merged が true）   → dispatcher がマージした。何もしない（approve の道が片付ける）
+//	MERGED                                   → gate の問い（from: gate）を「オーナーがマージした」と閉じて finish、通知 merged（by: person）
+//	MERGED で gate の外の問いが開いている     → 片付けずに通知 merged（held）。同じ理由では二度知らせない
 //	CLOSED                                   → 片付けない。通知 closed を閉じるたびに1回。開き直されうるので聞き続ける
 //
 // doing の課題（担当が働いているうちにオーナーがマージした）も同じ道で片付ける。受け取られていない問い・commit していない変更が
@@ -122,14 +124,14 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	if w.State != "MERGED" {
 		return &w, nil
 	}
-	// dispatcher が自分でマージした PR は ゲートの記録の merged が true（dispatcher の控えは読まない。ADR-0017 決めたこと 5 の (d)）
+	// dispatcher が自分でマージした PR は gate の記録の merged が true（dispatcher の控えは読まない。ADR-0017 決めたこと 5 の (d)）
 	if mergedByGate(filepath.Join(c.l.Library(c.id), "gate", w.Head+".json")) {
 		res.State = "auto"
 		return &w, nil
 	}
 	if why := c.closeAndFinish(w.PR, stderr); why != "" {
 		res.State = "held"
-		if why != w.Held {
+		if why != readOld(w.Held) {
 			res.Notify = append(res.Notify, contract.Notice{Kind: "merged", Detail: map[string]any{"pr": w.PR, "sha": w.Sha, "by": "person", "held": why}})
 			w.Held = why
 		}
@@ -140,19 +142,70 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	return nil, nil
 }
 
-// closeAndFinish はゲートの問いを「オーナーがマージした」と閉じて finish する。片付けなかったら理由を返す。
+// oldWords は、2026-11-20 までの文が使っていた語と、それに替えた語（ADR-0040 決めたこと 2〜4・7）。
+// 記録に残した前の理由の文は古い語のことがあるので、読み替えてから今の理由と比べる。
+var oldWords = [][2]string{{"台帳", "kanban"}, {"ゲート", "gate"}, {"版", "バージョン"}}
+
+// keptBan は、読み替えない「版」の前の語（製品や文書の種類を言う形。ADR-0040 決めたこと 4）。
+var keptBan = []string{"最新", "初", "英語", "更新", "出"}
+
+// readOld は文 s の古い語を新しい語に読み替える。英字の語は、前後が空白・句読点・括弧・文の端でなければ半角の空白で区切る
+// （「ゲートの外の問い」→「gate の外の問い」）。読み替えないと、片付けを待っている課題ごとに、上げた直後に同じ理由をもう一度知らせる。
+func readOld(s string) string {
+	for _, w := range oldWords {
+		parts := strings.Split(s, w[0])
+		if len(parts) == 1 {
+			continue
+		}
+		var b strings.Builder
+		b.WriteString(parts[0])
+		for _, p := range parts[1:] {
+			before := b.String()
+			r, _ := utf8.DecodeLastRuneInString(before)
+			switch {
+			case w[1] == "バージョン" && (keepsBan(before) || r < utf8.RuneSelf && r != ' ' && before != ""):
+				b.WriteString(w[0]) // 最新版・初版・Go 版など。読み替えない
+			case w[1][0] < utf8.RuneSelf:
+				if before != "" && !separates(r) {
+					b.WriteByte(' ')
+				}
+				b.WriteString(w[1])
+				if n, _ := utf8.DecodeRuneInString(p); p != "" && !separates(n) {
+					b.WriteByte(' ')
+				}
+			default:
+				b.WriteString(w[1])
+			}
+			b.WriteString(p)
+		}
+		s = b.String()
+	}
+	return s
+}
+
+// keepsBan は、s の終わりが読み替えない「版」の前の語か（数字・英字のあとは readOld が見る）。
+func keepsBan(s string) bool {
+	return slices.ContainsFunc(keptBan, func(k string) bool { return strings.HasSuffix(s, k) })
+}
+
+// separates は、英字の語の隣に空白を置かなくてよい字か（空白・句読点・括弧）。
+func separates(r rune) bool {
+	return unicode.IsSpace(r) || unicode.IsPunct(r) || strings.ContainsRune("（）「」『』〈〉【】、。・：", r)
+}
+
+// closeAndFinish は gate の問いを「オーナーがマージした」と閉じて finish する。片付けなかったら理由を返す。
 func (c *ctx) closeAndFinish(pr string, stderr io.Writer) string {
 	gateQs, others, err := c.openQuestions()
 	if err != nil {
 		return err.Error()
 	}
 	if len(others) > 0 {
-		return "ゲートの外の問いが開いている: " + strings.Join(others, "・")
+		return "gate の外の問いが開いている: " + strings.Join(others, "・")
 	}
 	for _, q := range gateQs {
 		name := fmt.Sprintf("%s#%d", c.id, q.N)
 		if err := c.closeQuestion(name, q.Status, "オーナーがマージした（"+pr+"）"); err != nil {
-			return "ゲートの問い " + name + " を閉じられない: " + err.Error()
+			return "gate の問い " + name + " を閉じられない: " + err.Error()
 		}
 	}
 	if err := allowed("finish", c.id, c.issue.Str("status")); err != nil {
@@ -172,8 +225,8 @@ type question struct {
 	Status string `json:"status"`
 }
 
-// openQuestions はこの課題のまだ受け取られていない問いを、ゲートが出したもの（library/questions/<n>.json の from: gate）と
-// それ以外（名前 <id>#<n>）に分ける。問いの JSON が無い・読めないものはゲートの外に数える（閉じない）。
+// openQuestions はこの課題のまだ受け取られていない問いを、gate が出したもの（library/questions/<n>.json の from: gate）と
+// それ以外（名前 <id>#<n>）に分ける。問いの JSON が無い・読めないものは gate の外に数える（閉じない）。
 func (c *ctx) openQuestions() ([]question, []string, error) {
 	out, err := c.l.Run("", "questions", "--json")
 	if err != nil {
@@ -205,7 +258,7 @@ func (c *ctx) openQuestions() ([]question, []string, error) {
 	return gate, others, nil
 }
 
-// mergedByGate はゲートの記録の merged が true か（dispatcher がマージした印。contract.md §7）。
+// mergedByGate は gate の記録の merged が true か（dispatcher がマージした印。contract.md §7）。
 func mergedByGate(record string) bool {
 	b, err := os.ReadFile(record)
 	var v struct {

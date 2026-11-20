@@ -19,15 +19,15 @@ import (
 // maxBlocks は stop-check が続けて止める回数の上限。超えたら通して理由を1行出す（フックが続きのターンを回し続けない）。
 const maxBlocks = 3
 
-// stopState は stop-check の控え（~/.local/state/andon/stop-check/<slug>-<id>.json。台帳の外）。
+// stopState は stop-check の控え（~/.local/state/andon/stop-check/<slug>-<id>.json。kanban の外）。
 type stopState struct {
 	Pass   int `json:"pass"`   // 前回通したときの log.jsonl の行の数
 	Blocks int `json:"blocks"` // 続けて止めた回数
 }
 
-// stopCheck は担当・レビュアーの Stop フック（contract.md §9）。台帳が doing で、前回の通過（無ければ doing に入った行）以後に
+// stopCheck は担当・レビュアーの Stop フック（contract.md §9）。kanban が doing で、前回の通過（無ければ doing に入った行）以後に
 // 報告・review・問いのどれも log.jsonl に無く、待ち（waiting）でもなければ {"decision": "block"}。Chief Engineer の課題（profile chief-engineer）は止めない。id を省くと自分の端末のラベル issue= から引く。
-// 担当の端末でない・台帳が読めないときは何も出さずに通す。
+// 担当の端末でない・kanban が読めないときは何も出さずに通す。
 func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && !idRe.MatchString(args[0])) {
 		fmt.Fprint(stderr, Usage)
@@ -115,14 +115,14 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err := save(); err != nil { // 止めた回数を数えられないなら止めない（止め続けない側に倒す）
 		return pass("控えが書けない: " + err.Error())
 	}
-	reason := fmt.Sprintf("%s は doing のまま、報告も問いも台帳に無い。報告（andon issue report。レビューを頼むなら review-request）か"+
+	reason := fmt.Sprintf("%s は doing のまま、報告も問いも kanban に無い。報告（andon issue report。レビューを頼むなら review-request）か"+
 		"問い（andon issue ask）を書いてから止まる。終わったなら andon issue ready まで。", id)
 	b, _ := json.Marshal(map[string]string{"decision": "block", "reason": reason})
 	fmt.Fprintln(stdout, string(b))
 	return 0
 }
 
-// returned は log.jsonl の行が、担当が台帳に返した印（報告・review・問い）か。
+// returned は log.jsonl の行が、担当が kanban に返した印（報告・review・問い）か。
 func returned(c map[string]any) bool {
 	if rep := c["report"]; rep == "write" || rep == "append" {
 		return true

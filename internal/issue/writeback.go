@@ -18,7 +18,7 @@ var githubIssueRe = regexp.MustCompile(`^https://(github\.com/[A-Za-z0-9._-]+/[A
 
 // writeBack は課題が done になったあと、links にある write_back: true の出所のトラッカーへ1コメント書く
 // （結果と PR の URL。ADR-0011 決めたこと 15・19・contract.md §11）。状態は変えない（打つのは gh issue comment だけ）。
-// 本文は外の人が読む文で、課題番号を書かない（台帳を持たない人には辿れない。ADR-0026 決めたこと 9）。
+// 本文は外の人が読む文で、課題番号を書かない（kanban を持たない人には辿れない。ADR-0026 決めたこと 9）。
 // 書くのは GitHub の issue（github-issues の出所）だけ。書けなくても finish は戻さず、理由を1行出す。
 // finish は done の課題には打てない（process/states/issue.yaml）ので、1つの課題で書くのは1回。
 func (c *ctx) writeBack(stdout io.Writer) {

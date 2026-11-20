@@ -23,7 +23,7 @@ const (
 
 // Facts は扱いを決めるのに使う、kind のほかの事実（今あるキーから。新しいキーは足さない）。
 type Facts struct {
-	Gated     bool // dispatcher がゲートを回す課題（gated。Chief Engineer・レビュアー・repo の無い課題・調べる課題でない）
+	Gated     bool // dispatcher が gate を回す課題（gated。Chief Engineer・レビュアー・repo の無い課題・調べる課題でない）
 	Reviewer  bool // レビュアーの課題（isReviewer）
 	AutoMerge bool // gate の approve のあと dispatcher がマージに進む（merge: auto を Chief of Staff が書いた・委譲の範囲内）
 	Engineer  bool // Chief Engineer の課題（profile chief-engineer）
@@ -38,7 +38,7 @@ func RouteOf(n Notification, f Facts) Route {
 		if f.Gated {
 			return Record
 		}
-		return Deliver // Chief Engineer の課題・調べる課題など、ゲートを回さない課題（ADR-0010 決めたこと 7）
+		return Deliver // Chief Engineer の課題・調べる課題など、gate を回さない課題（ADR-0010 決めたこと 7）
 	case "gate":
 		switch n.Detail["decision"] {
 		case "fix":
@@ -195,7 +195,7 @@ func lineStart(f *os.File, off int64) bool {
 }
 
 // stuck は andon issue merge の記録のうち、merge: auto の approve でマージに進み始めて（approved）approveWait たっても
-// 決まらない（マージ・問い・別の答えのどれも無い）課題を、通知 gate として1回だけ届ける（配る側が merge の記録を読む。ADR-0017 決めたこと 6）。
+// 決まらない（マージ・問い・別の答えのどれも無い）課題を、通知 `gate` として1回だけ届ける（配る側が merge の記録を読む。ADR-0017 決めたこと 6）。
 // 同じ approved では二度届けない（控えの Stuck）。review にいない課題は見ない。
 func (p *project) stuck(now time.Time) {
 	p.flush() // 前に書けなかった記録
@@ -219,7 +219,7 @@ func (p *project) stuck(now time.Time) {
 		if err == nil && now.Sub(at) < approveWait {
 			continue
 		}
-		p.logf("%s はゲートの approve のあと %d 分マージに進まない。Chief of Staff に知らせる", id, int(approveWait.Minutes()))
+		p.logf("%s は gate の approve のあと %d 分マージに進まない。Chief of Staff に知らせる", id, int(approveWait.Minutes()))
 		record := filepath.Join(p.l.Library(id), "gate", w.Sha+".json")
 		var g struct {
 			Reasons []string `json:"reasons"`

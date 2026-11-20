@@ -56,7 +56,7 @@ func IsDispatcher(argv []string) bool {
 }
 
 // Ensure は dispatcher の端末を確かめ、無ければ起動し、中身がシェルに替わっていれば端末を片付けて起動し直す。
-// andon dispatcher が動いていても、置き場のラベル（herdr.space・herdr.tab）が今の Place と違えば（台帳の数が変わった）、
+// andon dispatcher が動いていても、置き場のラベル（herdr.space・herdr.tab）が今の Place と違えば（kanban の数が変わった）、
 // 見回りの合間（PassLock が取れたとき）だけ同じ手で片付けて起動し直す。見回りの途中なら触らず、次に打たれたときに任せる。
 // 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd はセルの repo。
 // 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
@@ -69,14 +69,14 @@ func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 }
 
 // EnsureAfterCreate は andon create のあとの Ensure。置き直すときに見回りの途中なら、終わるまで待つ（期限は無い。
-// 台帳を足したあと、フックが来なくても置き場を合わせる）。待ち始めるときに waiting を1回呼ぶ。
+// kanban を足したあと、フックが来なくても置き場を合わせる）。待ち始めるときに waiting を1回呼ぶ。
 func EnsureAfterCreate(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
 	return ensureTerm(andon, cwd, wait, waiting)
 }
 
-// ErrOldDispatcher は、置き場が今の Place と違うが、動いている dispatcher が見回りの間 PassLock を持たない前の版なので
-// 置き直さなかった（見回りの途中で止めうる）。端末が起き直す（core の起き直し・セルの作り直し）と今の版で合う。
-var ErrOldDispatcher = errors.New("動いている dispatcher は見回りの間 lock を持たない前の版なので、置き直さない")
+// ErrOldDispatcher は、置き場が今の Place と違うが、動いている dispatcher が見回りの間 PassLock を持たない前のバージョンなので
+// 置き直さなかった（見回りの途中で止めうる）。端末が起き直す（core の起き直し・セルの作り直し）と今のバージョンで合う。
+var ErrOldDispatcher = errors.New("動いている dispatcher は見回りの間 lock を持たない前のバージョンなので、置き直さない")
 
 // ensureTerm の waiting が nil なら、見回りの途中のときは待たずに触らない。
 func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
@@ -108,10 +108,10 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		if t.Address == "" {
 			return "", fmt.Errorf("hc get %s に address が無い", Name)
 		}
-		// PassLock のファイルは、この版の dispatcher が見回るたびに作る。無ければ動いているのは前の版で、
+		// PassLock のファイルは、このバージョンの dispatcher が見回るたびに作る。無ければ動いているのは前のバージョンで、
 		// lock が取れても見回りの合間とは限らない
 		if _, err := os.Stat(PassLock()); errors.Is(err, fs.ErrNotExist) {
-			return "", fmt.Errorf("%w（%s の置き場は %s・%s、今の台帳の数では %s・%s）", ErrOldDispatcher, t.Address, t.Labels["herdr.space"], t.Labels["herdr.tab"], space, tab)
+			return "", fmt.Errorf("%w（%s の置き場は %s・%s、今の kanban の数では %s・%s）", ErrOldDispatcher, t.Address, t.Labels["herdr.space"], t.Labels["herdr.tab"], space, tab)
 		}
 		// 見回りの途中で止めない。lock は起動し直すまで持つ（新しい dispatcher は外れるのを待ってから回る）
 		unpass, err := flock.TryLock(PassLock())
@@ -128,7 +128,7 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		if err := respawn(andon, cwd, t.Address); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("dispatcher の端末（%s）の置き場が今の台帳の数に合っていなかったので、%s・%s に起動し直した", t.Address, space, tab), nil
+		return fmt.Sprintf("dispatcher の端末（%s）の置き場が今の kanban の数に合っていなかったので、%s・%s に起動し直した", t.Address, space, tab), nil
 	case !shells[t.Foreground.Name]:
 		return "", fmt.Errorf("dispatcher の端末の前に %s が出ている（andon dispatcher でもシェルでもない。触らない）", t.Foreground.Name)
 	case t.Address == "":
@@ -140,13 +140,13 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 	return fmt.Sprintf("dispatcher の端末（%s）の中身がシェルに替わっていたので、片付けて起動し直した", t.Address), nil
 }
 
-// hostName はセルの名前（hostname）。セルの台帳が2つ以上のときの Space 名に使う。テストで差し替える。
+// hostName はセルの名前（hostname）。セルの kanban が2つ以上のときの Space 名に使う。テストで差し替える。
 var hostName = os.Hostname
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
 // Place は dispatcher の置き場（herdr.space・herdr.tab のラベルの値）。ws はセルの repo。
-// 台帳（ws/projects/*/kanban/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
+// kanban（ws/projects/*/kanban/config.yaml）が1つなら、その指揮側の Space andon-<slug>。
 // それ以外（2つ以上。無いときも）はセルの名前の Space andon-<セルの slug>-plant。tab は andon-<slug またはセルの slug>-dispatcher。
 // 名前は Andon の App の mod が付ける（ADR-0002 決めたこと 21）。
 func Place(ws string) (space, tab string) {

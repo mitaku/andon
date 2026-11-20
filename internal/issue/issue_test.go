@@ -15,8 +15,8 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// ready の照合は偽の kanban と gh・本物の git で見る（振る舞いの全体は tests/andon-issue.sh）。
-// 偽の kanban は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> に引数を書くだけ。
+// ready の照合は偽の kanban の CLI と gh・本物の git で見る（振る舞いの全体は tests/andon-issue.sh）。
+// 偽の kanban の CLI は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> に引数を書くだけ。
 
 const fakeDeck = `#!/bin/sh
 case "$1" in
@@ -134,7 +134,7 @@ func (f *fixture) ready() (int, string, bool) {
 
 const other = "0000000000000000000000000000000000000001"
 
-// gateQuestion は T-0001 の問い 1 を開いたまま置く。from が出した問いで、head が空でなければ事実にゲートの記録
+// gateQuestion は T-0001 の問い 1 を開いたまま置く。from が出した問いで、head が空でなければ事実に gate の記録
 // （library/gate/<head>.json）の行を書く（merge.go の needs_human の問いと同じ形）。
 func (f *fixture) gateQuestion(from, head string) {
 	facts := []string{"delegation: merge=B < tier C", "PR https://github.com/example/app/pull/7"}
@@ -191,16 +191,16 @@ func TestReady(t *testing.T) {
 		{"受け取った問いと、ほかの課題の問いは見ない", func(f *fixture) {
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "received"}, {"id": "T-0009", "n": 1, "status": "open"}]`
 		}, ""},
-		// ゲートが needs_human で問いを出したあと、担当が doing に戻って rebase した（head が動いた）。その問いは数えない
-		{"前の head についてのゲートの問いは数えない", func(f *fixture) { f.gateQuestion("gate", other) }, ""},
-		{"前の head のゲートの問いに答えがあっても数えない", func(f *fixture) {
+		// gate が needs_human で問いを出したあと、担当が doing に戻って rebase した（head が動いた）。その問いは数えない
+		{"前の head についての gate の問いは数えない", func(f *fixture) { f.gateQuestion("gate", other) }, ""},
+		{"前の head の gate の問いに答えがあっても数えない", func(f *fixture) {
 			f.gateQuestion("gate", other)
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "answered"}]`
 		}, ""},
-		{"今の head についてのゲートの問いは止まる", func(f *fixture) { f.gateQuestion("gate", f.head) }, "T-0001#1（open）"},
-		{"どの head か読めないゲートの問いは止まる", func(f *fixture) { f.gateQuestion("gate", "") }, "T-0001#1（open）"},
-		{"ゲートの外の問いは記録の行があっても止まる", func(f *fixture) { f.gateQuestion("issue", other) }, "T-0001#1（open）"},
-		{"前の head のゲートの問いのほかに開いた問いがあれば止まる", func(f *fixture) {
+		{"今の head についての gate の問いは止まる", func(f *fixture) { f.gateQuestion("gate", f.head) }, "T-0001#1（open）"},
+		{"どの head か読めない gate の問いは止まる", func(f *fixture) { f.gateQuestion("gate", "") }, "T-0001#1（open）"},
+		{"gate の外の問いは記録の行があっても止まる", func(f *fixture) { f.gateQuestion("issue", other) }, "T-0001#1（open）"},
+		{"前の head の gate の問いのほかに開いた問いがあれば止まる", func(f *fixture) {
 			f.gateQuestion("gate", other)
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}, {"id": "T-0001", "n": 2, "status": "open"}]`
 		}, "T-0001#2（open）"},
@@ -247,17 +247,17 @@ func TestReady(t *testing.T) {
 	}
 }
 
-// ready が前の head のゲートの問いを越えるときは、その問いだけを kanban review --past で名指す。--force は打たない
+// ready が前の head の gate の問いを越えるときは、その問いだけを `kanban review --past` で名指す。--force は打たない
 // （確かめのあとに kanban ask で足された問いまで越えてしまう。名指しの外の問いは kanban が lock の中で断る）
 func TestReadyNamesOnlyStaleGateQuestions(t *testing.T) {
 	cases := []struct {
 		name string
 		mod  func(*fixture)
-		want string // 偽の kanban に届いた review の引数
+		want string // 偽の kanban の CLI に届いた review の引数
 	}{
 		{"問いが無ければ名指さない", func(*fixture) {}, "review T-0001"},
-		{"前の head のゲートの問いだけを名指す", func(f *fixture) { f.gateQuestion("gate", other) }, "review T-0001 --past T-0001#1"},
-		{"前の head のゲートの問いがいくつあっても名指すのはそれだけ", func(f *fixture) {
+		{"前の head の gate の問いだけを名指す", func(f *fixture) { f.gateQuestion("gate", other) }, "review T-0001 --past T-0001#1"},
+		{"前の head の gate の問いがいくつあっても名指すのはそれだけ", func(f *fixture) {
 			f.gateQuestion("gate", other)
 			f.write("kanban/issues/T-0001/library/questions/3.json", js(map[string]any{"kind": "line", "question": "マージするか", "from": "gate",
 				"facts":   []string{gate.RecordFact(filepath.Join(f.root, "kanban/issues/T-0001/library/gate", other+".json"))},

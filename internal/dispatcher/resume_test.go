@@ -24,7 +24,7 @@ case $1 in
 esac
 `
 
-// 偽の kanban: show は $D/show.json。
+// 偽の kanban の CLI: show は $D/show.json。
 const resumeKanban = `#!/usr/bin/env bash
 case $1 in
   show) cat "$FAKE_HC/show.json" ;;
@@ -33,7 +33,7 @@ esac
 `
 
 // 偽の andon: 打たれた引数を $D/andon に1行。$D/resume-rc があればその終了コードで落ち、
-// 通れば $D/next の address を台帳の agent にする（show.json を書き直す）。
+// 通れば $D/next の address を kanban の agent にする（show.json を書き直す）。
 const resumeAndon = `#!/usr/bin/env bash
 d=$FAKE_HC
 echo "$*" >>"$d/andon"
@@ -73,7 +73,7 @@ func newResume(t *testing.T) *resumeFixture {
 	return f
 }
 
-// agent は台帳の S-7（doing）の agent を addr にする（この回に読んだ一覧と、kanban show の両方）。
+// agent は kanban の S-7（doing）の agent を addr にする（この回に読んだ一覧と、`kanban show` の両方）。
 func (f *resumeFixture) agent(addr string) {
 	f.t.Helper()
 	f.p.tasks = []ledger.Issue{{"id": "S-7", "status": "doing", "agent": addr, "profile": "claude"}}
@@ -140,11 +140,11 @@ func TestResumeGoneRule(t *testing.T) {
 		want  bool
 	}{
 		{"初めて見る死", Resumed{}, false, false, true},
-		{"初めて見る台帳", Resumed{}, false, true, false},
+		{"初めて見る kanban", Resumed{}, false, true, false},
 		{"同じ死にもう打った", Resumed{From: "t42"}, true, false, false},
-		{"同じ死にもう打って起動できた（台帳が戻った）", Resumed{From: "t42", Agent: "t43"}, true, false, false},
+		{"同じ死にもう打って起動できた（kanban が戻った）", Resumed{From: "t42", Agent: "t43"}, true, false, false},
 		{"起動した端末が働かずに死んだ", Resumed{From: "t41", Agent: "t42"}, true, false, false},
-		{"控えは別の死（台帳の agent が替わった）", Resumed{From: "t40", Agent: "t41"}, true, false, true},
+		{"控えは別の死（kanban の agent が替わった）", Resumed{From: "t40", Agent: "t41"}, true, false, true},
 	} {
 		if got := ResumeGone(c.prev, c.had, "t42", c.first); got != c.want {
 			t.Errorf("%s: %v（want %v）", c.name, got, c.want)
@@ -226,24 +226,24 @@ func TestResumeAgainAfterWork(t *testing.T) {
 	}
 }
 
-// 初めて見る台帳では打たず、知らせもしない。次の見回りでもその死には打たず、finished を1回だけ知らせる
+// 初めて見る kanban では打たず、知らせもしない。次の見回りでもその死には打たず、finished を1回だけ知らせる
 // （初めて見た巡で Sent に書くと、死んだ担当が誰にも知らされないまま残る）。
 func TestResumeNotOnFirst(t *testing.T) {
 	f := newResume(t)
 	f.put("next", "t43")
 	f.p.first = true
 	if got := f.round(); got != nil {
-		t.Fatalf("初めて見る台帳で打った: %q", got)
+		t.Fatalf("初めて見る kanban で打った: %q", got)
 	}
 	if len(f.p.st.Pending) != 0 {
-		t.Fatalf("初めて見る台帳で知らせた: %q", f.pending())
+		t.Fatalf("初めて見る kanban で知らせた: %q", f.pending())
 	}
 	f.p.first = false
 	if got := f.round(); got != nil {
 		t.Fatalf("初めて見た死に次の見回りで打った: %q", got)
 	}
 	if p := f.pending(); len(p) != 1 || p[0] != "S-7:finished:t42" {
-		t.Fatalf("初めて見た台帳の死を次の見回りで finished で知らせない: %q", p)
+		t.Fatalf("初めて見た kanban の死を次の見回りで finished で知らせない: %q", p)
 	}
 	for i := 0; i < 2; i++ {
 		if got := f.round(); got != nil {
@@ -321,7 +321,7 @@ func TestPastChiefOfStaffIssueNotWatched(t *testing.T) {
 		t.Fatalf("前の Chief of Staff の死を控えた: %+v", f.p.st.Resumed)
 	}
 
-	// 2026-11-06 より前の台帳は、移り変わりの行が coordinator の名前で残る
+	// 2026-11-06 より前の kanban は、移り変わりの行が coordinator の名前で残る
 	f = newResume(t)
 	f.put("next", "t43")
 	f.p.rows = []ledger.Row{{At: "2026-11-01T00:00:00Z", By: "andon", Config: map[string]any{"coordinator": "t42"}}, agentRow, cosRow("t50")}

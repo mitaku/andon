@@ -247,7 +247,7 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 func TestWaitHoldsWhileStateLocked(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(1)
-	unlock, err := lockState("sample-site", 0) // 見回りの巡（ゲート・resume・settle を打っている間）
+	unlock, err := lockState("sample-site", 0) // 見回りの巡（gate・resume・settle を打っている間）
 	if err != nil {
 		t.Fatal(err)
 	}
