@@ -148,7 +148,7 @@ RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.conf
       "${HOME}/.config/herdr-core" "${HOME}/.config/andon/signals" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
  && chmod 700 "${HOME}/.ssh" "${HOME}/.config/andon/signals"
 COPY package/ /opt/andon/
-# skill の手順が JSON を確かめる schema（package/lib/andon/schema_check.py が読む。ANDON_SCHEMA の既定）
+# skill と人が読む schema（andon は同じものを埋め込んで照らす。置き場で照らすなら andon schema check /opt/andon/schema/<名前>.schema.json）
 COPY schema/ /opt/andon/schema/
 # 台帳の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。
 COPY --from=bin --chmod=755 /out/kanban /usr/local/bin/kanban

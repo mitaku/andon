@@ -5,11 +5,12 @@
 # 節を足すときは tests/package/<番号>-<名前>.sh を新しく置き、この入口とほかの節は書き換えない。番号は今ある最大の次。
 # 並べて動く PR が同じ番号を選んでも、名前が違えば両方が名前の順に回る。
 # 節は同じシェルで続けて回るので、前の節が置いた変数（cos・pb など）を後ろの節が使う。
-# 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
+# 道具は bash・jq・python3・andon（tests/lib/andon.sh。JSON は andon schema check で schema と照らす）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/lib/andon.sh
 
 fails=0
 pass() { echo "ok   $1"; }

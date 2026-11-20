@@ -6,7 +6,7 @@
 #      settings の deny が force-with-lease で main に当たる形を断り、自分の branch への形は allow のまま（当たる・当たらないの例）。
 #  12. auto memory（ADR-0020 受け入れ条件 2・6。4 と 6 の節の中）: settings が入れる向き・環境メモの書き方・chief-of-staff の規約9・トリアージ・wiki の手引き。
 # === 4. gate.json・settings.json ===
-if python3 package/lib/andon/schema_check.py validate schema/gate.schema.json package/gate.json >"$tmp/why" 2>&1; then
+if "$andon" schema check gate package/gate.json >"$tmp/why" 2>&1; then
   pass "package/gate.json は gate.schema.json に合う"
 else fail "package/gate.json: $(head -1 "$tmp/why")"; fi
 jq -e 'has("repos") | not' package/gate.json >/dev/null && pass "package/gate.json に repos が無い（セルの gate.local.json へ）" || fail "package/gate.json に repos がある"

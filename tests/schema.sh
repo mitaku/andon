@@ -10,8 +10,9 @@
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルとオーナーに端末を指す言い方がある。
-# 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
-# 速さ: 検査は1件ずつ python にかけず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
+# 道具は andon（tests/lib/andon.sh。照合は andon schema。command が書く前に照らすのと同じ検査器）と、
+# python3（標準ライブラリだけ。package/lib/andon/schema_check.py。schema そのものの決まりの lint と、文書の例の取り出し）と jq。
+# 速さ: 検査は1件ずつ起動せず、queue で溜めて flush で andon schema batch（照合）と schema_check.py batch（lint）に1回ずつ渡す。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -23,13 +24,16 @@ check_py=package/lib/andon/schema_check.py
 schema_dir="${ANDON_SCHEMA_DIR:-schema}"   # 自己検査（下の 4）が緩めた写しを指す
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+. tests/lib/andon.sh
+export ANDON_BIN="$andon"   # 自己検査（下の 4）と emitters の検査が焼き直さない
 
 fail=0
 ok()  { echo "ok   $1"; }
 ng()  { echo "FAIL $1"; fail=1; [ -z "${ANDON_SCHEMA_DIR:-}" ] || exit 1; }   # 緩めた写しの自己検査は最初の FAIL で止める
 
 # queue <終了コードの期待 0|1|2> <理由を出すか 0|1> <説明> <validate|lint> <schema> [<instance>]: 検査を溜める
-# flush: 溜めた検査を python 1回で走らせ、溜めた順に ok / FAIL を出す（期待は呼び出し側が固定する。flush が見るのは終了コードだけ）
+# flush: 溜めた検査を、照合（validate）は andon schema batch、lint は schema_check.py batch に1回ずつ渡し、
+#        溜めた順に ok / FAIL を出す（期待は呼び出し側が固定する。flush が見るのは終了コードだけ）
 q_cases="$tmp/q.tsv"; q_meta="$tmp/q.meta"; : >"$q_cases"; : >"$q_meta"
 queue() {
   local want=$1 show=$2 desc=$3; shift 3
@@ -38,7 +42,19 @@ queue() {
 }
 flush() {
   [ -s "$q_cases" ] || return 0
-  python3 "$check_py" batch "$q_cases" >"$tmp/q.out"
+  awk -F'\t' -v v="$tmp/q.v" -v l="$tmp/q.l" 'BEGIN { printf "" >v; printf "" >l }
+    $1 == "validate" { print $2 "\t" $3 >v; next } { print >l }' "$q_cases"
+  "$andon" schema batch "$tmp/q.v" >"$tmp/q.vout"
+  : >"$tmp/q.lout"; [ ! -s "$tmp/q.l" ] || python3 "$check_py" batch "$tmp/q.l" >"$tmp/q.lout"
+  # 溜めた順に並べ直す（照合と lint の結果をそれぞれの順に読む）
+  local kind _rest line
+  : >"$tmp/q.out"
+  exec 5<"$tmp/q.vout" 6<"$tmp/q.lout"
+  while IFS=$'\t' read -r kind _rest; do
+    if [ "$kind" = validate ]; then IFS= read -r -u 5 line || line=''; else IFS= read -r -u 6 line || line=''; fi
+    [ -z "$line" ] || printf '%s\n' "$line" >>"$tmp/q.out"
+  done <"$q_cases"
+  exec 5<&- 6<&-
   local n_in n_out; n_in="$(wc -l <"$q_cases")"; n_out="$(wc -l <"$tmp/q.out")"
   if [ "$n_in" -ne "$n_out" ]; then ng "検査器の batch が $n_in 件に $n_out 件しか返さない"; : >"$q_cases"; : >"$q_meta"; return; fi
   local want show desc rc why

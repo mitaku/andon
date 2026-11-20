@@ -8,8 +8,8 @@ block() { awk -v h="$2" '
   /^ *```/ { if (inb) { exit } ; fence = 1; next }
   fence && !inb { fence = 0; t = $0; sub(/^ +/, "", t); if (index(t, h) == 1) { inb = 1; ind = match($0, /[^ ]/) - 1 } else next }
   inb { print substr($0, ind + 1) }' "$1"; }
-export ANDON_HOME=$PWD/package ANDON_SCHEMA=$PWD/schema
-chk() { python3 package/lib/andon/schema_check.py validate "schema/$1.schema.json" "$2" >"$tmp/why" 2>&1; }
+export ANDON_HOME=$PWD/package
+chk() { "$andon" schema check "$1" "$2" >"$tmp/why" 2>&1; }
 
 # 担当の機械向けの手順は command（andon issue …）。skill に JSON を手で書く手順・一致を手で確かめる手順が残っていない
 w=package/skills/worker/SKILL.md
