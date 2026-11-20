@@ -157,6 +157,7 @@ type Row struct {
 	By     string         `json:"by"`
 	ID     string         `json:"id"`
 	Change map[string]any `json:"change"`
+	Config map[string]any `json:"config"` // kanban config set の行（id と change は無い）
 }
 
 // Log は log.jsonl を読む。読めない行は飛ばす（無いキーと同じ）。
@@ -177,6 +178,33 @@ func (l *Ledger) Log() []Row {
 		}
 	}
 	return rows
+}
+
+// TakenByChiefOfStaff は、課題 id の agent を agent に書いた最後の行が、その時点の Chief of Staff の端末だったときに書かれたか
+// （log.jsonl の kanban config set の行で chief_of_staff の移り変わりを辿る）。Chief of Staff が自分で kanban start した課題は、
+// 起き直してアドレスが変わったあとも担当の課題でない。同じアドレスが後で担当に使われても、その時点の値で見分ける。
+// 行が無い・config の行が無い台帳では false（今の chief_of_staff との比べは呼び手がする）。
+func TakenByChiefOfStaff(rows []Row, id, agent string) bool {
+	if agent == "" {
+		return false
+	}
+	cos, taken := "", false
+	for _, r := range rows {
+		if r.Config != nil {
+			if v, ok := r.Config["chief_of_staff"]; ok {
+				cos, _ = v.(string) // null は消した（空）
+			}
+			continue
+		}
+		if r.ID != id || r.Change == nil {
+			continue
+		}
+		if v, ok := r.Change["agent"]; ok {
+			s, _ := v.(string)
+			taken = s == agent && cos == agent
+		}
+	}
+	return taken
 }
 
 // Trusted は、課題 id の key を最後に変えた log.jsonl の行の by が terminal:<chief_of_staff> で、
