@@ -464,12 +464,18 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	return c.write(&r, "## レビュー依頼\n"+line+"\n\n"+md, stdout)
 }
 
+// briefCommitRe はレビュアーの依頼書の commit（「commit <sha>。」の形。ledger.BriefReviews と同じ読み方）。
+var briefCommitRe = regexp.MustCompile(`commit ([0-9a-f]{40})。`)
+
 // rounds は今度の回と前回の commit を数える: レビュアーの子課題（profile が *-review）の findings.json の
-// commit のうち、違うものの数 ＋ 1。古い commit を見たレビューは前の回と同じ commit なので数が増えない
-// （同じ回のまま頼み直す）。HEAD のレビューがもうあれば頼まない。
-// 結果の無いレビュアーの課題（<id>-rN）があれば、回は N の次以降にする（課題 id が被らない）。
-// HEAD を見ているレビュアーの課題がまだ動いていれば（todo・doing）、頼み直さない。頼み直すと回だけが進み、
-// dispatcher は起動した commit を二度起動しないので、知らせなしに捨てる（担当がレビューの回を1回失う）。
+// commit のうち違うものの数と、台帳にあるレビュアーの課題（<id>-rN）の最大の N の、大きいほう ＋ 1。
+// レビュアーの課題は結果が古い commit を見ていても（stale）台帳に残るので、頼み直すたびに回は 1 つ進む。
+// HEAD のレビューがもうあれば頼まない。
+// その課題のレビュアーの課題がまだ動いていれば（todo・doing）、見ている commit に関わらず頼み直さない（ADR-0032 決めたこと 8）:
+//   - HEAD を見ている: 頼み直すと回だけが進み、dispatcher は起動した commit を二度起動しないので、知らせなしに捨てる（担当がレビューの回を1回失う）。
+//   - 古い commit を見ている: 頼み直すとレビュアーが 2 人走る。照合は最後に終わったレビュアーだけを読むので、古い commit の
+//     レビュアーが後に終わると ready は stale で断り、頼み直しは「HEAD のレビューはもうある」で断る（取り消しのほかに進めない。
+//     model/ の規則 R7 と見本 BrokenReviewTwice）。
 func (c *ctx) rounds(head string) (int, *string, error) {
 	tasks, err := c.l.List()
 	if err != nil {
@@ -487,9 +493,15 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 			taken = n
 		}
 		if st := t.Str("status"); st == "todo" || st == "doing" {
-			if b, err := os.ReadFile(filepath.Join(c.l.Dir, "issues", t.Str("id"), "brief.md")); err == nil && ledger.BriefReviews(string(b), head) {
+			b, _ := os.ReadFile(filepath.Join(c.l.Dir, "issues", t.Str("id"), "brief.md"))
+			if ledger.BriefReviews(string(b), head) {
 				return 0, nil, fail("commit %s のレビューはもう頼んである（%s が %s）。回は進めない。結果が届くのを待つ", head[:12], t.Str("id"), st)
 			}
+			seeing := "見ている commit は依頼書から読めない"
+			if m := briefCommitRe.FindSubmatch(b); m != nil {
+				seeing = "commit " + string(m[1])[:12] + " を見ている"
+			}
+			return 0, nil, fail("レビュアー %s がまだ動いている（%s。%s）。動いている間は別の commit でも頼み直さない（レビュアーが 2 人走ると照合が古いほうを読み、ready も頼み直しも断られる）。結果が届いてから頼み直す", t.Str("id"), st, seeing)
 		}
 		f, err := contract.ReadFindings(filepath.Join(c.l.Library(t.Str("id")), "findings.json"))
 		if err != nil {

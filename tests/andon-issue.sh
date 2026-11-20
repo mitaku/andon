@@ -146,10 +146,14 @@ jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line
 expect_fail 'レビューはもうある' "$andon" issue review-request "$id" <<<'## Report'
 ok 'review-request: HEAD のレビューがあれば頼まない'
 
-# 結果を残さず止まったレビュアーの課題があっても、次の依頼の回は被らない（id <id>-rN が空いている）
+# 結果を残さずに返したレビュアーの課題があっても、次の依頼の回は被らない（id <id>-rN が空いている）。
+# 動いている（todo・doing）レビュアーの課題があると review-request は断るので、返した形にする。足したのは Chief of Staff でない端末で、
+# 照合には数えない（後続の show・ready が rev2 を読む）が、回の id は使えない
 c3=$(commit three)
 echo "$c3" > "$tmp/prhead"
-dead=$(as t5 kanban add "$id のレビュー（結果なし）" --parent "$id" --profile codex-review --round 5)
+dead=$(as t7 kanban add "$id のレビュー（結果なし）" --parent "$id" --profile codex-review --round 5)
+as t9 kanban start "$dead" >/dev/null
+as t9 kanban review "$dead" >/dev/null
 "$andon" issue report "$id" <<<'## Report' >/dev/null
 "$andon" issue review-request "$id" <<<'## Report' >/dev/null
 jq -e --arg p "$c2" '.review_request | .round == 6 and .previous == $p' "$lib/report.json" >/dev/null
@@ -208,6 +212,7 @@ ok 'ready: issue.yaml の review が無ければ止まる'
 as t5 kanban set "$id3" review=on >/dev/null
 r3=$(as t5 kanban add "$id3 のレビュー" --parent "$id3" --profile codex-review)
 mkdir -p "kanban/issues/$r3/library"; jq -n --arg c "$c1" '{commit: $c, findings: []}' > "kanban/issues/$r3/library/findings.json"
+as t9 kanban start "$r3" >/dev/null; as t9 kanban review "$r3" >/dev/null
 "$andon" issue review-request "$id3" <<<'## Report' >/dev/null
 jq -e '.review_request | .round == 2 and .limit == 1 and .extra == true' "kanban/issues/$id3/library/report.json" >/dev/null
 head -2 "kanban/issues/$id3/report.md" | grep -q '（追加）'
@@ -227,11 +232,22 @@ expect_fail "もう頼んである（$r4 が doing）" "$andon" issue review-req
 jq -e '.review_request.round == 1' "kanban/issues/$id4/library/report.json" >/dev/null || die '断ったのに回が進んだ'
 cmp -s "$tmp/report4.md" "kanban/issues/$id4/report.md" || die '断ったのに報告が書き直された'
 ok 'review-request: その commit のレビュアーの課題が todo・doing の間は「もう頼んである」と断り、回も報告も変えない'
-# レビュアーが結果を残さずに返したあとの頼み直しは、今までどおり次の回になる
+# 別の commit でも、レビュアーが動いている間は頼み直さない（レビュアーが 2 人走ると、照合が古いほうを読んで進めなくなる。ADR-0032 決めたこと 8）
+c4=$(commit four)
+echo "$c4" > "$tmp/prhead"
+cp "kanban/issues/$id4/library/report.json" "$tmp/report4.json"
+expect_fail "レビュアー $r4 がまだ動いている（doing。commit ${head4:0:12} を見ている）" "$andon" issue review-request "$id4" <<<'## Report'
+cmp -s "$tmp/report4.json" "kanban/issues/$id4/library/report.json" || die '断ったのに report.json が書き直された'
+cmp -s "$tmp/report4.md" "kanban/issues/$id4/report.md" || die '断ったのに報告が書き直された'
+ok 'review-request: 古い commit のレビュアーの課題が動いている間は、新しい commit でも断り、report.json も報告も変えない'
+# レビュアーが結果を残さずに返したあとの頼み直しは、新しい commit で今までどおり次の回になる
 as t9 kanban review "$r4" >/dev/null
 "$andon" issue review-request "$id4" <<<'## Report' >/dev/null
-jq -e '.review_request.round == 2' "kanban/issues/$id4/library/report.json" >/dev/null
+jq -e --arg c "$c4" '.review_request | .round == 2 and .commit == $c' "kanban/issues/$id4/library/report.json" >/dev/null
 ok 'review-request: レビュアーが返したあと（結果なし）の頼み直しは断らない'
+# 後続の検査は c2 の状態で続ける
+git -C "$tmp/wt" reset -q --hard "$head4"
+echo "$head4" > "$tmp/prhead"
 
 # ask
 q='{"kind":"users","question":"既定を変えるか","facts":["docs/design.md §1.10"],"options":[{"label":"変える","pick":true},{"label":"変えない"}],"remaining":1,"from":"issue"}'
