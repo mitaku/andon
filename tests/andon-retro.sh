@@ -9,6 +9,7 @@ date -u -d '1 day ago' +%s >/dev/null 2>&1 || { echo "skip: GNU date が無い";
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
+. "$(dirname "$0")/lib/kanban.sh"
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET
 ago() { date -u -d "$1 ago" +%Y-%m-%dT%H:%M:%SZ; }
