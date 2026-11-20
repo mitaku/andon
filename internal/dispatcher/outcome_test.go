@@ -1,10 +1,13 @@
 package dispatcher
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"andon/internal/ledger"
 )
 
 func TestResult(t *testing.T) {
@@ -107,5 +110,113 @@ func TestReadLaunches(t *testing.T) {
 	writeFile(t, p, `{"harness":{}}`+"\n")
 	if _, err := readLaunches(p); err == nil {
 		t.Error("ハーネスの無い行で err でない")
+	}
+}
+
+// outcomeProject は台帳（log.jsonl の行）を置いて、巡の写しを読んだ project を返す。
+func outcomeProject(t *testing.T, rows ...string) *project {
+	t.Helper()
+	l := ledger.At(t.TempDir())
+	writeFile(t, filepath.Join(l.Dir, "config.yaml"), "version: 3\nchief_of_staff: t5\n")
+	writeFile(t, filepath.Join(l.Dir, "log.jsonl"), strings.Join(rows, "\n")+"\n")
+	p := &project{c: &Dispatcher{Log: io.Discard}, l: l, st: &State{}}
+	p.rows = l.Log()
+	return p
+}
+
+func statusRow(id, at, status string) string {
+	return `{"at":"` + at + `","by":"terminal:t7","id":"` + id + `","change":{"status":"` + status + `"}}`
+}
+
+// 最後の done と同じ秒に todo の行があっても、完了した回の実働を数える（同じ秒の行で集計を延ばさない）。
+func TestOutcomeWorkedSameSecondAfterDone(t *testing.T) {
+	const id = "S-0001"
+	p := outcomeProject(t,
+		statusRow(id, "2026-11-19T00:00:00Z", "doing"),
+		statusRow(id, "2026-11-19T00:10:00Z", "done"),
+		statusRow(id, "2026-11-19T00:10:00Z", "todo"),
+	)
+	o, err := p.collectOutcome(id, ledger.Issue{"id": id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.WorkedMinutes != 10 {
+		t.Errorf("worked_minutes = %d、want 10", o.WorkedMinutes)
+	}
+}
+
+// 結果が未記録のまま起動し直した課題で、巡の写しを読んだあとに書かれた2回目の done を拾ったら、そこまでを数える
+// （写しにある1回目の done で止めない）。
+func TestOutcomeWorkedPickedDoneAfterSnapshot(t *testing.T) {
+	const id = "S-0001"
+	p := outcomeProject(t,
+		statusRow(id, "2026-11-19T00:00:00Z", "doing"),
+		statusRow(id, "2026-11-19T00:10:00Z", "done"),
+		statusRow(id, "2026-11-19T00:20:00Z", "todo"),
+		statusRow(id, "2026-11-19T00:30:00Z", "doing"),
+	)
+	p.st.Outcomes = map[string]int{id: 1} // 1回目の done の結果は集められずに残っている
+	done := statusRow(id, "2026-11-19T00:50:00Z", "done")
+	f, err := os.OpenFile(filepath.Join(p.l.Dir, "log.jsonl"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(done + "\n")
+	f.Close()
+	if !p.logRow([]byte(done), ledger.DispatcherBy, 0) {
+		t.Fatal("logRow が done の行で止まった")
+	}
+	if _, ok := p.st.Outcomes[id]; !ok {
+		t.Fatal("拾った done が控えの Outcomes に無い")
+	}
+	o, err := p.collectOutcome(id, ledger.Issue{"id": id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.WorkedMinutes != 20 {
+		t.Errorf("worked_minutes = %d、want 20（2回目の回）", o.WorkedMinutes)
+	}
+}
+
+// library/gate を一覧できなければ、ゲートの判定を0件として書かない（err）。置き場が無いときだけ空。
+func TestOutcomeGatesUnlistable(t *testing.T) {
+	const id = "S-0001"
+	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))
+	o, err := p.collectOutcome(id, ledger.Issue{"id": id})
+	if err != nil || o.Gates == nil || len(o.Gates) != 0 {
+		t.Fatalf("置き場の無い課題: gates %v、err %v", o, err)
+	}
+	writeFile(t, filepath.Join(p.l.Library(id), "gate"), "not a directory")
+	if o, err := p.collectOutcome(id, ledger.Issue{"id": id}); err == nil {
+		t.Errorf("library/gate が一覧できないのに err でない: gates %v", o.Gates)
+	}
+}
+
+// 読めない Claude Code のログは、計測済みの0トークンでなく未計測（cost が null）として書く。
+func TestOutcomeUnreadableClaudeLog(t *testing.T) {
+	const id = "S-0001"
+	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))
+	claude := filepath.Join(t.TempDir(), "claude")
+	t.Setenv("CLAUDE_CONFIG_DIR", claude)
+	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "codex"))
+	writeFile(t, filepath.Join(p.l.Library(id), "launches.jsonl"), `{"session":"s1","harness":{"name":"claude"}}`+"\n")
+	if err := os.MkdirAll(filepath.Join(claude, "projects", "-w", "s1.jsonl"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	o, err := p.collectOutcome(id, ledger.Issue{"id": id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := asJSON(t, o.Sessions); got != `[{"harness":"claude","session":"s1","cost":null}]` {
+		t.Errorf("sessions: %s", got)
+	}
+	// 読めるログに直せば数える（未計測の印が読めないときだけに付く）
+	os.Remove(filepath.Join(claude, "projects", "-w", "s1.jsonl"))
+	writeFile(t, filepath.Join(claude, "projects", "-w", "s1.jsonl"), `{"type":"user","promptId":"p1"}`+"\n")
+	if o, err = p.collectOutcome(id, ledger.Issue{"id": id}); err != nil {
+		t.Fatal(err)
+	}
+	if got := asJSON(t, o.Sessions); !strings.Contains(got, `"tokens":{"input":0,"output":0,"cache_read":0,"cache_write":0}`) {
+		t.Errorf("読めるログの0トークンが書かれない: %s", got)
 	}
 }

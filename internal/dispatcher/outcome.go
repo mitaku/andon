@@ -231,11 +231,22 @@ func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 	return o, nil
 }
 
-// gates は library/gate/*.json を、判定の時刻の順に写す。置き場が無ければ空。読めない記録があれば err。
+// gates は library/gate/*.json を、判定の時刻の順に写す。置き場が無ければ空。置き場か記録が読めなければ err
+// （0 件の判定と、一覧できなかったことを分ける）。
 func gates(dir string) ([]OutcomeGate, error) {
 	out := []OutcomeGate{}
-	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
-	for _, f := range files {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("ゲートの記録の置き場が読めない: %v", err)
+	}
+	for _, e := range entries {
+		if ok, _ := filepath.Match("*.json", e.Name()); !ok {
+			continue
+		}
+		f := filepath.Join(dir, e.Name())
 		b, err := os.ReadFile(f)
 		if err != nil {
 			return nil, fmt.Errorf("ゲートの記録 %s が読めない: %v", filepath.Base(f), err)
@@ -259,44 +270,34 @@ func gates(dir string) ([]OutcomeGate, error) {
 	return out, nil
 }
 
-// workedMinutes は課題の実働（分。待ちを除く。ledger.Worked）を、最後に done になった時刻まで数える（andon measure と同じ）。
+// workedMinutes は課題の実働（分。待ちを除く。ledger.Worked）を、最後の done の行まで数える（andon measure と同じ）。
+// 行は log.jsonl を読み直す: 巡の写しは、同じ巡で拾った done の行（写しを読んだあとに書かれたもの）を持たず、前の回の done で
+// 止まっていることがある。集計は done の行の位置で打ち切る（同じ秒にあとから書かれた行を混ぜない）。done の行が無ければ今まで。
 func (p *project) workedMinutes(id string) int {
-	rows := p.rows
-	at, ok := doneAt(rows, id)
-	if !ok { // 写しを読んだあとに書かれた done の行（同じ巡）
-		rows = p.l.Log()
-		at, ok = doneAt(rows, id)
-	}
-	if !ok {
-		at = time.Now()
+	rows := p.l.Log()
+	at, end := time.Now(), len(rows)
+	if i, t, ok := lastDone(rows, id); ok {
+		at, end = t, i+1
 	}
 	var gone []time.Time
 	for _, g := range p.st.Gone[id] {
 		gone = append(gone, time.UnixMilli(g.At))
 	}
-	var upto []ledger.Row
-	for _, r := range rows {
-		if t, err := time.Parse(time.RFC3339, r.At); err == nil && t.After(at) {
-			break
-		}
-		upto = append(upto, r)
-	}
-	return int(ledger.Worked(upto, p.tasks, id, p.l.ChiefOfStaff(), gone, at).Minutes())
+	return int(ledger.Worked(rows[:end], p.tasks, id, p.l.ChiefOfStaff(), gone, at).Minutes())
 }
 
-// doneAt は log.jsonl の課題 id の最後の done の行の時刻。
-func doneAt(rows []ledger.Row, id string) (time.Time, bool) {
-	var at time.Time
-	ok := false
-	for _, r := range rows {
+// lastDone は log.jsonl の課題 id の最後の done の行の位置と時刻（時刻の読めない行は飛ばす）。
+func lastDone(rows []ledger.Row, id string) (int, time.Time, bool) {
+	for i := len(rows) - 1; i >= 0; i-- {
+		r := rows[i]
 		if ledger.CanonID(r.ID) != id || r.Change == nil || r.Change["status"] != "done" {
 			continue
 		}
 		if t, err := time.Parse(time.RFC3339, r.At); err == nil {
-			at, ok = t, true
+			return i, t, true
 		}
 	}
-	return at, ok
+	return 0, time.Time{}, false
 }
 
 // launchRow は起動の記録の1行のうち読む所（contract.md §18）。
@@ -365,7 +366,7 @@ func (p *project) cwds(id string, t ledger.Issue, launches []launchRow) []string
 //   - Codex: 起動のときに id が決まらないので、cwd が課題の cwd の rollout を session_meta の id ごとに。1つも無ければ
 //     session も cost も null の1件。
 //
-// セッションログが無いセッションは cost が null。
+// セッションログが無いか読み切れないセッションは cost が null。
 func sessions(launches []launchRow, cwds []string, claudeDir, codexDir string) []OutcomeSession {
 	out := []OutcomeSession{}
 	seen := map[string]bool{}
@@ -415,8 +416,9 @@ func sessions(launches []launchRow, cwds []string, claudeDir, codexDir string) [
 	return out
 }
 
+// cost はセッションログから数えたコスト。ログが無いか読み切れなければ nil（未計測。0 トークンと分ける）。
 func cost(l *sessionlog.Log) *OutcomeCost {
-	if l == nil {
+	if l == nil || l.Unread {
 		return nil
 	}
 	c := &OutcomeCost{Models: l.Models, Efforts: l.Efforts, Turns: l.Turns, Tokens: l.Usage}

@@ -130,3 +130,25 @@ func deref(p *int) any {
 	}
 	return *p
 }
+
+// 読み切れない記録（ディレクトリ）は、飛ばした記録にして Unread を立てる（0 トークンと分ける）。
+func TestClaudeUnreadable(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "projects", "-w", "s1.jsonl"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var skipped []string
+	l := Claude(dir, "s1", func(src string, line int, reason string) {
+		skipped = append(skipped, fmt.Sprintf("%s:%d:%s", src, line, reason))
+	})
+	if l == nil || !l.Unread || l.Usage != (Usage{}) {
+		t.Fatalf("Claude = %+v、want Unread", l)
+	}
+	if !reflect.DeepEqual(skipped, []string{"claude/s1.jsonl:0:読めない"}) {
+		t.Errorf("飛ばした記録: %v", skipped)
+	}
+	put(t, filepath.Join(dir, "projects", "-v", "s2.jsonl"), assistant("r1", "m1", "claude-opus-5-5", "high", 1, 2)+"\n")
+	if l := Claude(dir, "s2", nil); l == nil || l.Unread || l.Usage.Output != 2 {
+		t.Errorf("読める記録で Unread: %+v", l)
+	}
+}
