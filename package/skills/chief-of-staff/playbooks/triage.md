@@ -29,7 +29,7 @@
 5. **続ける**: `apply` が足した fix／bundle の課題は、人に聞かずに `start.md` の手順で起動する（並行の上限の中で。残りは次の周回）。
    報告の `## Next` の「〜の Chief of Staff へ委譲」は規約10の形で渡す（下）。`keep`「片付け待ち」は `finish.md` の手順で `andon issue finish`。
    memory の項目（`kind: memory`）で `close`「wiki へ: <題>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（`wiki.md`）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。
-6. **人へ**: 知らせる（人がいるターンならその返事で、いなければ `herdr notification show "<slug> トリアージ: 閉じた a・直す b・人へ c。要約は library/triage/…"`。TUI が動いているときだけ効く。無ければ台帳の問いとボードで足りる）。
+6. **人へ**: 知らせる（人がいるターンならその返事で、いなければ `herdr notification show "<slug> のトリアージで a 件を閉じた。b 件を直す課題にし、c 件を人へ回した。要約は library/triage/…"`。TUI が動いているときだけ効く。無ければ台帳の問いとボードで足りる）。
    人の課題はそのあと ask-one-by-one で1問ずつ。要約に問いを並べない。要約の「閉じた」は、自分が読んだもの（判断の閉じと課題の閉じ）が先、根拠の閉じが後に出る。
    閉じたものはあとからも戻せる（戻す＝次のトリアージの依頼書に「<key> を fix に」と書く）。
 7. **止める**: ルーチンの `paused: true` は人が書く。要約の先頭に「線引きを見直す」が出たら（`kind` 無しの人の課題が 3 を超えた）、人に伝える。
