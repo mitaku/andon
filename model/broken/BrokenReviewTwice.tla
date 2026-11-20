@@ -9,7 +9,7 @@ BrokenReviewerStarts ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open"
     /\ "head" \notin reviewing /\ ~headSeen
     /\ reviewing' = reviewing \cup {"head"}
-    /\ UNCHANGED <<status, worker, wt, pr, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
@@ -18,7 +18,8 @@ BrokenNext ==
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
-    \/ SettleFinishes \/ ChiefOfStaffCancels \/ Done
+    \/ SettleFinishes \/ ChiefOfStaffCancels
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

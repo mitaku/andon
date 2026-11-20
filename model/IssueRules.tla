@@ -6,7 +6,7 @@ TypeOK ==
     /\ status \in {"todo", "doing", "review", "done"}
     /\ worker \in {"none", "live", "gone"}
     /\ wt \in {"none", "here", "removed"}
-    /\ pr \in {"none", "open", "merged"}
+    /\ pr \in {"none", "open", "closed", "merged"}
     /\ gate \in {"none", "approve", "fix", "human"}
     /\ reviewing \subseteq {"head", "old"}
     /\ ci \in {"none", "running", "failed", "passed"}
@@ -14,6 +14,7 @@ TypeOK ==
     /\ headSeen \in BOOLEAN /\ dirty \in BOOLEAN
     /\ fixSent \in BOOLEAN /\ told \in BOOLEAN
     /\ q \in BOOLEAN /\ cancel \in BOOLEAN /\ mergeAuto \in BOOLEAN
+    /\ moved \in BOOLEAN /\ autoMerged \in BOOLEAN
 
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
 R1_NoWorkerAfterCancel == cancel => worker # "live"
@@ -37,5 +38,10 @@ R6_NoReviewWithOpenQuestion == status = "review" => ~q
 \*    取り消しは ChiefOfStaffCancels と、ゲートを待たない人の先回りのマージ（HumanMergesEarly）。
 \*    「行ける道がある」は状態 1 つの式（INVARIANT）では書けないので、検査器の状態の図を model/reach.mjs が読む。
 \*    設定は IssueRules.cfg の「\* REACH」の行（R7_MergeWithoutCancel pr = "merged" と除く行動）。
+\*    閉じた PR を開き直す道（PRClosesOrReopens）も含めて成り立つ（ADR-0034 決めたこと 3）。
+
+\* R8 dispatcher が自動でマージするのは、ゲートが approve と判定した head で、その時点で任されているものだけ（ADR-0034 決めたこと 3）。
+\*    マージしたあとは head も設定も動かず、ゲートの答えも変わらないので、マージした状態で確かめる
+R8_AutoMergeOnlyApproved == autoMerged => (gate = "approve" /\ ~moved /\ mergeAuto)
 
 ====

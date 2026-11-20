@@ -29,6 +29,9 @@ action HumanMergesDecided -
 action HumanMergesEarly -
 action SettleFinishes andon issue finish
 action ChiefOfStaffCancels andon issue finish
+action HeadMovesAfterGate -
+action PRClosesOrReopens -
+action MergeSettingChanges -
 action Done -
 
 # outside <from> <to> <コマンド> — <理由>

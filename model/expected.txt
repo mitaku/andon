@@ -8,10 +8,13 @@ rule R4_DoneMeansMergedOrCancelled
 rule R5_NoWorkerWhenDone
 rule R6_NoReviewWithOpenQuestion
 rule R7_MergeWithoutCancel
+rule R8_AutoMergeOnlyApproved
 # states <本物のモデル（IssueRules.cfg）の状態の数（distinct states）>
-states 900
+states 2264
 # broken <壊した見本のモジュール（broken/ の下）> <落ちるはずの規則>
 broken BrokenFinish R3_CleanupIsWhole
 broken BrokenFixUnsent R2_FixReachesSomeone
 broken BrokenReady R6_NoReviewWithOpenQuestion
 broken BrokenReviewTwice R7_MergeWithoutCancel
+broken BrokenMergeNoReread R8_AutoMergeOnlyApproved
+broken BrokenClosedNoRecheck R7_MergeWithoutCancel

@@ -14,7 +14,7 @@ BrokenCancels ==
     /\ status \in {"doing", "review"} /\ pr # "merged" /\ ~cancel
     /\ cancel' = TRUE
     /\ BrokenFinishStep
-    /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto>>
+    /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto, moved, autoMerged>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
@@ -23,7 +23,8 @@ BrokenNext ==
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
-    \/ SettleFinishes \/ BrokenCancels \/ Done
+    \/ SettleFinishes \/ BrokenCancels
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 
