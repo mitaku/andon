@@ -225,3 +225,60 @@ func TestReviewRequestWhileReviewerRuns(t *testing.T) {
 		})
 	}
 }
+
+// report の守り（ADR-0034 決めたこと 11・受け入れ条件 9）: 課題の repo と違う repo の PR は、--pr・--data の pr・
+// 前の報告からの引き継ぎのどれで渡しても断り、report.json も報告も書かない。
+func TestReportRefusesOtherRepoPR(t *testing.T) {
+	const mine, theirs = "https://github.com/example/app/pull/7", "https://github.com/example/other/pull/7"
+	cases := []struct {
+		name string
+		repo string   // issue.yaml の repo（空なら repo の無い課題）
+		prev string   // 前の report.json の pr（空なら pr を書かない）
+		args []string // report <id> のあとの引数
+		want string   // 空なら通る
+	}{
+		{"--pr で違う repo", "github.com/example/app", mine, []string{"--pr", theirs}, "pr の repo（github.com/example/other）が課題の repo（github.com/example/app）と違う"},
+		{"--data の pr で違う repo", "github.com/example/app", mine, []string{"--data", `{"pr": "` + theirs + `"}`}, "pr の repo（github.com/example/other）が課題の repo（github.com/example/app）と違う"},
+		{"前の報告から違う repo を引き継ぐ", "github.com/example/app", theirs, nil, "pr の repo（github.com/example/other）が課題の repo（github.com/example/app）と違う"},
+		{"owner が違う", "github.com/example/app", mine, []string{"--pr", "https://github.com/other/app/pull/7"}, "と違う"},
+		{"repo の無い課題に PR", "", "", []string{"--pr", mine}, "repo の無い課題に PR は書かない"},
+		{"--pr で同じ repo", "github.com/example/app", "", []string{"--pr", mine}, ""},
+		{"--data の pr で同じ repo", "github.com/example/app", "", []string{"--data", `{"pr": "` + mine + `"}`}, ""},
+		{"前の報告から同じ repo を引き継ぐ", "github.com/example/app", mine, nil, ""},
+		{"repo の無い課題で PR なし", "", "", nil, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			if c.repo != "" {
+				f.task["repo"] = c.repo
+			}
+			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+			prev := `{"commit": "` + f.head + `"}`
+			if c.prev != "" {
+				prev = `{"commit": "` + f.head + `", "pr": "` + c.prev + `"}`
+			}
+			if c.repo == "" {
+				prev = `{}`
+			}
+			rp := filepath.Join(f.root, "kanban/issues/T-0001/library/report.json")
+			f.write("kanban/issues/T-0001/library/report.json", prev)
+			var out, errb bytes.Buffer
+			rc := Main(append([]string{"report", "T-0001"}, c.args...), strings.NewReader("## Report\n"), &out, &errb)
+			got, _ := os.ReadFile(rp)
+			_, reported := os.Stat(filepath.Join(f.root, "reported-T-0001"))
+			if c.want == "" {
+				if rc != 0 || reported != nil || (c.repo != "" && !strings.Contains(string(got), mine)) {
+					t.Fatalf("rc=%d reported=%v err=%q report=%s", rc, reported == nil, errb.String(), got)
+				}
+				return
+			}
+			if rc != 1 || !strings.Contains(errb.String(), c.want) || strings.Count(strings.TrimSpace(errb.String()), "\n") != 0 {
+				t.Fatalf("want rc 1 with one line %q, got rc=%d err=%q", c.want, rc, errb.String())
+			}
+			if reported == nil || string(got) != prev {
+				t.Fatalf("断ったのに書いた: reported=%v report=%s", reported == nil, got)
+			}
+		})
+	}
+}

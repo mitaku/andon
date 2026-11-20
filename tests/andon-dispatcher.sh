@@ -919,8 +919,12 @@ ok 'merge: auto のマージのあと担当の問いで finish が断られて�
 # 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
 hm=$(newtask '別の repo の PR' person)
 work "$hm" docs/a.md
-as_worker "$hm" report --pr https://github.com/example/other/pull/7
-(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
+# andon issue report は違う repo の PR を断る（ADR-0034 決めたこと 11）ので、report.json は手で書く
+mkdir -p "$L/issues/$hm/library"
+jq -n --arg h "$head" '{commit: $h, pr: "https://github.com/example/other/pull/7"}' > "$L/issues/$hm/library/report.json"
+r=0; as_worker "$hm" report --pr https://github.com/example/other/pull/7 2>/dev/null || r=$?
+[ "$r" = 1 ] && jq -e '.pr == "https://github.com/example/other/pull/7"' "$L/issues/$hm/library/report.json" >/dev/null || die "andon issue report が違う repo の PR を断らない（終了コード $r）"
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$hm" && HC_TERMINAL_ID=t7 kanban report "$hm" <<<'## Report' >/dev/null && HC_TERMINAL_ID=t7 kanban review "$hm" >/dev/null)
 HC_TERMINAL_ID=t5 kanban set "$hm" review=off >/dev/null
 person_merges
 n=$(wc -l < "$tmp/gh/states"); dispatcher; watch_due "$hm"; dispatcher
