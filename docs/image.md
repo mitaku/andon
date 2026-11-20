@@ -106,7 +106,7 @@ PR と main の push は、tests の job（`packages` の権限を持たない�
 tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の4つで縮める。どれも check の名前（`tests`・`go`）は変えず、飛ばすときも job は成功で終わる（ゲートは PR の head の checks が揃うのを待つので、workflow ごと `paths` で外さない）。
 
 - **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す。release の job も同じく焼いて渡す。`tests/*.sh` を回すのは tests の workflow だけで、go の workflow は回さない（二重に回さない。`workflow_test.go` が確かめる）。
-- **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。ただし `tests/image.sh` だけは溜めずに、1行ごとに「[tests/image.sh] 」を付けて流す（job が上限で打ち切られても、どこまで進んだかがログに残る）。tests の job の上限は45分。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。
+- **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。ただし `tests/image.sh` だけは溜めずに、1行ごとに「[tests/image.sh] 」を付けて流す（job が上限で打ち切られても、どこまで進んだかがログに残る）。tests の job の上限は45分。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。長い `tests/image.sh` と `tests/andon-dispatcher.sh` を先に起動する。`tests/schema.sh` は command の出力を schema に通すのに、写す側の検査（`andon-dispatcher.sh` など9本）が同じ回で写したものを読む。写す側が全部終わってから最後に起動し、回し直さない（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 2。前は自分の中で9本をもう一度走らせ、102〜220 秒かかっていた）。
 - **image に関係しない PR では `tests/image.sh` を飛ばす**（下の表）。
 - **文書だけの PR では、文書を読む検査だけを走らせる**（下の「文書だけの PR」）。go の job もこれに従う。
 

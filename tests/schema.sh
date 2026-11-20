@@ -4,12 +4,18 @@
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff）が書いた JSON が schema を通る（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-retro.sh・andon-retro-apply.sh・andon-signal.sh・andon-chief-of-staff.sh に書かせる）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff）が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す）。
+#      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
+#      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 # 速さ: 検査は1件ずつ python にかけず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# command の出力を写す検査（下の 5）。tests/lib/run-tests.sh は --emitters でこの並びを読み、先に走らせて写させる
+emitters=(andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-retro-apply andon-signal andon-chief-of-staff)
+if [ "${1:-}" = --emitters ]; then printf 'tests/%s.sh\n' "${emitters[@]}"; exit 0; fi
 
 check_py=package/lib/andon/schema_check.py
 schema_dir="${ANDON_SCHEMA_DIR:-schema}"   # 自己検査（下の 4）が緩めた写しを指す
@@ -743,21 +749,32 @@ LOOSE
   done
 fi
 
-# 5. command の出力（tests/andon-issue.sh・andon-gate.sh・andon-dispatcher.sh・andon-dispatcher-signal.sh・andon-measure.sh・andon-retro.sh・andon-retro-apply.sh・andon-signal.sh が ANDON_EMIT_DIR に写したもの）。
-#    台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。go が無くて両方が skip したときだけ skip
+# 5. command の出力（emitters の検査が ANDON_EMIT_DIR に写したもの）。
+#    ANDON_EMITTED は tests/lib/run-tests.sh が渡す置き場: out/ に写したもの、<名前>.status に終了コード、<名前>.log に出力。
+#    結果の無い検査はここで走らせ、同じ out/ に写させる。台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。
+#    go が無くて skip した検査があるときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
-  mkdir "$tmp/emit"
-  skipped=0
-  for t in andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-retro-apply andon-signal andon-chief-of-staff; do
-    if ! ANDON_EMIT_DIR="$tmp/emit" bash "tests/$t.sh" >"$tmp/emit.log" 2>&1; then ng "tests/$t.sh が落ちた"; sed 's/^/     /' "$tmp/emit.log" | tail -5
-    elif grep -q '^skip: ' "$tmp/emit.log"; then skipped=1; fi
+  emitted="${ANDON_EMITTED:-}"
+  if [ -n "$emitted" ]; then emit_dir="$emitted/out"; else emit_dir="$tmp/emit"; fi
+  mkdir -p "$emit_dir"
+  skipped=0 skip_line='' reused=0
+  for t in "${emitters[@]}"; do
+    log="$tmp/emit-$t.log"
+    if [ -n "$emitted" ] && [ -f "$emitted/$t.status" ]; then
+      st="$(cat "$emitted/$t.status")"; cp "$emitted/$t.log" "$log" 2>/dev/null || : >"$log"; reused=$((reused + 1))
+    else
+      st=0; ANDON_EMIT_DIR="$emit_dir" bash "tests/$t.sh" >"$log" 2>&1 </dev/null || st=$?
+    fi
+    if [ "$st" != 0 ]; then ng "tests/$t.sh が落ちた（exit $st）"; sed 's/^/     /' "$log" | tail -5
+    elif grep -q '^skip: ' "$log"; then skipped=1; [ -n "$skip_line" ] || skip_line="$(grep -m1 '^skip: ' "$log")"; fi
   done
+  [ "$reused" = 0 ] || echo "     emitters の ${#emitters[@]} 本のうち $reused 本は、同じ回の1度目の実行が写したものを読んだ"
   if [ "$skipped" = 1 ]; then
-    echo "skip command の出力（$(grep '^skip: ' "$tmp/emit.log" | head -1)）"
+    echo "skip command の出力（$skip_line）"
   else
     while IFS='|' read -r file name desc; do
       case "$file" in ''|'#'*) continue ;; esac
-      if [ -f "$tmp/emit/$file" ]; then expect pass "$name" "$tmp/emit/$file" "command の出力: $desc が schema/$name を通る"
+      if [ -f "$emit_dir/$file" ]; then expect pass "$name" "$emit_dir/$file" "command の出力: $desc が schema/$name を通る"
       else ng "command の出力: $desc（$file）が無い"; fi
     done <<'EMIT'
 report-1.json|report|andon issue report の report.json
