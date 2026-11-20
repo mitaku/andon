@@ -5,6 +5,28 @@
 - 語は glossary skill と [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（定義のファイルと schema・出すコマンド・記録ファイルの分け方）は「決めたこと」に形を書き、実装の課題が写す（それまでは提案）。
 - 入力: 指示文 P11（オーナー。2026-11-10。セルの `files/p11-process-definitions.md`。repo の外）、オーナーの言葉（2026-11-10。「問題」の段に写し）、[dispatcher.md](../dispatcher.md) §2.1.1・§2.2〜§2.8・§3.2・§5・§7、[contract.md](../contract.md) §2・§6・§7・§15、[ledger.md](../ledger.md)（Status rules・Routines・Questions）、chief-of-staff skill §0〜§10、worker skill §2・§5・§7、[ADR-0007](0007-interim-gap-inventory.md)（C1 `kanban tick`・A5〜A7・G4）、[ADR-0010](0010-news-ack.md)（届ける／記録だけ）、[ADR-0011](0011-signals-and-value-loop.md)（外のお知らせ。決めたこと 5・6・8・16、S2・S3、Factory の常駐を外した理由）、[ADR-0013](0013-short-role-names-and-plain-japanese.md)（人に向けた言葉）、[ADR-0014](0014-issue-estimate.md)（見込みとズレ）、`internal/dispatcher/`（state.go・loop.go・pickup.go ほか。v0.0.8 相当の main `98383a6`）、台帳（A-0026 S3 は `after: A-0085` で止めてある。dispatcher を触る課題 A-0036・A-0039・A-0040・A-0062・A-0063・A-0066・A-0067・A-0070・A-0071）、[ADR-0012](0012-resume-and-worktree-home.md)（resume の R3・R4）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 定義は YAML を正本にし、JSON Schema で検査し、Markdown はコマンドが YAML から作る。dispatcher は定義を読まない | `process/`・`schema/process/workstream.schema.json` | 生きている |
+| 2 | 置き場は `process/workstreams/`・`process/states/`・`schema/process/`・`docs/process/` にする | `docs/process/README.md` | 生きている |
+| 3 | ワークストリームは 8 本（受付・仕分け・起動・見守り・受け取り・取り次ぎ・結果を見る・ふりかえり）で、日本語の名に英語を添える | `process/workstreams/` | 生きている（中身を書いたのは 3 本で、ほかは名前と目的だけ） |
+| 4 | ものの一生は 8 本のステートマシンで、記録ファイルの項目はどれか 1 本の状態か拾う位置に対応づける | `process/states/` | 生きている（定義は 10 本に増えた） |
+| 5 | コマンドに出す仕事は、自分の記録を同じ置き場に別ファイルで持つ。dispatcher の記録に残すのは配達の項目と拾う位置 | `docs/dispatcher.md` | 生きている |
+| 6 | コマンドに出すのは 5 つ（人のマージの拾い・マージと片付け・手直し・影響の打ち直し・レビュアーの起動）で、どれも 2 回打っても同じ結果にする | `internal/issue/issue.go` | 生きている（settle・merge・impact は command にあり、手直しとレビュアーの起動は dispatcher の中） |
+| 7 | 間隔で回る機械の仕事は、ワークストリーム定義のきっかけに間隔つきで書く | `docs/dispatcher.md` | 生きている |
+| 8 | 「Chief of Staff の端末が無ければ飛ばす」は配る段にだけ掛け、拾う・記録する・打つ段は居なくても回す | `docs/dispatcher.md` | 生きている |
+| 9 | 見守りの段は ADR-0014 のまま、見込みの 1・2・4 倍で Chief of Staff にだけ届ける | `docs/process/watch.md` | 生きている |
+| 10 | 担当の計画は `report.json` の `plan[]` に書き、次の報告に引き継ぐ。進み具合は `done` の数で見る | `schema/report.schema.json` | 生きている |
+| 11 | 詰まりの兆しは、commit が無い時間と変更の量の 2 つを数え、見込みの通知の `detail.sign` に乗せる | `internal/dispatcher/estimate.go` | 生きている |
+| 12 | 細くしたあとの dispatcher の大きさの目安を、きっかけ表 8 行以下・一番上の項目 12 以下・テスト以外 2,700 行以下とする | この ADR | まだ実装していない（テスト以外は 5,000 行を超える） |
+| 13 | 図と生成した Markdown でも役の呼び方は用語集の語で書き、定義の名を用語集に足す | `package/skills/glossary/SKILL.md` | 生きている |
+| 14 | 外のお知らせの課題は 1 課題のまま、依頼書を書き直して `after` を替える | この ADR | 役目を終えた |
+| 15 | 定義に無い移り方を断るのは `andon issue …` で、`kanban` は汎用の台帳の CLI のまま触らない | `process/states/issue.yaml`・`internal/issue/transition.go` | 生きている |
+| 16 | 定義の書き方を決める（手順を `steps[]` に Step と Input／Output で書く） | `schema/process/workstream.schema.json` | 生きている |
+| 17 | 課題の状態ごとの時間を `andon measure` の行に足す | `internal/measure/measure.go` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 オーナー（2026-11-10）: 「dispatcher の役割の肥大化というか決定論化は今後の課題かもね」「CoS のワークストリームを定義しておくといいかもね」「さらに細かくは SKILL 化するなどもあるが、BPM を活用したいところである」「BPM と、ステートマシンあたりが明文化されていれば改善にも役に立ちそう」「BPM 自体は JSON でも YAML でもいい。コメントの残しやすさなど運用のしやすさから考えてもいい。機械用は JSON、人間用は Markdown とかでもよい」。担当がとても長く作業を続けている場合に、どういう仕組みにするのがあるべき姿か、も考えたい。

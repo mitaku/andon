@@ -5,6 +5,19 @@
 - 語は [design.md](../design.md) §0.1。この文書の「課題」は台帳のカード、「作業」は担当が計画で課題を分けた単位（ADR-0006 前提 10・決めたこと 9）。
 - 入力: 依頼書（人の言葉 2026-11-07 と、同日の人の答え 2 つ。追記）、ADR-0006 の前提 9・10 と決めたこと 9・12・14・16、design.md §0.1（語彙）・§1.7（命名の方針。「task は英語のまま。TPS に重なる語が無い」）・§3.5（台帳の CLI の名前。`deck` の別名は 1 版だけ）、glossary skill（「タスク（work item）。避ける: チケット、issue、job」）、[contract.md](../contract.md) §2・§4〜§8・§10、[ledger.md](../ledger.md)（Compatibility の「フォルダ名・キーの改名は版を上げる」、Moved without a version change、Moving from `.flightdeck/`）、chief-of-staff skill §2（依頼書の雛形）、`internal/triage/apply.go`（トリアージが書く依頼書の欄）、`package/host/*`（ラベル `task` と path `kanban/tasks` を読む mod）、andon main の実測（`grep`。前提 6）、Y-141（台帳の置き場の改名。PR #60 の差分の大きさと `kanban migrate` の形）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 語は 課題（issue）と 作業（task）にし、課題が作業を内包する。「タスク」は使わない | `package/skills/glossary/SKILL.md` | 生きている |
+| 2 | 識別子を `task` から `issue` に改める。対応表を決める | `docs/ledger.md`・`schema/ledger/issue.v3.schema.json` | 生きている |
+| 3 | 台帳の形式を v3 にし、`kanban migrate` が v2 を 1 回で移す。別名は `andon task` だけ、1 版 | この ADR | 覆された（決めたこと 7 が別名と migrate をやめた） |
+| 4 | 依頼書の欄「やること」を「解決すべき問題」に改める | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
+| 5 | 外部トラッカーのものは「<トラッカー名> の Issue」と書き分け、台帳のカードは「課題」と書く | `package/skills/glossary/SKILL.md` | 生きている |
+| 6 | 変える範囲と順は、形式・command・文と mod の順にする | この ADR | 役目を終えた |
+| 7 | 後方互換は作らない。別名・読む側の互換・`kanban migrate` の v2 から v3 は作らず、既存の台帳は人が手で移す | `docs/ledger.md` | 生きている |
+| 8 | 手順 5 のファイル名を直し、`impact` の入れ子のキーも `issue` に揃える | `schema/notification.schema.json` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-07）: 「Task の主は How だが、解消したいのは Why/What。それを言葉にすれば issue」。1 回目の提案（語だけ改め、識別子は `task` のまま）への答え: 「そこまで task⇒issue は大したことじゃないと思っている。issue の中に task が内包されるものだから、理解の阻害をしないほうがいいように思う」。欄の名前は「解決すべき問題 みたいな書き方でもいいかも」。2 回目の提案（別名 1 版・mod の例外・`kanban migrate`）への答え: 「まださほど動いていないから後方互換は気にしなくていいよ」。

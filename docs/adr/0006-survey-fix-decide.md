@@ -5,6 +5,28 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（候補の一覧・問いの種類・台帳の予約キー）は「決めたこと」に形を書き、実装のタスクが `schema/` と contract.md に写す（それまでは提案）。
 - 入力: 依頼書（人の問いと Chief of Staff の推し。2026-11-06）、[ADR-0004](0004-project-layout.md) 決めたこと 2（中間成果物の置き場。この文書は置き場を足さず、型と名前だけ決める）、andon main の設計と skill とコード（出典）。P7 で流した依頼の記録は建屋にあり、この担当は読めなかった（仮設の台帳に残る依頼書から、A-7 の題が「docs の誤字を1つ直す」だったことだけ分かる）。人の指摘（2026-11-07。PR #69 を読んで。依頼書の追記）、人が示した資料（曽根壮大「仕事を前に進めるためのコツ — 判断と決断と共有 / Aim for the goal」PHP カンファレンス沖縄 2024。出典）、人の見立て（2026-11-07。台帳の単位は Task より Issue／Ticket。前提 10・開いている問い 2）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 台帳の課題の型は 調べる・直す・決める の 3 つ | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
+| 2 | 調べる課題の中間成果物は `library/candidates.json`（候補の一覧）で、command が形を確かめて書く | `schema/candidates.schema.json`・`internal/issue/issue.go` | 生きている |
+| 3 | 直す課題が止まるのは、担当が範囲を決めないと進めないときだけ | `package/skills/worker/SKILL.md` | 生きている |
+| 4 | 問いの `kind` に `scope` を足し、宛先は Chief of Staff にする | `schema/question.schema.json` | 生きている |
+| 5 | 範囲の判断は Chief of Staff が持ち、委譲に `scope` は足さない | `package/skills/chief-of-staff/playbooks/blocked.md`・`docs/design.md` | 生きている |
+| 6 | 依頼を受けたときの切り方の分かれ目を、依頼書に場所と直し方が書けるかで決める | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている（決めたこと 10 が一部を言い直した） |
+| 7 | 予約キー `deliverable` は `pr`（既定）か `candidates` で、書き手は Chief of Staff | `schema/issue-keys.schema.json`・`internal/dispatcher/dispatcher.go` | 生きている |
+| 8 | 既存の文書とコードに入れる変更の一覧 | この ADR | 役目を終えた |
+| 9 | 工程の背骨は 理解・計画・作業・確認・完成・振り返り で、作業の終了条件と課題の完了条件は別 | `package/skills/worker/SKILL.md` | 生きている |
+| 10 | 理解と計画は担当の工程で、止まるのは範囲を決めないと作業が切れないときだけ | `package/skills/worker/SKILL.md` | 生きている |
+| 11 | 横展開は既定で、範囲の中は直し、外は候補に残す | `package/skills/worker/SKILL.md` | 生きている |
+| 12 | 依頼書に書くのは問題の理解・完了条件・横展開の範囲・守ること。担当の計画を縛る手順は書かない | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
+| 13 | 振り返りは担当の `## Remember` と Chief of Staff のアウターループの 2 段で、新しい成果物は作らない | `package/skills/worker/SKILL.md`・`docs/design.md` | 生きている |
+| 14 | 決断は人か委譲の中の Chief of Staff が、判断は標準にして機械・文・人の順に置く | `docs/design.md` | 生きている |
+| 15 | `scope` の問いを Chief of Staff が答えたとき、人には知らせない | `package/skills/chief-of-staff/playbooks/blocked.md` | 生きている |
+| 16 | 台帳のカードの語の向きは「課題」にする（識別子の改名は別の ADR） | `docs/adr/0008-issue-naming.md` | 役目を終えた |
+| 17 | `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む | `internal/issue/issue.go`・`internal/dispatcher/dispatcher.go` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-06）: 「docs の誤字を1つ直して」と頼んで担当が3つ見つけたら、どうするのが正しいソフトウェア開発のプロセスか。担当が黙って1つに絞るのも、3つとも直すのも違う。中間成果物があり、判断を挟むべき。

@@ -5,6 +5,27 @@
 - 語は [design.md](../design.md) §0.1。
 - 入力: 人が 2026-11-19 に Chief of Staff へ貼った文書（HANDOFF「プロンプト／スキル継続改善ループ」。要点は下の「問題」に写した）、[design.md](../design.md) §1.4・§1.9 の 4・5・(b)・§1.10、[contract.md](../contract.md) §1・§4・§7・§13〜§17、[dispatcher.md](../dispatcher.md) §2、[ADR-0006](0006-survey-fix-decide.md)・[ADR-0007](0007-interim-gap-inventory.md)・[ADR-0011](0011-signals-and-value-loop.md)・[ADR-0014](0014-issue-estimate.md)・[ADR-0017](0017-process-definitions.md)・[ADR-0020](0020-auto-memory-as-intake.md)・[ADR-0024](0024-worker-journal.md)・[ADR-0027](0027-apply-package-without-rebuild.md)。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 振り返りは、ルーチンが足す調べる課題として担当が回す。読むだけの command が記録をまとめ、Chief of Staff が候補から直す課題に切る | `package/skills/retro/SKILL.md`・`internal/retro/retro.go` | 生きている |
+| 2 | 直す先の範囲は選んで広げる。Andon のパッケージの直しは、andon の repo を持たないセルでは人の課題にする | `internal/retro/apply.go` | 生きている |
+| 3 | 担当を起動するたびに、commit・プロファイルの起動行・ハーネスと skill の版を課題のフォルダに足す | `schema/launch.schema.json`・`internal/launch/launch.go` | 生きている |
+| 4 | 人が端末で打った文を、振り返りの入力として command が抜き出す | `internal/retro/typed.go` | 生きている（決めたこと 14 が抜く規則を改めた） |
+| 5 | 振り返りは週 1 で、直近 14 日を読み、1 回に切る直す課題は 3 件まで | この ADR | 覆された（決めたこと 13 が毎日・7 日・2 件に改めた） |
+| 6 | 直しが効いたかは、次の振り返りが再発を数えて確かめる | `package/skills/retro/SKILL.md` | 生きている |
+| 7 | 起動の記録と結果の記録を、課題のフォルダに足して schema を持たせる | `schema/outcome.schema.json`・`schema/launch.schema.json` | 生きている |
+| 8 | 振り返りの流れは集める・判定を書く・当てるの 3 段で、根拠の数などは command が断る | `internal/retro/patterns.go`・`process/workstreams/retrospective.yaml` | 生きている |
+| 9 | 直す先は効き目の確かな順の 5 段（設計・テスト・確かめ・skill・文面）で、削ることも候補にする | `package/skills/retro/SKILL.md` | 生きている |
+| 10 | 改善の PR はふつうの直す課題の PR として出し、ラベルは `retro` にする | `package/skills/worker/SKILL.md` | 生きている |
+| 11 | トリアージとは分けたまま回し、日報と報告の `## Remember` を振り返りも根拠として読む | `package/skills/retro/SKILL.md` | 生きている |
+| 12 | 名前は `retro` にし、結果の記録の書き込みは片付けのあとの仕事に足し、古い課題の欄は null で読む | `process/states/aftermath.yaml` | 生きている |
+| 13 | 振り返りは毎日回し、読むのは直近 7 日、1 回に切る直す課題は 2 件まで | `package/skills/retro/assets/retro.yaml` | 生きている |
+| 14 | 反論を受けて、人の文を抜く規則・根拠の単位・出し直しの条件・マージ後のことの読み先・git の外にあるものの扱いを改める | `internal/retro/typed.go`・`internal/retro/patterns.go` | 生きている |
+| 15 | 振り返りが切った直す課題のマージは特別扱いせず、ラインの決まりに任せる | `package/skills/chief-of-staff/playbooks/retro.md` | 生きている |
+| 16 | Andon を開発するセルでは、トリアージも毎朝 1 回回す | この ADR | 生きている（セルの台帳の設定で、repo に無い） |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-19、Chief of Staff へ貼った文書の要点）:
