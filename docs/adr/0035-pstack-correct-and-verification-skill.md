@@ -12,12 +12,12 @@
 | 1 | 人が直したその場では回さず、毎朝の振り返りに任せる | この ADR | 生きている |
 | 2 | 証拠は走らせた記録を台帳に残し、ゲートは記録を指す行だけ中身を見る | この ADR | まだ実装していない |
 | 3 | 依頼書が名指す受け入れ条件の行が報告に無ければ command が断る | この ADR | まだ実装していない |
-| 4 | 「セルで実測」を検証の skill にし、当てたあと独立の検証の担当が動かす | `.claude/skills/verify-andon/SKILL.md` | まだ実装していない（検証の skill はある。検証の課題を切る Chief of Staff の手引きはまだ） |
+| 4 | 「セルで実測」を検証の skill にし、当てたあと独立の検証の担当が動かす | `.claude/skills/verify-andon/SKILL.md`・`package/skills/chief-of-staff/playbooks/verify.md` | 生きている |
 | 5 | 機能の地図は検証の担当が直し、定期の保守は足さない | `.claude/skills/verify-andon/SKILL.md` | 生きている |
 | 6 | `AGENTS.md` を「決まり｜守らせるもの」の対にし、検査もする | `AGENTS.md`・`tests/agents-md.sh`・`package/skills/retro/SKILL.md` | 生きている |
 | 7 | 今ある「無し」の行は、一度だけ棚卸しする | この ADR | まだ実装していない |
 | 8 | 検査を足す直しは、誤りを戻すと落ちることを記録で示す | この ADR | まだ実装していない |
-| 9 | 検証の課題は差分が地図に当たるときだけ切り、同時に1つ | この ADR | まだ実装していない |
+| 9 | 検証の課題は差分が地図に当たるときだけ切り、同時に1つ | `package/skills/chief-of-staff/playbooks/verify.md` | 生きている |
 | 10 | ADR-0021 の「やらないこと」を改め、作る手順としてだけ使う | この ADR | 生きている |
 | 11 | 記録と検証の skill の細部 | この ADR | まだ実装していない（記録の command と検証の skill はある。`andon issue ready` とゲートが記録を見る所はまだ） |
 
