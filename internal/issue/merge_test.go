@@ -1,6 +1,9 @@
 package issue
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -118,5 +121,42 @@ func TestHeadMoved(t *testing.T) {
 		if got := HeadMoved(c.w, c.state, c.head); got != c.want {
 			t.Errorf("%s: HeadMoved = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// ゲートの問いを閉じるとき、一覧を読んだあとに人か Chief of Staff が答えていれば answer は断られる。人の答えは上書きせず、
+// そのまま received に進めて閉じる。受け取れなければ誤りを返す（merge は次に打たれたときに閉じ直す）。
+func TestCloseQuestionAfterAnswer(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("sh が無い")
+	}
+	dir := t.TempDir()
+	// 偽の kanban: 打たれた引数を calls に書く。answer は answered の印があれば断り、received は fail の印があれば断る
+	fake := "#!/bin/sh\necho \"$*\" >> \"$FAKE/calls\"\ncase \"$1\" in\n" +
+		"  answer) [ ! -f \"$FAKE/answered\" ] || { echo 'not open' >&2; exit 1; } ;;\n" +
+		"  received) [ ! -f \"$FAKE/fail\" ] || { echo 'not answered' >&2; exit 1; } ;;\nesac\n"
+	os.WriteFile(filepath.Join(dir, "kanban"), []byte(fake), 0o755)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE", dir)
+	c := &ctx{l: &ledger.Ledger{Root: dir, Slug: "x", Dir: dir}, id: "T-0001"}
+	calls := func() string {
+		b, _ := os.ReadFile(filepath.Join(dir, "calls"))
+		os.Remove(filepath.Join(dir, "calls"))
+		return string(b)
+	}
+
+	if err := c.closeQuestion("T-0001#1", "open", "head が動いた"); err != nil || calls() != "answer T-0001#1 head が動いた\nreceived T-0001#1\n" {
+		t.Fatalf("open の問いを答えて受け取っていない: %v", err)
+	}
+	os.WriteFile(filepath.Join(dir, "answered"), nil, 0o644)
+	if err := c.closeQuestion("T-0001#1", "open", "head が動いた"); err != nil || !strings.HasSuffix(calls(), "received T-0001#1\n") {
+		t.Fatalf("一覧のあとに答えられた問いを受け取っていない: %v", err)
+	}
+	if err := c.closeQuestion("T-0001#2", "answered", "head が動いた"); err != nil || calls() != "received T-0001#2\n" {
+		t.Fatalf("答えのある問いに答えを書いた・受け取っていない: %v", err)
+	}
+	os.WriteFile(filepath.Join(dir, "fail"), nil, 0o644)
+	if err := c.closeQuestion("T-0001#1", "open", "head が動いた"); err == nil || !strings.Contains(err.Error(), "answer:") {
+		t.Fatalf("受け取れないのに誤りを返していない: %v", err)
 	}
 }

@@ -110,6 +110,10 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		}
 	}
 	if w.Decision != "" {
+		if w.Merged == "" && contract.IsSHA(w.Sha) {
+			// ゲートが決めたときに閉じられなかった前の head の問いを閉じ直す（閉じる問いが無ければ一覧を読むだけ）
+			c.closeStaleGateQuestions(w.Sha, res)
+		}
 		if !c.headMoved(&w, rep, res, now) {
 			return &w
 		}
@@ -152,6 +156,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	record := ""
 	if contract.IsSHA(gr.Head) {
+		// ゲートが今の head で決めた: 前の head について出したゲートの問いは、この判定で決め直したので閉じる
+		// （担当が doing に戻って rebase し、ready が数えずに通した問い。ready の staleGateQuestions）
+		c.closeStaleGateQuestions(gr.Head, res)
 		record = filepath.Join(c.l.Library(c.id), "gate", gr.Head+".json")
 		res.Auto = gr.Decision == "approve" && c.autoMerge(rows, gr)
 		res.Notify = append(res.Notify, contract.Notice{Kind: "gate",
@@ -178,7 +185,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			facts = append(facts, "PR "+rep.PR)
 		}
 		if record != "" {
-			facts = append(facts, "ゲートの記録 "+record)
+			facts = append(facts, gate.RecordFact(record))
 		}
 		c.askGate(res, contract.Question{
 			Kind: kind, Question: fmt.Sprintf("%s（%s）の PR はゲートが人へ回した。マージするか", c.id, short(c.issue.Str("title"))),
@@ -249,15 +256,52 @@ func (c *ctx) closeGateQuestions(why string, res *contract.Merge) {
 	}
 	for _, q := range gateQs {
 		name := fmt.Sprintf("%s#%d", c.id, q.N)
-		if q.Status == "open" {
-			if _, err := c.l.Run("", "answer", name, why); err != nil {
-				res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
-				continue
-			}
-		}
-		if _, err := c.l.Run("", "received", name); err != nil {
+		if err := c.closeQuestion(name, q.Status, why); err != nil {
 			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
 		}
+	}
+}
+
+// closeQuestion は問い name（一覧を読んだときの状態 status）を、open なら why と答えて受け取る。一覧を読んだあとに
+// 人や Chief of Staff が答えていれば answer は断られるが、答えのある問いは受け取れるので、そのまま received に進む
+// （人の答えは上書きしない）。受け取れなければ誤りを返す（呼び手は次に打たれたときに閉じ直す）。
+func (c *ctx) closeQuestion(name, status, why string) error {
+	var answerErr error
+	if status == "open" {
+		_, answerErr = c.l.Run("", "answer", name, why)
+	}
+	if _, err := c.l.Run("", "received", name); err != nil {
+		if answerErr != nil {
+			return fmt.Errorf("%v（answer: %v）", err, answerErr)
+		}
+		return err
+	}
+	return nil
+}
+
+// closeStaleGateQuestions は、この課題のまだ受け取られていないゲートの問いのうち、head と違う head について出た問い
+// （どの head の問いかは事実のゲートの記録の行から読む。questionHead）を、open なら理由を答えて受け取る。答えには前と今の head を書き、
+// 判断の記録を残す。どの head の問いか読めない問い・ゲートの外の問いには触らない。閉じられなければログに1行
+// （ゲートが決めたあとも、merge は打たれるたびに決めた head でこれを呼び、閉じ直す）。
+func (c *ctx) closeStaleGateQuestions(head string, res *contract.Merge) {
+	gateQs, _, err := c.openQuestions()
+	if err != nil {
+		res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問いを読めない: %v", c.id, err))
+		return
+	}
+	for _, q := range gateQs {
+		old := c.questionHead(q.N)
+		if old == "" || old == head {
+			continue
+		}
+		name := fmt.Sprintf("%s#%d", c.id, q.N)
+		why := fmt.Sprintf("PR の head が動いた（%s → %s）。ゲートが今の head で決め直した（記録 %s）",
+			short12(old), short12(head), filepath.Join(c.l.Library(c.id), "gate", head+".json"))
+		if err := c.closeQuestion(name, q.Status, why); err != nil {
+			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない（次に打たれたときに閉じ直す）: %v", c.id, name, err))
+			continue
+		}
+		res.Log = append(res.Log, fmt.Sprintf("%s の前の head（%s）のゲートの問い %s を閉じた: %s", c.id, short12(old), name, why))
 	}
 }
 

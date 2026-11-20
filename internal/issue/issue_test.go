@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/gate"
 	"andon/internal/ledger/ledgertest"
 )
 
@@ -131,6 +132,18 @@ func (f *fixture) ready() (int, string, bool) {
 
 const other = "0000000000000000000000000000000000000001"
 
+// gateQuestion は T-0001 の問い 1 を開いたまま置く。from が出した問いで、head が空でなければ事実にゲートの記録
+// （library/gate/<head>.json）の行を書く（merge.go の needs_human の問いと同じ形）。
+func (f *fixture) gateQuestion(from, head string) {
+	facts := []string{"delegation: merge=B < tier C", "PR https://github.com/example/app/pull/7"}
+	if head != "" {
+		facts = append(facts, gate.RecordFact(filepath.Join(f.root, "kanban/issues/T-0001/library/gate", head+".json")))
+	}
+	f.write("kanban/issues/T-0001/library/questions/1.json", js(map[string]any{"kind": "line", "question": "マージするか", "facts": facts,
+		"options": []any{map[string]any{"label": "人が PR を読んでマージする", "pick": true}, map[string]any{"label": "担当に直させる"}}, "from": from}))
+	f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}]`
+}
+
 func TestReady(t *testing.T) {
 	cases := []struct {
 		name string
@@ -158,6 +171,19 @@ func TestReady(t *testing.T) {
 		{"受け取った問いと、ほかの課題の問いは見ない", func(f *fixture) {
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "received"}, {"id": "T-0009", "n": 1, "status": "open"}]`
 		}, ""},
+		// ゲートが needs_human で問いを出したあと、担当が doing に戻って rebase した（head が動いた）。その問いは数えない
+		{"前の head についてのゲートの問いは数えない", func(f *fixture) { f.gateQuestion("gate", other) }, ""},
+		{"前の head のゲートの問いに答えがあっても数えない", func(f *fixture) {
+			f.gateQuestion("gate", other)
+			f.questions = `[{"id": "T-0001", "n": 1, "status": "answered"}]`
+		}, ""},
+		{"今の head についてのゲートの問いは止まる", func(f *fixture) { f.gateQuestion("gate", f.head) }, "T-0001#1（open）"},
+		{"どの head か読めないゲートの問いは止まる", func(f *fixture) { f.gateQuestion("gate", "") }, "T-0001#1（open）"},
+		{"ゲートの外の問いは記録の行があっても止まる", func(f *fixture) { f.gateQuestion("issue", other) }, "T-0001#1（open）"},
+		{"前の head のゲートの問いのほかに開いた問いがあれば止まる", func(f *fixture) {
+			f.gateQuestion("gate", other)
+			f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}, {"id": "T-0001", "n": 2, "status": "open"}]`
+		}, "T-0001#2（open）"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -332,7 +332,7 @@ For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべ�
 終わったら順に:
 
 1. `andon issue report <id> <<'EOF'` … `EOF`（ヒアドキュメントで渡す。worktree に報告のファイルを作らない）。
-2. `andon issue ready <id>`。command が確かめてから `kanban review` する。受け取られていない問い（`open`・`answered`）があれば断る（答えを受けて `kanban received <id>#<n>` してから打つ）。止まったら理由の1行に従って直し、1 からやり直す。ここまで。Chief of Staff へ `hc send` しない。
+2. `andon issue ready <id>`。command が確かめてから `kanban review` する。受け取られていない問い（`open`・`answered`）があれば断る（答えを受けて `kanban received <id>#<n>` してから打つ）。ゲートが前の head について出した問い（rebase の前の問い）は数えない。止まったら理由の1行に従って直し、1 からやり直す。ここまで。Chief of Staff へ `hc send` しない。
    dispatcher が `<id> review` の通知で届ける（Chief of Staff のフックが渡す。入力欄へは打たない）。
 
 `doing` のまま報告も問いも書かずにターンを終えると、`Stop` フック（`andon issue stop-check`）が止めて理由を返す。報告か問いを書いてから止まる。問いの答えや、`review-request` のあとレビュアーの結果を待つだけのターンは止めない（届いたら受けて動く）。

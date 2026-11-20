@@ -118,6 +118,8 @@ ReviewerReturns ==
     /\ UNCHANGED <<status, worker, wt, pr, ci, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* andon issue ready（internal/issue/issue.go ready）: unreceived で受け取られていない問いがあれば断り、doing のまま残す。
+\* ゲートの問いのうち前の head について出たもの（staleGateQuestions）は数えない（q は担当の問いだけ。ゲートが今の head で決めたとき
+\* internal/issue/merge.go closeStaleGateQuestions が閉じる）。
 \* 照合が head のレビューを読めなければ（CheckReview が current でない）断る。CI は読まない（ゲートが待つ）
 WorkerReady ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~q

@@ -151,12 +151,7 @@ func (c *ctx) closeAndFinish(pr string, stderr io.Writer) string {
 	}
 	for _, q := range gateQs {
 		name := fmt.Sprintf("%s#%d", c.id, q.N)
-		if q.Status == "open" {
-			if _, err := c.l.Run("", "answer", name, "人がマージした（"+pr+"）"); err != nil {
-				return "ゲートの問い " + name + " を閉じられない: " + err.Error()
-			}
-		}
-		if _, err := c.l.Run("", "received", name); err != nil {
+		if err := c.closeQuestion(name, q.Status, "人がマージした（"+pr+"）"); err != nil {
 			return "ゲートの問い " + name + " を閉じられない: " + err.Error()
 		}
 	}
