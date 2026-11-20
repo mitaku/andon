@@ -781,6 +781,9 @@ grep -q "PR の head が動いた（${old:0:12} → ${head:0:12}）。ゲート�
 jq -e --arg r "ゲートの記録 $L/issues/$pb/library/gate/$head.json" '.from == "gate" and (.facts | index($r))' "$L/issues/$pb/library/questions/2.json" >/dev/null ||
     die '今の head のゲートの問いを出していない'
 kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '今の head のゲートの問いまで閉じた'
+# 後の検査の見回りがこの課題の PR の head を聞かないよう、fix で終える（needs_human のままだと1分ごとに聞き直す）
+work "$pb" docs/z.md; mpoll "$pb"; dispatcher
+[ "$(hv "$pb")" = "fix $head" ] || die "後始末: fix で終わっていない: $(hv "$pb")"
 ok 'needs_human の問いが開いたまま rebase した担当は、前の head の問いを数えずに ready でき、ゲートが今の head で決めたときにその問いを閉じる'
 
 # 4b. 人が GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
