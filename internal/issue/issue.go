@@ -412,7 +412,29 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 			}
 		}
 	}
+	if err := c.samePRRepo(r.PR); err != nil {
+		return err
+	}
 	return c.write(r, md, stdout)
+}
+
+// samePRRepo は pr が課題の repo（issue.yaml の repo）の PR かを確かめる（ADR-0034 決めたこと 11）。
+// --pr・--data の pr・前の報告からの引き継ぎのどれで来た pr も、report.json に書く前にここを通る。
+// dispatcher とゲートは issue.yaml の repo の PR だけを見るので、違う repo の PR を書くと課題が片付かない。
+// 形の違う pr は Check が断るので、ここでは repo だけを見る。
+func (c *ctx) samePRRepo(pr string) error {
+	owner, name, _, ok := contract.ParsePR(pr)
+	if pr == "" || !ok {
+		return nil
+	}
+	repo := c.issue.Str("repo")
+	if repo == "" {
+		return fail("repo の無い課題に PR は書かない: %s", pr)
+	}
+	if got := "github.com/" + owner + "/" + name; got != repo {
+		return fail("pr の repo（%s）が課題の repo（%s）と違う: %s", got, repo, pr)
+	}
+	return nil
 }
 
 func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
