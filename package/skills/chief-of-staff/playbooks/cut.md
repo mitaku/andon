@@ -60,13 +60,13 @@ EOF
 Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree で動く）は、人と詰めた仕様・設計を文書の PR にし、`report.json`（`pr`・`next` の `to: chief-of-staff`）を書いて `kanban review` する。通知は `<id> review` で届く。
 
 1. `issues/<id>/library/report.json` の `pr` から文書を読む（「依頼書に切る案」「受け入れ条件」「やらないこと」「開いている問い」「価値の仮説」と、「決めたこと」の各行の誰が決めたかの印）。会話の記録は読まない（渡されるのは文書だけ）。
-2. 「価値の仮説」の節が見出しだけ（空）なら、**切らずに Chief Engineer へ戻す**: `hc send <Chief Engineer の address>`（`kanban show <id> --json` の `.issue.agent`）「価値の仮説が空。6 項目か『無し: <理由>』を書いて返して」。「無し: <理由>」なら観察の課題は足さない。
-3. 「依頼書に切る案」を縦に薄く、依存だけ `--after` で並べて切る。依頼書は文書の節を `links` で指し、完了条件に受け入れ条件の番号を書く。
-4. 価値の仮説が 6 項目なら、**観察の課題を1件**足す（1仮説1課題。`brief.md` の観察の課題の雛形。repo の無い課題）。Chief Engineer の課題に `--parent` で結び、(3) の見る日を `not_before` に置く:
+2. 切る前に（3〜5 より先に）、chief-engineer skill の「オーナーに聞く線」（a〜g）に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見る。見つけたら、切らずにオーナーへ知らせる。「（オーナーが決めた）」の行がオーナーの言っていないことを言っている・受け入れ条件がテストできない形のときも同じ（Chief Engineer に戻すかはオーナーが決める）。線に当たらない作り方の決定に Chief Engineer の印があるのは、正しい形。
+3. 「価値の仮説」の節が見出しだけ（空）なら、**切らずに Chief Engineer へ戻す**: `hc send <Chief Engineer の address>`（`kanban show <id> --json` の `.issue.agent`）「価値の仮説が空。6 項目か『無し: <理由>』を書いて返して」。「無し: <理由>」なら観察の課題は足さない。
+4. 「依頼書に切る案」を縦に薄く、依存だけ `--after` で並べて切る。依頼書は文書の節を `links` で指し、完了条件に受け入れ条件の番号を書く。
+5. 価値の仮説が 6 項目なら、**観察の課題を1件**足す（1仮説1課題。`brief.md` の観察の課題の雛形。repo の無い課題）。Chief Engineer の課題に `--parent` で結び、(3) の見る日を `not_before` に置く:
    `kanban add "観察: <題>の価値の仮説" --parent <Chief Engineer の id> [--after <実装の課題, …>] --brief -` → `kanban set <新しい id> not_before=<(3) の日付>`。
    `--after` があれば `queued`（実装が done で `todo`）、無ければ `todo`。`not_before` は status を変えず、その日まで `kanban ready` に出さないだけ（日付は `config.yaml` の `timezone` で読む）。見る日が来ると `<id> ready` で届くので、ほかの課題と同じく `andon issue start`。
-5. Chief Engineer の課題は**検収しない**（検収は、オーナーが Chief Engineer の出口の最後の確かめでした）。文書の PR がマージされたら `andon issue finish <id>`。
-6. 切る前に、chief-engineer skill の「オーナーに聞く線」（a〜g）に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見る。見つけたら、切らずにオーナーへ知らせる。「（オーナーが決めた）」の行がオーナーの言っていないことを言っている・受け入れ条件がテストできない形のときも同じ（Chief Engineer に戻すかはオーナーが決める）。線に当たらない作り方の決定に Chief Engineer の印があるのは、正しい形。
+6. Chief Engineer の課題は**検収しない**（検収は、オーナーが Chief Engineer の出口の最後の確かめでした）。文書の PR がマージされたら `andon issue finish <id>`。
 7. `pr` が無く、`next` に `to: chief-of-staff`「直す課題に切る: …」だけがある（Chief Engineer が決断の無い小さな話と見て、文書を書かずに返した）なら、それを直す課題に切り、人の go 無しで `andon issue finish <id>`（調べる課題と同じ扱い）。
 
 ## 観察の課題の報告を受けたら
