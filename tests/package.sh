@@ -437,16 +437,78 @@ grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && gre
 # ADR-0009 受け入れ条件 5: WIP の行が無い・読むに価値の仮説の結果・文書の形に価値の仮説の見出し・言い直すで決断が無ければ next で返す
 ! grep -qE '1プロジェクトに1題|前の題が終わらないまま' "$ce" package/skills/glossary/SKILL.md \
   && pass "Chief Engineer の skill と用語集に WIP の行（1プロジェクトに1題・前の題が終わらないまま）が無い" || fail "chief-engineer か用語集に WIP の行が残る"
-ce1=$(sed -n '/^1\. \*\*読む/,/^2\. /p' "$ce"); ce2=$(sed -n '/^2\. \*\*言い直す/,/^3\. /p' "$ce")
+ce1=$(sed -n '/^1\. \*\*読む/,/^2\. /p' "$ce"); ce2=$(sed -n '/^2\. \*\*入口: 言い直しと前提/,/^3\. /p' "$ce")
 grep -q '前の価値の仮説の結果' <<<"$ce1" && block "$ce" '# <題>（仕様・設計' | grep -q '^## 価値の仮説' \
   && pass "Chief Engineer の「読む」に前の価値の仮説の結果、文書の形に ## 価値の仮説 の見出し" || fail "chief-engineer に価値の仮説の見出しが無い"
 grep -q '決断が無ければ文書を書かずに返す' <<<"$ce2" && grep -q '"to": "chief-of-staff", "text": "直す課題に切る: ' <<<"$ce2" && grep -q 'kanban review <id>' <<<"$ce2" \
-  && pass "Chief Engineer は「言い直す」で決断が無ければ文書を書かず next で返す" || fail "chief-engineer の「言い直す」に文書なしで返す段が無い"
-# CE の推奨案はオーナーに迎合させない（docs/decisions/2026-11-20-ce-recommend-own-best.md）。4点が役の段落にあり、決めない線は残る
+  && pass "Chief Engineer は入口の「言い直しと前提」で決断が無ければ文書を書かず next で返す" || fail "chief-engineer の入口の「言い直しと前提」に文書なしで返す段が無い"
+# CE の推奨案はオーナーに迎合させない（docs/decisions/2026-11-20-ce-recommend-own-best.md）。4点は役の段落に残り、
+# 「決めるのはオーナー」は線の中の決定のこと。作り方の決定は CE が決め、古い「決めない」の文は無い（ADR-0037 受け入れ条件 1）
 ce0=$(sed -n '/^\*\*あなたは Chief Engineer/,/^- 課題は/p' "$ce")
+old_rule='推奨案は出すが決めない|自分で答えて先へ進んだら骨格の違反'
 grep -qF '自分のプロダクトだと思って最適と考える案にする' <<<"$ce0" && grep -qF 'オーナーの好みに合わせて推奨を変えない' <<<"$ce0" \
-  && grep -qF '事実か理由で推奨の前提を崩したときだけ' <<<"$ce0" && grep -qF '決めるのはオーナー' <<<"$ce0" && grep -qF '**推奨案は出すが決めない**' "$ce" \
-  && pass "Chief Engineer の推奨案は自分のプロダクトとして最適な案で、オーナーの好みでは変えず、前提が崩れたときだけ変え、決めるのはオーナー" || fail "chief-engineer の役の段落に推奨の立て方の4点が無いか、「推奨案は出すが決めない」が消えた"
+  && grep -qF '事実か理由で推奨の前提を崩したときだけ' <<<"$ce0" && grep -qF '線の中の決定は、推奨を変えなくても決めるのはオーナー' <<<"$ce0" \
+  && grep -qF '作り方の決定はあなたが決め、下の「オーナーに聞く線」の中の決定はオーナーが決める' <<<"$ce0" \
+  && ! grep -qE "$old_rule" "$ce" \
+  && pass "ADR-0037 A1: CE の役の段落は作り方の決定を CE が、線の中の決定をオーナーが決めると言い、推奨の立て方の4点が残り、「推奨案は出すが決めない」が無い" \
+  || fail "ADR-0037 A1: chief-engineer の役の段落に線の分け方か推奨の立て方の4点が無いか、「推奨案は出すが決めない」「骨格の違反」の文が残る"
+# 否定の検査が当たる場合があること: 古い skill の行には同じ grep が当たる
+grep -qE "$old_rule" <<<'   - **推奨案は出すが決めない**。自分で答えて先へ進んだら骨格の違反。' \
+  && pass "ADR-0037 A1: 古い「決めない」の行は否定の grep に当たる（検査が見ている）" || fail "ADR-0037 A1: 否定の grep が何も見ていない"
+# ADR-0037 受け入れ条件 2: 線の表（a〜g）と「どちらとも読める決定は Chief Engineer が決める」
+cel=$(sed -n '/^## オーナーに聞く線$/,/^## 骨格/p' "$ce")
+miss=
+for r in 'a business' 'b users' 'c promise' 'd irreversible' 'e line'; do
+  grep -q "^| ${r% *} | .* | \`${r#* }\` |\$" <<<"$cel" || miss="$miss [${r% *}]"
+done
+grep -q '^| f | オーナーが前に決めたことを覆すこと | ' <<<"$cel" || miss="$miss [f]"
+grep -q '^| g | 事実で決まらず、答えで設計の大半が分かれる不明点 | ' <<<"$cel" || miss="$miss [g]"
+grep -qF '**どちらとも読める決定は Chief Engineer が決める。**' <<<"$cel" || miss="$miss [どちらとも読める]"
+grep -qF '印の無い過去の決定は、オーナーが決めたものとして読む' <<<"$cel" || miss="$miss [印の無い過去の決定]"
+[ -z "$miss" ] && pass "ADR-0037 A2: CE skill に線の表（a〜g）と「どちらとも読める決定は Chief Engineer が決める」がある" || fail "ADR-0037 A2: CE skill の線:$miss"
+# ADR-0037 受け入れ条件 3: 骨格は入口（言い直しと前提を1問、続けて範囲）・真ん中（聞くのは g だけ）・出口（要点・線の中の決定・最後の確かめ）
+miss=
+for k in '^## 骨格（この順で。オーナーと話すのは 2・3 の入口と 7 の出口）$' \
+  '^2\. \*\*入口: 言い直しと前提を1問で確かめる。\*\*' '^3\. \*\*入口: 続けて範囲を聞く。\*\*' \
+  '^4\. \*\*真ん中: 決定の一覧の全部に答えを入れる（本体）。\*\*' '^5\. \*\*代案を2つ以上作り、自分で選ぶ。\*\*' '^6\. \*\*反論を走らせる' \
+  '^7\. \*\*出口: 要点を見せ、線の中の決定を1問ずつ聞き、最後の確かめを1問で取る。\*\*' '^8\. \*\*文書にして渡す。\*\*' \
+  '真ん中でオーナーに聞いてよいのは、線の g の不明点だけ' '\*\*真ん中では、問いを出すとき以外は止まらない。\*\*' \
+  '価値の仮説は独立の問いにせず、要点に載せて最後の確かめで一緒に通す'; do
+  grep -q "$k" "$ce" || miss="$miss [$k]"
+done
+grep -qF '待つことが本業' "$ce" && miss="$miss [待つことが本業が残る]"
+[ -z "$miss" ] && pass "ADR-0037 A3: CE skill の骨格は入口・真ん中・出口の形" || fail "ADR-0037 A3: CE skill の骨格:$miss"
+# ADR-0037 受け入れ条件 4: 文書の形の「決めたこと」に誰が決めたか
+grep -q '^## 決めたこと（番号・日付・誰が決めたか・' <<<"$(block "$ce" '# <題>（仕様・設計。')" \
+  && grep -qF '**「決めたこと」の各行には、誰が決めたかを書く。** 書き方は、決定の1文の末尾の「（オーナーが決めた）」か「（Chief Engineer が決めた）」。' "$ce" \
+  && grep -qF '「仮」とは書かない' "$ce" \
+  && pass "ADR-0037 A4: CE skill の文書の形は「決めたこと」の各行に誰が決めたかを書く" || fail "ADR-0037 A4: CE skill の文書の形に誰が決めたかが無い"
+# ADR-0037 受け入れ条件 5: CoS の手引き（決めたこと 8）と、問いの出し方の skill の1行（決めたこと 9）
+cosr=$(sed -n '/^## Chief Engineer の文書を受けたら$/,/^## 観察の課題/p' "$pb/cut.md")
+old_cos='文書が人の言っていないことを言っている・'
+grep -qF '「オーナーに聞く線」（a〜g）に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見る。見つけたら、切らずにオーナーへ知らせる。' <<<"$cosr" \
+  && grep -qF '（検収は、オーナーが Chief Engineer の出口の最後の確かめでした）' <<<"$cosr" && ! grep -qF "$old_cos" <<<"$cosr" \
+  && grep -qF -- '- Chief Engineer が自分の設計の決定をオーナーに聞くかどうかは、この節でなく chief-engineer skill の「オーナーに聞く線」に従う。' package/skills/ask-one-by-one/SKILL.md \
+  && pass "ADR-0037 A5: CoS の cut.md は線に当たる CE の印の決定を見て知らせ、ask-one-by-one に CE は自分の線に従う1行がある" \
+  || fail "ADR-0037 A5: cut.md の CE の文書を受ける手順か、ask-one-by-one の1行が古い"
+grep -qF "$old_cos" <<<'6. 文書が人の言っていないことを言っている・受け入れ条件がテストできない形なら、切らずに人へ知らせる' \
+  && pass "ADR-0037 A5: 古い cut.md の行は否定の grep に当たる（検査が見ている）" || fail "ADR-0037 A5: 否定の grep が何も見ていない"
+# 線の確かめは、空の価値の仮説で戻すこと・切ること・観察の課題を足すことより先（切ってからでは担当が先に動く）
+line_of() { grep -n -m1 -F -- "$2" <<<"$1" | cut -d: -f1; }
+ce_order() { local a b c d; a=$(line_of "$1" '「オーナーに聞く線」（a〜g）に当たる決定'); b=$(line_of "$1" '「価値の仮説」の節が見出しだけ')
+  c=$(line_of "$1" '「依頼書に切る案」を縦に薄く'); d=$(line_of "$1" '**観察の課題を1件**足す')
+  [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ -n "$d" ] && [ "$a" -lt "$b" ] && [ "$a" -lt "$c" ] && [ "$a" -lt "$d" ]; }
+ce_order "$cosr" && pass "ADR-0037 A5: cut.md は線の確かめを、価値の仮説で戻す・切る・観察の課題を足すより先に置く" || fail "ADR-0037 A5: cut.md の線の確かめが、切る手順より後にある"
+! ce_order "$(printf '%s\n' '3. 「依頼書に切る案」を縦に薄く' '4. **観察の課題を1件**足す' '2. 「価値の仮説」の節が見出しだけ' '6. 切る前に、「オーナーに聞く線」（a〜g）に当たる決定')" \
+  && pass "ADR-0037 A5: 線の確かめが後ろにある並びは順の検査に当たる（検査が見ている）" || fail "ADR-0037 A5: 順の検査が何も見ていない"
+# ADR-0037 受け入れ条件 6: design.md §1.8・§1.9 と dispatcher.md に古い文が残らない
+old_docs='推奨案は出すが決めない|待つことが Chief Engineer の本業|docs がレベル A／B なら自動|検収は人が対話の中でした|人と Chief Engineer の対話で決める'
+left=$(grep -nE "$old_docs" docs/design.md docs/dispatcher.md || true)
+[ -z "$left" ] && grep -qF '作り方の決定と、どちらとも読める決定。オーナーに聞く線（7 種）の中の決定はオーナーが決める' docs/design.md \
+  && grep -qF 'Chief Engineer の課題の文書の PR は、どの案件でもいつもオーナーがマージする' docs/design.md \
+  && pass "ADR-0037 A6: design.md の役の表と骨格と dispatcher.md が新しい手順で、古い文が無い" || fail "ADR-0037 A6: design.md か dispatcher.md に古い文が残るか、新しい文が無い:$left"
+grep -qE "$old_docs" <<<'Chief of Staff は Chief Engineer の課題を**検収しない**（検収は人が対話の中でした）' \
+  && pass "ADR-0037 A6: 古い design.md の行は否定の grep に当たる（検査が見ている）" || fail "ADR-0037 A6: 否定の grep が何も見ていない"
 left=$(grep -nE 'kanban ask [^-]*"<|kanban set <id> pr=' package/skills/*/SKILL.md package/skills/*/playbooks/*.md || true)
 [ -z "$left" ] && pass "skill に JSON を通らない kanban ask と issue.yaml の pr が残っていない" || fail "JSON を通らない書き方が残る: $left"
 

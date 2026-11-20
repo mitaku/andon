@@ -8,15 +8,15 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | Chief Engineer は案を作り込んでから持っていき、オーナーと話すのは入口と出口の 2 回にする | この ADR | まだ実装していない |
-| 2 | オーナーに聞くのは線に当たる 7 種の決定だけで、どちらとも読める決定は Chief Engineer が決める | この ADR | まだ実装していない |
-| 3 | 「決めたこと」の各行に、誰が決めたかを書く | この ADR | まだ実装していない |
-| 4 | 入口では言い直しと前提を 1 問に束ね、続けて範囲を聞く | この ADR | まだ実装していない |
-| 5 | 真ん中では構造の案も Chief Engineer が選び、聞いてよいのは事実で決まらない不明点だけにする | この ADR | まだ実装していない |
-| 6 | 出口では要点を見せ、線の中の決定を 1 問ずつ聞き、最後の確かめを取る | この ADR | まだ実装していない |
-| 7 | 印の無い過去の決定は、オーナーが決めたものとして扱う | この ADR | まだ実装していない |
-| 8 | Chief of Staff は文書を切るとき、線に当たる決定が Chief Engineer の印で書かれていないかを見る | この ADR | まだ実装していない |
-| 9 | 文を直す先は、skill 2 本・手引き・設計書・dispatcher の説明・検査にする | この ADR | まだ実装していない |
+| 1 | Chief Engineer は案を作り込んでから持っていき、オーナーと話すのは入口と出口の 2 回にする | `package/skills/chief-engineer/SKILL.md` の「骨格」 | 生きている |
+| 2 | オーナーに聞くのは線に当たる 7 種の決定だけで、どちらとも読める決定は Chief Engineer が決める | `package/skills/chief-engineer/SKILL.md` の「オーナーに聞く線」 | 生きている |
+| 3 | 「決めたこと」の各行に、誰が決めたかを書く | `package/skills/chief-engineer/SKILL.md` の「文書の形」 | 生きている |
+| 4 | 入口では言い直しと前提を 1 問に束ね、続けて範囲を聞く | `package/skills/chief-engineer/SKILL.md` の「骨格」の 2・3 | 生きている |
+| 5 | 真ん中では構造の案も Chief Engineer が選び、聞いてよいのは事実で決まらない不明点だけにする | `package/skills/chief-engineer/SKILL.md` の「骨格」の 4〜6 | 生きている |
+| 6 | 出口では要点を見せ、線の中の決定を 1 問ずつ聞き、最後の確かめを取る | `package/skills/chief-engineer/SKILL.md` の「骨格」の 7 | 生きている |
+| 7 | 印の無い過去の決定は、オーナーが決めたものとして扱う | `package/skills/chief-engineer/SKILL.md` の「オーナーに聞く線」 | 生きている |
+| 8 | Chief of Staff は文書を切るとき、線に当たる決定が Chief Engineer の印で書かれていないかを見る | `package/skills/chief-of-staff/playbooks/cut.md` の「Chief Engineer の文書を受けたら」 | 生きている |
+| 9 | 文を直す先は、skill 2 本・手引き・設計書・dispatcher の説明・検査にする | この ADR | 役目を終えた |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
