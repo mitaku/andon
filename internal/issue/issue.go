@@ -590,6 +590,10 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if err != nil {
 		return fail("library/report.json の形が違う: %v", err)
 	}
+	// 課題が受け入れ条件の番号を持てば、その番号の行が報告に無いと断る（ADR-0035 決めたこと 3）。番号を持たない課題は今のまま
+	if err := checkAcceptanceRows(c.issue, r.Acceptance); err != nil {
+		return err
+	}
 	// 受け入れ条件の行が記録を指すときだけ、その記録を確かめる（ADR-0035 決めたこと 2・11）。
 	// 記録の commit が HEAD より古いのは断らない（ゲートが記録に出す）
 	if problems, _ := contract.CheckRuns(c.l.Library(c.id), r.Acceptance, ""); len(problems) > 0 {
@@ -646,6 +650,25 @@ func (c *ctx) ready(stdout io.Writer) error {
 	fmt.Fprintln(stdout, out)
 	for _, q := range slices.Sorted(maps.Keys(stale)) {
 		fmt.Fprintf(stdout, "%s はゲートが前の head（%.12s）について出した問いなので数えない（ゲートが今の head で回ったときに閉じる）\n", q, stale[q])
+	}
+	return nil
+}
+
+// checkAcceptanceRows は、課題の予約キー acceptance が名指す受け入れ条件の番号ごとに、報告の acceptance[] に同じ id の行が
+// あるかを確かめる（結果が pass・fail・manual のどれでも行があればよい。中身はゲートと CheckRuns が見る）。
+func checkAcceptanceRows(t ledger.Issue, rows []contract.Acceptance) error {
+	ids, ok := ledger.AcceptanceOf(t)
+	if !ok {
+		return fail("issue.yaml の acceptance の形が違う（%v）。受け入れ条件の番号をコンマで並べる（A1,A4）。Chief of Staff に書き直してもらう", t["acceptance"])
+	}
+	var missing []string
+	for _, id := range ids {
+		if !slices.ContainsFunc(rows, func(a contract.Acceptance) bool { return a.ID == id }) {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		return fail("課題が名指す受け入れ条件の行が report.json の acceptance に無いので review にしない: %s。行を足して andon issue report で書き直してから打ち直す", strings.Join(missing, "・"))
 	}
 	return nil
 }

@@ -38,6 +38,11 @@
     "estimate": {
       "description": "The Chief of Staff's rough estimate of the issue's size, written when cutting the brief (ADR-0014). small: about 30 minutes, medium: about 60, large: about 120 of work without waits (a guide, not a limit). Only for worker issues (fix and survey), not reviewers or the Chief Engineer. No default: missing means no estimate, and nothing is compared.",
       "enum": ["small", "medium", "large"]
+    },
+    "acceptance": {
+      "description": "Numbers of the acceptance criteria the issue must meet, comma-separated without spaces and spelled as the report's acceptance[].id (A4,A13). The Chief of Staff writes it when cutting the issue (ADR-0035). andon issue ready refuses while the report has no acceptance[] row for one of them, and refuses a malformed value. Missing: the issue names no criteria and nothing is checked.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$"
     }
   }
 }

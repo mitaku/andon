@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 1 | 人が直したその場では回さず、毎朝の振り返りに任せる | この ADR | 生きている |
 | 2 | 証拠は走らせた記録を台帳に残し、ゲートは記録を指す行だけ中身を見る | `docs/contract.md` §24 | 生きている |
-| 3 | 依頼書が名指す受け入れ条件の行が報告に無ければ command が断る | この ADR | まだ実装していない |
+| 3 | 依頼書が名指す受け入れ条件の行が報告に無ければ command が断る | `docs/contract.md` §2・`package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 4 | 「セルで実測」を検証の skill にし、当てたあと独立の検証の担当が動かす | `.claude/skills/verify-andon/SKILL.md`・`package/skills/chief-of-staff/playbooks/verify.md` | 生きている |
 | 5 | 機能の地図は検証の担当が直し、定期の保守は足さない | `.claude/skills/verify-andon/SKILL.md` | 生きている |
 | 6 | `AGENTS.md` を「決まり｜守らせるもの」の対にし、検査もする | `AGENTS.md`・`tests/agents-md.sh`・`package/skills/retro/SKILL.md` | 生きている |
