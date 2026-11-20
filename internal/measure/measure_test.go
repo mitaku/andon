@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"andon/internal/ledger/ledgertest"
 )
 
 func put(t *testing.T, path, body string) {
@@ -66,7 +68,8 @@ func fakeLedger(t *testing.T) string {
 		"id: S-0002-r1\ntitle: review\nstatus: done\nparent: S-0002\nprofile: codex-review\ncreated: \"2026-11-02T06:00:00Z\"\n")
 	put(t, filepath.Join(k, "issues/S-0003/issue.yaml"),
 		"id: S-0003\ntitle: three\nstatus: doing\ncreated: \"2026-11-03T00:00:00Z\"\nlinks:\n  - "+repoURL+"1\n")
-	log := strings.Join([]string{
+	// 8行目は読めない行（読み手が飛ばす）。ほかは台帳の CLI の書く形
+	log := ledgertest.Log(t,
 		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t1","id":"S-0001","change":{"add":"one"}}`,
 		`{"at":"2026-11-01T01:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"doing","agent":"t2"}}`,
 		`{"at":"2026-11-01T02:00:00Z","by":"someone","id":"S-0001","change":{"merge":"auto"}}`,
@@ -74,7 +77,7 @@ func fakeLedger(t *testing.T) string {
 		`{"at":"2026-11-01T10:00:00Z","by":"terminal:t1","id":"S-0001","change":{"status":"done"}}`,
 		`{"at":"2026-11-02T00:00:00Z","by":"terminal:t1","id":"S-0002","change":{"add":"two"}}`,
 		`{"at":"2026-11-02T02:00:00Z","by":"terminal:t3","id":"S-0002","change":{"status":"doing","agent":"t3"}}`,
-		`not json`,
+	) + "not json\n" + ledgertest.Log(t,
 		`{"at":"2026-11-02T03:00:00Z","by":"terminal:t3","id":"S-0002","change":{"question":1,"status":"open"}}`,
 		`{"at":"2026-11-02T05:00:00Z","by":"someone","id":"S-0002","change":{"question":1,"status":"answered"}}`,
 		`{"at":"2026-11-02T06:00:00Z","by":"terminal:t3","id":"S-0002","change":{"status":"review"}}`,
@@ -87,8 +90,7 @@ func fakeLedger(t *testing.T) string {
 		`{"at":"2026-11-03T00:00:00Z","by":"terminal:t1","id":"S-0003","change":{"add":"three"}}`,
 		`{"at":"2026-11-03T01:00:00Z","by":"terminal:t4","id":"S-0003","change":{"status":"doing","agent":"t4"}}`,
 		`{"at":"2026-11-03T02:00:00Z","by":"routine:triage","id":"S-0003","change":{"report":"write"}}`,
-		``,
-	}, "\n")
+	)
 	put(t, filepath.Join(k, "log.jsonl"), log)
 	return root
 }
@@ -486,12 +488,12 @@ func valueLedger(t *testing.T) string {
 	st := func(at, id, status string) string {
 		return `{"at":"` + at + `","by":"terminal:t1","id":"` + id + `","change":{"status":"` + status + `"}}`
 	}
-	log := strings.Join([]string{
+	log := ledgertest.Log(t,
 		st("2026-11-02T00:00:00Z", "E-0001", "done"), st("2026-11-04T12:00:00Z", "E-0002", "review"),
 		st("2026-11-03T00:00:00Z", "E-0003", "done"), st("2026-11-08T00:00:00Z", "E-0004", "review"),
 		st("2026-11-05T00:00:00Z", "E-0005", "done"), st("2026-11-12T00:00:00Z", "E-0006", "done"),
-		st("2026-11-06T00:00:00Z", "E-0007", "review"), ``,
-	}, "\n")
+		st("2026-11-06T00:00:00Z", "E-0007", "review"),
+	)
 	put(t, filepath.Join(k, "log.jsonl"), log)
 	return root
 }

@@ -28,7 +28,7 @@ declare -A heavy=(
   [tests/apply-main.sh]="image/apply-main.sh cmd/andon/ cmd/kanban/ internal/cli/ internal/pkgversion/
     internal/ledger/ internal/delegate/ internal/spawn/ internal/contract/ embed.go"
   # schema/ の直下と contract.md の例を検査器で見る。command の出力は emitters が写したものを読む（下で emitters も足す）
-  [tests/schema.sh]="schema/*.schema.json docs/contract.md package/lib/andon/schema_check.py"
+  [tests/schema.sh]="schema/*.schema.json schema/ledger/*.schema.json docs/contract.md package/lib/andon/schema_check.py"
 )
 
 # parts <検査>: 見る部分を配列 parts に読む（* を今のファイルに広げない）

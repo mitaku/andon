@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"andon/internal/ledger/ledgertest"
 )
 
 // patternsInput は根拠の照合に使う、集めた入力の代わり。
@@ -252,7 +254,7 @@ func TestPreviousRetroExcludesSelfAndLater(t *testing.T) {
 	write(t, filepath.Join(k, "issues", "A-0011", "issue.yaml"), issueYAML("A-0011", "done", "profile: claude\n"))
 	write(t, filepath.Join(k, "issues", "A-0011", "library", "retro.json"), "{}")
 	log, _ := os.ReadFile(filepath.Join(k, "log.jsonl"))
-	write(t, filepath.Join(k, "log.jsonl"), string(log)+`{"at":"`+ago(1*day)+`","by":"terminal:t1","id":"A-0011","change":{"status":"done"}}`+"\n")
+	write(t, filepath.Join(k, "log.jsonl"), string(log)+ledgertest.Log(t, `{"at":"`+ago(1*day)+`","by":"terminal:t1","id":"A-0011","change":{"status":"done"}}`))
 	col := func(o Options) string {
 		in, err := Collect(o)
 		if err != nil {

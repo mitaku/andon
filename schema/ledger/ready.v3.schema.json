@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/ledger-ready/3",
+  "title": "kanban ready --json output (format 3)",
+  "description": "What kanban ready --json prints: the issues in todo or queued with nothing left to wait for (every after done) and no not_before ahead. Each is its issue.yaml as plain values, with id set to the folder name. The properties of $defs.issue are those of issue.v3.schema.json with status narrowed to todo and queued (a test in cmd/kanban keeps them the same). Any other key is allowed and kept. An issue kanban can't read is never listed.",
+  "type": "array",
+  "items": { "$ref": "#/$defs/issue" },
+  "$defs": {
+    "issue": {
+      "description": "One ready issue.",
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": {
+          "description": "Same as the folder name. One plain name: no /, \\ or :, and not . or ...",
+          "type": "string",
+          "pattern": "^[^/\\\\:]+$",
+          "not": { "enum": [".", ".."] }
+        },
+        "title": {
+          "description": "Required to be a useful issue; an issue without one is listed with no title.",
+          "type": "string"
+        },
+        "status": {
+          "description": "todo or queued: kanban ready lists no other status.",
+          "type": "string",
+          "enum": ["todo", "queued"]
+        },
+        "repo": {
+          "description": "One of config.yaml repos: the repository the issue works in.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Id of the issue this is part of (an epic).",
+          "type": "string",
+          "pattern": "^[^/\\\\:]+$",
+          "not": { "enum": [".", ".."] }
+        },
+        "phase": {
+          "description": "Id from config.yaml phases.",
+          "type": "string"
+        },
+        "after": {
+          "description": "Ids in this ledger that must be done first.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^/\\\\:]+$",
+            "not": { "enum": [".", ".."] }
+          }
+        },
+        "profile": {
+          "description": "The yard's profile for the agent (opus, codex, reviewer, ...). The yard defines profiles; the ledger only keeps the name.",
+          "type": "string"
+        },
+        "who": {
+          "description": "person: a person's issue (a decision to make, or work only a person can do). Absent: an agent's issue.",
+          "type": "string",
+          "enum": ["person"]
+        },
+        "agent": {
+          "description": "The terminal working on it: its herdr-core address on the ledger's own machine (t3, not vps/t3). A tab or terminal name is also accepted by readers.",
+          "type": "string"
+        },
+        "branch": {
+          "description": "The issue's git branch.",
+          "type": "string"
+        },
+        "worktree": {
+          "description": "The issue's worktree folder (~ allowed).",
+          "type": "string"
+        },
+        "session": {
+          "description": "The id of the agent's harness session (a UUID, lowercase), so the yard can resume it after its terminal is lost. The yard writes it; the ledger only keeps it.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "links": {
+          "description": "http(s) URLs, or paths relative to the root.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "routine": {
+          "description": "The name of the routine that added it (routines/<name>.yaml). One plain name: no /, \\ or :, and not . or ...",
+          "type": "string",
+          "pattern": "^[^/\\\\:]+$",
+          "not": { "enum": [".", ".."] }
+        },
+        "not_before": {
+          "description": "A date, YYYY-MM-DD: kanban ready does not list the issue before that day (read in config.yaml timezone, else UTC). Whatever the status; after still holds it back as well.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "created": {
+          "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, written as a string.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        },
+        "updated": {
+          "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, written as a string.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        }
+      },
+      "not": {
+        "required": ["broken"]
+      }
+    }
+  }
+}

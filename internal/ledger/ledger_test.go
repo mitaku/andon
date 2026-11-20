@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"andon/internal/ledger/ledgertest"
 )
 
 // fakeBin は name の名前で、台帳の根に dir を答える偽の CLI を置いた PATH を返す。
@@ -65,7 +67,7 @@ func TestTrustedReadsOldIds(t *testing.T) {
 	l := At(root)
 	os.MkdirAll(l.Dir, 0o755)
 	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5 # the lead\n"), 0o644)
-	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(`{"at":"x","by":"terminal:t5","id":"A-5","change":{"review":"on"}}`+"\n"), 0o644)
+	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(ledgertest.Log(t, `{"at":"2026-11-01T00:00:00Z","by":"terminal:t5","id":"A-5","change":{"review":"on"}}`)), 0o644)
 	if l.ChiefOfStaff() != "t5" {
 		t.Fatalf("ChiefOfStaff() = %q", l.ChiefOfStaff())
 	}
@@ -80,9 +82,9 @@ func TestLogReadsLongLinesAndWhatFollows(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
 	os.MkdirAll(l.Dir, 0o755)
-	long := `{"at":"x","by":"terminal:t9","id":"A-0001","change":{"report":"` + strings.Repeat("a", 8<<20) + `"}}`
-	last := `{"at":"y","by":"terminal:t5","id":"A-0001","change":{"review":"on"}}`
-	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(long+"\n"+last+"\n"), 0o644)
+	long := `{"at":"2026-11-01T00:00:00Z","by":"terminal:t9","id":"A-0001","change":{"add":"` + strings.Repeat("a", 8<<20) + `"}}`
+	last := `{"at":"2026-11-01T00:01:00Z","by":"terminal:t5","id":"A-0001","change":{"review":"on"}}`
+	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(ledgertest.Log(t, long, last)), 0o644)
 	rows := l.Log()
 	if len(rows) != 2 || rows[1].By != "terminal:t5" {
 		t.Fatalf("rows: %d", len(rows))

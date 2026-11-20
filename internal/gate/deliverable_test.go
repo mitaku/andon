@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"andon/internal/ledger/ledgertest"
 )
 
 // deliverable: candidates の課題に andon gate を打つと、回さずに理由1行と終了コード 3。記録を書かない
@@ -37,7 +39,7 @@ func TestGateRefusesCandidates(t *testing.T) {
 	}
 
 	log := filepath.Join(dir, "log.jsonl")
-	os.WriteFile(log, []byte(`{"at":"x","by":"terminal:t5","id":"D-0001","change":{"deliverable":"candidates"}}`+"\n"), 0o644)
+	os.WriteFile(log, []byte(ledgertest.Log(t, `{"at":"2026-11-20T00:00:00Z","by":"terminal:t5","id":"D-0001","change":{"deliverable":"candidates"}}`)), 0o644)
 	code, out, errs := gate()
 	if code != 3 || out != "" || strings.Count(errs, "\n") != 1 || !strings.Contains(errs, "deliverable: candidates") {
 		t.Fatalf("candidates: code=%d stdout=%q stderr=%q（終了コード 3 と理由1行のはず）", code, out, errs)
@@ -50,7 +52,7 @@ func TestGateRefusesCandidates(t *testing.T) {
 	}
 
 	// 最後に書いたのが今の Chief of Staff でない（前の Chief of Staff の t4）: PR を求める fix にせず、終了コード 3 と照合の理由1行
-	os.WriteFile(log, []byte(`{"at":"x","by":"terminal:t4","id":"D-0001","change":{"deliverable":"candidates"}}`+"\n"), 0o644)
+	os.WriteFile(log, []byte(ledgertest.Log(t, `{"at":"2026-11-20T00:00:00Z","by":"terminal:t4","id":"D-0001","change":{"deliverable":"candidates"}}`)), 0o644)
 	code, out, errs = gate()
 	if code != 3 || out != "" || strings.Count(errs, "\n") != 1 || !strings.Contains(errs, "最後に書いたのが Chief of Staff でない") || strings.Contains(errs, "report.json") {
 		t.Fatalf("照合が外れた candidates: code=%d stdout=%q stderr=%q（PR を求めずに終了コード 3 と理由1行のはず）", code, out, errs)

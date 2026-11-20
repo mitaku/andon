@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 人の手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の台帳の行〈§22〉と引き取れる課題〈§23〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -20,6 +20,8 @@
 | §19 結果の記録 | `schema/outcome.schema.json` |
 | §20 振り返りの入力（`andon retro collect` の出力） | `schema/retro.schema.json` |
 | §21 パターンの一覧（`retro.json`） | `schema/patterns.schema.json` |
+| §22 台帳の行（`log.jsonl`） | `schema/ledger/log.v3.schema.json` |
+| §23 引き取れる課題（`kanban ready --json` の出力） | `schema/ledger/ready.v3.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、人が書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
@@ -62,7 +64,7 @@ projects/<slug>/kanban/
       retro.json                  振り返りの担当（§21。andon retro patterns が検査して書く。パターンの一覧）
       retro-applied.json          andon retro apply（§21。Chief of Staff が打つ。足した課題と捨てたパターン）
   chief-of-staff/launches.jsonl   andon chief-of-staff（§18。Chief of Staff は課題を持たないので台帳の直下）
-  log.jsonl                       台帳の CLI が書く。by で履歴を照合
+  log.jsonl                       台帳の CLI が書く（§22）。by で履歴を照合
 projects/<slug>/project.json      人（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。台帳の外）
 ~/.local/state/andon/dispatcher/<slug>.signals.json   dispatcher（§15。外の信号の記録。台帳の外）
@@ -897,3 +899,55 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 **当てる**（`andon retro apply <id> [--dry-run]`。Chief of Staff が検収して打つ）: `retro.json` を読み、`until` と `days` の期間で入力を集め直して上の検査を通し（GitHub は読まない）、`fix` のパターンごとに課題を1件 `kanban add` する。足す課題の `parent` は振り返りの課題（§20 が前の直しを見分ける印）、題は `summary`、`repo` は `target.repo`。依頼書には、要約・直す先（段・足すか変えるか削るか・repo と paths）・上の段で止められない理由・期待する効果・リスク・完了条件・守ること（改善の PR の決まり）・根拠（課題は題と片付いた時刻と PR、人が打った文は id と役と時刻だけで本文は写さない）・PR の本文に書いてよい根拠の PR・辿り方を書く。`target.kind` が `andon` で、`target.repo` が無いかプロジェクトの `repos` に無ければ、直す課題ではなく人の課題（`who: person`。題は「Andon へ伝えるか: <summary>」）にする（決めたこと 2）。`profile` と予約キー（§2）は書かない（起動する前に Chief of Staff が切る決まりで書く）。`--dry-run` は足す課題と捨てるパターンを JSON で出すだけで、何も書かない。
 
 当てた記録は振り返りの課題の `library/retro-applied.json`（書き手は `andon retro apply`。読むのは人と Chief of Staff で、機械は判定に使わないので schema は持たない）。`retro`・`applied_at`・`complete`（全部を足したら `true`）・`issues[]`（`pattern`・`issue`・`who`〈`worker` か `person`〉・`title`）・`dropped[]`（`pattern`・`reason`）。1件足すたびに書き直すので、途中で台帳の CLI が落ちても足した分が残り、打ち直すと残りから続ける。`complete` が `true` なら断る（当て済み）。
+
+## 22. 台帳の行（`log.jsonl`）
+
+`projects/<slug>/kanban/log.jsonl`。台帳の CLI（`kanban`）が台帳を変えるたびに1行（JSON Lines）を足す。書き手は `kanban` だけで、追記だけ。読み手は dispatcher（通知の元・結果の記録の実働・人の手直し）・`andon issue`（stop-check・ゲートのあとのマージ）・`andon gate`（予約キーを Chief of Staff が書いたかの照合）・`andon measure`・`andon retro collect`。形の正は `schema/ledger/log.v3.schema.json`（[ADR-0034](adr/0034-prevention-before-tests.md) 決めたこと 7）で、どのコマンドが何を書くかの説明は [ledger.md](ledger.md) の `log.jsonl` の節。
+
+行の形は4つで、キーで見分ける。`config` があれば config の行、`routine` があればルーチンの行、`migrate` があれば移した行、どれも無ければ課題の行。
+
+```json
+{"at": "2026-11-02T10:03:00Z", "by": "terminal:t3", "id": "S-0012", "change": {"status": "doing", "agent": "t3", "branch": "sample-site/S-0012-add-the-button"}}
+```
+
+```json
+{"at": "2026-11-02T10:05:00Z", "by": "terminal:dispatcher", "id": "S-0012", "change": {"question": 1, "status": "open"}}
+```
+
+```json
+{"at": "2026-11-02T09:00:00Z", "by": "terminal:t2", "config": {"chief_of_staff": "t2"}}
+```
+
+```json
+{"at": "2026-11-03T00:00:00Z", "by": "routine:triage", "routine": "triage", "fired": "S-0013"}
+```
+
+```json
+{"at": "2026-11-06T00:00:00Z", "by": "terminal:t5", "migrate": {"from": ".flightdeck", "ids": {"S-5": "S-0005"}}}
+```
+
+| 行 | キー | 意味 |
+|---|---|---|
+| どれも | `at` | 書いた時刻（UTC。`YYYY-MM-DDTHH:MM:SSZ`） |
+| どれも | `by` | 書いた端末（`terminal:<HC_TERMINAL_ID>`。dispatcher は `terminal:dispatcher`）。端末の外では利用者の名前、それも無ければ `unknown`。ルーチンの行は `routine:<名前>` |
+| 課題 | `id` | 課題の id。4 桁に揃える前の行は短い id（`S-5`）のまま。読み手は 4 桁に揃えて読む |
+| 課題 | `change` | 変えたキーと新しい値（文字列・文字列の並び・消したキーは `null`）。`kanban set` はどのキーもこの形で書く。ほかに、`add`（`kanban add` の題）・`report`（`write` か `append`）・`question`（問いの番号。`status` は `open`・`answered`・`received`）・`forced`（`--force` で越えた問いの番号。`status` と一緒）・`freedBy`（`kanban done` で `queued` から出した課題。`status` と一緒） |
+| config | `config` | `kanban config set` が変えたキーと新しい値（消したら `null`）。2026-11-06 より前の行は `coordinator` |
+| ルーチン | `routine`・`fired`・`skipped` | ルーチンの名前と、足した課題の id（`fired`）か足さなかった理由（`skipped`。`paused`・`open`）。どちらか一方 |
+| 移した | `migrate` | `kanban migrate` が移した元のフォルダの名前（`from`）と、改めた id（`ids`。古い id → 新しい id） |
+
+- 知らないキーは書かない（`additionalProperties: false`）。読み手は読めない行を飛ばす。キーを足すのは ledger.md と `schema/ledger/log.v3.schema.json` を同じ PR で直す。
+- 本物の `kanban` に全部の形の行を書かせて schema に通すのは `cmd/kanban` のテスト（`TestLogAndReadyFitTheLedgerSchemas`）。Go のテストが手で書く `log.jsonl` は、補助 `internal/ledger/ledgertest` の `Log` を通して書く。補助は行が schema に合わなければテストを落とす。読めない行の扱いを確かめるテストだけは、補助を通さずに書く。
+
+## 23. 引き取れる課題（`kanban ready --json` の出力）
+
+`kanban ready --json` が出す課題の並び。`todo` か `queued` で、`after` が全部済み、`not_before` が先でない課題を、`issue.yaml` の値に `id`（フォルダの名前）を足した形で並べる。読めない課題は並べない。読み手は dispatcher（ready の差を通知 `ready` にする。人の課題とレビュアーの子課題は除く）と `andon issue start`（起動してよいかの照合）。形の正は `schema/ledger/ready.v3.schema.json`（[ADR-0034](adr/0034-prevention-before-tests.md) 決めたこと 7）。
+
+```json
+[{"id": "S-0013", "title": "Add the button", "status": "todo", "repo": "github.com/example/sample-site", "profile": "claude",
+  "created": "2026-11-02T10:00:00Z", "updated": "2026-11-02T10:00:00Z"},
+ {"id": "S-0014", "title": "Decide the copy", "status": "queued", "who": "person", "after": ["S-0012"], "review": "on"}]
+```
+
+- 課題の項目は `schema/ledger/issue.v3.schema.json` の項目の写しで、`id` と `status` が必須、`status` は `todo` か `queued` に絞る。写しが issue.v3 とずれないことは `cmd/kanban` のテスト（`TestReadySchemaCopiesTheIssueSchema`）が見る。台帳の形式に倣い、知らないキー（Andon の予約キー〈§2〉を含む）は許す。
+- 本物の出力を schema に通すのは §22 と同じ `cmd/kanban` のテスト。Go のテストが偽の `kanban` に返させる ready は、補助 `internal/ledger/ledgertest` の `Ready` を通して書く。

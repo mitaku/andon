@@ -364,6 +364,7 @@ emit <(recorded "$id" gate) notification-gate.json
 emit <(recorded "$id" merged) notification-merged.json
 emit "$rec" gate-record-merged.json
 ok 'review に入ったらゲートを回し、approve ＋ merge: auto ＋ 委譲 B でマージ（squash・head を固定）して finish（レビュアーと worktree も）'
+emit "$L/log.jsonl" ledger-log.jsonl   # 本物の kanban が書いた行（tests/schema.sh が1行ずつ schema/ledger/log.v3 に通す）
 tail -n +"$((mark + 1))" "$L/log.jsonl" | jq -e -s 'all(.by != "terminal:t5")' >/dev/null || die 'Chief of Staff が台帳に書いた'
 [ ! -e "$tmp/hc/sent" ] || die "誰かに hc send した: $(cat "$tmp/hc/sent")"
 ok 'その間 Chief of Staff（t5）は留守で、台帳に1行も書いていない・誰にも hc send していない'
@@ -1674,6 +1675,7 @@ p5=$(as_cos kanban add --parent "$p2" "$p2 のレビュー"); as_cos kanban set 
 p6=$(as_cos kanban add --parent "$p2" '観察'); as_cos kanban set "$p6" profile=sonnet >/dev/null
 kanban ready --json | jq -e --arg p "$p5" 'any(.[]; .id == $p and .profile == "codex-review" and .parent != null)' >/dev/null ||
     die "レビュアーの子課題が kanban ready に出ない（検査が何も見ていない）: $(kanban ready --json | jq -c .)"
+kanban ready --json >"$tmp/ready.json"; emit "$tmp/ready.json" ledger-ready.json
 pk
 pp "$p2" ready | jq -e '.[0].detail == {title: "新しく引き取れる"}' >/dev/null || die "増えた ready を拾わない: $(pp "$p2" ready)"
 pp "$p4" ready | jq -e '.[0].detail == {title: "ルーチンが足した", routine: "nightly"}' >/dev/null || die "ルーチンの ready に routine が無い: $(pp "$p4" ready)"
