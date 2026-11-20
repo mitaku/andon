@@ -107,7 +107,20 @@
           "properties": {
             "pass": { "description": "Count of pass.", "type": "integer", "minimum": 0 },
             "fail": { "description": "Count of fail.", "type": "integer", "minimum": 0 },
-            "manual": { "description": "Count of manual.", "type": "integer", "minimum": 0 }
+            "manual": { "description": "Count of manual.", "type": "integer", "minimum": 0 },
+            "stale_runs": {
+              "description": "Rows of report.json acceptance[] that point at a run record (library/runs/<run>.json) taken at a commit other than head. The gate does not send the PR back for this; it only writes it here. Absent when there is none.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object", "required": ["id", "run", "commit"], "additionalProperties": false,
+                "properties": {
+                  "id": { "description": "id of the acceptance row.", "type": "string", "minLength": 1 },
+                  "run": { "description": "id of the run record the row points at.", "type": "integer", "minimum": 1 },
+                  "commit": { "description": "commit of the run record.", "$ref": "#/$defs/sha" }
+                }
+              }
+            }
           }
         },
         "delegation": {

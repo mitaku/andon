@@ -1,7 +1,10 @@
 package gate
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -45,6 +48,7 @@ func recordReasons(t *testing.T) []string {
 		func(f *Facts) { f.Review.MustFixOpen = 2; f.PreviousMustFix = true },
 		func(f *Facts) { f.Review.WaivedHeavy = 1 },
 		func(f *Facts) { f.AcceptanceFail = 1 },
+		func(f *Facts) { f.RunProblems = runProblems(t) },
 		func(f *Facts) { f.ScreenMissing = []string{"web/a.css"} },
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}} },
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{State: "none"}; f.ChecksOverdue = true },
@@ -62,6 +66,38 @@ func recordReasons(t *testing.T) []string {
 		}
 	}
 	return out
+}
+
+// runProblems は contract.CheckRuns が出す理由の文の全部（記録が無い・読めない・出力が無い・終了コードが期待と違う・pass を期待して dirty）。
+func runProblems(t *testing.T) []string {
+	lib := t.TempDir()
+	runs := filepath.Join(lib, "runs")
+	if err := os.MkdirAll(runs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	put := func(n int, code int, dirty bool) {
+		r := contract.Run{ID: n, Command: []string{"go", "test", "./..."}, Expect: "pass", ExitCode: code, Commit: strings.Repeat("a", 40), Dirty: &dirty,
+			StartedAt: "2026-11-20T09:00:00Z", FinishedAt: "2026-11-20T09:00:10Z", Output: contract.RunOutput(n)}
+		if err := contract.Write(filepath.Join(runs, strconv.Itoa(n)+".json"), contract.SchemaRun, &r); err != nil {
+			t.Fatal(err)
+		}
+		if n != 2 {
+			os.WriteFile(filepath.Join(lib, r.Output), nil, 0o644)
+		}
+	}
+	put(2, 0, false) // 出力が無い
+	put(3, 1, false) // 終了コードが期待と違う
+	put(4, 0, true)  // pass を期待して dirty
+	os.WriteFile(filepath.Join(runs, "5.json"), []byte(`{"id": 5}`), 0o644)
+	var rows []contract.Acceptance
+	for n := 1; n <= 5; n++ {
+		rows = append(rows, contract.Acceptance{ID: "A" + strconv.Itoa(n), Result: "pass", Evidence: "go test ./...", Run: &n})
+	}
+	p, _ := contract.CheckRuns(lib, rows, "")
+	if len(p) != 5 {
+		t.Fatalf("記録の理由が 5 通り出ない: %v", p)
+	}
+	return p
 }
 
 // recordTierReasons は記録の tier_reasons に入りうる文の全部（Classify と FromReport の出力）。

@@ -3,6 +3,7 @@ package issue
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -144,6 +145,24 @@ func (f *fixture) gateQuestion(from, head string) {
 	f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}]`
 }
 
+// runRow は report.json に、記録 n を指す受け入れ条件の行 A1 を足す（n が 0 なら記録を指さない行）。
+// 記録は andon issue record が書く形で library/runs/<n>.json と <n>.log に置く（expect が空なら置かない）。
+func (f *fixture) runRow(n int, expect string, code int, commit string, dirty bool) {
+	row := map[string]any{"id": "A1", "result": "pass", "evidence": "go test ./internal/issue/"}
+	if n > 0 {
+		row["run"] = n
+	}
+	f.report = strings.TrimSuffix(f.report, "}") + `, "acceptance": [` + js(row) + `]}`
+	if expect == "" {
+		return
+	}
+	lib := "kanban/issues/T-0001/library/runs/"
+	f.write(lib+fmt.Sprintf("%d.json", n), js(map[string]any{"id": n, "command": []string{"go", "test", "./..."}, "expect": expect, "exit_code": code,
+		"commit": commit, "dirty": dirty, "started_at": "2026-11-20T09:00:00Z", "finished_at": "2026-11-20T09:00:10Z",
+		"output": fmt.Sprintf("runs/%d.log", n), "output_bytes": 3, "truncated": false}))
+	f.write(lib+fmt.Sprintf("%d.log", n), "ok\n")
+}
+
 func TestReady(t *testing.T) {
 	cases := []struct {
 		name string
@@ -184,6 +203,14 @@ func TestReady(t *testing.T) {
 			f.gateQuestion("gate", other)
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}, {"id": "T-0001", "n": 2, "status": "open"}]`
 		}, "T-0001#2（open）"},
+		// ADR-0035 受け入れ条件 3: 記録を指す行だけ中身を見る
+		{"記録を指さない行だけなら今までどおり通る", func(f *fixture) { f.runRow(0, "", 0, "", false) }, ""},
+		{"指す記録が pass で通っていれば通る", func(f *fixture) { f.runRow(1, "pass", 0, f.head, false) }, ""},
+		{"fail を期待する記録は変更のある木でよい", func(f *fixture) { f.runRow(1, "fail", 1, f.head, true) }, ""},
+		{"記録の commit が HEAD より古くても断らない", func(f *fixture) { f.runRow(1, "pass", 0, other, false) }, ""},
+		{"指す記録が無い", func(f *fixture) { f.runRow(3, "", 0, "", false) }, "受け入れ条件 A1 の記録 runs/3.json が無い"},
+		{"記録の終了コードが期待と違う", func(f *fixture) { f.runRow(1, "pass", 2, f.head, false) }, "終了コード 2 が期待（pass）と違う"},
+		{"pass を期待する記録が commit していない変更のある木", func(f *fixture) { f.runRow(1, "pass", 0, f.head, true) }, "commit していない変更のある木で撮った"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

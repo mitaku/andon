@@ -140,12 +140,18 @@ func TestFromReport(t *testing.T) {
 	// acceptance に fail がある report はゲートが fix を返す（数えて Decide に渡す）
 	rep, _ = contract.ParseReport([]byte(base + `, "acceptance": [{"id": "A1", "result": "pass", "evidence": "go test ./..."}, {"id": "A2", "result": "fail", "evidence": "bash tests/x.sh"}]}`))
 	cl, n := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
-	if n != (AcceptanceCount{Pass: 1, Fail: 1}) || cl.Tier != "A" {
+	if !reflect.DeepEqual(n, AcceptanceCount{Pass: 1, Fail: 1}) || cl.Tier != "A" {
 		t.Errorf("acceptance の数え: %+v %+v", n, cl)
 	}
 	f = Facts{PROpen: true, RepoKnown: true, Tier: cl.Tier, MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"}, AcceptanceFail: n.Fail}
 	if d, r := Decide(f); d != "fix" || !reflect.DeepEqual(r, []string{"受け入れ条件の fail が 1 件"}) {
 		t.Errorf("acceptance の fail で fix にならない: %s %v", d, r)
+	}
+	// 受け入れ条件の行が指す記録が証拠にならなければ fix（理由は contract.CheckRuns の文のまま。ADR-0035 決めたこと 2）
+	f = Facts{PROpen: true, RepoKnown: true, Tier: "A", MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"},
+		RunProblems: []string{"受け入れ条件 A1 の記録 runs/3.json が無い"}}
+	if d, r := Decide(f); d != "fix" || !reflect.DeepEqual(r, []string{"受け入れ条件 A1 の記録 runs/3.json が無い"}) {
+		t.Errorf("記録が無い行で fix にならない: %s %v", d, r)
 	}
 }
 

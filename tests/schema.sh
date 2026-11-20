@@ -467,6 +467,10 @@ fail|gate-record|del(.review.commit)|current なのに commit が無い
 fail|gate-record|.review.state = "stale" | del(.review.commit)|stale なのに commit が無い
 fail|gate-record|.review.state = "missing"|missing なのに issue・commit がある
 fail|gate-record|.review = {state: "off", issue: "A-13", must_fix_open: 0, waived: 0}|off なのに issue がある
+pass|gate-record|.acceptance.stale_runs = [{id: "A1", run: 3, commit: "0000000000000000000000000000000000000001"}]|acceptance.stale_runs（記録が head と違う commit。ADR-0035）
+fail|gate-record|.acceptance.stale_runs = []|acceptance.stale_runs が空（無ければ書かない）
+fail|gate-record|.acceptance.stale_runs = [{id: "A1", run: 3}]|acceptance.stale_runs の行に commit が無い
+fail|gate-record|.acceptance.stale_runs = [{id: "A1", run: 0, commit: "0000000000000000000000000000000000000001"}]|acceptance.stale_runs の run が 0
 fail|gate-record|.at = "2026-13-01T09:10:00Z"|at の月が 13
 fail|gate-record|.review.state = "unknown"|review.state が知らない値
 fail|gate-record|.decision = "approved"|decision が知らない値
@@ -902,6 +906,7 @@ candidates-norepo.json|candidates|andon issue candidates の candidates.json（r
 issue-keys-candidates.json|issue-keys|andon issue show の settings（deliverable: candidates）
 gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
+gate-record-stale-runs.json|gate|andon gate の記録（受け入れ条件の行が指す記録が head と違う commit）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
 project.json|project|andon delegate grant の project.json
 gate-record-merged.json|gate|andon dispatcher がマージしたあとのゲートの記録（merged）

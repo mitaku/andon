@@ -590,6 +590,11 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if err != nil {
 		return fail("library/report.json の形が違う: %v", err)
 	}
+	// 受け入れ条件の行が記録を指すときだけ、その記録を確かめる（ADR-0035 決めたこと 2・11）。
+	// 記録の commit が HEAD より古いのは断らない（ゲートが記録に出す）
+	if problems, _ := contract.CheckRuns(c.l.Library(c.id), r.Acceptance, ""); len(problems) > 0 {
+		return fail("受け入れ条件の行が指す記録が証拠にならないので review にしない: %s。andon issue record で撮り直し、andon issue report で書き直してから打ち直す", strings.Join(problems, "・"))
+	}
 	if ledger.SettingsOf(c.issue).Deliverable == "candidates" {
 		// 照合（Chief of Staff が書いたか）は見ない: Chief of Staff が起き直したあと書き直す前でも PR を求めない。
 		// review に入った調べる課題はゲートを回さず Chief of Staff に届く（ADR-0006 決めたこと 17）

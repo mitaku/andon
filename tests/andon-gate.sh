@@ -376,6 +376,32 @@ echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -
 as_owner git -C "$tmp/plant" commit -qam 'screen_paths を戻す'
 ok 'screen_paths に当たる差分は PR の本文かコメントに GitHub の添付（user-attachments）が無ければ fix、あれば通す。当たらない差分は要らない'
 
+# 11c. 受け入れ条件の行が記録（andon issue record）を指すときだけ中身を見る（ADR-0035 受け入れ条件 3）。
+# 記録の commit が PR の head より古くても戻さず、記録の acceptance.stale_runs に出す。指す記録が無ければ fix
+HC_TERMINAL_ID=t5 kanban set "$id" status=doing >/dev/null
+HC_TERMINAL_ID=t7 "$andon" issue record "$id" -- true >/dev/null   # 記録 1: 今の head で撮る
+old=$head
+pr docs/b.md 1 z
+HC_TERMINAL_ID=t7 "$andon" issue record "$id" -- true >/dev/null   # 記録 2: 進めた head で撮る
+report_runs() { # report_runs <受け入れ条件の行の JSON>: doing に戻して書き直し、review へ
+    HC_TERMINAL_ID=t5 kanban set "$id" status=doing >/dev/null
+    HC_TERMINAL_ID=t7 "$andon" issue report "$id" --data "{\"acceptance\": $1}" <<<'## Report' >/dev/null
+    HC_TERMINAL_ID=t7 kanban review "$id" >/dev/null
+}
+report_runs '[{"id": "A1", "result": "pass", "evidence": "true", "run": 1}, {"id": "A2", "result": "pass", "evidence": "true", "run": 2},
+              {"id": "A3", "result": "pass", "evidence": "CI の go"}]'
+findings "$head"
+got=$(gate "$id"); expect 0 approve
+jq -e --arg c "$old" '.acceptance == {pass: 3, fail: 0, manual: 0, stale_runs: [{id: "A1", run: 1, commit: $c}]}' "$lib/gate/$head.json" >/dev/null ||
+    die "古い記録が acceptance.stale_runs に出ない: $(jq -c .acceptance "$lib/gate/$head.json")"
+emit "$lib/gate/$head.json" gate-record-stale-runs.json
+report_runs '[{"id": "A2", "result": "pass", "evidence": "true", "run": 2}, {"id": "A3", "result": "pass", "evidence": "CI の go"}]'
+got=$(gate "$id" --dry-run); expect 0 approve
+jq -e '.acceptance | has("stale_runs") | not' "$tmp/out" >/dev/null || die '古い記録が無いのに stale_runs を書いた'
+report_runs '[{"id": "A4", "result": "pass", "evidence": "true", "run": 9}]'
+got=$(gate "$id" --dry-run); expect 1 fix '受け入れ条件 A4 の記録 runs/9.json が無い'
+ok '受け入れ条件の行が指す記録が古い commit なら戻さず acceptance.stale_runs に出し、無ければ fix（記録を指さない行は見ない）'
+
 # 12. deliverable: candidates（調べる課題）にはゲートが無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
 sid=$(HC_TERMINAL_ID=t5 kanban add 'docs の誤りを調べる' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates branch=survey "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
