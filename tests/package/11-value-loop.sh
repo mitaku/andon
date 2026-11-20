@@ -22,7 +22,7 @@ grep -q '^## 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\*
 block "$pb/brief.md" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"
 grep -q '^| `signal` の行' "$pb/watch.md" || miss="$miss news の表の signal の行"
 [ -z "$miss" ] && pass "chief-of-staff skill に、空なら戻す・観察の課題を --parent と not_before で足す・signal を直す課題に切る、の行がある" || fail "chief-of-staff skill の価値のループ:$miss"
-grep -q '^| 7\. 課題は台帳が既定 | 4・6 | `cut.md` |$' "$cos" \
+grep -q '^| 7\. 課題は kanban が既定 | 4・6 | `cut.md` |$' "$cos" \
   && grep -q '^  `write_back: true` の出所への `andon issue finish` の1コメントは委譲の中。それ以外のトラッカーへの書き込み（状態の変更・途中のコメント）はオーナーの go' <<<"$cos1" \
   && grep -q '`write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL' <<<"$cos1" \
   && pass "chief-of-staff の規約7（cut.md）が write_back の1コメントを委譲の中に、ほかの書き込みをオーナーの go に分ける（ADR-0011 決めたこと 15）" \

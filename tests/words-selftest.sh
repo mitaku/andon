@@ -36,7 +36,7 @@ setup; mkdir -p "$tmp/r/.claude/skills/verify-andon"; echo '担当を起こす' 
 expect fail '.claude/skills/ の skill の「起こす」で落ちる'
 
 # 役を指す「人」（ADR-0036 受け入れ条件 2）: 替えた範囲（package/）に足すと落ち、役を指さない「人」は通る
-for w in '人がマージする' '人の判断待ち' '人に聞く' 'ゲートは人へ回す' '人（2026-11-10）: 「残して」'; do
+for w in '人がマージする' '人の判断待ち' '人に聞く' 'gate は人へ回す' '人（2026-11-10）: 「残して」'; do
   setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect fail "package/ の「$w」で落ちる"
 done
 for w in '外の人が読む' '1人にする' '人が読む写し' 'セルに 1 人（owner）' 'ほかの人の作業' '人向けの要約' '人と AI が読む' '人の名前を写さない' 'オーナーの判断待ち'; do
@@ -55,5 +55,19 @@ setup; mkdir -p "$tmp/r/internal/triage"; echo 'case "人に聞くこと", "オ�
 expect ok 'internal/triage/ の古い見出しを読む所は通る'
 setup; mkdir -p "$tmp/r/internal/issue"; echo 'case "人に聞くこと", "オーナーに聞くこと":' >"$tmp/r/internal/issue/x.go"
 expect fail 'internal/triage/ の外の「人に聞くこと」で落ちる'
+
+# 「台帳」「ゲート」「版」（ADR-0040 受け入れ条件 2）: 替えた範囲（package/）に足すと落ち、残す形と「」の中は通る
+for w in '台帳に書く' '役・ゲート・約束' '自動マージゲート' '前の版に戻す' '版を上げる' '各版の節' '`<skill>@<版>`'; do
+  setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect fail "package/ の「$w」で落ちる"
+done
+for w in '最新版にする' '初版と比べる' '英語版を読む' '2006 版では' 'Go 版を使う' '用語集の「台帳」と「ゲート」は消す' '「前の版」は「前のバージョン」と書く'; do
+  setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect ok "package/ の「$w」は通る"
+done
+setup; mkdir -p "$tmp/r/package/skills/glossary"; echo '_避ける_: 台帳（2026-11-20 までの語）' >"$tmp/r/package/skills/glossary/SKILL.md"
+expect ok '用語集の「_避ける_」の行の「台帳」は通る'
+setup; mkdir -p "$tmp/r/package/skills/worker"; echo '_避ける_: 台帳' >"$tmp/r/package/skills/worker/SKILL.md"
+expect fail '用語集でない skill の「_避ける_」の行の「台帳」で落ちる'
+setup; mkdir -p "$tmp/r/.yomiyasu-words"; echo '前の版' >"$tmp/r/.yomiyasu-words/allow.txt"; expect fail '.yomiyasu-words/ の「前の版」で落ちる'
+setup; echo '台帳に書く' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/）の「台帳」はまだ見ない'
 
 exit "$fail"

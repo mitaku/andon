@@ -1,5 +1,5 @@
 # tests/package/20-review-viewpoints.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・fm・tmp は入口が置き、前の節が置いた変数も使う）。
-#  20. PR を出す前の3つの観点: worker skill §2 の観点（失敗の波及・前の版の形・落ちたあとの起き直し）がレビュアーの依頼書（reviewerBrief・independent-review）の「正しさ」の語で書かれ、§2 の工程表・§4・§7 の書式にある。
+#  20. PR を出す前の3つの観点: worker skill §2 の観点（失敗の波及・前のバージョンの形・落ちたあとの起き直し）がレビュアーの依頼書（reviewerBrief・independent-review）の「正しさ」の語で書かれ、§2 の工程表・§4・§7 の書式にある。
 # === 20. PR を出す前の3つの観点（worker skill §2・§4・§7 とレビュアーの依頼書） ===
 # 担当が当てる観点は、レビュアーの依頼書（dispatcher の reviewerBrief と independent-review skill の型）の「正しさ」の語で書く。
 # 3か所の「正しさ」の語の並びが同じで、担当の3つの観点の見出しと括弧の語が、その並びの中の語であること。
@@ -17,7 +17,7 @@ in_list() { sed 's/・/\n/g' <<<"$2" | grep -qxF -- "$1"; }
 miss=
 [ -n "$brief_ok" ] && [ "$brief_ok" = "$ir_ok" ] && [ "$brief_ok" = "$w_ok" ] \
   || miss="$miss [正しさの語が食い違う: reviewerBrief=$brief_ok independent-review=$ir_ok worker=$w_ok]"
-[ "$(tr '\n' '|' <<<"$views")" = '失敗の波及|前の版の形|落ちたあとの起き直し|' ] || miss="$miss [worker §2 の観点の見出し: $(tr '\n' ' ' <<<"$views")]"
+[ "$(tr '\n' '|' <<<"$views")" = '失敗の波及|前のバージョンの形|落ちたあとの起き直し|' ] || miss="$miss [worker §2 の観点の見出し: $(tr '\n' ' ' <<<"$views")]"
 [ "$(wc -l <<<"$parents")" = 2 ] || miss="$miss [worker §2 の観点に「レビュアーの「…」の1つ」が2つ無い]"
 for v in 失敗の波及 $parents; do in_list "$v" "$brief_ok" || miss="$miss [観点の語「$v」がレビュアーの正しさ（$brief_ok）に無い]"; done
 grep -q '^| 確認 |.*PR を出す前の3つの観点' <<<"$w2" || miss="$miss [worker §2 の工程表の確認に3つの観点]"

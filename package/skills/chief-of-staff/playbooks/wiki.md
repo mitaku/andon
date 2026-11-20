@@ -1,6 +1,6 @@
 ---
 読む時: wiki に元資料を置く・ingest・query・lint をするとき（finish のあと・オーナーの答えが推奨案と違ったとき・オーナーが資料を持ち込んだとき・トリアージの memory の写し・課題を切る前に引くとき）
-消す条件: commit と push の段は「wiki の commit と push を command がするようになったら」。層と ingest の手順は「素の版（原則と目次だけ）で ingest を流して、触るページと log の形が変わらなかったら」。移行の段は「前の形の `wiki/<日付>-<短い名>.md` が残るセルが無くなったら」
+消す条件: commit と push の段は「wiki の commit と push を command がするようになったら」。層と ingest の手順は「素のバージョン（原則と目次だけ）で ingest を流して、触るページと log の形が変わらなかったら」。移行の段は「前の形の `wiki/<日付>-<短い名>.md` が残るセルが無くなったら」
 ---
 
 # wiki
@@ -15,7 +15,7 @@
 - **何を**: 学び（プロジェクト固有も横断も。固有は front matter の `project: <slug>`）・確かめた事実・**オーナーの思考と志向**（決断の傾向・推奨案を覆した理由。`entities/owner.md` に集める）。
   製品に効くもの（仕様・作法・テスト）は repo へ（課題に切る）。決定は ADR と `decisions/` が正で、wiki は指すだけで中身を写さない。
 - **層**:
-  - `raw/` — 元資料。書いたら変えない。4種: (1) オーナーの発言の写し（`raw/<日付>-<短い名>.md`。言葉のまま・日付つき。要約しない）、(2) オーナーが持ち込む外の資料（記事・資料）、(3) finish した課題の記録の写し（`raw/<id>/report.md` と、あれば `raw/<id>/corrections.json`）、(4) トリアージで wiki 行きになった memory の写し（`raw/memory/<日付>-<短い名>.md`。言葉のまま）。指摘（findings）・ゲートの記録は写さず、要れば台帳を指す。
+  - `raw/` — 元資料。書いたら変えない。4種: (1) オーナーの発言の写し（`raw/<日付>-<短い名>.md`。言葉のまま・日付つき。要約しない）、(2) オーナーが持ち込む外の資料（記事・資料）、(3) finish した課題の記録の写し（`raw/<id>/report.md` と、あれば `raw/<id>/corrections.json`）、(4) トリアージで wiki 行きになった memory の写し（`raw/memory/<日付>-<短い名>.md`。言葉のまま）。指摘（findings）・gate の記録は写さず、要れば kanban を指す。
   - `sources/` — 元資料に1対1の要約（`raw/` と同じ名）。front matter に `date`・`source`（`raw/` のパス）。
   - `entities/` — 実体（役・部品・案件・オーナー）ごとに1ページ。例 `entities/owner.md`・`entities/dispatcher.md`。
   - `topics/` — 概念・運用の題ごとに1ページ（比べたもの・まとめもここ）。例 `topics/review-after-rebase.md`（rebase のあとのレビューの頼み直し）。
@@ -23,10 +23,10 @@
   - `index.md` — 目録。種類ごとの節（Sources・Entities・Topics）に、ページごとに1行（リンク・1行の要約）。query は最初にこれを読む。
   - `log.md` — 追記だけの時系列。ingest・query・lint の1件に1項で、先頭を `## [YYYY-MM-DD] ingest | <題>`（`query`・`lint` も同じ形）に揃える。`grep '^## \[' wiki/log.md` で引ける。
 - **元資料を置くとき**（置いたらその場で ingest）:
-  - 書く前に秘密（token・鍵・パスワード）と、オーナーが出さないでと言った個人の情報を `<伏せた: 種類>` に置き換える（「言葉のまま」の唯一の例外）。伏せたかを確かめられない資料は写さず、台帳か元の場所を指すだけにする。
+  - 書く前に秘密（token・鍵・パスワード）と、オーナーが出さないでと言った個人の情報を `<伏せた: 種類>` に置き換える（「言葉のまま」の唯一の例外）。伏せたかを確かめられない資料は写さず、kanban か元の場所を指すだけにする。
   - オーナーの発言: オーナーの答えが推奨案と違ったとき・志向や理由が見えたとき（`blocked.md` の「オーナーに聞くこと」）・オーナーが「残して」と言ったとき。決断そのものは問いの答えと ADR に残るので写さない。
   - 外の資料: オーナーが資料を置いて「取り込んで」と言ったとき。
-  - 課題の記録: `andon issue finish` のあと（dispatcher の `merged` の片付けも）、台帳の `issues/<id>/report.md` と `issues/<id>/library/corrections.json`（あれば）を `raw/<id>/` に写す。調べる課題・トリアージも同じ。
+  - 課題の記録: `andon issue finish` のあと（dispatcher の `merged` の片付けも）、kanban の `issues/<id>/report.md` と `issues/<id>/library/corrections.json`（あれば）を `raw/<id>/` に写す。調べる課題・トリアージも同じ。
   - memory: トリアージの `apply` のあと、`close`「wiki へ」になった memory の本文を、記録から `raw/memory/` に写す（`triage.md` の 5）。memory の置き場（`/workspace/memory/`）からは直接写さない（`apply` が消す）。
 - **いつ（ingest）**: 元資料を `raw/` に置いたその場で、1件ずつ（溜めない）。
   1. `sources/` に要約のページを書く（全部は写さない。次に効くもの・確かめた事実・志向）。

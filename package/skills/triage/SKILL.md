@@ -1,17 +1,17 @@
 ---
 name: triage
-description: 台帳のトリアージを受け持つ担当が読む。依頼書の1行目のゴールの読み方・`andon triage collect` の打ち方・項目ごとの確かめ方と判定表（close / fix / bundle / person / keep）・decisions.json の形・報告（人向けの要約表）の書き方・読むだけの決まりを持つ。依頼書が「トリアージ」で始まり、この SKILL.md を読めと書いてあるときに使う
+description: kanban のトリアージを受け持つ担当が読む。依頼書の1行目のゴールの読み方・`andon triage collect` の打ち方・項目ごとの確かめ方と判定表（close / fix / bundle / person / keep）・decisions.json の形・報告（人向けの要約表）の書き方・読むだけの決まりを持つ。依頼書が「トリアージ」で始まり、この SKILL.md を読めと書いてあるときに使う
 ---
 
 # triage
 
-**台帳に溜まったもの（報告の `## Next`・見送り・`## Remember`・`For AGENTS.md:`・`## オーナーに聞くこと`・担当の無い todo・オーナーの判断待ち・片付けの残り）と、
+**kanban に溜まったもの（報告の `## Next`・見送り・`## Remember`・`For AGENTS.md:`・`## オーナーに聞くこと`・担当の無い todo・オーナーの判断待ち・片付けの残り）と、
 セルの auto memory（`/workspace/memory/` の1件1ファイル）と、外の信号（GitHub の issue・main の CI など。dispatcher が記録したもの）を、
-1つのゴールの下で項目ごとに仕分ける。** 拾うのは `andon triage collect`、台帳に手を入れるのは Chief of Staff が打つ `andon triage apply`。
+1つのゴールの下で項目ごとに仕分ける。** 拾うのは `andon triage collect`、kanban に手を入れるのは Chief of Staff が打つ `andon triage apply`。
 あなたは**確かめて仕分ける**だけで、決めたことは `decisions.json` と報告に書く。
 
 - 手順の土台は worker skill（`kanban start`・報告の書式・`kanban report`／`kanban review`）。この SKILL はその上に仕分けの手順を足す。
-- トリアージは repo の無い課題。cwd は台帳の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告（`kanban report`）だけ。
+- トリアージは repo の無い課題。cwd は kanban の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告（`kanban report`）だけ。
 - 書き方と語は `/opt/andon/writing.md` に従う。語の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`。
 
 | する | しない |
@@ -24,7 +24,7 @@ description: 台帳のトリアージを受け持つ担当が読む。依頼書�
 
 - 依頼書の `ゴール:` の行（オーナーが言ったときは1行目の「トリアージ: <ゴール>」）が、**今回どの項目を扱うか**のフィルタ。
   ゴールの外の項目は閉じず、起動せず、`keep`（理由にゴールを書く）。
-- 既定のゴール（ルーチンの依頼書）: 前回のトリアージのあとに増えた項目を全部仕分け、台帳の未処理を 0 にする。
+- 既定のゴール（ルーチンの依頼書）: 前回のトリアージのあとに増えた項目を全部仕分け、kanban の未処理を 0 にする。
 - ゴールが新しい仕事（「〜を作る」）なら仕分けず、報告の `## Next` に「普通の課題に切る: <要点>」と書いて返す。
 
 ## 2. 拾う
@@ -34,7 +34,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 ```
 
 - 出力はそのまま `library/items.json` に置き、書き換えない。`apply` はこれを collect の記録として読み、判定の `commit` と照らす（§4）。
-- 出力は `{"commits": {<repo>: <commit>}, "items": [項目]}`。`commits` は台帳の repo ごとの最新の main で、collect が origin の既定の branch を取ってきて書く（今回の項目が無い repo も入る）。
+- 出力は `{"commits": {<repo>: <commit>}, "items": [項目]}`。`commits` は kanban の repo ごとの最新の main で、collect が origin の既定の branch を取ってきて書く（今回の項目が無い repo も入る）。
   1つの repo でも最新の main を取れなければ、collect は何も出さずに終了コード 1 で止まる（古い木で仕分けないため）。理由の行を報告に書いて返す。
 - 項目（`items`）は `key`・`kind`・`from`・`repo`・`commit`・`text`・`age_days`（`signal` だけ `url`・`untrusted` も）。古い順に並ぶ。前回までに仕分けた `key` は出ない（`keep` は出る）。
   項目の `commit` はその repo の `commits` の写し。repo の無い項目と、`memory`・`signal` の項目には無い。
@@ -68,7 +68,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 | 3 | **済んでいる**: 同じ内容の課題が done／リポジトリの文書に既に入っている（`git grep`）／docs の「決めたこと」で決まっている | `close`・`closing: done`「済み: <どこで>」 |
 | 4 | **起きない**（見送りの項目だけ）: 見送りの `trivial`（起きる条件を示せない）／`minor` のうち、起きる条件がその repo に無い | `close`・`closing: wont-happen`「起きない: <理由>」 |
 | 5 | **オーナーにしかできない**: 実機・別のセル・外部サービスの UI（Revoke・支払い・プランの変更）・オーナーの目視が完了条件 | `person`（`kind` を付けない。`question` に期限の目安） |
-| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕）、またはゲートのレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行。レベル C で4つのどれにも当たらないもの〈ラインの変更など〉は `kind` を付けない） |
+| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕）、または gate のレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person`（`kind: business\|users\|promise\|irreversible`。`pick` に推奨案を1行。レベル C で4つのどれにも当たらないもの〈ラインの変更など〉は `kind` を付けない） |
 | 7 | **直せて、束ねられる**: 8 の条件を満たし、同じ repo で各々が小さい（目安 50 行以下）ものが、今回の項目に 3 つ以上ある | `bundle`（同じ `bundle` 名。1課題1 PR、commit は意図ごと） |
 | 8 | **直せる**: 完了条件が 1〜3 行で書け、差分が 1 repo に収まり、レベル A か B、可逆 | `fix`（`issue` を付ける。§4） |
 | 9 | 待つものがある（`after` に書ける id・リリース待ち・作業中の課題） | `keep`（理由に待つものの id） |
@@ -84,7 +84,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   例: 使い勝手の既定値は `person`（`users`）。テストの置き場や文書の節の分け方は `fix`。ask-one-by-one skill §1 と同じ線。
 - **`agents`**（`For AGENTS.md:`）: 行き先が決まっているので `fix`。同じ repo に 3 つ以上なら `bundle`（「AGENTS.md に n 行足す」。profile は `sonnet`）。
 - **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（レベル C。`kind` を付けない）。
-  この台帳が Andon 自身のプロジェクトでなければ `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
+  この kanban が Andon 自身のプロジェクトでなければ `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`・`closing: one-off`「その場限り: <なぜ次の課題に効かないか>」。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`・`closing: read`「読んだ: 拾うものなし」。
 - **`memory`**（auto memory の1件。どの役のセッションも書く注意書き・事実で、仕分けるまで全部の役に自動で載り続ける）:
@@ -93,7 +93,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   (b) 既に wiki・`AGENTS.md`・skill・docs にある → 3 の `close`・`closing: done`「済み: <どこで>」。
   (c) その repo の作法・テスト・docs の直し → `agents`・`remember` (a) と同じく `fix`（`brief` に memory の本文を引用する）。Andon の skill・パッケージの直しは `remember` (b) と同じ。
   (d) セルやプロジェクトの事実・学びで、長く残す価値がある → `close`・`closing: wiki`「wiki へ: <題>」とし、報告の `## Next` に「Chief of Staff: wiki へ ingest（raw/memory/ に写す）: <key>」を1行。
-  (e) その場限り・続き（台帳にあるべきもの）・決定（文書の PR にあるべきもの） → `close`・`closing: one-off`「その場限り」。
+  (e) その場限り・続き（kanban にあるべきもの）・決定（文書の PR にあるべきもの） → `close`・`closing: one-off`「その場限り」。
   (f) 確かめるのに待つものがある → `keep`。`keep` のファイルは残り、次回も出る。
   `apply` は `keep` 以外に仕分けた memory のファイルと、目録でそれを指す行を消す。本文と理由はトリアージの記録（`library/triage/`）に残る。
   memory のファイルが書き換わったときは、いつ書き換わったかで2つに分かれる。`collect` のあと `apply` を打つ前なら、key が変わるので `apply` は何も書かずに止まる（`collect` からやり直す）。`apply` の途中なら、`apply` は消す直前に中身を key と照らし、合わなければ消さずに残して記録に `memory_kept` を書き、次のトリアージがそのファイルを拾い直す。照らしてから消すまでの短い隙間に書き換わった分は、残らずに消える。
@@ -121,7 +121,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 
 - `next`・`issue`・`person`・`question`・`agents`・`signal`・`leftover` は判断では閉じられない。済んだ根拠か対象が無い根拠（`git grep` の結果・PR の状態・done の課題）が無ければ、`fix`・`person`・`keep` のどれかにする。
 - 根拠の閉じは `reason` に根拠（どこで・どう確かめたか）を書く。根拠を挙げられないものは根拠の閉じにしない。
-- 判断の閉じと、台帳の課題そのもの（`issue`・`person`）を閉じる判定は、Chief of Staff が1件ずつ読み、「閉じてよい」か「覆す」かを書く（`andon triage verdict`）。全部に「閉じてよい」が揃うまで `apply` は台帳に手を入れない。
+- 判断の閉じと、kanban の課題そのもの（`issue`・`person`）を閉じる判定は、Chief of Staff が1件ずつ読み、「閉じてよい」か「覆す」かを書く（`andon triage verdict`）。全部に「閉じてよい」が揃うまで `apply` は kanban に手を入れない。
   `issue`・`person` は根拠の閉じでも読まれる。覆されたら Chief of Staff から戻ってくるので、行き先（`fix`・`person`・`keep`・根拠の閉じ）を書き直す（§5）。
 
 オーナーに届くものを減らす線（ask-one-by-one skill §1 と同じ）: 5 と 6 と 10 だけがオーナーへ行く。`kind` 無しの `person` は「エージェントで決められたのでは」と要約で目立つので、
@@ -133,7 +133,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 
 ```json
 {
-  "goal": "台帳の未処理を 0 にする",
+  "goal": "kanban の未処理を 0 にする",
   "collected": "2026-11-10T00:05:00Z",
   "items": [
     {"key": "collect が返した key", "commit": "collect が返した commit", "decision": "close", "closing": "gone", "reason": "対象が無い: <owner>/sample-site#24 は MERGED"},
@@ -152,7 +152,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 - `key` は `collect` の出力をそのまま写す（`<slug>:<id>:<kind>:<本文の sha1>`。`signal` は `<slug>:sig-<fingerprint の先頭 12 桁>-e<episodes>:signal:<fingerprint>`）。書き換えない・作らない。1 key に1つ。`text` は書かない（`apply` が収集結果から取る。`signal` は信号の記録の題と `url` で、collect のあと閉じた〈`active` でなくなった〉信号も通る）。
 - `commit` は `collect` の項目の `commit` をそのまま写す（自分が読んだ commit。項目に無ければ書かない）。`git rev-parse HEAD` などで作らない。
   前回までの記録の key を書くとき（見直し）は、その出どころの課題の repo について、今回の `commits` の commit を書く（記録に残る前の commit は使わない）。
-  `apply` は、repo のある課題から出た項目の `commit` を、台帳のその課題の repo について `library/items.json` の `commits` と照らし、違う・無い判定を断る。
+  `apply` は、repo のある課題から出た項目の `commit` を、kanban のその課題の repo について `library/items.json` の `commits` と照らし、違う・無い判定を断る。
   `items.json` が前の形（項目の配列）なら照らせないので断る。collect からやり直す。
 - `decision` は 5 値。`reason` は空にしない・改行しない。`goal` と `collected`（collect を打った時刻）も空にしない。
 - `close` は `closing`（§3 の閉じ方の表の8値）が必須。項目の種類と合わない閉じ方は `apply` が断る。

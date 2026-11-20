@@ -1,6 +1,6 @@
 ---
 name: sonnet
-description: 型が決まった小さい仕事（Claude Code・sonnet）。版上げ・文書の小直し
+description: 型が決まった小さい仕事（Claude Code・sonnet）。バージョンアップ・文書の小直し
 command: s=$(andon issue session); env CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --model sonnet --plugin-dir /opt/andon --append-system-prompt-file /opt/andon/skills/worker/SKILL.md ${s:+--session-id "$s"}
 resume: s=$(andon issue session); env CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --model sonnet --plugin-dir /opt/andon --append-system-prompt-file /opt/andon/skills/worker/SKILL.md --resume "$s"
 ---

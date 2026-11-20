@@ -42,7 +42,7 @@
    当てた commit: <当てた commit>
    機能: <features.sh が出した名前>
    完了条件: 当たる機能ごとに andon issue record の記録がある。報告の ## Report の先頭に、見た commit の範囲（<始まり>..<当てた commit>）と機能ごとの結果（動いた・動かなかった・未確認）がある。地図と手順の食い違いを直したなら、その PR がある。
-   守ること: 製品のコードを直さない（直してよいのは .claude/skills/verify-andon/ の中だけ）。エージェントを起動しない。セルの本物の台帳に書かない。地図を直さなかったときは PR が無いので、andon issue report のあと kanban review <id> で返す（andon issue ready は打たない）。
+   守ること: 製品のコードを直さない（直してよいのは .claude/skills/verify-andon/ の中だけ）。エージェントを起動しない。セルの本物の kanban に書かない。地図を直さなかったときは PR が無いので、andon issue report のあと kanban review <id> で返す（andon issue ready は打たない）。
 
    ## Settings
    - Review: off
@@ -50,7 +50,7 @@
    - Estimate: 中
    ```
 
-   - `Merge` は、委譲がこのプロジェクトのマージを任せていれば `auto`（`brief.md` の表）。地図の直しは `.claude/skills/` の中だけなので、ゲートの条件表で自動でマージできる側に入る。
+   - `Merge` は、委譲がこのプロジェクトのマージを任せていれば `auto`（`brief.md` の表）。地図の直しは `.claude/skills/` の中だけなので、gate の条件表で自動でマージできる側に入る。
    - 起動は `start.md` のとおり（並行の上限とぶつかりの確かめは守る）。上限で待たせた課題も done でないので、1 が次の切り過ぎを止める。
 5. **オーナーへ**: 当てた知らせに1行添える。「検証の課題 <id>（<機能>）を切った」「差分が地図に当たらないので検証は切らない」「検証の課題 <id> が動いているので、片付いたあとにまとめて見る」のどれか。
 
@@ -59,5 +59,5 @@
 検証の課題は、地図を直したら PR つきの `<id> review`、直さなければ `<id> report` で届く。
 
 1. 報告の機能ごとの結果を読み、`## Next` の `to: chief-of-staff` の行を1行ずつ扱う。動かなかった機能は、直す課題に切る（`cut.md`。製品の壊れは検証の担当が直さない）。未確認の機能は壊れとして切らず、何が起きれば確かめられるかを、オーナーに知らせるときに添える。
-2. 片付ける。`<id> report`（PR が無い）は、読んで切ったらオーナーの go 無しで `andon issue finish <id>`。`<id> review`（地図の直しの PR）は、ゲートと dispatcher が回す（`gate.md`・`finish.md`）。
+2. 片付ける。`<id> report`（PR が無い）は、読んで切ったらオーナーの go 無しで `andon issue finish <id>`。`<id> review`（地図の直しの PR）は、gate と dispatcher が回す（`gate.md`・`finish.md`）。
 3. 片付けたら、「当てたら」の 2 で始まりの commit を決め直す。報告に見た範囲が無い（診断で止まった）ときも、2 のとおり依頼書の `前の検証が見た commit:` が始まりになる。始まりが今当たっている commit（`/opt/andon/applied.json` の `commit`）と違えば、それを当てた commit として「当てたら」の 3 から回す。動いている間に当てた差分は、ここでまとめて見る。

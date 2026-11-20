@@ -46,7 +46,7 @@ n=$(grep -c '^- ' <<<"$how")
   && pass "writing.md はオーナーに返す文に絞り、書き方の11行と但し書きがある" || fail "writing.md の書き方の節（行の数 $n）"
 ! grep -qE '括弧には識別子だけ|番号で参照しない' "$wr" && pass "writing.md に古い字面（括弧には識別子だけ・番号で参照しない）が無い" || fail "writing.md に古い字面が残る"
 grep -q 'Chief of Staff を CoS、Chief Engineer を CE と書く' "$wr" \
-  && grep -q 'ふだんカタカナで言う語（コスト・プロファイル・テンプレート・コンテキスト・オーナー・ログ・パス）はカタカナのまま' "$wr" \
+  && grep -q 'ふだんカタカナで言う語（コスト・プロファイル・テンプレート・コンテキスト・オーナー・ログ・パス・バージョン）はカタカナのまま' "$wr" \
   && grep -q '訳語を新しく作らない。迷ったら同僚に口で言うときの言い方にする' "$wr" && grep -q '`/opt/andon/skills/glossary/SKILL.md`' "$wr" \
   && pass "writing.md に語の決まり3つと用語集のパスがある" || fail "writing.md に語の決まりか用語集のパスが無い"
 # 作った語は「避ける」の行と仮設の語の表にしか出ない。残す語（検査・継ぎ目・条件表・控え）は消さない
@@ -54,6 +54,30 @@ left=$(sed '/^## 仮設の語/,$d' "$g" | grep -nE '席|端末の土台|持ち�
 [ -z "$left" ] && pass "用語集に作った語（避ける語）が正式な語として出ない" || fail "用語集に作った語が残る: $left"
 grep -q '^\*\*検査\*\*（checks）:' "$g" && grep -q '条件表' "$g" \
   && pass "用語集の残す語（検査・条件表）は残る" || fail "用語集から残す語が消えた"
+# ADR-0040 A1: 用語集の 2 つの項は kanban と gate で、「台帳」「ゲート」の項は無い。writing.md の語の決まりの例に「バージョン」があり「台帳」が無い
+# old_terms <用語集> <writing.md>: 食い違いを1行で出す（空なら合っている）
+old_terms() {
+  local m=''
+  grep -q '^\*\*kanban\*\*（コードと schema の名前は `ledger`）:' "$1" || m="$m [用語集に kanban の項が無い]"
+  grep -q '^\*\*gate\*\*（`andon gate`）:' "$1" || m="$m [用語集に gate の項が無い]"
+  if grep -qE '^\*\*(台帳|ゲート)\*\*' "$1"; then m="$m [用語集に台帳かゲートの項がある]"; fi
+  grep -q '^_避ける_: 台帳（2026-11-20 までの語）' "$1" || m="$m [kanban の項の避けるに台帳が無い]"
+  grep -q '^_避ける_: ゲート（2026-11-20 までの語）' "$1" || m="$m [gate の項の避けるにゲートが無い]"
+  grep -q 'ふだんカタカナで言う語（[^）]*バージョン[^）]*）' "$2" || m="$m [writing.md のカタカナの例にバージョンが無い]"
+  if grep -q 'もともと日本語で言う語（[^）]*台帳' "$2"; then m="$m [writing.md の日本語の例に台帳がある]"; fi
+  echo "$m"
+}
+miss=$(old_terms "$g" "$wr")
+[ -z "$miss" ] && pass "ADR-0040 A1: 用語集に kanban と gate の項があり台帳とゲートの項が無い。writing.md の例にバージョンがあり台帳が無い" || fail "ADR-0040 A1:$miss"
+# 否定の検査が当たる場合があること: 古い項と古い例を戻した写しでは落ちる
+miss=
+sed 's/^\*\*kanban\*\*（コードと schema の名前は `ledger`）:/**台帳**（ledger）:/' "$g" >"$tmp/glossary.md"
+[ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [台帳の項を戻した]"
+sed 's/^\*\*gate\*\*（`andon gate`）:/**ゲート**（gate）:/' "$g" >"$tmp/glossary.md"
+[ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [ゲートの項を戻した]"
+sed 's/もともと日本語で言う語（課題/もともと日本語で言う語（台帳・課題/' "$wr" >"$tmp/writing.md"
+[ -n "$(old_terms "$g" "$tmp/writing.md")" ] || miss="$miss [writing.md の例に台帳を戻した]"
+[ -z "$miss" ] && pass "ADR-0040 A1: 古い項と古い例を戻した写しでは落ちる（検査が見ている）" || fail "ADR-0040 A1: 写しで落ちない:$miss"
 ! grep -q '一度に出すのは互いに依らない問いの全部' "$ce" && grep -q 'ask-one-by-one skill §2 に従う（1回の返事で1問）' "$ce" \
   && pass "CE skill の問いの出し方は ask-one-by-one §2 を指す（束で出す行が無い）" || fail "CE skill の問いの出し方が ask-one-by-one §2 を指していない"
 fm package/skills/ask-one-by-one/SKILL.md description | grep -q 'Chief Engineer（CE）' \

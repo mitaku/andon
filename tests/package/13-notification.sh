@@ -4,7 +4,7 @@
 miss=
 for f in package/environment.md "$pb/watch.md" "$pb/triage.md"; do
   grep -n 'herdr notification show' "$f" | grep -q 'TUI' || miss="$miss $f"
-  grep -q '台帳の問いとボードで足りる' "$f" || miss="$miss $f(足りる)"
+  grep -q 'kanban の問いとボードで足りる' "$f" || miss="$miss $f(足りる)"
 done
 left=$(grep -n 'herdr notification show' "$cos" "$pb"/*.md | grep -v 'TUI' || true); [ -n "$left" ] && miss="$miss TUI の無い行:$left"
 [ -z "$miss" ] && pass "environment.md と chief-of-staff の手引き（watch.md・triage.md）が herdr notification show を「TUI が動いているときだけ」と書く" || fail "herdr notification show の文言:$miss"

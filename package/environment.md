@@ -6,8 +6,8 @@
 
 - セル（案件ごとの長寿命のコンテナ）の中。`hostname` がセルの名前（slug）。セルの repo は `/workspace`。
 - リポジトリは `/workspace/.ghq` の下（`ghq list`・`ghq get github.com/<owner>/<repo>`）。`projects/` の下に clone を置かない。
-- プロジェクトの台帳は `projects/<slug>/kanban/`。台帳は台帳の CLI（`kanban`）で読み書きする。
-- このシェルは herdr のペインの中。端末は `hc`（`hc ls`・`hc get`・`hc read`・`hc send`）。長く走らせるものはペインか `hc run --bg` で起動する（一時的なシェルで起動したものは一緒に片付く）。skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill` で手引きを読む（状態の意味・終了コード。版で変わるので写さない。毎回は読まない）。
+- プロジェクトの kanban は `projects/<slug>/kanban/`。kanban は kanban の CLI で読み書きする。
+- このシェルは herdr のペインの中。端末は `hc`（`hc ls`・`hc get`・`hc read`・`hc send`）。長く走らせるものはペインか `hc run --bg` で起動する（一時的なシェルで起動したものは一緒に片付く）。skill に書いていない `hc` の操作が要るときだけ、先に `hc --skill` で手引きを読む（状態の意味・終了コード。バージョンで変わるので写さない。毎回は読まない）。
 - Andon の仕事の入口は `andon`（`andon help`）。パッケージは `/opt/andon`（読むだけ）。
 
 ## 道具と認証
@@ -25,7 +25,7 @@
 - dev サーバはコンテナの中で `127.0.0.1` に listen し、`portless alias <app> <port>` で名前を付ける。オーナーは `http://<app>.<セルの名前>.localhost:<PORTLESS_PORT>` で見る（番号はセルの `.env`）。`0.0.0.0` も compose の書き換えも要らない。
 - フロントから別のアプリを呼ぶときも portless の名前で呼ぶ（`localhost:<port>` はオーナーの手元を指す）。
 - 生成した HTML などは `andon publish <file>` で `files/` へ出し、返った URL を伝える。
-- オーナーに気づいてほしいことは `herdr notification show` で出す。herdr（TUI）が動いているときだけ効く（オーナーが Herdr App で使っているときは届かない）。無ければ台帳の問いとボードで足りる。
+- オーナーに気づいてほしいことは `herdr notification show` で出す。herdr（TUI）が動いているときだけ効く（オーナーが Herdr App で使っているときは届かない）。無ければ kanban の問いとボードで足りる。
 
 ## 気づきを残す（auto memory）
 
@@ -33,7 +33,7 @@
 - memory は蒸留までの受け皿。週1のトリアージで仕分けられ、wiki か repo へ出るか捨てられて、ファイルは消える。
 - 1件1ファイルの `.md` を、フォルダの直下に書く（トリアージが拾うのは直下の `.md` だけ。`.md` 以外は許可の確認で止まる）。
 - 書くのは、確かめた事実と、起きた条件と理由のついた学び。本文に課題番号（無ければ repo）を書く。
-- 続き・決定・秘密は書かない。続きは台帳、決定は文書の PR へ。
+- 続き・決定・秘密は書かない。続きは kanban、決定は文書の PR へ。
 - memory に書いたときも、報告の `## Remember` を書く。
 
 ## 気をつけること

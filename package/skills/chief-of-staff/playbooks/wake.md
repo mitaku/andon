@@ -1,13 +1,13 @@
 ---
 読む時: 起動したとき（1回）と、オーナーと話すターンの最初
-消す条件: 予約キーの書き直しの段は「`andon chief-of-staff` がアドレスの変更時に、開いた課題の予約キーを同じ値で書き直すようになったら」。打つコマンドと場所の名前の段は「素の版（原則と目次だけ）で同じ場面を流して、結果が変わらなかったら」
+消す条件: 予約キーの書き直しの段は「`andon chief-of-staff` がアドレスの変更時に、開いた課題の予約キーを同じ値で書き直すようになったら」。打つコマンドと場所の名前の段は「素のバージョン（原則と目次だけ）で同じ場面を流して、結果が変わらなかったら」
 ---
 
 # 起動したとき・毎ターンの最初
 
 ## 打つコマンド
 
-- 打つコマンドは `kanban`（台帳）・`hc`（端末とエージェント）・`andon issue`（起動する・片付ける）・`andon chief-of-staff`（自分を台帳に載せる）・`andon chief-engineer`（Chief Engineer を起動する。`cut.md` の「オーナーの入口」）・`gh`・`git`（セルの wiki だけ。`wiki.md`）。`hc attach` は打たない（オーナーの画面に乗るのはオーナーが自分で打つときだけ）。
+- 打つコマンドは `kanban`（kanban の読み書き）・`hc`（端末とエージェント）・`andon issue`（起動する・片付ける）・`andon chief-of-staff`（自分を kanban に載せる）・`andon chief-engineer`（Chief Engineer を起動する。`cut.md` の「オーナーの入口」）・`gh`・`git`（セルの wiki だけ。`wiki.md`）。`hc attach` は打たない（オーナーの画面に乗るのはオーナーが自分で打つときだけ）。
 
 ## 端末の場所の名前
 
@@ -22,9 +22,9 @@
    Chief of Staff は1プロジェクトに1人（規約1）: 形は `config.yaml` の `chief_of_staff` と、ラベル `role=chief-of-staff project=<slug>`。起動するのはオーナーが打つ `andon chief-of-staff`（動いていれば使う・2人なら止まる）。
    「2人いる」で止まったら、自分以外の1人をオーナーに知らせる（自分で止めない）。
    **アドレスが変わったら、開いている課題（`done` と、レビュアーの課題 `-rN` を除く）の予約キーを、今の値のまま `kanban set` で書き直す。**
-   予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起動せず、ゲートは `needs_human` を返す。
+   予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起動せず、gate は `needs_human` を返す。
    課題ごとに `kanban show <id>` で今の値を読み、同じ値で `kanban set <id> review=… must_fix=… reviewer=… review_rounds=… merge=…`（`brief.md` の表。`estimate`・`deliverable`・`machine` があれば同じく）と打つ。値は変えない。`estimate` を打ち忘れると見込みが「無し」に落ち、ズレの通知が黙る。
-2. `hc --skill` を1回読む（hc の状態の意味・終了コードの一次情報。版で変わるので写さない）。
+2. `hc --skill` を1回読む（hc の状態の意味・終了コードの一次情報。バージョンで変わるので写さない）。
 3. `projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節を見る（目標・指示・並行の上限・起動にオーナーの go が要るか・独立レビューを入れる条件）。無ければ並行の上限は 2。
 4. 下の「毎ターン」をして、`watch.md` の止まった検知をする。
 
