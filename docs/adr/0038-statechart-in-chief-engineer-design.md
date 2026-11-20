@@ -20,7 +20,7 @@
 | 10 | pstack と yomiyasu を全セルに配る設計を、この題に含める | この ADR | 生きている |
 | 11 | pstack と yomiyasu は参照で入れ、参照はパッケージの既定に書く | この ADR | まだ実装していない |
 | 12 | 決まりは、パッケージの Chief Engineer の skill に一般の段を、Andon に固有のことは repo の `AGENTS.md` に書く | この ADR | まだ実装していない |
-| 13 | repo のモデルの写しは、statechart と、`model/check` に足す下書きを調べる口の 2 つで調べる | この ADR | まだ実装していない |
+| 13 | repo のモデルの写しは、statechart と、`model/check` に足す下書きを調べる口の 2 つで調べる | `model/check`・`model/README.md` | 生きている（Chief Engineer の決まりの文と repo の `AGENTS.md` の行は、まだ実装していない） |
 | 14 | Java と TLC は、statechart を使ったセルにだけ、道具が自分で入れる | この ADR | まだ実装していない |
 | 15 | モデルのファイルを添える例外を、渡し方の決まりの 2 か所に書く | この ADR | まだ実装していない |
 | 16 | yomiyasu の推敲の決まりは、パッケージの `writing.md` に書く | この ADR | まだ実装していない |
