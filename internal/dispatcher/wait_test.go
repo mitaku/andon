@@ -34,7 +34,7 @@ func (f *retryFixture) pending(n int) {
 	f.t.Helper()
 	f.p.st.Pending = nil
 	for i := 0; i < n; i++ {
-		f.p.st.Pending = append(f.p.st.Pending, Notification{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: fmt.Sprintf("S-%d", i+1), Kind: "report", Detail: map[string]any{}})
+		f.p.st.Pending = append(f.p.st.Pending, Notification{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: fmt.Sprintf("S-%d", i+1), Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}})
 	}
 	if f.p.st.Pending == nil {
 		f.p.st.Pending = []Notification{}
@@ -227,7 +227,7 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 	}
 	f.cos("idle")
 	// 待ちは見回りの手元にだけ置き、控えには書かない（控えに書くと、待ち役はそれを読んで合図で終わり、見回りより先に届けを消す）
-	f.p.st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: "S-9", Kind: "report", Detail: map[string]any{}}}
+	f.p.st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: "S-9", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
 	f.log.Reset()
 	f.p.unwaited("t1")
 	if strings.Contains(f.log.String(), "待ち役がいない") {

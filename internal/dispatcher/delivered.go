@@ -1,11 +1,12 @@
 package dispatcher
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"andon/internal/contract"
 )
 
 // Delivered は届けた通知の記録の1行（<slug>.delivered.jsonl。contract.md §17。schema/delivered.schema.json）。
@@ -38,7 +39,7 @@ func logDelivered(slug string, h *HookNews, acked bool) {
 	if len(d.News) == 0 {
 		return
 	}
-	b, err := json.Marshal(d)
+	b, err := contract.EncodeLine(contract.SchemaDelivered, d)
 	if err == nil {
 		err = appendLine(DeliveredPath(slug), b)
 	}

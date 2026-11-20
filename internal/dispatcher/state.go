@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"andon/internal/contract"
 )
 
 // Notification は通知（contract.md §6。schema/notification.schema.json）。
@@ -135,8 +137,12 @@ func LoadState(slug string) (*State, bool, error) {
 	return st, false, nil
 }
 
-// Save は控えを書く（書いてから置き換える）。
+// Save は控えを書く（書いてから置き換える）。控えそのものは約束でないが、中の通知（待ち・記録の書き残し・フックで渡した分）は
+// 約束の JSON なので、書く前に schema/notification.schema.json と照らし、合わない通知があれば書かずに誤りを返す。
 func (s *State) Save(slug string) error {
+	if err := s.checkNotifications(); err != nil {
+		return err
+	}
 	path := StatePath(slug)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -150,6 +156,20 @@ func (s *State) Save(slug string) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// checkNotifications は控えの中の通知を全部 schema と照らす。
+func (s *State) checkNotifications() error {
+	all := append(append([]Notification{}, s.Pending...), s.Unrecorded...)
+	if s.Hook != nil {
+		all = append(append(all, s.Hook.News...), s.Hook.Again...)
+	}
+	for _, n := range all {
+		if _, err := contract.EncodeLine(contract.SchemaNotification, n); err != nil {
+			return fmt.Errorf("通知（%s %s）: %v", n.Issue, n.Kind, err)
+		}
+	}
+	return nil
 }
 
 // Push は通知を積む。同じ出来事（eventKey が同じ）は新しい1件に置き換える。留守の間は積んだ数を数える（置き換えの前の数）。

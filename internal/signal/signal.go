@@ -218,7 +218,7 @@ func Collect(o Options, w io.Writer) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(o.Path), 0o755); err != nil {
 		return failed, err
 	}
-	return failed, contract.Write(o.Path, f)
+	return failed, contract.Write(o.Path, contract.SchemaSignal, f)
 }
 
 // due は、前に読みに行った時刻 at から every 分（無ければ Every）たったか。at が無い・読めなければ読む。
@@ -259,7 +259,7 @@ func Delivered(path, fingerprint string, episode int) (bool, error) {
 			return false, nil
 		}
 		r.DeliveredEpisode = episode
-		return true, contract.Write(path, f)
+		return true, contract.Write(path, contract.SchemaSignal, f)
 	}
 	return false, fmt.Errorf("記録に無い信号: %s", fingerprint)
 }

@@ -196,7 +196,10 @@ func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (str
 		return err
 	}
 	p.Delegation = json.RawMessage(bytes.TrimSpace(contract.Marshal(file)))
-	out := contract.Marshal(p)
+	out, err := contract.Encode(contract.SchemaProject, p)
+	if err != nil {
+		return fmt.Errorf("書く前の検査に落ちた: %v", err)
+	}
 	if _, err := ParseProject(out, slug); err != nil {
 		return fmt.Errorf("書く前の検査に落ちた: %v", err)
 	}

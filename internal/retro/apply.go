@@ -88,7 +88,7 @@ func runPatterns(root, id string, days int, src string, stdin io.Reader, stdout 
 	if err := os.MkdirAll(l.Library(id), 0o755); err != nil {
 		return err
 	}
-	if err := contract.Write(filepath.Join(l.Library(id), retroFile), p); err != nil {
+	if err := contract.Write(filepath.Join(l.Library(id), retroFile), contract.SchemaPatterns, p); err != nil {
 		return err
 	}
 	fix := 0
@@ -170,7 +170,7 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 	}
 	rec.AppliedAt = time.Now().UTC().Format(time.RFC3339)
 	rec.Dropped = dropped
-	save := func() error { return contract.Write(recPath, rec) }
+	save := func() error { return contract.WriteState(recPath, rec) } // retro-applied.json は schema の無い記録
 	if err := save(); err != nil {
 		return err
 	}

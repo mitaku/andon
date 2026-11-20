@@ -1,5 +1,6 @@
 // Package contract は機械向けの約束（docs/contract.md・schema/）のうち、command が読み書きする JSON の形と検証。
-// 正は schema/ で、ここはその写し（知らないキーを拒む・必須・値の形）。tests/schema.sh が command の出力を schema に通して突き合わせる。
+// 正は schema/ で、command は約束の JSON を書く前に、埋め込んだ schema と照らす（schema.go。ADR-0034 決めたこと 6）。
+// 読む側の Decode と Check は、書き手を信じずに読むための写し（知らないキーを拒む・必須・値の形）。
 package contract
 
 import (
@@ -138,17 +139,8 @@ func noNull(raw any, t reflect.Type, at string) error {
 	return nil
 }
 
-// Write は v を2字下げの JSON で書く（HTML の文字を逃がさない）。一時ファイルに書いてから置き換える。
-func Write(path string, v any) error {
-	b := Marshal(v)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}
-
-// Marshal は v を2字下げの JSON にする（末尾に改行）。
+// Marshal は v を2字下げの JSON にする（HTML の文字を逃がさない・末尾に改行）。照らさない。
+// 約束の JSON は Encode・Write で書く。Marshal を直に呼ぶ所は、ソースを読むテスト（writers_test.go）の表に理由と載せる。
 func Marshal(v any) []byte {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)

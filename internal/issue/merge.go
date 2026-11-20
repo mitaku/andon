@@ -51,7 +51,7 @@ func (c *ctx) merge(stdout, stderr io.Writer, now time.Time) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	if err := contract.Write(path, rec); err != nil {
+	if err := contract.WriteState(path, rec); err != nil {
 		return fail("merge の記録を書けない: %v", err)
 	}
 	_, err := stdout.Write(contract.Marshal(res))
@@ -560,7 +560,7 @@ func markMerged(record string) error {
 		return err
 	}
 	m["merged"] = true
-	return contract.Write(record, m)
+	return contract.Write(record, contract.SchemaGate, m)
 }
 
 // gh は gh を打ち、stdout を返す（失敗は stderr の1行目つき）。

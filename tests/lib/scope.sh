@@ -11,9 +11,9 @@ cd "$(dirname "$0")/../.."
 
 # 重い検査と、その検査が見る部分（ADR-0032 決めたこと 4）。「<dir>/」はその下の全部、それ以外はそのパス（* は同じ段の中だけ）。
 # Go の package は、検査が打つ command の package と、それが import する package（go list -deps）。embed.go は root の package で、
-# init/ と process/states/issue.yaml を埋め込む。cmd/andon と internal/cli は全部の command の入口で、どの検査の部分にも入る
+# init/ と process/states/issue.yaml と schema/ の直下の *.schema.json（書く前に照らす。internal/contract が読む）を埋め込む。cmd/andon と internal/cli は全部の command の入口で、どの検査の部分にも入る
 # （import を辿ると全部の package になるので、tests/ci.sh は閉じているかの確かめから除く）。
-go_issue='embed.go init/ process/states/issue.yaml cmd/andon/ cmd/kanban/ internal/cli/
+go_issue='embed.go init/ process/states/issue.yaml schema/*.schema.json cmd/andon/ cmd/kanban/ internal/cli/
   internal/issue/ internal/dispatcher/ internal/gate/ internal/boot/ internal/chiefengineer/ internal/process/
   internal/triage/ internal/signal/ internal/launch/ internal/sessionlog/ internal/pkgversion/
   internal/ledger/ internal/flock/ internal/delegate/ internal/spawn/ internal/contract/'
@@ -26,7 +26,7 @@ declare -A heavy=(
   [tests/andon-gate.sh]="$go_issue package/gate.json"
   # image/apply-main.sh を当て、焼いた andon の help・version と kanban --version を打つ
   [tests/apply-main.sh]="image/apply-main.sh cmd/andon/ cmd/kanban/ internal/cli/ internal/pkgversion/
-    internal/ledger/ internal/delegate/ internal/spawn/ internal/contract/"
+    internal/ledger/ internal/delegate/ internal/spawn/ internal/contract/ embed.go"
   # schema/ の直下と contract.md の例を検査器で見る。command の出力は emitters が写したものを読む（下で emitters も足す）
   [tests/schema.sh]="schema/*.schema.json docs/contract.md package/lib/andon/schema_check.py"
 )

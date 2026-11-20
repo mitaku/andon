@@ -359,7 +359,7 @@ func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
 	if err := os.MkdirAll(c.l.Library(c.id), 0o755); err != nil {
 		return err
 	}
-	if err := contract.Write(c.reportPath(), r); err != nil {
+	if err := contract.Write(c.reportPath(), contract.SchemaReport, r); err != nil {
 		return err
 	}
 	out, err := c.l.Run(md, "report", c.id)
@@ -638,7 +638,7 @@ func (c *ctx) candidates(stdin io.Reader, stdout io.Writer, src string) error {
 	if err := os.MkdirAll(c.l.Library(c.id), 0o755); err != nil {
 		return err
 	}
-	if err := contract.Write(c.candidatesPath(), cs); err != nil {
+	if err := contract.Write(c.candidatesPath(), contract.SchemaCandidates, cs); err != nil {
 		return err
 	}
 	in := 0
@@ -674,7 +674,7 @@ func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	if err := contract.Write(filepath.Join(dir, m[1]+".json"), q); err != nil {
+	if err := contract.Write(filepath.Join(dir, m[1]+".json"), contract.SchemaQuestion, q); err != nil {
 		return err
 	}
 	fmt.Fprintln(stdout, out)

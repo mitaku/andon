@@ -167,7 +167,7 @@ func TestApproveStuck(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(MergePath("demo")), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := contract.Write(MergePath("demo"), rec); err != nil {
+		if err := contract.WriteState(MergePath("demo"), rec); err != nil {
 			t.Fatal(err)
 		}
 	}

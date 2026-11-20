@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"andon/internal/contract"
+
 	"go.yaml.in/yaml/v3"
 
 	"andon/internal/pkgversion"
@@ -168,10 +170,8 @@ func ChiefOfStaffPath(dir string) string {
 
 // Append は path に r を1行足す（置き場が無ければ作る）。前の行には触らない。
 func Append(path string, r Record) error {
-	var b bytes.Buffer
-	enc := json.NewEncoder(&b)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(r); err != nil {
+	line, err := contract.EncodeLine(contract.SchemaLaunch, r)
+	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -181,7 +181,7 @@ func Append(path string, r Record) error {
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(b.Bytes()); err != nil {
+	if _, err := f.Write(append(line, '\n')); err != nil {
 		f.Close()
 		return err
 	}
