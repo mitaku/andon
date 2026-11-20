@@ -58,10 +58,14 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 #   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」、internal/retro と
 #   tests/andon-retro.sh の前の版の答え「人がマージした」。ADR-0036 決めたこと 6）・
 #   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
-#   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）。
+#   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）・
+#   docs/contract.md が古い語も読むと書いた所（古い見出し `## 人に聞くこと`・古い末尾「（人の判断待ち）」・前のバージョンの答え
+#   「人がマージした（…）」。ADR-0036 決めたこと 6）・README.md の ADR の一覧の行（ADR の題の写し。ADR の本文と一緒に替える）・
+#   CHANGELOG.md の版の節（## v…。版を切ったときの記録。ADR-0036 決めたこと 4）。
 #   引用だけを外し、同じ行の地の文の「人」は当たる。
 role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?<![0-9] )(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ)'
-role_paths=(package internal init cmd tests docs/design.md process docs/process model)
+role_paths=(package internal init cmd tests docs/design.md process docs/process model docs/contract.md docs/dispatcher.md
+  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
@@ -72,12 +76,18 @@ hits=""
     -e '^internal/retro/[^:]*:[0-9]*:.*人がマージした' -e '^tests/andon-retro\.sh:[0-9]*:.*人がマージした' \
     -e '^tests/andon-gate\.sh:[0-9]*:.*古い見出しに当たらない' \
     -e "^tests/package/06-skill-commands\.sh:[0-9]*:.*\(old_cos=\|old_docs=\|<<<'\)" \
+    -e '^README\.md:[0-9]*:  - \[[0-9]\{4\} ' \
+  | awk -F: -v v="${changelog_v:-0}" '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v)' \
   | perl -CSDA -Mutf8 -ne '
       BEGIN { $r = shift }
       my ($f, $t) = /^([^:]*):\d+:(.*)$/s or next;
       if ($f eq "docs/design.md") {
         $t =~ s/止められるものは機械、判断が要るものは LLM、残りだけ人。ラインは回り続け（AND ON）、人を呼ぶときだけ灯りがつく（アンドン）//g;
         $t =~ s/「人の介在率」|「人を待たない」//g;
+        $t =~ /$r/ or next;
+      }
+      if ($f eq "docs/contract.md") {
+        $t =~ s/古い見出し `## 人に聞くこと`|古い末尾「（人の判断待ち）」|前のバージョンの「人がマージした（…）」//g;
         $t =~ /$r/ or next;
       }
       print' "$role" || true)

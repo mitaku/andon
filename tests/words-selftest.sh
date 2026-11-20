@@ -53,6 +53,23 @@ for w in '**Andon は「選択的 Dark Factory」。止められるものは機�
 done
 setup; echo 'freee の KPI「人の介在率」。人の答え 2026-11-07' >"$tmp/r/docs/design.md"
 expect fail 'docs/design.md の引用と同じ行の地の文の「人の答え」で落ちる'
+# 生きている文書（docs/ の4本と root の5本）も替えた範囲。CHANGELOG.md は未リリースの節だけ
+for f in docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md; do
+  setup; echo '| マージは人がする。 | 無し。 |' >"$tmp/r/$f"; expect fail "$f の「人がする」で落ちる"
+done
+setup; sed -i 's/^## 未リリース$/&\n- 人の判断待ちの課題を数える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「人の判断待ち」で落ちる'
+setup; printf -- '- 人の判断待ちの課題を数えた\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG の版の節の「人の判断待ち」は通る'
+# docs/contract.md が古い語も読むと書いた所と、README の ADR の一覧（ADR の題の写し）は通り、同じ行の地の文は当たる
+for w in '`## オーナーに聞くこと`（古い見出し `## 人に聞くこと` も同じに読む）' '題の末尾が「（オーナーの判断待ち）」。古い末尾「（人の判断待ち）」も同じに読む' \
+  '答え（前のバージョンの「人がマージした（…）」か、今の「オーナーがマージした（…）」）'; do
+  setup; echo "$w" >"$tmp/r/docs/contract.md"; expect ok "docs/contract.md の「${w:0:40}」は通る"
+done
+setup; echo '古い見出し `## 人に聞くこと` も同じに読む。人が答える' >"$tmp/r/docs/contract.md"
+expect fail 'docs/contract.md の古い見出しと同じ行の地の文の「人が答える」で落ちる'
+setup; echo '`## 人に聞くこと` を拾う' >"$tmp/r/docs/contract.md"; expect fail 'docs/contract.md の「古い見出し」と書かない `## 人に聞くこと` で落ちる'
+setup; echo '  - [0009 Chief of Staff を人の既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定' >"$tmp/r/README.md"
+expect ok 'README.md の ADR の一覧の行（ADR の題の写し）は通る'
+setup; echo '- [docs/contract.md](docs/contract.md) — 人の手直し' >"$tmp/r/README.md"; expect fail 'README.md の一覧でない行の「人の手直し」で落ちる'
 # コマンドの出力とコードと検査（internal/・init/・cmd/・tests/）も見る
 for d in internal init cmd tests; do
   setup; mkdir -p "$tmp/r/$d"; echo '"人の判断が要る"' >"$tmp/r/$d/x.go"; expect fail "$d/ の「人の判断が要る」で落ちる"
