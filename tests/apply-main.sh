@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/apply-main.sh — image/apply-main.sh（ADR-0027 の受け入れ条件 1〜7・10。S1）。
-#   試しの repo（この repo の追跡しているファイルを写した commit。origin は一時の bare）と、偽のイメージ
+#   試しの repo（この repo の作業ツリーを、commit していない変更ごと写した commit。origin は一時の bare）と、偽のイメージ
 #   （一時の opt/andon・kanban。kanban --version はイメージの commit を出す）に向けて当てる・状態を出す・戻すを回す。
 #   go build は本物。andon boot と hc は偽物で、呼ばれた引数と、そのときの記録の commit を控える。sudo は使わない。
 #   1 当てると中身がその commit の package/・schema/ に一致し、andon・kanban が置かれる  2 記録の3つの値
@@ -9,6 +9,7 @@
 #   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ（7a）・鍵を取らない前の版の dispatcher は止めない（7b）  10 道具が package/ の下に無い（以上 S1）
 #   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
+#   11 試しの repo はこの repo の作業ツリーを写す（commit していない変更を見落とさない）
 set -u
 cd "$(dirname "$0")/.." || exit 2
 here=$(pwd)
@@ -36,13 +37,51 @@ git config --global user.name test
 git config --global user.email test@example.com
 git config --global init.defaultBranch main
 
-# 試しの repo: c0（イメージの元）→ c1（origin/main）。道具そのものは写さない（当てる commit のスクリプトに替わらない）
+# $1 の作業ツリーを $2 へ写す: 追跡しているファイルを commit していない変更ごと、無視していない追跡外のファイルも。
+# 無視している追跡外の .go も写す（go build は無視の設定に関係なくそれを組む）。消したファイルと、追跡外の入れ子の repo
+# （ls-files が dir/ で出す）は写さない。HEAD を写すと、commit していない変更が黙って試しから外れる
+copy_worktree() (
+  set -o pipefail
+  cd "$1" && { git ls-files -z --cached --others --exclude-standard \
+    && git ls-files -z --others --ignored --exclude-standard -- '*.go'; } \
+    | while IFS= read -r -d '' f; do
+        case $f in */) continue ;; esac
+        if [ -e "$f" ] || [ -L "$f" ]; then printf '%s\0' "$f"; fi
+      done \
+    | tar --null -T - -cf - | tar -x -C "$2"
+)
+# 写した repo の中身を全部 commit する。無視の設定に当たる写したファイル（無視している .go）も -f で入れる
+commit_all() { git -C "$1" add -A -f && git -C "$1" commit -qm "$2"; }
+
+# === 11. 試しの repo は作業ツリーを写す（commit していない変更・追跡外のファイル・無視している .go・消したファイル） ===
+w11=$tmp/w11
+git init -q "$w11"
+mkdir -p "$w11/cmd/x" "$w11/internal/y"
+echo 'package main // committed' >"$w11/cmd/x/main.go"
+echo 'package y' >"$w11/internal/y/gone.go"
+printf 'ignored_*\n' >"$w11/.gitignore"
+git -C "$w11" add -A
+git -C "$w11" commit -qm w11
+echo 'package main // uncommitted' >"$w11/cmd/x/main.go"
+echo 'package y // untracked' >"$w11/internal/y/new file.go"
+rm "$w11/internal/y/gone.go"
+echo 'package main // ignored' >"$w11/cmd/x/ignored_gen.go"
+echo 'ignored' >"$w11/cmd/x/ignored_note.txt"
+git init -q "$tmp/c11"
+if copy_worktree "$w11" "$tmp/c11" && commit_all "$tmp/c11" c11 \
+  && [ "$(git -C "$tmp/c11" ls-tree -r --name-only HEAD | tr '\n' ' ')" = ".gitignore cmd/x/ignored_gen.go cmd/x/main.go internal/y/new file.go " ] \
+  && [ "$(git -C "$tmp/c11" show HEAD:cmd/x/main.go)" = 'package main // uncommitted' ]; then
+  pass "11 試しの repo は作業ツリーを写して commit する（commit していない変更・追跡外のファイル・無視している .go を含み、消したファイルと無視している .go 以外を除く）"
+else
+  fail "11 作業ツリーの写し: $(git -C "$tmp/c11" ls-tree -r --name-only HEAD 2>&1 | tr '\n' ' ')"
+fi
+
+# 試しの repo: c0（イメージの元。この repo の作業ツリー）→ c1（origin/main）。道具そのものは写さない（当てる commit のスクリプトに替わらない）
 git init -q --bare "$tmp/origin.git"
 git clone -q "$tmp/origin.git" "$tmp/repo" 2>/dev/null
-git -C "$here" archive HEAD | tar -x -C "$tmp/repo"
+copy_worktree "$here" "$tmp/repo" || { echo "FAIL 作業ツリーを試しの repo へ写せない" >&2; exit 1; }
 rm -f "$tmp/repo/image/apply-main.sh"
-git -C "$tmp/repo" add -A
-git -C "$tmp/repo" commit -qm c0
+commit_all "$tmp/repo" c0 || { echo "FAIL 試しの repo の c0 を作れない" >&2; exit 1; }
 c0=$(git -C "$tmp/repo" rev-parse HEAD)
 echo "c1" >"$tmp/repo/c1.txt"
 echo "# c1 で足した行" >>"$tmp/repo/package/writing.md"
