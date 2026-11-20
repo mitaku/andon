@@ -9,7 +9,7 @@ import (
 // PR のコメントと commit status の説明文は、PR を読む外の人に向けた文（ADR-0026 決めたこと 9）。
 // ゲートの記録（gate/<head>.json の reasons・tier_reasons）は台帳の読み手の文で、変えない。
 // ここでは記録から外向けの文を作るだけで、記録の文を外へそのまま写さない。
-// 頭の「andon gate: 」は動かさない（dispatcher がこの頭でゲートのコメントを見分け、人の手直しから除く）。
+// 頭の「andon gate: 」は動かさない（dispatcher がこの頭でゲートのコメントを見分け、オーナーの手直しから除く）。
 
 // CommentPrefix はゲートが PR に書くコメントと commit status の説明文の頭（dispatcher の gateCommentPrefix と同じ）。
 const CommentPrefix = "andon gate: "
@@ -22,7 +22,7 @@ func headline(decision string) string {
 	case "fix":
 		return "作った側が直してから出し直す変更です"
 	case "needs_human":
-		return "人の判断が要る変更です"
+		return "メンテナーの判断が要る変更です"
 	}
 	return "判定できなかった変更です"
 }
@@ -35,7 +35,7 @@ func tierText(tier string) string {
 	case "B":
 		return "レビューが要る変更"
 	case "C":
-		return "人が見る変更"
+		return "メンテナーが見る変更"
 	}
 	return "区分の分からない変更"
 }
@@ -72,7 +72,7 @@ func CommentBody(rec *Record) string {
 	if rec.Delegation.OK {
 		b.WriteString("- 自動でマージしてよい範囲: 中\n")
 	} else {
-		b.WriteString("- 自動でマージしてよい範囲: 外（人がマージする）\n")
+		b.WriteString("- 自動でマージしてよい範囲: 外（メンテナーがマージする）\n")
 	}
 	return b.String()
 }
@@ -163,15 +163,17 @@ var reasonRewrites = []rewrite{
 // tierReasonRewrites は記録の tier_reasons（Classify と FromReport が書く文）を外向けの文に直す表。
 var tierReasonRewrites = []rewrite{
 	{regexp.MustCompile(`^path (.*)（tier_overrides）$`), func(m []string) string { return "この repo で個別に決めたファイル " + m[1] }},
-	{regexp.MustCompile(`^path (.*)$`), func(m []string) string { return "人が見ると決めたファイル " + m[1] }},
+	{regexp.MustCompile(`^path (.*)$`), func(m []string) string { return "メンテナーが見ると決めたファイル " + m[1] }},
 	{regexp.MustCompile(`^実行面 (.*)$`), func(m []string) string { return "動きに関わるファイル " + m[1] }},
 	{regexp.MustCompile(`^段 A 許可リスト外 (.*)$`), func(m []string) string { return "自動の確かめだけで足りるファイルの外 " + m[1] }},
-	{regexp.MustCompile(`^追加行 (.*)$`), func(m []string) string { return "人が見ると決めた形の行を足した（`" + m[1] + "`）" }},
+	{regexp.MustCompile(`^追加行 (.*)$`), func(m []string) string {
+		return "メンテナーが見ると決めた形の行を足した（`" + m[1] + "`）"
+	}},
 	{regexp.MustCompile(`^([0-9]+) 行（size_(?:human|review)_lines ([0-9]+) 超）$`), func(m []string) string {
 		return m[1] + " 行（" + m[2] + " 行を超える）"
 	}},
 	{regexp.MustCompile(`^review: on$`), fixed("レビューを入れると決めた作業")},
-	{regexp.MustCompile(`^受け入れ条件の manual が ([0-9]+) 件`), func(m []string) string { return "人が確かめる受け入れ条件が " + m[1] + " 件" }},
+	{regexp.MustCompile(`^受け入れ条件の manual が ([0-9]+) 件`), func(m []string) string { return "メンテナーが確かめる受け入れ条件が " + m[1] + " 件" }},
 	{regexp.MustCompile(`^` + regexp.QuoteMeta(OneWayReason) + `$`), fixed("戻せない変更だと作った側が申告した")},
 }
 
