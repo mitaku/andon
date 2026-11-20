@@ -2,6 +2,7 @@
 
 - 状態: **決定（2026-11-12）**。人が対話の中で「決めた」と言った。セルに入れるのは「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - **改め（2026-11-12。同じ課題 A-0160。PR #210 のマージのあと）**: plugin の登録と自動更新は、セルの利用者の `settings.json` に書かれた状態を正とする。決めたこと 7 を下から足し、受け入れ条件 3・切る案の細部・開いている問いを合わせた。
+- **改め（2026-11-20。[ADR-0035](0035-pstack-correct-and-verification-skill.md) の決めたこと 10）**: 「やらないこと」の「Andon が既に持つものを pstack に替えない」のうち、`create-verification-skill` と `correct` の扱いを改める。`create-verification-skill` は、Andon の repo の検証の skill を作る課題が手順として読む。`correct` は工程に入れないまま、要点を振り返りと `AGENTS.md` の表に移す。ほかの行は変えない。
 - 主題: poteto（Lauren Tan）作の pstack を、Andon を作るセルに plugin として入れ、担当の実装の作法の底上げと、skill の作りの学びに使う。
 - 語は [design.md](../design.md) §0.1。パッケージ（`package/`）は変えない。セルの設定の変更だけで、Andon の repo の PR はこの文書のほかに出ない。
 
