@@ -154,7 +154,8 @@ docker run --rm --network none --user 0 -v "$plant:/p" andon:test bash -euc '
 docker volume create --label com.docker.compose.project=andon-imgtest --label com.docker.compose.volume=gh andon-imgtest_gh >/dev/null
 docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
 # セルの image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
-BUILDX_BUILDER=default "$plant/bin/bootstrap" up
+# ホストのシェルの TZ はセルに入らない（.env の CELL_TZ が無ければ Asia/Tokyo。下の (a1t) が見る）
+TZ=UTC BUILDX_BUILDER=default "$plant/bin/bootstrap" up
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
 if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
@@ -279,6 +280,22 @@ done
 # (a1) ssh のセッションのシェルは /bin/bash（SetEnv の SHELL。無いと Herdr App の端末が /bin/sh で起きて補完が効かない）
 if [ "$(ssh_dev 'echo $SHELL')" != /bin/bash ]; then
   echo 'FAIL image: ssh のセッションの SHELL が /bin/bash でない' >&2
+  exit 1
+fi
+# (a1t) 時刻はセルの TZ（.env の CELL_TZ。無ければ Asia/Tokyo。ホストの TZ=UTC は入らない）で出る。ssh のセッションには sshd が自分の TZ を渡す
+# （SetEnv には書かない。書くと .env の値でなく焼いた値になる）
+exec_tz=$(dc exec -T dev bash -c 'echo "TZ=${TZ-<無い>}"; date +%Z')
+ssh_tz=$(ssh_dev 'echo "TZ=${TZ-<無い>}"; date +%Z')
+if [ "$exec_tz" != "$(printf 'TZ=Asia/Tokyo\nJST')" ] || [ "$ssh_tz" != "$exec_tz" ]; then
+  echo "FAIL image: 時刻が JST で出ない（exec: $exec_tz / ssh: $ssh_tz）" >&2
+  exit 1
+fi
+# (a1u) .env の CELL_TZ がセルの TZ になる（ホストの TZ より先）。起動し直さずに compose の補間だけを見る。
+# セルの置き場は uid 1000 の持ち物で runner は書けないので、.env の写しに足したものを --env-file で渡す（.env の代わりに読まれる）
+{ cat "$plant/.env"; echo 'CELL_TZ=Europe/Paris'; } >"$tmp/cell.env"
+cell_tz=$(TZ=UTC dc --env-file "$tmp/cell.env" config --format json | jq -r .services.dev.environment.TZ)
+if [ "$cell_tz" != Europe/Paris ]; then
+  echo "FAIL image: .env の CELL_TZ がセルの TZ にならない（$cell_tz）" >&2
   exit 1
 fi
 if [ "$(dc exec -T dev getent passwd andon | cut -d: -f7)" != /bin/bash ]; then
