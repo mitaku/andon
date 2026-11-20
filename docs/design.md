@@ -229,7 +229,7 @@ Andon が**持つ**のは パッケージ・約束・文書と、セルの形。
 
 | 役 | 本業 | 人との会話 | 持つ判断 | 起動の仕方・寿命 | プロファイル |
 |---|---|---|---|---|---|
-| **Chief Engineer** | 人に問いを重ねて仕様・設計を詰め、文書にして渡す。**実装も課題切りもしない** | **する**（本業。人が直接話す） | 無い（決めるのは人。Chief Engineer は推奨案を出す） | Chief of Staff か人が `andon chief-engineer "<題>"`。1題＝1課題。同時に複数いてよい。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
+| **Chief Engineer** | 仕様・設計を自分で調べて作り込み、文書にして渡す。**実装も課題切りもしない** | **する**（入口と出口の2回。オーナーが直接話す） | 作り方の決定と、どちらとも読める決定。オーナーに聞く線（7 種）の中の決定はオーナーが決める（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 2） | Chief of Staff か人が `andon chief-engineer "<題>"`。1題＝1課題。同時に複数いてよい。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
 | **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起動する・検収・振り返り・wiki | **人の入口**（依頼の受付・`needs_human` の問いの中継）。何を作るかを詰める話は Chief Engineer を起動して渡す | 課題の範囲内の許可・範囲（候補のどれを直すか。委譲と判断の4種の中で）・案件側のアウターループ | 人が `andon chief-of-staff`。常駐 | `chief-of-staff` |
 | dispatcher | 通知・レビュアーの起動・ゲート・片付け | しない | しない | セルに1つ常駐 | — |
 | 担当・レビュアー | 1課題・1レビュー | 問いは台帳経由 | 自工程の品質 | Chief of Staff（dispatcher）が起動する | `claude`・`codex`・`*-review` |
@@ -243,15 +243,14 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 参考にしたもの（出典は付録。**本文は複製しない**。要点だけ取り、Andon の語で書き直す）: mattpocock/skills の `grilling`（決定を木の形で持つ・今出せる問いだけ出す・一度に出す問いの束・事実と判断の分離・終わりの確認）・`grill-me`（何を・いつ）・`to-spec`（決めたことだけ書く・テストの継ぎ目を先に）・`to-tickets`（縦に薄く切る・依存を書く）・`handoff`。pstack（poteto 作。本家は `github.com/cursor/plugins` の `pstack/`）の `in-your-own-words`（目的の言い直し）・`sharpen`（深く、大きくではなく）・`architect`（構造の違う案を2つ以上）・`interrogate`（反論は走らせて証明したものだけ）・`show-me-your-work`（決定の履歴）。gstack の `office-hours`（前提への反論・代案 A/B/C・設計書の形）・`plan-ceo-review`（範囲の4モード: 広げる・選んで広げる・保つ・減らす）・`plan-eng-review`（構造・端・テスト表。これは担当とレビュアーの側で使う）。
 
 1. **読む（事実は Chief Engineer の仕事）。** 人に聞く前に自分で調べる: 案件のマスタ（用語・合意事項）・repo の docs・セルの wiki（`index.md` → ページの順で引く。[ADR-0016](adr/0016-cell-wiki-llm-wiki.md)。使う事実は数や結果ごと文書に書き切り、wiki のページを出典として指さない）・台帳（進行中の課題と開いている問い）・決定の記録。事実は自分で読む。広く探して結論だけ要るとき（多くのファイル・場所を掃く）に限り、副エージェント（新しいコンテキスト）に回してよい（待つ間は別の枝を進める）。数回の読みで済むものは回さない。**人に事実を聞かない。人に聞くのは判断だけ。**
-2. **言い直す。** 人の目的と困りごとを自分の言葉で1段落に書き、人が直す（pstack `in-your-own-words`）。ここで題の大きさを見る: 1セッションに収まらない題は先に割る（grill-me の「問いが200になったら範囲が大きすぎる」）。
-3. **前提を並べる。** 「本当にこの問題か」「何もしないとどうなるか」「既にあるもので済む部分」「配り方（新しい部品なら利用者にどう届くか）」を**同意する／しない**の文で並べ、人が1つずつ返す（office-hours Phase 3）。同じ前提で2度失敗していたら前提を疑う（pstack attack-the-premise）。
-4. **問いを重ねる（本体）。** 設計を**決定の一覧**として持ち（前提 → それに依る決定 → さらに依る決定、の順。木の形）、前提が済んで**今出せる問い**だけを出す。問いの形は台帳の問い（[contract.md](contract.md) §5）と同じ: **何の判断か・事実・理由・選択肢・推奨案・あと何問**。「はい」で推奨案が通る文にする。一度に出すのは互いに依らない問いの全部（番号つき）、人は番号で答える。答えが返るたびに一覧を組み直す。**推奨案は出すが決めない**: 自分で答えて進んだら骨格の違反（grilling の「事実は skill の仕事、判断は人の仕事」）。推奨案は、自分のプロダクトだと思って最適と考える案にする。オーナーの好みに合わせて推奨を変えず、変えるのはオーナーの指摘が事実か理由で推奨の前提を崩したときだけ。それでも決めるのはオーナー（[decisions/2026-11-20-ce-recommend-own-best.md](decisions/2026-11-20-ce-recommend-own-best.md)）。
-   - 既定は「互いに依らない問いをまとめて出す」（人が端末で向き合っている前提）。1問ずつへの切り替えは設定にならなかった: 実物では Chief of Staff と Chief Engineer が人に聞くとき常に1問ずつ（skill `ask-one-by-one`。§6 問い19）。
+2. **入口: 言い直しと前提を1問で確かめる。** オーナーの目的と困りごとを自分の言葉で1段落に書き（pstack `in-your-own-words`）、その下に前提を**同意する／しない**の文で並べる（「本当にこの問題か」「何もしないとどうなるか」「既にあるもので済む部分」「配り方」。office-hours Phase 3）。言い直しと前提を1問に束ねて確かめ、同意しない前提だけを1問ずつ聞き直す。同じ前提で2度失敗していたら前提を疑う（pstack attack-the-premise）。ここで題の大きさを見る: 1セッションに収まらない題は先に割る（grill-me の「問いが200になったら範囲が大きすぎる」）。
+3. **入口: 続けて範囲を聞く。** 範囲は plan-ceo-review の4モード（広げる・選んで広げる・保つ・減らす）で聞く。答えで設計の大半が分かれる線の中の決定も、ここで聞く。範囲を出口まで持ち越すと、作り込んだ案を組み直すことになる（過去の対話では、線の中の決定の 3 問に 1 問で推奨と違う答えが出た。[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 1・4）。入口の終わりに、案を持って戻る目安をオーナーに伝える。問いの形は台帳の問い（[contract.md](contract.md) §5）と同じ: **何の判断か・事実・理由・選択肢・推奨案・あと何問**。「はい」で推奨案が通る文にし、1問ずつ出す（skill `ask-one-by-one`。§6 問い19）。
+4. **真ん中: 決定の一覧の全部に答えを入れる（本体）。** 設計を**決定の一覧**として持ち（前提 → それに依る決定 → さらに依る決定、の順。木の形。grilling）、決定ごとに**オーナーに聞く線**に当てる。線は 7 種: a 目的と範囲・b 利用者に見える挙動と好み・c 外への約束と公開とお金・d 戻せないこと・e オーナーの関わり方と安全の網（誰がマージするか・ゲートのレベル・委譲・役の持ち場・オーナーに届く問いや通知の量・オーナーの発言や記録の扱い）・f オーナーが前に決めたことの覆し・g 事実で決まらず答えで設計の大半が分かれる不明点（表は skill `chief-engineer` の「オーナーに聞く線」）。線に当たらない作り方の決定と、どちらとも読める決定は Chief Engineer が決める。線の中の決定には推奨の答えを入れて先へ進み、出口で聞く。真ん中でオーナーに聞いてよいのは g だけで、問いを出すとき以外は止まらない（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 2・5）。推奨案は、自分のプロダクトだと思って最適と考える案にする。オーナーの好みに合わせて推奨を変えず、変えるのはオーナーの指摘が事実か理由で推奨の前提を崩したときだけ。線の中の決定は、それでも決めるのはオーナー（[decisions/2026-11-20-ce-recommend-own-best.md](decisions/2026-11-20-ce-recommend-own-best.md)）。
    - **話しても決まらない問い**（見た目・手触り）は話し続けない。試作を1つ、捨てる前提の小さい課題（レベル A・`review: off`）として Chief of Staff へ渡し、返るまで別の枝を進める（grill-me の prototype・pstack exhaust-the-design-space）。Chief Engineer 自身は書かない。
-5. **代案を2つ以上。** 構造の違う案を2〜3（最小・理想・横から。office-hours Phase 4、pstack architect の「design it twice」）。各案に大きさ・リスク・再利用するもの・捨てるもの。推奨案を1行の理由と一緒に。人が選ぶ。範囲の問いは plan-ceo-review の4モード（広げる・選んで広げる・保つ・減らす）で聞く。
-6. **反論を走らせる（任意。外向きの面・不可逆な設計のとき）。** 別のコンテキストの副エージェント（できれば別ブランド）に「この設計を壊せ。証明できたものだけ返せ」を出す（pstack `interrogate`、gstack の second opinion）。返った指摘は人に見せて判断を取る。
-7. **終わり方。** 出せる問いが無くなったら（どの枝も訪ねた・暗黙の前提が残っていない）、**「共有できたか」を人に1問で確かめる**（終わりの確認。弱いモデルはここを飛ばす）。人が「決めた」と言うまで文書を確定しない。人が離席したら、残った問いを文書の「開いている問い」に書き、台帳の問い（`kanban ask`）にして待つ。**待つことが Chief Engineer の本業**で、pstack の「人を待たない」は当てはめない（事業判断はその場で人のもの）。
-8. **文書にして渡す。** 下の形で書く（to-spec: **決めたことだけ**。文書が人の言っていないことを言っていたら欠陥。捨てた案と「やらないこと」が一番役に立つ行）。文書は対話の途中から書き足す（決定が1つ済むごとに「決めたこと」に日付つきで1行。コンテキストが切れても文書が状態）。渡し方は下。
+5. **代案を2つ以上作り、自分で選ぶ。** 構造の違う案を2〜3（最小・理想・横から。office-hours Phase 4、pstack architect の「design it twice」）。各案に大きさ・リスク・再利用するもの・捨てるもの。効きめを測り、構造の案も Chief Engineer が選ぶ。選ばなかった案は捨てた案として理由と一緒に文書に書く。案の違いが線に当たるなら、その決定だけを出口で聞く。
+6. **反論を走らせる（外向きの面・不可逆な設計のとき）。** 別のコンテキストの副エージェント（できれば別ブランド）に「この設計を壊せ。証明できたものだけ返せ」を出す（pstack `interrogate`、gstack の second opinion）。返った指摘は Chief Engineer がコードと記録に照らして案に入れ、線の中の決定が変わるならその決定を出口で聞く。4〜6 はオーナーに見せる前に全部済ませる。
+7. **出口: 要点を見せ、線の中の決定を1問ずつ聞き、最後の確かめを1問で取る。** 要点は、選んだ構造と捨てた案・価値の仮説・オーナーに聞く決定の数・Chief Engineer が決めた決定の数と文書のパス。価値の仮説は独立の問いにせず、要点に載せて最後の確かめで一緒に通す。答えが推奨と違えば文書を組み直す。最後に**「共有できたか」をオーナーに1問で確かめる**（終わりの確認。弱いモデルはここを飛ばす）。オーナーが「決めた」と言うまで文書を確定しない。オーナーが離席したら、残った問いを文書の「開いている問い」に書き、台帳の問い（`kanban ask`）にして待つ。pstack の「人を待たない」は真ん中だけに当てはめ、出口の線の中の決定はオーナーを待つ（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 6）。
+8. **文書にして渡す。** 下の形で書く（to-spec: **決めたことだけ**。「オーナーが決めた」と書いた行がオーナーの言っていないことを言っていたら欠陥。捨てた案と「やらないこと」が一番役に立つ行）。文書は真ん中の途中から書き足す（決定が1つ済むごとに「決めたこと」に日付と誰が決めたかをつけて1行。書き方は「（オーナーが決めた）」か「（Chief Engineer が決めた）」で、推奨と違う答えをオーナーが選んだときは推奨も書き、「仮」とは書かない。[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 3。印の無い過去の決定はオーナーが決めたものとして読む。コンテキストが切れても文書が状態）。渡し方は下。
 
 **成果物の形**（人用の Markdown。1題1文書。機械は読まない）:
 
@@ -260,7 +259,7 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 ## 決定の索引
 ## 問題（人の言葉で。言い直しの段落）
 ## 前提（同意済み。番号）
-## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
+## 決めたこと（番号・日付・誰が決めたか・理由・捨てた案。あとから覆したら上書きせず下に足す）
 ## やらないこと（範囲の外。理由）
 ## 受け入れ条件（テストできる形。どの継ぎ目でテストするか＝seams を先に。TDD と独立レビューがここを見る）
 ## 価値の仮説（必須。誰の何が変わるか・見る信号・見る日・当たりの条件・撤退の条件の6項目。利用者に見えない題は「無し: <理由>」の1行。ADR-0011。書き方は skill `chief-engineer`）
@@ -290,10 +289,11 @@ sequenceDiagram
   participant C as Chief of Staff
   H->>C: 設計の話（人の入口は Chief of Staff）
   C->>CE: andon chief-engineer "<題>" --brief -（kanban add ＋ start。経緯を依頼書に）
-  loop 問いを重ねる
-    CE->>H: 問いの束（番号・推奨案・あと何問）
-    H->>CE: 番号で答える
-  end
+  CE->>H: 入口: 言い直しと前提（1問）、続けて範囲
+  H->>CE: 答える
+  Note over CE: 真ん中: 決定に答えを入れ、案を選び、反論を走らせて文書を書き切る（聞くのは事実で決まらない不明点だけ）
+  CE->>H: 出口: 要点と、線の中の決定（1問ずつ）
+  H->>CE: 答える
   CE->>H: 共有できたか（1問）
   H->>CE: 決めた
   CE->>L: 文書の PR ＋ report.json（next: {to: chief-of-staff, text: 依頼書に切る}）・kanban review
@@ -302,7 +302,7 @@ sequenceDiagram
   C->>L: S-1 を finish（文書の PR がマージされたら）
 ```
 
-- Chief Engineer は**台帳の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は台帳の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<題>"` で選ぶ。依頼書は題の下に、Chief of Staff が経緯（人の言葉の写し・読んだもの・決めたこと・出典）を `--brief -` で渡す。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は人が対話の中でした）。文書の PR のマージは案件のゲートの規則どおり（docs がレベル A／B なら自動。Andon 自身の `docs/design.md` はレベル C で人）。
+- Chief Engineer は**台帳の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は台帳の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<題>"` で選ぶ。依頼書は題の下に、Chief of Staff が経緯（人の言葉の写し・読んだもの・決めたこと・出典）を `--brief -` で渡す。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は、オーナーが出口の最後の確かめでした）。ただし文書を切るとき、オーナーに聞く線に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見て、見つけたら切らずにオーナーへ知らせる（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 8）。Chief Engineer の課題の文書の PR は、どの案件でもいつもオーナーがマージする（dispatcher は Chief Engineer の課題にゲートを回さず、自動でマージしない。[dispatcher.md](dispatcher.md) §2.7）。
 - 渡すものは**文書だけ**（コンテキストのポインタ。chief-of-staff の「context pointers」）。会話の記録は渡さない。Chief of Staff が切った依頼書は文書の節を `links` で指す。
 - Chief Engineer は同時に複数いてよい（1題＝1課題。Andon 自身の docs はレベル C で、文書の PR のマージ待ちの間も別の題を止めないため。[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 3）。
 
@@ -318,7 +318,7 @@ Andon が自分を設計するとき（セルフホスト、Andon のセルの�
 
 **「Pstack」について**（人の答え 2026-11-05。§6 問い19）: Pstack＝**poteto（Lauren Tan）作の pstack**。`github.com/cursor/plugins` の `pstack/` で公開されている（Claude Code 向けの写しもある）（MIT。Codex 向けの移植が painhardcore/pstack）。`interrogate`・`architect`・`sharpen`・`in-your-own-words`・`show-me-your-work` が設計の対話に当たる。gstack（Garry Tan。MIT）は pstack の一部を取り込んでいる（`licenses/MIT-pstack.txt`）。上の骨格は pstack と gstack の**両方から取った**。
 
-**取らないもの**: gstack の telemetry・brain・勧誘の段（public の repo に不要）、office-hours の「6つの問い」の起業向けの部分（事業の診断は人の仕事）、pstack の「人を待たない」（Chief Engineer は待つ）、Chief Engineer が試作や実装に入ること（担当の仕事）、会話の記録を文書に写すこと（文書は決定だけ）。
+**取らないもの**: gstack の telemetry・brain・勧誘の段（public の repo に不要）、office-hours の「6つの問い」の起業向けの部分（事業の診断は人の仕事）、pstack の「人を待たない」を出口に当てはめること（Chief Engineer は真ん中では待たず、出口の線の中の決定はオーナーを待つ）、Chief Engineer が試作や実装に入ること（担当の仕事）、会話の記録を文書に写すこと（文書は決定だけ）。
 
 **ライセンス**: 参考3つは全部 MIT（mattpocock/skills・cursor/plugins の pstack〈移植 painhardcore/pstack〉・garrytan/gstack）。Andon の SKILL は**本文を写さず**、Andon の語で書き直し、出典を `docs/` に記す（MIT の表示義務は複製したときだけ生じる。写すなら `LICENSES/` に原文を置く）。
 
@@ -331,7 +331,7 @@ Andon が自分を設計するとき（セルフホスト、Andon のセルの�
 | # | Lloyd の主張（出典の要約） | Andon では | 取り入れる／違える・理由 |
 |---|---|---|---|
 | 1 | **「製品ではなく、製品を作るものを作る」**。ソフトウェア工学は factory engineering になり、CI/CD と同じく、まともな規模のプロジェクトは全部 factory を持つようになる。engineer は meta-engineer になる | 工場（Andon）を建てる人＝人と Andon のセルの Chief Engineer（§1.8）。TPS の語では**生産技術**（§1.7）。「選択的 Dark Factory」（§1.2）と同じ像 | **取り入れる**（像は同じ）。Andon の語では factory engineer ＝ 生産技術。役の名前には使わない（英語の文で説明に使う） |
-| 2 | **ループの段**: 入力（トラッカー・Slack・端末・監視）→ 振り分け（簡単なものは直接実装、複雑なものは spec へ）→ **spec agent が product spec と tech spec を書く**→ 人の spec review → 実装（クラウドの agent）→ agent のレビュー ＋ 人のレビュー → 検証（UI は computer-use で screenshot・動画）→ CI/CD → 監視 agent が入口に戻す | Chief Engineer（§1.8）→ Chief of Staff が依頼書に切る → 担当 → 独立レビュー → ゲート → マージ（§1.4）。監視の入口は外の信号（`andon signal collect`。ADR-0011）だけ | **半分取り入れる**。spec の2本立て（product＝何を・tech＝どう）は Chief Engineer の文書の「問題・決めたこと」と「受け入れ条件・依頼書に切る案」に写す。**違える**: Warp の spec は agent が書いて人が review するが、Andon の spec は**人と Chief Engineer の対話で決める**（事業判断は人のもの。§1.8）。監視 agent は置かず、入口は人と振り返りに、外の信号（CI の失敗と issue。下の (a)）が加わった。UI の検証は、担当が `playwright-cli` で画面を撮って PR に添付する形で入った（ADR-0018。差分が `screen_paths` に当たるのに添付が無ければゲートが `fix`）。動画と敵対的な副エージェントは入れていない |
+| 2 | **ループの段**: 入力（トラッカー・Slack・端末・監視）→ 振り分け（簡単なものは直接実装、複雑なものは spec へ）→ **spec agent が product spec と tech spec を書く**→ 人の spec review → 実装（クラウドの agent）→ agent のレビュー ＋ 人のレビュー → 検証（UI は computer-use で screenshot・動画）→ CI/CD → 監視 agent が入口に戻す | Chief Engineer（§1.8）→ Chief of Staff が依頼書に切る → 担当 → 独立レビュー → ゲート → マージ（§1.4）。監視の入口は外の信号（`andon signal collect`。ADR-0011）だけ | **半分取り入れる**。spec の2本立て（product＝何を・tech＝どう）は Chief Engineer の文書の「問題・決めたこと」と「受け入れ条件・依頼書に切る案」に写す。**違える**: Warp の spec は agent が書いて人が review する。Andon の spec も Chief Engineer が作り込むが、オーナーは入口で言い直し・前提・範囲を、出口で**線の中の決定**（目的と範囲・利用者に見える挙動・約束・不可逆・ラインの変更など）を決め、最後の確かめで文書を通す（§1.8。[ADR-0037](adr/0037-chief-engineer-autonomy.md)）。監視 agent は置かず、入口は人と振り返りに、外の信号（CI の失敗と issue。下の (a)）が加わった。UI の検証は、担当が `playwright-cli` で画面を撮って PR に添付する形で入った（ADR-0018。差分が `screen_paths` に当たるのに添付が無ければゲートが `fix`）。動画と敵対的な副エージェントは入れていない |
 | 3 | **人の接点（spec review・code review・product review）が「factory の中で詰まる所」**。どこに人を入れるかはチームが選ぶ。review を全部 agent にする所もあれば、高リスクの変更だけ人が見る所もある | §1.3 の決断とレベル A／B／C（ゲート）。人はレベル C と不可逆だけ | **取り入れる**（同じ考え）。**違える**: Warp は段（spec・code・product の review）に人を置くが、Andon は**変更ごと**にゲートがレベルを決める（ライン自身の変更＝レベル C）。固定の接点より「灯りがつく条件」で持つほうが、人の介在率を下げる方向に動かしやすい |
 | 4 | **測る**: 自動でマージされた PR の割合（20% → 60% へ上げる）、PR あたりの人の介在回数、PR あたりのコスト（モデル構成ごと。コストと品質の Pareto）、効率。run ごとに LLM-as-judge で採点し、失敗した run から自己改善の workflow を作る。実課題を replay してモデルを比べる | §5.1 の確かめ方3（履歴に人の `by` が無い）。freee の KPI「人の介在率」 | **取り入れる（指標だけ）**: §5.1 に **自動マージ率・PR あたりの人の介在回数・PR あたりの token コスト・依頼書からマージまでの時間** を足し、台帳の履歴と `report.json` から数えられる形にする（振り返りの入力。§1.7 の value stream）。**違える**: judge による run の採点・replay・Pareto は**最初の版に入れない**（薄いハーネス。記録の形 §4 を先に揃え、必要になったら記録から作る）。paddo.dev の警告も取る: 弱いゲートで throughput を上げると「速くバグを出す工場」になる——指標は自動マージ率だけでなく、ゲートの差し戻し率と一緒に見る |
 | 5 | **構成**: control plane（仕事を配る）・クラウドの sandbox（どのハーネスでも動く）・agent とモデルの選択・data plane（記憶。小さく作るのは易しいが大きくするのは難しい）・**observer agent**（他の agent の仕事を見て skill を直す＝self-improving の仕組み。例: 上級者が review agent の指摘を直すと、observer がそれを見て次の run の agent を直す） | 指揮側／作業側（§1.5）: 指揮側＝dispatcher・台帳・ゲート、作業側＝担当（worktree か別マシン）。プロファイルがモデルの選択。記憶＝台帳の履歴・記録（§4）・wiki。observer ＝ 振り返り（アウターループ） | **取り入れる（配線）**: 指揮側／作業側の2段と「どのハーネスでも」は同じ（Claude Code・Codex の両方を担当に）。**違える（2つ）**: (a) data plane は**ファイル**（台帳の形式が約束。DB・MCP は将来 §4）で、ホストされた記憶を持たない。(b) observer は **skill を直接書き換えない**。振り返りの出口は PR で、案件側のテスト・観点・指針は Chief of Staff の判断、Andon 自身のライン（skill・ゲート・設定）は人（§1.3 の 5）。理由: skill の自己書き換えは「ラインそのものの変更」で、人が灯りを見る側に置いた決定。self-improving は **PR 経由の self-improving** にする |
