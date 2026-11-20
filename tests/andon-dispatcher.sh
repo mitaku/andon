@@ -781,6 +781,17 @@ grep -q "PR の head が動いた（${old:0:12} → ${head:0:12}）。ゲート�
 jq -e --arg r "ゲートの記録 $L/issues/$pb/library/gate/$head.json" '.from == "gate" and (.facts | index($r))' "$L/issues/$pb/library/questions/2.json" >/dev/null ||
     die '今の head のゲートの問いを出していない'
 kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '今の head のゲートの問いまで閉じた'
+jq -se --arg t "$pb" '[.[] | select(.id == $t and .change.status == "review")] | last | .change.forced == [1]' "$L/log.jsonl" >/dev/null ||
+    die 'ready が数えずに押し切った問いの番号を log.jsonl に残していない'
+# ゲートが決めたときに閉じ損ねた前の head の問い（閉じる前に人が答えた）は、merge が次に打たれたときに、人の答えを残して受け取る
+HC_TERMINAL_ID=dispatcher kanban ask "$pb" 'マージするか' --kind line >/dev/null
+jq -n --arg r "ゲートの記録 $L/issues/$pb/library/gate/$old.json" '{kind: "line", question: "マージするか", facts: [$r],
+  options: [{label: "人が PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' > "$L/issues/$pb/library/questions/3.json"
+HC_TERMINAL_ID=t5 kanban answer "$pb#3" '人の答え' >/dev/null
+mrun "$pb" >/dev/null
+kanban show "$pb" --json | jq -e '.questions[2] | .status == "received" and .answer == "人の答え"' >/dev/null ||
+    die "閉じ損ねた前の head の問いを、次の merge で閉じ直していない: $(kanban show "$pb" --json | jq -c '.questions[2]')"
+kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '閉じ直すときに今の head のゲートの問いまで閉じた'
 # 後の検査の見回りがこの課題の PR の head を聞かないよう、fix で終える（needs_human のままだと1分ごとに聞き直す）
 work "$pb" docs/z.md; mpoll "$pb"; dispatcher
 [ "$(hv "$pb")" = "fix $head" ] || die "後始末: fix で終わっていない: $(hv "$pb")"
