@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"andon/internal/ledger/ledgertest"
 )
 
 // ready の照合は偽の kanban と gh・本物の git で見る（振る舞いの全体は tests/andon-issue.sh）。
@@ -107,7 +109,7 @@ func (f *fixture) ready() (int, string, bool) {
 	log := ""
 	if f.reviewer != nil {
 		list = append(list, f.reviewer)
-		log = js(map[string]any{"by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}) + "\n"
+		log = ledgertest.Log(f.t, js(map[string]any{"at": "2026-11-20T00:00:00Z", "by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}))
 		if f.findings != "" {
 			f.write("kanban/issues/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
 		}

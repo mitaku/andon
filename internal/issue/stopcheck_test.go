@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"andon/internal/ledger/ledgertest"
 )
 
 // stop-check の判定（contract.md §9）。台帳は ready と同じ偽の kanban。log は doing に入った行から始める。
@@ -15,19 +17,19 @@ func (f *fixture) stopCheck(log ...map[string]any) string {
 	}
 	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 	list := []any{f.task}
-	rows := js(map[string]any{"by": "terminal:t9", "id": "T-0001", "change": map[string]any{"status": "doing"}}) + "\n"
+	rows := []string{js(map[string]any{"at": "2026-11-20T00:00:00Z", "by": "terminal:t9", "id": "T-0001", "change": map[string]any{"status": "doing"}})}
 	if f.reviewer != nil {
 		list = append(list, f.reviewer)
-		rows += js(map[string]any{"by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}) + "\n"
+		rows = append(rows, js(map[string]any{"at": "2026-11-20T00:00:00Z", "by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}}))
 		if f.findings != "" {
 			f.write("kanban/issues/T-0002/library/findings.json", `{"commit": "`+f.findings+`", "findings": []}`)
 		}
 	}
 	for _, r := range log {
-		rows += js(r) + "\n"
+		rows = append(rows, js(r))
 	}
 	f.write("list.json", js(list))
-	f.write("kanban/log.jsonl", rows)
+	f.write("kanban/log.jsonl", ledgertest.Log(f.t, rows...))
 	if f.report != "" {
 		f.write("kanban/issues/T-0001/library/report.json", f.report)
 	}
@@ -41,7 +43,7 @@ func (f *fixture) stopCheck(log ...map[string]any) string {
 func blocked(out string) bool { return strings.Contains(out, `"decision":"block"`) }
 
 func q(n int, status string) map[string]any {
-	return map[string]any{"by": "terminal:t9", "id": "T-0001", "change": map[string]any{"question": n, "status": status}}
+	return map[string]any{"at": "2026-11-20T00:00:00Z", "by": "terminal:t9", "id": "T-0001", "change": map[string]any{"question": n, "status": status}}
 }
 
 func TestStopCheckBlocksDoingWithoutReport(t *testing.T) {

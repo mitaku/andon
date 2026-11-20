@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の16本が schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#   1. schema/ の16本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
+#      schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff）が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す）。
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff）と
+#      台帳の CLI（kanban）が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
@@ -55,30 +57,40 @@ flush() {
 schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
-    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; 21) echo patterns ;; *) return 1 ;;
+    6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; 21) echo patterns ;;
+    22) echo ledger-log ;; 23) echo ledger-ready ;; *) return 1 ;;
   esac
 }
 expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro signal"
+# 台帳の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
+ledger="ledger-log ledger-ready"
+schema_file() {
+  case "$1" in ledger-log) echo ledger/log.v3 ;; ledger-ready) echo ledger/ready.v3 ;; *) echo "$1" ;; esac
+}
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "$expected" ]; then ok "schema/ は16本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
-for name in $expected; do
-  queue 0 0 "schema/$name の決まり" lint "$schema_dir/$name.schema.json"
+actual="$(cd "$schema_dir/ledger" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
+if [ "$actual" = "config.v3 issue.v3 log.v3 questions.v3 ready.v3 routine.v3" ]; then ok "schema/ledger/ は6本（$actual）"; else ng "schema/ledger/ の顔ぶれが違う: $actual"; fi
+for name in $expected $ledger; do
+  queue 0 0 "schema/$(schema_file "$name") の決まり" lint "$schema_dir/$(schema_file "$name").schema.json"
 done
 flush
 
 # 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/1 patterns/1; do
-  id="$(jq -r '."$id"' "$schema_dir/${v%/*}.schema.json")"
-  if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/${v%/*} の \$id は $v"; else ng "schema/${v%/*} の \$id が $v でない: $id"; fi
+# 台帳の行と ready の2本は台帳の形式の版（3）
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/1 patterns/1 ledger-log/3 ledger-ready/3; do
+  f="$(schema_file "${v%/*}")"
+  id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
+  if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
 done
 [ ! -e "$schema_dir/task-keys.schema.json" ] && ok "schema/task-keys.schema.json は無い" || ng "schema/task-keys.schema.json が残る"
 
 # validate <schema 名> <instance のファイル> → 0 通る / 1 落ちる / 2 検査できない
 expect() { # expect pass|fail <schema 名> <ファイル> <説明>（溜めるだけ。flush で走る）
   local want=0; [ "$1" = pass ] || want=1
-  queue "$want" 1 "$4" validate "$schema_dir/$2.schema.json" "$3"
+  queue "$want" 1 "$4" validate "$schema_dir/$(schema_file "$2").schema.json" "$3"
 }
 
 # 検査器そのもの（schema と instance を直に書く。終了コード ｜ schema ｜ instance ｜ 説明）
@@ -123,8 +135,8 @@ while IFS=$'\t' read -r sec json; do
   [ -n "${first[$key]:-}" ] || first[$key]="$f"
 done <"$tmp/examples.tsv"
 flush
-for key in $expected gate-record; do
-  [ -n "${first[$key]:-}" ] || ng "contract.md に schema/$key の例が無い"
+for key in $expected $ledger gate-record; do
+  [ -n "${first[$key]:-}" ] || ng "contract.md に schema/$(schema_file "$key") の例が無い"
 done
 
 # 3a. 知らないキー・無いキー（例から機械的に作る）
@@ -147,6 +159,8 @@ declare -A required=(
   [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
   [retro]="project at since until previous_retro issues typed fixes redacted skipped"
   [patterns]="retro at since until days previous_retro patterns fixes"
+  [ledger-log]="at by id change"   # 最初の例は課題の行。ほかの形の行は 3b で作る
+  [ledger-ready]=""                # 並び。課題の必須（id・status）は 3b で消す
 )
 # gen <pass|fail> <例の key> <jq の式> <説明>: 例を式で壊した（変えた）ものの検査を溜める。
 # 式は例の key ごとに1本の jq にまとめて走らせる（式1つに1回 jq を呼ばない）。式は1つの値を返すこと。
@@ -175,7 +189,7 @@ gen_flush() {
 }
 for key in "${!first[@]}"; do
   name="${key%-record}"; src="${first[$key]}"
-  if [ "$key" != issue-keys ]; then   # 台帳の項目は台帳の形式に倣って知らないキーを許す
+  if [ "$key" != issue-keys ] && [ "$key" != ledger-ready ]; then   # 台帳の項目と ready の課題は台帳の形式に倣って知らないキーを許す（ready は並び）
     gen fail "$key" '. + {"x_unknown": 1}' "知らないキー x_unknown を足すと落ちる"
   fi
   for k in ${required[$key]}; do
@@ -184,6 +198,7 @@ for key in "${!first[@]}"; do
 done
 
 # 入れ子の object の必須のキーと知らないキー（例の key ｜ object を指す jq の道 ｜ 必須のキー。これも schema から読まない）
+# 台帳の行（ledger-log）の最初の例は課題の行で、入れ子の change はどのキーも許す。ほかの形の行の入れ子は 3b で作る
 while IFS='|' read -r key at keys; do
   case "$key" in ''|'#'*) continue ;; esac
   name="${key%-record}"; src="${first[$key]}"
@@ -677,6 +692,55 @@ fail|patterns|.patterns[0].effect = "a\nb"|期待する効果に改行
 fail|patterns|.patterns[0].reason = " "|理由が空白だけ
 fail|patterns|.fixes[0].recurred = -1|再発の数が負
 fail|patterns|.days = 0|days が 0
+pass|ledger-log|.change = {"links": ["https://example.com"], "phase": null}|kanban set の並びと消したキー
+pass|ledger-log|.change = {"add": "Add the button"}|kanban add
+pass|ledger-log|.change = {"report": "append"}|kanban report --append
+pass|ledger-log|.change = {"after": null, "status": "todo"}|after を空にして todo に出た
+pass|ledger-log|.change = {"status": "done", "forced": [1, 3]}|done --force が越えた問い
+pass|ledger-log|.change = {"status": "todo", "freedBy": "S-0011"}|done で queued から出た
+pass|ledger-log|.id = "S-5"|4 桁に揃える前の id
+pass|ledger-log|.by = "unknown"|端末の外で利用者の名前も無い
+fail|ledger-log|.at = "2026-11-02"|at が日付だけ
+fail|ledger-log|.at = "2026-11-02T10:03:00+09:00"|at が UTC でない
+fail|ledger-log|.by = ""|by が空
+fail|ledger-log|.id = "../S-0012"|id がフォルダの外を指す
+fail|ledger-log|.change = "doing"|change が object でない
+fail|ledger-log|.change.round = 1|change の値が数
+fail|ledger-log|.change = {"report": "replace"}|report が write・append でない
+fail|ledger-log|.change = {"question": 1}|question に status が無い
+fail|ledger-log|.change = {"question": 1, "status": "closed"}|問いの status が知らない値
+fail|ledger-log|.change = {"question": 0, "status": "open"}|question が 0
+fail|ledger-log|.change = {"forced": [1]}|forced に status が無い
+fail|ledger-log|.change = {"status": "done", "forced": []}|forced が空
+fail|ledger-log|.change = {"freedBy": "S-0011"}|freedBy に status が無い
+fail|ledger-log|.change = {"after": "S-0011"}|after が並びでない
+fail|ledger-log|. + {"config": {"chief_of_staff": "t2"}}|課題の行と config の行が混ざる
+pass|ledger-log|{at, by, config: {"chief_of_staff": null}}|config の行（消したキー）
+pass|ledger-log|{at, by, config: {"coordinator": "t5"}}|2026-11-06 より前の config の行
+fail|ledger-log|{at, by, config: {"chief_of_staff": 2}}|config の値が数
+fail|ledger-log|{at, config: {"chief_of_staff": "t2"}}|config の行に by が無い
+pass|ledger-log|{at, by: "routine:triage", routine: "triage", skipped: "paused"}|ルーチンが止めてある
+fail|ledger-log|{at, by: "routine:triage", routine: "triage"}|ルーチンの行に fired も skipped も無い
+fail|ledger-log|{at, by: "routine:triage", routine: "triage", fired: "S-0013", skipped: "open"}|ルーチンの行に fired と skipped の両方
+fail|ledger-log|{at, by: "routine:triage", routine: "triage", skipped: "later"}|skipped が open・paused でない
+fail|ledger-log|{at, by, routine: "triage", fired: "S-0013"}|ルーチンの行の by が routine: でない
+fail|ledger-log|{at, by: "routine:triage", routine: "triage", fired: "S-0013", id}|ルーチンの行に id
+pass|ledger-log|{at, by, migrate: {from: ".flightdeck", ids: {}}}|移した行（改めた id が無い）
+fail|ledger-log|{at, by, migrate: {from: ".flightdeck"}}|migrate に ids が無い
+fail|ledger-log|{at, by, migrate: {ids: {}}}|migrate に from が無い
+fail|ledger-log|{at, by, migrate: {from: ".flightdeck", ids: {}, x_unknown: 1}}|migrate に知らないキー
+fail|ledger-log|{at, by, migrate: {from: ".flightdeck", ids: {"S-5": "../S-0005"}}}|改めた id がフォルダの外を指す
+fail|ledger-log|{at, by, migrate: {from: ".flightdeck", ids: {}}, x_unknown: 1}|移した行に知らないキー
+pass|ledger-ready|[]|引き取れる課題が無い
+pass|ledger-ready|.[0] += {"mine": 1}|課題の知らないキーは通る
+fail|ledger-ready|del(.[0].id)|課題の id が無い
+fail|ledger-ready|del(.[0].status)|課題の status が無い
+fail|ledger-ready|.[0].status = "doing"|status が todo・queued でない
+fail|ledger-ready|.[1].after = "S-0012"|after が並びでない
+fail|ledger-ready|.[1].who = "agent"|who が person でない
+fail|ledger-ready|.[0].created = "2026-11-02"|created が日付だけ
+fail|ledger-ready|.[0] += {"broken": "can't read"}|読めない課題
+fail|ledger-ready|.[0]|並びでない
 
 EOF
 
@@ -691,7 +755,7 @@ if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
     case "$name" in ''|'#'*) continue ;; esac
     n=$((n + 1)); descs[n]="$desc"
     loose="$tmp/loose-$n"; cp -r schema "$loose"
-    jq "$expr" "schema/$name.schema.json" >"$loose/$name.schema.json"
+    jq "$expr" "schema/$(schema_file "$name").schema.json" >"$loose/$(schema_file "$name").schema.json"
     while [ "$(jobs -rp | wc -l)" -ge "$par" ]; do wait -n || true; done
     { if ANDON_SCHEMA_DIR="$loose" bash "$0" >/dev/null 2>&1 </dev/null; then echo passed; else echo failed; fi >"$tmp/loose-$n.result"; } &
   done <<'LOOSE'
@@ -741,6 +805,14 @@ patterns|."$defs".pattern.properties.decision.enum += ["keep"]|判定に keep �
 patterns|."$defs".pattern.required -= ["decision"]|パターンの必須から decision を外す
 patterns|."$defs".pattern.properties.target.allOf = []|project の repo の必須を外す
 patterns|del(.properties.patterns.uniqueKeys)|パターンの id の一意を外す
+ledger-log|."$defs".issueLine.additionalProperties = true|課題の行の知らないキーを許す
+ledger-log|."$defs".at.pattern = "^.+$"|台帳の行の at の時刻の形を緩める
+ledger-log|."$defs".change.allOf = []|change の「問い・forced・freedBy には status」を外す
+ledger-log|del(."$defs".routineLine.oneOf)|ルーチンの行の「fired か skipped のどちらか」を外す
+ledger-log|."$defs".migrateLine.properties.migrate.required -= ["ids"]|移した行の必須から ids を外す
+ledger-ready|."$defs".issue.required -= ["status"]|ready の課題の必須から status を外す
+ledger-ready|."$defs".issue.properties.status.enum += ["doing"]|ready の status を緩める
+ledger-ready|del(."$defs".issue.not)|ready に読めない課題を許す
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -774,8 +846,15 @@ if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   else
     while IFS='|' read -r file name desc; do
       case "$file" in ''|'#'*) continue ;; esac
-      if [ -f "$emit_dir/$file" ]; then expect pass "$name" "$emit_dir/$file" "command の出力: $desc が schema/$name を通る"
-      else ng "command の出力: $desc（$file）が無い"; fi
+      if [ ! -f "$emit_dir/$file" ]; then ng "command の出力: $desc（$file）が無い"
+      elif [ "${file%.jsonl}" != "$file" ]; then   # 1行1件の置き場は行ごとに通す
+        n=0
+        while IFS= read -r line; do
+          n=$((n + 1)); printf '%s\n' "$line" >"$tmp/emit-$file-$n.json"
+          expect pass "$name" "$tmp/emit-$file-$n.json" "command の出力: $desc の $n 行目が schema/$(schema_file "$name") を通る"
+        done <"$emit_dir/$file"
+        [ "$n" -gt 0 ] || ng "command の出力: $desc（$file）が空"
+      else expect pass "$name" "$emit_dir/$file" "command の出力: $desc が schema/$(schema_file "$name") を通る"; fi
     done <<'EMIT'
 report-1.json|report|andon issue report の report.json
 report-review-request.json|report|andon issue review-request の report.json
@@ -842,6 +921,8 @@ outcome-nolog.json|outcome|andon dispatcher の outcome.json（セッション�
 retro.json|retro|andon retro collect の出力
 retro-nogh.json|retro|andon retro collect の出力（GitHub が読めない）
 patterns.json|patterns|andon retro patterns の retro.json
+ledger-log.jsonl|ledger-log|kanban が書いた log.jsonl（andon dispatcher がレビューからマージまで回した台帳）
+ledger-ready.json|ledger-ready|kanban ready --json の出力（人の課題・レビュアーの子課題・ルーチンの課題）
 EMIT
     flush
   fi

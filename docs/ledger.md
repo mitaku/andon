@@ -2,7 +2,7 @@
 
 Format version **3** (2026-11-07; version 2 was 2026-11-02). This is the contract between the ledger's CLI (`kanban`, in [`cmd/kanban/`](../cmd/kanban/)) and anything else that reads or writes a ledger — Andon's commands, skills and gate, and boards that read the files directly. Since 2026-11-05 Andon owns the format; this file was copied from herdr-flightdeck's `docs/ledger-format.md` at tag `deck-v0.4.0` ([decisions.md](decisions.md) §7, §12). Where it says *yard*, Andon says *cell* (セル). Andon's reserved keys in `issue.yaml` are in [contract.md](contract.md) §2.
 
-JSON Schemas for editors and checks: [config.v3.schema.json](../schema/ledger/config.v3.schema.json) (`config.yaml`), [issue.v3.schema.json](../schema/ledger/issue.v3.schema.json) (`issue.yaml`), [questions.v3.schema.json](../schema/ledger/questions.v3.schema.json) (`questions.yaml`) and [routine.v3.schema.json](../schema/ledger/routine.v3.schema.json) (`routines/<name>.yaml`). The schemas are the format's reference (as for every contract in Andon, `schema/` is right); this file explains them in prose. Where the two differ, the schemas are right and this file is fixed to match.
+JSON Schemas for editors and checks: [config.v3.schema.json](../schema/ledger/config.v3.schema.json) (`config.yaml`), [issue.v3.schema.json](../schema/ledger/issue.v3.schema.json) (`issue.yaml`), [questions.v3.schema.json](../schema/ledger/questions.v3.schema.json) (`questions.yaml`), [routine.v3.schema.json](../schema/ledger/routine.v3.schema.json) (`routines/<name>.yaml`), [log.v3.schema.json](../schema/ledger/log.v3.schema.json) (a line of `log.jsonl`) and [ready.v3.schema.json](../schema/ledger/ready.v3.schema.json) (what `kanban ready --json` prints). The schemas are the format's reference (as for every contract in Andon, `schema/` is right); this file explains them in prose. Where the two differ, the schemas are right and this file is fixed to match.
 
 **A ledger belongs to one project.** On a yard, a project is `<yard-root>/projects/<slug>/`: a trust boundary with one Chief of Staff, and one or more repositories cloned with ghq. Its ledger is `projects/<slug>/kanban/`, kept out of git. Version 1 put one ledger at the yard's root; see [Changes from version 1](#changes-from-version-1).
 
@@ -143,7 +143,7 @@ Any other key is allowed and kept.
 
 - **Done** is the last column (`done` by default).
 - **Waiting:** an issue waits on each id in `after` that is missing, unreadable, or not done.
-- **Ready:** status is `todo` or `queued`, it waits on nothing, and its `not_before` (if any) is today or earlier. (`kanban ready` lists these.) `not_before` only hides an issue from `kanban ready`; it changes no status and `after` still holds an issue back as well, so an issue with both shows once both are met.
+- **Ready:** status is `todo` or `queued`, it waits on nothing, and its `not_before` (if any) is today or earlier. (`kanban ready` lists these; `kanban ready --json` prints them as [ready.v3.schema.json](../schema/ledger/ready.v3.schema.json) says.) `not_before` only hides an issue from `kanban ready`; it changes no status and `after` still holds an issue back as well, so an issue with both shows once both are met.
 - `queued` means "added with something to wait for". When the last thing it waits for is done, `kanban done` (or `kanban set <id> status=<last column>`) moves it to the first column. So does `kanban set <id> after=…` when the rewritten `after` leaves nothing to wait for (an empty value removes it); a `status=` in the same command wins, and a `todo` issue given an `after` stays where it is.
 - **Needs you is not a status.** It comes from the agent's live state in herdr-core (blocked), never from the ledger. An issue's open questions (see Questions) are in the ledger; they are not a status either.
 - Who may change what (for example, that only the Chief of Staff moves an issue to `done`) is not part of the format. The yard's skills decide it.
@@ -262,7 +262,7 @@ How the Chief of Staff gathers and asks is the yard's skill, not the format. The
 
 ## `log.jsonl`
 
-One JSON object per line, appended:
+One JSON object per line, appended; each line fits [log.v3.schema.json](../schema/ledger/log.v3.schema.json) and has no other keys:
 
 ```json
 {"at":"2026-11-02T10:03:00Z","by":"terminal:t3","id":"FD-0012","change":{"status":"doing","agent":"t3"}}

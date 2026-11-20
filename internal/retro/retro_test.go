@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"andon/internal/dispatcher"
+	"andon/internal/ledger/ledgertest"
 	"andon/internal/spawn"
 )
 
@@ -93,15 +94,15 @@ func newFixture(t *testing.T) *fixture {
 	write(t, filepath.Join(is("A-0007"), "library", "report.json"), `{"pr":"`+pr7+`"}`)
 	write(t, filepath.Join(is("A-0008"), "issue.yaml"), issueYAML("A-0008", "done", "profile: claude\nparent: A-0006\n"))
 	write(t, filepath.Join(is("A-0008"), "library", "report.json"), `{"pr":"`+pr8+`"}`)
-	var log strings.Builder
+	var log []string
 	for _, x := range []struct {
 		id string
 		d  time.Duration
 	}{{"A-0001", 2 * day}, {"A-0001-r1", 2 * day}, {"A-0002", 9 * day}, {"A-0003", 1 * day}, {"A-0004", 1 * day},
 		{"A-0005", 1 * day}, {"A-0009", 1 * day}, {"A-0006", 21 * day}, {"A-0007", 3 * day}, {"A-0008", 20 * day}} {
-		fmt.Fprintf(&log, `{"at":%q,"by":"terminal:t1","id":%q,"change":{"status":"done"}}`+"\n", ago(x.d), x.id)
+		log = append(log, fmt.Sprintf(`{"at":%q,"by":"terminal:t1","id":%q,"change":{"status":"done"}}`, ago(x.d), x.id))
 	}
-	write(t, filepath.Join(k, "log.jsonl"), log.String())
+	write(t, filepath.Join(k, "log.jsonl"), ledgertest.Log(t, log...))
 	write(t, filepath.Join(f.pkg, "applied.json"), `{"commit":"`+sha1+`","applied_at":"`+ago(36*time.Hour)+`","image_commit":"x"}`)
 
 	// セッションログ: Chief of Staff（cwd がプロジェクトの根）・担当（起動の記録の session）・ほかのプロジェクト

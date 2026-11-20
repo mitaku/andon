@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/ledger/ledgertest"
 	"andon/internal/spawn"
 )
 
@@ -25,7 +26,7 @@ case $1 in
   root) echo "$FAKE_ROOT" ;;
   show) cat "$FAKE_ROOT/show-$2.json" ;;
   set) echo "$2 updated" ;;
-  ready) cat "$FAKE_ROOT/ready.json" 2>/dev/null || echo '[{"id":"S-0007"}]' ;;
+  ready) cat "$FAKE_ROOT/ready.json" ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
 esac
@@ -78,6 +79,7 @@ func newStart(t *testing.T) *startFixture {
 	os.WriteFile(filepath.Join(dir, "andon.toml"), []byte("owner = \"owner@example.com\"\n"), 0o644)
 	f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site","github.com/example/none"]}`, "owner@example.com")
 	f.task = map[string]any{"id": "S-0007", "title": "Add the button", "status": "todo", "profile": "claude", "repo": "github.com/example/sample-site"}
+	f.ready(f.task)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.home, ".local", "state")) // start の lock も一時の HOME の下に。受け継いだ置き場に書かない
@@ -137,6 +139,14 @@ func (f *startFixture) project(body, email string) {
 }
 
 // addRepo は台帳の config.yaml の repos に足す。
+// ready は偽の kanban の ready --json の返事を置く（台帳の CLI の書く形でなければテストを落とす）。
+func (f *startFixture) ready(issues ...any) {
+	f.t.Helper()
+	if err := os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(ledgertest.Ready(f.t, issues...)), 0o644); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
 func (f *startFixture) addRepo(repo string) {
 	p := filepath.Join(f.root, "kanban", "config.yaml")
 	b, _ := os.ReadFile(p)
@@ -340,7 +350,7 @@ func startRefusals(t *testing.T) []startRefusal {
 		}},
 		{"after", "S-0007 は after（S-0006）が済んでいない", false, func(f *startFixture) {
 			f.task["after"] = []any{"S-0006"}
-			os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(`[{"id":"S-0008"}]`), 0o644)
+			f.ready(map[string]any{"id": "S-0008", "title": "Other", "status": "todo"})
 		}},
 		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", true, func(f *startFixture) {
 			// clone は fetch していないが、origin にだけ同名の branch がある

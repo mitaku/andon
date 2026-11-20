@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/ledger-log/3",
+  "title": "kanban ledger log.jsonl line (format 3)",
+  "description": "One line of kanban/log.jsonl, format version 3: one JSON object per line, appended by kanban only. A line has one of four shapes, told apart by its keys: kanban config set (config), a routine's firing (routine), kanban migrate (migrate), else an issue's change (id and change). Readers skip a line they can't read. Lines written before ids had four digits keep the short id (A-5), and config lines from before 2026-11-06 say coordinator.",
+  "if": { "required": ["config"] },
+  "then": { "$ref": "#/$defs/configLine" },
+  "else": {
+    "if": { "required": ["routine"] },
+    "then": { "$ref": "#/$defs/routineLine" },
+    "else": {
+      "if": { "required": ["migrate"] },
+      "then": { "$ref": "#/$defs/migrateLine" },
+      "else": { "$ref": "#/$defs/issueLine" }
+    }
+  },
+  "$defs": {
+    "at": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "by": {
+      "description": "terminal:<HC_TERMINAL_ID> when run in a herdr-core terminal (the dispatcher is terminal:dispatcher), else the user name, else unknown.",
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "description": "One plain name (an id or a routine's name): no /, \\ or :, and not . or ...",
+      "type": "string",
+      "pattern": "^[^/\\\\:]+$",
+      "not": { "enum": [".", ".."] }
+    },
+    "issueLine": {
+      "description": "A change to one issue: kanban add, start, set, review, done, report and the questions.",
+      "type": "object",
+      "required": ["at", "by", "id", "change"],
+      "properties": {
+        "at": { "description": "When it changed.", "$ref": "#/$defs/at" },
+        "by": { "description": "Who changed it.", "$ref": "#/$defs/by" },
+        "id": { "description": "The issue's id.", "$ref": "#/$defs/name" },
+        "change": { "description": "What changed.", "$ref": "#/$defs/change" }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "description": "The keys that changed, with their new value (null for a removed key); kanban set writes any key so. Besides issue.yaml keys: add for a new issue, report for kanban report, question for a question's status, forced for the questions kanban done or review --force moved past, freedBy for an issue moved out of queued by kanban done.",
+      "type": "object",
+      "properties": {
+        "add": { "description": "A new issue's title (kanban add).", "type": "string" },
+        "report": { "description": "kanban report wrote report.md, or appended to it (--append).", "type": "string", "enum": ["write", "append"] },
+        "question": { "description": "The number of the question whose status changed (with status).", "type": "integer", "minimum": 1 },
+        "status": { "description": "The issue's new status (a column, null when removed), or with question the question's new status.", "type": ["string", "null"] },
+        "forced": {
+          "description": "The numbers of the questions not received that --force moved past (with status).",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "freedBy": { "description": "The id of the issue whose kanban done moved this one out of queued (with status).", "$ref": "#/$defs/name" },
+        "after": {
+          "description": "The new after (null when removed).",
+          "anyOf": [
+            { "type": "array", "items": { "$ref": "#/$defs/name" } },
+            { "type": "null" }
+          ]
+        }
+      },
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "string" },
+          { "type": "null" },
+          { "type": "array", "items": { "type": "string" } }
+        ]
+      },
+      "allOf": [
+        {
+          "if": { "required": ["question"] },
+          "then": { "required": ["status"], "properties": { "status": { "enum": ["open", "answered", "received"] } } }
+        },
+        {
+          "if": { "required": ["forced"] },
+          "then": { "required": ["status"] }
+        },
+        {
+          "if": { "required": ["freedBy"] },
+          "then": { "required": ["status"] }
+        }
+      ]
+    },
+    "configLine": {
+      "description": "kanban config set: no id.",
+      "type": "object",
+      "required": ["at", "by", "config"],
+      "properties": {
+        "at": { "description": "When it changed.", "$ref": "#/$defs/at" },
+        "by": { "description": "Who changed it.", "$ref": "#/$defs/by" },
+        "config": {
+          "description": "The config.yaml keys that changed, with their new value (null for a removed key).",
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "routineLine": {
+      "description": "A routine's firing: an issue added (fired) or none (skipped). No id.",
+      "type": "object",
+      "required": ["at", "by", "routine"],
+      "properties": {
+        "at": { "description": "When it fired.", "$ref": "#/$defs/at" },
+        "by": { "description": "routine:<name>.", "type": "string", "pattern": "^routine:" },
+        "routine": { "description": "The routine's name (routines/<name>.yaml).", "$ref": "#/$defs/name" },
+        "fired": { "description": "The id of the issue it added.", "$ref": "#/$defs/name" },
+        "skipped": { "description": "Why it added none: paused, or open of its issues are not done.", "type": "string", "enum": ["open", "paused"] }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["fired"] },
+        { "required": ["skipped"] }
+      ]
+    },
+    "migrateLine": {
+      "description": "kanban migrate moved the ledger from .flightdeck. No id.",
+      "type": "object",
+      "required": ["at", "by", "migrate"],
+      "properties": {
+        "at": { "description": "When it moved.", "$ref": "#/$defs/at" },
+        "by": { "description": "Who moved it.", "$ref": "#/$defs/by" },
+        "migrate": {
+          "description": "Where from, and the ids it renamed.",
+          "type": "object",
+          "required": ["from", "ids"],
+          "properties": {
+            "from": { "description": "The old ledger's folder name (.flightdeck).", "type": "string", "minLength": 1 },
+            "ids": {
+              "description": "Old id to new id.",
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/name" }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

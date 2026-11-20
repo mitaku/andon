@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"andon/internal/ledger"
+	"andon/internal/ledger/ledgertest"
 )
 
 // dispatcher 自身が出したゲートの問い（andon issue merge の asked）は、出した巡で積む1通だけが届く。
@@ -24,7 +25,7 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	logPath := filepath.Join(l.Dir, "log.jsonl")
-	writeFile(t, logPath, `{"at":"2026-11-19T00:00:00Z","by":"terminal:t51","id":"S-0007","change":{"status":"doing"}}`+"\n")
+	writeFile(t, logPath, ledgertest.Log(t, `{"at":"2026-11-19T00:00:00Z","by":"terminal:t51","id":"S-0007","change":{"status":"doing"}}`))
 	slug, cos := l.Slug, "t51"
 	tasks := []ledger.Issue{{"id": "S-0007", "status": "review", "agent": "t42", "profile": "claude", "repo": "github.com/example/sample-site"}}
 	load := func() *project {
@@ -100,7 +101,7 @@ func TestGateAskedRecoveredAfterCrash(t *testing.T) {
 	l := ledger.At(filepath.Join(d, "projects", "sample-site"))
 	qdir := filepath.Join(l.Library("S-0007"), "questions")
 	logPath := filepath.Join(l.Dir, "log.jsonl")
-	writeFile(t, logPath, `{"at":"2026-11-19T00:00:00Z","by":"terminal:t51","id":"S-0007","change":{"status":"review"}}`+"\n")
+	writeFile(t, logPath, ledgertest.Log(t, `{"at":"2026-11-19T00:00:00Z","by":"terminal:t51","id":"S-0007","change":{"status":"review"}}`))
 	slug, cos := l.Slug, "t51"
 	tasks := []ledger.Issue{{"id": "S-0007", "status": "review", "agent": "t42", "profile": "claude", "repo": "github.com/example/sample-site"}}
 	load := func() *project {
@@ -158,7 +159,7 @@ func stopTwice(t *testing.T, slug, prompt string) string {
 
 func addRow(t *testing.T, path, row string) {
 	t.Helper()
-	if err := appendLine(path, []byte(row)); err != nil {
+	if err := appendLine(path, []byte(strings.TrimSuffix(ledgertest.Log(t, row), "\n"))); err != nil {
 		t.Fatal(err)
 	}
 }

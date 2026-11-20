@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"andon/internal/ledger"
+	"andon/internal/ledger/ledgertest"
 )
 
 func TestResult(t *testing.T) {
@@ -118,7 +119,7 @@ func outcomeProject(t *testing.T, rows ...string) *project {
 	t.Helper()
 	l := ledger.At(t.TempDir())
 	writeFile(t, filepath.Join(l.Dir, "config.yaml"), "version: 3\nchief_of_staff: t5\n")
-	writeFile(t, filepath.Join(l.Dir, "log.jsonl"), strings.Join(rows, "\n")+"\n")
+	writeFile(t, filepath.Join(l.Dir, "log.jsonl"), ledgertest.Log(t, rows...))
 	p := &project{c: &Dispatcher{Log: io.Discard}, l: l, st: &State{}}
 	p.rows = l.Log()
 	return p
@@ -161,7 +162,7 @@ func TestOutcomeWorkedPickedDoneAfterSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString(done + "\n")
+	f.WriteString(ledgertest.Log(t, done))
 	f.Close()
 	if !p.logRow([]byte(done), ledger.DispatcherBy, 0) {
 		t.Fatal("logRow が done の行で止まった")
@@ -229,7 +230,7 @@ func TestOutcomeWorkedLogUnreadable(t *testing.T) {
 		t.Fatalf("読める log: %v %v", o, err)
 	}
 	log := filepath.Join(p.l.Dir, "log.jsonl")
-	writeFile(t, log, statusRow(id, "2026-11-19T00:00:00Z", "doing")+"\n")
+	writeFile(t, log, ledgertest.Log(t, statusRow(id, "2026-11-19T00:00:00Z", "doing")))
 	if o, err := p.collectOutcome(id, ledger.Issue{"id": id}); err == nil {
 		t.Errorf("done の行の無い log で err でない: worked_minutes %d", o.WorkedMinutes)
 	}
