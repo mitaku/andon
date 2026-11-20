@@ -30,5 +30,8 @@ for w in '離席中' '問題を引き起こす' '何が起きたか'; do
   setup; echo "$w" >"$tmp/r/docs/x.md"; expect ok "「$w」は通る"
 done
 setup; sed -i 's/^## 未リリース$/&\n- 費用を数える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「費用」で落ちる'
+# repo の中の skill の置き場（ADR-0035 決めたこと 4）も見る
+setup; mkdir -p "$tmp/r/.claude/skills/verify-andon"; echo '担当を起こす' >"$tmp/r/.claude/skills/verify-andon/SKILL.md"
+expect fail '.claude/skills/ の skill の「起こす」で落ちる'
 
 exit "$fail"

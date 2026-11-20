@@ -2,7 +2,7 @@
 # tests/lib/scope.sh [--heavy] < 変更されたパス（repo からの相対・1行1つ）
 #
 # 手元で「変えたものに関係する検査だけ」を走らせるとき（tests/run --changed）と CI の文書だけの PR で、走らせる tests/*.sh を
-# 1行1つで出す。安く全体を見るもの（public・public-selftest・smoke・ci・words・words-selftest・agents-md）はいつも。コードや package/ を
+# 1行1つで出す。安く全体を見るもの（public・public-selftest・smoke・ci・words・words-selftest・agents-md・verify-andon）はいつも。コードや package/ を
 # 変えたら、重い検査（下の表）を除く全部と、変えたパスが「見る部分」に入る重い検査を足す。知らないパスは重い検査を含む全部。
 # tests/image.sh は CI と同じ tests/lib/image-scope.sh が true のときだけ。表は docs/image.md の「手元は関係する検査だけ」。
 #   --heavy  重い検査と見る部分の表を「<検査> <部分>」で1行ずつ出す（tests/ci.sh が Go の import と突き合わせる）
@@ -48,8 +48,10 @@ sees() {
   esac
 }
 
-# agents-md.sh は AGENTS.md の「決まり｜守らせるもの」の表を見る。AGENTS.md だけの PR でも走るよう、いつもの側に置く（ADR-0035 決めたこと 6）
-declare -A run=([tests/public.sh]=1 [tests/public-selftest.sh]=1 [tests/smoke.sh]=1 [tests/ci.sh]=1 [tests/words.sh]=1 [tests/words-selftest.sh]=1 [tests/agents-md.sh]=1)
+# agents-md.sh は AGENTS.md の「決まり｜守らせるもの」の表を見る。AGENTS.md だけの PR でも走るよう、いつもの側に置く（ADR-0035 決めたこと 6）。
+# verify-andon.sh は検証の skill の目次・地図・名指す command の実在を見る。名指す command を消すコードの PR でも、skill の文だけの PR でも
+# 走るよう、いつもの側に置く（ADR-0035 決めたこと 5）
+declare -A run=([tests/public.sh]=1 [tests/public-selftest.sh]=1 [tests/smoke.sh]=1 [tests/ci.sh]=1 [tests/words.sh]=1 [tests/words-selftest.sh]=1 [tests/agents-md.sh]=1 [tests/verify-andon.sh]=1)
 light=false # 重い検査を除く全部
 all=false   # 重い検査も含む全部（知らないパス）
 paths=()
@@ -87,6 +89,8 @@ while IFS= read -r p; do
     tests/lib/scope.sh | tests/lib/docs-scope.sh | tests/lib/image-scope.sh) ;;
     tests/lib/*) all=true ;;
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
+    # repo の中の skill の置き場（ADR-0035 決めたこと 4）。image にも andon にも入らない。形は verify-andon.sh、語は words.sh（どちらもいつもの分）
+    .claude/skills/* | .agents/skills/*) ;;
     # Go のテスト（go test ./... が見る）・人の文書は、いつもの分だけ
     cmd/*_test.go | internal/*_test.go | docs/* | tests/* | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # コード・andon に埋め込むもの・image に入るもの。重い検査は上の表で足した分だけ

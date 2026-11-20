@@ -13,6 +13,10 @@ scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
 [ "$(scope model/IssueLife.tla model/IssueRules.tla model/expected.txt model/broken/BrokenReady.tla model/package-lock.json model/README.md)" = false ] || die "モデルだけで true"
 [ "$(scope)" = false ] || die "変更が無いのに true"
 [ "$(scope image/apply-main.sh tests/apply-main.sh)" = false ] || die "image に入らない image/apply-main.sh で true"
+# repo の中の skill の置き場（ADR-0035 受け入れ条件 9）: 文と補助のスクリプトだけの変更で image を焼かない。ほかの .claude/ は知らないパス
+skill='.claude/skills/verify-andon'
+[ "$(scope $skill/SKILL.md $skill/features/gate.md $skill/scripts/drive.sh .agents/skills/verify-andon)" = false ] || die "検証の skill の文だけで true"
+[ "$(scope .claude/settings.json)" = true ] || die ".claude/ の skill でないもので false"
 grep -q 'COPY .*image/apply-main' image/Dockerfile && die "image/apply-main.sh を image に入れるなら image-scope.sh も直す"
 grep -q 'COPY .*image/' image/Dockerfile || die "Dockerfile の COPY image/ の行が読めない（上の否定が何も見ていない）"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
@@ -40,7 +44,7 @@ ok "docs-scope: 文書だけなら true、コード・tests・知らないパス
 #     重い検査を除く全部と、変えたパスを見る重い検査。知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
 has() { grep -qw -- "$2" <<<"$1"; }
-always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh '
+always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/verify-andon.sh tests/words-selftest.sh tests/words.sh '
 # with <検査>…: いつもの分に検査を足し、scope.sh と同じ並び（名前の順）で出す
 with() { printf '%s\n' $always "$@" | sort | tr '\n' ' '; }
 heavy='tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh'
@@ -75,6 +79,13 @@ grep -q tests/image.sh <<<"$(pick tests/lib/kanban.sh)" && die "image に関係�
 grep -q tests/image.sh <<<"$(pick tests/lib/pty-probe.py)" || die "pty-probe.py で image.sh が無い"
 [ "$(pick tests/lib/scope.sh tests/lib/docs-scope.sh)" = "$always" ] || die "判定の道具で ci.sh のほかを足す: $(pick tests/lib/scope.sh)"
 [ "$(pick image/apply-main.sh)" = "$(with tests/apply-main.sh)" ] || die "image/apply-main.sh で apply-main.sh だけを足さない: $(pick image/apply-main.sh)"
+# 検証の skill の文と補助のスクリプトだけ（ADR-0035 受け入れ条件 9）: いつもの分だけ。語の検査と skill の形の検査を選び、image と重い検査は選ばない
+got=$(pick $skill/SKILL.md $skill/features/gate.md $skill/scripts/journeys/gate.sh .agents/skills/verify-andon)
+[ "$got" = "$always" ] || die "検証の skill の文だけ: $got"
+for t in tests/words.sh tests/verify-andon.sh; do has "$got" "$t" || die "検証の skill の文だけで $t が無い: $got"; done
+for t in tests/image.sh $heavy; do has "$got" "$t" && die "検証の skill の文だけで $t: $got"; done
+[ "$(wc -w <<<"$(pick .claude/settings.json)")" -eq "$n_all" ] || die ".claude/ の skill でないもので全部にならない"
+ok "scope: 検証の skill の置き場（.claude/skills/・.agents/skills/）の文だけなら、image の build と重い検査を選ばず、語の検査と skill の形の検査を選ぶ"
 ok "scope: 文書だけならいつもの分、触ったものに関係する分を足し、知らないパスでは全部（image.sh は image に関係するとき）"
 
 # 1c. scope の重い検査（ADR-0032 決めたこと 4）: コードでは軽い検査を全部と、変えたパスを見る重い検査だけ
