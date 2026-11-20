@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
-
-var askedRe = regexp.MustCompile(`#([1-9][0-9]*)$`)
 
 // Notification は通知（contract.md §6。schema/notification.schema.json）。
 type Notification struct {

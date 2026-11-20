@@ -1,0 +1,12 @@
+# golangci-lint の設定（ADR-0034 の決めたこと 4 の 1 段目）。
+# 既定の linter（standard）から errcheck だけを外す。errcheck は 2 段目で、テストと出力への書き込みを除く設定で入れる。
+# 版は mise.toml の golangci-lint（CI の go の job もそこから読む）。
+version: "2"
+linters:
+  default: standard
+  disable:
+    - errcheck
+issues:
+  # 指摘を数で切らない（既定は linter ごとに 50 件・同じ文の指摘は 3 件まで）
+  max-issues-per-linter: 0
+  max-same-issues: 0

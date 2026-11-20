@@ -76,9 +76,9 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 			}
 			continue
 		}
-		switch {
-		case status == "":
-		case status == "doing":
+		switch status {
+		case "":
+		case "doing":
 			if in == nil {
 				in = &at
 			}

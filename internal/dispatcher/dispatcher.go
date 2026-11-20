@@ -483,23 +483,3 @@ func repoDir(repo string) (string, error) {
 	}
 	return filepath.Join(root, repo), nil
 }
-
-// ask は問い（contract.md §5）を andon issue ask で出し、通知 asked を積む。
-func (p *project) ask(id string, q contract.Question) {
-	b, _ := json.Marshal(q)
-	out, _, err := p.andon(string(b), "issue", "ask", id, "-")
-	if err != nil {
-		p.logf("%s の問いを出せない: %v", id, err)
-		return
-	}
-	n := 0
-	if m := askedRe.FindStringSubmatch(strings.TrimSpace(out)); m != nil {
-		fmt.Sscan(m[1], &n)
-	}
-	if n < 1 {
-		p.logf("%s の問いの番号が読めない: %q", id, out)
-		return
-	}
-	p.notify(id, "asked", map[string]any{"n": n, "kind": q.Kind, "question": q.Question})
-	p.markAsked(id, n)
-}

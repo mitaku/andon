@@ -12,8 +12,7 @@ import (
 	"andon/internal/pkgversion"
 )
 
-func ptrBool(b bool) *bool    { return &b }
-func ptrStr(s string) *string { return &s }
+func ptrBool(b bool) *bool { return &b }
 func must(t *testing.T, e error) {
 	t.Helper()
 	if e != nil {

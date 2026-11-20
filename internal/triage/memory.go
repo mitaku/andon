@@ -76,7 +76,7 @@ func memoryFrom(name string) string {
 	stem := strings.TrimSuffix(name, ".md")
 	b := []byte(stem)
 	for i, c := range b {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '-' {
 			b[i] = '-'
 		}
 	}

@@ -3,6 +3,7 @@ package andon
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -278,5 +279,80 @@ func TestWorkflowAptMirrorOnlyInTestsJob(t *testing.T) {
 	}
 	if set["tests"] != 1 {
 		t.Errorf("tests.yml の job tests で ANDON_APT_MIRROR を置く step が %d 個（tests/*.sh を回す1つのはず）", set["tests"])
+	}
+}
+
+// golangci-lint（ADR-0034 決めたこと 4・5）は .github/workflows/go.yml の job go の1か所で回す。版は mise.toml の golangci-lint の
+// 1か所にだけ書き、action の version には mise.toml を読む step の出力を渡す。workflow に版を書くと mise.toml とずれるので書かない。
+func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
+	mise, err := os.ReadFile("mise.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vers := regexp.MustCompile(`(?m)^golangci-lint = "([0-9]+\.[0-9]+\.[0-9]+)"$`).FindAllSubmatch(mise, -1)
+	if len(vers) != 1 {
+		t.Fatalf("mise.toml に golangci-lint の版が %d 行（1行のはず）", len(vers))
+	}
+	ver := string(vers[0][1])
+	output := regexp.MustCompile(`^\$\{\{ steps\.([A-Za-z0-9_-]+)\.outputs\.version \}\}$`)
+	type step struct {
+		ID   string         `yaml:"id"`
+		Run  string         `yaml:"run"`
+		Uses string         `yaml:"uses"`
+		With map[string]any `yaml:"with"`
+	}
+	files, _ := filepath.Glob(".github/workflows/*.y*ml")
+	found := 0
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), ver) {
+			t.Errorf("%s に golangci-lint の版 %s が書いてある（mise.toml から読む）", f, ver)
+		}
+		var wf struct {
+			Jobs map[string]struct {
+				Steps []step `yaml:"steps"`
+			} `yaml:"jobs"`
+		}
+		if err := yaml.Unmarshal(b, &wf); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		for name, j := range wf.Jobs {
+			for i, s := range j.Steps {
+				if !strings.HasPrefix(s.Uses, "golangci/golangci-lint-action@") {
+					continue
+				}
+				found++
+				if filepath.Base(f) != "go.yml" || name != "go" {
+					t.Errorf("%s の job %s が golangci-lint を回す（go.yml の job go の1か所のはず）", f, name)
+				}
+				for _, k := range []string{"version-file", "install-mode"} {
+					if _, ok := s.With[k]; ok {
+						t.Errorf("%s の job %s の golangci-lint に %s がある（版は mise.toml の版で、既定の binary で入れる）", f, name, k)
+					}
+				}
+				v, _ := s.With["version"].(string)
+				m := output.FindStringSubmatch(v)
+				if m == nil {
+					t.Errorf("%s の job %s の golangci-lint の version が %q（mise.toml を読む step の出力 ${{ steps.<id>.outputs.version }} のはず）", f, name, v)
+					continue
+				}
+				reads := false
+				for _, p := range j.Steps[:i] {
+					if p.ID == m[1] && strings.Contains(p.Run, "mise.toml") && strings.Contains(p.Run, "golangci-lint") {
+						reads = true
+					}
+				}
+				if !reads {
+					t.Errorf("%s の job %s で、golangci-lint より前の step %s が mise.toml の golangci-lint を読まない", f, name, m[1])
+				}
+			}
+		}
+	}
+	// go.yml の job go の1つ（この検査が何も見ていなくても通るのを防ぐ）
+	if found != 1 {
+		t.Errorf("golangci-lint を回す step が %d 個（go.yml の job go の1つのはず）", found)
 	}
 }

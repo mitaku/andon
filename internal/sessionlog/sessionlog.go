@@ -116,7 +116,7 @@ func Claude(dir, session string, skip Skip) *Log {
 		}
 		ok := lines(f, src, skip, func(line int, b []byte) {
 			s := string(b)
-			if !strings.Contains(s, `"usage"`) && !(main && strings.Contains(s, `"promptId"`)) {
+			if !strings.Contains(s, `"usage"`) && (!main || !strings.Contains(s, `"promptId"`)) {
 				return
 			}
 			var v struct {

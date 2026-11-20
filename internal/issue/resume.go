@@ -217,7 +217,7 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	if a, ok := live[p.Terminal]; ok && !(a == p.Agent && p.AgentState == "bare_shell") {
+	if a, ok := live[p.Terminal]; ok && (a != p.Agent || p.AgentState != "bare_shell") {
 		return nil, fail("端末 %s（%s）がもう動いている（hc ls で確かめる）", p.Terminal, a)
 	}
 

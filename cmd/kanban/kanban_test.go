@@ -557,7 +557,7 @@ func TestReviewerIDs(t *testing.T) {
 	}
 	// listed right after their parent, in round order
 	out := kanban(t, root, "list", "--all")
-	if a, b, c, d := strings.Index(out, "A-0005 "), strings.Index(out, "A-0005-r1"), strings.Index(out, "A-0005-r2"), strings.Index(out, "A-0006"); !(a < b && b < c && c < d) {
+	if a, b, c, d := strings.Index(out, "A-0005 "), strings.Index(out, "A-0005-r1"), strings.Index(out, "A-0005-r2"), strings.Index(out, "A-0006"); a >= b || b >= c || c >= d {
 		t.Fatalf("order:\n%s", out)
 	}
 }
