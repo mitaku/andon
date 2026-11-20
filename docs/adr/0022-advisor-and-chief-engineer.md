@@ -5,6 +5,17 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形（`contract.md`・`schema/`）は変えない。
 - 入力: 依頼書 A-0161（人の発言 2026-11-12 と Chief of Staff の経緯）、design.md §1.8、[ADR-0009](0009-cos-default-entry.md)、[ADR-0001](0001-skills-distribution.md)、[ADR-0004](0004-project-layout.md)、`package/templates/chief-engineer.md`・`chief-of-staff.md`、`package/skills/chief-of-staff/SKILL.md`・`chief-engineer/SKILL.md`、台帳（これまでの Chief Engineer の課題 13 件）、セルの wiki、Advisor とカスタムエージェントの公式の説明（出典）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | Chief Engineer の役は残し、振り分けの線も動かさない | `package/templates/chief-engineer.md` | 生きている |
+| 2 | Advisor（Fable）を付けるのは Chief of Staff だけ | `package/templates/chief-of-staff.md` | 生きている |
+| 3 | 入れ方は Chief of Staff のプロファイルの起動行に `--advisor fable` を足す | `package/templates/chief-of-staff.md` | 生きている |
+| 4 | skill に、振り分けに迷うときと 2 回差し戻すときは advisor に相談する、の 1 行を足す | `package/skills/chief-of-staff/playbooks/cut.md`・`package/skills/chief-of-staff/playbooks/gate.md` | 生きている |
+| 5 | 効いたかは、オーナーの目視で 2026-11-27 に見る | この ADR | まだ実装していない |
+| 6 | 試験運用として入れ、見る日に続ける・止める・広げるを決める | `docs/design.md` | まだ実装していない |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-12）: 「あとは Claude の Advisor 機能を使うことで ChiefEngineer を除外できるのでは？とも思っている」。

@@ -5,6 +5,22 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
 - 入力: 題（人の1行。2026-11-10）、A-0007 の依頼書（人の依頼。Addy Osmani の「任せきりの run の5つの問い」のうち andon に無いのがガードレールだけ）と報告・`library/candidates.json`（c1〜c13）、A-0055 の依頼書（Codex。進行中）、A-0054 の依頼書（トークン数。待ち）、[dispatcher.md](../dispatcher.md) §2.3・§2.4、[contract.md](../contract.md) §2・§5・§6・§9、[ADR-0012](0012-resume-and-worktree-home.md)（resume・`session=` ラベル）、`internal/issue/stopcheck.go`・`start.go`・`lock.go`、`internal/dispatcher/pickup.go`・`drain.go`、`package/settings.json`・`package/hooks/stop`・`package/templates/*.md`、Claude Code 2.1.322 の hooks・cli-reference・goal の文書（2026-11-10 に取得）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 見込みと実際の単位は時間だけにする | `docs/contract.md` | 生きている |
+| 2 | 見込みは Chief of Staff が依頼書を切るときに粗い段で書く | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
+| 3 | 段は小 30 分・中 60 分・大 120 分で、目安であって規則ではない | `internal/ledger/worked.go` | 生きている |
+| 4 | 担当の反論の口は報告の「計画」の 1 行で、問いにしない | `package/skills/worker/SKILL.md` | 生きている |
+| 5 | 実際は、待ちを除いた `doing` の時間とする | `internal/ledger/worked.go` | 生きている |
+| 6 | ズレは見込みの 1・2・4 倍を超えるごとに 1 回、dispatcher が Chief of Staff に届ける | `docs/dispatcher.md`・`internal/dispatcher/estimate.go` | 生きている |
+| 7 | 担当は止めず、方向修正は Chief of Staff がする | `docs/dispatcher.md` | 生きている |
+| 8 | 効かせるのは担当の課題だけで、見込みの無い課題は「見込み無し」と数える | `docs/contract.md` | 生きている |
+| 9 | 記録は `andon measure` に足し、振り返りが読む | `internal/measure/estimate.go`・`schema/measure.schema.json` | 生きている |
+| 10 | 構造は案 A（台帳と通知と measure）を採る | この ADR | 生きている |
+| 11 | 反論で直した細部（実働の定義・控えのキー・引き継ぎ・予約キーの照合など） | `docs/contract.md`・`docs/dispatcher.md` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 最初の題は「離席中・夜間に流す担当に、課題ごとのターン数・時間（・コスト）の上限を掛ける」だった。対話で人が向きを変えた（2026-11-10）: 「上限は一律に定めるものではなく、測るべきは見込みとのズレである」。コスト（ドル）は外す。

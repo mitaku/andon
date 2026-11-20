@@ -4,6 +4,17 @@
 - 主題: 担当が自分の変更を画面（ブラウザ）で確かめる道具と決まりを、セルの標準にするか。するならどの道具を・どう届け・証拠をどこに残すか。
 - 語は [design.md](../design.md) §0.1。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 画面を見る道具は、焼いてある Playwright 同梱の `playwright-cli` だけにし、配線だけ足す | `image/Dockerfile`・`image/playwright-cli` | 生きている |
+| 2 | 画面に触れる変更に画面の証拠が無ければ、ゲートが `fix` で戻す | `schema/gate.schema.json`・`internal/gate/decide.go` | 生きている |
+| 3 | 証拠は PR への画像の添付と、`report.json` の証拠欄の URL と command | `package/skills/worker/SKILL.md` | 生きている |
+| 4 | レビュアーの観点に、画面の証拠が無い・差分と合わない、を足す | `package/skills/independent-review/SKILL.md` | 生きている |
+| 5 | 同梱の skill は boot が symlink で張る | `internal/boot/extskills.go` | 生きている |
+| 6 | managed settings に許可規則を managed だけにする設定を足す | `package/settings.json` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 Andon の担当は Web の画面を持つ案件でも、今はテストとレビューと検査だけで「確認」を終えており、自分の変更が画面でどう見えるかを見る手段も、見ろという決まりも無い。Playwright は備品としてイメージに焼いてあるが PATH にも skill にも無く、担当は存在を知らない。困りごとは「画面の変更を担当が自分の目で確かめず、人が手元のブラウザで見て初めて壊れていると分かる」こと。決めたいのは、(1) 担当が画面を見て確かめることを Andon の確認の工程の標準にするか、(2) するならどの道具（素の Playwright／既製のエージェント向け CLI と skill／MCP）を、(3) どう届けるか（イメージの備品・PATH・skill・environment.md の行）、(4) 証拠（スクリーンショット）を報告と PR のどこに残すか（人が同意 2026-11-11）。

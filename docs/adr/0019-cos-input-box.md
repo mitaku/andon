@@ -5,6 +5,21 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
 - 入力: 依頼書 A-0128（人の発言 2026-11-11 と Chief of Staff の経緯・追記）、A-0127 の報告と候補（c1〜c4）、[dispatcher.md](../dispatcher.md) §2.4・§3〜§4.4、`internal/dispatcher/deliver.go`・`pickup.go`・`drain.go`、`package/hooks/`、A-0078 の実測の行、[ADR-0010](0010-news-ack.md)。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 経路③を入力欄への `hc send` から、`asyncRewake` フックの待ち役に替える | `docs/dispatcher.md`・`internal/dispatcher/wait.go` | 生きている |
+| 2 | 待ち役の持ち方（セッションに 1 つ・人の送信で止める・通知を自分で渡す） | `docs/dispatcher.md` | 覆された（決めたこと 8 が合図だけの待ち役に改めた） |
+| 3 | 待ち役がいない間に起きた通知は、届かないことを受け入れる | `docs/dispatcher.md` | 生きている（`timeout` の分は決めたこと 9 が改めた） |
+| 4 | Chief of Staff への「続けて」の `hc send` をやめる | `docs/dispatcher.md` | 生きている |
+| 5 | 入力欄を読む仕組みを消し、dispatcher.md §4 を待ち役の節に書き直す | `docs/dispatcher.md` | 生きている |
+| 6 | 経路①の渡し方を `additionalContext` に替える | `internal/dispatcher/drain.go` | 生きている |
+| 7 | 同じ通知が 2 回届く件は直しとして扱う | この ADR | 生きている（`hc send` で重なる分は 1 で消えた） |
+| 8 | 待ち役は合図だけを打ち、通知を渡すのは `drain` の 1 人のままにする | `docs/dispatcher.md`・`internal/dispatcher/wait.go` | 生きている |
+| 9 | 待ち役は `timeout` が切れる前に張り直す | `internal/dispatcher/wait.go` | 生きている |
+| 10 | プロバイダに切られた Chief of Staff を StopFailure のフックの合図で起動する | `internal/dispatcher/rewake.go`・`package/hooks/stop-failure` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-11）: 「打ってる途中に入って勝手に送信された気がします」。

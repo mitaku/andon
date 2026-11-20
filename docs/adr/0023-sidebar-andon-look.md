@@ -5,6 +5,17 @@
 - 語は [design.md](../design.md) §0.1。この題は新しい約束（端末のラベル・schema・台帳の形）を足さない（前提 3）。
 - 入力: 依頼書 A-0163（人の発言 2026-11-12 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、`package/host/layouts/andon.json`、[design.md](../design.md) §1.1・§6 問い1（モチーフ）、[assets/logo/README.md](../assets/logo/README.md)（ロゴの色と形）、[vision.md](../vision.md) §3（灯りの言い方）、[ADR-0002](0002-herdr-spaces.md) 決めたこと 18、[ADR-0015](0015-inbox-needs-you.md)、Herdr App の mod guide と同梱の `workspace-chrome`（出典の節）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 灯りの色は、答え待ちを琥珀、失敗して止まった行を赤にする | `package/host/inbox/main.js` | 生きている |
+| 2 | 出す場所は、Inbox の Needs you とサイドバーの一番上（行燈）の 2 つ | `package/host/inbox/main.js`・`package/host/andon/brand.js` | 生きている |
+| 3 | 行燈の窓は、失敗があれば赤、答え待ちがあれば琥珀、無ければ消灯 | `package/host/andon/brand.js` | 生きている |
+| 4 | 動きは、色が変わるときだけゆっくり移り変わり、明滅しない | `package/host/andon/brand.js` | 生きている |
+| 5 | 作って、見て、直す | この ADR | 役目を終えた |
+| 6 | 列を細く畳んだときは、行燈を出さなくてよい | `package/host/andon/brand.js` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-12、Chief of Staff への発言）: 「Modのサイドバーがかなりよいなと思いました。ここが「あんどん」らしさが見た目にでてくるとよりよさそうです。（今でもあんどんらしさはあります）」
