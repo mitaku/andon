@@ -27,7 +27,7 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 
 - 出力は1つの JSON（形は `contract.md` §20）。束は2つの形で入る:
   - `issues[]`: 全文の束。境目（`boundary`。前の振り返りが集めた時刻）より後に片付いた担当の課題。読む起点はここ。
-  - `summaries[]`: 要約の束。境目より前に片付いた担当の課題。題・PR と、つまずきの跡の見出し（`findings` は major 以上の指摘の1行目、`gate_fixes` はゲートの `fix` の理由、`corrections` は「マージした」以外の手直しの有無、`remember` は Remember の行数）だけを持つ。「同じことが前にもあったか」を引く索引として読む。
+  - `summaries[]`: 要約の束。境目より前に片付いた担当の課題。題・PR と、つまずきの跡の見出し（`findings` は major 以上の指摘の1行目、`gate_fixes` は gate が返した `fix` の理由、`corrections` は「マージした」以外の手直しの有無、`remember` は Remember の行数）だけを持つ。「同じことが前にもあったか」を引く索引として読む。
   - `cut` が `null` でなければ、新しい束が 100 件を超え、古いほうを要約にした。報告に書く。
 - `typed[]` はオーナーが打った文（期間の全部）、`fixes[]` は前の振り返りが切った直しのうちマージから 14 日以内のもの、`previous_retro` は前の振り返り。
 - 要約の束の全文が要るときは id で引く: `andon retro collect [--days N] --issue <id>`（`issues[]` の1件と同じ形）。引くのは、全文の束で拾ったパターンと突き合わせる束だけにする。
