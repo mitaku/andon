@@ -8,7 +8,11 @@ TypeOK ==
     /\ wt \in {"none", "here", "removed"}
     /\ pr \in {"none", "open", "merged"}
     /\ gate \in {"none", "approve", "fix", "human"}
-    /\ reviewing \in BOOLEAN /\ fixSent \in BOOLEAN /\ told \in BOOLEAN
+    /\ reviewing \subseteq {"head", "old"}
+    /\ ci \in {"none", "running", "failed", "passed"}
+    /\ result \in {"none", "old", "clean", "mustfix"}
+    /\ headSeen \in BOOLEAN /\ dirty \in BOOLEAN
+    /\ fixSent \in BOOLEAN /\ told \in BOOLEAN
     /\ q \in BOOLEAN /\ cancel \in BOOLEAN /\ mergeAuto \in BOOLEAN
 
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
@@ -28,5 +32,10 @@ R5_NoWorkerWhenDone == status = "done" => worker # "live"
 
 \* R6 担当の問いが開いたまま review にならない
 R6_NoReviewWithOpenQuestion == status = "review" => ~q
+
+\* R7 取り消しを使わずに届くどの状態からも、取り消しを使わずにマージまで行ける（ADR-0032 決めたこと 9）。
+\*    取り消しは ChiefOfStaffCancels と、ゲートを待たない人の先回りのマージ（HumanMergesEarly）。
+\*    「行ける道がある」は状態 1 つの式（INVARIANT）では書けないので、検査器の状態の図を model/reach.mjs が読む。
+\*    設定は IssueRules.cfg の「\* REACH」の行（R7_MergeWithoutCancel pr = "merged" と除く行動）。
 
 ====

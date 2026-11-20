@@ -3,15 +3,18 @@
 EXTENDS IssueRules
 
 BrokenWorkerReady ==
-    /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~reviewing
+    /\ status = "doing" /\ worker = "live" /\ pr = "open"
+    /\ result \in {"clean", "mustfix"}
     /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
-    /\ UNCHANGED <<worker, wt, pr, reviewing, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ BrokenWorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
-    \/ ChiefOfStaffSendsBack \/ WorkerTakesFix \/ DispatcherMerges \/ HumanMerges
+    \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
+    \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars

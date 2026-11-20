@@ -1,5 +1,5 @@
 # model/check が毎回比べる控え（ADR-0025 決めたこと 2 の (a)(b)）。検査器の誤りで「破れているのに通る」を見つけるためのもの。
-# rule <調べるはずの規則>（IssueRules.cfg の INVARIANT と同じ集合でなければ落ちる。規則を消すと気づけるように）
+# rule <調べるはずの規則>（IssueRules.cfg の INVARIANT と「\* REACH」の行の規則を合わせた集合と同じでなければ落ちる。規則を消すと気づけるように）
 rule TypeOK
 rule R1_NoWorkerAfterCancel
 rule R2_FixReachesSomeone
@@ -7,9 +7,11 @@ rule R3_CleanupIsWhole
 rule R4_DoneMeansMergedOrCancelled
 rule R5_NoWorkerWhenDone
 rule R6_NoReviewWithOpenQuestion
+rule R7_MergeWithoutCancel
 # states <本物のモデル（IssueRules.cfg）の状態の数（distinct states）>
-states 112
+states 900
 # broken <壊した見本のモジュール（broken/ の下）> <落ちるはずの規則>
 broken BrokenFinish R3_CleanupIsWhole
 broken BrokenFixUnsent R2_FixReachesSomeone
 broken BrokenReady R6_NoReviewWithOpenQuestion
+broken BrokenReviewTwice R7_MergeWithoutCancel

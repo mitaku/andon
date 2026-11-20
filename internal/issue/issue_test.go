@@ -20,6 +20,7 @@ case "$1" in
   list) cat "$FAKE_ROOT/list.json" ;;
   questions) cat "$FAKE_ROOT/questions.json" 2>/dev/null || true ;;
   review) touch "$FAKE_ROOT/reviewed-$2"; echo "$2 updated" ;;
+  report) cat > "$FAKE_ROOT/reported-$2"; echo "$2 reported" ;;
   *) exit 9 ;;
 esac
 `
@@ -169,6 +170,57 @@ func TestReady(t *testing.T) {
 			}
 			if rc != 1 || reviewed || !strings.Contains(errs, c.want) {
 				t.Fatalf("want rc 1 with %q, got rc=%d reviewed=%v err=%q", c.want, rc, reviewed, errs)
+			}
+		})
+	}
+}
+
+// review-request の守り（ADR-0032 決めたこと 8）: その課題のレビュアーの課題が動いている（todo・doing）間は、
+// 見ている commit に関わらず頼み直さない。断ったときは report.json も報告も書かない。
+func TestReviewRequestWhileReviewerRuns(t *testing.T) {
+	cases := []struct {
+		name   string
+		status string // レビュアーの課題の status
+		brief  string // レビュアーの依頼書の commit（空なら依頼書を置かない）
+		want   string // 空なら頼める
+	}{
+		{"古い commit のレビュアーが doing", "doing", other, "レビュアー T-0001-r1 がまだ動いている（doing。commit " + other[:12] + " を見ている）"},
+		{"古い commit のレビュアーが todo", "todo", other, "レビュアー T-0001-r1 がまだ動いている（todo。"},
+		{"依頼書の読めないレビュアーが doing", "doing", "", "見ている commit は依頼書から読めない"},
+		{"HEAD のレビュアーが doing", "doing", "HEAD", "のレビューはもう頼んである（T-0001-r1 が doing）"},
+		{"古い commit のレビュアーが返した（結果なし）", "review", other, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			rev := map[string]any{"id": "T-0001-r1", "parent": "T-0001", "status": c.status, "profile": "codex-review", "updated": "2026-11-05T00:00:00Z"}
+			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+			f.write("list.json", js([]any{f.task, rev}))
+			f.write("kanban/log.jsonl", "")
+			f.write("kanban/issues/T-0001/library/report.json", f.report)
+			f.write("prhead", f.prHead+"\n")
+			if c.brief != "" {
+				sha := c.brief
+				if sha == "HEAD" {
+					sha = f.head
+				}
+				f.write("kanban/issues/T-0001-r1/brief.md", "対象: worktree `x`（detached）。commit "+sha+"。差分は gh pr diff。\n")
+			}
+			var out, errb bytes.Buffer
+			rc := Main([]string{"review-request", "T-0001"}, strings.NewReader("## Report\n"), &out, &errb)
+			report, _ := os.ReadFile(filepath.Join(f.root, "kanban/issues/T-0001/library/report.json"))
+			_, reported := os.Stat(filepath.Join(f.root, "reported-T-0001"))
+			if c.want == "" {
+				if rc != 0 || reported != nil || !strings.Contains(string(report), `"round": 2`) {
+					t.Fatalf("rc=%d reported=%v err=%q report=%s", rc, reported == nil, errb.String(), report)
+				}
+				return
+			}
+			if rc != 1 || !strings.Contains(errb.String(), c.want) {
+				t.Fatalf("want rc 1 with %q, got rc=%d err=%q", c.want, rc, errb.String())
+			}
+			if reported == nil || string(report) != f.report {
+				t.Fatalf("断ったのに書いた: reported=%v report=%s", reported == nil, report)
 			}
 		})
 	}
