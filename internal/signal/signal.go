@@ -142,7 +142,31 @@ func Load(path string) (*File, error) {
 	if f.Signals == nil {
 		f.Signals = []Record{}
 	}
+	if err := f.unique(); err != nil {
+		return nil, fmt.Errorf("信号の記録が読めない（%s）: %v", path, err)
+	}
 	return &f, nil
+}
+
+// unique は fingerprint が重ならないかを確かめる。schema の uniqueKeys は検査器が読み飛ばすので、command の側で見る
+// （ADR-0034 決めたこと 6 の「知っていて受け入れたこと」）。
+func (f *File) unique() error {
+	seen := map[string]bool{}
+	for _, r := range f.Signals {
+		if seen[r.Fingerprint] {
+			return fmt.Errorf("fingerprint %s が重なっている", r.Fingerprint)
+		}
+		seen[r.Fingerprint] = true
+	}
+	return nil
+}
+
+// save は記録を、fingerprint の一意と schema を確かめてから書く。
+func save(path string, f *File) error {
+	if err := f.unique(); err != nil {
+		return err
+	}
+	return contract.Write(path, contract.SchemaSignal, f)
 }
 
 // Collect は出所を読み、記録を書く。読めなかった出所の数を返す（記録が壊れているなど続けられないときは誤り）。
@@ -218,7 +242,7 @@ func Collect(o Options, w io.Writer) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(o.Path), 0o755); err != nil {
 		return failed, err
 	}
-	return failed, contract.Write(o.Path, contract.SchemaSignal, f)
+	return failed, save(o.Path, f)
 }
 
 // due は、前に読みに行った時刻 at から every 分（無ければ Every）たったか。at が無い・読めなければ読む。
@@ -259,7 +283,7 @@ func Delivered(path, fingerprint string, episode int) (bool, error) {
 			return false, nil
 		}
 		r.DeliveredEpisode = episode
-		return true, contract.Write(path, contract.SchemaSignal, f)
+		return true, save(path, f)
 	}
 	return false, fmt.Errorf("記録に無い信号: %s", fingerprint)
 }

@@ -372,3 +372,34 @@ func TestDelivered(t *testing.T) {
 		t.Errorf("b を届けたあとも残る: %+v", Undelivered(after, "x"))
 	}
 }
+
+// fingerprint が重なった記録は、読むときに断る。collect も delivered も、その記録を書き直さない
+// （schema の uniqueKeys は検査器が読み飛ばすので、command の側で見る）。
+func TestDuplicateFingerprintRefused(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x.signals.json")
+	r := Record{Source: "github-ci", Project: "x", Key: "a", URL: "https://example.com/a", Title: "a", Weight: "now",
+		Fingerprint: Fingerprint("github-ci", "a"), FirstSeen: "2026-11-10T09:00:00Z", LastSeen: "2026-11-10T09:00:00Z",
+		Count: 1, Active: true, Episodes: 1}
+	writeFile(t, path, &File{Signals: []Record{r, r}})
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "重なっている") {
+		t.Errorf("重なった記録を読んだ: %v", err)
+	}
+	if _, err := Delivered(path, r.Fingerprint, 1); err == nil {
+		t.Error("delivered が重なった記録で通った")
+	}
+	g := &fake{ci: ciRed, issues: issues2}
+	if _, err := Collect(Options{Slug: "x", Project: project(nil), Path: path, TokenDir: dir, Now: time.Now(), GH: g.gh}, &strings.Builder{}); err == nil {
+		t.Error("collect が重なった記録で通った")
+	}
+	if after, _ := os.ReadFile(path); string(after) != string(before) {
+		t.Errorf("重なった記録を書き直した:\n%s", after)
+	}
+	if err := save(path, &File{Signals: []Record{r, r}}); err == nil {
+		t.Error("重なった記録を書いた")
+	}
+}
