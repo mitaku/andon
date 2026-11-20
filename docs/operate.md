@@ -344,7 +344,7 @@ andon help                  # sub-command の一覧
 hc ls                       # 端末の一覧。dispatcher が出る
 ls ~/.config/herdr-core/templates     # claude・sonnet・fable・codex・codex-review・claude-review・chief-of-staff・chief-engineer
 ls -l ~/.agents/skills                # andon-<name> が /opt/andon/skills/<name> への symlink、playwright-cli が /opt/andon-tools の下への symlink
-ls -l ~/.claude/skills                # playwright-cli（同梱の skill。外の skill は local/gh-skills.txt に書いたものだけ）
+ls -l ~/.claude/skills                # playwright-cli（同梱の skill）。gh にログインしていれば yomiyasu（パッケージの既定）と local/gh-skills.txt に書いたもの
 cat ~/.claude/CLAUDE.md               # @ の3行（environment.md と writing.md と AGENTS.local.md）
 cat /etc/claude-code/managed-settings.json
 head -3 ~/.codex/config.toml          # approval_policy・sandbox_mode（無かったときに boot が足したもの）

@@ -2,6 +2,7 @@
 
 - 日付: 2026-11-11
 - 出典: ADR-0018 決めたこと 5・前提 4・受け入れ条件 2（S3。A-0111）
+- 覆された: [2026-11-20-boot-updates-listed-gh-skills-only.md](2026-11-20-boot-updates-listed-gh-skills-only.md)（上げる範囲だけ）
 
 `andon boot` の生成が、イメージの備品の置き場（`ANDON_TOOLS`。既定 `/opt/andon-tools`）に同梱の skill（`playwright-cli`）を `<claude>/skills/playwright-cli` と `~/.agents/skills/playwright-cli` に symlink で張る。備品の置き場の下を指す symlink は boot のものとして張り替え・外し（備品に無くなった skill も外す）、実ディレクトリや別の先を指すものには触らない。
 

@@ -26,8 +26,8 @@
 | 13 | worker skill の報告の書式の括弧を、「問い。推奨案は 案」の形に直す | `package/skills/worker/SKILL.md` | 生きている |
 | 14 | `writing.md` を全役に配るのは、CoS skill の行数の上限の直しのマージのあと | この ADR | 役目を終えた |
 | 15 | 語の決まりの正は `writing.md` に置き、`tier_c_paths` に足し、用語集のパスの置き換えを決める | `package/gate.json` | 生きている |
-| 16 | yomiyasu をセル 1 つで試し、決めた種類の文に全役が毎回通す | この ADR | 生きている（セルの設定で、repo に無い） |
-| 17 | 通す文は、依頼書・wiki のページ・課題の報告の 3 種類にする | この ADR | 生きている（セルの設定で、repo に無い） |
+| 16 | yomiyasu をセル 1 つで試し、決めた種類の文に全役が毎回通す | `package/gh-skills.txt`・`package/writing.md` | 生きている（ADR-0038 でセル 1 つの試しから全セルの既定にした） |
+| 17 | 通す文は、依頼書・wiki のページ・課題の報告の 3 種類にする | `package/writing.md` | 生きている |
 | 18 | 設定を入れる前の見比べはしない | この ADR | 役目を終えた |
 | 19 | 版は固定せず、起動のたびに最新へ上げる | `package/gh-skills.txt` | 生きている |
 | 20 | Andon の語を yomiyasu から守らず、言い換えられた語は記録する | この ADR | 生きている |

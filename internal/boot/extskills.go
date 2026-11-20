@@ -20,8 +20,9 @@ import (
 //   - 同梱の skill: イメージの備品（/opt/andon-tools）に同梱の skill を、boot が
 //     <claude>/skills/<name> と ~/.agents/skills/<name> に symlink で張る（genBundledSkills。生成の一部）。
 //     /opt/andon-tools の下を指す symlink は boot のもの（張り替え・外す）。実ディレクトリや別の先を指すものには触らない。
-//   - 外の skill: <pkg>/gh-skills.txt（既定は空）と <ws>/local/gh-skills.txt の一覧を、gh のログインがあれば
-//     gh skill install（latest）で入れ、gh skill update --all で上げる（installGhSkills。起動の一部。ネットワークが要る）。
+//   - 外の skill: <pkg>/gh-skills.txt（全セルに配る既定。ADR-0038）と <ws>/local/gh-skills.txt の一覧を、gh のログインがあれば
+//     gh skill install（latest）で入れ、置き場ごとに gh skill update --all --dir <置き場> <名前…> で上げる
+//     （installGhSkills。起動の一部。ネットワークが要る。上げるのは出所が一覧の repo と同じ skill だけ）。
 
 // DefaultTools はイメージの備品（npm のグローバル）の置き場。
 const DefaultTools = "/opt/andon-tools"
@@ -138,11 +139,11 @@ func (e Env) ghSkillList() ([]ghSkill, error) {
 	return list, nil
 }
 
-// ghTimeout は外の skill の手全体（auth status・install・update --all）の上限。ネットワークが詰まっても
+// ghTimeout は外の skill の手全体（auth status・install・update）の上限。ネットワークが詰まっても
 // 打ち込みごとに待ち直さず、期限が来たら残りを打たずに戻る（起動の最後の手なので、ほかの起動は待たせない）。
 var ghTimeout = 2 * time.Minute
 
-// installGhSkills は外の skill の一覧を gh skill install で入れ、gh skill update --all で上げる。
+// installGhSkills は外の skill の一覧を gh skill install で入れ、出所が一覧の repo と同じものを置き場ごとに gh skill update で上げる。
 // 一覧が空なら何も打たない。gh が無い・ログインしていなければ飛ばして1行残す（gh auth setup-git と同じ扱い）。
 // 入れるのは置き場（Claude Code は <claude>/skills、Codex は ~/.agents/skills）に同じ名前が無いときだけ
 // （利用者の skill を上書きしない。入っているものは update が上げる）。gh skill install の --agent は1つしか効かないので
@@ -177,14 +178,15 @@ func installGhSkills(e Env) error {
 		errs = append(errs, fmt.Errorf("%s を過ぎたので残りを打たない", ghTimeout))
 		return true
 	}
+	agents := []struct{ agent, dir string }{
+		{"claude-code", filepath.Join(e.claudeDir(), "skills")},
+		{"codex", filepath.Join(e.Home, ".agents", "skills")},
+	}
 	for _, s := range list {
 		if timedOut() {
 			return errors.Join(errs...)
 		}
-		for _, ag := range []struct{ agent, dir string }{
-			{"claude-code", filepath.Join(e.claudeDir(), "skills")},
-			{"codex", filepath.Join(e.Home, ".agents", "skills")},
-		} {
+		for _, ag := range agents {
 			if _, err := os.Lstat(filepath.Join(ag.dir, s.dirName())); err == nil {
 				continue
 			}
@@ -198,10 +200,56 @@ func installGhSkills(e Env) error {
 	if timedOut() {
 		return errors.Join(errs...)
 	}
-	if out, err := run("skill", "update", "--all"); err != nil {
-		errs = append(errs, fmt.Errorf("gh skill update --all: %v: %s", err, lastLine(out)))
+	// 上げるのは、一覧の skill のうち、置き場にあって出所（SKILL.md の metadata.github-repo。gh skill install が書く）が
+	// 一覧の repo と同じものだけ。gh skill update は名前だけだと全部の置き場から同じ名前を拾うので、置き場ごとに --dir で
+	// 絞って打つ（一覧の外の skill も、別の出所から入れた同じ名前の利用者の skill も上げない）。
+	// 渡す名前が無い置き場には打たない（入っていない名前だけを渡すと gh は失敗で返す）。
+	for _, ag := range agents {
+		var names []string
+		seen := map[string]bool{}
+		for _, s := range list {
+			n := s.dirName()
+			if !seen[n] && fromRepo(filepath.Join(ag.dir, n, "SKILL.md"), s.repo) {
+				seen[n] = true
+				names = append(names, n)
+			}
+		}
+		if len(names) == 0 {
+			continue
+		}
+		if timedOut() {
+			return errors.Join(errs...)
+		}
+		args := append([]string{"skill", "update", "--all", "--dir", ag.dir}, names...)
+		if out, err := run(args...); err != nil {
+			errs = append(errs, fmt.Errorf("gh %s: %v: %s", strings.Join(args, " "), err, lastLine(out)))
+		}
 	}
 	return errors.Join(errs...)
+}
+
+// fromRepo は SKILL.md の frontmatter の metadata.github-repo が https://github.com/<repo> か（大文字と小文字・末尾の .git は見ない）。
+// ファイルが無い・frontmatter が無い・github-repo が無いものは false。
+func fromRepo(skillMD, repo string) bool {
+	b, err := os.ReadFile(skillMD)
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return false
+	}
+	for _, ln := range lines[1:] {
+		t := strings.TrimSpace(ln)
+		if t == "---" {
+			return false
+		}
+		if v, ok := strings.CutPrefix(t, "github-repo:"); ok {
+			v = strings.TrimSuffix(strings.Trim(strings.TrimSpace(v), `"'`), ".git")
+			return strings.EqualFold(v, "https://github.com/"+repo)
+		}
+	}
+	return false
 }
 
 func lastLine(b []byte) string {
