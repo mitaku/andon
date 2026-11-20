@@ -602,7 +602,7 @@ grep -q "^t7	\[gate\] $id（説明を足す）: ゲートが fix を返した。
 [ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
 recorded "$id" gate | jq -e '.detail.decision == "fix"' >/dev/null && [ "$(pending "$id" gate)" = null ] || die 'gate: fix を記録だけにしていない'
 dispatcher
-[ "$(grep -c "	$id（" "$tmp/hc/sent")" = 1 ] || die '同じ review 入りで二度ゲートを回した'
+[ "$(grep -c "	\[gate\] $id（" "$tmp/hc/sent")" = 1 ] || die '同じ review 入りで二度ゲートを回した'
 ok 'fix は理由を担当（issue.yaml の agent）へ hc send し、同じ review 入りでは二度回さない'
 
 # 2b. 担当の端末が無くて fix を送れなければ（セルの起き直し）、通知 gate に unsent を書いて Chief of Staff に届ける（送れた fix は上のとおり記録だけ）
@@ -616,7 +616,7 @@ review_by "$rv" '[{"severity":"major","file":"docs/a.md","line":1}]'
 as_worker "$fx" ready
 echo t7 > "$tmp/hc/sendfail"   # 本物の hc は無い端末への send を断る
 dispatcher
-! grep -q "	$fx（" "$tmp/hc/sent" || die '送れないはずの fix が届いた（前提が崩れた）'
+! grep -q "	\[gate\] $fx（" "$tmp/hc/sent" || die '送れないはずの fix が届いた（前提が崩れた）'
 pending "$fx" gate | jq -e '.detail.decision == "fix" and .detail.unsent == "t7" and (.detail.reasons | length) > 0' >/dev/null \
   || die "送れなかった fix を Chief of Staff に届けない: pending=$(pending "$fx" gate) recorded=$(recorded "$fx" gate)"
 [ "$(recorded "$fx" gate)" = null ] || die "送れなかった fix を記録だけにもした: $(recorded "$fx" gate)"
@@ -643,7 +643,7 @@ kanban show "$na" --json | jq -e '.issue.status == "review" and (.issue.agent //
 reports() { jq --arg t "$na" '[.pending[] | select(.issue == $t and .kind == "report")] | length' "$state"; }
 nr=$(reports)
 dispatcher
-! grep -q "	$na（" "$tmp/hc/sent" || die '担当がいないのに fix を誰かに送った'
+! grep -q "	\[gate\] $na（" "$tmp/hc/sent" || die '担当がいないのに fix を誰かに送った'
 rec=$L/issues/$na/library/gate/$head.json
 pending "$na" gate | jq -e --arg r "$rec" '.detail.decision == "fix" and .detail.no_agent == true and (.detail | has("unsent") | not)
   and (.detail.reasons | any(startswith("Must fix 以上が 1 件"))) and .detail.record == $r' >/dev/null \
