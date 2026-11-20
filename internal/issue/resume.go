@@ -83,7 +83,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	id := c.id
 
 	if p.Restore == "add" {
-		git(p.repoDir, "worktree", "prune")
+		git(p.repoDir, "worktree", "prune") //nolint:errcheck // prune は消えた worktree の印を掃くだけで、試すだけ
 		mk := func(path string) error { return os.MkdirAll(filepath.Dir(path), 0o755) }
 		if strings.HasPrefix(p.Worktree, spawn.WorktreeHome()+string(filepath.Separator)) {
 			mk = spawn.MakeWorktreeDir
@@ -144,7 +144,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 		return fail("kanban %s に失敗: %v（端末 %s は起きている。台帳の agent を手で直す）", strings.Join(set, " "), err, run.Address)
 	}
 	if p.AgentState == "finished" {
-		spawn.Output(nil, "", "hc", "rm", p.Agent) // 終わった端末の残りは消してよい（失敗しても続ける）
+		spawn.Output(nil, "", "hc", "rm", p.Agent) //nolint:errcheck // 終わった端末の残りは消してよい（失敗しても続ける）
 	}
 	how := "続きから"
 	if fresh {
@@ -569,7 +569,7 @@ func codexRecord(cwd string) (id string, n int, err error) {
 			return nil
 		}
 		line, _ := bufio.NewReader(f).ReadBytes('\n')
-		f.Close()
+		f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 		var meta struct {
 			Type    string `json:"type"`
 			Payload struct {

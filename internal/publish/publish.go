@@ -92,18 +92,18 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer in.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	out, err := os.CreateTemp(filepath.Dir(dst), ".publish-*")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(out.Name()) // rename の後は無いので何もしない
+	defer os.Remove(out.Name()) //nolint:errcheck // rename の後は無いので何もしない
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		out.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
 	if err := out.Chmod(0o644); err != nil {
-		out.Close()
+		out.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
 	if err := out.Close(); err != nil {

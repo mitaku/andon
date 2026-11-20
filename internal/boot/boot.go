@@ -198,9 +198,9 @@ func (e Env) writeFile(path string, data []byte, mode fs.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer os.Remove(tmp.Name()) //nolint:errcheck // 一時ファイルの片付けは試すだけ
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		tmp.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
 	if err := tmp.Close(); err != nil {
@@ -311,12 +311,14 @@ func (e Env) sudoInstall(dst string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer os.Remove(tmp.Name()) //nolint:errcheck // 一時ファイルの片付けは試すだけ
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		tmp.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
-	tmp.Close()
+	if err := tmp.Close(); err != nil {
+		return err
+	}
 	if out, err := exec.Command(sudo, "-n", "install", "-D", "-m", "0644", tmp.Name(), dst).CombinedOutput(); err != nil {
 		return fmt.Errorf("sudo install %s: %v: %s", dst, err, bytes.TrimSpace(out))
 	}

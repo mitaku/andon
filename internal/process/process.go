@@ -263,7 +263,7 @@ func Render(root string, check bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck // 読むだけの os.Root
 	var changed []string
 	have, err := fs.Glob(r.FS(), "docs/process/*.md")
 	if err != nil {

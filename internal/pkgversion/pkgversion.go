@@ -150,7 +150,7 @@ func Digest(root string) (string, error) {
 	sort.Strings(lines)
 	h := sha256.New()
 	for _, l := range lines {
-		io.WriteString(h, l+"\n")
+		h.Write([]byte(l + "\n")) // hash.Hash の Write は失敗しない（errcheck も既定で見ない）
 	}
 	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
@@ -160,7 +160,7 @@ func fileHash(p string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err

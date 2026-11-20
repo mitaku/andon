@@ -529,7 +529,7 @@ func (c *ctx) askGate(res *contract.Merge, q contract.Question) {
 		return
 	}
 	var n int
-	fmt.Sscan(m[1], &n)
+	fmt.Sscan(m[1], &n) //nolint:errcheck // askedRe が 1 から始まる数字だけを取る
 	res.Notify = append(res.Notify, contract.Notice{Kind: "asked", Detail: map[string]any{"n": n, "kind": q.Kind, "question": q.Question}})
 }
 

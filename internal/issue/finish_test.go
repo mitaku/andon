@@ -174,3 +174,36 @@ func TestBranchCheckedOut(t *testing.T) {
 		t.Error("worktree を消したあとも使用中と見た")
 	}
 }
+
+// main に入った branch を消せなければ、黙らずに残した理由を返す（別の worktree が checkout していると git が断る）
+func TestDeleteBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	tmp := t.TempDir()
+	repo, wt := filepath.Join(tmp, "repo"), filepath.Join(tmp, "wt")
+	for _, args := range [][]string{
+		{"init", "-q", repo},
+		{"-C", repo, "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-q", "--allow-empty", "-m", "base"},
+		{"-C", repo, "branch", "used"},
+		{"-C", repo, "branch", "free"},
+		{"-C", repo, "worktree", "add", "-q", wt, "used"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	if kept := deleteBranch(repo, "free"); kept != "" {
+		t.Errorf("消せる branch で理由を返した: %q", kept)
+	}
+	if _, err := git(repo, "rev-parse", "--verify", "refs/heads/free"); err == nil {
+		t.Error("消せる branch が残った")
+	}
+	kept := deleteBranch(repo, "used")
+	if !strings.Contains(kept, "branch used は消せなかったので残した") {
+		t.Errorf("消せなかった branch で理由を返さない: %q", kept)
+	}
+	if _, err := git(repo, "rev-parse", "--verify", "refs/heads/used"); err != nil {
+		t.Error("消せなかった branch が無くなった")
+	}
+}

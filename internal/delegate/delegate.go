@@ -278,7 +278,7 @@ func Dotenv(ws, key, def string) string {
 	if err != nil {
 		return def
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	v := def
 	s := bufio.NewScanner(f)
 	for s.Scan() {

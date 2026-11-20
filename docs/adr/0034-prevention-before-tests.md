@@ -11,7 +11,7 @@
 | 1 | 検査の秒数の上限は、今は置かない | この ADR | 生きている |
 | 2 | repo に固有の規則は Go のテストと字面の検査で書き、golangci-lint も足す | この ADR | まだ実装していない |
 | 3 | モデルに、ゲートが決めたあとの変化と自動マージの規則を足す | この ADR | まだ実装していない |
-| 4 | golangci-lint は 2 段で入れ、errcheck は 2 段目にする | この ADR | まだ実装していない |
+| 4 | golangci-lint は 2 段で入れ、errcheck は 2 段目にする | `.golangci.yml` | 生きている |
 | 5 | `.golangci.yml` は人がマージする変更に足さない | この ADR | 生きている |
 | 6 | schema の照合を既製の Go の検査器 1 つにし、書く前に照らす | この ADR | まだ実装していない |
 | 7 | `log.jsonl` の行と `kanban ready --json` の schema を足す | この ADR | まだ実装していない |

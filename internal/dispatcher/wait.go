@@ -90,7 +90,7 @@ func WaitMain(args []string, stdin io.Reader, stderr io.Writer) int {
 		}
 	}
 	if stdin != nil {
-		go io.Copy(io.Discard, stdin) // フックの入力は読まない（書き手を待たせない）
+		go io.Copy(io.Discard, stdin) //nolint:errcheck // フックの入力は読まない（書き手を待たせない）
 	}
 	addr := os.Getenv("HC_TERMINAL_ID")
 	if addr == "" {
@@ -141,7 +141,7 @@ func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 	}
 	leave := func() {
 		if mine() {
-			os.Remove(path)
+			os.Remove(path) //nolint:errcheck // 待ちの控えの片付けは試すだけ
 		}
 	}
 	sig := make(chan os.Signal, 1)

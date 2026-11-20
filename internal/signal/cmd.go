@@ -138,7 +138,7 @@ func Auth(source, dir string, stdin io.Reader, w io.Writer) error {
 		return err
 	}
 	if _, err := f.WriteString(tok + "\n"); err != nil {
-		f.Close()
+		f.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
 	if err := f.Close(); err != nil {

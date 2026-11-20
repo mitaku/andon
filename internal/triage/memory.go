@@ -125,7 +125,7 @@ func removeMemory(path, key string) (bool, error) {
 		return true, fail("目録を書けない")
 	}
 	if err := os.Rename(tmp, index); err != nil {
-		os.Remove(tmp)
+		os.Remove(tmp) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return true, fail("目録を書けない")
 	}
 	return true, nil

@@ -149,7 +149,7 @@ func appendLines(path string, lines [][]byte) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // 書き切ったかは下の f.Sync で見る
 	fi, err := f.Stat()
 	if err != nil {
 		return err
@@ -225,7 +225,7 @@ func (p *project) stuck(now time.Time) {
 			Reasons []string `json:"reasons"`
 		}
 		if b, err := os.ReadFile(record); err == nil {
-			json.Unmarshal(b, &g)
+			json.Unmarshal(b, &g) //nolint:errcheck // 記録が読めなければ理由を空にして知らせる
 		}
 		if g.Reasons == nil {
 			g.Reasons = []string{}

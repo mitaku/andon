@@ -68,7 +68,7 @@ func listening(port string) bool {
 	if err != nil {
 		return false
 	}
-	c.Close()
+	c.Close() //nolint:errcheck // 届くかを見るだけの接続
 	return true
 }
 
@@ -78,7 +78,7 @@ func detach(logPath, name string, args ...string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck // 子の process は自分の写しで書くので、親の写しを閉じる失敗は出力に効かない
 	cmd := exec.Command(name, args...)
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}

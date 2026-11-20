@@ -1,11 +1,30 @@
-# golangci-lint の設定（ADR-0034 の決めたこと 4 の 1 段目）。
-# 既定の linter（standard）から errcheck だけを外す。errcheck は 2 段目で、テストと出力への書き込みを除く設定で入れる。
+# golangci-lint の設定（ADR-0034 の決めたこと 4）。
+# 既定の linter（standard）を入れる。errcheck は、テストと出力への書き込みを除いて見る（2 段目）。
+# 1 か所ずつ除く呼び出しは、その行の `//nolint:errcheck // <理由>` に理由を書く。
 # 版は mise.toml の golangci-lint（CI の go の job もそこから読む）。
 version: "2"
 linters:
   default: standard
-  disable:
-    - errcheck
+  enable:
+    # `//nolint` には linter の名前と理由を書かせ、効いていない `//nolint` を落とす
+    - nolintlint
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    errcheck:
+      # 出力への書き込み。書けないときに打つ手が無く、数が多い（ADR-0034 の決めたこと 4）
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - (io.Writer).Write
+  exclusions:
+    rules:
+      # テストの中は見ない。失敗はテストの結果に出る（ADR-0034 の決めたこと 4）
+      - path: _test\.go
+        linters:
+          - errcheck
 issues:
   # 指摘を数で切らない（既定は linter ごとに 50 件・同じ文の指摘は 3 件まで）
   max-issues-per-linter: 0

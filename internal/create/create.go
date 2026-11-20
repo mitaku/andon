@@ -346,7 +346,7 @@ func writeNew(path string, b []byte) error {
 		return err
 	}
 	if _, err := f.Write(b); err != nil {
-		f.Close()
+		f.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
 	return f.Close()

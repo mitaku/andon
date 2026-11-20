@@ -480,7 +480,7 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(scratch)
+	defer os.RemoveAll(scratch) //nolint:errcheck // 一時の置き場の片付けは試すだけ
 	wt := filepath.Join(scratch, "worktree")
 	if out, err := exec.Command("git", "-C", dir, "fetch", "-q", "https://"+repo, head).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("PR の head の fetch に失敗: %s", strings.TrimSpace(string(out)))
@@ -488,7 +488,7 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	if out, err := exec.Command("git", "-C", dir, "worktree", "add", "-q", "--detach", wt, head).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("一時 worktree を作れない: %s", strings.TrimSpace(string(out)))
 	}
-	defer exec.Command("git", "-C", dir, "worktree", "remove", "--force", wt).Run()
+	defer exec.Command("git", "-C", dir, "worktree", "remove", "--force", wt).Run() //nolint:errcheck // 一時 worktree の片付けは試すだけ
 	tmp := filepath.Join(scratch, "tmp")
 	if err := os.Mkdir(tmp, 0o755); err != nil {
 		return nil, err

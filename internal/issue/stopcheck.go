@@ -37,7 +37,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		StopHookActive bool `json:"stop_hook_active"`
 	}
 	if b, _ := io.ReadAll(stdin); len(bytes.TrimSpace(b)) > 0 {
-		json.Unmarshal(b, &in)
+		json.Unmarshal(b, &in) //nolint:errcheck // 読めなければ stop_hook_active を false とみなす
 	}
 	id := ""
 	if len(args) == 1 {
@@ -65,7 +65,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	path := stopStatePath(l.Slug, id)
 	var st stopState
 	if b, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(b, &st)
+		json.Unmarshal(b, &st) //nolint:errcheck // 壊れた控えは空から数え直す
 	}
 	rows := l.Log()
 	if st.Pass > len(rows) { // log.jsonl が短くなった: 控えを捨てる
@@ -94,13 +94,13 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	for _, r := range rows[base:] {
 		if r.ID == id && returned(r.Change) {
 			st = stopState{Pass: len(rows)}
-			save()
+			save() //nolint:errcheck // 通す側で、控えが書けなくても通すのは同じ
 			return pass("")
 		}
 	}
 	if waiting(l, rows, t) { // 待つのが正しいターン（問いの答え・レビュアーの結果待ち）は止めない
 		st = stopState{Pass: len(rows)}
-		save()
+		save() //nolint:errcheck // 通す側で、控えが書けなくても通すのは同じ
 		return pass("")
 	}
 	if !in.StopHookActive {
@@ -109,7 +109,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	st.Blocks++
 	if st.Blocks > maxBlocks {
 		st.Blocks = 0
-		save()
+		save() //nolint:errcheck // 通す側で、控えが書けなくても通すのは同じ
 		return pass(fmt.Sprintf("%s は報告も問いも無いまま %d 回止めた", id, maxBlocks))
 	}
 	if err := save(); err != nil { // 止めた回数を数えられないなら止めない（止め続けない側に倒す）
