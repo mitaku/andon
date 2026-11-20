@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/patterns/1",
   "title": "RetroPatterns",
-  "description": "library/retro.json of a retro issue: the patterns the retro worker found in the retro input (docs/contract.md section 20) and the view on each previous fix. Written only by andon retro patterns, which checks it against a fresh collect (evidence is at least two separate units, every id is in the input, at least one is newer than the previous retro, skill and text fixes say why no upper level can stop it, the retro does not fix itself, every pattern is judged, at most 2 fixes); read by andon retro apply, which checks it again over the same window. Only these keys.",
+  "description": "library/retro.json of a retro issue: the patterns the retro worker found in the retro input (docs/contract.md section 20) and the view on each previous fix. Written only by andon retro patterns, which checks it against a fresh collect (evidence is at least two separate units, every id is in the input, at least one is newer than the previous retro, skill and text fixes say why no upper level can stop it, the retro does not fix itself, every pattern is judged; the number of fixes is not limited); read by andon retro apply, which checks it again over the same window. Only these keys.",
   "type": "object",
   "required": ["retro", "at", "since", "until", "days", "previous_retro", "patterns", "fixes"],
   "additionalProperties": false,
@@ -45,7 +45,7 @@
       ]
     },
     "patterns": {
-      "description": "The patterns, each judged fix or drop. At most 2 have decision fix (andon retro patterns and apply check the count).",
+      "description": "The patterns, each judged fix or drop, with the fix patterns in priority order (andon retro apply cuts the fix issues in this order). The number of fixes is not limited.",
       "type": "array",
       "items": { "$ref": "#/$defs/pattern" },
       "uniqueKeys": ["id"]
