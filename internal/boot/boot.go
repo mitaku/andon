@@ -13,7 +13,7 @@
 //	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
-// 信頼済みにする（trust.go。足りない所だけ足す。Claude Code にはプロファイルが --add-dir で渡すフォルダも）、外の skill（gh skill。extskills.go）、/etc/localtime をセルの TZ に向ける（tz.go）、portless・files サーバ・sshd・dispatcher の起動。
+// 信頼済みにする（trust.go。足りない所だけ足す。Claude Code にはプロファイルが --add-dir で渡すフォルダも）、外の skill（gh skill。extskills.go）、portless・files サーバ・sshd・dispatcher の起動。
 // 起動は道具が無ければ飛ばし、失敗しても続ける（セルは立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
 package boot
@@ -67,10 +67,6 @@ type Env struct {
 	Self     string // andon の実行ファイル（files サーバとして自分を起動する）
 	Log      io.Writer
 	Uid, Gid int // boot を打つ利用者。HOME の volume のオーナーをこれに揃える（fixOwners）
-	// TZ はセルのタイムゾーン（compose が .env の TZ から渡す）。空なら /etc/localtime に触らない（tz.go）
-	TZ        string
-	Zoneinfo  string // tzdata の置き場（既定 /usr/share/zoneinfo）
-	Localtime string // TZ に向ける symlink（既定 /etc/localtime）
 }
 
 // EnvFromOS は環境変数から Env を作る。
@@ -92,9 +88,6 @@ func EnvFromOS(log io.Writer) Env {
 		Log:             log,
 		Uid:             os.Getuid(),
 		Gid:             os.Getgid(),
-		TZ:              os.Getenv("TZ"),
-		Zoneinfo:        "/usr/share/zoneinfo",
-		Localtime:       "/etc/localtime",
 	}
 }
 

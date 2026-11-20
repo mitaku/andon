@@ -113,7 +113,7 @@ bin/bootstrap               # 初回: image を焼く → compose.yaml を取り
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）はセルの `.env` に書く。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
-タイムゾーンはセルの `.env` の `TZ` に IANA の名前で書く（書かなければ `Asia/Tokyo`）。`date`・git の commit・ssh のシェルの時刻がこれで出る（boot が `/etc/localtime` も同じ値に向ける）。変えたら `bin/bootstrap` で作り直す（焼き直しは要らない）。ホストのシェルに `TZ` があると、compose は `.env` よりそちらを使う。
+タイムゾーンはセルの `.env` の `TZ` に IANA の名前で書く（書かなければ `Asia/Tokyo`）。`date`・git の commit・ssh のシェルの時刻がこれで出る。変えたら `bin/bootstrap` で作り直す（焼き直しは要らない）。ホストのシェルに `TZ` があると、compose は `.env` よりそちらを使う。
 
 台帳の `config.yaml` の `timezone` はセルの `TZ` と別のもので、食い違っても片方に揃え直さない。dispatcher のログ・routine の `schedule`・`not_before` は台帳の `timezone` で、それ以外の時刻はセルの `TZ` で出る。揃えたいなら人が両方を同じ値に書く。
 

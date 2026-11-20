@@ -281,11 +281,11 @@ if [ "$(ssh_dev 'echo $SHELL')" != /bin/bash ]; then
   echo 'FAIL image: ssh のセッションの SHELL が /bin/bash でない' >&2
   exit 1
 fi
-# (a1t) 時刻はセルの TZ（.env に無ければ compose の既定 Asia/Tokyo）で出る。exec は環境変数の TZ、
-# ssh は TZ を引き継がないので boot が向けた /etc/localtime で出る
-exec_tz=$(dc exec -T dev date +%Z)
+# (a1t) 時刻はセルの TZ（.env に無ければ compose の既定 Asia/Tokyo）で出る。ssh のセッションには sshd が自分の TZ を渡す
+# （SetEnv には書かない。書くと .env の値でなく焼いた値になる）
+exec_tz=$(dc exec -T dev bash -c 'echo "TZ=${TZ-<無い>}"; date +%Z')
 ssh_tz=$(ssh_dev 'echo "TZ=${TZ-<無い>}"; date +%Z')
-if [ "$exec_tz" != JST ] || [ "$ssh_tz" != "$(printf 'TZ=<無い>\nJST')" ]; then
+if [ "$exec_tz" != "$(printf 'TZ=Asia/Tokyo\nJST')" ] || [ "$ssh_tz" != "$exec_tz" ]; then
   echo "FAIL image: 時刻が JST で出ない（exec: $exec_tz / ssh: $ssh_tz）" >&2
   exit 1
 fi

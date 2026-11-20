@@ -26,7 +26,7 @@ FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce
 ARG APT_MIRROR=
 # 索引（/var/lib/apt/lists）は build の cache に置き、playwright の段の apt と分け合う（apt-get update は build の中で1回。層には残らない）。
 # ミラーの索引とプールが一時的にずれると install が 404 で落ちる。落ちたら update（索引の読み直し）からやり直す。
-# tzdata はセルの TZ（compose）を引くため。noninteractive でないと地域を聞いて止まる。/etc/localtime は UTC のまま焼き、boot が TZ に向ける
+# tzdata はセルの TZ（compose が .env から渡す）を引くため。noninteractive でないと地域を聞いて止まる。/etc/localtime は UTC のまま
 RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     if [ -n "$APT_MIRROR" ]; then \
       cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/ubuntu.sources.orig \

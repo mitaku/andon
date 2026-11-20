@@ -18,7 +18,7 @@ services:
     environment:
       # セルの local/aqua.yaml（Dockerfile が /opt/andon-local に写す）をイメージの備品に重ねる
       AQUA_GLOBAL_CONFIG: /opt/andon-local/aqua.yaml:/opt/andon-aqua/aqua.yaml
-      # タイムゾーン（IANA の名前）。セルの .env の TZ で変える。boot が同じ値で /etc/localtime も向ける（ssh のセッションは TZ を引き継がない）
+      # タイムゾーン（IANA の名前）。セルの .env の TZ で変える。ssh のセッションには sshd が自分の TZ を渡す（boot が sudo 越しに起動し、sudo は TZ を残す）
       TZ: ${TZ:-Asia/Tokyo}
     volumes:
       - .:/workspace
