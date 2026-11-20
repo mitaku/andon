@@ -592,7 +592,7 @@ func outcomeView(o map[string]any) *OutcomeView {
 //   - findings: レビュアーの子の major 以上の指摘（課題の前からあった指摘は除く）ごとに1行。レビュアーの報告で、その指摘の
 //     ファイル:行を含む最初の行（字下げした次の行が続けば足す）。報告に無ければ「<重さ> <ファイル>:<行>」
 //   - gate_fixes: ゲートが fix を返した理由（重なりは1つ）
-//   - corrections: 「人がマージした」以外の手直しがあるか。手直しの記録が無ければ null（集めていない）
+//   - corrections: ゲートの問いをオーナーがマージして閉じた答えのほかに手直しがあるか。手直しの記録が無ければ null（集めていない）
 //   - remember: Remember の行数
 func (r *reader) summary(b Bundle) Summary {
 	s := Summary{ID: b.ID, Title: b.Title, DoneAt: b.DoneAt, PR: b.PR, Findings: []string{}, GateFixes: []string{}, Remember: len(b.Remember)}
