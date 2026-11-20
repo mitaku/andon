@@ -25,10 +25,10 @@ func lockIssues(slug string) (func(), error) {
 		return nil, fail("lock を開けない: %v", err)
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		f.Close()
+		f.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return nil, fail("lock が取れない: %v", err)
 	}
-	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
+	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil //nolint:errcheck // lock は Close でも外れる
 }
 
 // withLockedIssue は lockIssues を持ってから課題を読む（読んだ status が命令の間変わらないように）。

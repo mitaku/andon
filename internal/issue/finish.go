@@ -176,7 +176,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 				return fail("worktree を消せない: %s", wt)
 			}
 		}
-		git(repoDir, "worktree", "prune")
+		git(repoDir, "worktree", "prune") //nolint:errcheck // prune は消えた worktree の印を掃くだけで、試すだけ
 		if branch != "" {
 			if _, err := git(repoDir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
 				// 消すのは、worktree と組で確かめた branch のうち origin の既定の branch に入っているものだけ
@@ -187,7 +187,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 					kept = fmt.Sprintf(" branch %s は origin の既定の branch が分からないので残した", branch)
 				default:
 					if _, err := git(repoDir, "merge-base", "--is-ancestor", "refs/heads/"+branch, "refs/remotes/origin/"+def); err == nil {
-						git(repoDir, "branch", "-D", branch)
+						kept = deleteBranch(repoDir, branch)
 					} else if tip, why := c.mergedPRHead(repoDir, branch); tip != "" {
 						// squash マージは branch の commit が main に入らない。MERGED の PR の head と先が同じなら作業は失われない。
 						// 確かめた SHA を期待値にして消す（確かめたあとに branch が進んでいたら消えない）
@@ -396,6 +396,14 @@ func defaultBranch(repoDir string) string {
 			}
 			return def
 		}
+	}
+	return ""
+}
+
+// deleteBranch は main に入った branch を消す。消せなければ残した理由を finish の文の続きで返す（消せたら ""）。
+func deleteBranch(repoDir, branch string) string {
+	if _, err := git(repoDir, "branch", "-D", branch); err != nil {
+		return fmt.Sprintf(" branch %s は消せなかったので残した（%v）", branch, err)
 	}
 	return ""
 }

@@ -76,7 +76,7 @@ func (p *project) readLog(cos string) {
 	f, err := os.Open(path)
 	var size int64
 	if err == nil {
-		defer f.Close()
+		defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 		if fi, err := f.Stat(); err == nil {
 			size = fi.Size()
 		}

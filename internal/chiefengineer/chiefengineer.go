@@ -162,7 +162,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	undo := func() {
 		wt.Remove()
-		output(env, "", cli, "set", id, "branch=", "worktree=")
+		output(env, "", cli, "set", id, "branch=", "worktree=") //nolint:errcheck // 戻しは試すだけで、先の失敗を返す
 	}
 	cwd := wt.Path
 	// skill chief-engineer はプロファイルの command（--append-system-prompt-file）が system prompt に足す

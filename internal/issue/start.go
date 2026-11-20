@@ -95,7 +95,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 		}
 		undo = func() {
 			wt.Remove()
-			c.l.Run("", "set", id, "branch=", "worktree=")
+			c.l.Run("", "set", id, "branch=", "worktree=") //nolint:errcheck // 戻しは試すだけで、先の失敗を返す
 		}
 		p.Cwd, p.Branch, p.Worktree = wt.Path, wt.Branch, wt.Path
 	}

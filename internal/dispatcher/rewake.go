@@ -39,7 +39,7 @@ type rewakeCount struct {
 func rewakePath(slug string) string { return StatePath(slug) + ".rewake" }
 
 // ResetRewake は回数の控えを消す（Chief of Staff のターンが Stop で通った。drain が呼ぶ）。
-func ResetRewake(slug string) { os.Remove(rewakePath(slug)) }
+func ResetRewake(slug string) { os.Remove(rewakePath(slug)) } //nolint:errcheck // 控えが無くても数え直しは同じ
 
 // RewakeMain は andon dispatcher rewake。終了コードは 0（通す・上限）か 2（合図）だけ。
 func RewakeMain(args []string, stdin io.Reader, stderr io.Writer) int {
@@ -59,7 +59,7 @@ func RewakeMain(args []string, stdin io.Reader, stderr io.Writer) int {
 	}
 	if stdin != nil {
 		if b, _ := io.ReadAll(stdin); len(bytes.TrimSpace(b)) > 0 {
-			json.Unmarshal(b, &in)
+			json.Unmarshal(b, &in) //nolint:errcheck // 読めない入力は下の rewakeErrors で 0 を返して通す
 		}
 	}
 	if !rewakeErrors[in.Error] {
@@ -82,7 +82,7 @@ func RewakeMain(args []string, stdin io.Reader, stderr io.Writer) int {
 	path := rewakePath(slug)
 	var c rewakeCount
 	if b, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(b, &c)
+		json.Unmarshal(b, &c) //nolint:errcheck // 壊れた控えは 0 から数え直す
 	}
 	c.Count++
 	b, _ := json.Marshal(c)
@@ -114,6 +114,6 @@ func rewakeLog(slug, msg string) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // 記録は書けなくても続ける
 	fmt.Fprintf(f, "%s andon dispatcher: %s: %s\n", time.Now().UTC().Format(time.RFC3339), slug, msg)
 }

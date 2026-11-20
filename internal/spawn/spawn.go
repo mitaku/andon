@@ -388,8 +388,8 @@ func MakeWorktreeDir(path string) error {
 
 // Remove は NewWorktree が作ったものを戻す（起動できなかったとき。やり直せるように）。
 func (w *Worktree) Remove() {
-	Output(nil, "", "git", "-C", w.RepoDir, "worktree", "remove", "--force", w.Path)
-	Output(nil, "", "git", "-C", w.RepoDir, "branch", "-D", w.Branch)
+	Output(nil, "", "git", "-C", w.RepoDir, "worktree", "remove", "--force", w.Path) //nolint:errcheck // 戻しは試すだけで、先の失敗を返す
+	Output(nil, "", "git", "-C", w.RepoDir, "branch", "-D", w.Branch)                //nolint:errcheck // 戻しは試すだけで、先の失敗を返す
 }
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)

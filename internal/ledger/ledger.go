@@ -173,7 +173,7 @@ func (l *Ledger) ReadLog() ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	var rows []Row
 	s := bufio.NewScanner(f)
 	s.Buffer(make([]byte, 64<<10), 16<<20) // kanban と同じ1行の上限（cmd/kanban の loggedNumber）

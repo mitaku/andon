@@ -179,7 +179,7 @@ func (r *reader) typedFile(f string, bySession, byCwd map[string]owner, since, u
 	if err != nil {
 		return nil
 	}
-	defer fh.Close()
+	defer fh.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	var out []Typed
 	first := true
 	br := bufio.NewReader(fh)

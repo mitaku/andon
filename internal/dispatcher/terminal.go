@@ -231,11 +231,11 @@ func ensureLock() (func(), error) {
 		return nil, err
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		f.Close()
+		f.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		if errors.Is(err, syscall.EWOULDBLOCK) {
 			return nil, ErrBusy
 		}
 		return nil, fmt.Errorf("lock が取れない: %v", err)
 	}
-	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
+	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil //nolint:errcheck // lock は Close でも外れる
 }

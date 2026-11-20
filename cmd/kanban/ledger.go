@@ -218,7 +218,7 @@ func writeAtomic(file string, data []byte) error {
 		return err
 	}
 	if err := renameRetrying(tmp, file, renameWait); err != nil {
-		os.Remove(tmp)
+		os.Remove(tmp) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return fail("can't replace %s: %v", file, err)
 	}
 	return nil
@@ -265,7 +265,7 @@ func lockIn(dir string, wait time.Duration, fn func() error) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // lock のためだけに開いたファイルで、書かない
 	deadline := time.Now().Add(wait)
 	for {
 		ok, err := tryLock(f)
@@ -280,7 +280,7 @@ func lockIn(dir string, wait time.Duration, fn func() error) error {
 		}
 		time.Sleep(time.Duration(20+rand.IntN(30)) * time.Millisecond)
 	}
-	defer unlock(f)
+	defer unlock(f) //nolint:errcheck // lock は Close でも外れる
 	return fn()
 }
 

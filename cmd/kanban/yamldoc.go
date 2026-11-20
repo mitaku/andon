@@ -50,7 +50,9 @@ func (d *doc) encode() []byte {
 	if err := enc.Encode(d.root); err != nil {
 		panic(err) // a tree built from a parse or from strings always encodes
 	}
-	enc.Close()
+	if err := enc.Close(); err != nil {
+		panic(err) // Close only flushes into the buffer, which does not fail
+	}
 	return b.Bytes()
 }
 

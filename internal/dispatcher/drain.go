@@ -48,10 +48,10 @@ func lockState(slug string, wait time.Duration) (func(), error) {
 		}
 		err := syscall.Flock(int(f.Fd()), how)
 		if err == nil {
-			return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
+			return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil //nolint:errcheck // lock は Close でも外れる
 		}
 		if wait == 0 || !errors.Is(err, syscall.EWOULDBLOCK) || time.Now().After(deadline) {
-			f.Close()
+			f.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 			return nil, fmt.Errorf("控えの lock が取れない: %v", err)
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -117,7 +117,7 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	var in hookInput
 	if b, _ := io.ReadAll(stdin); len(bytes.TrimSpace(b)) > 0 {
-		json.Unmarshal(b, &in) // 読めなければ空のまま（turn の照合が緩くなり、news.replied を書かないだけ）
+		json.Unmarshal(b, &in) //nolint:errcheck // 読めなければ空のまま（turn の照合が緩くなり、news.replied を書かないだけ）
 	}
 	out, err := drain(slug, context, in)
 	if err != nil {
@@ -127,7 +127,7 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if out != nil {
 		enc := json.NewEncoder(stdout)
 		enc.SetEscapeHTML(false) // <news> を \u003c にしない（人が debug のログで読む）
-		enc.Encode(out)
+		enc.Encode(out)          //nolint:errcheck // 出力への書き込み（fmt.Fprintf を設定で除くのと同じ扱い）
 	}
 	return 0
 }
@@ -302,7 +302,7 @@ func noteStop(slug, addr string, self *terminal, in hookInput) {
 	}
 	path := stopPath(slug)
 	if os.WriteFile(path+".tmp", b, 0o644) == nil {
-		os.Rename(path+".tmp", path)
+		os.Rename(path+".tmp", path) //nolint:errcheck // 控えは試すだけで、無ければ drain は控え無しで進む
 	}
 }
 
@@ -314,7 +314,7 @@ func takeStop(slug string) (stopNote, bool) {
 		return n, false
 	}
 	b, err := os.ReadFile(path + ".taken")
-	os.Remove(path + ".taken")
+	os.Remove(path + ".taken") //nolint:errcheck // 取り出したあとの片付けは試すだけ
 	if err != nil {
 		return n, false
 	}

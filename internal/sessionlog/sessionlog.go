@@ -213,7 +213,7 @@ func CodexByCwd(root string, skip Skip) map[string][]string {
 			return nil
 		}
 		line, _ := bufio.NewReader(f).ReadBytes('\n')
-		f.Close()
+		f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 		var meta struct {
 			Type    string `json:"type"`
 			Payload struct {
@@ -354,7 +354,7 @@ func lines(path, src string, skip Skip, f func(line int, b []byte)) bool {
 		skip.call(src, 0, "読めない")
 		return false
 	}
-	defer fh.Close()
+	defer fh.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	br := bufio.NewReader(fh)
 	for n := 1; ; n++ {
 		b, err := br.ReadBytes('\n')

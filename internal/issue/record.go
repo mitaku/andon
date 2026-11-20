@@ -63,14 +63,14 @@ func (c *ctx) record(stdout io.Writer, expect string, argv []string) error {
 	if runErr != nil {
 		var ee *exec.ExitError
 		if !errors.As(runErr, &ee) {
-			logf.Close()
-			os.Remove(logf.Name())
+			logf.Close()           //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
+			os.Remove(logf.Name()) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 			return fail("command を起動できない（記録は書かない）: %v", runErr)
 		}
 		code = ee.ExitCode() // signal で終わったら -1
 	}
 	if _, err := logf.Write(tail.bytes()); err != nil {
-		logf.Close()
+		logf.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
 		return err
 	}
 	if err := logf.Close(); err != nil {

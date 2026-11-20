@@ -147,7 +147,7 @@ func loggedNumber(root, id string) int {
 	if err != nil {
 		return 0
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	top := 0
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
