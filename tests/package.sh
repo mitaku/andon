@@ -25,6 +25,7 @@
 #  15. Advisor（ADR-0022 受け入れ条件 1・2。6 の節の中）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
 #  16. 日報（ADR-0024 受け入れ条件 A1・A2）: worker skill の日報の節と工程表の振り返り、CoS skill の差し戻しの1行、用語集の「日報」。
 #  18. ADR の索引と書き分け（ADR-0033 受け入れ条件 9）: CE skill の文書の形と design.md §1.8 の題の次に ## 決定の索引、索引の列と語・細部の書き分け・実装の PR が索引の行を直すこと、worker §3 の1行。
+#  19. 振り返りの手順（ADR-0035 受け入れ条件 12）: retro skill に AGENTS.md の表を読む手順と、検査を足す直しの「誤りを戻すと落ちる」の受け入れ条件を入れる手順。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -788,5 +789,26 @@ grep -q '^   - \*\*ADR の決定を実装する PR\*\*: その ADR の冒頭に 
 # 検査が当たる場合があること: 索引の見出しが無い形では題の次の行が別の見出しになる
 [ "$(printf '%s\n' '```' '# <題>（仕様・設計。日付）' '## 問題（人の言葉で。言い直しの段落）' '```' >"$tmp/form.md"; idx_next "$tmp/form.md")" != '## 決定の索引' ] \
   && pass "ADR-0033 A9: 索引の見出しの無い文書の形は当たらない（検査が見ている）" || fail "ADR-0033 A9: 検査が何も見ていない"
+
+# === 19. 振り返りの手順（ADR-0035 受け入れ条件 12・決めたこと 6・8） ===
+r=package/skills/retro/SKILL.md
+miss=
+t=$(sed -n '/^### `AGENTS.md` の表を読む$/,/^## 3\. /p' "$r")
+[ -n "$t" ] || miss="$miss [§2 に AGENTS.md の表を読む節]"
+for k in 'show origin/HEAD:AGENTS.md' '「決まり｜守らせるもの」の対' '表の行は根拠に数えない' '守らせるものが「無し。」の行' '文を足さず、検査か設計へ移す' '守らせるものが名指されている行' '誤りが起きようのなくなった行'; do
+  grep -qF -- "$k" <<<"$t" || miss="$miss [表の節に $k]"
+done
+s3=$(sed -n '/^## 3\. /,/^## 4\. /p' "$r")
+for k in '**検査を足すか変える直し**' '受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる' 'andon issue record <id> --expect fail --' '「期待する効果:」の行になる'; do
+  grep -qF -- "$k" <<<"$s3" || miss="$miss [§3 に $k]"
+done
+# §6 の例の test の段のパターンも、effect に受け入れ条件を持つ
+block "$r" 'andon retro patterns "$id"' | sed '1d;$d' >"$tmp/retro-in.json"
+jq -e '[.patterns[] | select(.level == "test" or .level == "check") | .effect | contains("受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる")] | length > 0 and all' "$tmp/retro-in.json" >/dev/null 2>&1 \
+  || miss="$miss [§6 の例の test の段の effect に受け入れ条件]"
+grep -qF '「誤りを戻すと落ちる」の受け入れ条件が載っているか' "$r" || miss="$miss [§6 の dry-run で受け入れ条件を見る]"
+grep -qF '`AGENTS.md` の表: <読んだ repo>' "$r" || miss="$miss [§7 の報告に表の行]"
+grep -q '^description: .*`AGENTS.md` の表の読み方.*「誤りを戻すと落ちる」の受け入れ条件' "$r" || miss="$miss [description]"
+[ -z "$miss" ] && pass "ADR-0035 A12: retro skill に AGENTS.md の表を読む手順と、検査を足す直しの依頼書に「誤りを戻すと落ちる」の受け入れ条件を入れる手順がある" || fail "ADR-0035 A12:$miss"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
