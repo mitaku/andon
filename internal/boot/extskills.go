@@ -20,7 +20,7 @@ import (
 //   - 同梱の skill: イメージの備品（/opt/andon-tools）に同梱の skill を、boot が
 //     <claude>/skills/<name> と ~/.agents/skills/<name> に symlink で張る（genBundledSkills。生成の一部）。
 //     /opt/andon-tools の下を指す symlink は boot のもの（張り替え・外す）。実ディレクトリや別の先を指すものには触らない。
-//   - 外の skill: <pkg>/gh-skills.txt（既定は空）と <ws>/local/gh-skills.txt の一覧を、gh のログインがあれば
+//   - 外の skill: <pkg>/gh-skills.txt（全セルに配る既定。ADR-0038）と <ws>/local/gh-skills.txt の一覧を、gh のログインがあれば
 //     gh skill install（latest）で入れ、gh skill update --all で上げる（installGhSkills。起動の一部。ネットワークが要る）。
 
 // DefaultTools はイメージの備品（npm のグローバル）の置き場。

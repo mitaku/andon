@@ -32,3 +32,7 @@ URL は前後を半角の空白か行の端で区切る。全角の括弧・句�
 
 - 良い例: `PR #210（バナーの直し） https://github.com/<owner>/<repo>/pull/210 をマージした。`
 - 悪い例: `PR #210（https://github.com/<owner>/<repo>/pull/210）のマージ`
+
+## 推敲
+
+依頼書・wiki のページ・課題の報告の3種類の文は、書いたあとに skill yomiyasu で推敲する。会話の返事・`docs/` の文書・PR の説明文には通さない。yomiyasu が入っていないセルでは飛ばす。

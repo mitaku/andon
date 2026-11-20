@@ -6,6 +6,18 @@
   "autoMemoryEnabled": true,
   "autoMemoryDirectory": "/workspace/memory",
   "language": "Japanese",
+  "extraKnownMarketplaces": {
+    "cursor-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "cursor/plugins"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "pstack@cursor-plugins": true
+  },
   "allowManagedPermissionRulesOnly": true,
   "permissions": {
     "allow": [
