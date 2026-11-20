@@ -5,6 +5,20 @@
 - 語は [design.md](../design.md) §0.1。
 - 入力: 依頼書 A-0143（人の発言 2026-11-11 と Chief of Staff の経緯）、ADR-0004 決めたこと 2、[ADR-0016](0016-cell-wiki-llm-wiki.md)、[ADR-0007](0007-interim-gap-inventory.md) C5・R9、`package/settings.json`、`package/skills/chief-of-staff/SKILL.md` 規約 9・§11、`package/compose.yaml`、セルの wiki。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | auto memory は全部の役に入れる | `package/settings.json` | 生きている |
+| 2 | 置き場は `/workspace/memory/` で、git では追わない | `package/settings.json`・`init/.gitignore` | 生きている |
+| 3 | 蒸留はトリアージに乗せ、memory を 1 件ずつの項目として拾う | `internal/triage/collect.go`・`package/skills/triage/SKILL.md` | 生きている |
+| 4 | 蒸留の周期は週 1 のトリアージに、件数の線を足す | `internal/dispatcher/memory.go` | 生きている |
+| 5 | wiki へ出す memory だけ `wiki/raw/memory/` に写す | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 6 | memory の書き方は環境メモに短く書く | `package/environment.md` | 生きている |
+| 7 | Codex の記憶は切ったままにする | `internal/boot/codex.go` | 生きている |
+| 8 | 入れる前にセルで実測し、許可は要るときだけ足す | この ADR | 役目を終えた |
+| 9 | 設定の形と、ADR-0004 を覆す文を書く | `package/settings.json`・`package/skills/chief-of-staff/SKILL.md` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-11）: 「Wiki と AutoMemory の棲み分けを少し考えていました。/workspace 配下に memory を置けば永続化もされるし、定期的に蒸留するならいいのかもな？と思っています」。

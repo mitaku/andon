@@ -2,6 +2,21 @@
 
 - 状態: **決定（2026-11-10）**。人が決めた（[decisions/2026-11-10-adr-0016-cell-wiki-llm-wiki.md](../decisions/2026-11-10-adr-0016-cell-wiki-llm-wiki.md)）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | wiki は元資料の層と育てる層を分け、取り込み・問い・点検を Chief of Staff が回す（案 B） | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 2 | 元資料（`wiki/raw/`）は人の発言・外の資料・課題の記録の写しで、書いたら変えない | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている（memory が加わり 4 種） |
+| 3 | 育てる層のページは sources・entities・topics・overview の 4 種をフォルダで分ける | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 4 | 取り込みは、元資料を置いたその場で 1 件ずつする | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 5 | `index.md` と `log.md` を置く | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 6 | 点検は取り込み約 10 件ごとと、人が頼んだときにする | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 7 | 問いの口は 3 つで、使える答えは `topics/` に戻す | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 8 | 人の発言を写すのは、推奨案と違ったとき・志向が見えたとき・「残して」と言われたとき | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 9 | 規約の骨は Chief of Staff の skill に、セル固有の慣習は `AGENTS.local.md` に置く | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 10 | 前の形の 5 件を新しい形で取り込み直す | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 いまのセルの wiki は、Chief of Staff が「学んだと思ったこと」を思いついた時点で1件1ファイルで足すだけの置き場になっている。2026-11-10 の5件がその形で、うち3件は wiki ではなく repo（skill・用語集）に置くべき手順で、書く時期も skill §11 の決まりからずれていた。困りごとは「wiki が学びの貼り紙になっていて、知識として育たず、読まれもしない」こと。人の向きは Karpathy の LLM Wiki の手法に乗せること。つまり、元の資料（記録・報告・指摘・人の発言）の層と wiki の層を分け、LLM が資料を取り込んで（ingest）実体・概念ごとのページを育て、矛盾を lint で拾い、質問に答える（query）形にする。この文書で決めるのは「セルの wiki の形と運用（何が元資料か・ページの単位・誰がいつ取り込むか・lint・index と log）」で、実装は別の課題に切る（人が言い直しを認めた 2026-11-10）。
