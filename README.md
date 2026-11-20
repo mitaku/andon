@@ -117,7 +117,7 @@ Andon は一人のソフトウェア工場で、工場を2つの面で言い分�
 
 ```bash
 andon init <slug> --image ghcr.io/<owner>/andon:<版> --owner <email>
-cd <slug>-cell && bin/bootstrap            # イメージを焼き、compose.yaml をイメージから取り出して起動し、herdr に入る
+cd <slug>-cell && bin/bootstrap            # イメージを焼き、compose.yaml をイメージから取り出して起動する（入らない。TUI で入るなら bin/bootstrap herdr）
 bin/bootstrap host-install                  # ホストの andon-up・ssh config・herdr の設定を置く（今あるものは上書きしない）
 ```
 

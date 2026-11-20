@@ -108,7 +108,7 @@ cd ~/src && andon init home --image ghcr.io/<owner>/andon:<版> --owner <email>
 ```bash
 cd ~/src/home-cell
 bin/bootstrap --dry-run     # docker を打たずに、打つものを出す
-bin/bootstrap               # 初回: image を焼く → compose.yaml を取り出す → 起動 → herdr に入る
+bin/bootstrap               # 初回: image を焼く → compose.yaml を取り出す → 起動（入らない。App での開き方を出す）
 ```
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）はセルの `.env` に書く。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
@@ -125,8 +125,8 @@ grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh 
 - **通ったら見えるもの**: 選んだ `SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT` のどれも、上の3つの出力に出てこない。選んだ番号を `.env` に書いてから `bin/bootstrap`。
 - **落ちたら見る所**: `bin/bootstrap` が `port is already allocated`・`address already in use` で落ちる — 出た番号を上の3つで引き、オーナーの側を動かすか、`.env` の番号を変えて打ち直す。起動のあとで `.env` の番号を変えたなら、`host-install` が置いた ssh config の `Port`・`LocalForward` も同じ番号にする（4 の落ちたら見る所）。
 
-- **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ `herdr` を開く。もう一度打てば同じセッションに戻る。手元に `andon-home:local` がもうあれば焼かず、それが `FROM` の image の上に焼いたものかを照らしてから起動する（`FROM` の image が手元に無ければ照らせないので、そのまま起動する）。
-- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・dispatcher を起動した行）。herdr の画面が開く。andon が uid 1001 だった版の image から上げた最初の起動では、`オーナーを直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
+- **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ Herdr App での開き方と、TUI（herdr）で入る打ち方を2行で出す。herdr には入らない。TUI で入るなら `bin/bootstrap herdr`（もう一度打てば同じセッションに戻る）。手元に `andon-home:local` がもうあれば焼かず、それが `FROM` の image の上に焼いたものかを照らしてから起動する（`FROM` の image が手元に無ければ照らせないので、そのまま起動する）。
+- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・dispatcher を起動した行）。最後に `[andon-home] 開く: Herdr App で machine andon-home を選ぶ` と `[andon-home] TUI で入るなら: bin/bootstrap herdr` の2行。andon が uid 1001 だった版の image から上げた最初の起動では、`オーナーを直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
   - `セルの repo（…）のオーナーが uid <n>` — セルの repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon init` からやり直す（uid を合わせ直す仕組みは無い）。
@@ -329,7 +329,7 @@ API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app
 ## 5. セルに入って、立ち上がりを確かめる
 
 ```bash
-bin/bootstrap               # herdr に入る。bash で入るなら: bin/bootstrap sh
+bin/bootstrap herdr         # herdr（TUI）に入る。App なら machine andon-home を開く。bash で入るなら: bin/bootstrap sh
 ```
 
 中で（シェルのペインで）:
