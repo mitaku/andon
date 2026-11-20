@@ -1,6 +1,6 @@
 ---
 name: retro
-description: 振り返り（retro）の課題を受け持つ担当が読む。`andon retro collect` の打ち方・記録から繰り返し（パターン）を拾う手順・直す先の5段と削る候補・前の直しの再発の数え方・判定（fix は2件まで・drop は持ち越さない）・`andon retro patterns` に渡す JSON の形と command が断る線・報告の書き方・読むだけの決まりを持つ。依頼書が「振り返り」で始まり、この SKILL.md を読めと書いてあるときに使う
+description: 振り返り（retro）の課題を受け持つ担当が読む。`andon retro collect` の打ち方・記録から繰り返し（パターン）を拾う手順・`AGENTS.md` の表の読み方・直す先の5段と削る候補・検査を足す直しの「誤りを戻すと落ちる」の受け入れ条件・前の直しの再発の数え方・判定（fix は2件まで・drop は持ち越さない）・`andon retro patterns` に渡す JSON の形と command が断る線・報告の書き方・読むだけの決まりを持つ。依頼書が「振り返り」で始まり、この SKILL.md を読めと書いてあるときに使う
 ---
 
 # retro
@@ -16,7 +16,7 @@ description: 振り返り（retro）の課題を受け持つ担当が読む。`a
 | する | しない |
 |---|---|
 | `andon retro collect`・`andon retro patterns <自分の id>`・`andon retro apply <自分の id> --dry-run` | `andon retro apply` を `--dry-run` 無しで打つ（打つのは Chief of Staff） |
-| 確かめるために読む（`kanban show`・`gh pr view`・`git -C <repo> log`・docs・`library/` の記録） | 直す・commit・PR・`kanban add`・`kanban set`・エージェントを起動する |
+| 確かめるために読む（`kanban show`・`gh pr view`・`git -C <repo> log`・`git -C <repo> show`・docs・`library/` の記録） | 直す・commit・PR・`kanban add`・`kanban set`・エージェントを起動する |
 | 報告と日報を書く | 台帳の項目（Next・Remember・memory）を片付ける（それはトリアージ） |
 
 ## 1. 集める
@@ -49,6 +49,21 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 - `reapplied: true` の課題は、途中でパッケージが替わった。そのつまずきが古い版のものでないかを `launches[].package.commit` と `git log` で確かめてから根拠にする。
 - 1回だけの出来事・その場限りの事情（外のサービスの障害など）はパターンにしない。
 
+### `AGENTS.md` の表を読む
+
+プロジェクトの repo ごとに、既定の branch の `AGENTS.md` を読む。
+
+```
+r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/HEAD:AGENTS.md
+```
+
+- 表の行は「決まり｜守らせるもの」の対。守らせるものは、検査・command・hook・repo の設定の名前か、「無し。」と理由。表の形でない `AGENTS.md` と、`AGENTS.md` の無い repo は飛ばす。
+- 表は `andon retro collect` の入力の外で、表の行は根拠に数えない。根拠は今までどおり `issues[].id` と `typed[].id` の別々の2件以上。
+- 拾ったパターンごとに、表の行に当たるかを照らす。当たれば §3 で直す先を決めるときに使う:
+  - **守らせるものが「無し。」の行**: 決まりは文で既にあり、それでも繰り返した。文を足さず、検査か設計へ移す（`level` は `design`・`test`・`check`、`action: change`、`target.paths` に検査の置き場と `AGENTS.md`）。移したら、その行の守らせるものを足した検査の名前に書き換える。上の3段で止められないときだけ `skill`・`text` を選び、`not_upstream` に行の「無し。」の理由を踏まえて1行書く。
+  - **守らせるものが名指されている行**: 名指された検査が誤りを止めなかった。その検査を直す（`action: change`、`target.paths` にその検査）。
+- 誤りが起きようのなくなった行（command が断るようになった・検査の対象が無くなった）に気づいたら、パターンにせず、報告の `## Next` に `to: chief-of-staff` で1行書く（repo・行の決まり・起きようのなくなった理由）。行を消すのは別の課題。
+
 ## 3. 直す先を決める（5段）
 
 上の段で止められるものを下の段で直さない。
@@ -64,6 +79,9 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 - `skill` と `text` を選ぶなら、`not_upstream` に「なぜ上の3段で止められないか」を1行書く（無いと command が断る）。「機械が確かめる値が無い（文で決まること）」のように具体的に。
 - **削る**（`action: remove`）も直し。効いていない指示・モデルが替わって要らなくなった指示を消す。前の直しで再発した文は、まず削る候補にする。
 - 直す先（`target`）: `kind: project` は案件の repo（テスト・`AGENTS.md`・`REVIEW.md` など。`repo` はプロジェクトの `repos` の1つ）。`kind: andon` は Andon のパッケージ（skill・プロファイル・hook・設定・ゲートの条件表。`repo` は Andon の repo を持っていれば書く）。`paths` は repo の中の相対パス。
+- **検査を足すか変える直し**（誤りを見つけて落とすもの: テスト・lint・CI の検査・hook・command の確かめ。多くは `level: test`・`check`）は、`effect` の終わりに受け入れ条件を1文足す:
+  `受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- <検査の command> の記録を、報告の acceptance の行が run で指す）。`
+  `effect` は直す課題の依頼書の「期待する効果:」の行になる。落ちない検査は、足しても何も止めない。誤りを戻した木は commit していない変更があってよい（落ちることを期待する記録だけの例外）。
 - **振り返り自身**（`package/skills/retro`・`internal/retro`）は直す先にできない（command が断る）。気づいたことは報告の `## Next` に `to: person` で1行。
 - セルの設定・依頼書の切り方・プロファイルの選び方・委譲は直す先にしない（人の持ち物）。気づいたら報告の `## Next` に `to: person` で1行。
 
@@ -88,7 +106,7 @@ andon retro patterns "$id" [--days N] - <<'JSON'
 {"patterns": [
   {"id": "p1", "summary": "PR の題に課題番号が入り、人が2回直した", "evidence": ["S-0012", "h-6f1c2d3e-0000-4000-8000-000000000001"],
    "level": "test", "action": "add", "target": {"kind": "project", "repo": "github.com/example/sample-site", "paths": ["tests/pr-title.sh"]},
-   "effect": "題に課題番号が入った PR が CI で落ちる", "risk": "題の検査が、課題番号に似た語を誤って拾う", "decision": "fix", "reason": "テストで止められ、根拠が2件ある"}],
+   "effect": "題に課題番号が入った PR が CI で落ちる。受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- bash tests/pr-title.sh の記録を、報告の acceptance の行が run で指す）。", "risk": "題の検査が、課題番号に似た語を誤って拾う", "decision": "fix", "reason": "テストで止められ、根拠が2件ある"}],
  "fixes": [{"issue": "S-0041", "recurred": 0, "view": "マージのあと 6 件片付き、再発は無い。残す"}]}
 JSON
 ```
@@ -96,7 +114,7 @@ JSON
 - `--days` は collect と同じ値を渡す（command が同じ期間を集め直して照らす）。
 - 入力は `patterns` と `fixes` だけ。`retro`・期間・`previous_retro` は command が書く。パターンが無ければ `{"patterns": [], "fixes": [...]}`。
 - 断られたら（終了コード 1 と理由1行）、理由のとおり直して打ち直す。根拠が別々の2件に満たない・新しい出来事が無いと断られたパターンは、根拠を探し足して通そうとせず、一覧から外す（まだパターンではない）。
-- 書いたら `andon retro apply "$id" --dry-run` で、切られる課題と依頼書を見る。
+- 書いたら `andon retro apply "$id" --dry-run` で、切られる課題と依頼書を見る。検査を足すか変えるパターンは、依頼書の「期待する効果:」の行に「誤りを戻すと落ちる」の受け入れ条件が載っているかも見る。
 
 ## 7. 報告して返す
 
@@ -105,6 +123,7 @@ worker skill §7 の書式。`## Report` は Chief of Staff が検収に読む�
 ```
 ## Report
 期間: <since>〜<until>（<days> 日）。束 <n> 件・人の文 <m> 件・前の直し <k> 件を読んだ。前の振り返り: <id か 無し>。
+`AGENTS.md` の表: <読んだ repo>。パターンが当たった行 <n> 件（うち守らせるものが「無し。」の行 <m> 件）。
 パターン <a> 件（fix <b>・drop <c>）。retro.json: issues/<id>/library/retro.json。`andon retro apply <id> --dry-run` は通った。
 
 | id | 要約 | 根拠（数） | 段・直す先 | 判定と理由 |
