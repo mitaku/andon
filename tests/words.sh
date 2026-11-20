@@ -74,3 +74,26 @@ if [ -n "$hits" ]; then
   exit 1
 fi
 echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）に出ない"
+
+# 「台帳」「ゲート」「版」（ADR-0040 決めたこと 10、受け入れ条件 2）。「台帳」と「ゲート」はどの形も、「版」は残す形
+# （最新版・初版・英語版・更新版・出版・年に続く「2006 版」・製品の名前に続く形「Go 版」）のほかを禁じる。
+# 「」の中（引用と、語そのものを挙げた所）と用語集の「_避ける_」の行は外す。バッククォートの中は外さない。
+# 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。
+old_paths=(package .yomiyasu-words)
+existing=()
+for p in "${old_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
+hits=""
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnI -e '台帳' -e 'ゲート' -e '版' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
+  | grep -v -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
+  | perl -CSDA -Mutf8 -ne '
+      my ($f, $n, $t) = /^([^:]*):(\d+):(.*)$/s or next;
+      1 while $t =~ s/「[^「」]*」//g;                     # 引用と、語を挙げた「」（入れ子は内から）
+      $t =~ s/最新版|初版|英語版|更新版|出版|[0-9]{4} ?版|[A-Za-z][A-Za-z0-9.]* ?版//g;   # 残す「版」
+      $t =~ /台帳|ゲート|版/ or next;
+      print' || true)
+if [ -n "$hits" ]; then
+  echo "FAIL words: 「台帳」「ゲート」「版」が残る（ADR-0040。kanban・gate・バージョンと書く）" >&2
+  printf '%s\n' "$hits" | cut -c1-200 >&2
+  exit 1
+fi
+echo "ok   words: 「台帳」「ゲート」「版」が替えた範囲（${old_paths[*]}）に出ない"

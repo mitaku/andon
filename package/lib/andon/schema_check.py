@@ -80,12 +80,12 @@ def walk(schema, at="$"):
 
 
 def lint_schema(schema):
-    """schema の決まり: 2020-12・$id に版・description と識別子は英語（ASCII）・プロパティには description。"""
+    """schema の決まり: 2020-12・$id にバージョン・description と識別子は英語（ASCII）・プロパティには description。"""
     errs = []
     if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
         errs.append("$schema が draft 2020-12 でない")
     if not re.fullmatch(r"https://andon\.example\.com/schema/[a-z-]+/[1-9][0-9]*", schema.get("$id", "")):
-        errs.append("$id が https://andon.example.com/schema/<name>/<版> でない")
+        errs.append("$id が https://andon.example.com/schema/<name>/<バージョン> でない")
     for at, sub in walk(schema):
         if not isinstance(sub, dict):
             continue

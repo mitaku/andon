@@ -10,14 +10,14 @@ description: 振り返り（retro）の課題を受け持つ担当が読む。`a
 あなたは**読んで拾って決める**だけで、直さない。直すのは、`apply` が切った課題の別の担当（別のコンテキスト）。
 
 - 手順の土台は worker skill（`kanban start`・報告の書式・日報）。この SKILL はその上に振り返りの手順を足す。
-- 振り返りは repo の無い課題。cwd は台帳の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告だけ（入力の控えは一時の置き場）。
+- 振り返りは repo の無い課題。cwd は kanban の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告だけ（入力の控えは一時の置き場）。
 - 書き方と語は `/opt/andon/writing.md` に従う。語の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`。形の正は `contract.md` §20（入力）・§21（パターンの一覧）と `schema/patterns.schema.json`。
 
 | する | しない |
 |---|---|
 | `andon retro collect`・`andon retro patterns <自分の id>`・`andon retro apply <自分の id> --dry-run` | `andon retro apply` を `--dry-run` 無しで打つ（打つのは Chief of Staff） |
 | 確かめるために読む（`kanban show`・`gh pr view`・`git -C <repo> log`・`git -C <repo> show`・docs・`library/` の記録） | 直す・commit・PR・`kanban add`・`kanban set`・エージェントを起動する |
-| 報告と日報を書く | 台帳の項目（Next・Remember・memory）を片付ける（それはトリアージ） |
+| 報告と日報を書く | kanban の項目（Next・Remember・memory）を片付ける（それはトリアージ） |
 
 ## 1. 集める
 
@@ -38,7 +38,7 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 |---|---|
 | `corrections`（問いの答えで推奨案と違うものを選んだ・PR の上の直し・指摘の覆し） | オーナーの手直し。いちばん重い |
 | `typed[]`（オーナーが打った文） | オーナーが言い直したこと。Chief of Staff への文も入る |
-| `gates[].decision` が `fix` の `reasons`・`reviews[].findings` | ゲートとレビュアーの差し戻し |
+| `gates[].decision` が `fix` の `reasons`・`reviews[].findings` | gate とレビュアーの差し戻し |
 | `after_merge`（checks の失敗・`reverted_by`） | マージのあとに壊れたこと |
 | `estimate`・`agent_estimate`・`worked_minutes` | 見込みと実働のずれ |
 | `remember`・`agents_md`・`journal` | 担当が書き残したつまずき |
@@ -46,7 +46,7 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 - **根拠は別々の2件以上**。数える単位は課題（レビュアーの子は親）で、オーナーが打った文は、そのセッションを持つ課題ごと（担当とレビュアーのセッションはその課題、Chief of Staff のセッションはセッションごと）。同じ課題の中の2回と、課題とその課題のセッションで打たれた文は、1件と数える。
 - **新しい出来事が1件以上**。根拠のうち1件以上は `previous_retro.done_at` より後（後に片付いた課題か、後に打たれた文）。前に捨てたパターンも、新しい根拠があれば出し直してよい。新しい根拠が無ければ出せない（持ち越しは無い）。
 - 言い方が違っても直し方が同じなら同じパターン。直し方が違えば別のパターン。
-- `reapplied: true` の課題は、途中でパッケージが替わった。そのつまずきが古い版のものでないかを `launches[].package.commit` と `git log` で確かめてから根拠にする。
+- `reapplied: true` の課題は、途中でパッケージが替わった。そのつまずきが古いバージョンのものでないかを `launches[].package.commit` と `git log` で確かめてから根拠にする。
 - 1回だけの出来事・その場限りの事情（外のサービスの障害など）はパターンにしない。
 
 ### `AGENTS.md` の表を読む
@@ -71,14 +71,14 @@ r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/H
 | 段（`level`） | 直し方 | 例 |
 |---|---|---|
 | `design` 設計・型 | schema・command の照合・状態の定義を変え、起きようのない形にする | command が断る・必須のキーにする |
-| `test` テスト・lint | テストか CI の検査にして検出する。ゲートの条件表もここ | PR の題を検査するテスト |
+| `test` テスト・lint | テストか CI の検査にして検出する。gate の条件表もここ | PR の題を検査するテスト |
 | `check` 決まった手順の確かめ | hook か、command の中の確かめにする | `Stop` フック・`andon issue ready` の確かめ |
 | `skill` skill・指針 | skill・プロファイル・手引き・`AGENTS.md`・`REVIEW.md` の構成や手順を直す | 手順の抜けを足す |
 | `text` 文面 | 言い回しを直す。最後の手段 | 読み違えた1文を書き直す |
 
 - `skill` と `text` を選ぶなら、`not_upstream` に「なぜ上の3段で止められないか」を1行書く（無いと command が断る）。「機械が確かめる値が無い（文で決まること）」のように具体的に。
 - **削る**（`action: remove`）も直し。効いていない指示・モデルが替わって要らなくなった指示を消す。前の直しで再発した文は、まず削る候補にする。
-- 直す先（`target`）: `kind: project` は案件の repo（テスト・`AGENTS.md`・`REVIEW.md` など。`repo` はプロジェクトの `repos` の1つ）。`kind: andon` は Andon のパッケージ（skill・プロファイル・hook・設定・ゲートの条件表。`repo` は Andon の repo を持っていれば書く）。`paths` は repo の中の相対パス。
+- 直す先（`target`）: `kind: project` は案件の repo（テスト・`AGENTS.md`・`REVIEW.md` など。`repo` はプロジェクトの `repos` の1つ）。`kind: andon` は Andon のパッケージ（skill・プロファイル・hook・設定・gate の条件表。`repo` は Andon の repo を持っていれば書く）。`paths` は repo の中の相対パス。
 - **検査を足すか変える直し**（誤りを見つけて落とすもの: テスト・lint・CI の検査・hook・command の確かめ。多くは `level: test`・`check`）は、`effect` の終わりに受け入れ条件を1文足す:
   `受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- <検査の command> の記録を、報告の acceptance の行が run で指す）。`
   `effect` は直す課題の依頼書の「期待する効果:」の行になる。落ちない検査は、足しても何も止めない。誤りを戻した木は commit していない変更があってよい（落ちることを期待する記録だけの例外）。

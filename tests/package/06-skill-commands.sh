@@ -117,14 +117,14 @@ grep -q '`plan`（`## 計画` の写し）も `--data` に無ければ前の `re
   && pass "worker は ## 計画 を report.json の plan[] に写し、plan は引き継ぐ" || fail "worker に plan[] の写しか引き継ぎが無い"
 grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せているときだけ\*\*' "$pb/brief.md" \
   && pass "merge: auto は委譲の範囲内だけ" || fail "chief-of-staff に merge: auto の条件が無い"
-# インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューとゲートの節はオーナーの判断が要るときだけ。レビュアーを手で起動する手順が残っていない
+# インナーループは dispatcher（P6a）: Chief of Staff の skill のレビューと gate の節はオーナーの判断が要るときだけ。レビュアーを手で起動する手順が残っていない
 cos6=$(cat "$pb/gate.md")
-grep -q '^3\. \*\*作った者に合否を決めさせない\*\*。.*指摘を中継しない・ゲートを手で回さない・マージしない' "$cos" \
-  && grep -q '^# レビューとゲート（オーナーの判断が要るときだけ）' <<<"$cos6" && grep -q '^## `needs_human` のとき' <<<"$cos6" \
+grep -q '^3\. \*\*作った者に合否を決めさせない\*\*。.*指摘を中継しない・gate を手で回さない・マージしない' "$cos" \
+  && grep -q '^# レビューと gate（オーナーの判断が要るときだけ）' <<<"$cos6" && grep -q '^## `needs_human` のとき' <<<"$cos6" \
   && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cosall" \
   && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
   && ! grep -qE 'worktree add --detach|andon issue start "\$new"' package/skills/independent-review/SKILL.md \
-  && pass "Chief of Staff の原則3とゲートの手引きは needs_human のときだけ。レビュアーを起動するのとゲートは dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起動する手順・ゲートを手で回す手順が残る"
+  && pass "Chief of Staff の原則3と gate の手引きは needs_human のときだけ。レビュアーを起動するのと gate は dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起動する手順・gate を手で回す手順が残る"
 grep -q '元の課題（`issue.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元の課題の担当だけ' package/skills/independent-review/SKILL.md \
   && pass "レビュアーの結果の宛先は parent の課題の担当だけ（Chief of Staff へ送らない）" || fail "レビュアーの宛先が parent の課題の担当に固定されていない"
 

@@ -1,6 +1,6 @@
 ---
 name: independent-review
-description: Chief of Staff が、担当の成果（PR の差分）を実装と別ブランドのレビュアーに独立レビューさせるときに読む（台帳のレビュアーの課題）。入れる条件・プロファイルの選び方・dispatcher がレビュアーを起動する形・依頼書の型と結果の宛先・振り分けと周回の上限（担当の工程）を持つ
+description: Chief of Staff が、担当の成果（PR の差分）を実装と別ブランドのレビュアーに独立レビューさせるときに読む（kanban のレビュアーの課題）。入れる条件・プロファイルの選び方・dispatcher がレビュアーを起動する形・依頼書の型と結果の宛先・振り分けと周回の上限（担当の工程）を持つ
 argument-hint: "[PR の URL か番号]"
 ---
 
@@ -49,14 +49,14 @@ dispatcher が書く（`internal/dispatcher` の `reviewerBrief`。型を変え�
 
 ## 5. 振り分け・周回・片付け
 
-振り分けと周回は担当の工程（worker skill の §4）。ゲートが数えない指摘（`preexisting: true` と、2回目以降の回の critical でない新しい指摘）は contract.md §3。Chief of Staff がするのは次だけ:
+振り分けと周回は担当の工程（worker skill の §4）。gate が数えない指摘（`preexisting: true` と、2回目以降の回の critical でない新しい指摘）は contract.md §3。Chief of Staff がするのは次だけ:
 
 - 指摘を中継しない（レビュアーの `hc send` は担当に直接届く）。
 - 上限を使い切っても critical / major が残るときの追加の回は、`playbooks/gate.md` の「上限を超えた回」で決める。
 - 課題の前からの問題（`preexisting: true`）を直すかは、報告に残った名前を読んで決める（切るなら課題にする）。
 - レビュアーが使用量の上限で止まったときの起動し直しは dispatcher がする（`docs/dispatcher.md` §2.8）。`reviewer` を書き換えない。
 - 片付けは元の課題の `andon issue finish` で、レビュアーの子課題と detached の worktree も片付く（`docs/dispatcher.md` §2.7）。
-- 台帳のルーチン（`on: [review]`）でレビューを自動で足さない。入れる条件は Chief of Staff の判断で、依頼書は PR ごとに変わるので。
+- kanban のルーチン（`on: [review]`）でレビューを自動で足さない。入れる条件は Chief of Staff の判断で、依頼書は PR ごとに変わるので。
 
 ## pstack を使う repo
 
