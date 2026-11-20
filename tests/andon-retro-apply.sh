@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # `andon retro patterns`・`andon retro apply` とルーチン retro の例。一時の台帳（kanban init のあと課題のファイルを直に置く）・偽の gh・
 # 一時の Claude Code のセッションログで回す。hc の端末は使わない（HC_TERMINAL_ID を担当の名前にするだけ）。
-# 規則の細部は internal/retro/patterns_test.go。ここはバイナリの入口・ADR-0028 の受け入れ条件 11〜17・20・断ったら何も書かないことを見る。
+# 規則の細部は internal/retro/patterns_test.go。ここはバイナリの入口・ADR-0028 の受け入れ条件 11〜17・20・ADR-0039 の受け入れ条件 1・2・断ったら何も書かないことを見る。
 # ANDON_EMIT_DIR があれば retro.json を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
 command -v jq >/dev/null || { echo "skip: jq が無い"; exit 0; }
@@ -112,41 +112,42 @@ rc=0; HC_TERMINAL_ID=t1 "$andon" retro patterns S-0020 - <<<"$(p '["S-0012", "S-
 [ "$rc" = 1 ] && grep -q '担当' "$tmp/err" && [ ! -e "$out" ] || die "ほかの端末から書けた（rc=$rc）: $(cat "$tmp/err")"
 echo 'ok パターンの一覧は、その課題の担当の端末からだけ書ける'
 
-# 15・16・17: 当てる。p1 は案件の repo のテスト（直す課題）、p2 は Andon のパッケージ（この台帳の repos に Andon が無いので人の課題）、p3 は捨てる
+# 15・16・17: 当てる。p1 は案件の repo のテスト（直す課題）、p2 は Andon のパッケージ（この台帳の repos に Andon が無いので人の課題）、p3 は捨てる。
+# p4〜p6 も直す課題で、fix は 5 件（ADR-0039 受け入れ条件 1: 上限は無く、全部が一覧の順に課題になる）
 good=$(p '["S-0012", "h-a2"]' '.patterns += [
   (.patterns[0] + {id: "p2", summary: "見送りの理由が報告に無く、検収で戻した", evidence: ["S-0012", "S-0013"], level: "skill", action: "change",
     target: {kind: "andon", repo: "github.com/example/andon", paths: ["package/skills/worker/SKILL.md"]}, not_upstream: "見送りの理由は文で、機械が確かめる値が無い"}),
-  (.patterns[0] + {id: "p3", summary: "見込みより長くかかった", evidence: ["S-0012", "S-0013"], decision: "drop", reason: "外の障害で、繰り返しではない"})]')
+  (.patterns[0] + {id: "p3", summary: "見込みより長くかかった", evidence: ["S-0012", "S-0013"], decision: "drop", reason: "外の障害で、繰り返しではない"}),
+  (.patterns[0] + {id: "p4", summary: "テストの名前が古いまま残り、2回直した", evidence: ["S-0012", "S-0013"], target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/names.sh"]}}),
+  (.patterns[0] + {id: "p5", summary: "リンクの切れが残り、2回直した", evidence: ["S-0012", "S-0013"], target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/links.sh"]}}),
+  (.patterns[0] + {id: "p6", summary: "lint の指摘が残り、2回直した", evidence: ["S-0012", "S-0013"], target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/lint.sh"]}})]')
 HC_TERMINAL_ID=t9 "$andon" retro patterns S-0020 - <<<"$good" >"$tmp/ok" 2>"$tmp/err" || die "正しい一覧を断った: $(cat "$tmp/err")"
 emit "$out" patterns.json
-jq -e '.retro == "S-0020" and .days == 7 and .previous_retro.issue == "S-0010" and ([.patterns[].id] == ["p1", "p2", "p3"])' "$out" >/dev/null || die "retro.json: $(jq -c . "$out")"
-grep -q 'パターン 3 件、fix 2 件・drop 1 件' "$tmp/ok" || die "書いた行: $(cat "$tmp/ok")"
+jq -e '.retro == "S-0020" and .days == 7 and .previous_retro.issue == "S-0010" and ([.patterns[].id] == ["p1", "p2", "p3", "p4", "p5", "p6"])' "$out" >/dev/null || die "retro.json: $(jq -c . "$out")"
+grep -q 'パターン 6 件、fix 5 件・drop 1 件' "$tmp/ok" || die "書いた行: $(cat "$tmp/ok")"
 cp "$out" "$tmp/good.json"
 
 issues() { kanban list --all --json | jq -r '.[].id' | sort | tr '\n' ' '; }
 before=$(issues)
-# 判定の無いパターン・fix が3件（手で書き換えた retro.json）は、当てずに断る。台帳は変わらない
+# 判定の無いパターン・根拠の足りないパターン（手で書き換えた retro.json）は、当てずに断る。台帳は変わらない（ADR-0039 受け入れ条件 2）
 jq 'del(.patterns[2].decision)' "$tmp/good.json" >"$out"
 rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '判定が無い' "$tmp/err" || die "判定の無い一覧を当てた（rc=$rc）: $(cat "$tmp/err")"
-jq '.patterns[2] += {decision: "fix"}' "$tmp/good.json" >"$out"
-rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q 'fix が 3 件' "$tmp/err" || die "fix 3 件の一覧を当てた（rc=$rc）: $(cat "$tmp/err")"
 jq '.patterns[0].evidence = ["S-0012"]' "$tmp/good.json" >"$out"
 rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '別々の2件に満たない' "$tmp/err" || die "根拠1件の一覧を当てた（rc=$rc）: $(cat "$tmp/err")"
 [ "$(issues)" = "$before" ] && [ ! -e "$k/issues/S-0020/library/retro-applied.json" ] || die "断ったのに台帳が変わった: $(issues)"
-echo 'ok 15: 判定の無いパターン・fix 3 件・根拠の足りないパターンは当てずに断る（台帳は変わらない）'
+echo 'ok 15: 判定の無いパターン・根拠の足りないパターンは当てずに断る（台帳は変わらない）'
 
 cp "$tmp/good.json" "$out"
 "$andon" retro apply S-0020 --dry-run >"$tmp/dry.json" || die "--dry-run が落ちた"
-jq -e '[.issues[] | [.pattern, .who]] == [["p1", "worker"], ["p2", "person"]] and .dropped == [{pattern: "p3", reason: "外の障害で、繰り返しではない"}]' "$tmp/dry.json" >/dev/null \
+jq -e '[.issues[] | [.pattern, .who]] == [["p1", "worker"], ["p2", "person"], ["p4", "worker"], ["p5", "worker"], ["p6", "worker"]] and .dropped == [{pattern: "p3", reason: "外の障害で、繰り返しではない"}]' "$tmp/dry.json" >/dev/null \
   || die "--dry-run: $(jq -c . "$tmp/dry.json")"
 [ "$(issues)" = "$before" ] && [ ! -e "$k/issues/S-0020/library/retro-applied.json" ] || die "--dry-run が台帳に書いた"
 
 "$andon" retro apply S-0020 >"$tmp/apply.out" 2>"$tmp/err" || die "当てられない: $(cat "$tmp/err")"
 rec=$k/issues/S-0020/library/retro-applied.json
-jq -e '.complete == true and ([.issues[] | [.pattern, .who]] == [["p1", "worker"], ["p2", "person"]]) and .dropped == [{pattern: "p3", reason: "外の障害で、繰り返しではない"}]' "$rec" >/dev/null \
+jq -e '.complete == true and ([.issues[] | [.pattern, .who]] == [["p1", "worker"], ["p2", "person"], ["p4", "worker"], ["p5", "worker"], ["p6", "worker"]]) and .dropped == [{pattern: "p3", reason: "外の障害で、繰り返しではない"}]' "$rec" >/dev/null \
   || die "記録: $(jq -c . "$rec")"
 fix=$(jq -r '.issues[0].issue' "$rec") person=$(jq -r '.issues[1].issue' "$rec")
 kanban show "$fix" --json >"$tmp/fix.json"
@@ -159,9 +160,17 @@ for want in '解決すべき問題: PR の題に課題番号が入り、人が�
 done
 ! grep -q 'また題に番号が入っている' <<<"$brief" || die "依頼書に人の文の本文が入った"
 grep -q 'また題に番号が入っている' "$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl" || die "検査の前提: 人の文がログにある"
-[ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 2 ] || die "足した課題が2件でない: $(issues)"
-grep -q "直す課題 1 件（$fix）・人の課題 1 件（$person）・捨てた 1 件" "$tmp/apply.out" || die "当てた行: $(cat "$tmp/apply.out")"
-echo 'ok 16: fix ごとに直す課題が1件足され、依頼書に要約・根拠・直す先・期待する効果・リスク。drop は理由つきで記録に残る'
+[ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 5 ] || die "足した課題が5件でない: $(issues)"
+# 足した順（課題の番号の順）が一覧の順と同じ
+order=$(jq -r '[.issues[].issue] | join(" ")' "$rec")
+[ "$order" = "$(jq -r '[.issues[].issue] | sort | join(" ")' "$rec")" ] || die "足した順が一覧の順でない: $order"
+[ "$(kanban list --all --json | jq -r '[.[] | select(.parent == "S-0020") | .title] | join("|")')" = \
+  "$(jq -r '[.patterns[] | select(.decision == "fix") | if .target.kind == "andon" then "Andon へ伝えるか: " + .summary else .summary end] | join("|")' "$tmp/good.json")" ] \
+  || die "足した課題の題の並びが一覧の順でない: $(kanban list --all --json | jq -c '[.[] | select(.parent == "S-0020") | [.id, .title]]')"
+f2=$(jq -r '[.issues[] | select(.who == "worker") | .issue] | join("・")' "$rec")
+grep -q "直す課題 4 件（$f2）・人の課題 1 件（$person）・捨てた 1 件" "$tmp/apply.out" || die "当てた行: $(cat "$tmp/apply.out")"
+! grep -q '上限' "$tmp/ok" "$tmp/apply.out" || die "上限の理由の行が出た: $(cat "$tmp/ok" "$tmp/apply.out")"
+echo 'ok 16: fix ごとに直す課題が1件足され（fix 5 件なら 5 件、一覧の順に）、依頼書に要約・根拠・直す先・期待する効果・リスク。drop は理由つきで記録に残る'
 
 kanban show "$person" --json >"$tmp/person.json"
 jq -e '.issue.who == "person" and .issue.parent == "S-0020" and (.issue.repo // "") == "" and (.issue.title | startswith("Andon へ伝えるか: "))' "$tmp/person.json" >/dev/null \
@@ -170,7 +179,7 @@ echo 'ok 17: Andon の repo を持たないプロジェクトでは、パッケ�
 
 # 当て済みの一覧は当て直さない
 rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q '当て済み' "$tmp/err" && [ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 2 ] \
+[ "$rc" = 1 ] && grep -q '当て済み' "$tmp/err" && [ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 5 ] \
   || die "当て直した（rc=$rc）: $(cat "$tmp/err")"
 echo 'ok 当て済みの振り返りは当て直さない'
 

@@ -17,10 +17,8 @@ import (
 // パターンの一覧（ADR-0028 決めたこと 8 の「判定を書く」。docs/contract.md §21・schema/patterns.schema.json）。
 // 振り返りの担当が andon retro patterns で書き、Chief of Staff が andon retro apply で当てる。
 // 書くときも当てるときも、同じ検査（checkPatterns）を集めた入力に当てる。command が断るのは形と、根拠の数・実在・新しさ、
-// 上の段で止められない理由、振り返り自身を直さないこと、判定と fix の上限だけ。パターンが本当に起きたかは確かめない。
-
-// MaxFix は1回の振り返りが直す課題に切ってよい数（ADR-0028 決めたこと 13）。
-const MaxFix = 2
+// 上の段で止められない理由、振り返り自身を直さないこと、判定だけ。fix の数は確かめない（ADR-0039 決めたこと 1）。
+// パターンが本当に起きたかは確かめない。
 
 // 段（決めたこと 9）。上から効き目の確かな順。
 var levels = []string{"design", "test", "check", "skill", "text"}
@@ -157,15 +155,6 @@ func checkShape(ps []Pattern, fixes []FixView) error {
 		if len(p.Evidence) == 0 {
 			return fmt.Errorf("%s に根拠が無い", at)
 		}
-	}
-	n := 0
-	for _, p := range ps {
-		if p.Decision == "fix" {
-			n++
-		}
-	}
-	if n > MaxFix {
-		return fmt.Errorf("fix が %d 件ある。1回の振り返りで直す課題に切るのは %d 件まで（残りは drop にして理由を書く）", n, MaxFix)
 	}
 	seen := map[string]bool{}
 	for i, f := range fixes {
