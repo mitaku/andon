@@ -152,6 +152,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	record := ""
 	if contract.IsSHA(gr.Head) {
+		// ゲートが今の head で決めた: 前の head について出したゲートの問いは、この判定で決め直したので閉じる
+		// （担当が doing に戻って rebase し、ready が数えずに通した問い。ready の staleGateQuestions）
+		c.closeStaleGateQuestions(gr.Head, res)
 		record = filepath.Join(c.l.Library(c.id), "gate", gr.Head+".json")
 		res.Auto = gr.Decision == "approve" && c.autoMerge(rows, gr)
 		res.Notify = append(res.Notify, contract.Notice{Kind: "gate",
@@ -178,7 +181,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			facts = append(facts, "PR "+rep.PR)
 		}
 		if record != "" {
-			facts = append(facts, "ゲートの記録 "+record)
+			facts = append(facts, gate.RecordFact(record))
 		}
 		c.askGate(res, contract.Question{
 			Kind: kind, Question: fmt.Sprintf("%s（%s）の PR はゲートが人へ回した。マージするか", c.id, short(c.issue.Str("title"))),
@@ -258,6 +261,37 @@ func (c *ctx) closeGateQuestions(why string, res *contract.Merge) {
 		if _, err := c.l.Run("", "received", name); err != nil {
 			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
 		}
+	}
+}
+
+// closeStaleGateQuestions は、この課題のまだ受け取られていないゲートの問いのうち、head と違う head について出た問い
+// （どの head の問いかは事実のゲートの記録の行から読む。questionHead）を、open なら理由を答えて受け取る。答えには前と今の head を書き、
+// 判断の記録を残す。どの head の問いか読めない問い・ゲートの外の問いには触らない。閉じられなければログに1行。
+func (c *ctx) closeStaleGateQuestions(head string, res *contract.Merge) {
+	gateQs, _, err := c.openQuestions()
+	if err != nil {
+		res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問いを読めない: %v", c.id, err))
+		return
+	}
+	for _, q := range gateQs {
+		old := c.questionHead(q.N)
+		if old == "" || old == head {
+			continue
+		}
+		name := fmt.Sprintf("%s#%d", c.id, q.N)
+		why := fmt.Sprintf("PR の head が動いた（%s → %s）。ゲートが今の head で決め直した（記録 %s）",
+			short12(old), short12(head), filepath.Join(c.l.Library(c.id), "gate", head+".json"))
+		if q.Status == "open" {
+			if _, err := c.l.Run("", "answer", name, why); err != nil {
+				res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
+				continue
+			}
+		}
+		if _, err := c.l.Run("", "received", name); err != nil {
+			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
+			continue
+		}
+		res.Log = append(res.Log, fmt.Sprintf("%s の前の head（%s）のゲートの問い %s を閉じた: %s", c.id, short12(old), name, why))
 	}
 }
 

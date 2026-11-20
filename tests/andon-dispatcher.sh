@@ -761,6 +761,27 @@ grep -q "PR の head がゲートのあとに動いた（${old:0:12} → ${head:
 [ ! -e "$L/issues/$pn/library/questions/2.json" ] || die '回し直したゲートが fix なのに問いを出した'
 [ "$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)" = "$merges" ] && [ ! -e "$tmp/gh/merged" ] || die 'merge: auto の課題をゲートの見ていない head でマージした'
 ok 'merge: auto の needs_human のあとに PR の head が動いたら、前の head のゲートの問いを閉じて回し直し、見ていない head はマージしない'
+# needs_human の問いが開いたまま、Chief of Staff が rebase を頼み、担当が doing に戻って新しい head を出した（review の外で head が動いた）。
+# ready は前の head についてのゲートの問いを数えずに review にし、ゲートが今の head で決めたときにその問いを閉じる（答えに前と今の head）
+pb=$(newtask 'needs_human のあとに rebase する' auto)
+to_gate "$pb" package/gate.json; old=$head
+[ "$(hv "$pb")" = "needs_human $old" ] && jq -e '.from == "gate"' "$L/issues/$pb/library/questions/1.json" >/dev/null || die "前提: needs_human の問いが無い: $(hv "$pb")"
+restart "$pb"
+work "$pb" package/gate.json
+as_worker "$pb" report --pr https://github.com/example/app/pull/7
+as_worker "$pb" review-request
+dispatcher
+review_by "$(kanban list --all --json | jq -r --arg p "$pb" '[.[] | select(.parent == $p)] | last | .id')" '[]'
+as_worker "$pb" ready || die 'rebase のあとの ready が、前の head についてのゲートの問いで断った'
+kanban show "$pb" --json | jq -e '.issue.status == "review"' >/dev/null || die 'rebase のあとの ready が review にしていない'
+dispatcher
+[ "$(hv "$pb")" = "needs_human $head" ] || die "今の head でゲートを回していない: $(hv "$pb")"
+kanban show "$pb" --json | jq -e '.questions[0].status == "received"' >/dev/null || die "前の head のゲートの問いが閉じていない: $(kanban show "$pb" --json | jq -c '.questions')"
+grep -q "PR の head が動いた（${old:0:12} → ${head:0:12}）。ゲートが今の head で決め直した" "$L/issues/$pb/questions.yaml" || die '前の head のゲートの問いに、閉じた理由を答えていない'
+jq -e --arg r "ゲートの記録 $L/issues/$pb/library/gate/$head.json" '.from == "gate" and (.facts | index($r))' "$L/issues/$pb/library/questions/2.json" >/dev/null ||
+    die '今の head のゲートの問いを出していない'
+kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '今の head のゲートの問いまで閉じた'
+ok 'needs_human の問いが開いたまま rebase した担当は、前の head の問いを数えずに ready でき、ゲートが今の head で決めたときにその問いを閉じる'
 
 # 4b. 人が GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
 #     ゲートの問い（from: gate。重なったものも）を「人がマージした」と閉じ、andon issue finish し、通知 merged（by: person）を積む。

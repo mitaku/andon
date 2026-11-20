@@ -105,6 +105,28 @@ func ExitCode(decision string) int {
 	return exitHuman
 }
 
+// recordFact は、ゲートの問い（from: gate）の事実のうち、ゲートの記録を指す行の頭。
+const recordFact = "ゲートの記録 "
+
+// RecordFact は、ゲートの問いの事実に書く、ゲートの記録 record（issues/<id>/library/gate/<head>.json）を指す行。
+// 問いがどの head について出たかは、この行から QuestionHead で読む。
+func RecordFact(record string) string { return recordFact + record }
+
+// QuestionHead は、ゲートの問いの事実 facts から、ゲートが判定した head を読む（RecordFact の行の <head>.json）。
+// その行が無い・head が読めなければ空（どの head の問いか分からない。呼び手は今の head の問いとして扱う）。
+func QuestionHead(facts []string) string {
+	for _, f := range facts {
+		p, ok := strings.CutPrefix(f, recordFact)
+		if !ok || filepath.Base(filepath.Dir(p)) != "gate" {
+			continue
+		}
+		if h := strings.TrimSuffix(filepath.Base(p), ".json"); contract.IsSHA(h) {
+			return h
+		}
+	}
+	return ""
+}
+
 // gh は gh を打ち、stdout を返す。
 func gh(args ...string) ([]byte, error) {
 	var errb bytes.Buffer

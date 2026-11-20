@@ -27,18 +27,22 @@ package issue
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -566,8 +570,13 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 
 func (c *ctx) ready(stdout io.Writer) error {
 	// 受け取られていない問いを残して review に入ると、ゲートとマージのあとの片付け（finish）が問いで断られる。
-	// 確かめの形は finish と kanban done（closing）と同じ
-	held, err := c.unreceived([]string{c.id})
+	// 確かめの形は finish と kanban done（closing）と同じ。ただしゲートが前の head について出した問いは数えない
+	// （rebase や直しで head が動いた。回し直したゲートが今の head で決め直し、そのとき閉じる。merge.go closeStaleGateQuestions）
+	stale, err := c.staleGateQuestions()
+	if err != nil {
+		return err
+	}
+	held, err := c.unreceived([]string{c.id}, stale)
 	if err != nil {
 		return err
 	}
@@ -618,12 +627,64 @@ func (c *ctx) ready(stdout io.Writer) error {
 	default:
 		return fail("issue.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.issue.Str("review"))
 	}
-	out, err := c.l.Run("", "review", c.id)
+	review := []string{"review", c.id}
+	if len(stale) > 0 {
+		// kanban review も受け取られていない問いで断る。外した問いのほかは無いと上で確かめたので、押し切る
+		// （押し切った問いの番号は log.jsonl の行の forced に残る）
+		review = append(review, "--force")
+	}
+	out, err := c.l.Run("", review...)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintln(stdout, out)
+	for _, q := range slices.Sorted(maps.Keys(stale)) {
+		fmt.Fprintf(stdout, "%s はゲートが前の head（%.12s）について出した問いなので数えない（ゲートが今の head で回ったときに閉じる）\n", q, stale[q])
+	}
 	return nil
+}
+
+// gateQuestionHeads は、この課題のまだ受け取られていないゲートの問い（library/questions/<n>.json の from: gate）のうち、
+// どの head について出たかが読めるもの（gate.QuestionHead）を「<id>#<n>」→ head で返す。読めない問いは入れない。
+func (c *ctx) gateQuestionHeads() (map[string]string, error) {
+	gateQs, _, err := c.openQuestions()
+	if err != nil {
+		return nil, err
+	}
+	heads := map[string]string{}
+	for _, q := range gateQs {
+		if h := c.questionHead(q.N); h != "" {
+			heads[fmt.Sprintf("%s#%d", c.id, q.N)] = h
+		}
+	}
+	return heads, nil
+}
+
+// questionHead は、この課題の問い n（library/questions/<n>.json）がゲートのどの head について出たか。読めなければ空。
+func (c *ctx) questionHead(n int) string {
+	b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "questions", strconv.Itoa(n)+".json"))
+	var v struct {
+		Facts []string `json:"facts"`
+	}
+	if err != nil || json.Unmarshal(b, &v) != nil {
+		return ""
+	}
+	return gate.QuestionHead(v.Facts)
+}
+
+// staleGateQuestions は、まだ受け取られていないゲートの問いのうち、担当の HEAD と違う head についての問いを
+// 「<id>#<n>」→ その head で返す（ready が数えない問い）。どの head の問いか読めない問いは入れない（今の head の問いとして数える）。
+func (c *ctx) staleGateQuestions() (map[string]string, error) {
+	heads, err := c.gateQuestionHeads()
+	if err != nil || len(heads) == 0 {
+		return nil, err
+	}
+	head, err := c.head()
+	if err != nil {
+		return nil, err
+	}
+	maps.DeleteFunc(heads, func(_, h string) bool { return h == head })
+	return heads, nil
 }
 
 // readyCandidates は調べる課題（deliverable: candidates。ADR-0006 決めたこと 7）の ready: PR とレビューの代わりに、

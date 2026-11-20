@@ -20,6 +20,7 @@ Chief of Staff が決めるのは、依頼書の Settings（`brief.md`。`review
    直せば済むと人が答えたら、担当へ `hc send` で理由を返す（担当が `kanban start` で戻して直し、同じ手順で返す）。
 3. 人にマージを頼む。課題の番号（題）と PR の URL を書き、何が変わったかを言う。レビューの回数と結果、見送った指摘があればそれも、それぞれ文で書く。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
    人がマージしたら、dispatcher が次の見回り（1分以内）で拾い、この問いを「人がマージした」と閉じて片付ける（`finish.md`）。`kanban answer`・`kanban received` を手で打たない。
+   マージ待ちの PR の rebase を担当に頼んだときも、この問いを手で閉じない。担当の `andon issue ready` は前の head の問いを数えずに通り、ゲートが今の head で決めたときに dispatcher が閉じる（今の head でも人へ回れば新しい問いが来る）。
 
 ## approve で止まったとき（`<id> gate: approve` のあと `merged` が来ない）
 

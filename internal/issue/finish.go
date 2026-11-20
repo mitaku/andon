@@ -212,7 +212,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 
 // closable は ids の課題がどれも kanban done で断られないか。断られる問いがあれば片付けずに止まる理由を返す。
 func (c *ctx) closable(ids []string) error {
-	held, err := c.unreceived(ids)
+	held, err := c.unreceived(ids, nil)
 	if err != nil {
 		return err
 	}
@@ -224,8 +224,8 @@ func (c *ctx) closable(ids []string) error {
 
 // unreceived は ids の課題の、受け取られていない問いを「<id>#<n>（<status>）」の形で返す（kanban questions --json を1回読む）。
 // kanban done（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）を数える。
-// finish（closable）と ready が使う。
-func (c *ctx) unreceived(ids []string) ([]string, error) {
+// finish（closable）と ready が使う。skip の「<id>#<n>」は数えない（ready が、ゲートが前の head について出した問いを外す）。
+func (c *ctx) unreceived(ids []string, skip map[string]string) ([]string, error) {
 	out, err := c.l.Run("", "questions", "--json")
 	if err != nil {
 		return nil, err
@@ -250,7 +250,7 @@ func (c *ctx) unreceived(ids []string) ([]string, error) {
 		switch {
 		case q.Broken != "":
 			held = append(held, fmt.Sprintf("%s（questions.yaml が読めない: %s）", id, q.Broken))
-		case q.Status == "open" || q.Status == "answered":
+		case (q.Status == "open" || q.Status == "answered") && skip[fmt.Sprintf("%s#%d", id, q.N)] == "":
 			held = append(held, fmt.Sprintf("%s#%d（%s）", id, q.N, q.Status))
 		}
 	}
