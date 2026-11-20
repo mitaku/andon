@@ -51,6 +51,7 @@ S-0009 の担当 t5 が止まったまま 21 分
 | 行 | dispatcher がしたこと | 受けたら |
 |---|---|---|
 | `<id> ready: 「…」（ルーチン tidy）` | `kanban ready` の前回との差（人の課題を除く。ルーチンが足したもの・`queued` から戻ったものも） | 依頼書を確かめ、並行の上限の中で `andon issue start`（`start.md`）。ルーチンが足したものは人に聞かずに起動する |
+| `<id> ready: 「…」。待つ相手 <id> がやめになった`（か `…がマージされたか確かめられない`） | 待つ相手がマージされずに done になった（`andon issue finish`・トリアージの close）ので `queued` から戻った。確かめられないは、gh が読めず見分けられなかった | 起動する前に依頼書を読み直す。やめた課題の成果を前提にしていれば起動せず、依頼書に `## 追記（<日付>）` を足して前提を直すか、向きを決めるのが決断なら人へ1問（ask-one-by-one skill）。前提にしていなければ上の行と同じく起動する |
 | `<id> report: 報告 <path>` | 台帳の `log.jsonl` に report の書き込み。PR の無い課題（観察の課題〈repo の無い課題〉・調べる課題）が `status: review` に入ったときも。レビュー依頼で dispatcher がレビュアーを起動しなかったときも（上限を超えた回など。理由は `hc read dispatcher`） | 報告を読む。起動しなかったレビュー依頼なら `gate.md` の「上限を超えた回」、`## 人に聞くこと` があれば `blocked.md` の「人に聞くこと」。観察の課題なら `cut.md` の「観察の課題の報告を受けたら」。調べる課題なら候補を読む（`brief.md` の調べる課題） |
 | `<id> review: 報告 <path>（PR <url>）` | ゲートを回さない課題のうち PR のあるもの（Chief Engineer の課題）が `status: review` に入った（ゲートを回す課題の `review` は記録だけで届かない。PR の無い課題は上の `report` の行で届く） | `cut.md` の「Chief Engineer の文書を受けたら」 |
 | `<id> gate: approve …` | dispatcher がマージしないと決まっている（`merge: person`・委譲の外・`merge: auto` を最後に書いたのが Chief of Staff でない）。または `merge: auto` で approve のあと 10 分たっても `merged` も `asked` も無い（`fix`・`needs_human` は記録だけで届かない） | `gate.md` の「approve で止まったとき」。差し戻し（`fix`）の数え方は `gate.md` の「差し戻し」 |

@@ -72,6 +72,12 @@ func line(n Notification) string {
 		if r, ok := n.Detail["routine"]; ok && r != nil && r != "" {
 			s += "（ルーチン " + clean(r, 60) + "）"
 		}
+		if ids := idList(n.Detail["abandoned"]); len(ids) > 0 {
+			s += "。待つ相手 " + strings.Join(ids, "、") + " がやめになった"
+		}
+		if ids := idList(n.Detail["unchecked"]); len(ids) > 0 {
+			s += "。待つ相手 " + strings.Join(ids, "、") + " がマージされたか確かめられない"
+		}
 		return s
 	case "review-requested":
 		return head + d("round") + " 回目のレビュアー " + short("reviewer_issue") + "（" + short("reviewer") + "）を起動した"
