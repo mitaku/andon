@@ -79,6 +79,14 @@
    - **CI を待つ文は残す**: Chief Engineer の文書の PR と `Review: off` の課題は worker skill §3 の 4 の checks の待ちに頼る。並べる文は §4 の 1 に置く。
    - **守られている**: 古い commit のレビューが新しい commit の承認として使われてマージに進む道は無い。`ready`・ゲート・マージの直前の読み直しがどれも head と照合する。同じ commit の二重起動も無い。モデルの規則 R1〜R6 に破れるものは無い。
 
+9. **流れの順や状態の移り方を変える変更は、実装の前にモデルに書いて確かめる。最初に当てるのは、レビューを CI と並べる変更**（人 2026-11-20）。課題の一生のモデル（`model/IssueLife.tla`）に、CI の状態と、レビュアーがどの commit を見ているかを足す。規則に「どの状態からも、取り消しを使わずにマージまで行ける」を足す。検査が通ってから、決めたこと 8 の command の守りを実装する。守りを外したモデルが新しい規則を破ることも、壊した見本（`model/broken/`）で確かめる。理由: 決めたこと 8 の行き止まりは、順を入れ替える案をモデルに先に書いていれば、人が形を選ぶ前に検査で見つけられる種類の穴だった。今回は読むだけの反論がコードから見つけたが、反論が同じ穴をいつも拾うとは限らない。今の決まり（課題の一生の動きを変える PR は同じ PR でモデルも直す。ADR-0025）は、実装に合わせてモデルを直す順で、この順では穴が実装のあとにしか見つからない。捨てた案: 「statechart と形式検証を、開発からマージまでの流れの全体へ広げることを今決める」（どの流れをモデルにするか、何を規則にするかは、仕分けの表を見ないと決まらない。開いている問い 4 に残す）。「今までどおり、実装と同じ PR でモデルを直すだけにする」。
+
+   判断の材料にした事実（2026-11-20。モデルの読み）:
+   - モデルは、レビュアーが動いているかを真偽の値 1 つ（`reviewing`）で持つ。レビュアーが 2 人いる状態も、レビュアーがどの commit を見ているかも表せない。レビューを頼む動きのコメントは「その commit のレビュアーが動いている間は断る」で、別の commit なら 2 人目が走れることはモデルに写っていない。
+   - モデルは CI の状態（走っている・落ちた・通った）を持たない。
+   - 規則は 6 本（R1〜R6）で、どれも「この状態のときはこうなっている」の形。検査器は、次の動きが 1 つも無い状態が無いことも見ている（`model/check` の「どの状態からも先がある」）。決めたこと 8 の行き止まりは、取り消しなどほかの動きが残るので、この検査には当たらない。要るのは「マージまで行ける」の形の規則。
+   - 検査器が書く状態の図（`-dump dot`）は、`model/conform.mjs` が既に読んで `process/states/issue.yaml` と照らしている。本物のモデルの状態の数は 112、CI の model の job は約 13 秒。
+
 ## やらないこと（範囲の外。理由）
 
 - CI の土台のイメージを GHCR に置くこと。人が今は見送ると決めた（2026-11-20）。
@@ -96,6 +104,7 @@
 
 1. **CI とレビューが並ぶ。** worker skill を直したあとに出た、レビューありの PR で、レビュアーの課題ができた時刻が、その PR の head の tests の check の終了より前になる。証拠: `gh pr view <n> --json statusCheckRollup --jq '.statusCheckRollup[] | select(.name=="tests") | .completedAt'` の出力と、`kanban show <レビューの課題の id>` の `created` を、5 本ぶん並べたもの。本物のラインでしか確かめられないので、観察の課題が数える（人が見る）。skill の機械向けの手順が壊れていないことは `tests/package.sh` の出力（全部 ok）で見る。
    **レビュアーが動いている間の頼み直しは断られる。** レビュアーの子課題が `doing` のとき、head を進めて `andon issue review-request <id>` を打つと、0 でない終了コードと理由の 1 行が返り、`report.json` の `review_request` は変わらない。前のレビューの結果が届いたあとは通り、依頼書に再レビューの行が付く。証拠: `go test -run '<足したテストの名前>' ./internal/issue` の出力と、その守りを外したときの FAIL の出力。`model/check` の出力（破れた規則が無い）。
+   **モデルが先に行き止まりを見つける。** `model/check` の出力の規則の並びに、「取り消しを使わずにマージまで行ける」の規則がある。守りを外した見本（`model/broken/` に足す）は、その規則の破れで落ちる。証拠: `model/check` の出力（規則の並び・見本の行・状態の数）。モデルと規則の commit が、command の守りの commit より前にある。証拠: PR の `git log --oneline` の並び。
 2. **`tests/schema.sh` がほかの `tests/*.sh` を回し直さない。** 証拠: CI の tests の job の表で、`tests/schema.sh` の秒が 30 秒以下（今は 102〜220 秒）。command は `gh run view <id> --log | grep -F '| tests/schema.sh |'`。command の出力を schema に通す確かめは減らさない。証拠: `bash tests/schema.sh` の出力のうち「command の出力:」で始まる ok の行の数が、直す前と同じ。緩めた schema での自己検査の ok の行も同じ数だけ残る。
 3. **手元の検査が、軽い検査と対応する重い検査になる。** 証拠: `printf 'internal/retro/apply.go\n' | bash tests/lib/scope.sh` の出力に `tests/andon-dispatcher.sh`・`tests/schema.sh`・`tests/apply-main.sh` が無く、`tests/andon-retro.sh` がある。`printf 'internal/dispatcher/loop.go\n' | bash tests/lib/scope.sh` の出力に `tests/andon-dispatcher.sh` がある。知らないパスを渡したときの出力は、重い検査を含む（安全な側に倒す）。対応の表は `tests/ci.sh` が確かめ、`docs/image.md` の「手元は関係する検査だけ」の表と `AGENTS.md` の文も同じ PR で直す。CI の tests の job が走らせる検査の顔ぶれは変わらない。証拠: 直した後の main の push の run の表に 29 本が並ぶ。
 4. **仕分けの表ができる。** `tests/andon-dispatcher.sh` の 62 節と重い検査（`schema.sh`・`apply-main.sh`・`andon-issue.sh`・`andon-gate.sh`・`image.sh`）について、節ごとに、今確かめていること・防げる手段（lint の規則・動的な検証・型の設計・レイヤの設計・性能の計測・形式仕様・モデル検査・Go のテスト・シェルに残す）・そう見た根拠のファイルと行、を並べた表が調べる課題の報告にある。人が見る（`manual`）。
@@ -117,8 +126,9 @@
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
-1. **レビューを CI と並べる。** 2 つを同じ課題で、守りを先に。
-   - `andon issue review-request` に、その課題のレビュアーが動いている間は別の commit の頼み直しも断る守りを足す（`internal/issue/issue.go`）。課題の一生の動きに触れるので、同じ PR で `model/` と照らす。
+1. **レビューを CI と並べる。** 3 つを同じ課題で、モデル・守り・skill の文の順に。
+   - モデルに CI の状態と、レビュアーがどの commit を見ているかを足し、「取り消しを使わずにマージまで行ける」の規則と、守りを外した見本を足す（`model/`。決めたこと 9）。最初に、検査器でこの規則をどう書けるかを確かめる（不変条件の形で書けなければ、状態の図を読んで確かめる形にする）。規則と見本を足す変更で、弱める変更ではない。
+   - `andon issue review-request` に、その課題のレビュアーが動いている間は別の commit の頼み直しも断る守りを足す（`internal/issue/issue.go`）。課題の一生の動きに触れるので、モデルの検査が通ってから実装する。
    - worker skill の文を直す（`package/skills/worker/SKILL.md`）。§4 の 1 を「PR を出したらすぐ頼む。checks は裏で待つ」にする。CI が落ちたら直して push してよいが、頼み直すのは前のレビューの結果が届いてから。レビューが済んだら checks を待たずに `ready` へ進む。§4 の 2 の「stale は回に数えない」をコードに合わせて直す。§3 の 4 の checks の待ちは、`Review: off` の課題と Chief Engineer の文書の PR のために残す。
    `package/skills/` に触れるので人がマージする。依存は無い。受け入れ条件 1。
 2. **`tests/schema.sh` の回し直しをやめる。** ほかの検査が 1 度目の実行で写した command の出力を、`tests/schema.sh` が読む形にする。依存は無い。受け入れ条件 2。
@@ -132,7 +142,7 @@
 1. 仕分けの表（決めたこと 7）を見たあとに決めること: 足す静的解析の道具・置くレイヤの依存の規則・直す型の設計・モデルに足す規則・検査の秒数の上限。範囲の決断。表ができてから人と決める。
 2. dispatcher 以外のシェルの検査を Go へ移すか。範囲の決断。dispatcher の結果を見てから。
 3. 「CI の job も 2 分以下にする」案（Go だけの PR で image の起動の検査を飛ばす）を入れるか。検査の網を 1 つ外す決断。2026-11-27 の実測を見てから。
-4. statechart と形式検証を、開発からマージまでの流れの効率化にどう使うか。人（2026-11-20）: 「statechartと形式検証はトータルの開発からマージまでのライフサイクルの効率化に有用に思いました」。人が「決めた」と言ったあとの発言で、何をするかはまだ決めていない。範囲の決断。関わる事実: 課題の一生のモデル（`model/IssueLife.tla`）はレビュアーが同時に 2 人いない形で書かれているが、コードはそれを許していて、この食い違いは決めたこと 8 の反論がコードの読みから見つけた。仕分けの表（開いている問い 1）と一緒に人と決める。
+4. statechart と形式検証を、開発からマージまでの流れの全体へどう広げるか。人（2026-11-20）: 「statechartと形式検証はトータルの開発からマージまでのライフサイクルの効率化に有用に思いました」。最初の 1 つ（レビューを CI と並べる変更を、実装の前にモデルで確かめる）は決めたこと 9 で決めた。残るのは、ほかのどの流れをモデルにするか（ゲート・dispatcher の見回り・レビューの回の数え方など）と、何を規則にするか。範囲の決断。仕分けの表（開いている問い 1）と一緒に人と決める。
 
 ## 出典
 
@@ -141,3 +151,4 @@
 - GitHub Actions の実行の記録（tests・go・model の workflow。2026-11-11 〜 2026-11-20）と、PR #300〜#319 の作成・checks・マージの時刻。
 - `tests/andon-dispatcher.sh`・`tests/schema.sh`・`internal/dispatcher/`・`internal/issue/`・`internal/gate/` の `_test.go`。`model/`。[ADR-0025](0025-formal-model-in-repo.md)。
 - 手元（セル）の計測 2026-11-20: `tests/andon-dispatcher.sh` を 1 本だけ走らせた秒と、行ごとの時刻。
+- `model/IssueLife.tla`・`model/IssueRules.tla`・`model/IssueRules.cfg`・`model/check`・`model/expected.txt`・`model/broken/`（決めたこと 9 の事実）。[ADR-0025](0025-formal-model-in-repo.md)。
