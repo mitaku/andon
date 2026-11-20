@@ -101,5 +101,7 @@ for d in cmd/kanban init/bin internal/measure; do
 done
 setup; mkdir -p "$tmp/r/tests"; echo '# 本物の台帳で回す' >"$tmp/r/tests/andon-gate.sh"; expect fail 'tests/andon-gate.sh の「台帳」で落ちる'
 setup; mkdir -p "$tmp/r/internal/process"; echo '台帳の CLI' >"$tmp/r/internal/process/x.go"; expect ok '替えていない範囲（internal/process/）の「台帳」はまだ見ない'
+setup; echo 'gate が kanban の課題を読む。版を上げる' >"$tmp/r/docs/design.md"; expect fail '替えた範囲（docs/design.md）の「版」で落ちる'
+setup; echo '日本語の呼び名を「台帳」のままにした。2006 版では' >"$tmp/r/docs/design.md"; expect ok 'docs/design.md の「」の中と「2006 版」は通る'
 
 exit "$fail"

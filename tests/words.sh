@@ -96,7 +96,7 @@ echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）�
 #   tests/andon-issue.sh の --arg r "ゲートの記録 …）、internal/gate/ の Go のうち行の末尾に「// 古い語を読む（ADR-0040 決めたこと 7）」
 #   と書いた行（gate の理由の文の正規表現、gate の問いの事実の行の古い頭、その検査）。
 # 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。internal/process/ は流れの定義と一緒に替えるまで外す。
-old_paths=(package .yomiyasu-words internal cmd init tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh)
+old_paths=(package .yomiyasu-words internal cmd init tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh docs/design.md)
 existing=()
 for p in "${old_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
