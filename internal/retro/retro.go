@@ -4,6 +4,9 @@
 // 期間に片付いた担当の課題ごとに記録を1件に束ね（レビュアーの子は親へ）、期間にオーナーが打った文をセッションログから抜き、
 // 前の振り返りが切った直しのうちマージから 14 日以内のものを並べ、マージ後のこと（マージ commit の checks・revert の PR）を
 // GitHub から読む。出力の文字列は全部、秘密の形に合うものを伏せてから書く。形は docs/contract.md §20。
+//
+// 束は、前の振り返りが集めたあと（境目より後）に片付いたものを全文で、それより前のものを要約で出す（ADR-0039 決めたこと 6）。
+// 新しい束が fullLimit 件を超えたら、新しい順に fullLimit 件を全文にし、残りを要約にする。全文の束1件は --issue で引ける。
 package retro
 
 import (
@@ -32,13 +35,14 @@ import (
 )
 
 // Usage は andon retro の使い方。
-const Usage = "usage: andon retro collect [--days N]                       振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）\n" +
+const Usage = "usage: andon retro collect [--days N] [--issue <id>]        振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）\n" +
 	"       andon retro patterns <id> [--days N] <patterns.json|->  パターンの一覧を検査して library/retro.json に書く（振り返りの担当。§21）\n" +
 	"       andon retro apply <id> [--dry-run]                      パターンの一覧の fix を直す課題に切る（Chief of Staff。§21）\n" +
 	"collect: 直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・ゲートの判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
 	"見送り・オーナーの手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
-	"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のものを出す。\n" +
-	"秘密の形に合う文字列は伏せてから出す。\n" +
+	"前の振り返りが集めたあとに片付いた束は全文（新しい順に 100 件まで）、それより前の束は要約（題・PR・つまずきの跡の見出し）で出す。\n" +
+	"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のもの\n" +
+	"（前の振り返りが書いた再発の数つき）を出す。--issue は期間の束1件を全文で出す。秘密の形に合う文字列は伏せてから出す。\n" +
 	"patterns: collect と同じ入力を集め直し、根拠が別々の2件以上か・入力にあるか・前の振り返りより後のものがあるか・\n" +
 	"skill と文面の直しに上の段で止められない理由があるか・全部に判定があるか・前の直しの見立てが揃うかを確かめる（fix の数は確かめない）。\n" +
 	"apply: library/retro.json を同じ窓で照らし直し、fix ごとに一覧の順で直す課題（parent は振り返りの課題）を1件足す。\n" +
@@ -53,7 +57,11 @@ const (
 	retroFile   = "retro.json"
 	retroName   = "retro" // 振り返りのルーチンの名前（issue.yaml の routine）
 	journalFile = "journal.md"
+	lineMax     = 160 // 要約の束の1行を切る長さ（字）
 )
+
+// fullLimit は全文で出す新しい束の数の上限（ADR-0039 決めたこと 6 の細部）。テストが小さくする。
+var fullLimit = 100
 
 // Options は集める入力。
 type Options struct {
@@ -68,52 +76,106 @@ type Options struct {
 	Package string
 	// Exclude は前の振り返りに数えない課題（パターンの一覧を書く・当てる振り返りの課題自身）。
 	Exclude string
+	// Issue があれば、期間の束のうちその課題だけを全文で集める（--issue）。オーナーが打った文と前の直しは集めない。
+	Issue string
 }
 
 // Input は andon retro collect の出力（schema/retro.schema.json）。
 type Input struct {
-	Project       string     `json:"project"`
-	At            string     `json:"at"`
-	Since         string     `json:"since"`
-	Until         string     `json:"until"`
-	PreviousRetro *PrevRetro `json:"previous_retro"`
-	Issues        []Bundle   `json:"issues"`
-	Typed         []Typed    `json:"typed"`
-	Fixes         []Fix      `json:"fixes"`
-	Redacted      int        `json:"redacted"`
-	Skipped       []Skip     `json:"skipped"`
+	Project       string       `json:"project"`
+	At            string       `json:"at"`
+	Since         string       `json:"since"`
+	Until         string       `json:"until"`
+	PreviousRetro *PrevRetroIn `json:"previous_retro"`
+	Boundary      *string      `json:"boundary"`
+	Issues        []Bundle     `json:"issues"`
+	Summaries     []Summary    `json:"summaries"`
+	Cut           *Cut         `json:"cut"`
+	Typed         []Typed      `json:"typed"`
+	Fixes         []Fix        `json:"fixes"`
+	Redacted      int          `json:"redacted"`
+	Skipped       []Skip       `json:"skipped"`
 }
 
-// PrevRetro は前の振り返りの課題（片付いたもののうち最後）。
+// PrevRetro は前の振り返りの課題（片付いたもののうち最後）。パターンの一覧（retro.json）に写す形。
 type PrevRetro struct {
 	Issue  string `json:"issue"`
 	DoneAt string `json:"done_at"`
 }
 
+// PrevRetroIn は入力の前の振り返り。Until は前の振り返りが集めた時刻（その retro.json の until）で、読めなければ nil。
+type PrevRetroIn struct {
+	Issue  string  `json:"issue"`
+	DoneAt string  `json:"done_at"`
+	Until  *string `json:"until"`
+}
+
+// Cut は新しい束が fullLimit 件を超えて、古いほうを要約にしたこと。
+type Cut struct {
+	New  int `json:"new"`
+	Full int `json:"full"`
+}
+
+// Summary は要約の束（境目より前に片付いた課題）。つまずきの跡の見出しだけを持つ。全文は --issue で引く。
+type Summary struct {
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	DoneAt      string   `json:"done_at"`
+	PR          *string  `json:"pr"`
+	Findings    []string `json:"findings"`
+	GateFixes   []string `json:"gate_fixes"`
+	Corrections *bool    `json:"corrections"`
+	Remember    int      `json:"remember"`
+}
+
+// Launch は起動の記録1行のうち、パターンを拾うのに使う所（ADR-0039 決めたこと 6 の細部）。全文は library の launches.jsonl。
+type Launch struct {
+	At      string  `json:"at"`
+	Profile string  `json:"profile"`
+	Model   *string `json:"model"`
+	Commit  *string `json:"commit"`
+}
+
+// OutcomeView は結果の記録のうち、結果の値・実働・コストの合計。全文は library の outcome.json。
+type OutcomeView struct {
+	Result        string `json:"result"`
+	WorkedMinutes *int   `json:"worked_minutes"`
+	Cost          *Cost  `json:"cost"`
+}
+
+// Cost はセッションのコストの合計。Measured はコストを読めたセッションの数で、トークンはその合計。
+type Cost struct {
+	Sessions int            `json:"sessions"`
+	Measured int            `json:"measured"`
+	Tokens   map[string]int `json:"tokens"`
+}
+
 // Bundle は片付いた担当の課題1件に束ねた記録。根拠として指す id は課題の id。
 type Bundle struct {
-	ID               string           `json:"id"`
-	Title            string           `json:"title"`
-	Profile          string           `json:"profile"`
-	Repo             *string          `json:"repo"`
-	DoneAt           string           `json:"done_at"`
-	Library          string           `json:"library"`
-	Estimate         *string          `json:"estimate"`
-	AgentEstimate    *string          `json:"agent_estimate"`
-	WorkedMinutes    *int             `json:"worked_minutes"`
-	PR               *string          `json:"pr"`
-	Launches         []map[string]any `json:"launches"`
-	Outcome          map[string]any   `json:"outcome"`
-	Gates            []Gate           `json:"gates"`
-	Reviews          []Review         `json:"reviews"`
-	Waived           []any            `json:"waived"`
-	Corrections      []any            `json:"corrections"`
-	Remember         []string         `json:"remember"`
-	AgentsMD         []string         `json:"agents_md"`
-	Journal          *string          `json:"journal"`
-	AfterMerge       *AfterMerge      `json:"after_merge"`
-	Reapplied        *bool            `json:"reapplied"`
-	ReappliedReasons []string         `json:"reapplied_reasons"`
+	ID               string       `json:"id"`
+	Title            string       `json:"title"`
+	Profile          string       `json:"profile"`
+	Repo             *string      `json:"repo"`
+	DoneAt           string       `json:"done_at"`
+	Library          string       `json:"library"`
+	Estimate         *string      `json:"estimate"`
+	AgentEstimate    *string      `json:"agent_estimate"`
+	WorkedMinutes    *int         `json:"worked_minutes"`
+	PR               *string      `json:"pr"`
+	Launches         []Launch     `json:"launches"`
+	Outcome          *OutcomeView `json:"outcome"`
+	Gates            []Gate       `json:"gates"`
+	Reviews          []Review     `json:"reviews"`
+	Waived           []any        `json:"waived"`
+	Corrections      []any        `json:"corrections"`
+	Remember         []string     `json:"remember"`
+	AgentsMD         []string     `json:"agents_md"`
+	Journal          *string      `json:"journal"`
+	AfterMerge       *AfterMerge  `json:"after_merge"`
+	Reapplied        *bool        `json:"reapplied"`
+	ReappliedReasons []string     `json:"reapplied_reasons"`
+
+	mergeCommit string // outcome.json の merge_commit（GitHub がマージ commit を返さないとき、マージ後のことに使う）
 }
 
 // Gate はゲートの記録1枚（head ごとの最後の判定）の写し。
@@ -148,6 +210,9 @@ type Fix struct {
 	PR          string `json:"pr"`
 	MergedAt    string `json:"merged_at"`
 	IssuesAfter int    `json:"issues_after"`
+	// RecurredBefore は前の振り返りが書いた再発の数（その retro.json の fixes[].recurred）。マージが境目より後なら 0
+	// （境目より前に数える出来事が無い）。どちらでもなければ nil で、担当は要約の束でも数える（ADR-0039 決めたこと 6 の細部）。
+	RecurredBefore *int `json:"recurred_before"`
 }
 
 // task は issue.yaml から読む所。
@@ -191,7 +256,7 @@ func Collect(o Options) (*Input, error) {
 	until := o.Now.UTC()
 	since := until.Add(-time.Duration(o.Days) * 24 * time.Hour)
 	in := &Input{Project: filepath.Base(o.Root), At: until.Format(time.RFC3339), Since: since.Format(time.RFC3339),
-		Until: until.Format(time.RFC3339), Issues: []Bundle{}, Typed: []Typed{}, Fixes: []Fix{}}
+		Until: until.Format(time.RFC3339), Issues: []Bundle{}, Summaries: []Summary{}, Typed: []Typed{}, Fixes: []Fix{}}
 
 	tasks := r.tasks()
 	byID := map[string]*task{}
@@ -206,63 +271,138 @@ func Collect(o Options) (*Input, error) {
 		}
 	}
 	// 前の振り返り: 期間の終わりまでに片付いた振り返りの課題のうち最後（自分自身は数えない）
+	var prev *PrevRetro
 	for id := range retros {
 		at, ok := done[id]
 		if !ok || byID[id].status != "done" || id == o.Exclude || at.After(until) {
 			continue
 		}
-		if in.PreviousRetro == nil || at.After(mustTime(in.PreviousRetro.DoneAt)) ||
-			(at.Equal(mustTime(in.PreviousRetro.DoneAt)) && id > in.PreviousRetro.Issue) {
-			in.PreviousRetro = &PrevRetro{Issue: id, DoneAt: at.UTC().Format(time.RFC3339)}
+		if prev == nil || at.After(mustTime(prev.DoneAt)) || (at.Equal(mustTime(prev.DoneAt)) && id > prev.Issue) {
+			prev = &PrevRetro{Issue: id, DoneAt: at.UTC().Format(time.RFC3339)}
 		}
+	}
+	// 境目: 前の振り返りが集めた時刻（その retro.json の until）。読めなければ片付いた時刻（ADR-0039 決めたこと 6）。
+	var boundary time.Time
+	recurred := map[string]int{}
+	if prev != nil {
+		in.PreviousRetro = &PrevRetroIn{Issue: prev.Issue, DoneAt: prev.DoneAt}
+		boundary = mustTime(prev.DoneAt)
+		if p := r.prevPatterns(prev.Issue); p != nil {
+			if pu := mustTime(p.Until); !pu.After(boundary) {
+				boundary = pu
+				in.PreviousRetro.Until = &p.Until
+				for _, f := range p.Fixes {
+					recurred[f.Issue] = *f.Recurred
+				}
+			} else {
+				r.skip(r.rel(filepath.Join(r.dir, "issues", prev.Issue, "library", retroFile)), "until が片付いた時刻より後。境目は片付いた時刻にする")
+			}
+		}
+		b := boundary.UTC().Format(time.RFC3339)
+		in.Boundary = &b
 	}
 
 	gh := newGitHub(r, o.GH)
 	applied, appliedErr := readApplied(o.Package)
+	var cands []*task
 	for _, t := range tasks {
 		at, ok := done[t.id]
 		if t.status != "done" || !t.worker() || retros[t.id] || !ok || at.Before(since) || at.After(until) {
 			continue
 		}
-		b := r.bundle(t, at, tasks)
+		if o.Issue != "" && t.id != o.Issue {
+			continue
+		}
+		cands = append(cands, t)
+	}
+	// 片付いた順（同じ時刻は id の順）
+	sort.SliceStable(cands, func(i, j int) bool {
+		ai, aj := done[cands[i].id], done[cands[j].id]
+		if !ai.Equal(aj) {
+			return ai.Before(aj)
+		}
+		return cands[i].id < cands[j].id
+	})
+	// 全文にする束: 境目より後に片付いたもの。fullLimit 件を超えたら新しい順に fullLimit 件（--issue はいつも全文）
+	full := map[string]bool{}
+	var fresh []*task
+	for _, t := range cands {
+		if o.Issue != "" || prev == nil || done[t.id].After(boundary) {
+			fresh = append(fresh, t)
+		}
+	}
+	if o.Issue == "" && len(fresh) > fullLimit {
+		in.Cut = &Cut{New: len(fresh), Full: fullLimit}
+		fresh = fresh[len(fresh)-fullLimit:]
+	}
+	for _, t := range fresh {
+		full[t.id] = true
+	}
+	for _, t := range cands {
+		b, raw := r.bundle(t, done[t.id], tasks)
+		if !full[t.id] {
+			in.Summaries = append(in.Summaries, r.summary(b))
+			continue
+		}
 		b.AfterMerge = gh.afterMerge(b)
-		b.Reapplied, b.ReappliedReasons = reapplied(b, done, applied, appliedErr)
+		b.Reapplied, b.ReappliedReasons = reapplied(raw, b.DoneAt, applied, appliedErr)
 		in.Issues = append(in.Issues, b)
 	}
-	sort.SliceStable(in.Issues, func(i, j int) bool {
-		if in.Issues[i].DoneAt != in.Issues[j].DoneAt {
-			return in.Issues[i].DoneAt < in.Issues[j].DoneAt
-		}
-		return in.Issues[i].ID < in.Issues[j].ID
-	})
 
-	// 前の直し
-	for _, t := range tasks {
-		if !retros[t.parent] || t.reviewer() || t.status != "done" {
-			continue
-		}
-		f, ok := r.fix(t, gh, until)
-		if !ok {
-			continue
-		}
-		merged := mustTime(f.MergedAt)
-		for _, x := range tasks {
-			if at, ok := done[x.id]; ok && x.status == "done" && x.worker() && !retros[x.id] && x.id != t.id && at.After(merged) {
-				f.IssuesAfter++
+	if o.Issue == "" {
+		// 前の直し
+		for _, t := range tasks {
+			if !retros[t.parent] || t.reviewer() || t.status != "done" {
+				continue
 			}
+			f, ok := r.fix(t, gh, until)
+			if !ok {
+				continue
+			}
+			merged := mustTime(f.MergedAt)
+			for _, x := range tasks {
+				if at, ok := done[x.id]; ok && x.status == "done" && x.worker() && !retros[x.id] && x.id != t.id && at.After(merged) {
+					f.IssuesAfter++
+				}
+			}
+			if n, ok := recurred[f.Issue]; ok {
+				f.RecurredBefore = &n
+			} else if prev == nil || !merged.Before(boundary) {
+				zero := 0
+				f.RecurredBefore = &zero
+			}
+			in.Fixes = append(in.Fixes, f)
 		}
-		in.Fixes = append(in.Fixes, f)
-	}
-	sort.SliceStable(in.Fixes, func(i, j int) bool { return in.Fixes[i].MergedAt < in.Fixes[j].MergedAt })
+		sort.SliceStable(in.Fixes, func(i, j int) bool { return in.Fixes[i].MergedAt < in.Fixes[j].MergedAt })
 
-	if o.ClaudeDir != "" {
-		in.Typed = r.typed(tasks, since, until)
+		if o.ClaudeDir != "" {
+			in.Typed = r.typed(tasks, since, until)
+		}
 	}
 	in.Skipped = r.skipped
 	if in.Skipped == nil {
 		in.Skipped = []Skip{}
 	}
 	return in, nil
+}
+
+// prevPatterns は前の振り返りの retro.json を読む。無ければ nil。読めなければ skipped に足して nil。
+func (r *reader) prevPatterns(id string) *Patterns {
+	path := filepath.Join(r.dir, "issues", id, "library", retroFile)
+	b, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		r.skip(r.rel(path), "読めない。境目は片付いた時刻にする")
+		return nil
+	}
+	p, err := ParsePatterns(b)
+	if err != nil {
+		r.skip(r.rel(path), "形が違う（%v）。境目は片付いた時刻にする", err)
+		return nil
+	}
+	return p
 }
 
 // tasks は issues/*/issue.yaml を id の順に読む。読めない課題は飛ばす。
@@ -317,8 +457,8 @@ func doneTimes(rows []ledger.Row) map[string]time.Time {
 	return out
 }
 
-// bundle は課題1件の記録を束ねる。
-func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) Bundle {
+// bundle は課題1件の記録を束ねる。起動の記録は、束に入れる形と、当て直しの印を決めるための元の行の両方を返す。
+func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) (Bundle, []map[string]any) {
 	lib := filepath.Join(r.dir, "issues", t.id, "library")
 	if a, err := filepath.Abs(lib); err == nil {
 		lib = a
@@ -326,13 +466,17 @@ func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) Bundle {
 	b := Bundle{ID: t.id, Title: t.title, Profile: t.profile, Repo: strPtr(t.repo), DoneAt: doneAt.UTC().Format(time.RFC3339),
 		Library: lib, Estimate: strPtr(t.estimate), Gates: []Gate{}, Reviews: []Review{}, Waived: []any{},
 		Remember: []string{}, AgentsMD: []string{}, ReappliedReasons: []string{}}
-	b.Launches = r.launches(filepath.Join(lib, launch.File))
-	b.Outcome = r.object(filepath.Join(lib, "outcome.json"))
-	if b.Outcome != nil {
-		if n, ok := b.Outcome["worked_minutes"].(float64); ok {
-			m := int(n)
-			b.WorkedMinutes = &m
+	raw := r.launches(filepath.Join(lib, launch.File))
+	if raw != nil {
+		b.Launches = []Launch{}
+		for _, l := range raw {
+			b.Launches = append(b.Launches, launchView(l))
 		}
+	}
+	if o := r.object(filepath.Join(lib, "outcome.json")); o != nil {
+		b.Outcome = outcomeView(o)
+		b.mergeCommit, _ = o["merge_commit"].(string)
+		b.WorkedMinutes = b.Outcome.WorkedMinutes
 	}
 	b.Gates = r.gates(filepath.Join(lib, "gate"))
 	if rep := r.object(filepath.Join(lib, "report.json")); rep != nil {
@@ -371,7 +515,172 @@ func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) Bundle {
 		b.Reviews = append(b.Reviews, Review{ID: c.id, Profile: c.profile,
 			Findings: r.object(filepath.Join(clib, "findings.json")), Outcome: r.object(filepath.Join(clib, "outcome.json"))})
 	}
-	return b
+	return b, raw
+}
+
+// launchView は起動の記録1行から、パッケージの commit・プロファイル・モデル（起動行の --model か -m）と時刻だけを取る。
+func launchView(l map[string]any) Launch {
+	v := Launch{}
+	v.At, _ = l["at"].(string)
+	v.Profile, _ = l["profile"].(string)
+	if p, ok := l["package"].(map[string]any); ok {
+		if c, ok := p["commit"].(string); ok && c != "" {
+			v.Commit = &c
+		}
+	}
+	if c, ok := l["command"].(string); ok {
+		v.Model = modelOf(c)
+	}
+	return v
+}
+
+// modelOf は起動行からモデルの名前を読む（Claude Code の --model、Codex の -m）。無ければ nil。
+func modelOf(command string) *string {
+	f := strings.Fields(command)
+	for i, x := range f {
+		var m string
+		switch {
+		case (x == "--model" || x == "-m") && i+1 < len(f):
+			m = f[i+1]
+		case strings.HasPrefix(x, "--model="):
+			m = strings.TrimPrefix(x, "--model=")
+		default:
+			continue
+		}
+		if m = strings.Trim(m, `"'`); m != "" {
+			return &m
+		}
+	}
+	return nil
+}
+
+// outcomeView は結果の記録から、結果の値・実働・セッションのコストの合計だけを取る。
+func outcomeView(o map[string]any) *OutcomeView {
+	v := &OutcomeView{}
+	v.Result, _ = o["result"].(string)
+	if n, ok := o["worked_minutes"].(float64); ok {
+		m := int(n)
+		v.WorkedMinutes = &m
+	}
+	ss, ok := o["sessions"].([]any)
+	if !ok {
+		return v
+	}
+	c := &Cost{Sessions: len(ss), Tokens: map[string]int{}}
+	for _, k := range []string{"input", "output", "cache_read", "cache_write"} {
+		c.Tokens[k] = 0
+	}
+	for _, x := range ss {
+		s, _ := x.(map[string]any)
+		cost, _ := s["cost"].(map[string]any)
+		tok, ok := cost["tokens"].(map[string]any)
+		if !ok {
+			continue
+		}
+		c.Measured++
+		for k := range c.Tokens {
+			if n, ok := tok[k].(float64); ok {
+				c.Tokens[k] += int(n)
+			}
+		}
+	}
+	v.Cost = c
+	return v
+}
+
+// summary は束を要約にする: id・題・片付いた時刻・PR と、つまずきの跡の見出し（ADR-0039 決めたこと 6 の細部）。
+//   - findings: レビュアーの子の major 以上の指摘（課題の前からあった指摘は除く）ごとに1行。レビュアーの報告で、その指摘の
+//     ファイル:行を含む最初の行（字下げした次の行が続けば足す）。報告に無ければ「<重さ> <ファイル>:<行>」
+//   - gate_fixes: ゲートが fix を返した理由（重なりは1つ）
+//   - corrections: 「人がマージした」以外の手直しがあるか。手直しの記録が無ければ null（集めていない）
+//   - remember: Remember の行数
+func (r *reader) summary(b Bundle) Summary {
+	s := Summary{ID: b.ID, Title: b.Title, DoneAt: b.DoneAt, PR: b.PR, Findings: []string{}, GateFixes: []string{}, Remember: len(b.Remember)}
+	for _, rv := range b.Reviews {
+		fs, _ := rv.Findings["findings"].([]any)
+		var report []string
+		for _, x := range fs {
+			f, _ := x.(map[string]any)
+			sev, _ := f["severity"].(string)
+			if (sev != "critical" && sev != "major") || f["preexisting"] == true {
+				continue
+			}
+			file, _ := f["file"].(string)
+			n, _ := f["line"].(float64)
+			loc := file + ":" + strconv.Itoa(int(n))
+			if report == nil {
+				report = r.lines(filepath.Join(r.dir, "issues", rv.ID, "report.md"))
+			}
+			s.Findings = append(s.Findings, clip(findingLine(report, loc, sev)))
+		}
+	}
+	seen := map[string]bool{}
+	for _, g := range b.Gates {
+		if g.Decision != "fix" {
+			continue
+		}
+		for _, x := range g.Reasons {
+			if x = clip(x); !seen[x] {
+				seen[x] = true
+				s.GateFixes = append(s.GateFixes, x)
+			}
+		}
+	}
+	if b.Corrections != nil {
+		v := false
+		for _, c := range b.Corrections {
+			if !ownerMerged(c) {
+				v = true
+				break
+			}
+		}
+		s.Corrections = &v
+	}
+	return s
+}
+
+// lines はファイルを行に分けて読む。無い・読めなければ空（読めないときは skipped に1行）。
+func (r *reader) lines(path string) []string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			r.skip(r.rel(path), "読めない")
+		}
+		return []string{}
+	}
+	return strings.Split(string(b), "\n")
+}
+
+// findingLine はレビュアーの報告から、指摘の場所 loc を含む最初の行を取る。次の行が字下げしていれば続きとして足す。
+func findingLine(report []string, loc, sev string) string {
+	for i, l := range report {
+		if !strings.Contains(l, loc) {
+			continue
+		}
+		out := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "- "))
+		if i+1 < len(report) && strings.HasPrefix(report[i+1], " ") && strings.TrimSpace(report[i+1]) != "" {
+			out += " " + strings.TrimSpace(report[i+1])
+		}
+		return out
+	}
+	return sev + " " + loc
+}
+
+// ownerMerged は手直しが、ゲートの問いをオーナーがマージして閉じた答え（「人がマージした（…）」。今の版は「オーナーがマージした（…）」）か。
+func ownerMerged(c any) bool {
+	m, _ := c.(map[string]any)
+	a, _ := m["answer"].(string)
+	return m["kind"] == "override" && m["question"] != nil &&
+		(strings.HasPrefix(a, "人がマージした") || strings.HasPrefix(a, "オーナーがマージした"))
+}
+
+// clip は1行にして lineMax 字で切る（切ったら末尾に …）。
+func clip(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if rs := []rune(s); len(rs) > lineMax {
+		return string(rs[:lineMax]) + "…"
+	}
+	return s
 }
 
 // object は JSON の object のファイルを読む。無ければ nil。読めなければ skipped に足して nil。
@@ -511,12 +820,12 @@ func readApplied(root string) (*applied, error) {
 //   - 起動の記録のパッケージの commit が、起動ごとに違う（当て直しの記録は最後の1回しか残らないので、前の当て直しはこちらで拾う）
 //
 // どちらでもなく、どちらかを確かめられない（起動の記録が無い・当て直しの記録が読めない）なら null。
-func reapplied(b Bundle, _ map[string]time.Time, a *applied, aerr error) (*bool, []string) {
+func reapplied(launches []map[string]any, doneAt string, a *applied, aerr error) (*bool, []string) {
 	reasons := []string{}
 	yes, unknown := false, false
 	var start time.Time
 	commits := map[string]bool{}
-	for _, l := range b.Launches {
+	for _, l := range launches {
 		if s, ok := l["at"].(string); ok {
 			if at, err := time.Parse(time.RFC3339, s); err == nil && (start.IsZero() || at.Before(start)) {
 				start = at
@@ -532,7 +841,7 @@ func reapplied(b Bundle, _ map[string]time.Time, a *applied, aerr error) (*bool,
 		yes = true
 		reasons = append(reasons, fmt.Sprintf("起動の記録のパッケージの commit が %d 通りある", len(commits)))
 	}
-	end := mustTime(b.DoneAt)
+	end := mustTime(doneAt)
 	switch {
 	case aerr != nil:
 		unknown = true
@@ -594,7 +903,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return usage()
 	}
 	cmd, args := args[0], args[1:]
-	days, id, src, dry := defaultDays, "", "", false
+	days, id, src, dry, one := defaultDays, "", "", false, ""
 	if cmd == "patterns" || cmd == "apply" {
 		if len(args) == 0 {
 			return usage()
@@ -616,6 +925,13 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				return 2
 			}
 			days = n
+			args = args[2:]
+		case args[0] == "--issue" && len(args) >= 2 && cmd == "collect" && one == "":
+			one = ledger.CanonID(args[1])
+			if !idRe.MatchString(one) {
+				fmt.Fprintf(stderr, "andon retro: id %q が不正\n", args[1])
+				return 2
+			}
 			args = args[2:]
 		case args[0] == "--dry-run" && cmd == "apply":
 			dry = true
@@ -642,7 +958,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var err error
 	switch cmd {
 	case "collect":
-		err = runCollect(root, days, stdout)
+		err = runCollect(root, days, one, stdout, stderr)
 	case "patterns":
 		err = runPatterns(root, id, days, src, stdin, stdout)
 	case "apply":
@@ -655,15 +971,40 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runCollect(root string, days int, stdout io.Writer) error {
-	in, err := Collect(Options{Root: root, Now: time.Now(), Days: days, GH: GH,
-		ClaudeDir: sessionlog.ClaudeDir(), Package: pkgversion.Home()})
+func runCollect(root string, days int, issue string, stdout, stderr io.Writer) error {
+	o := Options{Root: root, Now: time.Now(), Days: days, GH: GH, Package: pkgversion.Home(), Issue: issue}
+	if issue == "" {
+		o.ClaudeDir = sessionlog.ClaudeDir()
+	}
+	in, err := Collect(o)
 	if err != nil {
 		return err
+	}
+	if issue != "" && len(in.Issues) == 0 {
+		return fmt.Errorf("%s は期間（%s〜%s）に片付いた担当の課題でない", issue, in.Since, in.Until)
 	}
 	b, _, err := Redacted(in)
 	if err != nil {
 		return err
+	}
+	if issue != "" {
+		// 束1件だけを出す（形は issues[] の1件。照らしたのは入力の形の中で）。読めなかったものは stderr に1行ずつ
+		var v struct {
+			Issues  []json.RawMessage `json:"issues"`
+			Skipped []Skip            `json:"skipped"`
+		}
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+		for _, sk := range v.Skipped {
+			fmt.Fprintf(stderr, "andon retro: 読めなかった: %s: %s\n", sk.Source, sk.Reason)
+		}
+		var out bytes.Buffer
+		if err := json.Indent(&out, v.Issues[0], "", "  "); err != nil {
+			return err
+		}
+		out.WriteByte('\n')
+		b = out.Bytes()
 	}
 	_, err = stdout.Write(b)
 	return err

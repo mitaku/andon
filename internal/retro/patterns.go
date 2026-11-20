@@ -173,6 +173,12 @@ func evidenceUnit(id string, in *Input) (unit string, at time.Time, ok bool) {
 			return "issue:" + b.ID, mustTime(b.DoneAt), true
 		}
 	}
+	// 要約の束も根拠に指せる（ADR-0039 決めたこと 6）
+	for _, b := range in.Summaries {
+		if b.ID == id {
+			return "issue:" + b.ID, mustTime(b.DoneAt), true
+		}
+	}
 	for _, t := range in.Typed {
 		if t.ID != id {
 			continue
@@ -189,11 +195,11 @@ func evidenceUnit(id string, in *Input) (unit string, at time.Time, ok bool) {
 	return "", time.Time{}, false
 }
 
-// checkEvidence は根拠を集めた入力に照らす: 実在・別々の2件以上・前の振り返りより後のものが1件以上。
+// checkEvidence は根拠を集めた入力に照らす: 実在・別々の2件以上・境目（前の振り返りが集めた時刻）より後のものが1件以上。
 func checkEvidence(ps []Pattern, in *Input) error {
 	var prev time.Time
-	if in.PreviousRetro != nil {
-		prev = mustTime(in.PreviousRetro.DoneAt)
+	if in.Boundary != nil {
+		prev = mustTime(*in.Boundary)
 	}
 	for _, p := range ps {
 		units := map[string]bool{}
@@ -204,7 +210,7 @@ func checkEvidence(ps []Pattern, in *Input) error {
 				return fmt.Errorf("パターン %s の根拠 %q が集めた入力（期間 %s〜%s の課題とオーナーの文）に無い", p.ID, id, in.Since, in.Until)
 			}
 			units[unit] = true
-			if in.PreviousRetro == nil || at.After(prev) {
+			if in.Boundary == nil || at.After(prev) {
 				newer = true
 			}
 		}
@@ -212,21 +218,31 @@ func checkEvidence(ps []Pattern, in *Input) error {
 			return fmt.Errorf("パターン %s の根拠が別々の2件に満たない（%d 件。同じ課題の中・同じセッションの中の2回は1件と数える）。1回だけの出来事から直さない", p.ID, len(units))
 		}
 		if !newer {
-			return fmt.Errorf("パターン %s の根拠がどれも前の振り返り %s（%s に片付いた）より前。新しい出来事が1件以上要る", p.ID, in.PreviousRetro.Issue, in.PreviousRetro.DoneAt)
+			by := ""
+			if in.PreviousRetro != nil {
+				by = "（前の振り返り " + in.PreviousRetro.Issue + " が集めた時刻）"
+			}
+			return fmt.Errorf("パターン %s の根拠がどれも境目 %s%s より前。新しい出来事が1件以上要る", p.ID, *in.Boundary, by)
 		}
 	}
 	return nil
 }
 
-// checkFixes は前の直しの見立てが、集めた入力の前の直しと過不足なく合うかを確かめる。
+// checkFixes は前の直しの見立てが、集めた入力の前の直しと過不足なく合うかを確かめる。再発の数は足し算なので、
+// 前の振り返りが数えた数（recurred_before）より少なくはならない（ADR-0039 決めたこと 6）。
 func checkFixes(fixes []FixView, in *Input) error {
 	want := map[string]bool{}
+	before := map[string]*int{}
 	for _, f := range in.Fixes {
 		want[f.Issue] = true
+		before[f.Issue] = f.RecurredBefore
 	}
 	for _, f := range fixes {
 		if !want[f.Issue] {
 			return fmt.Errorf("前の直し %s が集めた入力の fixes に無い", f.Issue)
+		}
+		if b := before[f.Issue]; b != nil && *f.Recurred < *b {
+			return fmt.Errorf("前の直し %s の recurred %d が、前の振り返りが数えた %d より少ない（前の数に、全文の束で見つけた再発を足す）", f.Issue, *f.Recurred, *b)
 		}
 		delete(want, f.Issue)
 	}

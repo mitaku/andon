@@ -83,7 +83,11 @@ func runPatterns(root, id string, days int, src string, stdin io.Reader, stdout 
 	if err := CheckPatterns(in.Patterns, in.Fixes, col, l.Repos(), true); err != nil {
 		return err
 	}
-	p := Patterns{Retro: id, At: col.At, Since: col.Since, Until: col.Until, Days: days, PreviousRetro: col.PreviousRetro,
+	var prev *PrevRetro
+	if col.PreviousRetro != nil {
+		prev = &PrevRetro{Issue: col.PreviousRetro.Issue, DoneAt: col.PreviousRetro.DoneAt}
+	}
+	p := Patterns{Retro: id, At: col.At, Since: col.Since, Until: col.Until, Days: days, PreviousRetro: prev,
 		Patterns: in.Patterns, Fixes: in.Fixes}
 	if err := os.MkdirAll(l.Library(id), 0o755); err != nil {
 		return err
@@ -268,6 +272,18 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 				}
 			}
 			fmt.Fprintf(&b, "- %s: %s（課題。%s に片付いた。%s）\n", bd.ID, bd.Title, bd.DoneAt, pr)
+			continue
+		}
+		if i := slices.IndexFunc(in.Summaries, func(sm Summary) bool { return sm.ID == ev }); i >= 0 {
+			sm := in.Summaries[i]
+			pr := "PR 無し"
+			if sm.PR != nil {
+				pr = "PR " + *sm.PR
+				if !slices.Contains(prs, *sm.PR) {
+					prs = append(prs, *sm.PR)
+				}
+			}
+			fmt.Fprintf(&b, "- %s: %s（課題。%s に片付いた。%s）\n", sm.ID, sm.Title, sm.DoneAt, pr)
 			continue
 		}
 		if i := slices.IndexFunc(in.Typed, func(t Typed) bool { return t.ID == ev }); i >= 0 {
