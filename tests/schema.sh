@@ -9,7 +9,7 @@
 #      台帳の CLI（kanban）が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
-#   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルと人に端末を指す言い方がある。
+#   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルとオーナーに端末を指す言い方がある。
 # 道具は python3（標準ライブラリだけ。package/lib/andon/schema_check.py）と jq。
 # 速さ: 検査は1件ずつ python にかけず、queue で溜めて flush で schema_check.py batch に1回で渡す（python の起動と検査器の読み込みが律速だった）。
 set -euo pipefail
@@ -407,8 +407,8 @@ fail|notification|.kind = "gate" | .detail = {decision: "approve", reasons: [], 
 fail|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json", no_agent: false}|gate の no_agent が true でない
 fail|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json", no_agent: true, unsent: "t7"}|gate に no_agent と unsent が一緒
 pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}|kind merged
-pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person"}|kind merged（人がマージした）
-pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person", held: "x"}|kind merged（人がマージしたが片付けていない）
+pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person"}|kind merged（オーナーがマージした）
+pass|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "person", held: "x"}|kind merged（オーナーがマージしたが片付けていない）
 fail|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", held: "x"}|merged の held に by が無い
 fail|notification|.kind = "merged" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", by: "dispatcher"}|merged の by が person でない
 pass|notification|.kind = "closed" | .detail = {pr: .detail.pr}|kind closed
@@ -679,8 +679,8 @@ pass|retro|.previous_retro = null|前の振り返りが無い
 pass|retro|.issues[0].launches = null|起動の記録の無い課題（この仕組みの前）
 pass|retro|.issues[0].after_merge = null|マージされていない課題
 pass|retro|.issues[0].reapplied = null|当て直しを確かめられない
-fail|retro|.typed[0].role = "person"|人の文の role が知らない値
-fail|retro|.typed[0].id = "u1"|人の文の id が h- で始まらない
+fail|retro|.typed[0].role = "person"|オーナーの文の role が知らない値
+fail|retro|.typed[0].id = "u1"|オーナーの文の id が h- で始まらない
 fail|retro|.issues[0].after_merge.checks.state = "error"|checks の state が知らない値
 fail|retro|.redacted = -1|伏せた数が負
 fail|retro|.issues[0].estimate = "中"|見込みが段の名
@@ -833,7 +833,7 @@ outcome|.required -= ["sessions"]|結果の記録の必須から sessions を外
 outcome|."$defs".cost.additionalProperties = true|cost の知らないキーを許す
 retro|.required -= ["typed"]|振り返りの入力の必須から typed を外す
 retro|."$defs".bundle.required -= ["after_merge"]|束の必須から after_merge を外す
-retro|."$defs".typed.properties.role.enum += ["person"]|人の文の role を緩める
+retro|."$defs".typed.properties.role.enum += ["person"]|オーナーの文の role を緩める
 retro|."$defs".after_merge.properties.checks.anyOf[0].properties.state.enum += ["error"]|checks の state を緩める
 retro|."$defs".fix.additionalProperties = true|前の直しの知らないキーを許す
 patterns|."$defs".pattern.allOf = []|skill と文面の段の「上の段で止められない理由」を外す
@@ -919,8 +919,8 @@ notification-gate.json|notification|andon dispatcher の通知 gate
 notification-gate-unsent.json|notification|andon dispatcher の通知 gate（fix を担当へ送れなかった）
 notification-gate-no-agent.json|notification|andon dispatcher の通知 gate（fix で担当がいない）
 notification-merged.json|notification|andon dispatcher の通知 merged
-notification-merged-person.json|notification|andon dispatcher の通知 merged（人がマージした）
-notification-merged-held.json|notification|andon dispatcher の通知 merged（人がマージしたが片付けていない）
+notification-merged-person.json|notification|andon dispatcher の通知 merged（オーナーがマージした）
+notification-merged-held.json|notification|andon dispatcher の通知 merged（オーナーがマージしたが片付けていない）
 notification-closed.json|notification|andon dispatcher の通知 closed
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
 measure.json|measure|andon measure --json の出力
@@ -968,22 +968,22 @@ run.json|run|andon issue record の runs/<n>.json
 run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期待して落ちた）
 run-norepo.json|run|andon issue record の runs/<n>.json（repo の無い課題。commit 無し）
 ledger-log.jsonl|ledger-log|kanban が書いた log.jsonl（andon dispatcher がレビューからマージまで回した台帳）
-ledger-ready.json|ledger-ready|kanban ready --json の出力（人の課題・レビュアーの子課題・ルーチンの課題）
+ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
 EMIT
     flush
   fi
 fi
 
-# 6. contract.md §8（hc との約束）の表に Herdr App の置き場のラベルと人に端末を指す言い方がある（ADR-0002 受け入れ条件 4）。
+# 6. contract.md §8（hc との約束）の表に Herdr App の置き場のラベルとオーナーに端末を指す言い方がある（ADR-0002 受け入れ条件 4）。
 # 端末のラベルは schema に入れず §8 の表だけで持つので、行があることをここで見る
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   sec8="$(awk '/^## 8\. /{on=1; next} /^## /{on=0} on' docs/contract.md)"
   row="$(grep '^| Herdr App の置き場のラベル |' <<<"$sec8" || true)"
-  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q 'オーナーは Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
-    ok "contract.md §8: herdr.space・herdr.tab の行（オーナー Herdr App・書き手 command と dispatcher・読み手 App）"
+  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q 'ラベルのオーナーは Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
+    ok "contract.md §8: herdr.space・herdr.tab の行（ラベルのオーナー Herdr App・書き手 command と dispatcher・読み手 App）"
   else ng "contract.md §8 に herdr.space・herdr.tab の行が無い・形が違う"; fi
-  if grep -q '^| 人に端末を指す言い方 | `<Space 名> / <tab 名>`' <<<"$sec8"; then ok "contract.md §8: 人に端末を指す言い方の行"
-  else ng "contract.md §8 に人に端末を指す言い方の行が無い"; fi
+  if grep -q '^| オーナーに端末を指す言い方 | `<Space 名> / <tab 名>`' <<<"$sec8"; then ok "contract.md §8: オーナーに端末を指す言い方の行"
+  else ng "contract.md §8 にオーナーに端末を指す言い方の行が無い"; fi
 fi
 
 exit "$fail"

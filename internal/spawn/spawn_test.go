@@ -75,7 +75,7 @@ func TestGuide(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ws, GuideFile), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	want := "\n人の指針 `" + filepath.Join(ws, GuideFile) + "` も読む。"
+	want := "\nオーナーの指針 `" + filepath.Join(ws, GuideFile) + "` も読む。"
 	if g := Guide(); g != want {
 		t.Errorf("got %q want %q", g, want)
 	}
@@ -194,8 +194,8 @@ func TestMark(t *testing.T) {
 		Mark(FromGate, "直して"):       true,
 		"\n [gate] 直して":             true,
 		"[dispatcher]続けて":           false,
-		"[cos] 人の文":                 false,
-		"人の文 [gate] ":               false,
+		"[cos] オーナーの文":              false,
+		"オーナーの文 [gate] ":            false,
 		"":                          false,
 	} {
 		if got := Marked(s); got != want {

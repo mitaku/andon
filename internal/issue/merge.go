@@ -140,9 +140,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		why := fmt.Sprintf("andon gate %s: 終了コード %d %s", c.id, code, firstLine(errb.String()))
 		res.Log = append(res.Log, fmt.Sprintf("%s のゲートが判定できない: %s", c.id, why))
 		c.askGate(res, contract.Question{
-			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）のゲートが判定できなかった。PR を人が見るか", c.id, short(c.issue.Str("title"))),
+			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）のゲートが判定できなかった。PR をオーナーが見るか", c.id, short(c.issue.Str("title"))),
 			Facts: []string{why}, From: "gate",
-			Options: []contract.Option{{Label: "人が PR を読んでマージを決める", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
+			Options: []contract.Option{{Label: "オーナーが PR を読んでマージを決める", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
 		return &w
 	}
 	if gr.Decision == "wait" {
@@ -188,9 +188,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			facts = append(facts, gate.RecordFact(record))
 		}
 		c.askGate(res, contract.Question{
-			Kind: kind, Question: fmt.Sprintf("%s（%s）の PR はゲートが人へ回した。マージするか", c.id, short(c.issue.Str("title"))),
-			Facts: facts, Reason: "ゲートの決定式が needs_human を返した（委譲・レベル・人が見る PR の事情）", From: "gate",
-			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
+			Kind: kind, Question: fmt.Sprintf("%s（%s）の PR はゲートがオーナーへ回した。マージするか", c.id, short(c.issue.Str("title"))),
+			Facts: facts, Reason: "ゲートの決定式が needs_human を返した（委譲・レベル・オーナーが見る PR の事情）", From: "gate",
+			Options: []contract.Option{{Label: "オーナーが PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
 	w.Sha, w.Decision, w.Approved = gr.Head, gr.Decision, ""
 	w.Polled = now.UTC().Format("2006-01-02T15:04:05Z") // ゲートが今 head を読んだ。次に聞くのは1分たってから
@@ -241,7 +241,7 @@ func RegateWatched(w contract.Merging) bool {
 }
 
 // HeadMoved は、聞いた PR の state と head が、ゲートの判定した head から動いた（まだ open の PR に push された）ことを示すか（純粋関数）。
-// MERGED・CLOSED は見ない（人のマージと閉じた PR は settle の道）。
+// MERGED・CLOSED は見ない（オーナーのマージと閉じた PR は settle の道）。
 func HeadMoved(w contract.Merging, state, head string) bool {
 	return RegateWatched(w) && state == "OPEN" && contract.IsSHA(head) && head != w.Sha
 }
@@ -263,8 +263,8 @@ func (c *ctx) closeGateQuestions(why string, res *contract.Merge) {
 }
 
 // closeQuestion は問い name（一覧を読んだときの状態 status）を、open なら why と答えて受け取る。一覧を読んだあとに
-// 人や Chief of Staff が答えていれば answer は断られるが、答えのある問いは受け取れるので、そのまま received に進む
-// （人の答えは上書きしない）。受け取れなければ誤りを返す（呼び手は次に打たれたときに閉じ直す）。
+// オーナーや Chief of Staff が答えていれば answer は断られるが、答えのある問いは受け取れるので、そのまま received に進む
+// （オーナーの答えは上書きしない）。受け取れなければ誤りを返す（呼び手は次に打たれたときに閉じ直す）。
 func (c *ctx) closeQuestion(name, status, why string) error {
 	var answerErr error
 	if status == "open" {
@@ -375,7 +375,7 @@ func (c *ctx) stillWaiting(rows []ledger.Row, pr, waited string, now time.Time) 
 	return false
 }
 
-// sendFix は理由を担当へ返す（担当は人が打つ端末ではないので、離席の守りは要らない）。
+// sendFix は理由を担当へ返す（担当はオーナーが打つ端末ではないので、離席の守りは要らない）。
 // 返せなければ dispatcher が Chief of Staff に届けるよう、通知 gate の detail に印を書く: 担当がいなければ no_agent、
 // 送れなければ（担当の端末が無い）unsent（担当の address）。gate が無ければ（PR の head が読めない）通知 report。
 func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
@@ -409,7 +409,7 @@ func (c *ctx) markGate(res *contract.Merge, key string, v any) {
 	res.Notify = append(res.Notify, contract.Notice{Kind: "report", Detail: map[string]any{"report": filepath.Join(c.l.Dir, "issues", c.id, "report.md")}})
 }
 
-// approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 gate のまま止まる（人がマージする）。
+// approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 gate のまま止まる（オーナーがマージする）。
 // マージの直前に、課題の Settings・履歴・委譲を読み直し、ゲートのときと変わっていればマージせず regate を返す
 // （呼び手は決めたことを書かず、次に打ったときゲートから回し直す）。
 func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *contract.Merging, res *contract.Merge, stderr io.Writer) (regate bool) {
@@ -420,9 +420,9 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 	stop := func(why string) {
 		logf("をマージしない: %s", why)
 		c.askGate(res, contract.Question{
-			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）はゲートが approve したが、dispatcher がマージできなかった。人がマージするか", c.id, short(c.issue.Str("title"))),
+			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）はゲートが approve したが、dispatcher がマージできなかった。オーナーがマージするか", c.id, short(c.issue.Str("title"))),
 			Facts: []string{why, "PR " + rep.PR, "ゲートの記録 " + record}, From: "gate",
-			Options: []contract.Option{{Label: "人が PR を読んでマージする", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
+			Options: []contract.Option{{Label: "オーナーが PR を読んでマージする", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
 	}
 	table, warn, err := gate.LoadTable(pkgHome(), delegate.Workspace())
 	if err != nil {
@@ -467,11 +467,11 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		return true
 	}
 	if _, err := gh("pr", "merge", number, "--repo", slug, "--"+method, "--match-head-commit", gr.Head); err != nil {
-		// 人が先にマージしていた（ゲートが判定した head のまま MERGED）なら誤報の問いを出さず、人がマージしたときの道（§2.7）へ渡す。
+		// オーナーが先にマージしていた（ゲートが判定した head のまま MERGED）なら誤報の問いを出さず、オーナーがマージしたときの道（§2.7）へ渡す。
 		// 同じ巡の andon issue settle が片付ける。ゲートの記録の merged は書かない（dispatcher がマージした印）
 		out, verr := gh("pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid")
 		if sha, ok := MergedBefore(out, gr.Head); verr == nil && ok {
-			logf("の PR %s は gh pr merge の前に同じ head でマージされていた（%s）。問いを出さず人のマージとして片付ける", rep.PR, short12(sha))
+			logf("の PR %s は gh pr merge の前に同じ head でマージされていた（%s）。問いを出さずオーナーのマージとして片付ける", rep.PR, short12(sha))
 			return false
 		}
 		stop("gh pr merge に失敗: " + err.Error())
@@ -497,7 +497,7 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		c.askGate(res, contract.Question{
 			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）はマージしたが片付けに失敗した。Chief of Staff が片付けるか", c.id, short(c.issue.Str("title"))),
 			Facts: []string{why, "PR " + rep.PR}, From: "gate",
-			Options: []contract.Option{{Label: "Chief of Staff が理由を読んで andon issue finish する", Pick: ptr(true)}, {Label: "人が片付ける"}}})
+			Options: []contract.Option{{Label: "Chief of Staff が理由を読んで andon issue finish する", Pick: ptr(true)}, {Label: "オーナーが片付ける"}}})
 	}
 	res.Notify = append(res.Notify, contract.Notice{Kind: "merged", Detail: map[string]any{"pr": rep.PR, "sha": view.MergeCommit.Oid}})
 	return false

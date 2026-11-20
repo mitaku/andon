@@ -1,7 +1,7 @@
 # tests/package/06-skill-commands.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・fm・tmp は入口が置き、前の節が置いた変数も使う）。
 #   6. skill の機械向けの手順が command（andon issue …）を指し、手で JSON を書く手順が残っていない。例の問いと予約キーは schema に通す。
 #  12. auto memory（ADR-0020 受け入れ条件 2・6。4 と 6 の節の中）: settings が入れる向き・環境メモの書き方・chief-of-staff の規約9・トリアージ・wiki の手引き。
-#  15. Advisor（ADR-0022 受け入れ条件 1・2。6 の節の中）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
+#  15. Advisor（ADR-0022 受け入れ条件 1・2。6 の節の中）: --advisor fable は chief-of-staff の command だけ、CoS skill の「オーナーの入口」に相談する場面の1行。
 # === 6. skill の機械向けの手順（command を指す。skill の中の ``` の塊の例は schema に通す） ===
 # block <file> <1行目の頭> … 1行目が「<頭>」で始まる ``` の塊（字下げを除く）
 block() { awk -v h="$2" '

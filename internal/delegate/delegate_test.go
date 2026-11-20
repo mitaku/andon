@@ -67,7 +67,7 @@ func TestNarrower(t *testing.T) {
 
 func TestOwner(t *testing.T) {
 	ws := t.TempDir()
-	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte("# セル\nowner = \"someone@example.com\" # 人\n[plugins]\nowner = \"other\"\n"), 0o644)
+	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte("# セル\nowner = \"someone@example.com\" # オーナー\n[plugins]\nowner = \"other\"\n"), 0o644)
 	if o := Owner(ws); o != "someone@example.com" {
 		t.Errorf("owner: %q", o)
 	}

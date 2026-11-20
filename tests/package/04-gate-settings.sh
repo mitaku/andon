@@ -2,7 +2,7 @@
 #   4. gate.json が schema/gate.schema.json の条件表に合う。settings.json が JSON で、statusLine が package の statusline を指す。全フックの command が package に在るファイルだけを指す。
 #      package/hooks/ の全部のフックの最初の実行行が「andon が無ければ通す」の行（ADR-0034 受け入れ条件 3）。
 #      Codex の rules（package/codex.rules）の forbidden が settings の deny（コマンドの頭で引く線）と同じ。
-#      settings の deny が人のファイル（ADR-0005 決めたこと 4 の (c)）の書き換えを Edit(//workspace/…) で拒む。
+#      settings の deny がオーナーのファイル（ADR-0005 決めたこと 4 の (c)）の書き換えを Edit(//workspace/…) で拒む。
 #      settings の deny が force-with-lease で main に当たる形を断り、自分の branch への形は allow のまま（当たる・当たらないの例）。
 #  12. auto memory（ADR-0020 受け入れ条件 2・6。4 と 6 の節の中）: settings が入れる向き・環境メモの書き方・chief-of-staff の規約9・トリアージ・wiki の手引き。
 # === 4. gate.json・settings.json ===
@@ -14,10 +14,10 @@ for p in package/skills/ package/templates/ package/gate.json package/settings.j
   jq -e --arg p "${p%/}" '.tier_c_paths | map(rtrimstr("/**")) | index($p)' package/gate.json >/dev/null \
     && pass "ラインの変更 $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
-# 人だけが書くファイル（author 照合の対象）は、PR に入ればレベル C（contract.md §11・§7）
+# オーナーだけが書くファイル（author 照合の対象）は、PR に入ればレベル C（contract.md §11・§7）
 for p in 'projects/*/project.json' gate.local.json andon.toml '**/AGENTS.local.md' '**/AGENTS.worker.md'; do
   jq -e --arg p "$p" '.tier_c_paths | index($p)' package/gate.json >/dev/null \
-    && pass "人のファイル $p はレベル C" || fail "$p が tier_c_paths に無い"
+    && pass "オーナーのファイル $p はレベル C" || fail "$p が tier_c_paths に無い"
 done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
@@ -111,7 +111,7 @@ cases = {
              "git push --force-with-lease origin -uf HEAD", "git push --force-with-lease origin HEAD -vf",
              "git push --force-with-lease origin +v1.0", "git push --force-with-lease origin +HEAD:andon/A-0001-x",
              "git push --force-with-lease origin HEAD andon/A-0001-x"],
-    # origin より前に旗を置く形は allow に当たらず、人に聞く（-fu も --force-if-includes も）
+    # origin より前に旗を置く形は allow に当たらず、オーナーに聞く（-fu も --force-if-includes も）
     "ask": ["git push --force-with-lease upstream HEAD", "git push --force-with-lease -u origin HEAD",
             "git push --force-with-lease -fu origin HEAD:refs/heads/andon/review", "git push --force-with-lease --force-if-includes origin HEAD"],
 }
@@ -131,11 +131,11 @@ EOF
 while IFS= read -r l; do
   case "$l" in "ok   "*) pass "${l#ok   }" ;; *) fail "${l#FAIL }" ;; esac
 done <<<"$out"
-# 人のファイル（ADR-0005 決めたこと 4 の (c)）への書き換えを deny する。今の Claude Code は Write・NotebookEdit・MultiEdit を Edit(path) の規則で引き、
+# オーナーのファイル（ADR-0005 決めたこと 4 の (c)）への書き換えを deny する。今の Claude Code は Write・NotebookEdit・MultiEdit を Edit(path) の規則で引き、
 # Write(path) の規則は受け付けても当たらない。絶対パスは //（単独の / は設定の置き場からの相対）。Codex には同じ線を引けない（docs/image.md）
 for f in andon.toml AGENTS.md AGENTS.worker.md gate.local.json 'templates.local/**' 'local/**' 'bin/**' 'projects/*/project.json'; do
   jq -e --arg r "Edit(//workspace/$f)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
-    && pass "settings は人のファイル /workspace/$f の書き換えを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
+    && pass "settings はオーナーのファイル /workspace/$f の書き換えを deny" || fail "settings の deny に Edit(//workspace/$f) が無い"
 done
 # 根の CLAUDE.md・.claude/CLAUDE.md は .worktrees の下の担当にも届き、repo の AGENTS.md が読まれなくなる。書き込みを deny する
 for f in CLAUDE.md .claude/CLAUDE.md; do

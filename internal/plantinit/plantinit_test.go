@@ -54,7 +54,7 @@ func TestInitWritesEveryTemplateFile(t *testing.T) {
 
 func TestInitRefuses(t *testing.T) {
 	full := t.TempDir()
-	os.WriteFile(filepath.Join(full, "keep"), []byte("人のもの"), 0o644)
+	os.WriteFile(filepath.Join(full, "keep"), []byte("オーナーのもの"), 0o644)
 	for name, o := range map[string]Options{
 		"slug が大文字":     {Slug: "X", Dir: filepath.Join(t.TempDir(), "a"), Image: "i"},
 		"slug が - で始まる": {Slug: "-x", Dir: filepath.Join(t.TempDir(), "a"), Image: "i"},

@@ -42,7 +42,7 @@ func Start(e Env) {
 		{"外の skill", installGhSkills}, // ネットワークが要るので最後（ほかの起動を待たせない）
 	} {
 		if step.name == "dispatcher" && oldLive {
-			e.logf("前の版の係の端末が残っているので dispatcher は起動しない（二重に回さない）。人が hc kill <address> で片付けてから andon boot を打ち直す")
+			e.logf("前の版の係の端末が残っているので dispatcher は起動しない（二重に回さない）。オーナーが hc kill <address> で片付けてから andon boot を打ち直す")
 			continue
 		}
 		err := step.run(e)
@@ -251,7 +251,7 @@ var errOldDispatcher = errors.New("前の版の係の端末が残っている")
 // dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
 // （keep を外して kill・rm）。セルの upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
 // （同じ PR をマージしにいく）ので、起動する前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
-// （作り直しで戻った中身）のときだけ片付ける。それ以外（人が中で何か動かしている・前に出ているものが取れない）と
+// （作り直しで戻った中身）のときだけ片付ける。それ以外（オーナーが中で何か動かしている・前に出ているものが取れない）と
 // 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起動しない）。
 func dropStaleRoles(e Env) error {
 	hc, ok := e.has("hc")

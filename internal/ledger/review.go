@@ -18,7 +18,7 @@ type Review struct {
 	Commit      string `json:"commit,omitempty"`
 	MustFixOpen int    `json:"must_fix_open"`
 	Waived      int    `json:"waived"`
-	WaivedHeavy int    `json:"-"` // must_fix 以上なのに waived にある指摘（担当がレビュアーを覆した。人が判断する）
+	WaivedHeavy int    `json:"-"` // must_fix 以上なのに waived にある指摘（担当がレビュアーを覆した。オーナーが判断する）
 	Reason      string `json:"-"` // missing・stale の理由（人が読む1行）
 }
 

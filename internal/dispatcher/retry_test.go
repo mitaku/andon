@@ -340,7 +340,7 @@ func TestChiefCut(t *testing.T) {
 	if n := logged(); n != 2 {
 		t.Fatalf("区切ったあとの止まりで %d 行: %s", n, f.log.String())
 	}
-	// プロバイダでない error（認証）はログに書かない（人は Herdr App の error で気づく）
+	// プロバイダでない error（認証）はログに書かない（オーナーは Herdr App の error で気づく）
 	f = newRetry(t)
 	f.p.tasks = nil
 	f.term("t1", "error", "API Error: 401 unauthorized · Please run /login", 0, false)

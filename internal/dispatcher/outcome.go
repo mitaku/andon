@@ -24,7 +24,7 @@ import (
 // レビュアーの子の課題の数・実働・起動の記録（launches.jsonl）にある全部のセッションのコストを1つにまとめる。
 // 片付けたあとに読み直すのは PR の状態だけで、コストはセッションログ（30日で消える）からその時に読む。
 // 読めないもの（gh・台帳・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で諦める
-// （ファイルが無いのが「集めていない」。読み手の振り返りは無い欄を null として読む）。人の課題（who: person）には書かない。
+// （ファイルが無いのが「集めていない」。読み手の振り返りは無い欄を null として読む）。オーナーの課題（who: person）には書かない。
 
 // outcomeFile は結果の記録のファイルの名前。
 const outcomeFile = "outcome.json"
@@ -135,7 +135,7 @@ func (p *project) outcome(id string) bool {
 	}
 	t, err := p.issue(id)
 	if err == nil && t.Str("who") == "person" {
-		return true // 人の課題（エージェントが動いていない）
+		return true // オーナーの課題（エージェントが動いていない）
 	}
 	var o *Outcome
 	if err == nil {

@@ -161,7 +161,7 @@ func TestEstimateFirstSight(t *testing.T) {
 	}
 }
 
-// 見込みの無い課題・Chief of Staff でない者が書いた見込み・知らない値・レビュアー・Chief Engineer・人の課題には積まない。
+// 見込みの無い課題・Chief of Staff でない者が書いた見込み・知らない値・レビュアー・Chief Engineer・オーナーの課題には積まない。
 func TestEstimateSkips(t *testing.T) {
 	for name, edit := range map[string]func(f *estimateFixture){
 		"見込み無し":          func(f *estimateFixture) { delete(f.p.tasks[0], "estimate"); f.p.rows = f.p.rows[1:] },
@@ -169,7 +169,7 @@ func TestEstimateSkips(t *testing.T) {
 		"知らない値":          func(f *estimateFixture) { f.p.tasks[0]["estimate"] = "中" },
 		"レビュアー":          func(f *estimateFixture) { f.p.tasks[0]["parent"] = "S-6"; f.p.tasks[0]["profile"] = "codex-review" },
 		"Chief Engineer": func(f *estimateFixture) { f.p.tasks[0]["profile"] = "chief-engineer" },
-		"人の課題":           func(f *estimateFixture) { f.p.tasks[0]["who"] = "person" },
+		"オーナーの課題":        func(f *estimateFixture) { f.p.tasks[0]["who"] = "person" },
 		"review にいる":     func(f *estimateFixture) { f.p.tasks[0]["status"] = "review" },
 	} {
 		f := newEstimate(t)

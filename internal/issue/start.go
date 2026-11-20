@@ -23,7 +23,7 @@ import (
 
 const exitFirst = 3 // 起きたが、最初のメッセージが届いていない
 
-// notSent は担当が起きたが最初のメッセージが届いていないこと（終了コード 3）。msg は人か Chief of Staff への案内。
+// notSent は担当が起きたが最初のメッセージが届いていないこと（終了コード 3）。msg はオーナーか Chief of Staff への案内。
 type notSent struct{ msg string }
 
 func (n notSent) Error() string { return n.msg }
@@ -122,7 +122,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 			return fail("kanban set %s session=%s に失敗: %v（端末 %s は起きている。resume するには台帳に session を手で書く）", id, p.Session, err, run.Address)
 		}
 	}
-	place := id + " " + p.Title + " / " + id // 人に端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
+	place := id + " " + p.Title + " / " + id // オーナーに端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
 	if !run.First.Delivered() {
 		// 手で送る行（ResendHint の最後）は shell にそのまま貼れるよう、文の最後に置く
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。台帳は doing・agent %s のまま（App では %s）。%s",
@@ -175,7 +175,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	}
 	if m := c.issue.Str("machine"); m != "" {
 		// 別のマシンで起動する（hc run --on）はまだ扱わない。黙って指揮側で起動しない
-		return nil, fail("%s は machine=%s（別のマシンで起動する）。andon issue start はまだ扱わない。machine を消すか、人が起動する", id, m)
+		return nil, fail("%s は machine=%s（別のマシンで起動する）。andon issue start はまだ扱わない。machine を消すか、オーナーが起動する", id, m)
 	}
 	p.Profile = c.issue.Str("profile")
 	if p.Profile == "" {
@@ -205,7 +205,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		}
 		p.command = &cmd
 		if !found {
-			return nil, fail("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", p.Profile)
+			return nil, fail("プロファイル %s の template が無い（hc templates で確かめる。作るのはオーナー）", p.Profile)
 		}
 	}
 	if !spawn.NameRe.MatchString(p.Terminal) {
@@ -244,7 +244,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 }
 
 // writableRepo は課題の repo を書いてよいかを確かめ、clone の置き場を返す（start と resume の確かめ）:
-// 形・台帳の config.yaml の repos・セルの repo の HEAD の project.json の repos（人だけが書く。author 照合）・clone があること。
+// 形・台帳の config.yaml の repos・セルの repo の HEAD の project.json の repos（オーナーだけが書く。author 照合）・clone があること。
 func (c *ctx) writableRepo(repo string, check func(name, result, format string, a ...any)) (string, error) {
 	slug := c.l.Slug
 	if !spawn.RepoRe.MatchString(repo) {
@@ -254,11 +254,11 @@ func (c *ctx) writableRepo(repo string, check func(name, result, format string, 
 		return "", fail("repo %s が台帳の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
 	}
 	check("repos", "ok", "%s は台帳の config.yaml の repos にある", repo)
-	// 書いてよい repo の正はセルの repo の HEAD の project.json（人だけが書く。author 照合）。読めなければ repo 無し（安全側）
+	// 書いてよい repo の正はセルの repo の HEAD の project.json（オーナーだけが書く。author 照合）。読めなければ repo 無し（安全側）
 	ws := delegate.Workspace()
 	proj, err := delegate.ReadProject(ws, slug)
 	if errors.Is(err, delegate.ErrAbsent) {
-		return "", fail("repo %s を書いてよいか分からない: セルの repo の HEAD に %s が無い（人が書いて commit する）", repo, delegate.ProjectRel(slug))
+		return "", fail("repo %s を書いてよいか分からない: セルの repo の HEAD に %s が無い（オーナーが書いて commit する）", repo, delegate.ProjectRel(slug))
 	} else if err != nil {
 		return "", fail("repo %s を書いてよいか分からない: %v", repo, err)
 	}
@@ -309,8 +309,8 @@ func (p *startPlan) print(w io.Writer) {
 	}
 }
 
-// workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、人に見せる題はラベル title に載せる。
-// herdr.space・herdr.tab で人の Herdr App に課題ごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
+// workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、オーナーに見せる題はラベル title に載せる。
+// herdr.space・herdr.tab でオーナーの Herdr App に課題ごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
 // 値は slug・id・題だけで決まり、どのマシンで起動するかに依らない（別のマシンならその machine の Space に出る。前提 7）。
 func workLabels(slug, id, title string) []string {
 	return []string{"project=" + slug, "issue=" + id, "title=" + title,

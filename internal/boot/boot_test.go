@@ -223,7 +223,7 @@ func TestReplacesLegacySymlinks(t *testing.T) {
 	if err := os.Symlink(filepath.Join(repo, "coordinator.md"), filepath.Join(tpl, "claude.md")); err != nil {
 		t.Fatal(err)
 	}
-	put(t, filepath.Join(tpl, "mine.md"), "人が入れたもの\n")
+	put(t, filepath.Join(tpl, "mine.md"), "オーナーが入れたもの\n")
 
 	if err := Generate(f.env()); err != nil {
 		t.Fatal(err)
@@ -236,7 +236,7 @@ func TestReplacesLegacySymlinks(t *testing.T) {
 	if read(t, filepath.Join(repo, "AGENTS.md")) != "仮設の環境メモ\n" || read(t, filepath.Join(repo, "coordinator.md")) != "仮設のプロファイル\n" {
 		t.Error("リンク先に書き込んだ")
 	}
-	if read(t, filepath.Join(tpl, "mine.md")) != "人が入れたもの\n" {
+	if read(t, filepath.Join(tpl, "mine.md")) != "オーナーが入れたもの\n" {
 		t.Error("パッケージに無いプロファイルに触った")
 	}
 }

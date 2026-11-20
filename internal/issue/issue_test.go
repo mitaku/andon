@@ -142,7 +142,7 @@ func (f *fixture) gateQuestion(from, head string) {
 		facts = append(facts, gate.RecordFact(filepath.Join(f.root, "kanban/issues/T-0001/library/gate", head+".json")))
 	}
 	f.write("kanban/issues/T-0001/library/questions/1.json", js(map[string]any{"kind": "line", "question": "マージするか", "facts": facts,
-		"options": []any{map[string]any{"label": "人が PR を読んでマージする", "pick": true}, map[string]any{"label": "担当に直させる"}}, "from": from}))
+		"options": []any{map[string]any{"label": "オーナーが PR を読んでマージする", "pick": true}, map[string]any{"label": "担当に直させる"}}, "from": from}))
 	f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}]`
 }
 
@@ -261,7 +261,7 @@ func TestReadyNamesOnlyStaleGateQuestions(t *testing.T) {
 			f.gateQuestion("gate", other)
 			f.write("kanban/issues/T-0001/library/questions/3.json", js(map[string]any{"kind": "line", "question": "マージするか", "from": "gate",
 				"facts":   []string{gate.RecordFact(filepath.Join(f.root, "kanban/issues/T-0001/library/gate", other+".json"))},
-				"options": []any{map[string]any{"label": "人が PR を読んでマージする", "pick": true}, map[string]any{"label": "担当に直させる"}}}))
+				"options": []any{map[string]any{"label": "オーナーが PR を読んでマージする", "pick": true}, map[string]any{"label": "担当に直させる"}}}))
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}, {"id": "T-0001", "n": 2, "status": "received"}, {"id": "T-0001", "n": 3, "status": "answered"}]`
 		}, "review T-0001 --past T-0001#1,T-0001#3"},
 	}

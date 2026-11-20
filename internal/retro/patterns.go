@@ -165,8 +165,8 @@ func checkShape(ps []Pattern, fixes []FixView) error {
 	return nil
 }
 
-// evidenceUnit は根拠1件を数える単位（決めたこと 14 の 2）。課題は課題ごと（レビュアーの子は親）、人が打った文は
-// セッションのオーナーの課題ごと（Chief of Staff は課題を持たないのでセッションごと）。同じ単位の根拠は1件と数える。
+// evidenceUnit は根拠1件を数える単位（決めたこと 14 の 2）。課題は課題ごと（レビュアーの子は親）、オーナーが打った文は
+// そのセッションを持つ課題ごと（Chief of Staff は課題を持たないのでセッションごと）。同じ単位の根拠は1件と数える。
 func evidenceUnit(id string, in *Input) (unit string, at time.Time, ok bool) {
 	for _, b := range in.Issues {
 		if b.ID == id {
@@ -201,7 +201,7 @@ func checkEvidence(ps []Pattern, in *Input) error {
 		for _, id := range p.Evidence {
 			unit, at, ok := evidenceUnit(id, in)
 			if !ok {
-				return fmt.Errorf("パターン %s の根拠 %q が集めた入力（期間 %s〜%s の課題と人の文）に無い", p.ID, id, in.Since, in.Until)
+				return fmt.Errorf("パターン %s の根拠 %q が集めた入力（期間 %s〜%s の課題とオーナーの文）に無い", p.ID, id, in.Since, in.Until)
 			}
 			units[unit] = true
 			if in.PreviousRetro == nil || at.After(prev) {

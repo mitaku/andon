@@ -179,7 +179,7 @@ func TestFirstMessageNotTwice(t *testing.T) {
 
 func TestFirstMessageSentByHand(t *testing.T) {
 	f := newFirst(t)
-	// 人が手で送って動き出していれば送らず、ラベルだけ外す
+	// オーナーが手で送って動き出していれば送らず、ラベルだけ外す
 	f.put("status", "working")
 	if got := f.round(); len(got) != 1 || got[0] != "label t42 first_message.sent=" {
 		t.Fatalf("動いている担当: %q", got)
@@ -268,7 +268,7 @@ func TestSeenBareShellIsGone(t *testing.T) {
 	if s, ok := f.p.seen("t42"); !ok || !s.Gone {
 		t.Fatalf("中身がシェルの端末を生きているとみた: %+v %v", s, ok)
 	}
-	// top-level はエージェントの command で、前にシェル（中で人が何かした）: 終わったとはみない
+	// top-level はエージェントの command で、前にシェル（中でオーナーが何かした）: 終わったとはみない
 	f.rm("argv")
 	if s, ok := f.p.seen("t42"); !ok || s.Gone {
 		t.Fatalf("top-level がエージェントの端末を終わったとみた: %+v %v", s, ok)

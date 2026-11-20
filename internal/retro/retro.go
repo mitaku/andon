@@ -1,7 +1,7 @@
 // Package retro は振り返り（ADR-0028 決めたこと 8）の入力を集める（andon retro collect）。
 //
 // 読むだけで、台帳にもセッションログにも書かない。台帳のファイル（issue.yaml・log.jsonl・library/ の記録）を直に読み、
-// 期間に片付いた担当の課題ごとに記録を1件に束ね（レビュアーの子は親へ）、期間に人が打った文をセッションログから抜き、
+// 期間に片付いた担当の課題ごとに記録を1件に束ね（レビュアーの子は親へ）、期間にオーナーが打った文をセッションログから抜き、
 // 前の振り返りが切った直しのうちマージから 14 日以内のものを並べ、マージ後のこと（マージ commit の checks・revert の PR）を
 // GitHub から読む。出力の文字列は全部、秘密の形に合うものを伏せてから書く。形は docs/contract.md §20。
 package retro
@@ -36,19 +36,19 @@ const Usage = "usage: andon retro collect [--days N]                       振�
 	"       andon retro patterns <id> [--days N] <patterns.json|->  パターンの一覧を検査して library/retro.json に書く（振り返りの担当。§21）\n" +
 	"       andon retro apply <id> [--dry-run]                      パターンの一覧の fix を直す課題に切る（Chief of Staff。§21）\n" +
 	"collect: 直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・ゲートの判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
-	"見送り・人の手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
-	"加えて、期間に人が端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のものを出す。\n" +
+	"見送り・オーナーの手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
+	"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のものを出す。\n" +
 	"秘密の形に合う文字列は伏せてから出す。\n" +
 	"patterns: collect と同じ入力を集め直し、根拠が別々の2件以上か・入力にあるか・前の振り返りより後のものがあるか・\n" +
 	"skill と文面の直しに上の段で止められない理由があるか・全部に判定があるか・前の直しの見立てが揃うかを確かめる（fix の数は確かめない）。\n" +
 	"apply: library/retro.json を同じ窓で照らし直し、fix ごとに一覧の順で直す課題（parent は振り返りの課題）を1件足す。\n" +
-	"直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ、人の課題にする。記録は library/retro-applied.json。\n" +
+	"直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ、オーナーの課題にする。記録は library/retro-applied.json。\n" +
 	"projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
 
 // 既定と上限。
 const (
 	defaultDays = 7  // 読む期間（ADR-0028 決めたこと 13）
-	maxDays     = 90 // セッションログは 30 日で消えるので、それより長く読んでも人の文は出ない
+	maxDays     = 90 // セッションログは 30 日で消えるので、それより長く読んでもオーナーの文は出ない
 	fixDays     = 14 // 前の直しを出す期間（決めたこと 6・受け入れ条件 18）
 	retroFile   = "retro.json"
 	retroName   = "retro" // 振り返りのルーチンの名前（issue.yaml の routine）
@@ -62,7 +62,7 @@ type Options struct {
 	Days int       // 期間の日数
 	// GH は gh を打つ（引数は gh の後ろ）。nil なら GitHub を読まない（マージ後のことは null、skipped に1行）。
 	GH func(args ...string) ([]byte, error)
-	// ClaudeDir は Claude Code の設定の置き場（projects/ の親）。空なら人が打った文を抜かない。
+	// ClaudeDir は Claude Code の設定の置き場（projects/ の親）。空ならオーナーが打った文を抜かない。
 	ClaudeDir string
 	// Package はパッケージの置き場（applied.json を読む）。空なら読まない。
 	Package string
@@ -160,7 +160,7 @@ func (t *task) reviewer() bool {
 	return round || strings.HasSuffix(t.profile, "-review")
 }
 
-// worker は束ねる課題か（担当の課題: レビュアー・人・Chief Engineer の課題でない）。
+// worker は束ねる課題か（担当の課題: レビュアー・オーナー・Chief Engineer の課題でない）。
 func (t *task) worker() bool {
 	return !t.reviewer() && t.who != "person" && t.profile != "chief-engineer"
 }

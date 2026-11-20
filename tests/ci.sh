@@ -7,7 +7,7 @@ ok() { echo "ok   $*"; }
 
 # 1. image-scope: image に入らず tests/image.sh も読まない変更だけなら false。知らないパスは true
 scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
-[ "$(scope docs/image.md README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人の文書だけで true"
+[ "$(scope docs/image.md README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人用の文書だけで true"
 [ "$(scope tests/andon-issue.sh tests/kanban/test-deck.mjs workflow_test.go internal/issue/issue_test.go)" = false ] || die "ほかの tests・Go のテストだけで true"
 [ "$(scope CHANGELOG.md)" = false ] || die "CHANGELOG.md だけで true"
 [ "$(scope model/IssueLife.tla model/IssueRules.tla model/expected.txt model/broken/BrokenReady.tla model/package-lock.json model/README.md)" = false ] || die "モデルだけで true"
@@ -27,10 +27,10 @@ for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report
 done
 ok "image-scope: 文書・ほかの tests だけなら飛ばし、image に入るもの・知らないパスでは走らせる"
 
-# 1a. docs-scope: 変更が全部 docs/ の下か root の人の文書なら true。コード・tests・知らないパスが1つでも混ざれば、空でも false
+# 1a. docs-scope: 変更が全部 docs/ の下か root の人用の文書なら true。コード・tests・知らないパスが1つでも混ざれば、空でも false
 docs() { printf '%s\n' "$@" | bash tests/lib/docs-scope.sh; }
 [ "$(docs docs/adr/0023-x.md docs/decisions/2026-11-12-x.md)" = true ] || die "ADR と決定の記録だけで false（PR #218 の形）"
-[ "$(docs docs/assets/logo/x.svg README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = true ] || die "人の文書だけで false"
+[ "$(docs docs/assets/logo/x.svg README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = true ] || die "人用の文書だけで false"
 [ "$(docs)" = false ] || die "変更が無いのに true"
 for p in internal/issue/issue.go workflow_test.go tests/README.md tests/lib/docs-scope.sh .github/workflows/go.yml \
   package/skills/worker/SKILL.md schema/report.schema.json go.mod docs-new/x NEW.md; do

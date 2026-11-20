@@ -179,10 +179,10 @@ func TestRoleTerminalIsRefused(t *testing.T) {
 		t.Errorf("rc=%d %s", rc, errs)
 	}
 	assertEmpty(t, ws)
-	// 人の端末（ラベルが無い）なら通る
+	// オーナーの端末（ラベルが無い）なら通る
 	t.Setenv("HC_TERMINAL_ID", "t2")
 	if rc, _, errs := run(strings.NewReader(""), "sample-site"); rc != 0 {
-		t.Errorf("人の端末: rc=%d %s", rc, errs)
+		t.Errorf("オーナーの端末: rc=%d %s", rc, errs)
 	}
 }
 
@@ -328,7 +328,7 @@ func TestHumanFileAppearingMidwayIsKept(t *testing.T) {
 			t.Errorf("%s: rc=%d %s", name, rc, errs)
 		}
 		if read(t, filepath.Join(dir, name)) != "mine\n" {
-			t.Errorf("%s: 人のファイルを書き換えた", name)
+			t.Errorf("%s: オーナーのファイルを書き換えた", name)
 		}
 		if ents, _ := os.ReadDir(dir); len(ents) != 1 {
 			t.Errorf("%s: 作ったものが残っている: %v", name, ents)
@@ -377,7 +377,7 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 	}
 	dir := filepath.Join(ws, "projects", "sample-site")
 	if read(t, filepath.Join(dir, "kanban", "issues", "S-0001", "brief.md")) != "mine\n" {
-		t.Error("kanban/ の中の人のファイルを消した")
+		t.Error("kanban/ の中のオーナーのファイルを消した")
 	}
 	for _, gone := range []string{"project.json", "kanban/config.yaml", "kanban/.gitignore"} {
 		if _, err := os.Lstat(filepath.Join(dir, gone)); err == nil {

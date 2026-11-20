@@ -63,7 +63,7 @@ require_docker() {
 }
 
 # セルの andon は uid 1000 で動く（image/Dockerfile）。セルの repo は /workspace に bind mount するので、
-# オーナーが違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起動する前に止める。
+# セルの repo のオーナーが違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起動する前に止める。
 require_owner() {
   local owner
   owner=$(stat -c %u "$root") || die "セルの repo（$root）のオーナーが読めない"
@@ -186,7 +186,7 @@ rebuild_from() {
 # 手元の image が FROM の image の上に焼かれたもの（FROM の履歴が末尾に並ぶ）でないと分かれば止まる。
 # 履歴は段ごとの作った日時と命令で、層を作らない ENV などの段も入る（層だけでは設定の違いを見落とす）。
 # 同じ slug で立て直したセルは、前のセルの image を名前ごと拾う。FROM の image が手元に無ければ分からないので通す。
-# 作り直しは人が打つ（ここでは image を消さない・焼き直さない）
+# 作り直しはオーナーが打つ（ここでは image を消さない・焼き直さない）
 require_from() {
   local fmt base hist
   fmt=$(printf '%s%s.CreatedAt}} %s%s.CreatedBy}}' '{' '{' '{' '{')
@@ -285,7 +285,7 @@ host_install() {
   done
   place "$src/layouts/andon.json" "$app_home/layouts/andon.json" 644
   place "$src/layouts/andon.svg" "$app_home/layouts/andon.svg" 644
-  echo "App のレイアウトを andon に切り替える: App のあるマシンで herdr-app do layout.switch --name andon（keys.json・settings.json は人のもの。各 mod の README の断片を足す）"
+  echo "App のレイアウトを andon に切り替える: App のあるマシンで herdr-app do layout.switch --name andon（keys.json・settings.json はオーナーのもの。各 mod の README の断片を足す）"
   echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM にセルを立てるとき、<…> を埋めて渡す）"
   if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then
     echo "~/.ssh/config の先頭に1行足す: Include config.d/*"

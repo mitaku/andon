@@ -120,7 +120,7 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 		}
 	}
 
-	// ready: 人の課題・レビュアーの子課題・ルーチンが足した課題・queued から出た課題が並ぶ。
+	// ready: オーナーの課題・レビュアーの子課題・ルーチンが足した課題・queued から出た課題が並ぶ。
 	out := kanban(t, root, "ready", "--json")
 	if err := ledgertest.Check(ledgertest.ReadySchema, []byte(out)); err != nil {
 		t.Errorf("kanban ready --json: %v\n%s", err, out)

@@ -44,11 +44,11 @@ case "\$*" in
     if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
     elif [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
   "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid")   # andon issue settle と gh pr merge が失敗したあとの読み直し。
-    echo x >> \$d/states                                                  # 打った回数を states に（人のマージを見る間隔）。closed があれば閉じた PR
+    echo x >> \$d/states                                                  # 打った回数を states に（オーナーのマージを見る間隔）。closed があれば閉じた PR
     if [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
     elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
     else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
-  "pr view 7 --repo example/app --json state,commits,comments,reviews")   # 人の手直し（prcfail があれば落ちる。prc.json があればその中身）
+  "pr view 7 --repo example/app --json state,commits,comments,reviews")   # オーナーの手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
     else jq --arg s "\$(if [ -f \$d/merged ]; then echo MERGED; else echo OPEN; fi)" '{state:\$s,commits:[{oid:.headRefOid,messageHeadline:"x"}],comments:[],reviews:[]}' \$d/view.json; fi ;;
@@ -75,7 +75,7 @@ case "\$*" in
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
   "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted
     if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi ;;  # ゲートの最後の書き込み。マージの前に状態を変える
-  "pr merge 7 --repo example/app "*)   # race があれば、人が直前に同じ head でマージしていて失敗する
+  "pr merge 7 --repo example/app "*)   # race があれば、オーナーが直前に同じ head でマージしていて失敗する
     echo "\$*" >> \$d/merges
     h=\$(jq -r .headRefOid \$d/view.json)
     git -C $tmp/origin update-ref refs/heads/main "\$h" && echo "\$h" > \$d/merged
@@ -122,7 +122,7 @@ echo "dispatcher role" >> "$tmp/hc/live"
 fg_dispatcher() { echo '{"address":"dispatcher","state":"live","labels":{"herdr.space":"andon-demo","herdr.tab":"andon-demo-dispatcher"},"foreground":{"name":"andon","argv":["'"$andon"'","dispatcher"]}}' > "$tmp/hc/term-dispatcher.json"; }
 fg_dispatcher
 
-# セルの repo（人のもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
+# セルの repo（オーナーのもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
 git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
@@ -403,8 +403,8 @@ emit <(pending "$merged_id" impact) notification-impact-error.json
 rm "$tmp/gh/impactfail"
 ok '影響を集められなければ次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む（ログだけにしない）'
 
-# 1d. 人の手直し: done の行ごとに1回だけ library/corrections.json を書く（書き手は dispatcher。contract.md §14）
-# 1 の課題は推奨どおり・人の commit もコメントも無く、waived は must_fix（major）より軽い → 空の配列で書いてある
+# 1d. オーナーの手直し: done の行ごとに1回だけ library/corrections.json を書く（書き手は dispatcher。contract.md §14）
+# 1 の課題は推奨どおり・オーナーの commit もコメントも無く、waived は must_fix（major）より軽い → 空の配列で書いてある
 cj() { echo "$L/issues/$1/library/corrections.json"; }
 jq -e '.corrections == [] and (.at | test("^[0-9-]{10}T[0-9:]{8}Z$"))' "$(cj "$merged_id")" >/dev/null || die "手直しの無い課題に空の配列を書いていない: $(cat "$(cj "$merged_id")" 2>/dev/null)"
 [ ! -e "$(cj "$merged_id-r1")" ] || die 'レビュアーの課題に corrections.json を書いた'
@@ -431,16 +431,16 @@ sleep 1; dispatcher
 [ "$(cat "$(cj "$id")")" = "$before" ] || die '同じ finish を2度拾って corrections.json を書き直した'
 jq -e '(.corrections // {}) | length == 0' "$state" >/dev/null || die '書いてある課題が控えに残った'
 ok '問いの答えが推奨案と違えば answer を1件書く。同じ finish を2度拾っても書き直さない'
-# 1d-2. 担当の最後の報告より後に人が積んだ commit → pr
+# 1d-2. 担当の最後の報告より後にオーナーが積んだ commit → pr
 id=$(newtask '見出しを直す' person)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 human=$(printf 'f%.0s' $(seq 40))
-jq -n --arg h "$head" --arg x "$human" '{state: "MERGED", commits: [{oid: $h, messageHeadline: "docs/a.md"}, {oid: $x, messageHeadline: "人が直した"}],
+jq -n --arg h "$head" --arg x "$human" '{state: "MERGED", commits: [{oid: $h, messageHeadline: "docs/a.md"}, {oid: $x, messageHeadline: "オーナーが直した"}],
   comments: [{author: {login: "plant-bot"}, body: "andon gate: **approve**（commit x）", createdAt: "2026-11-09T00:00:00Z"}]}' > "$tmp/gh/prc.json"
 cos_done "$id"; dispatcher
-jq -e --arg x "$human" '.corrections == [{kind: "pr", comments: [], human_commits: [{sha: $x, headline: "人が直した", files: ["docs/b.md"]}]}]' "$(cj "$id")" >/dev/null ||
-    die "人の commit が pr の1件になっていない（ゲートのコメントを数えた？）: $(cat "$(cj "$id")" 2>/dev/null)"
+jq -e --arg x "$human" '.corrections == [{kind: "pr", comments: [], human_commits: [{sha: $x, headline: "オーナーが直した", files: ["docs/b.md"]}]}]' "$(cj "$id")" >/dev/null ||
+    die "オーナーの commit が pr の1件になっていない（ゲートのコメントを数えた？）: $(cat "$(cj "$id")" 2>/dev/null)"
 emit "$(cj "$id")" corrections-pr.json
 rm "$tmp/gh/prc.json"
 ok 'PR に担当の最後の報告より後の commit があれば pr を1件書く（ゲートのコメントは数えない）'
@@ -459,11 +459,11 @@ ok 'インラインのレビューコメントだけの PR でも pr を1件書�
 # 1d-3. must_fix 以上の指摘を waive してマージした → override
 id=$(newtask '例外を足す' person)
 work "$id" docs/a.md
-as_worker "$id" report --pr https://github.com/example/app/pull/7 --data '{"waived":[{"severity":"major","file":"docs/a.md","line":1,"reason":"人がこのままでよいと言った"}]}'
+as_worker "$id" report --pr https://github.com/example/app/pull/7 --data '{"waived":[{"severity":"major","file":"docs/a.md","line":1,"reason":"オーナーがこのままでよいと言った"}]}'
 echo "$head" > "$tmp/gh/merged"
 cos_done "$id"; dispatcher
-jq -e '.corrections == [{kind: "override", finding: {severity: "major", file: "docs/a.md", line: 1}, reason: "人がこのままでよいと言った"}]' "$(cj "$id")" >/dev/null ||
-    die "人が waive した指摘が override の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
+jq -e '.corrections == [{kind: "override", finding: {severity: "major", file: "docs/a.md", line: 1}, reason: "オーナーがこのままでよいと言った"}]' "$(cj "$id")" >/dev/null ||
+    die "オーナーが waive した指摘が override の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
 emit "$(cj "$id")" corrections-override.json
 ok 'must_fix 以上の waived がマージされたら override を1件書く'
 # 1d-4. gh が落ちたら書かず、次の見回りで1回だけ打ち直す。それも落ちたら書かずに通知 corrections を積む
@@ -527,11 +527,11 @@ cos_done "$id"; dispatcher
 jq -e '.result == "closed" and .pr == "https://github.com/example/app/pull/8" and .merge_commit == null' "$(oj "$id")" >/dev/null ||
     die "閉じられた PR が closed でない: $(cat "$(oj "$id")" 2>/dev/null)"
 emit "$(oj "$id")" outcome-closed.json
-# 人の課題（who: person）には書かない
-pid=$(HC_TERMINAL_ID=t5 kanban add '人が決める'); HC_TERMINAL_ID=t5 kanban set "$pid" who=person >/dev/null
+# オーナーの課題（who: person）には書かない
+pid=$(HC_TERMINAL_ID=t5 kanban add 'オーナーが決める'); HC_TERMINAL_ID=t5 kanban set "$pid" who=person >/dev/null
 HC_TERMINAL_ID=t5 kanban done "$pid" >/dev/null; dispatcher
-[ ! -e "$(oj "$pid")" ] || die '人の課題に outcome.json を書いた'
-ok '結果は PR の状態で merged・closed・open・none の4通り。2巡目でも書き直さない。人の課題には書かない'
+[ ! -e "$(oj "$pid")" ] || die 'オーナーの課題に outcome.json を書いた'
+ok '結果は PR の状態で merged・closed・open・none の4通り。2巡目でも書き直さない。オーナーの課題には書かない'
 # コスト: 起動の記録にある全部のセッション（起動し直して2つ）をセッションログから。ログが無ければ cost は null
 launches() { # launches <id> <session>...: 起動の記録を1行ずつ足す（andon issue start・resume --fresh の代わり）
     local id=$1 s n=0; shift
@@ -699,7 +699,7 @@ cp "$tmp/merge.bak" "$mergerec"
 ok 'andon issue merge を2回打っても、同じ review 入りではゲート・問い・通知は1回だけ。記録が無くなっても、ゲートの記録を引き継いで問いを出し直さない'
 
 # 4. merge: person は approve でも止まる（通知 gate だけ）
-id=$(newtask '人がマージする' person)
+id=$(newtask 'オーナーがマージする' person)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
@@ -710,7 +710,7 @@ as_worker "$id" ready
 dispatcher
 pending "$id" gate | jq -e '.detail.decision == "approve"' >/dev/null || die '通知 gate が無い'
 [ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'merge: person なのにマージした'
-ok 'merge: person は approve でもマージせず、通知 gate で止まる（人がマージする）'
+ok 'merge: person は approve でもマージせず、通知 gate で止まる（オーナーがマージする）'
 
 # 4a. ゲートが approve か needs_human を決めたあと、review のうちに PR に push された（head が動いた）。merge は決めたあとも、
 #     課題ごとに1分に1回だけ PR の head を聞き、判定した head と違えば前の head のゲートの問いを閉じて、今の head でゲートを回し直す。
@@ -729,12 +729,12 @@ to_gate() { # to_gate <id> <path>: 担当が commit・PR・レビュー（指摘
     as_worker "$1" ready
     dispatcher
 }
-# merge: person の approve（人のマージを待つ間）
+# merge: person の approve（オーナーのマージを待つ間）
 pa=$(newtask 'approve のあとに push される' person)
 to_gate "$pa" docs/a.md; old=$head
 [ "$(hv "$pa")" = "approve $old" ] || die "前提: ゲートが approve を決めていない: $(hv "$pa")"
 jq -e --arg t "$pa" '.[$t].polled | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T")' "$mergerec" >/dev/null || die "決めたときに polled を書いていない: $(cat "$mergerec")"
-work "$pa" docs/z.md   # 担当か人が review のうちに push した（checks は通る）
+work "$pa" docs/z.md   # 担当かオーナーが review のうちに push した（checks は通る）
 n=$(polls)
 mrun "$pa" | jq -e '.state == "skip" and .notify == []' >/dev/null || die '1分たたないうちに回し直した'
 [ "$(polls)" = "$n" ] && [ "$(hv "$pa")" = "approve $old" ] || die "1分たたないうちに PR の head を GitHub に聞いた: $(( $(polls) - n )) 回"
@@ -783,13 +783,13 @@ jq -e --arg r "ゲートの記録 $L/issues/$pb/library/gate/$head.json" '.from 
 kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '今の head のゲートの問いまで閉じた'
 jq -se --arg t "$pb" '[.[] | select(.id == $t and .change.status == "review")] | last | .change.forced == [1]' "$L/log.jsonl" >/dev/null ||
     die 'ready が数えずに押し切った問いの番号を log.jsonl に残していない'
-# ゲートが決めたときに閉じ損ねた前の head の問い（閉じる前に人が答えた）は、merge が次に打たれたときに、人の答えを残して受け取る
+# ゲートが決めたときに閉じ損ねた前の head の問い（閉じる前にオーナーが答えた）は、merge が次に打たれたときに、オーナーの答えを残して受け取る
 HC_TERMINAL_ID=dispatcher kanban ask "$pb" 'マージするか' --kind line >/dev/null
 jq -n --arg r "ゲートの記録 $L/issues/$pb/library/gate/$old.json" '{kind: "line", question: "マージするか", facts: [$r],
-  options: [{label: "人が PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' > "$L/issues/$pb/library/questions/3.json"
-HC_TERMINAL_ID=t5 kanban answer "$pb#3" '人の答え' >/dev/null
+  options: [{label: "オーナーが PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' > "$L/issues/$pb/library/questions/3.json"
+HC_TERMINAL_ID=t5 kanban answer "$pb#3" 'オーナーの答え' >/dev/null
 mrun "$pb" >/dev/null
-kanban show "$pb" --json | jq -e '.questions[2] | .status == "received" and .answer == "人の答え"' >/dev/null ||
+kanban show "$pb" --json | jq -e '.questions[2] | .status == "received" and .answer == "オーナーの答え"' >/dev/null ||
     die "閉じ損ねた前の head の問いを、次の merge で閉じ直していない: $(kanban show "$pb" --json | jq -c '.questions[2]')"
 kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '閉じ直すときに今の head のゲートの問いまで閉じた'
 # 後の検査の見回りがこの課題の PR の head を聞かないよう、fix で終える（needs_human のままだと1分ごとに聞き直す）
@@ -797,16 +797,16 @@ work "$pb" docs/z.md; mpoll "$pb"; dispatcher
 [ "$(hv "$pb")" = "fix $head" ] || die "後始末: fix で終わっていない: $(hv "$pb")"
 ok 'needs_human の問いが開いたまま rebase した担当は、前の head の問いを数えずに ready でき、ゲートが今の head で決めたときにその問いを閉じる'
 
-# 4b. 人が GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
-#     ゲートの問い（from: gate。重なったものも）を「人がマージした」と閉じ、andon issue finish し、通知 merged（by: person）を積む。
-#     次の巡で影響（impact）と人の手直し（corrections）も dispatcher がマージしたときと同じ道で拾う。dispatcher.md §2.7
+# 4b. オーナーが GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
+#     ゲートの問い（from: gate。重なったものも）を「オーナーがマージした」と閉じ、andon issue finish し、通知 merged（by: person）を積む。
+#     次の巡で影響（impact）とオーナーの手直し（corrections）も dispatcher がマージしたときと同じ道で拾う。dispatcher.md §2.7
 settled=${state%.json}.settle.json   # andon issue settle の記録（書き手は settle だけ。ADR-0017 決めたこと 5）
 watch_due() { # watch_due <id>: その課題だけ、次の見回りで GitHub に聞く（ほかの review の課題は聞かない）
     [ -f "$settled" ] || return 0
     jq --arg t "$1" 'with_entries(.value.at = (if .key == $t then "2000-01-01T00:00:00Z" else "2999-01-01T00:00:00Z" end))' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
 }
 person_merges() { git -C "$tmp/origin" update-ref refs/heads/main "$head"; echo "$head" > "$tmp/gh/merged"; }
-hm=$(newtask '人がマージする課題' person)
+hm=$(newtask 'オーナーがマージする課題' person)
 work "$hm" package/gate.json
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
 as_worker "$hm" review-request
@@ -815,32 +815,32 @@ review_by "$(kanban list --all --json | jq -r --arg p "$hm" '[.[] | select(.pare
 as_worker "$hm" ready
 dispatcher
 jq -e '.from == "gate"' "$L/issues/$hm/library/questions/1.json" >/dev/null || die '前提: needs_human の問いが無い'
-HC_TERMINAL_ID=dispatcher "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"irreversible","question":"重なったゲートの問い","options":[{"label":"人が見る","pick":true},{"label":"x"}],"from":"gate"}'
-HC_TERMINAL_ID=t5 kanban answer "$hm#2" '人が見る' >/dev/null   # answered のまま（received でない）
+HC_TERMINAL_ID=dispatcher "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"irreversible","question":"重なったゲートの問い","options":[{"label":"オーナーが見る","pick":true},{"label":"x"}],"from":"gate"}'
+HC_TERMINAL_ID=t5 kanban answer "$hm#2" 'オーナーが見る' >/dev/null   # answered のまま（received でない）
 n=$(wc -l < "$tmp/gh/states")
 watch_due "$hm"; dispatcher; dispatcher
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die "1分たたないうちに同じ PR を GitHub に聞き直した: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
 kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die 'OPEN の PR の課題を片付けた'
 merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
 person_merges
-sed -i '/^t5 /d' "$tmp/hc/live"   # 人のマージは Chief of Staff の留守でも拾う（ADR-0017 決めたこと 8）
+sed -i '/^t5 /d' "$tmp/hc/live"   # オーナーのマージは Chief of Staff の留守でも拾う（ADR-0017 決めたこと 8）
 watch_due "$hm"; dispatcher
 echo "t5 chief-of-staff" >> "$tmp/hc/live"
-kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "留守の間に人がマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "留守の間にオーナーがマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
 kanban questions --json | jq -e --arg t "$hm" 'all(.[]; .id != $t)' >/dev/null || die "ゲートの問いが閉じていない: $(kanban questions --json | jq -c --arg t "$hm" 'map(select(.id == $t))')"
-grep -q '人がマージした（https://github.com/example/app/pull/7）' "$L/issues/$hm/questions.yaml" || die 'ゲートの問いに「人がマージした」と記録していない'
+grep -q 'オーナーがマージした（https://github.com/example/app/pull/7）' "$L/issues/$hm/questions.yaml" || die 'ゲートの問いに「オーナーがマージした」と記録していない'
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null && [ "$(pending "$hm" merged)" = null ] ||
     die "通知 merged（by: person）を記録だけにしていない: $(recorded "$hm" merged)"
-[ "$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)" = "$merges" ] || die '人がマージする課題に gh pr merge を打った'
+[ "$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)" = "$merges" ] || die 'オーナーがマージする課題に gh pr merge を打った'
 jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die '片付けたあとも settle の記録に残った'
-jq -e 'has("watch") | not' "$state" >/dev/null || die 'dispatcher の控えに人のマージの項目がある（settle の記録に持つ）'
+jq -e 'has("watch") | not' "$state" >/dev/null || die 'dispatcher の控えにオーナーのマージの項目がある（settle の記録に持つ）'
 emit <(recorded "$hm" merged) notification-merged-person.json
 dispatcher
-jq -e --arg t "$hm" '((.impact // {}) | has($t) | not) and ((.corrections // {}) | has($t) | not)' "$state" >/dev/null || die "人のマージのあと impact・corrections を拾っていない: $(jq -c '{impact, corrections}' "$state")"
-[ -e "$(cj "$hm")" ] || die '人のマージのあと corrections.json を書いていない'
-ok '人が GitHub でマージしたら（Chief of Staff の留守でも）、次の見回りでゲートの問い（重なったものも）を閉じて finish し、通知 merged（by: person）・impact・corrections を同じ道で回す。PR は1分に1回だけ見る'
+jq -e --arg t "$hm" '((.impact // {}) | has($t) | not) and ((.corrections // {}) | has($t) | not)' "$state" >/dev/null || die "オーナーのマージのあと impact・corrections を拾っていない: $(jq -c '{impact, corrections}' "$state")"
+[ -e "$(cj "$hm")" ] || die 'オーナーのマージのあと corrections.json を書いていない'
+ok 'オーナーが GitHub でマージしたら（Chief of Staff の留守でも）、次の見回りでゲートの問い（重なったものも）を閉じて finish し、通知 merged（by: person）・impact・corrections を同じ道で回す。PR は1分に1回だけ見る'
 
-# 4c. 人がマージしたが、ゲートの外の問い（担当の ask）が開いている → 片付けずに知らせる（1回）。問いが閉じたら次の巡で片付ける
+# 4c. オーナーがマージしたが、ゲートの外の問い（担当の ask）が開いている → 片付けずに知らせる（1回）。問いが閉じたら次の巡で片付ける
 hm=$(newtask '問いが残る課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
@@ -862,10 +862,10 @@ HC_TERMINAL_ID=t5 kanban answer "$hm#1" A >/dev/null; HC_TERMINAL_ID=t7 kanban r
 dispatcher
 kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "問いが閉じたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
 recorded "$hm" merged | jq -e '.detail.by == "person" and (.detail | has("held") | not)' >/dev/null || die "片付けた通知を記録していない: $(recorded "$hm" merged)"
-ok '人がマージしてもゲートの外の問いが開いていれば片付けずに1回だけ知らせ、問いが閉じたら次の巡で片付ける（GitHub には聞き直さない）'
+ok 'オーナーがマージしてもゲートの外の問いが開いていれば片付けずに1回だけ知らせ、問いが閉じたら次の巡で片付ける（GitHub には聞き直さない）'
 
 # 4d. PR がマージされずに閉じた → 片付けず、通知 closed を閉じるたびに1回。閉じた PR も1分に1回聞き直し、
-#     人が開き直してマージしたら片付ける（dispatcher.md §2.7）
+#     オーナーが開き直してマージしたら片付ける（dispatcher.md §2.7）
 hm=$(newtask '閉じた PR の課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
@@ -883,7 +883,7 @@ n=$(wc -l < "$tmp/gh/states"); dispatcher; dispatcher
 watch_due "$hm"; dispatcher
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die "1分たっても閉じた PR を聞き直さない: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
 [ "$(pending "$hm" closed)" = null ] || die '閉じたままの PR を二度知らせた'
-rm "$tmp/gh/closed"   # 人が開き直した
+rm "$tmp/gh/closed"   # オーナーが開き直した
 watch_due "$hm"; dispatcher
 jq -e --arg t "$hm" '.[$t].state // "" | . == ""' "$settled" >/dev/null || die "開き直した PR を CLOSED のまま記録している: $(cat "$settled")"
 touch "$tmp/gh/closed"; watch_due "$hm"; dispatcher   # また閉じた
@@ -897,9 +897,9 @@ jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けた�
 rm -f "$tmp/gh/merged"   # 後の節は PR 7 を OPEN から使う
 ok 'PR がマージされずに閉じたら片付けず、通知 closed を閉じるたびに1回積む。閉じた PR も1分に1回聞き直し、開き直してマージしたら片付ける'
 
-# 4d-2. merge: auto の課題を、dispatcher の gh pr merge の直前に人が同じ head でマージした → gh pr merge は失敗するが、
-#     読み直して MERGED・head がゲートと同じなら問い（irreversible の誤報）を出さず、人がマージしたときの道（§2.7）で片付ける
-hm=$(newtask '人が先にマージする' auto)
+# 4d-2. merge: auto の課題を、dispatcher の gh pr merge の直前にオーナーが同じ head でマージした → gh pr merge は失敗するが、
+#     読み直して MERGED・head がゲートと同じなら問い（irreversible の誤報）を出さず、オーナーがマージしたときの道（§2.7）で片付ける
+hm=$(newtask 'オーナーが先にマージする' auto)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
 as_worker "$hm" review-request
@@ -910,15 +910,15 @@ touch "$tmp/gh/race"; watch_due "$hm"   # doing のうちに聞いた分は待�
 merges=$(wc -l < "$tmp/gh/merges"); n=$(wc -l < "$tmp/gh/states")
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = $((merges + 1)) ] || die '前提: gh pr merge を打っていない'
-kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "人が先にマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
-! grep -q " $hm をマージしない" "$tmp/dispatcher.log" && [ "$(pending "$hm" asked)" = null ] && [ "$(recorded "$hm" asked)" = null ] || die "人が先にマージしただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
-jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$hm/library/gate/$head.json" >/dev/null || die "人のマージなのにゲートの記録に merged を書いた: $(cat "$L/issues/$hm/library/gate/$head.json")"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "オーナーが先にマージしたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
+! grep -q " $hm をマージしない" "$tmp/dispatcher.log" && [ "$(pending "$hm" asked)" = null ] && [ "$(recorded "$hm" asked)" = null ] || die "オーナーが先にマージしただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$hm/library/gate/$head.json" >/dev/null || die "オーナーのマージなのにゲートの記録に merged を書いた: $(cat "$L/issues/$hm/library/gate/$head.json")"
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
 jq -e --arg t "$hm" '[.pending[] | select(.issue == $t and (.kind == "asked" or .kind == "merged"))] == []' "$state" >/dev/null && jq -e --arg t "$hm" '(.[$t].approved // "") == ""' "$mergerec" >/dev/null ||
     die "問い・merged を待ちに積んだ・approve の待ちを残した: $(jq -c .pending "$state") $(cat "$mergerec")"
 jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 2)) ] || die "読み直しと settle のほかに同じ PR を聞いた: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
-ok 'merge: auto でも人が先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（ゲートの記録の merged は書かない）'
+ok 'merge: auto でもオーナーが先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（ゲートの記録の merged は書かない）'
 
 # merge: auto でマージしたあと、受け取られていない担当の問いで finish が断られても、片付けかけ（review のまま worktree・端末が消える）を残さない
 # （A-0002・A-0001 の repro-b3）。finish は何も消さずに止まり、dispatcher は「片付けに失敗した」を問いにする
@@ -972,7 +972,7 @@ ok 'issue.yaml の repo と違う repo の PR は、マージされていても�
 
 # 4f. andon issue settle は 2 回打っても同じ結果（GitHub に聞くのは 1 分に 1 回・通知は 1 回・finish は 1 回）。dispatcher が
 #     自分でマージした PR（ゲートの記録 library/gate/<head>.json の merged が true）は、dispatcher の控えを読まずに見分けて片付けない
-#     （同じ巡で finish が失敗しても人のマージと誤報しない）。ADR-0017 決めたこと 5 の (d)・受け入れ条件 7
+#     （同じ巡で finish が失敗してもオーナーのマージと誤報しない）。ADR-0017 決めたこと 5 の (d)・受け入れ条件 7
 settle() { HC_TERMINAL_ID=dispatcher "$andon" issue settle "$1"; }
 hm=$(newtask 'dispatcher がマージした課題' person)
 work "$hm" docs/a.md
@@ -984,20 +984,20 @@ mkdir -p "$L/issues/$hm/library/gate"
 jq -n --arg h "$head" '{head: $h, decision: "approve", merged: true}' > "$L/issues/$hm/library/gate/$head.json"
 watch_due "$hm"; n=$(wc -l < "$tmp/gh/states")
 a=$(settle "$hm"); b=$(settle "$hm")
-[ "$a" = "$b" ] && jq -e '.state == "auto" and .notify == []' <<<"$a" >/dev/null || die "dispatcher がマージした PR を人のマージとした・2 回で結果が違う: $a / $b"
+[ "$a" = "$b" ] && jq -e '.state == "auto" and .notify == []' <<<"$a" >/dev/null || die "dispatcher がマージした PR をオーナーのマージとした・2 回で結果が違う: $a / $b"
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die 'MERGED と分かった PR を GitHub に聞き直した'
 kanban show "$hm" --json | jq -e '.issue.status == "review"' >/dev/null || die 'dispatcher がマージした課題を settle が片付けた'
-rm "$L/issues/$hm/library/gate/$head.json"   # 人がマージした（ゲートの記録に merged が無い）
+rm "$L/issues/$hm/library/gate/$head.json"   # オーナーがマージした（ゲートの記録に merged が無い）
 a=$(settle "$hm"); b=$(settle "$hm")
 jq -e --arg h "$head" '.state == "finished" and .notify == [{kind: "merged", detail: {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}}]' <<<"$a" >/dev/null ||
-    die "人のマージを片付けて通知を返さない: $a"
+    die "オーナーのマージを片付けて通知を返さない: $a"
 jq -e '.state == "skip" and .notify == []' <<<"$b" >/dev/null || die "2 回目にまた片付けた・知らせた: $b"
-kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die '人のマージを settle が片付けない'
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die 'オーナーのマージを settle が片付けない'
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] || die '2 回目に GitHub に聞き直した'
 rm -f "$tmp/gh/merged"
 ok 'andon issue settle は 2 回打っても同じ（聞く・知らせる・片付けるのは 1 回）。ゲートの記録の merged が true なら dispatcher のマージとして片付けない'
 
-# 4g. 担当が doing のうちに人が GitHub で PR をマージした → review のときと同じ道で片付ける（done・端末・worktree）。
+# 4g. 担当が doing のうちにオーナーが GitHub で PR をマージした → review のときと同じ道で片付ける（done・端末・worktree）。
 #     受け取られていない問い・commit していない変更があれば片付けず、理由つきの通知 merged（held）を理由ごとに1回だけ積む。dispatcher.md §2.7
 hm=$(newtask 'doing のうちにマージされる' person)
 dwt=$ANDON_WORKSPACE/.worktrees/app/demo-$hm
@@ -1022,15 +1022,15 @@ kanban show "$hm" --json | jq -e '.issue.status == "doing"' >/dev/null && [ -d "
 pending "$hm" merged | jq -e '.detail.by == "person" and (.detail.held | contains("commit していない変更"))' >/dev/null || die "片付けない理由（変更）を知らせていない: $(pending "$hm" merged)"
 git -C "$dwt" checkout -q -- docs/a.md
 dispatcher
-kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "doing のうちに人がマージした課題を片付けない: $(tail -3 "$tmp/dispatcher.log")"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "doing のうちにオーナーがマージした課題を片付けない: $(tail -3 "$tmp/dispatcher.log")"
 [ ! -e "$dwt" ] && ! grep -q "^t7 $hm\$" "$tmp/hc/live" || die 'doing の課題を done にしたが worktree・端末が残った'
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
 jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
 rm -f "$tmp/gh/merged"
-ok 'doing のうちに人がマージした PR も、review のときと同じ道で片付ける（done・端末・worktree）。問い・commit していない変更があれば片付けず、理由ごとに1回だけ知らせる'
+ok 'doing のうちにオーナーがマージした PR も、review のときと同じ道で片付ける（done・端末・worktree）。問い・commit していない変更があれば片付けず、理由ごとに1回だけ知らせる'
 
-# 4h. Chief Engineer の課題（profile chief-engineer）の文書の PR を人がマージした → ゲートは回さず、review にいれば settle で片付け、
-#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（人と話している）は見ない。dispatcher.md §2.7
+# 4h. Chief Engineer の課題（profile chief-engineer）の文書の PR をオーナーがマージした → ゲートは回さず、review にいれば settle で片付け、
+#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（オーナーと話している）は見ない。dispatcher.md §2.7
 ce=$(HC_TERMINAL_ID=t5 kanban add '設計を文書にする' --profile chief-engineer --repo github.com/example/app)
 cwt=$ANDON_WORKSPACE/.worktrees/app/demo-$ce
 git -C "$app" fetch -q origin
@@ -1045,7 +1045,7 @@ kanban show "$ce" --json | jq -e '.issue.status == "doing"' >/dev/null && [ "$(w
 (cd "$cwt" && HC_TERMINAL_ID=t7 kanban review "$ce" >/dev/null)
 merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
 dispatcher
-kanban show "$ce" --json | jq -e '.issue.status == "done"' >/dev/null || die "人がマージした Chief Engineer の文書の PR を片付けない: $(grep "$ce" "$tmp/dispatcher.log" | tail -3)"
+kanban show "$ce" --json | jq -e '.issue.status == "done"' >/dev/null || die "オーナーがマージした Chief Engineer の文書の PR を片付けない: $(grep "$ce" "$tmp/dispatcher.log" | tail -3)"
 [ ! -e "$cwt" ] && ! grep -q "^t7 $ce\$" "$tmp/hc/live" || die 'Chief Engineer の課題を done にしたが worktree・端末が残った'
 pending "$ce" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null ||
     die "通知 merged（by: person）を Chief of Staff に届けない: $(pending "$ce" merged) $(recorded "$ce" merged)"
@@ -1055,7 +1055,7 @@ jq --arg t "$ce" '.pending |= map(select(.issue != $t))' "$state" > "$state.new"
 dispatcher
 [ "$(pending "$ce" merged)" = null ] || die '片付けた Chief Engineer の課題をまた知らせた'
 rm -f "$tmp/gh/merged"
-ok 'Chief Engineer の文書の PR を人がマージしたら、ゲートを回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は見ない'
+ok 'Chief Engineer の文書の PR をオーナーがマージしたら、ゲートを回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は見ない'
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
@@ -1108,7 +1108,7 @@ jq -e --arg t "$sid" 'has($t) | not' "$mergerec" >/dev/null || die "照合が外
 kanban config set chief_of_staff=t5 >/dev/null
 ok 'deliverable: candidates の照合が外れていても（Chief of Staff の起き直しのあと）、ゲートを回さず返ったことを Chief of Staff に届ける'
 
-# 6. andon issue finish（人がマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
+# 6. andon issue finish（オーナーがマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')
 [ "$revs" -ge 2 ] && ls -d "$ANDON_WORKSPACE/.worktrees/app/demo-$id-r"* >/dev/null || die 'レビュアーの子課題・detached worktree が無い（前提）'
 HC_TERMINAL_ID=t5 "$andon" issue finish "$id" >/dev/null
@@ -1196,7 +1196,7 @@ dispatcher
 [ "$(grep -c "^status .*$head" "$tmp/gh/posted")" = 2 ] || die 'ゲートを回し直していない'
 ok 'ゲートのあと merge: person に変わったら gh pr merge を打たず、次の見回りでゲートから回し直す（approve でも person なので止まる）'
 
-# 9b. GitHub の checks が走っている間は待ち（マージしない・人に回さない・控えに書かない）。通れば次の見回りでマージ
+# 9b. GitHub の checks が走っている間は待ち（マージしない・オーナーに回さない・控えに書かない）。通れば次の見回りでマージ
 id=$(newtask 'CI を待つ' auto)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
@@ -1378,7 +1378,7 @@ cos working 3
 id=$(event 'ターンの中の通知')
 [ "$(sent)" = 0 ] || die 'working の Chief of Staff に hc send した'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"見た"}')
-jq -e --arg id "$id" '(has("decision") | not) and .hookSpecificOutput.hookEventName == "Stop" and (.hookSpecificOutput.additionalContext | startswith("<news project=\"demo\">\n") and contains("\n\($id) report: 報告 ") and endswith("人に言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。\n</news>"))' <<<"$out" >/dev/null ||
+jq -e --arg id "$id" '(has("decision") | not) and .hookSpecificOutput.hookEventName == "Stop" and (.hookSpecificOutput.additionalContext | startswith("<news project=\"demo\">\n") and contains("\n\($id) report: 報告 ") and endswith("オーナーに言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える。\n</news>"))' <<<"$out" >/dev/null ||
     die "Stop が <news> を additionalContext で渡さない: $out"
 jq -e '.pending == [] and .hook.terminal == "t5" and .hook.via == "stop"' "$state" >/dev/null || die '取り出した待ちが控えに残った・渡した turn を控えていない'
 : >> "$tmp/hc/labels"
@@ -1397,12 +1397,12 @@ jq -e --arg id "$id" '.hookSpecificOutput.hookEventName == "UserPromptSubmit" an
     die "additionalContext に待ちと委譲が無い: $out"
 jq -e '.pending == []' "$state" >/dev/null || die '添えた待ちが残った'
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"了解"}' >/dev/null
-! grep -q 'news.replied=3$' "$tmp/hc/labels" || die '人への答えに news.replied を書いた'
+! grep -q 'news.replied=3$' "$tmp/hc/labels" || die 'オーナーへの答えに news.replied を書いた'
 out=$(HC_TERMINAL_ID=t5 sh "$hooks/user-prompt-submit" <<<'{"prompt":"もう一つ"}')
 jq -e '.hookSpecificOutput.additionalContext | (contains("<news") | not) and contains("<delegation")' <<<"$out" >/dev/null || die "待ちが無いときに委譲だけを添えない: $out"
 out=$(HC_TERMINAL_ID=t5 PATH=/usr/bin:/bin sh "$hooks/user-prompt-submit" <<<'{}'); rc=$?
 [ "$rc" = 0 ] && [ -z "$out" ] || die 'andon が無いときに通さない'
-ok '人が送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
+ok 'オーナーが送ったとき、待ちと委譲の一覧を UserPromptSubmit の additionalContext に添える（andon が無ければ通す）'
 
 # 12-away. 留守の間に積んだ通知は待ちに残り（asked は問いの n ごと）、戻った最初の <news> の先頭に「留守の間（いつ〜いつ）に N 件」の1行が付く。
 #          N は置き換えの前の数（ADR-0017 決めたこと 8 の (c)(d)）
@@ -1508,15 +1508,15 @@ cstop p8 '見た' | jq -e --arg id "$id" '.hookSpecificOutput.additionalContext 
 jq -e '.hook.turn == 8 and .hook.ack_before == "7"' "$state" >/dev/null || die '渡したときの turn と news.ack を控えていない'
 HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null && HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null || die 'ack が通らない'
 term t5 working 8 role=chief-of-staff project=demo news.ack=8
-cstop p8 '片付けた。人へ言うことは無い' true >/dev/null
-cstop p8 '片付けた。人へ言うことは無い' true >/dev/null
+cstop p8 '片付けた。オーナーへ言うことは無い' true >/dev/null
+cstop p8 '片付けた。オーナーへ言うことは無い' true >/dev/null
 [ "$(replied)" = $((n + 1)) ] && tail -1 "$tmp/hc/labels" | grep -qx 't5 news.replied=8' || die 'ack したターンに news.replied を1回だけ書かない'
 jq -e --argjson a "$a" '.replied.ack == $a + 1' "$state" >/dev/null || die 'ack で書いたことを控えに数えない'
 # ack の無いターン（前のターンの値のまま）は書かない
 id=$(event 'ack しない通知')
 term t5 working 9 role=chief-of-staff project=demo news.ack=8
 cstop p9 'x' >/dev/null
-cstop p9 '人への答え' true >/dev/null
+cstop p9 'オーナーへの答え' true >/dev/null
 [ "$(replied)" = $((n + 1)) ] || die 'ack の無いターンに news.replied を書いた'
 # <no-reply> の受け口は外した: ack が無ければ、答えが <no-reply> だけでも書かない・数えない
 id=$(event '<no-reply> で答える通知')
@@ -1527,7 +1527,7 @@ cstop p9 '<no-reply>' true >/dev/null
 id=$(event '前の ack が残る通知')
 term t5 working 9 role=chief-of-staff project=demo news.ack=9
 cstop p9 'x' >/dev/null
-cstop p9 '人への答え' true >/dev/null
+cstop p9 'オーナーへの答え' true >/dev/null
 [ "$(replied)" = $((n + 1)) ] || die '渡す前の同じ turn の ack で news.replied を書いた'
 ok 'andon news ack は Chief of Staff の端末だけに news.ack=<turn> を書き、渡した turn に ack があれば文に関わらず news.replied を1回だけ書く（渡し中が無い・前の ack は数えない。<no-reply> だけの答えでは書かない）'
 
@@ -1559,7 +1559,7 @@ wend() { # wend <名前> <秒>: 終わるまで待って終了コードを出す
 }
 before=$(cat "$state")
 wstart w1
-[ "$(wend w1 5)" = 2 ] && grep -qx 'andon: 通知が待っている。これは合図で、人の依頼ではない。何も書かずにターンを終える（通知はターンの終わりに <news> で届く）。' "$tmp/w1.err" ||
+[ "$(wend w1 5)" = 2 ] && grep -qx 'andon: 通知が待っている。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える（通知はターンの終わりに <news> で届く）。' "$tmp/w1.err" ||
     die "届ける待ちがあり Chief of Staff が done なのに、待ち役が合図で 2 にならない: $(cat "$tmp/w1.rc" "$tmp/w1.err" 2>/dev/null)"
 [ "$before" = "$(cat "$state")" ] || die '待ち役が待ち・控えを書き替えた'
 [ ! -e "$waitf" ] || die '合図で終わった待ち役の届けが残った'
@@ -1611,7 +1611,7 @@ HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":false}' >/dev/null   
 HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"stop_hook_active":true}' >/dev/null
 cos idle 7
 wstart w4 --timeout 2
-[ "$(wend w4 5)" = 2 ] && grep -qx 'andon: 待ち役の張り直し。これは合図で、人の依頼ではない。何も書かずにターンを終える。' "$tmp/w4.err" ||
+[ "$(wend w4 5)" = 2 ] && grep -qx 'andon: 待ち役の張り直し。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える。' "$tmp/w4.err" ||
     die "timeout の前に張り直しの合図で 2 にならない: $(cat "$tmp/w4.rc" "$tmp/w4.err" 2>/dev/null)"
 cos working 7
 wstart w5 --timeout 2
@@ -1700,9 +1700,9 @@ pk
 jq -e --arg p "$p1" '.pending == [] and .ready == [$p] and .log_pos == ('"$(stat -c %s "$P/log.jsonl")"')' "$pst" >/dev/null || die "初めて見る台帳で積んだ・控えていない: $(jq -c '{pending, ready, log_pos}' "$pst")"
 ok '初めて見る台帳は、今の ready と log.jsonl の位置を控えるだけで積まない'
 
-# 16. ready は差で拾う（人の課題とレビュアーの子課題は除く・ルーチンは detail.routine）
+# 16. ready は差で拾う（オーナーの課題とレビュアーの子課題は除く・ルーチンは detail.routine）
 p2=$(as_cos kanban add '新しく引き取れる')
-p3=$(as_cos kanban add '人がする'); as_cos kanban set "$p3" who=person >/dev/null
+p3=$(as_cos kanban add 'オーナーがする'); as_cos kanban set "$p3" who=person >/dev/null
 p4=$(as_cos kanban add 'ルーチンが足した'); as_cos kanban set "$p4" routine=nightly >/dev/null
 # レビュアーを起動しそこねて todo に残った子課題。起動するのは dispatcher だけなので、引き取れるとは知らせない
 p5=$(as_cos kanban add --parent "$p2" "$p2 のレビュー"); as_cos kanban set "$p5" profile=codex-review >/dev/null
@@ -1715,14 +1715,14 @@ pk
 pp "$p2" ready | jq -e '.[0].detail == {title: "新しく引き取れる"}' >/dev/null || die "増えた ready を拾わない: $(pp "$p2" ready)"
 pp "$p4" ready | jq -e '.[0].detail == {title: "ルーチンが足した", routine: "nightly"}' >/dev/null || die "ルーチンの ready に routine が無い: $(pp "$p4" ready)"
 [ "$(pp "$p1" ready)" = '[]' ] || die '前回もあった ready を拾った'
-[ "$(pp "$p3" ready)" = '[]' ] || die '人の課題の ready を拾った'
+[ "$(pp "$p3" ready)" = '[]' ] || die 'オーナーの課題の ready を拾った'
 [ "$(pp "$p5" ready)" = '[]' ] || die "レビュアーの子課題の ready を拾った: $(pp "$p5" ready)"
 pp "$p6" ready | jq -e '.[0].detail == {title: "観察"}' >/dev/null || die "レビュアーでない子課題の ready を拾わない: $(pp "$p6" ready)"
 jq -e --arg p "$p5" '.ready | index($p) == null' "$pst" >/dev/null || die "レビュアーの子課題を ready の控えに入れた: $(jq -c .ready "$pst")"
 emit <(pp "$p4" ready | jq '.[0]') notification-ready.json
 clear_pending; pk
 [ "$(jq '[.pending[] | select(.kind == "ready")] | length' "$pst")" = 0 ] || die '同じ ready を二度拾った'
-ok 'ready は前回との差で拾い（人の課題とレビュアーの子課題は除く・routine を添える）、同じものを二度拾わない'
+ok 'ready は前回との差で拾い（オーナーの課題とレビュアーの子課題は除く・routine を添える）、同じものを二度拾わない'
 
 # 16a. 待つ相手がマージされずに done になって queued から戻った課題の ready に「待つ相手 <id> がやめになった」を添える。
 # マージで done になった待つ相手なら今どおり題だけ。PR を成果にしない待つ相手（repo の無い課題）は見分けない

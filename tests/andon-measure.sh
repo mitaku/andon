@@ -68,7 +68,7 @@ emit "$tmp/out.json" measure.json
 echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
 head -1 "$tmp/table" | grep -q '^価値: 仮説を確かめた数 記録なし'
-grep -q '^  人の手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
+grep -q '^  オーナーの手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
 grep '自動マージ率' "$tmp/table" | grep -q '対抗: revert 1本'
 grep -q 'kanban/log.jsonl:4' "$tmp/table"
 grep -q '^  記録だけへ移す候補.*  report$' "$tmp/table"

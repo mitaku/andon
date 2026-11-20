@@ -1,13 +1,13 @@
 // Package dispatcher は andon dispatcher: セルに1つ常駐し、台帳を周期で回ってインナーループの決まった次の工程を起動する
-// （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・人が持つ。
+// （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・オーナーが持つ。
 //
 //	report.json の review_request   → レビュアーを起動する（kanban add --parent ＋ detached worktree ＋ hc run）
 //	{"status": "review"} に入った    → andon gate を回す（deliverable: candidates の課題は回さない。通知だけ）
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon issue finish（レビュアーの課題も片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
-//	review の PR を人がマージした      → ゲートの問いを閉じて andon issue finish（1分に1回だけ gh pr view。humanmerge.go）
-//	{"status": "done"} の行            → library/corrections.json を1回だけ書く（人の手直し。corrections.go）
+//	review の PR をオーナーがマージした      → ゲートの問いを閉じて andon issue finish（1分に1回だけ gh pr view。humanmerge.go）
+//	{"status": "done"} の行            → library/corrections.json を1回だけ書く（オーナーの手直し。corrections.go）
 //	                                     library/outcome.json を1回だけ書く（結果の記録。outcome.go）
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //	担当・Chief of Staff がプロバイダに切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
@@ -191,14 +191,14 @@ func cosDown(cos string) (reason, unsure string) {
 	return "", ""
 }
 
-// skipped は台帳を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、人に気づける通知を1つ出す。
+// skipped は台帳を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、オーナーに気づける通知を1つ出す。
 // 同じ理由が続く間は出さない。
 func (p *project) skipped(reason string) {
 	if p.c.skip[p.l.Slug] == reason {
 		return
 	}
 	p.c.mark(p.l.Slug, reason)
-	p.logf("台帳を飛ばす（%s。レビュアーも人のマージも拾わない）", reason)
+	p.logf("台帳を飛ばす（%s。レビュアーもオーナーのマージも拾わない）", reason)
 	cmd := exec.Command("herdr", "notification", "show", "andon dispatcher: "+p.l.Slug+" を飛ばしている", "--body", reason)
 	cmd.Env = withoutTerminal()
 	_ = cmd.Run() // herdr が無い・失敗でも巡は続ける（ログの1行は出ている）
@@ -323,7 +323,7 @@ func (p *project) pass() (bool, error) {
 		busy = busy || status == "doing" || status == "review"
 		if !p.gated(t) {
 			if isEngineer(t) && t.Str("repo") != "" && status == "review" {
-				// Chief Engineer の文書の PR は人がマージする。ゲートは回さず、人のマージだけ見て片付ける（dispatcher.md §2.7）
+				// Chief Engineer の文書の PR はオーナーがマージする。ゲートは回さず、オーナーのマージだけ見て片付ける（dispatcher.md §2.7）
 				if rep, err := contract.ReadReport(filepath.Join(p.l.Library(t.Str("id")), "report.json")); err == nil {
 					p.humanMerge(t, rep)
 				}
@@ -339,14 +339,14 @@ func (p *project) pass() (bool, error) {
 			if rep.ReviewRequest != nil {
 				p.reviewRequest(t, rep)
 			}
-			p.humanMerge(t, rep) // doing のうちに人が GitHub でマージした（andon issue settle。dispatcher.md §2.7）
+			p.humanMerge(t, rep) // doing のうちにオーナーが GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		case "review":
 			p.merge(t)           // ゲートとマージと片付け（andon issue merge。dispatcher.md §5 の P6a）
-			p.humanMerge(t, rep) // 人が GitHub でマージした（andon issue settle。dispatcher.md §2.7）
+			p.humanMerge(t, rep) // オーナーが GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		}
 	}
 	p.impacts()         // マージのあとの影響（dispatcher.md §2.5）
-	p.corrections()     // 人の手直し（dispatcher.md §2.6・contract.md §14）
+	p.corrections()     // オーナーの手直し（dispatcher.md §2.6・contract.md §14）
 	p.outcomes()        // 結果の記録（dispatcher.md §2.12・contract.md §19）
 	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
 	if !p.first && !p.away {

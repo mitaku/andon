@@ -12,7 +12,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// Project は projects/<slug>/project.json（docs/contract.md §11・ADR-0004 決めたこと 1）。人だけが書く機械向けの事実。
+// Project は projects/<slug>/project.json（docs/contract.md §11・ADR-0004 決めたこと 1）。オーナーだけが書く機械向けの事実。
 // 委譲は delegation に今の delegation.json と同じ形で入る。
 type Project struct {
 	Version      int             `json:"version"`

@@ -62,7 +62,7 @@ func RouteOf(n Notification, f Facts) Route {
 			return Deliver // 片付けていない（ADR-0010 決めたこと 7）
 		}
 		if f.Engineer {
-			return Deliver // Chief Engineer の文書の PR を人がマージした。impact は回らないので、片付いたことはこれだけで届く
+			return Deliver // Chief Engineer の文書の PR をオーナーがマージした。impact は回らないので、片付いたことはこれだけで届く
 		}
 		return Record
 	case "report":
@@ -71,7 +71,7 @@ func RouteOf(n Notification, f Facts) Route {
 		}
 	case "stalled", "blocked", "ready":
 		if f.Engineer {
-			return Record // 人と話していて人の返事を待つのが普通・起動済み。Chief of Staff は答えられない（ADR-0010 決めたこと 1）
+			return Record // オーナーと話していてオーナーの返事を待つのが普通・起動済み。Chief of Staff は答えられない（ADR-0010 決めたこと 1）
 		}
 	}
 	return Deliver

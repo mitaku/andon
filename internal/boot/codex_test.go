@@ -60,8 +60,8 @@ func TestCodexConfigKeepsUserValues(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
 	cfg := filepath.Join(f.home, ".codex", "config.toml")
-	// 人が決めた approval_policy は残す。表の中の sandbox_mode は top-level ではないので足す
-	user := "model = \"gpt-x\"\r\napproval_policy = \"on-request\" # 人の値\r\n\r\n[profiles.ro]\r\nsandbox_mode = \"read-only\"\r\n\r\n[projects.\"/workspace\"]\r\ntrust_level = \"trusted\"\r\n"
+	// オーナーが決めた approval_policy は残す。表の中の sandbox_mode は top-level ではないので足す
+	user := "model = \"gpt-x\"\r\napproval_policy = \"on-request\" # オーナーの値\r\n\r\n[profiles.ro]\r\nsandbox_mode = \"read-only\"\r\n\r\n[projects.\"/workspace\"]\r\ntrust_level = \"trusted\"\r\n"
 	put(t, cfg, user)
 	if err := os.Chmod(cfg, 0o640); err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestCodexMemoryDisabled(t *testing.T) {
 				t.Fatalf("記憶が止まっていない: %s", got)
 			}
 			if parsed["model"] != "gpt-x" || parsed["approval_policy"] != "on-request" {
-				t.Fatalf("人の値を変えた: %s", got)
+				t.Fatalf("オーナーの値を変えた: %s", got)
 			}
 			if name == "enabled" && memory["max_rollouts_per_startup"] != int64(8) {
 				t.Fatalf("ほかの記憶設定を変えた: %s", got)

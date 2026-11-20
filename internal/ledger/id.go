@@ -30,7 +30,7 @@ func SplitRound(id string) (parent string, round int, ok bool) {
 	return id[:i], k, true
 }
 
-// CanonID は人が打った id を台帳の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。回は先頭の0を除く）。
+// CanonID はオーナーが打った id を台帳の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。回は先頭の0を除く）。
 // どちらの形でもなければそのまま。
 func CanonID(id string) string {
 	if base, k, ok := SplitRound(id); ok {

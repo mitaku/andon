@@ -26,7 +26,7 @@ import (
 // （どちらも毎ターン。EnsureFromHook）。core の起き直しは boot を通らない。dispatcher は Chief of Staff の留守にも回るので、
 // 留守の間に動いている担当のフックからも戻す（ADR-0017 決めたこと 8 の (e)）。
 
-// shells は、dispatcher の端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、人が抜けたあと）。
+// shells は、dispatcher の端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、オーナーが抜けたあと）。
 var shells = spawn.Shells
 
 // ErrBusy は、ほかが確かめている（boot と複数の Chief of Staff のフックが重なった）ので何もしなかった。
@@ -61,9 +61,9 @@ func IsDispatcher(argv []string) bool {
 // 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd はセルの repo。
 // 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
 // ほかが確かめていれば ErrBusy を返す（どちらも「動いている」ではない）。
-// シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。dispatcher 専用の端末なので、
+// シェルには打ち込まない（入力欄にオーナーの打ちかけがあれば、それに足して実行してしまう）。dispatcher 専用の端末なので、
 // keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
-// シェルでも andon dispatcher でもないもの（人が何か動かしている）が出ているときは触らない。
+// シェルでも andon dispatcher でもないもの（オーナーが何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 	return ensureTerm(andon, cwd, wait, nil)
 }

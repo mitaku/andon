@@ -446,7 +446,7 @@ func ChecksOverdue(rows []ledger.Row, id string, now time.Time, limit int) bool 
 type Facts struct {
 	LedgerReasons   []string // 台帳と PR が合わない（fix）
 	PROpen          bool     // open で draft でない
-	Blockers        []string // 人が見る PR の事情（conflict・base・作者・fork・files の件数）
+	Blockers        []string // オーナーが見る PR の事情（conflict・base・作者・fork・files の件数）
 	SettingsReason  string   // 予約キーを信じられない（空なら信じる）
 	RepoKnown       bool     // 条件表に repo がある
 	Tier            string

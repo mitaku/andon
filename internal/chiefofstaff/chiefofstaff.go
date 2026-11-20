@@ -7,11 +7,11 @@
 //     2つ以上なら止まる（1プロジェクトに1人）。数えるのは hc の agent が Claude Code の端末だけ。
 //     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
 //  2. 無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos・cwd は台帳の root）。
-//     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos で人の Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
+//     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos でオーナーの Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
 //  3. その address を台帳の config.yaml の chief_of_staff に書く（違うときだけ。kanban config set）。
 //  4. 出た場所を「<Space 名> / <tab 名>」（<slug> / CoS）で出す。hc attach は打たない（ADR-0002 決めたこと 14・17）。
 //
-// 打つのは人（プロジェクトで Chief of Staff と話すとき）か、起き直した Chief of Staff 自身（自分が見つかるので起動し直さない）。
+// 打つのはオーナー（プロジェクトで Chief of Staff と話すとき）か、起き直した Chief of Staff 自身（自分が見つかるので起動し直さない）。
 package chiefofstaff
 
 import (
@@ -31,7 +31,7 @@ import (
 )
 
 // Usage は andon chief-of-staff の使い方。
-const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。人の Herdr App の <slug> / CoS に出る\n" +
+const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。オーナーの Herdr App の <slug> / CoS に出る\n" +
 	"動いていればそれを使い、無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos）。\n" +
 	"台帳の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
 	"最初のメッセージが届かなかった（信頼の画面など）ときは終了コード 3 と、App のその tab で答えたあとに打つ hc send を出す。\n"
@@ -118,7 +118,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		case spawn.Running:
 			addrs, cur = append(addrs, lt.Address), t
 		default:
-			return die("%s（%s の Chief of Staff のラベル）で Claude Code が動いているか確かめられないので止まる（%s）。人が使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, slug, t.Describe(), lt.Address)
+			return die("%s（%s の Chief of Staff のラベル）で Claude Code が動いているか確かめられないので止まる（%s）。オーナーが使っていれば済ませてから、戻った端末なら hc kill %s してから打ち直す", lt.Address, slug, t.Describe(), lt.Address)
 		}
 	}
 	if len(addrs) > 1 {
@@ -132,7 +132,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 	}
 
 	space, tab := "andon-"+slug, "andon-"+slug+"-cos"
-	where := slug + " / CoS" // 人に端末を指す言い方（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける
+	where := slug + " / CoS" // オーナーに端末を指す言い方（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける
 	msg := fmt.Sprintf("プロジェクト `%s` の Chief of Staff。\n台帳は `%s`。", slug, l.Dir)
 	var addr, how string
 	var run *spawn.Started
@@ -153,7 +153,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 			return die("%v", err)
 		}
 		if !found {
-			return die("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", Profile)
+			return die("プロファイル %s の template が無い（hc templates で確かめる。作るのはオーナー）", Profile)
 		}
 		// skill chief-of-staff はプロファイルの command が system prompt に足すので、最初のメッセージは読ませる行を持たない（ADR-0001 決定 3）
 		rec := launch.Gather(launch.Spec{Role: launch.RoleChiefOfStaff, Launch: launch.LaunchStart, Profile: Profile, Template: Profile,

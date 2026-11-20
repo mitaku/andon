@@ -32,7 +32,7 @@ chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH" GH_LOG=$tmp/gh.log
 : >"$GH_LOG"
 
-# セルの repo（人のもの）: owner が commit した project.json
+# セルの repo（オーナーのもの）: owner が commit した project.json
 plant() {
   echo "$1" >"$tmp/plant/projects/demo/project.json"
   git -C "$tmp/plant" add -A

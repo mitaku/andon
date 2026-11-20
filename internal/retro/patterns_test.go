@@ -72,9 +72,9 @@ func TestEvidenceTwoDistinct(t *testing.T) {
 		t.Run(name, func(t *testing.T) { wantRefused(t, checkOne(t, pattern(ev...), in), "別々の2件に満たない") })
 	}
 	for name, ev := range map[string][]string{
-		"別々の課題2件":      {"S-0012", "S-0013"},
-		"課題1件と人の文1件":   {"S-0013", "h-b"},
-		"別々のセッションの文2つ": {"h-b", "h-c"},
+		"別々の課題2件":       {"S-0012", "S-0013"},
+		"課題1件とオーナーの文1件": {"S-0013", "h-b"},
+		"別々のセッションの文2つ":  {"h-b", "h-c"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := checkOne(t, pattern(ev...), in); err != nil {
@@ -218,25 +218,25 @@ func TestParsePatternsInputStrict(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 16・17: 依頼書に要約・根拠・直す先・期待する効果・リスクが入り、人の文の本文は入らない。
-// Andon のパッケージの直しで、その repo をこのプロジェクトが持たなければ人の課題。
+// 受け入れ条件 16・17: 依頼書に要約・根拠・直す先・期待する効果・リスクが入り、オーナーの文の本文は入らない。
+// Andon のパッケージの直しで、その repo をこのプロジェクトが持たなければオーナーの課題。
 func TestPlan(t *testing.T) {
 	in := patternsInput()
-	in.Typed[1].Text = "人が打った本文"
+	in.Typed[1].Text = "オーナーが打った本文"
 	p := pattern("S-0012", "h-b")
 	pl := planOf("S-0020", p, in, repos)
 	if pl.Who != "worker" || pl.Repo != "github.com/example/sample-site" || pl.Title != p.Summary {
 		t.Fatalf("直す課題: %+v", pl)
 	}
 	for _, want := range []string{"解決すべき問題: " + p.Summary, "直す先: テスト・lint の段で足す", "tests/pr-title.sh",
-		"期待する効果: " + p.Effect, "リスク: " + p.Risk, "- S-0012: S-0012 の題", "- h-b: 人が打った文",
+		"期待する効果: " + p.Effect, "リスク: " + p.Risk, "- S-0012: S-0012 の題", "- h-b: オーナーが打った文",
 		"PR の本文に書いてよい根拠の PR: https://github.com/example/sample-site/pull/12", "S-0020 の library/retro.json のパターン p1", "ラベル retro"} {
 		if !strings.Contains(pl.Brief, want) {
 			t.Errorf("依頼書に %q が無い:\n%s", want, pl.Brief)
 		}
 	}
-	if strings.Contains(pl.Brief, "人が打った本文") {
-		t.Errorf("依頼書に人の文の本文が入った")
+	if strings.Contains(pl.Brief, "オーナーが打った本文") {
+		t.Errorf("依頼書にオーナーの文の本文が入った")
 	}
 
 	p.Target = Target{Kind: "andon", Repo: "github.com/example/andon", Paths: []string{"package/skills/worker/SKILL.md"}}
@@ -244,7 +244,7 @@ func TestPlan(t *testing.T) {
 	for name, rs := range map[string][]string{"repos に無い": repos, "repos が空": nil} {
 		pl := planOf("S-0020", p, in, rs)
 		if pl.Who != "person" || pl.Repo != "" || !strings.HasPrefix(pl.Title, "Andon へ伝えるか: ") {
-			t.Errorf("%s: 人の課題でない: %+v", name, pl)
+			t.Errorf("%s: オーナーの課題でない: %+v", name, pl)
 		}
 	}
 	pl = planOf("S-0020", p, in, append(repos, "github.com/example/andon"))
@@ -253,7 +253,7 @@ func TestPlan(t *testing.T) {
 	}
 	p.Target.Repo = ""
 	if pl := planOf("S-0020", p, in, append(repos, "github.com/example/andon")); pl.Who != "person" {
-		t.Errorf("repo の無い Andon の直しは人の課題: %+v", pl)
+		t.Errorf("repo の無い Andon の直しはオーナーの課題: %+v", pl)
 	}
 }
 

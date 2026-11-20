@@ -15,7 +15,7 @@ while IFS= read -r p; do
     # image の検査そのもの・それを走らせる道具
     tests/image.sh | tests/lib/pty-probe.py | tests/lib/run-tests.sh | tests/lib/image-scope.sh) need=true ;;
     # image に入らない場所の Go のテスト（go build は読まない。package/ の下は image に丸ごと入るので含めない）・
-    # 人の文書・ほかの tests
+    # 人用の文書・ほかの tests
     cmd/*_test.go | internal/*_test.go | docs/* | tests/*) ;;
     README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # セルに main の commit を当てる道具（ADR-0027）。image/ の下だが Dockerfile は COPY しない

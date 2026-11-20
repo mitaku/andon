@@ -240,7 +240,7 @@ func TestDocumentedInvocations(t *testing.T) {
 			in := ""
 			if m[2] != "" {
 				args = append([]string{"--brief", "-"}, args...)
-				in = "経緯: 人の言葉の写し\n"
+				in = "経緯: オーナーの言葉の写し\n"
 			}
 			t.Run(file+":"+m[0], func(t *testing.T) {
 				newFake(t)
@@ -367,18 +367,18 @@ func TestShellChiefEngineerIsLeft(t *testing.T) {
 
 // --brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。省けば既定の行だけ。
 func TestBriefFromStdin(t *testing.T) {
-	head := "# 題\n\nChief Engineer の課題。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
-		"題は人の1行。手順は skill chief-engineer。\n"
+	head := "# 題\n\nChief Engineer の課題。オーナーと直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
+		"題はオーナーの1行。手順は skill chief-engineer。\n"
 	for _, args := range [][]string{{"--brief", "-", "題"}, {"題", "--brief=-"}} {
 		f := newFake(t)
 		var out, errb bytes.Buffer
-		in := "## 経緯\r\n人: 「請求を月ごとにしたい」\n出典: docs/billing.md\n\n"
+		in := "## 経緯\r\nオーナー: 「請求を月ごとにしたい」\n出典: docs/billing.md\n\n"
 		rc := Main(append([]string{"--repo", "github.com/example/sample-site"}, args...), strings.NewReader(in), &out, &errb)
 		if rc != 0 {
 			t.Fatalf("%q: rc=%d err=%q", args, rc, errb.String())
 		}
 		brief, _ := os.ReadFile(f.log + ".brief")
-		want := head + "\n## 経緯\n人: 「請求を月ごとにしたい」\n出典: docs/billing.md\n"
+		want := head + "\n## 経緯\nオーナー: 「請求を月ごとにしたい」\n出典: docs/billing.md\n"
 		if string(brief) != want {
 			t.Errorf("%q: brief=%q\nwant %q", args, brief, want)
 		}

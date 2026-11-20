@@ -217,7 +217,7 @@ func (e Env) writeFile(path string, data []byte, mode fs.FileMode) error {
 }
 
 // generate は boot が持つ配布物を書く。今ある実ファイルが、boot が前に書いたもの（控えの sha256）でも
-// これから書くものでもなければ、人が書いたものとして <path>.bak に退避してから書く（黙って消さない）。
+// これから書くものでもなければ、オーナーが書いたものとして <path>.bak に退避してから書く（黙って消さない）。
 // 控えは ~/.local/state/andon/boot.json。読めなければ空として扱う（退避が増えるだけで、消えはしない）。
 func (e Env) generate(path string, data []byte, mode fs.FileMode) error {
 	state := e.loadState()
@@ -328,7 +328,7 @@ func (e Env) sudoInstall(dst string, data []byte) error {
 
 // genTemplates はプロファイルを生成する。同じ名前ならセルの templates.local が勝つ。
 // 本文の /opt/andon はパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起動できるように。ADR-0001 決定 5）。
-// 置き場にある、どちらにも無い名前のファイルには触らない（人が hc に入れたもの）。
+// 置き場にある、どちらにも無い名前のファイルには触らない（オーナーが hc に入れたもの）。
 func genTemplates(e Env) error {
 	if _, err := Template(nil, e.Package); err != nil {
 		return err // 1枚も書かない（今あるプロファイルを残す）

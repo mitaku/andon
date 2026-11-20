@@ -9,8 +9,8 @@ import (
 	"andon/internal/ledger"
 )
 
-// ADR-0026 A6: ゲートが今書く文面のコメント（判定ごと）を、人の手直しに数えない。
-// 同じ PR の人のコメントは数える（検査が何も見ていないのではないことの確かめ）。
+// ADR-0026 A6: ゲートが今書く文面のコメント（判定ごと）を、オーナーの手直しに数えない。
+// 同じ PR のオーナーのコメントは数える（検査が何も見ていないのではないことの確かめ）。
 func TestCorrectionsSkipsGateComments(t *testing.T) {
 	head := strings.Repeat("a", 40)
 	for _, d := range []string{"approve", "fix", "needs_human"} {
@@ -41,7 +41,7 @@ func TestCorrectionsSkipsGateComments(t *testing.T) {
 		got := asJSON(t, Corrections(nil, &contract.Report{Commit: head}, "major", v, nil))
 		want := `[{"kind":"pr","comments":[{"author":"?","at":"2026-11-19T01:00:00Z","body":"ここは直して"}],"human_commits":[]}]`
 		if got != want {
-			t.Errorf("%s: ゲートのコメントを人の手直しに数えた・人のコメントを数えない:\n got %s\nwant %s", d, got, want)
+			t.Errorf("%s: ゲートのコメントをオーナーの手直しに数えた・オーナーのコメントを数えない:\n got %s\nwant %s", d, got, want)
 		}
 	}
 }

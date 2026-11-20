@@ -216,7 +216,7 @@ as t5 kanban set "$id5" status=doing review=off "worktree=$tmp/wt" repo=github.c
 HC_TERMINAL_ID=dispatcher kanban ask "$id5" 'マージするか' --kind line >/dev/null
 mkdir -p "kanban/issues/$id5/library/questions"
 jq -n --arg r "ゲートの記録 $PWD/kanban/issues/$id5/library/gate/0000000000000000000000000000000000000001.json" \
-    '{kind: "line", question: "マージするか", facts: [$r], options: [{label: "人が PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' \
+    '{kind: "line", question: "マージするか", facts: [$r], options: [{label: "オーナーが PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' \
     > "kanban/issues/$id5/library/questions/1.json"
 mkdir -p "$tmp/late-bin"
 cat > "$tmp/late-bin/kanban" <<EOF
@@ -436,7 +436,7 @@ export GHQ_ROOT="$tmp/ghq"
 # start は起動する前に信頼の設定を足す（boot と同じ手）。一時の HOME に書かせ、本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 unset CLAUDE_CONFIG_DIR
 export ANDON_WORKSPACE="$tmp/plant"
-# セルの repo（人のもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
+# セルの repo（オーナーのもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
 git init -q "$tmp/plant"; mkdir -p "$tmp/plant/projects/demo"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 # signals 入りでも start が通る（ADR-0011 受け入れ条件 12。signals を知らない版は project.json ごと弾いて起動できなくなる）

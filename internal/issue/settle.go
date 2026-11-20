@@ -22,7 +22,7 @@ import (
 // prPoll は同じ PR を GitHub に聞く間隔（dispatcher は待ちがあると5秒ごとに打つので、gh の上限を食わない。dispatcher.md §2.7）。
 const prPoll = time.Minute
 
-// settleOn は settle が PR を見る課題の status（doing のうちに人がマージした PR も片付ける。dispatcher.md §2.7）。
+// settleOn は settle が PR を見る課題の status（doing のうちにオーナーがマージした PR も片付ける。dispatcher.md §2.7）。
 var settleOn = []string{"review", "doing"}
 
 // settlePath は settle の記録（~/.local/state/andon/dispatcher/<slug>.settle.json。書き手は andon issue settle だけ。ADR-0017 決めたこと 5）。
@@ -30,16 +30,16 @@ func settlePath(slug string) string {
 	return filepath.Join(filepath.Dir(dispatcher.StatePath(slug)), slug+".settle.json")
 }
 
-// settle は andon issue settle: review か doing の課題の PR を人がマージしたかを見て、マージしていたら dispatcher がマージしたときと
+// settle は andon issue settle: review か doing の課題の PR をオーナーがマージしたかを見て、マージしていたら dispatcher がマージしたときと
 // 同じ道（ゲートの問いを閉じて finish）で片付ける。マージはしない。積む通知は stdout の JSON で返す（積むのは dispatcher）。
 // 2回打っても同じ結果になるよう、聞いた時刻・MERGED／CLOSED・知らせた理由を自分の記録に持つ（dispatcher.md §2.7）。
 //
 //	MERGED（ゲートの記録の merged が true）   → dispatcher がマージした。何もしない（approve の道が片付ける）
-//	MERGED                                   → ゲートの問い（from: gate）を「人がマージした」と閉じて finish、通知 merged（by: person）
+//	MERGED                                   → ゲートの問い（from: gate）を「オーナーがマージした」と閉じて finish、通知 merged（by: person）
 //	MERGED でゲートの外の問いが開いている     → 片付けずに通知 merged（held）。同じ理由では二度知らせない
 //	CLOSED                                   → 片付けない。通知 closed を閉じるたびに1回。開き直されうるので聞き続ける
 //
-// doing の課題（担当が働いているうちに人がマージした）も同じ道で片付ける。受け取られていない問い・commit していない変更が
+// doing の課題（担当が働いているうちにオーナーがマージした）も同じ道で片付ける。受け取られていない問い・commit していない変更が
 // あれば片付けずに held で知らせる（finish の拒みを越えない）。
 func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	path := settlePath(c.l.Slug)
@@ -140,7 +140,7 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	return nil, nil
 }
 
-// closeAndFinish はゲートの問いを「人がマージした」と閉じて finish する。片付けなかったら理由を返す。
+// closeAndFinish はゲートの問いを「オーナーがマージした」と閉じて finish する。片付けなかったら理由を返す。
 func (c *ctx) closeAndFinish(pr string, stderr io.Writer) string {
 	gateQs, others, err := c.openQuestions()
 	if err != nil {
@@ -151,7 +151,7 @@ func (c *ctx) closeAndFinish(pr string, stderr io.Writer) string {
 	}
 	for _, q := range gateQs {
 		name := fmt.Sprintf("%s#%d", c.id, q.N)
-		if err := c.closeQuestion(name, q.Status, "人がマージした（"+pr+"）"); err != nil {
+		if err := c.closeQuestion(name, q.Status, "オーナーがマージした（"+pr+"）"); err != nil {
 			return "ゲートの問い " + name + " を閉じられない: " + err.Error()
 		}
 	}

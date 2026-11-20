@@ -16,7 +16,7 @@ import (
 // Shells は、前に出ていれば「中身がシェル」とみなすもの。
 var Shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ash": true, "fish": true, "nu": true}
 
-// BareShell は argv が引数の無いシェル（戻った端末の中身・人が抜けたあと）か。sh -c '…' のような起動の途中は含めない。
+// BareShell は argv が引数の無いシェル（戻った端末の中身・オーナーが抜けたあと）か。sh -c '…' のような起動の途中は含めない。
 func BareShell(argv []string) bool {
 	return len(argv) == 1 && Shells[strings.TrimPrefix(filepath.Base(argv[0]), "-")]
 }
@@ -59,8 +59,8 @@ const (
 const AgentApp = "claude-code"
 
 // Kind は端末を見分ける。戻った端末は top-level の argv も前に出ているものも引数の無いシェル
-// （役のラベルの付いた端末は Andon の持ち物で、人がシェルとして使う場所ではない、と決めた。decisions.md §16）
-// （top-level がシェルでも前に別のものが出ていれば、人が中で何かしているとみて Unsure）。
+// （役のラベルの付いた端末は Andon の持ち物で、オーナーがシェルとして使う場所ではない、と決めた。decisions.md §16）
+// （top-level がシェルでも前に別のものが出ていれば、オーナーが中で何かしているとみて Unsure）。
 // 動いているのは、top-level の argv がシェルでなく、hc の agent が Claude Code のときだけ。
 // agent の情報が無い・別のもの・前に出ているものが取れないは Unsure。
 func (t *Term) Kind() Kind {
@@ -79,7 +79,7 @@ func (t *Term) Kind() Kind {
 // Shell は前に出ているものが引数の無いシェルか。
 func (t *Term) Shell() bool { return t.Foreground != nil && BareShell(t.Foreground.Argv) }
 
-// Describe は人に見せる端末の様子（argv・前に出ているもの・agent）。
+// Describe はオーナーに見せる端末の様子（argv・前に出ているもの・agent）。
 func (t *Term) Describe() string {
 	fg := "取れない"
 	if t.Foreground != nil {
@@ -119,7 +119,7 @@ func Look(addr string) (*Term, error) {
 }
 
 // Discard は端末を片付ける（keep を外して kill・rm。address で打つ）。中身がシェルに替わった役の端末に使う。
-// シェルには打ち込まない（入力欄に人の打ちかけがあれば、それに足して実行してしまう）。
+// シェルには打ち込まない（入力欄にオーナーの打ちかけがあれば、それに足して実行してしまう）。
 func Discard(addr string) error { return DiscardWith("hc", addr) }
 
 // DiscardWith は hc（hc の実行ファイルのパス）で Discard する。

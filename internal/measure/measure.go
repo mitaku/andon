@@ -35,7 +35,7 @@ import (
 // Usage は andon measure の使い方。
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
 	"台帳（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
-	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・人が開け直した数）と、通知の kind ごとの素通りの数と、\n" +
+	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
 	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）を数える。\n" +
 	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
@@ -149,10 +149,10 @@ type Counter struct {
 	Reverted  int      `json:"reverted"`
 	FollowUps int      `json:"follow_ups"`
 	Reopened  Reopened `json:"reopened"`
-	Corrected Reopened `json:"corrected"` // 人の手直しがあった課題の数（revert を含めない。ゲートのレベルごと）
+	Corrected Reopened `json:"corrected"` // オーナーの手直しがあった課題の数（revert を含めない。ゲートのレベルごと）
 }
 
-// Reopened は人が開け直した数（ゲートのレベルごと）。
+// Reopened はオーナーが開け直した数（ゲートのレベルごと）。
 type Reopened struct {
 	Corrections string         `json:"corrections"` // recorded: corrections.json が1つでもある。none: 1つも無い（記録なし）
 	ByTier      map[string]int `json:"by_tier"`
@@ -162,7 +162,7 @@ type Reopened struct {
 type News struct {
 	Threshold  float64    `json:"threshold"`  // 素通りの割合がこれ以上の kind を候補にする
 	Kinds      []NewsKind `json:"kinds"`      // kind の名前順
-	Candidates []string   `json:"candidates"` // 記録だけへ移す候補（移すかは人が決める）
+	Candidates []string   `json:"candidates"` // 記録だけへ移す候補（移すかはオーナーが決める）
 }
 
 // NewsKind は kind 1つの数。
@@ -668,7 +668,7 @@ func (t *issue) mergedIn(merged map[string]ghPR, in func(time.Time) bool) bool {
 	return ok && in(at)
 }
 
-// human は log.jsonl の by が人か（terminal:・routine: でない）。
+// human は log.jsonl の by がオーナーか（terminal:・routine: でない）。
 func human(by string) bool {
 	return !strings.HasPrefix(by, "terminal:") && !strings.HasPrefix(by, "routine:")
 }
@@ -817,7 +817,7 @@ func (r *reader) log() []logRow {
 			continue
 		}
 		if v.By == "" {
-			r.skip(r.rel(path), i+1, "by が無い（誰の行か分からないので人の介在に数えない）")
+			r.skip(r.rel(path), i+1, "by が無い（誰の行か分からないのでオーナーの介在に数えない）")
 			continue
 		}
 		row := logRow{at: at, by: v.By, id: ledger.CanonID(v.ID), add: v.Change["add"] != nil}
@@ -1287,16 +1287,16 @@ func Table(w io.Writer, res *Result, states []string) {
 	if e.HumanTouches.PerPR != nil {
 		touches = fmt.Sprintf("%.2f（%d回 / %d本）", *e.HumanTouches.PerPR, e.HumanTouches.Total, e.MergedPRs)
 	}
-	fmt.Fprintf(w, "  PR あたりの人の介在回数        %s\n", touches)
+	fmt.Fprintf(w, "  PR あたりのオーナーの介在回数        %s\n", touches)
 	corr := "corrections あり"
 	if c.Reopened.Corrections == "none" {
 		corr = "corrections " + none
 	}
 	t := c.Reopened.ByTier
-	fmt.Fprintf(w, "  自動マージ率                   %s ｜ 対抗: revert %d本・同じ箇所の課題 %d件・人が開け直した A %d・B %d・C %d・レベル無し %d（%s）\n",
+	fmt.Fprintf(w, "  自動マージ率                   %s ｜ 対抗: revert %d本・同じ箇所の課題 %d件・オーナーが開け直した A %d・B %d・C %d・レベル無し %d（%s）\n",
 		pct(e.AutoMerge.Rate, e.AutoMerge.Count, e.MergedPRs), c.Reverted, c.FollowUps, t["A"], t["B"], t["C"], t["none"], corr)
 	k := c.Corrected.ByTier
-	fmt.Fprintf(w, "  人の手直しがあった課題         A %d・B %d・C %d・レベル無し %d（%s）\n", k["A"], k["B"], k["C"], k["none"], corr)
+	fmt.Fprintf(w, "  オーナーの手直しがあった課題         A %d・B %d・C %d・レベル無し %d（%s）\n", k["A"], k["B"], k["C"], k["none"], corr)
 	gate := none
 	if e.Gate.Rate != nil {
 		gate = fmt.Sprintf("%.0f%%（fix %d・needs_human %d / %d）", *e.Gate.Rate*100, e.Gate.Fix, e.Gate.NeedsHuman, e.Gate.Records)
@@ -1331,7 +1331,7 @@ func newsTable(w io.Writer, n News) {
 	if len(n.Candidates) > 0 {
 		cand = strings.Join(n.Candidates, "・")
 	}
-	fmt.Fprintf(w, "  記録だけへ移す候補（%.0f%%以上が素通り。移すかは人が決める）  %s\n", n.Threshold*100, cand)
+	fmt.Fprintf(w, "  記録だけへ移す候補（%.0f%%以上が素通り。移すかはオーナーが決める）  %s\n", n.Threshold*100, cand)
 }
 
 // tokensTable はトークンの節（期間に動いた課題ごと。記録が無い課題は「記録なし」で、0 と分ける）。

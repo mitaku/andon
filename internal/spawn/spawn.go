@@ -150,7 +150,7 @@ func FirstMessage(slug, id, brief string) string {
 	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
 }
 
-// GuideFile は人が書く担当・レビュアー向けの指針のファイル名（セルの repo の直下。ADR-0012 決めたこと 2）。中身は Andon が書かない。
+// GuideFile はオーナーが書く担当・レビュアー向けの指針のファイル名（セルの repo の直下。ADR-0012 決めたこと 2）。中身は Andon が書かない。
 const GuideFile = "AGENTS.worker.md"
 
 // Guide は指針のファイルがあるときだけ、最初のメッセージに足す1行（先頭の改行つき）を返す。無ければ空。
@@ -164,7 +164,7 @@ func Guide() string {
 	if st, err := os.Stat(p); err != nil || st.IsDir() {
 		return ""
 	}
-	return fmt.Sprintf("\n人の指針 `%s` も読む。", p)
+	return fmt.Sprintf("\nオーナーの指針 `%s` も読む。", p)
 }
 
 // SessionLabel は担当・Chief Engineer の端末に付けるラベルの名前。値はハーネスのセッションの id（台帳の session と同じ）。
@@ -195,7 +195,7 @@ func TemplatesDir() string {
 }
 
 // WithBody は hc run <template> <msg> が端末に届ける最初のメッセージと同じ文を返す: template の本文（frontmatter の後ろ）、空行、msg。
-// hc send は本文を足さないので、届かなかった最初のメッセージを hc send で送り直す文（人への案内・dispatcher の送り直し）はこれで組む。
+// hc send は本文を足さないので、届かなかった最初のメッセージを hc send で送り直す文（オーナーへの案内・dispatcher の送り直し）はこれで組む。
 // template が読めない・本文が空なら msg だけ。
 func WithBody(template, msg string) string {
 	b, err := os.ReadFile(filepath.Join(TemplatesDir(), template+".md"))
@@ -215,8 +215,8 @@ func WithBody(template, msg string) string {
 }
 
 // 機械の送り手の名前。dispatcher とゲート（andon issue merge の差し戻し）は端末の外から hc send するので、文に hc の包み
-// （<hc from=…>）が付かず、受け手のセッションログでは人が打った文と同じ印（origin.kind: human）になる。
-// そこで担当・レビュアーへ送る文の先頭に、送り手の名前を角括弧で1つ置く（Mark）。人の文を抜く処理はこの印で外す（Marked）。
+// （<hc from=…>）が付かず、受け手のセッションログではオーナーが打った文と同じ印（origin.kind: human）になる。
+// そこで担当・レビュアーへ送る文の先頭に、送り手の名前を角括弧で1つ置く（Mark）。オーナーの文を抜く処理はこの印で外す（Marked）。
 const (
 	FromDispatcher = "dispatcher"
 	FromGate       = "gate"
@@ -241,13 +241,13 @@ func Marked(s string) bool {
 	return false
 }
 
-// SendCommand は届かなかった最初のメッセージを手で送る行（hc send <addr> '<本文つきの文>'）。人がそのまま shell に貼れるよう、
+// SendCommand は届かなかった最初のメッセージを手で送る行（hc send <addr> '<本文つきの文>'）。オーナーがそのまま shell に貼れるよう、
 // 文は POSIX シェルの単引用符で包む（本文の `…` や $ を展開させず、改行は改行のまま渡す）。msg は hc run に渡した課題の文。
 func SendCommand(addr, template, msg string) string {
 	return "hc send " + addr + " '" + strings.ReplaceAll(WithBody(template, msg), "'", `'\''`) + "'"
 }
 
-// ResendHint は最初のメッセージが届かなかった端末 addr に FirstLabel を付け、人か Chief of Staff への案内を返す。
+// ResendHint は最初のメッセージが届かなかった端末 addr に FirstLabel を付け、オーナーか Chief of Staff への案内を返す。
 // 送り直しは dispatcher に預ける（画面が入力を受けられるようになれば次の見回りで送る）。付けられなければ手で送る案内だけにする。
 // 手で送る行は SendCommand（template の本文つき）で、案内の最後に置く。
 func ResendHint(addr, template, msg string) string {

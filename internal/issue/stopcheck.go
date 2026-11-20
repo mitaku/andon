@@ -81,7 +81,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if t.Str("status") != "doing" {
 		return pass("")
 	}
-	// Chief Engineer の課題は止めない: 人と端末で対話している間、報告も問いも書かずにターンを終えるのが正常（ADR-0009 決めたこと 10）
+	// Chief Engineer の課題は止めない: オーナーと端末で対話している間、報告も問いも書かずにターンを終えるのが正常（ADR-0009 決めたこと 10）
 	if t.Str("profile") == chiefengineer.Profile {
 		return pass("")
 	}

@@ -93,7 +93,7 @@ while IFS= read -r p; do
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
     # repo の中の skill の置き場（ADR-0035 決めたこと 4）。image にも andon にも入らない。形は verify-andon.sh、語は words.sh（どちらもいつもの分）
     .claude/skills/* | .agents/skills/*) ;;
-    # Go のテスト（go test ./... が見る）・人の文書は、いつもの分だけ
+    # Go のテスト（go test ./... が見る）・人用の文書は、いつもの分だけ
     cmd/*_test.go | internal/*_test.go | docs/* | tests/* | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # コード・andon に埋め込むもの・image に入るもの。重い検査は上の表で足した分だけ
     cmd/* | internal/* | package/* | schema/* | init/* | image/* | embed.go) light=true ;;

@@ -63,11 +63,11 @@ func TestParseQuestion(t *testing.T) {
 		t.Errorf("kind scope が通らない: %v", err)
 	}
 	for name, bad := range map[string]string{
-		"推奨案が2つ":    strings.Replace(good, `"pick":false`, `"pick":true`, 1),
-		"先頭が推奨案でない": strings.Replace(good, `"pick":true`, `"pick":false`, 1),
-		"2行":        strings.Replace(good, `"q"`, `"a\nb"`, 1),
-		"reason が空": strings.Replace(good, `"remaining"`, `"reason":"","remaining"`, 1),
-		"from が人":   strings.Replace(good, `"remaining":0`, `"from":"person"`, 1),
+		"推奨案が2つ":     strings.Replace(good, `"pick":false`, `"pick":true`, 1),
+		"先頭が推奨案でない":  strings.Replace(good, `"pick":true`, `"pick":false`, 1),
+		"2行":         strings.Replace(good, `"q"`, `"a\nb"`, 1),
+		"reason が空":  strings.Replace(good, `"remaining"`, `"reason":"","remaining"`, 1),
+		"from がオーナー": strings.Replace(good, `"remaining":0`, `"from":"person"`, 1),
 	} {
 		if _, err := ParseQuestion([]byte(bad)); err == nil {
 			t.Errorf("%s: 通ってしまう", name)

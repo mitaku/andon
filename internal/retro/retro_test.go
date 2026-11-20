@@ -84,7 +84,7 @@ func newFixture(t *testing.T) *fixture {
 	// A-0004: 当て直しの記録の時刻が起動と片付けの間
 	write(t, filepath.Join(is("A-0004"), "issue.yaml"), issueYAML("A-0004", "done", "profile: claude\n"))
 	write(t, filepath.Join(is("A-0004"), "library", "launches.jsonl"), launchLine(ago(2*day), "", sha1))
-	// A-0005: 人の課題（束ねない）・A-0009: Chief Engineer の課題（束ねない）・A-0010: まだ片付いていない
+	// A-0005: オーナーの課題（束ねない）・A-0009: Chief Engineer の課題（束ねない）・A-0010: まだ片付いていない
 	write(t, filepath.Join(is("A-0005"), "issue.yaml"), issueYAML("A-0005", "done", "who: person\n"))
 	write(t, filepath.Join(is("A-0009"), "issue.yaml"), issueYAML("A-0009", "done", "profile: chief-engineer\n"))
 	write(t, filepath.Join(is("A-0010"), "issue.yaml"), issueYAML("A-0010", "doing", "profile: claude\n"))
@@ -185,7 +185,7 @@ func bundle(t *testing.T, in *Input, id string) Bundle {
 func TestBundlesIssuesDoneInPeriod(t *testing.T) {
 	in, _ := newFixture(t).collect(t)
 	if got := strings.Join(ids(in), " "); got != "A-0007 A-0001 A-0003 A-0004" {
-		t.Errorf("束ねた課題 = %q（期間の内の担当の課題だけ。子・人・Chief Engineer・振り返り・期間の外・片付いていないものは入らない）", got)
+		t.Errorf("束ねた課題 = %q（期間の内の担当の課題だけ。子・オーナー・Chief Engineer・振り返り・期間の外・片付いていないものは入らない）", got)
 	}
 	b := bundle(t, in, "A-0001")
 	if len(b.Reviews) != 1 || b.Reviews[0].ID != "A-0001-r1" {
@@ -247,7 +247,7 @@ func TestChecksState(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 9: 人が打った文だけが抜かれる。
+// 受け入れ条件 9: オーナーが打った文だけが抜かれる。
 func TestTypedOnlyHuman(t *testing.T) {
 	in, _ := newFixture(t).collect(t)
 	var got []string
@@ -275,13 +275,13 @@ func TestRedactsSecrets(t *testing.T) {
 	in, out := f.collect(t)
 	key := dummyKey()
 	if !strings.Contains(in.Typed[0].Text, key) {
-		t.Fatal("検査の前提: 伏せる前の人の文に鍵がある")
+		t.Fatal("検査の前提: 伏せる前のオーナーの文に鍵がある")
 	}
 	if strings.Contains(string(out), key) {
 		t.Error("出力に鍵が残っている")
 	}
 	if !strings.Contains(string(out), "[REDACTED:github]") || in.Redacted != 2 {
-		t.Errorf("伏せた数 = %d（人の文と手直しの本文の2つ）", in.Redacted)
+		t.Errorf("伏せた数 = %d（オーナーの文と手直しの本文の2つ）", in.Redacted)
 	}
 	var v map[string]any
 	if err := json.Unmarshal(out, &v); err != nil || v["redacted"] != float64(2) {
@@ -398,7 +398,7 @@ func TestReadOnly(t *testing.T) {
 	}
 }
 
-// 端末の外から送った文は、送り手の印（spawn.Mark）で照らす。印の無い文と、文の中ほどの角括弧は人の文として残す。
+// 端末の外から送った文は、送り手の印（spawn.Mark）で照らす。印の無い文と、文の中ほどの角括弧はオーナーの文として残す。
 func TestMachineText(t *testing.T) {
 	for s, want := range map[string]bool{
 		spawn.Mark(spawn.FromDispatcher, dispatcher.RetryText):                     true,
@@ -406,7 +406,7 @@ func TestMachineText(t *testing.T) {
 		"<pasted_content id=\"1\">\n[gate] A-0017（題）: ゲートが fix を返した。":              true,
 		"  [dispatcher] 課題 `sample-site/S-7`。":                                     true,
 		"[dispatcher]の文はどこから？":                                                     false,
-		"[cos] 人が書いた角括弧":                                                           false,
+		"[cos] オーナーが書いた角括弧":                                                        false,
 		"ゲートの [gate] 印は何？":                                                         false,
 		"A-0017 のゲートが fix を返したのはなぜ？":                                               false,
 	} {

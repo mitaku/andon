@@ -130,12 +130,12 @@ func TestFromReport(t *testing.T) {
 			t.Errorf("%s: 入力の理由を書き換えた: %v", c.name, in.TierReasons)
 		}
 	}
-	// 申告で C になった変更は、委譲の merge が C でなければ人へ回る
+	// 申告で C になった変更は、委譲の merge が C でなければオーナーへ回る
 	rep, _ := contract.ParseReport([]byte(base + `, "risk": {"one_way": true}}`))
 	cl, _ := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
 	f := Facts{PROpen: true, RepoKnown: true, Tier: cl.Tier, MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"}}
 	if d, r := Decide(f); d != "needs_human" || !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
-		t.Errorf("one_way の変更が人へ回らない: %s %v", d, r)
+		t.Errorf("one_way の変更がオーナーへ回らない: %s %v", d, r)
 	}
 	// acceptance に fail がある report はゲートが fix を返す（数えて Decide に渡す）
 	rep, _ = contract.ParseReport([]byte(base + `, "acceptance": [{"id": "A1", "result": "pass", "evidence": "go test ./..."}, {"id": "A2", "result": "fail", "evidence": "bash tests/x.sh"}]}`))
@@ -180,7 +180,7 @@ func TestDecide(t *testing.T) {
 		{"Must fix を見送った", func(f *Facts) { f.Review.WaivedHeavy = 1 }, "needs_human"},
 		{"受け入れ条件の fail", func(f *Facts) { f.AcceptanceFail = 1 }, "fix"},
 		{"screen_paths に当たるのに添付が無い", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"} }, "fix"},
-		{"添付が無くても委譲の外は人へ", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"}; f.Tier = "C" }, "needs_human"},
+		{"添付が無くても委譲の外はオーナーへ", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"}; f.Tier = "C" }, "needs_human"},
 		{"添付が無ければ checks を待たずに担当へ", func(f *Facts) {
 			f.ScreenMissing = []string{"web/a.css"}
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
@@ -208,7 +208,7 @@ func TestDecide(t *testing.T) {
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 			f.Review.MustFixOpen = 1
 		}, "fix"},
-		{"走っていても委譲の外は人へ", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}; f.Tier = "C" }, "needs_human"},
+		{"走っていても委譲の外はオーナーへ", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}; f.Tier = "C" }, "needs_human"},
 		{"走っていても head が台帳と違えば止める", func(f *Facts) {
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 			f.LedgerReasons = []string{"report.json の commit が PR の head と違う"}
@@ -281,7 +281,7 @@ func TestChecksToExit(t *testing.T) {
 	}{
 		{"checks 0 件は待つ", nil, false, "wait", 5},
 		{"ゲート自身の status だけ（0 件と同じ）は待つ", []CheckItem{{Typename: "StatusContext", Context: GateContext, State: "SUCCESS"}}, false, "wait", 5},
-		{"30 分を過ぎた 0 件は人へ", nil, true, "needs_human", 4},
+		{"30 分を過ぎた 0 件はオーナーへ", nil, true, "needs_human", 4},
 		{"全部 success は approve", []CheckItem{run("go", "COMPLETED", "SUCCESS"), run("tests", "COMPLETED", "SUCCESS"), run("release", "COMPLETED", "SKIPPED")}, false, "approve", 0},
 		{"走っているもの 1 つは待つ", []CheckItem{run("go", "COMPLETED", "SUCCESS"), run("tests", "IN_PROGRESS", "")}, true, "wait", 5},
 	} {
@@ -415,7 +415,7 @@ func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
 	}
 	ws := ownerPlant(t, `{"repos": {"github.com/example/app": {"check": []}}}`)
 	if tb, warn, err := LoadTable(pkg, ws); err != nil || warn != "" || tb.Repos["github.com/example/app"].Check == nil {
-		t.Errorf("空の check（人が決めた「検査なし」）は通る: %v %q", err, warn)
+		t.Errorf("空の check（オーナーが決めた「検査なし」）は通る: %v %q", err, warn)
 	}
 }
 

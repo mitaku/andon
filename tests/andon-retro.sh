@@ -74,7 +74,7 @@ export ANDON_HOME=$tmp/pkg
 mkdir -p "$ANDON_HOME"
 printf '{"commit": "%s", "applied_at": "%s", "image_commit": "x"}\n' "$sha" "$(ago '36 hours')" >"$ANDON_HOME/applied.json"
 
-# セッションログ: Chief of Staff（cwd がプロジェクトの根）。どの行にも人の印を付ける
+# セッションログ: Chief of Staff（cwd がプロジェクトの根）。どの行にもオーナーの印を付ける
 export CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/-sample-site"
 hum() { jq -cn --arg u "$1" --arg at "$2" --arg cwd "$root" --arg text "$3" \
@@ -97,7 +97,7 @@ emit "$tmp/out.json" retro.json
 # 7: 秘密が残らない（同じ grep が入力の側では当たることを上で確かめた）
 ! grep -q "$key" "$tmp/out.json" || die "出力に鍵が残っている"
 jq -e '.redacted == 2' "$tmp/out.json" >/dev/null || die "伏せた数が違う: $(jq .redacted "$tmp/out.json")"
-echo 'ok 7: 秘密の形を伏せる（人の文と手直しの本文）'
+echo 'ok 7: 秘密の形を伏せる（オーナーの文と手直しの本文）'
 
 # 8: 期間に片付いた担当の課題だけ（片付いた順）。子の指摘は親に入る
 jq -e '[.issues[].id] == ["S-0007", "S-0001", "S-0003"]' "$tmp/out.json" >/dev/null || die "束ねた課題: $(jq -c '[.issues[].id]' "$tmp/out.json")"
@@ -107,9 +107,9 @@ jq -e '.issues[] | select(.id == "S-0001") | .reviews == [{id: "S-0001-r1", prof
 jq -e '.previous_retro.issue == "S-0006"' "$tmp/out.json" >/dev/null || die "前の振り返り"
 echo 'ok 8: 期間の内の担当の課題だけ。レビュアーの子の指摘は親の1件に入る'
 
-# 9: 人が打った文だけ
-jq -e '[.typed[] | [.id, .role, .issue]] == [["h-u1", "chief-of-staff", null]]' "$tmp/out.json" >/dev/null || die "人の文: $(jq -c '.typed' "$tmp/out.json")"
-echo 'ok 9: 人の文だけ（起動の最初のメッセージ・hc send・通知・送り手の印のある dispatcher とゲートの文・道具の結果は入らない）'
+# 9: オーナーが打った文だけ
+jq -e '[.typed[] | [.id, .role, .issue]] == [["h-u1", "chief-of-staff", null]]' "$tmp/out.json" >/dev/null || die "オーナーの文: $(jq -c '.typed' "$tmp/out.json")"
+echo 'ok 9: オーナーの文だけ（起動の最初のメッセージ・hc send・通知・送り手の印のある dispatcher とゲートの文・道具の結果は入らない）'
 
 # 10: マージ後のこと
 jq -e '.issues[] | select(.id == "S-0001") | .after_merge == {merge_commit: "1111111111111111111111111111111111111111", merged_at: .after_merge.merged_at,

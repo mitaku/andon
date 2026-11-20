@@ -126,7 +126,7 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if out != nil {
 		enc := json.NewEncoder(stdout)
-		enc.SetEscapeHTML(false) // <news> を \u003c にしない（人が debug のログで読む）
+		enc.SetEscapeHTML(false) // <news> を \u003c にしない（オーナーが debug のログで読む）
 		enc.Encode(out)          //nolint:errcheck // 出力への書き込み（fmt.Fprintf を設定で除くのと同じ扱い）
 	}
 	return 0
@@ -201,7 +201,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	}
 	// 前にフックで渡した <news>。渡した turn が Stop で終わったら確かめ済み（ラベル news.ack が渡したときの turn と同じなら news.replied を書く。
 	// 答えの文は読まない。ADR-0010 決めたこと 5・6）。
-	// 終わりを見ないまま別の turn が来た（人が中断した・フックの出力が捨てられた）なら、まだ届けていない1回目の分だけ届け直す
+	// 終わりを見ないまま別の turn が来た（オーナーが中断した・フックの出力が捨てられた）なら、まだ届けていない1回目の分だけ届け直す
 	var again []Notification
 	if h := st.Hook; h != nil {
 		if !context && sameTurn(h, addr, in) {
@@ -329,7 +329,7 @@ func EnsureFromHook(who string) {
 	if err != nil {
 		return
 	}
-	// フックは人の入力ごとに走るので待たない（前に何も出ていなければ ErrUnsure で次のターンに任せる）
+	// フックはオーナーの入力ごとに走るので待たない（前に何も出ていなければ ErrUnsure で次のターンに任せる）
 	if did, err := Ensure(self, delegate.Workspace(), 0); errors.Is(err, ErrBusy) {
 		return
 	} else if err != nil {
