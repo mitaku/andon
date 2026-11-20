@@ -152,3 +152,31 @@ func TestClaudeUnreadable(t *testing.T) {
 		t.Errorf("読める記録で Unread: %+v", l)
 	}
 }
+
+// サブエージェントの置き場を一覧できなければ、本線が読めても Unread（本線に使用量が無くても0トークンにしない）。
+func TestClaudeSubagentsUnlistable(t *testing.T) {
+	dir := t.TempDir()
+	put(t, filepath.Join(dir, "projects", "-w", "s1.jsonl"), `{"type":"user","promptId":"p1"}`+"\n")
+	sub := filepath.Join(dir, "projects", "-w", "s1", "subagents")
+	put(t, filepath.Join(sub, "a.jsonl"), assistant("r1", "m1", "claude-opus-5-5", "high", 1, 2)+"\n")
+	if l := Claude(dir, "s1", nil); l == nil || l.Unread || l.Usage.Output != 2 {
+		t.Fatalf("読める置き場: %+v", l)
+	}
+	if err := os.Chmod(sub, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(sub, 0o755) })
+	if _, err := os.ReadDir(sub); err == nil {
+		t.Skip("権限を外しても一覧できる（root で走っている）")
+	}
+	var skipped []string
+	l := Claude(dir, "s1", func(src string, line int, reason string) {
+		skipped = append(skipped, fmt.Sprintf("%s:%d:%s", src, line, reason))
+	})
+	if l == nil || !l.Unread {
+		t.Fatalf("Claude = %+v、want Unread", l)
+	}
+	if !reflect.DeepEqual(skipped, []string{"claude/s1/subagents:0:読めない"}) {
+		t.Errorf("飛ばした記録: %v", skipped)
+	}
+}

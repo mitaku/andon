@@ -219,7 +219,9 @@ func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 			o.Reviewers++
 		}
 	}
-	o.WorkedMinutes = p.workedMinutes(id)
+	if o.WorkedMinutes, err = p.workedMinutes(id); err != nil {
+		return nil, err
+	}
 	launches, err := readLaunches(filepath.Join(lib, launch.File))
 	if err != nil {
 		return nil, err
@@ -272,18 +274,22 @@ func gates(dir string) ([]OutcomeGate, error) {
 
 // workedMinutes は課題の実働（分。待ちを除く。ledger.Worked）を、最後の done の行まで数える（andon measure と同じ）。
 // 行は log.jsonl を読み直す: 巡の写しは、同じ巡で拾った done の行（写しを読んだあとに書かれたもの）を持たず、前の回の done で
-// 止まっていることがある。集計は done の行の位置で打ち切る（同じ秒にあとから書かれた行を混ぜない）。done の行が無ければ今まで。
-func (p *project) workedMinutes(id string) int {
-	rows := p.l.Log()
-	at, end := time.Now(), len(rows)
-	if i, t, ok := lastDone(rows, id); ok {
-		at, end = t, i+1
+// 止まっていることがある。集計は done の行の位置で打ち切る（同じ秒にあとから書かれた行を混ぜない）。
+// 結果の記録は done の行を拾った課題にだけ書くので、log.jsonl が読めない・done の行が無いときは err（書かずに打ち直す）。
+func (p *project) workedMinutes(id string) (int, error) {
+	rows, err := p.l.ReadLog()
+	if err != nil {
+		return 0, fmt.Errorf("log.jsonl が読めない: %v", err)
+	}
+	i, at, ok := lastDone(rows, id)
+	if !ok {
+		return 0, fmt.Errorf("log.jsonl に %s の done の行が無い", id)
 	}
 	var gone []time.Time
 	for _, g := range p.st.Gone[id] {
 		gone = append(gone, time.UnixMilli(g.At))
 	}
-	return int(ledger.Worked(rows[:end], p.tasks, id, p.l.ChiefOfStaff(), gone, at).Minutes())
+	return int(ledger.Worked(rows[:i+1], p.tasks, id, p.l.ChiefOfStaff(), gone, at).Minutes()), nil
 }
 
 // lastDone は log.jsonl の課題 id の最後の done の行の位置と時刻（時刻の読めない行は飛ばす）。

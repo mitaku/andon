@@ -160,11 +160,18 @@ type Row struct {
 	Config map[string]any `json:"config"` // kanban config set の行（id と change は無い）
 }
 
-// Log は log.jsonl を読む。読めない行は飛ばす（無いキーと同じ）。
+// Log は log.jsonl を読む。読めない行は飛ばす（無いキーと同じ）。ファイルが読めなければ読めたところまで（無ければ nil）。
 func (l *Ledger) Log() []Row {
+	rows, _ := l.ReadLog()
+	return rows
+}
+
+// ReadLog は Log と同じく log.jsonl を読み、ファイルを開けない・読み切れないときは読めたところまでと err を返す
+// （空の台帳と、読めなかった台帳を分けたい呼び手のため）。
+func (l *Ledger) ReadLog() ([]Row, error) {
 	f, err := os.Open(filepath.Join(l.Dir, "log.jsonl"))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer f.Close()
 	var rows []Row
@@ -177,7 +184,7 @@ func (l *Ledger) Log() []Row {
 			rows = append(rows, r)
 		}
 	}
-	return rows
+	return rows, s.Err()
 }
 
 // TakenByChiefOfStaff は、課題 id の agent を agent に書いた最後の行が、その時点の Chief of Staff の端末だったときに書かれたか

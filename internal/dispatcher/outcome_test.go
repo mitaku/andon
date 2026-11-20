@@ -220,3 +220,21 @@ func TestOutcomeUnreadableClaudeLog(t *testing.T) {
 		t.Errorf("読めるログの0トークンが書かれない: %s", got)
 	}
 }
+
+// 巡の写しを読んだあとに log.jsonl が読めなくなったら（消えた・done の行の無いものに替わった）、実働0分の結果を書かずに err。
+func TestOutcomeWorkedLogUnreadable(t *testing.T) {
+	const id = "S-0001"
+	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))
+	if o, err := p.collectOutcome(id, ledger.Issue{"id": id}); err != nil || o.WorkedMinutes != 10 {
+		t.Fatalf("読める log: %v %v", o, err)
+	}
+	log := filepath.Join(p.l.Dir, "log.jsonl")
+	writeFile(t, log, statusRow(id, "2026-11-19T00:00:00Z", "doing")+"\n")
+	if o, err := p.collectOutcome(id, ledger.Issue{"id": id}); err == nil {
+		t.Errorf("done の行の無い log で err でない: worked_minutes %d", o.WorkedMinutes)
+	}
+	os.Remove(log)
+	if o, err := p.collectOutcome(id, ledger.Issue{"id": id}); err == nil {
+		t.Errorf("消えた log で err でない: worked_minutes %d", o.WorkedMinutes)
+	}
+}

@@ -204,7 +204,7 @@
           ]
         },
         "cost": {
-          "description": "Read from the session log when the dispatcher wrote this record, or null when the log was not found (Claude Code deletes logs after 30 days) or a Claude Code log file could not be read through (not measured, unlike a session with zero tokens).",
+          "description": "Read from the session log when the dispatcher wrote this record, or null when the log was not found (Claude Code deletes logs after 30 days) or a Claude Code log file or its subagents folder could not be read through (not measured, unlike a session with zero tokens).",
           "anyOf": [
             {
               "$ref": "#/$defs/cost"

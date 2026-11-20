@@ -16,6 +16,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Usage は入力・出力・キャッシュの読み書き（ドルに直さない）。
@@ -87,7 +88,7 @@ func CodexSessions() string {
 //   - モデルと effort: 数えた assistant の行の message.model と effort（サブエージェントのものも。<synthetic> は数えない）。
 //   - ターン数: 本線（サブエージェントでない記録の、isSidechain でない user の行）の promptId の数。
 //
-// 記録が1つも無ければ nil（0 と分ける）。読み切れなかったファイルがあれば Unread。
+// 記録が1つも無ければ nil（0 と分ける）。読み切れなかったファイルか、一覧できなかったサブエージェントの置き場があれば Unread。
 func Claude(dir, session string, skip Skip) *Log {
 	if dir == "" || session == "" || strings.ContainsAny(session, `/\*?[`) {
 		return nil
@@ -96,12 +97,15 @@ func Claude(dir, session string, skip Skip) *Log {
 	if len(files) == 0 {
 		return nil
 	}
+	out := &Log{}
 	for _, f := range append([]string{}, files...) {
-		sub, _ := filepath.Glob(filepath.Join(strings.TrimSuffix(f, ".jsonl"), "subagents", "*.jsonl"))
+		sub, ok := subagents(filepath.Join(strings.TrimSuffix(f, ".jsonl"), "subagents"), "claude/"+session+"/subagents", skip)
 		files = append(files, sub...)
+		if !ok {
+			out.Unread = true
+		}
 	}
 	sort.Strings(files)
-	out := &Log{}
 	seen := map[string]bool{}
 	prompts := map[string]bool{}
 	for _, f := range files {
@@ -165,6 +169,26 @@ func Claude(dir, session string, skip Skip) *Log {
 		out.Turns = &n
 	}
 	return out
+}
+
+// subagents はサブエージェントの記録の置き場 dir の *.jsonl。置き場が無ければ空。一覧できなければ飛ばした記録にして false
+// （filepath.Glob は一覧のエラーを捨てるので、読めない置き場の記録を数えずに済ませてしまう）。
+func subagents(dir, src string, skip Skip) ([]string, bool) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		return nil, true
+	}
+	if err != nil {
+		skip.call(src, 0, "読めない")
+		return nil, false
+	}
+	var out []string
+	for _, e := range entries {
+		if ok, _ := filepath.Match("*.jsonl", e.Name()); ok {
+			out = append(out, filepath.Join(dir, e.Name()))
+		}
+	}
+	return out, true
 }
 
 // CodexByCwd は Codex の記録（<root>/**/rollout-*.jsonl）を、先頭行（session_meta）の cwd ごとに分ける。
