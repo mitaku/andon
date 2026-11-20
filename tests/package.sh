@@ -24,6 +24,7 @@
 #  14. 受け入れ条件の証拠の質（ADR-0007 R5）: contract.md §4 の acceptance[] の行・CE skill・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない。
 #  15. Advisor（ADR-0022 受け入れ条件 1・2。6 の節の中）: --advisor fable は chief-of-staff の command だけ、CoS skill の「人の入口」に相談する場面の1行。
 #  16. 日報（ADR-0024 受け入れ条件 A1・A2）: worker skill の日報の節と工程表の振り返り、CoS skill の差し戻しの1行、用語集の「日報」。
+#  18. ADR の索引と書き分け（ADR-0033 受け入れ条件 9）: CE skill の文書の形と design.md §1.8 の題の次に ## 決定の索引、索引の列と語・細部の書き分け・実装の PR が索引の行を直すこと、worker §3 の1行。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -708,5 +709,22 @@ d3=$(sed -n '/^# <題>（仕様・設計。日付）$/p' "$ce" docs/design.md | 
 # ADR-0026 A4
 grep -q '^- 番号だけで指さない。この決まりはセルの中の人への文に効く。PR のタイトルや本文・commit・repo のファイルの文は' package/writing.md \
   && pass "ADR-0026 A4: writing.md の番号の決まりに範囲（セルの中の人への文。PR と repo の文は除く）がある" || fail "ADR-0026 A4: writing.md の番号の決まりに範囲が無い"
+
+# === 18. ADR の索引と書き分け（ADR-0033 受け入れ条件 9・決めたこと 3・4・5） ===
+# 文書の形の見出しで、題の次の行が `## 決定の索引`（tests/adr-index.sh が見る見出しと同じ。括弧の説明を付けない）
+idx_next() { block "$1" '# <題>（仕様・設計。' | sed -n 2p; }
+miss=
+for f in "$ce" docs/design.md; do
+  [ "$(idx_next "$f")" = '## 決定の索引' ] || miss="$miss [$f の文書の形に題の次の ## 決定の索引]"
+  grep -q '| # | 何を決めたか | 今の正 | 今 |' "$f" || miss="$miss [$f に索引の 4 列]"
+  grep -q '生きている・覆された.*役目を終えた・まだ実装していない' "$f" || miss="$miss [$f に「今」の 4 つの語]"
+  grep -q '「細部:」と断って分ける' "$f" || miss="$miss [$f に決定と細部の書き分け]"
+  grep -q '実装の PR が.*「今の正」と「今」' "$f" && grep -q '本文は畳まない' "$f" || miss="$miss [$f に実装の PR が索引の行を直す]"
+done
+grep -q '^   - \*\*ADR の決定を実装する PR\*\*: その ADR の冒頭に `## 決定の索引` があれば、実装した決定の行の「今の正」（repo の中のパス）と「今」を同じ PR で直す。' "$w" || miss="$miss [worker §3 に索引の行を直す]"
+[ -z "$miss" ] && pass "ADR-0033 A9: CE skill の文書の形と design.md §1.8 に冒頭の索引・決定と細部の書き分け・実装の PR が索引の行を直すことがあり、worker §3 に索引の行を直す1行がある" || fail "ADR-0033 A9:$miss"
+# 検査が当たる場合があること: 索引の見出しが無い形では題の次の行が別の見出しになる
+[ "$(printf '%s\n' '```' '# <題>（仕様・設計。日付）' '## 問題（人の言葉で。言い直しの段落）' '```' >"$tmp/form.md"; idx_next "$tmp/form.md")" != '## 決定の索引' ] \
+  && pass "ADR-0033 A9: 索引の見出しの無い文書の形は当たらない（検査が見ている）" || fail "ADR-0033 A9: 検査が何も見ていない"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
