@@ -13,7 +13,7 @@
 | 3 | モデルに、ゲートが決めたあとの変化と自動マージの規則を足す | この ADR | まだ実装していない |
 | 4 | golangci-lint は 2 段で入れ、errcheck は 2 段目にする | `.golangci.yml` | 生きている |
 | 5 | `.golangci.yml` は人がマージする変更に足さない | この ADR | 生きている |
-| 6 | schema の照合を既製の Go の検査器 1 つにし、書く前に照らす | この ADR | まだ実装していない |
+| 6 | schema の照合を既製の Go の検査器 1 つにし、書く前に照らす | `internal/contract/schema.go`・[contract.md](../contract.md) の冒頭の約束 6 | 生きている |
 | 7 | `log.jsonl` の行と `kanban ready --json` の schema を足す | この ADR | まだ実装していない |
 | 8 | repo に固有の lint は、フックの 1 行目と全部の workflow の 2 つ | この ADR | まだ実装していない |
 | 9 | 型は 3 つ直し、その節を Go へ移す課題の中で直す | この ADR | まだ実装していない |

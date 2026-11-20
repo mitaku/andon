@@ -102,6 +102,7 @@ got=$(pick package/skills/worker/SKILL.md)
 for t in $heavy; do has "$got" "$t" && die "skill の文で $t: $got"; done
 has "$(pick package/gate.json)" tests/andon-gate.sh && has "$(pick package/gate.json)" tests/andon-dispatcher.sh || die "package/gate.json で gate・dispatcher の検査が無い"
 has "$(pick package/lib/andon/schema_check.py)" tests/schema.sh || die "schema_check.py で schema.sh が無い"
+for p in internal/schema/schema.go internal/contract/schema.go; do has "$(pick "$p")" tests/schema.sh || die "$p（andon schema の検査器）で schema.sh が無い"; done
 has "$(pick schema/report.schema.json)" tests/schema.sh || die "schema/ で schema.sh が無い"
 has "$(pick internal/pkgversion/pkgversion.go)" tests/apply-main.sh || die "internal/pkgversion で apply-main.sh が無い"
 for p in internal/cli/cli.go process/states/issue.yaml embed.go init/x schema/report.schema.json; do

@@ -69,7 +69,8 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   test -f /opt/andon/compose.yaml
   test -x /opt/andon/host/andon-up
   printf "{\"commit\": \"%040d\"}\n" 0 > /tmp/report.json
-  python3 /opt/andon/lib/andon/schema_check.py validate /opt/andon/schema/report.schema.json /tmp/report.json
+  andon schema check report /tmp/report.json
+  andon schema check /opt/andon/schema/report.schema.json /tmp/report.json
   test -d "$PLAYWRIGHT_BROWSERS_PATH"
   # apt の取得元は、build で mirror へ向けても（CI の ANDON_APT_MIRROR）image には元の archive・security が残る
   grep -qx "URIs: http://archive.ubuntu.com/ubuntu/" /etc/apt/sources.list.d/ubuntu.sources

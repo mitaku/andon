@@ -3,7 +3,7 @@
 # 作る中身（kanban lint が通る・project.json が schema を通る・AGENTS.md）・commit しない・既にあれば何も変えずに止まる・役の端末で拒む・
 # 端末でなければ聞かずに slug が無いと止まる。対話の中身は go test（internal/create）が見る。本物の hc と ghq には触らない。
 set -euo pipefail
-for c in jq git python3; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
+for c in jq git; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOMODCACHE="$tmp/gomodcache" GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
@@ -54,7 +54,7 @@ p=$ws/projects/sample-site
 [ ! -s "$tmp/err" ] && pass "何も聞かない（stderr が空）" || fail "聞いた: $(cat "$tmp/err")"
 (cd "$p" && kanban lint >/dev/null) && grep -qx 'prefix: SS' "$p/kanban/config.yaml" && grep -qx '  - example.com/o/new' "$p/kanban/config.yaml" \
   && pass "kanban/ は本物の台帳（lint が通る・prefix と repos）" || fail "kanban: $(cat "$p/kanban/config.yaml" 2>&1)"
-python3 "$root/package/lib/andon/schema_check.py" validate "$root/schema/project.schema.json" "$p/project.json" >/dev/null 2>"$tmp/schema" \
+"$andon" schema check project "$p/project.json" >"$tmp/schema" 2>&1 \
   && pass "project.json の下書きは schema を通る" || fail "schema: $(cat "$tmp/schema")"
 [ "$(jq -c '[.project, .repos, has("delegation")]' "$p/project.json")" = '[{"title":"Sample site","prefix":"SS"},["example.com/o/have","example.com/o/new"],false]' ] \
   && pass "project.json は題・prefix・repos で、delegation が無い（無委譲）" || fail "project.json: $(cat "$p/project.json")"

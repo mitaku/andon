@@ -168,7 +168,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 | 日付 | 決定 | 出典 |
 |---|---|---|
 | 2026-11-05 | schema は JSON Schema draft 2020-12（台帳の形式の schema と同じ）。`$id` は `https://andon.example.com/schema/<名前>/<版>` | P2 の担当の推し（contract.md §10） |
-| 2026-11-05 | schema の検査は python3 の標準ライブラリで書いた小さな検査器（`tests/lib/schema_check.py`）。使うキーワードだけを実装し、知らないキーワードがあれば検査できないとして落ちる。建屋に JSON Schema の検査器が無く、勝手に入れないため | P2 の担当の推し（依頼書「道具は建屋に今あるもので」） |
+| 2026-11-05 | schema の検査は python3 の標準ライブラリで書いた小さな検査器（`tests/lib/schema_check.py`）。使うキーワードだけを実装し、知らないキーワードがあれば検査できないとして落ちる。建屋に JSON Schema の検査器が無く、勝手に入れないため | P2 の担当の推し（依頼書「道具は建屋に今あるもので」） → 覆された（decisions/2026-11-20-one-schema-checker-andon-schema.md） |
 | 2026-11-05 | schema は書き手の約束として知らないキーを拒む（`additionalProperties: false`）。台帳の項目（`task-keys`）だけは台帳の形式に倣って許す | P2 の依頼書の完了条件（知らないキーの例が落ちる）・contract.md §0 の 4 |
 | 2026-11-05 | 台帳の項目の値は文字列（`kanban set` が文字列で書く）。`review_rounds` は `"2"` | P2 で `deck set` を実測 |
 | 2026-11-05 | ゲートの記録の `review.state` に `off`（タスクが `review: off`）を足す | P2 の担当の推し（contract.md §7 に無かった） |
@@ -188,7 +188,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 
 | 日付 | 決定 | 出典 |
 |---|---|---|
-| 2026-11-05 | schema の検査器を `tests/lib/schema_check.py` から `package/lib/andon/schema_check.py` に移す。P5 で `andon task report`・`ask` が command になるまで、担当・Chief of Staff・Chief Engineer は `report.json` と問いの JSON を jq で書き、建屋でこの検査器と `schema/`（image が `/opt/andon/schema` に置く。`ANDON_SCHEMA` で差し替え）に通す。tests も同じ検査器を使う | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針（skill は contract.md・schema/ を正に書く） |
+| 2026-11-05 | schema の検査器を `tests/lib/schema_check.py` から `package/lib/andon/schema_check.py` に移す。P5 で `andon task report`・`ask` が command になるまで、担当・Chief of Staff・Chief Engineer は `report.json` と問いの JSON を jq で書き、建屋でこの検査器と `schema/`（image が `/opt/andon/schema` に置く。`ANDON_SCHEMA` で差し替え）に通す。tests も同じ検査器を使う | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針（skill は contract.md・schema/ を正に書く） → 覆された（decisions/2026-11-20-one-schema-checker-andon-schema.md） |
 | 2026-11-05 | `andon chief-engineer` は `--repo <host/owner/repo>` を取り、その repo に worktree と branch を切って Chief Engineer を起動する（文書の PR と `report.json` を同じタスクから返す。design.md §1.8）。repo は台帳の `config.yaml` から推さない（台帳はファイルを直接読まない約束） | Y-71 のレビュー（Y-75）の指摘と Chief of Staff の方針 |
 | 2026-11-05 | 上の行を改める: `andon chief-engineer "<題>"` は `--repo` を省ける。省いたら台帳の `config.yaml` の `repos` が1つのときその repo を使い、2つ以上（か無い・読めない形）なら `--repo <host/owner/repo>` を求める（終了コード 2）。`repos` は台帳の CLI が書く形（`repos:` の下の `  - <repo>`）だけを読む（台帳の CLI に repos を出す口が無いため。出す口ができたら替える） | Y-71 のレビュー 2 回目（Y-78）の指摘と Chief of Staff の推奨案 |
 

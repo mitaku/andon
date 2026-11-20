@@ -26,6 +26,7 @@ import (
 	"andon/internal/process"
 	"andon/internal/publish"
 	"andon/internal/retro"
+	"andon/internal/schema"
 	"andon/internal/signal"
 	"andon/internal/triage"
 )
@@ -117,6 +118,12 @@ var commands = []command{
 		about: "流れと状態の定義（process/ の YAML）から人が読む docs/process/<名>.md を作る（render）",
 		usage: process.Usage,
 		run:   process.Main,
+	},
+	{
+		name:  "schema",
+		about: "JSON を約束の schema と照らす（check・batch。command が書く前に照らすのと同じ検査器）",
+		usage: schema.Usage,
+		run:   schema.Main,
 	},
 	{
 		name:  "boot",

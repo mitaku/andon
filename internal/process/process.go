@@ -1,7 +1,7 @@
 // Package process は流れと状態の定義（process/ の YAML。ADR-0017 決めたこと 1・2・16）を読み、
 // 人が読む Markdown（docs/process/<名>.md の表と Mermaid の図）を作る（andon process render）。
 //
-// 定義の形の正は schema/process/*.schema.json で、検査は tests/process.sh が schema_check.py でする
+// 定義の形の正は schema/process/*.schema.json で、検査は tests/process.sh が andon schema check でする
 // （andon process json が YAML を JSON にして渡す）。ここは知らないキーで止まるだけで、schema を写さない。
 // dispatcher は定義を読まない（決めたこと 1）。
 package process

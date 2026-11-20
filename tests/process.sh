@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # 流れと状態の定義（ADR-0017 受け入れ条件 1・2）。
 #   1. schema/process/ の2本が schema の決まりを守る。
-#   2. process/**/*.yaml と見本（tests/process/process/）が schema を通る（andon process json で JSON にして schema_check.py へ）。
+#   2. process/**/*.yaml と見本（tests/process/process/）が schema を通る（andon process json で JSON にして andon schema check へ）。
 #      ワークストリームの triggers[].start と steps[].next[].id が steps[] に在る。
 #   3. 見本を壊すと落ちる（知らないキー・enum の外・必須の欠け・やる者の種類に合わないキー・在らない id）。
 #   3b. process/states/ の transitions[].once: true が on の「§7.2 #<n>」で dispatcher.md §7.2 の行を指す（受け入れ条件 4）。
 #   4. andon process render --check: repo の docs/process/ と見本の生成物（tests/process/docs/process/）が作り直しても変わらない。
 #      生成物に機械が読む塊（```json・```yaml）が無い。
 #   5. ワークストリームが 8 本。見守り・仕分け・ふりかえりは決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 5 本は name・title・purpose だけ（受け入れ条件 5。ふりかえりは ADR-0028 決めたこと 12）。
-# 道具は python3（標準ライブラリだけ）と jq と andon（tests/lib/andon.sh）。
+# 道具は python3（標準ライブラリだけ。schema の決まりは package/lib/andon/schema_check.py lint）と jq と andon（tests/lib/andon.sh）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)
@@ -47,7 +47,7 @@ check() {
   local yaml=$1 kind json=$tmp/def.json
   kind=$(kind_of "$yaml") || { echo "置き場が process/workstreams・process/states でない" >"$tmp/why"; return 1; }
   "$andon" process json "$yaml" >"$json" 2>"$tmp/why" || return 1
-  python3 "$check_py" validate "schema/process/$kind.schema.json" "$json" >"$tmp/why" 2>&1 || return 1
+  "$andon" schema check "schema/process/$kind.schema.json" "$json" >"$tmp/why" 2>&1 || return 1
   if [ "$kind" = workstream ]; then
     local missing
     missing=$(refs "$json")

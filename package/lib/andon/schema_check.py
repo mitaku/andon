@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
-"""schema の検査器（python3 の標準ライブラリだけ）。tests/schema.sh と、セルで担当・Chief of Staff・Chief Engineer が JSON を確かめるのに使う。
+"""schema そのものの決まりの検査（lint）と、文書の例の取り出し（python3 の標準ライブラリだけ）。tests/schema.sh・tests/process.sh が使う。
 
-JSON Schema（draft 2020-12）のうち、schema/ が使うキーワードだけを実装する。
-知らないキーワードが schema にあれば、黙って飛ばさずに落ちる（検査が効いていないのに通るのを防ぐ）。
-標準に無いキーワードは1つだけ: `uniqueKeys`（配列の object の要素で、名前を並べたキーの値が重ならない。例 候補の `id`）。
-2020-12 はキーワードの一意を要素の全体でしか書けないので足した。ほかの検査器は知らないキーワードを注記として飛ばすので、
-一意は command の側でも確かめる。
+JSON を schema と照らす検査器ではない。照合は andon schema check（command が約束の JSON を書く前に照らすのと同じ、
+internal/contract の検査器）でする（ADR-0034 決めたこと 6）。
 
 使い方:
-  schema_check.py validate <schema.json> <instance.json>   通れば 0、落ちれば 1 と理由
-  schema_check.py examples <contract.md>                    ```json の塊を「節の番号<TAB>JSON（1行）」で出す
-  schema_check.py lint <schema.json>                        schema そのものの決まり（下の lint_schema）
-  schema_check.py batch <cases.tsv>                         validate・lint を1行1件でまとめて走らせる（python の起動を1回にする）
-                                                            行: `validate<TAB>schema<TAB>instance` か `lint<TAB>schema`。
-                                                            出力: 行ごとに `終了コード<TAB>理由の1行目`（validate・lint 単体と同じ終了コード）
+  schema_check.py examples <contract.md>   ```json の塊を「節の番号<TAB>JSON（1行）」で出す
+  schema_check.py lint <schema.json>       schema そのものの決まり（下の lint_schema）。通れば 0、落ちれば 1 と理由
+  schema_check.py batch <cases.tsv>        lint を1行1件でまとめて走らせる（python の起動を1回にする）
+                                           行: `lint<TAB>schema`。出力: 行ごとに `終了コード<TAB>理由の1行目`（lint 単体と同じ終了コード）
 """
 import json
 import re
 import sys
 
+# 検査器（internal/contract の Keywords）が読むキーワード。同じ顔ぶれにする。
+# 標準に無いキーワードは1つだけ: `uniqueKeys`（配列の object の要素で、名前を並べたキーの値が重ならない。例 候補の `id`）。
 ANNOTATIONS = {"$schema", "$id", "title", "description"}
 KEYWORDS = ANNOTATIONS | {
     "$defs", "$ref", "type", "properties", "required", "additionalProperties",
@@ -26,52 +23,14 @@ KEYWORDS = ANNOTATIONS | {
     "minItems", "oneOf", "anyOf", "allOf", "if", "then", "else", "not",
     "uniqueKeys",
 }
-TYPES = {
-    "object": lambda v: isinstance(v, dict),
-    "array": lambda v: isinstance(v, list),
-    "string": lambda v: isinstance(v, str),
-    # 2020-12 の integer は小数部が 0 の数（1.0 も integer）
-    "integer": lambda v: not isinstance(v, bool) and (isinstance(v, int) or (isinstance(v, float) and v.is_integer())),
-    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
-    "boolean": lambda v: isinstance(v, bool),
-    "null": lambda v: v is None,
-}
-
-
-class SchemaError(Exception):
-    pass
-
-
-def ecma_pattern(pattern):
-    """JSON Schema の pattern（ECMA-262）を Python の re に合わせる。
-
-    違いのうち schema/ に効くのは `$` だけ: ECMA-262（multiline なし）の `$` は入力の末尾だけに合うが、
-    Python の `$` は末尾の改行の前にも合う。文字クラスの外の `$` を `\\Z` に替える。
-    """
-    out, i, in_class = [], 0, False
-    while i < len(pattern):
-        c = pattern[i]
-        if c == "\\":
-            out.append(pattern[i:i + 2])
-            i += 2
-            continue
-        if in_class:
-            in_class = c != "]"
-        elif c == "[":
-            in_class = True
-        elif c == "$":
-            c = r"\Z"
-        out.append(c)
-        i += 1
-    return "".join(out)
 
 
 def divergent(pattern):
-    """ECMA-262・Python の re・Go の regexp（andon が書く前に照らす検査器）で意味が割れるか、どれかで読めない表現を返す
+    """ECMA-262（JSON Schema の pattern の方言）と Go の regexp（andon の検査器）で意味が割れるか、Go で読めない表現を返す
     （schema/ の pattern には使わない）。
 
     意味が割れる: `.`（行区切り文字 U+2028 などの扱い）と、`\\s` `\\d` `\\w` `\\b` とその大文字（Unicode の範囲）。
-    代わりに明示した ASCII の文字クラスで書く。`$` は ecma_pattern が合わせるので使ってよい。
+    代わりに明示した ASCII の文字クラスで書く。`$`（multiline なし）はどちらも入力の末尾だけに合うので使ってよい。
     Go で読めない: 先読み・後読み（`(?=` `(?!` `(?<=` `(?<!`）、後方参照（`\\1` など）、`\\u` の逃がし。
     文字は `\\x00` の形で書き、先読みは段ごとの選択肢に書き直す。
     """
@@ -97,109 +56,6 @@ def divergent(pattern):
                     break
         i += 1
     return found
-
-
-def same(a, b):
-    # JSON の等しさ（True と 1 を区別する）
-    if isinstance(a, bool) or isinstance(b, bool):
-        return type(a) is type(b) and a == b
-    return a == b
-
-
-class Validator:
-    def __init__(self, root):
-        self.root = root
-
-    def resolve(self, ref):
-        if not ref.startswith("#/"):
-            raise SchemaError(f"$ref は同じファイルの中だけ: {ref}")
-        node = self.root
-        for part in ref[2:].split("/"):
-            if not isinstance(node, dict) or part not in node:
-                raise SchemaError(f"$ref が解けない: {ref}")
-            node = node[part]
-        return node
-
-    def errors(self, schema, inst, path="$"):
-        if schema is True:
-            return []
-        if schema is False:
-            return [f"{path}: 許されていない"]
-        if not isinstance(schema, dict):
-            raise SchemaError(f"schema が object でない: {schema!r}")
-        unknown = set(schema) - KEYWORDS
-        if unknown:
-            raise SchemaError(f"検査器の知らないキーワード: {sorted(unknown)}")
-        errs = []
-        if "$ref" in schema:
-            errs += self.errors(self.resolve(schema["$ref"]), inst, path)
-        if "type" in schema:
-            ts = schema["type"] if isinstance(schema["type"], list) else [schema["type"]]
-            if not any(TYPES[t](inst) for t in ts):
-                return errs + [f"{path}: 型が {'/'.join(ts)} でない"]
-        if "enum" in schema and not any(same(inst, e) for e in schema["enum"]):
-            errs.append(f"{path}: {json.dumps(inst, ensure_ascii=False)} は {schema['enum']} のどれでもない")
-        if "const" in schema and not same(inst, schema["const"]):
-            errs.append(f"{path}: {json.dumps(schema['const'])} でない")
-        if isinstance(inst, str):
-            if "pattern" in schema and not re.search(ecma_pattern(schema["pattern"]), inst):
-                errs.append(f"{path}: {json.dumps(inst, ensure_ascii=False)} が形 {schema['pattern']} に合わない")
-            if "minLength" in schema and len(inst) < schema["minLength"]:
-                errs.append(f"{path}: 短すぎる")
-        if TYPES["number"](inst) and "minimum" in schema and inst < schema["minimum"]:
-            errs.append(f"{path}: {schema['minimum']} より小さい")
-        if isinstance(inst, dict):
-            for k in schema.get("required", []):
-                if k not in inst:
-                    errs.append(f"{path}: キー {k} が無い")
-            props = schema.get("properties", {})
-            for k, v in inst.items():
-                if k in props:
-                    errs += self.errors(props[k], v, f"{path}.{k}")
-                elif "additionalProperties" in schema:
-                    sub = schema["additionalProperties"]
-                    if sub is False:
-                        errs.append(f"{path}: 知らないキー {k}")
-                    else:
-                        errs += self.errors(sub, v, f"{path}.{k}")
-        if isinstance(inst, list):
-            if "minItems" in schema and len(inst) < schema["minItems"]:
-                errs.append(f"{path}: 要素が {schema['minItems']} より少ない")
-            prefix = schema.get("prefixItems", [])
-            for i, v in enumerate(inst):
-                if i < len(prefix):
-                    errs += self.errors(prefix[i], v, f"{path}[{i}]")
-                elif "items" in schema:
-                    errs += self.errors(schema["items"], v, f"{path}[{i}]")
-            for k in schema.get("uniqueKeys", []):
-                seen = []
-                for i, v in enumerate(inst):
-                    if not isinstance(v, dict) or k not in v:
-                        continue
-                    if any(same(v[k], x) for x in seen):
-                        errs.append(f"{path}[{i}].{k}: {json.dumps(v[k], ensure_ascii=False)} が重なる")
-                    seen.append(v[k])
-        for sub in schema.get("allOf", []):
-            errs += self.errors(sub, inst, path)
-        for k in ("anyOf", "oneOf"):
-            if k not in schema:
-                continue
-            branches = [self.errors(s, inst, path) for s in schema[k]]
-            n = sum(1 for b in branches if not b)
-            if n == 0:
-                # 一番近い枝（理由が最も少ない枝）の理由を添える
-                # 同じ数なら、理由の場所が深い枝（型の違いより中身の違い）を選ぶ
-                nearest = min(branches, key=lambda b: (len(b), -len(b[0].split(": ")[0])))
-                errs.append(f"{path}: {k} のどれにも合わない（近い枝: {nearest[0]}）")
-            elif k == "oneOf" and n > 1:
-                errs.append(f"{path}: oneOf のうち {n} 個に合う（ちょうど1つでない）")
-        if "not" in schema and not self.errors(schema["not"], inst, path):
-            errs.append(f"{path}: not の形に合ってしまう")
-        if "if" in schema:
-            branch = "then" if not self.errors(schema["if"], inst, path) else "else"
-            if branch in schema:
-                errs += self.errors(schema[branch], inst, path)
-        return errs
 
 
 def load(path):
@@ -241,7 +97,7 @@ def lint_schema(schema):
                 errs.append(f"{at}.{k}: 英語でない（ASCII の外の字がある）")
         if isinstance(sub.get("pattern"), str):
             for d in divergent(sub["pattern"]):
-                errs.append(f"{at}.pattern: ECMA-262・Python・Go で意味が割れるか読めない {d} を使っている（divergent の説明の形で書く）")
+                errs.append(f"{at}.pattern: ECMA-262 と Go で意味が割れるか、Go で読めない {d} を使っている（divergent の説明の形で書く）")
         for name, prop in sub.get("properties", {}).items():
             if not name.isascii():
                 errs.append(f"{at}: 識別子 {name} が英語でない")
@@ -274,16 +130,13 @@ def examples(md_path):
 
 
 def run_case(fields):
-    """batch の1件。(終了コード, 理由の1行目)。単体の validate・lint と同じ終了コードを返す。"""
+    """batch の1件。(終了コード, 理由の1行目)。単体の lint と同じ終了コードを返す。"""
     try:
-        if fields[0] == "validate" and len(fields) == 3:
-            schema = load(fields[1])
-            errs = Validator(schema).errors(schema, load(fields[2]))
-        elif fields[0] == "lint" and len(fields) == 2:
+        if fields[0] == "lint" and len(fields) == 2:
             errs = lint_schema(load(fields[1]))
         else:
-            return 2, "検査できない: batch の行の形が違う"
-    except (SchemaError, json.JSONDecodeError, OSError) as e:
+            return 2, "検査できない: batch の行の形が違う（照合は andon schema batch）"
+    except (json.JSONDecodeError, OSError) as e:
         return 2, f"検査できない: {e}"
     return (1, errs[0]) if errs else (0, "")
 
@@ -297,13 +150,6 @@ def main(argv):
                 rc, why = run_case(line.split("\t"))
                 print(f"{rc}\t{why}".replace("\n", " "))
         return 0
-    if len(argv) >= 2 and argv[1] == "validate" and len(argv) == 4:
-        schema = load(argv[2])
-        inst = load(argv[3])
-        errs = Validator(schema).errors(schema, inst)
-        for e in errs:
-            print(e)
-        return 1 if errs else 0
     if len(argv) == 3 and argv[1] == "examples":
         examples(argv[2])
         return 0
@@ -319,6 +165,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv))
-    except (SchemaError, json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError) as e:
         print(f"検査できない: {e}", file=sys.stderr)
         sys.exit(2)
