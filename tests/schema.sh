@@ -800,6 +800,7 @@ notification-asked.json|notification|andon dispatcher の通知 asked
 notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report
 notification-review.json|notification|andon dispatcher が log.jsonl から拾った通知 review
 notification-ready.json|notification|andon dispatcher が ready の差から拾った通知 ready（routine つき）
+notification-ready-abandoned.json|notification|andon dispatcher が ready の差から拾った通知 ready（やめた待つ相手つき）
 notification-finished.json|notification|andon dispatcher の通知 finished（端末が無い）
 notification-blocked.json|notification|andon dispatcher の通知 blocked
 notification-error.json|notification|andon dispatcher の通知 error

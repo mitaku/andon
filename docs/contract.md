@@ -236,7 +236,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `report` | `log.jsonl` の `{"report": "write" \| "append"}` | `report` のパス |
 | `review` | `{"status": "review"}` | `report`・`pr` |
 | `asked` | `{"question": n, "status": "open"}`。dispatcher 自身が出した問い（`by` が `terminal:dispatcher`）は出した巡で積み、この行からは積み直さない（[dispatcher.md](dispatcher.md) §2.2） | `n`・`kind`・`question`（§5 の JSON から） |
-| `ready` | `kanban ready --json` の前回との差（人の課題を除く） | `title`・`routine` |
+| `ready` | `kanban ready --json` の前回との差（人の課題を除く） | `title`・`routine`、待つ相手（`after`）のうち PR を成果にする課題がマージされずに done になったものがあれば `abandoned[]`（id）、マージされたかを確かめられなかったものがあれば `unchecked[]`（id。見分け方は [dispatcher.md](dispatcher.md) §2.2） |
 | `review-requested` | `report.json` の `review_request`（dispatcher が起動したとき） | `round`・`reviewer`・`reviewer_issue` |
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス）、`fix` を担当へ送れなかった（担当の端末が無い）ときだけ `unsent`（担当の address）、`fix` で担当（`agent`）がいないときだけ `no_agent`（`true`） |
 | `merged` | ゲートの approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき。または `review`・`doing` の課題の PR を人がマージしたのを見つけ、ゲートの問いを閉じて finish したとき（`by: person`）・ゲートの外の問いが開いている／finish が失敗して（commit していない変更など）片付けなかったとき（`by: person`・`held`。同じ理由では1回。dispatcher.md §2.7） | `pr`・`sha`、人のマージのときだけ `by`（`person`）と、片付けなかったときだけ `held`（理由） |
@@ -276,7 +276,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `no-commit` | worktree の `HEAD` の commit（一度も commit していなければ切った元の commit）から、見込みの分より長く経った |
   | `large-diff` | `origin/HEAD` との merge-base から作業ツリーまでの変更（追跡しているファイル）の、足した行と消した行の和が 500 を超えた。テスト（`tests` という名のディレクトリの下と、名前が `*_test.*` のファイル）とバイナリは数えない |
 
-- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine`、`gate` の `unsent`・`no_agent`、`merged` の `by`・`held`、`estimate` の `sign` だけ任意。`unsent` と `no_agent` は `decision: fix` のときだけで、一緒には書かない。`held` は `by` と一緒）。
+- `at` は UTC の `YYYY-MM-DDTHH:MM:SSZ`（暦にある日時。ゲートの記録の `at` も同じ）。キーは `at`・`project`・`kind`・`detail` が必須、`issue` は課題についての通知のときだけ。`detail` のキーは `kind` ごとに上の表のものだけで、全部必須（`ready` の `routine`・`abandoned`・`unchecked`、`gate` の `unsent`・`no_agent`、`merged` の `by`・`held`、`estimate` の `sign` だけ任意。`unsent` と `no_agent` は `decision: fix` のときだけで、一緒には書かない。`held` は `by` と一緒）。
 - 届け方（届ける通知だけ）: ①Chief of Staff の `Stop` フックが `andon dispatcher drain` を打ち、待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}`（続きのターンになる）。②`UserPromptSubmit` フックが `additionalContext` に添える（委譲の一覧 `andon delegate show --json` も同じ口で添える）。どちらも同じ JSON から同じ文を描く。③人が離席の間は、Chief of Staff の `Stop` フックが `asyncRewake` で起動する待ち役（`andon dispatcher wait`）が、届ける待ちがあれば合図だけを打って Chief of Staff を起動し、そのターンの終わりの①で届く。dispatcher は Chief of Staff の入力欄へ打たない（[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 1・8）。
 - **人のマージの片付け**（`merged`（`by: person`）・`closed`）: `andon issue settle <id>` は、`review` か `doing` の課題の PR を人がマージしていたら、ゲートの問いを閉じて finish する（dispatcher.md §2.7）。dispatcher が打つのは、インナーループを通る課題と、`review` にいる Chief Engineer の課題。積む通知は stdout の JSON で返し、待ちに積むのは dispatcher。
   出力は `issue`・`state`（`skip`〈`review` にいない・`pr` が無い・別の repo の PR〉・`watching`〈まだ OPEN か、1分たたず聞いていない〉・`auto`〈ゲートの記録の `merged` が `true`。dispatcher がマージした〉・`closed`・`held`・`finished`）・`notify[]`（`kind` と `detail`。形は上の表の `merged`・`closed`）。

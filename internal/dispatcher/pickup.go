@@ -290,6 +290,14 @@ func (p *project) readReady() {
 		if r := t.Str("routine"); r != "" {
 			d["routine"] = r
 		}
+		// 待つ相手がマージされずに done になった（やめ）なら添える（abandoned.go）。マージで片付いたなら題だけ
+		gone, unsure := p.waitedGone(t)
+		if len(gone) > 0 {
+			d["abandoned"] = gone
+		}
+		if len(unsure) > 0 {
+			d["unchecked"] = unsure
+		}
 		p.notify(id, "ready", d)
 	}
 	p.st.Ready = &ids

@@ -1683,6 +1683,32 @@ clear_pending; pk
 [ "$(jq '[.pending[] | select(.kind == "ready")] | length' "$pst")" = 0 ] || die '同じ ready を二度拾った'
 ok 'ready は前回との差で拾い（人の課題とレビュアーの子課題は除く・routine を添える）、同じものを二度拾わない'
 
+# 16a. 待つ相手がマージされずに done になって queued から戻った課題の ready に「待つ相手 <id> がやめになった」を添える。
+# マージで done になった待つ相手なら今どおり題だけ。PR を成果にしない待つ相手（repo の無い課題）は見分けない
+wa=$(as_cos kanban add 'PR を出さずにやめた')   # report.json が無い
+wc=$(as_cos kanban add 'PR を閉じてやめた')      # report.json の pr 8 は CLOSED（偽の gh）
+wm=$(as_cos kanban add 'マージで片付いた')       # ゲートの記録の merged が true
+wn=$(as_cos kanban add '調べて終えた')           # repo の無い課題
+for w in "$wa" "$wc" "$wm"; do as_cos kanban set "$w" repo=github.com/example/app >/dev/null; done   # この台帳の config に repos は無い
+mkdir -p "$P/issues/$wc/library" "$P/issues/$wm/library/gate"
+echo '{"commit":"9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08","pr":"https://github.com/example/app/pull/8"}' > "$P/issues/$wc/library/report.json"
+echo '{"head":"9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08","at":"2026-11-20T00:00:00Z","tier":"B","decision":"approve","reasons":[],"merged":true}' > "$P/issues/$wm/library/gate/9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08.json"
+qa=$(as_cos kanban add --after "$wa,$wm" 'やめた相手を待つ')
+qc=$(as_cos kanban add --after "$wc" '閉じた相手を待つ')
+qm=$(as_cos kanban add --after "$wm,$wn" 'マージした相手を待つ')
+for q in "$qa" "$qc" "$qm"; do [ "$(kanban show "$q" --json | jq -r .issue.status)" = queued ] || die "$q が queued でない（検査が何も見ていない）"; done
+pk; clear_pending
+for w in "$wa" "$wc" "$wm" "$wn"; do as_cos kanban done "$w" >/dev/null; done
+for q in "$qa" "$qc" "$qm"; do [ "$(kanban show "$q" --json | jq -r .issue.status)" = todo ] || die "kanban done が $q を todo へ移さない"; done
+pk
+pp "$qa" ready | jq -e --arg w "$wa" '.[0].detail == {title: "やめた相手を待つ", abandoned: [$w]}' >/dev/null || die "PR を出さずにやめた待つ相手を添えない: $(pp "$qa" ready)"
+pp "$qc" ready | jq -e --arg w "$wc" '.[0].detail == {title: "閉じた相手を待つ", abandoned: [$w]}' >/dev/null || die "PR を閉じてやめた待つ相手を添えない: $(pp "$qc" ready)"
+pp "$qm" ready | jq -e '.[0].detail == {title: "マージした相手を待つ"}' >/dev/null || die "マージで片付いた待つ相手の ready が題だけでない: $(pp "$qm" ready)"
+grep -q "pr view 8 --repo example/app --json state,mergeCommit,mergedAt" "$tmp/gh/calls" || die '閉じた PR の状態を gh に聞かない'
+emit <(pp "$qa" ready | jq '.[0]') notification-ready-abandoned.json
+clear_pending
+ok '待つ相手がマージされずに done になって戻った課題の ready に、やめた待つ相手を添える（マージで片付いた待つ相手なら題だけ）'
+
 # 16b. 1巡の中で kanban tick を打ち、ルーチンが足した課題を同じ巡の ready の差で拾う。tick の失敗は巡を止めない
 mkdir -p "$P/routines" "$P/state"
 printf 'title: 週1の見直し\nschedule: "* * * * *"\n' > "$P/routines/weekly.yaml"
