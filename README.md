@@ -95,6 +95,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0034 検査の仕分けから、テストより手前に足す道具と直す設計](docs/adr/0034-prevention-before-tests.md): 決定
   - [0035 pstack の correct と create-verification-skill の取り入れ方](docs/adr/0035-pstack-correct-and-verification-skill.md): 決定
   - [0036 役の名前を「人」から「オーナー」に改める](docs/adr/0036-owner-not-hito.md): 決定
+  - [0037 Chief Engineer が自分で決める範囲を広げる](docs/adr/0037-chief-engineer-autonomy.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
