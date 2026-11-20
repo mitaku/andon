@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/run/1",
+  "title": "Run",
+  "description": "issues/<id>/library/runs/<n>.json: one record of a command a worker ran as evidence, with its output kept beside it in runs/<n>.log. Written only by `andon issue record`, which runs the command in the issue's worktree and checks the record before writing it; never by hand. One file per run, never rewritten, kept after finish. A row of report.json acceptance[] points at it by id (acceptance[].run). Only these keys.",
+  "type": "object",
+  "required": ["id", "command", "expect", "exit_code", "started_at", "finished_at", "output", "output_bytes", "truncated"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "The record's number n (runs/<n>.json): 1, 2, ... in the order the runs started. Unique in the issue.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "command": {
+      "description": "The command and its arguments as given after --, run without a shell.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "expect": {
+      "description": "What the worker expected: pass (exit code 0) or fail (an exit code other than 0; a check that must fail when the mistake is put back).",
+      "enum": ["pass", "fail"]
+    },
+    "exit_code": {
+      "description": "The command's exit code. -1 when it was ended by a signal.",
+      "type": "integer",
+      "minimum": -1
+    },
+    "commit": {
+      "description": "HEAD of the worktree when the run started: 40 lowercase hex digits. Present for an issue with a repository, absent for an issue without one.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "dirty": {
+      "description": "Whether the worktree had changes not in commit (git status --porcelain, untracked files included) when the run started. Present exactly when commit is.",
+      "type": "boolean"
+    },
+    "started_at": {
+      "description": "When the command started (UTC, RFC 3339).",
+      "$ref": "#/$defs/time"
+    },
+    "finished_at": {
+      "description": "When the command ended (UTC, RFC 3339).",
+      "$ref": "#/$defs/time"
+    },
+    "output": {
+      "description": "Where the output is, relative to the issue's library/: runs/<n>.log with the same n as id. Standard output and standard error together, in the order written.",
+      "type": "string",
+      "pattern": "^runs/[1-9][0-9]*\\.log$"
+    },
+    "output_bytes": {
+      "description": "Bytes the command wrote in all, before any cut.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "description": "Whether the output was over the limit and only its end was kept (the log then starts with one line saying how much was cut).",
+      "type": "boolean"
+    }
+  },
+  "if": { "required": ["commit"] },
+  "then": { "required": ["dirty"] },
+  "else": { "not": { "required": ["dirty"] } },
+  "$defs": {
+    "time": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.",
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    }
+  }
+}

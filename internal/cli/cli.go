@@ -40,7 +40,7 @@ type command struct {
 var commands = []command{
 	{
 		name:  "issue",
-		about: "担当を起動する（start）・担当が台帳に返す（show・report・review-request・ready・ask）・片付ける（finish）",
+		about: "担当を起動する（start）・担当が台帳に返す（show・report・review-request・ready・ask）・走らせた記録を残す（record）・片付ける（finish）",
 		usage: issue.Usage,
 		run:   issue.Main,
 	},

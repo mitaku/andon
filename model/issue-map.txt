@@ -45,5 +45,6 @@ outside todo doing kanban start — Chief Engineer の課題とレビュアー�
 outside todo done andon issue finish — 起動する前にやめる。モデルのやめるは担当を起こしたあと（ChiefOfStaffCancels）だけ
 outside todo done kanban done — トリアージの close。トリアージの一生はモデルに入れていない（やらないこと 5）
 outside doing doing andon issue candidates — 調べる課題の候補の一覧。PR の無い課題はモデルに入れていない（やらないこと 5）
+outside doing doing andon issue record — 走らせた記録（ADR-0035 決めたこと 11）。status も、モデルが見る PR・CI・レビューも動かさない
 outside doing review kanban review — Chief Engineer・トリアージ・観察の課題が返す。PR の無い課題はモデルに入れていない（やらないこと 5）
 outside done [*] - — 台帳から消えるのはモデルの外（モデルは done で止まる）
