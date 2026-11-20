@@ -2,13 +2,15 @@
 # tests/adr-index.sh [--root <dir>]
 #
 # ADR の冒頭の決定の索引がずれていないこと（ADR-0033 決めたこと 5・6、受け入れ条件 1〜4）。
-#   - 索引（見出し「## 決定の索引」）のある ADR: 索引が冒頭の最初の節にあり、表が 4 列（# ・何を決めたか・今の正・今）で、
+#   - 全部の ADR に索引（見出し「## 決定の索引」）が要る。索引が冒頭の最初の節にあり、表が 4 列（# ・何を決めたか・今の正・今）で、
 #     番号の並びが「決めたこと」の番号の並びと同じ。「今の正」は「この ADR」か、repo に在るパスを `…` で書く。
-#     「今」は 生きている・覆された（どこが覆したかを添える）・役目を終えた・まだ実装していない のどれかで始まる。
-#     索引の無い ADR は、索引の分は見ない（全部の ADR に索引を足し終えたら、索引を必須にする）。
+#     「今」は 生きている・覆された・役目を終えた・まだ実装していない のどれかで始まる。
+#     覆されたは、どこが覆したかを「覆された → ADR-NNNN」か「覆された → この ADR の N」で書く（あとに（…）を添えてよい）。
+#     ADR-NNNN は在る別の ADR、N はその ADR の「決めたこと」に在る、行の自分と別の番号。
 #   - 全部の ADR: 状態行（「- 状態: **決定…**」）があり、README の ADR の一覧に行があって、状態の語（決定・提案・覆された）が同じ。
-# 引数なしは repo を見たあと、壊した写し 3 つ（索引の 1 行を抜く・在りえないパスを書く・README の状態を変える）で
-# それぞれ落ちることを確かめる。--root はその写しを見るときに使う。
+# 引数なしは repo を見たあと、壊した写し 6 つ（索引の 1 行を抜く・在りえないパスを書く・README の状態を変える・
+# 索引の節を消す・覆したところを消す・在りえない ADR を覆した先に書く）でそれぞれ落ちることを確かめる。
+# --root はその写しを見るときに使う。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,6 +22,7 @@ root = sys.argv[1]
 adr_dir = os.path.join(root, "docs", "adr")
 NOW = ("生きている", "覆された", "役目を終えた", "まだ実装していない")
 HEADER = ["#", "何を決めたか", "今の正", "今"]
+OVERRIDDEN = re.compile(r"覆された → (?:ADR-([0-9]{4})|この ADR の ([0-9]+))(?:（[^（）]+(?:（[^（）]*）[^（）]*)*）)?")
 fails = []
 
 def fail(msg):
@@ -41,7 +44,8 @@ def status_word(text):
     return m.group(1) if m else None
 
 files = sorted(f for f in os.listdir(adr_dir) if re.match(r"^[0-9]{4}-.+\.md$", f))
-states, indexed = {}, 0
+nums = {f[:4] for f in files}
+states = {}
 for f in files:
     path = f"docs/adr/{f}"
     with open(os.path.join(adr_dir, f), encoding="utf-8") as fh:
@@ -58,8 +62,10 @@ for f in files:
     secs = sections(lines)
     idx = [s for s in secs if s[0] == "決定の索引"]
     if not idx:
+        fail(f"{path}: 決定の索引（見出し「## 決定の索引」）が無い")
         continue
-    indexed += 1
+    dec = next((s for s in secs if s[0].startswith("決めたこと")), None)
+    want = [int(m.group(1)) for ln in (dec[1] if dec else []) if (m := re.match(r"^([0-9]+)\. ", ln))]
     if secs[0][0] != "決定の索引":
         fail(f"{path}: 決定の索引が冒頭（状態行の下の最初の節）に無い（最初の節は「{secs[0][0]}」）")
     rows = [ln for ln in idx[0][1] if ln.startswith("|")]
@@ -89,10 +95,14 @@ for f in files:
         w = next((w for w in NOW if now.startswith(w)), None)
         if w is None:
             fail(f"{path}: 索引の {n} の「今」が {'・'.join(NOW)} のどれでもない: {now}")
-        elif w == "覆された" and now == w:
-            fail(f"{path}: 索引の {n} の「今」が覆されたのに、どこが覆したかが無い")
-    dec = next((s for s in secs if s[0].startswith("決めたこと")), None)
-    want = [int(m.group(1)) for ln in (dec[1] if dec else []) if (m := re.match(r"^([0-9]+)\. ", ln))]
+        elif w == "覆された":
+            m = OVERRIDDEN.fullmatch(now)
+            if m is None:
+                fail(f"{path}: 索引の {n} の「今」が覆されたのに、どこが覆したかを「覆された → ADR-NNNN」か「覆された → この ADR の N」で書いていない: {now}")
+            elif m.group(1) and (m.group(1) == num or m.group(1) not in nums):
+                fail(f"{path}: 索引の {n} を覆した ADR-{m.group(1)} が、在る別の ADR でない")
+            elif m.group(2) and (int(m.group(2)) == int(n) or int(m.group(2)) not in want):
+                fail(f"{path}: 索引の {n} を覆した「この ADR の {m.group(2)}」が、この ADR の「決めたこと」に在る別の番号でない")
     if got != want:
         fail(f"{path}: 索引の番号 {got} が「決めたこと」の番号 {want} と違う")
 
@@ -116,7 +126,7 @@ for f in readme:
 for m in fails:
     print(f"FAIL {m}")
 if not fails:
-    print(f"ok   ADR {len(files)} 本の状態行と README の一覧が揃い、索引のある {indexed} 本の索引が本文と repo に合う")
+    print(f"ok   ADR {len(files)} 本の状態行と README の一覧が揃い、{len(files)} 本すべての索引が本文と repo に合う")
 sys.exit(1 if fails else 0)
 PY
 }
@@ -151,13 +161,20 @@ expect() { # expect ok|fail <説明> [<落ちた文に要る語>]
 }
 a33=docs/adr/0033-adr-inventory-and-slimming.md
 a15=docs/adr/0015-inbox-needs-you.md
+a02=docs/adr/0002-herdr-spaces.md
 grep -q '^| 3 | ' "$a33" || { echo "FAIL 自己確認の前提: $a33 の索引に 3 の行が無い"; exit 1; }
 grep -q '`package/host/inbox/main.js`' "$a15" || { echo "FAIL 自己確認の前提: $a15 の索引に main.js のパスが無い"; exit 1; }
+grep -q '^| 21 | .* | 覆された → この ADR の 22 |$' "$a02" || { echo "FAIL 自己確認の前提: $a02 の索引の 21 が「覆された → この ADR の 22」でない"; exit 1; }
+grep -q '^| 1 | .* | 覆された → ADR-0003（' "$a02" || { echo "FAIL 自己確認の前提: $a02 の索引の 1 が「覆された → ADR-0003」でない"; exit 1; }
 grep -q '^  - \[0003 .*: 決定$' README.md || { echo "FAIL 自己確認の前提: README の一覧の 0003 が「決定」でない"; exit 1; }
 
 setup; expect ok '壊していない写しは通る'
 setup; sed -i '/^| 3 | /d' "$tmp/r/$a33"; expect fail '索引から 1 行を抜いた写しで落ちる' '索引の番号 [1, 2, 4, 5, 6, 7] が「決めたこと」の番号 [1, 2, 3, 4, 5, 6, 7] と違う'
 setup; sed -i '0,/`package\/host\/inbox\/main.js`/s//`package\/host\/inbox\/no-such-file.js`/' "$tmp/r/$a15"; expect fail '在りえないパスを書いた写しで落ちる' '「今の正」のパスが repo に無い: package/host/inbox/no-such-file.js'
 setup; sed -i 's/^\(  - \[0003 .*\): 決定$/\1: 提案/' "$tmp/r/README.md"; expect fail 'README の状態を変えた写しで落ちる' '状態「提案」が ADR の状態行「決定」と違う'
+
+setup; sed -i '/^## 決定の索引$/,/^## /{/^## 決定の索引$/d;/^## /!d}' "$tmp/r/$a33"; expect fail '索引の節を消した写しで落ちる' "$a33: 決定の索引（見出し「## 決定の索引」）が無い"
+setup; sed -i 's/| 覆された → この ADR の 22 |$/| 覆された。 |/' "$tmp/r/$a02"; expect fail '覆したところを消した写しで落ちる' '索引の 21 の「今」が覆されたのに、どこが覆したかを'
+setup; sed -i '0,/| 覆された → ADR-0003（/s//| 覆された → ADR-9999（/' "$tmp/r/$a02"; expect fail '在りえない ADR を覆した先に書いた写しで落ちる' '索引の 1 を覆した ADR-9999 が、在る別の ADR でない'
 
 exit "$fail"

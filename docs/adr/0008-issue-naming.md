@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 1 | 語は 課題（issue）と 作業（task）にし、課題が作業を内包する。「タスク」は使わない | `package/skills/glossary/SKILL.md` | 生きている |
 | 2 | 識別子を `task` から `issue` に改める。対応表を決める | `docs/ledger.md`・`schema/ledger/issue.v3.schema.json` | 生きている |
-| 3 | 台帳の形式を v3 にし、`kanban migrate` が v2 を 1 回で移す。別名は `andon task` だけ、1 版 | この ADR | 覆された（決めたこと 7 が別名と migrate をやめた） |
+| 3 | 台帳の形式を v3 にし、`kanban migrate` が v2 を 1 回で移す。別名は `andon task` だけ、1 版 | この ADR | 覆された → この ADR の 7（別名と migrate をやめた） |
 | 4 | 依頼書の欄「やること」を「解決すべき問題」に改める | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
 | 5 | 外部トラッカーのものは「<トラッカー名> の Issue」と書き分け、台帳のカードは「課題」と書く | `package/skills/glossary/SKILL.md` | 生きている |
 | 6 | 変える範囲と順は、形式・command・文と mod の順にする | この ADR | 役目を終えた |

@@ -10,7 +10,7 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 経路③を入力欄への `hc send` から、`asyncRewake` フックの待ち役に替える | `docs/dispatcher.md`・`internal/dispatcher/wait.go` | 生きている |
-| 2 | 待ち役の持ち方（セッションに 1 つ・人の送信で止める・通知を自分で渡す） | `docs/dispatcher.md` | 覆された（決めたこと 8 が合図だけの待ち役に改めた） |
+| 2 | 待ち役の持ち方（セッションに 1 つ・人の送信で止める・通知を自分で渡す） | `docs/dispatcher.md` | 覆された → この ADR の 8（合図だけの待ち役に改めた） |
 | 3 | 待ち役がいない間に起きた通知は、届かないことを受け入れる | `docs/dispatcher.md` | 生きている（`timeout` の分は決めたこと 9 が改めた） |
 | 4 | Chief of Staff への「続けて」の `hc send` をやめる | `docs/dispatcher.md` | 生きている |
 | 5 | 入力欄を読む仕組みを消し、dispatcher.md §4 を待ち役の節に書き直す | `docs/dispatcher.md` | 生きている |

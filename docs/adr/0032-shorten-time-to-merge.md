@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | 目的は、書き終えてから main に入るまでの時間を縮めること | この ADR | 生きている |
 | 2 | 順番と重複だけを直し、検査の網は外さない | `tests/lib/scope.sh` | 生きている |
-| 3 | PR を出したらすぐレビューを頼み、CI は裏で待つ | `package/skills/worker/SKILL.md` | 覆された → 決めたこと 8（同じ ADR） |
+| 3 | PR を出したらすぐレビューを頼み、CI は裏で待つ | `package/skills/worker/SKILL.md` | 覆された → この ADR の 8 |
 | 4 | 手元で回すのは、軽い検査と、変えた所に対応する重い検査 | `tests/lib/scope.sh` | 生きている |
 | 5 | release の job の上限は 30 分のまま | `.github/workflows/tests.yml` | 生きている |
 | 6 | 場面の確かめを Go のテストへ移す（dispatcher の検査から） | `tests/andon-dispatcher.sh` | まだ実装していない |

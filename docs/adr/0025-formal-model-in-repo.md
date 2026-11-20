@@ -12,7 +12,7 @@
 | 1 | 道具は TLA+ と TLC で、Lean は今は入れない | `model/IssueLife.tla` | 生きている |
 | 2 | 検査器は tla-ts で、版を固定し、検査器の誤りへの確かめを 2 つ添える | `model/package.json`・`model/check` | 生きている |
 | 3 | 最初にモデルと照らすのは、課題の `issue.yaml` の 1 本だけ | `model/issue-map.txt` | 生きている |
-| 4 | モデルから `issue.yaml` を作る | この ADR | 覆された → 決めたこと 6（同じ ADR） |
+| 4 | モデルから `issue.yaml` を作る | この ADR | 覆された → この ADR の 6 |
 | 5 | 最初に置く規則は 6 本（R1〜R6） | `model/IssueRules.tla` | 生きている |
 | 6 | `issue.yaml` は人が書き、CI がモデルと 2 方向で照らす | `model/conform.mjs`・`model/issue-map.txt` | 生きている |
 | 7 | CI はモデルの検査だけの job で回し、秘密を渡さない | `.github/workflows/model.yml` | 生きている |
