@@ -30,7 +30,6 @@
 | `package/` の変更はセルで実測する。 | 無し。何を動かして見るかの手順が無く、課題ごとに決めている。 |
 | `package/skills` の文を `playbooks/` へ移したら、`tests/words.sh` の禁止語に当たらないか回す。 | `tests/words.sh`。CI でいつも走る。 |
 | 報告や依頼書の文を `docs/`・注釈に写したら、commit の前に `bash tests/words.sh` を回す（報告・依頼書は語の検査を通らず、禁止語が残っている）。 | `tests/words.sh`。CI でいつも走る。 |
-| `andon issue report` は `report.json` の `review_request` を消す。レビュー依頼中に報告を書き直したら、同じ commit で `andon issue review-request` を打ち直す。 | 無し。`andon issue report` は、消したことを知らせない。 |
 | 設計の正は `docs/design.md` と `docs/adr/`。 | 無し。どれを正とするかの決まりで、見るものが無い。 |
 | 決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。 | `tests/smoke.sh`。`docs/decisions/` のファイルの名前と行の形、`docs/decisions.md` の凍結した表に行が足されていないことを見る。 |
 | ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、README の ADR の一覧を突き合わせる。 |

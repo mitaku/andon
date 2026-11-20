@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/contract"
 	"andon/internal/gate"
 	"andon/internal/ledger/ledgertest"
 )
@@ -505,5 +506,27 @@ func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
 				t.Fatalf("断ったのに書いた: reported=%v report=%s", reported == nil, report)
 			}
 		})
+	}
+}
+
+// 報告の打ち直しは、HEAD が前の報告の commit とも頼んだ commit とも同じときだけ review_request を引き継ぐ。
+func TestCarriedReviewRequest(t *testing.T) {
+	a, b := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	rr := &contract.ReviewRequest{Round: 1, Limit: 2, Commit: a, Reviewer: "codex-review"}
+	for _, tc := range []struct {
+		name string
+		prev *contract.Report
+		head string
+		want bool
+	}{
+		{"HEAD が同じ", &contract.Report{Commit: a, ReviewRequest: rr}, a, true},
+		{"HEAD が進んだ", &contract.Report{Commit: a, ReviewRequest: rr}, b, false},
+		{"前の報告が依頼と違う commit", &contract.Report{Commit: b, ReviewRequest: rr}, b, false},
+		{"依頼が無い", &contract.Report{Commit: a}, a, false},
+		{"repo の無い課題", &contract.Report{ReviewRequest: rr}, "", false},
+	} {
+		if got := carriedReviewRequest(tc.prev, tc.head); (got != nil) != tc.want {
+			t.Errorf("%s: 引き継いだ %v、want %v", tc.name, got != nil, tc.want)
+		}
 	}
 }

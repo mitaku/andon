@@ -79,7 +79,8 @@ const Usage = "usage: andon issue show <id>                                  予
 	"       andon issue stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
 	"                                                          （id を省くと端末のラベル issue=。担当でなければ何も出さない）\n" +
 	"--data は report.json の任意のキー（pr・estimate・plan・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
-	"--pr を省くと前の report.json の pr を、--data に estimate・plan が無ければ前のそれを引き継ぐ。\n"
+	"--pr を省くと前の report.json の pr を、--data に estimate・plan が無ければ前のそれを引き継ぐ。\n" +
+	"review_request は、HEAD が前の report.json の commit と同じ間だけ引き継ぐ（HEAD が進めば消える。頼み直しは review-request）。\n"
 
 const (
 	exitFail  = 1
@@ -415,27 +416,38 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 	if pr != "" {
 		r.PR = pr
 	}
-	if r.PR == "" || r.Estimate == nil || r.Plan == nil {
-		prev, err := c.previous()
-		if err != nil {
-			return err
+	// 前の report.json が壊れていても、pr・estimate・plan を全部渡せば書き直せる（引き継ぐものが要るときだけ断る）
+	prev, err := c.previous()
+	if err != nil && (r.PR == "" || r.Estimate == nil || r.Plan == nil) {
+		return err
+	}
+	if prev != nil {
+		if r.PR == "" {
+			r.PR = prev.PR
 		}
-		if prev != nil {
-			if r.PR == "" {
-				r.PR = prev.PR
-			}
-			if r.Estimate == nil {
-				r.Estimate = prev.Estimate
-			}
-			if r.Plan == nil {
-				r.Plan = prev.Plan
-			}
+		if r.Estimate == nil {
+			r.Estimate = prev.Estimate
 		}
+		if r.Plan == nil {
+			r.Plan = prev.Plan
+		}
+		r.ReviewRequest = carriedReviewRequest(prev, head)
 	}
 	if err := c.samePRRepo(r.PR); err != nil {
 		return err
 	}
 	return c.write(r, md, stdout)
+}
+
+// carriedReviewRequest は報告の打ち直しが引き継ぐ review_request。HEAD が前の報告の commit とも頼んだ commit とも
+// 同じときだけ引き継ぐ（同じ commit のレビュー依頼を、報告を書き直しただけで消さない）。HEAD が進んだら引き継がない
+// （古い commit の依頼を残すと、dispatcher が PR の head と違う commit のレビュアーを起動しに行く）。repo の無い課題（head が空）も引き継がない。
+func carriedReviewRequest(prev *contract.Report, head string) *contract.ReviewRequest {
+	q := prev.ReviewRequest
+	if q == nil || head == "" || prev.Commit != head || q.Commit != head {
+		return nil
+	}
+	return q
 }
 
 // samePRRepo は pr が課題の repo（issue.yaml の repo）の PR かを確かめる（ADR-0034 決めたこと 11）。
