@@ -27,6 +27,7 @@
 #  18. ADR の索引と書き分け（ADR-0033 受け入れ条件 9）: CE skill の文書の形と design.md §1.8 の題の次に ## 決定の索引、索引の列と語・細部の書き分け・実装の PR が索引の行を直すこと、worker §3 の1行。
 #  19. 振り返りの手順（ADR-0035 受け入れ条件 12）: retro skill に AGENTS.md の表を読む手順と、検査を足す直しの「誤りを戻すと落ちる」の受け入れ条件を入れる手順。
 #  20. PR を出す前の3つの観点: worker skill §2 の観点（失敗の波及・前の版の形・落ちたあとの起き直し）がレビュアーの依頼書（reviewerBrief・independent-review）の「正しさ」の語で書かれ、§2 の工程表・§4・§7 の書式にある。
+#  21. 当てたあとの検証（ADR-0035 受け入れ条件 13 の後半）: CoS の手引き verify.md に、差分が地図に当たるときだけ切る・同時に1つ・前の検証が見た commit から見る手順があり、名指す検証の skill と features.sh が在る。
 # 道具は bash・jq・python3（package/lib/andon/schema_check.py）。
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -839,5 +840,27 @@ for v in $views; do grep -q "^$v: <" <<<"$w7" || miss="$miss [worker §7 の書�
 # 検査が当たる場合があること: 依頼書の正しさの語が変わると、担当の並びと食い違う
 [ "$(sed -n 's/.*"2\. 正しさ: \([^\\"]*\)\\n".*/\1/p' <<<'		"2. 正しさ: 並行性・境界\n" +')" != "$w_ok" ] && ! in_list 失敗の波及 '並行性・境界' \
   && pass "3つの観点: 依頼書の正しさの語が変わった形は食い違いとして当たる（検査が見ている）" || fail "3つの観点: 検査が何も見ていない"
+
+# === 21. 当てたあとの検証（ADR-0035 受け入れ条件 13 の後半・決めたこと 4・9） ===
+# verify_miss <手引き>: CoS の手引きに、切る条件（地図に当たる・同時に1つ・前の検証が見た commit から）と、依頼書が名指す skill がそろうか
+verify_miss() {
+  local m='' k
+  for k in '同時に動く検証の課題は1つ' 'select(.title | startswith("検証: "))' '前の検証が見た commit から見る' \
+    'bash "$d/.claude/skills/verify-andon/scripts/features.sh" <始まり>..<当てた commit>' \
+    '差分が地図の「変えたら動かすパス」に当たらない' '読む skill: .claude/skills/verify-andon/SKILL.md' \
+    '前の検証が見た commit: <始まり>' 'kanban review <id> で返す' '「当てたら」の 2 で始まりの commit を決め直す' '報告に見た範囲が無い（診断で止まった）ときも' 'それを当てた commit として「当てたら」の 3 から回す'; do
+    grep -qF -- "$k" "$1" || m="$m [$k]"
+  done
+  echo "$m"
+}
+miss=$(verify_miss "$pb/verify.md")
+# 手引きが名指すものが repo に在り、検証の skill が依頼書の同じ行を読む
+for f in .claude/skills/verify-andon/SKILL.md .claude/skills/verify-andon/scripts/features.sh; do [ -f "$f" ] || miss="$miss [$f が無い]"; done
+grep -qF '前の検証が見た commit' .claude/skills/verify-andon/SKILL.md || miss="$miss [検証の skill が「前の検証が見た commit」を読まない]"
+grep -q '^| マージした変更をセルへ当てた.* | `verify.md` |$' "$cos" || miss="$miss [SKILL.md の目次に verify.md]"
+[ -z "$miss" ] && pass "ADR-0035 A13 後半: CoS の手引き verify.md に、差分が地図に当たるときだけ・同時に1つ・前の検証が見た commit から検証の課題を切る手順がある" || fail "ADR-0035 A13 後半:$miss"
+# 検査が当たる場合があること: 同時に1つの行を消した手引きでは落ちる
+grep -vF '同時に動く検証の課題は1つ' "$pb/verify.md" >"$tmp/verify.md"
+[ -n "$(verify_miss "$tmp/verify.md")" ] && pass "ADR-0035 A13 後半: 同時に1つの行が無い手引きは当たる（検査が見ている）" || fail "ADR-0035 A13 後半: 検査が何も見ていない"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

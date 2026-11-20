@@ -39,6 +39,7 @@ description: 台帳（kanban）と hc で動くプロジェクトの Chief of St
 | `<news>` が届いた・止まった担当を見つけた・見込みのズレ | `watch.md` |
 | ゲートが人を要する・approve で止まった・上限を超えた回・差し戻し | `gate.md` |
 | 片付け・マージのあとの影響 | `finish.md` |
+| マージした変更をセルへ当てた・検証の課題の報告が届いた | `verify.md` |
 | トリアージ | `triage.md` |
 | 振り返り | `retro.md` |
 | wiki の ingest・query・lint | `wiki.md` |
