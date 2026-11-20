@@ -21,7 +21,8 @@ import (
 //     <claude>/skills/<name> と ~/.agents/skills/<name> に symlink で張る（genBundledSkills。生成の一部）。
 //     /opt/andon-tools の下を指す symlink は boot のもの（張り替え・外す）。実ディレクトリや別の先を指すものには触らない。
 //   - 外の skill: <pkg>/gh-skills.txt（全セルに配る既定。ADR-0038）と <ws>/local/gh-skills.txt の一覧を、gh のログインがあれば
-//     gh skill install（latest）で入れ、gh skill update --all で上げる（installGhSkills。起動の一部。ネットワークが要る）。
+//     gh skill install（latest）で入れ、一覧の skill の名前を渡した gh skill update --all <名前…> で上げる
+//     （installGhSkills。起動の一部。ネットワークが要る。一覧の外の利用者の skill は上げない）。
 
 // DefaultTools はイメージの備品（npm のグローバル）の置き場。
 const DefaultTools = "/opt/andon-tools"
@@ -138,11 +139,11 @@ func (e Env) ghSkillList() ([]ghSkill, error) {
 	return list, nil
 }
 
-// ghTimeout は外の skill の手全体（auth status・install・update --all）の上限。ネットワークが詰まっても
+// ghTimeout は外の skill の手全体（auth status・install・update）の上限。ネットワークが詰まっても
 // 打ち込みごとに待ち直さず、期限が来たら残りを打たずに戻る（起動の最後の手なので、ほかの起動は待たせない）。
 var ghTimeout = 2 * time.Minute
 
-// installGhSkills は外の skill の一覧を gh skill install で入れ、gh skill update --all で上げる。
+// installGhSkills は外の skill の一覧を gh skill install で入れ、gh skill update --all <一覧の名前…> で上げる。
 // 一覧が空なら何も打たない。gh が無い・ログインしていなければ飛ばして1行残す（gh auth setup-git と同じ扱い）。
 // 入れるのは置き場（Claude Code は <claude>/skills、Codex は ~/.agents/skills）に同じ名前が無いときだけ
 // （利用者の skill を上書きしない。入っているものは update が上げる）。gh skill install の --agent は1つしか効かないので
@@ -177,14 +178,15 @@ func installGhSkills(e Env) error {
 		errs = append(errs, fmt.Errorf("%s を過ぎたので残りを打たない", ghTimeout))
 		return true
 	}
+	agents := []struct{ agent, dir string }{
+		{"claude-code", filepath.Join(e.claudeDir(), "skills")},
+		{"codex", filepath.Join(e.Home, ".agents", "skills")},
+	}
 	for _, s := range list {
 		if timedOut() {
 			return errors.Join(errs...)
 		}
-		for _, ag := range []struct{ agent, dir string }{
-			{"claude-code", filepath.Join(e.claudeDir(), "skills")},
-			{"codex", filepath.Join(e.Home, ".agents", "skills")},
-		} {
+		for _, ag := range agents {
 			if _, err := os.Lstat(filepath.Join(ag.dir, s.dirName())); err == nil {
 				continue
 			}
@@ -198,8 +200,24 @@ func installGhSkills(e Env) error {
 	if timedOut() {
 		return errors.Join(errs...)
 	}
-	if out, err := run("skill", "update", "--all"); err != nil {
-		errs = append(errs, fmt.Errorf("gh skill update --all: %v: %s", err, lastLine(out)))
+	// 上げるのは一覧の skill のうち、置き場のどちらかにあるものだけ（名前を渡す。一覧の外の利用者の skill は上げない）。
+	// 入っていない名前だけを渡すと gh は失敗で返すので、置き場に無いものは渡さない。
+	args := []string{"skill", "update", "--all"}
+	seen := map[string]bool{}
+	for _, s := range list {
+		n := s.dirName()
+		for _, ag := range agents {
+			if _, err := os.Lstat(filepath.Join(ag.dir, n)); err == nil && !seen[n] {
+				seen[n] = true
+				args = append(args, n)
+			}
+		}
+	}
+	if len(seen) == 0 {
+		return errors.Join(errs...)
+	}
+	if out, err := run(args...); err != nil {
+		errs = append(errs, fmt.Errorf("gh %s: %v: %s", strings.Join(args, " "), err, lastLine(out)))
 	}
 	return errors.Join(errs...)
 }

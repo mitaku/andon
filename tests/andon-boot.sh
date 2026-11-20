@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/andon-boot.sh — andon boot を偽の HOME・偽のセル・偽のパッケージで2回打つ。
 # 生成（managed settings・プロファイル・CLAUDE.md の3行・~/.agents/skills の symlink・同梱の skill の symlink・信頼）と
-# 外の skill（偽の gh で gh skill install／update --all）が揃い、2回目で何も変わらないこと。
+# 外の skill（偽の gh で gh skill install／一覧の名前を渡した update --all）が揃い、2回目で何も変わらないこと。
 # PATH には andon の置き場と偽の gh だけを置く（hc・portless・sshd を起動しない。本物の HOME と /workspace・/opt/andon-tools に触らない）。
 set -u
 tmp=$(mktemp -d)
@@ -71,8 +71,8 @@ grep -q 'セル' "$home/.config/herdr-core/templates/claude.md" && pass "プロ�
 [ "$(readlink "$home/.agents/skills/playwright-cli")" = "$bundled" ] && [ "$(readlink "$home/.claude/skills/playwright-cli")" = "$bundled" ] \
   && [ ! -L "$home/.agents/skills/gone-tool" ] && pass "同梱の skill の symlink（<claude>/skills と ~/.agents/skills。備品の置き場を指す古いリンクは外す）" \
   || fail "同梱の skill: $(ls -l "$home/.agents/skills" "$home/.claude/skills")"
-[ -d "$home/.claude/skills/alpha" ] && [ -d "$home/.agents/skills/alpha" ] && grep -qx 'skill update --all' "$tmp/gh-calls" \
-  && pass "外の skill を gh skill install（エージェントごと）で入れ、update --all を打つ" || fail "外の skill: $(cat "$tmp/gh-calls")"
+[ -d "$home/.claude/skills/alpha" ] && [ -d "$home/.agents/skills/alpha" ] && grep -qx 'skill update --all alpha' "$tmp/gh-calls" \
+  && pass "外の skill を gh skill install（エージェントごと）で入れ、一覧の名前だけを渡して update --all を打つ（一覧の外の mine は渡さない）" || fail "外の skill: $(cat "$tmp/gh-calls")"
 grep -qF "\`$pkg/skills/worker/SKILL.md\`" "$home/.config/herdr-core/templates/codex.md" && pass "プロファイルの /opt/andon を ANDON_HOME に置き換える" || fail "置換: $(cat "$home/.config/herdr-core/templates/codex.md")"
 # 配布した起動・再開の引数は、信頼した repo の .codex/config.toml より強い層で記憶を止める。
 for p in codex codex-review codex-resume codex-review-resume; do
@@ -101,7 +101,7 @@ boot; r=$?
 snap >"$tmp/snap2"
 [ "$r" = 0 ] && cmp -s "$tmp/snap1" "$tmp/snap2" && pass "2回打っても同じ（冪等）" || fail "2回目: rc=$r $(diff "$tmp/snap1" "$tmp/snap2")"
 grep -qE '生成:|リンク:|外した:|信頼を足した|入れた:' "$tmp/out" && fail "2回目に書いた: $(cat "$tmp/out")" || pass "2回目は何も書かない"
-[ "$(grep -c '^skill install' "$tmp/gh-calls")" = 2 ] && [ "$(grep -c '^skill update --all$' "$tmp/gh-calls")" = 2 ] \
+[ "$(grep -c '^skill install' "$tmp/gh-calls")" = 2 ] && [ "$(grep -c '^skill update --all alpha$' "$tmp/gh-calls")" = 2 ] \
   && pass "2回目は入っている skill を入れ直さず update --all だけ" || fail "gh の呼び出し: $(cat "$tmp/gh-calls")"
 
 # 2本同時に打てば後の方は boot.lock を待つ（dispatcher.md §7.2 #13・#14）

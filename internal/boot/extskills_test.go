@@ -163,13 +163,15 @@ func ghCalls(t *testing.T, calls string) string {
 	return string(b)
 }
 
-// パッケージとセルの一覧を合わせ、置き場に無いものだけエージェントごとに入れ、update --all を打つ。2回打って同じ。
+// パッケージとセルの一覧を合わせ、置き場に無いものだけエージェントごとに入れ、一覧の名前を渡して update --all を打つ。
+// 一覧の外の利用者の skill の名前は渡さない（上げない）。2回打って同じ。
 func TestInstallGhSkills(t *testing.T) {
 	f := newFixture(t)
 	e, calls := ghSkillFake(t, f, true)
 	put(t, filepath.Join(f.pkg, GhSkillsFile), "# 既定\nexample/skills alpha\n")
 	put(t, filepath.Join(f.ws, "local", GhSkillsFile), "\nexample/skills alpha\nexample/more author/beta\nbad-line\n")
 	put(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md"), "利用者の\n") // 同じ名前があれば入れない
+	put(t, filepath.Join(f.home, ".claude", "skills", "mine", "SKILL.md"), "一覧の外\n") // 一覧の外の skill は上げない
 
 	for range 2 {
 		if err := installGhSkills(e); err != nil {
@@ -180,8 +182,8 @@ func TestInstallGhSkills(t *testing.T) {
 		"skill install example/skills alpha --agent claude-code --scope user\n" +
 		"skill install example/skills alpha --agent codex --scope user\n" +
 		"skill install example/more author/beta --agent claude-code --scope user\n" +
-		"skill update --all\n" +
-		"auth status\nskill update --all\n"
+		"skill update --all alpha beta\n" +
+		"auth status\nskill update --all alpha beta\n"
 	if got := ghCalls(t, calls); got != want {
 		t.Errorf("gh の呼び出し:\n%s\nwant:\n%s", got, want)
 	}
@@ -190,6 +192,31 @@ func TestInstallGhSkills(t *testing.T) {
 	}
 	if !strings.Contains(f.log.String(), GhSkillsFile+":4 は「<owner>/<repo> <skill>」の形でない") {
 		t.Errorf("形の違う行のログ: %s", f.log.String())
+	}
+}
+
+// 一覧の skill がどの置き場にも無い（install が失敗した）なら update を打たない（名前を渡さない update --all は一覧の外も上げる）。
+func TestInstallGhSkillsNoUpdateWhenNothingInstalled(t *testing.T) {
+	f := newFixture(t)
+	calls := filepath.Join(f.root, "gh-calls")
+	gh := filepath.Join(f.root, "bin", "gh")
+	put(t, gh, "#!/bin/sh\necho \"$*\" >> "+calls+"\n[ \"$*\" = \"auth status\" ] && exit 0\nexit 1\n")
+	if err := os.Chmod(gh, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e := f.env()
+	e.LookPath = func(n string) (string, error) {
+		if n == "gh" {
+			return gh, nil
+		}
+		return "", errors.New("無い")
+	}
+	put(t, filepath.Join(f.pkg, GhSkillsFile), "example/skills alpha\n")
+	if err := installGhSkills(e); err == nil {
+		t.Error("install の失敗を返さない")
+	}
+	if got := ghCalls(t, calls); strings.Contains(got, "skill update") {
+		t.Errorf("入っていないのに update を打った: %q", got)
 	}
 }
 
