@@ -8,7 +8,7 @@ VARIABLES
     status,     \* 台帳の status: todo・doing・review・done
     worker,     \* 担当の端末: none（まだ起こしていない）・live・gone（落ちた・片付けで消した）
     wt,         \* 担当の worktree: none・here・removed（finish が消した）
-    pr,         \* PR: none・open・merged
+    pr,         \* PR: none・open・closed（マージせずに閉じた。開き直されうる）・merged
     reviewing,  \* 動いているレビュアーが見ている commit の集まり: "head"（いまの head）・"old"（head より古い commit）
     ci,         \* いまの head の CI（GitHub の checks）: none（PR がまだ無い）・running・failed・passed
     result,     \* 照合が読むレビュー（結果を出したレビュアーのうち最後に終わったもの。internal/ledger/ledger.go reviewers）:
@@ -20,9 +20,11 @@ VARIABLES
     told,       \* いまのゲートの答えが Chief of Staff に届いた（<news> か問い）
     q,          \* 担当の問いが受け取られていない（kanban received の前）
     cancel,     \* 人がやめると決め、Chief of Staff の finish が通った
-    mergeAuto   \* issue.yaml の merge: auto（委譲の範囲内）。課題ごとに決まっていて変わらない
+    mergeAuto,  \* issue.yaml の merge: auto で、委譲の範囲内。Chief of Staff と人が変えうる（MergeSettingChanges）
+    moved,      \* ゲートが approve か needs_human を決めたあとに、PR の head が動いた（決めた head はもういまの head でない）
+    autoMerged  \* dispatcher が自分でマージした（人のマージでない。規則 R8 が見る）
 
-vars == <<status, worker, wt, pr, reviewing, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto>>
+vars == <<status, worker, wt, pr, reviewing, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 \* commit とレビューの変数（担当の push・CI・レビュアーが動かす）
 reviewVars == <<reviewing, ci, result, headSeen, dirty>>
 
@@ -31,6 +33,7 @@ Init ==
     /\ reviewing = {} /\ ci = "none" /\ result = "none" /\ headSeen = FALSE /\ dirty = FALSE
     /\ gate = "none" /\ fixSent = FALSE /\ told = FALSE
     /\ q = FALSE /\ cancel = FALSE /\ mergeAuto \in BOOLEAN
+    /\ moved = FALSE /\ autoMerged = FALSE
 
 \* andon issue finish（internal/issue/finish.go finish）: 何かを消す前に closable で受け取られていない問いを確かめ、
 \* あれば何もしない（片付けは全部か無し）。無ければ端末を消し（removeTerminals）、worktree を消し、最後に kanban done。
@@ -47,31 +50,31 @@ Finish ==
 ChiefOfStaffStarts ==
     /\ status = "todo"
     /\ status' = "doing" /\ worker' = "live" /\ wt' = "here"
-    /\ UNCHANGED <<pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* andon issue ask（internal/issue/issue.go ask。doing の担当が打つ）
 WorkerAsks ==
     /\ status = "doing" /\ worker = "live" /\ ~q
     /\ q' = TRUE
-    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, gate, fixSent, told, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, gate, fixSent, told, cancel, mergeAuto, moved, autoMerged>>
 
 \* Chief of Staff が答え、受け取った（cmd/kanban/questions.go cmdAnswer・cmdReceived）
 AnswerReceived ==
     /\ q /\ status # "done"
     /\ q' = FALSE
-    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, gate, fixSent, told, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, gate, fixSent, told, cancel, mergeAuto, moved, autoMerged>>
 
 \* gh pr create と andon issue report --pr（internal/issue/issue.go report）。PR を出すと head の CI が走り出す
 WorkerOpensPR ==
     /\ status = "doing" /\ worker = "live" /\ pr = "none"
     /\ pr' = "open" /\ ci' = "running"
-    /\ UNCHANGED <<status, worker, wt, reviewing, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, reviewing, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* GitHub の CI が head で終わった（ゲートが PR の head の checks を読む。internal/gate/decide.go GitHubChecks）
 CIFinishes ==
     /\ ci = "running"
     /\ ci' \in {"passed", "failed"}
-    /\ UNCHANGED <<status, worker, wt, pr, reviewing, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* 担当が直して commit し、push した（worker skill §3・§4）。直すことがあるとき（CI が落ちた・Must fix・ゲートの直し）だけ。
 \* head が新しくなるので、動いているレビュアーは古い commit を見ていることになり、照合が読むレビューも古くなる。CI は走り直す
@@ -81,7 +84,7 @@ WorkerPushes ==
     /\ ci' = "running" /\ dirty' = FALSE /\ headSeen' = FALSE
     /\ reviewing' = IF reviewing = {} THEN {} ELSE {"old"}
     /\ result' = IF result = "none" THEN "none" ELSE "old"
-    /\ UNCHANGED <<status, worker, wt, pr, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* andon issue review-request（internal/issue/issue.go reviewRequest）→ dispatcher がレビュアーを起こす（internal/dispatcher/loop.go reviewRequest）。
 \* review-request は CI を読まない（PR を出したらすぐ頼める）。断るのは internal/issue/issue.go rounds の 2 つ:
@@ -90,7 +93,7 @@ ReviewerStarts ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open"
     /\ reviewing = {} /\ ~headSeen
     /\ reviewing' = {"head"}
-    /\ UNCHANGED <<status, worker, wt, pr, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* レビュアーが findings.json を書いて返した。照合は最後に終わったレビュアーを読む（internal/ledger/ledger.go reviewers・review.go CheckReview）
 ReviewerReturns ==
@@ -102,7 +105,7 @@ ReviewerReturns ==
                 /\ dirty' = (dirty \/ result' = "mustfix")
            ELSE /\ result' = "old"
                 /\ UNCHANGED <<headSeen, dirty>>
-    /\ UNCHANGED <<status, worker, wt, pr, ci, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, pr, ci, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* andon issue ready（internal/issue/issue.go ready）: unreceived で受け取られていない問いがあれば断り、doing のまま残す。
 \* 照合が head のレビューを読めなければ（CheckReview が current でない）断る。CI は読まない（ゲートが待つ）
@@ -110,51 +113,67 @@ WorkerReady ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open" /\ ~q
     /\ result \in {"clean", "mustfix"}
     /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
-    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* セルが起き直した・端末が落ちた（hc の端末が無くなる）
 WorkerTerminalDies ==
     /\ worker = "live" /\ status \in {"doing", "review"}
     /\ worker' = "gone"
-    /\ UNCHANGED <<status, wt, pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, wt, pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* dispatcher の見回り（internal/dispatcher/pickup.go watch。doing の課題だけを見る）: 担当の端末が Gone なら
 \* andon issue resume（internal/dispatcher/resume.go resumeGone → internal/issue/resume.go resume。worktree が無ければ branch から戻す）
 DispatcherResumes ==
     /\ status = "doing" /\ worker = "gone"
     /\ worker' = "live" /\ wt' = "here"
-    /\ UNCHANGED <<status, pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
+
+\* ゲートが決めたことを捨てて、今の head で回し直す（GateSaysFix・GateAsksHuman・GateApproves の始まりの 1 つ）。PR が OPEN のときだけ:
+\*   - approve か needs_human を決めたあとに head が動いた。前の head のゲートの問いを閉じて回し直す（internal/issue/merge.go
+\*     mergeOne → headMoved）。report.json の commit が前の head のままなので、回し直したゲートは fix を返す
+\*     （docs/dispatcher.md の「回し直す」の行）。dispatcher が自分でマージする approve なら、マージの直前の読み直し（approve の ChecksStill）
+\*   - dispatcher が自分でマージする approve（told が偽）で、マージの直前に読み直すと任されていない（approve の stillAuthorized）
+\* コードでは、読み直しが通らない巡は決めたことを書かずに終わり（regate）、次の巡でゲートが決め直す。モデルはその 2 歩を 1 歩にまとめた
+Regate ==
+    /\ pr = "open"
+    /\ gate \in {"approve", "human"}
+    /\ moved \/ (gate = "approve" /\ ~told /\ ~mergeAuto)
 
 \* ゲートが fix（internal/issue/merge.go mergeOne → sendFix）: 理由を担当へ hc send。送れなければ通知 gate に unsent を、
 \* 担当（agent）がいなければ no_agent を書き、dispatcher が Chief of Staff に届ける（internal/dispatcher/route.go RouteOf。送れた fix は記録だけ）。
 \* 理由（internal/gate/decide.go Decide）は CI の失敗・レビューの stale や Must fix・受け入れ条件など。直しは担当に直すことを渡すが、
-\* 照合が古いレビューを読んでいる（stale）ときは、stale だけが理由のこともあり、直すことがあるとは限らない
+\* 照合が古いレビューを読んでいる（stale）ときは、stale だけが理由のこともあり、直すことがあるとは限らない。
+\* PR が閉じていれば fix（internal/gate/decide.go Decide の「PR が open でない」）。回し直しは Regate
 GateSaysFix ==
-    /\ status = "review" /\ gate = "none" /\ pr = "open"
-    /\ gate' = "fix" /\ fixSent' = (worker = "live") /\ told' = (told \/ worker # "live")
+    /\ status = "review"
+    /\ (gate = "none" /\ pr \in {"open", "closed"}) \/ Regate
+    /\ gate' = "fix" /\ fixSent' = (worker = "live") /\ told' = (worker # "live" \/ (gate = "none" /\ told))
     /\ dirty' = (dirty \/ result # "old")
-    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, q, cancel, mergeAuto>>
+    /\ moved' = FALSE
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, q, cancel, mergeAuto, autoMerged>>
 
 \* ゲートが needs_human（internal/issue/merge.go mergeOne → askGate）: 問い（from: gate）を出す。通知 asked が届く
 GateAsksHuman ==
-    /\ status = "review" /\ gate = "none" /\ pr = "open"
-    /\ gate' = "human" /\ told' = TRUE
-    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, fixSent, q, cancel, mergeAuto>>
+    /\ status = "review" /\ pr = "open"
+    /\ gate = "none" \/ Regate
+    /\ gate' = "human" /\ told' = TRUE /\ moved' = FALSE
+    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, fixSent, q, cancel, mergeAuto, autoMerged>>
 
 \* ゲートが approve（internal/issue/merge.go mergeOne）。merge: person なら通知 gate が届き、人のマージを待つ（route.go RouteOf）。
 \* approve は head の checks が通り、照合が head のレビューを読めて Must fix 以上が無いときだけ（internal/gate/decide.go Decide。
 \* checks が走っている間は wait で何も変えない）
 GateApproves ==
-    /\ status = "review" /\ gate = "none" /\ pr = "open"
+    /\ status = "review" /\ pr = "open"
+    /\ gate = "none" \/ Regate
     /\ ci = "passed" /\ result = "clean"
-    /\ gate' = "approve" /\ told' = ~mergeAuto
-    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, fixSent, q, cancel, mergeAuto>>
+    /\ gate' = "approve" /\ told' = ~mergeAuto /\ moved' = FALSE
+    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, fixSent, q, cancel, mergeAuto, autoMerged>>
 
 \* 人が needs_human の問いに「担当に直させる」と答え、Chief of Staff が担当へ送った
 ChiefOfStaffSendsBack ==
     /\ status = "review" /\ gate = "human" /\ worker = "live"
-    /\ gate' = "fix" /\ fixSent' = TRUE /\ dirty' = TRUE
-    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto>>
+    /\ gate' = "fix" /\ fixSent' = TRUE /\ dirty' = TRUE /\ moved' = FALSE
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto, autoMerged>>
 
 \* ゲートの fix が担当に届かなかった（端末が無い・送ったあとに落ちた）とき、Chief of Staff が担当を起動し直して直しを送る
 \* （chief-of-staff の playbooks/watch.md の gate: fix の行: kanban set status=doing → andon issue resume → hc send）。
@@ -162,25 +181,28 @@ ChiefOfStaffSendsBack ==
 ChiefOfStaffRevives ==
     /\ status = "review" /\ gate = "fix" /\ worker # "live"
     /\ worker' = "live" /\ wt' = "here" /\ fixSent' = TRUE
-    /\ UNCHANGED <<status, pr, reviewVars, gate, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, pr, reviewVars, gate, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* 担当が直しを受け、kanban start で doing に戻る（cmd/kanban/main.go cmdStart）
 WorkerTakesFix ==
     /\ status = "review" /\ gate = "fix" /\ fixSent /\ worker = "live"
     /\ status' = "doing" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
-    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto, moved, autoMerged>>
 
-\* approve ＋ merge: auto（internal/issue/merge.go approve → finishMerged）: dispatcher がマージして同じプロセスで finish。
-\* finish が断ったら問い（from: gate）を出し、PR はマージしたまま残る
+\* approve ＋ merge: auto（internal/issue/merge.go approve → finishMerged）: ゲートが approve を決めたときに merge: auto で委譲の
+\* 範囲内だった（mergeOne の res.Auto。通知 gate は人のマージ待ちにならないので told が偽）。マージの直前に、課題の Settings と
+\* 委譲（stillAuthorized）、PR の head と checks（ChecksStill）を読み直し、head が動かず、まだ任されているときだけマージする
+\* （通らなければ Regate）。マージしたら同じプロセスで finish。finish が断ったら問い（from: gate）を出し、PR はマージしたまま残る
 DispatcherMerges ==
-    /\ status = "review" /\ gate = "approve" /\ mergeAuto /\ pr = "open"
-    /\ pr' = "merged"
+    /\ status = "review" /\ gate = "approve" /\ ~told /\ pr = "open"
+    /\ ~moved /\ mergeAuto
+    /\ pr' = "merged" /\ autoMerged' = TRUE
     /\ IF q
        THEN /\ told' = TRUE
             /\ UNCHANGED <<status, worker, wt, reviewVars>>
        ELSE /\ Finish
             /\ UNCHANGED told
-    /\ UNCHANGED <<gate, fixSent, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<gate, fixSent, q, cancel, mergeAuto, moved>>
 
 \* 人が GitHub で PR をマージした。ゲートが決めたあと（approve で merge: person・needs_human の問いに人が答えた）と、
 \* ゲートを待たずに先にマージした（doing のうち・ゲートが決める前・fix のあと）の 2 つに分ける。どちらも同じ動きで、
@@ -188,12 +210,12 @@ DispatcherMerges ==
 HumanMergesDecided ==
     /\ pr = "open" /\ status = "review" /\ gate \in {"approve", "human"}
     /\ pr' = "merged"
-    /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 HumanMergesEarly ==
     /\ pr = "open" /\ status \in {"doing", "review"} /\ ~(status = "review" /\ gate \in {"approve", "human"})
     /\ pr' = "merged"
-    /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* andon issue settle（internal/issue/settle.go settleOne → closeAndFinish）: review か doing の課題の PR が MERGED で、
 \* ゲートの外の問いが無ければ finish。問いがあれば片付けずに通知 merged（held）。dispatcher がマージした PR は
@@ -201,14 +223,42 @@ HumanMergesEarly ==
 SettleFinishes ==
     /\ status \in {"doing", "review"} /\ pr = "merged" /\ ~q
     /\ Finish
-    /\ UNCHANGED <<pr, gate, fixSent, told, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<pr, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* 人の go で Chief of Staff が andon issue finish（やめる。internal/issue/finish.go finish）。問いがあれば finish が断るので何も変わらない
 ChiefOfStaffCancels ==
     /\ status \in {"doing", "review"} /\ pr # "merged" /\ ~cancel /\ ~q
     /\ cancel' = TRUE
     /\ Finish
-    /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto>>
+    /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto, moved, autoMerged>>
+
+\* 判定のあとに PR の head が動く: ゲートが approve か needs_human を決めたあと、review のうちに担当か人が PR に push した
+\* （docs/dispatcher.md の「回し直す」の行）。head が新しくなるので、CI は走り直し、レビューは古くなる（WorkerPushes と同じ）。
+\* ゲートは Regate で回し直す
+HeadMovesAfterGate ==
+    /\ status = "review" /\ gate \in {"approve", "human"} /\ pr = "open"
+    /\ moved' = TRUE
+    /\ ci' = "running" /\ headSeen' = FALSE
+    /\ reviewing' = IF reviewing = {} THEN {} ELSE {"old"}
+    /\ result' = IF result = "none" THEN "none" ELSE "old"
+    /\ UNCHANGED <<status, worker, wt, pr, dirty, gate, fixSent, told, q, cancel, mergeAuto, autoMerged>>
+
+\* PR が閉じて開き直される: 人が GitHub で PR をマージせずに閉じた・閉じた PR を開き直した。andon issue settle が PR を
+\* 1 分に 1 回聞き直して知る（internal/issue/settle.go settleOne。CLOSED は開き直されうるので、MERGED になるまで聞き続ける）。
+\* 閉じても片付けない（通知 closed。やめるかは Chief of Staff と人が決める。ChiefOfStaffCancels）
+PRClosesOrReopens ==
+    /\ status \in {"doing", "review"}
+    /\ \/ pr = "open" /\ pr' = "closed"
+       \/ pr = "closed" /\ pr' = "open"
+    /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
+
+\* merge の設定と委譲が変わる: Chief of Staff が issue.yaml の merge を書き換えた・人が委譲の merge を変えた
+\* （ゲートは信じる書き手と委譲の範囲を読む。internal/issue/merge.go autoMerge・Authorized）。マージしたあとの変更は
+\* マージに効かないので入れない
+MergeSettingChanges ==
+    /\ status # "done" /\ pr # "merged"
+    /\ mergeAuto' = ~mergeAuto
+    /\ UNCHANGED <<status, worker, wt, pr, reviewVars, gate, fixSent, told, q, cancel, moved, autoMerged>>
 
 Done ==
     /\ status = "done"
@@ -221,7 +271,8 @@ Next ==
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
-    \/ SettleFinishes \/ ChiefOfStaffCancels \/ Done
+    \/ SettleFinishes \/ ChiefOfStaffCancels
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
 
 Spec == Init /\ [][Next]_vars
 

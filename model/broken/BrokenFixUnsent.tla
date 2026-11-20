@@ -4,10 +4,12 @@
 EXTENDS IssueRules
 
 BrokenGateSaysFix ==
-    /\ status = "review" /\ gate = "none" /\ pr = "open"
+    /\ status = "review"
+    /\ (gate = "none" /\ pr \in {"open", "closed"}) \/ Regate
     /\ gate' = "fix" /\ fixSent' = (worker = "live")
     /\ dirty' = (dirty \/ result # "old")
-    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto>>
+    /\ moved' = FALSE
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto, autoMerged>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
@@ -16,7 +18,8 @@ BrokenNext ==
     \/ DispatcherResumes \/ BrokenGateSaysFix \/ GateAsksHuman \/ GateApproves
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
-    \/ SettleFinishes \/ ChiefOfStaffCancels \/ Done
+    \/ SettleFinishes \/ ChiefOfStaffCancels
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 
