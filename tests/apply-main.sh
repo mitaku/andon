@@ -5,9 +5,9 @@
 #   go build は本物。andon boot と hc は偽物で、呼ばれた引数と、そのときの記録の commit を控える。sudo は使わない。
 #   1 当てると中身がその commit の package/・schema/ に一致し、andon・kanban が置かれる  2 記録の3つの値
 #   3 origin/main の外の commit を断る・作業ツリーの未 commit の変更が当たらない  4 go build が落ちても半端にならない
-#   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（2回当ててから・andon と kanban を壊してから）
-#   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ  10 道具が package/ の下に無い（以上 S1）
-#   8 当てる前から動いている端末の一覧を出し、止めない  9 image/ が変わっていたら警告して当てる・状態にも出す（S2）
+#   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（6a 2回当ててから・6b andon と kanban を壊してから）
+#   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ（7a）・鍵を取らない前の版の dispatcher は止めない（7b）  10 道具が package/ の下に無い（以上 S1）
+#   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -136,13 +136,13 @@ else
   fail "3 origin/main の外の commit: rc を見る・$(cat "$tmp/out")"
 fi
 
-# === 1・2・3b・7. 当てる（作業ツリーを汚してから） ===
+# === 1・2・3b・7a. 当てる（作業ツリーを汚してから） ===
 echo "dirty-marker-$$" >>"$tmp/repo/package/writing.md"
 grep -q "dirty-marker-$$" "$tmp/repo/package/writing.md" || fail "3 作業ツリーを汚せていない"
 : >"$CALLS"
 if run apply; then pass "1 origin/main の先頭を当てると rc 0"; else fail "1 当てる: $(cat "$tmp/out")"; fi
 cp "$tmp/out" "$tmp/out_apply"
-# 9. image/ が変わっていない間は警告が無い
+# 9a. image/ が変わっていない間は警告が無い
 if ! grep -q '警告' "$tmp/out_apply" && ! grep -q 'image変更' "$tmp/out_apply"; then
   pass "9 image/ が変わっていないときは警告が無い"
 else
@@ -206,7 +206,7 @@ else
   fail "7 当てたあとの呼び出し: $(cat "$CALLS")"
 fi
 
-# === 8. 動いている端末の一覧を出す。止めない ===
+# === 8a. 動いている端末の一覧を出す。止めない ===
 if grep -q 'worker-alpha' "$tmp/out_apply" && grep -q 'worker-beta' "$tmp/out_apply" \
   && ! grep -q 'gone-gamma' "$tmp/out_apply" && ! grep -Eq '^  t[0-9a-z]+ dispatcher ' "$tmp/out_apply"; then
   pass "8 当てる前から動いている端末（dispatcher・動いていないものを除く）を出す"
@@ -240,7 +240,7 @@ else
 fi
 git -C "$tmp/repo" reset -q --hard origin/main
 
-# === 8. hc ls が失敗したら、警告を出して当てる ===
+# === 8b. hc ls が失敗したら、警告を出して当てる ===
 : >"$HC_LS_FAIL"
 if run apply && grep -q '警告: hc ls に失敗' "$tmp/out"; then
   pass "8 hc ls が失敗すると、一覧を出せない警告を出して当てる"
@@ -256,7 +256,7 @@ else
 fi
 rm -f "$HC_LS_EMPTY"
 
-# === 9. image/ が変わったら警告して当てる ===
+# === 9b. image/ が変わったら警告して当てる ===
 printf 'x\n' >"$tmp/repo/image/drift-marker.txt"
 git -C "$tmp/repo" add -A
 git -C "$tmp/repo" commit -qm drift
@@ -288,7 +288,7 @@ git -C "$tmp/repo" rm -q cmd/andon/broken.go
 git -C "$tmp/repo" commit -qm fix
 git -C "$tmp/repo" push -q origin main
 
-# === 7. 鍵を取らない前の版の dispatcher は、鍵のファイルが残っていても止めない ===
+# === 7b. 鍵を取らない前の版の dispatcher は、鍵のファイルが残っていても止めない ===
 [ -e "$passlock" ] || fail "7 鍵のファイルが残っていない（前の版を見分ける検査が何も見ていない）"
 echo "$oldd" >"$DISPATCHER_PID"
 : >"$CALLS"
@@ -300,7 +300,7 @@ else
 fi
 echo "$newd" >"$DISPATCHER_PID"
 
-# === 6. 2回当ててから戻す ===
+# === 6a. 2回当ててから戻す ===
 if run apply && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ]; then
   pass "6 2回目を当てても記録のイメージの版は最初のまま"
 else
@@ -329,7 +329,7 @@ else
 fi
 if run status && grep -q "当てた commit: 当てていない" "$tmp/out"; then pass "6 戻したあとの状態は「当てていない」"; else fail "6 戻したあとの状態: $(cat "$tmp/out")"; fi
 
-# === 6. andon と kanban を壊してから戻す ===
+# === 6b. andon と kanban を壊してから戻す ===
 run apply || fail "6 当て直す: $(cat "$tmp/out")"
 echo broken >"$img/andon/bin/andon"
 chmod 644 "$img/andon/bin/andon"
