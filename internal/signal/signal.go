@@ -1,7 +1,7 @@
 // Package signal は外の出所の信号を読む（andon signal。ADR-0011 決めたこと 3・5・8・9・10、docs/contract.md §15）。
 //
 // collect は project.json の signals に書かれた出所を読み、信号の記録 <slug>.signals.json だけを書く。出所へは書かない
-// （GitHub は gh の資格情報が書ける token でも、打つのは読む API だけ）。最初の版で読むのは GitHub の main の CI の失敗と
+// （GitHub は gh の資格情報が書ける token でも、打つのは読む API だけ）。最初のバージョンで読むのは GitHub の main の CI の失敗と
 // open の issue。Sentry・Linear・Cloudflare は auth でトークンを置く器だけで、読む command は使う案件が出たときに足す。
 package signal
 

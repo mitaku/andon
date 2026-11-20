@@ -17,7 +17,7 @@ import (
 // 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_GET（hc get。無ければ Claude Code が動いている）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
 type fake struct {
 	t       *testing.T
-	root    string // 台帳の root（projects/sample-site）
+	root    string // kanban の root（projects/sample-site）
 	log     string
 	repoDir string // ghq の clone（GHQ_ROOT/github.com/example/sample-site）
 	home    string
@@ -76,7 +76,7 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("HOME", f.home)
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban の台帳を読む
+	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban/ を読む
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
@@ -101,7 +101,7 @@ func git(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// config は台帳の config.yaml に、台帳の CLI が書く形で repos を置く。
+// config は kanban の config.yaml に、kanban の CLI が書く形で repos を置く。
 func (f *fake) config(repos string) {
 	f.t.Helper()
 	p := filepath.Join(f.root, "kanban", "config.yaml")
@@ -193,10 +193,10 @@ func TestStartsChiefEngineer(t *testing.T) {
 	if !strings.HasPrefix(string(brief), "# Billing の設計\n") {
 		t.Errorf("brief=%q", brief)
 	}
-	// 渡したセッションの id（ラベル）と台帳に書いた id が同じ（ADR-0012 決めたこと 11）
+	// 渡したセッションの id（ラベル）と kanban に書いた id が同じ（ADR-0012 決めたこと 11）
 	m := regexp.MustCompile(`--label session=([0-9a-f-]{36}) --cwd ` + regexp.QuoteMeta(f.wt()) + ` chief-engineer `).FindStringSubmatch(calls[4])
 	if m == nil || !spawn.SessionRe.MatchString(m[1]) || !strings.HasPrefix(calls[len(calls)-1], "kanban set S-7 session="+m[1]+" ") {
-		t.Errorf("session のラベルと台帳が合わない:\n%s\n%s", calls[4], calls[len(calls)-1])
+		t.Errorf("session のラベルと kanban が合わない:\n%s\n%s", calls[4], calls[len(calls)-1])
 	}
 }
 
@@ -215,7 +215,7 @@ func TestNoLedger(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_ROOT", "")
 	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFail || !strings.Contains(errs, "台帳が見つからない") || f.has("hc") {
+	if rc != exitFail || !strings.Contains(errs, "kanban が見つからない") || f.has("hc") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
 }
@@ -272,10 +272,10 @@ func TestLedgerRepos(t *testing.T) {
 		rc    int
 		err   string
 	}{
-		{"repos:\n  - github.com/example/a\n  - github.com/example/b\n", exitUsage, "台帳の repos が 2 個（github.com/example/a・github.com/example/b）。--repo"},
-		{"repos: []\n", exitUsage, "台帳の repos が 0 個"},
-		{"", exitUsage, "台帳の repos が 0 個"},
-		{"repos: [github.com/example/a, github.com/example/b]\n", exitUsage, "台帳の repos が 2 個"},
+		{"repos:\n  - github.com/example/a\n  - github.com/example/b\n", exitUsage, "kanban の repos が 2 個（github.com/example/a・github.com/example/b）。--repo"},
+		{"repos: []\n", exitUsage, "kanban の repos が 0 個"},
+		{"", exitUsage, "kanban の repos が 0 個"},
+		{"repos: [github.com/example/a, github.com/example/b]\n", exitUsage, "kanban の repos が 2 個"},
 		{"- github.com/example/sample-site\n", exitUsage, "repos が読めない"},
 	} {
 		f := newFake(t)
@@ -425,7 +425,7 @@ func TestHcRunFails(t *testing.T) {
 	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-7 は todo のまま残る") || f.has("kanban start") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
-	// やり直せるように worktree と branch を戻し、台帳の欄も消す
+	// やり直せるように worktree と branch を戻し、kanban の欄も消す
 	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-7") || !f.has("kanban set S-7 branch= worktree=") {
 		t.Errorf("戻していない: branches=%q calls=%q", f.branches(), f.calls())
 	}

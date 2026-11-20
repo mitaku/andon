@@ -186,7 +186,7 @@ func TestSendCommandInBash(t *testing.T) {
 
 // 機械の送り手の印: 先頭に角括弧の名前を1つ置くだけで、文の中身は変えない。照らすのは dispatcher と gate の印だけ。
 func TestMark(t *testing.T) {
-	if got := Mark(FromGate, "S-7（題）: ゲートが fix を返した。"); got != "[gate] S-7（題）: ゲートが fix を返した。" {
+	if got := Mark(FromGate, "S-7（題）: gate が fix を返した。"); got != "[gate] S-7（題）: gate が fix を返した。" {
 		t.Errorf("Mark: %q", got)
 	}
 	for s, want := range map[string]bool{

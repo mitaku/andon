@@ -4,8 +4,8 @@
 // andon chief-engineer・andon chief-of-staff）が、hc run の直前に Gather で集め、起動できたら端末の address を足して Append する。
 // 1回の起動に1行（JSON Lines）。追記だけで、前の行は書き換えない。置き場:
 //
-//	担当・レビュアー・Chief Engineer  <台帳>/issues/<id>/library/launches.jsonl
-//	Chief of Staff                    <台帳>/chief-of-staff/launches.jsonl（課題を持たないので台帳の直下）
+//	担当・レビュアー・Chief Engineer  <kanban>/issues/<id>/library/launches.jsonl
+//	Chief of Staff                    <kanban>/chief-of-staff/launches.jsonl（課題を持たないので kanban の直下）
 //
 // 取れない値は null にし、エラーにしない（記録が取れないことで起動を止めない）。
 package launch
@@ -78,7 +78,7 @@ type Record struct {
 	MemoryIndex  *string         `json:"memory_index"`
 }
 
-// Harness はエージェントを動かすもの（claude か codex）と、その版（<name> --version の1行目）。
+// Harness はエージェントを動かすもの（claude か codex）と、そのバージョン（<name> --version の1行目）。
 type Harness struct {
 	Name    string  `json:"name"`
 	Version *string `json:"version"`
@@ -158,12 +158,12 @@ func Gather(s Spec) Record {
 	return r
 }
 
-// IssuePath は課題 id の記録の置き場（dir は台帳。issues/ の親）。
+// IssuePath は課題 id の記録の置き場（dir は kanban。issues/ の親）。
 func IssuePath(dir, id string) string {
 	return filepath.Join(dir, "issues", id, "library", File)
 }
 
-// ChiefOfStaffPath は Chief of Staff の記録の置き場（dir は台帳）。
+// ChiefOfStaffPath は Chief of Staff の記録の置き場（dir は kanban）。
 func ChiefOfStaffPath(dir string) string {
 	return filepath.Join(dir, chiefOfStaffFolder, File)
 }
@@ -323,7 +323,7 @@ func externals(brand string) ([]External, error) {
 }
 
 // skillOf は SKILL.md の frontmatter の metadata（gh skill install が書く github-repo・github-ref・github-tree-sha・version）を読む。
-// 読めない frontmatter は版の無い skill にする。
+// 読めない frontmatter はバージョンの無い skill にする。
 func skillOf(dirName, path string, b []byte) External {
 	x := External{Kind: externalSkill, Name: dirName, Path: path}
 	var fm struct {

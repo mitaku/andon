@@ -90,5 +90,16 @@ setup; mkdir -p "$tmp/r/tests"; echo 'jq -n --arg r "ゲートの記録 $L/x.jso
 expect ok 'tests/andon-issue.sh の古い語の事実の行で問いを置く行は通る'
 setup; mkdir -p "$tmp/r/tests"; echo 'die "ゲートの記録が無い"' >"$tmp/r/tests/andon-dispatcher.sh"
 expect fail 'tests/andon-dispatcher.sh のほかの行の「ゲート」で落ちる'
+setup; mkdir -p "$tmp/r/internal/gate"; echo 'const oldRecordFact = "ゲートの記録 " // 古い語を読む（ADR-0040 決めたこと 7）' >"$tmp/r/internal/gate/gate.go"
+expect ok 'internal/gate/ の、末尾に古い語を読む印のある行は通る'
+setup; mkdir -p "$tmp/r/internal/gate"; echo 'return "ゲートの記録 " // 古い語を読む（ADR-0040 決めたこと 7）。あとに文' >"$tmp/r/internal/gate/gate.go"
+expect fail 'internal/gate/ の、印が末尾でない行の「ゲート」で落ちる'
+setup; mkdir -p "$tmp/r/internal/boot"; echo 'x := "ゲート" // 古い語を読む（ADR-0040 決めたこと 7）' >"$tmp/r/internal/boot/x.go"
+expect fail 'internal/gate/ の外では、末尾に印があっても「ゲート」で落ちる'
+for d in cmd/kanban init/bin internal/measure; do
+  setup; mkdir -p "$tmp/r/$d"; echo '// 前の版の台帳' >"$tmp/r/$d/x"; expect fail "$d/ の「前の版の台帳」で落ちる"
+done
+setup; mkdir -p "$tmp/r/tests"; echo '# 本物の台帳で回す' >"$tmp/r/tests/andon-gate.sh"; expect fail 'tests/andon-gate.sh の「台帳」で落ちる'
+setup; mkdir -p "$tmp/r/internal/process"; echo '台帳の CLI' >"$tmp/r/internal/process/x.go"; expect ok '替えていない範囲（internal/process/）の「台帳」はまだ見ない'
 
 exit "$fail"

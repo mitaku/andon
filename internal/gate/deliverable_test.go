@@ -20,7 +20,7 @@ func TestGateRefusesCandidates(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "issues", "D-0001", "library"), 0o755)
 	os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\nrepos: [github.com/example/app]\n"), 0o644)
 	bin := t.TempDir()
-	// 偽の kanban（root と show だけ）・gh・git（呼ばれたら印を残す）
+	// 偽の kanban の CLI（root と show だけ）・gh・git（呼ばれたら印を残す）
 	kanban := "#!/bin/sh\ncase \"$1\" in\n  root) echo " + root + " ;;\n" +
 		"  show) echo '{\"issue\": {\"id\": \"D-0001\", \"status\": \"review\", \"repo\": \"github.com/example/app\", \"branch\": \"b\", \"deliverable\": \"candidates\"}}' ;;\n" +
 		"esac\n"

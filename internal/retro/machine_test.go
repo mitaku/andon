@@ -12,14 +12,14 @@ import (
 // 端末の外から送った文は、送り手の印（spawn.Mark）で照らす。印の無い文と、文の中ほどの角括弧はオーナーの文として残す。
 func TestMachineText(t *testing.T) {
 	for s, want := range map[string]bool{
-		spawn.Mark(spawn.FromDispatcher, dispatcher.RetryText):                     true,
-		spawn.Mark(spawn.FromGate, "A-0017（PR #262 の衝突を解く）: ゲートが fix を返した。理由: x。"): true,
-		"<pasted_content id=\"1\">\n[gate] A-0017（題）: ゲートが fix を返した。":              true,
-		"  [dispatcher] 課題 `sample-site/S-7`。":                                     true,
-		"[dispatcher]の文はどこから？":                                                     false,
-		"[cos] オーナーが書いた角括弧":                                                        false,
-		"ゲートの [gate] 印は何？":                                                         false,
-		"A-0017 のゲートが fix を返したのはなぜ？":                                               false,
+		spawn.Mark(spawn.FromDispatcher, dispatcher.RetryText):                       true,
+		spawn.Mark(spawn.FromGate, "A-0017（PR #262 の衝突を解く）: gate が fix を返した。理由: x。"): true,
+		"<pasted_content id=\"1\">\n[gate] A-0017（題）: gate が fix を返した。":              true,
+		"  [dispatcher] 課題 `sample-site/S-7`。":                                       true,
+		"[dispatcher]の文はどこから？":                                                       false,
+		"[cos] オーナーが書いた角括弧":                                                          false,
+		"gate の [gate] 印は何？":                                                         false,
+		"A-0017 の gate が fix を返したのはなぜ？":                                              false,
 	} {
 		if got := retro.MachineText(s); got != want {
 			t.Errorf("%q → %v", s, got)

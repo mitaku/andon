@@ -39,7 +39,7 @@ case "$slug" in
 esac
 from=$(sed -n 's/^FROM[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' Dockerfile | head -n 1)
 case "$from" in
-  '' | *'<'* | *'>'*) die "Dockerfile の FROM を埋める（いま: '$from'。例 ghcr.io/<owner>/andon:<版>）" ;;
+  '' | *'<'* | *'>'*) die "Dockerfile の FROM を埋める（いま: '$from'。例 ghcr.io/<owner>/andon:<バージョン>）" ;;
 esac
 
 project=andon-$slug
@@ -121,7 +121,7 @@ pull_flag() {
   esac
 }
 
-# FROM の image と、その元の commit（image/build.sh が付ける label。前の版の image には無い）
+# FROM の image と、その元の commit（image/build.sh が付ける label。前のバージョンの image には無い）
 # （go の template の開き括弧を2つ並べて書かない。andon init は雛形にそれが残っていないことを確かめる）
 show_from() {
   local rev fmt
@@ -160,14 +160,14 @@ revision() {
 rebuild_from() {
   local co=$1 rev tag line done=0
   [ -n "$co" ] || die "rebuild --from に andon の checkout を渡す（例: bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon）"
-  [ -f "$co/image/build.sh" ] || die "$co/image/build.sh が無い（andon の checkout を渡す。image/build.sh の無い古い版からは焼けない）"
+  [ -f "$co/image/build.sh" ] || die "$co/image/build.sh が無い（andon の checkout を渡す。image/build.sh の無い古いバージョンからは焼けない）"
   co=$(cd "$co" && pwd)
   rev=$(revision "$co") || exit 1
   tag=andon:local-${rev:0:12}
   case "$rev" in *-dirty) tag=$tag-dirty ;; esac
   echo "[$project] $co（commit: $rev）から $tag を焼く"
   run bash "$co/image/build.sh" "$co" "$tag" "$rev"
-  echo "[$project] Dockerfile の FROM: $from → $tag（GHCR の版へ戻すなら、FROM を書き戻して bin/bootstrap rebuild）"
+  echo "[$project] Dockerfile の FROM: $from → $tag（GHCR のバージョンへ戻すなら、FROM を書き戻して bin/bootstrap rebuild）"
   if [ "$dry" = 1 ]; then
     echo "+ Dockerfile の最初の FROM を 'FROM $tag' にする"
   else

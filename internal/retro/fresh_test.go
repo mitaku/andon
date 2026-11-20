@@ -14,7 +14,7 @@ import (
 
 // 件数のきっかけの数え方（ADR-0039 決めたこと 8）。数えるのは次の振り返りが全文で読む束で、collect と同じ境目と選び方。
 
-// issues は台帳の課題の一覧を、kanban list --all --json と同じ形（id つきの issue.yaml の項目）で読む。
+// issues は kanban の課題の一覧を、kanban list --all --json と同じ形（id つきの issue.yaml の項目）で読む。
 func (f *split) issues() []ledger.Issue {
 	f.t.Helper()
 	ents, err := os.ReadDir(filepath.Join(f.k(), "issues"))

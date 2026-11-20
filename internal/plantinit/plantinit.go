@@ -28,7 +28,7 @@ const Usage = "usage: andon init <slug> [--dir <path>] [--image <ref>] [--owner 
 	"できたら: cd <path> → Dockerfile の FROM を確かめる → bin/bootstrap\n"
 
 // PlaceholderImage は --image が無いときの FROM。bin/bootstrap は < > が残っていれば止まる。
-const PlaceholderImage = "ghcr.io/<owner>/andon:<版>"
+const PlaceholderImage = "ghcr.io/<owner>/andon:<バージョン>"
 
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 

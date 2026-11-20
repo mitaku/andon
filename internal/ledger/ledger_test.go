@@ -10,7 +10,7 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// fakeBin は name の名前で、台帳の根に dir を答える偽の CLI を置いた PATH を返す。
+// fakeBin は name の名前で、kanban の根に dir を答える偽の CLI を置いた PATH を返す。
 func fakeBin(t *testing.T, dir string, names ...string) string {
 	t.Helper()
 	bin := t.TempDir()

@@ -52,7 +52,7 @@ func (r *reader) tokens(o Options, ids []string, byID map[string]*issue, active 
 	return out
 }
 
-// cwds は課題の担当が起きうる所: 台帳の issues/<id>/（レビュアー・repo の無い課題）と worktree（repo のある担当）。
+// cwds は課題の担当が起きうる所: kanban の issues/<id>/（レビュアー・repo の無い課題）と worktree（repo のある担当）。
 // どちらもその課題だけの場所なので、ほかの課題の記録は混ざらない。
 func (t *issue) cwds(dir string) []string {
 	if a, err := filepath.Abs(dir); err == nil {

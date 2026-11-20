@@ -11,7 +11,7 @@ import (
 	"andon/internal/contract"
 )
 
-// Review は独立レビューの照合の結果（ゲートの記録の review と同じ形。contract.md §7）。
+// Review は独立レビューの照合の結果（gate の記録の review と同じ形。contract.md §7）。
 type Review struct {
 	State       string `json:"state"` // current / stale / missing / off
 	Issue       string `json:"issue,omitempty"`
@@ -28,7 +28,7 @@ type Review struct {
 // そのレビューを head に引き継いで current にする（decisions/2026-11-20-review-carry-same-patch.md）。Commit は見た commit のまま。
 // 数えない指摘が2つある（decisions/2026-11-09-review-preexisting.md・2026-11-09-review-later-rounds.md）:
 //   - preexisting: true の指摘。ただし added（PR の差分で足した行。file → 行）に当たる場所なら数える
-//     （課題で足した行が課題の前からあったはずはない。申告でゲートを緩めない）。added が nil なら場所を確かめない（担当の command の下見）。
+//     （課題で足した行が課題の前からあったはずはない。申告で gate を緩めない）。added が nil なら場所を確かめない（担当の command の下見）。
 //   - 2回目以降（前の回のレビューがある）の critical でない指摘で、前の回の findings.json に同じ file の指摘が無いもの（新しい指摘）。
 func (l *Ledger) CheckReview(rows []Row, tasks []Issue, t Issue, head, mustFix string, waived []contract.Waived, added map[string]map[int]bool) Review {
 	r := Review{State: "missing", Waived: len(waived)}

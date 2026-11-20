@@ -106,8 +106,8 @@ func nonempty(v any) bool {
 	return ok && strings.IndexFunc(s, func(r rune) bool { return !unicode.IsSpace(r) }) >= 0
 }
 
-// parseDecisions は decisions.json を読み、台帳に手を入れる前に全件を検査する。
-// key は台帳の slug で始まらなければならない（ほかの台帳を指させない）。
+// parseDecisions は decisions.json を読み、kanban に手を入れる前に全件を検査する。
+// key は kanban の slug で始まらなければならない（ほかの kanban を指させない）。
 func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 	v, err := decode(b)
 	if err != nil {
@@ -201,7 +201,7 @@ var (
 
 func (i item) closing() string { return i.str("closing") }
 
-// closesIssue は台帳の課題そのもの（担当の無い課題・オーナーの判断待ち）を閉じる判定か。
+// closesIssue は kanban の課題そのもの（担当の無い課題・オーナーの判断待ち）を閉じる判定か。
 func (i item) closesIssue() bool {
 	k := i.keyPart(2)
 	return i.decision() == "close" && (k == "issue" || k == "person")
@@ -281,7 +281,7 @@ func capIssues(items []item, max int) []item {
 	return got
 }
 
-// applyGroups は台帳に当てる単位。bundle は名前ごとに1つ、ほかは1件ずつ。最初の1件の順に並べる。
+// applyGroups は kanban に当てる単位。bundle は名前ごとに1つ、ほかは1件ずつ。最初の1件の順に並べる。
 func applyGroups(items []item) [][]item {
 	var groups [][]item
 	index := map[string]int{}

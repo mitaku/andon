@@ -13,7 +13,7 @@ import (
 )
 
 // insideWords は PR を読む外の人に通じない内輪の語（ADR-0026 受け入れ条件 A5）。
-var insideWords = regexp.MustCompile(`(?i)needs_human|tier|delegation|report\.json|issue\.yaml|条件表|台帳|Must fix|screen_paths|size_(?:human|review)_lines|one_way|担当|セル`)
+var insideWords = regexp.MustCompile(`(?i)needs_human|tier|delegation|report\.json|issue\.yaml|条件表|kanban|Must fix|screen_paths|size_(?:human|review)_lines|one_way|担当|セル`)
 
 // recordReasons は記録の reasons に入りうる文の全部（Decide の出力と、run が Facts に入れる文）。
 // run の文を足したり変えたりしたら、ここにも足す（外向けの文の表に無ければ下の検査が落ちる）。
@@ -23,7 +23,7 @@ func recordReasons(t *testing.T) []string {
 		GitHubChecks: GitHubChecks{State: "success", Names: []string{}}, ChecksWait: 30}
 	mods := []func(*Facts){
 		func(f *Facts) {
-			f.LedgerReasons = []string{"台帳の課題が review でない（doing）", "PR の branch（feat）が issue.yaml の branch と違う",
+			f.LedgerReasons = []string{"kanban の課題が review でない（doing）", "PR の branch（feat）が issue.yaml の branch と違う",
 				"report.json の commit が PR の head と違う（andon issue ready からやり直す）"}
 		},
 		func(f *Facts) { f.PROpen = false },
@@ -125,7 +125,7 @@ func recordTierReasons(t *testing.T) []string {
 	return append(out, cl.TierReasons...)
 }
 
-// roleWords はゲートのコメントに出さない役の語（ADR-0036 決めたこと 3。外の読み手にはメンテナーと書く）。
+// roleWords は gate のコメントに出さない役の語（ADR-0036 決めたこと 3。外の読み手にはメンテナーと書く）。
 var roleWords = regexp.MustCompile(`人|オーナー`)
 
 // ADR-0036 A4: needs_human の見出しはメンテナーと書き、役の語の検査は古い文に当たる（何かを見ていることの確かめ）。
@@ -199,5 +199,30 @@ func TestCommentHeadlinePerDecision(t *testing.T) {
 			t.Errorf("%s の見出しがほかの判定と同じ: %q", d, h)
 		}
 		seen[h] = true
+	}
+}
+
+// ADR-0040 決めたこと 7・受け入れ条件 3: 理由の文は新しい語でも古い語でも、同じ外向けの文になる。
+func TestCommentReasonOldWords(t *testing.T) {
+	const want = "作業がまだ確認待ちになっていない"
+	for _, r := range []string{
+		"kanban の課題が review でない（doing）",
+		"台帳の課題が review でない（doing）", // 古い語を読む（ADR-0040 決めたこと 7）
+	} {
+		if got := outsideReason(r); got != want {
+			t.Errorf("outsideReason(%q) = %q, want %q", r, got, want)
+		}
+	}
+}
+
+// ADR-0040 決めたこと 8: 外向けのコメントでは、gate を andon gate と書く。
+func TestCommentAuthorSaysAndonGate(t *testing.T) {
+	const want = "PR の作者が、andon gate を回しているアカウントでない"
+	if got := outsideReason("作者がセルの gh アカウントでない"); got != want {
+		t.Errorf("作者の理由の外向けの文 = %q, want %q", got, want)
+	}
+	body := CommentBody(&Record{Decision: "fix", Tier: "B", Reasons: []string{"作者がセルの gh アカウントでない"}})
+	if !strings.Contains(body, want) {
+		t.Errorf("コメントに %q が無い:\n%s", want, body)
 	}
 }

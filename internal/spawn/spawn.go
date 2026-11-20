@@ -22,11 +22,11 @@ import (
 )
 
 var (
-	// RepoRe は台帳の repo（<host>/<owner>/<repo>）。
+	// RepoRe は kanban の repo（<host>/<owner>/<repo>）。
 	RepoRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	// NameRe は hc の端末の名前の決まり（a-z 0-9 - _ で32字まで）。
 	NameRe = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
-	// SlugRe は台帳の root のフォルダ名（schema の project と同じ）。
+	// SlugRe は kanban の root のフォルダ名（schema の project と同じ）。
 	SlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 )
 
@@ -167,7 +167,7 @@ func Guide() string {
 	return fmt.Sprintf("\nオーナーの指針 `%s` も読む。", p)
 }
 
-// SessionLabel は担当・Chief Engineer の端末に付けるラベルの名前。値はハーネスのセッションの id（台帳の session と同じ）。
+// SessionLabel は担当・Chief Engineer の端末に付けるラベルの名前。値はハーネスのセッションの id（kanban の session と同じ）。
 // hc の template は呼び手の環境変数を渡さないので、template の command・resume の行が andon issue session で読む（ADR-0012 決めたこと 14）。
 const SessionLabel = "session"
 
@@ -214,7 +214,7 @@ func WithBody(template, msg string) string {
 	return body + "\n\n" + msg
 }
 
-// 機械の送り手の名前。dispatcher とゲート（andon issue merge の差し戻し）は端末の外から hc send するので、文に hc の包み
+// 機械の送り手の名前。dispatcher と gate（andon issue merge の差し戻し）は端末の外から hc send するので、文に hc の包み
 // （<hc from=…>）が付かず、受け手のセッションログではオーナーが打った文と同じ印（origin.kind: human）になる。
 // そこで担当・レビュアーへ送る文の先頭に、送り手の名前を角括弧で1つ置く（Mark）。オーナーの文を抜く処理はこの印で外す（Marked）。
 const (

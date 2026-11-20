@@ -203,8 +203,8 @@ mapfile -t calls <"$log"
   && pass "続けて FROM $tag でセルの image を焼く（--pull を付けない）" || fail "セルの build: $(cat "$log")"
 [ "${calls[3]:-}" = "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)" ] \
   && pass "そのあと compose で作り直す" || fail "up: $(cat "$log")"
-grep -q "commit: $sha" "$tmp/out" && grep -q 'GHCR の版へ戻すなら' "$tmp/out" \
-  && pass "元の commit と、GHCR の版へ戻す道を出す" || fail "出力: $(cat "$tmp/out")"
+grep -q "commit: $sha" "$tmp/out" && grep -q 'GHCR のバージョンへ戻すなら' "$tmp/out" \
+  && pass "元の commit と、GHCR のバージョンへ戻す道を出す" || fail "出力: $(cat "$tmp/out")"
 
 dsandbox FAKE_REVISION="$sha" bash bin/bootstrap status >"$tmp/out" 2>&1
 grep -qxF "FROM: $tag（commit: $sha）" "$tmp/out" && pass "status は FROM と元の commit を出す" || fail "status: $(cat "$tmp/out")"
@@ -269,7 +269,7 @@ dsandbox bash bin/bootstrap rebuild --bogus >"$tmp/out" 2>"$tmp/err"; r=$?
 cp "$tmp/Dockerfile.orig" Dockerfile
 rm -rf .andon
 
-sed -i 's|^FROM .*|FROM ghcr.io/<owner>/andon:<版>|' Dockerfile
+sed -i 's|^FROM .*|FROM ghcr.io/<owner>/andon:<バージョン>|' Dockerfile
 sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q 'FROM を埋める' "$tmp/err" && pass "FROM が埋まっていなければ止まる" || fail "placeholder: rc=$r $(cat "$tmp/err")"
 

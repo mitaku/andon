@@ -7,7 +7,7 @@ type Settled struct {
 	Commit string `json:"commit,omitempty"` // 見始めたときの report.json の commit（替われば見直す）
 	At     string `json:"at,omitempty"`     // 最後に gh pr view を打った時刻
 	State  string `json:"state,omitempty"`  // MERGED・CLOSED
-	Head   string `json:"head,omitempty"`   // マージされた PR の head（ゲートの記録 library/gate/<head>.json を引く）
+	Head   string `json:"head,omitempty"`   // マージされた PR の head（gate の記録 library/gate/<head>.json を引く）
 	Sha    string `json:"sha,omitempty"`    // マージの commit
 	Held   string `json:"held,omitempty"`   // 片付けずに知らせた理由（同じ理由では二度知らせない）
 }

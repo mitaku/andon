@@ -17,7 +17,7 @@ import (
 // かかわらず先に効く。拒めるのは直接の形とよくある wrapper だけ）。
 
 // codexDefaults は ~/.codex/config.toml の top-level に無ければ足すキー（足す順）。
-// sandbox を外すのは、担当が worktree の外（台帳の report・library）に書き、git push と hc の socket を使うため。
+// sandbox を外すのは、担当が worktree の外（kanban の report・library）に書き、git push と hc の socket を使うため。
 var codexDefaults = []struct{ key, line string }{
 	{"approval_policy", `approval_policy = "never"`},
 	{"sandbox_mode", `sandbox_mode = "danger-full-access"`},

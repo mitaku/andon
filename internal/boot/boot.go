@@ -12,7 +12,7 @@
 //	<tools> に同梱の skill（playwright-cli）     → <claude>/skills/<name>・~/.agents/skills/<name>（symlink。extskills.go）
 //	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
-// そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と台帳に載った repo の根を Claude Code・Codex で
+// そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と kanban に載った repo の根を Claude Code・Codex で
 // 信頼済みにする（trust.go。足りない所だけ足す。Claude Code にはプロファイルが --add-dir で渡すフォルダも）、外の skill（gh skill。extskills.go）、portless・files サーバ・sshd・dispatcher の起動。
 // 起動は道具が無ければ飛ばし、失敗しても続ける（セルは立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
@@ -46,7 +46,7 @@ const Usage = "usage: andon boot\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、出所が一覧の repo と同じものを置き場ごとに gh skill update --all --dir で上げる（一覧の外の skill と、別の出所の同じ名前の skill は上げない。一覧が空なら打たない）。\n" +
-	"信頼: セルの repo と台帳（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。プロファイルの command・resume が --add-dir で渡すフォルダも .claude.json で信頼済みにする。\n" +
+	"信頼: セルの repo と kanban（projects/*/kanban/config.yaml の repos）に載った repo の根を .claude.json と ~/.codex/config.toml で信頼済みにする（足りない所だけ足す）。プロファイルの command・resume が --add-dir で渡すフォルダも .claude.json で信頼済みにする。\n" +
 	"生成に失敗すると rc 1（起動は続ける）。起動の失敗は警告だけ。\n"
 
 // DefaultPackage はパッケージの既定の置き場。プロファイルの本文はこのパスで書く。
@@ -618,8 +618,8 @@ func (e Env) symlink(target, link string) error {
 
 var versionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)+$`)
 
-// linkClaude は ~/.local/bin/claude を volume の中の最新版へ張り直す（自己更新で版が増え、
-// ~/.local/bin はコンテナ層なので作り直すと古い種を指したままになる）。版が無ければ何もしない。
+// linkClaude は ~/.local/bin/claude を volume の中の最新版へ張り直す（自己更新でバージョンが増え、
+// ~/.local/bin はコンテナ層なので作り直すと古い種を指したままになる）。バージョンが無ければ何もしない。
 func linkClaude(e Env) error {
 	dir := filepath.Join(e.Home, ".local", "share", "claude", "versions")
 	entries, err := os.ReadDir(dir)
@@ -641,7 +641,7 @@ func linkClaude(e Env) error {
 }
 
 // linkHerdrCore は herdr-core（hc）を ~/.local/bin に揃える。正は ~/.local/bin/herdr-core で、Herdr App が
-// Add Machine・Update HC でここに置き、差し替える（版は App が決める）。無いか symlink なら image の種（aqua）へ繋ぐ。
+// Add Machine・Update HC でここに置き、差し替える（バージョンは App が決める）。無いか symlink なら image の種（aqua）へ繋ぐ。
 // 実ファイルは App の持ち物なので触らない。hc は無いときだけ herdr-core への相対 symlink にする（差し替えに付いていく）。
 // ~/.local/bin は PATH で aqua より先なので、dispatcher を起動する hc も、それが起動する core も同じ herdr-core になる。
 func linkHerdrCore(e Env) error {

@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// trustEnv はセルの repo と、台帳に載った ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
-// 台帳に載っていない repo・clone されていない repo・形の違う repo の名前は根にしない。
+// trustEnv はセルの repo と、kanban に載った ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
+// kanban に載っていない repo・clone されていない repo・形の違う repo の名前は根にしない。
 func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	t.Helper()
 	e := f.env()
@@ -19,7 +19,7 @@ func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	mustMkdir(t, filepath.Join(a, ".git"))
 	put(t, filepath.Join(b, ".git"), "gitdir: elsewhere\n")
 	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "not-a-repo"))
-	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "unlisted", ".git")) // 台帳に無い repo は信頼しない
+	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "unlisted", ".git")) // kanban に無い repo は信頼しない
 	put(t, filepath.Join(f.ws, "projects", "sample-site", "kanban", "config.yaml"),
 		"version: 3\nrepos:\n  - github.com/example/sample-site\n  - github.com/example/not-a-repo\n  - github.com/example/missing\nchief_of_staff: t5\n")
 	put(t, filepath.Join(f.ws, "projects", "tools", "kanban", "config.yaml"),
@@ -204,7 +204,7 @@ func TestTrustLeavesUnreadable(t *testing.T) {
 	}
 }
 
-// 台帳に載っていても、GHQ_ROOT の外へ逃げる symlink の repo は信頼しない（実体のパスで判定する）。
+// kanban に載っていても、GHQ_ROOT の外へ逃げる symlink の repo は信頼しない（実体のパスで判定する）。
 func TestTrustRefusesSymlinkOutsideGhq(t *testing.T) {
 	f := newFixture(t)
 	e, roots := trustEnv(t, f)

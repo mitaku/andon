@@ -1,5 +1,5 @@
 // Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。セルの repo の projects/<slug>/project.json の
-// delegation を読み（Read。ゲート・dispatcher・command が使う）、オーナーが書く手順を助ける（andon delegate grant/narrow/revoke/show）。
+// delegation を読み（Read。gate・dispatcher・command が使う）、オーナーが書く手順を助ける（andon delegate grant/narrow/revoke/show）。
 //
 // 読み方: セルの repo の HEAD のファイルだけを読み、それを最後に変えた commit の author が andon.toml の owner と
 // 一致するときだけ信じる。無い・読めない・形が違う・一致しない は無委譲（全部オーナー）。
@@ -23,7 +23,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// Scopes は範囲（最初の版の8つ）。
+// Scopes は範囲（最初のバージョンの8つ）。
 var Scopes = []string{"merge", "deploy", "publish", "irreversible", "external-requests", "profile", "package-update", "line-change"}
 
 // levels は順序のある範囲の値（狭い順）。

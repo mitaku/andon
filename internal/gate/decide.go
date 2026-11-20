@@ -13,7 +13,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// Table はゲートの条件表（package/gate.json ＋ セルの gate.local.json。キーごとの置き換え）。
+// Table は gate の条件表（package/gate.json ＋ セルの gate.local.json。キーごとの置き換え）。
 type Table struct {
 	SizeReviewLines        *int                 `json:"size_review_lines,omitempty"`
 	SizeHumanLines         *int                 `json:"size_human_lines,omitempty"`
@@ -245,7 +245,7 @@ func Raise(tier string) string {
 	return tier
 }
 
-// AcceptanceCount は report.json の acceptance[] の件数（ゲートの記録の acceptance）。
+// AcceptanceCount は report.json の acceptance[] の件数（gate の記録の acceptance）。
 // StaleRuns は記録を指す行のうち、記録の commit が head と違うもの（ADR-0035 決めたこと 2。戻さず、記録に出すだけ）。
 type AcceptanceCount struct {
 	Pass      int                 `json:"pass"`
@@ -297,7 +297,7 @@ type Check struct {
 	OK  bool   `json:"ok"`
 }
 
-// GateContext はゲート自身が PR の head に付ける commit status の context（GitHub の checks の事実から除く）。
+// GateContext は gate 自身が PR の head に付ける commit status の context（GitHub の checks の事実から除く）。
 const GateContext = "andon/gate"
 
 // CheckItem は head の commit の statusCheckRollup.contexts の1件（CheckRun か StatusContext）。
@@ -403,7 +403,7 @@ func (g GitHubChecks) Passed(optional bool) bool {
 
 var checkRank = map[string]int{"none": 0, "success": 1, "pending": 2, "unknown": 3, "failure": 4}
 
-// SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。ゲート自身の status（andon/gate）は数えない。
+// SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。gate 自身の status（andon/gate）は数えない。
 // 同じ check の実行が複数あれば最新の1つだけを数える（Latest）。1件ごとの状態は state。
 func SummarizeChecks(items []CheckItem) GitHubChecks {
 	g := GitHubChecks{State: "none", Names: []string{}}
@@ -444,7 +444,7 @@ func ChecksOverdue(rows []ledger.Row, id string, now time.Time, limit int) bool 
 
 // Facts は決定式の入力（集めた事実）。
 type Facts struct {
-	LedgerReasons   []string // 台帳と PR が合わない（fix）
+	LedgerReasons   []string // kanban と PR が合わない（fix）
 	PROpen          bool     // open で draft でない
 	Blockers        []string // オーナーが見る PR の事情（conflict・base・作者・fork・files の件数）
 	SettingsReason  string   // 予約キーを信じられない（空なら信じる）
@@ -533,7 +533,7 @@ func Decide(f Facts) (string, []string) {
 }
 
 // AddedLines は PR の差分（gh pr diff の unified diff）から、足した行を file（新しい側のパス）→ 行番号で返す（純粋関数）。
-// レビュアーの preexisting の指摘がこの行に当たれば、課題の前からあったはずがないのでゲートは数える（ledger.CheckReview）。
+// レビュアーの preexisting の指摘がこの行に当たれば、課題の前からあったはずがないので gate は数える（ledger.CheckReview）。
 func AddedLines(diff string) map[string]map[int]bool {
 	added := map[string]map[int]bool{}
 	file, line, hunk := "", 0, false

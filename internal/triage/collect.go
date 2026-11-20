@@ -38,7 +38,7 @@ type Item struct {
 	path      string // kind: memory の項目のファイル（apply が消す）
 }
 
-// ledgerIssue は台帳の CLI の list --json の1件のうち、ここが読むキー。
+// ledgerIssue は kanban の CLI の list --json の1件のうち、ここが読むキー。
 type ledgerIssue struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
@@ -52,7 +52,7 @@ type ledgerIssue struct {
 	NotBefore string   `json:"not_before"`
 }
 
-// personSuffix は、オーナーの判断待ちの課題の題の古い末尾（版を上げる前の台帳に残る）。
+// personSuffix は、オーナーの判断待ちの課題の題の古い末尾（バージョンを上げる前の kanban に残る）。
 const personSuffix = "（人の判断待ち）"
 
 // ownerSuffix は、skill が書くようになった新しい末尾（ADR-0036）。読む側は古い末尾と両方を受ける（決めたこと 6）。
@@ -93,21 +93,21 @@ func runCollect(l *ledger, limit int, stdout, _ io.Writer) error {
 }
 
 // Collected は collect の出力。担当はこれをそのまま library/items.json に置き、apply が collect の記録として読む。
-// commits は台帳の repo ごとの最新の main（項目の無い repo も。前回までの記録の key を見直すときに照らす）。
+// commits は kanban の repo ごとの最新の main（項目の無い repo も。前回までの記録の key を見直すときに照らす）。
 type Collected struct {
 	Commits map[string]string `json:"commits"`
 	Items   []Item            `json:"items"`
 }
 
-// repos は台帳の課題の repo（空でないもの）を重ねずに並べる。
+// repos は kanban の課題の repo（空でないもの）を重ねずに並べる。
 func (l *ledger) repos() ([]string, error) {
 	out, err := l.kanban("", "list", "--all", "--json")
 	if err != nil {
-		return nil, fail("台帳を読めない")
+		return nil, fail("kanban を読めない")
 	}
 	var issues []ledgerIssue
 	if err := json.Unmarshal([]byte(out), &issues); err != nil {
-		return nil, fail("台帳を読めない")
+		return nil, fail("kanban を読めない")
 	}
 	var got []string
 	for _, t := range issues {
@@ -185,8 +185,8 @@ func gitIn(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// collect は台帳から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
-// 読むだけで、台帳にもリポジトリにも書かない（main を取り直すのは runCollect の latestMains）。
+// collect は kanban から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
+// 読むだけで、kanban にもリポジトリにも書かない（main を取り直すのは runCollect の latestMains）。
 func (l *ledger) collect() ([]Item, error) {
 	records, err := l.records()
 	if err != nil {
@@ -203,11 +203,11 @@ func (l *ledger) collect() ([]Item, error) {
 func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item, error) {
 	out, err := l.kanban("", "list", "--all", "--json")
 	if err != nil {
-		return nil, fail("台帳を読めない")
+		return nil, fail("kanban を読めない")
 	}
 	var issues []ledgerIssue
 	if err := json.Unmarshal([]byte(out), &issues); err != nil {
-		return nil, fail("台帳を読めない")
+		return nil, fail("kanban を読めない")
 	}
 	seen := map[string]bool{}
 	for _, r := range records {
@@ -232,7 +232,7 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 	byKey := map[string]Item{}
 	for _, t := range issues {
 		if !idRe.MatchString(t.ID) {
-			return nil, fail("台帳の id が不正")
+			return nil, fail("kanban の id が不正")
 		}
 		age := ageDays(t.Created, l.now)
 		emit := func(kind, text string) {

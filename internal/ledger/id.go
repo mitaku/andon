@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// 課題の id の読み方（docs/ledger.md の Ids）。台帳の CLI（cmd/kanban）と andon の command が同じものを使う。
+// 課題の id の読み方（docs/ledger.md の Ids）。kanban の CLI（cmd/kanban）と andon の command が同じものを使う。
 
 // IDDigits は課題の番号の最小の桁数（A-0005）。名前の順が番号の順になる（9999 を超えると番号だけが伸び、名前の順は崩れる）。
 const IDDigits = 4
@@ -30,7 +30,7 @@ func SplitRound(id string) (parent string, round int, ok bool) {
 	return id[:i], k, true
 }
 
-// CanonID はオーナーが打った id を台帳の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。回は先頭の0を除く）。
+// CanonID はオーナーが打った id を kanban の形に揃える（A-5・A-05 → A-0005。レビュアーの A-5-r1 → A-0005-r1。回は先頭の0を除く）。
 // どちらの形でもなければそのまま。
 func CanonID(id string) string {
 	if base, k, ok := SplitRound(id); ok {
@@ -61,7 +61,7 @@ func NumberOf(id string) int {
 	return n
 }
 
-// IDLess は台帳の id の並べ方: 番号の順、レビュアーの課題は親のすぐあとに回の順、残りは名前の順。
+// IDLess は kanban の id の並べ方: 番号の順、レビュアーの課題は親のすぐあとに回の順、残りは名前の順。
 func IDLess(a, b string) bool {
 	if na, nb := NumberOf(a), NumberOf(b); na != nb {
 		return na < nb

@@ -1,7 +1,7 @@
 // Package open は andon open [slug]: プロジェクトを選んで Chief of Staff を開く。
 //
 //	andon open <slug>   projects/<slug>/ で andon chief-of-staff を打つのと同じ（cd はしない）
-//	andon open          台帳のあるプロジェクトの一覧から fzf で選んで開く
+//	andon open          kanban のあるプロジェクトの一覧から fzf で選んで開く
 //
 // slug が無く、fzf が無いか端末でないときは、一覧（Chief of Staff が動いているかつき）を出して終了コード 2。
 package open
@@ -23,7 +23,7 @@ import (
 // Usage は andon open の使い方。
 const Usage = "usage: andon open [slug]\n" +
 	"slug があれば projects/<slug>/ の Chief of Staff を開く（andon chief-of-staff と同じ。cd は要らない）。\n" +
-	"slug が無ければ、台帳のあるプロジェクトの一覧から fzf で選ぶ（横に Chief of Staff が動いているかを出す）。\n" +
+	"slug が無ければ、kanban のあるプロジェクトの一覧から fzf で選ぶ（横に Chief of Staff が動いているかを出す）。\n" +
 	"fzf が無いか端末でないときは、一覧を出して終了コード 2。\n"
 
 const (
@@ -81,7 +81,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return openSlug(ws, args[0], slugs, stdout, stderr)
 	}
 	if len(slugs) == 0 {
-		fmt.Fprintf(stderr, "andon open: %s/projects/ に台帳のあるプロジェクトが無い\n", ws)
+		fmt.Fprintf(stderr, "andon open: %s/projects/ に kanban のあるプロジェクトが無い\n", ws)
 		return exitFail
 	}
 	lines := make([]string, len(slugs))

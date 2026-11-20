@@ -23,8 +23,8 @@ import (
 // boot が、エージェントが起きる場所の根を Claude Code と Codex の両方で信頼済みにしておく。足りない所だけ足し、
 // 今ある設定は触らない（2回目は何も書かない）。
 //
-// 根は「セルの repo」と「台帳に載った案件の repo（セルの projects/*/kanban/config.yaml の repos にあり、
-// <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
+// 根は「セルの repo」と「kanban に載った案件の repo（セルの projects/*/kanban/config.yaml の repos にあり、
+// <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（kanban に載せるのは
 // Chief of Staff とオーナーで、andon issue start が起動してよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（<セルの repo>/.worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
 //   - Claude Code: git の外は cwd から親へ / まで遡る。git の中は repo の根で止まり、それより上の親は効かない。
@@ -50,7 +50,7 @@ func TrustFromOS(log io.Writer) error {
 	return Trust(e)
 }
 
-// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順はセルの repo、台帳の名前順と repos の順。
+// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順はセルの repo、kanban の名前順と repos の順。
 func (e Env) trustRoots() []string {
 	cands := []string{e.Workspace}
 	ghq, err := filepath.EvalSymlinks(e.GhqRoot)

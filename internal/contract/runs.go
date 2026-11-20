@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-// StaleRun は、報告の受け入れ条件の行が指す記録のうち、head と違う commit で撮ったもの（ゲートの記録の acceptance.stale_runs）。
+// StaleRun は、報告の受け入れ条件の行が指す記録のうち、head と違う commit で撮ったもの（gate の記録の acceptance.stale_runs）。
 type StaleRun struct {
 	ID     string `json:"id"`     // 受け入れ条件の行の id
 	Run    int    `json:"run"`    // 記録の番号
@@ -19,7 +19,7 @@ type StaleRun struct {
 // （contract.md §24。ADR-0035 決めたこと 2・11）。library は課題の library/。
 // 断る理由（problems）は3通り: 記録が無い・読めない（出力のファイルが無いのも含む）／終了コードが記録の期待と違う／
 // pass を期待する記録が commit していない変更のある木で撮られている。fail を期待する記録は変更があってよい（決めたこと 8）。
-// head が空でなければ、記録の commit が head と違う行を stale に返す（断る理由にはしない。ゲートが記録に出す）。
+// head が空でなければ、記録の commit が head と違う行を stale に返す（断る理由にはしない。gate が記録に出す）。
 // 記録を指さない行（CI の検査の名前・添付の URL・manual）は見ない。
 func CheckRuns(library string, acceptance []Acceptance, head string) (problems []string, stale []StaleRun) {
 	for _, a := range acceptance {

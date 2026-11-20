@@ -116,7 +116,7 @@ type plan struct {
 }
 
 // runApply は andon retro apply: library/retro.json を書いたときと同じ窓で照らし直し、fix ごとに課題を1件足す。
-// 途中で台帳の CLI が落ちても、足した分は記録に残り、打ち直すと残りから続ける（足した課題をもう一度足さない）。
+// 途中で kanban の CLI が落ちても、足した分は記録に残り、打ち直すと残りから続ける（足した課題をもう一度足さない）。
 func runApply(root, id string, dry bool, stdout io.Writer) error {
 	l := ledger.At(root)
 	lib := l.Library(id)

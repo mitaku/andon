@@ -1,12 +1,12 @@
-// Package triage は台帳の溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・オーナーに聞くこと、
+// Package triage は kanban の溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・オーナーに聞くこと、
 // 担当の無い todo、オーナーの判断待ち、片付けの残り）とセルの auto memory（<ANDON_WORKSPACE>/memory の1件1ファイル）と
 // 外の信号の記録（<slug>.signals.json の、課題に切られていない active な信号）を集め（collect）、
-// 仕分けの決定を台帳に当てる（apply）。
+// 仕分けの決定を kanban に当てる（apply）。
 //
-// collect は台帳を読むだけで、書くのは台帳の repo の checkout の refs/remotes/origin/<既定の branch>（最新の main を取り直す）だけ。
+// collect は kanban を読むだけで、書くのは kanban の repo の checkout の refs/remotes/origin/<既定の branch>（最新の main を取り直す）だけ。
 // apply は判断を持たず、decisions.json を検査し（close の閉じ方と項目の種類の組み合わせも）、見た commit を collect の記録（library/items.json）と照らし、
-// 判断の閉じと課題を閉じる判定に Chief of Staff の判定（verdict が書く library/verdicts.json）が揃っているかを確かめてから台帳の CLI を打つ。
-// 台帳を書くのは台帳の CLI（kanban）だけで、ここは record（library/triage/）を書き、仕分けの済んだ memory のファイルと目録の行を消す。
+// 判断の閉じと課題を閉じる判定に Chief of Staff の判定（verdict が書く library/verdicts.json）が揃っているかを確かめてから kanban の CLI を打つ。
+// kanban を書くのは kanban の CLI だけで、ここは record（library/triage/）を書き、仕分けの済んだ memory のファイルと目録の行を消す。
 package triage
 
 import (
@@ -30,8 +30,8 @@ import (
 )
 
 // Usage は andon triage の使い方。
-const Usage = "usage: andon triage collect [--limit N]                    台帳の未処理と repo ごとの最新の main を JSON に出す\n" +
-	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を台帳に当てる（--dry-run は Chief of Staff が読む判定の表 review も出す）\n" +
+const Usage = "usage: andon triage collect [--limit N]                    kanban の未処理と repo ごとの最新の main を JSON に出す\n" +
+	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を kanban に当てる（--dry-run は Chief of Staff が読む判定の表 review も出す）\n" +
 	"                                                       起動する上限は project.json の chief_of_staff.triage_max_issues（無ければ 3）。--max-issues はその回だけ上書きする\n" +
 	"       andon triage verdict <id> <key> ok|overturn           Chief of Staff が判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く\n"
 
@@ -43,7 +43,7 @@ var (
 
 // 終了コード。
 const (
-	exitFail  = 1 // 台帳・decisions.json・道具の誤り
+	exitFail  = 1 // kanban・decisions.json・道具の誤り
 	exitUsage = 2
 	exitLimit = 4 // collect の項目が上限を超えた
 )
@@ -158,9 +158,9 @@ type limitError struct{ limit int }
 
 func (e limitError) Error() string { return fmt.Sprintf("over limit %d", e.limit) }
 
-// ledger は1つの台帳。kanban（メソッド）は台帳の CLI をこの台帳に向けて打つ。
+// ledger は1つの kanban。kanban（メソッド）は kanban の CLI をこの kanban に向けて打つ。
 type ledger struct {
-	cli     string // 打つ台帳の CLI
+	cli     string // 打つ kanban の CLI
 	root    string // プロジェクトの根（kanban の親）
 	slug    string
 	dir     string // <root>/kanban
@@ -182,7 +182,7 @@ func openLedger() (*ledger, error) {
 	}
 	out, err := exec.Command(cli, "root").Output()
 	if err != nil {
-		return nil, fail("台帳が見つからない")
+		return nil, fail("kanban が見つからない")
 	}
 	root := strings.TrimRight(string(out), "\n")
 	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: MemoryDir(), now: time.Now()}
@@ -194,7 +194,7 @@ func openLedger() (*ledger, error) {
 	return l, nil
 }
 
-// kanban は台帳の CLI（kanban）を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
+// kanban（メソッド）は kanban の CLI を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
 func (l *ledger) kanban(stdin string, args ...string) (string, error) {
 	c := exec.Command(l.cli, args...)
 	c.Env = append(os.Environ(), "KANBAN_ROOT="+l.root)

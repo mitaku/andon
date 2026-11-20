@@ -104,12 +104,12 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		out["review"] = reviewTable(items, verdicts, writer(l))
 		return writeJSON(stdout, out)
 	}
-	// 判定の要る close の全部に Chief of Staff の「閉じてよい」が無ければ、台帳にも記録の置き場にも手を入れずに断る。
+	// 判定の要る close の全部に Chief of Staff の「閉じてよい」が無ければ、kanban にも記録の置き場にも手を入れずに断る。
 	if err := checkVerdicts(items, verdicts, writer(l)); err != nil {
 		return err
 	}
 
-	// 当てた決定を1つずつ記録する。途中で台帳の CLI が落ちても、どこまで当たったかが残り、黙って当て直されない。
+	// 当てた決定を1つずつ記録する。途中で kanban の CLI が落ちても、どこまで当たったかが残り、黙って当て直されない。
 	if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func readCollected(path string) (map[string]string, error) {
 }
 
 // checkCommits は判定の commit（担当が見た commit）を、collect の出したものと照らす（ADR-0030 決めたこと 2）。
-// repo のある課題から出た項目（今回の項目も、前回までの記録の key の見直しも）は、その課題の repo（台帳の値）について
+// repo のある課題から出た項目（今回の項目も、前回までの記録の key の見直しも）は、その課題の repo（kanban の値）について
 // collect が出した commit と同じでなければならない。commit を持たない項目（repo の無い課題・memory・signal）には書かない。
 func checkCommits(items []item, commits, repos map[string]string) error {
 	for _, it := range items {
@@ -233,7 +233,7 @@ func checkCommits(items []item, commits, repos map[string]string) error {
 	return nil
 }
 
-// preflight は出どころの課題が台帳にあるかと、閉じる課題が未担当の todo／queued かを確かめ、出どころの課題の repo を返す。
+// preflight は出どころの課題が kanban にあるかと、閉じる課題が未担当の todo／queued かを確かめ、出どころの課題の repo を返す。
 // memory と signal の項目は出どころが課題ではないので、kanban show で照らさない。
 func (l *ledger) preflight(id string, items []item) (map[string]string, error) {
 	var sources []string
@@ -274,7 +274,7 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, error) {
 	return repos, nil
 }
 
-// applyGroup は1つの決定（bundle は束）を台帳に当て、足した課題の id を返す。
+// applyGroup は1つの決定（bundle は束）を kanban に当て、足した課題の id を返す。
 func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 	first := g[0]
 	switch first.decision() {
