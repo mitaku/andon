@@ -9,12 +9,14 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Usage は入力・出力・キャッシュの読み書き（ドルに直さない）。
@@ -39,6 +41,7 @@ type Log struct {
 	Efforts []string // effort（出た順に、重ねずに）
 	Turns   *int     // ターン数。数える印が記録に1つも無ければ nil
 	Usage   Usage    // トークン
+	Unread  bool     // 読み切れなかった記録のファイルがある（数えた数は足りない。読み手は未計測として扱える）
 }
 
 func (l *Log) model(m string) {
@@ -85,7 +88,7 @@ func CodexSessions() string {
 //   - モデルと effort: 数えた assistant の行の message.model と effort（サブエージェントのものも。<synthetic> は数えない）。
 //   - ターン数: 本線（サブエージェントでない記録の、isSidechain でない user の行）の promptId の数。
 //
-// 記録が1つも無ければ nil（0 と分ける）。
+// 記録が1つも無ければ nil（0 と分ける）。読み切れなかったファイルか、一覧できなかったサブエージェントの置き場があれば Unread。
 func Claude(dir, session string, skip Skip) *Log {
 	if dir == "" || session == "" || strings.ContainsAny(session, `/\*?[`) {
 		return nil
@@ -94,12 +97,15 @@ func Claude(dir, session string, skip Skip) *Log {
 	if len(files) == 0 {
 		return nil
 	}
+	out := &Log{}
 	for _, f := range append([]string{}, files...) {
-		sub, _ := filepath.Glob(filepath.Join(strings.TrimSuffix(f, ".jsonl"), "subagents", "*.jsonl"))
+		sub, ok := subagents(filepath.Join(strings.TrimSuffix(f, ".jsonl"), "subagents"), "claude/"+session+"/subagents", skip)
 		files = append(files, sub...)
+		if !ok {
+			out.Unread = true
+		}
 	}
 	sort.Strings(files)
-	out := &Log{}
 	seen := map[string]bool{}
 	prompts := map[string]bool{}
 	for _, f := range files {
@@ -108,7 +114,7 @@ func Claude(dir, session string, skip Skip) *Log {
 		if main {
 			src = "claude/" + session + ".jsonl"
 		}
-		lines(f, src, skip, func(line int, b []byte) {
+		ok := lines(f, src, skip, func(line int, b []byte) {
 			s := string(b)
 			if !strings.Contains(s, `"usage"`) && !(main && strings.Contains(s, `"promptId"`)) {
 				return
@@ -154,12 +160,35 @@ func Claude(dir, session string, skip Skip) *Log {
 			out.effort(v.Effort)
 			out.Usage.Add(Usage{Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite})
 		})
+		if !ok {
+			out.Unread = true
+		}
 	}
 	if len(prompts) > 0 {
 		n := len(prompts)
 		out.Turns = &n
 	}
 	return out
+}
+
+// subagents はサブエージェントの記録の置き場 dir の *.jsonl。置き場が無ければ空。一覧できなければ飛ばした記録にして false
+// （filepath.Glob は一覧のエラーを捨てるので、読めない置き場の記録を数えずに済ませてしまう）。
+func subagents(dir, src string, skip Skip) ([]string, bool) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		return nil, true
+	}
+	if err != nil {
+		skip.call(src, 0, "読めない")
+		return nil, false
+	}
+	var out []string
+	for _, e := range entries {
+		if ok, _ := filepath.Match("*.jsonl", e.Name()); ok {
+			out = append(out, filepath.Join(dir, e.Name()))
+		}
+	}
+	return out, true
 }
 
 // CodexByCwd は Codex の記録（<root>/**/rollout-*.jsonl）を、先頭行（session_meta）の cwd ごとに分ける。
@@ -318,12 +347,12 @@ func rollout(f string, skip Skip) (string, one) {
 	return id, out
 }
 
-// lines は記録のファイルを1行ずつ f に渡す（空の行は飛ばす。長い行も読む）。読めなければ飛ばした記録にする。
-func lines(path, src string, skip Skip, f func(line int, b []byte)) {
+// lines は記録のファイルを1行ずつ f に渡す（空の行は飛ばす。長い行も読む）。開けない・読み切れなければ飛ばした記録にして false。
+func lines(path, src string, skip Skip, f func(line int, b []byte)) bool {
 	fh, err := os.Open(path)
 	if err != nil {
 		skip.call(src, 0, "読めない")
-		return
+		return false
 	}
 	defer fh.Close()
 	br := bufio.NewReader(fh)
@@ -332,8 +361,12 @@ func lines(path, src string, skip Skip, f func(line int, b []byte)) {
 		if len(strings.TrimSpace(string(b))) > 0 {
 			f(n, b)
 		}
+		if errors.Is(err, io.EOF) {
+			return true
+		}
 		if err != nil {
-			return
+			skip.call(src, 0, "読めない")
+			return false
 		}
 	}
 }
