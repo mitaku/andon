@@ -334,3 +334,47 @@ func TestSetStatusDoneIsDone(t *testing.T) {
 		t.Fatalf("W-0002: %v", s)
 	}
 }
+
+// kanban review and set status=review check what done checks: an issue with a question not
+// received stays where it is (--force returns it anyway and logs which). An issue already in
+// review is not checked again, so a question asked in review (from the gate) does not stop it.
+func TestReviewStopsOnQuestions(t *testing.T) {
+	root := newLedger(t)
+	kanban(t, root, "set", "W-0001", "status=doing")
+	kanban(t, root, "ask", "W-0001", "one")
+	kanban(t, root, "ask", "W-0001", "two")
+	kanban(t, root, "answer", "W-0001#2", "yes")
+	for _, cmd := range [][]string{{"review", "W-0001"}, {"set", "W-0001", "status=review"}} {
+		msg := kanbanFails(t, root, "", cmd...)
+		if !strings.Contains(msg, "W-0001#1 (open)") || !strings.Contains(msg, "W-0001#2 (answered)") || !strings.Contains(msg, "--force to return it anyway") {
+			t.Fatalf("%v: %q", cmd, msg)
+		}
+		if s := readYAML(t, taskFile(root, "W-0001"))["status"]; s != "doing" {
+			t.Fatalf("status after a refused %v: %v", cmd, s)
+		}
+	}
+	kanban(t, root, "review", "W-0001", "--force")
+	lines := logLines(t, root)
+	if last := lines[len(lines)-1]["change"].(map[string]any); last["status"] != "review" || fmt.Sprint(last["forced"]) != "[1 2]" {
+		t.Fatalf("log: %v", last)
+	}
+	// Already in review: not checked again.
+	kanban(t, root, "review", "W-0001")
+	if s := readYAML(t, taskFile(root, "W-0001"))["status"]; s != "review" {
+		t.Fatalf("status: %v", s)
+	}
+	// With every question received, review needs no --force and logs no forced.
+	kanban(t, root, "add", "Second")
+	kanban(t, root, "set", "W-0002", "status=doing")
+	kanban(t, root, "ask", "W-0002", "one")
+	kanban(t, root, "answer", "W-0002#1", "yes")
+	kanban(t, root, "received", "W-0002#1")
+	kanban(t, root, "review", "W-0002")
+	lines = logLines(t, root)
+	if c := lines[len(lines)-1]["change"].(map[string]any); c["status"] != "review" || c["forced"] != nil {
+		t.Fatalf("log: %v", c)
+	}
+	// Other moves are not checked: back to doing with a question open.
+	kanban(t, root, "ask", "W-0002", "again")
+	kanban(t, root, "set", "W-0002", "status=doing")
+}
