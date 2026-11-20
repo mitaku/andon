@@ -18,7 +18,7 @@ states:
     title: approve のまま 10 分たっても決まらない（dispatcher が merge の記録の Approved を読んで通知 gate を届けた。同じ Approved では二度届けない）
     record: dispatcher:Stuck
   - id: held
-    title: approve だがマージしない（merge person・委譲の外。人のマージの見張りへ）
+    title: approve だがマージしない（merge person・委譲の外。オーナーのマージの見張りへ）
   - id: fix
     title: fix（理由を担当へ送った）
   - id: needs-human
@@ -45,11 +45,11 @@ transitions:
   - { from: approved, to: waiting, on: "読み直すと head か checks が替わっていた（次の見回りでゲートから）", by: machine }
   - { from: approved, to: stuck, on: "10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25）", by: machine, once: true }
   - { from: stuck, to: "[*]", on: "merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる）", by: machine, command: andon issue merge }
-  - { from: approved, to: "[*]", on: "gh pr merge の前に人がマージしていた（人のマージの見張りへ）", by: machine }
+  - { from: approved, to: "[*]", on: "gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ）", by: machine }
   - { from: merged, to: finished, on: "マージして片付ける（finish は merge の中で打つ。§7.2 #5）", by: machine, command: andon issue merge, once: true }
-  - { from: held, to: "[*]", on: "人がマージするか決める", by: person }
+  - { from: held, to: "[*]", on: "オーナーがマージするか決める", by: person }
   - { from: held, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head のゲートから）", by: machine, command: andon issue merge }
   - { from: fix, to: "[*]", on: "担当が直して doing に戻った", by: kanban, command: kanban start }
-  - { from: needs-human, to: "[*]", on: "人が答えた", by: person }
+  - { from: needs-human, to: "[*]", on: "オーナーが答えた", by: person }
   - { from: needs-human, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head のゲートの問いを閉じる。その見回りで今の head のゲートから）", by: machine, command: andon issue merge }
   - { from: finished, to: "[*]", on: "終わり", by: machine }

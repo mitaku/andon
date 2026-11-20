@@ -164,7 +164,7 @@ type Next struct {
 	When string `yaml:"when"`
 }
 
-// Ask は人に聞くこと。
+// Ask はオーナーに聞くこと。
 type Ask struct {
 	Question string `yaml:"question"`
 	Kind     string `yaml:"kind"`
@@ -337,10 +337,10 @@ func noLink(root, rel string) error {
 	return nil
 }
 
-var byName = map[string]string{"machine": "機械", "ai": "AI", "person": "人", "kanban": "台帳の CLI"}
+var byName = map[string]string{"machine": "機械", "ai": "AI", "person": "オーナー", "kanban": "台帳の CLI"}
 
 var triggerKind = map[string]string{
-	"person": "人の依頼", "notification": "通知", "interval": "間隔", "date": "日付", "event": "出来事",
+	"person": "オーナーの依頼", "notification": "通知", "interval": "間隔", "date": "日付", "event": "出来事",
 }
 
 func header(b *strings.Builder, title, src string) {
@@ -460,7 +460,7 @@ func RenderWorkstream(w Workstream, src string) []byte {
 			}
 		}
 		if len(ai) > 0 {
-			b.WriteString("\n## AI がやる手順\n\n| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |\n|---|---|---|---|\n")
+			b.WriteString("\n## AI がやる手順\n\n| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | オーナーに聞くこと |\n|---|---|---|---|\n")
 			for _, s := range ai {
 				var asks []string
 				for _, a := range s.Asks {

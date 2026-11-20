@@ -1,5 +1,5 @@
 name: human-merge
-title: 人のマージの見張り
+title: オーナーのマージの見張り
 source: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ
 states:
   - id: watching
@@ -17,13 +17,13 @@ states:
 positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha]
 transitions:
   - { from: "[*]", to: watching, on: "review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）", by: machine, command: andon issue settle }
-  - { from: watching, to: merged, on: "MERGED になった（dispatcher の gh pr merge の前に人がマージしていたときも）", by: person }
+  - { from: watching, to: merged, on: "MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも）", by: person }
   - { from: watching, to: closed, on: "CLOSED になった", by: person }
-  - { from: merged, to: finished, on: "人がマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）", by: machine, command: andon issue settle, once: true }
+  - { from: merged, to: finished, on: "オーナーがマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）", by: machine, command: andon issue settle, once: true }
   - { from: merged, to: held, on: "ゲートの外の問いが開いている・finish が失敗した", by: machine, command: andon issue settle }
-  - { from: held, to: finished, on: "人がマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）", by: machine, command: andon issue settle, once: true }
+  - { from: held, to: finished, on: "オーナーがマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）", by: machine, command: andon issue settle, once: true }
   - { from: watching, to: "[*]", on: "review にも doing にもいなくなった・report.json の pr か commit が替わった（記録を捨てる）", by: machine, command: andon issue settle }
   - { from: closed, to: watching, on: "開き直された（OPEN に戻った。また閉じたら知らせる）", by: person }
   - { from: closed, to: merged, on: "開き直してマージされた", by: person }
-  - { from: closed, to: "[*]", on: "やめるかを Chief of Staff と人が決める", by: person }
+  - { from: closed, to: "[*]", on: "やめるかを Chief of Staff とオーナーが決める", by: person }
   - { from: finished, to: "[*]", on: "終わり", by: machine }

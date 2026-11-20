@@ -40,7 +40,7 @@ model/check --draft <フォルダ> [<モジュール>]
 
 | ファイル | 中身 |
 |---|---|
-| `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・人の動き・ゲートが決めたあとの変化）。行動ごとに写したコードの場所 |
+| `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・オーナーの動き・ゲートが決めたあとの変化）。行動ごとに写したコードの場所 |
 | `IssueRules.tla` | 規則 R1〜R8（`IssueLife` を読む。R7 は文で書き、確かめるのは `reach.mjs`） |
 | `IssueRules.cfg` | 検査器の設定（調べる規則の並び）と、`reach.mjs` が読む `\* REACH` の行 |
 | `reach.mjs` | 状態の図を読んで「行ける」の形の規則を確かめる（`check` が打つ。Node の標準だけ） |
@@ -53,7 +53,7 @@ model/check --draft <フォルダ> [<モジュール>]
 
 ## issue.yaml と照らす
 
-`issue.yaml` は人が書く定義で、`andon issue …` はそこに無い移り方を断ります。モデルから作るのではなく、`model/check` が 2 方向で照らします（ADR-0025 決めたこと 6）。検査器が書き出した状態の図（`-dump dot,actionlabels`。TLC も同じ旗）を、`conform.mjs` が対応表 `issue-map.txt` を介して `issue.yaml` と突き合わせます。
+`issue.yaml` は手で書く定義で、`andon issue …` はそこに無い移り方を断ります。モデルから作るのではなく、`model/check` が 2 方向で照らします（ADR-0025 決めたこと 6）。検査器が書き出した状態の図（`-dump dot,actionlabels`。TLC も同じ旗）を、`conform.mjs` が対応表 `issue-map.txt` を介して `issue.yaml` と突き合わせます。
 
 - **モデル → issue.yaml**: 行動が `status` を動かすなら、その `from`・`to`・コマンドの行が `issue.yaml` にある。コマンドを `-` とした行動（端末が落ちる・ゲートの答えなど）は `status` を動かしてはいけない。
 - **issue.yaml → モデル**: `issue.yaml` の行（`command` の「andon issue a・b」は a と b を 1 つずつ）は、モデルで起きるか、対応表の `outside` に理由つきで名指しされている。モデルで起きる行を `outside` に書いても落ちる。
@@ -77,7 +77,7 @@ model/check --draft <フォルダ> [<モジュール>]
 
 R1〜R6 と R8 は「この状態のときはこうなっている」の形で、検査器が状態 1 つずつ確かめます（`INVARIANT`）。R7 の「どの状態からも、マージまで行ける道がある」は状態 1 つの式では書けません。検査器の時相の性質（`PROPERTY`）は「どの道を進んでも」の形なので、これも「行ける道がある」は言えません。そこで、検査器が書いた状態の図を `reach.mjs` が読み、初めの状態から届く状態のそれぞれから、マージした状態まで道があるかを辿ります。
 
-R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）と、ゲートを待たずに人が先にマージすること（`HumanMergesEarly`）です。人のマージは同じ動きを 2 つの行動に分けてあり、ゲートが決めたあと（approve で `merge: person`・needs_human の問いに人が答えた）のマージ（`HumanMergesDecided`）は道に数えます。破れていると、`reach.mjs` は行けない状態のうち初めから一番近いものと、そこまでの行動の並びを書きます。
+R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）と、ゲートを待たずにオーナーが先にマージすること（`HumanMergesEarly`）です。オーナーのマージは同じ動きを 2 つの行動に分けてあり、ゲートが決めたあと（approve で `merge: person`・needs_human の問いにオーナーが答えた）のマージ（`HumanMergesDecided`）は道に数えます。破れていると、`reach.mjs` は行けない状態のうち初めから一番近いものと、そこまでの行動の並びを書きます。
 
 `IssueRules.cfg` の `\* REACH` の行は検査器にはコメントで、`check` が読んで `reach.mjs` に渡します。形は `\* REACH <規則> <変数> = <値> EXCEPT <除く行動…>` です。状態の図は同じ 2 つの状態の間の移り方を 1 本にまとめるので、除く行動には、ほかの行動と同じ移り方にならないものを選びます。
 
@@ -93,8 +93,8 @@ R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）�
 
 | 行動 | 中身 |
 |---|---|
-| `HeadMovesAfterGate` | ゲートが approve か needs_human を決めたあとに、PR の head が動く（担当か人が push した）。PR が閉じている間の push も入る |
-| `PRClosesOrReopens` | 人が PR をマージせずに閉じる・閉じた PR を開き直す。`andon issue settle` が聞き直して知る |
+| `HeadMovesAfterGate` | ゲートが approve か needs_human を決めたあとに、PR の head が動く（担当かオーナーが push した）。PR が閉じている間の push も入る |
+| `PRClosesOrReopens` | オーナーが PR をマージせずに閉じる・閉じた PR を開き直す。`andon issue settle` が聞き直して知る |
 | `MergeSettingChanges` | issue.yaml の `merge` か委譲の `merge` が変わる。モデルは 2 つを「任されている」の 1 つ（`mergeAuto`）にまとめた |
 
 ゲートの答えを捨てて回し直すのは、ゲートの 3 つの行動の始まりの 1 つ（`Regate`）にまとめました。コードでは、読み直しが通らない巡は決めたことを書かずに終わり、次の巡でゲートが決め直します。モデルはその 2 歩を 1 歩にしています。dispatcher が自分でマージする approve は、マージの直前に head と任されているかを読み直し、通ったときだけマージします（`DispatcherMerges`）。
@@ -103,9 +103,9 @@ R8 は、dispatcher がマージした状態で、ゲートの答えと head と
 
 ## モデルが省いたもの
 
-- 課題は 1 つ、PR も 1 つです。レビューの回（round・`review_rounds`・extra）、`queued`、PR の無い課題（調べる課題・Chief Engineer・トリアージ・人の課題）、レビュアーの子課題そのものの一生は入れていません。
+- 課題は 1 つ、PR も 1 つです。レビューの回（round・`review_rounds`・extra）、`queued`、PR の無い課題（調べる課題・Chief Engineer・トリアージ・オーナーの課題）、レビュアーの子課題そのものの一生は入れていません。
 - commit は「いまの head」と「それより古いもの」の 2 つだけを見ます。古い commit が何本あっても 1 つにまとめ、動いているレビュアーは見ている commit の集まり（`reviewing`）で表します。CI は head の 1 つの状態（`ci`）で、job ごとの区別はありません。担当が push するのは直すことがあるとき（CI が落ちた・Must fix・ゲートの直し）だけです。
-- レビューの結果は、Must fix 以上があるかどうかだけです（`result`）。レビュアーの指摘を担当が見送る道、ゲートが同じ head で 2 度目の Must fix を人に回す道は、ゲートの答えを選ぶ自由さ（fix・needs_human）にまとめました。
+- レビューの結果は、Must fix 以上があるかどうかだけです（`result`）。レビュアーの指摘を担当が見送る道、ゲートが同じ head で 2 度目の Must fix をオーナーに回す道は、ゲートの答えを選ぶ自由さ（fix・needs_human）にまとめました。
 - 二重に走らない守り（dispatcher の lock・控え）、ゲートの rate limit、GitHub に聞く間隔（1 分に 1 回）は入れていません。ゲートの wait は「CI が走っている間は approve しない」で表します。通知の配達は「Chief of Staff に届いた」の 1 ビットです。
 - ゲートの問い（from: gate）の受け取りは入れていません。問いの変数 `q` は担当の問いだけを表します。ready は前の head について出たゲートの問いを数えず、ゲートが今の head で決めたときに merge が閉じるので、担当が `doing` に戻って head を動かしたあとの `WorkerReady` はゲートの問いで止まりません。
 - resume は 1 つの死に 1 回までですが、モデルは毎回起こし直します。worktree に commit していない変更があると finish・settle が止まる道も省きました。

@@ -9,7 +9,7 @@ triggers:
     kind: notification
     notification: ready
     start: start
-  # 人が頼んだ（kanban routine run retro で足す）
+  # オーナーが頼んだ（kanban routine run retro で足す）
   - name: person
     kind: person
     start: add
@@ -20,9 +20,9 @@ triggers:
     start: check
 steps:
   - id: add
-    title: 人の依頼で振り返りの課題を足す
+    title: オーナーの依頼で振り返りの課題を足す
     by: ai
-    input: [人の言葉, 台帳（動いている振り返り）]
+    input: [オーナーの言葉, 台帳（動いている振り返り）]
     output: [台帳（振り返りの課題。routine retro）]
     skill: chief-of-staff/playbooks/retro.md
     decides: [足すか（同時に 1 つ）]
@@ -33,10 +33,10 @@ steps:
     input: [notification.ready, 台帳（並行の上限）]
     output: [hc（担当の端末）, 台帳（doing）]
     skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md]
-    decides: [人に聞かずに起動する]
+    decides: [オーナーに聞かずに起動する]
     next: [{ id: collect }]
   - id: collect
-    title: 期間の記録と人が打った文を集める
+    title: 期間の記録とオーナーが打った文を集める
     by: machine
     input: [台帳（片付いた課題の記録）, セッションログ, GitHub（マージ後のこと）]
     output: [振り返りの入力（標準出力）]
@@ -77,7 +77,7 @@ steps:
     title: fix を直す課題に切る
     by: machine
     input: [library/retro.json, 振り返りの入力（同じ期間で集め直す）]
-    output: [台帳（直す課題。parent は振り返りの課題）, 台帳（人の課題）, library/retro-applied.json]
+    output: [台帳（直す課題。parent は振り返りの課題）, 台帳（オーナーの課題）, library/retro-applied.json]
     command: andon retro apply
     record: library/retro-applied.json
     once: true
@@ -90,10 +90,10 @@ steps:
     command: andon issue finish
     next: [{ id: follow }]
   - id: follow
-    title: 直す課題を起動し、人へ伝える
+    title: 直す課題を起動し、オーナーへ伝える
     by: ai
-    input: [library/retro-applied.json, 台帳（直す課題と人の課題）]
-    output: [台帳（直す課題の Settings）, hc（担当の端末）, 人への 1 問]
+    input: [library/retro-applied.json, 台帳（直す課題とオーナーの課題）]
+    output: [台帳（直す課題の Settings）, hc（担当の端末）, オーナーへの 1 問]
     skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md, ask-one-by-one]
     decides: [直す課題の Settings を書いて起動する]
     asks:

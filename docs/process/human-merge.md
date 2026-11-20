@@ -1,4 +1,4 @@
-# 人のマージの見張り
+# オーナーのマージの見張り
 
 > このファイルは `andon process render` が [`process/states/human-merge.yaml`](../../process/states/human-merge.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
@@ -14,15 +14,15 @@ stateDiagram-v2
   state "片付けられない（ゲートの外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる）" as s_held
   state "片付けた" as s_finished
   [*] --> s_watching: review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）
-  s_watching --> s_merged: MERGED になった（dispatcher の gh pr merge の前に人がマージしていたときも）
+  s_watching --> s_merged: MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも）
   s_watching --> s_closed: CLOSED になった
-  s_merged --> s_finished: 人がマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）
+  s_merged --> s_finished: オーナーがマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）
   s_merged --> s_held: ゲートの外の問いが開いている・finish が失敗した
-  s_held --> s_finished: 人がマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）
+  s_held --> s_finished: オーナーがマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）
   s_watching --> [*]: review にも doing にもいなくなった・report.json の pr か commit が替わった（記録を捨てる）
   s_closed --> s_watching: 開き直された（OPEN に戻った。また閉じたら知らせる）
   s_closed --> s_merged: 開き直してマージされた
-  s_closed --> [*]: やめるかを Chief of Staff と人が決める
+  s_closed --> [*]: やめるかを Chief of Staff とオーナーが決める
   s_finished --> [*]: 終わり
 ```
 
@@ -43,13 +43,13 @@ stateDiagram-v2
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
 | （始まり・終わり） | `watching` | review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ） | 機械 | `andon issue settle` |  |
-| `watching` | `merged` | MERGED になった（dispatcher の gh pr merge の前に人がマージしていたときも） | 人 |  |  |
-| `watching` | `closed` | CLOSED になった | 人 |  |  |
-| `merged` | `finished` | 人がマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19） | 機械 | `andon issue settle` | はい |
+| `watching` | `merged` | MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも） | オーナー |  |  |
+| `watching` | `closed` | CLOSED になった | オーナー |  |  |
+| `merged` | `finished` | オーナーがマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19） | 機械 | `andon issue settle` | はい |
 | `merged` | `held` | ゲートの外の問いが開いている・finish が失敗した | 機械 | `andon issue settle` |  |
-| `held` | `finished` | 人がマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19） | 機械 | `andon issue settle` | はい |
+| `held` | `finished` | オーナーがマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19） | 機械 | `andon issue settle` | はい |
 | `watching` | （始まり・終わり） | review にも doing にもいなくなった・report.json の pr か commit が替わった（記録を捨てる） | 機械 | `andon issue settle` |  |
-| `closed` | `watching` | 開き直された（OPEN に戻った。また閉じたら知らせる） | 人 |  |  |
-| `closed` | `merged` | 開き直してマージされた | 人 |  |  |
-| `closed` | （始まり・終わり） | やめるかを Chief of Staff と人が決める | 人 |  |  |
+| `closed` | `watching` | 開き直された（OPEN に戻った。また閉じたら知らせる） | オーナー |  |  |
+| `closed` | `merged` | 開き直してマージされた | オーナー |  |  |
+| `closed` | （始まり・終わり） | やめるかを Chief of Staff とオーナーが決める | オーナー |  |  |
 | `finished` | （始まり・終わり） | 終わり | 機械 |  |  |

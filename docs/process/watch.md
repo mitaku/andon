@@ -38,7 +38,7 @@ flowchart LR
     s_read("通知と計画を読む"):::ai
     g_read{"分かれ道"}
     s_act("担当に手を打つ"):::ai
-    s_tell("人へ知らせる"):::ai
+    s_tell("オーナーへ知らせる"):::ai
     s_done("見るだけで終える"):::ai
   end
   t_patrol --> s_look
@@ -53,10 +53,10 @@ flowchart LR
   s_resume -->|"起動できなかった"| s_read
   s_read --> g_read
   g_read -->|"手を打つ"| s_act
-  g_read -->|"人へ知らせる"| s_tell
+  g_read -->|"オーナーへ知らせる"| s_tell
   g_read -->|"見るだけ"| s_done
   s_act -->|"hc send（担当へ）・台帳（分けた課題）"| fin
-  s_tell -->|"herdr notification・人への 1 問"| fin
+  s_tell -->|"herdr notification・オーナーへの 1 問"| fin
   s_done -->|"news.ack"| fin
   fin(("終わり")):::event
 ```
@@ -67,9 +67,9 @@ flowchart LR
 |---|---|---|---|---|---|
 | `look` | 担当の端末と実働を見る | 機械 | `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms` | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）` | `resume`（端末が Gone）・`read`（通知を積んだ） |
 | `resume` | 死んだ担当を 1 回起動する | 機械 | `hc.state`・`issue.session` | `hc（起動した端末）`・`notification.resumed`・`notification.finished` | `read`（起動できなかった） |
-| `read` | 通知と計画を読む | AI | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc.state`・`hc read の画面` |  | `act`（手を打つ）・`tell`（人へ知らせる）・`done`（見るだけ） |
+| `read` | 通知と計画を読む | AI | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc.state`・`hc read の画面` |  | `act`（手を打つ）・`tell`（オーナーへ知らせる）・`done`（見るだけ） |
 | `act` | 担当に手を打つ | AI | `report.plan`・`hc read の画面` | `hc send（担当へ）`・`台帳（分けた課題）` | 終わり |
-| `tell` | 人へ知らせる | AI | `hc read の画面` | `herdr notification`・`人への 1 問` | 終わり |
+| `tell` | オーナーへ知らせる | AI | `hc read の画面` | `herdr notification`・`オーナーへの 1 問` | 終わり |
 | `done` | 見るだけで終える | AI | `<news>` | `news.ack` | 終わり |
 
 ## 機械がやる手順
@@ -81,7 +81,7 @@ flowchart LR
 
 ## AI がやる手順
 
-| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |
+| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | オーナーに聞くこと |
 |---|---|---|---|
 | `read` | `chief-of-staff/playbooks/watch.md` | 途中報告を書かせる・分ける・起動し直す・延長する・続きを 1 回促す |  |
 | `act` | `chief-of-staff/playbooks/watch.md` | 送る文・分けた課題の範囲 |  |
@@ -90,7 +90,7 @@ flowchart LR
 
 見るもの（手順の入るものの和）: `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms`・`issue.session`・`notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc read の画面`・`<news>`
 
-残すもの（手順の出るものの和）: `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）`・`hc（起動した端末）`・`notification.resumed`・`hc send（担当へ）`・`台帳（分けた課題）`・`herdr notification`・`人への 1 問`・`news.ack`
+残すもの（手順の出るものの和）: `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）`・`hc（起動した端末）`・`notification.resumed`・`hc send（担当へ）`・`台帳（分けた課題）`・`herdr notification`・`オーナーへの 1 問`・`news.ack`
 
 ## 数えるもの
 

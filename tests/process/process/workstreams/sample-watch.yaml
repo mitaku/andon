@@ -32,9 +32,9 @@ steps:
       - { question: 期限を延ばすか, kind: business }
     next: [{ id: act, when: 手を打つ }, { id: done, when: 見るだけ }]
   - id: act
-    title: 人が決める
+    title: オーナーが決める
     by: person
-    input: [人の言葉]
+    input: [オーナーの言葉]
     output: [hc send]
     next: [{ id: done }]
   - id: done

@@ -1,7 +1,7 @@
 # 判定表と decisions.json の形は triage skill が正。ここは流れだけ。
 name: triage
 title: 仕分け（Triage）
-purpose: 台帳に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・人へ回すを決める
+purpose: 台帳に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・オーナーへ回すを決める
 triggers:
   # ルーチン triage（週 1）が足した課題の ready
   - name: routine
@@ -36,9 +36,9 @@ steps:
     asks:
       - { question: レベル C の直しを進めてよいか, kind: line }
   - id: add
-    title: 人のゴールか memory の量でトリアージの課題を足す
+    title: オーナーのゴールか memory の量でトリアージの課題を足す
     by: ai
-    input: [人の言葉（ゴール）, notification.memory, 台帳（動いているトリアージ）]
+    input: [オーナーの言葉（ゴール）, notification.memory, 台帳（動いているトリアージ）]
     output: [台帳（トリアージの課題）]
     skill: chief-of-staff/playbooks/triage.md
     decides: [足すか（同時に 1 つ）]
@@ -49,7 +49,7 @@ steps:
     input: [notification.ready, 台帳（並行の上限）]
     output: [hc（担当の端末）, 台帳（doing）]
     skill: [chief-of-staff/playbooks/triage.md, chief-of-staff/playbooks/start.md]
-    decides: [人に聞かずに起動する]
+    decides: [オーナーに聞かずに起動する]
     next: [{ id: collect }]
   - id: collect
     title: 溜まったものを拾う
@@ -90,10 +90,10 @@ steps:
     command: andon issue finish
     next: [{ id: follow }]
   - id: follow
-    title: 足した課題を起動し、人へ伝える
+    title: 足した課題を起動し、オーナーへ伝える
     by: ai
-    input: [library/triage/<日付>-<id>.md, 台帳（人の課題）]
-    output: [hc（担当の端末）, herdr notification, 人への 1 問]
+    input: [library/triage/<日付>-<id>.md, 台帳（オーナーの課題）]
+    output: [hc（担当の端末）, herdr notification, オーナーへの 1 問]
     skill: [chief-of-staff/playbooks/triage.md, ask-one-by-one]
     decides: [fix と bundle の課題を起動する, 片付け待ちを finish する]
     asks:

@@ -12,8 +12,8 @@ states:
 transitions:
   - { from: "[*]", to: pending, on: "done の行を拾った（初めて見る台帳では拾わない）", by: machine }
   - { from: pending, to: done, on: "マージのあとの影響を集める（§7.2 #17）", by: machine, command: andon issue impact, once: true }
-  - { from: pending, to: done, on: "人の手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）", by: machine, once: true }
-  - { from: pending, to: done, on: "結果の記録を書く（outcome.json が無いときだけ書く。人の課題には書かない。§7.2 #26）", by: machine, once: true }
+  - { from: pending, to: done, on: "オーナーの手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）", by: machine, once: true }
+  - { from: pending, to: done, on: "結果の記録を書く（outcome.json が無いときだけ書く。オーナーの課題には書かない。§7.2 #26）", by: machine, once: true }
   - { from: pending, to: done, on: "打たない課題だった（レビュアー・Chief Engineer・repo が無い・pr が無い・PR が MERGED でない）", by: machine }
   - { from: pending, to: pending, on: "失敗した（次の見回りで打ち直す）", by: machine }
   - { from: pending, to: gave-up, on: "影響は 3 回・手直しと結果の記録は 2 回で諦めた（結果の記録は通知を積まない）", by: machine }
