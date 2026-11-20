@@ -801,16 +801,21 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 
 `andon retro collect [--days N]` が、振り返り（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8 の「集める」）の入力を1つの JSON にまとめて標準出力に出す。**読むだけで、何も書かない・保存しない**。置き場は無い（§13 と同じ）。期間は打った時刻から N 日（既定 7。1〜90）。台帳のファイルを直に読む（台帳の CLI は打たない）。
 
+束は2つの形で出す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 6）。前の振り返りが集めたあと（境目 `boundary` より後）に片付いた束は全文で `issues[]` に、それより前に片付いた束は要約で `summaries[]` に入れる。境目より後の束が 100 件を超えたら、新しい順に 100 件を全文にし、残りを要約にして `cut` に書く。根拠として指せる id は、全文と要約のどちらの束の id も同じ。要約の束の全文は `andon retro collect [--days N] --issue <id>` で引く。`--issue` は、期間に片付いた担当の課題1件の束を `issues[]` の1件と同じ形の object で出す（境目は問わない。人の文と前の直しは集めない。読めなかったものは stderr に1行ずつ）。期間の束でなければ終了コード 1。
+
+版 2（`retro/2`）: 全文の束の `launches[]` と `outcome` を、パターンを拾うのに使う所だけに改めた。全文は `library` の `launches.jsonl` と `outcome.json` にある。
+
 ```json
 {"project": "sample-site", "at": "2026-11-19T12:00:00Z", "since": "2026-11-12T12:00:00Z", "until": "2026-11-19T12:00:00Z",
- "previous_retro": {"issue": "S-0040", "done_at": "2026-11-18T09:30:00Z"},
+ "previous_retro": {"issue": "S-0040", "done_at": "2026-11-18T09:30:00Z", "until": "2026-11-18T09:10:00Z"},
+ "boundary": "2026-11-18T09:10:00Z",
  "issues": [
    {"id": "S-0012", "title": "返事の下書きボタン", "profile": "claude", "repo": "github.com/example/sample-site",
     "done_at": "2026-11-18T10:00:00Z", "library": "/workspace/projects/sample-site/kanban/issues/S-0012/library",
     "estimate": "medium", "agent_estimate": null, "worked_minutes": 95, "pr": "https://github.com/example/sample-site/pull/12",
-    "launches": [{"at": "2026-11-18T08:00:00Z", "role": "worker", "launch": "start", "session": "0f8fad5b-d9cb-469f-a165-70867728950e",
-                  "package": {"root": "/opt/andon", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "source": "applied", "drift": false, "reasons": []}}],
-    "outcome": {"result": "merged", "worked_minutes": 95},
+    "launches": [{"at": "2026-11-18T08:00:00Z", "profile": "claude", "model": "opus", "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}],
+    "outcome": {"result": "merged", "worked_minutes": 95,
+                "cost": {"sessions": 2, "measured": 1, "tokens": {"input": 1200, "output": 35000, "cache_read": 2400000, "cache_write": 180000}}},
     "gates": [{"head": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "at": "2026-11-18T09:55:00Z", "tier": "B", "decision": "approve", "reasons": [], "merged": true}],
     "reviews": [{"id": "S-0012-r1", "profile": "codex-review",
                  "findings": {"commit": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "findings": [{"severity": "major", "file": "app/reply.ts", "line": 40}]},
@@ -821,20 +826,25 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
                     "checks": {"state": "failure", "failed": ["tests"]},
                     "reverted_by": [{"pr": "https://github.com/example/sample-site/pull/13", "merged_at": "2026-11-18T15:00:00Z"}]},
     "reapplied": false, "reapplied_reasons": []}],
+ "summaries": [
+   {"id": "S-0005", "title": "一覧の並び順", "done_at": "2026-11-15T10:00:00Z", "pr": "https://github.com/example/sample-site/pull/5",
+    "findings": ["major — app/list.ts:12 空の一覧で並べ替えが落ちる。"], "gate_fixes": ["Must fix 以上が 1 件"], "corrections": false, "remember": 2}],
+ "cut": null,
  "typed": [{"id": "h-6f1c2d3e-0000-4000-8000-000000000001", "session": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "at": "2026-11-18T11:00:00Z",
             "role": "chief-of-staff", "issue": null, "text": "PR の題に課題番号を書かないで。鍵は [REDACTED:github]", "truncated": false}],
  "fixes": [{"issue": "S-0041", "title": "見送りの理由を報告に必ず書かせる", "retro": "S-0040", "pr": "https://github.com/example/sample-site/pull/20",
-            "merged_at": "2026-11-16T09:00:00Z", "issues_after": 6}],
+            "merged_at": "2026-11-16T09:00:00Z", "issues_after": 6, "recurred_before": 1}],
  "redacted": 1,
  "skipped": [{"source": "github.com/example/other", "reason": "マージされた PR の一覧が読めない（gh pr list: HTTP 404）。この repo のマージ後のことは null"}]}
 ```
 
 | キー | 意味・元 |
 |---|---|
-| `previous_retro` | 片付いた振り返りの課題のうち、最後に `done` になったもの（`log.jsonl` の時刻）。振り返りの課題は、`issue.yaml` の `routine` が `retro`（ルーチン retro が足した）か、`library/retro.json`（振り返りが書くパターンの一覧）があるもの。無ければ `null` |
-| `issues[]` | 期間に `done` になった担当の課題。レビュアーの子（`parent` があり `*-review` か `<親>-r<k>`）・人の課題（`who: person`）・Chief Engineer の課題（`profile: chief-engineer`）・振り返りの課題は入れない。根拠として指す id は課題の id |
-| `issues[].launches` | 起動の記録（§18）の行を、`memory_index` を落として写したもの（全文は `library` の `launches.jsonl`）。ファイルが無ければ `null` |
-| `issues[].outcome` | 結果の記録（§19）の写し。無ければ `null`（この仕組みの前の課題） |
+| `previous_retro` | 片付いた振り返りの課題のうち、最後に `done` になったもの（`log.jsonl` の時刻）。振り返りの課題は、`issue.yaml` の `routine` が `retro`（ルーチン retro が足した）か、`library/retro.json`（振り返りが書くパターンの一覧）があるもの。無ければ `null`。`until` は前の振り返りが集めた時刻（その `retro.json` の `until`）。`retro.json` が無い・形が違う・`until` が片付いた時刻より後なら `null`（読めなかったときは `skipped` に1行） |
+| `boundary` | 境目。`previous_retro.until`、それが `null` なら `previous_retro.done_at`。前の振り返りが無ければ `null`（どの束も新しい）。境目より後に片付いた束と打たれた文が、パターンの「新しい出来事」になる（§21） |
+| `issues[]` | 全文の束。期間に `done` になった担当の課題のうち、境目より後のもの（新しい順に 100 件まで）。片付いた順。レビュアーの子（`parent` があり `*-review` か `<親>-r<k>`）・人の課題（`who: person`）・Chief Engineer の課題（`profile: chief-engineer`）・振り返りの課題は入れない。根拠として指す id は課題の id |
+| `issues[].launches` | 起動の記録（§18）の行ごとの `at`・`profile`・`model`（`command` の `--model` か `-m` の値。無ければ `null`）・`commit`（`package.commit`。無ければ `null`）。全文は `library` の `launches.jsonl`。ファイルが無ければ `null` |
+| `issues[].outcome` | 結果の記録（§19）の `result`・`worked_minutes` と、`sessions[]` のコストの合計 `cost`（`sessions` はセッションの数、`measured` はそのうち `cost` があった数、`tokens` はその合計）。`sessions` が `null` なら `cost` は `null`。全文は `library` の `outcome.json`。無ければ `null`（この仕組みの前の課題） |
 | `issues[].gates` | ゲートの記録（§7）の `head`・`at`・`tier`・`decision`・`reasons`・`merged`。判定の時刻の順 |
 | `issues[].reviews` | レビュアーの子の課題ごとの `findings.json`（§3）と `outcome.json` の写し。無ければ `null` |
 | `issues[].estimate`・`agent_estimate`・`worked_minutes` | `issue.yaml` の `estimate`・`report.json` の `estimate.size`・`outcome.json` の `worked_minutes` |
@@ -843,8 +853,10 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `issues[].journal` | 日報（`library/journal.md`）を丸ごと写したもの（行を読まない）。無ければ `null` |
 | `issues[].after_merge` | マージ後のこと。`report.json` の `pr` がマージされていれば GitHub から読む: repo ごとに1回の `gh pr list --repo <owner>/<repo> --state merged --limit 1000 --json number,url,title,body,mergedAt,mergeCommit` と、マージ commit ごとの `gh api --paginate repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100`（ページを最後まで読む）。`checks.state` は check run の `conclusion` が `failure`・`timed_out`・`startup_failure`・`action_required` のものが1つでもあれば `failure`（`cancelled` は数えない）、終わっていないものがあれば `pending`、check run が無ければ `none`。`reverted_by` は、題が `Revert ` で始まり本文に `<owner>/<repo>#<n>` か PR の URL があるマージされた PR（`andon measure` と同じ照合）。PR が無い・マージされていない・一覧が読めないなら `null`。信号の記録（§15）は使わない（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 4） |
 | `issues[].reapplied` | 課題の途中でパッケージが当て直された印。当て直しの記録（パッケージの置き場の `applied.json` の `applied_at`。[ADR-0027](adr/0027-apply-package-without-rebuild.md)）が最初の起動と片付けの間にあるか、起動の記録の `package.commit` が2通り以上あれば `true`。当て直しの記録は最後の1回しか残らないので、それより前の当て直しは起動の記録の commit で拾う。起動の記録が無い・当て直しの記録が読めなければ `null`。理由は `reapplied_reasons` |
+| `summaries[]` | 要約の束。期間に `done` になった担当の課題のうち、境目より前（境目と同じ時刻を含む）のものと、100 件を超えて全文にしなかった新しいもの。片付いた順。`id`・`title`・`done_at`・`pr`（`report.json` の `pr`）と、つまずきの跡の見出し: `findings` はレビュアーの子の critical と major の指摘（`preexisting` のものは除く）ごとの1行（レビュアーの報告 `report.md` で、その指摘の `<file>:<line>` を含む最初の行。字下げした次の行が続けば足す。報告に無ければ `<重さ> <file>:<line>`）、`gate_fixes` はゲートが `fix` を返した判定の理由（重なりは1つ）、`corrections` は手直し（§14）のうちゲートの問いをオーナーがマージして閉じた答え（「人がマージした（…）」か「オーナーがマージした（…）」）でないものがあるか（`corrections.json` が無ければ `null`）、`remember` は `report.json` の `remember` の行数。行は空白を詰めて 160 字で切る（切ったら末尾に `…`） |
+| `cut` | 境目より後の束が 100 件を超えたときだけ `{"new": <境目より後の束の数>, "full": 100}`。ほかは `null` |
 | `typed[]` | 期間に人が端末で打った文（下の規則）。根拠として指す id は `h-<セッションログの行の uuid>`。同じ `session` の文は根拠として1件に数える（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 14 の 2）。`role` と `issue` はセッションのオーナー。2000 字を超える文は切って `truncated: true` |
-| `fixes[]` | 前の振り返りが切った直し（`parent` が振り返りの課題の、`done` の課題）のうち、PR のマージ（GitHub の `mergedAt`。読めなければ `outcome.json` の `merged_at`）が打った時刻から 14 日以内のもの。`issues_after` は、マージのあとに `done` になった担当の課題の数（期間に限らない） |
+| `fixes[]` | 前の振り返りが切った直し（`parent` が振り返りの課題の、`done` の課題）のうち、PR のマージ（GitHub の `mergedAt`。読めなければ `outcome.json` の `merged_at`）が打った時刻から 14 日以内のもの。`issues_after` は、マージのあとに `done` になった担当の課題の数（期間に限らない）。`recurred_before` は前の振り返りが数えた再発の数（その `retro.json` の `fixes[].recurred`）。前の振り返りが数えていなくてマージが境目より後なら `0`（境目より前に数える出来事が無い）、どちらでもなければ `null`（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 6） |
 | `redacted` | 秘密の形に合って伏せた数 |
 | `skipped` | 読めなかったもの（読めない記録・GitHub）。集めるのは止めない |
 
@@ -888,13 +900,13 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `patterns[].not_upstream` | 上の段（設計・テスト・確かめ）で止められない理由の1行。`level` が `skill` か `text` なら必須 |
 | `patterns[].effect`・`risk` | 期待する効果（何が起きなくなるか）とリスク。1行ずつ |
 | `patterns[].decision`・`reason` | `fix`（直す課題に切る）か `drop`（捨てる。持ち越さない）と、その理由の1行。`drop` の理由は中身だけで、数の都合を書かない。`fix` のパターンは優先の順に並べる（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 3） |
-| `fixes[]` | 入力の `fixes[]`（前の振り返りが切った直しのうちマージから 14 日以内のもの）の全部に1件ずつ、過不足なく。`recurred` はマージのあとに同じパターンが起きた数、`view` は見立ての1行（残す・効き目の確かな段へ振り分け直す・効かなかった文を削る候補にする）。再発したものは、文を足さずに上の段か削る候補をパターンに出す（決めたこと 6） |
+| `fixes[]` | 入力の `fixes[]`（前の振り返りが切った直しのうちマージから 14 日以内のもの）の全部に1件ずつ、過不足なく。`recurred` はマージのあとに同じパターンが起きた数で、入力の `recurred_before` に全文の束で見つけた再発を足したもの（`recurred_before` が `null` なら要約の束でも数える。[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 6）、`view` は見立ての1行（残す・効き目の確かな段へ振り分け直す・効かなかった文を削る候補にする）。再発したものは、文を足さずに上の段か削る候補をパターンに出す（決めたこと 6） |
 
 command が断ること（`andon retro patterns` と `andon retro apply` の両方。[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8）:
 
 - 根拠が別々の2件に満たないパターン。数える単位は課題（レビュアーの子の課題は親）と、人が打った文のセッションのオーナー（担当とレビュアーのセッションはその課題、Chief of Staff のセッションはセッションごと）。同じ課題の中の2回・同じセッションの中の2回・課題とその課題の担当が打たれた文は、1件と数える（決めたこと 14 の 2）。
 - 根拠が入力に無い id を指しているパターン。
-- 根拠のどれも `previous_retro` の `done_at` より後でない（後に片付いた課題か、後に打たれた文が1件も無い）パターン（決めたこと 14 の 3）。前の振り返りが無ければ問わない。
+- 根拠のどれも境目（§20 の `boundary`。前の振り返りが集めた時刻）より後でない（後に片付いた課題か、後に打たれた文が1件も無い）パターン（決めたこと 14 の 3）。前の振り返りが無ければ問わない。根拠は全文の束・要約の束・人の文のどれの id でもよい。
 - `level` が `skill` か `text` なのに `not_upstream` が無いパターン。
 - 判定（`decision`）の無いパターン。`fix` の数は確かめない（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 1）。
 

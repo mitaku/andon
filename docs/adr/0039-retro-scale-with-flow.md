@@ -13,7 +13,7 @@
 | 3 | 落とす理由は中身だけにし、直すパターンは優先の順に並べて、その順に課題に切る | `package/skills/retro/SKILL.md`・`internal/retro/apply.go` | 生きている |
 | 4 | 振り返りの直す課題に、並行の枠を別に持たせない | この ADR | 生きている |
 | 5 | Chief of Staff の検収は、直すパターンごとに根拠を 1 件以上開く | `package/skills/chief-of-staff/playbooks/retro.md` | 生きている |
-| 6 | 振り返りの入力は、前の振り返りのあとの束を全文で、それより前の束を要約で出す | この ADR | まだ実装していない |
+| 6 | 振り返りの入力は、前の振り返りのあとの束を全文で、それより前の束を要約で出す | `internal/retro/retro.go`・`docs/contract.md` §20・`package/skills/retro/SKILL.md` | 生きている |
 | 7 | 振り返りは、片付いた担当の課題が 25 件たまるごとに回し、少ない日も毎朝 1 回は回す | この ADR | まだ実装していない |
 | 8 | 件数のきっかけは dispatcher の巡が数えて撃ち、件数はプロジェクトの設定に置く | この ADR | まだ実装していない |
 | 9 | Andon を開発するセルで、skill に触れる PR のレベルを C から B に下げ、オーナーのマージを外す | この ADR | まだ実装していない |
