@@ -43,6 +43,19 @@ jobs:
       - name: go vet
         if: steps.scope.outputs.docs != 'true'
         run: go vet ./...
+      # golangci-lint の版は mise.toml の1か所だけに書き、ここでは読むだけ（workflow_test.go が確かめる）。設定は .golangci.yml
+      - name: golangci-lint version (from mise.toml)
+        id: golangci
+        if: steps.scope.outputs.docs != 'true'
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/^golangci-lint = "\(.*\)"$/\1/p' mise.toml)
+          [ -n "$v" ] || { echo "::error::mise.toml に golangci-lint の版が無い"; exit 1; }
+          echo "version=v$v" >>"$GITHUB_OUTPUT"
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        if: steps.scope.outputs.docs != 'true'
+        with:
+          version: ${{ steps.golangci.outputs.version }}
       - name: go test
         if: steps.scope.outputs.docs != 'true'
         run: go test ./...

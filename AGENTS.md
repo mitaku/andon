@@ -1,6 +1,6 @@
 # AGENTS.md（この repo で働く担当の指針）
 
-- テストは `go test ./...` と `tests/run --changed`（変えたものに関係する `tests/*.sh` だけを並べて走らせる）。commit の前に通す。手元では関係する検査だけ、全部（`tests/run`）は CI に任せる。Go の版は `mise.toml`（`go.mod` と揃える）。`gofmt -l .` が空であること。
+- テストは `go test ./...` と `tests/run --changed`（変えたものに関係する `tests/*.sh` だけを並べて走らせる）。commit の前に通す。手元では関係する検査だけ、全部（`tests/run`）は CI に任せる。Go の版は `mise.toml`（`go.mod` と揃える）。`gofmt -l .` が空で、`golangci-lint run ./...` の指摘が 0 件であること（版は `mise.toml`、設定は `.golangci.yml`。CI の go の job も回す）。
 - `tests/run` を同時に2本走らせない（mise の置き場と CPU を取り合う）。`tests/isolation` は15分以上かかるので、hc の端末（`hc run --bg`）で裏に回す。`tests/run --changed` は、重い検査（`andon-dispatcher.sh`・`schema.sh`・`apply-main.sh`・`andon-issue.sh`・`andon-gate.sh`）を、その検査が見る部分を変えたときだけ選ぶ。対応の表は `tests/lib/scope.sh`。重い検査が打つ command や読むファイルを変えたら、表と `docs/image.md` の「手元は関係する検査だけ」を同じ PR で直す（Go の import の漏れは `tests/ci.sh` が落とす）。
 - 検査はセルの本物（台帳・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。検査の土台（`tests/lib/`・fixture・HOME や台帳を読む検査）を変えたら `tests/isolation` を打つ（偽のセルで全部を回し、番兵が変われば落ちる）。
 - この repo は public。秘密・個人の環境に固有の値（セル名・ホスト名・ポート番号・メールアドレス・ユーザー名・ホームのパス）・案件に固有の名前を入れない。例は架空の名前（`example.com`・`<owner>`・`sample-site`）で。`tests/public.sh` が検査する。禁止リストは repo の外に置く（書き方は `tests/README.md`。リストの語を repo に書かない）。`.github/workflows/**` と `tests/public*.sh` を弱める変更は人が見る。
