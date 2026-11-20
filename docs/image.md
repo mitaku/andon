@@ -181,7 +181,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `andon-issue.sh` | andon issue が使う Go の package |
 | `andon-gate.sh` | andon issue が使う Go の package・`package/gate.json` |
 | `apply-main.sh` | `image/apply-main.sh`・`cmd/andon`・`cmd/kanban`・`internal/cli`・`internal/pkgversion` と、`cmd/kanban` が import する `internal/ledger`・`delegate`・`spawn`・`contract`、`contract` が import する root の `embed.go` |
-| `schema.sh` | `schema/` の直下の `*.schema.json`・`schema/ledger/` の `*.schema.json`・`docs/contract.md`・`package/lib/andon/schema_check.py` |
+| `schema.sh` | `schema/` の直下の `*.schema.json`・`schema/ledger/` の `*.schema.json`・`docs/contract.md`・`package/lib/andon/schema_check.py`・照合に打つ `andon schema` の Go の package（`cmd/andon`・`internal/cli`・`internal/schema`・`internal/contract`・root の `embed.go`） |
 
 andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`・`schema/` の直下の `*.schema.json`。たとえば `internal/retro/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
 
