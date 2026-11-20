@@ -5,6 +5,21 @@
 - 語は [design.md](../design.md) §0.1。
 - 入力: 依頼書 A-0008（人の発言 2026-11-19 と Chief of Staff の経緯）、課題 A-0001 の報告（状態の図・規則 R1〜R5・破れの道・モデルが省いたもの）とその資料（TLA+ のモデル・再現の手順）、[ADR-0017](0017-process-definitions.md) 決めたこと 1・15（状態の定義 `process/states/*.yaml` と、定義に無い移り方を断ること）、[ADR-0021](0021-pstack-in-cell.md)（pstack をセルに入れた。statechart はその skill）、`.github/workflows/`（CI）、`tests/README.md`。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 道具は TLA+ と TLC で、Lean は今は入れない | `model/IssueLife.tla` | 生きている |
+| 2 | 検査器は tla-ts で、版を固定し、検査器の誤りへの確かめを 2 つ添える | `model/package.json`・`model/check` | 生きている |
+| 3 | 最初にモデルと照らすのは、課題の `issue.yaml` の 1 本だけ | `model/issue-map.txt` | 生きている |
+| 4 | モデルから `issue.yaml` を作る | この ADR | 覆された → 決めたこと 6（同じ ADR） |
+| 5 | 最初に置く規則は 6 本（R1〜R6） | `model/IssueRules.tla` | 生きている |
+| 6 | `issue.yaml` は人が書き、CI がモデルと 2 方向で照らす | `model/conform.mjs`・`model/issue-map.txt` | 生きている |
+| 7 | CI はモデルの検査だけの job で回し、秘密を渡さない | `.github/workflows/model.yml` | 生きている |
+| 8 | 課題の一生を変える PR は同じ PR でモデルを直し、規則を弱める変更は人が見る | `AGENTS.md`・`package/gate.json` | 生きている |
+| 9 | 価値の仮説は置かない | この ADR | 生きている |
+| 10 | `issue.yaml` に無い移り方は「モデルの外」と名指しする | `model/issue-map.txt` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-19、Chief of Staff への発言）: 「Lean言語によるテストも用意してもいいんじゃないかと思った」。

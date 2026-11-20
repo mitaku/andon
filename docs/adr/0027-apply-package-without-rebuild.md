@@ -5,6 +5,21 @@
 - 語は [design.md](../design.md) §0.1。
 - 入力: 依頼書 A-0016（人の発言 2026-11-19 と Chief of Staff の経緯）、[ADR-0001](0001-skills-distribution.md) 決めたこと 5（`ANDON_HOME` の回避の口）、[design.md](../design.md) §2.3（パッケージがどこに効くか）・§2.5、[operate.md](../operate.md) の 3（`rebuild --from`）、[image.md](../image.md)、`image/Dockerfile`、`internal/boot/`。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 形は「その場で上書き」 | `image/apply-main.sh` | 生きている |
+| 2 | 当てる単位は、いつも 1 つの commit の全部 | `image/apply-main.sh` | 生きている |
+| 3 | 当ててよいのは `origin/main` に含まれる commit だけ | `image/apply-main.sh` | 生きている |
+| 4 | 当てるのは Chief of Staff と人で、担当は当てない | この ADR | 生きている |
+| 5 | 道具は repo の中のスクリプトで、イメージには入れない | `image/apply-main.sh` | 生きている |
+| 6 | 動いているエージェントは止めず、古い skill のままの端末の一覧を出す | `image/apply-main.sh` | 生きている |
+| 7 | 見せ方は、記録 1 枚と状態を出す口 | `image/apply-main.sh` | 生きている |
+| 8 | イメージの版へ戻す口を持つ | `image/apply-main.sh` | 生きている |
+| 9 | 価値の仮説を置く | この ADR | 生きている |
+| 10 | イメージの備品のずれは、警告して当てる | `image/apply-main.sh` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-19、Chief of Staff への発言）: 「このセル上でAndonを開発する上で、毎度イメージを焼き直すのは大変なので、イメージを焼き直したら消えたりすることを前提としてもよいので、それぞれのファイルを置き換えれるような仕組みを構築したほうがよさそう。」

@@ -5,6 +5,17 @@
 - 語は [design.md](../design.md) §0.1。
 - 入力: 人の発言（2026-11-19）、`package/skills/triage/SKILL.md`、`package/skills/chief-of-staff/playbooks/triage.md`、`process/workstreams/triage.yaml`、`internal/triage/`、[contract.md](../contract.md) の `triage_max_issues` とトリアージの読み方、[decisions.md](../decisions.md) §4、[ADR-0011](0011-signals-and-value-loop.md)・[ADR-0020](0020-auto-memory-as-intake.md)・[ADR-0028](0028-improvement-loop.md)。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 網は 2 段で、判断で閉じられる範囲を狭め、残りを Chief of Staff が 1 件ずつ読む | `internal/triage/apply.go` | 生きている |
+| 2 | 確かめる先は command が決め、collect が最新の main を取り、apply が見た commit を照らす | `internal/triage/collect.go`・`internal/triage/apply.go` | 生きている |
+| 3 | 「その場限り」の線は判定表に書かず、Chief of Staff の見立てに任せる | `package/skills/triage/SKILL.md` | 生きている |
+| 4 | その朝に閉じた、失われうる 2 件を戻す | この ADR | 役目を終えた |
+| 5 | 細部: 閉じ方の種類・拾わない行・判定の形・覆し方・最新の main が取れないとき | `internal/triage/apply.go`・`internal/triage/collect.go` | 生きている |
+| 6 | 課題そのものを閉じる判定は、根拠があっても Chief of Staff が読む | `internal/triage/apply.go` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-19、Chief of Staff へ）:
