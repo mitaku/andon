@@ -74,6 +74,8 @@ while IFS= read -r p; do
   case "$p" in
     # contract.md は §4 の acceptance[] の行を skill と突き合わせる（package.sh）。例と schema は schema.sh（上の表）
     docs/contract.md) run[tests/package.sh]=1 ;;
+    # design.md は §1.8 の文書の形と役の表を CE skill と突き合わせ、語の検査の範囲にも入る（package.sh）
+    docs/design.md) run[tests/package.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
     # adr-index.sh は ADR の索引・状態行と README の ADR の一覧を突き合わせる（ADR-0033）
     docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;
