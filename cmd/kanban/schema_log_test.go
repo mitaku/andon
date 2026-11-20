@@ -84,7 +84,7 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(readFile(t, filepath.Join(root, "kanban", "log.jsonl")), "\n"), "\n")
 	lines = append(lines, migratedLog(t)...)
 	if err := ledgertest.CheckLog([]byte(strings.Join(lines, "\n") + "\n")); err != nil {
-		t.Errorf("kanban が書いた log.jsonl の行が schema/ledger/log.v3.schema.json に合わない:\n%v", err)
+		t.Errorf("kanban が書いた行:\n%v", err)
 	}
 	seen := map[string]bool{}
 	for _, l := range lines {
@@ -123,7 +123,7 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	// ready: 人の課題・レビュアーの子課題・ルーチンが足した課題・queued から出た課題が並ぶ。
 	out := kanban(t, root, "ready", "--json")
 	if err := ledgertest.Check(ledgertest.ReadySchema, []byte(out)); err != nil {
-		t.Errorf("kanban ready --json が schema/ledger/ready.v3.schema.json に合わない: %v\n%s", err, out)
+		t.Errorf("kanban ready --json: %v\n%s", err, out)
 	}
 	var ready []map[string]any
 	if err := json.Unmarshal([]byte(out), &ready); err != nil {
