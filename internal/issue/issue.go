@@ -629,9 +629,10 @@ func (c *ctx) ready(stdout io.Writer) error {
 	}
 	review := []string{"review", c.id}
 	if len(stale) > 0 {
-		// kanban review も受け取られていない問いで断る。外した問いのほかは無いと上で確かめたので、押し切る
-		// （押し切った問いの番号は log.jsonl の行の forced に残る）
-		review = append(review, "--force")
+		// kanban review も受け取られていない問いで断る。越えてよいのは外した問いだけなので、その番号を名指す。
+		// --force にすると、上の確かめのあとに kanban ask で足された問いまで越えてしまう（kanban は名指しの外の問いで、
+		// 台帳の lock の中で断る）。越えた問いの番号は log.jsonl の行の forced に残る
+		review = append(review, "--past", strings.Join(slices.Sorted(maps.Keys(stale)), ","))
 	}
 	out, err := c.l.Run("", review...)
 	if err != nil {

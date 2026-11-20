@@ -44,7 +44,7 @@
       "additionalProperties": false
     },
     "change": {
-      "description": "The keys that changed, with their new value (null for a removed key); kanban set writes any key so. Besides issue.yaml keys: add for a new issue, report for kanban report, question for a question's status, forced for the questions kanban done or review --force moved past, freedBy for an issue moved out of queued by kanban done.",
+      "description": "The keys that changed, with their new value (null for a removed key); kanban set writes any key so. Besides issue.yaml keys: add for a new issue, report for kanban report, question for a question's status, forced for the questions kanban done or review --force (or --past, only those it names) moved past, freedBy for an issue moved out of queued by kanban done.",
       "type": "object",
       "properties": {
         "add": { "description": "A new issue's title (kanban add).", "type": "string" },
