@@ -62,7 +62,16 @@ cmp -s "$tmp/s0" "$tmp/s1" && pass "--dry-run は .andon/ の今あるファイ�
 rm -r .andon
 grep -q '^+ docker build -t andon-x:local ' "$tmp/out" && pass "イメージを andon-x:local で焼く" || fail "build: $(cat "$tmp/out")"
 grep -q '^+ docker compose --project-name andon-x --project-directory .* -f .andon/compose.yaml up -d$' "$tmp/out" && pass "compose の project は andon-x" || fail "up: $(cat "$tmp/out")"
-grep -q '^+ docker compose .* exec .* dev herdr$' "$tmp/out" && pass "入口は herdr" || fail "enter: $(cat "$tmp/out")"
+! grep -q ' exec ' "$tmp/out" && pass "引数なしは起動だけ（herdr に入らない）" || fail "引数なしで入った: $(cat "$tmp/out")"
+grep -q '^\[andon-x\] 開く: Herdr App で machine andon-x を選ぶ' "$tmp/out" && grep -q '^\[andon-x\] TUI で入るなら: bin/bootstrap herdr$' "$tmp/out" &&
+  pass "引数なしは App での開き方と TUI の打ち方を出す" || fail "案内: $(cat "$tmp/out")"
+for sub in herdr enter; do
+  sandbox bash bin/bootstrap --dry-run $sub >"$tmp/out2" 2>"$tmp/err"; r=$?
+  [ "$r" = 0 ] && grep -q '^+ docker compose --project-name andon-x .* up -d$' "$tmp/out2" && grep -q '^+ docker compose .* exec .* dev herdr$' "$tmp/out2" &&
+    pass "$sub は起動して herdr に入る" || fail "$sub: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+done
+sandbox bash bin/bootstrap --dry-run up >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -q ' up -d$' "$tmp/out2" && ! grep -q ' exec \|開く:' "$tmp/out2" && pass "up は起動だけで案内も出さない" || fail "up: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 
 sandbox bash bin/bootstrap --dry-run host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -q "install -m 755 $home/.local/bin/andon-up" "$tmp/out" && [ ! -e "$home/.local" ] && [ ! -e "$home/.config" ] && pass "host-install --dry-run は HOME に書かない" || fail "host-install --dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"
@@ -142,7 +151,7 @@ sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 rm .env
 
 # セルの repo のオーナーが uid 1000 でなければ、起動する前に止まって回り道を出す（down・status・host-install は止めない）
-for sub in "" up sh rebuild; do
+for sub in "" up herdr sh rebuild; do
   sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run $sub >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 1 ] && grep -q 'uid 1001' "$tmp/err" && grep -q '回り道' "$tmp/err" && ! grep -q 'docker' "$tmp/out" \
     && pass "オーナーが 1001 なら '${sub:-enter}' は起動する前に止まる" || fail "オーナー 1001 で ${sub:-enter}: rc=$r $(cat "$tmp/out" "$tmp/err")"

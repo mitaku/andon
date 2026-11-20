@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # セルの入口。ホストに要るのは docker と bash だけ。
 #
-#   bin/bootstrap                起動して herdr に入る（セッションは残るので、もう一度打てば戻る）
-#   bin/bootstrap up             起動だけ（入らない）
+#   bin/bootstrap                起動だけ（入らない）。最後に Herdr App での開き方と、TUI で入る打ち方を出す
+#   bin/bootstrap up             起動だけ（入らない。案内も出さない）
+#   bin/bootstrap herdr          起動して herdr（TUI）に入る（セッションは残るので、もう一度打てば戻る。enter も同じ）
 #   bin/bootstrap sh             herdr を介さず bash で入る（退避用）
 #   bin/bootstrap down           止める（volume は残る）
 #   bin/bootstrap logs           起動の記録を追う
@@ -323,7 +324,14 @@ dotenv() {
 }
 
 case "${1:-}" in
-  "" | enter)
+  "")
+    require_docker
+    require_owner
+    ensure_up
+    echo "[$project] 開く: Herdr App で machine $project を選ぶ（無ければ bin/bootstrap host-install のあと、Add Machine で $project を足す）"
+    echo "[$project] TUI で入るなら: bin/bootstrap herdr"
+    ;;
+  herdr | enter)
     require_docker
     require_owner
     ensure_up
@@ -355,9 +363,9 @@ case "${1:-}" in
     fi
     host_install
     ;;
-  -h | --help | help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h | --help | help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)
-    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 2
     ;;
 esac
