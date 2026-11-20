@@ -91,4 +91,43 @@ grep -q "^== $tmp/s.sh（FAIL exit 4" <<<"$out" || die "s.sh の exit 4 が伝�
 grep -qx 's1' <<<"$out" && die "流した出力が見出しの下に重ねて出た"
 grep -qx 'a1' <<<"$out" || die "流さない a.sh がまとまって出ていない"
 ok "run-tests: ANDON_TEST_STREAM は溜めずに印付きで流し、exit を伝える"
+# command の出力を読む検査（ANDON_TEST_EMIT_READER）: 同じ回の emitters に ANDON_EMIT_DIR を渡し、終わってから読み手を
+# ANDON_EMITTED で起動する。読み手は emitters の1度目の実行が写したものと終了コード・出力を読める。渡していない emitter の結果は無い
+em="$tmp/em"; mkdir "$em"
+q=$(printf %q "$em")
+printf 'if [ "${1:-}" = --emitters ]; then printf "%%s\\n" %s/e1.sh %s/e2.sh %s/e3.sh; exit 0; fi\n' "$q" "$q" "$q" >"$em/r.sh"
+cat >>"$em/r.sh" <<'EOF'
+echo "emitted=${ANDON_EMITTED:+set}"
+[ -n "${ANDON_EMITTED:-}" ] || exit 0
+echo "out1=$(cat "$ANDON_EMITTED/out/e1.json")"
+echo "st1=$(cat "$ANDON_EMITTED/e1.status") st2=$(cat "$ANDON_EMITTED/e2.status")"
+echo "log1=$(cat "$ANDON_EMITTED/e1.log")"
+[ -e "$ANDON_EMITTED/e3.status" ] && echo "e3=ran" || echo "e3=none"
+EOF
+printf 'echo e1-log; sleep 0.3; echo e1-out >"$ANDON_EMIT_DIR/e1.json"\n' >"$em/e1.sh"
+printf 'echo e2-log; exit 5\n' >"$em/e2.sh"
+printf 'touch %s/e3-ran\n' "$q" >"$em/e3.sh"
+printf 'echo "a-emit=${ANDON_EMIT_DIR:-none}"\n' >"$em/a.sh"
+set +e
+out=$(ANDON_TEST_JOBS=4 ANDON_TEST_EMIT_READER="$em/r.sh" GITHUB_ACTIONS=false \
+  bash tests/lib/run-tests.sh "$em/r.sh" "$em/e1.sh" "$em/e2.sh" "$em/a.sh")
+st=$?
+set -e
+[ "$st" = 1 ] || die "落ちた e2.sh があるのに exit $st"
+grep -qx 'emitted=set' <<<"$out" || die "読み手に ANDON_EMITTED が渡らない: $out"
+grep -qx 'out1=e1-out' <<<"$out" || die "読み手が e1.sh の写したものを読めない（e1.sh を待たずに起動した）: $out"
+grep -qx 'st1=0 st2=5' <<<"$out" || die "emitters の終了コードが置かれていない: $out"
+grep -qx 'log1=e1-log' <<<"$out" || die "emitters の出力が置かれていない: $out"
+grep -qx 'e3=none' <<<"$out" || die "渡していない e3.sh の結果がある: $out"
+[ ! -e "$em/e3-ran" ] || die "渡していない e3.sh を run-tests が走らせた"
+grep -qx 'a-emit=none' <<<"$out" || die "emitters でない a.sh に ANDON_EMIT_DIR が渡った: $out"
+[ "$(grep -n "^== $em/e1.sh" <<<"$out" | cut -d: -f1)" -lt "$(grep -n "^== $em/r.sh" <<<"$out" | cut -d: -f1)" ] || die "読み手が e1.sh より先に終わった: $out"
+grep -q "^| $em/r.sh | ok |" <<<"$out" || die "読み手が表に ok と出ない: $out"
+# emitters を1本も渡さない回は、読み手に ANDON_EMITTED を渡さない（読み手が自分で走らせる）
+out=$(ANDON_TEST_EMIT_READER="$em/r.sh" GITHUB_ACTIONS=false bash tests/lib/run-tests.sh "$em/r.sh" "$em/a.sh")
+grep -qx 'emitted=' <<<"$out" || die "emitters が無い回に ANDON_EMITTED が渡った: $out"
+# 既定の読み手は tests/schema.sh で、emitters の並びをそこから読む
+[ "$(bash tests/schema.sh --emitters | grep -c '^tests/andon-.*\.sh$')" -ge 9 ] || die "tests/schema.sh --emitters が emitters を出さない"
+while IFS= read -r e; do [ -f "$e" ] || die "tests/schema.sh --emitters の $e が無い"; grep -q 'ANDON_EMIT_DIR' "$e" || die "$e が ANDON_EMIT_DIR に写さない"; done < <(bash tests/schema.sh --emitters)
+ok "run-tests: 読み手（tests/schema.sh）は同じ回の emitters が写したものを読み、回し直さない。emitters を待ってから起動する"
 ok "run-tests: 出力を1本ずつまとめ、所要時間の表・skip・落ちたときの exit 1"
