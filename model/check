@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # model/check: 課題の一生のモデル（IssueLife.tla）が規則（IssueRules.tla）を守るかを、検査器 tla-ts で確かめる（ADR-0025）。
 # 手元も CI（.github/workflows/model.yml）もこれを打つ。全部通れば終了コード 0。
-#   1. 本物のモデルが規則を全部守り、どの状態からも先がある。調べる規則は控え（expected.txt の rule）と同じ
+#   1. 本物のモデルが規則を全部守り、どの状態からも先がある。調べる規則は控え（expected.txt の rule）と同じ。
+#      規則は 2 種類: IssueRules.cfg の INVARIANT（検査器が調べる）と「\* REACH」の行（状態の図を reach.mjs が読む。ADR-0032 決めたこと 9）
 #   2. 状態の数が控え（expected.txt の states）と同じ
-#   3. 壊した見本（broken/）がどれも、控え（expected.txt の broken）に書いた規則の破れで落ちる
+#   3. 壊した見本（broken/）がどれも、控え（expected.txt の broken）に書いた規則の破れで落ちる（REACH の規則の見本は、INVARIANT を守ったうえで落ちる）
 #   4. モデルの状態の図と課題の状態の定義（process/states/issue.yaml）を、対応表（issue-map.txt）で 2 方向に照らす（conform.mjs）
 # 検査器は package-lock.json のとおりに一時の場所へ入れ（install のスクリプトは走らせない）、npm の置き場も一時の場所にする。
 # 検査器はモデルの写しを一時の場所で回すので、repo にも HOME にも書かない。
@@ -44,11 +45,27 @@ show() { sed 's/^/     | /' "$tmp/out" | tail -40 >&2; }
 echo "検査器: $name"
 rules=$(sed -n 's/^INVARIANT //p' "$here/IssueRules.cfg")
 [ -n "$rules" ] || fail "IssueRules.cfg に INVARIANT の行が無い"
+# REACH の行: \* REACH <規則> <変数> = <値> EXCEPT <除く行動…>
+reaches=$(sed -n 's/^\\\* REACH \([A-Za-z0-9_][A-Za-z0-9_]*\) /\1 /p' "$here/IssueRules.cfg")
+reach_names=$(awk '{ print $1 }' <<<"$reaches" | sed '/^$/d')
+while read -r r v eq val ex _; do
+  [ -n "$r" ] || continue
+  [ "$eq" = "=" ] && [ -n "$val" ] && [ "${ex:-EXCEPT}" = EXCEPT ] || fail "IssueRules.cfg の REACH $r の行が「<規則> <変数> = <値> EXCEPT <除く行動…>」の形でない"
+done <<<"$reaches"
+# reach <状態の図> <規則>: REACH の行のとおりに reach.mjs を打つ（出力は $tmp/reach、終了コードは $code）
+reach() {
+  code=0
+  local line
+  line=$(awk -v r="$2" '$1 == r' <<<"$reaches")
+  read -r r v _ val _ ex <<<"$line"
+  read -ra skip <<<"${ex:-}"
+  node "$here/reach.mjs" "$1" "$r" "$v" "$val" "${skip[@]}" >"$tmp/reach" 2>&1 || code=$?
+}
 need=$(awk '$1 == "rule" { print $2 }' "$here/expected.txt" | sort)
 [ -n "$need" ] || fail "expected.txt に rule の行が無い"
-have=$(tr ' ' '\n' <<<"$rules" | sed '/^$/d' | sort)
+have=$( (tr ' ' '\n' <<<"$rules"; echo "$reach_names") | sed '/^$/d' | sort)
 if [ "$have" != "$need" ]; then
-  fail "IssueRules.cfg の INVARIANT が控え（expected.txt の rule）と違う: 足りない $(comm -13 <(echo "$have") <(echo "$need") | tr '\n' ' ')・控えに無い $(comm -23 <(echo "$have") <(echo "$need") | tr '\n' ' ')"
+  fail "IssueRules.cfg の INVARIANT と REACH が控え（expected.txt の rule）と違う: 足りない $(comm -13 <(echo "$have") <(echo "$need") | tr '\n' ' ')・控えに無い $(comm -23 <(echo "$have") <(echo "$need") | tr '\n' ' ')"
 fi
 want=$(awk '$1 == "states" { print $2 }' "$here/expected.txt")
 [ -n "$want" ] || fail "expected.txt に states の行が無い"
@@ -63,6 +80,14 @@ got=$(grep -oE '[0-9,]+ distinct states found' "$tmp/out" | tail -1 | cut -d' ' 
 [ -n "$got" ] || { show; fail "検査器の出力に状態の数が無い"; }
 echo "ok   規則が通る（IssueRules.cfg の INVARIANT $(wc -w <<<"$rules" | tr -d ' ') 本。どの状態からも先がある）:"
 for r in $rules; do echo "       $r"; done
+for r in $reach_names; do
+  reach "$tmp/graph.dot" "$r"
+  if [ "$code" -ne 0 ]; then
+    sed 's/^/     | /' "$tmp/reach" >&2
+    fail "モデルが規則 $r を破った（状態の図を reach.mjs が読んだ。上の行）"
+  fi
+  cat "$tmp/reach"
+done
 [ "$got" = "$want" ] || fail "状態の数が控えと違う: 数えた $got・控え $want（モデルを変えたなら expected.txt の states を直す。変えていないなら検査器を疑う）"
 echo "ok   状態の数 $got が控え（expected.txt）と同じ"
 
@@ -77,6 +102,21 @@ while read -r kind module rule; do
   n=$((n + 1))
   [ -f "$here/broken/$module.tla" ] || fail "見本 broken/$module.tla が無い"
   sed 's/^SPECIFICATION Spec$/SPECIFICATION BrokenSpec/' "$here/IssueRules.cfg" >"$tmp/run/$module.cfg"
+  if grep -qx "$rule" <<<"$reach_names"; then
+    rm -f "$tmp/broken.dot"
+    check "$module" "$module.cfg" -dump dot,actionlabels "$tmp/broken.dot"
+    if [ "$code" -ne 0 ] || ! grep -q "Model checking completed. No error has been found." "$tmp/out"; then
+      show
+      fail "見本 $module が INVARIANT の破れで落ちた・検査器が終わらなかった（終了コード $code。$rule の破れだけで落ちるはず）"
+    fi
+    reach "$tmp/broken.dot" "$rule"
+    if [ "$code" -ne 1 ] || ! grep -q "^FAIL $rule:" "$tmp/reach"; then
+      sed 's/^/     | /' "$tmp/reach" >&2
+      fail "見本 $module が $rule の破れで落ちない（reach.mjs の終了コード $code）"
+    fi
+    echo "ok   見本 $module は $rule の破れで落ちる（$(sed -n 's/^     行動の並び: //p' "$tmp/reach")）"
+    continue
+  fi
   check "$module" "$module.cfg"
   if [ "$code" -eq 0 ]; then
     show

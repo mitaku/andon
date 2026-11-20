@@ -7,7 +7,8 @@ BrokenFinishStep ==
     /\ worker' = IF worker = "none" THEN "none" ELSE "gone"
     /\ wt' = IF wt = "none" THEN "none" ELSE "removed"
     /\ status' = IF q THEN status ELSE "done"
-    /\ reviewing' = FALSE
+    /\ reviewing' = {}
+    /\ UNCHANGED <<ci, result, headSeen, dirty>>
 
 BrokenCancels ==
     /\ status \in {"doing", "review"} /\ pr # "merged" /\ ~cancel
@@ -17,9 +18,11 @@ BrokenCancels ==
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ WorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves
-    \/ ChiefOfStaffSendsBack \/ WorkerTakesFix \/ DispatcherMerges \/ HumanMerges
+    \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
+    \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ BrokenCancels \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars

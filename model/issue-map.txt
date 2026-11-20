@@ -11,6 +11,8 @@ action ChiefOfStaffStarts andon issue start
 action WorkerAsks andon issue ask
 action AnswerReceived -
 action WorkerOpensPR andon issue report
+action CIFinishes -
+action WorkerPushes -
 action ReviewerStarts andon issue review-request
 action ReviewerReturns -
 action WorkerReady andon issue ready
@@ -20,9 +22,11 @@ action GateSaysFix -
 action GateAsksHuman andon issue ask
 action GateApproves -
 action ChiefOfStaffSendsBack -
+action ChiefOfStaffRevives -
 action WorkerTakesFix kanban start
 action DispatcherMerges andon issue finish・andon issue ask
-action HumanMerges -
+action HumanMergesDecided -
+action HumanMergesEarly -
 action SettleFinishes andon issue finish
 action ChiefOfStaffCancels andon issue finish
 action Done -

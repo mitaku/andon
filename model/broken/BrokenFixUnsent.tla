@@ -6,13 +6,16 @@ EXTENDS IssueRules
 BrokenGateSaysFix ==
     /\ status = "review" /\ gate = "none" /\ pr = "open"
     /\ gate' = "fix" /\ fixSent' = (worker = "live")
-    /\ UNCHANGED <<status, worker, wt, pr, reviewing, told, q, cancel, mergeAuto>>
+    /\ dirty' = (dirty \/ result # "old")
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ WorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ BrokenGateSaysFix \/ GateAsksHuman \/ GateApproves
-    \/ ChiefOfStaffSendsBack \/ WorkerTakesFix \/ DispatcherMerges \/ HumanMerges
+    \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
+    \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
