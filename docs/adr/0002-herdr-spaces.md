@@ -4,6 +4,33 @@
 - 主題: Chief of Staff・Chief Engineer・担当とレビュアーを、人の Herdr App（herdrdev/herdr-app）の Space と tab にどう置くか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は端末のラベル（[contract.md](../contract.md) §8）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | Space は プロジェクト × 2 段（指揮側と作業側）にする | `docs/adr/0003-task-spaces.md` | 覆された → ADR-0003（作業側の 2 段目。指揮側の Space は生きている） |
+| 2 | 作業側の tab は課題 1 つにする | `docs/adr/0003-task-spaces.md` | 覆された → ADR-0003（作業側は Space が課題ごと） |
+| 3 | 片付けは端末が消えて tab と Space が空になるのに任せる | `internal/issue/finish.go` | 生きている |
+| 4 | 人が起動する 2 役は command が attach までを一度にする | この ADR | 覆された → この ADR の 14 |
+| 5 | レビュアーは担当と同じ `herdr.tab` を付けて並べる | `internal/dispatcher/loop.go` | 生きている |
+| 6 | `herdr.space` と `herdr.tab` の id は command が決定的に作る | `docs/contract.md` §8 | 生きている |
+| 7 | 実装の前に試作で Space と tab の動きを確かめる | この ADR | 役目を終えた |
+| 8 | Chief Engineer の tab は担当と同じ規則で指揮側の Space に出す | `internal/chiefengineer/chiefengineer.go` | 生きている |
+| 9 | 仮設の建屋の `yard task` には入れない | この ADR | 役目を終えた |
+| 10 | 指揮側はプロジェクトごとの Space に確定する | `internal/chiefofstaff/chiefofstaff.go` | 生きている（作業側の 2 段目は ADR-0003 が覆した） |
+| 11 | Chief Engineer は worktree で起動したまま指揮側の Space に出す | `internal/chiefengineer/chiefengineer.go` | 生きている |
+| 12 | 作業側の tab を課題 1 つにし、レビュアーを同じ tab に並べると確定する | `docs/adr/0003-task-spaces.md` | 覆された → ADR-0003（作業側の tab は担当の 1 つ。レビュアーが並ぶ点は生きている） |
+| 13 | id を command が決定的に作ると確定する | `docs/contract.md` §8 | 生きている |
+| 14 | command の attach をやめ、出た場所を「Space 名 / tab 名」で出す | `internal/chiefofstaff/chiefofstaff.go`・`internal/chiefengineer/chiefengineer.go` | 生きている |
+| 15 | 名前は同梱の App の mod が端末のラベルから付ける | `package/host/andon/main.js` | 生きている |
+| 16 | Space と tab の名前の規則（`CoS`・`CE <id> <題>`・`<id> <題>`）を決める | `package/host/andon/main.js` | 生きている（作業側の Space 名は ADR-0003 が替えた） |
+| 17 | 人に端末を指す言い方を「Space 名 / tab 名」にする | `internal/chiefofstaff/chiefofstaff.go` | 生きている |
+| 18 | Chief of Staff と Chief Engineer のアイコンを役ごとに変える | この ADR | まだ実装していない（App の tab のアイコンを決める `programs.json` の項目が repo に無い） |
+| 19 | `--on <machine>` の同じラベルは、作業側を別マシンに出す課題へ回す | `internal/issue/start.go` | まだ実装していない（machine 付きの課題はまだ起動せずに止まる） |
+| 20 | mod の置き場は `HERDR_APP_HOME` から順に選ぶ | `init/bin/bootstrap` | 生きている |
+| 21 | 伝令を App に出す置き場を台帳の数で決める | この ADR | 覆された → この ADR の 22 |
+| 22 | 21 の係の名前を dispatcher に改める | `package/host/andon/main.js`・`internal/dispatcher/terminal.go` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュアー）が人の Herdr App の画面でどう見えるかを、ラインの構造に合わせて揃えたい。今は `hc run` で起動した担当・レビュアーが、起動した Chief of Staff の tab の下にペインの無い子として畳まれ、人の窓口である Chief of Staff・人と設計を話す Chief Engineer・黙って働く担当が 1 つの Space に混ざる。困りごとは「人が答えるべきものを見つけられない」ではなく、ラインの流れ（どのプロジェクトで誰が何人、今どこか）が Space と tab の構造に写っていないこと。TPS で言う大部屋（obeya）の見える化で、見た目の好みの話ではない（人が同意 2026-11-05）。

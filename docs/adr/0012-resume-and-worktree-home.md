@@ -5,6 +5,27 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
 - 入力: 題（人の1行。2026-11-10）、人の発言（2026-11-10。「再度起すときは resume したほうがいいんじゃないかなぁ」「マウントするか worktree のディレクトリを検討する必要あるね」「workspace に .worktree とかを置くとかがいいんじゃないかな？」）、Chief of Staff の経緯（A-0010・A-0033・A-0033 のレビュアーが 02:14 の起き直しで素のシェルに戻り、worktree が消えた。`andon issue start` が「branch がもうある」で止まった）、`internal/issue/start.go`・`finish.go`、`internal/spawn/spawn.go`、`internal/dispatcher/pickup.go`・`loop.go`・`fallback.go`、`package/compose.yaml`・`internal/boot/owners.go`、`package/templates/*.md`、[dispatcher.md](../dispatcher.md) §2.3・§2.8、[operate.md](../operate.md) §8（引っ越し）、[image.md](../image.md)（信頼の表）、[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表、CoS skill の止まった担当の表、Claude Code 2.1.322 と Codex 0.166.0 の `--help`、セルでの実測（別の cwd から `claude --resume <id> --fork-session` が通る。`hc get` の `keep: true` と argv・cwd・ラベルの保持）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 起動し直しは resume を基本にする | `internal/issue/resume.go` | 生きている |
+| 2 | 担当向けの指針の口を `AGENTS.worker.md` にし、起動の最初のメッセージで指す | `internal/spawn/spawn.go` | 生きている |
+| 3 | 入口は新しい command `andon issue resume <id> [--dry-run] [--fresh]` | `internal/issue/resume.go` | 生きている |
+| 4 | 起動するのは dispatcher で、1 つの死につき 1 回にする | `internal/dispatcher/route.go` | 生きている |
+| 5 | セッションは記録せず「その cwd の最新」を続ける | この ADR | 覆された → この ADR の 11 |
+| 6 | worktree の置き場を `/workspace/.worktrees/<repo 名>/<slug>-<id>` にする | `internal/spawn/spawn.go` | 生きている |
+| 7 | resume できないときは止まり、人の go で `--fresh` にする | `internal/issue/resume.go` | 生きている |
+| 8 | レビュアーも resume の対象にする | `internal/issue/resume.go` | 生きている |
+| 9 | Chief Engineer も resume の対象にする | `internal/issue/resume.go` | 生きている |
+| 10 | resume のコンテキストの読み直しのコストは受け入れる | この ADR | 生きている |
+| 11 | セッションを Andon が記録し、id で resume する | `internal/issue/resume.go`・`internal/sessionlog/sessionlog.go` | 生きている |
+| 12 | `andon chief-engineer` は戻った端末を片付けない | `internal/chiefengineer/chiefengineer.go` | 生きている |
+| 13 | 反論で直した細部（resume の手順・worktree 周りの 6 点） | この ADR | 生きている |
+| 14 | 実装で決めた細部（R2。resume の入口の周り） | この ADR | 生きている |
+| 15 | 実装で決めた細部（R3。dispatcher の自動 resume の周り） | この ADR | 生きている |
+| 16 | 実装で決めた細部（R4。起動の最初のメッセージの周り） | この ADR | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 セルのコンテナが起き直すと、担当とレビュアーのプログラムは死に、herdr の端末は素のシェルとして残る。ハーネス（Claude Code・Codex）の会話の記録はボリュームに載っていて残るのに、Andon にはそれを続きから起動する入口が無い。`andon issue start` は新しい branch と worktree を作る一本道なので、PR と branch がある課題では「branch がもうある」で止まり、Chief of Staff は finish → todo → start でコンテキストを捨てて起動し直すしかなかった。困りごとは「起動し直すたびに担当のコンテキスト（読んだもの・決めたこと・レビューのやりとり）を捨てる」こと。worktree の置き場（`~/.herdr/worktrees`）がボリュームに無く、起き直しで消えたのは、それを悪くする別の欠け。

@@ -5,6 +5,30 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束は「決めたこと」に形を書き、実装の課題が写す（それまでは提案）。
 - 入力: 題（オーナーの1行。2026-11-09）、オーナーの発言（2026-11-09。「自動マージ率は重要だが、顧客の価値の最大化を踏まえたループが重要」「人の他に、Sentry や Cloudflare、Linear、GitHub が Signal になるといい」「Cell で動く層とリポジトリで動く層が違う」）、[design.md](../design.md) §1.4・§1.9 (a)・§5.1・§6 問い23、[contract.md](../contract.md) §6 の `signal` の行、[dispatcher.md](../dispatcher.md) §7、[vision.md](../vision.md) §4、[ADR-0006](0006-survey-fix-decide.md) 前提 11、[ADR-0009](0009-cos-default-entry.md) 決めたこと 9（価値の仮説の見出し）、ADR-0010（提案中。届ける／記録だけの線）、[ledger.md](../ledger.md) の Routines、triage skill の判定表。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | この文書では決める人を「オーナー」と書く | この ADR | 生きている（この文書の書き方） |
+| 2 | ADR-0006 前提 11 のうち、信号の口と本番が示したものを次の信号にする線を動かす | この ADR | 生きている |
+| 3 | 最初に入れる出所は GitHub の main の CI の失敗と issue にする | `internal/signal/signal.go` | 生きている |
+| 4 | Chief Engineer の文書の「価値の仮説」の節を必須にし、「無し: <理由>」を許す | `package/skills/chief-engineer/SKILL.md` | 生きている |
+| 5 | dispatcher の 1 巡に `andon signal collect` を入れる | `internal/dispatcher/signals.go` | 生きている |
+| 6 | 届け方は出所ごとの重さ（`now`／`later`）で分ける | `schema/project.schema.json` | 生きている |
+| 7 | 観察の課題を `not_before` つきで `queued` に足す | `docs/process/observe.md` | 生きている |
+| 8 | `now` の信号はフィンガープリントごとに最初に見たときだけ届ける | `internal/signal/signal.go` | 生きている |
+| 9 | GitHub の issue は open のもの全部を `later` で読む | `internal/signal/signal.go` | 生きている |
+| 10 | トークンは `andon signal auth` で置き、GitHub は `gh` の資格情報を使う | `internal/signal/cmd.go` | 生きている |
+| 11 | `project.json` に任意のキー `signals` を足す | `schema/project.schema.json` | 生きている |
+| 12 | 価値の仮説の節を 6 項目にする | `package/skills/chief-engineer/SKILL.md` | 生きている |
+| 13 | 観察の結果が外れても、ラインは何もしない | `docs/process/observe.md` | 生きている |
+| 14 | Cloudflare の出所は Workers の Issues から読む | この ADR | まだ実装していない（Sentry・Linear・Cloudflare を読む command が無い） |
+| 15 | 課題が done になったら、出所のトラッカーに結果を書く | `internal/issue/writeback.go` | 生きている（書くのは GitHub の issue だけ） |
+| 16 | 信号の記録 1 件の形を `signal.schema.json` で決める | `schema/signal.schema.json` | 生きている |
+| 17 | リリースの名前にマージ commit の SHA を付ける約束をする | `docs/contract.md` §16 | 生きている |
+| 18 | measure の先頭の「価値」の行を、仮説を確かめた数などに替える | `internal/measure/measure.go` | 生きている |
+| 19 | トラッカーへのコメントは課題 id を書かず、外の人が読む文にする | `internal/issue/writeback.go` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 いまの Andon は、仕事の入口が「人との会話」と「台帳の溜まり」の2つしかない。出荷したあとに起きること（main の CI の失敗・GitHub の issue・Sentry のエラー・Linear の票・利用者の声）は、人が気づいて人が運んで来ないとラインに入らない。人が信号の運び屋になっていて、委譲を広げるほど「壊れたら灯る」（design.md §1.4）が成り立たなくなる。欲しいのは2つ。(a) 外の出所が自分からラインに入る受け口を、セルの層に1つ足すこと。(b) Chief Engineer が題を決めるときに「誰の何が変わるか・何で分かるか・いつ見るか」を価値の仮説として書き、見る日に信号を読んで「当たった／外れた／分からない」を人に返す線を持つこと。これで自動マージ率や介在率は「人の時間を何を作るかへ回す手段」の位置に戻り、目的の指標（価値の仮説が当たったか）がその上に立つ。
