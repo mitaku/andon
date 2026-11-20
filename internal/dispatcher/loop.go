@@ -314,7 +314,11 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 	// 2. レビュアーの課題（一度だけ足す）
 	title := fmt.Sprintf("%s のレビュー（%d 回目）", id, rr.Round)
 	if r.ReviewerIssue == "" {
-		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, owner+"/"+name, number), "add", title, "--profile", s.Reviewer, "--parent", id, "--round", strconv.Itoa(rr.Round), "--brief", "-")
+		var sp span
+		if rr.Previous != nil {
+			sp = reviewSpan(dir, "https://github.com/"+owner+"/"+name, rep.PR, *rr.Previous, rr.Commit)
+		}
+		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, sp, owner+"/"+name, number), "add", title, "--profile", s.Reviewer, "--parent", id, "--round", strconv.Itoa(rr.Round), "--brief", "-")
 		if err != nil || !idRe.MatchString(rev) {
 			return fmt.Sprintf("レビュアーの課題を足せない: %v %q", err, rev), false
 		}
@@ -436,7 +440,9 @@ func workerPlace(agent string) []string {
 
 // reviewerBrief はレビュアーの依頼書（independent-review skill の §4 の型）。plan と担当の報告は見せない。
 // 結果の宛先は元の課題の担当（issue.yaml の agent）に固定する。Chief of Staff へは送らない（dispatcher が届ける）。
-func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Reviewer, repo, number string) string {
+// 再レビューの差分の範囲は sp（reviewSpan）で決める。前の回の commit が今の commit の祖先なら `git diff 前..今`、
+// rebase をまたいだら PR 自身の差分どうしの違い（`git range-diff`）、確かめられなければレビュアーが確かめる手順。
+func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Reviewer, sp span, repo, number string) string {
 	rr := rep.ReviewRequest
 	agent := t.Str("agent")
 	// 置き場は絶対パスで渡す。相対（「自分の課題の library/」）だと kanban の外（<slug>/issues/）に書いたレビュアーがいた（A-0216）。
@@ -447,7 +453,7 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	fmt.Fprintf(&b, "PR #%s（%s）を独立にレビューする。読むだけ。\n", number, repo)
 	fmt.Fprintf(&b, "対象: worktree `%s`（detached）。commit %s。差分は `gh pr diff %s`（PR の base との差）。\n", r.Worktree, rr.Commit, rep.PR)
 	if rr.Previous != nil {
-		fmt.Fprintf(&b, "再レビュー: 前の回の commit %s。見るのは `git diff %s..%s` だけ。前の回に「問題なし」の観点はやり直さない。\n", *rr.Previous, *rr.Previous, rr.Commit)
+		b.WriteString(reReviewRange(*rr.Previous, rr.Commit, rep.PR, sp))
 		b.WriteString("この回は直しの確認だけ: 前の回の指摘が直ったか・直しが壊していないか。新しい指摘は critical で、起きる条件と証拠（具体的な入力 → 結果）があるものだけ書く（gate も、前の回に無い file の critical でない指摘は数えない）。\n")
 	}
 	fmt.Fprintf(&b, "仕様の正: 元の課題の依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n\n", filepath.Join(l.Dir, "issues", r.Issue, "brief.md"))
@@ -475,6 +481,86 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	fmt.Fprintf(&b, "宛先は %s の issue.yaml の agent（`kanban show %s --json` の .issue.agent。起動した時点では %s）。", r.Issue, r.Issue, orNone(agent))
 	b.WriteString("Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。\n")
 	return b.String()
+}
+
+// span は再レビューで見せる差分の範囲（reviewSpan が決める）。
+type span struct {
+	Unknown bool   // 前の回の commit が今の commit の祖先か確かめられなかった（前の回の commit が手元に無い）
+	Rebased bool   // 祖先でない（rebase をまたいだ・commit を作り直した）
+	Old     string // Rebased のとき、前の回の commit と PR の base の merge-base（空なら base が読めなかった）
+	New     string // Rebased のとき、今の commit と PR の base の merge-base
+}
+
+// reviewSpan は、前の回の commit prev が今の commit の祖先かを repo の clone（dir）で確かめ、再レビューの範囲を返す。
+// 祖先でなければ `git diff prev..commit` は base に入ったほかの変更まで含む（rebase をまたいだ再レビューで、PR の 36 ファイルに
+// 対し 140 ファイルを見せていた）。そのときは PR の base の今の先頭（gh の baseRefOid）を fetch し、それぞれの merge-base を返す。
+// prev が手元に無ければ url から fetch して確かめ直す。読めないものがあれば Unknown か、Old・New を空のまま返す（依頼書が手順で補う）。
+func reviewSpan(dir, url, pr, prev, commit string) span {
+	git := func(args ...string) (string, int, error) {
+		return run("", nil, "", "git", append([]string{"-C", dir}, args...)...)
+	}
+	ancestor := func() int {
+		_, code, err := git("merge-base", "--is-ancestor", prev, commit)
+		if err == nil {
+			return 0
+		}
+		return code
+	}
+	c := ancestor()
+	if c != 0 && c != 1 { // 前の回の commit が手元に無い（1 は「祖先でない」、それ以外は確かめられない）
+		_, _, _ = git("fetch", "-q", url, prev) // 取れなければ次の確かめが Unknown にする
+		c = ancestor()
+	}
+	switch c {
+	case 0:
+		return span{}
+	case 1:
+	default:
+		return span{Unknown: true}
+	}
+	sp := span{Rebased: true}
+	out, _, err := run("", nil, "", "gh", "pr", "view", pr, "--json", "baseRefOid", "-q", ".baseRefOid")
+	base := strings.TrimSpace(out)
+	if err != nil || !contract.IsSHA(base) {
+		return sp
+	}
+	if _, _, err := git("cat-file", "-e", base+"^{commit}"); err != nil {
+		if _, _, err := git("fetch", "-q", url, base); err != nil {
+			return sp
+		}
+	}
+	o, _, oerr := git("merge-base", prev, base)
+	n, _, nerr := git("merge-base", commit, base)
+	if o, n = strings.TrimSpace(o), strings.TrimSpace(n); oerr == nil && nerr == nil && contract.IsSHA(o) && contract.IsSHA(n) {
+		sp.Old, sp.New = o, n
+	}
+	return sp
+}
+
+// reReviewRange は依頼書の「再レビュー:」の段（sp ごとに見る範囲が変わる）。
+func reReviewRange(prev, commit, pr string, sp span) string {
+	const tail = "前の回に「問題なし」の観点はやり直さない。\n"
+	switch {
+	case sp.Unknown:
+		return fmt.Sprintf("再レビュー: 前の回の commit %s。dispatcher はこれが今の commit の祖先か確かめられなかった。"+
+			"先に `git merge-base --is-ancestor %s %s` を打ち、通れば見るのは `git diff %s..%s` だけ。"+
+			"通らなければ rebase をまたいでいて、`git diff` は base に入ったほかの変更まで含むので使わない。PR 自身の差分 `gh pr diff %s` で、前の回の指摘の所を見る。"+tail,
+			prev, prev, commit, prev, commit, pr)
+	case sp.Rebased && sp.Old != "":
+		return fmt.Sprintf("再レビュー: 前の回の commit %s。これは今の commit の祖先でない（rebase をまたいだ）。"+
+			"`git diff %s..%s` は base に入ったほかの変更まで含むので使わない。"+
+			"見るのは PR 自身の差分どうしの違い `git range-diff %s..%s %s..%s` だけ（それぞれの commit と PR の base の merge-base から数えた PR の commit を、前の回と今の回で突き合わせる）。"+
+			"読み方: commit の対応の行の `=` は中身が同じ、`!` は変わった（下に差分の差分。1列目の `-`・`+` が前の回から今の回への違い、2列目は PR の差分そのものの印。rebase で衝突を解いた行もここに出る）、"+
+			"`<` は消えた commit、`>` は今の回で足した commit で、中身は出ないので `git show <その commit>` で読む。"+
+			"直しを前後ごと読むときは `gh pr diff %s`（今の PR の差分全体）の該当の所を見る。"+tail,
+			prev, prev, commit, sp.Old, prev, sp.New, commit, pr)
+	case sp.Rebased:
+		return fmt.Sprintf("再レビュー: 前の回の commit %s。これは今の commit の祖先でない（rebase をまたいだ）。"+
+			"`git diff %s..%s` は base に入ったほかの変更まで含むので使わない（dispatcher は PR の base を読めなかった）。"+
+			"PR 自身の差分 `gh pr diff %s` で、前の回の指摘の所を見る。"+tail,
+			prev, prev, commit, pr)
+	}
+	return fmt.Sprintf("再レビュー: 前の回の commit %s。見るのは `git diff %s..%s` だけ。"+tail, prev, prev, commit)
 }
 
 func orNone(s string) string {
