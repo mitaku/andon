@@ -67,16 +67,20 @@ def ecma_pattern(pattern):
 
 
 def divergent(pattern):
-    """ECMA-262 と Python の re で意味が割れる表現を返す（schema/ の pattern には使わない）。
+    """ECMA-262・Python の re・Go の regexp（andon が書く前に照らす検査器）で意味が割れるか、どれかで読めない表現を返す
+    （schema/ の pattern には使わない）。
 
-    `.`（行区切り文字 U+2028 などの扱い）と、`\\s` `\\d` `\\w` `\\b` とその大文字（Unicode の範囲）。
+    意味が割れる: `.`（行区切り文字 U+2028 などの扱い）と、`\\s` `\\d` `\\w` `\\b` とその大文字（Unicode の範囲）。
     代わりに明示した ASCII の文字クラスで書く。`$` は ecma_pattern が合わせるので使ってよい。
+    Go で読めない: 先読み・後読み（`(?=` `(?!` `(?<=` `(?<!`）、後方参照（`\\1` など）、`\\u` の逃がし。
+    文字は `\\x00` の形で書き、先読みは段ごとの選択肢に書き直す。
     """
     found, i, in_class = [], 0, False
     while i < len(pattern):
         c = pattern[i]
         if c == "\\":
-            if pattern[i + 1:i + 2] in set("sSdDwWbB"):
+            nxt = pattern[i + 1:i + 2]
+            if nxt in set("sSdDwWbBu123456789"):
                 found.append(pattern[i:i + 2])
             i += 2
             continue
@@ -86,6 +90,11 @@ def divergent(pattern):
             in_class = True
         elif c == ".":
             found.append(".")
+        elif c == "(":
+            for look in ("(?=", "(?!", "(?<=", "(?<!"):
+                if pattern.startswith(look, i):
+                    found.append(look)
+                    break
         i += 1
     return found
 
@@ -232,7 +241,7 @@ def lint_schema(schema):
                 errs.append(f"{at}.{k}: 英語でない（ASCII の外の字がある）")
         if isinstance(sub.get("pattern"), str):
             for d in divergent(sub["pattern"]):
-                errs.append(f"{at}.pattern: ECMA-262 と Python で意味が割れる {d} を使っている（明示した ASCII の文字クラスで書く）")
+                errs.append(f"{at}.pattern: ECMA-262・Python・Go で意味が割れるか読めない {d} を使っている（divergent の説明の形で書く）")
         for name, prop in sub.get("properties", {}).items():
             if not name.isascii():
                 errs.append(f"{at}: 識別子 {name} が英語でない")

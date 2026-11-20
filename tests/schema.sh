@@ -100,8 +100,8 @@ done <<'SELF'
 0|{"type": "array", "uniqueKeys": ["id"]}|[{"id": 1}, {"id": true}]|uniqueKeys: 1 と true は重ならない（JSON の等しさ）
 SELF
 
-# schema の決まりのうち、ECMA-262 と Python で意味が割れる表現を pattern に使わないこと（使えば lint が落ちる）
-for p in '^a.b$' '^[^/\s]+$' '^\d+$' '^\w+$' '^\bx$'; do
+# schema の決まりのうち、ECMA-262・Python・Go で意味が割れるか読めない表現を pattern に使わないこと（使えば lint が落ちる）
+for p in '^a.b$' '^[^/\s]+$' '^\d+$' '^\w+$' '^\bx$' '^(?!/)x$' '^(?=x)x$' '^(?<=x)y$' '^(?<!x)y$' '^(a)\1$' '^[^\u0000-\u001f]*$'; do
   self=$((self + 1))
   jq -n --arg p "$p" '{"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://andon.example.com/schema/x/1",
                        "description": "x", "type": "string", "pattern": $p}' >"$tmp/div-$self.schema.json"
@@ -703,7 +703,7 @@ project|."$defs".grant.required -= ["id"]|grant の必須から id を外す
 project|.required -= ["repos"]|project の必須から repos を外す
 project|."$defs".delegation.additionalProperties = true|delegation の知らないキーを許す
 report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
-findings|."$defs".finding.properties.file.pattern = "^[^\\u0000-\\u001f\\u007f]+$"|file の .. の段の検査を外す
+findings|."$defs".finding.properties.file.pattern = "^[^\\x00-\\x1f\\x7f]+$"|file の .. の段の検査を外す
 candidates|del(.properties.candidates.uniqueKeys)|候補の id の一意を外す
 candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_scope を外す
 candidates|.additionalProperties = true|候補の一覧の知らないキーを許す
