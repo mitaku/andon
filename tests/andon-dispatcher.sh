@@ -598,7 +598,7 @@ rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p
 review_by "$rev" '[{"severity":"major","file":"docs/a.md","line":1}]'
 as_worker "$id" ready
 dispatcher
-grep -q "^t7	$id（説明を足す）: ゲートが fix を返した。理由: Must fix 以上が 1 件" "$tmp/hc/sent" || die "fix が担当に届いていない: $(cat "$tmp/hc/sent" 2>/dev/null)"
+grep -q "^t7	\[gate\] $id（説明を足す）: ゲートが fix を返した。理由: Must fix 以上が 1 件" "$tmp/hc/sent" || die "fix が担当に届いていない: $(cat "$tmp/hc/sent" 2>/dev/null)"
 [ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
 recorded "$id" gate | jq -e '.detail.decision == "fix"' >/dev/null && [ "$(pending "$id" gate)" = null ] || die 'gate: fix を記録だけにしていない'
 dispatcher
@@ -742,7 +742,7 @@ mpoll "$pa"; : > "$tmp/dispatcher.log"; dispatcher
 grep -q "$pa の PR https://github.com/example/app/pull/7 の head がゲートの判定（approve）のあとに動いた（${old:0:12} → ${head:0:12}）。ゲートを回し直す" "$tmp/dispatcher.log" ||
     die "回し直しをログに書いていない: $(grep "$pa" "$tmp/dispatcher.log")"
 [ "$(hv "$pa")" = "fix $head" ] && [ -e "$L/issues/$pa/library/gate/$head.json" ] || die "今の head でゲートを回し直していない: $(hv "$pa")"
-grep -q "^t7	$pa（.*）: ゲートが fix を返した。理由: .*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die "回し直したゲートの fix が担当に届いていない: $(grep "$pa" "$tmp/hc/sent")"
+grep -q "^t7	\[gate\] $pa（.*）: ゲートが fix を返した。理由: .*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die "回し直したゲートの fix が担当に届いていない: $(grep "$pa" "$tmp/hc/sent")"
 mpoll "$pa"; n=$(polls); dispatcher
 [ "$(polls)" = "$n" ] || die 'fix を決めたあとも PR の head を聞いた（担当が ready し直す）'
 ok 'merge: person の approve のあとに PR の head が動いたら、1分に1回だけ聞いて気づき、今の head でゲートを回し直す（report.json と違うので fix を担当へ）'
@@ -1110,8 +1110,8 @@ for first in '{"sent":false,"reason":"t9 is still starting: its output has not s
   printf '{"address":"%s","state":"live","status":{"state":"idle"},"status_ms":%s,"turn":1,"labels":{"first_message.sent":"false"}}\n' "$addr" "$(date +%s%3N)" > "$tmp/hc/term-$addr.json"
   dispatcher
   [ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die "二重に起動した（$first）"
-  [ "$(grep -c "^$addr	課題 \`demo/$rev\`。" "$tmp/hc/sent")" = 1 ] || die "同じ端末へレビュアーの最初のメッセージを送り直していない（$first）"
-  grep -A2 "^$addr	課題" "$tmp/hc/sent" | grep -q "^先に \`.*/skills/worker/SKILL.md\` を読む。" || die "送り直した文がレビュアーの最初のメッセージでない（$first）"
+  [ "$(grep -c "^$addr	\[dispatcher\] 課題 \`demo/$rev\`。" "$tmp/hc/sent")" = 1 ] || die "同じ端末へレビュアーの最初のメッセージを送り直していない（$first）"
+  grep -A2 "^$addr	\[dispatcher\] 課題" "$tmp/hc/sent" | grep -q "^先に \`.*/skills/worker/SKILL.md\` を読む。" || die "送り直した文がレビュアーの最初のメッセージでない（$first）"
   grep -qx "$addr first_message.sent=" "$tmp/hc/labels" || die "送り直したのにラベルを外していない（$first）"
   # ラベルが外れたので、idle のままでももう送らない（外しそこねたときは控えの first が守る。first_test.go）
   printf '{"address":"%s","state":"live","status":{"state":"idle"},"status_ms":%s,"turn":1,"labels":{}}\n' "$addr" "$(date +%s%3N)" > "$tmp/hc/term-$addr.json"
@@ -1293,7 +1293,7 @@ dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'ゲートのあと push されたのにマージした'
 grep -q "$id をいまはマージしない.*PR の head がゲートのあとに動いた（${old:0:12} → ffffffffffff）" "$tmp/dispatcher.log" || die '止めた理由がログに無い'
 dispatcher
-grep -q "^t7	$id（CI が走り直す）: ゲートが fix を返した。理由: .*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die "回し直したゲートが fix を担当へ返していない: $(tail -n 2 "$tmp/hc/sent" 2>/dev/null)"
+grep -q "^t7	\[gate\] $id（CI が走り直す）: ゲートが fix を返した。理由: .*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die "回し直したゲートが fix を担当へ返していない: $(tail -n 2 "$tmp/hc/sent" 2>/dev/null)"
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die '回し直しでマージした'
 ok 'マージの直前に PR の head と GitHub の checks を読み直し、checks が変わった・head が動いたら打たない（回し直したゲートが担当へ fix）'
 
@@ -1815,7 +1815,7 @@ clear_pending; pk
 ! grep -q '^w23	' "$tmp/hc/sent" 2>/dev/null && jq -e --arg k "$v|w23" '.retry[$k].since > 0 and .retry[$k].n == 0' "$pst" >/dev/null || die '初めて見た切断にすぐ打った・見た時刻を控えない'
 jq --arg k "$v|w23" '.retry[$k].since = 0' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"   # 見てから 1 分たった
 pk
-[ "$(grep -c "^w23	一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die 'プロバイダに切られた担当に続きを打たない・知らせた'
+[ "$(grep -c "^w23	\[dispatcher\] 一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を" "$tmp/hc/sent")" = 1 ] && [ "$(pp "$v" error)" = '[]' ] || die 'プロバイダに切られた担当に続きを打たない・知らせた'
 pk
 [ "$(grep -c '^w23	' "$tmp/hc/sent")" = 1 ] || die '2分を待たずに続きを打った'
 jq --arg k "$v|w23" '.retry[$k] = {n: 4, at: 0}' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"

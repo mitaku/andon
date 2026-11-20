@@ -100,7 +100,7 @@ func (f *firstFixture) round() []string {
 func TestFirstMessageResent(t *testing.T) {
 	f := newFirst(t)
 	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
-	send := "send t42 課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
+	send := "send t42 [dispatcher] 課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
 
 	// 信頼の画面などで止まっている間は送らない（次の見回りへ持ち越す）
 	f.put("status", "blocked")
@@ -137,7 +137,7 @@ func TestFirstMessageResentWithBody(t *testing.T) {
 	f.template("claude", "---\nname: claude\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n")
 	f.p.tasks[0]["profile"] = "claude"
 	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
-	want := "send t42 役目の1文目。|役目の2文目。||課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
+	want := "send t42 [dispatcher] 役目の1文目。|役目の2文目。||課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
 	if got := f.round(); len(got) != 2 || got[0] != want || got[1] != "label t42 first_message.sent=" {
 		t.Fatalf("本文つきで送っていない: %q", got)
 	}
@@ -248,7 +248,7 @@ func TestFirstMessageReviewer(t *testing.T) {
 	f := newFirst(t)
 	f.p.tasks = []ledger.Issue{{"id": "S-8", "status": "doing", "agent": "t43", "parent": "S-7", "profile": "codex-review"}}
 	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-8", "brief.md")
-	send := "send t43 課題 `sample-site/S-8`。|依頼書は `" + brief + "`。|先に `" + filepath.Join(home(), "skills", "worker", "SKILL.md") + "` を読む。"
+	send := "send t43 [dispatcher] 課題 `sample-site/S-8`。|依頼書は `" + brief + "`。|先に `" + filepath.Join(home(), "skills", "worker", "SKILL.md") + "` を読む。"
 	if got := f.round(); len(got) != 2 || got[0] != send || got[1] != "label t43 first_message.sent=" {
 		t.Fatalf("1回目: %q", got)
 	}
@@ -295,17 +295,25 @@ func TestFirstMessageLeftInInput(t *testing.T) {
 		t.Fatalf("押したあとにまた打った: %q", got)
 	}
 
+	// dispatcher が前に送った印つきの文が残っている: 同じく Enter だけ押す
+	f = newFirst(t)
+	brief = filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
+	f.put("screen", "\n────\n❯ [dispatcher] 課題 `sample-site/S-7`。\n  依頼書は `"+brief+"`。\n────\n")
+	if got := f.round(); len(got) != 2 || got[0] != "keys t42 enter" {
+		t.Fatalf("印つきで残っている入力欄: %q", got)
+	}
+
 	// 入力欄にサジェストが出ている（色が無いと文と見分けられない）: 残っているとはみず、送る
 	f = newFirst(t)
 	f.put("screen", "────\n❯ Try \"fix lint errors\"\n────\n")
-	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 課題 ") {
+	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 [dispatcher] 課題 ") {
 		t.Fatalf("サジェストの入力欄: %q", got)
 	}
 
 	// 画面の上に同じ行（送った文の写し）があっても、入力欄が空なら送る
 	f = newFirst(t)
 	f.put("screen", "❯ 課題 `sample-site/S-7`。\n\n⏺ 読む\n────\n❯ \n────\n")
-	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 課題 ") {
+	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 [dispatcher] 課題 ") {
 		t.Fatalf("入力欄が空: %q", got)
 	}
 

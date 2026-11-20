@@ -635,7 +635,9 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 			p.logf("%s の担当 %s に最初のメッセージを送らない（控えを書けない。次の見回りで）: %v", id, agent, err)
 			return false
 		}
-		args := []string{"send", agent, msg}
+		// 先頭に送り手の印を置く（端末の外から送るので hc の包みが付かない。spawn.Mark）。
+		// 入力欄に残った文は印の無い1行目で照らす（hc run が貼った文には印が無く、印つきの行にも1行目は含まれる）
+		args := []string{"send", agent, spawn.Mark(spawn.FromDispatcher, msg)}
 		if left {
 			args = []string{"keys", agent, "enter"}
 		}
@@ -725,7 +727,7 @@ func (p *project) seen(agent string) (Seen, bool) {
 func (p *project) retry(agent string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "hc", "send", agent, RetryText)
+	cmd := exec.CommandContext(ctx, "hc", "send", agent, spawn.Mark(spawn.FromDispatcher, RetryText))
 	cmd.Env = withoutTerminal()
 	return cmd.Run() == nil
 }

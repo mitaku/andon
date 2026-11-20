@@ -214,6 +214,33 @@ func WithBody(template, msg string) string {
 	return body + "\n\n" + msg
 }
 
+// 機械の送り手の名前。dispatcher とゲート（andon issue merge の差し戻し）は端末の外から hc send するので、文に hc の包み
+// （<hc from=…>）が付かず、受け手のセッションログでは人が打った文と同じ印（origin.kind: human）になる。
+// そこで担当・レビュアーへ送る文の先頭に、送り手の名前を角括弧で1つ置く（Mark）。人の文を抜く処理はこの印で外す（Marked）。
+const (
+	FromDispatcher = "dispatcher"
+	FromGate       = "gate"
+)
+
+// machineFrom は印に使う送り手の名前（Marked が照らす）。
+var machineFrom = []string{FromDispatcher, FromGate}
+
+// Mark は msg の先頭に送り手 from の印（"[<from>] "）を置いた文。文の中身は変えない。
+func Mark(from, msg string) string {
+	return "[" + from + "] " + msg
+}
+
+// Marked は s が機械の送り手の印（Mark）で始まる文か。先頭の空白は見ない。
+func Marked(s string) bool {
+	s = strings.TrimLeft(s, " \t\r\n")
+	for _, f := range machineFrom {
+		if strings.HasPrefix(s, "["+f+"] ") {
+			return true
+		}
+	}
+	return false
+}
+
 // SendCommand は届かなかった最初のメッセージを手で送る行（hc send <addr> '<本文つきの文>'）。人がそのまま shell に貼れるよう、
 // 文は POSIX シェルの単引用符で包む（本文の `…` や $ を展開させず、改行は改行のまま渡す）。msg は hc run に渡した課題の文。
 func SendCommand(addr, template, msg string) string {

@@ -368,7 +368,7 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, err)
 		}
 	}
-	if _, _, err := run("", nil, "", "hc", "send", r.Address, msg); err != nil {
+	if _, _, err := run("", nil, "", "hc", "send", r.Address, spawn.Mark(spawn.FromDispatcher, msg)); err != nil {
 		return fmt.Sprintf("%s（%s）に最初のメッセージを送れない: %v（次の見回りで送り直す）", rev, r.Address, err), false
 	}
 	return "", false
