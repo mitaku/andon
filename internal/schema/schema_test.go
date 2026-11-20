@@ -31,6 +31,8 @@ func TestCheck(t *testing.T) {
 	bad := write(t, dir, "bad.json", `{"commit": "x"}`)
 	file := filepath.Join("..", "..", "schema", "report.schema.json")
 	unknown := write(t, dir, "f.schema.json", `{"type": "string", "format": "date"}`)
+	branch := write(t, dir, "b.schema.json", `{"$defs": {"list": {"type": "array", "uniqueKeys": ["id"]}}, "anyOf": [{"$ref": "#/$defs/list"}]}`)
+	dup := write(t, dir, "dup.json", `[{"id": "same"}, {"id": "same"}]`)
 	for _, c := range []struct {
 		name    string
 		stdin   string
@@ -46,6 +48,7 @@ func TestCheck(t *testing.T) {
 		{"標準入力", `{"commit": "x"}`, []string{"check", "report", "-"}, 1, "に合わない", ""},
 		{"知らない名前", "", []string{"check", "reports", good}, 2, "", "埋め込んだ schema に reports は無い"},
 		{"知らないキーワード", "", []string{"check", unknown, good}, 2, "", "検査器の知らないキーワード"},
+		{"分岐の中の $ref の先の uniqueKeys", "", []string{"check", branch, dup}, 2, "", "$ref #/$defs/list の先の uniqueKeys"},
 		{"JSON でない", "{", []string{"check", "report", "-"}, 2, "", "JSON でない"},
 		{"無い JSON", "", []string{"check", "report", filepath.Join(dir, "none.json")}, 2, "", "JSON が読めない"},
 		{"無い schema", "", []string{"check", filepath.Join(dir, "none.schema.json"), good}, 2, "", "schema が読めない"},

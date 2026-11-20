@@ -189,6 +189,13 @@ func TestCompileRefusesWhatItDoesNotRead(t *testing.T) {
 		{"anyOf の中の uniqueKeys", `{"anyOf": [{"type": "array", "uniqueKeys": ["id"]}]}`},
 		{"if の中の uniqueKeys", `{"if": {"type": "array"}, "then": {"uniqueKeys": ["id"]}}`},
 		{"not の下の properties の uniqueKeys", `{"not": {"properties": {"a": {"uniqueKeys": ["id"]}}}}`},
+		{"anyOf の中の $ref の先の uniqueKeys", `{"$defs": {"list": {"type": "array", "uniqueKeys": ["id"]}}, "anyOf": [{"$ref": "#/$defs/list"}]}`},
+		{"then の中の $ref の先の $ref の先の uniqueKeys",
+			`{"$defs": {"a": {"properties": {"x": {"$ref": "#/$defs/b"}}}, "b": {"uniqueKeys": ["id"]}}, "if": {"type": "object"}, "then": {"$ref": "#/$defs/a"}}`},
+		{"oneOf の中の $ref が根を指し、根に uniqueKeys", `{"uniqueKeys": ["id"], "oneOf": [{"$ref": "#"}]}`},
+		{"uniqueKeys が文字列", `{"type": "array", "uniqueKeys": "id"}`},
+		{"uniqueKeys が数", `{"type": "array", "uniqueKeys": 1}`},
+		{"uniqueKeys に空の名前", `{"type": "array", "uniqueKeys": [""]}`},
 	} {
 		if _, err := Compile("x", []byte(c.schema)); err == nil || !strings.Contains(err.Error(), "検査器の知らないキーワード") {
 			t.Errorf("%s: 断らない・誤りの文が違う: %v", c.name, err)
@@ -198,6 +205,7 @@ func TestCompileRefusesWhatItDoesNotRead(t *testing.T) {
 		`{"type": "array", "uniqueKeys": ["id"], "items": {"$ref": "#/$defs/x"}, "$defs": {"x": {"type": "object"}}}`,
 		`{"allOf": [{"properties": {"a": {"uniqueKeys": ["id"]}}}]}`,
 		`{"$defs": {"x": {"type": "array", "uniqueKeys": ["id"]}}, "properties": {"a": {"$ref": "#/$defs/x"}}}`,
+		`{"$defs": {"x": {"type": "string"}, "l": {"items": {"$ref": "#/$defs/l"}}}, "anyOf": [{"$ref": "#/$defs/x"}, {"$ref": "#/$defs/l"}]}`,
 	} {
 		if _, err := Compile("x", []byte(ok)); err != nil {
 			t.Errorf("読める schema を断った: %s: %v", ok, err)
@@ -228,6 +236,8 @@ func TestCheckerUniqueKeys(t *testing.T) {
 		{`{"a": [{"id": {"k": 1, "j": 2}}, {"id": {"j": 2, "k": 1}}]}`, false},
 		{`{"a": [{"id": "c1", "sub": [{"id": "d"}, {"id": "d"}]}]}`, false},
 		{`{"t": [[{"id": 1}, {"id": 1.0}]]}`, false},
+		{`{"a": [{"id": 9007199254740992}, {"id": 9007199254740993}]}`, true},
+		{`{"a": [{"id": 1e2}, {"id": 100}]}`, false},
 		{`{"z": [{"id": "c1"}, {"id": "c1"}]}`, false},
 		{`{"a": [{"id": "c1"}], "t": [[{"id": "c1"}]], "z": [{"id": "c1"}]}`, true},
 	} {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math/big"
 	"os"
 	"slices"
 	"strings"
@@ -125,7 +126,7 @@ func Compile(name string, b []byte) (*Checker, error) {
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil, fmt.Errorf("%s が読めない: %v", name, err)
 	}
-	if unknown := unknownKeywords(raw, "$", false, nil); len(unknown) > 0 {
+	if unknown := unknownKeywords(raw, raw, "$", false, nil); len(unknown) > 0 {
 		return nil, fmt.Errorf("%s に検査器の知らないキーワード: %s", name, strings.Join(unknown, ", "))
 	}
 	var js jsonschema.Schema
@@ -159,20 +160,30 @@ func CompileFile(path string) (*Checker, error) {
 }
 
 // Check は JSON の b がこの schema に合うかを確かめる。合わなければ *MismatchError、JSON でなければほかの誤り。
+// uniqueKeys は数を丸めずに読んだ値で比べる（float64 にすると 2^53 を超える別の整数が重なって見える）。
 func (c *Checker) Check(b []byte) error {
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
 		return fmt.Errorf("%s と照らせない（JSON でない）: %v", c.name, err)
 	}
-	return c.CheckValue(v)
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.UseNumber()
+	var exact any
+	if err := d.Decode(&exact); err != nil {
+		return fmt.Errorf("%s と照らせない（JSON でない）: %v", c.name, err)
+	}
+	return c.check(v, exact)
 }
 
 // CheckValue は JSON を読んだ値 v（map[string]any・[]any・float64 など）がこの schema に合うかを確かめる。
-func (c *Checker) CheckValue(v any) error {
+func (c *Checker) CheckValue(v any) error { return c.check(v, v) }
+
+// check は v を既製の検査器で、exact（数を json.Number で持つ同じ値でもよい）を uniqueKeys で照らす。
+func (c *Checker) check(v, exact any) error {
 	if err := c.resolved.Validate(v); err != nil {
 		return &MismatchError{Schema: c.name, Reason: err.Error()}
 	}
-	if dup := c.uniqueKeys(c.raw, v, "$", 0); len(dup) > 0 {
+	if dup := c.uniqueKeys(c.raw, exact, "$", 0); len(dup) > 0 {
 		return &MismatchError{Schema: c.name, Reason: strings.Join(dup, "; ")}
 	}
 	return nil
@@ -180,8 +191,10 @@ func (c *Checker) CheckValue(v any) error {
 
 // unknownKeywords は schema の中の部分 schema を全部たどり、Keywords に無いキーワードを「場所: キーワード」で返す。
 // uniqueKeys を読まない場所（anyOf・oneOf・not・if・then・else の中。branch が true）の uniqueKeys も返す。
+// その場所の $ref が指す先（その先の $ref も）に uniqueKeys があるときも返す。
 // 読まないのに置けると、一意を確かめたつもりで確かめない schema になるため。
-func unknownKeywords(s any, at string, branch bool, out []string) []string {
+// uniqueKeys の値が名前（文字列）の配列でないときも返す（読めない値を黙って空と読まない）。root は $ref を解く schema 全体。
+func unknownKeywords(root map[string]any, s any, at string, branch bool, out []string) []string {
 	m, ok := s.(map[string]any)
 	if !ok {
 		return out
@@ -192,33 +205,81 @@ func unknownKeywords(s any, at string, branch bool, out []string) []string {
 			out = append(out, at+": "+k)
 		case k == "uniqueKeys" && branch:
 			out = append(out, at+": uniqueKeys（anyOf・oneOf・not・if・then・else の中では読まない）")
+		case k == "uniqueKeys" && !names(m[k]):
+			out = append(out, at+": uniqueKeys（値はキーの名前の配列にする）")
+		case k == "$ref" && branch:
+			if ref, _ := m[k].(string); reachesUniqueKeys(root, pointer(root, ref), map[string]bool{ref: true}) {
+				out = append(out, at+": $ref "+ref+" の先の uniqueKeys（anyOf・oneOf・not・if・then・else の中では読まない）")
+			}
 		}
 	}
 	for _, k := range []string{"properties", "$defs"} {
 		sub, _ := m[k].(map[string]any)
 		for _, name := range slices.Sorted(maps.Keys(sub)) {
-			// $defs は $ref から読むので、置き場が分岐の中でなければ読む
-			out = unknownKeywords(sub[name], at+"."+k+"."+name, branch, out)
+			// $defs は $ref から読むので、置き場が分岐の中でなければ読む（分岐の中の $ref からは上で見る）
+			out = unknownKeywords(root, sub[name], at+"."+k+"."+name, branch, out)
 		}
 	}
 	for _, k := range []string{"additionalProperties", "items", "not", "if", "then", "else"} {
 		inBranch := branch || k == "not" || k == "if" || k == "then" || k == "else"
-		out = unknownKeywords(m[k], at+"."+k, inBranch, out)
+		out = unknownKeywords(root, m[k], at+"."+k, inBranch, out)
 	}
 	for _, k := range []string{"prefixItems", "oneOf", "anyOf", "allOf"} {
 		list, _ := m[k].([]any)
 		for i, sub := range list {
 			inBranch := branch || k == "oneOf" || k == "anyOf"
-			out = unknownKeywords(sub, fmt.Sprintf("%s.%s[%d]", at, k, i), inBranch, out)
+			out = unknownKeywords(root, sub, fmt.Sprintf("%s.%s[%d]", at, k, i), inBranch, out)
 		}
 	}
 	return out
 }
 
+// names は uniqueKeys の値がキーの名前（空でない文字列）の配列か。
+func names(v any) bool {
+	l, ok := v.([]any)
+	if !ok {
+		return false
+	}
+	for _, x := range l {
+		if s, _ := x.(string); s == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// reachesUniqueKeys は部分 schema s のどこか（$ref の先を含む。seen は辿った $ref）に uniqueKeys があるか。
+func reachesUniqueKeys(root map[string]any, s any, seen map[string]bool) bool {
+	switch s := s.(type) {
+	case map[string]any:
+		if _, ok := s["uniqueKeys"]; ok {
+			return true
+		}
+		if ref, ok := s["$ref"].(string); ok && !seen[ref] {
+			seen[ref] = true
+			if reachesUniqueKeys(root, pointer(root, ref), seen) {
+				return true
+			}
+		}
+		for _, v := range s {
+			if reachesUniqueKeys(root, v, seen) {
+				return true
+			}
+		}
+	case []any:
+		for _, v := range s {
+			if reachesUniqueKeys(root, v, seen) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // uniqueKeys は拡張のキーワード uniqueKeys（配列の object の要素で、名前を並べたキーの値が重ならない）を確かめ、
 // 重なりを「場所: 値 が重なる」で返す。キーの無い要素は数えない。等しさは JSON の等しさ（1 と true は別）。
 // たどるのは、値の形に沿って決まる部分 schema（$ref・allOf・properties・additionalProperties・items・prefixItems）だけ。
-// anyOf・oneOf・not・if・then・else の中の uniqueKeys は読まない（schema_check.py の lint が置かせない）。
+// anyOf・oneOf・not・if・then・else の中の uniqueKeys は読まない（Compile が置かせない。そこから $ref で届く先に置いたものも断る）。
 func (c *Checker) uniqueKeys(s map[string]any, v any, at string, depth int) []string {
 	if s == nil || depth > 256 { // $ref の輪で止まらない schema への守り
 		return nil
@@ -245,11 +306,12 @@ func (c *Checker) uniqueKeys(s map[string]any, v any, at string, depth int) []st
 				if !ok {
 					continue
 				}
-				j, _ := json.Marshal(val)
-				if seen[string(j)] {
-					bad = append(bad, fmt.Sprintf("%s[%d].%s: %s が重なる", at, i, key, j))
+				j := canonical(val)
+				if seen[j] {
+					shown, _ := json.Marshal(val)
+					bad = append(bad, fmt.Sprintf("%s[%d].%s: %s が重なる", at, i, key, shown))
 				}
-				seen[string(j)] = true
+				seen[j] = true
 			}
 		}
 		prefix := asList(s["prefixItems"])
@@ -275,15 +337,48 @@ func (c *Checker) uniqueKeys(s map[string]any, v any, at string, depth int) []st
 	return bad
 }
 
+// canonical は JSON の値の等しさの鍵。数は値で比べ（1 と 1.0 は同じ。json.Number は丸めない）、object はキーの順によらない。
+// 1 と true、"1" と 1 は別。
+func canonical(v any) string {
+	switch v := v.(type) {
+	case json.Number:
+		if r, ok := new(big.Rat).SetString(string(v)); ok {
+			return "n" + r.RatString()
+		}
+		return "n" + string(v)
+	case float64:
+		if r := new(big.Rat).SetFloat64(v); r != nil {
+			return "n" + r.RatString()
+		}
+	case []any:
+		parts := make([]string, len(v))
+		for i, x := range v {
+			parts[i] = canonical(x)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	case map[string]any:
+		parts := make([]string, 0, len(v))
+		for _, k := range slices.Sorted(maps.Keys(v)) {
+			kb, _ := json.Marshal(k)
+			parts = append(parts, string(kb)+":"+canonical(v[k]))
+		}
+		return "{" + strings.Join(parts, ",") + "}"
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
 // pointer は同じ schema の中の $ref（#/$defs/x の形）が指す部分 schema。解けなければ nil（ライブラリが先に断る）。
-func (c *Checker) pointer(ref string) map[string]any {
+func (c *Checker) pointer(ref string) map[string]any { return pointer(c.raw, ref) }
+
+func pointer(root map[string]any, ref string) map[string]any {
 	if ref == "#" {
-		return c.raw
+		return root
 	}
 	if !strings.HasPrefix(ref, "#/") {
 		return nil
 	}
-	var node any = c.raw
+	var node any = root
 	for _, part := range strings.Split(ref[2:], "/") {
 		part = strings.ReplaceAll(strings.ReplaceAll(part, "~1", "/"), "~0", "~")
 		m, ok := node.(map[string]any)
