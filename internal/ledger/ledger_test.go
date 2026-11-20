@@ -174,3 +174,37 @@ func TestConfigReadsReposAnyForm(t *testing.T) {
 		}
 	}
 }
+
+func TestTakenByChiefOfStaff(t *testing.T) {
+	cos := func(v any) Row { return Row{By: "andon", Config: map[string]any{"chief_of_staff": v}} }
+	agent := func(id, a string) Row {
+		return Row{By: "terminal:" + a, ID: id, Change: map[string]any{"status": "doing", "agent": a}}
+	}
+	for _, c := range []struct {
+		name string
+		rows []Row
+		want bool
+	}{
+		{"Chief of Staff が受けて、あとで起き直した", []Row{cos("t5"), agent("S-7", "t5"), cos("t6")}, true},
+		{"担当が受けた", []Row{cos("t5"), agent("S-7", "t9"), cos("t6")}, false},
+		{"Chief of Staff だったアドレスを、あとで担当が使った", []Row{cos("t5"), cos("t6"), agent("S-7", "t5")}, false},
+		{"Chief of Staff が受けたあと、担当が受け直した", []Row{cos("t5"), agent("S-7", "t5"), agent("S-7", "t9")}, false},
+		{"chief_of_staff を消したあとに受けた", []Row{cos("t5"), cos(nil), agent("S-7", "t5")}, false},
+		{"config の行が無い", []Row{agent("S-7", "t5")}, false},
+		{"前の名前（coordinator）の行で Chief of Staff だったときに受けた", []Row{{By: "andon", Config: map[string]any{"coordinator": "t5"}}, agent("S-7", "t5"), cos("t6")}, true},
+		{"ほかの課題の行", []Row{cos("t5"), agent("S-8", "t5")}, false},
+	} {
+		last := ""
+		for _, r := range c.rows {
+			if r.ID == "S-7" {
+				last = r.Change["agent"].(string)
+			}
+		}
+		if last == "" {
+			last = "t5"
+		}
+		if got := TakenByChiefOfStaff(c.rows, "S-7", last); got != c.want {
+			t.Errorf("%s: %v（want %v）", c.name, got, c.want)
+		}
+	}
+}

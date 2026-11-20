@@ -287,3 +287,58 @@ func TestRouteResumed(t *testing.T) {
 		t.Fatal("resumed を届ける")
 	}
 }
+
+// 前の Chief of Staff が自分で kanban start した課題は、Chief of Staff が起き直して chief_of_staff が替わっても担当の課題として見ない:
+// 端末が Gone でも resume を打たず、finished も知らせない。同じアドレスが後で担当に使われたら、今までどおり resume する。
+func TestPastChiefOfStaffIssueNotWatched(t *testing.T) {
+	cosRow := func(addr string) ledger.Row {
+		return ledger.Row{At: "2026-11-01T00:00:00Z", By: "andon", Config: map[string]any{"chief_of_staff": addr}}
+	}
+	agentRow := ledger.Row{At: "2026-11-01T00:01:00Z", By: "terminal:t42", ID: "S-7", Change: map[string]any{"status": "doing", "agent": "t42"}}
+	round := func(f *resumeFixture) []string {
+		f.t.Helper()
+		os.Remove(filepath.Join(f.d, "andon"))
+		f.p.watch(time.Now(), "t50")
+		b, _ := os.ReadFile(filepath.Join(f.d, "andon"))
+		if s := strings.TrimSpace(string(b)); s != "" {
+			return strings.Split(s, "\n")
+		}
+		return nil
+	}
+
+	f := newResume(t)
+	f.put("next", "t43")
+	f.p.rows = []ledger.Row{cosRow("t42"), agentRow, cosRow("t50")}
+	for i := 0; i < 2; i++ { // 1回目は resume の道、2回目は finished の道
+		if got := round(f); got != nil {
+			t.Fatalf("%d 回目: 前の Chief of Staff の課題に打った: %q（%s）", i+1, got, f.log.String())
+		}
+	}
+	if p := f.pending(); len(p) != 0 {
+		t.Fatalf("前の Chief of Staff の課題を知らせた: %q", p)
+	}
+	if _, ok := f.p.st.Resumed["S-7"]; ok {
+		t.Fatalf("前の Chief of Staff の死を控えた: %+v", f.p.st.Resumed)
+	}
+
+	// 2026-11-06 より前の台帳は、移り変わりの行が coordinator の名前で残る
+	f = newResume(t)
+	f.put("next", "t43")
+	f.p.rows = []ledger.Row{{At: "2026-11-01T00:00:00Z", By: "andon", Config: map[string]any{"coordinator": "t42"}}, agentRow, cosRow("t50")}
+	for i := 0; i < 2; i++ {
+		if got := round(f); got != nil {
+			t.Fatalf("coordinator の行: %d 回目: 前の Chief of Staff の課題に打った: %q（%s）", i+1, got, f.log.String())
+		}
+	}
+	if p := f.pending(); len(p) != 0 {
+		t.Fatalf("coordinator の行: 前の Chief of Staff の課題を知らせた: %q", p)
+	}
+
+	// 当たる場合も確かめる: 同じアドレスを Chief of Staff だったあとに担当が使ったら、担当の死として resume する
+	f = newResume(t)
+	f.put("next", "t43")
+	f.p.rows = []ledger.Row{cosRow("t42"), cosRow("t50"), agentRow}
+	if got := round(f); len(got) != 1 || got[0] != "issue resume S-7" {
+		t.Fatalf("担当の死に resume を打たない: %q（%s）", got, f.log.String())
+	}
+}

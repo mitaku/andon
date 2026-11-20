@@ -448,6 +448,9 @@ func (p *project) watch(now time.Time, cos string) {
 		if agent == cos {
 			continue // Chief of Staff の端末は人が打つので、担当として見ない（打たない。chiefCut が見る。ADR-0019 決めたこと 4）
 		}
+		if ledger.TakenByChiefOfStaff(p.rows, id, agent) {
+			continue // 前の Chief of Staff が自分で受けた課題。起き直してアドレスが変わっても担当の死として resume・finished にしない
+		}
 		if !idRe.MatchString(id) || !agentRe.MatchString(agent) {
 			continue
 		}

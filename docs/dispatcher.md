@@ -188,6 +188,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - 合図は中身を運ばない（§4 の待ち役と同じ）。待ち役と同時に終了コード 2 になっても、`<news>` を渡すのは `drain` の1人なので2度届かない（`TestRewakeAndWaitSignalTogetherDeliverOnce`）。
 - 初めて見る台帳ではログも書かない（担当と同じ）。
 - Chief of Staff の端末が `doing` の課題の `agent` になっていても、担当としては見ない（「続けて」も最初のメッセージの送り直しも打たない）。
+- 前の Chief of Staff が自分で受けた課題も、担当としては見ない。`log.jsonl` の `kanban config set` の行で `chief_of_staff`（2026-11-06 より前の行は `coordinator`）の移り変わりを辿り、課題の `agent` を最後に書いた行の時点でその端末が Chief of Staff だったら、起き直してアドレスが変わったあとも、端末が Gone でも `andon issue resume` を打たず、`finished` も知らせない。同じアドレスが後で担当に使われたときは、書いた時点の値で見分けるので担当として見る。
 
 **ほかの送り直しと二重に送らない**:
 
