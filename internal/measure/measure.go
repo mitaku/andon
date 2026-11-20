@@ -1,7 +1,7 @@
-// Package measure は台帳と Andon の記録からラインの流れを数える（andon measure。
+// Package measure は kanban と Andon の記録からラインの流れを数える（andon measure。
 // docs/decisions/2026-11-09-measure-flow-metrics.md・docs/contract.md §13）。
 //
-// 読むだけ。台帳にも library/ にも書かず、集計を保存しない。読むもの: log.jsonl・issues/<id>/issue.yaml・
+// 読むだけ。kanban にも library/ にも書かず、集計を保存しない。読むもの: log.jsonl・issues/<id>/issue.yaml・
 // questions.yaml・library/report.json・library/gate/<sha>.json・library/corrections.json と、
 // GitHub のマージされた PR の一覧（gh pr list。repo ごとに1回）と、dispatcher の記録だけの通知
 // （<slug>.recorded.jsonl）・届けた通知の記録（<slug>.delivered.jsonl）と、担当とレビュアーのセッションの記録
@@ -34,8 +34,8 @@ import (
 
 // Usage は andon measure の使い方。
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
-	"台帳（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
-	"ゲートの差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
+	"kanban（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
+	"gate の差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
 	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）を数える。\n" +
 	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
@@ -136,7 +136,7 @@ type PerPR struct {
 	PerPR *float64 `json:"per_pr"`
 }
 
-// GateStats はゲートの記録の数と差し戻し率（(fix + needs_human) ÷ 記録）。
+// GateStats は gate の記録の数と差し戻し率（(fix + needs_human) ÷ 記録）。
 type GateStats struct {
 	Records    int      `json:"records"`
 	Fix        int      `json:"fix"`
@@ -149,10 +149,10 @@ type Counter struct {
 	Reverted  int      `json:"reverted"`
 	FollowUps int      `json:"follow_ups"`
 	Reopened  Reopened `json:"reopened"`
-	Corrected Reopened `json:"corrected"` // オーナーの手直しがあった課題の数（revert を含めない。ゲートのレベルごと）
+	Corrected Reopened `json:"corrected"` // オーナーの手直しがあった課題の数（revert を含めない。gate のレベルごと）
 }
 
-// Reopened はオーナーが開け直した数（ゲートのレベルごと）。
+// Reopened はオーナーが開け直した数（gate のレベルごと）。
 type Reopened struct {
 	Corrections string         `json:"corrections"` // recorded: corrections.json が1つでもある。none: 1つも無い（記録なし）
 	ByTier      map[string]int `json:"by_tier"`
@@ -177,7 +177,7 @@ type NewsKind struct {
 // passThrough は記録だけへ移す候補の閾値（8割以上が素通り）。
 const passThrough = 0.8
 
-// PR は期間にマージされた台帳の PR 1本。
+// PR は期間にマージされた kanban の PR 1本。
 type PR struct {
 	Issue        string   `json:"issue"`
 	PR           string   `json:"pr"`
@@ -287,7 +287,7 @@ func parseAt(s string) (time.Time, bool) {
 	return t, err == nil
 }
 
-// Measure は数える。台帳の config.yaml が読めない・版を知らないときだけ誤りを返す。
+// Measure は数える。kanban の config.yaml が読めない・バージョンを知らないときだけ誤りを返す。
 func Measure(o Options) (*Result, error) {
 	r := &reader{root: o.Root, dir: filepath.Join(o.Root, "kanban")}
 	columns, err := r.config()
@@ -332,7 +332,7 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
-	// GitHub のマージされた PR（台帳の PR がある repo だけ）
+	// GitHub のマージされた PR（kanban の PR がある repo だけ）
 	merged := map[string]ghPR{}
 	var reverts []ghPR
 	repos := map[string]bool{}
@@ -368,7 +368,7 @@ func Measure(o Options) (*Result, error) {
 		PRs:     []PR{},
 	}
 
-	// revert された台帳の PR（revert の PR が期間にマージされたもの）
+	// revert された kanban の PR（revert の PR が期間にマージされたもの）
 	revertedPR := map[string]bool{}
 	for _, rv := range reverts {
 		at, ok := parseAt(rv.MergedAt)
@@ -391,7 +391,7 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
-	// 期間にマージされた台帳の PR
+	// 期間にマージされた kanban の PR
 	var leads []float64
 	for _, id := range ids {
 		t := byID[id]
@@ -609,7 +609,7 @@ func Measure(o Options) (*Result, error) {
 			}
 		}
 	}
-	mergedLedger := map[string]string{} // マージされた台帳の PR の URL → 課題
+	mergedLedger := map[string]string{} // マージされた kanban の PR の URL → 課題
 	for _, id := range ids {
 		if _, ok := merged[byID[id].pr]; ok && !byID[id].reviewer {
 			mergedLedger[byID[id].pr] = id
@@ -712,21 +712,21 @@ func median(xs []float64) *float64 {
 	return &m
 }
 
-// config は config.yaml の columns（無ければ既定）。版が 3 でなければ止まる（台帳の形式の規則）。
+// config は config.yaml の columns（無ければ既定）。バージョンが 3 でなければ止まる（kanban の形式の規則）。
 func (r *reader) config() ([]string, error) {
 	c, err := ledger.ReadConfig(r.dir)
 	var pathErr *fs.PathError
 	switch {
 	case errors.As(err, &pathErr):
-		return nil, fmt.Errorf("台帳の config.yaml を読めない（%s）", r.rel(filepath.Join(r.dir, "config.yaml")))
+		return nil, fmt.Errorf("kanban の config.yaml を読めない（%s）", r.rel(filepath.Join(r.dir, "config.yaml")))
 	case err != nil:
-		return nil, errors.New("台帳の config.yaml が YAML でない")
+		return nil, errors.New("kanban の config.yaml が YAML でない")
 	case !c.VersionIs(3):
 		var v any
 		if c.HasVersion {
 			v = c.Version
 		}
-		return nil, fmt.Errorf("台帳の版が 3 でない（%v）。知らない版は読まない", v)
+		return nil, fmt.Errorf("kanban のバージョンが 3 でない（%v）。知らないバージョンは読まない", v)
 	}
 	if len(c.Columns) == 0 {
 		return []string{"todo", "queued", "doing", "review", "done"}, nil
@@ -940,12 +940,12 @@ func (r *reader) gates(lib string) []gateRec {
 			Merged   bool   `json:"merged"`
 		}
 		if json.Unmarshal(b, &v) != nil {
-			r.skip(r.rel(path), 0, "ゲートの記録が JSON の object でない")
+			r.skip(r.rel(path), 0, "gate の記録が JSON の object でない")
 			continue
 		}
 		at, ok := parseAt(v.At)
 		if !ok || v.Decision == "" {
-			r.skip(r.rel(path), 0, "ゲートの記録に at か decision が無い")
+			r.skip(r.rel(path), 0, "gate の記録に at か decision が無い")
 			continue
 		}
 		switch v.Tier {
@@ -1301,7 +1301,7 @@ func Table(w io.Writer, res *Result, states []string) {
 	if e.Gate.Rate != nil {
 		gate = fmt.Sprintf("%.0f%%（fix %d・needs_human %d / %d）", *e.Gate.Rate*100, e.Gate.Fix, e.Gate.NeedsHuman, e.Gate.Records)
 	}
-	fmt.Fprintf(w, "  ゲートの差し戻し率             %s\n", gate)
+	fmt.Fprintf(w, "  gate の差し戻し率             %s\n", gate)
 	estimateTable(w, res.Estimate, res.Issues)
 	tokensTable(w, res.Tokens)
 	newsTable(w, res.News)

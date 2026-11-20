@@ -15,7 +15,7 @@ import (
 
 // log.jsonl の行と kanban ready --json の出力の形は schema/ledger/ の log.v3・ready.v3（ADR-0034 決めたこと 7）。
 // 本物の kanban に全部の形の行を書かせ、全部の行と ready の出力をその schema に通す。照らすのは、Go のテストが
-// 手で書く台帳を通す補助（internal/ledger/ledgertest）と同じ既製の検査器。
+// 手で書く kanban を通す補助（internal/ledger/ledgertest）と同じ既製の検査器。
 
 // lineShape は log.jsonl の1行の形の名前（どの形の行を書かせたかを数える）。
 func lineShape(t *testing.T, line string) string {
@@ -140,7 +140,7 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	empty := filepath.Join(t.TempDir(), "empty")
 	kanban(t, t.TempDir(), "init", "--root", empty)
 	if out := kanban(t, empty, "ready", "--json", "--root", empty); ledgertest.Check(ledgertest.ReadySchema, []byte(out)) != nil || strings.TrimSpace(out) != "[]" {
-		t.Errorf("空の台帳の ready: %q", out)
+		t.Errorf("空の kanban の ready: %q", out)
 	}
 }
 
@@ -163,7 +163,7 @@ func TestSetRefusesLogKeys(t *testing.T) {
 		}
 	}
 	if readFile(t, log) != before || readFile(t, taskFile(root, "W-0001")) != yaml {
-		t.Errorf("断った set が台帳を書いた:\n%s", readFile(t, log))
+		t.Errorf("断った set が kanban を書いた:\n%s", readFile(t, log))
 	}
 	// 予約キーの外は今までどおり書け、その行は schema に合う。
 	kanban(t, root, "set", "W-0001", "review=on", "added=x")
@@ -172,7 +172,7 @@ func TestSetRefusesLogKeys(t *testing.T) {
 	}
 }
 
-// migratedLog は .flightdeck から移した台帳の log.jsonl の行（kanban migrate の行を含む）。
+// migratedLog は .flightdeck から移した kanban の log.jsonl の行（kanban migrate の行を含む）。
 func migratedLog(t *testing.T) []string {
 	t.Helper()
 	ws := t.TempDir()

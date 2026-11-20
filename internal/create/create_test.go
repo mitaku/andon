@@ -15,7 +15,7 @@ import (
 	"andon/internal/flock"
 )
 
-// setup は偽のセル（git の repo・projects/）と、偽の kanban・ghq・hc を PATH の先頭に置く。
+// setup は偽のセル（git の repo・projects/）と、偽の kanban の CLI・ghq・hc を PATH の先頭に置く。
 // 偽の kanban は init の引数を kanban/args に書き、偽の ghq は get の引数を ghq.log に足す。
 func setup(t *testing.T) (ws, log string) {
 	t.Helper()
@@ -386,12 +386,12 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 	}
 }
 
-// 台帳が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起動し直す（#98）。
+// kanban が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起動し直す（#98）。
 // 見回りの途中（PassLock を持っている）なら、待つと1行知らせ、終わるのを待ってから起動し直す（期限は無い）。
 func TestCreateMovesDispatcherToProjectSpace(t *testing.T) {
 	ws, _ := setup(t)
 	d := os.Getenv("FAKE_HC")
-	plant, _ := dispatcher.Place(ws) // 台帳が無いときの置き場
+	plant, _ := dispatcher.Place(ws) // kanban が無いときの置き場
 	term := `{"address":"t9","state":"live","labels":{"herdr.space":"` + plant + `","herdr.tab":"x"},"foreground":{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}}`
 	if err := os.WriteFile(filepath.Join(d, "term"), []byte(term), 0o644); err != nil {
 		t.Fatal(err)

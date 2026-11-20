@@ -70,7 +70,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if len(rest) != 2 {
 			return usage()
 		}
-		// 書くのは dispatcher だけ（dispatcher は HC_TERMINAL_ID=dispatcher で打つ。台帳の by と同じ見分け）。
+		// 書くのは dispatcher だけ（dispatcher は HC_TERMINAL_ID=dispatcher で打つ。kanban の by と同じ見分け）。
 		// 担当やほかの端末が打てば、届けていない now の信号が届かなくなるので断る（同じユーザーなので守りではなく、取り違えの止め）
 		if "terminal:"+os.Getenv("HC_TERMINAL_ID") != ledger.DispatcherBy {
 			fmt.Fprintln(stderr, "andon signal delivered: 打つのは dispatcher だけ（HC_TERMINAL_ID=dispatcher）。記録は変えない")

@@ -120,7 +120,7 @@ func newFixture(t *testing.T) *fixture {
 		`{"type":"user","uuid":"u8","timestamp":"` + ago(2*day) + `","isMeta":true,"origin":{"kind":"human"},"message":{"content":"meta"}}` + "\n" +
 		`{"type":"user","uuid":"u9","timestamp":"` + ago(2*day) + `","isSidechain":true,"origin":{"kind":"human"},"message":{"content":"sidechain"}}` + "\n" +
 		hum("u11", ago(2*day), "[dispatcher] 一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）") +
-		hum("u12", ago(2*day), "[gate] A-0001（題）: ゲートが fix を返した。理由: checks が落ちた。記録は /x。") +
+		hum("u12", ago(2*day), "[gate] A-0001（題）: gate が fix を返した。理由: checks が落ちた。記録は /x。") +
 		`{"type":"user","uuid":"u10","timestamp":"` + ago(1*day) + `","origin":{"kind":"human"},"message":{"content":[{"type":"text","text":"block の文"}]}}` + "\n"
 	write(t, filepath.Join(f.claude, "projects", "-sample-site", cosSess+".jsonl"), cos)
 	work := strings.ReplaceAll(hum("w0", ago(3*day), "<hc from=\"t1 cos\">課題 A-0001。依頼書は …</hc>")+hum("w1", ago(2*day), "そこは直さなくていい"), f.root, wt)
@@ -261,7 +261,7 @@ func TestTypedOnlyHuman(t *testing.T) {
 	}
 	want := "h-u1/chief-of-staff/- h-w1/worker/A-0001 h-u10/chief-of-staff/-"
 	if strings.Join(got, " ") != want {
-		t.Errorf("抜いた文 = %v、want %s（起動の最初のメッセージ・hc send・貼った中の hc・通知・端末の外から送った再開とゲートの差し戻し・道具の結果・meta・sidechain・期間の外・ほかのプロジェクトは入らない）", got, want)
+		t.Errorf("抜いた文 = %v、want %s（起動の最初のメッセージ・hc send・貼った中の hc・通知・端末の外から送った再開と gate の差し戻し・道具の結果・meta・sidechain・期間の外・ほかのプロジェクトは入らない）", got, want)
 	}
 	for _, x := range in.Typed {
 		if x.Session == "" || x.At == "" {
@@ -371,7 +371,7 @@ func TestReapplied(t *testing.T) {
 	}
 }
 
-// 読むだけ: 台帳とセッションログのファイルを書き換えない。
+// 読むだけ: kanban とセッションログのファイルを書き換えない。
 func TestReadOnly(t *testing.T) {
 	f := newFixture(t)
 	snap := func() string {
@@ -390,7 +390,7 @@ func TestReadOnly(t *testing.T) {
 	before := snap()
 	f.collect(t)
 	if snap() != before {
-		t.Error("台帳かセッションログが書き換わった")
+		t.Error("kanban かセッションログが書き換わった")
 	}
 	for _, c := range f.calls {
 		if !strings.HasPrefix(c, "pr list ") && !strings.HasPrefix(c, "api --paginate repos/") {

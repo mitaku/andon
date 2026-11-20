@@ -1,4 +1,4 @@
-// Package ledgertest は、Go のテストが手で書く台帳を、台帳の CLI が書く形（schema/ledger/）に通す補助。
+// Package ledgertest は、Go のテストが手で書く kanban を、kanban の CLI が書く形（schema/ledger/）に通す補助。
 // 本物の kanban を呼ばないテストが手で書いた log.jsonl の行や kanban ready --json の返事が、kanban の書く形からずれたら、
 // そのテストを落とす（ADR-0034 決めたこと 7）。cmd/kanban のテストも、本物の kanban の出力を同じ照合に通す。
 // テストだけが使う（配る binary には入らない）。
@@ -63,7 +63,7 @@ func CheckLog(data []byte) error {
 }
 
 // Log は log.jsonl の行（1行1件の JSON）をつないで、ファイルの中身（末尾に改行）にする。
-// どの行も台帳の CLI が書く形（schema/ledger/log.v3.schema.json）に合わなければ、テストを落とす。
+// どの行も kanban の CLI が書く形（schema/ledger/log.v3.schema.json）に合わなければ、テストを落とす。
 // 読めない行の扱いを確かめるテストは、この補助を通さずに書く。
 func Log(t testing.TB, lines ...string) string {
 	t.Helper()
@@ -72,12 +72,12 @@ func Log(t testing.TB, lines ...string) string {
 	}
 	data := strings.Join(lines, "\n") + "\n"
 	if err := CheckLog([]byte(data)); err != nil {
-		t.Fatalf("手で書いた log.jsonl の行が、台帳の CLI の書く形でない:\n%v", err)
+		t.Fatalf("手で書いた log.jsonl の行が、kanban の CLI の書く形でない:\n%v", err)
 	}
 	return data
 }
 
-// Ready は kanban ready --json の返事（課題の並び）を JSON にする。台帳の CLI が書く形
+// Ready は kanban ready --json の返事（課題の並び）を JSON にする。kanban の CLI が書く形
 // （schema/ledger/ready.v3.schema.json）に合わなければ、テストを落とす。
 func Ready(t testing.TB, issues ...any) string {
 	t.Helper()
@@ -89,7 +89,7 @@ func Ready(t testing.TB, issues ...any) string {
 		t.Fatal(err)
 	}
 	if err := Check(ReadySchema, b); err != nil {
-		t.Fatalf("手で書いた kanban ready --json の返事が、台帳の CLI の書く形でない: %v\n%s", err, b)
+		t.Fatalf("手で書いた kanban ready --json の返事が、kanban の CLI の書く形でない: %v\n%s", err, b)
 	}
 	return string(b)
 }

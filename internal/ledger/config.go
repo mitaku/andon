@@ -13,7 +13,7 @@ import (
 // ErrNotMapping は config.yaml の一番上が mapping でないこと。
 var ErrNotMapping = errors.New("not a mapping")
 
-// Config は台帳の config.yaml（docs/ledger.md）。読み手はこれ1つで、版を確かめるのは呼び手。
+// Config は kanban の config.yaml（docs/ledger.md）。読み手はこれ1つで、バージョンを確かめるのは呼び手。
 type Config struct {
 	HasVersion   bool   // version があり null でない
 	Version      string // version の字面
@@ -29,7 +29,7 @@ type Config struct {
 // VersionIs は version が整数の n か。
 func (c Config) VersionIs(n int) bool { return c.IntVersion && c.Version == strconv.Itoa(n) }
 
-// ReadConfig は台帳（kanban/）の dir の config.yaml を読む。読めない・YAML でなければその誤り、一番上が mapping でなければ ErrNotMapping。
+// ReadConfig は kanban の dir（kanban/）の config.yaml を読む。読めない・YAML でなければその誤り、一番上が mapping でなければ ErrNotMapping。
 func ReadConfig(dir string) (Config, error) {
 	b, err := os.ReadFile(filepath.Join(dir, "config.yaml"))
 	if err != nil {
@@ -83,7 +83,7 @@ func ReadConfig(dir string) (Config, error) {
 	return c, nil
 }
 
-// Config は台帳の config.yaml。
+// Config は kanban の config.yaml。
 func (l *Ledger) Config() (Config, error) { return ReadConfig(l.Dir) }
 
 func alias(n *yaml.Node) *yaml.Node {

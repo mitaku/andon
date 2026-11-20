@@ -138,19 +138,19 @@ func TestParseDecisionsRejects(t *testing.T) {
 		return f
 	}
 	bad := map[string][]map[string]any{
-		"空白の理由":         {with(fix(k1, "t"), "reason", " ")},
-		"改行の理由":         {with(fix(k1, "t"), "reason", "a\nb")},
-		"題が空":           {withIssue("title", "")},
-		"題が - で始まる":     {withIssue("title", "-x")},
-		"repo の形":       {withIssue("repo", "me/app")},
-		"profile の形":    {withIssue("profile", "-x")},
-		"review の値":     {withIssue("review", "yes")},
-		"ほかの台帳の key":    {with(fix(k1, "t"), "key", "other:T-1:next:0000000000000000000000000000000000000001")},
-		"hash の無い key":  {with(fix(k1, "t"), "key", "demo:T-1:issue")},
-		"知らない kind":     {with(fix(k1, "t"), "key", "demo:T-1:bogus:0000000000000000000000000000000000000001")},
-		"知らない decision": {with(fix(k1, "t"), "decision", "drop")},
-		"同じ key":        {fix(k1, "a"), fix(k1, "b")},
-		"bundle の名前":    {with(fix(k1, "t"), "decision", "bundle")},
+		"空白の理由":            {with(fix(k1, "t"), "reason", " ")},
+		"改行の理由":            {with(fix(k1, "t"), "reason", "a\nb")},
+		"題が空":              {withIssue("title", "")},
+		"題が - で始まる":        {withIssue("title", "-x")},
+		"repo の形":          {withIssue("repo", "me/app")},
+		"profile の形":       {withIssue("profile", "-x")},
+		"review の値":        {withIssue("review", "yes")},
+		"ほかの kanban の key": {with(fix(k1, "t"), "key", "other:T-1:next:0000000000000000000000000000000000000001")},
+		"hash の無い key":     {with(fix(k1, "t"), "key", "demo:T-1:issue")},
+		"知らない kind":        {with(fix(k1, "t"), "key", "demo:T-1:bogus:0000000000000000000000000000000000000001")},
+		"知らない decision":    {with(fix(k1, "t"), "decision", "drop")},
+		"同じ key":           {fix(k1, "a"), fix(k1, "b")},
+		"bundle の名前":       {with(fix(k1, "t"), "decision", "bundle")},
 		"repo が混ざる bundle": {
 			with(with(fix(k1, "t"), "decision", "bundle"), "bundle", "b"),
 			func() map[string]any {

@@ -18,7 +18,7 @@ import (
 // 振り返りの担当が andon retro patterns で書き、Chief of Staff が andon retro apply で当てる。
 // 書くときも当てるときも、同じ検査（checkPatterns）を集めた入力に当てる。command が断るのは形と、根拠の数・実在・新しさ、
 // 上の段で止められない理由、判定だけ。fix の数は確かめない（ADR-0039 決めたこと 1）。
-// 振り返り自身（skill retro と andon retro）も直す先にできる（ADR-0039 決めたこと 12。Andon の版が v0.0.x の間の決まりで、決めたこと 15）。
+// 振り返り自身（skill retro と andon retro）も直す先にできる（ADR-0039 決めたこと 12。Andon のバージョンが v0.0.x の間の決まりで、決めたこと 15）。
 // パターンが本当に起きたかは確かめない。
 
 // 段（決めたこと 9）。上から効き目の確かな順。
@@ -257,7 +257,7 @@ func checkFixes(fixes []FixView, in *Input) error {
 	return nil
 }
 
-// checkRepos は直す先の repo を台帳の repos に照らす。project の repo は台帳の repos の中でなければならない。
+// checkRepos は直す先の repo を kanban の repos に照らす。project の repo は kanban の repos の中でなければならない。
 func checkRepos(ps []Pattern, repos []string) error {
 	for _, p := range ps {
 		if p.Target.Kind == "project" && !slices.Contains(repos, p.Target.Repo) {

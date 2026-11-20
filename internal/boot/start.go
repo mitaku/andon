@@ -27,7 +27,7 @@ const (
 
 // Start は起動の手を順に打つ。道具が無ければ飛ばし、失敗は警告にして続ける。
 func Start(e Env) {
-	oldLive := false // 前の版の係の端末を片付けられなかった（dispatcher を起動しない）
+	oldLive := false // 前のバージョンの係の端末を片付けられなかった（dispatcher を起動しない）
 	for _, step := range []struct {
 		name string
 		run  func(Env) error
@@ -37,12 +37,12 @@ func Start(e Env) {
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
 		{"sshd", startSSHD},
-		{"前の版の係の端末", dropStaleRoles},
+		{"前のバージョンの係の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
 		{"外の skill", installGhSkills}, // ネットワークが要るので最後（ほかの起動を待たせない）
 	} {
 		if step.name == "dispatcher" && oldLive {
-			e.logf("前の版の係の端末が残っているので dispatcher は起動しない（二重に回さない）。オーナーが hc kill <address> で片付けてから andon boot を打ち直す")
+			e.logf("前のバージョンの係の端末が残っているので dispatcher は起動しない（二重に回さない）。オーナーが hc kill <address> で片付けてから andon boot を打ち直す")
 			continue
 		}
 		err := step.run(e)
@@ -121,7 +121,7 @@ func setupGitCredentials(e Env) error {
 	return nil
 }
 
-// fixClaudeInstall は .claude.json に「ネイティブ版で入っている」記録が無ければ claude install latest で書き直す
+// fixClaudeInstall は .claude.json にネイティブのインストールの記録（"installMethod": "native"）が無ければ claude install latest で書き直す
 // （無いと自己更新が disabled 扱いになる）。
 func fixClaudeInstall(e Env) error {
 	claude := filepath.Join(e.Home, ".local", "bin", "claude")
@@ -139,7 +139,7 @@ func fixClaudeInstall(e Env) error {
 	if out, err := exec.Command(claude, "install", "latest").CombinedOutput(); err != nil {
 		return fmt.Errorf("claude install latest: %v: %s", err, strings.TrimSpace(string(out)))
 	}
-	e.logf("Claude Code: ネイティブ版の記録を書き直した")
+	e.logf("Claude Code: ネイティブのインストールの記録を書き直した")
 	return nil
 }
 
@@ -244,12 +244,12 @@ func startSSHD(e Env) error {
 // oldDispatcher は名前を改める前の常駐の係の名前（端末の名前と role= の値。2026-11-06 に dispatcher へ改めた）。
 const oldDispatcher = "courier"
 
-// errOldDispatcher は前の版の係の端末が live のまま残った（片付けなかった・片付けに失敗した）。
+// errOldDispatcher は前のバージョンの係の端末が live のまま残った（片付けなかった・片付けに失敗した）。
 // Start はその起動で dispatcher を起動しない（前の係が動いていれば二重に回る）。
-var errOldDispatcher = errors.New("前の版の係の端末が残っている")
+var errOldDispatcher = errors.New("前のバージョンの係の端末が残っている")
 
 // dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
-// （keep を外して kill・rm）。セルの upgrade のあとに残り、前の版の係が動いたままなら今の dispatcher と二重に回る
+// （keep を外して kill・rm）。セルの upgrade のあとに残り、前のバージョンの係が動いたままなら今の dispatcher と二重に回る
 // （同じ PR をマージしにいく）ので、起動する前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
 // （作り直しで戻った中身）のときだけ片付ける。それ以外（オーナーが中で何か動かしている・前に出ているものが取れない）と
 // 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起動しない）。
@@ -287,11 +287,11 @@ func dropStaleRoles(e Env) error {
 	if err := spawn.DiscardWith(hc, t.Address); err != nil {
 		return fmt.Errorf("%w: %v（hc kill %s で片付けてから andon boot）", errOldDispatcher, err, t.Address)
 	}
-	e.logf("前の版の係の端末 %s（%s）を片付けた", t.Address, oldDispatcher)
+	e.logf("前のバージョンの係の端末 %s（%s）を片付けた", t.Address, oldDispatcher)
 	return nil
 }
 
-// isOldDispatcher は前に出ているものが前の版の係（andon courier）か。
+// isOldDispatcher は前に出ているものが前のバージョンの係（andon courier）か。
 func isOldDispatcher(argv []string) bool {
 	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == oldDispatcher
 }

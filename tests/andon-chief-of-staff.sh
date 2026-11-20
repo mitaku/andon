@@ -62,11 +62,11 @@ emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }   # tes
 runs() { cat "$tmp/hc/log" 2>/dev/null | grep -c '^run' || true; }
 cos() { sed -n 's/^chief_of_staff: *//p' kanban/config.yaml; }
 
-# 台帳の外で打つと止まる
+# kanban の外で打つと止まる
 cd "$tmp"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q '台帳が見つからない' "$tmp/err" && [ "$(runs)" = 0 ] || die "台帳の外で: rc=$rc $(cat "$tmp/err")"
-ok '台帳の外では起動せずに止まる'
+[ "$rc" = 1 ] && grep -q 'kanban が見つからない' "$tmp/err" && [ "$(runs)" = 0 ] || die "kanban の外で: rc=$rc $(cat "$tmp/err")"
+ok 'kanban の外では起動せずに止まる'
 
 cd "$tmp/projects/demo"
 kanban init --prefix D >/dev/null

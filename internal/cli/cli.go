@@ -41,7 +41,7 @@ type command struct {
 var commands = []command{
 	{
 		name:  "issue",
-		about: "担当を起動する（start）・担当が台帳に返す（show・report・review-request・ready・ask）・走らせた記録を残す（record）・片付ける（finish）",
+		about: "担当を起動する（start）・担当が kanban に返す（show・report・review-request・ready・ask）・走らせた記録を残す（record）・片付ける（finish）",
 		usage: issue.Usage,
 		run:   issue.Main,
 	},
@@ -53,7 +53,7 @@ var commands = []command{
 	},
 	{
 		name:  "create",
-		about: "プロジェクトを立てる（projects/<slug>/ に台帳・project.json の下書き・AGENTS.md。足りないものは聞く）",
+		about: "プロジェクトを立てる（projects/<slug>/ に kanban・project.json の下書き・AGENTS.md。足りないものは聞く）",
 		usage: create.Usage,
 		run:   create.Main,
 	},
@@ -65,13 +65,13 @@ var commands = []command{
 	},
 	{
 		name:  "chief-engineer",
-		about: "オーナーと仕様・設計を対話する Chief Engineer を、台帳の課題として起動する",
+		about: "オーナーと仕様・設計を対話する Chief Engineer を、kanban の課題として起動する",
 		usage: chiefengineer.Usage,
 		run:   chiefengineer.Main,
 	},
 	{
 		name:  "dispatcher",
-		about: "台帳を回り、インナーループ（レビュアーを起動する・ゲート・merge: auto のマージと片付け）を回す。待ちの通知は Chief of Staff のフック（drain）が届ける",
+		about: "kanban を回り、インナーループ（レビュアーを起動する・gate・merge: auto のマージと片付け）を回す。待ちの通知は Chief of Staff のフック（drain）が届ける",
 		usage: dispatcher.Usage,
 		run:   dispatcher.Main,
 	},
@@ -90,7 +90,7 @@ var commands = []command{
 	},
 	{
 		name:  "triage",
-		about: "台帳の溜まったものを集める（collect）・仕分けの決定を台帳に当てる（apply）",
+		about: "kanban の溜まったものを集める（collect）・仕分けの決定を kanban に当てる（apply）",
 		usage: triage.Usage +
 			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
 		run: triage.Main,
@@ -109,7 +109,7 @@ var commands = []command{
 	},
 	{
 		name:  "measure",
-		about: "台帳と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
+		about: "kanban と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
 		usage: measure.Usage,
 		run:   measure.Main,
 	},
@@ -139,7 +139,7 @@ var commands = []command{
 	},
 	{
 		name:  "gate",
-		about: "台帳の課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
+		about: "kanban の課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
 		usage: gate.Usage,
 		run:   gate.Main,
 	},
@@ -167,7 +167,7 @@ func list(w io.Writer) {
 		fmt.Fprintf(w, "  %-*s  %s\n", width, c.name, c.about)
 	}
 	fmt.Fprintf(w, "  %-*s  %s\n", width, "help", "この一覧")
-	fmt.Fprint(w, "\nandon <sub-command> --help で、その sub-command の使い方を出す。台帳は台帳の CLI で書く。\n")
+	fmt.Fprint(w, "\nandon <sub-command> --help で、その sub-command の使い方を出す。kanban は kanban の CLI で書く。\n")
 }
 
 // Run は andon を args で走らせ、終了コードを返す。

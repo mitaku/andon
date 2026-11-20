@@ -1,13 +1,13 @@
 // Package chiefengineer は andon chief-engineer: オーナーと仕様・設計を対話する Chief Engineer を
-// 台帳の課題として起動する（docs/design.md §1.8）。
+// kanban の課題として起動する（docs/design.md §1.8）。
 //
-//	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は台帳の repos が1つならそれ
-//	andon chief-engineer --repo <host/owner/repo> "<題>"   台帳の repos が2つ以上（か無い）とき
+//	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は kanban の repos が1つならそれ
+//	andon chief-engineer --repo <host/owner/repo> "<題>"   kanban の repos が2つ以上（か無い）とき
 //	andon chief-engineer --brief - "<題>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
-// することは4つ: 台帳に課題を足す（kanban add）・案件の repo に worktree と branch を切る
+// することは4つ: kanban に課題を足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこの課題から出すため）・hc でプロファイル chief-engineer を起動する（hc run）・
-// 課題を doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
+// 課題を doing にして agent をその端末にする（kanban start）。
 // 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、オーナーの Herdr App の指揮側の Space に
 // 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // --brief - の文は依頼書の既定の行の下に続ける（Chief Engineer が最初に読むのは依頼書なので、送り直しが要っても残る）。
@@ -37,8 +37,8 @@ import (
 
 // Usage は andon chief-engineer の使い方。
 const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<題>\"\n" +
-	"projects/<slug>/ で打つ。--repo を省くと台帳の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
-	"台帳に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
+	"projects/<slug>/ で打つ。--repo を省くと kanban の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
+	"kanban に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起動し、課題を doing にする。文書の PR はその課題から出る。\n" +
 	"--brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。\n" +
 	"Chief Engineer は1プロジェクトに複数いてよい。ほかの Chief Engineer の端末には触らない（止まったものは andon issue resume）。\n"
@@ -98,26 +98,26 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	root, err := output(nil, "", cli, "root")
 	if err != nil || root == "" {
-		return die("台帳が見つからない（projects/<slug>/ で打つ）")
+		return die("kanban が見つからない（projects/<slug>/ で打つ）")
 	}
 	slug := filepath.Base(root)
 	if !slugRe.MatchString(slug) {
-		return die("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
+		return die("slug が不正: '%s'（kanban の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
 	if repo == "" {
 		cfg, err := ledger.ReadConfig(filepath.Join(root, "kanban"))
 		repos := cfg.Repos
 		switch {
 		case err != nil:
-			fmt.Fprintf(stderr, "andon chief-engineer: 台帳の config.yaml の repos が読めない。--repo <host/owner/repo> で渡す\n")
+			fmt.Fprintf(stderr, "andon chief-engineer: kanban の config.yaml の repos が読めない。--repo <host/owner/repo> で渡す\n")
 			return exitUsage
 		case len(repos) != 1:
-			fmt.Fprintf(stderr, "andon chief-engineer: 台帳の repos が %d 個（%s）。--repo <host/owner/repo> で選ぶ\n", len(repos), strings.Join(repos, "・"))
+			fmt.Fprintf(stderr, "andon chief-engineer: kanban の repos が %d 個（%s）。--repo <host/owner/repo> で選ぶ\n", len(repos), strings.Join(repos, "・"))
 			return exitUsage
 		}
 		repo = repos[0]
 		if !repoRe.MatchString(repo) {
-			return die("台帳の repos の値が不正: '%s'", repo)
+			return die("kanban の repos の値が不正: '%s'", repo)
 		}
 	}
 	repoDir, err := spawn.RepoPath(repo)
@@ -172,7 +172,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon chief-engineer: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
-	// セッションの id は Andon が決めて渡し（template の command が端末のラベルから読む）、台帳の session に書く（ADR-0012 決めたこと 11）
+	// セッションの id は Andon が決めて渡し（template の command が端末のラベルから読む）、kanban の session に書く（ADR-0012 決めたこと 11）
 	session := spawn.NewSession()
 	labels := append(Labels(slug, id, title), spawn.SessionLabel+"="+session)
 	rec := launch.Gather(launch.Spec{Role: launch.RoleChiefEngineer, Launch: launch.LaunchStart, Issue: id, Profile: Profile, Template: Profile,
@@ -191,7 +191,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return die("%s start %s に失敗: %v（端末 %s は起きている）", cli, id, err, run.Address)
 	}
 	if _, err := output(env, "", cli, "set", id, "session="+session); err != nil {
-		return die("%s set %s session=%s に失敗: %v（端末 %s は起きている。resume するには台帳に session を手で書く）", cli, id, session, err, run.Address)
+		return die("%s set %s session=%s に失敗: %v（端末 %s は起きている。resume するには kanban に session を手で書く）", cli, id, session, err, run.Address)
 	}
 
 	place := where(slug, id, title)

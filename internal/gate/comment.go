@@ -7,11 +7,11 @@ import (
 )
 
 // PR のコメントと commit status の説明文は、PR を読む外の人に向けた文（ADR-0026 決めたこと 9）。
-// ゲートの記録（gate/<head>.json の reasons・tier_reasons）は台帳の読み手の文で、変えない。
+// gate の記録（gate/<head>.json の reasons・tier_reasons）は kanban の読み手の文で、変えない。
 // ここでは記録から外向けの文を作るだけで、記録の文を外へそのまま写さない。
-// 頭の「andon gate: 」は動かさない（dispatcher がこの頭でゲートのコメントを見分け、オーナーの手直しから除く）。
+// 頭の「andon gate: 」は動かさない（dispatcher がこの頭で gate のコメントを見分け、オーナーの手直しから除く）。
 
-// CommentPrefix はゲートが PR に書くコメントと commit status の説明文の頭（dispatcher の gateCommentPrefix と同じ）。
+// CommentPrefix は gate が PR に書くコメントと commit status の説明文の頭（dispatcher の gateCommentPrefix と同じ）。
 const CommentPrefix = "andon gate: "
 
 // headline は判定ごとの見出し（外の人が読む文）。
@@ -118,7 +118,8 @@ func fixed(s string) func([]string) string { return func([]string) string { retu
 // reasonRewrites は記録の reasons（Decide と run が書く文）を外向けの文に直す表。
 // 記録の文を変えたら、ここと TestCommentReasons の両方を直す。
 var reasonRewrites = []rewrite{
-	{regexp.MustCompile(`^台帳の課題が review でない（.*）$`), fixed("作業がまだ確認待ちになっていない")},
+	// 2026-11-20 までの記録の文（「台帳の…」）も同じに読む（ADR-0040 決めたこと 7）
+	{regexp.MustCompile(`^(?:kanban |台帳)の課題が review でない（.*）$`), fixed("作業がまだ確認待ちになっていない")}, // 古い語を読む（ADR-0040 決めたこと 7）
 	{regexp.MustCompile(`^PR の branch（(.*)）が issue\.yaml の branch と違う$`), func(m []string) string {
 		return "PR の branch（" + m[1] + "）が、作業を始めたときの branch と違う"
 	}},
@@ -128,7 +129,7 @@ var reasonRewrites = []rewrite{
 	{regexp.MustCompile(`^conflict$`), fixed("既定ブランチと衝突している")},
 	{regexp.MustCompile(`^fork の PR$`), fixed("fork からの PR")},
 	{regexp.MustCompile(`^base が既定ブランチでない$`), fixed("PR の向き先が既定ブランチでない")},
-	{regexp.MustCompile(`^作者がセルの gh アカウントでない$`), fixed("PR の作者が、ゲートを回しているアカウントでない")},
+	{regexp.MustCompile(`^作者がセルの gh アカウントでない$`), fixed("PR の作者が、andon gate を回しているアカウントでない")},
 	{regexp.MustCompile(`^issue\.yaml の review・must_fix`), fixed("作業の設定（レビューの要否・直す指摘の重さ）を確かめられない")},
 	{regexp.MustCompile(`^条件表の repos にこの repo が無い`), fixed("この repo の確かめ方が設定に無い（検査を回せない）")},
 	{regexp.MustCompile(`^delegation: merge=.* < tier .*$`), fixed("自動でマージしてよい範囲を超える変更")},

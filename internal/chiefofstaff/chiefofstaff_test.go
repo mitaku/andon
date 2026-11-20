@@ -136,7 +136,7 @@ func TestStartsChiefOfStaff(t *testing.T) {
 		"hc ls --json --label role=chief-of-staff --label project=sample-site",
 		"hc templates --json",
 		"hc run --json --bg --outlive-parent --no-notify --name sample-site-cos --label role=chief-of-staff --label project=sample-site --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-cos --cwd " + f.root + " chief-of-staff プロジェクト `sample-site` の Chief of Staff。",
-		"台帳は `" + f.root + "/kanban`。",
+		"kanban は `" + f.root + "/kanban`。",
 		"kanban config set chief_of_staff=t42 | KANBAN_ROOT=" + f.root,
 	}
 	calls := f.calls()
@@ -241,7 +241,7 @@ func TestNoTemplate(t *testing.T) {
 func TestNoLedger(t *testing.T) {
 	newFake(t)
 	t.Setenv("FAKE_ROOT", "")
-	if rc, _, errs := runMain(); rc != exitFail || !strings.Contains(errs, "台帳が見つからない") {
+	if rc, _, errs := runMain(); rc != exitFail || !strings.Contains(errs, "kanban が見つからない") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
 }
@@ -258,7 +258,7 @@ func TestFirstMessageNotSent(t *testing.T) {
 		t.Fatal(err)
 	}
 	rc, _, errs := runMain()
-	msg := "プロジェクト `sample-site` の Chief of Staff。\n台帳は `" + filepath.Join(f.root, "kanban") + "`。"
+	msg := "プロジェクト `sample-site` の Chief of Staff。\nkanban は `" + filepath.Join(f.root, "kanban") + "`。"
 	if rc != exitFirst || !strings.Contains(errs, "t42（sample-site-cos）に最初のメッセージが届いていない: trust prompt") ||
 		!strings.Contains(errs, "App の sample-site / CoS で答えてから、次を送る: hc send t42 '役目の1文目。\n役目の2文目。\n\n"+msg+"'\n") {
 		t.Errorf("rc=%d err=%q", rc, errs)
@@ -267,7 +267,7 @@ func TestFirstMessageNotSent(t *testing.T) {
 	if !f.has("hc run ") || strings.Contains(strings.Join(f.calls(), "\n"), "役目の1文目") {
 		t.Errorf("calls=%q", f.calls())
 	}
-	// 起きた端末は台帳に載せる（起き直さずに画面に答えればよい）
+	// 起きた端末は kanban に載せる（起き直さずに画面に答えればよい）
 	if f.chief_of_staff() != "t42" {
 		t.Errorf("chief_of_staff=%q", f.chief_of_staff())
 	}
@@ -355,7 +355,7 @@ func TestChiefOfStaffForegroundUnknown(t *testing.T) {
 }
 
 // オーナーがシェルで使っている端末（top-level はエージェントの command で前にシェル・top-level がシェルで前に別のもの）は片付けない。
-// 使いも数えもせず、確かめられないとして止まる（台帳を書かない）。
+// 使いも数えもせず、確かめられないとして止まる（kanban を書かない）。
 func TestHumanShellChiefOfStaffKept(t *testing.T) {
 	for _, term := range []string{
 		`"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}`,
@@ -369,7 +369,7 @@ func TestHumanShellChiefOfStaffKept(t *testing.T) {
 			t.Errorf("%s: rc=%d err=%q", term, rc, errs)
 		}
 		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") || f.chief_of_staff() != "t1" {
-			t.Errorf("%s: オーナーの端末に触った・台帳を書いた: %q", term, f.calls())
+			t.Errorf("%s: オーナーの端末に触った・kanban を書いた: %q", term, f.calls())
 		}
 	}
 }

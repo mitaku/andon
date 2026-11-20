@@ -240,7 +240,7 @@ case $1 in
 esac
 `
 
-// 前の版の係（名前もラベルも courier）だけを、前に出ているものが前の係かシェルのときに片付ける。
+// 前のバージョンの係（名前もラベルも courier）だけを、前に出ているものが前の係かシェルのときに片付ける。
 // ほかの役・知らない役・オーナーが中で何か動かしている端末・前に出ているものが取れない端末には触らない。
 func TestDropStaleRoles(t *testing.T) {
 	old := func(fg string) string {
@@ -251,7 +251,7 @@ func TestDropStaleRoles(t *testing.T) {
 		dropped    bool
 		log        string
 	}{
-		{"前の係が動いている", old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`), true, "前の版の係の端末 t1（courier）を片付けた"},
+		{"前の係が動いている", old(`{"name":"andon","argv":["/opt/andon/bin/andon","courier"]}`), true, "前のバージョンの係の端末 t1（courier）を片付けた"},
 		{"作り直しで戻ったシェル", old(`{"name":"bash","argv":["/bin/bash"]}`), true, "片付けた"},
 		{"名前が courier でもラベルが違う", `{"address":"t1","name":"courier","state":"live","labels":{"role":"worker"},"foreground":{"name":"bash","argv":["/bin/bash"]}}`, false, ""},
 		{"終わった端末", `{"address":"t1","name":"courier","state":"finished","labels":{"role":"courier"}}`, false, ""},
@@ -277,7 +277,7 @@ func TestDropStaleRoles(t *testing.T) {
 	}
 }
 
-// 前の版の係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起動しない。
+// 前のバージョンの係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起動しない。
 // 片付けられれば起動する。
 func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 	oldWait, oldPoll := dispatcherWait, stalePoll
@@ -296,7 +296,7 @@ func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 		{"keep --off に失敗", running, "keep", false, "keep failed"},
 		{"オーナーが中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), "", false, "前に出ているものが vim なので触らない"},
 		{"前に出ているものが取れない", old("null"), "", false, "取れない なので触らない"},
-		{"片付けた", running, "", true, "前の版の係の端末 t1（courier）を片付けた"},
+		{"片付けた", running, "", true, "前のバージョンの係の端末 t1（courier）を片付けた"},
 		{"前の係の端末が無い", "", "", true, "dispatcher を起動した"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

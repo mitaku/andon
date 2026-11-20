@@ -137,7 +137,7 @@ func TestFromReport(t *testing.T) {
 	if d, r := Decide(f); d != "needs_human" || !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
 		t.Errorf("one_way の変更がオーナーへ回らない: %s %v", d, r)
 	}
-	// acceptance に fail がある report はゲートが fix を返す（数えて Decide に渡す）
+	// acceptance に fail がある report は gate が fix を返す（数えて Decide に渡す）
 	rep, _ = contract.ParseReport([]byte(base + `, "acceptance": [{"id": "A1", "result": "pass", "evidence": "go test ./..."}, {"id": "A2", "result": "fail", "evidence": "bash tests/x.sh"}]}`))
 	cl, n := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
 	if !reflect.DeepEqual(n, AcceptanceCount{Pass: 1, Fail: 1}) || cl.Tier != "A" {
@@ -165,7 +165,7 @@ func TestDecide(t *testing.T) {
 		want string
 	}{
 		{"揃えば approve", func(*Facts) {}, "approve"},
-		{"台帳と PR が合わない", func(f *Facts) { f.LedgerReasons = []string{"x"} }, "fix"},
+		{"kanban と PR が合わない", func(f *Facts) { f.LedgerReasons = []string{"x"} }, "fix"},
 		{"draft", func(f *Facts) { f.PROpen = false }, "fix"},
 		{"fork", func(f *Facts) { f.Blockers = []string{"fork の PR"} }, "needs_human"},
 		{"予約キーを信じられない", func(f *Facts) { f.SettingsReason = "x" }, "needs_human"},
@@ -209,7 +209,7 @@ func TestDecide(t *testing.T) {
 			f.Review.MustFixOpen = 1
 		}, "fix"},
 		{"走っていても委譲の外はオーナーへ", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}; f.Tier = "C" }, "needs_human"},
-		{"走っていても head が台帳と違えば止める", func(f *Facts) {
+		{"走っていても head が kanban と違えば止める", func(f *Facts) {
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 			f.LedgerReasons = []string{"report.json の commit が PR の head と違う"}
 		}, "fix"},
@@ -266,7 +266,7 @@ func TestScreen(t *testing.T) {
 	}
 }
 
-// TestChecksToExit は GitHub の checks の読みからゲートの終了コードまでを通す（P7・v0.0.3: 0 件を success と読まない）。
+// TestChecksToExit は GitHub の checks の読みから gate の終了コードまでを通す（P7・v0.0.3: 0 件を success と読まない）。
 func TestChecksToExit(t *testing.T) {
 	run := func(name, status, conclusion string) CheckItem {
 		return CheckItem{Typename: "CheckRun", Name: name, Status: status, Conclusion: conclusion}
@@ -280,7 +280,7 @@ func TestChecksToExit(t *testing.T) {
 		exit     int
 	}{
 		{"checks 0 件は待つ", nil, false, "wait", 5},
-		{"ゲート自身の status だけ（0 件と同じ）は待つ", []CheckItem{{Typename: "StatusContext", Context: GateContext, State: "SUCCESS"}}, false, "wait", 5},
+		{"gate 自身の status だけ（0 件と同じ）は待つ", []CheckItem{{Typename: "StatusContext", Context: GateContext, State: "SUCCESS"}}, false, "wait", 5},
 		{"30 分を過ぎた 0 件はオーナーへ", nil, true, "needs_human", 4},
 		{"全部 success は approve", []CheckItem{run("go", "COMPLETED", "SUCCESS"), run("tests", "COMPLETED", "SUCCESS"), run("release", "COMPLETED", "SKIPPED")}, false, "approve", 0},
 		{"走っているもの 1 つは待つ", []CheckItem{run("go", "COMPLETED", "SUCCESS"), run("tests", "IN_PROGRESS", "")}, true, "wait", 5},
@@ -309,7 +309,7 @@ func TestSummarizeChecks(t *testing.T) {
 		want  GitHubChecks
 	}{
 		{"無い", nil, GitHubChecks{"none", []string{}}},
-		{"ゲート自身の status だけは無いと同じ", []CheckItem{ctx(GateContext, "FAILURE")}, GitHubChecks{"none", []string{}}},
+		{"gate 自身の status だけは無いと同じ", []CheckItem{ctx(GateContext, "FAILURE")}, GitHubChecks{"none", []string{}}},
 		{"全部 success（skipped・neutral も通す）", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("lint", "COMPLETED", "SKIPPED"),
 			run("opt", "COMPLETED", "NEUTRAL"), ctx("ci/x", "SUCCESS"), ctx(GateContext, "FAILURE")}, GitHubChecks{"success", []string{"test", "lint", "opt", "ci/x"}}},
 		{"走っている", []CheckItem{run("test", "COMPLETED", "SUCCESS"), run("image", "IN_PROGRESS", ""), run("q", "QUEUED", "")},

@@ -156,7 +156,7 @@ type Finding struct {
 	Severity    string `json:"severity"`
 	File        string `json:"file"`
 	Line        *int   `json:"line"`
-	Preexisting bool   `json:"preexisting,omitempty"` // 課題の前からあった問題（ゲートは must_fix に数えない。差分で足した行なら数える）
+	Preexisting bool   `json:"preexisting,omitempty"` // 課題の前からあった問題（gate は must_fix に数えない。差分で足した行なら数える）
 }
 
 // Findings は findings.json（レビュアーが書く）。
@@ -541,7 +541,7 @@ func ParseQuestion(b []byte) (*Question, error) {
 	return &q, nil
 }
 
-// Text は問いから人向けの text を描く（台帳の questions.yaml に入る。機械は読まない）。
+// Text は問いから人向けの text を描く（kanban の questions.yaml に入る。機械は読まない）。
 func (q *Question) Text() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s（%s）", q.Question, q.Kind)

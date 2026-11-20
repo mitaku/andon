@@ -12,7 +12,7 @@ import (
 
 // 全文と要約の分け方（ADR-0039 決めたこと 6・受け入れ条件 4〜9）。
 
-// split は束を多く並べる台帳。束は同じ形で作るので、全文の大きさは束の数に比例する。
+// split は束を多く並べる kanban。束は同じ形で作るので、全文の大きさは束の数に比例する。
 type split struct {
 	t    *testing.T
 	root string
@@ -33,7 +33,7 @@ func (f *split) done(id string, at string) {
 	f.log = append(f.log, fmt.Sprintf(`{"at":%q,"by":"terminal:t1","id":%q,"change":{"status":"done"}}`, at, id))
 }
 
-// issue は担当の課題1件を、全文が重くなる記録（日報・起動の記録・結果の記録・レビュアーの子の major・ゲートの fix・手直し）つきで置く。
+// issue は担当の課題1件を、全文が重くなる記録（日報・起動の記録・結果の記録・レビュアーの子の major・gate の fix・手直し）つきで置く。
 func (f *split) issue(id string, doneAt string) {
 	t := f.t
 	write(t, filepath.Join(f.is(id), "issue.yaml"), issueYAML(id, "done", "profile: claude\n"))
@@ -128,7 +128,7 @@ func TestSplitAtPreviousUntil(t *testing.T) {
 	if in.Boundary == nil || *in.Boundary != until.Format(time.RFC3339) || in.PreviousRetro.Until == nil || *in.PreviousRetro.Until != *in.Boundary {
 		t.Errorf("境目 = %v・前の振り返り = %+v（want %s）", in.Boundary, in.PreviousRetro, until.Format(time.RFC3339))
 	}
-	// 同じ台帳を全部全文で出す: 前の振り返りを数えず、全文の上限を外す
+	// 同じ kanban を全部全文で出す: 前の振り返りを数えず、全文の上限を外す
 	defer func(n int) { fullLimit = n }(fullLimit)
 	fullLimit = 1000
 	all := f.collect(Options{Exclude: "A-0900"})

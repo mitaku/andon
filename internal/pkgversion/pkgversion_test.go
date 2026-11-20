@@ -158,7 +158,7 @@ func TestAppliedWithStamp(t *testing.T) {
 	check(t, "当て直して焼いた", Read(root), c2, "applied", "false")
 }
 
-// 前の版の道具で当て直した（version.json が無い）: commit は読めるが、食い違いは確かめられない
+// 前のバージョンの道具で当て直した（version.json が無い）: commit は読めるが、食い違いは確かめられない
 func TestAppliedWithoutStamp(t *testing.T) {
 	root := pkg(t)
 	applied(t, root, c2)

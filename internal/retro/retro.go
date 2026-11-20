@@ -1,6 +1,6 @@
 // Package retro は振り返り（ADR-0028 決めたこと 8）の入力を集める（andon retro collect）。
 //
-// 読むだけで、台帳にもセッションログにも書かない。台帳のファイル（issue.yaml・log.jsonl・library/ の記録）を直に読み、
+// 読むだけで、kanban にもセッションログにも書かない。kanban のファイル（issue.yaml・log.jsonl・library/ の記録）を直に読み、
 // 期間に片付いた担当の課題ごとに記録を1件に束ね（レビュアーの子は親へ）、期間にオーナーが打った文をセッションログから抜き、
 // 前の振り返りが切った直しのうちマージから 14 日以内のものを並べ、マージ後のこと（マージ commit の checks・revert の PR）を
 // GitHub から読む。出力の文字列は全部、秘密の形に合うものを伏せてから書く。形は docs/contract.md §20。
@@ -38,7 +38,7 @@ import (
 const Usage = "usage: andon retro collect [--days N] [--issue <id>]        振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）\n" +
 	"       andon retro patterns <id> [--days N] <patterns.json|->  パターンの一覧を検査して library/retro.json に書く（振り返りの担当。§21）\n" +
 	"       andon retro apply <id> [--dry-run]                      パターンの一覧の fix を直す課題に切る（Chief of Staff。§21）\n" +
-	"collect: 直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・ゲートの判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
+	"collect: 直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・gate の判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
 	"見送り・オーナーの手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
 	"前の振り返りが集めたあとに片付いた束は全文（新しい順に 100 件まで）、それより前の束は要約（題・PR・つまずきの跡の見出し）で出す。\n" +
 	"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のもの\n" +
@@ -178,7 +178,7 @@ type Bundle struct {
 	mergeCommit string // outcome.json の merge_commit（GitHub がマージ commit を返さないとき、マージ後のことに使う）
 }
 
-// Gate はゲートの記録1枚（head ごとの最後の判定）の写し。
+// Gate は gate の記録1枚（head ごとの最後の判定）の写し。
 type Gate struct {
 	Head     string   `json:"head"`
 	At       string   `json:"at"`
@@ -247,11 +247,11 @@ func (r *reader) rel(p string) string {
 	return p
 }
 
-// Collect は振り返りの入力を集める。台帳が読めなければ err。ほかの読めないものは skipped に並べて続ける。
+// Collect は振り返りの入力を集める。kanban が読めなければ err。ほかの読めないものは skipped に並べて続ける。
 func Collect(o Options) (*Input, error) {
 	r := &reader{o: o, dir: filepath.Join(o.Root, "kanban")}
 	if st, err := os.Stat(r.dir); err != nil || !st.IsDir() {
-		return nil, fmt.Errorf("台帳（%s）が無い", r.dir)
+		return nil, fmt.Errorf("kanban（%s）が無い", r.dir)
 	}
 	until := o.Now.UTC()
 	since := until.Add(-time.Duration(o.Days) * 24 * time.Hour)
@@ -440,7 +440,7 @@ func inWindow(t *task, done map[string]time.Time, retros map[string]bool, since,
 
 // Fresh は、次の振り返りが全文で読む束の数を数える（dispatcher の巡の件数のきっかけ。ADR-0039 決めたこと 8）。
 // 数えるのは、直近 defaultDays 日に片付いた担当の課題のうち、境目より後に片付いたもの。選び方と境目は collect と同じで、
-// fullLimit では切らない。issues は台帳の課題の一覧（kanban list --all --json）、rows は log.jsonl。
+// fullLimit では切らない。issues は kanban の課題の一覧（kanban list --all --json）、rows は log.jsonl。
 // ファイルは課題ごとの library/retro.json の有無と、前の振り返りの retro.json だけを読む。
 func Fresh(root string, issues []ledger.Issue, rows []ledger.Row, now time.Time) int {
 	r := &reader{o: Options{Root: root}, dir: filepath.Join(root, "kanban")}
@@ -659,8 +659,8 @@ func outcomeView(o map[string]any) *OutcomeView {
 // summary は束を要約にする: id・題・片付いた時刻・PR と、つまずきの跡の見出し（ADR-0039 決めたこと 6 の細部）。
 //   - findings: レビュアーの子の major 以上の指摘（課題の前からあった指摘は除く）ごとに1行。レビュアーの報告で、その指摘の
 //     ファイル:行を含む最初の行（字下げした次の行が続けば足す）。報告に無ければ「<重さ> <ファイル>:<行>」
-//   - gate_fixes: ゲートが fix を返した理由（重なりは1つ）
-//   - corrections: ゲートの問いをオーナーがマージして閉じた答えのほかに手直しがあるか。手直しの記録が無ければ null（集めていない）
+//   - gate_fixes: gate が fix を返した理由（重なりは1つ）
+//   - corrections: gate の問いをオーナーがマージして閉じた答えのほかに手直しがあるか。手直しの記録が無ければ null（集めていない）
 //   - remember: Remember の行数
 func (r *reader) summary(b Bundle) Summary {
 	s := Summary{ID: b.ID, Title: b.Title, DoneAt: b.DoneAt, PR: b.PR, Findings: []string{}, GateFixes: []string{}, Remember: len(b.Remember)}
@@ -734,7 +734,7 @@ func findingLine(report []string, loc, sev string) string {
 	return sev + " " + loc
 }
 
-// ownerMerged は手直しが、ゲートの問いをオーナーがマージして閉じた答え（「人がマージした（…）」。今の版は「オーナーがマージした（…）」）か。
+// ownerMerged は手直しが、gate の問いをオーナーがマージして閉じた答え（「人がマージした（…）」。今のバージョンは「オーナーがマージした（…）」）か。
 func ownerMerged(c any) bool {
 	m, _ := c.(map[string]any)
 	a, _ := m["answer"].(string)
@@ -798,7 +798,7 @@ func (r *reader) launches(path string) []map[string]any {
 	return out
 }
 
-// gates はゲートの記録を判定の時刻の順に写す。読めない記録は飛ばす。
+// gates は gate の記録を判定の時刻の順に写す。読めない記録は飛ばす。
 func (r *reader) gates(dir string) []Gate {
 	out := []Gate{}
 	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))

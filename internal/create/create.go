@@ -1,6 +1,6 @@
 // Package create は andon create [slug]: セルの repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
 //
-//	projects/<slug>/kanban/      台帳（kanban init。prefix と repos を渡す）
+//	projects/<slug>/kanban/      kanban（`kanban init` で作る。prefix と repos を渡す）
 //	projects/<slug>/project.json 下書き（version・project〈題・接頭字〉・repos。delegation は無し＝無委譲）。commit しない
 //	projects/<slug>/AGENTS.md    薄い地図の見出しだけ
 //	repos の clone               ghq get（GHQ_ROOT の下に無いものだけ）
@@ -32,12 +32,12 @@ import (
 
 // Usage は andon create --help の中身。
 const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <題>]\n" +
-	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に台帳（kanban/）・project.json の下書き・\n" +
+	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に kanban（projects/<slug>/kanban/）・project.json の下書き・\n" +
 	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（オーナーが見て commit する）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
 	"slug は英小文字・数字・_・-（28字まで）。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
-	"台帳を作ったあと、dispatcher の置き場が台帳の数に合わなければ、見回りの終わりを待って起動し直す。\n"
+	"kanban を作ったあと、dispatcher の置き場が kanban の数に合わなければ、見回りの終わりを待って起動し直す。\n"
 
 const (
 	exitFail  = 1
@@ -414,14 +414,14 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// placeDispatcher は台帳を足したあと dispatcher の置き場を今の台帳の数に合わせる（dispatcher.Ensure。#98）。
-// 合わせられなくても台帳はできているので止めない（次の Chief of Staff のフックか boot が合わせる）。
+// placeDispatcher は kanban を足したあと dispatcher の置き場を今の kanban の数に合わせる（dispatcher.Ensure。#98）。
+// 合わせられなくても kanban はできているので止めない（次の Chief of Staff のフックか boot が合わせる）。
 func placeDispatcher(ws string, stdout, stderr io.Writer) {
 	self, err := os.Executable()
 	if err == nil {
 		var did string
 		waiting := func() {
-			fmt.Fprintln(stderr, "andon create: dispatcher の見回りが終わるのを待ってから置き場を合わせる（Ctrl-C で抜けてよい。台帳はできている。次の Chief of Staff のフックか boot が合わせる）")
+			fmt.Fprintln(stderr, "andon create: dispatcher の見回りが終わるのを待ってから置き場を合わせる（Ctrl-C で抜けてよい。kanban はできている。次の Chief of Staff のフックか boot が合わせる）")
 		}
 		if did, err = dispatcher.EnsureAfterCreate(self, ws, 5*time.Second, waiting); err == nil && did != "" {
 			fmt.Fprintf(stdout, "%s\n", did)

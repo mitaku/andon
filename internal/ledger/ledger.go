@@ -1,5 +1,5 @@
-// Package ledger は台帳を読む（docs/contract.md §1・§2・§3）。台帳を書くのは台帳の CLI（kanban）だけで、
-// ここはそれを打つか、台帳のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
+// Package ledger は kanban を読む（docs/contract.md §1・§2・§3）。kanban を書くのは kanban の CLI だけで、
+// ここはそれを打つか、kanban のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
 //
 // command（andon issue・andon gate）が共有するもの: 課題の項目（issue.yaml の Andon の予約キー）と履歴の照合・
 // レビュアーの課題の選び方・findings.json の読み方・library/ の置き場。
@@ -19,13 +19,13 @@ import (
 	"strings"
 )
 
-// CLI は台帳の CLI の名前。
+// CLI は kanban の CLI の名前。
 const CLI = "kanban"
 
-// Missing は台帳の CLI が PATH に無いときの言い方（入れ方の案内つき）。
-const Missing = "kanban が無い（台帳の CLI。Andon の image に入っている。手元なら go install ./cmd/kanban で入れる）"
+// Missing は kanban の CLI が PATH に無いときの言い方（入れ方の案内つき）。
+const Missing = "kanban が無い（kanban の CLI。Andon の image に入っている。手元なら go install ./cmd/kanban で入れる）"
 
-// Check は台帳の CLI が PATH にあるかを確かめる。無ければ Missing を返す。
+// Check は kanban の CLI が PATH にあるかを確かめる。無ければ Missing を返す。
 func Check() error {
 	if _, err := exec.LookPath(CLI); err != nil {
 		return errors.New(Missing)
@@ -33,24 +33,24 @@ func Check() error {
 	return nil
 }
 
-// DispatcherBy は dispatcher が台帳の CLI を打つときの log.jsonl の by（HC_TERMINAL_ID=dispatcher で打つ）。
+// DispatcherBy は dispatcher が kanban の CLI を打つときの log.jsonl の by（HC_TERMINAL_ID=dispatcher で打つ）。
 // dispatcher が足したレビュアーの課題は、Chief of Staff が足したものと同じに数える（docs/dispatcher.md §5 の P6a）。
 const DispatcherBy = "terminal:dispatcher"
 
-// Ledger は1つの台帳。
+// Ledger は1つの kanban。
 type Ledger struct {
 	Root string // プロジェクトの根（kanban/ の親）
 	Slug string
 	Dir  string   // <Root>/kanban
-	Env  []string // 台帳の CLI に足す環境（dispatcher は HC_TERMINAL_ID=dispatcher）
+	Env  []string // kanban の CLI に足す環境（dispatcher は HC_TERMINAL_ID=dispatcher）
 }
 
-// At は台帳の根 root（kanban/ の親）の Ledger。
+// At は kanban の根 root（kanban/ の親）の Ledger。
 func At(root string) *Ledger {
 	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, "kanban")}
 }
 
-// Open は台帳の CLI に台帳の根を聞く。
+// Open は kanban の CLI に kanban の根を聞く。
 func Open() (*Ledger, error) {
 	if err := Check(); err != nil {
 		return nil, err
@@ -58,12 +58,12 @@ func Open() (*Ledger, error) {
 	out, err := exec.Command(CLI, "root").Output()
 	root := strings.TrimSpace(string(out))
 	if err != nil || root == "" {
-		return nil, errors.New("台帳が見つからない（projects/<slug>/ か担当の worktree で打つ）")
+		return nil, errors.New("kanban が見つからない（projects/<slug>/ か担当の worktree で打つ）")
 	}
 	return At(root), nil
 }
 
-// Run は台帳の CLI をこの台帳に向けて打ち、stdout を返す（前後の空白を除く）。
+// Run は kanban の CLI をこの kanban に向けて打ち、stdout を返す（前後の空白を除く）。
 func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	c := exec.Command(CLI, args...)
 	c.Env = append(append(os.Environ(), "KANBAN_ROOT="+l.Root), l.Env...)
@@ -81,7 +81,7 @@ func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Issue は台帳の課題の項目（`show <id> --json` の .issue）。値は全部文字列（台帳の CLI がそう書く）。
+// Issue は kanban の課題の項目（`show <id> --json` の .issue）。値は全部文字列（kanban の CLI がそう書く）。
 type Issue map[string]any
 
 // Str はキーの値。文字列でなければ空。
@@ -90,7 +90,7 @@ func (t Issue) Str(k string) string {
 	return s
 }
 
-// Path はキーの値をパスとして読む。台帳の CLI は HOME の下を `~/…` で書くことがあるので、HOME に開く。
+// Path はキーの値をパスとして読む。kanban の CLI は HOME の下を `~/…` で書くことがあるので、HOME に開く。
 func (t Issue) Path(k string) string {
 	s := t.Str(k)
 	if rest, ok := strings.CutPrefix(s, "~/"); ok {
@@ -152,7 +152,7 @@ func (l *Ledger) Repos() []string {
 	return c.Repos
 }
 
-// Row は log.jsonl の1行（台帳の CLI が書く）。
+// Row は log.jsonl の1行（kanban の CLI が書く）。
 type Row struct {
 	At     string         `json:"at"`
 	By     string         `json:"by"`
@@ -168,7 +168,7 @@ func (l *Ledger) Log() []Row {
 }
 
 // ReadLog は Log と同じく log.jsonl を読み、ファイルを開けない・読み切れないときは読めたところまでと err を返す
-// （空の台帳と、読めなかった台帳を分けたい呼び手のため）。
+// （空の kanban と、読めなかった kanban を分けたい呼び手のため）。
 func (l *Ledger) ReadLog() ([]Row, error) {
 	f, err := os.Open(filepath.Join(l.Dir, "log.jsonl"))
 	if err != nil {
@@ -191,7 +191,7 @@ func (l *Ledger) ReadLog() ([]Row, error) {
 // TakenByChiefOfStaff は、課題 id の agent を agent に書いた最後の行が、その時点の Chief of Staff の端末だったときに書かれたか
 // （log.jsonl の kanban config set の行で chief_of_staff の移り変わりを辿る。前の名前の coordinator も読む）。Chief of Staff が自分で kanban start した課題は、
 // 起き直してアドレスが変わったあとも担当の課題でない。同じアドレスが後で担当に使われても、その時点の値で見分ける。
-// 行が無い・config の行が無い台帳では false（今の chief_of_staff との比べは呼び手がする）。
+// 行が無い・config の行が無い kanban では false（今の chief_of_staff との比べは呼び手がする）。
 func TakenByChiefOfStaff(rows []Row, id, agent string) bool {
 	if agent == "" {
 		return false

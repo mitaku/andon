@@ -34,7 +34,7 @@ func day(s string) time.Time {
 
 const repoURL = "https://github.com/example/sample-site/pull/"
 
-// fakeLedger は偽の台帳: 課題3件（＋レビュアーの課題1件）・ゲートの記録3件・問い1件・revert の PR 1本・壊れた行1行。
+// fakeLedger は偽の kanban: 課題3件（＋レビュアーの課題1件）・gate の記録3件・問い1件・revert の PR 1本・壊れた行1行。
 //
 // 期間 2026-11-01〜2026-11-04（4日）で手で数えた値:
 //
@@ -68,7 +68,7 @@ func fakeLedger(t *testing.T) string {
 		"id: S-0002-r1\ntitle: review\nstatus: done\nparent: S-0002\nprofile: codex-review\ncreated: \"2026-11-02T06:00:00Z\"\n")
 	put(t, filepath.Join(k, "issues/S-0003/issue.yaml"),
 		"id: S-0003\ntitle: three\nstatus: doing\ncreated: \"2026-11-03T00:00:00Z\"\nlinks:\n  - "+repoURL+"1\n")
-	// 8行目は読めない行（読み手が飛ばす）。ほかは台帳の CLI の書く形
+	// 8行目は読めない行（読み手が飛ばす）。ほかは kanban の CLI の書く形
 	log := ledgertest.Log(t,
 		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t1","id":"S-0001","change":{"add":"one"}}`,
 		`{"at":"2026-11-01T01:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"doing","agent":"t2"}}`,
@@ -220,13 +220,13 @@ func TestEmptyProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	if called {
-		t.Error("PR の無い台帳で gh を打った")
+		t.Error("PR の無い kanban で gh を打った")
 	}
 	e, f := res.Efficiency, res.Flow
 	if e.MergedPRs != 0 || e.AutoMerge.Rate != nil || e.Gate.Rate != nil || e.HumanTouches.PerPR != nil ||
 		f.LeadTime.Value != nil || f.Closed.Count != 0 || f.WIPEnd != 0 || res.Counter.Reverted != 0 ||
 		res.Counter.Reopened.Corrections != "none" || len(res.Skipped) != 0 {
-		t.Errorf("空の台帳が 0・null・記録なしでない: %+v", res)
+		t.Errorf("空の kanban が 0・null・記録なしでない: %+v", res)
 	}
 	var b bytes.Buffer
 	Table(&b, res, columnsOrder(res))
@@ -274,7 +274,7 @@ func TestUnknownLedgerVersionStops(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "old")
 	put(t, filepath.Join(root, "kanban/config.yaml"), "version: 2\n")
 	if _, err := Measure(opts(root)); err == nil {
-		t.Error("版 2 の台帳を読んだ")
+		t.Error("バージョン 2 の kanban を読んだ")
 	}
 }
 
@@ -285,7 +285,7 @@ func TestMeasureWritesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	if after := snapshot(t, root); after != before {
-		t.Errorf("台帳が変わった:\n%s\n---\n%s", before, after)
+		t.Errorf("kanban が変わった:\n%s\n---\n%s", before, after)
 	}
 }
 
@@ -378,7 +378,7 @@ func TestUnreadableRecordsAreSkippedWithoutAbsolutePath(t *testing.T) {
 	}
 	js, _ := json.Marshal(res)
 	if strings.Contains(string(js), root) {
-		t.Errorf("--json に台帳の絶対パスが出る: %s", js)
+		t.Errorf("--json に kanban の絶対パスが出る: %s", js)
 	}
 }
 
@@ -398,7 +398,7 @@ func TestUnreadableDirectoriesAreSkippedNotDropped(t *testing.T) {
 	k := filepath.Join(root, "kanban")
 	dirs := []string{
 		"issues/S-0003",              // 辿れない課題のディレクトリ（skip の出どころは中の issue.yaml）
-		"issues/S-0002/library/gate", // 読めないゲートのディレクトリ
+		"issues/S-0002/library/gate", // 読めない gate のディレクトリ
 	}
 	for _, d := range dirs {
 		p := filepath.Join(k, d)
@@ -447,7 +447,7 @@ func TestUnreadableAnsweredIsSkippedNotUnanswered(t *testing.T) {
 	}
 }
 
-// valueLedger は価値の行の偽の台帳（ADR-0011 決めたこと 18）。期間 2026-11-01〜2026-11-10 で手で数えた値:
+// valueLedger は価値の行の偽の kanban（ADR-0011 決めたこと 18）。期間 2026-11-01〜2026-11-10 で手で数えた値:
 //
 //	E-0001 Chief Engineer の課題。11-02 00:00 に done。観察 E-0002（parent）が 11-04 12:00 に review・hit → 2.5 日。
 //	E-0003 Chief Engineer の課題。11-03 00:00 に done。観察 E-0004 が 11-08 00:00 に review・unknown → 5 日。
@@ -695,7 +695,7 @@ func TestNewsNoCandidate(t *testing.T) {
 //	       requestId の無い行は message.id（msg_3）で2行 → 1回。synthetic の行（id も無い）は数えない。サブエージェントの req_4 が1行。
 //	       入力 1+2+3+4=10・出力 10+20+30+40=100・キャッシュ読み 100+200+300+400=1000・キャッシュ書き 5+6+7+8=26
 //	S-0002（claude。session bbbb…）: 記録が無い → usage null（0 と分ける）
-//	S-0002-r1（codex。cwd は台帳の issues/S-0002-r1）: rollout 2本（起き直し）。それぞれ最後の token_count を足す。
+//	S-0002-r1（codex。cwd は kanban の issues/S-0002-r1）: rollout 2本（起き直し）。それぞれ最後の token_count を足す。
 //	       1本目 input 500（cached 300・write 50）・output 40、2本目 input 200（cached 100）・output 10
 //	       → 入力 (500-300-50)+(200-100)=250・出力 50・キャッシュ読み 400・キャッシュ書き 50
 //	S-0003（claude。session 無し）→ usage null

@@ -54,7 +54,7 @@ func TestSkillOf(t *testing.T) {
 	}
 	y := skillOf("plain", "/s/plain", []byte("# no frontmatter\n"))
 	if y.Name != "plain" || y.Source != nil || y.Version != nil || y.Revision != nil {
-		t.Fatalf("版の無い skill: %+v", y)
+		t.Fatalf("バージョンの無い skill: %+v", y)
 	}
 }
 

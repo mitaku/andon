@@ -13,7 +13,7 @@ import (
 	ledgercli "andon/internal/ledger"
 )
 
-// Chief of Staff の判定（ADR-0030 決めたこと 5 の 3・6）。判断の閉じと、台帳の課題を閉じる判定は、
+// Chief of Staff の判定（ADR-0030 決めたこと 5 の 3・6）。判断の閉じと、kanban の課題を閉じる判定は、
 // Chief of Staff が1件ずつ「閉じてよい」（ok）か「覆す」（overturn）かを andon triage verdict で書き、
 // トリアージの課題の library/verdicts.json に置く。判定は key と、書いた時の担当の閉じ方と理由に結びつく。
 const (
@@ -101,7 +101,7 @@ func reviewTable(items []item, vs map[string]verdict, by string) []any {
 }
 
 // checkVerdicts は判定の要る close の全部に、今の判定に結びついた「閉じてよい」があるかを確かめる。
-// 足りなければ台帳に手を入れる前に断る。通れば items に判定（verdict）と、覆した記録（overturned）を書く。
+// 足りなければ kanban に手を入れる前に断る。通れば items に判定（verdict）と、覆した記録（overturned）を書く。
 // 判定は、書き手（by）が今の Chief of Staff の端末のものだけを数える。
 func checkVerdicts(items []item, vs map[string]verdict, by string) error {
 	var missing []string

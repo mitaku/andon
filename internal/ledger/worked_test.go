@@ -52,7 +52,7 @@ func TestWorked(t *testing.T) {
 		{"Chief of Staff の問いは待ちに数えない", []Row{
 			st(0, "w", "doing"), q(10, "cos", 1, "open"), st(40, "w", "review"),
 		}, nil, 100, 40},
-		{"ゲートの問いが open のまま doing で働いた（A-0005 の形）", []Row{
+		{"gate の問いが open のまま doing で働いた（A-0005 の形）", []Row{
 			st(0, "w", "doing"), st(20, "w", "review"),
 			q(21, "dispatcher", 1, "open"),
 			st(60, "w", "doing"), st(90, "w", "review"),

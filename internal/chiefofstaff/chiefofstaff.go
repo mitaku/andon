@@ -6,9 +6,9 @@
 //  1. ラベル role=chief-of-staff project=<slug> の、動いている端末を探す。1つならそれを使う（名前と cwd が合うときだけ）。
 //     2つ以上なら止まる（1プロジェクトに1人）。数えるのは hc の agent が Claude Code の端末だけ。
 //     作り直しで戻った端末（top-level の argv ごと素のシェル）は数えず片付ける。どちらとも言えない端末があれば止まる。
-//  2. 無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos・cwd は台帳の root）。
+//  2. 無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos・cwd は kanban の root）。
 //     ラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-cos でオーナーの Herdr App の指揮側の Space に出す（ADR-0002 決めたこと 6・10）。
-//  3. その address を台帳の config.yaml の chief_of_staff に書く（違うときだけ。kanban config set）。
+//  3. その address を kanban の config.yaml の chief_of_staff に書く（違うときだけ。kanban config set）。
 //  4. 出た場所を「<Space 名> / <tab 名>」（<slug> / CoS）で出す。hc attach は打たない（ADR-0002 決めたこと 14・17）。
 //
 // 打つのはオーナー（プロジェクトで Chief of Staff と話すとき）か、起き直した Chief of Staff 自身（自分が見つかるので起動し直さない）。
@@ -33,7 +33,7 @@ import (
 // Usage は andon chief-of-staff の使い方。
 const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。オーナーの Herdr App の <slug> / CoS に出る\n" +
 	"動いていればそれを使い、無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos）。\n" +
-	"台帳の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
+	"kanban の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
 	"最初のメッセージが届かなかった（信頼の画面など）ときは終了コード 3 と、App のその tab で答えたあとに打つ hc send を出す。\n"
 
 // Profile は Chief of Staff のプロファイル（hc の template の名前）。
@@ -54,7 +54,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return Start("", stdout, stderr)
 }
 
-// Start は dir（空なら今のディレクトリ）から台帳を探して、そのプロジェクトの Chief of Staff を起動する／使う。
+// Start は dir（空なら今のディレクトリ）から kanban を探して、そのプロジェクトの Chief of Staff を起動する／使う。
 // andon open <slug> が projects/<slug> を指して呼ぶ（cd はしない）。
 func Start(dir string, stdout, stderr io.Writer) int {
 	die := func(format string, a ...any) int {
@@ -71,13 +71,13 @@ func Start(dir string, stdout, stderr io.Writer) int {
 	}
 	root, err := spawn.OutputIn(dir, nil, "", cli, "root")
 	if err != nil || root == "" {
-		return die("台帳が見つからない（projects/<slug>/ で打つ）")
+		return die("kanban が見つからない（projects/<slug>/ で打つ）")
 	}
 	l := ledger.At(root)
 	slug := l.Slug
 	name := slug + "-cos"
 	if !spawn.SlugRe.MatchString(slug) || !spawn.NameRe.MatchString(name) {
-		return die("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-、28字まで）", slug)
+		return die("slug が不正: '%s'（kanban の root のフォルダ名。英小文字・数字・_・-、28字まで）", slug)
 	}
 	config := filepath.Join(l.Dir, "config.yaml")
 	if fi, err := os.Lstat(config); err != nil || !fi.Mode().IsRegular() {
@@ -133,7 +133,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 
 	space, tab := "andon-"+slug, "andon-"+slug+"-cos"
 	where := slug + " / CoS" // オーナーに端末を指す言い方（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける
-	msg := fmt.Sprintf("プロジェクト `%s` の Chief of Staff。\n台帳は `%s`。", slug, l.Dir)
+	msg := fmt.Sprintf("プロジェクト `%s` の Chief of Staff。\nkanban は `%s`。", slug, l.Dir)
 	var addr, how string
 	var run *spawn.Started
 	if len(addrs) == 1 {

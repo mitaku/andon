@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# `andon gate` と `andon delegate`。本物の台帳の CLI（kanban）と git・一時のセルの repo・偽の gh で回す。
-# PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。台帳の CLI は tests/lib/kanban.sh が焼く。
-# ANDON_EMIT_DIR があれば、ゲートの記録と委譲を写す（tests/schema.sh が schema に通す）。
+# `andon gate` と `andon delegate`。本物の kanban の CLI と git・一時のセルの repo・偽の gh で回す。
+# PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。kanban の CLI は tests/lib/kanban.sh が焼く。
+# ANDON_EMIT_DIR があれば、gate の記録と委譲を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
 for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
@@ -20,7 +20,7 @@ emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
 as_owner() { GIT_AUTHOR_NAME=o GIT_AUTHOR_EMAIL=owner@example.com "$@"; }
 as_agent() { GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=agent@example.com "$@"; }
 
-# 案件 repo: origin（PR の head を持つ）と、ゲートが fetch する clone
+# 案件 repo: origin（PR の head を持つ）と、gate が fetch する clone
 git init -q "$tmp/origin"
 as_agent git -C "$tmp/origin" commit -q --allow-empty -m base
 git clone -q "$tmp/origin" "$tmp/ghq/github.com/example/app"
@@ -57,7 +57,7 @@ cat > "$tmp/bin/hc" <<EOF
 EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
-# rollup <状態…>: GitHub の checks（CheckRun の status/conclusion か ctx:<state>）。ゲート自身の andon/gate の failure をいつも混ぜる
+# rollup <状態…>: GitHub の checks（CheckRun の status/conclusion か ctx:<state>）。gate 自身の andon/gate の failure をいつも混ぜる
 rollup() {
     printf '%s\n' "$@" | jq -R -s '[split("\n")[] | select(. != "") |
       if startswith("ctx:") then {__typename: "StatusContext", context: "ci/x", state: .[4:]}
@@ -75,7 +75,7 @@ pr() {
     git -C "$tmp/wt" fetch -q origin && git -C "$tmp/wt" checkout -q "$head"
 }
 
-# セルの repo（オーナーのもの）と台帳
+# セルの repo（オーナーのもの）と kanban
 git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
@@ -90,7 +90,7 @@ id=$(HC_TERMINAL_ID=t5 kanban add 'docs を直す' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$id" status=doing review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=kanban/issues/$id/library
 gate() { local rc=0; "$andon" gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
-# rereport: 担当が直して返し直す（doing に戻し、andon issue report、台帳を review へ。andon issue は review の課題に report を打てない）
+# rereport: 担当が直して返し直す（doing に戻し、andon issue report、kanban を review へ。andon issue は review の課題に report を打てない）
 rereport() {
     HC_TERMINAL_ID=t5 kanban set "$id" status=doing >/dev/null
     HC_TERMINAL_ID=t7 "$andon" issue report "$id" <<<'## Report' >/dev/null
@@ -158,7 +158,7 @@ flock -u 9; exec 9>&-
 got=0; wait "$bg" || got=$?
 expect 4 needs_human 'ほかの run の記録'
 [ "$(wc -l < "$tmp/gh/posted")" = "$posted" ] && jq -e '.reasons == ["ほかの run の記録"]' "$rec" >/dev/null || die "lock を待つ間に書かれた記録を上書きした・PR に二重に付けた: $(tail -2 "$tmp/gh/posted")"
-ok '同時に打たれたゲートは lock を待ち、待つ間にほかが書いた同じ head の記録を返す（上書きしない・PR に二重に付けない）'
+ok '同時に打たれた gate は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（上書きしない・PR に二重に付けない）'
 
 # 3. andon delegate: オーナーが委譲を書く（project.json の delegation。project.json は先にオーナーが書く）
 rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?
@@ -222,7 +222,7 @@ got=$(gate "$id" --dry-run); expect 0 approve
 [ ! -e "$rec" ] && [ ! -e "$tmp/gh/posted" ] || die 'dry-run が書いた'
 ok '--dry-run は記録も GitHub への書き込みもしない'
 
-# 5b. GitHub の checks（PR の head の statusCheckRollup。ゲート自身の andon/gate は数えない）
+# 5b. GitHub の checks（PR の head の statusCheckRollup。gate 自身の andon/gate は数えない）
 rm -f "$rec" "$tmp/gh/posted"
 rollup COMPLETED/SUCCESS IN_PROGRESS
 got=$(gate "$id"); expect 5 wait 'まだ走っている: test'
@@ -316,7 +316,7 @@ jq -e '.review.must_fix_open == 1' "$rec" >/dev/null
 got=$(gate "$id"); expect 4 needs_human '2度目'
 ok 'Must fix が残れば fix、同じ head で2度目は needs_human'
 
-# 9b. preexisting: true の指摘は Must fix に数えない。ただし PR の差分で足した行に当たれば数える（申告でゲートを緩めない）
+# 9b. preexisting: true の指摘は Must fix に数えない。ただし PR の差分で足した行に当たれば数える（申告で gate を緩めない）
 printf 'diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -1,0 +2 @@\n+x\n' > "$tmp/gh/diff"
 findings "$head" '[{"severity":"major","file":"docs/a.md","line":1,"preexisting":true},{"severity":"critical","file":"docs/old.md","line":3,"preexisting":true}]'
 got=$(gate "$id" --dry-run); expect 0 approve
@@ -407,7 +407,7 @@ report_runs '[{"id": "A4", "result": "pass", "evidence": "true", "run": 9}]'
 got=$(gate "$id" --dry-run); expect 1 fix '受け入れ条件 A4 の記録 runs/9.json が無い'
 ok '受け入れ条件の行が指す記録が古い commit なら戻さず acceptance.stale_runs に出し、無ければ fix（記録を指さない行は見ない）'
 
-# 12. deliverable: candidates（調べる課題）にはゲートが無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
+# 12. deliverable: candidates（調べる課題）には gate が無い: 理由1行と終了コード 3、記録も GitHub への書き込みもしない（ADR-0006 受け入れ条件 4）
 sid=$(HC_TERMINAL_ID=t5 kanban add 'docs の誤りを調べる' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates branch=survey "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 rm -f "$tmp/gh/posted"
