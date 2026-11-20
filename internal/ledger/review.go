@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"andon/internal/contract"
@@ -93,46 +94,52 @@ func (l *Ledger) previousFiles(earlier []string, commit string) map[string]bool 
 	return nil
 }
 
-// SamePatch は、課題の worktree dir の git で、commit a と b の PR の差分の patch-id（git patch-id --stable）が同じか。
+// SamePatch は、課題の worktree dir の git で、commit a と b の PR の差分が同じか。
 // PR の差分は、その commit と origin/HEAD（既定の branch）の merge-base から commit までの diff とする。
-// 衝突の無い rebase は base だけを替えるので、差分は同じで patch-id も同じになる。衝突を解いて差分が変わった rebase は違う。
+// 比べるのは、hunk の行番号と index の行（blob の id）を除いた diff の全部で、追加・削除・前後の行は空白も含めて比べる。
+// git patch-id は空白の違いを無視するので使わない（文字列の中の空白だけが変わった差分を同じと見て、見ていない変更のレビューを引き継ぐ）。
+// 衝突の無い rebase は base だけを替えるので差分は同じになる。衝突を解いて差分が変わった rebase は違う。
 // worktree が無い・commit が無い・origin/HEAD が引けない・差分が空のときは同じと言わない（引き継がずに頼み直す側に倒す）。
 func SamePatch(dir, a, b string) bool {
 	if dir == "" || a == "" || b == "" {
 		return false
 	}
-	pa, ok := patchID(dir, a)
+	pa, ok := prDiff(dir, a)
 	if !ok {
 		return false
 	}
-	pb, ok := patchID(dir, b)
-	return ok && pa == pb
+	pb, ok := prDiff(dir, b)
+	return ok && bytes.Equal(pa, pb)
 }
 
-// patchID は commit の PR の差分の patch-id。差分はバイナリの中身も含める（--binary。含めないと中身の違うバイナリが同じに見える）。
-func patchID(dir, commit string) (string, bool) {
-	git := func(stdin []byte, args ...string) ([]byte, bool) {
-		c := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		if stdin != nil {
-			c.Stdin = bytes.NewReader(stdin)
-		}
-		out, err := c.Output()
+// hunkRe は hunk の見出しの行番号（@@ -a,b +c,d @@）。base が進むとずれるので比べない。
+var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@`)
+
+// prDiff は commit の PR の差分から、hunk の行番号と index の行を除いたもの。差分はバイナリの中身も含める
+// （--binary。含めないと中身の違うバイナリが同じに見える）。rename は git の設定に依らず見ない（--no-renames）。
+func prDiff(dir, commit string) ([]byte, bool) {
+	git := func(args ...string) ([]byte, bool) {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
 		return out, err == nil
 	}
-	base, ok := git(nil, "merge-base", commit+"^{commit}", "refs/remotes/origin/HEAD")
+	base, ok := git("merge-base", commit+"^{commit}", "refs/remotes/origin/HEAD")
 	if !ok {
-		return "", false
+		return nil, false
 	}
-	diff, ok := git(nil, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--binary", "--full-index", strings.TrimSpace(string(base)), commit)
+	diff, ok := git("diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--binary", "--full-index", strings.TrimSpace(string(base)), commit)
 	if !ok || len(bytes.TrimSpace(diff)) == 0 {
-		return "", false
+		return nil, false
 	}
-	out, ok := git(diff, "patch-id", "--stable")
-	f := strings.Fields(string(out))
-	if !ok || len(f) == 0 {
-		return "", false
+	lines := bytes.SplitAfter(diff, []byte("\n"))
+	for i, ln := range lines {
+		switch {
+		case bytes.HasPrefix(ln, []byte("index ")):
+			lines[i] = nil
+		case bytes.HasPrefix(ln, []byte("@@ ")):
+			lines[i] = hunkRe.ReplaceAll(ln, []byte("@@ @@"))
+		}
 	}
-	return f[0], true
+	return bytes.Join(lines, nil), true
 }
 
 func isWaived(x contract.Finding, waived []contract.Waived) bool {

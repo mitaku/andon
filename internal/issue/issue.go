@@ -538,10 +538,10 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 			last, lastAt = &commit, at
 		}
 	}
-	// 衝突の無い rebase で head だけが変わり、照合が読むレビューと PR の差分が同じ（patch-id）なら、そのレビューを head に
+	// 衝突の無い rebase で head だけが変わり、照合が読むレビューと PR の差分が同じなら、そのレビューを head に
 	// 引き継ぐ（ledger.CheckReview）。頼むとレビュアーが同じ差分をもう一度見るので頼まない（decisions/2026-11-20-review-carry-same-patch.md）
 	if rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, "", nil, nil); rv.State == "current" {
-		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（patch-id）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue ready へ進む", head[:12], rv.Issue, rv.Commit)
+		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（行番号のほかは空白も含めて同じ）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue ready へ進む", head[:12], rv.Issue, rv.Commit)
 	}
 	// 結果を残さず止まったレビュアーの課題も台帳に残り、その N は使えない（dispatcher の kanban add --round が落ちる）。
 	// 数え方の決まりは変えず（previous も結果のある回だけ）、番号が被るときだけ空いた先へ送る

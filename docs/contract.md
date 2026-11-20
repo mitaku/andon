@@ -135,7 +135,7 @@ projects/<slug>/project.json      人（§11。書いてよい repo・委譲な�
 | `findings[].preexisting` | 真偽（任意。無ければ `false`） | 課題の前からあった問題（差分の外の古い問題）。ゲートは `must_fix` に数えない。ただし `file`・`line` が PR の差分で足した行なら数える（[decisions/2026-11-09-review-preexisting.md](decisions/2026-11-09-review-preexisting.md)） |
 
 - 無い・JSON でない・形が違う → missing。`commit` 違い → stale。報告の Markdown は読まない。
-- `commit` が head と違っても、PR の差分が同じなら current として head に引き継ぐ。PR の差分は、その commit と `origin/HEAD` の merge-base から commit までの diff で、`git patch-id --stable` が同じなら同じとする（衝突の無い rebase で head だけが変わった。git は課題の worktree で打つ）。worktree・commit・`origin/HEAD` が無いときは引き継がない。`andon issue review-request` は、引き継いだレビューがあれば頼まない（[decisions/2026-11-20-review-carry-same-patch.md](decisions/2026-11-20-review-carry-same-patch.md)）。
+- `commit` が head と違っても、PR の差分が同じなら current として head に引き継ぐ。PR の差分は、その commit と `origin/HEAD` の merge-base から commit までの diff で、hunk の行番号と index の行を除いて、空白も含めて同じなら同じとする（衝突の無い rebase で head だけが変わった。git は課題の worktree で打つ）。空白の違いを無視する `git patch-id` は使わない。worktree・commit・`origin/HEAD` が無いときは引き継がない。`andon issue review-request` は、引き継いだレビューがあれば頼まない（[decisions/2026-11-20-review-carry-same-patch.md](decisions/2026-11-20-review-carry-same-patch.md)）。
 - 書き手はレビュアー。読み手: ゲート（`must_fix` 以上の件数）・担当（振り分け。`must_fix` 以上を直し、未満は `report.json` の `waived` に理由つきで残す。`preexisting: true` は振り分けない）・振り返り（繰り返し出た指摘を観点へ）。
 - ゲートが `must_fix` に数えないもの（どちらも機械が記録から決める。申告でゲートを緩めない）:
   - `preexisting: true` の指摘（場所が PR の差分で足した行なら数える）。

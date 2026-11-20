@@ -338,7 +338,7 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	return x, y
 }
 
-// 衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じ（patch-id）なら、ready はそのレビューを
+// 衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じなら、ready はそのレビューを
 // head に引き継いで通す。衝突を解いて差分が変わった rebase は、今までどおり stale で止まる。
 func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
 	for _, c := range []struct {

@@ -91,7 +91,7 @@ func TestSamePatch(t *testing.T) {
 	}
 }
 
-// 中身だけが違うバイナリは、差分の patch-id でも違う（--binary を外すと「Binary files differ」だけになり同じに見える）。
+// 中身だけが違うバイナリは、差分でも違う（--binary を外すと「Binary files differ」だけになり同じに見える）。
 func TestSamePatchBinary(t *testing.T) {
 	g := newGitRepo(t)
 	g.commit("base", map[string]string{"a.txt": "a\n"})
@@ -104,5 +104,39 @@ func TestSamePatchBinary(t *testing.T) {
 	two := g.commit("bin", map[string]string{"b.bin": "\x00\x01two"})
 	if SamePatch(g.dir, one, two) {
 		t.Fatal("中身の違うバイナリを同じと言った")
+	}
+}
+
+// 文字列の中の空白だけが違う差分は同じと言わない（git patch-id は空白を無視して同じ id を返す）。
+// レビューが見た commit の raw string の `a b` が、head で `ab` に変わった形。
+func TestSamePatchWhitespaceInString(t *testing.T) {
+	g := newGitRepo(t)
+	g.commit("base", map[string]string{"main.go": "package main\n"})
+	g.run("update-ref", "refs/remotes/origin/main", "main")
+	g.run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	g.run("checkout", "-q", "-b", "topic")
+	reviewed := g.commit("raw", map[string]string{"main.go": "package main\n\nconst s = `a b`\n"})
+	head := g.commit("raw", map[string]string{"main.go": "package main\n\nconst s = `ab`\n"})
+	if SamePatch(g.dir, reviewed, head) {
+		t.Fatal("文字列の中の空白だけが違う差分を同じと言った")
+	}
+}
+
+// main が同じファイルの離れた所を変えて rebase しても（行番号と blob の id はずれる）、PR の差分は同じと分かる。
+func TestSamePatchSameFileMoved(t *testing.T) {
+	g := newGitRepo(t)
+	body := strings.Repeat("line\n", 20)
+	g.commit("base", map[string]string{"a.txt": body})
+	g.run("checkout", "-q", "-b", "topic")
+	x := g.commit("topic", map[string]string{"a.txt": body + "tail\n"})
+	g.run("checkout", "-q", "main")
+	g.commit("main moves", map[string]string{"a.txt": "head\n" + body})
+	g.run("update-ref", "refs/remotes/origin/main", "main")
+	g.run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	g.run("checkout", "-q", "topic")
+	g.run("rebase", "-q", "origin/main")
+	y := g.run("rev-parse", "HEAD")
+	if !SamePatch(g.dir, x, y) {
+		t.Fatal("同じファイルの離れた所だけが main で変わった rebase を、同じ差分と言わない")
 	}
 }

@@ -206,7 +206,7 @@ EOF
    落ちたら、レビューの結果を待たずに直して commit・push してよい。ただし頼み直すのは、前のレビューの結果が届いてから。
    その課題のレビュアーが動いている間は、command が別の commit の頼み直しも断る（レビュアーは1人ずつ）。
 2. レビュアーの `hc send` で報告の場所が届く。`kanban show <レビューの課題の id>` の report（人が読む Markdown）と、`issues/<レビューの課題の id>/library/findings.json`（ゲートが読む指摘。§6）を読む。
-   照合の結果は `andon issue show <id>` の `review`。`stale` は古い commit（CI が落ちて直す前など）を見たレビュー。衝突の無い rebase で head だけが変わり、PR の差分の patch-id が前のレビューと同じなら、照合はそのレビューを今の head に引き継ぐ（`current`。`commit` は見た commit のまま）。レビュアーの課題が台帳に残るので、回は1つ進む。今の `HEAD` で 1 から頼み直す（上限を超えたら 5）。
+   照合の結果は `andon issue show <id>` の `review`。`stale` は古い commit（CI が落ちて直す前など）を見たレビュー。衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じ（行番号のほかは空白も含めて同じ）なら、照合はそのレビューを今の head に引き継ぐ（`current`。`commit` は見た commit のまま）。レビュアーの課題が台帳に残るので、回は1つ進む。今の `HEAD` で 1 から頼み直す（上限を超えたら 5）。
 3. 指摘を振り分ける（自分でする。件数と重さは `findings.json` のもの。報告の中身と食い違えば、レビュアーへ直してもらうよう報告に書く）:
    - `Must fix` 以上 → 直す。間違いだと判断した指摘は直さず、理由を報告に書く（ゲートは人へ回す）。
    - それより軽い → 直さない。`andon issue report --data` の `waived`（`findings.json` と同じ `severity`・`file`・`line` ＋ `reason`）に書き、PR 本文の「トレードオフ」と報告の「見送り」にも写す。
@@ -334,7 +334,7 @@ PR を出したあとは、rebase や push の前に `gh pr view <n> --json stat
 Chief of Staff から**ほかの課題のマージで前提が変わった**と届いたら（dispatcher の `impact` を読んだ Chief of Staff の判断。`<hc from=…>` の印つきのデータ）:
 
 - **rebase を頼まれた**: `review` にいれば `kanban start <id>` で `doing` に戻す。`git fetch origin` → `git rebase origin/<既定の branch>`。衝突は自分で解き（依頼書の向きのまま。解き方が決められなければ §5）、§3 の検査を通して `git push --force-with-lease`。
-  `HEAD` が変わるので、`Review: on` なら `andon issue review-request` を打つ（§4 の 1）。差分が変わっていなければ（衝突の無い rebase。patch-id が同じ）、command は前の回のレビューを引き継ぎ、頼まずに止まる。そのときは頼み直さず、`andon issue report` で書き直して `andon issue ready` へ進む。衝突を解いて差分が変わったら、command はレビューを頼む（見るのは rebase で変わった差分だけ）。済んだら §7 から同じ手順で返す。
+  `HEAD` が変わるので、`Review: on` なら `andon issue review-request` を打つ（§4 の 1）。差分が変わっていなければ（衝突の無い rebase）、command は前の回のレビューを引き継ぎ、頼まずに止まる。そのときは頼み直さず、`andon issue report` で書き直して `andon issue ready` へ進む。衝突を解いて差分が変わったら、command はレビューを頼む（見るのは rebase で変わった差分だけ）。済んだら §7 から同じ手順で返す。
 - **止まって向きを確かめるよう頼まれた**: 次の commit の前に手を止め、届いた PR（と変わったファイル）を読む。依頼書の追記か Chief of Staff の答えが届くまで、作業を進めない（読むのはよい）。
   届いた向きで続ける。自分の計画とどこが変わったかは報告の `## 計画` に1行足す。
 - どちらも、頼まれていない rebase や向きの変更はしない（main が進んだだけでは、自分からは rebase しない。ぶつかるかは dispatcher と Chief of Staff が見ている）。
