@@ -24,14 +24,25 @@ echo "-- bt-generated: 控えにあるファイル $n 個、控えと違うも�
 [ "$n" -gt 0 ] && [ "$diff" = 0 ] && ok "bt-generated: boot が書いたファイル $n 個が控えのまま在る" \
   || fail "bt-generated: 控えが空か、控えと違うファイルがある"
 
-# bt-managed: managed settings が当てたパッケージの hook を指す。~/.agents/skills の andon の skill が /opt/andon を指す
-jq -e '[.hooks[][].hooks[]?.command] | length > 0 and all(startswith("/opt/andon/hooks/"))' "$managed" >/dev/null \
-  && ok "bt-managed: managed settings の hook は全部 /opt/andon/hooks を指す" || fail "bt-managed: managed settings の hook が /opt/andon を指さない"
-links=$(find "$HOME/.agents/skills" -maxdepth 1 -name 'andon-*' -type l 2>/dev/null)
-echo "-- bt-skills: ~/.agents/skills の andon-* $(grep -c . <<<"$links" || true) 本"
+# bt-managed: managed settings が当てたパッケージの hook を指す
+jq -e --arg h "$pkg/hooks/" '[.hooks[][].hooks[]?.command] | length > 0 and all(startswith($h))' "$managed" >/dev/null \
+  && ok "bt-managed: managed settings の hook は全部 $pkg/hooks を指す" || fail "bt-managed: managed settings の hook が $pkg/hooks を指さない"
+
+# bt-skills: パッケージの skill（<pkg>/skills/<名>/SKILL.md）ごとに、~/.agents/skills/andon-<名> の symlink がその置き場を指す。
+# 余分な andon-* の symlink がパッケージの外を指していても落とす
+want=$(find "$pkg/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -printf '%h\n' 2>/dev/null | sort)
+echo "-- bt-skills: パッケージの skill $(grep -c . <<<"$want" || true) 本"
+[ -n "$want" ] || fail "bt-skills: $pkg/skills に SKILL.md を持つ skill が無い"
+while IFS= read -r dir; do
+  [ -n "$dir" ] || continue
+  l=$HOME/.agents/skills/andon-$(basename "$dir")
+  t=$(readlink -f "$l" 2>/dev/null) || t=
+  echo "  | $(basename "$l") → ${t:-無い}"
+  [ -L "$l" ] && [ "$t" = "$(readlink -f "$dir")" ] || fail "bt-skills: $l が $dir を指す symlink でない"
+done <<<"$want"
 while IFS= read -r l; do
   [ -n "$l" ] || continue
-  t=$(readlink -f "$l"); echo "  | $(basename "$l") → $t"
-  case "$t" in /opt/andon/skills/*) [ -f "$t/SKILL.md" ] || fail "bt-skills: $l の先に SKILL.md が無い" ;; *) ;; esac
-done <<<"$links"
+  case "$(readlink -f "$l")" in "$(readlink -f "$pkg/skills")"/*) ;; *) fail "bt-skills: $l がパッケージの外（$(readlink "$l")）を指す" ;; esac
+done < <(find "$HOME/.agents/skills" -maxdepth 1 -name 'andon-*' -type l 2>/dev/null)
+[ "$fails" = 0 ] && ok "bt-skills: パッケージの skill ごとに andon-<名> の symlink が置き場を指す"
 [ "$fails" = 0 ]

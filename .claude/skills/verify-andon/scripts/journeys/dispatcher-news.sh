@@ -8,9 +8,9 @@ state=${XDG_STATE_HOME:-$HOME/.local/state}/andon/dispatcher
 d=$(hc get dispatcher --json 2>/dev/null) || d=
 echo "-- dn-live: hc get dispatcher --json"
 [ -n "$d" ] && jq -c '{state, argv, created_ms, labels: (.labels | {role})}' <<<"$d" | sed 's/^/  | /'
-if [ -n "$d" ] && [ "$(jq -r .state <<<"$d")" = live ] && [ "$(jq -r '.argv[0]' <<<"$d")" = /opt/andon/bin/andon ] \
+if [ -n "$d" ] && [ "$(jq -r .state <<<"$d")" = live ] && [ "$(jq -r '.argv[0]' <<<"$d")" = "$pkg/bin/andon" ] \
   && [ "$(jq -r '.created_ms // 0' <<<"$d")" -ge "$a_ms" ]; then
-  ok "dn-live: dispatcher は /opt/andon/bin/andon で、当てたあとに起動して live"
+  ok "dn-live: dispatcher は $pkg/bin/andon で、当てたあとに起動して live"
 else
   fail "dn-live: dispatcher が無いか、live でないか、当てる前から動いている"
 fi
@@ -21,9 +21,10 @@ nd=$(grep -c . <<<"$del" || true) nr=$(grep -c . <<<"$rec" || true)
 echo "-- dn-delivered: 当てたあとに届けた通知 $nd 件・記録だけの通知 $nr 件"
 jq -c '{at, project, acked, news: [.news[] | "\(.issue) \(.kind)"]}' <<<"$del" 2>/dev/null | tail -10 | sed 's/^/  | /'
 jq -c '{at, issue, kind}' <<<"$rec" 2>/dev/null | tail -10 | sed 's/^/  | /'
-if [ $((nd + nr)) = 0 ]; then
-  echo "note 当てたあとの通知がまだ無い。dn-live は確かめたが、dn-delivered は未確認"
-  [ "$fails" = 0 ] && exit 3
+# 記録だけの通知は Chief of Staff に届けていないので、届けた証拠にしない
+[ "$fails" = 0 ] || exit 1
+if [ "$nd" = 0 ]; then
+  echo "note 当てたあとに Chief of Staff へ届けた通知がまだ無い（記録だけの通知 $nr 件）。dn-live は確かめたが、dn-delivered は未確認"
+  exit 3
 fi
-[ "$nd" -gt 0 ] && ok "dn-delivered: 当てたあとに Chief of Staff へ通知を $nd 回届けた"
-[ "$fails" = 0 ]
+ok "dn-delivered: 当てたあとに Chief of Staff へ通知を $nd 回届けた"

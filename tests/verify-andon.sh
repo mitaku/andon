@@ -6,6 +6,7 @@
 #   4. 手順が名指す command の実在（andon <sub>・andon issue <sub>・scripts/・tests/ の名前・repo のパス）
 #   5. scripts/features.sh: 当たる範囲で機能の名前、当たらない範囲（文書・Go のテストだけ）で何も出さず 0
 #   6. 自分の確かめ: 地図のファイルを1つ消すか、無い command を名指した写しで、この検査が落ちる
+#   7. 記録を読む道（dispatcher-news・boot）: 偽のセル（パッケージの置き場・HOME・hc）で、証拠が足りないときに 0 で終わらない
 # 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。go も build もしない）
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -148,4 +149,37 @@ if [ "$self" = true ]; then
   cp -r "$skill" "$tmp/e" && sed -i 's/^disable-model-invocation: true$//' "$tmp/e/SKILL.md"
   broke 'disable-model-invocation' "$tmp/e"
   ok "verify-andon: 地図のファイルを消す・無い command を名指す・無いパスを書く・設定を外すと、この検査が落ちる"
+fi
+
+# 7. 記録を読む道: 偽のセルで、証拠が足りないときに 0 で終わらない（本物の /opt/andon・HOME・hc には触らない）
+if [ "$self" = true ]; then
+  c=$tmp/cell; mkdir -p "$c/pkg/bin" "$c/pkg/hooks" "$c/pkg/skills/worker" "$c/pkg/skills/retro" "$c/bin" "$c/home/.agents/skills" "$c/state/andon/dispatcher" "$c/ws"
+  echo '{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}' >"$c/pkg/applied.json"
+  touch "$c/pkg/skills/worker/SKILL.md" "$c/pkg/skills/retro/SKILL.md"
+  ms=$(($(date -u -d 2026-01-01T00:01:00Z +%s) * 1000))
+  echo "{\"state\": \"live\", \"argv\": [\"$c/pkg/bin/andon\"], \"created_ms\": $ms, \"labels\": {}}" >"$c/dispatcher.json"
+  printf '#!/bin/sh\n[ "$1 $2" = "get dispatcher" ] && cat "%s/dispatcher.json"\n' "$c" >"$c/bin/hc"; chmod +x "$c/bin/hc"
+  echo x >"$c/gen"; echo "{\"$c/gen\": \"$(sha256sum "$c/gen" | cut -d' ' -f1)\"}" >"$c/state/andon/boot.json"
+  echo "{\"hooks\": {\"Stop\": [{\"hooks\": [{\"command\": \"$c/pkg/hooks/stop\"}]}]}}" >"$c/managed.json"
+  links() { rm -f "$c/home/.agents/skills"/andon-*; for n in "$@"; do ln -s "$c/pkg/skills/$n" "$c/home/.agents/skills/andon-$n"; done; }
+  journey() { # journey <道> → 終了コードを $jrc に、出力を $jout に
+    jrc=0; jout=$(env PATH="$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" \
+      ANDON_MANAGED_SETTINGS="$c/managed.json" VERIFY_TMP="$c" VERIFY_RUN=verify-selftest bash "$skill/scripts/journeys/$1.sh" 2>&1) || jrc=$?
+  }
+  at='"at": "2026-01-01T00:02:00Z"'
+  echo "{$at, \"issue\": \"V-0001\", \"kind\": \"review\"}" >"$c/state/andon/dispatcher/v.recorded.jsonl"
+  journey dispatcher-news
+  [ "$jrc" = 3 ] || die "dispatcher-news: 記録だけの通知で終了コード $jrc（3 でない）: $jout"
+  echo "{$at, \"project\": \"v\", \"acked\": true, \"news\": [{\"issue\": \"V-0001\", \"kind\": \"review\"}]}" >"$c/state/andon/dispatcher/v.delivered.jsonl"
+  journey dispatcher-news
+  [ "$jrc" = 0 ] || die "dispatcher-news: 届けた通知があるのに終了コード $jrc: $jout"
+  links worker retro; journey boot
+  [ "$jrc" = 0 ] || die "boot: 揃った偽のセルで終了コード $jrc: $jout"
+  links; journey boot
+  [ "$jrc" = 1 ] && grep -qF 'andon-worker が' <<<"$jout" || die "boot: ~/.agents/skills の andon-* が無いのに落ちない（$jrc）: $jout"
+  links worker; ln -s "$c/ws" "$c/home/.agents/skills/andon-retro"; journey boot
+  [ "$jrc" = 1 ] && grep -qF 'andon-retro が' <<<"$jout" || die "boot: andon-retro がパッケージの外を指すのに落ちない（$jrc）: $jout"
+  links worker retro; ln -s "$c/ws" "$c/home/.agents/skills/andon-extra"; journey boot
+  [ "$jrc" = 1 ] && grep -qF 'andon-extra がパッケージの外' <<<"$jout" || die "boot: 余分な andon-extra がパッケージの外を指すのに落ちない（$jrc）: $jout"
+  ok "verify-andon: 記録を読む道は、記録だけの通知なら未確認の 3 で終わり、skill のリンクが無い・パッケージの外を指すと落ちる"
 fi

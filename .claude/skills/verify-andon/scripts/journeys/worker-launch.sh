@@ -9,8 +9,8 @@ n=$(grep -c . <<<"$lines" || true)
 echo "-- wl-record: 当てたあとの起動の記録 $n 件"
 [ "$n" -gt 0 ] || { echo "note 当てたあとに担当もレビュアーも起動していない。Chief of Staff が次に課題を起動したあとで打ち直す"; exit 3; }
 jq -c '{at, issue, role, launch, profile, terminal, package: .package | {commit, source, drift}}' <<<"$lines" | sed 's/^/  | /'
-bad=$(jq -c --arg c "$a_commit" 'select(.package.commit != $c or .package.drift != false or .package.root != "/opt/andon")' <<<"$lines")
-[ -z "$bad" ] && ok "wl-record: 当てたあとの起動 $n 件は、全部が当てた commit のパッケージ（/opt/andon・食い違い無し）で起動した" \
+bad=$(jq -c --arg c "$a_commit" --arg p "$pkg" 'select(.package.commit != $c or .package.drift != false or .package.root != $p)' <<<"$lines")
+[ -z "$bad" ] && ok "wl-record: 当てたあとの起動 $n 件は、全部が当てた commit のパッケージ（$pkg・食い違い無し）で起動した" \
   || { fail "wl-record: 当てた commit と違うパッケージか、食い違いのあるパッケージで起動した"; sed 's/^/  | /' <<<"$bad"; }
 
 # wl-terminal: 起動した端末のうち今も動いているものが、記録の template と課題のラベルで立っている（読むだけ）

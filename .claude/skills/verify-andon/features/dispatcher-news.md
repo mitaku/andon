@@ -18,7 +18,7 @@ dispatcher は台帳と端末を見回り、報告・問い・ゲート・マー
 前提:
 
 - `scripts/doctor.sh` が終了コード 0。
-- 当てた時刻より後に、通知が1件以上ある。無ければ `dn-live` だけを確かめて終了コード 3（`dn-delivered` は未確認）。
+- 当てた時刻より後に、Chief of Staff へ届けた通知が1件以上ある。無ければ `dn-live` だけを確かめて終了コード 3（`dn-delivered` は未確認）。記録だけの通知は届けた証拠にしない。
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
 - **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`ok   dn-live` が見えれば動いた。

@@ -7,7 +7,7 @@
 - `bt-ran` 当てたあとに boot が走り、dispatcher を起動し直した。見る道: 検証の担当だけ。
 - `bt-generated` boot が書いたファイルが、控え（`~/.local/state/andon/boot.json`）の sha256 のまま在る。見る道: 検証の担当だけ。
 - `bt-managed` managed settings の hook が `/opt/andon/hooks` を指す。見る道: 検証の担当だけ。
-- `bt-skills` `~/.agents/skills` の `andon-*` が `/opt/andon/skills` の SKILL.md を指す。見る道: 検証の担当だけ。
+- `bt-skills` `/opt/andon/skills` の skill ごとに、`~/.agents/skills/andon-<名>` の symlink がその置き場を指す。リンクが無いもの・パッケージの外を指す `andon-*` があれば落ちる。見る道: 検証の担当だけ。
 
 ## 辿り着き方（利用者から）
 
