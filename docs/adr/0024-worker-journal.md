@@ -5,6 +5,17 @@
 - 語は [design.md](../design.md) §0.1。
 - 入力: 依頼書 A-0186（人の発言 2026-11-12 と Chief of Staff の経緯）、worker skill §2・§7（工程表と報告の書式）、[ADR-0017](0017-process-definitions.md) 決めたこと 3・10（ふりかえりのワークストリーム・`plan[]`）、[ADR-0020](0020-auto-memory-as-intake.md)（auto memory の蒸留）、[design.md](../design.md) §1.9 (b)（人の手直しから学ぶ）、chief-of-staff skill §10・§11（トリアージ・wiki）、台帳の実数（「読んだ事実」）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 日報は台帳の `issues/<id>/library/journal.md` に、担当が追記する | `package/skills/worker/SKILL.md` | 生きている |
+| 2 | 書く時機は、その場で追記し、終わりに感想を足す | `package/skills/worker/SKILL.md` | 生きている |
+| 3 | 中身は軽い型で、終わりに「感じたこと」「改善できそうなこと」の 2 見出しだけ置く | `package/skills/worker/SKILL.md` | 生きている |
+| 4 | 書くのは担当だけで、課題の型は問わない | `package/skills/worker/SKILL.md` | 生きている |
+| 5 | 読む側が決まるまでは台帳に置き、見る日にまとめて読む | `internal/retro/retro.go` | 生きている |
+| 6 | 細部: 名前は「日報」・command は足さない・検収の判定に使わない | `package/skills/chief-of-staff/playbooks/gate.md`・`package/skills/glossary/SKILL.md` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-12、Chief of Staff への発言）: 「アイデア: Kanban の Issue にそれぞれ作業者の日報とか書いてもらうと改善にいいかも」。
