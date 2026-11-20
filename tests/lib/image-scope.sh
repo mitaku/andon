@@ -20,6 +20,8 @@ while IFS= read -r p; do
     README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # セルに main の commit を当てる道具（ADR-0027）。image/ の下だが Dockerfile は COPY しない
     image/apply-main.sh) ;;
+    # repo の中の skill の置き場（ADR-0035 決めたこと 4。image に入らず、tests/verify-andon.sh・words.sh が見る）
+    .claude/skills/* | .agents/skills/*) ;;
     # 課題の一生のモデルと検査器の版（ADR-0025。image に入らず、job model が回す）
     model/*) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・

@@ -126,6 +126,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | `image/apply-main.sh` | 飛ばす | セルに main の commit を当てる道具（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`image/` の下だが Dockerfile は COPY しない |
 | `model/` | 飛ばす | 課題の一生のモデルと検査器の版。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |
+| `.claude/skills/`・`.agents/skills/` | 飛ばす | repo の中の skill の置き場（検証の skill。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 4）。image にも `andon` にも入らない。ほかの `.claude/` は知らないパスとして走らせる |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
 **文書だけの PR では、文書を読む検査だけを走らせる。** PR の変更が全部 `docs/` の下（ADR・決定の記録・設計書・`docs/assets/`）か、root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` のときを、`tests/lib/docs-scope.sh` が文書だけと判定する。`tests/README.md` やコード・知らないパスが1つでも混ざれば全部走る。main の push と tag では必ず全部走る。
@@ -140,6 +141,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `agents-md.sh` | root の `AGENTS.md` の「決まり｜守らせるもの」の表と、守らせるものが名指したファイル（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 6） | いつも |
+| `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5） | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む9本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
 | `adr-index.sh` | `docs/adr/` の索引・状態行と `README.md` の ADR の一覧（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)） | `docs/adr/`・`README.md` |
@@ -154,7 +156,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 | 変えたもの | 走らせる `tests/*.sh` |
 |---|---|
-| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`・`words.sh`・`words-selftest.sh`・`agents-md.sh`（安く全体を見るもの） |
+| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`・`words.sh`・`words-selftest.sh`・`agents-md.sh`・`verify-andon.sh`（安く全体を見るもの） |
 | `docs/contract.md` | `schema.sh`・`package.sh` を足す（例を schema と、§4 の行を skill と突き合わせる） |
 | `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
 | `tests/host/` | `host.sh` を足す |
@@ -163,7 +165,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | root の `README.md` | `adr-index.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `image/apply-main.sh` | `apply-main.sh` を足す |
-| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `CHANGELOG.md` など | 足さない |
+| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `CHANGELOG.md`・`.claude/skills/`・`.agents/skills/` など | 足さない |
 | `tests/lib/scope.sh`・`docs-scope.sh`・`image-scope.sh` | 足さない（判定の道具は、いつも走る `ci.sh` が見る） |
 | `tests/lib/` のほか | `image.sh` 以外の全部 |
 | `cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`embed.go`・andon に埋め込む `process/states/issue.yaml` | 重い検査を除く全部と、変えたパスを見る重い検査（下の表） |

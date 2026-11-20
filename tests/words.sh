@@ -17,7 +17,7 @@ root="$(cd "${1:-$here/..}" && pwd)"
 cd "$root"
 
 words='費用|持ち主|逃げ口|文脈|提供元|端末の土台|迎え(?:る|た|て|ず|な)|の席|(?<!離)(?<!着)(?<!出)席(?:だけ|を|が|の無)|(?<!引き)(?<!書き)起こ[さしすせそ]|で起こる|起きた(?:とき|時)'
-paths=(docs package init image internal cmd tests process README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md)
+paths=(docs package init image internal cmd tests process .claude README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md)
 existing=()
 for p in "${paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 
