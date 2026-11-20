@@ -366,7 +366,7 @@ func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
 	}
 }
 
-// 衝突の無い rebase のあとの review-request は、前のレビューを引き継ぐので頼まない（レビュアーを起こさない）。
+// 衝突の無い rebase のあとの review-request は、前のレビューを引き継ぐので頼まない（レビュアーを起動しない）。
 // report.json も報告も書かない。差分が変わった rebase なら、今までどおり次の回を頼む。
 func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
 	for _, c := range []struct {
