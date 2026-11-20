@@ -292,7 +292,7 @@ EOF
 ```
 
 - `commit` は command が `HEAD` を書く。`pr` は `--pr` で（省くと前の `report.json` の `pr` を引き継ぐ）。`estimate`（§2 の見込みの反論）も `--data` に無ければ前の `report.json` から引き継ぐ。`plan`（`## 計画` の写し）も `--data` に無ければ前の `report.json` から引き継ぐ。
-- `--data` は任意のキーの JSON object: `estimate`・`plan`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr`・`estimate`・`plan` のほかは引き継がないので、打つたびに全部を渡す。
+- `--data` は任意のキーの JSON object: `estimate`・`plan`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr`・`estimate`・`plan` のほかは引き継がないので、打つたびに全部を渡す。`review_request` は `HEAD` が前の `report.json` の `commit` と同じ間だけ command が引き継ぐ（レビュー依頼のあとに報告を書き直しても、頼み直さなくてよい）。
 - `plan`: `## 計画` の作業を1件ずつ `{"id": "p1", "text": "<作業。終了条件: …>", "done": false}` で写す（`id` は計画の中で一意。見込みの1行は写さない）。作業の終了条件を満たしたら `done: true` にし、計画を書き直したら `plan` も全体を書き直して渡す。Chief of Staff は `done` の数で進み具合を見る。
 - `acceptance`: 依頼書か Chief Engineer の文書に受け入れ条件（A1, A2, …）があれば、1つずつ `{"id": "A1", "result": "pass", "evidence": "<テストの command と出力のパス>"}` を書く。証拠は、この commit で走らせた本物の出力だけ。前もって用意した（staged な）出力と、確かめる継ぎ目を mock に置き換えたテストは証拠でない（そうなる条件は `pass` と書かない）。`result` は通した `pass`・通せない `fail`・オーナーが見る `manual`。`fail` があるとゲートは `fix`、`manual` があるとレベルを1つ上げる。条件が無ければ書かない。
   受け入れ条件のテストは、先に落ちるのを確かめる（直す前か、直した所を戻して）。

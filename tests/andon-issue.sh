@@ -98,6 +98,10 @@ jq -e --arg c "$c1" '.review_request == {round: 1, limit: 2, commit: $c, previou
 head -2 "kanban/issues/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
 emit "$lib/report.json" report-review-request.json
 ok 'review-request: 1 回目・前回 null・reviewer は実装と別ブランド・人用の行を先頭に'
+cp "$lib/report.json" "$tmp/rr1.json"
+"$andon" issue report "$id" --data '{"remember":["推敲した"]}' <<<'## Report（推敲した）' >/dev/null
+jq -e --slurpfile was "$tmp/rr1.json" '.review_request == $was[0].review_request and .remember == ["推敲した"]' "$lib/report.json" >/dev/null || die "HEAD が同じ報告の打ち直しで review_request が消えた: $(jq -c .review_request "$lib/report.json")"
+ok 'report: HEAD が前の report.json の commit と同じなら、打ち直しても review_request を引き継ぐ'
 
 # ready の負: レビューが無い
 expect_fail 'レビューが missing' "$andon" issue ready "$id"
@@ -114,6 +118,8 @@ c2=$(commit two)
 expect_fail 'report.json の commit' "$andon" issue ready "$id"
 ok 'ready: report.json の commit が HEAD と違えば止まる（HEAD 不一致）'
 "$andon" issue report "$id" <<<'## Report' >/dev/null
+jq -e --arg c "$c2" '.commit == $c and (has("review_request") | not)' "$lib/report.json" >/dev/null || die "HEAD が進んだのに review_request を引き継いだ: $(jq -c .review_request "$lib/report.json")"
+ok 'report: HEAD が前の report.json の commit と違えば、review_request を引き継がない'
 expect_fail 'PR の head' "$andon" issue ready "$id"
 ok 'ready: PR の head が HEAD と違えば止まる（push 前）'
 echo "$c2" > "$tmp/prhead"
