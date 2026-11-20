@@ -30,7 +30,7 @@ var unchecked = map[string]struct {
 	"internal/dispatcher/drain.go":      {map[string]int{"json.Marshal": 1, "json.NewEncoder": 1}, "フックの出力（Claude Code への hookSpecificOutput）と、Stop の控え（schema の無い控え）"},
 	"internal/dispatcher/impact.go":     {map[string]int{"json.Marshal": 1}, "影響の結果を通知の detail の形にそろえる途中（通知は控えに書く前に State.Save が照らす）"},
 	"internal/dispatcher/memory.go":     {map[string]int{"json.Marshal": 1}, "memory の件数の控え（schema の無い控え）"},
-	"internal/dispatcher/rewake.go":     {map[string]int{"json.Marshal": 1}, "起こし直しの回数の控え（schema の無い控え）"},
+	"internal/dispatcher/rewake.go":     {map[string]int{"json.Marshal": 1}, "切られたターンを起動した回数の控え（schema の無い控え）"},
 	"internal/dispatcher/state.go":      {map[string]int{"json.MarshalIndent": 1}, "dispatcher の控え（schema の無い控え。中の通知は Save が書く前に照らす）"},
 	"internal/dispatcher/wait.go":       {map[string]int{"json.Marshal": 1}, "待ち役の控え（schema の無い控え）"},
 	"internal/gate/gate.go":             {map[string]int{"json.Marshal": 1}, "条件表を重ねた途中の形（書かない。Decode で読み直す）"},
