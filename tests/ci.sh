@@ -40,22 +40,28 @@ ok "docs-scope: 文書だけなら true、コード・tests・知らないパス
 #     重い検査を除く全部と、変えたパスを見る重い検査。知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
 has() { grep -qw -- "$2" <<<"$1"; }
-always='tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh '
+always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh '
+# with <検査>…: いつもの分に検査を足し、scope.sh と同じ並び（名前の順）で出す
+with() { printf '%s\n' $always "$@" | sort | tr '\n' ' '; }
 heavy='tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh'
 emitters=$(bash tests/schema.sh --emitters | tr '\n' ' ')
 [ "$(pick docs/image.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
-[ "$(pick README.md)" = "tests/adr-index.sh $always" ] || die "README.md で adr-index.sh だけを足さない: $(pick README.md)"
-[ "$(pick docs/adr/0033-adr-inventory-and-slimming.md)" = "tests/adr-index.sh tests/ci.sh tests/package.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "ADR で adr-index.sh・package.sh が無い: $(pick docs/adr/0033-adr-inventory-and-slimming.md)"
+[ "$(pick README.md)" = "$(with tests/adr-index.sh)" ] || die "README.md で adr-index.sh だけを足さない: $(pick README.md)"
+[ "$(pick docs/adr/0033-adr-inventory-and-slimming.md)" = "$(with tests/adr-index.sh tests/package.sh)" ] || die "ADR で adr-index.sh・package.sh が無い: $(pick docs/adr/0033-adr-inventory-and-slimming.md)"
 [ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
+# AGENTS.md だけの PR でも、表の形を見る agents-md.sh が走る（ADR-0035 受け入れ条件 10）。CI の文書だけの PR も同じ scope.sh で選ぶ
+[ "$(printf '%s\n' AGENTS.md | bash tests/lib/docs-scope.sh)" = true ] || die "AGENTS.md だけが文書だけにならない"
+has "$(pick AGENTS.md)" tests/agents-md.sh || die "AGENTS.md だけで agents-md.sh が無い: $(pick AGENTS.md)"
+[ "$(pick AGENTS.md)" = "$always" ] || die "AGENTS.md だけ: $(pick AGENTS.md)"
 # contract.md は schema.sh・package.sh。schema.sh を選んだら、読ませる emitters も並べる（schema.sh が1本ずつ回し直さない）
 got=$(pick docs/contract.md)
 for t in tests/package.sh tests/schema.sh $emitters; do has "$got" "$t" || die "contract.md で $t が無い: $got"; done
 [ "$(wc -w <<<"$got")" -eq $(($(wc -w <<<"$always $emitters") + 2)) ] || die "contract.md でほかの検査まで足す: $got"
-[ "$(pick docs/no-such-doc.md)" = "tests/ci.sh tests/kanban.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
-[ "$(pick tests/andon-gate.sh)" = "tests/andon-gate.sh $always" ] || die "触った test が無い"
-[ "$(pick tests/host/mod.mjs)" = "tests/ci.sh tests/host.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/words-selftest.sh tests/words.sh " ] || die "tests/host/ で host.sh が無い: $(pick tests/host/mod.mjs)"
+[ "$(pick docs/no-such-doc.md)" = "$(with tests/kanban.sh)" ] || die "消した文書で kanban.sh が無い: $(pick docs/no-such-doc.md)"
+[ "$(pick tests/andon-gate.sh)" = "$(with tests/andon-gate.sh)" ] || die "触った test が無い"
+[ "$(pick tests/host/mod.mjs)" = "$(with tests/host.sh)" ] || die "tests/host/ で host.sh が無い: $(pick tests/host/mod.mjs)"
 grep -q tests/process.sh <<<"$(pick process/states/gate.yaml)" && ! grep -q tests/andon-issue.sh <<<"$(pick process/states/gate.yaml)" || die "埋め込まない状態の定義で process.sh を足すだけにならない: $(pick process/states/gate.yaml)"
-[ "$(pick schema/process/state.schema.json)" = "tests/ci.sh tests/image.sh tests/process.sh ${always#tests/ci.sh }" ] || die "schema/process/ で schema.sh まで足す: $(pick schema/process/state.schema.json)"
+[ "$(pick schema/process/state.schema.json)" = "$(with tests/image.sh tests/process.sh)" ] || die "schema/process/ で schema.sh まで足す: $(pick schema/process/state.schema.json)"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
 [ "$(pick workflow_test.go cmd/kanban/main_test.go)" = "$always" ] || die "image に入らない Go のテストだけ: $(pick workflow_test.go)"
 grep -q tests/image.sh <<<"$(pick package/lib/andon/x_test.go)" || die "package/ の下の _test.go で image.sh が無い"
@@ -68,7 +74,7 @@ done
 grep -q tests/image.sh <<<"$(pick tests/lib/kanban.sh)" && die "image に関係しない tests/lib で image.sh"
 grep -q tests/image.sh <<<"$(pick tests/lib/pty-probe.py)" || die "pty-probe.py で image.sh が無い"
 [ "$(pick tests/lib/scope.sh tests/lib/docs-scope.sh)" = "$always" ] || die "判定の道具で ci.sh のほかを足す: $(pick tests/lib/scope.sh)"
-[ "$(pick image/apply-main.sh)" = "tests/apply-main.sh $always" ] || die "image/apply-main.sh で apply-main.sh だけを足さない: $(pick image/apply-main.sh)"
+[ "$(pick image/apply-main.sh)" = "$(with tests/apply-main.sh)" ] || die "image/apply-main.sh で apply-main.sh だけを足さない: $(pick image/apply-main.sh)"
 ok "scope: 文書だけならいつもの分、触ったものに関係する分を足し、知らないパスでは全部（image.sh は image に関係するとき）"
 
 # 1c. scope の重い検査（ADR-0032 決めたこと 4）: コードでは軽い検査を全部と、変えたパスを見る重い検査だけ
