@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# `andon issue show/report/review-request/ready/ask/start`。本物の台帳の CLI（kanban）・一時の台帳と git・偽の gh・偽の hc で回す。
-# start は bare な origin とその clone（GHQ_ROOT）に worktree を切り、偽の hc で起動し、finish で片付くまで。本物の hc・台帳には触らない。
+# `andon issue show/report/review-request/ready/ask/start`。本物の kanban の CLI・一時の kanban と git・偽の gh・偽の hc で回す。
+# start は bare な origin とその clone（GHQ_ROOT）に worktree を切り、偽の hc で起動し、finish で片付くまで。本物の hc・kanban には触らない。
 # ANDON_EMIT_DIR があれば、command が書いた JSON をそこに写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
 for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
@@ -57,7 +57,7 @@ cd "$tmp/demo"
 kanban init --prefix T >/dev/null
 export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
-as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # 台帳の by を選ぶ（t5 が Chief of Staff、t7 が担当）
+as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # kanban の by を選ぶ（t5 が Chief of Staff、t7 が担当）
 id=$(as t5 kanban add 'andon issue を足す' --profile claude)
 expect_fail "$id は todo（andon issue ready は doing の課題にだけ打てる" "$andon" issue ready "$id"
 ok 'ready: 定義（process/states/issue.yaml）に無い移り方（todo から ready）は断る（ADR-0017 受け入れ条件 11）'
@@ -84,7 +84,7 @@ ok 'report: plan[] に done が無ければ書く前に止まる'
 jq -e --arg c "$c1" --arg pr "$pr" '.commit == $c and .pr == $pr and .estimate.size == "large" and .next[0].to == "chief-of-staff" and (has("review_request") | not)' "$lib/report.json" >/dev/null
 grep -q '## Report' "kanban/issues/$id/report.md"
 emit "$lib/report.json" report-1.json
-ok 'report: commit は HEAD、pr と --data を書き、台帳に報告する'
+ok 'report: commit は HEAD、pr と --data を書き、kanban に報告する'
 "$andon" issue report "$id" <<<'## Report' >/dev/null
 jq -e --arg pr "$pr" '.pr == $pr and .estimate.size == "large" and ([.plan[] | select(.done)] | length) == 1 and (has("next") | not)' "$lib/report.json" >/dev/null
 ok 'report: --pr を省くと前の pr を、--data に estimate・plan が無ければ前のそれを引き継ぎ、ほかは書き直す（ADR-0014 決めたこと 11 の 3・ADR-0017 決めたこと 10）'
@@ -207,14 +207,15 @@ kanban received "$id2#1" >/dev/null
 ok 'ready: 受け取られていない問いがあれば断り、課題は doing のまま'
 "$andon" issue ready "$id2" >/dev/null
 ok 'ready: review: off ならレビューを照合しない。問いを受け取ったあとは通る。review-request は断る'
-# ready は前の head についてのゲートの問いを数えずに review にするが、越えるのはその問いだけ。ready が問いを確かめてから
+# ready は前の head についての gate の問いを数えずに review にするが、越えるのはその問いだけ。ready が問いを確かめてから
 # kanban review を打つまでの間に kanban ask で足された問いがあれば、review にせず doing のまま残す。
 # 間に問いを足すのは、kanban review の手前で kanban ask を打つ包み（PATH の先頭の kanban）で写す
-id5=$(as t5 kanban add '前の head のゲートの問いと、あとから足された問い' --profile codex)
+id5=$(as t5 kanban add '前の head の gate の問いと、あとから足された問い' --profile codex)
 as t5 kanban set "$id5" status=doing review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 "$andon" issue report "$id5" --pr "$pr" <<<'## Report' >/dev/null
 HC_TERMINAL_ID=dispatcher kanban ask "$id5" 'マージするか' --kind line >/dev/null
 mkdir -p "kanban/issues/$id5/library/questions"
+# 事実の行は 2026-11-20 までの語で書いた古い問いの形（読む側は古い語も受ける。ADR-0040 決めたこと 7）
 jq -n --arg r "ゲートの記録 $PWD/kanban/issues/$id5/library/gate/0000000000000000000000000000000000000001.json" \
     '{kind: "line", question: "マージするか", facts: [$r], options: [{label: "オーナーが PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' \
     > "kanban/issues/$id5/library/questions/1.json"
@@ -227,15 +228,15 @@ EOF
 chmod +x "$tmp/late-bin/kanban"
 rc=0; PATH="$tmp/late-bin:$PATH" "$andon" issue ready "$id5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q "$id5#2 (open)" "$tmp/err" || { cat "$tmp/err" >&2; die "ready: 確かめのあとに足された問いを越えた（rc $rc）"; }
-grep -q "$id5#1" "$tmp/err" && die 'ready: 前の head のゲートの問いで断った'
+grep -q "$id5#1" "$tmp/err" && die 'ready: 前の head の gate の問いで断った'
 [ "$(kanban show "$id5" --json | jq -r .issue.status)" = doing ] || die 'ready: 確かめのあとに足された問いがあるのに review にした'
-ok 'ready: 前の head のゲートの問いだけを越え、確かめのあとに足された問いがあれば review にせず doing のまま'
+ok 'ready: 前の head の gate の問いだけを越え、確かめのあとに足された問いがあれば review にせず doing のまま'
 kanban answer "$id5#2" A >/dev/null; kanban received "$id5#2" >/dev/null
 "$andon" issue ready "$id5" >/dev/null
-[ "$(kanban show "$id5" --json | jq -r .issue.status)" = review ] || die 'ready: 前の head のゲートの問いだけが残るのに review にしない'
+[ "$(kanban show "$id5" --json | jq -r .issue.status)" = review ] || die 'ready: 前の head の gate の問いだけが残るのに review にしない'
 jq -se --arg t "$id5" '[.[] | select(.id == $t and .change.status == "review")] | last | .change.forced == [1]' kanban/log.jsonl >/dev/null ||
-    die 'ready: 越えた前の head のゲートの問いの番号を log.jsonl に残していない'
-ok 'ready: 足された問いを受け取ったあとは、前の head のゲートの問いだけを越えて review にし、越えた番号を log に残す'
+    die 'ready: 越えた前の head の gate の問いの番号を log.jsonl に残していない'
+ok 'ready: 足された問いを受け取ったあとは、前の head の gate の問いだけを越えて review にし、越えた番号を log に残す'
 expect_fail "$id2 は review（andon issue review-request は doing の課題にだけ打てる" "$andon" issue review-request "$id2" <<<'## Report'
 [ "$(kanban show "$id2" --json | jq -r .issue.status)" = review ] || die '断ったのに status が変わった'
 ok 'review-request: review の課題には打てない（定義に無い移り方）'
@@ -290,16 +291,16 @@ q='{"kind":"users","question":"既定を変えるか","facts":["docs/design.md �
 jq -e '.kind == "users" and .options[0].pick == true' "$lib/questions/1.json" >/dev/null
 kanban show "$id" --json | jq -e '.questions[0] | .kind == "users" and (.text | contains("推奨案: 変える")) and (.text | contains("あと 1 問"))' >/dev/null
 emit "$lib/questions/1.json" question.json
-ok 'ask: 問いを台帳に置き、JSON を library/questions/<n>.json に'
+ok 'ask: 問いを kanban に置き、JSON を library/questions/<n>.json に'
 "$andon" issue ask "$id" - <<<"$(jq -c '.kind = "line"' <<<"$q")" >/dev/null
 kanban show "$id" --json | jq -e '.questions[1].kind == "line"' >/dev/null
 jq -e '.kind == "line"' "$lib/questions/2.json" >/dev/null
-ok 'ask: kind line も台帳に kind を付ける（kanban ask --kind line）'
+ok 'ask: kind line も kanban に kind を付ける（`kanban ask --kind line`）'
 for bad in '.options[1].pick = true' '.options = [.options[0]]' '.question = "a\nb"' '. + {"x": 1}' '.kind = "other"'; do
     expect_fail '問いの JSON の形が違う' "$andon" issue ask "$id" - <<<"$(jq -c "$bad" <<<"$q")"
 done
 [ "$(kanban show "$id" --json | jq '.questions | length')" = 2 ]
-ok 'ask: 形の違う問いは台帳に書く前に止まる'
+ok 'ask: 形の違う問いは kanban に書く前に止まる'
 
 # 候補・範囲の問い・調べる課題の ready（ADR-0006 決めたこと 2・3・4・7。受け入れ条件 2）。worktree は別に切る
 git init -q "$tmp/wt2"
@@ -311,7 +312,7 @@ fx=$(as t5 kanban add '誤字を1つ直す' --profile claude)
 as t5 kanban set "$fx" review=off must_fix=major "worktree=$tmp/wt2" repo=github.com/example/app >/dev/null
 kanban start "$fx" >/dev/null
 lfx=kanban/issues/$fx/library
-cands='{"candidates":[{"id":"c1","text":"docs/a.md:4 「台長」→「台帳」","file":"docs/a.md","line":4,"in_scope":true},{"id":"c2","text":"README の段を書き直す","in_scope":false}]}'
+cands='{"candidates":[{"id":"c1","text":"docs/a.md:4 「依頼所」→「依頼書」","file":"docs/a.md","line":4,"in_scope":true},{"id":"c2","text":"README の段を書き直す","in_scope":false}]}'
 for bad in '.candidates[1].id = "c1"|重なっている' 'del(.candidates[0].in_scope)|in_scope が無い' '.candidates[0] += {"tier": "A"}|知らないキー' \
            '.candidates[0].text = "a\nb"|2行以上' '.candidates[0].file = "/etc/x"|相対パス' '.candidates[0].line = 0|line が' '.candidates[0].id = "x1"|c1, c2' \
            '. + {"commit": "'"$s1"'"}|commit は書かない' 'del(.candidates)|candidates が無い'; do
@@ -378,7 +379,7 @@ expect_fail 'candidates.json が無い' "$andon" issue ready "$sv2"
 kanban config set chief_of_staff=t5 >/dev/null
 ok 'ready: deliverable の照合が外れても（Chief of Staff の起き直しのあと）PR を求めず、candidates.json を確かめて review にする'
 # repo の無い調べる課題: commit を書かず、HEAD を照合しない。cwd は git の外（start と同じ issues/<id>/）で、candidates → report → ready まで通る。
-# kanban start を git の checkout の中で打つと worktree が入るが（台帳が checkout の中にあるとき）、repo が無ければ repo の無い課題として読む
+# `kanban start` を git の checkout の中で打つと worktree が入るが（kanban が checkout の中にあるとき）、repo が無ければ repo の無い課題として読む
 nr=$(as t5 kanban add '調べる: repo 無し' --profile claude)
 as t5 kanban set "$nr" deliverable=candidates review=off >/dev/null
 (cd "$tmp/wt2" && kanban start "$nr" >/dev/null)
@@ -439,7 +440,7 @@ export ANDON_WORKSPACE="$tmp/plant"
 # セルの repo（オーナーのもの）: owner が commit した project.json が、書いてよい repo（app だけ）を持つ
 git init -q "$tmp/plant"; mkdir -p "$tmp/plant/projects/demo"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
-# signals 入りでも start が通る（ADR-0011 受け入れ条件 12。signals を知らない版は project.json ごと弾いて起動できなくなる）
+# signals 入りでも start が通る（ADR-0011 受け入れ条件 12。signals を知らないバージョンは project.json ごと弾いて起動できなくなる）
 echo '{"version": 1, "project": {"title": "Demo", "prefix": "S"}, "repos": ["github.com/example/app"],
  "signals": [{"source": "github-ci", "repo": "github.com/example/app", "weight": "now"}, {"source": "github-issues", "weight": "later", "filter": "label:bug"}]}' > "$tmp/plant/projects/demo/project.json"
 git -C "$tmp/plant" add -A; GIT_AUTHOR_EMAIL=owner@example.com git -C "$tmp/plant" commit -qm plant
@@ -477,7 +478,7 @@ esac
 EOF
 chmod +x "$tmp/bin/hc"
 field() { kanban show "$1" --json | jq -r --arg k "$2" '.issue[$k] // ""'; }
-# 起動の記録（contract.md §18。ADR-0028 受け入れ条件 1〜4）の土台: ハーネスは版を返し、パッケージの置き場は
+# 起動の記録（contract.md §18。ADR-0028 受け入れ条件 1〜4）の土台: ハーネスはバージョンを返し、パッケージの置き場は
 # この repo の package/ を HEAD から写して、その commit で焼いた印（andon version stamp）を付ける。auto memory の目録はセルの repo の memory/（git の外）
 printf '#!/bin/sh\necho "9.9.9 (Claude Code)"\n' > "$tmp/bin/claude"; printf '#!/bin/sh\necho "codex-cli 9.9.9"\n' > "$tmp/bin/codex"; chmod +x "$tmp/bin/claude" "$tmp/bin/codex"
 pkgc=$(git -C "$src" rev-parse HEAD)
@@ -487,13 +488,13 @@ export ANDON_HOME=$tmp/pkg
 echo 'memory/' >> "$tmp/plant/.git/info/exclude"; mkdir -p "$tmp/plant/memory"; echo '- [a](a.md) — 目録の1行' > "$tmp/plant/memory/MEMORY.md"
 launches() { echo "kanban/issues/$1/library/launches.jsonl"; }
 nlaunch() { if [ -e "$(launches "$1")" ]; then wc -l < "$(launches "$1")"; else echo 0; fi; }
-# 台帳は repos に案件の repo を持つ別の台帳（slug は demo）
+# kanban は repos に案件の repo を持つ別の kanban（slug は demo）
 mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
 KANBAN_ROOT= kanban init --prefix S --repo github.com/example/app --repo github.com/example/lib >/dev/null
 export KANBAN_ROOT=$PWD HC_TERMINAL_ID=t5
 kanban config set chief_of_staff=t5 >/dev/null
 s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude --brief - <<<'# Add the button')
-# 乾いた実行: 本物の台帳で、hc を呼ばず、何も作らず台帳も書かずに、起動するときに渡すものを出す
+# 乾いた実行: 本物の kanban の CLI で、hc を呼ばず、何も作らず kanban も書かずに、起動するときに渡すものを出す
 hcn=$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true); before=$(wc -l < kanban/log.jsonl)
 "$andon" issue start "$s1" --dry-run --json > "$tmp/dry" || die "dry-run が落ちた"
 [ "$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true)" = "$hcn" ] && [ "$(wc -l < kanban/log.jsonl)" = "$before" ] && [ "$(field "$s1" status)" = todo ] && [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s1" ] \
@@ -501,7 +502,7 @@ hcn=$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true); before=$(wc -l < kanban/lo
 jq -e --arg id "$s1" --arg wt "$ANDON_WORKSPACE/.worktrees/app/demo-$s1" '.dry_run and .terminal == ("demo-" + ($id | ascii_downcase)) and .worktree == $wt and .cwd == $wt
   and .branch == "demo/\($id)-add-the-button" and .profile == "claude" and (.brief | startswith("# Add the button"))
   and ([.checks[] | select(.result == "ok") | .name] | index("delegation") != null)' "$tmp/dry" >/dev/null || die "dry-run の中身: $(cat "$tmp/dry")"
-ok 'start --dry-run: hc を呼ばず worktree・台帳に触れずに、端末の名前・worktree・branch・プロファイル・依頼書・確かめの結果を出す'
+ok 'start --dry-run: hc を呼ばず worktree・kanban に触れずに、端末の名前・worktree・branch・プロファイル・依頼書・確かめの結果を出す'
 "$andon" issue start "$s1" > "$tmp/out"
 [ "$(jq -r .first_message "$tmp/dry")" = "$(printf '課題 `demo/%s`。\n依頼書は `%s`。' "$s1" "$(jq -r .brief_path "$tmp/dry")")" ] || die "dry-run の最初のメッセージの形: $(jq .first_message "$tmp/dry")"
 lc=$(tr A-Z a-z <<<"$s1")
@@ -510,7 +511,7 @@ br=demo/$s1-add-the-button
 [ -d "$wt" ] && [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = "$br" ] || die "worktree か branch が無い: $(cat "$tmp/out")"
 [ -z "$(git -C "$wt" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" ] || die 'branch に upstream がある'
 [ "$(field "$s1" status)" = doing ] && [ "$(field "$s1" agent)" = t42 ] && [ "$(field "$s1" branch)" = "$br" ] && [ "$(field "$s1" worktree)" = "$wt" ] \
-  || die "台帳: $(kanban show "$s1" --json | jq -c .issue)"
+  || die "kanban: $(kanban show "$s1" --json | jq -c .issue)"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label project=demo --label issue=$s1 --label title=Add the button --label herdr.space=andon-demo-$s1 --label herdr.tab=andon-demo-$s1 --label session=$(field "$s1" session) --cwd $wt claude 課題 \`demo/$s1\`。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
@@ -534,8 +535,8 @@ jq -e --arg id "$s1" --arg pc "$pkgc" --arg pk "$ANDON_HOME" --arg wc "$(git -C 
   and .external == [] and .drift == false and .drift_reasons == [] and .memory_index == "- [a](a.md) — 目録の1行\n"
   and (.at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))' "$rec" >/dev/null || die "起動の記録の中身: $(cat "$rec")"
 emit "$rec" launch-start.json
-ok 'start: 起動の記録（library/launches.jsonl）が1件増える。起動行・ハーネスの版・パッケージ・セルの repo・案件の repo の commit・memory の目録の写しが入る（ADR-0028 受け入れ条件 1）'
-# 版から当時の文を復元できる（受け入れ条件 3）: 記録の commit の skill と、プロファイルが読む置き場の skill が同じ
+ok 'start: 起動の記録（library/launches.jsonl）が1件増える。起動行・ハーネスのバージョン・パッケージ・セルの repo・案件の repo の commit・memory の目録の写しが入る（ADR-0028 受け入れ条件 1）'
+# バージョンから当時の文を復元できる（受け入れ条件 3）: 記録の commit の skill と、プロファイルが読む置き場の skill が同じ
 diff <(git -C "$src" show "$(jq -r .package.commit "$rec"):package/skills/worker/SKILL.md") "$(jq -r .package.root "$rec")/skills/worker/SKILL.md" >/dev/null \
   || die "記録の commit の worker skill と置き場の worker skill が違う（食い違いの印は $(jq .drift "$rec")）"
 ok 'start: 食い違いの印が無いとき、記録のパッケージの commit の git show と置き場の skill の diff が空（ADR-0028 受け入れ条件 3）'
@@ -552,11 +553,11 @@ expect_fail 'プロファイル fable の template が無い' "$andon" issue sta
 [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s2" ] && [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s3" ] || die '止まる前に worktree を作った'
 ok 'start: 依頼書が無い・template が無いなら何も作らずに止まる'
 
-# 台帳の repos に無い repo（clone はある）・未完了の after・origin にだけある同名の branch は、何も作らずに止まる
+# kanban の repos に無い repo（clone はある）・未完了の after・origin にだけある同名の branch は、何も作らずに止まる
 git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/other" 2>/dev/null
 s6=$(kanban add 'Other repo' --profile claude --brief - <<<'# x')
 kanban set "$s6" repo=github.com/example/other >/dev/null
-expect_fail '台帳の config.yaml の repos に無い' "$andon" issue start "$s6"
+expect_fail 'kanban の config.yaml の repos に無い' "$andon" issue start "$s6"
 s7=$(kanban add 'Later' --repo github.com/example/app --profile claude --brief - <<<'# x')
 kanban set "$s7" "after=$s2" >/dev/null
 [ "$(field "$s7" status)" = todo ] || die "after を足しても todo のはず: $(field "$s7" status)"
@@ -565,7 +566,7 @@ s8=$(kanban add 'Taken name' --repo github.com/example/app --profile claude --br
 git -C "$appdir" push -q origin "HEAD:refs/heads/demo/$s8-taken-name"
 git -C "$appdir" update-ref -d "refs/remotes/origin/demo/$s8-taken-name"
 expect_fail "branch demo/$s8-taken-name が origin にもうある" "$andon" issue start "$s8"
-# 台帳の config.yaml の repos にはあるが、project.json の repos に無い repo（このプロジェクトが書いてよい repo でない）
+# kanban の config.yaml の repos にはあるが、project.json の repos に無い repo（このプロジェクトが書いてよい repo でない）
 git clone -q "$tmp/origin.git" "$GHQ_ROOT/github.com/example/lib" 2>/dev/null
 s9=$(kanban add 'Lib' --repo github.com/example/lib --profile claude --brief - <<<'# x')
 expect_fail 'repo github.com/example/lib が projects/demo/project.json の repos に無い' "$andon" issue start "$s9"
@@ -581,7 +582,7 @@ for x in "$s6" "$s7" "$s8" "$s9"; do
   ! grep -q "issue=$x " "$tmp/hc/log" || die "$x: hc run を打った"
 done
 ! git -C "$GHQ_ROOT/github.com/example/other" show-ref --quiet "refs/heads/demo/$s6-other-repo" && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s7-later" || die '止まる前に branch を作った'
-ok 'start: 台帳か project.json（owner の commit）の repos に無い repo・未完了の after・origin にある同名の branch では、worktree・branch・台帳の欄・hc run を作らずに止まる'
+ok 'start: kanban か project.json（owner の commit）の repos に無い repo・未完了の after・origin にある同名の branch では、worktree・branch・kanban の欄・hc run を作らずに止まる'
 
 # hc run が落ちたら、作った worktree と branch を戻す
 s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brief - <<<'# x')
@@ -603,7 +604,7 @@ emit "$(launches "$s4")" launch-drift.json
 ok 'start: 起動できなかったら起動の記録を書かない。パッケージの置き場の1ファイルを書き換えて起動すると食い違いの印が立つ（ADR-0028 受け入れ条件 4）。Codex は session・memory の目録が null、読めない起動行も null'
 grep -q "issue=$s4 " "$tmp/hc/log" || die 'やり直した start が hc run を打っていない'
 ! grep "issue=$s4 " "$tmp/hc/log" | grep -q 'session=' || die 'Codex 系の start がセッションの id を渡した（Codex は決める口が無い）'
-ok 'start: hc run が落ちたら worktree・branch・台帳の欄を戻す（やり直せる）'
+ok 'start: hc run が落ちたら worktree・branch・kanban の欄を戻す（やり直せる）'
 
 # 最初のメッセージが届かない（信頼の画面など）
 s5=$(kanban add 'Trust prompt' --profile claude --brief - <<<'# x')   # repo の無い課題: issues/<id>/ で起動する
@@ -612,11 +613,11 @@ rc=0; "$andon" issue start "$s5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 rm "$tmp/hc/first"
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 addr=$(field "$s5" agent)
-grep -q "に最初のメッセージが届いていない: trust prompt。台帳は doing・agent $addr のまま.*dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr '課題 \`demo/$s5\`。" "$tmp/err" \
+grep -q "に最初のメッセージが届いていない: trust prompt。kanban は doing・agent $addr のまま.*dispatcher が見回りで送り直す（.*急ぐときだけ手で: hc send $addr '課題 \`demo/$s5\`。" "$tmp/err" \
   && [ "$(field "$s5" status)" = doing ] || die "案内: $(cat "$tmp/err")"
 grep -q "^label $addr first_message.sent=false\$" "$tmp/hc/log" || die 'dispatcher に預けるラベルを付けていない'
 grep -q "^run .*--cwd $PWD/kanban/issues/$s5 claude " "$tmp/hc/log" || die 'repo の無い課題の cwd が issues/<id>/ でない'
-ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（台帳は doing・agent はその端末）。repo の無い課題は issues/<id>/ で'
+ok 'start: 最初のメッセージが届かなければ終了コード 3・端末にラベル first_message.sent=false（dispatcher が送り直す）と急ぐとき用の hc send（kanban は doing・agent はその端末）。repo の無い課題は issues/<id>/ で'
 jq -e --arg a "$addr" '.repo == null and .terminal == $a and .role == "worker"' "$(launches "$s5")" >/dev/null || die "repo の無い課題の起動の記録: $(cat "$(launches "$s5")")"
 emit "$(launches "$s5")" launch-norepo.json
 ok 'start: 最初のメッセージが届かなくても起きた端末の起動の記録は書く。repo の無い課題は repo が null'
@@ -627,7 +628,7 @@ s11=$(kanban add 'Cancel me' --repo github.com/example/app --profile claude --br
 "$andon" issue start "$s11" >/dev/null
 wt11=$(field "$s11" worktree); br11=$(field "$s11" branch); a11=$(field "$s11" agent)
 HC_TERMINAL_ID=$a11 "$andon" issue ask "$s11" - <<<'{"kind":"users","question":"どちらにするか","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}' >/dev/null
-checked() { # checked <題>: finish が断り、端末・worktree・branch・台帳がそのまま
+checked() { # checked <題>: finish が断り、端末・worktree・branch・kanban がそのまま
     : > "$tmp/hc/log"
     expect_fail "$1" "$andon" issue finish "$s11"
     ! grep -q '^kill \|^rm ' "$tmp/hc/log" || die "断る finish が端末を消した: $(cat "$tmp/hc/log")"
@@ -638,7 +639,7 @@ checked() { # checked <題>: finish が断り、端末・worktree・branch・台
 checked "$s11#1（open）"
 kanban answer "$s11#1" A >/dev/null
 checked "$s11#1（answered）"
-# kanban done（closing）も同じ問いで断る（確かめの形が食い違わない）
+# `kanban done`（closing）も同じ問いで断る（確かめの形が食い違わない）
 expect_fail 'questions not received' kanban done "$s11"
 kanban received "$s11#1" >/dev/null
 # レビュアーの子課題の問いでも、親の finish は何も消さない（子を片付けてから親で止まる、をしない）
@@ -650,7 +651,7 @@ kanban answer "$r11#1" x >/dev/null; kanban received "$r11#1" >/dev/null
 "$andon" issue finish "$s11" >/dev/null || die '問いを受け取ったあとの finish が通らない'
 [ ! -e "$wt11" ] && [ "$(field "$s11" status)" = done ] && [ "$(field "$r11" status)" = done ] && ! grep -q "^$a11 " "$tmp/hc/live" \
   || die "受け取ったあとに片付かない: $(kanban show "$s11" --json | jq -c .issue)"
-ok 'finish: 課題かレビュアーの子課題に受け取られていない問い（open・answered）があれば、端末・worktree・branch・台帳に触らずに止まる（kanban done と同じ確かめ。受け取れば片付く）'
+ok 'finish: 課題かレビュアーの子課題に受け取られていない問い（open・answered）があれば、端末・worktree・branch・kanban に触らずに止まる（`kanban done` と同じ確かめ。受け取れば片付く）'
 
 # start が作ったものを finish が片付ける
 : > "$tmp/hc/log"
@@ -744,8 +745,8 @@ expect_fail "は todo" "$andon" issue resume "$r1" --dry-run
 "$andon" issue start "$r1" >/dev/null
 sess=$(field "$r1" session); a1=$(field "$r1" agent); rwt=$ANDON_WORKSPACE/.worktrees/app/demo-$r1; rbr=demo/$r1-resume-me
 [[ $sess =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] && grep "issue=$r1 " "$tmp/hc/log" | grep -q -- "--label session=$sess --cwd $rwt claude " \
-  || die "start が Claude 系にセッションの id を渡して台帳に書いていない: session=$sess $(grep "issue=$r1 " "$tmp/hc/log")"
-ok 'start: Claude 系はセッションの id を決めてラベル session で渡し、台帳の session に書く（Codex 系は渡さない）'
+  || die "start が Claude 系にセッションの id を渡して kanban に書いていない: session=$sess $(grep "issue=$r1 " "$tmp/hc/log")"
+ok 'start: Claude 系はセッションの id を決めてラベル session で渡し、kanban の session に書く（Codex 系は渡さない）'
 r1first=$(head -n 1 "$(launches "$r1")")
 expect_fail "端末 $a1 がもう動いている" "$andon" issue resume "$r1" --dry-run
 ok 'resume --dry-run: todo・端末が動いている課題では理由を言って止まる'
@@ -755,8 +756,8 @@ echo '{"state":"live","argv":["/bin/bash"],"foreground":{"argv":["/bin/bash"]},"
 rm -rf "$rwt"
 expect_fail "セッション $sess の記録が無い" "$andon" issue resume "$r1" --dry-run
 expect_fail "の記録が無い" "$andon" issue resume "$r1"
-[ "$(field "$r1" agent)" = "$a1" ] && [ ! -e "$rwt" ] && ! grep -q "^run .*issue=$r1 .*claude-resume" "$tmp/hc/log" || die '記録が無いのに起動したか台帳・worktree を変えた'
-ok 'resume: Claude のセッションの記録が無ければ、起動せず台帳も worktree も変えずに非 0'
+[ "$(field "$r1" agent)" = "$a1" ] && [ ! -e "$rwt" ] && ! grep -q "^run .*issue=$r1 .*claude-resume" "$tmp/hc/log" || die '記録が無いのに起動したか kanban・worktree を変えた'
+ok 'resume: Claude のセッションの記録が無ければ、起動せず kanban も worktree も変えずに非 0'
 mkdir -p "$HOME/.claude/projects/-x" && : > "$HOME/.claude/projects/-x/$sess.jsonl"
 hcn=$(wc -l < "$tmp/hc/log"); before=$(wc -l < kanban/log.jsonl)
 "$andon" issue resume "$r1" --dry-run --json > "$tmp/dry" || die "resume --dry-run が落ちた"
@@ -764,7 +765,7 @@ hcn=$(wc -l < "$tmp/hc/log"); before=$(wc -l < kanban/log.jsonl)
   || die "resume --dry-run が読むほかに hc を打ったか何かを作った: $(tail -n +"$((hcn + 1))" "$tmp/hc/log")"
 jq -e --arg wt "$rwt" --arg br "$rbr" --arg s "$sess" --arg a "$a1" '.dry_run and .template == "claude-resume" and .agent == $a and .agent_state == "bare_shell"
   and .worktree == $wt and .cwd == $wt and .branch == $br and .restore == "add" and .session == $s and (.labels | index("session=" + $s) != null)
-  and (.first_message | test("の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`kanban list`）と git の状態を確かめ、続きから。"))' "$tmp/dry" >/dev/null \
+  and (.first_message | test("の続き。セルが起き直した。worktree は同じ場所に戻した。`kanban list` と git で今の状態を確かめ、続きから。"))' "$tmp/dry" >/dev/null \
   || die "resume --dry-run の計画: $(cat "$tmp/dry")"
 ok 'resume --dry-run: doing で素のシェルの課題は、worktree のパス・branch・起動する template・cwd・session・最初のメッセージの計画を出す（hc は読むだけ）'
 
@@ -773,13 +774,13 @@ ok 'resume --dry-run: doing で素のシェルの課題は、worktree のパス�
 a2=$(field "$r1" agent)
 [ -d "$rwt" ] && [ "$(git -C "$rwt" rev-parse --abbrev-ref HEAD)" = "$rbr" ] || die "worktree が戻っていない: $(cat "$tmp/out")"
 [ "$a2" != "$a1" ] && [ "$(field "$r1" status)" = doing ] && [ "$(field "$r1" session)" = "$sess" ] && [ "$(field "$r1" worktree)" = "$rwt" ] \
-  || die "台帳: $(kanban show "$r1" --json | jq -c .issue)"
+  || die "kanban: $(kanban show "$r1" --json | jq -c .issue)"
 order=$(grep -n "^keep $a1 --off\|^kill $a1\|^rm $a1\|^run " "$tmp/hc/log" | cut -d: -f2 | cut -d' ' -f1 | tr '\n' ' ')
 [ "$order" = "keep kill rm run " ] || die "素のシェルを片付けてから起動していない: $(cat "$tmp/hc/log")"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(tr A-Z a-z <<<"$r1") --label project=demo --label issue=$r1 --label title=Resume me --label herdr.space=andon-demo-$r1 --label herdr.tab=andon-demo-$r1 --label session=$sess --cwd $rwt claude-resume 課題 \`demo/$r1\` の続き。" "$tmp/hc/log" \
   || die "hc run の形: $(grep ^run "$tmp/hc/log")"
-jq -e --arg id "$r1" --arg a "$a2" 'select(.id == $id and .change.agent == $a) | .by == "terminal:t5"' kanban/log.jsonl >/dev/null || die '台帳の agent を新しい端末にしていない'
-ok 'resume: worktree を同じパスに branch で戻し、素のシェルを片付け、同じ名前・ラベルで <profile>-resume を起動し、届いてから台帳の agent を書く（doing のまま・session は同じ）'
+jq -e --arg id "$r1" --arg a "$a2" 'select(.id == $id and .change.agent == $a) | .by == "terminal:t5"' kanban/log.jsonl >/dev/null || die 'kanban の agent を新しい端末にしていない'
+ok 'resume: worktree を同じパスに branch で戻し、素のシェルを片付け、同じ名前・ラベルで <profile>-resume を起動し、届いてから kanban の agent を書く（doing のまま・session は同じ）'
 r1rec=$(launches "$r1")
 [ "$(nlaunch "$r1")" = 2 ] && [ "$(head -n 1 "$r1rec")" = "$r1first" ] || die "起動し直しで起動の記録が2件にならないか、1件目が変わった: $(cat "$r1rec")"
 tail -n 1 "$r1rec" | jq -e --arg a "$a2" --arg s "$sess" '.launch == "resume" and .role == "worker" and .template == "claude-resume" and .command == "claude --model opus --effort high --resume"
@@ -795,16 +796,16 @@ echo wip > "$rwt/wip.txt"
 [ "$(cat "$rwt/wip.txt")" = wip ] && [ "$(git -C "$rwt" status --porcelain)" = '?? wip.txt' ] || die 'commit していない変更に触った'
 ok 'resume: worktree があれば（commit していない変更があっても）触らずに起動する。端末が無い（not_found）でも起動する'
 
-# 最初のメッセージが届かない: 起動した端末を片付け、台帳を変えずに非 0
+# 最初のメッセージが届かない: 起動した端末を片付け、kanban を変えずに非 0
 a3=$(field "$r1" agent); sed -i "/^$a3 /d" "$tmp/hc/live"
 echo false > "$tmp/hc/first"
 expect_fail "最初のメッセージが届かない" "$andon" issue resume "$r1"
 rm "$tmp/hc/first"
 bad=t$(( $(cat "$tmp/hc/next") - 1 ))   # 最後に起動した端末
 [ "$(field "$r1" agent)" = "$a3" ] && grep -q "^kill $bad\$" "$tmp/hc/log" && grep -q "^rm $bad\$" "$tmp/hc/log" \
-  || die "届かなかった端末を片付けていないか台帳を変えた: agent=$(field "$r1" agent) $(tail -5 "$tmp/hc/log")"
+  || die "届かなかった端末を片付けていないか kanban を変えた: agent=$(field "$r1" agent) $(tail -5 "$tmp/hc/log")"
 [ "$(nlaunch "$r1")" = 3 ] || die "片付けた起動（最初のメッセージが届かない）を記録した: $(nlaunch "$r1") 件"
-ok 'resume: 最初のメッセージが届かなければ、起動した端末を片付けて台帳を変えずに非 0（起動の記録も足さない）'
+ok 'resume: 最初のメッセージが届かなければ、起動した端末を片付けて kanban を変えずに非 0（起動の記録も足さない）'
 
 # --fresh: 同じ worktree で新しいセッション。最初のメッセージに前の担当の報告を読む1行
 : > "$tmp/hc/log"
@@ -814,7 +815,7 @@ s2=$(field "$r1" session)
   && grep -q "前の担当の報告 \`$PWD/kanban/issues/$r1/report.md\`（あれば）を読み" "$tmp/hc/log" && [ "$(cat "$rwt/wip.txt")" = wip ] \
   || die "--fresh: session=$s2 $(cat "$tmp/hc/log")"
 tail -n 1 "$(launches "$r1")" | jq -e --arg s "$s2" '.launch == "fresh" and .template == "claude" and .session == $s' >/dev/null || die "--fresh の起動の記録: $(tail -n 1 "$(launches "$r1")")"
-ok 'resume --fresh: template の command（resume でない）・新しい session を台帳に・最初のメッセージに report.md を読む1行。起動の記録は launch fresh'
+ok 'resume --fresh: template の command（resume でない）・新しい session を kanban に・最初のメッセージに report.md を読む1行。起動の記録は launch fresh'
 
 # Codex: 記録（sessions/**/rollout-*.jsonl の先頭行 session_meta）から cwd が同じ最新の id を引く
 a4=$(field "$s4" agent); cwt=$(field "$s4" worktree); sed -i "/^$a4 /d" "$tmp/hc/live"
@@ -830,7 +831,7 @@ meta "$other" /elsewhere 2026-11-10T03:00:00.000Z > "$cs/rollout-c.jsonl"
 [ "$(field "$s4" session)" = "$new" ] && grep -q -- "--label session=$new --cwd $cwt codex-resume 課題 \`demo/$s4\` の続き。" "$tmp/hc/log" \
   || die "Codex の resume: session=$(field "$s4" session) $(cat "$tmp/hc/log")"
 tail -n 1 "$(launches "$s4")" | jq -e --arg s "$new" '.launch == "resume" and .template == "codex-resume" and .session == $s' >/dev/null || die "Codex の起動し直しの記録: $(tail -n 1 "$(launches "$s4")")"
-ok 'resume: Codex 系は記録の先頭行から cwd が同じ最新の id を引き、codex-resume で起動し、引けた id を台帳の session に書く。無ければ非 0。起動の記録の session は引けた id'
+ok 'resume: Codex 系は記録の先頭行から cwd が同じ最新の id を引き、codex-resume で起動し、引けた id を kanban の session に書く。無ければ非 0。起動の記録の session は引けた id'
 
 # 旧の置き場（~/.herdr/worktrees）の値でも、その値のまま戻す
 r2=$(kanban add 'Old place' --repo github.com/example/app --profile claude --brief - <<<'# x')
@@ -842,7 +843,7 @@ rm -rf "$owt"
 "$andon" issue resume "$r2" >/dev/null || die '旧の置き場の値の課題を resume できない'
 [ "$(git -C "$owt" rev-parse --abbrev-ref HEAD)" = "demo/$r2-old-place" ] && [ "$(field "$r2" worktree)" = "~/.herdr/worktrees/app/demo-$r2" ] \
   || die "旧の置き場に戻っていない: $(kanban show "$r2" --json | jq -c .issue)"
-ok 'resume: 旧の置き場（~/.herdr/worktrees/…）の値でも、台帳の値のまま同じパスに戻す'
+ok 'resume: 旧の置き場（~/.herdr/worktrees/…）の値でも、kanban の値のまま同じパスに戻す'
 
 # 置き場の外の worktree・machine のある課題・レビュアーは止まる
 r3=$(kanban add 'Elsewhere' --repo github.com/example/app --profile claude --brief - <<<'# x')
@@ -879,19 +880,19 @@ jq -e --arg wt "$rvwt" --arg cwd "$rvcwd" --arg c "$rc" --arg s "$rvs" --arg id 
 [ "$(git -C "$rvwt" rev-parse HEAD)" = "$rc" ] && ! git -C "$rvwt" symbolic-ref -q HEAD >/dev/null || die "detached worktree が commit $rc に戻っていない: $(cat "$tmp/out")"
 grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
 [ "$(field "$rv" agent)" != t90 ] && [ "$(field "$rv" status)" = doing ] && [ "$(field "$rv" session)" = "$rvs" ] && [ "$(field "$rv" worktree)" = "$rvwt" ] && [ -z "$(field "$rv" branch)" ] \
-  || die "レビュアーの台帳: $(kanban show "$rv" --json | jq -c .issue)"
+  || die "レビュアーの kanban: $(kanban show "$rv" --json | jq -c .issue)"
 jq -e --arg c "$rc" --arg wt "$rvwt" '.role == "reviewer" and .launch == "resume" and .repo.commit == $c and .repo.path == $wt' "$(launches "$rv")" >/dev/null \
   || die "レビュアーの起動し直しの記録: $(cat "$(launches "$rv")")"
 ok 'resume: レビュアーは detached worktree を依頼書の対象の commit（前の回の commit でなく）で同じパスに戻し、cwd issues/<rev>/ で codex-review-resume を起動する。起動の記録は役 reviewer・repo の commit は対象の commit'
 
-# レビュアーの worktree があれば触らない。claude-review は台帳の session で claude-review-resume
+# レビュアーの worktree があれば触らない。claude-review は kanban の session で claude-review-resume
 sed -i "/^$(field "$rv" agent) /d" "$tmp/hc/live"; echo note > "$rvwt/note.txt"
 rcs=66666666-6666-4666-8666-666666666666; : > "$HOME/.claude/projects/-x/$rcs.jsonl"
 kanban set "$rv" profile=claude-review "session=$rcs" >/dev/null
 "$andon" issue resume "$rv" --dry-run --json | jq -e --arg s "$rcs" '.restore == "keep" and .template == "claude-review-resume" and .session == $s' >/dev/null \
   || die "claude-review の resume の計画: $("$andon" issue resume "$rv" --dry-run --json)"
 "$andon" issue resume "$rv" >/dev/null && [ "$(cat "$rvwt/note.txt")" = note ] || die 'レビュアーの worktree があると resume できないか、触った'
-ok 'resume: レビュアーの worktree があれば触らずに起動する。claude-review は台帳の session で claude-review-resume'
+ok 'resume: レビュアーの worktree があれば触らずに起動する。claude-review は kanban の session で claude-review-resume'
 
 # 依頼書に対象の commit が無い・parent が無いレビュアーは止まる
 r4=$(kanban add "$r1 のレビュー" --repo github.com/example/app --parent "$r1" --profile codex-review --brief - <<<'# x')
@@ -922,7 +923,7 @@ sleep 0.3; t0=$(date +%s%N)
 "$andon" issue resume "$r1" >/dev/null || die 'lock のあと resume が落ちた'
 wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'resume が lock を待たなかった'
 flock -n "$HOME/.local/state/andon/dispatcher/demo.json.lock" true || die 'dispatcher の控えの lock を持ったまま'
-ok 'resume: 台帳の issue lock を命令の間持つ（finish・start と同じ。dispatcher の控えの lock は取らない）'
+ok 'resume: kanban の issue lock を命令の間持つ（finish・start と同じ。dispatcher の控えの lock は取らない）'
 
 # andon chief-engineer（ADR-0028 受け入れ条件 2）: Chief Engineer の課題に起動の記録が1件
 "$andon" chief-engineer --repo github.com/example/app 'Design topic' > "$tmp/out" || die "andon chief-engineer が落ちた: $(cat "$tmp/out")"

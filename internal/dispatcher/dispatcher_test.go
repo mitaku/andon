@@ -28,7 +28,7 @@ func TestRetry(t *testing.T) {
 		{"起動しそこねた（続きから）", Reviewer{Failed: "fetch", ReviewerIssue: "D-2", Row: 5}, true, 2, 5, true, false, true},
 		{"設定で起動しない", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 5, true, false, false},
 		{"起動しなかった回を同じ commit で頼み直した", Reviewer{Skipped: "review が on でない", Row: 5}, true, 5, 9, true, false, true},
-		{"前の版の控え（初めて見た台帳で控えただけ）", Reviewer{Skipped: "初めて見た台帳"}, true, 2, 5, true, false, true},
+		{"前のバージョンの控え（初めて見た kanban で控えただけ）", Reviewer{Skipped: "初めて見た kanban"}, true, 2, 5, true, false, true},
 		{"上限を超えた・上限そのまま", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 1, 5, true, false, false},
 		{"上限を超えた・上限が上がった", Reviewer{Skipped: "追加の回", OverLimit: 1, Row: 5}, true, 2, 5, true, false, true},
 		{"照合で見送った・照合が外れたまま", Reviewer{Skipped: "最後に書いたのが Chief of Staff でない", Untrusted: true, Row: 5}, true, 2, 5, false, false, false},
@@ -44,7 +44,7 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-// 控えに無い review_request（初めて見た台帳）は、台帳にその commit のレビュアーの子課題が無ければ起動しに行き、
+// 控えに無い review_request（初めて見た kanban）は、kanban にその commit のレビュアーの子課題が無ければ起動しに行き、
 // あれば引き継ぐ（todo でなければもう受けている。todo なら端末を照らし、live なら address を引き継ぐ）。
 func TestAdopt(t *testing.T) {
 	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
@@ -173,7 +173,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, "example/app", "7")
 	for _, want := range []string{
 		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
-		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`", // 台帳の中のレビュアー自身の課題（A-0216）
+		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`", // kanban の中のレビュアー自身の課題（A-0216）
 		"screen_paths", "画像の添付が無い", "commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
 	} {
 		if !strings.Contains(b, want) {

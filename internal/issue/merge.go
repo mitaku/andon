@@ -21,7 +21,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// merge は andon issue merge: review の課題にゲートを回し（review に入った log.jsonl の行ごとに1回）、approve ＋ merge: auto ＋
+// merge は andon issue merge: review の課題に gate を回し（review に入った log.jsonl の行ごとに1回）、approve ＋ merge: auto ＋
 // 委譲の範囲内ならマージして片付ける。fix は理由を担当へ送り、needs_human は問い（from: gate）を出す（dispatcher.md §5 の P6a）。
 // 積む通知は stdout の JSON で返す（積むのは dispatcher）。2回打っても同じ結果になるよう、行ごとに決めたことを自分の記録に持つ
 // （ADR-0017 決めたこと 5・6）。記録は dispatcher も読む（approve のまま 10 分。dispatcher.md §3.2）。
@@ -101,7 +101,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	if w.Row != row {
 		w = contract.Merging{Row: row}
-		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head のゲートの記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
+		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head の gate の記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
 		if fresh {
 			if g := c.gatedSince(rep.Commit, rows[row-1].At); g != nil {
 				w.Sha, w.Decision = g.Head, g.Decision
@@ -111,26 +111,26 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	if w.Decision != "" {
 		if w.Merged == "" && contract.IsSHA(w.Sha) {
-			// ゲートが決めたときに閉じられなかった前の head の問いを閉じ直す（閉じる問いが無ければ一覧を読むだけ）
+			// gate が決めたときに閉じられなかった前の head の問いを閉じ直す（閉じる問いが無ければ一覧を読むだけ）
 			c.closeStaleGateQuestions(w.Sha, res)
 		}
 		if !c.headMoved(&w, rep, res, now) {
 			return &w
 		}
-		// approve か needs_human を決めたあとに PR の head が動いた: 決めたことを捨て、今の head でゲートから回し直す
+		// approve か needs_human を決めたあとに PR の head が動いた: 決めたことを捨て、今の head で gate から回し直す
 		w = contract.Merging{Row: row}
 	}
 	if w.Wait != "" && c.stillWaiting(rows, rep.PR, w.Wait, now) {
-		// wait を返した head の checks がまだ揃っていない: ゲートを回さない（GraphQL の checks だけを読み、REST を使わない）
+		// wait を返した head の checks がまだ揃っていない: gate を回さない（GraphQL の checks だけを読み、REST を使わない）
 		res.State = "wait"
-		res.Log = append(res.Log, fmt.Sprintf("%s は GitHub の checks を待つ（ゲートは回さない）: head %s の checks がまだ揃っていない", c.id, short12(w.Wait)))
+		res.Log = append(res.Log, fmt.Sprintf("%s は GitHub の checks を待つ（gate は回さない）: head %s の checks がまだ揃っていない", c.id, short12(w.Wait)))
 		return &w
 	}
 	w.Wait = ""
 	var out, errb bytes.Buffer
 	code := gate.Main([]string{c.id}, nil, &out, &errb)
 	if code == 3 && strings.Contains(strings.ToLower(errb.String()), "rate limit") {
-		// gh の上限で落ちた: 問いにもせず、決めたことも書かない（いつ回し直すかは dispatcher が台帳ごとに決める）
+		// gh の上限で落ちた: 問いにもせず、決めたことも書かない（いつ回し直すかは dispatcher が kanban ごとに決める）
 		res.State = "rate-limited"
 		return &w
 	}
@@ -138,17 +138,17 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal(out.Bytes(), &gr) != nil {
 		w.Decision, res.State = "needs_human", "needs_human"
 		why := fmt.Sprintf("andon gate %s: 終了コード %d %s", c.id, code, firstLine(errb.String()))
-		res.Log = append(res.Log, fmt.Sprintf("%s のゲートが判定できない: %s", c.id, why))
+		res.Log = append(res.Log, fmt.Sprintf("%s の gate が判定できない: %s", c.id, why))
 		c.askGate(res, contract.Question{
-			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）のゲートが判定できなかった。PR をオーナーが見るか", c.id, short(c.issue.Str("title"))),
+			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）の gate が判定できなかった。PR をオーナーが見るか", c.id, short(c.issue.Str("title"))),
 			Facts: []string{why}, From: "gate",
 			Options: []contract.Option{{Label: "オーナーが PR を読んでマージを決める", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
 		return &w
 	}
 	if gr.Decision == "wait" {
-		// GitHub の checks が揃っていない: 決めたことは書かず、次に打ったときゲートから回し直す（通知もしない）
+		// GitHub の checks が揃っていない: 決めたことは書かず、次に打ったとき gate から回し直す（通知もしない）
 		res.State = "wait"
-		res.Log = append(res.Log, fmt.Sprintf("%s のゲートは GitHub の checks を待つ: %s", c.id, strings.Join(gr.Reasons, "／")))
+		res.Log = append(res.Log, fmt.Sprintf("%s の gate は GitHub の checks を待つ: %s", c.id, strings.Join(gr.Reasons, "／")))
 		if contract.IsSHA(gr.Head) {
 			w.Wait = gr.Head
 		}
@@ -156,7 +156,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	record := ""
 	if contract.IsSHA(gr.Head) {
-		// ゲートが今の head で決めた: 前の head について出したゲートの問いは、この判定で決め直したので閉じる
+		// gate が今の head で決めた: 前の head について出した gate の問いは、この判定で決め直したので閉じる
 		// （担当が doing に戻って rebase し、ready が数えずに通した問い。ready の staleGateQuestions）
 		c.closeStaleGateQuestions(gr.Head, res)
 		record = filepath.Join(c.l.Library(c.id), "gate", gr.Head+".json")
@@ -166,11 +166,11 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	switch gr.Decision {
 	case "approve":
-		if res.Auto && w.Approved == "" { // 回し直したゲートの approve では測り直さない
+		if res.Auto && w.Approved == "" { // 回し直した gate の approve では測り直さない
 			w.Approved = now.UTC().Format("2006-01-02T15:04:05Z")
 		}
 		if c.approve(rep, gr, record, &w, res, stderr) {
-			w.Sha, res.State = gr.Head, "regate" // 決めたことは書かない: 次に打ったときゲートから回し直す
+			w.Sha, res.State = gr.Head, "regate" // 決めたことは書かない: 次に打ったとき gate から回し直す
 			return &w
 		}
 	case "fix":
@@ -188,12 +188,12 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			facts = append(facts, gate.RecordFact(record))
 		}
 		c.askGate(res, contract.Question{
-			Kind: kind, Question: fmt.Sprintf("%s（%s）の PR はゲートがオーナーへ回した。マージするか", c.id, short(c.issue.Str("title"))),
-			Facts: facts, Reason: "ゲートの決定式が needs_human を返した（委譲・レベル・オーナーが見る PR の事情）", From: "gate",
+			Kind: kind, Question: fmt.Sprintf("%s（%s）の PR は gate がオーナーへ回した。マージするか", c.id, short(c.issue.Str("title"))),
+			Facts: facts, Reason: "gate の決定式が needs_human を返した（委譲・レベル・オーナーが見る PR の事情）", From: "gate",
 			Options: []contract.Option{{Label: "オーナーが PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
 	w.Sha, w.Decision, w.Approved = gr.Head, gr.Decision, ""
-	w.Polled = now.UTC().Format("2006-01-02T15:04:05Z") // ゲートが今 head を読んだ。次に聞くのは1分たってから
+	w.Polled = now.UTC().Format("2006-01-02T15:04:05Z") // gate が今 head を読んだ。次に聞くのは1分たってから
 	res.State = gr.Decision
 	if w.Merged != "" {
 		res.State = "merged"
@@ -201,9 +201,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	return &w
 }
 
-// headMoved は、ゲートが approve か needs_human を決めたあと（dispatcher がマージしていない）に、PR の head が判定した head から
+// headMoved は、gate が approve か needs_human を決めたあと（dispatcher がマージしていない）に、PR の head が判定した head から
 // 動いたかを見る。GitHub に聞くのは課題ごとに1分に1回（gh pr view を1回。聞いた時刻は記録の polled）。動いていれば
-// 前の head のゲートの問い（from: gate）を閉じて true を返す（呼び手が決めたことを捨て、ゲートを回し直す。dispatcher.md §5 の P6a）。
+// 前の head の gate の問い（from: gate）を閉じて true を返す（呼び手が決めたことを捨て、gate を回し直す。dispatcher.md §5 の P6a）。
 // fix は担当が doing に戻って ready し直すので見ない。読めなければ次に聞く巡まで待つ（gh の上限なら rate-limited）。
 func (c *ctx) headMoved(w *contract.Merging, rep *contract.Report, res *contract.Merge, now time.Time) bool {
 	if !RegateWatched(*w) {
@@ -228,36 +228,36 @@ func (c *ctx) headMoved(w *contract.Merging, rep *contract.Report, res *contract
 	if !HeadMoved(*w, state, head) {
 		return false
 	}
-	res.Log = append(res.Log, fmt.Sprintf("%s の PR %s の head がゲートの判定（%s）のあとに動いた（%s → %s）。ゲートを回し直す",
+	res.Log = append(res.Log, fmt.Sprintf("%s の PR %s の head が gate の判定（%s）のあとに動いた（%s → %s）。gate を回し直す",
 		c.id, rep.PR, w.Decision, short12(w.Sha), short12(head)))
-	c.closeGateQuestions(fmt.Sprintf("PR の head がゲートのあとに動いた（%s → %s）。ゲートが今の head で回し直す", short12(w.Sha), short12(head)), res)
+	c.closeGateQuestions(fmt.Sprintf("PR の head が gate のあとに動いた（%s → %s）。gate が今の head で回し直す", short12(w.Sha), short12(head)), res)
 	return true
 }
 
-// RegateWatched は、決めたことのある merge の記録 w が、PR の head が動いたらゲートを回し直す対象か（純粋関数）。
+// RegateWatched は、決めたことのある merge の記録 w が、PR の head が動いたら gate を回し直す対象か（純粋関数）。
 // approve か needs_human で、dispatcher がマージしておらず、判定した head が sha のとき。
 func RegateWatched(w contract.Merging) bool {
 	return (w.Decision == "approve" || w.Decision == "needs_human") && w.Merged == "" && contract.IsSHA(w.Sha)
 }
 
-// HeadMoved は、聞いた PR の state と head が、ゲートの判定した head から動いた（まだ open の PR に push された）ことを示すか（純粋関数）。
+// HeadMoved は、聞いた PR の state と head が、gate の判定した head から動いた（まだ open の PR に push された）ことを示すか（純粋関数）。
 // MERGED・CLOSED は見ない（オーナーのマージと閉じた PR は settle の道）。
 func HeadMoved(w contract.Merging, state, head string) bool {
 	return RegateWatched(w) && state == "OPEN" && contract.IsSHA(head) && head != w.Sha
 }
 
-// closeGateQuestions は、この課題のまだ受け取られていないゲートの問い（from: gate）を、open なら why と答えて受け取る
-// （前の head についての問いは、回し直したゲートが今の head で決め直す）。ゲートの外の問いには触らない。閉じられなければログに1行。
+// closeGateQuestions は、この課題のまだ受け取られていない gate の問い（from: gate）を、open なら why と答えて受け取る
+// （前の head についての問いは、回し直した gate が今の head で決め直す）。gate の外の問いには触らない。閉じられなければログに1行。
 func (c *ctx) closeGateQuestions(why string, res *contract.Merge) {
 	gateQs, _, err := c.openQuestions()
 	if err != nil {
-		res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問いを読めない: %v", c.id, err))
+		res.Log = append(res.Log, fmt.Sprintf("%s の gate の問いを読めない: %v", c.id, err))
 		return
 	}
 	for _, q := range gateQs {
 		name := fmt.Sprintf("%s#%d", c.id, q.N)
 		if err := c.closeQuestion(name, q.Status, why); err != nil {
-			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない: %v", c.id, name, err))
+			res.Log = append(res.Log, fmt.Sprintf("%s の gate の問い %s を閉じられない: %v", c.id, name, err))
 		}
 	}
 }
@@ -279,14 +279,14 @@ func (c *ctx) closeQuestion(name, status, why string) error {
 	return nil
 }
 
-// closeStaleGateQuestions は、この課題のまだ受け取られていないゲートの問いのうち、head と違う head について出た問い
-// （どの head の問いかは事実のゲートの記録の行から読む。questionHead）を、open なら理由を答えて受け取る。答えには前と今の head を書き、
-// 判断の記録を残す。どの head の問いか読めない問い・ゲートの外の問いには触らない。閉じられなければログに1行
-// （ゲートが決めたあとも、merge は打たれるたびに決めた head でこれを呼び、閉じ直す）。
+// closeStaleGateQuestions は、この課題のまだ受け取られていない gate の問いのうち、head と違う head について出た問い
+// （どの head の問いかは事実の gate の記録の行から読む。questionHead）を、open なら理由を答えて受け取る。答えには前と今の head を書き、
+// 判断の記録を残す。どの head の問いか読めない問い・gate の外の問いには触らない。閉じられなければログに1行
+// （gate が決めたあとも、merge は打たれるたびに決めた head でこれを呼び、閉じ直す）。
 func (c *ctx) closeStaleGateQuestions(head string, res *contract.Merge) {
 	gateQs, _, err := c.openQuestions()
 	if err != nil {
-		res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問いを読めない: %v", c.id, err))
+		res.Log = append(res.Log, fmt.Sprintf("%s の gate の問いを読めない: %v", c.id, err))
 		return
 	}
 	for _, q := range gateQs {
@@ -295,13 +295,13 @@ func (c *ctx) closeStaleGateQuestions(head string, res *contract.Merge) {
 			continue
 		}
 		name := fmt.Sprintf("%s#%d", c.id, q.N)
-		why := fmt.Sprintf("PR の head が動いた（%s → %s）。ゲートが今の head で決め直した（記録 %s）",
+		why := fmt.Sprintf("PR の head が動いた（%s → %s）。gate が今の head で決め直した（記録 %s）",
 			short12(old), short12(head), filepath.Join(c.l.Library(c.id), "gate", head+".json"))
 		if err := c.closeQuestion(name, q.Status, why); err != nil {
-			res.Log = append(res.Log, fmt.Sprintf("%s のゲートの問い %s を閉じられない（次に打たれたときに閉じ直す）: %v", c.id, name, err))
+			res.Log = append(res.Log, fmt.Sprintf("%s の gate の問い %s を閉じられない（次に打たれたときに閉じ直す）: %v", c.id, name, err))
 			continue
 		}
-		res.Log = append(res.Log, fmt.Sprintf("%s の前の head（%s）のゲートの問い %s を閉じた: %s", c.id, short12(old), name, why))
+		res.Log = append(res.Log, fmt.Sprintf("%s の前の head（%s）の gate の問い %s を閉じた: %s", c.id, short12(old), name, why))
 	}
 }
 
@@ -321,7 +321,7 @@ func prOpenHead(number, slug string) (state, head string, err error) {
 	return v.State, v.HeadRefOid, nil
 }
 
-// gatedSince は head（report.json の commit ＝ PR の head）のゲートの記録 library/gate/<head>.json が since 以後に書かれていれば返す。
+// gatedSince は head（report.json の commit ＝ PR の head）の gate の記録 library/gate/<head>.json が since 以後に書かれていれば返す。
 // 見るのは今の head だけ（前の回の記録は同じ秒に書かれていても拾わない）。無ければ nil。
 func (c *ctx) gatedSince(head, since string) *gate.Record {
 	if !contract.IsSHA(head) {
@@ -353,9 +353,9 @@ func (c *ctx) autoMerge(rows []ledger.Row, gr gateResult) bool {
 	return ledger.SettingsOf(c.issue).Merge == "auto" && c.l.Trusted(rows, c.issue, "merge") && gr.Delegation.OK
 }
 
-// stillWaiting は、PR の head が wait を返したときの head のままで、ゲートを回しても wait になる checks のままか（GraphQL を1回）。
+// stillWaiting は、PR の head が wait を返したときの head のままで、gate を回しても wait になる checks のままか（GraphQL を1回）。
 // checks が走っている（pending）か、1つも無く（none）review に入ってから github_checks_wait_minutes を過ぎていない。
-// 読めない・過ぎた・揃ったなら false（ゲートを回す。期限を過ぎた none はゲートが needs_human を返す）。
+// 読めない・過ぎた・揃ったなら false（gate を回す。期限を過ぎた none は gate が needs_human を返す）。
 func (c *ctx) stillWaiting(rows []ledger.Row, pr, waited string, now time.Time) bool {
 	owner, name, number, ok := contract.ParsePR(pr)
 	if !ok {
@@ -376,16 +376,16 @@ func (c *ctx) stillWaiting(rows []ledger.Row, pr, waited string, now time.Time) 
 }
 
 // sendFix は理由を担当へ返す（担当はオーナーが打つ端末ではないので、離席の守りは要らない）。
-// 返せなければ dispatcher が Chief of Staff に届けるよう、通知 gate の detail に印を書く: 担当がいなければ no_agent、
+// 返せなければ dispatcher が Chief of Staff に届けるよう、通知 `gate` の detail に印を書く: 担当がいなければ no_agent、
 // 送れなければ（担当の端末が無い）unsent（担当の address）。gate が無ければ（PR の head が読めない）通知 report。
 func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	agent := c.issue.Str("agent")
 	if agent == "" {
-		res.Log = append(res.Log, fmt.Sprintf("%s のゲートが fix だが担当（agent）がいない（Chief of Staff に届ける）", c.id))
+		res.Log = append(res.Log, fmt.Sprintf("%s の gate が fix だが担当（agent）がいない（Chief of Staff に届ける）", c.id))
 		c.markGate(res, "no_agent", true)
 		return
 	}
-	msg := fmt.Sprintf("%s（%s）: ゲートが fix を返した。理由: %s。", c.id, short(c.issue.Str("title")), strings.Join(gr.Reasons, "／"))
+	msg := fmt.Sprintf("%s（%s）: gate が fix を返した。理由: %s。", c.id, short(c.issue.Str("title")), strings.Join(gr.Reasons, "／"))
 	if record != "" {
 		msg += "記録は " + record + "。"
 	}
@@ -393,12 +393,12 @@ func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	// 先頭に送り手の印を置く（端末の外から送るので hc の包みが付かない。spawn.Mark）
 	if out, err := exec.Command("hc", "send", agent, spawn.Mark(spawn.FromGate, msg)).CombinedOutput(); err != nil {
 		res.Log = append(res.Log, fmt.Sprintf("%s の担当 %s に fix を送れない（Chief of Staff に届ける）: %v %s", c.id, agent, err, firstLine(string(out))))
-		// 担当の端末が無い（セルの起き直しなど）: 通知 gate に送れなかった担当を書き、dispatcher が Chief of Staff に届ける
+		// 担当の端末が無い（セルの起き直しなど）: 通知 `gate` に送れなかった担当を書き、dispatcher が Chief of Staff に届ける
 		c.markGate(res, "unsent", agent)
 	}
 }
 
-// markGate は、この回の通知 gate の detail に key を書く（dispatcher が Chief of Staff に届ける印）。gate が無ければ通知 report を積む。
+// markGate は、この回の通知 `gate` の detail に key を書く（dispatcher が Chief of Staff に届ける印）。通知 `gate` が無ければ通知 report を積む。
 func (c *ctx) markGate(res *contract.Merge, key string, v any) {
 	for i := len(res.Notify) - 1; i >= 0; i-- {
 		if res.Notify[i].Kind == "gate" {
@@ -409,9 +409,9 @@ func (c *ctx) markGate(res *contract.Merge, key string, v any) {
 	res.Notify = append(res.Notify, contract.Notice{Kind: "report", Detail: map[string]any{"report": filepath.Join(c.l.Dir, "issues", c.id, "report.md")}})
 }
 
-// approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 gate のまま止まる（オーナーがマージする）。
-// マージの直前に、課題の Settings・履歴・委譲を読み直し、ゲートのときと変わっていればマージせず regate を返す
-// （呼び手は決めたことを書かず、次に打ったときゲートから回し直す）。
+// approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 `gate` のまま止まる（オーナーがマージする）。
+// マージの直前に、課題の Settings・履歴・委譲を読み直し、gate のときと変わっていればマージせず regate を返す
+// （呼び手は決めたことを書かず、次に打ったとき gate から回し直す）。
 func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *contract.Merging, res *contract.Merge, stderr io.Writer) (regate bool) {
 	if !res.Auto {
 		return false
@@ -420,8 +420,8 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 	stop := func(why string) {
 		logf("をマージしない: %s", why)
 		c.askGate(res, contract.Question{
-			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）はゲートが approve したが、dispatcher がマージできなかった。オーナーがマージするか", c.id, short(c.issue.Str("title"))),
-			Facts: []string{why, "PR " + rep.PR, "ゲートの記録 " + record}, From: "gate",
+			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）は gate が approve したが、dispatcher がマージできなかった。オーナーがマージするか", c.id, short(c.issue.Str("title"))),
+			Facts: []string{why, "PR " + rep.PR, gate.RecordFact(record)}, From: "gate",
 			Options: []contract.Option{{Label: "オーナーが PR を読んでマージする", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
 	}
 	table, warn, err := gate.LoadTable(pkgHome(), delegate.Workspace())
@@ -438,37 +438,37 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		stop(fmt.Sprintf("条件表の repos.%s.merge（マージの方式）が無い", repo))
 		return false
 	}
-	// マージするのはゲートが判定した PR と head だけ（判定のあとに report.json が書き換わっていたら打たない）
+	// マージするのは gate が判定した PR と head だけ（判定のあとに report.json が書き換わっていたら打たない）
 	owner, name, number, ok := contract.ParsePR(gr.PR)
 	switch {
 	case !ok || !contract.IsSHA(gr.Head):
-		stop("ゲートの記録の pr・head が読めない")
+		stop("gate の記録の pr・head が読めない")
 		return false
 	case gr.PR != rep.PR:
-		stop(fmt.Sprintf("ゲートが判定した PR（%s）と report.json の pr（%s）が違う", gr.PR, rep.PR))
+		stop(fmt.Sprintf("gate が判定した PR（%s）と report.json の pr（%s）が違う", gr.PR, rep.PR))
 		return false
 	case "github.com/"+owner+"/"+name != repo:
-		stop(fmt.Sprintf("ゲートが判定した PR の repo が issue.yaml の repo（%s）と違う", repo))
+		stop(fmt.Sprintf("gate が判定した PR の repo が issue.yaml の repo（%s）と違う", repo))
 		return false
 	}
 	slug := owner + "/" + name
 	if ok, why := c.stillAuthorized(gr); !ok {
-		logf("をいまはマージしない（次に打ったときゲートから回し直す）: %s", why)
+		logf("をいまはマージしない（次に打ったとき gate から回し直す）: %s", why)
 		return true
 	}
-	// PR の head と GitHub の checks も読み直す（ゲートのあとに push された・checks が変わったら打たない）
+	// PR の head と GitHub の checks も読み直す（gate のあとに push された・checks が変わったら打たない）
 	nowHead, checks, err := gate.ReadChecks(number, slug)
 	if err != nil {
-		logf("をいまはマージしない（次に打ったときゲートから回し直す）: %v", err)
+		logf("をいまはマージしない（次に打ったとき gate から回し直す）: %v", err)
 		return true
 	}
 	if ok, why := ChecksStill(gr.Head, nowHead, checks, table.Repos[repo].GitHubChecks == "optional"); !ok {
-		logf("をいまはマージしない（次に打ったときゲートから回し直す）: %s", why)
+		logf("をいまはマージしない（次に打ったとき gate から回し直す）: %s", why)
 		return true
 	}
 	if _, err := gh("pr", "merge", number, "--repo", slug, "--"+method, "--match-head-commit", gr.Head); err != nil {
-		// オーナーが先にマージしていた（ゲートが判定した head のまま MERGED）なら誤報の問いを出さず、オーナーがマージしたときの道（§2.7）へ渡す。
-		// 同じ巡の andon issue settle が片付ける。ゲートの記録の merged は書かない（dispatcher がマージした印）
+		// オーナーが先にマージしていた（gate が判定した head のまま MERGED）なら誤報の問いを出さず、オーナーがマージしたときの道（§2.7）へ渡す。
+		// 同じ巡の andon issue settle が片付ける。gate の記録の merged は書かない（dispatcher がマージした印）
 		out, verr := gh("pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid")
 		if sha, ok := MergedBefore(out, gr.Head); verr == nil && ok {
 			logf("の PR %s は gh pr merge の前に同じ head でマージされていた（%s）。問いを出さずオーナーのマージとして片付ける", rep.PR, short12(sha))
@@ -490,7 +490,7 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 	}
 	w.Merged = view.MergeCommit.Oid
 	if err := markMerged(record); err != nil {
-		logf("のゲートの記録に merged を書けない: %v", err)
+		logf("の gate の記録に merged を書けない: %v", err)
 	}
 	logf("の PR %s をマージした（%s）", rep.PR, short12(view.MergeCommit.Oid))
 	if why := c.finishMerged(stderr); why != "" {
@@ -515,7 +515,7 @@ func (c *ctx) finishMerged(stderr io.Writer) string {
 	return ""
 }
 
-// askGate は問いを台帳に出し（andon issue ask と同じ道）、通知 asked を res に足す。出せなければログに1行。
+// askGate は問いを kanban に出し（andon issue ask と同じ道）、通知 asked を res に足す。出せなければログに1行。
 func (c *ctx) askGate(res *contract.Merge, q contract.Question) {
 	b, _ := json.Marshal(q)
 	var out bytes.Buffer
@@ -533,7 +533,7 @@ func (c *ctx) askGate(res *contract.Merge, q contract.Question) {
 	res.Notify = append(res.Notify, contract.Notice{Kind: "asked", Detail: map[string]any{"n": n, "kind": q.Kind, "question": q.Question}})
 }
 
-// stillAuthorized はマージの直前に課題と履歴と委譲を読み直し、ゲートのときの認可がまだ効いているか。
+// stillAuthorized はマージの直前に課題と履歴と委譲を読み直し、gate のときの認可がまだ効いているか。
 func (c *ctx) stillAuthorized(gr gateResult) (bool, string) {
 	now, err := c.l.Show(c.id)
 	if err != nil {
@@ -545,18 +545,18 @@ func (c *ctx) stillAuthorized(gr gateResult) (bool, string) {
 	return Authorized(ledger.SettingsOf(c.issue), ledger.SettingsOf(now), now.Str("status"), trusted, gr.Delegation.Merge, merge, gr.Tier)
 }
 
-// Authorized は、ゲートのときの事実（before・gateMerge）とマージ直前に読み直した事実（now・status・trusted・nowMerge）から、
+// Authorized は、gate のときの事実（before・gateMerge）とマージ直前に読み直した事実（now・status・trusted・nowMerge）から、
 // dispatcher の道でマージしてよいかを決める（純粋関数）。どれか1つでも変わっていれば、いまはマージしない。
 func Authorized(before, now ledger.Settings, status string, trusted bool, gateMerge, nowMerge, tier string) (bool, string) {
 	switch {
 	case status != "review":
 		return false, fmt.Sprintf("課題が review でなくなった（%s）", status)
 	case now != before:
-		return false, "issue.yaml の予約キーがゲートのあとに変わった"
+		return false, "issue.yaml の予約キーが gate のあとに変わった"
 	case now.Merge != "auto" || !trusted:
 		return false, "merge: auto でない、または予約キーを最後に書いたのが Chief of Staff でない"
 	case nowMerge != gateMerge:
-		return false, fmt.Sprintf("委譲の merge がゲートのあとに変わった（%s → %s）", gateMerge, nowMerge)
+		return false, fmt.Sprintf("委譲の merge が gate のあとに変わった（%s → %s）", gateMerge, nowMerge)
 	case !gate.Within(tier, nowMerge):
 		return false, fmt.Sprintf("delegation: merge=%s < tier %s", nowMerge, tier)
 	}
@@ -564,19 +564,19 @@ func Authorized(before, now ledger.Settings, status string, trusted bool, gateMe
 }
 
 // ChecksStill は、マージの直前に読み直した PR の head と GitHub の checks で、まだマージしてよいか（純粋関数）。
-// head がゲートの判定した head と違う（ゲートのあとに push された）か、checks が通す状態でなければマージしない。
+// head が gate の判定した head と違う（gate のあとに push された）か、checks が通す状態でなければマージしない。
 func ChecksStill(gateHead, nowHead string, checks gate.GitHubChecks, optional bool) (bool, string) {
 	switch {
 	case nowHead != gateHead:
-		return false, fmt.Sprintf("PR の head がゲートのあとに動いた（%s → %s）", short12(gateHead), short12(nowHead))
+		return false, fmt.Sprintf("PR の head が gate のあとに動いた（%s → %s）", short12(gateHead), short12(nowHead))
 	case !checks.Passed(optional):
-		return false, fmt.Sprintf("GitHub の checks がゲートのあとに変わった（%s: %s）", checks.State, strings.Join(checks.Names, ", "))
+		return false, fmt.Sprintf("GitHub の checks が gate のあとに変わった（%s: %s）", checks.State, strings.Join(checks.Names, ", "))
 	}
 	return true, ""
 }
 
 // MergedBefore は、gh pr merge が失敗したあとに読み直した PR（gh pr view --json state,mergeCommit,headRefOid の返事）が、
-// ゲートの判定した head のまま、もうマージされていたか（純粋関数。dispatcher.md §7.2 #5）。そうならマージの commit を返す。
+// gate の判定した head のまま、もうマージされていたか（純粋関数。dispatcher.md §7.2 #5）。そうならマージの commit を返す。
 // MERGED でない・head が違う・返事が読めないときは false（今までどおり問いにする）。
 func MergedBefore(view, gateHead string) (string, bool) {
 	var v struct {
@@ -593,7 +593,7 @@ func MergedBefore(view, gateHead string) (string, bool) {
 	return v.MergeCommit.Oid, true
 }
 
-// markMerged はゲートの記録の merged を true にする（dispatcher の道でマージした印。settle が読む。contract.md §7）。
+// markMerged は gate の記録の merged を true にする（dispatcher の道でマージした印。settle が読む。contract.md §7）。
 func markMerged(record string) error {
 	b, err := os.ReadFile(record)
 	if err != nil {

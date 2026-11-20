@@ -12,7 +12,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// lockIssues は start・finish・resume が命令の間ずっと持つ lock（台帳1つに1つ。ADR-0012 決めたこと 13 の 4・14）。
+// lockIssues は start・finish・resume が命令の間ずっと持つ lock（kanban 1つに1つ。ADR-0012 決めたこと 13 の 4・14）。
 // 取れるまで待つ。dispatcher の控えの lock（lockState）とは別のファイル: dispatcher は見回りの間 lockState を持ったまま
 // andon issue finish を打つので、同じ lock だと finish が自分の呼び手を待って止まる。
 func lockIssues(slug string) (func(), error) {

@@ -14,10 +14,10 @@ import (
 // signals は外の信号の段（dispatcher.md §2.1.1 の 4e。ADR-0011 決めたこと 5・6・8、ADR-0017 決めたこと 14）。
 // andon signal collect --due を打ち（出所と repo の組ごとに signals[].every 分に1回だけ読む。読むかは collect が
 // 記録の read_at で決める）、記録のうち届けていない now の信号（active で delivered_episode < episodes）を通知 signal で積む。
-// 届けたことは控えではなく記録に持つ（andon signal delivered。書くのは andon signal の口）ので、初めて見る台帳・
+// 届けたことは控えではなく記録に持つ（andon signal delivered。書くのは andon signal の口）ので、初めて見る kanban・
 // 控えを失った巡でも同じ規則で届く。積んだ待ちを控えに保存してから delivered を書く（落ちても届けそこねない。
 // 保存のあと delivered の前に落ちたら、次の巡で同じ信号を積み直し、待ちの中では置き換わる）。
-// gh の上限でゲートを止めている間（控えの GHReset）は collect を打たない（届けるのは続ける）。
+// gh の上限で gate を止めている間（控えの GHReset）は collect を打たない（届けるのは続ける）。
 // project.json に signals が無ければ何も打たない（読むかの正は collect。ここは巡ごとにコマンドを起動しないための下見）。
 func (p *project) signals(at time.Time) {
 	slug := p.l.Slug

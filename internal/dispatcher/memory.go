@@ -13,13 +13,13 @@ import (
 const memoryLine = 30
 
 // Memory は memory の量の線の記録（控えの置き場の .memory.json）。セルの memory の置き場は1つなので、
-// 台帳ごとの控えでなくセルに1つ持つ（台帳が2つ以上あっても、同じ超え方の memory は1通。ADR-0031 S2・B4）。
+// kanban ごとの控えでなくセルに1つ持つ（kanban が2つ以上あっても、同じ超え方の memory は1通。ADR-0031 S2・B4）。
 type Memory struct {
 	// memory の件数が線を超えて memory を積んだ（線の下に戻ると false。ADR-0020 決めたこと 4）
 	Over bool `json:"over"`
 }
 
-// MemoryPath は memory の量の線の記録の置き場（控えの横。台帳の名前と重ならないよう . で始める）。
+// MemoryPath は memory の量の線の記録の置き場（控えの横。kanban の名前と重ならないよう . で始める）。
 func MemoryPath() string {
 	return filepath.Join(filepath.Dir(StatePath("x")), ".memory.json")
 }
@@ -60,8 +60,8 @@ func (m Memory) Save() error {
 // memory は auto memory の量の段（docs/dispatcher.md §2.11。ADR-0020 決めたこと 4）: セルの memory の置き場の
 // 件数（目録 MEMORY.md を除く。数え方はトリアージが拾うものと同じ triage.MemoryFiles）が線を超えたら、
 // Chief of Staff に memory を1度積む。記録の Over（セルに1つ）で、線の下に戻るまで同じ超え方を繰り返さない。
-// 先に回った台帳が積めば、同じ巡のほかの台帳は積まない。記録の値はプロセスの中にも持ち（Dispatcher.memory）、
-// 書き換えるのは積んだ台帳の控えを保存したあと（saveMemory）。ファイルに書けなかった記録は、この段で書き直す。
+// 先に回った kanban が積めば、同じ巡のほかの kanban は積まない。記録の値はプロセスの中にも持ち（Dispatcher.memory）、
+// 書き換えるのは積んだ kanban の控えを保存したあと（saveMemory）。ファイルに書けなかった記録は、この段で書き直す。
 // 臨時のトリアージを足すかは Chief of Staff が決める（ここは届けるだけ）。
 func (p *project) memory() {
 	c := p.c
@@ -96,7 +96,7 @@ func (p *project) memory() {
 }
 
 // saveMemory は memory の段が変えた記録を、プロセスの中の値とファイルに書く（pass が控えを保存したあとに呼ぶ）。
-// 控えの保存の前に落ちたら記録は前のままで、ほかの台帳か次の巡でもう一度積む（届くのは1度か2度で、落ちることは無い）。
+// 控えの保存の前に落ちたら記録は前のままで、ほかの kanban か次の巡でもう一度積む（届くのは1度か2度で、落ちることは無い）。
 // ファイルに書けなければログに1行で、プロセスの中の値で積み直しを止め、次の巡で書き直す。
 func (p *project) saveMemory() {
 	if p.memoryOver == nil {

@@ -39,8 +39,8 @@ func estimated(t ledger.Issue, cos string) bool {
 
 // estimate は doing の担当の課題ごとに実働を数え、超えた段のうちまだ知らせていないものがあれば、一番上の段を1件積む
 // （下の段も知らせたことにする）。控えのキーは <issue>|estimate|<見込みの値>|<段> で、最初の列に戻る
-// （todo・queued・done・台帳から消えた）まで持ち越す。見込みの値が替われば古い値のキーは捨てて数え直す。
-// 初めて見る台帳では今の段を控えるだけで積まない。
+// （todo・queued・done・kanban から消えた）まで持ち越す。見込みの値が替われば古い値のキーは捨てて数え直す。
+// 初めて見る kanban では今の段を控えるだけで積まない。
 func (p *project) estimate(now time.Time, cos string) {
 	keep := map[string]string{} // 控えを残す課題 → 今の見込みの値
 	for _, t := range p.tasks {
@@ -92,7 +92,7 @@ func (p *project) estimate(now time.Time, cos string) {
 			delete(p.st.Estimate, k)
 		}
 	}
-	// Gone は done のあとも残す（andon measure が閉じた課題の実働から死んでいた区間を引く）。最初の列に戻るか台帳から消えたら捨てる。
+	// Gone は done のあとも残す（andon measure が閉じた課題の実働から死んでいた区間を引く）。最初の列に戻るか kanban から消えたら捨てる。
 	live := map[string]bool{}
 	for _, t := range p.tasks {
 		if s := t.Str("status"); s != "todo" && s != "queued" && s != "" {

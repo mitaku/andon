@@ -1,12 +1,12 @@
 // Package issue は担当が打つ andon issue …（docs/contract.md §4・§5）。機械向けの約束（report.json・問いの JSON）を
-// 書いて検査し、台帳の CLI（report・review・ask）を打つ。担当は JSON を手で書かず、一致の確認も command がする。
+// 書いて検査し、kanban の CLI（report・review・ask）を打つ。担当は JSON を手で書かず、一致の確認も command がする。
 //
 //	show <id>             予約キー（既定で埋めたもの）・report.json・レビューの照合を JSON で出す（読むだけ）
-//	report <id>           report.json を書き（commit は HEAD）、stdin の Markdown で台帳に報告する
+//	report <id>           report.json を書き（commit は HEAD）、stdin の Markdown で kanban に報告する
 //	review-request <id>   report.json に review_request を足して報告する（回数・前回の commit は command が数える）
-//	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば台帳を review にする
+//	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば kanban を review にする
 //	                      （deliverable: candidates なら PR の代わりに candidates.json を確かめる）
-//	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて台帳に問い、library/questions/<n>.json に置く
+//	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く
 //	candidates <id> <file|->  候補の一覧の JSON を検査し、library/candidates.json に置く（repo があれば commit は HEAD）
 //	record <id> [--expect fail] -- <command…>  worktree で command を走らせ、出力と終了コード・commit・commit していない変更の有無・時刻を
 //	                      library/runs/<n>.json と <n>.log に残す（record.go。証拠の記録）
@@ -14,10 +14,10 @@
 //	                      （--dry-run は確かめだけ通し、起動するときに渡すものを出す。--json で JSON）
 //	resume <id>           止まった担当・Chief Engineer を同じ worktree でセッションの続きから起動する（--fresh は新しいセッション。ADR-0012）
 //	session               自分の端末のラベル session を出す（template の command・resume の行が読む）
-//	finish <id>           端末と worktree を片付け、origin に入った branch を消し、台帳を done にする（Chief of Staff・dispatcher が打つ）
+//	finish <id>           端末と worktree を片付け、origin に入った branch を消し、kanban を done にする（Chief of Staff・dispatcher が打つ）
 //	                      （links に write_back: true の出所の issue があれば、そこに結果を1コメント書く。writeback.go）
-//	settle <id>           review・doing の課題の PR をオーナーがマージしていたら、ゲートの問いを閉じて finish する（積む通知を JSON で出す。dispatcher が打つ）
-//	merge <id>            review の課題にゲートを回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして finish する（積む通知を JSON で出す。dispatcher が打つ）
+//	settle <id>           review・doing の課題の PR をオーナーがマージしていたら、gate の問いを閉じて finish する（積む通知を JSON で出す。dispatcher が打つ）
+//	merge <id>            review の課題に gate を回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして finish する（積む通知を JSON で出す。dispatcher が打つ）
 //	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
 //	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
 //
@@ -49,11 +49,11 @@ import (
 // Usage は andon issue --help の中身。
 const Usage = "usage: andon issue show <id>                                  予約キー・report.json・レビューの照合を JSON で出す\n" +
 	"       andon issue report <id> [--pr <url>] [--data <json>] < report.md\n" +
-	"                                                          report.json を書き（commit は HEAD）、台帳に報告する\n" +
+	"                                                          report.json を書き（commit は HEAD）、kanban に報告する\n" +
 	"       andon issue review-request <id> < report.md           review_request を足して報告する（レビューを頼む）\n" +
 	"       andon issue ready <id>                                 HEAD・report.json・PR の head・レビューが揃えば review にする\n" +
 	"                                                          （deliverable: candidates なら PR の代わりに candidates.json）\n" +
-	"       andon issue ask <id> <question.json|->                 問いの JSON を検査して台帳に問う\n" +
+	"       andon issue ask <id> <question.json|->                 問いの JSON を検査して kanban に問う\n" +
 	"       andon issue candidates <id> <candidates.json|->        候補の一覧を検査して library/candidates.json に書く（commit は command が書く）\n" +
 	"       andon issue record <id> [--expect pass|fail] -- <command> [<arg>…]\n" +
 	"                                                          worktree で command を走らせ、記録を library/runs/<n>.json・<n>.log に書く\n" +
@@ -61,9 +61,9 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          期待と違っても記録は書いて終了コード 1。起動できなければ書かない）\n" +
 	"       andon issue finish <id>                                端末と worktree を片付けて done にする（MERGED を確かめてから打つ。受け取られていない問いがあれば何も消さずに止まる）\n" +
 	"                                                          （links に write_back: true の出所の issue があれば、結果を1コメント書く）\n" +
-	"       andon issue settle <id>                                review・doing の課題の PR をオーナーがマージしていたら、ゲートの問いを閉じて片付ける\n" +
+	"       andon issue settle <id>                                review・doing の課題の PR をオーナーがマージしていたら、gate の問いを閉じて片付ける\n" +
 	"                                                          （PR ごとに1分に1回 gh pr view。積む通知を JSON で出す。2回打っても同じ）\n" +
-	"       andon issue merge <id>                                 review の課題にゲートを回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして片付ける\n" +
+	"       andon issue merge <id>                                 review の課題に gate を回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして片付ける\n" +
 	"                                                          （review に入った行ごとに1回。fix は担当へ、needs_human は問い。積む通知を JSON で出す）\n" +
 	"       andon issue impact <id>                                マージした PR と、同じ repo の動いている課題の重なり・衝突を JSON で出す\n" +
 	"                                                          （PR がまだ MERGED でなければ終了コード 4）\n" +
@@ -73,7 +73,7 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          ラベル・端末の名前・worktree・branch・プロファイル・確かめの結果〉を出す）\n" +
 	"       andon issue resume <id> [--fresh] [--dry-run [--json]]   止まった担当・Chief Engineer を続きから起動する（doing で端末が無い・終わった・素のシェル）\n" +
 	"                                                          （worktree が無ければ戻し、<profile>-resume の template でセッションの続きから。\n" +
-	"                                                          記録が無い・最初のメッセージが届かなければ台帳を変えずに終了コード 1。\n" +
+	"                                                          記録が無い・最初のメッセージが届かなければ kanban を変えずに終了コード 1。\n" +
 	"                                                          --fresh は同じ worktree で新しいセッション〈オーナーの go のあと〉）\n" +
 	"       andon issue session                                    自分の端末（HC_TERMINAL_ID）のラベル session を出す（template が読む）\n" +
 	"       andon issue stop-check [<id>] < フックの入力の JSON         担当の Stop フック: doing で報告も問いも無ければ止める\n" +
@@ -281,7 +281,7 @@ func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "rep
 func (c *ctx) candidatesPath() string { return filepath.Join(c.l.Library(c.id), "candidates.json") }
 
 // hasRepo は repo のある課題か（issue.yaml の repo）。worktree では見ない: kanban start は cwd の git の根を
-// worktree に書くので、repo の無い課題でも台帳が git の checkout の中にあれば worktree が入る。
+// worktree に書くので、repo の無い課題でも kanban が git の checkout の中にあれば worktree が入る。
 // repo の無い課題の報告と候補は commit を持たない。
 func (c *ctx) hasRepo() bool { return c.issue.Str("repo") != "" }
 
@@ -372,7 +372,7 @@ func readMarkdown(stdin io.Reader) (string, error) {
 	return string(b), nil
 }
 
-// write は report.json を検査して置き、台帳の CLI で報告する（dispatcher は report の書き込みを合図に report.json を読む）。
+// write は report.json を検査して置き、kanban の CLI で報告する（dispatcher は report の書き込みを合図に report.json を読む）。
 func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
 	if err := r.Check(); err != nil {
 		return fail("report.json の形が違う: %v", err)
@@ -452,7 +452,7 @@ func carriedReviewRequest(prev *contract.Report, head string) *contract.ReviewRe
 
 // samePRRepo は pr が課題の repo（issue.yaml の repo）の PR かを確かめる（ADR-0034 決めたこと 11）。
 // --pr・--data の pr・前の報告からの引き継ぎのどれで来た pr も、report.json に書く前にここを通る。
-// dispatcher とゲートは issue.yaml の repo の PR だけを見るので、違う repo の PR を書くと課題が片付かない。
+// dispatcher と gate は issue.yaml の repo の PR だけを見るので、違う repo の PR を書くと課題が片付かない。
 // 形の違う pr は Check が断るので、ここでは repo だけを見る。
 func (c *ctx) samePRRepo(pr string) error {
 	owner, name, _, ok := contract.ParsePR(pr)
@@ -522,8 +522,8 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 var briefCommitRe = regexp.MustCompile(`commit ([0-9a-f]{40})。`)
 
 // rounds は今度の回と前回の commit を数える: レビュアーの子課題（profile が *-review）の findings.json の
-// commit のうち違うものの数と、台帳にあるレビュアーの課題（<id>-rN）の最大の N の、大きいほう ＋ 1。
-// レビュアーの課題は結果が古い commit を見ていても（stale）台帳に残るので、頼み直すたびに回は 1 つ進む。
+// commit のうち違うものの数と、kanban にあるレビュアーの課題（<id>-rN）の最大の N の、大きいほう ＋ 1。
+// レビュアーの課題は結果が古い commit を見ていても（stale）kanban に残るので、頼み直すたびに回は 1 つ進む。
 // HEAD のレビューがもうあれば頼まない。照合が読むレビューの PR の差分が HEAD と同じ（衝突の無い rebase）でも頼まない（引き継ぐ）。
 // その課題のレビュアーの課題がまだ動いていれば（todo・doing）、見ている commit に関わらず頼み直さない（ADR-0032 決めたこと 8）:
 //   - HEAD を見ている: 頼み直すと回だけが進み、dispatcher は起動した commit を二度起動しないので、知らせなしに捨てる（担当がレビューの回を1回失う）。
@@ -536,7 +536,7 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 		return 0, nil, err
 	}
 	seen := map[string]bool{}
-	taken := 0 // 結果の有無に関わらず、台帳にあるレビュアーの課題（<id>-rN）の最大の N
+	taken := 0 // 結果の有無に関わらず、kanban にあるレビュアーの課題（<id>-rN）の最大の N
 	var last *string
 	lastAt := ""
 	for _, t := range tasks {
@@ -575,15 +575,15 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 	if rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, "", nil, nil); rv.State == "current" {
 		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（行番号のほかは空白も含めて同じ）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue ready へ進む", head[:12], rv.Issue, rv.Commit)
 	}
-	// 結果を残さず止まったレビュアーの課題も台帳に残り、その N は使えない（dispatcher の kanban add --round が落ちる）。
+	// 結果を残さず止まったレビュアーの課題も kanban に残り、その N は使えない（dispatcher の `kanban add --round` が落ちる）。
 	// 数え方の決まりは変えず（previous も結果のある回だけ）、番号が被るときだけ空いた先へ送る
 	return max(len(seen), taken) + 1, last, nil
 }
 
 func (c *ctx) ready(stdout io.Writer) error {
-	// 受け取られていない問いを残して review に入ると、ゲートとマージのあとの片付け（finish）が問いで断られる。
-	// 確かめの形は finish と kanban done（closing）と同じ。ただしゲートが前の head について出した問いは数えない
-	// （rebase や直しで head が動いた。回し直したゲートが今の head で決め直し、そのとき閉じる。merge.go closeStaleGateQuestions）
+	// 受け取られていない問いを残して review に入ると、gate とマージのあとの片付け（finish）が問いで断られる。
+	// 確かめの形は finish と `kanban done`（closing）と同じ。ただし gate が前の head について出した問いは数えない
+	// （rebase や直しで head が動いた。回し直した gate が今の head で決め直し、そのとき閉じる。merge.go closeStaleGateQuestions）
 	stale, err := c.staleGateQuestions()
 	if err != nil {
 		return err
@@ -607,13 +607,13 @@ func (c *ctx) ready(stdout io.Writer) error {
 		return err
 	}
 	// 受け入れ条件の行が記録を指すときだけ、その記録を確かめる（ADR-0035 決めたこと 2・11）。
-	// 記録の commit が HEAD より古いのは断らない（ゲートが記録に出す）
+	// 記録の commit が HEAD より古いのは断らない（gate が記録に出す）
 	if problems, _ := contract.CheckRuns(c.l.Library(c.id), r.Acceptance, ""); len(problems) > 0 {
 		return fail("受け入れ条件の行が指す記録が証拠にならないので review にしない: %s。andon issue record で撮り直し、andon issue report で書き直してから打ち直す", strings.Join(problems, "・"))
 	}
 	if ledger.SettingsOf(c.issue).Deliverable == "candidates" {
 		// 照合（Chief of Staff が書いたか）は見ない: Chief of Staff が起き直したあと書き直す前でも PR を求めない。
-		// review に入った調べる課題はゲートを回さず Chief of Staff に届く（ADR-0006 決めたこと 17）
+		// review に入った調べる課題は gate を回さず Chief of Staff に届く（ADR-0006 決めたこと 17）
 		return c.readyCandidates(r, stdout)
 	}
 	if r.PR == "" {
@@ -652,7 +652,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if len(stale) > 0 {
 		// kanban review も受け取られていない問いで断る。越えてよいのは外した問いだけなので、その番号を名指す。
 		// --force にすると、上の確かめのあとに kanban ask で足された問いまで越えてしまう（kanban は名指しの外の問いで、
-		// 台帳の lock の中で断る）。越えた問いの番号は log.jsonl の行の forced に残る
+		// kanban の lock の中で断る）。越えた問いの番号は log.jsonl の行の forced に残る
 		review = append(review, "--past", strings.Join(slices.Sorted(maps.Keys(stale)), ","))
 	}
 	out, err := c.l.Run("", review...)
@@ -661,13 +661,13 @@ func (c *ctx) ready(stdout io.Writer) error {
 	}
 	fmt.Fprintln(stdout, out)
 	for _, q := range slices.Sorted(maps.Keys(stale)) {
-		fmt.Fprintf(stdout, "%s はゲートが前の head（%.12s）について出した問いなので数えない（ゲートが今の head で回ったときに閉じる）\n", q, stale[q])
+		fmt.Fprintf(stdout, "%s は gate が前の head（%.12s）について出した問いなので数えない（gate が今の head で回ったときに閉じる）\n", q, stale[q])
 	}
 	return nil
 }
 
 // checkAcceptanceRows は、課題の予約キー acceptance が名指す受け入れ条件の番号ごとに、報告の acceptance[] に同じ id の行が
-// あるかを確かめる（結果が pass・fail・manual のどれでも行があればよい。中身はゲートと CheckRuns が見る）。
+// あるかを確かめる（結果が pass・fail・manual のどれでも行があればよい。中身は gate と CheckRuns が見る）。
 func checkAcceptanceRows(t ledger.Issue, rows []contract.Acceptance) error {
 	ids, ok := ledger.AcceptanceOf(t)
 	if !ok {
@@ -685,7 +685,7 @@ func checkAcceptanceRows(t ledger.Issue, rows []contract.Acceptance) error {
 	return nil
 }
 
-// gateQuestionHeads は、この課題のまだ受け取られていないゲートの問い（library/questions/<n>.json の from: gate）のうち、
+// gateQuestionHeads は、この課題のまだ受け取られていない gate の問い（library/questions/<n>.json の from: gate）のうち、
 // どの head について出たかが読めるもの（gate.QuestionHead）を「<id>#<n>」→ head で返す。読めない問いは入れない。
 func (c *ctx) gateQuestionHeads() (map[string]string, error) {
 	gateQs, _, err := c.openQuestions()
@@ -701,7 +701,7 @@ func (c *ctx) gateQuestionHeads() (map[string]string, error) {
 	return heads, nil
 }
 
-// questionHead は、この課題の問い n（library/questions/<n>.json）がゲートのどの head について出たか。読めなければ空。
+// questionHead は、この課題の問い n（library/questions/<n>.json）が gate のどの head について出たか。読めなければ空。
 func (c *ctx) questionHead(n int) string {
 	b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "questions", strconv.Itoa(n)+".json"))
 	var v struct {
@@ -713,7 +713,7 @@ func (c *ctx) questionHead(n int) string {
 	return gate.QuestionHead(v.Facts)
 }
 
-// staleGateQuestions は、まだ受け取られていないゲートの問いのうち、担当の HEAD と違う head についての問いを
+// staleGateQuestions は、まだ受け取られていない gate の問いのうち、担当の HEAD と違う head についての問いを
 // 「<id>#<n>」→ その head で返す（ready が数えない問い）。どの head の問いか読めない問いは入れない（今の head の問いとして数える）。
 func (c *ctx) staleGateQuestions() (map[string]string, error) {
 	heads, err := c.gateQuestionHeads()
@@ -759,7 +759,7 @@ func (c *ctx) readyCandidates(r *contract.Report, stdout io.Writer) error {
 }
 
 // candidates は候補の一覧（contract.md §12）を検査して library/candidates.json に置く。commit は command が書く
-// （repo があれば HEAD、無ければ書かない）。台帳には書かない（報告と問いが候補を指す）。
+// （repo があれば HEAD、無ければ書かない）。kanban には書かない（報告と問いが候補を指す）。
 func (c *ctx) candidates(stdin io.Reader, stdout io.Writer, src string) error {
 	b, err := readInput(stdin, src)
 	if err != nil {
@@ -813,7 +813,7 @@ func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
 	}
 	m := askedRe.FindStringSubmatch(out)
 	if m == nil {
-		return fail("台帳の CLI の返事から問いの番号が読めない: %q", out)
+		return fail("kanban の CLI の返事から問いの番号が読めない: %q", out)
 	}
 	dir := filepath.Join(c.l.Library(c.id), "questions")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -38,7 +38,7 @@ type Reviewer struct {
 	Row           int    `json:"row,omitempty"`            // 決めたときの課題の報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
 }
 
-// State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。台帳の外）。
+// State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。kanban の外）。
 type State struct {
 	Reviewers map[string]Reviewer `json:"reviewers"`          // <issue>@<commit>
 	Pending   []Notification      `json:"pending"`            // 待ちの通知（drain.go のフックが届ける。離席中は wait.go の待ち役が合図で起動する）
@@ -60,13 +60,13 @@ type State struct {
 	Stuck map[string]string `json:"stuck,omitempty"`
 	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
 	Unrecorded []Notification `json:"unrecorded,omitempty"`
-	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前の版の控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
+	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前のバージョンの控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
 	Replied map[string]int `json:"replied,omitempty"`
 	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起動した端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
 	Resumed map[string]Resumed `json:"resumed,omitempty"`
-	// ゲートが gh の上限（rate limit）で落ちたとき、上限が戻る時刻（RFC3339。loop.go の merge）。それまでこの台帳の andon issue merge を打たない
+	// gate が gh の上限（rate limit）で落ちたとき、上限が戻る時刻（RFC3339。loop.go の merge）。それまでこの kanban の andon issue merge を打たない
 	GHReset string `json:"gh_reset,omitempty"`
-	// ゲートが続けて gh の上限で落ちたときの、前の待ち（分。1・2・4…60。上限で落ちずにゲートが返れば 0）
+	// gate が続けて gh の上限で落ちたときの、前の待ち（分。1・2・4…60。上限で落ちずに gate が返れば 0）
 	GHWait int `json:"gh_wait,omitempty"`
 	// 見込みを超えた段を知らせた課題（<issue>|estimate|<見込みの値>|<段>。estimate.go。ADR-0014 決めたこと 6）
 	Estimate map[string]bool `json:"estimate,omitempty"`
@@ -113,7 +113,7 @@ func MergePath(slug string) string {
 	return strings.TrimSuffix(StatePath(slug), ".json") + ".merge.json"
 }
 
-// LoadState は控えを読む。無ければ空の控えと first=true（初めて見る台帳）。
+// LoadState は控えを読む。無ければ空の控えと first=true（初めて見る kanban）。
 func LoadState(slug string) (*State, bool, error) {
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()

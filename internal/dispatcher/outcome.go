@@ -20,10 +20,10 @@ import (
 )
 
 // 結果の記録（contract.md §19。ADR-0028 決めたこと 7）: done になった課題ごとに1回だけ library/outcome.json を書く。
-// 書き手は dispatcher だけ。結果（PR がマージされた・閉じられた・開いたまま・PR 無し）・head ごとのゲートの最後の判定・
+// 書き手は dispatcher だけ。結果（PR がマージされた・閉じられた・開いたまま・PR 無し）・head ごとの gate の最後の判定・
 // レビュアーの子の課題の数・実働・起動の記録（launches.jsonl）にある全部のセッションのコストを1つにまとめる。
 // 片付けたあとに読み直すのは PR の状態だけで、コストはセッションログ（30日で消える）からその時に読む。
-// 読めないもの（gh・台帳・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で諦める
+// 読めないもの（gh・kanban・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で諦める
 // （ファイルが無いのが「集めていない」。読み手の振り返りは無い欄を null として読む）。オーナーの課題（who: person）には書かない。
 
 // outcomeFile は結果の記録のファイルの名前。
@@ -54,7 +54,7 @@ type Outcome struct {
 	Sessions      *[]OutcomeSession `json:"sessions"`
 }
 
-// OutcomeGate は head ごとのゲートの最後の判定（library/gate/<head>.json の写し）。
+// OutcomeGate は head ごとの gate の最後の判定（library/gate/<head>.json の写し）。
 type OutcomeGate struct {
 	Head     string   `json:"head"`
 	At       string   `json:"at"`
@@ -159,7 +159,7 @@ func (p *project) outcome(id string) bool {
 	return false
 }
 
-// issue は巡の写しから課題を引く（写しに無ければ台帳から読む）。
+// issue は巡の写しから課題を引く（写しに無ければ kanban から読む）。
 func (p *project) issue(id string) (ledger.Issue, error) {
 	for _, t := range p.tasks {
 		if t.Str("id") == id {
@@ -169,7 +169,7 @@ func (p *project) issue(id string) (ledger.Issue, error) {
 	return p.l.Show(id)
 }
 
-// collectOutcome は台帳・gh・セッションログから1つの課題の結果の記録を集める。読めないものがあれば err（書かない）。
+// collectOutcome は kanban・gh・セッションログから1つの課題の結果の記録を集める。読めないものがあれば err（書かない）。
 func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 	lib := p.l.Library(id)
 	o := &Outcome{At: now(), Issue: id, Gates: []OutcomeGate{}}
@@ -242,7 +242,7 @@ func gates(dir string) ([]OutcomeGate, error) {
 		return out, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("ゲートの記録の置き場が読めない: %v", err)
+		return nil, fmt.Errorf("gate の記録の置き場が読めない: %v", err)
 	}
 	for _, e := range entries {
 		if ok, _ := filepath.Match("*.json", e.Name()); !ok {
@@ -251,11 +251,11 @@ func gates(dir string) ([]OutcomeGate, error) {
 		f := filepath.Join(dir, e.Name())
 		b, err := os.ReadFile(f)
 		if err != nil {
-			return nil, fmt.Errorf("ゲートの記録 %s が読めない: %v", filepath.Base(f), err)
+			return nil, fmt.Errorf("gate の記録 %s が読めない: %v", filepath.Base(f), err)
 		}
 		var r gate.Record
 		if err := json.Unmarshal(b, &r); err != nil || r.Head == "" || r.Decision == "" {
-			return nil, fmt.Errorf("ゲートの記録 %s が読めない", filepath.Base(f))
+			return nil, fmt.Errorf("gate の記録 %s が読めない", filepath.Base(f))
 		}
 		reasons := r.Reasons
 		if reasons == nil {
@@ -346,7 +346,7 @@ func readLaunches(path string) ([]launchRow, error) {
 	return out, nil
 }
 
-// cwds は Codex の記録を引く cwd: 台帳の issues/<id>/・issue.yaml の worktree・起動の記録の repo.path（レビュアーの detached worktree）。
+// cwds は Codex の記録を引く cwd: kanban の issues/<id>/・issue.yaml の worktree・起動の記録の repo.path（レビュアーの detached worktree）。
 func (p *project) cwds(id string, t ledger.Issue, launches []launchRow) []string {
 	dir := filepath.Dir(p.l.Library(id))
 	if a, err := filepath.Abs(dir); err == nil {

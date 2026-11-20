@@ -30,7 +30,7 @@ type resumePlan struct {
 	Profile      string       `json:"profile"`
 	Template     string       `json:"template"`
 	Terminal     string       `json:"terminal"`
-	Agent        string       `json:"agent,omitempty"` // 台帳の agent（止まった端末）
+	Agent        string       `json:"agent,omitempty"` // kanban の agent（止まった端末）
 	AgentState   string       `json:"agent_state"`     // none・not_found・finished・bare_shell
 	Labels       []string     `json:"labels"`
 	Cwd          string       `json:"cwd"`
@@ -54,19 +54,19 @@ func (p *resumePlan) check(name, result, format string, a ...any) {
 
 // ResumeMessage は resume で起動した端末への最初のメッセージ（ADR-0012 決めたこと 3）。
 func ResumeMessage(slug, id string) string {
-	return fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。台帳（`kanban list`）と git の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id)
+	return fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。`kanban list` と git で今の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id)
 }
 
 // FreshMessage は --fresh で起動した端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。
 // guide は指針の行（spawn.Guide()）。担当とレビュアーのときだけ渡す（Chief Engineer には空）。
 func FreshMessage(slug, id, brief, report, guide string) string {
-	return spawn.FirstMessage(slug, id, brief) + guide + fmt.Sprintf("\n前の担当の会話は続けられなかった。前の担当の報告 `%s`（あれば）を読み、worktree と台帳の今の状態から続ける。", report)
+	return spawn.FirstMessage(slug, id, brief) + guide + fmt.Sprintf("\n前の担当の会話は続けられなかった。前の担当の報告 `%s`（あれば）を読み、worktree と kanban の今の状態から続ける。", report)
 }
 
 // resume は止まった担当・Chief Engineer を、同じ worktree・branch・cwd でハーネスのセッションの続きから起動する（ADR-0012 決めたこと 3・7・9・11・13）。
-// 起動できるのは doing で、端末（台帳の agent）が無い・終わっている・素のシェルの課題だけ。worktree が無ければ戻し（あれば触らない）、
+// 起動できるのは doing で、端末（kanban の agent）が無い・終わっている・素のシェルの課題だけ。worktree が無ければ戻し（あれば触らない）、
 // <profile>-resume の template（Claude 系は --resume <session>、Codex 系は resume <id>）で起動する。--fresh は <profile> の template で新しいセッション。
-// 記録が無い・最初のメッセージが届かないなら非 0 で止まり、台帳を変えない。届いたら台帳の agent（と session）を書く。
+// 記録が無い・最初のメッセージが届かないなら非 0 で止まり、kanban を変えない。届いたら kanban の agent（と session）を書く。
 func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	p, err := c.resumePlan(dry, fresh)
 	if err != nil {
@@ -96,7 +96,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 			add, at = []string{"worktree", "add", "-q", "--detach", p.Worktree, p.Commit}, "commit "+p.Commit+"（detached）"
 		}
 		if _, err := git(p.repoDir, add...); err != nil {
-			return fail("worktree を戻せない: %v。台帳は変えていない", err)
+			return fail("worktree を戻せない: %v。kanban は変えていない", err)
 		}
 		fmt.Fprintf(stdout, "andon issue: worktree %s を %s で戻した\n", p.Worktree, at)
 	}
@@ -104,18 +104,18 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon issue: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
-	// 起動する直前にもう一度読む（lock の外で台帳が書き換えられていれば起動しない）
+	// 起動する直前にもう一度読む（lock の外で kanban が書き換えられていれば起動しない）
 	now, err := c.l.Show(id)
 	if err != nil {
 		return err
 	}
 	if s, a := now.Str("status"), now.Str("agent"); s != "doing" || a != p.Agent {
-		return fail("%s の台帳が変わった（status %s・agent %s）。起動していない", id, s, a)
+		return fail("%s の kanban が変わった（status %s・agent %s）。起動していない", id, s, a)
 	}
 	// hc の名前は live の端末の中で1つなので、素のシェルの端末は起動する前に片付ける（中身はシェルだけで、失うものは無い）
 	if p.AgentState == "bare_shell" {
 		if err := spawn.Discard(p.Agent); err != nil {
-			return fail("素のシェルの端末 %s を片付けられない: %v。台帳は変えていない", p.Agent, err)
+			return fail("素のシェルの端末 %s を片付けられない: %v。kanban は変えていない", p.Agent, err)
 		}
 	}
 	kind := launch.LaunchResume
@@ -126,14 +126,14 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 		Command: p.command, Session: p.Session, Repo: p.Repo, RepoPath: p.Worktree, Brand: ledger.Brand(p.Profile)})
 	run, err := spawn.Run(p.Terminal, p.Labels, p.Cwd, p.Template, p.FirstMessage)
 	if err != nil {
-		return fail("%v。台帳は変えていない", err)
+		return fail("%v。kanban は変えていない", err)
 	}
 	if !run.First.Delivered() {
 		why := run.Reason()
 		if err := spawn.Discard(run.Address); err != nil {
-			return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末を片付けられない（%v）。台帳は変えていない", run.Address, p.Terminal, why, err)
+			return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末を片付けられない（%v）。kanban は変えていない", run.Address, p.Terminal, why, err)
 		}
-		return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末は片付けた。台帳は変えていない", run.Address, p.Terminal, why)
+		return fail("%s（%s）に最初のメッセージが届かない: %s。起動した端末は片付けた。kanban は変えていない", run.Address, p.Terminal, why)
 	}
 	c.appendLaunch(stderr, rec, run.Address)
 	set := []string{"set", id, "agent=" + run.Address}
@@ -141,7 +141,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 		set = append(set, "session="+p.Session) // 空なら消す（Codex の --fresh）
 	}
 	if _, err := c.l.Run("", set...); err != nil {
-		return fail("kanban %s に失敗: %v（端末 %s は起きている。台帳の agent を手で直す）", strings.Join(set, " "), err, run.Address)
+		return fail("kanban %s に失敗: %v（端末 %s は起きている。kanban の agent を手で直す）", strings.Join(set, " "), err, run.Address)
 	}
 	if p.AgentState == "finished" {
 		spawn.Output(nil, "", "hc", "rm", p.Agent) //nolint:errcheck // 終わった端末の残りは消してよい（失敗しても続ける）
@@ -158,7 +158,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	return nil
 }
 
-// resumePlan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、台帳も書かない。
+// resumePlan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、kanban も書かない。
 // dry でも hc get（止まった端末の様子）と hc ls（名前）は打つ（読むだけ）。template の有無は dry では確かめない。
 func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	for _, cmd := range []string{"git", "hc"} {
@@ -169,7 +169,7 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	slug, id := c.l.Slug, c.id
 	p := &resumePlan{DryRun: dry, Fresh: fresh, ID: id, Title: c.issue.Str("title")}
 	if !spawn.SlugRe.MatchString(slug) {
-		return nil, fail("slug が不正: '%s'（台帳の root のフォルダ名。英小文字・数字・_・-）", slug)
+		return nil, fail("slug が不正: '%s'（kanban の root のフォルダ名。英小文字・数字・_・-）", slug)
 	}
 	if s := c.issue.Str("status"); s != "doing" {
 		return nil, fail("%s は %s（起動し直せるのは doing だけ。todo なら andon issue start）", id, s)
@@ -254,10 +254,10 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		p.Template = p.Profile + "-resume"
 		p.Session = c.issue.Str("session")
 		if p.Session == "" {
-			return nil, fail("%s の台帳に session が無い（セッションを記録する前に起きた課題）。続けられないので、オーナーの go で andon issue resume --fresh %s", id, id)
+			return nil, fail("%s の kanban に session が無い（セッションを記録する前に起きた課題）。続けられないので、オーナーの go で andon issue resume --fresh %s", id, id)
 		}
 		if !spawn.SessionRe.MatchString(p.Session) {
-			return nil, fail("%s の台帳の session が UUID でない: '%s'", id, p.Session)
+			return nil, fail("%s の kanban の session が UUID でない: '%s'", id, p.Session)
 		}
 		rec, ok := claudeRecord(p.Session)
 		if !ok {
@@ -307,14 +307,14 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	return p, nil
 }
 
-// restorePlan は台帳の worktree を戻す手を決める。パスは台帳の値をそのまま使う（組み直さない）が、
+// restorePlan は kanban の worktree を戻す手を決める。パスは kanban の値をそのまま使う（組み直さない）が、
 // andon issue start がこの課題に作る置き場（今の置き場か旧の置き場の <repo 名>/<slug>-<id>）でなければ止まる。
 // あれば、その branch の worktree であることだけ確かめて触らない（commit していない変更を消さない）。
 func (c *ctx) restorePlan(p *resumePlan) error {
 	slug, id := c.l.Slug, c.id
 	p.Worktree, p.Branch = c.issue.Path("worktree"), c.issue.Str("branch")
 	if p.Worktree == "" || p.Branch == "" {
-		return fail("%s の台帳に worktree か branch が無い（worktree=%s branch=%s）", id, p.Worktree, p.Branch)
+		return fail("%s の kanban に worktree か branch が無い（worktree=%s branch=%s）", id, p.Worktree, p.Branch)
 	}
 	ok := false
 	for _, home := range worktreeHomes() {
@@ -361,9 +361,9 @@ func ReviewerLabels(slug, id, title, parent string) []string {
 var reviewCommitRe = regexp.MustCompile(`(?m)^対象: .*?commit ([0-9a-f]{40})。`)
 
 // reviewerRestorePlan はレビュアーの detached worktree を戻す手を決める（ADR-0012 決めたこと 8・13 の 5）。
-// 戻す commit は親の review_request.commit でなく、そのレビュアーの依頼書の commit（回がずれない）。パスは台帳の値をそのまま使うが、
+// 戻す commit は親の review_request.commit でなく、そのレビュアーの依頼書の commit（回がずれない）。パスは kanban の値をそのまま使うが、
 // dispatcher がこの課題に作る置き場（今か旧の置き場の <repo 名>/<slug>-<rev>）でなければ止まる。
-// あれば detached の worktree であることだけ確かめて触らない。cwd は issues/<rev>/（台帳の Dir の下。worktree ではない）。
+// あれば detached の worktree であることだけ確かめて触らない。cwd は issues/<rev>/（kanban の Dir の下。worktree ではない）。
 func (c *ctx) reviewerRestorePlan(p *resumePlan) error {
 	slug, id := c.l.Slug, c.id
 	b, _ := os.ReadFile(p.BriefPath)
@@ -374,7 +374,7 @@ func (c *ctx) reviewerRestorePlan(p *resumePlan) error {
 	p.Commit = string(m[1])
 	p.Worktree = c.issue.Path("worktree")
 	if p.Worktree == "" {
-		return fail("%s の台帳に worktree が無い", id)
+		return fail("%s の kanban に worktree が無い", id)
 	}
 	ok := false
 	for _, home := range worktreeHomes() {
@@ -409,7 +409,7 @@ func (c *ctx) reviewerRestorePlan(p *resumePlan) error {
 
 // print は --dry-run の人向けの出力。
 func (p *resumePlan) print(w io.Writer) {
-	fmt.Fprintf(w, "andon issue: %s を起動し直す乾いた実行（hc run を打たず、worktree・端末を作らず台帳も書かない）\n", p.ID)
+	fmt.Fprintf(w, "andon issue: %s を起動し直す乾いた実行（hc run を打たず、worktree・端末を作らず kanban も書かない）\n", p.ID)
 	row := func(k, v string) {
 		if v != "" {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)

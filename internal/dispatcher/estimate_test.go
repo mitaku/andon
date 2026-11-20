@@ -13,7 +13,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// estimate の検査: 台帳（課題の一覧と log.jsonl の行）は手で作り、見回りの時刻を進めて p.estimate を打つ。
+// estimate の検査: kanban（課題の一覧と log.jsonl の行）は手で作り、見回りの時刻を進めて p.estimate を打つ。
 type estimateFixture struct {
 	t  *testing.T
 	p  *project
@@ -145,12 +145,12 @@ func TestEstimateRecountOnChange(t *testing.T) {
 	}
 }
 
-// 初めて見る台帳では今の段を控えるだけで積まない（次の見回りでも同じ段は鳴らさない）。
+// 初めて見る kanban では今の段を控えるだけで積まない（次の見回りでも同じ段は鳴らさない）。
 func TestEstimateFirstSight(t *testing.T) {
 	f := newEstimate(t)
 	f.p.first = true
 	if got := f.round(70); got != 0 {
-		t.Fatalf("初めて見る台帳で積んだ: %d", got)
+		t.Fatalf("初めて見る kanban で積んだ: %d", got)
 	}
 	f.p.first = false
 	if got := f.round(71); got != 0 {
@@ -194,8 +194,8 @@ func TestEstimateExcludesGone(t *testing.T) {
 	}
 }
 
-// 最初の列に戻った（todo・queued・done・台帳から消えた）課題の段の控えは捨てる。review の間は持ち越す。
-// Gone は done のあとも残し（andon measure が読む）、todo・queued に戻るか台帳から消えたら捨てる。
+// 最初の列に戻った（todo・queued・done・kanban から消えた）課題の段の控えは捨てる。review の間は持ち越す。
+// Gone は done のあとも残し（andon measure が読む）、todo・queued に戻るか kanban から消えたら捨てる。
 func TestEstimateForget(t *testing.T) {
 	f := newEstimate(t)
 	f.round(200)

@@ -1,12 +1,12 @@
-// Package dispatcher は andon dispatcher: セルに1つ常駐し、台帳を周期で回ってインナーループの決まった次の工程を起動する
-// （docs/dispatcher.md §5 の P6a）。判断はしない。判断はゲート（andon gate）・Chief of Staff・オーナーが持つ。
+// Package dispatcher は andon dispatcher: セルに1つ常駐し、kanban を周期で回ってインナーループの決まった次の工程を起動する
+// （docs/dispatcher.md §5 の P6a）。判断はしない。判断は gate（andon gate）・Chief of Staff・オーナーが持つ。
 //
 //	report.json の review_request   → レビュアーを起動する（kanban add --parent ＋ detached worktree ＋ hc run）
 //	{"status": "review"} に入った    → andon gate を回す（deliverable: candidates の課題は回さない。通知だけ）
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon issue finish（レビュアーの課題も片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す
-//	review の PR をオーナーがマージした      → ゲートの問いを閉じて andon issue finish（1分に1回だけ gh pr view。humanmerge.go）
+//	review の PR をオーナーがマージした      → gate の問いを閉じて andon issue finish（1分に1回だけ gh pr view。humanmerge.go）
 //	{"status": "done"} の行            → library/corrections.json を1回だけ書く（オーナーの手直し。corrections.go）
 //	                                     library/outcome.json を1回だけ書く（結果の記録。outcome.go）
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
@@ -17,8 +17,8 @@
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、
 // 離席中は Stop フックの待ち役（wait.go。経路③）が合図で Chief of Staff を起動する。dispatcher は入力欄へ <news> を打たない。dispatcher.md §3。届けない kind は記録だけ（route.go の表。§3.2）。
-// 台帳に書くのは台帳の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
-// 例外は dispatcher が書き手の library/ のファイル（corrections.json・outcome.json。contract.md §1）。ゲートとマージは andon issue merge（loop.go の merge）。
+// kanban に書くのは kanban の CLI と andon issue … だけで、by は terminal:dispatcher（ledger.DispatcherBy）。
+// 例外は dispatcher が書き手の library/ のファイル（corrections.json・outcome.json。contract.md §1）。gate とマージは andon issue merge（loop.go の merge）。
 package dispatcher
 
 import (
@@ -33,7 +33,7 @@ import (
 	"sort"
 	"strings"
 	"time"
-	_ "time/tzdata" // 実行環境に zoneinfo が無くても台帳の timezone を引けるようにする
+	_ "time/tzdata" // 実行環境に zoneinfo が無くても kanban の timezone を引けるようにする
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
@@ -47,14 +47,14 @@ const Usage = "usage: andon dispatcher [--project <slug>]          回り続け�
 	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
 	"       andon dispatcher wait [--timeout <秒>] [--project <slug>]   待ち役（Chief of Staff の Stop フックが asyncRewake で起動する）\n" +
 	"       andon dispatcher rewake [--project <slug>]   プロバイダに切られた Chief of Staff を起動する（StopFailure フックが asyncRewake で起動する）\n" +
-	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起動する・ゲートを回す・\n" +
+	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起動する・gate を回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
 	"待ちの通知は Chief of Staff のフック（drain）が届ける。離席中は待ち役（wait）が合図で Chief of Staff を起動する（入力欄へは打たない）。\n" +
 	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない間（留守）も回し、配る段だけ止める（戻った最初の <news> に留守の1行）。\n" +
-	"chief_of_staff が設定に無い台帳は飛ばす。初めて見る台帳は通知の元を控えるだけ（今の review_request は拾う）。\n" +
+	"chief_of_staff が設定に無い kanban は飛ばす。初めて見る kanban は通知の元を控えるだけ（今の review_request は拾う）。\n" +
 	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。届けない通知は横の <slug>.recorded.jsonl に1行ずつ。\n"
 
-// Name は dispatcher の端末の名前で、台帳の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
+// Name は dispatcher の端末の名前で、kanban の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
 const Name = "dispatcher"
 
 const (
@@ -151,8 +151,8 @@ type Dispatcher struct {
 	Log   io.Writer        // ログ（1行ずつ。頭に時刻）
 	Now   func() time.Time // ログの時刻（無ければ time.Now。検査用）
 
-	unwaited map[string]string // 待ち役がいないとログに書いた待ち（台帳ごと。同じ待ちを二度書かない）
-	skip     map[string]string // 台帳を飛ばしている・留守だとログに書いた理由（台帳ごと。同じ理由を二度書かない）
+	unwaited map[string]string // 待ち役がいないとログに書いた待ち（kanban ごと。同じ待ちを二度書かない）
+	skip     map[string]string // kanban を飛ばしている・留守だとログに書いた理由（kanban ごと。同じ理由を二度書かない）
 	// memory の量の線の記録の、このプロセスでの値（無ければまだ読んでいない）。ファイルに書けなくても、
 	// このプロセスの間は同じ超え方を積み直さない（memory.go）
 	memory *Memory
@@ -191,14 +191,14 @@ func cosDown(cos string) (reason, unsure string) {
 	return "", ""
 }
 
-// skipped は台帳を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、オーナーに気づける通知を1つ出す。
+// skipped は kanban を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、オーナーに気づける通知を1つ出す。
 // 同じ理由が続く間は出さない。
 func (p *project) skipped(reason string) {
 	if p.c.skip[p.l.Slug] == reason {
 		return
 	}
 	p.c.mark(p.l.Slug, reason)
-	p.logf("台帳を飛ばす（%s。レビュアーもオーナーのマージも拾わない）", reason)
+	p.logf("kanban を飛ばす（%s。レビュアーもオーナーのマージも拾わない）", reason)
 	cmd := exec.Command("herdr", "notification", "show", "andon dispatcher: "+p.l.Slug+" を飛ばしている", "--body", reason)
 	cmd.Env = withoutTerminal()
 	_ = cmd.Run() // herdr が無い・失敗でも巡は続ける（ログの1行は出ている）
@@ -231,7 +231,7 @@ func (c *Dispatcher) logIn(loc *time.Location, format string, a ...any) {
 	fmt.Fprintf(c.Log, now().In(loc).Format(time.RFC3339)+" andon dispatcher: "+format+"\n", a...)
 }
 
-// location は台帳の config.yaml の timezone（無い・読めなければ UTC）。
+// location は kanban の config.yaml の timezone（無い・読めなければ UTC）。
 func (l *project) location() *time.Location {
 	if tz := l.l.Timezone(); tz != "" && tz != "Local" {
 		if loc, err := time.LoadLocation(tz); err == nil {
@@ -241,7 +241,7 @@ func (l *project) location() *time.Location {
 	return time.UTC
 }
 
-// Pass はセルの台帳を1回ずつ回す。動いている課題（doing・review）があれば busy。
+// Pass はセルの kanban を1回ずつ回す。動いている課題（doing・review）があれば busy。
 func (c *Dispatcher) Pass(only string) bool {
 	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", "kanban", "config.yaml"))
 	sort.Strings(cfgs)
@@ -262,7 +262,7 @@ func (c *Dispatcher) Pass(only string) bool {
 	return busy
 }
 
-// project は1つの台帳を1回回す間のもの。
+// project は1つの kanban を1回回す間のもの。
 type project struct {
 	c     *Dispatcher
 	l     *ledger.Ledger
@@ -291,10 +291,10 @@ func (p *project) pass() (bool, error) {
 		p.away = true
 		p.absent(cos, reason) // 配る段だけ飛ばす（dispatcher.md §2.1）
 	case unsure != "":
-		// 留守かを確かめられない（hc get の一時の失敗）: 留守と取り違えないよう、この巡はこの台帳を回さない（次の巡で確かめ直す）。ログは同じ理由に1回
+		// 留守かを確かめられない（hc get の一時の失敗）: 留守と取り違えないよう、この巡はこの kanban を回さない（次の巡で確かめ直す）。ログは同じ理由に1回
 		if p.c.skip[p.l.Slug] != unsure {
 			p.c.mark(p.l.Slug, unsure)
-			p.logf("Chief of Staff の端末を確かめられない（%s）。この巡はこの台帳を回さない", unsure)
+			p.logf("Chief of Staff の端末を確かめられない（%s）。この巡はこの kanban を回さない", unsure)
 		}
 		return false, nil
 	default:
@@ -323,7 +323,7 @@ func (p *project) pass() (bool, error) {
 		busy = busy || status == "doing" || status == "review"
 		if !p.gated(t) {
 			if isEngineer(t) && t.Str("repo") != "" && status == "review" {
-				// Chief Engineer の文書の PR はオーナーがマージする。ゲートは回さず、オーナーのマージだけ見て片付ける（dispatcher.md §2.7）
+				// Chief Engineer の文書の PR はオーナーがマージする。gate は回さず、オーナーのマージだけ見て片付ける（dispatcher.md §2.7）
 				if rep, err := contract.ReadReport(filepath.Join(p.l.Library(t.Str("id")), "report.json")); err == nil {
 					p.humanMerge(t, rep)
 				}
@@ -341,7 +341,7 @@ func (p *project) pass() (bool, error) {
 			}
 			p.humanMerge(t, rep) // doing のうちにオーナーが GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		case "review":
-			p.merge(t)           // ゲートとマージと片付け（andon issue merge。dispatcher.md §5 の P6a）
+			p.merge(t)           // gate とマージと片付け（andon issue merge。dispatcher.md §5 の P6a）
 			p.humanMerge(t, rep) // オーナーが GitHub でマージした（andon issue settle。dispatcher.md §2.7）
 		}
 	}
@@ -378,8 +378,8 @@ func (p *project) markAway(at string) {
 }
 
 // tick は kanban tick を1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。
-// 打つのは dispatcher だけ（cron は置かない）。同じ時刻を二度撃たない守りは台帳の側（kanban/.lock と state/routines.json）。
-// 失敗はログに1行で、巡は止めない。前回の ready が無い（初めて見る台帳）ときは、tick の前の ready を先に控える。
+// 打つのは dispatcher だけ（cron は置かない）。同じ時刻を二度撃たない守りは kanban の側（kanban/.lock と state/routines.json）。
+// 失敗はログに1行で、巡は止めない。前回の ready が無い（初めて見る kanban）ときは、tick の前の ready を先に控える。
 // 過去の ready は流さず、tick が足した課題だけを collect の ready の差で拾う（次の巡で届く）。
 func (p *project) tick() {
 	if p.st.Ready == nil {
@@ -390,7 +390,7 @@ func (p *project) tick() {
 	}
 }
 
-// gated は、課題がインナーループ（レビュアーを起動する・ゲートを回す）を通るか。通るのは案件 repo の担当の
+// gated は、課題がインナーループ（レビュアーを起動する・gate を回す）を通るか。通るのは案件 repo の担当の
 // PR の課題だけ。レビュアー・Chief Engineer・repo の無い課題・調べる課題（deliverable: candidates）は Chief of Staff が見る
 // （通知は collect が積む）。deliverable は照合（Chief of Staff が書いたか）が外れていても candidates なら通さない:
 // Chief of Staff が起き直してアドレスが変わると、書き直すまで照合が外れる。通さない側はマージに進まないので安全側
@@ -456,7 +456,7 @@ type runError struct {
 
 func (e *runError) Error() string { return e.msg }
 
-// andon は自分（andon）をこの台帳の根で打つ（by は terminal:dispatcher）。
+// andon は自分（andon）をこの kanban の根で打つ（by は terminal:dispatcher）。
 func (p *project) andon(stdin string, args ...string) (string, int, error) {
 	return run(p.l.Root, []string{"KANBAN_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
 }

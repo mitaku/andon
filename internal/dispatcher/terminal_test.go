@@ -61,7 +61,7 @@ func newEnsureWait(t *testing.T, wait time.Duration) (d string, round func() (st
 	}
 }
 
-// putTerm は置き場のラベルが /srv/plant の Place（台帳なし: セルの名前の Space）に合う端末を置く。
+// putTerm は置き場のラベルが /srv/plant の Place（kanban なし: セルの名前の Space）に合う端末を置く。
 func putTerm(t *testing.T, path, fg string) {
 	t.Helper()
 	putTermAt(t, path, fg, "andon-testplant-plant", "andon-testplant-dispatcher")
@@ -236,9 +236,9 @@ func TestLiveTask(t *testing.T) {
 	}
 }
 
-// 台帳の数が変わって Place が変わった（台帳なしで起きたあと andon create した）: 動いている dispatcher でも、
+// kanban の数が変わって Place が変わった（kanban なしで起きたあと andon create した）: 動いている dispatcher でも、
 // 見回りの合間なら片付けて今の Place で起動し直す。見回りの途中（PassLock を持っている）と、
-// PassLock を作らない前の版の dispatcher（ファイルが無い）なら触らない。
+// PassLock を作らない前のバージョンの dispatcher（ファイルが無い）なら触らない。
 func TestEnsureMovesToPlace(t *testing.T) {
 	d, _ := newEnsure(t)
 	ws := t.TempDir()
@@ -257,9 +257,9 @@ func TestEnsureMovesToPlace(t *testing.T) {
 		return did, strings.TrimSpace(string(b)), err
 	}
 
-	// PassLock のファイルが無い: 動いているのは見回りの間 lock を持たない前の版。止めず、理由を返す
+	// PassLock のファイルが無い: 動いているのは見回りの間 lock を持たない前のバージョン。止めず、理由を返す
 	if did, calls, err := round(); !errors.Is(err, ErrOldDispatcher) || did != "" || calls != "" {
-		t.Fatalf("前の版の dispatcher を止めた・黙った: %q %q %v", did, calls, err)
+		t.Fatalf("前のバージョンの dispatcher を止めた・黙った: %q %q %v", did, calls, err)
 	}
 
 	unpass, err := flock.TryLock(PassLock())
@@ -289,7 +289,7 @@ func TestEnsureMovesToPlace(t *testing.T) {
 	}
 }
 
-// 置き場: 台帳が1つなら指揮側の Space に、2つ以上（無いときも）ならセルの名前の Space に出す。
+// 置き場: kanban が1つなら指揮側の Space に、2つ以上（無いときも）ならセルの名前の Space に出す。
 func TestPlace(t *testing.T) {
 	hostName = func() (string, error) { return "Sample_Plant.local", nil }
 	t.Cleanup(func() { hostName = os.Hostname })
@@ -305,9 +305,9 @@ func TestPlace(t *testing.T) {
 			t.Errorf("%s: %q %q", label, sp, tb)
 		}
 	}
-	check("台帳なし", "andon-sample-plant-local-plant", "andon-sample-plant-local-dispatcher")
+	check("kanban なし", "andon-sample-plant-local-plant", "andon-sample-plant-local-dispatcher")
 	ledger("alpha")
-	check("台帳1つ", "andon-alpha", "andon-alpha-dispatcher")
+	check("kanban 1つ", "andon-alpha", "andon-alpha-dispatcher")
 	ledger("beta")
-	check("台帳2つ", "andon-sample-plant-local-plant", "andon-sample-plant-local-dispatcher")
+	check("kanban 2つ", "andon-sample-plant-local-plant", "andon-sample-plant-local-dispatcher")
 }

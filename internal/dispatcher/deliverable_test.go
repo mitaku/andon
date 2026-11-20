@@ -8,7 +8,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// ゲートを回す（レビュアーを起動する）のは案件 repo の担当の PR の課題だけ。
+// gate を回す（レビュアーを起動する）のは案件 repo の担当の PR の課題だけ。
 // deliverable: candidates は飛ばす（ADR-0006 受け入れ条件 3）。最後に書いたのが今の Chief of Staff でなくても飛ばす
 // （Chief of Staff が起き直してアドレスが変わり、書き直す前。ADR-0006 決めたこと 17）。
 func TestGated(t *testing.T) {

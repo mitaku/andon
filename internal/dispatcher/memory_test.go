@@ -9,9 +9,9 @@ import (
 )
 
 // ADR-0031 受け入れ条件 B4: プロジェクトが2つある偽のセルで、memory の量の通知が1回に1通だけ届く。
-// 記録はセルに1つ（.memory.json）なので、先に回った台帳が積めば、ほかの台帳は積まない（dispatcher.md §2.11）。
+// 記録はセルに1つ（.memory.json）なので、先に回った kanban が積めば、ほかの kanban は積まない（dispatcher.md §2.11）。
 // 線を超えたまま回っても積み直さず、線の下に戻ってまた超えたら1通だけ積み直す。
-// 積んだ台帳の控えを保存できなかった巡は、記録を書かず、同じ巡のほかの台帳が積む（通知は落ちない）。
+// 積んだ kanban の控えを保存できなかった巡は、記録を書かず、同じ巡のほかの kanban が積む（通知は落ちない）。
 // セルの記録だけを書けない巡も1通で、書けない間は積み直さず、書けるようになった巡で書き直す。
 func TestMemoryOncePerCell(t *testing.T) {
 	d := t.TempDir()
@@ -60,7 +60,7 @@ func TestMemoryOncePerCell(t *testing.T) {
 	}
 	var logb bytes.Buffer
 	c := &Dispatcher{WS: ws, Log: &logb}
-	// memories は台帳ごとの待ちの memory の数を返し、待ちを空にする（Chief of Staff が受け取った）。
+	// memories は kanban ごとの待ちの memory の数を返し、待ちを空にする（Chief of Staff が受け取った）。
 	memories := func() map[string]int {
 		t.Helper()
 		got := map[string]int{}

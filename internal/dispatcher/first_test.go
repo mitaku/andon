@@ -184,11 +184,11 @@ func TestFirstMessageSentByHand(t *testing.T) {
 	if got := f.round(); len(got) != 1 || got[0] != "label t42 first_message.sent=" {
 		t.Fatalf("動いている担当: %q", got)
 	}
-	// 初めて見る台帳では動かさない
+	// 初めて見る kanban では動かさない
 	f = newFirst(t)
 	f.p.first = true
 	if got := f.round(); got != nil {
-		t.Fatalf("初めて見る台帳で打った: %q", got)
+		t.Fatalf("初めて見る kanban で打った: %q", got)
 	}
 	// ラベルの無い担当には何もしない
 	f = newFirst(t)

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// 偽の kanban: 打たれたものを $FAKE_KANBAN/log に1行ずつ。tick は $FAKE_KANBAN/tick-rc があればその終了コードで落ちる。
+// 偽の kanban の CLI: 打たれたものを $FAKE_KANBAN/log に1行ずつ。tick は $FAKE_KANBAN/tick-rc があればその終了コードで落ちる。
 // 一覧と ready は空。偽の hc: get は $FAKE_KANBAN/cos があれば生きている。
 const tickKanban = `#!/bin/sh
 d=$FAKE_KANBAN
@@ -27,8 +27,8 @@ echo '{"error":{"kind":"not_found","message":"no terminal"}}' >&2
 exit 3
 `
 
-// kanban tick は 1巡の 3（台帳を読む）と 4（ready の差）の間に1回打つ。Chief of Staff の留守（端末が無い）でも打ち、
-// chief_of_staff が設定に無い台帳では打たない（ADR-0017 決めたこと 8）。
+// `kanban tick` は 1巡の 3（kanban を読む）と 4（ready の差）の間に1回打つ。Chief of Staff の留守（端末が無い）でも打ち、
+// chief_of_staff が設定に無い kanban では打たない（ADR-0017 決めたこと 8）。
 // 失敗はログに1行で、巡は止めない（dispatcher.md §2.1.1・§7.2 #8。ADR-0007 の切る案 R1）。
 func TestPassTicks(t *testing.T) {
 	d := t.TempDir()
@@ -69,12 +69,12 @@ func TestPassTicks(t *testing.T) {
 
 	c.Pass("")
 	if got := calls(); len(got) != 0 {
-		t.Errorf("chief_of_staff が設定に無い台帳で kanban を打った: %q", got)
+		t.Errorf("chief_of_staff が設定に無い kanban で kanban の CLI を打った: %q", got)
 	}
 	if err := os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, round := range []string{"初めて見る台帳", "2巡目"} {
+	for _, round := range []string{"初めて見る kanban", "2巡目"} {
 		if round == "2巡目" {
 			// 飛ばした 1 行・留守の 1 行は skip_test.go で見る。ここで留守から戻る
 			logb.Reset()
@@ -82,9 +82,9 @@ func TestPassTicks(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		c.Pass("") // 初めて見る台帳は留守のまま（留守でも tick を打つ）
+		c.Pass("") // 初めて見る kanban は留守のまま（留守でも tick を打つ）
 		want := "list tick ready"
-		if round == "初めて見る台帳" {
+		if round == "初めて見る kanban" {
 			want = "list ready tick ready" // tick の前の ready を基準に控える
 		}
 		if got := strings.Join(calls(), " "); got != want {

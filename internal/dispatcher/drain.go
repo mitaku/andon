@@ -25,7 +25,7 @@ const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>]
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
 	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起動し直す（core が起き直したあと）。\n" +
-	"落ちたとき（台帳・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
+	"落ちたとき（kanban・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
 
 // lockWait は drain が控えの lock を待つ長さ。dispatcher の見回りが持っていれば、待ちは次の口で届く。
 var lockWait = 10 * time.Second

@@ -12,7 +12,7 @@ import (
 )
 
 // 待つ相手のうち PR を成果にする課題がマージされずに done になったものを gone に、確かめられなかったものを unsure に返す。
-// マージで片付いた待つ相手（結果の記録・ゲートの記録・gh の MERGED）は返さない。PR を成果にしない待つ相手は見ない。
+// マージで片付いた待つ相手（結果の記録・gate の記録・gh の MERGED）は返さない。PR を成果にしない待つ相手は見ない。
 func TestWaitedGone(t *testing.T) {
 	p := routeProject(t)
 	bin := t.TempDir()
@@ -52,7 +52,7 @@ func TestWaitedGone(t *testing.T) {
 	done("E-0001")
 	write("E-0001", "outcome.json", `{"result":"merged"}`) // 結果の記録
 	done("E-0002")
-	report("E-0002", 4) // gh は落ちるが、ゲートの記録の merged が先に答える
+	report("E-0002", 4) // gh は落ちるが、gate の記録の merged が先に答える
 	write("E-0002", "gate/9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08.json", `{"head":"9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08","at":"2026-11-20T00:00:00Z","tier":"B","decision":"approve","reasons":[],"merged":true}`)
 	done("E-0003")
 	report("E-0003", 1) // gh で MERGED（オーナーがマージした）
@@ -98,7 +98,7 @@ func TestWaitedGone(t *testing.T) {
 			t.Errorf("%s: gone %v unsure %v, want %v %v", c.name, gone, unsure, c.gone, c.unsure)
 		}
 	}
-	// 手元の記録（結果の記録・ゲートの記録・report.json の無いこと）で決まる待つ相手には gh を打たない。
+	// 手元の記録（結果の記録・gate の記録・report.json の無いこと）で決まる待つ相手には gh を打たない。
 	// 打つのは E-0003（1）・E-0013（2）・E-0014（3）・E-0021（4）・E-0013（2）の順だけ（E-0002 の PR 4 は打たない）
 	b, _ := os.ReadFile(calls)
 	if got := strings.Fields(string(b)); !slices.Equal(got, []string{"1", "2", "3", "4", "2"}) {

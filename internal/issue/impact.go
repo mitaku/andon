@@ -24,7 +24,7 @@ type notMerged struct{ state string }
 func (n notMerged) Error() string { return "PR が MERGED でない（" + n.state + "）" }
 
 // impact は課題の PR がマージされたあと、同じ repo の動いている課題への影響の事実を集めて JSON で出す。
-// 書くのは git fetch だけ（台帳・worktree・branch には触らない）。何度打っても同じ事実から同じ出力になる。
+// 書くのは git fetch だけ（kanban・worktree・branch には触らない）。何度打っても同じ事実から同じ出力になる。
 func (c *ctx) impact(stdout io.Writer) error {
 	repo := c.issue.Str("repo")
 	if repo == "" {
@@ -206,7 +206,7 @@ func lines(s string) []string {
 	return out
 }
 
-// repoDirOf は台帳の repo（host/owner/name）の ghq の checkout。
+// repoDirOf は kanban の repo（host/owner/name）の ghq の checkout。
 func repoDirOf(repo string) (string, error) {
 	root := os.Getenv("GHQ_ROOT")
 	if root == "" {

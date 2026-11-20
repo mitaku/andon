@@ -114,7 +114,7 @@ func TestReadLaunches(t *testing.T) {
 	}
 }
 
-// outcomeProject は台帳（log.jsonl の行）を置いて、巡の写しを読んだ project を返す。
+// outcomeProject は kanban（log.jsonl の行）を置いて、巡の写しを読んだ project を返す。
 func outcomeProject(t *testing.T, rows ...string) *project {
 	t.Helper()
 	l := ledger.At(t.TempDir())
@@ -179,7 +179,7 @@ func TestOutcomeWorkedPickedDoneAfterSnapshot(t *testing.T) {
 	}
 }
 
-// library/gate を一覧できなければ、ゲートの判定を0件として書かない（err）。置き場が無いときだけ空。
+// library/gate を一覧できなければ、gate の判定を0件として書かない（err）。置き場が無いときだけ空。
 func TestOutcomeGatesUnlistable(t *testing.T) {
 	const id = "S-0001"
 	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))

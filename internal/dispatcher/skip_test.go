@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// chief_of_staff が設定に無い台帳を飛ばし始めたら、ログに1行（台帳・理由）と herdr の通知を1つ出す。
+// chief_of_staff が設定に無い kanban を飛ばし始めたら、ログに1行（kanban・理由）と herdr の通知を1つ出す。
 // Chief of Staff の端末が live でない（留守）なら飛ばさず、ログに1行だけ（宛先・理由。herdr の通知は出さない。ADR-0017 決めたこと 8）。
 // 同じ理由が続く間は繰り返さず、生き返ったあとにまた留守になったら出し直す。
 func TestPassSkipIsNotSilent(t *testing.T) {
@@ -44,8 +44,8 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 	c.Pass("")
 	c.Pass("")
 	out := logb.String()
-	if strings.Count(out, "台帳を飛ばす") != 1 || !strings.Contains(out, "sample-site") || !strings.Contains(out, "chief_of_staff が空") {
-		t.Errorf("飛ばした 1 行（台帳・理由）が 1 回だけ出ていない: %q", out)
+	if strings.Count(out, "kanban を飛ばす") != 1 || !strings.Contains(out, "sample-site") || !strings.Contains(out, "chief_of_staff が空") {
+		t.Errorf("飛ばした 1 行（kanban・理由）が 1 回だけ出ていない: %q", out)
 	}
 	if n := notes(); n != 1 {
 		t.Errorf("herdr の通知が %d 回（1 回のはず）", n)
@@ -58,8 +58,8 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 	c.Pass("")
 	c.Pass("")
 	out = logb.String()
-	if strings.Count(out, "留守") != 1 || strings.Contains(out, "台帳を飛ばす") || !strings.Contains(out, "t42") || !strings.Contains(out, "が無い") {
-		t.Errorf("留守の 1 行（台帳・宛先・理由）が 1 回だけ出ていない: %q", out)
+	if strings.Count(out, "留守") != 1 || strings.Contains(out, "kanban を飛ばす") || !strings.Contains(out, "t42") || !strings.Contains(out, "が無い") {
+		t.Errorf("留守の 1 行（kanban・宛先・理由）が 1 回だけ出ていない: %q", out)
 	}
 	if n := notes(); n != 1 {
 		t.Errorf("留守で herdr の通知を出した（%d 回）", n-1)
@@ -77,7 +77,7 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 		t.Errorf("生き返ったあとの留守で出し直していない: %q", logb.String())
 	}
 
-	// hc get が一時に落ちた（not_found でない）巡は、留守にせず、その台帳を回さない（kanban を打たない・控えの留守の記録を作らない）。ログは1行
+	// hc get が一時に落ちた（not_found でない）巡は、留守にせず、その kanban を回さない（kanban の CLI を打たない・控えの留守の記録を作らない）。ログは1行
 	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // 生き返る（留守の記録は戻った巡で消える）
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 	c.Pass("")
 	c.Pass("")
 	if b, _ := os.ReadFile(filepath.Join(d, "log")); len(b) > 0 {
-		t.Errorf("確かめられない巡で台帳を回した（kanban を打った）: %q", b)
+		t.Errorf("確かめられない巡で kanban を回した（kanban の CLI を打った）: %q", b)
 	}
 	if st, _, err := LoadState("sample-site"); err != nil || st.Away != nil {
 		t.Errorf("hc get の一時の失敗を留守にした: %+v %v", st.Away, err)

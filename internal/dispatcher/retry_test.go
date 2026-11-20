@@ -359,12 +359,12 @@ func TestChiefCut(t *testing.T) {
 	if logged() != 1 || len(f.p.st.Pending) != 0 {
 		t.Fatalf("課題の agent になった Chief of Staff のログ・通知: %s %q", f.log.String(), f.kinds())
 	}
-	// 初めて見る台帳では書かない
+	// 初めて見る kanban では書かない
 	f = newRetry(t)
 	f.p.tasks, f.p.first = nil, true
 	f.term("t1", "error", cutMsg, 0, false)
 	if got := f.at(30*time.Minute, "t1"); got != nil || logged() != 0 {
-		t.Fatalf("初めて見る台帳で打った・書いた: %q", got)
+		t.Fatalf("初めて見る kanban で打った・書いた: %q", got)
 	}
 }
 

@@ -42,7 +42,7 @@ func (p *project) waitedGone(t ledger.Issue) (gone, unsure []string) {
 	return gone, unsure
 }
 
-// afterOf は issue.yaml の after（並び）。台帳の CLI は並びで書くが、1つだけの文字列も受ける。
+// afterOf は issue.yaml の after（並び）。kanban の CLI は並びで書くが、1つだけの文字列も受ける。
 func afterOf(t ledger.Issue) []string {
 	var out []string
 	switch v := t["after"].(type) {
@@ -76,7 +76,7 @@ func yieldsPR(t ledger.Issue) bool {
 
 // mergedState は課題 id の PR がマージされたかを、手元の記録から先に、無ければ gh で決める。
 //  1. 結果の記録（outcome.json。contract.md §19）があれば、その result（merged ならマージ、ほかはやめ）
-//  2. ゲートの記録に merged が true のものがあれば、dispatcher がマージした
+//  2. gate の記録に merged が true のものがあれば、dispatcher がマージした
 //  3. report.json に pr が無ければ、PR を出さずに終えた（やめ）
 //  4. gh pr view の state（MERGED ならマージ、CLOSED・OPEN はやめ）。gh の上限で止めている間と、読めないときは確かめられない
 func (p *project) mergedState(id string) string {

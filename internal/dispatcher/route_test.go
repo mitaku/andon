@@ -24,8 +24,8 @@ func TestRouteOf(t *testing.T) {
 		want Route
 	}{
 		{"review-requested", "review-requested", nil, Facts{}, Record},
-		{"担当の review（ゲートを回す）", "review", nil, Facts{Gated: true}, Record},
-		{"Chief Engineer・調べる課題の review（ゲートを回さない）", "review", nil, Facts{}, Deliver},
+		{"担当の review（gate を回す）", "review", nil, Facts{Gated: true}, Record},
+		{"Chief Engineer・調べる課題の review（gate を回さない）", "review", nil, Facts{}, Deliver},
 		{"gate fix", "gate", g("fix"), Facts{}, Record},
 		{"gate fix（担当に送れなかった）", "gate", map[string]any{"decision": "fix", "unsent": "t7"}, Facts{}, Deliver},
 		{"gate fix（unsent が空）", "gate", map[string]any{"decision": "fix", "unsent": ""}, Facts{}, Record},
@@ -157,7 +157,7 @@ func TestEngineerRecordOnly(t *testing.T) {
 }
 
 // merge: auto の approve は記録だけにし、andon issue merge の記録の approved から approveWait たっても決まらなければ
-// 通知 gate を1回だけ届ける。決まった（approved が消えた）・review にいない課題は届けない。merge: person の approve はすぐ届ける。
+// 通知 `gate` を1回だけ届ける。決まった（approved が消えた）・review にいない課題は届けない。merge: person の approve はすぐ届ける。
 func TestApproveStuck(t *testing.T) {
 	p := routeProject(t)
 	p.tasks = append(p.tasks, ledger.Issue{"id": "D-0004", "status": "done", "profile": "claude", "repo": "github.com/example/app"})

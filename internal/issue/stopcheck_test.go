@@ -8,7 +8,7 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// stop-check の判定（contract.md §9）。台帳は ready と同じ偽の kanban。log は doing に入った行から始める。
+// stop-check の判定（contract.md §9）。kanban の CLI は ready と同じ偽物。log は doing に入った行から始める。
 // 控え（XDG_STATE_HOME）は同じテストの中で引き継ぐ。
 func (f *fixture) stopCheck(log ...map[string]any) string {
 	if !f.state {
