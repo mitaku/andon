@@ -44,7 +44,7 @@ func TestSchemasEmbedded(t *testing.T) {
 }
 
 // TestSchemaPatternsCompile は、schema/ の直下の全部の pattern が Go の正規表現（選んだ検査器が使う RE2）で読めるかを見る
-// （ADR-0034 受け入れ条件 6。ECMA-262・Python と意味が割れる書き方は schema_check.py の lint が止める）。
+// （ADR-0034 受け入れ条件 6。ECMA-262 と意味が割れる書き方は schema_check.py の lint が止める）。
 func TestSchemaPatternsCompile(t *testing.T) {
 	n := 0
 	for _, s := range Schemas {
@@ -174,5 +174,116 @@ func TestWriteChecksSchemaBeforeWriting(t *testing.T) {
 		"kind": "report", "detail": map[string]any{"report": "/w/kanban/issues/A-1/report.md"}})
 	if err != nil || strings.Contains(string(line), "\n") {
 		t.Fatalf("schema に合う通知を1行にできない: %q %v", line, err)
+	}
+}
+
+// TestCompileRefusesWhatItDoesNotRead は、検査器の知らないキーワードと、読まない場所（分岐の中）の uniqueKeys がある schema を、
+// 照らす前に断るかを見る（検査が効いていないのに通るのを防ぐ）。断るのは合わないこと（*MismatchError）でなく、検査できないこと。
+func TestCompileRefusesWhatItDoesNotRead(t *testing.T) {
+	for _, c := range []struct {
+		name, schema string
+	}{
+		{"知らないキーワード format", `{"type": "string", "format": "date"}`},
+		{"入れ子の知らないキーワード", `{"type": "object", "properties": {"a": {"type": "integer", "maximum": 3}}}`},
+		{"$defs の中の知らないキーワード", `{"$defs": {"x": {"uniqueItems": true}}}`},
+		{"anyOf の中の uniqueKeys", `{"anyOf": [{"type": "array", "uniqueKeys": ["id"]}]}`},
+		{"if の中の uniqueKeys", `{"if": {"type": "array"}, "then": {"uniqueKeys": ["id"]}}`},
+		{"not の下の properties の uniqueKeys", `{"not": {"properties": {"a": {"uniqueKeys": ["id"]}}}}`},
+	} {
+		if _, err := Compile("x", []byte(c.schema)); err == nil || !strings.Contains(err.Error(), "検査器の知らないキーワード") {
+			t.Errorf("%s: 断らない・誤りの文が違う: %v", c.name, err)
+		}
+	}
+	for _, ok := range []string{
+		`{"type": "array", "uniqueKeys": ["id"], "items": {"$ref": "#/$defs/x"}, "$defs": {"x": {"type": "object"}}}`,
+		`{"allOf": [{"properties": {"a": {"uniqueKeys": ["id"]}}}]}`,
+		`{"$defs": {"x": {"type": "array", "uniqueKeys": ["id"]}}, "properties": {"a": {"$ref": "#/$defs/x"}}}`,
+	} {
+		if _, err := Compile("x", []byte(ok)); err != nil {
+			t.Errorf("読める schema を断った: %s: %v", ok, err)
+		}
+	}
+}
+
+// TestCheckerUniqueKeys は、拡張のキーワード uniqueKeys を、値の形に沿ってたどった先（properties・items・prefixItems・
+// additionalProperties・$ref・allOf）で確かめるかを見る。
+func TestCheckerUniqueKeys(t *testing.T) {
+	c, err := Compile("u", []byte(`{
+	  "$defs": {"list": {"type": "array", "uniqueKeys": ["id"], "items": {"$ref": "#/$defs/item"}},
+	            "item": {"properties": {"sub": {"$ref": "#/$defs/list"}}}},
+	  "type": "object",
+	  "properties": {"a": {"$ref": "#/$defs/list"}, "t": {"type": "array", "prefixItems": [{"$ref": "#/$defs/list"}]}},
+	  "additionalProperties": {"allOf": [{"$ref": "#/$defs/list"}]}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range []struct {
+		json string
+		ok   bool
+	}{
+		{`{"a": [{"id": "c1"}, {"id": "c2"}, {"x": 1}, 3]}`, true},
+		{`{"a": [{"id": 1}, {"id": true}, {"id": "1"}]}`, true},
+		{`{"a": [{"id": "c1"}, {"id": "c1"}]}`, false},
+		{`{"a": [{"id": {"k": 1, "j": 2}}, {"id": {"j": 2, "k": 1}}]}`, false},
+		{`{"a": [{"id": "c1", "sub": [{"id": "d"}, {"id": "d"}]}]}`, false},
+		{`{"t": [[{"id": 1}, {"id": 1.0}]]}`, false},
+		{`{"z": [{"id": "c1"}, {"id": "c1"}]}`, false},
+		{`{"a": [{"id": "c1"}], "t": [[{"id": "c1"}]], "z": [{"id": "c1"}]}`, true},
+	} {
+		err := c.Check([]byte(x.json))
+		var mismatch *MismatchError
+		if x.ok != (err == nil) || (err != nil && !errors.As(err, &mismatch)) {
+			t.Errorf("%s: ok=%v, got %v", x.json, x.ok, err)
+		}
+	}
+	if err := c.Check([]byte(`{`)); err == nil || errors.As(err, new(*MismatchError)) {
+		t.Errorf("JSON でないものを、合わないとして返した（検査できないとして返す）: %v", err)
+	}
+}
+
+// TestCompileFile は、置き場の schema を読んで照らし、読めない置き場は検査できない誤りにするかを見る。
+func TestCompileFile(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "x.schema.json")
+	if err := os.WriteFile(p, []byte(`{"type": "integer", "minimum": 1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := CompileFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Check([]byte("1.0")); err != nil {
+		t.Errorf("integer が 1.0 を受けない（2020-12）: %v", err)
+	}
+	if err := c.Check([]byte("0")); err == nil {
+		t.Error("minimum の外を通した")
+	}
+	if _, err := CompileFile(filepath.Join(dir, "none.schema.json")); err == nil {
+		t.Error("無い置き場の schema を読めたことにした")
+	}
+}
+
+// TestKeywordsMatchLint は、検査器が読むキーワード（Keywords）と、schema の決まりの lint（package/lib/andon/schema_check.py の
+// ANNOTATIONS と KEYWORDS）が同じ顔ぶれかを見る。ずれると、lint が通した schema を検査器が断るか、その逆になる。
+func TestKeywordsMatchLint(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "package", "lib", "andon", "schema_check.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	start := strings.Index(src, "ANNOTATIONS = {")
+	end := strings.Index(src[max(start, 0):], "\n}\n")
+	if start < 0 || end < 0 {
+		t.Fatal("schema_check.py に ANNOTATIONS と KEYWORDS の並びが無い")
+	}
+	var lint []string
+	for _, m := range regexp.MustCompile(`"([^"]+)"`).FindAllStringSubmatch(src[start:start+end], -1) {
+		lint = append(lint, m[1])
+	}
+	slices.Sort(lint)
+	want := slices.Sorted(slices.Values(Keywords))
+	if !slices.Equal(lint, want) {
+		t.Fatalf("schema_check.py の lint %v と検査器の Keywords %v が違う", lint, want)
 	}
 }

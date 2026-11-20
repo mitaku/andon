@@ -7,15 +7,14 @@ package ledgertest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 
-	"github.com/google/jsonschema-go/jsonschema"
+	"andon/internal/contract"
 )
 
 // schema/ledger/ の名前。
@@ -24,51 +23,24 @@ const (
 	ReadySchema = "ready.v3.schema.json" // kanban ready --json の出力
 )
 
-var (
-	mu       sync.Mutex
-	resolved = map[string]*jsonschema.Resolved{}
-)
-
 // Dir は repo の schema/ledger/（このファイルの置き場から辿る。テストの cwd に依らない）。
 func Dir() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "schema", "ledger")
 }
 
-func compile(name string) (*jsonschema.Resolved, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	if r := resolved[name]; r != nil {
-		return r, nil
-	}
-	b, err := os.ReadFile(filepath.Join(Dir(), name))
-	if err != nil {
-		return nil, err
-	}
-	var s jsonschema.Schema
-	if err := json.Unmarshal(b, &s); err != nil {
-		return nil, fmt.Errorf("schema/ledger/%s が読めない: %v", name, err)
-	}
-	r, err := s.Resolve(nil)
-	if err != nil {
-		return nil, fmt.Errorf("schema/ledger/%s が読めない: %v", name, err)
-	}
-	resolved[name] = r
-	return r, nil
-}
-
 // Check は JSON の b が schema/ledger/<name> に合うかを確かめる。合わなければ、どこがどう合わないかの誤り。
+// 検査器は andon が約束の JSON を書く前に照らすのと同じもの（internal/contract）。
 func Check(name string, b []byte) error {
-	r, err := compile(name)
+	c, err := contract.CompileFile(filepath.Join(Dir(), name))
 	if err != nil {
 		return err
 	}
-	var v any
-	if err := json.Unmarshal(b, &v); err != nil {
-		return fmt.Errorf("JSON でない: %v", err)
-	}
-	if err := r.Validate(v); err != nil {
-		return fmt.Errorf("schema/ledger/%s に合わない: %v", name, err)
+	var mismatch *contract.MismatchError
+	if err := c.Check(b); errors.As(err, &mismatch) {
+		return fmt.Errorf("schema/ledger/%s に合わない: %s", name, mismatch.Reason)
+	} else if err != nil {
+		return err
 	}
 	return nil
 }
