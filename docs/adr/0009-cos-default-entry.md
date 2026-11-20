@@ -4,6 +4,22 @@
 - 主題: 人が話す相手を基本 Chief of Staff にし、何を作るかを詰めるときだけ Chief Engineer と直接話す形に、`package/skills/chief-of-staff/SKILL.md` と `package/skills/chief-engineer/SKILL.md` を寄せる。skill の変更は Andon のラインの変更（レベル C。人がマージ）。
 - 語は [design.md](../design.md) §0.1。機械が読む形（`contract.md`・`schema/`）は変えない。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 人の入口は Chief of Staff にし、構造の違う案が要る話は自分で Chief Engineer を起動する | `docs/design.md` §1.4・§1.8 | 生きている |
+| 2 | 経緯は `andon chief-engineer --brief -` で依頼書に渡す | `internal/chiefengineer/chiefengineer.go` | 生きている |
+| 3 | Chief Engineer は 1 プロジェクトに同時に複数いてよい | `internal/chiefengineer/chiefengineer.go` | 生きている |
+| 4 | 誤った振り分けはどちらの向きも既存の口で戻す | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
+| 5 | 依頼書の型に「担当は最初に repo を読む」の原則を足す | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
+| 6 | 同じ課題で 2 回差し戻して通らなければ、依頼書を直した新しい課題に切る | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
+| 7 | wiki の手順は Chief of Staff の skill に書き、command にしない | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 8 | skill の行数の上限は置かず、都度判断にする | `docs/design.md` §2.1 | 生きている |
+| 9 | Chief Engineer の枠は最小にし、「価値の仮説」は空の見出しで置く | `package/skills/chief-engineer/SKILL.md` | 役目を終えた（節の中身は ADR-0011 が決めた） |
+| 10 | `andon issue stop-check` は Chief Engineer の課題を止めない | `internal/issue/stopcheck.go` | 生きている |
+| 11 | `docs/design.md` の入口と Chief Engineer の起動の記述を直す | `docs/design.md` | 役目を終えた |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-09）: 「思想としては極力 CoS との会話だけにしたい。しかし CoS を全て挟んでも仕方がないので Chief Engineer とも必要に応じて会話する」「管理職には違いないんだけれども、優秀な参謀補佐官（CoS）に委譲をしていき、開発が進むようにしていくスタイル」「今はまだ Wiki 運用のアウターループがない」「仕事の進め方の整備も必要」。

@@ -4,6 +4,16 @@
 - 主題: Andon の skill（`package/skills/`。chief-of-staff・worker・chief-engineer・independent-review・ask-one-by-one・triage・glossary）を、建屋の中と、public にしたあとの外（他の人の手元）にどう届けるか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は変えない（skill は AI が読む Markdown。[contract.md](../contract.md) §0 原則1）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 範囲は建屋の中の継ぎ目に絞り、外は image が届く所に skill も届く、とだけ書く | この ADR | 生きている |
+| 2 | Claude Code 系は `/opt/andon` を plugin で読ませ、Codex 系は名前空間つきの symlink を張る | `package/.claude-plugin/plugin.json`・`package/templates/claude.md` | 生きている |
+| 3 | Claude Code 系は役の skill を `--append-system-prompt-file` で system prompt に足す | `package/templates/claude.md` | 生きている |
+| 4 | 作業側の別マシンは image で立て、skill を binary に埋め込まない | `embed.go` | 生きている |
+| 5 | PR 時の stale 検査は入れず、版の照合は別マシンへ出す課題で足す | この ADR | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task …`・`andon gate`・schema の検査器を打つ。だから skill と `andon` CLI と `schema/` の版が揃っていないと壊れる。建屋の中では `package/` が image に `/opt/andon` として焼かれ、`andon boot` が `~/.claude/skills/andon-<name>` の symlink を張り、プロファイルの最初の3行が `/opt/andon/skills/<name>/SKILL.md` を絶対パスで指す。つまり建屋の中では版の一致は「同じ image に入っている」ことで構造的に取れている。困りごとは建屋の外——作業側を別のマシンに出すとき、ホスト側、public にしたあとに他の人の手元——にどの経路で届けるか（人が同意 2026-11-05）。

@@ -5,6 +5,19 @@
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（記録だけの通知の置き場・ラベル `news.ack`）は「決めたこと」に形を書き、実装の課題が contract.md・`schema/`・dispatcher.md・chief-of-staff skill に写す（それまでは提案）。
 - 入力: 依頼書 A-0009（人の発言と Chief of Staff の推し。2026-11-09）、[dispatcher.md](../dispatcher.md) §2.2〜§3.1・§5、[contract.md](../contract.md) §0・§6・§8・§9、chief-of-staff skill §5 の「`<news>` の読み方」の表、[decisions.md](../decisions.md) の 2026-11-03（配達役を1つに）・2026-11-05（F8・`news.replied` の決め方）の行、`internal/dispatcher/`（今の拾い方。出典）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 通知の kind ごとに「届ける」か「記録だけ」かを固定する | `internal/dispatcher/route.go` | 生きている |
+| 2 | 記録だけの通知は dispatcher が `<slug>.recorded.jsonl` に追記する | `docs/dispatcher.md` | 生きている |
+| 3 | `<news>` の末尾の 1 行を `andon news ack` を使う文に改める | `internal/dispatcher/news.go` | 生きている |
+| 4 | 人に言うことが無ければ `andon news ack` を打ち、ラベル `news.ack` を書く | `docs/contract.md` | 生きている |
+| 5 | `news.replied` は渡したターンに `news.ack` があれば書く | `internal/dispatcher/ack.go` | 生きている |
+| 6 | 移行の間は `<no-reply>` も受け、次の版で外す | `docs/contract.md` | 役目を終えた（v0.0.9 で外した） |
+| 7 | 決めたこと 1 の表の 2 行を、実装にある項目に合わせて読む | `internal/dispatcher/route.go` | 生きている |
+| 8 | `news.replied` の「要実測」の結果と、同じ turn の前の ack を決める | `internal/dispatcher/ack.go` | 生きている |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-09）: 「no-reply と返すとかってどうなんだろうね。もっと上手いことできないのかな」。

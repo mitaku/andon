@@ -5,6 +5,16 @@
 - 語は [design.md](../design.md) §0.1（「建屋」は ADR-0005 前提 3 でセルに改めると決めた。この文書は今の語のまま）。機械が読む形は変えない（台帳の形式は [ledger.md](../ledger.md)、約束は [contract.md](../contract.md)）。台帳の置き場は決まっていく名前 `kanban/` で書く（今は `.flightdeck/`。改名は Y-141）。
 - 読み方: 1 回目の提案（同じ PR の最初の commit）は「直下は人のもの、台帳は git の外」だった。人との対話と先輩プロジェクト shepherdr の 4 世代の調査（出典）で前提が変わり、ADR-0005 と 2 本に分けて書き直した。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | `projects/<slug>/` を Chief of Staff の cwd にし、予約名を 4 つに絞る | `docs/operate.md` | 生きている |
+| 2 | memory は置かず、調べものの中間成果物は台帳の `library/` に置く | `docs/adr/0020-auto-memory-as-intake.md` | 覆された → ADR-0020（memory は置かない、の部分。`library/` は生きている） |
+| 3 | 生成ビューと納品物を「作り直せるか」と「URL で届けるか」で分ける | `docs/operate.md` | 生きている |
+| 4 | 製品の repo の `docs/` との線引きを 4 層＋外で決める | この ADR | 生きている |
+| 5 | 今ある建屋からの移し方は要件だけにする | `cmd/kanban/migrate.go` | 役目を終えた |
+
 ## 問題（人の言葉で。言い直しの段落）
 
 人（2026-11-06）: 「projects/<slug> 内のディレクトリ構成も定めておきたい」。そのあと「projects/<slug> のルートとして必要なファイルはもう少し広い: 設定・どの repo に書いてよいか・参考リポジトリ・委譲」「memory は不要。アウターループで wiki などに出す」「AGENTS.md を太らせるのは悪手」「CoS 以外は worktree で起動する」「projects/<slug> はプロジェクトルートとして `.claude` などを git 管理する」「wiki はプロジェクトには置かない」「その他は自由」「使い方を一定想像しておく」。
