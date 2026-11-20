@@ -201,6 +201,35 @@ kanban received "$id2#1" >/dev/null
 ok 'ready: 受け取られていない問いがあれば断り、課題は doing のまま'
 "$andon" issue ready "$id2" >/dev/null
 ok 'ready: review: off ならレビューを照合しない。問いを受け取ったあとは通る。review-request は断る'
+# ready は前の head についてのゲートの問いを数えずに review にするが、越えるのはその問いだけ。ready が問いを確かめてから
+# kanban review を打つまでの間に kanban ask で足された問いがあれば、review にせず doing のまま残す。
+# 間に問いを足すのは、kanban review の手前で kanban ask を打つ包み（PATH の先頭の kanban）で写す
+id5=$(as t5 kanban add '前の head のゲートの問いと、あとから足された問い' --profile codex)
+as t5 kanban set "$id5" status=doing review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+"$andon" issue report "$id5" --pr "$pr" <<<'## Report' >/dev/null
+HC_TERMINAL_ID=dispatcher kanban ask "$id5" 'マージするか' --kind line >/dev/null
+mkdir -p "kanban/issues/$id5/library/questions"
+jq -n --arg r "ゲートの記録 $PWD/kanban/issues/$id5/library/gate/0000000000000000000000000000000000000001.json" \
+    '{kind: "line", question: "マージするか", facts: [$r], options: [{label: "人が PR を読んでマージする", pick: true}, {label: "担当に直させる"}], from: "gate"}' \
+    > "kanban/issues/$id5/library/questions/1.json"
+mkdir -p "$tmp/late-bin"
+cat > "$tmp/late-bin/kanban" <<EOF
+#!/bin/sh
+[ "\$1" = review ] && "$kanban" ask "\$2" 'あとから足された問い' >/dev/null
+exec "$kanban" "\$@"
+EOF
+chmod +x "$tmp/late-bin/kanban"
+rc=0; PATH="$tmp/late-bin:$PATH" "$andon" issue ready "$id5" >"$tmp/out" 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q "$id5#2 (open)" "$tmp/err" || { cat "$tmp/err" >&2; die "ready: 確かめのあとに足された問いを越えた（rc $rc）"; }
+grep -q "$id5#1" "$tmp/err" && die 'ready: 前の head のゲートの問いで断った'
+[ "$(kanban show "$id5" --json | jq -r .issue.status)" = doing ] || die 'ready: 確かめのあとに足された問いがあるのに review にした'
+ok 'ready: 前の head のゲートの問いだけを越え、確かめのあとに足された問いがあれば review にせず doing のまま'
+kanban answer "$id5#2" A >/dev/null; kanban received "$id5#2" >/dev/null
+"$andon" issue ready "$id5" >/dev/null
+[ "$(kanban show "$id5" --json | jq -r .issue.status)" = review ] || die 'ready: 前の head のゲートの問いだけが残るのに review にしない'
+jq -se --arg t "$id5" '[.[] | select(.id == $t and .change.status == "review")] | last | .change.forced == [1]' kanban/log.jsonl >/dev/null ||
+    die 'ready: 越えた前の head のゲートの問いの番号を log.jsonl に残していない'
+ok 'ready: 足された問いを受け取ったあとは、前の head のゲートの問いだけを越えて review にし、越えた番号を log に残す'
 expect_fail "$id2 は review（andon issue review-request は doing の課題にだけ打てる" "$andon" issue review-request "$id2" <<<'## Report'
 [ "$(kanban show "$id2" --json | jq -r .issue.status)" = review ] || die '断ったのに status が変わった'
 ok 'review-request: review の課題には打てない（定義に無い移り方）'

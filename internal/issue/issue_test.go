@@ -14,7 +14,7 @@ import (
 )
 
 // ready の照合は偽の kanban と gh・本物の git で見る（振る舞いの全体は tests/andon-issue.sh）。
-// 偽の kanban は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> を置くだけ。
+// 偽の kanban は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> に引数を書くだけ。
 
 const fakeDeck = `#!/bin/sh
 case "$1" in
@@ -22,7 +22,7 @@ case "$1" in
   show) cat "$FAKE_ROOT/show-$2.json" ;;
   list) cat "$FAKE_ROOT/list.json" ;;
   questions) cat "$FAKE_ROOT/questions.json" 2>/dev/null || true ;;
-  review) touch "$FAKE_ROOT/reviewed-$2"; echo "$2 updated" ;;
+  review) echo "$@" > "$FAKE_ROOT/reviewed-$2"; echo "$2 updated" ;;
   report) cat > "$FAKE_ROOT/reported-$2"; echo "$2 reported" ;;
   *) exit 9 ;;
 esac
@@ -198,6 +198,39 @@ func TestReady(t *testing.T) {
 			}
 			if rc != 1 || reviewed || !strings.Contains(errs, c.want) {
 				t.Fatalf("want rc 1 with %q, got rc=%d reviewed=%v err=%q", c.want, rc, reviewed, errs)
+			}
+		})
+	}
+}
+
+// ready が前の head のゲートの問いを越えるときは、その問いだけを kanban review --past で名指す。--force は打たない
+// （確かめのあとに kanban ask で足された問いまで越えてしまう。名指しの外の問いは kanban が lock の中で断る）
+func TestReadyNamesOnlyStaleGateQuestions(t *testing.T) {
+	cases := []struct {
+		name string
+		mod  func(*fixture)
+		want string // 偽の kanban に届いた review の引数
+	}{
+		{"問いが無ければ名指さない", func(*fixture) {}, "review T-0001"},
+		{"前の head のゲートの問いだけを名指す", func(f *fixture) { f.gateQuestion("gate", other) }, "review T-0001 --past T-0001#1"},
+		{"前の head のゲートの問いがいくつあっても名指すのはそれだけ", func(f *fixture) {
+			f.gateQuestion("gate", other)
+			f.write("kanban/issues/T-0001/library/questions/3.json", js(map[string]any{"kind": "line", "question": "マージするか", "from": "gate",
+				"facts":   []string{gate.RecordFact(filepath.Join(f.root, "kanban/issues/T-0001/library/gate", other+".json"))},
+				"options": []any{map[string]any{"label": "人が PR を読んでマージする", "pick": true}, map[string]any{"label": "担当に直させる"}}}))
+			f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}, {"id": "T-0001", "n": 2, "status": "received"}, {"id": "T-0001", "n": 3, "status": "answered"}]`
+		}, "review T-0001 --past T-0001#1,T-0001#3"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			c.mod(f)
+			if rc, errs, reviewed := f.ready(); rc != 0 || !reviewed {
+				t.Fatalf("rc=%d reviewed=%v err=%q", rc, reviewed, errs)
+			}
+			b, _ := os.ReadFile(filepath.Join(f.root, "reviewed-T-0001"))
+			if got := strings.TrimSpace(string(b)); got != c.want {
+				t.Fatalf("kanban に %q、want %q", got, c.want)
 			}
 		})
 	}

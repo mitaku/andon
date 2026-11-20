@@ -378,3 +378,37 @@ func TestReviewStopsOnQuestions(t *testing.T) {
 	kanban(t, root, "ask", "W-0002", "again")
 	kanban(t, root, "set", "W-0002", "status=doing")
 }
+
+// --past moves past only the questions it names. A question not named (one asked after the caller
+// looked, as andon issue ready names the gate's questions about an earlier head) still keeps the
+// issue where it is, for review, set status=review and done alike.
+func TestPastMovesOnlyNamedQuestions(t *testing.T) {
+	root := newLedger(t)
+	kanban(t, root, "set", "W-0001", "status=doing")
+	kanban(t, root, "ask", "W-0001", "the gate's, about an earlier head")
+	kanban(t, root, "ask", "W-0001", "asked later")
+	for _, cmd := range [][]string{
+		{"review", "W-0001", "--past", "W-0001#1"},
+		{"set", "W-0001", "status=review", "--past", "W-0001#1"},
+		{"done", "W-0001", "--past", "W-1#1"},
+	} {
+		msg := kanbanFails(t, root, "", cmd...)
+		if !strings.Contains(msg, "W-0001#2 (open)") || strings.Contains(msg, "W-0001#1") {
+			t.Fatalf("%v: %q", cmd, msg)
+		}
+		if s := readYAML(t, taskFile(root, "W-0001"))["status"]; s != "doing" {
+			t.Fatalf("status after a refused %v: %v", cmd, s)
+		}
+	}
+	for _, bad := range []string{"W-0002#1", "W-0001", "W-0001#x", "W-0001#0"} {
+		if msg := kanbanFails(t, root, "", "review", "W-0001", "--past", bad); !strings.Contains(msg, "--past") {
+			t.Fatalf("--past %s: %q", bad, msg)
+		}
+	}
+	// Naming both (also over two flags, and a number not asked) moves it, and logs only the numbers moved past.
+	kanban(t, root, "review", "W-0001", "--past", "W-0001#1,W-0001#9", "--past", "W-0001#2")
+	lines := logLines(t, root)
+	if last := lines[len(lines)-1]["change"].(map[string]any); last["status"] != "review" || fmt.Sprint(last["forced"]) != "[1 2]" {
+		t.Fatalf("log: %v", last)
+	}
+}

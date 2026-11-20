@@ -35,7 +35,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
                                             status=done checks and frees what done does;
                                             status=review checks what review does
                                             after= on a queued issue that then waits on nothing moves it to todo
-  kanban review <id> | kanban done <id> [--force]  both refuse an issue with questions not received
+  kanban review <id> | kanban done <id> [--force | --past <id>#<n>,…]  both refuse an issue with questions
+                                            not received; --past moves past only the questions it names
   kanban report <id> [--append] < file      write report.md
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
                                             scope asks the Chief of Staff which candidates to fix)
@@ -689,6 +690,10 @@ func cmdSet(e env, a args) error {
 		return fail("usage: kanban set <id> key=value …  (empty value removes the key)")
 	}
 	id, pairs := ledger.CanonID(a.rest[0]), a.rest[1:]
+	past, err := pastOf(a, id)
+	if err != nil {
+		return err
+	}
 	cfg, err := readConfig(e.root)
 	if err != nil {
 		return err
@@ -751,7 +756,7 @@ func cmdSet(e env, a args) error {
 			if !done {
 				verb = "return it"
 			}
-			forced, err := closing(e.root, id, a.has("force"), verb)
+			forced, err := closing(e.root, id, a.has("force"), past, verb)
 			if err != nil {
 				return err
 			}
@@ -790,12 +795,16 @@ func cmdReview(e env, a args) error {
 	if err != nil {
 		return err
 	}
-	return cmdSet(e, args{flags: a.flags, rest: []string{id, "status=review"}})
+	return cmdSet(e, args{flags: a.flags, all: a.all, rest: []string{id, "status=review"}})
 }
 
 // cmdDone marks a task done; then any queued task with nothing left to wait for moves to the first column.
 func cmdDone(e env, a args) error {
 	id, err := need(a, "kanban done <id>")
+	if err != nil {
+		return err
+	}
+	past, err := pastOf(a, id)
 	if err != nil {
 		return err
 	}
@@ -810,7 +819,7 @@ func cmdDone(e env, a args) error {
 			return err
 		}
 		was := t.status()
-		forced, err := closing(e.root, id, a.has("force"), "close")
+		forced, err := closing(e.root, id, a.has("force"), past, "close")
 		if err != nil {
 			return err
 		}
@@ -848,9 +857,11 @@ func cmdDone(e env, a args) error {
 
 // closing is what an issue must pass to move to done (kanban done, set status=done) or into review
 // (kanban review, set status=review): a question not received keeps it where it is (docs/ledger.md,
-// Questions). force moves it anyway; the numbers it moved past come back, for the log. verb names
-// the move in the refusal ("close", "return it").
-func closing(root, id string, force bool, verb string) ([]int, error) {
+// Questions). force moves it anyway; past moves it past only the questions it names, so a question
+// asked after the caller looked still keeps it (the check runs under the ledger's lock, as kanban ask
+// does). The numbers it moved past come back, for the log. verb names the move in the refusal
+// ("close", "return it").
+func closing(root, id string, force bool, past map[int]bool, verb string) ([]int, error) {
 	q, err := readQuestions(root, id)
 	if err != nil {
 		if force {
@@ -859,10 +870,41 @@ func closing(root, id string, force bool, verb string) ([]int, error) {
 		return nil, fail("%s (--force to %s anyway)", firstLine(err.Error()), verb)
 	}
 	nums, names := notReceived(q)
-	if len(nums) > 0 && !force {
-		return nil, fail("%s has questions not received: %s (--force to %s anyway)", id, strings.Join(names, ", "), verb)
+	if force {
+		return nums, nil
 	}
-	return nums, nil
+	var moved []int
+	var held []string
+	for i, n := range nums {
+		if past[n] {
+			moved = append(moved, n)
+		} else {
+			held = append(held, names[i])
+		}
+	}
+	if len(held) > 0 {
+		return nil, fail("%s has questions not received: %s (--force to %s anyway)", id, strings.Join(held, ", "), verb)
+	}
+	return moved, nil
+}
+
+// pastOf reads --past <id>#<n>,… (each of them a question of the issue id) as the numbers closing may move past.
+func pastOf(a args, id string) (map[int]bool, error) {
+	past := map[int]bool{}
+	for _, v := range a.all["past"] {
+		for _, ref := range splitList(v) {
+			qid, ns, ok := strings.Cut(ref, "#")
+			n, err := strconv.Atoi(ns)
+			if !ok || err != nil || n < 1 {
+				return nil, fail("--past takes <id>#<n>,…: %s", ref)
+			}
+			if ledger.CanonID(qid) != id {
+				return nil, fail("--past names %s, a question of another issue than %s", ref, id)
+			}
+			past[n] = true
+		}
+	}
+	return past, nil
 }
 
 // freeWaiting moves each queued task that waited for id, done now, and has nothing left to wait
