@@ -281,6 +281,14 @@ if [ "$(ssh_dev 'echo $SHELL')" != /bin/bash ]; then
   echo 'FAIL image: ssh のセッションの SHELL が /bin/bash でない' >&2
   exit 1
 fi
+# (a1t) 時刻はセルの TZ（.env に無ければ compose の既定 Asia/Tokyo）で出る。exec は環境変数の TZ、
+# ssh は TZ を引き継がないので boot が向けた /etc/localtime で出る
+exec_tz=$(dc exec -T dev date +%Z)
+ssh_tz=$(ssh_dev 'echo "TZ=${TZ-<無い>}"; date +%Z')
+if [ "$exec_tz" != JST ] || [ "$ssh_tz" != "$(printf 'TZ=<無い>\nJST')" ]; then
+  echo "FAIL image: 時刻が JST で出ない（exec: $exec_tz / ssh: $ssh_tz）" >&2
+  exit 1
+fi
 if [ "$(dc exec -T dev getent passwd andon | cut -d: -f7)" != /bin/bash ]; then
   echo 'FAIL image: andon のログインシェルが /bin/bash でない' >&2
   exit 1
