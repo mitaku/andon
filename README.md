@@ -98,6 +98,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0037 Chief Engineer が自分で決める範囲を広げる](docs/adr/0037-chief-engineer-autonomy.md): 決定
   - [0038 Chief Engineer が設計の検討で statechart のモデルを使い、pstack と yomiyasu を全セルに配る](docs/adr/0038-statechart-in-chief-engineer-design.md): 決定
   - [0039 振り返りの直す課題の上限を外し、改善のペースを流量に合わせる](docs/adr/0039-retro-scale-with-flow.md): 決定
+  - [0040 「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く](docs/adr/0040-kanban-gate-version-words.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
