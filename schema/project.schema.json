@@ -85,6 +85,11 @@
           "description": "How many issues one triage may start. Read by andon triage apply (--max-issues overrides it for one run). Default 3.",
           "type": "integer",
           "minimum": 1
+        },
+        "retro_every": {
+          "description": "How many worker issues done since the previous retrospective collected make the dispatcher fire the routine retro (kanban routine run retro), besides its schedule. Read by the dispatcher. Default 25.",
+          "type": "integer",
+          "minimum": 1
         }
       }
     },

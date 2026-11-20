@@ -92,10 +92,10 @@ ok "scope: 文書だけならいつもの分、触ったものに関係する分
 # 1c. scope の重い検査（ADR-0032 決めたこと 4）: コードでは軽い検査を全部と、変えたパスを見る重い検査だけ
 [ "$(bash tests/lib/scope.sh --heavy | cut -d' ' -f1 | sort -u | tr '\n' ' ')" = "$(tr ' ' '\n' <<<"$heavy" | sort | tr '\n' ' ')" ] \
   || die "scope.sh の重い検査が $heavy でない: $(bash tests/lib/scope.sh --heavy | cut -d' ' -f1 | sort -u | tr '\n' ' ')"
-got=$(pick internal/retro/apply.go)
-for t in tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$got" "$t" && die "internal/retro/apply.go で $t: $got"; done
-has "$got" tests/andon-retro.sh || die "internal/retro/apply.go で andon-retro.sh が無い: $got"
-[ "$(wc -w <<<"$got")" -eq $((n_all - 5)) ] || die "internal/retro/apply.go で重い検査を除く全部にならない: $got"
+got=$(pick internal/measure/measure.go)
+for t in tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$got" "$t" && die "internal/measure/measure.go で $t: $got"; done
+has "$got" tests/andon-measure.sh || die "internal/measure/measure.go で andon-measure.sh が無い: $got"
+[ "$(wc -w <<<"$got")" -eq $((n_all - 5)) ] || die "internal/measure/measure.go で重い検査を除く全部にならない: $got"
 for t in tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh; do has "$(pick internal/dispatcher/loop.go)" "$t" || die "internal/dispatcher/loop.go で $t が無い"; done
 has "$(pick internal/dispatcher/loop.go)" tests/apply-main.sh && die "internal/dispatcher/loop.go で apply-main.sh"
 got=$(pick package/skills/worker/SKILL.md)

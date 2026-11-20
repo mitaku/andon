@@ -422,7 +422,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
       "by": "owner", "at": "2026-11-05", "until": "2026-12-31",
       "evidence": "移行中はデプロイを人が見る",
       "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]},
- "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3},
+ "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3, "retro_every": 25},
  "signals": [
    {"source": "github-ci", "repo": "github.com/example/sample-site", "weight": "now"},
    {"source": "github-issues", "repo": "github.com/example/sample-site", "weight": "later", "every": 30, "filter": "label:bug", "write_back": true},
@@ -436,7 +436,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon issue start` は課題の `repo` がここに無ければ起動しない。台帳の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
 | `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部人） |
-| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる） |
+| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる）・`retro_every`（前の振り返りが集めたあとに片付いた担当の課題がこの件数に達したら、dispatcher がルーチン `retro` を撃つ。1 以上。既定 25。読むのは dispatcher。数え方は [dispatcher.md](dispatcher.md) §2.1.1 の 3a。`project.json` が信じられない・形が違うときは既定で数え、ログに 1 行） |
 | `signals` | 任意 | 外の信号の出所（下の表。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 11）。無い・空なら何も取りに行かない |
 
 `signals[]` の1件（読むのは `andon signal collect`。§15）:

@@ -1,9 +1,10 @@
 # 拾い方と判定は retro skill、パターンの一覧の形と command が断る線は docs/contract.md §21 が正。ここは流れだけ（ADR-0028 決めたこと 8）。
 name: retrospective
 title: ふりかえり（Retrospective）
-purpose: 毎朝、直近の記録から別々に 2 回以上起きたつまずきを拾い、直す課題に切る
+purpose: 片付いた担当の課題が決めた件数たまるごとと毎朝、直近の記録から別々に 2 回以上起きたつまずきを拾い、直す課題に切る
 triggers:
-  # ルーチン retro（毎朝 1 回）が足した課題の ready
+  # ルーチン retro が足した課題の ready。足すのは毎朝 1 回（schedule）と、前の振り返りのあとに片付いた担当の課題が
+  # project.json の chief_of_staff.retro_every 件（既定 25）たまったときの dispatcher の巡（dispatcher.md §2.1.1 の 3a）
   - name: routine
     kind: notification
     notification: ready

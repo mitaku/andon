@@ -264,38 +264,16 @@ func Collect(o Options) (*Input, error) {
 		byID[t.id] = t
 	}
 	done := doneTimes(r.log())
-	retros := map[string]bool{}
-	for _, t := range tasks {
-		if t.routine == retroName || exists(filepath.Join(r.dir, "issues", t.id, "library", retroFile)) {
-			retros[t.id] = true
-		}
-	}
-	// 前の振り返り: 期間の終わりまでに片付いた振り返りの課題のうち最後（自分自身は数えない）
-	var prev *PrevRetro
-	for id := range retros {
-		at, ok := done[id]
-		if !ok || byID[id].status != "done" || id == o.Exclude || at.After(until) {
-			continue
-		}
-		if prev == nil || at.After(mustTime(prev.DoneAt)) || (at.Equal(mustTime(prev.DoneAt)) && id > prev.Issue) {
-			prev = &PrevRetro{Issue: id, DoneAt: at.UTC().Format(time.RFC3339)}
-		}
-	}
-	// 境目: 前の振り返りが集めた時刻（その retro.json の until）。読めなければ片付いた時刻（ADR-0039 決めたこと 6）。
-	var boundary time.Time
+	retros := r.retros(tasks)
+	e := r.edgeOf(byID, retros, done, o.Exclude, until)
+	prev, boundary := e.prev, e.boundary
 	recurred := map[string]int{}
 	if prev != nil {
 		in.PreviousRetro = &PrevRetroIn{Issue: prev.Issue, DoneAt: prev.DoneAt}
-		boundary = mustTime(prev.DoneAt)
-		if p := r.prevPatterns(prev.Issue); p != nil {
-			if pu := mustTime(p.Until); !pu.After(boundary) {
-				boundary = pu
-				in.PreviousRetro.Until = &p.Until
-				for _, f := range p.Fixes {
-					recurred[f.Issue] = *f.Recurred
-				}
-			} else {
-				r.skip(r.rel(filepath.Join(r.dir, "issues", prev.Issue, "library", retroFile)), "until が片付いた時刻より後。境目は片付いた時刻にする")
+		if e.pat != nil {
+			in.PreviousRetro.Until = &e.pat.Until
+			for _, f := range e.pat.Fixes {
+				recurred[f.Issue] = *f.Recurred
 			}
 		}
 		b := boundary.UTC().Format(time.RFC3339)
@@ -306,8 +284,7 @@ func Collect(o Options) (*Input, error) {
 	applied, appliedErr := readApplied(o.Package)
 	var cands []*task
 	for _, t := range tasks {
-		at, ok := done[t.id]
-		if t.status != "done" || !t.worker() || retros[t.id] || !ok || at.Before(since) || at.After(until) {
+		if !inWindow(t, done, retros, since, until) {
 			continue
 		}
 		if o.Issue != "" && t.id != o.Issue {
@@ -327,7 +304,7 @@ func Collect(o Options) (*Input, error) {
 	full := map[string]bool{}
 	var fresh []*task
 	for _, t := range cands {
-		if o.Issue != "" || prev == nil || done[t.id].After(boundary) {
+		if o.Issue != "" || e.fresh(done[t.id]) {
 			fresh = append(fresh, t)
 		}
 	}
@@ -405,6 +382,100 @@ func (r *reader) prevPatterns(id string) *Patterns {
 	return p
 }
 
+// retros は振り返りの課題（routine が retro か、library/retro.json があるもの）。
+func (r *reader) retros(tasks []*task) map[string]bool {
+	out := map[string]bool{}
+	for _, t := range tasks {
+		if t.routine == retroName || exists(filepath.Join(r.dir, "issues", t.id, "library", retroFile)) {
+			out[t.id] = true
+		}
+	}
+	return out
+}
+
+// edge は前の振り返りと境目（ADR-0039 決めたこと 6）。pat は境目にした前の振り返りの retro.json（until を境目にしたときだけ）。
+type edge struct {
+	prev     *PrevRetro
+	pat      *Patterns
+	boundary time.Time
+}
+
+// fresh は、at に片付いた束が全文で読む新しい束か（前の振り返りが無ければ全部）。
+func (e edge) fresh(at time.Time) bool {
+	return e.prev == nil || at.After(e.boundary)
+}
+
+// edgeOf は前の振り返り（期間の終わりまでに片付いた振り返りの課題のうち最後。exclude は数えない）と境目を決める。
+// 境目は前の振り返りが集めた時刻（その retro.json の until）で、読めなければ片付いた時刻。
+func (r *reader) edgeOf(byID map[string]*task, retros map[string]bool, done map[string]time.Time, exclude string, until time.Time) edge {
+	var e edge
+	for id := range retros {
+		at, ok := done[id]
+		if !ok || byID[id].status != "done" || id == exclude || at.After(until) {
+			continue
+		}
+		if e.prev == nil || at.After(mustTime(e.prev.DoneAt)) || (at.Equal(mustTime(e.prev.DoneAt)) && id > e.prev.Issue) {
+			e.prev = &PrevRetro{Issue: id, DoneAt: at.UTC().Format(time.RFC3339)}
+		}
+	}
+	if e.prev == nil {
+		return e
+	}
+	e.boundary = mustTime(e.prev.DoneAt)
+	if p := r.prevPatterns(e.prev.Issue); p != nil {
+		if pu := mustTime(p.Until); !pu.After(e.boundary) {
+			e.boundary, e.pat = pu, p
+		} else {
+			r.skip(r.rel(filepath.Join(r.dir, "issues", e.prev.Issue, "library", retroFile)), "until が片付いた時刻より後。境目は片付いた時刻にする")
+		}
+	}
+	return e
+}
+
+// inWindow は、t が期間（since〜until）に片付いた担当の課題で、振り返りの課題でないか（束にする課題）。
+func inWindow(t *task, done map[string]time.Time, retros map[string]bool, since, until time.Time) bool {
+	at, ok := done[t.id]
+	return ok && t.status == "done" && t.worker() && !retros[t.id] && !at.Before(since) && !at.After(until)
+}
+
+// Fresh は、次の振り返りが全文で読む束の数を数える（dispatcher の巡の件数のきっかけ。ADR-0039 決めたこと 8）。
+// 数えるのは、直近 defaultDays 日に片付いた担当の課題のうち、境目より後に片付いたもの。選び方と境目は collect と同じで、
+// fullLimit では切らない。issues は台帳の課題の一覧（kanban list --all --json）、rows は log.jsonl。
+// ファイルは課題ごとの library/retro.json の有無と、前の振り返りの retro.json だけを読む。
+func Fresh(root string, issues []ledger.Issue, rows []ledger.Row, now time.Time) int {
+	r := &reader{o: Options{Root: root}, dir: filepath.Join(root, "kanban")}
+	until := now.UTC()
+	since := until.Add(-defaultDays * 24 * time.Hour)
+	tasks := make([]*task, 0, len(issues))
+	byID := map[string]*task{}
+	for _, raw := range issues {
+		id := ledger.CanonID(raw.Str("id"))
+		if id == "" {
+			continue
+		}
+		t := taskOf(id, raw)
+		tasks = append(tasks, t)
+		byID[id] = t
+	}
+	done := doneTimes(rows)
+	retros := r.retros(tasks)
+	e := r.edgeOf(byID, retros, done, "", until)
+	n := 0
+	for _, t := range tasks {
+		if inWindow(t, done, retros, since, until) && e.fresh(done[t.id]) {
+			n++
+		}
+	}
+	return n
+}
+
+// taskOf は issue.yaml の項目から読む所を取る。
+func taskOf(id string, raw ledger.Issue) *task {
+	return &task{id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
+		parent: ledger.CanonID(raw.Str("parent")), who: raw.Str("who"), repo: raw.Str("repo"),
+		worktree: raw.Path("worktree"), routine: raw.Str("routine"), estimate: raw.Str("estimate")}
+}
+
 // tasks は issues/*/issue.yaml を id の順に読む。読めない課題は飛ばす。
 func (r *reader) tasks() []*task {
 	ents, err := os.ReadDir(filepath.Join(r.dir, "issues"))
@@ -430,10 +501,7 @@ func (r *reader) tasks() []*task {
 			r.skip(r.rel(path), "issue.yaml が YAML でない")
 			continue
 		}
-		t := &task{id: e.Name(), title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
-			parent: ledger.CanonID(raw.Str("parent")), who: raw.Str("who"), repo: raw.Str("repo"),
-			worktree: raw.Path("worktree"), routine: raw.Str("routine"), estimate: raw.Str("estimate")}
-		out = append(out, t)
+		out = append(out, taskOf(e.Name(), raw))
 	}
 	sort.Slice(out, func(i, j int) bool { return ledger.IDLess(out[i].id, out[j].id) })
 	return out

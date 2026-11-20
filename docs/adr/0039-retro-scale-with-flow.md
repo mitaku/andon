@@ -14,8 +14,8 @@
 | 4 | 振り返りの直す課題に、並行の枠を別に持たせない | この ADR | 生きている |
 | 5 | Chief of Staff の検収は、直すパターンごとに根拠を 1 件以上開く | `package/skills/chief-of-staff/playbooks/retro.md` | 生きている |
 | 6 | 振り返りの入力は、前の振り返りのあとの束を全文で、それより前の束を要約で出す | `internal/retro/retro.go`・`docs/contract.md` §20・`package/skills/retro/SKILL.md` | 生きている |
-| 7 | 振り返りは、片付いた担当の課題が 25 件たまるごとに回し、少ない日も毎朝 1 回は回す | この ADR | まだ実装していない |
-| 8 | 件数のきっかけは dispatcher の巡が数えて撃ち、件数はプロジェクトの設定に置く | この ADR | まだ実装していない |
+| 7 | 振り返りは、片付いた担当の課題が 25 件たまるごとに回し、少ない日も毎朝 1 回は回す | `internal/dispatcher/retro.go`・`docs/dispatcher.md` §2.1.1・`process/workstreams/retrospective.yaml` | 生きている |
+| 8 | 件数のきっかけは dispatcher の巡が数えて撃ち、件数はプロジェクトの設定に置く | `internal/dispatcher/retro.go`・`internal/retro/retro.go`・`docs/dispatcher.md` §2.1.1・`docs/contract.md` §11・`schema/project.schema.json` | 生きている |
 | 9 | Andon を開発するセルで、skill に触れる PR のレベルを C から B に下げ、オーナーのマージを外す | この ADR | まだ実装していない |
 | 10 | 下げ方はセルの条件表の上書きの 1 行にし、パッケージの既定の条件表は変えない | この ADR | 生きている |
 | 11 | 自動でマージした振り返りの直しは、Chief of Staff がオーナーへの知らせに 1 行で載せる | `package/skills/chief-of-staff/playbooks/retro.md` | 生きている |
