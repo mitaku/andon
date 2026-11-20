@@ -76,6 +76,41 @@ func TestDrainStopUnderLockOtherTurnRetries(t *testing.T) {
 	}
 }
 
+// 届け直した <news>（Again）も終わりを見ないまま次の別の turn が来たら、もう届け直さずに捨てる（届け直しは1回だけ）。
+func TestDrainRetriesOnlyOnce(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HC_TERMINAL_ID", "")
+	const slug = "demo"
+	st, _, _ := LoadState(slug)
+	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
+	if err := st.Save(slug); err != nil {
+		t.Fatal(err)
+	}
+	// 1. 送信で渡す（1回目）
+	if out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p1"}); err != nil || !strings.Contains(asContext(out), "A-0001 report") {
+		t.Fatalf("送信で渡さない: %v %v", out, err)
+	}
+	// 2. 終わりを見ないまま別の turn: 1回だけ届け直す
+	if out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"}); err != nil || !strings.Contains(asContext(out), "A-0001 report") {
+		t.Fatalf("終わりを見ていない <news> を届け直さない: %v %v", out, err)
+	}
+	if st, _, _ := LoadState(slug); st.Hook == nil || len(st.Hook.Again) != 1 || len(st.Hook.News) != 0 {
+		t.Fatalf("届け直した通知が Again の印になっていない: %+v", st.Hook)
+	}
+	// 3. 届け直した turn の終わりも見ないまま、また別の turn: もう届け直さない
+	out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(asContext(out), "A-0001 report") {
+		t.Fatalf("届け直した <news> を次の別の turn でもう一度渡した: %s", asContext(out))
+	}
+	if st, _, _ := LoadState(slug); st.Hook != nil || len(st.Pending) != 0 {
+		t.Fatalf("届け直した通知が控えに残った: hook=%+v pending=%+v", st.Hook, st.Pending)
+	}
+}
+
 func asContext(out any) string {
 	m, _ := out.(map[string]any)
 	h, _ := m["hookSpecificOutput"].(map[string]any)
