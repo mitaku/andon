@@ -91,6 +91,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0030 トリアージが誤って閉じた項目を拾う網](docs/adr/0030-triage-close-safety-net.md): 決定
   - [0031 Chief of Staff をセルに1人にする](docs/adr/0031-cell-chief-of-staff.md): 提案
   - [0032 書き終えてから main に入るまでの時間を縮める](docs/adr/0032-shorten-time-to-merge.md): 決定
+  - [0033 ADR の棚卸しと記述の整理](docs/adr/0033-adr-inventory-and-slimming.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
