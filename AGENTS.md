@@ -15,3 +15,9 @@
 - `package/` の変更はセルで実測する。
 - 課題の一生の動き（finish・resume・ゲートの返し方など、`model/IssueLife.tla` が写しているコード）を変える PR は、同じ PR で `model/` のモデルも直す。回すのは `model/check`（ADR-0025）。規則（`model/IssueRules.*`）・控え（`model/expected.txt`）・対応表（`model/issue-map.txt`）を弱める・消す変更は、レベル C で人が見る。
 - main へ直接 push しない。マージは人がする。
+- `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。
+- 値の表は `|` で割るので、`tests/schema.sh` の jq の式に `|` を書かず、`+=` や `del()` で書く。
+- 起動の口を足すときは、Go の検査が `hc` の呼び出しの並びを固定しているので、`hc` を余分に呼ぶと `internal/issue`・`chiefengineer`・`chiefofstaff` の検査が落ちる。
+- `tests/apply-main.sh` は `git archive HEAD` で試しの repo を作るので、Go の変更を検査するには先に commit する。
+- `tests/andon-dispatcher.sh` の偽の `gh` は `pr view 7 --json state,mergeCommit` の回数を settle の検査が数えるので、新しい問い合わせは欄を変えて別の case にする。
+- 検査の中の偽の鍵と秘密鍵の見出しは、文字列を組み立てて作る（そのまま書くと `tests/public.sh` に当たる）。
