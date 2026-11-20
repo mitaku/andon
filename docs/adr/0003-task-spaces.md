@@ -4,6 +4,15 @@
 - 主題: 担当とレビュアーを人の Herdr App のどの Space・tab に置くか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は端末のラベル（[contract.md](../contract.md) §8）。
 
+## 決定の索引
+
+| # | 何を決めたか | 今の正 | 今 |
+|---|---|---|---|
+| 1 | 作業側の Space を課題ごとに 1 つにし、id と名前を課題で決める | `internal/issue/start.go`・`docs/contract.md` §8 | 生きている |
+| 2 | tab は担当の 1 つにし、レビュアーは担当と同じ Space・tab に並べる | `internal/dispatcher/loop.go`・`docs/contract.md` §8 | 生きている |
+| 3 | 人に担当の端末を指すときは `<id> <題> / <id>` の形で言う | `internal/issue/start.go`・`docs/contract.md` §8 | 生きている |
+| 4 | 別のマシンに出す担当も、置き場のラベルはマシンに依らない | `internal/issue/start.go` | 生きている |
+
 ## 問題
 
 ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab をタスクごとにした。App の Space は 1 つの作業の置き場で、Files・Changes の欄は Space のフォルダ（最初の端末の cwd の git の根）を指す。作業側の Space が 1 つだと、そのフォルダは最初に起動した担当の worktree になり、ほかのタスクの worktree は App から見えない。人はタスク（＝worktree）ごとに Space があるほうがよいと言った（人 2026-11-06。P7 のあと）。
