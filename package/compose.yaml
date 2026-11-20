@@ -1,6 +1,6 @@
 # セルの compose（パッケージの持ち物）。セルの bin/bootstrap がイメージから .andon/compose.yaml に取り出して使う。
 # セルの repo では書き換えない。セルに固有のサービスはセルの compose.override.yaml に書く（bootstrap が重ねる）。
-# 番号とタイムゾーンはセルの .env（SSH_PORT・PORTLESS_PORT・FILES_PORT・TZ）。ANDON_IMAGE・ANDON_SLUG は bootstrap が渡す。
+# 番号とタイムゾーンはセルの .env（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。ANDON_IMAGE・ANDON_SLUG は bootstrap が渡す。
 services:
   dev:
     image: ${ANDON_IMAGE:?bin/bootstrap から起動する}
@@ -18,8 +18,9 @@ services:
     environment:
       # セルの local/aqua.yaml（Dockerfile が /opt/andon-local に写す）をイメージの備品に重ねる
       AQUA_GLOBAL_CONFIG: /opt/andon-local/aqua.yaml:/opt/andon-aqua/aqua.yaml
-      # タイムゾーン（IANA の名前）。セルの .env の TZ で変える。ssh のセッションには sshd が自分の TZ を渡す（boot が sudo 越しに起動し、sudo は TZ を残す）
-      TZ: ${TZ:-Asia/Tokyo}
+      # タイムゾーン（IANA の名前）。セルの .env の CELL_TZ で変える。鍵を TZ にしないのは、compose が .env よりホストのシェルの
+      # 変数を先に使い、ホストの TZ がセルに入るため。ssh のセッションには sshd が自分の TZ を渡す（boot が sudo 越しに起動し、sudo は TZ を残す）
+      TZ: ${CELL_TZ:-Asia/Tokyo}
     volumes:
       - .:/workspace
       # ログインと設定は作り直しても残す（HOME は /opt/andon-home）

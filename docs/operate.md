@@ -113,9 +113,9 @@ bin/bootstrap               # 初回: image を焼く → compose.yaml を取り
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）はセルの `.env` に書く。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
-タイムゾーンはセルの `.env` の `TZ` に IANA の名前で書く（書かなければ `Asia/Tokyo`）。`date`・git の commit・ssh のシェルの時刻がこれで出る。変えたら `bin/bootstrap` で作り直す（焼き直しは要らない）。ホストのシェルに `TZ` があると、compose は `.env` よりそちらを使う。
+タイムゾーンはセルの `.env` の `CELL_TZ` に IANA の名前で書く（書かなければ `Asia/Tokyo`）。コンテナの `TZ` になり、`date`・git の commit・ssh のシェルの時刻がこれで出る。鍵の名前を `TZ` にしないのは、ホストのシェルの `TZ` がセルに入らないようにするため（compose は `.env` よりホストのシェルの変数を先に使う）。動いているセルで変えたら、`bin/bootstrap down` のあと `bin/bootstrap` で作り直す（`bin/bootstrap` だけでは、動いているコンテナをそのまま使う。焼き直しは要らない）。
 
-台帳の `config.yaml` の `timezone` はセルの `TZ` と別のもので、食い違っても片方に揃え直さない。dispatcher のログ・routine の `schedule`・`not_before` は台帳の `timezone` で、それ以外の時刻はセルの `TZ` で出る。揃えたいなら人が両方を同じ値に書く。
+台帳の `config.yaml` の `timezone` はセルの `CELL_TZ` と別のもので、食い違っても片方に揃え直さない。dispatcher のログ・routine の `schedule`・`not_before` は台帳の `timezone` で、それ以外の時刻はセルの `CELL_TZ` で出る。揃えたいなら人が両方を同じ値に書く。
 
 **`.env` に番号を書く前に、ホストで使われている番号を確かめる**（既定は `SSH_PORT=2222`・`PORTLESS_PORT=1355`。ほかのセル・別の docker・ホストのほかのものと同じ番号だと、起動がポート使用中で落ちる）。
 
