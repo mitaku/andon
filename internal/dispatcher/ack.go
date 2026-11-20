@@ -11,12 +11,12 @@ import (
 
 // NewsUsage は andon news の使い方。
 const NewsUsage = "usage: andon news ack\n" +
-	"Chief of Staff が、届いた <news> に人へ言うことが無いときに打つ（ADR-0010 決めたこと 4）。\n" +
+	"Chief of Staff が、届いた <news> にオーナーへ言うことが無いときに打つ（ADR-0010 決めたこと 4）。\n" +
 	"自分の端末（HC_TERMINAL_ID）にラベル news.ack=<turn>（いまの hc の turn）を書く。dispatcher（drain と見回り）は、\n" +
 	"<news> を渡したときに控えた turn とこの値が同じなら、そのターンに news.replied を書く。\n" +
 	"ラベル role=chief-of-staff の無い端末では書かずに終了コード 1。\n"
 
-// AckLabel は Chief of Staff の「人に言うことが無い」の申告（contract.md §8）。
+// AckLabel は Chief of Staff の「オーナーに言うことが無い」の申告（contract.md §8）。
 const AckLabel = "news.ack"
 
 // NewsMain は andon news。

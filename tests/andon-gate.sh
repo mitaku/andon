@@ -75,7 +75,7 @@ pr() {
     git -C "$tmp/wt" fetch -q origin && git -C "$tmp/wt" checkout -q "$head"
 }
 
-# セルの repo（人のもの）と台帳
+# セルの repo（オーナーのもの）と台帳
 git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' > "$tmp/plant/andon.toml"
 echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
@@ -119,7 +119,7 @@ HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
 "$andon" issue ready "$id" >/dev/null
 unset HC_TERMINAL_ID
 
-# 2. 委譲が無ければ approve にならない（全部人）
+# 2. 委譲が無ければ approve にならない（全部オーナー）
 got=$(gate "$id"); expect 4 needs_human 'delegation: merge=none < tier B'
 rec="$lib/gate/$head.json"
 jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and (.review | has("issue") and (has("task") | not)) and .checks == [] and .merged == false' "$rec" >/dev/null
@@ -128,11 +128,16 @@ ok '委譲が無ければ needs_human（記録を書き、status と comment を
 # ADR-0026 A5: PR のコメントと commit status の説明文は外の人が読む文（内輪の語が無い。頭は andon gate: ）。記録の文は今までどおり
 inside='needs_human|tier|delegation|report\.json|issue\.yaml|条件表'
 jq -r '.decision, .reasons[]' "$rec" | grep -qE "$inside" || die '記録の文に内輪の語が無い（下の検査が何も見ていない）'
-head -n 1 "$tmp/gh/bodies" | grep -q '^andon gate: \*\*人の判断が要る変更です\*\*' || die "コメントの見出しが違う: $(cat "$tmp/gh/bodies")"
+head -n 1 "$tmp/gh/bodies" | grep -q '^andon gate: \*\*メンテナーの判断が要る変更です\*\*' || die "コメントの見出しが違う: $(cat "$tmp/gh/bodies")"
 ! grep -iE "$inside" "$tmp/gh/bodies" || die "コメントに内輪の語: $(cat "$tmp/gh/bodies")"
-grep 'status ' "$tmp/gh/posted" | grep -q 'description=andon gate: 人の判断が要る変更です' || die "status の説明文が違う: $(cat "$tmp/gh/posted")"
+grep 'status ' "$tmp/gh/posted" | grep -q 'description=andon gate: メンテナーの判断が要る変更です' || die "status の説明文が違う: $(cat "$tmp/gh/posted")"
 ! grep 'status ' "$tmp/gh/posted" | grep -iE "$inside" || die "status の説明文に内輪の語: $(cat "$tmp/gh/posted")"
 ok 'needs_human: コメントと commit status の説明文に内輪の語が出ない（頭は andon gate: 。記録の文は変えない。ADR-0026 A5）'
+# ADR-0036 A4: 外の読み手には役をメンテナーと書く。セルの中の語「人」「オーナー」はコメントにも status にも出ない
+grep -qE '人|オーナー' <<<'andon gate: **人の判断が要る変更です**' || die '役の語の検査が古い見出しに当たらない（下の検査が何も見ていない）'
+! grep -E '人|オーナー' "$tmp/gh/bodies" || die "コメントに役の語: $(cat "$tmp/gh/bodies")"
+! grep 'status ' "$tmp/gh/posted" | grep -E '人|オーナー' || die "status の説明文に役の語: $(cat "$tmp/gh/posted")"
+ok 'needs_human: コメントの見出しは「メンテナーの判断が要る変更です」で、コメントと status に「人」「オーナー」が出ない（ADR-0036 A4）'
 
 # 2a. base と作者は checks と同じ GraphQL の既定ブランチ・viewer と比べる（REST の repos/<slug>・user は打たない。打てば偽の gh が 99 で落ちる）
 cp "$tmp/gh/view.json" "$tmp/view0.json"
@@ -155,10 +160,10 @@ expect 4 needs_human 'ほかの run の記録'
 [ "$(wc -l < "$tmp/gh/posted")" = "$posted" ] && jq -e '.reasons == ["ほかの run の記録"]' "$rec" >/dev/null || die "lock を待つ間に書かれた記録を上書きした・PR に二重に付けた: $(tail -2 "$tmp/gh/posted")"
 ok '同時に打たれたゲートは lock を待ち、待つ間にほかが書いた同じ head の記録を返す（上書きしない・PR に二重に付けない）'
 
-# 3. andon delegate: 人が委譲を書く（project.json の delegation。project.json は先に人が書く）
+# 3. andon delegate: オーナーが委譲を書く（project.json の delegation。project.json は先にオーナーが書く）
 rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'project.json が無い' "$tmp/err" && [ ! -e project.json ] || die 'project.json が無いのに書けた'
-ok 'delegate: project.json が無ければ作らない（先に人が書く）'
+ok 'delegate: project.json が無ければ作らない（先にオーナーが書く）'
 # 移す前の delegation.json は、owner が commit していても読まない（無委譲）
 echo '{"version": 1, "project": "demo", "preset": "work", "grants": [{"id": "d1", "scope": "merge", "value": "B", "by": "owner", "at": "2026-11-05", "evidence": "x"}]}' > delegation.json
 as_owner git -C "$tmp/plant" add projects/demo/delegation.json; as_owner git -C "$tmp/plant" commit -qm 'legacy delegation.json'
@@ -175,11 +180,11 @@ rc=0; HC_TERMINAL_ID=t5 "$andon" delegate grant merge B --evidence x --project d
 ok 'delegate: Chief of Staff・担当の端末（role= / issue=）では打てない'
 as_owner "$andon" delegate grant merge B --evidence '2026-11-05 の対話' >/dev/null
 jq -e '.delegation | .version == 1 and .project == "demo" and .grants[0].id == "d1" and .grants[0].value == "B" and .grants[0].until == null' project.json >/dev/null
-jq -e '.project == {title: "Demo", prefix: "D"} and .repos == ["github.com/example/app"] and .references == ["https://example.com/spec"]' project.json >/dev/null || die "人が書いたキーを変えた: $(cat project.json)"
+jq -e '.project == {title: "Demo", prefix: "D"} and .repos == ["github.com/example/app"] and .references == ["https://example.com/spec"]' project.json >/dev/null || die "オーナーが書いたキーを変えた: $(cat project.json)"
 [ ! -e delegation.md ] && [ "$(git -C "$tmp/plant" show --name-only --format= HEAD)" = projects/demo/project.json ] || die 'project.json のほかを書いた'
 git -C "$tmp/plant" log -1 --format=%B | grep -q 'evidence: 2026-11-05 の対話'
 emit project.json project.json
-ok 'delegate grant: project.json の delegation だけを書き、根拠つきで commit する（cwd から slug。ほかのキーは人のまま）'
+ok 'delegate grant: project.json の delegation だけを書き、根拠つきで commit する（cwd から slug。ほかのキーはオーナーのまま）'
 rc=0; as_owner "$andon" delegate narrow merge C --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '広げない' "$tmp/err" || die 'narrow で広げられた'
 rc=0; as_owner "$andon" delegate grant irreversible delete-remote --evidence x >/dev/null 2>"$tmp/err" || rc=$?
@@ -190,7 +195,7 @@ as_owner git -C "$tmp/plant" add projects/andon/project.json; as_owner git -C "$
 rc=0; as_owner "$andon" delegate grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'B まで' "$tmp/err" || die 'andon プロジェクトに merge C を委譲できた'
 ok 'delegate: narrow は広げない・delete-remote と andon の merge C は断る'
-# 作業ツリーの変更（エージェントが repos を足した、など）を人の commit に混ぜない。HEAD が owner の commit でなければ書かない
+# 作業ツリーの変更（エージェントが repos を足した、など）をオーナーの commit に混ぜない。HEAD が owner の commit でなければ書かない
 jq '.repos += ["github.com/example/other"]' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json
 rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'commit していない変更がある' "$tmp/err" || die "未 commit の変更があるのに書けた: $(cat "$tmp/err")"
@@ -199,7 +204,7 @@ rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$
 [ "$rc" = 1 ] && grep -q 'owner でない' "$tmp/err" || die "owner でない HEAD の上に書けた: $(cat "$tmp/err")"
 as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
 jq -e '.repos == ["github.com/example/app"] and (.delegation.grants | length) == 1' project.json >/dev/null || die "戻っていない: $(cat project.json)"
-ok 'delegate: project.json に未 commit の変更がある・HEAD が owner の commit でなければ書かない（ほかの変更を人の commit に混ぜない）'
+ok 'delegate: project.json に未 commit の変更がある・HEAD が owner の commit でなければ書かない（ほかの変更をオーナーの commit に混ぜない）'
 "$andon" delegate show --json | jq -e '.trusted and .preset == "work" and .effective.merge == "B" and .effective.deploy == "none"' >/dev/null
 ok 'delegate show: HEAD の委譲を読み手と同じに読む'
 

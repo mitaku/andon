@@ -32,7 +32,7 @@ type Item struct {
 	Commit  string `json:"commit,omitempty"`
 	Text    string `json:"text"`
 	AgeDays int64  `json:"age_days"`
-	// kind: signal の項目だけ: 人と担当が読む所と、text（出所の題）が外の人の文であることの印。
+	// kind: signal の項目だけ: オーナーと担当が読む所と、text（出所の題）が外の人の文であることの印。
 	URL       string `json:"url,omitempty"`
 	Untrusted bool   `json:"untrusted,omitempty"`
 	path      string // kind: memory の項目のファイル（apply が消す）
@@ -52,7 +52,7 @@ type ledgerIssue struct {
 	NotBefore string   `json:"not_before"`
 }
 
-// personSuffix は人の判断待ちの課題の題の末尾。
+// personSuffix は、オーナーの判断待ちの課題の題の古い末尾（版を上げる前の台帳に残る）。
 const personSuffix = "（人の判断待ち）"
 
 // ownerSuffix は、skill が書くようになった新しい末尾（ADR-0036）。読む側は古い末尾と両方を受ける（決めたこと 6）。
@@ -265,7 +265,7 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 		}
 		body, err := os.ReadFile(filepath.Join(l.dir, "issues", t.ID, "report.md"))
 		if err != nil || !hasHeading(body) {
-			// 人の課題は報告を書かないのがふつう。読む中身が無いので項目にしない（ADR-0030 決めたこと 5 の 2）。
+			// オーナーの課題は報告を書かないのがふつう。読む中身が無いので項目にしない（ADR-0030 決めたこと 5 の 2）。
 			if !person {
 				emit("unreadable", "報告が無い・読めない、または見出しが無い")
 			}
@@ -395,7 +395,7 @@ var (
 )
 
 // reportLines は報告から項目になる行を拾う。見出し（## ）で節を切り、
-// For AGENTS.md の行・「見送」を含む行とその下の箇条書き・Next／Remember／人に聞くこと の節の行。
+// For AGENTS.md の行・「見送」を含む行とその下の箇条書き・Next／Remember／オーナーに聞くこと の節の行。
 // Remember の節の「計画との差:」の行は拾わない（ADR-0030 決めたこと 5 の 2。振り返りと measure は別に読む）。
 func reportLines(body []byte) []reportLine {
 	var got []reportLine

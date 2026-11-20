@@ -55,7 +55,7 @@ func TestWaitedGone(t *testing.T) {
 	report("E-0002", 4) // gh は落ちるが、ゲートの記録の merged が先に答える
 	write("E-0002", "gate/9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08.json", `{"head":"9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08","at":"2026-11-20T00:00:00Z","tier":"B","decision":"approve","reasons":[],"merged":true}`)
 	done("E-0003")
-	report("E-0003", 1) // gh で MERGED（人がマージした）
+	report("E-0003", 1) // gh で MERGED（オーナーがマージした）
 	// やめになった待つ相手
 	done("E-0011")
 	write("E-0011", "outcome.json", `{"result":"closed"}`)
@@ -71,7 +71,7 @@ func TestWaitedGone(t *testing.T) {
 	p.tasks = append(p.tasks,
 		ledger.Issue{"id": "E-0031", "status": "done", "profile": "claude"},                                            // repo の無い課題
 		ledger.Issue{"id": "E-0032", "status": "done", "profile": "claude", "repo": repo, "deliverable": "candidates"}, // 調べる課題
-		ledger.Issue{"id": "E-0033", "status": "done", "who": "person", "repo": repo},                                  // 人の課題
+		ledger.Issue{"id": "E-0033", "status": "done", "who": "person", "repo": repo},                                  // オーナーの課題
 	)
 
 	after := func(ids ...string) ledger.Issue {

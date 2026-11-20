@@ -241,7 +241,7 @@ esac
 `
 
 // 前の版の係（名前もラベルも courier）だけを、前に出ているものが前の係かシェルのときに片付ける。
-// ほかの役・知らない役・人が中で何か動かしている端末・前に出ているものが取れない端末には触らない。
+// ほかの役・知らない役・オーナーが中で何か動かしている端末・前に出ているものが取れない端末には触らない。
 func TestDropStaleRoles(t *testing.T) {
 	old := func(fg string) string {
 		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
@@ -294,7 +294,7 @@ func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 	}{
 		{"kill に失敗", running, "kill", false, "kill failed"},
 		{"keep --off に失敗", running, "keep", false, "keep failed"},
-		{"人が中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), "", false, "前に出ているものが vim なので触らない"},
+		{"オーナーが中で何か動かしている", old(`{"name":"vim","argv":["vim"]}`), "", false, "前に出ているものが vim なので触らない"},
 		{"前に出ているものが取れない", old("null"), "", false, "取れない なので触らない"},
 		{"片付けた", running, "", true, "前の版の係の端末 t1（courier）を片付けた"},
 		{"前の係の端末が無い", "", "", true, "dispatcher を起動した"},

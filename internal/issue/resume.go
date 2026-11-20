@@ -254,14 +254,14 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		p.Template = p.Profile + "-resume"
 		p.Session = c.issue.Str("session")
 		if p.Session == "" {
-			return nil, fail("%s の台帳に session が無い（セッションを記録する前に起きた課題）。続けられないので、人の go で andon issue resume --fresh %s", id, id)
+			return nil, fail("%s の台帳に session が無い（セッションを記録する前に起きた課題）。続けられないので、オーナーの go で andon issue resume --fresh %s", id, id)
 		}
 		if !spawn.SessionRe.MatchString(p.Session) {
 			return nil, fail("%s の台帳の session が UUID でない: '%s'", id, p.Session)
 		}
 		rec, ok := claudeRecord(p.Session)
 		if !ok {
-			return nil, fail("セッション %s の記録が無い（%s）。続けられないので、人の go で andon issue resume --fresh %s", p.Session, rec, id)
+			return nil, fail("セッション %s の記録が無い（%s）。続けられないので、オーナーの go で andon issue resume --fresh %s", p.Session, rec, id)
 		}
 		p.check("session", "ok", "記録 %s", rec)
 	default:
@@ -271,7 +271,7 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 			return nil, fail("Codex の記録を読めない: %v", err)
 		}
 		if s == "" {
-			return nil, fail("cwd %s の Codex の記録が無い（%s の rollout-*.jsonl を %d 本見た）。続けられないので、人の go で andon issue resume --fresh %s", p.Cwd, codexSessions(), n, id)
+			return nil, fail("cwd %s の Codex の記録が無い（%s の rollout-*.jsonl を %d 本見た）。続けられないので、オーナーの go で andon issue resume --fresh %s", p.Cwd, codexSessions(), n, id)
 		}
 		p.Session = s
 		p.check("session", "ok", "cwd %s の最新の記録 %s", p.Cwd, s)

@@ -1,14 +1,14 @@
-// Package chiefengineer は andon chief-engineer: 人と仕様・設計を対話する Chief Engineer を
+// Package chiefengineer は andon chief-engineer: オーナーと仕様・設計を対話する Chief Engineer を
 // 台帳の課題として起動する（docs/design.md §1.8）。
 //
 //	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は台帳の repos が1つならそれ
 //	andon chief-engineer --repo <host/owner/repo> "<題>"   台帳の repos が2つ以上（か無い）とき
-//	andon chief-engineer --brief - "<題>"                 経緯（人の言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
+//	andon chief-engineer --brief - "<題>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
 // することは4つ: 台帳に課題を足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこの課題から出すため）・hc でプロファイル chief-engineer を起動する（hc run）・
 // 課題を doing にして agent をその端末にする（kanban start）。台帳の CLI は kanban。
-// 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、人の Herdr App の指揮側の Space に
+// 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、オーナーの Herdr App の指揮側の Space に
 // 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
 // --brief - の文は依頼書の既定の行の下に続ける（Chief Engineer が最初に読むのは依頼書なので、送り直しが要っても残る）。
 // Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。ほかの Chief Engineer の端末には触らない
@@ -134,12 +134,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return die("%v", err)
 	}
 	if !found {
-		return die("プロファイル %s の template が無い（hc templates で確かめる。作るのは人）", Profile)
+		return die("プロファイル %s の template が無い（hc templates で確かめる。作るのはオーナー）", Profile)
 	}
 
 	brief := "# " + title + "\n\n" +
-		"Chief Engineer の課題。人と直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
-		"題は人の1行。手順は skill chief-engineer。\n"
+		"Chief Engineer の課題。オーナーと直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
+		"題はオーナーの1行。手順は skill chief-engineer。\n"
 	if extra != "" {
 		brief += "\n" + extra + "\n"
 	}
@@ -213,7 +213,7 @@ func Labels(slug, id, title string) []string {
 		"herdr.space=andon-" + slug, "herdr.tab=andon-" + slug + "-" + id}
 }
 
-// where は人に端末を指す言い方「<Space 名> / <tab 名>」（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける。
+// where はオーナーに端末を指す言い方「<Space 名> / <tab 名>」（ADR-0002 決めたこと 16・17）。名前は App の mod が付ける。
 func where(slug, id, title string) string {
 	return slug + " / CE " + id + " " + title
 }

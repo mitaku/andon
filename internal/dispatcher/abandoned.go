@@ -68,7 +68,7 @@ func afterOf(t ledger.Issue) []string {
 	return out
 }
 
-// yieldsPR は課題の成果が PR か（repo があり、調べる課題でもレビュアーでも人の課題でもない）。
+// yieldsPR は課題の成果が PR か（repo があり、調べる課題でもレビュアーでもオーナーの課題でもない）。
 // それ以外の課題（repo の無い課題・調べる課題）は done が成果の出来上がりで、マージとやめを見分けない。
 func yieldsPR(t ledger.Issue) bool {
 	return t.Str("repo") != "" && !isReviewer(t) && t.Str("who") != "person" && ledger.SettingsOf(t).Deliverable != "candidates"

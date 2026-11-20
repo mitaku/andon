@@ -159,12 +159,12 @@ func TestParseDecisionsRejects(t *testing.T) {
 				return f
 			}(),
 		},
-		"問いが空":           {{"key": k1, "decision": "person", "reason": "r", "question": ""}},
-		"kind に推しが無い":    {{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": "promise"}},
-		"知らない kind の人":   {{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": "other", "pick": "p"}},
-		"commit の形":      {with(fix(k1, "t"), "commit", "HEAD")},
-		"commit が短い":     {with(fix(k1, "t"), "commit", "5ccac6a")},
-		"commit が文字列でない": {with(fix(k1, "t"), "commit", 1)},
+		"問いが空":               {{"key": k1, "decision": "person", "reason": "r", "question": ""}},
+		"kind に推しが無い":        {{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": "promise"}},
+		"知らない kind の person": {{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": "other", "pick": "p"}},
+		"commit の形":          {with(fix(k1, "t"), "commit", "HEAD")},
+		"commit が短い":         {with(fix(k1, "t"), "commit", "5ccac6a")},
+		"commit が文字列でない":     {with(fix(k1, "t"), "commit", 1)},
 	}
 	for name, items := range bad {
 		if ok(items...) {
@@ -291,7 +291,7 @@ func TestSummary(t *testing.T) {
 	}
 	got := summary("demo", "2026-01-02", "ゴール", items)
 	want := "線引きを見直す\n\n# トリアージ demo 2026-01-02（ゴール: ゴール）\n" +
-		"閉じた 2 ・ 直す 1（うち束ね 0） ・ 人へ 4 ・ 次回 1 ・ 読めない 1\n" +
+		"閉じた 2 ・ 直す 1（うち束ね 0） ・ オーナーへ 4 ・ 次回 1 ・ 読めない 1\n" +
 		"\n## 閉じた（判断の閉じと課題の閉じ。Chief of Staff が読んだ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n" +
 		"| demo:T-4:remember:0000000000000000000000000000000000000004 | 学び | one-off | その場限り |\n" +
 		"\n## 閉じた（根拠の閉じ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n" +
@@ -316,7 +316,7 @@ func TestSummary(t *testing.T) {
 		t.Errorf("覆した表が無い:\n%s", got)
 	}
 	if s := summary("demo", "d", "g", nil); !strings.HasPrefix(s, "\n# トリアージ") {
-		t.Errorf("人の kind 無しが3以下なら先頭は空行: %q", s)
+		t.Errorf("オーナーの kind 無しが3以下なら先頭は空行: %q", s)
 	}
 }
 

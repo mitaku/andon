@@ -201,7 +201,7 @@ var (
 
 func (i item) closing() string { return i.str("closing") }
 
-// closesIssue は台帳の課題そのもの（担当の無い課題・人の判断待ち）を閉じる判定か。
+// closesIssue は台帳の課題そのもの（担当の無い課題・オーナーの判断待ち）を閉じる判定か。
 func (i item) closesIssue() bool {
 	k := i.keyPart(2)
 	return i.decision() == "close" && (k == "issue" || k == "person")

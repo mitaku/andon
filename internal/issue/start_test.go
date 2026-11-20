@@ -333,7 +333,7 @@ func startRefusals(t *testing.T) []startRefusal {
 			f.task["repo"] = "github.com/example/other"
 		}},
 		{"not in project repos", "repo github.com/example/other が projects/sample-site/project.json の repos に無い", false, func(f *startFixture) {
-			// 台帳の config.yaml にはあるが、人が書いた project.json の repos に無い
+			// 台帳の config.yaml にはあるが、オーナーが書いた project.json の repos に無い
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
 			f.addRepo("github.com/example/other")

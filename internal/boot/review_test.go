@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-// 人が書いた CLAUDE.md・Codex の AGENTS.md は黙って消さず .bak に退避する。
+// オーナーが書いた CLAUDE.md・Codex の AGENTS.md は黙って消さず .bak に退避する。
 // boot が前に書いたものは、パッケージが変わっても退避せずに書き直す。
 func TestBacksUpHandWrittenFiles(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
 	hand := map[string]string{
-		filepath.Join(f.claude, "CLAUDE.md"):                                     "人の指示\n",
-		filepath.Join(f.home, ".codex", "AGENTS.md"):                             "人の Codex\n",
-		filepath.Join(f.home, ".config", "herdr-core", "templates", "claude.md"): "人のプロファイル\n",
+		filepath.Join(f.claude, "CLAUDE.md"):                                     "オーナーの指示\n",
+		filepath.Join(f.home, ".codex", "AGENTS.md"):                             "オーナーの Codex\n",
+		filepath.Join(f.home, ".config", "herdr-core", "templates", "claude.md"): "オーナーのプロファイル\n",
 	}
 	for p, body := range hand {
 		put(t, p, body)

@@ -31,7 +31,7 @@ var noreply = regexp.MustCompile(`^(?:[0-9]+\+)?([^@+]+)@users\.noreply\.github\
 //
 // 後ろの include が勝つので、/workspace/.ghq の下は product になる。worktree は元の repo の gitdir で当たる。
 // owner が空なら product もセルの作者にする（commit は通し、owner の作者は名乗らない）。
-// ~/.gitconfig に user.name か user.email が直に書いてあれば、人の設定として何もしない。git が無ければ何もしない。
+// ~/.gitconfig に user.name か user.email が直に書いてあれば、オーナーの設定として何もしない。git が無ければ何もしない。
 func genGitAuthor(e Env) error {
 	git, ok := e.has("git")
 	if !ok {
@@ -59,7 +59,7 @@ func genGitAuthor(e Env) error {
 				return err
 			}
 			if v != "" {
-				e.logf("触らない: %s の %s（人が書いた作者）", gc, k)
+				e.logf("触らない: %s の %s（オーナーが書いた作者）", gc, k)
 				return nil
 			}
 		}
@@ -87,7 +87,7 @@ func genGitAuthor(e Env) error {
 
 	// 今の includeIf が want と同じ並び・同じ値なら書かない。違えば boot の分を外して、この順に足し直す。
 	// boot の include（値が boot のファイル）だけを見る。want と同じ並び・同じ値なら書かない。
-	// 違えば boot の行だけを外して、この順に足し直す（同じ条件の、人が置いた include には触らない）。
+	// 違えば boot の行だけを外して、この順に足し直す（同じ条件の、オーナーが置いた include には触らない）。
 	have, err := cfg("--get-regexp", `^includeif\.gitdir:.*\.path$`)
 	if err != nil {
 		return err

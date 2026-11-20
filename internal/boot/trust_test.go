@@ -154,7 +154,7 @@ memories = false`)
 		t.Errorf("ほかの設定が変わった:\n%s", toml)
 	}
 	if !strings.Contains(toml, `[projects."`+ws+`"]`+"\ntrust_level = \"untrusted\"\n") || strings.Count(toml, ws+`"]`) != 1 {
-		t.Errorf("人が untrusted にした表を変えた:\n%s", toml)
+		t.Errorf("オーナーが untrusted にした表を変えた:\n%s", toml)
 	}
 	if !strings.Contains(toml, `[projects.'`+repo+`']`+"\ntrust_level = \"trusted\"\n# trust_level の無い表\n") || strings.Count(toml, repo) != 1 {
 		t.Errorf("trust_level の無い表に1行足していない:\n%s", toml)

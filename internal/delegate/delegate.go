@@ -1,8 +1,8 @@
 // Package delegate は委譲（docs/contract.md §11・docs/design.md §1.10）。セルの repo の projects/<slug>/project.json の
-// delegation を読み（Read。ゲート・dispatcher・command が使う）、人が書く手順を助ける（andon delegate grant/narrow/revoke/show）。
+// delegation を読み（Read。ゲート・dispatcher・command が使う）、オーナーが書く手順を助ける（andon delegate grant/narrow/revoke/show）。
 //
 // 読み方: セルの repo の HEAD のファイルだけを読み、それを最後に変えた commit の author が andon.toml の owner と
-// 一致するときだけ信じる。無い・読めない・形が違う・一致しない は無委譲（全部人）。
+// 一致するときだけ信じる。無い・読めない・形が違う・一致しない は無委譲（全部オーナー）。
 package delegate
 
 import (
@@ -46,7 +46,7 @@ var Presets = map[string]map[string]any{
 		"external-requests": false, "profile": true, "package-update": true, "line-change": "none"},
 }
 
-// None は無委譲（全部人）の値。
+// None は無委譲（全部オーナー）の値。
 var None = map[string]any{"merge": "none", "deploy": "none", "publish": "none", "irreversible": []string{},
 	"external-requests": false, "profile": false, "package-update": false, "line-change": "none"}
 
@@ -341,7 +341,7 @@ func gitEnv(ws string, env []string, args ...string) (string, error) {
 var ErrAbsent = errors.New("セルの repo の HEAD に無い")
 
 // OwnerFile はセルの repo の HEAD の rel を読み、それを最後に変えた commit の author の email が andon.toml の owner のときだけ返す
-// （project.json・gate.local.json。人だけが書くファイル。作業ツリーと未 commit の変更は読まない）。
+// （project.json・gate.local.json。オーナーだけが書くファイル。作業ツリーと未 commit の変更は読まない）。
 func OwnerFile(ws, rel string) ([]byte, error) {
 	b, err := git(ws, "show", "HEAD:"+filepath.ToSlash(rel))
 	if err != nil {

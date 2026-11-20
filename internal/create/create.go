@@ -32,8 +32,8 @@ import (
 
 // Usage は andon create --help の中身。
 const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <題>]\n" +
-	"人がセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に台帳（kanban/）・project.json の下書き・\n" +
-	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（人が見て commit する）。\n" +
+	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に台帳（kanban/）・project.json の下書き・\n" +
+	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（オーナーが見て commit する）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
 	"slug は英小文字・数字・_・-（28字まで）。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
@@ -237,7 +237,7 @@ func fill(in *input, a *asker) error {
 	if in.title == "" {
 		in.title = in.slug
 		if a != nil {
-			if in.title, err = a.ask("題（人に見せる名前）", in.title, checkTitle); err != nil {
+			if in.title, err = a.ask("題（オーナーに見せる名前）", in.title, checkTitle); err != nil {
 				return err
 			}
 			asked = true
@@ -339,7 +339,7 @@ func fetch(repos []string, stderr io.Writer) ([]string, error) {
 	return got, nil
 }
 
-// writeNew は path を新しく作って書く（あれば書かない。人が先に置いたものを上書きしない）。
+// writeNew は path を新しく作って書く（あれば書かない。オーナーが先に置いたものを上書きしない）。
 func writeNew(path string, b []byte) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
@@ -367,7 +367,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon create: %v\n%s", err, Usage)
 		return exitUsage
 	}
-	if err := delegate.AgentTerminal("project.json を書くのは人だけ。人の端末で打つ"); err != nil {
+	if err := delegate.AgentTerminal("project.json を書くのはオーナーだけ。オーナーの端末で打つ"); err != nil {
 		fmt.Fprintf(stderr, "andon create: %v\n", err)
 		return exitFail
 	}
@@ -446,9 +446,9 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return err
 	}
-	// ここから先で落ちたら、この command が作ったものだけを退ける。途中で人が置いたものは残す
+	// ここから先で落ちたら、この command が作ったものだけを退ける。途中でオーナーが置いたものは残す
 	// （projects/<slug> は空になったときだけ消す）。
-	// 退けるときは os.Remove だけ（再帰で消さない）。ディレクトリは空のときだけ消えるので、中に人が置いたものは残る。
+	// 退けるときは os.Remove だけ（再帰で消さない）。ディレクトリは空のときだけ消えるので、中にオーナーが置いたものは残る。
 	var made []string
 	undo := func(err error) error {
 		for i := len(made) - 1; i >= 0; i-- {
@@ -487,7 +487,7 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 		made = append(made, path)
 	}
 	fmt.Fprintf(stdout, "作った: %s/（kanban/・project.json・AGENTS.md）\n", rel)
-	fmt.Fprintf(stdout, "project.json と AGENTS.md は人のファイルで、commit していない。中身を見て、andon.toml の owner の email で commit する:\n")
+	fmt.Fprintf(stdout, "project.json と AGENTS.md はオーナーのファイルで、commit していない。中身を見て、andon.toml の owner の email で commit する:\n")
 	fmt.Fprintf(stdout, "  cd %s && git add %s/project.json %s/AGENTS.md && git commit -m %s\n", quote(ws), rel, rel, rel)
 	fmt.Fprintf(stdout, "確かめる: andon delegate show --project %s（無委譲と出る）\n", in.slug)
 	fmt.Fprintf(stdout, "Chief of Staff を起動する: andon open %s\n", in.slug)

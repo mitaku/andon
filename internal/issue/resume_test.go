@@ -96,11 +96,11 @@ func TestCodexRecord(t *testing.T) {
 }
 
 func TestFreshMessageGuide(t *testing.T) {
-	with := FreshMessage("sample-site", "S-1", "/b.md", "/r.md", "\n人の指針 `/g` も読む。")
-	if !strings.Contains(with, "人の指針") {
+	with := FreshMessage("sample-site", "S-1", "/b.md", "/r.md", "\nオーナーの指針 `/g` も読む。")
+	if !strings.Contains(with, "オーナーの指針") {
 		t.Errorf("指針の行が入らない: %q", with)
 	}
-	if without := FreshMessage("sample-site", "S-1", "/b.md", "/r.md", ""); strings.Contains(without, "人の指針") {
+	if without := FreshMessage("sample-site", "S-1", "/b.md", "/r.md", ""); strings.Contains(without, "オーナーの指針") {
 		t.Errorf("指針の行が入った: %q", without)
 	}
 }

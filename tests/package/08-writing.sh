@@ -1,5 +1,5 @@
 # tests/package/08-writing.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・fm・tmp は入口が置き、前の節が置いた変数も使う）。
-#   8. 役の略称と人への書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
+#   8. 役の略称とオーナーへの書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
 #      用語集は書き方の節と語の決まりを持たず writing.md を指す、CE skill の問いの出し方、ask-one-by-one の読み手。
 # === 8. 役の略称とオーナーへの書き方（ADR-0013 受け入れ条件 1・2） ===
 g=package/skills/glossary/SKILL.md

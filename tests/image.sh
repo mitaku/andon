@@ -167,7 +167,7 @@ TZ=UTC BUILDX_BUILDER=default "$plant/bin/bootstrap" up
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
 if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
-  ! grep -qF 'オーナーを直した: /opt/andon-home/.config/gh（uid 1001 → 1000）' <<<"$boot_log"; then
+  ! grep -qF '置き場のオーナーを直した: /opt/andon-home/.config/gh（uid 1001 → 1000）' <<<"$boot_log"; then
   printf '%s\n' "$boot_log" >&2
   echo 'FAIL image: compose の起動で andon boot が ready まで走らない（sshd・volume のオーナーの行も見る）' >&2
   exit 1

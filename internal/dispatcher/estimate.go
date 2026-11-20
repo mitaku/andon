@@ -32,7 +32,7 @@ func (p *project) sawGone(id, agent string, now time.Time) {
 	p.st.Gone[id] = append(p.st.Gone[id], GoneAt{Agent: agent, At: now.UnixMilli()})
 }
 
-// estimated は、課題がズレを数える担当の課題か（レビュアー・Chief Engineer・人・Chief of Staff 自身の課題は数えない）。
+// estimated は、課題がズレを数える担当の課題か（レビュアー・Chief Engineer・オーナー・Chief of Staff 自身の課題は数えない）。
 func estimated(t ledger.Issue, cos string) bool {
 	return !isReviewer(t) && !isEngineer(t) && t.Str("who") != "person" && t.Str("agent") != cos
 }

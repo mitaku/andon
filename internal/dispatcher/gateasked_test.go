@@ -38,7 +38,7 @@ func TestGateAskedDeliveredOnce(t *testing.T) {
 	p := load()
 	p.readLog(cos)
 	addRow(t, logPath, `{"at":"2026-11-19T00:01:00Z","by":"terminal:dispatcher","id":"S-0007","change":{"question":1,"status":"open"}}`)
-	writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートが人に回した","facts":["PR https://github.com/example/sample-site/pull/1"],"reason":"ゲートの決定式が needs_human を返した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
+	writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートがオーナーに回した","facts":["PR https://github.com/example/sample-site/pull/1"],"reason":"ゲートの決定式が needs_human を返した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
 	gateAsks(p, slug)
 	if err := p.st.Save(slug); err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestGateAskedRecoveredAfterCrash(t *testing.T) {
 		p.readLog(cos)
 		if ask {
 			addRow(t, logPath, `{"at":"2026-11-19T00:01:00Z","by":"terminal:dispatcher","id":"S-0007","change":{"question":1,"status":"open"}}`)
-			writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートが人に回した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
+			writeFile(t, filepath.Join(qdir, "1.json"), `{"kind":"line","question":"ゲートがオーナーに回した","options":[{"label":"マージする","pick":true},{"label":"直させる"}],"from":"gate"}`)
 			gateAsks(p, slug)
 		}
 		if crash {
@@ -137,7 +137,7 @@ func TestGateAskedRecoveredAfterCrash(t *testing.T) {
 
 // gateAsks は merge の末尾と同じく、andon issue merge が返したゲートの問い 1 の asked を積んで印を付ける。
 func gateAsks(p *project, slug string) {
-	p.put(Notification{At: now(), Project: slug, Issue: "S-0007", Kind: "asked", Detail: map[string]any{"n": float64(1), "kind": "line", "question": "ゲートが人に回した"}}, p.facts("S-0007"))
+	p.put(Notification{At: now(), Project: slug, Issue: "S-0007", Kind: "asked", Detail: map[string]any{"n": float64(1), "kind": "line", "question": "ゲートがオーナーに回した"}}, p.facts("S-0007"))
 	p.markAsked("S-0007", float64(1))
 }
 

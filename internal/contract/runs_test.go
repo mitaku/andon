@@ -46,7 +46,7 @@ func TestCheckRuns(t *testing.T) {
 		want  string // 空なら理由が無い
 		stale []StaleRun
 	}{
-		{"記録を指さない行だけなら見ない", func(*testing.T, string) {}, []Acceptance{row("A1", 0), {ID: "A2", Result: "manual", Evidence: "人が見る"}}, "", nil},
+		{"記録を指さない行だけなら見ない", func(*testing.T, string) {}, []Acceptance{row("A1", 0), {ID: "A2", Result: "manual", Evidence: "オーナーが見る"}}, "", nil},
 		{"pass を期待して通った記録", func(t *testing.T, l string) { putRun(t, l, 1, "pass", 0, sha, false) }, []Acceptance{row("A1", 1)}, "", nil},
 		{"fail を期待して落ちた記録は変更のある木でよい", func(t *testing.T, l string) { putRun(t, l, 1, "fail", 1, sha, true) }, []Acceptance{row("A1", 1)}, "", nil},
 		{"repo の無い課題の記録", func(t *testing.T, l string) { putRun(t, l, 1, "pass", 0, "", false) }, []Acceptance{row("A1", 1)}, "", nil},

@@ -43,5 +43,17 @@ for w in '外の人が読む' '1人にする' '人が読む写し' 'セルに 1 
   setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect ok "package/ の「$w」は通る"
 done
 setup; echo '人がマージする' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/）の役の「人」はまだ見ない'
+# コマンドの出力とコードと検査（internal/・init/・cmd/・tests/）も見る。流れの定義の語（internal/process/・tests/process/）はまだ見ない
+for d in internal init cmd tests; do
+  setup; mkdir -p "$tmp/r/$d"; echo '"人の判断が要る"' >"$tmp/r/$d/x.go"; expect fail "$d/ の「人の判断が要る」で落ちる"
+done
+for d in internal/process tests/process; do
+  setup; mkdir -p "$tmp/r/$d"; echo '人がマージする' >"$tmp/r/$d/x.go"; expect ok "替えていない範囲（$d/）の役の「人」はまだ見ない"
+done
+# 古い語を読む所は通り、同じ語がほかのファイルにあれば落ちる
+setup; mkdir -p "$tmp/r/internal/triage"; echo 'case "人に聞くこと", "オーナーに聞くこと":' >"$tmp/r/internal/triage/x.go"
+expect ok 'internal/triage/ の古い見出しを読む所は通る'
+setup; mkdir -p "$tmp/r/internal/issue"; echo 'case "人に聞くこと", "オーナーに聞くこと":' >"$tmp/r/internal/issue/x.go"
+expect fail 'internal/triage/ の外の「人に聞くこと」で落ちる'
 
 exit "$fail"

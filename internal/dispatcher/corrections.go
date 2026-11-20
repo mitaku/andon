@@ -14,14 +14,14 @@ import (
 	"andon/internal/ledger"
 )
 
-// 人の手直し（contract.md §14。design.md §1.9 の (b) の表の 1〜3）: done になった課題ごとに1回だけ
+// オーナーの手直し（contract.md §14。design.md §1.9 の (b) の表の 1〜3）: done になった課題ごとに1回だけ
 // library/corrections.json を書く。書き手は dispatcher だけ。手直しが無ければ空の配列で書き（「無かった」）、
 // gh が失敗したら書かない（「集めていない」）。打ち直すのは次の見回りの1回だけで、それも駄目なら通知 corrections を積む。
 
 // correctionsTries は corrections.json を集めようとする回数の上限（初めの1回 ＋ 次の見回りの1回）。
 const correctionsTries = 2
 
-// gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.CommentPrefix。internal/gate/comment.go）。人のコメントに数えない。
+// gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.CommentPrefix。internal/gate/comment.go）。オーナーのコメントに数えない。
 const gateCommentPrefix = "andon gate: "
 
 // QA は台帳の問い1つ（kanban show --json の questions）と、その問いの JSON（library/questions/<n>.json。無ければ nil）。
@@ -61,7 +61,7 @@ type PRView struct {
 type InlineComment struct {
 	User struct {
 		Login string `json:"login"`
-		Type  string `json:"type"` // Bot は人の手直しに数えない
+		Type  string `json:"type"` // Bot はオーナーの手直しに数えない
 	} `json:"user"`
 	Body         string `json:"body"`
 	CreatedAt    string `json:"created_at"`
@@ -140,9 +140,9 @@ type correctionQuestion struct {
 	Answer      string `json:"answer"`
 }
 
-// Corrections は1つの課題の人の手直しを並べる（純粋関数。contract.md §14 の規則）。
+// Corrections は1つの課題のオーナーの手直しを並べる（純粋関数。contract.md §14 の規則）。
 //   - answer: 答えのある問い（ゲートの問いと scope を除く）で、答えが推奨案（pick: true）の label と違うもの
-//   - override（問い）: 答えのあるゲートの問い（from: gate。needs_human への人の答え）
+//   - override（問い）: 答えのあるゲートの問い（from: gate。needs_human へのオーナーの答え）
 //   - pr: PR の上の、ゲートのものでないコメント（会話欄・レビューの本文・インラインのレビューコメント〈Bot を除く〉）と、担当の最後の報告より後の commit（humans）
 //   - override（指摘）: マージした PR の waived のうち must_fix 以上のもの（must_fix が無ければ全部。安全側＝多めに拾う）
 //
@@ -158,7 +158,7 @@ func Corrections(qs []QA, rep *contract.Report, mustFix string, pr *PRView, huma
 		case qa.Q.From == "gate":
 			out = append(out, correctionQuestion{Kind: "override", Question: qa.N, Recommended: rec, Answer: ans})
 		case qa.Q.Kind == "scope":
-			// 範囲の問いは Chief of Staff が答える（人の手直しではない）
+			// 範囲の問いは Chief of Staff が答える（オーナーの手直しではない）
 		case ans != rec:
 			out = append(out, correctionAnswer{Kind: "answer", Question: qa.N, DecisionKind: qa.Q.Kind, Recommended: rec, Picked: ans})
 		}
@@ -242,7 +242,7 @@ func (p *project) correction(id string) bool {
 	}
 	t, qs, err := p.show(id)
 	if err == nil && isReviewer(t) {
-		return true // レビュアーの課題は人の手直しの元にならない（問いも PR も持たない）
+		return true // レビュアーの課題はオーナーの手直しの元にならない（問いも PR も持たない）
 	}
 	var out []any
 	if err == nil {
@@ -254,16 +254,16 @@ func (p *project) correction(id string) bool {
 		}
 	}
 	if err == nil {
-		p.logf("%s の人の手直しを %d 件 corrections.json に書いた", id, len(out))
+		p.logf("%s のオーナーの手直しを %d 件 corrections.json に書いた", id, len(out))
 		return true
 	}
 	p.st.Corrections[id]++
 	if p.st.Corrections[id] >= correctionsTries {
-		p.logf("%s の人の手直しを集められない（諦めて Chief of Staff に知らせる）: %v", id, err)
+		p.logf("%s のオーナーの手直しを集められない（諦めて Chief of Staff に知らせる）: %v", id, err)
 		p.notify(id, "corrections", map[string]any{"error": clean(fmt.Sprintf("%d 回打って失敗: %v", correctionsTries, err), 200)})
 		return true
 	}
-	p.logf("%s の人の手直しを集められない（次の見回りで1回だけ打ち直す）: %v", id, err)
+	p.logf("%s のオーナーの手直しを集められない（次の見回りで1回だけ打ち直す）: %v", id, err)
 	return false
 }
 

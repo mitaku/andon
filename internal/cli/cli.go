@@ -64,7 +64,7 @@ var commands = []command{
 	},
 	{
 		name:  "chief-engineer",
-		about: "人と仕様・設計を対話する Chief Engineer を、台帳の課題として起動する",
+		about: "オーナーと仕様・設計を対話する Chief Engineer を、台帳の課題として起動する",
 		usage: chiefengineer.Usage,
 		run:   chiefengineer.Main,
 	},
@@ -76,7 +76,7 @@ var commands = []command{
 	},
 	{
 		name:  "news",
-		about: "Chief of Staff が届いた <news> に人へ言うことが無いと示す（ack。ラベル news.ack=<turn>）",
+		about: "Chief of Staff が届いた <news> にオーナーへ言うことが無いと示す（ack。ラベル news.ack=<turn>）",
 		usage: dispatcher.NewsUsage,
 		run:   dispatcher.NewsMain,
 	},
@@ -138,7 +138,7 @@ var commands = []command{
 	},
 	{
 		name:  "delegate",
-		about: "委譲（projects/<slug>/project.json の delegation）を読む（show）・人が書く（grant・narrow・revoke）",
+		about: "委譲（projects/<slug>/project.json の delegation）を読む（show）・オーナーが書く（grant・narrow・revoke）",
 		usage: delegate.Usage,
 		run:   delegate.Main,
 	},

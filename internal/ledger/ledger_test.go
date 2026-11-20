@@ -42,7 +42,7 @@ func TestOpenUsesKanban(t *testing.T) {
 	}
 }
 
-// 人が短く打った id と、移す前の log.jsonl の id は 4 桁に揃えて読む。
+// オーナーが短く打った id と、移す前の log.jsonl の id は 4 桁に揃えて読む。
 func TestCanonID(t *testing.T) {
 	for in, want := range map[string]string{"A-5": "A-0005", "A-05": "A-0005", "A-0005": "A-0005", "A-12345": "A-12345", "Y-T-7": "Y-T-0007", "A-0": "A-0", "A-x": "A-x", "abc": "abc", "-5": "-5", "A-": "A-",
 		"A-5-r1": "A-0005-r1", "A-0005-r01": "A-0005-r1", "A-0005-r0": "A-0005-r0", "A-0005-r": "A-0005-r", "A-0005-rx": "A-0005-rx", "A-12345-r3": "A-12345-r3"} {

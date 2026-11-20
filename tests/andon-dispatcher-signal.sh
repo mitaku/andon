@@ -56,7 +56,7 @@ runs() { # runs <repo> <workflow:conclusion>...
     jq -s '{workflow_runs: .}' >"$tmp/gh/runs-$r.json"
 }
 
-# セルの repo（人のもの）: owner が commit した project.json（main の CI は now、issue は later）
+# セルの repo（オーナーのもの）: owner が commit した project.json（main の CI は now、issue は later）
 git init -q "$tmp/plant"
 printf 'owner = "owner@example.com"\n' >"$tmp/plant/andon.toml"
 mkdir -p "$tmp/plant/projects/demo"

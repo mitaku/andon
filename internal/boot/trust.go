@@ -19,13 +19,13 @@ import (
 	"andon/internal/spawn"
 )
 
-// 信頼の画面をセルでは出さない（セル＝コンテナが信頼の境界。人の決定 2026-11-06）。
+// 信頼の画面をセルでは出さない（セル＝コンテナが信頼の境界。オーナーの決定 2026-11-06）。
 // boot が、エージェントが起きる場所の根を Claude Code と Codex の両方で信頼済みにしておく。足りない所だけ足し、
 // 今ある設定は触らない（2回目は何も書かない）。
 //
 // 根は「セルの repo」と「台帳に載った案件の repo（セルの projects/*/kanban/config.yaml の repos にあり、
 // <GhqRoot>/<host>/<owner>/<repo> に clone されたもの）」だけ。ghq の下の repo を全部は信頼しない（台帳に載せるのは
-// Chief of Staff と人で、andon issue start が起動してよいのもその repo だけ）。担当・レビュアーの worktree は
+// Chief of Staff とオーナーで、andon issue start が起動してよいのもその repo だけ）。担当・レビュアーの worktree は
 // 置き場（<セルの repo>/.worktrees）ではなく元の repo の根で判定されるので、置き場は足さない（実測は docs/image.md）:
 //   - Claude Code: git の外は cwd から親へ / まで遡る。git の中は repo の根で止まり、それより上の親は効かない。
 //     worktree は元の repo の根の信頼が効く（worktree の置き場の親は効かない）。
@@ -82,7 +82,7 @@ func (e Env) trustRoots() []string {
 // addDirs はプロファイルの command・resume の行が --add-dir で渡すフォルダ（実在するものを、symlink を解いた絶対パスで）。
 // Claude Code は --add-dir のフォルダも信頼を確かめ、git の外のもの（/opt/andon の下の手引きなど）は起動のたびに
 // 信頼の画面を出す（そこでの答えはそのセッションだけ）。読むのは boot が生成するのと同じ元のファイル
-// （本文の /opt/andon は Package に置き換える）で、人が hc に入れたプロファイルは読まない。
+// （本文の /opt/andon は Package に置き換える）で、オーナーが hc に入れたプロファイルは読まない。
 func (e Env) addDirs() []string {
 	files, err := e.templateFiles()
 	if err != nil {
@@ -253,7 +253,7 @@ func addClaudeTrust(b []byte, roots []string) (out []byte, added []string, skip 
 	return append(out, '\n'), added, ""
 }
 
-// skipTrust は設定の形が読めないとき: 書かずにログに1行出して続ける（人の設定を壊さない。boot は止めない）。
+// skipTrust は設定の形が読めないとき: 書かずにログに1行出して続ける（オーナーの設定を壊さない。boot は止めない）。
 func (e Env) skipTrust(format string, a ...any) error {
 	e.logf("信頼を足さない: "+format, a...)
 	return nil
@@ -291,7 +291,7 @@ var (
 )
 
 // trustCodex は ~/.codex/config.toml に [projects."<根>"] trust_level = "trusted" を足す。
-// 今ある表には触らない（trust_level があれば値が何でもそのまま。人が untrusted にしたものを覆さない）。
+// 今ある表には触らない（trust_level があれば値が何でもそのまま。オーナーが untrusted にしたものを覆さない）。
 // 表があって trust_level だけが無ければ、見出しの直後に1行足す。projects を別の形で書いていれば書かない。
 // trust_level の有無は TOML のパーサで読む（読めない TOML には書かない）。見出しの行を探すときは複数行の文字列の中を
 // 飛ばす。書く前に出力を読み直し、足した根の trust_level がパーサから見えなければ書かない。

@@ -12,7 +12,7 @@ type Settled struct {
 	Held   string `json:"held,omitempty"`   // 片付けずに知らせた理由（同じ理由では二度知らせない）
 }
 
-// Settle は andon issue settle の出力（docs/contract.md の「人のマージの片付け」）。Notify を待ちに積むのは dispatcher。
+// Settle は andon issue settle の出力（docs/contract.md の「オーナーのマージの片付け」）。Notify を待ちに積むのは dispatcher。
 // State は skip（見ない）・watching（まだ OPEN）・auto（dispatcher がマージした）・closed・held・finished。
 type Settle struct {
 	Issue  string   `json:"issue"`

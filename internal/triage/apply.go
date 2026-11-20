@@ -78,7 +78,7 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	if err := checkCommits(items, collected, repos); err != nil {
 		return err
 	}
-	// 人に見せる本文は出どころのもの。decisions.json の text は信じない。
+	// オーナーに見せる本文は出どころのもの。decisions.json の text は信じない。
 	for _, it := range items {
 		it["text"] = sourceText(it.key(), inventory, historical)
 		if r, ok := knownSignal(it.key(), signals, l.slug); ok && it.keyPart(2) == "signal" {
@@ -386,7 +386,7 @@ func summary(slug, date string, goal any, items []item) string {
 	}
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "# トリアージ %s %s（ゴール: %s）\n", slug, date, cell(goal))
-	fmt.Fprintf(&b, "閉じた %d ・ 直す %d（うち束ね %d） ・ 人へ %d ・ 次回 %d ・ 読めない %d\n",
+	fmt.Fprintf(&b, "閉じた %d ・ 直す %d（うち束ね %d） ・ オーナーへ %d ・ 次回 %d ・ 読めない %d\n",
 		count(is("close")), created("fix", "bundle"), created("bundle"), count(is("person")), count(is("keep")),
 		count(func(it item) bool { return it.keyPart(2) == "unreadable" }))
 	// 閉じたものは、Chief of Staff が読んだもの（判断の閉じと、課題を閉じる判定）を先に、根拠の閉じを後に出す（ADR-0030 決めたこと 5 の 5）。
@@ -408,7 +408,7 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))
 		}
 	}
-	b.WriteString("\n## 人へ（人の課題）\n| 課題 | 問い | kind | 推奨案 |\n|---|---|---|---|\n")
+	b.WriteString("\n## オーナーへ（オーナーの課題）\n| 課題 | 問い | kind | 推奨案 |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if it.decision() == "person" {
 			b.WriteString(row(it["created_issue"], it["question"], orDefault(it["kind"], "判断がつかない"), orDefault(it["pick"], "なし")))

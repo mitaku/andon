@@ -138,9 +138,9 @@ sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
   && pass "リンク切れの mod も触らない" || fail "mod のリンクを変更した"
 conf=$home/.ssh/config.d/andon-x.conf
 grep -qx 'Host andon-x' "$conf" && grep -qx '  Port 2299' "$conf" && ! grep -qE '<(slug|ssh-port|portless-port)>' "$conf" && pass "ssh config にセルの名前と .env の番号" || fail "ssh config: $(cat "$conf" 2>&1)"
-echo '# 人が書いた' >"$home/.config/herdr/config.toml"
+echo '# オーナーが書いた' >"$home/.config/herdr/config.toml"
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
-grep -qx '# 人が書いた' "$home/.config/herdr/config.toml" && pass "host-install は今あるファイルを上書きしない" || fail "上書きした"
+grep -qx '# オーナーが書いた' "$home/.config/herdr/config.toml" && pass "host-install は今あるファイルを上書きしない" || fail "上書きした"
 cmp -s .andon/cloud-init.yaml "$andon_root/package/host/cloud-init.yaml" && pass "host-install は cloud-init の雛形を .andon/ に置く" || fail "cloud-init.yaml が無い"
 echo '# 埋めた' >.andon/cloud-init.yaml
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
@@ -154,10 +154,10 @@ rm .env
 for sub in "" up herdr sh rebuild; do
   sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run $sub >"$tmp/out" 2>"$tmp/err"; r=$?
   [ "$r" = 1 ] && grep -q 'uid 1001' "$tmp/err" && grep -q '回り道' "$tmp/err" && ! grep -q 'docker' "$tmp/out" \
-    && pass "オーナーが 1001 なら '${sub:-enter}' は起動する前に止まる" || fail "オーナー 1001 で ${sub:-enter}: rc=$r $(cat "$tmp/out" "$tmp/err")"
+    && pass "repo のオーナーが 1001 なら '${sub:-enter}' は起動する前に止まる" || fail "repo のオーナー 1001 で ${sub:-enter}: rc=$r $(cat "$tmp/out" "$tmp/err")"
 done
 sandbox FAKE_OWNER=1001 bash bin/bootstrap --dry-run down >"$tmp/out" 2>"$tmp/err"; r=$?
-[ "$r" = 0 ] && pass "オーナーが 1001 でも down は通る" || fail "オーナー 1001 で down: rc=$r $(cat "$tmp/err")"
+[ "$r" = 0 ] && pass "repo のオーナーが 1001 でも down は通る" || fail "repo のオーナー 1001 で down: rc=$r $(cat "$tmp/err")"
 
 # rebuild --from: andon の checkout から image/build.sh で base image を焼き、FROM をそれにして build・up する（偽の docker）
 co=$tmp/co

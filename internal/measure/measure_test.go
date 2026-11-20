@@ -38,13 +38,13 @@ const repoURL = "https://github.com/example/sample-site/pull/"
 //
 // 期間 2026-11-01〜2026-11-04（4日）で手で数えた値:
 //
-//	S-0001 作成 11-01 00:00。todo 1h → doing 4h → review 5h → done 10:00。PR #1 を 06:00 に dispatcher がマージ（レベル A）。人の行 1。
+//	S-0001 作成 11-01 00:00。todo 1h → doing 4h → review 5h → done 10:00。PR #1 を 06:00 に dispatcher がマージ（レベル A）。オーナーの行 1。
 //	S-0002 作成 11-02 00:00。todo 2h → doing 4h → review 2h（fix）→ doing 2h → review 14h → done 11-03 00:00。
-//	       PR #2 を 12:00 に人がマージ（最後の記録は needs_human・レベル B）。人の行 2。問い 03:00〜05:00（2h）。corrections 1件。
+//	       PR #2 を 12:00 にオーナーがマージ（最後の記録は needs_human・レベル B）。オーナーの行 2。問い 03:00〜05:00（2h）。corrections 1件。
 //	S-0003 作成 11-03 00:00。todo 1h → doing のまま（11-05 00:00 まで 47h）。links に PR #1（同じ箇所の課題）。
 //	PR #4 "Revert ..." が 11-04 にマージされ、PR #1 を revert。
 //
-//	(1) 人の介在 3 回 / 2 本 = 1.5   (2) 自動マージ 1 / 2 = 0.5   (3) 差し戻し (fix 1 + needs_human 1) / 3 = 0.67
+//	(1) オーナーの介在 3 回 / 2 本 = 1.5   (2) 自動マージ 1 / 2 = 0.5   (3) 差し戻し (fix 1 + needs_human 1) / 3 = 0.67
 //	(4) 依頼書からマージ 6h・12h → 中央値 9h   (5) todo (1+2+1)/3 = 1.33・doing (4+6+47)/3 = 19・review (5+16)/2 = 10.5・問い 2h
 //	(6) 閉じた 2 件 / 4 日 = 0.5   (7) WIP 1   (8) revert 1・同じ箇所の課題 1・開け直した A 1（revert）・B 1（corrections）
 func fakeLedger(t *testing.T) string {
@@ -194,7 +194,7 @@ func TestTableOrderAndCounterNextToAutoMerge(t *testing.T) {
 	for _, ln := range lines {
 		if strings.Contains(ln, "自動マージ率") {
 			found = true
-			for _, want := range []string{"50%（1 / 2）", "対抗:", "revert 1本", "同じ箇所の課題 1件", "人が開け直した A 1・B 1・C 0"} {
+			for _, want := range []string{"50%（1 / 2）", "対抗:", "revert 1本", "同じ箇所の課題 1件", "オーナーが開け直した A 1・B 1・C 0"} {
 				if !strings.Contains(ln, want) {
 					t.Errorf("自動マージ率の行に %q が無い: %q", want, ln)
 				}
@@ -325,7 +325,7 @@ func TestLineWithoutByIsSkippedNotHuman(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := res.Efficiency.HumanTouches.Total; got != 3 {
-		t.Errorf("by の無い行を人の介在に数えた: %d", got)
+		t.Errorf("by の無い行をオーナーの介在に数えた: %d", got)
 	}
 	found := false
 	for _, s := range res.Skipped {
@@ -678,7 +678,7 @@ func TestNewsNoCandidate(t *testing.T) {
 	}
 	var b bytes.Buffer
 	Table(&b, res, columnsOrder(res))
-	if !strings.Contains(b.String(), "記録だけへ移す候補（80%以上が素通り。移すかは人が決める）  なし") {
+	if !strings.Contains(b.String(), "記録だけへ移す候補（80%以上が素通り。移すかはオーナーが決める）  なし") {
 		t.Errorf("候補なしの行が無い:\n%s", b.String())
 	}
 	res, _ = Measure(opts(fakeLedger(t))) // 記録の置き場を渡さない（まだ無い記録）

@@ -27,8 +27,8 @@ const WaitUsage = "usage: andon dispatcher wait [--timeout <秒>] [--project <sl
 
 // 合図の文（stderr。Claude Code が system reminder でモデルに見せる）。中身は運ばない（ADR-0019 決めたこと 8）。
 const (
-	WaitSignal = "andon: 通知が待っている。これは合図で、人の依頼ではない。何も書かずにターンを終える（通知はターンの終わりに <news> で届く）。"
-	WaitRearm  = "andon: 待ち役の張り直し。これは合図で、人の依頼ではない。何も書かずにターンを終える。"
+	WaitSignal = "andon: 通知が待っている。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える（通知はターンの終わりに <news> で届く）。"
+	WaitRearm  = "andon: 待ち役の張り直し。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える。"
 )
 
 // waitPoll は待ち役が控えと端末を読み直す間。waitUnit は --timeout の1単位（テストで縮める）。

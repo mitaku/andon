@@ -150,7 +150,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	}
 	r.ID = ledger.CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
 	c, id := r.Change, r.ID
-	// done は Chief of Staff が打った finish（人がマージしたあと）も拾う: 影響（andon issue impact）は Chief of Staff もまだ見ていない事実
+	// done は Chief of Staff が打った finish（オーナーがマージしたあと）も拾う: 影響（andon issue impact）は Chief of Staff もまだ見ていない事実
 	if c["status"] == "done" {
 		if p.st.Impact == nil {
 			p.st.Impact = map[string]int{}
@@ -158,7 +158,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		if _, ok := p.st.Impact[id]; !ok {
 			p.st.Impact[id] = 0
 		}
-		// 人の手直しも同じ done の行から1回だけ集める（corrections.go）
+		// オーナーの手直しも同じ done の行から1回だけ集める（corrections.go）
 		if p.st.Corrections == nil {
 			p.st.Corrections = map[string]int{}
 		}
@@ -264,7 +264,7 @@ func (p *project) asked(id string, v any, pos int64) bool {
 
 // ---------------------------------------------------------------- ready の差
 
-// readReady は kanban ready --json の人の課題とレビュアーの子課題を除いた id の集まりを前回と比べ、増えたものを積む。
+// readReady は kanban ready --json のオーナーの課題とレビュアーの子課題を除いた id の集まりを前回と比べ、増えたものを積む。
 // レビュアーの子課題を起動するのは dispatcher だけ（起動しそこねて todo に残っても、Chief of Staff に引き取らせない）。
 func (p *project) readReady() {
 	out, err := p.l.Run("", "ready", "--json")
@@ -454,7 +454,7 @@ func (p *project) watch(now time.Time, cos string) {
 			continue
 		}
 		if agent == cos {
-			continue // Chief of Staff の端末は人が打つので、担当として見ない（打たない。chiefCut が見る。ADR-0019 決めたこと 4）
+			continue // Chief of Staff の端末はオーナーが打つので、担当として見ない（打たない。chiefCut が見る。ADR-0019 決めたこと 4）
 		}
 		if ledger.TakenByChiefOfStaff(p.rows, id, agent) {
 			continue // 前の Chief of Staff が自分で受けた課題。起き直してアドレスが変わっても担当の死として resume・finished にしない
@@ -570,7 +570,7 @@ func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) 
 const cosKey = ":cos|"
 
 // chiefCut は Chief of Staff の端末がプロバイダに切られて error で止まったとき、ログに1行だけ残す（dispatcher.md §2.4）。
-// 「続けて」は打たない: Chief of Staff は人が打つ端末で、hc send は人の書きかけに続けて送ってしまう（ADR-0019 決めたこと 4）。
+// 「続けて」は打たない: Chief of Staff はオーナーが打つ端末で、hc send はオーナーの書きかけに続けて送ってしまう（ADR-0019 決めたこと 4）。
 // 起動するのは StopFailure のフック（rewake.go。ADR-0019 決めたこと 10）。知らせる相手が止まっているので通知も積まない。同じ止まりには1回
 // （error・working の間は持ち越し、ほかに戻ったら区切る。Claude Code 自身のやり直しで working を挟んでも1回）。
 func (p *project) chiefCut(cos string) {
@@ -603,13 +603,13 @@ func (p *project) chiefCut(cos string) {
 		return
 	}
 	p.st.Sent[key+"|cut"] = true
-	p.logf("Chief of Staff %s はプロバイダに切られて止まった。続きは打たない（StopFailure のフックが起動する。5 回で止まれば人が Herdr App の error で気づく）", cos)
+	p.logf("Chief of Staff %s はプロバイダに切られて止まった。続きは打たない（StopFailure のフックが起動する。5 回で止まればオーナーが Herdr App の error で気づく）", cos)
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
 // （dispatcher.md §5 の「起動しそこねたら続きから」。andon issue start・andon chief-engineer が終了コード 3 で預けたものと、
 // dispatcher が起動したレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
-// 送る前に控えに「送りかけ」を書いて保存し、送ったら（人が手で送って動き出していても）ラベルを外す。
+// 送る前に控えに「送りかけ」を書いて保存し、送ったら（オーナーが手で送って動き出していても）ラベルを外す。
 // 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。
 // 止まっている（blocked・error）間は送らず次の見回りへ。hc send も、画面が入力を受けられなければ拒む。
 // 送る前に入力欄を読み（hc read）、前に貼った文の1行目が残っていれば貼り直さず Enter だけ押す（LeftInInput。ADR-0007 R6）。
@@ -731,7 +731,7 @@ func (p *project) seen(agent string) (Seen, bool) {
 	return Seen{Status: t.Status.State, Msg: t.Status.Msg, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false", Turn: t.Turn}, true
 }
 
-// retry は担当・レビュアーの端末に続きを打つ（人が打つ端末ではない）。Chief of Staff には打たない（chiefCut）。
+// retry は担当・レビュアーの端末に続きを打つ（オーナーが打つ端末ではない）。Chief of Staff には打たない（chiefCut）。
 func (p *project) retry(agent string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

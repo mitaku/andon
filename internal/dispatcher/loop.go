@@ -413,7 +413,7 @@ func (p *project) reviewerFirst(rev string) string {
 }
 
 // workerPlace は担当の端末（issue.yaml の agent）のラベル herdr.space・herdr.tab を "k=v" で返す。レビュアーに同じ値を付け、
-// 人の Herdr App で担当と同じ Space・tab に並べる（ADR-0002 決めたこと 12・ADR-0003）。読めなければ（端末が無い・ラベルが無い）付けない。
+// オーナーの Herdr App で担当と同じ Space・tab に並べる（ADR-0002 決めたこと 12・ADR-0003）。読めなければ（端末が無い・ラベルが無い）付けない。
 func workerPlace(agent string) []string {
 	if agent == "" {
 		return nil

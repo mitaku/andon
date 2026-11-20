@@ -25,7 +25,7 @@ var codexDefaults = []struct{ key, line string }{
 
 // genCodexConfig は ~/.codex/config.toml の top-level に approval_policy・sandbox_mode が無ければ足す。
 // 承認・sandbox の今ある値はそのまま。記憶の生成と利用は常に止める（ADR-0007 C5）。キーの有無は TOML のパーサで読み、足すのはファイルの先頭
-// （BOM があればその後ろ。最初の表の見出しより前＝top-level）。TOML として読めなければ書かない（人の設定を壊さない）。
+// （BOM があればその後ろ。最初の表の見出しより前＝top-level）。TOML として読めなければ書かない（オーナーの設定を壊さない）。
 func genCodexConfig(e Env) error {
 	path := filepath.Join(e.Home, ".codex", "config.toml")
 	b, err := os.ReadFile(path)
@@ -111,7 +111,7 @@ func genCodexConfig(e Env) error {
 }
 
 // genCodexRules は <pkg>/codex.rules を ~/.codex/rules/andon.rules に生成する（boot が持つファイル。
-// 人が書き換えていれば .bak に退避してから書く）。人の rules は別のファイル（default.rules など）に書く。
+// オーナーが書き換えていれば .bak に退避してから書く）。オーナーの rules は別のファイル（default.rules など）に書く。
 // パッケージに無ければ飛ばす。
 func genCodexRules(e Env) error {
 	b, err := os.ReadFile(filepath.Join(e.Package, "codex.rules"))

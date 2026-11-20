@@ -44,7 +44,7 @@ func fixOwners(e Env) error {
 			errs = append(errs, fmt.Errorf("sudo chown -R %s %s: %v: %s", owner, dir, err, strings.TrimSpace(string(out))))
 			continue
 		}
-		e.logf("オーナーを直した: %s（uid %d → %d）", dir, sys.Uid, e.Uid)
+		e.logf("置き場のオーナーを直した: %s（uid %d → %d）", dir, sys.Uid, e.Uid)
 	}
 	return errors.Join(errs...)
 }

@@ -33,7 +33,7 @@ type Applied struct {
 	Dropped   []Dropped      `json:"dropped"`
 }
 
-// AppliedIssue は fix のパターン1つに足した課題。who は worker（直す課題）か person（人の課題）。
+// AppliedIssue は fix のパターン1つに足した課題。who は worker（直す課題）か person（オーナーの課題）。
 type AppliedIssue struct {
 	Pattern string `json:"pattern"`
 	Issue   string `json:"issue"`
@@ -208,7 +208,7 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 			fixes = append(fixes, a.Issue)
 		}
 	}
-	fmt.Fprintf(stdout, "振り返り %s を当てた: 直す課題 %d 件%s・人の課題 %d 件%s・捨てた %d 件。記録は %s/library/%s\n",
+	fmt.Fprintf(stdout, "振り返り %s を当てた: 直す課題 %d 件%s・オーナーの課題 %d 件%s・捨てた %d 件。記録は %s/library/%s\n",
 		id, len(fixes), list(fixes), len(persons), list(persons), len(rec.Dropped), id, appliedFile)
 	return nil
 }
@@ -221,7 +221,7 @@ func list(ids []string) string {
 }
 
 // planOf は fix のパターン1つから足す課題を組む。直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ
-// 人の課題（決めたこと 2）。依頼書には要約・根拠・直す先・期待する効果・リスクを入れ、人が打った文の本文は写さない。
+// オーナーの課題（決めたこと 2）。依頼書には要約・根拠・直す先・期待する効果・リスクを入れ、オーナーが打った文の本文は写さない。
 func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	pl := plan{Pattern: x.ID, Who: "worker", Title: x.Summary, Repo: x.Target.Repo}
 	if x.Target.Kind == "andon" && (x.Target.Repo == "" || !slices.Contains(repos, x.Target.Repo)) {
@@ -239,7 +239,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	fmt.Fprintf(&b, "# %s\n", pl.Title)
 	if pl.Who == "person" {
 		fmt.Fprintf(&b, "解決すべき問題: 振り返り %s が拾ったパターン %s の直す先は Andon のパッケージだが、このプロジェクトは Andon の repo を持たないので直せない。"+
-			"Andon のオーナーへ伝えるか、捨てるかを人が決める。\n", retro, x.ID)
+			"Andon のメンテナーへ伝えるか、捨てるかをオーナーが決める。\n", retro, x.ID)
 	} else {
 		fmt.Fprintf(&b, "解決すべき問題: %s。振り返り %s がパターン %s として、別々の出来事から拾った（根拠は下）。\n", x.Summary, retro, x.ID)
 	}
@@ -253,7 +253,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	if pl.Who == "worker" {
 		b.WriteString("完了条件: 期待する効果が、直す先の段で確かめられる形で入る。段がテストか確かめなら、根拠の出来事を写した入力で直す前に落ち、直したあと通る。\n")
 		b.WriteString("守ること: 直す先の段と paths の範囲で直す。上の段で止められるなら下の段で直さない。PR は worker skill §3 の「改善の PR」の決まりで出す" +
-			"（ラベル retro。本文に根拠の課題番号の一覧・人のコメントや人が打った文の本文・人の名前を書かない）。\n")
+			"（ラベル retro。本文に根拠の課題番号の一覧・オーナーのコメントやオーナーが打った文の本文・人の名前を書かない）。\n")
 	}
 	b.WriteString("\n## 根拠（セルの中の記録。PR に写さない）\n")
 	var prs []string
@@ -276,7 +276,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 			if t.Issue != nil {
 				who += "・" + *t.Issue
 			}
-			fmt.Fprintf(&b, "- %s: 人が打った文（%s、%s）。本文は振り返りの入力にだけある\n", t.ID, who, t.At)
+			fmt.Fprintf(&b, "- %s: オーナーが打った文（%s、%s）。本文は振り返りの入力にだけある\n", t.ID, who, t.At)
 		}
 	}
 	if len(prs) == 0 {

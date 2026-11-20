@@ -354,7 +354,7 @@ func TestChiefOfStaffForegroundUnknown(t *testing.T) {
 	}
 }
 
-// 人がシェルで使っている端末（top-level はエージェントの command で前にシェル・top-level がシェルで前に別のもの）は片付けない。
+// オーナーがシェルで使っている端末（top-level はエージェントの command で前にシェル・top-level がシェルで前に別のもの）は片付けない。
 // 使いも数えもせず、確かめられないとして止まる（台帳を書かない）。
 func TestHumanShellChiefOfStaffKept(t *testing.T) {
 	for _, term := range []string{
@@ -369,7 +369,7 @@ func TestHumanShellChiefOfStaffKept(t *testing.T) {
 			t.Errorf("%s: rc=%d err=%q", term, rc, errs)
 		}
 		if f.has("hc keep") || f.has("hc kill") || f.has("hc rm") || f.has("hc run") || f.has("kanban config") || f.chief_of_staff() != "t1" {
-			t.Errorf("%s: 人の端末に触った・台帳を書いた: %q", term, f.calls())
+			t.Errorf("%s: オーナーの端末に触った・台帳を書いた: %q", term, f.calls())
 		}
 	}
 }

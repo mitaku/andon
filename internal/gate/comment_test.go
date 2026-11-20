@@ -125,6 +125,25 @@ func recordTierReasons(t *testing.T) []string {
 	return append(out, cl.TierReasons...)
 }
 
+// roleWords はゲートのコメントに出さない役の語（ADR-0036 決めたこと 3。外の読み手にはメンテナーと書く）。
+var roleWords = regexp.MustCompile(`人|オーナー`)
+
+// ADR-0036 A4: needs_human の見出しはメンテナーと書き、役の語の検査は古い文に当たる（何かを見ていることの確かめ）。
+func TestCommentSaysMaintainer(t *testing.T) {
+	rec := &Record{Decision: "needs_human", Tier: "C"}
+	if !strings.Contains(CommentBody(rec), "**メンテナーの判断が要る変更です**") {
+		t.Errorf("needs_human の見出しがメンテナーでない: %q", CommentBody(rec))
+	}
+	if !strings.Contains(CommentBody(rec), "外（メンテナーがマージする）") {
+		t.Errorf("委譲の外の行がメンテナーでない: %q", CommentBody(rec))
+	}
+	for _, old := range []string{"オーナーの判断が要る変更です", "オーナーが見る変更"} {
+		if !roleWords.MatchString(old) {
+			t.Fatalf("役の語の検査が %q に当たらない", old)
+		}
+	}
+}
+
 // A5: コメントと commit status の説明文に内輪の語が出ない。記録の文には出る（検査が何かを見ていることの確かめ）
 func TestCommentHasNoInsideWords(t *testing.T) {
 	reasons, tierReasons := recordReasons(t), recordTierReasons(t)
@@ -158,6 +177,10 @@ func TestCommentHasNoInsideWords(t *testing.T) {
 				}
 				if m := insideWords.FindString(s); m != "" {
 					t.Errorf("%s %s に内輪の語 %q:\n%s", d, name, m, s)
+				}
+				// 役はメンテナーと書く（ADR-0036 決めたこと 3）。セルの中の語「人」「オーナー」は出さない
+				if m := roleWords.FindString(s); m != "" {
+					t.Errorf("%s %s に役の語 %q（メンテナーと書く）:\n%s", d, name, m, s)
 				}
 			}
 			if n := len([]rune(StatusDescription(rec))); n > 140 {

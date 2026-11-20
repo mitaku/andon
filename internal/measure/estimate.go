@@ -9,7 +9,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// estimates は期間に最後の列へ動いた担当の課題（レビュアー・Chief Engineer・人の課題を除く。調べる課題を含む）ごとの
+// estimates は期間に最後の列へ動いた担当の課題（レビュアー・Chief Engineer・オーナーの課題を除く。調べる課題を含む）ごとの
 // 見込みと実際と、全体の収まった割合（ADR-0014 決めたこと 8・9・11 の 6。contract.md §13）。
 // 見込みと実働は dispatcher と同じもの（ledger.Estimate・ledger.Worked）を読む。死んでいた区間は dispatcher の控えの gone。
 func (r *reader) estimates(o Options, ids []string, byID map[string]*issue, doneAt map[string]time.Time, in func(time.Time) bool) (Estimate, []Issue) {

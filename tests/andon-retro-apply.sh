@@ -65,7 +65,7 @@ jq -e '[.typed[].id] == ["h-b1", "h-a1", "h-a2"] and .previous_retro.issue == "S
 
 # p <evidence の JSON の配列> [jq の式]: パターン1つの入力
 p() {
-  jq -cn --argjson ev "$1" '{patterns: [{id: "p1", summary: "PR の題に課題番号が入り、人が直した", evidence: $ev, level: "test", action: "add",
+  jq -cn --argjson ev "$1" '{patterns: [{id: "p1", summary: "PR の題に課題番号が入り、オーナーが直した", evidence: $ev, level: "test", action: "add",
     target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/pr-title.sh"]},
     effect: "題に課題番号が入った PR が CI で落ちる", risk: "誤検知", decision: "fix", reason: "テストで止められる"}], fixes: []}' | jq -c "${2:-.}"
 }
@@ -89,8 +89,8 @@ refuse "同じ課題を2回" "別々の2件に満たない" "$(p '["S-0012", "S-
 refuse "同じセッションの文を2つ" "別々の2件に満たない" "$(p '["h-a1", "h-a2"]')"
 refuse "入力に無い id" "集めた入力" "$(p '["S-0012", "S-0099"]')"
 accept "別々の課題2件" "$(p '["S-0012", "S-0013"]')"
-accept "課題1件と人の文1件" "$(p '["S-0013", "h-a2"]')"
-echo 'ok 11: 根拠が別々の2件に満たないパターンは断る（課題2件・課題と人の文なら通る）'
+accept "課題1件とオーナーの文1件" "$(p '["S-0013", "h-a2"]')"
+echo 'ok 11: 根拠が別々の2件に満たないパターンは断る（課題2件・課題とオーナーの文なら通る）'
 
 # 12: 新しい出来事が無ければ出せない
 refuse "根拠が全部前の振り返りより前" "前の振り返り S-0010" "$(p '["S-0011", "h-b1"]')"
@@ -113,7 +113,7 @@ rc=0; HC_TERMINAL_ID=t1 "$andon" retro patterns S-0020 - <<<"$(p '["S-0012", "S-
 [ "$rc" = 1 ] && grep -q '担当' "$tmp/err" && [ ! -e "$out" ] || die "ほかの端末から書けた（rc=$rc）: $(cat "$tmp/err")"
 echo 'ok パターンの一覧は、その課題の担当の端末からだけ書ける'
 
-# 15・16・17: 当てる。p1 は案件の repo のテスト（直す課題）、p2 は Andon のパッケージ（この台帳の repos に Andon が無いので人の課題）、p3 は捨てる。
+# 15・16・17: 当てる。p1 は案件の repo のテスト（直す課題）、p2 は Andon のパッケージ（この台帳の repos に Andon が無いのでオーナーの課題）、p3 は捨てる。
 # p4〜p6 も直す課題で、fix は 5 件（ADR-0039 受け入れ条件 1: 上限は無く、全部が一覧の順に課題になる）
 good=$(p '["S-0012", "h-a2"]' '.patterns += [
   (.patterns[0] + {id: "p2", summary: "見送りの理由が報告に無く、検収で戻した", evidence: ["S-0012", "S-0013"], level: "skill", action: "change",
@@ -152,15 +152,15 @@ jq -e '.complete == true and ([.issues[] | [.pattern, .who]] == [["p1", "worker"
   || die "記録: $(jq -c . "$rec")"
 fix=$(jq -r '.issues[0].issue' "$rec") person=$(jq -r '.issues[1].issue' "$rec")
 kanban show "$fix" --json >"$tmp/fix.json"
-jq -e '.issue.parent == "S-0020" and .issue.repo == "github.com/example/sample-site" and .issue.title == "PR の題に課題番号が入り、人が直した" and (.issue.who // "") != "person"' "$tmp/fix.json" >/dev/null \
+jq -e '.issue.parent == "S-0020" and .issue.repo == "github.com/example/sample-site" and .issue.title == "PR の題に課題番号が入り、オーナーが直した" and (.issue.who // "") != "person"' "$tmp/fix.json" >/dev/null \
   || die "直す課題: $(jq -c .issue "$tmp/fix.json")"
 brief=$(jq -r .brief "$tmp/fix.json")
-for want in '解決すべき問題: PR の題に課題番号が入り、人が直した' '直す先: テスト・lint の段で足す' 'tests/pr-title.sh' '期待する効果: 題に課題番号が入った PR が CI で落ちる' \
-  'リスク: 誤検知' '- S-0012: S-0012 の題' '- h-a2: 人が打った文' "PR の本文に書いてよい根拠の PR: $pr/12" 'S-0020 の library/retro.json のパターン p1'; do
+for want in '解決すべき問題: PR の題に課題番号が入り、オーナーが直した' '直す先: テスト・lint の段で足す' 'tests/pr-title.sh' '期待する効果: 題に課題番号が入った PR が CI で落ちる' \
+  'リスク: 誤検知' '- S-0012: S-0012 の題' '- h-a2: オーナーが打った文' "PR の本文に書いてよい根拠の PR: $pr/12" 'S-0020 の library/retro.json のパターン p1'; do
   grep -qF -- "$want" <<<"$brief" || die "直す課題の依頼書に「$want」が無い: $brief"
 done
-! grep -q 'また題に番号が入っている' <<<"$brief" || die "依頼書に人の文の本文が入った"
-grep -q 'また題に番号が入っている' "$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl" || die "検査の前提: 人の文がログにある"
+! grep -q 'また題に番号が入っている' <<<"$brief" || die "依頼書にオーナーの文の本文が入った"
+grep -q 'また題に番号が入っている' "$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl" || die "検査の前提: オーナーの文がログにある"
 [ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 5 ] || die "足した課題が5件でない: $(issues)"
 # 足した順（課題の番号の順）が一覧の順と同じ
 order=$(jq -r '[.issues[].issue] | join(" ")' "$rec")
@@ -169,14 +169,14 @@ order=$(jq -r '[.issues[].issue] | join(" ")' "$rec")
   "$(jq -r '[.patterns[] | select(.decision == "fix") | if .target.kind == "andon" then "Andon へ伝えるか: " + .summary else .summary end] | join("|")' "$tmp/good.json")" ] \
   || die "足した課題の題の並びが一覧の順でない: $(kanban list --all --json | jq -c '[.[] | select(.parent == "S-0020") | [.id, .title]]')"
 f2=$(jq -r '[.issues[] | select(.who == "worker") | .issue] | join("・")' "$rec")
-grep -q "直す課題 4 件（$f2）・人の課題 1 件（$person）・捨てた 1 件" "$tmp/apply.out" || die "当てた行: $(cat "$tmp/apply.out")"
+grep -q "直す課題 4 件（$f2）・オーナーの課題 1 件（$person）・捨てた 1 件" "$tmp/apply.out" || die "当てた行: $(cat "$tmp/apply.out")"
 ! grep -q '上限' "$tmp/ok" "$tmp/apply.out" || die "上限の理由の行が出た: $(cat "$tmp/ok" "$tmp/apply.out")"
 echo 'ok 16: fix ごとに直す課題が1件足され（fix 5 件なら 5 件、一覧の順に）、依頼書に要約・根拠・直す先・期待する効果・リスク。drop は理由つきで記録に残る'
 
 kanban show "$person" --json >"$tmp/person.json"
 jq -e '.issue.who == "person" and .issue.parent == "S-0020" and (.issue.repo // "") == "" and (.issue.title | startswith("Andon へ伝えるか: "))' "$tmp/person.json" >/dev/null \
-  || die "人の課題: $(jq -c .issue "$tmp/person.json")"
-echo 'ok 17: Andon の repo を持たないプロジェクトでは、パッケージの直しは人の課題（who=person）'
+  || die "オーナーの課題: $(jq -c .issue "$tmp/person.json")"
+echo 'ok 17: Andon の repo を持たないプロジェクトでは、パッケージの直しはオーナーの課題（who=person）'
 
 # 当て済みの一覧は当て直さない
 rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?

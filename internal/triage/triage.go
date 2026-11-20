@@ -1,5 +1,5 @@
-// Package triage は台帳の溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・人に聞くこと、
-// 担当の無い todo、人の判断待ち、片付けの残り）とセルの auto memory（<ANDON_WORKSPACE>/memory の1件1ファイル）と
+// Package triage は台帳の溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・オーナーに聞くこと、
+// 担当の無い todo、オーナーの判断待ち、片付けの残り）とセルの auto memory（<ANDON_WORKSPACE>/memory の1件1ファイル）と
 // 外の信号の記録（<slug>.signals.json の、課題に切られていない active な信号）を集め（collect）、
 // 仕分けの決定を台帳に当てる（apply）。
 //

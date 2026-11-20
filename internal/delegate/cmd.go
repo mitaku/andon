@@ -21,8 +21,8 @@ const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text
 	"       andon delegate narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
 	"       andon delegate revoke <id> --reason <text> [--project <slug>]\n" +
 	"       andon delegate show [--json] [--project <slug>]\n" +
-	"人がセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
-	"project.json を andon.toml の owner を author にして commit する（project.json は先に人が書く）。show は HEAD の委譲を読み手と同じに読む。\n" +
+	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
+	"project.json を andon.toml の owner を author にして commit する（project.json は先にオーナーが書く）。show は HEAD の委譲を読み手と同じに読む。\n" +
 	"scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 	"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
 	"       line-change(none/project/plant)。narrow は今の値より広げない。--project を省くと cwd の projects/<slug>/。\n" +
@@ -75,7 +75,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return 0
 		}
 		if !r.Trusted {
-			fmt.Fprintf(stdout, "%s: 無委譲（全部人）。%s\n", slug, r.Reason)
+			fmt.Fprintf(stdout, "%s: 無委譲（全部オーナー）。%s\n", slug, r.Reason)
 			return 0
 		}
 		fmt.Fprintf(stdout, "%s: 型 %s\n", slug, r.Preset)
@@ -123,7 +123,7 @@ func project(ws, given string) (string, error) {
 }
 
 // AgentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か issue=）。
-// 役の端末なら why を添えた誤り。読めなければ打たせない（安全側）。人のファイルを書く command（delegate・create）が使う。
+// 役の端末なら why を添えた誤り。読めなければ打たせない（安全側）。オーナーのファイルを書く command（delegate・create）が使う。
 func AgentTerminal(why string) error {
 	id := os.Getenv("HC_TERMINAL_ID")
 	if id == "" {
@@ -131,13 +131,13 @@ func AgentTerminal(why string) error {
 	}
 	out, err := exec.Command("hc", "get", id, "--json").Output()
 	if err != nil {
-		return fmt.Errorf("端末 %s のラベルが読めない（hc get）。人の端末で打つ", id)
+		return fmt.Errorf("端末 %s のラベルが読めない（hc get）。オーナーの端末で打つ", id)
 	}
 	var t struct {
 		Labels map[string]string `json:"labels"`
 	}
 	if json.Unmarshal(out, &t) != nil {
-		return fmt.Errorf("端末 %s のラベルが読めない。人の端末で打つ", id)
+		return fmt.Errorf("端末 %s のラベルが読めない。オーナーの端末で打つ", id)
 	}
 	for _, k := range []string{"role", "issue"} {
 		if v, ok := t.Labels[k]; ok {
@@ -148,13 +148,13 @@ func AgentTerminal(why string) error {
 }
 
 // change はセルの repo の HEAD の project.json（owner の commit）を読み、delegation を f で変え、検査して書き、project.json だけを commit する。
-// project.json の delegation のほかのキーは HEAD のまま（形だけ2字下げに揃う）。project.json が無ければ書かない（先に人が書く）。
-// 作業ツリーや index に commit していない変更があれば打たない（エージェントが書いた変更を人の commit に混ぜない）。
-// HEAD を最後に変えたのが owner でなければ打たない（owner でない変更を人の commit で信じられる形にしない）。
+// project.json の delegation のほかのキーは HEAD のまま（形だけ2字下げに揃う）。project.json が無ければ書かない（先にオーナーが書く）。
+// 作業ツリーや index に commit していない変更があれば打たない（エージェントが書いた変更をオーナーの commit に混ぜない）。
+// HEAD を最後に変えたのが owner でなければ打たない（owner でない変更をオーナーの commit で信じられる形にしない）。
 // commit の author と committer は andon.toml の owner（名前は HEAD の project.json を最後に変えた owner の commit のもの）。
 // 端末の git の user は使わない（セルではエージェントの名前で、読み手が無委譲として読む）。
 func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (string, error)) error {
-	if err := AgentTerminal("委譲を書くのは人だけ"); err != nil {
+	if err := AgentTerminal("委譲を書くのはオーナーだけ"); err != nil {
 		return err
 	}
 	rel := ProjectRel(slug)
@@ -162,11 +162,11 @@ func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (str
 	if st, err := git(ws, "status", "--porcelain", "--", rel); err != nil {
 		return err
 	} else if strings.TrimSpace(st) != "" {
-		return fmt.Errorf("%s に commit していない変更がある（git diff で中身を確かめ、人の変更なら owner の email で commit してから打つ）", rel)
+		return fmt.Errorf("%s に commit していない変更がある（git diff で中身を確かめ、オーナーの変更なら owner の email で commit してから打つ）", rel)
 	}
 	b, err := OwnerFile(ws, rel)
 	if errors.Is(err, ErrAbsent) {
-		return fmt.Errorf("セルの repo の HEAD に %s が無い。先に人が書いて commit する（形は docs/contract.md §11）", rel)
+		return fmt.Errorf("セルの repo の HEAD に %s が無い。先にオーナーが書いて commit する（形は docs/contract.md §11）", rel)
 	} else if err != nil {
 		return fmt.Errorf("%v（中身を確かめ、owner の email で commit し直してから打つ）", err)
 	}

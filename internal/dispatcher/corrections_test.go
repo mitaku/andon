@@ -67,19 +67,19 @@ func TestCorrections(t *testing.T) {
 			nil, "", nil, nil,
 			`[{"kind":"answer","question":2,"decision_kind":"users","recommended":"CSV だけ","picked":"CSV と Excel"}]`},
 		{"ゲートの問いへの答え → override（推奨どおりでも）・scope は数えない・答えの無い問いと JSON の無い問いも数えない",
-			[]QA{{N: 1, Status: "received", Answer: "人が PR を読んでマージする", Q: q("line", "gate", "人が PR を読んでマージする", "直させる")},
+			[]QA{{N: 1, Status: "received", Answer: "オーナーが PR を読んでマージする", Q: q("line", "gate", "オーナーが PR を読んでマージする", "直させる")},
 				{N: 2, Status: "received", Answer: "c2 だけ", Q: q("scope", "issue", "c1 と c2", "c2 だけ")},
 				{N: 3, Status: "open", Q: q("users", "issue", "A", "B")},
 				{N: 4, Status: "received", Answer: "B"}},
 			nil, "", nil, nil,
-			`[{"kind":"override","question":1,"recommended":"人が PR を読んでマージする","answer":"人が PR を読んでマージする"}]`},
-		{"人の commit がある PR → pr",
+			`[{"kind":"override","question":1,"recommended":"オーナーが PR を読んでマージする","answer":"オーナーが PR を読んでマージする"}]`},
+		{"オーナーの commit がある PR → pr",
 			nil, &contract.Report{Commit: sha('a')}, "major", pr("MERGED", sha('a'), sha('b')),
 			[]HumanCommit{{Sha: sha('b'), Headline: "msg b", Files: []string{"docs/a.md"}}},
 			`[{"kind":"pr","comments":[],"human_commits":[{"sha":"` + sha('b') + `","headline":"msg b","files":["docs/a.md"]}]}]`},
-		{"人が waive した指摘（must_fix 以上・マージ済み）→ override",
-			nil, &contract.Report{Waived: []contract.Waived{{Severity: "major", File: "a.go", Line: &line, Reason: "人が許した"}}}, "major", pr("MERGED"), nil,
-			`[{"kind":"override","finding":{"severity":"major","file":"a.go","line":3},"reason":"人が許した"}]`},
+		{"オーナーが waive した指摘（must_fix 以上・マージ済み）→ override",
+			nil, &contract.Report{Waived: []contract.Waived{{Severity: "major", File: "a.go", Line: &line, Reason: "オーナーが許した"}}}, "major", pr("MERGED"), nil,
+			`[{"kind":"override","finding":{"severity":"major","file":"a.go","line":3},"reason":"オーナーが許した"}]`},
 		{"インラインのレビューコメントとレビューの本文 → pr（Bot のものとゲートのインラインコメントは数えない）",
 			nil, &contract.Report{Commit: sha('a')}, "major",
 			func() *PRView {
@@ -132,7 +132,7 @@ func TestHumanCommits(t *testing.T) {
 		t.Errorf("a の後は b・c: %v", got)
 	}
 	if got := HumanCommits(c, v); len(got) != 0 {
-		t.Errorf("最後の commit が報告なら人の commit は無い: %v", got)
+		t.Errorf("最後の commit が報告ならオーナーの commit は無い: %v", got)
 	}
 	if got := HumanCommits(strings.Repeat("d", 40), v); got != nil {
 		t.Errorf("報告の commit が PR に無ければ数えない: %v", got)
@@ -144,7 +144,7 @@ func TestHumanCommits(t *testing.T) {
 
 func TestCorrectionsLine(t *testing.T) {
 	got := line(Notification{Issue: "A-1", Kind: "corrections", Detail: map[string]any{"error": "2 回打って失敗: HTTP 502"}})
-	want := "A-1 corrections: 人の手直しを集められなかった（2 回打って失敗: HTTP 502）。corrections.json は書いていない"
+	want := "A-1 corrections: オーナーの手直しを集められなかった（2 回打って失敗: HTTP 502）。corrections.json は書いていない"
 	if got != want {
 		t.Errorf("line =\n %s\nwant\n %s", got, want)
 	}

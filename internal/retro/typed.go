@@ -15,7 +15,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// Typed は人が端末で打った文1つ（ADR-0028 決めたこと 4・14 の 1）。根拠として指す id は h-<セッションログの行の uuid>。
+// Typed はオーナーが端末で打った文1つ（ADR-0028 決めたこと 4・14 の 1）。根拠として指す id は h-<セッションログの行の uuid>。
 // 同じセッションの文は根拠として1件に数える（決めたこと 14 の 2）ので、session を一緒に出す。
 type Typed struct {
 	ID        string  `json:"id"`
@@ -30,7 +30,7 @@ type Typed struct {
 // maxTyped は1つの文の長さの上限（文字）。超えた分は切って truncated にする（貼った長い文書が入力を埋めないように）。
 const maxTyped = 2000
 
-// owner はセッションのオーナー（このプロジェクトの役と課題）。
+// owner はセッションを持つもの（このプロジェクトの役と課題）。
 type owner struct {
 	role  string
 	issue string
@@ -53,7 +53,7 @@ func wrappedText(s string) bool {
 	return false
 }
 
-// machineText は Andon の command が端末の外から hc send した文か（hc の包みが付かず、人の印が付く）。
+// machineText は Andon の command が端末の外から hc send した文か（hc の包みが付かず、オーナーの印が付く）。
 // dispatcher とゲートは、担当・レビュアーへ送る文の先頭に送り手の印（[dispatcher]・[gate]。spawn.Mark）を置く。
 // その印で照らし、文の意味は読まない。貼った文の包みの内側も見る。起動の最初のメッセージは位置で除く。
 func machineText(s string) bool {
@@ -71,12 +71,12 @@ func roleOf(t *task) string {
 	return launch.RoleWorker
 }
 
-// typed は期間に人が打った文を、このプロジェクトの Claude Code のセッションログから抜く（Codex の記録には人の印が無いので抜かない）。
+// typed は期間にオーナーが打った文を、このプロジェクトの Claude Code のセッションログから抜く（Codex の記録にはオーナーの印が無いので抜かない）。
 //
-// セッションのオーナーは、起動の記録の session（課題と Chief of Staff）か、ログの cwd（プロジェクトの根は Chief of Staff、
+// セッションを持つものは、起動の記録の session（課題と Chief of Staff）か、ログの cwd（プロジェクトの根は Chief of Staff、
 // 台帳の issues/<id>/ と課題の worktree はその課題）で決める。どちらにも当たらないセッションは読まない。
-// 抜く文: user の行で、本線（isSidechain でない）・isMeta でない・要約でない・人の印（origin.kind が human）があり、
-// セッションの最初の人の印の文（起動の最初のメッセージ）でなく、包み（hc send・通知）が無く、Andon の command が端末の外から送った
+// 抜く文: user の行で、本線（isSidechain でない）・isMeta でない・要約でない・オーナーの印（origin.kind が human）があり、
+// セッションの最初のオーナーの印の文（起動の最初のメッセージ）でなく、包み（hc send・通知）が無く、Andon の command が端末の外から送った
 // 定型の文（machineText）でもなく、時刻が期間の中のもの。文の意味は読まない。
 func (r *reader) typed(tasks []*task, since, until time.Time) []Typed {
 	out := []Typed{}
@@ -209,7 +209,7 @@ func (r *reader) typedFile(f string, bySession, byCwd map[string]owner, since, u
 	return out
 }
 
-// typedLine は1行が抜く文なら返す。first は「まだ人の印の文を見ていない」（見たら false にする）。
+// typedLine は1行が抜く文なら返す。first は「まだオーナーの印の文を見ていない」（見たら false にする）。
 func (r *reader) typedLine(u *userLine, session string, n int, o owner, first *bool, since, until time.Time) (Typed, bool) {
 	if u.Type != "user" || u.IsSidechain || u.IsMeta || u.IsCompactSummary || u.Origin == nil || u.Origin.Kind != "human" {
 		return Typed{}, false

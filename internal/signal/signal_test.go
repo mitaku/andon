@@ -317,7 +317,7 @@ func TestCollectDue(t *testing.T) {
 		t.Error("読めなかったのに記録が変わった")
 	}
 
-	// --due でなければ、間隔によらず読む（人が手で打つ）
+	// --due でなければ、間隔によらず読む（オーナーが手で打つ）
 	o.Due = false
 	if ci, issues := reads(42 * time.Minute); ci != 1 || issues != 1 {
 		t.Errorf("--due でないのに読まない: %d %d", ci, issues)

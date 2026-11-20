@@ -89,7 +89,7 @@ func TestRewakeIgnores(t *testing.T) {
 	}
 }
 
-// 待つ間に人が打てば合図を打たずに 0: 動いている（working）・通って終わった（done・idle）・端末が読めない・
+// 待つ間にオーナーが打てば合図を打たずに 0: 動いている（working）・通って終わった（done・idle）・端末が読めない・
 // 通ったターンの Stop で回数が消えた・また切られて次のフックが回数を進めた。
 func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
 	for name, during := range map[string]func(f *retryFixture){
@@ -112,7 +112,7 @@ func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
 }
 
 // 待ち役（Stop）とこのフック（StopFailure）が同時に 2 で終わっても、どちらも合図だけなので <news> は1回しか届かない。
-// 起きたターンの終わりの Stop の drain が1回渡し、もう1つの合図で起きたターンの Stop・次の人の送信では出ない。
+// 起きたターンの終わりの Stop の drain が1回渡し、もう1つの合図で起きたターンの Stop・次のオーナーの送信では出ない。
 func TestRewakeAndWaitSignalTogetherDeliverOnce(t *testing.T) {
 	f := rewakeFixture(t)
 	f.pending(1)
@@ -141,7 +141,7 @@ func TestRewakeAndWaitSignalTogetherDeliverOnce(t *testing.T) {
 		{false, hookInput{SessionID: "s1", PromptID: "p1"}},                       // 1つ目の合図で起きたターンの終わり: <news> を渡す
 		{false, hookInput{SessionID: "s1", PromptID: "p1", StopHookActive: true}}, // その続きの終わり: 確かめ済み
 		{false, hookInput{SessionID: "s1", PromptID: "p2"}},                       // 2つ目の合図で起きたターンの終わり
-		{true, hookInput{SessionID: "s1", PromptID: "p3"}},                        // 次の人の送信
+		{true, hookInput{SessionID: "s1", PromptID: "p3"}},                        // 次のオーナーの送信
 	} {
 		out, err := drain("sample-site", in.context, in.h)
 		if err != nil {

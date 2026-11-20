@@ -40,7 +40,7 @@ func TestDrainStopUnderLockConfirms(t *testing.T) {
 		t.Fatalf("lock が取れないのに通さない: %v %v", out, err)
 	}
 	unlock()
-	// 3. 次の人の送信で、渡した <news> をもう一度添えない
+	// 3. 次のオーナーの送信で、渡した <news> をもう一度添えない
 	out, err = drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"})
 	if err != nil {
 		t.Fatal(err)

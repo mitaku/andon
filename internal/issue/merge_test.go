@@ -69,7 +69,7 @@ func TestChecksStill(t *testing.T) {
 	}
 }
 
-// gh pr merge が失敗したあと、ゲートの判定した head のまま MERGED なら人が先にマージしたとして問いにしない。
+// gh pr merge が失敗したあと、ゲートの判定した head のまま MERGED ならオーナーが先にマージしたとして問いにしない。
 // head が違う・MERGED でない・返事が読めないときは今までどおり問いにする（dispatcher.md §7.2 #5）。
 func TestMergedBefore(t *testing.T) {
 	head, other, merge := "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
@@ -96,7 +96,7 @@ func TestMergedBefore(t *testing.T) {
 }
 
 // ゲートが approve か needs_human を決めたあと、open の PR の head が判定した head から動いたときだけ回し直す。
-// fix（担当が ready し直す）・dispatcher がマージした・人がマージした・閉じた PR は回し直さない（dispatcher.md §5 の P6a）。
+// fix（担当が ready し直す）・dispatcher がマージした・オーナーがマージした・閉じた PR は回し直さない（dispatcher.md §5 の P6a）。
 func TestHeadMoved(t *testing.T) {
 	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	m := func(decision, merged string) contract.Merging {
@@ -113,7 +113,7 @@ func TestHeadMoved(t *testing.T) {
 		{"head が同じ", m("approve", ""), "OPEN", h1, false},
 		{"fix は担当が ready し直す", m("fix", ""), "OPEN", h2, false},
 		{"dispatcher がマージした", m("approve", strings.Repeat("c", 40)), "OPEN", h2, false},
-		{"人が別の head でマージした（settle の道）", m("needs_human", ""), "MERGED", h2, false},
+		{"オーナーが別の head でマージした（settle の道）", m("needs_human", ""), "MERGED", h2, false},
 		{"閉じた PR", m("approve", ""), "CLOSED", h2, false},
 		{"head が読めない", m("approve", ""), "OPEN", "", false},
 		{"判定した head が無い（決めていない）", contract.Merging{Row: 3, Decision: "needs_human"}, "OPEN", h2, false},
@@ -124,7 +124,7 @@ func TestHeadMoved(t *testing.T) {
 	}
 }
 
-// ゲートの問いを閉じるとき、一覧を読んだあとに人か Chief of Staff が答えていれば answer は断られる。人の答えは上書きせず、
+// ゲートの問いを閉じるとき、一覧を読んだあとにオーナーか Chief of Staff が答えていれば answer は断られる。オーナーの答えは上書きせず、
 // そのまま received に進めて閉じる。受け取れなければ誤りを返す（merge は次に打たれたときに閉じ直す）。
 func TestCloseQuestionAfterAnswer(t *testing.T) {
 	if _, err := exec.LookPath("sh"); err != nil {
