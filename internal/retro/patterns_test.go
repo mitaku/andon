@@ -1,6 +1,7 @@
 package retro
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,21 +129,24 @@ func TestNotSelf(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 15（形の側）: 判定の無いパターンと、fix が上限を超えた一覧は断る。
-func TestDecisionAndFixLimit(t *testing.T) {
+// ADR-0039 受け入れ条件 1・2（形の側）: 判定の無いパターンは断る。fix の数は問わない（決めたこと 1）。
+func TestDecisionWithoutFixLimit(t *testing.T) {
 	p := pattern("S-0012", "S-0013")
 	p.Decision = ""
 	wantRefused(t, checkOne(t, p, patternsInput()), "判定が無い")
 	var ps []Pattern
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= 6; i++ {
 		x := pattern("S-0012", "S-0013")
-		x.ID = "p" + string(rune('0'+i))
+		x.ID = fmt.Sprintf("p%d", i)
 		ps = append(ps, x)
 	}
-	wantRefused(t, CheckPatterns(ps, []FixView{}, patternsInput(), repos, true), "fix が 3 件")
-	ps[2].Decision = "drop"
+	ps[5].Decision = "drop"
 	if err := CheckPatterns(ps, []FixView{}, patternsInput(), repos, true); err != nil {
-		t.Fatalf("fix 2 件・drop 1 件は通る: %v", err)
+		t.Fatalf("fix 5 件・drop 1 件は通る: %v", err)
+	}
+	ps[5].Decision = "fix"
+	if err := CheckPatterns(ps, []FixView{}, patternsInput(), repos, true); err != nil {
+		t.Fatalf("fix 6 件も通る: %v", err)
 	}
 }
 

@@ -886,7 +886,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `patterns[].target` | 直す先。`kind` は `andon`（Andon のパッケージ）か `project`（案件の repo のテスト・`AGENTS.md`・`REVIEW.md` など）。`repo` は `<host>/<owner>/<repo>`（`project` は必須でプロジェクトの `repos` の中。`andon` は持っていれば書く）。`paths` は repo の中の相対パス（1つ以上） |
 | `patterns[].not_upstream` | 上の段（設計・テスト・確かめ）で止められない理由の1行。`level` が `skill` か `text` なら必須 |
 | `patterns[].effect`・`risk` | 期待する効果（何が起きなくなるか）とリスク。1行ずつ |
-| `patterns[].decision`・`reason` | `fix`（直す課題に切る）か `drop`（捨てる。持ち越さない）と、その理由の1行 |
+| `patterns[].decision`・`reason` | `fix`（直す課題に切る）か `drop`（捨てる。持ち越さない）と、その理由の1行。`drop` の理由は中身だけで、数の都合を書かない。`fix` のパターンは優先の順に並べる（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 3） |
 | `fixes[]` | 入力の `fixes[]`（前の振り返りが切った直しのうちマージから 14 日以内のもの）の全部に1件ずつ、過不足なく。`recurred` はマージのあとに同じパターンが起きた数、`view` は見立ての1行（残す・効き目の確かな段へ振り分け直す・効かなかった文を削る候補にする）。再発したものは、文を足さずに上の段か削る候補をパターンに出す（決めたこと 6） |
 
 command が断ること（`andon retro patterns` と `andon retro apply` の両方。[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8）:
@@ -896,12 +896,12 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - 根拠のどれも `previous_retro` の `done_at` より後でない（後に片付いた課題か、後に打たれた文が1件も無い）パターン（決めたこと 14 の 3）。前の振り返りが無ければ問わない。
 - `level` が `skill` か `text` なのに `not_upstream` が無いパターン。
 - `target.paths` が振り返り自身（`package/skills/retro`・`internal/retro` とその下）を指すパターン。
-- 判定（`decision`）の無いパターン。`fix` が 2 件を超える一覧（決めたこと 13）。
+- 判定（`decision`）の無いパターン。`fix` の数は確かめない（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 1）。
 - 形の誤り（知らないキー・空の文・改行・`project` の `repo` がプロジェクトの `repos` に無い）。`andon retro patterns` だけは、`fixes[]` が入力の前の直しと過不足なく合うかも確かめる（`apply` は GitHub を読まないので照らさない）。
 
 確かめないこと: そのパターンが根拠の課題で本当に起きたか。見るのは、検収する Chief of Staff と、直す PR を読むレビュアーと人。
 
-**当てる**（`andon retro apply <id> [--dry-run]`。Chief of Staff が検収して打つ）: `retro.json` を読み、`until` と `days` の期間で入力を集め直して上の検査を通し（GitHub は読まない）、`fix` のパターンごとに課題を1件 `kanban add` する。足す課題の `parent` は振り返りの課題（§20 が前の直しを見分ける印）、題は `summary`、`repo` は `target.repo`。依頼書には、要約・直す先（段・足すか変えるか削るか・repo と paths）・上の段で止められない理由・期待する効果・リスク・完了条件・守ること（改善の PR の決まり）・根拠（課題は題と片付いた時刻と PR、人が打った文は id と役と時刻だけで本文は写さない）・PR の本文に書いてよい根拠の PR・辿り方を書く。`target.kind` が `andon` で、`target.repo` が無いかプロジェクトの `repos` に無ければ、直す課題ではなく人の課題（`who: person`。題は「Andon へ伝えるか: <summary>」）にする（決めたこと 2）。`profile` と予約キー（§2）は書かない（起動する前に Chief of Staff が切る決まりで書く）。`--dry-run` は足す課題と捨てるパターンを JSON で出すだけで、何も書かない。
+**当てる**（`andon retro apply <id> [--dry-run]`。Chief of Staff が検収して打つ）: `retro.json` を読み、`until` と `days` の期間で入力を集め直して上の検査を通し（GitHub は読まない）、`fix` のパターンごとに、一覧の順に課題を1件 `kanban add` する。足す課題の `parent` は振り返りの課題（§20 が前の直しを見分ける印）、題は `summary`、`repo` は `target.repo`。依頼書には、要約・直す先（段・足すか変えるか削るか・repo と paths）・上の段で止められない理由・期待する効果・リスク・完了条件・守ること（改善の PR の決まり）・根拠（課題は題と片付いた時刻と PR、人が打った文は id と役と時刻だけで本文は写さない）・PR の本文に書いてよい根拠の PR・辿り方を書く。`target.kind` が `andon` で、`target.repo` が無いかプロジェクトの `repos` に無ければ、直す課題ではなく人の課題（`who: person`。題は「Andon へ伝えるか: <summary>」）にする（決めたこと 2）。`profile` と予約キー（§2）は書かない（起動する前に Chief of Staff が切る決まりで書く）。`--dry-run` は足す課題と捨てるパターンを JSON で出すだけで、何も書かない。
 
 当てた記録は振り返りの課題の `library/retro-applied.json`（書き手は `andon retro apply`。読むのは人と Chief of Staff で、機械は判定に使わないので schema は持たない）。`retro`・`applied_at`・`complete`（全部を足したら `true`）・`issues[]`（`pattern`・`issue`・`who`〈`worker` か `person`〉・`title`）・`dropped[]`（`pattern`・`reason`）。1件足すたびに書き直すので、途中で台帳の CLI が落ちても足した分が残り、打ち直すと残りから続ける。`complete` が `true` なら断る（当て済み）。
 
