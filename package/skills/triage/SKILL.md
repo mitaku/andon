@@ -187,7 +187,7 @@ decisions.json: issues/<id>/library/decisions.json。`andon triage apply <id> --
 |---|---|---|---|---|
 （Chief of Staff が読む close・ほかの close・fix・bundle・person・keep の順。人へのものは問いと推奨案も）
 ## Next
-- Chief of Staff: andon triage apply <id> --dry-run の review の <h> 件に andon triage verdict を書き、andon triage apply <id> --max-issues <上限>
+- Chief of Staff: andon triage apply <id> --dry-run の review の <h> 件に andon triage verdict を書き、andon triage apply <id>
 - （委譲・片付け待ちがあれば1行ずつ）
 ## Remember
 ```

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"andon/internal/delegate"
 	ledgercli "andon/internal/ledger"
 	"andon/internal/signal"
 	"andon/internal/spawn"
@@ -31,6 +32,7 @@ import (
 // Usage は andon triage の使い方。
 const Usage = "usage: andon triage collect [--limit N]                    台帳の未処理と repo ごとの最新の main を JSON に出す\n" +
 	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を台帳に当てる（--dry-run は Chief of Staff が読む判定の表 review も出す）\n" +
+	"                                                       起動する上限は project.json の chief_of_staff.triage_max_issues（無ければ 3）。--max-issues はその回だけ上書きする\n" +
 	"       andon triage verdict <id> <key> ok|overturn           Chief of Staff が判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く\n"
 
 var (
@@ -59,7 +61,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return usage()
 	}
 	cmd, args := args[0], args[1:]
-	limit, maxIssues, dry, id, key, value := 50, 3, false, "", "", ""
+	limit, maxIssues, maxSet, dry, id, key, value := 50, 0, false, false, "", "", ""
 	switch cmd {
 	case "collect":
 	case "verdict":
@@ -93,7 +95,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			if cmd == "collect" {
 				limit = n
 			} else {
-				maxIssues = n
+				maxIssues, maxSet = n, true
 			}
 			args = args[2:]
 		case cmd == "apply" && args[0] == "--dry-run":
@@ -104,6 +106,9 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 	l, err := openLedger()
+	if err == nil && cmd == "apply" && !maxSet {
+		maxIssues, err = projectMaxIssues(delegate.Workspace(), l.slug)
+	}
 	if err == nil {
 		switch cmd {
 		case "collect":
@@ -128,6 +133,25 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon triage: %v\n", err)
 	}
 	return exitFail
+}
+
+// defaultMaxIssues は1回のトリアージで起動する課題の上限の既定（contract.md §11 の triage_max_issues）。
+const defaultMaxIssues = 3
+
+// projectMaxIssues は起動する上限を、セルの repo の HEAD の project.json の chief_of_staff.triage_max_issues から読む
+// （contract.md §11。author 照合は delegate.ReadProject）。project.json か値が無ければ既定の 3。
+// project.json があって信じられない・形が違うときは、上限を決められないので止まる（--max-issues で渡せば通る）。
+func projectMaxIssues(ws, slug string) (int, error) {
+	p, err := delegate.ReadProject(ws, slug)
+	switch {
+	case errors.Is(err, delegate.ErrAbsent):
+		return defaultMaxIssues, nil
+	case err != nil:
+		return 0, fail("起動する上限を決められない（project.json を読めない: %v）。直すか --max-issues で渡す", err)
+	case p.ChiefOfStaff == nil || p.ChiefOfStaff.TriageMaxIssues == nil:
+		return defaultMaxIssues, nil
+	}
+	return *p.ChiefOfStaff.TriageMaxIssues, nil
 }
 
 type limitError struct{ limit int }
