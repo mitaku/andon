@@ -248,7 +248,8 @@ fi
 # (a0) ~/.gitconfig が消えた状態（作り直しの後）でも、gh がログイン済みなら boot が credential helper を gh にする。
 # 偽のログイン状態: 受けた引数を控え、auth status だけ 0 を返し、auth setup-git だけを本物へ（ホストを指定して）渡す gh を PATH の先頭に置く。
 # gh skill は控えて 0 で返す（本物へ渡さず、別の命令に化けさせない。ADR-0018・ADR-0038 決めたこと 18）。install は本物と同じく
-# エージェントの置き場に skill のディレクトリを作る（boot は置き場にある一覧の skill だけを update に渡す）。知らない引数は 1。
+# エージェントの置き場に skill のディレクトリと出所を書いた SKILL.md を作る（boot は出所が一覧の repo と同じ skill だけを
+# 置き場ごとの update に渡す）。知らない引数は 1。
 # hosts.yml はこの前の検査で壊れた中身なので GH_CONFIG_DIR を外す
 dc exec -T dev bash -euc '
   real=$(command -v gh)
@@ -262,6 +263,7 @@ case "\$*" in
 "skill install "*)
   case "\$6" in claude-code) s="\$CLAUDE_CONFIG_DIR/skills" ;; codex) s="\$HOME/.agents/skills" ;; *) exit 2 ;; esac
   mkdir -p "\$s/\$(basename "\$4")" "$d/made" && echo "\$s/\$(basename "\$4")" >>"$d/made/dirs"
+  printf -- "---\nmetadata:\n    github-repo: https://github.com/%s\n---\n" "\$3" >"\$s/\$(basename "\$4")/SKILL.md"
   exit 0 ;;
 "skill "*) exit 0 ;;
 esac
@@ -276,18 +278,19 @@ GH
     echo "FAIL image: gitconfig が消えた後の boot が credential helper を gh にしない" >&2
     exit 1
   fi
-  # パッケージの既定の外の skill（yomiyasu）を、エージェントごとの gh skill install で入れ、名前を渡した update --all で上げる。
+  # パッケージの既定の外の skill（yomiyasu）を、エージェントごとの gh skill install で入れ、置き場ごとに --dir と名前を渡した update --all で上げる。
   # 控えの行はどれも boot が打つ形で、別の命令に化けていない（ADR-0038 受け入れ条件 2）
   args=$(cat "$d/gh-args")
   for want in "skill install nanaism/yomiyasu yomiyasu --agent claude-code --scope user" \
-    "skill install nanaism/yomiyasu yomiyasu --agent codex --scope user" "skill update --all yomiyasu" "auth setup-git"; do
+    "skill install nanaism/yomiyasu yomiyasu --agent codex --scope user" "auth setup-git" \
+    "skill update --all --dir $CLAUDE_CONFIG_DIR/skills yomiyasu" "skill update --all --dir $HOME/.agents/skills yomiyasu"; do
     if ! grep -qxF "$want" <<<"$args"; then
       printf "%s\n" "$args" >&2; cat "$d/boot.log" >&2
       echo "FAIL image: 偽の gh が「$want」を受けていない" >&2
       exit 1
     fi
   done
-  odd=$(grep -vxE "auth status|auth setup-git|skill install [^ ]+ [^ ]+ --agent (claude-code|codex) --scope user|skill update --all( [^ -][^ ]*)+" <<<"$args" || true)
+  odd=$(grep -vxE "auth status|auth setup-git|skill install [^ ]+ [^ ]+ --agent (claude-code|codex) --scope user|skill update --all --dir [^ ]+( [^ -][^ ]*)+" <<<"$args" || true)
   if [ -n "$odd" ]; then
     printf "%s\n" "$odd" >&2
     echo "FAIL image: boot が gh に知らない形の引数を渡した" >&2

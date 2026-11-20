@@ -119,7 +119,7 @@ func TestBundledSkillFollowsTools(t *testing.T) {
 	}
 }
 
-// ghSkillFake は呼ばれた引数を calls に足し、skill install で置き場にディレクトリを作る gh。
+// ghSkillFake は呼ばれた引数を calls に足し、skill install で置き場にディレクトリと、出所を書いた SKILL.md を作る gh（本物と同じ形）。
 func ghSkillFake(t *testing.T, f *fixture, loggedIn bool) (Env, string) {
 	t.Helper()
 	calls := filepath.Join(f.root, "gh-calls")
@@ -138,6 +138,7 @@ if [ "$1 $2" = "skill install" ]; then
     *) exit 2 ;;
   esac
   mkdir -p "$d/$(basename "$4")"
+  printf -- '---\nmetadata:\n    github-repo: https://github.com/%s\n---\n' "$3" > "$d/$(basename "$4")/SKILL.md"
 fi
 exit 0
 `)
@@ -163,14 +164,15 @@ func ghCalls(t *testing.T, calls string) string {
 	return string(b)
 }
 
-// パッケージとセルの一覧を合わせ、置き場に無いものだけエージェントごとに入れ、一覧の名前を渡して update --all を打つ。
-// 一覧の外の利用者の skill の名前は渡さない（上げない）。2回打って同じ。
+// パッケージとセルの一覧を合わせ、置き場に無いものだけエージェントごとに入れ、置き場ごとに --dir で絞って update --all を打つ。
+// 渡すのは出所が一覧の repo と同じ skill の名前だけ（一覧の外の skill と、別の出所から入れた同じ名前の skill は上げない）。2回打って同じ。
 func TestInstallGhSkills(t *testing.T) {
 	f := newFixture(t)
 	e, calls := ghSkillFake(t, f, true)
 	put(t, filepath.Join(f.pkg, GhSkillsFile), "# 既定\nexample/skills alpha\n")
 	put(t, filepath.Join(f.ws, "local", GhSkillsFile), "\nexample/skills alpha\nexample/more author/beta\nbad-line\n")
-	put(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md"), "利用者の\n") // 同じ名前があれば入れない
+	user := "---\nmetadata:\n    github-repo: https://github.com/someone/beta\n---\n利用者の\n"
+	put(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md"), user)     // 同じ名前があれば入れない。別の出所なので上げない
 	put(t, filepath.Join(f.home, ".claude", "skills", "mine", "SKILL.md"), "一覧の外\n") // 一覧の外の skill は上げない
 
 	for range 2 {
@@ -178,20 +180,48 @@ func TestInstallGhSkills(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	update := "skill update --all --dir " + filepath.Join(f.claude, "skills") + " alpha beta\n" +
+		"skill update --all --dir " + filepath.Join(f.home, ".agents", "skills") + " alpha\n"
 	want := "auth status\n" +
 		"skill install example/skills alpha --agent claude-code --scope user\n" +
 		"skill install example/skills alpha --agent codex --scope user\n" +
 		"skill install example/more author/beta --agent claude-code --scope user\n" +
-		"skill update --all alpha beta\n" +
-		"auth status\nskill update --all alpha beta\n"
+		update +
+		"auth status\n" + update
 	if got := ghCalls(t, calls); got != want {
 		t.Errorf("gh の呼び出し:\n%s\nwant:\n%s", got, want)
 	}
-	if got := read(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md")); got != "利用者の\n" {
+	if got := read(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md")); got != user {
 		t.Errorf("利用者の skill に触った: %q", got)
 	}
 	if !strings.Contains(f.log.String(), GhSkillsFile+":4 は「<owner>/<repo> <skill>」の形でない") {
 		t.Errorf("形の違う行のログ: %s", f.log.String())
+	}
+}
+
+// SKILL.md の frontmatter の metadata.github-repo で出所を見る。
+func TestFromRepo(t *testing.T) {
+	dir := t.TempDir()
+	for _, c := range []struct {
+		body string
+		want bool
+	}{
+		{"---\nname: a\nmetadata:\n    github-repo: https://github.com/example/skills\n---\n", true},
+		{"---\nmetadata:\n  github-repo: \"https://github.com/Example/Skills.git\"\n---\n", true},
+		{"---\r\nmetadata:\r\n    github-repo: https://github.com/example/skills\r\n---\r\n", true},
+		{"---\nmetadata:\n    github-repo: https://github.com/someone/skills\n---\n", false},
+		{"---\nname: a\n---\ngithub-repo: https://github.com/example/skills\n", false},
+		{"github-repo: https://github.com/example/skills\n", false},
+		{"", false},
+	} {
+		p := filepath.Join(dir, "SKILL.md")
+		put(t, p, c.body)
+		if got := fromRepo(p, "example/skills"); got != c.want {
+			t.Errorf("fromRepo(%q) = %v, want %v", c.body, got, c.want)
+		}
+	}
+	if fromRepo(filepath.Join(dir, "none", "SKILL.md"), "example/skills") {
+		t.Error("無いファイルで true")
 	}
 }
 
