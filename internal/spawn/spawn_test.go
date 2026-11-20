@@ -183,3 +183,23 @@ func TestSendCommandInBash(t *testing.T) {
 		t.Errorf("本文が足されていない: %q", want[2])
 	}
 }
+
+// 機械の送り手の印: 先頭に角括弧の名前を1つ置くだけで、文の中身は変えない。照らすのは dispatcher と gate の印だけ。
+func TestMark(t *testing.T) {
+	if got := Mark(FromGate, "S-7（題）: ゲートが fix を返した。"); got != "[gate] S-7（題）: ゲートが fix を返した。" {
+		t.Errorf("Mark: %q", got)
+	}
+	for s, want := range map[string]bool{
+		Mark(FromDispatcher, "続けて"): true,
+		Mark(FromGate, "直して"):       true,
+		"\n [gate] 直して":             true,
+		"[dispatcher]続けて":           false,
+		"[cos] 人の文":                 false,
+		"人の文 [gate] ":               false,
+		"":                          false,
+	} {
+		if got := Marked(s); got != want {
+			t.Errorf("Marked(%q) = %v", s, got)
+		}
+	}
+}

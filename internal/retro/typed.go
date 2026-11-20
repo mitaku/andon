@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"andon/internal/dispatcher"
-	"andon/internal/issue"
 	"andon/internal/launch"
+	"andon/internal/spawn"
 )
 
 // Typed は人が端末で打った文1つ（ADR-0028 決めたこと 4・14 の 1）。根拠として指す id は h-<セッションログの行の uuid>。
@@ -55,11 +54,10 @@ func wrappedText(s string) bool {
 }
 
 // machineText は Andon の command が端末の外から hc send した文か（hc の包みが付かず、人の印が付く）。
-// dispatcher の「止まる前の作業を続けて」（dispatcher.RetryText）と、ゲートの差し戻し（issue.IsFixText）の2つ。
-// 起動の最初のメッセージは位置で除くので、ここには入れない。どちらも送る側の定数で照らし、文の意味は読まない。
+// dispatcher とゲートは、担当・レビュアーへ送る文の先頭に送り手の印（[dispatcher]・[gate]。spawn.Mark）を置く。
+// その印で照らし、文の意味は読まない。貼った文の包みの内側も見る。起動の最初のメッセージは位置で除く。
 func machineText(s string) bool {
-	s = strings.TrimSpace(s)
-	return s == dispatcher.RetryText || issue.IsFixText(s)
+	return spawn.Marked(pastedOpen.ReplaceAllString(strings.TrimSpace(s), ""))
 }
 
 // roleOf は課題のプロファイルから役を決める（起動の記録の role と同じ決め方）。

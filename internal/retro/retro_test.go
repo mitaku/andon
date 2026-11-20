@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"andon/internal/dispatcher"
+	"andon/internal/spawn"
 )
 
 var now = time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
@@ -117,8 +120,8 @@ func newFixture(t *testing.T) *fixture {
 		`{"type":"user","uuid":"u7","timestamp":"` + ago(2*day) + `","origin":{"kind":"human"},"message":{"content":[{"type":"tool_result","content":"道具の結果"}]}}` + "\n" +
 		`{"type":"user","uuid":"u8","timestamp":"` + ago(2*day) + `","isMeta":true,"origin":{"kind":"human"},"message":{"content":"meta"}}` + "\n" +
 		`{"type":"user","uuid":"u9","timestamp":"` + ago(2*day) + `","isSidechain":true,"origin":{"kind":"human"},"message":{"content":"sidechain"}}` + "\n" +
-		hum("u11", ago(2*day), "一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）") +
-		hum("u12", ago(2*day), "A-0001（題）: ゲートが fix を返した。理由: checks が落ちた。記録は /x。") +
+		hum("u11", ago(2*day), "[dispatcher] 一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）") +
+		hum("u12", ago(2*day), "[gate] A-0001（題）: ゲートが fix を返した。理由: checks が落ちた。記録は /x。") +
 		`{"type":"user","uuid":"u10","timestamp":"` + ago(1*day) + `","origin":{"kind":"human"},"message":{"content":[{"type":"text","text":"block の文"}]}}` + "\n"
 	write(t, filepath.Join(f.claude, "projects", "-sample-site", cosSess+".jsonl"), cos)
 	work := strings.ReplaceAll(hum("w0", ago(3*day), "<hc from=\"t1 cos\">課題 A-0001。依頼書は …</hc>")+hum("w1", ago(2*day), "そこは直さなくていい"), f.root, wt)
@@ -394,13 +397,17 @@ func TestReadOnly(t *testing.T) {
 	}
 }
 
-// 端末の外から送った定型の文は、送る側の定数で照らす（文が変わればこの検査が落ちる）。
+// 端末の外から送った文は、送り手の印（spawn.Mark）で照らす。印の無い文と、文の中ほどの角括弧は人の文として残す。
 func TestMachineText(t *testing.T) {
 	for s, want := range map[string]bool{
-		"一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）": true,
-		"A-0017（PR #262 の衝突を解く）: ゲートが fix を返した。理由: x。記録は /y。": true,
-		"ゲートが fix を返した。理由: と人が書いた":                            false,
-		"A-0017 のゲートが fix を返したのはなぜ？":                          false,
+		spawn.Mark(spawn.FromDispatcher, dispatcher.RetryText):                     true,
+		spawn.Mark(spawn.FromGate, "A-0017（PR #262 の衝突を解く）: ゲートが fix を返した。理由: x。"): true,
+		"<pasted_content id=\"1\">\n[gate] A-0017（題）: ゲートが fix を返した。":              true,
+		"  [dispatcher] 課題 `sample-site/S-7`。":                                     true,
+		"[dispatcher]の文はどこから？":                                                     false,
+		"[cos] 人が書いた角括弧":                                                           false,
+		"ゲートの [gate] 印は何？":                                                         false,
+		"A-0017 のゲートが fix を返したのはなぜ？":                                               false,
 	} {
 		if got := machineText(s); got != want {
 			t.Errorf("%q → %v", s, got)

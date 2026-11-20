@@ -84,7 +84,8 @@ hum() { jq -cn --arg u "$1" --arg at "$2" --arg cwd "$root" --arg text "$3" \
   hum u1 "$(ago '2 days')" "PR の題に課題番号を書かないで。鍵は $key"
   hum u2 "$(ago '2 days')" '<hc from="t9 x">ほかの端末から届いた文</hc>'
   hum u3 "$(ago '2 days')" $'<news project="sample-site">\nS-0001 review\n</news>'
-  hum u4 "$(ago '2 days')" '一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）'
+  hum u4 "$(ago '2 days')" '[dispatcher] 一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）'
+  hum u6 "$(ago '2 days')" '[gate] S-0001（題）: ゲートが fix を返した。理由: checks が落ちた。'
   jq -cn --arg at "$(ago '2 days')" '{type: "user", uuid: "u5", timestamp: $at, origin: {kind: "human"}, message: {content: [{type: "tool_result", content: "道具の結果"}]}}'
 } >"$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl"
 
@@ -108,7 +109,7 @@ echo 'ok 8: 期間の内の担当の課題だけ。レビュアーの子の指�
 
 # 9: 人が打った文だけ
 jq -e '[.typed[] | [.id, .role, .issue]] == [["h-u1", "chief-of-staff", null]]' "$tmp/out.json" >/dev/null || die "人の文: $(jq -c '.typed' "$tmp/out.json")"
-echo 'ok 9: 人の文だけ（起動の最初のメッセージ・hc send・通知・dispatcher の再開の文・道具の結果は入らない）'
+echo 'ok 9: 人の文だけ（起動の最初のメッセージ・hc send・通知・送り手の印のある dispatcher とゲートの文・道具の結果は入らない）'
 
 # 10: マージ後のこと
 jq -e '.issues[] | select(.id == "S-0001") | .after_merge == {merge_commit: "1111111111111111111111111111111111111111", merged_at: .after_merge.merged_at,

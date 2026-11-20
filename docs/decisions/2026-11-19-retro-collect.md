@@ -2,6 +2,7 @@
 
 - 日付: 2026-11-19
 - 出典: [ADR-0028](../adr/0028-improvement-loop.md) 決めたこと 4・6・8・12・14 と「実装が決めてよいこと」
+- 覆された: [2026-11-20-machine-sender-mark.md](2026-11-20-machine-sender-mark.md)（定型の文の照らし方だけ）
 
 ADR-0028 が実装に任せた細部を次のとおり決めた。形と欄の意味は [contract.md](../contract.md) §20・`schema/retro.schema.json`。
 

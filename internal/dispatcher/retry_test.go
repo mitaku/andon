@@ -108,7 +108,7 @@ func (f *retryFixture) kinds() []string {
 	return k
 }
 
-var resend = "send t42 " + RetryText
+var resend = "send t42 [dispatcher] " + RetryText // 送り手の印（spawn.Mark）つき
 
 // 切られた 1〜4 回目は 1・2・4・8 分あとに続けて、5 回目に切られたら打たずに Chief of Staff へ error を1回だけ知らせる。
 func TestRetryWorkerIntervals(t *testing.T) {
