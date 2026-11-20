@@ -85,6 +85,12 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0024 担当が課題ごとに日報（過程・感想・改善の思いつき）を書く](docs/adr/0024-worker-journal.md): 提案
   - [0025 課題の一生の規則とモデルを repo に置き、機械が確かめ続ける](docs/adr/0025-formal-model-in-repo.md): 決定
   - [0026 PR と repo に残る文は、セルの外の読み手に通じるように書く](docs/adr/0026-pr-rules-for-outside-readers.md): 決定
+  - [0027 開発中の Andon のパッケージを、イメージを焼き直さずにセルへ当てる](docs/adr/0027-apply-package-without-rebuild.md): 決定
+  - [0028 実行の記録から skill とプロンプトを直し続けるループ](docs/adr/0028-improvement-loop.md): 決定
+  - [0029 工場の2つの面を言い分ける（セルは場所、Andon はしくみ）](docs/adr/0029-factory-place-and-mechanism.md): 決定
+  - [0030 トリアージが誤って閉じた項目を拾う網](docs/adr/0030-triage-close-safety-net.md): 決定
+  - [0031 Chief of Staff をセルに1人にする](docs/adr/0031-cell-chief-of-staff.md): 提案
+  - [0032 書き終えてから main に入るまでの時間を縮める](docs/adr/0032-shorten-time-to-merge.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
