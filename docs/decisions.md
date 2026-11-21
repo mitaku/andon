@@ -34,6 +34,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 
 語の改め（2026-11-20 から）: 「台帳」を kanban に、「ゲート」を gate に、「版」を「バージョン」に替える置き換え（[ADR-0040](adr/0040-kanban-gate-version-words.md) 決めたこと 2〜4）も、凍結した行と `decisions/` の古いファイルに及ぶ。語だけで、決定の中身は変えない。置き換えが済むまでは、古い行に古い語が残る（[decisions/2026-11-20-three-word-replacement-reaches-frozen-records.md](decisions/2026-11-20-three-word-replacement-reaches-frozen-records.md)）。
 
+語の改め（2026-11-20 から）: 役を指す「人」を「オーナー」に替える置き換え（[ADR-0036](adr/0036-owner-not-hito.md) 決めたこと 1・4）も、凍結した行と `decisions/` の古いファイルと ADR の本文に及び、替え終えた。語だけで、決定の中身は変えない。オーナーの発言の引用と、当時の見出しや出力の文を「」で写した所と、当時の識別子をバッククォートで写した所は替えない（[decisions/2026-11-20-role-name-replacement-reaches-frozen-records.md](decisions/2026-11-20-role-name-replacement-reaches-frozen-records.md)）。
 
 ## 1. 設計書 §6 のオーナーの答え（27 問）
 
