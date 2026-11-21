@@ -90,7 +90,7 @@ git -C "$tmp/repo" commit -qm c1
 c1=$(git -C "$tmp/repo" rev-parse HEAD)
 git -C "$tmp/repo" push -q origin main
 
-# 偽のイメージ: c0 の package/・schema/ と、偽の andon・kanban
+# 偽のイメージ: c0 の package/・schema/ と、偽の andon・`kanban`
 img=$tmp/opt
 mkdir -p "$img/andon" "$img/bin" "$tmp/fakebin"
 git -C "$tmp/repo" archive "$c0" package schema | tar -x -C "$tmp"
