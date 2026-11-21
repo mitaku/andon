@@ -32,7 +32,7 @@
 |---|---|
 | 約束の正は `schema/`。schema を変えたら `docs/contract.md` と tests も直す。 | `tests/schema.sh`。`docs/contract.md` の例を schema と突き合わせる。 |
 | `go:embed` で repo のファイルを足したら、`image/Dockerfile` の `COPY` と `.dockerignore` も直す。 | `tests/image.sh`。image の build で、`go build` が埋め込むファイルを見つけられずに落ちる。 |
-| `package/` の変更はセルで実測する。 | 無し。何を動かして見るかの手順が無く、課題ごとに決めている。 |
+| `package/` の変更は、マージしてセルへ当てたあと（`image/apply-main.sh apply`）、検証の課題がセルの本物で動かす。どの機能を動かすかは検証の skill（`.claude/skills/verify-andon/`）の機能の地図が決め、Chief of Staff が `package/skills/chief-of-staff/playbooks/verify.md` の手順で検証の課題を切る。 | `tests/verify-andon.sh`。機能の地図の形と、地図の「変えたら動かすパス」が repo に在ること、`.claude/skills/verify-andon/scripts/features.sh` が差分から機能を引くことを見る。地図が `package/` の全部を覆うかは見ない。 |
 | `package/skills` の文を `playbooks/` へ移したら、`tests/words.sh` の禁止語に当たらないか回す。 | `tests/words.sh`。CI でいつも走る。 |
 | 報告や依頼書の文を `docs/`・注釈に写したら、commit の前に `bash tests/words.sh` を回す（報告・依頼書は語の検査を通らず、禁止語が残っている）。 | `tests/words.sh`。CI でいつも走る。 |
 | 設計の正は `docs/design.md` と `docs/adr/`。 | 無し。どれを正とするかの決まりで、見るものが無い。 |

@@ -618,7 +618,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 - **checkout の command をそのまま試せる**: `ANDON_HOME=<checkout>/package` で `bin/andon` が `/opt/andon` の代わりに checkout の `lib`・`skills`・`gate.json` を見る。セルフホストの担当が、自分の worktree の command を自分のセルで試せる（gate は `andon gate <id> --dry-run` で、記録も PR への書き込みもせずに試せる。dispatcher に `--dry-run` は無く、`andon dispatcher --once` は1回だけ本当に回る）。
 - **image はローカルでも焼ける**: `docker build -f image/Dockerfile .` で同じものができる。CI は同じ手順を回すだけ。
 - **マージした直しは焼き直さずにセルへ当てられる**: Andon を開発するセルでは `image/apply-main.sh apply` が `origin/main` の commit の `package/`・`schema/`・`andon`・`kanban` を `/opt/andon` に当て、`revert` でイメージのバージョンへ戻す（[ADR-0027](adr/0027-apply-package-without-rebuild.md)。手順は [operate.md](operate.md) の 3）。作り直しで消え、正はイメージのまま。
-- **AGENTS.md は指針だけ**: この repo の `AGENTS.md` は「テストは `go test ./...` と `tests/run --changed`」「`package/` の変更はセルで実測」「schema を変えたら contract.md と tests」の数行。
+- **AGENTS.md は指針だけ**: この repo の `AGENTS.md` は「テストは `go test ./...` と `tests/run --changed`」「`package/` の変更は当てたあと検証の課題が動かす」「schema を変えたら contract.md と tests」の数行。
 
 ### 2.6 最初の commit から public に耐える形
 
