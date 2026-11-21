@@ -1,6 +1,6 @@
 # ADR-0015: inbox を Needs you と役への入口に絞る（仕様・設計。2026-11-10。Chief Engineer の課題 A-0074）
 
-- 状態: **決定（2026-11-10）**。オーナーが 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0074）。オーナーが PR をマージした日が決定の日（[decisions/2026-11-10-adr-0015-inbox-needs-you.md](../decisions/2026-11-10-adr-0015-inbox-needs-you.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
+- 状態: **決定（2026-11-10）**。オーナーが 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0074）。オーナーが PR をマージした日が決定の日（[decisions/2026-11-10-adr-0015-inbox-needs-you.md](../decisions/2026-11-10-adr-0015-inbox-needs-you.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。決めたこと 3 の返事で Needs you に上げる部分は覆された → [ADR-0043](0043-lamp-lights-on-owner-waits.md)。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: Andon 同梱の App の mod `inbox`（`package/host/inbox`）が何を出すか。オーナーが手を動かすもの（Needs you）と、プロジェクトで動く役（Chief of Staff・Chief Engineer）への入口の2つに絞り、担当の Done・Working・Idle をオーナーの視界から下げる。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`（この題は新しい約束を足さない。前提 4）。
 - 入力: 依頼書 A-0074（オーナーの気付き 2026-11-10 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、[ADR-0002](0002-herdr-spaces.md)（決めたこと 2・15・18・21）、[ADR-0009](0009-cos-default-entry.md)（オーナーの入口は Chief of Staff）、[ADR-0010](0010-news-ack.md)（担当の通知は dispatcher が Chief of Staff へ）、[ledger.md](../ledger.md)（Needs you is not a status・Every stopped agent has asked）、[decisions.md](../decisions.md) 2026-11-06（mod の取り込み）、kanban A-0036（Chief Engineer の端末の通知を Chief of Staff に届けない）。
@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 1 | inbox の節を Needs you と役への入口の 2 つに絞り、Done と棚を消す | `package/host/inbox/main.js` | 生きている |
 | 2 | 役への入口の節の見出しを「Projects」にする | `package/host/inbox/main.js` | 生きている |
-| 3 | 役の行は 1 つにし、オーナーを待つ間だけ Needs you に上げる | `package/host/inbox/main.js` | 生きている |
+| 3 | 役の行は 1 つにし、オーナーを待つ間だけ Needs you に上げる | `package/host/inbox/main.js` | 覆された → ADR-0043（返事で Needs you に上げる部分。役の行が 1 つで、止まったときに上がるのは生きている） |
 | 4 | dispatcher は Projects に出さない | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
 | 5 | settle を消し、mod は hc に何も書かない | `package/host/inbox/main.js` | 生きている |
 | 6 | ボードのダイアログを消す | `package/host/inbox/mod.json`・`package/host/inbox/keys.json` | 生きている |

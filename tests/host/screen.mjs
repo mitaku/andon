@@ -90,8 +90,8 @@ const last = (n, method) => args(n, method).at(-1)?.[0];
 const byId = (root, id) => walk(root).find((n) => last(n, 'id') === id);
 
 // Loads a mod's main.js in a VM with fake herdr, gpui and fs modules. Relative imports are loaded too.
-async function load(dir, herdr, ui = NO_UI) {
-  const context = vm.createContext({ console });
+async function load(dir, herdr, ui = NO_UI, globals = {}) {
+  const context = vm.createContext({ console, ...globals });
   const synthetic = (exports) => new vm.SyntheticModule(Object.keys(exports), function () {
     for (const [k, v] of Object.entries(exports)) this.setExport(k, v);
   }, { context });
@@ -865,6 +865,323 @@ await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決
   assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|WebSocket|from "(node:)?(http|https|net)"/, 'ネットワークを使う');
   const readme = await readFile(`${HOST}/kanban-board/README.md`, 'utf8');
   assert.match(readme, /^\| `exec\("andon", \["waiting", "--json"\], \{cwd: <project>, on\}\)`/m, 'README の What it runs に andon waiting の行が無い');
+});
+
+// The inbox reading owner waits (ADR-0043): a fake exec answers `andon waiting --json --project <slug>`,
+// a fake clock moves the 10-second window, and copies can share one store as the App's shared() does.
+const T0 = Date.parse('2026-11-21T12:00:00Z');
+const waitOut = (project, items) => ({ code: 0, stdout: JSON.stringify({ version: 1, at: '2026-11-21T12:00:00Z', project,
+  slots: { limit: 4, working: 1, waiting: items.length, free: 3, waiting_full: false }, items }), stderr: '' });
+const wait = (kind, id, since) => ({ kind, id, title: `title of ${id}`, since, holds: [] });
+const PANE_LAYOUT = { id: 'root', children: [{ id: 'panel', children: [{ id: 'panel-body', type: 'stack', children: [{ id: 'waiting', type: 'block', content: { mod: 'waiting' } }] }] }] };
+async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => waitOut(a[3], state.items?.[a[3]] ?? []), layoutTree = null, ui = recordingUi(), calls = { exec: [], run: [] } } = {}) {
+  const FakeDate = class extends Date { static now() { return clock.t; } };
+  const ns = await load(`${HOST}/inbox`, {
+    agents: () => state.agents ?? [], terminals: () => state.terms ?? [], spaces: () => [], panes: () => [], machines: () => state.machines ?? [],
+    focused: () => state.focused ?? null, theme: () => THEME, setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
+    shared: (k) => store[k] ?? null, setShared: (k, val) => { store[k] = JSON.parse(JSON.stringify(val)); },
+    run: (cmd, a) => calls.run.push([cmd, JSON.parse(JSON.stringify(a))]),
+    exec: async (cmd, a, opts = {}) => { calls.exec.push([cmd, [...a], { on: opts.on ?? null }]); calls.timeouts = [...(calls.timeouts ?? []), opts.timeout]; return reply(a, opts); },
+    layout: () => layoutTree,
+    hc: () => { throw new Error('the inbox called hc'); }, notify: () => { throw new Error('the inbox posted a notification'); },
+  }, ui, { Date: FakeDate });
+  const v = new ns.default();
+  const pending = [], timers = [];
+  let track = false;
+  const cx = { focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every: (ms, fn) => timers.push([ms, fn]), after() {} },
+    spawn: (fn) => { const p = fn(cx); if (track) pending.push(p); return p; }, notify() {}, stop_propagation() {} };
+  v.init({}, cx);
+  track = true;
+  const settle = async () => { while (pending.length) await pending.shift(); };
+  // A render (what a terminal's change brings), then the reads it started.
+  const look = async () => { v.render(cx); await settle(); return v.model(); };
+  const tick = async () => { for (const [, fn] of timers) fn(cx); await settle(); return v.model(); };
+  // Stop waiting for reads that never come back (a hung call).
+  const forget = () => { pending.length = 0; };
+  return { v, calls, store, clock, cx, look, tick, timers, forget, draw: () => v.render(cx) };
+}
+const cos = (address, project, status = 'idle', extra = {}) => sampleTerm(address, status, { project, role: 'chief-of-staff' }, extra);
+const ce = (address, project, status = 'idle', extra = {}) => sampleTerm(address, status, { project, role: 'chief-engineer', issue: 'S-0009', title: 'Design' }, extra);
+const plain = (x) => JSON.parse(JSON.stringify(x));
+const lampOf = (store) => plain(store['inbox.lamp']);
+const lit = (store) => store['inbox.lantern'] ?? null;
+const LAMP0 = { light: null, failed: 0, blocked: 0, merge: 0, decision: 0, reply: 0, unread: 0, unreadable: 0 };
+
+await check('inbox: オーナー待ちを読めているプロジェクトでは、役の返事は Needs you に出ず Projects の行の未読の印になり、行燈は消灯のまま。見ると消え、ペインの無い役は開いた turn の間は付かない。news.replied の有無で変わらない（ADR-0043 受け入れ条件 1・6）', async () => {
+  const state = { terms: [cos('cell/t1', 'sample-site'), ce('cell/t2', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': [] } };
+  const { v, store, look, draw } = await inboxCell(state);
+  let m = await look();
+  assert.deepEqual(lampOf(store), LAMP0);
+  // 1. The Chief of Staff's unseen reply: Projects, an unread mark, the lantern unlit.
+  state.terms[0].status = 'done';
+  m = await look();
+  assert.ok(!m.needs.some((i) => i.address === 'cell/t1'), '役の返事が Needs you に出た');
+  const row = m.projects.find((i) => i.address === 'cell/t1');
+  assert.ok(row?.unread && !row.reply && row.kind === null, `未読の印が付かない: ${JSON.stringify(row)}`);
+  assert.equal(lit(store), null, '返事で行燈が灯った');
+  assert.deepEqual(lampOf(store), { ...LAMP0, unread: 1 });
+  const mark = v.mark(THEME, row);
+  assert.equal(last(mark, 'id'), 'unread-cell/t1');
+  assert.deepEqual(colors(mark), [THEME.muted], '未読の印が muted の点でない');
+  assert.ok(!colors(draw()).includes(AMBER), '琥珀を塗った');
+  // 2. The same with the label the dispatcher writes for an acknowledged turn.
+  state.terms[0].labels['news.replied'] = '0';
+  m = await look();
+  assert.ok(m.projects.find((i) => i.address === 'cell/t1')?.unread, 'news.replied で未読の印が消えた');
+  // 3. A Chief Engineer's reply too.
+  state.terms[1].status = 'done';
+  m = await look();
+  assert.ok(m.projects.find((i) => i.address === 'cell/t2')?.unread && lit(store) === null);
+  assert.equal(lampOf(store).unread, 2);
+  // 4. Looked at (Herdr turns done into idle): the mark goes.
+  state.terms[0].status = 'idle';
+  state.terms[1].status = 'idle';
+  m = await look();
+  assert.ok(!m.projects.some((i) => i.unread), '見たのに印が残る');
+  // 5. A paneless role: opening it is looking, for that turn.
+  state.terms[0].status = 'done';
+  m = await look();
+  v.open(m.projects.find((i) => i.address === 'cell/t1'));
+  m = await look();
+  assert.ok(!m.projects.find((i) => i.address === 'cell/t1').unread, '開いた turn で印が付いたまま');
+  state.terms[0].turn = 2;
+  assert.ok((await look()).projects.find((i) => i.address === 'cell/t1').unread, '次の turn で印が付かない');
+});
+
+await check('inbox: オーナー待ちを読めていても、止まった端末（permission・question・auth・種類なし）は琥珀、失敗は赤、両方なら赤（ADR-0043 受け入れ条件 2・6）', async () => {
+  const state = { terms: [cos('cell/t1', 'sample-site'),
+    sampleTerm('cell/t2', 'blocked', { project: 'sample-site', issue: 'S-0002' }, { report: { kind: 'permission' } }),
+    sampleTerm('cell/t3', 'blocked', { project: 'sample-site', issue: 'S-0003' }, { report: { kind: 'question' } }),
+    sampleTerm('cell/t4', 'blocked', { project: 'sample-site', issue: 'S-0004' }, { report: { kind: 'auth' } }),
+    sampleTerm('cell/t5', 'blocked', { project: 'sample-site', issue: 'S-0005' })], machines: [{ name: 'cell' }], items: { 'sample-site': [] } };
+  const { store, look } = await inboxCell(state);
+  let m = await look();
+  assert.deepEqual(plain(m.needs.map((i) => i.kind)).sort(), ['Auth', 'Permission', 'Question', null].sort());
+  assert.deepEqual(lampOf(store), { ...LAMP0, light: 'amber', blocked: 4 });
+  state.terms.push(sampleTerm('cell/t6', 'error', { project: 'sample-site', issue: 'S-0006' }));
+  m = await look();
+  assert.deepEqual(lampOf(store), { ...LAMP0, light: 'red', failed: 1, blocked: 4 });
+  assert.equal(store['inbox.lantern'], 'red');
+  state.terms.splice(1, 4);
+  await look();
+  assert.deepEqual(lampOf(store), { ...LAMP0, light: 'red', failed: 1 });
+});
+
+await check('inbox: merge 2 件・decision 1 件・task 1 件のプロジェクトは Needs you の上に件数の 1 行が出て琥珀。task だけなら行も灯りも無い。2 つのプロジェクトなら 2 行（ADR-0043 受け入れ条件 3・6）', async () => {
+  const items = [wait('merge', 'S-0021', '2026-11-21T10:00:00Z'), wait('decision', 'S-0030', '2026-11-21T09:00:00Z'),
+    wait('merge', 'S-0022', '2026-11-21T11:30:00Z'), wait('task', 'S-0031', '2026-11-20T08:00:00Z')];
+  const state = { terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': items } };
+  const { store, look, draw } = await inboxCell(state);
+  const m = await look();
+  assert.equal(m.owed.length, 1);
+  const tree = draw();
+  const line = byId(tree, 'owed-cell/sample-site');
+  assert.ok(line, '件数の行が無い');
+  assert.deepEqual(plain(textOf(line)), ['sample-site', '2 to merge · 1 to decide', '3h'], '件数の行の中身（いちばん古い待ちは task を数えず 09:00）');
+  assert.ok(colors(line).includes(AMBER), '件数の行に琥珀の印が無い');
+  const all = textOf(tree);
+  assert.ok(!all.includes('Nothing needs you.'), '「Nothing needs you.」が出た');
+  // The line sits above Needs you, with no heading of its own.
+  state.terms.push(sampleTerm('cell/t2', 'blocked', { project: 'sample-site', issue: 'S-0002' }));
+  await look();
+  const order = textOf(draw());
+  assert.ok(order.indexOf('2 to merge · 1 to decide') < order.indexOf('Needs you'), '件数の行が Needs you の上にない');
+  state.terms.pop();
+  await look();
+  assert.deepEqual(lampOf(store), { ...LAMP0, light: 'amber', merge: 2, decision: 1 });
+  assert.equal(store['inbox.lantern'], 'amber');
+  // Hand work alone: no line, unlit.
+  const only = await inboxCell({ ...state, items: { 'sample-site': [items[3]] } });
+  assert.equal((await only.look()).owed.length, 0, 'task だけで行が出た');
+  assert.deepEqual(lampOf(only.store), LAMP0);
+  assert.ok(textOf(only.draw()).includes('Nothing needs you.'));
+  // Two projects: two lines, by name.
+  const two = await inboxCell({ terms: [cos('cell/t1', 'sample-site'), cos('cell/t9', 'other-site')], machines: [{ name: 'cell' }],
+    items: { 'sample-site': [items[0]], 'other-site': [items[1]] } });
+  assert.deepEqual(plain((await two.look()).owed.map((w) => [w.project, w.merge, w.decision])), [['other-site', 0, 1], ['sample-site', 1, 0]]);
+  assert.deepEqual(plain(textOf(byId(two.draw(), 'owed-cell/other-site')).slice(0, 2)), ['other-site', '1 to decide']);
+  assert.deepEqual(lampOf(two.store), { ...LAMP0, light: 'amber', merge: 1, decision: 1 });
+});
+
+await check('inbox: 件数の行を押すとオーナー待ちのペインを開き、ペインが無ければそのプロジェクトの Chief of Staff へ行く。マシンを絞ると外の件数の行は消えて「ほかのマシンで待っている数」に足され、行燈は変わらない（ADR-0043 受け入れ条件 4・6）', async () => {
+  const items = { 'sample-site': [wait('merge', 'S-0021', '2026-11-21T10:00:00Z'), wait('merge', 'S-0022', '2026-11-21T10:00:00Z')], 'other-site': [wait('decision', 'B-0001', '2026-11-21T11:00:00Z')] };
+  const terms = [cos('cell/t1', 'sample-site'), cos('lab/t1', 'other-site')];
+  const machines = [{ name: 'cell' }, { name: 'lab' }];
+  const click = async (c) => { const tree = c.draw(); args(byId(tree, 'owed-cell/sample-site'), 'on_click').at(-1)[0]({}, c.cx); return c.calls.run; };
+  // With the pane: show the panel, select the waiting block.
+  const withPane = await inboxCell({ terms, machines, items }, { layoutTree: PANE_LAYOUT });
+  await withPane.look();
+  assert.deepEqual(await click(withPane), [['layout.show', { id: 'panel' }], ['layout.select', { stack: 'panel-body', child: 'waiting' }]]);
+  // Without it: the project's Chief of Staff (paneless: peek; in a pane: focus).
+  const without = await inboxCell({ terms, machines, items });
+  await without.look();
+  assert.deepEqual(await click(without), [['terminal.peek', { terminal: 'cell/t1' }]]);
+  const paned = await inboxCell({ terms, machines, items, agents: [{ address: 'cell/t1', status: 'idle', program: sampleProgram, title: 'CoS', space_name: 'sample-site' }] });
+  await paned.look();
+  assert.deepEqual(await click(paned), [['agent.focus', { terminal: 'cell/t1' }]]);
+  // Picking one machine.
+  const before = lampOf(without.store);
+  without.v.picked = ['cell'];
+  const m = await without.look();
+  assert.deepEqual(plain(m.owed.map((w) => w.project)), ['sample-site'], 'ほかのマシンの件数の行が残る');
+  assert.equal(m.elsewhere, 1, 'ほかのマシンの待ちが数に足されない');
+  assert.ok(textOf(without.draw()).includes('+1 waiting elsewhere'));
+  assert.deepEqual(lampOf(without.store), before, 'マシンを絞ると行燈の値が変わった');
+  // A filter doesn't hide a count line, nor change the lamp.
+  without.v.picked = null;
+  without.v.filter = 'nothing matches this';
+  assert.equal((await without.look()).owed.length, 2, '検索で件数の行が消えた');
+  assert.deepEqual(lampOf(without.store), before, '検索で行燈の値が変わった');
+});
+
+await check('inbox: andon waiting が 3 回続けて読めない（失敗・JSON でない・version 2・project 違い）と、役の返事が Reply で Needs you に出て琥珀、理由の 1 行が出る。2 回までは前の出力、読めれば戻る。Chief of Staff の無いプロジェクトの Chief Engineer も Reply（ADR-0043 受け入れ条件 5・6）', async () => {
+  const good = (a) => waitOut(a[3], [wait('merge', 'S-0021', '2026-11-21T10:00:00Z')]);
+  const bad = {
+    'fails': () => ({ code: 1, stdout: '', stderr: 'andon waiting: kanban が見つからない\nmore' }),
+    'not JSON': () => ({ code: 0, stdout: 'usage: andon', stderr: '' }),
+    'version 2': (a) => ({ code: 0, stdout: JSON.stringify({ version: 2, project: a[3], items: [] }), stderr: '' }),
+    'another project': () => waitOut('other-site', []),
+    'throws': () => { throw new Error('spawn andon ENOENT'); },
+  };
+  for (const [name, fail] of Object.entries(bad)) {
+    let answer = good;
+    const state = { terms: [cos('cell/t1', 'sample-site', 'done')], machines: [{ name: 'cell' }] };
+    const c = await inboxCell(state, { reply: (a) => answer(a) });
+    let m = await c.look();
+    assert.ok(m.projects.find((i) => i.address === 'cell/t1')?.unread, `${name}: 読めたのに未読の印でない`);
+    answer = fail;
+    for (let n = 1; n <= 2; n++) {
+      c.clock.t += 31000;
+      m = await c.tick();
+      assert.equal(m.owed.length, 1, `${name}: ${n} 回目で前の出力を使わない`);
+      assert.ok(!m.needs.length && m.lost.length === 0, `${name}: ${n} 回目で読めない扱いにした`);
+    }
+    c.clock.t += 31000;
+    m = await c.tick();
+    assert.deepEqual(plain(m.needs.map((i) => [i.address, i.kind])), [['cell/t1', 'Reply']], `${name}: 3 回目で Reply にならない`);
+    assert.equal(m.owed.length, 0, `${name}: 読めないのに件数の行が残る`);
+    assert.equal(lit(c.store), 'amber');
+    assert.deepEqual(lampOf(c.store), { ...LAMP0, light: 'amber', reply: 1, unreadable: 1 }, `${name}: 行燈の内訳`);
+    const why = textOf(byId(c.draw(), 'lost-cell/sample-site'));
+    assert.equal(why.length, 1, `${name}: 理由が 1 行でない`);
+    assert.match(why[0], /^sample-site: replies light the lantern \(.+\)$/);
+    assert.ok(!why[0].includes('\n'));
+    answer = good;
+    c.clock.t += 31000;
+    m = await c.tick();
+    assert.ok(!m.needs.length && m.projects.find((i) => i.address === 'cell/t1').unread && m.lost.length === 0, `${name}: 読めたのに戻らない`);
+    assert.deepEqual(lampOf(c.store), { ...LAMP0, light: 'amber', merge: 1, unread: 1 });
+  }
+  // Never read yet: lights by replies as before, with no reason line.
+  const fresh = await inboxCell({ terms: [cos('cell/t1', 'sample-site', 'done')], machines: [{ name: 'cell' }] });
+  assert.deepEqual(plain(fresh.v.model().needs.map((i) => i.kind)), ['Reply'], 'まだ読めていない間に Reply で灯らない');
+  assert.equal(fresh.v.model().lost.length, 0);
+  // A Chief Engineer whose project has no Chief of Staff here.
+  const alone = await inboxCell({ terms: [cos('cell/t1', 'sample-site'), ce('cell/t2', 'other-site', 'done')], machines: [{ name: 'cell' }], items: { 'sample-site': [] } });
+  const m = await alone.look();
+  assert.deepEqual(plain(m.needs.map((i) => [i.address, i.kind])), [['cell/t2', 'Reply']]);
+  assert.deepEqual(plain(m.lost.map((s) => s.project)), ['other-site']);
+  assert.match(textOf(byId(alone.draw(), 'lost-cell/other-site'))[0], /no Chief of Staff/);
+  assert.deepEqual(lampOf(alone.store), { ...LAMP0, light: 'amber', reply: 1, unreadable: 1 });
+});
+
+await check('inbox: exec で呼ぶのは andon waiting --json --project <名前> だけ。名前が決めた形でなければ呼ばず、同じ組の Chief of Staff が 2 つでも 1 回、写しが 2 つでも 10 秒に 1 回で行燈は同じ。タイマーは 1 本（ADR-0043 受け入れ条件 7）', async () => {
+  const state = { terms: [cos('cell/t1', 'sample-site'), cos('cell/t2', 'sample-site'), cos('cell/t3', 'Bad/../x'), cos('t4', 'sample-site')],
+    machines: [{ name: 'cell' }], items: { 'sample-site': [wait('decision', 'S-0030', '2026-11-21T09:00:00Z')] } };
+  const store = {}, calls = { exec: [], run: [] }, clock = { t: T0 };
+  const one = await inboxCell(state, { store, calls, clock });
+  const two = await inboxCell(state, { store, calls, clock });
+  assert.deepEqual(one.timers.map(([ms]) => ms), [30000], 'タイマーが 1 本の 30 秒でない');
+  await one.look();
+  await two.look();
+  await two.tick();
+  const want = [['andon', ['waiting', '--json', '--project', 'sample-site'], { on: 'cell' }], ['andon', ['waiting', '--json', '--project', 'sample-site'], { on: null }]];
+  assert.deepEqual(calls.exec, want, '呼び出しが決まった一覧でない（組ごとに 1 回、名前の形の違うものは呼ばない）');
+  assert.equal(lit(one.store), 'amber');
+  assert.deepEqual(one.store, two.store);
+  // The comparison sees a call it should: past the window, a state change reads again.
+  clock.t += 11000;
+  state.terms[0].status = 'working';
+  await one.look();
+  await two.look();
+  assert.equal(calls.exec.length, 3, '状態が変わって 10 秒過ぎても読み直さない（比べる式が何も見ていない）');
+  assert.deepEqual(calls.exec.at(-1), want[0]);
+  // Within the window, a change doesn't call again.
+  clock.t += 2000;
+  state.terms[0].status = 'done';
+  await one.look();
+  await two.look();
+  assert.equal(calls.exec.length, 3, '10 秒の中で 2 回呼んだ');
+  const src = await readFile(`${HOST}/inbox/main.js`, 'utf8');
+  assert.deepEqual(plain(src.match(/(?<![.\w])exec\([^)]*/g)), ['exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT }'], 'main.js の exec の呼び出しが 1 つでない');
+  assert.doesNotMatch(src, /\bfetch\(|WebSocket|writeTextFile|\bhc\(/);
+  // The andon mod's lantern still reads only inbox.lantern.
+  assert.match(await readFile(`${HOST}/andon/brand.js`, 'utf8'), /const LANTERN = "inbox\.lantern";/);
+  const readme = await readFile(`${HOST}/inbox/README.md`, 'utf8');
+  assert.match(readme, /\| `exec\("andon", \["waiting", "--json", "--project", slug\], \{on, timeout: 15000\}\)` \|/, 'README の What it runs に andon waiting の行が無い');
+});
+
+await check('inbox: 名前の形が違うラベル（空白・大文字・引用符・パス）では呼ばず、出力の version・project の変種は読めない扱い。返らない呼び出しは 60 秒で諦めて読み直し、形の違う控えでは落ちない', async () => {
+  for (const label of [' sample-site', 'sample-site ', 'Sample-site', "'sample-site'", 'sample site', 'a/b', '../x', '-', '-x', '_x', 'sample_team']) {
+    const c = await inboxCell({ terms: [cos('cell/t1', label)], machines: [{ name: 'cell' }] });
+    await c.look();
+    await c.tick();
+    // 'sample_team' is shaped like a project's slug (schema/project.schema.json) and is called: the check sees a call it should.
+    assert.equal(c.calls.exec.length, label === 'sample_team' ? 1 : 0, `「${label}」で呼んだか、呼ぶべきものを呼ばなかった`);
+  }
+  // An underscore in the slug: its merge reaches the count line and the lantern.
+  const team = await inboxCell({ terms: [cos('cell/t1', 'sample_team')], machines: [{ name: 'cell' }], items: { sample_team: [wait('merge', 'S-0021', '2026-11-21T10:00:00Z')] } });
+  assert.deepEqual(plain((await team.look()).owed.map((w) => [w.project, w.merge])), [['sample_team', 1]], 'sample_team の件数の行が無い');
+  assert.deepEqual(plain(team.calls.exec), [['andon', ['waiting', '--json', '--project', 'sample_team'], { on: 'cell' }]]);
+  assert.equal(lit(team.store), 'amber', 'sample_team のマージの依頼で琥珀にならない');
+  // Each call carries a timeout, so the App stops one that never comes back.
+  assert.deepEqual(plain(team.calls.timeouts), [15000], 'exec に timeout を渡していない');
+  const { parseWaiting } = await load(`${HOST}/inbox`, { machines: () => [], setAgentOrder: () => {}, nextCommand: () => null, shared: () => null, setShared: () => {} });
+  const out = (o) => ({ code: 0, stdout: JSON.stringify(o), stderr: '' });
+  for (const [r, want] of [
+    [out({ version: '1', project: 'sample-site', items: [] }), /version 1$/], [out({ project: 'sample-site', items: [] }), /version undefined/],
+    [out({ version: 1, project: 'sample-site ', items: [] }), /answered for sample-site$/], [out({ version: 1, project: 'Sample-site', items: [] }), /answered for/],
+    [out({ version: 1, project: 'sample-site', items: {} }), /no items/], [{ code: 0, stdout: '', stderr: '' }, /no JSON/],
+    [{ code: 127, stdout: '', stderr: '\nsh: andon: not found\n' }, /exited 127: sh: andon: not found$/]]) {
+    const [items, why] = plain(parseWaiting(r, 'sample-site'));
+    assert.equal(items, null, `読めない出力を読んだ: ${JSON.stringify(r)}`);
+    assert.match(why, want);
+  }
+  assert.deepEqual(plain(parseWaiting(out({ version: 1, project: 'sample-site', items: [{ kind: 'merge', since: 'x', title: 't' }] }), 'sample-site')), [[{ kind: 'merge', since: 'x' }], null]);
+  // A call that never comes back: after a minute, the timer calls again.
+  let hang = true;
+  const c = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }] }, { reply: (a) => (hang ? new Promise(() => {}) : waitOut(a[3], [])) });
+  c.v.render(c.cx);
+  c.forget();
+  assert.equal(c.calls.exec.length, 1);
+  c.clock.t += 31000; for (const [, fn] of c.timers) fn(c.cx);
+  assert.equal(c.calls.exec.length, 1, '返っていない呼び出しの間に、同じ写しがもう一度呼んだ');
+  hang = false;
+  c.clock.t += 31000;
+  assert.equal((await c.tick()).lost.length, 0);
+  assert.equal(c.calls.exec.length, 2, '返らない呼び出しを諦めない');
+  // A store of another shape (an older or broken value) doesn't break the model.
+  const odd = await inboxCell({ terms: [cos('cell/t1', 'sample-site', 'done')], machines: [{ name: 'cell' }] }, { store: { 'inbox.waiting': { 'cell/sample-site': { at: 0, ok: { items: 'nope' } } } }, reply: () => new Promise(() => {}) });
+  assert.deepEqual(plain(odd.v.model().needs.map((i) => i.kind)), ['Reply']);
+});
+
+await check('inbox: 「次へ」は Needs you の行を古い順に回り、無くなれば未読の印のある役の行を古い順に回る（ADR-0043 受け入れ条件 8）', async () => {
+  const state = { terms: [cos('cell/t1', 'sample-site'), ce('cell/t2', 'sample-site'), sampleTerm('cell/t3', 'idle', { project: 'sample-site', issue: 'S-0003' })],
+    machines: [{ name: 'cell' }], items: { 'sample-site': [] } };
+  const c = await inboxCell(state);
+  await c.look();
+  // The Chief Engineer replies first, then the Chief of Staff, then an issue's agent blocks.
+  state.terms[0].status = 'working'; state.terms[1].status = 'working'; await c.look();
+  c.clock.t += 1000; state.terms[1].status = 'done'; await c.look();
+  c.clock.t += 1000; state.terms[0].status = 'done'; await c.look();
+  c.clock.t += 1000; state.terms[2].status = 'blocked'; await c.look();
+  const m = c.v.model();
+  assert.deepEqual(plain(m.queue.map((i) => i.address)), ['cell/t3', 'cell/t2', 'cell/t1'], '次へが回る順');
+  c.v.next(m);
+  assert.deepEqual(c.calls.run.at(-1), ['terminal.peek', { terminal: 'cell/t3' }]);
+  state.focused = { terminal: 'cell/t3' };
+  c.v.next(c.v.model());
+  assert.deepEqual(c.calls.run.at(-1), ['terminal.peek', { terminal: 'cell/t2' }], 'Needs you が無くなったあと未読の役へ行かない');
 });
 
 if (failed) process.exit(1);

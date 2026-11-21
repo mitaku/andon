@@ -1,12 +1,15 @@
 // Inbox: what needs you, longest waiting first, and the way to each project's roles.
-// Needs you: blocked agents, and a turn the Chief of Staff or a Chief Engineer ended (a reply).
+// Above Needs you: one line per project with merges or decisions waiting on you (ADR-0043), read
+// from `andon waiting --json --project <slug>` in the cell; the mod counts nothing itself.
+// Needs you: blocked agents (ADR-0015). A role's reply is an unread mark on its Projects row, except
+// in a project whose waits can't be read, where it is a Reply in Needs you as before (ADR-0043).
 // Projects: the Chief of Staff and Chief Engineers, idle or working (ADR-0015).
 // Issue agents that finished, work or idle are not shown (kanban-board and Spaces show the flow).
 // The mod only reads: it writes no label.
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, spaces, panes, machines, focused, run, theme, setAgentOrder, nextCommand, shared, setShared } from "herdr";
+import { agents, terminals, spaces, panes, machines, focused, run, theme, setAgentOrder, nextCommand, shared, setShared, exec, layout } from "herdr";
 import { displayName } from "./name.js";
 
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
@@ -27,6 +30,43 @@ const GLOW = {
 const glowOf = (i) => (i.kind === "Failed" ? "red" : "amber");
 // What the lantern at the top of the column shows: red, amber, or null (unlit). Every copy sees it.
 const LANTERN = "inbox.lantern";
+// The same decision with what it counted (ADR-0043 decision 10): {light, failed, blocked, merge,
+// decision, reply, unread, unreadable}. A value between mods, not one of Andon's contracts.
+const LAMP = "inbox.lamp";
+// Owner waits per machine and project (ADR-0043 decisions 8 and 9), shared so every copy judges
+// alike and only one calls: "<machine>/<project>" -> {at, fails, why, ok: {at, items: [{kind, since}]}}.
+const WAITING = "inbox.waiting";
+// A project name the mod passes to andon: the shape of a kanban project's slug (schema/project.schema.json,
+// internal/spawn SlugRe): a lowercase letter or digit, then lowercase letters, digits, `_` and `-`.
+const SLUG = /^[a-z0-9][a-z0-9_-]*$/;
+// At most one call per machine and project in this long, whichever copy calls.
+const WAIT_EVERY = 10000;
+// Unreadable this many times in a row: the project lights by replies again (ADR-0043 decision 9).
+const UNREADABLE_AFTER = 3;
+// How long one call may run before the App stops it (as the waiting mod does).
+const READ_TIMEOUT = 15000;
+// A call that hasn't come back in this long no longer keeps this copy from calling again.
+const READ_GIVES_UP = 60000;
+const ASKS = { merge: "to merge", decision: "to decide" };
+
+// What `andon waiting --json --project <slug>` printed, as [items, null] or [null, why it can't be
+// read]. Only `version`, `project` and each item's `kind` and `since` are read.
+export function parseWaiting(r, project) {
+  if (!r || r.code !== 0) {
+    const said = String(r?.stderr ?? "").split("\n").find((l) => l.trim()) ?? "";
+    return [null, short(`andon waiting exited ${r?.code ?? "?"}${said ? `: ${said}` : ""}`)];
+  }
+  let out;
+  try {
+    out = JSON.parse(String(r.stdout));
+  } catch {
+    return [null, "andon waiting printed no JSON"];
+  }
+  if (out?.version !== 1) return [null, short(`andon waiting printed version ${out?.version}`)];
+  if (out.project !== project) return [null, short(`andon waiting answered for ${out.project}`)];
+  if (!Array.isArray(out.items)) return [null, "andon waiting printed no items"];
+  return [out.items.map((x) => ({ kind: String(x?.kind ?? ""), since: String(x?.since ?? "") })), null];
+}
 
 const machineOf = (addr) => (addr.includes("/") ? addr.split("/")[0] : null);
 const LOCAL = "local";
@@ -53,6 +93,11 @@ const urgent = (a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
 
 // The andon layout's right panel (layouts/andon.json): show the column, then the waiting block of its stack.
 export const PANEL = { column: "panel", stack: "panel-body", child: "waiting" };
+// Whether this layout has the waiting mod's pane: a layout without it opens the Chief of Staff instead.
+function hasWaitingPane() {
+  const find = (n) => (n?.id === PANEL.child && n?.content?.mod === "waiting") || (n?.children ?? []).some(find);
+  return find(layout());
+}
 function openWaiting() {
   run("layout.show", { id: PANEL.column });
   run("layout.select", { stack: PANEL.stack, child: PANEL.child });
@@ -94,6 +139,8 @@ export default class Inbox extends View {
     const mem = /** @type {any} */ (shared(MEMORY) ?? shared(OLD_MEMORY));
     this.changed = mem?.changed ?? load("changed", {});
     this.seen = mem?.seen ?? {};
+    // Machine and project pairs this copy is reading now, with when the call went out.
+    this.reading = new Map();
     this.sel = null;
     this.filter = "";
     this.typing = false;
@@ -102,7 +149,11 @@ export default class Inbox extends View {
     this.picked = load("machines", null);
     this.picker = false;
     this.pickerAt = 0;
-    cx.timer.every(30000, (cx) => cx.notify());
+    // The one timer: wait times move on, and owner waits are read again (ADR-0043 decision 8).
+    cx.timer.every(30000, (cx) => {
+      this.poll(cx, true);
+      cx.notify();
+    });
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
@@ -150,6 +201,28 @@ export default class Inbox extends View {
         space: null,
         paneless: true,
       }));
+    // One machine and project pair per Chief of Staff terminal: where andon waiting is called.
+    const store = /** @type {Record<string, any>} */ (shared(WAITING) ?? {});
+    const cosOf = new Map();
+    for (const k of terms) {
+      if (k.state !== "live" || k.labels?.role !== "chief-of-staff" || !k.labels?.project) continue;
+      const machine = machineOf(k.address) ?? LOCAL;
+      const key = `${machine}/${k.labels.project}`;
+      if (!cosOf.has(key)) cosOf.set(key, { key, machine, project: k.labels.project, cos: k.address, paned: listed.has(k.address), changedAt: 0 });
+    }
+    // How a project's waits stand: read (the last good output, fewer than 3 failures since),
+    // pending (not read yet) or unreadable (with why). Pending and unreadable light by replies.
+    const standing = (machine, project) => {
+      const key = `${machine}/${project}`;
+      if (!project) return { key, mode: "pending" };
+      if (!cosOf.has(key)) return { key, machine, project, mode: "unreadable", why: "no Chief of Staff here" };
+      if (!SLUG.test(project)) return { key, machine, project, mode: "unreadable", why: "the project's name isn't one andon takes" };
+      const e = store[key];
+      const fails = e?.fails ?? 0;
+      if (fails >= UNREADABLE_AFTER) return { key, machine, project, mode: "unreadable", why: e?.why ?? "unreadable" };
+      if (Array.isArray(e?.ok?.items)) return { key, machine, project, mode: "read", items: e.ok.items };
+      return { key, mode: "pending" };
+    };
     let dirty = false;
     // A failed turn needs the person as a question does. Programs report it as `error`; agents() has
     // no such word, so it's read from the terminal's own status.
@@ -170,16 +243,24 @@ export default class Inbox extends View {
         this.changed[a.address] = { s, at: seen ? now : null };
         dirty = true;
       }
-      // The Chief of Staff and a Chief Engineer talk with the person, so a turn they end is a reply:
-      // Needs you while unseen (Herdr's done), Projects once looked at (Herdr turns done into idle by
-      // itself). One without a pane stays done: opening it is looking, remembered for that turn.
+      // The Chief of Staff and a Chief Engineer talk with the person, so a turn they end is a reply,
+      // unseen while Herdr says done (it turns done into idle by itself once looked at). One without
+      // a pane stays done: opening it is looking, remembered for that turn.
       const lead = [term, ...kids].find((k) => TALKS_TO_YOU.has(k.labels?.role));
       const talks = Boolean(lead);
-      const reply = talks && status === "done" && !(a.paneless && this.seen[a.address] === turn);
+      const unseen = talks && status === "done" && !(a.paneless && this.seen[a.address] === turn);
+      const project = lead?.labels?.project ?? term.labels?.project ?? "";
+      const machine = machineOf(a.address) ?? LOCAL;
+      const stand = talks ? standing(machine, project) : null;
+      // Where the project's waits are read, a reply is only an unread mark in Projects; where they
+      // can't be, it is a Reply in Needs you and lights the lantern as before (ADR-0043 decision 9).
+      const reply = unseen && stand?.mode !== "read";
+      const unread = unseen && stand?.mode === "read";
       // Anything blocked needs the person; otherwise only the roles show, as the way in.
       const section = status === "blocked" || reply ? "needs" : talks ? "projects" : null;
-      const project = lead?.labels?.project ?? term.labels?.project ?? "";
       const at = this.changed[a.address].at;
+      const pair = stand && cosOf.get(stand.key);
+      if (pair) pair.changedAt = Math.max(pair.changedAt, at ?? 0);
       const tab = tabs.get(a.tab);
       return {
         address: a.address,
@@ -194,6 +275,8 @@ export default class Inbox extends View {
         peek: peek?.address ?? (a.paneless ? a.address : null),
         kind: status === "blocked" ? (failed ? "Failed" : KIND[report.kind] ?? null) : reply ? "Reply" : null,
         reply,
+        unread,
+        stand,
         msg: short(report.msg),
         // A `title` label (andon issue start puts the issue's title there) names it best.
         name: term.labels?.title || (a.paneless && a.title ? a.title : displayName(a, tab)),
@@ -201,7 +284,7 @@ export default class Inbox extends View {
         space: a.space_name,
         tab: tab?.name ?? a.tab_name,
         branch: branchOf.get(a.address) ?? spaceOf.get(a.space)?.branch ?? null,
-        machine: machineOf(a.address) ?? LOCAL,
+        machine,
         // hc ls can leave status_ms out; the tab's last change is the next best guess.
         since: at ?? term.status_ms ?? tab?.changed_at ?? now,
         approx: at == null,
@@ -215,28 +298,64 @@ export default class Inbox extends View {
     // Every machine, with how many wait on it and whether it is connected.
     const hosts = [{ name: LOCAL, away: false }, ...machines().filter((x) => x.name).map((x) => ({ name: x.name, away: x.layout === "unavailable" }))];
     const waits = (i) => i.section === "needs";
-    // The lantern speaks for every row that needs you, whatever the pick or filter hides.
-    const lit = items.filter(waits).map(glowOf);
-    const lantern = lit.includes("red") ? "red" : lit.length ? "amber" : null;
-    if ((shared(LANTERN) ?? null) !== lantern) setShared(LANTERN, lantern);
+    // The projects with merges or decisions waiting on you: one line each, by project then machine.
+    // Hand work (`task`) shows only in the waiting pane (ADR-0043 decision 4).
+    const owed = [...cosOf.values()].flatMap((p) => {
+      const s = standing(p.machine, p.project);
+      if (s.mode !== "read") return [];
+      const asks = s.items.filter((x) => x.kind in ASKS);
+      if (!asks.length) return [];
+      const times = asks.map((x) => Date.parse(x.since)).filter(Number.isFinite);
+      const count = (kind) => asks.filter((x) => x.kind === kind).length;
+      return [{ ...p, merge: count("merge"), decision: count("decision"), since: times.length ? Math.min(...times) : now }];
+    }).sort((x, y) => x.project.localeCompare(y.project) || x.machine.localeCompare(y.machine));
+    const owedCount = (w) => w.merge + w.decision;
+    // The projects whose waits can't be read, each once: they light by replies (ADR-0043 decision 9).
+    const lost = [...new Map(items.filter((i) => i.stand?.mode === "unreadable").map((i) => [i.stand.key, i.stand])).values()]
+      .sort((x, y) => x.project.localeCompare(y.project) || x.machine.localeCompare(y.machine));
+    // The lantern speaks for everything, whatever the pick or filter hides (ADR-0043 decision 10).
+    const needing = items.filter(waits);
+    const failed = needing.filter((i) => glowOf(i) === "red").length;
+    const replies = needing.filter((i) => i.reply).length;
+    const lamp = {
+      light: null,
+      failed,
+      blocked: needing.length - failed - replies,
+      merge: owed.reduce((n, w) => n + w.merge, 0),
+      decision: owed.reduce((n, w) => n + w.decision, 0),
+      reply: replies,
+      unread: items.filter((i) => i.unread).length,
+      unreadable: lost.length,
+    };
+    lamp.light = lamp.failed ? "red" : lamp.blocked + lamp.merge + lamp.decision + lamp.reply ? "amber" : null;
+    if ((shared(LANTERN) ?? null) !== lamp.light) setShared(LANTERN, lamp.light);
+    if (JSON.stringify(shared(LAMP) ?? null) !== JSON.stringify(lamp)) setShared(LAMP, lamp);
     const picked = this.picked?.filter((n) => hosts.some((x) => x.name === n)) ?? null;
     const here = (i) => !picked || picked.includes(i.machine);
     const pick = (id) => items.filter((i) => i.section === id && match(i) && here(i));
     const oldest = (x, y) => x.since - y.since;
+    const waitingOn = (name) => items.filter((i) => i.machine === name && waits(i)).length
+      + owed.filter((w) => w.machine === name).reduce((n, w) => n + owedCount(w), 0);
     const m = {
       now,
-      machines: hosts.length > 1 ? hosts.map((x) => ({ ...x, waiting: items.filter((i) => i.machine === x.name && waits(i)).length })) : [],
+      machines: hosts.length > 1 ? hosts.map((x) => ({ ...x, waiting: waitingOn(x.name) })) : [],
       picked,
       // Waiting on machines left out of the pick: never hidden without a count.
-      elsewhere: items.filter((i) => waits(i) && !here(i)).length,
+      elsewhere: items.filter((i) => waits(i) && !here(i)).length + owed.filter((w) => !here(w)).reduce((n, w) => n + owedCount(w), 0),
+      // Not narrowed by the filter: a count line isn't a row to search.
+      owed: owed.filter(here),
+      lost: lost.filter(here),
+      pairs: [...cosOf.values()],
+      lamp,
       needs: pick("needs").sort(oldest),
       // By project, then the Chief of Staff before Chief Engineers (by issue).
       projects: pick("projects").sort((x, y) => x.project.localeCompare(y.project)
         || (x.role === "chief-of-staff" ? 0 : 1) - (y.role === "chief-of-staff" ? 0 : 1)
         || x.issue.localeCompare(y.issue) || x.name.localeCompare(y.name)),
     };
-    // What next walks: Needs you. What j/k walk: both sections.
-    m.queue = m.needs;
+    // What next walks: Needs you, then the roles with an unread reply, oldest first (ADR-0043
+    // decision 5). What j/k walk: both sections.
+    m.queue = [...m.needs, ...m.projects.filter((i) => i.unread).sort(oldest)];
     m.rows = [...m.needs, ...m.projects];
     return m;
   }
@@ -245,10 +364,56 @@ export default class Inbox extends View {
     if (i.peek) run("terminal.peek", { terminal: i.peek });
     else run("agent.focus", { terminal: i.address });
     // A paneless role's reply stays done in the core: opening it is the person looking.
-    if (i.reply && i.paneless) {
+    if ((i.reply || i.unread) && i.paneless) {
       this.seen[i.address] = i.turn;
       setShared(MEMORY, { changed: this.changed, seen: this.seen });
     }
+  }
+
+  // A count line: the waiting pane, or without one, the project's Chief of Staff (ADR-0043 decision 7).
+  openOwed(w) {
+    if (hasWaitingPane()) openWaiting();
+    else run(w.paned ? "agent.focus" : "terminal.peek", { terminal: w.cos });
+  }
+
+  // Reads the owner waits of each machine and project that is due: on the timer (`tick`), when a
+  // role's state changed since the last read, or never read. At most once per WAIT_EVERY, whichever
+  // copy of the mod reads (the time is kept in shared()).
+  poll(cx, tick, m = this.model()) {
+    if (!cx?.spawn) return;
+    const now = Date.now();
+    const store = /** @type {Record<string, any>} */ (shared(WAITING) ?? {});
+    for (const p of m.pairs) {
+      if (!SLUG.test(p.project) || now - (this.reading.get(p.key) ?? -Infinity) < READ_GIVES_UP) continue;
+      const e = store[p.key];
+      if (e && now - (e.at ?? 0) < WAIT_EVERY) continue;
+      if (e && !tick && !(p.changedAt > (e.at ?? 0))) continue;
+      this.read(cx, p);
+    }
+  }
+
+  read(cx, p) {
+    const put = (change) => {
+      const all = { ...(/** @type {Record<string, any>} */ (shared(WAITING) ?? {})) };
+      const was = all[p.key] ?? { at: 0, fails: 0, why: null, ok: null };
+      all[p.key] = { ...was, ...change(was) };
+      setShared(WAITING, all);
+    };
+    this.reading.set(p.key, Date.now());
+    put(() => ({ at: Date.now() }));
+    cx.spawn(async (cx) => {
+      let items = null;
+      let why = null;
+      try {
+        const r = await exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT });
+        [items, why] = parseWaiting(r, p.project);
+      } catch (e) {
+        why = short(`can't run andon waiting: ${e?.message ?? e}`);
+      }
+      this.reading.delete(p.key);
+      put((was) => (items ? { fails: 0, why: null, ok: { at: Date.now(), items } } : { fails: (was.fails ?? 0) + 1, why }));
+      cx.notify();
+    });
   }
 
   // The longest-waiting item that isn't the one in view.
@@ -345,6 +510,9 @@ export default class Inbox extends View {
         .flex().items_center().child(i.kind ?? "Needs you");
     }
     if (i.status === "working") return svg(`${CHROME}/spinner.svg`).size(12).mx(1).flex_none().text_color(t.working).spin(900);
+    // A role's reply you haven't looked at: a small dot in the theme's muted color, never a light
+    // (ADR-0043 decision 5; a first shape to look at and change).
+    if (i.unread) return div().id(`unread-${i.address}`).size(7).mx(3).flex_none().rounded(4).bg(t.muted).tooltip("Unread reply");
     return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
   }
 
@@ -465,6 +633,29 @@ export default class Inbox extends View {
       .children(rows).child(all);
   }
 
+  // Above Needs you, one per project with merges or decisions waiting on you (ADR-0043 decision 7):
+  // the amber dot, the project, the counts by kind, the oldest wait. No heading.
+  owedLine(t, m, w) {
+    const counts = Object.entries(ASKS).filter(([k]) => w[k] > 0).map(([k, s]) => `${w[k]} ${s}`).join(" · ");
+    return h_flex().id(`owed-${w.key}`).px(8).py(5).gap(8).flex_none().items_center().rounded(8).cursor_pointer()
+      .hover((s) => s.bg(t.hover))
+      .tooltip("Waiting on you")
+      .on_click((_e, cx) => {
+        this.openOwed(w);
+        cx.notify();
+      })
+      .child(div().size(7).flex_none().rounded(4).bg(GLOW.amber.lamp))
+      .child(div().flex_none().text_color(t.foreground).child(w.project))
+      .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted).child(counts))
+      .child(div().flex_none().text_size(11).text_color(t.dim).child(duration(m.now - w.since)));
+  }
+
+  // A project whose waits can't be read: why, in one line (ADR-0043 decision 9).
+  lostLine(t, s) {
+    return div().id(`lost-${s.key}`).px(8).py(3).flex_none().truncate().text_size(11).text_color(t.dim)
+      .child(`${s.project}: replies light the lantern (${s.why})`);
+  }
+
   // A section's heading; `lamp` puts a lit dot before it.
   heading(t, label, count, color, lamp = null) {
     return h_flex().px(8).pt(8).h(30).gap(6).flex_none().items_center().text_size(11).font_medium()
@@ -477,6 +668,7 @@ export default class Inbox extends View {
     // Theme colors are "#rrggbb" strings; say so, so element colors type-check.
     const t = /** @type {Record<string, `#${string}`>} */ (theme());
     const m = this.model();
+    this.poll(cx, false, m);
     setAgentOrder(m.rows.map((i) => i.address));
     const keyboard = this.handle.is_focused();
     if (!m.rows.some((r) => r.address === this.sel)) this.sel = m.rows[0]?.address ?? null;
@@ -486,8 +678,9 @@ export default class Inbox extends View {
         .child(svg(`${CHROME}/search.svg`).size(12).flex_none().text_color(t.dim))
         .child(div().child(`${this.filter}${this.typing ? "▏" : ""}`)));
     }
+    body.push(...m.owed.map((w) => this.owedLine(t, m, w)), ...m.lost.map((s) => this.lostLine(t, s)));
     if (m.needs.length) body.push(this.heading(t, "Needs you", m.needs.length, t.foreground, GLOW.amber.lamp), ...m.needs.map((i) => this.row(t, m, i, keyboard)));
-    else body.push(div().px(8).py(12).text_size(12).text_color(t.dim).child(this.filter ? "Nothing matches." : "Nothing needs you."));
+    else if (this.filter || !m.owed.length) body.push(div().px(8).py(12).text_size(12).text_color(t.dim).child(this.filter ? "Nothing matches." : "Nothing needs you."));
     if (m.projects.length) body.push(this.heading(t, "Projects", m.projects.length, t.dim), ...m.projects.map((i) => this.row(t, m, i, keyboard)));
     const note = m.machines.length ? this.pickerNote(t, m) : null;
     return v_flex()
