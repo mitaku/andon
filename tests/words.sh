@@ -63,12 +63,16 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 #   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
 #   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）・
 #   docs/contract.md が古い語も読むと書いた所（古い見出し `## 人に聞くこと`・古い末尾「（人の判断待ち）」・前のバージョンの答え
-#   「人がマージした（…）」。ADR-0036 決めたこと 6）・README.md の ADR の一覧の行（ADR の題の写し。ADR の本文と一緒に替える）・
+#   「人がマージした（…）」。ADR-0036 決めたこと 6）・
 #   CHANGELOG.md の版の節（## v…。版を切ったときの記録。ADR-0036 決めたこと 4）。
+#   ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md）では、「」の中（オーナーの発言の引用・当時の見出しや
+#   出力の文の写し・語を挙げた所）とバッククォートの中（当時の識別子）を外す（ADR-0036 決めたこと 4）。ほかに外すのは、
+#   役でない 2 つの句（ADR-0005 の「人と人が共有する」・ADR-0011 の「トラッカー側の人が決める」）と、ADR-0036 と
+#   その決定のファイルの語の表の「今」の列と「X→」の形（語そのものを挙げた所）。
 #   引用だけを外し、同じ行の地の文の「人」は当たる。
 role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?<![0-9] )(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ)'
 role_paths=(package internal init cmd tests docs/design.md process docs/process model docs/contract.md docs/dispatcher.md
-  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md)
+  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md docs/adr docs/decisions docs/decisions.md)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
@@ -79,11 +83,21 @@ hits=""
     -e '^internal/retro/[^:]*:[0-9]*:.*人がマージした' -e '^tests/andon-retro\.sh:[0-9]*:.*人がマージした' \
     -e '^tests/andon-gate\.sh:[0-9]*:.*古い見出しに当たらない' \
     -e "^tests/package/06-skill-commands\.sh:[0-9]*:.*\(old_cos=\|old_docs=\|<<<'\)" \
-    -e '^README\.md:[0-9]*:  - \[[0-9]\{4\} ' \
   | awk -F: -v v="${changelog_v:-0}" '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v)' \
   | perl -CSDA -Mutf8 -ne '
       BEGIN { $r = shift }
       my ($f, $t) = /^([^:]*):\d+:(.*)$/s or next;
+      if ($f =~ m{^docs/(?:adr/|decisions/|decisions\.md$)}) {
+        if ($f =~ m{^docs/(?:adr/0036-|decisions/2026-11-20-(?:adr-0036-|role-name-replacement-))}) {
+          $t =~ s/^\s*\|[^|]*\|//;                    # 語の表の「今」の列
+          $t =~ s/[^\s・（「]+→//g;                    # 「人→オーナー」の形
+        }
+        1 while $t =~ s/「[^「」]*」//g;                 # 引用と、語を挙げた「」（入れ子は内から）
+        $t =~ s/`[^`]*`//g;
+        $t =~ s/人と人が共有する//g if $f =~ m{^docs/adr/0005-};
+        $t =~ s/トラッカー側の人が決める//g if $f =~ m{^docs/adr/0011-};
+        $t =~ /$r/ or next;
+      }
       if ($f eq "docs/design.md") {
         $t =~ s/止められるものは機械、判断が要るものは LLM、残りだけ人。ラインは回り続け（AND ON）、人を呼ぶときだけ灯りがつく（アンドン）//g;
         $t =~ s/「人の介在率」|「人を待たない」//g;
