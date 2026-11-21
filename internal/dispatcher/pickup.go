@@ -182,7 +182,7 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		// 端末の外から書かれた答え（オーナーのペインの andon waiting answer）だけを Chief of Staff に届ける。
 		// 端末の中で書いた答え（Chief of Staff・dispatcher）は通知にしない（ADR-0042 決めたこと 18・19）
 		if !strings.HasPrefix(r.By, "terminal:") {
-			p.answered(id, c["question"])
+			return p.answered(id, c["question"], pos)
 		}
 	case c["status"] == "review":
 		// detail の pr は report.json から。PR の無い報告（レビュアー・repo の無い課題）は report として知らせる
@@ -255,14 +255,15 @@ func (p *project) asked(id string, v any, pos int64) bool {
 	return true
 }
 
-// answered は端末の外から書かれた答えの行を通知 answered にする（中身は questions.yaml の答えと、問いの JSON の種類）。
+// answered は端末の外から書かれた答えの行（pos はその行の頭）を通知 answered にする（中身は questions.yaml の答えと、問いの JSON の種類）。
 // 問いがもう answered でなければ（担当が受け取った・log.jsonl を先頭から読み直した）積まない。同じ問いの通知は n ごとに1件
-// （eventKey）。読めなければ飛ばしてログに残す。
-func (p *project) answered(id string, v any) {
+// （eventKey）。questions.yaml が読めなければ asked と同じく1回だけ次の見回りまで待ち（false。この行から読み直す）、
+// それでも読めなければ飛ばしてログに残す。
+func (p *project) answered(id string, v any, pos int64) bool {
 	f, ok := v.(float64)
 	n := int(f)
 	if !ok || f != float64(n) || n < 1 {
-		return
+		return true
 	}
 	b, err := os.ReadFile(filepath.Join(p.l.Dir, "issues", id, "questions.yaml"))
 	var qs []answerRow
@@ -270,12 +271,18 @@ func (p *project) answered(id string, v any) {
 		err = yaml.Unmarshal(b, &qs)
 	}
 	if err != nil {
+		if p.st.LogHold == nil || *p.st.LogHold != pos {
+			p.st.LogHold = &pos
+			return false
+		}
 		p.logf("%s の questions.yaml が読めない（答え %d を知らせない）: %v", id, n, err)
-		return
+		p.st.LogHold = nil
+		return true
 	}
+	p.st.LogHold = nil
 	i := slices.IndexFunc(qs, func(q answerRow) bool { return q.N == n })
 	if i < 0 || qs[i].Status != "answered" || qs[i].Answer == "" {
-		return
+		return true
 	}
 	kind := qs[i].Kind
 	if b, err := os.ReadFile(filepath.Join(p.l.Library(id), "questions", strconv.Itoa(n)+".json")); err == nil {
@@ -285,9 +292,10 @@ func (p *project) answered(id string, v any) {
 	}
 	if !slices.Contains(questionKinds, kind) {
 		p.logf("%s の問い %d の種類 %q が読めない（答えを知らせない）", id, n, kind)
-		return
+		return true
 	}
 	p.notify(id, "answered", map[string]any{"n": n, "kind": kind, "answer": qs[i].Answer})
+	return true
 }
 
 // answerRow は answered が読む questions.yaml の1件。

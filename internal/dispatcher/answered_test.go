@@ -98,4 +98,30 @@ func TestAnsweredFromPane(t *testing.T) {
 	if got = pass(`{"at":"2026-11-21T00:04:00Z","by":"owner","id":"S-0030","change":{"question":3,"status":"answered"}}`); len(got) != 2 {
 		t.Fatalf("問い 3 の答えが問い 1 の通知を消した・積まれない: %+v", got)
 	}
+	// questions.yaml が一時だけ読めない: その巡は積まずに位置を進めず、次の巡で読めたら1件積む
+	st, _, _ = LoadState(slug)
+	st.Pending = nil
+	if err := st.Save(slug); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, qpath, "- n: [壊れた\n")
+	if got = pass(`{"at":"2026-11-21T00:03:30Z","by":"owner","id":"S-0030","change":{"question":1,"status":"answered"}}`); len(got) != 0 {
+		t.Fatalf("読めない questions.yaml から通知を積んだ: %+v", got)
+	}
+	questions("answered", "open", "open")
+	if got = pass(); len(got) != 1 || fmt.Sprint(got[0].Detail["n"]) != "1" {
+		t.Fatalf("1回目に読めなかった答えを、次の巡で読めたのに積まない: %+v", got)
+	}
+	// 2回続けて読めなければ、ログに残して先へ進む（次の行で止まり続けない）
+	st, _, _ = LoadState(slug)
+	st.Pending = nil
+	if err := st.Save(slug); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, qpath, "- n: [壊れた\n")
+	pass(`{"at":"2026-11-21T00:03:40Z","by":"owner","id":"S-0030","change":{"question":1,"status":"answered"}}`)
+	pass()
+	if st, _, _ = LoadState(slug); st.LogHold != nil {
+		t.Fatalf("2回続けて読めなかった行で止まったまま: LogHold %v", *st.LogHold)
+	}
 }

@@ -103,7 +103,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 報告が書かれた | `log.jsonl` の `{"report": "write" \| "append"}` | `report` |
 | レビューに入った | `log.jsonl` の `{"status": "review"}` | `review` |
 | 問いが来た | `log.jsonl` の `{"question": n, "status": "open"}`。中身は問いの JSON（contract.md §5） | `asked` |
-| オーナーがペインで問いに答えた | `log.jsonl` の `{"question": n, "status": "answered"}` のうち、書き手（`by`）が `terminal:` で始まらないもの（`andon waiting answer` が端末の外で書いた答え）。端末の中で書いた答え（Chief of Staff・dispatcher・担当）は積まない。読んだときに問いがもう `answered` でなければ積まない。中身は `questions.yaml` の答えの文と、問いの JSON の種類（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 19） | `answered` |
+| オーナーがペインで問いに答えた | `log.jsonl` の `{"question": n, "status": "answered"}` のうち、書き手（`by`）が `terminal:` で始まらないもの（`andon waiting answer` が端末の外で書いた答え）。端末の中で書いた答え（Chief of Staff・dispatcher・担当）は積まない。読んだときに問いがもう `answered` でなければ積まない。`questions.yaml` が読めなければ、`asked` と同じく1回だけ次の見回りまで待ってこの行から読み直し、それでも読めなければログに残して飛ばす。中身は `questions.yaml` の答えの文と、問いの JSON の種類（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 19） | `answered` |
 | 引き取れる課題が増えた | `kanban ready --json` の**前回との差**（オーナーの課題とレビュアーの子課題を除いた id の集まりで比べる） | `ready` |
 | レビューを頼まれ、起動した | `report.json` の `review_request`（P6a） | `review-requested` |
 | gate が判定した | dispatcher が回した `andon gate` の結果（P6a） | `gate` |
