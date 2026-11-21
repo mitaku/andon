@@ -2,15 +2,15 @@
 
 - 状態: **決定（2026-11-06）**。オーナーが PR をマージした日が決定の日（[decisions.md](../decisions.md) §14 の行の日付）。実装は「依頼書に切る案」のとおり別タスク（切るのは Chief of Staff）。一部覆された → [ADR-0011](0011-signals-and-value-loop.md)（前提 11 の「範囲の外」のうち信号の口と本番からの戻り）・[ADR-0008](0008-issue-naming.md)（タスク → 課題の改名）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。**2026-11-07**: オーナーが PR #69 を読んだ指摘（工程の背骨・担当が主体・横展開）で決めたこと 9〜14 を足し、3 の「止まらない条件」と 6 の表の一部を 10・11 で言い直した（1〜8 は上書きしていない。読むときは 9〜14 を先に）。開いている問い 1・2 は同日にオーナーが答え、15・16 に写した。
 - 主題: 依頼が「何を変えるか」まで決まっていないとき、ラインがどう回るか。(a) 調べるだけのタスクの型（依頼書・中間成果物の形と名前・完了条件・レビューの要否）、(b) 直すタスクの担当が、依頼書の範囲と見つけたものが食い違ったときにどう止まり、誰が決めるか、(c) Chief of Staff がその判断を自分で下してよい線と、オーナーに回す線、(d) 依頼を受けたときの切り方（調べる／直す／Chief Engineer）、(e) 既存の決定との関係と変える所、(f) 工程の背骨（理解→計画→作業→確認→完成→振り返り）と、3つの型がその上でどう違うか、(g) 横展開の既定、(h) Chief of Staff が依頼書に書くものと書かないもの、(i) 振り返り。
-- 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（候補の一覧・問いの種類・台帳の予約キー）は「決めたこと」に形を書き、実装のタスクが `schema/` と contract.md に写す（それまでは提案）。
-- 入力: 依頼書（オーナーの問いと Chief of Staff の推し。2026-11-06）、[ADR-0004](0004-project-layout.md) 決めたこと 2（中間成果物の置き場。この文書は置き場を足さず、型と名前だけ決める）、andon main の設計と skill とコード（出典）。P7 で流した依頼の記録は建屋にあり、この担当は読めなかった（仮設の台帳に残る依頼書から、A-7 の題が「docs の誤字を1つ直す」だったことだけ分かる）。オーナーの指摘（2026-11-07。PR #69 を読んで。依頼書の追記）、オーナーが示した資料（曽根壮大「仕事を前に進めるためのコツ — 判断と決断と共有 / Aim for the goal」PHP カンファレンス沖縄 2024。出典）、オーナーの見立て（2026-11-07。台帳の単位は Task より Issue／Ticket。前提 10・開いている問い 2）。
-- 整理（2026-11-20。[ADR-0033](0033-adr-inventory-and-slimming.md) 決めたこと 1・2）: 「決めたこと」のうち、実装が済んだ決定の細部（表・JSON の例・手順）を、今の正の場所への参照に替えた。決定の文・理由・捨てた案は残した。整理前の全文は commit 7af76509434c85d305addc6b01965adef23ba315 の版にある（`git show 7af7650:docs/adr/0006-survey-fix-decide.md`）。
+- 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。この文書が足す約束（候補の一覧・問いの種類・kanban の予約キー）は「決めたこと」に形を書き、実装のタスクが `schema/` と contract.md に写す（それまでは提案）。
+- 入力: 依頼書（オーナーの問いと Chief of Staff の推し。2026-11-06）、[ADR-0004](0004-project-layout.md) 決めたこと 2（中間成果物の置き場。この文書は置き場を足さず、型と名前だけ決める）、andon main の設計と skill とコード（出典）。P7 で流した依頼の記録は建屋にあり、この担当は読めなかった（仮設の kanban に残る依頼書から、A-7 の題が「docs の誤字を1つ直す」だったことだけ分かる）。オーナーの指摘（2026-11-07。PR #69 を読んで。依頼書の追記）、オーナーが示した資料（曽根壮大「仕事を前に進めるためのコツ — 判断と決断と共有 / Aim for the goal」PHP カンファレンス沖縄 2024。出典）、オーナーの見立て（2026-11-07。kanban の単位は Task より Issue／Ticket。前提 10・開いている問い 2）。
+- 整理（2026-11-20。[ADR-0033](0033-adr-inventory-and-slimming.md) 決めたこと 1・2）: 「決めたこと」のうち、実装が済んだ決定の細部（表・JSON の例・手順）を、今の正の場所への参照に替えた。決定の文・理由・捨てた案は残した。整理前の全文は commit 7af76509434c85d305addc6b01965adef23ba315 のバージョンにある（`git show 7af7650:docs/adr/0006-survey-fix-decide.md`）。
 
 ## 決定の索引
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | 台帳の課題の型は 調べる・直す・決める の 3 つ | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
+| 1 | kanban の課題の型は 調べる・直す・決める の 3 つ | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている |
 | 2 | 調べる課題の中間成果物は `library/candidates.json`（候補の一覧）で、command が形を確かめて書く | `schema/candidates.schema.json`・`internal/issue/issue.go` | 生きている |
 | 3 | 直す課題が止まるのは、担当が範囲を決めないと進めないときだけ | `package/skills/worker/SKILL.md` | 生きている |
 | 4 | 問いの `kind` に `scope` を足し、宛先は Chief of Staff にする | `schema/question.schema.json` | 生きている |
@@ -25,7 +25,7 @@
 | 13 | 振り返りは担当の `## Remember` と Chief of Staff のアウターループの 2 段で、新しい成果物は作らない | `package/skills/worker/SKILL.md`・`docs/design.md` | 生きている |
 | 14 | 決断はオーナーか委譲の中の Chief of Staff が、判断は標準にして機械・文・オーナーの順に置く | `docs/design.md` | 生きている |
 | 15 | `scope` の問いを Chief of Staff が答えたとき、オーナーには知らせない | `package/skills/chief-of-staff/playbooks/blocked.md` | 生きている |
-| 16 | 台帳のカードの語の向きは「課題」にする（識別子の改名は別の ADR） | `docs/adr/0008-issue-naming.md` | 役目を終えた |
+| 16 | kanban のカードの語の向きは「課題」にする（識別子の改名は別の ADR） | `docs/adr/0008-issue-naming.md` | 役目を終えた |
 | 17 | `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む | `internal/issue/issue.go`・`internal/dispatcher/dispatcher.go` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
@@ -45,33 +45,33 @@
 3. **[ADR-0004](0004-project-layout.md) 決めたこと 2**: 調べものの中間成果物の置き場はそのタスクの `kanban/tasks/<id>/library/`。タスクをまたぐまとめは `kanban/library/`。決める前の案（設計の代案）は Chief Engineer の文書。新しい置き場は作らない。
 4. **design.md §1.3・§1.10**: オーナーに灯りをつける判断は5種だけで、「範囲をどうするか」はそのどれでもない。だから範囲の判断はオーナーを呼ばず、Chief of Staff が持つ。候補の中に4種・レベル C・委譲の外に当たるものがあれば、その分だけオーナーへ（ask-one-by-one skill §1 の線のまま）。
 5. **contract.md §0**: 機械は Markdown を読まない。担当は `library/` の JSON を手で書かず、command が形を確かめて書く。約束は小さく、テストで固定する。
-6. **薄いハーネス（design.md §1.9 の 5）**: 新しい役を足さない。調べる・止まる・決めるは今の役（担当・Chief of Staff・dispatcher）と今の口（台帳の問い・報告・`library/`）で回す。
+6. **薄いハーネス（design.md §1.9 の 5）**: 新しい役を足さない。調べる・止まる・決めるは今の役（担当・Chief of Staff・dispatcher）と今の口（kanban の問い・報告・`library/`）で回す。
 7. **Chief of Staff の推し（入力。覆してよい）**: 何を変えるかが決まっていない依頼は調べるタスクと直すタスクに分ける／直すタスクは範囲が食い違ったら直す前に止まる／設計の判断は Chief Engineer へ／決まっていて小さいものは1つのタスクのまま。→ 決めたこと 1・3・6 で、「分ける」を「調べること自体が仕事のときだけ分け、小さい依頼は直すタスクの止まり方で足りる」に絞った（理由は決めたこと 6）。ほかはそのまま。
 8. **オーナー（2026-11-07）**: 工程の背骨は 理解→計画→作業→確認→完成→振り返り。理解と計画は担当の工程（担当が主体）。横展開は既定。「作業の終了条件」と「課題の完了条件」は別のもの。→ 前提 1 の「範囲を決めるのは担当ではない」は「**黙って**決めるのが違う」と読み直す: 範囲の既定（横展開の目安。決めたこと 11）と報告があれば、担当は既定の中で広げてよい。既定の外を決めるのは担当ではない（3・5 のまま）。
 9. **出典（オーナーが示した資料。曽根壮大『仕事を前に進めるためのコツ — 判断と決断と共有 / Aim for the goal』2024）**: Pólya の「理解→計画→実行→振り返り」。問題の理解＝未知のもの・既知のもの・条件を整理する。「仕事」と「作業」は違う——仕事とは設計で、課題を整理して作業（タスク）に分解すること。作業は 5W1H（Why・What＝完了の定義・When・Where・Who・How）で切る。他人に頼めない作業は言語化できない作業＝完成の定義が曖昧。**終了の定義と完成の定義**が要り、中止の条件も終了の定義に入れる。完了の定義が置けないときは時間で区切る。**判断と決断**: 情報を集めれば理屈で答えが出るのが判断、情報が無い中で出すのが決断。判断は入力・処理・出力を標準化すれば任せられる。意思決定者がボトルネックになると全体のスループットが落ちる。→ 背骨と2つの条件（9）、範囲の判断を Chief of Staff と担当の標準に下ろす理由（10）。
-10. **オーナーの見立て（2026-11-07。同意ではなく入力）**: この観点では台帳の単位は Task より Issue／Ticket が合う。→ この文書は**語**だけ分ける: 台帳のカード＝**課題**（依頼書が持つ「何が困っていて、何が出れば解けたか」と完了条件）、**作業**＝担当が計画で課題を分けた単位（台帳に乗らない。終了条件は担当が置く）。識別子（`task`・`kanban/tasks/`・`andon task`）と glossary の「タスク（work item）。避ける: チケット・issue」は変えない。改名は開いている問い 2（別の ADR）。
+10. **オーナーの見立て（2026-11-07。同意ではなく入力）**: この観点では kanban の単位は Task より Issue／Ticket が合う。→ この文書は**語**だけ分ける: kanban のカード＝**課題**（依頼書が持つ「何が困っていて、何が出れば解けたか」と完了条件）、**作業**＝担当が計画で課題を分けた単位（kanban に乗らない。終了条件は担当が置く）。識別子（`task`・`kanban/tasks/`・`andon task`）と glossary の「タスク（work item）。避ける: チケット・issue」は変えない。改名は開いている問い 2（別の ADR）。
 11. **オーナー（2026-11-07。2 回目）**: 決断はオーナーか Chief of Staff がすればよく、判断は標準化できる。オーナーが示した投稿（@poteto、X、2025 年）: 「software factory は要らない。要るのは良いソフトウェア工学と、token を正しい所に投じること。決定的（deterministic）なほど良く、token の効率も良い」。逆三角形の図: codebase（API 設計・構造・リファクタ）＞ static analysis（lint・型・コンパイラ・テスト・CI）＞ verification（形式・実証）＞ prose（rules・skills・AGENTS.md）＞ human review の順に厚く投じる。→ 取るのは**順序**（判断の標準は、機械が確かめる形に置けるものから置き、文は機械に置けないものだけ、オーナーのレビューは最後）。「factory は要らない」の語の是非は取らない（Andon が工場の像を使う理由は design.md §1.1。投稿の主張と、オーナーが見るのは判断だけという Andon の方針は同じ向き）。→ 決めたこと 14。
-    同じ投稿への返信（Factory の人。オーナーが示した。工程の図つき）: 「software factory とは、すべての仕事が同じ段を通る仕組み——標準化するのは**工程**で、成果物ではない」。段は Signals（Slack・チケット・Sentry・CI・オーナーの案。何でも「ソフトウェアがどう変わるべきか」を告げるもの）→ Triage（オーナーが拾うか、目標を持つ workstream が拾う）→ Build（worker が spec を書いて PR。steward が見回る）→ Validate（誰が書いても同じ検査: レビュー・著者を見ないリスク判定・CI・live preview の QA。自動 approve は委ねた著者だけ）→ Ship and observe（本番の障害を PR まで遡り、次の signal にする）。オーナーは列から外れて規則を定める側（見る源・目標とオーナー・skill・レビューの観点とゲート・自律の段 L1〜L4）。測るのは「後悔しないマージの率」。→ Andon に当てると、Triage〜Validate と「オーナーが規則を定める側」は design.md §1.3・§1.4・§1.10 とゲートに既にあり、「worker が spec を書く」が決めたこと 9・10 の理解→計画に当たる。**無いもの**は Signals の口（本番・CI・外のトラッカーが自分から入る）と「本番が示したものを次の signal にする」線、目標を持って signal を重みづけする常駐（workstream）、後悔しないマージの率の指標。この文書の範囲外（design.md の Warp の行で「監視からの入口は最初の版に無い」と決めてある）。次の題の候補として報告に残す。
+    同じ投稿への返信（Factory の人。オーナーが示した。工程の図つき）: 「software factory とは、すべての仕事が同じ段を通る仕組み——標準化するのは**工程**で、成果物ではない」。段は Signals（Slack・チケット・Sentry・CI・オーナーの案。何でも「ソフトウェアがどう変わるべきか」を告げるもの）→ Triage（オーナーが拾うか、目標を持つ workstream が拾う）→ Build（worker が spec を書いて PR。steward が見回る）→ Validate（誰が書いても同じ検査: レビュー・著者を見ないリスク判定・CI・live preview の QA。自動 approve は委ねた著者だけ）→ Ship and observe（本番の障害を PR まで遡り、次の signal にする）。オーナーは列から外れて規則を定める側（見る源・目標とオーナー・skill・レビューの観点と gate・自律の段 L1〜L4）。測るのは「後悔しないマージの率」。→ Andon に当てると、Triage〜Validate と「オーナーが規則を定める側」は design.md §1.3・§1.4・§1.10 と gate に既にあり、「worker が spec を書く」が決めたこと 9・10 の理解→計画に当たる。**無いもの**は Signals の口（本番・CI・外のトラッカーが自分から入る）と「本番が示したものを次の signal にする」線、目標を持って signal を重みづけする常駐（workstream）、後悔しないマージの率の指標。この文書の範囲外（design.md の Warp の行で「監視からの入口は最初のバージョンに無い」と決めてある）。次の題の候補として報告に残す。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-06 タスクの型は3つ: 調べる・直す・決める。型は依頼書の完了条件と、`task.yaml` の予約キー `deliverable`（7）で分かる。**
 
-   調べるタスクの成果は候補の一覧（2）と報告で、PR は出さない。独立レビューは付けない（レビュアーは commit の差分を読む役で、候補の一覧には差分が無い。大きい調べもので反論が要れば Chief Engineer の題にする）。ゲートも回さない（7）。プロファイルの既定は `claude`（深い調べものは `fable`、grep で済む小さいものは `sonnet`）。直すタスクと決めるタスクは今までどおり。
+   調べるタスクの成果は候補の一覧（2）と報告で、PR は出さない。独立レビューは付けない（レビュアーは commit の差分を読む役で、候補の一覧には差分が無い。大きい調べもので反論が要れば Chief Engineer の題にする）。gate も回さない（7）。プロファイルの既定は `claude`（深い調べものは `fable`、grep で済む小さいものは `sonnet`）。直すタスクと決めるタスクは今までどおり。
    細部（型ごとの成果・起動・片付けの表、調べるタスクの依頼書の雛形、repo の有無、担当の終わり方）は、今は `package/skills/chief-of-staff/playbooks/brief.md` の「調べる課題の雛形」、`package/skills/chief-of-staff/playbooks/cut.md` のプロファイルの表、担当の skill の「調べる課題のとき」（`package/skills/worker/SKILL.md` §2）が正。決めるタスク（Chief Engineer の起動・成果の文書の PR・検収）の細部は、[design.md](../design.md) §1.8 と `package/skills/chief-engineer/SKILL.md` が正。
    - 調べるタスクの中で見つけた「直し方が1つで小さいもの」も直さない（型を守る。混ぜると「調べたついでに直した」が PR になり、範囲の判断を飛ばす）。
 
-   理由: 調べる工程を**担当の仕事**にすると、オーナーがいなくても進み、worktree・報告・`library/`・finish が今の道具で済む。Chief Engineer にしないのは、Chief Engineer はオーナーと話す役（事実を集めるのは Chief Engineer 自身の 1「読む」でも副エージェントにやらせる）で、調べるタスクはその副エージェントを台帳のタスクに格上げしたもの。「型」を `deliverable` で機械に見せるのは、PR の無い `review` をゲートが `fix`（「report.json に pr が無い」）にしてしまう今の継ぎ目（`internal/gate/gate.go`・`internal/dispatcher/dispatcher.go`。repo の無いタスクだけ飛ばしている）を、暗黙の「repo が無ければ」ではなく明示の値で越えるため。
+   理由: 調べる工程を**担当の仕事**にすると、オーナーがいなくても進み、worktree・報告・`library/`・finish が今の道具で済む。Chief Engineer にしないのは、Chief Engineer はオーナーと話す役（事実を集めるのは Chief Engineer 自身の 1「読む」でも副エージェントにやらせる）で、調べるタスクはその副エージェントを kanban のタスクに格上げしたもの。「型」を `deliverable` で機械に見せるのは、PR の無い `review` を gate が `fix`（「report.json に pr が無い」）にしてしまう今の継ぎ目（`internal/gate/gate.go`・`internal/dispatcher/dispatcher.go`。repo の無いタスクだけ飛ばしている）を、暗黙の「repo が無ければ」ではなく明示の値で越えるため。
    捨てた案: 調べるを Chief Engineer の仕事にする（上）／調べるタスクを repo の無いタスクに限る（コードの調べものは worktree で走らせたい。読むだけなら repo 無しでよい、は残した）／報告の節だけで済ます（機械が読める形が無く、切る・トリアージが Markdown を読むことになる。contract.md §0 原則 1）／調べると直すを常に1つのタスクで（小さい依頼ではそれでよい。決めたこと 3・6）。
 
 2. **2026-11-06 中間成果物の名前と形: 候補の一覧 `kanban/tasks/<id>/library/candidates.json`。担当が `andon task candidates <id> <json|->` で書く（command が形を確かめる。手で書かない）。schema は `schema/candidates.schema.json`（`$id` は `https://andon.example.com/schema/candidates/1`）。**
 
    細部（例・キーの表・書き手と読み手・書き直しと残し方・報告への写し・候補が多いときの目安）は、今は `schema/candidates.schema.json` と [contract.md](../contract.md) §12 が正。
-   - 機械が判定に使う値ではない（ゲートも dispatcher も読まない）が、形を固定するのは、問いの `facts` が指す先として・依頼書が `links` で指す先として、同じ形で読めるため。
+   - 機械が判定に使う値ではない（gate も dispatcher も読まない）が、形を固定するのは、問いの `facts` が指す先として・依頼書が `links` で指す先として、同じ形で読めるため。
    - 候補が多いときに直すタスクが候補を代表だけにするのは、範囲の判断は数を見れば足りるから（全部直すかは別の調べるタスク）。
 
    理由: 中間成果物の本体は「見つけたものの一覧」で、調べるタスクの成果と、直すタスクが止まるときに返すものが**同じ形**になる（止まった直すタスクは、その場で小さな調べるタスクになっている）。1つの形にしておけば、Chief of Staff の読み方・問いの `facts`・依頼書の `links` が型をまたいで同じになる。名前「候補」（`candidates`）は「直すかもしれないが決めていない」を表す語で、レビュアーの `findings.json`（指摘。直す前提）と役が違うので別の名前にした。
-   捨てた案: `findings.json` を流用（レビュアーの約束で、ゲートが読む。混ぜるとゲートが候補を指摘として数える）／`report.json` の中の配列（報告は毎回全体を書き直し、`--data` で渡し直す。候補は問いの前に置いて Chief of Staff が切るまで残る「もの」なので、ファイルとして置くほうが置き場の決定〈ADR-0004〉に合う）／自由な Markdown だけ（機械が読めない。上）／`kanban/library/`（タスクをまたぐまとめの置き場。候補はタスクのもの）。
+   捨てた案: `findings.json` を流用（レビュアーの約束で、gate が読む。混ぜると gate が候補を指摘として数える）／`report.json` の中の配列（報告は毎回全体を書き直し、`--data` で渡し直す。候補は問いの前に置いて Chief of Staff が切るまで残る「もの」なので、ファイルとして置くほうが置き場の決定〈ADR-0004〉に合う）／自由な Markdown だけ（機械が読めない。上）／`kanban/library/`（タスクをまたぐまとめの置き場。候補はタスクのもの）。
    仮決め（オーナーが違うと言ったら直す。4種のどれでもない）: 名前 `candidates`・キーの名前・「10 を超えたら代表だけ」の目安。
 
 3. **2026-11-06 直すタスクの止まり方: 止まるのは「担当が範囲を決めなければ進めない」ときだけ。範囲が決まっていて、その外に見つけただけなら止まらず、直して候補に残す。**
@@ -94,11 +94,11 @@
    機械の側は**変えない**: 担当の `Stop` フック・dispatcher の `asked` の通知・`kanban done` が、今の形のまま問いの待ちを守る（今の正は [contract.md](../contract.md) §9 と [dispatcher.md](../dispatcher.md)）。オーナーが離席でも通知は Chief of Staff へ届くので、範囲の判断はオーナーがいなくても進む。
    答えの書き方（Chief of Staff。5）: **依頼書は書き換えない。問いの答えが依頼書の追記**で、履歴は `questions.yaml`（`answeredBy`）と `log.jsonl`（`by`）に残る。手順の今の正は `package/skills/chief-of-staff/playbooks/blocked.md`。
 
-   理由: 「止まる」はコスト（担当が待つ・Chief of Staff の turn）なので、止まるのは判断が本当に要るときだけにし、範囲の外の発見は「残して進む」を既定にする。オーナーの問い（1つ頼んで3つ）は (b)——依頼書が場所を指していないので、担当が選ぶことになる——だから止まる。もし依頼書が場所を指していれば止まらない（残して進む）。止まり方を**問い**にするのは、台帳に待ちの印（open）が残り、`stop-check`・`kanban done`・ボード・`kanban questions` がそのまま効くから。
-   捨てた案: 報告だけで止まる（待ちの印が台帳に残らず、`kanban done` が守れず、Chief of Staff が見落とす）／`report.json` に `scope_request` を足す（`review_request` と同じ形の二重。dispatcher に新しい段が要る）／担当が Chief of Staff へ `hc send`（通知の係を迂回する。2026-11-03 の失敗〈dispatcher.md §1〉）／見つけたら必ず止まる（コスト。範囲の外は残して進むで足りる）／範囲の外も黙って直す（前提 1）。
+   理由: 「止まる」はコスト（担当が待つ・Chief of Staff の turn）なので、止まるのは判断が本当に要るときだけにし、範囲の外の発見は「残して進む」を既定にする。オーナーの問い（1つ頼んで3つ）は (b)——依頼書が場所を指していないので、担当が選ぶことになる——だから止まる。もし依頼書が場所を指していれば止まらない（残して進む）。止まり方を**問い**にするのは、kanban に待ちの印（open）が残り、`stop-check`・`kanban done`・ボード・`kanban questions` がそのまま効くから。
+   捨てた案: 報告だけで止まる（待ちの印が kanban に残らず、`kanban done` が守れず、Chief of Staff が見落とす）／`report.json` に `scope_request` を足す（`review_request` と同じ形の二重。dispatcher に新しい段が要る）／担当が Chief of Staff へ `hc send`（通知の係を迂回する。2026-11-03 の失敗〈dispatcher.md §1〉）／見つけたら必ず止まる（コスト。範囲の外は残して進むで足りる）／範囲の外も黙って直す（前提 1）。
 
 4. **2026-11-06 問いの `kind` に `scope`（範囲）を足す（6つ目）。宛先は Chief of Staff で、オーナーを呼ばない。**
-   - 問いの `kind` の enum に `scope` を足し、版は上げない（知らない読み手は「無い」として安全側＝オーナーへ回す）。台帳の `kanban ask --kind scope` も受ける。理由: ボードが「オーナーの判断待ち」を数えるとき `scope` を**除く**ため（灯りではない。「Needs you」に数えない）。今の正は `schema/question.schema.json`・[contract.md](../contract.md) §5・[ledger.md](../ledger.md) の Questions。
+   - 問いの `kind` の enum に `scope` を足し、バージョンは上げない（知らない読み手は「無い」として安全側＝オーナーへ回す）。kanban の `kanban ask --kind scope` も受ける。理由: ボードが「オーナーの判断待ち」を数えるとき `scope` を**除く**ため（灯りではない。「Needs you」に数えない）。今の正は `schema/question.schema.json`・[contract.md](../contract.md) §5・[ledger.md](../ledger.md) の Questions。
    - 調べるタスクは問いを出さない（成果が候補の一覧そのもの）。
    - `scope` の問いは**まず Chief of Staff が答える**（5 の線）。候補の中に4種・レベル C・委譲の外に当たるものがあれば、その候補についてだけオーナーの問いにする。`scope` のままオーナーへ出さない。今の正は `package/skills/ask-one-by-one/SKILL.md`。
    捨てた案: `kind` 無しで出す（schema で必須。誰宛てか分からない）／既存の5種のどれかを借りる（例 `line`。意味が違い、オーナーへ回る）／Chief of Staff 宛ての別の口（`report.json` の `next[{to: chief-of-staff}]`。待ちの印が残らない。3）。
@@ -126,14 +126,14 @@
    2. 「テストが遅い。なぜ」→ 調べるタスク（`claude`）。候補＝遅い原因と直し方（計測つき）。Chief of Staff が候補から直すタスクを切る。「テストの枠組みを替える」のような構造の候補は Chief Engineer の題としてオーナーに勧める。
    3. 「ログインが落ちる。再現手順は issue #12」→ 直すタスク。再現しない・原因が別の module にある → 止まる（3 の (a)・(c)）。
    4. 「API のエラーの返し方を全体で揃えたい」→ Chief Engineer（外との約束＋構造の違う案）。Chief of Staff は切らず、オーナーに題を勧める。
-   5. 「依存の版上げ」→ 直すタスク（`sonnet`）。版上げで落ちたテストの原因が版上げと別 → 止まる（3 の (c)。別のタスクの候補にして、版上げだけ出すか、を問う）。
+   5. 「依存のバージョンアップ」→ 直すタスク（`sonnet`）。バージョンアップで落ちたテストの原因がバージョンアップと別 → 止まる（3 の (c)。別のタスクの候補にして、バージョンアップだけ出すか、を問う）。
 
    理由: 推し（前提 7）の「決まっていない依頼は調べると直すに分ける」は正しいが、小さい依頼で毎回2タスクは重い（起動する・報告・finish が2回）。分かれ目を「依頼書に書けるか」と「調べること自体が仕事か」に置き、小さいものは止まり方 3 で同じ担当が続ける。
-   捨てた案: 常に分ける（上）／常に1つ（調べる仕事の成果が PR の無い報告になり、型が無いと `review` でゲートが `fix` を返す）／Chief of Staff が自分で調べる（chief-of-staff skill の「深い調査はしない」。読むだけのサブエージェントで切る材料を取るのは今までどおり可）。
+   捨てた案: 常に分ける（上）／常に1つ（調べる仕事の成果が PR の無い報告になり、型が無いと `review` で gate が `fix` を返す）／Chief of Staff が自分で調べる（chief-of-staff skill の「深い調査はしない」。読むだけのサブエージェントで切る材料を取るのは今までどおり可）。
 
 7. **2026-11-06 `task.yaml` の予約キー `deliverable`: `pr`（既定）／`candidates`。書き手は Chief of Staff（`kanban set <id> deliverable=candidates`。依頼書の Settings に `Deliverable:` の行を写す）。**
 
-   `candidates` のとき、ready は PR の代わりに候補の一覧を確かめ、dispatcher はゲートを回さずレビュアーも起動しない。手で打たれたゲートは回さずに誤りで終わる。
+   `candidates` のとき、ready は PR の代わりに候補の一覧を確かめ、dispatcher は gate を回さずレビュアーも起動しない。手で打たれた gate は回さずに誤りで終わる。
    細部（読み手ごとの振る舞いの表）は、今は [contract.md](../contract.md) §2 の `deliverable` の行と §4 の `andon issue ready`、[dispatcher.md](../dispatcher.md) の P6a の表が正（照合の読み方は 17 で改めた）。
    - 無い・知らない値は `pr`（今までどおり）。照合はほかの予約キーと同じ（`log.jsonl` で最後に書いたのが Chief of Staff でなければ信じず、`pr` として読む＝安全側）。
    - start と finish は変えない（調べるタスクも worktree と branch を作る。使わないだけ）。片付けの手順の今の正は `package/skills/chief-of-staff/playbooks/finish.md`。
@@ -143,7 +143,7 @@
 
 8. **2026-11-06 既存の決定との関係と、変える所の一覧（実装のタスクが直す。この文書の PR では変えない）。**
 
-   変える所の一覧（design.md・contract.md・`schema/`・ledger.md・dispatcher.md・各 skill・`internal/`・`cmd/kanban` の、どの節に何を足すか）は、実装のタスクが写し終えて役目を終えた。表は整理前の版にある（冒頭の「整理」の行）。今の正は写した先の文書とコードで、決定ごとの行き先は決定の索引の「今の正」の列にある。
+   変える所の一覧（design.md・contract.md・`schema/`・ledger.md・dispatcher.md・各 skill・`internal/`・`cmd/kanban` の、どの節に何を足すか）は、実装のタスクが写し終えて役目を終えた。表は整理前のバージョンにある（冒頭の「整理」の行）。今の正は写した先の文書とコードで、決定ごとの行き先は決定の索引の「今の正」の列にある。
 
 9. **2026-11-07 工程の背骨は 理解 → 計画 → 作業 → 確認 → 完成 → 振り返り。どの型のタスクも担当はこの順で進み、3つの型はこの背骨のどこが重いかの違い。「作業の終了条件」と「課題の完了条件」は別のもの。**
 
@@ -218,7 +218,7 @@
 
    | 段（前提 11 の図） | Andon で当たるもの | この文書の標準のうちここに置くもの |
    |---|---|---|
-   | codebase・static analysis・verification（機械が確かめる） | `schema/`・`andon task` の照合（`ready`・`candidates`・`ask`）・ゲートの条件表（`tier_*_paths`）・テスト・`tests/public.sh` | 候補の一覧の形（2）、`deliverable`（7。`ready`・dispatcher・ゲートが読む）、問いの `kind: scope`（4）、候補の `commit` が HEAD と合うこと（1・9 の確認） |
+   | codebase・static analysis・verification（機械が確かめる） | `schema/`・`andon task` の照合（`ready`・`candidates`・`ask`）・gate の条件表（`tier_*_paths`）・テスト・`tests/public.sh` | 候補の一覧の形（2）、`deliverable`（7。`ready`・dispatcher・gate が読む）、問いの `kind: scope`（4）、候補の `commit` が HEAD と合うこと（1・9 の確認） |
    | prose（skill・依頼書の雛形・AGENTS.md） | worker・chief-of-staff・ask-one-by-one の skill、依頼書の欄 | 工程表（9）、止まる条件（3）、Chief of Staff の判断の表（5）、横展開の既定の範囲（11）、依頼書の書き方（12）、振り返りの 1 行（13） |
    | human review | オーナーのマージ（レベル C）・4 種の問い | 範囲の判断のうち既定で書けないもの（5 の「オーナーへ」の列）、開いている問い |
 
@@ -231,12 +231,12 @@
 
 15. **2026-11-07 `scope` の問いを Chief of Staff が自分で答えたとき、オーナーには知らせない（オーナーの答え。開いている問い 1）。** 委譲の範囲内の判断と同じ扱い。記録は `questions.yaml`（問い・答え・`answeredBy`）と担当の報告に残り、ボードと振り返りで読める。オーナーが知りたくなったら chief-of-staff skill の「オーナーに言うことがあれば1行」の形で足す（この文書を直さない）。
 
-16. **2026-11-07 台帳のカードの語の向きは「課題（issue）」（オーナーの答え。開いている問い 2）。この文書では識別子も glossary も変えない。改名は別の ADR。** オーナーの理由: タスク（task）の主は How だが、解消したいのは Why／What で、それを言葉にすれば issue。→ この文書の語（課題＝台帳のカード、作業＝担当が計画で切る単位。前提 10）はその向きに合わせてある。次の ADR で見るもの: `task` の識別子（`kanban/tasks/`・`andon task`・`task.yaml`・schema の `$id`）、glossary の「避ける: チケット・issue」、外部トラッカー（規約 7）の Issue との混同、依頼書の欄の名前（「やること」が How に寄っていないか。12）。
+16. **2026-11-07 kanban のカードの語の向きは「課題（issue）」（オーナーの答え。開いている問い 2）。この文書では識別子も glossary も変えない。改名は別の ADR。** オーナーの理由: タスク（task）の主は How だが、解消したいのは Why／What で、それを言葉にすれば issue。→ この文書の語（課題＝kanban のカード、作業＝担当が計画で切る単位。前提 10）はその向きに合わせてある。次の ADR で見るもの: `task` の識別子（`kanban/tasks/`・`andon task`・`task.yaml`・schema の `$id`）、glossary の「避ける: チケット・issue」、外部トラッカー（規約 7）の Issue との混同、依頼書の欄の名前（「やること」が How に寄っていないか。12）。
 
-17. **2026-11-19 `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む（7 の「照合が合わなければ `pr` として読む」を改める）。** `andon issue ready` と dispatcher は値だけを見る。それぞれの振る舞い（ready が求めるもの・dispatcher が飛ばすもの・手で打ったゲートの終わり方）の今の正は、[contract.md](../contract.md) §2 の `deliverable` の行と §4 の `andon issue ready`、[dispatcher.md](../dispatcher.md) の P6a の表。
+17. **2026-11-19 `deliverable` が `candidates` なら、履歴の照合が外れていても調べる課題として読む（7 の「照合が合わなければ `pr` として読む」を改める）。** `andon issue ready` と dispatcher は値だけを見る。それぞれの振る舞い（ready が求めるもの・dispatcher が飛ばすもの・手で打った gate の終わり方）の今の正は、[contract.md](../contract.md) §2 の `deliverable` の行と §4 の `andon issue ready`、[dispatcher.md](../dispatcher.md) の P6a の表。
 
-   理由: Chief of Staff が起き直すとアドレスが変わり、予約キーを書き直すまで照合が外れる。その間 `pr` として読むと、`review` の調べる課題にはゲートが「report.json に pr が無い」の fix を担当に送り、`doing` なら ready が PR を求めて断る。担当は出すはずのない PR を求められる（2026-11-19 に状態の図と本物のコードの再現で確かめた）。照合が守るのはマージで、`candidates` はマージに進まない側（ゲートを回さない・マージしない・Chief of Staff が読む）にある。だから照合が外れても `candidates` として読んで安全側を保てる。PR の課題に担当が自分で `candidates` を書いても、自動のマージから外れて Chief of Staff が読むだけになる。
-   捨てた案: 照合が外れたらゲートが `needs_human` を返す（dispatcher がゲートを回すので Chief of Staff に問いが立ち、書き直したあとも問いを閉じる手間が残る。ready は止まったまま）／前の Chief of Staff のアドレスも信じる（アドレスの履歴を持つ所が無い）。
+   理由: Chief of Staff が起き直すとアドレスが変わり、予約キーを書き直すまで照合が外れる。その間 `pr` として読むと、`review` の調べる課題には gate が「report.json に pr が無い」の fix を担当に送り、`doing` なら ready が PR を求めて断る。担当は出すはずのない PR を求められる（2026-11-19 に状態の図と本物のコードの再現で確かめた）。照合が守るのはマージで、`candidates` はマージに進まない側（gate を回さない・マージしない・Chief of Staff が読む）にある。だから照合が外れても `candidates` として読んで安全側を保てる。PR の課題に担当が自分で `candidates` を書いても、自動のマージから外れて Chief of Staff が読むだけになる。
+   捨てた案: 照合が外れたら gate が `needs_human` を返す（dispatcher が gate を回すので Chief of Staff に問いが立ち、書き直したあとも問いを閉じる手間が残る。ready は止まったまま）／前の Chief of Staff のアドレスも信じる（アドレスの履歴を持つ所が無い）。
 
 ## やらないこと（範囲の外。理由）
 
@@ -245,15 +245,15 @@
 - **オーナーへの問いの形・判断の4種・委譲の `scope` の変更**（4・5）。
 - **トリアージの `collect` が `candidates.json` を直接拾うこと**: 残りは報告の `next[]` に乗るので今の口で足りる。二重に拾う形を作らない。
 - **担当が候補の直しを試しに commit して見せること**: 調べるタスクは PR を出さない。試作は Chief Engineer の 4 の「捨てる前提の小さい試作」の形で。
-- **範囲の判断の自動化**（候補のレベルを command が判定して Chief of Staff に代わる）: 判断は Chief of Staff。ゲートの条件表を候補に当てる道具は、要るときに足す。
+- **範囲の判断の自動化**（候補のレベルを command が判定して Chief of Staff に代わる）: 判断は Chief of Staff。gate の条件表を候補に当てる道具は、要るときに足す。
 
 ## 受け入れ条件（テストできる形。どの継ぎ目でテストするかを先に）
 
 1. **schema（`tests/schema.sh`）**: `schema/candidates.schema.json` があり、contract.md §12 の例が通る。`commit` 無しの例（repo の無いタスク）も通る。`id` の重複・`in_scope` 無し・知らないキーは落ちる。`question.schema.json` が `kind: scope` を通す。`task-keys.schema.json` が `deliverable: candidates` を通し、`andon task show` の出力が schema に合う。
 2. **担当の command（`tests/andon-task.sh`・`go test ./internal/task/...`）**: `andon task candidates <id> -` が形を確かめて `library/candidates.json` に書き（repo があれば `commit` は `HEAD`）、形が違えば書かずに終了コード 1 と理由1行。`andon task ask` が `kind: scope` を受けて `kanban ask --kind scope` を打つ。`andon task ready` が `deliverable: candidates` のとき `pr` 無しで `candidates.json` を要って `review` にし、`pr`（既定）のときは今までどおり `pr` を要る。`stop-check` は `scope` の問いが開いたままのターンを通す。
-3. **dispatcher（`tests/andon-dispatcher.sh`）**: `deliverable: candidates` のタスクが `review` に入ると通知 `review` だけで `andon gate` を打たない。`kind: scope` の問いが `asked` で届く（離席の経路③でも）。`deliverable` を最後に書いたのが Chief of Staff でなければ `pr` として読む（ゲートを回す）。
-4. **ゲート（`tests/andon-gate.sh`）**: `deliverable: candidates` のタスクに `andon gate` を打つと終了コード 3 と理由1行、記録を書かない。
-5. **台帳（`tests/kanban.sh`）**: `kanban ask --kind scope` が通り、`questions.yaml` に `kind: scope` が残る。
+3. **dispatcher（`tests/andon-dispatcher.sh`）**: `deliverable: candidates` のタスクが `review` に入ると通知 `review` だけで `andon gate` を打たない。`kind: scope` の問いが `asked` で届く（離席の経路③でも）。`deliverable` を最後に書いたのが Chief of Staff でなければ `pr` として読む（gate を回す）。
+4. **gate（`tests/andon-gate.sh`）**: `deliverable: candidates` のタスクに `andon gate` を打つと終了コード 3 と理由1行、記録を書かない。
+5. **kanban（`tests/kanban.sh`）**: `kanban ask --kind scope` が通り、`questions.yaml` に `kind: scope` が残る。
 6. **パッケージ（`tests/package.sh`）**: skill の文の塊（`candidates` の JSON・`scope` の問い・調べるタスクの雛形の Settings）が schema に通る。仮設の語（推し・知らせ）が無い。（11-07）worker skill の工程表に 理解・計画・作業・確認・完成・振り返り の 6 つがあり、報告の書式に `## 計画` と「探した範囲」がある。chief-of-staff skill の雛形に `横展開:` の行がある。
 7. **建屋で実測（P4 以降の決まり。報告に書く）**: （11-07 で改めた）(a) 「docs の誤字を1つ直す」を直すタスクで流す。担当が横展開で同じ種類を 3 つ見つけ、範囲の中なので全部直し、報告に探した範囲と 3 件と `## 計画` を書き、止まらずに PR が 1 本。**オーナーも Chief of Staff も turn がゼロ**。(b) 種類の違うもの（誤字と、段の書き直しが要るもの）が見つかる依頼を流し、担当が候補と `scope` の問いで止まり、Chief of Staff が答え、マージまで**オーナーの turn がゼロ**。(c) 調べるタスクを1つ流し、候補の一覧から Chief of Staff が直すタスクを切って `finish` できる。
 
@@ -264,7 +264,7 @@
 | S1 | この文書の PR（decisions.md §14 に1行） | CI green（`tests/public.sh` を含む） | — |
 | S2 | 約束: `schema/candidates.schema.json`・`question` の `scope`・`task-keys` の `deliverable`、contract.md §1・§2・§5・§12、glossary の語（候補・調べる／直す・`deliverable`・課題・作業・横展開・完了条件／終了条件） | 受け入れ条件 1 | S1 のマージ |
 | S3 | 担当の command: `andon task candidates`・`ask` の `scope`・`ready` の `deliverable`、`cmd/kanban` の `--kind scope`、ledger.md の1行 | 受け入れ条件 2・5 | S2 |
-| S4 | dispatcher とゲート: `deliverable: candidates` でゲートを回さない・手で打てば終了コード 3、dispatcher.md §5 の1行 | 受け入れ条件 3・4 | S2。S3 と独立 |
+| S4 | dispatcher と gate: `deliverable: candidates` で gate を回さない・手で打てば終了コード 3、dispatcher.md §5 の1行 | 受け入れ条件 3・4 | S2。S3 と独立 |
 | S5 | skill と設計書の文: worker（§2 を 9 の工程表に・横展開 11・報告の書式 `## 計画`／探した範囲／計画との差 13）・chief-of-staff（§1 の切り方を 10 の表に・§2 の雛形に `横展開:` 12・調べるタスクの雛形）・ask-one-by-one・chief-engineer の skill、design.md §1.3・§1.4（背骨の1文）・§1.8・§4（決めたこと 8 の表） | 受け入れ条件 6 | S3・S4（command が在ってから書く）。工程表と雛形（9・11・12・13）は command に依らないので、S3・S4 を待たずに先に出してよい |
 | S6 | 建屋で実測（受け入れ条件 7 の (a)(b)(c)）。食い違えば実測が正で、この文書の「決めたこと」に下から足す | 報告 | S5 |
 
@@ -272,16 +272,16 @@
 
 1. **`scope` の問いを Chief of Staff が自分で答えたとき、オーナーに1行知らせるか**（判断の種類: 利用者〈オーナーの使い勝手〉）。推奨案: 知らせない（委譲の範囲の中と同じ扱い。記録は `questions.yaml` と担当の報告に残り、ボードと振り返りで読める）。オーナーが「知りたい」なら、chief-of-staff skill の「オーナーに言うことがあれば1行」の形で、答えた turn に1行。
    **答え（オーナー。2026-11-07）: 知らせない。** → 決めたこと 15。
-2. **台帳のカードの名前を「タスク」から「課題（issue／ticket）」に変えるか**（オーナーの見立て 2026-11-07。判断の種類: ライン〈台帳の語と識別子。glossary の「避ける: チケット・issue」の決定を覆す〉）。推奨案: この文書では語だけ分け（前提 10。課題＝台帳のカード、作業＝担当が計画で切る単位）、識別子は変えない。改名するなら別の ADR で、`task` の識別子（`kanban/tasks/`・`andon task`・`task.yaml`・schema の `$id`）と glossary・外部トラッカー（規約 7。GitHub の Issue と混ざる）をまとめて見る。背骨の語（課題の完了条件・作業の終了条件）が skill に入って回ってから決めるほうが、名前が実態に合う。
+2. **kanban のカードの名前を「タスク」から「課題（issue／ticket）」に変えるか**（オーナーの見立て 2026-11-07。判断の種類: ライン〈kanban の語と識別子。glossary の「避ける: チケット・issue」の決定を覆す〉）。推奨案: この文書では語だけ分け（前提 10。課題＝kanban のカード、作業＝担当が計画で切る単位）、識別子は変えない。改名するなら別の ADR で、`task` の識別子（`kanban/tasks/`・`andon task`・`task.yaml`・schema の `$id`）と glossary・外部トラッカー（規約 7。GitHub の Issue と混ざる）をまとめて見る。背骨の語（課題の完了条件・作業の終了条件）が skill に入って回ってから決めるほうが、名前が実態に合う。
    **答え（オーナー。2026-11-07）: issue が正解に思う（この ADR では変えなくてよい）。Task の主は How だが、解消したいのは Why／What で、言葉にするなら issue。** → 決めたこと 16。改名は別の ADR（Chief of Staff が切る）。
 
 ## 出典（読んだもの・捨てた案の出所）
 
 - 依頼書（Y-158。オーナーの問い 2026-11-06、Chief of Staff の推し、追記 2 本）。
 - Andon の側: [design.md](../design.md) §1.3・§1.4・§1.5・§1.8・§1.9（(a)・(b)）・§1.10・§4、[contract.md](../contract.md) §0・§1・§2・§4・§5・§7・§9・§11、[dispatcher.md](../dispatcher.md) §1・§2・§3・§5・§6、[operate.md](../operate.md)「役の配置と起動」、[ledger.md](../ledger.md)（`task.yaml`・Questions・`log.jsonl`）、[decisions.md](../decisions.md) §2（D8・D10・D15）・§14・§16（Y-132・Y-141）、[ADR-0001](0001-skills-distribution.md)〜[ADR-0005](0005-cell-repo.md)、`schema/`（`report`・`question`・`findings`・`task-keys`）、`package/skills/`（chief-of-staff・worker・chief-engineer・ask-one-by-one・triage・independent-review・glossary）、`internal/task/stopcheck.go`・`task.go`（`ready`・`ask`）、`internal/dispatcher/dispatcher.go`（`review` を飛ばす条件）・`loop.go`（`review`・`startReviewer`）、`internal/gate/gate.go`（`pr` が無いときの `early`）、`cmd/kanban/questions.go`（`questionKinds`）、`internal/triage/collect.go`（`next` の拾い方）。
-- 仮設の台帳（読むだけ）: 依頼書 Y-131・Y-132・Y-133・Y-137・Y-148・Y-181（P7 で見えたこと。A-7 の題「docs の誤字を1つ直す」）。P7 の建屋の台帳そのものは読めていない。
+- 仮設の kanban（読むだけ）: 依頼書 Y-131・Y-132・Y-133・Y-137・Y-148・Y-181（P7 で見えたこと。A-7 の題「docs の誤字を1つ直す」）。P7 の建屋の kanban そのものは読めていない。
 - 先輩プロジェクトの調べるだけのタスク（research-only task）は ADR-0004 決めたこと 2 の出典（shepherdr 1.0）を経由して。本文は読んでいない。
 - オーナーの指摘（2026-11-07。PR #69 を読んで。依頼書の追記）と、オーナーが示した資料: 曽根壮大「仕事を前に進めるためのコツ — 判断と決断と共有 / Aim for the goal」（PHP カンファレンス沖縄 2024。https://speakerdeck.com/soudai/aim-for-the-goal ）。取ったのは前提 9 の範囲（Pólya の 4 段・仕事と作業・5W1H・完了の定義と終了の定義・判断と決断・ボトルネック）。資料の 6 段（理解→計画→作業→確認→完成→振り返り）はオーナーの言葉で、資料は Pólya の 4 段。
-- オーナーの見立て（2026-11-07。この担当の端末で直接）: 台帳の単位は Task より Issue／Ticket。前提 10・開いている問い 2。
+- オーナーの見立て（2026-11-07。この担当の端末で直接）: kanban の単位は Task より Issue／Ticket。前提 10・開いている問い 2。
 - オーナーの言葉（2026-11-07。2 回目。同じ端末で直接）: 決断はオーナーか Chief of Staff、判断は標準化できる。オーナーが示した @poteto の投稿（X。「software factory は要らない。良い工学と token の投じ方。決定的なほど良い」と逆三角形の図）。取ったのは前提 11 の範囲（置き場の順序）。
 - 同じ投稿への返信と工程の図（Factory の人。オーナーが示した。2026-11-07）: 工程を標準化し成果物は標準化しない・Signals→Triage→Build→Validate→Ship and observe・オーナーは規則を定める側・後悔しないマージの率。取ったのは前提 11 の対応づけと、Andon に無いもの（Signals・本番からの戻り・workstream・率）の名指しだけ。

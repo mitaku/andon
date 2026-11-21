@@ -12,17 +12,17 @@
 | 2 | Claude Code 系は `/opt/andon` を plugin で読ませ、Codex 系は名前空間つきの symlink を張る | `package/.claude-plugin/plugin.json`・`package/templates/claude.md` | 生きている |
 | 3 | Claude Code 系は役の skill を `--append-system-prompt-file` で system prompt に足す | `package/templates/claude.md` | 生きている |
 | 4 | 作業側の別マシンは image で立て、skill を binary に埋め込まない | `embed.go` | 生きている |
-| 5 | PR 時の stale 検査は入れず、版の照合は別マシンへ出す課題で足す | この ADR | 生きている |
+| 5 | PR 時の stale 検査は入れず、バージョンの照合は別マシンへ出す課題で足す | この ADR | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
-Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task …`・`andon gate`・schema の検査器を打つ。だから skill と `andon` CLI と `schema/` の版が揃っていないと壊れる。建屋の中では `package/` が image に `/opt/andon` として焼かれ、`andon boot` が `~/.claude/skills/andon-<name>` の symlink を張り、プロファイルの最初の3行が `/opt/andon/skills/<name>/SKILL.md` を絶対パスで指す。つまり建屋の中では版の一致は「同じ image に入っている」ことで構造的に取れている。困りごとは建屋の外——作業側を別のマシンに出すとき、ホスト側、public にしたあとに他の人の手元——にどの経路で届けるか（オーナーが同意 2026-11-05）。
+Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task …`・`andon gate`・schema の検査器を打つ。だから skill と `andon` CLI と `schema/` のバージョンが揃っていないと壊れる。建屋の中では `package/` が image に `/opt/andon` として焼かれ、`andon boot` が `~/.claude/skills/andon-<name>` の symlink を張り、プロファイルの最初の3行が `/opt/andon/skills/<name>/SKILL.md` を絶対パスで指す。つまり建屋の中ではバージョンの一致は「同じ image に入っている」ことで構造的に取れている。困りごとは建屋の外——作業側を別のマシンに出すとき、ホスト側、public にしたあとに他の人の手元——にどの経路で届けるか（オーナーが同意 2026-11-05）。
 
 ## 前提（同意済み。番号）
 
 オーナーが 2026-11-05 に 1〜7 すべてに同意。
 
-1. 軸は「版が揃うこと」と「届く範囲」で、「どのプロトコルで配るか」ではない。プロトコルは軸を満たす手段として後で選ぶ。
+1. 軸は「バージョンが揃うこと」と「届く範囲」で、「どのプロトコルで配るか」ではない。プロトコルは軸を満たす手段として後で選ぶ。
 2. 建屋の中は今の形（image に焼く＋boot が張る＝同じ単位で運ぶ）で足りている。足りないのは小さい継ぎ目（置き場・Codex・stale の検査）で、新しい運び方ではない。
 3. Andon の skill は Andon 専用（`deck`・`andon`・schema を打つ）で、建屋の無い所で単体で使えることは目標にしない。
 4. 「外」は (a) 作業側の別マシン、(b) ホスト（`andon init`・`bootstrap` を打つ所）、(c) public 後に自分の建屋を立てる他人、の3つ。どれも `andon`（image か binary）が届く場所で、`andon` 無しの読み手は範囲の外。
@@ -39,11 +39,11 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
    捨てた案: managed settings に `directory` 型の marketplace を登録して強制（オーナーが手で打つ `claude` にも効くが、`~/.claude/plugins` の登録と「not cached」の落とし穴が増える。必要が出たら）／`~/.claude/skills/andon/` を skills-directory plugin にする（plugin の中身は root の外へ出る symlink を捨てる規則があり、`/opt/andon` を指す形が通るか要実測）／admin の置き場（`/etc/claude-code/.claude/skills`・`/etc/codex/skills`。managed の方針で利用者・project の skill を止めるときに要る）／利用者ローカルの `andon-` 接頭字の symlink のまま（名前空間が付かない）。
    副作用（承知の上）: `/opt/andon/hooks/hooks.json`・`agents/`・`commands/` を置けば plugin の部品として読まれる（今は空。将来 P6b のフックをここに乗せる選択肢になる）。
 3. **2026-11-05 Claude Code 系のプロファイルは `--append-system-prompt-file` で役の skill を system prompt に足す。** hc の template の `command` に `--append-system-prompt-file /opt/andon/skills/<役>/SKILL.md` を加え、本文の「先に `/opt/andon/skills/<役>/SKILL.md` を読む」の行を消す（最初のメッセージはタスクの2行だけ）。glossary など役の skill が名前で指す skill は、2 の plugin（Claude Code）と置き場（Codex）から発見させる（注入しない）。Codex 系のプロファイル（`codex`・`codex-review`）は今の形（最初のメッセージで絶対パスを指す）のまま。
-   理由: skill が最初の turn の前にコンテキストに入り、読み飛ばす余地が無い。既定の system prompt を保つ（`--append-system-prompt-file` は末尾に足すだけ）。版は session の最初に固定される（`--system-prompt-snapshot` の既定）。
+   理由: skill が最初の turn の前にコンテキストに入り、読み飛ばす余地が無い。既定の system prompt を保つ（`--append-system-prompt-file` は末尾に足すだけ）。バージョンは session の最初に固定される（`--system-prompt-snapshot` の既定）。
    捨てた案: `claude --agent <役>`（agent 定義の本文で system prompt が置き換わる危険。空の本文なら保てるが、プロファイルが hc の template と agent 定義の2ファイルになる。オーナーが退けた 2026-11-05）／注入せず発見だけに任せる（description で選ばせる。読み飛ばしの余地が残る）／今のまま最初のメッセージで読ませる。
 4. **2026-11-05 作業側の別マシンは Andon の image で立てる**（同じ `bootstrap`。design.md §1.5）。だから skill を `andon` の binary に go:embed しない。
    捨てた案: binary だけのマシンに `andon skill path <name>` で出す（写しが2つになる。再開の条件: binary だけで担当を動かすマシンが要るとき）。
-5. **2026-11-05 PR 時の stale 検査（skill が打つ command が `andon help` にあるか）は入れない。** 版の照合は、将来 `andon task start --on <machine>` を建てるときに `andon version` の比較として添える。**開発中（`ANDON_HOME` が checkout を指すとき）は skill と CLI の版の違いは異常ではない**ので、照合には回避の口を持つ（`ANDON_HOME` が `/opt/andon` でなければ照合しない、等。決めるのはそのタスク）。
+5. **2026-11-05 PR 時の stale 検査（skill が打つ command が `andon help` にあるか）は入れない。** バージョンの照合は、将来 `andon task start --on <machine>` を建てるときに `andon version` の比較として添える。**開発中（`ANDON_HOME` が checkout を指すとき）は skill と CLI のバージョンの違いは異常ではない**ので、照合には回避の口を持つ（`ANDON_HOME` が `/opt/andon` でなければ照合しない、等。決めるのはそのタスク）。
    理由: schema の検査（`tests/package.sh` が skill の塊を schema に通す）で約束の側は押さえてある。command の名前の検査は小さいが、開発中に邪魔になる形を先に入れない。
 
 ## やらないこと（範囲の外。理由）
@@ -88,4 +88,4 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 - Claude Code の plugin（`--plugin-dir` でその場で読む・`.claude-plugin/plugin.json`・`/<plugin>:<skill>` の名前空間・root の外へ出る symlink は捨てる） https://code.claude.com/docs/en/plugins/manifest-reference 、https://code.claude.com/docs/en/plugins/components
 - Claude Code の `--agent`（主セッションを agent 定義で起動する。managed settings のディレクトリの `.claude/agents/` が最優先。空の prompt なら既定の system prompt を保つ〈v2.1.281 以降〉。`skills` で skill の全文を起動時に注入） https://code.claude.com/docs/en/sub-agents 、CLI https://code.claude.com/docs/en/cli-reference
 - Vercel の `skills` CLI（`npx skills add <owner>/<repo>` で GitHub の repo から 79 のエージェントの置き場へ写す。見つけるのは repo の `skills/`・`.claude/skills/`・`.agents/skills/` などで、`package/skills/` は直接パスを指すときだけ） https://github.com/vercel-labs/skills （README・docs/creating-skills.md・docs/commands.md・docs/agents.md）
-- TanStack Intent（npm の package に skill を同梱し、`npx @tanstack/intent list|load` で読む。版は package と一緒に上がる） https://tanstack.com/table/v9/docs/agent-skills
+- TanStack Intent（npm の package に skill を同梱し、`npx @tanstack/intent list|load` で読む。バージョンは package と一緒に上がる） https://tanstack.com/table/v9/docs/agent-skills

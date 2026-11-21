@@ -3,7 +3,7 @@
 - 状態: **決定（2026-11-12）**。オーナーが対話の中で「決めた」と言った。セルに入れるのは「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - **改め（2026-11-12。同じ課題 A-0160。PR #210 のマージのあと）**: plugin の登録と自動更新は、セルの利用者の `settings.json` に書かれた状態を正とする。決めたこと 7 を下から足し、受け入れ条件 3・切る案の細部・開いている問いを合わせた。
 - **改め（2026-11-20。[ADR-0035](0035-pstack-correct-and-verification-skill.md) の決めたこと 10）**: 「やらないこと」の「Andon が既に持つものを pstack に替えない」のうち、`create-verification-skill` と `correct` の扱いを改める。`create-verification-skill` は、Andon の repo の検証の skill を作る課題が手順として読む。`correct` は工程に入れないまま、要点を振り返りと `AGENTS.md` の表に移す。ほかの行は変えない。
-- **改め（2026-11-20。[ADR-0038](0038-statechart-in-chief-engineer-design.md) の決めたこと 11・19・20）**: オーナーが、試しの判定を待たずに pstack を全部のセルに入れると決めた。「パッケージは変えない」（前提 3・やらないこと）を改め、plugin の登録と自動更新はパッケージの管理用の設定（`package/settings.json`）に書く（決めたこと 7 を覆す。実装までは利用者の設定のまま）。版を自動で上げること（決めたこと 4）は変えない。「レビュアー・CoS・CE には指示を足さない」は、Chief Engineer の statechart についてだけ改める。`setup-pstack` を走らせないことは、全部のセルの決まりにする。担当に読ませる指示の試し（決めたこと 2・3・5）は判定していない。
+- **改め（2026-11-20。[ADR-0038](0038-statechart-in-chief-engineer-design.md) の決めたこと 11・19・20）**: オーナーが、試しの判定を待たずに pstack を全部のセルに入れると決めた。「パッケージは変えない」（前提 3・やらないこと）を改め、plugin の登録と自動更新はパッケージの管理用の設定（`package/settings.json`）に書く（決めたこと 7 を覆す。実装までは利用者の設定のまま）。バージョンを自動で上げること（決めたこと 4）は変えない。「レビュアー・CoS・CE には指示を足さない」は、Chief Engineer の statechart についてだけ改める。`setup-pstack` を走らせないことは、全部のセルの決まりにする。担当に読ませる指示の試し（決めたこと 2・3・5）は判定していない。
 - 主題: poteto（Lauren Tan）作の pstack を、Andon を作るセルに plugin として入れ、担当の実装の作法の底上げと、skill の作りの学びに使う。
 - 語は [design.md](../design.md) §0.1。パッケージ（`package/`）は変えない。セルの設定の変更だけで、Andon の repo の PR はこの文書のほかに出ない。
 
@@ -14,20 +14,20 @@
 | 1 | 本家の公式の写し `pstack@cursor-plugins` を plugin としてセルに入れる | `package/settings.json` | 生きている（ADR-0038 で全セルに入れる） |
 | 2 | 担当に数行の指示を足し、置き場はセルの `AGENTS.local.md` にする | この ADR | まだ実装していない（セルの指針に今は無い） |
 | 3 | 担当に読ませるのは、絞った原則 6 本と `how` | この ADR | まだ実装していない（セルの指針に今は無い） |
-| 4 | 版は自動で最新に上げる | `package/settings.json` | 生きている |
+| 4 | バージョンは自動で最新に上げる | `package/settings.json` | 生きている |
 | 5 | 効いたかは、指示を入れたあとのレビュー 30 件を今の数と比べて見る | この ADR | まだ実装していない（材料が溜まっていない） |
 | 6 | 「作りを学ぶ」は課題にしない | この ADR | 生きている |
 | 7 | plugin の登録と自動更新は、利用者の `settings.json` に書かれた状態を正とする | この ADR | 覆された → ADR-0038（管理用の設定 `package/settings.json` に書く） |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
-Andon 自身を作る仕事（このセルで andon の repo を触る担当）の出来を上げたい。worker skill はラインの回し方（台帳・報告・レビュー・オーナーを待つ）は持つが、良い実装の作法（書く前に仕組みを理解する・差分を最小にする・本物を動かして確かめる・根本原因を直す）は薄い。そこを自前で書き足さず、外で磨かれている pstack を借りる。あわせて、pstack がどう作られているかを、使いながら学ぶ。まずこのセルで試し、パッケージの既定（全セル）に入れるかは結果を見て別に決める（オーナーが同意 2026-11-12）。
+Andon 自身を作る仕事（このセルで andon の repo を触る担当）の出来を上げたい。worker skill はラインの回し方（kanban・報告・レビュー・オーナーを待つ）は持つが、良い実装の作法（書く前に仕組みを理解する・差分を最小にする・本物を動かして確かめる・根本原因を直す）は薄い。そこを自前で書き足さず、外で磨かれている pstack を借りる。あわせて、pstack がどう作られているかを、使いながら学ぶ。まずこのセルで試し、パッケージの既定（全セル）に入れるかは結果を見て別に決める（オーナーが同意 2026-11-12）。
 
 オーナーの言葉（2026-11-12）: 「Pstackは有用だと思っているので導入することでAndonの開発が良くなるのではないかと思っている」「poteto:modeは使わないと思っているけれども節々のSKILLや、どのように作られているか使いながら学べるから」。
 
 ## 前提（同意済み。番号）
 
-1. 入口の `poteto-mode`（回し方）は使わない。使うのは個々の skill。pstack の回し方（実装をサブエージェントへ任せる・複数モデルで審査する・オーナーを待たずに進む・PR をマージまで運ぶ）が worker skill・ゲート・独立レビューとぶつかる所は、Andon の決まりが勝つ（オーナー 2026-11-12）。
+1. 入口の `poteto-mode`（回し方）は使わない。使うのは個々の skill。pstack の回し方（実装をサブエージェントへ任せる・複数モデルで審査する・オーナーを待たずに進む・PR をマージまで運ぶ）が worker skill・gate・独立レビューとぶつかる所は、Andon の決まりが勝つ（オーナー 2026-11-12）。
 2. 作りを学ぶために、本家の形のまま丸ごと入れる。使いたい数本だけを抜いて入れたり、Andon 向けに書き換えた写しを持ったりはしない。`poteto-mode` も入るが、呼ばなければ動かない（オーナーが同意 2026-11-12）。
 3. 試しはこのセルだけで行い、パッケージは変えない。全セルに配るかは試しのあとに別に決める（言い直しに含めて同意 2026-11-12）。
 
@@ -39,7 +39,7 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
 - 原則（`principle-*`）と `in-your-own-words`・`sharpen`・`tdd`・`benchmark-checklist` はサブエージェントを起動しない。`how` は読むだけのサブエージェントを起動する。`why` は書ける型のサブエージェントを起動する。`architect`・`arena`・`swarm`・`interrogate` は、書くサブエージェントか複数モデルを起動する。
 - セルの `~/.claude` は作り直しても残る volume で、Andon の設定は managed settings に入る。利用者の plugin の登録（`~/.claude/plugins`・`~/.claude/settings.json`）は boot に上書きされない。`claude plugin marketplace add`・`claude plugin install` は非対話で打てる。
 - 今の外の skill の入れ口（`gh-skills.txt`。[ADR-0018](0018-screen-check-tooling.md)）は skill を1本ずつ入れる形で、plugin を入れる口は boot に無い。
-- このセルの担当のプロファイルは、台帳の記録で Claude Code 系が 127 件（`claude` 86・`sonnet` 39・`fable` 2）、Codex が 1 件。レビュアーは `codex-review` が 98 件。
+- このセルの担当のプロファイルは、kanban の記録で Claude Code 系が 127 件（`claude` 86・`sonnet` 39・`fable` 2）、Codex が 1 件。レビュアーは `codex-review` が 98 件。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
@@ -63,10 +63,10 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
    指示には次も書く: `poteto-mode` と、サブエージェントに書かせる skill（`architect`・`arena`・`swarm`・`interrogate` など）は使わない。ラインの決まりは worker skill が正。
    理由: 原則 24 本の「どの場面でどれを読むか」の索引は `poteto-mode` の中にしか無い。`poteto-mode` を使わないので、場面と skill の対応はセルの指示に書く。少ないほうが毎回読まれ、どれが効いたかを報告から拾いやすい。足す・減らすは判定のときに決める。
    捨てた案: 原則 24 本すべて（`poteto-mode` の原則の索引の節だけを読ませる。ほかの節の回し方まで読んで引きずられる恐れ）／`how` だけ（差分の大きさ・確かめ方・根本原因の作法を試せない）。
-4. **2026-11-12 版は自動で最新に上げる。** marketplace `cursor-plugins` の自動更新を入れる。試しの始めと判定のときに、入っている版の番号を報告に書く（途中で版が変わったことが分かるように）。
+4. **2026-11-12 バージョンは自動で最新に上げる。** marketplace `cursor-plugins` の自動更新を入れる。試しの始めと判定のときに、入っているバージョンの番号を報告に書く（途中でバージョンが変わったことが分かるように）。
    理由: オーナーが選んだ（yomiyasu の試しと同じ扱い。[ADR-0013](0013-short-role-names-and-plain-japanese.md) 決めたこと 19）。本家の直しがすぐ届く。
-   捨てた案: 入れた版に留める（Chief Engineer の推奨。試しの途中で本文が変わらず前後の数を比べやすい。担当が読む指示が誰の目も通らずに変わることも無い。オーナーは自動で上げるほうを選んだ）／手で上げる（CoS が差分を読んでから `claude plugin update` を打つ）。
-5. **2026-11-12 効いたかは台帳のレビューの記録で見る。** 指示を入れたあとにレビューを受けた 30 件を、今の数と比べる。中身は「価値の仮説」の節。
+   捨てた案: 入れたバージョンに留める（Chief Engineer の推奨。試しの途中で本文が変わらず前後の数を比べやすい。担当が読む指示が誰の目も通らずに変わることも無い。オーナーは自動で上げるほうを選んだ）／手で上げる（CoS が差分を読んでから `claude plugin update` を打つ）。
+5. **2026-11-12 効いたかは kanban のレビューの記録で見る。** 指示を入れたあとにレビューを受けた 30 件を、今の数と比べる。中身は「価値の仮説」の節。
    捨てた案: 数の線を置かず、オーナーが報告を読んで判定する（30 件では数のぶれが大きい、という理由で出した案）／60 件たまるまで待つ（判定が1週間遅れる）。
 6. **2026-11-12 「作りを学ぶ」は課題にしない。** オーナーが自分のセッションで名前で呼んで試す。判定の報告には、担当の「読んだ skill と変えた選択」の表だけを付ける。skill の作り直しは、既にある課題（A-0123 など）で続ける。
    捨てた案: 判定の課題に「pstack の作りと Andon の skill の作りを比べ、取り入れる候補を並べる」を1項目足す／今すぐ調べる課題を切り、worker・CoS skill を pstack の形（短い葉と別ファイルの手順）に割る案まで調べる（「skill の大きさはこの題で扱わない」を覆すことになる）。
@@ -91,9 +91,9 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
 ## やらないこと（範囲の外。理由）
 
 - **`poteto-mode` を使わない**（前提 1）。担当の指示にも、依頼書にも書かない。
-- **担当の決まりを緩めない。** サブエージェントは読むだけ・マージはゲート・オーナーの決断は待つ、は worker skill のまま。pstack の「人を待たない」（`principle-never-block-on-the-human`）は担当に読ませない。
+- **担当の決まりを緩めない。** サブエージェントは読むだけ・マージは gate・オーナーの決断は待つ、は worker skill のまま。pstack の「人を待たない」（`principle-never-block-on-the-human`）は担当に読ませない。
 - **`setup-pstack` を走らせない。** モデルの割り当て表（`~/.claude/rules/pstack-models.md`）を書かない。複数モデルの審査を使わないので要らない。表が無いとき、`how` のサブエージェントはセッションのモデルで動く（本家の対応表の決まり）。
-- **Codex には入れない。** 本家の写しは Claude Code だけ。Codex の担当（台帳の記録で 1 件）とレビュアーには指示を足さない。
+- **Codex には入れない。** 本家の写しは Claude Code だけ。Codex の担当（kanban の記録で 1 件）とレビュアーには指示を足さない。
 - **レビュアー・CoS・CE には指示を足さない**（決めたこと 2）。CE の骨格は既に pstack から借りている（[design.md](../design.md) §1.8）。
 - **Andon が既に持つものを pstack に替えない。** PR の書式と検査（worker skill §3）、別ブランドの独立レビュー（§4。`interrogate`・`arena` の代わり）、日本語の文（`writing.md`・yomiyasu。`unslop`・`technical-writing` は英語向け）、気づきの蒸留（[ADR-0020](0020-auto-memory-as-intake.md)。`reflect`・`correct`・`recall` の代わり）、画面の確かめ（ADR-0018。`create-verification-skill` の代わり）。
 - **パッケージを変えない**（前提 3）。boot に plugin を入れる口を足さない。`package/gh-skills.txt` も触らない。全セルへの配り方は、判定で「続ける」になったときの別の題。
@@ -104,17 +104,17 @@ Andon 自身を作る仕事（このセルで andon の repo を触る担当）�
 
 継ぎ目はセルの実測だけ（Andon の repo のコードは変えないので、`tests/` に足すものは無い）。確かめた結果は課題の報告に書く。
 
-1. **入った**（P1）: セルで `claude plugin list` に `pstack@cursor-plugins` が有効で出る。セルを再起動したあとも出る。新しく起動した Claude Code のセッションで `/pstack:how` が候補に出る。入っている版の番号が報告に書いてある。
+1. **入った**（P1）: セルで `claude plugin list` に `pstack@cursor-plugins` が有効で出る。セルを再起動したあとも出る。新しく起動した Claude Code のセッションで `/pstack:how` が候補に出る。入っているバージョンの番号が報告に書いてある。
 2. **入れただけでは動かない**（P1）: 指示を足す前に起動した担当1つのセッションの記録に、pstack の skill を読んだ跡が無い。`~/.claude/rules/pstack-models.md` が無い。
 3. **自動更新が入っている**（P1）: セルの `~/.claude/settings.json` に、決めたこと 7 の2つのキー（`extraKnownMarketplaces` の `cursor-plugins` に `autoUpdate: true`、`enabledPlugins` に `pstack@cursor-plugins`）がある。セルを再起動したあとも残っている。
-4. **担当が読む**（P1）: 指示を足したあとに起動した Claude Code の担当が、決めたこと 3 の場面で、名指しされた skill の本文に辿り着いて読んでいる（セッションの記録で確かめる）。報告に「読んだ skill と、それで変えた選択」の行がある。版が上がって置き場のパスが変わっても辿り着ける書き方になっている。
+4. **担当が読む**（P1）: 指示を足したあとに起動した Claude Code の担当が、決めたこと 3 の場面で、名指しされた skill の本文に辿り着いて読んでいる（セッションの記録で確かめる）。報告に「読んだ skill と、それで変えた選択」の行がある。バージョンが上がって置き場のパスが変わっても辿り着ける書き方になっている。
 5. **引きずられない**（P1・P2）: その担当が、サブエージェントに書かせていない・`poteto-mode` を読んでいない・オーナーの決断を待たずに進めていない。
 6. **判定**（P2。オーナーの手）: 見る日に、「価値の仮説」の 2 の数と、担当の「読んだ skill と変えた選択」の表が1つの報告にまとまり、オーナーが「続ける」「全セルへの配り方を別の題にする」「やめる」のどれかを答えている。「やめる」なら、`AGENTS.local.md` の行が消え、`claude plugin uninstall pstack@cursor-plugins` のあと、新しいセッションに `pstack:` の skill が出ない。
 
 ## 価値の仮説
 
 1. **誰の何が変わるか**: このセルの Claude Code の担当の成果。1回目のレビューで重い指摘が付く課題が減る。オーナーは担当の報告の行から、どの skill がどう効いたかを読める。
-2. **見る信号**: 台帳の記録（外の信号の出所は無い）。主の数は、1回目のレビュー（`issues/<id>-r1/library/findings.json`）で `critical` か `major` が付いた課題の割合。基準は 48%（2026-11-12 の時点で 60 件中 29 件）。添える数は、2回目以降のレビューが要った課題の割合（基準 51%。61 件中 31 件）、`andon measure` の `doing` の待ち時間（基準 1.6 時間。2026-11-05〜11-12）、担当の報告の「読んだ skill と変えた選択」の行の数。
+2. **見る信号**: kanban の記録（外の信号の出所は無い）。主の数は、1回目のレビュー（`issues/<id>-r1/library/findings.json`）で `critical` か `major` が付いた課題の割合。基準は 48%（2026-11-12 の時点で 60 件中 29 件）。添える数は、2回目以降のレビューが要った課題の割合（基準 51%。61 件中 31 件）、`andon measure` の `doing` の待ち時間（基準 1.6 時間。2026-11-05〜11-12）、担当の報告の「読んだ skill と変えた選択」の行の数。
 3. **見る日**: 2026-11-20（指示を入れたあとにレビューを受けた課題が 30 件に届いていなければ、届いた日）。
 4. **誰が要るか**: オーナー（判定: 続ける・全セルへの配り方を別の題にする・やめる）。
 5. **効いたとどう分かるか**: 指示を入れたあとの 30 件で、主の数が 35% 以下。かつ、その担当の報告の過半に「変えた選択」の行がある。
@@ -136,7 +136,7 @@ P1 で CoS が決める細部（案。オーナーの決断ではない）:
 - **自動更新の入れ方**: 決めたこと 7 の状態にする。`claude plugin marketplace add`・`claude plugin install` を打ったあと、`extraKnownMarketplaces` の `cursor-plugins` に `autoUpdate: true` を足す（コマンドがこのキーを書くかは P1 で見る。書かなければ手で足す）。対話でないセッションでは plugin が裏で入るので、最初のターンにまだ無いことがある（Claude Code の文書。`CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1` で入り終わるのを待つ）。
 - **指示の文の案**（`AGENTS.local.md`。担当向け。Codex の担当は plugin が無いので対象から外す）:
   「Claude Code の担当は、pstack（plugin `pstack@cursor-plugins`）の次の skill を、当てはまる工程で読んでから進む。理解: 複数のファイルにまたがる仕組みを変えるとき `how`。計画: 差分の大きさを決めるとき `principle-laziness-protocol` と `principle-subtract-before-you-add`、状態や分岐を持つコードを書くとき `principle-model-the-domain`、バグを直すとき `principle-fix-root-causes`。確認: テストを書く・直すとき `principle-test-behavior-not-implementation`、完成と言う前に `principle-prove-it-works`。Skill tool が拒むので、plugin の置き場の `skills/<名前>/SKILL.md` を Read する（`how` は同じ置き場の `docs/harness/claude-code.md` の対応表も読む）。報告に、読んだ skill と、それで変えた選択を1行ずつ書く。`poteto-mode` と、サブエージェントに書かせる skill（`architect`・`arena`・`swarm`・`interrogate` など）は使わない。ラインの決まりは worker skill が正。」
-- **置き場の辿り方**: plugin の置き場は `~/.claude/plugins/cache/<marketplace>/<plugin>/<版>/` で、版が上がるとパスが変わり、古い版は 14 日後に消える（Claude Code の文書）。指示には固定のパスを書かず、辿り方（`claude plugin list --json` の `installPath`）を書く。どの書き方で担当が辿り着けるかは P1 で実測する（受け入れ条件 4）。
+- **置き場の辿り方**: plugin の置き場は `~/.claude/plugins/cache/<marketplace>/<plugin>/<バージョン>/` で、バージョンが上がるとパスが変わり、古いバージョンは 14 日後に消える（Claude Code の文書）。指示には固定のパスを書かず、辿り方（`claude plugin list --json` の `installPath`）を書く。どの書き方で担当が辿り着けるかは P1 で実測する（受け入れ条件 4）。
 - **`AGENTS.local.md` は全部の役が読む。** 指示の文は「Claude Code の担当は」で始め、CoS・CE・レビュアーが自分への指示と読まないようにする。
 - **基準の数の取り方**: P2 は、指示を足した時刻より後に起動された担当の課題だけを 30 件数える。指示を足した時刻を P1 の報告に書く。
 
@@ -154,6 +154,6 @@ P1 で CoS が決める細部（案。オーナーの決断ではない）:
 - 移植3つ（読むだけのサブエージェントが調べた。2026-11-12）: `github.com/michael-denyer/pstack-claude`（v0.9.136。`README.md`・`docs/reference.md`・`tools/forks.json`・`tools/upstream.json`・`plugins/pstack/hooks/`）、`github.com/ericlitman/open-pstack`（v1.21.0。`README.md`・`UPSTREAM.md`・`docs/reference.md`・`plugins/pstack/skills/poteto-mode/references/{model-catalog,provider-dispatch}.md`）、`github.com/backnotprop/pstack`（`README.md`・`MIRROR.md`・`SYNC-LOG.md`）。どれも実際には入れていない。
 - Andon の側: 依頼書（A-0160）、[design.md](../design.md) §1.8（CE の骨格が pstack から借りたもの）・§5（置き場の表）、[ADR-0001](0001-skills-distribution.md)、[ADR-0013](0013-short-role-names-and-plain-japanese.md) の改め（yomiyasu の試しの形）、[ADR-0018](0018-screen-check-tooling.md)、`docs/decisions/2026-11-11-boot-bundled-and-gh-skills.md`、`internal/boot/extskills.go`・`internal/boot/boot.go`（managed settings の置き方）、`package/settings.json`、`package/compose.yaml`（HOME の volume）、`package/skills/worker/SKILL.md`・`package/skills/independent-review/SKILL.md`（「pstack を使う repo」の節）、`package/templates/claude.md`。セルの wiki の `entities/owner.md`・`sources/2026-11-11-owner-agent-teams.md`。
 - 道具の help（2026-11-12。セルの中）: `claude plugin --help`・`claude plugin install --help`・`claude plugin marketplace --help`（Claude Code 2.1.322）、`codex plugin --help`（0.166.0）、`gh skill install --help`（2.103.3）。
-- 数: `andon measure --since 2026-11-05`（2026-11-12）、台帳の `issues/*-r<回>/library/findings.json`（1回目のレビューの `severity`）と `issue.yaml` の `profile`。
+- 数: `andon measure --since 2026-11-05`（2026-11-12）、kanban の `issues/*-r<回>/library/findings.json`（1回目のレビューの `severity`）と `issue.yaml` の `profile`。
 - 改め（2026-11-12）: オーナーの言葉（この対話。PR #210 のマージのあと）。Claude Code の文書（読むだけのサブエージェントが調べた。2026-11-12）: https://code.claude.com/docs/en/plugins/loading.md ・ https://code.claude.com/docs/en/plugins/org.md ・ https://code.claude.com/docs/en/plugins/install.md ・ https://code.claude.com/docs/en/plugins/cli-reference.md ・ https://code.claude.com/docs/en/plugins/create-marketplace.md 。セルの `~/.claude/settings.json`（plugin の項目はまだ無い）と `claude plugin marketplace add --help`（`--scope user` が既定）。marketplace の名前 `cursor-plugins` は本家の `.claude-plugin/marketplace.json` の `name`。
 - 反論のサブエージェントは走らせていない（セルの設定で戻せる試しで、外向きの面も戻せない設計も無い）。
