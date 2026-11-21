@@ -15,8 +15,8 @@
 | 5 | Chief of Staff がオーナーに聞く問いは、聞く前に kanban に置く | この ADR | まだ実装していない |
 | 6 | 1 回の返事で聞くのは 1 問のままにし、答えは待っている問いのどれからでも受ける | この ADR | まだ実装していない |
 | 7 | Chief Engineer の問いの出し方は変えない | `package/skills/chief-engineer/SKILL.md` | 生きている |
-| 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | この ADR | まだ実装していない |
-| 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | この ADR | まだ実装していない |
+| 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/glossary/SKILL.md` | 生きている |
+| 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている（答えを書く口〈決めたこと 17〉はまだ実装していない） |
 | 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | この ADR | まだ実装していない |
 | 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | この ADR | まだ実装していない |
 | 12 | オーナー待ちは、右のパネルのペインに出す | この ADR | まだ実装していない |

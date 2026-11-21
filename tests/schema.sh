@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の17本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
+#   1. schema/ の18本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
 #      schema の決まり（draft 2020-12・$id のバージョン・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff）と
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff・andon waiting）と
 #      kanban の CLI が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
@@ -17,7 +17,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # command の出力を写す検査（下の 5）。tests/lib/run-tests.sh は --emitters でこの並びを読み、先に走らせて写させる
-emitters=(andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-retro-apply andon-signal andon-chief-of-staff)
+emitters=(andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-retro-apply andon-signal andon-chief-of-staff andon-waiting)
 if [ "${1:-}" = --emitters ]; then printf 'tests/%s.sh\n' "${emitters[@]}"; exit 0; fi
 
 check_py=package/lib/andon/schema_check.py
@@ -74,10 +74,10 @@ schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
     6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; 21) echo patterns ;;
-    22) echo ledger-log ;; 23) echo ledger-ready ;; 24) echo run ;; *) return 1 ;;
+    22) echo ledger-log ;; 23) echo ledger-ready ;; 24) echo run ;; 25) echo waiting ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro run signal"
+expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro run signal waiting"
 # kanban の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
 ledger="ledger-log ledger-ready"
 schema_file() {
@@ -86,7 +86,7 @@ schema_file() {
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は17本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は18本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 actual="$(cd "$schema_dir/ledger" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "config.v3 issue.v3 log.v3 questions.v3 ready.v3 routine.v3" ]; then ok "schema/ledger/ は6本（$actual）"; else ng "schema/ledger/ の顔ぶれが違う: $actual"; fi
 for name in $expected $ledger; do
@@ -96,7 +96,7 @@ flush
 
 # バージョン（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 # kanban の行と ready の2本は kanban の形式のバージョン（3）
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 ledger-log/3 ledger-ready/3; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
@@ -176,6 +176,7 @@ declare -A required=(
   [retro]="project at since until previous_retro boundary issues summaries cut typed fixes redacted skipped"
   [patterns]="retro at since until days previous_retro patterns fixes"
   [run]="id command expect exit_code started_at finished_at output output_bytes truncated"
+  [waiting]="version at project slots items"
   [ledger-log]="at by id change"   # 最初の例は課題の行。ほかの形の行は 3b で作る
   [ledger-ready]=""                # 並び。課題の必須（id・status）は 3b で消す
 )
@@ -311,6 +312,10 @@ patterns|.previous_retro|issue done_at
 patterns|.patterns[0]|id summary evidence level action target effect risk decision reason
 patterns|.patterns[0].target|kind paths
 patterns|.fixes[0]|issue recurred view
+waiting|.slots|limit working waiting free waiting_full
+waiting|.items[0]|kind id title since holds
+waiting|.items[1].ask|kind question options
+waiting|.items[1].ask.options[0]|label
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -824,6 +829,20 @@ fail|ledger-ready|.[1].who = "agent"|who が person でない
 fail|ledger-ready|.[0].created = "2026-11-02"|created が日付だけ
 fail|ledger-ready|.[0] += {"broken": "can't read"}|読めない課題
 fail|ledger-ready|.[0]|並びでない
+pass|waiting|.items = []|オーナー待ちが無い
+pass|waiting|.items[1] |= del(.ask)|問いの JSON の無い判断の行
+fail|waiting|.version = 2|version が 1 でない
+fail|waiting|.slots.limit = 0|上限が 0
+fail|waiting|.slots.free = -1|空きが負
+fail|waiting|.slots.waiting_full = "no"|waiting_full が真偽値でない
+fail|waiting|.items[0].kind = "review"|kind が merge・decision・task でない
+fail|waiting|.items[0].question = "S-0021"|question が <id>#<n> でない
+fail|waiting|.items[0].since = "2026-11-21"|since が日付だけ
+fail|waiting|.items[0].holds = "S-0022"|holds が並びでない
+fail|waiting|.items[1].ask.kind = "scope"|判断の行の問いの種類が scope
+fail|waiting|.items[1].ask.from = "gate"|判断の行の問いを gate が出した
+fail|waiting|.items[1].ask.options = [{"label": "一つ"}]|選択肢が 1 つ
+fail|waiting|.items[1].answerable = "yes"|answerable が真偽値でない
 
 EOF
 
@@ -907,6 +926,10 @@ ledger-log|."$defs".migrateLine.properties.migrate.required -= ["ids"]|移した
 ledger-ready|."$defs".issue.required -= ["status"]|ready の課題の必須から status を外す
 ledger-ready|."$defs".issue.properties.status.enum += ["doing"]|ready の status を緩める
 ledger-ready|del(."$defs".issue.not)|ready に読めない課題を許す
+waiting|.required -= ["slots"]|オーナー待ちの必須から slots を外す
+waiting|."$defs".item.properties.kind.enum += ["review"]|行の kind を緩める
+waiting|."$defs".ask.properties.kind.enum += ["scope"]|判断の行の問いの種類に scope を許す
+waiting|.properties.slots.properties.free.minimum = -10|空きの負を許す
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -1006,6 +1029,8 @@ run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期�
 run-norepo.json|run|andon issue record の runs/<n>.json（repo の無い課題。commit 無し）
 ledger-log.jsonl|ledger-log|kanban の CLI が書いた log.jsonl（andon dispatcher がレビューからマージまで回した kanban）
 ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
+waiting.json|waiting|andon waiting --json の出力
+waiting-empty.json|waiting|andon waiting --json の出力（オーナー待ちが無い kanban）
 EMIT
     flush
   fi

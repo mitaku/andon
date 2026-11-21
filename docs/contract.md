@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -23,10 +23,11 @@
 | §22 kanban の行（`log.jsonl`） | `schema/ledger/log.v3.schema.json` |
 | §23 引き取れる課題（`kanban ready --json` の出力） | `schema/ledger/ready.v3.schema.json` |
 | §24 走らせた記録（`runs/<n>.json`） | `schema/run.schema.json` |
+| §25 オーナー待ち（`andon waiting --json` の出力） | `schema/waiting.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、オーナーが書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
-- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`・`andon waiting`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
 - kanban を読み書きするコマンドは `kanban`（`cmd/kanban`。command と形式は [ledger.md](ledger.md)）。
 - kanban の形式（形式 3。[ledger.md](ledger.md)・`schema/ledger/`）は Andon が持つ（[design.md](design.md) §3.5 で移した）。Andon のキーは「Any other key is allowed and kept」の上に置き、形式そのものを変えるときは形式のバージョンで変える。
 
@@ -1029,3 +1030,54 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - 記録は担当が手でも書けるので、強さは `report.json` と同じ自己申告（決めたこと 2 の「受け入れること」）。減るのは「走らせずに pass と書く」ことで、出力が残るので Chief of Staff・オーナー・振り返りが後から読める。
 - `andon issue ready` と gate は、`acceptance[]` の行のうち `run` のあるものだけ、指す記録を確かめる（決めたこと 2・11。`internal/contract` の `CheckRuns`）。断るのは3通り: 記録か出力（`runs/<n>.log`）が無い・読めない／終了コードが記録の `expect` と違う／`pass` を期待する記録が `dirty: true`。`fail` を期待する記録は `dirty: true` でよい。`andon issue ready` は終了コード 1 と、行ごとの理由を1行にまとめて返し、`review` にしない。gate は `fix` を返す（§7）。
 - 記録の `commit` が head と違う（レビューや CI の直しで head が進んだ）のは断らない。gate が記録の `acceptance.stale_runs` に出すだけ（§7）。`run` の無い行（CI の検査の名前・画面の添付の URL・`manual`）は今までどおり通る。
+
+## 25. オーナー待ち（`andon waiting --json` の出力）
+
+`andon waiting [--json] [--project <slug>]` が、オーナーが動くまで先へ進まないもの（オーナー待ち）と並行の枠を数えて出す（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 8・9）。**読むだけで、何も書かない・保存しない**。置き場は無い（標準出力だけ）。数える式はこの command だけが持ち、Chief of Staff が枠を数えるときも、問いを出す順を決めるときも、オーナーのペインが一覧を描くときも、この出力を使う（決めたこと 14）。`--json` を付けない出力は同じ中身を人が読む行で出し、機械は読まない。
+
+読むもの: kanban の `config.yaml`（`columns`・`timezone`・`chief_of_staff`）・`issues/<id>/issue.yaml`・`questions.yaml`・`log.jsonl`（課題が最後に `review` へ動いた行と、`merge` を最後に書いた行の `by`）と、課題の `library/` の `report.json`（`commit`・`pr`）・gate の記録（今の head の `library/gate/<head>.json`）・問いの JSON（`library/questions/<n>.json` の `from`・`facts`・`kind`）と、`project.json` の `chief_of_staff.parallel`（作者の照合は通さずファイルを読む。読めない・形が違えば上限 2 で数え、理由を標準エラーに1行出す）。GitHub は読まず、git も kanban の CLI も呼ばない。
+
+```json
+{"version": 1, "at": "2026-11-21T10:00:00Z", "project": "sample-site",
+ "slots": {"limit": 4, "working": 3, "waiting": 2, "free": 1, "waiting_full": false},
+ "items": [
+   {"kind": "merge", "id": "S-0021", "title": "名指しの口を足す", "since": "2026-11-21T04:43:35Z",
+    "question": "S-0021#1", "pr": "https://github.com/example/sample-site/pull/41",
+    "reason": "delegation: merge=B < tier C", "holds": ["S-0022", "S-0023"]},
+   {"kind": "decision", "id": "S-0030", "title": "書き出しの形を決める", "since": "2026-11-21T02:12:13Z",
+    "question": "S-0030#1", "ask": {"kind": "users", "question": "書き出しは CSV だけにするか", "facts": ["依頼書の「やること」"],
+     "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}]}, "answerable": true, "holds": []},
+   {"kind": "task", "id": "S-0031", "title": "image を焼き直す", "since": "2026-11-21T08:55:43Z", "holds": []}]}
+```
+
+オーナー待ちは 3 種で、今の head について決め終えたものだけを数える。`done`（`columns` の最後の列）の課題は数えない。
+
+| `kind` | 数えるもの | `since` |
+|---|---|---|
+| `merge`（マージの依頼） | 課題が `review` にいて、次のどれか。1 つ目は、今の head（`report.json` の `commit`）について gate が出した問い（問いの JSON の `from: gate`）が `open` のまま。どの head の問いかは、事実の gate の記録の行から読む（読めない問いは今の head の問いとして数える）。2 つ目は、今の head の gate の記録が、課題が最後に `review` へ動いたあとに書かれて `approve` で、課題が `merge: auto` でないか、`merge: auto` を最後に書いたのが Chief of Staff の端末でない（§2 の履歴の照合）。3 つ目は、Chief Engineer の課題（`profile: chief-engineer`）で `report.json` に `pr` がある。今の head の gate の記録が `merged: true` の課題は数えない。課題1件に1行 | 1 つ目は問いの `asked`、2 つ目は gate の記録の `at`、3 つ目は最後に `review` へ動いた時刻 |
+| `decision`（判断） | 灯りの種類（`business`・`users`・`promise`・`irreversible`・`line`）の問いが `open` で、出したのが gate でない。問い1件に1行 | 問いの `asked` |
+| `task`（手作業） | オーナーの課題（`who: person`）で、起動できる（`todo` か `queued` で、`after` の相手が全部 `done`、`not_before` の日を過ぎた）か `doing` にいて、`open` か `answered` の問いを持たない | 課題の `created` |
+
+- `answered` の問い（答えが書かれて担当がまだ受け取っていない）と、`scope` の問い（Chief of Staff が答える）は数えない。`doing` の課題は、gate の問いが開いていてもマージの依頼に数えない。
+- 委譲は読み直さない。approve のあと dispatcher が自動でマージする途中の課題は数えない。委譲が gate のあとに変わっていれば、dispatcher がマージの直前に断って gate の問いを出すので、次の読みで 1 つ目として数えられる。オーナーがマージしてから dispatcher が片付けるまでの 1 分ほどは一覧に残る。
+
+| キー | 意味 |
+|---|---|
+| `version` | 出力の形のバージョン。今は 1 |
+| `at` | 数えた時刻（UTC） |
+| `project` | プロジェクトの slug（kanban の根のディレクトリの名前） |
+| `slots.limit` | `project.json` の `chief_of_staff.parallel`。無ければ 2 |
+| `slots.waiting` | `doing` か `review` の担当の課題（レビュアーの子課題〈`<id>-r<k>`・`profile` が `-review` で終わる〉・Chief Engineer の課題・オーナーの課題を除く）のうち、`items` に `merge` か `decision` の行があるものの数 |
+| `slots.working` | 同じ課題のうち、残りの数 |
+| `slots.waiting_full` | `waiting` が `limit` 以上のとき `true`。新しい課題を起動しない |
+| `slots.free` | `waiting_full` なら 0。そうでなければ `limit` から `working` を引いた数で、0 より小さくしない |
+| `items[]` | オーナー待ちの行。`holds` の数の多い順、同じなら `since` の古い順。Chief Engineer の文書の PR とオーナーの課題は、行には出るが枠には数えない |
+| `items[].question` | `merge` の 1 つ目は gate の問い、`decision` はその問い（`<id>#<n>`） |
+| `items[].pr` | `report.json` の `pr`（`merge` の行で、あれば） |
+| `items[].reason` | 人が読む理由（`merge` の行）。1 つ目は gate の記録の `reasons`（無ければ問いの文）、2 つ目と 3 つ目は待つわけの1文 |
+| `items[].ask` | `decision` の行の問いの JSON（§5）の写し。問いの JSON が無い・形が違う問いは `ask` を持たない |
+| `items[].answerable` | `decision` の行だけ。オーナーのペインから答えられるか（`ask` があり、種類が `irreversible` でない）。答える口は別に足す（決めたこと 17） |
+| `items[].holds` | その課題を `after` で待っている済んでいない課題の id（直接待つものと、その後ろで待つもの全部。id の順） |
+
+- 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。
+- kanban の `config.yaml` が読めないときと、`--project` の kanban が無いときは終了コード 1。読めない `issue.yaml` は数えずに理由を標準エラーに出し、終了コード 0。
