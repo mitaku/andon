@@ -10,7 +10,7 @@
 
 1. **足す**: ルーチン `retro`（`routines/retro.yaml`。例は retro skill の `assets/retro.yaml`。kanban へ写すのはオーナーの go で。名前は `retro` のまま）が毎朝1件足す。片付いた担当の課題が `project.json` の `chief_of_staff.retro_every` 件（既定 25）たまると、dispatcher が数えて同じルーチンを撃つので、朝を待たずに足されることもある。
    オーナーが頼んだら `kanban routine run retro`（`routine: retro` が付き、前の振り返りとして数えられる。`open` と `paused` はそのまま効く）。
-2. **起動する**: オーナーに聞かずに `andon issue start <id>`（`start.md`。並行の上限とぶつかりは守る）。
+2. **起動する**: オーナーに聞かずに `andon issue start <id>`（`start.md`。枠〈`andon waiting` の `slots.free`〉とぶつかりは守る）。
 3. **`review` が来たら**: 報告の表と `issues/<id>/library/retro.json` を読み、`andon retro apply <id> --dry-run` を打つ。検収で見ること:
    - パターンが根拠の課題で本当に起きたか（command は根拠の数と実在と新しさしか確かめない）。直すパターンごとに、根拠の課題の記録を1件以上開いて読む（現地現物。`fix` の数に上限は無く、検収が量を抑える最後の段）。
    - 段が上から選ばれているか。`skill`・`text` の `not_upstream` が具体的か。

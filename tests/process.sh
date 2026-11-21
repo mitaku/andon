@@ -7,7 +7,7 @@
 #   3b. process/states/ の transitions[].once: true が on の「§7.2 #<n>」で dispatcher.md §7.2 の行を指す（受け入れ条件 4）。
 #   4. andon process render --check: repo の docs/process/ と見本の生成物（tests/process/docs/process/）が作り直しても変わらない。
 #      生成物に機械が読む塊（```json・```yaml）が無い。
-#   5. ワークストリームが 8 本。見守り・仕分け・ふりかえりは決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 5 本は name・title・purpose だけ（受け入れ条件 5。ふりかえりは ADR-0028 決めたこと 12）。
+#   5. ワークストリームが 8 本。見守り・仕分け・ふりかえり・起動は決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 4 本は name・title・purpose だけ（受け入れ条件 5。ふりかえりは ADR-0028 決めたこと 12、起動は ADR-0042 決めたこと 10・11）。
 # 道具は python3（標準ライブラリだけ。schema の決まりは package/lib/andon/schema_check.py lint）と jq と andon（tests/lib/andon.sh）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -183,7 +183,7 @@ for f in tests/process/process/workstreams/sample-watch.yaml tests/process/proce
 done
 
 # 5. ワークストリーム（受け入れ条件 5。ADR-0017 決めたこと 3・9・16）
-#    8 本がそろう。中身のある見守り・仕分け・ふりかえりは項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 5 本は name・title・purpose だけ。
+#    8 本がそろう。中身のある見守り・仕分け・ふりかえり・起動は項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 4 本は name・title・purpose だけ。
 #    by: ai の step の skill が package/skills/<名>/SKILL.md の節（「## <n>.」の見出し）か、package/skills の下の手引きのファイル（<名>/playbooks/<x>.md）を指す。
 want="intake launch observe receive relay retrospective triage watch"
 have=$(find process/workstreams -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort | tr '\n' ' ' | sed 's/ $//')
@@ -209,14 +209,14 @@ skill_check() {
       elif [ -n "$sec" ] && ! grep -qE "^## ${sec//./\\.}\. " "$md"; then echo "$ref: $md に「## $sec.」の節が無い"; fi
     done
 }
-for n in watch triage retrospective; do
+for n in watch triage retrospective launch; do
   "$andon" process json "process/workstreams/$n.yaml" >"$tmp/ws.json"
   out=$(full_check "$tmp/ws.json")
   [ -z "$out" ] && ok "$n.yaml が決めたこと 16 の項目を全部持つ" || { ng "$n.yaml の項目が欠ける"; printf '     %s\n' "$out"; }
   out=$(skill_check "$tmp/ws.json")
   [ -z "$out" ] && ok "$n.yaml の skill が SKILL の節を指す" || { ng "$n.yaml の skill が在らない節を指す"; printf '     %s\n' "$out"; }
 done
-for n in intake launch observe receive relay; do
+for n in intake observe receive relay; do
   keys=$("$andon" process json "process/workstreams/$n.yaml" | jq -c 'keys')
   [ "$keys" = '["name","purpose","title"]' ] && ok "$n.yaml は name・title・purpose だけ" || ng "$n.yaml のキーが name・title・purpose でない: $keys"
 done
@@ -242,6 +242,21 @@ done <<'TRIAGE'
 any(.steps[]; .id == "check" and ((.decides // []) | any(contains("andon triage verdict"))) and ((.output // []) | index("library/verdicts.json")))@確かめる段に、判断の閉じと課題の閉じを読んで andon triage verdict で書く手と、その記録 library/verdicts.json
 any(.steps[]; .id == "apply" and ((.input // []) | index("library/verdicts.json")))@当てる段が Chief of Staff の判定（library/verdicts.json）を読む
 TRIAGE
+# 起動（ADR-0042 決めたこと 10・11）: 枠は andon waiting が数え、free が 0 なら起動せずに待つ。古い数え方（kanban の並行の上限）を入るものに書かない
+"$andon" process json process/workstreams/launch.yaml >"$tmp/launch.json"
+while IFS='@' read -r filter desc; do
+  [ -n "$filter" ] || continue
+  jq -e "$filter" "$tmp/launch.json" >/dev/null && ok "起動: $desc" || ng "起動に無い: $desc"
+done <<'LAUNCH'
+any(.steps[]; .by == "machine" and .command == "andon waiting --json" and any(.next[]; .id == "hold"))@枠を数える段が andon waiting --json で、枠が無ければ待つ段へ分かれる
+any(.steps[]; .id == "hold" and .by == "ai" and ((.skill | if type == "array" then . else [.] end) | index("ask-one-by-one#3")))@待つ段が ask-one-by-one §3 の出す順を指す
+any(.steps[]; .by == "machine" and .command == "andon issue start")@起動する段が andon issue start
+any(.triggers[]; .kind == "notification" and .notification == "asked")@きっかけに通知 asked（オーナー待ちに入って枠が空く）
+LAUNCH
+old=$(grep -l '並行の上限' process/workstreams/*.yaml || true)
+[ -z "$old" ] && ok "ワークストリームに古い数え方（並行の上限を kanban で数える）が無い" || ng "古い数え方が残る: $old"
+printf '%s\n' '    input: [notification.ready, kanban(並行の上限)]' | grep -q '並行の上限' \
+  && ok "古い数え方の検査が当たる場合がある（検査が見ている）" || ng "古い数え方の検査が何も見ていない"
 "$andon" process json process/workstreams/retrospective.yaml >"$tmp/retro.json"
 while IFS='@' read -r filter desc; do
   [ -n "$filter" ] || continue
