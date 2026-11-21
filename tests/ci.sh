@@ -52,6 +52,9 @@ emitters=$(bash tests/schema.sh --emitters | tr '\n' ' ')
 [ "$(pick docs/image.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
 [ "$(pick README.md)" = "$(with tests/adr-index.sh)" ] || die "README.md で adr-index.sh だけを足さない: $(pick README.md)"
 [ "$(pick docs/adr/0033-adr-inventory-and-slimming.md)" = "$(with tests/adr-index.sh tests/package.sh)" ] || die "ADR で adr-index.sh・package.sh が無い: $(pick docs/adr/0033-adr-inventory-and-slimming.md)"
+for p in docs/decisions.md docs/decisions/2026-11-21-adr-0041-delegation-cap-out-of-command.md; do
+  [ "$(pick "$p")" = "$(with tests/adr-index.sh)" ] || die "決定の記録で adr-index.sh だけを足さない: $(pick "$p")"
+done
 [ "$(pick CHANGELOG.md)" = "$always" ] || die "CHANGELOG.md だけ: $(pick CHANGELOG.md)"
 # AGENTS.md だけの PR でも、表の形を見る agents-md.sh が走る（ADR-0035 受け入れ条件 10）。CI の文書だけの PR も同じ scope.sh で選ぶ
 [ "$(printf '%s\n' AGENTS.md | bash tests/lib/docs-scope.sh)" = true ] || die "AGENTS.md だけが文書だけにならない"

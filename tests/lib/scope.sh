@@ -77,9 +77,9 @@ while IFS= read -r p; do
     # design.md は §1.8 の文書の形と役の表を CE skill と突き合わせ、語の検査の範囲にも入る（package.sh）
     docs/design.md) run[tests/package.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
-    # adr-index.sh は ADR の索引・状態行と README の ADR の一覧を突き合わせる（ADR-0033）
+    # adr-index.sh は ADR の索引・状態行と README の ADR の一覧（ADR-0033）、ADR ごとの決定の記録（docs/decisions/・decisions.md §14）を突き合わせる
     docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;
-    README.md) run[tests/adr-index.sh]=1 ;;
+    README.md | docs/decisions.md | docs/decisions/*) run[tests/adr-index.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
     # package.sh の節（1節1ファイル）。入口の tests/package.sh が順に読む
     tests/package/*) run[tests/package.sh]=1 ;;

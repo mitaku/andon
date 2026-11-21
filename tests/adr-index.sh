@@ -8,8 +8,11 @@
 #     覆されたは、どこが覆したかを「覆された → ADR-NNNN」か「覆された → この ADR の N」で書く（あとに（…）を添えてよい）。
 #     ADR-NNNN は在る別の ADR、N はその ADR の「決めたこと」に在る、行の自分と別の番号。
 #   - 全部の ADR: 状態行（「- 状態: **決定…**」）があり、README の ADR の一覧に行があって、状態の語（決定・提案・覆された）が同じ。
-# 引数なしは repo を見たあと、壊した写し 6 つ（索引の 1 行を抜く・在りえないパスを書く・README の状態を変える・
-# 索引の節を消す・覆したところを消す・在りえない ADR を覆した先に書く）でそれぞれ落ちることを確かめる。
+#   - 全部の ADR に決定の記録が要る（AGENTS.md の表の決まり）。docs/decisions/ の「YYYY-MM-DD-adr-NNNN-<題>.md」か、
+#     docs/decisions.md の凍結した表（§14）の行で、出典の欄が docs/adr/NNNN-….md を指すもの。§14 の外の行は数えない。
+# 引数なしは repo を見たあと、壊した写し 9 つ（索引の 1 行を抜く・在りえないパスを書く・README の状態を変える・
+# 索引の節を消す・覆したところを消す・在りえない ADR を覆した先に書く・記録の無い ADR を足す・§14 の行を消す・
+# docs/decisions/ のファイルを消す）でそれぞれ落ちることを確かめる。
 # --root はその写しを見るときに使う。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -123,10 +126,35 @@ for f in readme:
     if f not in files:
         fail(f"README.md: 一覧の docs/adr/{f} が無い")
 
+# 決定の記録: ADR 1 本につき docs/decisions/ の YYYY-MM-DD-adr-NNNN-<題>.md か、docs/decisions.md の凍結した表（§14）の行
+recorded = {}
+dec_dir = os.path.join(root, "docs", "decisions")
+for d in sorted(os.listdir(dec_dir)) if os.path.isdir(dec_dir) else []:
+    m = re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}-adr-([0-9]{4})-.+\.md$", d)
+    if m:
+        recorded.setdefault(m.group(1), f"docs/decisions/{d}")
+dlog = os.path.join(root, "docs", "decisions.md")
+if os.path.exists(dlog):
+    with open(dlog, encoding="utf-8") as fh:
+        frozen = next((s for s in sections(fh.read().split("\n")) if s[0].startswith("14. ")), None)
+    if frozen is None:
+        fail("docs/decisions.md: 凍結した ADR の表（見出し「## 14. 」）が無い")
+    else:
+        for ln in frozen[1]:
+            if not ln.startswith("| 20"):
+                continue
+            for n in re.findall(r"\]\(adr/([0-9]{4})-[^)]*\.md\)", ln.rstrip().rstrip("|").rsplit("|", 1)[-1]):
+                recorded.setdefault(n, "docs/decisions.md §14")
+else:
+    fail("docs/decisions.md が無い")
+for f in files:
+    if f[:4] not in recorded:
+        fail(f"docs/adr/{f}: 決定の記録（docs/decisions/YYYY-MM-DD-adr-{f[:4]}-<題>.md か docs/decisions.md §14 の行）が無い")
+
 for m in fails:
     print(f"FAIL {m}")
 if not fails:
-    print(f"ok   ADR {len(files)} 本の状態行と README の一覧が揃い、{len(files)} 本すべての索引が本文と repo に合う")
+    print(f"ok   ADR {len(files)} 本の状態行と README の一覧が揃い、{len(files)} 本すべての索引が本文と repo に合い、決定の記録がある")
 sys.exit(1 if fails else 0)
 PY
 }
@@ -134,20 +162,20 @@ PY
 case "${1:-}" in
   --root) check "$2"; exit ;;
   '') ;;
-  *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
 fail=0
 check . || fail=1
 
-# 自己確認（受け入れ条件 4）: 写しの根は docs/adr と README.md だけを写し、ほかは repo へのリンクにする（「今の正」のパスを本物で見る）
+# 自己確認（受け入れ条件 4）: 写しの根は docs/adr・docs/decisions・docs/decisions.md と README.md だけを写し、ほかは repo へのリンクにする（「今の正」のパスを本物で見る）
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 setup() {
   rm -rf "$tmp/r"; mkdir -p "$tmp/r/docs"
   for p in * .[!.]*; do [ -e "$p" ] && [ "$p" != docs ] && [ "$p" != README.md ] && [ "$p" != .git ] && ln -s "$PWD/$p" "$tmp/r/$p"; done
-  for p in docs/*; do [ "$p" != docs/adr ] && ln -s "$PWD/$p" "$tmp/r/$p"; done
-  cp -r docs/adr "$tmp/r/docs/adr"; cp README.md "$tmp/r/README.md"
+  for p in docs/*; do case "$p" in docs/adr | docs/decisions | docs/decisions.md) ;; *) ln -s "$PWD/$p" "$tmp/r/$p" ;; esac; done
+  cp -r docs/adr docs/decisions docs/decisions.md "$tmp/r/docs/"; cp README.md "$tmp/r/README.md"
 }
 expect() { # expect ok|fail <説明> [<落ちた文に要る語>]
   local out got
@@ -167,6 +195,13 @@ grep -q '`package/host/inbox/main.js`' "$a15" || { echo "FAIL 自己確認の前
 grep -q '^| 21 | .* | 覆された → この ADR の 22 |$' "$a02" || { echo "FAIL 自己確認の前提: $a02 の索引の 21 が「覆された → この ADR の 22」でない"; exit 1; }
 grep -q '^| 1 | .* | 覆された → ADR-0003（' "$a02" || { echo "FAIL 自己確認の前提: $a02 の索引の 1 が「覆された → ADR-0003」でない"; exit 1; }
 grep -q '^  - \[0003 .*: 決定$' README.md || { echo "FAIL 自己確認の前提: README の一覧の 0003 が「決定」でない"; exit 1; }
+a41=docs/adr/0041-delegation-cap-out-of-command.md
+d41=$(ls docs/decisions/*-adr-0041-*.md 2>/dev/null | head -1)
+[ -n "$d41" ] || { echo "FAIL 自己確認の前提: docs/decisions/ に ADR-0041 の記録が無い"; exit 1; }
+ls docs/decisions/*-adr-0002-*.md >/dev/null 2>&1 && { echo "FAIL 自己確認の前提: ADR-0002 の記録が docs/decisions/ にもある（§14 の行だけのはず）"; exit 1; }
+[ "$(sed -n '/^## 14\. /,/^## 15\. /p' docs/decisions.md | grep -c '](adr/0002-')" -eq 1 ] || { echo "FAIL 自己確認の前提: decisions.md §14 に ADR-0002 の行が 1 つでない"; exit 1; }
+[ "$(grep -c '](adr/0002-' docs/decisions.md)" -gt 1 ] || { echo "FAIL 自己確認の前提: decisions.md の §14 の外に ADR-0002 を指す行が無い"; exit 1; }
+[ ! -e docs/adr/9998-no-record.md ] || { echo "FAIL 自己確認の前提: docs/adr/9998-no-record.md が在る"; exit 1; }
 
 setup; expect ok '壊していない写しは通る'
 setup; sed -i '/^| 3 | /d' "$tmp/r/$a33"; expect fail '索引から 1 行を抜いた写しで落ちる' '索引の番号 [1, 2, 4, 5, 6, 7] が「決めたこと」の番号 [1, 2, 3, 4, 5, 6, 7] と違う'
@@ -176,5 +211,12 @@ setup; sed -i 's/^\(  - \[0003 .*\): 決定$/\1: 提案/' "$tmp/r/README.md"; ex
 setup; sed -i '/^## 決定の索引$/,/^## /{/^## 決定の索引$/d;/^## /!d}' "$tmp/r/$a33"; expect fail '索引の節を消した写しで落ちる' "$a33: 決定の索引（見出し「## 決定の索引」）が無い"
 setup; sed -i 's/| 覆された → この ADR の 22 |$/| 覆された。 |/' "$tmp/r/$a02"; expect fail '覆したところを消した写しで落ちる' '索引の 21 の「今」が覆されたのに、どこが覆したかを'
 setup; sed -i '0,/| 覆された → ADR-0003（/s//| 覆された → ADR-9999（/' "$tmp/r/$a02"; expect fail '在りえない ADR を覆した先に書いた写しで落ちる' '索引の 1 を覆した ADR-9999 が、在る別の ADR でない'
+
+# 記録の無い ADR を足す: 0041 を 9998 に写して題の行と README の一覧の行を足す（索引と状態行は 0041 のまま正しい）
+setup; sed '1s/^# ADR-0041: /# ADR-9998: /' "$a41" >"$tmp/r/docs/adr/9998-no-record.md"
+sed -i '/^  - \[0041 /a\  - [9998 記録の無い ADR](docs/adr/9998-no-record.md): 決定' "$tmp/r/README.md"
+expect fail '決定の記録の無い ADR を足した写しで落ちる' 'docs/adr/9998-no-record.md: 決定の記録'
+setup; sed -i '/^## 14\. /,/^## 15\. /{/](adr\/0002-/d}' "$tmp/r/docs/decisions.md"; expect fail 'decisions.md §14 の行を消した写しで落ちる（§14 の外の行は数えない）' 'docs/adr/0002-herdr-spaces.md: 決定の記録'
+setup; rm "$tmp/r/$d41"; expect fail 'docs/decisions/ の記録を消した写しで落ちる' "$a41: 決定の記録"
 
 exit "$fail"

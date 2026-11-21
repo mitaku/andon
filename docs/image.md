@@ -144,7 +144,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5） | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む9本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
-| `adr-index.sh` | `docs/adr/` の索引・状態行と `README.md` の ADR の一覧（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)） | `docs/adr/`・`README.md` |
+| `adr-index.sh` | `docs/adr/` の索引・状態行と `README.md` の ADR の一覧（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)）、ADR ごとの決定の記録（`docs/decisions/`・`docs/decisions.md` §14） | `docs/adr/`・`README.md`・`docs/decisions.md`・`docs/decisions/` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
 | `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
 
@@ -162,7 +162,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `tests/host/` | `host.sh` を足す |
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh`・`adr-index.sh` を足す |
-| root の `README.md` | `adr-index.sh` を足す |
+| root の `README.md`・`docs/decisions.md`・`docs/decisions/` | `adr-index.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `image/apply-main.sh` | `apply-main.sh` を足す |
 | `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `CHANGELOG.md`・`.claude/skills/`・`.agents/skills/` など | 足さない |
