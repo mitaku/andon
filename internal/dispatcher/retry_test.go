@@ -459,3 +459,96 @@ func TestRetryResetThroughBlocked(t *testing.T) {
 		t.Fatalf("戻ったあとの切断に 1 分で打っていない: %q", got)
 	}
 }
+
+// 巡のつなぎ: Chief of Staff がプロバイダに切られて error で止まっても、巡は「続けて」も入力欄の読みも打たず、同じ止まりにログを1行だけ残す。
+func TestPassChiefCut(t *testing.T) {
+	d := t.TempDir()
+	bin := filepath.Join(d, "bin")
+	os.MkdirAll(bin, 0o755)
+	hc := "#!/bin/sh\necho \"$*\" >> \"$FAKE_KANBAN/hc\"\n" +
+		"[ \"$1 $2\" = 'get t6' ] && { printf '%s\\n' '{\"state\":\"live\",\"status\":{\"state\":\"error\",\"msg\":\"" + cutMsg + "\"},\"status_ms\":1,\"turn\":1,\"labels\":{}}'; exit 0; }\n" +
+		"[ \"$1\" = get ] && { echo '{\"error\":{\"kind\":\"not_found\",\"message\":\"x\"}}' >&2; exit 3; }\nexit 0\n"
+	for name, body := range map[string]string{"kanban": tickKanban, "hc": hc} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_KANBAN", d)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
+	ws := filepath.Join(d, "ws")
+	led := filepath.Join(ws, "projects", "sample-site", "kanban")
+	os.MkdirAll(led, 0o755)
+	os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644)
+	var logb bytes.Buffer
+	c := &Dispatcher{WS: ws, Log: &logb}
+	c.Pass("") // 初めて見る kanban（控えるだけ）
+	c.Pass("")
+	c.Pass("")
+	if n := strings.Count(logb.String(), "t6 はプロバイダに切られて止まった。続きは打たない"); n != 1 {
+		t.Errorf("切られた Chief of Staff のログが %d 行（1 行のはず）: %q", n, logb.String())
+	}
+	b, _ := os.ReadFile(filepath.Join(d, "hc"))
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(l, "send ") || strings.HasPrefix(l, "attach ") || strings.HasPrefix(l, "keys ") {
+			t.Errorf("切られた Chief of Staff に打った・入力欄を読んだ: %q", l)
+		}
+	}
+}
+
+// 見回りのつなぎ: doing の担当の端末ごとに状態を読み、端末が無い（finished）・blocked・プロバイダでない error・idle 15 分を、
+// 担当と status_ms を detail に知らせる。子のレビュアーの課題を待つ担当・短い idle は知らせない。プロバイダでない error に続きを打たない。
+// 同じ状態・同じ status_ms は二度知らせず、新しい status_ms なら知らせ直す。
+func TestWatchNotifiesStopped(t *testing.T) {
+	f := newRetry(t)
+	f.p.l.Slug = "sample-site"
+	f.p.tasks = []ledger.Issue{
+		{"id": "S-1", "status": "doing", "agent": "t21"}, // 端末が無い
+		{"id": "S-2", "status": "doing", "agent": "t22"},
+		{"id": "S-3", "status": "doing", "agent": "t24"},
+		{"id": "S-4", "status": "doing", "agent": "t25"},
+		{"id": "S-5", "status": "doing", "agent": "t26"},
+		{"id": "S-5-r1", "status": "todo", "parent": "S-5", "profile": "codex-review"},
+		{"id": "S-6", "status": "doing", "agent": "t28"},
+	}
+	f.term("t22", "blocked", "", 15*time.Minute, false)
+	f.term("t24", "error", "API Error: 401 unauthorized · Please run /login", 15*time.Minute, false)
+	f.term("t25", "idle", "", 0, false)
+	f.term("t26", "done", "", 0, false)
+	f.term("t28", "idle", "", 15*time.Minute, false)
+	ms := func(m time.Duration) int64 { return f.t0.Add(m).UnixMilli() }
+	if got := f.at(16*time.Minute, ""); len(got) != 0 {
+		t.Fatalf("止まった担当に打った: %q", got)
+	}
+	got := map[string]string{}
+	for _, n := range f.p.st.Pending {
+		got[n.Issue+":"+n.Kind] = asJSON(t, n.Detail)
+	}
+	want := map[string]string{
+		"S-1:finished": `{"agent":"t21","status_ms":0}`,
+		"S-2:blocked":  fmt.Sprintf(`{"agent":"t22","status_ms":%d}`, ms(15*time.Minute)),
+		"S-3:error":    fmt.Sprintf(`{"agent":"t24","status_ms":%d}`, ms(15*time.Minute)),
+		"S-4:stalled":  fmt.Sprintf(`{"agent":"t25","status_ms":%d}`, ms(0)),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("知らせたものが違う（レビュー待ち・短い idle を知らせた？）: %v", got)
+	}
+	for k, w := range want {
+		if got[k] != w {
+			t.Errorf("%s の detail が %s（%s のはず）", k, got[k], w)
+		}
+	}
+	if err := f.p.st.Save(f.p.l.Slug); err != nil {
+		t.Fatalf("積んだ通知が書く前の照合を通らない: %v", err)
+	}
+	f.p.st.Pending = []Notification{}
+	f.at(17*time.Minute, "")
+	if k := f.kinds(); len(k) != 0 {
+		t.Fatalf("同じ状態で二度知らせた: %q", k)
+	}
+	f.term("t22", "blocked", "", 17*time.Minute, false)
+	f.at(18*time.Minute, "")
+	if k := f.kinds(); len(k) != 1 || k[0] != "S-2:blocked" {
+		t.Fatalf("新しい status_ms の blocked を知らせない: %q", k)
+	}
+}

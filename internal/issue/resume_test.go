@@ -104,3 +104,33 @@ func TestFreshMessageGuide(t *testing.T) {
 		t.Errorf("指針の行が入った: %q", without)
 	}
 }
+
+// 担当の端末が Gone の doing の課題を resume すると（dispatcher が打つ andon issue resume）、名前 <slug>-<id>・課題とセッションのラベル・
+// template <profile>-resume で hc run を打ち、kanban の agent を起動した端末に替える（repo の無い課題。cwd は issues/<id>/）。
+func TestResumeRunsHcAndMovesAgent(t *testing.T) {
+	f := newStart(t)
+	sid := "11111111-2222-4333-8444-555555555555"
+	cfg := filepath.Join(f.home, ".claude")
+	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+	os.MkdirAll(filepath.Join(cfg, "projects", "x"), 0o755)
+	os.WriteFile(filepath.Join(cfg, "projects", "x", sid+".jsonl"), nil, 0o644) // セッションの記録（中身は読まない）
+	hc := strings.Replace(startHc, "case $1 in\n", "case $1 in\n  get) echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3 ;;\n", 1)
+	os.WriteFile(filepath.Join(filepath.Dir(f.log), "bin", "hc"), []byte(hc), 0o755)
+	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"claude-resume","command":"claude --resume \"$s\""}]}`)
+	t.Setenv("FAKE_RUN", `{"address":"t43","first_message":{"sent":true}}`)
+	f.task = map[string]any{"id": "S-0007", "title": "Add the button", "status": "doing", "profile": "claude", "agent": "t50", "session": sid}
+	os.WriteFile(filepath.Join(f.root, "show-S-0007.json"), []byte(js(map[string]any{"issue": f.task})), 0o644)
+	var out, errb bytes.Buffer
+	if rc := Main([]string{"resume", "S-0007"}, strings.NewReader(""), &out, &errb); rc != 0 {
+		t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out.String(), errb.String(), f.calls())
+	}
+	args := strings.Join(f.runArgs(), " ")
+	for _, want := range []string{"--name sample-site-s-0007", "--label issue=S-0007", "--label session=" + sid, "claude-resume"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("hc run の引数に %q が無い: %q", want, args)
+		}
+	}
+	if !f.has("kanban set S-0007 agent=t43") {
+		t.Errorf("kanban の agent を起動した端末に替えない: %q", f.calls())
+	}
+}

@@ -72,3 +72,37 @@ func TestRenderAway(t *testing.T) {
 		t.Error("留守の無い <news> が変わった")
 	}
 }
+
+// 戻った最初の <news>（drain）が留守の1行を先頭に付けたら、控えの留守の記録を消し、次の <news> には付けない（2度付けない）。
+func TestDrainAwayLineOnce(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir()) // hc も andon も無い（フックの外の確かめは落ちて通す）
+	t.Setenv("HC_TERMINAL_ID", "")
+	const slug = "demo"
+	put := func(issue string, away *Away) {
+		t.Helper()
+		st, _, _ := LoadState(slug)
+		st.Hook = nil
+		st.Pending = []Notification{{At: "2026-11-12T00:05:00Z", Project: slug, Issue: issue, Kind: "report", Detail: map[string]any{"report": "/r.md"}}}
+		st.Away = away
+		if err := st.Save(slug); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put("A-0001", &Away{Since: "2026-11-12T00:00:00Z", Until: "2026-11-12T00:10:00Z", Count: 4})
+	out, err := drain(slug, false, hookInput{SessionID: "s1", PromptID: "p1"})
+	if err != nil || !strings.HasPrefix(asContext(out), "<news project=\"demo\">\n留守の間（2026-11-12T00:00:00Z〜2026-11-12T00:10:00Z）に 4 件\nA-0001 report: ") {
+		t.Fatalf("戻った最初の <news> の先頭に留守の1行が無い: %s %v", asContext(out), err)
+	}
+	if st, _, _ := LoadState(slug); st.Away != nil {
+		t.Fatalf("留守の1行を渡したあとも控えに残した: %+v", st.Away)
+	}
+	st, _, _ := LoadState(slug)
+	st.Hook = nil
+	st.Pending = []Notification{{At: "2026-11-12T00:20:00Z", Project: slug, Issue: "A-0002", Kind: "report", Detail: map[string]any{"report": "/r2.md"}}}
+	st.Save(slug)
+	out, err = drain(slug, false, hookInput{SessionID: "s1", PromptID: "p2"})
+	if err != nil || !strings.Contains(asContext(out), "A-0002 report") || strings.Contains(asContext(out), "留守") {
+		t.Fatalf("留守の1行を二度付けた: %s %v", asContext(out), err)
+	}
+}

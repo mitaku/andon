@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"sort"
 
 	"andon/internal/contract"
 )
@@ -16,22 +15,7 @@ const impactTries = 3
 // 通知 impact を積む（dispatcher.md §2.5）。判断（影響なし・rebase を頼む・止めて向きを確かめる）は Chief of Staff。
 // PR の無い課題・MERGED でない PR（やめた課題）は打つ前か終了コード 4 で飛ばす。
 func (p *project) impacts() {
-	if len(p.st.Impact) == 0 {
-		return
-	}
-	ids := make([]string, 0, len(p.st.Impact))
-	for id := range p.st.Impact {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if p.impact(id) {
-			delete(p.st.Impact, id)
-		}
-	}
-	if len(p.st.Impact) == 0 {
-		p.st.Impact = nil
-	}
+	p.st.Impact.Each(p.impact)
 }
 
 // impact は1つの課題について打つ。true は済んだ（控えから外す）とき。
@@ -59,8 +43,7 @@ func (p *project) impact(id string) bool {
 		p.logf("%s の PR はマージされていないので影響を見ない（マージせずにやめた課題）", id)
 		return true
 	case err != nil:
-		p.st.Impact[id]++
-		if p.st.Impact[id] >= impactTries {
+		if p.st.Impact.Fail(id, impactTries) {
 			return gaveUp(fmt.Sprintf("%d 回打って失敗: %v", impactTries, err))
 		}
 		p.logf("%s の影響を集められない（次の見回りで打ち直す）: %v", id, err)

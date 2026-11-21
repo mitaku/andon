@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"andon/internal/contract"
@@ -51,11 +52,11 @@ type State struct {
 	Retry     map[string]Resend   `json:"retry,omitempty"`    // プロバイダに切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
 	First     map[string]bool     `json:"first,omitempty"`    // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
 	Moved     map[string]Moved    `json:"moved,omitempty"`    // working の担当の status.msg と画面の要約と、それが最後に動いた時刻（<issue>|<agent>。止まったかの見分け）
-	Impact    map[string]int      `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
+	Impact    Tries               `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
 	// done になった、オーナーの手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
-	Corrections map[string]int `json:"corrections,omitempty"`
+	Corrections Tries `json:"corrections,omitempty"`
 	// done になった、結果の記録（outcome.json）をまだ書いていない課題 → 失敗した回数（outcome.go）
-	Outcomes map[string]int `json:"outcomes,omitempty"`
+	Outcomes Tries `json:"outcomes,omitempty"`
 	// approve のまま 10 分たって届けた課題 → andon issue merge の記録の approved（route.go の stuck。同じ approve では二度届けない）
 	Stuck map[string]string `json:"stuck,omitempty"`
 	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
@@ -77,6 +78,43 @@ type State struct {
 	// dispatcher 自身が出して積んだ問いのうち、log.jsonl の問いの行をまだ読んでいないもの（<issue>#<n>。pickup.go の logRow が
 	// 行を読んだら消す）。待ちの通知と同じ控えに保存するので、積んだのに保存の前に落ちた問いは印が無く、行から積み直せる
 	Asked map[string]bool `json:"asked,omitempty"`
+}
+
+// Tries は done の行ごとに1回だけする仕事（影響の集め・オーナーの手直しの集め・結果の記録）の、まだ済んでいない課題 →
+// 失敗した回数。失敗を数えて上限で諦める控えを1つの型にまとめる（ADR-0034 決めたこと 9）。控えの JSON の形は課題 → 数のまま。
+type Tries map[string]int
+
+// Add は課題を控える。もう控えてあれば回数はそのまま（同じ done の行を2度読んでも数え直さない）。
+func (t *Tries) Add(id string) {
+	if *t == nil {
+		*t = Tries{}
+	}
+	if _, ok := (*t)[id]; !ok {
+		(*t)[id] = 0
+	}
+}
+
+// Each は控えた課題を id の順に do に渡し、true（済んだ）を返した課題を外す。空になれば nil にする（控えに空の欄を残さない）。
+func (t *Tries) Each(do func(id string) bool) {
+	ids := make([]string, 0, len(*t))
+	for id := range *t {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if do(id) {
+			delete(*t, id)
+		}
+	}
+	if len(*t) == 0 {
+		*t = nil
+	}
+}
+
+// Fail は課題の失敗を1回数え、上限（limit 回）に達したら true（諦める）を返す。
+func (t Tries) Fail(id string, limit int) bool {
+	t[id]++
+	return t[id] >= limit
 }
 
 // Away は Chief of Staff の留守の記録（ADR-0017 決めたこと 8 の (b)）。

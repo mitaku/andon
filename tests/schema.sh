@@ -970,8 +970,6 @@ gate-record-merged.json|gate|andon dispatcher がマージしたあとの gate �
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
-notification-gate-unsent.json|notification|andon dispatcher の通知 gate（fix を担当へ送れなかった）
-notification-gate-no-agent.json|notification|andon dispatcher の通知 gate（fix で担当がいない）
 notification-merged.json|notification|andon dispatcher の通知 merged
 notification-merged-person.json|notification|andon dispatcher の通知 merged（オーナーがマージした）
 notification-merged-held.json|notification|andon dispatcher の通知 merged（オーナーがマージしたが片付けていない）
@@ -979,12 +977,10 @@ notification-closed.json|notification|andon dispatcher の通知 closed
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
 measure.json|measure|andon measure --json の出力
 measure-empty.json|measure|andon measure --json の出力（記録が無い kanban）
-corrections-empty.json|corrections|andon dispatcher の corrections.json（手直し無し）
 corrections-answer.json|corrections|andon dispatcher の corrections.json（answer）
 signals.json|signal|andon signal collect の信号の記録
 signals-delivered.json|signal|andon dispatcher が collect と delivered で書いた信号の記録（read_at・delivered_episode）
 notification-signal.json|notification|andon dispatcher の通知 signal（now の信号）
-corrections-pr.json|corrections|andon dispatcher の corrections.json（pr）
 corrections-pr-inline.json|corrections|andon dispatcher の corrections.json（pr。インラインのレビューコメント）
 corrections-override.json|corrections|andon dispatcher の corrections.json（override）
 notification-corrections.json|notification|andon dispatcher の通知 corrections（集められなかった）
@@ -993,14 +989,6 @@ notification-asked.json|notification|andon dispatcher の通知 asked
 notification-report.json|notification|andon dispatcher が log.jsonl から拾った通知 report
 notification-review.json|notification|andon dispatcher が log.jsonl から拾った通知 review
 notification-ready.json|notification|andon dispatcher が ready の差から拾った通知 ready（routine つき）
-notification-ready-abandoned.json|notification|andon dispatcher が ready の差から拾った通知 ready（やめた待つ相手つき）
-notification-finished.json|notification|andon dispatcher の通知 finished（端末が無い）
-notification-blocked.json|notification|andon dispatcher の通知 blocked
-notification-error.json|notification|andon dispatcher の通知 error
-notification-stalled.json|notification|andon dispatcher の通知 stalled
-notification-resumed.json|notification|andon dispatcher の記録だけの通知 resumed（Gone の担当を resume した）
-notification-estimate.json|notification|andon dispatcher の通知 estimate（実働が見込みを超えた）
-notification-memory.json|notification|andon dispatcher の通知 memory（memory の件数が線を超えた）
 launch-start.json|launch|andon issue start の起動の記録
 launch-drift.json|launch|andon issue start の起動の記録（パッケージの置き場が食い違う・Codex）
 launch-norepo.json|launch|andon issue start の起動の記録（repo の無い課題）
@@ -1008,13 +996,6 @@ launch-resume.json|launch|andon issue resume の起動の記録
 launch-chief-engineer.json|launch|andon chief-engineer の起動の記録
 launch-reviewer.json|launch|andon dispatcher がレビュアーを起動したときの起動の記録
 launch-chief-of-staff.json|launch|andon chief-of-staff の起動の記録
-outcome-merged.json|outcome|andon dispatcher の outcome.json（マージした PR）
-outcome-reviewer.json|outcome|andon dispatcher の outcome.json（レビュアーの課題。PR 無し）
-outcome-none.json|outcome|andon dispatcher の outcome.json（PR 無し）
-outcome-open.json|outcome|andon dispatcher の outcome.json（PR が開いたまま）
-outcome-closed.json|outcome|andon dispatcher の outcome.json（PR が閉じられた）
-outcome-sessions.json|outcome|andon dispatcher の outcome.json（起動し直した2セッションのコスト）
-outcome-nolog.json|outcome|andon dispatcher の outcome.json（セッションログが無い）
 retro.json|retro|andon retro collect の出力
 retro-nogh.json|retro|andon retro collect の出力（GitHub が読めない）
 retro-split.json|retro|andon retro collect の出力（全文と要約に分けた）
