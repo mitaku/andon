@@ -1,6 +1,6 @@
 # kanban-board
 
-The work ledger in `kanban/` ([format 3](../../../docs/ledger.md): one ledger per project) as a Jira-like board: columns of cards, a list grouped by parent, and a detail panel with the issue's brief and report. It reads only; people and agents change the ledger with `kanban` (`cmd/kanban`).
+The work ledger in `kanban/` ([format 3](../../../docs/ledger.md): one ledger per project) as a Jira-like board: columns of cards, a list grouped by parent, the flow of issues in order (Flow), and a detail panel with the issue's brief and report. It reads only; people and agents change the ledger with `kanban` (`cmd/kanban`).
 
 ## What it shows
 
@@ -11,6 +11,8 @@ The work ledger in `kanban/` ([format 3](../../../docs/ledger.md): one ledger pe
 - **A band that never shows old contents as new:** when the contents last changed and when they were last checked; "not checked lately" after 30 s here (60 s on another machine). If the ledger can't be read (a YAML mistake, a missing file), a red band says why and the board keeps what it last read.
 - **Board:** a column per status (`config.yaml` `columns`), cards with id, the project (All projects) or the repo (a project with several), parent, what it waits for (`after A-0011`), the agent working on it with its state (Needs you / Working / …) and its profile (`claude`, `codex`, …); a card whose agent needs you and isn't done has a `blocked` border. Click the agent to go to it.
 - **List:** issues under their parents, in column order.
+- **Flow** ([ADR-0042](../../../docs/adr/0042-owner-waits-do-not-stop-the-line.md) decision 13): which issues wait in which order, as a Gantt chart whose axis is the order, not dates. On the left a tree: the project (All projects only), the milestone (only for a project whose `config.yaml` has `phases`, in their order; issues without a `phase` under "No milestone"), then issues under their parents. Every level folds. On the right a bar per issue, colored and named by its status: an issue that waits on no open issue is in stage 1, one that waits on others sits one right of the furthest of them (done ones don't count), so bars in the same stage can go ahead side by side; the filter and chips hide rows but don't move bars. An issue waiting on the owner (merge, decision, a task for you) carries an amber mark; an issue held until a day (`not_before`) says the day. Done issues are left out, except the done issues of a parent that still has open ones (faded). Within a level, what holds an owner wait comes first, then what holds work in progress, then by stage and number. The order among issues that can start is not in the ledger, so it isn't shown; nor are lines between bars: what an issue waits on is in its detail and on its card. Click a row for the detail.
+- **Owner waits** come from `andon waiting --json`, run in the cell in each shown project's folder at every read (it alone counts them; ADR-0042 decision 14). When it is missing, fails or prints a version other than 1, Flow shows no marks and the rest of the board works as before.
 - **Chief of Staff:** when `config.yaml` names the project's `chief_of_staff`, a button in the header shows its state and goes to it.
 - **Detail** (click a card): fields (Project, Repo, Profile, …), links (web links open in your browser), brief and report rendered as Markdown, the files in `library/`, and a button to go to the agent. Mermaid blocks show as code here (files-plus draws them).
 - Chips filter by project (All projects) or by repo (a project with several repos); `/` filters by text.
@@ -27,7 +29,7 @@ It reads again as soon as anything under `kanban/` changes on this computer, and
 
 - Or keep it as a tab: `herdr-app do tab.new --name Board --mod kanban-board`.
 
-Keys while it has the keyboard: `h`/`l` columns, `j`/`k` cards, `Enter` open, `g` go to the agent, `v` board / list, `p` this project / all projects, `/` filter, `Esc` close the detail, the filter, then the dialog.
+Keys while it has the keyboard: `h`/`l` columns, `j`/`k` cards, `Enter` open, `g` go to the agent, `v` board / list / flow, `p` this project / all projects, `/` filter, `Esc` close the detail, the filter, then the dialog.
 
 ## What it runs
 
@@ -36,6 +38,7 @@ Keys while it has the keyboard: `h`/`l` columns, `j`/`k` cards, `Enter` open, `g
 | `exec("sh", ["-c", <fixed script>, "kanban-board", <max>, <total>, <folder>, <file>…], {on})` printing each `kanban/config.yaml` up the folders (another machine, or not Windows); on this computer with Windows, `exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", <fixed script> followed by the quoted paths])` saying whether each is a reparse point and its length, then `readTextFile`; and `exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {cwd, on})` | finding the ledger |
 | `exec("sh", ["-c", <fixed script>, "kanban-board", <folder>, <max>, <total>], {on})` printing each `projects/*/kanban/config.yaml` (another machine, or not Windows); `fs.readdir(<folder>/projects)` + the PowerShell check + `readTextFile` (this computer, Windows) | finding the project from the repository, finding the cell, reading All projects |
 | `exec("sh", ["-c", <fixed script>, "kanban-board", <root>, <max>, <total>], {on})` printing each `issue.yaml` (another machine, or not Windows); `exec("powershell", …)` listing the issue folders with each `issue.yaml`'s length or that it is a reparse point, then `readTextFile` (this computer, Windows) | reading the issues |
+| `exec("andon", ["waiting", "--json"], {cwd: <project>, on})`, not on this computer with Windows | every read, once per project shown (Flow's owner-wait marks) |
 | `watchFolder(<root>/kanban)` for each ledger shown | this computer only |
 | The same checked read of `brief.md`, `report.md` (1 MiB each); `exec("ls", ["-1", <issue>/library], {on})` | opening a card |
 | `run("agent.focus", {terminal})` | going to a card's agent or the Chief of Staff |
@@ -43,7 +46,7 @@ Keys while it has the keyboard: `h`/`l` columns, `j`/`k` cards, `Enter` open, `g
 
 Every file is checked on the machine it is on before it is read: a file that is a symbolic link (a reparse point on Windows), or whose folder is one (the issue's folder, `kanban/`), is not read and is shown as `symbolic link`; a `config.yaml` or `issue.yaml` over 256 KiB, a brief or report over 1 MiB, and anything past 4 MiB in one read are not read either (the scripts look at the size before `head -c`). Ledger files are written by agents.
 
-Nothing is written. No network. The root path from another machine only ever goes to programs as a separate argument.
+Nothing is written (`andon waiting` only reads). No network. The root path from another machine only ever goes to programs as a separate argument.
 
 ## Origin
 

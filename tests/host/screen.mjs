@@ -634,9 +634,10 @@ const OPENER = 'platform === "windows" ? "explorer.exe" : platform === "macos" ?
 await check('kanban-board と waiting が呼ぶ command は決まった一覧のまま。kanban を書く command とネットワークが無く、waiting が呼ぶのは andon waiting --json と PR を開くものだけ（ADR-0042 受け入れ条件 12）', async () => {
   const board = await readFile(`${HOST}/kanban-board/main.js`, 'utf8');
   const waiting = await readFile(`${HOST}/waiting/main.js`, 'utf8');
-  assert.deepEqual(execTargets(board), ['"powershell"', OPENER, '"sh"', '"sh"', '"git"', '"sh"', '"ls"'], 'kanban-board の exec の呼び先が変わった');
+  assert.deepEqual(execTargets(board), ['"powershell"', '"andon"', OPENER, '"sh"', '"sh"', '"git"', '"sh"', '"ls"'], 'kanban-board の exec の呼び先が変わった');
   assert.deepEqual(execTargets(waiting), [OPENER, '"andon"'], 'waiting の exec の呼び先が変わった');
   assert.equal(waiting.split('exec("andon", ["waiting", "--json"],').length, 2, 'andon waiting の引数が決まった形でない');
+  assert.equal(board.split('exec("andon", ["waiting", "--json"],').length, 2, 'kanban-board の andon waiting の引数が決まった形でない');
   // The extraction finds a call it should: a new exec in a copy changes the list.
   assert.deepEqual(execTargets(`${waiting}\nexec("kanban", ["done"]);`).at(-1), '"kanban"', '呼び先を拾う式が何も見ていない');
   for (const [name, src] of [['kanban-board', board], ['waiting', waiting]]) {
@@ -668,6 +669,202 @@ await check('レイアウト andon: 右のパネルの stack に waiting の blo
   assert.deepEqual(calls.run.map((c) => JSON.parse(JSON.stringify(c))), [['layout.show', { id: 'panel' }], ['layout.select', { stack: 'panel-body', child: 'waiting' }]]);
   assert.deepEqual(JSON.parse(JSON.stringify(ns.PANEL)), { column: node('panel').id, stack: stack.id, child: node('waiting').id }, 'ボタンの向き先がレイアウトに無い');
   assert.ok(!textOf(button).some((x) => /\d/.test(x)), 'ボタンに件数を出した');
+});
+
+// Flow (ADR-0042 decision 13, acceptance 11): sample ledgers as the board reads them.
+const ledgerOf = (slug, extra = {}) => ({ root: `/cell/projects/${slug}`, slug, name: slug, columns: ['todo', 'queued', 'doing', 'review', 'done'], repos: [], phases: [], ...extra });
+const issueOf = (slug, id, fields) => ({ id, slug, root: `/cell/projects/${slug}`, key: `${slug}/${id}`, title: id, ...fields });
+// Ten issues: a parent with five under it, a review waiting on the owner, what waits behind it, and
+// done issues with nothing open near them.
+const TEN = [
+  issueOf('sample-site', 'S-0001', { status: 'todo' }),
+  issueOf('sample-site', 'S-0002', { status: 'done', parent: 'S-0001' }),
+  issueOf('sample-site', 'S-0003', { status: 'doing', parent: 'S-0001', after: ['S-0002'] }),
+  issueOf('sample-site', 'S-0004', { status: 'todo', parent: 'S-0001', after: ['S-0003'] }),
+  issueOf('sample-site', 'S-0005', { status: 'queued', parent: 'S-0001', after: ['S-0004', 'S-0003'] }),
+  issueOf('sample-site', 'S-0006', { status: 'todo', parent: 'S-0001', after: ['S-0005', 'S-0002'] }),
+  issueOf('sample-site', 'S-0007', { status: 'done' }),
+  issueOf('sample-site', 'S-0008', { status: 'review' }),
+  issueOf('sample-site', 'S-0009', { status: 'todo', after: ['S-0008'], not_before: '2026-12-01' }),
+  issueOf('sample-site', 'S-0010', { status: 'done', parent: 'S-0007' }),
+];
+const flowShape = (rows) => Array.from(rows, (r) => r.kind === 'task' ? `${'  '.repeat(r.depth)}${r.task.id}@${r.stage}${r.faded ? ' faded' : ''}${r.wait ? ` ${r.wait}` : ''}` : `${'  '.repeat(r.depth)}[${r.kind}] ${r.label}`);
+
+await check('kanban-board: Flow は親の課題・課題の木を作り、待つ相手のいない課題を 1 段目に、前の課題を 2 つ待つ課題を後ろのほうの相手の 1 つ右に置く。済んだ相手は数えない（ADR-0042 受け入れ条件 11。課題 10 件の見本）', async () => {
+  const { flowRows } = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }) });
+  const waits = new Map([['sample-site/S-0008', 'merge']]);
+  const rows = flowRows([ledgerOf('sample-site')], TEN, waits, { all: false });
+  assert.deepEqual(flowShape(rows), [
+    'S-0008@1 merge',        // holds an owner wait: first
+    'S-0001@1',              // holds work in progress (S-0003)
+    '  S-0003@1',            // waits only on S-0002, which is done
+    '  S-0002@1 faded',      // done, shown faded while its parent has open issues
+    '  S-0004@2',
+    '  S-0005@3',            // waits on S-0004 (stage 2) and S-0003 (stage 1): one right of S-0004
+    '  S-0006@4',
+    'S-0009@2',              // behind S-0008
+  ], 'Flow の木と段が違う（S-0007・S-0010 は済んで近くに開いた課題が無いので出ない）');
+  assert.ok(!rows.some((r) => r.kind === 'milestone'), 'phases の無いプロジェクトにマイルストンの段が出た');
+  // Folding a parent hides what is under it.
+  const folded = flowRows([ledgerOf('sample-site')], TEN, waits, { folded: new Set(['task:sample-site/S-0001']) });
+  assert.deepEqual(flowShape(folded), ['S-0008@1 merge', 'S-0001@1', 'S-0009@2']);
+  // A filter that hides what an issue waits on doesn't move it to stage 1.
+  const only = flowRows([ledgerOf('sample-site'), ledgerOf('x')], TEN, waits, { visible: (x) => ['S-0005', 'S-0009'].includes(x.id) });
+  assert.deepEqual(flowShape(only), ['S-0009@2', 'S-0005@3'], '絞り込みで隠れた待つ相手を段に数えていない');
+  // Every issue in a cycle is stage 1; what waits on the cycle sits one right of it.
+  const cycle = [
+    issueOf('sample-site', 'S-0001', { status: 'todo', after: ['S-0002'] }),
+    issueOf('sample-site', 'S-0002', { status: 'todo', after: ['S-0001'] }),
+    issueOf('sample-site', 'S-0003', { status: 'todo', after: ['S-0005'] }),
+    issueOf('sample-site', 'S-0004', { status: 'todo', after: ['S-0003'] }),
+    issueOf('sample-site', 'S-0005', { status: 'todo', after: ['S-0004'] }),
+    issueOf('sample-site', 'S-0006', { status: 'todo', after: ['S-0002', 'S-0004'] }),
+  ];
+  assert.deepEqual(flowShape(flowRows([ledgerOf('sample-site')], cycle, new Map())).sort(),
+    ['S-0001@1', 'S-0002@1', 'S-0003@1', 'S-0004@1', 'S-0005@1', 'S-0006@2'], '循環の課題が段 1 でない');
+});
+
+await check('kanban-board: Flow は全部のプロジェクトでプロジェクトの段を、phases のあるプロジェクトだけマイルストンの段を phases の順に出し、phase の無い課題を No milestone にまとめる（ADR-0042 受け入れ条件 11。phases のある見本）', async () => {
+  const { flowRows } = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }) });
+  const road = ledgerOf('road', { name: 'Road map', phases: [{ id: 'm1', title: 'Beta' }, { id: 'm2', title: 'Launch' }] });
+  const tasks = [
+    issueOf('road', 'R-0001', { status: 'todo', phase: 'm2' }),
+    issueOf('road', 'R-0002', { status: 'doing', phase: 'm1' }),
+    issueOf('road', 'R-0003', { status: 'todo', phase: 'm1', after: ['R-0002'] }),
+    issueOf('road', 'R-0004', { status: 'todo' }),
+    issueOf('sample-site', 'S-0001', { status: 'todo' }),
+  ];
+  const rows = flowRows([ledgerOf('sample-site'), road], tasks, new Map(), { all: true });
+  assert.deepEqual(flowShape(rows), [
+    '[project] Road map',    // holds work in progress: above sample-site
+    '  [milestone] Beta',
+    '    R-0002@1',
+    '    R-0003@2',
+    '  [milestone] Launch',
+    '    R-0001@1',
+    '  [milestone] No milestone',
+    '    R-0004@1',
+    '[project] sample-site',
+    '  S-0001@1',
+  ]);
+  const one = flowRows([road], tasks.filter((x) => x.slug === 'road'), new Map(), { all: false });
+  assert.ok(!one.some((r) => r.kind === 'project'), 'ひとつのプロジェクトの表示にプロジェクトの段が出た');
+});
+
+await check('kanban-board: Flow の印は andon waiting --json（version 1）をプロジェクトのフォルダで呼んで描く。command が無い・違う version のときは印を出さず、ボードは今までどおり読む（ADR-0042 決めたこと 14）', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-flow-'));
+  try {
+    const root = `${tmp}/projects/sample-site`;
+    await mkdir(`${root}/kanban/issues/S-0008`, { recursive: true });
+    await mkdir(`${root}/kanban/issues/S-0009`, { recursive: true });
+    await writeFile(`${root}/kanban/config.yaml`, 'version: 3\n');
+    await writeFile(`${root}/kanban/issues/S-0008/issue.yaml`, 'title: Review\nstatus: review\n');
+    await writeFile(`${root}/kanban/issues/S-0009/issue.yaml`, 'title: Next\nstatus: todo\nafter: [S-0008]\n');
+    let answer = null;
+    const calls = [];
+    const ns = await load(`${HOST}/kanban-board`, {
+      window: () => ({ platform: 'linux' }), focused: () => null, panes: () => [], spaces: () => [{ active: true, folder: root }],
+      agents: () => [], terminals: () => [], props: () => ({}), watchFolder: async () => { throw new Error('no watching here'); },
+      readTextFile: async () => { throw new Error('read without the fixed script'); },
+      exec: async (cmd, a, opts = {}) => {
+        if (cmd === 'andon') { calls.push([cmd, [...a], opts.cwd]); return answer; }
+        if (cmd === 'git') return { code: 128, stdout: '', stderr: 'not a git repository' };
+        const r = spawnSync(cmd, a, { cwd: opts.cwd, encoding: 'utf8' });
+        return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+      },
+    });
+    const read = async (out) => {
+      answer = out;
+      const b = new ns.default();
+      b.reset();
+      // Everything the board spawns (the read, then the marks), run to its end.
+      const spawned = [];
+      const cx = { notify: () => {}, spawn: (fn) => { spawned.push(fn(cx)); } };
+      b.refresh(cx);
+      for (let i = 0; i < spawned.length; i++) await spawned[i];
+      return b;
+    };
+    const items = (version) => JSON.stringify({ version, at: '2026-11-21T10:00:00Z', project: 'sample-site', slots: {}, items: [{ kind: 'merge', id: 'S-0008', title: 'Review', since: '2026-11-21T04:43:35Z', holds: ['S-0009'] }] });
+    let b = await read({ code: 0, stdout: items(1), stderr: '' });
+    assert.equal(b.failure, null, `ボードが読めない: ${JSON.stringify(b.failure)}`);
+    assert.deepEqual(calls.at(-1), ['andon', ['waiting', '--json'], root], 'andon waiting --json をプロジェクトのフォルダで呼んでいない');
+    assert.deepEqual(Array.from(b.waits, ([k, v]) => `${k}=${v}`), ['sample-site/S-0008=merge']);
+    const marks = (board) => Array.from(ns.flowRows(board.data.ledgers, board.data.tasks, board.waits).filter((r) => r.wait), (r) => r.task.id);
+    assert.deepEqual(marks(b), ['S-0008']);
+    for (const [why, out] of [['version 2', { code: 0, stdout: items(2), stderr: '' }], ['command が無い', { code: 127, stdout: '', stderr: 'andon: not found' }], ['読めない出力', { code: 0, stdout: 'not json', stderr: '' }]]) {
+      b = await read(out);
+      assert.equal(b.failure, null, `${why}: ボードが読めないことになった`);
+      assert.equal(b.data.tasks.length, 2, `${why}: 課題を読んでいない`);
+      assert.deepEqual(marks(b), [], `${why}: 印を出した`);
+    }
+    // A command that never answers stops only the marks: the ledger is read and read again.
+    answer = new Promise(() => {});
+    const hung = new ns.default();
+    hung.reset();
+    const spawned = [];
+    const cx = { notify: () => {}, spawn: (fn) => { spawned.push(fn(cx)); } };
+    hung.refresh(cx);
+    await Promise.race([spawned[0], new Promise((r) => setTimeout(r, 3000))]);
+    assert.equal(hung.reading, false, '返らない andon waiting でボードの読みが止まった');
+    assert.equal(hung.data?.tasks.length, 2, '返らない andon waiting で課題を読んでいない');
+    hung.refresh(cx);
+    await spawned.at(-1);
+    assert.ok(hung.checkedAt, '読み直していない');
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+await check('kanban-board: Flow はボタンで開き、棒に状態の名前、オーナー待ちに印、日付を待つ課題に日付を書く', async () => {
+  const ui = recordingUi();
+  const ns = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }), theme: () => ({ ...THEME, done: '#22aa55' }),
+    focused: () => null, panes: () => [], spaces: () => [], agents: () => [], terminals: () => [], props: () => ({}) }, ui);
+  const b = new ns.default();
+  b.init({}, { focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after() {} }, spawn: () => {} });
+  b.where = { key: JSON.stringify([null, null]), cwd: null, on: null };
+  const ledger = ledgerOf('sample-site');
+  b.root = ledger.root; b.searched = true;
+  b.data = { ledgers: [ledger], tasks: TEN, columns: ledger.columns, unreadable: [] };
+  b.waits = new Map([['sample-site/S-0008', 'merge']]);
+  assert.ok(byId(b.render({}), 'wb-view-flow'), 'Flow のボタンが無い');
+  b.view = 'flow';
+  // render() re-reads when the place changes; the fake has no folder, so read the Flow body itself.
+  const tree = b.flowView({ ...THEME, done: '#22aa55' });
+  const text = (n) => walk(n).flatMap((x) => args(x, 'child').map((a) => a[0])).filter((c) => typeof c === 'string');
+  assert.ok(text(byId(tree, 'wb-bar-sample-site/S-0003')).includes('Doing'), 'S-0003 の棒に状態の名前が無い');
+  assert.deepEqual(text(byId(tree, 'wb-wait-sample-site/S-0008')), ['Merge'], 'オーナー待ちの印が無い');
+  assert.ok(text(byId(tree, 'wb-flow-task:sample-site/S-0009')).includes('from 2026-12-01'), '日付を待つ課題に日付が無い');
+  assert.ok(!byId(tree, 'wb-flow-task:sample-site/S-0007'), '済んで近くに開いた課題が無い S-0007 が出た');
+  // Filtered to S-0005 alone, its bar still sits in stage 3 (two stages of 128px to its left).
+  b.filter = 'S-0005';
+  const filtered = b.flowView({ ...THEME, done: '#22aa55' });
+  const widths = walk(byId(filtered, 'wb-flow-task:sample-site/S-0005')).flatMap((n) => args(n, 'w').map((a) => a[0]));
+  assert.ok(widths.includes(256), `絞り込んだ S-0005 の棒が段 3 にない: ${widths}`);
+  assert.ok(!byId(filtered, 'wb-flow-task:sample-site/S-0004'), '絞り込みで隠した S-0004 が出た');
+});
+
+// What kanban-board runs (ADR-0042 acceptance 12): the programs named in its exec() calls, against a
+// fixed list. Nothing that writes the ledger, no network.
+await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決まった名前だけ（andon は waiting --json だけ）。README の What it runs に andon waiting の行がある（ADR-0042 受け入れ条件 12）', async () => {
+  const src = await readFile(`${HOST}/kanban-board/main.js`, 'utf8');
+  const programs = new Set();
+  const calls = [...src.matchAll(/\bexec\s*\(([^,]+),/g)].map((m) => m[1]);
+  // exec only as a call (and the import): handed on under another name, its calls would not be seen.
+  const other = src.split('\n').filter((l) => !/^import .* from "herdr";$/.test(l)).join('\n').match(/\bexec\b(?!\s*\(|'s)/g);
+  assert.equal(other, null, `exec を呼び出しのほかで使っている: ${other}`);
+  assert.ok(calls.length >= 6, `exec の呼び出しを拾えていない: ${calls}`);
+  for (const first of calls) {
+    // The programs, not what a ternary compares (`platform === "windows" ? "explorer.exe" : …`).
+    const names = [...first.replace(/===\s*"[^"]*"/g, '').matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(names.length, `呼び先が文字列でない exec がある: exec(${first}`);
+    names.forEach((n) => programs.add(n));
+  }
+  assert.deepEqual([...programs].sort(), ['andon', 'explorer.exe', 'git', 'ls', 'open', 'powershell', 'sh', 'xdg-open']);
+  const andon = [...src.matchAll(/\bexec\s*\(\s*"andon",\s*(\[[^\]]*\])/g)].map((m) => m[1]);
+  assert.deepEqual(andon, ['["waiting", "--json"]'], `andon の呼び方: ${andon}`);
+  assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|WebSocket|from "(node:)?(http|https|net)"/, 'ネットワークを使う');
+  const readme = await readFile(`${HOST}/kanban-board/README.md`, 'utf8');
+  assert.match(readme, /^\| `exec\("andon", \["waiting", "--json"\], \{cwd: <project>, on\}\)`/m, 'README の What it runs に andon waiting の行が無い');
 });
 
 if (failed) process.exit(1);
