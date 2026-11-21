@@ -10,10 +10,10 @@
 |---|---|---|---|
 | 1 | 直すのは「1 件の待ちが、ほかを止めない」ことで、オーナーに聞く線と数は変えない | この ADR | 生きている |
 | 2 | オーナー待ちの一覧と課題の連なりは、Herdr App の mod に出す | この ADR | まだ実装していない |
-| 3 | Chief of Staff は、どの問いも返事の本文に書き、答えを待たずにターンを終える | この ADR | まだ実装していない |
-| 4 | Chief of Staff の起動行で、ダイアログの道具を使えなくする | この ADR | まだ実装していない |
-| 5 | Chief of Staff がオーナーに聞く問いは、聞く前に kanban に置く | この ADR | まだ実装していない |
-| 6 | 1 回の返事で聞くのは 1 問のままにし、答えは待っている問いのどれからでも受ける | この ADR | まだ実装していない |
+| 3 | Chief of Staff は、どの問いも返事の本文に書き、答えを待たずにターンを終える | `package/skills/ask-one-by-one/SKILL.md` | 生きている |
+| 4 | Chief of Staff の起動行で、ダイアログの道具を使えなくする | `package/templates/chief-of-staff.md` | 生きている |
+| 5 | Chief of Staff がオーナーに聞く問いは、聞く前に kanban に置く | `package/skills/ask-one-by-one/SKILL.md` | 生きている |
+| 6 | 1 回の返事で聞くのは 1 問のままにし、答えは待っている問いのどれからでも受ける | `package/skills/ask-one-by-one/SKILL.md` | 生きている。§5 をペインを指す 1 行に替えるのは、ペインを足すときにする |
 | 7 | Chief Engineer の問いの出し方は変えない | `package/skills/chief-engineer/SKILL.md` | 生きている |
 | 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | この ADR | まだ実装していない |
 | 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | この ADR | まだ実装していない |
