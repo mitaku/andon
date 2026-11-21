@@ -13,8 +13,8 @@ stateDiagram-v2
   state "諦めた（影響と手直しは error を知らせた。結果の記録はログに1行だけ）" as s_gave_up
   [*] --> s_pending: done の行を拾った（初めて見る台帳では拾わない）
   s_pending --> s_done: マージのあとの影響を集める（§7.2 #17）
-  s_pending --> s_done: 人の手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）
-  s_pending --> s_done: 結果の記録を書く（outcome.json が無いときだけ書く。人の課題には書かない。§7.2 #26）
+  s_pending --> s_done: オーナーの手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）
+  s_pending --> s_done: 結果の記録を書く（outcome.json が無いときだけ書く。オーナーの課題には書かない。§7.2 #26）
   s_pending --> s_done: 打たない課題だった（レビュアー・Chief Engineer・repo が無い・pr が無い・PR が MERGED でない）
   s_pending --> s_pending: 失敗した（次の見回りで打ち直す）
   s_pending --> s_gave_up: 影響は 3 回・手直しと結果の記録は 2 回で諦めた（結果の記録は通知を積まない）
@@ -36,8 +36,8 @@ stateDiagram-v2
 |---|---|---|---|---|---|
 | （始まり・終わり） | `pending` | done の行を拾った（初めて見る台帳では拾わない） | 機械 |  |  |
 | `pending` | `done` | マージのあとの影響を集める（§7.2 #17） | 機械 | `andon issue impact` | はい |
-| `pending` | `done` | 人の手直しを集める（corrections.json が無いときだけ書く。§7.2 #18） | 機械 |  | はい |
-| `pending` | `done` | 結果の記録を書く（outcome.json が無いときだけ書く。人の課題には書かない。§7.2 #26） | 機械 |  | はい |
+| `pending` | `done` | オーナーの手直しを集める（corrections.json が無いときだけ書く。§7.2 #18） | 機械 |  | はい |
+| `pending` | `done` | 結果の記録を書く（outcome.json が無いときだけ書く。オーナーの課題には書かない。§7.2 #26） | 機械 |  | はい |
 | `pending` | `done` | 打たない課題だった（レビュアー・Chief Engineer・repo が無い・pr が無い・PR が MERGED でない） | 機械 |  |  |
 | `pending` | `pending` | 失敗した（次の見回りで打ち直す） | 機械 |  |  |
 | `pending` | `gave-up` | 影響は 3 回・手直しと結果の記録は 2 回で諦めた（結果の記録は通知を積まない） | 機械 |  |  |

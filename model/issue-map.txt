@@ -36,12 +36,12 @@ action MergeSettingChanges -
 action Done -
 
 # outside <from> <to> <コマンド> — <理由>
-#   モデルの外と名指しする issue.yaml の行。コマンドの無い行は -。ここを増やす変更は人が見る（決めたこと 8 の (イ)）。
+#   モデルの外と名指しする issue.yaml の行。コマンドの無い行は -。ここを増やす変更はオーナーが見る（決めたこと 8 の (イ)）。
 outside [*] queued kanban add — queued はモデルに入れていない（やらないこと 5）
 outside queued todo kanban done — queued はモデルに入れていない（やらないこと 5）
 outside queued done andon issue finish — queued はモデルに入れていない（やらないこと 5）
 outside queued done kanban done — トリアージの close。queued はモデルに入れていない（やらないこと 5）
-outside todo todo andon issue ask — 人の課題（who: person）の問い。人の課題はモデルに入れていない（やらないこと 5）
+outside todo todo andon issue ask — オーナーの課題（who: person）の問い。オーナーの課題はモデルに入れていない（やらないこと 5）
 outside todo doing kanban start — Chief Engineer の課題とレビュアーの課題の起動。PR の無い課題とレビュアーの課題はモデルに入れていない（やらないこと 5）
 outside todo done andon issue finish — 起動する前にやめる。モデルのやめるは担当を起こしたあと（ChiefOfStaffCancels）だけ
 outside todo done kanban done — トリアージの close。トリアージの一生はモデルに入れていない（やらないこと 5）

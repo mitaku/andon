@@ -13,7 +13,7 @@ stateDiagram-v2
   state "gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない）" as s_rate_limited
   state "approve（merge auto・委譲の範囲内。記録だけにしてマージに進む。マージの直前に読み直して変わっていれば決めずに回し直す。Approved は回し直しても測り直さない）" as s_approved
   state "approve のまま 10 分たっても決まらない（dispatcher が merge の記録の Approved を読んで通知 gate を届けた。同じ Approved では二度届けない）" as s_stuck
-  state "approve だがマージしない（merge person・委譲の外。人のマージの見張りへ）" as s_held
+  state "approve だがマージしない（merge person・委譲の外。オーナーのマージの見張りへ）" as s_held
   state "fix（理由を担当へ送った）" as s_fix
   state "needs_human（問いを出した）" as s_needs_human
   state "マージした" as s_merged
@@ -33,12 +33,12 @@ stateDiagram-v2
   s_approved --> s_waiting: 読み直すと head か checks が替わっていた（次の見回りでゲートから）
   s_approved --> s_stuck: 10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25）
   s_stuck --> [*]: merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる）
-  s_approved --> [*]: gh pr merge の前に人がマージしていた（人のマージの見張りへ）
+  s_approved --> [*]: gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ）
   s_merged --> s_finished: マージして片付ける（finish は merge の中で打つ。§7.2 #5）
-  s_held --> [*]: 人がマージするか決める
+  s_held --> [*]: オーナーがマージするか決める
   s_held --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head のゲートから）
   s_fix --> [*]: 担当が直して doing に戻った
-  s_needs_human --> [*]: 人が答えた
+  s_needs_human --> [*]: オーナーが答えた
   s_needs_human --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head のゲートの問いを閉じる。その見回りで今の head のゲートから）
   s_finished --> [*]: 終わり
 ```
@@ -52,7 +52,7 @@ stateDiagram-v2
 | `rate-limited` | gh の上限が戻るのを待つ（ゲートが gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この台帳のゲートを回さない） | `dispatcher:GHReset`・`dispatcher:GHWait` |
 | `approved` | approve（merge auto・委譲の範囲内。記録だけにしてマージに進む。マージの直前に読み直して変わっていれば決めずに回し直す。Approved は回し直しても測り直さない） | `merge:Approved` |
 | `stuck` | approve のまま 10 分たっても決まらない（dispatcher が merge の記録の Approved を読んで通知 gate を届けた。同じ Approved では二度届けない） | `dispatcher:Stuck` |
-| `held` | approve だがマージしない（merge person・委譲の外。人のマージの見張りへ） |  |
+| `held` | approve だがマージしない（merge person・委譲の外。オーナーのマージの見張りへ） |  |
 | `fix` | fix（理由を担当へ送った） |  |
 | `needs-human` | needs_human（問いを出した） |  |
 | `merged` | マージした | `merge:Merged` |
@@ -79,11 +79,11 @@ stateDiagram-v2
 | `approved` | `waiting` | 読み直すと head か checks が替わっていた（次の見回りでゲートから） | 機械 |  |  |
 | `approved` | `stuck` | 10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25） | 機械 |  | はい |
 | `stuck` | （始まり・終わり） | merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる） | 機械 | `andon issue merge` |  |
-| `approved` | （始まり・終わり） | gh pr merge の前に人がマージしていた（人のマージの見張りへ） | 機械 |  |  |
+| `approved` | （始まり・終わり） | gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ） | 機械 |  |  |
 | `merged` | `finished` | マージして片付ける（finish は merge の中で打つ。§7.2 #5） | 機械 | `andon issue merge` | はい |
-| `held` | （始まり・終わり） | 人がマージするか決める | 人 |  |  |
+| `held` | （始まり・終わり） | オーナーがマージするか決める | オーナー |  |  |
 | `held` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head のゲートから） | 機械 | `andon issue merge` |  |
 | `fix` | （始まり・終わり） | 担当が直して doing に戻った | 台帳の CLI | `kanban start` |  |
-| `needs-human` | （始まり・終わり） | 人が答えた | 人 |  |  |
+| `needs-human` | （始まり・終わり） | オーナーが答えた | オーナー |  |  |
 | `needs-human` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head のゲートの問いを閉じる。その見回りで今の head のゲートから） | 機械 | `andon issue merge` |  |
 | `finished` | （始まり・終わり） | 終わり | 機械 |  |  |

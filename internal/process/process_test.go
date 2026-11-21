@@ -38,7 +38,7 @@ func TestRenderWritesChecksAndPrunes(t *testing.T) {
 	write(t, root, "process/workstreams/watch.yaml", watch)
 	write(t, root, "process/states/item.yaml", "name: item\ntitle: もの\nsource: ADR-0017\n"+
 		"states: [{ id: a, title: A, record: d:Pending }]\ntransitions: [{ from: \"[*]\", to: a, on: 積む, by: kanban }]\n")
-	write(t, root, "docs/process/README.md", "人が書く\n")
+	write(t, root, "docs/process/README.md", "手で書く\n")
 	write(t, root, "docs/process/old.md", "定義の無い生成物\n")
 
 	changed, err := Render(root, true)
@@ -61,7 +61,7 @@ func TestRenderWritesChecksAndPrunes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "docs/process/old.md")); err == nil {
 		t.Fatal("定義の無い生成物が残る")
 	}
-	if b, _ := os.ReadFile(filepath.Join(root, "docs/process/README.md")); string(b) != "人が書く\n" {
+	if b, _ := os.ReadFile(filepath.Join(root, "docs/process/README.md")); string(b) != "手で書く\n" {
 		t.Fatal("README.md を書き換えた")
 	}
 	ws, _ := os.ReadFile(filepath.Join(root, "docs/process/watch.md"))
@@ -154,7 +154,7 @@ func TestRenderSwapAfterCheckStaysInside(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root, outside := t.TempDir(), t.TempDir()
 			write(t, root, "process/workstreams/watch.yaml", watch)
-			write(t, root, "docs/process/README.md", "人が書く\n")
+			write(t, root, "docs/process/README.md", "手で書く\n")
 			write(t, outside, "old.md", "外のファイル\n")
 			if stale {
 				write(t, root, "docs/process/old.md", "定義の無い生成物\n")

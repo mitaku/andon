@@ -24,7 +24,7 @@ for p in "${paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 
 changelog_v=$(grep -n -m1 '^## v' CHANGELOG.md 2>/dev/null | cut -d: -f1 || true)
 hits=$(grep -rnIP "$words" "${existing[@]}" \
-  --exclude-dir=.git --exclude-dir=.task-tmp \
+  --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
     -e '^docs/decisions\.md:[0-9]*:語の改め（2026-11-10 から）' \
@@ -54,19 +54,19 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 # 役を指す形の「人」（ADR-0036 決めたこと 7、受け入れ条件 2）。「人」の後ろに助詞か日付の括弧が続き、
 # 前に数字も「外の」「読む」のような語も無い形を禁じる。役を指さない「人」（外の人・読む人・1人・個人・人が読む・人向け・
 # 人と AI が読む・人の名前）は通る。範囲は替え終えた場所だけで、替えるたびに role_paths に足す。
-# 範囲の外: internal/process と tests/process（流れの定義の語。替える課題が別）。例外: このファイルと tests/words-selftest.sh（落ちる例）・
+# 例外: このファイルと tests/words-selftest.sh（落ちる例）・
 #   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」、internal/retro と
 #   tests/andon-retro.sh の前の版の答え「人がマージした」。ADR-0036 決めたこと 6）・
 #   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
 #   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）。
 #   引用だけを外し、同じ行の地の文の「人」は当たる。
 role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?<![0-9] )(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ)'
-role_paths=(package internal init cmd tests docs/design.md)
+role_paths=(package internal init cmd tests docs/design.md process docs/process model)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
-[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$role" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
-  | grep -v -e '^internal/process/' -e '^tests/process/' -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$role" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
+  | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^internal/triage/[^:]*:[0-9]*:.*\(人に聞くこと\|（人の判断待ち）\)' \
     -e '^tests/andon-triage\.sh:[0-9]*:.*\(人に聞くこと\|（人の判断待ち）\)' \
     -e '^internal/retro/[^:]*:[0-9]*:.*人がマージした' -e '^tests/andon-retro\.sh:[0-9]*:.*人がマージした' \

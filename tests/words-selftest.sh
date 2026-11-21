@@ -53,13 +53,16 @@ for w in '**Andon は「選択的 Dark Factory」。止められるものは機�
 done
 setup; echo 'freee の KPI「人の介在率」。人の答え 2026-11-07' >"$tmp/r/docs/design.md"
 expect fail 'docs/design.md の引用と同じ行の地の文の「人の答え」で落ちる'
-# コマンドの出力とコードと検査（internal/・init/・cmd/・tests/）も見る。流れの定義の語（internal/process/・tests/process/）はまだ見ない
+# コマンドの出力とコードと検査（internal/・init/・cmd/・tests/）も見る
 for d in internal init cmd tests; do
   setup; mkdir -p "$tmp/r/$d"; echo '"人の判断が要る"' >"$tmp/r/$d/x.go"; expect fail "$d/ の「人の判断が要る」で落ちる"
 done
-for d in internal/process tests/process; do
-  setup; mkdir -p "$tmp/r/$d"; echo '人がマージする' >"$tmp/r/$d/x.go"; expect ok "替えていない範囲（$d/）の役の「人」はまだ見ない"
+# 流れの定義と生成した文書とモデル（process/・internal/process/・tests/process/・docs/process/・model/）も見る
+for f in process/states/x.yaml internal/process/x.go tests/process/process/workstreams/x.yaml docs/process/x.md model/X.tla; do
+  setup; mkdir -p "$tmp/r/$(dirname "$f")"; echo '人がマージする' >"$tmp/r/$f"; expect fail "$f の「人がマージする」で落ちる"
 done
+setup; mkdir -p "$tmp/r/model/broken"; echo '\* レビュアーが 2 人走り' >"$tmp/r/model/broken/X.tla"; expect ok 'model/ の「2 人走り」（数え方）は通る'
+setup; mkdir -p "$tmp/r/docs/process"; echo '# 定義（人が読む入口）' >"$tmp/r/docs/process/README.md"; expect ok 'docs/process/ の「人が読む入口」は通る'
 # 古い語を読む所は通り、同じ語がほかのファイルにあれば落ちる
 setup; mkdir -p "$tmp/r/internal/triage"; echo 'case "人に聞くこと", "オーナーに聞くこと":' >"$tmp/r/internal/triage/x.go"
 expect ok 'internal/triage/ の古い見出しを読む所は通る'

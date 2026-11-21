@@ -29,8 +29,8 @@ flowchart LR
     g_read{"分かれ道"}
     s_done("記録を残す"):::ai
   end
-  subgraph lane_person["人"]
-    s_act("人が決める"):::person
+  subgraph lane_person["オーナー"]
+    s_act("オーナーが決める"):::person
   end
   t_estimate --> s_read
   t_every_hour --> s_tick
@@ -49,7 +49,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | `tick` | 間隔で記録を読む | 機械 | `dispatcher.Sent` | `notification.estimate` | `read` |
 | `read` | 通知と計画を読む | AI | `notification.estimate`・`report.plan`・`hc.state` |  | `act`（手を打つ）・`done`（見るだけ） |
-| `act` | 人が決める | 人 | `人の言葉` | `hc send` | `done` |
+| `act` | オーナーが決める | オーナー | `オーナーの言葉` | `hc send` | `done` |
 | `done` | 記録を残す | AI |  | `wiki` | 終わり |
 
 ## 機械がやる手順
@@ -60,12 +60,12 @@ flowchart LR
 
 ## AI がやる手順
 
-| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | 人に聞くこと |
+| id | どうやるか（SKILL の節・手引き） | 自分で決めてよいこと | オーナーに聞くこと |
 |---|---|---|---|
 | `read` | `chief-of-staff#5` | 途中報告を書かせる・分ける | 期限を延ばすか（business） |
 | `done` | `chief-of-staff#5`・`worker#7` |  |  |
 
-見るもの（手順の入るものの和）: `dispatcher.Sent`・`notification.estimate`・`report.plan`・`hc.state`・`人の言葉`
+見るもの（手順の入るものの和）: `dispatcher.Sent`・`notification.estimate`・`report.plan`・`hc.state`・`オーナーの言葉`
 
 残すもの（手順の出るものの和）: `notification.estimate`・`hc send`・`wiki`
 

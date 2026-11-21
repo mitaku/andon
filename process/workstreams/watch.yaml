@@ -23,7 +23,7 @@ triggers:
     kind: notification
     notification: finished
     start: read
-  # Chief of Staff が起動したとき・人と話すターンの最初（hc get で doing の担当を見る）
+  # Chief of Staff が起動したとき・オーナーと話すターンの最初（hc get で doing の担当を見る）
   - name: wake
     kind: event
     start: read
@@ -52,7 +52,7 @@ steps:
     output: []
     skill: chief-of-staff/playbooks/watch.md
     decides: [途中報告を書かせる, 分ける, 起動し直す, 延長する, 続きを 1 回促す]
-    next: [{ id: act, when: 手を打つ }, { id: tell, when: 人へ知らせる }, { id: done, when: 見るだけ }]
+    next: [{ id: act, when: 手を打つ }, { id: tell, when: オーナーへ知らせる }, { id: done, when: 見るだけ }]
   - id: act
     title: 担当に手を打つ
     by: ai
@@ -61,10 +61,10 @@ steps:
     skill: chief-of-staff/playbooks/watch.md
     decides: [送る文, 分けた課題の範囲]
   - id: tell
-    title: 人へ知らせる
+    title: オーナーへ知らせる
     by: ai
     input: [hc read の画面]
-    output: [herdr notification, 人への 1 問]
+    output: [herdr notification, オーナーへの 1 問]
     skill: [chief-of-staff/playbooks/watch.md, ask-one-by-one]
     decides: [知らせる文]
     asks:

@@ -1,5 +1,5 @@
 ---- MODULE IssueRules ----
-\* 課題の一生が守る規則（ADR-0025 決めたこと 5）。行動は IssueLife.tla。規則を弱める・消す変更は人が見る。
+\* 課題の一生が守る規則（ADR-0025 決めたこと 5）。行動は IssueLife.tla。規則を弱める・消す変更はオーナーが見る。
 EXTENDS IssueLife
 
 TypeOK ==
@@ -35,7 +35,7 @@ R5_NoWorkerWhenDone == status = "done" => worker # "live"
 R6_NoReviewWithOpenQuestion == status = "review" => ~q
 
 \* R7 取り消しを使わずに届くどの状態からも、取り消しを使わずにマージまで行ける（ADR-0032 決めたこと 9）。
-\*    取り消しは ChiefOfStaffCancels と、ゲートを待たない人の先回りのマージ（HumanMergesEarly）。
+\*    取り消しは ChiefOfStaffCancels と、ゲートを待たないオーナーの先回りのマージ（HumanMergesEarly）。
 \*    「行ける道がある」は状態 1 つの式（INVARIANT）では書けないので、検査器の状態の図を model/reach.mjs が読む。
 \*    設定は IssueRules.cfg の「\* REACH」の行（R7_MergeWithoutCancel pr = "merged" と除く行動）。
 \*    閉じた PR を開き直す道（PRClosesOrReopens）も含めて成り立つ（ADR-0034 決めたこと 3）。
