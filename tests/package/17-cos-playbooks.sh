@@ -40,7 +40,7 @@ d3=$(sed -n '/^# <題>（仕様・設計。日付）$/p' "$ce" docs/design.md | 
 [ "$d3" = 2 ] && ! grep -q 'Chief Engineer の課題 id）' "$ce" docs/design.md \
   && grep -qF 'オーナーの発言の日付だけ' "$ce" && grep -qF 'オーナーの発言の日付だけ' docs/design.md && grep -qF 'オーナーの発言の日付だけ' docs/decisions.md \
   && ! grep -qF '`sources/` のページか `raw/` の元資料' "$ce" \
-  && pass "ADR-0026 A3: CE skill・design.md §1.8・decisions.md の出典は題に課題 id を求めず、セルの wiki と台帳を指さない" || fail "ADR-0026 A3: 文書の形か出典の書き方が古い"
+  && pass "ADR-0026 A3: CE skill・design.md §1.8・decisions.md の出典は題に課題 id を求めず、セルの wiki と kanban を指さない" || fail "ADR-0026 A3: 文書の形か出典の書き方が古い"
 # 否定の検査が当たる場合があること: 古い形を持つ文字列では上の検査が落ちる
 ! printf '%s\n' '# <題>（仕様・設計。日付・Chief Engineer の課題 id）' | grep -q '^# <題>（仕様・設計。日付）$' && pass "ADR-0026 A3: 古い題の行は新しい形に当たらない（検査が見ている）" || fail "ADR-0026 A3: 検査が何も見ていない"
 # ADR-0026 A4

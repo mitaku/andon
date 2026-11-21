@@ -153,7 +153,7 @@ await check('context-header: Andon の担当・レビュアー・Chief Engineer 
   assert.ok(!String(f.name).includes('A-0009'), `ラベル task= から名付けた: ${f.name}`);
 });
 
-await check('kanban-board: version のある kanban/ だけを台帳とみなし、symlink・大きすぎるファイル・alias の入れ子を読む前に拒む（固定 script を本物の sh で）', async () => {
+await check('kanban-board: version のある kanban/ だけを kanban とみなし、symlink・大きすぎるファイル・alias の入れ子を読む前に拒む（固定 script を本物の sh で）', async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-board-'));
   try {
     const put = async (p, text) => { await mkdir(path.dirname(p), { recursive: true }); await writeFile(p, text); };
@@ -190,12 +190,12 @@ await check('kanban-board: version のある kanban/ だけを台帳とみなし
     const b = new Board();
     b.reset();
     await b.find(`${plant}/.ghq/github.com/sample/repo/src`, null);
-    assert.equal(b.root, `${plant}/projects/sample-site`, 'version の無い kanban/ を越えて台帳を見つけていない');
+    assert.equal(b.root, `${plant}/projects/sample-site`, 'version の無い kanban/ を越えて kanban を見つけていない');
     assert.equal(b.plant, plant);
     const viaLink = new Board();
     viaLink.reset();
     await viaLink.find(`${tmp}/linked`, null);
-    assert.equal(viaLink.root, null, 'symlink の kanban/ を台帳とみなした');
+    assert.equal(viaLink.root, null, 'symlink の kanban/ を kanban とみなした');
     // The old path tasks/<id>/task.yaml is not read (ADR-0008 decision 7).
     await put(`${ledger}/tasks/A-0009/task.yaml`, 'title: Old path\nstatus: todo\n');
     await put(`${ledger}/issues/A-0006/task.yaml`, 'title: Old file name\nstatus: todo\n');
@@ -222,7 +222,7 @@ await check('kanban-board: version のある kanban/ だけを台帳とみなし
   }
 });
 
-await check('kanban-board: 形式 2 の台帳は読まず、手で移す 1 行を出す（ADR-0008 決めたこと 7）', async () => {
+await check('kanban-board: 形式 2 の kanban は読まず、手で移す 1 行を出す（ADR-0008 決めたこと 7）', async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-v2-'));
   try {
     await mkdir(`${tmp}/kanban/tasks/A-0001`, { recursive: true });
@@ -245,7 +245,7 @@ await check('App の mod は課題を issue の名前で読み、古い名前（
   for (const mod of ['andon', 'inbox', 'context-header', 'kanban-board']) {
     const src = await readFile(`${HOST}/${mod}/main.js`, 'utf8');
     assert.doesNotMatch(src, /labels\??\.task\b|\btask=/, `${mod} がラベル task を読む`);
-    assert.doesNotMatch(src, /kanban[\/\\]+tasks|task\.yaml/, `${mod} が古い台帳の path を読む`);
+    assert.doesNotMatch(src, /kanban[\/\\]+tasks|task\.yaml/, `${mod} が古い kanban の path を読む`);
   }
   for (const mod of ['andon', 'inbox', 'context-header']) {
     assert.match(await readFile(`${HOST}/${mod}/main.js`, 'utf8'), /labels\??\.issue\b/, `${mod} がラベル issue を読まない`);

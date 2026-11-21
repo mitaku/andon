@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # hook（features/hooks.md）。セルの本物の managed settings が /opt/andon/hooks の4本を指すかを読み、
-# 切り離した台帳で、担当の端末の Stop フック（/opt/andon/hooks/stop）を Claude Code と同じく標準入力の JSON で打つ。
+# 切り離した kanban で、担当の端末の Stop フック（/opt/andon/hooks/stop）を Claude Code と同じく標準入力の JSON で打つ。
 set -uo pipefail
 managed=${ANDON_MANAGED_SETTINGS:-/etc/claude-code/managed-settings.json}
 . "$(dirname "$0")/../sandbox.sh"

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # tests/isolation [<tests/x.sh>...]
 #
-# 検査がセルの本物（台帳・HOME）に書かないことを確かめる。手で打つ（全部を回すので数分かかる。tests/run は拾わない）。
+# 検査がセルの本物（kanban・HOME）に書かないことを確かめる。手で打つ（全部を回すので数分かかる。tests/run は拾わない）。
 # 一時ディレクトリに偽のセル（番兵）を作り、セルと同じ形にして go test ./... と tests/*.sh を回す:
 #   - repo の写し（今の作業ツリーごと）を <ws>/.ghq/example.com/owner/andon に置き、
-#     その repo を repos に持つ台帳 <ws>/projects/sample/kanban を置く（git の main checkout から台帳を探す道）。
+#     その repo を repos に持つ kanban <ws>/projects/sample/kanban を置く（git の main checkout から kanban を探す道）。
 #   - KANBAN_ROOT・HOME・CLAUDE_CONFIG_DIR・ANDON_HOME・CODEX_HOME・ANDON_WORKSPACE・GHQ_ROOT・XDG_STATE_HOME・XDG_CONFIG_HOME・
 #     XDG_DATA_HOME・HC_* を番兵へ向ける（XDG_* は番兵の HOME の下。セルで値があってもなくても同じ置き場を見る）。
 #   - TMPDIR を repo の写しの中に置く（担当が一時ディレクトリを worktree の中に置いたときと同じ）。
 # 番兵（セルの repo の根 <ws> の下。repo の写しと go の telemetry を除く）のファイルが1つでも変われば、変わったものを出して 1 で終わる。
-# 台帳と HOME のほか、ANDON_WORKSPACE（<ws>）と GHQ_ROOT（<ws>/.ghq）の下に書いたものも見る。検査の失敗も 1。
+# kanban と HOME のほか、ANDON_WORKSPACE（<ws>）と GHQ_ROOT（<ws>/.ghq）の下に書いたものも見る。検査の失敗も 1。
 # 引数があれば tests/*.sh はそれだけ（go test ./... は毎回回す）。
 set -euo pipefail
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -60,5 +60,5 @@ if [ "$before" != "$after" ]; then
   diff <(echo "$before") <(echo "$after") >&2 || true
   exit 1
 fi
-echo "ok   番兵（台帳 projects/sample・HOME・セルの repo の根・GHQ_ROOT）は変わらなかった"
+echo "ok   番兵（kanban projects/sample・HOME・セルの repo の根・GHQ_ROOT）は変わらなかった"
 [ "$failed" = 0 ] || { echo "FAIL 検査が落ちた（上の出力）" >&2; exit 1; }

@@ -1,4 +1,4 @@
-# tests/*.sh が source する: 台帳の CLI（kanban）を用意し、$kanban に入れて PATH の先頭に置く。
+# tests/*.sh が source する: kanban の CLI を用意し、$kanban に入れて PATH の先頭に置く。
 #   KANBAN_BIN があればそれを使う（CI が先に焼いたもの）。無ければ go build で一時ディレクトリに焼く。
 #   go が無ければ（mise があれば mise exec で）、どちらも無ければ skip して終わる（CI では落とす）。
 # 呼ぶ側は $tmp（後片付けする一時ディレクトリ）を先に作っておく。

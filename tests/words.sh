@@ -7,7 +7,7 @@
 #   端末の土台→hc・迎える→追加する・起こす（エージェントを）→起動する・起きたとき→起動したとき
 # 範囲の外: .github/（オーナーが見る範囲）。例外: このファイルと tests/words-selftest.sh・用語集の「_避ける_」の行・
 #   docs/decisions.md の「語の改め」の段・tests/package/08-writing.sh の用語集の検査の行・
-#   ADR-0022 のオーナーの言葉の引用（「」の中の「席」。オーナーがそう言った）・CHANGELOG.md の版の節（## v…。版を切ったときの記録）。
+#   ADR-0022 のオーナーの言葉の引用（「」の中の「席」。オーナーがそう言った）・CHANGELOG.md のバージョンの節（## v…。バージョンを切ったときの記録）。
 #   ADR-0013 とその決定のファイルでは、語そのものを挙げた所（「」・``・（）の中、「X→」の形、語の表の「今」の列）だけを
 #   外す。地の文の語は当たる。
 # tests/.task-tmp（tests/isolation が置く一時の置き場。selftest の写しが入る）は見ない。
@@ -56,7 +56,7 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 # 人と AI が読む・人の名前）は通る。範囲は替え終えた場所だけで、替えるたびに role_paths に足す。
 # 例外: このファイルと tests/words-selftest.sh（落ちる例）・
 #   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」、internal/retro と
-#   tests/andon-retro.sh の前の版の答え「人がマージした」。ADR-0036 決めたこと 6）・
+#   tests/andon-retro.sh の前のバージョンの答え「人がマージした」。ADR-0036 決めたこと 6）・
 #   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
 #   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）・
 #   docs/contract.md が古い語も読むと書いた所（古い見出し `## 人に聞くこと`・古い末尾「（人の判断待ち）」・前のバージョンの答え
@@ -105,14 +105,19 @@ echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）�
 #   （internal/issue/settle_test.go の {" で始まる行）、古い語の事実の行で問いを置く検査（tests/andon-dispatcher.sh・
 #   tests/andon-issue.sh の --arg r "ゲートの記録 …）、internal/gate/ の Go のうち行の末尾に「// 古い語を読む（ADR-0040 決めたこと 7）」
 #   と書いた行（gate の理由の文の正規表現、gate の問いの事実の行の古い頭、その検査）。
-# 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。internal/process/ は流れの定義と一緒に替えるまで外す。
-old_paths=(package .yomiyasu-words internal cmd init tests/andon-dispatcher.sh tests/andon-issue.sh tests/andon-gate.sh docs/design.md)
+# 古い語を見る検査の行も外す: tests/ の .sh のうち行の末尾に「# 古い語を見る（ADR-0040 決めたこと 10）」と書いた行（古い語が無いことを
+#   見る grep と、古い語を戻した写し。まだ古い語で書く出力を照らす行）。このファイルと tests/words-selftest.sh も外す。
+# 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。internal/process/ と tests/process/ は流れの定義と
+#   一緒に替えるまで外す。
+old_paths=(package .yomiyasu-words internal cmd init tests .claude/skills/verify-andon docs/design.md)
 existing=()
 for p in "${old_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
 [ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHI -e '台帳' -e 'ゲート' -e '版' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
   | grep -v -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
-    -e '^internal/process/' \
+    -e '^internal/process/' -e '^tests/process/' \
+    -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
+    -e '^tests/[^:]*\.sh:[0-9]*:.*# 古い語を見る（ADR-0040 決めたこと 10）$' \
     -e '^internal/gate/[a-z_]*\.go:[0-9]*:.*// 古い語を読む（ADR-0040 決めたこと 7）$' \
     -e '^internal/issue/settle\.go:[0-9]*:var oldWords = ' \
     -e '^internal/issue/settle_test\.go:[0-9]*:[[:space:]]*{"' \

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon create`（ADR-0004 決めたこと 1 の予約名で projects/<slug>/ を立てる）。本物の台帳の CLI（kanban）・一時のセルの repo・偽の ghq と hc で回す。
+# `andon create`（ADR-0004 決めたこと 1 の予約名で projects/<slug>/ を立てる）。本物の kanban の CLI・一時のセルの repo・偽の ghq と hc で回す。
 # 作る中身（kanban lint が通る・project.json が schema を通る・AGENTS.md）・commit しない・既にあれば何も変えずに止まる・役の端末で拒む・
 # 端末でなければ聞かずに slug が無いと止まる。対話の中身は go test（internal/create）が見る。本物の hc と ghq には触らない。
 set -euo pipefail
@@ -53,7 +53,7 @@ p=$ws/projects/sample-site
   && pass "引数を全部渡すと聞かずに作る" || fail "create: $(cat "$tmp/out" "$tmp/err")"
 [ ! -s "$tmp/err" ] && pass "何も聞かない（stderr が空）" || fail "聞いた: $(cat "$tmp/err")"
 (cd "$p" && kanban lint >/dev/null) && grep -qx 'prefix: SS' "$p/kanban/config.yaml" && grep -qx '  - example.com/o/new' "$p/kanban/config.yaml" \
-  && pass "kanban/ は本物の台帳（lint が通る・prefix と repos）" || fail "kanban: $(cat "$p/kanban/config.yaml" 2>&1)"
+  && pass "kanban/ は本物の kanban（lint が通る・prefix と repos）" || fail "kanban: $(cat "$p/kanban/config.yaml" 2>&1)"
 "$andon" schema check project "$p/project.json" >"$tmp/schema" 2>&1 \
   && pass "project.json の下書きは schema を通る" || fail "schema: $(cat "$tmp/schema")"
 [ "$(jq -c '[.project, .repos, has("delegation")]' "$p/project.json")" = '[{"title":"Sample site","prefix":"SS"},["example.com/o/have","example.com/o/new"],false]' ] \

@@ -1,6 +1,6 @@
 ---
 name: verify-andon
-description: Andon の repo の検証の skill。マージした変更をセルへ当てたあと（image/apply-main.sh apply）、当てた差分に当たる機能（担当の起動・報告と ready・ゲート・dispatcher の通知・hook・boot）を、セルに入っている本物の andon・kanban・/opt/andon で動かし、走らせた記録を証拠に残して片付ける手順と機能の地図を持つ。検証の課題の依頼書がこの SKILL.md のパスを名指したときだけ読む
+description: Andon の repo の検証の skill。マージした変更をセルへ当てたあと（image/apply-main.sh apply）、当てた差分に当たる機能（担当の起動・報告と ready・gate・dispatcher の通知・hook・boot）を、セルに入っている本物の andon・`kanban`・`/opt/andon` で動かし、走らせた記録を証拠に残して片付ける手順と機能の地図を持つ。検証の課題の依頼書がこの SKILL.md のパスを名指したときだけ読む
 disable-model-invocation: true
 ---
 
@@ -12,7 +12,7 @@ disable-model-invocation: true
 |---|---|
 | 当てた差分に当たる機能を `scripts/drive.sh` で動かし、`andon issue record` で記録に撮る | 製品のコード（`cmd/`・`internal/`・`package/`・`schema/` など）を直す。動かなかった機能は報告に書き、直す課題は Chief of Staff が切る |
 | 地図と手順の食い違いを、この skill の置き場（`.claude/skills/verify-andon/`）の中だけで直し、PR 1本にする | エージェントを起動する。本物のエージェントが要る機能は、地図の「見る道」のとおり Chief of Staff か人に回す |
-| セルの本物の記録・端末を読む（`hc get`・`hc read`・台帳のファイル） | セルの本物の台帳に書く・ほかの担当の端末に `hc send`・`hc kill` する・`andon boot`・`andon gate`・`andon dispatcher drain` を手で打つ |
+| セルの本物の記録・端末を読む（`hc get`・`hc read`・kanban のファイル） | セルの本物の kanban に書く・ほかの担当の端末に `hc send`・`hc kill` する・`andon boot`・`andon gate`・`andon dispatcher drain` を手で打つ |
 
 ## 1. 当てたものと範囲を決める
 
@@ -41,7 +41,7 @@ disable-model-invocation: true
 andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh <機能>
 ```
 
-`drive.sh` は1回の呼び出しの中で、一時の置き場を作り・動かし・片付け・跡が残っていないことを確かめるまでを済ませる。エージェントの Bash は呼び出しごとに環境が戻るので、手順を呼び出しに分けない（分けると、後の呼び出しがセルの本物の台帳を見る）。`drive.sh` の終了コードは次のとおり。`andon issue record` の終了コードとは別で、記録の `exit_code` に入る。
+`drive.sh` は1回の呼び出しの中で、一時の置き場を作り・動かし・片付け・跡が残っていないことを確かめるまでを済ませる。エージェントの Bash は呼び出しごとに環境が戻るので、手順を呼び出しに分けない（分けると、後の呼び出しがセルの本物の kanban を見る）。`drive.sh` の終了コードは次のとおり。`andon issue record` の終了コードとは別で、記録の `exit_code` に入る。
 
 | 終了コード | 意味 | 報告に書くこと |
 |---|---|---|
@@ -50,7 +50,7 @@ andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts
 | 2 | 使い方の誤り（知らない機能の名前） | 直して打ち直す。報告には書かない |
 | 3 | 前提が無く確かめられなかった（未確認） | `note` の行と、何が起きれば確かめられるか。動いたとは書かない |
 
-動かし方の形は2つある（地図の `README.md` の「動かし方の2つの形」）。切り離して動かす機能は一時の台帳と偽の `hc`・`gh` で本物の andon・kanban・`/opt/andon` を動かし、本物の記録を読む機能は当てた時刻より後にセルで本当に起きた出来事を読む。
+動かし方の形は2つある（地図の `README.md` の「動かし方の2つの形」）。切り離して動かす機能は一時の kanban と偽の `hc`・`gh` で本物の andon・`kanban`・`/opt/andon` を動かし、本物の記録を読む機能は当てた時刻より後にセルで本当に起きた出来事を読む。
 
 `drive.sh` が終了コード 0 以外で終わったら、地図の「落とし穴」を読む。`drive.sh` を書き換えて通すことはしない（下の 6）。
 
@@ -60,11 +60,11 @@ andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts
 - 記録は commit していない変更の無い worktree で撮る（`dirty` が false）。地図を直したら、commit してから撮り直す。
 - 報告の `acceptance[]` に、機能ごとに1行を書き、`run` に記録の番号を入れる。依頼書が受け入れ条件の番号を名指していれば、その `id` で書く。
 - 地図の「見る道」が「Chief of Staff が試しの課題を起動し、検証の担当が画面を読む」の細かい機能は、`hc read <address>` で読んだ行を `evidence` に写す。「人が見る」の細かい機能は `manual` と書き、見る場所を `evidence` に書く。
-- 証拠の基準: 利用者と同じ道を通す（内部の関数や検査のための口を使わない）。操作と結果の両方を残す。台帳に書く機能は、書いたあとに別の口で読み直す。mock（偽の `hc`・`gh`）は、本物の端末と GitHub に届かないための境界だけに置く。
+- 証拠の基準: 利用者と同じ道を通す（内部の関数や検査のための口を使わない）。操作と結果の両方を残す。kanban に書く機能は、書いたあとに別の口で読み直す。mock（偽の `hc`・`gh`）は、本物の端末と GitHub に届かないための境界だけに置く。
 
 ## 5. 片付ける
 
-- `drive.sh` は、自分が作った一時の置き場（`$TMPDIR` の下の `verify-<機能>-<時刻>-<pid>.*`）だけを消す。最後に、一時の置き場が無く、セルの本物の台帳（`/workspace/projects/*/kanban`）と `hc ls` に跡の印（`verify-<機能>-…`）が無いことを確かめて `ok   片付けた` を出す。
+- `drive.sh` は、自分が作った一時の置き場（`$TMPDIR` の下の `verify-<機能>-<時刻>-<pid>.*`）だけを消す。最後に、一時の置き場が無く、セルの本物の kanban（`/workspace/projects/*/kanban`）と `hc ls` に跡の印（`verify-<機能>-…`）が無いことを確かめて `ok   片付けた` を出す。
 - 記録（`library/runs/`）は片付けで消えない。証拠はそこに残る。片付けたあとに `ls <自分の課題の library>/runs/` で記録があることを確かめる。
 - 名前で端末やプロセスを止めない（`pkill -f`・`hc kill <名前>`）。止めるのは自分が起動したものだけで、`drive.sh` は端末を起動しない。
 - `drive.sh` が途中で殺されて一時の置き場が残ったら、`ls -d ${TMPDIR:-/tmp}/verify-*` で見つけ、自分が作ったもの（印の時刻と pid）だけを消す。
@@ -77,7 +77,7 @@ andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts
 - 直し方は地図に合わせる。動かない道を弱めて通さない（前提が無いなら、地図の「落とし穴」に書き、終了コード 3 にする）。
 - 機能を足すときは、`features/<機能>.md`（形は `features/README.md` の「機能のファイルの形」）・`features/README.md` の表の行・`scripts/journeys/<機能>.sh` の3つを同じ PR で足す。
 - 直したら `bash tests/verify-andon.sh` を通す。目次とファイルの対応・節の形・手順が名指す command の実在・`features.sh` の振る舞いを見る。
-- PR は worker skill §3 のとおり。`.claude/skills/` はゲートの条件表で自動でマージできる側。
+- PR は worker skill §3 のとおり。`.claude/skills/` は gate の条件表で自動でマージできる側。
 
 ## 7. 報告する
 

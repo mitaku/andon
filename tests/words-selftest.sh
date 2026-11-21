@@ -9,7 +9,7 @@ trap 'rm -rf "$tmp"' EXIT
 fail=0
 adr=docs/adr/0013-short-role-names-and-plain-japanese.md
 
-# setup: ADR-0013 の写しと、版の節のある CHANGELOG だけの根
+# setup: ADR-0013 の写しと、バージョンの節のある CHANGELOG だけの根
 setup() {
   rm -rf "$tmp/r"; mkdir -p "$tmp/r/docs/adr"
   cp "$adr" "$tmp/r/$adr"
@@ -20,7 +20,7 @@ expect() { # expect ok|fail <説明>
   if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2（$got）"; fail=1; fi
 }
 
-setup; expect ok '写し（ADR-0013 の引用・語の表・語を挙げた所、CHANGELOG の版の節）は通る'
+setup; expect ok '写し（ADR-0013 の引用・語の表・語を挙げた所、CHANGELOG のバージョンの節）は通る'
 setup; printf '\n地の文で費用を数える。\n' >>"$tmp/r/$adr"; expect fail 'ADR-0013 の地の文の「費用」で落ちる'
 setup; printf '\n- 人: 「費用もコストで」。直す語（持ち主→オーナー）。`起こした`\n   | 提供元 | プロバイダ | 理由 |\n' >>"$tmp/r/$adr"
 expect ok 'ADR-0013 の引用・括弧・`→`・コード・語の表の「今」の列は通る'
@@ -121,6 +121,19 @@ for d in cmd/kanban init/bin internal/measure; do
 done
 setup; mkdir -p "$tmp/r/tests"; echo '# 本物の台帳で回す' >"$tmp/r/tests/andon-gate.sh"; expect fail 'tests/andon-gate.sh の「台帳」で落ちる'
 setup; mkdir -p "$tmp/r/internal/process"; echo '台帳の CLI' >"$tmp/r/internal/process/x.go"; expect ok '替えていない範囲（internal/process/）の「台帳」はまだ見ない'
+for d in tests tests/lib tests/package .claude/skills/verify-andon/scripts; do
+  setup; mkdir -p "$tmp/r/$d"; echo '# 前の版の台帳で回す' >"$tmp/r/$d/x.sh"; expect fail "$d/ の「前の版の台帳」で落ちる"
+done
+setup; mkdir -p "$tmp/r/tests/process"; echo '台帳（review）' >"$tmp/r/tests/process/x.yaml"; expect ok '替えていない範囲（tests/process/）の「台帳」はまだ見ない'
+# 古い語を見る検査の行（行の末尾の印）は通り、印が末尾でない行と、tests/ の外の印は落ちる
+m='# 古い語を見る（ADR-0040 決めたこと 10）'
+setup; mkdir -p "$tmp/r/tests/package"; echo "grep -q '^_避ける_: 台帳' \"\$g\"  $m" >"$tmp/r/tests/package/08-x.sh"
+expect ok 'tests/ の .sh の、末尾に印のある行の「台帳」は通る'
+setup; mkdir -p "$tmp/r/tests/package"; echo "grep -q '台帳' \"\$g\"  $m。あとに文" >"$tmp/r/tests/package/08-x.sh"
+expect fail 'tests/ の、印が末尾でない行の「台帳」で落ちる'
+setup; mkdir -p "$tmp/r/tests"; echo "x 台帳  $m" >"$tmp/r/tests/x.md"; expect fail 'tests/ の .sh でないファイルでは、末尾に印があっても「台帳」で落ちる'
+setup; mkdir -p "$tmp/r/.claude/skills/verify-andon/scripts"; echo "x 台帳  $m" >"$tmp/r/.claude/skills/verify-andon/scripts/x.sh"
+expect fail 'tests/ の外では、末尾に印があっても「台帳」で落ちる'
 setup; echo 'gate が kanban の課題を読む。版を上げる' >"$tmp/r/docs/design.md"; expect fail '替えた範囲（docs/design.md）の「版」で落ちる'
 setup; echo '日本語の呼び名を「台帳」のままにした。2006 版では' >"$tmp/r/docs/design.md"; expect ok 'docs/design.md の「」の中と「2006 版」は通る'
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# `andon triage`。本物の台帳の CLI（kanban）・一時の台帳と HOME で回す。hc の端末も GitHub も使わない。
-# 台帳の CLI は tests/lib/kanban.sh が go build で焼く（go が無ければ skip）。
+# `andon triage`。本物の kanban の CLI・一時の kanban と HOME で回す。hc の端末も GitHub も使わない。
+# kanban の CLI は tests/lib/kanban.sh が go build で焼く（go が無ければ skip）。
 set -euo pipefail
 for c in git jq sha1sum; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
@@ -58,7 +58,7 @@ lib=$(kanban add lib --repo example.invalid/me/lib)
 printf '## Next\n- lib の次\n' | kanban report "$lib"; kanban done "$lib" >/dev/null
 # collect の出力は {commits, items}。検査は項目の配列で見るので、items だけを抜いた写しも作る（<out>.raw がそのままの出力）。
 collect() { local out=$1; shift; "$script" triage collect "$@" > "$out.raw" && jq .items "$out.raw" > "$out"; }
-# 台帳の repo の checkout と、その origin（一時の場所の手元の remote。GitHub は使わない）。
+# kanban の repo の checkout と、その origin（一時の場所の手元の remote。GitHub は使わない）。
 export GHQ_ROOT="$tmp/ghq"
 gitc() { git -c user.name=test -c user.email=test@example.invalid "$@"; }
 git init -q --bare -b main "$tmp/remote.git"
@@ -222,7 +222,7 @@ done
 cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok absent hash, assigned issue and uncollected key rejected without writes'
-# 台帳の課題（担当の無い課題・オーナーの判断待ち）を閉じる判定は、根拠の閉じでも Chief of Staff の判定が要る（ADR-0030 決めたこと 6、受け入れ条件 17）。
+# kanban の課題（担当の無い課題・オーナーの判断待ち）を閉じる判定は、根拠の閉じでも Chief of Staff の判定が要る（ADR-0030 決めたこと 6、受け入れ条件 17）。
 todo_key=$(jq -r --arg t "$todo" '.[]|select(.from==$t and .kind=="issue").key' "$tmp/items")
 person_key=$(jq -r --arg p "$person" '.[]|select(.from==$p and .kind=="person").key' "$tmp/items")
 jq -e --arg t "$todo_key" --arg p "$person_key" '[.review[]|select(.verdict=="none")|.key]|sort == ([$t,$p]|sort)' "$tmp/plan" >/dev/null
@@ -489,7 +489,7 @@ dry > "$tmp/judge-plan"
 jq -e --arg s "$src" '.review | length==2 and all(.from==$s and .verdict=="none" and (.text|length>0) and (.reason|startswith("理由: ")))
     and (map(.closing)|sort)==["one-off","wont-happen"] and (map(.text)|sort)==["- src の学び","- src の見送り"]' "$tmp/judge-plan" >/dev/null
 echo 'ok dry-run: judgment closes come out in a separate table with text, reason and source (AC 8)'
-# 受け入れ条件 9: 判定なし・1件だけ「閉じてよい」は断り、台帳と記録の置き場が変わらない。
+# 受け入れ条件 9: 判定なし・1件だけ「閉じてよい」は断り、kanban と記録の置き場が変わらない。
 wkey=$(d waived 'src の見送り' wont-happen | jq -r .key); rkey=$(d remember 'src の学び' one-off | jq -r .key)
 snapshot > "$tmp/before"
 refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 2 件足りない' "$tmp/err"

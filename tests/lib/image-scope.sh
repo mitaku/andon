@@ -22,7 +22,7 @@ while IFS= read -r p; do
     image/apply-main.sh) ;;
     # repo の中の skill の置き場（ADR-0035 決めたこと 4。image に入らず、tests/verify-andon.sh・words.sh が見る）
     .claude/skills/* | .agents/skills/*) ;;
-    # 課題の一生のモデルと検査器の版（ADR-0025。image に入らず、job model が回す）
+    # 課題の一生のモデルと検査器のバージョン（ADR-0025。image に入らず、job model が回す）
     model/*) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・
     # mise.toml・.github/ と、まだ無いパス）は要る
