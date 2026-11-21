@@ -281,7 +281,7 @@ func (p *project) workedMinutes(id string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("log.jsonl が読めない: %v", err)
 	}
-	i, at, ok := lastDone(rows, id)
+	i, at, ok := ledger.LastStatus(rows, id, "done")
 	if !ok {
 		return 0, fmt.Errorf("log.jsonl に %s の done の行が無い", id)
 	}
@@ -290,20 +290,6 @@ func (p *project) workedMinutes(id string) (int, error) {
 		gone = append(gone, time.UnixMilli(g.At))
 	}
 	return int(ledger.Worked(rows[:i+1], p.tasks, id, p.l.ChiefOfStaff(), gone, at).Minutes()), nil
-}
-
-// lastDone は log.jsonl の課題 id の最後の done の行の位置と時刻（時刻の読めない行は飛ばす）。
-func lastDone(rows []ledger.Row, id string) (int, time.Time, bool) {
-	for i := len(rows) - 1; i >= 0; i-- {
-		r := rows[i]
-		if ledger.CanonID(r.ID) != id || r.Change == nil || r.Change["status"] != "done" {
-			continue
-		}
-		if t, err := time.Parse(time.RFC3339, r.At); err == nil {
-			return i, t, true
-		}
-	}
-	return 0, time.Time{}, false
 }
 
 // launchRow は起動の記録の1行のうち読む所（contract.md §18）。

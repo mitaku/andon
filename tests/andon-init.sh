@@ -70,6 +70,20 @@ for sub in herdr enter; do
   [ "$r" = 0 ] && grep -q '^+ docker compose --project-name andon-x .* up -d$' "$tmp/out2" && grep -q '^+ docker compose .* exec .* dev herdr$' "$tmp/out2" &&
     pass "$sub は起動して herdr に入る" || fail "$sub: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 done
+# --help は先頭の注記の塊を出す（行番号で切らない）。注記を1行足した写しでも、最後の注記の行まで出て、コードの行は出さない
+last_note='番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。'
+help_ok() { [ "$(head -n 1 "$1")" = 'セルの入口。ホストに要るのは docker と bash だけ。' ] && [ "$(tail -n 1 "$1")" = "$last_note" ] && ! grep -q 'set -euo' "$1"; }
+grep -qxF "# $last_note" bin/bootstrap && pass "bin/bootstrap の注記の最後の行は確かめる文と同じ" || fail "注記の最後の行が変わった: $(sed -n '2,30p' bin/bootstrap)"
+sandbox bash bin/bootstrap --help >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && help_ok "$tmp/out2" && pass "--help は先頭の注記の塊を出す" || fail "--help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+sed '3i # 足した注記の行' bin/bootstrap >bin/bootstrap-more
+sandbox bash bin/bootstrap-more --help >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && help_ok "$tmp/out2" && grep -qx '足した注記の行' "$tmp/out2" && pass "注記の行が増えても --help は欠けない" || fail "注記を足した --help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+rm bin/bootstrap-more
+(cd .. && sandbox bash x-cell/bin/bootstrap --help) >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && help_ok "$tmp/out2" && pass "セルの repo の外から打っても --help を出す" || fail "外からの --help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+sandbox bash bin/bootstrap no-such-sub >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && help_ok "$tmp/err" && pass "知らない sub-command は注記を stderr に出して rc 2" || fail "知らない sub-command: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 sandbox bash bin/bootstrap --dry-run up >"$tmp/out2" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -q ' up -d$' "$tmp/out2" && ! grep -q ' exec \|開く:' "$tmp/out2" && pass "up は起動だけで案内も出さない" || fail "up: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 

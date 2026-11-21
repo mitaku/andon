@@ -29,6 +29,19 @@ fi
 
 die() { echo "✗ $*" >&2; exit 1; }
 
+# 先頭の注記の塊（2 行目から、最初の # で始まらない行の前まで）。行番号で切らないので、注記の行数が変わっても欠けない。
+# 自分は root から読む（$0 は cd の前の場所からの相対のことがある）
+usage() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    [ "$n" = 1 ] && continue
+    [[ $line == '#'* ]] || break
+    line=${line#'#'}
+    printf '%s\n' "${line#' '}"
+  done <"$root/bin/${0##*/}"
+}
+
 # andon.toml の key = "value" の値（TOML の1行の文字列だけを読む）
 toml() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" andon.toml | head -n 1; }
 
@@ -363,9 +376,9 @@ case "${1:-}" in
     fi
     host_install
     ;;
-  -h | --help | help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h | --help | help) usage ;;
   *)
-    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' >&2
+    usage >&2
     exit 2
     ;;
 esac

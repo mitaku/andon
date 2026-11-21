@@ -638,7 +638,7 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
-	res.Estimate, res.Issues = r.estimates(o, ids, byID, doneAt, in)
+	res.Estimate, res.Issues = r.estimates(o, last, ids, byID, doneAt, in)
 	res.News = r.news(o, in)
 	res.Tokens = r.tokens(o, ids, byID, active(rows, in))
 

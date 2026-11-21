@@ -12,7 +12,7 @@ import (
 // estimates は期間に最後の列へ動いた担当の課題（レビュアー・Chief Engineer・オーナーの課題を除く。調べる課題を含む）ごとの
 // 見込みと実際と、全体の収まった割合（ADR-0014 決めたこと 8・9・11 の 6。contract.md §13）。
 // 見込みと実働は dispatcher と同じもの（ledger.Estimate・ledger.Worked）を読む。死んでいた区間は dispatcher の控えの gone。
-func (r *reader) estimates(o Options, ids []string, byID map[string]*issue, doneAt map[string]time.Time, in func(time.Time) bool) (Estimate, []Issue) {
+func (r *reader) estimates(o Options, last string, ids []string, byID map[string]*issue, doneAt map[string]time.Time, in func(time.Time) bool) (Estimate, []Issue) {
 	sum, out := Estimate{}, []Issue{}
 	l := ledger.At(o.Root)
 	rows := l.Log()
@@ -28,8 +28,13 @@ func (r *reader) estimates(o Options, ids []string, byID map[string]*issue, done
 		if !ok || !in(d) || t.reviewer || t.profile == "chief-engineer" || t.raw.Str("who") == "person" {
 			continue
 		}
-		// 実働は期間に閉じたときまでで数える（閉じたあとに起動し直した作業を混ぜない）
-		worked := ledger.Worked(until(rows, d), tasks, id, cos, gone[id], d)
+		// 実働は期間に閉じたときまでで数える（閉じたあとに起動し直した作業を混ぜない）。打ち切るのは最後の列の行の位置で、
+		// 同じ秒にあとから書かれた行（todo に戻した行など）を混ぜない（dispatcher の結果の記録と同じ）
+		upto := rows
+		if i, _, ok := ledger.LastStatus(rows, id, last); ok {
+			upto = rows[:i+1]
+		}
+		worked := ledger.Worked(upto, tasks, id, cos, gone[id], d)
 		x := Issue{Issue: id, WorkedMinutes: int(worked.Minutes())}
 		if m := ledger.EstimateMinutes(t.agentEst); m > 0 {
 			x.AgentEstimateMinutes = &m
@@ -49,16 +54,6 @@ func (r *reader) estimates(o Options, ids []string, byID map[string]*issue, done
 	}
 	sum.Rate = ratio(sum.Within, sum.Count)
 	return sum, out
-}
-
-// until は log.jsonl の行のうち時刻が t まで（含む）のもの。rows は時刻の順。
-func until(rows []ledger.Row, t time.Time) []ledger.Row {
-	for i, r := range rows {
-		if at, err := time.Parse(time.RFC3339, r.At); err == nil && at.After(t) {
-			return rows[:i]
-		}
-	}
-	return rows
 }
 
 // gone は dispatcher の控えの gone（課題 → 担当の端末が Gone だと見た時刻）。無ければ空。

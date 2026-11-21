@@ -82,3 +82,40 @@ func TestLintReportsBadNotBefore(t *testing.T) {
 		t.Fatal("a bad not_before hides the issue")
 	}
 }
+
+// kanban done と kanban set の after が待ちを外した課題でも、not_before が先なら「now ready」に出さない
+// （todo には動かす。kanban ready に出ないものを ready と言わない）。日が来ていれば出す。
+func TestNotBeforeHidesFromNowReady(t *testing.T) {
+	root := routineLedger(t) // DECK_NOW 2026-11-02T08:00:00Z
+	kanban(t, root, "add", "first")
+	kanban(t, root, "add", "later", "--after", "W-0001")
+	kanban(t, root, "set", "W-0002", "not_before=2026-11-05")
+	kanban(t, root, "add", "now", "--after", "W-0001")
+	out := kanban(t, root, "done", "W-0001")
+	if strings.Contains(out, "W-0002") || !strings.Contains(out, "now ready: W-0003") {
+		t.Fatalf("done: %q, want now ready: W-0003 only", out)
+	}
+
+	kanban(t, root, "add", "blocker")
+	kanban(t, root, "add", "w5", "--after", "W-0004")
+	kanban(t, root, "set", "W-0005", "not_before=2026-11-05")
+	if out := kanban(t, root, "set", "W-0005", "after="); strings.Contains(out, "now ready") {
+		t.Fatalf("set after=: %q, want no now ready", out)
+	}
+	if s := readYAML(t, taskFile(root, "W-0005"))["status"]; s != "todo" {
+		t.Fatalf("set after=: status %v, want todo (the move stays)", s)
+	}
+	kanban(t, root, "add", "w6", "--after", "W-0004")
+	kanban(t, root, "set", "W-0006", "not_before=2026-11-02")
+	if out := kanban(t, root, "set", "W-0006", "after="); !strings.Contains(out, "now ready: W-0006") {
+		t.Fatalf("set after= on the day: %q, want now ready: W-0006", out)
+	}
+
+	// --json の ready も同じ
+	kanban(t, root, "add", "blocker2")
+	kanban(t, root, "add", "w8", "--after", "W-0007")
+	kanban(t, root, "set", "W-0008", "not_before=2026-11-05")
+	if js := kanban(t, root, "done", "W-0007", "--json"); !strings.Contains(js, `"ready": []`) {
+		t.Fatalf("done --json: %s, want ready []", js)
+	}
+}

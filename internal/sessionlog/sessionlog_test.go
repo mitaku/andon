@@ -153,6 +153,32 @@ func TestClaudeUnreadable(t *testing.T) {
 	}
 }
 
+// 読み切れない rollout（ディレクトリ）は、飛ばした記録にしてそのセッションに Unread を立てる（0 トークンの計った値にしない）。
+// 読める rollout のセッションは Unread にしない。
+func TestCodexLogsUnreadable(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "rollout-1.jsonl"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	put(t, filepath.Join(dir, "rollout-2.jsonl"), `{"type":"session_meta","payload":{"id":"y","cwd":"/w"}}`+"\n")
+	var skipped []string
+	ids, logs := CodexLogs([]string{filepath.Join(dir, "rollout-1.jsonl"), filepath.Join(dir, "rollout-2.jsonl")}, func(src string, line int, reason string) {
+		skipped = append(skipped, fmt.Sprintf("%s:%d:%s", src, line, reason))
+	})
+	if !reflect.DeepEqual(ids, []string{"", "y"}) {
+		t.Fatalf("ids: %v", ids)
+	}
+	if l := logs[""]; !l.Unread || l.Usage != (Usage{}) {
+		t.Errorf("読み切れない rollout: %+v、want Unread", l)
+	}
+	if l := logs["y"]; l.Unread {
+		t.Errorf("読める rollout で Unread: %+v", l)
+	}
+	if !reflect.DeepEqual(skipped, []string{"codex/rollout-1.jsonl:0:読めない"}) {
+		t.Errorf("飛ばした記録: %v", skipped)
+	}
+}
+
 // サブエージェントの置き場を一覧できなければ、本線が読めても Unread（本線に使用量が無くても0トークンにしない）。
 func TestClaudeSubagentsUnlistable(t *testing.T) {
 	dir := t.TempDir()

@@ -877,3 +877,28 @@ func TestMeasureEstimate(t *testing.T) {
 		}
 	}
 }
+
+// 実働は閉じた done の行の位置で打ち切る（時刻で打ち切ると、同じ秒に足された todo の行を混ぜて、それまでの doing を捨ててしまう）。
+// S-0021 は doing 01:00〜done 01:30 の 30 分。done と同じ秒に todo へ戻し、期間のあとに doing で起動し直した。
+func TestMeasureEstimateCutsAtDoneRow(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sample-site")
+	k := filepath.Join(root, "kanban")
+	put(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: S\nchief_of_staff: t0\n")
+	put(t, filepath.Join(k, "issues", "S-0021", "issue.yaml"), "id: S-0021\ntitle: x\nstatus: doing\ncreated: \"2026-10-31T00:00:00Z\"\nestimate: small\n")
+	put(t, filepath.Join(k, "log.jsonl"), strings.Join([]string{
+		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t0","id":"S-0021","change":{"estimate":"small"}}`,
+		`{"at":"2026-11-01T01:00:00Z","by":"terminal:t1","id":"S-0021","change":{"status":"doing","agent":"t1"}}`,
+		`{"at":"2026-11-01T01:30:00Z","by":"terminal:t1","id":"S-0021","change":{"status":"done"}}`,
+		`{"at":"2026-11-01T01:30:00Z","by":"terminal:t0","id":"S-0021","change":{"status":"todo"}}`,
+		`{"at":"2026-11-02T02:00:00Z","by":"terminal:t2","id":"S-0021","change":{"status":"doing","agent":"t2"}}`,
+	}, "\n")+"\n")
+	res, err := Measure(Options{Root: root, Since: day("2026-11-01"), Until: day("2026-11-01"), Now: day("2026-11-03"),
+		GH: func(string) ([]byte, error) { return []byte("[]"), nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Issues) != 1 || res.Issues[0].Issue != "S-0021" || res.Issues[0].WorkedMinutes != 30 {
+		got, _ := json.Marshal(res.Issues)
+		t.Fatalf("実働が done の行で打ち切られていない: %s（want S-0021 の worked_minutes 30）", got)
+	}
+}
