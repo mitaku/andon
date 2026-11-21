@@ -10,6 +10,8 @@
 #   終了コード、<名前>.log に出力を置く。読み手は最後に、その emitters が全部終わってから ANDON_EMITTED=<置き場> で起動する。
 #   ANDON_TEST_STREAM（空白区切りのパス。既定は tests/image.sh）は溜めずに、1行ごとに「[パス] 」を付けて流す。
 #   長いものが job の上限で打ち切られても、どこまで進んだかがログに残る。終わったときは見出しだけ出す（本文は流した分）。
+# tests/run が渡す鍵（fd 9。同時に走る tests/run を1本にする）はこの runner が持ち、検査には渡さない（9>&-）。
+#   検査が裏に残したプロセスが鍵を持ち続けて、次の tests/run が止まらないように。
 # tests/*.sh は互いに独立（一時ディレクトリだけに書く。docker を使うのは image.sh だけ）であることを前提にする。
 #   ただし mise の道具の置き場は共有なので、go を mise で使うときは並べる前に mise install を一度打つ。
 set -uo pipefail
@@ -99,9 +101,9 @@ for f in "${queue[@]}"; do
   start=$EPOCHREALTIME
   if [[ "$stream" == *" $f "* ]]; then
     # 流すものも出力を控える（emitters の結果として読み手が skip の行を読む）
-    { env "${env[@]}" bash "$f" </dev/null 2>&1 | tee "$(log_of "$f")" | sed -u "s|^|[$f] |"; exit "${PIPESTATUS[0]}"; } &
+    { env "${env[@]}" bash "$f" </dev/null 2>&1 | tee "$(log_of "$f")" | sed -u "s|^|[$f] |"; exit "${PIPESTATUS[0]}"; } 9>&- &
   else
-    env "${env[@]}" bash "$f" </dev/null >"$(log_of "$f")" 2>&1 &
+    env "${env[@]}" bash "$f" </dev/null >"$(log_of "$f")" 2>&1 9>&- &
   fi
   name_of[$!]=$f
   start_of[$!]=$start

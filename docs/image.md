@@ -150,7 +150,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 ほかの `tests/*.sh`（`andon-*.sh`・`host.sh`・`sshd-env.sh`・`image.sh`）は、文書をコメントやテストの中の例の名前として書くだけで、repo の文書を読まない。
 
-**手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（セルで 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。CI は今までどおり全部を走らせる（文書だけの PR を除く）。
+**手元は関係する検査だけ。** `tests/*.sh` を全部手元で回すと長い（セルで 20 分を超えた）。`tests/run --changed [<base>]` は、`<base>`（既定は `origin/main` との merge-base）からの差分と未 commit・未追跡のファイルを `tests/lib/scope.sh` で分け、関係する `tests/*.sh` だけを並べて走らせ、1本ごとの秒を出す。全部は `tests/run`（引数なし）か CI に任せる。`go test ./...` は別に打つ。`tests/run` は worktree をまたいで同時に1本だけ走る。鍵のファイル（既定は `/tmp/andon-tests-run.lock`）を flock で取り、ほかの回が走っていれば理由を1行出して、その回が終わるまで待つ。CI は今までどおり全部を走らせる（文書だけの PR を除く）。
 
 重い検査は、その検査が見る部分を変えたときだけ手元で回す（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 4）。コードを変えたら、重い検査を除く全部と、変えたパスを見る重い検査を走らせる。知らないパスでは、重い検査を含む全部を走らせる。
 

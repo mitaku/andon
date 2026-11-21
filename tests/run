@@ -6,14 +6,29 @@
 #   --changed [base] 変えたものに関係する検査だけ（tests/lib/scope.sh。image の検査は image に関係するときだけ）。
 #                    変えたものは <base>（既定は origin/main との merge-base）からの差分と、未 commit・未追跡のファイル。
 # 手元では --changed、全部は CI に任せる。go test ./... は別に打つ。
+# 同時に走るのは1本だけ（mise の置き場と CPU を取り合う）。鍵のファイル（ANDON_TEST_LOCK。既定は /tmp/andon-tests-run.lock。
+# worktree をまたいで同じもの）を flock で取り、ほかの回が持っていれば理由を1行出して、その回が終わるまで待つ。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 case "${1:-}" in
-  '') exec bash tests/lib/run-tests.sh ;;
-  --changed) ;;
-  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  '' | --changed) ;;
+  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
+
+# 鍵はこの shell が取り、exec で run-tests.sh に引き継ぐ（検査を待つプロセスが鍵を持つ。親だけが落ちて鍵が外れ、
+# 検査が走り続けることが無いように）。run-tests.sh は検査に鍵を渡さない（9>&-）。検査が裏に残したプロセスが
+# 鍵を持ち続けて、次の回が止まらないように。鍵を持つ回が落ちれば鍵は外れる（ファイルは残るが、中身はその回の控えで、
+# 次の回が書き直す）
+lock=${ANDON_TEST_LOCK:-/tmp/andon-tests-run.lock}
+exec 9>>"$lock"
+if ! flock -n 9; then
+  echo "tests/run: ほかの tests/run（$(cat "$lock" 2>/dev/null || true)）が走っている。終わるまで待つ" >&2
+  flock 9
+fi
+echo "pid $$ $PWD" >"$lock"
+
+[ "$#" -gt 0 ] || exec bash tests/lib/run-tests.sh
 base=${2:-$(git merge-base HEAD origin/main)}
 changed=$( {
   git diff --name-only --no-renames "$base"
