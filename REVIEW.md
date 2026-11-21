@@ -8,4 +8,4 @@
 4. **約束の整合。** schema を変えたら contract.md と tests が追随しているか。食い違えば schema が正。
 5. **テストが弱くなっていないか。** 禁止リスト・CI・テストそのものを緩める変更は目立たせる。
 6. **決定の記録。** 決定を変える差分は `docs/decisions/` に1件1ファイルで日付・出典つきで足されているか（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない。上書きせず、覆すなら新しいファイルを足す）。
-7. **モデルが追随しているか。** 課題の一生の動き（finish・resume・ゲートの返し方など）を変える差分が、同じ PR で `model/` も直しているか。`model/IssueRules.*`・`expected.txt`・`issue-map.txt` で規則・控え・対応を弱める、または「モデルの外」を増やす差分は目立たせる（ADR-0025）。
+7. **モデルが追随しているか。** 課題の一生の動き（finish・resume・gate の返し方など）を変える差分が、同じ PR で `model/` も直しているか。`model/IssueRules.*`・`expected.txt`・`issue-map.txt` で規則・控え・対応を弱める、または「モデルの外」を増やす差分は目立たせる（ADR-0025）。

@@ -1,14 +1,16 @@
 # CHANGELOG
 
-版ごとに、オーナーの目に効く変更と、上げるときにすることを書く。細かい変更は各版の範囲の commit（`git log <前の版>..<版>`）で遡れる。`(#n)` は PR の番号。
+バージョンごとに、オーナーの目に効く変更と、上げるときにすることを書く。細かい変更は各バージョンの範囲の commit（`git log <前のバージョン>..<バージョン>`）で遡れる。`(#n)` は PR の番号。
 
-- 書くのは**版を切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「版を切る」）。
-- `package/host/` の雛形を変えた版には、「上げるときにすること」に **host-install** の項を足す（変わったファイル。退避の手順は [docs/operate.md](docs/operate.md) の「版を上げるとき: host-install が置いたものを退避する」）。
-- 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、版を上げて `rebuild` するだけでよい。
+- 書くのは**バージョンを切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「バージョンを切る」）。
+- `package/host/` の雛形を変えたバージョンには、「上げるときにすること」に **host-install** の項を足す（変わったファイル。退避の手順は [docs/operate.md](docs/operate.md) の「バージョンを上げるとき: host-install が置いたものを退避する」）。
+- 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、バージョンを上げて `rebuild` するだけでよい。
 
 ## 未リリース
 
-（まだ無い）
+### 上げるときにすること
+
+- **セルの側の文の語を直す**: Andon の文は「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く（[ADR-0040](docs/adr/0040-kanban-gate-version-words.md)）。セルの側の文はパッケージのバージョンアップでは届かないので、セルの指針（`AGENTS.local.md` とプロジェクトの `AGENTS.md`）・wiki のページ・kanban のルーチンの定義（振り返りとトリアージ。kanban の CLI で直す）の 3 語を直す。kanban に残る過去の依頼書と報告、wiki の発言の写し、memory は直さない。
 
 ## v0.0.12 — 2026-11-19
 

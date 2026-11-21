@@ -1,6 +1,6 @@
 # Base image のビルド
 
-`image/Dockerfile` は Ubuntu 24.04 に備品と `package/`（`/opt/andon`）を焼く。CLI は `image/aqua/` の版と checksum で固定し、プロジェクトの言語は mise で管理する。Claude Code は版つきのバイナリを直接取得し、固定 SHA-256 を確認してから配置する。版と checksum の出典は [公式 manifest](https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json)。セル固有の設定と起動処理は boot（`andon boot`。[operate.md](operate.md)）が起動のたびに足す。
+`image/Dockerfile` は Ubuntu 24.04 に備品と `package/`（`/opt/andon`）を焼く。CLI は `image/aqua/` のバージョンと checksum で固定し、プロジェクトの言語は mise で管理する。Claude Code はバージョンつきのバイナリを直接取得し、固定 SHA-256 を確認してから配置する。バージョンと checksum の出典は [公式 manifest](https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json)。セル固有の設定と起動処理は boot（`andon boot`。[operate.md](operate.md)）が起動のたびに足す。
 
 ## ローカルで確かめる
 
@@ -12,7 +12,7 @@ bash tests/image.sh
 
 焼く手順は `image/build.sh <andon の checkout> <tag>` の1本だけ。`tests/image.sh`（CI も）とセルの `bin/bootstrap rebuild --from`（[operate.md](operate.md) の 3）が同じものを打つ。要るのは docker と bash だけ。焼いた元の commit（汚れた checkout なら末尾に `-dirty`）を label `org.opencontainers.image.revision` に付ける（`bin/bootstrap status` が出す）。
 
-台帳の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は、`image/Dockerfile` の最初の段 `bin`（golang の image。版は `mise.toml` の go と揃え、`tests/image.sh` が確かめる）で linux の静的バイナリに焼き、`/usr/local/bin/kanban`・`/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。`kanban --version` は commit の先頭12文字。別名 `deck` は置かない。最後の段で、焼いた元の commit と `/opt/andon` の中身の digest を `/opt/andon/version.json` に焼く（`andon version stamp`）。`andon version` がそれを読み、パッケージの commit と、中身がその commit と食い違うか（手で書き換えた・汚れた checkout から焼いた）を JSON で返す（[ADR-0028](adr/0028-improvement-loop.md) P0-1）。private release の取得や取得用 token は使わない（オーナーの決定 2026-11-05、decisions.md §9）。ホストは同じ `andon` を image から取り出して使う（[operate.md](operate.md) の 2）。
+kanban の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は、`image/Dockerfile` の最初の段 `bin`（golang の image。バージョンは `mise.toml` の go と揃え、`tests/image.sh` が確かめる）で linux の静的バイナリに焼き、`/usr/local/bin/kanban`・`/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。`kanban --version` は commit の先頭12文字。別名 `deck` は置かない。最後の段で、焼いた元の commit と `/opt/andon` の中身の digest を `/opt/andon/version.json` に焼く（`andon version stamp`）。`andon version` がそれを読み、パッケージの commit と、中身がその commit と食い違うか（手で書き換えた・汚れた checkout から焼いた）を JSON で返す（[ADR-0028](adr/0028-improvement-loop.md) P0-1）。private release の取得や取得用 token は使わない（オーナーの決定 2026-11-05、decisions.md §9）。ホストは同じ `andon` を image から取り出して使う（[operate.md](operate.md) の 2）。
 
 テストは `andon:test` を作り、ネットワークを切ったコンテナで `/opt/andon`・`andon help` と主要な CLI を確かめる。同じ image の actionlint・ghalint・pinact で `.github/workflows/` の全部の workflow の構文・権限・固定 SHA も検査する。対話の bash（`bash -ic`・`bash -lic`）で補完・`HISTFILE`・プロンプト・fzf のキー割り当てが効くことと、`rg`・`fzf`・`jq` が動くことも見る。続けてセルを立てる道を通す: image から取り出した `andon` で `andon init` → `bin/bootstrap up`（`FROM andon:test`）→ compose の起動で `andon boot` が `ready` まで走り、managed settings・プロファイル・`CLAUDE.md` の3行（`environment.md`・`writing.md`・`AGENTS.local.md`）・skill のリンクができたことを確かめる。Docker が使えなければローカルは SKIP を表示し、CI は失敗する。
 
@@ -20,7 +20,7 @@ bash tests/image.sh
 
 シェルは bash のまま。設定は `image/bashrc`（image の `/etc/andon-bashrc`。`~/.bashrc` の末尾が読む）に1か所にまとめてある。ssh のログインシェル（`~/.profile` → `~/.bashrc`）・`bin/bootstrap herdr`・App の端末のどれでも同じに効く。
 
-- **道具**: ripgrep（`rg`）・fzf・jq。aqua で版と checksum を固定している（`image/aqua/`）。fzf は Ctrl-R（履歴検索）・Ctrl-T（ファイル）・Alt-C（cd）が効く。mise の補完が呼ぶ `usage` も入っている。
+- **道具**: ripgrep（`rg`）・fzf・jq。aqua でバージョンと checksum を固定している（`image/aqua/`）。fzf は Ctrl-R（履歴検索）・Ctrl-T（ファイル）・Alt-C（cd）が効く。mise の補完が呼ぶ `usage` も入っている。
 - **Tab 補完**: bash-completion（apt）と、git・gh・hc・andon・kanban・just・mise。gh・just・mise は各 CLI の生成物、hc は `hc --help` の一覧から image を焼くときに作る（hc に生成の口が無い）、andon・kanban はサブコマンド名だけ（`image/completions/`。フラグは補わない）。どれも `/usr/share/bash-completion/completions/` に置き、最初の Tab を待たずに登録する。
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `セルの名前:ディレクトリ (git のブランチ)`。色は控えめ。
@@ -35,11 +35,11 @@ bash tests/image.sh
 
 ## 信頼の画面（Claude Code・Codex）
 
-セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起動する直前の `andon issue start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、台帳に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（台帳に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
+セルでは信頼の画面（trust this folder）を出さない。セル＝コンテナが信頼の境界なので、boot と、起動する直前の `andon issue start`・`andon chief-engineer` が、セルの repo（`/workspace`）と、kanban に載った案件の repo の根（`projects/*/kanban/config.yaml` の `repos` にあり、`/workspace/.ghq/<host>/<owner>/<repo>` に clone されたもの）を信頼済みにする。ghq の下の repo を全部は信頼しない（kanban に載せるのは Chief of Staff と人）。Claude Code は `$CLAUDE_CONFIG_DIR/.claude.json` の `projects["<根>"].hasTrustDialogAccepted: true`、Codex は `~/.codex/config.toml` の `[projects."<根>"] trust_level = "trusted"`。足りない所だけ足し、今ある値には触らない。
 
 Claude Code には、配布するプロファイル（パッケージの `templates/` とセルの `templates.local/`）の `command:`・`resume:` の行が `--add-dir` で渡すフォルダも足す（Chief of Staff の `/opt/andon/skills/chief-of-staff/playbooks` と `/workspace/wiki`）。足すのはそのフォルダだけで、親は足さない。Codex のプロファイルは `--add-dir` を使わないので、Codex には足さない。
 
-足すのが根だけで足りる理由は、効く範囲の実測（測った版は image が固定しているもの。この表は版を書かない。使い捨ての HOME で各条件を起動し、最初の画面だけを読んだ）:
+足すのが根だけで足りる理由は、効く範囲の実測（測ったバージョンは image が固定しているもの。この表はバージョンを書かない。使い捨ての HOME で各条件を起動し、最初の画面だけを読んだ）:
 
 | 信頼した所 → 起動した所 | Claude Code | Codex |
 |---|---|---|
@@ -52,14 +52,14 @@ Claude Code には、配布するプロファイル（パッケージの `templa
 | `--add-dir` の dir そのもの（か、git の外の親）→ その dir を `--add-dir` で渡す | 効く。symlink を通して渡しても、実体のパスの信頼が効く | （同上） |
 | 信頼した repo の中の dir を `--add-dir` で渡す | 効く（画面は出ない） | （同上） |
 
-`tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起動しても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。Claude Code か Codex の版を上げたら同じ表を測り直す。
+`tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起動しても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。Claude Code か Codex のバージョンを上げたら同じ表を測り直す。
 
 ## Codex の承認と sandbox
 
 セル（コンテナ）が信頼の境界なので、Codex を承認の確認で止めない。boot が毎起動、`~/.codex/config.toml` の top-level に無いキーだけを先頭（BOM があればその後ろ）に足す。キーの有無は TOML のパーサで読み、あるキーは値が何でもそのまま、TOML として読めなければ書かない:
 
 - `approval_policy = "never"` — 確認の画面を出さない。
-- `sandbox_mode = "danger-full-access"` — 担当とレビュアーは worktree の外（台帳の `projects/<slug>/kanban` とその `.lock`。`kanban report`・`kanban review`・`library/`）に書き、`git push`（ネットワーク）と hc の socket を使う。`workspace-write` に `writable_roots`・`network_access` を足す形は、台帳の置き場がセルごとに違ううえ socket の扱いもあり、その割にセルの外へは届かない（境界はコンテナ）ので採らない。Claude Code もセルでは sandbox なしで動く。
+- `sandbox_mode = "danger-full-access"` — 担当とレビュアーは worktree の外（kanban の `projects/<slug>/kanban` とその `.lock`。`kanban report`・`kanban review`・`library/`）に書き、`git push`（ネットワーク）と hc の socket を使う。`workspace-write` に `writable_roots`・`network_access` を足す形は、kanban の置き場がセルごとに違ううえ socket の扱いもあり、その割にセルの外へは届かない（境界はコンテナ）ので採らない。Claude Code もセルでは sandbox なしで動く。
 
 Codex の自動の記憶は boot で止める。`features.memories = false` で機能を止め、`memories.generate_memories = false` と `memories.use_memories = false` も設定し、既存の `true` も覆す。承認・sandbox の既定とは扱いが異なる。`memories`・`features` の表が無ければ先頭に inline table を足す。いずれかの表が既にあり変更が必要なときは TOML を再生成し、コメントや書式を含む元の設定は `config.toml.bak` に退避する。ほかの設定の値とファイルの権限は保つ。既存の記憶ファイルは消さない。Codex 0.166.0 で設定を受け付けることを確認した。設定の意味は [OpenAI の構成リファレンス](https://developers.openai.com/codex/config-reference) に従う。生成を止めると新しいスレッドが記憶生成の入力として保存されず、利用を止めると既存の記憶が今後のセッションに挿入されない。
 
@@ -67,7 +67,7 @@ user 層の設定だけでは、信頼した repo の `.codex/config.toml` が�
 
 Claude Code の managed settings の deny のうちコマンドの頭で引くもの（今は `gh pr merge`）を、Codex にも execpolicy の rules で引く。`package/codex.rules` を boot が `~/.codex/rules/andon.rules` に写す（オーナーの rules は別のファイルに書く）。rules は承認の方針の前に引かれ、`forbidden` は `never` でも拒む（Codex 0.166.0 の [`codex-rs/core/src/exec_policy.rs`](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/core/src/exec_policy.rs) の `create_exec_approval_requirement_for_parsed_commands`。当たらないコマンドだけが `render_decision_for_unmatched_command` で `never` → Allow になる）。`bash -lc "a && b"` のような平らな script は1つずつに割って引く。
 
-**Claude Code と同じ広さではない。** rules は token の頭の一致で、引数の値を読み飛ばせない。Codex が拒むのは直接の形（絶対パスを含む）と、引数を取らない wrapper（`env`・`command`・`exec`・`nohup`・`nice`・`sudo`・`xargs`）の形だけ。Claude Code の deny が見る、引数を取る wrapper（`timeout 30 …`・`env FOO=bar …`）・先頭の代入（`FOO=bar gh pr merge`）・`$( )` の中は拒めない（`tests/image.sh` が「拒めないことが分かっている形」として持つ）。守る相手は間違える担当で、偽る担当ではない（下の「残る危険」と同じ D1）。マージを本当に止めるのはゲートと、public にしたあとのブランチ保護。
+**Claude Code と同じ広さではない。** rules は token の頭の一致で、引数の値を読み飛ばせない。Codex が拒むのは直接の形（絶対パスを含む）と、引数を取らない wrapper（`env`・`command`・`exec`・`nohup`・`nice`・`sudo`・`xargs`）の形だけ。Claude Code の deny が見る、引数を取る wrapper（`timeout 30 …`・`env FOO=bar …`）・先頭の代入（`FOO=bar gh pr merge`）・`$( )` の中は拒めない（`tests/image.sh` が「拒めないことが分かっている形」として持つ）。守る相手は間違える担当で、偽る担当ではない（下の「残る危険」と同じ D1）。マージを本当に止めるのは gate と、public にしたあとのブランチ保護。
 
 オーナーのファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当がオーナーのファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない（セルの repo の既定の作者は owner でない。下の「git の作者」）。
 
@@ -95,15 +95,15 @@ Codex のフックは配っていない（フックは Claude Code だけ。[con
 
 ## CI と配布
 
-配る版と日々のサイクルを分ける。日々の直しはセルで andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
+配るバージョンと日々のサイクルを分ける。日々の直しはセルで andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
 
-PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでのセルはそれを使う）。配布は Linux amd64 から始める。GHCR の package は Public（2026-11-13 に、認証なしで tag の一覧が取れることを確かめた）。tag を切るのはオーナーが行う。
+PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB のバージョンが増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA のバージョンは残る（tag を切るまでのセルはそれを使う）。配布は Linux amd64 から始める。GHCR の package は Public（2026-11-13 に、認証なしで tag の一覧が取れることを確かめた）。tag を切るのはオーナーが行う。
 
-`packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
+`packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定するバージョンを固定する。
 
 ### CI の所要時間
 
-tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の4つで縮める。どれも check の名前（`tests`・`go`）は変えず、飛ばすときも job は成功で終わる（ゲートは PR の head の checks が揃うのを待つので、workflow ごと `paths` で外さない）。
+tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の4つで縮める。どれも check の名前（`tests`・`go`）は変えず、飛ばすときも job は成功で終わる（gate は PR の head の checks が揃うのを待つので、workflow ごと `paths` で外さない）。
 
 - **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す。release の job も同じく焼いて渡す。`tests/*.sh` を回すのは tests の workflow だけで、go の workflow は回さない（二重に回さない。`workflow_test.go` が確かめる）。
 - **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。ただし `tests/image.sh` だけは溜めずに、1行ごとに「[tests/image.sh] 」を付けて流す（job が上限で打ち切られても、どこまで進んだかがログに残る）。tests の job の上限は45分。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。長い `tests/image.sh` と `tests/andon-dispatcher.sh` を先に起動する。`tests/schema.sh` は command の出力を schema に通すのに、写す側の検査（`andon-dispatcher.sh` など9本）が同じ回で写したものを読む。写す側が全部終わってから最後に起動し、回し直さない（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 2。前は自分の中で9本をもう一度走らせ、102〜220 秒かかっていた）。
@@ -122,10 +122,10 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 |---|---|---|
 | `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`process/states/issue.yaml`（`andon` に埋め込む）・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
 | `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
-| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `.github/workflows/` の全部を検査し、`go.mod` の go と Dockerfile の golang の版を `mise.toml` と突き合わせる |
+| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `.github/workflows/` の全部を検査し、`go.mod` の go と Dockerfile の golang のバージョンを `mise.toml` と突き合わせる |
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | `image/apply-main.sh` | 飛ばす | セルに main の commit を当てる道具（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`image/` の下だが Dockerfile は COPY しない |
-| `model/` | 飛ばす | 課題の一生のモデルと検査器の版。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |
+| `model/` | 飛ばす | 課題の一生のモデルと検査器のバージョン。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |
 | `.claude/skills/`・`.agents/skills/` | 飛ばす | repo の中の skill の置き場（検証の skill。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 4）。image にも `andon` にも入らない。ほかの `.claude/` は知らないパスとして走らせる |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
