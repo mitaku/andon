@@ -34,3 +34,5 @@ example-project
 `tests/image.sh` は Docker があれば実際にビルドしてコンテナを起動する。セルの claude と codex を `/workspace` の下の新しい dir で起動し、信頼の画面が出ないことも見る（最初の画面は `tests/lib/pty-probe.py` で pty に起動して読む。標準ライブラリだけ）。手順と CI の配布条件は [docs/image.md](../docs/image.md)。Docker が無いローカルでは SKIP、CI では失敗する。
 
 `tests/host.sh` は実物の mod を Node.js の VM に読み（node が無ければ手元では skip、CI では落ちる。`tests/kanban.sh` と同じ）、偽の `herdr`・`gpui-kit` API で名前付け・同名の無操作・レビュアーの除外・別マシンの配置・rename 以外を呼ばないことを検証する（`tests/host/mod.mjs`）。画面の mod（inbox・kanban-board・context-header・files-plus・waiting）は `tests/host/screen.mjs` が、JavaScript の構文（`node --check`）・`mod.json`・`keys.json`・レイアウト `andon` の名前付けの block、Andon に合わせた所（context-header の名前・kanban-board の kanban の見つけ方・waiting が `andon waiting --json` の出力を描くこと・2 つの mod が呼ぶ command の一覧）を見る。`tests/andon-init.sh` は mod とレイアウトの初回配置、既存ディレクトリ・レイアウト・リンクの保護、App の環境変数による置き場と WSL の明示指定も確かめる。本物の App の描画とレイアウトへの配置は、このテストには含まれない。
+
+`tests/host/screen.mjs` に mod の検査を足すときは、mod が返した配列・Map・Error を `fromMod` で今の realm に写してから `assert.deepEqual` や `instanceof` で比べる。mod は別の realm の VM で動くので、写さずに比べると中身が同じでも外れる。関数を含む値は写せずに投げるので、欄ごとに比べる。

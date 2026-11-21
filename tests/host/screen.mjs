@@ -89,6 +89,16 @@ const args = (n, method) => n.calls.filter(([k]) => k === method).map(([, a]) =>
 const last = (n, method) => args(n, method).at(-1)?.[0];
 const byId = (root, id) => walk(root).find((n) => last(n, 'id') === id);
 
+// A mod runs in its own VM realm, so its arrays, objects, Maps and Errors carry that realm's prototypes:
+// assert.deepEqual against a value written here fails although the contents match, and `instanceof Error`
+// is false. fromMod copies a value the mod returned (or handed to a fake) into this realm with
+// structuredClone; compare arrays, Maps and Errors from a mod through it. A value holding a function can't
+// be copied and throws; a class instance comes back as a plain object. Compare those field by field.
+function fromMod(value) {
+  try { return structuredClone(value); }
+  catch (e) { throw new Error(`fromMod can't copy the mod's value into this realm (${e.message}); compare its fields one by one`); }
+}
+
 // Loads a mod's main.js in a VM with fake herdr, gpui and fs modules. Relative imports are loaded too.
 async function load(dir, herdr, ui = NO_UI) {
   const context = vm.createContext({ console });
@@ -111,6 +121,28 @@ async function load(dir, herdr, ui = NO_UI) {
   await main.evaluate();
   return main.namespace;
 }
+
+await check('fromMod: mod が返した配列・Map・Error を今の realm に写し、deepEqual と instanceof で比べられる。関数を含む値は理由を出して投げる', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'from-mod-'));
+  try {
+    await writeFile(`${tmp}/main.js`, [
+      'export const rows = [{ id: "S-0008", wait: "merge" }];',
+      'export const waits = new Map([["sample-site/S-0008", "merge"]]);',
+      'export const failure = new TypeError("spawn andon ENOENT");',
+      'export const withFn = { id: "S-0008", open() {} };',
+    ].join('\n'));
+    const ns = await load(tmp, {});
+    // The realm gap is real: without fromMod the same contents don't compare equal.
+    assert.throws(() => assert.deepEqual(ns.rows, [{ id: 'S-0008', wait: 'merge' }]), 'VM の配列が deepEqual で通った（realm の違いを見ていない）');
+    assert.ok(!(ns.failure instanceof Error), 'VM の Error が instanceof Error で通った（realm の違いを見ていない）');
+    assert.deepEqual(fromMod(ns.rows), [{ id: 'S-0008', wait: 'merge' }]);
+    assert.deepEqual(fromMod(ns.waits), new Map([['sample-site/S-0008', 'merge']]));
+    const e = fromMod(ns.failure);
+    assert.ok(e instanceof TypeError, '写した Error が今の realm の TypeError でない');
+    assert.equal(e.message, 'spawn andon ENOENT');
+    assert.throws(() => fromMod(ns.withFn), /^Error: fromMod can't copy the mod's value into this realm \(.*\); compare its fields one by one$/);
+  } finally { await rm(tmp, { recursive: true, force: true }); }
+});
 
 await check('context-header: Andon の担当・レビュアー・Chief Engineer はラベル issue から名付け（task は読まない）、2行目で名前を繰り返さない', async () => {
   let paneList = [], termList = [], spaceList = [], current = null;
@@ -139,16 +171,16 @@ await check('context-header: Andon の担当・レビュアー・Chief Engineer 
   const facts = (pane) => { current = pane; const h = new Header(); return h.facts(); };
   let f = facts('p1');
   assert.equal(f.name, 'A-0002 Fix login');
-  assert.deepEqual([...f.where], ['This computer']);
+  assert.deepEqual(fromMod(f.where), ['This computer']);
   f = facts('p2');
   assert.equal(f.name, 'A-0003 Review of A-0002', 'レビュアーは担当の tab の名前で呼ばない');
-  assert.deepEqual([...f.where], ['This computer', 'A-0002 Fix login']);
+  assert.deepEqual(fromMod(f.where), ['This computer', 'A-0002 Fix login']);
   f = facts('p3');
   assert.equal(f.name, 'CE A-0001 Billing design');
-  assert.deepEqual([...f.where], ['This computer', 'sample-site']);
+  assert.deepEqual(fromMod(f.where), ['This computer', 'sample-site']);
   f = facts('p4');
   assert.equal(f.name, 'CoS', 'Chief of Staff は andon mod が付けた tab の名前');
-  assert.deepEqual([...f.where], ['This computer', 'sample-site']);
+  assert.deepEqual(fromMod(f.where), ['This computer', 'sample-site']);
   f = facts('p5');
   assert.ok(!String(f.name).includes('A-0009'), `ラベル task= から名付けた: ${f.name}`);
 });
@@ -273,7 +305,7 @@ async function inbox(state, ui = NO_UI, theme = {}) {
     agents: () => state.agents ?? [], terminals: () => state.terms ?? [], spaces: () => [], panes: () => [], machines: () => [],
     focused: () => null, theme: () => theme, setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
     shared: (k) => store[k] ?? null, setShared: (k, v) => { store[k] = v; },
-    run: (cmd, args) => calls.run.push([cmd, args]),
+    run: (cmd, args) => calls.run.push([cmd, fromMod(args)]),
     hc: () => { calls.hc++; throw new Error('the inbox called hc'); },
     notify: () => { throw new Error('the inbox posted a notification'); },
   }, ui);
@@ -308,7 +340,7 @@ await check('inbox: 節は Needs you と Projects の 2 つ。担当は blocked 
   const { v, calls } = await inbox(state);
   let m = v.model();
   for (const k of ['done', 'working', 'idle', 'settled']) assert.ok(!(k in m), `m に ${k} がある`);
-  const ids = (rows) => [...rows].map((i) => i.address);
+  const ids = (rows) => fromMod(rows.map((i) => i.address));
   assert.deepEqual(ids(m.projects), ['t9', 't11', 't10', 't1', 't2'], 'プロジェクトの名前順 → CoS → CE（題の順）でない');
   assert.deepEqual(ids(m.needs).sort(), ['t20', 't3', 't8'].sort());
   assert.equal(m.needs.find((i) => i.address === 't20').peek, 't21', 'sub-agent の error で親を peek しない');
@@ -324,7 +356,7 @@ await check('inbox: 節は Needs you と Projects の 2 つ。担当は blocked 
   assert.ok(!ids(m.projects).includes('t1'), '役の行が 2 つある');
   // Decision 7 (provisional): opening a paneless role's reply hides it for that turn.
   v.open(m.needs.find((i) => i.address === 't1'));
-  assert.deepEqual(JSON.parse(JSON.stringify(calls.run.at(-1))), ['terminal.peek', { terminal: 't1' }]);
+  assert.deepEqual(calls.run.at(-1), ['terminal.peek', { terminal: 't1' }]);
   assert.ok(ids(v.model().projects).includes('t1'), '開いたあとも Needs you にいる');
   state.terms[0].turn = 2;
   assert.ok(ids(v.model().needs).includes('t1'), 'turn が進んだのに Needs you に出ない');
@@ -528,9 +560,9 @@ async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', term
   const ns = await load(`${HOST}/waiting`, {
     spaces: () => [{ id: 's1', active: true, machine: null, folder: cwd }], panes: () => [{ pane: 'p1', cwd }],
     focused: () => ({ pane: 'p1' }), terminals: () => terms, theme: () => THEME, window: () => ({ platform: 'linux' }),
-    run: (cmd, a) => calls.run.push([cmd, JSON.parse(JSON.stringify(a))]),
+    run: (cmd, a) => calls.run.push([cmd, fromMod(a)]),
     exec: async (cmd, a, opts = {}) => {
-      calls.exec.push([cmd, [...a], { cwd: opts.cwd, on: opts.on ?? null }]);
+      calls.exec.push([cmd, fromMod(a), { cwd: opts.cwd, on: opts.on ?? null }]);
       if (cmd !== 'andon') return { code: 0, stdout: '', stderr: '' };
       if (reply instanceof Error) throw reply;
       return typeof reply === 'function' ? reply() : reply;
@@ -666,8 +698,8 @@ await check('レイアウト andon: 右のパネルの stack に waiting の blo
   assert.ok(button, 'inbox の見出しに waiting のボタンが無い');
   args(button, 'on_click').at(-1)[0]({}, { notify() {} });
   const ns = await load(`${HOST}/inbox`, { machines: () => [], setAgentOrder: () => {}, nextCommand: () => null, shared: () => ({}), setShared: () => {} });
-  assert.deepEqual(calls.run.map((c) => JSON.parse(JSON.stringify(c))), [['layout.show', { id: 'panel' }], ['layout.select', { stack: 'panel-body', child: 'waiting' }]]);
-  assert.deepEqual(JSON.parse(JSON.stringify(ns.PANEL)), { column: node('panel').id, stack: stack.id, child: node('waiting').id }, 'ボタンの向き先がレイアウトに無い');
+  assert.deepEqual(calls.run, [['layout.show', { id: 'panel' }], ['layout.select', { stack: 'panel-body', child: 'waiting' }]]);
+  assert.deepEqual(fromMod(ns.PANEL), { column: node('panel').id, stack: stack.id, child: node('waiting').id }, 'ボタンの向き先がレイアウトに無い');
   assert.ok(!textOf(button).some((x) => /\d/.test(x)), 'ボタンに件数を出した');
 });
 
@@ -688,7 +720,7 @@ const TEN = [
   issueOf('sample-site', 'S-0009', { status: 'todo', after: ['S-0008'], not_before: '2026-12-01' }),
   issueOf('sample-site', 'S-0010', { status: 'done', parent: 'S-0007' }),
 ];
-const flowShape = (rows) => Array.from(rows, (r) => r.kind === 'task' ? `${'  '.repeat(r.depth)}${r.task.id}@${r.stage}${r.faded ? ' faded' : ''}${r.wait ? ` ${r.wait}` : ''}` : `${'  '.repeat(r.depth)}[${r.kind}] ${r.label}`);
+const flowShape = (rows) => fromMod(rows).map((r) => r.kind === 'task' ? `${'  '.repeat(r.depth)}${r.task.id}@${r.stage}${r.faded ? ' faded' : ''}${r.wait ? ` ${r.wait}` : ''}` : `${'  '.repeat(r.depth)}[${r.kind}] ${r.label}`);
 
 await check('kanban-board: Flow は親の課題・課題の木を作り、待つ相手のいない課題を 1 段目に、前の課題を 2 つ待つ課題を後ろのほうの相手の 1 つ右に置く。済んだ相手は数えない（ADR-0042 受け入れ条件 11。課題 10 件の見本）', async () => {
   const { flowRows } = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }) });
@@ -767,7 +799,7 @@ await check('kanban-board: Flow の印は andon waiting --json（version 1）を
       agents: () => [], terminals: () => [], props: () => ({}), watchFolder: async () => { throw new Error('no watching here'); },
       readTextFile: async () => { throw new Error('read without the fixed script'); },
       exec: async (cmd, a, opts = {}) => {
-        if (cmd === 'andon') { calls.push([cmd, [...a], opts.cwd]); return answer; }
+        if (cmd === 'andon') { calls.push([cmd, fromMod(a), opts.cwd]); return answer; }
         if (cmd === 'git') return { code: 128, stdout: '', stderr: 'not a git repository' };
         const r = spawnSync(cmd, a, { cwd: opts.cwd, encoding: 'utf8' });
         return { code: r.status, stdout: r.stdout, stderr: r.stderr };
@@ -788,8 +820,8 @@ await check('kanban-board: Flow の印は andon waiting --json（version 1）を
     let b = await read({ code: 0, stdout: items(1), stderr: '' });
     assert.equal(b.failure, null, `ボードが読めない: ${JSON.stringify(b.failure)}`);
     assert.deepEqual(calls.at(-1), ['andon', ['waiting', '--json'], root], 'andon waiting --json をプロジェクトのフォルダで呼んでいない');
-    assert.deepEqual(Array.from(b.waits, ([k, v]) => `${k}=${v}`), ['sample-site/S-0008=merge']);
-    const marks = (board) => Array.from(ns.flowRows(board.data.ledgers, board.data.tasks, board.waits).filter((r) => r.wait), (r) => r.task.id);
+    assert.deepEqual(fromMod(b.waits), new Map([['sample-site/S-0008', 'merge']]));
+    const marks = (board) => fromMod(ns.flowRows(board.data.ledgers, board.data.tasks, board.waits).filter((r) => r.wait).map((r) => r.task.id));
     assert.deepEqual(marks(b), ['S-0008']);
     for (const [why, out] of [['version 2', { code: 0, stdout: items(2), stderr: '' }], ['command が無い', { code: 127, stdout: '', stderr: 'andon: not found' }], ['読めない出力', { code: 0, stdout: 'not json', stderr: '' }]]) {
       b = await read(out);
