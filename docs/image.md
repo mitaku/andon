@@ -160,6 +160,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/contract.md` | `schema.sh`・`package.sh` を足す（例を schema と、§4 の行を skill と突き合わせる） |
 | `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
 | `tests/host/` | `host.sh` を足す |
+| `tests/package/` | `package.sh` を足す（`package.sh` の節。入口の `tests/package.sh` が順に読む） |
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh`・`adr-index.sh` を足す |
 | root の `README.md`・`docs/decisions.md`・`docs/decisions/` | `adr-index.sh` を足す |
