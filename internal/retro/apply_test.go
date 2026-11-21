@@ -1,6 +1,7 @@
 package retro
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/flock"
 	"andon/internal/ledger"
 )
 
@@ -71,5 +73,40 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 	}
 	if !slices.Equal(again.Issues, wantRec) {
 		t.Errorf("記録: %+v（want %+v）", again.Issues, wantRec)
+	}
+}
+
+// 同じ振り返りを当てる apply は1本ずつ。ほかの apply が lock を持っている間は、kanban を照らす前に断る（2本が同時に
+// 「まだ無い」と読んで同じ課題を足さない）。--dry-run は何も書かないので lock を取らない。lock が外れれば先へ進む。
+func TestApplyRefusesWhileAnotherApplyRuns(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	os.MkdirAll(bin, 0o755)
+	logf := filepath.Join(dir, "log")
+	// kanban の CLI が打たれたら残す（断ったときは打たれない）
+	if err := os.WriteFile(filepath.Join(bin, "kanban"), []byte("#!/usr/bin/env bash\necho \"$*\" >>\"$FAKE_LOG\"\nexit 9\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_LOG", logf)
+	root := filepath.Join(dir, "sample-site")
+	l := ledger.At(root)
+	unlock, err := flock.TryLock(filepath.Join(l.Library("S-0020"), appliedLock))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := runApply(root, "S-0020", false, &out); err == nil || !strings.Contains(err.Error(), "ほかの andon retro apply が当てている") {
+		t.Fatalf("ほかの apply が lock を持っているのに断らない: %v", err)
+	}
+	if b, _ := os.ReadFile(logf); len(b) != 0 {
+		t.Errorf("断ったのに kanban の CLI を打った: %s", b)
+	}
+	if err := runApply(root, "S-0020", true, &out); err == nil || strings.Contains(err.Error(), "ほかの andon retro apply") {
+		t.Errorf("--dry-run が lock で断られた（retro.json が無いことで断られるはず）: %v", err)
+	}
+	unlock()
+	if err := runApply(root, "S-0020", false, &out); err == nil || strings.Contains(err.Error(), "ほかの andon retro apply") {
+		t.Errorf("lock が外れたのに断られた（retro.json が無いことで断られるはず）: %v", err)
 	}
 }

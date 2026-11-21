@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/flock"
 	"andon/internal/ledger"
 	"andon/internal/pkgversion"
 	"andon/internal/sessionlog"
@@ -23,6 +24,9 @@ var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
 // appliedFile は andon retro apply の記録（振り返りの課題の library/）。
 const appliedFile = "retro-applied.json"
+
+// appliedLock は andon retro apply を振り返りごとに1本ずつにする lock（振り返りの課題の library/）。
+const appliedLock = appliedFile + ".lock"
 
 // Applied は andon retro apply の記録（docs/contract.md §21）。足すたびに書き直し、全部を足したら complete。
 type Applied struct {
@@ -117,9 +121,20 @@ type plan struct {
 
 // runApply は andon retro apply: library/retro.json を書いたときと同じ窓で照らし直し、fix ごとに課題を1件足す。
 // 途中で kanban の CLI が落ちても、足した分は記録に残り、打ち直すと残りから続ける（足した課題をもう一度足さない）。
+// 同じ振り返りを当てる apply は1本ずつ（library/ の lock）。2本が同時に kanban を照らして同じ課題を足さない。
 func runApply(root, id string, dry bool, stdout io.Writer) error {
 	l := ledger.At(root)
 	lib := l.Library(id)
+	if !dry {
+		unlock, err := flock.TryLock(filepath.Join(lib, appliedLock))
+		if errors.Is(err, flock.ErrBusy) {
+			return fmt.Errorf("%s はほかの andon retro apply が当てている。終わってから打ち直す（当て済みなら断られる）", id)
+		}
+		if err != nil {
+			return err
+		}
+		defer unlock()
+	}
 	b, err := os.ReadFile(filepath.Join(lib, retroFile))
 	if errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("%s/library/%s が無い（振り返りの担当が andon retro patterns で書く）", id, retroFile)
