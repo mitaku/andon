@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/words.sh が「今」の語で落ち、例外では落ちないこと（ADR-0013 受け入れ条件 3）。
 # 役を指す「人」で落ち、役を指さない「人」では落ちないこと（ADR-0036 受け入れ条件 2）。
+# 句読点（、。・）のすぐ後ろの半角の空白で落ち、URL の前・表の区切り・矢印の前では落ちないこと。
 # 一時の根に小さな写しを作り、words.sh にその根を渡す。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -106,5 +107,21 @@ setup; mkdir -p "$tmp/r/tests"; echo '# 本物の台帳で回す' >"$tmp/r/tests
 setup; mkdir -p "$tmp/r/internal/process"; echo '台帳の CLI' >"$tmp/r/internal/process/x.go"; expect ok '替えていない範囲（internal/process/）の「台帳」はまだ見ない'
 setup; echo 'gate が kanban の課題を読む。版を上げる' >"$tmp/r/docs/design.md"; expect fail '替えた範囲（docs/design.md）の「版」で落ちる'
 setup; echo '日本語の呼び名を「台帳」のままにした。2006 版では' >"$tmp/r/docs/design.md"; expect ok 'docs/design.md の「」の中と「2006 版」は通る'
+
+
+# 句読点のすぐ後ろの半角の空白（\p{Han} が句読点も含むため、和字と英字の間に空白を足す置き換えが作る形）: 落ち、決まりの形は通る
+for f in docs/x.md package/x.md internal/x.go tests/x.sh model/X.tla README.md; do
+  setup; mkdir -p "$tmp/r/$(dirname "$f")"; echo '課題の kanban、 gate、 バージョンを読む' >"$tmp/r/$f"; expect fail "$f の「、 gate」で落ちる"
+done
+for w in '止める。 gate が読む' 'kanban・ gate の語' '"課題を、 kanban に書く"'; do
+  setup; echo "$w" >"$tmp/r/docs/x.md"; expect fail "「$w」で落ちる"
+done
+for w in 'kanban、gate。バージョン・PR' '開く。 https://example.com/x を読む' '| 1 | 終わり。 | 次 |' '決める。 → 2026-11-20 に決めた' '本文が無ければ `` 課題 `<id>`。 ``' '行の末尾の空白。 '; do
+  setup; echo "$w" >"$tmp/r/docs/x.md"; expect ok "「$w」は通る"
+done
+setup; mkdir -p "$tmp/r/internal/triage"; echo 'fmt.Fprintf(&b, "閉じた %d ・ 直す %d ・ 次回 %d\n",' >"$tmp/r/internal/triage/apply.go"
+expect ok 'triage の要約の行（空白を挟む「・」）は通る'
+setup; echo '閉じた 1 ・ 直す 1 ・ 次回 1' >"$tmp/r/docs/x.md"; expect fail 'triage の外の空白を挟む「・」で落ちる'
+setup; mkdir -p "$tmp/r/docs"; echo 'PATH にあるか。 WSL で打つ' >"$tmp/r/docs/x.md"; expect fail '例外の文でも、例外のファイルの外では落ちる'
 
 exit "$fail"
