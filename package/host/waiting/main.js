@@ -129,9 +129,11 @@ export default class Waiting extends View {
     return i.kind === "decision" && QUESTION.test(String(i.question ?? "")) ? i.question.replace("#", "-") : i.id;
   }
 
-  // Whether the row is in what is on screen now: a row drawn from a place the pane has since left is not.
+  // Whether the row is in what is on screen now, read from where the focus is now: a row drawn from a place
+  // the focus has since left is not, even before the pane reads the new place.
   current(i) {
-    return Array.isArray(this.data?.items) && this.data.items.includes(i);
+    const { cwd, on } = location();
+    return this.where?.key === JSON.stringify([cwd, on]) && Array.isArray(this.data?.items) && this.data.items.includes(i);
   }
 
   // Whether this row takes an answer here: the output says so, and the question and its options are there.

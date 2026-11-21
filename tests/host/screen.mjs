@@ -776,6 +776,26 @@ await check('waiting: 同じ課題に開いた判断の問いが 2 つあって�
   assert.deepEqual(calls.exec.filter((c) => c[1][1] === 'answer').map((c) => c[1]), [['waiting', 'answer', 'S-0030#2', '--option', '2']]);
 });
 
+await check('waiting: フォーカスが別のフォルダへ移った直後、読み直す前に前の行のボタンや選択肢を押しても andon waiting answer を呼ばない（ADR-0042 受け入れ条件 18）', async () => {
+  const { calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING));
+  const click = clickOn(cx);
+  click(byId(draw(), 'waiting-head-S-0030-1'));
+  const option = byId(draw(), 'waiting-option-S-0030-1-1');
+  click(byId(draw(), 'waiting-option-S-0030-1-0'));
+  const stale = byId(draw(), 'waiting-answer-S-0030-1');
+  // The focus moves; no refresh and no draw has run yet.
+  here.cwd = '/srv/cell/projects/other-site';
+  click(option);
+  click(stale);
+  await cx.settle();
+  assert.ok(!calls.exec.some((c) => c[1][1] === 'answer'), `移る前のフォルダの問いに答えた: ${JSON.stringify(calls.exec.filter((c) => c[1][1] === 'answer'))}`);
+  // Back in the folder it was read from, the same button answers: the check looks at the place, not at anything else.
+  here.cwd = '/srv/cell/projects/sample-site';
+  click(stale);
+  await cx.settle();
+  assert.deepEqual(calls.exec.filter((c) => c[1][1] === 'answer').map((c) => c[1]), [['waiting', 'answer', 'S-0030#1', '--option', '1']], '選んだ選択肢が移った間に変わったか、戻っても答えない');
+});
+
 // What the two mods run (ADR-0042 acceptance 12): the first argument of every exec( call, in order.
 function execTargets(src) {
   const out = [];
