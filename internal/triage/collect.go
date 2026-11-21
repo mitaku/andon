@@ -295,8 +295,16 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 		}
 		return items[i].Key < items[j].Key
 	})
+	// 上限の既定を超える日は、memory と signal を先頭に寄せる（その中と残りは古い順のまま）。
+	// 担当は先頭から N 件だけ仕分けるので、古い順のままだと後ろに来る memory と signal がいつまでも仕分けられない。
+	if len(items) > defaultLimit {
+		sort.SliceStable(items, func(i, j int) bool { return firstOverLimit(items[i].Kind) && !firstOverLimit(items[j].Kind) })
+	}
 	return items, nil
 }
+
+// firstOverLimit は、項目が上限の既定を超える日に先頭に寄せる kind か。memory は仕分けるまで全部の役に載り続け、signal は外の不具合。
+func firstOverLimit(kind string) bool { return kind == "memory" || kind == "signal" }
 
 // ageDays は created（2006-01-02T15:04:05Z）から now までの日数（切り捨て・0 以上）。読めなければ 0。
 func ageDays(created string, now time.Time) int64 {
