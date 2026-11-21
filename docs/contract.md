@@ -378,7 +378,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 
 ## 9. フック
 
-managed settings の `hooks`（boot が `package/settings.json` から生成）。フックは**dispatcher と command を呼ぶだけ**で、判断を持たない。
+managed settings の `hooks`（boot が `package/settings.json` から生成）。フックは**dispatcher と command を呼ぶだけ**で、判断を持たない。例外は担当の Bash を断る `PreToolUse` の1本で、コマンドの文字列だけを見て断る（kanban も dispatcher も読まない）。
 
 | 誰の | イベント | 打つもの | 返すもの |
 |---|---|---|---|
@@ -386,9 +386,10 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | Chief of Staff | `Stop`（`asyncRewake: true`・`timeout: 7200`。上と並んで走る） | `andon dispatcher wait --timeout 7200`（待ち役。[dispatcher.md](dispatcher.md) §4） | 終了コードと stderr だけ（stdout は出さない）。届ける待ち（控えの `pending`）があり、端末の状態が `idle`・`done` で、控えの lock をほかに持たれていない（見回りの巡の間は待つ）なら、合図の1行（`andon: 通知が待っている。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える（…）。`）で 2（Claude Code が入力欄を通らずに新しいターンを始め、その `Stop` の `drain` が `<news>` を渡す）。`timeout` の 9 割まで打つ機会が無く `idle`・`done` なら（lock を持たれたままでも）、張り直しの合図（`andon: 待ち役の張り直し。…`）で 2。ほかは 0: Chief of Staff の端末でない・後から起動した待ち役に替わった（`<slug>.json.wait`）・止められた・控えが読めない・起動したときに端末が読めない・張り直しの時刻を過ぎて `timeout` の 95% まで端末が読めない（それまでは読み直す）・働いている間に張り直しの時刻が来た。0 と 2 のほかでは終わらない。待ちと控えは読むだけ |
 | Chief of Staff | `StopFailure`（`asyncRewake: true`・`timeout: 600`） | `andon dispatcher rewake`（プロバイダに切られたとき。[dispatcher.md](dispatcher.md) §2.4） | 終了コードと stderr だけ（StopFailure の出力は Claude Code が捨てる）。入力の `error` が `server_error`・`rate_limit` なら、続けて切られた 1〜4 回目はそれぞれ 1・2・4・8 分あとに合図の1行（`andon: プロバイダに切られて止まったターンを起動した。…`）で 2（入力欄を通らずに新しいターンが始まる）。5 回目は 0 とログ1行（`<slug>.json.rewake.log`）。回数は `<slug>.json.rewake`（Chief of Staff の `Stop` の `drain` が消す）。ほかは 0: ほかの `error`・Chief of Staff でない端末・待ったあと端末が `error` でない・回数が変わった（Stop で消えた・次の失敗が進めた）・端末か回数が読めない・回数を書けない。0 と 2 のほかでは終わらない |
 | Chief of Staff | `UserPromptSubmit` | `andon dispatcher drain --context`（中で `andon delegate show --json` を読む） | `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "<news>…</news>\n<delegation project=\"<slug>\">…</delegation>"}}`（待ちが無ければ委譲だけ）。前にフックで渡した `<news>` の turn の終わりを見ていなければ（中断）、その通知を1回だけ届け直す |
+| どの端末も | `PreToolUse`（`matcher: Bash`・`timeout: 10`） | `package/hooks/pre-tool-use`（command を呼ばない。入力の `tool_input.command` だけを見る） | コマンドの位置（行の頭・`;`・`&`・`|`・`(`・`$(`・`while`・`until` などのあと）に `pgrep`・`pkill` があり、`-f`（`-af`・`--full` も）が付けば `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "<理由1行。PID はポートか PID ファイルから引く>"}}`。`-f` は command の行全体と照らすので、終わりを待つループやそのシェル自身にも当たり、待ちが終わらない。引数の文字列として含むだけ（`grep 'pgrep -f'`）・Bash でないツール・入力が読めない・`jq` か `andon` が無いときは何も出さずに通す。Codex には効かない |
 | 担当 | `Stop` | `andon issue stop-check`（端末のラベル `issue=` から id を引く） | kanban が `doing` で、前回の通過（無ければ `doing` に入った行）以後に `kanban report`／`review`／`ask` のどれも `log.jsonl` に無く、待ちでもなければ `{"decision": "block", "reason": "<id> は doing のまま、報告も問いも kanban に無い。…"}`。待ち（通す）は、自分の問いが開いたまま（その問いの最後の行が `open`）か、`report.json` に `review_request` があり、その `commit` を指すレビュアーの `findings.json` がまだ無いとき。答え（`answered`）・レビューが届いたあとは待ちではない。続けて止めるのは3回まで。控えが書けなければ通す。レビュアーも同じ。Chief Engineer の課題（`profile: chief-engineer`）は止めない（[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 10）。止めるか通すかの前に、dispatcher の端末を確かめる（中身がシェルなら起動し直す。Chief of Staff の留守の分。[dispatcher.md](dispatcher.md) §5 の P3b） |
 
-- フックの実体は `package/hooks/stop`・`stop-wait`・`stop-failure`・`user-prompt-submit`（image では `/opt/andon/hooks/`）。どの端末でも同じフックが走り、役は command がラベルで見分ける（どちらでもなければ何も出さない）。
+- フックの実体は `package/hooks/pre-tool-use`・`stop`・`stop-wait`・`stop-failure`・`user-prompt-submit`（image では `/opt/andon/hooks/`）。どの端末でも同じフックが走り、役は command がラベルで見分ける（どちらでもなければ何も出さない）。
 
 - 実測（2026-11-10。担当の端末の `andon issue stop-check` の block）: `Stop` の `decision: block` で始まる続きは、hc の `turn` を進めない（block の前と同じ値）。だから①で渡したときに控える `turn` と、続きで打つ `andon news ack` の値は同じになる（§6）。
 - 要実測: Chief of Staff の `Stop` の `additionalContext` で続きの turn が始まり「Stop hook error」が出ないこと、その続きが hc の `turn` を進めるか（進むなら `andon news ack` の照らし方を合わせる）、`UserPromptSubmit` の `additionalContext` がコンテキストに入ること、Codex の同等物（最初のバージョンは Claude Code だけ）。
