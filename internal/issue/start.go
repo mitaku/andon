@@ -257,20 +257,21 @@ var (
 		"merge": func(s ledger.Settings) string { return s.Merge }, "estimate": func(s ledger.Settings) string { return s.Estimate }}
 )
 
-// requiredSettings は、課題を起動する前に揃っていなければならない予約キー（contract.md §2）。
+// requiredSettings は、課題を起動する前に確かめる予約キー（contract.md §2）を、確かめる順に返す。
 // review と estimate はどの担当の課題にも要る。must_fix と merge は gate とマージが読むので、PR を出す課題
 // （repo があって deliverable が candidates でない。dispatcher の gated と同じ）だけ。reviewer と review_rounds は
-// レビュアーを起動するときに読むので、そのうえ review が off でないときだけ。
-func requiredSettings(t ledger.Issue) []string {
-	keys := []string{"review"}
+// レビュアーを起動するときに読むので、そのうえ review が off でないときだけ要る。review が off でも差分がレベル B・C なら
+// dispatcher はレビュアーを起動し、値のある reviewer・review_rounds には照合を求める（dispatcher の trusted）ので、
+// 値があれば確かめる（optional。無ければ求めない）。
+func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) {
+	keys = []string{"review"}
 	if t.Str("repo") != "" && ledger.SettingsOf(t).Deliverable != "candidates" {
-		keys = append(keys, "must_fix")
-		if t.Str("review") != "off" {
-			keys = append(keys, "reviewer", "review_rounds")
+		keys = append(keys, "must_fix", "reviewer", "review_rounds", "merge")
+		if t.Str("review") == "off" {
+			optional = map[string]bool{"reviewer": true, "review_rounds": true}
 		}
-		keys = append(keys, "merge")
 	}
-	return append(keys, "estimate")
+	return append(keys, "estimate"), optional
 }
 
 // checkSettings は予約キーが揃っているかを確かめる: 要るキー（requiredSettings）が全部あって知っている値で、
@@ -283,11 +284,15 @@ func (c *ctx) checkSettings(p *startPlan) error {
 		p.check("settings", "ok", "Chief Engineer の課題は予約キーを見ない")
 		return nil
 	}
-	need := requiredSettings(c.issue)
+	keys, optional := requiredSettings(c.issue)
 	rows, s, cos := c.l.Log(), ledger.SettingsOf(c.issue), c.l.ChiefOfStaff()
-	var missing, untrusted, args []string
-	for _, k := range need {
+	var need, missing, untrusted, args []string
+	for _, k := range keys {
 		v := c.issue.Str(k)
+		if v == "" && optional[k] {
+			continue
+		}
+		need = append(need, k)
 		switch {
 		case v == "" || settingValue[k](s) != v:
 			missing = append(missing, k)

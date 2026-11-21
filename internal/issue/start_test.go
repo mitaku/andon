@@ -405,6 +405,15 @@ func startRefusals(t *testing.T) []startRefusal {
 			f.set("t5", map[string]any{"review": "off"})
 			f.unset("must_fix", "reviewer", "review_rounds")
 		}},
+		// review が off でも、差分がレベル B・C なら dispatcher はレビュアーを起動し、値のある reviewer・review_rounds の照合を求める
+		{"review off with untrusted reviewer", "最後に書いたのが今の Chief of Staff の端末（t5）でない: reviewer。Chief of Staff の端末で打つ: kanban set S-0007 reviewer=claude-review\n", false,
+			func(f *startFixture) {
+				f.set("t5", map[string]any{"review": "off"})
+				f.set("t42", map[string]any{"reviewer": "claude-review"})
+			}},
+		{"review off with unknown review_rounds", "無い・知らない値: review_rounds。", false, func(f *startFixture) {
+			f.set("t5", map[string]any{"review": "off", "review_rounds": "0"})
+		}},
 		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", true, func(f *startFixture) {
 			// clone は fetch していないが、origin にだけ同名の branch がある
 			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-0007-add-the-button")
