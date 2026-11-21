@@ -50,9 +50,6 @@ var Presets = map[string]map[string]any{
 var None = map[string]any{"merge": "none", "deploy": "none", "publish": "none", "irreversible": []string{},
 	"external-requests": false, "profile": false, "package-update": false, "line-change": "none"}
 
-// AndonProject は Andon 自身のプロジェクト（型 andon に固定。merge は B まで・line-change は none）。
-const AndonProject = "andon"
-
 // Revoked は取り消し。
 type Revoked struct {
 	At     string `json:"at"`
@@ -152,7 +149,7 @@ func checkValue(scope string, raw json.RawMessage) error {
 	return nil
 }
 
-// Parse は委譲（project.json の delegation）を読み、schema と command の決まり（id が一意・project が置き場と同じ・andon は型 andon）で確かめる。
+// Parse は委譲（project.json の delegation）を読み、schema と command の決まり（id が一意・project が置き場と同じ）で確かめる。
 func Parse(b []byte, slug string) (*File, error) {
 	var f File
 	if err := contract.Decode(b, &f); err != nil {
@@ -169,8 +166,6 @@ func Parse(b []byte, slug string) (*File, error) {
 		return nil, fmt.Errorf("project %q が置き場 %q と違う", f.Project, slug)
 	case f.Preset != "" && Presets[f.Preset] == nil:
 		return nil, fmt.Errorf("知らない preset: %q", f.Preset)
-	case slug == AndonProject && f.Preset != AndonProject:
-		return nil, errors.New("andon プロジェクトの preset は andon だけ")
 	}
 	seen := map[string]bool{}
 	for i, g := range f.Grants {
@@ -194,27 +189,9 @@ func Parse(b []byte, slug string) (*File, error) {
 		if err := checkValue(g.Scope, g.Value); err != nil {
 			return nil, fmt.Errorf("grant %s: %v", g.ID, err)
 		}
-		if slug == AndonProject {
-			if err := andonCap(g.Scope, g.Value); err != nil {
-				return nil, fmt.Errorf("grant %s: %v", g.ID, err)
-			}
-		}
 		seen[g.ID] = true
 	}
 	return &f, nil
-}
-
-// andonCap は Andon 自身のプロジェクトの上限（merge は B まで・line-change は none）。
-func andonCap(scope string, raw json.RawMessage) error {
-	var s string
-	_ = json.Unmarshal(raw, &s)
-	if scope == "merge" && s == "C" {
-		return errors.New("andon プロジェクトの merge は B まで")
-	}
-	if scope == "line-change" && s != "none" {
-		return errors.New("andon プロジェクトの line-change は none だけ")
-	}
-	return nil
 }
 
 // Active は today に効いている grant か（取り消されておらず、期限が過ぎていない）。

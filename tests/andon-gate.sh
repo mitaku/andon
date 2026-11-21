@@ -192,9 +192,13 @@ rc=0; as_owner "$andon" delegate grant irreversible delete-remote --evidence x >
 mkdir -p "$tmp/plant/projects/andon"
 echo '{"version": 1, "project": {"title": "Andon", "prefix": "A"}, "repos": []}' > "$tmp/plant/projects/andon/project.json"
 as_owner git -C "$tmp/plant" add projects/andon/project.json; as_owner git -C "$tmp/plant" commit -qm 'andon の project.json'
-rc=0; as_owner "$andon" delegate grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q 'B まで' "$tmp/err" || die 'andon プロジェクトに merge C を委譲できた'
-ok 'delegate: narrow は広げない・delete-remote と andon の merge C は断る'
+ok 'delegate: narrow は広げない・delete-remote は断る'
+# ADR-0041 受け入れ条件 1: slug が andon のプロジェクトも、ほかと同じ決まりで委譲を書く（merge C・line-change plant。型は書かなければ work）
+as_owner "$andon" delegate grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || die "andon プロジェクトに merge C を委譲できない: $(cat "$tmp/err")"
+as_owner "$andon" delegate grant line-change plant --evidence x --project andon >/dev/null 2>"$tmp/err" || die "andon プロジェクトに line-change plant を委譲できない: $(cat "$tmp/err")"
+"$andon" delegate show --json --project andon | jq -e '.trusted and .preset == "work" and .effective.merge == "C" and .effective["line-change"] == "plant"' >/dev/null ||
+    die "andon プロジェクトの委譲の読み方が違う: $("$andon" delegate show --json --project andon)"
+ok 'delegate: slug が andon のプロジェクトにも merge C と line-change plant を委譲できる（型を書かなければ work）'
 # 作業ツリーの変更（エージェントが repos を足した、など）をオーナーの commit に混ぜない。HEAD が owner の commit でなければ書かない
 jq '.repos += ["github.com/example/other"]' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json
 rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
@@ -358,6 +362,15 @@ findings "$head"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and (.tier_reasons | any(contains("package/gate.json")))' "$tmp/out" >/dev/null
 ok 'レベル C の変更は委譲 merge B の外で needs_human'
+# ADR-0041 受け入れ条件 3: 型 andon で grant の無いプロジェクトでも、レベル C の PR は今までどおり needs_human
+cp project.json "$tmp/p0.json"
+jq '.delegation = {"version": 1, "project": "demo", "preset": "andon", "grants": []}' "$tmp/p0.json" > project.json
+as_owner git -C "$tmp/plant" commit -qm '型 andon・grant なし' -- projects/demo/project.json
+"$andon" delegate show --json | jq -e '.trusted and .preset == "andon" and .effective.merge == "B"' >/dev/null || die "型 andon の委譲を読めない: $("$andon" delegate show --json)"
+got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
+jq -e '.tier == "C" and .delegation == {merge: "B", ok: false}' "$tmp/out" >/dev/null || die "型 andon の記録の形が違う: $(cat "$tmp/out")"
+as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
+ok '型 andon で grant の無いプロジェクトのレベル C の変更は needs_human（delegation: merge=B < tier C）'
 
 # 11b. screen_paths（ADR-0018 受け入れ条件 3）: 当たる差分の PR に GitHub の添付が無ければ fix。本文かコメントに添付があれば通る
 echo '{"screen_paths": ["web/**"], "repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"

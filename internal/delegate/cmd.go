@@ -180,9 +180,6 @@ func change(ws, slug, today string, stdout, stderr io.Writer, f func(*File) (str
 		return fmt.Errorf("%s を最後に変えた owner の commit の名前が読めない", rel)
 	}
 	file := &File{Version: 1, Project: slug, Grants: []Grant{}}
-	if slug == AndonProject {
-		file.Preset = AndonProject
-	}
 	if p.Delegation != nil {
 		if file, err = Parse(p.Delegation, slug); err != nil {
 			return err // ParseProject が通したので来ない
@@ -235,11 +232,6 @@ func add(f *File, sub, scope, value, evidence, until, today string) (string, err
 	raw, err := ParseValue(scope, value)
 	if err != nil {
 		return "", err
-	}
-	if f.Project == AndonProject {
-		if err := andonCap(scope, raw); err != nil {
-			return "", err
-		}
 	}
 	var u *string
 	if until != "" {

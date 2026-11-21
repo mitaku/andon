@@ -332,7 +332,7 @@
       ]
     },
     "delegation": {
-      "description": "Delegation: what the owner (a person) leaves to the Chief of Staff, the dispatcher and the agents. Same shape as the former projects/<slug>/delegation.json. Written through `andon delegate`. That grant ids are unique, that project matches the folder and that the andon project keeps preset andon are checked by the command, not by this schema.",
+      "description": "Delegation: what the owner (a person) leaves to the Chief of Staff, the dispatcher and the agents. Same shape as the former projects/<slug>/delegation.json. Written through `andon delegate`. That grant ids are unique and that project matches the folder are checked by the command, not by this schema.",
       "type": "object",
       "required": [
         "version",

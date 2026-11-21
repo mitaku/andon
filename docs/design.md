@@ -129,7 +129,7 @@ flowchart LR
 - 担当の工程の背骨は **理解 → 計画 → 作業 → 確認 → 完成 → 振り返り**（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 9〜11）。担当が主体で、依頼書（課題と完了条件）を自分で理解して作業に分け、作業ごとに終了条件を置く。**横展開**（同じ種類のものをほかにも探す）は既定で、範囲の中は直し、外は残し、範囲を決めないと作業が切れないときだけ止まる（候補の一覧 `candidates.json` と `scope` の問いで止まり、答えるのは Chief of Staff）。
 - 依頼の完了条件が「分かる・候補が出る」なら、インナーループの入口に**調べる課題**が入る（`deliverable: candidates`）。担当は直さず候補の一覧と報告を返し、Chief of Staff が候補から直す課題を切る。調べる課題に gate と独立レビューは無い（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 1・7）。
 - インナーループは**dispatcher が回す**（レビュアーの起動・gate・マージ・片付け）。Chief of Staff はラインを回す判断だけ（依頼書に切る・`needs_human` の検収・問いの中継）。仕様・設計の会話は Chief of Staff の仕事ではない。
-- アウターループの改善を入れる判断は**ラインを2つに分ける**: 案件 repo のテスト・レビューの観点・指針（`AGENTS.md`）は Chief of Staff の判断で無灯、Andon 自身のライン（gate・skill・規約・設定）の変更だけオーナー（§1.3 の 5）。
+- アウターループの改善を入れる判断は**ラインを2つに分ける**: 案件 repo のテスト・レビューの観点・指針（`AGENTS.md`）は Chief of Staff の判断で無灯、Andon 自身のライン（gate・skill・規約・設定）の変更だけオーナー（§1.3 の 5）。これは既定で、オーナーは委譲で広げられる（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2）。
 - 振り返りの入力は自己申告だけでなく、機械が残す記録（指摘・gate の記録・報告の機械向けの部分・オーナーの手直し）と、セッションの記録。**記録を機械向けの形で残す**（§4）のは、このループのため。
 
 ### 1.5 オーナーは決断だけ。手元とクラウド。作業側は別のマシンでもよい
@@ -424,14 +424,14 @@ Andon で「オーナーの手直し」が起きる所は5つしか無い。全�
 
 | `scope` | 値 | 任せると何が変わるか | 任せても残るもの |
 |---|---|---|---|
-| `merge` | `none` / `A` / `B` / `C` | dispatcher がマージしてよい**最大のレベル**。`C` ならラインそのものの変更も自動マージ | Andon 自身のライン（Andon のセルの `andon` プロジェクト）は常に `B` まで（型 `andon` で固定。§1.3 の 5） |
+| `merge` | `none` / `A` / `B` / `C` | dispatcher がマージしてよい**最大のレベル**。`C` ならラインそのものの変更も自動マージ | プロジェクトの名前では決まらない。既定の型 `work`・`andon` は `B` までで、Andon 自身のプロジェクトも、オーナーが grant で `C` まで広げられる（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2。§1.3 の 5） |
 | `deploy` | `none` / `preview` / `production` | 担当・dispatcher が案件のデプロイ（CI の workflow の起動など）を打ってよい段階 | 条件: 戻す command が1つで、受け入れ条件に書いてある（無ければ `none` と同じ） |
 | `publish` | `none` / `internal` / `public` | 外への公開（パッケージの release・サイト・投稿）。`internal` は自分のセルの中（`andon publish`）まで | `public` は取り消せない。型 `work`・`andon` は `none`。`hobby` は `public` まで任せる（オーナーの決定 2026-11-05。戻せないことを承知の上） |
 | `irreversible` | 許す操作の一覧（`delete-branch` / `force-push` / `rewrite-history` / `delete-remote` …） | 一覧にある操作だけ、問いを出さずに打てる | 既定は空。`delete-remote` は型でも足せない（オーナーだけ） |
 | `external-requests` | `true` / `false` | 他のプロジェクトから委譲の印つきで来た依頼を、承認とみなして進めてよいか | 不可逆な操作の go はオーナー（上の `irreversible` が効く） |
 | `profile` | `true` / `false` | プロファイル（モデル・effort）の選び方を Chief of Staff に任せるか | 新しいプロファイルを作る・変えるのはオーナー（ラインの変更） |
 | `package-update` | `true` / `false` | パッケージのバージョンアップ（セルの `FROM`）の PR を Chief of Staff が受けてよいか | マージは `merge` のレベルに従う（`Dockerfile` はレベル C） |
-| `line-change` | `none` / `project` / `plant` | アウターループの改善をどこまで無灯で入れるか: `project`＝案件 repo のテスト・レビューの観点・指針まで、`plant`＝セルの設定（`gate.local.json`・`AGENTS.local.md`）まで | Andon のパッケージ（skill・gate の条件表の既定・設定の既定）は常にオーナー |
+| `line-change` | `none` / `project` / `plant` | アウターループの改善をどこまで無灯で入れるか: `project`＝案件 repo のテスト・レビューの観点・指針まで、`plant`＝セルの設定（`gate.local.json`・`AGENTS.local.md`）まで | Andon のパッケージ（skill・gate の条件表の既定・設定の既定）を変える PR は、既定の条件表でレベル C。マージは `merge` に従う（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2） |
 
 **既定の型（`preset`）**（案件はここから `grants[]` で足し引きする）:
 
@@ -443,7 +443,7 @@ Andon で「オーナーの手直し」が起きる所は5つしか無い。全�
 
 仮設の規約は `work` に近い（レベル C と不可逆はオーナー・委譲印つきは承認にしない・プロファイルは Chief of Staff）。最初のバージョンの既定（`preset` が無いとき）は **`work`**（安全側）。
 
-**§1.3 の決断との関係**: 種類は同じ。1（何を作るか）は型でも grant でも**委譲できない**（オーナーの目的そのもの。Chief Engineer との対話で決める）。2〜4 は型で「誰が決断するか」が変わる（例: `hobby` では 2〜4 は全部 Chief of Staff。4 不可逆のうちリモートの削除と履歴の書き換えだけオーナー）。5（ラインの変更）は案件側（`line-change`）とセル（`plant`）まで委譲でき、Andon のパッケージは常にオーナー。
+**§1.3 の決断との関係**: 種類は同じ。1（何を作るか）は型でも grant でも**委譲できない**（オーナーの目的そのもの。Chief Engineer との対話で決める）。2〜4 は型で「誰が決断するか」が変わる（例: `hobby` では 2〜4 は全部 Chief of Staff。4 不可逆のうちリモートの削除と履歴の書き換えだけオーナー）。5（ラインの変更）は案件側（`line-change`）とセル（`plant`）まで委譲できる。Andon のパッケージを変える PR は既定の条件表でレベル C で、`merge` を `C` まで委譲したプロジェクトのほかはオーナーがマージする。どのプロジェクトかは名前で決めない（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2）。
 
 **誰が読むか・いつ**:
 

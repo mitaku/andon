@@ -83,7 +83,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   5・6 に当たらず推奨案があり後で変えられるものだけが 8 の `fix`（推奨案で決めて文書の「決めたこと」に「仮（<日付>・Chief of Staff）」と書く課題）。
   例: 使い勝手の既定値は `person`（`users`）。テストの置き場や文書の節の分け方は `fix`。ask-one-by-one skill §1 と同じ線。
 - **`agents`**（`For AGENTS.md:`）: 行き先が決まっているので `fix`。同じ repo に 3 つ以上なら `bundle`（「AGENTS.md に n 行足す」。profile は `sonnet`）。
-- **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（レベル C。`kind` を付けない）。
+- **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（`kind` を付けない）。
   この kanban が Andon 自身のプロジェクトでなければ `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`・`closing: one-off`「その場限り: <なぜ次の課題に効かないか>」。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`・`closing: read`「読んだ: 拾うものなし」。
