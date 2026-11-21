@@ -1,0 +1,7 @@
+diff --git a/docs/design.md b/docs/design.md
+index 1111111..2222222 100644
+--- a/docs/design.md
++++ b/docs/design.md
+@@ -639,1 +639,1 @@
+-1. `tests/public.sh`: 秘密の形（token・鍵・`password=` 等。
++1. `tests/public.sh`: 秘密の形（token・鍵・`password=` 等。

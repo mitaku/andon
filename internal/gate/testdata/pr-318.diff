@@ -1,0 +1,15 @@
+diff --git a/image/Dockerfile b/image/Dockerfile
+index 1111111..2222222 100644
+--- a/image/Dockerfile
++++ b/image/Dockerfile
+@@ -38,1 +39,1 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+-      && apt-get -o Acquire::Retries=3 install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales
++      && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y --no-install-recommends ca-certificates curl git unzip openssh-server sudo locales
+diff --git a/package/compose.yaml b/package/compose.yaml
+index 3333333..4444444 100644
+--- a/package/compose.yaml
++++ b/package/compose.yaml
+@@ -18,0 +19,3 @@ services:
++      # タイムゾーン（IANA の名前）。セルの .env の CELL_TZ で変える。鍵を TZ にしないのは、compose が .env よりホストのシェルの
++      # 変数を先に使い、ホストの TZ がセルに入るため。ssh のセッションには sshd が自分の TZ を渡す（boot が sudo 越しに起動し、sudo は TZ を残す）
++      TZ: ${CELL_TZ:-Asia/Tokyo}

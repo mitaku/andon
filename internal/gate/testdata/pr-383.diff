@@ -1,0 +1,17 @@
+diff --git a/init/bin/bootstrap b/init/bin/bootstrap
+index 1111111..2222222 100755
+--- a/init/bin/bootstrap
++++ b/init/bin/bootstrap
+@@ -66,1 +66,1 @@ require_docker() {
+-# オーナーが違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起動する前に止める。
++# セルの repo のオーナーが違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起動する前に止める。
+diff --git a/internal/boot/owners_test.go b/internal/boot/owners_test.go
+index 3333333..4444444 100644
+--- a/internal/boot/owners_test.go
++++ b/internal/boot/owners_test.go
+@@ -31,1 +31,1 @@ func TestHomeVolumesMatchCompose(t *testing.T) {
+-// オーナーが違う置き場だけを sudo chown -R で渡し、無い置き場は飛ばす。
++// ファイルのオーナーが違う置き場だけを sudo chown -R で渡し、無い置き場は飛ばす。
+@@ -60,1 +60,1 @@ func TestFixOwnersChownsOtherOwner(t *testing.T) {
+-		t.Errorf("オーナーが同じなのに sudo を打った: %s", read(t, calls))
++		t.Errorf("置き場のオーナーが同じなのに sudo を打った: %s", read(t, calls))
