@@ -14,10 +14,11 @@ BrokenCancels ==
     /\ status \in {"doing", "review"} /\ pr # "merged" /\ ~cancel
     /\ cancel' = TRUE
     /\ BrokenFinishStep
-    /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto, moved, autoMerged>>
+    /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto, moved, autoMerged, qVars>>
 
 BrokenNext ==
-    \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
+    \/ ChiefOfStaffRelays \/ AnswerReceived \/ WorkerOpensPR
     \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ WorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves

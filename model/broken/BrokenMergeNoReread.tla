@@ -12,10 +12,11 @@ BrokenDispatcherMerges ==
             /\ UNCHANGED <<status, worker, wt, reviewVars>>
        ELSE /\ Finish
             /\ UNCHANGED told
-    /\ UNCHANGED <<gate, moved, fixSent, q, cancel, mergeAuto>>
+    /\ UNCHANGED <<gate, moved, fixSent, q, cancel, mergeAuto, qVars>>
 
 BrokenNext ==
-    \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
+    \/ ChiefOfStaffRelays \/ AnswerReceived \/ WorkerOpensPR
     \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ WorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves

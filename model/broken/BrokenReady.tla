@@ -6,10 +6,11 @@ BrokenWorkerReady ==
     /\ status = "doing" /\ worker = "live" /\ pr = "open"
     /\ result \in {"clean", "mustfix"}
     /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
-    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto, moved, autoMerged>>
+    /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto, moved, autoMerged, qVars>>
 
 BrokenNext ==
-    \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
+    \/ ChiefOfStaffRelays \/ AnswerReceived \/ WorkerOpensPR
     \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ BrokenWorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ GateSaysFix \/ GateAsksHuman \/ GateApproves

@@ -9,8 +9,11 @@ rule R5_NoWorkerWhenDone
 rule R6_NoReviewWithOpenQuestion
 rule R7_MergeWithoutCancel
 rule R8_AutoMergeOnlyApproved
+rule R9_OnlyWrittenAnswersReachWorker
+rule R10_OneAnswerPerQuestion
+rule R11_NoRelayWithoutAnswer
 # states <本物のモデル（IssueRules.cfg）の状態の数（distinct states）>
-states 2264
+states 4264
 # broken <壊した見本のモジュール（broken/ の下）> <落ちるはずの規則>
 broken BrokenFinish R3_CleanupIsWhole
 broken BrokenFixUnsent R2_FixReachesSomeone
@@ -18,3 +21,5 @@ broken BrokenReady R6_NoReviewWithOpenQuestion
 broken BrokenReviewTwice R7_MergeWithoutCancel
 broken BrokenMergeNoReread R8_AutoMergeOnlyApproved
 broken BrokenClosedNoRecheck R7_MergeWithoutCancel
+broken BrokenAnswerUnnoticed R7_MergeWithoutCancel
+broken BrokenPaneAnswersTwice R10_OneAnswerPerQuestion

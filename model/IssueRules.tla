@@ -15,6 +15,8 @@ TypeOK ==
     /\ fixSent \in BOOLEAN /\ told \in BOOLEAN
     /\ q \in BOOLEAN /\ cancel \in BOOLEAN /\ mergeAuto \in BOOLEAN
     /\ moved \in BOOLEAN /\ autoMerged \in BOOLEAN
+    /\ ans \in {"none", "cos", "pane"} /\ news \in {"none", "pending", "read"}
+    /\ sent \in BOOLEAN /\ twice \in BOOLEAN
 
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
 R1_NoWorkerAfterCancel == cancel => worker # "live"
@@ -43,5 +45,15 @@ R6_NoReviewWithOpenQuestion == status = "review" => ~q
 \* R8 dispatcher が自動でマージするのは、gate が approve と判定した head で、その時点で任されているものだけ（ADR-0034 決めたこと 3）。
 \*    マージしたあとは head も設定も動かず、gate の答えも変わらないので、マージした状態で確かめる
 R8_AutoMergeOnlyApproved == autoMerged => (gate = "approve" /\ ~moved /\ mergeAuto)
+
+\* ---- ペインから答える口の規則（ADR-0042 決めたこと 19） ----
+\* R9 担当に届く答えは、だれかが書いた答えだけ。ペインの答えは、Chief of Staff が通知を読んでから届く
+R9_OnlyWrittenAnswersReachWorker == sent => (ans = "cos" \/ (ans = "pane" /\ news = "read"))
+
+\* R10 1 つの問いに、答えは 1 つだけ（会話の答えとペインの答えが重ならない）
+R10_OneAnswerPerQuestion == ~twice
+
+\* R11 答えの無い問いは、担当に届いたことにならない
+R11_NoRelayWithoutAnswer == (q /\ ans = "none") => ~sent
 
 ====
