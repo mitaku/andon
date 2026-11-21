@@ -79,6 +79,8 @@ func newStart(t *testing.T) *startFixture {
 	os.WriteFile(filepath.Join(dir, "andon.toml"), []byte("owner = \"owner@example.com\"\n"), 0o644)
 	f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site","github.com/example/none"]}`, "owner@example.com")
 	f.task = map[string]any{"id": "S-0007", "title": "Add the button", "status": "todo", "profile": "claude", "repo": "github.com/example/sample-site"}
+	// 予約キーは Chief of Staff（t5）が書いたもの（andon issue start は揃っていなければ断る）
+	f.set("t5", map[string]any{"review": "on", "must_fix": "major", "reviewer": "codex-review", "review_rounds": "2", "merge": "person", "estimate": "medium"})
 	f.ready(f.task)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
@@ -131,6 +133,28 @@ func (f *startFixture) run(flags ...string) (int, string, string) {
 	var out, errb bytes.Buffer
 	rc := Main(append([]string{"start", "S-0007"}, flags...), strings.NewReader(""), &out, &errb)
 	return rc, out.String(), errb.String()
+}
+
+// set は課題に予約キーを書き、端末 by が書いた行を kanban の log.jsonl に足す（kanban set の代わり。履歴の照合が読む）。
+func (f *startFixture) set(by string, kv map[string]any) {
+	f.t.Helper()
+	for k, v := range kv {
+		f.task[k] = v
+	}
+	b, _ := json.Marshal(map[string]any{"at": "2026-11-22T00:00:00Z", "by": "terminal:" + by, "id": "S-0007", "change": kv})
+	lf, err := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	defer lf.Close()
+	lf.Write(append(b, '\n'))
+}
+
+// unset は課題から予約キーを消す（書かなかった課題）。
+func (f *startFixture) unset(keys ...string) {
+	for _, k := range keys {
+		delete(f.task, k)
+	}
 }
 
 // project はセルの repo の projects/sample-site/project.json を書き、author を email にして commit する。
@@ -355,11 +379,73 @@ func startRefusals(t *testing.T) []startRefusal {
 			f.task["after"] = []any{"S-0006"}
 			f.ready(map[string]any{"id": "S-0008", "title": "Other", "status": "todo"})
 		}},
+		// 予約キー（contract.md §2）: 無い・知らない値・最後に書いたのが今の Chief of Staff の端末でないキーがあれば断り、直す kanban set の行を出す
+		{"no review", "S-0007 の予約キーが揃っていないので起動しない（担当は予約キーを書けず、実装を終えてから review-request・ready・gate で止まる）。" +
+			"無い・知らない値: review。Chief of Staff の端末で打つ（<…> は brief.md の表から値を選んで埋める）: kanban set S-0007 'review=<on|off>'\n", false,
+			func(f *startFixture) { f.unset("review") }},
+		{"no estimate", "無い・知らない値: estimate。Chief of Staff の端末で打つ（<…> は brief.md の表から値を選んで埋める）: kanban set S-0007 'estimate=<small|medium|large>'\n", false,
+			func(f *startFixture) { f.unset("estimate") }},
+		{"unknown value", "無い・知らない値: review_rounds。", false,
+			func(f *startFixture) { f.set("t5", map[string]any{"review_rounds": "0"}) }},
+		{"written by worker", "最後に書いたのが今の Chief of Staff の端末（t5）でない: merge。Chief of Staff の端末で打つ: kanban set S-0007 merge=auto\n", false,
+			func(f *startFixture) { f.set("t42", map[string]any{"merge": "auto"}) }},
+		{"chief of staff restarted", "最後に書いたのが今の Chief of Staff の端末（t6）でない: review・must_fix・reviewer・review_rounds・merge・estimate。" +
+			"Chief of Staff の端末で打つ: kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium\n", false,
+			func(f *startFixture) {
+				os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t6\n"), 0o644)
+			}},
+		{"missing and untrusted", "無い・知らない値: must_fix・reviewer。最後に書いたのが今の Chief of Staff の端末（t5）でない: estimate。" +
+			"Chief of Staff の端末で打つ（<…> は brief.md の表から値を選んで埋める）: kanban set S-0007 'must_fix=<critical|major|minor|trivial>' 'reviewer=<codex-review|claude-review>' estimate=large\n", false,
+			func(f *startFixture) {
+				f.unset("must_fix", "reviewer")
+				f.set("t42", map[string]any{"estimate": "large"})
+			}},
+		// review が off でも、PR を出す課題は gate が must_fix と merge を読む
+		{"review off needs must_fix", "無い・知らない値: must_fix。", false, func(f *startFixture) {
+			f.set("t5", map[string]any{"review": "off"})
+			f.unset("must_fix", "reviewer", "review_rounds")
+		}},
 		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", true, func(f *startFixture) {
 			// clone は fetch していないが、origin にだけ同名の branch がある
 			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-0007-add-the-button")
 			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-0007-add-the-button")
 		}},
+	}
+}
+
+// 要らない予約キーは求めない: review が off なら reviewer・review_rounds、PR を出さない課題（repo が無い・調べる課題）なら
+// must_fix・merge も。Chief Engineer の課題は予約キーを見ない。
+func TestStartSettingsNotNeeded(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		edit func(f *startFixture)
+	}{
+		{"review off", func(f *startFixture) {
+			f.set("t5", map[string]any{"review": "off"})
+			f.unset("reviewer", "review_rounds")
+		}},
+		{"without repo", func(f *startFixture) {
+			f.unset("repo", "must_fix", "reviewer", "review_rounds", "merge")
+			f.set("t5", map[string]any{"review": "off", "estimate": "small"})
+		}},
+		{"candidates", func(f *startFixture) {
+			f.unset("must_fix", "reviewer", "review_rounds", "merge")
+			f.set("t5", map[string]any{"review": "off", "deliverable": "candidates", "estimate": "small"})
+		}},
+		{"chief engineer", func(f *startFixture) {
+			t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-engineer"}]}`)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			f.task["profile"] = "chief-engineer"
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			c.edit(f)
+			rc, out, errs := f.run()
+			if rc != 0 || !f.has("kanban start S-0007") {
+				t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+		})
 	}
 }
 

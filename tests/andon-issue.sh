@@ -518,7 +518,10 @@ mkdir -p "$tmp/start/demo" && cd "$tmp/start/demo"
 KANBAN_ROOT= kanban init --prefix S --repo github.com/example/app --repo github.com/example/lib >/dev/null
 export KANBAN_ROOT=$PWD HC_TERMINAL_ID=t5
 kanban config set chief_of_staff=t5 >/dev/null
+# 予約キーは Chief of Staff（t5）が書く。andon issue start は揃っていない課題を起動しない（担当が review-request・ready で止まる）
+keys() { HC_TERMINAL_ID=t5 kanban set "$1" review=off must_fix=major merge=person estimate=small >/dev/null; }
 s1=$(kanban add 'Add the button' --repo github.com/example/app --profile claude --brief - <<<'# Add the button')
+keys "$s1"
 # 乾いた実行: 本物の kanban の CLI で、hc を呼ばず、何も作らず kanban も書かずに、起動するときに渡すものを出す
 hcn=$(cat "$tmp/hc/log" 2>/dev/null | wc -l || true); before=$(wc -l < kanban/log.jsonl)
 "$andon" issue start "$s1" --dry-run --json > "$tmp/dry" || die "dry-run が落ちた"
@@ -588,6 +591,7 @@ kanban set "$s7" "after=$s2" >/dev/null
 [ "$(field "$s7" status)" = todo ] || die "after を足しても todo のはず: $(field "$s7" status)"
 expect_fail "after（$s2）が済んでいない" "$andon" issue start "$s7"
 s8=$(kanban add 'Taken name' --repo github.com/example/app --profile claude --brief - <<<'# x')
+keys "$s8"   # origin の branch は予約キーの確かめのあと（worktree を作る直前）に見る
 git -C "$appdir" push -q origin "HEAD:refs/heads/demo/$s8-taken-name"
 git -C "$appdir" update-ref -d "refs/remotes/origin/demo/$s8-taken-name"
 expect_fail "branch demo/$s8-taken-name が origin にもうある" "$andon" issue start "$s8"
@@ -609,8 +613,24 @@ done
 ! git -C "$GHQ_ROOT/github.com/example/other" show-ref --quiet "refs/heads/demo/$s6-other-repo" && ! git -C "$appdir" show-ref --quiet "refs/heads/demo/$s7-later" || die '止まる前に branch を作った'
 ok 'start: kanban か project.json（owner の commit）の repos に無い repo・未完了の after・origin にある同名の branch では、worktree・branch・kanban の欄・hc run を作らずに止まる'
 
+# 予約キーが揃っていない課題（無いキー・担当の端末が書いたキー）は何も作らずに止まり、直す kanban set の行を最後に出す。
+# 値はコマンドが決めない（無いキーは選ぶ場所を残す）。Chief of Staff がその行を埋めて打てば起動できる
+s12=$(kanban add 'No keys' --repo github.com/example/app --profile claude --brief - <<<'# x')
+HC_TERMINAL_ID=t7 kanban set "$s12" review=off must_fix=major merge=person >/dev/null
+expect_fail '最後に書いたのが今の Chief of Staff の端末（t5）でない: review・must_fix・merge。' "$andon" issue start "$s12"
+fix=$(sed -n 's/.*Chief of Staff の端末で打つ（<…> は brief.md の表から値を選んで埋める）: //p' "$tmp/err")
+[ "$fix" = "kanban set $s12 review=off must_fix=major merge=person 'estimate=<small|medium|large>'" ] && grep -q '無い・知らない値: estimate。' "$tmp/err" \
+  || die "直す行: $(cat "$tmp/err")"
+[ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$s12" ] && [ "$(field "$s12" status)" = todo ] && [ -z "$(field "$s12" estimate)" ] && ! grep -q "issue=$s12 " "$tmp/hc/log" \
+  || die "予約キーが揃っていないのに作ったか、キーを書いた: $(kanban show "$s12" --json | jq -c .issue)"
+eval "HC_TERMINAL_ID=t5 ${fix/<small|medium|large>/small}" >/dev/null
+"$andon" issue start "$s12" --dry-run --json | jq -e '[.checks[] | select(.name == "settings" and .result == "ok")] | length == 1' >/dev/null \
+  || die "直す行を打っても起動できない: $("$andon" issue start "$s12" --dry-run 2>&1)"
+ok 'start: 予約キーが無いか最後に書いたのが今の Chief of Staff の端末でなければ、何も作らず値も書かずに止まり、直す kanban set の行を出す。埋めて打てば起動できる'
+
 # hc run が落ちたら、作った worktree と branch を戻す
 s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brief - <<<'# x')
+keys "$s4"
 echo 1 > "$tmp/hc/run-rc"
 expect_fail 'hc run に失敗' "$andon" issue start "$s4"
 rm "$tmp/hc/run-rc"
@@ -633,6 +653,7 @@ ok 'start: hc run が落ちたら worktree・branch・kanban の欄を戻す（�
 
 # 最初のメッセージが届かない（信頼の画面など）
 s5=$(kanban add 'Trust prompt' --profile claude --brief - <<<'# x')   # repo の無い課題: issues/<id>/ で起動する
+HC_TERMINAL_ID=t5 kanban set "$s5" review=off estimate=small >/dev/null   # PR を出さない課題は must_fix・merge を求めない
 echo false > "$tmp/hc/first"
 rc=0; "$andon" issue start "$s5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 rm "$tmp/hc/first"
@@ -650,6 +671,7 @@ ok 'start: 最初のメッセージが届かなくても起きた端末の起動
 # 受け取られていない問いがあれば、finish は何も消さずに止まる（片付けは全部か無し。A-0002・A-0001 の repro-b1）。
 # 消してから kanban done に断られると、doing のまま端末が死に、dispatcher の resume がやめた課題で担当を起動し直す
 s11=$(kanban add 'Cancel me' --repo github.com/example/app --profile claude --brief - <<<'# x')
+keys "$s11"
 "$andon" issue start "$s11" >/dev/null
 wt11=$(field "$s11" worktree); br11=$(field "$s11" branch); a11=$(field "$s11" agent)
 HC_TERMINAL_ID=$a11 "$andon" issue ask "$s11" - <<<'{"kind":"users","question":"どちらにするか","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}' >/dev/null
@@ -766,6 +788,7 @@ ok 'finish: PR の状態が読めなければ書かずに1行出す（結果を�
 
 # resume: 止まった担当を同じ worktree でセッションの続きから起動する（ADR-0012 決めたこと 3・7・11・13。受け入れ条件 1・2・3・5）
 r1=$(kanban add 'Resume me' --repo github.com/example/app --profile claude --brief - <<<'# Resume me')
+keys "$r1"
 expect_fail "は todo" "$andon" issue resume "$r1" --dry-run
 "$andon" issue start "$r1" >/dev/null
 sess=$(field "$r1" session); a1=$(field "$r1" agent); rwt=$ANDON_WORKSPACE/.worktrees/app/demo-$r1; rbr=demo/$r1-resume-me
