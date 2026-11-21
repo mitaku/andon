@@ -3,7 +3,7 @@
 - 日付: 2026-11-10
 - 出典: オーナーの依頼（2026-11-10「通知のノイズを直す課題を切って」）。課題 A-0036。推奨で進めたもの（オーナーの答えは PR のマージ）
 
-- Chief Engineer の課題（`profile: chief-engineer`）の `stalled`・`blocked`（問い・許可の確認とも）・`ready` は記録だけにする。Chief Engineer はオーナーと直接話す役で、オーナーの返事を待つ `idle` と `AskUserQuestion` の `blocked` が普通。Chief of Staff はオーナーへの問いに答えないので、届いても画面を読んで「人の返事待ち」と言い返すだけになる（2026-11-10 に A-0034・A-0035 で 7 回）。`ready` は `andon chief-engineer` が起動した直後に出るもので、もう起きている。`error`・`finished`・`review`（文書の PR）・`report`・`asked` は今までどおり届ける。
+- Chief Engineer の課題（`profile: chief-engineer`）の `stalled`・`blocked`（問い・許可の確認とも）・`ready` は記録だけにする。Chief Engineer はオーナーと直接話す役で、オーナーの返事を待つ `idle` と `AskUserQuestion` の `blocked` が普通。Chief of Staff はオーナーへの問いに答えないので、届いても画面を読んで「オーナーの返事待ち」と言い返すだけになる（2026-11-10 に A-0034・A-0035 で 7 回）。`ready` は `andon chief-engineer` が起動した直後に出るもので、もう起きている。`error`・`finished`・`review`（文書の PR）・`report`・`asked` は今までどおり届ける。
 - 許可の確認の `blocked` も届けない。オーナーが Chief Engineer と話している最中に出るもので、オーナーがその場で答える。
 - `working` のまま 20 分の `stalled` は、`status.msg` と画面の字（数字・記号・空白を除く）も 20 分替わらないときだけ届ける。`status_ms` は状態が変わった時刻なので、1つのターンで長く働く担当（A-0022・A-0044・A-0038）が止まったように見えていた。
 

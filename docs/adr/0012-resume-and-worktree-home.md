@@ -46,7 +46,7 @@
 2. **2026-11-10 担当向けの指針の口は、worktree の置き場に依らせない。** セルの repo の見える所に1ファイル（名前は仮に `AGENTS.worker.md`。切る案で確定）をオーナーが書き、Andon が担当とレビュアーを起動する最初のメッセージで両ブランドとも明示して指す（あるときだけ）。
    理由: 実測（下の出典）で、Claude Code は worktree の根より上の `AGENTS.md` を読むが Codex は読まない。置き場の上に置くと効き方がブランド（Claude は暗黙・Codex は届かない）と役（Chief Engineer にも効く・cwd が `issues/<rev>/` のレビュアーには効かない）でちぐはぐになる。Andon の役の区別で「誰に効くか」を決めれば、ハーネスが親を遡る仕様にも依らない。
    捨てた案: `/workspace/.worktrees/AGENTS.md` を置いて Claude に自動で読ませ、Codex とレビュアーには明示の1行（オーナーの最初の案。オーナーが書くファイルが機械の持ち物の隠しディレクトリに入る）／この題ではやらない。
-   名前の確定（2026-11-12。A-0042）: `AGENTS.worker.md`、置き場はセルの repo の直下（`$ANDON_WORKSPACE`。既定 `/workspace`）。あるときだけ、`andon issue start`（`resume --fresh` も）と dispatcher のレビュアー（送り直しも）の最初のメッセージに「人の指針 `<パス>` も読む」の1行が入る。中身はオーナーが書き、Andon は書かない。[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表に1行。
+   名前の確定（2026-11-12。A-0042）: `AGENTS.worker.md`、置き場はセルの repo の直下（`$ANDON_WORKSPACE`。既定 `/workspace`）。あるときだけ、`andon issue start`（`resume --fresh` も）と dispatcher のレビュアー（送り直しも）の最初のメッセージに「オーナーの指針 `<パス>` も読む」の1行が入る。中身はオーナーが書き、Andon は書かない。[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表に1行。
 3. **2026-11-10 入口は新しい command `andon issue resume <id> [--dry-run] [--fresh]`。** 起動できるのは `doing` で、台帳に `worktree`（repo のある課題）があり、端末（`agent`）が無い・終わっている・素のシェル（`spawn.BareShell`）の課題だけ。動いていれば「端末 … がもう動いている」で止まる。`start` は「新しく作る」の一本道のまま変えない。
    理由: ライフサイクルに「死んだ → resume → doing」の辺を足す（オーナー: finish → todo → start はおかしい）。条件の違う2つを1つの動詞に畳むと `--dry-run` と失敗の文言が濁る。
    捨てた案: `start` が条件を見て自動で切り替わる／両方。
@@ -110,7 +110,7 @@
 16. **2026-11-11 実装で決めた細部**（R4 の担当 A-0040。推奨案で進めた。戻すなら一言）:
    1. 「1つの死につき1回」の控えは dispatcher の控えの `Resumed`（課題 → Gone を見た端末 `from` と起動した端末 `agent`）。打つ前に保存し（打っている間に落ちても同じ死へ二度打たない）、台帳の `agent` が `from` か `agent` と同じ Gone なら打たない。台帳の `agent` が別の値に替わった（Chief of Staff が `--fresh` を打った・レビュアーを起動し直した）あとの死は別の死として1回打つ。
    2. 「働き始めた」は hc の `turn` ≥ 1（終えたターンの数。最初のメッセージを受けて動いている間は 0）。resume が最初のメッセージを届けた直後はまだ 0 なので、最初のターンを終える前に死んだ端末は「働かずに死んだ」として `finished` を届ける。
-   3. resume が起動できない（記録が無い・`machine` のある課題・profile が無い・最初のメッセージが届かない）ときは、その死にもう打たず、今どおり `finished` を届ける（決めたこと 7 の「人の go で `--fresh`」へ）。ログに `andon issue resume` の理由の1行を残す。
+   3. resume が起動できない（記録が無い・`machine` のある課題・profile が無い・最初のメッセージが届かない）ときは、その死にもう打たず、今どおり `finished` を届ける（決めたこと 7 の「オーナーの go で `--fresh`」へ）。ログに `andon issue resume` の理由の1行を残す。
    4. 初めて見る台帳では、そのとき Gone だった端末を控えに「見た」（`from` だけ）と持ち、次の見回りでも打たない（`finished` も今どおり知らせない）。
    5. 記録だけの通知 `resumed` の `detail` は `agent`（起動した端末）・`from`（Gone を見た端末）の2つ（`schema/notification.schema.json`）。
    6. 受け入れ条件 7（コンテナを起き直す実測）と開いている問い 4 は、担当がセルの中から測れない（起き直すと担当自身も Chief of Staff も dispatcher も死に、入っている dispatcher はこの PR の前の版）。マージして image を上げたあと、オーナーがコンテナを起き直して測る（報告の `## Next`）。
@@ -150,7 +150,7 @@
 - R2 `andon issue resume <id> [--dry-run] [--fresh]`（担当と Chief Engineer。決めたこと 3・7・9・11・12・13）: `kanban` の `session` 列、`start`・`chief-engineer` の `--session-id`、template の `resume:` 行と boot の `<profile>-resume` の生成、記録の有無の確かめ、worktree を戻す、起動して届いてから台帳、lock、`andon chief-engineer` の Discard を外す。受け入れ条件 1・2・3・5。R1 のあと（同じファイルに触る）。
 - R3 レビュアーの resume（決めたこと 8。detached を戻す・cwd `issues/<rev>/`）。R2 のあと。
 - R4 dispatcher の自動 resume（決めたこと 4・13 の 3。Gone → resume 1回・控えと働いたら消す・`resumed` の記録だけ・ADR-0010 の表）。受け入れ条件 4。R3 のあと。
-- R5 文書と skill（CoS skill の「止まった担当」の表の最後の行を「dispatcher が resume する。働かずに死んだら人に1問」に、worker・CE skill に起き直し後の最初のメッセージの読み方と「自分の cwd で claude・codex を起動しない」の各1行、`dispatcher.md` §2.3、`operate.md` §8 の「worktree を戻す」を resume に、`operate.md` の `git clean -x` の1行）。R4 のあと。
+- R5 文書と skill（CoS skill の「止まった担当」の表の最後の行を「dispatcher が resume する。働かずに死んだらオーナーに1問」に、worker・CE skill に起き直し後の最初のメッセージの読み方と「自分の cwd で claude・codex を起動しない」の各1行、`dispatcher.md` §2.3、`operate.md` §8 の「worktree を戻す」を resume に、`operate.md` の `git clean -x` の1行）。R4 のあと。
 - R6 担当向けの指針のファイル（決めたこと 2。名前を確定し、`spawn` の最初のメッセージに「あれば読め」の1行、ADR-0005 の表に1行）。独立。
 - R7 観察の課題（価値の仮説。`not_before` 2026-11-24）。R4 のあと。
 - 実測（受け入れ条件 7）は R4 の担当がセルで行う。

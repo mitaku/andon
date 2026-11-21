@@ -32,9 +32,9 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
-1. **2026-11-06 追跡の基準は 1 本: 「建屋を別のマシンに建て直すとき要るか」。** 要る＝建屋の repo で追跡する。要らない（そのマシンの寿命のもの: 端末・worktree・lock・一時の状態・生成し直せるもの）＝追跡しない。「人のものか、エージェントのものか」は別の列（書く人）で持ち、追跡と混ぜない。
+1. **2026-11-06 追跡の基準は 1 本: 「建屋を別のマシンに建て直すとき要るか」。** 要る＝建屋の repo で追跡する。要らない（そのマシンの寿命のもの: 端末・worktree・lock・一時の状態・生成し直せるもの）＝追跡しない。「オーナーのものか、エージェントのものか」は別の列（書く人）で持ち、追跡と混ぜない。
    理由: 建屋はオーナー 1 人の箱（前提 1）なので、追跡の目的はオーナーの差分の見やすさでも共同作業でもなく、**持ち運びと建て直し**だけ。
-   捨てた案: ADR-0004 の 1 回目「追跡＝人のもの・外＝エージェントのもの」——台帳が git の外になり、別のマシンへ動かすと計画と `log.jsonl` が消える（オーナーの指摘）。
+   捨てた案: ADR-0004 の 1 回目「追跡＝オーナーのもの・外＝エージェントのもの」——台帳が git の外になり、別のマシンへ動かすと計画と `log.jsonl` が消える（オーナーの指摘）。
 
 2. **2026-11-06 建屋の repo の直下。予約名は次の表、その他は自由（オーナーのもの。追跡が既定）。** エージェントは予約名の中で決められた場所にだけ書き、直下に新しい名前を作らない。
 
@@ -63,7 +63,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    理由: 問い10 の「捨てる」は「建屋の repo の commit は稀」が前提だった。台帳を追跡すると稀でなくなる。元の推奨（残す・`andon.toml` で切れる）に戻るだけで、仕組みは仮設の post-commit hook ではなく伝令の 1 段にする（止められる・ログに残る）。台帳の価値は「計画はコードのそば、履歴は `log.jsonl`」で、shepherdr が持ち越さなかったものを Andon は持ち越す。
    捨てた案: オーナーが commit する——忘れると消える／台帳だけ別 repo・orphan branch——建屋＝1 repo で建て直せる単純さを壊す／rsync で運ぶ——壊れたときに残らない／追跡しない（1 回目）——指摘のとおり消える。
 
-4. **2026-11-06 人のファイルとエージェントの境界と守り。** オーナーのファイル（オーナーだけが書く）は `andon.toml`・`projects/<slug>/project.json`・`gate.local.json`・`templates.local/`・`local/`・建屋の `AGENTS.md`。エージェントが commit してよいのは `wiki/`・`files/`・`projects/<slug>/AGENTS.md`・`projects/<slug>/.claude/`・`kanban/`（表の「書く人」のとおり）。守りは 3 段:
+4. **2026-11-06 オーナーのファイルとエージェントの境界と守り。** オーナーのファイル（オーナーだけが書く）は `andon.toml`・`projects/<slug>/project.json`・`gate.local.json`・`templates.local/`・`local/`・建屋の `AGENTS.md`。エージェントが commit してよいのは `wiki/`・`files/`・`projects/<slug>/AGENTS.md`・`projects/<slug>/.claude/`・`kanban/`（表の「書く人」のとおり）。守りは 3 段:
    - (a) **機械が読む人のファイル**（`project.json`・`gate.local.json`）は、建屋の repo の HEAD を読み、最後に変えた commit の author が `owner` のときだけ信じる（contract.md §11。今ある。オーナーが 1 人なので照合はこの 1 行で足りる）。
    - (b) **書く command は役の端末で拒む**: `andon delegate` は hc のラベル `role=` か `task=` のある端末では打てない（今ある）。
    - (c) **ハーネスの deny**: managed settings（`package/settings.json`）の `deny` に、オーナーのファイルへの `Write`・`Edit` を足す。design.md §1.10 が「managed deny ＋ 端末のラベル」と書くが、今の `settings.json` の deny は `gh pr merge` と git の `--output` 系だけで、この deny は**まだ無い**（見つけた継ぎ目。S3）。Codex 側は同じ広さで拒めない（受け入れ済み。前提 4）。**→ 在る（6。S3）。**
@@ -75,7 +75,7 @@ ADR-0004 の 1 回目の提案は「台帳は git の外」で、それは bind 
    - 別のマシンへ動かすときに経過も持っていきたければ、オーナーが `kanban/` をディレクトリごと写す（operate.md の引っ越しの段に「写してよい・写さなくてもよい」と書く）。写した先ではマシン固有の値（`coordinator`・`agent`・`worktree`・`machine`）が無効で、伝令が `stalled` として知らせる（3 の記述はこの点だけ生きる）。
    - 決めたこと 1 の基準「建て直しに要るか」はそのまま。台帳は「建て直しに要らない」側（要るものは外に出ている）。
    - 受け入れ条件 1 と 4 の commit・push、切る案 S2 の `.gitignore` の書き換えと S4、開いている問い 2 は無くなる（下に打ち消し線ではなくこの項で読み替える。文書を書き換えないのは「覆したら上書きせず下に足す」の規則）。S4 は「operate.md の引っ越しの段（`kanban/` を写す手）」だけ残る。
-   理由: 前提 1 のとおり。台帳を git に入れると、セルの repo の履歴がエージェントの commit で埋まり、「人のファイルはエージェントが commit しない」の線（4）の例外が増える。要るものが外に出ている以上、増やす理由が無い。
+   理由: 前提 1 のとおり。台帳を git に入れると、セルの repo の履歴がエージェントの commit で埋まり、「オーナーのファイルはエージェントが commit しない」の線（4）の例外が増える。要るものが外に出ている以上、増やす理由が無い。
    捨てた案: 3（伝令が commit・push）——オーナーの意図と違う／`kanban export` の command を作る——`cp -r` で足りる。
 
 6. **2026-11-06 4 の (c) は在る（S3。タスク Y-162）。** `package/settings.json` の `permissions.deny` に `Edit(//workspace/<人のファイル>)` を 9 本足した: `andon.toml`・`AGENTS.md`・`gate.local.json`・`templates.local/**`・`local/**`・`bin/**`・`projects/*/project.json`・`projects/*/delegation.json`・`projects/*/delegation.md`（`delegation.*` は `project.json` へ移すまでの今のファイル。移したら外す）。

@@ -21,11 +21,11 @@
 
 オーナー（2026-11-10）: 「Mod の Inbox だけど、あんまり Done にも Working にも興味がないのかもしれないと思い始めてきた」「Need You とプロジェクトで動く Agent（主に CoS）へのアクセスが担保されていれば良い気がするね」「それこそが本当の Andon だしね」。
 
-言い直し（オーナーが同意 2026-11-10）。オーナーが App の左の列（inbox）に求めるのは「自分が手を動かすべきものに迷わず着けること」で、それは2つに尽きる。1つは Needs you（オーナーにしか答えられない問い・マージの依頼・Chief of Staff と Chief Engineer の返事）、もう1つはプロジェクトで動く役（主に Chief of Staff、題があるときの Chief Engineer）の端末へすぐ行けること。いまの inbox は herdr-flightdeck 由来の「エージェントを全部さばく受信箱」で、担当がターンを終えるたびに Done に積み上がる。けれど担当の Done と Working は dispatcher が拾って Chief of Staff が処理しており、オーナーが見ても何も起きない。困りごとは「人が何とも思わない情報が、人の一番目につく場所に多く出ている（雑音）」こと。目的は、inbox を「人の Needs you」と「役への入口」の2つに絞り、それ以外をオーナーの視界から下げること。見た目の好みの話ではなく、design.md §1.4 の「人の入口は Chief of Staff」の線と、灯りがつくときだけオーナーを呼ぶ Andon の線を画面に写す話。
+言い直し（オーナーが同意 2026-11-10）。オーナーが App の左の列（inbox）に求めるのは「自分が手を動かすべきものに迷わず着けること」で、それは2つに尽きる。1つは Needs you（オーナーにしか答えられない問い・マージの依頼・Chief of Staff と Chief Engineer の返事）、もう1つはプロジェクトで動く役（主に Chief of Staff、題があるときの Chief Engineer）の端末へすぐ行けること。いまの inbox は herdr-flightdeck 由来の「エージェントを全部さばく受信箱」で、担当がターンを終えるたびに Done に積み上がる。けれど担当の Done と Working は dispatcher が拾って Chief of Staff が処理しており、オーナーが見ても何も起きない。困りごとは「オーナーが何とも思わない情報が、オーナーの一番目につく場所に多く出ている（雑音）」こと。目的は、inbox を「オーナーの Needs you」と「役への入口」の2つに絞り、それ以外をオーナーの視界から下げること。見た目の好みの話ではなく、design.md §1.4 の「オーナーの入口は Chief of Staff」の線と、灯りがつくときだけオーナーを呼ぶ Andon の線を画面に写す話。
 
 事実（オーナーに聞かず読んで確かめたもの）:
 - Needs you は台帳の状態ではなく hc の live な状態（`blocked`）から来る（ledger.md）。担当の `blocked`（許可の確認）は、まず Chief of Staff が委譲の中で答える役で、オーナーへ上がるのは Chief of Staff が中継したときだけ（chief-of-staff skill §4、ask-one-by-one §1）。
-- 同梱の inbox は `news.replied` を読んでいない（contract.md §8 の表は読み手に「ボード」と書くが、`package/host/inbox/main.js` にその行は無い）。Chief of Staff・Chief Engineer の返事は「人が見るまで Needs you（Reply）、見たら Idle」（README）。
+- 同梱の inbox は `news.replied` を読んでいない（contract.md §8 の表は読み手に「ボード」と書くが、`package/host/inbox/main.js` にその行は無い）。Chief of Staff・Chief Engineer の返事は「オーナーが見るまで Needs you（Reply）、見たら Idle」（README）。
 - ledger.md の「Every stopped agent has asked」は inbox が台帳も見る前提で書かれているが、同梱の inbox は台帳を読まない（読むのは kanban-board）。
 - 2026-11-10 の実測（`hc ls`）: 担当 3 つが `done` のまま並び（A-0057・A-0029・A-0011。dispatcher が拾い済み）、オーナーの Done に出ていた。
 
@@ -33,7 +33,7 @@
 
 オーナーが 2026-11-10 に 1〜5 に答えた（2 はオーナーの言葉で直した）。
 
-1. オーナーが inbox で手を動かすのは「人の Needs you」（Chief of Staff・Chief Engineer の返事と問い、Chief of Staff が中継した担当の止まり）と「役への入口」の2つだけ。担当の Done・Working・Idle はオーナーの仕事ではない（dispatcher と Chief of Staff が処理する）。
+1. オーナーが inbox で手を動かすのは「オーナーの Needs you」（Chief of Staff・Chief Engineer の返事と問い、Chief of Staff が中継した担当の止まり）と「役への入口」の2つだけ。担当の Done・Working・Idle はオーナーの仕事ではない（dispatcher と Chief of Staff が処理する）。
 2. Done は課題の片付けで勝手に消えるので、オーナーの手間は増えない。困りごとは手間ではなく、オーナーが何とも思わない情報が多く出ていること（雑音）。
 3. 流れの俯瞰（誰が何をしているか・どの課題がどこか）は kanban-board と App の Spaces の一覧が既に持つ。inbox が Working・Idle・Settled の棚で俯瞰を兼ねる必要は無い。
 4. 配り方は今のまま: `package/host/inbox` に同梱し `host-install` がオーナーの App に置く。新しい約束（端末のラベル・schema・台帳の形）は足さず、今あるラベル（`role`・`project`・`issue`・`title`）と hc の状態だけで絞る。
@@ -60,7 +60,7 @@
    捨てた案: 各プロジェクトの末尾かセルの行として出す（dispatcher は `project` ラベルを持たず、プロジェクトの行にならない）。
 
 5. **2026-11-10 settle を消す（出典: オーナー）。** 行の ✓・キー `d`・`u`・`ctrl-shift-d`（`inbox.settle`）・ラベル `settled=` の読み書き・Settled の棚を全部消す。Needs you の行は、端末の状態が変わる（Chief of Staff かオーナーが答える・役の返事をオーナーが見る）まで出続ける。mod は hc に何も書かなくなる（読むだけ）。
-   理由: 払う手が要るのは「人が見ても何もしない行」があるからで、絞ったあとの Needs you にそれは無い。
+   理由: 払う手が要るのは「オーナーが見ても何もしない行」があるからで、絞ったあとの Needs you にそれは無い。
    捨てた案: 残して Settled の棚だけ消す（推奨案だった）／残して棚も残す。
 
 6. **2026-11-10 ボードのダイアログ（ヘッダーのボタン・`ctrl-shift-u`・`mod.open:inbox`・`mod.json` の `overlay`・マシンごとのレーン）を消す。** 俯瞰は kanban-board（`ctrl-shift-y`。ボタンはヘッダーに残す）と Spaces（前提 3）。
@@ -75,7 +75,7 @@
 - **settle とラベル `settled=` の読み書き**（決めたこと 5）。mod は hc に何も書かない。`settled=` の行は contract.md §8 に無い（herdr-flightdeck 由来の mod だけの印だった）ので約束の文書は変えない。オーナーが前に付けた `settled=` のラベルは読まず、端末と一緒に消える。
 - **inbox が台帳を読むこと**（ledger.md「Every stopped agent has asked」の読み手に inbox を数えること）。前提 4。台帳を読む画面は kanban-board。ledger.md のその行の「(work-board, inbox)」は、実装の課題が「kanban-board」だけに直す（inbox を外す）。
 - **dispatcher の通知のノイズ**（A-0036）・**kanban-board**・**名前を付ける andon mod**・**レイアウトの列の割り**（`layouts/andon.json` の inbox 2 : spaces 1）（前提 5）。inbox が短くなった分は、レイアウトの最小の高さ（`min: 120`）の範囲で Spaces が使う。割りを変えたくなったら別の題。
-- **`news.replied` を inbox が読むこと**: 今も読んでおらず、役の返事は「人が見るまで Needs you」で足りる。contract.md §8 の読み手「ボード」は herdr-flightdeck の Web ボードを指す（変えない）。
+- **`news.replied` を inbox が読むこと**: 今も読んでおらず、役の返事は「オーナーが見るまで Needs you」で足りる。contract.md §8 の読み手「ボード」は herdr-flightdeck の Web ボードを指す（変えない）。
 - **ペインの無い担当（sub-agent）の畳み込みの変更**: 担当は blocked のときだけ出るので、親に畳む今の規則（urgent・peek）はそのまま。
 - **オーナーの `keys.json` を host-install が直すこと**: キーはオーナーのもの（operate.md）。消えるキー（`ctrl-shift-d`・`ctrl-shift-u`）は README と operate.md の断片から外し、オーナーが自分の `keys.json` から消す（残しても「unknown command」で害は無い）。
 

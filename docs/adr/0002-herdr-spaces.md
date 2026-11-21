@@ -33,7 +33,7 @@
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
-Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュアー）がオーナーの Herdr App の画面でどう見えるかを、ラインの構造に合わせて揃えたい。今は `hc run` で起動した担当・レビュアーが、起動した Chief of Staff の tab の下にペインの無い子として畳まれ、オーナーの窓口である Chief of Staff・オーナーと設計を話す Chief Engineer・黙って働く担当が 1 つの Space に混ざる。困りごとは「人が答えるべきものを見つけられない」ではなく、ラインの流れ（どのプロジェクトで誰が何人、今どこか）が Space と tab の構造に写っていないこと。TPS で言う大部屋（obeya）の見える化で、見た目の好みの話ではない（オーナーが同意 2026-11-05）。
+Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュアー）がオーナーの Herdr App の画面でどう見えるかを、ラインの構造に合わせて揃えたい。今は `hc run` で起動した担当・レビュアーが、起動した Chief of Staff の tab の下にペインの無い子として畳まれ、オーナーの窓口である Chief of Staff・オーナーと設計を話す Chief Engineer・黙って働く担当が 1 つの Space に混ざる。困りごとは「オーナーが答えるべきものを見つけられない」ではなく、ラインの流れ（どのプロジェクトで誰が何人、今どこか）が Space と tab の構造に写っていないこと。TPS で言う大部屋（obeya）の見える化で、見た目の好みの話ではない（オーナーが同意 2026-11-05）。
 
 ## 前提（同意済み。番号）
 
@@ -63,7 +63,7 @@ S0 の結果を受けて 2026-11-05 に足した前提（Y-106。オーナーが
    捨てた案: tab ＝ 流れ（1 つの文書から切った束）。
 3. **2026-11-05 片付けは、空になって消えるのに任せる。** `andon task finish` は端末を kill・rm するので tab が空になり、App の規則（最後の tab が閉じれば Space も閉じる）で消える見込み（要実測）。command は Space・tab を閉じない。
    捨てた案: `work` の Space を残す（次のタスクが同じ id に来る）。
-4. **2026-11-05 人が起動する 2 役（`andon chief-of-staff`・`andon chief-engineer`）は、command が起動する・ラベルを付ける・オーナーの端末に `hc attach` するまでを一度にする（オールインワン）。** 前提 6 の「attach は人が打ったときだけ」は、オーナーが打った command の中の attach を含む（機械が起動するものは attach しない）。`--no-attach` は skill の自己確認用に残す。
+4. **2026-11-05 オーナーが起動する 2 役（`andon chief-of-staff`・`andon chief-engineer`）は、command が起動する・ラベルを付ける・オーナーの端末に `hc attach` するまでを一度にする（オールインワン）。** 前提 6 の「attach はオーナーが打ったときだけ」は、オーナーが打った command の中の attach を含む（機械が起動するものは attach しない）。`--no-attach` は skill の自己確認用に残す。
    理由: オーナーの手順を減らす（オーナー 2026-11-05）。要実測: ラベルの Space の pane と attach した pane に二重に出ないか。二重に出るなら、ラベルをオーナーの端末から写す／attach をやめる、のどちらかを実測で選ぶ（開いている問い）。
    捨てた案: command はラベルを付けず、オーナーが起動する 2 役はオーナーの場所に従う（習慣に頼る）。
 5. **2026-11-05 レビュアーは担当と同じ `herdr.tab` を付けて並べる**（クーリエが起動するとき）。1 つの tab でタスクの実装とレビューが見える。hc にペインの概念は無いが、同じ tab id の端末は App がその tab に並べる見込み（要実測）。
@@ -74,7 +74,7 @@ S0 の結果を受けて 2026-11-05 に足した前提（Y-106。オーナーが
    理由: 要実測が 4 つあり、どれもオーナーの App を見ないと確かめられない。試してから決める（オーナー 2026-11-05）。
 
    **S0 の結果（2026-11-05。Chief of Staff がオーナーの go で打ち、オーナーが App で見た。読み解きは Y-106 で Herdr App の公開ソースと照らした）。** 打ったのは `hc run --bg --no-parent --no-notify --label herdr.space=andon-try --label herdr.tab=andon-try-1 -- sh` を 2 つ。
-   - (a) オーナーの見え方: 「新しい Space は出ない。2 つは『workspace』という名前の Space に出た」。**読み解き: Space は id `andon-try` で新しく作られていた。** App は知らない id の Space と tab をその id で作り、名前は付けない（`src/window.rs` の `adopt`）。名無しの Space の名前は「最初の端末の cwd で `git rev-parse --show-toplevel` した結果のフォルダ名」（repo でなければ cwd のフォルダ名。`src/model.rs` の `space_name`）で、試作の端末の cwd が建屋 repo の中だったので建屋 repo のフォルダ名が出た。名無しの tab は番号。画面は移らない（App は表示中の Space を変えない）。つまり崩れたのは「id が名前として見える」「人が一度付けた名前が残る」の 2 つで、「ラベルで Space を作れる」は崩れていない。
+   - (a) オーナーの見え方: 「新しい Space は出ない。2 つは『workspace』という名前の Space に出た」。**読み解き: Space は id `andon-try` で新しく作られていた。** App は知らない id の Space と tab をその id で作り、名前は付けない（`src/window.rs` の `adopt`）。名無しの Space の名前は「最初の端末の cwd で `git rev-parse --show-toplevel` した結果のフォルダ名」（repo でなければ cwd のフォルダ名。`src/model.rs` の `space_name`）で、試作の端末の cwd が建屋 repo の中だったので建屋 repo のフォルダ名が出た。名無しの tab は番号。画面は移らない（App は表示中の Space を変えない）。つまり崩れたのは「id が名前として見える」「オーナーが一度付けた名前が残る」の 2 つで、「ラベルで Space を作れる」は崩れていない。
    - (b) 同じ `herdr.tab` の 2 つは同じ tab に**横に並んで** split された（App はその tab の最後の pane の横に足す）。
    - (c) 2 つを kill・rm すると tab も Space も消えた（最後の tab が閉じると Space も閉じる。残るのは名前とフォルダだけで id は残らず、同じ id で起動し直すと名無しの新しい Space になる）。
    - (d) `hc attach` すると二重に出た（前提 11）。
@@ -109,7 +109,7 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。オーナーが番�
 20. **2026-11-05 mod の置き場は App の設定フォルダに従う（15 の補足）。** `HERDR_APP_HOME` → `XDG_CONFIG_HOME/herdr-app` → `~/.config/herdr-app` の順で選び、その `mods/andon/` に置く。WSL では Windows 側との取り違えを避けるため `HERDR_APP_HOME` の明示指定を求め、未指定ならホストの道具を書き込む前に止める。
 21. **2026-11-06 伝令（courier）を App に出す。置き場は建屋の台帳の数で決める（出典: オーナー）。** 伝令は建屋に1つで台帳をまたぐ。台帳が1つなら、その指揮側の Space `andon-<slug>`（名前は `<slug>`）に tab `andon-<slug>-courier`（名前は「伝令」）。2つ以上（無いときも）なら、建屋の名前の Space `andon-<建屋の slug>-plant`（名前は `<建屋の slug> plant`）に tab `andon-<建屋の slug>-courier`（名前は「伝令」）。建屋の slug は hostname を `a-z 0-9 -` に揃えたもの。ラベルを付けるのはクーリエを起動する `courier.Ensure`（boot と Chief of Staff のフックが打つ。起動し直しも同じ）、名前を付けるのは Andon の mod（伝令は `project` ラベルを持たないので、mod は自分の tab id から名前を導く）。日本語の呼び名は「伝令」（Y-123）、英語の識別子は courier のまま。
     理由: P7 で伝令が止まっていたのに誰も気づけなかった（オーナーの意向 2026-11-06）。App で見えれば止まりに気づける。
-    覆したこと: 「やらないこと」の「クーリエと通知の係自身を App に出すこと」（当時の理由は「人が見るものではない」）。通知の係は今回も出さない（`--no-parent` のまま）。
+    覆したこと: 「やらないこと」の「クーリエと通知の係自身を App に出すこと」（当時の理由は「オーナーが見るものではない」）。通知の係は今回も出さない（`--no-parent` のまま）。
     捨てた案: 台帳が増えても指揮側のどれか1つの Space に出す（どの Space かが台帳の並び順で決まり、足すたびに動く）。`project` ラベルを伝令に付ける（ラベルの読み手のボードとフックが、伝令を台帳の担当と取り違えうる）。
 22. **2026-11-06 21 の係の名前を dispatcher に改める（出典: オーナー）。** 21 の名前の行を次に替える: tab の id は `andon-<slug>-dispatcher`・`andon-<建屋の slug>-dispatcher`、名前は「dispatcher」。端末の名前とラベルは `dispatcher`・`role=dispatcher`、ラベルを付けるのは `dispatcher.Ensure`。日本語の文でも「dispatcher」と書く（カタカナにしない）。置き場（台帳の数で決める）と mod が tab id から名前を導く形は 21 のまま。前の名前の端末は建屋の boot が片付ける（名前もラベルも前の名前の端末で、前に出ているものが前の係かシェルのときだけ。operate.md「前の名前の係から移す」）。
     理由: 21 の日本語の呼び名も英語の識別子も、ソフトウェア開発の言葉として聞き馴染みが無い。仕事（台帳と端末を見回る・起きたことを Chief of Staff に知らせる・決まった次の工程を起動する。判断はしない）に一番近い、聞き馴染みのある語にした。
@@ -149,7 +149,7 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。オーナーが番�
 | S3 | `andon task start` にラベル・クーリエのレビュアーに同じ tab・`--on` でも同じ | 受け入れ条件 3 | S1。`andon task start` を建てるタスクに添える |
 | S5 | 名前を付ける mod（`package/host/`）と `host-install`。役ごとのアイコン（wrapper 名 ＋ `programs.json`）も同じタスクで試す | 受け入れ条件 5 | S1。S2・S3 とは独立 |
 | S6 | Herdr App に issue: 採用時に `herdr.space.name`・`herdr.tab.name` を名前にする（オーナーが出す。文面を Chief of Staff が用意） | issue の URL が報告にある | — |
-| S7 | Chief of Staff の skill と contract.md §8 に「人に端末を指す言い方」（決めたこと 17）を足す | `tests/public.sh`・`tests/schema.sh` green | S1 |
+| S7 | Chief of Staff の skill と contract.md §8 に「オーナーに端末を指す言い方」（決めたこと 17）を足す | `tests/public.sh`・`tests/schema.sh` green | S1 |
 | S4 | 建屋で実測。移行で、オーナーが手で作っていた Space を閉じる | 受け入れ条件 6。落ちたら直しのタスク | S2・S3・S5・建屋（P7） |
 
 ## 開いている問い（残った問い。判断の種類つき）

@@ -72,15 +72,21 @@ setup; echo '`## 人に聞くこと` を拾う' >"$tmp/r/docs/contract.md"; expe
 setup; echo '  - [0009 Chief of Staff を人の既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定' >"$tmp/r/README.md"
 expect fail 'README.md の ADR の一覧の行（ADR の題の写し）の「人の既定の入口」で落ちる（ADR の題も替えた）'
 setup; echo '- [docs/contract.md](docs/contract.md) — 人の手直し' >"$tmp/r/README.md"; expect fail 'README.md の一覧でない行の「人の手直し」で落ちる'
-# ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md）も替えた範囲。「」の中とバッククォートの中は外し、地の文は当たる
+# ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md）も替えた範囲。名指しした引用とバッククォートの中は外し、
+# ほかの「」の中（引用でない言い回し・節の名前の写し）と地の文は当たる
 for f in docs/adr/0001-x.md:人がマージする docs/decisions/2026-01-01-x.md:人の判断待ち 'docs/decisions.md:| 2026-11-05 | 人に聞く | 問い1 |' \
-  'docs/adr/0003-x.md:人（2026-11-10）: 「残して」'; do
+  'docs/adr/0003-x.md:人（2026-11-10）: 「残して」' 'docs/adr/0006-x.md:担当には「人に聞く」しか無い' \
+  'docs/adr/0009-x.md:手引きの「人の入口」の節' 'docs/adr/0002-x.md:4. **2026-11-05 人が起動する 2 役**' \
+  'docs/adr/0007-x.md:A5 人のマージとの重なり' 'docs/adr/0024-x.md:**報告書**（2026-11-12 人）: 別の案' \
+  'docs/adr/0003-x.md:引用の前の名札（人 2026-11-10）: 「残して」'; do
   setup; mkdir -p "$tmp/r/$(dirname "${f%%:*}")"; echo "${f#*:}" >"$tmp/r/${f%%:*}"; expect fail "替えた範囲（${f%%:*}）の「${f#*:}」で落ちる"
 done
-for w in 'オーナー（2026-11-10）: 「人がマージする」' '当時の見出し `## 人に聞くこと` を拾う' '手引きの「人の入口」の節' '外の人が読む' '2人いる'; do
+for w in 'オーナーの言葉（「人の他に、Sentry や Cloudflare、Linear、GitHub が Signal になるといい」）' \
+  '43 件は「人がマージした」という答えだった' 'pstack の「人を待たない」' '当時の見出し `## 人に聞くこと` を拾う' \
+  '外の人が読む' '2人いる' 'レビュアーは 1 人ずつ' '2026-11-05 2 人目が走る'; do
   setup; echo "$w" >"$tmp/r/docs/adr/0001-x.md"; expect ok "docs/adr/ の「$w」は通る"
 done
-setup; echo '手引きの「人の入口」の節。人が答える' >"$tmp/r/docs/adr/0001-x.md"; expect fail 'docs/adr/ の「」と同じ行の地の文の「人が答える」で落ちる'
+setup; echo 'pstack の「人を待たない」。人が答える' >"$tmp/r/docs/adr/0001-x.md"; expect fail 'docs/adr/ の名指しした引用と同じ行の地の文の「人が答える」で落ちる'
 # ADR-0036 とその決定のファイルの語の表の「今」の列と「X→」の形、ADR-0005・ADR-0011 の役でない句は、そのファイルでだけ通る
 for f in docs/adr/0036-owner-not-hito.md docs/decisions/2026-11-20-role-name-replacement-reaches-frozen-records.md; do
   setup; mkdir -p "$tmp/r/$(dirname "$f")"; printf '   | 人の判断待ち | オーナーの判断待ち |\n# 置き換え（人→オーナー）\n' >"$tmp/r/$f"

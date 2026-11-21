@@ -3,7 +3,7 @@
 - 状態: **決定（2026-11-06）**（オーナーが PR #52 をマージした日。[decisions.md](../decisions.md) §14 に1行ある）。実装は「依頼書に切る案」のとおり別タスク（台帳の改名 Y-141 がこの文書を入力にする）。一部覆された → [ADR-0020](0020-auto-memory-as-intake.md)（決めたこと 2・前提 7 の「memory は置かない」）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: 建屋の repo の `projects/<slug>/`（プロジェクトのルート）の直下に何を予約名として置き、誰が書くか。memory と調べものの置き場、生成ビューと納品物の区別、製品の repo の `docs/` との線引きを含む。建屋の repo の直下・git で追跡するか・持ち運び・守りは [ADR-0005](0005-cell-repo.md)。
 - 語は [design.md](../design.md) §0.1（「建屋」は ADR-0005 前提 3 でセルに改めると決めた。この文書は今の語のまま）。機械が読む形は変えない（台帳の形式は [ledger.md](../ledger.md)、約束は [contract.md](../contract.md)）。台帳の置き場は決まっていく名前 `kanban/` で書く（今は `.flightdeck/`。改名は Y-141）。
-- 読み方: 1 回目の提案（同じ PR の最初の commit）は「直下は人のもの、台帳は git の外」だった。オーナーとの対話と先輩プロジェクト shepherdr の 4 世代の調査（出典）で前提が変わり、ADR-0005 と 2 本に分けて書き直した。
+- 読み方: 1 回目の提案（同じ PR の最初の commit）は「直下はオーナーのもの、台帳は git の外」だった。オーナーとの対話と先輩プロジェクト shepherdr の 4 世代の調査（出典）で前提が変わり、ADR-0005 と 2 本に分けて書き直した。
 
 ## 決定の索引
 
@@ -26,7 +26,7 @@
 1. `projects/<slug>/` は建屋の repo の**実ディレクトリ**で、製品の repo への symlink にしない（operate.md「建屋の置き方」。オーナーのファイルを担当の PR の経路に乗せないため）。変えない。
 2. 建屋のオーナーは 1 人、プロジェクトは互いに独立、建屋は Herdr App の machine で **`projects/<slug>/` は指揮側の Space**（[ADR-0005](0005-cell-repo.md) 前提 1・2、[ADR-0002](0002-herdr-spaces.md)）。
 3. cwd が `projects/<slug>/` なのは **Chief of Staff だけ**。Chief Engineer（文書の PR の branch。ADR-0002 決めたこと 11）・担当・レビュアーは worktree。担当が worktree の外に書いてよいのは自分の `kanban/tasks/<id>/library/` だけ（contract.md §0 の 5・worker skill）。
-4. オーナーのファイルの照合（contract.md §11）は「人のファイルをエージェントが commit しない」で成り立ち、エージェントが commit してよい場所は表で決める（ADR-0005 決めたこと 4）。
+4. オーナーのファイルの照合（contract.md §11）は「オーナーのファイルをエージェントが commit しない」で成り立ち、エージェントが commit してよい場所は表で決める（ADR-0005 決めたこと 4）。
 5. 台帳は 1 プロジェクトに 1 つ、書くのは台帳の CLI（`kanban`）だけ（D14・D17）。追跡しない（ADR-0005 決めたこと 5。3 は同日に覆された）。
 6. 製品の仕様・設計・用語・合意事項は製品の repo の `docs/`（design.md §1.8・§6 問い21）。
 7. アウターループ（design.md §1.4）の出口は テスト／レビューの観点（`REVIEW.md`）／指針（`AGENTS.md`）／skill／wiki／削る。**memory は置かない**。Claude Code の auto memory は managed settings で切ってある（`package/settings.json` の `autoMemoryEnabled: false`）。→ 覆された（[ADR-0020](0020-auto-memory-as-intake.md)。auto memory は全部の役に入れ、置き場は `/workspace/memory/`。`projects/<slug>/` の下に `memory/` を作らない線は保つ）
@@ -67,7 +67,7 @@
    - **調べものの中間成果物**（調査メモ・比べた表・見つけたものの一覧）はそのタスクの `kanban/tasks/<id>/library/`。タスクをまたいでオーナーに出すまとめは `kanban/library/`。決める前の案（設計の代案）は Chief Engineer の文書そのもの（worktree の `docs/`・ADR の「提案」）で台帳には写さない。**正は repo**——決まったものは PR で製品の repo の `docs/`（Andon なら ADR）へ出し、台帳に残るのは経過。調べるタスクの型（結果は報告だけ、続きは「ほかに気づいたこと」の一覧で名前だけ残す。shepherdr 1.0 の research-only task）は Y-158 が決める。
    捨てた案: `memory/`（0.2 の形）／`projects/<slug>/research/`——予約名を増やす理由が無い／製品の repo の `docs/` に中間成果物を PR——決まっていないものが正に混ざる。
 
-3. **2026-11-06 生成ビューと納品物の区別。軸は「作り直せるか」と「人に URL で届けるか」。**
+3. **2026-11-06 生成ビューと納品物の区別。軸は「作り直せるか」と「オーナーに URL で届けるか」。**
    - **納品物**（オーナーに見せる・URL で届ける）: 建屋の `files/`（`andon publish <file> [slug]`。`<日付>-<slug>`。ADR-0005）。プロジェクトごとのディレクトリは作らない（slug で見分ける）。消すのはオーナー。
    - **生成ビュー**（作り直せる・見る専用: ボードの HTML・図・一覧）: 台帳の `library/`（タスクのものは `kanban/tasks/<id>/library/`、プロジェクトのものは `kanban/library/`）。消してよい。
    - 製品の repo から生成するものは、その repo の worktree の中（その repo の `.gitignore`）。オーナーに見せるときだけ `andon publish`。

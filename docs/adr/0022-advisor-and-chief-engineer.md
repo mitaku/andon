@@ -67,7 +67,7 @@
 3. **2026-11-12 入れ方は、パッケージの `chief-of-staff` のプロファイル（`package/templates/chief-of-staff.md`）の起動行に `--advisor fable` を1つ足す。** レベル C（オーナーがマージ）。パッケージの版上げで全セルへ届く。
    理由: 起動フラグはそのセッションだけに効くので、Chief of Staff だけに付く（2）。
    捨てた案: `/advisor` で入れる（選んだ値が利用者の設定に残り、同じ HOME を使う担当やレビュアーにも付く）／このセルの `templates.local` だけで先に試す（オーナーだけが書ける場所。効いたらパッケージへ、の2段になる）／managed settings に `advisorModel`（全部の役に付く）。
-4. **2026-11-12 Chief of Staff の skill の「人の入口」に1行だけ足す: 振り分けに迷うとき（直す課題か Chief Engineer か）と、2回差し戻して切り直すときは、advisor に相談してから決める。** それ以外の場面は書かず、モデルの判断に任せる。
+4. **2026-11-12 Chief of Staff の skill の「オーナーの入口」に1行だけ足す: 振り分けに迷うとき（直す課題か Chief Engineer か）と、2回差し戻して切り直すときは、advisor に相談してから決める。** それ以外の場面は書かず、モデルの判断に任せる。
    理由: 呼ぶかどうかはモデルが決め、回数を強いる設定は無い。オーナーが挙げた使いどころ（Chief Engineer を呼ぶかの判断）は、公式の既定のきっかけに入っていない。Chief of Staff の skill は 506 行あり、長さを減らす課題（A-0123）が待っているので、足すのは1行にとどめる。
    捨てた案: 書かない（skill は増えないが、振り分けで呼ばれるかが分からない）／相談する場面を節として並べる（振り分け・依頼書を切る前・検収・オーナーに問いを上げる前。呼ばれる回数とコストが増え、skill も長くなる）。
 5. **2026-11-12 効いたかは、オーナーの目視で 2026-11-27 に見る**（下の「価値の仮説」）。advisor が呼ばれた回数を数える信号は足さない。
@@ -92,7 +92,7 @@
 継ぎ目は2つ。どちらも既存のもの: `tests/package.sh`（template と skill の文言）と、セルでの実測（`package/` の変更の決まり）。
 
 1. **`tests/package.sh`**: `chief-of-staff` の template の `command` に `--advisor fable` がある。ほかのプロファイル（`chief-engineer`・`claude`・`sonnet`・`fable`・`claude-review`）の `command`・`resume` には `--advisor` が無い。
-2. **`tests/package.sh`**: Chief of Staff の skill の「人の入口」の節に、advisor に相談する場面（振り分けに迷うとき・2回差し戻して切り直すとき）の1行がある。
+2. **`tests/package.sh`**: Chief of Staff の skill の「オーナーの入口」の節に、advisor に相談する場面（振り分けに迷うとき・2回差し戻して切り直すとき）の1行がある。
 3. **セルで実測（マージの前）**: 変えた template で Chief of Staff を起動すると起動し、`/advisor` の表示で Fable が付いている。「advisor に相談してから続けて」と頼むと画面に `Advising` の行が出て、結果が `Unavailable` でない。
 4. **セルで実測（マージの前）**: `claude` のプロファイルで起動した担当には advisor が付いていない（HOME の設定に `advisorModel` が書かれていない）。
 5. **セルで実測（マージの前）**: advisor が付かない条件（`CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` を付けて起動する）でも、`--advisor fable` の付いた起動行で Chief of Staff の起動が止まらない。止まるなら、マージせずに報告する（入れ方を決め直す。Chief of Staff はオーナーの入口なので、起動しないことが一番重い）。
@@ -110,7 +110,7 @@
 
 | # | 切る課題 | 受け入れ条件 | 依存 |
 |---|---|---|---|
-| V1 | `package/templates/chief-of-staff.md` の起動行に `--advisor fable`、Chief of Staff の skill の「人の入口」に1行、`tests/package.sh` の検査、design.md に試験運用の1行（決めたこと 6）。マージの前にセルで実測する。レベル C（オーナーがマージ） | 1〜5 | この ADR の PR のマージ |
+| V1 | `package/templates/chief-of-staff.md` の起動行に `--advisor fable`、Chief of Staff の skill の「オーナーの入口」に1行、`tests/package.sh` の検査、design.md に試験運用の1行（決めたこと 6）。マージの前にセルで実測する。レベル C（オーナーがマージ） | 1〜5 | この ADR の PR のマージ |
 | V2 | 観察: 価値の仮説（オーナーの手。見る日 2026-11-27） | 価値の仮説 5・6 | V1 |
 
 - V1 は Chief of Staff の skill と templates に触る。同じファイルに触る課題（A-0123〈CoS skill の行数・承認の線・古い続きの文〉・A-0047〈W5: skill・templates の語の置き換え〉）とぶつからないように並べる。

@@ -117,7 +117,7 @@
    - 1 本のワークストリーム（`process/workstreams/<名>.yaml`）は、きっかけ（`triggers[]`）と手順（`steps[]`。BPM の本体で、1 件に Step・やる者の種類・Input／Output・続く step を持つ）と数えるもの（`counts[]`）で書く。`reads[]`・`leaves[]`・`tasks[]` は持たない: 見るもの・残すもの・機械のタスクの一覧は step から render が作る（同じことを 2 か所に書かない）。
    - 1 本のステートマシン（`process/states/<名>.yaml`）は、状態（記録の項目つき）・状態でない項目（`positions[]`）・移り方（何が起きたら・誰が・2 回起きてはいけないか）で書く。`once` の移り方が dispatcher.md §7 の表の元になる。
    - 機械が読むのは YAML だけで、決めた理由は ADR に書く。人が読む Markdown（表と Mermaid の図。BPMN の形をまねる。本物の BPMN の XML は使わない）は `andon process render` が YAML から作り、機械は生成物を読まない。
-   - 1 本の定義ファイルは「人の 1 手」の中身を書かない。AI の 1 手の「どうやるか」は今どおり SKILL に書き、定義は `skill[]` でその節を指す。
+   - 1 本の定義ファイルは「オーナーの 1 手」の中身を書かない。AI の 1 手の「どうやるか」は今どおり SKILL に書き、定義は `skill[]` でその節を指す。
    - 細部（項目の一覧・必須の項目・値の種類、形の例、図の描き方）は、今は次が正。項目と値は `schema/process/workstream.schema.json`・`schema/process/state.schema.json`（ステートマシンの `by` の `deck` は、今は `kanban`）。形の例は `process/workstreams/watch.yaml` そのもの。図の形と読み方は [docs/process/README.md](../process/README.md) の「図の読み方」と `internal/process/process.go`。中身のある定義が項目を全部持つこと・`next[]` と `start` の `id` が在ること・作り直して差分が無いことは `tests/process.sh` が見る。
    - まだ実装していない細部: 作業の途中で時間が来たら別の道へ（BPMN の境界タイマー）は点線の矢印に「⏱ 見込みの 2 倍」のように書く。今の render はこの矢印を描かない。
    理由: 指示文の「書き方の推奨」と同じ。足したのは識別子の名前と、`once` を §7 の表の元にすること、`positions[]`（反論 H1）と `by: deck`（反論 G1）、`steps[]`（オーナー。ワークストリームは BPM なので Step と Input／Output を持つべき）。
