@@ -9,6 +9,10 @@
 action Init kanban add
 action ChiefOfStaffStarts andon issue start
 action WorkerAsks andon issue ask
+action ChiefOfStaffAnswers -
+action OwnerAnswersInPane -
+action DispatcherNotifiesAnswer -
+action ChiefOfStaffRelays -
 action AnswerReceived -
 action WorkerOpensPR andon issue report
 action CIFinishes -

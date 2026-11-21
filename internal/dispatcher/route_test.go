@@ -42,6 +42,7 @@ func TestRouteOf(t *testing.T) {
 		{"レビュアーの report", "report", nil, Facts{Reviewer: true}, Record},
 		{"ready", "ready", nil, Facts{}, Deliver},
 		{"asked", "asked", nil, Facts{}, Deliver},
+		{"answered（オーナーがペインで答えた）", "answered", nil, Facts{}, Deliver},
 		{"impact", "impact", nil, Facts{}, Deliver},
 		{"closed", "closed", nil, Facts{}, Deliver},
 		{"corrections", "corrections", nil, Facts{}, Deliver},

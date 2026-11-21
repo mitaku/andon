@@ -16,7 +16,7 @@
 | 6 | 1 回の返事で聞くのは 1 問のままにし、答えは待っている問いのどれからでも受ける | `package/skills/ask-one-by-one/SKILL.md` | 生きている。§5 をペインを指す 1 行に替えるのは、ペインを足すときにする |
 | 7 | Chief Engineer の問いの出し方は変えない | `package/skills/chief-engineer/SKILL.md` | 生きている |
 | 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/glossary/SKILL.md` | 生きている |
-| 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている（答えを書く口〈決めたこと 17〉はまだ実装していない） |
+| 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている。答えを書く口（決めたこと 17）は同じ command の `andon waiting answer` |
 | 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 生きている |
 | 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 12 | オーナー待ちは、右のパネルのペインに出す | `package/host/waiting/`・`package/host/layouts/andon.json`・`package/host/inbox/main.js` | 生きている（右のパネルの 3 つ目の画面を開く App の操作は、オーナーの手元の App で確かめる） |
@@ -24,9 +24,9 @@
 | 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js` | 生きている（ペインの分。ボードが呼ぶ分〈決めたこと 13 の Flow〉はまだ実装していない） |
 | 15 | Chief Engineer の文書から切った課題を、もとの Chief Engineer の課題に `parent` で結ぶ | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 16 | Chief of Staff がオーナーへ書く文は増やさず、マージの依頼に、後ろで待つ課題の数を書き足すだけにする | この ADR | まだ実装していない |
-| 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | この ADR | まだ実装していない |
-| 18 | 端末の外から書かれた答えをオーナーの答えとして扱い、戻せない決断はペインから答えられない | この ADR | まだ実装していない |
-| 19 | ペインの答えは、dispatcher が通知 `answered` で Chief of Staff に届け、Chief of Staff が担当へ渡す | この ADR | まだ実装していない |
+| 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | `internal/waiting/answer.go`・`docs/contract.md` §25 | 生きている。答える command は入った。ペインの選択肢とボタンはまだ実装していない |
+| 18 | 端末の外から書かれた答えをオーナーの答えとして扱い、戻せない決断はペインから答えられない | `internal/waiting/answer.go`・`internal/dispatcher/pickup.go`・`package/skills/chief-of-staff/playbooks/watch.md` | 生きている。ペインがボタンを出さない段は、ペインの選択肢とボタンを足すときにする |
+| 19 | ペインの答えは、dispatcher が通知 `answered` で Chief of Staff に届け、Chief of Staff が担当へ渡す | `internal/dispatcher/pickup.go`・`docs/contract.md` §6・`package/skills/chief-of-staff/playbooks/watch.md`・`model/IssueRules.tla` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 

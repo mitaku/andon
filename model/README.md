@@ -41,13 +41,13 @@ model/check --draft <フォルダ> [<モジュール>]
 | ファイル | 中身 |
 |---|---|
 | `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・オーナーの動き・gate が決めたあとの変化）。行動ごとに写したコードの場所 |
-| `IssueRules.tla` | 規則 R1〜R8（`IssueLife` を読む。R7 は文で書き、確かめるのは `reach.mjs`） |
+| `IssueRules.tla` | 規則 R1〜R11（`IssueLife` を読む。R7 は文で書き、確かめるのは `reach.mjs`） |
 | `IssueRules.cfg` | 検査器の設定（調べる規則の並び）と、`reach.mjs` が読む `\* REACH` の行 |
 | `reach.mjs` | 状態の図を読んで「行ける」の形の規則を確かめる（`check` が打つ。Node の標準だけ） |
 | `issue-map.txt` | 対応表: 行動とコマンドの対応と、「モデルの外」と名指しする `issue.yaml` の行 |
 | `conform.mjs` | 状態の図と `issue.yaml` を対応表で照らす（`check` が打つ。Node の標準だけ） |
 | `expected.txt` | 調べるはずの規則・状態の数の控えと、見本ごとの落ちるはずの規則 |
-| `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動きと、ADR-0032 決めたこと 8 で直す review-request の守り）と、守りを外した見本（ADR-0034 決めたこと 3 の、マージの直前の読み直しと、閉じた PR の聞き直し） |
+| `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動きと、ADR-0032 決めたこと 8 で直す review-request の守り）と、守りを外した見本（ADR-0034 決めたこと 3 の、マージの直前の読み直しと、閉じた PR の聞き直し。ADR-0042 決めたこと 19 の、ペインの答えの通知と、開いている問いだけに書く守り） |
 | `check` | 入口 |
 | `package.json`・`package-lock.json` | 検査器のバージョン |
 
@@ -72,10 +72,13 @@ model/check --draft <フォルダ> [<モジュール>]
 | R6 `R6_NoReviewWithOpenQuestion` | 担当の問いが開いたまま review にならない |
 | R7 `R7_MergeWithoutCancel` | 取り消しを使わずに届くどの状態からも、取り消しを使わずにマージまで行ける（ADR-0032 決めたこと 9）。閉じた PR を開き直す道も含む |
 | R8 `R8_AutoMergeOnlyApproved` | dispatcher が自動でマージするのは、gate が approve と判定した head で、その時点で任されているものだけ（ADR-0034 決めたこと 3） |
+| R9 `R9_OnlyWrittenAnswersReachWorker` | 担当に届く答えは、だれかが書いた答えだけ。ペインの答えは、Chief of Staff が通知 `answered` を読んでから届く（ADR-0042 決めたこと 19） |
+| R10 `R10_OneAnswerPerQuestion` | 1 つの問いに、答えは 1 つだけ（会話の答えとペインの答えが重ならない。ADR-0042 決めたこと 19） |
+| R11 `R11_NoRelayWithoutAnswer` | 答えの無い問いは、担当に届いたことにならない（ADR-0042 決めたこと 19） |
 
 ### 「行ける」の形の規則
 
-R1〜R6 と R8 は「この状態のときはこうなっている」の形で、検査器が状態 1 つずつ確かめます（`INVARIANT`）。R7 の「どの状態からも、マージまで行ける道がある」は状態 1 つの式では書けません。検査器の時相の性質（`PROPERTY`）は「どの道を進んでも」の形なので、これも「行ける道がある」は言えません。そこで、検査器が書いた状態の図を `reach.mjs` が読み、初めの状態から届く状態のそれぞれから、マージした状態まで道があるかを辿ります。
+R7 のほかの規則は「この状態のときはこうなっている」の形で、検査器が状態 1 つずつ確かめます（`INVARIANT`）。R7 の「どの状態からも、マージまで行ける道がある」は状態 1 つの式では書けません。検査器の時相の性質（`PROPERTY`）は「どの道を進んでも」の形なので、これも「行ける道がある」は言えません。そこで、検査器が書いた状態の図を `reach.mjs` が読み、初めの状態から届く状態のそれぞれから、マージした状態まで道があるかを辿ります。
 
 R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）と、gate を待たずにオーナーが先にマージすること（`HumanMergesEarly`）です。オーナーのマージは同じ動きを 2 つの行動に分けてあり、gate が決めたあと（approve で `merge: person`・needs_human の問いにオーナーが答えた）のマージ（`HumanMergesDecided`）は道に数えます。破れていると、`reach.mjs` は行けない状態のうち初めから一番近いものと、そこまでの行動の並びを書きます。
 

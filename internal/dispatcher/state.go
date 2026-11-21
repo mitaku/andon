@@ -227,13 +227,13 @@ func (s *State) Push(n Notification) {
 // eventKey は通知の出来事の名前。同じ名前の通知は新しい1件に置き換える（課題と kind）。
 // signal は issue が無いので、同じ信号（detail の source と key。fingerprint はこの2つから決まる）だけ
 // （ADR-0011 決めたこと 8 の改め。別の信号どうしは消し合わない）。asked は問いの n ごと
-// （同じ課題の2つ目の問いが1つ目を消さない。ADR-0017 決めたこと 8 の (d)）。
+// （同じ課題の2つ目の問いが1つ目を消さない。ADR-0017 決めたこと 8 の (d)）。answered も問いの n ごと。
 func eventKey(n Notification) string {
 	k := n.Issue + "\x00" + n.Kind
 	switch n.Kind {
 	case "signal":
 		k += "\x00" + fmt.Sprint(n.Detail["source"]) + "\x00" + fmt.Sprint(n.Detail["key"])
-	case "asked":
+	case "asked", "answered":
 		k += "\x00" + fmt.Sprint(n.Detail["n"])
 	}
 	return k

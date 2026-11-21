@@ -69,6 +69,8 @@ func RouteOf(n Notification, f Facts) Route {
 		if f.Reviewer {
 			return Record
 		}
+	case "answered":
+		return Deliver // オーナーがペインで答えた。Chief of Staff が担当へ渡す（ADR-0042 決めたこと 19）
 	case "stalled", "blocked", "ready":
 		if f.Engineer {
 			return Record // オーナーと話していてオーナーの返事を待つのが普通・起動済み。Chief of Staff は答えられない（ADR-0010 決めたこと 1）

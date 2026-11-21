@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate", "memory"]
+      "enum": ["report", "review", "asked", "answered", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate", "memory"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -23,6 +23,8 @@
       "then": { "properties": { "detail": { "$ref": "#/$defs/review" } } } },
     { "if": { "properties": { "kind": { "const": "asked" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/asked" } } } },
+    { "if": { "properties": { "kind": { "const": "answered" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/answered" } } } },
     { "if": { "properties": { "kind": { "const": "ready" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/ready" } } } },
     { "if": { "properties": { "kind": { "const": "review-requested" } } },
@@ -73,6 +75,15 @@
         "n": { "description": "Question number in the issue.", "type": "integer", "minimum": 1 },
         "kind": { "description": "As in question.json.", "enum": ["business", "users", "promise", "irreversible", "line", "scope"] },
         "question": { "description": "As in question.json.", "type": "string", "minLength": 1 }
+      }
+    },
+    "answered": {
+      "description": "kind answered: from {\"question\": n, \"status\": \"answered\"} written outside a herdr terminal (by not starting with terminal:), that is the owner's answer from the pane. Delivered to the Chief of Staff, who passes it on.",
+      "type": "object", "required": ["n", "kind", "answer"], "additionalProperties": false,
+      "properties": {
+        "n": { "description": "Question number in the issue.", "type": "integer", "minimum": 1 },
+        "kind": { "description": "As in question.json (questions.yaml when there is no question JSON).", "enum": ["business", "users", "promise", "irreversible", "line", "scope"] },
+        "answer": { "description": "The answer text in questions.yaml.", "type": "string", "minLength": 1 }
       }
     },
     "ready": {

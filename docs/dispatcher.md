@@ -68,7 +68,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 3a | ルーチンを撃つ（`tick`） | 先に**件数のきっかけ**を見る。前の振り返りが集めたあとに片付いた担当の課題（次の振り返りが全文で読む束。境目と選び方は `andon retro collect` と同じ〈[contract.md](contract.md) §20〉。期間は直近 7 日。100 件の切りは無い）を 3 の写しから数え、`project.json` の `chief_of_staff.retro_every`（既定 25。[contract.md](contract.md) §11）以上なら `kanban routine run retro` を 1 回打つ。ルーチン `retro` が kanban に無い・読めない・`paused: true` のとき、または `routine: retro` の課題が片付かずに残っているときは、数えも撃ちもしない（kanban は撃ち損ねのたびに履歴へ 1 行を書くため）。撃ったらログに 1 行（数と件数と kanban の返事）。続けて `kanban tick` を 1 回打つ。件数で撃った巡に振り返りの `schedule` の時刻が来ても、kanban が `open` で撃ち損ねにする（足されない。[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 8）。足した課題は 3 の写しに無いが、4a の `ready` の差で同じ巡に拾う。初めて見る kanban（前回の ready が無い）は、撃つ前の ready を先に控え、件数と `tick` が足した分だけを拾う（過去の ready は流さない。届けるのは次の巡の 6）。失敗（読めないルーチン・lock が取れない）はログに 1 行で、巡は止めない（§2.1）。件数のきっかけの失敗と、`project.json` が読めずに既定で数えたことは、同じ理由が続く間は 1 行だけ | kanban に書く（kanban の CLI） |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
-| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`）。Chief of Staff 自身の行は飛ばす。dispatcher 自身が出した問いの行（`by` が `terminal:dispatcher`）は、出した巡で積んだ印があれば `asked` にしない（§2.2）。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` と `Outcomes` に積む（§2.5・§2.6・§2.12） | |
+| 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`・`answered`）。Chief of Staff 自身の行は飛ばす。問いが答え済みになった行は、書き手が端末（`terminal:` で始まる）でないときだけ `answered` にする（§2.2）。dispatcher 自身が出した問いの行（`by` が `terminal:dispatcher`）は、出した巡で積んだ印があれば `asked` にしない（§2.2）。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` と `Outcomes` に積む（§2.5・§2.6・§2.12） | |
 | 4c | 止まった担当 | `doing` の担当を `hc get`。最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（§2.4）・端末が Gone なら `andon issue resume`（§2.9。`resumed`）・`blocked`／`error`／`finished`／`stalled`。続けて、実働が見込みを超えた担当の課題（§2.10。`estimate`。担当には打たない） | 端末に打つことがある・端末を起動することがある |
 | 4d | 切られた Chief of Staff | Chief of Staff の端末を `hc get`。プロバイダに切られて止まっていれば、ログに1行（打たない。§2.4）。留守なら端末が無いので何もしない | ログだけ |
 | 4e | 外の信号 | `andon signal collect --due` を打つ（出所と repo の組ごとに `project.json` の `signals[].every` 分〈既定 10〉に1回だけ読む。読むかは collect が信号の記録の `read_at` で決める。gh の上限で gate を止めている間〈控えの `GHReset`〉は打たない）。続けて信号の記録のうち届けていない `now` の信号（`active` で `delivered_episode` < `episodes`）を `signal` で積み、控えを保存してから1件ずつ `andon signal delivered` で届けたと書く（§2.2.1。初めて見る kanban でも積む） | 信号の記録に書く（`andon signal` の口）・控えに書く |
@@ -103,6 +103,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 報告が書かれた | `log.jsonl` の `{"report": "write" \| "append"}` | `report` |
 | レビューに入った | `log.jsonl` の `{"status": "review"}` | `review` |
 | 問いが来た | `log.jsonl` の `{"question": n, "status": "open"}`。中身は問いの JSON（contract.md §5） | `asked` |
+| オーナーがペインで問いに答えた | `log.jsonl` の `{"question": n, "status": "answered"}` のうち、書き手（`by`）が `terminal:` で始まらないもの（`andon waiting answer` が端末の外で書いた答え）。端末の中で書いた答え（Chief of Staff・dispatcher・担当）は積まない。読んだときに問いがもう `answered` でなければ積まない。`questions.yaml` が読めなければ、`asked` と同じく1回だけ次の見回りまで待ってこの行から読み直し、それでも読めなければログに残して飛ばす。中身は `questions.yaml` の答えの文と、問いの JSON の種類（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 19） | `answered` |
 | 引き取れる課題が増えた | `kanban ready --json` の**前回との差**（オーナーの課題とレビュアーの子課題を除いた id の集まりで比べる） | `ready` |
 | レビューを頼まれ、起動した | `report.json` の `review_request`（P6a） | `review-requested` |
 | gate が判定した | dispatcher が回した `andon gate` の結果（P6a） | `gate` |
@@ -121,8 +122,9 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - **待つ相手がやめになったら、ready に添える。** `kanban done` は、待つ相手がマージで片付いたか・マージされずに片付いたか（やめ）を見分けずに `queued` の課題を `todo` へ移す（移す動きは変えない）。ready の差で新しく見えた課題の待つ相手（`after`）のうち、PR を成果にする課題（repo があり、調べる課題・レビュアー・オーナーの課題でない）がマージされずに done になっていれば `detail.abandoned` に、確かめられなければ `detail.unchecked` に id を並べる。行は「`<id> ready: 「題」。待つ相手 <id> がやめになった`」になる。見分けは手元の記録から先に: 結果の記録（`outcome.json`。§2.12）があればその `result`（`merged` ならマージ、ほかはやめ）、gate の記録に `merged: true` があればマージ、`report.json` に `pr` が無ければやめ。どれでも決まらなければ `gh pr view` の `state` を1回聞く（MERGED ならマージ、CLOSED・OPEN はやめ）。gh の上限で止めている間と、読めないときは `unchecked`。repo の無い課題と調べる課題の done は成果の出来上がりなので、見分けない。
 - **レビュアーの子課題（`parent` があり `profile` が `*-review`）の ready は知らせない。** 起動するのは dispatcher だけで、`hc run` が落ちて子課題が `todo` に残っても、次の見回りで dispatcher が起動し直す（§5 の P6a）。Chief of Staff に引き取れると届けると、`andon issue start` が担当と別の場所にレビュアーを起動してしまう。`andon issue start` もこの課題を断る（contract.md §4）。
 - **Chief of Staff 自身が起動した変化は知らせない**（`by` が `terminal:<chief_of_staff>` の行）。自分のしたことを自分に知らせても答えが増えるだけ。オーナーが手で起動した変化は知らせる。
+- **端末の外から書かれた答えだけを `answered` にする。** kanban は書き手を端末の番号（`terminal:<id>`）かユーザー名でしか記録しない。端末の外から書かれた答えは、オーナーのペイン（`andon waiting answer` は端末の中では断る）の答えとして Chief of Staff に届ける。担当は答えを Chief of Staff からだけ受けるので、dispatcher は担当へ直に送らない（ADR-0042 決めたこと 18・19）。
 - **dispatcher 自身が出した問いは、出した巡で1回だけ積む。** `andon issue merge` の gate の問いは merge が返す `asked` を、dispatcher が `andon issue ask` で出した問いはその場で積む。積んだ問いには控えに印（課題と `n`）を付け、次の巡の 4b はその問いの行（`by` が `terminal:dispatcher` の `{"question": n, "status": "open"}`）を読んだら印を消して積み直さない。積み直すと、間に drain が渡していれば同じ問いが2度届く。印が無いのは、積んだあと控えを保存する前に dispatcher が落ちたとき（待ちの通知も読んだ位置も保存されていない）で、そのときは問いの行から積む。
-- 積むとき、**同じ課題の同じ出来事は新しい1件に置き換える**。課題の無い `signal` は、同じ信号（`detail` の `source` と `key`。fingerprint はこの2つから決まる）だけを置き換える（別の信号どうしは消し合わない）。`asked` は問いの `n` ごとの出来事で、同じ課題の2つ目の問いが1つ目を消さない（ADR-0017 決めたこと 8 の (d)）。
+- 積むとき、**同じ課題の同じ出来事は新しい1件に置き換える**。課題の無い `signal` は、同じ信号（`detail` の `source` と `key`。fingerprint はこの2つから決まる）だけを置き換える（別の信号どうしは消し合わない）。`asked` と `answered` は問いの `n` ごとの出来事で、同じ課題の2つ目の問いが1つ目を消さない（ADR-0017 決めたこと 8 の (d)）。
 - `review` の `detail.pr` は `report.json` の `pr`。PR の無い報告（レビュアー・repo の無い課題）は `report` として知らせる（schema が `pr` を要するため）。
 - 拾った通知を Chief of Staff に届けるか、記録だけにするかは §3.2 の表で決まる。この表の `kind` はどれも拾い続け、記録だけのものも消さない。
 - 問いの JSON（`library/questions/<n>.json`）は kanban の行のあとに置かれるので、無ければ1回だけ次の見回りまで待つ（その行から読み直す）。それでも無い・読めなければ飛ばしてログに残す。
@@ -356,6 +358,7 @@ Chief of Staff が受けて、すること（判断・オーナーへの1行・�
 | `merged`（`held` あり） | 届ける | 片付けていない理由を読んで、問いを閉じる・`andon issue finish` する |
 | `report`（レビュアーの課題） | 記録だけ | 結果の宛先は元の課題の担当で、Chief of Staff は中継しない |
 | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ | Chief Engineer はオーナーと直接話す役で、オーナーの返事を待つ `idle`・`AskUserQuestion` の `blocked` が普通。Chief of Staff はオーナーへの問いに答えない。`ready` は `andon chief-engineer` が起動した直後で、もう起動している。`error`・`finished`・`review`（文書の PR）・`merged`（文書の PR をオーナーがマージした）は届ける |
+| `answered` | 届ける | オーナーがペインで答えた。問いを出した相手へ `hc send` で答えを渡し、オーナーへの次の返事に、どの問いにどう答えたと受けたかを1行で書く。担当は答えを Chief of Staff からだけ受けるので、dispatcher は担当へ直に送らない（ADR-0042 決めたこと 19） |
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起動する・rebase を頼む・オーナーへ知らせる・続きを促す |
 | `estimate` | 届ける | 見込みが外れた。担当の画面を読み、要れば `hc send`（続ける・見込みを改める・分ける・切り直す）（§2.10） |
 | `memory` | 届ける | memory が線を超えた。動いているトリアージが無ければ臨時のトリアージを足す（§2.11） |

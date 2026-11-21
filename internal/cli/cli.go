@@ -116,7 +116,7 @@ var commands = []command{
 	},
 	{
 		name:  "waiting",
-		about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す（読むだけ）",
+		about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す（読むだけ）。answer はペインから判断の問いに答える",
 		usage: waiting.Usage,
 		run:   waiting.Main,
 	},

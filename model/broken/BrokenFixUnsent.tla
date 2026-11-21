@@ -9,10 +9,11 @@ BrokenGateSaysFix ==
     /\ gate' = "fix" /\ fixSent' = (worker = "live")
     /\ dirty' = (dirty \/ result # "old")
     /\ moved' = FALSE
-    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto, autoMerged>>
+    /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto, autoMerged, qVars>>
 
 BrokenNext ==
-    \/ ChiefOfStaffStarts \/ WorkerAsks \/ AnswerReceived \/ WorkerOpensPR
+    \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
+    \/ ChiefOfStaffRelays \/ AnswerReceived \/ WorkerOpensPR
     \/ CIFinishes \/ WorkerPushes
     \/ ReviewerStarts \/ ReviewerReturns \/ WorkerReady \/ WorkerTerminalDies
     \/ DispatcherResumes \/ BrokenGateSaysFix \/ GateAsksHuman \/ GateApproves

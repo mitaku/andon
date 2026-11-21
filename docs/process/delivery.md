@@ -8,7 +8,7 @@
 
 ```mermaid
 stateDiagram-v2
-  state "待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える。asked は問いの n ごと）" as s_pending
+  state "待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える。asked と answered は問いの n ごと）" as s_pending
   state "留守の待ち（Chief of Staff の端末が無い間。配る段だけ止め、積んだ数を置き換えの前の数で数える）" as s_away
   state "フックで渡した（経路①②。渡した turn を控える）" as s_hooked
   state "確かめた（news.replied を書いた数を控える）" as s_acked
@@ -34,7 +34,7 @@ stateDiagram-v2
 
 | id | 状態 | 記録 |
 |---|---|---|
-| `pending` | 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える。asked は問いの n ごと） | `dispatcher:Pending` |
+| `pending` | 待ち（届ける通知。同じ課題の同じ出来事は新しい 1 件に置き換える。asked と answered は問いの n ごと） | `dispatcher:Pending` |
 | `away` | 留守の待ち（Chief of Staff の端末が無い間。配る段だけ止め、積んだ数を置き換えの前の数で数える） | `dispatcher:Away` |
 | `hooked` | フックで渡した（経路①②。渡した turn を控える） | `dispatcher:Hook` |
 | `acked` | 確かめた（news.replied を書いた数を控える） | `dispatcher:Replied` |
