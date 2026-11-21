@@ -51,7 +51,7 @@ Add this to your `keys.json` (also in `keys.json` here):
 - `ctrl-shift-j`: open the longest-waiting row of Needs you that isn't the one in view.
 - `ctrl-shift-h`: move the keyboard to the queue from wherever you are typing (Herdr documents `pane.go`, `alt-h`, as reaching focusable mods too; not verified here).
 
-Keys get forgotten, so the column's header has a button for each, its tooltip naming the key: ⏭ next waiting (`ctrl-shift-j`) and the kanban-board mod (`ctrl-shift-y`, its own key).
+Keys get forgotten, so the column's header has a button for each, its tooltip naming the key: ⏭ next waiting (`ctrl-shift-j`) and the kanban-board mod (`ctrl-shift-y`, its own key). A third button, ⌛, shows the right panel on the waiting mod's screen (what waits on you on the ledger: merges, decisions, owner tasks). It has no count: Needs you stays terminal states.
 
 An older copy of this README also had `ctrl-shift-d` (`inbox.settle`) and `ctrl-shift-u` (`mod.open:inbox`). They are gone; remove them from your `keys.json` (left there they are only unknown commands).
 
@@ -76,6 +76,7 @@ The commands reach only a shown copy of the mod: in a layout without it, `inbox.
 | `run("terminal.peek", {terminal})` | opening a blocked sub-agent, or one of Andon's agents, without a pane |
 | `run("pane.go", {direction: "right"})` | `Esc` in the queue |
 | `run("mod.open", {name: "kanban-board"})` | the header's kanban-board button |
+| `run("layout.show", {id: "panel"})`, then `run("layout.select", {stack: "panel-body", child: "waiting"})` | the header's waiting button (the `andon` layout's right panel) |
 
 Addresses come from `agents()` / `terminals()` only. No `hc`, no `exec`, no file reads, no `fetch`, no sounds, no notifications: the mod only reads. `shared("inbox.memory")`: when each agent last changed state, and the turn of a paneless role's reply you opened. `shared("inbox.lantern")`: what the lantern shows. `localStorage` (per copy): the machine picked.
 
@@ -83,8 +84,8 @@ A `settled=` label an older inbox wrote is no longer read; it ends with its term
 
 ## Icon
 
-`chief-of-staff.svg`, `chief-engineer.svg`, `next.svg` and `kanban-board.svg` are [Lucide](https://lucide.dev)'s `clipboard-list`, `drafting-compass`, `skip-forward` and `square-kanban` (lucide-static 0.460.0), ISC (`LICENSE-Lucide.txt`), with `stroke-width` 1.5 to match the workspace-chrome icons.
+`chief-of-staff.svg`, `chief-engineer.svg`, `next.svg` and `kanban-board.svg` are [Lucide](https://lucide.dev)'s `clipboard-list`, `drafting-compass`, `skip-forward` and `square-kanban` (lucide-static 0.460.0), and `waiting.svg` is its `hourglass` (lucide 1.77.0), ISC (`LICENSE-Lucide.txt`), with `stroke-width` 1.5 to match the workspace-chrome icons.
 
 ## Origin
 
-Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/inbox` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the roles that talk with you are `chief-of-staff` and `chief-engineer` (ADR-0002) instead of `coordinator`; it no longer names tabs (the andon mod does); the kanban-board button and the icons' file names; cut to Needs you and Projects, without Done, the shelves, settle and the board dialog (ADR-0015). The Needs you badges lit amber and red, and the lantern's state (ADR-0023). The one Chief of Staff icon (`network`) became one per role. The preview picture was not copied. It was named `focus-queue` there until 2026-11-04; what such a copy remembered in `shared("focus-queue.memory")` is still read once. Under Andon's licence (Apache-2.0), with the Lucide icons under ISC as above.
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/inbox` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the roles that talk with you are `chief-of-staff` and `chief-engineer` (ADR-0002) instead of `coordinator`; it no longer names tabs (the andon mod does); the kanban-board button, the waiting button (ADR-0042) and the icons' file names; cut to Needs you and Projects, without Done, the shelves, settle and the board dialog (ADR-0015). The Needs you badges lit amber and red, and the lantern's state (ADR-0023). The one Chief of Staff icon (`network`) became one per role. The preview picture was not copied. It was named `focus-queue` there until 2026-11-04; what such a copy remembered in `shared("focus-queue.memory")` is still read once. Under Andon's licence (Apache-2.0), with the Lucide icons under ISC as above.

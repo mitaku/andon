@@ -50,7 +50,8 @@
                   "id": "panel-body", "type": "stack", "active": "files",
                   "children": [
                     { "id": "files", "type": "block", "content": { "mod": "files-plus" } },
-                    { "id": "changes", "type": "block", "content": { "mod": "changes" } }
+                    { "id": "changes", "type": "block", "content": { "mod": "changes" } },
+                    { "id": "waiting", "type": "block", "content": { "mod": "waiting" } }
                   ]
                 }
               ]

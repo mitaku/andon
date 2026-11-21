@@ -9,7 +9,7 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 直すのは「1 件の待ちが、ほかを止めない」ことで、オーナーに聞く線と数は変えない | この ADR | 生きている |
-| 2 | オーナー待ちの一覧と課題の連なりは、Herdr App の mod に出す | この ADR | まだ実装していない |
+| 2 | オーナー待ちの一覧と課題の連なりは、Herdr App の mod に出す | `package/host/waiting/` | 生きている（一覧は mod `waiting`。課題の連なり〈決めたこと 13〉はまだ実装していない） |
 | 3 | Chief of Staff は、どの問いも返事の本文に書き、答えを待たずにターンを終える | `package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 4 | Chief of Staff の起動行で、ダイアログの道具を使えなくする | `package/templates/chief-of-staff.md` | 生きている |
 | 5 | Chief of Staff がオーナーに聞く問いは、聞く前に kanban に置く | `package/skills/ask-one-by-one/SKILL.md` | 生きている |
@@ -19,9 +19,9 @@
 | 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている（答えを書く口〈決めたこと 17〉はまだ実装していない） |
 | 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 生きている |
 | 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
-| 12 | オーナー待ちは、右のパネルのペインに出す | この ADR | まだ実装していない |
+| 12 | オーナー待ちは、右のパネルのペインに出す | `package/host/waiting/`・`package/host/layouts/andon.json`・`package/host/inbox/main.js` | 生きている（右のパネルの 3 つ目の画面を開く App の操作は、オーナーの手元の App で確かめる） |
 | 13 | ボードに 3 つ目の表示として、ガントチャートの形の Flow を足す | この ADR | まだ実装していない |
-| 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | この ADR | まだ実装していない |
+| 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js` | 生きている（ペインの分。ボードが呼ぶ分〈決めたこと 13 の Flow〉はまだ実装していない） |
 | 15 | Chief Engineer の文書から切った課題を、もとの Chief Engineer の課題に `parent` で結ぶ | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 16 | Chief of Staff がオーナーへ書く文は増やさず、マージの依頼に、後ろで待つ課題の数を書き足すだけにする | この ADR | まだ実装していない |
 | 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | この ADR | まだ実装していない |

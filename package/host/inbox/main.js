@@ -51,6 +51,13 @@ export const ROLE_ICON = { "chief-of-staff": "mods/inbox/chief-of-staff.svg", "c
 const ownRow = (k, listed) => Boolean(k.labels?.issue || (k.labels?.project && !listed.has(parentOf(k))));
 const urgent = (a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
 
+// The andon layout's right panel (layouts/andon.json): show the column, then the waiting block of its stack.
+export const PANEL = { column: "panel", stack: "panel-body", child: "waiting" };
+function openWaiting() {
+  run("layout.show", { id: PANEL.column });
+  run("layout.select", { stack: PANEL.stack, child: PANEL.child });
+}
+
 // The program's icon from Herdr's program table: a one-color glyph or a picture.
 function icon(p, size, color) {
   if (!p?.icon) return null;
@@ -497,7 +504,9 @@ export default class Inbox extends View {
           .when(m.machines.length > 0, (el) => el.child(this.pickerButton(t, m)))
           // Every key command has a button too; the tooltip names the key (keys get forgotten).
           .child(this.headButton(t, "fq-next", "mods/inbox/next.svg", "Next waiting (ctrl-shift-j)", () => this.next(this.model())))
-          .child(this.headButton(t, "fq-kanban-board", "mods/inbox/kanban-board.svg", "Kanban board (ctrl-shift-y)", () => run("mod.open", { name: "kanban-board" })))))
+          .child(this.headButton(t, "fq-kanban-board", "mods/inbox/kanban-board.svg", "Kanban board (ctrl-shift-y)", () => run("mod.open", { name: "kanban-board" })))
+          // The waiting mod's screen in the right panel (ADR-0042 decision 12). No count here: Needs you stays terminal states.
+          .child(this.headButton(t, "fq-waiting", "mods/inbox/waiting.svg", "Waiting on you (right panel)", () => openWaiting()))))
       .when(Boolean(note), (el) => el.child(note))
       .when(this.picker && m.machines.length > 0, (el) => el.child(this.pickerList(t, m, keyboard)))
       .child(v_flex().id("fq-list").flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always").children(body))

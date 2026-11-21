@@ -1,0 +1,45 @@
+# waiting
+
+What waits on you in the project you are in, as a screen of the right panel beside Files and Changes: pull requests waiting for your merge, decisions a question waits on, and owner tasks ([ADR-0042](../../../docs/adr/0042-owner-waits-do-not-stop-the-line.md) decision 12). It reads only.
+
+The list is not counted here. The mod runs `andon waiting --json` in the cell, in the focused pane's folder, and draws its output in its order ([contract.md](../../../docs/contract.md) §25). The command holds the rule of what waits on you and how the parallel slots count, so the Chief of Staff and this pane never disagree (decision 14).
+
+## What it shows
+
+- **Slots** on the first line: `Slots 3/4 working · 2 waiting on you` (`working`, `limit` and `waiting` of the output's `slots`), with `· full` in `blocked` when the waits reached the limit (`waiting_full`: no new issue starts).
+- **One row per wait**, in the output's order (most issues waiting behind it first, then the oldest): the kind (`Merge`, `Decide`, `Do`), the issue's id and title, how long it has waited (`since`), and how many issues wait behind it (`holds`).
+- **Click a row to open it:** the question, its facts, why it is asked and its options (the recommended one marked), or the reason a merge waits; the question's number; the issues waiting behind it by id. A merge row has **Open PR** (your browser). Every row has **Go to Chief of Staff** while the project's Chief of Staff (`role=chief-of-staff`, `project=<slug>`) runs on that machine.
+- **Nothing waiting:** the slots line and `Nothing is waiting on you`.
+- **When it can't tell:** one line in `blocked` with the reason, and nothing else: the command failed (its first line of error, such as no ledger in this folder), its output isn't JSON, its `version` isn't 1, or the cell has no `andon waiting` (an older Andon in the cell: update the cell).
+
+It is not called "Needs you": the inbox's Needs you is terminal states, and a question on the ledger is not a state. This pane doesn't answer questions: answer a decision to the Chief of Staff, merge a pull request on GitHub.
+
+It runs the command again every 10 s, and when the focused folder or machine changes (one run took about 0.1 s on a ledger of 500 issues).
+
+## Place it
+
+The `andon` layout (`../layouts/andon.json`) has it as the third block of the right panel's stack, with the id `waiting`:
+
+```json
+{ "id": "waiting", "type": "block", "content": { "mod": "waiting" } }
+```
+
+The inbox's header has a button (`waiting.svg`) that shows the panel and selects this block (`layout.show` `panel`, then `layout.select` `panel-body` / `waiting`). The tab bar's Files and Changes buttons open their own blocks as before.
+
+## What it runs
+
+| Call | When |
+|---|---|
+| `exec("andon", ["waiting", "--json"], {cwd, on})` | every 10 s and when the focused folder or machine changes; `cwd` is the focused pane's folder, `on` its machine |
+| `exec("xdg-open" \| "open" \| "explorer.exe", [url])` | **Open PR** on a merge row (only `http(s)` links) |
+| `run("agent.focus", {terminal})` | **Go to Chief of Staff** |
+
+The arguments are fixed: no path, slug or text from the screen goes into the command. No `kanban`, no file reads, no `fetch`, no writes, no notifications.
+
+## Icon
+
+The inbox's `waiting.svg` is [Lucide](https://lucide.dev)'s `hourglass` (lucide 1.77.0), ISC (`../inbox/LICENSE-Lucide.txt`), with `stroke-width` 1.5 to match the other icons.
+
+## Origin
+
+Written for Andon (ADR-0042). Under Andon's licence (Apache-2.0).

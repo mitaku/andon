@@ -1,4 +1,4 @@
-// The App mods Andon ships for the screen (inbox, kanban-board, context-header, files-plus) and the
+// The App mods Andon ships for the screen (inbox, kanban-board, context-header, files-plus, waiting) and the
 // andon layout: their JavaScript parses, the layout carries the naming block, and the two places
 // changed for Andon behave (context-header's name, kanban-board's ledger lookup) against a fake API.
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 const HOST = 'package/host';
-const MODS = ['andon', 'inbox', 'kanban-board', 'context-header', 'files-plus'];
+const MODS = ['andon', 'inbox', 'kanban-board', 'context-header', 'files-plus', 'waiting'];
 let failed = 0;
 async function check(name, fn) {
   try { await fn(); console.log(`ok   ${name}`); }
@@ -53,7 +53,7 @@ await check('レイアウト andon は名前付けの block（andon-names・mod 
   assert.equal(names.length, 1, 'andon-names の block が1つでない');
   assert.equal(names[0].content?.mod, 'andon');
   const used = JSON.stringify(layout);
-  for (const mod of ['inbox', 'context-header', 'files-plus']) assert.ok(used.includes(`"mod":"${mod}"`), `${mod} を指していない`);
+  for (const mod of ['inbox', 'context-header', 'files-plus', 'waiting']) assert.ok(used.includes(`"mod":"${mod}"`), `${mod} を指していない`);
   assert.equal(layout.preview, 'layouts/andon.svg');
 });
 
@@ -507,6 +507,165 @@ await check('files-plus: 自分で読むもの（画像・図・Markdown の画�
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
+});
+
+// The waiting mod against a fake exec: what `andon waiting --json` printed, drawn (ADR-0042 acceptance 10).
+const textOf = (root) => walk(root).flatMap((n) => args(n, 'child').map((a) => a[0])).filter((c) => typeof c === 'string');
+const SAMPLE_WAITING = {
+  version: 1, at: '2026-11-21T10:00:00Z', project: 'sample-site',
+  slots: { limit: 4, working: 3, waiting: 2, free: 1, waiting_full: false },
+  items: [
+    { kind: 'merge', id: 'S-0021', title: '名指しの口を足す', since: '2026-11-21T04:43:35Z', question: 'S-0021#1',
+      pr: 'https://github.com/example/sample-site/pull/41', reason: 'delegation: merge=B < tier C', holds: ['S-0022', 'S-0023'] },
+    { kind: 'decision', id: 'S-0030', title: '書き出しの形を決める', since: '2026-11-21T02:12:13Z', question: 'S-0030#1',
+      ask: { kind: 'users', question: '書き出しは CSV だけにするか', facts: ['依頼書の「やること」'], reason: '利用者に見える',
+        options: [{ label: 'CSV だけ', pick: true }, { label: 'Excel も' }] }, answerable: true, holds: [] },
+    { kind: 'task', id: 'S-0031', title: 'image を焼き直す', since: '2026-11-21T08:55:43Z', holds: [] },
+  ],
+};
+async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', terms = [] } = {}) {
+  const calls = { exec: [], run: [] };
+  const ns = await load(`${HOST}/waiting`, {
+    spaces: () => [{ id: 's1', active: true, machine: null, folder: cwd }], panes: () => [{ pane: 'p1', cwd }],
+    focused: () => ({ pane: 'p1' }), terminals: () => terms, theme: () => THEME, window: () => ({ platform: 'linux' }),
+    run: (cmd, a) => calls.run.push([cmd, JSON.parse(JSON.stringify(a))]),
+    exec: async (cmd, a, opts = {}) => {
+      calls.exec.push([cmd, [...a], { cwd: opts.cwd, on: opts.on ?? null }]);
+      if (cmd !== 'andon') return { code: 0, stdout: '', stderr: '' };
+      if (reply instanceof Error) throw reply;
+      return typeof reply === 'function' ? reply() : reply;
+    },
+  }, recordingUi());
+  const v = new ns.default();
+  let pending = [];
+  const cx = { spawn: (fn) => pending.push(fn(cx)), notify: () => {}, timer: { every() {}, after() {} }, stop_propagation() {} };
+  v.init({}, cx);
+  await Promise.all(pending);
+  return { v, calls, cx, ns, draw: () => v.render(cx) };
+}
+const json = (o) => ({ code: 0, stdout: JSON.stringify(o), stderr: '' });
+
+await check('waiting: andon waiting --json をフォーカスした pane のフォルダで呼び、枠の行とオーナー待ちの行を出力の並びのまま描く（ADR-0042 受け入れ条件 10）', async () => {
+  const { calls, draw } = await waitingPane(json(SAMPLE_WAITING));
+  assert.deepEqual(calls.exec, [['andon', ['waiting', '--json'], { cwd: '/srv/cell/projects/sample-site', on: null }]]);
+  const tree = draw();
+  assert.deepEqual(textOf(byId(tree, 'waiting-slots')), ['Slots 3/4 working · 2 waiting on you']);
+  const rows = walk(tree).map((n) => last(n, 'id')).filter((id) => /^waiting-row-/.test(id ?? ''));
+  assert.deepEqual(rows, ['waiting-row-S-0021', 'waiting-row-S-0030', 'waiting-row-S-0031'], '出力の並びのままでない');
+  assert.deepEqual(['S-0021', 'S-0030', 'S-0031'].map((id) => textOf(byId(tree, `waiting-kind-${id}`))[0]), ['Merge', 'Decide', 'Do']);
+  const all = textOf(tree);
+  assert.ok(all.includes('S-0021 名指しの口を足す') && all.includes('· 2 waiting behind'), `行の中身: ${all}`);
+  assert.ok(!all.includes('Needs you'), '見出しを Needs you にした');
+  // Nothing waiting: the slots line and one line.
+  const empty = (await waitingPane(json({ ...SAMPLE_WAITING, items: [], slots: { ...SAMPLE_WAITING.slots, waiting: 0 } }))).draw();
+  assert.ok(byId(empty, 'waiting-slots') && textOf(byId(empty, 'waiting-empty'))[0] === 'Nothing is waiting on you', '待ちが無いときの形');
+  // waiting_full shows on the slots line.
+  const full = (await waitingPane(json({ ...SAMPLE_WAITING, slots: { limit: 2, working: 2, waiting: 2, free: 0, waiting_full: true } }))).draw();
+  assert.deepEqual(textOf(byId(full, 'waiting-slots')), ['Slots 2/2 working · 2 waiting on you · full']);
+});
+
+await check('waiting: 行を開くと問いの文・事実・選択肢・後ろで待つ課題が出て、マージの依頼は PR を開け、Chief of Staff へ行ける。答えるボタンは無い（ADR-0042 受け入れ条件 10）', async () => {
+  const cos = { address: 't1', state: 'live', labels: { project: 'sample-site', role: 'chief-of-staff' } };
+  const { v, calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING), { terms: [cos, { address: 't2', state: 'live', labels: { project: 'other', role: 'chief-of-staff' } }] });
+  let tree = draw();
+  assert.ok(!byId(tree, 'waiting-detail-S-0030'), '開く前から中身が出た');
+  const click = (node) => { const [fn] = args(node, 'on_click').at(-1); fn({}, cx); };
+  click(byId(tree, 'waiting-head-S-0030'));
+  tree = draw();
+  const detail = byId(tree, 'waiting-detail-S-0030');
+  assert.ok(detail, '開いた行の中身が無い');
+  const said = textOf(detail);
+  for (const want of ['書き出しは CSV だけにするか', '· 依頼書の「やること」', '利用者に見える', '1. CSV だけ (recommended)', '2. Excel も']) assert.ok(said.includes(want), `${want} が無い: ${said}`);
+  assert.ok(!walk(detail).some((n) => /answer|confirm/i.test(String(last(n, 'id') ?? ''))), '答えるボタンがある');
+  click(byId(tree, 'waiting-cos-S-0030'));
+  assert.deepEqual(calls.run.at(-1), ['agent.focus', { terminal: 't1' }], '別のプロジェクトの Chief of Staff へ行った');
+  click(byId(tree, 'waiting-head-S-0021'));
+  tree = draw();
+  assert.ok(textOf(byId(tree, 'waiting-detail-S-0021')).includes('S-0022, S-0023'), '後ろで待つ課題が出ない');
+  click(byId(tree, 'waiting-pr-S-0021'));
+  assert.deepEqual(calls.exec.at(-1), ['xdg-open', ['https://github.com/example/sample-site/pull/41'], { cwd: undefined, on: null }]);
+  assert.ok(!byId(tree, 'waiting-pr-S-0030') && !byId(tree, 'waiting-pr-S-0031'), 'マージの依頼でない行に PR のボタンがある');
+  v.toggle('S-0030');
+  assert.ok(!byId(draw(), 'waiting-detail-S-0030'), 'もう一度押しても閉じない');
+});
+
+await check('waiting: 出力が読めない・version が 1 でない・command が無い・失敗したときは理由を 1 行で出し、ほかを描かない（ADR-0042 受け入れ条件 10）', async () => {
+  const cases = [
+    [{ code: 0, stdout: 'not json', stderr: '' }, /not JSON/],
+    [json({ ...SAMPLE_WAITING, version: 2 }), /version 2; this pane reads version 1/],
+    [{ code: 127, stdout: '', stderr: 'sh: andon: not found' }, /no andon waiting/],
+    [new Error('spawn andon ENOENT'), /^Can't run andon waiting: spawn andon ENOENT$/],
+    [{ code: 1, stdout: '', stderr: 'andon waiting: kanban が見つからない（projects/<slug>/ か担当の worktree で打つ）\nmore' }, /^andon waiting failed: andon waiting: kanban が見つからない/],
+    [json({ version: 1, project: 'sample-site' }), /no slots or items/],
+  ];
+  for (const [reply, want] of cases) {
+    const tree = (await waitingPane(reply)).draw();
+    const said = textOf(byId(tree, 'waiting-reason') ?? { kids: [], calls: [] });
+    assert.equal(said.length, 1, `理由が 1 行でない: ${said}`);
+    assert.match(said[0], want);
+    assert.ok(!said[0].includes('\n'), '理由が 2 行ある');
+    assert.ok(!byId(tree, 'waiting-slots') && !byId(tree, 'waiting-list'), '理由と一緒に枠か行を描いた');
+  }
+});
+
+// What the two mods run (ADR-0042 acceptance 12): the first argument of every exec( call, in order.
+function execTargets(src) {
+  const out = [];
+  const re = /(?<![.\w])exec\(/g;
+  for (let m; (m = re.exec(src));) {
+    let i = m.index + 5, depth = 0, quote = null, s = '';
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (quote) { s += c; if (c === '\\') s += src[++i]; else if (c === quote) quote = null; continue; }
+      if (c === '"' || c === "'" || c === '`') { quote = c; s += c; continue; }
+      if ('([{'.includes(c)) depth++;
+      if (')]}'.includes(c)) { if (depth === 0) break; depth--; }
+      if (c === ',' && depth === 0) break;
+      s += c;
+    }
+    out.push(s.trim());
+  }
+  return out;
+}
+const OPENER = 'platform === "windows" ? "explorer.exe" : platform === "macos" ? "open" : "xdg-open"';
+
+await check('kanban-board と waiting が呼ぶ command は決まった一覧のまま。kanban を書く command とネットワークが無く、waiting が呼ぶのは andon waiting --json と PR を開くものだけ（ADR-0042 受け入れ条件 12）', async () => {
+  const board = await readFile(`${HOST}/kanban-board/main.js`, 'utf8');
+  const waiting = await readFile(`${HOST}/waiting/main.js`, 'utf8');
+  assert.deepEqual(execTargets(board), ['"powershell"', OPENER, '"sh"', '"sh"', '"git"', '"sh"', '"ls"'], 'kanban-board の exec の呼び先が変わった');
+  assert.deepEqual(execTargets(waiting), [OPENER, '"andon"'], 'waiting の exec の呼び先が変わった');
+  assert.equal(waiting.split('exec("andon", ["waiting", "--json"],').length, 2, 'andon waiting の引数が決まった形でない');
+  // The extraction finds a call it should: a new exec in a copy changes the list.
+  assert.deepEqual(execTargets(`${waiting}\nexec("kanban", ["done"]);`).at(-1), '"kanban"', '呼び先を拾う式が何も見ていない');
+  for (const [name, src] of [['kanban-board', board], ['waiting', waiting]]) {
+    assert.doesNotMatch(src, /\bfetch\(|WebSocket|XMLHttpRequest|writeTextFile|\bhc\(/, `${name} がネットワークか書く口を使う`);
+  }
+  assert.match('x = fetch(url)', /\bfetch\(|WebSocket/, '否定の式が当たらない');
+  const readme = await readFile(`${HOST}/waiting/README.md`, 'utf8');
+  assert.match(readme, /^## What it runs$/m, 'README に What it runs の表が無い');
+  assert.match(readme, /\| `exec\("andon", \["waiting", "--json"\], \{cwd, on\}\)` \|/, 'README の表に andon waiting の行が無い');
+});
+
+await check('レイアウト andon: 右のパネルの stack に waiting の block があり、inbox の見出しのボタンがパネルを出して waiting を選ぶ（ADR-0042 決めたこと 12）', async () => {
+  const layout = JSON.parse(await readFile(`${HOST}/layouts/andon.json`, 'utf8'));
+  const nodes = [];
+  const walkLayout = (n) => { nodes.push(n); (n.children ?? []).forEach(walkLayout); };
+  walkLayout(layout);
+  const node = (id) => nodes.find((n) => n.id === id);
+  const stack = node('panel-body');
+  assert.equal(stack?.type, 'stack');
+  assert.deepEqual(stack.children.map((c) => c.id), ['files', 'changes', 'waiting']);
+  assert.deepEqual(node('waiting').content, { mod: 'waiting' });
+  assert.equal(stack.active, 'files', '開いたときの画面を変えた');
+  const { v, calls } = await inbox({ terms: [] }, recordingUi(), THEME);
+  const tree = v.render({});
+  const button = byId(tree, 'fq-waiting');
+  assert.ok(button, 'inbox の見出しに waiting のボタンが無い');
+  args(button, 'on_click').at(-1)[0]({}, { notify() {} });
+  const ns = await load(`${HOST}/inbox`, { machines: () => [], setAgentOrder: () => {}, nextCommand: () => null, shared: () => ({}), setShared: () => {} });
+  assert.deepEqual(calls.run.map((c) => JSON.parse(JSON.stringify(c))), [['layout.show', { id: 'panel' }], ['layout.select', { stack: 'panel-body', child: 'waiting' }]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(ns.PANEL)), { column: node('panel').id, stack: stack.id, child: node('waiting').id }, 'ボタンの向き先がレイアウトに無い');
+  assert.ok(!textOf(button).some((x) => /\d/.test(x)), 'ボタンに件数を出した');
 });
 
 if (failed) process.exit(1);
