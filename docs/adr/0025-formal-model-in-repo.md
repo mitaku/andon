@@ -83,6 +83,7 @@
    理由: 機械が見つけられるのは「モデルと `issue.yaml` の食い違い」と「規則の破れ」だけで、(ア)(イ) は機械では止まらない。
    形: 「オーナーが見る」はゲートの条件表（`package/gate.json` の `tier_c_paths`）がパスで決める。パスでしか分けられないので、規則・検査の設定・対応表を、行動を書くファイルと別のファイルに分け、規則の側のファイルだけを `tier_c_paths` に足す。行動の側（コードに合わせて直す所）は今までどおり流れる。規則を別のモジュールに分けても検査器が読めることは確かめた（tla-ts 0.0.10。`EXTENDS` で行動のモジュールを読む規則のモジュール）。
    捨てた案: 担当の決まり (ア) だけ（規則を弱める変更もレビュアーとゲートに任せる）／決まりは足さず、ずれが起きてから考える。
+   → 2026-11-21 に、[ADR-0041](0041-delegation-cap-out-of-command.md) 決めたこと 10 が、(イ) を Andon を開発するセルについて覆した。そのセルでは、規則・控え・対応表に触れる PR を、セルの条件表の上書きで B に下げる（オーナーが決めた。Andon のバージョンが v0.0.x の間）。パッケージの既定の条件表と (ア) は変わらない。
 9. **2026-11-19 価値の仮説は置かない。**（オーナーが選んだ。Chief Engineer は「2026-12-25 に、モデルの job が落ちた回と理由を見る」を推したが、オーナーは「無し」を選んだ）
 10. **2026-11-20 開いている問い 4（`issue.yaml` に無い移り方がコードにある）は、M2 の対応表で「モデルの外」と名指しして決めた。`issue.yaml` に行は足さず、直す課題も切らない。**（M2 の PR で決めた。結果は `model/issue-map.txt` の `outside` の行）
    結果: `andon chief-engineer` とレビュアーの起動が打つ `kanban start`（todo → doing）、トリアージが未担当の todo・queued を閉じる `kanban done`（todo → done、queued → done）は、PR の無い課題とトリアージの一生にあたるので「モデルの外」にした。同じ理由で、`kanban add`（始まり → queued）、queued → todo の `kanban done`、queued → done の `andon issue finish`、オーナーの課題の `andon issue ask`、調べる課題の `andon issue candidates`、Chief Engineer・トリアージ・観察の課題が返す `kanban review` も名指ししてある（どれも、PR の無い課題と queued をモデルに入れないという「やらないこと」5 による）。担当を起動する前にやめる `andon issue finish`（todo → done）は、モデルのやめるが担当を起動したあと（`ChiefOfStaffCancels`）だけなので、これも「モデルの外」にした。done から台帳に消える移り方も「モデルの外」（モデルは done で止まる）。
