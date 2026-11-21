@@ -16,6 +16,11 @@
 | boot の実測は `tests/andon-boot.sh` の `env -i` と一時領域の指定を使う。`HOME` だけを変える手順は使わない。 | 無し。手で実測する手順で、見るものが無い。 |
 | 否定の grep（`! grep -q <古い名前>`）には、当たる場合があることを同じ所で確かめる行を添える（添えないと、検査が何も見ていなくても通る）。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | `tests/andon-dispatcher.sh` の偽の `gh` は `pr view 7 --json state,mergeCommit` の回数を settle の検査が数えるので、新しい問い合わせは欄を変えて別の case にする。 | `tests/andon-dispatcher.sh`。同じ欄の問い合わせを足すと、settle の回数の検査が落ちる。 |
+| schema の検査器の lint は `maximum` と `\s` を知らずに断る。上限は command で確かめ、空白は明示した文字の組で書く。 | 無し。検査器の lint が知らない書き方は、その場で断られて気づく。 |
+| `tests/package.sh` は実行権限が無いので、`bash tests/package.sh` で走らせる。 | 無し。実行権限の有無は手順の話で、見るものが無い。 |
+| `tests/andon-dispatcher.sh` で pending の report を `last` で見ると、担当の review-request が積んだ report を拾う。通知が積まれたかは前後の件数で比べる。 | 無し。検査の書き方の決まりで、見るものが無い。 |
+| `tests/package.sh` の仮設の語の検査は `package/skills` の文を「推し」で見るので、「推した」と書かず「推奨は〜だった」と書く。 | `tests/package.sh`。`package/skills` に「推し」を含む文があると落ちる。 |
+| `.claude/skills/verify-andon/` は追跡済み。生成物を片付けるときは `.claude` を丸ごと消さず、`git ls-files` と `git status --short` で自分が作ったフォルダだけを消す。 | 無し。片付けの手順で、見るものが無い。 |
 | 検査の中の偽の鍵と秘密鍵の見出しは、文字列を組み立てて作る（そのまま書くと `tests/public.sh` に当たる）。 | `tests/public.sh`。そのまま書くと当たって落ちる。 |
 | 起動の口を足すときは、Go の検査が `hc` の呼び出しの並びを固定しているので、`hc` を余分に呼ぶと `internal/issue`・`chiefengineer`・`chiefofstaff` の検査が落ちる。 | `go test ./...`。`internal/issue` などの検査が `hc` の呼び出しの並びを固定している。 |
 | `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。 | `tests/schema.sh`。`schema/` の顔ぶれと `expected`、`$id` のバージョンを突き合わせるので、触り忘れの一部で落ちる。 |
@@ -33,6 +38,7 @@
 | 設計の正は `docs/design.md` と `docs/adr/`。 | 無し。どれを正とするかの決まりで、見るものが無い。 |
 | 決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。 | `tests/smoke.sh`。`docs/decisions/` のファイルの名前と行の形、`docs/decisions.md` の凍結した表に行が足されていないことを見る。 |
 | ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、README の ADR の一覧を突き合わせる。 |
+| ADR の番号は書き終える直前にも、ほかの worktree を `git worktree list` で見直す。書いている間に別の担当が同じ番号を取ることがある。 | 無し。取り合いは書いている間に起きて、見るものが無い。 |
 | ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` で足す。 | 無し。ADR と決定の記録の対は見ない。 |
 | 迷ったら推奨案で進めて報告に書く。 | 無し。判断の決まりで、見るものが無い。 |
 | 1ファイル1読み手。人用の文書（`README.md`・`docs/`）に機械が読む行を埋めない。AI 用の文書（この `AGENTS.md`・`REVIEW.md`・`package/skills/`）に人向けの経緯を書かない。 | 無し。読み手は文の中身で決まり、機械では見分けない。 |
