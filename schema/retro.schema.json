@@ -676,6 +676,7 @@
       "required": [
         "id",
         "profile",
+        "reason",
         "findings",
         "outcome"
       ],
@@ -688,6 +689,23 @@
         "profile": {
           "description": "Its profile.",
           "type": "string"
+        },
+        "reason": {
+          "description": "Why this round was requested, read from the reviewer brief's re-review line and the previous round's findings.json: first (round 1), fixed (the previous round had a critical or major finding), rebased (the previous commit is not an ancestor), rerequested (none of these). null when the brief is missing, or a later round has no re-review line.",
+          "anyOf": [
+            {
+              "description": "The reason.",
+              "enum": [
+                "first",
+                "fixed",
+                "rebased",
+                "rerequested"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "findings": {
           "description": "findings.json, or null.",

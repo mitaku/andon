@@ -838,7 +838,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
     "outcome": {"result": "merged", "worked_minutes": 95,
                 "cost": {"sessions": 2, "measured": 1, "tokens": {"input": 1200, "output": 35000, "cache_read": 2400000, "cache_write": 180000}}},
     "gates": [{"head": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "at": "2026-11-18T09:55:00Z", "tier": "B", "decision": "approve", "reasons": [], "merged": true}],
-    "reviews": [{"id": "S-0012-r1", "profile": "codex-review",
+    "reviews": [{"id": "S-0012-r1", "profile": "codex-review", "reason": "first",
                  "findings": {"commit": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "findings": [{"severity": "major", "file": "app/reply.ts", "line": 40}]},
                  "outcome": null}],
     "waived": [], "corrections": [{"kind": "answer", "question": 2, "decision_kind": "users", "recommended": "CSV だけ", "picked": "CSV と Excel"}],
@@ -867,7 +867,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `issues[].launches` | 起動の記録（§18）の行ごとの `at`・`profile`・`model`（`command` の `--model` か `-m` の値。無ければ `null`）・`commit`（`package.commit`。無ければ `null`）。全文は `library` の `launches.jsonl`。ファイルが無ければ `null` |
 | `issues[].outcome` | 結果の記録（§19）の `result`・`worked_minutes` と、`sessions[]` のコストの合計 `cost`（`sessions` はセッションの数、`measured` はそのうち `cost` があった数、`tokens` はその合計）。`sessions` が `null` なら `cost` は `null`。全文は `library` の `outcome.json`。無ければ `null`（この仕組みの前の課題） |
 | `issues[].gates` | gate の記録（§7）の `head`・`at`・`tier`・`decision`・`reasons`・`merged`。判定の時刻の順 |
-| `issues[].reviews` | レビュアーの子の課題ごとの `findings.json`（§3）と `outcome.json` の写し。無ければ `null` |
+| `issues[].reviews` | レビュアーの子の課題ごとの `findings.json`（§3）と `outcome.json` の写し。無ければ `null`。`reason` はその回を頼んだ理由で、レビュアーの依頼書の「再レビュー: 前の回の commit」の段（dispatcher が書く）と、その commit を見た前の回の `findings.json` から決める。`first` は1回目、`fixed` は前の回に critical か major の指摘（課題の前からあった指摘を除く）があった回、`rebased` は前の回の commit が今の commit の祖先でない（rebase をまたいだ）回、`rerequested` はどれでもない回（前の回の結果が古い commit を見ていた・CI や軽い指摘を直した・前の回が結果を残さなかった）。依頼書が無い、または2回目以降なのに再レビューの段が無ければ `null` |
 | `issues[].estimate`・`agent_estimate`・`worked_minutes` | `issue.yaml` の `estimate`・`report.json` の `estimate.size`・`outcome.json` の `worked_minutes` |
 | `issues[].waived`・`remember`・`agents_md` | `report.json` の写し |
 | `issues[].corrections` | `corrections.json`（§14）の `corrections`。ファイルが無ければ `null`（集めていない） |
@@ -938,7 +938,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 **当てる**（`andon retro apply <id> [--dry-run]`。Chief of Staff が検収して打つ）: `retro.json` を読み、`until` と `days` の期間で入力を集め直して上の検査を通し（GitHub は読まない）、`fix` のパターンごとに、一覧の順に課題を1件 `kanban add` する。足す課題の `parent` は振り返りの課題（§20 が前の直しを見分ける印）、題は `summary`、`repo` は `target.repo`。依頼書には、要約・直す先（段・足すか変えるか削るか・repo と paths）・上の段で止められない理由・期待する効果・リスク・完了条件・守ること（改善の PR の決まり）・根拠（課題は題と片付いた時刻と PR、オーナーが打った文は id と役と時刻だけで本文は写さない）・PR の本文に書いてよい根拠の PR・辿り方を書く。`target.kind` が `andon` で、`target.repo` が無いかプロジェクトの `repos` に無ければ、直す課題ではなくオーナーの課題（`who: person`。題は「Andon へ伝えるか: <summary>」）にする（決めたこと 2）。`profile` と予約キー（§2）は書かない（起動する前に Chief of Staff が切る決まりで書く）。`--dry-run` は足す課題と捨てるパターンを JSON で出すだけで、何も書かない。
 
-当てた記録は振り返りの課題の `library/retro-applied.json`（書き手は `andon retro apply`。読むのはオーナーと Chief of Staff で、機械は判定に使わないので schema は持たない）。`retro`・`applied_at`・`complete`（全部を足したら `true`）・`issues[]`（`pattern`・`issue`・`who`〈`worker` か `person`〉・`title`）・`dropped[]`（`pattern`・`reason`）。1件足すたびに書き直すので、途中で kanban の CLI が落ちても足した分が残り、打ち直すと残りから続ける。`complete` が `true` なら断る（当て済み）。
+当てた記録は振り返りの課題の `library/retro-applied.json`（書き手は `andon retro apply`。読むのはオーナーと Chief of Staff で、機械は判定に使わないので schema は持たない）。`retro`・`applied_at`・`complete`（全部を足したら `true`）・`issues[]`（`pattern`・`issue`・`who`〈`worker` か `person`〉・`title`）・`dropped[]`（`pattern`・`reason`）。1件足すたびに書き直すので、途中で kanban の CLI が落ちても足した分が残り、打ち直すと残りから続ける。kanban add のあと記録の保存で落ちたときは、足した課題が記録に無い。打ち直しは、この振り返りを parent に持つ同じ題の課題が kanban にあれば足さずに記録へ写すので、同じ課題を重ねて足さない。同じ振り返りを当てる `andon retro apply` は1本ずつで、ほかの apply が `library/retro-applied.json.lock` を持っている間は kanban を照らす前に断る（`--dry-run` は書かないので取らない）。`complete` が `true` なら断る（当て済み）。
 
 ## 22. kanban の行（`log.jsonl`）
 

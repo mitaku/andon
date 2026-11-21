@@ -1,14 +1,17 @@
 package retro
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"andon/internal/ledger"
 	"andon/internal/ledger/ledgertest"
 )
 
@@ -407,5 +410,54 @@ func TestMainUsage(t *testing.T) {
 	errs.Reset()
 	if rc := Main([]string{"collect", "--days", "0"}, nil, &out, &errs); rc != 2 {
 		t.Errorf("--days 0: rc=%d", rc)
+	}
+}
+
+// collect の束の reviews は、回ごとにその回を頼んだ理由を持つ。理由はレビュアーの依頼書の「再レビュー: 前の回の commit」の段と、
+// その commit を見た前の回の findings.json から決まる: 1回目は first、前の回に major があれば fixed、rebase をまたいだら rebased、
+// どれでもなければ rerequested。依頼書が無い・2回目以降なのに再レビューの段が無ければ null。
+func TestReviewReason(t *testing.T) {
+	f := newFixture(t)
+	k := filepath.Join(f.root, "kanban", "issues")
+	sha2, sha3, sha4 := strings.Repeat("2", 40), strings.Repeat("3", 40), strings.Repeat("4", 40)
+	target := func(c string) string { return "対象: worktree `/w`（detached）。commit " + c + "。\n" }
+	again := func(prev string) string {
+		return "再レビュー: 前の回の commit " + prev + "。見るのは `git diff` だけ。\n"
+	}
+	child := func(id, brief, findings string) {
+		write(t, filepath.Join(k, id, "issue.yaml"), issueYAML(id, "done", "profile: codex-review\nparent: A-0001\n"))
+		if brief != "" {
+			write(t, filepath.Join(k, id, "brief.md"), brief)
+		}
+		if findings != "" {
+			write(t, filepath.Join(k, id, "library", "findings.json"), findings)
+		}
+	}
+	// r1（fixture の findings は sha1 に major）: 1回目
+	write(t, filepath.Join(k, "A-0001-r1", "brief.md"), "# A-0001 のレビュー（1 回目）\n"+target(sha1))
+	// r2: 前の回（sha1）に major → 直して頼んだ
+	child("A-0001-r2", target(sha2)+again(sha1), `{"commit":"`+sha2+`","findings":[{"severity":"minor","file":"a.go","line":9}]}`)
+	// r3: 前の回（sha2）は minor だけで、rebase をまたいだ
+	child("A-0001-r3", target(sha3)+"再レビュー: 前の回の commit "+sha2+"。"+ledger.RebasedMark+"。\n", `{"commit":"`+sha3+`","findings":[]}`)
+	// r4: 前の回（sha3）に指摘は無く、祖先のまま（CI の直しなど）
+	child("A-0001-r4", target(sha4)+again(sha3), "")
+	// r5: 2回目以降なのに再レビューの段が無い・r6: 依頼書が無い
+	child("A-0001-r5", target(sha4), "")
+	child("A-0001-r6", "", "")
+	in, out := f.collect(t)
+	got := map[string]string{}
+	for _, rv := range bundle(t, in, "A-0001").Reviews {
+		got[rv.ID] = "null"
+		if rv.Reason != nil {
+			got[rv.ID] = *rv.Reason
+		}
+	}
+	want := map[string]string{"A-0001-r1": "first", "A-0001-r2": "fixed", "A-0001-r3": "rebased", "A-0001-r4": "rerequested",
+		"A-0001-r5": "null", "A-0001-r6": "null"}
+	if !maps.Equal(got, want) {
+		t.Errorf("回の理由 = %v（want %v）", got, want)
+	}
+	if !bytes.Contains(out, []byte(`"reason":"fixed"`)) && !bytes.Contains(out, []byte(`"reason": "fixed"`)) {
+		t.Errorf("collect の出力に reason が無い: %s", out)
 	}
 }

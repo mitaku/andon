@@ -44,6 +44,7 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 | `corrections`（問いの答えで推奨案と違うものを選んだ・PR の上の直し・指摘の覆し） | オーナーの手直し。いちばん重い |
 | `typed[]`（オーナーが打った文） | オーナーが言い直したこと。Chief of Staff への文も入る |
 | `gates[].decision` が `fix` の `reasons`・`reviews[].findings` | gate とレビュアーの差し戻し |
+| `reviews[].reason`（`first`・`fixed`・`rebased`・`rerequested`。`null` は決められない回） | レビューの回を頼んだ理由。2回目以降の回の内訳は、担当の `report.md` を拾わずにここで数える |
 | `after_merge`（checks の失敗・`reverted_by`） | マージのあとに壊れたこと |
 | `estimate`・`agent_estimate`・`worked_minutes` | 見込みと実働のずれ |
 | `remember`・`agents_md`・`journal` | 担当が書き残したつまずき |

@@ -199,6 +199,23 @@ func short(sha string) string {
 	return sha
 }
 
+// RebasedMark は、レビュアーの依頼書の「再レビュー:」の段で、前の回の commit が今の commit の祖先でない（rebase をまたいだ）と言う句。
+// dispatcher の reReviewRange が書き、andon retro collect がレビューの回の理由（BriefReReview）に読む。
+const RebasedMark = "これは今の commit の祖先でない（rebase をまたいだ）"
+
+// reReviewRe はレビュアーの依頼書の「再レビュー: 前の回の commit <sha>。」（dispatcher の reReviewRange が書く）。
+var reReviewRe = regexp.MustCompile(`再レビュー: 前の回の commit ([0-9a-f]{40})。`)
+
+// BriefReReview は、レビュアーの依頼書 brief が再レビューなら前の回の commit を、そうでなければ空を返す。rebased は、
+// 前の回の commit が今の commit の祖先でない（rebase をまたいだ）と依頼書に書いてあるか。
+func BriefReReview(brief string) (prev string, rebased bool) {
+	m := reReviewRe.FindStringSubmatch(brief)
+	if m == nil {
+		return "", false
+	}
+	return m[1], strings.Contains(brief, RebasedMark)
+}
+
 // BriefReviews は、レビュアーの依頼書 brief（dispatcher の reviewerBrief が書く）が commit を見るよう頼んでいるか。
 // 依頼書は「commit <sha>。」の形で commit を書く。dispatcher の Adopt と andon issue review-request が同じ読み方をする。
 func BriefReviews(brief, commit string) bool {

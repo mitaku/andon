@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/flock"
 	"andon/internal/ledger"
 	"andon/internal/pkgversion"
 	"andon/internal/sessionlog"
@@ -23,6 +24,9 @@ var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
 // appliedFile は andon retro apply の記録（振り返りの課題の library/）。
 const appliedFile = "retro-applied.json"
+
+// appliedLock は andon retro apply を振り返りごとに1本ずつにする lock（振り返りの課題の library/）。
+const appliedLock = appliedFile + ".lock"
 
 // Applied は andon retro apply の記録（docs/contract.md §21）。足すたびに書き直し、全部を足したら complete。
 type Applied struct {
@@ -117,9 +121,20 @@ type plan struct {
 
 // runApply は andon retro apply: library/retro.json を書いたときと同じ窓で照らし直し、fix ごとに課題を1件足す。
 // 途中で kanban の CLI が落ちても、足した分は記録に残り、打ち直すと残りから続ける（足した課題をもう一度足さない）。
+// 同じ振り返りを当てる apply は1本ずつ（library/ の lock）。2本が同時に kanban を照らして同じ課題を足さない。
 func runApply(root, id string, dry bool, stdout io.Writer) error {
 	l := ledger.At(root)
 	lib := l.Library(id)
+	if !dry {
+		unlock, err := flock.TryLock(filepath.Join(lib, appliedLock))
+		if errors.Is(err, flock.ErrBusy) {
+			return fmt.Errorf("%s はほかの andon retro apply が当てている。終わってから打ち直す（当て済みなら断られる）", id)
+		}
+		if err != nil {
+			return err
+		}
+		defer unlock()
+	}
 	b, err := os.ReadFile(filepath.Join(lib, retroFile))
 	if errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("%s/library/%s が無い（振り返りの担当が andon retro patterns で書く）", id, retroFile)
@@ -178,27 +193,8 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 	if err := save(); err != nil {
 		return err
 	}
-	for _, pl := range plans {
-		if slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Pattern == pl.Pattern }) {
-			continue
-		}
-		args := []string{"add", pl.Title, "--parent", id}
-		if pl.Repo != "" {
-			args = append(args, "--repo", pl.Repo)
-		}
-		newID, err := l.Run(pl.Brief, append(args, "--brief", "-")...)
-		if err != nil {
-			return err
-		}
-		if pl.Who == "person" {
-			if _, err := l.Run("", "set", newID, "who=person"); err != nil {
-				return err
-			}
-		}
-		rec.Issues = append(rec.Issues, AppliedIssue{Pattern: pl.Pattern, Issue: newID, Who: pl.Who, Title: pl.Title})
-		if err := save(); err != nil {
-			return err
-		}
+	if err := addPlans(l, id, plans, &rec, save); err != nil {
+		return err
 	}
 	rec.Complete = true
 	if err := save(); err != nil {
@@ -214,6 +210,55 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "振り返り %s を当てた: 直す課題 %d 件%s・オーナーの課題 %d 件%s・捨てた %d 件。記録は %s/library/%s\n",
 		id, len(fixes), list(fixes), len(persons), list(persons), len(rec.Dropped), id, appliedFile)
+	return nil
+}
+
+// addPlans は fix のパターンごとに課題を足し、足すたびに記録を書き直す。記録に無いパターンでも、kanban にこの振り返りを parent に持つ
+// 同じ題の課題があれば足さずに記録へ写す（前の回が kanban add のあと記録の保存で落ちたとき、打ち直しで同じ課題を重ねて足さない）。
+func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func() error) error {
+	var left []plan
+	for _, pl := range plans {
+		if !slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Pattern == pl.Pattern }) {
+			left = append(left, pl)
+		}
+	}
+	if len(left) == 0 {
+		return nil
+	}
+	all, err := l.List()
+	if err != nil {
+		return err
+	}
+	parent := ledger.CanonID(id)
+	for _, pl := range left {
+		newID, who := "", ""
+		for _, t := range all {
+			tid := ledger.CanonID(t.Str("id"))
+			if ledger.CanonID(t.Str("parent")) == parent && t.Str("title") == pl.Title &&
+				!slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Issue == tid }) {
+				newID, who = tid, t.Str("who")
+				break
+			}
+		}
+		if newID == "" {
+			args := []string{"add", pl.Title, "--parent", id}
+			if pl.Repo != "" {
+				args = append(args, "--repo", pl.Repo)
+			}
+			if newID, err = l.Run(pl.Brief, append(args, "--brief", "-")...); err != nil {
+				return err
+			}
+		}
+		if pl.Who == "person" && who != "person" { // 前の回が add のあと set の前で落ちていれば、ここで付ける
+			if _, err := l.Run("", "set", newID, "who=person"); err != nil {
+				return err
+			}
+		}
+		rec.Issues = append(rec.Issues, AppliedIssue{Pattern: pl.Pattern, Issue: newID, Who: pl.Who, Title: pl.Title})
+		if err := save(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

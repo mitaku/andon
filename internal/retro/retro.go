@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -188,10 +189,11 @@ type Gate struct {
 	Merged   bool     `json:"merged"`
 }
 
-// Review はレビュアーの子の課題1件（親に束ねる）。
+// Review はレビュアーの子の課題1件（親に束ねる）。Reason はその回を頼んだ理由（reviewReason）。
 type Review struct {
 	ID       string         `json:"id"`
 	Profile  string         `json:"profile"`
+	Reason   *string        `json:"reason"`
 	Findings map[string]any `json:"findings"`
 	Outcome  map[string]any `json:"outcome"`
 }
@@ -583,7 +585,51 @@ func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) (Bundle, []map
 		b.Reviews = append(b.Reviews, Review{ID: c.id, Profile: c.profile,
 			Findings: r.object(filepath.Join(clib, "findings.json")), Outcome: r.object(filepath.Join(clib, "outcome.json"))})
 	}
+	for i := range b.Reviews {
+		b.Reviews[i].Reason = r.reviewReason(b.Reviews[i].ID, b.Reviews)
+	}
 	return b, raw
+}
+
+// reviewReason はレビューの回を頼んだ理由。レビュアーの依頼書の「再レビュー: 前の回の commit」（dispatcher が書く）と、
+// その commit を見た前の回の findings.json から決める:
+//   - first: 再レビューでない（1回目）
+//   - fixed: 前の回に critical か major の指摘（課題の前からあった指摘は除く）があり、担当が直して頼んだ
+//   - rebased: 前の回の commit が今の commit の祖先でない（rebase をまたいだ。衝突を解いて差分が変わった）
+//   - rerequested: どれでもない（前の回の結果が古い commit を見ていた・CI や軽い指摘を直した・前の回が結果を残さなかった）
+//
+// 依頼書が読めない、または 2 回目以降（<親>-r<k> の k が 2 以上）なのに「再レビュー:」の段が無ければ null（決められない）。
+func (r *reader) reviewReason(id string, siblings []Review) *string {
+	b, err := os.ReadFile(filepath.Join(r.dir, "issues", id, "brief.md"))
+	if err != nil {
+		return nil
+	}
+	prev, rebased := ledger.BriefReReview(string(b))
+	reason := "rerequested"
+	switch {
+	case prev == "":
+		if _, k, ok := ledger.SplitRound(id); ok && k > 1 {
+			return nil
+		}
+		reason = "first"
+	case slices.ContainsFunc(siblings, func(s Review) bool { return s.ID != id && s.Findings["commit"] == prev && mustFix(s.Findings) }):
+		reason = "fixed"
+	case rebased:
+		reason = "rebased"
+	}
+	return &reason
+}
+
+// mustFix は findings.json に critical か major の指摘（課題の前からあった指摘は除く）があるか。
+func mustFix(f map[string]any) bool {
+	fs, _ := f["findings"].([]any)
+	for _, x := range fs {
+		m, _ := x.(map[string]any)
+		if sev, _ := m["severity"].(string); (sev == "critical" || sev == "major") && m["preexisting"] != true {
+			return true
+		}
+	}
+	return false
 }
 
 // launchView は起動の記録1行から、パッケージの commit・プロファイル・モデル（起動行の --model か -m）と時刻だけを取る。

@@ -547,7 +547,7 @@ func reReviewRange(prev, commit, pr string, sp span) string {
 			"通らなければ rebase をまたいでいて、`git diff` は base に入ったほかの変更まで含むので使わない。PR 自身の差分 `gh pr diff %s` で、前の回の指摘の所を見る。"+tail,
 			prev, prev, commit, prev, commit, pr)
 	case sp.Rebased && sp.Old != "":
-		return fmt.Sprintf("再レビュー: 前の回の commit %s。これは今の commit の祖先でない（rebase をまたいだ）。"+
+		return fmt.Sprintf("再レビュー: 前の回の commit %s。"+ledger.RebasedMark+"。"+
 			"`git diff %s..%s` は base に入ったほかの変更まで含むので使わない。"+
 			"見るのは PR 自身の差分どうしの違い `git range-diff %s..%s %s..%s` だけ（それぞれの commit と PR の base の merge-base から数えた PR の commit を、前の回と今の回で突き合わせる）。"+
 			"読み方: commit の対応の行の `=` は中身が同じ、`!` は変わった（下に差分の差分。1列目の `-`・`+` が前の回から今の回への違い、2列目は PR の差分そのものの印。rebase で衝突を解いた行もここに出る）、"+
@@ -555,7 +555,7 @@ func reReviewRange(prev, commit, pr string, sp span) string {
 			"直しを前後ごと読むときは `gh pr diff %s`（今の PR の差分全体）の該当の所を見る。"+tail,
 			prev, prev, commit, sp.Old, prev, sp.New, commit, pr)
 	case sp.Rebased:
-		return fmt.Sprintf("再レビュー: 前の回の commit %s。これは今の commit の祖先でない（rebase をまたいだ）。"+
+		return fmt.Sprintf("再レビュー: 前の回の commit %s。"+ledger.RebasedMark+"。"+
 			"`git diff %s..%s` は base に入ったほかの変更まで含むので使わない（dispatcher は PR の base を読めなかった）。"+
 			"PR 自身の差分 `gh pr diff %s` で、前の回の指摘の所を見る。"+tail,
 			prev, prev, commit, pr)

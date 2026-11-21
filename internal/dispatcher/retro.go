@@ -40,6 +40,8 @@ func (p *project) retroDue() {
 	every, err := retroEveryOf(p.c.WS, p.l.Slug)
 	if err != nil {
 		p.retroOnce("set", fmt.Sprintf("project.json の chief_of_staff.retro_every を読めない（既定の %d 件で数える）: %v", retroEvery, err))
+	} else {
+		p.retroOnce("set", "") // 読めたら覚えを消す。また読めなくなったときにもう一度書く
 	}
 	if n < every {
 		return
