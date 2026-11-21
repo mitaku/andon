@@ -242,7 +242,7 @@ HC_TERMINAL_ID=t5 kanban set "$id" review=off >/dev/null
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die 'review が off なのに起動した'
-jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("issue.yaml の review が on でない")' "$state" >/dev/null || die '起動しなかった回を控えていない'
+jq -e --arg k "$id@$head" '.reviewers[$k].skipped | startswith("issue.yaml の review が off で、差分はレベル A")' "$state" >/dev/null || die "起動しなかった回を控えていない: $(jq -c --arg k "$id@$head" '.reviewers[$k]' "$state")"
 HC_TERMINAL_ID=t5 kanban set "$id" review=on >/dev/null
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '頼み直していないのに起動し直した'
@@ -280,6 +280,22 @@ dispatcher
 kanban config set chief_of_staff=t5 >/dev/null
 HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null   # あとの場面（1b のマージの影響）が数える動いている課題に残さない
 ok 'Chief of Staff のアドレスが変わって照合で見送ったレビュー依頼は、予約キーを書き直せば担当の頼み直し無しに拾い直す'
+
+# 0e. review: off で始めたコードの課題でも、差分がレベル B なら gate はレビューを求める。担当は Chief of Staff を待たずに頼め、
+#     dispatcher は gate と同じ条件（差分のレベル）で決め直して起動する。review の値は Chief of Staff が書いた off のまま
+id=$(newtask 'review: off のコードの課題' person)
+HC_TERMINAL_ID=t5 kanban set "$id" review=off >/dev/null
+work "$id" internal/issue/start_test.go
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request || die 'review: off でも差分がレベル B なのに review-request が断った'
+grep -q 'review は off だが、差分がレベル B' "$L/issues/$id/report.md" || die "レビュー依頼の行に review: off で頼んだ理由が無い: $(sed -n 1,3p "$L/issues/$id/report.md")"
+runs=$(grep -c '^run' "$tmp/hc/log")
+dispatcher
+[ "$(grep -c '^run' "$tmp/hc/log")" = "$((runs + 1))" ] || die "review: off で差分がレベル B のレビュー依頼で、レビュアーを起動しない: $(jq -c --arg k "$id@$head" '.reviewers[$k]' "$state")"
+jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null || die '起動したと控えていない'
+[ "$(kanban show "$id" --json | jq -r .issue.review)" = off ] || die 'review の値を書き換えた'
+HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null   # あとの場面が数える動いている課題に残さない
+ok 'review: off でも差分がレベル B なら、担当がレビューを頼め、dispatcher が gate と同じ条件で決めてレビュアーを起動する（review は off のまま）'
 
 # 1. 一周: review-request → レビュアーを起動する → レビュー → ready → gate → マージ → finish。Chief of Staff は留守（端末が無い）でも回る（ADR-0017 決めたこと 8）
 id=$(newtask 'docs を直す' auto)

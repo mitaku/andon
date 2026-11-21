@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -31,9 +32,14 @@ case "$1" in
 esac
 `
 
-// 偽の gh は呼ばれるたびに gh-calls に1行足す。prhead-lag に数 n があれば、n 回は prhead-old を返す
-// （push の直後に GitHub の PR の head が古いまま残る）。
+// 偽の gh は PR の head を読むたびに gh-calls に1行足す。prhead-lag に数 n があれば、n 回は prhead-old を返す
+// （push の直後に GitHub の PR の head が古いまま残る）。PR のファイル（api …/files）は prfiles、差分（pr diff）は prdiff を返し、
+// 数えない（review: off の課題で、gate と同じ条件でレビューが要るかを決めるのに読む）。
 const fakeGH = `#!/bin/sh
+case "$1 $2" in
+  "api --paginate") cat "$FAKE_ROOT/prfiles"; exit 0 ;;
+  "pr diff") cat "$FAKE_ROOT/prdiff" 2>/dev/null; exit 0 ;;
+esac
 echo x >> "$FAKE_ROOT/gh-calls"
 n=$(cat "$FAKE_ROOT/prhead-lag" 2>/dev/null || echo 0)
 if [ "$n" -gt 0 ]; then
@@ -55,6 +61,7 @@ type fixture struct {
 	report    string         // report.json の中身（空なら置かない）
 	findings  string         // レビュアーの findings.json の commit（空なら置かない）
 	prHead    string
+	prFile    string // PR が変えたファイル（偽の gh の api …/files。review: off の課題のレベルを決める）
 	questions string // kanban questions --json の中身（空なら問いが無い）
 	state     bool   // stop-check の控えの置き場を作ったか
 }
@@ -95,7 +102,12 @@ func newFixture(t *testing.T) *fixture {
 	f.reviewer = map[string]any{"id": "T-0002", "parent": "T-0001", "status": "review", "profile": "codex-review", "updated": "2026-11-05T00:00:00Z"}
 	f.report = `{"commit": "` + f.head + `", "pr": "https://github.com/example/app/pull/7"}`
 	f.findings = f.head
+	f.prFile = "docs/a.md"
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// review: off の課題のレベルは repo の package/gate.json で決める。セルの repo（gate.local.json）は一時の置き場に向ける
+	_, file, _, _ := runtime.Caller(0)
+	t.Setenv("ANDON_HOME", filepath.Join(filepath.Dir(file), "..", "..", "package"))
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(dir, "workspace"))
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("KANBAN_ROOT", "")
 	// 控え（dispatcher の置き場と ready の lock）は一時ディレクトリに。本物の HOME の ~/.local/state に書かない
@@ -149,6 +161,7 @@ func (f *fixture) ready() (int, string, bool) {
 		f.write("kanban/issues/T-0001/library/report.json", f.report)
 	}
 	f.write("prhead", f.prHead+"\n")
+	f.writePRFiles()
 	if f.questions != "" {
 		f.write("questions.json", f.questions)
 	}
@@ -159,6 +172,11 @@ func (f *fixture) ready() (int, string, bool) {
 }
 
 const other = "0000000000000000000000000000000000000001"
+
+// writePRFiles は偽の gh が返す PR のファイル（gh api --paginate --slurp の形）を置く。
+func (f *fixture) writePRFiles() {
+	f.write("prfiles", js([][]any{{map[string]any{"filename": f.prFile, "additions": 3, "deletions": 0}}}))
+}
 
 // gateQuestion は T-0001 の問い 1 を開いたまま置く。from が出した問いで、head が空でなければ事実に gate の記録
 // （library/gate/<head>.json）の行を書く（merge.go の needs_human の問いと同じ形）。
@@ -209,7 +227,22 @@ func TestReady(t *testing.T) {
 		{"Chief of Staff が足していないレビュー", func(f *fixture) { f.by = "terminal:t7" }, "数えない"},
 		{"同じブランドのレビュアー", func(f *fixture) { f.reviewer["profile"] = "claude-review" }, "missing"},
 		{"レビュー中（review でも done でもない）", func(f *fixture) { f.reviewer["status"] = "doing" }, "missing"},
-		{"review: off ならレビューを見ない", func(f *fixture) { f.task["review"] = "off"; f.reviewer = nil }, ""},
+		{"review: off で差分がレベル A ならレビューを見ない", func(f *fixture) { f.task["review"] = "off"; f.reviewer = nil }, ""},
+		// review: off で始めたコードの課題でも、差分がレベル B・C なら gate はレビューを求める。review に入る前に断る
+		{"review: off でも差分がレベル B ならレビューを求める", func(f *fixture) {
+			f.task["review"] = "off"
+			f.reviewer = nil
+			f.prFile = "internal/issue/start_test.go"
+		}, "review は off だが、差分がレベル B（実行面 internal/issue/start_test.go・段 A 許可リスト外 internal/issue/start_test.go）なので gate はレビューを求める。andon issue review-request で頼む"},
+		{"review: off で差分がレベル C ならレビューを求める", func(f *fixture) {
+			f.task["review"] = "off"
+			f.reviewer = nil
+			f.prFile = "model/issue-map.txt"
+		}, "差分がレベル C"},
+		{"review: off で差分がレベル B でも、今の head のレビューがあれば通る", func(f *fixture) {
+			f.task["review"] = "off"
+			f.prFile = "internal/issue/start_test.go"
+		}, ""},
 		{"review が無ければ止まる", func(f *fixture) { delete(f.task, "review") }, "on/off でない"},
 		{"開いた問いがあれば止まる", func(f *fixture) { f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}]` }, "T-0001#1（open）"},
 		{"答えを受けていない問いがあれば止まる", func(f *fixture) { f.questions = `[{"id": "T-0001", "n": 2, "status": "answered"}]` }, "T-0001#2（answered）"},
@@ -352,6 +385,56 @@ func TestReviewRequestWhileReviewerRuns(t *testing.T) {
 			}
 			if reported == nil || string(report) != f.report {
 				t.Fatalf("断ったのに書いた: reported=%v report=%s", reported == nil, report)
+			}
+		})
+	}
+}
+
+// review-request が受けるかは gate がレビューを求めるかと同じ条件（gate.ReviewRequired）: review: off でも差分がレベル B・C なら受け、
+// レベル A なら断る。review の値が on/off でなければ断る。断ったときは report.json も報告も書かない。
+func TestReviewRequestFollowsGateTier(t *testing.T) {
+	cases := []struct {
+		name   string
+		review any
+		file   string
+		want   string // 空なら頼める
+	}{
+		{"review: off でも差分がレベル B なら頼める", "off", "internal/issue/start_test.go", ""},
+		{"review: off でも差分がレベル C なら頼める", "off", "model/issue-map.txt", ""},
+		{"review: off で差分がレベル A なら断る", "off", "docs/a.md", "issue.yaml の review が off で、差分はレベル A。gate はレビューを求めないので頼めない"},
+		{"review: on なら差分がレベル A でも頼める", "on", "docs/a.md", ""},
+		{"review が無ければ断る", nil, "internal/issue/start_test.go", "review が on/off でない"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			if c.review == nil {
+				delete(f.task, "review")
+			} else {
+				f.task["review"] = c.review
+			}
+			f.prFile = c.file
+			f.writePRFiles()
+			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+			f.write("list.json", js([]any{f.task}))
+			f.write("kanban/log.jsonl", "")
+			f.write("kanban/issues/T-0001/library/report.json", f.report)
+			f.write("prhead", f.prHead+"\n")
+			var out, errb bytes.Buffer
+			rc := Main([]string{"review-request", "T-0001"}, strings.NewReader("## Report\n"), &out, &errb)
+			report, _ := os.ReadFile(filepath.Join(f.root, "kanban/issues/T-0001/library/report.json"))
+			if c.want == "" {
+				if rc != 0 || !strings.Contains(string(report), `"round": 1`) {
+					t.Fatalf("rc=%d err=%q report=%s", rc, errb.String(), report)
+				}
+				md, _ := os.ReadFile(filepath.Join(f.root, "reported-T-0001"))
+				if c.review == "off" && !strings.Contains(string(md), "review は off だが、差分がレベル ") {
+					t.Fatalf("レビュー依頼の行に review: off で頼んだ理由が無い: %s", md)
+				}
+				return
+			}
+			if rc != 1 || !strings.Contains(errb.String(), c.want) || string(report) != f.report {
+				t.Fatalf("want rc 1 with %q, got rc=%d err=%q report=%s", c.want, rc, errb.String(), report)
 			}
 		})
 	}
