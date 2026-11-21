@@ -138,6 +138,21 @@ setup; mkdir -p "$tmp/r/.claude/skills/verify-andon/scripts"; echo "x 台帳  $m
 expect fail 'tests/ の外では、末尾に印があっても「台帳」で落ちる'
 setup; echo 'gate が kanban の課題を読む。版を上げる' >"$tmp/r/docs/design.md"; expect fail '替えた範囲（docs/design.md）の「版」で落ちる'
 setup; echo '日本語の呼び名を「台帳」のままにした。2006 版では' >"$tmp/r/docs/design.md"; expect ok 'docs/design.md の「」の中と「2006 版」は通る'
+# 生きている文書（docs/ の5本と root の4本）も替えた範囲。CHANGELOG.md は未リリースの節だけ、README.md は ADR の一覧の行を外す
+for f in docs/contract.md:台帳に書く docs/dispatcher.md:ゲートを回す docs/operate.md:版を上げるとき docs/image.md:各版の節 docs/ledger.md:台帳の形式 \
+  README.md:役・ゲート・約束 REVIEW.md:前の版に戻す SECURITY.md:台帳の外; do
+  setup; echo "${f#*:}" >"$tmp/r/${f%%:*}"; expect fail "替えた範囲（${f%%:*}）の「${f#*:}」で落ちる"
+done
+setup; sed -i 's/^## 未リリース$/&\n- 前の版の台帳を読む/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「版」「台帳」で落ちる'
+setup; printf -- '- 前の版の台帳を読む。ゲートを回す\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG のバージョンの節の「版」「台帳」「ゲート」は通る'
+setup; echo '  - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定' >"$tmp/r/README.md"
+expect ok 'README.md の ADR の一覧の行（ADR の題の写し）の「台帳」は通る'
+setup; echo '- 台帳のカードを「課題（issue）」に改名する' >"$tmp/r/README.md"; expect fail 'README.md の ADR の一覧でない行の「台帳」で落ちる'
+# docs/decisions.md は冒頭（最初の「## 1.」より前）だけを見て、凍結した表は外す
+setup; printf '# 決定の記録\n\n- セルの台帳や wiki は指さない\n\n## 1. 設計書 §6 の人の答え\n\n| 日付 | 決定 |\n' >"$tmp/r/docs/decisions.md"
+expect fail 'docs/decisions.md の冒頭の「台帳」で落ちる'
+setup; printf '# 決定の記録\n\n- セルの kanban や wiki は指さない\n\n## 1. 設計書 §6 の人の答え\n\n| 2026-11-05 | ゲートの記録の前の版 |\n' >"$tmp/r/docs/decisions.md"
+expect ok 'docs/decisions.md の凍結した表（「## 1.」から後ろ）の「ゲート」「版」は通る'
 
 
 # 句読点のすぐ後ろの半角の空白（\p{Han} が句読点も含むため、和字と英字の間に空白を足す置き換えが作る形）: 落ち、決まりの形は通る
