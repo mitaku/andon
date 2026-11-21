@@ -3,7 +3,8 @@
 # 1行に1語。# で始まる行と空の行は読み飛ばされる。
 
 # 正から写す語: レビュアーの依頼書（internal/dispatcher/loop.go の reviewerBrief の「見てほしいこと」）と
-# worker skill §2 の3つの観点の見出し。tests/package.sh の 22 が正とこの節を突き合わせる。
+# worker skill §2 の3つの観点の見出し。3つの観点の見出しは「正しさ」の並びにも名指しで入っている。
+# tests/package.sh の 23 が正とこの節を突き合わせる。
 # begin: 正から写す語
 外向きの面
 壊すと戻せないもの

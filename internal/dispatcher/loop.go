@@ -459,7 +459,7 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	fmt.Fprintf(&b, "仕様の正: 元の課題の依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n\n", filepath.Join(l.Dir, "issues", r.Issue, "brief.md"))
 	b.WriteString("見てほしいこと（重い順）:\n" +
 		"1. この PR で一番怖いところ（外向きの面・壊すと戻せないもの）\n" +
-		"2. 正しさ: 並行性・失敗の波及・境界\n" +
+		"2. 正しさ: 並行性・失敗の波及・境界・前のバージョンの形・落ちたあとの起き直し\n" +
 		"3. 仕様と実装の食い違い\n" +
 		"4. テストが主張を本当に検証しているか\n" +
 		"5. 画面の証拠: 画面に触れる差分（条件表の screen_paths に当たるファイル）に PR の画像の添付が無い・証拠と差分が合わない（major）\n\n" +
