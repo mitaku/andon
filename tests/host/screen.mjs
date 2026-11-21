@@ -708,6 +708,20 @@ await check('kanban-board: Flow は親の課題・課題の木を作り、待つ
   // Folding a parent hides what is under it.
   const folded = flowRows([ledgerOf('sample-site')], TEN, waits, { folded: new Set(['task:sample-site/S-0001']) });
   assert.deepEqual(flowShape(folded), ['S-0008@1 merge', 'S-0001@1', 'S-0009@2']);
+  // A filter that hides what an issue waits on doesn't move it to stage 1.
+  const only = flowRows([ledgerOf('sample-site'), ledgerOf('x')], TEN, waits, { visible: (x) => ['S-0005', 'S-0009'].includes(x.id) });
+  assert.deepEqual(flowShape(only), ['S-0009@2', 'S-0005@3'], '絞り込みで隠れた待つ相手を段に数えていない');
+  // Every issue in a cycle is stage 1; what waits on the cycle sits one right of it.
+  const cycle = [
+    issueOf('sample-site', 'S-0001', { status: 'todo', after: ['S-0002'] }),
+    issueOf('sample-site', 'S-0002', { status: 'todo', after: ['S-0001'] }),
+    issueOf('sample-site', 'S-0003', { status: 'todo', after: ['S-0005'] }),
+    issueOf('sample-site', 'S-0004', { status: 'todo', after: ['S-0003'] }),
+    issueOf('sample-site', 'S-0005', { status: 'todo', after: ['S-0004'] }),
+    issueOf('sample-site', 'S-0006', { status: 'todo', after: ['S-0002', 'S-0004'] }),
+  ];
+  assert.deepEqual(flowShape(flowRows([ledgerOf('sample-site')], cycle, new Map())).sort(),
+    ['S-0001@1', 'S-0002@1', 'S-0003@1', 'S-0004@1', 'S-0005@1', 'S-0006@2'], '循環の課題が段 1 でない');
 });
 
 await check('kanban-board: Flow は全部のプロジェクトでプロジェクトの段を、phases のあるプロジェクトだけマイルストンの段を phases の順に出し、phase の無い課題を No milestone にまとめる（ADR-0042 受け入れ条件 11。phases のある見本）', async () => {
@@ -821,6 +835,12 @@ await check('kanban-board: Flow はボタンで開き、棒に状態の名前、
   assert.deepEqual(text(byId(tree, 'wb-wait-sample-site/S-0008')), ['Merge'], 'オーナー待ちの印が無い');
   assert.ok(text(byId(tree, 'wb-flow-task:sample-site/S-0009')).includes('from 2026-12-01'), '日付を待つ課題に日付が無い');
   assert.ok(!byId(tree, 'wb-flow-task:sample-site/S-0007'), '済んで近くに開いた課題が無い S-0007 が出た');
+  // Filtered to S-0005 alone, its bar still sits in stage 3 (two stages of 128px to its left).
+  b.filter = 'S-0005';
+  const filtered = b.flowView({ ...THEME, done: '#22aa55' });
+  const widths = walk(byId(filtered, 'wb-flow-task:sample-site/S-0005')).flatMap((n) => args(n, 'w').map((a) => a[0]));
+  assert.ok(widths.includes(256), `絞り込んだ S-0005 の棒が段 3 にない: ${widths}`);
+  assert.ok(!byId(filtered, 'wb-flow-task:sample-site/S-0004'), '絞り込みで隠した S-0004 が出た');
 });
 
 // What kanban-board runs (ADR-0042 acceptance 12): the programs named in its exec() calls, against a

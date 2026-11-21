@@ -151,37 +151,49 @@ export async function readWaiting(root, on) {
   } catch { return null; }
 }
 
+// fn(x) once per issue key; a call that comes back to an issue still being worked out gets false
+// (a cycle), whichever way the result goes.
+function memoOf(fn) {
+  const m = new Map();
+  return (x) => {
+    if (!m.has(x.key)) { m.set(x.key, false); m.set(x.key, fn(x)); }
+    return m.get(x.key);
+  };
+}
+
 // Flow's rows (ADR-0042 decision 13): a tree of project (all projects only), milestone (a ledger
 // with phases), parent and issue; each issue has its stage on the order axis. Stage 1 waits on
 // nothing open; an issue waiting on others sits one right of the furthest of them. Done issues are
 // left out, except a done issue whose parent still has open issues under it (shown faded). Within a
 // level, what holds an owner wait comes first, then what holds work in progress, then by stage and
-// number. `waits` maps "<slug>/<id>" to the kind of owner wait.
-export function flowRows(ledgers, tasks, waits, { all = false, folded = new Set() } = {}) {
+// number. `waits` maps "<slug>/<id>" to the kind of owner wait. `visible` picks the issues a
+// filter leaves in the tree; stages are counted over all of `tasks`, so a hidden issue still holds
+// back what waits on it.
+export function flowRows(ledgers, tasks, waits, { all = false, folded = new Set(), visible = () => true } = {}) {
   const lastCol = new Map(ledgers.map((l) => [l.root, l.columns.at(-1) ?? "done"]));
   const done = (x) => x.status === (lastCol.get(x.root) ?? "done");
-  const byKey = new Map(tasks.map((x) => [x.key, x]));
+  const everyKey = new Map(tasks.map((x) => [x.key, x]));
+  const waitsOn = (x) => (done(x) ? [] : [].concat(x.after ?? []).map((a) => everyKey.get(`${x.slug}/${a}`)).filter((w) => w && !done(w)));
+  // An issue that waits on itself through others is in a cycle: every issue in it is stage 1.
+  const inCycle = memoOf((x) => {
+    const seen = new Set(), todo = [...waitsOn(x)];
+    while (todo.length) {
+      const w = todo.pop();
+      if (w.key === x.key) return true;
+      if (!seen.has(w.key)) { seen.add(w.key); todo.push(...waitsOn(w)); }
+    }
+    return false;
+  });
+  const stage = memoOf((x) => (inCycle(x) ? 1 : Math.max(1, ...waitsOn(x).map((w) => stage(w) + 1))));
+  const shownTasks = tasks.filter(visible);
+  const byKey = new Map(shownTasks.map((x) => [x.key, x]));
   const parentOf = (x) => (x.parent == null ? null : byKey.get(`${x.slug}/${x.parent}`) ?? null);
   const kids = new Map();
-  for (const x of tasks) {
+  for (const x of shownTasks) {
     const p = parentOf(x);
     if (p && p !== x) kids.set(p.key, [...(kids.get(p.key) ?? []), x]);
   }
-  const memo = (fn) => { const m = new Map(); return (x) => { if (!m.has(x.key)) { m.set(x.key, false); m.set(x.key, fn(x)); } return m.get(x.key); }; };
-  const stages = new Map();
-  const stage = (x, seen = new Set()) => {
-    if (stages.has(x.key)) return stages.get(x.key);
-    if (seen.has(x.key)) return 1;
-    seen.add(x.key);
-    let s = 1;
-    if (!done(x)) for (const a of [].concat(x.after ?? [])) {
-      const w = byKey.get(`${x.slug}/${a}`);
-      if (w && !done(w)) s = Math.max(s, stage(w, seen) + 1);
-    }
-    seen.delete(x.key);
-    stages.set(x.key, s);
-    return s;
-  };
+  const memo = memoOf;
   const openBelow = memo((x) => (kids.get(x.key) ?? []).some((k) => !done(k) || openBelow(k)));
   const shown = (x) => !done(x) || openBelow(x) || Boolean(parentOf(x) && openBelow(parentOf(x)));
   const holdsWait = memo((x) => waits.has(x.key) || (kids.get(x.key) ?? []).some((k) => shown(k) && holdsWait(k)));
@@ -199,7 +211,7 @@ export function flowRows(ledgers, tasks, waits, { all = false, folded = new Set(
     rows.push({ key, kind, depth, label, foldable: true, folded: folded.has(key) });
     if (!folded.has(key)) for (const x of [...roots].sort(order)) addTask(x, depth + 1);
   };
-  const projects = ledgers.map((l) => ({ l, roots: tasks.filter((x) => x.root === l.root && !parentOf(x) && shown(x)) }))
+  const projects = ledgers.map((l) => ({ l, roots: shownTasks.filter((x) => x.root === l.root && !parentOf(x) && shown(x)) }))
     .filter((p) => p.roots.length)
     .sort((a, b) => rank(a.roots) - rank(b.roots) || String(a.l.slug).localeCompare(String(b.l.slug)));
   for (const { l, roots } of projects) {
@@ -731,8 +743,9 @@ export default class KanbanBoard extends View {
 
   // Flow (ADR-0042 decision 13): the tree on the left, a bar per issue on the order axis on the right.
   flowView(t) {
-    const tasks = this.columns().all.filter((x) => !x.broken);
-    const rows = flowRows(this.data?.ledgers ?? [], tasks, this.waits, { all: this.all, folded: this.folded });
+    const shown = new Set(this.columns().all.map((x) => x.key));
+    const tasks = (this.data?.tasks ?? []).filter((x) => !x.broken);
+    const rows = flowRows(this.data?.ledgers ?? [], tasks, this.waits, { all: this.all, folded: this.folded, visible: (x) => shown.has(x.key) });
     const stages = Math.max(1, ...rows.map((r) => r.stage ?? 1));
     const tone = { doing: t.working, review: t.accent, done: t.done ?? t.dim };
     const fold = (r) => div().id(`wb-fold-${r.key}`).w(14).flex_none().text_size(10).text_color(t.dim)
