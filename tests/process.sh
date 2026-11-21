@@ -165,6 +165,12 @@ if "$andon" process render --check . 2>"$tmp/why"; then ok "docs/process/ は pr
 else ng "docs/process/ が process/ と食い違う（andon process render で作り直す）"; sed 's/^/     /' "$tmp/why"; fi
 if "$andon" process render --check tests/process 2>"$tmp/why"; then ok "見本の生成物（tests/process/docs/process/）が変わらない"
 else ng "見本の生成物が変わる"; sed 's/^/     /' "$tmp/why"; fi
+# 生成した文書の語（ADR-0040 受け入れ条件 5）: やる者の kanban は「kanban の CLI」、入力と出力は「kanban（review）」の形で出る。
+# 古い語が無いことは tests/words.sh が見る
+if grep -q '| kanban の CLI | `kanban add` |' docs/process/issue.md && grep -q '`kanban（review）`' docs/process/triage.md \
+  && grep -q '| kanban の CLI |' tests/process/docs/process/sample-item.md; then
+  ok "生成した文書に「kanban の CLI」と「kanban（review）」が出る"
+else ng "生成した文書に「kanban の CLI」か「kanban（review）」が無い（internal/process の byName と process/ の入出力の名前）"; fi
 [ -f docs/process/README.md ] && ok "docs/process/README.md（人向けの入口）がある" || ng "docs/process/README.md が無い"
 machine=$(grep -lE '^```(json|yaml|yml)' docs/process/*.md tests/process/docs/process/*.md 2>/dev/null | grep -v '/README.md$' || true)
 [ -z "$machine" ] && ok "生成物に機械が読む塊が無い" || ng "生成物に機械が読む塊: $machine"

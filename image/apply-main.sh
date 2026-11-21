@@ -5,9 +5,9 @@
 #   apply [<commit>]  commit（既定は origin/main の先頭。origin/main に含まれるものだけ）の package/・schema/ を
 #                     /opt/andon に、そこから焼いた andon・kanban を置き、andon boot を打ち直して dispatcher を起動し直す。
 #                     最初に当てる前に、イメージの /opt/andon と kanban を退避する。
-#   status            イメージの版・当てた commit・origin/main の先頭からの遅れを出す。
+#   status            イメージのバージョン・当てた commit・origin/main の先頭からの遅れを出す。
 #                     イメージの元の commit から当てた commit（origin/main の先頭）までに image/ が変わっていたら警告も出す。
-#   revert            退避からイメージの版へ戻し、記録を消し、andon boot を打ち直して dispatcher を起動し直す。
+#   revert            退避からイメージのバージョンへ戻し、記録を消し、andon boot を打ち直して dispatcher を起動し直す。
 # 書く先と元の repo は環境変数で差し替える（検査が一時の置き場に向ける）:
 #   ANDON_APPLY_REPO（既定はこのスクリプトの repo）・ANDON_APPLY_ROOT（/opt/andon）・ANDON_APPLY_KANBAN（/usr/local/bin/kanban）・
 #   ANDON_APPLY_STASH（退避。/opt/andon-image）・ANDON_APPLY_ANDON（boot を打つ andon。既定は <ROOT>/bin/andon）。
@@ -69,7 +69,7 @@ fetch() { git -C "$repo" fetch --quiet origin 2>/dev/null || say "警告: git fe
 
 main_head() { git -C "$repo" rev-parse --verify --quiet 'origin/main^{commit}' || die "$repo に origin/main が無い"; }
 
-# イメージの版: 退避があればそこに控えた値、無ければ今の kanban --version
+# イメージのバージョン: 退避があればそこに控えた値、無ければ今の kanban --version
 image_commit() {
   if [ -f "$stash/image-commit" ]; then
     cat "$stash/image-commit"
@@ -107,8 +107,8 @@ swap_dir() {
 
 # andon boot を打ち直し、dispatcher を起動し直す。dispatcher の端末を片付けてから boot（boot が無い端末を起動する）。
 # 見回りの途中で止めないよう、dispatcher の見回りの鍵（internal/dispatcher の PassLock）が外れるのを待つ。
-# 鍵を取るのは、見回りのたびに鍵を取る版の dispatcher だけ。前の版は鍵を取らないので、鍵が取れても見回りの合間とは限らない。
-# 版は、動いている dispatcher の実体（/proc/<pid>/exe。入れ替えたあとも動き始めたときの中身）に鍵のファイル名があるかで見る
+# 鍵を取るのは、見回りのたびに鍵を取るバージョンの dispatcher だけ。前のバージョンは鍵を取らないので、鍵が取れても見回りの合間とは限らない。
+# バージョンは、動いている dispatcher の実体（/proc/<pid>/exe。入れ替えたあとも動き始めたときの中身）に鍵のファイル名があるかで見る
 # （鍵のファイルがあるかでは見ない。戻したあとや作り直したあとにも、前に作られたファイルが残る）。
 # 確かめられないときは止めない
 reboot() {
@@ -122,11 +122,11 @@ reboot() {
     pid=$(jq -r '.foreground.pid // empty' <<<"$got" 2>/dev/null || true)
   fi
   if [ -n "$addr" ] && ! { [ -n "$pid" ] && grep -aq '\.pass\.lock' "/proc/$pid/exe" 2>/dev/null; }; then
-    say "警告: 動いている dispatcher（$addr）が見回りの鍵を取る版と確かめられないので、止めずに残した（見回りの途中で止めない）。"
+    say "警告: 動いている dispatcher（$addr）が見回りの鍵を取るバージョンと確かめられないので、止めずに残した（見回りの途中で止めない）。"
     say "  新しい andon で動かすには、見回りの合間に hc kill $addr・hc rm $addr を打ってから $andon boot を打つ"
     addr=
   elif [ -n "$addr" ]; then
-    # 鍵を取る版は見回りのたびにこのファイルを作るので、ここで作ってもよい
+    # 鍵を取るバージョンは見回りのたびにこのファイルを作るので、ここで作ってもよい
     mkdir -p "$(dirname "$passlock")"
     exec 9>>"$passlock"
     if ! flock -w 900 9; then
@@ -168,7 +168,7 @@ apply() {
   git -C "$repo" merge-base --is-ancestor "$commit" "$head" \
     || die "$commit は origin/main（$(short "$head")）に含まれない。当てられるのはマージ済みの commit だけ"
 
-  # 当てる commit のスクリプトで当てる（中身と版を揃える。ADR-0027 決めたこと 5）
+  # 当てる commit のスクリプトで当てる（中身とバージョンを揃える。ADR-0027 決めたこと 5）
   if [ "${ANDON_APPLY_SELF:-}" != "$commit" ]; then
     local self
     self=$(mktemp)
@@ -212,7 +212,7 @@ apply() {
     printf '%s' "$image" | $as_root tee "$s/image-commit" >/dev/null
     $as_root rm -rf "$stash"
     $as_root mv -T --no-copy "$s" "$stash"
-    say "イメージの版（$image）を $stash に退避した"
+    say "イメージのバージョン（$image）を $stash に退避した"
   fi
 
   printf '{"commit": "%s", "applied_at": "%s", "image_commit": "%s"}\n' \
@@ -252,7 +252,7 @@ revert() {
   swap_dir "$root.new.$$" "$root"
   $as_root mv -f -T --no-copy "$kanban.new.$$" "$kanban"
   $as_root rm -rf "$stash"
-  say "イメージの版に戻した（記録と退避を消した）"
+  say "イメージのバージョンに戻した（記録と退避を消した）"
   reboot || true
 }
 
@@ -263,7 +263,7 @@ status() {
   head=$(main_head)
   image=$(image_commit)
   applied=$(applied_commit)
-  echo "イメージの版: $image"
+  echo "イメージのバージョン: $image"
   if [ -n "$applied" ]; then
     echo "当てた commit: $applied（$(sed -n 's/.*"applied_at": *"\([^"]*\)".*/\1/p' "$record")）"
     base=$applied

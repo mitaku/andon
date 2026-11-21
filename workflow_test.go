@@ -282,8 +282,8 @@ func TestWorkflowAptMirrorOnlyInTestsJob(t *testing.T) {
 	}
 }
 
-// golangci-lint（ADR-0034 決めたこと 4・5）は .github/workflows/go.yml の job go の1か所で回す。版は mise.toml の golangci-lint の
-// 1か所にだけ書き、action の version には mise.toml を読む step の出力を渡す。workflow に版を書くと mise.toml とずれるので書かない。
+// golangci-lint（ADR-0034 決めたこと 4・5）は .github/workflows/go.yml の job go の1か所で回す。バージョンは mise.toml の golangci-lint の
+// 1か所にだけ書き、action の version には mise.toml を読む step の出力を渡す。workflow にバージョンを書くと mise.toml とずれるので書かない。
 func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
 	mise, err := os.ReadFile("mise.toml")
 	if err != nil {
@@ -291,7 +291,7 @@ func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
 	}
 	vers := regexp.MustCompile(`(?m)^golangci-lint = "([0-9]+\.[0-9]+\.[0-9]+)"$`).FindAllSubmatch(mise, -1)
 	if len(vers) != 1 {
-		t.Fatalf("mise.toml に golangci-lint の版が %d 行（1行のはず）", len(vers))
+		t.Fatalf("mise.toml に golangci-lint のバージョンが %d 行（1行のはず）", len(vers))
 	}
 	ver := string(vers[0][1])
 	output := regexp.MustCompile(`^\$\{\{ steps\.([A-Za-z0-9_-]+)\.outputs\.version \}\}$`)
@@ -309,7 +309,7 @@ func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
 			t.Fatal(err)
 		}
 		if strings.Contains(string(b), ver) {
-			t.Errorf("%s に golangci-lint の版 %s が書いてある（mise.toml から読む）", f, ver)
+			t.Errorf("%s に golangci-lint のバージョン %s が書いてある（mise.toml から読む）", f, ver)
 		}
 		var wf struct {
 			Jobs map[string]struct {
@@ -330,7 +330,7 @@ func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
 				}
 				for _, k := range []string{"version-file", "install-mode"} {
 					if _, ok := s.With[k]; ok {
-						t.Errorf("%s の job %s の golangci-lint に %s がある（版は mise.toml の版で、既定の binary で入れる）", f, name, k)
+						t.Errorf("%s の job %s の golangci-lint に %s がある（バージョンは mise.toml のバージョンで、既定の binary で入れる）", f, name, k)
 					}
 				}
 				v, _ := s.With["version"].(string)

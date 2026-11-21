@@ -11,7 +11,7 @@ stateDiagram-v2
   state "待ち（done の行を拾って積んだ。打ち直しは失敗した回数を控える）" as s_pending
   state "済み（控えから外した）" as s_done
   state "諦めた（影響と手直しは error を知らせた。結果の記録はログに1行だけ）" as s_gave_up
-  [*] --> s_pending: done の行を拾った（初めて見る台帳では拾わない）
+  [*] --> s_pending: done の行を拾った（初めて見る kanban では拾わない）
   s_pending --> s_done: マージのあとの影響を集める（§7.2 #17）
   s_pending --> s_done: オーナーの手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）
   s_pending --> s_done: 結果の記録を書く（outcome.json が無いときだけ書く。オーナーの課題には書かない。§7.2 #26）
@@ -34,7 +34,7 @@ stateDiagram-v2
 
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
-| （始まり・終わり） | `pending` | done の行を拾った（初めて見る台帳では拾わない） | 機械 |  |  |
+| （始まり・終わり） | `pending` | done の行を拾った（初めて見る kanban では拾わない） | 機械 |  |  |
 | `pending` | `done` | マージのあとの影響を集める（§7.2 #17） | 機械 | `andon issue impact` | はい |
 | `pending` | `done` | オーナーの手直しを集める（corrections.json が無いときだけ書く。§7.2 #18） | 機械 |  | はい |
 | `pending` | `done` | 結果の記録を書く（outcome.json が無いときだけ書く。オーナーの課題には書かない。§7.2 #26） | 機械 |  | はい |

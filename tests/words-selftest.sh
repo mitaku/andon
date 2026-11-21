@@ -122,11 +122,19 @@ for d in cmd/kanban init/bin internal/measure; do
   setup; mkdir -p "$tmp/r/$d"; echo '// 前の版の台帳' >"$tmp/r/$d/x"; expect fail "$d/ の「前の版の台帳」で落ちる"
 done
 setup; mkdir -p "$tmp/r/tests"; echo '# 本物の台帳で回す' >"$tmp/r/tests/andon-gate.sh"; expect fail 'tests/andon-gate.sh の「台帳」で落ちる'
-setup; mkdir -p "$tmp/r/internal/process"; echo '台帳の CLI' >"$tmp/r/internal/process/x.go"; expect ok '替えていない範囲（internal/process/）の「台帳」はまだ見ない'
+setup; mkdir -p "$tmp/r/internal/process"; echo '台帳の CLI' >"$tmp/r/internal/process/x.go"; expect fail 'internal/process/ の「台帳の CLI」で落ちる'
 for d in tests tests/lib tests/package .claude/skills/verify-andon/scripts; do
   setup; mkdir -p "$tmp/r/$d"; echo '# 前の版の台帳で回す' >"$tmp/r/$d/x.sh"; expect fail "$d/ の「前の版の台帳」で落ちる"
 done
-setup; mkdir -p "$tmp/r/tests/process"; echo '台帳（review）' >"$tmp/r/tests/process/x.yaml"; expect ok '替えていない範囲（tests/process/）の「台帳」はまだ見ない'
+setup; mkdir -p "$tmp/r/tests/process"; echo '台帳（review）' >"$tmp/r/tests/process/x.yaml"; expect fail 'tests/process/ の「台帳（review）」で落ちる'
+# 流れの定義・生成した文書・モデル・image・repo の AGENTS.md と CI の設定（ADR-0040 依頼書に切る案 3）
+for f in process/states/x.yaml process/workstreams/x.yaml docs/process/x.md model/x.tla model/README.md image/x.sh AGENTS.md .golangci.yml workflow_test.go; do
+  for w in 'kanban（review）でなく台帳（review）' 'ゲートを回す' '前の版に戻す'; do
+    setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo "$w" >"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
+  done
+done
+setup; mkdir -p "$tmp/r/image"; echo '# 最新版の Node と初版の手順。「ゲート」という語は使わない' >"$tmp/r/image/x.sh"; expect ok 'image/ の「最新版」「初版」と「」の中は通る'
+setup; mkdir -p "$tmp/r/.github/workflows"; echo '# ゲートは checks を待つ。golangci-lint の版' >"$tmp/r/.github/workflows/x.yml"; expect ok '範囲の外（.github/）の「ゲート」「版」は見ない'
 # 古い語を見る検査の行（行の末尾の印）は通り、印が末尾でない行と、tests/ の外の印は落ちる
 m='# 古い語を見る（ADR-0040 決めたこと 10）'
 setup; mkdir -p "$tmp/r/tests/package"; echo "grep -q '^_避ける_: 台帳' \"\$g\"  $m" >"$tmp/r/tests/package/08-x.sh"

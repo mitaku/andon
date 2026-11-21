@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # 焼くのは image/build.sh（tests/image.sh・CI・セルの bin/bootstrap rebuild --from が同じものを打つ）。
-# kanban と andon は下の段で docker の中で焼く（ホストに go は要らない）。go の版は mise.toml・go.mod と揃える
+# kanban と andon は下の段で docker の中で焼く（ホストに go は要らない）。go のバージョンは mise.toml・go.mod と揃える
 FROM golang:1.27.3-bookworm@sha256:dc0963f32053e4bc451d24d87e3892d42d01021b61f093e98eb95c0352bb84b0 AS bin
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -12,7 +12,7 @@ COPY init/ init/
 COPY process/states/issue.yaml process/states/issue.yaml
 # 約束の JSON を書く前に照らす schema（embed.go。ADR-0034 決めたこと 6）
 COPY schema/*.schema.json schema/
-# kanban --version に出す版（image/build.sh が commit の短い SHA を渡す）
+# kanban --version に出すバージョン（image/build.sh が commit の短い SHA を渡す）
 ARG ANDON_VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${ANDON_VERSION}" -o /out/kanban ./cmd/kanban \
@@ -150,7 +150,7 @@ RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.conf
 COPY package/ /opt/andon/
 # skill が形の正として指す schema（andon は同じものを埋め込んで照らす。置き場で照らすなら andon schema check /opt/andon/schema/<名前>.schema.json）
 COPY schema/ /opt/andon/schema/
-# 台帳の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。
+# kanban の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。
 COPY --from=bin --chmod=755 /out/kanban /usr/local/bin/kanban
 # andon の CLI（cmd/andon）。kanban と同じく段 bin が焼く。
 # compose の `andon boot` と、ホストが取り出す口（docs/operate.md の 2）がこれを使う

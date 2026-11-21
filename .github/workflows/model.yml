@@ -9,7 +9,7 @@ jobs:
   # 課題の一生のモデル（model/）を検査器 tla-ts で回す（ADR-0025 決めたこと 7）。検査器は外から取る npm のコードなので、
   # この job だけで回し、秘密を渡さず、token は読むだけにする。検査器は model/package-lock.json から入れ、install の
   # スクリプトは走らせない（model/check）。Node は runner に入っているものを使う。tests・release の job では回さない
-  # （workflow_test.go が確かめる）。job と check の名前は変えない（ゲートは PR の head の checks が揃うのを待つ）
+  # （workflow_test.go が確かめる）。job と check の名前は変えない（gate は PR の head の checks が揃うのを待つ）
   model:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

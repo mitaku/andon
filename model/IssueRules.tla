@@ -19,7 +19,7 @@ TypeOK ==
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
 R1_NoWorkerAfterCancel == cancel => worker # "live"
 
-\* R2 ゲートが直しを返したら、担当か Chief of Staff のどちらかが必ずそれを知る
+\* R2 gate が直しを返したら、担当か Chief of Staff のどちらかが必ずそれを知る
 R2_FixReachesSomeone == (status = "review" /\ gate = "fix") => (fixSent \/ told)
 
 \* R3 worktree を片付けたら、課題は done になっている（片付けは全部か無し）
@@ -35,13 +35,13 @@ R5_NoWorkerWhenDone == status = "done" => worker # "live"
 R6_NoReviewWithOpenQuestion == status = "review" => ~q
 
 \* R7 取り消しを使わずに届くどの状態からも、取り消しを使わずにマージまで行ける（ADR-0032 決めたこと 9）。
-\*    取り消しは ChiefOfStaffCancels と、ゲートを待たないオーナーの先回りのマージ（HumanMergesEarly）。
+\*    取り消しは ChiefOfStaffCancels と、gate を待たないオーナーの先回りのマージ（HumanMergesEarly）。
 \*    「行ける道がある」は状態 1 つの式（INVARIANT）では書けないので、検査器の状態の図を model/reach.mjs が読む。
 \*    設定は IssueRules.cfg の「\* REACH」の行（R7_MergeWithoutCancel pr = "merged" と除く行動）。
 \*    閉じた PR を開き直す道（PRClosesOrReopens）も含めて成り立つ（ADR-0034 決めたこと 3）。
 
-\* R8 dispatcher が自動でマージするのは、ゲートが approve と判定した head で、その時点で任されているものだけ（ADR-0034 決めたこと 3）。
-\*    マージしたあとは head も設定も動かず、ゲートの答えも変わらないので、マージした状態で確かめる
+\* R8 dispatcher が自動でマージするのは、gate が approve と判定した head で、その時点で任されているものだけ（ADR-0034 決めたこと 3）。
+\*    マージしたあとは head も設定も動かず、gate の答えも変わらないので、マージした状態で確かめる
 R8_AutoMergeOnlyApproved == autoMerged => (gate = "approve" /\ ~moved /\ mergeAuto)
 
 ====

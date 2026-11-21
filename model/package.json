@@ -1,7 +1,7 @@
 {
   "name": "andon-model",
   "private": true,
-  "description": "model/check が使う検査器（ADR-0025）。版は package-lock.json で固定する",
+  "description": "model/check が使う検査器（ADR-0025）。バージョンは package-lock.json で固定する",
   "devDependencies": {
     "tla-ts": "0.0.10"
   }

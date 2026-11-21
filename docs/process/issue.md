@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/issue.yaml`](../../process/states/issue.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。andon issue … は、ここに無い移り方（今の status から打てないサブコマンド）を断る（by が kanban の移り方は kanban を直に打つもので、断らない）。記録は台帳で、dispatcher の控えに項目を持たない
+出所: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。andon issue … は、ここに無い移り方（今の status から打てないサブコマンド）を断る（by が `kanban` の移り方は kanban の CLI を直に打つもので、断らない）。記録は kanban で、dispatcher の控えに項目を持たない
 
 ## 図
 
@@ -22,7 +22,7 @@ stateDiagram-v2
   s_doing --> s_doing: 報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた
   s_doing --> s_review: 確かめて返した（受け取られていない問いが無い）
   s_doing --> s_review: Chief Engineer・トリアージが返した（受け取られていない問いが無い）
-  s_review --> s_review: ゲートがオーナーの判断を問うた・片付けそこねた（from： gate）
+  s_review --> s_review: gate がオーナーの判断を問うた・片付けそこねた（from： gate）
   s_review --> s_doing: 直しが届いた
   s_review --> s_done: マージのあと片付けた
   s_review --> s_done: PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた
@@ -49,23 +49,23 @@ stateDiagram-v2
 
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
-| （始まり・終わり） | `todo` | 課題を足した | 台帳の CLI | `kanban add` |  |
-| （始まり・終わり） | `queued` | after つきで課題を足した | 台帳の CLI | `kanban add` |  |
-| `queued` | `todo` | 待つ課題が全部 done になった | 台帳の CLI | `kanban done` |  |
+| （始まり・終わり） | `todo` | 課題を足した | kanban の CLI | `kanban add` |  |
+| （始まり・終わり） | `queued` | after つきで課題を足した | kanban の CLI | `kanban add` |  |
+| `queued` | `todo` | 待つ課題が全部 done になった | kanban の CLI | `kanban done` |  |
 | `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
-| `todo` | `doing` | Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ） | 台帳の CLI | `kanban start` |  |
+| `todo` | `doing` | Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ） | kanban の CLI | `kanban start` |  |
 | `todo` | `todo` | オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
 | `doing` | `doing` | 報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた | AI | `andon issue report・review-request・candidates・record・ask` |  |
 | `doing` | `review` | 確かめて返した（受け取られていない問いが無い） | AI | `andon issue ready` |  |
-| `doing` | `review` | Chief Engineer・トリアージが返した（受け取られていない問いが無い） | 台帳の CLI | `kanban review` |  |
-| `review` | `review` | ゲートがオーナーの判断を問うた・片付けそこねた（from: gate） | 機械 | `andon issue ask` |  |
-| `review` | `doing` | 直しが届いた | 台帳の CLI | `kanban start` |  |
+| `doing` | `review` | Chief Engineer・トリアージが返した（受け取られていない問いが無い） | kanban の CLI | `kanban review` |  |
+| `review` | `review` | gate がオーナーの判断を問うた・片付けそこねた（from: gate） | 機械 | `andon issue ask` |  |
+| `review` | `doing` | 直しが届いた | kanban の CLI | `kanban start` |  |
 | `review` | `done` | マージのあと片付けた | 機械 | `andon issue finish` |  |
 | `review` | `done` | PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた | AI | `andon issue finish` |  |
 | `queued` | `done` | やめる（オーナーの go） | AI | `andon issue finish` |  |
 | `todo` | `done` | やめる（オーナーの go） | AI | `andon issue finish` |  |
-| `queued` | `done` | トリアージが未担当の課題を閉じた（andon triage apply の close） | 台帳の CLI | `kanban done` |  |
-| `todo` | `done` | トリアージが未担当の課題を閉じた（andon triage apply の close） | 台帳の CLI | `kanban done` |  |
+| `queued` | `done` | トリアージが未担当の課題を閉じた（andon triage apply の close） | kanban の CLI | `kanban done` |  |
+| `todo` | `done` | トリアージが未担当の課題を閉じた（andon triage apply の close） | kanban の CLI | `kanban done` |  |
 | `doing` | `done` | やめる（オーナーの go）・report.json に pr の無い課題をオーナーがマージした | AI | `andon issue finish` |  |
 | `doing` | `done` | doing のうちにオーナーがマージした PR を andon issue settle が拾って片付けた（dispatcher.md §2.7） | 機械 | `andon issue finish` |  |
-| `done` | （始まり・終わり） | 終わり | 台帳の CLI |  |  |
+| `done` | （始まり・終わり） | 終わり | kanban の CLI |  |  |

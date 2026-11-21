@@ -13,7 +13,7 @@
 # MODEL_CHECKER に TLC と同じ旗を受けるコマンドを渡すと、それで回す（例: "java -cp tla2tools.jar tlc2.TLC"。TLC と見比べるとき）。
 #
 # model/check --draft <フォルダ> [<モジュール>]: 下書きを調べる口（ADR-0038 決めたこと 13）。フォルダの直下の *.tla と *.cfg の写しに、
-# 上と同じ版の検査器と repo の reach.mjs だけを回す。モジュールの既定は IssueRules で、設定は <モジュール>.cfg（INVARIANT と REACH の行）。
+# 上と同じバージョンの検査器と repo の reach.mjs だけを回す。モジュールの既定は IssueRules で、設定は <モジュール>.cfg（INVARIANT と REACH の行）。
 # 控え（expected.txt）・壊した見本（broken/）・対応表と状態の定義との照らし（issue-map.txt・process/states/issue.yaml）は飛ばし、
 # 飛ばしたことを出力に書く。規則を全部守り、どの状態からも先があれば終了コード 0。破れたら規則の名前と、初めの状態からの並びを書いて 1。
 set -euo pipefail
@@ -40,7 +40,7 @@ if [ -n "${MODEL_CHECKER:-}" ]; then
   read -ra checker <<<"$MODEL_CHECKER"
   name=$MODEL_CHECKER
 else
-  command -v npm >/dev/null || fail "npm が無い（Node を入れる。版は repo の mise.toml）"
+  command -v npm >/dev/null || fail "npm が無い（Node を入れる。バージョンは repo の mise.toml）"
   mkdir -p "$tmp/npm"
   cp "$here/package.json" "$here/package-lock.json" "$tmp/npm/"
   (cd "$tmp/npm" && npm_config_cache="$tmp/npm-cache" npm_config_update_notifier=false \
