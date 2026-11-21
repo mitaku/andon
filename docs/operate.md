@@ -287,7 +287,7 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 |---|---|---|
 | `andon` | Space・tab に名前を付ける（下の段）。もう1つの copy（props `brand`）が左の列の一番上に行燈と「Andon」を描き、窓の色で Needs you の状態を出す（ADR-0023） | `package/host/andon/README.md` |
 | `inbox` | オーナーが手を動かすもの（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の印は琥珀（答えれば進む）と赤（Failed）で灯る。読むだけでラベルを書かない（ADR-0015・ADR-0023） | `package/host/inbox/README.md` |
-| `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
+| `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（Board・List・課題の連なりの Flow。`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
 | `waiting` | 右のパネルの 3 つ目の画面。フォーカスした pane のプロジェクトで `andon waiting --json` を呼び、並行の枠とオーナー待ち（マージの依頼・判断・手作業）を出力の並びのまま描く。行を開くと問いと選択肢が読め、マージの依頼は PR を開ける。数える式を持たず、読むだけで答えない。inbox の見出しのボタンで開く（ADR-0042） | `package/host/waiting/README.md` |

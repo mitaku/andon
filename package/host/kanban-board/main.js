@@ -54,6 +54,13 @@ const psQuote = (a) => `'${a.replace(/['‘’‚‛]/g, (m) => m + m)}'`;
 const ps = (script, ...args) =>
   exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `& { ${script} } ${args.map(psQuote).join(" ")}`]);
 const REPO = /^[^/]+\/[^/]+\/[^/]+$/;
+// Flow (ADR-0042 decision 13): owner waits come from `andon waiting --json` (decision 14), which alone
+// counts them; the board draws its mark and nothing else. Another version is not guessed at.
+const WAITING_VERSION = 1;
+const WAIT_LABEL = { merge: "Merge", decision: "Decision", task: "Your task" };
+const AMBER = "#F0A202";            // the logo's amber, as the inbox lights what waits on you
+const TREE_W = 400;
+const STAGE_W = 128;
 
 const alpha = (color, aa) => /** @type {`#${string}`} */ (`${color}${aa}`);
 const label = (column) => LABEL[column] ?? column;
@@ -120,7 +127,99 @@ function readConfig(text) {
     repos: Array.isArray(c.repos) ? c.repos.map(String) : [],
     title: c.title == null ? null : String(c.title),
     chiefOfStaff: c.chief_of_staff == null ? null : String(c.chief_of_staff),
+    // Milestones, in order (ledger.md: a list of {id, title}).
+    phases: Array.isArray(c.phases) ? c.phases.filter((p) => p && typeof p === "object" && p.id != null)
+      .map((p) => ({ id: String(p.id), title: String(p.title ?? p.id) })) : [],
   };
+}
+
+// What `andon waiting --json` says about one project, run in the cell with the project's folder as
+// the working folder: issue id → kind of owner wait. null when the command is missing, fails or
+// prints another version: Flow then shows no marks and the board works as before (decision 14).
+export async function readWaiting(root, on) {
+  if (local(on)) return null;
+  const r = await exec("andon", ["waiting", "--json"], { cwd: root, on }).catch(() => null);
+  if (r?.code !== 0) return null;
+  try {
+    const out = JSON.parse(r.stdout);
+    if (out?.version !== WAITING_VERSION || !Array.isArray(out.items)) return null;
+    const marks = new Map();
+    for (const it of out.items) {
+      if (it && typeof it.id === "string" && WAIT_LABEL[it.kind] && !marks.has(it.id)) marks.set(it.id, it.kind);
+    }
+    return marks;
+  } catch { return null; }
+}
+
+// Flow's rows (ADR-0042 decision 13): a tree of project (all projects only), milestone (a ledger
+// with phases), parent and issue; each issue has its stage on the order axis. Stage 1 waits on
+// nothing open; an issue waiting on others sits one right of the furthest of them. Done issues are
+// left out, except a done issue whose parent still has open issues under it (shown faded). Within a
+// level, what holds an owner wait comes first, then what holds work in progress, then by stage and
+// number. `waits` maps "<slug>/<id>" to the kind of owner wait.
+export function flowRows(ledgers, tasks, waits, { all = false, folded = new Set() } = {}) {
+  const lastCol = new Map(ledgers.map((l) => [l.root, l.columns.at(-1) ?? "done"]));
+  const done = (x) => x.status === (lastCol.get(x.root) ?? "done");
+  const byKey = new Map(tasks.map((x) => [x.key, x]));
+  const parentOf = (x) => (x.parent == null ? null : byKey.get(`${x.slug}/${x.parent}`) ?? null);
+  const kids = new Map();
+  for (const x of tasks) {
+    const p = parentOf(x);
+    if (p && p !== x) kids.set(p.key, [...(kids.get(p.key) ?? []), x]);
+  }
+  const memo = (fn) => { const m = new Map(); return (x) => { if (!m.has(x.key)) { m.set(x.key, false); m.set(x.key, fn(x)); } return m.get(x.key); }; };
+  const stages = new Map();
+  const stage = (x, seen = new Set()) => {
+    if (stages.has(x.key)) return stages.get(x.key);
+    if (seen.has(x.key)) return 1;
+    seen.add(x.key);
+    let s = 1;
+    if (!done(x)) for (const a of [].concat(x.after ?? [])) {
+      const w = byKey.get(`${x.slug}/${a}`);
+      if (w && !done(w)) s = Math.max(s, stage(w, seen) + 1);
+    }
+    seen.delete(x.key);
+    stages.set(x.key, s);
+    return s;
+  };
+  const openBelow = memo((x) => (kids.get(x.key) ?? []).some((k) => !done(k) || openBelow(k)));
+  const shown = (x) => !done(x) || openBelow(x) || Boolean(parentOf(x) && openBelow(parentOf(x)));
+  const holdsWait = memo((x) => waits.has(x.key) || (kids.get(x.key) ?? []).some((k) => shown(k) && holdsWait(k)));
+  const holdsWork = memo((x) => (!done(x) && (x.status === "doing" || x.status === "review")) || (kids.get(x.key) ?? []).some((k) => shown(k) && holdsWork(k)));
+  const rank = (xs) => (xs.some(holdsWait) ? 0 : xs.some(holdsWork) ? 1 : 2);
+  const order = (a, b) => rank([a]) - rank([b]) || stage(a) - stage(b) || num(a.id) - num(b.id) || String(a.id).localeCompare(String(b.id));
+  const rows = [];
+  const addTask = (x, depth) => {
+    const under = (kids.get(x.key) ?? []).filter(shown).sort(order);
+    const key = `task:${x.key}`;
+    rows.push({ key, kind: "task", depth, task: x, stage: stage(x), faded: done(x), wait: waits.get(x.key) ?? null, foldable: under.length > 0, folded: folded.has(key) });
+    if (!folded.has(key)) for (const k of under) addTask(k, depth + 1);
+  };
+  const group = (key, kind, label, depth, roots) => {
+    rows.push({ key, kind, depth, label, foldable: true, folded: folded.has(key) });
+    if (!folded.has(key)) for (const x of [...roots].sort(order)) addTask(x, depth + 1);
+  };
+  const projects = ledgers.map((l) => ({ l, roots: tasks.filter((x) => x.root === l.root && !parentOf(x) && shown(x)) }))
+    .filter((p) => p.roots.length)
+    .sort((a, b) => rank(a.roots) - rank(b.roots) || String(a.l.slug).localeCompare(String(b.l.slug)));
+  for (const { l, roots } of projects) {
+    let depth = 0;
+    if (all) {
+      const key = `project:${l.slug}`;
+      rows.push({ key, kind: "project", depth, label: l.name, foldable: true, folded: folded.has(key) });
+      if (folded.has(key)) continue;
+      depth = 1;
+    }
+    if (!l.phases.length) { for (const x of [...roots].sort(order)) addTask(x, depth); continue; }
+    const ids = new Set(l.phases.map((p) => p.id));
+    for (const p of l.phases) {
+      const inPhase = roots.filter((x) => String(x.phase ?? "") === p.id);
+      if (inPhase.length) group(`milestone:${l.slug}/${p.id}`, "milestone", p.title, depth, inPhase);
+    }
+    const none = roots.filter((x) => !ids.has(String(x.phase ?? "")));
+    if (none.length) group(`milestone:${l.slug}/`, "milestone", "No milestone", depth, none);
+  }
+  return rows;
 }
 
 // A kanban/ folder is a ledger only when its config.yaml has a whole-number version (ledger.md,
@@ -216,7 +315,8 @@ export default class KanbanBoard extends View {
     this.handle = cx.focus_handle();
     // As a dialog, take the keyboard when it opens (focus can't move during a render).
     if (props()?.overlay) cx.timer.after(30, () => this.handle.focus());
-    this.view = "board";
+    this.view = "board";     // "board", "list" or "flow"
+    this.folded = new Set(); // Flow's folded rows, by key
     this.filter = "";
     this.typing = false;
     this.pick = null;       // a repo (one project) or a project's slug (the cell) to show alone
@@ -242,6 +342,8 @@ export default class KanbanBoard extends View {
     this.checkedAt = null;
     this.failure = null;    // { message, at }
     this.reading = false;
+    this.waits = new Map(); // Flow's owner-wait marks: "<slug>/<id>" → merge | decision | task
+    this.waitReading = false;
     this.watched = new Set();
     this.scope = 0;         // counts switches between this project and all, so a late read is dropped
   }
@@ -362,12 +464,33 @@ export default class KanbanBoard extends View {
         }
         this.checkedAt = Date.now();
         this.failure = null;
+        this.readWaits(ledgers, on, cx);
       } catch (e) {
         if (this.where === where && this.scope === scope) this.failure = { message: String(e instanceof Error ? e.message : e).split("\n")[0], at: Date.now() };
       } finally {
         this.reading = false;
         // Switched between this project and all of them while reading: read the other now.
         if (this.where === where && this.scope !== scope) this.refresh(cx);
+        cx.notify();
+      }
+    });
+  }
+
+  // Flow's owner-wait marks: one `andon waiting --json` per project shown (decision 14), after each
+  // good read. Apart from reading the ledger, so a command that hangs stops only the marks.
+  readWaits(ledgers, on, cx) {
+    if (this.waitReading) return;
+    const where = this.where, scope = this.scope;
+    this.waitReading = true;
+    cx.spawn(async (cx) => {
+      try {
+        const waits = new Map();
+        for (const l of ledgers) {
+          for (const [id, kind] of (await readWaiting(l.root, on)) ?? []) waits.set(`${l.slug}/${id}`, kind);
+        }
+        if (this.where === where && this.scope === scope) this.waits = waits;
+      } finally {
+        this.waitReading = false;
         cx.notify();
       }
     });
@@ -395,6 +518,7 @@ export default class KanbanBoard extends View {
     this.scope++;
     this.pick = null; this.openKey = null; this.detail = null;
     this.data = null; this.signature = null; this.changedAt = null; this.checkedAt = null; this.failure = null;
+    this.waits = new Map();
     this.refresh(cx);
   }
 
@@ -485,7 +609,7 @@ export default class KanbanBoard extends View {
     else if (k === "g") {
       const a = card && this.agentOf(card.agent, agents(), terminals());
       if (a && !a.missing) run("agent.focus", { terminal: a.address });
-    } else if (k === "v") this.view = this.view === "board" ? "list" : "board";
+    } else if (k === "v") this.view = this.view === "board" ? "list" : this.view === "list" ? "flow" : "board";
     else if (k === "p") this.setAll(!this.all, cx);
     else if (ch === "/" || k === "/") { this.typing = true; this.filter = ""; }
     else if (k === "escape") { if (this.openKey) { this.openKey = null; this.detail = null; } else if (this.filter) this.filter = ""; else this.close(); }
@@ -605,6 +729,49 @@ export default class KanbanBoard extends View {
     return v_flex().id("wb-list").flex_1().min_w(0).min_h(0).p(10).overflow_y_scrollbar().children(rows);
   }
 
+  // Flow (ADR-0042 decision 13): the tree on the left, a bar per issue on the order axis on the right.
+  flowView(t) {
+    const tasks = this.columns().all.filter((x) => !x.broken);
+    const rows = flowRows(this.data?.ledgers ?? [], tasks, this.waits, { all: this.all, folded: this.folded });
+    const stages = Math.max(1, ...rows.map((r) => r.stage ?? 1));
+    const tone = { doing: t.working, review: t.accent, done: t.done ?? t.dim };
+    const fold = (r) => div().id(`wb-fold-${r.key}`).w(14).flex_none().text_size(10).text_color(t.dim)
+      .when(r.foldable, (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground))
+        .on_click((_e, cx) => { cx.stop_propagation(); if (this.folded.has(r.key)) this.folded.delete(r.key); else this.folded.add(r.key); cx.notify(); })
+        .child(r.folded ? "▸" : "▾"));
+    const bar = (r) => {
+      const x = r.task, c = r.faded ? t.dim : tone[x.status] ?? t.dim;
+      return h_flex().flex_none().gap(6).items_center()
+        .child(div().w((r.stage - 1) * STAGE_W).flex_none())
+        .child(div().id(`wb-bar-${x.key}`).w(STAGE_W - 8).h(18).flex_none().flex().items_center().px(6).rounded(5)
+          .bg(alpha(c, "2e")).border(1).border_color(c).text_size(10.5).text_color(t.foreground).child(div().min_w(0).truncate().child(label(x.status))))
+        .when(Boolean(r.wait), (el) => el.child(div().id(`wb-wait-${x.key}`).flex_none().px(5).h(16).flex().items_center().rounded(4)
+          .bg(AMBER).text_size(10).font_semibold().text_color("#000000").child(WAIT_LABEL[r.wait])))
+        .when(Boolean(x.not_before) && !r.faded, (el) => el.child(div().flex_none().text_size(10.5).text_color(t.muted).child(`from ${x.not_before}`)));
+    };
+    const line = (r) => {
+      const head = r.kind !== "task";
+      const left = h_flex().w(TREE_W).flex_none().min_w(0).pl(10 + r.depth * 16).gap(6).items_center()
+        .child(fold(r))
+        .when(head, (el) => el.child(div().min_w(0).truncate().text_size(12).font_semibold().text_color(r.kind === "project" ? t.foreground : t.muted).child(String(r.label))))
+        .when(!head, (el) => el.child(div().w(60).flex_none().text_size(11.5).text_color(t.dim).child(String(r.task.id)))
+          .child(div().flex_1().min_w(0).truncate().text_size(13).text_color(t.foreground).child(String(r.task.title ?? "(no title)"))));
+      return h_flex().id(`wb-flow-${r.key}`).h(28).flex_none().items_center().rounded(6)
+        .when(!head, (el) => el.cursor_pointer().hover((s) => s.bg(t.hover)).bg(this.openKey === r.task.key ? t.selected : alpha(t.background, "00"))
+          .on_click((_e, cx) => { this.openTask(r.task, cx); cx.notify(); }))
+        .when(Boolean(r.faded), (el) => el.opacity(0.5))
+        .child(left)
+        .when(!head, (el) => el.child(bar(r)));
+    };
+    const axis = h_flex().h(22).flex_none().items_center().text_size(10.5).text_color(t.dim)
+      .child(div().w(TREE_W).flex_none().pl(10).child("Issue"))
+      .children(Array.from({ length: stages }, (_, i) => div().w(STAGE_W).flex_none().child(String(i + 1))));
+    return v_flex().id("wb-flow").flex_1().min_w(0).min_h(0).p(10).overflow_y_scrollbar()
+      .child(axis)
+      .when(rows.length === 0, (el) => el.child(div().p(10).text_size(13).text_color(t.dim).child("Nothing open.")))
+      .children(rows.map(line));
+  }
+
   render(cx) {
     const t = /** @type {Record<string, `#${string}`>} */ (theme());
     const { cwd, on } = location();
@@ -629,7 +796,8 @@ export default class KanbanBoard extends View {
       .child(div().flex_none().text_size(12).text_color(t.dim).child(this.all ? `${slugOf(this.plant ?? "")} · all projects` : one?.name ?? (this.root ? slugOf(this.root) : "")))
       .child(h_flex().gap(4)
         .child(button("wb-view-board", "Board", this.view === "board", (_e, cx) => { this.view = "board"; cx.notify(); }))
-        .child(button("wb-view-list", "List", this.view === "list", (_e, cx) => { this.view = "list"; cx.notify(); })))
+        .child(button("wb-view-list", "List", this.view === "list", (_e, cx) => { this.view = "list"; cx.notify(); }))
+        .child(button("wb-view-flow", "Flow", this.view === "flow", (_e, cx) => { this.view = "flow"; cx.notify(); })))
       .when(Boolean(this.plant && this.root), (el) => el.child(h_flex().gap(4)
         .child(button("wb-scope-project", "This project", !this.all, (_e, cx) => { this.setAll(false, cx); cx.notify(); }))
         .child(button("wb-scope-all", "All projects", this.all, (_e, cx) => { this.setAll(true, cx); cx.notify(); }))))
@@ -651,6 +819,7 @@ export default class KanbanBoard extends View {
     else if (!this.root && !this.plant) body = empty("No project ledger here. Make one in the project's folder with `kanban init --repo <host>/<owner>/<repo>`.");
     else if (!this.data) body = empty(this.failure ? "" : "Reading…");
     else if (this.view === "list") body = this.listView(t, cols, list, terms, tasksById);
+    else if (this.view === "flow") body = this.flowView(t);
     else {
       body = h_flex().id("wb-board").flex_1().min_w(0).h_full().min_h(0).p(12).gap(12).overflow_x_scrollbar()
         .children(cols.map((c, ci) => v_flex().id(`wb-col-${c.id}`).w(270).flex_none().h_full().min_h(0).gap(8).p(8).rounded(10).bg(t.surface)
@@ -670,6 +839,6 @@ export default class KanbanBoard extends View {
       .when(unreadable.length > 0, (el) => el.child(div().px(14).py(4).text_size(11.5).text_color(t.blocked).child(`Unreadable: ${unreadable.join(", ")}`)))
       .child(h_flex().flex_1().min_h(0).child(body).when(Boolean(this.openKey), (el) => el.child(this.detailView(t, list, terms, tasksById))))
       .when(keyboard, (el) => el.child(div().h(22).px(14).flex_none().flex().items_center().text_size(10.5).text_color(t.dim)
-        .child(`h/l columns · j/k cards · Enter open · g go to agent · v board/list${this.plant && this.root ? " · p this project/all" : ""} · / filter · Esc close`)));
+        .child(`h/l columns · j/k cards · Enter open · g go to agent · v board/list/flow${this.plant && this.root ? " · p this project/all" : ""} · / filter · Esc close`)));
   }
 }
