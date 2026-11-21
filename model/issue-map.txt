@@ -25,7 +25,7 @@ action GateApproves -
 action ChiefOfStaffSendsBack -
 action ChiefOfStaffRevives -
 action WorkerTakesFix kanban start
-action DispatcherMerges andon issue finish・andon issue ask
+action DispatcherMerges andon issue finish・ask
 action HumanMergesDecided -
 action HumanMergesEarly -
 action SettleFinishes andon issue finish
