@@ -240,3 +240,50 @@ func TestDrainAckedEvenIfLabelFails(t *testing.T) {
 		}
 	}
 }
+
+// Claude Code が渡すフックの入力の形（2.1.330 で測ったもの。drain.go の sameTurn の注釈）を、Drain と同じ読み方で読んで照らす。
+// prompt_id の照合が無いと、中断した turn のあとの別の turn の Stop を、渡した turn の終わりと見て確かめ済みにする。
+func TestSameTurnClaudeCodeInputs(t *testing.T) {
+	read := func(s string) hookInput {
+		t.Helper()
+		var in hookInput
+		if err := json.Unmarshal([]byte(s), &in); err != nil {
+			t.Fatal(err)
+		}
+		return in
+	}
+	// 渡した turn の印は、drain がそのときの入力から作るものと同じ
+	from := func(via string, in hookInput) *HookNews {
+		return &HookNews{Terminal: "t1", Via: via, SessionID: in.SessionID, PromptID: in.PromptID}
+	}
+	const (
+		promptA = `{"session_id":"s1","prompt_id":"pa","hook_event_name":"UserPromptSubmit","prompt":"<hc>…</hc>"}`
+		stopA   = `{"session_id":"s1","prompt_id":"pa","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"はい"}`
+		contA   = `{"session_id":"s1","prompt_id":"pa","hook_event_name":"Stop","stop_hook_active":true,"last_assistant_message":"了解"}`
+		promptB = `{"session_id":"s1","prompt_id":"pb","hook_event_name":"UserPromptSubmit","prompt":"<hc>…</hc>"}`
+		stopB   = `{"session_id":"s1","prompt_id":"pb","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"次"}`
+		wakeC   = `{"session_id":"s1","prompt_id":"pc","hook_event_name":"UserPromptSubmit","prompt":"<task-notification>…</task-notification>"}`
+		stopC   = `{"session_id":"s1","prompt_id":"pc","hook_event_name":"Stop","stop_hook_active":true,"last_assistant_message":"起きた"}`
+	)
+	for _, c := range []struct {
+		name string
+		h    *HookNews
+		stop string
+		want bool
+	}{
+		{"UserPromptSubmit で渡した turn の Stop", from("prompt", read(promptA)), stopA, true},
+		{"Stop で渡した続きの turn の Stop（同じ prompt_id）", from("stop", read(stopA)), contA, true},
+		{"UserPromptSubmit で渡した turn を中断し、次の turn の Stop", from("prompt", read(promptA)), stopB, false},
+		{"Stop で渡した続きの turn を中断し、次の turn の Stop", from("stop", read(stopA)), stopB, false},
+		{"asyncRewake で始まった turn の Stop（stop_hook_active が true）", from("prompt", read(wakeC)), stopC, true},
+		{"渡した turn の次の turn の UserPromptSubmit で渡し直した印と、その Stop", from("prompt", read(promptB)), stopB, true},
+	} {
+		if got := sameTurn(c.h, "t1", read(c.stop)); got != c.want {
+			t.Errorf("%s: sameTurn = %v、want %v", c.name, got, c.want)
+		}
+	}
+	// 入力に prompt_id が無ければ端末と経路だけで照らす（中断した turn の通知も確かめ済みにする。sameTurn の注釈）
+	if !sameTurn(from("prompt", read(promptA)), "t1", read(`{"session_id":"s1","hook_event_name":"Stop"}`)) {
+		t.Error("prompt_id の無い Stop を、渡した turn の終わりと見ない")
+	}
+}

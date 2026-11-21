@@ -141,6 +141,15 @@ type hookInput struct {
 
 // sameTurn は、Stop の入力 in が、フックで <news> を渡した turn（h）の終わりか。
 // prompt_id（と session_id）があれば照合する。Stop で渡したもの（additionalContext の続き）は続きの turn（stop_hook_active）の終わりだけ。
+//
+// 中断した turn を見分けるのは prompt_id。Claude Code 2.1.330 で測ったところ（-p と対話の両方）:
+//   - Stop と UserPromptSubmit の入力のどちらにも prompt_id が来て、同じ turn では同じ値
+//   - additionalContext の続きの turn の Stop（stop_hook_active が true）は、元の turn と同じ prompt_id
+//   - オーナーが中断した turn には Stop が来ない。次の入力の UserPromptSubmit と Stop は新しい prompt_id
+//   - asyncRewake（exit 2）で始まった turn も UserPromptSubmit が走り、新しい prompt_id。その Stop は stop_hook_active が true
+//
+// 入力に prompt_id が無いときは端末と経路だけで照らし、中断した turn の通知も確かめ済みにする。
+// 測った形は drain_test.go の TestSameTurnClaudeCodeInputs が守る。
 func sameTurn(h *HookNews, addr string, in hookInput) bool {
 	if h.Terminal != addr {
 		return false
