@@ -36,12 +36,15 @@ const LAMP = "inbox.lamp";
 // Owner waits per machine and project (ADR-0043 decisions 8 and 9), shared so every copy judges
 // alike and only one calls: "<machine>/<project>" -> {at, fails, why, ok: {at, items: [{kind, since}]}}.
 const WAITING = "inbox.waiting";
-// A project name the mod passes to andon: lowercase letters, digits and hyphens, nothing else.
-const SLUG = /^[a-z0-9-]+$/;
+// A project name the mod passes to andon: the shape of a kanban project's slug (schema/project.schema.json,
+// internal/spawn SlugRe): a lowercase letter or digit, then lowercase letters, digits, `_` and `-`.
+const SLUG = /^[a-z0-9][a-z0-9_-]*$/;
 // At most one call per machine and project in this long, whichever copy calls.
 const WAIT_EVERY = 10000;
 // Unreadable this many times in a row: the project lights by replies again (ADR-0043 decision 9).
 const UNREADABLE_AFTER = 3;
+// How long one call may run before the App stops it (as the waiting mod does).
+const READ_TIMEOUT = 15000;
 // A call that hasn't come back in this long no longer keeps this copy from calling again.
 const READ_GIVES_UP = 60000;
 const ASKS = { merge: "to merge", decision: "to decide" };
@@ -402,7 +405,7 @@ export default class Inbox extends View {
       let items = null;
       let why = null;
       try {
-        const r = await exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine });
+        const r = await exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT });
         [items, why] = parseWaiting(r, p.project);
       } catch (e) {
         why = short(`can't run andon waiting: ${e?.message ?? e}`);

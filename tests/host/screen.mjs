@@ -881,7 +881,7 @@ async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => 
     focused: () => state.focused ?? null, theme: () => THEME, setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
     shared: (k) => store[k] ?? null, setShared: (k, val) => { store[k] = JSON.parse(JSON.stringify(val)); },
     run: (cmd, a) => calls.run.push([cmd, JSON.parse(JSON.stringify(a))]),
-    exec: async (cmd, a, opts = {}) => { calls.exec.push([cmd, [...a], { on: opts.on ?? null }]); return reply(a, opts); },
+    exec: async (cmd, a, opts = {}) => { calls.exec.push([cmd, [...a], { on: opts.on ?? null }]); calls.timeouts = [...(calls.timeouts ?? []), opts.timeout]; return reply(a, opts); },
     layout: () => layoutTree,
     hc: () => { throw new Error('the inbox called hc'); }, notify: () => { throw new Error('the inbox posted a notification'); },
   }, ui, { Date: FakeDate });
@@ -1113,22 +1113,29 @@ await check('inbox: exec で呼ぶのは andon waiting --json --project <名前>
   await two.look();
   assert.equal(calls.exec.length, 3, '10 秒の中で 2 回呼んだ');
   const src = await readFile(`${HOST}/inbox/main.js`, 'utf8');
-  assert.deepEqual(plain(src.match(/(?<![.\w])exec\([^)]*/g)), ['exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine }'], 'main.js の exec の呼び出しが 1 つでない');
+  assert.deepEqual(plain(src.match(/(?<![.\w])exec\([^)]*/g)), ['exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT }'], 'main.js の exec の呼び出しが 1 つでない');
   assert.doesNotMatch(src, /\bfetch\(|WebSocket|writeTextFile|\bhc\(/);
   // The andon mod's lantern still reads only inbox.lantern.
   assert.match(await readFile(`${HOST}/andon/brand.js`, 'utf8'), /const LANTERN = "inbox\.lantern";/);
   const readme = await readFile(`${HOST}/inbox/README.md`, 'utf8');
-  assert.match(readme, /\| `exec\("andon", \["waiting", "--json", "--project", slug\], \{on\}\)` \|/, 'README の What it runs に andon waiting の行が無い');
+  assert.match(readme, /\| `exec\("andon", \["waiting", "--json", "--project", slug\], \{on, timeout: 15000\}\)` \|/, 'README の What it runs に andon waiting の行が無い');
 });
 
 await check('inbox: 名前の形が違うラベル（空白・大文字・引用符・パス）では呼ばず、出力の version・project の変種は読めない扱い。返らない呼び出しは 60 秒で諦めて読み直し、形の違う控えでは落ちない', async () => {
-  for (const label of [' sample-site', 'sample-site ', 'Sample-site', "'sample-site'", 'sample site', 'a/b', '../x', '-']) {
+  for (const label of [' sample-site', 'sample-site ', 'Sample-site', "'sample-site'", 'sample site', 'a/b', '../x', '-', '-x', '_x', 'sample_team']) {
     const c = await inboxCell({ terms: [cos('cell/t1', label)], machines: [{ name: 'cell' }] });
     await c.look();
     await c.tick();
-    // '-' is shaped like a slug and is called: the check sees a call it should.
-    assert.equal(c.calls.exec.length, label === '-' ? 1 : 0, `「${label}」で呼んだか、呼ぶべきものを呼ばなかった`);
+    // 'sample_team' is shaped like a project's slug (schema/project.schema.json) and is called: the check sees a call it should.
+    assert.equal(c.calls.exec.length, label === 'sample_team' ? 1 : 0, `「${label}」で呼んだか、呼ぶべきものを呼ばなかった`);
   }
+  // An underscore in the slug: its merge reaches the count line and the lantern.
+  const team = await inboxCell({ terms: [cos('cell/t1', 'sample_team')], machines: [{ name: 'cell' }], items: { sample_team: [wait('merge', 'S-0021', '2026-11-21T10:00:00Z')] } });
+  assert.deepEqual(plain((await team.look()).owed.map((w) => [w.project, w.merge])), [['sample_team', 1]], 'sample_team の件数の行が無い');
+  assert.deepEqual(plain(team.calls.exec), [['andon', ['waiting', '--json', '--project', 'sample_team'], { on: 'cell' }]]);
+  assert.equal(lit(team.store), 'amber', 'sample_team のマージの依頼で琥珀にならない');
+  // Each call carries a timeout, so the App stops one that never comes back.
+  assert.deepEqual(plain(team.calls.timeouts), [15000], 'exec に timeout を渡していない');
   const { parseWaiting } = await load(`${HOST}/inbox`, { machines: () => [], setAgentOrder: () => {}, nextCommand: () => null, shared: () => null, setShared: () => {} });
   const out = (o) => ({ code: 0, stdout: JSON.stringify(o), stderr: '' });
   for (const [r, want] of [
