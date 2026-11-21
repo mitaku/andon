@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"andon/internal/ledger"
 )
 
 func TestProviderError(t *testing.T) {
@@ -81,6 +83,9 @@ func TestJudge(t *testing.T) {
 		{"idle 15分", Seen{Status: "idle", StatusMs: min(15)}, none, Resend{}, Verdict{Kind: "stalled", Key: "idle|" + itoa(min(15))}},
 		{"done 14分", Seen{Status: "done", StatusMs: min(14)}, none, Resend{}, Verdict{}},
 		{"idle 15分・レビュー待ち", Seen{Status: "idle", StatusMs: min(15), Reviewing: true}, none, Resend{}, Verdict{}},
+		{"idle 15分・自分の問いの答え待ち", Seen{Status: "idle", StatusMs: min(15), Asking: true}, none, Resend{}, Verdict{}},
+		{"done 15分・自分の問いの答え待ち", Seen{Status: "done", StatusMs: min(15), Asking: true}, none, Resend{}, Verdict{}},
+		{"working 20分・問いがあっても working は見る", Seen{Status: "working", StatusMs: min(20), Asking: true}, none, Resend{}, Verdict{Kind: "stalled", Key: "working|" + itoa(min(20))}},
 		{"working 20分", Seen{Status: "working", StatusMs: min(20)}, none, Resend{}, Verdict{Kind: "stalled", Key: "working|" + itoa(min(20))}},
 		{"working 19分", Seen{Status: "working", StatusMs: min(19)}, none, Resend{}, Verdict{}},
 		{"working 30分・画面か msg が3分前に動いた（1ターンで長く働いている）", Seen{Status: "working", StatusMs: min(30), Moved: min(3)}, none, Resend{}, Verdict{}},
@@ -90,6 +95,34 @@ func TestJudge(t *testing.T) {
 	for _, c := range cases {
 		if got := Judge(c.s, c.screen, c.r, now); got != c.want {
 			t.Errorf("%s: Judge = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
+// 受け取られていない問い: log.jsonl の問いの行の最後の状態が open・answered の課題だけ（received で外れる）。
+// 移す前の番号（A-5）は今の番号に読み替え、問いの行でない行・番号の読めない行は数えない。
+func TestAsking(t *testing.T) {
+	q := func(id string, n any, st string) ledger.Row {
+		return ledger.Row{ID: id, Change: map[string]any{"question": n, "status": st}}
+	}
+	rows := []ledger.Row{
+		q("A-0001", float64(1), "open"),
+		q("A-0002", float64(1), "open"), q("A-0002", float64(1), "answered"),
+		q("A-0003", float64(1), "open"), q("A-0003", float64(1), "answered"), q("A-0003", float64(1), "received"),
+		q("A-0004", float64(1), "received"), q("A-0004", float64(2), "open"),
+		q("A-5", float64(1), "open"),
+		{ID: "A-0006", Change: map[string]any{"status": "doing"}},
+		q("A-0007", "x", "open"),
+		q("A-0008", float64(1), "open"), q("A-0008", float64(1), "received"),
+	}
+	got := Asking(rows)
+	want := map[string]bool{"A-0001": true, "A-0002": true, "A-0004": true, ledger.CanonID("A-5"): true}
+	if len(got) != len(want) {
+		t.Fatalf("Asking = %v, want %v", got, want)
+	}
+	for id := range want {
+		if !got[id] {
+			t.Fatalf("Asking = %v, want %v", got, want)
 		}
 	}
 }

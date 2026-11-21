@@ -30,7 +30,7 @@ transitions:
   - { from: cut, to: working, on: "プロバイダに切られたときの「続けて」を打った（1・2・4・8 分あと。4 回まで。§7.2 #6）", by: machine, once: true }
   - { from: cut, to: stopped, on: "5 回目に切られた", by: machine }
   - { from: working, to: stopped, on: "blocked・ほかの error・status.msg も画面も 20 分動かない（stalled）・端末が無い（finished。resume で起動できない・その死にもう打った・初めて見る kanban）", by: machine }
-  - { from: idle, to: stopped, on: "idle・done のまま 15 分（stalled。子のレビュアーが動いている間は除く）・端末が無い（finished。resume のときと同じ）", by: machine }
+  - { from: idle, to: stopped, on: "idle・done のまま 15 分（stalled。子のレビュアーが動いている間と、担当の課題に受け取られていない問いがある間は除く）・端末が無い（finished。resume のときと同じ）", by: machine }
   - { from: stopped, to: working, on: "動き出した（新しい status_ms）", by: ai }
   - { from: working, to: resumed, on: "端末が Gone（無い・live でない・素のシェル）で、その死にまだ打っていない（初めて見る kanban では打たない）。resume を 1 回（§7.2 #20）", by: machine, command: andon issue resume, once: true }
   - { from: idle, to: resumed, on: "端末が Gone で、その死にまだ打っていない。resume を 1 回（§7.2 #20）", by: machine, command: andon issue resume, once: true }

@@ -1914,6 +1914,20 @@ pk
 pp "$ce" error | jq -e '.[0].detail.agent == "w31"' >/dev/null || die "Chief Engineer の error を届けない: $(jq -c .pending "$pst")"
 ok 'Chief Engineer の課題の ready・stalled・blocked は記録だけにし、error は届ける'
 
+# 18c. 担当が自分の問いの答えを待つ間（受け取られていない問いが open・answered）は stalled を積まず、received したあとは積む（A-0221）
+a=$(st_task '問いの答えを待つ' w32); termp w32 idle "$old_idle"
+mkdir -p "$P/issues/$a/library/questions"; echo "$qjson" > "$P/issues/$a/library/questions/1.json"
+HC_TERMINAL_ID=w32 kanban ask "$a" 'どちらの名前にする？' >/dev/null
+clear_pending; pk
+pp "$a" asked | jq -e 'length == 1' >/dev/null && [ "$(pp "$a" stalled)" = '[]' ] || die "問いの答えを待つ担当を stalled で知らせた・asked を積まない: $(jq -c .pending "$pst")"
+HC_TERMINAL_ID=t5 kanban answer "$a#1" 'A' >/dev/null
+pk
+[ "$(pp "$a" stalled)" = '[]' ] || die "答えを受け取る前（answered）の担当を stalled で知らせた: $(pp "$a" stalled)"
+HC_TERMINAL_ID=w32 kanban received "$a#1" >/dev/null
+pk
+pp "$a" stalled | jq -e --argjson ms "$old_idle" '.[0].detail == {agent: "w32", status_ms: $ms}' >/dev/null || die "問いを受け取ったあと idle のまま15分を stalled で知らせない: $(pp "$a" stalled)"
+ok '担当が自分の問いの答えを待つ間（open・answered）は stalled を積まず、received したあとは積む'
+
 # 19. プロバイダに切られたら自分で続きを打つ（切られた 1〜4 回目は 1・2・4・8 分あと）。5 回目に切られたら知らせる（dispatcher.md §2.4）
 v=$(st_task 'error（混雑）' w23); termp w23 error "$fresh"; printf '› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n' > "$tmp/hc/screen-w23"
 clear_pending; pk

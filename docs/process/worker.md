@@ -24,7 +24,7 @@ stateDiagram-v2
   s_cut --> s_working: プロバイダに切られたときの「続けて」を打った（1・2・4・8 分あと。4 回まで。§7.2 #6）
   s_cut --> s_stopped: 5 回目に切られた
   s_working --> s_stopped: blocked・ほかの error・status.msg も画面も 20 分動かない（stalled）・端末が無い（finished。resume で起動できない・その死にもう打った・初めて見る kanban）
-  s_idle --> s_stopped: idle・done のまま 15 分（stalled。子のレビュアーが動いている間は除く）・端末が無い（finished。resume のときと同じ）
+  s_idle --> s_stopped: idle・done のまま 15 分（stalled。子のレビュアーが動いている間と、担当の課題に受け取られていない問いがある間は除く）・端末が無い（finished。resume のときと同じ）
   s_stopped --> s_working: 動き出した（新しい status_ms）
   s_working --> s_resumed: 端末が Gone（無い・live でない・素のシェル）で、その死にまだ打っていない（初めて見る kanban では打たない）。resume を 1 回（§7.2 #20）
   s_idle --> s_resumed: 端末が Gone で、その死にまだ打っていない。resume を 1 回（§7.2 #20）
@@ -59,7 +59,7 @@ stateDiagram-v2
 | `cut` | `working` | プロバイダに切られたときの「続けて」を打った（1・2・4・8 分あと。4 回まで。§7.2 #6） | 機械 |  | はい |
 | `cut` | `stopped` | 5 回目に切られた | 機械 |  |  |
 | `working` | `stopped` | blocked・ほかの error・status.msg も画面も 20 分動かない（stalled）・端末が無い（finished。resume で起動できない・その死にもう打った・初めて見る kanban） | 機械 |  |  |
-| `idle` | `stopped` | idle・done のまま 15 分（stalled。子のレビュアーが動いている間は除く）・端末が無い（finished。resume のときと同じ） | 機械 |  |  |
+| `idle` | `stopped` | idle・done のまま 15 分（stalled。子のレビュアーが動いている間と、担当の課題に受け取られていない問いがある間は除く）・端末が無い（finished。resume のときと同じ） | 機械 |  |  |
 | `stopped` | `working` | 動き出した（新しい status_ms） | AI |  |  |
 | `working` | `resumed` | 端末が Gone（無い・live でない・素のシェル）で、その死にまだ打っていない（初めて見る kanban では打たない）。resume を 1 回（§7.2 #20） | 機械 | `andon issue resume` | はい |
 | `idle` | `resumed` | 端末が Gone で、その死にまだ打っていない。resume を 1 回（§7.2 #20） | 機械 | `andon issue resume` | はい |
