@@ -60,7 +60,7 @@
         },
         "pr": { "description": "report.json pr.", "type": "string", "minLength": 1 },
         "reason": { "description": "Why it waits, for people.", "type": "string", "minLength": 1 },
-        "ask": { "description": "A copy of the question JSON (docs/contract.md §5) of a decision item. Absent when the question has none.", "$ref": "#/$defs/ask" },
+        "ask": { "description": "A copy of the question JSON (docs/contract.md section 5) of a decision item. Absent when the question has none.", "$ref": "#/$defs/ask" },
         "answerable": { "description": "Decision items only: whether the owner's pane may answer it (it has options and is not irreversible).", "type": "boolean" },
         "holds": {
           "description": "The issues not done that wait on this one through after, directly or behind those.",
