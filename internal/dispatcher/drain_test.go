@@ -240,3 +240,98 @@ func TestDrainAckedEvenIfLabelFails(t *testing.T) {
 		}
 	}
 }
+
+// Claude Code が渡すフックの入力の形（2.1.330 で測ったもの。drain.go の sameTurn の注釈）を、Drain と同じ読み方で読んで照らす。
+// prompt_id の照合が無いと、中断した turn のあとの別の turn の Stop を、渡した turn の終わりと見て確かめ済みにする。
+func TestSameTurnClaudeCodeInputs(t *testing.T) {
+	read := func(s string) hookInput {
+		t.Helper()
+		var in hookInput
+		if err := json.Unmarshal([]byte(s), &in); err != nil {
+			t.Fatal(err)
+		}
+		return in
+	}
+	// 渡した turn の印は、drain がそのときの入力から作るものと同じ
+	from := func(via string, in hookInput) *HookNews {
+		return &HookNews{Terminal: "t1", Via: via, SessionID: in.SessionID, PromptID: in.PromptID}
+	}
+	const (
+		promptA = `{"session_id":"s1","prompt_id":"pa","hook_event_name":"UserPromptSubmit","prompt":"<hc>…</hc>"}`
+		stopA   = `{"session_id":"s1","prompt_id":"pa","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"はい"}`
+		contA   = `{"session_id":"s1","prompt_id":"pa","hook_event_name":"Stop","stop_hook_active":true,"last_assistant_message":"了解"}`
+		promptB = `{"session_id":"s1","prompt_id":"pb","hook_event_name":"UserPromptSubmit","prompt":"<hc>…</hc>"}`
+		stopB   = `{"session_id":"s1","prompt_id":"pb","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"次"}`
+		wakeC   = `{"session_id":"s1","prompt_id":"pc","hook_event_name":"UserPromptSubmit","prompt":"<task-notification>…</task-notification>"}`
+		stopC   = `{"session_id":"s1","prompt_id":"pc","hook_event_name":"Stop","stop_hook_active":true,"last_assistant_message":"起きた"}`
+	)
+	for _, c := range []struct {
+		name string
+		h    *HookNews
+		stop string
+		want bool
+	}{
+		{"UserPromptSubmit で渡した turn の Stop", from("prompt", read(promptA)), stopA, true},
+		{"Stop で渡した続きの turn の Stop（同じ prompt_id）", from("stop", read(stopA)), contA, true},
+		{"UserPromptSubmit で渡した turn を中断し、次の turn の Stop", from("prompt", read(promptA)), stopB, false},
+		{"Stop で渡した続きの turn を中断し、次の turn の Stop", from("stop", read(stopA)), stopB, false},
+		{"asyncRewake で始まった turn の Stop（stop_hook_active が true）", from("prompt", read(wakeC)), stopC, true},
+		{"渡した turn の次の turn の UserPromptSubmit で渡し直した印と、その Stop", from("prompt", read(promptB)), stopB, true},
+	} {
+		if got := sameTurn(c.h, "t1", read(c.stop)); got != c.want {
+			t.Errorf("%s: sameTurn = %v、want %v", c.name, got, c.want)
+		}
+	}
+	// 片方にしか prompt_id が無ければ別の turn と見る。両方に無ければ端末と経路だけで照らす（sameTurn の注釈）
+	noID := read(`{"session_id":"s1","hook_event_name":"Stop"}`)
+	if sameTurn(from("prompt", read(promptA)), "t1", noID) {
+		t.Error("prompt_id の無い Stop を、prompt_id のある turn の終わりと見た")
+	}
+	if sameTurn(from("prompt", read(`{"session_id":"s1","hook_event_name":"UserPromptSubmit"}`)), "t1", read(stopB)) {
+		t.Error("prompt_id のある Stop を、prompt_id の無い turn の終わりと見た")
+	}
+	if !sameTurn(from("prompt", read(`{"session_id":"s1","hook_event_name":"UserPromptSubmit"}`)), "t1", noID) {
+		t.Error("どちらにも prompt_id の無い Stop を、渡した turn の終わりと見ない")
+	}
+}
+
+// 渡した turn に prompt_id があり、Stop の入力に無ければ、Drain は確かめ済みにせず1回だけ届け直す。
+// 届け直した続きの turn の Stop（これも prompt_id が無い）で確かめ済みになり、3度目は届かない。
+func TestDrainStopWithoutPromptIDRetriesOnce(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HC_TERMINAL_ID", "")
+	const slug = "demo"
+	st, _, _ := LoadState(slug)
+	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
+	if err := st.Save(slug); err != nil {
+		t.Fatal(err)
+	}
+	run := func(context bool, in string) string {
+		t.Helper()
+		args := []string{"--project", slug}
+		if context {
+			args = append(args, "--context")
+		}
+		var out, errb strings.Builder
+		if code := Drain(args, strings.NewReader(in), &out, &errb); code != 0 {
+			t.Fatalf("Drain が %d で終わった: %s", code, errb.String())
+		}
+		return out.String()
+	}
+	// 1. 送信で渡す（prompt_id のある UserPromptSubmit）
+	if out := run(true, `{"session_id":"s1","prompt_id":"pa","hook_event_name":"UserPromptSubmit"}`); !strings.Contains(out, "A-0001 report") {
+		t.Fatalf("送信で渡さない: %s", out)
+	}
+	// 2. prompt_id の無い Stop: 渡した turn の終わりと見ず、1回だけ届け直す
+	if out := run(false, `{"session_id":"s1","hook_event_name":"Stop","stop_hook_active":false}`); !strings.Contains(out, "A-0001 report") {
+		t.Fatalf("prompt_id の無い Stop で、渡した <news> を確かめ済みにした: %q", out)
+	}
+	// 3. 届け直した続きの turn の Stop: 確かめ済みにし、もう渡さない
+	if out := run(false, `{"session_id":"s1","hook_event_name":"Stop","stop_hook_active":true}`); strings.Contains(out, "A-0001 report") {
+		t.Fatalf("届け直した <news> をもう一度渡した: %s", out)
+	}
+	if st, _, _ := LoadState(slug); st.Hook != nil || len(st.Pending) != 0 {
+		t.Fatalf("確かめた通知が控えに残った: hook=%+v pending=%+v", st.Hook, st.Pending)
+	}
+}
