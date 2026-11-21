@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,31 @@ const correctionsTries = 2
 
 // gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.CommentPrefix。internal/gate/comment.go）。オーナーのコメントに数えない。
 const gateCommentPrefix = "andon gate: "
+
+// machineGateAnswers は、オーナーでなく機械が gate の問いを閉じたときの答えの形（全体一致）。オーナーの手直しに数えない。
+//   - andon issue settle がオーナーのマージを見て閉じた答え（internal/issue/settle.go closeAndFinish）
+//   - andon issue merge が、gate の判定のあとに PR の head が動いたのを見て、gate を回し直す前に問いを閉じた答え
+//     （internal/issue/merge.go の headMoved から closeGateQuestions）
+//   - andon issue merge が、今の head で gate を回し直したときに前の head の問いを閉じた答え
+//     （internal/issue/merge.go closeStaleGateQuestions）
+//
+// 答えた者（answeredBy）では見分けない: dispatcher が止まっているときは Chief of Staff が settle を打ち、答えた者が Chief of Staff になる。
+// 書き方が変わるか、gate の問いを閉じる書き手が増えたら TestMachineGateAnswersMatchWriters が落ちる。
+var machineGateAnswers = []*regexp.Regexp{
+	regexp.MustCompile(`^オーナーがマージした（[^（）]*）$`),
+	regexp.MustCompile(`^PR の head が gate のあとに動いた（[0-9a-f]+ → [0-9a-f]+）。gate が今の head で回し直す$`),
+	regexp.MustCompile(`^PR の head が動いた（[0-9a-f]+ → [0-9a-f]+）。gate が今の head で決め直した（記録 [^（）]*）$`),
+}
+
+// machineGateAnswer は gate の問いの答え a（前後の空白を除いたもの）が、機械が閉じたときの答えか。
+func machineGateAnswer(a string) bool {
+	for _, re := range machineGateAnswers {
+		if re.MatchString(a) {
+			return true
+		}
+	}
+	return false
+}
 
 // QA は kanban の問い1つ（`kanban show --json` の questions）と、その問いの JSON（library/questions/<n>.json。無ければ nil）。
 type QA struct {
@@ -141,7 +167,7 @@ type correctionQuestion struct {
 
 // Corrections は1つの課題のオーナーの手直しを並べる（純粋関数。contract.md §14 の規則）。
 //   - answer: 答えのある問い（gate の問いと scope を除く）で、答えが推奨案（pick: true）の label と違うもの
-//   - override（問い）: 答えのある gate の問い（from: gate。needs_human へのオーナーの答え）
+//   - override（問い）: 答えのある gate の問い（from: gate。needs_human へのオーナーの答え）。機械が閉じた答え（machineGateAnswer）は除く
 //   - pr: PR の上の、gate のものでないコメント（会話欄・レビューの本文・インラインのレビューコメント〈Bot を除く〉）と、担当の最後の報告より後の commit（humans）
 //   - override（指摘）: マージした PR の waived のうち must_fix 以上のもの（must_fix が無ければ全部。安全側＝多めに拾う）
 //
@@ -154,6 +180,8 @@ func Corrections(qs []QA, rep *contract.Report, mustFix string, pr *PRView, huma
 		}
 		rec, ans := strings.TrimSpace(qa.Q.Options[0].Label), strings.TrimSpace(qa.Answer)
 		switch {
+		case qa.Q.From == "gate" && machineGateAnswer(ans):
+			// settle のマージの答え・head が動いて gate を回し直すときの答え（オーナーの手直しではない）
 		case qa.Q.From == "gate":
 			out = append(out, correctionQuestion{Kind: "override", Question: qa.N, Recommended: rec, Answer: ans})
 		case qa.Q.Kind == "scope":
