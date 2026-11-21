@@ -619,6 +619,65 @@ func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
 	}
 }
 
+// review-request の stdin を省くと、前の報告（report.md）の本文にレビュー依頼の行を足す。前の報告の Next と Remember を
+// 渡し直さずに頼める（stdin が報告を丸ごと置き換え、Next と Remember を落とした出来事を写す）。前のレビュー依頼の段は重ねない。
+// stdin があれば今までどおり置き換える。stdin も前の報告も空なら、report.json も報告も書かずに断る。
+func TestReviewRequestKeepsPreviousReport(t *testing.T) {
+	const body = "PR: https://github.com/example/app/pull/7\n## Report\n直した。\n## Next\n- マージ後に andon issue finish T-0001\n## Remember\n- 前の報告の学び\n"
+	const oldHeader = "## レビュー依頼\n1 回目／上限 2。commit " + other + "。PR https://github.com/example/app/pull/7。Reviewer codex-review\n\n"
+	for _, c := range []struct {
+		name  string
+		prev  string // kanban の report.md（空なら置かない）
+		stdin string
+		want  []string // 報告に含む
+		not   []string // 報告に含まない
+		fail  string   // 空なら頼める
+	}{
+		{"stdin が空なら前の報告を残す", body, "", []string{"## レビュー依頼\n1 回目", body}, nil, ""},
+		{"前のレビュー依頼の段は重ねない", oldHeader + body, "", []string{body}, []string{other}, ""},
+		{"stdin があれば置き換える", body, "## Report\n新しい報告\n", []string{"## Report\n新しい報告\n"}, []string{"## Next"}, ""},
+		{"stdin も前の報告も空なら断る", "", " \n", nil, nil, "前の報告（report.md）も空"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+			f.write("list.json", js([]any{f.task}))
+			f.write("kanban/log.jsonl", "")
+			f.write("kanban/issues/T-0001/library/report.json", f.report)
+			f.write("prhead", f.prHead+"\n")
+			if c.prev != "" {
+				f.write("kanban/issues/T-0001/report.md", c.prev)
+			}
+			var out, errb bytes.Buffer
+			rc := Main([]string{"review-request", "T-0001"}, strings.NewReader(c.stdin), &out, &errb)
+			report, _ := os.ReadFile(filepath.Join(f.root, "kanban/issues/T-0001/library/report.json"))
+			md, mdErr := os.ReadFile(filepath.Join(f.root, "reported-T-0001"))
+			if c.fail != "" {
+				if rc != 1 || !strings.Contains(errb.String(), c.fail) || mdErr == nil || string(report) != f.report {
+					t.Fatalf("want rc 1 with %q, got rc=%d err=%q reported=%v report=%s", c.fail, rc, errb.String(), mdErr == nil, report)
+				}
+				return
+			}
+			if rc != 0 || !strings.Contains(string(report), `"round": 1`) {
+				t.Fatalf("rc=%d err=%q report=%s", rc, errb.String(), report)
+			}
+			if !strings.HasPrefix(string(md), "## レビュー依頼\n1 回目／上限 ") || strings.Count(string(md), "## レビュー依頼") != 1 {
+				t.Fatalf("レビュー依頼の段が先頭に1つでない: %s", md)
+			}
+			for _, w := range c.want {
+				if !strings.Contains(string(md), w) {
+					t.Fatalf("報告に %q が無い: %s", w, md)
+				}
+			}
+			for _, w := range c.not {
+				if strings.Contains(string(md), w) {
+					t.Fatalf("報告に %q が残る: %s", w, md)
+				}
+			}
+		})
+	}
+}
+
 // 報告の打ち直しは、HEAD が前の報告の commit とも頼んだ commit とも同じときだけ review_request を引き継ぐ。
 func TestCarriedReviewRequest(t *testing.T) {
 	a, b := strings.Repeat("a", 40), strings.Repeat("b", 40)
