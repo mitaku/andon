@@ -204,13 +204,16 @@ ok "run-tests: 読み手（tests/schema.sh）は同じ回の emitters が写し�
 ok "run-tests: 出力を1本ずつまとめ、所要時間の表・skip・落ちたときの exit 1"
 
 # 3. run: 同時に走るのは1本だけ。2本目は鍵（flock）が外れるまで理由を1行出して待ち、1本目が終わってから走る。
-#    鍵は検査に渡さないので、検査が裏に残したプロセスが生きていても次の回は走る。終了コードは run-tests のまま
+#    鍵を持つのは検査を待つ runner（tests/run が exec した run-tests.sh）で、親だけが落ちて鍵が外れることは無い。
+#    runner は鍵を検査に渡さないので、検査が裏に残したプロセスが生きていても次の回は走る。写しで本物の run-tests.sh に偽の検査を走らせる
 r="$tmp/run"
 mkdir -p "$r/tests/lib"
 cp tests/run "$r/tests/run"
-cat >"$r/tests/lib/run-tests.sh" <<'EOF'
+cp tests/lib/run-tests.sh "$r/tests/lib/run-tests.sh"
+cat >"$r/tests/x.sh" <<'EOF'
 d=$RUN_DIR
 echo "start $RUN_ID" >>"$d/log"
+echo "$PPID" >"$d/runner-$RUN_ID"
 sleep 30 </dev/null >/dev/null 2>&1 &
 echo $! >"$d/daemon-$RUN_ID"
 for _ in $(seq 600); do [ -e "$d/release-$RUN_ID" ] && break; sleep 0.05; done
@@ -220,10 +223,13 @@ EOF
 trap 'kill $(cat "$r"/daemon-* 2>/dev/null) 2>/dev/null; rm -rf "$tmp"' EXIT
 waitfor() { local _; for _ in $(seq 200); do "$@" && return 0; sleep 0.05; done; return 1; } # 10 秒まで
 b_waits_or_runs() { grep -qs '走っている。終わるまで待つ' "$r/b.out" || grep -qsx 'start b' "$r/log"; }
-run=(env ANDON_TEST_LOCK="$r/lock" RUN_DIR="$r" bash "$r/tests/run")
+# ANDON_BIN: run-tests が並べる前に mise install を打たないように
+run=(env ANDON_TEST_LOCK="$r/lock" RUN_DIR="$r" ANDON_BIN=unused GITHUB_ACTIONS=false bash "$r/tests/run")
 RUN_ID=a "${run[@]}" >"$r/a.out" 2>&1 &
 pa=$!
-waitfor grep -qsx 'start a' "$r/log" || die "run: 1本目が run-tests を起動しない: $(cat "$r/a.out")"
+waitfor grep -qsx 'start a' "$r/log" || die "run: 1本目が検査を起動しない: $(cat "$r/a.out")"
+[ "$(cat "$r/runner-a")" = "$pa" ] || die "run: 検査を待つ runner（pid $(cat "$r/runner-a")）が tests/run（pid $pa）でない（親だけが落ちると鍵が外れる）"
+[ "$(cat "$r/lock")" = "pid $pa $r" ] || die "run: 鍵のファイルに鍵を持つ回の控えが無い: $(cat "$r/lock")"
 RUN_ID=b RUN_EXIT=3 "${run[@]}" >"$r/b.out" 2>&1 &
 pb=$!
 waitfor b_waits_or_runs || die "run: 2本目が待ちも走りもしない: $(cat "$r/b.out")"
@@ -241,5 +247,6 @@ set +e
 wait "$pb"
 st=$?
 set -e
-[ "$st" = 3 ] || die "run: run-tests の終了コード 3 を伝えない（exit $st）"
-ok "run: 2本目は理由を1行出して1本目が終わるまで待つ。鍵は検査に渡さない。終了コードは run-tests のまま"
+[ "$st" = 1 ] || die "run: 検査が落ちたのに run-tests の終了コード 1 を伝えない（exit $st）"
+grep -qF '| tests/x.sh | FAIL(3) |' "$r/b.out" || die "run: 2本目の表に検査の FAIL(3) が無い: $(cat "$r/b.out")"
+ok "run: 2本目は理由を1行出して1本目が終わるまで待つ。鍵は検査を待つ runner が持ち、検査に渡さない。終了コードは run-tests のまま"

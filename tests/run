@@ -16,8 +16,10 @@ case "${1:-}" in
   *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
-# 鍵はこの shell が持ち、検査には渡さない（9>&-）。検査が裏に残したプロセスが鍵を持ち続けて、次の回が止まらないように。
-# 鍵を持つ回が落ちれば鍵は外れる（ファイルは残るが、中身はその回の控えで、次の回が書き直す）
+# 鍵はこの shell が取り、exec で run-tests.sh に引き継ぐ（検査を待つプロセスが鍵を持つ。親だけが落ちて鍵が外れ、
+# 検査が走り続けることが無いように）。run-tests.sh は検査に鍵を渡さない（9>&-）。検査が裏に残したプロセスが
+# 鍵を持ち続けて、次の回が止まらないように。鍵を持つ回が落ちれば鍵は外れる（ファイルは残るが、中身はその回の控えで、
+# 次の回が書き直す）
 lock=${ANDON_TEST_LOCK:-/tmp/andon-tests-run.lock}
 exec 9>>"$lock"
 if ! flock -n 9; then
@@ -26,10 +28,7 @@ if ! flock -n 9; then
 fi
 echo "pid $$ $PWD" >"$lock"
 
-if [ "$#" -eq 0 ]; then
-  bash tests/lib/run-tests.sh 9>&-
-  exit
-fi
+[ "$#" -gt 0 ] || exec bash tests/lib/run-tests.sh
 base=${2:-$(git merge-base HEAD origin/main)}
 changed=$( {
   git diff --name-only --no-renames "$base"
@@ -37,4 +36,4 @@ changed=$( {
 } | sort -u)
 mapfile -t tests < <(bash tests/lib/scope.sh <<<"$changed")
 echo "変えたもの（$(git rev-parse --short "$base") から）: $(grep -c . <<<"$changed" || true) 個 → 走らせる: ${tests[*]}"
-bash tests/lib/run-tests.sh "${tests[@]}" 9>&-
+exec bash tests/lib/run-tests.sh "${tests[@]}"
