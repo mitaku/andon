@@ -436,3 +436,81 @@ func TestLogUnreadable(t *testing.T) {
 		}
 	})
 }
+
+// fakeKanban は kanban の CLI の代わりに、受けた引数と KANBAN_ROOT を1行ずつ calls に書く偽を PATH に置き、calls のパスを返す。
+func fakeKanban(t *testing.T) string {
+	t.Helper()
+	bin := t.TempDir()
+	calls := filepath.Join(bin, "calls")
+	body := "#!/bin/sh\nprintf '%s|' \"$KANBAN_ROOT\" \"$@\" >>\"" + calls + "\"\necho >>\"" + calls + "\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "kanban"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	return calls
+}
+
+// andon waiting answer は、開いている判断の問いに選んだ選択肢の label を kanban answer で書き、
+// gate の問い・irreversible・答え済み・選択肢の外の番号・問いの JSON の無い問い・端末の中を断る（ADR-0042 受け入れ条件 14）。
+func TestAnswer(t *testing.T) {
+	f := newFake(t, 0)
+	f.issue("S-0030", "doing", "profile: claude")
+	f.questions("S-0030",
+		q(1, "users", "open", "2026-11-21T02:00:00Z"),
+		q(2, "line", "open", "2026-11-21T02:00:00Z"),
+		q(3, "irreversible", "open", "2026-11-21T02:00:00Z"),
+		q(4, "users", "answered", "2026-11-21T02:00:00Z"),
+		q(5, "business", "open", "2026-11-21T02:00:00Z"))
+	f.ask("S-0030", 1, `{"kind": "users", "question": "書き出しは CSV だけにするか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}], "from": "issue"}`)
+	f.gateAsk("S-0030", 2, head)
+	f.ask("S-0030", 3, `{"kind": "irreversible", "question": "本番の表を消すか", "options": [{"label": "消す", "pick": true}, {"label": "残す"}], "from": "issue"}`)
+	f.ask("S-0030", 4, `{"kind": "users", "question": "もう答えた", "options": [{"label": "はい", "pick": true}, {"label": "いいえ"}], "from": "issue"}`)
+	// 問い 5 は問いの JSON を持たない
+	qpath := filepath.Join(f.root, "kanban/issues/S-0030/questions.yaml")
+	before, err := os.ReadFile(qpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := fakeKanban(t)
+	run := func(term string, args ...string) (int, string, string) {
+		t.Setenv("HC_TERMINAL_ID", term)
+		t.Setenv("KANBAN_ROOT", f.root)
+		var out, errb bytes.Buffer
+		code := Main(append([]string{"answer"}, args...), nil, &out, &errb)
+		return code, out.String(), errb.String()
+	}
+
+	for _, c := range []struct {
+		name, term, ref, option, want string
+	}{
+		{"gate の問い", "", "S-0030#2", "1", "gate の問い"},
+		{"irreversible の問い", "", "S-0030#3", "1", "irreversible"},
+		{"答え済みの問い", "", "S-0030#4", "1", "開いていない（answered）"},
+		{"選択肢の外の番号", "", "S-0030#1", "3", "1 から 2"},
+		{"問いの JSON が無い問い", "", "S-0030#5", "1", "問いの JSON"},
+		{"端末の中", "t7", "S-0030#1", "1", "端末の中（t7）"},
+	} {
+		code, out, errs := run(c.term, c.ref, "--option", c.option)
+		if code != 1 || out != "" || !strings.Contains(errs, c.want) {
+			t.Errorf("%s: code %d, stdout %q, stderr %q（1 と %q を含む理由で断るはず）", c.name, code, out, errs, c.want)
+		}
+		if b, _ := os.ReadFile(calls); len(b) > 0 {
+			t.Fatalf("%s: 断ったのに kanban を打った: %q", c.name, b)
+		}
+		if after, _ := os.ReadFile(qpath); !bytes.Equal(after, before) {
+			t.Fatalf("%s: 断ったのに questions.yaml が変わった", c.name)
+		}
+	}
+	if code, _, errs := run("", "S-0030#1"); code != 2 || !strings.Contains(errs, "--option") {
+		t.Errorf("--option の無い呼び出し: code %d, stderr %q（使い方で 2 のはず）", code, errs)
+	}
+
+	code, out, errs := run("", "S-30#1", "--option", "1")
+	if code != 0 || !strings.Contains(out, "S-0030#1 に「CSV だけ」と答えた") {
+		t.Fatalf("開いている判断の問い: code %d, stdout %q, stderr %q", code, out, errs)
+	}
+	b, _ := os.ReadFile(calls)
+	if got, want := strings.TrimSpace(string(b)), f.root+"|answer|S-0030#1|CSV だけ|"; got != want {
+		t.Errorf("kanban の呼び出し = %q, want %q（書くのは kanban answer だけで、答えは選んだ選択肢の label）", got, want)
+	}
+}

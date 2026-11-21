@@ -67,6 +67,8 @@ func line(n Notification) string {
 		return head + "報告 " + d("report") + "（PR " + d("pr") + "）"
 	case "asked":
 		return head + "問い " + d("n") + "（" + short("kind") + "）"
+	case "answered":
+		return head + "問い " + d("n") + "（" + short("kind") + "）にオーナーがペインで「" + d("answer") + "」と答えた"
 	case "ready":
 		s := head + "「" + short("title") + "」"
 		if r, ok := n.Detail["routine"]; ok && r != nil && r != "" {

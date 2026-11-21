@@ -244,6 +244,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `report` | `log.jsonl` の `{"report": "write" \| "append"}` | `report` のパス |
 | `review` | `{"status": "review"}` | `report`・`pr` |
 | `asked` | `{"question": n, "status": "open"}`。dispatcher 自身が出した問い（`by` が `terminal:dispatcher`）は出した巡で積み、この行からは積み直さない（[dispatcher.md](dispatcher.md) §2.2） | `n`・`kind`・`question`（§5 の JSON から） |
+| `answered` | `{"question": n, "status": "answered"}` のうち、書き手（`by`）が `terminal:` で始まらないもの。オーナーのペインの `andon waiting answer`（§25）が端末の外で書いた答えに当たる。Chief of Staff・dispatcher・担当など端末の中で書いた答えは積まない。読んだときに問いがもう `answered` でなければ（担当が受け取った）積まない（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 18・19） | `n`・`kind`（§5 の JSON から。無ければ `questions.yaml` の `kind`）・`answer`（`questions.yaml` の答えの文） |
 | `ready` | `kanban ready --json` の前回との差（オーナーの課題を除く） | `title`・`routine`、待つ相手（`after`）のうち PR を成果にする課題がマージされずに done になったものがあれば `abandoned[]`（id）、マージされたかを確かめられなかったものがあれば `unchecked[]`（id。見分け方は [dispatcher.md](dispatcher.md) §2.2） |
 | `review-requested` | `report.json` の `review_request`（dispatcher が起動したとき） | `round`・`reviewer`・`reviewer_issue` |
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス）、`fix` を担当へ送れなかった（担当の端末が無い）ときだけ `unsent`（担当の address）、`fix` で担当（`agent`）がいないときだけ `no_agent`（`true`） |
@@ -274,7 +275,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `merged`（`held` あり。片付けていない） | 届ける |
   | `report`（レビュアーの課題: `parent` があり `profile` が `*-review`） | 記録だけ |
   | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ |
-  | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled`・`estimate`・`memory` | 届ける |
+  | `report`（ほか）・`asked`・`answered`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled`・`estimate`・`memory` | 届ける |
 
 - **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード（記録の一覧）と `andon measure`（§13 の `news`）。届けた通知はここに書かない（渡したターンの終わりに §17 の記録に書く）。全部の出来事の一覧は kanban の `log.jsonl` が正で、この記録はその代わりではない。
 - `estimate` の `sign` は、段の通知を積むときに課題の worktree（`issue.yaml` の `worktree`）の git で数えた兆しの配列（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 11）。段の間には数えず、兆しだけで通知を出さない。worktree が無い・git で読めない兆しは数えない。
@@ -1076,8 +1077,9 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `items[].pr` | `report.json` の `pr`（`merge` の行で、あれば） |
 | `items[].reason` | 人が読む理由（`merge` の行）。1 つ目は gate の記録の `reasons`（無ければ問いの文）、2 つ目と 3 つ目は待つわけの1文 |
 | `items[].ask` | `decision` の行の問いの JSON（§5）の写し。問いの JSON が無い・形が違う問いは `ask` を持たない |
-| `items[].answerable` | `decision` の行だけ。オーナーのペインから答えられるか（`ask` があり、種類が `irreversible` でない）。答える口は別に足す（決めたこと 17） |
+| `items[].answerable` | `decision` の行だけ。オーナーのペインから答えられるか（`ask` があり、種類が `irreversible` でない）。答える口は下の `andon waiting answer`（決めたこと 17） |
 | `items[].holds` | その課題を `after` で待っている済んでいない課題の id（直接待つものと、その後ろで待つもの全部。id の順） |
 
 - 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。
+- **答える口** `andon waiting answer <id>#<n> --option <番号> [--project <slug>]`: オーナーのペインが、判断の行（`answerable: true`）の問いに、問いの JSON の選択肢の1つで答える（決めたこと 17・18）。番号は `ask.options` の並びの 1 から。書くのは `kanban answer <id>#<n> "<選んだ選択肢の label>"` の1つだけで、答えの文はその `label`。次のどれかなら何も書かずに終了コード 1 で断る: herdr の端末の中で打たれた（`HC_TERMINAL_ID` がある。担当も Chief of Staff も端末の中で動き、App の `exec` は端末の外で動く）・問いが `open` でない・問いの JSON が無いか読めない・`from: gate`・種類が `irreversible`・種類が判断（`business`・`users`・`promise`・`line`）でない・番号が選択肢の外。使い方の誤りは終了コード 2。`kanban answer` も `open` の問いだけを通すので、読んでから書くまでに答えが入っても、答えは1つだけになる。書いた答えの行は書き手が端末でないので、dispatcher が通知 `answered`（§6）で Chief of Staff に届ける。
 - kanban の `config.yaml` が読めないとき、`log.jsonl` が読めない（課題があるのに無い）とき、`--project` の kanban が無いときは終了コード 1。履歴が無いと、課題が `review` に入った時刻と `merge` の書き手が分からず、マージの依頼を動いている仕事に数えてしまうため、数えずに止まる。読めない `issue.yaml` は数えずに理由を標準エラーに出し、終了コード 0。

@@ -425,6 +425,11 @@ pass|notification|.kind = "report" | .detail = {report: .detail.report}|kind rep
 pass|notification|.kind = "asked" | .detail = {n: 1, kind: "line", question: "x"}|kind asked
 pass|notification|.kind = "asked" | .detail = {n: 1, kind: "scope", question: "x"}|kind asked（範囲の問い）
 fail|notification|.kind = "asked" | .detail = {n: 1, kind: "other", question: "x"}|asked の kind が知らない値
+pass|notification|.kind = "answered" | .detail = {n: 1, kind: "users", answer: "CSV だけ"}|kind answered（オーナーがペインで答えた）
+fail|notification|.kind = "answered" | .detail = {n: 1, kind: "users"}|answered に答えの文が無い
+fail|notification|.kind = "answered" | .detail = {n: 1, kind: "users", answer: ""}|answered の答えの文が空
+fail|notification|.kind = "answered" | .detail = {n: 1, kind: "users", answer: "x", question: "x"}|answered に知らないキー
+fail|notification|.kind = "answered" | .detail = {n: 0, kind: "users", answer: "x"}|answered の n が 0
 pass|notification|.kind = "ready" | .detail = {title: "x"}|kind ready（routine 無し）
 pass|notification|.kind = "review-requested" | .detail = {round: 1, reviewer: "codex-review", reviewer_issue: "A-13"}|kind review-requested
 pass|notification|.kind = "gate" | .detail = {decision: "fix", reasons: ["x"], record: "/x/gate/a.json"}|kind gate
@@ -882,6 +887,7 @@ measure|."$defs".rate.anyOf[0].minimum = -1|率の負を許す
 corrections|.required -= ["corrections"]|手直しの必須から corrections を外す
 corrections|."$defs".pr.anyOf = [{}]|pr の「コメントか commit のどちらか」を外す
 notification|.properties.kind.enum -= ["corrections"]|通知の kind から corrections を外す
+notification|.properties.kind.enum -= ["answered"]|通知の kind から answered を外す
 notification|.properties.kind.enum -= ["signal"]|通知の kind から signal を外す
 notification|."$defs".signal.additionalProperties = true|通知 signal の detail の知らないキーを許す
 notification|."$defs".resumed.required -= ["from"]|通知 resumed の必須から from を外す
