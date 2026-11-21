@@ -337,24 +337,48 @@ func TestShellChiefOfStaffNotCounted(t *testing.T) {
 	}
 }
 
-// 待っても前に出ているものが取れない: 使わず・起動せず・片付けず止まる（動いているかを確かめられない）。
+// 前に出ているものが取れないあいだは読み直し、上限まで取れなければ使わず・起動せず・片付けず止まる（動いているかを確かめられない）。
+// どちらも時刻で決めない: 読み直しは2回目の答えで終わり（上限は届かない天井）、止まるほうは上限 0 で1回読んで終わる。
 func TestChiefOfStaffForegroundUnknown(t *testing.T) {
-	f := newFake(t)
-	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
-	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","argv":["/bin/bash"],"foreground":null}`)
-	rc, _, errs := runMain()
-	if rc != exitFail || !strings.Contains(errs, "確かめられないので止まる") || f.has("hc run") || f.has("hc kill") || f.has("kanban config") {
-		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+	unknown := func(f *fake) string {
+		return `{"address":"t1","name":"sample-site-cos","cwd":"` + f.root + `","argv":["/bin/bash"],"foreground":null}`
 	}
-	n := 0
-	for _, c := range f.calls() {
-		if strings.HasPrefix(c, "hc get t1") {
-			n++
+	gets := func(f *fake) int {
+		n := 0
+		for _, c := range f.calls() {
+			if strings.HasPrefix(c, "hc get t1") {
+				n++
+			}
 		}
+		return n
 	}
-	if n < 2 {
-		t.Errorf("読み直していない: hc get %d 回", n)
-	}
+	t.Run("読み直す", func(t *testing.T) {
+		f := newFake(t)
+		spawn.SettleWait = time.Minute
+		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+		t.Setenv("FAKE_GET1", unknown(f))
+		t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)
+		rc, out, errs := runMain()
+		if rc != 0 || errs != "" || !strings.Contains(out, "t1（sample-site-cos・動いているものを使う）") || f.has("hc run") || f.has("hc kill") {
+			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+		if n := gets(f); n != 2 {
+			t.Errorf("取れないあいだ読み直して、取れたら止めていない: hc get %d 回", n)
+		}
+	})
+	t.Run("上限まで取れない", func(t *testing.T) {
+		f := newFake(t)
+		spawn.SettleWait = 0
+		t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
+		t.Setenv("FAKE_GET", unknown(f))
+		rc, _, errs := runMain()
+		if rc != exitFail || !strings.Contains(errs, "確かめられないので止まる") || f.has("hc run") || f.has("hc kill") || f.has("kanban config") {
+			t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+		}
+		if n := gets(f); n != 1 {
+			t.Errorf("上限 0 で読み直した: hc get %d 回", n)
+		}
+	})
 }
 
 // オーナーがシェルで使っている端末（top-level はエージェントの command で前にシェル・top-level がシェルで前に別のもの）は片付けない。
@@ -398,7 +422,7 @@ func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
 // 起動の直後: 最初の hc get には agent の情報がまだ無く、読み直すと status.app=claude-code。動いているとして使う（打ち直しを求めない）。
 func TestChiefOfStaffAgentAppearsLater(t *testing.T) {
 	f := newFake(t)
-	spawn.SettleWait = 2 * time.Second
+	spawn.SettleWait = time.Minute // 2回目の答えで終わる。上限は届かない天井（偽の hc の起動が遅くても、時刻で読み直しを打ち切らない）
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
 	t.Setenv("FAKE_GET1", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`","argv":["sh","-c","claude"],"status":null,"foreground":{"name":"sh","argv":["sh","-c","claude"]}}`)
 	t.Setenv("FAKE_GET", `{"address":"t1","name":"sample-site-cos","cwd":"`+f.root+`",`+fgAgent+`}`)

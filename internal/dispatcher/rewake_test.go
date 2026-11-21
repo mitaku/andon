@@ -92,6 +92,8 @@ func TestRewakeIgnores(t *testing.T) {
 // 待つ間にオーナーが打てば合図を打たずに 0: 動いている（working）・通って終わった（done・idle）・端末が読めない・
 // 通ったターンの Stop で回数が消えた・また切られて次のフックが回数を進めた。
 func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
+	old := rewakeSleep
+	t.Cleanup(func() { rewakeSleep = old })
 	for name, during := range map[string]func(f *retryFixture){
 		"working":    func(f *retryFixture) { f.cos("working") },
 		"done":       func(f *retryFixture) { f.cos("done") },
@@ -103,9 +105,14 @@ func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
 		},
 	} {
 		f := rewakeFixture(t)
-		rewakeUnit = 600 * time.Millisecond
-		go func() { time.Sleep(50 * time.Millisecond); during(f) }()
-		if code, msg, _ := rewake(t, `{"error":"server_error"}`); code != 0 || msg != "" {
+		// 待ちの中で変化を打ち終えてから待ちを終える。順は時刻でなく、待ちに入ったこと（回数の控えを書いたあと）で決まる
+		var waited []time.Duration
+		rewakeSleep = func(d time.Duration) { waited = append(waited, d); during(f) }
+		code, msg, _ := rewake(t, `{"error":"server_error"}`)
+		if len(waited) != 1 || waited[0] != rewakeUnit {
+			t.Fatalf("%s: 1 単位の待ちに1回入っていない: %v", name, waited)
+		}
+		if code != 0 || msg != "" {
 			t.Fatalf("%s: 止まったままでない Chief of Staff に合図を打った: %d %q", name, code, msg)
 		}
 	}
