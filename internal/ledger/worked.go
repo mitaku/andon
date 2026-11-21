@@ -125,6 +125,27 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 	return total
 }
 
+// LastStatus は log.jsonl の課題 id の change.status が status の最後の行の位置と時刻（問いの行と時刻の読めない行は飛ばす）。
+// 閉じたときまでの実働は rows[:i+1] で数える（時刻で打ち切ると、同じ秒にあとから書かれた todo などの行を混ぜる）。
+func LastStatus(rows []Row, id, status string) (int, time.Time, bool) {
+	return LastStatusUntil(rows, id, status, time.Time{})
+}
+
+// LastStatusUntil は LastStatus のうち、時刻が until まで（含む）の最後の行。until が零なら限らない。
+// 閉じた時刻を別に読んだ履歴で決めた読み手（andon measure）が、そのあとに足された done の行まで伸ばさないために使う。
+func LastStatusUntil(rows []Row, id, status string, until time.Time) (int, time.Time, bool) {
+	for i := len(rows) - 1; i >= 0; i-- {
+		r := rows[i]
+		if CanonID(r.ID) != id || r.Change == nil || r.Change["question"] != nil || r.Change["status"] != status {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339, r.At); err == nil && (until.IsZero() || !t.After(until)) {
+			return i, t, true
+		}
+	}
+	return 0, time.Time{}, false
+}
+
 // union は区間を時刻の順に並べ、重なるものをつなぐ。
 func union(in []span) []span {
 	sort.Slice(in, func(i, j int) bool { return in[i].from.Before(in[j].from) })

@@ -746,7 +746,9 @@ func cmdSet(e env, a args) error {
 			t.d.setStr("status", cfg.columns[0])
 			change.set("status", cfg.columns[0])
 			moved = true
-			freed = []string{id}
+			if !notYet(t, cfg) {
+				freed = []string{id}
+			}
 		}
 		done := moved && t.status() == cfg.done()
 		// Returning an issue (into review from another status) checks what done checks: an issue
@@ -908,7 +910,8 @@ func pastOf(a args, id string) (map[int]bool, error) {
 }
 
 // freeWaiting moves each queued task that waited for id, done now, and has nothing left to wait
-// for, to the first column; it logs and fires each move and returns the ids it moved.
+// for, to the first column; it logs and fires each move and returns the ids it moved that are ready
+// now (one whose not_before is still ahead moves too, but isn't said to be ready, as kanban ready doesn't list it).
 func freeWaiting(root string, cfg config, f *firing, id string) ([]string, error) {
 	freed := []string{}
 	tasks := allTasks(root)
@@ -931,7 +934,9 @@ func freeWaiting(root string, cfg config, f *firing, id string) ([]string, error
 		if err := f.entered(o, cfg.columns[0]); err != nil {
 			return nil, err
 		}
-		freed = append(freed, o.id)
+		if !notYet(o, cfg) {
+			freed = append(freed, o.id)
+		}
 	}
 	return freed, nil
 }

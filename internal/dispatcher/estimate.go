@@ -33,8 +33,10 @@ func (p *project) sawGone(id, agent string, now time.Time) {
 }
 
 // estimated は、課題がズレを数える担当の課題か（レビュアー・Chief Engineer・オーナー・Chief of Staff 自身の課題は数えない）。
-func estimated(t ledger.Issue, cos string) bool {
-	return !isReviewer(t) && !isEngineer(t) && t.Str("who") != "person" && t.Str("agent") != cos
+// Chief of Staff 自身の課題は、前の Chief of Staff が受けた課題も含む（起き直してアドレスが変わっても。watch と同じ見分け）。
+func estimated(rows []ledger.Row, t ledger.Issue, cos string) bool {
+	return !isReviewer(t) && !isEngineer(t) && t.Str("who") != "person" && t.Str("agent") != cos &&
+		!ledger.TakenByChiefOfStaff(rows, t.Str("id"), t.Str("agent"))
 }
 
 // estimate は doing の担当の課題ごとに実働を数え、超えた段のうちまだ知らせていないものがあれば、一番上の段を1件積む
@@ -51,7 +53,7 @@ func (p *project) estimate(now time.Time, cos string) {
 		}
 		v := p.l.Estimate(p.rows, t)
 		keep[id] = v
-		if t.Str("status") != "doing" || v == "" || !estimated(t, cos) {
+		if t.Str("status") != "doing" || v == "" || !estimated(p.rows, t, cos) {
 			continue
 		}
 		est := ledger.EstimateMinutes(v)

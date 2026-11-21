@@ -1,6 +1,7 @@
 package measure
 
 import (
+	"andon/internal/ledger"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -875,5 +876,56 @@ func TestMeasureEstimate(t *testing.T) {
 		if !strings.Contains(b.String(), s) {
 			t.Errorf("表に %q が無い:\n%s", s, b.String())
 		}
+	}
+}
+
+// 実働は閉じた done の行の位置で打ち切る（時刻で打ち切ると、同じ秒に足された todo の行を混ぜて、それまでの doing を捨ててしまう）。
+// S-0021 は doing 01:00〜done 01:30 の 30 分。done と同じ秒に todo へ戻し、期間のあとに doing で起動し直した。
+func TestMeasureEstimateCutsAtDoneRow(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sample-site")
+	k := filepath.Join(root, "kanban")
+	put(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: S\nchief_of_staff: t0\n")
+	put(t, filepath.Join(k, "issues", "S-0021", "issue.yaml"), "id: S-0021\ntitle: x\nstatus: doing\ncreated: \"2026-10-31T00:00:00Z\"\nestimate: small\n")
+	put(t, filepath.Join(k, "log.jsonl"), strings.Join([]string{
+		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t0","id":"S-0021","change":{"estimate":"small"}}`,
+		`{"at":"2026-11-01T01:00:00Z","by":"terminal:t1","id":"S-0021","change":{"status":"doing","agent":"t1"}}`,
+		`{"at":"2026-11-01T01:30:00Z","by":"terminal:t1","id":"S-0021","change":{"status":"done"}}`,
+		`{"at":"2026-11-01T01:30:00Z","by":"terminal:t0","id":"S-0021","change":{"status":"todo"}}`,
+		`{"at":"2026-11-02T02:00:00Z","by":"terminal:t2","id":"S-0021","change":{"status":"doing","agent":"t2"}}`,
+	}, "\n")+"\n")
+	res, err := Measure(Options{Root: root, Since: day("2026-11-01"), Until: day("2026-11-01"), Now: day("2026-11-03"),
+		GH: func(string) ([]byte, error) { return []byte("[]"), nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Issues) != 1 || res.Issues[0].Issue != "S-0021" || res.Issues[0].WorkedMinutes != 30 {
+		got, _ := json.Marshal(res.Issues)
+		t.Fatalf("実働が done の行で打ち切られていない: %s（want S-0021 の worked_minutes 30）", got)
+	}
+}
+
+// 閉じた時刻は1回目の読み込み（r.log）で決め、打ち切りの行は2回目（ledger）から選ぶ。その間に課題が todo・doing・done と
+// 進んで期間の外に2回目の done が足されても、打ち切りは閉じた時刻 d までの最後の done の行で、期間の外の再着手を混ぜない。
+// S-0022 は doing 01:00〜done 01:30 の 30 分。1回目の読み込みが見たのはここまで（doneAt は 01:30）。
+func TestMeasureEstimateIgnoresLaterDone(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sample-site")
+	k := filepath.Join(root, "kanban")
+	put(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: S\nchief_of_staff: t0\n")
+	put(t, filepath.Join(k, "log.jsonl"), strings.Join([]string{
+		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t0","id":"S-0022","change":{"estimate":"small"}}`,
+		`{"at":"2026-11-01T01:00:00Z","by":"terminal:t1","id":"S-0022","change":{"status":"doing","agent":"t1"}}`,
+		`{"at":"2026-11-01T01:30:00Z","by":"terminal:t1","id":"S-0022","change":{"status":"done"}}`,
+		// 1回目の読み込みのあとに足された行
+		`{"at":"2026-11-02T01:00:00Z","by":"terminal:t0","id":"S-0022","change":{"status":"todo"}}`,
+		`{"at":"2026-11-02T02:00:00Z","by":"terminal:t2","id":"S-0022","change":{"status":"doing","agent":"t2"}}`,
+		`{"at":"2026-11-02T03:00:00Z","by":"terminal:t2","id":"S-0022","change":{"status":"done"}}`,
+	}, "\n")+"\n")
+	r := &reader{root: root, dir: k}
+	byID := map[string]*issue{"S-0022": {id: "S-0022", raw: ledger.Issue{"id": "S-0022", "status": "done", "estimate": "small"}}}
+	doneAt := map[string]time.Time{"S-0022": time.Date(2026, 11, 1, 1, 30, 0, 0, time.UTC)}
+	_, got := r.estimates(Options{Root: root}, "done", []string{"S-0022"}, byID, doneAt, func(time.Time) bool { return true })
+	if len(got) != 1 || got[0].WorkedMinutes != 30 {
+		b, _ := json.Marshal(got)
+		t.Fatalf("期間の外の再着手を実働に混ぜた: %s（want worked_minutes 30）", b)
 	}
 }

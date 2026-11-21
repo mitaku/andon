@@ -171,6 +171,13 @@ func TestEstimateSkips(t *testing.T) {
 		"Chief Engineer": func(f *estimateFixture) { f.p.tasks[0]["profile"] = "chief-engineer" },
 		"オーナーの課題":        func(f *estimateFixture) { f.p.tasks[0]["who"] = "person" },
 		"review にいる":     func(f *estimateFixture) { f.p.tasks[0]["status"] = "review" },
+		"前の Chief of Staff が受けた課題": func(f *estimateFixture) {
+			// t3 が Chief of Staff だった間に自分で受け（agent=t3）、起き直して Chief of Staff が t5 になった
+			f.p.rows = append([]ledger.Row{{At: f.at(0).Format(time.RFC3339), By: "terminal:t3", Config: map[string]any{"chief_of_staff": "t3"}}}, f.p.rows...)
+			f.row(0, "t3", "S-7", map[string]any{"agent": "t3"})
+			f.p.rows = append(f.p.rows, ledger.Row{At: f.at(1).Format(time.RFC3339), By: "terminal:t5", Config: map[string]any{"chief_of_staff": "t5"}})
+			f.p.tasks[0]["agent"] = "t3"
+		},
 	} {
 		f := newEstimate(t)
 		edit(f)

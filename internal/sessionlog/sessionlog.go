@@ -243,7 +243,7 @@ func Codex(files []string, skip Skip) *Usage {
 	sort.Strings(files)
 	total := &Usage{}
 	for _, f := range files {
-		_, r := rollout(f, skip)
+		_, r, _ := rollout(f, skip)
 		total.Add(r.Usage)
 	}
 	return total
@@ -251,14 +251,15 @@ func Codex(files []string, skip Skip) *Usage {
 
 // CodexLogs は rollout をセッション（session_meta の id）ごとに数える（ids は id の順）。トークンは Codex と同じく
 // rollout ごとの最後の積み上がった数を足す。モデルと effort は turn_context の model と effort、ターン数は turn_context の turn_id の数。
-// id の読めない rollout は id を空にして1つにまとめる。
+// id の読めない rollout は id を空にして1つにまとめる。読み切れなかった rollout のあるセッションは Unread（Claude と同じく、
+// 読み手は未計測として扱える）。
 func CodexLogs(files []string, skip Skip) (ids []string, logs map[string]*Log) {
 	logs = map[string]*Log{}
 	turns := map[string]map[string]bool{}
 	files = append([]string{}, files...)
 	sort.Strings(files)
 	for _, f := range files {
-		id, r := rollout(f, skip)
+		id, r, ok := rollout(f, skip)
 		x := logs[id]
 		if x == nil {
 			x = &Log{}
@@ -276,6 +277,9 @@ func CodexLogs(files []string, skip Skip) (ids []string, logs map[string]*Log) {
 			turns[id][t] = true
 		}
 		x.Usage.Add(r.Usage)
+		if !ok {
+			x.Unread = true
+		}
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
@@ -293,11 +297,12 @@ type one struct {
 }
 
 // rollout は rollout 1本の session_meta の id と、最後の token_count・turn_context のモデルと effort とターンの id。
-func rollout(f string, skip Skip) (string, one) {
+// 開けない・読み切れなければ（飛ばした記録にして）false。
+func rollout(f string, skip Skip) (string, one, bool) {
 	src := "codex/" + filepath.Base(f)
 	var out one
 	id := ""
-	lines(f, src, skip, func(line int, b []byte) {
+	ok := lines(f, src, skip, func(line int, b []byte) {
 		s := string(b)
 		if !strings.Contains(s, `"token_count"`) && !strings.Contains(s, `"turn_context"`) && !strings.Contains(s, `"session_meta"`) {
 			return
@@ -344,7 +349,7 @@ func rollout(f string, skip Skip) (string, one) {
 			out.Usage = Usage{Input: in, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite}
 		}
 	})
-	return id, out
+	return id, out, ok
 }
 
 // lines は記録のファイルを1行ずつ f に渡す（空の行は飛ばす。長い行も読む）。開けない・読み切れなければ飛ばした記録にして false。

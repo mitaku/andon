@@ -264,7 +264,7 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 
 ### 2.10 見込みとのズレ
 
-`doing` の担当の課題（レビュアー・Chief Engineer・オーナーの課題を除く。調べる課題は含む）ごとに、見回り（1 巡の 4c の続き）で実働を数え、見込みの 1・2・4 倍を超えたら Chief of Staff に `estimate` を届ける（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 5〜8・11）。一律の上限で担当を止めるのではなく、見込みが外れたという事実を届ける。方向修正（担当の画面を読んで `hc send`・見込みを改める・分ける・切り直す）は Chief of Staff がする。
+`doing` の担当の課題（レビュアー・Chief Engineer・オーナーの課題と、Chief of Staff が自分で受けた課題を除く。前の Chief of Staff が受けた課題の見分けは §2.4 の担当の見回りと同じ。調べる課題は含む）ごとに、見回り（1 巡の 4c の続き）で実働を数え、見込みの 1・2・4 倍を超えたら Chief of Staff に `estimate` を届ける（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 5〜8・11）。一律の上限で担当を止めるのではなく、見込みが外れたという事実を届ける。方向修正（担当の画面を読んで `hc send`・見込みを改める・分ける・切り直す）は Chief of Staff がする。
 
 - **見込み**は予約キー `estimate`（contract.md §2。段→分は 30・60・120）で、最後に書いたのが Chief of Staff のときだけ読む。無い・知らない値・照合が合わない課題は比べず、通知も出さない（measure が「見込み無し」と数える）。
 - **実働**は待ちを除いた時間（`internal/ledger` の `Worked`。`doing` の区間の総和から、自分の問いが `open` の区間・レビュアーの子課題の `add` から `review` まで・端末が死んでいた区間を引く）。死んでいた区間の始まりは、見回りが担当の端末を Gone と見た時刻で、控えの `Gone`（課題 → 端末と時刻。同じ端末の死は最初の1回）に持つ。終わりは kanban の次の `agent` の行（resume か起動し直し）。

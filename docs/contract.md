@@ -813,7 +813,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `worked_minutes` | 実働（分）。`log.jsonl` を書くときに読み直し、最後の `done` の行までを（同じ秒にあとから書かれた行は数えない。読めない・`done` の行が無ければ書かない）、`andon measure` と同じ数え方（`ledger.Worked`。問い・レビュー・端末が死んでいた間を除く）で |
 | `sessions` | 起動の記録（§18）にある全部のセッション。起動の記録が無ければ `null`（さかのぼって作らない） |
 | `sessions[].harness`・`session` | ハーネスと、セッションの id。Claude Code は起動の記録の `session`（同じセッションは1つ。`session` が `null` の起動は1つにまとめて `cost` は `null`）。Codex は起動のときに id が決まらないので、cwd が課題の置き場（kanban の `issues/<id>/`・`issue.yaml` の `worktree`・起動の記録の `repo.path`）の rollout を、`session_meta` の id ごとに1つ。rollout が1つも無ければ `session` も `cost` も `null` の1件 |
-| `sessions[].cost` | セッションログから、書くときに読む。ログが無ければ `null`（Claude Code は既定で 30 日で消す）。Claude Code のログのファイルかサブエージェントの置き場を読み切れなかったときも `null`（未計測。トークンが0のセッションと分ける）。トークンの数え方は `andon measure` と同じ（`internal/sessionlog`）。`models` は実際に使われたモデルの id（サブエージェントのものも。出た順）、`efforts` は effort（出た順。記録に無ければ空）、`turns` はターン数（Claude Code は本線の user の行の `promptId` の数、Codex は `turn_context` の `turn_id` の数。印が無ければ `null`） |
+| `sessions[].cost` | セッションログから、書くときに読む。ログが無ければ `null`（Claude Code は既定で 30 日で消す）。Claude Code のログのファイルかサブエージェントの置き場、Codex の rollout を読み切れなかったときも `null`（未計測。トークンが0のセッションと分ける）。トークンの数え方は `andon measure` と同じ（`internal/sessionlog`）。`models` は実際に使われたモデルの id（サブエージェントのものも。出た順）、`efforts` は effort（出た順。記録に無ければ空）、`turns` はターン数（Claude Code は本線の user の行の `promptId` の数、Codex は `turn_context` の `turn_id` の数。印が無ければ `null`） |
 
 - **ファイルが無いのは「集めていない」。** 読めないもの（gh・kanban・gate の記録・起動の記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目なら dispatcher のログに1行で諦める（通知は積まない。§14 の `corrections` と違い、Chief of Staff が手で集め直す口は無い。振り返りは無い欄を `null` として読む）。gh の上限で止めている間（控えの `GHReset`）は打たず、回数にも数えない。
 - 片付けたあとに状態が変わる PR（`open` のまま片付いて、あとでオーナーがマージした）は、書いたときの状態のまま。書き直さない（「1回だけ書く」。マージ後のことは振り返りが GitHub から読む）。
