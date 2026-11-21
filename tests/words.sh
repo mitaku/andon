@@ -11,6 +11,8 @@
 #   ADR-0013 とその決定のファイルでは、語そのものを挙げた所（「」・``・（）の中、「X→」の形、語の表の「今」の列）だけを
 #   外す。地の文の語は当たる。
 # tests/.task-tmp（tests/isolation が置く一時の置き場。selftest の写しが入る）は見ない。
+# どの段も grep に -H を付け、範囲の空でないときだけ回す。範囲がファイル1つだと、-H が無い grep はファイル名を出さず、
+#   ファイル名で読む例外と当たりの行（perl の「ファイル:行:」）が素通りする。範囲が空の grep -r は根の全体（.github/ も）を見る。
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -23,7 +25,8 @@ existing=()
 for p in "${paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 
 changelog_v=$(grep -n -m1 '^## v' CHANGELOG.md 2>/dev/null | cut -d: -f1 || true)
-hits=$(grep -rnIP "$words" "${existing[@]}" \
+hits=""
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$words" "${existing[@]}" \
   --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
@@ -147,7 +150,8 @@ punct='(?:、|。|・) (?!https?://|[|→]|``|\s*$)|(?<=[A-Za-z0-9]) (?:、|。|
 punct_paths=("${paths[@]}" model)
 existing=()
 for p in "${punct_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
-hits=$(grep -rnHIP ' (?:、|。|・)|(?:、|。|・) ' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
+hits=""
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP ' (?:、|。|・)|(?:、|。|・) ' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^\(internal/triage/[a-z_]*\.go\|package/skills/triage/SKILL\.md\|tests/andon-triage\.sh\):[0-9]*:.*閉じ[たる] .* ・ 直す ' \
     -e '^docs/decisions/2026-11-13-cos-principles-playbooks\.md:[0-9]*:| [0-9]* | `' \
