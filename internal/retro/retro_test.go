@@ -350,6 +350,34 @@ func TestPreviousFixes(t *testing.T) {
 	}
 }
 
+// ADR-0042 受け入れ条件 13: Chief Engineer の課題を parent にした担当の課題（文書から切った実装）は、
+// PR がマージされていても前の直しに数えない。担当の課題として束ねる。
+func TestChiefEngineerChildIsNotFix(t *testing.T) {
+	f := newFixture(t)
+	k := filepath.Join(f.root, "kanban")
+	lib := filepath.Join(k, "issues", "A-0011")
+	write(t, filepath.Join(lib, "issue.yaml"), issueYAML("A-0011", "done", "profile: claude\nparent: A-0009\n"))
+	pr11 := "https://github.com/example/sample-site/pull/11"
+	write(t, filepath.Join(lib, "library", "report.json"), `{"pr":"`+pr11+`"}`)
+	write(t, filepath.Join(lib, "library", "outcome.json"), `{"result":"merged","pr":"`+pr11+`","merged_at":"`+ago(2*day)+`"}`)
+	logPath := filepath.Join(k, "log.jsonl")
+	old, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, logPath, string(old)+ledgertest.Log(t, fmt.Sprintf(`{"at":%q,"by":"terminal:t1","id":"A-0011","change":{"status":"done"}}`, ago(day))))
+	in, _ := f.collect(t)
+	for _, x := range in.Fixes {
+		if x.Issue == "A-0011" {
+			t.Errorf("Chief Engineer の子が前の直しに入った: %+v", in.Fixes)
+		}
+	}
+	if len(in.Fixes) != 1 || in.Fixes[0].Issue != "A-0007" {
+		t.Errorf("前の直し = %+v（振り返りが切った A-0007 だけ）", in.Fixes)
+	}
+	bundle(t, in, "A-0011")
+}
+
 // 受け入れ条件 19: 途中でパッケージが当て直された課題に印が付く。
 func TestReapplied(t *testing.T) {
 	in, _ := newFixture(t).collect(t)
