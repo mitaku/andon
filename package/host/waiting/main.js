@@ -35,7 +35,9 @@ const firstLine = (s) => String(s ?? "").trim().split("\n")[0].trim();
 export function readOutput(r) {
   if (!r) return { reason: "andon waiting did not run" };
   // 127: the shell found no such command (a cell older than andon waiting).
-  if (r.code === 127) return { reason: "This cell has no andon waiting: update the cell's Andon" };
+  if (r.code === 127) return { reason: "This cell has no andon: update the cell's Andon" };
+  // 2: andon's usage error. The arguments are fixed, so it is an andon older than `andon waiting`.
+  if (r.code === 2) return { reason: "This cell's andon has no waiting command: update the cell's Andon" };
   if (r.code !== 0) return { reason: `andon waiting failed: ${firstLine(r.stderr) || `exit ${r.code}`}` };
   let data;
   try { data = JSON.parse(r.stdout); } catch { return { reason: "andon waiting printed something that is not JSON" }; }
@@ -86,7 +88,8 @@ export default class Waiting extends View {
       } finally {
         this.reading = false;
       }
-      if (this.where !== where) return;
+      // The place changed while reading: read the new one now, not at the next tick.
+      if (this.where !== where) { this.refresh(cx); return; }
       this.data = got.data ?? null;
       this.reason = got.reason ?? null;
       cx.notify();

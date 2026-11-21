@@ -10,7 +10,7 @@ The list is not counted here. The mod runs `andon waiting --json` in the cell, i
 - **One row per wait**, in the output's order (most issues waiting behind it first, then the oldest): the kind (`Merge`, `Decide`, `Do`), the issue's id and title, how long it has waited (`since`), and how many issues wait behind it (`holds`).
 - **Click a row to open it:** the question, its facts, why it is asked and its options (the recommended one marked), or the reason a merge waits; the question's number; the issues waiting behind it by id. A merge row has **Open PR** (your browser). Every row has **Go to Chief of Staff** while the project's Chief of Staff (`role=chief-of-staff`, `project=<slug>`) runs on that machine.
 - **Nothing waiting:** the slots line and `Nothing is waiting on you`.
-- **When it can't tell:** one line in `blocked` with the reason, and nothing else: the command failed (its first line of error, such as no ledger in this folder), its output isn't JSON, its `version` isn't 1, or the cell has no `andon waiting` (an older Andon in the cell: update the cell).
+- **When it can't tell:** one line in `blocked` with the reason, and nothing else: the command failed (its first line of error, such as no ledger in this folder), its output isn't JSON, its `version` isn't 1, or the cell's `andon` is missing or older than `andon waiting` (update the cell's Andon).
 
 It is not called "Needs you": the inbox's Needs you is terminal states, and a question on the ledger is not a state. This pane doesn't answer questions: answer a decision to the Chief of Staff, merge a pull request on GitHub.
 

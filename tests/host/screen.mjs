@@ -593,7 +593,9 @@ await check('waiting: 出力が読めない・version が 1 でない・command 
   const cases = [
     [{ code: 0, stdout: 'not json', stderr: '' }, /not JSON/],
     [json({ ...SAMPLE_WAITING, version: 2 }), /version 2; this pane reads version 1/],
-    [{ code: 127, stdout: '', stderr: 'sh: andon: not found' }, /no andon waiting/],
+    [{ code: 127, stdout: '', stderr: 'sh: andon: not found' }, /^This cell has no andon: update/],
+    // An andon older than the waiting command: its usage error (exit 2).
+    [{ code: 2, stdout: '', stderr: 'andon: 知らない sub-command: waiting\nusage: andon <sub-command>' }, /^This cell's andon has no waiting command: update/],
     [new Error('spawn andon ENOENT'), /^Can't run andon waiting: spawn andon ENOENT$/],
     [{ code: 1, stdout: '', stderr: 'andon waiting: kanban が見つからない（projects/<slug>/ か担当の worktree で打つ）\nmore' }, /^andon waiting failed: andon waiting: kanban が見つからない/],
     [json({ version: 1, project: 'sample-site' }), /no slots or items/],

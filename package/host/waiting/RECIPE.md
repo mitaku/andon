@@ -15,7 +15,7 @@ On the theme's `background`:
 ## How it behaves
 
 - Place: the focused pane's folder and machine (Herdr's Files panel's `location()`); a new place drops what was read and the open rows.
-- Reading: `exec("andon", ["waiting", "--json"], { cwd, on, timeout: 15000 })` at start, every 10 s (`cx.timer.every`), and when the place changes; one run at a time. Exit 127: no such command in the cell. Another non-zero exit: its first stderr line. Then JSON, `version` 1, `slots` and `items`, or a one-line reason.
+- Reading: `exec("andon", ["waiting", "--json"], { cwd, on, timeout: 15000 })` at start, every 10 s (`cx.timer.every`), and when the place changes; one run at a time; a place that changed during a run is read as soon as the run ends. Exit 127: no `andon` in the cell. Exit 2 (andon's usage error, with fixed arguments): an andon older than `andon waiting`. Another non-zero exit: its first stderr line. Then JSON, `version` 1, `slots` and `items`, or a one-line reason.
 - Order: the output's `items` as they are.
 - Chief of Staff: a live terminal with labels `role=chief-of-staff` and `project=<output project>` on the same machine (`<machine>/` prefix), else none.
 
