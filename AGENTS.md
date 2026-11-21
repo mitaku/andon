@@ -37,9 +37,9 @@
 | 報告や依頼書の文を `docs/`・注釈に写したら、commit の前に `bash tests/words.sh` を回す（報告・依頼書は語の検査を通らず、禁止語が残っている）。 | `tests/words.sh`。CI でいつも走る。 |
 | 設計の正は `docs/design.md` と `docs/adr/`。 | 無し。どれを正とするかの決まりで、見るものが無い。 |
 | 決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。 | `tests/smoke.sh`。`docs/decisions/` のファイルの名前と行の形、`docs/decisions.md` の凍結した表に行が足されていないことを見る。 |
-| ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、README の ADR の一覧を突き合わせる。 |
+| ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、README の ADR の一覧、決定の記録を突き合わせる。 |
 | ADR の番号は書き終える直前にも、ほかの worktree を `git worktree list` で見直す。書いている間に別の担当が同じ番号を取ることがある。 | 無し。取り合いは書いている間に起きて、見るものが無い。 |
-| ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` で足す。 | 無し。ADR と決定の記録の対は見ない。 |
+| ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` で足す。 | `tests/adr-index.sh`。ADR ごとに `docs/decisions/` の対か `docs/decisions.md` の凍結した表（§14）の行が無ければ落ちる。 |
 | 迷ったら推奨案で進めて報告に書く。 | 無し。判断の決まりで、見るものが無い。 |
 | 1ファイル1読み手。人用の文書（`README.md`・`docs/`）に機械が読む行を埋めない。AI 用の文書（この `AGENTS.md`・`REVIEW.md`・`package/skills/`）に人向けの経緯を書かない。 | 無し。読み手は文の中身で決まり、機械では見分けない。 |
 | この repo は public。秘密・個人の環境に固有の値（セル名・ホスト名・ポート番号・メールアドレス・ユーザー名・ホームのパス）・案件に固有の名前を入れない。例は架空の名前（`example.com`・`<owner>`・`sample-site`）で。禁止リストは repo の外に置く（書き方は `tests/README.md`。リストの語を repo に書かない）。 | `tests/public.sh`。禁止リストと秘密の形に当たる行で落ちる。 |
