@@ -24,8 +24,8 @@
 | 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js`・`package/host/kanban-board/main.js` | 生きている |
 | 15 | Chief Engineer の文書から切った課題を、もとの Chief Engineer の課題に `parent` で結ぶ | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 16 | Chief of Staff がオーナーへ書く文は増やさず、マージの依頼に、後ろで待つ課題の数を書き足すだけにする | この ADR | まだ実装していない |
-| 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | `internal/waiting/answer.go`・`docs/contract.md` §25 | 生きている。答える command は入った。ペインの選択肢とボタンはまだ実装していない |
-| 18 | 端末の外から書かれた答えをオーナーの答えとして扱い、戻せない決断はペインから答えられない | `internal/waiting/answer.go`・`internal/dispatcher/pickup.go`・`package/skills/chief-of-staff/playbooks/watch.md` | 生きている。ペインがボタンを出さない段は、ペインの選択肢とボタンを足すときにする |
+| 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | `internal/waiting/answer.go`・`docs/contract.md` §25・`package/host/waiting/main.js` | 生きている |
+| 18 | 端末の外から書かれた答えをオーナーの答えとして扱い、戻せない決断はペインから答えられない | `internal/waiting/answer.go`・`internal/dispatcher/pickup.go`・`package/skills/chief-of-staff/playbooks/watch.md`・`package/host/waiting/main.js` | 生きている |
 | 19 | ペインの答えは、dispatcher が通知 `answered` で Chief of Staff に届け、Chief of Staff が担当へ渡す | `internal/dispatcher/pickup.go`・`docs/contract.md` §6・`package/skills/chief-of-staff/playbooks/watch.md`・`model/IssueRules.tla` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）

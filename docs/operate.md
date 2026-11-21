@@ -290,7 +290,7 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 | `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（Board・List・課題の連なりの Flow。`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
-| `waiting` | 右のパネルの 3 つ目の画面。フォーカスした pane のプロジェクトで `andon waiting --json` を呼び、並行の枠とオーナー待ち（マージの依頼・判断・手作業）を出力の並びのまま描く。行を開くと問いと選択肢が読め、マージの依頼は PR を開ける。数える式を持たず、読むだけで答えない。inbox の見出しのボタンで開く（ADR-0042） | `package/host/waiting/README.md` |
+| `waiting` | 右のパネルの 3 つ目の画面。フォーカスした pane のプロジェクトで `andon waiting --json` を呼び、並行の枠とオーナー待ち（マージの依頼・判断・手作業）を出力の並びのまま描く。行を開くと問いと選択肢が読め、マージの依頼は PR を開ける。判断の問い（`answerable: true`）は、選択肢を選んで確かめのボタンを押すと `andon waiting answer` で答えられる。数える式も書く式も持たず、書くのはその command だけ。inbox の見出しのボタンで開く（ADR-0042） | `package/host/waiting/README.md` |
 
 由来は前身の herdr-flightdeck（private）の `herdr-app/`（commit `afc57ac`。`work-board` を `kanban-board` に改名）。ライセンスは各 README の Origin・Licence の節（files-plus は Herdr の `files` mod の改変で Apache-2.0、andon の `brand.js` は Herdr の `workspace-chrome` の brand の改変で Apache-2.0、同梱の Pele は MIT、inbox の Lucide のアイコンは ISC、kanban-board の js-yaml は MIT）。
 

@@ -555,7 +555,8 @@ const SAMPLE_WAITING = {
     { kind: 'task', id: 'S-0031', title: 'image を焼き直す', since: '2026-11-21T08:55:43Z', holds: [] },
   ],
 };
-async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', terms = [] } = {}) {
+// `answer` is what `andon waiting answer` gives (a reply, or an Error it throws); by default it wrote.
+async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', terms = [], answer = { code: 0, stdout: 'answered\n', stderr: '' } } = {}) {
   const calls = { exec: [], run: [] };
   const ns = await load(`${HOST}/waiting`, {
     spaces: () => [{ id: 's1', active: true, machine: null, folder: cwd }], panes: () => [{ pane: 'p1', cwd }],
@@ -564,13 +565,14 @@ async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', term
     exec: async (cmd, a, opts = {}) => {
       calls.exec.push([cmd, fromMod(a), { cwd: opts.cwd, on: opts.on ?? null }]);
       if (cmd !== 'andon') return { code: 0, stdout: '', stderr: '' };
+      if (a[1] === 'answer') { if (answer instanceof Error) throw answer; return answer; }
       if (reply instanceof Error) throw reply;
       return typeof reply === 'function' ? reply() : reply;
     },
   }, recordingUi());
   const v = new ns.default();
   let pending = [];
-  const cx = { spawn: (fn) => pending.push(fn(cx)), notify: () => {}, timer: { every() {}, after() {} }, stop_propagation() {} };
+  const cx = { spawn: (fn) => pending.push(fn(cx)), settle: () => Promise.all(pending), notify: () => {}, timer: { every() {}, after() {} }, stop_propagation() {} };
   v.init({}, cx);
   await Promise.all(pending);
   return { v, calls, cx, ns, draw: () => v.render(cx) };
@@ -596,7 +598,7 @@ await check('waiting: andon waiting --json をフォーカスした pane のフ�
   assert.deepEqual(textOf(byId(full, 'waiting-slots')), ['Slots 2/2 working · 2 waiting on you · full']);
 });
 
-await check('waiting: 行を開くと問いの文・事実・選択肢・後ろで待つ課題が出て、マージの依頼は PR を開け、Chief of Staff へ行ける。答えるボタンは無い（ADR-0042 受け入れ条件 10）', async () => {
+await check('waiting: 行を開くと問いの文・事実・選択肢・後ろで待つ課題が出て、マージの依頼は PR を開け、Chief of Staff へ行ける。選ぶ前は答えるボタンが無い（ADR-0042 受け入れ条件 10）', async () => {
   const cos = { address: 't1', state: 'live', labels: { project: 'sample-site', role: 'chief-of-staff' } };
   const { v, calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING), { terms: [cos, { address: 't2', state: 'live', labels: { project: 'other', role: 'chief-of-staff' } }] });
   let tree = draw();
@@ -608,7 +610,7 @@ await check('waiting: 行を開くと問いの文・事実・選択肢・後ろ�
   assert.ok(detail, '開いた行の中身が無い');
   const said = textOf(detail);
   for (const want of ['書き出しは CSV だけにするか', '· 依頼書の「やること」', '利用者に見える', '1. CSV だけ (recommended)', '2. Excel も']) assert.ok(said.includes(want), `${want} が無い: ${said}`);
-  assert.ok(!walk(detail).some((n) => /answer|confirm/i.test(String(last(n, 'id') ?? ''))), '答えるボタンがある');
+  assert.ok(!byId(tree, 'waiting-answer-S-0030'), '選ぶ前から答えるボタンがある');
   click(byId(tree, 'waiting-cos-S-0030'));
   assert.deepEqual(calls.run.at(-1), ['agent.focus', { terminal: 't1' }], '別のプロジェクトの Chief of Staff へ行った');
   click(byId(tree, 'waiting-head-S-0021'));
@@ -642,6 +644,92 @@ await check('waiting: 出力が読めない・version が 1 でない・command 
   }
 });
 
+// Answering a decision from the pane (ADR-0042 acceptance 18): only the answer button runs the command.
+const clickOn = (cx) => (node) => { const [fn] = args(node, 'on_click').at(-1); fn({}, cx); };
+
+await check('waiting: 判断の行で選択肢を選んだだけでは呼ばず、確かめのボタンを押したときだけ andon waiting answer を決まった引数で 1 回呼び、行が Answered に変わる（ADR-0042 受け入れ条件 18）', async () => {
+  const { v, calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING));
+  const realExec = calls.exec;
+  const click = clickOn(cx);
+  click(byId(draw(), 'waiting-head-S-0030'));
+  let tree = draw();
+  assert.ok(!byId(tree, 'waiting-answer-S-0030'), '選ぶ前から答えるボタンがある');
+  const before = realExec.length;
+  click(byId(tree, 'waiting-option-S-0030-1'));
+  await cx.settle();
+  assert.equal(realExec.length, before, '選んだだけで command を呼んだ');
+  tree = draw();
+  const button = byId(tree, 'waiting-answer-S-0030');
+  assert.ok(button, '選んだあとに答えるボタンが無い');
+  assert.deepEqual(textOf(button), ['Answer "Excel も"']);
+  click(button);
+  await cx.settle();
+  const answers = realExec.filter((c) => c[1][0] === 'waiting' && c[1][1] === 'answer');
+  assert.equal(answers.length, 1, `andon waiting answer を ${answers.length} 回呼んだ`);
+  assert.deepEqual(answers[0], ['andon', ['waiting', 'answer', 'S-0030#1', '--option', '2'], { cwd: '/srv/cell/projects/sample-site', on: null }]);
+  tree = draw();
+  assert.deepEqual(textOf(byId(tree, 'waiting-answered-S-0030')), ['· Answered: Excel も'], '行が Answered に変わらない');
+  assert.deepEqual(textOf(byId(tree, 'waiting-answered-note-S-0030')), ['Answered: Excel も']);
+  assert.ok(!byId(tree, 'waiting-answer-S-0030'), '答えたあとも答えるボタンがある');
+  // Answered rows take no more picks: clicking an option again runs nothing.
+  assert.equal(args(byId(tree, 'waiting-option-S-0030-0'), 'on_click').length, 0, '答えたあとも選択肢が押せる');
+  // The next read without the question drops the row; with it, the row stays answered.
+  v.refresh(cx);
+  await cx.settle();
+  assert.ok(byId(draw(), 'waiting-answered-S-0030'), '同じ問いがまだ一覧にあるのに Answered が消えた');
+});
+
+await check('waiting: answerable が true でない判断の行（戻せない決断・選択肢が無い・古い andon で欄が無い）とマージと手作業の行には、選択肢を押す口も答えるボタンも出さない（ADR-0042 受け入れ条件 18）', async () => {
+  const irreversible = { ...SAMPLE_WAITING.items[1], id: 'S-0040', question: 'S-0040#2', answerable: false,
+    ask: { ...SAMPLE_WAITING.items[1].ask, kind: 'irreversible' } };
+  const noField = { ...SAMPLE_WAITING.items[1], id: 'S-0041', question: 'S-0041#1' };
+  delete noField.answerable;
+  const noAsk = { kind: 'decision', id: 'S-0042', title: '問いの JSON が無い', since: '2026-11-21T02:12:13Z', question: 'S-0042#1', answerable: false, holds: [] };
+  const sample = { ...SAMPLE_WAITING, items: [...SAMPLE_WAITING.items, irreversible, noField, noAsk] };
+  const { v, calls, draw, cx } = await waitingPane(json(sample));
+  for (const id of ['S-0021', 'S-0031', 'S-0040', 'S-0041', 'S-0042']) v.toggle(id);
+  const tree = draw();
+  for (const id of ['S-0021', 'S-0031', 'S-0040', 'S-0041', 'S-0042']) {
+    const detail = byId(tree, `waiting-detail-${id}`);
+    assert.ok(detail, `${id} が開かない`);
+    const pressable = walk(detail).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
+    assert.equal(pressable.length, 0, `${id} の選択肢が押せる`);
+    assert.ok(!byId(tree, `waiting-answer-${id}`), `${id} に答えるボタンがある`);
+  }
+  for (const id of ['S-0040', 'S-0041', 'S-0042']) assert.ok(textOf(byId(tree, `waiting-detail-${id}`)).includes('Answer it to the Chief of Staff.'), `${id} に Chief of Staff へ答える案内が無い`);
+  // The same check finds a pressable option where there is one.
+  v.toggle('S-0030');
+  const can = walk(byId(draw(), 'waiting-detail-S-0030')).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
+  assert.equal(can.length, 2, '押せる選択肢を拾う式が何も見ていない');
+  assert.ok(!calls.exec.some((c) => c[1][1] === 'answer'), '押していないのに andon waiting answer を呼んだ');
+});
+
+await check('waiting: andon waiting answer が断ったときは理由を 1 行で出し、Answered にせず、選んだ選択肢を残す（ADR-0042 受け入れ条件 18）', async () => {
+  const cases = [
+    [{ code: 1, stdout: '', stderr: 'andon waiting answer: S-0030#1: 問いが開いていない（answered）。答え済みの問いには書かない\nmore' }, /^Not answered: andon waiting answer: S-0030#1: 問いが開いていない/],
+    [{ code: 2, stdout: '', stderr: 'andon: 知らない sub-command' }, /^This cell's andon can't answer from the pane: update/],
+    [{ code: 127, stdout: '', stderr: 'sh: andon: not found' }, /^This cell has no andon: update/],
+    [new Error('spawn andon ENOENT'), /^Can't run andon waiting answer: spawn andon ENOENT$/],
+  ];
+  for (const [answer, want] of cases) {
+    const { calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING), { answer });
+    const click = clickOn(cx);
+    click(byId(draw(), 'waiting-head-S-0030'));
+    click(byId(draw(), 'waiting-option-S-0030-0'));
+    const read = calls.exec.length;
+    click(byId(draw(), 'waiting-answer-S-0030'));
+    await cx.settle();
+    assert.equal(calls.exec.length, read + 1, 'andon waiting answer を 1 回呼んでいない');
+    const tree = draw();
+    const said = textOf(byId(tree, 'waiting-answer-failed-S-0030') ?? { kids: [], calls: [] });
+    assert.equal(said.length, 1, `理由が 1 行でない: ${said}`);
+    assert.match(said[0], want);
+    assert.ok(!said[0].includes('\n'), '理由が 2 行ある');
+    assert.ok(!byId(tree, 'waiting-answered-S-0030'), '断られたのに Answered にした');
+    assert.deepEqual(textOf(byId(tree, 'waiting-answer-S-0030')), ['Answer "CSV だけ"'], '選んだ選択肢が消えた');
+  }
+});
+
 // What the two mods run (ADR-0042 acceptance 12): the first argument of every exec( call, in order.
 function execTargets(src) {
   const out = [];
@@ -663,13 +751,15 @@ function execTargets(src) {
 }
 const OPENER = 'platform === "windows" ? "explorer.exe" : platform === "macos" ? "open" : "xdg-open"';
 
-await check('kanban-board と waiting が呼ぶ command は決まった一覧のまま。kanban を書く command とネットワークが無く、waiting が呼ぶのは andon waiting --json と PR を開くものだけ（ADR-0042 受け入れ条件 12）', async () => {
+await check('kanban-board と waiting が呼ぶ command は決まった一覧のまま。kanban を書く command とネットワークが無く、waiting が呼ぶのは andon waiting --json と andon waiting answer と PR を開くものだけ（ADR-0042 受け入れ条件 12・18）', async () => {
   const board = await readFile(`${HOST}/kanban-board/main.js`, 'utf8');
   const waiting = await readFile(`${HOST}/waiting/main.js`, 'utf8');
   assert.deepEqual(execTargets(board), ['"powershell"', '"andon"', OPENER, '"sh"', '"sh"', '"git"', '"sh"', '"ls"'], 'kanban-board の exec の呼び先が変わった');
-  assert.deepEqual(execTargets(waiting), [OPENER, '"andon"'], 'waiting の exec の呼び先が変わった');
+  assert.deepEqual(execTargets(waiting), [OPENER, '"andon"', '"andon"'], 'waiting の exec の呼び先が変わった');
   assert.equal(waiting.split('exec("andon", ["waiting", "--json"],').length, 2, 'andon waiting の引数が決まった形でない');
   assert.equal(board.split('exec("andon", ["waiting", "--json"],').length, 2, 'kanban-board の andon waiting の引数が決まった形でない');
+  // The one way to write: andon waiting answer with the question and the option's number, nothing else.
+  assert.equal(waiting.split('exec("andon", ["waiting", "answer", q, "--option", String(n + 1)],').length, 2, 'andon waiting answer の引数が決まった形でない');
   // The extraction finds a call it should: a new exec in a copy changes the list.
   assert.deepEqual(execTargets(`${waiting}\nexec("kanban", ["done"]);`).at(-1), '"kanban"', '呼び先を拾う式が何も見ていない');
   for (const [name, src] of [['kanban-board', board], ['waiting', waiting]]) {
@@ -679,6 +769,7 @@ await check('kanban-board と waiting が呼ぶ command は決まった一覧の
   const readme = await readFile(`${HOST}/waiting/README.md`, 'utf8');
   assert.match(readme, /^## What it runs$/m, 'README に What it runs の表が無い');
   assert.match(readme, /\| `exec\("andon", \["waiting", "--json"\], \{cwd, on\}\)` \|/, 'README の表に andon waiting の行が無い');
+  assert.match(readme, /\| `exec\("andon", \["waiting", "answer", question, "--option", n\], \{cwd, on\}\)` \|/, 'README の表に andon waiting answer の行が無い');
 });
 
 await check('レイアウト andon: 右のパネルの stack に waiting の block があり、inbox の見出しのボタンがパネルを出して waiting を選ぶ（ADR-0042 決めたこと 12）', async () => {
