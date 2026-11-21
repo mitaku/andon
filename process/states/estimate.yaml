@@ -10,7 +10,7 @@ states:
 positions: [dispatcher:Gone]
 transitions:
   - { from: "[*]", to: within, on: "課題が doing に入った", by: ai, command: kanban start }
-  - { from: within, to: over, on: "実働が見込みの 1 倍を超えた。estimate を Chief of Staff に届ける（担当には送らない。初めて見る台帳では控えるだけ。§7.2 #21）", by: machine, once: true }
+  - { from: within, to: over, on: "実働が見込みの 1 倍を超えた。estimate を Chief of Staff に届ける（担当には送らない。初めて見る kanban では控えるだけ。§7.2 #21）", by: machine, once: true }
   - { from: over, to: over, on: "実働が見込みの次の段（2・4 倍）を超えた。estimate を 1 回届ける（§7.2 #21）", by: machine, once: true }
   - { from: over, to: within, on: "Chief of Staff が見込みを改めた（古い値の段を捨てて数え直す）", by: ai, command: kanban set }
   - { from: within, to: "[*]", on: "最初の列に戻った（todo・queued・done。控えを捨てる）", by: machine }

@@ -34,4 +34,4 @@ stateDiagram-v2
 | （始まり・終わり） | `waiting` | 通知が積まれた | 機械 |  |  |
 | `waiting` | `handed` | 入力欄が空: 渡す | 機械 | `andon dispatcher` | はい |
 | `handed` | `done` | ack | AI |  |  |
-| `done` | （始まり・終わり） | 片付けた | 台帳の CLI |  |  |
+| `done` | （始まり・終わり） | 片付けた | kanban の CLI |  |  |

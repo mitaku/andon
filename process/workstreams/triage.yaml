@@ -1,7 +1,7 @@
 # 判定表と decisions.json の形は triage skill が正。ここは流れだけ。
 name: triage
 title: 仕分け（Triage）
-purpose: 台帳に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・オーナーへ回すを決める
+purpose: kanban に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・オーナーへ回すを決める
 triggers:
   # ルーチン triage（週 1）が足した課題の ready
   - name: routine
@@ -30,7 +30,7 @@ steps:
     title: 外のお知らせを直す課題に切る
     by: ai
     input: [notification.signal]
-    output: [台帳（直す課題。links に信号の url）]
+    output: [kanban（直す課題。links に信号の url）]
     skill: chief-of-staff/playbooks/cut.md
     decides: [直す課題に切る, 依頼書の要点]
     asks:
@@ -38,23 +38,23 @@ steps:
   - id: add
     title: オーナーのゴールか memory の量でトリアージの課題を足す
     by: ai
-    input: [オーナーの言葉（ゴール）, notification.memory, 台帳（動いているトリアージ）]
-    output: [台帳（トリアージの課題）]
+    input: [オーナーの言葉（ゴール）, notification.memory, kanban（動いているトリアージ）]
+    output: [kanban（トリアージの課題）]
     skill: chief-of-staff/playbooks/triage.md
     decides: [足すか（同時に 1 つ）]
     next: [{ id: start }]
   - id: start
     title: 仕分けの担当を起動する
     by: ai
-    input: [notification.ready, 台帳（並行の上限）]
-    output: [hc（担当の端末）, 台帳（doing）]
+    input: [notification.ready, kanban（並行の上限）]
+    output: [hc（担当の端末）, kanban（doing）]
     skill: [chief-of-staff/playbooks/triage.md, chief-of-staff/playbooks/start.md]
     decides: [オーナーに聞かずに起動する]
     next: [{ id: collect }]
   - id: collect
     title: 溜まったものを拾う
     by: machine
-    input: [台帳（報告・見送り・問い・todo・片付けの残り）, repo の最新の main（origin）]
+    input: [kanban（報告・見送り・問い・todo・片付けの残り）, repo の最新の main（origin）]
     output: [library/items.json]
     command: andon triage collect
     record: library/items.json
@@ -62,8 +62,8 @@ steps:
   - id: sort
     title: 項目ごとに確かめて仕分ける
     by: ai
-    input: [library/items.json, PR と repo（項目の commit）と台帳の実物]
-    output: [library/decisions.json, 報告, 台帳（review）]
+    input: [library/items.json, PR と repo（項目の commit）と kanban の実物]
+    output: [library/decisions.json, 報告, kanban（review）]
     skill: [triage#3, triage#4, worker#7]
     decides: [close, fix, bundle, person, keep]
   - id: check
@@ -75,24 +75,24 @@ steps:
     decides: [判断の閉じと課題の閉じを 1 件ずつ閉じてよいか覆すか（andon triage verdict）, 担当に戻す, 適用する]
     next: [{ id: sort, when: 閉じる理由が読めない・覆した }, { id: apply, when: 全部を閉じてよいと読んだ }]
   - id: apply
-    title: 仕分けを台帳に当てる
+    title: 仕分けを kanban に当てる
     by: machine
     input: [library/decisions.json, library/items.json, library/verdicts.json]
-    output: [台帳（閉じた・足した課題）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
+    output: [kanban（閉じた・足した課題）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
     command: andon triage apply
     record: library/triage/<日付>-<id>.json
     next: [{ id: finish }]
   - id: finish
     title: トリアージの課題を片付ける
     by: machine
-    input: [台帳（review）]
-    output: [台帳（done）]
+    input: [kanban（review）]
+    output: [kanban（done）]
     command: andon issue finish
     next: [{ id: follow }]
   - id: follow
     title: 足した課題を起動し、オーナーへ伝える
     by: ai
-    input: [library/triage/<日付>-<id>.md, 台帳（オーナーの課題）]
+    input: [library/triage/<日付>-<id>.md, kanban（オーナーの課題）]
     output: [hc（担当の端末）, herdr notification, オーナーへの 1 問]
     skill: [chief-of-staff/playbooks/triage.md, ask-one-by-one]
     decides: [fix と bundle の課題を起動する, 片付け待ちを finish する]

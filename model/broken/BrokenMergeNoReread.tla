@@ -1,6 +1,6 @@
 ---- MODULE BrokenMergeNoReread ----
 \* 壊した見本（R8 で落ちるはず）: dispatcher がマージの直前に読み直さない（internal/issue/merge.go approve の stillAuthorized と
-\* ChecksStill を外した動き。DispatcherMerges の「~moved /\ mergeAuto」が無い）。ゲートが approve を決めたあとに PR の head が
+\* ChecksStill を外した動き。DispatcherMerges の「~moved /\ mergeAuto」が無い）。gate が approve を決めたあとに PR の head が
 \* 動いても、merge の設定や委譲が変わっても、approve を決めたときの答えのままマージする。
 EXTENDS IssueRules
 

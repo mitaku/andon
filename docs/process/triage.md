@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/workstreams/triage.yaml`](../../process/workstreams/triage.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-目的: 台帳に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・オーナーへ回すを決める
+目的: kanban に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・オーナーへ回すを決める
 
 ## きっかけ
 
@@ -29,7 +29,7 @@ flowchart LR
   t_review(("review")):::event
   subgraph lane_machine["機械"]
     s_collect("溜まったものを拾う"):::machine
-    s_apply("仕分けを台帳に当てる"):::machine
+    s_apply("仕分けを kanban に当てる"):::machine
     s_finish("トリアージの課題を片付ける"):::machine
   end
   subgraph lane_ai["AI"]
@@ -46,16 +46,16 @@ flowchart LR
   t_signal --> s_signal
   t_memory --> s_add
   t_review --> s_check
-  s_signal -->|"台帳（直す課題。links に信号の url）"| fin
-  s_add -->|"台帳（トリアージの課題）"| s_start
-  s_start -->|"hc（担当の端末）・台帳（doing）"| s_collect
+  s_signal -->|"kanban（直す課題。links に信号の url）"| fin
+  s_add -->|"kanban（トリアージの課題）"| s_start
+  s_start -->|"hc（担当の端末）・kanban（doing）"| s_collect
   s_collect -->|"library/items.json"| s_sort
-  s_sort -->|"library/decisions.json・報告・台帳（review）"| fin
+  s_sort -->|"library/decisions.json・報告・kanban（review）"| fin
   s_check -->|"library/verdicts.json"| g_check
   g_check -->|"閉じる理由が読めない・覆した"| s_sort
   g_check -->|"全部を閉じてよいと読んだ"| s_apply
-  s_apply -->|"台帳（閉じた・足した課題）・library/triage/<日付>-<id>.md・library/triage/<日付>-<id>.json"| s_finish
-  s_finish -->|"台帳（done）"| s_follow
+  s_apply -->|"kanban（閉じた・足した課題）・library/triage/<日付>-<id>.md・library/triage/<日付>-<id>.json"| s_finish
+  s_finish -->|"kanban（done）"| s_follow
   s_follow -->|"hc（担当の端末）・herdr notification・オーナーへの 1 問"| fin
   fin(("終わり")):::event
 ```
@@ -64,15 +64,15 @@ flowchart LR
 
 | id | 手順 | やる者 | 入るもの | 出るもの | 次 |
 |---|---|---|---|---|---|
-| `signal` | 外のお知らせを直す課題に切る | AI | `notification.signal` | `台帳（直す課題。links に信号の url）` | 終わり |
-| `add` | オーナーのゴールか memory の量でトリアージの課題を足す | AI | `オーナーの言葉（ゴール）`・`notification.memory`・`台帳（動いているトリアージ）` | `台帳（トリアージの課題）` | `start` |
-| `start` | 仕分けの担当を起動する | AI | `notification.ready`・`台帳（並行の上限）` | `hc（担当の端末）`・`台帳（doing）` | `collect` |
-| `collect` | 溜まったものを拾う | 機械 | `台帳（報告・見送り・問い・todo・片付けの残り）`・`repo の最新の main（origin）` | `library/items.json` | `sort` |
-| `sort` | 項目ごとに確かめて仕分ける | AI | `library/items.json`・`PR と repo（項目の commit）と台帳の実物` | `library/decisions.json`・`報告`・`台帳（review）` | 終わり |
+| `signal` | 外のお知らせを直す課題に切る | AI | `notification.signal` | `kanban（直す課題。links に信号の url）` | 終わり |
+| `add` | オーナーのゴールか memory の量でトリアージの課題を足す | AI | `オーナーの言葉（ゴール）`・`notification.memory`・`kanban（動いているトリアージ）` | `kanban（トリアージの課題）` | `start` |
+| `start` | 仕分けの担当を起動する | AI | `notification.ready`・`kanban（並行の上限）` | `hc（担当の端末）`・`kanban（doing）` | `collect` |
+| `collect` | 溜まったものを拾う | 機械 | `kanban（報告・見送り・問い・todo・片付けの残り）`・`repo の最新の main（origin）` | `library/items.json` | `sort` |
+| `sort` | 項目ごとに確かめて仕分ける | AI | `library/items.json`・`PR と repo（項目の commit）と kanban の実物` | `library/decisions.json`・`報告`・`kanban（review）` | 終わり |
 | `check` | 仕分けを確かめる | AI | `notification.review`・`報告`・`library/decisions.json`・`andon triage apply --dry-run の出力（review の表）` | `library/verdicts.json` | `sort`（閉じる理由が読めない・覆した）・`apply`（全部を閉じてよいと読んだ） |
-| `apply` | 仕分けを台帳に当てる | 機械 | `library/decisions.json`・`library/items.json`・`library/verdicts.json` | `台帳（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json` | `finish` |
-| `finish` | トリアージの課題を片付ける | 機械 | `台帳（review）` | `台帳（done）` | `follow` |
-| `follow` | 足した課題を起動し、オーナーへ伝える | AI | `library/triage/<日付>-<id>.md`・`台帳（オーナーの課題）` | `hc（担当の端末）`・`herdr notification`・`オーナーへの 1 問` | 終わり |
+| `apply` | 仕分けを kanban に当てる | 機械 | `library/decisions.json`・`library/items.json`・`library/verdicts.json` | `kanban（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json` | `finish` |
+| `finish` | トリアージの課題を片付ける | 機械 | `kanban（review）` | `kanban（done）` | `follow` |
+| `follow` | 足した課題を起動し、オーナーへ伝える | AI | `library/triage/<日付>-<id>.md`・`kanban（オーナーの課題）` | `hc（担当の端末）`・`herdr notification`・`オーナーへの 1 問` | 終わり |
 
 ## 機械がやる手順
 
@@ -93,9 +93,9 @@ flowchart LR
 | `check` | `chief-of-staff/playbooks/triage.md` | 判断の閉じと課題の閉じを 1 件ずつ閉じてよいか覆すか（andon triage verdict）・担当に戻す・適用する |  |
 | `follow` | `chief-of-staff/playbooks/triage.md`・`ask-one-by-one` | fix と bundle の課題を起動する・片付け待ちを finish する | 何を作るか（person に仕分けた項目）（business）・使い勝手の好み（person に仕分けた項目）（users）・外との約束と公開（person に仕分けた項目）（promise）・消す・本番・権限（person に仕分けた項目）（irreversible） |
 
-見るもの（手順の入るものの和）: `notification.signal`・`オーナーの言葉（ゴール）`・`notification.memory`・`台帳（動いているトリアージ）`・`notification.ready`・`台帳（並行の上限）`・`台帳（報告・見送り・問い・todo・片付けの残り）`・`repo の最新の main（origin）`・`library/items.json`・`PR と repo（項目の commit）と台帳の実物`・`notification.review`・`報告`・`library/decisions.json`・`andon triage apply --dry-run の出力（review の表）`・`library/verdicts.json`・`台帳（review）`・`library/triage/<日付>-<id>.md`・`台帳（オーナーの課題）`
+見るもの（手順の入るものの和）: `notification.signal`・`オーナーの言葉（ゴール）`・`notification.memory`・`kanban（動いているトリアージ）`・`notification.ready`・`kanban（並行の上限）`・`kanban（報告・見送り・問い・todo・片付けの残り）`・`repo の最新の main（origin）`・`library/items.json`・`PR と repo（項目の commit）と kanban の実物`・`notification.review`・`報告`・`library/decisions.json`・`andon triage apply --dry-run の出力（review の表）`・`library/verdicts.json`・`kanban（review）`・`library/triage/<日付>-<id>.md`・`kanban（オーナーの課題）`
 
-残すもの（手順の出るものの和）: `台帳（直す課題。links に信号の url）`・`台帳（トリアージの課題）`・`hc（担当の端末）`・`台帳（doing）`・`library/items.json`・`library/decisions.json`・`報告`・`台帳（review）`・`library/verdicts.json`・`台帳（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json`・`台帳（done）`・`herdr notification`・`オーナーへの 1 問`
+残すもの（手順の出るものの和）: `kanban（直す課題。links に信号の url）`・`kanban（トリアージの課題）`・`hc（担当の端末）`・`kanban（doing）`・`library/items.json`・`library/decisions.json`・`報告`・`kanban（review）`・`library/verdicts.json`・`kanban（閉じた・足した課題）`・`library/triage/<日付>-<id>.md`・`library/triage/<日付>-<id>.json`・`kanban（done）`・`herdr notification`・`オーナーへの 1 問`
 
 ## 数えるもの
 

@@ -10,7 +10,7 @@ states:
   - id: gave-up
     title: 諦めた（影響と手直しは error を知らせた。結果の記録はログに1行だけ）
 transitions:
-  - { from: "[*]", to: pending, on: "done の行を拾った（初めて見る台帳では拾わない）", by: machine }
+  - { from: "[*]", to: pending, on: "done の行を拾った（初めて見る kanban では拾わない）", by: machine }
   - { from: pending, to: done, on: "マージのあとの影響を集める（§7.2 #17）", by: machine, command: andon issue impact, once: true }
   - { from: pending, to: done, on: "オーナーの手直しを集める（corrections.json が無いときだけ書く。§7.2 #18）", by: machine, once: true }
   - { from: pending, to: done, on: "結果の記録を書く（outcome.json が無いときだけ書く。オーナーの課題には書かない。§7.2 #26）", by: machine, once: true }

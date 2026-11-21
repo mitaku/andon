@@ -113,18 +113,16 @@ echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）�
 # 生きている文書のうち、README.md の ADR の一覧の行（ADR の題の写し。ADR の本文と一緒に替える）と CHANGELOG.md のバージョンごとの節
 #   （## v…。バージョンを切ったときの記録。ADR-0040 決めたこと 6）も外す。docs/decisions.md は冒頭（最初の「## 1.」の見出しより前）
 #   だけを見て、凍結した表は ADR と決定の記録を替えるときまで外す。
-# 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。internal/process/ と tests/process/ は流れの定義と
-#   一緒に替えるまで外す。
+# 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。
 old_paths=(package .yomiyasu-words internal cmd init tests .claude/skills/verify-andon docs/design.md
   docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/ledger.md README.md REVIEW.md SECURITY.md CHANGELOG.md
-  docs/decisions.md)
+  docs/decisions.md process docs/process model image AGENTS.md .golangci.yml workflow_test.go)
 decisions_table=$(grep -n -m1 '^## 1\.' docs/decisions.md 2>/dev/null | cut -d: -f1 || true)
 existing=()
 for p in "${old_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
 [ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHI -e '台帳' -e 'ゲート' -e '版' "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp \
   | grep -v -e '^package/skills/glossary/SKILL\.md:[0-9]*:_避ける_' \
-    -e '^internal/process/' -e '^tests/process/' \
     -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^tests/[^:]*\.sh:[0-9]*:.*# 古い語を見る（ADR-0040 決めたこと 10）$' \
     -e '^internal/gate/[a-z_]*\.go:[0-9]*:.*// 古い語を読む（ADR-0040 決めたこと 7）$' \

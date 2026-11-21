@@ -22,23 +22,23 @@ steps:
   - id: add
     title: オーナーの依頼で振り返りの課題を足す
     by: ai
-    input: [オーナーの言葉, 台帳（動いている振り返り）]
-    output: [台帳（振り返りの課題。routine retro）]
+    input: [オーナーの言葉, kanban（動いている振り返り）]
+    output: [kanban（振り返りの課題。routine retro）]
     skill: chief-of-staff/playbooks/retro.md
     decides: [足すか（同時に 1 つ）]
     next: [{ id: start }]
   - id: start
     title: 振り返りの担当を起動する
     by: ai
-    input: [notification.ready, 台帳（並行の上限）]
-    output: [hc（担当の端末）, 台帳（doing）]
+    input: [notification.ready, kanban（並行の上限）]
+    output: [hc（担当の端末）, kanban（doing）]
     skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md]
     decides: [オーナーに聞かずに起動する]
     next: [{ id: collect }]
   - id: collect
     title: 期間の記録とオーナーが打った文を集める
     by: machine
-    input: [台帳（片付いた課題の記録）, セッションログ, GitHub（マージ後のこと）]
+    input: [kanban（片付いた課題の記録）, セッションログ, GitHub（マージ後のこと）]
     output: [振り返りの入力（標準出力）]
     command: andon retro collect
     next: [{ id: find }]
@@ -62,7 +62,7 @@ steps:
     title: 報告して返す
     by: ai
     input: [library/retro.json, andon retro apply --dry-run の出力]
-    output: [報告, 台帳（review）]
+    output: [報告, kanban（review）]
     skill: [retro#7, worker#7]
     decides: [報告の要約]
   - id: check
@@ -77,7 +77,7 @@ steps:
     title: fix を直す課題に切る
     by: machine
     input: [library/retro.json, 振り返りの入力（同じ期間で集め直す）]
-    output: [台帳（直す課題。parent は振り返りの課題）, 台帳（オーナーの課題）, library/retro-applied.json]
+    output: [kanban（直す課題。parent は振り返りの課題）, kanban（オーナーの課題）, library/retro-applied.json]
     command: andon retro apply
     record: library/retro-applied.json
     once: true
@@ -85,15 +85,15 @@ steps:
   - id: finish
     title: 振り返りの課題を片付ける
     by: machine
-    input: [台帳（review）]
-    output: [台帳（done）]
+    input: [kanban（review）]
+    output: [kanban（done）]
     command: andon issue finish
     next: [{ id: follow }]
   - id: follow
     title: 直す課題を起動し、オーナーへ伝える
     by: ai
-    input: [library/retro-applied.json, 台帳（直す課題とオーナーの課題）]
-    output: [台帳（直す課題の Settings）, hc（担当の端末）, オーナーへの 1 問]
+    input: [library/retro-applied.json, kanban（直す課題とオーナーの課題）]
+    output: [kanban（直す課題の Settings）, hc（担当の端末）, オーナーへの 1 問]
     skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md, ask-one-by-one]
     decides: [直す課題の Settings を書いて起動する]
     asks:

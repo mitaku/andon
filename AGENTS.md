@@ -5,20 +5,20 @@
 | 決まり | 守らせるもの |
 |---|---|
 | テストは `go test ./...` と `tests/run --changed`（変えたものに関係する `tests/*.sh` だけを並べて走らせる）。commit の前に通す。手元では関係する検査だけ、全部（`tests/run`）は CI に任せる。 | `.github/workflows/go.yml` と `.github/workflows/tests.yml`。main の ruleset が checks の `go`・`tests` の通過をマージの条件にしている。commit の前に回したかは見ない。 |
-| Go の版は `mise.toml`（`go.mod` と揃える）。 | `tests/image.sh`。`go.mod` の go と Dockerfile の golang の版を `mise.toml` と突き合わせる。 |
-| `gofmt -l .` が空で、`golangci-lint run ./...` の指摘が 0 件であること（版は `mise.toml`、設定は `.golangci.yml`。CI の go の job も回す）。 | `.github/workflows/go.yml` の gofmt と golangci-lint の step。設定は `.golangci.yml`。 |
+| Go のバージョンは `mise.toml`（`go.mod` と揃える）。 | `tests/image.sh`。`go.mod` の go と Dockerfile の golang のバージョンを `mise.toml` と突き合わせる。 |
+| `gofmt -l .` が空で、`golangci-lint run ./...` の指摘が 0 件であること（バージョンは `mise.toml`、設定は `.golangci.yml`。CI の go の job も回す）。 | `.github/workflows/go.yml` の gofmt と golangci-lint の step。設定は `.golangci.yml`。 |
 | errcheck はテストと出力への書き込み（`fmt.Fprint*`・`io.Writer` の `Write`）を見ない。ほかで戻り値の err を捨てるときは、その行に `//nolint:errcheck // <理由>` を書く。 | `.golangci.yml` の errcheck と nolintlint。linter の名前か理由の無い nolint の注釈で落ちる。 |
 | `tests/run` を同時に2本走らせない（mise の置き場と CPU を取り合う）。 | 無し。`tests/run` は、ほかの回が走っているかを見ない。 |
 | `tests/isolation` は15分以上かかるので、hc の端末（`hc run --bg`）で裏に回す。 | 無し。どこで走らせるかは担当の手順で、見るものが無い。 |
 | `tests/run --changed` は、重い検査（`andon-dispatcher.sh`・`schema.sh`・`apply-main.sh`・`andon-issue.sh`・`andon-gate.sh`）を、その検査が見る部分を変えたときだけ選ぶ。対応の表は `tests/lib/scope.sh`。重い検査が打つ command や読むファイルを変えたら、表と `docs/image.md` の「手元は関係する検査だけ」を同じ PR で直す。 | `tests/ci.sh`。Go の import の漏れだけを落とす。打つ command・読むファイルと `docs/image.md` の表は見ない。 |
-| 検査はセルの本物（台帳・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。 | `tests/lib/isolate.sh` が読んだ検査の環境を切り離す。`tests/isolation` が偽のセルで全部を回し、番兵が変われば落ちる。`tests/isolation` は CI では回らない。 |
-| 検査の土台（`tests/lib/`・fixture・HOME や台帳を読む検査）を変えたら `tests/isolation` を打つ。 | 無し。`tests/isolation` は CI で回らず、打ったかを見るものが無い。 |
+| 検査はセルの本物（kanban・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。 | `tests/lib/isolate.sh` が読んだ検査の環境を切り離す。`tests/isolation` が偽のセルで全部を回し、番兵が変われば落ちる。`tests/isolation` は CI では回らない。 |
+| 検査の土台（`tests/lib/`・fixture・HOME や kanban を読む検査）を変えたら `tests/isolation` を打つ。 | 無し。`tests/isolation` は CI で回らず、打ったかを見るものが無い。 |
 | boot の実測は `tests/andon-boot.sh` の `env -i` と一時領域の指定を使う。`HOME` だけを変える手順は使わない。 | 無し。手で実測する手順で、見るものが無い。 |
 | 否定の grep（`! grep -q <古い名前>`）には、当たる場合があることを同じ所で確かめる行を添える（添えないと、検査が何も見ていなくても通る）。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | `tests/andon-dispatcher.sh` の偽の `gh` は `pr view 7 --json state,mergeCommit` の回数を settle の検査が数えるので、新しい問い合わせは欄を変えて別の case にする。 | `tests/andon-dispatcher.sh`。同じ欄の問い合わせを足すと、settle の回数の検査が落ちる。 |
 | 検査の中の偽の鍵と秘密鍵の見出しは、文字列を組み立てて作る（そのまま書くと `tests/public.sh` に当たる）。 | `tests/public.sh`。そのまま書くと当たって落ちる。 |
 | 起動の口を足すときは、Go の検査が `hc` の呼び出しの並びを固定しているので、`hc` を余分に呼ぶと `internal/issue`・`chiefengineer`・`chiefofstaff` の検査が落ちる。 | `go test ./...`。`internal/issue` などの検査が `hc` の呼び出しの並びを固定している。 |
-| `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。 | `tests/schema.sh`。`schema/` の顔ぶれと `expected`、`$id` の版を突き合わせるので、触り忘れの一部で落ちる。 |
+| `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。 | `tests/schema.sh`。`schema/` の顔ぶれと `expected`、`$id` のバージョンを突き合わせるので、触り忘れの一部で落ちる。 |
 | 値の表は `\|` で割るので、`tests/schema.sh` の jq の式に `\|` を書かず、`+=` や `del()` で書く。 | 無し。書いても落ちるとは限らない。 |
 
 ## 約束と文書
@@ -43,9 +43,9 @@
 
 | 決まり | 守らせるもの |
 |---|---|
-| `.github/workflows/**` と `tests/public*.sh` を弱める変更はオーナーが見る。 | `package/gate.json` の `tier_c_paths`。ゲートがオーナーのマージに回す。 |
-| 課題の一生の動き（finish・resume・ゲートの返し方など、`model/IssueLife.tla` が写しているコード）を変える PR は、同じ PR で `model/` のモデルも直す。回すのは `model/check`（ADR-0025）。 | `model/check` を `.github/workflows/model.yml` が回し、モデルと `process/states/issue.yaml` の状態を対応表で照らす。コードとモデルのずれは見ない。 |
-| 規則（`model/IssueRules.*`）・控え（`model/expected.txt`）・対応表（`model/issue-map.txt`）を弱める・消す変更は、レベル C でオーナーが見る。 | `package/gate.json` の `tier_c_paths`。ゲートがオーナーのマージに回す。 |
+| `.github/workflows/**` と `tests/public*.sh` を弱める変更はオーナーが見る。 | `package/gate.json` の `tier_c_paths`。gate がオーナーのマージに回す。 |
+| 課題の一生の動き（finish・resume・gate の返し方など、`model/IssueLife.tla` が写しているコード）を変える PR は、同じ PR で `model/` のモデルも直す。回すのは `model/check`（ADR-0025）。 | `model/check` を `.github/workflows/model.yml` が回し、モデルと `process/states/issue.yaml` の状態を対応表で照らす。コードとモデルのずれは見ない。 |
+| 規則（`model/IssueRules.*`）・控え（`model/expected.txt`）・対応表（`model/issue-map.txt`）を弱める・消す変更は、レベル C でオーナーが見る。 | `package/gate.json` の `tier_c_paths`。gate がオーナーのマージに回す。 |
 | 課題の一生に触れる設計を Chief Engineer がモデルで調べるときは、`model/` のモデルと規則を自分の課題の資料置き場に写して案を書き足し、statechart と `model/check --draft <フォルダ>` の両方で調べる（statechart は「行ける」の形の規則を調べない。口の中身は `model/README.md` の「下書きを調べる」）。写しの控え・対応表・壊した見本は直さず、足す規則と変わる見込みの控えを文書に文で書く（直すのは実装の PR の担当）。 | 無し。Chief Engineer の検討の手順で、どの道具で調べたかを見るものが無い。 |
 | main へ直接 push しない。 | GitHub の ruleset `main`。PR を通さない push を断る。 |
 | マージはオーナーがする。 | `package/settings.json` が担当の `gh pr merge` を deny する。 |

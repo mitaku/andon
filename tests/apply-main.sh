@@ -155,8 +155,7 @@ else
 fi
 
 # === 5a. 当てる前 ===
-# image/apply-main.sh status の出力は、まだ「イメージの版:」と書く（image/ の語は流れの定義の課題が替える）
-if run status && grep -q "イメージの版: ${c0:0:12}" "$tmp/out" && grep -q "当てた commit: 当てていない" "$tmp/out"; then  # 古い語を見る（ADR-0040 決めたこと 10）
+if run status && grep -q "イメージのバージョン: ${c0:0:12}" "$tmp/out" && grep -q "当てた commit: 当てていない" "$tmp/out"; then
   pass "5 当てる前は「当てていない」とイメージのバージョン"
 else
   fail "5 当てる前の状態: $(cat "$tmp/out")"
@@ -261,7 +260,7 @@ fi
 
 # === 5b・5c. 当てたあと・main が2つ進んだあと ===
 if run status && grep -q "当てた commit: $c1" "$tmp/out" && grep -q "origin/main からの遅れ: 0" "$tmp/out" \
-  && grep -q "イメージの版: ${c0:0:12}" "$tmp/out"; then  # 古い語を見る（ADR-0040 決めたこと 10）
+  && grep -q "イメージのバージョン: ${c0:0:12}" "$tmp/out"; then
   pass "5 当てたあとは当てた commit と遅れ 0"
 else
   fail "5 当てたあとの状態: $(cat "$tmp/out")"

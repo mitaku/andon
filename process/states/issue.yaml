@@ -1,6 +1,6 @@
 name: issue
 title: 課題
-source: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。andon issue … は、ここに無い移り方（今の status から打てないサブコマンド）を断る（by が kanban の移り方は kanban を直に打つもので、断らない）。記録は台帳で、dispatcher の控えに項目を持たない
+source: ledger.md（Status rules・Questions）・worker skill §2〜§7・ADR-0017 決めたこと 4 の (1)・15。andon issue … は、ここに無い移り方（今の status から打てないサブコマンド）を断る（by が `kanban` の移り方は kanban の CLI を直に打つもので、断らない）。記録は kanban で、dispatcher の控えに項目を持たない
 states:
   - id: queued
     title: 待つ課題がある（queued）
@@ -22,7 +22,7 @@ transitions:
   - { from: doing, to: doing, on: "報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた", by: ai, command: andon issue report・review-request・candidates・record・ask }
   - { from: doing, to: review, on: "確かめて返した（受け取られていない問いが無い）", by: ai, command: andon issue ready }
   - { from: doing, to: review, on: "Chief Engineer・トリアージが返した（受け取られていない問いが無い）", by: kanban, command: kanban review }
-  - { from: review, to: review, on: "ゲートがオーナーの判断を問うた・片付けそこねた（from: gate）", by: machine, command: andon issue ask }
+  - { from: review, to: review, on: "gate がオーナーの判断を問うた・片付けそこねた（from: gate）", by: machine, command: andon issue ask }
   - { from: review, to: doing, on: "直しが届いた", by: kanban, command: kanban start }
   - { from: review, to: done, on: "マージのあと片付けた", by: machine, command: andon issue finish }
   - { from: review, to: done, on: "PR の無い課題（調べる課題・トリアージ・文書なしの返し）を読んで片付けた", by: ai, command: andon issue finish }

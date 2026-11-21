@@ -57,7 +57,7 @@ steps:
     title: 担当に手を打つ
     by: ai
     input: [report.plan, hc read の画面]
-    output: [hc send（担当へ）, 台帳（分けた課題）]
+    output: [hc send（担当へ）, kanban（分けた課題）]
     skill: chief-of-staff/playbooks/watch.md
     decides: [送る文, 分けた課題の範囲]
   - id: tell

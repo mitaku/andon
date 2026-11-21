@@ -9,15 +9,15 @@
 ```mermaid
 stateDiagram-v2
   state "見ている（PR ごとに 1 分に 1 回 gh pr view。State が空）" as s_watching
-  state "MERGED と分かった（ゲートの記録の merged が true なら dispatcher がマージしたので、ここで止まる）" as s_merged
+  state "MERGED と分かった（gate の記録の merged が true なら dispatcher がマージしたので、ここで止まる）" as s_merged
   state "CLOSED（マージなし）と知らせた（開き直されうるので、PR ごとに 1 分に 1 回 gh pr view を続ける）" as s_closed
-  state "片付けられない（ゲートの外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる）" as s_held
+  state "片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる）" as s_held
   state "片付けた" as s_finished
   [*] --> s_watching: review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）
   s_watching --> s_merged: MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも）
   s_watching --> s_closed: CLOSED になった
-  s_merged --> s_finished: オーナーがマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19）
-  s_merged --> s_held: ゲートの外の問いが開いている・finish が失敗した
+  s_merged --> s_finished: オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19）
+  s_merged --> s_held: gate の外の問いが開いている・finish が失敗した
   s_held --> s_finished: オーナーがマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）
   s_watching --> [*]: review にも doing にもいなくなった・report.json の pr か commit が替わった（記録を捨てる）
   s_closed --> s_watching: 開き直された（OPEN に戻った。また閉じたら知らせる）
@@ -31,9 +31,9 @@ stateDiagram-v2
 | id | 状態 | 記録 |
 |---|---|---|
 | `watching` | 見ている（PR ごとに 1 分に 1 回 gh pr view。State が空） | `settle:State` |
-| `merged` | MERGED と分かった（ゲートの記録の merged が true なら dispatcher がマージしたので、ここで止まる） |  |
+| `merged` | MERGED と分かった（gate の記録の merged が true なら dispatcher がマージしたので、ここで止まる） |  |
 | `closed` | CLOSED（マージなし）と知らせた（開き直されうるので、PR ごとに 1 分に 1 回 gh pr view を続ける） |  |
-| `held` | 片付けられない（ゲートの外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる） | `settle:Held` |
+| `held` | 片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる） | `settle:Held` |
 | `finished` | 片付けた |  |
 
 状態でない項目（拾う位置とデータ）: `settle:PR`・`settle:Commit`・`settle:At`・`settle:Head`・`settle:Sha`
@@ -45,8 +45,8 @@ stateDiagram-v2
 | （始まり・終わり） | `watching` | review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ） | 機械 | `andon issue settle` |  |
 | `watching` | `merged` | MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも） | オーナー |  |  |
 | `watching` | `closed` | CLOSED になった | オーナー |  |  |
-| `merged` | `finished` | オーナーがマージした PR を拾って片付ける（ゲートの問いを閉じる。§7.2 #19） | 機械 | `andon issue settle` | はい |
-| `merged` | `held` | ゲートの外の問いが開いている・finish が失敗した | 機械 | `andon issue settle` |  |
+| `merged` | `finished` | オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19） | 機械 | `andon issue settle` | はい |
+| `merged` | `held` | gate の外の問いが開いている・finish が失敗した | 機械 | `andon issue settle` |  |
 | `held` | `finished` | オーナーがマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19） | 機械 | `andon issue settle` | はい |
 | `watching` | （始まり・終わり） | review にも doing にもいなくなった・report.json の pr か commit が替わった（記録を捨てる） | 機械 | `andon issue settle` |  |
 | `closed` | `watching` | 開き直された（OPEN に戻った。また閉じたら知らせる） | オーナー |  |  |
