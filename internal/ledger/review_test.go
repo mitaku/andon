@@ -163,10 +163,10 @@ func rebaseAfter(t *testing.T, base, topic, main, resolve map[string]string) (*g
 	return g, x, g.commit("topic", resolve)
 }
 
-// main が PR の変えた行の近く（文脈の行）を変えた rebase や、衝突を解いた rebase でも、PR が足した行と消した行が
+// main が PR の変えた行の近く（コンテキストの行）を変えた rebase や、衝突を解いた rebase でも、PR が足した行と消した行が
 // 同じなら同じ差分と分かる。足した行か消した行が変わったら同じと言わない。
 func TestSamePatchIgnoresContextLines(t *testing.T) {
-	// 表の行を PR が変え、main が2行下の行の語を替えた（衝突しない。文脈の行だけが変わる）
+	// 表の行を PR が変え、main が2行下の行の語を替えた（衝突しない。コンテキストの行だけが変わる）
 	table := "| 決まり | 守らせるもの |\n|---|---|\n| 一 | 無し。 |\n| 二 | 無し。 |\n| 三 | 版を見る |\n| 四 | 無し。 |\n"
 	tableTopic := strings.Replace(table, "| 一 | 無し。 |", "| 一 | tests/run。 |", 1)
 	tableMain := strings.Replace(table, "版を見る", "バージョンを見る", 1)
@@ -174,7 +174,7 @@ func TestSamePatchIgnoresContextLines(t *testing.T) {
 	conflictBase := "a\nb\n"
 	conflictTopic := "a\nA\nb\n"
 	conflictMain := "a2\nb\n"
-	// 最後の行に改行の無いファイルで、PR が8行目を変え、main が最後の行に改行を足した（文脈の「No newline」の行だけが変わる）
+	// 最後の行に改行の無いファイルで、PR が8行目を変え、main が最後の行に改行を足した（コンテキストの「No newline」の行だけが変わる）
 	var lines []string
 	for i := 1; i <= 10; i++ {
 		lines = append(lines, string(rune('a'+i-1)))

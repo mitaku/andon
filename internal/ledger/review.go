@@ -96,7 +96,7 @@ func (l *Ledger) previousFiles(earlier []string, commit string) map[string]bool 
 // SamePatch は、課題の worktree dir の git で、commit a と b の PR の差分が同じか。
 // PR の差分は、その commit と origin/HEAD（既定の branch）の merge-base から commit までの diff とする。
 // 比べるのは、ファイルの見出しと、足した行・消した行だけで、空白も含めて比べる（prDiff）。hunk の見出し・index の行・
-// 前後の文脈の行は比べない。文脈の行は main の側の文で、main が近くの行を変えた rebase や、衝突を解いた rebase でも、
+// 前後のコンテキストの行は比べない。コンテキストの行は main の側の文で、main が近くの行を変えた rebase や、衝突を解いた rebase でも、
 // PR が足した行と消した行が同じなら同じ差分とみなす（decisions/2026-11-21-review-carry-ignores-context-lines.md）。
 // git patch-id は空白の違いを無視するので使わない（文字列の中の空白だけが変わった差分を同じと見て、見ていない変更のレビューを引き継ぐ）。
 // worktree が無い・commit が無い・origin/HEAD が引けない・差分が空のときは同じと言わない（引き継がずに頼み直す側に倒す）。
@@ -112,8 +112,8 @@ func SamePatch(dir, a, b string) bool {
 	return ok && bytes.Equal(pa, pb)
 }
 
-// prDiff は commit の PR の差分から、index の行と、hunk の中の見出し（@@ の行）・文脈の行（先頭が空白）を除いたもの。
-// 文脈の行に続く「\ No newline at end of file」も文脈の側なので除く。hunk の見出しを除くので、文脈が変わって hunk が
+// prDiff は commit の PR の差分から、index の行と、hunk の中の見出し（@@ の行）・コンテキストの行（先頭が空白）を除いたもの。
+// コンテキストの行に続く「\ No newline at end of file」もコンテキストの側なので除く。hunk の見出しを除くので、コンテキストが変わって hunk が
 // 割れたり繋がったりしても同じになる。差分はバイナリの中身も含める（--binary。含めないと中身の違うバイナリが同じに見える）。
 // rename は git の設定に依らず見ない（--no-renames）。
 func prDiff(dir, commit string) ([]byte, bool) {
