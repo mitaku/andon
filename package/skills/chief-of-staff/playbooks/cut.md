@@ -66,7 +66,7 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 5. 価値の仮説が 6 項目なら、**観察の課題を1件**足す（1仮説1課題。`brief.md` の観察の課題の雛形。repo の無い課題）。Chief Engineer の課題に `--parent` で結び、(3) の見る日を `not_before` に置く:
    `kanban add "観察: <題>の価値の仮説" --parent <Chief Engineer の id> [--after <実装の課題, …>] --brief -` → `kanban set <新しい id> not_before=<(3) の日付>`。
    `--after` があれば `queued`（実装が done で `todo`）、無ければ `todo`。`not_before` は status を変えず、その日まで `kanban ready` に出さないだけ（日付は `config.yaml` の `timezone` で読む）。見る日が来ると `<id> ready` で届くので、ほかの課題と同じく `andon issue start`。
-6. Chief Engineer の課題は**検収しない**（検収は、オーナーが Chief Engineer の出口の最後の確かめでした）。文書の PR がマージされたら `andon issue finish <id>`。
+6. Chief Engineer の課題は**検収しない**（検収は、オーナーが Chief Engineer の出口の最後の確かめでした）。文書の PR をオーナーがマージすると、dispatcher が見回りで `andon issue settle` を打って片付け、`<id> merged` が届く（`docs/dispatcher.md` §2.7）。自分で `andon issue finish` は打たない。`merged` が届いたら、オーナーにマージを頼むのをやめ、文書から切った課題を進める。`held` の付いた `merged` だけは `watch.md` のとおり理由を読んで片付ける。
 7. `pr` が無く、`next` に `to: chief-of-staff`「直す課題に切る: …」だけがある（Chief Engineer が決断の無い小さな話と見て、文書を書かずに返した）なら、それを直す課題に切り、オーナーの go 無しで `andon issue finish <id>`（調べる課題と同じ扱い）。
 
 ## 観察の課題の報告を受けたら

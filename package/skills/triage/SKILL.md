@@ -87,6 +87,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 - **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（`kind` を付けない）。
   この kanban が Andon 自身のプロジェクトでなければ `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`・`closing: one-off`「その場限り: <なぜ次の課題に効かないか>」。
+  (e) 同じ回の `memory` の項目と同じ中身 → `memory` の仕分けに任せ、`remember` は `close`・`closing: done`「済み: memory の仕分けに任せた」とし、`reason` にその `memory` の key を書く。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`・`closing: read`「読んだ: 拾うものなし」。
 - **`memory`**（auto memory の1件。どの役のセッションも書く注意書き・事実で、仕分けるまで全部の役に自動で載り続ける）:
   書いてある事実と理由を、今の実物で確かめる（`git -C <repo> grep <commit>`・docs・`kanban show`）。memory は受け皿で、残す家ではない。行き先は次のどれか:
