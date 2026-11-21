@@ -50,6 +50,7 @@ EOF
   | `codex-review`・`claude-review` | レビュアー（`brief.md` の Reviewer。independent-review の §2） |
 - 切るときに、その課題が触りそうな場所（ファイル・節）を依頼書の「解決すべき問題」（手がかりとして）「守ること」に書く。`start.md` の1で、動いている課題とぶつからないかを確かめる材料になる。
   ぶつかるものは `--after` で並べるか、1つの課題に束ねる。
+- オーナーがマージする課題（レベル C が見込まれるもの）の後ろに多くを `--after` で並べる前に、その依存が本当に要るか（PR の branch の上で先に始められないか）を確かめる。並べるなら、その課題が止まると何件が動けなくなるかを `watch.md` の「着手できる課題が無く、オーナー待ちの後ろにしか無いとき」の文で、先にオーナーへ言える形にしておく。
 - 切る前に wiki を引く（`wiki.md` の query。`index.md` → ページの順）。効くページがあれば、依頼書の手がかりにページを出典として書く。
 - 課題は kanban が既定（規約7）。外部のトラッカーで回る案件は、そちらが正。課題の `links` にキーを書く（`kanban set <id> links=<キー>`）。中身は写さない。
   `project.json` の `signals[]` で `write_back: true` の出所（今は `github-issues`）の issue は、`links` に URL（`https://github.com/<owner>/<repo>/issues/<n>`）で書く。`andon issue finish` が done にしたあと、そこへ1コメント（マージされたか・閉じられたか・PR を作らなかったかと、PR の URL。課題番号は書かない）を書く。状態は変えない（閉じたいなら依頼書に「PR 本文に `Fixes <issue の URL>`」と書く）。
