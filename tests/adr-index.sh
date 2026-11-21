@@ -9,10 +9,11 @@
 #     ADR-NNNN は在る別の ADR、N はその ADR の「決めたこと」に在る、行の自分と別の番号。
 #   - 全部の ADR: 状態行（「- 状態: **決定…**」）があり、README の ADR の一覧に行があって、状態の語（決定・提案・覆された）が同じ。
 #   - 全部の ADR に決定の記録が要る（AGENTS.md の表の決まり）。docs/decisions/ の「YYYY-MM-DD-adr-NNNN-<題>.md」か、
-#     docs/decisions.md の凍結した表（§14）の行で、出典の欄が docs/adr/NNNN-….md を指すもの。§14 の外の行は数えない。
-# 引数なしは repo を見たあと、壊した写し 9 つ（索引の 1 行を抜く・在りえないパスを書く・README の状態を変える・
+#     docs/decisions.md の凍結した表（§14）の行で、出典の欄が在る ADR のファイル（docs/adr/NNNN-….md）を同じ名前で指すもの。
+#     §14 の外の行と、番号だけ合って在りえない名前を指すリンクは数えない。
+# 引数なしは repo を見たあと、壊した写し 10 個（索引の 1 行を抜く・在りえないパスを書く・README の状態を変える・
 # 索引の節を消す・覆したところを消す・在りえない ADR を覆した先に書く・記録の無い ADR を足す・§14 の行を消す・
-# docs/decisions/ のファイルを消す）でそれぞれ落ちることを確かめる。
+# §14 の行のリンクを在りえない名前にする・docs/decisions/ のファイルを消す）でそれぞれ落ちることを確かめる。
 # --root はその写しを見るときに使う。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -143,8 +144,10 @@ if os.path.exists(dlog):
         for ln in frozen[1]:
             if not ln.startswith("| 20"):
                 continue
-            for n in re.findall(r"\]\(adr/([0-9]{4})-[^)]*\.md\)", ln.rstrip().rstrip("|").rsplit("|", 1)[-1]):
-                recorded.setdefault(n, "docs/decisions.md §14")
+            # リンク先が在る ADR のファイルと同じ名前のときだけ数える（番号だけ合う在りえない名前は数えない）
+            for name in re.findall(r"\]\(adr/([0-9]{4}-[^)]*\.md)\)", ln.rstrip().rstrip("|").rsplit("|", 1)[-1]):
+                if name in files:
+                    recorded.setdefault(name[:4], "docs/decisions.md §14")
 else:
     fail("docs/decisions.md が無い")
 for f in files:
@@ -162,7 +165,7 @@ PY
 case "${1:-}" in
   --root) check "$2"; exit ;;
   '') ;;
-  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
 fail=0
@@ -199,7 +202,7 @@ a41=docs/adr/0041-delegation-cap-out-of-command.md
 d41=$(ls docs/decisions/*-adr-0041-*.md 2>/dev/null | head -1)
 [ -n "$d41" ] || { echo "FAIL 自己確認の前提: docs/decisions/ に ADR-0041 の記録が無い"; exit 1; }
 ls docs/decisions/*-adr-0002-*.md >/dev/null 2>&1 && { echo "FAIL 自己確認の前提: ADR-0002 の記録が docs/decisions/ にもある（§14 の行だけのはず）"; exit 1; }
-[ "$(sed -n '/^## 14\. /,/^## 15\. /p' docs/decisions.md | grep -c '](adr/0002-')" -eq 1 ] || { echo "FAIL 自己確認の前提: decisions.md §14 に ADR-0002 の行が 1 つでない"; exit 1; }
+[ "$(sed -n '/^## 14\. /,/^## 15\. /p' docs/decisions.md | grep -cF '](adr/0002-herdr-spaces.md)')" -eq 1 ] || { echo "FAIL 自己確認の前提: decisions.md §14 に ADR-0002 の行が 1 つでない"; exit 1; }
 [ "$(grep -c '](adr/0002-' docs/decisions.md)" -gt 1 ] || { echo "FAIL 自己確認の前提: decisions.md の §14 の外に ADR-0002 を指す行が無い"; exit 1; }
 [ ! -e docs/adr/9998-no-record.md ] || { echo "FAIL 自己確認の前提: docs/adr/9998-no-record.md が在る"; exit 1; }
 
@@ -217,6 +220,8 @@ setup; sed '1s/^# ADR-0041: /# ADR-9998: /' "$a41" >"$tmp/r/docs/adr/9998-no-rec
 sed -i '/^  - \[0041 /a\  - [9998 記録の無い ADR](docs/adr/9998-no-record.md): 決定' "$tmp/r/README.md"
 expect fail '決定の記録の無い ADR を足した写しで落ちる' 'docs/adr/9998-no-record.md: 決定の記録'
 setup; sed -i '/^## 14\. /,/^## 15\. /{/](adr\/0002-/d}' "$tmp/r/docs/decisions.md"; expect fail 'decisions.md §14 の行を消した写しで落ちる（§14 の外の行は数えない）' 'docs/adr/0002-herdr-spaces.md: 決定の記録'
+setup; sed -i '/^## 14\. /,/^## 15\. /s/](adr\/0002-herdr-spaces\.md)/](adr\/0002-no-such-title.md)/' "$tmp/r/docs/decisions.md"
+expect fail 'decisions.md §14 の行のリンクを番号だけ合う在りえない名前にした写しで落ちる' 'docs/adr/0002-herdr-spaces.md: 決定の記録'
 setup; rm "$tmp/r/$d41"; expect fail 'docs/decisions/ の記録を消した写しで落ちる' "$a41: 決定の記録"
 
 exit "$fail"
