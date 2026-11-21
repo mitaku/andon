@@ -452,7 +452,7 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		return false
 	}
 	slug := owner + "/" + name
-	if ok, why := c.stillAuthorized(gr); !ok {
+	if ok, why := c.stillAuthorized(gr, rep); !ok {
 		logf("をいまはマージしない（次に打ったとき gate から回し直す）: %s", why)
 		return true
 	}
@@ -534,14 +534,16 @@ func (c *ctx) askGate(res *contract.Merge, q contract.Question) {
 }
 
 // stillAuthorized はマージの直前に課題と履歴と委譲を読み直し、gate のときの認可がまだ効いているか。
-func (c *ctx) stillAuthorized(gr gateResult) (bool, string) {
+// 委譲の merge は、gate と同じに課題ごとの値（名指しの grant を含む。担当が one_way を申告していれば名指しを読まない）で読む。
+// gate のあとに名指しが取り消されるか期限が切れれば、値が gate のときと違って断る（ADR-0041 決めたこと 6）。
+func (c *ctx) stillAuthorized(gr gateResult, rep *contract.Report) (bool, string) {
 	now, err := c.l.Show(c.id)
 	if err != nil {
 		return false, "課題を読み直せない: " + err.Error()
 	}
 	rows := c.l.Log()
 	trusted := c.l.Trusted(rows, now, "merge") && c.l.Trusted(rows, now, "review") && c.l.Trusted(rows, now, "must_fix")
-	merge := delegate.Read(delegate.Workspace(), c.l.Slug, time.Now().UTC().Format("2006-01-02")).Merge()
+	merge, _ := gate.Delegated(delegate.Read(delegate.Workspace(), c.l.Slug, time.Now().UTC().Format("2006-01-02")), c.id, rep)
 	return Authorized(ledger.SettingsOf(c.issue), ledger.SettingsOf(now), now.Str("status"), trusted, gr.Delegation.Merge, merge, gr.Tier)
 }
 

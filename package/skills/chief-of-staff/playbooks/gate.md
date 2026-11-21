@@ -11,6 +11,7 @@
 gate は PR の head の GitHub の checks が揃うまで `wait`（終了コード 5）で、**通知も問いも出ない**。dispatcher が見回りのたびに gate から回し直す。CI が1つも無いまま 30 分たつと `needs_human`（`asked` で届く）。
 誰がどの端末をどう起動するかの一覧は `docs/operate.md` の「役の配置と起動」。
 Chief of Staff が決めるのは、依頼書の Settings（`brief.md`。`review`・`reviewer`・`review_rounds`・`merge`）だけ。レビュアーを手で起動しない・`andon gate` を手で回さない・指摘を中継しない。
+名指しの委譲（`andon delegate grant merge <A|B|C> --issues <id,…>`）は gate が回る前に効かせる。名指しされた課題を、担当の `andon issue ready` の前に `merge=auto` にする。gate がもう決めた課題には head が動くまで効かず、担当が `one_way` を申告した課題には効かない（どちらも今までどおりオーナーのマージ）。
 
 ## `needs_human` のとき（`<id> asked` で `from: gate`）
 

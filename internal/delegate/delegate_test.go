@@ -3,6 +3,7 @@ package delegate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,7 +76,7 @@ func TestNoCapForAndonSlug(t *testing.T) {
 	}
 	f := &File{Version: 1, Project: "andon", Grants: []Grant{}}
 	for _, c := range [][2]string{{"merge", "C"}, {"line-change", "plant"}} {
-		if _, err := add(f, "grant", c[0], c[1], "x", "", "2026-11-10"); err != nil {
+		if _, err := add(f, "grant", c[0], c[1], "x", "", "2026-11-10", nil, nil); err != nil {
 			t.Errorf("grant %s %s が断られた: %v", c[0], c[1], err)
 		}
 	}
@@ -328,5 +329,107 @@ func TestDotenv(t *testing.T) {
 	}
 	if got := Dotenv(t.TempDir(), "PORTLESS_PORT", "def"); got != "def" {
 		t.Errorf("no .env: %q", got)
+	}
+}
+
+// ADR-0041 受け入れ条件 9: --issues（名指し）は、kanban に無い id・done の id・merge のほかの範囲・narrow を断る。
+func TestAddNamedRejects(t *testing.T) {
+	status := func(id string) (string, error) {
+		switch id {
+		case "A-0001":
+			return "doing", nil
+		case "A-0002":
+			return "done", nil
+		}
+		return "", errors.New("課題 " + id + " が読めない")
+	}
+	for _, c := range []struct {
+		name, sub, scope, value string
+		issues                  []string
+		why                     string
+	}{
+		{"kanban に無い id", "grant", "merge", "C", []string{"A-0001", "A-0009"}, "A-0009 が kanban に無い"},
+		{"done の id", "grant", "merge", "C", []string{"A-0002"}, "A-0002 はもう done"},
+		{"merge のほかの範囲", "grant", "deploy", "production", []string{"A-0001"}, "scope が merge"},
+		{"merge の none", "grant", "merge", "none", []string{"A-0001"}, "値が A・B・C"},
+		{"narrow", "narrow", "merge", "A", []string{"A-0001"}, "narrow は --issues を取らない"},
+		{"id が重なる", "grant", "merge", "C", []string{"A-0001", "A-0001"}, "重なる"},
+	} {
+		f := &File{Version: 1, Project: "andon", Grants: []Grant{}}
+		_, err := add(f, c.sub, c.scope, c.value, "x", "", "2026-11-21", c.issues, status)
+		if err == nil || !strings.Contains(err.Error(), c.why) {
+			t.Errorf("%s: err = %v, want %q を含む", c.name, err, c.why)
+		}
+		if len(f.Grants) != 0 {
+			t.Errorf("%s: 断ったのに grant を足した", c.name)
+		}
+	}
+	f := &File{Version: 1, Project: "andon", Grants: []Grant{}}
+	msg, err := add(f, "grant", "merge", "C", "x", "", "2026-11-21", []string{"A-0001"}, status)
+	if err != nil || len(f.Grants) != 1 || !reflect.DeepEqual(f.Grants[0].Issues, []string{"A-0001"}) || !strings.Contains(msg, "issues: A-0001") {
+		t.Errorf("名指しの grant: %v %q %+v", err, msg, f.Grants)
+	}
+	if _, err := Parse(contract.Marshal(f), "andon"); err != nil {
+		t.Errorf("名指しの grant を書いた委譲が読めない: %v", err)
+	}
+}
+
+// ADR-0041 受け入れ条件 9: issues のある grant は実効の値（プロジェクト全体）に重ならず、名指しした課題の値（MergeFor）にだけ効く。
+// one_way の申告があれば名指しを読まない（決めたこと 7）。取り消し・期限切れの名指しは効かない。
+func TestNamedGrantIsNotEffective(t *testing.T) {
+	const j = `{"version":1,"project":"andon","preset":"andon","grants":[
+	  {"id":"d1","scope":"merge","value":"C","by":"owner","at":"2026-11-21","evidence":"x","issues":["A-0001","A-0003"]},
+	  {"id":"d2","scope":"merge","value":"A","by":"owner","at":"2026-11-21","evidence":"x","issues":["A-0002"]},
+	  {"id":"d3","scope":"merge","value":"C","by":"owner","at":"2026-11-21","evidence":"x","issues":["A-0004"],"revoked":{"at":"2026-11-21","by":"owner","reason":"やめる"}},
+	  {"id":"d4","scope":"merge","value":"C","by":"owner","at":"2026-11-21","until":"2026-11-21","evidence":"x","issues":["A-0005"]}]}`
+	f, err := Parse([]byte(j), "andon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := f.Effective("2026-11-21"); e["merge"] != "B" {
+		t.Errorf("名指しの grant がプロジェクト全体に漏れた: merge=%v", e["merge"])
+	}
+	for _, c := range []struct {
+		today, id    string
+		oneWay       bool
+		merge, grant string
+	}{
+		{"2026-11-21", "A-0001", false, "C", "d1"},
+		{"2026-11-21", "A-0003", false, "C", "d1"},
+		{"2026-11-21", "A-0009", false, "B", ""},   // 名指ししていない課題
+		{"2026-11-21", "A-0002", false, "B", ""},   // 名指しは広げる向きにだけ効く（A は B を狭めない）
+		{"2026-11-21", "A-0001", true, "B", ""},    // 担当が one_way を申告した
+		{"2026-11-21", "A-0004", false, "B", ""},   // 取り消した名指し
+		{"2026-11-21", "A-0005", false, "C", "d4"}, // 期限の日までは効く
+		{"2026-11-22", "A-0005", false, "B", ""},   // 期限の過ぎた名指し
+	} {
+		r := FromFile(f, c.today)
+		if r.Merge() != "B" {
+			t.Errorf("%s: プロジェクト全体の merge が %s", c.today, r.Merge())
+		}
+		if m, g := r.MergeFor(c.id, c.oneWay); m != c.merge || g != c.grant {
+			t.Errorf("%s %s one_way=%v: MergeFor = %s %q, want %s %q", c.today, c.id, c.oneWay, m, g, c.merge, c.grant)
+		}
+	}
+	if m, g := (Result{Effective: maps(None)}).MergeFor("A-0001", false); m != "none" || g != "" {
+		t.Errorf("無委譲の MergeFor = %s %q", m, g)
+	}
+}
+
+func TestParseRejectsNamed(t *testing.T) {
+	g := func(scope, value, issues string) string {
+		return `{"version":1,"project":"a","grants":[{"id":"d1","scope":"` + scope + `","value":` + value + `,"by":"owner","at":"2026-11-05","evidence":"x","issues":` + issues + `}]}`
+	}
+	for name, j := range map[string]string{
+		"merge のほかの範囲":  g("deploy", `"production"`, `["A-0001"]`),
+		"merge の none":  g("merge", `"none"`, `["A-0001"]`),
+		"空の issues":     g("merge", `"C"`, `[]`),
+		"重なる id":        g("merge", `"C"`, `["A-0001","A-0001"]`),
+		"課題の id でない":    g("merge", `"C"`, `["a/b"]`),
+		"null の issues": g("merge", `"C"`, `null`),
+	} {
+		if _, err := Parse([]byte(j), "a"); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
 	}
 }

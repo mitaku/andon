@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"andon/internal/contract"
+	"andon/internal/delegate"
 	"andon/internal/gate"
 	"andon/internal/ledger"
 )
@@ -41,6 +42,37 @@ func TestAuthorized(t *testing.T) {
 		if got != c.want || !strings.Contains(why, c.why) {
 			t.Errorf("%s: Authorized = %v %q, want %v（%q を含む）", c.name, got, why, c.want, c.why)
 		}
+	}
+}
+
+// ADR-0041 受け入れ条件 8: 名指しの grant で gate が approve したあとに、その grant を revoke すると、マージの直前の読み直しが断る。
+// 読み直しは gate と同じ gate.Delegated で課題ごとの値を引く（名指しの値は C、取り消したあとは型 andon の B）。
+func TestAuthorizedNamedGrantRevoked(t *testing.T) {
+	auto := ledger.Settings{Review: "on", MustFix: "major", Reviewer: "codex-review", ReviewRounds: "2", Merge: "auto"}
+	const named = `{"id":"d1","scope":"merge","value":"C","by":"owner","at":"2026-11-21","evidence":"x","issues":["A-0001"]`
+	read := func(grant string) delegate.Result {
+		f, err := delegate.Parse([]byte(`{"version":1,"project":"andon","preset":"andon","grants":[`+grant+`]}`), "andon")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return delegate.FromFile(f, "2026-11-21")
+	}
+	rep := &contract.Report{}
+	gateMerge, grant := gate.Delegated(read(named+`}`), "A-0001", rep)
+	if gateMerge != "C" || grant != "d1" {
+		t.Fatalf("gate のときの値: %s %q", gateMerge, grant)
+	}
+	if ok, why := Authorized(auto, auto, "review", true, gateMerge, gateMerge, "C"); !ok {
+		t.Fatalf("取り消す前に断った: %s", why)
+	}
+	nowMerge, _ := gate.Delegated(read(named+`,"revoked":{"at":"2026-11-21","by":"owner","reason":"やめる"}}`), "A-0001", rep)
+	if ok, why := Authorized(auto, auto, "review", true, gateMerge, nowMerge, "C"); ok || !strings.Contains(why, "C → B") {
+		t.Errorf("取り消したあとの読み直し = %v %q, want 断る（C → B）", ok, why)
+	}
+	yes := true
+	oneWay := &contract.Report{Risk: &contract.Risk{OneWay: &yes}}
+	if m, _ := gate.Delegated(read(named+`}`), "A-0001", oneWay); m != "B" {
+		t.Errorf("one_way の申告のある課題で名指しを読んだ: %s", m)
 	}
 }
 

@@ -124,11 +124,12 @@
           }
         },
         "delegation": {
-          "description": "The delegation's merge value read, and whether the tier is within it.",
+          "description": "The delegation's merge value used for this issue, and whether the tier is within it.",
           "type": "object", "required": ["merge", "ok"], "additionalProperties": false,
           "properties": {
-            "merge": { "description": "merge of the delegation (none when there is no delegation).", "enum": ["none", "A", "B", "C"] },
-            "ok": { "description": "Whether the tier is within merge.", "type": "boolean" }
+            "merge": { "description": "merge used for this issue: the wider of the project-wide merge and the valid grants naming this issue (none when there is no delegation). Grants naming the issue are not read when the worker reported risk.one_way.", "enum": ["none", "A", "B", "C"] },
+            "ok": { "description": "Whether the tier is within merge.", "type": "boolean" },
+            "grant": { "description": "Id of the grant naming this issue that let the tier through (the project-wide merge alone would not). Absent otherwise.", "type": "string", "pattern": "^d[1-9][0-9]*$" }
           }
         },
         "decision": { "description": "Output of the decision function. wait (GitHub checks not settled) is printed by andon gate but never written as a record.", "enum": ["approve", "fix", "needs_human", "wait"] },

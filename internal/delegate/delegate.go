@@ -67,6 +67,9 @@ type Grant struct {
 	Until    *string         `json:"until" andon:"nullable"`
 	Evidence string          `json:"evidence"`
 	Revoked  *Revoked        `json:"revoked" andon:"nullable"`
+	// Issues は名指しした課題の id（ADR-0041 決めたこと 6）。書けるのは scope が merge で値が A・B・C の grant だけ。
+	// 名指しの grant はプロジェクト全体の値（Effective）に重ねず、名指しした課題の判定（MergeFor）にだけ効く。
+	Issues []string `json:"issues,omitempty"`
 }
 
 // File は委譲（project.json の delegation。移す前の delegation.json と同じ形）。
@@ -78,8 +81,9 @@ type File struct {
 }
 
 var (
-	slugRe = spawn.SlugRe // schema の project と同じ
-	idRe   = regexp.MustCompile(`^d[1-9][0-9]*$`)
+	slugRe  = spawn.SlugRe // schema の project と同じ
+	idRe    = regexp.MustCompile(`^d[1-9][0-9]*$`)
+	issueRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[0-9]+$`) // schema の grants[].issues[] と同じ
 )
 
 // Date は暦にある YYYY-MM-DD か。
@@ -149,6 +153,29 @@ func checkValue(scope string, raw json.RawMessage) error {
 	return nil
 }
 
+// checkIssues は名指しの課題の決まり: scope が merge で値が A・B・C、id が1件以上で重ならない（ADR-0041 決めたこと 6）。
+func checkIssues(scope string, value json.RawMessage, issues []string) error {
+	var v string
+	_ = json.Unmarshal(value, &v)
+	switch {
+	case scope != "merge" || !slices.Contains([]string{"A", "B", "C"}, v):
+		return errors.New("issues（名指し）を書けるのは scope が merge で値が A・B・C の grant だけ")
+	case len(issues) == 0:
+		return errors.New("issues（名指し）が空")
+	}
+	seen := map[string]bool{}
+	for _, id := range issues {
+		switch {
+		case !issueRe.MatchString(id):
+			return fmt.Errorf("issues に課題の id でないものがある: %q", id)
+		case seen[id]:
+			return fmt.Errorf("issues に %s が重なる", id)
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
 // Parse は委譲（project.json の delegation）を読み、schema と command の決まり（id が一意・project が置き場と同じ）で確かめる。
 func Parse(b []byte, slug string) (*File, error) {
 	var f File
@@ -189,6 +216,11 @@ func Parse(b []byte, slug string) (*File, error) {
 		if err := checkValue(g.Scope, g.Value); err != nil {
 			return nil, fmt.Errorf("grant %s: %v", g.ID, err)
 		}
+		if _, ok := raw.Grants[i]["issues"]; ok {
+			if err := checkIssues(g.Scope, g.Value, g.Issues); err != nil {
+				return nil, fmt.Errorf("grant %s: %v", g.ID, err)
+			}
+		}
 		seen[g.ID] = true
 	}
 	return &f, nil
@@ -199,7 +231,8 @@ func (g Grant) Active(today string) bool {
 	return g.Revoked == nil && (g.Until == nil || *g.Until >= today)
 }
 
-// Effective は型に、効いている grant を at の順（同じ日なら書いた順）に重ねた値。
+// Effective は型に、効いている grant を at の順（同じ日なら書いた順）に重ねた値。名指しの grant（issues のあるもの）は重ねない
+// （重ねると名指しの値がプロジェクト全体に漏れる。ADR-0041 決めたこと 6）。
 func (f *File) Effective(today string) map[string]any {
 	preset := f.Preset
 	if preset == "" {
@@ -212,7 +245,7 @@ func (f *File) Effective(today string) map[string]any {
 	grants := slices.Clone(f.Grants)
 	slices.SortStableFunc(grants, func(a, b Grant) int { return strings.Compare(a.At, b.At) })
 	for _, g := range grants {
-		if !g.Active(today) {
+		if !g.Active(today) || len(g.Issues) > 0 {
 			continue
 		}
 		var v any
@@ -239,6 +272,28 @@ func (r Result) Merge() string {
 		return "none"
 	}
 	return s
+}
+
+// MergeFor は課題 id の判定に使う merge の値: プロジェクト全体の値（Merge）と、id を名指しした効いている grant の値のうち、
+// いちばん広いもの。名指しの grant がプロジェクト全体より広げたときは、その grant の id も返す（広げたのでなければ空）。
+// oneWay（担当が戻せないと申告した）なら名指しを読まず、プロジェクト全体の値だけを返す（ADR-0041 決めたこと 6・7）。
+// 名指しは広げる向きにだけ効く。読むのは gate の判定と、マージの直前の読み直しの2か所だけ。
+func (r Result) MergeFor(id string, oneWay bool) (string, string) {
+	merge, grant := r.Merge(), ""
+	if oneWay || !r.Trusted {
+		return merge, ""
+	}
+	lv := levels["merge"]
+	for _, g := range r.Grants {
+		var v string
+		if g.Scope != "merge" || !slices.Contains(g.Issues, id) || json.Unmarshal(g.Value, &v) != nil {
+			continue
+		}
+		if slices.Index(lv, v) > slices.Index(lv, merge) {
+			merge, grant = v, g.ID
+		}
+	}
+	return merge, grant
 }
 
 // Workspace はセルの repo（ANDON_WORKSPACE。既定 /workspace）。
@@ -359,7 +414,12 @@ func Read(ws, slug, today string) Result {
 	if err != nil {
 		return none("委譲の形が違う: " + err.Error())
 	}
-	r := Result{Project: slug, Trusted: true, Preset: f.Preset, Effective: f.Effective(today), Grants: []Grant{}}
+	return FromFile(f, today)
+}
+
+// FromFile は信じられる委譲 f を、読み手が受け取る形にする（Read の後半。検査は f の形を Parse で作って使う）。
+func FromFile(f *File, today string) Result {
+	r := Result{Project: f.Project, Trusted: true, Preset: f.Preset, Effective: f.Effective(today), Grants: []Grant{}}
 	if r.Preset == "" {
 		r.Preset = "work"
 	}
