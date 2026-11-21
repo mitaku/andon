@@ -9,19 +9,19 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | 「台帳」「ゲート」「版」の 3 語を、Andon の文から外す | この ADR | まだ実装していない |
-| 2 | 「台帳」は、識別子のまま kanban と書く | この ADR | まだ実装していない |
-| 3 | 「ゲート」は、識別子のまま gate と書く | この ADR | まだ実装していない |
-| 4 | 「版」は「バージョン」と書き、製品や文書の種類を言う形は残す | この ADR | まだ実装していない |
-| 5 | 用語集の 2 つの項は、名前を kanban と gate に替えて残す | この ADR | まだ実装していない |
-| 6 | 替える範囲は repo の全部で、過去の記録も語だけ替える | この ADR | まだ実装していない |
-| 7 | 機械が照合する日本語（3 か所）は新しい語で書き、読む側は古い語も受ける | この ADR | まだ実装していない |
-| 8 | gate が PR に書く外向けのコメントでは `andon gate` と書く | この ADR | まだ実装していない |
-| 9 | レビューの観点の語も替え、skill と許可の一覧と検査を同じ PR で直す | この ADR | まだ実装していない |
-| 10 | 3 語が戻らないことを、語の検査で守る | この ADR | まだ実装していない |
-| 11 | セルの側は指針・wiki のページ・ルーチンの文だけ直し、過去の依頼書と報告は直さない | この ADR | まだ実装していない |
-| 12 | 場所ごとに分け、役の名前の置き換えの同じ場所の課題が済んでから流す | この ADR | まだ実装していない |
-| 13 | 効いたかを、yomiyasu の記録で確かめる | この ADR | まだ実装していない |
+| 1 | 「台帳」「ゲート」「版」の 3 語を、Andon の文から外す | `tests/words.sh`・`package/skills/glossary/SKILL.md` | 生きている |
+| 2 | 「台帳」は、識別子のまま kanban と書く | `package/skills/glossary/SKILL.md`・`docs/design.md` §3.5 | 生きている |
+| 3 | 「ゲート」は、識別子のまま gate と書く | `package/skills/glossary/SKILL.md` | 生きている |
+| 4 | 「版」は「バージョン」と書き、製品や文書の種類を言う形は残す | `package/writing.md` | 生きている |
+| 5 | 用語集の 2 つの項は、名前を kanban と gate に替えて残す | `package/skills/glossary/SKILL.md`・`package/writing.md` | 生きている |
+| 6 | 替える範囲は repo の全部で、過去の記録も語だけ替える | `docs/decisions/2026-11-20-three-word-replacement-reaches-frozen-records.md`・`docs/adr/0026-pr-rules-for-outside-readers.md` | 生きている |
+| 7 | 機械が照合する日本語（3 か所）は新しい語で書き、読む側は古い語も受ける | `internal/gate/comment.go`・`internal/gate/gate.go`・`internal/issue/settle.go` | 生きている |
+| 8 | gate が PR に書く外向けのコメントでは `andon gate` と書く | `internal/gate/comment.go` | 生きている |
+| 9 | レビューの観点の語も替え、skill と許可の一覧と検査を同じ PR で直す | `package/skills/worker/SKILL.md`・`.yomiyasu-words/allow.txt`・`tests/package/23-yomiyasu-words.sh` | 生きている |
+| 10 | 3 語が戻らないことを、語の検査で守る | `tests/words.sh` | 生きている |
+| 11 | セルの側は指針・wiki のページ・ルーチンの文だけ直し、過去の依頼書と報告は直さない | `CHANGELOG.md` | まだ実装していない（2026-11-21。repo の側は `CHANGELOG.md` の「上げるときにすること」の 1 行が入った。Andon を作るセルのルーチンの定義と指針の語は、まだ直していない） |
+| 12 | 場所ごとに分け、役の名前の置き換えの同じ場所の課題が済んでから流す | この ADR | 役目を終えた（2026-11-21。場所ごとの置き換えの PR が全部マージされた） |
+| 13 | 効いたかを、yomiyasu の記録で確かめる | この ADR | まだ実装していない（見る日は 2026-11-30。観察の課題が価値の仮説を見る） |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
