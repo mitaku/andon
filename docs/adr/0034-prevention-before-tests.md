@@ -9,16 +9,16 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 検査の秒数の上限は、今は置かない | この ADR | 生きている |
-| 2 | repo に固有の規則は Go のテストと字面の検査で書き、golangci-lint も足す | この ADR | まだ実装していない |
-| 3 | モデルに、gate が決めたあとの変化と自動マージの規則を足す | この ADR | まだ実装していない |
+| 2 | repo に固有の規則は Go のテストと字面の検査で書き、golangci-lint も足す | `.golangci.yml`・`workflow_test.go`・`tests/package/04-gate-settings.sh` | 生きている |
+| 3 | モデルに、gate が決めたあとの変化と自動マージの規則を足す | `model/IssueRules.tla`・`model/IssueLife.tla` | 生きている |
 | 4 | golangci-lint は 2 段で入れ、errcheck は 2 段目にする | `.golangci.yml` | 生きている |
-| 5 | `.golangci.yml` はオーナーがマージする変更に足さない | この ADR | 生きている |
+| 5 | gate の条件表（`package/gate.json`）に `.golangci.yml` を足さない | この ADR | 生きている |
 | 6 | schema の照合を既製の Go の検査器 1 つにし、書く前に照らす | `internal/contract/schema.go`・[contract.md](../contract.md) の冒頭の約束 6 | 生きている |
-| 7 | `log.jsonl` の行と `kanban ready --json` の schema を足す | この ADR | まだ実装していない |
-| 8 | repo に固有の lint は、フックの 1 行目と全部の workflow の 2 つ | この ADR | まだ実装していない |
+| 7 | `log.jsonl` の行と `kanban ready --json` の schema を足す | `schema/ledger/log.v3.schema.json`・`schema/ledger/ready.v3.schema.json` | 生きている |
+| 8 | repo に固有の lint は、フックの 1 行目と全部の workflow の 2 つ | `tests/package/04-gate-settings.sh`・`tests/image.sh` | 生きている |
 | 9 | 型は 3 つ直し、その節を Go へ移す課題の中で直す | この ADR | まだ実装していない |
 | 10 | gate とオーナーのマージの状態の定義を照らすかは、モデルの結果を見てから | この ADR | 生きている |
-| 11 | `andon issue report` は、課題の repo と違う repo の PR を断る | この ADR | まだ実装していない |
+| 11 | `andon issue report` は、課題の repo と違う repo の PR を断る | `internal/issue/issue.go` | 生きている |
 | 12 | 節を Go へ移す手順を改め、消すだけの課題は作らない | この ADR | まだ実装していない |
 | 13 | 価値の仮説は置かない | この ADR | 生きている |
 
