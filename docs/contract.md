@@ -226,7 +226,7 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 ```
 
 - 書き手: 担当（`andon issue ask <id> <json>`）、dispatcher（gate の `needs_human`。`from: gate`）、Chief of Staff・Chief Engineer（オーナーに出すとき）。command が JSON を検証して `text` を描き、`kanban ask` を打つ。
-- 読み手: Chief of Staff（`kanban questions --json` と並べて読む）・通知の口（将来）・ボードの返事欄（相談 F2）。答えは今までどおり `kanban answer`・`kanban received`。gate の問い（`from: gate`）は、課題の PR をオーナーが GitHub でマージしたら dispatcher が「オーナーがマージした（<PR>）」と答えて受け取りまで閉じる（[dispatcher.md](dispatcher.md) §2.7。§14 の `answer` には数えない）。
+- 読み手: Chief of Staff（`kanban questions --json` と並べて読む）・通知の口（将来）・ボードの返事欄（相談 F2）。答えは今までどおり `kanban answer`・`kanban received`。gate の問い（`from: gate`）は、課題の PR をオーナーが GitHub でマージしたら dispatcher が「オーナーがマージした（<PR>）」と答えて受け取りまで閉じる（[dispatcher.md](dispatcher.md) §2.7）。PR の head が動いて gate が今の head で決め直したときも、前の head の gate の問いを「PR の head が動いた（<前> → <今>）。gate が今の head で決め直した（記録 <パス>）」と答えて閉じる。この2つの機械の答えは、§14 の `answer` にも `override` にも数えない。
 
 ## 6. 通知
 
@@ -637,7 +637,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `answer` | `questions.yaml`（`kanban show --json` の `questions`）＋ `library/questions/<n>.json` | 答えがある（`answered`・`received`）問いのうち、gate の問い（`from: gate`）と範囲の問い（`kind: scope`。Chief of Staff が答える）を除き、答え（前後の空白を除く）が推奨案（`pick: true`）の `label` と違うもの。問いの JSON が無い問い（`andon issue ask` を通らない）は推奨案が分からないので拾わない | `question`（`n`）・`decision_kind`（問いの `kind`）・`recommended`・`picked`（kanban の答えのまま） |
 | `pr` | `gh pr view <n> --json state,commits,comments,reviews`・`gh api --paginate --slurp repos/<owner>/<repo>/pulls/<n>/comments`（インラインのレビューコメント）・オーナーの commit ごとに `gh api repos/<owner>/<repo>/commits/<sha>` | コメント（会話欄・レビューの本文・インラインのレビューコメント）のうち `andon gate: ` で始まらないもの（gate のコメントは同じ token で書かれる）と本文の無いもの・インラインでは `user.type` が `Bot` のものを除いたものと、PR の commit のうち `report.json` の `commit`（担当の最後の報告）より後のもの。`report.json` の `commit` が PR に無ければ commit は数えない。どちらも無ければ書かない | `comments[]`（`author`・`at`・`body`。インラインのレビューコメントは `file`・`line` も）・`human_commits[]`（`sha`・`headline`・`files[]`） |
 | `override`（指摘） | `report.json` の `waived` ＋ PR の `state` | PR が `MERGED` で、`waived` のうち `must_fix`（Chief of Staff が書いたもの。無ければ全部）以上の重さのもの。gate は担当がレビュアーを覆したものをオーナーへ回す（`needs_human`）ので、マージされたならオーナーが通した | `finding`（`severity`・`file`・`line`）・`reason` |
-| `override`（問い） | `questions.yaml` ＋ `library/questions/<n>.json` | 答えがある gate の問い（`from: gate`。`needs_human` へのオーナーの答え）。推奨案どおりの答えも拾う | `question`・`recommended`・`answer` |
+| `override`（問い） | `questions.yaml` ＋ `library/questions/<n>.json` | 答えがある gate の問い（`from: gate`。`needs_human` へのオーナーの答え）。推奨案どおりの答えも拾う。機械が閉じた答えは除く: `andon issue settle` がオーナーのマージを見て書いた「オーナーがマージした（<PR>）」と、PR の head が動いて gate が今の head で決め直したときの「PR の head が動いた（<前> → <今>）。gate が今の head で決め直した（記録 <パス>）」。見分けは答えの全体が一致するかで、答えた者（`answeredBy`）では見分けない（dispatcher が止まっているときは Chief of Staff が settle を打つ）。オーナーが自分で書いた答えは、推奨案と同じでも違っても拾う | `question`・`recommended`・`answer` |
 
 - オーナーの commit を author の email で見分けない: 担当も repo のオーナーの noreply アドレスで commit するので、email ではオーナーと担当が分かれない（[decisions/2026-11-09-corrections-json.md](decisions/2026-11-09-corrections-json.md)）。
 - 拾うのは事実だけで、手直しの意味は読まない（答えが推奨案と同じ意味の別の言い方でも `answer` に入る。振り返りが読んで捨てる）。多めに拾い、少なく拾わない。

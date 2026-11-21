@@ -2,6 +2,10 @@ package dispatcher
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -73,6 +77,14 @@ func TestCorrections(t *testing.T) {
 				{N: 4, Status: "received", Answer: "B"}},
 			nil, "", nil, nil,
 			`[{"kind":"override","question":1,"recommended":"オーナーが PR を読んでマージする","answer":"オーナーが PR を読んでマージする"}]`},
+		{"機械が閉じた gate の問い（settle のマージの答え・今の head で決め直した答え）は数えない・オーナーの答えは推奨と違っても同じでも数える",
+			[]QA{{N: 1, Status: "received", Answer: "PR の head が動いた（9818f9fa1df4 → 1ed1e1eb3bea）。gate が今の head で決め直した（記録 /k/issues/S-0001/library/gate/" + sha('1') + ".json）", Q: q("line", "gate", "オーナーが PR を読んでマージする", "直させる")},
+				{N: 2, Status: "received", Answer: "オーナーがマージした（https://github.com/example/sample-site/pull/438）", Q: q("line", "gate", "オーナーが PR を読んでマージする", "直させる")},
+				{N: 4, Status: "received", Answer: "直させる", Q: q("line", "gate", "オーナーが PR を読んでマージする", "直させる")},
+				{N: 5, Status: "received", Answer: "オーナーがマージした（PR は読んだ）。でも次からは直させる", Q: q("line", "gate", "オーナーが PR を読んでマージする", "直させる")}},
+			nil, "", nil, nil,
+			`[{"kind":"override","question":4,"recommended":"オーナーが PR を読んでマージする","answer":"直させる"},` +
+				`{"kind":"override","question":5,"recommended":"オーナーが PR を読んでマージする","answer":"オーナーがマージした（PR は読んだ）。でも次からは直させる"}]`},
 		{"オーナーの commit がある PR → pr",
 			nil, &contract.Report{Commit: sha('a')}, "major", pr("MERGED", sha('a'), sha('b')),
 			[]HumanCommit{{Sha: sha('b'), Headline: "msg b", Files: []string{"docs/a.md"}}},
@@ -147,5 +159,42 @@ func TestCorrectionsLine(t *testing.T) {
 	want := "A-1 corrections: オーナーの手直しを集められなかった（2 回打って失敗: HTTP 502）。corrections.json は書いていない"
 	if got != want {
 		t.Errorf("line =\n %s\nwant\n %s", got, want)
+	}
+}
+
+// TestMachineGateAnswersMatchWriters は、機械が gate の問いを閉じる答えの書き方（internal/issue の settle と merge）を
+// ソースから読み、machineGateAnswer がそれを機械の答えと見分けることを確かめる。書き方を変えて見分けがずれると、
+// 機械が閉じた問いがまたオーナーの手直しに数えられるので、ここで落とす。
+func TestMachineGateAnswersMatchWriters(t *testing.T) {
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join("..", "issue", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	sha := strings.Repeat("1", 40)
+	// settle.go: c.closeQuestion(name, q.Status, "オーナーがマージした（"+pr+"）")
+	m := regexp.MustCompile(`closeQuestion\(name, q\.Status, "([^"]*)"\+pr\+"([^"]*)"\)`).FindStringSubmatch(read("settle.go"))
+	if m == nil {
+		t.Fatal("settle.go に gate の問いをマージで閉じる答えが見つからない")
+	}
+	merged := m[1] + "https://github.com/example/sample-site/pull/7" + m[2]
+	// merge.go の closeStaleGateQuestions（頭の語が変わると見つからずに落ちる）: why := fmt.Sprintf("PR の head が動いた（%s → %s）。gate が今の head で決め直した（記録 %s）", …)
+	f := regexp.MustCompile(`why := fmt\.Sprintf\("(PR の head が動いた[^"]*)",`).FindStringSubmatch(read("merge.go"))
+	if f == nil {
+		t.Fatal("merge.go に前の head の gate の問いを閉じる答えが見つからない")
+	}
+	regated := fmt.Sprintf(f[1], sha[:12], strings.Repeat("2", 12), "/k/issues/S-0001/library/gate/"+sha+".json")
+	for _, a := range []string{merged, regated} {
+		if !machineGateAnswer(a) {
+			t.Errorf("機械が閉じた答えを見分けない: %q", a)
+		}
+	}
+	// 見分けが広すぎないこと: オーナーが書いた答え（推奨案・ほかの案・文の頭だけ同じもの）は機械の答えでない
+	for _, a := range []string{"オーナーが PR を読んでマージする", "担当に直させる（理由を Chief of Staff が返す）", merged + "。でも次からは直させる", "PR の head が動いた（前のはだめ）"} {
+		if machineGateAnswer(a) {
+			t.Errorf("オーナーの答えを機械の答えと見分けた: %q", a)
+		}
 	}
 }
