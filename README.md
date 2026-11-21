@@ -100,6 +100,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0039 振り返りの直す課題の上限を外し、改善のペースを流量に合わせる](docs/adr/0039-retro-scale-with-flow.md): 決定
   - [0040 「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く](docs/adr/0040-kanban-gate-version-words.md): 決定
   - [0041 委譲の上限を andon コマンドから外し、オーナーが前もって任せた PR をオーナーを待たずにマージする](docs/adr/0041-delegation-cap-out-of-command.md): 決定
+  - [0042 オーナー待ちが、待っていない仕事を止めないようにする](docs/adr/0042-owner-waits-do-not-stop-the-line.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 のオーナーの答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — バージョンごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
