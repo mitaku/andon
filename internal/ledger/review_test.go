@@ -194,6 +194,10 @@ func TestSamePatchIgnoresContextLines(t *testing.T) {
 			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "a2\nA2\nb\n"}, false},
 		{"衝突を解いて消した行が変わった rebase", map[string]string{"a.txt": "a\nb\nc\n"}, map[string]string{"a.txt": "a\nB\nc\n"},
 			map[string]string{"a.txt": "a\nb2\nc\n"}, map[string]string{"a.txt": "a\nB\nc\n"}, false},
+		{"衝突を解いて足した行を別のファイルに置いた rebase", map[string]string{"a.txt": conflictBase, "b.txt": "b\n"}, map[string]string{"a.txt": conflictTopic},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"b.txt": "b\nA\n"}, false},
+		{"衝突を解いて足した2行の順が入れ替わった rebase", map[string]string{"a.txt": conflictBase}, map[string]string{"a.txt": "a\nA\nB\nb\n"},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "a2\nB\nA\nb\n"}, false},
 		{"main が最後の行に改行を足した rebase", map[string]string{"n.txt": noEOL}, map[string]string{"n.txt": noEOLTopic},
 			map[string]string{"n.txt": noEOL + "\n"}, nil, true},
 	} {
