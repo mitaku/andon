@@ -29,9 +29,10 @@ func (r *reader) estimates(o Options, last string, ids []string, byID map[string
 			continue
 		}
 		// 実働は期間に閉じたときまでで数える（閉じたあとに起動し直した作業を混ぜない）。打ち切るのは最後の列の行の位置で、
-		// 同じ秒にあとから書かれた行（todo に戻した行など）を混ぜない（dispatcher の結果の記録と同じ）
+		// 同じ秒にあとから書かれた行（todo に戻した行など）を混ぜない（dispatcher の結果の記録と同じ）。d は先に読んだ履歴で
+		// 決めたので、選ぶ行は d までのものに限る（読み直した履歴に、そのあと足された done の行があっても伸ばさない）
 		upto := rows
-		if i, _, ok := ledger.LastStatus(rows, id, last); ok {
+		if i, _, ok := ledger.LastStatusUntil(rows, id, last, d); ok {
 			upto = rows[:i+1]
 		}
 		worked := ledger.Worked(upto, tasks, id, cos, gone[id], d)
