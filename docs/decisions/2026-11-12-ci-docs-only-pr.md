@@ -1,7 +1,7 @@
 # 文書だけの PR では、CI の go と tests の job が文書を読む検査だけを走らせる
 
 - 日付: 2026-11-12
-- 出典: 人（2026-11-12）「docs配下の場合ってCIもう少し減らせそうじゃない？」・課題 A-0184
+- 出典: オーナー（2026-11-12）「docs配下の場合ってCIもう少し減らせそうじゃない？」・課題 A-0184
 
 PR の変更が全部 `docs/` の下か、root の `README.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` のときを文書だけとする（`tests/lib/docs-scope.sh`）。そのとき go の job は文書を読む Go のテスト（`TestDocumentedInvocations`）だけ、tests の job は `tests/lib/scope.sh` が選ぶ文書を読む `tests/*.sh` だけを走らせる。表は [image.md](../image.md) の「CI の所要時間」。
 

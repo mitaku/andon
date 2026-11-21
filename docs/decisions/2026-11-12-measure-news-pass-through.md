@@ -1,9 +1,9 @@
 # measure に通知の素通りの数を足し、dispatcher が届けた通知の記録を書く
 
 - 日付: 2026-11-12
-- 出典: 課題 A-0012（人の発言 2026-11-09「no-reply と返すとかってどうなんだろうね。もっと上手いことできないのかな」）・[ADR-0010](../adr/0010-news-ack.md) 決めたこと 2・やらないこと 2（素通りの数を見てから `ready` などを見直す）
+- 出典: 課題 A-0012（オーナーの発言 2026-11-09「no-reply と返すとかってどうなんだろうね。もっと上手いことできないのかな」）・[ADR-0010](../adr/0010-news-ack.md) 決めたこと 2・やらないこと 2（素通りの数を見てから `ready` などを見直す）
 
-`andon measure` の表の最後に「通知」の節を足した。kind ごとに、Chief of Staff へ届けた数・そのうち `andon news ack` で終わった数（素通り）・その割合・記録だけにして届けなかった数を出す。節の末尾に、割合が 8割以上の kind を「記録だけへ移す候補」として1行で出す。移すかは人が決める（[contract.md](../contract.md) §6 の「届けるか」の表を替えるのは ADR か決定）。`--json` に `news` を足した（contract.md §13・`schema/measure.schema.json`）。
+`andon measure` の表の最後に「通知」の節を足した。kind ごとに、Chief of Staff へ届けた数・そのうち `andon news ack` で終わった数（素通り）・その割合・記録だけにして届けなかった数を出す。節の末尾に、割合が 8割以上の kind を「記録だけへ移す候補」として1行で出す。移すかはオーナーが決める（[contract.md](../contract.md) §6 の「届けるか」の表を替えるのは ADR か決定）。`--json` に `news` を足した（contract.md §13・`schema/measure.schema.json`）。
 
 届けた数と ack の有無を kind ごとに残した記録が無かったので、新しい記録を1つ足した:
 

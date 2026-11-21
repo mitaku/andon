@@ -7,5 +7,5 @@
 
 - 数えるもの: `gh pr create`／`gh pr comment --attach` が本文に足す画像（`![alt](https://github.com/user-attachments/assets/<id>)`）と動画（URL だけ）、Web の画面で上げた画像（`<img src="…/user-attachments/assets/<id>">`）。どの書き方でも同じ URL の形になるので、URL だけを見る。
 - 数えないもの: 外の画像の URL（GitHub の権限で守られず、消えうる）、書き換えられていない相対パス（`![x](./a.png)`。`--attach` で上げ損ねたもの）、画像・動画でない添付（`user-attachments/files/`）。
-- 見ないもの: 添付がどの commit で撮られたか、誰が付けたか。head が進んだあとに撮り直したかは、レビュアーの観点（ADR-0018 決めたこと 4）と人が見る。
+- 見ないもの: 添付がどの commit で撮られたか、誰が付けたか。head が進んだあとに撮り直したかは、レビュアーの観点（ADR-0018 決めたこと 4）とオーナーが見る。
 - 既定の条件表（`package/gate.json`）には `screen_paths` を足さない（無ければ空。Andon の repo は画面を持たない）。

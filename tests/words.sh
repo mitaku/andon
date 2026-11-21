@@ -54,8 +54,8 @@ if [ -n "$hits" ]; then
 fi
 echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出ない"
 
-# 役を指す形の「人」（ADR-0036 決めたこと 7、受け入れ条件 2）。「人」の後ろに助詞か日付の括弧が続き、
-# 前に数字も「外の」「読む」のような語も無い形を禁じる。役を指さない「人」（外の人・読む人・1人・個人・人が読む・人向け・
+# 役を指す形の「人」（ADR-0036 決めたこと 7、受け入れ条件 2）。「人」の後ろに助詞か日付（括弧の中か空白のあと）が続き、
+# 前に数字も「外の」「読む」のような語も無い形を禁じる。前の数字が日付（2026-11-05 人が）か番号（A5 人の）の終わりなら当たり、名札の「（2026-11-12 人）」も当たる。役を指さない「人」（外の人・読む人・1人・個人・人が読む・人向け・
 # 人と AI が読む・人の名前）は通る。範囲は替え終えた場所だけで、替えるたびに role_paths に足す。
 # 例外: このファイルと tests/words-selftest.sh（落ちる例）・
 #   古い語を読む所（internal/triage と tests/andon-triage.sh の「人に聞くこと」「（人の判断待ち）」、internal/retro と
@@ -63,12 +63,17 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 #   古い文に当たることを確かめる行（tests/andon-gate.sh の役の語の検査・tests/package/06-skill-commands.sh の古い文）・
 #   docs/design.md の引用（§0 のビジョンの写し・freee の KPI「人の介在率」・pstack の「人を待たない」。ADR-0036 決めたこと 5）・
 #   docs/contract.md が古い語も読むと書いた所（古い見出し `## 人に聞くこと`・古い末尾「（人の判断待ち）」・前のバージョンの答え
-#   「人がマージした（…）」。ADR-0036 決めたこと 6）・README.md の ADR の一覧の行（ADR の題の写し。ADR の本文と一緒に替える）・
+#   「人がマージした（…）」。ADR-0036 決めたこと 6）・
 #   CHANGELOG.md の版の節（## v…。版を切ったときの記録。ADR-0036 決めたこと 4）。
-#   引用だけを外し、同じ行の地の文の「人」は当たる。
-role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?<![0-9] )(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ)'
+#   ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md）では、バッククォートの中（当時の識別子）と、
+#   名指しした「」だけを外す（ADR-0036 決めたこと 4）。名指しするのは、オーナーの発言・外の文の写し（pstack・LLM wiki・
+#   ビジョン）・数えたデータの値（前のバージョンの答え「人がマージした」）・「手で書く」の意味の「人が書く YAML」。
+#   節の名前や当時の文の写しの「」（「人の入口」など）は名指しせず、当たる。ほかに外すのは、役でない 2 つの句
+#   （ADR-0005 の「人と人が共有する」・ADR-0011 の「トラッカー側の人が決める」）と、ADR-0036 とその決定のファイルの
+#   「」の中・語の表の「今」の列・「X→」の形（語そのものを挙げた所）。名指しした引用だけを外し、同じ行のほかの「人」は当たる。
+role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?:(?<![0-9] )|(?<=-[0-9]{2} )|(?<=[A-Za-z][0-9] ))(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ| [0-9]{4}-|(?<=-[0-9]{2} 人)[）)])'
 role_paths=(package internal init cmd tests docs/design.md process docs/process model docs/contract.md docs/dispatcher.md
-  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md)
+  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md docs/adr docs/decisions docs/decisions.md)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
@@ -79,11 +84,29 @@ hits=""
     -e '^internal/retro/[^:]*:[0-9]*:.*人がマージした' -e '^tests/andon-retro\.sh:[0-9]*:.*人がマージした' \
     -e '^tests/andon-gate\.sh:[0-9]*:.*古い見出しに当たらない' \
     -e "^tests/package/06-skill-commands\.sh:[0-9]*:.*\(old_cos=\|old_docs=\|<<<'\)" \
-    -e '^README\.md:[0-9]*:  - \[[0-9]\{4\} ' \
   | awk -F: -v v="${changelog_v:-0}" '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v)' \
   | perl -CSDA -Mutf8 -ne '
       BEGIN { $r = shift }
       my ($f, $t) = /^([^:]*):\d+:(.*)$/s or next;
+      if ($f =~ m{^docs/(?:adr/|decisions/|decisions\.md$)}) {
+        if ($f =~ m{^docs/(?:adr/0036-|decisions/2026-11-20-(?:adr-0036-|role-name-replacement-))}) {
+          $t =~ s/^\s*\|[^|]*\|//;                    # 語の表の「今」の列
+          $t =~ s/[^\s・（「]+→//g;                    # 「人→オーナー」の形
+          1 while $t =~ s/「[^「」]*」//g;               # 語を挙げた「」（入れ子は内から）
+        }
+        for my $q (                                    # 名指しした引用（オーナーの発言・外の文・データの値・手で書く）
+          "人の他に、Sentry や Cloudflare、Linear、GitHub が Signal になるといい",
+          "人を待たない", "人と LLM が一緒に育てる", "人が直すたびに回す",
+          "人は、自分にしかできない判断だけをする。ラインは人が見ていない間も回り、灯りがつくのはその判断のときだけ",
+          "人が PR を読んでマージする", "人がマージした（PR の URL）", "人がマージした",
+          "`issue.yaml` は人が書くまま、モデルと照らす", "人が書いた YAML", "人が書く YAML（残り 9 本）") {
+          $t =~ s/\Q「$q」\E//g;
+        }
+        $t =~ s/`[^`]*`//g;
+        $t =~ s/人と人が共有する//g if $f =~ m{^docs/adr/0005-};
+        $t =~ s/トラッカー側の人が決める//g if $f =~ m{^docs/adr/0011-};
+        $t =~ /$r/ or next;
+      }
       if ($f eq "docs/design.md") {
         $t =~ s/止められるものは機械、判断が要るものは LLM、残りだけ人。ラインは回り続け（AND ON）、人を呼ぶときだけ灯りがつく（アンドン）//g;
         $t =~ s/「人の介在率」|「人を待たない」//g;
