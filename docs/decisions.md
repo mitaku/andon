@@ -46,7 +46,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 | 2026-11-05 | 仮設でやる範囲: Chief of Staff がゲートでマージする経路はやる。乾いた走り 5 本は Andon の PR 5 本で兼ねる。ほかは凍結（保守タスクの整理は Chief of Staff） | 設計書 §6 問い4 |
 | 2026-11-05 | base image は `ghcr.io/<owner>/andon`（private）。台帳の CLI は image に焼く（P5 までは CI の token で release から。移した後は同じ repo で作る） | 設計書 §6 問い5 |
 | 2026-11-05 | 台帳の CLI と形式を Andon のモノレポに移す。名前は `kanban`、形式 v2 はそのまま、段取り K1〜K8 はオーナーと。時期は P5 のあと | 設計書 §6 問い6 |
-| 2026-11-05 | 案件 repo の `AGENTS.md`・`REVIEW.md` はレベル B に下げる（独立レビュー付き）。Andon の repo と建屋の repo はレベル C のまま | 設計書 §6 問い7 |
+| 2026-11-05 | 案件 repo の `AGENTS.md`・`REVIEW.md` はレベル B に下げる（独立レビュー付き）。Andon の repo と建屋の repo はレベル C のまま | 設計書 §6 問い7 → 覆された（一部。decisions/2026-11-21-adr-0041-delegation-cap-out-of-command.md） |
 | 2026-11-05 | ダブルループの構造に名前を付けない。「インナーループ／アウターループ」と §1.4 の図で足りる。「変則スター」の語は使わない | 設計書 §6 問い8 |
 | 2026-11-05 | 仮設の docs は Andon に移さず指す。決定だけ `docs/decisions.md` に写す | 設計書 §6 問い9 |
 | 2026-11-05 | 建屋の repo の自動 push は捨てる（commit と push は Chief of Staff や Chief Engineer が意識して行うことで、仕組みは要らない） | 設計書 §6 問い10 |
@@ -65,7 +65,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 | 2026-11-05 | 監視の入口は P8 の後。まず案件 repo の main の CI の失敗、次にエラー監視の webhook。利用の統計は入れない | 設計書 §6 問い23 |
 | 2026-11-05 | `andon` の言語は Go（台帳の CLI と同じ module。1 バイナリ） | 設計書 §6 問い24 |
 | 2026-11-05 | 委譲のファイルは建屋の repo の `projects/<slug>/delegation.json`（オーナーだけが書ける。履歴が git） | 設計書 §6 問い25 |
-| 2026-11-05 | 型 `hobby` は全部任せる（public への公開・production へのデプロイも。戻せない公開も含む）。「何を作るか」と Andon 自身のパッケージが常にオーナー、はそのまま | 設計書 §6 問い26 |
+| 2026-11-05 | 型 `hobby` は全部任せる（public への公開・production へのデプロイも。戻せない公開も含む）。「何を作るか」と Andon 自身のパッケージが常にオーナー、はそのまま | 設計書 §6 問い26 → 覆された（一部。decisions/2026-11-21-adr-0041-delegation-cap-out-of-command.md） |
 | 2026-11-05 | 委譲の期限は無し（`until: null`）が既定。型が無いプロジェクトは `work`（安全側） | 設計書 §6 問い27 |
 
 ## 2. 仮設の設計文書の決定（Andon の像と形）
