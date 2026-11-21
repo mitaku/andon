@@ -1,7 +1,7 @@
 # ADR-0003: 作業側の Space をタスクごとにする（2026-11-06。Y-147）
 
 - 状態: **決定（2026-11-06）**。[ADR-0002](0002-herdr-spaces.md) の決めたこと 1（2 段）の作業側と 2（作業側の tab はタスク 1 つ。12 で確定）を覆す。指揮側（`<slug>` の Space・CoS と CE の tab）は ADR-0002 のまま。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。
-- 主題: 担当とレビュアーを人の Herdr App のどの Space・tab に置くか。
+- 主題: 担当とレビュアーをオーナーの Herdr App のどの Space・tab に置くか。
 - 語は [design.md](../design.md) §0.1。機械が読む形は端末のラベル（[contract.md](../contract.md) §8）。
 
 ## 決定の索引
@@ -10,12 +10,12 @@
 |---|---|---|---|
 | 1 | 作業側の Space を課題ごとに 1 つにし、id と名前を課題で決める | `internal/issue/start.go`・`docs/contract.md` §8 | 生きている |
 | 2 | tab は担当の 1 つにし、レビュアーは担当と同じ Space・tab に並べる | `internal/dispatcher/loop.go`・`docs/contract.md` §8 | 生きている |
-| 3 | 人に担当の端末を指すときは `<id> <題> / <id>` の形で言う | `internal/issue/start.go`・`docs/contract.md` §8 | 生きている |
+| 3 | オーナーに担当の端末を指すときは `<id> <題> / <id>` の形で言う | `internal/issue/start.go`・`docs/contract.md` §8 | 生きている |
 | 4 | 別のマシンに出す担当も、置き場のラベルはマシンに依らない | `internal/issue/start.go` | 生きている |
 
 ## 問題
 
-ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab をタスクごとにした。App の Space は 1 つの作業の置き場で、Files・Changes の欄は Space のフォルダ（最初の端末の cwd の git の根）を指す。作業側の Space が 1 つだと、そのフォルダは最初に起動した担当の worktree になり、ほかのタスクの worktree は App から見えない。人はタスク（＝worktree）ごとに Space があるほうがよいと言った（人 2026-11-06。P7 のあと）。
+ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab をタスクごとにした。App の Space は 1 つの作業の置き場で、Files・Changes の欄は Space のフォルダ（最初の端末の cwd の git の根）を指す。作業側の Space が 1 つだと、そのフォルダは最初に起動した担当の worktree になり、ほかのタスクの worktree は App から見えない。オーナーはタスク（＝worktree）ごとに Space があるほうがよいと言った（オーナー 2026-11-06。P7 のあと）。
 
 ## 決めたこと
 
@@ -30,5 +30,5 @@ ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab を�
 
 ## 出典
 
-- 人（2026-11-06。P7 のあと）: 作業側は worktree（＝タスク）ごとに Space があるほうがよい。
+- オーナー（2026-11-06。P7 のあと）: 作業側は worktree（＝タスク）ごとに Space があるほうがよい。
 - ADR-0002 の S0 の結果（(b) 同じ tab の端末は横に並ぶ・(c) 最後の tab が閉じると Space も閉じる）と、App の Space のフォルダの決め方（`src/model.rs` の `space_name`。ADR-0002 の出典）。

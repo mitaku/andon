@@ -67,17 +67,17 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0006 調べる・決める・直すを分ける](docs/adr/0006-survey-fix-decide.md): 決定
   - [0007 仮設の工場にあって Andon に無いものの棚卸しと、塞ぐ順](docs/adr/0007-interim-gap-inventory.md): 決定
   - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定
-  - [0009 Chief of Staff を人の既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定
+  - [0009 Chief of Staff をオーナーの既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定
   - [0010 通知を「記録だけ」と「届ける」に分ける（`andon news ack`）](docs/adr/0010-news-ack.md): 決定
   - [0011 信号の受け口と価値のループ](docs/adr/0011-signals-and-value-loop.md): 決定
   - [0012 止まった担当を resume で起動し直す・worktree の置き場](docs/adr/0012-resume-and-worktree-home.md): 決定
-  - [0013 役の呼び名を短くし、人に向けた日本語をふだんの言い方に揃える](docs/adr/0013-short-role-names-and-plain-japanese.md): 決定
+  - [0013 役の呼び名を短くし、オーナーに向けた日本語をふだんの言い方に揃える](docs/adr/0013-short-role-names-and-plain-japanese.md): 決定
   - [0014 課題の見込みと実際のズレを測り、Chief of Staff に届ける](docs/adr/0014-issue-estimate.md): 決定
   - [0015 inbox を Needs you と役への入口に絞る](docs/adr/0015-inbox-needs-you.md): 決定
   - [0016 セルの wiki を LLM Wiki の手法に乗せる](docs/adr/0016-cell-wiki-llm-wiki.md): 決定
   - [0017 仕事の流れと状態を定義し、その上で見張り役（dispatcher）を細くする](docs/adr/0017-process-definitions.md): 決定
   - [0018 担当が画面を見て確かめる道具](docs/adr/0018-screen-check-tooling.md): 決定
-  - [0019 人の書きかけに `<news>` を混ぜない](docs/adr/0019-cos-input-box.md): 決定
+  - [0019 オーナーの書きかけに `<news>` を混ぜない](docs/adr/0019-cos-input-box.md): 決定
   - [0020 auto memory を気づきの受け皿にして wiki へ蒸留する](docs/adr/0020-auto-memory-as-intake.md): 決定
   - [0021 pstack をセルに入れて試す](docs/adr/0021-pstack-in-cell.md): 決定
   - [0022 Chief Engineer の役は残し、Chief of Staff に Advisor（Fable）を試験運用で付ける](docs/adr/0022-advisor-and-chief-engineer.md): 決定

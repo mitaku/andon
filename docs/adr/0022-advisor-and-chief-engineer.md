@@ -1,9 +1,9 @@
 # ADR-0022: Chief Engineer の役は残し、Chief of Staff に Advisor（Fable）を試験運用で付ける（仕様・設計。2026-11-12。Chief Engineer の課題 A-0161）
 
-- 状態: **決定（2026-11-12）**。人が 2026-11-12 に「決めた」と言った（Chief Engineer の対話 A-0161）。人が PR をマージした日が決定の日（[decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md](../decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。試験運用の結果（見る日 2026-11-27）は「決めたこと」に下から足す。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。
-- 主題: Claude Code の Advisor（メインのモデルが途中で強いモデルに助言を求める機能）を使えば、仕様・設計を人と対話する役（Chief Engineer。[design.md](../design.md) §1.8）を外せるか。結論は「外さない。Advisor は Chief of Staff の判断を強めるために、試験運用で付ける」。プロファイルと skill の変更は Andon のラインの変更（レベル C。人がマージ）。
+- 状態: **決定（2026-11-12）**。オーナーが 2026-11-12 に「決めた」と言った（Chief Engineer の対話 A-0161）。オーナーが PR をマージした日が決定の日（[decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md](../decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。試験運用の結果（見る日 2026-11-27）は「決めたこと」に下から足す。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。
+- 主題: Claude Code の Advisor（メインのモデルが途中で強いモデルに助言を求める機能）を使えば、仕様・設計をオーナーと対話する役（Chief Engineer。[design.md](../design.md) §1.8）を外せるか。結論は「外さない。Advisor は Chief of Staff の判断を強めるために、試験運用で付ける」。プロファイルと skill の変更は Andon のラインの変更（レベル C。オーナーがマージ）。
 - 語は [design.md](../design.md) §0.1。機械が読む形（`contract.md`・`schema/`）は変えない。
-- 入力: 依頼書 A-0161（人の発言 2026-11-12 と Chief of Staff の経緯）、design.md §1.8、[ADR-0009](0009-cos-default-entry.md)、[ADR-0001](0001-skills-distribution.md)、[ADR-0004](0004-project-layout.md)、`package/templates/chief-engineer.md`・`chief-of-staff.md`、`package/skills/chief-of-staff/SKILL.md`・`chief-engineer/SKILL.md`、台帳（これまでの Chief Engineer の課題 13 件）、セルの wiki、Advisor とカスタムエージェントの公式の説明（出典）。
+- 入力: 依頼書 A-0161（オーナーの発言 2026-11-12 と Chief of Staff の経緯）、design.md §1.8、[ADR-0009](0009-cos-default-entry.md)、[ADR-0001](0001-skills-distribution.md)、[ADR-0004](0004-project-layout.md)、`package/templates/chief-engineer.md`・`chief-of-staff.md`、`package/skills/chief-of-staff/SKILL.md`・`chief-engineer/SKILL.md`、台帳（これまでの Chief Engineer の課題 13 件）、セルの wiki、Advisor とカスタムエージェントの公式の説明（出典）。
 
 ## 決定の索引
 
@@ -16,21 +16,21 @@
 | 5 | 効いたかは、オーナーの目視で 2026-11-27 に見る | この ADR | まだ実装していない |
 | 6 | 試験運用として入れ、見る日に続ける・止める・広げるを決める | `docs/design.md` | まだ実装していない |
 
-## 問題（人の言葉で。言い直しの段落）
+## 問題（オーナーの言葉で。言い直しの段落）
 
-人（2026-11-12）: 「あとは Claude の Advisor 機能を使うことで ChiefEngineer を除外できるのでは？とも思っている」。
+オーナー（2026-11-12）: 「あとは Claude の Advisor 機能を使うことで ChiefEngineer を除外できるのでは？とも思っている」。
 
-言い直し（人が同意 2026-11-12）。人が減らしたいのは役の数。今は「何を作るか」を詰めるたびに Chief of Staff が Chief Engineer を別の端末に起動し、人はそちらへ移って話し、文書の PR を経て Chief of Staff に戻る。Chief Engineer を分けた理由の1つは、問いを重ねる仕事に最上位のモデル（Fable）を当てたいことだった。Advisor を使えば、Opus で動く Chief of Staff が要所で Fable の助言を借りられる。それなら設計の対話も Chief of Staff がそのまま受け持てて、Chief Engineer の役（command・プロファイル・skill・題ごとの課題）を外せるのではないか、がこの題。困りごとは「役と受け渡しが1段多いこと」で、Fable のコストや Chief Engineer の対話の質そのものではない。
+言い直し（オーナーが同意 2026-11-12）。オーナーが減らしたいのは役の数。今は「何を作るか」を詰めるたびに Chief of Staff が Chief Engineer を別の端末に起動し、オーナーはそちらへ移って話し、文書の PR を経て Chief of Staff に戻る。Chief Engineer を分けた理由の1つは、問いを重ねる仕事に最上位のモデル（Fable）を当てたいことだった。Advisor を使えば、Opus で動く Chief of Staff が要所で Fable の助言を借りられる。それなら設計の対話も Chief of Staff がそのまま受け持てて、Chief Engineer の役（command・プロファイル・skill・題ごとの課題）を外せるのではないか、がこの題。困りごとは「役と受け渡しが1段多いこと」で、Fable のコストや Chief Engineer の対話の質そのものではない。
 
-対話の中で人の案は2度動いた（2026-11-12）。
+対話の中でオーナーの案は2度動いた（2026-11-12）。
 
 - 「会話相手を1つに絞り、設計の役は CoS（＋Advisor）をベースにしたほうがいいかなと思っている、それで足りないのであれば CoS の判断で Fable の席やカスタムエージェント（ChiefEngineer）を呼び出す流れができればいい」。
 - そのあと、設計の題が1題ずつになることとラインの通知が対話に混ざることを見て: 「通知も来たりすることを考えると分離されているのが好ましいね、ChiefEngineer の席は残したまま、Advisor をつける（CE を呼び出すか判断する）のがいいかもね」。
 
 ### 確かめた事実（Advisor。2026-11-12）
 
-- メインのモデルが、作業の途中で自分より強いモデルに助言を求める。呼ぶかどうかはメインのモデルが決める（方針を決める前・同じエラーが続くとき・完了を言う前が典型）。人は「advisor に相談してから続けて」と頼める。呼ぶ回数を決めたり強いたりする設定は無い。
-- advisor が見るのはメインの会話の全体（tool の呼び出しと結果を含む）。返すのは助言の文章だけで、返す先はメインのモデル。advisor は tool を使えず、人と直接やりとりしない。
+- メインのモデルが、作業の途中で自分より強いモデルに助言を求める。呼ぶかどうかはメインのモデルが決める（方針を決める前・同じエラーが続くとき・完了を言う前が典型）。オーナーは「advisor に相談してから続けて」と頼める。呼ぶ回数を決めたり強いたりする設定は無い。
+- advisor が見るのはメインの会話の全体（tool の呼び出しと結果を含む）。返すのは助言の文章だけで、返す先はメインのモデル。advisor は tool を使えず、オーナーと直接やりとりしない。
 - 入れ方は `/advisor`（選んだ値は利用者の設定の `advisorModel` に残る）・設定の `advisorModel`・起動フラグ `--advisor <model>`（そのセッションだけ。`claude --help` には出ない）。
 - 組み合わせ: メインが Opus なら advisor に Fable を置ける。メインが Fable 5.2 なら advisor は Fable 5.2（か Mythos 5.2）に限られる。
 - 版: Claude Code v2.1.260 以上。Fable 5.2 の advisor は v2.1.321 以上（セルは 2.1.322）。公式には experimental。
@@ -41,9 +41,9 @@
 
 - 定義は `.claude/agents/<name>.md`（プロジェクト・利用者・plugin の `agents/`）。モデル（`fable`）・effort・読ませる skill を定義ごとに書ける。
 - メインとは別のコンテキストで動き、メインに戻るのは報告だけ。メインは同じエージェントにコンテキストを保ったまま続きを頼める（Claude Code を起動し直したあとにどこまで続けられるかは公式の説明に明記が無い）。
-- 人は `/tasks` からそのエージェントを開いて直接打てる。カスタムエージェントは選択式のダイアログ（AskUserQuestion）を使えない。
+- オーナーは `/tasks` からそのエージェントを開いて直接打てる。カスタムエージェントは選択式のダイアログ（AskUserQuestion）を使えない。
 - カスタムエージェントは自分でもサブエージェントを起動できる（既定で3段まで）。設定した advisor を継ぐ。
-- Andon の過去の決定: 置き場は ADR-0004 決めたこと 1 が例に挙げている（プロジェクトの `.claude/agents/`）。パッケージの `agents/` は置けば plugin の部品として読まれる（ADR-0001 決めたこと 2。今は空）。役のセッションそのものを `claude --agent <役>` で起動する形は人が退けた（ADR-0001。2026-11-05）。
+- Andon の過去の決定: 置き場は ADR-0004 決めたこと 1 が例に挙げている（プロジェクトの `.claude/agents/`）。パッケージの `agents/` は置けば plugin の部品として読まれる（ADR-0001 決めたこと 2。今は空）。役のセッションそのものを `claude --agent <役>` で起動する形はオーナーが退けた（ADR-0001。2026-11-05）。
 
 ### 確かめた事実（台帳。2026-11-12）
 
@@ -52,24 +52,24 @@
 
 ## 前提（同意済み。番号）
 
-1. （人が同意 2026-11-12）設計の問いと人の答えは Chief of Staff の会話に載る。2026-11-04 に役を分けた理由（1つの議論で数十の判断が載ってコンテキストが太り、ラインを回す判断と混ざる）は Advisor では消えない。対話が Chief of Staff に載ることは受け入れ、太る分は、重い読みと検討を外（Fable のプロファイル・カスタムエージェント）に出すことと、決めたことをその都度文書に書くことで受ける。→ 改めた（前提 2。同じ日）。
-2. （人の言葉 2026-11-12）設計の対話は Chief of Staff の会話と分ける。会話相手を Chief of Staff の1本にすると、設計の題は1題ずつになり（今は別々の端末で同時に詰められる）、ラインの通知が対話の合間に入る。だから Chief Engineer の役（別の端末・別のコンテキスト）は残し、Advisor は Chief of Staff に付ける。前提 1 の「対話が Chief of Staff に載ることは受け入れる」は取り下げる。
-3. （人の言葉 2026-11-12）「Advisor は Experimental だしトークン制限もあるので、試験運用である前提でいきましょう」。
+1. （オーナーが同意 2026-11-12）設計の問いとオーナーの答えは Chief of Staff の会話に載る。2026-11-04 に役を分けた理由（1つの議論で数十の判断が載ってコンテキストが太り、ラインを回す判断と混ざる）は Advisor では消えない。対話が Chief of Staff に載ることは受け入れ、太る分は、重い読みと検討を外（Fable のプロファイル・カスタムエージェント）に出すことと、決めたことをその都度文書に書くことで受ける。→ 改めた（前提 2。同じ日）。
+2. （オーナーの言葉 2026-11-12）設計の対話は Chief of Staff の会話と分ける。会話相手を Chief of Staff の1本にすると、設計の題は1題ずつになり（今は別々の端末で同時に詰められる）、ラインの通知が対話の合間に入る。だから Chief Engineer の役（別の端末・別のコンテキスト）は残し、Advisor は Chief of Staff に付ける。前提 1 の「対話が Chief of Staff に載ることは受け入れる」は取り下げる。
+3. （オーナーの言葉 2026-11-12）「Advisor は Experimental だしトークン制限もあるので、試験運用である前提でいきましょう」。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-12 Chief Engineer の役は外さない。振り分けの線（判断〈構造の違う案が2つ以上・外との約束・何を作るか〉は Chief Engineer へ。Chief of Staff は設計を詰めない）も動かさない。Advisor は Chief of Staff の判断を強めるために使う。**
-   理由: 線は効いている（終わった 13 題は全部が文書の PR になった。1問で済む決断は今も Chief of Staff がその場で人に聞いている）。設計の対話を Chief of Staff に載せると、題が1題ずつになり、ラインの通知と混ざる（前提 2）。Advisor が代われるのは「強いモデルの知恵」だけで、コンテキストの分離は代われない。
-   捨てた案: Chief Engineer を外し、Chief of Staff ＋ Advisor が設計の対話を受け持つ（人の最初の案。前提 2 で人が退けた）／Chief Engineer をカスタムエージェントにして Chief of Staff の中から呼ぶ（人は `/tasks` から話せるが、選択式のダイアログが使えず、起動し直したあとの続きが公式に明記されていない。Chief Engineer の役を残すと決めたので要らない）／小さな設計は Chief of Staff が Advisor の助言を借りてその場で詰め、足りなければ Chief Engineer を呼ぶ（「小さい」の線引きが裁量になり、決定の記録の置き場が新しく要る）。
+   理由: 線は効いている（終わった 13 題は全部が文書の PR になった。1問で済む決断は今も Chief of Staff がその場でオーナーに聞いている）。設計の対話を Chief of Staff に載せると、題が1題ずつになり、ラインの通知と混ざる（前提 2）。Advisor が代われるのは「強いモデルの知恵」だけで、コンテキストの分離は代われない。
+   捨てた案: Chief Engineer を外し、Chief of Staff ＋ Advisor が設計の対話を受け持つ（オーナーの最初の案。前提 2 でオーナーが退けた）／Chief Engineer をカスタムエージェントにして Chief of Staff の中から呼ぶ（オーナーは `/tasks` から話せるが、選択式のダイアログが使えず、起動し直したあとの続きが公式に明記されていない。Chief Engineer の役を残すと決めたので要らない）／小さな設計は Chief of Staff が Advisor の助言を借りてその場で詰め、足りなければ Chief Engineer を呼ぶ（「小さい」の線引きが裁量になり、決定の記録の置き場が新しく要る）。
 2. **2026-11-12 Advisor（Fable）を付けるのは Chief of Staff だけ。** 担当・レビュアーへ広げるかは、効きを見てから別の題で決める。
    理由: 変えるものが1つなので効きが見やすい。Advisor は experimental で、呼ばれるたびに会話の全体を読み、その分が advisor のモデルの単価で別に掛かる。Fable で動く役（Chief Engineer・`fable` のプロファイル）は advisor も Fable に限られ、得が薄い。
-   捨てた案: Chief of Staff と Opus・Sonnet の担当（公式の用途には一番合うが、課題の数だけコストが増え、効きの出所が分かれる）／Claude 系の全部の役（experimental の機能にライン全体が依る）／まだ入れず、人が手で `/advisor` を試すだけ。
-3. **2026-11-12 入れ方は、パッケージの `chief-of-staff` のプロファイル（`package/templates/chief-of-staff.md`）の起動行に `--advisor fable` を1つ足す。** レベル C（人がマージ）。パッケージの版上げで全セルへ届く。
+   捨てた案: Chief of Staff と Opus・Sonnet の担当（公式の用途には一番合うが、課題の数だけコストが増え、効きの出所が分かれる）／Claude 系の全部の役（experimental の機能にライン全体が依る）／まだ入れず、オーナーが手で `/advisor` を試すだけ。
+3. **2026-11-12 入れ方は、パッケージの `chief-of-staff` のプロファイル（`package/templates/chief-of-staff.md`）の起動行に `--advisor fable` を1つ足す。** レベル C（オーナーがマージ）。パッケージの版上げで全セルへ届く。
    理由: 起動フラグはそのセッションだけに効くので、Chief of Staff だけに付く（2）。
-   捨てた案: `/advisor` で入れる（選んだ値が利用者の設定に残り、同じ HOME を使う担当やレビュアーにも付く）／このセルの `templates.local` だけで先に試す（人だけが書ける場所。効いたらパッケージへ、の2段になる）／managed settings に `advisorModel`（全部の役に付く）。
+   捨てた案: `/advisor` で入れる（選んだ値が利用者の設定に残り、同じ HOME を使う担当やレビュアーにも付く）／このセルの `templates.local` だけで先に試す（オーナーだけが書ける場所。効いたらパッケージへ、の2段になる）／managed settings に `advisorModel`（全部の役に付く）。
 4. **2026-11-12 Chief of Staff の skill の「人の入口」に1行だけ足す: 振り分けに迷うとき（直す課題か Chief Engineer か）と、2回差し戻して切り直すときは、advisor に相談してから決める。** それ以外の場面は書かず、モデルの判断に任せる。
-   理由: 呼ぶかどうかはモデルが決め、回数を強いる設定は無い。人が挙げた使いどころ（Chief Engineer を呼ぶかの判断）は、公式の既定のきっかけに入っていない。Chief of Staff の skill は 506 行あり、長さを減らす課題（A-0123）が待っているので、足すのは1行にとどめる。
-   捨てた案: 書かない（skill は増えないが、振り分けで呼ばれるかが分からない）／相談する場面を節として並べる（振り分け・依頼書を切る前・検収・人に問いを上げる前。呼ばれる回数とコストが増え、skill も長くなる）。
+   理由: 呼ぶかどうかはモデルが決め、回数を強いる設定は無い。オーナーが挙げた使いどころ（Chief Engineer を呼ぶかの判断）は、公式の既定のきっかけに入っていない。Chief of Staff の skill は 506 行あり、長さを減らす課題（A-0123）が待っているので、足すのは1行にとどめる。
+   捨てた案: 書かない（skill は増えないが、振り分けで呼ばれるかが分からない）／相談する場面を節として並べる（振り分け・依頼書を切る前・検収・オーナーに問いを上げる前。呼ばれる回数とコストが増え、skill も長くなる）。
 5. **2026-11-12 効いたかは、オーナーの目視で 2026-11-27 に見る**（下の「価値の仮説」）。advisor が呼ばれた回数を数える信号は足さない。
    捨てた案: 価値の仮説を置かない（担当へ広げるかを決める材料が残らない）。
 6. **2026-11-12 試験運用として入れる**（前提 3）。試験運用のあいだは次のとおり。
@@ -82,7 +82,7 @@
 
 - **Chief Engineer を外す・カスタムエージェントにする・振り分けの線を動かす**（決めたこと 1）。
 - **担当・レビュアーに Advisor を付ける**（決めたこと 2）。見る日の結果を見てから別の題。
-- **セルにカスタムエージェントを足す口を作る**。人が対話の途中で挙げた案（「必要に応じて Cell に置けるようにし」）だが、Chief Engineer の役を残すと決めたので、この題では決めない（開いている問い）。
+- **セルにカスタムエージェントを足す口を作る**。オーナーが対話の途中で挙げた案（「必要に応じて Cell に置けるようにし」）だが、Chief Engineer の役を残すと決めたので、この題では決めない（開いている問い）。
 - **advisor が呼ばれた回数を数える信号・`andon measure` の欄**（決めたこと 5）。試験運用のあいだは目視。
 - **Codex 側の対応**。Advisor は Claude Code の機能。
 - **`/advisor` をセルで打つ運用**。設定が HOME に残り、全部の役に付く（決めたこと 3）。
@@ -95,7 +95,7 @@
 2. **`tests/package.sh`**: Chief of Staff の skill の「人の入口」の節に、advisor に相談する場面（振り分けに迷うとき・2回差し戻して切り直すとき）の1行がある。
 3. **セルで実測（マージの前）**: 変えた template で Chief of Staff を起動すると起動し、`/advisor` の表示で Fable が付いている。「advisor に相談してから続けて」と頼むと画面に `Advising` の行が出て、結果が `Unavailable` でない。
 4. **セルで実測（マージの前）**: `claude` のプロファイルで起動した担当には advisor が付いていない（HOME の設定に `advisorModel` が書かれていない）。
-5. **セルで実測（マージの前）**: advisor が付かない条件（`CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` を付けて起動する）でも、`--advisor fable` の付いた起動行で Chief of Staff の起動が止まらない。止まるなら、マージせずに報告する（入れ方を決め直す。Chief of Staff は人の入口なので、起動しないことが一番重い）。
+5. **セルで実測（マージの前）**: advisor が付かない条件（`CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` を付けて起動する）でも、`--advisor fable` の付いた起動行で Chief of Staff の起動が止まらない。止まるなら、マージせずに報告する（入れ方を決め直す。Chief of Staff はオーナーの入口なので、起動しないことが一番重い）。
 
 ## 価値の仮説
 
@@ -110,8 +110,8 @@
 
 | # | 切る課題 | 受け入れ条件 | 依存 |
 |---|---|---|---|
-| V1 | `package/templates/chief-of-staff.md` の起動行に `--advisor fable`、Chief of Staff の skill の「人の入口」に1行、`tests/package.sh` の検査、design.md に試験運用の1行（決めたこと 6）。マージの前にセルで実測する。レベル C（人がマージ） | 1〜5 | この ADR の PR のマージ |
-| V2 | 観察: 価値の仮説（人の手。見る日 2026-11-27） | 価値の仮説 5・6 | V1 |
+| V1 | `package/templates/chief-of-staff.md` の起動行に `--advisor fable`、Chief of Staff の skill の「人の入口」に1行、`tests/package.sh` の検査、design.md に試験運用の1行（決めたこと 6）。マージの前にセルで実測する。レベル C（オーナーがマージ） | 1〜5 | この ADR の PR のマージ |
+| V2 | 観察: 価値の仮説（オーナーの手。見る日 2026-11-27） | 価値の仮説 5・6 | V1 |
 
 - V1 は Chief of Staff の skill と templates に触る。同じファイルに触る課題（A-0123〈CoS skill の行数・承認の線・古い続きの文〉・A-0047〈W5: skill・templates の語の置き換え〉）とぶつからないように並べる。
 - V1 がマージされても、動いている Chief of Staff には付かない。パッケージの版が上がり、Chief of Staff を起動し直したときから効く。
@@ -119,18 +119,18 @@
 ## 開いている問い（残った問い。決断の種類つき）
 
 - **担当・レビュアーに Advisor を広げるか**（ラインの変更）。見る日（2026-11-27）の結果を見てから、要れば別の題。
-- **セルにカスタムエージェントを足す口を作るか**（ラインの変更）。人が対話の途中で挙げた。使いどころが出たら別の題。
+- **セルにカスタムエージェントを足す口を作るか**（ラインの変更）。オーナーが対話の途中で挙げた。使いどころが出たら別の題。
 - **advisor の単価**（事実。未確認）。見る日に `/usage` で実際のコストを見る。
 
 ## 出典（読んだもの・捨てた案の出所）
 
-- 人の発言 2026-11-12（Chief of Staff の端末。依頼書 A-0161 の経緯）と、Chief Engineer の対話 A-0161（同じ日）。人が「決めた」と言った日: 2026-11-12（最後の確かめ「共有できたか」への答え）。
+- オーナーの発言 2026-11-12（Chief of Staff の端末。依頼書 A-0161 の経緯）と、Chief Engineer の対話 A-0161（同じ日）。オーナーが「決めた」と言った日: 2026-11-12（最後の確かめ「共有できたか」への答え）。
 - Claude Code の docs「Advisor」（https://code.claude.com/docs/en/advisor ）。
 - Claude API の docs「Advisor tool」（https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool ）。
 - Anthropic のブログ「The advisor strategy」（https://claude.com/blog/the-advisor-strategy ）。
 - Claude Code の docs「Subagents」（https://code.claude.com/docs/en/sub-agents ）・「Agent teams」（https://code.claude.com/docs/en/agent-teams ）。
 - 公式の説明は、読むだけのサブエージェントが 2026-11-12 に読んだ（要約を通して読んだので、細かい値は実装の課題がセルで実測して確かめる）。
-- design.md §1.8（役を分けた理由・プロファイルの案 A〜C）、ADR-0009（人の入口は Chief of Staff・誤った振り分けの戻し方）、ADR-0001（`--plugin-dir`・`claude --agent` を退けた経緯）、ADR-0004（`.claude/agents/` の置き場）。
+- design.md §1.8（役を分けた理由・プロファイルの案 A〜C）、ADR-0009（オーナーの入口は Chief of Staff・誤った振り分けの戻し方）、ADR-0001（`--plugin-dir`・`claude --agent` を退けた経緯）、ADR-0004（`.claude/agents/` の置き場）。
 - 台帳: profile が `chief-engineer` の課題 15 件の `issue.yaml` と `report.json`（2026-11-12）。
 - セルの wiki: `entities/owner.md`、`sources/2026-11-11-owner-effort-high.md`（対話の役も effort high）、`sources/2026-11-11-owner-agent-teams.md`（サブエージェントは調べものだけ）。
 - 反論のサブエージェントは走らせていない（外向きの面が無く、止め方がフラグと1行を戻すだけで、不可逆な設計が無いため）。

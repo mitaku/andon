@@ -1,9 +1,9 @@
 # ADR-0020: auto memory を気づきの受け皿にして wiki へ蒸留する（仕様・設計。2026-11-11。Chief Engineer の課題 A-0143）
 
-- 状態: **決定（2026-11-11）**。人が 2026-11-11 に「決めた」と言った（Chief Engineer の対話 A-0143）。人が PR をマージした日が決定の日（[decisions/2026-11-11-adr-0020-auto-memory-as-intake.md](../decisions/2026-11-11-adr-0020-auto-memory-as-intake.md)）。実装は「依頼書に切る案」のとおり別の課題。
+- 状態: **決定（2026-11-11）**。オーナーが 2026-11-11 に「決めた」と言った（Chief Engineer の対話 A-0143）。オーナーが PR をマージした日が決定の日（[decisions/2026-11-11-adr-0020-auto-memory-as-intake.md](../decisions/2026-11-11-adr-0020-auto-memory-as-intake.md)）。実装は「依頼書に切る案」のとおり別の課題。
 - 主題: ハーネスの自動の記憶（Claude Code の auto memory・Codex の memories）を入れ直すか、入れるならどの役に・どこへ置き・誰がいつ蒸留するか、wiki との線引き。[ADR-0004](0004-project-layout.md) 決めたこと 2（memory は置かない）を覆すかどうかを含む。
 - 語は [design.md](../design.md) §0.1。
-- 入力: 依頼書 A-0143（人の発言 2026-11-11 と Chief of Staff の経緯）、ADR-0004 決めたこと 2、[ADR-0016](0016-cell-wiki-llm-wiki.md)、[ADR-0007](0007-interim-gap-inventory.md) C5・R9、`package/settings.json`、`package/skills/chief-of-staff/SKILL.md` 規約 9・§11、`package/compose.yaml`、セルの wiki。
+- 入力: 依頼書 A-0143（オーナーの発言 2026-11-11 と Chief of Staff の経緯）、ADR-0004 決めたこと 2、[ADR-0016](0016-cell-wiki-llm-wiki.md)、[ADR-0007](0007-interim-gap-inventory.md) C5・R9、`package/settings.json`、`package/skills/chief-of-staff/SKILL.md` 規約 9・§11、`package/compose.yaml`、セルの wiki。
 
 ## 決定の索引
 
@@ -19,28 +19,28 @@
 | 8 | 入れる前にセルで実測し、許可は要るときだけ足す | この ADR | 役目を終えた |
 | 9 | 設定の形と、ADR-0004 を覆す文を書く | `package/settings.json`・`package/skills/chief-of-staff/SKILL.md` | 生きている |
 
-## 問題（人の言葉で。言い直しの段落）
+## 問題（オーナーの言葉で。言い直しの段落）
 
-人（2026-11-11）: 「Wiki と AutoMemory の棲み分けを少し考えていました。/workspace 配下に memory を置けば永続化もされるし、定期的に蒸留するならいいのかもな？と思っています」。
+オーナー（2026-11-11）: 「Wiki と AutoMemory の棲み分けを少し考えていました。/workspace 配下に memory を置けば永続化もされるし、定期的に蒸留するならいいのかもな？と思っています」。
 
-言い直し（人が同意 2026-11-11）。今は memory を置かないと決めてあり（ADR-0004 決めたこと 2）、auto memory は managed settings で止めてある。残るのは、担当が報告の `## Remember` に書いたものと、Chief of Staff が対話から手で wiki に写したものだけで、セッションの中でエージェントが気づいたことを拾う口が細い。案は、auto memory を入れ直して置き場を `/workspace` の下にし（セルの repo に入り、人から見え、永続化される）、定期的に蒸留して wiki・skill・`AGENTS.md` へ出し、memory 自体は痩せた状態に保つこと。これで ADR-0004 が挙げた2つの理由（見えない所で育つ・自動で載って肥大する）に答えられるかを詰める。決めるのは、入れ直すか・どの役に・置き場と git・蒸留を誰がいつどこへ・Codex を揃えるか。HOME の下の設定ファイルを誰が書くかは、memory の置き場に関わる分だけ扱う。
+言い直し（オーナーが同意 2026-11-11）。今は memory を置かないと決めてあり（ADR-0004 決めたこと 2）、auto memory は managed settings で止めてある。残るのは、担当が報告の `## Remember` に書いたものと、Chief of Staff が対話から手で wiki に写したものだけで、セッションの中でエージェントが気づいたことを拾う口が細い。案は、auto memory を入れ直して置き場を `/workspace` の下にし（セルの repo に入り、オーナーから見え、永続化される）、定期的に蒸留して wiki・skill・`AGENTS.md` へ出し、memory 自体は痩せた状態に保つこと。これで ADR-0004 が挙げた2つの理由（見えない所で育つ・自動で載って肥大する）に答えられるかを詰める。決めるのは、入れ直すか・どの役に・置き場と git・蒸留を誰がいつどこへ・Codex を揃えるか。HOME の下の設定ファイルを誰が書くかは、memory の置き場に関わる分だけ扱う。
 
 ## 前提（同意済み。番号）
 
 1. **何もしないとどうなるか（2026-11-11 同意）。** 今の拾い口（担当の報告の `## Remember` と、Chief of Staff が手で wiki に写すもの）だけでは、報告に書かれなかった担当の気づき・Chief Engineer とレビュアーの気づき・Chief of Staff が写しそびれたものがセッションと一緒に消える。取りこぼしは実際に起きていて、放っておけない。
 2. **3つの家は変えない（2026-11-11 同意）。** ADR-0004 決めたこと 2 の分け方（続きは台帳と worktree、決定は ADR と `docs/decisions/`、学び・事実はアウターループの出口と wiki）は保つ。auto memory を入れ直しても、担うのは学び・事実の拾い口だけ。続きと決定を memory に持たせない。
 3. **memory は受け皿で、最後の家ではない（2026-11-11 同意）。** 蒸留で wiki・skill・`AGENTS.md`・テストへ出すか捨て、出したものは memory から消して痩せた状態に戻す。長く残る知識の正は wiki と repo のまま。
-4. **見える所に置けるときだけ入れ直す（2026-11-11 同意）。** 記憶は、人とほかのエージェントから見える所（`/workspace` の下）に置けるときだけ入れ直す。見えない置き場（HOME の下の volume）にしか置けない記憶は今までどおり切る。Codex にも同じ条件を当てる。
-5. **配り方と重さ（2026-11-11 同意）。** 届く先はパッケージ（managed settings と skill）で、版上げで全セルへ広がる。ADR-0004 の「memory は置かない」を覆すので新しい ADR にし、実装のマージは人がする（レベル C）。まずこのセルで実測し、効かなければ切る設定に戻す。
+4. **見える所に置けるときだけ入れ直す（2026-11-11 同意）。** 記憶は、オーナーとほかのエージェントから見える所（`/workspace` の下）に置けるときだけ入れ直す。見えない置き場（HOME の下の volume）にしか置けない記憶は今までどおり切る。Codex にも同じ条件を当てる。
+5. **配り方と重さ（2026-11-11 同意）。** 届く先はパッケージ（managed settings と skill）で、版上げで全セルへ広がる。ADR-0004 の「memory は置かない」を覆すので新しい ADR にし、実装のマージはオーナーがする（レベル C）。まずこのセルで実測し、効かなければ切る設定に戻す。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-11 auto memory は全部の役に入れる（案 B。推奨案は覆された）。** Chief of Staff・Chief Engineer・担当・レビュアーのどの役のセッションでも auto memory を入れる。
-   理由（人の選択）: 取りこぼし（前提 1）は担当・Chief Engineer・レビュアーの気づきにもあり、一部の役だけでは残る。
-   捨てた案: A 最小（Chief of Staff だけ。Chief Engineer の推奨——蒸留が回るかを先に確かめてから広げる）／D 選んで広げる（人と話す役だけ）／C 横から（auto memory は切ったまま、Chief Engineer・レビュアーの報告にも `## Remember` を足す）——報告に書かれなかったものが消える根が残る。
+   理由（オーナーの選択）: 取りこぼし（前提 1）は担当・Chief Engineer・レビュアーの気づきにもあり、一部の役だけでは残る。
+   捨てた案: A 最小（Chief of Staff だけ。Chief Engineer の推奨——蒸留が回るかを先に確かめてから広げる）／D 選んで広げる（オーナーと話す役だけ）／C 横から（auto memory は切ったまま、Chief Engineer・レビュアーの報告にも `## Remember` を足す）——報告に書かれなかったものが消える根が残る。
    案 B が持ち込むもの（下の決めたことで備える）: 並んで走るセッションが同じ memory に書く・ある担当が書いた注意書きが次の担当に自動で載る・担当が自分の worktree の外に書く。
-2. **2026-11-11 置き場は `/workspace/memory/`。git では追わない（推奨案は覆された）。** セルの repo の直下に置き、セルの `.gitignore` に入れる。人とほかのエージェントからは見える（前提 4）。
-   理由（人の選択）: memory は蒸留されるまでの受け皿（前提 3）で、長く残すものは蒸留で wiki と repo へ出る。
+2. **2026-11-11 置き場は `/workspace/memory/`。git では追わない（推奨案は覆された）。** セルの repo の直下に置き、セルの `.gitignore` に入れる。オーナーとほかのエージェントからは見える（前提 4）。
+   理由（オーナーの選択）: memory は蒸留されるまでの受け皿（前提 3）で、長く残すものは蒸留で wiki と repo へ出る。
    捨てた案: 同じ場所で git で追う（Chief Engineer の推奨——セルを建て直しても残り、蒸留で消したものが履歴に残る）／`/workspace/wiki/inbox/`——wiki を書くのは Chief of Staff だけという線（ADR-0016 前提 3・規約 9）が崩れる。
    受け入れること: セルを建て直すと蒸留前の memory は消える。蒸留で消したものの履歴は git に残らない。
 
@@ -66,11 +66,11 @@
    考え直す条件: Codex が記憶の置き場を変えられるようになったとき。
 
 8. **2026-11-11 入れる前にセルで実測し、許可は要るときだけ足す。** 調べる課題を1つ先に回す（本物の HOME に書かない形で）。確かめるのは docs に無い3つ: (a) `autoMemoryDirectory` に `/workspace/memory` を書いたとき、repo ごとのサブフォルダが切られるか、全セッションが同じフォルダを共有するか／(b) 並んで走るセッションが同じ `MEMORY.md` に同時に書いたとき何が起きるか／(c) cwd が worktree の担当が `/workspace/memory/` に書くとき、許可の確認が出るか。
-   - (c) で確認が出ると分かったときだけ、managed settings の `allow` に `/workspace/memory/**` への書き込みを足す。人のファイルを守る今の `deny` は変えない。
-   - (a)・(b) はどちらの結果でも設計を変えない（memory は1件1ファイルで、トリアージはフォルダのファイルを直接拾う。目録の行が欠けても蒸留には効かない）。ただし memory のファイル自体が壊れる・失われると分かったら、入れる前に人へ戻す。
+   - (c) で確認が出ると分かったときだけ、managed settings の `allow` に `/workspace/memory/**` への書き込みを足す。オーナーのファイルを守る今の `deny` は変えない。
+   - (a)・(b) はどちらの結果でも設計を変えない（memory は1件1ファイルで、トリアージはフォルダのファイルを直接拾う。目録の行が欠けても蒸留には効かない）。ただし memory のファイル自体が壊れる・失われると分かったら、入れる前にオーナーへ戻す。
    理由: 権限を広げるのは要ると確かめたときだけにする。
    捨てた案: 実測せずに許可を足して入れる——要らないかもしれない許可を広げ、壊れ方を本番の担当で知る／許可は足さず、確認が出る役は切る——決めたこと 1 が設定の都合で崩れる。
-9. **2026-11-11 設定の形と、覆す文（問わずに推奨案として書き、最後の確かめで人が認めた）。**
+9. **2026-11-11 設定の形と、覆す文（問わずに推奨案として書き、最後の確かめでオーナーが認めた）。**
    - managed settings（`package/settings.json`）: `autoMemoryEnabled: true`、`autoMemoryDirectory: "/workspace/memory"`、`env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` を外す。memory の設定を書くのはこの1か所だけで、セルの HOME の下の設定ファイル（`~/.claude/settings.json`・`~/.claude/CLAUDE.md`）には誰も書き足さない。
    - セルの repo: `/workspace/memory/` を `.gitignore` に入れる（`andon init` の雛形と、今あるセルは版上げの手順で）。
    - ADR-0004 決めたこと 2 の「memory は置かない」「ハーネスの auto memory は managed で OFF」と前提 7 に「→ 覆された（ADR-0020）」を足す（上書きしない）。3つの家の表は保つ（前提 2）。`projects/<slug>/` の下に `memory/` を作らない線も保つ（置き場はセルの直下）。
@@ -102,14 +102,14 @@
 
 ## 価値の仮説
 
-人が同意（2026-11-11）。数（5 件・8 割・2 件・4 週間）は Chief Engineer の見立てで、観察のときに実数と一緒に見直す。
+オーナーが同意（2026-11-11）。数（5 件・8 割・2 件・4 週間）は Chief Engineer の見立てで、観察のときに実数と一緒に見直す。
 
 1. 誰の何が変わるか: オーナーと Chief of Staff。エージェントの気づきが、報告に書かれなくても拾われ、仕分けを通って wiki か repo に出る。
 2. 見る信号: オーナーの目視と、台帳の数（トリアージの記録の `kind: memory` の項目数と仕分けの内訳、`wiki/log.md` の `raw/memory/` 由来の ingest の数）。
 3. 見る日: 2026-12-09。
 4. 誰が要るか: Chief of Staff（トリアージを回す）とオーナー（要約を見る）。
 5. 効いたとどう分かるか: 見る日までに、memory 由来の項目のうち wiki か repo へ出たものが 5 件以上あり、週1の蒸留のあと memory の件数が線（30 件）の下に戻っている。
-6. 何があれば止めるか: 仕分けの 8 割以上が「捨てる」／memory の注意書きが元で、担当が要らない確認や控えをした例が 2 件出た／蒸留が 2 週続けて回らず線を超えたまま。どれかに当たれば、切る設定に戻すかを人が決める。
+6. 何があれば止めるか: 仕分けの 8 割以上が「捨てる」／memory の注意書きが元で、担当が要らない確認や控えをした例が 2 件出た／蒸留が 2 週続けて回らず線を超えたまま。どれかに当たれば、切る設定に戻すかをオーナーが決める。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
@@ -130,8 +130,8 @@
 
 ## 出典（読んだもの・捨てた案の出所）
 
-- 人が「決めた」と言った日: 2026-11-11（最後の確かめ「共有できたか」への答え）。反論のサブエージェントは走らせていない（外向きの面が無く、切る設定に戻せば元に戻る）。
-- 人の発言 2026-11-11（Chief of Staff との対話。依頼書 A-0143 の経緯）・2026-11-06（「memory は不要。アウターループで wiki などに出す」。ADR-0004 の問題の段）。
+- オーナーが「決めた」と言った日: 2026-11-11（最後の確かめ「共有できたか」への答え）。反論のサブエージェントは走らせていない（外向きの面が無く、切る設定に戻せば元に戻る）。
+- オーナーの発言 2026-11-11（Chief of Staff との対話。依頼書 A-0143 の経緯）・2026-11-06（「memory は不要。アウターループで wiki などに出す」。ADR-0004 の問題の段）。
 - Claude Code の公式ドキュメント（memory・settings・env-vars・sub-agents。2026-11-11 に確認）: 既定の置き場 `~/.claude/projects/<project>/memory/`（同じ repo の worktree は共有）、`autoMemoryDirectory`（絶対パスか `~/` 始まり。policy の層にも書ける）、`MEMORY.md` の先頭 200 行か 25KB が毎セッション載る、書くのはモデル自身、メインの会話の memory はサブエージェントに載らない。 https://code.claude.com/docs/en/memory ・ https://code.claude.com/docs/en/settings ・ https://code.claude.com/docs/en/env-vars ・ https://code.claude.com/docs/en/sub-agents
 - Codex の memories のドキュメント（2026-11-11 に確認）: 置き場は `$CODEX_HOME` の下（`memories_v2/`）、会話が静かになってから背景で書く。 https://learn.chatgpt.com/docs/customization/memories
 - Fable 5.2 の手引き「慎重さが積み重なるのを防ぐ」「蓄積したルール、メモ、記憶」（2026-11-11 に確認）: 注意書きは memory・メモ・指示ファイルに溜まり、不要な承認や控えを増やす。理由が当てはまらなくなったものを消す。 https://platform.claude.com/docs/ja/build-with-claude/prompt-engineering/prompting-claude-fable-5-2

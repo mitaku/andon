@@ -1,7 +1,7 @@
 # 担当の承認の段を「要る／要らない」の表で書く。自分の PR の branch への force-with-lease は要らない側
 
 - 日付: 2026-11-11
-- 出典: 人 2026-11-10（担当が自分の PR の branch に `git push --force-with-lease` するのは毎回の go なしで許す。main と他人の branch は不可）。A-0117 の調べた候補 c8・c11・c7・c17。課題 A-0122
+- 出典: オーナー 2026-11-10（担当が自分の PR の branch に `git push --force-with-lease` するのは毎回の go なしで許す。main と他人の branch は不可）。A-0117 の調べた候補 c8・c11・c7・c17。課題 A-0122
 
 - worker skill §5 の承認の段は、承認が要る操作（main・他人の branch への push、remote の削除や書き換え、本番系、資格情報、プロジェクトの外への送信）と要らない操作（自分の PR の branch への push と force-with-lease、PR の作成と本文の編集、worktree の中の削除、一時の置き場、失敗した command のやり直し）を同じ表に並べる。理由: 「削除・外への送信」のような広い語だけだと、書かれたとおりに当てるモデルは push や PR まで控え、課題が止まる。
 - 担当が書いてよい場所は worker skill §2 の「書く場所」の1か所に範囲と理由つきで書き、表・§6・profile の template はそこを指す。一時ファイルは一時の置き場でよい。
