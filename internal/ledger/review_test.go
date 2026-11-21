@@ -140,3 +140,71 @@ func TestSamePatchSameFileMoved(t *testing.T) {
 		t.Fatal("同じファイルの離れた所だけが main で変わった rebase を、同じ差分と言わない")
 	}
 }
+
+// rebaseAfter は、base の上で課題の branch が topic を commit し、main が main を commit したあと、課題の branch を main に
+// rebase した repo を作る。resolve が nil でなければ衝突を解いたのと同じにする（main の上に resolve の中身を積む）。
+// 返すのは repo と、レビューが見た commit と、rebase のあとの head。origin/HEAD は進んだ main を指す。
+func rebaseAfter(t *testing.T, base, topic, main, resolve map[string]string) (*gitRepo, string, string) {
+	t.Helper()
+	g := newGitRepo(t)
+	g.commit("base", base)
+	g.run("checkout", "-q", "-b", "topic")
+	x := g.commit("topic", topic)
+	g.run("checkout", "-q", "main")
+	g.commit("main moves", main)
+	g.run("update-ref", "refs/remotes/origin/main", "main")
+	g.run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	g.run("checkout", "-q", "topic")
+	if resolve == nil {
+		g.run("rebase", "-q", "origin/main")
+		return g, x, g.run("rev-parse", "HEAD")
+	}
+	g.run("reset", "-q", "--hard", "origin/main")
+	return g, x, g.commit("topic", resolve)
+}
+
+// main が PR の変えた行の近く（文脈の行）を変えた rebase や、衝突を解いた rebase でも、PR が足した行と消した行が
+// 同じなら同じ差分と分かる。足した行か消した行が変わったら同じと言わない。
+func TestSamePatchIgnoresContextLines(t *testing.T) {
+	// 表の行を PR が変え、main が2行下の行の語を替えた（衝突しない。文脈の行だけが変わる）
+	table := "| 決まり | 守らせるもの |\n|---|---|\n| 一 | 無し。 |\n| 二 | 無し。 |\n| 三 | 版を見る |\n| 四 | 無し。 |\n"
+	tableTopic := strings.Replace(table, "| 一 | 無し。 |", "| 一 | tests/run。 |", 1)
+	tableMain := strings.Replace(table, "版を見る", "バージョンを見る", 1)
+	// PR が足した行のすぐ上を main が変えた（衝突する）
+	conflictBase := "a\nb\n"
+	conflictTopic := "a\nA\nb\n"
+	conflictMain := "a2\nb\n"
+	// 最後の行に改行の無いファイルで、PR が8行目を変え、main が最後の行に改行を足した（文脈の「No newline」の行だけが変わる）
+	var lines []string
+	for i := 1; i <= 10; i++ {
+		lines = append(lines, string(rune('a'+i-1)))
+	}
+	noEOL := strings.Join(lines, "\n")
+	noEOLTopic := strings.Replace(noEOL, "\nh\n", "\nH\n", 1)
+	for _, c := range []struct {
+		name                       string
+		base, topic, main, resolve map[string]string
+		want                       bool
+	}{
+		{"main が近くの行を変えた rebase", map[string]string{"t.md": table}, map[string]string{"t.md": tableTopic},
+			map[string]string{"t.md": tableMain}, nil, true},
+		{"衝突を解いて足した行が同じ rebase", map[string]string{"a.txt": conflictBase}, map[string]string{"a.txt": conflictTopic},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "a2\nA\nb\n"}, true},
+		{"衝突を解いて足した行が変わった rebase", map[string]string{"a.txt": conflictBase}, map[string]string{"a.txt": conflictTopic},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "a2\nA2\nb\n"}, false},
+		{"衝突を解いて消した行が変わった rebase", map[string]string{"a.txt": "a\nb\nc\n"}, map[string]string{"a.txt": "a\nB\nc\n"},
+			map[string]string{"a.txt": "a\nb2\nc\n"}, map[string]string{"a.txt": "a\nB\nc\n"}, false},
+		{"main が最後の行に改行を足した rebase", map[string]string{"n.txt": noEOL}, map[string]string{"n.txt": noEOLTopic},
+			map[string]string{"n.txt": noEOL + "\n"}, nil, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g, x, y := rebaseAfter(t, c.base, c.topic, c.main, c.resolve)
+			if x == y {
+				t.Fatal("rebase で head が変わっていない")
+			}
+			if got := SamePatch(g.dir, x, y); got != c.want {
+				t.Fatalf("SamePatch = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
