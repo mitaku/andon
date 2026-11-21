@@ -25,7 +25,7 @@
    予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書いたキーは「Chief of Staff が書いていない」とみなされ、dispatcher はレビュアーを起動せず、gate は `needs_human` を返す。
    課題ごとに `kanban show <id>` で今の値を読み、同じ値で `kanban set <id> review=… must_fix=… reviewer=… review_rounds=… merge=…`（`brief.md` の表。`estimate`・`deliverable`・`machine` があれば同じく）と打つ。値は変えない。`estimate` を打ち忘れると見込みが「無し」に落ち、ズレの通知が黙る。
 2. `hc --skill` を1回読む（hc の状態の意味・終了コードの一次情報。バージョンで変わるので写さない）。
-3. `projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節を見る（目標・指示・並行の上限・起動にオーナーの go が要るか・独立レビューを入れる条件）。無ければ並行の上限は 2。
+3. `projects/<slug>/project.json` の `chief_of_staff` を読む（`parallel` が並行の上限で、無ければ 2。`review_when` が独立レビューを入れる条件）。`projects/<slug>/AGENTS.md`（cwd にあるので自動で読まれる）の「Chief of Staff」の節は、目標と指示（起動にオーナーの go が要るかなど）を見る。
 4. 下の「毎ターン」をして、`watch.md` の止まった検知をする。
 
 ## 毎ターン（オーナーの発言・届いた文を処理する前に）

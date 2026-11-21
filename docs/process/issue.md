@@ -16,6 +16,7 @@ stateDiagram-v2
   [*] --> s_todo: 課題を足した
   [*] --> s_queued: after つきで課題を足した
   s_queued --> s_todo: 待つ課題が全部 done になった
+  s_queued --> s_todo: after を書き換えて待つ課題が無くなった
   s_todo --> s_doing: 担当を起動した（§7.2 #10）
   s_todo --> s_doing: Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ）
   s_todo --> s_todo: オーナーの課題（who： person）に問いを置いた（ask-one-by-one skill §3）
@@ -52,6 +53,7 @@ stateDiagram-v2
 | （始まり・終わり） | `todo` | 課題を足した | kanban の CLI | `kanban add` |  |
 | （始まり・終わり） | `queued` | after つきで課題を足した | kanban の CLI | `kanban add` |  |
 | `queued` | `todo` | 待つ課題が全部 done になった | kanban の CLI | `kanban done` |  |
+| `queued` | `todo` | after を書き換えて待つ課題が無くなった | kanban の CLI | `kanban set` |  |
 | `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
 | `todo` | `doing` | Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ） | kanban の CLI | `kanban start` |  |
 | `todo` | `todo` | オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
