@@ -18,7 +18,7 @@
 | 8 | mod `inbox` が `andon waiting --json --project <slug>` をセルで呼び、数える式を持たない | この ADR | まだ実装していない |
 | 9 | オーナー待ちを読めないプロジェクトでは、今までどおり Reply で灯す | この ADR | まだ実装していない |
 | 10 | 状態を決める場所は mod `inbox` の 1 か所にし、ほかの画面は共有の値を読む | この ADR | まだ実装していない |
-| 11 | Chief Engineer は、本文の問いで答えを待ってターンを終える前に、その問いを kanban に置く | この ADR | まだ実装していない |
+| 11 | Chief Engineer は、本文の問いで答えを待ってターンを終える前に、その問いを kanban に置く | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` §1.8 | 生きている |
 | 12 | 灯りを後回しにする口は作らない | この ADR | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
