@@ -163,16 +163,17 @@ func (t *Table) Classify(repo RepoTable, files []File, diff string, reviewOn boo
 			b = append(b, "段 A 許可リスト外 "+p)
 		}
 	}
+	hunks := Hunks(diff)
 	for _, pat := range t.TierCAddedLinePatterns {
 		rx, err := regexp.Compile(pat)
 		if err != nil {
 			return Classified{}, fmt.Errorf("tier_c_added_line_patterns が読めない: %q", pat)
 		}
-		for _, line := range strings.Split(diff, "\n") {
-			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") && rx.MatchString(line[1:]) {
-				c = append(c, "追加行 "+pat)
-				break
-			}
+		switch hit, grown := patternHits(rx, hunks); {
+		case grown:
+			c = append(c, "追加行 "+pat)
+		case hit:
+			b = append(b, "追加行 "+pat+NotGrown)
 		}
 	}
 	if t.SizeHumanLines != nil && lines > *t.SizeHumanLines {
@@ -191,6 +192,105 @@ func (t *Table) Classify(repo RepoTable, files []File, diff string, reviewOn boo
 		return Classified{"B", b, lines}, nil
 	}
 	return Classified{"A", []string{}, lines}, nil
+}
+
+// NotGrown は追加行のパターンに当たったが、どの hunk でも当たる箇所が増えていないときに理由の末尾に付ける文
+// （ADR-0041 決めたこと 4。もとからあった語を書き換えた行。レベル B の理由にする）。
+const NotGrown = "（増えていない）"
+
+// Hunk は差分の1つの hunk の、足した行と消した行（行の頭の + と - を外した中身）。
+type Hunk struct {
+	Added   []string
+	Removed []string
+}
+
+// Hunks は PR の差分（gh pr diff の unified diff）を hunk に分ける（純粋関数）。
+// hunk の中は見出し（@@ -a,b +c,d @@）の行数で数えるので、中身が ++ や -- で始まる行（行の頭が +++ や ---）も
+// 足した行・消した行に数える。hunk の外の見出し（--- a/x・+++ b/x）は数えない。
+// 見出しの無い差分（hunk の外の + と - の行）は、diff --git の行で区切った1つの hunk として数える（読めない差分を空振りにしない）。
+func Hunks(diff string) []Hunk {
+	var out []Hunk
+	loose := -1 // 見出しの無い + と - の行を入れている hunk（out の添字）
+	oldN, newN := 0, 0
+	for _, l := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(l, "diff --git ") {
+			// hunk の中の行は頭に +・-・空白が付くので、この行は次のファイル。見出しの行数が多すぎても次のファイルの見出しを数えない
+			oldN, newN = 0, 0
+		}
+		if oldN > 0 || newN > 0 {
+			switch {
+			case strings.HasPrefix(l, "+"):
+				out[len(out)-1].Added = append(out[len(out)-1].Added, l[1:])
+				newN--
+			case strings.HasPrefix(l, "-"):
+				out[len(out)-1].Removed = append(out[len(out)-1].Removed, l[1:])
+				oldN--
+			case strings.HasPrefix(l, `\`): // \ No newline at end of file
+			default:
+				oldN--
+				newN--
+			}
+			continue
+		}
+		switch {
+		case strings.HasPrefix(l, "diff --git "):
+			loose = -1
+		case strings.HasPrefix(l, "@@ "):
+			loose = -1
+			if m := hunkCountRe.FindStringSubmatch(l); m != nil {
+				oldN, newN = hunkCount(m[1]), hunkCount(m[2])
+				out = append(out, Hunk{})
+			}
+		case strings.HasPrefix(l, "+++ "), strings.HasPrefix(l, "--- "):
+		case strings.HasPrefix(l, "+"), strings.HasPrefix(l, "-"):
+			if loose < 0 {
+				out = append(out, Hunk{})
+				loose = len(out) - 1
+			}
+			if l[0] == '+' {
+				out[loose].Added = append(out[loose].Added, l[1:])
+			} else {
+				out[loose].Removed = append(out[loose].Removed, l[1:])
+			}
+		}
+	}
+	return out
+}
+
+var hunkCountRe = regexp.MustCompile(`^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@`)
+
+// hunkCount は hunk の見出しの「,b」の行数（省けば 1）。
+func hunkCount(s string) int {
+	if s == "" {
+		return 1
+	}
+	n, _ := strconv.Atoi(s[1:])
+	return n
+}
+
+// patternHits は、足した行が rx に当たるか（hit）と、当たった文字列の数が足した行のほうで多い hunk が1つでもあるか（grown）を返す
+// （ADR-0041 決めたこと 4。数えるのは当たった文字列ごと。消した行の同じ文字列と打ち消す）。
+func patternHits(rx *regexp.Regexp, hunks []Hunk) (hit, grown bool) {
+	for _, h := range hunks {
+		n := map[string]int{}
+		for _, l := range h.Added {
+			for _, m := range rx.FindAllString(l, -1) {
+				n[m]++
+				hit = true
+			}
+		}
+		for _, l := range h.Removed {
+			for _, m := range rx.FindAllString(l, -1) {
+				n[m]--
+			}
+		}
+		for _, v := range n {
+			if v > 0 {
+				return true, true
+			}
+		}
+	}
+	return hit, false
 }
 
 // ScreenFiles は差分のうち条件表の screen_paths に当たるパス（純粋関数。strip_prefix を外し、rename の元も見る）。

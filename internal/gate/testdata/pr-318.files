@@ -1,0 +1,6 @@
+README.md +1 -1
+docs/operate.md +4 -0
+image/Dockerfile +3 -2
+init/bin/bootstrap +1 -1
+package/compose.yaml +4 -1
+tests/image.sh +18 -1

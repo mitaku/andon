@@ -1,0 +1,13 @@
+diff --git a/docs/design.md b/docs/design.md
+index 1111111..2222222 100644
+--- a/docs/design.md
++++ b/docs/design.md
+@@ -639,1 +640,1 @@
+-1. `tests/public.sh`: 秘密の形（token・鍵・`password=` 等。
++1. `tests/public.sh`: 秘密の形（token・鍵・`password=` 等。
+@@ -650,1 +651,1 @@
+-| **base image** | `ubuntu:24.04`（LTS）を直接 `FROM` し、利用者・sudo・git・ssh・locale を自前で入れる。
++| **base image** | `ubuntu:24.04`（LTS）を直接 `FROM` し、利用者・sudo・git・ssh・locale を自前で入れる。
+@@ -900,1 +901,1 @@
+-- 手: `compose.override.yaml`・`.ssh/authorized_keys`・
++- 手: `compose.override.yaml`・`.ssh/authorized_keys`・

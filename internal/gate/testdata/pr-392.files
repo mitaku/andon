@@ -1,0 +1,4 @@
+docs/design.md +190 -190
+tests/lib/scope.sh +2 -0
+tests/words-selftest.sh +10 -0
+tests/words.sh +15 -4

@@ -1,12 +1,14 @@
 package gate
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -466,6 +468,133 @@ func TestClassifyModelFiles(t *testing.T) {
 		got, err := tb.Classify(RepoTable{}, []File{{Path: p, Additions: 1}}, "", false)
 		if err != nil || got.Tier == "C" {
 			t.Errorf("%s: tier=%q err=%v, want not C", p, got.Tier, err)
+		}
+	}
+}
+
+// hunkDiff は1ファイル・1 hunk の差分（行の頭の +・-・空白はそのまま書く）。
+func hunkDiff(path string, oldN, newN int, body ...string) string {
+	return fmt.Sprintf("diff --git a/%[1]s b/%[1]s\n--- a/%[1]s\n+++ b/%[1]s\n@@ -1,%[2]d +1,%[3]d @@\n%[4]s\n", path, oldN, newN, strings.Join(body, "\n"))
+}
+
+// 受け入れ条件 4（ADR-0041 決めたこと 4）: 追加行のパターンは、当たる箇所がその hunk で増えたときだけ C の理由にする。
+func TestClassifyAddedLinePatternGrowth(t *testing.T) {
+	tb := pkgTable(t)
+	sudo := `\bsudo\b`
+	for _, c := range []struct {
+		name   string
+		path   string
+		diff   string
+		tier   string
+		reason string
+	}{
+		{"もとから sudo のある行を書き換えただけは B（増えていない）", "internal/x.go",
+			hunkDiff("internal/x.go", 2, 2, " ctx", "-// オーナーが違えば sudo chown で渡す", "+// ファイルのオーナーが違えば sudo chown で渡す"),
+			"B", "追加行 " + sudo + NotGrown},
+		{"sudo の行を新しく足すと C", "internal/x.go",
+			hunkDiff("internal/x.go", 1, 2, " ctx", "+run sudo x"),
+			"C", "追加行 " + sudo},
+		{"同じ hunk で sudo の行を 1 つ消して 1 つ足すと B", "internal/x.go",
+			hunkDiff("internal/x.go", 3, 3, "-sudo apt-get update", " ctx", "+sudo chown -R a b"),
+			"B", "追加行 " + sudo + NotGrown},
+		{"新しいファイルは C", "internal/y.go",
+			"diff --git a/internal/y.go b/internal/y.go\nnew file mode 100644\n--- /dev/null\n+++ b/internal/y.go\n@@ -0,0 +1,1 @@\n+run sudo x\n",
+			"C", "追加行 " + sudo},
+		{"docs だけでも、当たった行を書き換えていれば A にならない", "docs/x.md",
+			hunkDiff("docs/x.md", 1, 1, "-利用者・sudo・git を入れる（古い語）", "+利用者・sudo・git を入れる（新しい語）"),
+			"B", "追加行 " + sudo + NotGrown},
+	} {
+		got, err := tb.Classify(RepoTable{}, []File{{Path: c.path, Additions: 1, Deletions: 1}}, c.diff, false)
+		if err != nil || got.Tier != c.tier || !slices.Contains(got.TierReasons, c.reason) {
+			t.Errorf("%s: tier %s（%v）want %s と理由 %q", c.name, got.Tier, got.TierReasons, c.tier, c.reason)
+		}
+	}
+}
+
+func TestClassifyAddedLinePatternEdges(t *testing.T) {
+	tb := pkgTable(t)
+	files := []File{{Path: "docs/x.md", Additions: 1, Deletions: 1}}
+	for _, c := range []struct {
+		name, diff, tier string
+	}{
+		// 離れた hunk の消した行では打ち消さない（ファイルごとに数えない）
+		{"別の hunk で消して足すと C", "diff --git a/docs/x.md b/docs/x.md\n--- a/docs/x.md\n+++ b/docs/x.md\n" +
+			"@@ -1,1 +1,0 @@\n-sudo a\n@@ -9,0 +9,1 @@\n+sudo b\n", "C"},
+		// ファイルを消して別の名前で足すと hunk が別なので C
+		{"消して別の名前で足すと C", "diff --git a/docs/a.md b/docs/a.md\ndeleted file mode 100644\n--- a/docs/a.md\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-sudo a\n" +
+			"diff --git a/docs/b.md b/docs/b.md\nnew file mode 100644\n--- /dev/null\n+++ b/docs/b.md\n@@ -0,0 +1,1 @@\n+sudo a\n", "C"},
+		// 行の頭が +++ の足した行も数える（中身が ++ で始まる行）
+		{"hunk の中の +++ の行も数える", hunkDiff("docs/x.md", 0, 1, "+++ sudo x"), "C"},
+		// 1 行の中の当たる箇所が増えれば C
+		{"同じ行で当たる箇所が増えると C", hunkDiff("docs/x.md", 1, 1, "-sudo a", "+sudo a && sudo b"), "C"},
+		// 当たった文字列ごとに数える（password= を token= に替えると token= が増えた）
+		{"別の文字列に替えると C", hunkDiff("docs/x.md", 1, 1, "-password=x", "+token=x"), "C"},
+		{"消した行だけが当たるなら理由にしない", hunkDiff("docs/x.md", 1, 0, "-sudo a"), "A"},
+	} {
+		got, err := tb.Classify(RepoTable{}, files, c.diff, false)
+		if err != nil || got.Tier != c.tier {
+			t.Errorf("%s: tier %s（%v）want %s", c.name, got.Tier, got.TierReasons, c.tier)
+		}
+	}
+}
+
+func TestHunks(t *testing.T) {
+	diff := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,3 +1,3 @@\n a\n--- old\n++++ new\n b\n\\ No newline at end of file\n" +
+		"@@ -9 +9 @@\n-c\n+d\n"
+	want := []Hunk{{Added: []string{"+++ new"}, Removed: []string{"-- old"}}, {Added: []string{"d"}, Removed: []string{"c"}}}
+	if got := Hunks(diff); !reflect.DeepEqual(got, want) {
+		t.Errorf("Hunks = %#v, want %#v", got, want)
+	}
+	// 見出しの行数が実際より多くても、次のファイルの見出し（--- a/…・+++ b/…）を数えない
+	if got := Hunks("diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,5 +1,5 @@\n-a\n+b\ndiff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -1 +1 @@\n-c\n+d\n"); !reflect.DeepEqual(got,
+		[]Hunk{{Added: []string{"b"}, Removed: []string{"a"}}, {Added: []string{"d"}, Removed: []string{"c"}}}) {
+		t.Errorf("行数の多すぎる見出しの Hunks = %#v", got)
+	}
+	// 見出しの無い差分は diff --git で区切った 1 つの hunk として数える
+	if got := Hunks("+a\n-b\ndiff --git a/y b/y\n+c\n"); len(got) != 2 || got[0].Added[0] != "a" || got[0].Removed[0] != "b" || got[1].Added[0] != "c" {
+		t.Errorf("見出しの無い差分の Hunks = %#v", got)
+	}
+}
+
+// 受け入れ条件 5（ADR-0041 決めたこと 4）: 語を置き換えた PR の差分を今の条件表で判定すると B、新しく sudo を書いた PR は C。
+// 見本は PR の差分のうちパターンに当たる hunk だけを縮めたもの（変わらない行と当たらない行を除き、長い行は当たった所の前後で切った。
+// 見出しの行数は縮めたあとの数）。ファイルの一覧（パス・足した行・消した行）は PR のまま。
+func TestClassifyPRSamples(t *testing.T) {
+	tb := pkgTable(t)
+	for _, c := range []struct {
+		pr     string
+		tier   string
+		reason string
+	}{
+		{"383", "B", "追加行 authorized_keys" + NotGrown},
+		{"392", "B", "追加行 password=" + NotGrown},
+		{"394", "B", `追加行 \bsudo\b` + NotGrown},
+		{"318", "C", `追加行 \bsudo\b`},
+	} {
+		diff, err := os.ReadFile(filepath.Join("testdata", "pr-"+c.pr+".diff"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		list, err := os.ReadFile(filepath.Join("testdata", "pr-"+c.pr+".files"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var files []File
+		for _, l := range strings.Split(strings.TrimSpace(string(list)), "\n") {
+			var f File
+			if _, err := fmt.Sscanf(l, "%s +%d -%d", &f.Path, &f.Additions, &f.Deletions); err != nil {
+				t.Fatalf("pr-%s.files: %q: %v", c.pr, l, err)
+			}
+			files = append(files, f)
+		}
+		got, err := tb.Classify(RepoTable{}, files, string(diff), false)
+		if err != nil || got.Tier != c.tier || !slices.Contains(got.TierReasons, c.reason) {
+			t.Errorf("#%s: tier %s（%v）want %s と理由 %q", c.pr, got.Tier, got.TierReasons, c.tier, c.reason)
+		}
+		for _, r := range got.TierReasons {
+			if c.tier == "B" && strings.HasPrefix(r, "追加行 ") && !strings.HasSuffix(r, NotGrown) {
+				t.Errorf("#%s: 増えていない語の置き換えに C の理由 %q", c.pr, r)
+			}
 		}
 	}
 }

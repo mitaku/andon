@@ -167,6 +167,9 @@ var tierReasonRewrites = []rewrite{
 	{regexp.MustCompile(`^path (.*)$`), func(m []string) string { return "メンテナーが見ると決めたファイル " + m[1] }},
 	{regexp.MustCompile(`^実行面 (.*)$`), func(m []string) string { return "動きに関わるファイル " + m[1] }},
 	{regexp.MustCompile(`^段 A 許可リスト外 (.*)$`), func(m []string) string { return "自動の確かめだけで足りるファイルの外 " + m[1] }},
+	{regexp.MustCompile(`^追加行 (.*)` + regexp.QuoteMeta(NotGrown) + `$`), func(m []string) string {
+		return "メンテナーが見ると決めた形の語がある行を書き換えた（`" + m[1] + "`。その語は増えていない）"
+	}},
 	{regexp.MustCompile(`^追加行 (.*)$`), func(m []string) string {
 		return "メンテナーが見ると決めた形の行を足した（`" + m[1] + "`）"
 	}},
