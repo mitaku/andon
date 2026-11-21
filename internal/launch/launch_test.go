@@ -145,6 +145,15 @@ func TestGatherAppend(t *testing.T) {
 		t.Fatalf("2件目: drift=%v memory=%v session=%v repo=%v", r2.Drift, r2.MemoryIndex, r2.Session, r2.Repo)
 	}
 	must(t, Append(path, r2))
+
+	// 空の目録（0 バイト）は null にする。schema は空の文字列を断るので、そのままだと記録が書けない
+	must(t, os.WriteFile(filepath.Join(ws, "memory", "MEMORY.md"), nil, 0o644))
+	r3 := Gather(Spec{Role: RoleWorker, Launch: LaunchResume, Issue: "S-0001", Profile: "claude", Template: "claude-resume", Brand: "claude"})
+	r3.Terminal = "t44"
+	if r3.MemoryIndex != nil {
+		t.Fatalf("空の目録が null でない: %q", *r3.MemoryIndex)
+	}
+	must(t, Append(path, r3))
 	all, _ := os.ReadFile(path)
 	if !strings.HasPrefix(string(all), string(first)) {
 		t.Fatal("2件目を足したら1件目が変わった")
@@ -163,7 +172,7 @@ func TestGatherAppend(t *testing.T) {
 		}
 		n++
 	}
-	if n != 2 {
+	if n != 3 {
 		t.Fatalf("行が %d", n)
 	}
 	if got := ChiefOfStaffPath("/l/kanban"); got != "/l/kanban/chief-of-staff/launches.jsonl" {

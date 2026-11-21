@@ -88,7 +88,10 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	if early != "" {
 		// 信じられる PR が無い（report.json・kanban と PR が合わない）。記録も GitHub への書き込みもしない。
-		fmt.Fprintf(stdout, "{\"decision\": \"fix\", \"reasons\": [%q]}\n", early)
+		if err := writeEarly(stdout, early); err != nil {
+			fmt.Fprintf(stderr, "andon gate: %v\n", err)
+			return exitError
+		}
 		return exitFix
 	}
 	b, err := contract.Encode(contract.SchemaGate, rec)
@@ -98,6 +101,20 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	stdout.Write(b)
 	return ExitCode(rec.Decision)
+}
+
+// writeEarly は信じられる PR が無いときの fix（decision と reasons だけ。internal/issue の gateResult が読む形）を w に1行で出す。
+// 理由は issue.yaml の値を含み、制御文字があっても JSON の文字列になるよう encoding/json で組む。
+func writeEarly(w io.Writer, reason string) error {
+	b, err := json.Marshal(struct {
+		Decision string   `json:"decision"`
+		Reasons  []string `json:"reasons"`
+	}{"fix", []string{reason}})
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(append(b, '\n'))
+	return err
 }
 
 // ExitCode は decision を andon gate の終了コードにする（approve 0・fix 1・needs_human 4・wait 5）。
