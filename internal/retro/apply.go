@@ -178,27 +178,8 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 	if err := save(); err != nil {
 		return err
 	}
-	for _, pl := range plans {
-		if slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Pattern == pl.Pattern }) {
-			continue
-		}
-		args := []string{"add", pl.Title, "--parent", id}
-		if pl.Repo != "" {
-			args = append(args, "--repo", pl.Repo)
-		}
-		newID, err := l.Run(pl.Brief, append(args, "--brief", "-")...)
-		if err != nil {
-			return err
-		}
-		if pl.Who == "person" {
-			if _, err := l.Run("", "set", newID, "who=person"); err != nil {
-				return err
-			}
-		}
-		rec.Issues = append(rec.Issues, AppliedIssue{Pattern: pl.Pattern, Issue: newID, Who: pl.Who, Title: pl.Title})
-		if err := save(); err != nil {
-			return err
-		}
+	if err := addPlans(l, id, plans, &rec, save); err != nil {
+		return err
 	}
 	rec.Complete = true
 	if err := save(); err != nil {
@@ -214,6 +195,55 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "振り返り %s を当てた: 直す課題 %d 件%s・オーナーの課題 %d 件%s・捨てた %d 件。記録は %s/library/%s\n",
 		id, len(fixes), list(fixes), len(persons), list(persons), len(rec.Dropped), id, appliedFile)
+	return nil
+}
+
+// addPlans は fix のパターンごとに課題を足し、足すたびに記録を書き直す。記録に無いパターンでも、kanban にこの振り返りを parent に持つ
+// 同じ題の課題があれば足さずに記録へ写す（前の回が kanban add のあと記録の保存で落ちたとき、打ち直しで同じ課題を重ねて足さない）。
+func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func() error) error {
+	var left []plan
+	for _, pl := range plans {
+		if !slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Pattern == pl.Pattern }) {
+			left = append(left, pl)
+		}
+	}
+	if len(left) == 0 {
+		return nil
+	}
+	all, err := l.List()
+	if err != nil {
+		return err
+	}
+	parent := ledger.CanonID(id)
+	for _, pl := range left {
+		newID, who := "", ""
+		for _, t := range all {
+			tid := ledger.CanonID(t.Str("id"))
+			if ledger.CanonID(t.Str("parent")) == parent && t.Str("title") == pl.Title &&
+				!slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Issue == tid }) {
+				newID, who = tid, t.Str("who")
+				break
+			}
+		}
+		if newID == "" {
+			args := []string{"add", pl.Title, "--parent", id}
+			if pl.Repo != "" {
+				args = append(args, "--repo", pl.Repo)
+			}
+			if newID, err = l.Run(pl.Brief, append(args, "--brief", "-")...); err != nil {
+				return err
+			}
+		}
+		if pl.Who == "person" && who != "person" { // 前の回が add のあと set の前で落ちていれば、ここで付ける
+			if _, err := l.Run("", "set", newID, "who=person"); err != nil {
+				return err
+			}
+		}
+		rec.Issues = append(rec.Issues, AppliedIssue{Pattern: pl.Pattern, Issue: newID, Who: pl.Who, Title: pl.Title})
+		if err := save(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
