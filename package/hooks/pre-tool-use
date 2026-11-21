@@ -2,15 +2,17 @@
 # Claude Code の PreToolUse フック（matcher Bash。docs/contract.md §9。managed settings が呼ぶ）。
 # Bash の呼び出しのうち、コマンドの位置にある pgrep -f・pkill -f（-af・-fl・--full も）を deny し、理由の1行を返す。
 # -f はプロセスの command の行全体と照らすので、終わりを待つループ（while pgrep -f …）やそのシェル自身の行にも当たり、待ちが終わらない・自分を止める。
-# コマンドの位置は、行の頭・; & | ( ` { ! $( のあと・while until if then do などの語のあと。'pgrep -f' を引数の文字列として含むだけの呼び出し（grep など）は通す。
+# コマンドの名前と option は引用符で囲んだ形（'-f'・"pgrep"）・\pgrep・/usr/bin/pgrep も見る。コマンドの位置は、行の頭・; & | ( ` { ! $( のあと・while until if then do などの語のあと。'pgrep -f' を引数の文字列として含むだけの呼び出し（grep など）は通す。
 # 入力が読めない・jq が無い・andon が無いときは何も出さずに通す（フックは守りの1枚。Codex には効かない）。
 command -v andon >/dev/null 2>&1 || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 cmd=$(jq -r 'select(.tool_name == "Bash") | .tool_input.command // empty' 2>/dev/null) || exit 0
 [ -n "$cmd" ] || exit 0
 pos='(^|[;&|(`{!]|\$\(|(^|[[:space:]'"'"'"])(while|until|if|then|do|else|elif|exec|xargs|sudo|env|nohup|time|command)[[:space:]])'
-opt='[[:space:]]+([^;&|]*[[:space:]])?(-[[:alnum:]]*f[[:alnum:]]*|--full)([[:space:]]|$)'
-printf '%s\n' "$cmd" | grep -Eq "${pos}[[:space:]]*(pgrep|pkill)${opt}" || exit 0
+q='["'"'"']?'
+name="\\\\?${q}([^[:space:];&|]*/)?(pgrep|pkill)${q}"
+opt="[[:space:]]+([^;&|]*[[:space:]])?${q}(-[[:alnum:]]*f[[:alnum:]]*|--full)${q}([[:space:]]|\$)"
+printf '%s\n' "$cmd" | grep -Eq "${pos}[[:space:]]*${name}${opt}" || exit 0
 jq -n '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
   permissionDecisionReason: "pgrep -f・pkill -f は command の行全体と照らすので、終わりを待つループやそのシェル自身にも当たり、待ちが終わらない・自分を止める。PID はポートか PID ファイルから引く（ss -ltnp や lsof -ti :<port>、起動したときに $! を書いたファイル）。名前で探すなら -f を付けない pgrep -x <名前>。"}}'
 exit 0

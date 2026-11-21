@@ -26,6 +26,10 @@ pgrep --full 'hc run' && echo still
 sleep 30; pgrep -fl gopls
 bash -c 'while pgrep -f x; do sleep 1; done'
 n=$(pgrep -f -c 'go test')
+while pgrep '-f' "go test"; do sleep 5; done
+until ! "pgrep" -f x; do sleep 1; done
+\pkill "--full" gopls
+while /usr/bin/pgrep -af x; do sleep 1; done
 EOF
 [ -z "$miss" ] && pass "pgrep -f・pkill -f の呼び出し（終わりを待つループの形を含む）をフックが deny し、ポートか PID ファイルから引く理由の1行を返す" \
   || fail "pgrep -f・pkill -f の呼び出しを deny しない:$miss"
