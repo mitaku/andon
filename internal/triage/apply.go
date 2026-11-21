@@ -290,19 +290,7 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 			}
 		}
 	case "fix", "bundle":
-		review := "off"
-		var briefs, keys []string
-		for _, it := range g {
-			if it.issueStr("review") == "on" {
-				review = "on"
-			}
-			briefs = append(briefs, it.issueStr("brief"))
-			keys = append(keys, it.key())
-		}
-		brief := "解決すべき問題:\n" + strings.Join(briefs, "\n\n") +
-			"\nなぜ: トリアージ " + strings.Join(keys, ", ") +
-			"\n完了条件: 上記の依頼を満たす。\n守ること: 依頼の範囲内で作業する。\n\n## Settings\n- Review: " + review + "\n"
-		return l.kanban(brief, "add", first.issueStr("title"), "--repo", first.issueStr("repo"), "--profile", first.issueStr("profile"), "--brief", "-")
+		return l.kanban(groupBrief(g), "add", first.issueStr("title"), "--repo", first.issueStr("repo"), "--profile", first.issueStr("profile"), "--brief", "-")
 	case "person":
 		brief := "出どころ: " + first.key() +
 			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
@@ -318,6 +306,24 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 		return newID, nil
 	}
 	return "", nil
+}
+
+// groupBrief は fix と bundle の依頼書を組む。束ねた項目は同じ brief を写していることが多いので、同じ brief は1回だけ書く。
+func groupBrief(g []item) string {
+	review := "off"
+	var briefs, keys []string
+	for _, it := range g {
+		if it.issueStr("review") == "on" {
+			review = "on"
+		}
+		if b := it.issueStr("brief"); !slices.Contains(briefs, b) {
+			briefs = append(briefs, b)
+		}
+		keys = append(keys, it.key())
+	}
+	return "解決すべき問題:\n" + strings.Join(briefs, "\n\n") +
+		"\nなぜ: トリアージ " + strings.Join(keys, ", ") +
+		"\n完了条件: 上記の依頼を満たす。\n守ること: 依頼の範囲内で作業する。\n\n## Settings\n- Review: " + review + "\n"
 }
 
 // orDefault は jq の `v // d`（null と false なら d）。
