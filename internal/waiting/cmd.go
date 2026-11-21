@@ -1,0 +1,119 @@
+package waiting
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"andon/internal/contract"
+	"andon/internal/delegate"
+	"andon/internal/ledger"
+)
+
+// Usage は andon waiting の使い方。
+const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
+	"オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す。読むだけで、何も書かない。GitHub も git も読まない。\n" +
+	"数えるのは今の head について決め終えたものだけ（docs/adr/0042-owner-waits-do-not-stop-the-line.md 決めたこと 8・9）。\n" +
+	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
+	"--json は docs/contract.md §25 の形。\n"
+
+// Main は andon waiting。
+func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	asJSON, slug := false, ""
+	for len(args) > 0 {
+		switch {
+		case args[0] == "--json":
+			asJSON, args = true, args[1:]
+		case args[0] == "--project" && len(args) > 1:
+			slug, args = args[1], args[2:]
+		default:
+			fmt.Fprint(stderr, Usage)
+			return 2
+		}
+	}
+	root, err := projectRoot(slug)
+	if err != nil {
+		fmt.Fprintf(stderr, "andon waiting: %v\n", err)
+		return 1
+	}
+	res, warn, err := Read(root, time.Now())
+	if err != nil {
+		fmt.Fprintf(stderr, "andon waiting: %v\n", err)
+		return 1
+	}
+	for _, w := range warn {
+		fmt.Fprintf(stderr, "andon waiting: %s\n", w)
+	}
+	if asJSON {
+		b, err := contract.Encode(contract.SchemaWaiting, res)
+		if err != nil {
+			fmt.Fprintf(stderr, "andon waiting: 出力が schema/waiting.schema.json に合わない: %v\n", err)
+			return 1
+		}
+		_, _ = stdout.Write(b)
+		return 0
+	}
+	fmt.Fprint(stdout, Text(res))
+	return 0
+}
+
+// projectRoot は kanban の根（projects/<slug>/）: --project、KANBAN_ROOT、kanban の CLI（kanban root）の順。
+func projectRoot(slug string) (string, error) {
+	if slug != "" {
+		if _, err := delegate.ProjectSlug(delegate.Workspace(), slug); err != nil {
+			return "", err
+		}
+		root := filepath.Join(delegate.Workspace(), "projects", slug)
+		if _, err := os.Stat(filepath.Join(root, "kanban", "config.yaml")); err != nil {
+			return "", fmt.Errorf("プロジェクト %s の kanban が無い（%s）", slug, filepath.Join(root, "kanban"))
+		}
+		return root, nil
+	}
+	if root := os.Getenv("KANBAN_ROOT"); root != "" {
+		return root, nil
+	}
+	l, err := ledger.Open()
+	if err != nil {
+		return "", err
+	}
+	return l.Root, nil
+}
+
+// Text は人が読む行（--json を付けないときの出力。中身は --json と同じ）。
+func Text(r Result) string {
+	var b strings.Builder
+	full := ""
+	if r.Slots.WaitingFull {
+		full = "。オーナー待ちが上限に達したので新しい課題を起動しない"
+	}
+	fmt.Fprintf(&b, "%s の枠: 上限 %d、動いている %d、オーナー待ち %d、空き %d%s\n",
+		r.Project, r.Slots.Limit, r.Slots.Working, r.Slots.Waiting, r.Slots.Free, full)
+	if len(r.Items) == 0 {
+		b.WriteString("オーナー待ちは無い\n")
+		return b.String()
+	}
+	kind := map[string]string{"merge": "マージの依頼", "decision": "判断", "task": "手作業"}
+	for _, it := range r.Items {
+		name := it.ID
+		if it.Question != "" {
+			name = it.Question
+		}
+		fmt.Fprintf(&b, "%s %s（%s）。%s から", kind[it.Kind], name, it.Title, it.Since)
+		if len(it.Holds) > 0 {
+			fmt.Fprintf(&b, "。後ろで %d 件が待つ（%s）", len(it.Holds), strings.Join(it.Holds, ", "))
+		}
+		if it.Ask != nil {
+			fmt.Fprintf(&b, "。問い: %s", it.Ask.Question)
+		} else if it.Reason != "" {
+			fmt.Fprintf(&b, "。理由: %s", it.Reason)
+		}
+		if it.PR != "" {
+			fmt.Fprintf(&b, "。PR %s", it.PR)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}

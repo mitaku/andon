@@ -29,6 +29,7 @@ import (
 	"andon/internal/schema"
 	"andon/internal/signal"
 	"andon/internal/triage"
+	"andon/internal/waiting"
 )
 
 type command struct {
@@ -112,6 +113,12 @@ var commands = []command{
 		about: "kanban と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
 		usage: measure.Usage,
 		run:   measure.Main,
+	},
+	{
+		name:  "waiting",
+		about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す（読むだけ）",
+		usage: waiting.Usage,
+		run:   waiting.Main,
 	},
 	{
 		name:  "process",

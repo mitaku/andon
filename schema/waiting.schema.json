@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/waiting/1",
+  "title": "Owner waits and parallel slots",
+  "description": "The output of `andon waiting --json`: what waits on the owner (a merge request, a decision, a task) and the parallel slots, counted only from what was decided for the current head. Written by the command to stdout and never kept. Read by the Chief of Staff (before launching an issue, and to order its questions) and by the owner's pane. The command alone holds the counting rule. Only these keys.",
+  "type": "object",
+  "required": ["version", "at", "project", "slots", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "description": "The output format version.", "const": 1 },
+    "at": { "description": "When it was counted.", "$ref": "#/$defs/at" },
+    "project": { "description": "The project slug (the ledger's directory name).", "type": "string", "minLength": 1 },
+    "slots": {
+      "description": "Parallel slots. Counts the doing and review issues of workers (not reviewer sub-issues, Chief Engineer issues or owner issues).",
+      "type": "object",
+      "required": ["limit", "working", "waiting", "free", "waiting_full"],
+      "additionalProperties": false,
+      "properties": {
+        "limit": { "description": "project.json chief_of_staff.parallel, else 2.", "type": "integer", "minimum": 1 },
+        "working": { "description": "Counted issues that are not waiting on the owner.", "type": "integer", "minimum": 0 },
+        "waiting": { "description": "Counted issues that have a merge or decision item.", "type": "integer", "minimum": 0 },
+        "free": { "description": "0 when waiting_full; otherwise limit minus working, never below 0.", "type": "integer", "minimum": 0 },
+        "waiting_full": { "description": "true when waiting is limit or more: launch no new issue.", "type": "boolean" }
+      }
+    },
+    "items": {
+      "description": "What waits on the owner, most held issues first, then oldest first.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/item" }
+    }
+  },
+  "$defs": {
+    "at": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "id": {
+      "description": "An issue id.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "item": {
+      "description": "One owner wait.",
+      "type": "object",
+      "required": ["kind", "id", "title", "since", "holds"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "merge: a pull request waiting on the owner's merge. decision: an open question of a decision kind not asked by the gate. task: an owner issue that can start or is going, with no question not yet received.",
+          "enum": ["merge", "decision", "task"]
+        },
+        "id": { "description": "The issue.", "$ref": "#/$defs/id" },
+        "title": { "description": "The issue's title.", "type": "string" },
+        "since": { "description": "Since when it waits.", "$ref": "#/$defs/at" },
+        "question": {
+          "description": "The question, <id>#<n>: the gate's question of a merge item, or the question of a decision item.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*#[1-9][0-9]*$"
+        },
+        "pr": { "description": "report.json pr.", "type": "string", "minLength": 1 },
+        "reason": { "description": "Why it waits, for people.", "type": "string", "minLength": 1 },
+        "ask": { "description": "A copy of the question JSON (docs/contract.md §5) of a decision item. Absent when the question has none.", "$ref": "#/$defs/ask" },
+        "answerable": { "description": "Decision items only: whether the owner's pane may answer it (it has options and is not irreversible).", "type": "boolean" },
+        "holds": {
+          "description": "The issues not done that wait on this one through after, directly or behind those.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "ask": {
+      "description": "The question JSON, as schema/question.schema.json.",
+      "type": "object",
+      "required": ["kind", "question", "options"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "description": "The decision kind.", "enum": ["business", "users", "promise", "irreversible", "line"] },
+        "question": { "description": "The question, one line.", "type": "string", "minLength": 1 },
+        "facts": { "description": "Facts.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "reason": { "description": "Why the decision is needed.", "type": "string", "minLength": 1 },
+        "options": {
+          "description": "The options; the first is the recommendation.",
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "description": "One option.",
+            "type": "object",
+            "required": ["label"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "description": "The option, short.", "type": "string", "minLength": 1 },
+              "pick": { "description": "true only on the recommended option.", "type": "boolean" }
+            }
+          }
+        },
+        "remaining": { "description": "How many questions follow this one.", "type": "integer", "minimum": 0 },
+        "from": { "description": "Who asks (never the gate).", "enum": ["issue", "retro", "chief-of-staff", "chief-engineer"] }
+      }
+    }
+  }
+}
