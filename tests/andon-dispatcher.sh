@@ -16,7 +16,18 @@ unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/gh" "$tmp/hc"
 pass=0
 ok() { echo "ok   $1"; pass=$((pass + 1)); }
-die() { echo "FAIL $1" >&2; exit 1; }
+die() { # 落ちたら、dispatcher のログの末尾・控えのレビュアー・kanban の一覧も stderr に出す。一時領域は終わると消えるので、
+    # CI でまれにしか落ちない揺れは、ここで出したものしか手がかりが残らない（dispatcher が起動を見送った理由はログにだけ書かれる）
+    echo "FAIL $1" >&2
+    local st=$tmp/state/andon/dispatcher/demo.json
+    if [ -s "$tmp/dispatcher.log" ]; then echo "--- dispatcher.log の末尾 40 行" >&2; tail -n 40 "$tmp/dispatcher.log" >&2; fi
+    if [ -f "$st" ]; then echo "--- 控えの reviewers" >&2; jq -c '.reviewers' "$st" >&2 || true; fi
+    if [ -n "${KANBAN_ROOT:-}" ]; then
+        echo "--- kanban の課題（id・status・parent）" >&2
+        kanban list --all --json 2>&1 | jq -r '.[] | [.id, .status, (.parent // "")] | @tsv' >&2 || true
+    fi
+    exit 1
+}
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
 as_owner() { GIT_AUTHOR_NAME=o GIT_AUTHOR_EMAIL=owner@example.com "$@"; }
 
@@ -190,6 +201,7 @@ as_worker() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7
 review_by() { # review_by <レビュアーの id> <findings>: レビュアーが依頼書の示す置き場に findings.json を書いて review にする
     # 置き場は依頼書から読む（dispatcher の依頼書が kanban の外を指せば、gate は findings.json を読めず落ちる。A-0216）
     local f
+    case $1 in ''|null) die "レビュアーの子課題が kanban に無い（直前の dispatcher の巡がレビュアーを起動しなかった）" ;; esac
     f=$(grep -o '`[^`]*/findings\.json`' "$L/issues/$1/brief.md" | tr -d '`' || true)
     [ "$(printf '%s\n' "$f" | grep -c .)" = 1 ] || die "レビュアーの依頼書に findings.json の置き場が1つでない: $f"
     mkdir -p "${f%/*}"
