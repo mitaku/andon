@@ -200,7 +200,7 @@ EOF
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。gate と dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す:
    `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` → `hc wait <その名前>` → `hc read <その名前>` → `hc rm <その名前>`。
-   落ちたら直して push し、待ち直す。checks の無い repo（「no checks reported」）はそれで済み。
+   落ちたら直して push し、待ち直す。PR を出した直後は checks がまだ出ず「no checks reported」ですぐ終わることがある。その場合は数十秒おいて打ち直し、それでも出なければ checks の無い repo と読んで、それで済み。
    これはエージェントではなく、コマンドを走らせるための端末なので起動してよい。
    `Review: on` なら、checks を待つ前に §4 の 1 でレビューを頼み、checks はレビューの裏で待つ。
 
@@ -216,7 +216,7 @@ EOF
    落ちたら、レビューの結果を待たずに直して commit・push してよい。ただし頼み直すのは、前のレビューの結果が届いてから。
    その課題のレビュアーが動いている間は、command が別の commit の頼み直しも断る（レビュアーは1人ずつ）。
 2. レビュアーの `hc send` で報告の場所が届く。`kanban show <レビューの課題の id>` の report（人が読む Markdown）と、`issues/<レビューの課題の id>/library/findings.json`（gate が読む指摘。§6）を読む。
-   照合の結果は `andon issue show <id>` の `review`。`stale` は古い commit（CI が落ちて直す前など）を見たレビュー。衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じ（行番号のほかは空白も含めて同じ）なら、照合はそのレビューを今の head に引き継ぐ（`current`。`commit` は見た commit のまま）。レビュアーの課題が kanban に残るので、回は1つ進む。今の `HEAD` で 1 から頼み直す（上限を超えたら 5）。
+   照合の結果は `andon issue show <id>` の `review`。`stale` は古い commit（CI が落ちて直す前など）を見たレビュー。衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じ（足した行と消した行が、空白も含めて同じ。変えていない前後の行と行番号は比べない）なら、照合はそのレビューを今の head に引き継ぐ（`current`。`commit` は見た commit のまま）。レビュアーの課題が kanban に残るので、回は1つ進む。今の `HEAD` で 1 から頼み直す（上限を超えたら 5）。
 3. 指摘を振り分ける（自分でする。件数と重さは `findings.json` のもの。報告の中身と食い違えば、レビュアーへ直してもらうよう報告に書く）:
    - `Must fix` 以上 → 直す。間違いだと判断した指摘は直さず、理由を報告に書く（gate はオーナーへ回す）。
    - それより軽い → 直さない。`andon issue report --data` の `waived`（`findings.json` と同じ `severity`・`file`・`line` ＋ `reason`）に書き、PR 本文の「トレードオフ」と報告の「見送り」にも写す。

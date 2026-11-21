@@ -104,7 +104,7 @@
 この文書が提案のあいだに切ってよいのは S1 と、今の形のままでも効く S2 だけ。
 
 - S1. 調べる課題。セルの根で走る Chief of Staff に、プロジェクトの `.claude/`（設定・skill・サブエージェントの定義）と指針をどう読ませるか。根に `.claude/` を置いたとき `.worktrees/` の下の担当にも効くかを実測し、候補を出す。依存なし。成果は候補の一覧で、開いている問い 1 をオーナーが決める材料になる。
-- S2. memory の量の通知の控えをセルに1つにする。B4。依存なし。今の形のままでも重複が消える。
+- S2. memory の量の通知の控えをセルに1つにする。B4。依存なし。今の形のままでも重複が消える。済み: 控えをセルに1つにした（mitaku/andon#293、[dispatcher.md](../dispatcher.md) §2.11）。
 - S3. 課題番号の取り違えを止める。B5。この文書が決定になったあと。
 - S4. 委譲の広さをセルに1つにする。schema・`andon delegate`・[contract.md](../contract.md) §11。B6・B7。開いている問い 2 の答えのあと。
 - S5. Chief of Staff をセルの根で1人起動し、dispatcher とフックを全部の kanban に通す。Chief of Staff の skill と template、用語集の「プロジェクト」、[ADR-0002](0002-herdr-spaces.md)・[ADR-0004](0004-project-layout.md) への覆しの注、[dispatcher.md](../dispatcher.md)・[contract.md](../contract.md)・[operate.md](../operate.md) の直しを同じ PR で。B1〜B3。S1 の答え・S3・S4 のあと。同じターンに複数のプロジェクトの通知を受けたときの ack の扱いと、Herdr App の mod が Chief of Staff のラベル `project=` を読んでいるか（repo の外。未確認）を、理解の工程で確かめる。

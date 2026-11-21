@@ -247,7 +247,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `review-requested` | `report.json` の `review_request`（dispatcher が起動したとき） | `round`・`reviewer`・`reviewer_issue` |
 | `gate` | dispatcher が `andon gate` を回した結果（`wait` は通知しない。§7） | `decision`（`approve` / `fix` / `needs_human`）・`reasons[]`・`record`（§7 のパス）、`fix` を担当へ送れなかった（担当の端末が無い）ときだけ `unsent`（担当の address）、`fix` で担当（`agent`）がいないときだけ `no_agent`（`true`） |
 | `merged` | gate の approve ＋ `merge: auto` ＋ 委譲の範囲内でマージして finish したとき。または `review`・`doing` の課題の PR をオーナーがマージしたのを見つけ、gate の問いを閉じて finish したとき（`by: person`）・gate の外の問いが開いている／finish が失敗して（commit していない変更など）片付けなかったとき（`by: person`・`held`。同じ理由では1回。dispatcher.md §2.7） | `pr`・`sha`、オーナーのマージのときだけ `by`（`person`）と、片付けなかったときだけ `held`（理由） |
-| `closed` | `review` の課題の PR がマージされずに閉じた（片付けない。閉じるたびに1回だけ。dispatcher.md §2.7） | `pr` |
+| `closed` | `review` か `doing` の課題の PR がマージされずに閉じた（片付けない。閉じるたびに1回だけ。dispatcher.md §2.7） | `pr` |
 | `impact` | `log.jsonl` の `{"status": "done"}`（Chief of Staff が打った finish も拾う）で、PR が MERGED の課題に dispatcher が `andon issue impact` を1回打ち、影響のある課題があったとき（下の「マージのあとの影響」） | `pr`・`sha`・`issues[]`（`issue`・`conflict`・`overlap[]`・`brief_refs[]`・読めなかったときだけ `error`。ファイルは20まで）。集められずに諦めたとき（3回失敗）は `pr`・`error` だけ |
 | `corrections` | `log.jsonl` の `{"status": "done"}` の課題の `corrections.json`（§14）を、次の見回りの打ち直しでも集められなかったとき（書いていない） | `error` |
 | `blocked`・`error`・`finished`・`stalled` | hcの状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
