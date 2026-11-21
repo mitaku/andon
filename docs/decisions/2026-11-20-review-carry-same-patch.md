@@ -11,13 +11,13 @@
 - worktree が無い、commit が無い、`origin/HEAD` が引けない、差分が空、のどれかのときは同じとみなさない。引き継がずに頼み直すほうへ倒す。
 - 引き継いでも、記録の `review.commit` はレビューが見た commit のまま。指摘の数え方（`must_fix`・`waived`・`preexisting`・前の回）は変えない。
 - `andon issue review-request` は、照合が引き継いだレビューを読めるなら頼まない（終了コード 1 と理由1行）。担当は報告を書き直して `andon issue ready` へ進む。dispatcher はレビュアーを起動しない。
-- 照合はゲート・`andon issue ready`・`andon issue show`・Stop フックで同じなので、どれも同じ答えになる。
+- 照合は gate・`andon issue ready`・`andon issue show`・Stop フックで同じなので、どれも同じ答えになる。
 
 引き受けたリスク:
 
-- main 側の変更と組み合わさって初めて壊れる場合を、レビューは見なくなる。そこは CI とゲートの checks が見る。
+- main 側の変更と組み合わさって初めて壊れる場合を、レビューは見なくなる。そこは CI と gate の checks が見る。
 
 捨てた案:
 
-- **担当が `report.json` に「差分が同じ」と書く**: 申告でゲートを緩めることになる。差分が同じかは記録から機械が決められる。
-- **dispatcher がレビュアーを起動する前に差分を比べる**: レビュアーを起動しなくても、照合は古い commit のまま stale で止まり、ready とゲートにも同じ比べ方が要る。照合の1か所で引き継げば、頼み直しもそこから決まる。
+- **担当が `report.json` に「差分が同じ」と書く**: 申告で gate を緩めることになる。差分が同じかは記録から機械が決められる。
+- **dispatcher がレビュアーを起動する前に差分を比べる**: レビュアーを起動しなくても、照合は古い commit のまま stale で止まり、ready と gate にも同じ比べ方が要る。照合の1か所で引き継げば、頼み直しもそこから決まる。

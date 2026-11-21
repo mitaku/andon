@@ -6,4 +6,4 @@
 - `package/settings.json` は `autoMemoryEnabled: true`・`autoMemoryDirectory: "/workspace/memory"` で、`env` の `CLAUDE_CODE_DISABLE_AUTO_MEMORY` は外した。memory の設定を書くのはここだけ。
 - `permissions.allow` に `/workspace/memory/**` は足さない。置き場の `.md` は Claude Code が自分で書き込みを許すので、確認は出ない（A-0144 の (c)）。`deny` は変えない。`tests/package.sh` は、allow に memory の置き場が入っていないことも見る。
 - 環境メモ（`package/environment.md`）の「気づきを残す（auto memory）」に、決めたこと 6 の書き方と、A-0144 で分かった2つ（`.md` をフォルダの直下に書く・本文に課題番号を書く）を置いた。
-- 今あるセルの `.gitignore` は、`docs/operate.md` §2 の1行（`memory/` を足す）で直す。CHANGELOG は版を切るときだけ書くので、版を切るときに「上げるときにすること」へ写す。
+- 今あるセルの `.gitignore` は、`docs/operate.md` §2 の1行（`memory/` を足す）で直す。CHANGELOG はバージョンを切るときだけ書くので、バージョンを切るときに「上げるときにすること」へ写す。

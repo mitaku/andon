@@ -134,15 +134,14 @@ echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）�
 # 古い語を見る検査の行も外す: tests/ の .sh のうち行の末尾に「# 古い語を見る（ADR-0040 決めたこと 10）」と書いた行（古い語が無いことを
 #   見る grep と、古い語を戻した写し。まだ古い語で書く出力を照らす行）。このファイルと tests/words-selftest.sh も外す。
 # 生きている文書のうち、CHANGELOG.md のバージョンごとの節（## v…。バージョンを切ったときの記録。ADR-0040 決めたこと 6）は外す。
-#   docs/decisions.md は冒頭（最初の「## 1.」の見出しより前）だけを見て、凍結した表は ADR と決定の記録を替えるときまで外す。
+# 決定の記録は docs/decisions/ と docs/decisions.md の全部（凍結した表も）を見る。
 # ADR は全部を見る。オーナーの発言を「」に入れずに写した ADR-0018 の 1 行（「オーナーの期待（2026-11-11）: 検証の…」）と、
 #   ADR-0040 の「決めたこと」の表の「今」の列（行の頭が「   | 」の表の最初の欄。語そのものを挙げた所）は外す。
 # 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。
 old_paths=(package .yomiyasu-words internal cmd init tests .claude/skills/verify-andon docs/design.md
   docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/ledger.md README.md REVIEW.md SECURITY.md CHANGELOG.md
   docs/decisions.md process docs/process model image AGENTS.md .golangci.yml workflow_test.go
-  docs/adr)
-decisions_table=$(grep -n -m1 '^## 1\.' docs/decisions.md 2>/dev/null | cut -d: -f1 || true)
+  docs/adr docs/decisions)
 existing=()
 for p in "${old_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
@@ -155,8 +154,7 @@ hits=""
     -e '^internal/issue/settle_test\.go:[0-9]*:[[:space:]]*{"' \
     -e '^tests/andon-\(dispatcher\|issue\)\.sh:[0-9]*:jq -n --arg r "ゲートの記録 ' \
     -e '^docs/adr/0018-screen-check-tooling\.md:[0-9]*:オーナーの期待（2026-11-11）: 検証の' \
-  | awk -F: -v v="${changelog_v:-0}" -v d="${decisions_table:-0}" \
-      '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v) && !($1 == "docs/decisions.md" && d > 0 && $2 >= d)' \
+  | awk -F: -v v="${changelog_v:-0}" '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v)' \
   | perl -CSDA -Mutf8 -ne '
       my ($f, $n, $t) = /^([^:]*):(\d+):(.*)$/s or next;
       $t =~ s/^   \| [^|]*\|// if $f eq "docs/adr/0040-kanban-gate-version-words.md";   # 決めたこと の表の「今」の列

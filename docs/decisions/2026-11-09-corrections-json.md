@@ -8,10 +8,10 @@ design.md §1.9 の (b) の表の 1〜3 を `issues/<id>/library/corrections.jso
 - **合図と回数**: `log.jsonl` の `{"status": "done"}` の行（`andon issue finish`。マージの影響 §2.5 と同じ合図）。ファイルが在れば書かない（それが「集めた」の印）。レビュアーの課題には書かない。
 - **「無かった」と「集めていない」**: 手直しが無ければ空の配列で書き、読めなければ書かない。打ち直すのは次の見回りの1回だけで、それも駄目なら新しい通知の種類 `corrections`（`detail` は `error` だけ）を Chief of Staff へ積む。
 - **オーナーの commit**: PR の commit のうち `report.json` の `commit`（担当の最後の報告）より後のもの。author の email では見分けない: 担当も repo のオーナーの GitHub noreply アドレスで commit するので、email ではオーナーと担当が分かれず、オーナーの email の書き方（`<数>+<login>@…` と `<login>@…`）でも揺れる。
-- **オーナーのコメント**: PR の会話欄のコメント・レビューの本文・インラインのレビューコメント（設計の表の 2「レビューのコメント」）のうち、`andon gate: ` で始まらないもの（ゲートはオーナーと同じ token でコメントを書く）。インラインでは `user.type` が `Bot` のものも除く。会話欄とレビューの本文は `gh pr view` が bot を見分ける項目を返さないので除かない（多めに拾う）。
-- **答えが推奨案と違う**: 台帳の答え（自由文）が推奨案の `label` と字で違うもの。意味は読まない（同じ意味の言い換えも拾う。多めに拾い、振り返りが捨てる）。ゲートの問い（`from: gate`）は推奨どおりでも `override` に入れ、`answer` には入れない。範囲の問い（`kind: scope`）は Chief of Staff の答えなので拾わない。
-- **オーナーが覆した指摘**: マージした PR の `waived` のうち `must_fix` 以上（Chief of Staff が書いた `must_fix`。無ければ全部）。ゲートは担当がレビュアーを覆したものを `needs_human` にするので、マージされたならオーナーが通した。
-- **数える**: `andon measure` の `counter.corrected` に、マージされた PR のうち `corrections` が1件以上ある課題の数をゲートのレベルごとに出す（`counter.reopened` は revert も混ぜるので、オーナーの手直しだけの数を別に置く）。measure は `corrections` の配列を持たない `corrections.json` を飛ばした記録にする。
+- **オーナーのコメント**: PR の会話欄のコメント・レビューの本文・インラインのレビューコメント（設計の表の 2「レビューのコメント」）のうち、`andon gate: ` で始まらないもの（gate はオーナーと同じ token でコメントを書く）。インラインでは `user.type` が `Bot` のものも除く。会話欄とレビューの本文は `gh pr view` が bot を見分ける項目を返さないので除かない（多めに拾う）。
+- **答えが推奨案と違う**: kanban の答え（自由文）が推奨案の `label` と字で違うもの。意味は読まない（同じ意味の言い換えも拾う。多めに拾い、振り返りが捨てる）。gate の問い（`from: gate`）は推奨どおりでも `override` に入れ、`answer` には入れない。範囲の問い（`kind: scope`）は Chief of Staff の答えなので拾わない。
+- **オーナーが覆した指摘**: マージした PR の `waived` のうち `must_fix` 以上（Chief of Staff が書いた `must_fix`。無ければ全部）。gate は担当がレビュアーを覆したものを `needs_human` にするので、マージされたならオーナーが通した。
+- **数える**: `andon measure` の `counter.corrected` に、マージされた PR のうち `corrections` が1件以上ある課題の数を gate のレベルごとに出す（`counter.reopened` は revert も混ぜるので、オーナーの手直しだけの数を別に置く）。measure は `corrections` の配列を持たない `corrections.json` を飛ばした記録にする。
 
 捨てた案:
 
