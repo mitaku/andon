@@ -14,6 +14,7 @@
 | 3 | 生成ビューと納品物を「作り直せるか」と「URL で届けるか」で分ける | `docs/operate.md` | 生きている |
 | 4 | 製品の repo の `docs/` との線引きを 4 層＋外で決める | この ADR | 生きている |
 | 5 | 今ある建屋からの移し方は要件だけにする | `cmd/kanban/migrate.go` | 役目を終えた |
+| 6 | 受け入れ条件 5 の答え: 建屋ルートの設定と重なるかを記す | この ADR | 生きている |
 
 ## 問題（人の言葉で。言い直しの段落）
 
@@ -97,6 +98,8 @@
    6. 移す前に Chief of Staff と伝令を止め、`doing`・`review` のタスクがあれば移さず止まる（Y-141 の 4）。移したら起動し直す。
    7. 移したあと `kanban lint`・`andon delegate show`・`hc ls` が通り、`git status` に `kanban/` が出ない。
    8. 文書と skill: operate.md の「建屋の置き方」と §8、chief-of-staff・independent-review・worker・glossary の skill の `.flightdeck`・`coordinator.md`、contract.md §11 の `delegation.json` のパス、design.md §2.2 の `init/` の例（`delegation.json` → `project.json`）。
+
+6. **2026-11-21 受け入れ条件 5 の答え: 建屋ルートの設定との重なり。** 今の Chief of Staff は cwd が `projects/<slug>/` で、settings は `projects/<slug>/` のものだけを読む。skills・agents・rules・`AGENTS.md` は建屋のルートと `projects/<slug>/` の両方を読む。
 
 ## やらないこと（範囲の外。理由）
 
