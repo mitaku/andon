@@ -73,7 +73,8 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 #   「」の中・語の表の「今」の列・「X→」の形（語そのものを挙げた所）。名指しした引用だけを外し、同じ行のほかの「人」は当たる。
 role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?:(?<![0-9] )|(?<=-[0-9]{2} )|(?<=[A-Za-z][0-9] ))(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ| [0-9]{4}-|(?<=-[0-9]{2} 人)[）)])'
 role_paths=(package internal init cmd tests docs/design.md process docs/process model docs/contract.md docs/dispatcher.md
-  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md docs/adr docs/decisions docs/decisions.md)
+  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md docs/adr docs/decisions docs/decisions.md
+  .claude/skills/verify-andon)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""

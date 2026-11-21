@@ -9,13 +9,13 @@ Claude Code が managed settings から呼ぶ4本の hook（`/opt/andon/hooks/st
 - `hk-stop-pass` 報告を書いた担当の Stop は何も出さずに通す。見る道: 検証の担当だけ。
 - `hk-other-pass` ラベルの無い端末では4本とも何も出さずに 0 で通す。見る道: 検証の担当だけ。
 - `hk-cos-news` turn 中の通知が、Chief of Staff の Stop で続きの turn として届く。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
-- `hk-wait` 離席中に `stop-wait` が合図で Chief of Staff の新しいターンを始め、入力欄の書きかけが残る。見る道: 人が見る。
-- `hk-esc` 渡した turn を Esc で止めたら、次の turn で1回だけ届け直す。見る道: 人が見る。
+- `hk-wait` 離席中に `stop-wait` が合図で Chief of Staff の新しいターンを始め、入力欄の書きかけが残る。見る道: オーナーが見る。
+- `hk-esc` 渡した turn を Esc で止めたら、次の turn で1回だけ届け直す。見る道: オーナーが見る。
 
 ## 辿り着き方（利用者から）
 
 - 担当・レビュアー・Chief of Staff の Claude Code が turn を終えるたびに、Stop の2本が走る。
-- 人が Chief of Staff に何かを送るたびに、`user-prompt-submit` が走る。
+- オーナーが Chief of Staff に何かを送るたびに、`user-prompt-submit` が走る。
 - プロバイダに切られて止まると、`stop-failure` が走る。
 
 ## 動かし方
@@ -31,7 +31,7 @@ Claude Code が managed settings から呼ぶ4本の hook（`/opt/andon/hooks/st
 - **通す。** `kanban report` のあとに同じ hook を打つ。出力が空で、`ok   hk-stop-pass` が見えれば動いた。
 - **素通りする。** ラベルの無い端末 `tx` で4本を打つ。4本とも出力が空で終了コード 0、`ok   hk-other-pass` が見えれば動いた。
 - **Chief of Staff に届く（`hk-cos-news`）。** 検証の担当は報告の `## Next` に「試しの課題を1件起動し、Chief of Staff の長めの turn の間に報告させる」と書く。起動したあと `hc read <Chief of Staff の address>` で、turn の終わりに次の turn が自動で始まり `<news>` を読んだことを確かめる。
-- **待ち役と Esc（`hk-wait`・`hk-esc`）。** 人が見る。報告の `acceptance[]` に `manual` と書き、見る場所は `docs/operate.md` の「12. 実測する」の表。
+- **待ち役と Esc（`hk-wait`・`hk-esc`）。** オーナーが見る。報告の `acceptance[]` に `manual` と書き、見る場所は `docs/operate.md` の「12. 実測する」の表。
 
 ## 変えたら動かすパス
 
