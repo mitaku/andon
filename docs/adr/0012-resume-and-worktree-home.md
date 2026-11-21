@@ -12,7 +12,7 @@
 | 1 | 起動し直しは resume を基本にする | `internal/issue/resume.go` | 生きている |
 | 2 | 担当向けの指針の口を `AGENTS.worker.md` にし、起動の最初のメッセージで指す | `internal/spawn/spawn.go` | 生きている |
 | 3 | 入口は新しい command `andon issue resume <id> [--dry-run] [--fresh]` | `internal/issue/resume.go` | 生きている |
-| 4 | 起動するのは dispatcher で、1 つの死につき 1 回にする | `internal/dispatcher/route.go` | 生きている |
+| 4 | 起動するのは dispatcher で、1 つの死につき 1 回にする | `internal/dispatcher/resume.go` | 生きている |
 | 5 | セッションは記録せず「その cwd の最新」を続ける | この ADR | 覆された → この ADR の 11 |
 | 6 | worktree の置き場を `/workspace/.worktrees/<repo 名>/<slug>-<id>` にする | `internal/spawn/spawn.go` | 生きている |
 | 7 | resume できないときは止まり、オーナーの go で `--fresh` にする | `internal/issue/resume.go` | 生きている |
@@ -22,9 +22,9 @@
 | 11 | セッションを Andon が記録し、id で resume する | `internal/issue/resume.go`・`internal/sessionlog/sessionlog.go` | 生きている |
 | 12 | `andon chief-engineer` は戻った端末を片付けない | `internal/chiefengineer/chiefengineer.go` | 生きている |
 | 13 | 反論で直した細部（resume の手順・worktree 周りの 6 点） | この ADR | 生きている |
-| 14 | 実装で決めた細部（R2。resume の入口の周り） | この ADR | 生きている |
-| 15 | 実装で決めた細部（R3。dispatcher の自動 resume の周り） | この ADR | 生きている |
-| 16 | 実装で決めた細部（R4。起動の最初のメッセージの周り） | この ADR | 生きている |
+| 14 | 実装で決めた細部（R2。resume の入口の周り） | `internal/issue/resume.go`・`internal/issue/lock.go`・`internal/spawn/spawn.go` | 生きている |
+| 15 | 実装で決めた細部（R3。レビュアーを戻す周り） | `internal/issue/resume.go`・`internal/dispatcher/fallback.go` | 生きている |
+| 16 | 実装で決めた細部（R4。dispatcher の自動 resume の周り） | `internal/dispatcher/resume.go`・[dispatcher.md](../dispatcher.md) §2.9 | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
