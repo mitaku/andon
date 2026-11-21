@@ -4,7 +4,7 @@
 
 # 正から写す語: レビュアーの依頼書（internal/dispatcher/loop.go の reviewerBrief の「見てほしいこと」）と
 # worker skill §2 の3つの観点の見出し。3つの観点の見出しは「正しさ」の並びにも名指しで入っている。
-# tests/package.sh の 23 が正とこの節を突き合わせる。
+# tests/package/23-yomiyasu-words.sh（tests/package.sh の節）が正とこの節を突き合わせる。
 # begin: 正から写す語
 外向きの面
 壊すと戻せないもの
