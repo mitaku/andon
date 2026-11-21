@@ -896,7 +896,9 @@ async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => 
   // A render (what a terminal's change brings), then the reads it started.
   const look = async () => { v.render(cx); await settle(); return v.model(); };
   const tick = async () => { for (const [, fn] of timers) fn(cx); await settle(); return v.model(); };
-  return { v, calls, store, clock, cx, look, tick, timers, draw: () => v.render(cx) };
+  // Stop waiting for reads that never come back (a hung call).
+  const forget = () => { pending.length = 0; };
+  return { v, calls, store, clock, cx, look, tick, timers, forget, draw: () => v.render(cx) };
 }
 const cos = (address, project, status = 'idle', extra = {}) => sampleTerm(address, status, { project, role: 'chief-of-staff' }, extra);
 const ce = (address, project, status = 'idle', extra = {}) => sampleTerm(address, status, { project, role: 'chief-engineer', issue: 'S-0009', title: 'Design' }, extra);
@@ -1117,6 +1119,43 @@ await check('inbox: exec で呼ぶのは andon waiting --json --project <名前>
   assert.match(await readFile(`${HOST}/andon/brand.js`, 'utf8'), /const LANTERN = "inbox\.lantern";/);
   const readme = await readFile(`${HOST}/inbox/README.md`, 'utf8');
   assert.match(readme, /\| `exec\("andon", \["waiting", "--json", "--project", slug\], \{on\}\)` \|/, 'README の What it runs に andon waiting の行が無い');
+});
+
+await check('inbox: 名前の形が違うラベル（空白・大文字・引用符・パス）では呼ばず、出力の version・project の変種は読めない扱い。返らない呼び出しは 60 秒で諦めて読み直し、形の違う控えでは落ちない', async () => {
+  for (const label of [' sample-site', 'sample-site ', 'Sample-site', "'sample-site'", 'sample site', 'a/b', '../x', '-']) {
+    const c = await inboxCell({ terms: [cos('cell/t1', label)], machines: [{ name: 'cell' }] });
+    await c.look();
+    await c.tick();
+    // '-' is shaped like a slug and is called: the check sees a call it should.
+    assert.equal(c.calls.exec.length, label === '-' ? 1 : 0, `「${label}」で呼んだか、呼ぶべきものを呼ばなかった`);
+  }
+  const { parseWaiting } = await load(`${HOST}/inbox`, { machines: () => [], setAgentOrder: () => {}, nextCommand: () => null, shared: () => null, setShared: () => {} });
+  const out = (o) => ({ code: 0, stdout: JSON.stringify(o), stderr: '' });
+  for (const [r, want] of [
+    [out({ version: '1', project: 'sample-site', items: [] }), /version 1$/], [out({ project: 'sample-site', items: [] }), /version undefined/],
+    [out({ version: 1, project: 'sample-site ', items: [] }), /answered for sample-site$/], [out({ version: 1, project: 'Sample-site', items: [] }), /answered for/],
+    [out({ version: 1, project: 'sample-site', items: {} }), /no items/], [{ code: 0, stdout: '', stderr: '' }, /no JSON/],
+    [{ code: 127, stdout: '', stderr: '\nsh: andon: not found\n' }, /exited 127: sh: andon: not found$/]]) {
+    const [items, why] = plain(parseWaiting(r, 'sample-site'));
+    assert.equal(items, null, `読めない出力を読んだ: ${JSON.stringify(r)}`);
+    assert.match(why, want);
+  }
+  assert.deepEqual(plain(parseWaiting(out({ version: 1, project: 'sample-site', items: [{ kind: 'merge', since: 'x', title: 't' }] }), 'sample-site')), [[{ kind: 'merge', since: 'x' }], null]);
+  // A call that never comes back: after a minute, the timer calls again.
+  let hang = true;
+  const c = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }] }, { reply: (a) => (hang ? new Promise(() => {}) : waitOut(a[3], [])) });
+  c.v.render(c.cx);
+  c.forget();
+  assert.equal(c.calls.exec.length, 1);
+  c.clock.t += 31000; for (const [, fn] of c.timers) fn(c.cx);
+  assert.equal(c.calls.exec.length, 1, '返っていない呼び出しの間に、同じ写しがもう一度呼んだ');
+  hang = false;
+  c.clock.t += 31000;
+  assert.equal((await c.tick()).lost.length, 0);
+  assert.equal(c.calls.exec.length, 2, '返らない呼び出しを諦めない');
+  // A store of another shape (an older or broken value) doesn't break the model.
+  const odd = await inboxCell({ terms: [cos('cell/t1', 'sample-site', 'done')], machines: [{ name: 'cell' }] }, { store: { 'inbox.waiting': { 'cell/sample-site': { at: 0, ok: { items: 'nope' } } } }, reply: () => new Promise(() => {}) });
+  assert.deepEqual(plain(odd.v.model().needs.map((i) => i.kind)), ['Reply']);
 });
 
 await check('inbox: 「次へ」は Needs you の行を古い順に回り、無くなれば未読の印のある役の行を古い順に回る（ADR-0043 受け入れ条件 8）', async () => {

@@ -42,6 +42,8 @@ const SLUG = /^[a-z0-9-]+$/;
 const WAIT_EVERY = 10000;
 // Unreadable this many times in a row: the project lights by replies again (ADR-0043 decision 9).
 const UNREADABLE_AFTER = 3;
+// A call that hasn't come back in this long no longer keeps this copy from calling again.
+const READ_GIVES_UP = 60000;
 const ASKS = { merge: "to merge", decision: "to decide" };
 
 // What `andon waiting --json --project <slug>` printed, as [items, null] or [null, why it can't be
@@ -134,8 +136,8 @@ export default class Inbox extends View {
     const mem = /** @type {any} */ (shared(MEMORY) ?? shared(OLD_MEMORY));
     this.changed = mem?.changed ?? load("changed", {});
     this.seen = mem?.seen ?? {};
-    // Machine and project pairs this copy is reading now.
-    this.reading = new Set();
+    // Machine and project pairs this copy is reading now, with when the call went out.
+    this.reading = new Map();
     this.sel = null;
     this.filter = "";
     this.typing = false;
@@ -215,7 +217,7 @@ export default class Inbox extends View {
       const e = store[key];
       const fails = e?.fails ?? 0;
       if (fails >= UNREADABLE_AFTER) return { key, machine, project, mode: "unreadable", why: e?.why ?? "unreadable" };
-      if (e?.ok) return { key, machine, project, mode: "read", items: e.ok.items ?? [] };
+      if (Array.isArray(e?.ok?.items)) return { key, machine, project, mode: "read", items: e.ok.items };
       return { key, mode: "pending" };
     };
     let dirty = false;
@@ -379,7 +381,7 @@ export default class Inbox extends View {
     const now = Date.now();
     const store = /** @type {Record<string, any>} */ (shared(WAITING) ?? {});
     for (const p of m.pairs) {
-      if (!SLUG.test(p.project) || this.reading.has(p.key)) continue;
+      if (!SLUG.test(p.project) || now - (this.reading.get(p.key) ?? -Infinity) < READ_GIVES_UP) continue;
       const e = store[p.key];
       if (e && now - (e.at ?? 0) < WAIT_EVERY) continue;
       if (e && !tick && !(p.changedAt > (e.at ?? 0))) continue;
@@ -394,7 +396,7 @@ export default class Inbox extends View {
       all[p.key] = { ...was, ...change(was) };
       setShared(WAITING, all);
     };
-    this.reading.add(p.key);
+    this.reading.set(p.key, Date.now());
     put(() => ({ at: Date.now() }));
     cx.spawn(async (cx) => {
       let items = null;
