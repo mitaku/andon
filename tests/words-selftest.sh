@@ -203,11 +203,19 @@ o='オーナーの期待（2026-11-11）: 検証のゲートを手厚くする�
 setup; echo "$o" >"$tmp/r/docs/adr/0018-screen-check-tooling.md"; expect ok 'ADR-0018 のオーナーの期待の行の「ゲート」は通る'
 setup; printf '%s\nゲートを回す\n' "$o" >"$tmp/r/docs/adr/0018-screen-check-tooling.md"; expect fail 'ADR-0018 のほかの行の「ゲート」で落ちる'
 setup; echo "$o" >"$tmp/r/docs/adr/0017-x.md"; expect fail 'ADR-0018 の外では、オーナーの期待の行でも「ゲート」で落ちる'
-# docs/decisions.md は冒頭（最初の「## 1.」より前）だけを見て、凍結した表は外す
+# 決定の記録は docs/decisions.md の全部（冒頭も凍結した表も）と docs/decisions/ を見る
 setup; printf '# 決定の記録\n\n- セルの台帳や wiki は指さない\n\n## 1. 設計書 §6 のオーナーの答え\n\n| 日付 | 決定 |\n' >"$tmp/r/docs/decisions.md"
 expect fail 'docs/decisions.md の冒頭の「台帳」で落ちる'
-setup; printf '# 決定の記録\n\n- セルの kanban や wiki は指さない\n\n## 1. 設計書 §6 のオーナーの答え\n\n| 2026-11-05 | ゲートの記録の前の版 |\n' >"$tmp/r/docs/decisions.md"
-expect ok 'docs/decisions.md の凍結した表（「## 1.」から後ろ）の「ゲート」「版」は通る'
+for w in 'ゲートの記録' '前の版' '台帳に書く'; do
+  setup; printf '# 決定の記録\n\n## 1. 設計書 §6 のオーナーの答え\n\n| 2026-11-05 | %s |\n' "$w" >"$tmp/r/docs/decisions.md"
+  expect fail "docs/decisions.md の凍結した表（「## 1.」から後ろ）の「$w」で落ちる"
+  setup; mkdir -p "$tmp/r/docs/decisions"; printf '# 決定\n\n%s\n' "$w" >"$tmp/r/docs/decisions/2026-01-01-x.md"
+  expect fail "docs/decisions/ の「$w」で落ちる"
+done
+setup; printf '# 決定の記録\n\n## 1. 設計書 §6 のオーナーの答え\n\n| 2026-11-05 | 「ゲートを回し直す」と最新版・初版。gate の記録の前のバージョン |\n' >"$tmp/r/docs/decisions.md"
+expect ok 'docs/decisions.md の表の「」の中と、残す「版」と、新しい語は通る'
+setup; mkdir -p "$tmp/r/docs/decisions"; printf '# 「台帳」「ゲート」「版」をやめる\n\nkanban に書き、gate を回す\n' >"$tmp/r/docs/decisions/2026-01-01-x.md"
+expect ok 'docs/decisions/ の「」の中の 3 語と、新しい語は通る'
 
 
 # 句読点のすぐ後ろの半角の空白（\p{Han} が句読点も含むため、和字と英字の間に空白を足す置き換えが作る形）: 落ち、決まりの形は通る

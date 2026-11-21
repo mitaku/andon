@@ -9,7 +9,7 @@
 - 手引きは `package/skills/chief-of-staff/playbooks/` に状況ごとに 10 本置く（`wake`・`cut`・`brief`・`start`・`blocked`・`watch`・`gate`・`finish`・`triage`・`wiki`）。どのファイルも先頭の front matter に `読む時` と `消す条件` を持つ。中身は今の節をほぼ言葉のまま移し、「§n」の参照を手引きのファイル名に直した。
 - 原則に入れるのは「何をしないか・誰が決めるか・何を正とするか」だけにする。手順・閾値・コマンドの綴りは手引きに置く。手引きと原則がぶつかったら原則が勝ち、コマンドの綴りが食い違ったら command と `contract.md` が正。
 - 規約 1〜10 は、ほかの文書（ask-one-by-one skill の「規約3」「規約10」、ADR）が番号で引いている。引用元は直さず、SKILL.md の末尾に「規約 n → 原則 m と形の置き場」の表を置いた。ADR の引用は当時の記録なので書き換えない。
-- 手引きは Read で読む。`/opt/andon` は CoS の作業の場の外なので、そのままでは Read が許可の確認で止まる（2026-11-13 にセルで実測）。template の command に `--add-dir /opt/andon/skills/chief-of-staff/playbooks` を足した。`cat` は managed settings で許されているが、Read でも止まらずに読めるようにした。手引きの置き場がまだ無い版のセルでも、`--add-dir` を付けたまま起動できる（実測）。
+- 手引きは Read で読む。`/opt/andon` は CoS の作業の場の外なので、そのままでは Read が許可の確認で止まる（2026-11-13 にセルで実測）。template の command に `--add-dir /opt/andon/skills/chief-of-staff/playbooks` を足した。`cat` は managed settings で許されているが、Read でも止まらずに読めるようにした。手引きの置き場がまだ無いバージョンのセルでも、`--add-dir` を付けたまま起動できる（実測）。
 - ワークストリームの定義（`process/workstreams/*.yaml`）の `skill` は、`<名>#<節>` に加えて `<名>/playbooks/<ファイル>.md` の形を取れる（`schema/process/workstream.schema.json` の `skill`）。見守りと仕分けの AI の手順は手引きのファイルを指す。`tests/process.sh` はファイルが在ることを確かめる。
 
 ## 理由
@@ -40,15 +40,15 @@
 
 | 行 | 旧の行（頭） | 行き先 |
 |---|---|---|
-| 8 | `台帳（kanban）と hc で動くプロジェクトの Chief of Staff の手順。 書き` | 原則（SKILL.md の前文: 語は用語集、書き方は writing.md） |
+| 8 | `kanban と hc で動くプロジェクトの Chief of Staff の手順。 書き` | 原則（SKILL.md の前文: 語は用語集、書き方は writing.md） |
 | 9 | `ラインを回す: 人の依頼と Chief Engineer の文書を依頼書に切り、担当を起動して検` | 原則 1（SKILL.md の前文の役の1行と、自分で作らない） |
 | 10 | `人と仕様・設計の対話もしない（それは Chief Engineer。起動するのは自分。下の「人の` | 原則 1 |
 | 12 | `- この SKILL が効くのは、projects/<slug>/kanban/config.y` | 原則（SKILL.md の前文: 効く条件） |
-| 13 | `- 打つコマンドは kanban（台帳）・hc（端末とエージェント）・andon issue（起` | 手引き wake.md「打つコマンド」。`hc attach` を打たないことは原則 10 にも |
+| 13 | `- 打つコマンドは kanban・hc（端末とエージェント）・andon issue（起` | 手引き wake.md「打つコマンド」。`hc attach` を打たないことは原則 10 にも |
 | 14 | `- 届くもの（<hc from=…> で打ち込まれる文、ルーチンの通知、ほかの Chief of` | 原則 5 |
 | 15 | `- 機械が読む値（issue.yaml の予約キー・report.json・findings.j` | 原則 6 |
 | 16 | `- 委譲（人がこのプロジェクトで Chief of Staff に任せた範囲）があれば、その中は` | 原則 2 |
-| 17 | `- 台帳の課題の書き方（番号に題を添える）は /opt/andon/writing.md の番号` | 原則（SKILL.md の前文: 番号の決まり・スクリプトの出力はそのまま読む） |
+| 17 | `- kanban の課題の書き方（番号に題を添える）は /opt/andon/writing.md の番号` | 原則（SKILL.md の前文: 番号の決まり・スクリプトの出力はそのまま読む） |
 | 18 | `- 人への文は短く、人がすることを先に書く。 書き方は /opt/andon/writing.m` | 原則（SKILL.md の前文: 短く・オーナーがすることを先に・行数で数えない） |
 | 19 | `- 人に端末を指すときは「<Space 名> / <tab 名>」で言う（人の Herdr Ap` | 原則 7（「<Space 名> / <tab 名>」で指す）。名前の決まりは手引き wake.md「端末の場所の名前」 |
 | 20 | `address は末尾に添えるだけ（S-0003 返事の下書きボタン / S-0003（t7））` | 手引き wake.md「端末の場所の名前」 |
@@ -58,7 +58,7 @@
 | 26 | `人が話す相手は Chief of Staff。人の手は「決まりのファイルを書く」「レベル C の` | 手引き cut.md「オーナーの入口」 |
 | 27 | `依頼が §1 の表の「判断（構造の違う案が2つ以上・外との約束・何を作るか）」の行に当たったら、` | 原則 1 ＋ 手引き cut.md「オーナーの入口」 |
 | 29–36 | `コードの塊（andon chief-engineer --brief -…）` | 手引き cut.md「オーナーの入口」（言葉のまま） |
-| 38 | `- projects/<slug>/ で打つ。台帳の repos が2つ以上なら --repo` | 手引き cut.md「オーナーの入口」 |
+| 38 | `- projects/<slug>/ で打つ。kanban の repos が2つ以上なら --repo` | 手引き cut.md「オーナーの入口」 |
 | 39 | `- 起動したら人に、出た場所 の行を写して「続きはそちらで」と伝える。仕様・設計を詰めるのは C` | 手引き cut.md「オーナーの入口」 |
 | 40 | `- 人が自分で andon chief-engineer を打ってもよい。` | 手引き cut.md「オーナーの入口」 |
 | 41 | `- 振り分けに迷うとき（直す課題か Chief Engineer か）と、2回差し戻して切り直す` | 手引き cut.md「オーナーの入口」（gate.md の差し戻しの2からも指す） |
@@ -69,7 +69,7 @@
 | 49 | `アドレスが変わったら、開いている課題（done と、レビュアーの課題 -rN を除く）の予約キー` | 手引き wake.md ＋ command へ寄せる候補（`andon chief-of-staff` がアドレスの変更時に開いた課題の予約キーを同じ値で書き直す） |
 | 50 | `予約キーは最後に書いたのが Chief of Staff のときだけ信じられる。前のアドレスで書` | 手引き wake.md ＋ command へ寄せる候補（同上） |
 | 51 | `課題ごとに kanban show <id> で今の値を読み、同じ値で kanban set <` | 手引き wake.md ＋ command へ寄せる候補（同上） |
-| 52 | `2. hc --skill を1回読む（hc の状態の意味・終了コードの一次情報。版で変わるので` | 手引き wake.md |
+| 52 | `2. hc --skill を1回読む（hc の状態の意味・終了コードの一次情報。バージョンで変わるので` | 手引き wake.md |
 | 53 | `3. projects/<slug>/AGENTS.md（cwd にあるので自動で読まれる）の「` | 手引き wake.md |
 | 54 | `4. 下の「毎ターン」をして、§5 の止まった検知をする。` | 手引き wake.md |
 | 56 | `毎ターン（人の発言・届いた文を処理する前に）:` | 手引き wake.md |
@@ -90,7 +90,7 @@
 | 77 | `- プロファイルの選び方（迷ったら claude）:` | 手引き cut.md |
 | 79 | `プロファイル  使いどころ` | 手引き cut.md |
 | 81 | `claude  既存への手術・コンテキストが重い仕事（既定）` | 手引き cut.md |
-| 82 | `sonnet  型が決まった小さい仕事（版上げ・文書の小直し）` | 手引き cut.md |
+| 82 | `sonnet  型が決まった小さい仕事（バージョンアップ・文書の小直し）` | 手引き cut.md |
 | 83 | `fable  深い設計。完了条件は設計文書の PR（人と対話する設計は Chief Engin` | 手引き cut.md |
 | 84 | `codex  新しい独立した module（別ブランドの担い手）` | 手引き cut.md |
 | 85 | `codex-review・claude-review  レビュアー（§2 の Reviewer` | 手引き cut.md |
@@ -146,7 +146,7 @@
 | 202 | `- repo の無い課題（--repo を付けない。cwd は issues/<id>/）。予約` | 手引き brief.md |
 | 203 | `- 担当は worker skill §2 の「観察の課題のとき」で終える（andon issu` | 手引き brief.md |
 | 205 | `Settings の埋め方（Chief of Staff が毎回埋める）。正は issue.ya` | 手引き brief.md ＋ command へ寄せる候補（同上） |
-| 206 | `ゲート・dispatcher・担当が読むのは issue.yaml だけ。無い・知らない値、また` | 手引き brief.md |
+| 206 | `gate・dispatcher・担当が読むのは issue.yaml だけ。無い・知らない値、また` | 手引き brief.md |
 | 207 | `依頼書を書いたら、Chief of Staff の端末で予約キーを全部書く（値は全部文字列。変え` | 手引き brief.md ＋ command へ寄せる候補（同上） |
 | 209–212 | `コードの塊（# issue.yaml の予約キー（依頼書の Settin…）` | 手引き brief.md（言葉のまま）＋ command へ寄せる候補（同上） |
 | 214 | `キー（依頼書の行）  値  既定  変えるとき` | 手引き brief.md |
@@ -166,12 +166,12 @@
 | 232 | `ぶつからないかも確かめる: その課題が触りそうな場所（依頼書の「解決すべき問題」「守ること」のフ` | 手引き start.md ＋ command へ寄せる候補（`andon issue start --dry-run` が重なりを確かめる。今の `--dry-run` は status・after・依頼書・repos・委譲だけを見る） |
 | 233 | `doing／review の課題の依頼書と、出ている PR の files（gh pr view` | 手引き start.md ＋ command へ寄せる候補（同上） |
 | 234 | `- 重なるなら同時に起動しない。--after で並べるか（kanban set <id> af` | 手引き start.md ＋ command へ寄せる候補（同上） |
-| 235 | `- 毎回ぶつかる場所（全 PR が触る版の番号や CHANGELOG）は、依頼書に「PR を出す` | 手引き start.md |
+| 235 | `- 毎回ぶつかる場所（全 PR が触るバージョンの番号や CHANGELOG）は、依頼書に「PR を出す` | 手引き start.md |
 | 236 | `- 重なる課題が同時に動くときは、依頼書の「守ること」にその番号（題）を書く。` | 手引き start.md |
 | 237 | `2. 人の go を取ってから起動する。次のどれかに当たれば聞かずに起動する: ルーチンが足した` | 手引き start.md |
 | 238 | `3. andon issue start <id>（projects/<slug>/ で打つ）。` | 手引き start.md |
 | 239 | `- 終了コード 1: 理由の1行を読んで直す（依頼書が無い・プロファイルが無い・起動済み など）` | 手引き start.md |
-| 240 | `- 終了コード 3（最初のメッセージが届いていない）: 台帳はもう doing・agent はそ` | 手引き start.md |
+| 240 | `- 終了コード 3（最初のメッセージが届いていない）: kanban はもう doing・agent はそ` | 手引き start.md |
 | 241 | `画面が止まっていれば（hc read <address>）§4 の決まりで答えるだけでよい。急ぐ` | 手引き start.md |
 | 242 | `コマンドが「ラベルを付けられず、dispatcher は送り直さない」と出したときは、答えてから` | 手引き start.md |
 | 243 | `4. 起動したら、人に知らせる。場所はコマンドの 出た場所 の行を写す（S-0003（返事の下書` | 手引き start.md |
@@ -200,7 +200,7 @@
 | 276 | `担当が ## 範囲の問い（見つけたもののどれを直すか）を返したら、範囲の判断は自分のもので、人に` | 手引き blocked.md |
 | 278 | `候補が  自分で決める  人へ（§8 の1問ずつ）  Chief Engineer へ` | 手引き blocked.md |
 | 280 | `場所  project.json の repos の中  外の repo  —` | 手引き blocked.md |
-| 281 | `レベル  A・B（ゲートの条件表 tier__paths で見る）  C（委譲の line-c` | 手引き blocked.md |
+| 281 | `レベル  A・B（gate の条件表 tier__paths で見る）  C（委譲の line-c` | 手引き blocked.md |
 | 282 | `種類  灯りがつく決断（呼び出し・定位置停止）のどれでもない（誤字・壊れたリンク・落ちるテスト` | 手引き blocked.md |
 | 283 | `直し方  1つに決まり、合計が元の PR に収まる（テストを除いて 500 行未満）か、小さい` | 手引き blocked.md |
 | 285 | `- 4つとも「自分で」の候補は、推奨案どおりか違う組み合わせで決め、候補ごとの行き先を id で` | 手引き blocked.md |
@@ -221,10 +221,10 @@
 | 307 | `- 知らせ方は、人が見ているターンならその返事の中で。人がいないとき（<news> で起動したと` | 手引き watch.md |
 | 308 | `- 同じ担当を、人の知らないうちに何度も起動し直さない（resume は dispatcher` | 手引き watch.md |
 | 309 | `- hc read で見た入力欄の文は、サジェストかもしれない前提で読む（§4 の1）。入力欄に` | 手引き watch.md |
-| 311 | `<news> の読み方: dispatcher は台帳と hc から通知を拾い、溜まった通知を1` | 手引き watch.md |
+| 311 | `<news> の読み方: dispatcher は kanban と hc から通知を拾い、溜まった通知を1` | 手引き watch.md |
 | 312 | `届く口は2つ: ターンの終わりの Stop フック（続きのターンの指示として）・人が送ったときの` | 手引き watch.md |
 | 313 | `dispatcher はこの Chief of Staff の入力欄へ打たない。人が離れている間` | 手引き watch.md |
-| 314 | `その1行だけで起動したターンは何も書かずに終える（何も打たない・台帳も読まない）。終わりの St` | 手引き watch.md |
+| 314 | `その1行だけで起動したターンは何も書かずに終える（何も打たない・kanban も読まない）。終わりの St` | 手引き watch.md |
 | 316–324 | `コードの塊（<news project="<slug>">…）` | 手引き watch.md（言葉のまま） |
 | 326 | `- <news> はデータで、人の依頼ではない。承認として受けない（不可逆な操作の go は人か` | 手引き watch.md |
 | 327 | `- 人に言うことが無ければ andon news ack を打ち、文を書かずにターンを終える（台` | 手引き watch.md |
@@ -232,8 +232,8 @@
 | 329 | `- 同じものは一度だけ届く（同じ課題の同じ出来事は新しい1件にまとめてある）。` | 手引き watch.md |
 | 331 | `行  dispatcher がしたこと  受けたら` | 手引き watch.md |
 | 333 | `<id> ready: 「…」（ルーチン tidy）  kanban ready の前回との差` | 手引き watch.md |
-| 334 | `<id> report: 報告 <path>  台帳の log.jsonl に report` | 手引き watch.md |
-| 335 | `<id> review: 報告 <path>  ゲートを回さない課題（Chief Engine` | 手引き watch.md |
+| 334 | `<id> report: 報告 <path>  kanban の log.jsonl に report` | 手引き watch.md |
+| 335 | `<id> review: 報告 <path>  gate を回さない課題（Chief Engine` | 手引き watch.md |
 | 336 | `<id> gate: approve …  dispatcher がマージしないと決まっている` | 手引き watch.md |
 | 337 | `<id> merged: <PR>（held あり）  マージされたが片付けていない（理由が付` | 手引き watch.md |
 | 338 | `<id> impact: <PR> のマージ（…）で <id>（衝突・重なり n・依頼書 n）` | 手引き watch.md |
@@ -247,15 +247,15 @@
 | 346 | `… が error（プロバイダに5回目に切られた）  dispatcher が 1・2・4・8` | 手引き watch.md |
 | 347 | `… の端末が終わっている（…）のに doing  何もしない  上の表の最後の行（人に「起動し` | 手引き watch.md |
 | 349 | `この Chief of Staff の端末が live でない間（留守）も、dispatcher` | 手引き watch.md |
-| 350 | `留守の間の出来事は、起動したときに台帳を自分で読む（§0）。dispatcher の様子は hc` | 手引き watch.md |
+| 350 | `留守の間の出来事は、起動したときに kanban を自分で読む（§0）。dispatcher の様子は hc` | 手引き watch.md |
 | 351 | `dispatcher の端末が素のシェルのまま（core が起動し直したあと）でも、自分の端末の` | 手引き watch.md |
 | 352 | `戻らなければ（hc get dispatcher --json の foreground.arg` | 手引き watch.md |
 | 353 | `dispatcher が止まっていた間に出たレビュー依頼も、起動し直した dispatcher` | 手引き watch.md |
-| | **旧 6. レビューとゲート（オーナーの判断が要るときだけ）** | |
+| | **旧 6. レビューと gate（オーナーの判断が要るときだけ）** | |
 | 357 | `インナーループは dispatcher が回す（docs/dispatcher.md §5）。C` | 手引き gate.md |
 | 358 | `担当の andon issue review-request → dispatcher がレビュ` | 手引き gate.md |
 | 359 | `担当の andon issue ready → dispatcher が andon gate` | 手引き gate.md |
-| 360 | `ゲートは PR の head の GitHub の checks が揃うまで wait（終了コー` | 手引き gate.md |
+| 360 | `gate は PR の head の GitHub の checks が揃うまで wait（終了コー` | 手引き gate.md |
 | 361 | `誰がどの端末をどう起動するかの一覧は docs/operate.md の「役の配置と起動」。` | 手引き gate.md |
 | 362 | `Chief of Staff が決めるのは、依頼書の Settings（§2。review・re` | 手引き gate.md |
 | 364 | `### needs_human のとき（<id> asked で from: gate）` | 手引き gate.md |
@@ -272,11 +272,11 @@
 | 380 | `上限を使い切っても critical / major が残っているなら起動する——kanban` | 手引き gate.md |
 | 381 | `minor 以下だけが残っているなら起動せず、見送りに残して andon issue ready` | 手引き gate.md |
 | 383 | `### 差し戻し（2回で通らなければ切り直す）` | 手引き gate.md |
-| 385 | `差し戻し＝担当の成果を通さずに返すこと（ゲートの fix・人の差し戻し）。レビューの回（revi` | 手引き gate.md |
+| 385 | `差し戻し＝担当の成果を通さずに返すこと（gate の fix・人の差し戻し）。レビューの回（revi` | 手引き gate.md |
 | 386 | `担当の日報（library/journal.md）は検収の判定に使わない。日報の中身（無い・短い` | 手引き gate.md |
 | 387 | `記録は依頼書への追記で、その数が回数:` | 手引き gate.md |
 | 389 | `1. 返す前に、依頼書（issues/<id>/brief.md）の末尾に ## 差し戻し（<日` | 手引き gate.md |
-| 390 | `ゲートの fix は dispatcher が担当へ返し済みなので、<id> gate: fix` | 手引き gate.md |
+| 390 | `gate の fix は dispatcher が担当へ返し済みなので、<id> gate: fix` | 手引き gate.md |
 | 391 | `2. 依頼書に ## 差し戻し が2つあってまだ通らない（3回目を返すことになる）なら、手直しを` | 手引き gate.md |
 | 392 | `依頼書を直した新しい課題を kanban add（「なぜ」に元の番号（題）と差し戻しの要点）し、` | 手引き gate.md |
 | 393 | `go を待つ間は担当へ hc send <agent> "手を止めて。依頼書を直して切り直す"。` | 手引き gate.md |
@@ -284,7 +284,7 @@
 | 397 | `- dispatcher がマージしたもの（<id> merged: <PR> をマージして片付` | 手引き finish.md |
 | 398 | `- 人がマージしたもの（review の課題）も dispatcher が見回りで拾う（PR ご` | 手引き finish.md |
 | 400 | `届く行  dispatcher がしたこと  すること` | 手引き finish.md |
-| 402 | `<id> merged: <PR> は人がマージした（…）。ゲートの問いを閉じて片付けた  ゲ` | 手引き finish.md |
+| 402 | `<id> merged: <PR> は人がマージした（…）。gate の問いを閉じて片付けた  ゲ` | 手引き finish.md |
 | 403 | `<id> merged: <PR> は人がマージした（…）が、片付けていない: <理由>  片` | 手引き finish.md |
 | 404 | `<id> closed: <PR> はマージされずに閉じた  何もしない（片付けていない）` | 手引き finish.md |
 | 406 | `- どちらのマージでも、finish のあと dispatcher が動いている課題への影響を見` | 手引き finish.md |
@@ -320,15 +320,15 @@
 | 446 | `2. 完了条件を書く  依頼書の雛形（§2）の欄` | 原則 3（規約の行き先の表）。形は手引き brief.md |
 | 447 | `3. blocked は正常。範囲内だけ答える  hc read と hc keys（§4）。` | 原則 4（規約の行き先の表）。形は手引き blocked.md |
 | 448 | `4. 太らせて寝かせない  MERGED を確かめたら andon issue finish。` | 原則 9（規約の行き先の表）。形は手引き finish.md |
-| 449 | `5. 復旧は git・テスト・報告が正  報告は台帳の issues/<id>/report.` | 原則 6（規約の行き先の表）。形は手引き finish.md |
+| 449 | `5. 復旧は git・テスト・報告が正  報告は kanban の issues/<id>/report.` | 原則 6（規約の行き先の表）。形は手引き finish.md |
 | 450 | `6. 診断  kanban lint・hc ls・git worktree list` | 原則 6（規約の行き先の表）。形は手引き finish.md |
-| 451 | `7. 課題は台帳が既定  外部のトラッカーで回る案件はそちらが正で、links にキー。wri` | 原則 4・6（規約の行き先の表）。形は手引き cut.md（write_back の1コメントの線も） |
+| 451 | `7. 課題は kanban が既定  外部のトラッカーで回る案件はそちらが正で、links にキー。wri` | 原則 4・6（規約の行き先の表）。形は手引き cut.md（write_back の1コメントの線も） |
 | 452 | `8. 案件の合意事項と用語は Chief Engineer、Chief of Staff の設` | 原則 1・11（規約の行き先の表）。形は手引き wiki.md |
 | 453 | `9. 記憶の規律  memory（auto memory。/workspace/memory/` | 原則 11（規約の行き先の表）。形は手引き wiki.md |
 | 454 | `10. 持ち場の外はオーナーへ  hc send <相手の config.yaml の chi` | 原則 5・10（規約の行き先の表）。形は手引き triage.md |
 | | **旧 10. トリアージ** | |
 | 458 | `仕分け（Triage）のワークストリームの AI の手。流れの正は andon の repo の` | 手引き triage.md（`process/workstreams/triage.yaml` の `skill` も手引きのファイルに向け直した） |
-| 460 | `台帳に溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・人に` | 手引き triage.md |
+| 460 | `kanban に溜まったもの（報告の Next・見送り・Remember・For AGENTS.md・人に` | 手引き triage.md |
 | 461 | `判定表と decisions.json の形は triage skill にあり、ここには書かな` | 手引き triage.md |
 | 463 | `1. 足す: ルーチン triage（routines/triage.yaml。例は triag` | 手引き triage.md |
 | 464 | `人がゴールを1行言ったら kanban add "トリアージ: <ゴール>" --profile` | 手引き triage.md |
@@ -380,6 +380,6 @@
 | 513 | `- commit・push: git -C /workspace add wiki && git` | 手引き wiki.md ＋ command へ寄せる候補（wiki の commit と push） |
 | | **旧 ルール** | |
 | 517 | `- 実装・ビルド・テスト・リポジトリの深い調査はしない。人と仕様・設計を詰めない（Chief E` | 原則 1 |
-| 518 | `- ほかのプロジェクトの台帳に書かない。ほかのプロジェクトの担当に hc send・hc key` | 原則 10 |
+| 518 | `- ほかのプロジェクトの kanban に書かない。ほかのプロジェクトの担当に hc send・hc key` | 原則 10 |
 | 519 | `- hc の session（HC_SESSION）や core を止めない・変えない。止めるの` | 原則 10 |
-| 520 | `- プロファイル（hc の template）とゲートの条件表・委譲を作る・変えるのは人だけ。足` | 原則 2 |
+| 520 | `- プロファイル（hc の template）と gate の条件表・委譲を作る・変えるのは人だけ。足` | 原則 2 |

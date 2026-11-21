@@ -7,7 +7,7 @@ PR の変更が全部 `docs/` の下か、root の `README.md`・`CHANGELOG.md`�
 
 ここで置いたこと:
 
-- **job と check の名前は変えず、飛ばしても job は成功で終わる。** workflow ごと `paths` で外すと、ゲートが待つ PR の head の checks が出ない。
+- **job と check の名前は変えず、飛ばしても job は成功で終わる。** workflow ごと `paths` で外すと、gate が待つ PR の head の checks が出ない。
 - **go の job でも、文書を読む Go のテストは残す。** `docs/design.md`・`README.md` に書いた `andon chief-engineer` の呼び出しを打つテストがあり、飛ばすと文書の誤りが main に入る。
 - **`tests/README.md` は文書に含めない。** `tests/` の下はコードと一緒に変わることが多く、分ける得が小さい。
 - **main の push と tag では必ず全部走る。** 文書とコードが混ざった PR も全部走る。
