@@ -10,6 +10,10 @@
 #   - TMPDIR を repo の写しの中に置く（担当が一時ディレクトリを worktree の中に置いたときと同じ）。
 # 番兵（セルの repo の根 <ws> の下。repo の写しと go の telemetry を除く）のファイルが1つでも変われば、変わったものを出して 1 で終わる。
 # kanban と HOME のほか、ANDON_WORKSPACE（<ws>）と GHQ_ROOT（<ws>/.ghq）の下に書いたものも見る。検査の失敗も 1。
+# 番兵のファイルを読んだ検査も、読んだファイルを出して 1 で終わる。セルの本物の置き場の中身（空の memory の目録など）で
+# 手元の検査が落ちるのを防ぐ。読んだかは atime で見る: 検査の前に番兵のファイルの atime を古い時刻へ戻す
+# （relatime でも、atime が mtime・ctime より古いファイルは読むと atime が動く）。atime が動かない置き場では落ちる。
+# 番兵には本物のセルで起きた形も置く（中身が空の memory の目録・壊れた JSON の plugin の控え）。
 # 引数があれば tests/*.sh はそれだけ（go test ./... は毎回回す）。
 set -euo pipefail
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -25,7 +29,7 @@ gocache=$(PATH=$path go env GOCACHE) gomodcache=$(PATH=$path go env GOMODCACHE)
 
 ws=$tmp/ws
 repo=$ws/.ghq/example.com/owner/andon
-mkdir -p "$ws/.ghq/example.com/owner" "$ws/projects/sample" "$ws/home/.local/state" "$ws/home/.local/share" "$ws/home/.claude" "$ws/home/.codex" "$ws/home/.config/go"
+mkdir -p "$ws/.ghq/example.com/owner" "$ws/projects/sample" "$ws/home/.local/state" "$ws/home/.local/share" "$ws/home/.claude/plugins" "$ws/home/.codex" "$ws/home/.config/go" "$ws/memory"
 git clone -q "$src" "$repo"
 (cd "$src" && git diff HEAD --binary) | (cd "$repo" && git apply --allow-empty)
 (cd "$src" && git ls-files --others --exclude-standard -z) | (cd "$src" && xargs -0r cp --parents -t "$repo")
@@ -37,6 +41,8 @@ printf '# 番兵\n' >"$ws/home/.claude/CLAUDE.md"
 printf '{}\n' >"$ws/home/.claude/settings.json"
 printf '# 番兵\n' >"$ws/home/.codex/config.toml"
 printf '# 番兵\n' >"$ws/AGENTS.local.md"
+: >"$ws/memory/MEMORY.md"                                # 中身が空の memory の目録（本物のセルで起きた形）
+printf '{"version": 2, "plugins": {\n' >"$ws/home/.claude/plugins/installed_plugins.json" # 壊れた JSON
 mkdir -p "$repo/tests/.task-tmp"
 
 # 数えないのは、検査が動く repo の写し（TMPDIR もこの中）と、go の道具が自分で書く telemetry（~/.config/go。検査ではなく go が書く）だけ
@@ -44,6 +50,22 @@ skip=(-path ./.ghq/example.com/owner/andon -prune -o -path ./home/.config/go -pr
 snap() { (cd "$ws" && find . "${skip[@]}" -print0 | sort -z | xargs -0 stat -c '%n %F %s %Y' &&
   find . "${skip[@]}" -type f -print0 | sort -z | xargs -0 sha256sum); }
 before=$(snap)
+
+# 読みの検査の支度。snap が番兵を読んだあとで atime を古い時刻へ戻す。まず atime が動く置き場かを確かめる
+old=200001010000
+probe=$tmp/atime-probe
+printf 'x\n' >"$probe" && touch -a -t "$old" "$probe"
+oldat=$(stat -c %X "$probe")
+cat "$probe" >/dev/null
+if [ "$(stat -c %X "$probe")" = "$oldat" ]; then
+  echo "FAIL 一時の置き場（$tmp）は読んでも atime が動かない（noatime など）。番兵を読んだかを確かめられない" >&2
+  exit 1
+fi
+# 見るのは今あるファイルだけ（検査が足したファイル・消したファイルは書いたほうの検査で出る）
+(cd "$ws" && find . "${skip[@]}" -type f -print0) >"$tmp/sentinel-files"
+(cd "$ws" && xargs -0r touch -a -t "$old" <"$tmp/sentinel-files")
+readfiles() { (cd "$ws" && xargs -0r stat -c '%X %n' 2>/dev/null <"$tmp/sentinel-files" || true) |
+  while read -r at name; do [ "$at" = "$oldat" ] || echo "$name"; done; }
 
 cell=(env PATH="$path" GOCACHE="$gocache" GOMODCACHE="$gomodcache" TMPDIR="$repo/tests/.task-tmp"
   KANBAN_ROOT="$ws/projects/sample" HOME="$ws/home" CLAUDE_CONFIG_DIR="$ws/home/.claude" CODEX_HOME="$ws/home/.codex"
@@ -54,11 +76,20 @@ failed=0
 (cd "$repo" && "${cell[@]}" go test ./...) || failed=1
 (cd "$repo" && "${cell[@]}" bash tests/lib/run-tests.sh "$@") || failed=1
 
+read=$(readfiles) # snap が読む前に見る
 after=$(snap)
 if [ "$before" != "$after" ]; then
   echo "FAIL 検査が番兵（セルの本物の代わり）に書いた:" >&2
   diff <(echo "$before") <(echo "$after") >&2 || true
-  exit 1
+  failed=1
+else
+  echo "ok   番兵（kanban projects/sample・HOME・セルの repo の根・GHQ_ROOT）は変わらなかった"
 fi
-echo "ok   番兵（kanban projects/sample・HOME・セルの repo の根・GHQ_ROOT）は変わらなかった"
+if [ -n "$read" ]; then
+  echo "FAIL 検査が番兵（セルの本物の代わり）のファイルを読んだ（検査の環境で置き場を一時に向ける）:" >&2
+  echo "$read" >&2
+  failed=1
+else
+  echo "ok   番兵のファイルは読まれなかった"
+fi
 [ "$failed" = 0 ] || { echo "FAIL 検査が落ちた（上の出力）" >&2; exit 1; }
