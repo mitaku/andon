@@ -24,7 +24,7 @@ type Review struct {
 // CheckReview は、課題 t の最新のレビュアーの findings.json が head を指すかを確かめ、
 // must_fix 以上で waived に無い指摘を数える。must_fix が空なら数えない（読み手が安全側に倒す）。
 // findings.json の commit が head と違っても、PR の差分が同じ（SamePatch。rebase で head が変わっても、PR が足した行と消した行が同じ）なら
-// そのレビューを head に引き継いで current にする（decisions/2026-11-20-review-carry-same-patch.md）。Commit は見た commit のまま。
+// そのレビューを head に引き継いで current にする（decisions/2026-11-20-review-carry-same-patch.md・2026-11-21-review-carry-ignores-context-lines.md）。Commit は見た commit のまま。
 // 数えない指摘が2つある（decisions/2026-11-09-review-preexisting.md・2026-11-09-review-later-rounds.md）:
 //   - preexisting: true の指摘。ただし added（PR の差分で足した行。file → 行）に当たる場所なら数える
 //     （課題で足した行が課題の前からあったはずはない。申告で gate を緩めない）。added が nil なら場所を確かめない（担当の command の下見）。

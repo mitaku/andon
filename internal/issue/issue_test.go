@@ -415,7 +415,7 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 }
 
 // rebaseWorktree は f.wt の履歴を、根拠の出来事の形に作り直す: 課題の branch の commit x をレビューが見たあと、
-// main が衝突しない変更で進み、担当が fetch して rebase した（head は y）。conflict なら rebase で衝突を解いて差分が変わる。
+// main が衝突しない変更で進み、担当が fetch して rebase した（head は y）。conflict なら rebase で衝突を解き、PR が足した行も変わる。
 // f.head・f.prHead・f.report を y に、レビューの findings を x にする。
 func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	f.t.Helper()
@@ -454,9 +454,10 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 	git("checkout", "-q", "topic")
 	if conflict {
-		// 衝突を解いて rebase し直したのと同じ: main の上に、解いた中身の commit を積む
+		// 衝突を解いて rebase し直したのと同じ: main の上に、解いた中身の commit を積む。足した行 A も A2 に変える
+		// （足した行が同じなら、衝突を解いた rebase でもレビューを引き継ぐ）
 		git("reset", "-q", "--hard", "origin/main")
-		put("a.txt", "a\nM\nA\n")
+		put("a.txt", "a\nM\nA2\n")
 		git("commit", "-q", "-m", "topic")
 	} else {
 		git("rebase", "-q", "origin/main")
@@ -468,7 +469,7 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 }
 
 // 衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じなら、ready はそのレビューを
-// head に引き継いで通す。衝突を解いて差分が変わった rebase は、今までどおり stale で止まる。
+// head に引き継いで通す。衝突を解いて PR が足した行も変わった rebase は、今までどおり stale で止まる。
 func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
 	for _, c := range []struct {
 		name     string
