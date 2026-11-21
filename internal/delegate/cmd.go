@@ -14,10 +14,12 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/ledger"
 )
 
 // Usage は andon delegate --help の中身。
 const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+	"       andon delegate grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
 	"       andon delegate narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
 	"       andon delegate revoke <id> --reason <text> [--project <slug>]\n" +
 	"       andon delegate show [--json] [--project <slug>]\n" +
@@ -26,6 +28,8 @@ const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text
 	"scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 	"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
 	"       line-change(none/project/plant)。narrow は今の値より広げない。--project を省くと cwd の projects/<slug>/。\n" +
+	"--issues は名指し: 並べた課題（kanban にあり done でないもの）の判定にだけ merge の値を足す（プロジェクト全体の値は変えない）。\n" +
+	"       grant merge だけが取る。担当が戻せない（risk.one_way）と申告した課題には効かない。名指しは gate が回る前に出す。\n" +
 	"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か issue= がある）では打てない。\n"
 
 const (
@@ -47,7 +51,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		switch a := rest[0]; a {
 		case "--json":
 			asJSON, rest = true, rest[1:]
-		case "--evidence", "--until", "--reason", "--project":
+		case "--evidence", "--until", "--reason", "--project", "--issues":
 			if len(rest) < 2 {
 				return usage()
 			}
@@ -67,6 +71,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	today := time.Now().UTC().Format("2006-01-02")
 	_, withProject := opt["--project"]
+	_, withIssues := opt["--issues"]
 	switch {
 	case sub == "show" && len(pos) == 0 && (len(opt) == 0 || len(opt) == 1 && withProject):
 		r := Read(ws, slug, today)
@@ -82,12 +87,27 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		for _, s := range Scopes {
 			fmt.Fprintf(stdout, "  %-17s %s\n", s, show(r.Effective[s]))
 		}
+		for _, g := range r.Grants {
+			if len(g.Issues) > 0 {
+				fmt.Fprintf(stdout, "  名指し %s %s %s: %s%s\n", g.ID, g.Scope, show(rawValue(g.Value)), strings.Join(g.Issues, ", "), untilNote(g.Until))
+			}
+		}
 		return 0
 	case (sub == "grant" || sub == "narrow") && len(pos) == 2 && opt["--evidence"] != "" && opt["--reason"] == "":
+		var issues []string
+		if withIssues {
+			if issues = splitIssues(opt["--issues"]); len(issues) == 0 {
+				fmt.Fprintf(stderr, "andon delegate %s: --issues が空\n", sub)
+				return exitFail
+			}
+		}
+		kanbanRoot := filepath.Join(ws, "projects", slug)
 		err = change(ws, slug, today, stdout, stderr, func(f *File) (string, error) {
-			return add(f, sub, pos[0], pos[1], opt["--evidence"], opt["--until"], today)
+			return add(f, sub, pos[0], pos[1], opt["--evidence"], opt["--until"], today, issues, func(id string) (string, error) {
+				return issueStatus(kanbanRoot, id)
+			})
 		})
-	case sub == "revoke" && len(pos) == 1 && opt["--reason"] != "" && opt["--evidence"] == "" && opt["--until"] == "":
+	case sub == "revoke" && len(pos) == 1 && opt["--reason"] != "" && opt["--evidence"] == "" && opt["--until"] == "" && !withIssues:
 		err = change(ws, slug, today, stdout, stderr, func(f *File) (string, error) {
 			return revoke(f, pos[0], opt["--reason"], today)
 		})
@@ -225,13 +245,65 @@ func nextID(f *File) string {
 	return fmt.Sprintf("d%d", n+1)
 }
 
-func add(f *File, sub, scope, value, evidence, until, today string) (string, error) {
+// splitIssues は --issues の , 区切りを課題の id の並びにする（空白と空の要素を除き、kanban の形に揃える。重なりは残す。検査は add）。
+func splitIssues(s string) []string {
+	var out []string
+	for _, id := range strings.Split(s, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			out = append(out, ledger.CanonID(id))
+		}
+	}
+	return out
+}
+
+// issueStatus はプロジェクトの kanban（root は kanban/ の親）の課題 id の status。無ければ誤り。
+func issueStatus(root, id string) (string, error) {
+	t, err := ledger.At(root).Show(id)
+	if err != nil {
+		return "", err
+	}
+	return t.Str("status"), nil
+}
+
+func rawValue(raw json.RawMessage) any {
+	var v any
+	_ = json.Unmarshal(raw, &v)
+	return v
+}
+
+func untilNote(u *string) string {
+	if u == nil {
+		return ""
+	}
+	return "（期限 " + *u + "）"
+}
+
+// add は grant か narrow の1行を f に足す。issues があれば名指しの grant（ADR-0041 決めたこと 6）: grant merge の A・B・C だけが取り、
+// 名指しする課題はそのプロジェクトの kanban にあり done でないもの（status が引く）。
+func add(f *File, sub, scope, value, evidence, until, today string, issues []string, status func(id string) (string, error)) (string, error) {
 	if !slices.Contains(Scopes, scope) {
 		return "", fmt.Errorf("知らない scope: %q（%s）", scope, strings.Join(Scopes, " / "))
 	}
 	raw, err := ParseValue(scope, value)
 	if err != nil {
 		return "", err
+	}
+	if issues != nil {
+		if sub != "grant" {
+			return "", fmt.Errorf("%s は --issues を取らない（名指しは grant merge だけ。狭めるのは課題の merge: person か revoke）", sub)
+		}
+		if err := checkIssues(scope, raw, issues); err != nil {
+			return "", err
+		}
+		for _, id := range issues {
+			st, err := status(id)
+			switch {
+			case err != nil:
+				return "", fmt.Errorf("--issues の %s が kanban に無い（%v）", id, err)
+			case st == "done":
+				return "", fmt.Errorf("--issues の %s はもう done（名指しは片付いていない課題だけ）", id)
+			}
+		}
 	}
 	var u *string
 	if until != "" {
@@ -248,8 +320,13 @@ func add(f *File, sub, scope, value, evidence, until, today string) (string, err
 			return "", fmt.Errorf("narrow は広げない: %s は今 %s（広げるなら grant）", scope, show(cur))
 		}
 	}
-	g := Grant{ID: nextID(f), Scope: scope, Value: raw, By: "owner", At: today, Until: u, Evidence: evidence}
+	g := Grant{ID: nextID(f), Scope: scope, Value: raw, By: "owner", At: today, Until: u, Evidence: evidence, Issues: issues}
 	f.Grants = append(f.Grants, g)
+	if issues != nil {
+		named := strings.Join(issues, ",")
+		return fmt.Sprintf("delegate %s %s: %s %s --issues %s\n\nscope: %s\nvalue: %s\nissues: %s\nevidence: %s\n",
+			sub, f.Project, scope, raw, named, scope, raw, named, evidence), nil
+	}
 	return fmt.Sprintf("delegate %s %s: %s %s\n\nscope: %s\nvalue: %s\nevidence: %s\n", sub, f.Project, scope, raw, scope, raw, evidence), nil
 }
 

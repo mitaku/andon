@@ -268,7 +268,9 @@ PRClosesOrReopens ==
     /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged>>
 
 \* merge の設定と委譲が変わる: Chief of Staff が issue.yaml の merge を書き換えた・オーナーが委譲の merge を変えた
-\* （gate は信じる書き手と委譲の範囲を読む。internal/issue/merge.go autoMerge・Authorized）。マージしたあとの変更は
+\* （gate は信じる書き手と委譲の範囲を読む。internal/issue/merge.go autoMerge・Authorized）。オーナーが課題を名指しした
+\* merge の委譲（andon delegate grant merge … --issues）を足す・取り消す・期限が切れるのも、その課題にとって同じ出来事で、
+\* 行動は足さない（ADR-0041 決めたこと 6・8。gate を回し直すきっかけにもしない）。マージしたあとの変更は
 \* マージに効かないので入れない
 MergeSettingChanges ==
     /\ status # "done" /\ pr # "merged"

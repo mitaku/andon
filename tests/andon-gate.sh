@@ -372,6 +372,48 @@ jq -e '.tier == "C" and .delegation == {merge: "B", ok: false}' "$tmp/out" >/dev
 as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
 ok '型 andon で grant の無いプロジェクトのレベル C の変更は needs_human（delegation: merge=B < tier C）'
 
+# 11a. ADR-0041 受け入れ条件 6・7: 課題を名指しした merge の委譲（andon delegate grant merge C --issues）。
+# 別の課題だけを名指ししているあいだ、この課題の同じレベル C の PR は needs_human。この課題を名指しすると approve で、記録に grant の id
+oid=$(HC_TERMINAL_ID=t5 kanban add '名指しする別の課題' --profile claude)
+rc=0; as_owner "$andon" delegate grant merge C --issues D-9999 --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'D-9999 が kanban に無い' "$tmp/err" || die "kanban に無い課題を名指しできた: rc=$rc $(cat "$tmp/err")"
+as_owner "$andon" delegate grant merge C --issues "$oid" --evidence '2026-11-21 の対話' >/dev/null
+o_grant=$(jq -r '.delegation.grants[-1].id' project.json)
+jq -e --arg o "$oid" '.delegation.grants[-1] | .scope == "merge" and .value == "C" and .issues == [$o]' project.json >/dev/null ||
+    die "名指しの grant の形が違う: $(jq -c '.delegation.grants[-1]' project.json)"
+"$andon" delegate show --json | jq -e --arg o "$oid" '.effective.merge == "B" and any(.grants[]; .issues == [$o])' >/dev/null ||
+    die "名指しがプロジェクト全体の値に漏れた: $("$andon" delegate show --json)"
+got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
+jq -e '.tier == "C" and .delegation == {merge: "B", ok: false}' "$tmp/out" >/dev/null || die "名指ししていない課題の記録が違う: $(jq -c .delegation "$tmp/out")"
+as_owner "$andon" delegate grant merge C --issues "${id%%-*}-$((10#${id##*-}))" --evidence '2026-11-21 の対話' >/dev/null
+grant=$(jq -r '.delegation.grants[-1].id' project.json)
+"$andon" delegate show | grep -q "名指し $grant merge C: $id" || die "show に名指しが出ない: $("$andon" delegate show)"
+got=$(gate "$id" --dry-run); expect 0 approve
+jq -e --arg g "$grant" '.tier == "C" and .delegation == {merge: "C", ok: true, grant: $g}' "$tmp/out" >/dev/null ||
+    die "名指しした課題の記録が違う: $(jq -c '{tier, delegation}' "$tmp/out")"
+emit "$tmp/out" gate-record-named.json
+emit project.json project-named.json
+ok '名指しした課題のレベル C の PR は approve（記録に grant の id）、名指ししていない課題の同じ PR は needs_human（ADR-0041 受け入れ条件 6）'
+# 受け入れ条件 7: 担当が one_way を申告すれば名指しを読まない。manual があるだけなら名指しが効く
+report_with() { # report_with <report.json の --data>: doing に戻して書き直し、review へ
+    HC_TERMINAL_ID=t5 kanban set "$id" status=doing >/dev/null
+    HC_TERMINAL_ID=t7 "$andon" issue report "$id" --data "$1" <<<'## Report' >/dev/null
+    HC_TERMINAL_ID=t7 kanban review "$id" >/dev/null
+}
+report_with '{"risk": {"one_way": true, "impact": ["本番の表の列を消す"]}}'
+got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
+jq -e '.delegation == {merge: "B", ok: false} and (.tier_reasons | any(. == "担当の申告: one_way"))' "$tmp/out" >/dev/null ||
+    die "one_way の申告のある課題で名指しを読んだ: $(jq -c '{tier_reasons, delegation}' "$tmp/out")"
+report_with '{"acceptance": [{"id": "A1", "result": "manual", "evidence": "マージのあとにセルで見る"}]}'
+got=$(gate "$id" --dry-run); expect 0 approve
+jq -e --arg g "$grant" '.acceptance.manual == 1 and .delegation == {merge: "C", ok: true, grant: $g}' "$tmp/out" >/dev/null ||
+    die "manual だけの課題で名指しが効かない: $(jq -c '{acceptance, delegation}' "$tmp/out")"
+rereport
+as_owner "$andon" delegate revoke "$grant" --reason '片付いた' >/dev/null
+as_owner "$andon" delegate revoke "$o_grant" --reason '片付いた' >/dev/null
+got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
+ok '名指しした課題でも one_way の申告があれば needs_human、manual があるだけなら approve。revoke すれば名指しは効かない（ADR-0041 受け入れ条件 7）'
+
 # 11b. screen_paths（ADR-0018 受け入れ条件 3）: 当たる差分の PR に GitHub の添付が無ければ fix。本文かコメントに添付があれば通る
 echo '{"screen_paths": ["web/**"], "repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
 as_owner git -C "$tmp/plant" commit -qam 'screen_paths で画面を指す'

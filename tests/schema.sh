@@ -487,6 +487,9 @@ pass|gate-record|.review = {state: "off", must_fix_open: 0, waived: 0}|review �
 pass|gate-record|.review.state = "stale"|review が stale（issue・commit あり）
 fail|gate-record|del(.review.issue)|current なのに issue が無い
 fail|gate-record|.review.task = .review.issue | del(.review.issue)|古いキー review.task（gate/2 は issue）
+pass|gate-record|.delegation += {grant: "d3"}|delegation.grant（レベルを通した名指しの grant）
+fail|gate-record|.delegation += {grant: "3"}|delegation.grant が grant の id（d<n>）でない
+fail|gate-record|.delegation += {grant: null}|delegation.grant が null
 fail|gate-record|del(.review.commit)|current なのに commit が無い
 fail|gate-record|.review.state = "stale" | del(.review.commit)|stale なのに commit が無い
 fail|gate-record|.review.state = "missing"|missing なのに issue・commit がある
@@ -540,6 +543,12 @@ fail|project|.delegation.preset = "free"|委譲: 知らない preset
 pass|project|.delegation = {version: 1, project: "sample-site"}|委譲: preset も grants も無くても通る（型 work）
 fail|project|.delegation.grants[0].scope = "merge"|委譲: scope merge に publish の値
 pass|project|.delegation.grants[0] |= (.scope = "merge" | .value = "B")|委譲: scope merge の値 B
+pass|project|.delegation.grants[0] |= (.scope = "merge" | .value = "C" | .issues = ["S-0012", "S-0013"])|委譲: 名指しの grant（merge C を課題 2 つに）
+fail|project|.delegation.grants[0] |= (.scope = "deploy" | .value = "production" | .issues = ["S-0012"])|委譲: 名指しは merge のほかの範囲に書けない
+fail|project|.delegation.grants[0] |= (.scope = "merge" | .value = "none" | .issues = ["S-0012"])|委譲: 名指しの merge の値が none
+fail|project|.delegation.grants[0] |= (.scope = "merge" | .value = "C" | .issues = [])|委譲: 名指しが空
+fail|project|.delegation.grants[0] |= (.scope = "merge" | .value = "C" | .issues = ["s/12"])|委譲: 名指しが課題の id でない
+fail|project|.delegation.grants[0] |= (.scope = "merge" | .value = "C" | .issues = null)|委譲: 名指しが null
 pass|project|.delegation.grants[0] |= (.scope = "irreversible" | .value = ["delete-branch", "force-push"])|委譲: scope irreversible の配列
 fail|project|.delegation.grants[0] |= (.scope = "irreversible" | .value = ["delete-remote"])|委譲: delete-remote は委譲できない
 fail|project|.delegation.grants[0] |= (.scope = "profile" | .value = "true")|委譲: 真偽値の scope に文字列
@@ -954,7 +963,9 @@ gate-record.json|gate|andon gate の記録（approve）
 gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-stale-runs.json|gate|andon gate の記録（受け入れ条件の行が指す記録が head と違う commit）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
+gate-record-named.json|gate|andon gate の出力（名指しの grant がレベルを通した）
 project.json|project|andon delegate grant の project.json
+project-named.json|project|andon delegate grant --issues の project.json（名指しの grant）
 gate-record-merged.json|gate|andon dispatcher がマージしたあとの gate の記録（merged）
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested

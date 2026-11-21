@@ -171,6 +171,7 @@ image/apply-main.sh revert          # イメージのバージョンへ戻す
 - **一覧と警告**: 当てたあとに、当てる前から動いている端末（dispatcher を除く live のもの）を一覧に出す。止めない。イメージの元の commit から当てる commit までに `image/` が変わっていたら、変わったファイルを並べて「焼き直しが要るかもしれない」と警告する（当てるのは続ける。`status` にも `origin/main` の先頭までの警告が出る）。
 - **いつ効くか**: hooks と `andon`・`kanban` は当てた直後から全員に効く。テンプレート・managed settings・skill は、次に起動するエージェントから効く。動いているエージェントはそのまま（起動し直すかは Chief of Staff とオーナーが決める）。
 - **revert**: 退避から `/opt/andon` と `kanban` を戻し、記録と退避を消して、同じく dispatcher を片付けて `andon boot` を打ち直す。`andon`・`kanban` が壊れていても動く（cp・mv・rm だけで戻す）。当てていなければ何もしない。
+- **古いバージョンへ戻す前に（revert でも GHCR のバージョンへ戻すときでも）**: 委譲に名指しの grant（`issues` のある行。[contract.md](contract.md) §11）があれば、オーナーが `project.json` からその行を消して commit する（`revoke` では行が残るので足りない）。名指しを知らないバージョンの `andon` と `kanban` は、その `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
 - **消えるとき**: 当てた状態と退避はコンテナの書ける層にあるので、コンテナの再起動では残り、作り直し（`bin/bootstrap rebuild`）で消える。正はイメージのまま。
 - **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
 - **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ。

@@ -13,10 +13,10 @@
 | 3 | 上限の置き場を別に作らず、型 `andon` の名前と値は残す | `internal/delegate/delegate.go`・`docs/design.md` §1.10 | 生きている |
 | 4 | 追加行のパターンは、当たる箇所がその hunk で増えたときだけ C の理由にし、増えていなければ B の理由にする | `internal/gate/decide.go`・`docs/contract.md` §7 | 生きている |
 | 5 | 語の置き換えだけの PR かどうかを、機械で見分けない | この ADR | 生きている |
-| 6 | オーナーは、課題を名指しして `merge` を委譲できる | この ADR | まだ実装していない |
-| 7 | 名指しの委譲は、担当が戻せないと申告した PR には効かない | この ADR | まだ実装していない |
-| 8 | 名指しは gate が回る前に出し、Chief of Staff がその課題の `merge` を `auto` に書く | この ADR | まだ実装していない |
-| 9 | gate の記録に、レベルを通した名指しの委譲の id を残す | この ADR | まだ実装していない |
+| 6 | オーナーは、課題を名指しして `merge` を委譲できる | `internal/delegate/delegate.go`・`internal/delegate/cmd.go`・`docs/contract.md` §11 | 生きている |
+| 7 | 名指しの委譲は、担当が戻せないと申告した PR には効かない | `internal/gate/gate.go`・`docs/contract.md` §7 | 生きている |
+| 8 | 名指しは gate が回る前に出し、Chief of Staff がその課題の `merge` を `auto` に書く | `package/skills/chief-of-staff/playbooks/brief.md`・`package/skills/chief-of-staff/playbooks/gate.md` | 生きている |
+| 9 | gate の記録に、レベルを通した名指しの委譲の id を残す | `internal/gate/gate.go`・`schema/gate.schema.json`・`docs/contract.md` §7 | 生きている |
 | 10 | Andon を開発するセルで、`AGENTS.md`・`environment.md`・`writing.md`・テンプレート・モデルの規則のレベルを B に下げる | この ADR | まだ実装していない |
 | 11 | 下げ方はセルの条件表の上書きにし、効くのは Andon のバージョンが v0.0.x の間とする | この ADR | まだ実装していない |
 | 12 | 委譲の期限は今の `--until` のままにし、既定の期限は足さない | この ADR | 生きている |

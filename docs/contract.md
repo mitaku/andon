@@ -356,8 +356,9 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 - GitHub の checks の決定: `failure` → `fix`（担当が直せるもの）。`unknown` → `needs_human`。`pending`、または `required` の repo で `none` → **`wait`**（ほかに止める理由が無いときだけ。止める理由があればそちらを返す）。`none` のまま `github_checks_wait_minutes` を過ぎたら `needs_human`。`pending` は時間でオーナーへ上げない（走り終われば success か failure になる）。checks が通っていないあいだは条件表の `check` を回さない。
 - **`wait` は記録に書かない**: `andon gate` は記録の形を stdout に出して終了コード 5 で返すが、`gate/<head>.json`・PR のコメント・commit status は書かない（見回りのたびに PR を埋めない）。読み手（dispatcher）は控えの `gates` に書かず、次の見回りで gate から回し直す。ただし `wait` を返した head は控えの `waits` に書き、同じ head の checks が走っている間と、1つも無く `github_checks_wait_minutes` を過ぎていない間は gate を回さない（見回りでは checks だけを GraphQL で読む。REST の上限を使わない）。
 - `acceptance`: `report.json` の `acceptance[]` の `result` ごとの件数。`run` のある行が指す記録（§24）の `commit` が `head` と違えば、その行を `stale_runs`（`{"id", "run", "commit"}` の並び。1件以上。無ければキーを書かない）に出す。古い記録では戻さない（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 2）。指す記録が証拠にならない（§24 の3通り）ときは `fix` で、`reasons[]` に行ごとの理由（`受け入れ条件 <id> の記録 runs/<n>.json が無い` など）。足してもバージョンは上げない（原則4）。
-- `delegation`: 読んだ委譲の `merge` の値と、判定のレベルがその中か（§11）。外なら approve でも `decision: needs_human`、`reasons[]` に `delegation: merge=B < tier C`。
-- 読み手: dispatcher（approve → `merge: auto` ＋ 委譲の範囲内なら、マージの直前に PR の head と GitHub の checks を読み直し、head が記録の `head` のまま・checks が通る状態のときだけマージ → `andon issue finish`。違えば打たず、次の見回りで gate から回し直す。残る隙間: マージの直前の読み直しと `gh pr merge` の間に、同じ head のまま checks が走り直した・落ちたときは止められない（`--match-head-commit` が固定するのは head だけ）。サーバーの側で checks を強制できるのはブランチ保護（ruleset）だけで、private の repo の Free のプランでは使えなかったが、2026-11-09 に public にして ruleset `main`（PR 必須・required checks `tests` と `go`・force push と削除の禁止）を付けたので、この隙間は塞いである。wait → 控えの `gates` に書かずに次の見回りで回し直す（checks が揃うまでは checks だけを読んで待つ）。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・オーナー。
+- `delegation`: この課題の判定に使った委譲の `merge` の値と、判定のレベルがその中か（§11）。外なら approve でも `decision: needs_human`、`reasons[]` に `delegation: merge=B < tier C`。`merge` は、プロジェクト全体の `merge` と、この課題を名指しした有効な grant（§11 の `grants[].issues`）の値のうち、いちばん広いもの。担当が `risk.one_way: true` を申告した課題では名指しを読まず、プロジェクト全体の `merge` で判定する（`manual` があるだけなら名指しが効く）。`grant` は任意で、名指しの grant がレベルを通したとき（プロジェクト全体の `merge` だけでは外だったとき）だけ、その grant の `id`（`d<n>`）を書く。どの許しで入ったかを、あとから課題ごとに辿るため。足してもバージョンは上げない（原則4。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 6・7・9）。
+- gate は、決めたあとは head が動くまで回り直さない。名指しを書いても、gate がもう決めた課題には head が動くまで効かない。名指しは gate が回る前に出す（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 8）。
+- 読み手: dispatcher（approve → `merge: auto` ＋ 委譲の範囲内なら、マージの直前に課題の予約キーと委譲の `merge`〈gate と同じ課題ごとの値。gate のあとに名指しが取り消されるか期限が切れれば、値が変わってマージしない〉、PR の head と GitHub の checks を読み直し、head が記録の `head` のまま・checks が通る状態のときだけマージ → `andon issue finish`。違えば打たず、次の見回りで gate から回し直す。残る隙間: マージの直前の読み直しと `gh pr merge` の間に、同じ head のまま checks が走り直した・落ちたときは止められない（`--match-head-commit` が固定するのは head だけ）。サーバーの側で checks を強制できるのはブランチ保護（ruleset）だけで、private の repo の Free のプランでは使えなかったが、2026-11-09 に public にして ruleset `main`（PR 必須・required checks `tests` と `go`・force push と削除の禁止）を付けたので、この隙間は塞いである。wait → 控えの `gates` に書かずに次の見回りで回し直す（checks が揃うまでは checks だけを読んで待つ）。fix → 担当へ `hc send`。`needs_human` → §5 の問いを `from: gate` で出す）・振り返り（fix の理由・レベルの分布）・オーナー。
 
 ## 8. hc との約束
 
@@ -472,19 +473,36 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `grants[].until` | 任意 | 期限（`YYYY-MM-DD`）。過ぎていれば無いものと同じ。`null` は無期限 |
 | `grants[].evidence` | 必須 | 根拠。オーナーの発言の記録へのパスか引用（写さず指す） |
 | `grants[].revoked` | 任意 | 取り消し `{at, by, reason}`（3つとも必須。`null` は取り消していない）。あれば無いものと同じ（行は消さない。履歴のため） |
+| `grants[].issues` | 任意 | 名指しした課題の id の配列（1件以上。重なりなし〈command が確かめる〉）。書けるのは `scope` が `merge` で値が `A`・`B`・`C` の grant だけ。名指しの grant はプロジェクト全体の値に重ねず、名指しした課題の判定にだけ効く（読み方の 4・5）。名指しする課題は、書くときにそのプロジェクトの kanban にあり `done` でないもの（command が確かめる）。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 6 |
 
 **読み方**（読む側は全部この順）:
 
 1. セルの repo の **HEAD** の `projects/<slug>/project.json` を読む（worktree・作業側の写し・未 commit の変更は読まない）。
 2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部オーナー）・**書いてよい repo 無し**として読む。無い・JSON でない・schema を通らない・`delegation.project` が違う・`version` を知らない、も同じ（原則2）。`delegation` が無ければ無委譲。
 3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがあるセルは、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは kanban の改名の課題（ADR-0004 決めたこと 5 の 4）。
-4. `delegation.preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。
-5. 読み手ごとに見るもの: gate＝`merge`。dispatcher と `andon issue …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon issue start`＝`repos`（課題の `repo` が無ければ起動しない）。Chief of Staff＝委譲の全部（起動するたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
+4. `delegation.preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。`issues` のある grant（名指し）は重ねない。これがプロジェクト全体の値（`andon delegate show` の実効の値）になる。
+5. 読み手ごとに見るもの: gate とマージの直前の読み直し＝課題ごとの `merge`（プロジェクト全体の `merge` と、その課題を名指しした有効な grant の値のうち、いちばん広いもの。名指しは広げる向きにだけ効き、狭めるのは課題の `merge: person` か `revoke`。担当が `risk.one_way: true` を申告した課題では名指しを読まない。委譲の `merge` を読むのはこの2か所だけ）。dispatcher と `andon issue …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon issue start`＝`repos`（課題の `repo` が無ければ起動しない）。Chief of Staff＝委譲の全部（起動するたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
 6. command は、プロジェクトの slug を見て `preset` と grant の値を決めない。slug が `andon` のプロジェクトも、ほかのプロジェクトと同じ型と値を書ける（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2。型 `andon` は、どのプロジェクトも選べる型の 1 つ）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
 
-**書き方**: `project.json` はオーナーが書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲はオーナーがセルの repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。command はセルの repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。commit の author と committer は端末の git の user ではなく `andon.toml` の owner（名前は HEAD の `project.json` を最後に変えた owner の commit のもの）にする。owner が `andon.toml` に無ければ commit せずに止まる。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更をオーナーの commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `issue=` があれば拒む）。
+**書き方**: `project.json` はオーナーが書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲はオーナーがセルの repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until <date>]`（名指し。`narrow` は `--issues` を取らない。id は `A-5` も `A-0005` に揃えて書く）・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。`show` は名指しの grant を、名指しした課題と一緒に並べる（`--json` の `grants[]` に `issues`）。command はセルの repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。commit の author と committer は端末の git の user ではなく `andon.toml` の owner（名前は HEAD の `project.json` を最後に変えた owner の commit のもの）にする。owner が `andon.toml` に無ければ commit せずに止まる。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更をオーナーの commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `issue=` があれば拒む）。
 
-**依頼書の Settings との関係**: `issue.yaml` の `merge: auto` は委譲の `merge` の範囲の中でだけ効く（§2）。委譲の外なら、gate は approve でも `needs_human`（§7 の `delegation`）。
+**依頼書の Settings との関係**: `issue.yaml` の `merge: auto` は委譲の `merge` の範囲の中でだけ効く（§2）。委譲の外なら、gate は approve でも `needs_human`（§7 の `delegation`）。名指しの委譲を効かせるには、Chief of Staff が名指しされた課題の `merge` を `auto` に書く。書くのは担当が `andon issue ready` を打つ前（gate が回る前。§7）。
+
+- **`issues` を書くのは、セルのパッケージを `issues` を知るバージョンに上げてから**（`signals` と同じ。古いバージョンの `andon` と `kanban` は知らないキーとして弾き、`project.json` を読めないものとして無委譲・書いてよい repo 無しに倒れる）。書くのは新しいバージョンの command なので、手順どおりなら起きない。パッケージを古いバージョンに戻すときは、先に名指しの grant を行ごと消す（[operate.md](operate.md) のパッケージを戻す手順）。
+
+名指しの grant のある委譲の例（型 `work` のプロジェクトで、課題 2 つにだけ `merge C` を任せる）:
+
+```json
+{"version": 1,
+ "project": {"title": "Sample site", "prefix": "S"},
+ "repos": ["github.com/example/sample-site"],
+ "delegation": {"version": 1, "project": "sample-site", "preset": "work",
+   "grants": [
+     {"id": "d1", "scope": "merge", "value": "C", "issues": ["S-0012", "S-0013"],
+      "by": "owner", "at": "2026-11-21", "until": null,
+      "evidence": "2026-11-21 の対話「語を置き換える 2 つの課題は自動でマージしてよい」",
+      "revoked": null}]}}
+```
 
 ## 12. 候補の一覧（`candidates.json`）
 

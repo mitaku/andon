@@ -377,12 +377,17 @@ func FromReport(cl Classified, rep *contract.Report) (Classified, AcceptanceCoun
 		cl.Tier = Raise(cl.Tier)
 		reasons = append(reasons, fmt.Sprintf("受け入れ条件の manual が %d 件（1つ上げた）", n.Manual))
 	}
-	if rep.Risk != nil && rep.Risk.OneWay != nil && *rep.Risk.OneWay {
+	if OneWay(rep) {
 		cl.Tier = "C"
 		reasons = append(reasons, OneWayReason)
 	}
 	cl.TierReasons = reasons
 	return cl, n
+}
+
+// OneWay は担当が risk.one_way: true と申告したか。
+func OneWay(rep *contract.Report) bool {
+	return rep != nil && rep.Risk != nil && rep.Risk.OneWay != nil && *rep.Risk.OneWay
 }
 
 // Within は tier が委譲の merge の範囲の中か（none は何も通さない）。

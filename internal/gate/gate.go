@@ -60,10 +60,18 @@ type Record struct {
 	Delegation   struct {
 		Merge string `json:"merge"`
 		OK    bool   `json:"ok"`
+		Grant string `json:"grant,omitempty"` // レベルを通した名指しの grant の id（ADR-0041 決めたこと 9）
 	} `json:"delegation"`
 	Decision string   `json:"decision"`
 	Reasons  []string `json:"reasons"`
 	Merged   bool     `json:"merged"`
+}
+
+// Delegated は課題 id の判定に使う委譲の merge の値と、それを広げた名指しの grant の id（ADR-0041 決めたこと 6・7）。
+// 担当が戻せない（one_way）と申告していれば名指しを読まず、プロジェクト全体の merge で判定する。
+// 読むのは gate の判定と、マージの直前の読み直し（internal/issue の stillAuthorized）の2か所だけ。
+func Delegated(d delegate.Result, id string, rep *contract.Report) (merge, grant string) {
+	return d.MergeFor(id, OneWay(rep))
 }
 
 // Main は andon gate。
@@ -367,8 +375,11 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	rec.Tier, rec.TierReasons, rec.ChangedLines = tier, cl.TierReasons, cl.ChangedLines
 
 	d := delegate.Read(ws, l.Slug, time.Now().UTC().Format("2006-01-02"))
-	facts.MergeLevel = d.Merge()
+	facts.MergeLevel, rec.Delegation.Grant = Delegated(d, id, rep)
 	rec.Delegation.Merge, rec.Delegation.OK = facts.MergeLevel, Within(tier, facts.MergeLevel)
+	if !rec.Delegation.OK || Within(tier, d.Merge()) {
+		rec.Delegation.Grant = "" // 名指しがレベルを通したときだけ残す（プロジェクト全体の値で通るなら名指しは要らなかった）
+	}
 
 	// files・diff は head と別に取っている。取り直して動いていれば判定しない。
 	// GitHub の checks は head と同じ1回で読む（判定する head の checks だけを見る）
