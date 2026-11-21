@@ -26,13 +26,16 @@ const gateCommentPrefix = "andon gate: "
 
 // machineGateAnswers は、オーナーでなく機械が gate の問いを閉じたときの答えの形（全体一致）。オーナーの手直しに数えない。
 //   - andon issue settle がオーナーのマージを見て閉じた答え（internal/issue/settle.go closeAndFinish）
-//   - andon issue merge が、PR の head が動いて今の head で gate を回し直したときに前の head の問いを閉じた答え
+//   - andon issue merge が、gate の判定のあとに PR の head が動いたのを見て、gate を回し直す前に問いを閉じた答え
+//     （internal/issue/merge.go の headMoved から closeGateQuestions）
+//   - andon issue merge が、今の head で gate を回し直したときに前の head の問いを閉じた答え
 //     （internal/issue/merge.go closeStaleGateQuestions）
 //
 // 答えた者（answeredBy）では見分けない: dispatcher が止まっているときは Chief of Staff が settle を打ち、答えた者が Chief of Staff になる。
-// 書き方が変わったら TestMachineGateAnswersMatchWriters が落ちる。
+// 書き方が変わるか、gate の問いを閉じる書き手が増えたら TestMachineGateAnswersMatchWriters が落ちる。
 var machineGateAnswers = []*regexp.Regexp{
 	regexp.MustCompile(`^オーナーがマージした（[^（）]*）$`),
+	regexp.MustCompile(`^PR の head が gate のあとに動いた（[0-9a-f]+ → [0-9a-f]+）。gate が今の head で回し直す$`),
 	regexp.MustCompile(`^PR の head が動いた（[0-9a-f]+ → [0-9a-f]+）。gate が今の head で決め直した（記録 [^（）]*）$`),
 }
 
@@ -178,7 +181,7 @@ func Corrections(qs []QA, rep *contract.Report, mustFix string, pr *PRView, huma
 		rec, ans := strings.TrimSpace(qa.Q.Options[0].Label), strings.TrimSpace(qa.Answer)
 		switch {
 		case qa.Q.From == "gate" && machineGateAnswer(ans):
-			// settle のマージの答え・今の head で決め直した答え（オーナーの手直しではない）
+			// settle のマージの答え・head が動いて gate を回し直すときの答え（オーナーの手直しではない）
 		case qa.Q.From == "gate":
 			out = append(out, correctionQuestion{Kind: "override", Question: qa.N, Recommended: rec, Answer: ans})
 		case qa.Q.Kind == "scope":
