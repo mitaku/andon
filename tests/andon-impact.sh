@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# `andon issue impact`（マージのあとの影響の事実。docs/contract.md §6・docs/dispatcher.md §2.5）。本物の台帳の CLI（kanban）と git、偽の gh で回す。
+# `andon issue impact`（マージのあとの影響の事実。docs/contract.md §6・docs/dispatcher.md §2.5）。本物の kanban の CLI と git、偽の gh で回す。
 # origin とその clone（GHQ_ROOT）に、マージした PR と、同じ repo で動いている課題の branch を作り、衝突・重なり・依頼書の指し・もう含む・
-# 無関係・読めない branch を見分けることを見る。台帳にも worktree にも書かない（読むだけ）。GitHub と本物の hc には出ない。
+# 無関係・読めない branch を見分けることを見る。kanban にも worktree にも書かない（読むだけ）。GitHub と本物の hc には出ない。
 set -euo pipefail
 for c in git jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
@@ -115,9 +115,9 @@ if [ "$(id -u)" != 0 ]; then   # root は権限で止まらない
   row "$locked" | jq -e '.error | contains("worktree を確かめられない")' >/dev/null || die "worktree を stat できないのに error でない: $(row "$locked")"
 fi
 row "$gone" | jq -e '.error | contains("commit していない変更が読めない")' >/dev/null || die "worktree が読めないのに error でない: $(row "$gone")"
-[ "$(wc -l < "$L/log.jsonl")" = "$log0" ] || die '台帳に書いた'
+[ "$(wc -l < "$L/log.jsonl")" = "$log0" ] || die 'kanban に書いた'
 [ "$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)" = "$st0" ] || die 'worktree を変えた'
-ok '同じ repo の動いている課題ごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めない・確かめられなければ error（台帳と worktree に書かない）'
+ok '同じ repo の動いている課題ごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めない・確かめられなければ error（kanban と worktree に書かない）'
 
 # 3. もう含む（rebase 済み）・branch が読めない
 git -C "$HOME/.herdr/worktrees/app/demo-$clean" -c core.editor=true rebase -q "$sha"

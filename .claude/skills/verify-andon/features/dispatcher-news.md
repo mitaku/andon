@@ -1,6 +1,6 @@
 # dispatcher の通知
 
-dispatcher は台帳と端末を見回り、報告・問い・ゲート・マージなどを通知にして Chief of Staff へ届ける。届けるのは Chief of Staff のフック（drain）で、届けた通知は `~/.local/state/andon/dispatcher/<slug>.delivered.jsonl` に、記録だけと決めた通知は `<slug>.recorded.jsonl` に1行ずつ残る。
+dispatcher は kanban と端末を見回り、報告・問い・gate・マージなどを通知にして Chief of Staff へ届ける。届けるのは Chief of Staff のフック（drain）で、届けた通知は `~/.local/state/andon/dispatcher/<slug>.delivered.jsonl` に、記録だけと決めた通知は `<slug>.recorded.jsonl` に1行ずつ残る。
 
 ## 細かい機能
 
@@ -23,7 +23,7 @@ dispatcher は台帳と端末を見回り、報告・問い・ゲート・マー
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
 - **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`ok   dn-live` が見えれば動いた。
 - **届けたものを読む。** `dn-delivered` の行に、当てたあとに届けた通知（課題と種類）と記録だけの通知が出る。`ok   dn-delivered` が見えれば動いた。
-- **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は台帳の `config.yaml` の `chief_of_staff`。
+- **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
 
 ## 変えたら動かすパス
 
@@ -34,7 +34,7 @@ dispatcher は台帳と端末を見回り、報告・問い・ゲート・マー
 
 ## 既に見ている検査
 
-- `tests/andon-dispatcher.sh`（偽の端末と台帳で、見回り・通知・届け・ack を見る）
+- `tests/andon-dispatcher.sh`（偽の端末と kanban で、見回り・通知・届け・ack を見る）
 - `tests/andon-dispatcher-signal.sh`
 - `go test ./internal/dispatcher/`
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
 #   1. schema/ の17本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
-#      schema の決まり（draft 2020-12・$id の版・description と識別子は英語）を守る。
+#      schema の決まり（draft 2020-12・$id のバージョン・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
 #   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff）と
-#      台帳の CLI（kanban）が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
+#      kanban の CLI が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
 #   6. contract.md §8（hc との約束）の表に、Herdr App の置き場のラベルとオーナーに端末を指す言い方がある。
@@ -78,7 +78,7 @@ schema_of() {
   esac
 }
 expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro run signal"
-# 台帳の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
+# kanban の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
 ledger="ledger-log ledger-ready"
 schema_file() {
   case "$1" in ledger-log) echo ledger/log.v3 ;; ledger-ready) echo ledger/ready.v3 ;; *) echo "$1" ;; esac
@@ -94,8 +94,8 @@ for name in $expected $ledger; do
 done
 flush
 
-# 版（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
-# 台帳の行と ready の2本は台帳の形式の版（3）
+# バージョン（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
+# kanban の行と ready の2本は kanban の形式のバージョン（3）
 for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
@@ -206,7 +206,7 @@ gen_flush() {
 }
 for key in "${!first[@]}"; do
   name="${key%-record}"; src="${first[$key]}"
-  if [ "$key" != issue-keys ] && [ "$key" != ledger-ready ]; then   # 台帳の項目と ready の課題は台帳の形式に倣って知らないキーを許す（ready は並び）
+  if [ "$key" != issue-keys ] && [ "$key" != ledger-ready ]; then   # kanban の項目と ready の課題は kanban の形式に倣って知らないキーを許す（ready は並び）
     gen fail "$key" '. + {"x_unknown": 1}' "知らないキー x_unknown を足すと落ちる"
   fi
   for k in ${required[$key]}; do
@@ -215,7 +215,7 @@ for key in "${!first[@]}"; do
 done
 
 # 入れ子の object の必須のキーと知らないキー（例の key ｜ object を指す jq の道 ｜ 必須のキー。これも schema から読まない）
-# 台帳の行（ledger-log）の最初の例は課題の行で、入れ子の change はどのキーも許す。ほかの形の行の入れ子は 3b で作る
+# kanban の行（ledger-log）の最初の例は課題の行で、入れ子の change はどのキーも許す。ほかの形の行の入れ子は 3b で作る
 while IFS='|' read -r key at keys; do
   case "$key" in ''|'#'*) continue ;; esac
   name="${key%-record}"; src="${first[$key]}"
@@ -320,7 +320,7 @@ while IFS='|' read -r want key rest; do
   name="${key%-record}"
   gen "$want" "$key" "$expr" "$desc"
 done <<'EOF'
-pass|issue-keys|. + {"links": ["https://example.com"]}|台帳の形式のキーは通る
+pass|issue-keys|. + {"links": ["https://example.com"]}|kanban の形式のキーは通る
 pass|issue-keys|{}|予約キーが1つも無くても通る（無いときの振る舞いは読み手が持つ）
 fail|issue-keys|.review = "yes"|review が on/off でない
 fail|issue-keys|.must_fix = "Major"|must_fix の綴りが大文字
@@ -612,7 +612,7 @@ pass|launch|.role = "chief-of-staff" | .issue = null | .repo = null|Chief of Sta
 pass|launch|.repo = null|repo の無い課題
 pass|launch|.drift = true | .drift_reasons = ["パッケージ: 中身が焼いたときと違う"]|食い違いの印と理由
 pass|launch|.drift = null | .drift_reasons = ["セルの repo の commit を読めない"] | .workspace.commit = null | .workspace.dirty = null|確かめられないときは null と理由
-pass|launch|.package.commit = null | .package.source = "none" | .package.drift = null | .package.reasons = ["version.json が無い"]|パッケージの版が分からない
+pass|launch|.package.commit = null | .package.source = "none" | .package.drift = null | .package.reasons = ["version.json が無い"]|パッケージのバージョンが分からない
 pass|launch|.launch = "fallback" | .role = "reviewer"|使用量の上限で起動し直したレビュアー
 pass|launch|.external = []|外の skill も plugin も無い
 fail|launch|.role = "chief-of-staff"|Chief of Staff なのに課題がある
@@ -637,7 +637,7 @@ pass|outcome|.sessions = []|セッションが無い
 pass|outcome|.sessions[0].cost.turns = null | .sessions[0].cost.efforts = []|ターンと effort の印が無い記録
 pass|outcome|.sessions[0] = {harness: "codex", session: null, cost: null}|rollout の見つからない Codex
 fail|outcome|.result = "reverted"|reverted は結果の値でない（マージ後のことは振り返りが読む）
-fail|outcome|.result = "ci_failed"|ci_failed は結果の値でない（ゲートの理由で読む）
+fail|outcome|.result = "ci_failed"|ci_failed は結果の値でない（gate の理由で読む）
 fail|outcome|.pr = "#12"|pr が URL でない
 fail|outcome|.merge_commit = "abc"|merge_commit が 40 桁でない
 fail|outcome|.merged_at = "2026-11-19"|merged_at が時刻でない
@@ -719,7 +719,7 @@ fail|retro|.summaries[0].journal = "x"|要約に日報がある
 pass|retro|.issues[0].outcome.cost = null|セッションの記録の無い結果
 pass|retro|.issues[0].launches[0] += {"model": null, "commit": null}|起動行にモデルが無い・パッケージの commit が無い
 fail|retro|.issues[0].launches[0].memory_index = "x"|起動の記録に目録がある
-fail|retro|.issues[0].outcome.gates = []|結果の記録にゲートの写しがある
+fail|retro|.issues[0].outcome.gates = []|結果の記録に gate の写しがある
 pass|retro|.fixes[0].recurred_before = null|前の振り返りが数えていない前の直し
 fail|retro|.fixes[0].recurred_before = -1|前の再発の数が負
 pass|patterns|.previous_retro = null|前の振り返りが無い
@@ -835,7 +835,7 @@ if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   done <<'LOOSE'
 findings|.required -= ["commit"]|findings の必須から commit を外す
 findings|.additionalProperties = true|findings の知らないキーを許す
-gate|."$defs".record.required -= ["decision"]|ゲートの記録の必須から decision を外す
+gate|."$defs".record.required -= ["decision"]|gate の記録の必須から decision を外す
 report|."$defs".sha.pattern = "^[0-9a-f]+$"|sha の桁を緩める
 project|."$defs".grant.required -= ["id"]|grant の必須から id を外す
 project|.required -= ["repos"]|project の必須から repos を外す
@@ -846,7 +846,7 @@ candidates|del(.properties.candidates.uniqueKeys)|候補の id の一意を外�
 candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_scope を外す
 candidates|.additionalProperties = true|候補の一覧の知らないキーを許す
 question|.properties.kind.enum -= ["scope"]|問いの kind から scope を外す
-issue-keys|del(.properties.deliverable)|台帳の項目から deliverable を外す
+issue-keys|del(.properties.deliverable)|kanban の項目から deliverable を外す
 measure|.required -= ["skipped"]|流れの数えの必須から skipped を外す
 measure|."$defs".rate.anyOf[0].minimum = -1|率の負を許す
 corrections|.required -= ["corrections"]|手直しの必須から corrections を外す
@@ -891,7 +891,7 @@ run|.properties.expect.enum += ["error"]|記録の expect を緩める
 run|.properties.output.pattern = "^.+$"|記録の output の置き場を緩める
 report|del(.properties.acceptance.items.properties.run.minimum)|acceptance の run の下限を外す
 ledger-log|."$defs".issueLine.additionalProperties = true|課題の行の知らないキーを許す
-ledger-log|."$defs".at.pattern = "^.+$"|台帳の行の at の時刻の形を緩める
+ledger-log|."$defs".at.pattern = "^.+$"|kanban の行の at の時刻の形を緩める
 ledger-log|."$defs".change.allOf = []|change の「問い・forced・freedBy には status」を外す
 ledger-log|del(."$defs".routineLine.oneOf)|ルーチンの行の「fired か skipped のどちらか」を外す
 ledger-log|."$defs".migrateLine.properties.migrate.required -= ["ids"]|移した行の必須から ids を外す
@@ -908,7 +908,7 @@ fi
 
 # 5. command の出力（emitters の検査が ANDON_EMIT_DIR に写したもの）。
 #    ANDON_EMITTED は tests/lib/run-tests.sh が渡す置き場: out/ に写したもの、<名前>.status に終了コード、<名前>.log に出力。
-#    結果の無い検査はここで走らせ、同じ out/ に写させる。台帳の CLI（kanban）は両方が tests/lib/kanban.sh で焼く。
+#    結果の無い検査はここで走らせ、同じ out/ に写させる。kanban の CLI は両方が tests/lib/kanban.sh で焼く。
 #    go が無くて skip した検査があるときだけ skip
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   emitted="${ANDON_EMITTED:-}"
@@ -955,7 +955,7 @@ gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-stale-runs.json|gate|andon gate の記録（受け入れ条件の行が指す記録が head と違う commit）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
 project.json|project|andon delegate grant の project.json
-gate-record-merged.json|gate|andon dispatcher がマージしたあとのゲートの記録（merged）
+gate-record-merged.json|gate|andon dispatcher がマージしたあとの gate の記録（merged）
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
@@ -967,7 +967,7 @@ notification-merged-held.json|notification|andon dispatcher の通知 merged（�
 notification-closed.json|notification|andon dispatcher の通知 closed
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
 measure.json|measure|andon measure --json の出力
-measure-empty.json|measure|andon measure --json の出力（記録が無い台帳）
+measure-empty.json|measure|andon measure --json の出力（記録が無い kanban）
 corrections-empty.json|corrections|andon dispatcher の corrections.json（手直し無し）
 corrections-answer.json|corrections|andon dispatcher の corrections.json（answer）
 signals.json|signal|andon signal collect の信号の記録
@@ -1012,7 +1012,7 @@ patterns.json|patterns|andon retro patterns の retro.json
 run.json|run|andon issue record の runs/<n>.json
 run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期待して落ちた）
 run-norepo.json|run|andon issue record の runs/<n>.json（repo の無い課題。commit 無し）
-ledger-log.jsonl|ledger-log|kanban が書いた log.jsonl（andon dispatcher がレビューからマージまで回した台帳）
+ledger-log.jsonl|ledger-log|kanban の CLI が書いた log.jsonl（andon dispatcher がレビューからマージまで回した kanban）
 ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
 EMIT
     flush

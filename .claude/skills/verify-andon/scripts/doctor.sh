@@ -29,7 +29,7 @@ if [ -f "$applied" ]; then
   [ "$a_commit" = "$commit" ] || bad "当てた commit $a_commit と andon version の commit $commit が違う"
 else
   a_at=
-  echo "note 当てた記録が無い（イメージの版のまま）。当てたあとに起きた出来事を読む機能は、確かめられない"
+  echo "note 当てた記録が無い（イメージのバージョンのまま）。当てたあとに起きた出来事を読む機能は、確かめられない"
 fi
 
 d=$(hc get dispatcher --json 2>/dev/null) || d=
@@ -45,6 +45,6 @@ else
   fi
 fi
 
-ls -d "$ws"/projects/*/kanban >/dev/null 2>&1 && ok "セルの本物の台帳: $(ls -d "$ws"/projects/*/kanban | tr '\n' ' ')" || bad "セルの台帳が $ws/projects/*/kanban に無い"
+ls -d "$ws"/projects/*/kanban >/dev/null 2>&1 && ok "セルの本物の kanban: $(ls -d "$ws"/projects/*/kanban | tr '\n' ' ')" || bad "セルの kanban が $ws/projects/*/kanban に無い"
 echo "commit $commit"
 [ "$fails" = 0 ]

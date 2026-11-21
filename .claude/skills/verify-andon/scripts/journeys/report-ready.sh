@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 報告と ready（features/report-ready.md）。切り離した台帳で、担当が打つ道（record → report → ready）をそのまま通す。
+# 報告と ready（features/report-ready.md）。切り離した kanban で、担当が打つ道（record → report → ready）をそのまま通す。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
 
@@ -25,7 +25,7 @@ step "rr-record: 証拠の command を記録で撮る" "$andon" issue record "$i
   || fail "rr-record: 記録か出力が無い・形が違う"
 jq -c . "$lib/runs/1.json" 2>/dev/null | sed 's/^/  runs\/1.json: /'
 
-# rr-ready-refuse: 報告の前の ready は断られ、台帳は動かない
+# rr-ready-refuse: 報告の前の ready は断られ、kanban は動かない
 step "rr-ready-refuse: 報告の前に ready を打つ" "$andon" issue ready "$id" \
   && fail "rr-ready-refuse: 報告が無いのに ready が通った" \
   || { [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \

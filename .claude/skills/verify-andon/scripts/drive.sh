@@ -33,11 +33,11 @@ cleanup
 trace=0
 [ ! -e "$tmp" ] || { echo "FAIL 一時の置き場が残った: $tmp"; trace=1; }
 left=$(grep -rlF --exclude='*.log' -- "$run" "$ws"/projects/*/kanban 2>/dev/null | grep -v '/library/runs/' || true)
-[ -z "$left" ] || { echo "FAIL セルの本物の台帳に跡が残った:"; echo "$left"; trace=1; }
+[ -z "$left" ] || { echo "FAIL セルの本物の kanban に跡が残った:"; echo "$left"; trace=1; }
 if hc ls >/dev/null 2>&1; then
   ! hc ls 2>/dev/null | grep -qF -- "$run" || { echo "FAIL 印 $run の端末が残った"; trace=1; }
 fi
-[ "$trace" = 0 ] && echo "ok   片付けた: 一時の置き場が無く、セルの本物の台帳と端末に印 $run が無い"
+[ "$trace" = 0 ] && echo "ok   片付けた: 一時の置き場が無く、セルの本物の kanban と端末に印 $run が無い"
 echo "終えた: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 [ "$trace" = 0 ] || exit 1
 exit "$rc"

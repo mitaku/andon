@@ -60,23 +60,23 @@ old_terms() {
   local m=''
   grep -q '^\*\*kanban\*\*（コードと schema の名前は `ledger`）:' "$1" || m="$m [用語集に kanban の項が無い]"
   grep -q '^\*\*gate\*\*（`andon gate`）:' "$1" || m="$m [用語集に gate の項が無い]"
-  if grep -qE '^\*\*(台帳|ゲート)\*\*' "$1"; then m="$m [用語集に台帳かゲートの項がある]"; fi
-  grep -q '^_避ける_: 台帳（2026-11-20 までの語）' "$1" || m="$m [kanban の項の避けるに台帳が無い]"
-  grep -q '^_避ける_: ゲート（2026-11-20 までの語）' "$1" || m="$m [gate の項の避けるにゲートが無い]"
+  if grep -qE '^\*\*(台帳|ゲート)\*\*' "$1"; then m="$m [用語集に「台帳」か「ゲート」の項がある]"; fi  # 古い語を見る（ADR-0040 決めたこと 10）
+  grep -q '^_避ける_: 台帳（2026-11-20 までの語）' "$1" || m="$m [kanban の項の避けるに「台帳」が無い]"  # 古い語を見る（ADR-0040 決めたこと 10）
+  grep -q '^_避ける_: ゲート（2026-11-20 までの語）' "$1" || m="$m [gate の項の避けるに「ゲート」が無い]"  # 古い語を見る（ADR-0040 決めたこと 10）
   grep -q 'ふだんカタカナで言う語（[^）]*バージョン[^）]*）' "$2" || m="$m [writing.md のカタカナの例にバージョンが無い]"
-  if grep -q 'もともと日本語で言う語（[^）]*台帳' "$2"; then m="$m [writing.md の日本語の例に台帳がある]"; fi
+  if grep -q 'もともと日本語で言う語（[^）]*台帳' "$2"; then m="$m [writing.md の日本語の例に「台帳」がある]"; fi  # 古い語を見る（ADR-0040 決めたこと 10）
   echo "$m"
 }
 miss=$(old_terms "$g" "$wr")
-[ -z "$miss" ] && pass "ADR-0040 A1: 用語集に kanban と gate の項があり台帳とゲートの項が無い。writing.md の例にバージョンがあり台帳が無い" || fail "ADR-0040 A1:$miss"
+[ -z "$miss" ] && pass "ADR-0040 A1: 用語集に kanban と gate の項があり「台帳」と「ゲート」の項が無い。writing.md の例にバージョンがあり「台帳」が無い" || fail "ADR-0040 A1:$miss"
 # 否定の検査が当たる場合があること: 古い項と古い例を戻した写しでは落ちる
 miss=
-sed 's/^\*\*kanban\*\*（コードと schema の名前は `ledger`）:/**台帳**（ledger）:/' "$g" >"$tmp/glossary.md"
-[ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [台帳の項を戻した]"
-sed 's/^\*\*gate\*\*（`andon gate`）:/**ゲート**（gate）:/' "$g" >"$tmp/glossary.md"
-[ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [ゲートの項を戻した]"
-sed 's/もともと日本語で言う語（課題/もともと日本語で言う語（台帳・課題/' "$wr" >"$tmp/writing.md"
-[ -n "$(old_terms "$g" "$tmp/writing.md")" ] || miss="$miss [writing.md の例に台帳を戻した]"
+sed 's/^\*\*kanban\*\*（コードと schema の名前は `ledger`）:/**台帳**（ledger）:/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0040 決めたこと 10）
+[ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [「台帳」の項を戻した]"
+sed 's/^\*\*gate\*\*（`andon gate`）:/**ゲート**（gate）:/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0040 決めたこと 10）
+[ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [「ゲート」の項を戻した]"
+sed 's/もともと日本語で言う語（課題/もともと日本語で言う語（台帳・課題/' "$wr" >"$tmp/writing.md"  # 古い語を見る（ADR-0040 決めたこと 10）
+[ -n "$(old_terms "$g" "$tmp/writing.md")" ] || miss="$miss [writing.md の例に「台帳」を戻した]"
 [ -z "$miss" ] && pass "ADR-0040 A1: 古い項と古い例を戻した写しでは落ちる（検査が見ている）" || fail "ADR-0040 A1: 写しで落ちない:$miss"
 ! grep -q '一度に出すのは互いに依らない問いの全部' "$ce" && grep -q 'ask-one-by-one skill §2 に従う（1回の返事で1問）' "$ce" \
   && pass "CE skill の問いの出し方は ask-one-by-one §2 を指す（束で出す行が無い）" || fail "CE skill の問いの出し方が ask-one-by-one §2 を指していない"

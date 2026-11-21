@@ -27,7 +27,7 @@ Claude Code が managed settings から呼ぶ4本の hook（`/opt/andon/hooks/st
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hooks` を打つ。
 - **つながりを読む。** `hk-wired` の行に managed settings の4行（`Stop /opt/andon/hooks/stop` など）が出る。`ok   hk-wired` が見えれば動いた。
-- **止める。** 切り離した台帳の `doing` の課題を端末 `tw` のラベル `issue=` に結び、`/opt/andon/hooks/stop` に `{"stop_hook_active":false}` を渡す。出力が `{"decision":"block","reason":"…"}` で、`ok   hk-stop-block` が見えれば動いた。
+- **止める。** 切り離した kanban の `doing` の課題を端末 `tw` のラベル `issue=` に結び、`/opt/andon/hooks/stop` に `{"stop_hook_active":false}` を渡す。出力が `{"decision":"block","reason":"…"}` で、`ok   hk-stop-block` が見えれば動いた。
 - **通す。** `kanban report` のあとに同じ hook を打つ。出力が空で、`ok   hk-stop-pass` が見えれば動いた。
 - **素通りする。** ラベルの無い端末 `tx` で4本を打つ。4本とも出力が空で終了コード 0、`ok   hk-other-pass` が見えれば動いた。
 - **Chief of Staff に届く（`hk-cos-news`）。** 検証の担当は報告の `## Next` に「試しの課題を1件起動し、Chief of Staff の長めの turn の間に報告させる」と書く。起動したあと `hc read <Chief of Staff の address>` で、turn の終わりに次の turn が自動で始まり `<news>` を読んだことを確かめる。

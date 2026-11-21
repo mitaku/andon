@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon measure`。一時の台帳（ファイルを直に置く）と偽の gh で回す。台帳の CLI も hc の端末も使わない。
+# `andon measure`。一時の kanban（ファイルを直に置く）と偽の gh で回す。kanban の CLI も hc の端末も使わない。
 # 数え方の細部は internal/measure/measure_test.go（手で数えた値と突き合わせる）。ここはバイナリの入口・表・終了コードを見る。
 # ANDON_EMIT_DIR があれば --json の出力を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -77,7 +77,7 @@ echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標
 after=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 [ "$before" = "$after" ]
 [ "$records" = "$(find "$tmp/claude" -type f -exec sha1sum {} + | sort)" ]
-echo 'ok 台帳にもセッションの記録にも何も書かない'
+echo 'ok kanban にもセッションの記録にも何も書かない'
 
 # 記録が1件も無いプロジェクト: 0 と「記録なし」で終了コード 0（gh は打たない）
 mkdir -p "$tmp/empty/kanban"
@@ -90,7 +90,7 @@ jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'
-echo 'ok 空の台帳: 0・null・記録なし・終了コード 0'
+echo 'ok 空の kanban: 0・null・記録なし・終了コード 0'
 
 set +e
 "$andon" measure --since 2026-11-05 --until 2026-11-01 >/dev/null 2>&1; rc=$?

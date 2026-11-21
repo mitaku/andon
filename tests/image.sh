@@ -2,11 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Go の版は mise.toml の go に揃える（docker が無くても見る）: go.mod の go と、image/Dockerfile の段 bin（kanban・andon を焼く golang）
+# Go のバージョンは mise.toml の go に揃える（docker が無くても見る）: go.mod の go と、image/Dockerfile の段 bin（kanban・andon を焼く golang）
 mise_go=$(sed -n 's/^go = "\(.*\)"$/\1/p' mise.toml)
 mod_go=$(sed -n 's/^go \([0-9.]*\)$/\1/p' go.mod)
 img_go=$(sed -n 's/^FROM golang:\([0-9.]*\)-.* AS bin$/\1/p' image/Dockerfile)
-[ -n "$mise_go" ] || { echo "FAIL image: mise.toml に go の版が無い" >&2; exit 1; }
+[ -n "$mise_go" ] || { echo "FAIL image: mise.toml に go のバージョンが無い" >&2; exit 1; }
 if [ "$mod_go" != "$mise_go" ]; then
   echo "FAIL image: go.mod の go（${mod_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
   exit 1
@@ -159,7 +159,7 @@ docker run --rm --network none --user 0 -v "$plant:/p" andon:test bash -euc '
   chown -R 1000:1000 /p
   chmod 777 /p/.andon
 '
-# andon が uid 1001 だった版の image で作った volume（中身は 1001 の持ち物）。boot が作り直さずに andon へ渡すこと
+# andon が uid 1001 だったバージョンの image で作った volume（中身は 1001 の持ち物）。boot が作り直さずに andon へ渡すこと
 docker volume create --label com.docker.compose.project=andon-imgtest --label com.docker.compose.volume=gh andon-imgtest_gh >/dev/null
 docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
 # セルの image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
@@ -191,7 +191,7 @@ dc exec -T dev bash -euc '
   test -d /workspace/files
   # Codex の承認・sandbox・rules（docs/image.md の「Codex の承認と sandbox」）。モデルは呼ばない:
   # prompt-input は実効の設定から組んだ permissions の文を出す（承認 never・sandbox なし・network あり＝確認の画面を出さない）。
-  # rules は boot が置いたファイルを Codex 自身の execpolicy で引く（gh pr merge は forbidden、git push・台帳への書き込みは当たらない）
+  # rules は boot が置いたファイルを Codex 自身の execpolicy で引く（gh pr merge は forbidden、git push・kanban への書き込みは当たらない）
   cmp /opt/andon/codex.rules "$HOME/.codex/rules/andon.rules"
   pi=$(cd /workspace && codex debug prompt-input x 2>/dev/null)
   for want in "No filesystem sandboxing" "Network access is enabled" "Approval policy is currently never"; do
@@ -212,7 +212,7 @@ dc exec -T dev bash -euc '
   for c in "FOO=bar gh pr merge 1" "echo \"\$(gh pr merge 1)\""; do
     test "$(codex execpolicy check $rules bash -lc "$c" | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 拒めないはずの「$c」が rules に当たる（docs と tests を直す）" >&2; exit 1; }
   done
-  # 担当・レビュアーが台帳（projects/<slug>/kanban とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
+  # 担当・レビュアーが kanban（projects/<slug>/kanban とその .lock）に書くもの。sandbox なしなので writable_roots は要らない
   for c in "git push -u origin HEAD" "kanban report A-0001" "kanban review A-0001" "tee /workspace/projects/p/kanban/issues/A-0001-r1/library/findings.json"; do
     test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]"
   done

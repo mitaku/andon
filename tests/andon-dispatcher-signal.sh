@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dispatcher の巡の外の信号の段（docs/dispatcher.md §2.1.1 の 4e。ADR-0011 受け入れ条件 3・9・10）。本物の台帳の CLI・一時のセルの repo・
+# dispatcher の巡の外の信号の段（docs/dispatcher.md §2.1.1 の 4e。ADR-0011 受け入れ条件 3・9・10）。本物の kanban の CLI・一時のセルの repo・
 # 偽の hc・偽の gh で `andon dispatcher --once` を回し、控えの待ち（pending）と信号の記録を見る。<news> の行の囲いは
 # internal/dispatcher/signals_test.go、collect の当て方と every の数え方は internal/signal/signal_test.go。
 # ANDON_EMIT_DIR があれば、積んだ通知 signal と信号の記録を写す（tests/schema.sh が schema に通す）。
@@ -83,7 +83,7 @@ calls() { wc -l <"$tmp/gh/calls" | tr -d ' '; }
 ep() { jq -c --arg k "$1" '.signals[] | select(.key == $k) | [.active, .episodes, .delivered_episode, .count]' "$rec"; }
 app=github.com/example/app/ci.yml@main
 
-# 受け入れ条件 3・10: 初めて見る台帳（控えが無い）の巡でも、届けていない now の信号を積む。later は積まない
+# 受け入れ条件 3・10: 初めて見る kanban（控えが無い）の巡でも、届けていない now の信号を積む。later は積まない
 runs app ci.yml:failure
 dispatcher
 [ "$(signals)" = "[\"$app\"]" ] || die "初めての巡に now の信号が積まれない: $(jq -c .pending "$state")"
@@ -94,7 +94,7 @@ jq -e --arg k "$app" '.pending[] | select(.kind == "signal") | .issue == null an
 [ "$(ep github.com/example/app#3)" = '[true,1,0,1]' ] || die "later を届けた: $(ep github.com/example/app#3)"
 [ "$(calls)" = 3 ] || die "1巡目の gh: $(cat "$tmp/gh/calls")"   # CI は app・web、issue は app
 jq '.pending[] | select(.kind == "signal")' "$state" >"$tmp/n.json"; emit "$tmp/n.json" notification-signal.json
-ok '初めて見る台帳の巡でも、届けていない now の信号を通知 signal で積み（detail は記録の写し）、delivered_episode を書く。later は積まない'
+ok '初めて見る kanban の巡でも、届けていない now の信号を通知 signal で積み（detail は記録の写し）、delivered_episode を書く。later は積まない'
 
 # 受け入れ条件 9: every より短い巡では読みに行かない。届けた出来事は積み直さない
 drained
@@ -141,7 +141,7 @@ HC_TERMINAL_ID=dispatcher "$andon" signal delivered --project demo "$fp" 1 || di
 [ "$(ep "$web")" = '[true,1,1,1]' ] || die "dispatcher が打っても書かない: $(ep "$web")"
 ok 'andon signal delivered は dispatcher（HC_TERMINAL_ID=dispatcher）以外から打つと断り、記録を変えない'
 
-# gh の上限でゲートを止めている間（控えの gh_reset）は collect を打たない
+# gh の上限で gate を止めている間（控えの gh_reset）は collect を打たない
 drained
 jq --arg t "$(date -u -d '+30 min' +%Y-%m-%dT%H:%M:%SZ)" '.gh_reset = $t' "$state" >"$tmp/s" && mv "$tmp/s" "$state"
 n=$(calls); later; dispatcher

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/package.sh — package/ の skill・プロファイル・ゲートの条件表・managed settings・statusline（design.md §2.2・§2.4）。
+# tests/package.sh — package/ の skill・プロファイル・gate の条件表・managed settings・statusline（design.md §2.2・§2.4）。
 # 節は tests/package/ に1節1ファイルで置き、この入口が名前の順（LC_ALL=C）に同じシェルで source する。
 # 節の一覧は tests/package/ のファイル名で、各節が何を見るかはそのファイルの冒頭に書く。この入口は節の一覧を持たない。
 # 節を足すときは tests/package/<番号>-<名前>.sh を新しく置き、この入口とほかの節は書き換えない。番号は今ある最大の次。

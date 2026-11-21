@@ -1,5 +1,5 @@
 # sandbox.sh: journeys/*.sh が source する。切り離した場所を作り、セルに入っている本物の andon・kanban・/opt/andon で動かす。
-#   - drive.sh が渡す VERIFY_TMP の下だけに書く。HOME・台帳・git の設定・状態の置き場を一時へ向ける（tests/lib/isolate.sh）。
+#   - drive.sh が渡す VERIFY_TMP の下だけに書く。HOME・kanban・git の設定・状態の置き場を一時へ向ける（tests/lib/isolate.sh）。
 #   - andon と kanban は PATH にある本物（当てたもの）。ANDON_HOME は外すので、パッケージは既定の /opt/andon（当てたもの）。
 #   - 偽の hc と gh を PATH の先頭に置く。本物の端末と GitHub には届かない。呼ばれた引数は $tmp/hc.calls・$tmp/gh.calls に残る。
 #     偽の hc: get <addr> --json は $tmp/hc/<addr>.json を返す（無ければ 1）。ほかは記録して 0。
@@ -31,7 +31,7 @@ EOF
 chmod +x "$tmp/bin/hc" "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 
-# ledger_init <prefix>: $tmp/project に台帳を作り、KANBAN_ROOT を向ける。Chief of Staff は端末 tc
+# ledger_init <prefix>: $tmp/project に kanban を作り、KANBAN_ROOT を向ける。Chief of Staff は端末 tc
 ledger_init() {
   mkdir -p "$tmp/project" && cd "$tmp/project" || exit 1
   "$kanban" init --prefix "$1" >/dev/null && export KANBAN_ROOT=$tmp/project

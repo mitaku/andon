@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon chief-of-staff`（docs/design.md §1.8 の Chief of Staff を起動する）。本物の台帳の CLI（kanban）・一時の台帳・偽の hc で回す。
+# `andon chief-of-staff`（docs/design.md §1.8 の Chief of Staff を起動する）。本物の kanban の CLI・一時の kanban・偽の hc で回す。
 # 起動する・動いていれば起動しない（二重に起動しない）・起き直したら chief_of_staff が直る・2人なら止まる・最初のメッセージが届かないときの案内。
 # 本物の hc には触らない。
 set -euo pipefail
@@ -82,24 +82,24 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label r
 jq -e 'select(.config) | .config.chief_of_staff == "t42"' kanban/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
 grep -q 'demo の Chief of Staff は t42（demo-cos・起動した）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = 'andon chief-of-staff: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
-ok '起動する: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は台帳の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
+ok '起動する: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は kanban の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
 
-# 起動の記録（contract.md §18。ADR-0028 決めたこと 7）: Chief of Staff は課題を持たないので台帳の chief-of-staff/launches.jsonl に1件
+# 起動の記録（contract.md §18。ADR-0028 決めたこと 7）: Chief of Staff は課題を持たないので kanban の chief-of-staff/launches.jsonl に1件
 crec=kanban/chief-of-staff/launches.jsonl
 [ "$(wc -l < "$crec")" = 1 ] && jq -e '.role == "chief-of-staff" and .launch == "start" and .issue == null and .repo == null and .session == null
   and .profile == "chief-of-staff" and .terminal == "t42" and .harness.name == "claude"' "$crec" >/dev/null || die "Chief of Staff の起動の記録: $(cat "$crec" 2>/dev/null)"
-kanban list >/dev/null || die '起動の記録の置き場があると台帳の CLI が読めない'
+kanban list >/dev/null || die '起動の記録の置き場があると kanban の CLI が読めない'
 emit "$crec" launch-chief-of-staff.json
-ok '起動する: 台帳の chief-of-staff/launches.jsonl に起動の記録が1件（課題・repo・session は null）。台帳の CLI はそのまま読める'
+ok '起動する: kanban の chief-of-staff/launches.jsonl に起動の記録が1件（課題・repo・session は null）。kanban の CLI はそのまま読める'
 
 # 2. 動いていれば起動しない（Chief of Staff 自身が起動したときに打つ形）
 lines=$(wc -l < kanban/log.jsonl)
 "$andon" chief-of-staff >"$tmp/out"
 [ "$(runs)" = 1 ] || die '二重に起動した'
 [ "$(wc -l < "$crec")" = 1 ] || die '起動していないのに起動の記録を足した'
-[ "$(wc -l < kanban/log.jsonl)" = "$lines" ] || die 'chief_of_staff が合っているのに台帳を書いた'
+[ "$(wc -l < kanban/log.jsonl)" = "$lines" ] || die 'chief_of_staff が合っているのに kanban を書いた'
 grep -q 't42（demo-cos・動いているものを使う）' "$tmp/out" && grep -q '出た場所 demo / CoS（t42）' "$tmp/out" || die "out: $(cat "$tmp/out")"
-ok '動いていれば起動しない（二重に起動しない）。chief_of_staff が合っていれば台帳を書かない'
+ok '動いていれば起動しない（二重に起動しない）。chief_of_staff が合っていれば kanban を書かない'
 
 # 3. 起き直した（端末が変わった）: chief_of_staff が直る
 sed -i 's/^t42 /t50 /' "$tmp/hc/live"
@@ -113,7 +113,7 @@ sed -i "s| $root | /elsewhere |" "$tmp/hc/live"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'cwd（/elsewhere）が合わない' "$tmp/err" && [ "$(cos)" = t50 ] || die "合わない端末: rc=$rc $(cat "$tmp/err")"
 cp "$tmp/live.bak" "$tmp/hc/live"
-ok 'ラベルが合っても名前か cwd が違う端末は使わない（台帳を書かない）'
+ok 'ラベルが合っても名前か cwd が違う端末は使わない（kanban を書かない）'
 
 # 5. 2人なら止まる
 echo "t51 demo-cos2 $root chief-of-staff demo" >> "$tmp/hc/live"
@@ -128,10 +128,10 @@ echo false > "$tmp/hc/first"
 rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 grep -q "最初のメッセージが届いていない: trust prompt。App の demo / CoS で答えてから、次を送る: hc send t43 'プロジェクト \`demo\` の Chief of Staff。" "$tmp/err" || die "案内: $(cat "$tmp/err")"
-[ "$(cos)" = t43 ] || die "届かなくても台帳に載せる: $(cos)"
+[ "$(cos)" = t43 ] || die "届かなくても kanban に載せる: $(cos)"
 rm "$tmp/hc/first"
 [ ! -e "$tmp/hc/attached" ] || die "hc attach を打った: $(cat "$tmp/hc/attached")"
-ok '最初のメッセージが届かなければ終了コード 3・送り直す hc send を案内（台帳には載せる）'
+ok '最初のメッセージが届かなければ終了コード 3・送り直す hc send を案内（kanban には載せる）'
 
 # 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起動し直し、chief_of_staff を合わせる
 echo t43 > "$tmp/hc/shells"

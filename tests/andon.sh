@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/andon.sh — 入口 andon（振り分け・一覧・--help・知らない sub-command）。
-# 中身（publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。台帳も hc も起動しない。
+# 中身（publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。kanban も hc も起動しない。
 set -u
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
-cd "$tmp" || exit 2   # 台帳の外で打つ
+cd "$tmp" || exit 2   # kanban の外で打つ
 
 fails=0
 pass() { echo "ok   $1"; }

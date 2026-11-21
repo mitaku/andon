@@ -1,7 +1,7 @@
 # tests/package/22-pstack-yomiyasu.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・fm・tmp は入口が置き、前の節が置いた変数も使う）。
 #  22. pstack と yomiyasu の既定（ADR-0038 受け入れ条件 1・3 の一部）: settings の marketplace の登録と自動更新と pstack の有効化、gh-skills.txt の yomiyasu、「既定は空」の文、writing.md の推敲の節、環境メモの pstack の行。
 # === 22. pstack と yomiyasu をパッケージの既定に入れる（ADR-0038 受け入れ条件 1・3 のうち writing.md と環境メモ。決めたこと 11・16〜19） ===
-# 参照: managed settings に marketplace の登録（自動更新つき。版を固定する sha・ref は書かない）と pstack の有効化、外の skill の一覧に版なしの yomiyasu
+# 参照: managed settings に marketplace の登録（自動更新つき。バージョンを固定する sha・ref は書かない）と pstack の有効化、外の skill の一覧にバージョンなしの yomiyasu
 refs_ok() {
   jq -e '.extraKnownMarketplaces["cursor-plugins"] as $m
     | $m.source == {"source": "github", "repo": "cursor/plugins"} and $m.autoUpdate == true
@@ -10,9 +10,9 @@ refs_ok() {
   ! grep -vE '^[[:space:]]*(#|$)' "$2" | grep -q '@'
 }
 refs_ok package/settings.json package/gh-skills.txt \
-  && pass "ADR-0038 A1: settings に marketplace の登録（autoUpdate つき・版の固定なし）と pstack の有効化、gh-skills.txt に版なしの yomiyasu がある" \
-  || fail "ADR-0038 A1: settings の pstack の参照か gh-skills.txt の yomiyasu の行が無い（か版を固定している）"
-# 検査が当たる場合があること: 参照を1つずつ消した・版を固定した写しでは落ちる
+  && pass "ADR-0038 A1: settings に marketplace の登録（autoUpdate つき・バージョンの固定なし）と pstack の有効化、gh-skills.txt にバージョンなしの yomiyasu がある" \
+  || fail "ADR-0038 A1: settings の pstack の参照か gh-skills.txt の yomiyasu の行が無い（かバージョンを固定している）"
+# 検査が当たる場合があること: 参照を1つずつ消した・バージョンを固定した写しでは落ちる
 miss=
 cp package/gh-skills.txt "$tmp/gh-skills.txt"
 for q in 'del(.enabledPlugins)' 'del(.extraKnownMarketplaces["cursor-plugins"])' 'del(.extraKnownMarketplaces["cursor-plugins"].autoUpdate)' \
@@ -24,7 +24,7 @@ for s in '/^nanaism\/yomiyasu yomiyasu$/d' 's/^nanaism\/yomiyasu yomiyasu$/nanai
   sed "$s" package/gh-skills.txt >"$tmp/gh-skills.txt"
   refs_ok package/settings.json "$tmp/gh-skills.txt" && miss="$miss [gh-skills.txt: $s]"
 done
-[ -z "$miss" ] && pass "ADR-0038 A1: 参照を消した・版を固定した写しでは落ちる（検査が見ている）" || fail "ADR-0038 A1: 写しで落ちない:$miss"
+[ -z "$miss" ] && pass "ADR-0038 A1: 参照を消した・バージョンを固定した写しでは落ちる（検査が見ている）" || fail "ADR-0038 A1: 写しで落ちない:$miss"
 # 「既定は空」の文が残っていない（決めたこと 18）。古い字面に当たることも確かめる
 old_line='（既定は空）'
 grep -qF "$old_line" <<<'`/opt/andon/gh-skills.txt`（既定は空）＋ セルの' || fail "ADR-0038: 「既定は空」の検査が何も見ていない"

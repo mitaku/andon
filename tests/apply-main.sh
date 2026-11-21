@@ -6,7 +6,7 @@
 #   1 当てると中身がその commit の package/・schema/ に一致し、andon・kanban が置かれる  2 記録の3つの値
 #   3 origin/main の外の commit を断る・作業ツリーの未 commit の変更が当たらない  4 go build が落ちても半端にならない
 #   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（6a 2回当ててから・6b andon と kanban を壊してから）
-#   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ（7a）・鍵を取らない前の版の dispatcher は止めない（7b）  10 道具が package/ の下に無い（以上 S1）
+#   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ（7a）・鍵を取らない前のバージョンの dispatcher は止めない（7b）  10 道具が package/ の下に無い（以上 S1）
 #   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 #   11 試しの repo はこの repo の作業ツリーを写す（commit していない変更を見落とさない）
@@ -122,15 +122,15 @@ exit 0
 EOF
 chmod 755 "$tmp/fakebin/andon" "$tmp/fakebin/hc"
 export PATH=$tmp/fakebin:$(dirname "$gobin"):$PATH
-# 見回りの鍵（dispatcher の PassLock）。見回りのたびに鍵を取る版の dispatcher が作るファイル
+# 見回りの鍵（dispatcher の PassLock）。見回りのたびに鍵を取るバージョンの dispatcher が作るファイル
 passlock=$HOME/.local/state/andon/dispatcher/.pass.lock
 mkdir -p "$(dirname "$passlock")"
 : >"$passlock"
-# 偽の dispatcher の実体: 鍵を取る版（実体に鍵のファイル名がある）と前の版（無い）。sleep の写しで、後ろに足した字は実行に効かない
+# 偽の dispatcher の実体: 鍵を取るバージョン（実体に鍵のファイル名がある）と前のバージョン（無い）。sleep の写しで、後ろに足した字は実行に効かない
 cp "$(command -v sleep)" "$tmp/old-dispatcher"
 cp "$(command -v sleep)" "$tmp/new-dispatcher"
 printf 'andon/dispatcher/.pass.lock' >>"$tmp/new-dispatcher"
-grep -aq '\.pass\.lock' "$tmp/old-dispatcher" && fail "前の版の偽の dispatcher に鍵のファイル名がある"
+grep -aq '\.pass\.lock' "$tmp/old-dispatcher" && fail "前のバージョンの偽の dispatcher に鍵のファイル名がある"
 "$tmp/new-dispatcher" 600 & newd=$!
 "$tmp/old-dispatcher" 600 & oldd=$!
 trap 'kill "$newd" "$oldd" 2>/dev/null; rm -rf "$tmp"' EXIT
@@ -155,8 +155,9 @@ else
 fi
 
 # === 5a. 当てる前 ===
-if run status && grep -q "イメージの版: ${c0:0:12}" "$tmp/out" && grep -q "当てた commit: 当てていない" "$tmp/out"; then
-  pass "5 当てる前は「当てていない」とイメージの版"
+# image/apply-main.sh status の出力は、まだ「イメージの版:」と書く（image/ の語は流れの定義の課題が替える）
+if run status && grep -q "イメージの版: ${c0:0:12}" "$tmp/out" && grep -q "当てた commit: 当てていない" "$tmp/out"; then  # 古い語を見る（ADR-0040 決めたこと 10）
+  pass "5 当てる前は「当てていない」とイメージのバージョン"
 else
   fail "5 当てる前の状態: $(cat "$tmp/out")"
 fi
@@ -260,7 +261,7 @@ fi
 
 # === 5b・5c. 当てたあと・main が2つ進んだあと ===
 if run status && grep -q "当てた commit: $c1" "$tmp/out" && grep -q "origin/main からの遅れ: 0" "$tmp/out" \
-  && grep -q "イメージの版: ${c0:0:12}" "$tmp/out"; then
+  && grep -q "イメージの版: ${c0:0:12}" "$tmp/out"; then  # 古い語を見る（ADR-0040 決めたこと 10）
   pass "5 当てたあとは当てた commit と遅れ 0"
 else
   fail "5 当てたあとの状態: $(cat "$tmp/out")"
@@ -327,21 +328,21 @@ git -C "$tmp/repo" rm -q cmd/andon/broken.go
 git -C "$tmp/repo" commit -qm fix
 git -C "$tmp/repo" push -q origin main
 
-# === 7b. 鍵を取らない前の版の dispatcher は、鍵のファイルが残っていても止めない ===
-[ -e "$passlock" ] || fail "7 鍵のファイルが残っていない（前の版を見分ける検査が何も見ていない）"
+# === 7b. 鍵を取らない前のバージョンの dispatcher は、鍵のファイルが残っていても止めない ===
+[ -e "$passlock" ] || fail "7 鍵のファイルが残っていない（前のバージョンを見分ける検査が何も見ていない）"
 echo "$oldd" >"$DISPATCHER_PID"
 : >"$CALLS"
 if run apply && [ "$(grep -c '^hc \(keep\|kill\|rm\) ' "$CALLS")" = 0 ] && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] \
   && grep -q '^hc get dispatcher' "$CALLS" && grep -q '確かめられないので、止めずに残した' "$tmp/out"; then
-  pass "7 前の版の dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す"
+  pass "7 前のバージョンの dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す"
 else
-  fail "7 前の版の dispatcher: $(cat "$CALLS") / $(cat "$tmp/out")"
+  fail "7 前のバージョンの dispatcher: $(cat "$CALLS") / $(cat "$tmp/out")"
 fi
 echo "$newd" >"$DISPATCHER_PID"
 
 # === 6a. 2回当ててから戻す ===
 if run apply && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ]; then
-  pass "6 2回目を当てても記録のイメージの版は最初のまま"
+  pass "6 2回目を当てても記録のイメージのバージョンは最初のまま"
 else
   fail "6 2回目を当てる: $(cat "$tmp/out")"
 fi

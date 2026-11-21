@@ -7,7 +7,7 @@
 ws=${ANDON_WORKSPACE:-/workspace}
 pkg=${VERIFY_PACKAGE:-/opt/andon}
 applied=$pkg/applied.json
-[ -f "$applied" ] || { echo "note 当てた記録 $applied が無い（イメージの版のまま）。当てたあとの出来事が決まらないので確かめない"; exit 3; }
+[ -f "$applied" ] || { echo "note 当てた記録 $applied が無い（イメージのバージョンのまま）。当てたあとの出来事が決まらないので確かめない"; exit 3; }
 a_commit=$(jq -r .commit "$applied") a_at=$(jq -r .applied_at "$applied")
 a_ms=$(($(date -u -d "$a_at" +%s) * 1000))
 echo "当てた commit $a_commit・当てた時刻 $a_at"

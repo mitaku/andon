@@ -6,12 +6,12 @@
 
 - 動かすのは、セルに当てた本物（`/usr/local/bin/andon`・`/usr/local/bin/kanban`・`/opt/andon` のパッケージ）。repo の checkout から焼いたものでは動かさない。
 - 先に `bash .claude/skills/verify-andon/scripts/doctor.sh` を打ち、終了コード 0 を確かめる。
-- 1機能は `bash .claude/skills/verify-andon/scripts/drive.sh <機能>` の1回の呼び出しで、作る・動かす・片付ける・跡の確かめまで済む。手順を Bash の呼び出しに分けない（呼び出しごとに環境が戻り、後の呼び出しがセルの本物の台帳を見る）。
+- 1機能は `bash .claude/skills/verify-andon/scripts/drive.sh <機能>` の1回の呼び出しで、作る・動かす・片付ける・跡の確かめまで済む。手順を Bash の呼び出しに分けない（呼び出しごとに環境が戻り、後の呼び出しがセルの本物の kanban を見る）。
 - 証拠は `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh <機能>` で撮る。出力がそのまま記録の `runs/<n>.log` になる。
 
 ## 動かし方の2つの形
 
-- **切り離して動かす**: `scripts/sandbox.sh` を読む道。一時の HOME と一時の台帳を作り、本物の andon・kanban・`/opt/andon` を動かす。`hc` と `gh` は偽物で、本物の端末と GitHub には届かない。台帳を書く機能はこの形にする。
+- **切り離して動かす**: `scripts/sandbox.sh` を読む道。一時の HOME と一時の kanban を作り、本物の andon・`kanban`・`/opt/andon` を動かす。`hc` と `gh` は偽物で、本物の端末と GitHub には届かない。kanban を書く機能はこの形にする。
 - **本物の記録を読む**: `scripts/cell.sh` を読む道。当てた時刻（`/opt/andon/applied.json`）より後に、セルで本当に起きた出来事の記録を読む。何も書かず、何も起動しない。出来事がまだ無ければ終了コード 3（未確認）。
 
 ## 見る道（誰が見られるか）
@@ -24,8 +24,8 @@
 
 ## 証拠と未確認の書き方
 
-- 操作と結果の両方を残す。`drive.sh` は、打った command・終了コード・出力・結果の状態（台帳の JSON）を出す。
-- 台帳に書く機能は、書いたあとに別の口（`kanban show`・`log.jsonl`）で読み直したものを証拠にする。
+- 操作と結果の両方を残す。`drive.sh` は、打った command・終了コード・出力・結果の状態（kanban の JSON）を出す。
+- kanban に書く機能は、書いたあとに別の口（`kanban show`・`log.jsonl`）で読み直したものを証拠にする。
 - 機能と細かい機能の名前（`rr-ready` など）を、記録と報告の行に添える。
 - 確かめられなかった道は、打った command と欠けた前提を書く。別の道で確かめたものを、その道の証拠にしない。
 - 終了コード 3 の機能は「未確認」と書き、動いたとは書かない。
@@ -49,7 +49,7 @@
 |---|---|---|---|
 | 担当の起動 | [worker-launch.md](./worker-launch.md) | 本物の記録を読む | 記録は検証の担当だけ。最初の turn は Chief of Staff の試しの課題 |
 | 報告と ready | [report-ready.md](./report-ready.md) | 切り離して動かす | 検証の担当だけ |
-| ゲート | [gate.md](./gate.md) | 本物の記録を読む | 検証の担当だけ |
+| gate | [gate.md](./gate.md) | 本物の記録を読む | 検証の担当だけ |
 | dispatcher の通知 | [dispatcher-news.md](./dispatcher-news.md) | 本物の記録を読む | 記録は検証の担当だけ。届いた turn は Chief of Staff の試しの課題 |
 | hook | [hooks.md](./hooks.md) | 切り離して動かす | 振る舞いは検証の担当だけ。待ち役と Esc は人が見る |
 | boot | [boot.md](./boot.md) | 本物の記録を読む | 検証の担当だけ |
