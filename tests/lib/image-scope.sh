@@ -22,6 +22,8 @@ while IFS= read -r p; do
     image/apply-main.sh) ;;
     # repo の中の skill の置き場（ADR-0035 決めたこと 4。image に入らず、tests/verify-andon.sh・words.sh が見る）
     .claude/skills/* | .agents/skills/*) ;;
+    # yomiyasu の許可の一覧（image に入らず、tests/package.sh・words.sh が見る）
+    .yomiyasu-words/*) ;;
     # 課題の一生のモデルと検査器のバージョン（ADR-0025。image に入らず、job model が回す）
     model/*) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・

@@ -17,6 +17,11 @@ scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
 skill='.claude/skills/verify-andon'
 [ "$(scope $skill/SKILL.md $skill/features/gate.md $skill/scripts/drive.sh .agents/skills/verify-andon)" = false ] || die "検証の skill の文だけで true"
 [ "$(scope .claude/settings.json)" = true ] || die ".claude/ の skill でないもので false"
+# yomiyasu の許可の一覧: image に入らないので一覧だけの変更で image を焼かない。名前の似た別の置き場は知らないパス
+[ "$(scope .yomiyasu-words/allow.txt)" = false ] || die ".yomiyasu-words/ の一覧だけで true"
+[ "$(scope .yomiyasu-wordsx/allow.txt)" = true ] || die ".yomiyasu-words/ でない名前の似た置き場で false"
+grep -q 'yomiyasu-words' .dockerignore && die ".yomiyasu-words/ を image に入れるなら image-scope.sh も直す"
+grep -q '^!package/$' .dockerignore || die ".dockerignore の !package/ の行が読めない（上の否定が何も見ていない）"
 grep -q 'COPY .*image/apply-main' image/Dockerfile && die "image/apply-main.sh を image に入れるなら image-scope.sh も直す"
 grep -q 'COPY .*image/' image/Dockerfile || die "Dockerfile の COPY image/ の行が読めない（上の否定が何も見ていない）"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
@@ -68,6 +73,11 @@ for t in tests/package.sh tests/schema.sh $emitters; do has "$got" "$t" || die "
 [ "$(pick tests/andon-gate.sh)" = "$(with tests/andon-gate.sh)" ] || die "触った test が無い"
 [ "$(pick tests/host/mod.mjs)" = "$(with tests/host.sh)" ] || die "tests/host/ で host.sh が無い: $(pick tests/host/mod.mjs)"
 [ "$(pick tests/package/01-names.sh)" = "$(with tests/package.sh)" ] || die "tests/package/ で package.sh が無い: $(pick tests/package/01-names.sh)"
+# yomiyasu の許可の一覧だけ: 正と突き合わせる package.sh を足すだけ。image.sh と重い検査は選ばない
+got=$(pick .yomiyasu-words/allow.txt)
+[ "$got" = "$(with tests/package.sh)" ] || die ".yomiyasu-words/ の一覧だけで package.sh だけを足さない: $got"
+for t in tests/image.sh $heavy; do has "$got" "$t" && die ".yomiyasu-words/ の一覧だけで $t: $got"; done
+[ "$(wc -w <<<"$(pick .yomiyasu-wordsx/allow.txt)")" -eq "$(ls tests/*.sh | wc -l)" ] || die ".yomiyasu-words/ でない名前の似た置き場で全部にならない"
 grep -q tests/process.sh <<<"$(pick process/states/gate.yaml)" && ! grep -q tests/andon-issue.sh <<<"$(pick process/states/gate.yaml)" || die "埋め込まない状態の定義で process.sh を足すだけにならない: $(pick process/states/gate.yaml)"
 [ "$(pick schema/process/state.schema.json)" = "$(with tests/image.sh tests/process.sh)" ] || die "schema/process/ で schema.sh まで足す: $(pick schema/process/state.schema.json)"
 [ "$(pick internal/issue/issue_test.go)" = "$always" ] || die "Go のテストだけ: $(pick internal/issue/issue_test.go)"
