@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"andon/internal/contract"
 	"andon/internal/gate"
@@ -30,7 +31,16 @@ case "$1" in
 esac
 `
 
+// 偽の gh は呼ばれるたびに gh-calls に1行足す。prhead-lag に数 n があれば、n 回は prhead-old を返す
+// （push の直後に GitHub の PR の head が古いまま残る）。
 const fakeGH = `#!/bin/sh
+echo x >> "$FAKE_ROOT/gh-calls"
+n=$(cat "$FAKE_ROOT/prhead-lag" 2>/dev/null || echo 0)
+if [ "$n" -gt 0 ]; then
+  echo $((n - 1)) > "$FAKE_ROOT/prhead-lag"
+  cat "$FAKE_ROOT/prhead-old"
+  exit 0
+fi
 cat "$FAKE_ROOT/prhead"
 `
 
@@ -90,7 +100,23 @@ func newFixture(t *testing.T) *fixture {
 	t.Setenv("KANBAN_ROOT", "")
 	// 控え（dispatcher の置き場と ready の lock）は一時ディレクトリに。本物の HOME の ~/.local/state に書かない
 	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))
+	// PR の head が追いつくのを待つ間隔は検査では短くする（回数は本物のまま）
+	wait := prHeadWait
+	prHeadWait = time.Millisecond
+	t.Cleanup(func() { prHeadWait = wait })
 	return f
+}
+
+// lagPRHead は、偽の gh が最初の n 回は PR の head に old を返すようにする（push の直後に GitHub が追いつく途中）。
+func (f *fixture) lagPRHead(n int, old string) {
+	f.write("prhead-lag", fmt.Sprintf("%d\n", n))
+	f.write("prhead-old", old+"\n")
+}
+
+// ghCalls は偽の gh が呼ばれた回数。
+func (f *fixture) ghCalls() int {
+	b, _ := os.ReadFile(filepath.Join(f.root, "gh-calls"))
+	return strings.Count(string(b), "\n")
 }
 
 func (f *fixture) write(rel, s string) {
@@ -528,5 +554,86 @@ func TestCarriedReviewRequest(t *testing.T) {
 		if got := carriedReviewRequest(tc.prev, tc.head); (got != nil) != tc.want {
 			t.Errorf("%s: 引き継いだ %v、want %v", tc.name, got != nil, tc.want)
 		}
+	}
+}
+
+// push の直後は GitHub の PR の head が古いまま十数秒残る。ready と review-request は、PR の head が HEAD に
+// 追いつくのを待ってから照合し、上限（prHeadTries 回）まで読んでも違うときだけ断る。worktree の upstream が
+// HEAD と違う（push していない）なら待たずに断る。
+func TestWaitPRHead(t *testing.T) {
+	// upstream を置く: 裸の remote に push して upstream にし、pushed でなければそのあと commit して HEAD だけ進める
+	upstream := func(f *fixture, pushed bool) {
+		bare := filepath.Join(filepath.Dir(f.wt), "remote.git")
+		git := func(dir string, args ...string) string {
+			c := exec.Command("git", append([]string{"-C", dir}, args...)...)
+			c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+				"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+			out, err := c.CombinedOutput()
+			if err != nil {
+				t.Fatalf("git %v: %v %s", args, err, out)
+			}
+			return strings.TrimSpace(string(out))
+		}
+		git(filepath.Dir(f.wt), "init", "-q", "--bare", bare)
+		git(f.wt, "remote", "add", "origin", bare)
+		git(f.wt, "push", "-q", "-u", "origin", "HEAD:refs/heads/b")
+		if !pushed {
+			git(f.wt, "commit", "-q", "--allow-empty", "-m", "y")
+			old := f.head
+			f.head = git(f.wt, "rev-parse", "HEAD")
+			f.report = strings.Replace(f.report, old, f.head, 1)
+		}
+	}
+	cases := []struct {
+		name    string
+		mod     func(*fixture)
+		request bool   // review-request を打つ（false なら ready）
+		want    string // 空なら通る
+		calls   int    // 偽の gh が呼ばれた回数
+	}{
+		{"ready は追いつくのを待って通る", func(f *fixture) { f.lagPRHead(2, other) }, false, "", 3},
+		{"review-request は追いつくのを待って頼む", func(f *fixture) { f.lagPRHead(2, other) }, true, "", 3},
+		{"upstream が HEAD と同じなら待つ", func(f *fixture) { upstream(f, true); f.lagPRHead(2, other) }, false, "", 3},
+		{"上限まで読んでも違えば断る", func(f *fixture) { f.prHead = other }, false, "PR の head", prHeadTries},
+		{"review-request も上限まで読んでも違えば断る", func(f *fixture) { f.prHead = other }, true, "PR の head", prHeadTries},
+		{"push していなければ待たずに断る", func(f *fixture) { old := f.head; upstream(f, false); f.prHead = old }, false, "PR の head", 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.task["review"] = "off"
+			f.reviewer = nil
+			c.mod(f)
+			var rc int
+			var errs string
+			if c.request {
+				f.task["review"] = "on"
+				f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+				f.write("list.json", js([]any{f.task}))
+				f.write("kanban/log.jsonl", "")
+				f.write("kanban/issues/T-0001/library/report.json", f.report)
+				f.write("prhead", f.prHead+"\n")
+				var out, errb bytes.Buffer
+				rc = Main([]string{"review-request", "T-0001"}, strings.NewReader("## Report\n"), &out, &errb)
+				errs = errb.String()
+				if c.want == "" {
+					report, _ := os.ReadFile(filepath.Join(f.root, "kanban/issues/T-0001/library/report.json"))
+					if !strings.Contains(string(report), `"round": 1`) {
+						t.Fatalf("頼んでいない: %s", report)
+					}
+				}
+			} else {
+				rc, errs, _ = f.ready()
+			}
+			if c.want == "" && rc != 0 {
+				t.Fatalf("rc=%d err=%q", rc, errs)
+			}
+			if c.want != "" && (rc != 1 || !strings.Contains(errs, c.want)) {
+				t.Fatalf("want rc 1 with %q, got rc=%d err=%q", c.want, rc, errs)
+			}
+			if got := f.ghCalls(); got != c.calls {
+				t.Fatalf("gh を %d 回呼んだ、want %d", got, c.calls)
+			}
+		})
 	}
 }
