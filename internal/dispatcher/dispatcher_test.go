@@ -1,8 +1,10 @@
 package dispatcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -170,7 +172,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	rep := &contract.Report{PR: "https://github.com/example/app/pull/7",
 		ReviewRequest: &contract.ReviewRequest{Round: 2, Limit: 2, Commit: strings.Repeat("b", 40), Previous: &prev, Reviewer: "codex-review"}}
 	task := ledger.Issue{"id": "D-1", "agent": "t7"}
-	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, "example/app", "7")
+	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, span{}, "example/app", "7")
 	for _, want := range []string{
 		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
 		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`", // kanban の中のレビュアー自身の課題（A-0216）
@@ -180,8 +182,132 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 			t.Errorf("依頼書に %q が無い:\n%s", want, b)
 		}
 	}
-	if b2 := reviewerBrief(l, ledger.Issue{"id": "D-1"}, rep, Reviewer{Issue: "D-1", Round: 2}, "example/app", "7"); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
+	if b2 := reviewerBrief(l, ledger.Issue{"id": "D-1"}, rep, Reviewer{Issue: "D-1", Round: 2}, span{}, "example/app", "7"); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
 		t.Errorf("担当がいないのに宛先を書いた:\n%s", b2)
+	}
+}
+
+// rebase をまたいだ再レビューは、前後の commit の素の差分（base に入ったほかの変更まで含む）でなく、PR 自身の差分どうしの違いを見せる。
+// 根拠の出来事: 前の回のあと main が進み、担当が rebase して直した。`git diff 前..今` は PR の外の main の変更まで見せていた
+// （PR の 36 ファイルに対し 140 ファイル）。
+func TestReviewSpanAcrossRebase(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "app")
+	git := func(args ...string) string {
+		t.Helper()
+		out, _, err := run("", []string{"GIT_AUTHOR_NAME=x", "GIT_AUTHOR_EMAIL=x@example.com", "GIT_COMMITTER_NAME=x", "GIT_COMMITTER_EMAIL=x@example.com"}, "", "git", append([]string{"-C", dir}, args...)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(out)
+	}
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git("init", "-q", "-b", "main")
+	write("pr.txt", "one\n")
+	git("add", ".")
+	git("commit", "-q", "-m", "base")
+	oldBase := git("rev-parse", "HEAD")
+	git("switch", "-q", "-c", "work")
+	write("pr.txt", "one\ntwo\n")
+	git("commit", "-q", "-am", "pr")
+	prev := git("rev-parse", "HEAD") // 前の回に見た commit
+	git("switch", "-q", "main")
+	for i := range 5 { // 前の回のあと main に入ったほかの変更
+		write(fmt.Sprintf("main%d.txt", i), "m\n")
+	}
+	git("add", ".")
+	git("commit", "-q", "-m", "main moves")
+	newBase := git("rev-parse", "HEAD")
+	git("switch", "-q", "work")
+	git("rebase", "-q", "main")
+	write("pr.txt", "one\ntwo!\n") // 前の回の指摘の直し
+	git("commit", "-q", "-am", "fix")
+	head := git("rev-parse", "HEAD")
+	if files := git("diff", "--name-only", prev+".."+head); !strings.Contains(files, "main0.txt") {
+		t.Fatalf("入力が根拠の出来事を写していない（素の差分に main の変更が無い）: %s", files)
+	}
+
+	bin := t.TempDir()
+	calls := filepath.Join(bin, "calls")
+	gh := "#!/bin/sh\necho \"$*\" >> " + calls + "\n[ -f " + filepath.Join(bin, "ghfail") + " ] && exit 1\n" +
+		"[ \"$*\" = 'pr view https://github.com/example/app/pull/7 --json baseRefOid -q .baseRefOid' ] || exit 9\necho " + newBase + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	pr, url := "https://github.com/example/app/pull/7", filepath.Join(root, "nowhere")
+	l := ledger.At(filepath.Join(t.TempDir(), "demo"))
+	brief := func(p, c string, sp span) string {
+		rep := &contract.Report{PR: pr, ReviewRequest: &contract.ReviewRequest{Round: 2, Limit: 2, Commit: c, Previous: &p, Reviewer: "codex-review"}}
+		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, sp, "example/app", "7")
+	}
+
+	// rebase をまたいだ: それぞれの merge-base から数えた PR の commit を突き合わせる
+	sp := reviewSpan(dir, url, pr, prev, head)
+	if sp != (span{Rebased: true, Old: oldBase, New: newBase}) {
+		t.Fatalf("rebase をまたいだ範囲 = %+v（want Old %s New %s）", sp, oldBase, newBase)
+	}
+	b := brief(prev, head, sp)
+	rd := "git range-diff " + oldBase + ".." + prev + " " + newBase + ".." + head
+	if !strings.Contains(b, rd) || strings.Contains(b, "見るのは `git diff "+prev+".."+head+"`") {
+		t.Errorf("rebase をまたいだ再レビューで PR 自身の差分どうしの違いを見せない（素の差分を見せた）:\n%s", b)
+	}
+	if !strings.Contains(b, "gh pr diff "+pr) {
+		t.Errorf("直しの中身を前後ごと読む手順が無い:\n%s", b)
+	}
+	// 依頼書の手順どおりに読む: range-diff は main の commit を出さず、足した commit（`>`）は git show で読む
+	out := git(strings.Fields(rd)[1:]...)
+	added := regexp.MustCompile(`(?m)^-:\s+-+ > \d+:\s+([0-9a-f]+) `).FindAllStringSubmatch(out, -1)
+	if strings.Contains(out, "main moves") || len(added) != 1 || !strings.Contains(b, "`git show <その commit>`") {
+		t.Fatalf("依頼書の range-diff が main の commit を見せる・足した commit の読み方が無い:\n%s", out)
+	}
+	if fix := git("show", added[0][1]); strings.Contains(fix, "main0.txt") || !strings.Contains(fix, "+two!") {
+		t.Errorf("足した commit が直しを見せない:\n%s", fix)
+	}
+
+	// rebase をまたがない（前の回の commit が祖先）: 今までどおり素の差分。gh には聞かない
+	write("pr.txt", "one\ntwo!\nthree\n")
+	git("commit", "-q", "-am", "fix2")
+	next := git("rev-parse", "HEAD")
+	os.Remove(calls)
+	if sp := reviewSpan(dir, url, pr, head, next); sp != (span{}) {
+		t.Errorf("祖先の再レビューの範囲 = %+v", sp)
+	}
+	if _, err := os.Stat(calls); err == nil {
+		t.Error("祖先の再レビューで gh に PR の base を聞いた")
+	}
+	if b := brief(head, next, span{}); !strings.Contains(b, "見るのは `git diff "+head+".."+next+"` だけ") || strings.Contains(b, "range-diff") {
+		t.Errorf("祖先の再レビューの依頼書:\n%s", b)
+	}
+
+	// PR の base が読めない: 素の差分は使わせず、PR 自身の差分を見せる
+	if err := os.WriteFile(filepath.Join(bin, "ghfail"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sp = reviewSpan(dir, url, pr, prev, head)
+	if sp != (span{Rebased: true}) {
+		t.Errorf("base が読めないときの範囲 = %+v", sp)
+	}
+	if b := brief(prev, head, sp); strings.Contains(b, "見るのは `git diff") || !strings.Contains(b, "`gh pr diff "+pr+"`") {
+		t.Errorf("base が読めないときの依頼書:\n%s", b)
+	}
+
+	// 前の回の commit が手元に無く fetch もできない: 祖先かをレビュアーに確かめさせる
+	gone := strings.Repeat("c", 40)
+	sp = reviewSpan(dir, url, pr, gone, head)
+	if sp != (span{Unknown: true}) {
+		t.Errorf("前の回の commit が無いときの範囲 = %+v", sp)
+	}
+	if b := brief(gone, head, sp); !strings.Contains(b, "git merge-base --is-ancestor "+gone+" "+head) || !strings.Contains(b, "`gh pr diff "+pr+"`") {
+		t.Errorf("確かめられないときの依頼書:\n%s", b)
 	}
 }
 

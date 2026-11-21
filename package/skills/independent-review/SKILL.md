@@ -45,6 +45,10 @@ dispatcher が書く（`internal/dispatcher` の `reviewerBrief`。型を変え�
 - **plan と担当の報告は見せない**。渡すのは差分と仕様の正（元の課題の依頼書の完了条件・README・docs の該当節）だけ。
 - 見てほしいこと（重い順）: 一番怖いところ（外向きの面）・正しさ（並行性・失敗の波及・境界）・仕様と実装の食い違い・テストが主張を本当に検証しているか。
   加えて、画面に触れる差分（条件表の `screen_paths` に当たるファイル）に画面の証拠（PR の画像の添付）が無い・証拠と差分が合わないときは major の指摘にする。
+- **再レビュー（2回目以降）は前の回からの違いだけを見せる**。前の回の commit が今の commit の祖先なら `git diff <前>..<今>`。
+  祖先でない（rebase をまたいだ）なら素の差分は base に入ったほかの変更まで含むので、PR 自身の差分どうしの違い `git range-diff <前の merge-base>..<前> <今の merge-base>..<今>` を見せる（merge-base は PR の base の今の先頭とのもの）。
+  range-diff が中身を出さない足した commit は `git show` で、直しを前後ごと読むときは `gh pr diff` で読むよう依頼書に書く。
+  dispatcher が祖先か・PR の base を確かめられなければ、素の差分は使わせず、確かめ方と `gh pr diff` を書く。
 - **結果の宛先は元の課題の担当だけ**。Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。
 
 ## 5. 振り分け・周回・片付け
