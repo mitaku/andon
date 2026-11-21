@@ -10,14 +10,14 @@
 |---|---|---|---|
 | 1 | 検査の秒数の上限は、今は置かない | この ADR | 生きている |
 | 2 | repo に固有の規則は Go のテストと字面の検査で書き、golangci-lint も足す | この ADR | まだ実装していない |
-| 3 | モデルに、ゲートが決めたあとの変化と自動マージの規則を足す | この ADR | まだ実装していない |
+| 3 | モデルに、gate が決めたあとの変化と自動マージの規則を足す | この ADR | まだ実装していない |
 | 4 | golangci-lint は 2 段で入れ、errcheck は 2 段目にする | `.golangci.yml` | 生きている |
 | 5 | `.golangci.yml` はオーナーがマージする変更に足さない | この ADR | 生きている |
 | 6 | schema の照合を既製の Go の検査器 1 つにし、書く前に照らす | `internal/contract/schema.go`・[contract.md](../contract.md) の冒頭の約束 6 | 生きている |
 | 7 | `log.jsonl` の行と `kanban ready --json` の schema を足す | この ADR | まだ実装していない |
 | 8 | repo に固有の lint は、フックの 1 行目と全部の workflow の 2 つ | この ADR | まだ実装していない |
 | 9 | 型は 3 つ直し、その節を Go へ移す課題の中で直す | この ADR | まだ実装していない |
-| 10 | ゲートとオーナーのマージの状態の定義を照らすかは、モデルの結果を見てから | この ADR | 生きている |
+| 10 | gate とオーナーのマージの状態の定義を照らすかは、モデルの結果を見てから | この ADR | 生きている |
 | 11 | `andon issue report` は、課題の repo と違う repo の PR を断る | この ADR | まだ実装していない |
 | 12 | 節を Go へ移す手順を改め、消すだけの課題は作らない | この ADR | まだ実装していない |
 | 13 | 価値の仮説は置かない | この ADR | 生きている |
@@ -37,8 +37,8 @@
 ## 前提（同意済み。番号）
 
 1. **モデルは設計を確かめ、コードの退行はテストが見る。この分担を保つ**（オーナー 2026-11-20）。モデルとコードは機械で照らしていない（ADR-0025 の前提 1）。モデルに場面を足しても、モデル検査に仕分けられた 12 節はシェルから消えず、Go のテストへ移すことになる。モデルに足す価値は、次にその流れを変えるときに、実装の前に設計の穴を見つけられること。
-2. **並んで進んでいる変更が済ませる分は、この題から外す**（オーナー 2026-11-20）。レビューを CI と並べる変更が、モデルに CI の状態とレビュアーが見る commit と、規則「取り消しを使わずにマージまで行ける」を足している。モデルに足す候補のうち残るのは、ゲートが判定したあとに head が動く場面。`tests/schema.sh` の回し直しをやめる変更（PR #328）が、Go の側に schema の検査器を足さずに回し直しを無くす。command が書く前に schema と照らす候補は、品質の問いとしてだけ扱う。同意のあと 2026-11-20 のうちに、2 つとも main に入った（PR #329 と PR #328）。今のモデルは規則が R1〜R7、状態が 900、守りを外した見本が 4 つ。
-3. **お金と外のサービスは足さない。足す道具は無料で、版を固定でき、開発と CI だけで使うもの**（オーナー 2026-11-20）。ADR-0032 の前提 4 と同じ。利用者に配る `andon` と image には入れない。
+2. **並んで進んでいる変更が済ませる分は、この題から外す**（オーナー 2026-11-20）。レビューを CI と並べる変更が、モデルに CI の状態とレビュアーが見る commit と、規則「取り消しを使わずにマージまで行ける」を足している。モデルに足す候補のうち残るのは、gate が判定したあとに head が動く場面。`tests/schema.sh` の回し直しをやめる変更（PR #328）が、Go の側に schema の検査器を足さずに回し直しを無くす。command が書く前に schema と照らす候補は、品質の問いとしてだけ扱う。同意のあと 2026-11-20 のうちに、2 つとも main に入った（PR #329 と PR #328）。今のモデルは規則が R1〜R7、状態が 900、守りを外した見本が 4 つ。
+3. **お金と外のサービスは足さない。足す道具は無料で、バージョンを固定でき、開発と CI だけで使うもの**（オーナー 2026-11-20）。ADR-0032 の前提 4 と同じ。利用者に配る `andon` と image には入れない。
 4. **入れる候補の物差しは 3 つ**（オーナー 2026-11-20）。(1) シェルの節が消える。(2) その種類の不良がまるごと起きなくなるか、シェルしか見ていない穴が塞がる。(3) 次に流れを変えるときに、実装の前に設計の穴を見つけられる。どれにも当たらず、コードが整うだけの候補は入れない。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
@@ -47,7 +47,7 @@
 
 2. **repo に固有の規則は Go のテストと字面の検査で書き、加えて汎用の静的解析 golangci-lint を CI に足す**（オーナー 2026-11-20。Chief Engineer は「Go のテストと字面の検査だけ」を推したが、オーナーは golangci-lint も足すほうを選んだ）。repo に固有の規則は、ソースを読む Go のテストと `tests/*.sh` の字面の検査で書く（`workflow_test.go`・`tests/package.sh` と同じ今の形）。理由: 表で lint に当たった 11 行はどれも repo に固有の規則で、`hc send` や `gh api` は exec に渡す文字列なので、既製の禁止規則では書けない。golangci-lint は表の節を減らさないが、表に出ていない種類の不良を拾う。捨てた案: 「自作の analyzer を `go vet -vettool` で回す」（型まで見られるが、`golang.org/x/tools` への依存と書く量が増える）。
 
-3. **課題の一生のモデルに、ゲートが決めたあとの変化を今足す**（オーナー 2026-11-20）。足す行動は 3 つ。判定のあとに PR の head が動く。PR が閉じて開き直される。merge の設定と委譲が変わる。規則を 1 本足す: 「dispatcher が自動でマージするのは、ゲートが approve と判定した head で、その時点で任されているものだけ」。「取り消しを使わずにマージまで行ける」の規則は、閉じた PR を開き直す道を含めて成り立つことを確かめる。守りを外した見本を足す。通知の配達と resume の回数は、その流れを変える題が出たときに、ADR-0032 の決めたこと 9 のとおりモデルへ先に書く。理由: 間違った自動マージは main に入り、ラインで一番高くつく破れになる。今のモデルはこの 3 つの変化を持たず、自動でマージしてよいものを言う規則も無い。シェルの節では 4a・4d・4d-2・9・9f・10 がこの場面を見ていて、Go のテストの重なりはどれも一部か無し。知っていて受け入れたこと: 状態の数が増えて検査が何秒になるかは測っていない。この流れを変える予定は今は無い。捨てた案: 「今は足さない」（仕事は増えないが、自動マージの規則が無いまま）。「通知の配達と resume も別のモデルとして足す」（タイマーと回数を一から写す仕事になる）。
+3. **課題の一生のモデルに、gate が決めたあとの変化を今足す**（オーナー 2026-11-20）。足す行動は 3 つ。判定のあとに PR の head が動く。PR が閉じて開き直される。merge の設定と委譲が変わる。規則を 1 本足す: 「dispatcher が自動でマージするのは、gate が approve と判定した head で、その時点で任されているものだけ」。「取り消しを使わずにマージまで行ける」の規則は、閉じた PR を開き直す道を含めて成り立つことを確かめる。守りを外した見本を足す。通知の配達と resume の回数は、その流れを変える題が出たときに、ADR-0032 の決めたこと 9 のとおりモデルへ先に書く。理由: 間違った自動マージは main に入り、ラインで一番高くつく破れになる。今のモデルはこの 3 つの変化を持たず、自動でマージしてよいものを言う規則も無い。シェルの節では 4a・4d・4d-2・9・9f・10 がこの場面を見ていて、Go のテストの重なりはどれも一部か無し。知っていて受け入れたこと: 状態の数が増えて検査が何秒になるかは測っていない。この流れを変える予定は今は無い。捨てた案: 「今は足さない」（仕事は増えないが、自動マージの規則が無いまま）。「通知の配達と resume も別のモデルとして足す」（タイマーと回数を一から写す仕事になる）。
 
 4. **golangci-lint は 2 段で入れる**（オーナー 2026-11-20）。1 段目は errcheck 以外（staticcheck・unused・ineffassign・govet）を入れ、今出る 16 件を直す。2 段目で errcheck を、テストと出力への書き込みを除く設定で入れ、残る約 73 件を直すか、理由を書いて除く。理由: 約 73 件には `json.Unmarshal` や `syscall.Flock` のエラーを見ていない所があり、本物の見落としが混ざりうる。出力への書き込みとテストの指摘は数が多く、直しても得るものが小さい。捨てた案: 「errcheck は入れない」（約 73 件が読まれないまま残る）。「PR が足した行だけを見る」（今ある指摘が残り、古い行に触れた PR で指摘が出る）。
 
@@ -56,9 +56,9 @@
    - errcheck の 495 件は、テストの中が 185、それ以外が 310。310 のうち 237 は `fmt.Fprintf`・`fmt.Fprintln`・`fmt.Fprint` で出力へ書く呼び出し。残りの約 73 件は `f.Close` が 18、`os.Remove` が 8、`json.Unmarshal` が 6、`stdout.Write` が 5、`syscall.Flock` が 4 など。1 件ずつは読んでいない。
    - staticcheck の 9 件は、書き方の提案（QF1001 が 7、QF1002 が 1）とエラーの文の書き方（ST1005 が 1）。
 
-5. **golangci-lint の設定ファイル `.golangci.yml` は、オーナーがマージする変更（ゲートの条件表のレベル C）に足さない**（オーナー 2026-11-20。Chief Engineer は足すほうを推したが、オーナーは足さないほうを選んだ）。設定を変える PR は、独立レビューとゲートに任せる。捨てた案: 「レベル C に足す」（linter を外す変更をオーナーが見るが、設定を触るたびにオーナーのマージが要る）。
+5. **golangci-lint の設定ファイル `.golangci.yml` は、オーナーがマージする変更（gate の条件表のレベル C）に足さない**（オーナー 2026-11-20。Chief Engineer は足すほうを推したが、オーナーは足さないほうを選んだ）。設定を変える PR は、独立レビューと gate に任せる。捨てた案: 「レベル C に足す」（linter を外す変更をオーナーが見るが、設定を触るたびにオーナーのマージが要る）。
 
-   golangci-lint の細目（2026-11-20。Chief Engineer が推奨案で決めた。オーナーには問いにしていない。違えば下に足して直す）: 回す場所は CI の go の job と、手元でいつも回す検査（gofmt・`go vet`・`go test` と同じ段）。版は repo の `mise.toml` で固定し、手元の道具はそこから入れる。CI が別の所に版を書くなら、揃いを検査で見る。image には入れない（前提 3）。
+   golangci-lint の細目（2026-11-20。Chief Engineer が推奨案で決めた。オーナーには問いにしていない。違えば下に足して直す）: 回す場所は CI の go の job と、手元でいつも回す検査（gofmt・`go vet`・`go test` と同じ段）。バージョンは repo の `mise.toml` で固定し、手元の道具はそこから入れる。CI が別の所にバージョンを書くなら、揃いを検査で見る。image には入れない（前提 3）。
 
 6. **schema の照合を、既製の Go の検査器 1 つに一本化する。`andon` は約束の JSON を書く前に schema と照らす**（オーナー 2026-11-20。Chief Engineer ははじめ「binary に小さい自作の検査器を入れる」を推した。オーナーが「JSON Schema Validator のようなものを活用するのは。検査器を 2 つ用意するのは微妙では」と言い、既製に寄せる形に引き直してオーナーが選んだ）。2 段で進める。1 段目: `andon` に既製の JSON Schema の検査器のライブラリと `schema/` を入れ、約束の JSON を書く前に照らし、合わなければ書かずに落とす。2 段目: `tests/schema.sh`・`tests/process.sh` の照合を `andon` の command 経由にし、`package/lib/andon/schema_check.py` の照合の役と、`cmd/kanban/schema_test.go` の中の自作の照合をやめる。`schema_check.py` に残るのは、schema そのものの決まりを見る役と、文書の例を取り出す役（検査器ではない）。理由: 場面を Go へ移すと、command が書いた JSON を schema に通す確かめが消える（下の事実）。書く前に照らせば、どのテストでも本番でも照らされ、出力を写す表が要らなくなる。検査器が自作と既製の 2 種類あると、同じ schema の読み方が食い違いうる。捨てた案: 「binary に自作の検査器を入れる」（自作が 3 つになる）。「既製を足し、Python の自作は残す」（検査器が 2 種類のまま）。「既製の検査器を Go のテストの中だけで使う」（本番では照らされず、通すのを忘れたテストの出力も照らされない）。
 
@@ -70,20 +70,20 @@
    - 検査器は今、自作が 2 つ。`package/lib/andon/schema_check.py`（Python の標準ライブラリだけ。315 行。照合・schema の決まり・文書の例の取り出し・まとめて回す口）と、`cmd/kanban/schema_test.go` の中の照合。
    - 既製の候補（あることと依存だけを確かめた。draft 2020-12 の対応は実装の最初に確かめる）: `github.com/santhosh-tekuri/jsonschema/v6`（v6.0.3。動かすときの依存は `golang.org/x/text`）、`github.com/google/jsonschema-go`（v0.4.3。依存は `go-cmp`）。どちらにするかは実装が決める。
 
-7. **`log.jsonl` の行と `kanban ready --json` の形の schema を足す**（2026-11-20。Chief Engineer が推奨案で仮に決め、オーナーが最後の確かめで「決めた」と言った）。`schema/ledger` に足し、kanban の本物の出力と、Go のテストが手で書く台帳の両方を通す。理由: Go のテストは本物の kanban を呼ばず、手で書いた `log.jsonl` を使う（`internal/dispatcher/outcome_test.go`・`internal/issue/issue_test.go`）。場面を Go へ移すと、kanban が書く形と dispatcher の読み手がずれても、どのテストも落ちなくなる。今の `schema/ledger` は config・issue・questions・routine の 4 本だけで、行の形を固定する検査は無い。
+7. **`log.jsonl` の行と `kanban ready --json` の形の schema を足す**（2026-11-20。Chief Engineer が推奨案で仮に決め、オーナーが最後の確かめで「決めた」と言った）。`schema/ledger` に足し、kanban の本物の出力と、Go のテストが手で書く kanban の両方を通す。理由: Go のテストは本物の kanban を呼ばず、手で書いた `log.jsonl` を使う（`internal/dispatcher/outcome_test.go`・`internal/issue/issue_test.go`）。場面を Go へ移すと、kanban が書く形と dispatcher の読み手がずれても、どのテストも落ちなくなる。今の `schema/ledger` は config・issue・questions・routine の 4 本だけで、行の形を固定する検査は無い。
 
 8. **repo に固有の lint の規則は、今は 2 つ入れる**（オーナー 2026-11-20）。
    - **フックの 1 行目**: `package/hooks/` の 4 本の最初の実行行が `command -v andon >/dev/null 2>&1 || exit 0` であることを字面で見る。どこかにあることではなく、最初の実行行であることを見る。理由: dispatcher の検査の 12・13a・13c が見ている「andon が無ければ通す」の確かめが要らなくなる。`stop` のフックのこの場合は、今どの検査も見ていない。
    - **全部の workflow を見る**: `.github/workflows/` の全部を actionlint・ghalint・pinact に通す。理由: 今は `tests/image.sh` が `tests.yml` だけを container に mount して回していて、`go.yml` と `model.yml` はこの 3 つの道具に通っていない。
-   入れなかった規則: 「dispatcher が `hc send` を打てる所を今の 3 か所に限る」（節は消えず、新しい送り先が黙って増えることを止めるだけ）。「schema の決まりに、どの object も知らないキーを許さないことと、改名前の語を置かないことを足す」（わざと緩くしている所を名指しで除く手間が要る）。「ゲートが REST の `repos/<slug>` と `user` を打たないことを字面で見る」（`tests/andon-gate.sh` の 2a は、base と作者の違いが needs_human になる振る舞いも見ていて、字面の検査では代わりにならない。ここを通る Go のテストは無い）。
+   入れなかった規則: 「dispatcher が `hc send` を打てる所を今の 3 か所に限る」（節は消えず、新しい送り先が黙って増えることを止めるだけ）。「schema の決まりに、どの object も知らないキーを許さないことと、改名前の語を置かないことを足す」（わざと緩くしている所を名指しで除く手間が要る）。「gate が REST の `repos/<slug>` と `user` を打たないことを字面で見る」（`tests/andon-gate.sh` の 2a は、base と作者の違いが needs_human になる振る舞いも見ていて、字面の検査では代わりにならない。ここを通る Go のテストは無い）。
 
 9. **型の設計は 3 つ直す。直すのは、その節を Go へ移す課題の中**（オーナー 2026-11-20）。先に型を直してから、その型の Go のテストを書く。
    - **失敗を数えて諦める控え**: 影響の集め・オーナーの手直しの集め・結果の記録が、失敗の回数を `map[string]int` で 3 か所に別々に持つ（`internal/dispatcher/state.go`）。1 つの型にする。dispatcher の検査の 1c・1d-4 と 1e の打ち直しの部分が、1 つの型のテストで済む。
    - **予約キーの照合を通った値**: 照合の結果を真偽の値で持ち回っていて、照合を忘れても値が読める（`internal/dispatcher/loop.go`・`state.go`）。照合を通った値だけを読める型にする。dispatcher の 0d と `tests/andon-gate.sh` の 8。
-   - **ゲートの落ち方**: gh の上限で落ちたかどうかを、終了コード 3 とエラーの文の「rate limit」という文字列で見分けている（`internal/issue/merge.go`）。落ち方を型か終了コードで分ける。dispatcher の 9e。
+   - **gate の落ち方**: gh の上限で落ちたかどうかを、終了コード 3 とエラーの文の「rate limit」という文字列で見分けている（`internal/issue/merge.go`）。落ち方を型か終了コードで分ける。dispatcher の 9e。
    直さない型: 端末のアドレスと `<machine>/<address>` の区別、`hc get` の答えの 3 通り。前提 4 の物差しに当たらない（整うだけ）。その節（21・22）は Go のテストへ移す。捨てた案: 「先に別の課題で直す」（シェルの節が残ったまま型を変えるので、同じ所を 2 度触る）。「型は直さない」（照合の忘れや文字列の見分けがテストでしか止まらない）。
 
-10. **ゲートとマージ・オーナーのマージの見張りの状態の定義をモデルと照らすかは、モデルを広げた結果を見てから決める**（オーナー 2026-11-20）。先に決めたこと 3 のモデルの広げ方だけを入れ、状態の数と検査の秒数を見る。理由: 状態の定義は 10 本あり、モデルと照らし、command が定義に無い移り方を断るのは `process/states/issue.yaml` の 1 本だけ。`gate.yaml` の状態は、マージの記録の 4 つの欄（Decision・Merged・Wait・Approved）の組み合わせで表されていて、モデルの変数と 1 対 1 でない。照らすには道具と対応表を広げる仕事が要る。捨てた案: 「2 本をモデルと 2 方向で照らす」。「実行時にも照らし、`andon issue merge` と `settle` が定義に無い移り方を断る」（マージの道のコードに広く触れる）。
+10. **gate とマージ・オーナーのマージの見張りの状態の定義をモデルと照らすかは、モデルを広げた結果を見てから決める**（オーナー 2026-11-20）。先に決めたこと 3 のモデルの広げ方だけを入れ、状態の数と検査の秒数を見る。理由: 状態の定義は 10 本あり、モデルと照らし、command が定義に無い移り方を断るのは `process/states/issue.yaml` の 1 本だけ。`gate.yaml` の状態は、マージの記録の 4 つの欄（Decision・Merged・Wait・Approved）の組み合わせで表されていて、モデルの変数と 1 対 1 でない。照らすには道具と対応表を広げる仕事が要る。捨てた案: 「2 本をモデルと 2 方向で照らす」。「実行時にも照らし、`andon issue merge` と `settle` が定義に無い移り方を断る」（マージの道のコードに広く触れる）。
 
 11. **`andon issue report` は、課題の repo と違う repo の PR を断る**（2026-11-20。Chief Engineer が推奨案で仮に決め、オーナーが最後の確かめで「決めた」と言った）。守りは、`report.json` の `pr` が決まる 1 か所に置く。`--pr` だけでなく、`--data` の `pr` と前の報告からの引き継ぎも通る所。dispatcher の側の「repo の違う PR は見ない・片付けない」の守りは残し、その節（4e）は手で書いた `report.json` を使う Go のテストへ移す。理由: 今は `--pr` の値をそのまま書く（`internal/issue/issue.go` の `report`）。違う repo の PR を書く正当な道は、docs・skill・コードに見つからなかった。Chief Engineer の課題も repo を持つ。
 
@@ -113,14 +113,14 @@
 
 継ぎ目は 5 つ。CI の go の job、`go test` の出力、`model/check` の出力、`tests/package.sh` と `tests/schema.sh`・`tests/process.sh` の出力、workflow の静的検査の出力。どれも既にある継ぎ目で、本物の道具と本物のファイルで走らせる。条件ごとに、通る出力と、守りを外したときに落ちる出力の両方を PR の本文に書く。
 
-1. **golangci-lint の 1 段目**（決めたこと 2・4・5）。CI の go の job が golangci-lint を回し、errcheck 以外の既定の linter で指摘が 0 件。証拠: `golangci-lint run ./...` の出力と、go の job が成功した run。使われない関数を 1 つ足すと落ちる。証拠: そのときの出力。版は `mise.toml` に 1 か所で、CI が別の所に版を書くなら、ずらすと落ちる検査がある。証拠: ずらしたときの出力。image に入っていない。証拠: `grep -c golangci image/Dockerfile image/aqua/aqua.yaml` の出力が 0 で、同じ grep が `mise.toml` では 1 以上になる。
+1. **golangci-lint の 1 段目**（決めたこと 2・4・5）。CI の go の job が golangci-lint を回し、errcheck 以外の既定の linter で指摘が 0 件。証拠: `golangci-lint run ./...` の出力と、go の job が成功した run。使われない関数を 1 つ足すと落ちる。証拠: そのときの出力。バージョンは `mise.toml` に 1 か所で、CI が別の所にバージョンを書くなら、ずらすと落ちる検査がある。証拠: ずらしたときの出力。image に入っていない。証拠: `grep -c golangci image/Dockerfile image/aqua/aqua.yaml` の出力が 0 で、同じ grep が `mise.toml` では 1 以上になる。
 2. **golangci-lint の 2 段目**（決めたこと 4）。errcheck を、テストと出力への書き込みを除く設定で有効にして、指摘が 0 件。除いた呼び出しには、設定かコードに理由が 1 行ある。証拠: `golangci-lint run ./...` の出力と、`json.Unmarshal` の戻り値を捨てる 1 行を足したときに落ちる出力。直した約 73 件のうち、振る舞いが変わるもの（今まで黙って進んでいた失敗が表に出るもの）は PR の本文に並べる。オーナーが見る（`manual`）。
 3. **フックの 1 行目**（決めたこと 8）。`bash tests/package.sh` の出力に、`package/hooks/` の 4 本それぞれの ok の行がある。1 本のフックで、その行の前に別の実行行を足すと落ちる。証拠: 両方の出力。
 4. **全部の workflow を見る**（決めたこと 8）。actionlint・ghalint・pinact が `.github/workflows/` の 3 本（`tests.yml`・`go.yml`・`model.yml`）を通す。証拠: 検査の出力に 3 本の名前が出ることと、`go.yml` の action の固定を外した写しで落ちる出力。workflow を足したら、その workflow も見られる（ファイルの名前を検査に書かない）。
-5. **モデルを広げる**（決めたこと 3）。`model/check` の出力の規則の並びに、「自動でマージするのは、ゲートが approve と判定した head で、その時点で任されているものだけ」の規則がある。守りを外した見本が 2 つ増え、それぞれ控えに書いた規則の破れで落ちる。1 つはマージの直前の読み直しを外した見本で、新しい規則で落ちる。もう 1 つは閉じた PR を聞き直さない見本で、「取り消しを使わずにマージまで行ける」で落ちる。証拠: `model/check` の出力（規則の並び・見本の行・状態の数）。CI の model の job の秒数を報告に書く。60 秒を超えたら、報告の「次にやること」で知らせる。今の規則は弱めない。証拠: `model/expected.txt` の差分が行の追加と状態の数だけ。
+5. **モデルを広げる**（決めたこと 3）。`model/check` の出力の規則の並びに、「自動でマージするのは、gate が approve と判定した head で、その時点で任されているものだけ」の規則がある。守りを外した見本が 2 つ増え、それぞれ控えに書いた規則の破れで落ちる。1 つはマージの直前の読み直しを外した見本で、新しい規則で落ちる。もう 1 つは閉じた PR を聞き直さない見本で、「取り消しを使わずにマージまで行ける」で落ちる。証拠: `model/check` の出力（規則の並び・見本の行・状態の数）。CI の model の job の秒数を報告に書く。60 秒を超えたら、報告の「次にやること」で知らせる。今の規則は弱めない。証拠: `model/expected.txt` の差分が行の追加と状態の数だけ。
 6. **書く前に照らす**（決めたこと 6 の 1 段目）。約束の JSON を書く command が、schema に合わない値を書こうとすると、書かずに 0 でない終了コードで終わる。証拠: `go test -run '<足したテストの名前>' ./internal/contract` の出力と、照合を外したときの FAIL の出力。照合を通らずに約束の JSON を書く所が無い。証拠: ソースを読む Go のテストの出力と、照合を通らない書き込みを 1 つ足したときの FAIL の出力（約束の JSON を書く所は今、`contract.Write` の呼び手が 13、`contract.Marshal` の呼び手が 14、それ以外で JSON を書くファイルが 20 ある）。`schema/` の全部の `pattern` が、選んだ検査器で読める。証拠: そのテストの出力。今の出力が全部 schema に合っている。証拠: `go test ./...` と CI の tests の job が通った run。
 7. **検査器を 1 つにする**（決めたこと 6 の 2 段目）。`tests/schema.sh` と `tests/process.sh` の ok の行の数が、直す前と同じ。証拠: 直す前と後の `bash tests/schema.sh | grep -c '^ok'` と `bash tests/process.sh | grep -c '^ok'` の出力。`package/lib/andon/schema_check.py` に照合の口が無く、`cmd/kanban/schema_test.go` に自作の照合が無い。証拠: `python3 package/lib/andon/schema_check.py validate <schema> <その schema に合う JSON>` が、0 でない終了コードと使い方の文で終わる。同じ command は、直す前の commit では 0 で終わる。`package/` に触れるので、セルで実測する。
-8. **`log.jsonl` と `kanban ready --json` の schema**（決めたこと 7）。本物の kanban が書いた `log.jsonl` の全部の行と `kanban ready --json` の出力が schema を通る。証拠: `go test -run '<足したテストの名前>' ./cmd/kanban` の出力。Go のテストが手で書く台帳を同じ schema に通す補助があり、行の形を崩すと落ちる。証拠: 崩したときの FAIL の出力。
+8. **`log.jsonl` と `kanban ready --json` の schema**（決めたこと 7）。本物の kanban が書いた `log.jsonl` の全部の行と `kanban ready --json` の出力が schema を通る。証拠: `go test -run '<足したテストの名前>' ./cmd/kanban` の出力。Go のテストが手で書く kanban を同じ schema に通す補助があり、行の形を崩すと落ちる。証拠: 崩したときの FAIL の出力。
 9. **repo の違う PR を断る**（決めたこと 11）。`andon issue report` に、課題の repo と違う repo の PR を `--pr`・`--data`・前の報告からの引き継ぎの 3 通りで渡すと、どれも 0 でない終了コードと理由の 1 行が返り、`report.json` は変わらない。証拠: `go test -run '<足したテストの名前>' ./internal/issue` の出力と、守りを外したときの FAIL の出力。
 10. **節を移す**（決めたこと 9・12）。ADR-0032 の受け入れ条件 5・6 のまま。加えて、移した節が写していた出力の行が `tests/schema.sh` の表から消え、その出力は書く前の照合が通す。型を直した 3 つは、型のテストの名前と、わざと壊したときの FAIL の出力が PR の本文にある。
 
@@ -135,7 +135,7 @@
 3. **フックの 1 行目の検査。** `tests/package.sh`。依存は無い。受け入れ条件 3。
 4. **全部の workflow を見る。** `tests/image.sh` か別の検査。置き場は実装が決める。依存は無い。受け入れ条件 4。
 5. **モデルを広げる。** `model/` に行動 3 つ・規則 1 本・見本 2 つ。レビューを CI と並べる変更（PR #329）がモデルに足した CI とレビュアーの見る commit の上に足す。その変更は main に入ったので、依存は無い。規則のファイルに触れるのでオーナーがマージする。コードは変えない。受け入れ条件 5。
-6. **書く前に照らす。** 最初に検査器のライブラリを選ぶ（draft 2020-12 の対応・`pattern` の方言・依存の数・版の固定）。`go.mod`・`embed.go`・`internal/contract`。`go:embed` を足すので `image/Dockerfile` の `COPY` と `.dockerignore` も見る。依存は無い。受け入れ条件 6。
+6. **書く前に照らす。** 最初に検査器のライブラリを選ぶ（draft 2020-12 の対応・`pattern` の方言・依存の数・バージョンの固定）。`go.mod`・`embed.go`・`internal/contract`。`go:embed` を足すので `image/Dockerfile` の `COPY` と `.dockerignore` も見る。依存は無い。受け入れ条件 6。
 7. **検査器を 1 つにする。** `tests/schema.sh`・`tests/process.sh`・`package/lib/andon/schema_check.py`・`cmd/kanban/schema_test.go`・`docs/contract.md` の検査器の記述。`schema_check.py` の名前が出る検査は、ほかに `tests/andon-create.sh`・`tests/image.sh`・`tests/package.sh`・`tests/ci.sh` がある。セルの中で JSON を手で確かめる口も、`andon` の command に替わる。6 のあと。受け入れ条件 7。
 8. **`log.jsonl` と `kanban ready --json` の schema。** `schema/ledger`・`cmd/kanban` のテスト・Go のテストの補助・`docs/contract.md`。schema を足すので `tests/schema.sh` の 8 か所も直す。6 のあと。受け入れ条件 8。
 9. **repo の違う PR を断る。** `internal/issue/issue.go`。`tests/andon-dispatcher.sh` の 4e は、この command で違う repo の PR を書いて場面を作っているので、同じ PR で準備を直す。依存は無い。受け入れ条件 9。
@@ -146,7 +146,7 @@
 ## 開いている問い（残った問い。決断の種類つき）
 
 1. **検査の秒数の上限を置くか。** ラインの変更。dispatcher の場面を Go へ移し終えて、数字が落ち着いてから（決めたこと 1）。
-2. **ゲートとマージ・オーナーのマージの見張りの状態の定義を、モデルと照らすか。実行時にも照らすか。`once: true` を照らすか。** ラインの変更。モデルを広げた結果（状態の数・検査の秒数）を見てから（決めたこと 10）。ADR-0025 の開いている問い 3 に当たる。
+2. **gate とマージ・オーナーのマージの見張りの状態の定義を、モデルと照らすか。実行時にも照らすか。`once: true` を照らすか。** ラインの変更。モデルを広げた結果（状態の数・検査の秒数）を見てから（決めたこと 10）。ADR-0025 の開いている問い 3 に当たる。
 3. **`image/apply-main.sh` の dispatcher の見分けと鍵の待ちを `andon` の command に寄せるか。** 範囲の決断。dispatcher の結果を見てから。ADR-0032 の開いている問い 2 と一緒に決める。
 4. **errcheck で除いたテストの中と出力への書き込みを、あとで見るか。** 範囲の決断。2 段目を入れた結果を見てから。
 
@@ -154,9 +154,9 @@
 
 - オーナーの発言 2026-11-20（言い直しと前提への答え、問いへの答え、「JSON Schema Validator のようなものを活用するのは。検査器を 2 つ用意するのは微妙では」、最後の「決めた」）。
 - 検査を仕分けた調べものの報告と候補の一覧（2026-11-20。使った数と行はこの文書に写した）。
-- 反論（2026-11-20）。別のコンテキストの読むだけの役に「この設計を壊せ。証明できたものだけ返せ」と頼み、返った指摘を Chief Engineer が抜き取りでコードと照らした。壊れたのは「Go のテストが既に見ている節はシェルから消せる」（決めたこと 12）。一部が壊れたのは、repo の違う PR の守りの置き場（決めたこと 11）と、ゲートの REST の字面の検査（決めたこと 8 の入れなかった規則）。
+- 反論（2026-11-20）。別のコンテキストの読むだけの役に「この設計を壊せ。証明できたものだけ返せ」と頼み、返った指摘を Chief Engineer が抜き取りでコードと照らした。壊れたのは「Go のテストが既に見ている節はシェルから消せる」（決めたこと 12）。一部が壊れたのは、repo の違う PR の守りの置き場（決めたこと 11）と、gate の REST の字面の検査（決めたこと 8 の入れなかった規則）。
 - セルの中の計測 2026-11-20: golangci-lint v2.15.0 を既定の設定で `./...` に当てた出力（決めたこと 4）。
 - [ADR-0032](0032-shorten-time-to-merge.md) の決めたこと 6・7・9、受け入れ条件 4〜6、依頼書に切る案 5、開いている問い 1・2・4。[ADR-0025](0025-formal-model-in-repo.md) の前提 1、決めたこと 3・6・8、開いている問い 3。[ADR-0033](0033-adr-inventory-and-slimming.md) の決めたこと 4・5（索引の形）。
 - main に入った変更: レビューを CI と並べる変更（PR #329）、`tests/schema.sh` の回し直しをやめる変更（PR #328）、検査の見出しの番号の重複の直し（PR #331）、手元の検査の線の引き直し（PR #332）。
 - `tests/andon-dispatcher.sh`・`tests/andon-gate.sh`・`tests/schema.sh`・`tests/image.sh`・`tests/package.sh`・`tests/ci.sh`・`tests/process.sh`。`model/`。`process/states/gate.yaml`・`human-merge.yaml`。`internal/contract/contract.go`・`merge.go`・`internal/issue/issue.go`・`merge.go`・`transition.go`・`internal/dispatcher/state.go`・`loop.go`・`pickup.go`・`drain.go`・`internal/gate/gate.go`。`cmd/kanban/schema_test.go`。`package/lib/andon/schema_check.py`。`package/gate.json`。`image/apply-main.sh`。`package/hooks/`。`.github/workflows/`。
-- Go の JSON Schema の検査器の候補: https://github.com/santhosh-tekuri/jsonschema と https://github.com/google/jsonschema-go （2026-11-20 に、版と `go.mod` の依存だけを読んだ）。
+- Go の JSON Schema の検査器の候補: https://github.com/santhosh-tekuri/jsonschema と https://github.com/google/jsonschema-go （2026-11-20 に、バージョンと `go.mod` の依存だけを読んだ）。

@@ -31,9 +31,9 @@
 - 仕様の細部は、実装のあと `docs/contract.md`・`schema/`・skill・コードが正になる。ADR の側は当時の語のまま残る（ADR-0006 には、改名前の `andon task` が 29 か所、「タスク」が 124 か所ある）。
 - 実装が済むと役目を終える節（受け入れ条件・依頼書に切る案）は合計 16%。
 - ADR を番号で指す行は、`docs/adr/` の外に約 800 行ある（`internal/` 233 行、`tests/` 170 行、`docs/decisions/` 144 行、`docs/contract.md` 60 行、`docs/design.md` 51 行など）。そのうち「ADR-NNNN 決めたこと N」と決定の番号まで指すものが 275 か所（`internal/dispatcher` 27、`tests` 13、`internal/issue` 12、`docs/process` 10 など）。
-- 短い版は既にある。`docs/decisions/` に ADR 1 本につき 1 件の要約が 28 本あり、1 本の平均は約 1.8KB。ただし段落の文で、決定の番号とは対応していない。
+- 短いバージョンは既にある。`docs/decisions/` に ADR 1 本につき 1 件の要約が 28 本あり、1 本の平均は約 1.8KB。ただし段落の文で、決定の番号とは対応していない。
 - 今の決まり: ADR は上書きしない。小さな改めは同じ ADR の「決めたこと」に下から足し、構造が変わる覆しは新しい ADR にする（`docs/design.md` §1.8）。[ADR-0026](0026-pr-rules-for-outside-readers.md) 決めたこと 10 は、既存の ADR と決定の記録を「当時の記録としてそのまま残す」とした（課題番号を書き換えるかどうかを決めた所）。語をカタカナに戻す置き換えだけは、凍結した記録にも及ぶ（[decisions/2026-11-10-word-replacement-reaches-frozen-records.md](../decisions/2026-11-10-word-replacement-reaches-frozen-records.md)）。
-- ゲート: `docs/**` はレベル A（`package/gate.json` の `tier_a_paths`）。skill（`package/skills/`）を変える PR はレベル C で、オーナーがマージする。
+- gate: `docs/**` はレベル A（`package/gate.json` の `tier_a_paths`）。skill（`package/skills/`）を変える PR はレベル C で、オーナーがマージする。
 - 棚卸しで見つけた食い違い: README の ADR の一覧で 13 本（0006・0007・0008・0010・0011・0012・0014・0015・0019・0020・0022・0023・0024）が「提案」のままだが、ADR 自身の状態行は「決定」。ADR-0016 だけ、題に番号が無く、状態行の形がほかと違う。
 - ADR が増える速さ: 2026-11-05 から 11-20 までの 16 日で 32 本。
 
