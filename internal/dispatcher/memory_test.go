@@ -58,6 +58,9 @@ func TestMemoryOncePerCell(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(mem, "MEMORY.md"), []byte("- [m1](m1.md)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(mem, "note.txt"), []byte("x\n"), 0o644); err != nil { // .md でないものは数えない
+		t.Fatal(err)
+	}
 	var logb bytes.Buffer
 	c := &Dispatcher{WS: ws, Log: &logb}
 	// memories は kanban ごとの待ちの memory の数を返し、待ちを空にする（Chief of Staff が受け取った）。
@@ -72,7 +75,7 @@ func TestMemoryOncePerCell(t *testing.T) {
 			for _, n := range st.Pending {
 				if n.Kind == "memory" {
 					got[slug]++
-					if n.Issue != "" || fmt.Sprint(n.Detail["line"]) != fmt.Sprint(memoryLine) {
+					if n.Issue != "" || fmt.Sprint(n.Detail["line"]) != fmt.Sprint(memoryLine) || fmt.Sprint(n.Detail["count"]) != fmt.Sprint(memoryLine+1) {
 						t.Errorf("memory の形が違う: %+v", n)
 					}
 				}
@@ -94,7 +97,7 @@ func TestMemoryOncePerCell(t *testing.T) {
 
 	c.Pass("")
 	if got := memories(); total(got) != 0 {
-		t.Errorf("線ちょうど（%d 件と目録）で memory を積んだ: %v", memoryLine, got)
+		t.Errorf("線ちょうど（%d 件と目録・.md でないもの）で memory を積んだ: %v", memoryLine, got)
 	}
 
 	put(memoryLine + 1)

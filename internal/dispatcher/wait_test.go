@@ -289,3 +289,40 @@ func TestWaitRearmsWhileStateLocked(t *testing.T) {
 		t.Fatalf("張り直しの合図で終わらない: %v %d %q", ok, code, r.stderr.String())
 	}
 }
+
+// 巡のつなぎ: 届ける待ちがあり Chief of Staff が入力を待っているのに待ち役がいなければ、巡の終わりにログへ1行だけ書く
+// （同じ待ちには1回。dispatcher は Chief of Staff へ打たない〈TestPatrolDoesNotSendToChief〉）。初めて見る kanban の巡では書かない。
+func TestPassLogsUnwaited(t *testing.T) {
+	d := t.TempDir()
+	bin := filepath.Join(d, "bin")
+	os.MkdirAll(bin, 0o755)
+	for name, body := range map[string]string{"kanban": tickKanban, "hc": tickHc} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_KANBAN", d)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
+	ws := filepath.Join(d, "ws")
+	led := filepath.Join(ws, "projects", "sample-site", "kanban")
+	os.MkdirAll(led, 0o755)
+	os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644)
+	os.WriteFile(filepath.Join(d, "cos"), nil, 0o644) // Chief of Staff は生きていて idle
+	var logb bytes.Buffer
+	c := &Dispatcher{WS: ws, Log: &logb}
+	c.Pass("") // 初めて見る kanban
+	st, _, err := LoadState("sample-site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: "S-1", Kind: "report", Detail: map[string]any{"report": "/r.md"}}}
+	if err := st.Save("sample-site"); err != nil {
+		t.Fatal(err)
+	}
+	c.Pass("")
+	c.Pass("")
+	if n := strings.Count(logb.String(), "t6 に届ける待ちが 1 件あるが、待ち役がいない"); n != 1 {
+		t.Errorf("待ち役がいないことを巡の終わりに1回だけ書かない（%d 回）: %q", n, logb.String())
+	}
+}

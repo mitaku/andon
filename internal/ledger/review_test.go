@@ -230,3 +230,25 @@ func TestSamePatchIgnoresContextLines(t *testing.T) {
 		})
 	}
 }
+
+// 結果（findings.json）を残さずに返ったレビュアーのあと、同じ commit で起動し直した次の回のレビュアーが結果を残すと、
+// 照合はその新しい回を見て current にする（返った前の回の findings.json が無いことで missing にしない）。
+func TestCheckReviewLatestRoundAfterEmptyReturn(t *testing.T) {
+	const head = "1111111111111111111111111111111111111111"
+	l := At(t.TempDir())
+	os.MkdirAll(l.Dir, 0o755)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
+	task := Issue{"id": "D-0001", "status": "doing", "profile": "claude"}
+	tasks := []Issue{task,
+		{"id": "D-0001-r1", "status": "done", "profile": "codex-review", "parent": "D-0001", "updated": "2026-11-20T00:00:00Z"},
+		{"id": "D-0001-r2", "status": "review", "profile": "codex-review", "parent": "D-0001", "updated": "2026-11-20T00:10:00Z"}}
+	rows := []Row{{ID: "D-0001-r1", By: DispatcherBy, Change: map[string]any{"add": "x"}}, {ID: "D-0001-r2", By: DispatcherBy, Change: map[string]any{"add": "x"}}}
+	lib := l.Library("D-0001-r2")
+	os.MkdirAll(lib, 0o755)
+	if err := os.WriteFile(filepath.Join(lib, "findings.json"), []byte(`{"commit":"`+head+`","findings":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := l.CheckReview(rows, tasks, task, head, "major", nil, nil); r.State != "current" || r.Issue != "D-0001-r2" {
+		t.Errorf("起動し直した回の結果をレビューに数えない: %+v", r)
+	}
+}

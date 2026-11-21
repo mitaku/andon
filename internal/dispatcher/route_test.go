@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -305,5 +306,38 @@ func TestLineGateNoAgent(t *testing.T) {
 	d := map[string]any{"decision": "fix", "reasons": []any{"Must fix 以上が 1 件"}, "record": "/r.json", "no_agent": true}
 	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json。担当（agent）がいないので送っていない" {
 		t.Fatalf("担当がいないことを書かない: %q", got)
+	}
+}
+
+// merge の段のつなぎ: andon issue merge が fix を担当へ返せずに印（unsent・no_agent）を書いた通知 `gate` は、
+// 記録だけにせず Chief of Staff への待ちに積み、merge のログの行を dispatcher のログに写す。送れた fix は記録だけ。
+func TestMergeDeliversUnsentFix(t *testing.T) {
+	for _, c := range []struct {
+		name, mark, log string
+		deliver         bool
+	}{
+		{"送れた fix", ``, ``, false},
+		{"担当の端末が無くて送れない", `,"unsent":"t7"`, `D-0001 の担当 t7 に fix を送れない（Chief of Staff に届ける）`, true},
+		{"担当（agent）がいない", `,"no_agent":true`, `D-0001 の gate が fix だが担当（agent）がいない（Chief of Staff に届ける）`, true},
+	} {
+		p := routeProject(t)
+		var log strings.Builder
+		p.c.Log = &log
+		andon := filepath.Join(t.TempDir(), "andon")
+		out := `{"issue":"D-0001","state":"gated","auto":false,"log":["` + c.log + `"],"notify":[{"kind":"gate","detail":{"decision":"fix","reasons":["Must fix 以上が 1 件"],"record":"/r.json"` + c.mark + `}}]}`
+		os.WriteFile(andon, []byte("#!/bin/sh\n[ \"$*\" = 'issue merge D-0001' ] || exit 9\ncat <<'EOF'\n"+out+"\nEOF\n"), 0o755)
+		p.c.Andon = andon
+		p.merge(p.tasks[0])
+		pending := len(p.st.Pending) == 1 && p.st.Pending[0].Kind == "gate" && p.st.Pending[0].Detail["record"] == "/r.json"
+		rec := recorded(t)
+		if c.deliver && (!pending || len(rec) != 0) || !c.deliver && (len(p.st.Pending) != 0 || len(rec) != 1) {
+			t.Errorf("%s: 待ち %+v、記録 %+v", c.name, p.st.Pending, rec)
+		}
+		if err := p.st.Save(p.l.Slug); err != nil {
+			t.Errorf("%s: 積んだ通知が書く前の照合を通らない: %v", c.name, err)
+		}
+		if c.log != "" && !strings.Contains(log.String(), c.log) {
+			t.Errorf("%s: merge のログの行を写さない: %s", c.name, log.String())
+		}
 	}
 }

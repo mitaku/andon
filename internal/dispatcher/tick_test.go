@@ -107,3 +107,70 @@ func TestPassTicks(t *testing.T) {
 		t.Errorf("tick の失敗のログが1行でない: %q", logb.String())
 	}
 }
+
+// 偽の kanban の CLI（ルーチン）: tick で $FAKE_KANBAN/due があればルーチンの課題を足し（due を消す）、ready に出す。前からある課題 P-0001 も ready に出る。
+const routineKanban = `#!/bin/sh
+d=$FAKE_KANBAN
+case $1 in
+  tick) [ -e "$d/due" ] && { rm "$d/due"; n=$(($(cat "$d/n" 2>/dev/null || echo 0) + 1)); echo $n > "$d/n"; }; echo ok ;;
+  list) echo '[]' ;;
+  ready)
+    printf '[{"id":"P-0001","status":"todo","title":"前からある"}'
+    i=1; while [ "$i" -le "$(cat "$d/n" 2>/dev/null || echo 0)" ]; do printf ',{"id":"R-000%s","status":"todo","title":"週1の見直し","routine":"weekly"}' "$i"; i=$((i + 1)); done
+    echo ']' ;;
+  *) echo "unexpected kanban $1" >&2; exit 9 ;;
+esac
+`
+
+// 巡のつなぎ: 巡の中で打った kanban tick が足したルーチンの課題を、同じ巡の ready の差で routine つきで拾う。
+// 初めて見る kanban（控えが無い）でも tick が足した課題だけを拾い（前からある ready は流さない）、二度は拾わない。
+func TestPassPicksTickedRoutine(t *testing.T) {
+	d := t.TempDir()
+	bin := filepath.Join(d, "bin")
+	os.MkdirAll(bin, 0o755)
+	for name, body := range map[string]string{"kanban": routineKanban, "hc": tickHc} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_KANBAN", d)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(d, "state"))
+	ws := filepath.Join(d, "ws")
+	led := filepath.Join(ws, "projects", "sample-site", "kanban")
+	os.MkdirAll(led, 0o755)
+	os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644)
+	os.WriteFile(filepath.Join(d, "cos"), nil, 0o644)
+	c := &Dispatcher{WS: ws, Log: &bytes.Buffer{}}
+	readies := func() []string {
+		t.Helper()
+		st, _, err := LoadState("sample-site")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var v []string
+		for _, n := range st.Pending {
+			if n.Kind == "ready" {
+				v = append(v, n.Issue+" "+asJSON(t, n.Detail))
+			}
+		}
+		st.Pending = []Notification{}
+		if err := st.Save("sample-site"); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	for _, round := range []string{"初めて見る kanban", "2巡目"} {
+		os.WriteFile(filepath.Join(d, "due"), nil, 0o644)
+		c.Pass("")
+		id := map[string]string{"初めて見る kanban": "R-0001", "2巡目": "R-0002"}[round]
+		want := id + ` {"routine":"weekly","title":"週1の見直し"}`
+		if got := readies(); len(got) != 1 || got[0] != want {
+			t.Errorf("%s: tick が足した課題だけを同じ巡で routine つきで拾わない: %q（%q のはず）", round, got, want)
+		}
+	}
+	c.Pass("")
+	if got := readies(); len(got) != 0 {
+		t.Errorf("tick が足した課題を二度拾った: %q", got)
+	}
+}
