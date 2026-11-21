@@ -37,6 +37,10 @@
 | kanban は課題の番号を正規の形に直す（`S-7` は `S-0007`）。検査で `library/` のパスを組むときは正規の形で書く。 | 無し。書き方の決まりで、見るものが無い。 |
 | `tests/andon-dispatcher.sh` は場面が kanban を共有する。場面を足して課題を `doing` のまま残すと、後の場面の数がずれる。足した場面は終わりで `kanban done` する。 | `tests/andon-dispatcher.sh`。残した課題があると、後の場面の数の検査が落ちる。 |
 | `set -o pipefail` の下で `cmd \| head -1` を使わず、`sed -n 1p` か `$(…)` で受ける。`cmd` の出力が増えると SIGPIPE で落ちる。 | 無し。出力が少ないうちは通り、見るものが無い。 |
+| 検査のシェル（`tests/*.sh`）を直すときは Edit ツールで直し、heredoc で包んだスクリプトで文字列を差し替えない。内側の `EOF` で外側が閉じ、破壊的な行（`rm -f "$HOME/.gitconfig"` など）が本物の HOME で走る。 | 無し。直し方の手順で、見るものが無い。 |
+| `tests/schema.sh` を単独で `andon issue record` に撮らない。emitters を全部走らせ直して10分を超える。schema の証拠は `tests/run --changed` の中で撮る。 | 無し。撮り方の手順で、見るものが無い。 |
+| `andon process render` は、その worktree で `mise exec -- go build ./cmd/andon` で作った andon で打つ。セルの andon は古いバージョンのことがある。 | `tests/process.sh`。`docs/process/` が `process/` から作り直しても変わらないことを見る。どの andon で打ったかは見ない。 |
+| 手元に docker が無いと `tests/image.sh` は飛ばされる。boot の `gh` の呼び出しを変えたら、偽の `gh` の部分を `env -i` と一時の HOME で `andon boot` に打たせて確かめる。 | 無し。手で確かめる手順で、見るものが無い。 |
 
 ## 約束と文書
 
