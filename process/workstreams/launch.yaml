@@ -1,3 +1,61 @@
+# 枠の数え方は ADR-0042 決めたこと 10・11。数える式は andon waiting だけが持つ（contract.md §25）。
 name: launch
 title: 起動（Launch）
-purpose: 依頼書のできた課題に、並行の上限とぶつかりを守って担当を起動する
+purpose: 依頼書のできた課題に、並行の枠（オーナー待ちを数えない）とぶつかりを守って担当を起動する
+triggers:
+  # 起動できる課題が増えた（kanban ready の前回との差）
+  - name: ready
+    kind: notification
+    notification: ready
+    start: count
+  - name: person
+    kind: person
+    start: count
+  # 課題がオーナー待ちに入った（gate の問い・判断の問い）。枠が 1 つ空く
+  - name: asked
+    kind: notification
+    notification: asked
+    start: count
+  # 課題が片付いた。オーナー待ちか動いている課題が 1 つ減る
+  - name: merged
+    kind: notification
+    notification: merged
+    start: count
+steps:
+  - id: count
+    title: 枠を数える
+    by: machine
+    input: [kanban（doing・review の担当の課題・問い・log.jsonl）, library/report.json, library/gate/<head>.json, project.json（chief_of_staff.parallel）]
+    output: [andon waiting --json（slots・items）]
+    command: andon waiting --json
+    next: [{ id: check, when: slots.free が 1 以上 }, { id: hold, when: slots.free が 0 }]
+  - id: check
+    title: 起動する課題とぶつかりを決める
+    by: ai
+    input: [andon waiting --json（slots・items）, kanban ready, 依頼書, doing・review の課題の依頼書, 出ている PR の files]
+    output: [kanban（after・束ねた課題）]
+    skill: chief-of-staff/playbooks/start.md
+    decides: [起動する課題（slots.free の数まで）, after で並べる, 束ねる, オーナーの go が要らない起動か（ルーチン・委譲の範囲・プロジェクトの設定）]
+    next: [{ id: start }]
+  - id: start
+    title: 担当を起動する
+    by: machine
+    input: [kanban（todo の課題）, brief.md]
+    output: [hc（担当の端末）, kanban（doing）, worktree と branch]
+    command: andon issue start
+    next: [{ id: tell }]
+  - id: tell
+    title: 起動をオーナーへ知らせる
+    by: ai
+    input: [andon issue start の出た場所の行]
+    output: [オーナーへの返事]
+    skill: chief-of-staff/playbooks/start.md
+    decides: [知らせる文]
+  - id: hold
+    title: 起動せずに待ち、オーナー待ちを並びの順に出す
+    by: ai
+    input: [andon waiting --json（slots・items）]
+    output: [オーナーへの返事, オーナーへの 1 問]
+    skill: [chief-of-staff/playbooks/start.md, ask-one-by-one#3]
+    decides: [待つわけ（オーナー待ちが上限の数・動いている課題が上限の数）, 問いを出す順（items の並び。holds の多い順）, マージ待ちの後ろに並べた課題を先に起動しない]
+counts: [flow.wait.todo, flow.wait.queued]

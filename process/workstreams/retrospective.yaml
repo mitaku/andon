@@ -30,7 +30,7 @@ steps:
   - id: start
     title: 振り返りの担当を起動する
     by: ai
-    input: [notification.ready, kanban（並行の上限）]
+    input: [notification.ready, andon waiting --json（slots）]
     output: [hc（担当の端末）, kanban（doing）]
     skill: [chief-of-staff/playbooks/retro.md, chief-of-staff/playbooks/start.md]
     decides: [オーナーに聞かずに起動する]

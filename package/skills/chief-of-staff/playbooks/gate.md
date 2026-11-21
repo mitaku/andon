@@ -22,10 +22,11 @@ Chief of Staff が決めるのは、依頼書の Settings（`brief.md`。`review
 3. オーナーにマージを頼む。ほかの問いと同じく返事の本文に書いて終える（ask-one-by-one skill §2）。課題の番号（題）と PR の URL を書き、何が変わったかを言う。CI の結果も書く。レビューの回数と結果、見送った指摘があればそれも、それぞれ文で書く。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
    オーナーがマージしたら、dispatcher が次の見回り（1分以内）で拾い、この問いを「オーナーがマージした」と閉じて片付ける（`finish.md`）。`kanban answer`・`kanban received` を手で打たない。
    マージ待ちの PR の rebase を担当に頼んだときも、この問いを手で閉じない。担当の `andon issue ready` は前の head の問いを数えずに通り、gate が今の head で決めたときに dispatcher が閉じる（今の head でもオーナーへ回れば新しい問いが来る）。
+4. マージの依頼を出した課題はオーナー待ちになり、枠から外れる。続けて `start.md` の 1 で枠を数え直し、空いていれば起動できる課題を起動する（オーナーのマージを待たない）。
 
 ## approve で止まったとき（`<id> gate: approve` のあと `merged` が来ない）
 
-`merge: person`、または `merge: auto` を最後に書いたのが Chief of Staff でない。オーナーにマージを頼む（上の3と同じ形）。オーナーがマージしたあとは `finish.md`。
+`merge: person`、または `merge: auto` を最後に書いたのが Chief of Staff でない。オーナーにマージを頼む（上の3と同じ形）。枠は上の4と同じく数え直す。オーナーがマージしたあとは `finish.md`。
 
 ## 上限を超えた回（`<id> report` で、dispatcher がレビュアーを起動しなかった）
 
