@@ -58,6 +58,7 @@ printf '{"pr": "%s/1", "remember": ["学び"]}\n' "$pr" >"$l/report.json"
 printf '{"at": "x", "corrections": [{"kind": "pr", "comments": [{"author": "o", "at": "x", "body": "token = %s"}], "human_commits": []}]}\n' "$key" >"$l/corrections.json"
 yaml S-0001-r1 'status: done\nprofile: codex-review\nparent: S-0001\n'
 printf '{"commit": "%s", "findings": [{"severity": "major", "file": "a.go", "line": 3}]}\n' "$sha" >"$(lib S-0001-r1)/findings.json"
+printf '# S-0001 のレビュー（1 回目）\n対象: worktree `/w`（detached）。commit %s。\n' "$sha" >"$k/issues/S-0001-r1/brief.md"
 # S-0002: 期間の外。S-0003: 途中で当て直した（当て直しの記録の時刻が起動と片付けの間）
 yaml S-0002 'status: done\nprofile: claude\n'
 yaml S-0003 'status: done\nprofile: claude\n'
@@ -103,7 +104,7 @@ echo 'ok 7: 秘密の形を伏せる（オーナーの文と手直しの本文�
 
 # 8: 期間に片付いた担当の課題だけ（片付いた順）。子の指摘は親に入る
 jq -e '[.issues[].id] == ["S-0007", "S-0001", "S-0003"]' "$tmp/out.json" >/dev/null || die "束ねた課題: $(jq -c '[.issues[].id]' "$tmp/out.json")"
-jq -e '.issues[] | select(.id == "S-0001") | .reviews == [{id: "S-0001-r1", profile: "codex-review",
+jq -e '.issues[] | select(.id == "S-0001") | .reviews == [{id: "S-0001-r1", profile: "codex-review", reason: "first",
   findings: {commit: "1111111111111111111111111111111111111111", findings: [{severity: "major", file: "a.go", line: 3}]}, outcome: null}]
   and .remember == ["学び"] and (.launches[0] | has("memory_index") | not)' "$tmp/out.json" >/dev/null || die "S-0001 の束: $(jq -c '.issues[1]' "$tmp/out.json")"
 jq -e '.previous_retro.issue == "S-0006"' "$tmp/out.json" >/dev/null || die "前の振り返り"

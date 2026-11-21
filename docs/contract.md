@@ -838,7 +838,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
     "outcome": {"result": "merged", "worked_minutes": 95,
                 "cost": {"sessions": 2, "measured": 1, "tokens": {"input": 1200, "output": 35000, "cache_read": 2400000, "cache_write": 180000}}},
     "gates": [{"head": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "at": "2026-11-18T09:55:00Z", "tier": "B", "decision": "approve", "reasons": [], "merged": true}],
-    "reviews": [{"id": "S-0012-r1", "profile": "codex-review",
+    "reviews": [{"id": "S-0012-r1", "profile": "codex-review", "reason": "first",
                  "findings": {"commit": "3d2e1f089c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a", "findings": [{"severity": "major", "file": "app/reply.ts", "line": 40}]},
                  "outcome": null}],
     "waived": [], "corrections": [{"kind": "answer", "question": 2, "decision_kind": "users", "recommended": "CSV だけ", "picked": "CSV と Excel"}],
@@ -867,7 +867,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `issues[].launches` | 起動の記録（§18）の行ごとの `at`・`profile`・`model`（`command` の `--model` か `-m` の値。無ければ `null`）・`commit`（`package.commit`。無ければ `null`）。全文は `library` の `launches.jsonl`。ファイルが無ければ `null` |
 | `issues[].outcome` | 結果の記録（§19）の `result`・`worked_minutes` と、`sessions[]` のコストの合計 `cost`（`sessions` はセッションの数、`measured` はそのうち `cost` があった数、`tokens` はその合計）。`sessions` が `null` なら `cost` は `null`。全文は `library` の `outcome.json`。無ければ `null`（この仕組みの前の課題） |
 | `issues[].gates` | gate の記録（§7）の `head`・`at`・`tier`・`decision`・`reasons`・`merged`。判定の時刻の順 |
-| `issues[].reviews` | レビュアーの子の課題ごとの `findings.json`（§3）と `outcome.json` の写し。無ければ `null` |
+| `issues[].reviews` | レビュアーの子の課題ごとの `findings.json`（§3）と `outcome.json` の写し。無ければ `null`。`reason` はその回を頼んだ理由で、レビュアーの依頼書の「再レビュー: 前の回の commit」の段（dispatcher が書く）と、その commit を見た前の回の `findings.json` から決める。`first` は1回目、`fixed` は前の回に critical か major の指摘（課題の前からあった指摘を除く）があった回、`rebased` は前の回の commit が今の commit の祖先でない（rebase をまたいだ）回、`rerequested` はどれでもない回（前の回の結果が古い commit を見ていた・CI や軽い指摘を直した・前の回が結果を残さなかった）。依頼書が無い、または2回目以降なのに再レビューの段が無ければ `null` |
 | `issues[].estimate`・`agent_estimate`・`worked_minutes` | `issue.yaml` の `estimate`・`report.json` の `estimate.size`・`outcome.json` の `worked_minutes` |
 | `issues[].waived`・`remember`・`agents_md` | `report.json` の写し |
 | `issues[].corrections` | `corrections.json`（§14）の `corrections`。ファイルが無ければ `null`（集めていない） |

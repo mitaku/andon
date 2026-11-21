@@ -82,3 +82,27 @@ func TestRetroDueLogsUnreadableAgainAfterReadable(t *testing.T) {
 		t.Fatalf("また読めなくなったのにログが %d 行（2 行のはず）:\n%s", n, log.String())
 	}
 }
+
+// レビュアーの依頼書の「再レビュー:」の段は、振り返りの collect が回の理由に読む（ledger.BriefReReview）。dispatcher が書く段の
+// どの形からも前の回の commit が読め、rebase をまたいだと読むのは祖先でないと書いた形だけ。
+func TestReReviewRangeReadsBack(t *testing.T) {
+	prev, cur, mb := strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40)
+	for _, c := range []struct {
+		name    string
+		sp      span
+		rebased bool
+	}{
+		{"祖先", span{}, false},
+		{"確かめられない", span{Unknown: true}, false},
+		{"rebase（base を読めた）", span{Rebased: true, Old: mb, New: mb}, true},
+		{"rebase（base を読めない）", span{Rebased: true}, true},
+	} {
+		got, rebased := ledger.BriefReReview(reReviewRange(prev, cur, "https://github.com/example/app/pull/7", c.sp))
+		if got != prev || rebased != c.rebased {
+			t.Errorf("%s: 前の回 %q・rebase %v（want %q・%v）", c.name, got, rebased, prev, c.rebased)
+		}
+	}
+	if got, _ := ledger.BriefReReview("対象: worktree `/w`（detached）。commit " + cur + "。\n"); got != "" {
+		t.Errorf("1回目の依頼書から前の回の commit を読んだ: %q", got)
+	}
+}

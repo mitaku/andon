@@ -299,7 +299,7 @@ retro|.issues[0].outcome|result worked_minutes cost
 retro|.issues[0].outcome.cost|sessions measured tokens
 retro|.issues[0].outcome.cost.tokens|input output cache_read cache_write
 retro|.issues[0].gates[0]|head at tier decision reasons merged
-retro|.issues[0].reviews[0]|id profile findings outcome
+retro|.issues[0].reviews[0]|id profile reason findings outcome
 retro|.issues[0].after_merge|merge_commit merged_at checks reverted_by
 retro|.issues[0].after_merge.checks|state failed
 retro|.issues[0].after_merge.reverted_by[0]|pr merged_at
@@ -731,6 +731,8 @@ fail|retro|.issues[0].launches[0].memory_index = "x"|起動の記録に目録が
 fail|retro|.issues[0].outcome.gates = []|結果の記録に gate の写しがある
 pass|retro|.fixes[0].recurred_before = null|前の振り返りが数えていない前の直し
 fail|retro|.fixes[0].recurred_before = -1|前の再発の数が負
+pass|retro|.issues[0].reviews[0].reason = null|回の理由を決められないレビュー
+fail|retro|.issues[0].reviews[0].reason = "ci"|回の理由が知らない値
 pass|patterns|.previous_retro = null|前の振り返りが無い
 pass|patterns|. + {"patterns": [], "fixes": []}|パターンも前の直しも無い
 pass|patterns|.patterns[0].target = {"kind": "andon", "paths": ["package/skills/worker/SKILL.md"]}|Andon の直しで repo を持たない
@@ -888,6 +890,7 @@ retro|."$defs".summary.required -= ["findings"]|要約の束の必須から find
 retro|."$defs".launch.additionalProperties = true|起動の記録の写しの知らないキーを許す
 retro|."$defs".outcome.additionalProperties = true|結果の記録の写しの知らないキーを許す
 retro|.required -= ["boundary"]|振り返りの入力の必須から boundary を外す
+retro|."$defs".review.properties.reason.anyOf[0].enum += ["ci"]|レビューの回の理由を緩める
 patterns|."$defs".pattern.allOf = []|skill と文面の段の「上の段で止められない理由」を外す
 patterns|."$defs".pattern.properties.decision.enum += ["keep"]|判定に keep を足す
 patterns|."$defs".pattern.required -= ["decision"]|パターンの必須から decision を外す
