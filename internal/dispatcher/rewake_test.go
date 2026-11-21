@@ -92,6 +92,8 @@ func TestRewakeIgnores(t *testing.T) {
 // 待つ間にオーナーが打てば合図を打たずに 0: 動いている（working）・通って終わった（done・idle）・端末が読めない・
 // 通ったターンの Stop で回数が消えた・また切られて次のフックが回数を進めた。
 func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
+	old := rewakeSleep
+	t.Cleanup(func() { rewakeSleep = old })
 	for name, during := range map[string]func(f *retryFixture){
 		"working":    func(f *retryFixture) { f.cos("working") },
 		"done":       func(f *retryFixture) { f.cos("done") },
@@ -103,32 +105,15 @@ func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
 		},
 	} {
 		f := rewakeFixture(t)
-		rewakeUnit = 200 * time.Millisecond // 書いたのを見てから変えるまでの猶予。順は時刻でなく、回数の控えが書かれたことで決める
-		stop, applied := make(chan struct{}), make(chan bool)
-		go func() { applied <- duringWait(stop, during, f) }()
+		// 待ちの中で変化を打ち終えてから待ちを終える。順は時刻でなく、待ちに入ったこと（回数の控えを書いたあと）で決まる
+		var waited []time.Duration
+		rewakeSleep = func(d time.Duration) { waited = append(waited, d); during(f) }
 		code, msg, _ := rewake(t, `{"error":"server_error"}`)
-		close(stop)
-		if !<-applied {
-			t.Fatalf("%s: 待つ前に終わった（回数の控えを書かなかった）: %d %q", name, code, msg)
+		if len(waited) != 1 || waited[0] != rewakeUnit {
+			t.Fatalf("%s: 1 単位の待ちに1回入っていない: %v", name, waited)
 		}
 		if code != 0 || msg != "" {
 			t.Fatalf("%s: 止まったままでない Chief of Staff に合図を打った: %d %q", name, code, msg)
-		}
-	}
-}
-
-// duringWait は RewakeMain が回数の控えに 1 を書いた（待ちに入った）のを見てから during を打ち、打てば true。
-// stop が閉じても書かれていなければ打たずに false（偽の hc の起動が遅くても、控えを書く前に変えない）。
-func duringWait(stop <-chan struct{}, during func(f *retryFixture), f *retryFixture) bool {
-	for {
-		if b, err := os.ReadFile(rewakePath("sample-site")); err == nil && strings.TrimSpace(string(b)) == `{"count":1}` {
-			during(f)
-			return true
-		}
-		select {
-		case <-stop:
-			return false
-		case <-time.After(time.Millisecond):
 		}
 	}
 }

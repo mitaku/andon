@@ -23,9 +23,11 @@ const RewakeUsage = "usage: andon dispatcher rewake [--project <slug>] < フッ�
 const RewakeSignal = "andon: プロバイダに切られて止まったターンを起動した。これは合図で、オーナーの依頼ではない。止まる前の続きを、今の許可の範囲で続ける。"
 
 // rewakeMax は合図で起動する回数（1・2・4・8 分）。rewakeUnit は待つ間の1単位（テストで縮める）。
+// rewakeSleep は待ち（テストが差し替え、待つ間に起きることを打ち終えてから待ちを終える）。
 var (
-	rewakeMax  = 4
-	rewakeUnit = time.Minute
+	rewakeMax   = 4
+	rewakeUnit  = time.Minute
+	rewakeSleep = time.Sleep
 )
 
 // rewakeErrors は起動する error（StopFailure の入力の error。プロバイダの混雑・rate limit。待てば通るもの）。
@@ -93,7 +95,7 @@ func RewakeMain(args []string, stdin io.Reader, stderr io.Writer) int {
 		rewakeLog(slug, fmt.Sprintf("Chief of Staff %s はプロバイダに切られて %d 回目（%s）。起動しない（オーナーが Herdr App の error で気づく）", addr, c.Count, in.Error))
 		return 0
 	}
-	time.Sleep(time.Duration(1<<(c.Count-1)) * rewakeUnit)
+	rewakeSleep(time.Duration(1<<(c.Count-1)) * rewakeUnit)
 	// 起動するのは、切られたターンがまだ止まったままのときだけ: 端末が error のままで、回数が自分の書いた値のまま
 	// （待つ間にオーナーが打ったターンが通れば Stop の drain が消し、また切られれば次のフックが進める）。読めなければ起動しない。
 	var now rewakeCount
