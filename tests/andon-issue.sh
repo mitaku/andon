@@ -22,12 +22,15 @@ export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT
 unset KANBAN_ROOT
 mkdir -p "$HOME" "$tmp/demo" "$tmp/bin"
 # 偽の gh: pr view <url> --json headRefOid -q .headRefOid → $tmp/prhead、pr view <url> --json state -q .state → $tmp/prstate。
-# issue comment <url> --body <本文> は $tmp/gh-issue に「comment <url>」の行、本文を $tmp/gh-body に足す（外へ出さない）
+# issue comment <url> --body <本文> は $tmp/gh-issue に「comment <url>」の行、本文を $tmp/gh-body に足す（外へ出さない）。
+# PR のファイル（api --paginate --slurp …/files）は $tmp/prfiles、差分（pr diff）は空（review: off の課題のレベルを決めるのに読む）
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 case "\$1 \$2 \$4 \$5" in
   "pr view --json headRefOid") cat "$tmp/prhead" ;;
   "pr view --json state") cat "$tmp/prstate" ;;
+  "api --paginate "*) cat "$tmp/prfiles" ;;
+  "pr diff --repo "*) ;;
   "issue comment --body "*) [ "\$4" = --body ] && [ \$# = 5 ] || { echo "unexpected gh \$*" >&2; exit 99; }
     echo "comment \$3" >> "$tmp/gh-issue"; printf '%s\n' "\$5" >> "$tmp/gh-body" ;;
   *) echo "\$1 \$2 \$3" >> "$tmp/gh-issue"; echo "unexpected gh \$*" >&2; exit 99 ;;
@@ -35,6 +38,10 @@ esac
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
+prfiles() { jq -n --arg p "$1" '[[{filename: $p, additions: 3, deletions: 0}]]' > "$tmp/prfiles"; }   # PR が変えたファイル
+prfiles docs/a.md
+# review: off の課題のレベルは repo の package/gate.json で決める（gate と同じ条件表。start の場面はあとで写しの置き場に向け直す）
+export ANDON_HOME="$src/package"
 
 pass=0
 ok() { echo "ok   $1"; pass=$((pass + 1)); }
@@ -196,7 +203,7 @@ ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で r
 id2=$(as t5 kanban add 'レビュー無し' --profile codex)
 as t5 kanban set "$id2" status=doing review=off "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 "$andon" issue report "$id2" --pr "$pr" <<<'## Report' >/dev/null
-expect_fail 'review が on でない' "$andon" issue review-request "$id2" <<<'## Report'
+expect_fail 'review が off で、差分はレベル A。gate はレビューを求めないので頼めない' "$andon" issue review-request "$id2" <<<'## Report'
 # 受け取られていない問い（open・answered）があれば、ready は断って doing のまま（finish と kanban done と同じ確かめ）
 kanban ask "$id2" 'どちらか' >/dev/null
 expect_fail "受け取られていない問いがあるので review にしない: $id2#1（open）" "$andon" issue ready "$id2"
@@ -206,7 +213,25 @@ expect_fail "$id2#1（answered）" "$andon" issue ready "$id2"
 kanban received "$id2#1" >/dev/null
 ok 'ready: 受け取られていない問いがあれば断り、課題は doing のまま'
 "$andon" issue ready "$id2" >/dev/null
-ok 'ready: review: off ならレビューを照合しない。問いを受け取ったあとは通る。review-request は断る'
+ok 'ready: review: off で差分がレベル A ならレビューを照合しない。問いを受け取ったあとは通る。review-request は断る'
+
+# review: off で始めたコードの課題でも、差分がレベル B・C なら gate はレビューを求める。ready は review に入る前に断り、
+# review-request は Chief of Staff が review を書き直すのを待たずに受ける（review の値は off のまま）
+id6=$(as t5 kanban add 'review: off のコードの課題' --profile claude)
+as t5 kanban set "$id6" status=doing review=off must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+"$andon" issue report "$id6" --pr "$pr" <<<'## Report' >/dev/null
+prfiles internal/issue/start_test.go
+expect_fail 'review は off だが、差分がレベル B（実行面 internal/issue/start_test.go' "$andon" issue ready "$id6"
+[ "$(kanban show "$id6" --json | jq -r .issue.status)" = doing ] || die 'ready: review: off で差分がレベル B なのに review にした'
+"$andon" issue review-request "$id6" <<<'## Report' >/dev/null || die 'review-request: review: off で差分がレベル B なのに断った'
+jq -e --arg c "$(git -C "$tmp/wt" rev-parse HEAD)" '.review_request.round == 1 and .review_request.commit == $c' "kanban/issues/$id6/library/report.json" >/dev/null || die 'review-request: review_request を書いていない'
+grep -q 'review は off だが、差分がレベル B' "kanban/issues/$id6/report.md" || die 'review-request: レビュー依頼の行に review: off で頼んだ理由が無い'
+[ "$(kanban show "$id6" --json | jq -r .issue.review)" = off ] || die 'review-request: review の値を書き換えた'
+prfiles model/issue-map.txt
+expect_fail '差分がレベル C' "$andon" issue ready "$id6"
+prfiles docs/a.md
+as t5 kanban done "$id6" >/dev/null
+ok 'review: off でも差分がレベル B・C なら、ready はレビューを求めて断り、review-request は受ける（review は off のまま）'
 # ready は前の head についての gate の問いを数えずに review にするが、越えるのはその問いだけ。ready が問いを確かめてから
 # kanban review を打つまでの間に kanban ask で足された問いがあれば、review にせず doing のまま残す。
 # 間に問いを足すのは、kanban review の手前で kanban ask を打つ包み（PATH の先頭の kanban）で写す

@@ -425,7 +425,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	facts.ChecksOverdue = ChecksOverdue(rows, id, now, facts.ChecksWait)
 
 	// L3 レビュー・L2 検査（前の段で決まっていれば回さない）
-	facts.ReviewRequired = tier == "B" || tier == "C" || s.Review == "on"
+	facts.ReviewRequired = ReviewRequired(tier, s.Review)
 	rec.Review = ledger.Review{State: "off", Waived: len(rep.Waived)}
 	gated := len(facts.LedgerReasons) == 0 && facts.PROpen && len(facts.Blockers) == 0 && facts.SettingsReason == "" && known && rec.Delegation.OK
 	if facts.ReviewRequired {

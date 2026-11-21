@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/gate"
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
@@ -266,8 +267,8 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 	limit, _ := strconv.Atoi(s.ReviewRounds)
 	r.Repo = t.Str("repo")
 	switch {
-	case s.Review != "on" || !p.l.Trusted(p.rows, t, "review"):
-		return "issue.yaml の review が on でない、または最後に書いたのが Chief of Staff でない", true
+	case s.Review == "" || !p.l.Trusted(p.rows, t, "review"):
+		return "issue.yaml の review が on/off でない、または最後に書いたのが Chief of Staff でない", true
 	case !p.trusted(t, "reviewer") || !p.trusted(t, "review_rounds"):
 		return "issue.yaml の reviewer・review_rounds を最後に書いたのが Chief of Staff でない", true
 	case rr.Round > limit:
@@ -287,6 +288,17 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		return err.Error(), false
 	} else if head != rr.Commit {
 		return fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12]), true
+	}
+	// review: off の課題は、gate がレビューを求めるか（差分がレベル B・C か）を gate と同じ関数で決め直す（review-request の言い分を信じない）。
+	// review の値は Chief of Staff が書いたもののまま。差分を読めなければ次の見回りでやり直す
+	if s.Review == "off" {
+		need, cl, err := gate.NeedsReview(r.Repo, s.Review, rep)
+		if err != nil {
+			return "差分のレベルを決められない: " + err.Error(), false
+		}
+		if !need {
+			return "issue.yaml の review が off で、差分は" + gate.TierLine(cl) + "（gate はレビューを求めない）", true
+		}
 	}
 	dir, err := repoDir(r.Repo)
 	if err != nil {

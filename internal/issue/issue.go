@@ -80,7 +80,8 @@ const Usage = "usage: andon issue show <id>                                  予
 	"                                                          （id を省くと端末のラベル issue=。担当でなければ何も出さない）\n" +
 	"--data は report.json の任意のキー（pr・estimate・plan・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
 	"--pr を省くと前の report.json の pr を、--data に estimate・plan が無ければ前のそれを引き継ぐ。\n" +
-	"review_request は、HEAD が前の report.json の commit と同じ間だけ引き継ぐ（HEAD が進めば消える。頼み直しは review-request）。\n"
+	"review_request は、HEAD が前の report.json の commit と同じ間だけ引き継ぐ（HEAD が進めば消える。頼み直しは review-request）。\n" +
+	"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。review-request と ready はこれで受ける・断る。\n"
 
 const (
 	exitFail  = 1
@@ -510,8 +511,8 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 		return err
 	}
 	s := ledger.SettingsOf(c.issue)
-	if s.Review != "on" {
-		return fail("issue.yaml の review が on でない（%q）。レビューは頼めない", c.issue.Str("review"))
+	if s.Review == "" {
+		return fail("issue.yaml の review が on/off でない（%q）。レビューは頼めない（Chief of Staff に書いてもらう）", c.issue.Str("review"))
 	}
 	if c.issue.Str("review_rounds") != "" && c.issue.Str("review_rounds") != s.ReviewRounds {
 		return fail("issue.yaml の review_rounds が 1 以上の数でない: %q", c.issue.Str("review_rounds"))
@@ -534,6 +535,15 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	if ph != head {
 		return fail("PR の head（%s）が HEAD（%s）と違う。push してから頼む", ph[:12], head[:12])
 	}
+	// 受けるかは gate がレビューを求めるかと同じ関数で決める（review: off でも差分がレベル B・C なら受ける。
+	// review の値は書き換えない。dispatcher も起動の前に同じ関数で決め直す）
+	need, cl, err := gate.NeedsReview(c.issue.Str("repo"), s.Review, prev)
+	if err != nil {
+		return fail("差分のレベルを決められない（レビューが要るか分からない）: %v", err)
+	}
+	if !need {
+		return fail("issue.yaml の review が off で、差分は%s。gate はレビューを求めないので頼めない。andon issue ready へ進む", gate.TierLine(cl))
+	}
 	round, previous, err := c.rounds(head)
 	if err != nil {
 		return err
@@ -547,6 +557,9 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 		line += "（追加）"
 	}
 	line += fmt.Sprintf("。commit %s。PR %s。Reviewer %s", head, prev.PR, s.Reviewer)
+	if s.Review == "off" {
+		line += "。review は off だが、差分が" + gate.TierLine(cl) + "なので gate はレビューを求める"
+	}
 	if previous != nil {
 		line += fmt.Sprintf("。前回 %s（差分だけ）", *previous)
 	}
@@ -669,19 +682,28 @@ func (c *ctx) ready(stdout io.Writer) error {
 		return fail("PR の head（%s）が HEAD（%s）と違う。push する", ph[:12], head[:12])
 	}
 	s := ledger.SettingsOf(c.issue)
-	switch s.Review {
-	case "on":
+	if s.Review == "" {
+		return fail("issue.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.issue.Str("review"))
+	}
+	// レビューが要るかは gate と同じ関数で決める（review: off でも差分がレベル B・C なら gate はレビューを求める）。
+	// ここで断らないと、review に入ってから gate が review missing で返し、担当が1巡むだにする
+	need, cl, err := gate.NeedsReview(c.issue.Str("repo"), s.Review, r)
+	if err != nil {
+		return fail("差分のレベルを決められない（gate がレビューを求めるか分からない）: %v", err)
+	}
+	if need {
 		tasks, err := c.l.List()
 		if err != nil {
 			return err
 		}
 		rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, s.MustFix, r.Waived, nil)
-		if rv.State != "current" {
+		switch {
+		case rv.State == "current":
+		case s.Review == "on":
 			return fail("レビューが %s: %s", rv.State, rv.Reason)
+		default:
+			return fail("レビューが %s: %s。review は off だが、差分が%sなので gate はレビューを求める。andon issue review-request で頼む", rv.State, rv.Reason, gate.TierLine(cl))
 		}
-	case "off":
-	default:
-		return fail("issue.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.issue.Str("review"))
 	}
 	review := []string{"review", c.id}
 	if len(stale) > 0 {

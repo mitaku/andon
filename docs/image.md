@@ -180,7 +180,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | 重い検査 | 見る部分 |
 |---|---|
 | `andon-dispatcher.sh` | andon issue が使う Go の package（下）・`package/gate.json`・`package/hooks/` |
-| `andon-issue.sh` | andon issue が使う Go の package |
+| `andon-issue.sh` | andon issue が使う Go の package・`package/gate.json` |
 | `andon-gate.sh` | andon issue が使う Go の package・`package/gate.json` |
 | `apply-main.sh` | `image/apply-main.sh`・`cmd/andon`・`cmd/kanban`・`internal/cli`・`internal/pkgversion` と、`cmd/kanban` が import する `internal/ledger`・`delegate`・`spawn`・`contract`、`contract` が import する root の `embed.go` |
 | `schema.sh` | `schema/` の直下の `*.schema.json`・`schema/ledger/` の `*.schema.json`・`docs/contract.md`・`package/lib/andon/schema_check.py`・照合に打つ `andon schema` の Go の package（`cmd/andon`・`internal/cli`・`internal/schema`・`internal/contract`・root の `embed.go`） |

@@ -24,6 +24,9 @@ argument-hint: "[PR の URL か番号]"
 
 Chief of Staff が依頼書を書くときにこの条件で決め、Settings の `Review` に `on` / `off` で書く（既定 `off`）。
 
+`off` でも、PR の差分がレベル B・C なら gate はレビューを求める。担当の `andon issue review-request` と dispatcher は gate と同じ条件で受け、レビュアーを起動する。`andon issue ready` はレビューが無いと断る。
+Chief of Staff は `review` を `on` に書き直さない。書き直すのは、レベル A の差分にもレビューを入れたいときだけ。
+
 ## 2. プロファイルを選ぶ
 
 - **実装と別ブランド**。依頼書の Settings の `Reviewer`（既定 `codex-review`）。
