@@ -232,6 +232,9 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 			p.check("worktree", "skipped", "worktree と branch は作らない（origin の branch・置き場が空いているかは確かめていない）")
 		}
 	}
+	if err := c.checkSettings(p); err != nil {
+		return nil, err
+	}
 	p.Labels = workLabels(slug, id, p.Title)
 	// Claude 系はセッションの id を Andon が決めて渡し（template の command が端末のラベルから読む）、kanban の session に書く。
 	// Codex 系は id を決める口が無いので、resume のときに記録から引く（ADR-0012 決めたこと 11）
@@ -241,6 +244,81 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	}
 	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath) + spawn.Guide()
 	return p, nil
+}
+
+// settingChoices は予約キーの値の選び方（断るときに出す kanban set の行で、無いキーの値の場所に置く。値は Chief of Staff が選ぶ）。
+// settingValue は SettingsOf がそのキーを読んだ値（知らない値は空か既定になり、書いてある値と合わない）。
+var (
+	settingChoices = map[string]string{"review": "<on|off>", "must_fix": "<critical|major|minor|trivial>", "reviewer": "<codex-review|claude-review>",
+		"review_rounds": "<1 以上の数>", "merge": "<auto|person>", "estimate": "<small|medium|large>"}
+	settingValue = map[string]func(ledger.Settings) string{
+		"review": func(s ledger.Settings) string { return s.Review }, "must_fix": func(s ledger.Settings) string { return s.MustFix },
+		"reviewer": func(s ledger.Settings) string { return s.Reviewer }, "review_rounds": func(s ledger.Settings) string { return s.ReviewRounds },
+		"merge": func(s ledger.Settings) string { return s.Merge }, "estimate": func(s ledger.Settings) string { return s.Estimate }}
+)
+
+// requiredSettings は、課題を起動する前に確かめる予約キー（contract.md §2）を、確かめる順に返す。
+// review と estimate はどの担当の課題にも要る。must_fix と merge は gate とマージが読むので、PR を出す課題
+// （repo があって deliverable が candidates でない。dispatcher の gated と同じ）だけ。reviewer と review_rounds は
+// レビュアーを起動するときに読むので、そのうえ review が off でないときだけ要る。review が off でも差分がレベル B・C なら
+// dispatcher はレビュアーを起動し、値のある reviewer・review_rounds には照合を求める（dispatcher の trusted）ので、
+// 値があれば確かめる（optional。無ければ求めない）。
+func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) {
+	keys = []string{"review"}
+	if t.Str("repo") != "" && ledger.SettingsOf(t).Deliverable != "candidates" {
+		keys = append(keys, "must_fix", "reviewer", "review_rounds", "merge")
+		if t.Str("review") == "off" {
+			optional = map[string]bool{"reviewer": true, "review_rounds": true}
+		}
+	}
+	return append(keys, "estimate"), optional
+}
+
+// checkSettings は予約キーが揃っているかを確かめる: 要るキー（requiredSettings）が全部あって知っている値で、
+// 最後に書いたのが今の Chief of Staff の端末か（ledger.Trusted。gate・dispatcher と同じ履歴の照合）。
+// 揃っていなければ起動しない: 担当は予約キーを書けず、実装を終えてから review-request・ready・gate で止まるため。
+// 値は決めずに書かない。直す kanban set の行を出し、無いキーの値は選ぶ場所を残す（値を決めるのは Chief of Staff）。
+// Chief Engineer の課題は見ない（予約キーを置かない）。レビュアーの課題は plan がこの前に断る。
+func (c *ctx) checkSettings(p *startPlan) error {
+	if p.Profile == chiefengineer.Profile {
+		p.check("settings", "ok", "Chief Engineer の課題は予約キーを見ない")
+		return nil
+	}
+	keys, optional := requiredSettings(c.issue)
+	rows, s, cos := c.l.Log(), ledger.SettingsOf(c.issue), c.l.ChiefOfStaff()
+	var need, missing, untrusted, args []string
+	for _, k := range keys {
+		v := c.issue.Str(k)
+		if v == "" && optional[k] {
+			continue
+		}
+		need = append(need, k)
+		switch {
+		case v == "" || settingValue[k](s) != v:
+			missing = append(missing, k)
+			args = append(args, "'"+k+"="+settingChoices[k]+"'")
+		case !c.l.Trusted(rows, c.issue, k):
+			untrusted = append(untrusted, k)
+			args = append(args, k+"="+v)
+		}
+	}
+	if len(args) == 0 {
+		p.check("settings", "ok", "揃っている（%s。最後に書いたのは Chief of Staff の端末 %s）", strings.Join(need, "・"), cos)
+		return nil
+	}
+	msg := c.id + " の予約キーが揃っていないので起動しない（担当は予約キーを書けず、実装を終えてから review-request・ready・gate で止まる）。"
+	if len(missing) > 0 {
+		msg += "無い・知らない値: " + strings.Join(missing, "・") + "。"
+	}
+	if len(untrusted) > 0 {
+		msg += fmt.Sprintf("最後に書いたのが今の Chief of Staff の端末（%s）でない: %s。", cos, strings.Join(untrusted, "・"))
+	}
+	msg += "Chief of Staff の端末で打つ"
+	if len(missing) > 0 {
+		msg += "（<…> は brief.md の表から値を選んで埋める）"
+	}
+	// 打つ行は shell にそのまま貼れるよう、文の最後に置く
+	return fail("%s: kanban set %s %s", msg, c.id, strings.Join(args, " "))
 }
 
 // writableRepo は課題の repo を書いてよいかを確かめ、clone の置き場を返す（start と resume の確かめ）:

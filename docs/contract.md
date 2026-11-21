@@ -119,6 +119,7 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 - 値の綴りは小文字（`machine` を除く）。知らない値は「無い」と同じ。
 - `estimate` も履歴の照合を要る（最後に変えたのが Chief of Staff でなければ「無い」）。要らないと担当が自分の課題の見込みを書き換えてズレを消せる。Chief of Staff が起動し直してアドレスが変わったら、ほかの予約キーと一緒に打ち直す（打ち直さないと見込みが「無し」になる。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 11 の 5）。
 - 読み手が `kanban show <id> --json` の `.issue` から取る（ファイルを直接読まない）。
+- **起動の前の確かめ**: `andon issue start` は、要るキーが無い・知らない値か、履歴の照合が外れている課題を起動せずに終了コード 1 で断り、キーの名前と、Chief of Staff の端末で打てば直る `kanban set` の行を最後に出す（無いキーは値を選ぶ場所を残し、コマンドは値を書かない）。要るキーは `review`・`estimate` と、PR を出す課題（repo があって `deliverable` が `candidates` でない）なら `must_fix`・`merge`、そのうえ `review` が `off` でなければ `reviewer`・`review_rounds`（`off` でも値があれば確かめる。差分がレベル B・C なら dispatcher はレビュアーを起動し、値のあるキーに照合を求める）。Chief Engineer の課題は見ない（[決定](decisions/2026-11-22-issue-start-refuses-unset-settings.md)）。
 
 ## 3. 指摘（`findings.json`）
 
