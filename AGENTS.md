@@ -13,6 +13,9 @@
 | `tests/run --changed` は、重い検査（`andon-dispatcher.sh`・`schema.sh`・`apply-main.sh`・`andon-issue.sh`・`andon-gate.sh`）を、その検査が見る部分を変えたときだけ選ぶ。対応の表は `tests/lib/scope.sh`。重い検査が打つ command や読むファイルを変えたら、表と `docs/image.md` の「手元は関係する検査だけ」を同じ PR で直す。 | `tests/ci.sh`。Go の import の漏れだけを落とす。打つ command・読むファイルと `docs/image.md` の表は見ない。 |
 | 検査はセルの本物（kanban・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。 | `tests/lib/isolate.sh` が読んだ検査の環境を切り離す。`tests/isolation` が偽のセルで全部を回し、番兵が変われば落ちる。`tests/isolation` は CI では回らない。 |
 | 検査の土台（`tests/lib/`・fixture・HOME や kanban を読む検査）を変えたら `tests/isolation` を打つ。 | 無し。`tests/isolation` は CI で回らず、打ったかを見るものが無い。 |
+| `tests/run --changed` は `package/` に触れると長くかかり、`hc wait` の既定の待ちより長い。`hc run --bg` で裏に回し、結果をファイルに残して、表の行のうち ok でない行（`grep '^\|' \| grep -v '\| ok \|'`）で失敗を見る。 | 無し。どう回すかは担当の手順で、見るものが無い。 |
+| セルには docker が無く、手元の `tests/image.sh` は build と compose を飛ばして ok になる（`tests/lib/run-tests.sh` を変えると選ばれるが、何も見ていない）。image・compose・sshd に触れる変更は、推測でコードを足す前に検査を CI に出して確かめる。 | `.github/workflows/tests.yml` の tests の job。docker のある runner で `tests/image.sh` が回り、CI（`CI=true`）では docker が無いと落ちる。 |
+| `review-request` の守りを変えたら、`tests/andon-issue.sh` などで、レビュアーの課題を `todo` のまま結果を置いて作っていないかを見る。動いている（`todo`・`doing`）レビュアーの課題があると頼み直しは断られるので、返した形（`kanban start`・`kanban review`）にし、照合に数えたくないものは Chief of Staff でない端末で足す。 | `tests/andon-issue.sh`。レビュアーの課題が `todo`・`doing` の間は「もう頼んである」と断ることと、返したあとの頼み直しが通ることを見る。 |
 | boot の実測は `tests/andon-boot.sh` の `env -i` と一時領域の指定を使う。`HOME` だけを変える手順は使わない。 | 無し。手で実測する手順で、見るものが無い。 |
 | 否定の grep（`! grep -q <古い名前>`）には、当たる場合があることを同じ所で確かめる行を添える（添えないと、検査が何も見ていなくても通る）。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | `tests/andon-dispatcher.sh` の偽の `gh` は `pr view 7 --json state,mergeCommit` の回数を settle の検査が数えるので、新しい問い合わせは欄を変えて別の case にする。 | `tests/andon-dispatcher.sh`。同じ欄の問い合わせを足すと、settle の回数の検査が落ちる。 |
@@ -24,7 +27,7 @@
 | 検査の中の偽の鍵と秘密鍵の見出しは、文字列を組み立てて作る（そのまま書くと `tests/public.sh` に当たる）。 | `tests/public.sh`。そのまま書くと当たって落ちる。 |
 | 起動の口を足すときは、Go の検査が `hc` の呼び出しの並びを固定しているので、`hc` を余分に呼ぶと `internal/issue`・`chiefengineer`・`chiefofstaff` の検査が落ちる。 | `go test ./...`。`internal/issue` などの検査が `hc` の呼び出しの並びを固定している。 |
 | `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。 | `tests/schema.sh`。`schema/` の顔ぶれと `expected`、`$id` のバージョンを突き合わせるので、触り忘れの一部で落ちる。 |
-| 値の表は `\|` で割るので、`tests/schema.sh` の jq の式に `\|` を書かず、`+=` や `del()` で書く。 | 無し。書いても落ちるとは限らない。 |
+| `\|` で割る表（`LOOSE`・`NESTED`・`EMIT` など、`IFS='\|'` で読むもの）の jq の式には `\|` を書かず、`+=` や `del()` で書く。3b の表は式を最後の `\|` の手前までとして読むので、式の中の `\|` は書いてよい。 | 無し。書いても落ちるとは限らない。 |
 | dispatcher の控え（State）の項目を足す・消す・別の記録に移すときは、`cmd/kanban/dispatcherstate.go` の写しと `process/states/` の record か positions も揃える。 | `go test ./...` の `TestDispatcherStateShape`（`cmd/kanban/dispatcherstate_test.go`）と `TestStateFieldsInProcess`（`internal/dispatcher/process_test.go`）。 |
 | `tests/*.sh` で `kanban add` する課題には `--repo` を付ける。`kanban init --repo` の値は課題に引き継がれず、課題の repo が空になる。 | 無し。付け忘れても落ちるとは限らず、見るものが無い。 |
 | シェルの検査で文字列を比べるときは `[[ "$a" == "$b" ]]` と右辺も引用符で包む。包まないと右辺が glob に読まれて、違う文字列が一致したり、一致すべきものが落ちたりする。 | 無し。書き方の決まりで、見るものが無い。 |
