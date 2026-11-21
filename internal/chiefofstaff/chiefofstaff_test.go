@@ -66,6 +66,8 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))      // <slug>.cos.lock を一時の置き場に。セルの本物に書かない
 	t.Setenv("HOME", filepath.Join(dir, "home"))                 // template の本文（spawn.WithBody）を一時の HOME から読む。セルの本物を読まない
 	t.Setenv("ANDON_WORKSPACE", filepath.Join(dir, "workspace")) // 起動の記録が読むセルの repo と memory の目録。セルの本物を読まない
+	t.Setenv("CLAUDE_CONFIG_DIR", "")                            // 起動の記録が読む plugin の控えは一時の HOME の下。受け継いだ本物の置き場を読まない
+	t.Setenv("CODEX_HOME", "")
 	t.Setenv("FAKE_LS", `{"terminals":[]}`)
 	t.Setenv("FAKE_GET", `{}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-of-staff"}]}`)

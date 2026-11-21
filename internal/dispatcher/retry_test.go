@@ -51,6 +51,9 @@ func newRetry(t *testing.T) *retryFixture {
 	t.Setenv("FAKE_HC", f.d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state"))
 	t.Setenv("ANDON_WORKSPACE", filepath.Join(f.d, "workspace")) // 起動の記録が読むセルの repo と memory の目録。セルの本物を読まない
+	t.Setenv("HOME", filepath.Join(f.d, "home"))                 // 起動の記録が読む plugin の控え・skill の置き場は一時の HOME の下。セルの本物を読まない
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", "")
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
