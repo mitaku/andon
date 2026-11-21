@@ -31,4 +31,11 @@ for f in docs/decisions/*; do
   check "決定の記録の形: $f" decision_ok "$f"
 done
 
+# ADR-0041 受け入れ条件 2: command はプロジェクトの slug を andon と比べて委譲の上限を決めない。型 andon の名前と値は残す
+cap_re='AndonProject\|andonCap'
+check "上限の名前の検査が古い定義に当たる" grep -q "$cap_re" <<<'const AndonProject = "andon"'
+no_cap() { ! grep -rn "$cap_re" --include='*.go' . >&2; }
+check "Go のコードに AndonProject・andonCap が無い" no_cap
+check "委譲の型（Presets）に andon が在る" grep -q '^	"andon": {"merge": "B"' internal/delegate/delegate.go
+
 exit "$fail"

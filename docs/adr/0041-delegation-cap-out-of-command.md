@@ -9,8 +9,8 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | この題の範囲は、上限・空振り・名指しの委譲・このセルのパスの線の 4 つにする | この ADR | 生きている |
-| 2 | `andon delegate` は、プロジェクトを名前で見分けて上限を決めない | この ADR | まだ実装していない |
-| 3 | 上限の置き場を別に作らず、型 `andon` の名前と値は残す | この ADR | まだ実装していない |
+| 2 | `andon delegate` は、プロジェクトを名前で見分けて上限を決めない | `internal/delegate/delegate.go`・`docs/contract.md` §11・`docs/design.md` §1.10 | 生きている |
+| 3 | 上限の置き場を別に作らず、型 `andon` の名前と値は残す | `internal/delegate/delegate.go`・`docs/design.md` §1.10 | 生きている |
 | 4 | 追加行のパターンは、当たる箇所がその hunk で増えたときだけ C の理由にし、増えていなければ B の理由にする | `internal/gate/decide.go`・`docs/contract.md` §7 | 生きている |
 | 5 | 語の置き換えだけの PR かどうかを、機械で見分けない | この ADR | 生きている |
 | 6 | オーナーは、課題を名指しして `merge` を委譲できる | この ADR | まだ実装していない |

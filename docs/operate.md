@@ -504,7 +504,7 @@ git -C ~/src/home-cell log -1 --format='%ae' -- projects/andon/project.json gate
 ```
 
 - オーナーのファイルの commit はホストのこの checkout で打つ。セルの中で `git commit` を打つなら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner の email> git commit …`）。`andon delegate grant` は、自分で `andon.toml` の `owner` を作者にして commit する（端末の git の user は使わない）。セルの中の既定の作者は、セルの repo では owner でない（[image.md](image.md) の「git の作者」）。`git config user.email`（repo の中だけの設定）で合わせない: セルの中の担当にも効き、委譲の照合が素通りになる。
-- `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先にオーナーが書く。無い・commit していない変更がある・最後の commit が owner でない、なら書かない）。Chief of Staff・担当・dispatcher の端末では打てない（オーナーが打つ）。`andon` プロジェクトで許せる上限は `B`（contract.md §11）。
+- `grant` は `project.json` の `delegation` だけを書いて commit する（`project.json` は §8 で先にオーナーが書く。無い・commit していない変更がある・最後の commit が owner でない、なら書かない）。Chief of Staff・担当・dispatcher の端末では打てない（オーナーが打つ）。command はプロジェクトの名前で上限を変えない。`andon` プロジェクトにも `merge C` まで書ける（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2）。
 - **通ったら見えるもの**: `grant` が `projects/andon/project.json: …` の1行を出す。`andon delegate show` に `merge` の値が出る。最後の `git log` の email が `owner` と同じ。`gate.local.json` を commit し直したときも、同じ email で。
 - **落ちたら見る所**: `projects/andon/project.json を最後に変えた commit の author（… <…>）が owner でない` — `project.json` を最後に変えた commit の作者が owner でなかった（セルの中で作者を明示せずに打った・ホストの email が違う）。`grant` は書かずに止まる。中身を確かめ、作者を owner にして commit し直してから（`git commit --amend --reset-author` など）、`grant` を打ち直す。`andon.toml に owner が無い` — `andon.toml` の最上段に `owner = "<email>"` を足して commit する。gate が `needs_human` で `委譲 merge: … の外` — `show` の値がレベルより低い。`gate.local.json を重ねない: … が owner でない` — 同じ email で `gate.local.json` を commit し直す。
 
@@ -586,5 +586,5 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前のバージョンからの範囲は `git log <前のバージョン>..origin/main`。各バージョンに「変わったこと」（オーナーの目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
    `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト）を変えたバージョンは、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「バージョンを上げるとき」](#バージョンを上げるとき-host-install-が置いたものを退避する)）を書く。変えていないバージョンは書かない。
 2. **マージ**（オーナーか Chief of Staff）。
-   v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。決め直すのはオーナー）。
+   v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 11。Andon を開発するセルの条件表で、`AGENTS.md`・`package/environment.md`・`package/writing.md`・テンプレート・モデルの規則と控えと対応表を B に下げた上書き。決め直すのはオーナー）。
 3. **annotated tag**: マージした commit に `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>"` を打って push する（打つのはオーナー。tag の push で GHCR に image が出る。[image.md](image.md) の「CI と配布」）。

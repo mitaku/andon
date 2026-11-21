@@ -124,7 +124,7 @@ flowchart TB
 
 | 段（出典の語） | Andon の工程 | 役 | 仕組み（機械に置いた形） | 今あるか |
 |---|---|---|---|---|
-| 人が規則を定める | 委譲・ゲートの条件表・skill とプロファイル・依頼書の Settings・managed settings | 人（レベル C。Andon のパッケージは常に人） | `project.json`（委譲）・`gate.json`／`gate.local.json`・`package/skills`・`templates`・`settings.json` の deny・`task.yaml` の予約キー | **ある** |
+| 人が規則を定める | 委譲・ゲートの条件表・skill とプロファイル・依頼書の Settings・managed settings | 人（レベル C。Andon のパッケージは常に人。注: [ADR-0041](adr/0041-delegation-cap-out-of-command.md) で、オーナーが委譲で広げられる既定に変えた） | `project.json`（委譲）・`gate.json`／`gate.local.json`・`package/skills`・`templates`・`settings.json` の deny・`task.yaml` の予約キー | **ある** |
 | Signals（入口） | 人と Chief Engineer の対話 → 仕様・設計文書（ADR）。振り返りの記録 | 人・Chief Engineer | `andon chief-engineer`（台帳のタスク）・`report.json` の `next` | **ある**（Chief Engineer の実測は未。ADR-0007 D2。2026-11-10: 済。CE は台帳の課題として動いている） |
 | | 外の信号（案件 repo の main の CI の失敗・issue・エラー監視の webhook）が自分から入る口 | dispatcher → Chief of Staff | 通知 `kind: signal`（contract.md §6） | **無い**（最初の版の後。decisions.md §1 問い23、design.md §1.9 (a)） |
 | Triage（切る） | Chief of Staff が文書と依頼を依頼書に切る（課題の完了条件・横展開・守ること）。タスクの型は 調べる／直す／決める | Chief of Staff | `kanban add`・`andon task start`・`deliverable`（提案） | **ある**（`deliverable`・候補の一覧は PR #76 で提案中） |

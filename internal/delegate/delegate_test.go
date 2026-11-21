@@ -39,20 +39,48 @@ func TestParseAndEffective(t *testing.T) {
 
 func TestParseRejects(t *testing.T) {
 	for name, c := range map[string]struct{ json, slug string }{
-		"置き場と違う project":      {`{"version":1,"project":"a"}`, "b"},
-		"知らない version":        {`{"version":2,"project":"a"}`, "a"},
-		"知らないキー":              {`{"version":1,"project":"a","x":1}`, "a"},
-		"andon の型が andon でない": {`{"version":1,"project":"andon","preset":"hobby"}`, "andon"},
-		"andon の merge C":     {`{"version":1,"project":"andon","preset":"andon","grants":[{"id":"d1","scope":"merge","value":"C","by":"owner","at":"2026-11-05","evidence":"x"}]}`, "andon"},
-		"id が重なる":             {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"profile","value":true,"by":"owner","at":"2026-11-05","evidence":"x"},{"id":"d1","scope":"profile","value":false,"by":"owner","at":"2026-11-05","evidence":"x"}]}`, "a"},
-		"delete-remote":       {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"irreversible","value":["delete-remote"],"by":"owner","at":"2026-11-05","evidence":"x"}]}`, "a"},
-		"暦に無い日":               {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"profile","value":true,"by":"owner","at":"2026-02-30","evidence":"x"}]}`, "a"},
-		"scope と値が合わない":       {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"merge","value":"public","by":"owner","at":"2026-11-05","evidence":"x"}]}`, "a"},
-		"evidence が無い":        {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"profile","value":true,"by":"owner","at":"2026-11-05"}]}`, "a"},
+		"置き場と違う project": {`{"version":1,"project":"a"}`, "b"},
+		"知らない version":   {`{"version":2,"project":"a"}`, "a"},
+		"知らないキー":         {`{"version":1,"project":"a","x":1}`, "a"},
+		"id が重なる":        {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"profile","value":true,"by":"owner","at":"2026-11-05","evidence":"x"},{"id":"d1","scope":"profile","value":false,"by":"owner","at":"2026-11-05","evidence":"x"}]}`, "a"},
+		"delete-remote":  {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"irreversible","value":["delete-remote"],"by":"owner","at":"2026-11-05","evidence":"x"}]}`, "a"},
+		"暦に無い日":          {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"profile","value":true,"by":"owner","at":"2026-02-30","evidence":"x"}]}`, "a"},
+		"scope と値が合わない":  {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"merge","value":"public","by":"owner","at":"2026-11-05","evidence":"x"}]}`, "a"},
+		"evidence が無い":   {`{"version":1,"project":"a","grants":[{"id":"d1","scope":"profile","value":true,"by":"owner","at":"2026-11-05"}]}`, "a"},
 	} {
 		if _, err := Parse([]byte(c.json), c.slug); err == nil {
 			t.Errorf("%s: 通ってしまう", name)
 		}
+	}
+}
+
+// ADR-0041 受け入れ条件 1: slug が andon のプロジェクトも、ほかのプロジェクトと同じ決まりで読み書きする
+// （TestParseRejects から移した 2 つの場合。型は andon のほかも選べ、merge C と line-change plant を委譲できる）。
+func TestNoCapForAndonSlug(t *testing.T) {
+	for name, j := range map[string]string{
+		"型 hobby":           `{"version":1,"project":"andon","preset":"hobby"}`,
+		"型 work":            `{"version":1,"project":"andon","preset":"work"}`,
+		"型 andon の merge C": `{"version":1,"project":"andon","preset":"andon","grants":[{"id":"d1","scope":"merge","value":"C","by":"owner","at":"2026-11-05","evidence":"x"},{"id":"d2","scope":"line-change","value":"plant","by":"owner","at":"2026-11-05","evidence":"x"}]}`,
+	} {
+		f, err := Parse([]byte(j), "andon")
+		if err != nil {
+			t.Errorf("%s: 断られた: %v", name, err)
+			continue
+		}
+		if name == "型 andon の merge C" {
+			if e := f.Effective("2026-11-10"); e["merge"] != "C" || e["line-change"] != "plant" {
+				t.Errorf("%s: 実効の値に重ならない: %v", name, e)
+			}
+		}
+	}
+	f := &File{Version: 1, Project: "andon", Grants: []Grant{}}
+	for _, c := range [][2]string{{"merge", "C"}, {"line-change", "plant"}} {
+		if _, err := add(f, "grant", c[0], c[1], "x", "", "2026-11-10"); err != nil {
+			t.Errorf("grant %s %s が断られた: %v", c[0], c[1], err)
+		}
+	}
+	if _, ok := Presets["andon"]; !ok {
+		t.Error("型 andon が消えた（名前と値は残す）")
 	}
 }
 
