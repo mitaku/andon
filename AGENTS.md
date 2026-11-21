@@ -11,6 +11,8 @@
 | `tests/run` は同時に1本だけ走る（mise の置き場と CPU を取り合う）。2本目は理由を1行出して、前の回が終わるまで待つ。 | `tests/run`。鍵のファイルを flock で取る。`tests/ci.sh` が2本を同時に起動して、2本目が1本目の終わるまで走らないことを確かめる。 |
 | `tests/isolation` は15分以上かかるので、hc の端末（`hc run --bg`）で裏に回す。 | 無し。どこで走らせるかは担当の手順で、見るものが無い。 |
 | `tests/run --changed` は、重い検査（`andon-dispatcher.sh`・`schema.sh`・`apply-main.sh`・`andon-issue.sh`・`andon-gate.sh`）を、その検査が見る部分を変えたときだけ選ぶ。対応の表は `tests/lib/scope.sh`。重い検査が打つ command や読むファイルを変えたら、表と `docs/image.md` の「手元は関係する検査だけ」を同じ PR で直す。 | `tests/ci.sh`。Go の import の漏れだけを落とす。打つ command・読むファイルと `docs/image.md` の表は見ない。 |
+| 約束の JSON は `contract.Write`・`Encode`・`EncodeLine` で書く。schema に照らさずに JSON を作る呼び出し（`json.Marshal` など）を `internal` の下の `_test.go` でない `.go` ファイルに足したら、`internal/contract/writers_test.go` の表に数と理由を足す。`_test.go` のファイルは数えない。 | `go test ./...` の `internal/contract/writers_test.go`。テスト以外のファイルの呼び出しの数を表と突き合わせ、足して表を直さないと落ちる。 |
+| 直す前と後の検査の数を比べるときは、直す前を merge-base の木（`git archive` で展開）で数える。書き換え中の worktree や動いている main で数えると、比べる控えにならない。 | 無し。手で数える手順で、見るものが無い。 |
 | 検査はセルの本物（kanban・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。 | `tests/lib/isolate.sh` が読んだ検査の環境を切り離す。`tests/isolation` が偽のセルで全部を回し、番兵が変われば落ちる。`tests/isolation` は CI では回らない。 |
 | 検査の土台（`tests/lib/`・fixture・HOME や kanban を読む検査）を変えたら `tests/isolation` を打つ。 | 無し。`tests/isolation` は CI で回らず、打ったかを見るものが無い。 |
 | `tests/run --changed` は `package/` に触れると長くかかり、`hc wait` の既定の待ちより長い。`hc run --bg` で裏に回し、結果をファイルに残して、表の行のうち ok でない行（`grep '^\|' \| grep -v '\| ok \|'`）で失敗を見る。 | 無し。どう回すかは担当の手順で、見るものが無い。 |
@@ -20,6 +22,7 @@
 | 否定の grep（`! grep -q <古い名前>`）には、当たる場合があることを同じ所で確かめる行を添える（添えないと、検査が何も見ていなくても通る）。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | `tests/andon-dispatcher.sh` の偽の `gh` は `pr view 7 --json state,mergeCommit` の回数を settle の検査が数えるので、新しい問い合わせは欄を変えて別の case にする。 | `tests/andon-dispatcher.sh`。同じ欄の問い合わせを足すと、settle の回数の検査が落ちる。 |
 | schema の検査器の lint は `maximum` と `\s` を知らずに断る。上限は command で確かめ、空白は明示した文字の組で書く。 | 無し。検査器の lint が知らない書き方は、その場で断られて気づく。 |
+| schema の `pattern` は Go の正規表現（google/jsonschema-go）で読まれるので、先読みと `\u` を書かない。 | 無し。検査器の lint が知らない書き方は、その場で断られて気づく。 |
 | `tests/package.sh` は実行権限が無いので、`bash tests/package.sh` で走らせる。 | 無し。実行権限の有無は手順の話で、見るものが無い。 |
 | `tests/andon-dispatcher.sh` で pending の report を `last` で見ると、担当の review-request が積んだ report を拾う。通知が積まれたかは前後の件数で比べる。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | `tests/package.sh` の仮設の語の検査は `package/skills` の文を「推し」で見るので、「推した」と書かず「推奨は〜だった」と書く。 | `tests/package.sh`。`package/skills` に「推し」を含む文があると落ちる。 |
@@ -45,6 +48,7 @@
 | `package/skills` の文を `playbooks/` へ移したら、`tests/words.sh` の禁止語に当たらないか回す。 | `tests/words.sh`。CI でいつも走る。 |
 | 報告や依頼書の文を `docs/`・注釈に写したら、commit の前に `bash tests/words.sh` を回す（報告・依頼書は語の検査を通らず、禁止語が残っている）。 | `tests/words.sh`。CI でいつも走る。 |
 | 設計の正は `docs/design.md` と `docs/adr/`。 | 無し。どれを正とするかの決まりで、見るものが無い。 |
+| Chief Engineer の skill の骨格の正は `docs/design.md` §1.8。`package/skills/chief-engineer/SKILL.md` の手順を変える PR は、同じ PR で §1.8 も直す。 | 無し。`tests/package.sh` は skill の有無を見るだけで、SKILL.md と §1.8 の食い違いは見ない。 |
 | 決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。 | `tests/smoke.sh`。`docs/decisions/` のファイルの名前と行の形、`docs/decisions.md` の凍結した表に行が足されていないことを見る。 |
 | ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、README の ADR の一覧、決定の記録を突き合わせる。 |
 | ADR の番号は書き終える直前にも、ほかの worktree を `git worktree list` で見直す。書いている間に別の担当が同じ番号を取ることがある。 | 無し。取り合いは書いている間に起きて、見るものが無い。 |
