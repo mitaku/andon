@@ -112,19 +112,7 @@ func (p *project) outcomes() {
 	if until, err := time.Parse(time.RFC3339, p.st.GHReset); err == nil && time.Now().Before(until) {
 		return
 	}
-	ids := make([]string, 0, len(p.st.Outcomes))
-	for id := range p.st.Outcomes {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if p.outcome(id) {
-			delete(p.st.Outcomes, id)
-		}
-	}
-	if len(p.st.Outcomes) == 0 {
-		p.st.Outcomes = nil
-	}
+	p.st.Outcomes.Each(p.outcome)
 }
 
 // outcome は1つの課題について集めて書く。true は済んだ（控えから外す）とき。
@@ -150,8 +138,7 @@ func (p *project) outcome(id string) bool {
 		p.logf("%s の結果（%s）を outcome.json に書いた", id, o.Result)
 		return true
 	}
-	p.st.Outcomes[id]++
-	if p.st.Outcomes[id] >= outcomeTries {
+	if p.st.Outcomes.Fail(id, outcomeTries) {
 		p.logf("%s の結果を集められない（%d 回打って失敗。諦める。outcome.json は書いていない）: %v", id, outcomeTries, err)
 		return true
 	}

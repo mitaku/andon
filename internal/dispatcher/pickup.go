@@ -152,26 +152,11 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	c, id := r.Change, r.ID
 	// done は Chief of Staff が打った finish（オーナーがマージしたあと）も拾う: 影響（andon issue impact）は Chief of Staff もまだ見ていない事実
 	if c["status"] == "done" {
-		if p.st.Impact == nil {
-			p.st.Impact = map[string]int{}
-		}
-		if _, ok := p.st.Impact[id]; !ok {
-			p.st.Impact[id] = 0
-		}
+		p.st.Impact.Add(id)
 		// オーナーの手直しも同じ done の行から1回だけ集める（corrections.go）
-		if p.st.Corrections == nil {
-			p.st.Corrections = map[string]int{}
-		}
-		if _, ok := p.st.Corrections[id]; !ok {
-			p.st.Corrections[id] = 0
-		}
+		p.st.Corrections.Add(id)
 		// 結果の記録も同じ done の行から1回だけ書く（outcome.go）
-		if p.st.Outcomes == nil {
-			p.st.Outcomes = map[string]int{}
-		}
-		if _, ok := p.st.Outcomes[id]; !ok {
-			p.st.Outcomes[id] = 0
-		}
+		p.st.Outcomes.Add(id)
 		return true
 	}
 	if r.By == by {

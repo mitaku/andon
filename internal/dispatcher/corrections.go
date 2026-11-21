@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -216,22 +215,7 @@ func orUnknown(s string) string {
 
 // corrections は done になった課題（控えの Corrections）ごとに corrections.json を集める。
 func (p *project) corrections() {
-	if len(p.st.Corrections) == 0 {
-		return
-	}
-	ids := make([]string, 0, len(p.st.Corrections))
-	for id := range p.st.Corrections {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if p.correction(id) {
-			delete(p.st.Corrections, id)
-		}
-	}
-	if len(p.st.Corrections) == 0 {
-		p.st.Corrections = nil
-	}
+	p.st.Corrections.Each(p.correction)
 }
 
 // correction は1つの課題について集めて書く。true は済んだ（控えから外す）とき。
@@ -257,8 +241,7 @@ func (p *project) correction(id string) bool {
 		p.logf("%s のオーナーの手直しを %d 件 corrections.json に書いた", id, len(out))
 		return true
 	}
-	p.st.Corrections[id]++
-	if p.st.Corrections[id] >= correctionsTries {
+	if p.st.Corrections.Fail(id, correctionsTries) {
 		p.logf("%s のオーナーの手直しを集められない（諦めて Chief of Staff に知らせる）: %v", id, err)
 		p.notify(id, "corrections", map[string]any{"error": clean(fmt.Sprintf("%d 回打って失敗: %v", correctionsTries, err), 200)})
 		return true
