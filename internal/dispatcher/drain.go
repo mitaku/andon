@@ -149,7 +149,7 @@ type hookInput struct {
 //   - asyncRewake（exit 2）で始まった turn も UserPromptSubmit が走り、新しい prompt_id。その Stop は stop_hook_active が true
 //
 // 片方にしか prompt_id が無ければ、合わないものとして1回だけ届け直す（取りこぼすより2度届くほうを選ぶ）。
-// 両方に無いとき（prompt_id を渡さない版）は端末と経路だけで照らし、中断した turn の通知も確かめ済みにする
+// 両方に無いとき（prompt_id を渡さないバージョン）は端末と経路だけで照らし、中断した turn の通知も確かめ済みにする
 // （合わないとすると、フックで渡した通知が毎回2度届く）。
 // 測った形は drain_test.go の TestSameTurnClaudeCodeInputs が守る。
 func sameTurn(h *HookNews, addr string, in hookInput) bool {
