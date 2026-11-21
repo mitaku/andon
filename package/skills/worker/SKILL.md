@@ -208,7 +208,9 @@ EOF
 
 **レビューは担当の工程。** レビューの commit と自分の最後の commit の照合は `andon issue ready` がする。
 
-1. PR を出したらすぐ頼む（3つの観点〈§2〉を当てた行は、PR を出す前に報告に書いておく。検査を足すか変える PR は、落ちるべき入力〈§2〉の行も）。checks は裏で待つ。`HEAD` を push して `andon issue review-request <id> <<'EOF'` … `EOF`（stdin は §7 の人が読む報告）。
+1. PR を出したらすぐ頼む（3つの観点〈§2〉を当てた行は、PR を出す前に報告に書いておく。検査を足すか変える PR は、落ちるべき入力〈§2〉の行も）。checks は裏で待つ。`HEAD` を push して `andon issue review-request <id> < /dev/null`。
+   stdin を省くと、前の報告（`andon issue report` で書いたもの）の本文に `## レビュー依頼` の行を足すので、`## Next` と `## Remember` も残る。
+   報告を書き直すなら、先に `andon issue report` で書き直してから頼む。stdin に報告を渡すと、報告を丸ごと置き換える（§7 の全体を渡す）。
    command が `HEAD` ＝ PR の head を確かめ、回・上限・前回の commit・レビュアー・追加の回か（`extra`）を `report.json` の `review_request` に書き、
    人が読む `## レビュー依頼` の行を報告の先頭に足して `kanban report` する（`kanban review` はしない）。止まったら理由の1行に従う。
    Chief of Staff には dispatcher が `<id> report` の通知で届ける。レビュアーを起動するのは dispatcher（`review: on` を Chief of Staff が書いていて、回が上限の中のとき）。自分では起動しない。

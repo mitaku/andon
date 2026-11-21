@@ -44,13 +44,15 @@ import (
 	"andon/internal/contract"
 	"andon/internal/gate"
 	"andon/internal/ledger"
+	"andon/internal/spawn"
 )
 
 // Usage は andon issue --help の中身。
 const Usage = "usage: andon issue show <id>                                  予約キー・report.json・レビューの照合を JSON で出す\n" +
 	"       andon issue report <id> [--pr <url>] [--data <json>] < report.md\n" +
 	"                                                          report.json を書き（commit は HEAD）、kanban に報告する\n" +
-	"       andon issue review-request <id> < report.md           review_request を足して報告する（レビューを頼む）\n" +
+	"       andon issue review-request <id> [< report.md]         review_request を足して報告する（レビューを頼む）\n" +
+	"                                                          （stdin を省くと前の報告の本文にレビュー依頼の行を足す。渡せば置き換える）\n" +
 	"       andon issue ready <id>                                 HEAD・report.json・PR の head・レビューが揃えば review にする\n" +
 	"                                                          （deliverable: candidates なら PR の代わりに candidates.json）\n" +
 	"       andon issue ask <id> <question.json|->                 問いの JSON を検査して kanban に問う\n" +
@@ -506,7 +508,7 @@ func (c *ctx) samePRRepo(pr string) error {
 }
 
 func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
-	md, err := readMarkdown(stdin)
+	md, err := c.reviewMarkdown(stdin)
 	if err != nil {
 		return err
 	}
@@ -563,7 +565,44 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	if previous != nil {
 		line += fmt.Sprintf("。前回 %s（差分だけ）", *previous)
 	}
-	return c.write(&r, "## レビュー依頼\n"+line+"\n\n"+md, stdout)
+	return c.write(&r, reviewHeader+line+"\n\n"+md, stdout)
+}
+
+// reviewHeader は review-request が報告の先頭に足す段の見出し。
+const reviewHeader = "## レビュー依頼\n"
+
+// reviewMarkdown は review-request の人用の報告。stdin があればそれで置き換える（今までどおり）。stdin が空なら
+// kanban の前の報告（report.md）の本文を使い、前の review-request が足したレビュー依頼の段は外す（段を重ねない）。
+// 報告を書き直すたびに Next と Remember を渡し直して落とすことを防ぐ。stdin が端末なら読まない（打つだけで待ち続けない）。
+func (c *ctx) reviewMarkdown(stdin io.Reader) (string, error) {
+	in := ""
+	if f, ok := stdin.(*os.File); !ok || !spawn.IsTerminal(f) {
+		b, err := io.ReadAll(stdin)
+		if err != nil {
+			return "", err
+		}
+		in = string(b)
+	}
+	if strings.TrimSpace(in) != "" {
+		return in, nil
+	}
+	b, err := os.ReadFile(filepath.Join(c.l.Dir, "issues", c.id, "report.md"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	md := string(b)
+	for strings.HasPrefix(md, reviewHeader) {
+		i := strings.Index(md, "\n\n")
+		if i < 0 {
+			md = ""
+			break
+		}
+		md = md[i+2:]
+	}
+	if strings.TrimSpace(md) == "" {
+		return "", fail("stdin が空で、前の報告（report.md）も空。人が読む報告（Markdown）を stdin で渡す")
+	}
+	return md, nil
 }
 
 // briefCommitRe はレビュアーの依頼書の commit（「commit <sha>。」の形。ledger.BriefReviews と同じ読み方）。
