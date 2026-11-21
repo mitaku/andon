@@ -8,7 +8,7 @@
 ふりかえり（Retrospective）のワークストリームの AI の手。流れの正は andon の repo の `process/workstreams/retrospective.yaml` で、このファイルはやり方だけを書く。
 拾い方と判定は retro skill、パターンの一覧の形と command が断る線は `contract.md` §21 にあり、ここには書かない。
 
-1. **足す**: ルーチン `retro`（`routines/retro.yaml`。例は retro skill の `assets/retro.yaml`。kanban へ写すのはオーナーの go で。名前は `retro` のまま）が毎朝1件足す。
+1. **足す**: ルーチン `retro`（`routines/retro.yaml`。例は retro skill の `assets/retro.yaml`。kanban へ写すのはオーナーの go で。名前は `retro` のまま）が毎朝1件足す。片付いた担当の課題が `project.json` の `chief_of_staff.retro_every` 件（既定 25）たまると、dispatcher が数えて同じルーチンを撃つので、朝を待たずに足されることもある。
    オーナーが頼んだら `kanban routine run retro`（`routine: retro` が付き、前の振り返りとして数えられる。`open` と `paused` はそのまま効く）。
 2. **起動する**: オーナーに聞かずに `andon issue start <id>`（`start.md`。並行の上限とぶつかりは守る）。
 3. **`review` が来たら**: 報告の表と `issues/<id>/library/retro.json` を読み、`andon retro apply <id> --dry-run` を打つ。検収で見ること:

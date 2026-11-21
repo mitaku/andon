@@ -2,6 +2,7 @@
 # kanban は git の外なのでパッケージからは降りない。オーナーの go で、Chief of Staff が
 # projects/<slug>/kanban/routines/retro.yaml に写す（名前は retro のまま。andon retro collect は routine: retro で前の振り返りを見分ける）。
 # 周期は毎朝1回（schedule は config.yaml の timezone で読む）。profile は既定で、Chief of Staff が変えてよい。
+# 件数のきっかけもある: 前の振り返りのあとに片付いた担当の課題が project.json の chief_of_staff.retro_every 件（既定 25）になると、dispatcher が数えてこのルーチンを撃つ。
 # 止めるときはオーナーが paused: true を書く。手で撃つときは kanban routine run retro。
 title: "振り返り（直近 7 日の記録から繰り返しを拾う）"
 profile: claude
