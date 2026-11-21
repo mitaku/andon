@@ -178,18 +178,26 @@ for f in docs/contract.md:台帳に書く docs/dispatcher.md:ゲートを回す 
 done
 setup; sed -i 's/^## 未リリース$/&\n- 前の版の台帳を読む/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「版」「台帳」で落ちる'
 setup; printf -- '- 前の版の台帳を読む。ゲートを回す\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG のバージョンの節の「版」「台帳」「ゲート」は通る'
+setup; echo '  - [0040 「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く](docs/adr/0040-x.md): 決定' >"$tmp/r/README.md"
+expect ok 'README.md の ADR の一覧の行の「」の中の 3 語は通る'
 setup; echo '  - [0040 「台帳」をやめる。ゲートを回す](docs/adr/0040-x.md): 決定' >"$tmp/r/README.md"
-expect ok 'README.md の ADR の一覧の行（ADR の題の写し。0025 から後）の「ゲート」は通る'
+expect fail 'README.md の ADR の一覧の、0025 から後の行の「ゲート」で落ちる（ADR を全部替えた）'
 setup; echo '  - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定' >"$tmp/r/README.md"
-expect fail 'README.md の ADR の一覧の、替え終えた 0001〜0024 の行の「台帳」で落ちる'
+expect fail 'README.md の ADR の一覧の 0001〜0024 の行の「台帳」で落ちる'
 setup; echo '- 台帳のカードを「課題（issue）」に改名する' >"$tmp/r/README.md"; expect fail 'README.md の ADR の一覧でない行の「台帳」で落ちる'
-# ADR は替え終えた 0001〜0024 だけを見る。ADR-0018 のオーナーの期待の 1 行は外す
-for f in docs/adr/0001-x.md docs/adr/0013-short-role-names-and-plain-japanese.md docs/adr/0024-x.md; do
+# ADR は全部を見る。ADR-0018 のオーナーの期待の 1 行と、ADR-0040 の決めたことの表の「今」の列は外す
+for f in docs/adr/0001-x.md docs/adr/0013-short-role-names-and-plain-japanese.md docs/adr/0024-x.md docs/adr/0025-x.md docs/adr/0039-x.md docs/adr/0041-x.md; do
   for w in '台帳に書く' 'ゲートを回す' '前の版に戻す'; do
     setup; echo "$w" >>"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
   done
 done
-setup; echo '台帳に書く。ゲートを回す。前の版に戻す' >"$tmp/r/docs/adr/0025-x.md"; expect ok '替えていない ADR（0025）の 3 語はまだ見ない'
+a40=docs/adr/0040-kanban-gate-version-words.md
+setup; printf '   | 台帳に書く、ゲートを回す、前の版、各版、推奨版 | kanban に書く、gate を回す |\n' >"$tmp/r/$a40"
+expect ok 'ADR-0040 の決めたことの表の「今」の列の 3 語は通る'
+setup; printf '   | 台帳に書く | ゲートを回す |\n' >"$tmp/r/$a40"; expect fail 'ADR-0040 の表の「今」でない列の「ゲート」で落ちる'
+setup; printf '台帳に書く\n' >"$tmp/r/$a40"; expect fail 'ADR-0040 の表でない行の「台帳」で落ちる'
+setup; printf '| 1 | 台帳に書く | この ADR |\n' >"$tmp/r/$a40"; expect fail 'ADR-0040 の決定の索引（頭が「| 」）の「台帳」で落ちる'
+setup; printf '   | 台帳に書く | kanban に書く |\n' >"$tmp/r/docs/adr/0036-x.md"; expect fail 'ADR-0040 の外の表の「今」の列の「台帳」で落ちる'
 setup; echo '初版と比べる。「台帳」と「ゲート」をやめる' >"$tmp/r/docs/adr/0001-x.md"; expect ok 'ADR 0001 の「初版」と「」の中は通る'
 o='オーナーの期待（2026-11-11）: 検証のゲートを手厚くする。PR に証憑を正しく載せる'
 setup; echo "$o" >"$tmp/r/docs/adr/0018-screen-check-tooling.md"; expect ok 'ADR-0018 のオーナーの期待の行の「ゲート」は通る'
