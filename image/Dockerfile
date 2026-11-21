@@ -61,7 +61,9 @@ ENV HOME=/opt/andon-home
 ENV LANG=en_US.UTF-8
 ENV SHELL=/bin/bash
 ENV AQUA_ROOT_DIR=/opt/andon-home/.local/share/aquaproj-aqua
-ENV PATH=/opt/andon-home/.local/bin:/opt/andon-home/.local/share/aquaproj-aqua/bin:${PATH}
+# mise の shims は aqua の道具の後ろ。~/.bashrc を読まない非対話のシェル（担当・レビュアーの道具の呼び出し）でも、repo の mise.toml の
+# go などが PATH で引ける。aqua の道具と同じ名前（node など）は aqua の側が先
+ENV PATH=/opt/andon-home/.local/bin:/opt/andon-home/.local/share/aquaproj-aqua/bin:/opt/andon-home/.local/share/mise/shims:${PATH}
 ENV AQUA_GLOBAL_CONFIG=/opt/andon-aqua/aqua.yaml
 ENV AQUA_POLICY_CONFIG=/opt/andon-aqua/aqua-policy.yaml
 ENV GHQ_ROOT=/workspace/.ghq
@@ -76,7 +78,11 @@ RUN curl -fsSL -o /tmp/aqua-installer "https://raw.githubusercontent.com/aquapro
  && bash /tmp/aqua-installer -v "${AQUA_VERSION}" \
  && rm /tmp/aqua-installer
 COPY --chown=andon:andon image/aqua/ /opt/andon-aqua/
-RUN aqua install --all
+# mise は shims を PATH で最初に見つかる mise へ向ける。aqua の bin/mise は argv[0] で道具を選ぶ proxy なので、shims がそこを指すと
+# go を aqua の道具として探して落ちる。本物の mise へのリンクを aqua の bin より先の ~/.local/bin に置く（tests/image.sh が見る）
+RUN aqua install --all \
+ && mkdir -p "${HOME}/.local/bin" \
+ && ln -s "$(aqua which mise)" "${HOME}/.local/bin/mise"
 
 ARG PLAYWRIGHT_VERSION=1.62.1
 ARG PORTLESS_VERSION=0.15.5

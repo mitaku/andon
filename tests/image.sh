@@ -126,6 +126,21 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   grep -q " hc\$" <<<"$login"
   grep -qx "HISTFILE=/opt/andon-home/.local/state/bash/history" <<<"$login"
 '
+# ~/.bashrc を読まない非対話のシェル（担当・レビュアーの道具の呼び出し）でも、repo の mise.toml の go が PATH で引ける（ENV の PATH の mise の shims）。
+# shims が aqua の bin/mise（argv[0] で道具を選ぶ proxy）を指すと go を aqua の道具として探して落ちるので、その形も落ちる。
+# network none なので go は取らず、バージョンを名乗るだけの go を mise link で mise.toml のバージョンに登録する
+docker run --rm --network none \
+  --mount "type=bind,source=$PWD/mise.toml,target=/tmp/proj/mise.toml,readonly" \
+  -e MISE_GO="$mise_go" andon:test bash -euc '
+    mkdir -p /tmp/fakego/bin
+    printf "#!/bin/sh\necho go version go%s linux/fake\n" "$MISE_GO" >/tmp/fakego/bin/go
+    chmod 755 /tmp/fakego/bin/go
+    mise link "go@$MISE_GO" /tmp/fakego
+    mise trust /tmp/proj/mise.toml
+    mise reshim
+    out=$(bash --norc --noprofile -c "cd /tmp/proj && go version") || { echo "FAIL image: 非対話のシェルで mise.toml の go が引けない" >&2; exit 1; }
+    test "$out" = "go version go$MISE_GO linux/fake" || { echo "FAIL image: 非対話のシェルの go が mise.toml のバージョンでない（$out）" >&2; exit 1; }
+  '
 # .github/workflows/ の全部を image の中の actionlint・ghalint・pinact に通す（ADR-0034 決めたこと 8）。
 # ファイルの名前は書かない（workflow を足せば、その workflow も見る）。actionlint は git の repo の外では
 # 引数が無いと何も見ないので、ファイルを集めて渡す。ghalint と pinact は .github/workflows/ を自分で探す。
