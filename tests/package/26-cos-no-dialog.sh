@@ -10,7 +10,8 @@ miss=
 for field in command resume; do
   v=$(fm package/templates/chief-engineer.md "$field")
   [ -n "$v" ] || miss="$miss [$field が読めない]"
-  ! has_nodialog "$v" || miss="$miss [$field が外している]"
+  # 書き方の変種（--disallowed-tools・=・引用符・ほかの道具と並べる）も拾うよう、道具の名前が出るだけで落とす
+  case $v in *AskUserQuestion*) miss="$miss [$field が AskUserQuestion に触れている]" ;; esac
 done
 [ -z "$miss" ] && pass "ADR-0042 A7: Chief Engineer の起動行はダイアログの道具を外さない（決めたこと 7）" || fail "ADR-0042 A7: Chief Engineer の起動行:$miss"
 # 検査が当たる場合があること: 指定を入れた行には当たり、入れない行には当たらない
@@ -18,10 +19,11 @@ has_nodialog 'claude --model opus --disallowedTools AskUserQuestion --plugin-dir
   && pass "ADR-0042 A7: 起動行の検査が指定の有無を見分ける（検査が見ている）" || fail "ADR-0042 A7: 起動行の検査が何も見ていない"
 
 # 「AskUserQuestion（ダイアログ）を既定」と読める文
-dialog_default='(AskUserQuestion|ダイアログ)[^。]*既定'
+dialog_default='(AskUserQuestion|ダイアログ)[^。]*既定|既定[^。]*(AskUserQuestion|ダイアログ)'
 left=$(grep -nE "$dialog_default" package/skills/ask-one-by-one/SKILL.md package/skills/chief-of-staff/SKILL.md package/skills/chief-of-staff/playbooks/*.md || true)
 [ -z "$left" ] && pass "ADR-0042 A8: ask-one-by-one と chief-of-staff の skill・手引きに AskUserQuestion を既定と読める文が無い" || fail "ADR-0042 A8: AskUserQuestion を既定と読める文が残る: $left"
 printf '%s\n' '1. 選択肢で答えられる問いは **AskUserQuestion を既定**にする。' | grep -qE "$dialog_default" \
+  && printf '%s\n' '既定はダイアログで聞く。' | grep -qE "$dialog_default" \
   && pass "ADR-0042 A8: 古い文は否定の検査に当たる（検査が見ている）" || fail "ADR-0042 A8: 否定の検査が何も見ていない"
 aobo2=$(sed -n '/^## 2\. /,/^## 3\. /p' package/skills/ask-one-by-one/SKILL.md)
 grep -qF '**Chief of Staff は、どの問いも返事の本文に書き、答えを待たずにターンを終える**' <<<"$aobo2" \
