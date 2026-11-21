@@ -24,8 +24,8 @@ type Review struct {
 
 // CheckReview は、課題 t の最新のレビュアーの findings.json が head を指すかを確かめ、
 // must_fix 以上で waived に無い指摘を数える。must_fix が空なら数えない（読み手が安全側に倒す）。
-// findings.json の commit が head と違っても、PR の差分が同じ（SamePatch。衝突の無い rebase で head だけが変わった）なら
-// そのレビューを head に引き継いで current にする（decisions/2026-11-20-review-carry-same-patch.md）。Commit は見た commit のまま。
+// findings.json の commit が head と違っても、PR の差分が同じ（SamePatch。rebase で head が変わっても、PR が足した行と消した行が同じ）なら
+// そのレビューを head に引き継いで current にする（decisions/2026-11-20-review-carry-same-patch.md・2026-11-21-review-carry-ignores-context-lines.md）。Commit は見た commit のまま。
 // 数えない指摘が2つある（decisions/2026-11-09-review-preexisting.md・2026-11-09-review-later-rounds.md）:
 //   - preexisting: true の指摘。ただし added（PR の差分で足した行。file → 行）に当たる場所なら数える
 //     （課題で足した行が課題の前からあったはずはない。申告で gate を緩めない）。added が nil なら場所を確かめない（担当の command の下見）。
@@ -96,9 +96,12 @@ func (l *Ledger) previousFiles(earlier []string, commit string) map[string]bool 
 
 // SamePatch は、課題の worktree dir の git で、commit a と b の PR の差分が同じか。
 // PR の差分は、その commit と origin/HEAD（既定の branch）の merge-base から commit までの diff とする。
-// 比べるのは、hunk の行番号と index の行（blob の id）を除いた diff の全部で、追加・削除・前後の行は空白も含めて比べる。
+// 比べるのは、ファイルごとの見出しと、消した行の並びと、足した行の並びで、空白も含めて比べる（prDiff）。
+// 足した行と消した行には、git が hunk の見出しに出す囲みの行（関数の宣言の行など）を添えて比べる。
+// 前後のコンテキストの行・hunk の行番号・index の行は比べない。コンテキストの行は main の側の文で、main が近くの行を変えた
+// rebase や、衝突を解いた rebase でも、PR が足した行と消した行が同じ囲みの中で同じなら同じ差分とみなす。
+// 足した行を別の関数へ移したときは囲みの行が変わるので同じと言わない（decisions/2026-11-21-review-carry-ignores-context-lines.md）。
 // git patch-id は空白の違いを無視するので使わない（文字列の中の空白だけが変わった差分を同じと見て、見ていない変更のレビューを引き継ぐ）。
-// 衝突の無い rebase は base だけを替えるので差分は同じになる。衝突を解いて差分が変わった rebase は違う。
 // worktree が無い・commit が無い・origin/HEAD が引けない・差分が空のときは同じと言わない（引き継がずに頼み直す側に倒す）。
 func SamePatch(dir, a, b string) bool {
 	if dir == "" || a == "" || b == "" {
@@ -112,10 +115,13 @@ func SamePatch(dir, a, b string) bool {
 	return ok && bytes.Equal(pa, pb)
 }
 
-// hunkRe は hunk の見出しの行番号（@@ -a,b +c,d @@）。base が進むとずれるので比べない。
-var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@`)
+// hunkRe は hunk の見出し（@@ -a,b +c,d @@ <囲みの行>）。行番号は base が進むとずれるので比べず、囲みの行だけを取る。
+var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+[0-9]+(?:,[0-9]+)? @@ ?(.*)$`)
 
-// prDiff は commit の PR の差分から、hunk の行番号と index の行を除いたもの。差分はバイナリの中身も含める
+// prDiff は commit の PR の差分を、比べる形に直したもの。差分はコンテキストを 0 行で取り（-U0。hunk を繋げる設定も 0 に
+// 固定する）、ファイルごとに、見出し（index の行を除く）・消した行の並び・足した行の並びに分ける。消した行と足した行は、
+// それぞれ hunk の見出しの囲みの行を添える。「\ No newline at end of file」の行は直前の行に付ける。消した行と足した行を
+// 分けて並べるので、main が PR の変えた行の間に行を足して hunk が割れても同じになる。差分はバイナリの中身も含める
 // （--binary。含めないと中身の違うバイナリが同じに見える）。rename は git の設定に依らず見ない（--no-renames）。
 func prDiff(dir, commit string) ([]byte, bool) {
 	git := func(args ...string) ([]byte, bool) {
@@ -126,20 +132,55 @@ func prDiff(dir, commit string) ([]byte, bool) {
 	if !ok {
 		return nil, false
 	}
-	diff, ok := git("diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--binary", "--full-index", strings.TrimSpace(string(base)), commit)
+	diff, ok := git("diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--binary", "--full-index",
+		"-U0", "--inter-hunk-context=0", strings.TrimSpace(string(base)), commit)
 	if !ok || len(bytes.TrimSpace(diff)) == 0 {
 		return nil, false
 	}
-	lines := bytes.SplitAfter(diff, []byte("\n"))
-	for i, ln := range lines {
+	var out, head, removed, added bytes.Buffer
+	flush := func() {
+		out.Write(head.Bytes())
+		out.WriteString("\x00removed\n")
+		out.Write(removed.Bytes())
+		out.WriteString("\x00added\n")
+		out.Write(added.Bytes())
+		head.Reset()
+		removed.Reset()
+		added.Reset()
+	}
+	inHunk, started := false, false
+	var scope []byte
+	var last *bytes.Buffer
+	for _, ln := range bytes.SplitAfter(diff, []byte("\n")) {
+		if len(ln) == 0 {
+			continue
+		}
 		switch {
-		case bytes.HasPrefix(ln, []byte("index ")):
-			lines[i] = nil
-		case bytes.HasPrefix(ln, []byte("@@ ")):
-			lines[i] = hunkRe.ReplaceAll(ln, []byte("@@ @@"))
+		case bytes.HasPrefix(ln, []byte("diff --git ")):
+			if started {
+				flush()
+			}
+			started, inHunk, last = true, false, nil
+			head.Write(ln)
+		case !inHunk && bytes.HasPrefix(ln, []byte("index ")):
+		case hunkRe.Match(bytes.TrimSuffix(ln, []byte("\n"))):
+			inHunk, last = true, nil
+			scope = hunkRe.FindSubmatch(bytes.TrimSuffix(ln, []byte("\n")))[1]
+		case inHunk && (ln[0] == '-' || ln[0] == '+'):
+			last = &added
+			if ln[0] == '-' {
+				last = &removed
+			}
+			fmt.Fprintf(last, "%q ", scope)
+			last.Write(ln)
+		case inHunk && ln[0] == '\\' && last != nil:
+			last.Write(ln)
+		default:
+			head.Write(ln)
 		}
 	}
-	return bytes.Join(lines, nil), true
+	flush()
+	return out.Bytes(), true
 }
 
 func isWaived(x contract.Finding, waived []contract.Waived) bool {

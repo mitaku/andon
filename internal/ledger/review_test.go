@@ -140,3 +140,93 @@ func TestSamePatchSameFileMoved(t *testing.T) {
 		t.Fatal("同じファイルの離れた所だけが main で変わった rebase を、同じ差分と言わない")
 	}
 }
+
+// rebaseAfter は、base の上で課題の branch が topic を commit し、main が main を commit したあと、課題の branch を main に
+// rebase した repo を作る。resolve が nil でなければ衝突を解いたのと同じにする（main の上に resolve の中身を積む）。
+// 返すのは repo と、レビューが見た commit と、rebase のあとの head。origin/HEAD は進んだ main を指す。
+func rebaseAfter(t *testing.T, base, topic, main, resolve map[string]string) (*gitRepo, string, string) {
+	t.Helper()
+	g := newGitRepo(t)
+	g.commit("base", base)
+	g.run("checkout", "-q", "-b", "topic")
+	x := g.commit("topic", topic)
+	g.run("checkout", "-q", "main")
+	g.commit("main moves", main)
+	g.run("update-ref", "refs/remotes/origin/main", "main")
+	g.run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	g.run("checkout", "-q", "topic")
+	if resolve == nil {
+		g.run("rebase", "-q", "origin/main")
+		return g, x, g.run("rev-parse", "HEAD")
+	}
+	g.run("reset", "-q", "--hard", "origin/main")
+	return g, x, g.commit("topic", resolve)
+}
+
+// main が PR の変えた行の近く（コンテキストの行）を変えた rebase や、衝突を解いた rebase でも、PR が足した行と消した行が
+// 同じ囲み（関数の宣言の行など）の中で同じなら同じ差分と分かる。足した行か消した行か囲みが変わったら同じと言わない。
+func TestSamePatchIgnoresContextLines(t *testing.T) {
+	// 表の行を PR が変え、main が2行下の行の語を替えた（衝突しない。コンテキストの行だけが変わる）
+	table := "| 決まり | 守らせるもの |\n|---|---|\n| 一 | 無し。 |\n| 二 | 無し。 |\n| 三 | 古い語を見る |\n| 四 | 無し。 |\n"
+	tableTopic := strings.Replace(table, "| 一 | 無し。 |", "| 一 | tests/run。 |", 1)
+	tableMain := strings.Replace(table, "古い語を見る", "新しい語を見る", 1)
+	// PR が関数の中に足した行のすぐ上を main が変えた（衝突する）
+	conflictBase := "func f() {\n\ta\n\tb\n}\n"
+	conflictTopic := "func f() {\n\ta\n\tA\n\tb\n}\n"
+	conflictMain := "func f() {\n\ta2\n\tb\n}\n"
+	// PR が表の隣り合う2行を書き換え、main がその間に行を足した（衝突する。解くと消す・足すの組が2つに割れる）
+	rowsBase := "| 一 |\n| 二 |\n| 三 |\n| 四 |\n"
+	rowsTopic := "| 一 |\n| 二。 |\n| 三。 |\n| 四 |\n"
+	rowsMain := "| 一 |\n| 二 |\n| 足した |\n| 三 |\n| 四 |\n"
+	// 関数が2つあるファイル
+	twoFuncs := "func safe() {\n\tx()\n}\n\nfunc unsafe() {\n\ty()\n}\n"
+	longFunc := "func f() {\n\ta\n\tb\n\tc\n\td\n\te\n}\n"
+	// 最後の行に改行の無いファイルで、PR が8行目を変え、main が最後の行に改行を足した（コンテキストの「No newline」の行だけが変わる）
+	var lines []string
+	for i := 1; i <= 10; i++ {
+		lines = append(lines, string(rune('a'+i-1)))
+	}
+	noEOL := strings.Join(lines, "\n")
+	noEOLTopic := strings.Replace(noEOL, "\nh\n", "\nH\n", 1)
+	for _, c := range []struct {
+		name                       string
+		base, topic, main, resolve map[string]string
+		want                       bool
+	}{
+		{"main が近くの行を変えた rebase", map[string]string{"t.md": table}, map[string]string{"t.md": tableTopic},
+			map[string]string{"t.md": tableMain}, nil, true},
+		{"衝突を解いて足した行が同じ rebase", map[string]string{"a.txt": conflictBase}, map[string]string{"a.txt": conflictTopic},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "func f() {\n\ta2\n\tA\n\tb\n}\n"}, true},
+		{"衝突を解いて main が PR の書き換えた2行の間に足した行を残した rebase", map[string]string{"t.md": rowsBase}, map[string]string{"t.md": rowsTopic},
+			map[string]string{"t.md": rowsMain}, map[string]string{"t.md": "| 一 |\n| 二。 |\n| 足した |\n| 三。 |\n| 四 |\n"}, true},
+		{"衝突を解いて足した行が変わった rebase", map[string]string{"a.txt": conflictBase}, map[string]string{"a.txt": conflictTopic},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "func f() {\n\ta2\n\tA2\n\tb\n}\n"}, false},
+		{"衝突を解いて消した行が変わった rebase", map[string]string{"a.txt": "a\nb\nc\n"}, map[string]string{"a.txt": "a\nB\nc\n"},
+			map[string]string{"a.txt": "a\nb2\nc\n"}, map[string]string{"a.txt": "a\nB\nc\n"}, false},
+		{"衝突を解いて足した行を別のファイルに置いた rebase", map[string]string{"a.txt": conflictBase, "b.txt": "b\n"}, map[string]string{"a.txt": conflictTopic},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"b.txt": "b\n\tA\n"}, false},
+		{"衝突を解いて足した2行の順が入れ替わった rebase", map[string]string{"a.txt": conflictBase}, map[string]string{"a.txt": "func f() {\n\ta\n\tA\n\tB\n\tb\n}\n"},
+			map[string]string{"a.txt": conflictMain}, map[string]string{"a.txt": "func f() {\n\ta2\n\tB\n\tA\n\tb\n}\n"}, false},
+		{"足した行を同じファイルの別の関数へ移した head", map[string]string{"f.go": twoFuncs},
+			map[string]string{"f.go": strings.Replace(twoFuncs, "\tx()", "\trequireAuth()\n\tx()", 1)},
+			map[string]string{"f.go": strings.Replace(twoFuncs, "\ty()", "\ty2()", 1)},
+			map[string]string{"f.go": strings.Replace(twoFuncs, "\ty()", "\trequireAuth()\n\ty2()", 1)}, false},
+		{"main が足した行を囲む関数の宣言の行を変えた rebase", map[string]string{"f.go": longFunc},
+			map[string]string{"f.go": strings.Replace(longFunc, "\td\n", "\td\n\tD\n", 1)},
+			map[string]string{"f.go": strings.Replace(longFunc, "func f() {", "func f(x int) {", 1)}, nil, false},
+		{"足した最後の行の改行の有無だけが違う head", map[string]string{"e.txt": "x\n", "o.txt": "o\n"}, map[string]string{"e.txt": "x\nA"},
+			map[string]string{"o.txt": "o\nO\n"}, map[string]string{"e.txt": "x\nA\n", "o.txt": "o\nO\n"}, false},
+		{"main が最後の行に改行を足した rebase", map[string]string{"n.txt": noEOL}, map[string]string{"n.txt": noEOLTopic},
+			map[string]string{"n.txt": noEOL + "\n"}, nil, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g, x, y := rebaseAfter(t, c.base, c.topic, c.main, c.resolve)
+			if x == y {
+				t.Fatal("rebase で head が変わっていない")
+			}
+			if got := SamePatch(g.dir, x, y); got != c.want {
+				t.Fatalf("SamePatch = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
