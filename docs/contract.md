@@ -1035,7 +1035,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 `andon waiting [--json] [--project <slug>]` が、オーナーが動くまで先へ進まないもの（オーナー待ち）と並行の枠を数えて出す（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 8・9）。**読むだけで、何も書かない・保存しない**。置き場は無い（標準出力だけ）。数える式はこの command だけが持ち、Chief of Staff が枠を数えるときも、問いを出す順を決めるときも、オーナーのペインが一覧を描くときも、この出力を使う（決めたこと 14）。`--json` を付けない出力は同じ中身を人が読む行で出し、機械は読まない。
 
-読むもの: kanban の `config.yaml`（`columns`・`timezone`・`chief_of_staff`）・`issues/<id>/issue.yaml`・`questions.yaml`・`log.jsonl`（課題が最後に `review` へ動いた行と、`merge` を最後に書いた行の `by`）と、課題の `library/` の `report.json`（`commit`・`pr`）・gate の記録（今の head の `library/gate/<head>.json`）・問いの JSON（`library/questions/<n>.json` の `from`・`facts`・`kind`）と、`project.json` の `chief_of_staff.parallel`（作者の照合は通さずファイルを読む。読めない・形が違えば上限 2 で数え、理由を標準エラーに1行出す）。GitHub は読まず、git も kanban の CLI も呼ばない。
+読むもの: kanban の `config.yaml`（`columns`・`timezone`・`chief_of_staff`）・`issues/<id>/issue.yaml`・`questions.yaml`・`log.jsonl`（課題が最後に `review` へ動いた行と、`merge` を最後に書いた行の `by`）と、課題の `library/` の `report.json`（`commit`・`pr`）・gate の記録（今の head の `library/gate/<head>.json`）・問いの JSON（`library/questions/<n>.json` の `from`・`facts`・`kind`）と、`project.json` の `chief_of_staff.parallel`（作者の照合は通さずファイルを読む。読めない・形が違えば上限 2 で数え、理由を標準エラーに1行出す）。GitHub は読まず、git も呼ばない。kanban の CLI は数えるのには使わず、`--project` も `KANBAN_ROOT` も無いときに kanban の根を聞く（`kanban root`）だけである。
 
 ```json
 {"version": 1, "at": "2026-11-21T10:00:00Z", "project": "sample-site",
@@ -1080,4 +1080,4 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `items[].holds` | その課題を `after` で待っている済んでいない課題の id（直接待つものと、その後ろで待つもの全部。id の順） |
 
 - 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。
-- kanban の `config.yaml` が読めないときと、`--project` の kanban が無いときは終了コード 1。読めない `issue.yaml` は数えずに理由を標準エラーに出し、終了コード 0。
+- kanban の `config.yaml` が読めないとき、`log.jsonl` が読めない（課題があるのに無い）とき、`--project` の kanban が無いときは終了コード 1。履歴が無いと、課題が `review` に入った時刻と `merge` の書き手が分からず、マージの依頼を動いている仕事に数えてしまうため、数えずに止まる。読めない `issue.yaml` は数えずに理由を標準エラーに出し、終了コード 0。

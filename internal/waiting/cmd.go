@@ -16,6 +16,7 @@ import (
 // Usage は andon waiting の使い方。
 const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
 	"オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す。読むだけで、何も書かない。GitHub も git も読まない。\n" +
+	"kanban の履歴（log.jsonl）が読めなければ数えずに終了コード 1。\n" +
 	"数えるのは今の head について決め終えたものだけ（docs/adr/0042-owner-waits-do-not-stop-the-line.md 決めたこと 8・9）。\n" +
 	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
 	"--json は docs/contract.md §25 の形。\n"
@@ -60,7 +61,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// projectRoot は kanban の根（projects/<slug>/）: --project、KANBAN_ROOT、kanban の CLI（kanban root）の順。
+// projectRoot は kanban の根（projects/<slug>/）: --project、KANBAN_ROOT、kanban の CLI（kanban root。根を聞くだけ）の順。
 func projectRoot(slug string) (string, error) {
 	if slug != "" {
 		if _, err := delegate.ProjectSlug(delegate.Workspace(), slug); err != nil {

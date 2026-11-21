@@ -1,7 +1,8 @@
 // Package waiting は andon waiting: オーナー待ち（マージの依頼・判断・手作業）と並行の枠を数える（ADR-0042 決めたこと 8・9）。
 // 読むだけで、何も書かない。kanban のファイル（config.yaml・issues/<id>/issue.yaml・questions.yaml・log.jsonl）と、
 // 課題の library/（report.json・gate/<head>.json・questions/<n>.json）と、project.json の chief_of_staff.parallel を直に読む。
-// GitHub は読まず、git も kanban の CLI も呼ばない。数える式はこの package だけが持つ（決めたこと 14）。
+// GitHub は読まず、git も呼ばない。kanban の CLI は、数えるのには使わない（置き場が分からないときに入口が kanban root で根を聞くだけ）。
+// 数える式はこの package だけが持つ（決めたこと 14）。
 package waiting
 
 import (
@@ -116,7 +117,12 @@ func Read(root string, now time.Time) (res Result, warn []string, err error) {
 	issues, w2 := readIssues(dir)
 	warn = append(warn, w2...)
 	l := ledger.At(root)
-	rows := l.Log()
+	rows, err := l.ReadLog()
+	// 履歴が無い・読めないと、課題が review に入った時刻と merge の書き手が分からず、approve で止まった PR を動いている仕事に
+	// 数えてしまう。課題が1つも無い kanban の、まだ無い log.jsonl だけは空の履歴として読む
+	if err != nil && (!errors.Is(err, fs.ErrNotExist) || len(issues) > 0) {
+		return Result{}, warn, fmt.Errorf("kanban の履歴が読めない（%s）。枠を数えられない: %v", filepath.Join(dir, "log.jsonl"), err)
+	}
 	return count(l, cfg, issues, rows, limit, now), warn, nil
 }
 

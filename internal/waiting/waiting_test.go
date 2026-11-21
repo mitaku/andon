@@ -397,3 +397,42 @@ func TestText(t *testing.T) {
 		}
 	}
 }
+
+// 履歴（log.jsonl）が無い・読めないと、approve で止まった PR を動いている仕事に数えてしまうので、数えずに誤りを返す。
+// 課題の無い kanban の、まだ無い log.jsonl は空の履歴として読む。
+func TestLogUnreadable(t *testing.T) {
+	setup := func(t *testing.T) *fake {
+		f := newFake(t, 4)
+		f.issue("S-0001", "review", "profile: claude", "merge: person")
+		f.report("S-0001", head)
+		f.gate("S-0001", head, "2026-11-21T03:10:00Z", "approve", false)
+		return f
+	}
+	t.Run("無い", func(t *testing.T) {
+		f := setup(t)
+		if _, _, err := Read(f.root, now); err == nil || !strings.Contains(err.Error(), "kanban の履歴が読めない") {
+			t.Fatalf("log.jsonl が無いのに err = %v", err)
+		}
+	})
+	t.Run("読めない", func(t *testing.T) {
+		f := setup(t)
+		if err := os.MkdirAll(filepath.Join(f.root, "kanban", "log.jsonl"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := Read(f.root, now); err == nil || !strings.Contains(err.Error(), "kanban の履歴が読めない") {
+			t.Fatalf("log.jsonl が読めないのに err = %v", err)
+		}
+	})
+	t.Run("同じ課題で履歴があれば merge に数える", func(t *testing.T) {
+		f := setup(t)
+		f.row("2026-11-21T03:00:00Z", "terminal:t9", "S-0001", `{"status":"review"}`)
+		want(t, f.read(), "S-0001=merge")
+	})
+	t.Run("課題の無い kanban は履歴が無くても数える", func(t *testing.T) {
+		f := newFake(t, 4)
+		r, _, err := Read(f.root, now)
+		if err != nil || len(r.Items) != 0 || r.Slots.Free != 4 {
+			t.Fatalf("Read = %+v, %v", r, err)
+		}
+	})
+}
