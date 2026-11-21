@@ -3,7 +3,7 @@
 - 状態: **決定（2026-11-12）**。オーナーが 2026-11-12 に「決めた」と言った（Chief Engineer の対話 A-0161）。オーナーが PR をマージした日が決定の日（[decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md](../decisions/2026-11-12-adr-0022-advisor-and-chief-engineer.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。試験運用の結果（見る日 2026-11-27）は「決めたこと」に下から足す。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。
 - 主題: Claude Code の Advisor（メインのモデルが途中で強いモデルに助言を求める機能）を使えば、仕様・設計をオーナーと対話する役（Chief Engineer。[design.md](../design.md) §1.8）を外せるか。結論は「外さない。Advisor は Chief of Staff の判断を強めるために、試験運用で付ける」。プロファイルと skill の変更は Andon のラインの変更（レベル C。オーナーがマージ）。
 - 語は [design.md](../design.md) §0.1。機械が読む形（`contract.md`・`schema/`）は変えない。
-- 入力: 依頼書 A-0161（オーナーの発言 2026-11-12 と Chief of Staff の経緯）、design.md §1.8、[ADR-0009](0009-cos-default-entry.md)、[ADR-0001](0001-skills-distribution.md)、[ADR-0004](0004-project-layout.md)、`package/templates/chief-engineer.md`・`chief-of-staff.md`、`package/skills/chief-of-staff/SKILL.md`・`chief-engineer/SKILL.md`、台帳（これまでの Chief Engineer の課題 13 件）、セルの wiki、Advisor とカスタムエージェントの公式の説明（出典）。
+- 入力: 依頼書 A-0161（オーナーの発言 2026-11-12 と Chief of Staff の経緯）、design.md §1.8、[ADR-0009](0009-cos-default-entry.md)、[ADR-0001](0001-skills-distribution.md)、[ADR-0004](0004-project-layout.md)、`package/templates/chief-engineer.md`・`chief-of-staff.md`、`package/skills/chief-of-staff/SKILL.md`・`chief-engineer/SKILL.md`、kanban（これまでの Chief Engineer の課題 13 件）、セルの wiki、Advisor とカスタムエージェントの公式の説明（出典）。
 
 ## 決定の索引
 
@@ -33,7 +33,7 @@
 - advisor が見るのはメインの会話の全体（tool の呼び出しと結果を含む）。返すのは助言の文章だけで、返す先はメインのモデル。advisor は tool を使えず、オーナーと直接やりとりしない。
 - 入れ方は `/advisor`（選んだ値は利用者の設定の `advisorModel` に残る）・設定の `advisorModel`・起動フラグ `--advisor <model>`（そのセッションだけ。`claude --help` には出ない）。
 - 組み合わせ: メインが Opus なら advisor に Fable を置ける。メインが Fable 5.2 なら advisor は Fable 5.2（か Mythos 5.2）に限られる。
-- 版: Claude Code v2.1.260 以上。Fable 5.2 の advisor は v2.1.321 以上（セルは 2.1.322）。公式には experimental。
+- バージョン: Claude Code v2.1.260 以上。Fable 5.2 の advisor は v2.1.321 以上（セルは 2.1.322）。公式には experimental。
 - コスト: advisor を呼んだ分は advisor のモデルの単価で別に数えられ、プランの利用上限にも数えられる（単価は未確認）。
 - セルの今: `advisorModel` の設定は無い。全部の役が同じ HOME を使うので、どこかの端末で `/advisor` を打つと、担当やレビュアーにも付く。
 
@@ -45,7 +45,7 @@
 - カスタムエージェントは自分でもサブエージェントを起動できる（既定で3段まで）。設定した advisor を継ぐ。
 - Andon の過去の決定: 置き場は ADR-0004 決めたこと 1 が例に挙げている（プロジェクトの `.claude/agents/`）。パッケージの `agents/` は置けば plugin の部品として読まれる（ADR-0001 決めたこと 2。今は空）。役のセッションそのものを `claude --agent <役>` で起動する形はオーナーが退けた（ADR-0001。2026-11-05）。
 
-### 確かめた事実（台帳。2026-11-12）
+### 確かめた事実（kanban。2026-11-12）
 
 - これまで Chief Engineer に回した課題は 15 件（動いている 2 件を含む）。終わった 13 件は全部が文書（ADR）の PR になり、「決断が無い小さな話」として文書なしで返った例（ADR-0009 決めたこと 4）は 0 件。
 - 2026-11-12 は Chief Engineer の課題が2つ（A-0160・A-0161）並んで動いた。
@@ -64,7 +64,7 @@
 2. **2026-11-12 Advisor（Fable）を付けるのは Chief of Staff だけ。** 担当・レビュアーへ広げるかは、効きを見てから別の題で決める。
    理由: 変えるものが1つなので効きが見やすい。Advisor は experimental で、呼ばれるたびに会話の全体を読み、その分が advisor のモデルの単価で別に掛かる。Fable で動く役（Chief Engineer・`fable` のプロファイル）は advisor も Fable に限られ、得が薄い。
    捨てた案: Chief of Staff と Opus・Sonnet の担当（公式の用途には一番合うが、課題の数だけコストが増え、効きの出所が分かれる）／Claude 系の全部の役（experimental の機能にライン全体が依る）／まだ入れず、オーナーが手で `/advisor` を試すだけ。
-3. **2026-11-12 入れ方は、パッケージの `chief-of-staff` のプロファイル（`package/templates/chief-of-staff.md`）の起動行に `--advisor fable` を1つ足す。** レベル C（オーナーがマージ）。パッケージの版上げで全セルへ届く。
+3. **2026-11-12 入れ方は、パッケージの `chief-of-staff` のプロファイル（`package/templates/chief-of-staff.md`）の起動行に `--advisor fable` を1つ足す。** レベル C（オーナーがマージ）。パッケージのバージョンアップで全セルへ届く。
    理由: 起動フラグはそのセッションだけに効くので、Chief of Staff だけに付く（2）。
    捨てた案: `/advisor` で入れる（選んだ値が利用者の設定に残り、同じ HOME を使う担当やレビュアーにも付く）／このセルの `templates.local` だけで先に試す（オーナーだけが書ける場所。効いたらパッケージへ、の2段になる）／managed settings に `advisorModel`（全部の役に付く）。
 4. **2026-11-12 Chief of Staff の skill の「オーナーの入口」に1行だけ足す: 振り分けに迷うとき（直す課題か Chief Engineer か）と、2回差し戻して切り直すときは、advisor に相談してから決める。** それ以外の場面は書かず、モデルの判断に任せる。
@@ -114,7 +114,7 @@
 | V2 | 観察: 価値の仮説（オーナーの手。見る日 2026-11-27） | 価値の仮説 5・6 | V1 |
 
 - V1 は Chief of Staff の skill と templates に触る。同じファイルに触る課題（A-0123〈CoS skill の行数・承認の線・古い続きの文〉・A-0047〈W5: skill・templates の語の置き換え〉）とぶつからないように並べる。
-- V1 がマージされても、動いている Chief of Staff には付かない。パッケージの版が上がり、Chief of Staff を起動し直したときから効く。
+- V1 がマージされても、動いている Chief of Staff には付かない。パッケージのバージョンが上がり、Chief of Staff を起動し直したときから効く。
 
 ## 開いている問い（残った問い。決断の種類つき）
 
@@ -131,6 +131,6 @@
 - Claude Code の docs「Subagents」（https://code.claude.com/docs/en/sub-agents ）・「Agent teams」（https://code.claude.com/docs/en/agent-teams ）。
 - 公式の説明は、読むだけのサブエージェントが 2026-11-12 に読んだ（要約を通して読んだので、細かい値は実装の課題がセルで実測して確かめる）。
 - design.md §1.8（役を分けた理由・プロファイルの案 A〜C）、ADR-0009（オーナーの入口は Chief of Staff・誤った振り分けの戻し方）、ADR-0001（`--plugin-dir`・`claude --agent` を退けた経緯）、ADR-0004（`.claude/agents/` の置き場）。
-- 台帳: profile が `chief-engineer` の課題 15 件の `issue.yaml` と `report.json`（2026-11-12）。
+- kanban: profile が `chief-engineer` の課題 15 件の `issue.yaml` と `report.json`（2026-11-12）。
 - セルの wiki: `entities/owner.md`、`sources/2026-11-11-owner-effort-high.md`（対話の役も effort high）、`sources/2026-11-11-owner-agent-teams.md`（サブエージェントは調べものだけ）。
 - 反論のサブエージェントは走らせていない（外向きの面が無く、止め方がフラグと1行を戻すだけで、不可逆な設計が無いため）。

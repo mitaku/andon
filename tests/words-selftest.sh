@@ -94,9 +94,9 @@ for f in docs/adr/0036-owner-not-hito.md docs/decisions/2026-11-20-role-name-rep
 done
 setup; printf '   | 人の判断待ち | オーナーの判断待ち |\n' >"$tmp/r/docs/adr/0001-x.md"; expect fail 'ADR-0036 の外の語の表の「人の判断待ち」で落ちる'
 setup; printf '   | オーナーの判断待ち | 人の判断待ち |\n' >"$tmp/r/docs/adr/0036-owner-not-hito.md"; expect fail 'ADR-0036 の語の表の「今」でない列の「人の判断待ち」で落ちる'
-setup; echo '台帳は、人と人が共有する issue の置き場ではない' >"$tmp/r/docs/adr/0005-cell-repo.md"; expect ok 'ADR-0005 の「人と人が共有する」は通る'
+setup; echo 'kanban は、人と人が共有する issue の置き場ではない' >"$tmp/r/docs/adr/0005-cell-repo.md"; expect ok 'ADR-0005 の「人と人が共有する」は通る'
 setup; echo 'open/closed はトラッカー側の人が決める' >"$tmp/r/docs/adr/0011-signals-and-value-loop.md"; expect ok 'ADR-0011 の「トラッカー側の人が決める」は通る'
-setup; echo '台帳は、人と人が共有する issue の置き場ではない' >"$tmp/r/docs/adr/0004-x.md"; expect fail 'ADR-0005 の外の「人と人が共有する」で落ちる'
+setup; echo 'kanban は、人と人が共有する issue の置き場ではない' >"$tmp/r/docs/adr/0004-x.md"; expect fail 'ADR-0005 の外の「人と人が共有する」で落ちる'
 # コマンドの出力とコードと検査（internal/・init/・cmd/・tests/）も見る
 for d in internal init cmd tests; do
   setup; mkdir -p "$tmp/r/$d"; echo '"人の判断が要る"' >"$tmp/r/$d/x.go"; expect fail "$d/ の「人の判断が要る」で落ちる"
@@ -178,9 +178,23 @@ for f in docs/contract.md:台帳に書く docs/dispatcher.md:ゲートを回す 
 done
 setup; sed -i 's/^## 未リリース$/&\n- 前の版の台帳を読む/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「版」「台帳」で落ちる'
 setup; printf -- '- 前の版の台帳を読む。ゲートを回す\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG のバージョンの節の「版」「台帳」「ゲート」は通る'
+setup; echo '  - [0040 「台帳」をやめる。ゲートを回す](docs/adr/0040-x.md): 決定' >"$tmp/r/README.md"
+expect ok 'README.md の ADR の一覧の行（ADR の題の写し。0025 から後）の「ゲート」は通る'
 setup; echo '  - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定' >"$tmp/r/README.md"
-expect ok 'README.md の ADR の一覧の行（ADR の題の写し）の「台帳」は通る'
+expect fail 'README.md の ADR の一覧の、替え終えた 0001〜0024 の行の「台帳」で落ちる'
 setup; echo '- 台帳のカードを「課題（issue）」に改名する' >"$tmp/r/README.md"; expect fail 'README.md の ADR の一覧でない行の「台帳」で落ちる'
+# ADR は替え終えた 0001〜0024 だけを見る。ADR-0018 のオーナーの期待の 1 行は外す
+for f in docs/adr/0001-x.md docs/adr/0013-short-role-names-and-plain-japanese.md docs/adr/0024-x.md; do
+  for w in '台帳に書く' 'ゲートを回す' '前の版に戻す'; do
+    setup; echo "$w" >>"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
+  done
+done
+setup; echo '台帳に書く。ゲートを回す。前の版に戻す' >"$tmp/r/docs/adr/0025-x.md"; expect ok '替えていない ADR（0025）の 3 語はまだ見ない'
+setup; echo '初版と比べる。「台帳」と「ゲート」をやめる' >"$tmp/r/docs/adr/0001-x.md"; expect ok 'ADR 0001 の「初版」と「」の中は通る'
+o='オーナーの期待（2026-11-11）: 検証のゲートを手厚くする。PR に証憑を正しく載せる'
+setup; echo "$o" >"$tmp/r/docs/adr/0018-screen-check-tooling.md"; expect ok 'ADR-0018 のオーナーの期待の行の「ゲート」は通る'
+setup; printf '%s\nゲートを回す\n' "$o" >"$tmp/r/docs/adr/0018-screen-check-tooling.md"; expect fail 'ADR-0018 のほかの行の「ゲート」で落ちる'
+setup; echo "$o" >"$tmp/r/docs/adr/0017-x.md"; expect fail 'ADR-0018 の外では、オーナーの期待の行でも「ゲート」で落ちる'
 # docs/decisions.md は冒頭（最初の「## 1.」より前）だけを見て、凍結した表は外す
 setup; printf '# 決定の記録\n\n- セルの台帳や wiki は指さない\n\n## 1. 設計書 §6 のオーナーの答え\n\n| 日付 | 決定 |\n' >"$tmp/r/docs/decisions.md"
 expect fail 'docs/decisions.md の冒頭の「台帳」で落ちる'
@@ -224,6 +238,7 @@ solo docs/design.md '人がマージする'; expect fail 'docs/design.md だけ�
 solo docs/design.md 'freee の KPI「人の介在率」'; expect ok 'docs/design.md だけの根の引用は通る（役の「人」の段）'
 solo docs/design.md 'gate が読む。版を上げる'; expect fail 'docs/design.md だけの根の「版」で落ちる（「台帳」「ゲート」「版」の段）'
 solo docs/design.md '日本語の呼び名を「台帳」のままにした。2006 版では'; expect ok 'docs/design.md だけの根の「」の中と「2006 版」は通る（「台帳」「ゲート」「版」の段）'
+solo docs/adr/0001-x.md '台帳に書く'; expect fail 'docs/adr/0001 のファイル1つだけの根の「台帳」で落ちる（「台帳」「ゲート」「版」の段）'
 solo README.md '課題の kanban、 gate を読む'; expect fail 'README.md だけの根の「、 gate」で落ちる（句読点の段）'
 solo README.md '開く。 https://example.com/x を読む'; expect ok 'README.md だけの根の URL の前の空白は通る（句読点の段）'
 # 範囲が空の根: grep -r にファイルを渡さないと根の全体を見る。範囲の外（.github/）は見ない

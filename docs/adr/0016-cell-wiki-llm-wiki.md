@@ -24,19 +24,19 @@
 ## 前提（同意済み。番号）
 
 1. **何もしないとどうなるか（2026-11-10 同意）。** 今の skill §11 のまま続けると、1件1ファイルが日付順に積み上がり `index.md` が長くなるだけで、ページ同士の矛盾・重複は拾われず、Chief of Staff は「学び」と「repo に置くべき手順」を wiki に混ぜて捨て続け、Chief Engineer の「読む」も index を引くだけで、実質 wiki は使われない。
-2. **元資料（raw sources）の層は wiki の中に集める（2026-11-10 同意。推奨案は覆された）。** 推奨案は「新しく作らず、台帳の記録（report・findings・corrections・ゲートの記録・問いと答え）と repo の ADR・decisions/ を出典として指す」だったが、オーナーは原典どおり不変の元資料の層を wiki の横に持ち、記録・オーナーの発言をそこへ写してから取り込む形を選んだ。何を・誰が・いつ写すかは「決めたこと」で決める。
+2. **元資料（raw sources）の層は wiki の中に集める（2026-11-10 同意。推奨案は覆された）。** 推奨案は「新しく作らず、kanban の記録（report・findings・corrections・gate の記録・問いと答え）と repo の ADR・decisions/ を出典として指す」だったが、オーナーは原典どおり不変の元資料の層を wiki の横に持ち、記録・オーナーの発言をそこへ写してから取り込む形を選んだ。何を・誰が・いつ写すかは「決めたこと」で決める。
 3. **書き手はエージェントだけ（2026-11-10 同意）。** wiki の層を書くのはエージェントで、オーナーは wiki のページを書かない（原典の "You never (or rarely) write the wiki yourself"）。オーナーがするのは元資料を持ち込むこと・問うこと・ページを読んで直させること。どのエージェントが書くか（今は Chief of Staff だけ）は「決めたこと」で決める。
 4. **境界は保つ（2026-11-10 同意）。** wiki に置くのは「セルを横断する運用の学び・確かめた事実・オーナーの思考と志向」。製品に効くもの（仕様・作法・テスト）は repo、決定は ADR と `decisions/` が正で、wiki はそれを指すだけで中身を写さない（decisions.md D12・問い21・skill §11）。LLM Wiki の形に乗せてもこの境界は変えない。
-5. **配り方と規模（2026-11-10 同意）。** 届く先はパッケージ（Chief of Staff の skill §11 と `init/` の wiki の雛形）で、版上げで全セルへ広がる（横展）。ラインの変更なのでマージはオーナー（レベル C）。規模は原典の「約100元資料・数百ページまでは index だけで足りる」より小さいと見て、検索ツール・embedding・Obsidian のような閲覧の道具は今回入れない。
+5. **配り方と規模（2026-11-10 同意）。** 届く先はパッケージ（Chief of Staff の skill §11 と `init/` の wiki の雛形）で、バージョンアップで全セルへ広がる（横展）。ラインの変更なのでマージはオーナー（レベル C）。規模は原典の「約100元資料・数百ページまでは index だけで足りる」より小さいと見て、検索ツール・embedding・Obsidian のような閲覧の道具は今回入れない。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-10 形は原典どおり（案 B）。** `wiki/raw/`（不変の元資料）＋ wiki の層を実体・概念ごとに育つページで持ち、`index.md`・`log.md` を置き、ingest・query・lint を Chief of Staff が回す。schema（原典の CLAUDE.md に当たるもの）は Chief of Staff の skill §11。
    理由: オーナーの向き「LLM Wiki の手法に乗っとる」を満たす最小で、書き手は規約9のまま。あとで書き手だけ担当に移せる（案 C）。
    捨てた案: A 最小（今の §11 に raw/・log.md・lint を足すだけ）——ページが実体・概念ごとに育たず前提1の困りごとが残る／C 横から（ingest・lint を wiki の担当がする）——セルの repo を相手にする担当の形・プロファイルが新しく要り、規模（前提5）に対して部品が多い。
-2. **2026-11-10 元資料（`wiki/raw/`）は3種。** (1) オーナーの発言の写し（Chief of Staff が対話から、言葉のまま・日付つき）、(2) オーナーが持ち込む外の資料（記事・資料）、(3) 課題を finish したときの記録の写し（人向けの報告 `report.md` とオーナーの手直し `corrections.json`。finish 後は不変）。指摘（findings）・ゲートの記録は写さず、必要なら台帳を指す。元資料は書いたら変えない（原典の immutable）。→ ADR-0020（4種目: トリアージで wiki 行きになった memory の写し `raw/memory/`。[ADR-0020](0020-auto-memory-as-intake.md) 決めたこと 5）
-   理由: 今は記録に残っていないオーナーの発言が残り、台帳がセルの寿命（ADR-0005 決めたこと 5）でも wiki がセルの repo だけで完結する。
-   捨てた案: 発言と外の資料だけ（台帳を指すだけ）——セルを建て直すと出典が消える／library/ を丸ごと写す——raw/ がラインのノイズで太る。
+2. **2026-11-10 元資料（`wiki/raw/`）は3種。** (1) オーナーの発言の写し（Chief of Staff が対話から、言葉のまま・日付つき）、(2) オーナーが持ち込む外の資料（記事・資料）、(3) 課題を finish したときの記録の写し（人向けの報告 `report.md` とオーナーの手直し `corrections.json`。finish 後は不変）。指摘（findings）・gate の記録は写さず、必要なら kanban を指す。元資料は書いたら変えない（原典の immutable）。→ ADR-0020（4種目: トリアージで wiki 行きになった memory の写し `raw/memory/`。[ADR-0020](0020-auto-memory-as-intake.md) 決めたこと 5）
+   理由: 今は記録に残っていないオーナーの発言が残り、kanban がセルの寿命（ADR-0005 決めたこと 5）でも wiki がセルの repo だけで完結する。
+   捨てた案: 発言と外の資料だけ（kanban を指すだけ）——セルを建て直すと出典が消える／library/ を丸ごと写す——raw/ がラインのノイズで太る。
 3. **2026-11-10 wiki の層のページは4種をフォルダで分ける。** `sources/`（元資料に1対1の要約）・`entities/`（実体: 役・部品・案件・オーナー。例 `entities/owner.md`・`entities/dispatcher.md`）・`topics/`（概念・運用の題。例「rebase のあとのレビューの頼み直し」）・`overview.md`（まとめ1枚）。原典の comparisons・synthesis は topics と overview に吸う。
    理由: 実体と概念が育つ場所が決まり、オーナーの志向は `entities/owner.md` に集まる。
    捨てた案: 原典の6種そのまま——小さい wiki に空の種類ができる／フォルダで分けず front matter の kind だけ——ファイル一覧で形が見えない。
@@ -64,7 +64,7 @@
 - 検索ツール（qmd など）・embedding・Obsidian などの閲覧の道具・画像の取り込み・Marp などの出力の形（前提 5。規模が小さく、原典も任意としている）。
 - wiki の担当（案 C）とセルの repo を相手にする担当の形（決めたこと 1。書き手は Chief of Staff のまま）。
 - lint の定期の課題（ルーチン）（決めたこと 6。ルーチンの形がまだ無い）。
-- 決定・仕様・作法を wiki に写すこと（前提 4）。指摘・ゲートの記録を `raw/` に写すこと（決めたこと 2）。
+- 決定・仕様・作法を wiki に写すこと（前提 4）。指摘・gate の記録を `raw/` に写すこと（決めたこと 2）。
 - プロジェクトごとの wiki（ADR-0005 の決めたこと 1 のまま。固有のものは front matter の `project`）。
 - wiki のための command（`andon wiki …`）。手順は skill §11 の本文（今の §11 の「command は無い」を保つ）。finish のときの記録の写しを `andon issue finish` が自動でするかは開いている問い 1。
 
@@ -76,7 +76,7 @@
 2. **雛形**: `init/wiki/` に `index.md`（種類ごとの節）・`log.md`（空。先頭の形の説明1行）・`raw/`・`sources/`・`entities/`・`topics/` がある（空のフォルダは `.gitkeep`）。`tests/andon-init.sh` の一覧に足す。
 3. **読む側**: `package/skills/chief-engineer/SKILL.md` の「読む」と `chief-of-staff/SKILL.md` §1 の query が「`index.md` → ページ」の順で読み、出典つきで答える形を指す。
 4. **文書**: `docs/design.md`（§1.5 の表の wiki・§3 のセルの repo の表）と ADR-0005 の表の `wiki/` の行（「1 ファイル 1 件・日付・出典・痩せた `index.md`」）が ADR-0016 を指す（上書きせず「→ ADR-0016」を足す）。
-5. **セルでの実測**（`package/` の変更はセルで実測する決まり。マージ後、Chief of Staff がする）: このセルの `wiki/` が新しい形になり、`raw/` に 2026-11-10 の発言の写し、`entities/owner.md`、`index.md` に種類ごとの節、`log.md` に `ingest` の項が5つ以上ある。古い `<日付>-<短い名>.md` が無い。repo へ出す3件の課題が台帳にある。
+5. **セルでの実測**（`package/` の変更はセルで実測する決まり。マージ後、Chief of Staff がする）: このセルの `wiki/` が新しい形になり、`raw/` に 2026-11-10 の発言の写し、`entities/owner.md`、`index.md` に種類ごとの節、`log.md` に `ingest` の項が5つ以上ある。古い `<日付>-<短い名>.md` が無い。repo へ出す3件の課題が kanban にある。
 
 ## 価値の仮説（P6 で形を決める）
 

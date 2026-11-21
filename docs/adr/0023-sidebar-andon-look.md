@@ -2,7 +2,7 @@
 
 - 状態: **決定（2026-11-12）**。オーナーが PR をマージした日が決定の日（[decisions/2026-11-12-adr-0023-sidebar-andon-look.md](../decisions/2026-11-12-adr-0023-sidebar-andon-look.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: Andon 同梱の App のレイアウト `andon` の左の列（サイドバー）の見た目。働き（何を出すか・並び・キー）は [ADR-0015](0015-inbox-needs-you.md) のまま変えない。
-- 語は [design.md](../design.md) §0.1。この題は新しい約束（端末のラベル・schema・台帳の形）を足さない（前提 3）。
+- 語は [design.md](../design.md) §0.1。この題は新しい約束（端末のラベル・schema・kanban の形）を足さない（前提 3）。
 - 入力: 依頼書 A-0163（オーナーの発言 2026-11-12 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、`package/host/layouts/andon.json`、[design.md](../design.md) §1.1・§6 問い1（モチーフ）、[assets/logo/README.md](../assets/logo/README.md)（ロゴの色と形）、[vision.md](../vision.md) §3（灯りの言い方）、[ADR-0002](0002-herdr-spaces.md) 決めたこと 18、[ADR-0015](0015-inbox-needs-you.md)、Herdr App の mod guide と同梱の `workspace-chrome`（出典の節）。
 
 ## 決定の索引
@@ -37,14 +37,14 @@
 
 1. サイドバーの働きは変えない。Inbox が出すもの（Needs you と Projects の2節。ADR-0015）・行の並び順・クリックやキーの動きはそのまま。変えるのは色・形・絵・動きだけ。
 2. 新しいモチーフや色は作らない。決定済みのモチーフと、いまあるロゴの色と形をサイドバーに持ち込む。ただし「黄＝オーナーの判断待ち・赤＝止まった」の定義のままでは Needs you の行を塗り分けられない（オーナーの指摘「今だと黄色と赤がそういう意味だと同じ状態だね」。`blocked` の端末はオーナーを待っていて、かつ止まっている）ので、サイドバーでの当て方はこの文書で決め直す（決めたこと 1）。
-3. 何もしなくても困らない（今のサイドバーで仕事は回る）。「より良く」の題で急ぎではない。小さく入れ、合わなければ元の見た目に戻せる形にする。端末のラベル・schema・台帳などの約束は足さない。
+3. 何もしなくても困らない（今のサイドバーで仕事は回る）。「より良く」の題で急ぎではない。小さく入れ、合わなければ元の見た目に戻せる形にする。端末のラベル・schema・kanban などの約束は足さない。
 4. 配り方は今のまま: `package/host` に同梱し `host-install` がオーナーの App の設定フォルダに置く。オーナー自身の設定（`settings.json`・`keys.json`・自分で選んだテーマ）には書かない。`host-install` は既存のファイルを上書きしないので、新しい見た目にするときはオーナーが手元で mod とレイアウトを退避して置き直す手が1回要る（operate.md「Herdr App の mod とレイアウト」）。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-12 サイドバーでの灯りの色: 琥珀＝オーナーが答えれば進む行（Permission・Question・Auth・Reply）、赤＝ターンが失敗して止まった行（Failed）。**
    理由: オーナーの手が違う（答える／調べて直す）。mod が今読める状態だけで分けられ、新しい約束が要らない。Failed は今もバッジの字で分けている。
-   捨てた案: 灯りは琥珀の1色だけ（Failed はバッジの字だけで区別。赤をサイドバーで使わなくなる）／呼び出し＝琥珀・定位置停止＝赤（vision.md §3 にいちばん正確だが、mod が問いの種類を知る口〈ラベルか台帳の読み取り〉を新しく足すことになり、前提 3 を越える）。
+   捨てた案: 灯りは琥珀の1色だけ（Failed はバッジの字だけで区別。赤をサイドバーで使わなくなる）／呼び出し＝琥珀・定位置停止＝赤（vision.md §3 にいちばん正確だが、mod が問いの種類を知る口〈ラベルか kanban の読み取り〉を新しく足すことになり、前提 3 を越える）。
 
 2. **2026-11-12 出す場所は2つ: Inbox の Needs you と、サイドバーの一番上（brand）。** Inbox は Needs you の見出し・バッジ・印を決めたこと 1 の色で塗る。brand は Herdr のロゴと字を Andon の記号（A の行燈）に替え、窓の色でサイドバー全体の状態を示す（決めたこと 3）。検索と列を畳むボタンは今のまま残す。brand は App 同梱の `workspace-chrome` の brand を写した Andon の mod が描く（同梱の mod は読むだけなので。files-plus と同じ持ち方で、App が brand を更新しても自動では追わない）。
    理由: 言い直しの2つの目的に1つずつ当たる（「Andon の画面だ」＝一番上の行燈、「灯りがついた」＝Inbox の色）。
@@ -59,7 +59,7 @@
    捨てた案: ついている間ゆっくり明滅（見逃しにくいが、長く待たせている間ずっと動く）／動き無し（即座に切り替わるだけ）。
 
 5. **2026-11-12 進め方: 作って、見て、直す。** この文書の方向で実装してマージし、オーナーが手元に置き直して見る。見ないと決まらない細部は担当がロゴの色から仮に決め、オーナーが見て違うと言ったところを小さな直しの課題にする。捨てる試作は先に作らない。
-   理由: 実際の画面はオーナーの手元でしか見られず、試作でも置き直しの手が同じだけ要る。約束に触れないので、戻すのは前の版を置き直すだけ（前提 3）。
+   理由: 実際の画面はオーナーの手元でしか見られず、試作でも置き直しの手が同じだけ要る。約束に触れないので、戻すのは前のバージョンを置き直すだけ（前提 3）。
    担当が仮に決める細部（オーナーが決めたことではない。見て直す対象）:
    - 色の値はロゴのもの（琥珀 `#F0A202`／`#FFD36B`・赤 `#D8453B`／`#F29A92`）を固定で使い、Needs you の灯りにテーマの `blocked` 色は使わない。琥珀を文字の色にするか地の色にするか・濃さは、明るいテーマと暗いテーマの両方で読める方を選ぶ。
    - Needs you の見出しの色、バッジの「Needs you」（種類の無い `blocked`）は琥珀の側。
@@ -77,7 +77,7 @@
 
 - **サイドバーの働きを変えること**（前提 1）。Inbox の節・行の中身・並び・キー・「mod は何も書かない」は ADR-0015 のまま。
 - **レイアウトの根に `theme`・`colors` を持たせること、Andon のテーマを配ること**（決めたこと 2 の捨てた案 C）。Spaces・tab・フッター・端末の色はオーナーが選んだテーマのまま。フッター（Settings・Add machine）と Spaces は App 同梱の mod のまま触らない。
-- **呼び出しと定位置停止を色で分けること**（決めたこと 1 の捨てた案）。mod が問いの種類を知る口（端末のラベル・台帳の読み取り）は足さない。
+- **呼び出しと定位置停止を色で分けること**（決めたこと 1 の捨てた案）。mod が問いの種類を知る口（端末のラベル・kanban の読み取り）は足さない。
 - **緑・明滅・音・通知**（決めたこと 3・4）。
 - **役のアイコン（Chief of Staff＝`clipboard-list`・Chief Engineer＝`drafting-compass`、`accent` 色）を変えること**。今のサイドバーは良いとオーナーが見ている（依頼書 A-0163）。ADR-0002 決めたこと 18 のまま。
 - **kanban-board・context-header・files-plus の色を揃えること**。この題はサイドバーだけ。揃えたくなったら別の題。
@@ -106,7 +106,7 @@
 3. 見る日: 2026-11-19。
 4. 誰が要るか: オーナー（手元で mod とレイアウトを置き直して使う）。
 5. 効いたとどう分かるか: 置き直してから新しい見た目のまま使い続けていて、行燈の色で呼び出しに気付けたと言える。
-6. 何があれば止めるか: 読みにくい・気が散る・App の更新で一番上（brand）が壊れた、のどれかなら前の版に置き直す。
+6. 何があれば止めるか: 読みにくい・気が散る・App の更新で一番上（brand）が壊れた、のどれかなら前のバージョンに置き直す。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
@@ -129,5 +129,5 @@ L2 と L3 は 1 つの課題にまとめてもよい（オーナーの置き直�
 ## 出典（読んだもの・捨てた案の出所）
 
 - オーナーの発言 2026-11-12（Chief of Staff の端末、依頼書 A-0163 の経緯）と、Chief Engineer との対話 2026-11-12（A-0163）。
-- Herdr App の [mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md)（レイアウトの `theme`・`colors`・`themes/<name>.json`、同梱の mod は読むだけ、動きの描き方、`theme()` の色の名前）と、同梱の [`workspace-chrome`](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/mods/workspace-chrome/main.js)（brand とフッターが描くもの）。operate.md が根拠にしている版と同じ commit。
+- Herdr App の [mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md)（レイアウトの `theme`・`colors`・`themes/<name>.json`、同梱の mod は読むだけ、動きの描き方、`theme()` の色の名前）と、同梱の [`workspace-chrome`](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/mods/workspace-chrome/main.js)（brand とフッターが描くもの）。operate.md が根拠にしているバージョンと同じ commit。
 - repo の中: `package/host/inbox/main.js`（`mark`・`heading`・`row`）、`package/host/layouts/andon.json`、`docs/assets/logo/`、design.md §1.1・§6 問い1、vision.md §3・§7。

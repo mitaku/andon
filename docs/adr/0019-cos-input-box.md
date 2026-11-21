@@ -58,7 +58,7 @@
 1. **2026-11-11 経路③を、入力欄へ打つ `hc send` から、`asyncRewake` のフックの「待ち役」に替える。dispatcher は Chief of Staff の入力欄へ `<news>` を打たない。** 経路①（Stop）・②（UserPromptSubmit）は今のまま残す。
    - 待ち役は Chief of Staff の Stop フックが `asyncRewake: true` で起動する command（仮の名 `andon dispatcher wait`）。届ける通知（dispatcher.md §3.2 の「届ける」）が待ちに出るまで待ち、出たら exit 2 で終わる。Claude Code が入力欄を通らずに新しいターンを始める。（最初は「待ち役が待ちを取り出して `<news>` を stderr に書く」としたが、同じ日に 8 で「合図だけ」に改めた。）
    - Chief of Staff の端末（ラベル `role=chief-of-staff`）でなければ、待たずに exit 0（`drain` と同じ見分け。managed settings のフックは担当の端末でも走る）。
-   - 落ちたとき（台帳・控えが読めない）は exit 0 で通す。待ちは控えに残り、次の口（①②）で届く。
+   - 落ちたとき（kanban・控えが読めない）は exit 0 で通す。待ちは控えに残り、次の口（①②）で届く。
    理由: 入力欄を通らないので、オーナーの書きかけに混ざる窓が構造として無い（前提 1。実測で書きかけが残った）。離席中も Chief of Staff を起動できる（言い直しの目的の後半）。実測で合格している①②に手を入れない。貼り付けで届ける製品はどれも窓が残り、解けている製品は入力欄を通らない口を使っている（事実の「ほかの製品」）。
    捨てた案:
    - A「経路③を消すだけ」（窓はゼロだが、オーナーが離れている間は通知が届かずラインが止まる）。
@@ -88,7 +88,7 @@
 6. **2026-11-11 経路①（Stop）の渡し方を、`{"decision": "block", "reason": …}` から `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": …}}` に替える。** 続きのターンになるのは同じで、画面の表示が「Stop hook feedback」になり、エラーの通知が出ない（オーナーには失敗に見えていた）。担当の Stop フック（`andon issue stop-check`。報告も問いも無いまま止まろうとした）は block のまま（そちらは止めることが役）。
 
 7. **2026-11-11 同じ通知が2回届く件は、直しとして扱う。** `hc send` で届いた分が同じターンの終わりの Stop でもう一度届く形は、1 で `hc send` が消えるので無くなる。Stop で渡した分が次のオーナーの送信でもう一度届く形は、原因を調べて直す課題にする。待ち役は通知を運ばない（8）ので、2度渡す筋を足さない。
-   - 調べる手がかり（反論 R8。コードから）: 続きのターンの終わりの Stop の `drain` が、見回りの持つ控えの lock を 10 秒待って諦める（`drain.go` の `lockState`。見回りは lock を巡の終わりまで持ち、その中でゲート・finish・`hc send` を打つ）と、渡した turn の印（控えの `Hook`）が消えずに残り、次の UserPromptSubmit が「終わりを見ないまま別の turn が来た」として届け直す。
+   - 調べる手がかり（反論 R8。コードから）: 続きのターンの終わりの Stop の `drain` が、見回りの持つ控えの lock を 10 秒待って諦める（`drain.go` の `lockState`。見回りは lock を巡の終わりまで持ち、その中で gate・finish・`hc send` を打つ）と、渡した turn の印（控えの `Hook`）が消えずに残り、次の UserPromptSubmit が「終わりを見ないまま別の turn が来た」として届け直す。
 
 8. **2026-11-11 待ち役は合図だけを打つ。通知を取り出して渡すのは `drain` の1人のまま（2 を改める）。**
    - 待ち役は控えの待ちを取り出さない・控えに書かない。届ける通知が待ちにあり、Chief of Staff の端末の状態が `idle` か `done` のときに、固定の1行（「通知が待っている。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える」の旨。文は実装の課題）を stderr に書いて exit 2 する。起動されたターンの終わりの Stop で、今の経路①（`drain`）が `<news>` を渡す。`andon news ack`・`news.replied`・届け直しの照らし方は①のまま変えない。
@@ -117,14 +117,14 @@
 - **待ち役がいない間を埋める口**（`hc send` の控え・オーナーを呼ぶ通知）。決めたこと 3・9。
 - **SessionStart で待ち役を起動すること**。決めたこと 8。
 - **担当・レビュアーへ打つ口**（最初のメッセージ・その送り直し・「続けて」・`fix`）。オーナーが打つ端末ではないので今のまま。Chief Engineer の端末は dispatcher が打たない（今も同じ）。
-- **Codex の Chief of Staff**。Chief of Staff は最初の版では Claude Code だけ（contract.md §9）。`asyncRewake` は Claude Code のフックの機能。
+- **Codex の Chief of Staff**。Chief of Staff は最初のバージョンでは Claude Code だけ（contract.md §9）。`asyncRewake` は Claude Code のフックの機能。
 - **`<news>` の文・届ける／記録だけの線・`andon news ack`**（ADR-0010）。変えない。
 
 ## 受け入れ条件（テストできる形。どの継ぎ目でテストするかを先に）
 
 継ぎ目は3つ。新しい継ぎ目は作らない。
 
-1. **`tests/andon-dispatcher.sh`（試しの台帳と偽の hc。既にある）と `internal/dispatcher` の Go のテスト**:
+1. **`tests/andon-dispatcher.sh`（試しの kanban と偽の hc。既にある）と `internal/dispatcher` の Go のテスト**:
    - 届ける通知が待ちにあり、Chief of Staff の端末が `idle`・`done` のとき、待ち役が合図の1行を stderr に書いて終了コード 2 で終わる。待ちと控えは変わらない（待ち役は取り出さない・書かない）。続く Stop の `drain` がその通知を1回だけ渡す。
    - 待ちが無い間・Chief of Staff が `working` の間は終わらない。`role=chief-of-staff` でない端末では、待たずに終了コード 0。
    - 待ち役が居る端末で次の待ち役が起きたら、古いほうが終了コード 0 で終わり、新しいほうが残る（止められた待ち役の終了コードは 0。0 と 2 以外で終わらない）。

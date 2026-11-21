@@ -66,7 +66,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0005 セルの repo の直下と、追跡・持ち運び・守り](docs/adr/0005-cell-repo.md): 決定
   - [0006 調べる・決める・直すを分ける](docs/adr/0006-survey-fix-decide.md): 決定
   - [0007 仮設の工場にあって Andon に無いものの棚卸しと、塞ぐ順](docs/adr/0007-interim-gap-inventory.md): 決定
-  - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定
+  - [0008 kanban のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定
   - [0009 Chief of Staff をオーナーの既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定
   - [0010 通知を「記録だけ」と「届ける」に分ける（`andon news ack`）](docs/adr/0010-news-ack.md): 決定
   - [0011 信号の受け口と価値のループ](docs/adr/0011-signals-and-value-loop.md): 決定

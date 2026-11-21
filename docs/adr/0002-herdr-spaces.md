@@ -28,7 +28,7 @@
 | 18 | Chief of Staff と Chief Engineer のアイコンを役ごとに変える | この ADR | まだ実装していない（App の tab のアイコンを決める `programs.json` の項目が repo に無い） |
 | 19 | `--on <machine>` の同じラベルは、作業側を別マシンに出す課題へ回す | `internal/issue/start.go` | まだ実装していない（machine 付きの課題はまだ起動せずに止まる） |
 | 20 | mod の置き場は `HERDR_APP_HOME` から順に選ぶ | `init/bin/bootstrap` | 生きている |
-| 21 | 伝令を App に出す置き場を台帳の数で決める | この ADR | 覆された → この ADR の 22 |
+| 21 | 伝令を App に出す置き場を kanban の数で決める | この ADR | 覆された → この ADR の 22 |
 | 22 | 21 の係の名前を dispatcher に改める | `package/host/andon/main.js`・`internal/dispatcher/terminal.go` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
@@ -49,7 +49,7 @@ Andon の 3 つの役（Chief of Staff・Chief Engineer・担当とレビュア�
 
 S0 の結果を受けて 2026-11-05 に足した前提（Y-106。オーナーが同意）。3 と 5 は 9 のとおり改める。
 
-8. 建屋は 1 コンテナ（App からは 1 machine）に N プロジェクト。プロジェクトごとに `projects/<slug>/` の台帳と Chief of Staff がいる。この文書の `<slug>` はプロジェクトの slug。
+8. 建屋は 1 コンテナ（App からは 1 machine）に N プロジェクト。プロジェクトごとに `projects/<slug>/` の kanban と Chief of Staff がいる。この文書の `<slug>` はプロジェクトの slug。
 9. **置き場（Space・tab の作成・配置・消滅）は Andon の command がラベルで擬似的に操作し、名前だけは建屋の外（オーナーの App に入れた Andon の mod か、オーナー）が付ける。** 建屋から名前を付ける口は無い（App は `herdr.space`・`herdr.tab` 以外のラベルを読まない。`where` は App の出力で入力ではない）。
 10. オーナーが端末を見つける手がかりは hc の address ではなく、Space 名・tab 名・端末の題の 3 つ。端末の題はプログラム（Claude Code）が会話から自分で付けるもので、Andon の command は決められない。
 11. ラベルで採用された pane と `hc attach` の pane は別物で、両方あれば二重に出る（App の仕様）。どちらかを捨てる。
@@ -99,7 +99,7 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。オーナーが番�
 15. **2026-11-05 名前は Andon 同梱の App の mod が付ける（前提 9）。** Andon が `package/host/` に mod を同梱し、`host-install` がオーナーの App の mods（`~/.config/herdr-app/mods/`）に置く。mod は App の中で端末の一覧を読み、command が既に付けているラベル `project`・`role`・`task`・`title` から `space.rename`・`tab.rename` を打つ。**名前だけ。** 置き場・画面・Space の作成と消滅には触れない（design.md §4 の「Herdr App は触らない」をこの 1 点だけ緩める）。
     並行して、採用時にラベル `herdr.space.name`・`herdr.tab.name` を名前にする機能を Herdr App に issue で頼む（labels.md が `herdr.` 接頭の追加を受け付けている）。入れば mod は要らなくなる。
     捨てた案: オーナーが App で付ける（タスクの tab は毎回付けることになり、空になった Space の名前は消える。規則がオーナー任せ）／cwd のフォルダ名で既定名を狙う（tab は番号のままで、作業側の Space 名は担当の入れ替わりで変わる）。
-16. **2026-11-05 名前の規則。** Space は `<slug>`（指揮側）と `<slug> work`（作業側）。tab は Chief of Staff が `CoS`、Chief Engineer が `CE <id> <題>`、担当が `<id> <題>`（レビュアーは同じ tab なので付けない）。題は台帳の `title`（ラベル `title=` に既にある）。
+16. **2026-11-05 名前の規則。** Space は `<slug>`（指揮側）と `<slug> work`（作業側）。tab は Chief of Staff が `CoS`、Chief Engineer が `CE <id> <題>`、担当が `<id> <題>`（レビュアーは同じ tab なので付けない）。題は kanban の `title`（ラベル `title=` に既にある）。
 17. **2026-11-05 Chief of Staff がオーナーに端末を指す言い方は「<Space 名> / <tab 名>」**（App の `where` と同じ形。例 `sample-site / CoS`・`sample-site work / A-12 ログインの直し`）。address は末尾に添えるだけ。command の出力も同じ形。
 18. **2026-11-05 Chief of Staff と Chief Engineer のアイコンを役ごとに変える（オーナーの希望）。** App はプログラム名（状態報告の `app`、無ければ argv の先頭）で `programs.json` の項目を引き、アイコンはそこで決まる。手段は実装で確かめる: 役ごとの wrapper 名（`andon-cos` など）＋ `host-install` が置く `programs.json` の項目が第一候補、効かなければ mod で描くか upstream に頼む。
 19. **2026-11-05 受け入れ条件 3 の「`--on <machine>` でも同じ」は、作業側を別のマシンに出すタスクへ回す（Y-108 のレビュー Y-111 の指摘。Chief of Staff が決めた）。** `andon task start` は今までどおり `machine` 付きのタスクを起動せずに止まる（[decisions.md](../decisions.md) の 2026-11-05「machine があるタスクを起動せずに止まる」）。ラベルの値は slug・id・題だけで決まり machine に依らない（`internal/task` の `workLabels`）ので、そのタスクは `hc run --on` を足すだけでよい。
@@ -107,12 +107,12 @@ S0 の結果で決め直したこと（2026-11-05。Y-106。オーナーが番�
     捨てた案: この題で `hc run --on` を通す（作業側の置き場の設計を先取りする）。
 
 20. **2026-11-05 mod の置き場は App の設定フォルダに従う（15 の補足）。** `HERDR_APP_HOME` → `XDG_CONFIG_HOME/herdr-app` → `~/.config/herdr-app` の順で選び、その `mods/andon/` に置く。WSL では Windows 側との取り違えを避けるため `HERDR_APP_HOME` の明示指定を求め、未指定ならホストの道具を書き込む前に止める。
-21. **2026-11-06 伝令（courier）を App に出す。置き場は建屋の台帳の数で決める（出典: オーナー）。** 伝令は建屋に1つで台帳をまたぐ。台帳が1つなら、その指揮側の Space `andon-<slug>`（名前は `<slug>`）に tab `andon-<slug>-courier`（名前は「伝令」）。2つ以上（無いときも）なら、建屋の名前の Space `andon-<建屋の slug>-plant`（名前は `<建屋の slug> plant`）に tab `andon-<建屋の slug>-courier`（名前は「伝令」）。建屋の slug は hostname を `a-z 0-9 -` に揃えたもの。ラベルを付けるのはクーリエを起動する `courier.Ensure`（boot と Chief of Staff のフックが打つ。起動し直しも同じ）、名前を付けるのは Andon の mod（伝令は `project` ラベルを持たないので、mod は自分の tab id から名前を導く）。日本語の呼び名は「伝令」（Y-123）、英語の識別子は courier のまま。
+21. **2026-11-06 伝令（courier）を App に出す。置き場は建屋の kanban の数で決める（出典: オーナー）。** 伝令は建屋に1つで kanban をまたぐ。kanban が1つなら、その指揮側の Space `andon-<slug>`（名前は `<slug>`）に tab `andon-<slug>-courier`（名前は「伝令」）。2つ以上（無いときも）なら、建屋の名前の Space `andon-<建屋の slug>-plant`（名前は `<建屋の slug> plant`）に tab `andon-<建屋の slug>-courier`（名前は「伝令」）。建屋の slug は hostname を `a-z 0-9 -` に揃えたもの。ラベルを付けるのはクーリエを起動する `courier.Ensure`（boot と Chief of Staff のフックが打つ。起動し直しも同じ）、名前を付けるのは Andon の mod（伝令は `project` ラベルを持たないので、mod は自分の tab id から名前を導く）。日本語の呼び名は「伝令」（Y-123）、英語の識別子は courier のまま。
     理由: P7 で伝令が止まっていたのに誰も気づけなかった（オーナーの意向 2026-11-06）。App で見えれば止まりに気づける。
     覆したこと: 「やらないこと」の「クーリエと通知の係自身を App に出すこと」（当時の理由は「オーナーが見るものではない」）。通知の係は今回も出さない（`--no-parent` のまま）。
-    捨てた案: 台帳が増えても指揮側のどれか1つの Space に出す（どの Space かが台帳の並び順で決まり、足すたびに動く）。`project` ラベルを伝令に付ける（ラベルの読み手のボードとフックが、伝令を台帳の担当と取り違えうる）。
-22. **2026-11-06 21 の係の名前を dispatcher に改める（出典: オーナー）。** 21 の名前の行を次に替える: tab の id は `andon-<slug>-dispatcher`・`andon-<建屋の slug>-dispatcher`、名前は「dispatcher」。端末の名前とラベルは `dispatcher`・`role=dispatcher`、ラベルを付けるのは `dispatcher.Ensure`。日本語の文でも「dispatcher」と書く（カタカナにしない）。置き場（台帳の数で決める）と mod が tab id から名前を導く形は 21 のまま。前の名前の端末は建屋の boot が片付ける（名前もラベルも前の名前の端末で、前に出ているものが前の係かシェルのときだけ。operate.md「前の名前の係から移す」）。
-    理由: 21 の日本語の呼び名も英語の識別子も、ソフトウェア開発の言葉として聞き馴染みが無い。仕事（台帳と端末を見回る・起きたことを Chief of Staff に知らせる・決まった次の工程を起動する。判断はしない）に一番近い、聞き馴染みのある語にした。
+    捨てた案: kanban が増えても指揮側のどれか1つの Space に出す（どの Space かが kanban の並び順で決まり、足すたびに動く）。`project` ラベルを伝令に付ける（ラベルの読み手のボードとフックが、伝令を kanban の担当と取り違えうる）。
+22. **2026-11-06 21 の係の名前を dispatcher に改める（出典: オーナー）。** 21 の名前の行を次に替える: tab の id は `andon-<slug>-dispatcher`・`andon-<建屋の slug>-dispatcher`、名前は「dispatcher」。端末の名前とラベルは `dispatcher`・`role=dispatcher`、ラベルを付けるのは `dispatcher.Ensure`。日本語の文でも「dispatcher」と書く（カタカナにしない）。置き場（kanban の数で決める）と mod が tab id から名前を導く形は 21 のまま。前の名前の端末は建屋の boot が片付ける（名前もラベルも前の名前の端末で、前に出ているものが前の係かシェルのときだけ。operate.md「前の名前の係から移す」）。
+    理由: 21 の日本語の呼び名も英語の識別子も、ソフトウェア開発の言葉として聞き馴染みが無い。仕事（kanban と端末を見回る・起きたことを Chief of Staff に知らせる・決まった次の工程を起動する。判断はしない）に一番近い、聞き馴染みのある語にした。
     覆したこと: 21 の「日本語の呼び名」と「英語の識別子はそのまま」。
 
 ## やらないこと（範囲の外。理由）

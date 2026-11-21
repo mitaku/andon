@@ -19,7 +19,7 @@ ADR-0002 では作業側を `<slug> work` の Space 1 つにまとめ、tab を�
 
 ## 決めたこと
 
-1. **2026-11-06 作業側は Space ＝ タスク。** id は `herdr.space=andon-<slug>-<タスク id>`、名前は `<id> <題>`（ADR-0002 決めたこと 16 の担当の tab 名をそのまま Space 名にする）。題は台帳の `title`（ラベル `title=`）。
+1. **2026-11-06 作業側は Space ＝ タスク。** id は `herdr.space=andon-<slug>-<タスク id>`、名前は `<id> <題>`（ADR-0002 決めたこと 16 の担当の tab 名をそのまま Space 名にする）。題は kanban の `title`（ラベル `title=`）。
    理由: Space のフォルダが担当の worktree になり、App の Files・Changes がそのタスクを指す。片付けは ADR-0002 決めたこと 3 と S0 の (c) のまま（`andon task finish` が端末を片付けると最後の tab が閉じ、Space も閉じる）。並ぶ Space の数は並行の上限（`coordinator.md`）で抑えられるので、新しい上限は置かない。
    捨てた案: 今の `<slug> work` の Space 1 つに tab ＝ タスク（Files・Changes が最初の担当の worktree しか指さない）。
 2. **2026-11-06 tab は担当の 1 つ。** id は `herdr.tab=andon-<slug>-<タスク id>`（ADR-0002 決めたこと 6 と同じ値）、名前は `<id>`。レビュアーは今までどおり担当と同じ Space・tab に横に並ぶ（クーリエが担当の端末の `herdr.space`・`herdr.tab` を写す。写し方は変えない）。
