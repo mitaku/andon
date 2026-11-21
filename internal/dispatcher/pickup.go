@@ -334,6 +334,7 @@ type Seen struct {
 	Msg       string // status.msg（program が状態に添えた文。Claude Code は error のとき API のエラーの文を入れる。Codex は入れない）
 	StatusMs  int64
 	Reviewing bool  // 子のレビュアーの課題が todo／doing
+	Asking    bool  // 担当の課題に受け取られていない問い（open・answered）がある。問いは asked で Chief of Staff に届いている
 	Moved     int64 // working の間に status.msg か画面が最後に動いた時刻（dispatcher の時計の Unix ミリ秒）。0 は見ていない
 	Unsent    bool  // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
 	Turn      int   // hc の turn（終えたターンの数。resume した端末が働き始めたかの見分け）
@@ -392,7 +393,7 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 		if time.Duration(nowMs-max(r.Since, r.At))*time.Millisecond >= retryAfter[r.N] {
 			return Verdict{Retry: true}
 		}
-	case (s.Status == "idle" || s.Status == "done") && age >= idleAfter && !s.Reviewing:
+	case (s.Status == "idle" || s.Status == "done") && age >= idleAfter && !s.Reviewing && !s.Asking:
 		return Verdict{Kind: "stalled", Key: key}
 	case s.Status == "working" && age >= workingAfter && (s.Moved == 0 || time.Duration(nowMs-s.Moved)*time.Millisecond >= workingAfter):
 		// 1つのターンで長く働いているだけ（status.msg か画面が動いている）なら知らせない
@@ -438,6 +439,27 @@ func moved(prev Moved, had bool, msg string, screen func() (string, error), nowM
 	return next
 }
 
+// Asking は kanban の log.jsonl の行から、受け取られていない問い（最後の状態が open・answered）を持つ課題を返す。
+// 問いの状態の行（{"question": n, "status": …}）だけを見る。読めない行は数えない（知らせる側に倒れる）。
+func Asking(rows []ledger.Row) map[string]bool {
+	last := map[string]string{}
+	for _, r := range rows {
+		k := askedKey(ledger.CanonID(r.ID), r.Change["question"])
+		st, ok := r.Change["status"].(string)
+		if k == "" || !ok {
+			continue
+		}
+		last[k] = st
+	}
+	asking := map[string]bool{}
+	for k, st := range last {
+		if st == "open" || st == "answered" {
+			asking[k[:strings.LastIndex(k, "#")]] = true
+		}
+	}
+	return asking
+}
+
 // watch は doing の課題の担当を hc で見る（見回りで hc get）。
 func (p *project) watch(now time.Time, cos string) {
 	nowMs := now.UnixMilli()
@@ -447,6 +469,7 @@ func (p *project) watch(now time.Time, cos string) {
 			reviewing[t.Str("parent")] = true
 		}
 	}
+	asking := Asking(p.rows)
 	sent, retry, first, mv := map[string]bool{}, map[string]Resend{}, map[string]bool{}, map[string]Moved{}
 	for _, t := range p.tasks {
 		id, agent := t.Str("id"), t.Str("agent")
@@ -491,6 +514,7 @@ func (p *project) watch(now time.Time, cos string) {
 		// 控えに「送った」があればラベルが残っていても届いたとみる（続きを打ってよい）
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
+		s.Asking = asking[id]
 		if rs, had := p.st.Resumed[id]; had && !s.Gone && rs.Agent == agent && s.Turn >= 1 {
 			p.worked(id) // 起動した端末が働き始めた。控えを消してその場で保存する
 		}

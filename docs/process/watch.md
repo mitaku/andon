@@ -65,7 +65,7 @@ flowchart LR
 
 | id | 手順 | やる者 | 入るもの | 出るもの | 次 |
 |---|---|---|---|---|---|
-| `look` | 担当の端末と実働を見る | 機械 | `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms` | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）` | `resume`（端末が Gone）・`read`（通知を積んだ） |
+| `look` | 担当の端末と実働を見る | 機械 | `issue.estimate`・`log.status`・`log.question`・`hc.state`・`hc.status_ms` | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）` | `resume`（端末が Gone）・`read`（通知を積んだ） |
 | `resume` | 死んだ担当を 1 回起動する | 機械 | `hc.state`・`issue.session` | `hc（起動した端末）`・`notification.resumed`・`notification.finished` | `read`（起動できなかった） |
 | `read` | 通知と計画を読む | AI | `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc.state`・`hc read の画面` |  | `act`（手を打つ）・`tell`（オーナーへ知らせる）・`done`（見るだけ） |
 | `act` | 担当に手を打つ | AI | `report.plan`・`hc read の画面` | `hc send（担当へ）`・`kanban（分けた課題）` | 終わり |
@@ -88,7 +88,7 @@ flowchart LR
 | `tell` | `chief-of-staff/playbooks/watch.md`・`ask-one-by-one` | 知らせる文 | 死んだまま起きない担当を新しいセッションで起動し直すか（andon issue resume --fresh）（business） |
 | `done` | `chief-of-staff/playbooks/watch.md` | 何もしない |  |
 
-見るもの（手順の入るものの和）: `issue.estimate`・`log.status`・`hc.state`・`hc.status_ms`・`issue.session`・`notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc read の画面`・`<news>`
+見るもの（手順の入るものの和）: `issue.estimate`・`log.status`・`log.question`・`hc.state`・`hc.status_ms`・`issue.session`・`notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`report.plan`・`hc read の画面`・`<news>`
 
 残すもの（手順の出るものの和）: `notification.estimate`・`notification.stalled`・`notification.error`・`notification.finished`・`hc send（「続けて」）`・`hc（起動した端末）`・`notification.resumed`・`hc send（担当へ）`・`kanban（分けた課題）`・`herdr notification`・`オーナーへの 1 問`・`news.ack`
 

@@ -63,7 +63,7 @@ S-0009 の担当 t5 が止まったまま 21 分
 | `memory: memory が N 件で線（30 件）を超えた。…` | セルの memory の件数が線を超えた（線以下に戻るまで1回） | `triage.md` の 1（臨時のトリアージを足す） |
 | `<id> asked: 問い <n>（<問いの kind>）` | `andon issue ask` の問い（担当から、または gate の `needs_human` で `from: gate`） | `kanban questions --open` と `library/questions/<n>.json` を読み、`blocked.md` の「オーナーに聞くこと」（`from: gate` なら `gate.md`） |
 | `<id> の担当 <agent> が blocked` | 何もしない | `blocked.md`（許可の確認に答える。信頼の画面はセルでは出ない） |
-| `<id> の担当 <agent> が止まったまま N 分` | 何もしない。`idle` のまま 15 分か `working` のまま 20 分で届く（子のレビュアーの課題〈`parent: <id>`〉が todo／doing の間は、レビュー待ちなので届かない）。どちらかは行に出ない | `hc get <agent>` で状態を見て、上の表の `idle` の行（1回だけ続きを促す。2回目はオーナーへ）か `working` の行 |
+| `<id> の担当 <agent> が止まったまま N 分` | 何もしない。`idle` のまま 15 分か `working` のまま 20 分で届く（子のレビュアーの課題〈`parent: <id>`〉が todo／doing の間はレビュー待ち、担当の課題に受け取られていない問い〈open・answered〉がある間は問いの答え待ちなので届かない）。どちらかは行に出ない | `hc get <agent>` で状態を見て、上の表の `idle` の行（1回だけ続きを促す。2回目はオーナーへ）か `working` の行 |
 | `<id> の担当 <agent> が error` | プロバイダのエラーでなければ何もしない（画面の文は入れない）。プロバイダのエラーなら 1・2・4・8分あとに「続けて」を4回打ち、5回目に切られたときに届ける。どちらかは行に出ない | `hc read <agent>` で画面を見て、上の表の `error` の2行（プロバイダのエラーでなければ要点を添えてオーナーへ。5回目に切られたのならオーナーへ知らせ、自分で再送し直さない） |
 | `<id> の担当 <agent> が finished` | 端末が終わっている・素のシェルに戻っているのに `doing` で、dispatcher の resume でも戻らなかった（`docs/dispatcher.md` §2.9） | 上の表の最後の行（オーナーに「起動し直すか」を1問） |
 
