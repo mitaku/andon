@@ -547,7 +547,7 @@ andon/
     codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
     gh-skills.txt            boot が gh skill で入れる外の skill の一覧（§2.3）
     compose.yaml             セルの compose（bootstrap がイメージから取り出す）
-    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus）・レイアウト layouts/andon.json
+    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus・waiting）・レイアウト layouts/andon.json
   image/                     base image
     Dockerfile               備品・Claude Code・Codex・hc・kanban の CLI・package/ の COPY
     aqua/                    備品の宣言（aqua.yaml・registry・checksums・policy）

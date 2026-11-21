@@ -127,11 +127,11 @@ cmp -s "$mod/main.js" "$andon_root/package/host/andon/main.js" && cmp -s "$mod/m
   && pass "host-install は App mod を置く" || fail "App mod が違うか無い"
 app=$home/.config/herdr-app
 ok=1
-for name in inbox kanban-board context-header files-plus; do
+for name in inbox kanban-board context-header files-plus waiting; do
   diff -r "$app/mods/$name" "$andon_root/package/host/$name" >/dev/null || ok=0
 done
 cmp -s "$app/layouts/andon.json" "$andon_root/package/host/layouts/andon.json" && cmp -s "$app/layouts/andon.svg" "$andon_root/package/host/layouts/andon.svg" || ok=0
-[ "$ok" = 1 ] && pass "host-install は inbox・kanban-board・context-header・files-plus とレイアウト andon を App の置き場に置く" || fail "画面の mod かレイアウトが違うか無い: $(ls -R "$app" 2>&1 | head -20)"
+[ "$ok" = 1 ] && pass "host-install は inbox・kanban-board・context-header・files-plus・waiting とレイアウト andon を App の置き場に置く" || fail "画面の mod かレイアウトが違うか無い: $(ls -R "$app" 2>&1 | head -20)"
 echo '{"personal": true}' >"$app/layouts/andon.json"
 echo '// personal' >"$app/mods/inbox/main.js"
 rm "$app/mods/kanban-board/mod.json"

@@ -284,7 +284,7 @@ host_install() {
   place "$src/cloud-init.yaml" .andon/cloud-init.yaml 644
   # App の mod（名前付けの andon と、画面の mod）とレイアウト。mod はディレクトリで1つ: 不完全でも今あるものは触らない。
   local name mod
-  for name in andon inbox kanban-board context-header files-plus; do
+  for name in andon inbox kanban-board context-header files-plus waiting; do
     mod="$app_home/mods/$name"
     if [ -e "$mod" ] || [ -L "$mod" ]; then
       echo "! $mod はすでにある（触らない）"

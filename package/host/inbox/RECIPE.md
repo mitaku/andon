@@ -6,7 +6,7 @@ A column of two sections: **Needs you** (blocked agents and the roles' unseen re
 
 Top to bottom, on the theme's `chrome` background, 13px text:
 
-1. A 31px header like Herdr's Spaces header: "Inbox" (11.5px, `dim`) on the left; on the right, when more than one machine is known, the machine button, then two 24px icon buttons (13px icon, tooltip naming the key): next waiting (`next.svg`, `ctrl-shift-j`) and the kanban-board mod (`kanban-board.svg`, `run("mod.open", {name: "kanban-board"})`, `ctrl-shift-y`).
+1. A 31px header like Herdr's Spaces header: "Inbox" (11.5px, `dim`) on the left; on the right, when more than one machine is known, the machine button, then three 24px icon buttons (13px icon, tooltip naming the key): next waiting (`next.svg`, `ctrl-shift-j`), the kanban-board mod (`kanban-board.svg`, `run("mod.open", {name: "kanban-board"})`, `ctrl-shift-y`) and the waiting screen (`waiting.svg`, "Waiting on you (right panel)": `run("layout.show", {id: "panel"})` then `run("layout.select", {stack: "panel-body", child: "waiting"})`; no count).
 2. A filter line `/<text>` while filtering.
 3. **Needs you** heading (11px, `foreground`, after a 7px amber `#F0A202` dot) with the count, then its rows; with none, "Nothing needs you." (12px, `dim`).
 4. **Projects** heading (11px, `dim`) with the count, then its rows: by project name, the Chief of Staff, then Chief Engineers by issue. Left out when there are none.

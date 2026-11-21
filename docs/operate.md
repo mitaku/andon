@@ -197,7 +197,7 @@ bin/bootstrap host-install
 | herdr の設定 | `~/.config/herdr/config.toml` |
 | ssh config | `~/.ssh/config.d/<project>.conf`（`andon-home.conf`） |
 | cloud-init の雛形 | セルの repo の `.andon/cloud-init.yaml` |
-| App の mod 5つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`。ディレクトリ） | App の設定フォルダの `mods/<名前>` |
+| App の mod 6つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`・`waiting`。ディレクトリ） | App の設定フォルダの `mods/<名前>` |
 | App のレイアウト | App の設定フォルダの `layouts/andon.json`・`andon.svg` |
 
 ```bash
@@ -281,7 +281,7 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 
 ### Herdr App の mod とレイアウト
 
-同じ `host-install` が App の設定フォルダに、Andon の mod 5つ（`mods/` の下）とレイアウト `andon`（`layouts/andon.json`・`andon.svg`）を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存の mod のディレクトリは、不完全でも中身を補わずそのまま残し、既存のレイアウトのファイルも上書きしない。更新するときは退避してから打ち直す（herdr-flightdeck の `inbox` などを前に入れていれば、それも退避してから）。
+同じ `host-install` が App の設定フォルダに、Andon の mod 6つ（`mods/` の下）とレイアウト `andon`（`layouts/andon.json`・`andon.svg`）を置く。置き場は App と同じく `HERDR_APP_HOME`、未指定なら `XDG_CONFIG_HOME/herdr-app`、それも未指定なら `~/.config/herdr-app` の順で選ぶ。App が起動時に使う環境変数と揃えて実行する。既存の mod のディレクトリは、不完全でも中身を補わずそのまま残し、既存のレイアウトのファイルも上書きしない。更新するときは退避してから打ち直す（herdr-flightdeck の `inbox` などを前に入れていれば、それも退避してから）。
 
 | mod | 何をする | 中身 |
 |---|---|---|
@@ -290,6 +290,7 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 | `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
+| `waiting` | 右のパネルの 3 つ目の画面。フォーカスした pane のプロジェクトで `andon waiting --json` を呼び、並行の枠とオーナー待ち（マージの依頼・判断・手作業）を出力の並びのまま描く。行を開くと問いと選択肢が読め、マージの依頼は PR を開ける。数える式を持たず、読むだけで答えない。inbox の見出しのボタンで開く（ADR-0042） | `package/host/waiting/README.md` |
 
 由来は前身の herdr-flightdeck（private）の `herdr-app/`（commit `afc57ac`。`work-board` を `kanban-board` に改名）。ライセンスは各 README の Origin・Licence の節（files-plus は Herdr の `files` mod の改変で Apache-2.0、andon の `brand.js` は Herdr の `workspace-chrome` の brand の改変で Apache-2.0、同梱の Pele は MIT、inbox の Lucide のアイコンは ISC、kanban-board の js-yaml は MIT）。
 
@@ -317,10 +318,10 @@ herdr-app do layout.switch --name andon
 ```bash
 app="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"   # WSL＋Windows の App なら上の HERDR_APP_HOME のパス
 old="$app-andon-old-$(date +%Y%m%d%H%M)"; mkdir -p "$old/mods" "$old/layouts"     # 退避先は設定フォルダの隣
-for m in andon inbox kanban-board context-header files-plus; do [ -e "$app/mods/$m" ] && mv "$app/mods/$m" "$old/mods/"; done
+for m in andon inbox kanban-board context-header files-plus waiting; do [ -e "$app/mods/$m" ] && mv "$app/mods/$m" "$old/mods/"; done
 for f in andon.json andon.svg; do [ -e "$app/layouts/$f" ] && mv "$app/layouts/$f" "$old/layouts/"; done
 bin/bootstrap host-install                                              # セルの repo で（WSL なら HERDR_APP_HOME を付けて）
-for m in andon inbox kanban-board context-header files-plus; do herdr-app check "$app/mods/$m"; done
+for m in andon inbox kanban-board context-header files-plus waiting; do herdr-app check "$app/mods/$m"; done
 ```
 
 自分で `andon.json` を直していたなら、退避した `$old/layouts/andon.json` から写し直す。前の見た目に戻すときは、新しいものを消して `$old` の中身を戻す。
