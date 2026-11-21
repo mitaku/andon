@@ -150,9 +150,9 @@ func Gather(s Spec) Record {
 	}
 	r.Drift, r.DriftReasons = drift(r.Package, r.Workspace)
 	if s.Brand == "claude" {
+		// 空の目録は無いのと同じ（null）。schema は空の文字列を断る
 		if b, err := os.ReadFile(filepath.Join(Workspace(), memoryDirName, memoryIndexName)); err == nil {
-			t := string(b)
-			r.MemoryIndex = &t
+			r.MemoryIndex = strPtr(string(b))
 		}
 	}
 	return r
