@@ -123,6 +123,17 @@ export default class Waiting extends View {
     this.failed = new Map();
   }
 
+  // A row's key for its element ids and for opening it: a decision by its question (an issue can have two),
+  // a merge or a task by its issue (one each).
+  key(i) {
+    return i.kind === "decision" && QUESTION.test(String(i.question ?? "")) ? i.question.replace("#", "-") : i.id;
+  }
+
+  // Whether the row is in what is on screen now: a row drawn from a place the pane has since left is not.
+  current(i) {
+    return Array.isArray(this.data?.items) && this.data.items.includes(i);
+  }
+
   // Whether this row takes an answer here: the output says so, and the question and its options are there.
   answerable(i) {
     return i.kind === "decision" && i.answerable === true && QUESTION.test(String(i.question ?? ""))
@@ -132,7 +143,7 @@ export default class Waiting extends View {
   // The answer button: `andon waiting answer <id>#<n> --option <n>` in the folder and machine the row was read from.
   answer(i, n, cx) {
     const q = i.question, label = i.ask?.options?.[n]?.label, where = this.where;
-    if (!this.answerable(i) || !label || !where?.cwd || this.answering.has(q)) return;
+    if (!this.current(i) || !this.answerable(i) || !label || !where?.cwd || this.answering.has(q)) return;
     this.answering.add(q);
     this.failed.delete(q);
     cx.notify();
@@ -181,21 +192,27 @@ export default class Waiting extends View {
 
   // What an opened row shows: the question, facts, reason and options, what waits behind, and the ways out.
   detail(t, i, chief) {
-    const ask = i.ask;
+    const ask = i.ask, k = this.key(i);
     const label = (text) => div().text_size(10.5).font_medium().text_color(t.dim).child(text);
     const line = (text, color = t.foreground) => div().text_size(12).text_color(color).child(String(text));
     const parts = [];
     if (ask) {
-      parts.push(div().id(`waiting-question-${i.id}`).text_size(12.5).text_color(t.foreground).child(String(ask.question)));
+      parts.push(div().id(`waiting-question-${k}`).text_size(12.5).text_color(t.foreground).child(String(ask.question)));
       if (ask.facts?.length) parts.push(label("Facts"), ...ask.facts.map((f) => line(`· ${f}`, t.muted)));
       if (ask.reason) parts.push(label("Why"), line(ask.reason, t.muted));
       const can = this.answerable(i), picked = this.picked.get(i.question);
-      parts.push(label("Options"), ...ask.options.map((o, n) => div().id(`waiting-option-${i.id}-${n}`).text_size(12)
+      parts.push(label("Options"), ...ask.options.map((o, n) => div().id(`waiting-option-${k}-${n}`).text_size(12)
         .text_color(o.pick || picked === n ? t.foreground : t.muted)
         .when(can, (el) => el.px(6).py(2).rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
           .when(picked === n, (el) => el.bg(t.raised))
           // Picking only marks the option: nothing is written until the answer button.
-          .on_click((_e, cx) => { cx.stop_propagation(); this.picked.set(i.question, n); this.failed.delete(i.question); cx.notify(); }))
+          .on_click((_e, cx) => {
+            cx.stop_propagation();
+            if (!this.current(i)) return;
+            this.picked.set(i.question, n);
+            this.failed.delete(i.question);
+            cx.notify();
+          }))
         .child(`${n + 1}. ${o.label}${o.pick ? " (recommended)" : ""}`)));
     } else if (i.reason) parts.push(line(i.reason, t.muted));
     if (i.question) parts.push(line(`Question ${i.question}`, t.dim));
@@ -203,42 +220,43 @@ export default class Waiting extends View {
     // and any answer that isn't one of the options, goes to the Chief of Staff.
     const answered = i.question ? this.answered.get(i.question) : undefined;
     const failed = i.question ? this.failed.get(i.question) : undefined;
-    if (answered !== undefined) parts.push(div().id(`waiting-answered-note-${i.id}`).text_size(12).text_color(t.foreground).child(`Answered: ${answered}`));
+    if (answered !== undefined) parts.push(div().id(`waiting-answered-note-${k}`).text_size(12).text_color(t.foreground).child(`Answered: ${answered}`));
     else if (this.answerable(i)) parts.push(line("Pick an option, then answer. Anything else, tell the Chief of Staff.", t.dim));
     else if (i.kind === "decision") parts.push(line("Answer it to the Chief of Staff.", t.dim));
-    if (failed) parts.push(div().id(`waiting-answer-failed-${i.id}`).text_size(12).text_color(t.blocked).child(failed));
+    if (failed) parts.push(div().id(`waiting-answer-failed-${k}`).text_size(12).text_color(t.blocked).child(failed));
     if (i.holds?.length) parts.push(label("Waiting behind it"), line(i.holds.join(", "), t.muted));
     const ways = [];
     const picked = this.answerable(i) ? this.picked.get(i.question) : undefined;
     if (picked !== undefined && i.ask.options[picked]) {
       const busy = this.answering.has(i.question);
-      ways.push(this.link(t, `waiting-answer-${i.id}`, busy ? "Answering…" : `Answer "${i.ask.options[picked].label}"`,
+      ways.push(this.link(t, `waiting-answer-${k}`, busy ? "Answering…" : `Answer "${i.ask.options[picked].label}"`,
         (cx) => this.answer(i, picked, cx)));
     }
-    if (i.kind === "merge" && i.pr) ways.push(this.link(t, `waiting-pr-${i.id}`, "Open PR", () => openWeb(i.pr)));
-    if (chief) ways.push(this.link(t, `waiting-cos-${i.id}`, "Go to Chief of Staff", () => run("agent.focus", { terminal: chief.address })));
-    return v_flex().id(`waiting-detail-${i.id}`).pl(24).pr(4).pt(4).pb(6).gap(4).children(parts)
+    if (i.kind === "merge" && i.pr) ways.push(this.link(t, `waiting-pr-${k}`, "Open PR", () => openWeb(i.pr)));
+    if (chief) ways.push(this.link(t, `waiting-cos-${k}`, "Go to Chief of Staff", () => run("agent.focus", { terminal: chief.address })));
+    return v_flex().id(`waiting-detail-${k}`).pl(24).pr(4).pt(4).pb(6).gap(4).children(parts)
       .when(ways.length > 0, (el) => el.child(h_flex().pt(4).gap(6).children(ways)));
   }
 
   row(t, i, now, chief) {
-    const opened = this.open.has(i.id);
+    const k = this.key(i);
+    const opened = this.open.has(k);
     const since = Date.parse(i.since);
     const held = i.holds?.length ?? 0;
     const answered = i.question ? this.answered.get(i.question) : undefined;
-    return v_flex().id(`waiting-row-${i.id}`).flex_none().rounded(8).when(opened, (el) => el.bg(t.selected))
-      .child(h_flex().id(`waiting-head-${i.id}`).px(8).py(6).gap(8).items_center().rounded(8).cursor_pointer()
+    return v_flex().id(`waiting-row-${k}`).flex_none().rounded(8).when(opened, (el) => el.bg(t.selected))
+      .child(h_flex().id(`waiting-head-${k}`).px(8).py(6).gap(8).items_center().rounded(8).cursor_pointer()
         .hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => { this.toggle(i.id); cx.notify(); })
+        .on_click((_e, cx) => { this.toggle(k); cx.notify(); })
         .child(svg(`${CHROME}/chevron-${opened ? "down" : "right"}.svg`).size(11).flex_none().text_color(t.dim))
-        .child(div().id(`waiting-kind-${i.id}`).flex_none().px(6).h(18).flex().items_center().rounded(5).bg(t.raised)
+        .child(div().id(`waiting-kind-${k}`).flex_none().px(6).h(18).flex().items_center().rounded(5).bg(t.raised)
           .text_size(10.5).font_semibold().text_color(t.foreground).child(KIND[i.kind] ?? String(i.kind)))
         .child(v_flex().flex_1().min_w(0)
           .child(div().truncate().text_size(12.5).text_color(t.foreground).child(`${i.id} ${i.title ?? ""}`))
           .child(h_flex().gap(6).text_size(11).text_color(t.dim)
             .child(div().flex_none().child(Number.isNaN(since) ? "" : duration(now - since)))
             .when(held > 0, (el) => el.child(div().flex_none().child(`· ${held} waiting behind`)))
-            .when(answered !== undefined, (el) => el.child(div().id(`waiting-answered-${i.id}`).flex_none().text_color(t.foreground)
+            .when(answered !== undefined, (el) => el.child(div().id(`waiting-answered-${k}`).flex_none().text_color(t.foreground)
               .child(`· Answered: ${answered}`))))))
       .when(opened, (el) => el.child(this.detail(t, i, chief)));
   }

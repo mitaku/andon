@@ -558,8 +558,10 @@ const SAMPLE_WAITING = {
 // `answer` is what `andon waiting answer` gives (a reply, or an Error it throws); by default it wrote.
 async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', terms = [], answer = { code: 0, stdout: 'answered\n', stderr: '' } } = {}) {
   const calls = { exec: [], run: [] };
+  // The focused folder; a test moves it by setting here.cwd.
+  const here = { cwd };
   const ns = await load(`${HOST}/waiting`, {
-    spaces: () => [{ id: 's1', active: true, machine: null, folder: cwd }], panes: () => [{ pane: 'p1', cwd }],
+    spaces: () => [{ id: 's1', active: true, machine: null, folder: here.cwd }], panes: () => [{ pane: 'p1', cwd: here.cwd }],
     focused: () => ({ pane: 'p1' }), terminals: () => terms, theme: () => THEME, window: () => ({ platform: 'linux' }),
     run: (cmd, a) => calls.run.push([cmd, fromMod(a)]),
     exec: async (cmd, a, opts = {}) => {
@@ -575,7 +577,7 @@ async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', term
   const cx = { spawn: (fn) => pending.push(fn(cx)), settle: () => Promise.all(pending), notify: () => {}, timer: { every() {}, after() {} }, stop_propagation() {} };
   v.init({}, cx);
   await Promise.all(pending);
-  return { v, calls, cx, ns, draw: () => v.render(cx) };
+  return { v, calls, cx, ns, here, draw: () => v.render(cx) };
 }
 const json = (o) => ({ code: 0, stdout: JSON.stringify(o), stderr: '' });
 
@@ -585,8 +587,8 @@ await check('waiting: andon waiting --json をフォーカスした pane のフ�
   const tree = draw();
   assert.deepEqual(textOf(byId(tree, 'waiting-slots')), ['Slots 3/4 working · 2 waiting on you']);
   const rows = walk(tree).map((n) => last(n, 'id')).filter((id) => /^waiting-row-/.test(id ?? ''));
-  assert.deepEqual(rows, ['waiting-row-S-0021', 'waiting-row-S-0030', 'waiting-row-S-0031'], '出力の並びのままでない');
-  assert.deepEqual(['S-0021', 'S-0030', 'S-0031'].map((id) => textOf(byId(tree, `waiting-kind-${id}`))[0]), ['Merge', 'Decide', 'Do']);
+  assert.deepEqual(rows, ['waiting-row-S-0021', 'waiting-row-S-0030-1', 'waiting-row-S-0031'], '出力の並びのままでない');
+  assert.deepEqual(['S-0021', 'S-0030-1', 'S-0031'].map((id) => textOf(byId(tree, `waiting-kind-${id}`))[0]), ['Merge', 'Decide', 'Do']);
   const all = textOf(tree);
   assert.ok(all.includes('S-0021 名指しの口を足す') && all.includes('· 2 waiting behind'), `行の中身: ${all}`);
   assert.ok(!all.includes('Needs you'), '見出しを Needs you にした');
@@ -602,25 +604,25 @@ await check('waiting: 行を開くと問いの文・事実・選択肢・後ろ�
   const cos = { address: 't1', state: 'live', labels: { project: 'sample-site', role: 'chief-of-staff' } };
   const { v, calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING), { terms: [cos, { address: 't2', state: 'live', labels: { project: 'other', role: 'chief-of-staff' } }] });
   let tree = draw();
-  assert.ok(!byId(tree, 'waiting-detail-S-0030'), '開く前から中身が出た');
+  assert.ok(!byId(tree, 'waiting-detail-S-0030-1'), '開く前から中身が出た');
   const click = (node) => { const [fn] = args(node, 'on_click').at(-1); fn({}, cx); };
-  click(byId(tree, 'waiting-head-S-0030'));
+  click(byId(tree, 'waiting-head-S-0030-1'));
   tree = draw();
-  const detail = byId(tree, 'waiting-detail-S-0030');
+  const detail = byId(tree, 'waiting-detail-S-0030-1');
   assert.ok(detail, '開いた行の中身が無い');
   const said = textOf(detail);
   for (const want of ['書き出しは CSV だけにするか', '· 依頼書の「やること」', '利用者に見える', '1. CSV だけ (recommended)', '2. Excel も']) assert.ok(said.includes(want), `${want} が無い: ${said}`);
-  assert.ok(!byId(tree, 'waiting-answer-S-0030'), '選ぶ前から答えるボタンがある');
-  click(byId(tree, 'waiting-cos-S-0030'));
+  assert.ok(!byId(tree, 'waiting-answer-S-0030-1'), '選ぶ前から答えるボタンがある');
+  click(byId(tree, 'waiting-cos-S-0030-1'));
   assert.deepEqual(calls.run.at(-1), ['agent.focus', { terminal: 't1' }], '別のプロジェクトの Chief of Staff へ行った');
   click(byId(tree, 'waiting-head-S-0021'));
   tree = draw();
   assert.ok(textOf(byId(tree, 'waiting-detail-S-0021')).includes('S-0022, S-0023'), '後ろで待つ課題が出ない');
   click(byId(tree, 'waiting-pr-S-0021'));
   assert.deepEqual(calls.exec.at(-1), ['xdg-open', ['https://github.com/example/sample-site/pull/41'], { cwd: undefined, on: null }]);
-  assert.ok(!byId(tree, 'waiting-pr-S-0030') && !byId(tree, 'waiting-pr-S-0031'), 'マージの依頼でない行に PR のボタンがある');
-  v.toggle('S-0030');
-  assert.ok(!byId(draw(), 'waiting-detail-S-0030'), 'もう一度押しても閉じない');
+  assert.ok(!byId(tree, 'waiting-pr-S-0030-1') && !byId(tree, 'waiting-pr-S-0031'), 'マージの依頼でない行に PR のボタンがある');
+  v.toggle('S-0030-1');
+  assert.ok(!byId(draw(), 'waiting-detail-S-0030-1'), 'もう一度押しても閉じない');
 });
 
 await check('waiting: 出力が読めない・version が 1 でない・command が無い・失敗したときは理由を 1 行で出し、ほかを描かない（ADR-0042 受け入れ条件 10）', async () => {
@@ -651,15 +653,15 @@ await check('waiting: 判断の行で選択肢を選んだだけでは呼ばず�
   const { v, calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING));
   const realExec = calls.exec;
   const click = clickOn(cx);
-  click(byId(draw(), 'waiting-head-S-0030'));
+  click(byId(draw(), 'waiting-head-S-0030-1'));
   let tree = draw();
-  assert.ok(!byId(tree, 'waiting-answer-S-0030'), '選ぶ前から答えるボタンがある');
+  assert.ok(!byId(tree, 'waiting-answer-S-0030-1'), '選ぶ前から答えるボタンがある');
   const before = realExec.length;
-  click(byId(tree, 'waiting-option-S-0030-1'));
+  click(byId(tree, 'waiting-option-S-0030-1-1'));
   await cx.settle();
   assert.equal(realExec.length, before, '選んだだけで command を呼んだ');
   tree = draw();
-  const button = byId(tree, 'waiting-answer-S-0030');
+  const button = byId(tree, 'waiting-answer-S-0030-1');
   assert.ok(button, '選んだあとに答えるボタンが無い');
   assert.deepEqual(textOf(button), ['Answer "Excel も"']);
   click(button);
@@ -668,15 +670,15 @@ await check('waiting: 判断の行で選択肢を選んだだけでは呼ばず�
   assert.equal(answers.length, 1, `andon waiting answer を ${answers.length} 回呼んだ`);
   assert.deepEqual(answers[0], ['andon', ['waiting', 'answer', 'S-0030#1', '--option', '2'], { cwd: '/srv/cell/projects/sample-site', on: null }]);
   tree = draw();
-  assert.deepEqual(textOf(byId(tree, 'waiting-answered-S-0030')), ['· Answered: Excel も'], '行が Answered に変わらない');
-  assert.deepEqual(textOf(byId(tree, 'waiting-answered-note-S-0030')), ['Answered: Excel も']);
-  assert.ok(!byId(tree, 'waiting-answer-S-0030'), '答えたあとも答えるボタンがある');
+  assert.deepEqual(textOf(byId(tree, 'waiting-answered-S-0030-1')), ['· Answered: Excel も'], '行が Answered に変わらない');
+  assert.deepEqual(textOf(byId(tree, 'waiting-answered-note-S-0030-1')), ['Answered: Excel も']);
+  assert.ok(!byId(tree, 'waiting-answer-S-0030-1'), '答えたあとも答えるボタンがある');
   // Answered rows take no more picks: clicking an option again runs nothing.
-  assert.equal(args(byId(tree, 'waiting-option-S-0030-0'), 'on_click').length, 0, '答えたあとも選択肢が押せる');
+  assert.equal(args(byId(tree, 'waiting-option-S-0030-1-0'), 'on_click').length, 0, '答えたあとも選択肢が押せる');
   // The next read without the question drops the row; with it, the row stays answered.
   v.refresh(cx);
   await cx.settle();
-  assert.ok(byId(draw(), 'waiting-answered-S-0030'), '同じ問いがまだ一覧にあるのに Answered が消えた');
+  assert.ok(byId(draw(), 'waiting-answered-S-0030-1'), '同じ問いがまだ一覧にあるのに Answered が消えた');
 });
 
 await check('waiting: answerable が true でない判断の行（戻せない決断・選択肢が無い・古い andon で欄が無い）とマージと手作業の行には、選択肢を押す口も答えるボタンも出さない（ADR-0042 受け入れ条件 18）', async () => {
@@ -687,19 +689,19 @@ await check('waiting: answerable が true でない判断の行（戻せない�
   const noAsk = { kind: 'decision', id: 'S-0042', title: '問いの JSON が無い', since: '2026-11-21T02:12:13Z', question: 'S-0042#1', answerable: false, holds: [] };
   const sample = { ...SAMPLE_WAITING, items: [...SAMPLE_WAITING.items, irreversible, noField, noAsk] };
   const { v, calls, draw, cx } = await waitingPane(json(sample));
-  for (const id of ['S-0021', 'S-0031', 'S-0040', 'S-0041', 'S-0042']) v.toggle(id);
+  for (const id of ['S-0021', 'S-0031', 'S-0040-2', 'S-0041-1', 'S-0042-1']) v.toggle(id);
   const tree = draw();
-  for (const id of ['S-0021', 'S-0031', 'S-0040', 'S-0041', 'S-0042']) {
+  for (const id of ['S-0021', 'S-0031', 'S-0040-2', 'S-0041-1', 'S-0042-1']) {
     const detail = byId(tree, `waiting-detail-${id}`);
     assert.ok(detail, `${id} が開かない`);
     const pressable = walk(detail).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
     assert.equal(pressable.length, 0, `${id} の選択肢が押せる`);
     assert.ok(!byId(tree, `waiting-answer-${id}`), `${id} に答えるボタンがある`);
   }
-  for (const id of ['S-0040', 'S-0041', 'S-0042']) assert.ok(textOf(byId(tree, `waiting-detail-${id}`)).includes('Answer it to the Chief of Staff.'), `${id} に Chief of Staff へ答える案内が無い`);
+  for (const id of ['S-0040-2', 'S-0041-1', 'S-0042-1']) assert.ok(textOf(byId(tree, `waiting-detail-${id}`)).includes('Answer it to the Chief of Staff.'), `${id} に Chief of Staff へ答える案内が無い`);
   // The same check finds a pressable option where there is one.
-  v.toggle('S-0030');
-  const can = walk(byId(draw(), 'waiting-detail-S-0030')).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
+  v.toggle('S-0030-1');
+  const can = walk(byId(draw(), 'waiting-detail-S-0030-1')).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
   assert.equal(can.length, 2, '押せる選択肢を拾う式が何も見ていない');
   assert.ok(!calls.exec.some((c) => c[1][1] === 'answer'), '押していないのに andon waiting answer を呼んだ');
 });
@@ -714,20 +716,64 @@ await check('waiting: andon waiting answer が断ったときは理由を 1 行�
   for (const [answer, want] of cases) {
     const { calls, draw, cx } = await waitingPane(json(SAMPLE_WAITING), { answer });
     const click = clickOn(cx);
-    click(byId(draw(), 'waiting-head-S-0030'));
-    click(byId(draw(), 'waiting-option-S-0030-0'));
+    click(byId(draw(), 'waiting-head-S-0030-1'));
+    click(byId(draw(), 'waiting-option-S-0030-1-0'));
     const read = calls.exec.length;
-    click(byId(draw(), 'waiting-answer-S-0030'));
+    click(byId(draw(), 'waiting-answer-S-0030-1'));
     await cx.settle();
     assert.equal(calls.exec.length, read + 1, 'andon waiting answer を 1 回呼んでいない');
     const tree = draw();
-    const said = textOf(byId(tree, 'waiting-answer-failed-S-0030') ?? { kids: [], calls: [] });
+    const said = textOf(byId(tree, 'waiting-answer-failed-S-0030-1') ?? { kids: [], calls: [] });
     assert.equal(said.length, 1, `理由が 1 行でない: ${said}`);
     assert.match(said[0], want);
     assert.ok(!said[0].includes('\n'), '理由が 2 行ある');
-    assert.ok(!byId(tree, 'waiting-answered-S-0030'), '断られたのに Answered にした');
-    assert.deepEqual(textOf(byId(tree, 'waiting-answer-S-0030')), ['Answer "CSV だけ"'], '選んだ選択肢が消えた');
+    assert.ok(!byId(tree, 'waiting-answered-S-0030-1'), '断られたのに Answered にした');
+    assert.deepEqual(textOf(byId(tree, 'waiting-answer-S-0030-1')), ['Answer "CSV だけ"'], '選んだ選択肢が消えた');
   }
+});
+
+await check('waiting: 選んだあとにフォーカスが別のフォルダへ移ったら、前のフォルダで描いた行のボタンを押しても andon waiting answer を呼ばない（ADR-0042 受け入れ条件 18）', async () => {
+  const { v, calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING));
+  const click = clickOn(cx);
+  click(byId(draw(), 'waiting-head-S-0030-1'));
+  click(byId(draw(), 'waiting-option-S-0030-1-0'));
+  const stale = byId(draw(), 'waiting-answer-S-0030-1');
+  assert.ok(stale, '選んだあとに答えるボタンが無い');
+  // The timer reads the new place before the screen is drawn again: the old tree is still on screen.
+  here.cwd = '/srv/cell/projects/other-site';
+  v.refresh(cx);
+  click(stale);
+  await cx.settle();
+  assert.ok(!calls.exec.some((c) => c[1][1] === 'answer'), `前のフォルダの行の答えを呼んだ: ${JSON.stringify(calls.exec.filter((c) => c[1][1] === 'answer'))}`);
+});
+
+await check('waiting: 同じ課題に開いた判断の問いが 2 つあっても、行と押せる要素の id はぶつからず、押した行の問いに答える（ADR-0042 受け入れ条件 18）', async () => {
+  const second = { ...SAMPLE_WAITING.items[1], question: 'S-0030#2',
+    ask: { ...SAMPLE_WAITING.items[1].ask, question: '列の名前を日本語にするか', options: [{ label: '日本語', pick: true }, { label: '英語' }] } };
+  const sample = { ...SAMPLE_WAITING, items: [SAMPLE_WAITING.items[1], second] };
+  const { v, calls, draw, cx } = await waitingPane(json(sample));
+  const click = clickOn(cx);
+  const heads = walk(draw()).filter((n) => /^waiting-head-/.test(String(last(n, 'id') ?? '')));
+  assert.equal(heads.length, 2);
+  // Open only the second row.
+  click(heads[1]);
+  let tree = draw();
+  const opened = walk(tree).filter((n) => /^waiting-detail-/.test(String(last(n, 'id') ?? '')));
+  assert.equal(opened.length, 1, `1 つ押して ${opened.length} 行が開いた`);
+  v.open = new Set([...v.open, ...walk(tree).filter((n) => /^waiting-head-/.test(String(last(n, 'id') ?? ''))).map((n) => String(last(n, 'id')).replace(/^waiting-head-/, ''))]);
+  tree = draw();
+  const ids = walk(tree).map((n) => last(n, 'id')).filter((id) => typeof id === 'string');
+  const dup = ids.filter((id, k) => ids.indexOf(id) !== k);
+  assert.deepEqual(dup, [], 'id がぶつかった');
+  // Pick and answer on the second question's row: the second question is answered.
+  const opts = walk(tree).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && textOf(n).includes('2. 英語'));
+  assert.equal(opts.length, 1);
+  click(opts[0]);
+  const buttons = walk(draw()).filter((n) => /^waiting-answer-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
+  assert.equal(buttons.length, 1, '選んでいない問いにもボタンが出た');
+  click(buttons[0]);
+  await cx.settle();
+  assert.deepEqual(calls.exec.filter((c) => c[1][1] === 'answer').map((c) => c[1]), [['waiting', 'answer', 'S-0030#2', '--option', '2']]);
 });
 
 // What the two mods run (ADR-0042 acceptance 12): the first argument of every exec( call, in order.
