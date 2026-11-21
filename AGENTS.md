@@ -11,7 +11,7 @@
 | `tests/run` は同時に1本だけ走る（mise の置き場と CPU を取り合う）。2本目は理由を1行出して、前の回が終わるまで待つ。 | `tests/run`。鍵のファイルを flock で取る。`tests/ci.sh` が2本を同時に起動して、2本目が1本目の終わるまで走らないことを確かめる。 |
 | `tests/isolation` は15分以上かかるので、hc の端末（`hc run --bg`）で裏に回す。 | 無し。どこで走らせるかは担当の手順で、見るものが無い。 |
 | `tests/run --changed` は、重い検査（`andon-dispatcher.sh`・`schema.sh`・`apply-main.sh`・`andon-issue.sh`・`andon-gate.sh`）を、その検査が見る部分を変えたときだけ選ぶ。対応の表は `tests/lib/scope.sh`。重い検査が打つ command や読むファイルを変えたら、表と `docs/image.md` の「手元は関係する検査だけ」を同じ PR で直す。 | `tests/ci.sh`。Go の import の漏れだけを落とす。打つ command・読むファイルと `docs/image.md` の表は見ない。 |
-| 約束の JSON は `contract.Write`・`Encode`・`EncodeLine` で書く。schema に照らさずに JSON を作る呼び出し（`json.Marshal` など）を `internal` の下の `.go` ファイルに足したら、`_test.go` でない `.go` ファイルに足したら、`internal/contract/writers_test.go` の表に数と理由を足す。`_test.go` のファイルは数えない。 | `go test ./...` の `internal/contract/writers_test.go`。テスト以外のファイルの呼び出しの数を表と突き合わせ、足して表を直さないと落ちる。 |
+| 約束の JSON は `contract.Write`・`Encode`・`EncodeLine` で書く。schema に照らさずに JSON を作る呼び出し（`json.Marshal` など）を `internal` の下の `_test.go` でない `.go` ファイルに足したら、`internal/contract/writers_test.go` の表に数と理由を足す。`_test.go` のファイルは数えない。 | `go test ./...` の `internal/contract/writers_test.go`。テスト以外のファイルの呼び出しの数を表と突き合わせ、足して表を直さないと落ちる。 |
 | 直す前と後の検査の数を比べるときは、直す前を merge-base の木（`git archive` で展開）で数える。書き換え中の worktree や動いている main で数えると、比べる控えにならない。 | 無し。手で数える手順で、見るものが無い。 |
 | 検査はセルの本物（kanban・HOME）に書かない。`tests/*.sh` は `tests/lib/andon.sh`・`kanban.sh` を読んで切り離す（`tests/lib/isolate.sh`）。Go の検査は HOME の下の置き場を `t.Setenv` で一時に向ける。 | `tests/lib/isolate.sh` が読んだ検査の環境を切り離す。`tests/isolation` が偽のセルで全部を回し、番兵が変われば落ちる。`tests/isolation` は CI では回らない。 |
 | 検査の土台（`tests/lib/`・fixture・HOME や kanban を読む検査）を変えたら `tests/isolation` を打つ。 | 無し。`tests/isolation` は CI で回らず、打ったかを見るものが無い。 |
