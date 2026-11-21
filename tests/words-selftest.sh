@@ -2,6 +2,7 @@
 # tests/words.sh が「今」の語で落ち、例外では落ちないこと（ADR-0013 受け入れ条件 3）。
 # 役を指す「人」で落ち、役を指さない「人」では落ちないこと（ADR-0036 受け入れ条件 2）。
 # 句読点（、。・）のすぐ後ろの空白と、英数字と句読点の間の空白で落ち、URL の前後・表の区切り・矢印の前では落ちないこと。
+# どの段も、範囲がファイル1つの根でもファイル名つきで当たりを読んで落ち、ファイル名で読む例外が効くこと。
 # 一時の根に小さな写しを作り、words.sh にその根を渡す。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -160,5 +161,30 @@ setup; mkdir -p "$tmp/r/internal/triage"; echo 'fmt.Fprintf(&b, "閉じた %d �
 expect ok 'triage の要約の行（空白を挟む「・」）は通る'
 setup; echo '閉じた 1 ・ 直す 1 ・ 次回 1' >"$tmp/r/docs/x.md"; expect fail 'triage の外の空白を挟む「・」で落ちる'
 setup; mkdir -p "$tmp/r/docs"; echo 'PATH にあるか。 WSL で打つ' >"$tmp/r/docs/x.md"; expect fail '例外の文でも、例外のファイルの外では落ちる'
+
+# 範囲がファイル1つの根（-H の無い grep はファイル名を出さず、当たりと例外が素通りする）: 段ごとに落ち、例外は効く
+solo() { # solo <根からのパス> <中身>。根にそのファイル1つだけを置く
+  rm -rf "$tmp/r"; mkdir -p "$tmp/r/$(dirname "$1")"; printf '%s\n' "$2" >"$tmp/r/$1"
+}
+solo README.md '費用を数える'; expect fail 'README.md だけの根の「費用」で落ちる（語の段）'
+solo CHANGELOG.md "$(printf '# CHANGELOG\n\n## 未リリース\n- 費用を数える\n\n## v0.0.1\n- x')"; expect fail 'CHANGELOG.md だけの根の未リリースの「費用」で落ちる（語の段）'
+solo CHANGELOG.md "$(printf '# CHANGELOG\n\n## 未リリース\n\n## v0.0.1\n- 費用を数えた')"; expect ok 'CHANGELOG.md だけの根のバージョンの節の「費用」は通る（語の段）'
+solo README.md '人がマージする'; expect fail 'README.md だけの根の「人がマージする」で落ちる（役の「人」の段）'
+solo README.md '  - [0009 Chief of Staff を人の既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定'
+expect ok 'README.md だけの根の ADR の一覧の行は通る（役の「人」の段）'
+solo docs/design.md '人がマージする'; expect fail 'docs/design.md だけの根の「人がマージする」で落ちる（役の「人」の段）'
+solo docs/design.md 'freee の KPI「人の介在率」'; expect ok 'docs/design.md だけの根の引用は通る（役の「人」の段）'
+solo docs/design.md 'gate が読む。版を上げる'; expect fail 'docs/design.md だけの根の「版」で落ちる（「台帳」「ゲート」「版」の段）'
+solo docs/design.md '日本語の呼び名を「台帳」のままにした。2006 版では'; expect ok 'docs/design.md だけの根の「」の中と「2006 版」は通る（「台帳」「ゲート」「版」の段）'
+solo README.md '課題の kanban、 gate を読む'; expect fail 'README.md だけの根の「、 gate」で落ちる（句読点の段）'
+solo README.md '開く。 https://example.com/x を読む'; expect ok 'README.md だけの根の URL の前の空白は通る（句読点の段）'
+# 範囲が空の根: grep -r にファイルを渡さないと根の全体を見る。範囲の外（.github/）は見ない
+solo .github/x.md '費用。 gate、 kanban'; expect ok '範囲が空の根では、範囲の外（.github/）の語と空白を見ない'
+# 段の grep -r はどれも -H を持つ（新しい段の抜けを、範囲がファイル1つの例を書く前に止める）。当たる行が段の数だけあることも確かめる
+runs=$(grep -nE '\bgrep -r[A-Za-z]*' tests/words.sh | grep -vE '^[0-9]+:[[:space:]]*#' || true)   # 注釈の行は外す
+n=$(printf '%s' "$runs" | grep -c . || true)
+if [ "$n" -ge 4 ]; then echo "ok   words.sh の grep -r を $n 本読んだ"; else echo "FAIL words.sh の grep -r が $n 本しか読めない（段は 4 つ）"; fail=1; fi
+noh=$(printf '%s\n' "$runs" | grep -vE 'grep -r[A-Za-z]*H|[[:space:]](-H|--with-filename)([[:space:]]|$)' || true)
+if [ -z "$noh" ]; then echo "ok   words.sh の段の grep -r はどれも -H を持つ"; else echo "FAIL words.sh の段の grep -r に -H が無い: $noh"; fail=1; fi
 
 exit "$fail"
