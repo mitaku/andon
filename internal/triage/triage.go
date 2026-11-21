@@ -48,6 +48,9 @@ const (
 	exitLimit = 4 // collect の項目が上限を超えた
 )
 
+// defaultLimit は collect の項目の上限の既定（--limit が無いとき）。
+const defaultLimit = 50
+
 type failure struct{ msg string }
 
 func (f failure) Error() string { return f.msg }
@@ -61,7 +64,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return usage()
 	}
 	cmd, args := args[0], args[1:]
-	limit, maxIssues, maxSet, dry, id, key, value := 50, 0, false, false, "", "", ""
+	limit, maxIssues, maxSet, dry, id, key, value := defaultLimit, 0, false, false, "", "", ""
 	switch cmd {
 	case "collect":
 	case "verdict":
