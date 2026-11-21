@@ -15,20 +15,20 @@
 | 5 | repo にモデルが無い流れのモデルを repo に置くかは、この題では決めない | この ADR | 生きている |
 | 6 | 決まりは Andon の repo の `AGENTS.md` に書く | この ADR | 覆された → この ADR の 12 |
 | 7 | 効いたかを軽い観察で確かめる | この ADR | まだ実装していない |
-| 8 | 道具は pstack の statechart にし、開発へ渡す前に repo と同じ検査器でも通す | この ADR | まだ実装していない |
-| 9 | pstack の `create-formal-verification-skill` は、調べる課題を 1 つ切って試す | この ADR | まだ実装していない |
+| 8 | 道具は pstack の statechart にし、開発へ渡す前に repo と同じ検査器でも通す | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」・`AGENTS.md`・`model/check` | 生きている（通し方は 13、Java の扱いは 14 が改めた） |
+| 9 | pstack の `create-formal-verification-skill` は、調べる課題を 1 つ切って試す | この ADR | 役目を終えた（2026-11-20。調べる課題が 1 回走らせて報告した。取り入れるかは別の題） |
 | 10 | pstack と yomiyasu を全セルに配る設計を、この題に含める | この ADR | 生きている |
 | 11 | pstack と yomiyasu は参照で入れ、参照はパッケージの既定に書く | `package/settings.json`・`package/gh-skills.txt` | 生きている |
 | 12 | 決まりは、パッケージの Chief Engineer の skill に一般の段を、Andon に固有のことは repo の `AGENTS.md` に書く | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」・`AGENTS.md` | 生きている |
 | 13 | repo のモデルの写しは、statechart と、`model/check` に足す下書きを調べる口の 2 つで調べる | `model/check`・`model/README.md`・`AGENTS.md` | 生きている |
-| 14 | Java と TLC は、statechart を使ったセルにだけ、道具が自分で入れる | この ADR | まだ実装していない |
+| 14 | Java と TLC は、statechart を使ったセルにだけ、道具が自分で入れる | この ADR | 生きている（image とパッケージに Java は入れていない） |
 | 15 | モデルのファイルを添える例外を、渡し方の決まりの 2 か所に書く | `package/skills/chief-engineer/SKILL.md` の「渡し方」・`package/skills/chief-of-staff/playbooks/cut.md` の「Chief Engineer の文書を受けたら」 | 生きている |
 | 16 | yomiyasu の推敲の決まりは、パッケージの `writing.md` に書く | `package/writing.md` | 生きている |
 | 17 | pstack を入れると載るもののうち、`setup-pstack` とサブエージェントの型は使わないと環境メモに書く | `package/environment.md` | 生きている |
 | 18 | 「既定は空」の文と、boot の検査の偽の `gh` を、同じ PR で直す | `tests/image.sh` | 生きている |
 | 19 | バージョンは固定せず、自動で最新に上げる | `package/settings.json`・`package/gh-skills.txt` | 生きている |
-| 20 | 2 つの試しは、材料のまとめを待たずに「標準にする」で判定し、材料は調べる課題で別にまとめる | この ADR | まだ実装していない |
-| 21 | ADR-0035 の「`create-formal-verification-skill` も使わない」は、試しの 1 回を除くと改める | この ADR | まだ実装していない |
+| 20 | 2 つの試しは、材料のまとめを待たずに「標準にする」で判定し、材料は調べる課題で別にまとめる | この ADR | 役目を終えた（2026-11-20。判定は 10・11・16 で実装し、材料のまとめは 23 の答えに使った） |
+| 21 | ADR-0035 の「`create-formal-verification-skill` も使わない」は、試しの 1 回を除くと改める | この ADR | 役目を終えた（2026-11-20。試しの 1 回は済んだ。repo に取り入れないことは ADR-0035 のまま） |
 | 22 | 穴を書いた案は Chief Engineer が選び、線に当たる差だけオーナーに聞く | `package/skills/chief-engineer/SKILL.md` の「状態を動かす設計をモデルで調べる」 | 生きている |
 | 23 | `writing.md` の、yomiyasu と重なる 5 行は外さず、用語集の語は 2 語を外す（開いている問い 1 の答え） | `package/writing.md`・`docs/adr/0040-kanban-gate-version-words.md` | 生きている |
 

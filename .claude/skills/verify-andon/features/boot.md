@@ -12,7 +12,7 @@
 ## 辿り着き方（利用者から）
 
 - セルが立つとき、`andon boot` が走る。
-- Chief of Staff か人が `image/apply-main.sh apply` を打つと、最後に `andon boot` が打ち直される。
+- Chief of Staff かオーナーが `image/apply-main.sh apply` を打つと、最後に `andon boot` が打ち直される。
 
 ## 動かし方
 
@@ -48,4 +48,4 @@
 
 - boot は中身が変わらなければ控え（`boot.json`）を書き直さない。控えの時刻は、boot が走ったかの証拠にならない。
 - 検証の担当は `andon boot` を打たない。dispatcher を起動し直し、動いている見回りを止める。
-- 人が手で直したファイルは `bt-generated` で「控えと違う」と出る。壊れか手直しかを、そのファイルの中身と `git log` で書き分ける。
+- オーナーが手で直したファイルは `bt-generated` で「控えと違う」と出る。壊れか手直しかを、そのファイルの中身と `git log` で書き分ける。

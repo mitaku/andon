@@ -55,7 +55,7 @@ for name in $files; do
   [ "$(grep '^## ' "$f" | sed 's/^## //')" = "$want" ] || die "$f の H2 が「$(tr '\n' '・' <<<"$want")」の順でない"
   sed -n '/^## 動かし方$/,/^## /p' "$f" | grep -q '^前提:$' || die "$f の動かし方が「前提:」で始まらない"
   sed -n '/^## 動かし方$/,/^## /p' "$f" | grep -qF "scripts/drive.sh $name" || die "$f の動かし方が drive.sh $name を名指さない"
-  sed -n '/^## 細かい機能$/,/^## /p' "$f" | grep '^- `' | grep -vqE '見る道: (検証の担当だけ|Chief of Staff が試しの課題を起動し、検証の担当が画面を読む|(人|オーナー)が見る)。$' \
+  sed -n '/^## 細かい機能$/,/^## /p' "$f" | grep '^- `' | grep -vqE '見る道: (検証の担当だけ|Chief of Staff が試しの課題を起動し、検証の担当が画面を読む|オーナーが見る)。$' \
     && die "$f の細かい機能に、見る道（3つのどれか）の無い行がある"
   mapfile -t parts < <(sed -n '/^## 変えたら動かすパス$/,/^## /p' "$f" | sed -n 's/^- `\([^`]*\)`.*/\1/p')
   [ "${#parts[@]}" -gt 0 ] || die "$f の「変えたら動かすパス」が空"

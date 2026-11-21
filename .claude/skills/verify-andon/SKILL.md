@@ -11,7 +11,7 @@ disable-model-invocation: true
 | する | しない |
 |---|---|
 | 当てた差分に当たる機能を `scripts/drive.sh` で動かし、`andon issue record` で記録に撮る | 製品のコード（`cmd/`・`internal/`・`package/`・`schema/` など）を直す。動かなかった機能は報告に書き、直す課題は Chief of Staff が切る |
-| 地図と手順の食い違いを、この skill の置き場（`.claude/skills/verify-andon/`）の中だけで直し、PR 1本にする | エージェントを起動する。本物のエージェントが要る機能は、地図の「見る道」のとおり Chief of Staff か人に回す |
+| 地図と手順の食い違いを、この skill の置き場（`.claude/skills/verify-andon/`）の中だけで直し、PR 1本にする | エージェントを起動する。本物のエージェントが要る機能は、地図の「見る道」のとおり Chief of Staff かオーナーに回す |
 | セルの本物の記録・端末を読む（`hc get`・`hc read`・kanban のファイル） | セルの本物の kanban に書く・ほかの担当の端末に `hc send`・`hc kill` する・`andon boot`・`andon gate`・`andon dispatcher drain` を手で打つ |
 
 ## 1. 当てたものと範囲を決める
@@ -59,7 +59,7 @@ andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts
 - 証拠は `andon issue record` の記録（`library/runs/<n>.json` と `<n>.log`）。`<n>.log` に `drive.sh` の出力そのもの（打った command・終了コード・出力・結果の状態・片付けの確かめ）が入る。
 - 記録は commit していない変更の無い worktree で撮る（`dirty` が false）。地図を直したら、commit してから撮り直す。
 - 報告の `acceptance[]` に、機能ごとに1行を書き、`run` に記録の番号を入れる。依頼書が受け入れ条件の番号を名指していれば、その `id` で書く。
-- 地図の「見る道」が「Chief of Staff が試しの課題を起動し、検証の担当が画面を読む」の細かい機能は、`hc read <address>` で読んだ行を `evidence` に写す。「人が見る」の細かい機能は `manual` と書き、見る場所を `evidence` に書く。
+- 地図の「見る道」が「Chief of Staff が試しの課題を起動し、検証の担当が画面を読む」の細かい機能は、`hc read <address>` で読んだ行を `evidence` に写す。「オーナーが見る」の細かい機能は `manual` と書き、見る場所を `evidence` に書く。
 - 証拠の基準: 利用者と同じ道を通す（内部の関数や検査のための口を使わない）。操作と結果の両方を残す。kanban に書く機能は、書いたあとに別の口で読み直す。mock（偽の `hc`・`gh`）は、本物の端末と GitHub に届かないための境界だけに置く。
 
 ## 5. 片付ける

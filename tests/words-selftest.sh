@@ -45,6 +45,9 @@ for w in '外の人が読む' '1人にする' '人が読む写し' 'セルに 1 
   setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect ok "package/ の「$w」は通る"
 done
 setup; echo '人がマージする' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/ の残り）の役の「人」はまだ見ない'
+# 検証の skill の置き場も替えた範囲。地図の見る道の「人が見る」で落ちる
+setup; mkdir -p "$tmp/r/.claude/skills/verify-andon/features"; echo '- `hk-wait` 合図で始める。見る道: 人が見る。' >"$tmp/r/.claude/skills/verify-andon/features/hooks.md"
+expect fail '.claude/skills/verify-andon/ の「人が見る」で落ちる'
 # docs/design.md は替えた範囲。引用（ビジョンの写し・freee の KPI 名・pstack の原則）だけは通る
 for w in '人がマージする' '人（2026-11-05）: 「残して」' '| 人の接点 | 段に固定 |'; do
   setup; echo "$w" >"$tmp/r/docs/design.md"; expect fail "docs/design.md の「$w」で落ちる"

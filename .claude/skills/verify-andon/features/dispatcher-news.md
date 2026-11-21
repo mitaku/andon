@@ -6,12 +6,12 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 
 - `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
 - `dn-delivered` 当てたあとに Chief of Staff へ通知を届けた記録がある。見る道: 検証の担当だけ。
-- `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、人へ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+- `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
 
 ## 辿り着き方（利用者から）
 
 - 担当が `andon issue report`・`ask`・`ready` を打つと、次の見回りで通知になる。
-- Chief of Staff の turn の終わり（Stop）と人の送信（UserPromptSubmit）で、待ちの通知が届く。
+- Chief of Staff の turn の終わり（Stop）とオーナーの送信（UserPromptSubmit）で、待ちの通知が届く。
 
 ## 動かし方
 
@@ -41,5 +41,5 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 ## 落とし穴
 
 - dispatcher に `hc send` や `andon dispatcher drain` を手で打たない。待ちの通知を本物の Chief of Staff から抜き取ってしまう。
-- `acked` が false の行は、Chief of Staff が人へ何かを言ったことを示し、届かなかったことではない。
+- `acked` が false の行は、Chief of Staff がオーナーへ何かを言ったことを示し、届かなかったことではない。
 - 控えの置き場は `XDG_STATE_HOME` があればその下。`drive.sh` は呼んだ端末の環境で読む。

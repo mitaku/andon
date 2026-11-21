@@ -15,7 +15,7 @@ bad=$(jq -c 'select((.decision | IN("approve", "fix", "needs_human") | not) or (
 [ -z "$bad" ] && ok "gt-record: 当てたあとの gate $n 回は、全部が判定・レベル・head・理由の形を持つ" \
   || { fail "gt-record: 形の違う gate の記録がある"; sed 's/^/  | /' <<<"$bad"; }
 
-# gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージか人へ）。課題の今の status を並べる
+# gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージかオーナーへ）。課題の今の status を並べる
 while IFS=$'\t' read -r id decision merged; do
   st=$(cd "$ws" && kanban show "$id" --json 2>/dev/null | jq -r .issue.status) || st='?'
   echo "  | $id: 判定 $decision・merged $merged・今の status $st"
