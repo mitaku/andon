@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI の go・tests の job と手元の tests/run が使う道具（tests/lib/image-scope.sh・docs-scope.sh・scope.sh・run-tests.sh）の振る舞い。
+# CI の go・tests の job と手元の tests/run が使う道具（tests/lib/image-scope.sh・docs-scope.sh・scope.sh・run-tests.sh）と tests/run の振る舞い。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 die() { echo "FAIL ci: $*" >&2; exit 1; }
@@ -202,3 +202,44 @@ grep -qx 'emitted=' <<<"$out" || die "emitters が無い回に ANDON_EMITTED が
 while IFS= read -r e; do [ -f "$e" ] || die "tests/schema.sh --emitters の $e が無い"; grep -q 'ANDON_EMIT_DIR' "$e" || die "$e が ANDON_EMIT_DIR に写さない"; done < <(bash tests/schema.sh --emitters)
 ok "run-tests: 読み手（tests/schema.sh）は同じ回の emitters が写したものを読み、回し直さない。emitters を待ってから起動する"
 ok "run-tests: 出力を1本ずつまとめ、所要時間の表・skip・落ちたときの exit 1"
+
+# 3. run: 同時に走るのは1本だけ。2本目は鍵（flock）が外れるまで理由を1行出して待ち、1本目が終わってから走る。
+#    鍵は検査に渡さないので、検査が裏に残したプロセスが生きていても次の回は走る。終了コードは run-tests のまま
+r="$tmp/run"
+mkdir -p "$r/tests/lib"
+cp tests/run "$r/tests/run"
+cat >"$r/tests/lib/run-tests.sh" <<'EOF'
+d=$RUN_DIR
+echo "start $RUN_ID" >>"$d/log"
+sleep 30 </dev/null >/dev/null 2>&1 &
+echo $! >"$d/daemon-$RUN_ID"
+for _ in $(seq 600); do [ -e "$d/release-$RUN_ID" ] && break; sleep 0.05; done
+echo "end $RUN_ID" >>"$d/log"
+exit "${RUN_EXIT:-0}"
+EOF
+trap 'kill $(cat "$r"/daemon-* 2>/dev/null) 2>/dev/null; rm -rf "$tmp"' EXIT
+waitfor() { local _; for _ in $(seq 200); do "$@" && return 0; sleep 0.05; done; return 1; } # 10 秒まで
+b_waits_or_runs() { grep -qs '走っている。終わるまで待つ' "$r/b.out" || grep -qsx 'start b' "$r/log"; }
+run=(env ANDON_TEST_LOCK="$r/lock" RUN_DIR="$r" bash "$r/tests/run")
+RUN_ID=a "${run[@]}" >"$r/a.out" 2>&1 &
+pa=$!
+waitfor grep -qsx 'start a' "$r/log" || die "run: 1本目が run-tests を起動しない: $(cat "$r/a.out")"
+RUN_ID=b RUN_EXIT=3 "${run[@]}" >"$r/b.out" 2>&1 &
+pb=$!
+waitfor b_waits_or_runs || die "run: 2本目が待ちも走りもしない: $(cat "$r/b.out")"
+sleep 0.3
+! grep -qx 'start b' "$r/log" || die "run: 1本目が走っている間に2本目が走った（鍵を取っていない）: $(cat "$r/log")"
+[ "$(grep -c . "$r/b.out")" = 1 ] || die "run: 待つときの理由が1行でない: $(cat "$r/b.out")"
+grep -qF "tests/run: ほかの tests/run（pid $pa " "$r/b.out" || die "run: 待つ理由に鍵を持つ回の pid が無い: $(cat "$r/b.out")"
+touch "$r/release-a"
+wait "$pa" || die "run: 1本目が 0 で終わらない: $(cat "$r/a.out")"
+kill -0 "$(cat "$r/daemon-a")" || die "run: 前提が崩れた: 1本目の検査が裏に残したプロセスが生きていない（鍵を渡さないことを確かめられない）"
+waitfor grep -qx 'start b' "$r/log" || die "run: 1本目が終わっても（裏のプロセスが生きていると）2本目が走らない: $(cat "$r/log")"
+[ "$(cat "$r/log")" = "$(printf 'start a\nend a\nstart b')" ] || die "run: 1本目が終わる前に2本目が走った: $(cat "$r/log")"
+touch "$r/release-b"
+set +e
+wait "$pb"
+st=$?
+set -e
+[ "$st" = 3 ] || die "run: run-tests の終了コード 3 を伝えない（exit $st）"
+ok "run: 2本目は理由を1行出して1本目が終わるまで待つ。鍵は検査に渡さない。終了コードは run-tests のまま"

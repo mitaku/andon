@@ -127,18 +127,18 @@ expect() { # expect ok|fail <説明> [<落ちた文に要る語>]
     echo "FAIL 自己確認: $2（$got）"; sed 's/^/       /' <<<"$out"; fail=1
   fi
 }
-row='| `tests/run` を同時に2本走らせない（mise の置き場と CPU を取り合う）。 |'
-grep -qF "$row" AGENTS.md || { echo "FAIL 自己確認の前提: AGENTS.md に「tests/run を同時に2本」の行が無い"; exit 1; }
+row='| `tests/isolation` は15分以上かかるので、hc の端末（`hc run --bg`）で裏に回す。 | 無し。'
+grep -qF "$row" AGENTS.md || { echo "FAIL 自己確認の前提: AGENTS.md に「tests/isolation は15分以上」の「無し。」の行が無い"; exit 1; }
 grep -qF '| `tests/public.sh`。' AGENTS.md || { echo "FAIL 自己確認の前提: AGENTS.md に tests/public.sh を名指す行が無い"; exit 1; }
 
 setup; expect ok '壊していない写しは通る'
 setup; printf '%s\n' '- 新しい決まりを箇条書きで足す。' >>"$tmp/r/AGENTS.md"
 expect fail '表の外に箇条書きを足した写しで落ちる' '表の外に書いた行'
-setup; sed -i "s/^\(| \`tests\/run\` を同時に2本.*。\) | 無し。[^|]* |$/\1 |  |/" "$tmp/r/AGENTS.md"
+setup; sed -i "s/^\(| \`tests\/isolation\` は15分以上.*。\) | 無し。[^|]* |$/\1 |  |/" "$tmp/r/AGENTS.md"
 expect fail '守らせるものを空にした写しで落ちる' '守らせるものが空'
 setup; sed -i '0,/| `tests\/public.sh`。/s//| `tests\/no-such-check.sh`。/' "$tmp/r/AGENTS.md"
 expect fail '在りえない検査を名指した写しで落ちる' '名指したファイルが repo に無い: tests/no-such-check.sh'
-setup; sed -i "s/^\(| \`tests\/run\` を同時に2本.*。\) | 無し。[^|]* |$/\1 | 無し |/" "$tmp/r/AGENTS.md"
+setup; sed -i "s/^\(| \`tests\/isolation\` は15分以上.*。\) | 無し。[^|]* |$/\1 | 無し |/" "$tmp/r/AGENTS.md"
 expect fail '「無し」の理由を消した写しで落ちる' '「無し。」に続く理由が無い'
 
 exit "$fail"
