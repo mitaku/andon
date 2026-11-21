@@ -321,6 +321,36 @@ func prHead(pr string) (string, error) {
 	return sha, nil
 }
 
+// prHeadTries と prHeadWait は、PR の head が HEAD に追いつくのを待つ回数と間隔（検査は短くする）。
+// push の直後は GitHub の PR の head が古いまま十数秒残ることがある。上限は (回数-1)×間隔 の 27 秒。
+var (
+	prHeadTries = 10
+	prHeadWait  = 3 * time.Second
+)
+
+// waitPRHead は PR の head を読み、head と違えば追いつくのを待って読み直す。上限まで待っても違えば、
+// 最後に読んだ PR の head を返す（照合して断るのは呼び手）。worktree の upstream が HEAD と違う
+// （push していない）なら待たずに返す。upstream が無ければ push したかが分からないので待つ。
+func (c *ctx) waitPRHead(pr, head string) (string, error) {
+	for i := 1; ; i++ {
+		ph, err := prHead(pr)
+		if err != nil || ph == head || i >= prHeadTries || !c.maybePushed(head) {
+			return ph, err
+		}
+		time.Sleep(prHeadWait)
+	}
+}
+
+// maybePushed は head を push したかもしれないか。worktree の upstream（@{u}）が読めて head と違えば false。
+func (c *ctx) maybePushed(head string) bool {
+	args := []string{"rev-parse", "--verify", "-q", "@{u}"}
+	if dir := c.issue.Path("worktree"); dir != "" {
+		args = append([]string{"-C", dir}, args...)
+	}
+	out, err := exec.Command("git", args...).Output()
+	return err != nil || strings.TrimSpace(string(out)) == head
+}
+
 // previous は前の report.json（無ければ nil）。あるのに形が壊れていれば誤り。
 func (c *ctx) previous() (*contract.Report, error) {
 	r, err := contract.ReadReport(c.reportPath())
@@ -492,7 +522,7 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	ph, err := prHead(prev.PR)
+	ph, err := c.waitPRHead(prev.PR, head)
 	if err != nil {
 		return err
 	}
@@ -626,7 +656,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if r.Commit != head {
 		return fail("report.json の commit（%.12s）が HEAD（%s）と違う。andon issue report で書き直す", r.Commit, head[:12])
 	}
-	ph, err := prHead(r.PR)
+	ph, err := c.waitPRHead(r.PR, head)
 	if err != nil {
 		return err
 	}
