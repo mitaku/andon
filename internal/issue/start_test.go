@@ -86,6 +86,9 @@ func newStart(t *testing.T) *startFixture {
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	// 起動の記録（launch.Gather）は PATH の本物の codex に --version を打つ。codex は CODEX_HOME の下に
+	// 助けのファイル（tmp/arg0-linux）を作るので、受け継いだ本物の CODEX_HOME ではなく一時の HOME の下に向ける
+	t.Setenv("CODEX_HOME", "")
 	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban を読む
 
 	t.Setenv("LOG", f.log)
