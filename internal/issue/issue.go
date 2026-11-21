@@ -168,10 +168,15 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if len(rest) >= 2 && rest[0] == "--expect" {
 			expect, rest = rest[1], rest[2:]
 		}
-		if (expect != "pass" && expect != "fail") || len(rest) < 2 || rest[0] != "--" || rest[1] == "" {
+		if (expect != "pass" && expect != "fail") || len(rest) < 2 || rest[0] != "--" {
 			return usage()
 		}
 		argv := rest[1:]
+		// 空の引数は記録の形（command の要素は空でない）に合わないので、走らせる前に断る。
+		// 走らせてから断ると、出力だけ残って記録が書かれない。
+		if slices.Contains(argv, "") {
+			return usage()
+		}
 		err = withIssue(id, guard(func(c *ctx) error { return c.record(stdout, expect, argv) }))
 	case "finish":
 		if len(rest) > 0 {

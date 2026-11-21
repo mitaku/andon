@@ -173,6 +173,8 @@ func TestRecordRefuses(t *testing.T) {
 		{"command が無い", "doing", []string{"--"}, 2, "usage"},
 		{"知らない期待", "doing", []string{"--expect", "maybe", "--", "true"}, 2, "usage"},
 		{"期待の値が無い", "doing", []string{"--expect"}, 2, "usage"},
+		{"command が空", "doing", []string{"--", ""}, 2, "usage"},
+		{"引数に空がある", "doing", []string{"--", "true", "a", ""}, 2, "usage"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -186,6 +188,22 @@ func TestRecordRefuses(t *testing.T) {
 				t.Fatal("断ったのに runs/ を作った")
 			}
 		})
+	}
+}
+
+// 空の引数は走らせる前に断る。走らせてから記録の形の確かめで断ると、出力だけ残って記録が書かれない。
+func TestRecordEmptyArgNotRun(t *testing.T) {
+	f := newFixture(t)
+	mark := filepath.Join(t.TempDir(), "ran")
+	rc, out, errs := f.recordRun("--", "sh", "-c", `echo ran > "$0"`, mark, "")
+	if rc != 2 || !strings.Contains(errs, "usage") {
+		t.Fatalf("want rc 2 with usage, got rc=%d out=%q err=%q", rc, out, errs)
+	}
+	if _, err := os.Stat(mark); err == nil {
+		t.Fatal("空の引数があるのに command を走らせた")
+	}
+	if _, err := os.Stat(f.runsDir()); err == nil {
+		t.Fatal("断ったのに runs/ を作った")
 	}
 }
 
