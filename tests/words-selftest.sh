@@ -113,10 +113,10 @@ setup; echo '日本語の呼び名を「台帳」のままにした。2006 版�
 for f in docs/x.md package/x.md internal/x.go tests/x.sh model/X.tla README.md; do
   setup; mkdir -p "$tmp/r/$(dirname "$f")"; echo '課題の kanban、 gate、 バージョンを読む' >"$tmp/r/$f"; expect fail "$f の「、 gate」で落ちる"
 done
-for w in '止める。 gate が読む' 'kanban・ gate の語' '"課題を、 kanban に書く"'; do
+for w in '止める。 gate が読む' 'kanban・ gate の語' '本文。  gate が読む' 'kanban・  gate の語' '"課題を、 kanban に書く"'; do
   setup; echo "$w" >"$tmp/r/docs/x.md"; expect fail "「$w」で落ちる"
 done
-for w in 'kanban、gate。バージョン・PR' '開く。 https://example.com/x を読む' '| 1 | 終わり。 | 次 |' '決める。 → 2026-11-20 に決めた' '本文が無ければ `` 課題 `<id>`。 ``' '行の末尾の空白。 '; do
+for w in 'kanban、gate。バージョン・PR' '開く。 https://example.com/x を読む' '| 1 | 終わり。 | 次 |' '決める。 → 2026-11-20 に決めた' '本文が無ければ `` 課題 `<id>`。 ``' '行の末尾の空白。 ' '行の末尾の空白が 2 つ。  '; do
   setup; echo "$w" >"$tmp/r/docs/x.md"; expect ok "「$w」は通る"
 done
 # 句読点の前の空白（\p{Katakana} も句読点を含むため、英字とカタカナの間に空白を足す置き換えが作る「kanban ・」）
