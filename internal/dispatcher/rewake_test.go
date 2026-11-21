@@ -103,10 +103,32 @@ func TestRewakeSkipsWhenNoLongerStopped(t *testing.T) {
 		},
 	} {
 		f := rewakeFixture(t)
-		rewakeUnit = 600 * time.Millisecond
-		go func() { time.Sleep(50 * time.Millisecond); during(f) }()
-		if code, msg, _ := rewake(t, `{"error":"server_error"}`); code != 0 || msg != "" {
+		rewakeUnit = 200 * time.Millisecond // 書いたのを見てから変えるまでの猶予。順は時刻でなく、回数の控えが書かれたことで決める
+		stop, applied := make(chan struct{}), make(chan bool)
+		go func() { applied <- duringWait(stop, during, f) }()
+		code, msg, _ := rewake(t, `{"error":"server_error"}`)
+		close(stop)
+		if !<-applied {
+			t.Fatalf("%s: 待つ前に終わった（回数の控えを書かなかった）: %d %q", name, code, msg)
+		}
+		if code != 0 || msg != "" {
 			t.Fatalf("%s: 止まったままでない Chief of Staff に合図を打った: %d %q", name, code, msg)
+		}
+	}
+}
+
+// duringWait は RewakeMain が回数の控えに 1 を書いた（待ちに入った）のを見てから during を打ち、打てば true。
+// stop が閉じても書かれていなければ打たずに false（偽の hc の起動が遅くても、控えを書く前に変えない）。
+func duringWait(stop <-chan struct{}, during func(f *retryFixture), f *retryFixture) bool {
+	for {
+		if b, err := os.ReadFile(rewakePath("sample-site")); err == nil && strings.TrimSpace(string(b)) == `{"count":1}` {
+			during(f)
+			return true
+		}
+		select {
+		case <-stop:
+			return false
+		case <-time.After(time.Millisecond):
 		}
 	}
 }
