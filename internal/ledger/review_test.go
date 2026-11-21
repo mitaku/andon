@@ -167,9 +167,9 @@ func rebaseAfter(t *testing.T, base, topic, main, resolve map[string]string) (*g
 // 同じなら同じ差分と分かる。足した行か消した行が変わったら同じと言わない。
 func TestSamePatchIgnoresContextLines(t *testing.T) {
 	// 表の行を PR が変え、main が2行下の行の語を替えた（衝突しない。コンテキストの行だけが変わる）
-	table := "| 決まり | 守らせるもの |\n|---|---|\n| 一 | 無し。 |\n| 二 | 無し。 |\n| 三 | 版を見る |\n| 四 | 無し。 |\n"
+	table := "| 決まり | 守らせるもの |\n|---|---|\n| 一 | 無し。 |\n| 二 | 無し。 |\n| 三 | 古い語を見る |\n| 四 | 無し。 |\n"
 	tableTopic := strings.Replace(table, "| 一 | 無し。 |", "| 一 | tests/run。 |", 1)
-	tableMain := strings.Replace(table, "版を見る", "バージョンを見る", 1)
+	tableMain := strings.Replace(table, "古い語を見る", "新しい語を見る", 1)
 	// PR が足した行のすぐ上を main が変えた（衝突する）
 	conflictBase := "a\nb\n"
 	conflictTopic := "a\nA\nb\n"
