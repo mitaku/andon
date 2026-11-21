@@ -25,6 +25,12 @@
 | 起動の口を足すときは、Go の検査が `hc` の呼び出しの並びを固定しているので、`hc` を余分に呼ぶと `internal/issue`・`chiefengineer`・`chiefofstaff` の検査が落ちる。 | `go test ./...`。`internal/issue` などの検査が `hc` の呼び出しの並びを固定している。 |
 | `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。 | `tests/schema.sh`。`schema/` の顔ぶれと `expected`、`$id` のバージョンを突き合わせるので、触り忘れの一部で落ちる。 |
 | 値の表は `\|` で割るので、`tests/schema.sh` の jq の式に `\|` を書かず、`+=` や `del()` で書く。 | 無し。書いても落ちるとは限らない。 |
+| dispatcher の控え（State）の項目を足す・消す・別の記録に移すときは、`cmd/kanban/dispatcherstate.go` の写しと `process/states/` の record か positions も揃える。 | `go test ./...` の `TestDispatcherStateShape`（`cmd/kanban/dispatcherstate_test.go`）と `TestStateFieldsInProcess`（`internal/dispatcher/process_test.go`）。 |
+| `tests/*.sh` で `kanban add` する課題には `--repo` を付ける。`kanban init --repo` の値は課題に引き継がれず、課題の repo が空になる。 | 無し。付け忘れても落ちるとは限らず、見るものが無い。 |
+| シェルの検査で文字列を比べるときは `[[ "$a" == "$b" ]]` と右辺も引用符で包む。包まないと右辺が glob に読まれて、違う文字列が一致したり、一致すべきものが落ちたりする。 | 無し。書き方の決まりで、見るものが無い。 |
+| kanban は課題の番号を正規の形に直す（`S-7` は `S-0007`）。検査で `library/` のパスを組むときは正規の形で書く。 | 無し。書き方の決まりで、見るものが無い。 |
+| `tests/andon-dispatcher.sh` は場面が kanban を共有する。場面を足して課題を `doing` のまま残すと、後の場面の数がずれる。足した場面は終わりで `kanban done` する。 | `tests/andon-dispatcher.sh`。残した課題があると、後の場面の数の検査が落ちる。 |
+| `set -o pipefail` の下で `cmd \| head -1` を使わず、`sed -n 1p` か `$(…)` で受ける。`cmd` の出力が増えると SIGPIPE で落ちる。 | 無し。出力が少ないうちは通り、見るものが無い。 |
 
 ## 約束と文書
 
@@ -44,6 +50,7 @@
 | 1ファイル1読み手。人用の文書（`README.md`・`docs/`）に機械が読む行を埋めない。AI 用の文書（この `AGENTS.md`・`REVIEW.md`・`package/skills/`）に人向けの経緯を書かない。 | 無し。読み手は文の中身で決まり、機械では見分けない。 |
 | この repo は public。秘密・個人の環境に固有の値（セル名・ホスト名・ポート番号・メールアドレス・ユーザー名・ホームのパス）・案件に固有の名前を入れない。例は架空の名前（`example.com`・`<owner>`・`sample-site`）で。禁止リストは repo の外に置く（書き方は `tests/README.md`。リストの語を repo に書かない）。 | `tests/public.sh`。禁止リストと秘密の形に当たる行で落ちる。 |
 | この表の決まりは「決まり｜守らせるもの」の対で書く。守らせるものは、検査・command・hook・repo の設定の名前か、「無し。」と理由。 | `tests/agents-md.sh`。表の外の決まり・対になっていない行・名指したファイルが無い行で落ちる。CI でいつも走る。 |
+| settle（オーナーのマージの片付け）の約束は、コードの注釈・`docs/dispatcher.md`・`docs/contract.md`・`process/states/human-merge.yaml`・`docs/decisions/` に写されている。settle を変えたら全部を揃え、YAML を変えたら `andon process render` で `docs/process/` を作り直す。 | `tests/process.sh`。`docs/process/` が `process/` から作り直しても変わらないことを見る。ほかの写しの食い違いは見ない。 |
 
 ## PR とマージ
 
