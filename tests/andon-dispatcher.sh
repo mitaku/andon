@@ -134,9 +134,25 @@ kanban init --prefix D --repo github.com/example/app >/dev/null
 export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 L=$PWD/kanban
-dispatcher() { "$andon" dispatcher --once --project demo 2>>"$tmp/dispatcher.log"; }
+dispatcher() { freeze; "$andon" dispatcher --once --project demo 2>>"$tmp/dispatcher.log"; }
 state=$tmp/state/andon/dispatcher/demo.json
 mergerec=$tmp/state/andon/dispatcher/demo.merge.json   # andon issue merge の記録（書き手は merge だけ）
+settled=${state%.json}.settle.json   # andon issue settle の記録（書き手は settle だけ。ADR-0017 決めたこと 5）
+# 見張りの時計を止める。merge の記録の polled・approved と settle の記録の at は、merge と settle が実際の時刻で書く。
+# 1分（approved は10分）たつと、どの場面の課題でも PR を GitHub に聞き直し、gate を回し直すか知らせる。検査が遅いと（負荷が高い・
+# 並べて回す）、前の場面に残った課題の聞き直しが後ろの場面に割り込み、gh の hook を先に使う・ログや数がずれる、で落ちる。
+# そこで dispatcher・merge・settle を打つ前に、検査が戻した時刻（$due）のほかを 2999 年へ送る。聞き直させたい場面は、
+# mpoll・watch_due でその課題だけ $due にする。初めて見る課題（時刻が無い）はこれまでどおりすぐ聞く。
+due=2000-01-01T00:00:00Z
+freeze() {
+    if [ -f "$mergerec" ]; then
+        jq --arg d "$due" 'map_values(with_entries(if (.key == "polled" or .key == "approved") and .value != $d then .value = "2999-01-01T00:00:00Z" else . end))' \
+            "$mergerec" > "$mergerec.new" && mv "$mergerec.new" "$mergerec"
+    fi
+    if [ -f "$settled" ]; then
+        jq --arg d "$due" 'map_values(if .at and .at != $d then .at = "2999-01-01T00:00:00Z" else . end)' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+    fi
+}
 pending() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.issue == $t and .kind == $k)] | last' "$state"; }
 recorded_log=$tmp/state/andon/dispatcher/demo.recorded.jsonl   # 記録だけの通知（ADR-0010 決めたこと 2）
 recorded() { if [ -f "$recorded_log" ]; then jq -cs --arg t "$1" --arg k "$2" '[.[] | select(.issue == $t and .kind == $k)] | last' "$recorded_log"; else echo null; fi; }
@@ -686,7 +702,7 @@ ok 'レビュアーの課題の id は <親>-r<回>（1 回目 r1・2 回目 r2�
 
 # 3b. andon issue merge は2回打っても同じ結果（同じ review 入りでは gate も問いも通知も1回だけ）。
 #     記録が無くなっても、その review 入りのあとの gate の記録を引き継ぎ、問いを出し直さない（ADR-0017 受け入れ条件 7）
-mrun() { HC_TERMINAL_ID=dispatcher "$andon" issue merge "$1"; }
+mrun() { freeze; HC_TERMINAL_ID=dispatcher "$andon" issue merge "$1"; }
 posted=$(grep -c '^status' "$tmp/gh/posted")
 mrun "$id" | jq -e --arg t "$id" '.issue == $t and .state == "skip" and .notify == []' >/dev/null || die "2 回目の merge が何かをした: $(mrun "$id")"
 jq -e --arg t "$id" '.[$t].decision == "needs_human" and .[$t].row > 0' "$mergerec" >/dev/null || die "merge の記録に決めたことが無い: $(cat "$mergerec")"
@@ -716,7 +732,7 @@ ok 'merge: person は approve でもマージせず、通知 `gate` で止まる
 #     課題ごとに1分に1回だけ PR の head を聞き、判定した head と違えば前の head の gate の問いを閉じて、今の head で gate を回し直す。
 #     report.json の commit は前の head のままなので、回し直した gate は fix を返して担当へ送る。gate の見ていない head はマージしない（dispatcher.md §5 の P6a）
 mpoll() { # mpoll <id>: その課題だけ、次の merge で PR の head を聞かせる（ほかの課題の polled は先へ送り、聞かせない）
-    jq --arg t "$1" 'with_entries(if .value.polled then .value.polled = (if .key == $t then "2000-01-01T00:00:00Z" else "2999-01-01T00:00:00Z" end) else . end)' "$mergerec" > "$mergerec.new" && mv "$mergerec.new" "$mergerec"
+    jq --arg t "$1" --arg d "$due" 'with_entries(if .value.polled then .value.polled = (if .key == $t then $d else "2999-01-01T00:00:00Z" end) else . end)' "$mergerec" > "$mergerec.new" && mv "$mergerec.new" "$mergerec"
 }
 hv() { jq -r --arg t "$1" '.[$t] | "\(.decision) \(.sha)"' "$mergerec"; }
 polls() { grep -c -e '^pr view 7 --repo example/app --json state,headRefOid$' "$tmp/gh/calls" || true; }   # merge が PR の head を聞いた回数
@@ -802,10 +818,9 @@ ok 'needs_human の問いが開いたまま rebase した担当は、前の head
 # 4b. オーナーが GitHub でマージした（merge: person・needs_human）。dispatcher は review の課題の PR を1分に1回だけ見て、MERGED なら
 #     gate の問い（from: gate。重なったものも）を「オーナーがマージした」と閉じ、andon issue finish し、通知 merged（by: person）を積む。
 #     次の巡で影響（impact）とオーナーの手直し（corrections）も dispatcher がマージしたときと同じ道で拾う。dispatcher.md §2.7
-settled=${state%.json}.settle.json   # andon issue settle の記録（書き手は settle だけ。ADR-0017 決めたこと 5）
 watch_due() { # watch_due <id>: その課題だけ、次の見回りで GitHub に聞く（ほかの review の課題は聞かない）
     [ -f "$settled" ] || return 0
-    jq --arg t "$1" 'with_entries(.value.at = (if .key == $t then "2000-01-01T00:00:00Z" else "2999-01-01T00:00:00Z" end))' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+    jq --arg t "$1" --arg d "$due" 'with_entries(.value.at = (if .key == $t then $d else "2999-01-01T00:00:00Z" end))' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
 }
 person_merges() { git -C "$tmp/origin" update-ref refs/heads/main "$head"; echo "$head" > "$tmp/gh/merged"; }
 hm=$(newtask 'オーナーがマージする課題' person)
@@ -975,7 +990,7 @@ ok 'issue.yaml の repo と違う repo の PR は、マージされていても�
 # 4f. andon issue settle は 2 回打っても同じ結果（GitHub に聞くのは 1 分に 1 回・通知は 1 回・finish は 1 回）。dispatcher が
 #     自分でマージした PR（gate の記録 library/gate/<head>.json の merged が true）は、dispatcher の控えを読まずに見分けて片付けない
 #     （同じ巡で finish が失敗してもオーナーのマージと誤報しない）。ADR-0017 決めたこと 5 の (d)・受け入れ条件 7
-settle() { HC_TERMINAL_ID=dispatcher "$andon" issue settle "$1"; }
+settle() { freeze; HC_TERMINAL_ID=dispatcher "$andon" issue settle "$1"; }
 hm=$(newtask 'dispatcher がマージした課題' person)
 work "$hm" docs/a.md
 as_worker "$hm" report --pr https://github.com/example/app/pull/7
@@ -1316,11 +1331,20 @@ jq -e '.from == "gate" and (.question | contains("判定できなかった"))' "
 ok 'rate limit でない gh の失敗で gate が落ちたら、今どおり needs_human の問いにする（上限の控えは付けない）'
 
 # 9f. gate のあと checks が変わった・push されたら、マージの直前に読み直して打たない
+# 遅い機械を写す: 前の場面までの課題の見張りの時刻を、実際の2分前にする（負荷が高いと、9e から 9f までに1分を超え、dispatcher はこう読む）。
+# 時計が止まっていなければ、approve・needs_human のまま残った前の場面の課題の PR を聞き直し、head が動いたので gate を回し直す。
+# その gate の書き込みが 9f の hook を先に使うと、9f の gate は checks の走り直しを見ずに終わる（揺れの元）
+ago=$(date -u -d '-2 min' +%Y-%m-%dT%H:%M:%SZ)
+jq --arg a "$ago" 'map_values(if .polled then .polled = $a else . end)' "$mergerec" > "$mergerec.new" && mv "$mergerec.new" "$mergerec"
+jq --arg a "$ago" 'map_values(if .at then .at = $a else . end)' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
 id=$(newtask 'CI が走り直す' auto)
 work "$id" docs/a.md
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
+n=$(polls) s=$(wc -l < "$tmp/gh/states")
 dispatcher
+[ "$(polls)" = "$n" ] && [ "$(wc -l < "$tmp/gh/states")" = $((s + 1)) ] ||
+    die "前の場面の課題の PR を、実際に1分過ぎたので聞き直した（見張りの時計が止まっていない）: head $(( $(polls) - n )) 回・状態 $(( $(wc -l < "$tmp/gh/states") - s )) 回（9f の課題の初めの1回だけのはず）"
 gate_through "$id"
 merges=$(wc -l < "$tmp/gh/merges")
 checks IN_PROGRESS; mv "$tmp/gh/rollup.json" "$tmp/gh/rollup-pending.json"; checks COMPLETED SUCCESS
