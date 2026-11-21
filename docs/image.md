@@ -12,7 +12,7 @@ bash tests/image.sh
 
 焼く手順は `image/build.sh <andon の checkout> <tag>` の1本だけ。`tests/image.sh`（CI も）とセルの `bin/bootstrap rebuild --from`（[operate.md](operate.md) の 3）が同じものを打つ。要るのは docker と bash だけ。焼いた元の commit（汚れた checkout なら末尾に `-dirty`）を label `org.opencontainers.image.revision` に付ける（`bin/bootstrap status` が出す）。
 
-台帳の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は、`image/Dockerfile` の最初の段 `bin`（golang の image。版は `mise.toml` の go と揃え、`tests/image.sh` が確かめる）で linux の静的バイナリに焼き、`/usr/local/bin/kanban`・`/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。`kanban --version` は commit の先頭12文字。別名 `deck` は置かない。最後の段で、焼いた元の commit と `/opt/andon` の中身の digest を `/opt/andon/version.json` に焼く（`andon version stamp`）。`andon version` がそれを読み、パッケージの commit と、中身がその commit と食い違うか（手で書き換えた・汚れた checkout から焼いた）を JSON で返す（[ADR-0028](adr/0028-improvement-loop.md) P0-1）。private release の取得や取得用 token は使わない（人の決定 2026-11-05、decisions.md §9）。ホストは同じ `andon` を image から取り出して使う（[operate.md](operate.md) の 2）。
+台帳の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は、`image/Dockerfile` の最初の段 `bin`（golang の image。版は `mise.toml` の go と揃え、`tests/image.sh` が確かめる）で linux の静的バイナリに焼き、`/usr/local/bin/kanban`・`/opt/andon/bin/andon` に COPY する（`/usr/local/bin/andon` はそこへの symlink）。`kanban --version` は commit の先頭12文字。別名 `deck` は置かない。最後の段で、焼いた元の commit と `/opt/andon` の中身の digest を `/opt/andon/version.json` に焼く（`andon version stamp`）。`andon version` がそれを読み、パッケージの commit と、中身がその commit と食い違うか（手で書き換えた・汚れた checkout から焼いた）を JSON で返す（[ADR-0028](adr/0028-improvement-loop.md) P0-1）。private release の取得や取得用 token は使わない（オーナーの決定 2026-11-05、decisions.md §9）。ホストは同じ `andon` を image から取り出して使う（[operate.md](operate.md) の 2）。
 
 テストは `andon:test` を作り、ネットワークを切ったコンテナで `/opt/andon`・`andon help` と主要な CLI を確かめる。同じ image の actionlint・ghalint・pinact で `.github/workflows/` の全部の workflow の構文・権限・固定 SHA も検査する。対話の bash（`bash -ic`・`bash -lic`）で補完・`HISTFILE`・プロンプト・fzf のキー割り当てが効くことと、`rg`・`fzf`・`jq` が動くことも見る。続けてセルを立てる道を通す: image から取り出した `andon` で `andon init` → `bin/bootstrap up`（`FROM andon:test`）→ compose の起動で `andon boot` が `ready` まで走り、managed settings・プロファイル・`CLAUDE.md` の3行（`environment.md`・`writing.md`・`AGENTS.local.md`）・skill のリンクができたことを確かめる。Docker が使えなければローカルは SKIP を表示し、CI は失敗する。
 
@@ -65,11 +65,11 @@ Codex の自動の記憶は boot で止める。`features.memories = false` で�
 
 user 層の設定だけでは、信頼した repo の `.codex/config.toml` が記憶を有効に戻せる。そのため、配布する `codex`・`codex-review` のプロファイルは、通常起動と再開の両方で `-c features.memories=false -c memories.generate_memories=false -c memories.use_memories=false` を渡す。CLI の設定が project 層より優先されるため、repo の設定が `true` でも、このプロファイルから起動した Codex の記憶は無効になる。boot が生成したプロファイルを `tests/andon-boot.sh` で検査する。
 
-Claude Code の managed settings の deny のうちコマンドの頭で引くもの（今は `gh pr merge`）を、Codex にも execpolicy の rules で引く。`package/codex.rules` を boot が `~/.codex/rules/andon.rules` に写す（人の rules は別のファイルに書く）。rules は承認の方針の前に引かれ、`forbidden` は `never` でも拒む（Codex 0.166.0 の [`codex-rs/core/src/exec_policy.rs`](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/core/src/exec_policy.rs) の `create_exec_approval_requirement_for_parsed_commands`。当たらないコマンドだけが `render_decision_for_unmatched_command` で `never` → Allow になる）。`bash -lc "a && b"` のような平らな script は1つずつに割って引く。
+Claude Code の managed settings の deny のうちコマンドの頭で引くもの（今は `gh pr merge`）を、Codex にも execpolicy の rules で引く。`package/codex.rules` を boot が `~/.codex/rules/andon.rules` に写す（オーナーの rules は別のファイルに書く）。rules は承認の方針の前に引かれ、`forbidden` は `never` でも拒む（Codex 0.166.0 の [`codex-rs/core/src/exec_policy.rs`](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/core/src/exec_policy.rs) の `create_exec_approval_requirement_for_parsed_commands`。当たらないコマンドだけが `render_decision_for_unmatched_command` で `never` → Allow になる）。`bash -lc "a && b"` のような平らな script は1つずつに割って引く。
 
 **Claude Code と同じ広さではない。** rules は token の頭の一致で、引数の値を読み飛ばせない。Codex が拒むのは直接の形（絶対パスを含む）と、引数を取らない wrapper（`env`・`command`・`exec`・`nohup`・`nice`・`sudo`・`xargs`）の形だけ。Claude Code の deny が見る、引数を取る wrapper（`timeout 30 …`・`env FOO=bar …`）・先頭の代入（`FOO=bar gh pr merge`）・`$( )` の中は拒めない（`tests/image.sh` が「拒めないことが分かっている形」として持つ）。守る相手は間違える担当で、偽る担当ではない（下の「残る危険」と同じ D1）。マージを本当に止めるのはゲートと、public にしたあとのブランチ保護。
 
-人のファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当が人のファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない（セルの repo の既定の作者は owner でない。下の「git の作者」）。
+オーナーのファイルの書き換えの deny（`Edit(//workspace/andon.toml)` など。[ADR-0005](adr/0005-cell-repo.md) 決めたこと 6）も Codex には引けない。rules は argv の頭の一致で、`sed -i … <path>` の書き先のパスに当たらず、`apply_patch` の書き込みにも当たらない。Codex の担当がオーナーのファイルを書いても、機械が読むもの（`project.json`・`gate.local.json`）は author の照合（[contract.md](contract.md) §11）で信じられない（セルの repo の既定の作者は owner でない。下の「git の作者」）。
 
 Claude Code の許可の規則は managed だけが効く（`package/settings.json` の `allowManagedPermissionRulesOnly: true`。[ADR-0018](adr/0018-screen-check-tooling.md) 決めたこと 6）。skill の frontmatter の `allowed-tools`（同梱の `playwright-cli` の skill は `Bash(npx:*)`・`Bash(npm:*)` を持つ）と user・project・local の `allow` は無視され、許可の確認は Chief of Staff が答える。足りない allow は `package/settings.json` に足す。
 
@@ -88,16 +88,16 @@ Codex のフックは配っていない（フックは Claude Code だけ。[con
 | `gitdir:/workspace/`（セルの repo） | `~/.config/andon/git/cell.gitconfig` | `Andon agent <andon-agent@cell.invalid>`。owner と一致しない |
 | `gitdir:$GHQ_ROOT/`（案件の repo と、その worktree。worktree は元の repo の gitdir で当たる） | `~/.config/andon/git/product.gitconfig` | `andon.toml` の `owner`（名前は noreply なら login、ほかは `@` の前） |
 
-- セルの repo の作者を owner にしないのは、委譲の照合（[contract.md](contract.md) §11。`project.json`・`gate.local.json` を最後に変えた commit の author ＝ owner）を、担当や Chief of Staff の commit が素通りしないため。上の Codex の段のとおり、Codex の担当には人のファイルの deny が引けず、この照合が守り。
-- 人が owner のファイルを commit するときは、ホストの checkout で打つか、セルの中なら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner> git commit …`。`andon delegate grant` は自分で owner を作者にして commit する）。セルの repo の `git config user.email`（repo の中だけの設定）で合わせない: その設定はセルの中の担当にも効き、照合が素通りになる。
+- セルの repo の作者を owner にしないのは、委譲の照合（[contract.md](contract.md) §11。`project.json`・`gate.local.json` を最後に変えた commit の author ＝ owner）を、担当や Chief of Staff の commit が素通りしないため。上の Codex の段のとおり、Codex の担当にはオーナーのファイルの deny が引けず、この照合が守り。
+- author ＝ owner で照合するファイル（`project.json`・`gate.local.json`）をオーナーが commit するときは、ホストの checkout で打つか、セルの中なら作者を明示する（`GIT_AUTHOR_NAME=<name> GIT_AUTHOR_EMAIL=<owner> git commit …`。`andon delegate grant` は自分で owner を作者にして commit する）。セルの repo の `git config user.email`（repo の中だけの設定）で合わせない: その設定はセルの中の担当にも効き、照合が素通りになる。
 - `owner` が空・`andon.toml` に無いときは、案件の repo もセルの作者で書く（commit は通り、owner は名乗らない。委譲はもともと無委譲として読まれる）。ログに1行出す。
-- `~/.gitconfig` に `user.name` か `user.email` が直に書いてあれば、人の設定として何もしない（ログに `触らない`）。boot の `includeIf` 以外の節（`gh auth setup-git` の credential helper など）には触らない。何度打っても同じ。
+- `~/.gitconfig` に `user.name` か `user.email` が直に書いてあれば、オーナーの設定として何もしない（ログに `触らない`）。boot の `includeIf` 以外の節（`gh auth setup-git` の credential helper など）には触らない。何度打っても同じ。
 
 ## CI と配布
 
 配る版と日々のサイクルを分ける。日々の直しはセルで andon の checkout から焼いて試す（`bin/bootstrap rebuild --from`。[operate.md](operate.md) の 3）ので、マージも GHCR も要らない。
 
-PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでのセルはそれを使う）。配布は Linux amd64 から始める。GHCR の package は Public（2026-11-13 に、認証なしで tag の一覧が取れることを確かめた）。tag を切るのは人が行う。
+PR と main の push は、tests の job（`packages` の権限を持たない）で image を焼いて検査するだけで、GHCR に書かない。GHCR に書くのは `vX.Y.Z` の tag の push でだけ動く release の job: tag の名前と「main に含まれる commit か」を先に確かめ、同じ job の中で `tests/*.sh`（`image/build.sh` で焼いた `andon:test` の検査を含む）を通した image を `ghcr.io/<owner>/andon:vX.Y.Z` に push する（image を artifact で受け渡さない。GitHub のストレージ枠を使うため）。マージのたびに約 1 GiB の版が増えて private の package のストレージ枠に当たったので、main の push での `:<40桁のcommit SHA>` の push はやめた。いま GHCR にある SHA の版は残る（tag を切るまでのセルはそれを使う）。配布は Linux amd64 から始める。GHCR の package は Public（2026-11-13 に、認証なしで tag の一覧が取れることを確かめた）。tag を切るのはオーナーが行う。
 
 `packages: write` は release の job だけに付ける（step の `if` は token の権限を狭めないので、job で分ける）。PR で動く job の token は GHCR に書けない。`workflow_test.go`（`go test`）が、`.github/workflows/` の全部の workflow で、tag でだけ動く job 以外（job に permissions が無ければ workflow の top のものを継ぐ）に `packages`・`contents` の書き込みと GHCR への push が無いことを確かめる。checkout は認証情報を残さない。Actions は commit SHA、Ubuntu と golang は digest、Python・uv tool は直接指定する版を固定する。
 
@@ -188,6 +188,6 @@ andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`interna
 ## 残る危険
 
 workflow を書き換えた branch をこの repo に push できる者は、マージ前でも GHCR に push できる。workflow 内の権限制限だけでは、この操作を防げない。
-D1 の守る相手は「間違える担当」であり「偽る担当」ではないため、この意図的な回避は対象外として受け入れる（人の決定、2026-11-05）。
+D1 の守る相手は「間違える担当」であり「偽る担当」ではないため、この意図的な回避は対象外として受け入れる（オーナーの決定、2026-11-05）。
 
 apt のパッケージと npm・PyPI の推移的な依存は今回固定しないため、ビルド全体の完全な再現性は保証しない。sudo の権限を実行時に絞る判断も後続工程に残す。

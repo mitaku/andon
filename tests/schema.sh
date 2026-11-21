@@ -1024,8 +1024,8 @@ fi
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   sec8="$(awk '/^## 8\. /{on=1; next} /^## /{on=0} on' docs/contract.md)"
   row="$(grep '^| Herdr App の置き場のラベル |' <<<"$sec8" || true)"
-  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q 'ラベルのオーナーは Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
-    ok "contract.md §8: herdr.space・herdr.tab の行（ラベルのオーナー Herdr App・書き手 command と dispatcher・読み手 App）"
+  if grep -q '`herdr.space=<id>`・`herdr.tab=<id>`' <<<"$row" && grep -q 'ラベルを持つのは Herdr App' <<<"$row" && grep -q 'dispatcher' <<<"$row" && grep -q '| Herdr App |$' <<<"$row"; then
+    ok "contract.md §8: herdr.space・herdr.tab の行（ラベルを持つのは Herdr App・書き手 command と dispatcher・読み手 App）"
   else ng "contract.md §8 に herdr.space・herdr.tab の行が無い・形が違う"; fi
   if grep -q '^| オーナーに端末を指す言い方 | `<Space 名> / <tab 名>`' <<<"$sec8"; then ok "contract.md §8: オーナーに端末を指す言い方の行"
   else ng "contract.md §8 にオーナーに端末を指す言い方の行が無い"; fi

@@ -43,9 +43,9 @@
 
 | 決まり | 守らせるもの |
 |---|---|
-| `.github/workflows/**` と `tests/public*.sh` を弱める変更は人が見る。 | `package/gate.json` の `tier_c_paths`。ゲートが人のマージに回す。 |
+| `.github/workflows/**` と `tests/public*.sh` を弱める変更はオーナーが見る。 | `package/gate.json` の `tier_c_paths`。ゲートがオーナーのマージに回す。 |
 | 課題の一生の動き（finish・resume・ゲートの返し方など、`model/IssueLife.tla` が写しているコード）を変える PR は、同じ PR で `model/` のモデルも直す。回すのは `model/check`（ADR-0025）。 | `model/check` を `.github/workflows/model.yml` が回し、モデルと `process/states/issue.yaml` の状態を対応表で照らす。コードとモデルのずれは見ない。 |
-| 規則（`model/IssueRules.*`）・控え（`model/expected.txt`）・対応表（`model/issue-map.txt`）を弱める・消す変更は、レベル C で人が見る。 | `package/gate.json` の `tier_c_paths`。ゲートが人のマージに回す。 |
+| 規則（`model/IssueRules.*`）・控え（`model/expected.txt`）・対応表（`model/issue-map.txt`）を弱める・消す変更は、レベル C でオーナーが見る。 | `package/gate.json` の `tier_c_paths`。ゲートがオーナーのマージに回す。 |
 | 課題の一生に触れる設計を Chief Engineer がモデルで調べるときは、`model/` のモデルと規則を自分の課題の資料置き場に写して案を書き足し、statechart と `model/check --draft <フォルダ>` の両方で調べる（statechart は「行ける」の形の規則を調べない。口の中身は `model/README.md` の「下書きを調べる」）。写しの控え・対応表・壊した見本は直さず、足す規則と変わる見込みの控えを文書に文で書く（直すのは実装の PR の担当）。 | 無し。Chief Engineer の検討の手順で、どの道具で調べたかを見るものが無い。 |
 | main へ直接 push しない。 | GitHub の ruleset `main`。PR を通さない push を断る。 |
-| マージは人がする。 | `package/settings.json` が担当の `gh pr merge` を deny する。 |
+| マージはオーナーがする。 | `package/settings.json` が担当の `gh pr merge` を deny する。 |

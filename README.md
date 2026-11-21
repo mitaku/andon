@@ -4,7 +4,7 @@
 
 **Andon — a one-person software factory.** AI coding agents take issues from a ledger through implementation, review and merge, and the human is called only for the decisions that only they can make.
 
-一人で使うソフトウェア工場。エージェントが台帳の課題を実装・レビュー・マージまで流し、人は自分にしかできない決断のときだけ呼ばれる。
+一人で使うソフトウェア工場。エージェントが台帳の課題を実装・レビュー・マージまで流し、オーナーは自分にしかできない決断のときだけ呼ばれる。
 
 ## English summary
 
@@ -42,7 +42,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 ## 日本語
 
-設計の言葉では「選択的 Dark Factory」と呼んでいる。Dark Factory は、床に人がいないので灯りを消して回る工場のこと。Andon はそのうち、止められるものは機械（テスト・ゲート）、判断が要るものは LLM、決断が要るものだけ人が見る。名前は TPS のアンドン（人を呼ぶ灯り）から。製造業のアンドン製品ではない。設計は docs/ に PR で入る。public の repo（2026-11-09 から。秘密と、案件や個人に固有の値は入れない。`docs/design.md` §2.6）。
+設計の言葉では「選択的 Dark Factory」と呼んでいる。Dark Factory は、床に人間がいないので灯りを消して回る工場のこと。Andon はそのうち、止められるものは機械（テスト・ゲート）、判断が要るものは LLM、決断が要るものだけオーナーが見る。名前は TPS のアンドン（監督者を呼ぶ灯り）から。製造業のアンドン製品ではない。設計は docs/ に PR で入る。public の repo（2026-11-09 から。秘密と、案件や個人に固有の値は入れない。`docs/design.md` §2.6）。
 
 文書と commit メッセージにある `Y-<数>`（`Y-123` など）は、前身の仮設の工場の台帳の番号で、この repo の課題の id（`A-0001` の形）とは別物。履歴は書き換えない。
 
@@ -52,7 +52,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 - [docs/vision.md](docs/vision.md) — ビジョン・ミッション・バリューの1枚（それぞれ既存の決定に遡れる形）と、工程・役・仕組みの図（今あるもの・無いものを分けて描く）
 - [docs/design.md](docs/design.md) — Andon とは何か（語彙と役: Chief Engineer・Chief of Staff・dispatcher・ゲート。リーン開発と TPS の系譜・委譲・Warp との違い）・repo の構成と道具の選定・散らばっているツールの棚卸し・仮設からの引っ越しとセルフホストの線・決めきれない点
-- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・hc・フック・委譲・候補・流れの数え・人の手直し・信号の記録・届けた通知の記録）。正は `schema/`（JSON Schema。`tests/schema.sh` が例と突き合わせる）
+- [docs/contract.md](docs/contract.md) — 機械向けの約束（台帳の項目・指摘・報告・問い・通知・ゲート・hc・フック・委譲・候補・流れの数え・オーナーの手直し・信号の記録・届けた通知の記録）。正は `schema/`（JSON Schema。`tests/schema.sh` が例と突き合わせる）
 - [docs/dispatcher.md](docs/dispatcher.md) — dispatcher（常駐の係）の設計: 何を拾い、Chief of Staff にいつどう届け（フック2つと離席中の待ち役）、どこまで動かすか（判断はしない）
 - [docs/ledger.md](docs/ledger.md) — 台帳の形式（形式 3）と台帳の CLI `kanban` の約束（英語）
 - [docs/image.md](docs/image.md) — セルの image の中身・ビルド・検査・CI と配布
@@ -99,7 +99,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0038 Chief Engineer が設計の検討で statechart のモデルを使い、pstack と yomiyasu を全セルに配る](docs/adr/0038-statechart-in-chief-engineer-design.md): 決定
   - [0039 振り返りの直す課題の上限を外し、改善のペースを流量に合わせる](docs/adr/0039-retro-scale-with-flow.md): 決定
   - [0040 「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く](docs/adr/0040-kanban-gate-version-words.md): 決定
-- [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 の人の答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
+- [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 のオーナーの答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — 版ごとの変更と、上げるときにすること
 - [AGENTS.md](AGENTS.md) — この repo で働く担当の指針
 - [REVIEW.md](REVIEW.md) — この repo のレビュアーの観点
@@ -137,7 +137,7 @@ bin/bootstrap host-install                  # ホストの andon-up・ssh config
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）とタイムゾーン（`CELL_TZ`。既定 `Asia/Tokyo`）はセルの `.env` に書く。`bin/bootstrap --dry-run` は docker を打たずに、打つものを出す。
 
-セルの中では `andon create <slug>` でプロジェクトを立て（`projects/<slug>/` に台帳・`project.json` の下書き・`AGENTS.md`。足りないものは聞く。`project.json` は人が見て commit する）、`andon open <slug>` でプロジェクトの Chief of Staff を開く（`projects/<slug>/` に cd して `andon chief-of-staff` を打つのと同じ）。slug を省くと、台帳のあるプロジェクトの一覧から fzf で選ぶ。
+セルの中では `andon create <slug>` でプロジェクトを立て（`projects/<slug>/` に台帳・`project.json` の下書き・`AGENTS.md`。足りないものは聞く。`project.json` はオーナーが見て commit する）、`andon open <slug>` でプロジェクトの Chief of Staff を開く（`projects/<slug>/` に cd して `andon chief-of-staff` を打つのと同じ）。slug を省くと、台帳のあるプロジェクトの一覧から fzf で選ぶ。
 
 ### テスト
 
