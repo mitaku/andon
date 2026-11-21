@@ -9,15 +9,15 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、Reply で灯さないこと、灯りの元を kanban のオーナー待ちに広げること、状態を 1 か所に定めることの 3 つにする | この ADR | 生きている |
-| 2 | 灯りの状態は、消灯・琥珀・赤の 3 つにし、未読の返事は灯りに数えない | この ADR | まだ実装していない |
-| 3 | 琥珀は、端末が止まってオーナーを待っているときと、マージの依頼か判断のオーナー待ちがあるときに灯す | この ADR | まだ実装していない |
-| 4 | 手作業のオーナー待ちでは灯さない | この ADR | まだ実装していない |
-| 5 | 役の返事は Needs you に上げず、Projects の行に未読の印を付ける | この ADR | まだ実装していない |
-| 6 | 未読の印は、オーナーが見ていない返事の全部に付け、Chief of Staff の申告のラベルは読まない | この ADR | まだ実装していない |
-| 7 | オーナー待ちは、Needs you の上の 1 行にプロジェクトごとの件数で出し、1 件ずつは並べない | この ADR | まだ実装していない |
-| 8 | mod `inbox` が `andon waiting --json --project <slug>` をセルで呼び、数える式を持たない | この ADR | まだ実装していない |
-| 9 | オーナー待ちを読めないプロジェクトでは、今までどおり Reply で灯す | この ADR | まだ実装していない |
-| 10 | 状態を決める場所は mod `inbox` の 1 か所にし、ほかの画面は共有の値を読む | この ADR | まだ実装していない |
+| 2 | 灯りの状態は、消灯・琥珀・赤の 3 つにし、未読の返事は灯りに数えない | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
+| 3 | 琥珀は、端末が止まってオーナーを待っているときと、マージの依頼か判断のオーナー待ちがあるときに灯す | `package/host/inbox/main.js` | 生きている |
+| 4 | 手作業のオーナー待ちでは灯さない | `package/host/inbox/main.js` | 生きている |
+| 5 | 役の返事は Needs you に上げず、Projects の行に未読の印を付ける | `package/host/inbox/main.js` | 生きている |
+| 6 | 未読の印は、オーナーが見ていない返事の全部に付け、Chief of Staff の申告のラベルは読まない | `package/host/inbox/main.js` | 生きている |
+| 7 | オーナー待ちは、Needs you の上の 1 行にプロジェクトごとの件数で出し、1 件ずつは並べない | `package/host/inbox/main.js` | 生きている |
+| 8 | mod `inbox` が `andon waiting --json --project <slug>` をセルで呼び、数える式を持たない | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
+| 9 | オーナー待ちを読めないプロジェクトでは、今までどおり Reply で灯す | `package/host/inbox/main.js` | 生きている |
+| 10 | 状態を決める場所は mod `inbox` の 1 か所にし、ほかの画面は共有の値を読む | `package/host/inbox/main.js`・`package/skills/glossary/SKILL.md` | 生きている |
 | 11 | Chief Engineer は、本文の問いで答えを待ってターンを終える前に、その問いを kanban に置く | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` §1.8 | 生きている |
 | 12 | 灯りを後回しにする口は作らない | この ADR | 生きている |
 

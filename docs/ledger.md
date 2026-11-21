@@ -205,7 +205,7 @@ A routine needs `schedule`, `on`, or both. A key in the table that is there hold
 
 ## Questions
 
-An issue's agent that needs the person to decide something writes the question into the ledger and stops, instead of asking in its terminal. The Chief of Staff gathers the open questions of every issue into one document for the person, writes the answers back, and passes each answer to its agent. The person sees one Needs you, the Chief of Staff's, not one per agent.
+An issue's agent that needs the person to decide something writes the question into the ledger and stops, instead of asking in its terminal. The Chief of Staff gathers the open questions of every issue into one document for the person, writes the answers back, and passes each answer to its agent. The person is not called by each agent's terminal: an open question of the kinds that call the person (a decision) lights the screen's lantern and counts in one line per project above Needs you, and the Chief of Staff's reply only marks its row as unread (Andon's ADR-0043).
 
 The ledger, not the Chief of Staff's memory, is where a question lives: a question is closed only when its agent has received the answer, and anything that drops one (a Chief of Staff's context compacted or restarted, a question missed while gathering, a half-answered document) leaves it open, to be found by the next `kanban questions`.
 

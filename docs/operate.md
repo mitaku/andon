@@ -285,8 +285,8 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 
 | mod | 何をする | 中身 |
 |---|---|---|
-| `andon` | Space・tab に名前を付ける（下の段）。もう1つの copy（props `brand`）が左の列の一番上に行燈と「Andon」を描き、窓の色で Needs you の状態を出す（ADR-0023） | `package/host/andon/README.md` |
-| `inbox` | オーナーが手を動かすもの（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の印は琥珀（答えれば進む）と赤（Failed）で灯る。読むだけでラベルを書かない（ADR-0015・ADR-0023） | `package/host/inbox/README.md` |
+| `andon` | Space・tab に名前を付ける（下の段）。もう1つの copy（props `brand`）が左の列の一番上に行燈と「Andon」を描き、窓の色で灯りの状態（消灯・琥珀・赤。決めるのは `inbox`）を出す（ADR-0023・ADR-0043） | `package/host/andon/README.md` |
+| `inbox` | 止まってオーナーを待つ端末（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の上に、マージの依頼か判断のオーナー待ちがあるプロジェクトごとに件数の1行を出す（セルで `andon waiting --json --project <slug>` を呼んで読む。数える式は持たない）。灯りの状態（消灯・琥珀・赤）を決める1か所で、琥珀は止まった端末かマージの依頼・判断のオーナー待ち、赤は失敗した端末。役の返事は灯さず、Projects の行の未読の印にする。オーナー待ちを読めないプロジェクトでは、今までどおり返事を Reply として灯す。読むだけでラベルを書かない（ADR-0015・ADR-0023・ADR-0043） | `package/host/inbox/README.md` |
 | `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（Board・List・課題の連なりの Flow。`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |

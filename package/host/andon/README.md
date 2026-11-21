@@ -11,11 +11,11 @@ The logo's "A" lantern (`docs/assets/logo/andon-mark.svg`), 20px, beside "Andon"
 
 | Window | When |
 |---|---|
-| unlit (the theme's `dim`) | nothing needs you |
-| amber `#F0A202` / `#FFD36B` | rows wait for your answer (Permission, Question, Auth, a role's Reply) |
-| red `#D8453B` / `#F29A92` | a row's turn failed (Failed) |
+| unlit (the theme's `dim`) | nothing waits for you (a role's reply only marks its row in the inbox) |
+| amber `#F0A202` / `#FFD36B` | you are called: a terminal is blocked waiting for you (Permission, Question, Auth), or a merge or a decision waits on you on the ledger; where a project's waits can't be read, a role's unseen Reply too |
+| red `#D8453B` / `#F29A92` | a terminal's turn failed (Failed) |
 
-The inbox decides which and keeps it in `shared("inbox.lantern")`; this block only reads it, so the two never disagree. A change fades over 0.9 s (`.transition("opacity")`), then the light stays still: no blinking, no timer, no sound. There is no green: the working spinner in the rows says what works.
+The inbox decides which (its README's "Lights" has the table it decides by, ADR-0043) and keeps it in `shared("inbox.lantern")`; this block only reads it, so the two never disagree. A change fades over 0.9 s (`.transition("opacity")`), then the light stays still: no blinking, no timer, no sound. There is no green: the working spinner in the rows says what works.
 
 `svg()` paints one color, so the logo is drawn in layers: `lantern-frame.svg` (the theme's `foreground`), `lantern-window.svg` unlit, then each light (`lantern-window.svg` and `lantern-glow.svg`) shown or faded out.
 
