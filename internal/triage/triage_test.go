@@ -474,3 +474,25 @@ func TestCheckVerdicts(t *testing.T) {
 		t.Errorf("覆した記録が無い: %v", f)
 	}
 }
+
+// 束ねた項目が同じ brief を写していても、依頼書の「解決すべき問題」の段落は1回だけ書く。違う brief は順に残す。
+func TestGroupBriefWritesEachBriefOnce(t *testing.T) {
+	b := func(key, brief string) item {
+		f := item(fix(key, "t"))
+		f["decision"], f["bundle"] = "bundle", "docs"
+		f["issue"].(map[string]any)["brief"] = brief
+		return f
+	}
+	k3 := "demo:T-3:next:0000000000000000000000000000000000000003"
+	got := groupBrief([]item{b(k1, "同じ段落。"), b(k2, "同じ段落。"), b(k3, "同じ段落。")})
+	if n := strings.Count(got, "同じ段落。"); n != 1 {
+		t.Errorf("同じ段落が %d 回:\n%s", n, got)
+	}
+	if !strings.Contains(got, "なぜ: トリアージ "+k1+", "+k2+", "+k3+"\n") {
+		t.Errorf("key を全部書かない:\n%s", got)
+	}
+	got = groupBrief([]item{b(k1, "一つ目。"), b(k2, "二つ目。"), b(k3, "一つ目。")})
+	if !strings.HasPrefix(got, "解決すべき問題:\n一つ目。\n\n二つ目。\nなぜ:") {
+		t.Errorf("違う段落を順に残さない:\n%s", got)
+	}
+}
