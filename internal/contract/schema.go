@@ -20,11 +20,14 @@ import (
 // 約束の JSON は Write・Encode・EncodeLine で、書く前にこの schema と照らす（ADR-0034 決めたこと 6）。
 type Schema string
 
-// schema/ の直下の 18 本。
+// schema/ の直下の 21 本。
 const (
 	SchemaCandidates   Schema = "candidates"
 	SchemaCorrections  Schema = "corrections"
 	SchemaDelivered    Schema = "delivered"
+	SchemaDigest       Schema = "digest"
+	SchemaDigestInput  Schema = "digest-input"
+	SchemaDigestSent   Schema = "digest-sent"
 	SchemaFindings     Schema = "findings"
 	SchemaGate         Schema = "gate"
 	SchemaIssueKeys    Schema = "issue-keys"
@@ -43,7 +46,7 @@ const (
 )
 
 // Schemas は schema/ の直下の全部（テストが、埋め込んだ顔ぶれと突き合わせる）。
-var Schemas = []Schema{SchemaCandidates, SchemaCorrections, SchemaDelivered, SchemaFindings, SchemaGate, SchemaIssueKeys,
+var Schemas = []Schema{SchemaCandidates, SchemaCorrections, SchemaDelivered, SchemaDigest, SchemaDigestInput, SchemaDigestSent, SchemaFindings, SchemaGate, SchemaIssueKeys,
 	SchemaLaunch, SchemaMeasure, SchemaNotification, SchemaOutcome, SchemaPatterns, SchemaProject, SchemaQuestion,
 	SchemaReport, SchemaRetro, SchemaRun, SchemaSignal, SchemaWaiting}
 

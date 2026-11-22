@@ -78,11 +78,21 @@ func Publish(env Env, file, slug string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	name := env.Now.Format("2006-01-02") + "-" + slug + ext
+	name := Name(env, slug, ext)
 	if err := copyFile(file, filepath.Join(dir, name)); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("http://files.%s.localhost:%s/%s", env.Hostname, delegate.Dotenv(env.Workspace, "PORTLESS_PORT", DefaultPort), name), nil
+	return URL(env, name), nil
+}
+
+// Name は files/ に置く名前（<日付>-<slug><拡張子>。日付は env.Now の日）。
+func Name(env Env, slug, ext string) string {
+	return env.Now.Format("2006-01-02") + "-" + slug + ext
+}
+
+// URL は files/ の name を開く URL（files サーバ。番号はセルの .env の PORTLESS_PORT）。
+func URL(env Env, name string) string {
+	return fmt.Sprintf("http://files.%s.localhost:%s/%s", env.Hostname, delegate.Dotenv(env.Workspace, "PORTLESS_PORT", DefaultPort), name)
 }
 
 // copyFile は同じディレクトリの一時ファイルに書いてから rename する。

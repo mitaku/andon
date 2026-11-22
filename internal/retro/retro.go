@@ -32,6 +32,7 @@ import (
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/pkgversion"
+	"andon/internal/redact"
 	"andon/internal/sessionlog"
 )
 
@@ -1145,9 +1146,9 @@ func GH(args ...string) ([]byte, error) {
 // 伏せるのは書き出した JSON の文字列の中だけで（redact）、伏せたあとも JSON として読めることを確かめる。
 func Redacted(in *Input) ([]byte, int, error) {
 	in.Redacted = 0
-	_, n := redact(contract.Marshal(in))
+	_, n := redact.JSON(contract.Marshal(in))
 	in.Redacted = n
-	out, _ := redact(contract.Marshal(in))
+	out, _ := redact.JSON(contract.Marshal(in))
 	if !json.Valid(out) {
 		return nil, 0, errors.New("秘密を伏せたあとの出力が JSON でない（伏せる形の誤り）")
 	}

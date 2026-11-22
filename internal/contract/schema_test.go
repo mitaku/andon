@@ -27,6 +27,8 @@ func TestSchemasEmbedded(t *testing.T) {
 	for _, s := range Schemas {
 		listed = append(listed, string(s))
 	}
+	// ファイルの名前の順（digest-input.schema.json が digest.schema.json の前）と名前の順は違うので、両方を名前の順に並べて比べる
+	slices.Sort(onDisk)
 	slices.Sort(listed)
 	if !slices.Equal(onDisk, listed) {
 		t.Fatalf("schema/ の直下 %v と Schemas %v が違う", onDisk, listed)

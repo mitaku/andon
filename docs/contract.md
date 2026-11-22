@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -24,10 +24,13 @@
 | §23 引き取れる課題（`kanban ready --json` の出力） | `schema/ledger/ready.v3.schema.json` |
 | §24 走らせた記録（`runs/<n>.json`） | `schema/run.schema.json` |
 | §25 オーナー待ち（`andon waiting --json` の出力） | `schema/waiting.schema.json` |
+| §26 ダイジェストの入力（`input.json`） | `schema/digest-input.schema.json` |
+| §27 ダイジェストの中身（`digest.json`） | `schema/digest.schema.json` |
+| §28 ダイジェストを送った結果（`sent.json`） | `schema/digest-sent.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、オーナーが書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
-- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`・`andon waiting`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`・`andon waiting`・`andon digest`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
 - kanban を読み書きするコマンドは `kanban`（`cmd/kanban`。command と形式は [ledger.md](ledger.md)）。
 - kanban の形式（形式 3。[ledger.md](ledger.md)・`schema/ledger/`）は Andon が持つ（[design.md](design.md) §3.5 で移した）。Andon のキーは「Any other key is allowed and kept」の上に置き、形式そのものを変えるときは形式のバージョンで変える。
 
@@ -891,7 +894,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 - **除く行**: セッションの最初のオーナーの印の文（起動の最初のメッセージ）。包みのある文（先頭が `<hc from=`・`<news`・`<task-notification>`。貼った文の包み `<pasted_content …>` の内側も見る）。Andon の command が端末の外から `hc send` した文（hc の包みが付かずオーナーの印になる）。dispatcher と gate は、担当・レビュアーへ送る文の先頭に送り手の印 `[dispatcher] `・`[gate] ` を置く（dispatcher.md §5 の「送り手の印」）。この印で照らし、文の意味は読まない。貼った文の包みの内側も見る。
 - 文の意味は読まない。抜いた文はこの出力にだけ置き、PR には写さない（[ADR-0028](adr/0028-improvement-loop.md) 前提 7）。
 
-秘密を伏せる: 出力の JSON を書いたあと、文字列の中で秘密の形に合う所を `[REDACTED:<形の名前>]` に置き換える（鍵の名前に続く値は名前を残して値だけ）。形は秘密鍵の塊・Anthropic と OpenAI の API キー・GitHub のトークン・AWS のアクセスキー・Slack のトークン・Google の API キー・JWT・`Bearer` のトークン・`api_key`／`token`／`password` などの名前に続く値（値の長さは問わない）。一覧の正は `internal/retro/redact.go`（検査は偽の値で `internal/retro/retro_test.go`）。多めに伏せる。伏せたあと JSON として読めなければ出さずに終了コード 1。
+秘密を伏せる: 出力の JSON を書いたあと、文字列の中で秘密の形に合う所を `[REDACTED:<形の名前>]` に置き換える（鍵の名前に続く値は名前を残して値だけ）。形は秘密鍵の塊・Anthropic と OpenAI の API キー・GitHub のトークン・AWS のアクセスキー・Slack のトークン・Google の API キー・JWT・`Bearer` のトークン・`api_key`／`token`／`password` などの名前に続く値（値の長さは問わない）。一覧の正は `internal/redact/redact.go` で、ダイジェスト（§26）と共有する（検査は偽の値で `internal/retro/retro_test.go`）。多めに伏せる。伏せたあと JSON として読めなければ出さずに終了コード 1。
 
 ## 21. パターンの一覧（`retro.json`）
 
@@ -1084,3 +1087,109 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。
 - **答える口** `andon waiting answer <id>#<n> --option <番号> [--project <slug>]`: オーナーのペインが、判断の行（`answerable: true`）の問いに、問いの JSON の選択肢の1つで答える（決めたこと 17・18）。番号は `ask.options` の並びの 1 から。書くのは `kanban answer <id>#<n> "<選んだ選択肢の label>"` の1つだけで、答えの文はその `label`。次のどれかなら何も書かずに終了コード 1 で断る: herdr の端末の中で打たれた（`HC_TERMINAL_ID` がある。担当も Chief of Staff も端末の中で動き、App の `exec` は端末の外で動く）・問いが `open` でない・問いの JSON が無いか読めない・`from: gate`・種類が `irreversible`・種類が判断（`business`・`users`・`promise`・`line`）でない・番号が選択肢の外。使い方の誤りは終了コード 2。`kanban answer` も `open` の問いだけを通すので、読んでから書くまでに答えが入っても、答えは1つだけになる。書いた答えの行は書き手が端末でないので、dispatcher が通知 `answered`（§6）で Chief of Staff に届ける。
 - kanban の `config.yaml` が読めないとき、`log.jsonl` が読めない（課題があるのに無い）とき、`--project` の kanban が無いときは終了コード 1。履歴が無いと、課題が `review` に入った時刻と `merge` の書き手が分からず、マージの依頼を動いている仕事に数えてしまうため、数えずに止まる。読めない `issue.yaml` は数えずに理由を標準エラーに出し、終了コード 0。
+
+## 26. ダイジェストの入力（`library/digest/input.json`）
+
+`andon digest collect <id>` が、ダイジェストの課題 `<id>` の期間の記録を集めて書く（[ADR-0044](adr/0044-owner-digest.md) 決めたこと 3）。**書くのはこのファイルだけ**で、kanban・記録・GitHub は読むだけ。書く前に schema に照らし、合わなければ書かずに終了コード 1。読めなかった記録は止まらずに `skipped` に1件ずつ並べ、標準エラーにも1行ずつ出す（黙って数えない所を作らない）。
+
+期間（決めたこと 5）: 同じルーチン（`issue.yaml` の `routine`）が足したダイジェストの課題のうち、`sent.json`（§28）の送り先が全部済んでいるもので `until` がいちばん新しいものの `until` から、今まで。無ければ 24 時間前から。7 日より前へは遡らず、切ったときは `truncated: true`。組み立てただけ・送りそこねたダイジェストは数えない。
+
+読むもの: kanban の `config.yaml`（`columns`・`timezone`）・`issues/<id>/issue.yaml`・`log.jsonl`（期間に `done` へ動いた行）・`routines/*.yaml`（`schedule` と `paused`）、課題の `library/` の `report.json`（`pr`・`review_request.extra`）・`outcome.json`（§19）・gate の記録（`library/gate/<head>.json` の `decision`・`delegation.grant`）・`digest/sent.json`、dispatcher の `<slug>.delivered.jsonl`（§17）と `<slug>.signals.json`（§15）、`andon waiting` と同じ数え方（§25）、`andon measure` と同じ数え方（§13。直近 7 日とその前の 7 日）、GitHub のマージされた PR の一覧（`gh pr list`。repo ごとに1回）。
+
+```json
+{"version": 1, "project": "sample-site", "issue": "S-0100", "title": "日次のダイジェスト",
+ "at": "2026-11-21T10:00:00Z", "since": "2026-11-20T10:00:00Z", "until": "2026-11-21T10:00:00Z",
+ "previous": {"issue": "S-0090", "until": "2026-11-20T10:00:00Z", "sent_at": "2026-11-20T10:05:00Z"}, "truncated": false,
+ "issues": [
+   {"id": "S-0001", "title": "返事の下書きボタン", "status": "done", "done_at": "2026-11-21T08:01:00Z",
+    "pr": "https://github.com/example/sample-site/pull/1", "merged_at": "2026-11-21T08:00:00Z", "merged_by": "dispatcher",
+    "tier": "B", "grant": "d2", "retro": false},
+   {"id": "S-0002", "title": "一覧の並び", "status": "done", "done_at": "2026-11-21T09:10:00Z",
+    "pr": "https://github.com/example/sample-site/pull/2", "merged_at": "2026-11-21T09:00:00Z", "merged_by": "person",
+    "tier": "C", "grant": null, "retro": false}],
+ "waiting": {"version": 1, "at": "2026-11-21T10:00:00Z", "project": "sample-site",
+  "slots": {"limit": 2, "working": 1, "waiting": 0, "free": 1, "waiting_full": false}, "items": []},
+ "concerns": [{"kind": "gate_fix", "issue": "S-0003", "title": "検索の速さ", "at": "2026-11-21T07:00:00Z", "url": null}],
+ "numbers": {"days": [{"date": "2026-11-21", "merged": 2, "auto": 1}],
+  "current": {"since": "2026-11-15", "until": "2026-11-21", "merged": 9, "auto": 5, "closed": 12, "lead_time_hours": 3.5, "question_open_hours": 1.2, "tokens": 1200000},
+  "previous": {"since": "2026-11-08", "until": "2026-11-14", "merged": 7, "auto": 3, "closed": 10, "lead_time_hours": null, "question_open_hours": null, "tokens": null}},
+ "next": {"ready": 3, "observations": [{"id": "S-0040", "title": "観察: 下書きボタン", "not_before": "2026-11-25"}],
+  "routines": [{"name": "digest", "title": "日次のダイジェスト", "next": "2026-11-22T10:00:00Z"}]},
+ "redacted": 0, "skipped": []}
+```
+
+| キー | 意味 |
+|---|---|
+| `version` | 形のバージョン。今は 1 |
+| `issue`・`title` | ダイジェストの課題とその題（題が空なら id） |
+| `at`・`since`・`until` | 集めた時刻と期間（UTC。`until` は `at` と同じ） |
+| `previous` | 期間の始まりにした前のダイジェスト（`sent_at` は送り先が最後に済んだ時刻）。無ければ `null` |
+| `issues[]` | 期間に `done` へ動いたか、`outcome.json` の `merged_at` が期間の中の課題。レビュアーの子課題（`<id>-r<k>`・`profile` が `-review` で終わる）、このダイジェストの課題、同じルーチンのダイジェストは数えない。id の順 |
+| `issues[].merged_by` | `outcome.json` の `result` が `merged` で、`merged_at` か `done_at` が期間の中の課題だけ（結果の記録は `done` のあとに書かれるので、前の期間にマージして今の期間に片付いた課題は前のダイジェストに載っていない）。`gates[]` に `merged: true` があれば `dispatcher`、無ければ `person`。そうでなければ `null`。PR のある課題が期間に片付いたのに `outcome.json` がまだ無いときは、マージを数えずに `skipped` に出す |
+| `issues[].tier`・`grant` | `tier` はマージした gate（無ければ最後の gate）のレベル。`grant` はマージした head の gate の記録の `delegation.grant`（名指しの委譲でマージしたとき） |
+| `issues[].retro` | 親の課題が振り返りのルーチン（`routine: retro`）の課題か |
+| `waiting` | 集めた時刻の `andon waiting --json`（§25）と同じもの。build は §25 の schema にも照らす |
+| `concerns[]` | 期間のうまくいっていないこと。下の表の 6 種。同じ種類と課題は一番新しい1件にし、時刻の順 |
+| `numbers` | `days` は直近 7 日（UTC の日）のマージした PR と、そのうち自動の数。`current`・`previous` は直近 7 日とその前の 7 日の `andon measure` の数（`tokens` は入力・出力・キャッシュの合計。読めなければ `null`） |
+| `next.ready` | `todo` の担当の課題（レビュアーとオーナーの課題を除く）のうち、`after` の相手が全部 `done` で `not_before` の日を過ぎたものの数 |
+| `next.observations[]` | 親が Chief Engineer の課題で、済んでおらず、`not_before` が 7 日以内の課題（観察の課題） |
+| `next.routines[]` | kanban のルーチン。`next` は次に足す時刻で、止めてある・読めない `schedule` は `null` |
+| `redacted` | 秘密の形を伏せた数（§20 と同じ伏せ方。一覧の正は `internal/redact/redact.go`） |
+| `skipped[]` | 読めなかったもの（`source` は kanban の根からのパスか出所の名前、`reason` は1行） |
+
+| `concerns[].kind` | 数えるもの |
+|---|---|
+| `stalled` | `delivered.jsonl` で期間に届けた `stalled`・`error` の通知（止まった担当） |
+| `gate_fix` | 期間に書かれた gate の記録で `decision: fix` のもの |
+| `review_over` | 済んでいない課題で、`report.json` の `review_request.extra` が `true`（レビューの上限を超えた）。時刻はその課題の期間の最後の履歴 |
+| `ci_failed` | `signals.json` の `github-ci` の信号で `active: true` のもの（main の CI の失敗）。`url` は信号の URL |
+| `revert` | 期間にマージされた PR で、題が `Revert ` で始まるもの。`url` は PR |
+| `estimate` | 期間に `done` へ動いた課題で、`outcome.json` の `worked_minutes` が見込み（§2 の `estimate`）の 2 倍を超えたもの |
+
+## 27. ダイジェストの中身（`library/digest/digest.json`）
+
+ダイジェストの担当が書く文（要旨・テーマ・気になること）。担当は標準入力で `andon digest build <id> -` に渡し、build が照らしてから `digest.json` に写す（決めたこと 3・8）。数・一覧・図の位置と色は build が §26 の入力から描き、担当は書かない。
+
+```json
+{"headline": ["返事の下書きボタンが入り、返信の手間が減った。", "オーナーの判断を待っているものは無い。"],
+ "themes": [
+   {"title": "返信を速くする", "body": ["問い合わせの画面に下書きのボタンを足した。"], "issues": ["S-0001"],
+    "figure": {"type": "before_after", "before": ["毎回一から書く"], "after": ["下書きを直して送る"]}},
+   {"title": "一覧", "body": ["並びを新しい順にした。"], "issues": ["S-0002"],
+    "figure": {"type": "steps", "steps": ["開く", "並べ替える", "選ぶ"], "focus": 2}}],
+ "concerns": [{"text": "検索の速さで gate の差し戻しが続いた。", "issues": ["S-0001"]}]}
+```
+
+| キー | 決まり |
+|---|---|
+| `headline[]` | 要旨。2〜5 文。1 文は1行（改行を含まない） |
+| `themes[]` | テーマ。8 つまで。`body` は 1〜3 文、`issues` は 1 件以上で、§26 の `issues[]` にある課題だけ |
+| `themes[].figure` | 図（任意。決めたこと 9）。`before_after` は `before`・`after` がそれぞれ 1〜3 行。`steps` は 2〜6 段で、`focus` は目立たせる段（1 から） |
+| `concerns[]` | 担当が添える気になること。3 つまで。`issues` は 1 件以上で、§26 の `issues[]`・`concerns[].issue`・`waiting.items[].id` にある課題だけ（止まっている課題やオーナーを待っている課題も根拠に指せる） |
+
+- build は次のどれかなら理由を1行ずつ標準エラーに出し、終了コード 1 で何も書かない: schema に合わない（知らない図の型を含む）・入力に無い課題を指す（テーマは `issues[]` だけ、気になることは上の 3 つ）・要旨が 2〜5 文でない・テーマが 9 つ以上・テーマの文が 4 つ以上・気になることが 4 つ以上・図の行や段が多い・`focus` が段の数を超える。
+- どのテーマにも入らないマージ済みの課題は、build が「そのほか」に題で並べる（黙って落とさない）。
+- 組み立てる前に、入力と担当の文の文字列から秘密の形を伏せる（決めたこと 17）。
+- build は `digest.json`・`digest.html`（下）・`message.txt`（下）の3つを書く。
+  - `digest.html`: 依存の無い単一の HTML（決めたこと 7）。インラインの SVG の図を持ち、`<script>`・`<link>`・`<a>` のほかで外を指す `src`・`href` を持たず、スタイル（`<style>` の中と `style` 属性）に `url(` を持たない。`prefers-color-scheme: dark` で暗い配色に変わり、スマホの幅で読める。色と大きさはクラスで決め、値をスタイルに渡さない。琥珀はマージの依頼と判断の行と冒頭の「オーナーが呼ばれている」数だけ、赤は止まった担当・main の CI の失敗・revert の行だけ（決めたこと 10）。1 MiB より小さい。build は書く前にこれを確かめ、通らなければ書かない。
+  - `message.txt`: Slack などに添える短い文（決めたこと 13）。題・プロジェクト・期間・要旨・オーナーを待っているものの数と上から 5 件（題と PR の URL）・マージした数と自動の数・files/ の URL。装飾の記法を使わず、3000 字まで。超えたら待っているものの行を下から削り、削った数を出す。
+
+## 28. ダイジェストを送った結果（`library/digest/sent.json`）
+
+`andon digest send <id>` が、送り先ごとの結果を書く（決めたこと 15・16）。送り先は今は `files` だけで、`digest.html` を `files/<日付>-digest-<project>-<id>.html` に出し（`andon publish` と同じ置き場と URL。日付は期間の終わりの日）、URL を標準出力に出す。
+
+```json
+{"issue": "S-0100", "since": "2026-11-20T10:00:00Z", "until": "2026-11-21T10:00:00Z",
+ "destinations": [{"kind": "files", "at": "2026-11-21T10:01:00Z", "ok": true, "url": "http://files.cell.localhost:1355/2026-11-21-digest-sample-site-S-0100.html"}]}
+```
+
+| キー | 意味 |
+|---|---|
+| `issue`・`since`・`until` | 送ったダイジェストの課題と期間（§26 の写し） |
+| `destinations[]` | 送り先ごとの結果。送り先 1 つに 1 行 |
+| `destinations[].ok` | 送れたか。`true` なら `url`、`false` なら `error`（1行の理由）を持つ |
+
+- 済んだ送り先（`ok: true`）には、打ち直しても送らない。送りそこねた送り先は打ち直しで送り直す。
+- 集め直して期間が変わったときは、前の結果を捨てて送り直す。
+- 次のダイジェストの期間は、送り先が全部済んだ `sent.json` の `until` から始まる（§26）。
+- build は `digest.html` に組み立てた入力の期間の印（`<meta name="andon-digest-period">`）を入れる。send は今の `input.json` の期間と照らし、違えば（組み立てたあとに集め直した）送らずに終了コード 1 で、組み立て直すよう言う。古い HTML を新しい期間として送ると、間の出来事がどの 1 枚にも載らないため。

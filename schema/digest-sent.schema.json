@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/digest-sent/1",
+  "title": "Digest sent",
+  "description": "issues/<id>/library/digest/sent.json: where `andon digest send <id>` put one digest, one entry per destination (ADR-0044 decisions 15 and 16). Written only by that command. A done destination is not sent again; a failed one is sent again on the next run. Read by `andon digest collect`, which starts the next period at the newest digest whose destinations are all done. Only these keys.",
+  "type": "object",
+  "required": [
+    "issue",
+    "since",
+    "until",
+    "destinations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "issue": {
+      "description": "The digest's issue.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "since": {
+      "description": "The digest's period start (input.json's since).",
+      "$ref": "#/$defs/time"
+    },
+    "until": {
+      "description": "The digest's period end (input.json's until).",
+      "$ref": "#/$defs/time"
+    },
+    "destinations": {
+      "description": "One entry per destination. files: the cell's files/ (always).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/destination"
+      },
+      "uniqueKeys": [
+        "kind"
+      ]
+    }
+  },
+  "$defs": {
+    "time": {
+      "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "destination": {
+      "description": "The result of one destination: when, whether it was done, and the URL (done) or the reason (not done).",
+      "type": "object",
+      "required": [
+        "kind",
+        "at",
+        "ok"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "The destination.",
+          "enum": [
+            "files"
+          ]
+        },
+        "at": {
+          "description": "When it was tried.",
+          "$ref": "#/$defs/time"
+        },
+        "ok": {
+          "description": "It was done.",
+          "type": "boolean"
+        },
+        "url": {
+          "description": "Where the owner opens it (files: the files server's URL).",
+          "type": "string",
+          "pattern": "^https?://[!-~]+$"
+        },
+        "error": {
+          "description": "Why it was not done, one line.",
+          "type": "string",
+          "pattern": "^[^\\n\\r]+$"
+        }
+      },
+      "if": {
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "url"
+        ],
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "error"
+        ],
+        "not": {
+          "required": [
+            "url"
+          ]
+        }
+      }
+    }
+  }
+}

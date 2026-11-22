@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="andon-digest-period" content="{{.PeriodKey}}">
+<title>{{.Title}}</title>
+<style>
+:root {
+  --bg: #fafaf8; --fg: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc; --card: #ffffff;
+  --bar: #8a8f98; --bar-auto: #4f6fa8; --amber: #b7791f; --amber-bg: #fdf3e1; --red: #c0392b; --red-bg: #fbeae8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --fg: #ecebe6; --muted: #a09f99; --line: #34332f; --card: #1f1f1d;
+    --bar: #7d828b; --bar-auto: #7f9fd6; --amber: #e0a43c; --amber-bg: #3a2c12; --red: #e8705f; --red-bg: #3d1d19;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.7 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 15px; margin: 0 0 6px; }
+p { margin: 0 0 8px; }
+a { color: inherit; }
+.muted { color: var(--muted); font-size: 13px; }
+.note { font-size: 13px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 8px; margin: 8px 0; }
+.headline p { font-size: 16px; }
+.big { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 16px 0; }
+.big div { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.big b { display: block; font-size: 26px; line-height: 1.2; }
+.big span { font-size: 12px; color: var(--muted); }
+.big .c-amber { border-color: var(--amber); background: var(--amber-bg); }
+.big .c-amber b { color: var(--amber); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: normal; }
+tr.c-amber td:first-child { color: var(--amber); font-weight: bold; }
+tr.c-red td:first-child { color: var(--red); font-weight: bold; }
+ul { margin: 0; padding-left: 20px; }
+svg { display: block; max-width: 100%; height: auto; }
+svg text { fill: var(--muted); font-size: 11px; }
+svg text.day { font-size: 9px; text-anchor: middle; }
+td:first-child { white-space: nowrap; }
+.bar { fill: var(--bar); }
+.bar-auto { fill: var(--bar-auto); }
+.bar.c-amber { fill: var(--amber); }
+.bar.c-red { fill: var(--red); }
+.arrow { stroke: var(--muted); stroke-width: 2; fill: none; }
+.legend { font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; }
+.legend .k-auto { background: var(--bar-auto); }
+.legend .k-person { background: var(--bar); }
+.ba { display: grid; grid-template-columns: 1fr 28px 1fr; gap: 6px; align-items: center; margin-top: 10px; }
+.ba div { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+.ba b { display: block; font-size: 11px; color: var(--muted); font-weight: normal; }
+.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 10px; }
+.steps span { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+.steps span.focus { border-color: var(--bar-auto); border-width: 2px; font-weight: bold; }
+.mark { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
+.wrap { overflow-x: auto; }
+@media (max-width: 480px) { .ba { grid-template-columns: 1fr; } .ba svg { transform: rotate(90deg); margin: 0 auto; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>{{.Title}}</h1>
+<p class="muted">{{.Project}}・{{.Period}}（{{.Zone}}）{{if .PrevSent}}・前に送ったのは {{.PrevSent}}{{end}}</p>
+{{if .Truncated}}<p class="note">前に送ったダイジェストが 7 日より前なので、期間を 7 日前で切った。それより前のことは載っていない。</p>{{end}}
+</header>
+
+<section class="headline">
+{{range .Headline}}<p>{{.}}</p>
+{{end}}</section>
+
+<div class="big">
+{{range .Big}}<div{{if .Class}} class="{{.Class}}"{{end}}><b>{{.Value}}</b><span>{{.Label}}</span></div>
+{{end}}</div>
+
+<p class="legend">直近 7 日のマージ（UTC の日ごと）<i class="k-auto"></i>自動<i class="k-person"></i>オーナー</p>
+<svg viewBox="0 0 252 100" width="420" role="img" aria-label="直近 7 日のマージした PR の数">
+{{range .Days}}<rect class="bar-auto" x="{{.X}}" y="{{.YAuto}}" width="24" height="{{.HAut}}"></rect><rect class="bar" x="{{.X}}" y="{{.YPerson}}" width="24" height="{{.HPers}}"></rect><text class="day" x="{{.Mid}}" y="96">{{.Label}}</text>
+{{end}}</svg>
+
+<h2>オーナーを待っているもの（{{len .Waiting}} 件）</h2>
+{{if .Waiting}}<div class="wrap"><table>
+<tr><th>種類</th><th>課題</th><th>待っている時間</th></tr>
+{{range .Waiting}}<tr{{if .Class}} class="{{.Class}}"{{end}}><td>{{.Kind}}</td><td>{{.ID}} {{.Title}}{{if .PR}} <a href="{{.PR}}">PR</a>{{end}}{{if .Holds}}<span class="mark">後ろに {{.Holds}} 件</span>{{end}}</td><td><svg viewBox="0 0 160 10" width="160"><rect class="bar{{if .Class}} {{.Class}}{{end}}" x="0" y="1" width="{{.Width}}" height="8"></rect></svg>{{.Wait}}（{{.Since}} から）</td></tr>
+{{end}}</table></div>{{else}}<p>いま待っているものは無い。</p>{{end}}
+
+<h2>進んだこと</h2>
+{{range .Themes}}<div class="card">
+<h3>{{.Title}}</h3>
+<svg viewBox="0 0 220 10" width="220"><rect class="bar-auto" x="0" y="1" width="{{.Width}}" height="8"></rect><text x="{{inc .Width}}" y="9">{{.Count}} 件</text></svg>
+{{range .Body}}<p>{{.}}</p>
+{{end}}{{if .HasBefore}}<div class="ba"><div><b>前</b>{{range .Before}}{{.}}<br>{{end}}</div><svg viewBox="0 0 28 16" width="28"><path class="arrow" d="M2 8 H24 M18 3 L24 8 L18 13"></path></svg><div><b>後</b>{{range .After}}{{.}}<br>{{end}}</div></div>
+{{end}}{{if .HasSteps}}<div class="steps">{{range .Steps}}<span{{if .Focus}} class="focus"{{end}}>{{.Text}}</span>{{if not .Last}}<svg viewBox="0 0 20 12" width="20"><path class="arrow" d="M2 6 H16 M12 2 L16 6 L12 10"></path></svg>{{end}}{{end}}</div>
+{{end}}<ul class="muted">{{range .Issues}}<li>{{.ID}} {{.Title}}{{if .PR}} <a href="{{.PR}}">PR</a>{{end}}{{if eq .Mark "auto"}}<span class="mark">自動</span>{{else if eq .Mark "person"}}<span class="mark">オーナー</span>{{end}}</li>
+{{end}}</ul>
+</div>
+{{else}}<p>テーマにまとめるほどの動きは無かった。</p>
+{{end}}{{if .Rest}}<div class="card">
+<h3>そのほか（どのテーマにも入らなかったマージ）</h3>
+<ul>{{range .Rest}}<li>{{.ID}} {{.Title}}{{if .PR}} <a href="{{.PR}}">PR</a>{{end}}</li>
+{{end}}</ul>
+</div>{{end}}
+
+<h2>オーナーを通らずに入った変更（{{len .Auto}} 件）</h2>
+<svg viewBox="0 0 220 54" width="220" role="img" aria-label="レベルごとの自動マージの数">
+{{range $i, $t := .Tiers}}<text x="0" y="{{if eq $i 0}}12{{else if eq $i 1}}30{{else}}48{{end}}">{{$t.Tier}}</text><rect class="bar-auto" x="16" y="{{if eq $i 0}}3{{else if eq $i 1}}21{{else}}39{{end}}" width="{{$t.Width}}" height="10"></rect>
+{{end}}</svg>
+{{if .Auto}}<div class="wrap"><table>
+<tr><th>レベル</th><th>課題</th><th>テーマ</th></tr>
+{{range .Auto}}<tr><td>{{.Tier}}{{if .Grant}}<span class="mark">委譲 {{.Grant}}</span>{{end}}</td><td>{{.ID}} {{.Title}}{{if .PR}} <a href="{{.PR}}">PR</a>{{end}}{{if .Retro}}<span class="mark">振り返り</span>{{end}}</td><td>{{.Theme}}</td></tr>
+{{end}}</table></div>{{else}}<p>この期間に自動でマージした変更は無い。</p>{{end}}
+
+<h2>代わりに決めたこと</h2>
+<p class="muted">まだ集めていない。</p>
+
+<h2>気になること</h2>
+{{if .Concerns}}<div class="wrap"><table>
+<tr><th>種類</th><th>何が</th><th>いつ</th></tr>
+{{range .Concerns}}<tr{{if .Class}} class="{{.Class}}"{{end}}><td>{{.Kind}}</td><td>{{if .Issue}}{{.Issue}} {{end}}{{.Title}}{{if .URL}} <a href="{{.URL}}">開く</a>{{end}}</td><td>{{.At}}</td></tr>
+{{end}}</table></div>{{else}}<p>記録から見つかったものは無い。</p>{{end}}
+{{range .Notes}}<p class="note">{{.Text}}（{{range $i, $r := .Issues}}{{if $i}}、{{end}}{{$r.ID}}{{end}}）</p>
+{{end}}
+
+<h2>数字</h2>
+<p class="legend"><i class="k-auto"></i>{{index .MetricWeeks 0}}<i class="k-person"></i>{{index .MetricWeeks 1}}</p>
+<div class="wrap"><table>
+{{range .Metrics}}<tr><td>{{.Label}}</td><td><svg viewBox="0 0 160 22" width="160"><rect class="bar-auto" x="0" y="1" width="{{.WCur}}" height="9"></rect><rect class="bar" x="0" y="12" width="{{.WPrev}}" height="9"></rect></svg></td><td>{{.Cur}}<br><span class="muted">{{.Prev}}</span></td></tr>
+{{end}}</table></div>
+
+<h2>このあと</h2>
+<p>すぐ着手できる課題: {{.Ready}} 件</p>
+{{if .Observations}}<p>見る日が近い観察:</p>
+<ul>{{range .Observations}}<li>{{.NotBefore}} {{.ID}} {{.Title}}</li>
+{{end}}</ul>{{end}}
+{{if .Routines}}<p>ルーチン:</p>
+<ul>{{range .Routines}}<li>{{.Title}}（{{.Name}}）次は {{.Next}}</li>
+{{end}}</ul>{{end}}
+
+<footer>
+<p class="muted">{{if .Redacted}}秘密の形に当たる {{.Redacted}} か所を伏せた。{{end}}{{if .Skipped}}読めなかった記録が {{len .Skipped}} 件ある（数に入っていない）。{{end}}</p>
+{{if .Skipped}}<ul class="muted">{{range .Skipped}}<li>{{.Source}}: {{.Reason}}</li>
+{{end}}</ul>{{end}}
+</footer>
+
+</main>
+</body>
+</html>

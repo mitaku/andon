@@ -11,6 +11,8 @@ import (
 	_ "time/tzdata" // IANA time zones on machines without them (Windows)
 
 	"go.yaml.in/yaml/v3"
+
+	"andon/internal/ledger"
 )
 
 // Routines (docs/ledger.md "Routines", docs/decisions.md §6): routines/<name>.yaml says
@@ -142,7 +144,7 @@ func (r *routine) problems(cfg config) []string {
 		out = append(out, "needs schedule or on")
 	}
 	if s := r.d.get("schedule"); !isNull(s) {
-		if _, err := parseCron(r.schedule()); err != nil {
+		if _, err := ledger.ParseCron(r.schedule()); err != nil {
 			out = append(out, "schedule: "+err.Error())
 		}
 	}
@@ -372,8 +374,8 @@ func cmdTick(e env, a args) error {
 			if !seen || r.schedule() == "" {
 				continue
 			}
-			s, _ := parseCron(r.schedule())
-			if t, ok := s.next(since, loc); ok && !t.After(f.at) {
+			s, _ := ledger.ParseCron(r.schedule())
+			if t, ok := s.Next(since, loc); ok && !t.After(f.at) {
 				if err := f.fire(r); err != nil {
 					return err
 				}
@@ -440,8 +442,8 @@ func routineList(e env, a args) error {
 			if s := r.schedule(); s != "" {
 				o.set("schedule", s)
 				parts = append(parts, fmt.Sprintf("schedule %q", s))
-				if c, _ := parseCron(s); c != nil && !paused {
-					if t, ok := c.next(since, loc); ok {
+				if c, _ := ledger.ParseCron(s); c != nil && !paused {
+					if t, ok := c.Next(since, loc); ok {
 						next = t.UTC().Format(timeLayout)
 					}
 				}
