@@ -7,7 +7,7 @@
 #   3b. process/states/ の transitions[].once: true が on の「§7.2 #<n>」で dispatcher.md §7.2 の行を指す（受け入れ条件 4）。
 #   4. andon process render --check: repo の docs/process/ と見本の生成物（tests/process/docs/process/）が作り直しても変わらない。
 #      生成物に機械が読む塊（```json・```yaml）が無い。
-#   5. ワークストリームが 8 本。見守り・仕分け・ふりかえり・起動は決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 4 本は name・title・purpose だけ（受け入れ条件 5。ふりかえりは ADR-0028 決めたこと 12、起動は ADR-0042 決めたこと 10・11）。
+#   5. ワークストリームが 9 本。見守り・仕分け・ふりかえり・起動・ダイジェストは決めたこと 16 の項目を全部持ち、skill が SKILL の節を指す。残り 4 本は name・title・purpose だけ（受け入れ条件 5。ふりかえりは ADR-0028 決めたこと 12、起動は ADR-0042 決めたこと 10・11、ダイジェストは ADR-0044 決めたこと 3・4）。
 # 道具は python3（標準ライブラリだけ。schema の決まりは package/lib/andon/schema_check.py lint）と jq と andon（tests/lib/andon.sh）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -183,11 +183,11 @@ for f in tests/process/process/workstreams/sample-watch.yaml tests/process/proce
 done
 
 # 5. ワークストリーム（受け入れ条件 5。ADR-0017 決めたこと 3・9・16）
-#    8 本がそろう。中身のある見守り・仕分け・ふりかえり・起動は項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 4 本は name・title・purpose だけ。
+#    9 本がそろう。中身のある見守り・仕分け・ふりかえり・起動・ダイジェストは項目を全部持ち（record は自分の記録ファイルがある手順だけ）、残り 4 本は name・title・purpose だけ。
 #    by: ai の step の skill が package/skills/<名>/SKILL.md の節（「## <n>.」の見出し）か、package/skills の下の手引きのファイル（<名>/playbooks/<x>.md）を指す。
-want="intake launch observe receive relay retrospective triage watch"
+want="digest intake launch observe receive relay retrospective triage watch"
 have=$(find process/workstreams -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort | tr '\n' ' ' | sed 's/ $//')
-[ "$have" = "$want" ] && ok "ワークストリームが 8 本ある" || ng "ワークストリームが 8 本でない: $have"
+[ "$have" = "$want" ] && ok "ワークストリームが 9 本ある" || ng "ワークストリームが 9 本でない: $have"
 # full_check <JSON> → 決めたこと 16 の項目が欠けた所を 1 行 1 つ
 full_check() {
   jq -r '
@@ -209,7 +209,7 @@ skill_check() {
       elif [ -n "$sec" ] && ! grep -qE "^## ${sec//./\\.}\. " "$md"; then echo "$ref: $md に「## $sec.」の節が無い"; fi
     done
 }
-for n in watch triage retrospective launch; do
+for n in watch triage retrospective launch digest; do
   "$andon" process json "process/workstreams/$n.yaml" >"$tmp/ws.json"
   out=$(full_check "$tmp/ws.json")
   [ -z "$out" ] && ok "$n.yaml が決めたこと 16 の項目を全部持つ" || { ng "$n.yaml の項目が欠ける"; printf '     %s\n' "$out"; }
@@ -267,6 +267,20 @@ any(.triggers[]; .kind == "notification" and .notification == "review" and .star
 any(.steps[]; .command == "andon retro apply" and .once == true and .record == "library/retro-applied.json")@当てる手順は1回だけで、記録は library/retro-applied.json
 any(.steps[]; .by == "ai" and ((.skill | if type == "array" then . else [.] end) | index("retro#3")))@AI の手順が retro skill の直す先の段（§3）を指す
 RETRO
+# ダイジェスト（ADR-0044 決めたこと 3・4）: PR の無い課題なので、報告は通知 report で届く
+"$andon" process json process/workstreams/digest.yaml >"$tmp/digest.json"
+digest_report='any(.triggers[]; .kind == "notification" and .notification == "report" and .start == "check")'
+while IFS='@' read -r filter desc; do
+  [ -n "$filter" ] || continue
+  jq -e "$filter" "$tmp/digest.json" >/dev/null && ok "ダイジェスト: $desc" || ng "ダイジェストに無い: $desc"
+done <<DIGEST
+$digest_report@通知 report から check（送った結果を見て片付ける）が始まる
+[.steps[] | select(.by == "machine") | .command] == ["andon digest collect", "andon digest build", "andon digest send", "andon issue finish"]@機械の手順が collect → build → send → finish
+any(.steps[]; .command == "andon digest send" and .once == true and .record == "library/digest/sent.json")@送る手順は1回だけで、記録は library/digest/sent.json
+any(.steps[]; .id == "check" and any(.next[]; .id == "finish"))@確かめた段から片付けへ進む
+DIGEST
+jq '(.triggers[] | select(.start == "check")).notification = "review"' "$tmp/digest.json" >"$tmp/bad.json"
+! jq -e "$digest_report" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: ダイジェストのきっかけが review" || ng "review の通知で片付ける定義が通る"
 # 壊すと落ちる
 jq 'del(.counts)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: counts が無い" || ng "counts が無いのに通る"
 jq '(.steps[] | select(.by == "machine")) |= del(.command)' "$tmp/ws.json" >"$tmp/bad.json"; [ -n "$(full_check "$tmp/bad.json")" ] && ok "壊した定義は落ちる: by machine に command が無い" || ng "command が無いのに通る"

@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 1 | 定義は YAML を正本にし、JSON Schema で検査し、Markdown はコマンドが YAML から作る。dispatcher は定義を読まない | `process/`・`schema/process/workstream.schema.json` | 生きている |
 | 2 | 置き場は `process/workstreams/`・`process/states/`・`schema/process/`・`docs/process/` にする | `docs/process/README.md` | 生きている |
-| 3 | ワークストリームは 8 本（受付・仕分け・起動・見守り・受け取り・取り次ぎ・結果を見る・ふりかえり）で、日本語の名に英語を添える | `process/workstreams/` | 生きている（中身を書いたのは 3 本で、ほかは名前と目的だけ） |
+| 3 | ワークストリームは 8 本（受付・仕分け・起動・見守り・受け取り・取り次ぎ・結果を見る・ふりかえり）で、日本語の名に英語を添える | `process/workstreams/` | 生きている（ADR-0044 でダイジェストを足して 9 本に増えた。中身を書いたのは 5 本で、ほかは名前と目的だけ） |
 | 4 | ものの一生は 8 本のステートマシンで、記録ファイルの項目はどれか 1 本の状態か拾う位置に対応づける | `process/states/` | 生きている（定義は 10 本に増えた） |
 | 5 | コマンドに出す仕事は、自分の記録を同じ置き場に別ファイルで持つ。dispatcher の記録に残すのは配達の項目と拾う位置 | `docs/dispatcher.md` | 生きている |
 | 6 | コマンドに出すのは 5 つ（オーナーのマージの拾い・マージと片付け・手直し・影響の打ち直し・レビュアーの起動）で、どれも 2 回打っても同じ結果にする | `internal/issue/issue.go` | 生きている（settle・merge・impact は command にあり、手直しとレビュアーの起動は dispatcher の中） |

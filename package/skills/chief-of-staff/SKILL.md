@@ -42,6 +42,7 @@ description: kanban と hc で動くプロジェクトの Chief of Staff が読�
 | マージした変更をセルへ当てた・検証の課題の報告が届いた | `verify.md` |
 | トリアージ | `triage.md` |
 | 振り返り | `retro.md` |
+| ダイジェスト | `digest.md` |
 | wiki の ingest・query・lint | `wiki.md` |
 
 ## 手引きの扱い

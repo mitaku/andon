@@ -34,9 +34,9 @@ grep -qF "$old_line" <<<'`/opt/andon/gh-skills.txt`（既定は空）＋ セル�
   || fail "ADR-0038 決めたこと 18: 「既定は空」が残るか、design.md の plugin の登録の正が古い"
 # writing.md の推敲の行（決めたこと 16）と、環境メモの pstack の行（決めたこと 17）
 pol=$(sed -n '/^## 推敲$/,/^## /p' package/writing.md)
-grep -qF '依頼書・wiki のページ・課題の報告の3種類の文は、書いたあとに skill yomiyasu で推敲する。' <<<"$pol" \
+grep -qF '依頼書・wiki のページ・課題の報告・ダイジェストの4種類の文は、書いたあとに skill yomiyasu で推敲する。' <<<"$pol" \
   && grep -qF '会話の返事・`docs/` の文書・PR の説明文には通さない。' <<<"$pol" && grep -qF 'yomiyasu が入っていないセルでは飛ばす。' <<<"$pol" \
-  && pass "ADR-0038 A3: writing.md の推敲の節に、通す3種類・通さない文・入っていないセルでは飛ばす、がある" || fail "ADR-0038 A3: writing.md の推敲の行が無い"
+  && pass "ADR-0038 A3: writing.md の推敲の節に、通す4種類（ADR-0044 決めたこと 11 でダイジェストを足した）・通さない文・入っていないセルでは飛ばす、がある" || fail "ADR-0038 A3: writing.md の推敲の行が無い"
 miss=
 for k in 'pstack の skill は、役の skill か依頼書が名指したものだけを、`SKILL.md` を読んで使う。' '`setup-pstack` は走らせない。' '`pstack:` で始まる型のサブエージェントは使わない。'; do
   grep -qF -- "$k" package/environment.md || miss="$miss $k"

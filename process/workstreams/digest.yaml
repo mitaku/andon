@@ -1,0 +1,91 @@
+# 担当が書くものと書かないものは digest skill、入力・担当の JSON・送った結果の形は docs/contract.md §26〜§28 が正。ここは流れだけ（ADR-0044 決めたこと 3・4）。
+name: digest
+title: ダイジェスト（Digest）
+purpose: 前に送ったダイジェストのあとに工場で起きたことを、オーナーが短い時間で分かる 1 枚にまとめて届ける
+triggers:
+  # ルーチン daily-digest（既定は毎朝）が足した課題の ready
+  - name: routine
+    kind: notification
+    notification: ready
+    start: start
+  # オーナーが臨時に頼んだ
+  - name: person
+    kind: person
+    start: add
+  # 担当の報告。PR の無い課題は review に入っても report の通知で届く
+  - name: report
+    kind: notification
+    notification: report
+    start: check
+steps:
+  - id: add
+    title: オーナーの依頼でダイジェストの課題を足す
+    by: ai
+    input: [オーナーの言葉, kanban（片付いていないダイジェストの課題）]
+    output: [kanban（ダイジェストの課題。routine daily-digest）]
+    skill: chief-of-staff/playbooks/digest.md
+    decides: [足すか（同時に 1 つ）]
+    next: [{ id: start }]
+  - id: start
+    title: ダイジェストの担当をほかの課題より先に起動する
+    by: ai
+    input: [notification.ready, andon waiting --json（slots）]
+    output: [kanban（予約キー review と estimate）, hc（担当の端末）, kanban（doing）]
+    skill: [chief-of-staff/playbooks/digest.md, chief-of-staff/playbooks/start.md]
+    decides: [オーナーに聞かずに起動する, 枠が空くまで待つ]
+    next: [{ id: collect }]
+  - id: collect
+    title: 前に送った 1 枚のあとの記録を集める
+    by: machine
+    input: [kanban（期間の記録）, dispatcher の記録, GitHub（マージされた PR）]
+    output: [library/digest/input.json]
+    command: andon digest collect
+    record: library/digest/input.json
+    next: [{ id: write }]
+  - id: write
+    title: 要旨とテーマと気になることを書く
+    by: ai
+    input: [library/digest/input.json, 入力にある課題と PR]
+    output: [担当の文の JSON]
+    skill: [digest#2, digest#3]
+    decides: [テーマの束ね方, 図を付けるか, 気になることに挙げるか]
+    next: [{ id: build }]
+  - id: build
+    title: 担当の文を照らし、1 枚に組み立てる
+    by: machine
+    input: [担当の文の JSON, library/digest/input.json]
+    output: [library/digest/digest.json, library/digest/digest.html, library/digest/message.txt]
+    command: andon digest build
+    record: library/digest/digest.json
+    next: [{ id: send }]
+  - id: send
+    title: 1 枚を届ける
+    by: machine
+    input: [library/digest/digest.html, library/digest/sent.json]
+    output: [files/（HTML）, library/digest/sent.json]
+    command: andon digest send
+    record: library/digest/sent.json
+    once: true
+    next: [{ id: report }]
+  - id: report
+    title: 送った結果を報告して返す
+    by: ai
+    input: [library/digest/sent.json]
+    output: [報告, kanban（review）]
+    skill: [digest#5, worker#7]
+    decides: [報告の要約]
+  - id: check
+    title: 送った結果を見て、そのターンで片付ける
+    by: ai
+    input: [notification.report, kanban（status）, 報告, library/digest/sent.json]
+    output: [オーナーへの知らせ（送れなかったとき）]
+    skill: chief-of-staff/playbooks/digest.md
+    decides: [doing なら待つ, 担当に送り直させる, 片付ける]
+    next: [{ id: send, when: 送れておらず今なら送れる }, { id: finish, when: 送れたか今は送れない }]
+  - id: finish
+    title: ダイジェストの課題を片付ける
+    by: machine
+    input: [kanban（review）]
+    output: [kanban（done）]
+    command: andon issue finish
+counts: [flow.closed, flow.wait.todo]
