@@ -12,7 +12,7 @@
 | 3 | これからの ADR は、実装が済んだら索引の行だけを直す | `package/skills/chief-engineer/SKILL.md`・`package/skills/worker/SKILL.md`・`docs/design.md` | 生きている |
 | 4 | 新しい ADR は索引を必ず置き、決定の文と細部を書き分ける（仮） | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` | 生きている |
 | 5 | 索引は 4 列の表で、「今」は 4 つの語で書く（仮） | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` | 生きている |
-| 6 | 索引がずれないことを検査で守る | `tests/adr-index.sh` | 生きている |
+| 6 | 索引がずれないことを検査で守る | `tests/adr-index.sh` | 覆された → ADR-0055（README の ADR の一覧の状態を状態行と突き合わせる部分。索引と「今の正」のパスの確かめは生きている） |
 | 7 | README の状態のずれと ADR-0016 の冒頭を、索引と一緒に直す（仮） | `README.md`・`docs/adr/0016-cell-wiki-llm-wiki.md` | 役目を終えた |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
@@ -81,6 +81,7 @@
 6. **2026-11-20 索引がずれないことを検査で守る。**（決めたこと 1 の案の一部としてオーナーに示した）
    `tests/` に検査を 1 本足す。ADR ごとに、索引の番号の並びが本文の「決めたこと」の番号の並びと同じこと、「今の正」のパスが repo に在ること、README の ADR の一覧の状態が ADR の状態行と同じことを見る。
    理由: 索引は古びる。README の ADR の一覧は、13 本の状態が ADR とずれていた。
+   → 2026-11-22 に、[ADR-0055](0055-adr-prs-without-conflicts.md) 決めたこと 2・5 が、「README の ADR の一覧の状態が ADR の状態行と同じことを見る」を覆した。一覧は command が ADR から書き、バージョンを切る PR が作り直す。検査は一覧の状態の語を見ない（オーナーが決めた）。受け入れ条件 3 と、受け入れ条件 4 のうち「README の状態を変えた写し」は要らなくなる。
 7. **2026-11-20 仮（Chief Engineer）: 棚卸しで見つけた食い違いは、索引を足すときに一緒に直す。** README の一覧の 13 本の状態を「決定」に直す。ADR-0016 の題に番号を足し、状態行をほかの ADR と同じ形にする。
 
 ## やらないこと
