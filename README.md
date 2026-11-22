@@ -104,6 +104,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0043 行燈は、オーナーが呼ばれているときだけ灯す](docs/adr/0043-lamp-lights-on-owner-waits.md): 決定
   - [0044 オーナーが読むダイジェストを定期に作り、Slack へ送る](docs/adr/0044-owner-digest.md): 決定
   - [0045 行燈を Stream Deck のキーに出す](docs/adr/0045-stream-deck-lamp.md): 決定
+  - [0046 README を、初めて来た読み手が README だけで判断できる形に組み直す](docs/adr/0046-readme-for-first-time-readers.md): 決定
   - [0048 セルの入口 `bin/bootstrap` を薄くし、本体を image から取り出す](docs/adr/0048-thin-cell-entry.md): 決定
   - [0049 オーナーの介在回数を、操作の種類で数える](docs/adr/0049-owner-touches-by-kind.md): 決定
   - [0051 外の信号の受け口を実際に流し、main の失敗を壊した変更に結ぶ](docs/adr/0051-signals-flow-and-breaking-change.md): 決定
