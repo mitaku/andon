@@ -39,7 +39,7 @@
 4. **場所。** 2 つ目の意味の 8 割近く（252 か所）は ADR の本文にある。場所ごとの数は下の表。
 5. **オーナーの言葉。** オーナーは 2026-11-19 に、PR と commit の話ではこの語でなく「タイトル」と言うと担当に返した（ADR-0026）。2026-11-22 には、会話で置き換わる語として、議題、テーマ、タイトルを挙げた。
 6. **「タイトル」は既にある。** repo に 73 か所あり、PR のタイトルと commit のタイトルが約 70 か所、Stream Deck のキーのタイトルが 2 か所。全部が名前の意味で、別の意味の使い方は無い。kanban の課題の欄の名前も `title`、`andon create` の引数も `--title` である。
-7. **「テーマ」も既にある。** repo に 70 か所あり、意味は 2 つ。ダイジェストが変更を束ねた見出し（`themes[]`。[ADR-0044](0044-owner-digest.md)）が約 47 か所、Herdr App の色のテーマが約 20 か所。検討の単位の意味の「題」と同じファイルに並ぶのは 4 ファイル（ADR-0023、ADR-0043、ADR-0044、`docs/contract.md`）。
+7. **「テーマ」も既にある。** repo に 70 か所あり、意味は 2 つ。ダイジェストが変更を束ねた見出し（`themes[]`。[ADR-0044](0044-owner-digest.md)）が約 47 か所、Herdr App の色のテーマが約 20 か所。検討の単位の意味の「題」と同じファイルに並ぶのは 4 ファイル（ADR-0023、ADR-0043、ADR-0044、`docs/contract.md`）。この文書を書いている間に、ダイジェストの skill が main に入り（888f04c）、パッケージの文にもダイジェストの意味の「テーマ」が 9 か所できた。そのうち 1 か所は用語集のダイジェストの項で、Chief Engineer の項と同じファイルに並ぶ。並ぶファイルは、用語集を足して 5 つになる。
 8. **ほかの候補。** 「議題」と「トピック」は repo に 1 か所も無い。「案件」は 257 か所あり、客先のプロジェクトを指す。wiki には、概念と運用のページを置くフォルダ `topics/` がある。
 9. **yomiyasu。** yomiyasu は、PR、commit、issue、README の名前をこの語で書いた形を、英語の title に漢字 1 字を当てた直訳として指摘する。ADR-0040 が数えたとき、パッケージの文への指摘は 2 件だった。2 つ目の意味の使い方は指摘しない。
 10. **機械が照合する日本語は見つからなかった。** この語を含む日本語を、コードが正規表現、前置きや末尾の照合、保存した文との比較で読んでいる所は無い。この語を含む文を出力するコードは 8 つのファイルにある。`andon chief-engineer` の使い方と依頼書の 2 行目、`andon create` の使い方と聞く文と断る文、`andon issue start` と `resume` の乾いた実行の行、`andon measure` の価値の 2 行、`andon triage apply` の要約の表の列、`andon retro` の使い方と断る文である。
@@ -129,7 +129,7 @@
    - 同じ決まりの、ふだんカタカナで言う語の例に「タイトル」と「テーマ」を足す。
    - `package/writing.md` の括弧の決まりは、「番号に添えるタイトルだけ」と書く。
    - 用語集の Chief Engineer の項の「1人1題で」は、「受け持つ検討の単位をテーマと呼び、1人1テーマで」と書く。
-   - 「テーマ」が別の意味と同じファイルに並ぶ 4 ファイル（事実 7）では、「Chief Engineer のテーマ」「ダイジェストのテーマ」「色のテーマ」のように、紛れる行にだけ何のテーマかを付ける。過去の記録では語を足さず、紛れる行を PR の本文に一覧で載せる。
+   - 「テーマ」が別の意味と同じファイルに並ぶ 5 ファイル（事実 7）では、「Chief Engineer のテーマ」「ダイジェストのテーマ」「色のテーマ」のように、紛れる行にだけ何のテーマかを付ける。過去の記録では語を足さず、紛れる行を PR の本文に一覧で載せる。
 6. **2026-11-22 検査が見本の値として置いた「題」も「タイトル」に替える。**（Chief Engineer が決めた）
    `runMain("…")` の引数や、見本の `issue.yaml` の `title:` の値である。それを照らす出力の文（「S-7（…）を t42」など）も同じ PR で替える。
    理由: 検査を語の検査の範囲から外すと、検査の文を真似たエージェントが古い語を書く。値が替わっても、検査が見ているものは変わらない。
@@ -193,7 +193,7 @@
 2. **語が、替えた範囲に無い。** `bash tests/words.sh` が通る。`bash tests/words-selftest.sh` が、古い形を 1 行足した写し（番号に括弧で添える形、「この…では決めない」の形、バッククォートの中の置き場の形、「1人に1つ」の形、断る文の形）で落ち、残す形を足した写し（「課題」「問題」「主題」「議題」「話題」「本題」「題名」と、かぎ括弧で語そのものを挙げた文）で落ちないことを見る。
 3. **コマンドの出力が新しい語で出る。** `go test ./...` が通る。既にある Go の検査が、`andon chief-engineer` の使い方と依頼書の 2 行目、skill と `docs/design.md` に書いた呼び出しの形、`andon measure` の価値の 1 行、`andon triage apply` の表の列を、新しい語で照らす。照らす検査の無い出力（`andon create` の聞く文と断る文、乾いた実行の行の名前、`andon measure` のもう 1 行）は、語の検査が `internal/` の文字列を見ることで守り、検査は足さない。`bash tests/andon-create.sh`・`bash tests/andon-init.sh`・`bash tests/andon-retro.sh`・`bash tests/andon-retro-apply.sh`・`bash tests/andon-triage.sh` が通る。
 4. **過去の記録は語だけが替わっている。** ADR と決定の記録を替える PR で、`git diff --word-diff=porcelain --word-diff-regex=. <base>..HEAD -- docs/adr docs/decisions docs/decisions.md` の削除が古い 1 字だけ、追加が「タイトル」か「テーマ」だけであることを、担当が出力を数えて報告に書く。反論が写しで試したときは、削除が 1 字の 442 件、追加が新しい語の 442 件だけだった。どちらとも読めた行と、替えずに残した行（決めたこと 7）は、PR の本文に一覧で載せ、レビュアーが元の文と照らす。`bash tests/adr-index.sh` が通る。
-5. **紛れる形が残っていない。** テーマに替える PR ごとに、担当が事実 7 の 4 ファイルと、`git grep -c 'テーマ'` が増えたファイルのうち別の意味の「テーマ」を持つものを読み、どの行も何のテーマかが文から分かることを報告に書く。
+5. **紛れる形が残っていない。** テーマに替える PR ごとに、担当が事実 7 の 5 ファイルと、`git grep -c 'テーマ'` が増えたファイルのうち別の意味の「テーマ」を持つものを読み、どの行も何のテーマかが文から分かることを報告に書く。
 6. **照合している所が無いことを確かめ直している。** コマンドの出力を替える PR の報告に、この語を含む日本語を照合するコードを探した command と結果が書いてある（決めたこと 9）。
 7. **全体。** `go test ./...` と `tests/run --changed` が通り、`gofmt -l .` が空。
 
@@ -244,4 +244,4 @@
 - yomiyasu（ https://github.com/nanaism/yomiyasu ）の `references/calques.md` と `scripts/yomiyasu_lint.py`。本文は写していない。
 - [ADR-0013](0013-short-role-names-and-plain-japanese.md)（語を直す範囲と、検査で守る前例）、[ADR-0026](0026-pr-rules-for-outside-readers.md)（PR と commit のタイトルと、過去の記録の扱い）、[ADR-0036](0036-owner-not-hito.md)（役の名前の置き換え）、[ADR-0040](0040-kanban-gate-version-words.md)（3 語の置き換え。範囲と検査と分け方の形をそろえた）、[ADR-0044](0044-owner-digest.md)（ダイジェストのテーマ）。
 - `package/writing.md`・`package/skills/glossary/SKILL.md`・`package/skills/chief-engineer/SKILL.md`・`internal/chiefengineer/chiefengineer.go`・`internal/create/create.go`・`internal/issue/start.go`・`internal/measure/measure.go`・`internal/triage/apply.go`・`tests/words.sh`・`tests/package/`。
-- repo の中の数は、main の b890baa で `git grep` と数えるスクリプトを打って数えた。
+- repo の中の数は、main の b890baa で `git grep` と数えるスクリプトを打って数えた。確定の前に main の 888f04c で数え直し、古い語の 673 行と 795 か所は変わっていなかった。
