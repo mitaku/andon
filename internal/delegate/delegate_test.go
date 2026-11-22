@@ -192,6 +192,47 @@ func TestParseProjectSignals(t *testing.T) {
 	}
 }
 
+// ADR-0044 受け入れ条件 13: digest の正しい形は通り、書き直しても（andon delegate grant）そのまま残る。
+func TestParseProjectDigest(t *testing.T) {
+	with := func(digest string) []byte {
+		return []byte(`{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": [], "digest": ` + digest + `}`)
+	}
+	for _, d := range []string{`{"destinations":[{"kind":"slack","channel":"C0123456789"}]}`, `{"destinations":[]}`} {
+		p, err := ParseProject(with(d), "sample-site")
+		if err != nil {
+			t.Fatalf("%s: %v", d, err)
+		}
+		out, err := contract.Encode(contract.SchemaProject, p)
+		if err != nil {
+			t.Fatalf("%s: %v", d, err)
+		}
+		var back, want map[string]any
+		_ = json.Unmarshal(out, &back)
+		_ = json.Unmarshal(with(d), &want)
+		if !reflect.DeepEqual(back["digest"], want["digest"]) {
+			t.Errorf("書き直すと digest が変わる: %s", out)
+		}
+	}
+	for name, d := range map[string]string{
+		"destinations が無い": `{}`,
+		"知らない kind":        `{"destinations":[{"kind":"email","channel":"C0123456789"}]}`,
+		"channel が無い":      `{"destinations":[{"kind":"slack"}]}`,
+		"channel が名前":      `{"destinations":[{"kind":"slack","channel":"#digest"}]}`,
+		"channel が利用者":     `{"destinations":[{"kind":"slack","channel":"U0123456789"}]}`,
+		"channel の後ろに改行":   `{"destinations":[{"kind":"slack","channel":"C0123456789\n"}]}`,
+		"channel の後ろに空白":   `{"destinations":[{"kind":"slack","channel":"C0123456789  "}]}`,
+		"同じ kind が2つ":      `{"destinations":[{"kind":"slack","channel":"C0123456789"},{"kind":"slack","channel":"C0000000000"}]}`,
+		"トークンを書く":          `{"destinations":[{"kind":"slack","channel":"C0123456789","token":"x"}]}`,
+	} {
+		if _, err := ParseProject(with(d), "sample-site"); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
+		if contract.SchemaProject.Check(with(d)) == nil {
+			t.Errorf("%s: schema を通ってしまう", name)
+		}
+	}
+}
+
 func TestParseProject(t *testing.T) {
 	full := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"},
  "repos": ["github.com/example/sample-site"], "references": ["github.com/example/design-notes", "https://example.com/spec"],

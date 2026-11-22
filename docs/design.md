@@ -429,7 +429,7 @@ Andon で「オーナーの手直し」が起きる所は5つしか無い。全�
 |---|---|---|---|
 | `merge` | `none` / `A` / `B` / `C` | dispatcher がマージしてよい**最大のレベル**。`C` ならラインそのものの変更も自動マージ | プロジェクトの名前では決まらない。既定の型 `work`・`andon` は `B` までで、Andon 自身のプロジェクトも、オーナーが grant で `C` まで広げられる（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2。§1.3 の 5） |
 | `deploy` | `none` / `preview` / `production` | 担当・dispatcher が案件のデプロイ（CI の workflow の起動など）を打ってよい段階 | 条件: 戻す command が1つで、受け入れ条件に書いてある（無ければ `none` と同じ） |
-| `publish` | `none` / `internal` / `public` | 外への公開（パッケージの release・サイト・投稿）。`internal` は自分のセルの中（`andon publish`）まで | `public` は取り消せない。型 `work`・`andon` は `none`。`hobby` は `public` まで任せる（オーナーの決定 2026-11-05。戻せないことを承知の上） |
+| `publish` | `none` / `internal` / `public` | 外への公開（パッケージの release・サイト・投稿）。`internal` は自分のセルの中（`andon publish`）まで | `public` は取り消せない。型 `work`・`andon` は `none`。`hobby` は `public` まで任せる（オーナーの決定 2026-11-05。戻せないことを承知の上）。オーナーが `project.json` の `digest` に書いた送り先へダイジェストを送ることは、`publish` の値で決まらない（[ADR-0044](adr/0044-owner-digest.md) 決めたこと 12） |
 | `irreversible` | 許す操作の一覧（`delete-branch` / `force-push` / `rewrite-history` / `delete-remote` …） | 一覧にある操作だけ、問いを出さずに打てる | 既定は空。`delete-remote` は型でも足せない（オーナーだけ） |
 | `external-requests` | `true` / `false` | 他のプロジェクトから委譲の印つきで来た依頼を、承認とみなして進めてよいか | 不可逆な操作の go はオーナー（上の `irreversible` が効く） |
 | `profile` | `true` / `false` | プロファイル（モデル・effort）の選び方を Chief of Staff に任せるか | 新しいプロファイルを作る・変えるのはオーナー（ラインの変更） |

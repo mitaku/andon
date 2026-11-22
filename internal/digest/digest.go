@@ -2,8 +2,11 @@
 //
 //	andon digest collect <id>   期間の記録を library/digest/input.json に集める（読むだけ。書くのはその1つ）
 //	andon digest build <id> -   担当が書いた要旨・テーマ・気になること（標準入力の JSON）を照らし、digest.json・digest.html・message.txt を書く
-//	andon digest send <id>      digest.html を files/ に出し、結果を sent.json に書く
+//	andon digest send <id>      digest.html を files/ と project.json の送り先（Slack）へ出し、結果を sent.json に書く
+//	andon digest check          project.json の送り先へ、確かめの小さなファイルを send と同じ口で送る
+//	andon digest auth slack     Slack の bot のトークンをセルの中で聞いて置く
 //
+// セルの外へ送るのは send と check だけで、送る先は project.json の digest の送り先だけ（決めたこと 12）。
 // 数と一覧と図は、この package が入力から描く（決めたこと 8）。担当が書くのは文だけ。HTML は依存の無い単一のファイルで、
 // スクリプトを持たない（決めたこと 7）。入力と担当の JSON の文字列は、組み立てる前に秘密の形を伏せる（決めたこと 17）。
 // 形は docs/contract.md §26〜§28。
@@ -28,11 +31,15 @@ import (
 // Usage は andon digest の使い方。
 const Usage = "usage: andon digest collect <id>          期間の記録を library/digest/input.json に集める（読むだけ。docs/contract.md §26）\n" +
 	"       andon digest build <id> <file|->     担当が書いた JSON（§27）を照らし、digest.json・digest.html・message.txt を書く\n" +
-	"       andon digest send <id>               digest.html を files/ に出し、URL を出して sent.json（§28）に書く\n" +
+	"       andon digest send <id>               digest.html を files/ と送り先へ出し、URL を出して sent.json（§28）に書く\n" +
+	"       andon digest check                   送り先へ確かめの小さなファイルを送る\n" +
+	"       andon digest auth slack              Slack の bot のトークン（scope は files:write だけ）をセルの中で聞いて置く\n" +
 	"<id> はダイジェストの課題。期間は、同じルーチンの前に送ったダイジェストの終わりから今まで（無ければ 24 時間前から、7 日より前へは遡らない）。\n" +
 	"collect は kanban と dispatcher の記録と GitHub のマージされた PR の一覧と、課題の repo の最新の main の文書（代わりに決めたこと）を読み、書くのは input.json だけ。\n" +
 	"build は入力に無い課題を指した・要旨が 2〜5 文でない・テーマが 9 つ以上・知らない図の型などを理由1行ずつで断り、何も書かない。\n" +
-	"send は送った先に打ち直しても送らない。送り先は今は files/ だけ。\n" +
+	"送り先は files/ と、オーナーが project.json の digest に書いたチャンネルだけ（§11）。無い・信じられなければ files/ だけに出す。\n" +
+	"send は送った先に打ち直しても送らない。送りそこねたら終了コード 1 で、打ち直すと送り直す。\n" +
+	"auth は標準入力の1行を ~/.config/andon/digest/slack.token（mode 600）に置く。トークンを引数に書かない。\n" +
 	"projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
 
 // 置き場（課題の library/digest/）。
@@ -59,12 +66,49 @@ type Env struct {
 	Delivered, Signals, State string
 	// ClaudeDir・CodexSessions はトークンを数えるセッションの記録（andon measure と同じ）。空なら読まない。
 	ClaudeDir, CodexSessions string
+	// SlackAPI は Slack の Web API の根、Tokens はトークンの置き場。空なら Slack へ送らない（検査が本物へ届かない）。
+	SlackAPI, Tokens string
+	// Stderr は誤りにしない知らせの出し先（送り先を読めない、など）。nil なら出さない。
+	Stderr io.Writer
+}
+
+func (e Env) warn(format string, a ...any) {
+	if e.Stderr != nil {
+		fmt.Fprintf(e.Stderr, "andon digest: "+format+"\n", a...)
+	}
 }
 
 // Main は andon digest。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(args, stdin, stdout, stderr, defaultEnv)
+}
+
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer, newEnv func() (Env, error)) int {
 	usage := func() int { fmt.Fprint(stderr, Usage); return 2 }
-	if len(args) < 2 {
+	fail := func(err error) int { fmt.Fprintf(stderr, "andon digest: %v\n", err); return 1 }
+	switch {
+	case len(args) == 2 && args[0] == "auth":
+		// 引数は誤りに写さない（トークンを貼り間違えても出力に残さない）
+		if args[1] != kindSlack {
+			fmt.Fprintln(stderr, "andon digest auth: 知らない送り先（slack）。トークンは引数に書かず、標準入力に渡す")
+			return 2
+		}
+		const prompt = "Slack の bot のトークン（scope は files:write だけで作る）"
+		if err := signal.PlaceToken(TokenDir(), kindSlack, prompt, stdin, stderr); err != nil {
+			fmt.Fprintf(stderr, "andon digest auth: %v\n", err)
+			return 2
+		}
+		return 0
+	case len(args) == 1 && args[0] == "check":
+		env, err := newEnv()
+		if err != nil {
+			return fail(err)
+		}
+		if err := CheckDestinations(env, stdout); err != nil {
+			return fail(err)
+		}
+		return 0
+	case len(args) < 2:
 		return usage()
 	}
 	cmd, id := args[0], ledger.CanonID(args[1])
@@ -77,11 +121,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "andon digest: id が不正")
 		return 1
 	}
-	env, err := defaultEnv()
+	env, err := newEnv()
 	if err != nil {
-		fmt.Fprintf(stderr, "andon digest: %v\n", err)
-		return 1
+		return fail(err)
 	}
+	env.Stderr = stderr
 	switch cmd {
 	case "collect":
 		in, err := Collect(env, id)
@@ -118,11 +162,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	default:
 		url, err := Send(env, id)
-		if err != nil {
-			fmt.Fprintf(stderr, "andon digest: %v\n", err)
-			return 1
+		if url != "" {
+			fmt.Fprintln(stdout, url)
 		}
-		fmt.Fprintln(stdout, url)
+		if err != nil {
+			return fail(err)
+		}
 		return 0
 	}
 }
@@ -143,7 +188,8 @@ func defaultEnv() (Env, error) {
 	slug := filepath.Base(root)
 	return Env{Root: root, Workspace: delegate.Workspace(), Hostname: host, Now: time.Now().UTC(), GH: measure.GH,
 		Delivered: dispatcher.DeliveredPath(slug), Signals: signal.Path(slug), State: dispatcher.StatePath(slug),
-		ClaudeDir: measure.ClaudeDir(), CodexSessions: measure.CodexSessions()}, nil
+		ClaudeDir: measure.ClaudeDir(), CodexSessions: measure.CodexSessions(),
+		SlackAPI: slackAPI, Tokens: TokenDir()}, nil
 }
 
 func readArg(arg string, stdin io.Reader) ([]byte, error) {

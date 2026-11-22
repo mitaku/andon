@@ -16,7 +16,7 @@ import (
 	"andon/internal/waiting"
 )
 
-// 偽の kanban（ファイルを直に置く）と dispatcher の記録を置いて、本物の Collect・Build・Send を動かす（ADR-0044 受け入れ条件 1〜8）。
+// 偽の kanban（ファイルを直に置く）と dispatcher の記録を置いて、本物の Collect・Build・Send を動かす（ADR-0044 受け入れ条件 1〜8）。Slack の検査は slack_test.go。
 
 const (
 	sha1 = "1111111111111111111111111111111111111111"
@@ -37,6 +37,14 @@ type fake struct {
 func newFake(t *testing.T) *fake {
 	t.Helper()
 	base := t.TempDir()
+	// git（project.json の作者の照合）とトークンの置き場が本物の HOME とセルを読まない
+	t.Setenv("HOME", filepath.Join(base, "home"))
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(base, "workspace"))
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", "")
+	// 一時の置き場が別の repo の中（担当の worktree・tests/isolation）でも、git は上の repo を読まない
+	t.Setenv("GIT_CEILING_DIRECTORIES", base)
 	root := filepath.Join(base, "sample-site")
 	f := &fake{t: t, root: root, ws: filepath.Join(base, "workspace")}
 	f.write("kanban/config.yaml", "version: 3\nprefix: S\nchief_of_staff: t1\n")
@@ -483,17 +491,27 @@ func TestRedact(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 8: 送り先は files/ だけ。project.json に digest が無いときも同じで、URL を出す。済んだ送り先には送り直さない。
+// 受け入れ条件 8: 送り先が無い・信じられないときは files/ だけに出し、URL を出す。偽の Slack に1度も来ない。済んだ送り先には送り直さない。
 func TestSendNoDestination(t *testing.T) {
-	for name, project := range map[string]string{
-		"project.json が無い":          "",
-		"project.json に digest が無い": `{"version": 1, "project": {"title": "Sample", "prefix": "S"}, "repos": []}`,
+	for name, setup := range map[string]func(f *fake){
+		"project.json が無い":          func(*fake) {},
+		"project.json に digest が無い": func(f *fake) { f.commitProject(projectWith(""), owner) },
+		"digest が空":                 func(f *fake) { f.commitProject(projectWith(`{"destinations": []}`), owner) },
+		"作者の照合が通らない":                func(f *fake) { f.commitProject(toChannel(channel), "worker@example.com") },
+		"commit していない送り先": func(f *fake) {
+			f.commitProject(projectWith(""), owner)
+			f.write(filepath.Join(f.ws, "projects", "sample-site", "project.json"), toChannel(channel))
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newFake(t)
-			if project != "" {
-				f.write("project.json", project)
-			}
+			slack := f.withSlack()
+			setup(f)
+			defer func() {
+				if n := len(slack.calls()); n != 0 {
+					t.Errorf("送り先が無いのに Slack へ %d 回送った", n)
+				}
+			}()
 			f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
 			f.collect("S-0100")
 			buildHTML(t, f, validText())

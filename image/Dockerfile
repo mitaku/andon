@@ -151,8 +151,8 @@ RUN case "$(dpkg --print-architecture)" in \
 # セルの compose（package/compose.yaml）が volume を重ねる置き場。先に andon の持ち物で作っておく
 # （無い場所に volume を重ねると root の持ち物になり、andon が書けない）
 RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.config/gh" "${HOME}/.config/herdr" \
-      "${HOME}/.config/herdr-core" "${HOME}/.config/andon/signals" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
- && chmod 700 "${HOME}/.ssh" "${HOME}/.config/andon/signals"
+      "${HOME}/.config/herdr-core" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
+ && chmod 700 "${HOME}/.ssh" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest"
 COPY package/ /opt/andon/
 # skill が形の正として指す schema（andon は同じものを埋め込んで照らす。置き場で照らすなら andon schema check /opt/andon/schema/<名前>.schema.json）
 COPY schema/ /opt/andon/schema/

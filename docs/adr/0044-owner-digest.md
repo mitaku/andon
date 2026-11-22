@@ -9,7 +9,7 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、定期のダイジェストと、セルの外へ送る口の 2 つにする | この ADR | 生きている |
-| 2 | 仕組みの名前は「ダイジェスト」（`digest`）にし、毎朝の 1 枚は「デイリーダイジェスト」と呼ぶ | `package/skills/glossary/SKILL.md`・`package/skills/digest/assets/daily-digest.yaml` | 生きている（`project.json` のキーはまだ実装していない） |
+| 2 | 仕組みの名前は「ダイジェスト」（`digest`）にし、毎朝の 1 枚は「デイリーダイジェスト」と呼ぶ | `package/skills/glossary/SKILL.md`・`package/skills/digest/assets/daily-digest.yaml`・`schema/project.schema.json` | 生きている |
 | 3 | 集める command、書く担当、組み立てて送る command の 3 段で作る | `internal/digest/collect.go`・`internal/digest/build.go`・`package/skills/digest/SKILL.md` | 生きている |
 | 4 | 回すきっかけは kanban のルーチンにし、並行の枠を別に持たせない | `package/skills/digest/assets/daily-digest.yaml`・`package/skills/chief-of-staff/playbooks/digest.md`・`process/workstreams/digest.yaml` | 生きている（kanban へ写すのはオーナーの go のあと） |
 | 5 | 読む期間は、前に送ったダイジェストの終わりから今までにする | `internal/digest/collect.go` | 生きている |
@@ -19,15 +19,15 @@
 | 9 | 担当が中身を書く図は、2 つの型から選ぶ | `schema/digest.schema.json` | 生きている |
 | 10 | 色は行燈に合わせ、琥珀はマージの依頼と判断だけ、赤は失敗だけに使う | `internal/digest/render.go` | 生きている |
 | 11 | 文は書き方の決まりに従い、経緯と捨てた案と同じ一覧の繰り返しを書かない | `package/skills/digest/SKILL.md`・`package/writing.md` | 生きている |
-| 12 | 送り先はオーナーが `project.json` に書き、書いてあることを毎回の送信へのオーナーの go として扱う | この ADR | まだ実装していない |
-| 13 | Slack へは、短い文と HTML のファイルを 1 回の投稿で送る | この ADR | まだ実装していない |
-| 14 | Slack の資格情報は、ファイルを送る scope だけの bot のトークン 1 本にし、command がセルの中で聞いて置く | この ADR | まだ実装していない |
-| 15 | `files/` にも毎回出し、送り先の無いセルでは `files/` だけに出す | `internal/digest/send.go` | 生きている（送り先は `files/` だけ。Slack はまだ実装していない） |
-| 16 | 同じダイジェストを同じ送り先へ 2 度送らない | `internal/digest/send.go` | 生きている（`files/` の送り先について） |
+| 12 | 送り先はオーナーが `project.json` に書き、書いてあることを毎回の送信へのオーナーの go として扱う | `internal/digest/send.go`・`schema/project.schema.json` | 生きている |
+| 13 | Slack へは、短い文と HTML のファイルを 1 回の投稿で送る | `internal/digest/slack.go` | 生きている |
+| 14 | Slack の資格情報は、ファイルを送る scope だけの bot のトークン 1 本にし、command がセルの中で聞いて置く | `internal/digest/slack.go`・`package/compose.yaml`・`docs/operate.md` | 生きている |
+| 15 | `files/` にも毎回出し、送り先の無いセルでは `files/` だけに出す | `internal/digest/send.go` | 生きている |
+| 16 | 同じダイジェストを同じ送り先へ 2 度送らない | `internal/digest/send.go` | 生きている |
 | 17 | 組み立てる前に、秘密の形を伏せる | `internal/redact/redact.go` | 生きている |
 | 18 | 既定の頻度は毎朝 1 回にする | `package/skills/digest/assets/daily-digest.yaml` | 生きている |
 | 19 | マージごとの通知は足さず、Chief of Staff の知らせも変えない | この ADR | 生きている |
-| 20 | Slack の呼び出しと HTML の組み立てに、新しいライブラリを足さない | `internal/digest/build.go` | 生きている（HTML の組み立て。Slack の呼び出しはまだ実装していない） |
+| 20 | Slack の呼び出しと HTML の組み立てに、新しいライブラリを足さない | `internal/digest/build.go`・`internal/digest/slack.go` | 生きている |
 | 21 | この題では statechart のモデルを書かない | この ADR | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）

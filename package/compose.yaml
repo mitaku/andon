@@ -31,6 +31,8 @@ services:
       - gh:/opt/andon-home/.config/gh
       # 外の信号の出所のトークン（andon signal auth。ADR-0011 決めたこと 10）
       - signals:/opt/andon-home/.config/andon/signals
+      # ダイジェストを送る Slack の bot のトークン（andon digest auth slack。ADR-0044 決めたこと 14）。読み取り専用の signals とは分ける
+      - digest:/opt/andon-home/.config/andon/digest
       - herdr:/opt/andon-home/.config/herdr
       - herdr-core:/opt/andon-home/.config/herdr-core
       - ssh:/opt/andon-home/.ssh
@@ -44,6 +46,7 @@ volumes:
   agents:
   gh:
   signals:
+  digest:
   herdr:
   herdr-core:
   ssh:

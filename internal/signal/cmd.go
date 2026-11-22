@@ -112,7 +112,13 @@ func Auth(source, dir string, stdin io.Reader, w io.Writer) error {
 	case !slices.Contains(delegate.SignalSources, source):
 		return fmt.Errorf("知らない出所: %q（sentry・linear・cloudflare）", source)
 	}
-	fmt.Fprintf(w, "%s のトークン（読み取り専用の scope で作る。linear はコメントが書けるまで）: ", source)
+	return PlaceToken(dir, source, source+" のトークン（読み取り専用の scope で作る。linear はコメントが書けるまで）", stdin, w)
+}
+
+// PlaceToken は prompt を出してトークンを1行読み、dir/<name>.token に mode 600 で置く（andon signal auth・andon digest auth）。
+// 端末なら打った文字を出さない。トークンは誤りの文にも出さない。
+func PlaceToken(dir, name, prompt string, stdin io.Reader, w io.Writer) error {
+	fmt.Fprintf(w, "%s: ", prompt)
 	restore := noEcho(stdin)
 	tok, err := bufio.NewReader(stdin).ReadString('\n')
 	restore()
@@ -130,7 +136,7 @@ func Auth(source, dir string, stdin io.Reader, w io.Writer) error {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return err
 	}
-	path := filepath.Join(dir, source+".token")
+	path := filepath.Join(dir, name+".token")
 	tmp := path + ".tmp"
 	_ = os.Remove(tmp)
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)

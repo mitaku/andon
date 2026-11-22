@@ -18,7 +18,7 @@
 - Playwright のブラウザはイメージに焼いてある（`PLAYWRIGHT_BROWSERS_PATH`）。入れ直さない。
 - 担当が画面を見て確かめるには `playwright-cli`（焼いた Chromium を使う。使い方は skill `playwright-cli`）。dev サーバは `127.0.0.1` で立てて開く。
 - Claude Code には plugin の pstack が入っている（Codex には入らない）。pstack の skill は、役の skill か依頼書が名指したものだけを、`SKILL.md` を読んで使う。`setup-pstack` は走らせない。`pstack:` で始まる型のサブエージェントは使わない。
-- 秘密をファイルに書かない（`.env` にも）。認証の資格情報は道具が自分の置き場に置く（`gh auth login`・`claude auth login`・`andon signal auth`）。自分でファイルに書かない。
+- 秘密をファイルに書かない（`.env` にも）。認証の資格情報は道具が自分の置き場に置く（`gh auth login`・`claude auth login`・`andon signal auth`・`andon digest auth`）。自分でファイルに書かない。
 
 ## オーナーに見せる
 

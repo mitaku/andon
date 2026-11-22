@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 
 	"andon/internal/contract"
 	"andon/internal/spawn"
@@ -22,6 +23,19 @@ type Project struct {
 	Delegation   json.RawMessage `json:"delegation,omitempty"`
 	ChiefOfStaff *ChiefOfStaff   `json:"chief_of_staff,omitempty"`
 	Signals      []Signal        `json:"signals,omitempty"`
+	Digest       *Digest         `json:"digest,omitempty"`
+}
+
+// Digest はダイジェストをセルの外へ送る先（contract.md §11・ADR-0044 決めたこと 12）。書いてあることが、送ってよいというオーナーの go。
+// 読むのは andon digest send と check。
+type Digest struct {
+	Destinations []DigestDestination `json:"destinations"`
+}
+
+// DigestDestination は送り先1つ（kind ごとに1件）。
+type DigestDestination struct {
+	Kind    string `json:"kind"`
+	Channel string `json:"channel"`
 }
 
 // ProjectInfo は題と接頭字。
@@ -55,8 +69,9 @@ type Signal struct {
 var SignalSources = []string{"github-ci", "github-issues", "sentry", "linear", "cloudflare"}
 
 var (
-	prefixRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
-	urlRe    = regexp.MustCompile(`^https://[!-~]+$`)
+	channelRe = regexp.MustCompile(`^[CG][A-Z0-9]+$`)
+	prefixRe  = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
+	urlRe     = regexp.MustCompile(`^https://[!-~]+$`)
 )
 
 // ProjectRel はセルの repo の中の project.json の置き場。
@@ -117,6 +132,9 @@ func ParseProject(b []byte, slug string) (*Project, error) {
 	if err := checkSignals(p.Signals, p.Repos, p.References); err != nil {
 		return nil, err
 	}
+	if err := checkDigest(p.Digest); err != nil {
+		return nil, err
+	}
 	if p.Delegation != nil {
 		if _, err := Parse(p.Delegation, slug); err != nil {
 			return nil, fmt.Errorf("delegation: %v", err)
@@ -146,6 +164,28 @@ func checkSignals(ss []Signal, repos, refs []string) error {
 	return nil
 }
 
+// checkDigest は digest の送り先を確かめる。kind は今は slack だけで、kind ごとに1件（bot を招くチャンネルは1つ。ADR-0044 決めたこと 12）。
+func checkDigest(d *Digest) error {
+	if d == nil {
+		return nil
+	}
+	if d.Destinations == nil {
+		return errors.New("digest.destinations が無い（送らないなら空の配列）")
+	}
+	for i, x := range d.Destinations {
+		at := fmt.Sprintf("digest.destinations[%d]", i)
+		switch {
+		case x.Kind != "slack":
+			return fmt.Errorf("%s.kind が知らない送り先: %q（slack）", at, x.Kind)
+		case !channelRe.MatchString(x.Channel):
+			return fmt.Errorf("%s.channel がチャンネルの ID（C か G で始まる英大文字と数字）でない: %q", at, x.Channel)
+		case slices.ContainsFunc(d.Destinations[:i], func(y DigestDestination) bool { return y.Kind == x.Kind }):
+			return fmt.Errorf("%s: %s の送り先が2つある（1つにする）", at, x.Kind)
+		}
+	}
+	return nil
+}
+
 func uniq(s []string) []string {
 	out := slices.Clone(s)
 	slices.Sort(out)
@@ -164,4 +204,17 @@ func ReadProject(ws, slug string) (*Project, error) {
 		return nil, fmt.Errorf("%s の形が違う: %v", ProjectRel(slug), err)
 	}
 	return p, nil
+}
+
+// ConfirmProjectAbsent は project.json がセルの repo の HEAD に無いと確かめる。言い切れなければ誤り。
+// ReadProject の ErrAbsent は git の失敗（repo・HEAD を読めない）も含むので、無いことと読めないことを分ける読み手（andon digest）が使う。
+func ConfirmProjectAbsent(ws, slug string) error {
+	out, err := git(ws, "ls-tree", "--full-tree", "--name-only", "HEAD", "--", ProjectRel(slug))
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(out) != "" {
+		return fmt.Errorf("%s は HEAD にあるが読めない", ProjectRel(slug))
+	}
+	return nil
 }

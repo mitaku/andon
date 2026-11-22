@@ -99,6 +99,26 @@
       "items": {
         "$ref": "#/$defs/signal"
       }
+    },
+    "digest": {
+      "description": "Where andon digest send and check send, outside the cell (ADR-0044 decision 12). Written only by the owner: an entry here is the owner's go for each sending. Absent or empty: nothing is sent outside the cell.",
+      "type": "object",
+      "required": [
+        "destinations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "destinations": {
+          "description": "At most one destination per kind.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest_destination"
+          },
+          "uniqueKeys": [
+            "kind"
+          ]
+        }
+      }
     }
   },
   "$defs": {
@@ -449,6 +469,28 @@
           "description": "Project in the source (sources other than GitHub).",
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "digest_destination": {
+      "description": "One place outside the cell the digest is sent to.",
+      "type": "object",
+      "required": [
+        "kind",
+        "channel"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "The tool.",
+          "enum": [
+            "slack"
+          ]
+        },
+        "channel": {
+          "description": "The channel's id (not its name): C... or G...",
+          "type": "string",
+          "pattern": "^[CG][A-Z0-9]+$"
         }
       }
     },

@@ -203,6 +203,12 @@ dc exec -T dev bash -euc '
   test "$(readlink "$HOME/.agents/skills/andon-worker")" = /opt/andon/skills/worker
   test "$(stat -c %u:%g "$HOME/.config/gh" "$HOME/.config/gh/hosts.yml" | sort -u)" = 1000:1000
   test "$(cat "$HOME/.config/gh/hosts.yml")" = old
+  # ダイジェストのトークンの置き場（ADR-0044 受け入れ条件 15）は volume で、andon だけが読める
+  test "$(stat -c %u:%g:%a "$HOME/.config/andon/digest")" = 1000:1000:700 ||
+    { echo "FAIL image: ダイジェストのトークンの置き場のオーナーか mode が違う" >&2; exit 1; }
+  grep -qF " $HOME/.config/andon/digest " /proc/self/mountinfo ||
+    { echo "FAIL image: ダイジェストのトークンの置き場が volume でない" >&2; exit 1; }
+  echo "ok   image: ダイジェストのトークンの置き場が volume で、andon の持ち物（mode 700）"
   test -d /workspace/files
   # Codex の承認・sandbox・rules（docs/image.md の「Codex の承認と sandbox」）。モデルは呼ばない:
   # prompt-input は実効の設定から組んだ permissions の文を出す（承認 never・sandbox なし・network あり＝確認の画面を出さない）。
