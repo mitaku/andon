@@ -107,6 +107,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0046 README を、初めて来た読み手が README だけで判断できる形に組み直す](docs/adr/0046-readme-for-first-time-readers.md): 決定
   - [0048 セルの入口 `bin/bootstrap` を薄くし、本体を image から取り出す](docs/adr/0048-thin-cell-entry.md): 決定
   - [0049 オーナーの介在回数を、操作の種類で数える](docs/adr/0049-owner-touches-by-kind.md): 決定
+  - [0050 重い command を外のマシンで回し、定期の仕事を API キーで対話なしに動かす](docs/adr/0050-external-compute.md): 提案
   - [0051 外の信号の受け口を実際に流し、main の失敗を壊した変更に結ぶ](docs/adr/0051-signals-flow-and-breaking-change.md): 決定
   - [0052 「題」をやめ、タイトル・テーマと書く](docs/adr/0052-title-and-theme-not-dai.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 のオーナーの答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
