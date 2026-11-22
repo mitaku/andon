@@ -79,26 +79,12 @@ func Build(env Env, id string, b []byte) ([]string, []string) {
 	if err := contract.Decode(b, &text); err != nil {
 		return nil, []string{"担当の JSON が読めない: " + err.Error()}
 	}
-	if errs := Check(&text, in); len(errs) > 0 {
+	loc := location(env.Root)
+	html, errs := compose(in, &text, loc)
+	if len(errs) > 0 {
 		return nil, errs
 	}
-	// 組み立てる前に、入力と担当の JSON の文字列から秘密の形を伏せる（決めたこと 17）
-	if err := redactInto(in); err != nil {
-		return nil, []string{err.Error()}
-	}
-	if err := redactInto(&text); err != nil {
-		return nil, []string{err.Error()}
-	}
-	loc := location(env.Root)
-	url := filesURL(env, in)
-	html, err := Render(&text, in, loc)
-	if err != nil {
-		return nil, []string{err.Error()}
-	}
-	if probs := CheckHTML(html); len(probs) > 0 {
-		return nil, probs
-	}
-	msg := Message(&text, in, loc, url)
+	msg := Message(&text, in, loc, filesURL(env, in))
 	dj, err := contract.Encode(contract.SchemaDigest, text)
 	if err != nil {
 		return nil, []string{"digest.json が schema/digest.schema.json に合わない（書かない）: " + err.Error()}
@@ -123,6 +109,29 @@ func Build(env Env, id string, b []byte) ([]string, []string) {
 		}
 	}
 	return paths, nil
+}
+
+// compose は担当の JSON を入力に照らし、秘密の形を伏せてから HTML に組み立てる（in と text は伏せた形に変わる）。
+// build と send の両方が通る。send は組み立て直したものと同じ HTML しか送らない（決めたこと 12 の守りの限り）。
+func compose(in *Input, text *Text, loc *Loc) ([]byte, []string) {
+	if errs := Check(text, in); len(errs) > 0 {
+		return nil, errs
+	}
+	// 組み立てる前に、入力と担当の JSON の文字列から秘密の形を伏せる（決めたこと 17）
+	if err := redactInto(in); err != nil {
+		return nil, []string{err.Error()}
+	}
+	if err := redactInto(text); err != nil {
+		return nil, []string{err.Error()}
+	}
+	html, err := Render(text, in, loc)
+	if err != nil {
+		return nil, []string{err.Error()}
+	}
+	if probs := CheckHTML(html); len(probs) > 0 {
+		return nil, probs
+	}
+	return html, nil
 }
 
 func redactInto[T any](v *T) error {
@@ -257,7 +266,8 @@ func CheckHTML(b []byte) []string {
 }
 
 // Message は Slack などに添える短い文（決めたこと 13 の細部）。装飾の記法を使わず、messageMax 字まで。
-// 超えたら待っているものの行を下から削り、削った数を出す。
+// 超えたら待っているものの行を下から削り、削った数を出す。行が無くても超えるなら前の段を切り、数と URL の行は残す。
+// タイトルや文の < > は全角にする（Slack が解釈すると <!channel> で全員を呼び、<URL|文> でリンクに化ける）。
 func Message(t *Text, in *Input, loc *Loc, url string) string {
 	head := []string{
 		fmt.Sprintf("%s（%s）", in.Title, in.Project),
@@ -292,19 +302,24 @@ func Message(t *Text, in *Input, loc *Loc, url string) string {
 	}
 	tail := []string{fmt.Sprintf("マージした PR: %d 本（自動 %d 本）", merged, auto), "全文: " + url}
 	for {
-		omitted := len(in.Waiting.Items) - len(rows)
-		lines := append(append([]string{}, head...), rows...)
-		if omitted > 0 {
-			lines = append(lines, fmt.Sprintf("（ほか %d 件は全文に載せた）", omitted))
+		shown, rest := strings.Join(append(append([]string{}, head...), rows...), "\n")+"\n", tail
+		if omitted := len(in.Waiting.Items) - len(rows); omitted > 0 {
+			rest = append([]string{fmt.Sprintf("（ほか %d 件は全文に載せた）", omitted)}, tail...)
 		}
-		lines = append(lines, tail...)
-		s := strings.Join(lines, "\n") + "\n"
-		if utf8.RuneCountInString(s) <= messageMax || len(rows) == 0 {
-			return truncateRunes(s, messageMax)
+		shown = plainText.Replace(shown)
+		end := strings.Join(rest, "\n") + "\n"
+		room := messageMax - utf8.RuneCountInString(end)
+		if utf8.RuneCountInString(shown) <= room {
+			return shown + end
+		}
+		if len(rows) == 0 {
+			return truncateRunes(shown, room) + end
 		}
 		rows = rows[:len(rows)-1]
 	}
 }
+
+var plainText = strings.NewReplacer("<", "＜", ">", "＞")
 
 func truncateRunes(s string, n int) string {
 	if utf8.RuneCountInString(s) <= n {

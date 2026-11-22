@@ -117,7 +117,7 @@ var commands = []command{
 	},
 	{
 		name:  "digest",
-		about: "期間の記録を集め（collect）、担当の文と組み立てて 1 枚の HTML にし（build）、files/ に出す（send）",
+		about: "期間の記録を集め（collect）、担当の文と組み立てて 1 枚の HTML にし（build）、files/ と Slack へ出す（send）・送り先を確かめる（check）・トークンを置く（auth）",
 		usage: digest.Usage,
 		run:   digest.Main,
 	},

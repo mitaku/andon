@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# `andon digest`（ADR-0044 受け入れ条件 12）。一時の kanban（ファイルを直に置く）で collect・build・send を通し、files/ に HTML ができることを見る。
-# 同じ日に別の課題で作っても、前の 1 枚が残ること。ここまでは kanban の CLI・git を使わない（偽を PATH に置き、呼ばれたら落とす。git で main を読むのは repo のある課題のときだけで、internal/digest/decided_test.go が見る）。gh は空の PR の一覧を返す。
+# `andon digest`（ADR-0044 受け入れ条件 11・12）。一時の kanban（ファイルを直に置く）で collect・build・send を通し、files/ に HTML ができることを見る。
+# 同じ日に別の課題で作っても、前の 1 枚が残ること。ここまでは kanban の CLI を使わず、git は送り先（project.json）の読み取りだけ（どちらも偽を PATH に置く。git で main を読むのは repo のある課題のときだけで、internal/digest/decided_test.go が見る）。gh は空の PR の一覧を返す。
+# Slack の auth と「設定が無ければ送らない」もここで見る（受け入れ条件 11）。送る中身と順は internal/digest/slack_test.go が偽のサーバで見る。
+# ここではトークンと送り先が揃う場面を作らない（バイナリの送る先は本物の Slack）。念のため proxy も届かない口へ向ける。
 # 最後に本物の kanban の CLI で、ルーチンの例（package/skills/digest/assets/daily-digest.yaml）を写して lint・routine run・tick を通す。
 # 集め方・組み立て方の細部は internal/digest/digest_test.go。ここはバイナリの入口・終了コード・置き場を見る。
 # ANDON_EMIT_DIR があれば input.json・digest.json・sent.json を写す（tests/schema.sh が schema に通す）。
@@ -9,6 +11,8 @@ command -v jq >/dev/null || { echo "skip: jq が無い"; exit 0; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
+# kanban の CLI は HOME と proxy を替える前に焼く（go が module の置き場と取得先に使う）。下の偽の kanban が PATH で先に立つ
+. "$(dirname "$0")/lib/kanban.sh"
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET
 mkdir -p "$tmp/bin"
@@ -20,9 +24,10 @@ printf '#!/bin/sh\necho "gh $*" >>"%s/gh"\necho "[]"\n' "$tmp" >"$tmp/bin/gh"
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 
-# collect は dispatcher の記録とセッションの記録も読む。セルの本物（HOME の下）を読ませない
-own_state() { export XDG_STATE_HOME=$tmp/state CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex; }
-own_state
+# collect は dispatcher の記録とセッションの記録も読み、send・auth はトークンの置き場も読み書きする。セルの本物（HOME の下）に触らせない
+export HOME=$tmp/home XDG_STATE_HOME=$tmp/state CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex
+mkdir -p "$HOME"
+export HTTPS_PROXY=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 NO_PROXY=
 export ANDON_WORKSPACE=$tmp/cell
 p=$ANDON_WORKSPACE/projects/sample-site
 k=$p/kanban
@@ -101,19 +106,44 @@ set -e
 [ "$rc1" = 2 ] && [ "$rc2" = 2 ] && [ "$rc3" = 1 ] && grep -q 'S-0999 が kanban に無い' "$tmp/err"
 echo "ok 使い方の誤りは 2、無い課題は 1"
 
-[ ! -e "$tmp/called" ] || { echo "FAIL git・kanban を呼んだ: $(cat "$tmp/called")"; exit 1; }
-# 上の確かめが当たる場合があること: 偽の git を呼べば印が残る
+# 受け入れ条件 11: auth が置いたファイルが mode 600。設定が無ければ何も送らずに 1 行。トークンは出力にも記録にも出ない
+token="xo""xb-test-0000-not-a-token"
+printf '%s\n' "$token" | "$andon" digest auth slack >"$tmp/auth" 2>&1
+tf=$HOME/.config/andon/digest/slack.token
+[[ "$(stat -c %a "$tf")" == "600" ]] && [[ "$(stat -c %a "${tf%/*}")" == "700" ]] && [[ "$(cat "$tf")" == "$token" ]]
+set +e
+"$andon" digest check >"$tmp/check.out" 2>"$tmp/check.err"; rc1=$?
+"$andon" digest auth "$token" </dev/null >"$tmp/auth.bad" 2>&1; rc2=$?
+"$andon" digest auth slack </dev/null >"$tmp/auth.empty" 2>&1; rc3=$?
+set -e
+[ "$rc1" = 1 ] && [ "$rc2" = 2 ] && [ "$rc3" = 2 ]
+[ ! -s "$tmp/check.out" ] && [ "$(wc -l <"$tmp/check.err")" = 1 ]
+grep -q 'digest の送り先の設定が無いので何も送らない' "$tmp/check.err"
+[[ "$(cat "$tf")" == "$token" ]]
+"$andon" digest send S-0100 >"$tmp/send.out" 2>&1
+jq -e '[.destinations[].kind] == ["files"]' "$d/sent.json" >/dev/null
+leaked=$(grep -rlF -- "$token" "$tmp/auth" "$tmp/auth.bad" "$tmp/auth.empty" "$tmp/check.out" "$tmp/check.err" "$tmp/send.out" "$ANDON_WORKSPACE" || true)
+[ -z "$leaked" ] || { echo "FAIL トークンが出た: $leaked"; exit 1; }
+# 上の確かめが当たる場合があること: 置き場のファイルには当たる
+grep -qF -- "$token" "$tf"
+echo "ok auth は mode 600 で置き、設定が無ければ check も send も送らず、トークンは出力にも記録にも出ない"
+
+# git は送り先の読み取りだけ
+others() { grep -v '^git .*show HEAD:projects/sample-site/project\.json$' "$tmp/called" || true; }
+extra=$(others)
+[ -z "$extra" ] || { echo "FAIL project.json の読み取りのほかに git・kanban を呼んだ: $extra"; exit 1; }
+grep -q '^git ' "$tmp/called"
+# 上の確かめが当たる場合があること: ほかの git と kanban を呼べば残る
 git probe >/dev/null 2>&1 || true
-grep -q '^git probe$' "$tmp/called"
+kanban probe >/dev/null 2>&1 || true
+[[ "$(others)" == $'git probe\nkanban probe' ]]
 grep -q '^gh pr list' "$tmp/gh"
-echo "ok repo の無い kanban では git も kanban の CLI も呼ばない（GitHub は gh pr list で読む）"
+echo "ok repo の無い kanban では kanban の CLI を呼ばず、git は送り先の読み取りだけ（GitHub は gh pr list で読む）"
 
 # ルーチンの例（受け入れ条件 12 のルーチンの部分）。ここからは本物の kanban の CLI を使うので、偽の git・kanban を外す。kanban は別の一時の置き場。
 die() { echo "FAIL $*" >&2; exit 1; }
 rm "$tmp/bin/git" "$tmp/bin/kanban"
 hash -r
-. "$(dirname "$0")/lib/kanban.sh"
-own_state # kanban.sh が読む isolate.sh が置き場を外すので、もう一度向ける
 skill=$andon_root/package/skills/digest
 ex=$skill/assets/daily-digest.yaml
 [ -f "$ex" ] || die "ルーチンの例が無い: package/skills/digest/assets/daily-digest.yaml"
