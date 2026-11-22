@@ -42,8 +42,8 @@ func newFake(t *testing.T) *fake {
 	f.write("kanban/config.yaml", "version: 3\nprefix: S\nchief_of_staff: t1\n")
 	f.env = Env{Root: root, Workspace: f.ws, Hostname: "cell", Now: now,
 		Delivered: filepath.Join(base, "state", "sample-site.delivered.jsonl"), Signals: filepath.Join(base, "state", "sample-site.signals.json")}
-	// 期間を決めるダイジェストの課題（ルーチン digest が足したもの）
-	f.issue("S-0100", "doing", "routine: digest", "profile: claude")
+	// 期間を決めるダイジェストの課題（ルーチン daily-digest が足したもの）
+	f.issue("S-0100", "doing", "routine: daily-digest", "profile: claude")
 	return f
 }
 
@@ -200,7 +200,7 @@ func TestCollect(t *testing.T) {
 // 受け入れ条件 2: 期間は前に送った同じルーチンのダイジェストの until から。無ければ 24 時間前、8 日前なら 7 日で切る。組み立てただけのものは数えない。
 func TestPeriod(t *testing.T) {
 	sent := func(f *fake, id, until string, ok bool) {
-		f.issue(id, "done", "routine: digest")
+		f.issue(id, "done", "routine: daily-digest")
 		dest := `{"kind": "files", "at": "` + until + `", "ok": true, "url": "http://files.cell.localhost:1355/x.html"}`
 		if !ok {
 			dest = `{"kind": "files", "at": "` + until + `", "ok": false, "error": "書けない"}`
@@ -218,7 +218,7 @@ func TestPeriod(t *testing.T) {
 	})
 	t.Run("組み立てただけ・送りそこねたものは数えない", func(t *testing.T) {
 		f := newFake(t)
-		f.issue("S-0090", "done", "routine: digest")
+		f.issue("S-0090", "done", "routine: daily-digest")
 		f.lib("S-0090", "digest/digest.html", "<html></html>")
 		sent(f, "S-0091", "2026-11-21T05:00:00Z", false)
 		sent(f, "S-0092", "2026-11-21T03:00:00Z", true)
@@ -560,7 +560,7 @@ func TestSendRetry(t *testing.T) {
 
 // 短い文は 3000 字まで。超えたら待っているものの行を下から削り、削った数を出す。
 func TestMessageLimit(t *testing.T) {
-	in := &Input{Title: "日次", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
+	in := &Input{Title: "デイリーダイジェスト", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
 	long := strings.Repeat("長", 700)
 	for i := 0; i < 8; i++ {
 		in.Waiting.Items = append(in.Waiting.Items, waiting.Item{Kind: "merge", ID: fmt.Sprintf("S-%04d", i), Title: long})

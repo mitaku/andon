@@ -58,8 +58,9 @@
 | **レベル A／B／C** | tier | gate が変更ごとに決める段階。A＝テストが通れば自動マージ、B＝独立レビューつきで自動マージ、C＝オーナーがマージ（ラインそのものの変更・不可逆なもの） |
 | **振り返り** | retro | アウターループのルーチン。記録を読んでつまずきを拾い、環境を直す PR を出す |
 | **トリアージ** | triage | 報告の「次にやること」を集めて、課題に切る・捨てる・寝かせるを決める手 |
+| **ダイジェスト** | digest | 工場で起きたことを、オーナーが後から短い時間で理解できるようにまとめた 1 枚。毎朝の 1 枚は「デイリーダイジェスト」。担当の報告・日報とは別のもの（[ADR-0044](adr/0044-owner-digest.md)） |
 | **プロファイル** | profile | エージェントの起動の仕方（CLI・モデル・effort）の名前。hcの template が中身を持つ |
-| **ルーチン** | routine | kanban にある定期の仕事（振り返り・トリアージ・見回り） |
+| **ルーチン** | routine | kanban にある定期の仕事（振り返り・トリアージ・ダイジェスト・見回り） |
 | **委譲** | delegation | オーナーが Chief of Staff（と dispatcher・担当）に任せた範囲。プロジェクトごとのファイルで持ち、オーナーだけが書く（§1.10） |
 | **指揮側／作業側** | control／work | セルの中の2段。指揮側＝オーナー・Chief of Staff・dispatcher・gate・kanban・wiki。作業側＝担当・レビュアー（別のマシンでもよい） |
 | **インナーループ／アウターループ** | inner／outer loop | 内側＝ライン。外側＝振り返り。合わせて**ダブルループ** |
@@ -539,7 +540,7 @@ andon/
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
     lib/andon/               command が読む資材（statusline・schema の決まりの検査 schema_check.py。照合は andon schema）。sub-command の中身のソースは internal/<sub>（一覧は andon help。言語は §2.7）
-    skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・retro・glossary
+    skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・retro・digest・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     writing.md               AI 用: オーナーへの書き方（全役がオーナーに返す文の決まり。エージェントの設定ファイルが @ で読む）
     templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）

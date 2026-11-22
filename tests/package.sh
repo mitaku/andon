@@ -16,7 +16,7 @@ fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
 
-skills="ask-one-by-one chief-engineer chief-of-staff glossary independent-review retro triage worker"
+skills="ask-one-by-one chief-engineer chief-of-staff digest glossary independent-review retro triage worker"
 profiles="chief-engineer chief-of-staff claude claude-review codex codex-review fable sonnet"
 
 # frontmatter の key の値（最初の --- から次の --- まで）
