@@ -1,4 +1,4 @@
-package main
+package ledger
 
 import (
 	"fmt"
@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-// cron is a routine's schedule: cron's five fields (minute, hour, day of month, month,
+// Cron is a routine's schedule: cron's five fields (minute, hour, day of month, month,
 // day of week). Each field is *, a number, a range a-b, a step */n or a-b/n, or a list
 // of those joined by commas. Day of week is 0-7 (0 and 7 are Sunday). As in cron, when
 // both day fields are restricted (neither starts with *), a day matches either one.
 // Names (MON, JAN) and @daily-style shortcuts are not read.
-type cron struct {
+type Cron struct {
 	minute, hour, dom, month, dow uint64 // bit n set: n matches
 	domAny, dowAny                bool
 }
@@ -22,7 +22,7 @@ var cronFields = []struct {
 	min, max int
 }{{"minute", 0, 59}, {"hour", 0, 23}, {"day of month", 1, 31}, {"month", 1, 12}, {"day of week", 0, 7}}
 
-func parseCron(expr string) (*cron, error) {
+func ParseCron(expr string) (*Cron, error) {
 	parts := strings.Fields(expr)
 	if len(parts) != 5 {
 		return nil, fmt.Errorf("%q is not five fields", expr)
@@ -38,7 +38,7 @@ func parseCron(expr string) (*cron, error) {
 	if bits[4]&(1<<7) != 0 {
 		bits[4] |= 1 // 7 is Sunday too
 	}
-	return &cron{minute: bits[0], hour: bits[1], dom: bits[2], month: bits[3], dow: bits[4],
+	return &Cron{minute: bits[0], hour: bits[1], dom: bits[2], month: bits[3], dow: bits[4],
 		domAny: strings.HasPrefix(parts[2], "*"), dowAny: strings.HasPrefix(parts[4], "*")}, nil
 }
 
@@ -90,7 +90,7 @@ func cronNumber(s string, lo, hi int) (int, error) {
 	return v, nil
 }
 
-func (c *cron) dayMatches(t time.Time) bool {
+func (c *Cron) dayMatches(t time.Time) bool {
 	dom, dow := c.dom&(1<<t.Day()) != 0, c.dow&(1<<int(t.Weekday())) != 0
 	if c.domAny || c.dowAny {
 		return dom && dow
@@ -98,11 +98,11 @@ func (c *cron) dayMatches(t time.Time) bool {
 	return dom || dow
 }
 
-// cronHorizon is how far next looks; a schedule with no time in it never fires (Feb 30).
+// cronHorizon is how far Next looks; a schedule with no time in it never fires (Feb 30).
 const cronHorizon = 5 * 366 * 24 * time.Hour
 
-// next is the first time after `after` that the schedule names, read in loc.
-func (c *cron) next(after time.Time, loc *time.Location) (time.Time, bool) {
+// Next is the first time after `after` that the schedule names, read in loc.
+func (c *Cron) Next(after time.Time, loc *time.Location) (time.Time, bool) {
 	t := after.In(loc).Truncate(time.Minute).Add(time.Minute)
 	end := after.Add(cronHorizon)
 	for t.Before(end) {

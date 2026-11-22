@@ -13,6 +13,7 @@ import (
 
 	"andon/internal/ledger"
 	"andon/internal/ledger/ledgertest"
+	"andon/internal/redact"
 )
 
 var now = time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
@@ -319,7 +320,7 @@ func TestRedactPatterns(t *testing.T) {
 		{"commit " + sha1, "commit " + sha1},
 	} {
 		b, _ := json.Marshal(map[string]string{"s": c.in})
-		got, _ := redact(b)
+		got, _ := redact.JSON(b)
 		var v map[string]string
 		if err := json.Unmarshal(got, &v); err != nil {
 			t.Errorf("%q: 伏せたあとが JSON でない: %s", c.in, got)
@@ -331,7 +332,7 @@ func TestRedactPatterns(t *testing.T) {
 	}
 	// JSON の中の "password": "…" の形（文字列の中のエスケープした引用符）
 	b, _ := json.Marshal(map[string]string{"s": `{"password": "` + rep("p", 12) + `"}`})
-	got, _ := redact(b)
+	got, _ := redact.JSON(b)
 	if strings.Contains(string(got), rep("p", 12)) || !json.Valid(got) {
 		t.Errorf("引用符の中の値: %s", got)
 	}

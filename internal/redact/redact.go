@@ -1,4 +1,6 @@
-package retro
+// Package redact は、セルの外へ出るか担当が読む JSON から秘密の形を伏せる（振り返りの入力 ADR-0028 決めたこと 12 と、
+// ダイジェスト ADR-0044 決めたこと 17 が共有する1つ）。
+package redact
 
 import (
 	"regexp"
@@ -26,8 +28,8 @@ var secrets = []struct {
 	{"assignment", regexp.MustCompile(`(?i)((?:\b|_)(?:api[_-]?key|access[_-]?key|secret[_-]?key|client[_-]?secret|secret|token|password|passwd|pwd)(?:\\?["'])?\s*[:=]\s*(?:\\?["'])?)[^\s"'\\,;\[\]]+`), 1}, // 値の長さは問わない（短いパスワードも伏せる）。[ ] は前の形が伏せた印を2度数えないため
 }
 
-// redact は b（JSON）の中の秘密の形を伏せ、伏せたあとの JSON と伏せた数を返す。
-func redact(b []byte) ([]byte, int) {
+// JSON は b（JSON）の中の秘密の形を伏せ、伏せたあとの JSON と伏せた数を返す。
+func JSON(b []byte) ([]byte, int) {
 	n := 0
 	for _, s := range secrets {
 		b = s.re.ReplaceAllFunc(b, func(m []byte) []byte {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"andon/internal/ledger"
 )
 
 func TestCronNext(t *testing.T) {
@@ -41,24 +43,24 @@ func TestCronNext(t *testing.T) {
 		{"0 9 * * *", "2026-11-01T23:59:59Z", "2026-11-02T00:00:00Z", tokyo}, // 09:00 in Tokyo is 00:00 UTC
 		{"0 9 * * *", "2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z", tokyo},
 	} {
-		s, err := parseCron(c.expr)
+		s, err := ledger.ParseCron(c.expr)
 		if err != nil {
 			t.Fatalf("%s: %v", c.expr, err)
 		}
 		after := at(c.after)
-		got, ok := s.next(after, c.loc)
+		got, ok := s.Next(after, c.loc)
 		if !ok || got.UTC().Format(time.RFC3339) != c.want {
 			t.Errorf("%s after %s in %s: got %v %v, want %s", c.expr, after.Format(time.RFC3339), c.loc, got.UTC(), ok, c.want)
 		}
 	}
 	for _, bad := range []string{"", "* * * *", "* * * * * *", "60 * * * *", "* 24 * * *", "* * 0 * *", "* * * 13 *", "* * * * 8",
 		"*/0 * * * *", "5-1 * * * *", "a * * * *", "0 9 * * MON", "@daily", "1,,2 * * * *", "-1 * * * *"} {
-		if _, err := parseCron(bad); err == nil {
+		if _, err := ledger.ParseCron(bad); err == nil {
 			t.Errorf("%q was read", bad)
 		}
 	}
-	if s, _ := parseCron("0 0 30 2 *"); s != nil {
-		if _, ok := s.next(at("2026-01-01T00:00:00Z"), utc); ok {
+	if s, _ := ledger.ParseCron("0 0 30 2 *"); s != nil {
+		if _, ok := s.Next(at("2026-01-01T00:00:00Z"), utc); ok {
 			t.Error("Feb 30 has a next time")
 		}
 	}
