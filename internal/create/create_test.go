@@ -2,6 +2,7 @@ package create
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -133,6 +134,72 @@ func TestSlugOnlyTakesDefaultsWhenNotATerminal(t *testing.T) {
 	}
 }
 
+// ADR-0051 決めたこと 4: repo があれば main の CI の失敗を now で読む 1 行だけが入る。無ければ signals のキーも無い。
+func TestDraftReadsMainCIOnlyWithRepos(t *testing.T) {
+	const ci = `[{"source":"github-ci","weight":"now"}]`
+	for _, tc := range []struct {
+		name  string
+		repos []string
+		want  string
+	}{
+		{"repo を渡さない", nil, ""},
+		{"空の repos", []string{}, ""},
+		{"repo が 1 つ", []string{"example.com/o/one"}, ci},
+		{"repo が 2 つでも 1 行（repo を書かないので全部を読む）", []string{"example.com/o/one", "example.com/o/two"}, ci},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := Draft("sample-site", "Sample site", "SS", tc.repos)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := delegate.ParseProject(b, "sample-site"); err != nil {
+				t.Fatalf("ParseProject: %v", err)
+			}
+			var raw map[string]json.RawMessage
+			if err := json.Unmarshal(b, &raw); err != nil {
+				t.Fatal(err)
+			}
+			var got bytes.Buffer
+			if v, ok := raw["signals"]; ok {
+				if err := json.Compact(&got, v); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got.String() != tc.want {
+				t.Errorf("signals: %q（want %q）", got.String(), tc.want)
+			}
+		})
+	}
+}
+
+// 案内は入れたときだけ 1 行で、消すなら間に合うように commit の手順より前に出す。
+func TestGuideTellsAboutTheSignalOnlyWhenPutIn(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want int
+	}{
+		{[]string{"sample-site"}, 0},
+		{[]string{"sample-site", "--repo", "example.com/o/have"}, 1},
+		{[]string{"sample-site", "--repo", "example.com/o/have", "--repo", "example.com/o/new"}, 1},
+	} {
+		setup(t)
+		rc, out, errs := run(strings.NewReader(""), tc.args...)
+		if rc != 0 {
+			t.Fatalf("%v: rc=%d %s", tc.args, rc, errs)
+		}
+		if n := strings.Count(out, "signals"); n != tc.want {
+			t.Fatalf("%v: signals の案内が %d 行（want %d）: %s", tc.args, n, tc.want, out)
+		}
+		if tc.want == 0 {
+			continue
+		}
+		guide, _, ok := strings.Cut(out, "git add ")
+		if !ok || !strings.Contains(guide, "signals") || !strings.Contains(guide, "要らなければ") {
+			t.Errorf("%v: commit の手順より前に、入れたことと消せることが無い: %s", tc.args, out)
+		}
+	}
+}
+
 func TestNoSlugStopsWhenNotATerminal(t *testing.T) {
 	ws, _ := setup(t)
 	if rc, _, errs := run(strings.NewReader("sample-site\n"), "--prefix", "S"); rc != exitUsage || !strings.Contains(errs, "slug が無い") {
@@ -250,7 +317,7 @@ func TestInteractiveAsksWhatIsMissingWithDefaults(t *testing.T) {
 		}
 	}
 	p, err := delegate.ParseProject([]byte(read(t, filepath.Join(ws, "projects", "sample-site", "project.json"))), "sample-site")
-	if err != nil || p.Project.Title != "Sample site" || p.Project.Prefix != "SS" || strings.Join(p.Repos, " ") != "example.com/o/new" {
+	if err != nil || p.Project.Title != "Sample site" || p.Project.Prefix != "SS" || strings.Join(p.Repos, " ") != "example.com/o/new" || len(p.Signals) != 1 {
 		t.Errorf("project.json: %+v %v", p, err)
 	}
 }
