@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `andon digest`（ADR-0044 受け入れ条件 12）。一時の kanban（ファイルを直に置く）で collect・build・send を通し、files/ に HTML ができることを見る。
-# 同じ日に別の課題で作っても、前の 1 枚が残ること。ここまでは kanban の CLI・git を使わない（偽を PATH に置き、呼ばれたら落とす）。gh は空の PR の一覧を返す。
+# 同じ日に別の課題で作っても、前の 1 枚が残ること。ここまでは kanban の CLI・git を使わない（偽を PATH に置き、呼ばれたら落とす。git で main を読むのは repo のある課題のときだけで、internal/digest/decided_test.go が見る）。gh は空の PR の一覧を返す。
 # 最後に本物の kanban の CLI で、ルーチンの例（package/skills/digest/assets/daily-digest.yaml）を写して lint・routine run・tick を通す。
 # 集め方・組み立て方の細部は internal/digest/digest_test.go。ここはバイナリの入口・終了コード・置き場を見る。
 # ANDON_EMIT_DIR があれば input.json・digest.json・sent.json を写す（tests/schema.sh が schema に通す）。
@@ -31,6 +31,10 @@ put() { mkdir -p "$(dirname "$1")"; cat >"$1"; }
 now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 hour_ago=$(date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%SZ)
 printf 'version: 3\nprefix: S\nchief_of_staff: t1\n' | put "$k/config.yaml"
+# 期間に Chief of Staff が決めたこと（振り返りの記録と、範囲の問いの答え）
+printf 'id: S-0002\ntitle: 振り返り\nstatus: review\ncreated: "2026-11-01T00:00:00Z"\n' | put "$k/issues/S-0002/issue.yaml"
+printf '{"applied_at": "%s", "complete": true, "issues": [{"pattern": "p1"}], "dropped": []}\n' "$hour_ago" | put "$k/issues/S-0002/library/retro-applied.json"
+printf -- '- n: 1\n  text: どれを直すか\n  kind: scope\n  asked: "%s"\n  status: received\n  answer: c1 だけ\n  answered: "%s"\n  answeredBy: terminal:t1\n' "$hour_ago" "$hour_ago" | put "$k/issues/S-0002/questions.yaml"
 # 期間にマージされた課題（dispatcher がマージ）と、ダイジェストの課題 2 つ（同じルーチン）
 printf 'id: S-0001\ntitle: 返事の下書きボタン\nstatus: done\ncreated: "2026-11-01T00:00:00Z"\n' | put "$k/issues/S-0001/issue.yaml"
 printf '{"commit": "1111111111111111111111111111111111111111", "pr": "https://github.com/example/sample-site/pull/1"}\n' | put "$k/issues/S-0001/library/report.json"
@@ -50,7 +54,9 @@ d=$k/issues/S-0100/library/digest
 [[ "$(cat "$tmp/out")" == "$d/input.json" ]]
 jq -e '.issue == "S-0100" and .previous == null and .truncated == false and ([.issues[].id] == ["S-0001"]) and .issues[0].merged_by == "dispatcher"' "$d/input.json" >/dev/null
 emit "$d/input.json" digest-input.json
+jq -e '.decided.decisions == [] and [.decided.retro[].issue] == ["S-0002"] and [.decided.answers[].answer] == ["c1 だけ"]' "$d/input.json" >/dev/null
 printf '%s\n' "$text" | "$andon" digest build S-0100 - >"$tmp/out"
+grep -q 'c1 だけ' "$d/digest.html" && grep -q '振り返りで 1 件を直すと決め、0 件を捨てた' "$d/digest.html"
 [ "$(wc -l <"$tmp/out")" = 3 ] && [ -f "$d/digest.json" ] && [ -f "$d/digest.html" ] && [ -f "$d/message.txt" ]
 emit "$d/digest.json" digest.json
 "$andon" digest send S-0100 >"$tmp/url1"
@@ -99,7 +105,7 @@ echo "ok 使い方の誤りは 2、無い課題は 1"
 git probe >/dev/null 2>&1 || true
 grep -q '^git probe$' "$tmp/called"
 grep -q '^gh pr list' "$tmp/gh"
-echo "ok git も kanban の CLI も呼ばない（GitHub は gh pr list で読む）"
+echo "ok repo の無い kanban では git も kanban の CLI も呼ばない（GitHub は gh pr list で読む）"
 
 # ルーチンの例（受け入れ条件 12 のルーチンの部分）。ここからは本物の kanban の CLI を使うので、偽の git・kanban を外す。kanban は別の一時の置き場。
 die() { echo "FAIL $*" >&2; exit 1; }

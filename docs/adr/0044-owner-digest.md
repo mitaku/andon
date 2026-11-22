@@ -13,7 +13,7 @@
 | 3 | 集める command、書く担当、組み立てて送る command の 3 段で作る | `internal/digest/collect.go`・`internal/digest/build.go`・`package/skills/digest/SKILL.md` | 生きている |
 | 4 | 回すきっかけは kanban のルーチンにし、並行の枠を別に持たせない | `package/skills/digest/assets/daily-digest.yaml`・`package/skills/chief-of-staff/playbooks/digest.md`・`process/workstreams/digest.yaml` | 生きている（kanban へ写すのはオーナーの go のあと） |
 | 5 | 読む期間は、前に送ったダイジェストの終わりから今までにする | `internal/digest/collect.go` | 生きている |
-| 6 | 載せる節を 8 つに定める | `internal/digest/digest.html.tmpl` | 生きている（節 5 の代わりに決めたことは、まだ集めていない） |
+| 6 | 載せる節を 8 つに定める | `internal/digest/digest.html.tmpl`・`internal/digest/decided.go` | 生きている |
 | 7 | 依存の無い単一の HTML にし、図を必ず入れ、スクリプトを持たせない | `internal/digest/build.go` | 生きている |
 | 8 | 数と一覧と図は command が描き、担当が書くのは要旨とテーマと気になることだけにする | `internal/digest/render.go`・`package/skills/digest/SKILL.md` | 生きている |
 | 9 | 担当が中身を書く図は、2 つの型から選ぶ | `schema/digest.schema.json` | 生きている |

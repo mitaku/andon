@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -63,6 +64,7 @@ type view struct {
 	Rest                                   []ref
 	Auto                                   []autoRow
 	Tiers                                  []tierBar
+	Decided                                *decidedView
 	Concerns                               []concernRow
 	Notes                                  []noteRow
 	Metrics                                []metricRow
@@ -126,6 +128,33 @@ type autoRow struct {
 type tierBar struct {
 	Tier         string
 	Count, Width int
+}
+
+// decidedView は節 5（代わりに決めたこと）。
+type decidedView struct {
+	Decisions []decisionRow
+	Triage    []triageRow
+	Retro     []retroRow
+	Answers   []answerRow
+}
+
+type decisionRow struct {
+	Text, Mark, Where, URL, At string
+}
+
+type triageRow struct {
+	Triaged
+	When string
+}
+
+type retroRow struct {
+	Retroed
+	When string
+}
+
+type answerRow struct {
+	ScopeReply
+	When string
 }
 
 type concernRow struct {
@@ -316,6 +345,29 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 	}
 	for _, k := range []string{"A", "B", "C"} {
 		v.Tiers = append(v.Tiers, tierBar{Tier: k, Count: tiers[k], Width: scale(float64(tiers[k]), float64(maxT), barW)})
+	}
+
+	// 5. 代わりに決めたこと
+	if d := in.Decided; d != nil {
+		dv := &decidedView{}
+		for _, x := range d.Decisions {
+			r := decisionRow{Text: x.Text, Mark: x.Mark, At: loc.short(x.At),
+				Where: fmt.Sprintf("%s %s:%d", strings.TrimPrefix(x.Repo, githubHost), x.Path, x.Line)}
+			if x.URL != nil {
+				r.URL = *x.URL
+			}
+			dv.Decisions = append(dv.Decisions, r)
+		}
+		for _, x := range d.Triage {
+			dv.Triage = append(dv.Triage, triageRow{x, loc.short(x.At)})
+		}
+		for _, x := range d.Retro {
+			dv.Retro = append(dv.Retro, retroRow{x, loc.short(x.At)})
+		}
+		for _, x := range d.Answers {
+			dv.Answers = append(dv.Answers, answerRow{x, loc.short(x.At)})
+		}
+		v.Decided = dv
 	}
 
 	// 6. 気になること

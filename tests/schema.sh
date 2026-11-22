@@ -329,6 +329,11 @@ digest-input|.numbers.current|since until merged auto closed lead_time_hours que
 digest-input|.next|ready observations routines
 digest-input|.next.observations[0]|id title not_before
 digest-input|.next.routines[0]|name title next
+digest-input|.decided|decisions triage retro answers
+digest-input|.decided.decisions[0]|text mark repo commit at path line url
+digest-input|.decided.triage[0]|issue title at closed cut path
+digest-input|.decided.retro[0]|issue title at fix dropped path
+digest-input|.decided.answers[0]|issue title n question answer at path
 digest|.themes[0]|title body issues
 digest|.themes[0].figure|type before after
 digest|.themes[1].figure|type steps focus
@@ -891,6 +896,17 @@ fail|digest-input|.next.observations[0].not_before = "11/25"|見る日が日付�
 fail|digest-input|.redacted = -1|伏せた数が負
 fail|digest-input|.waiting = []|waiting が object でない
 fail|digest-input|.waiting |= del(.slots)|waiting に slots が無い
+pass|digest-input|del(.decided)|前のバージョンの入力（代わりに決めたことが無い）
+pass|digest-input|.decided.decisions[0].url = null|GitHub でない repo の決定の行
+pass|digest-input|.decided = {decisions: [], triage: [], retro: [], answers: []}|代わりに決めたことが無い期間
+fail|digest-input|.decided = null|代わりに決めたことが null
+fail|digest-input|.decided.decisions[0].commit = "9c4e1b0"|決定の行の commit が短い
+fail|digest-input|.decided.decisions[0].line = 0|決定の行の行番号が 0
+fail|digest-input|.decided.decisions[0].mark = ""|決定の行の印が空
+fail|digest-input|.decided.decisions[0].url = "javascript:alert(1)"|決定の行の url が https でない
+fail|digest-input|.decided.triage[0].closed = -1|トリアージで閉じた数が負
+fail|digest-input|.decided.retro[0].at = "2026-11-21"|振り返りを当てた時刻が日付だけ
+fail|digest-input|.decided.answers[0].n = 0|範囲の問いの番号が 0
 pass|digest|.concerns = []|担当が添える気になることが無い
 pass|digest|.themes = []|テーマが無い
 pass|digest|.themes[0] |= del(.figure)|図の無いテーマ
@@ -1006,6 +1022,8 @@ waiting|."$defs".ask.properties.kind.enum += ["scope"]|判断の行の問いの�
 waiting|.properties.slots.properties.free.minimum = -10|空きの負を許す
 digest-input|.required -= ["truncated"]|ダイジェストの入力の必須から truncated を外す
 digest-input|."$defs".issue.properties.merged_by.anyOf[0].enum += ["owner"]|merged_by を緩める
+digest-input|."$defs".decision.properties.commit.pattern = "^.+$"|決定の行の commit の形を緩める
+digest-input|.properties.decided.required -= ["decisions"]|代わりに決めたことの必須から decisions を外す
 digest|."$defs".issues.minItems = 0|テーマと気になることが課題を指さなくてよい
 digest|.properties.headline.minItems = 1|要旨の下限を 1 文に緩める
 digest-sent|."$defs".destination.properties.kind.enum += ["slack"]|送り先の種類を緩める

@@ -223,6 +223,47 @@
         }
       }
     },
+    "decided": {
+      "description": "What was decided in the owner's place in the period: marked decision lines that entered main, and the Chief of Staff's triage, retro and scope answers. `andon digest collect` always writes it; an input from an older andon has none, and build says it was not collected.",
+      "type": "object",
+      "required": [
+        "decisions",
+        "triage",
+        "retro",
+        "answers"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "decisions": {
+          "description": "Marked decision lines that commits on main's first-parent line added to docs/ in the period, oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          }
+        },
+        "triage": {
+          "description": "Triage records whose issue was done in the period, oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/triage"
+          }
+        },
+        "retro": {
+          "description": "Retro records applied in the period, oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/retro"
+          }
+        },
+        "answers": {
+          "description": "Scope questions answered from a role's terminal in the period, oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/answer"
+          }
+        }
+      }
+    },
     "redacted": {
       "description": "How many secret shapes were hidden.",
       "type": "integer",
@@ -437,6 +478,198 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "decision": {
+      "description": "One numbered line of a document's decisions section whose bold sentence carries a parenthesis naming the Chief Engineer.",
+      "type": "object",
+      "required": [
+        "text",
+        "mark",
+        "repo",
+        "commit",
+        "at",
+        "path",
+        "line",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "description": "The bold sentence without that parenthesis.",
+          "type": "string"
+        },
+        "mark": {
+          "description": "Inside the parenthesis, as written.",
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "description": "The repository, as issue.yaml's repo.",
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "description": "The commit on main that added the line.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "at": {
+          "description": "That commit's committer time (the merge time).",
+          "$ref": "#/$defs/time"
+        },
+        "path": {
+          "description": "The document, from the repository root.",
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "description": "The line in that commit's document.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "description": "The line on GitHub, or null for another host.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^https://[!-~]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "triage": {
+      "description": "One applied triage.",
+      "type": "object",
+      "required": [
+        "issue",
+        "title",
+        "at",
+        "closed",
+        "cut",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "issue": {
+          "description": "The issue.",
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "description": "Its title.",
+          "type": "string"
+        },
+        "at": {
+          "description": "When the triage issue was done (the record has no time of its own).",
+          "$ref": "#/$defs/time"
+        },
+        "closed": {
+          "description": "Items it closed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "cut": {
+          "description": "Issues it cut to fix or bundle items.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "path": {
+          "description": "The record, from the project root.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "retro": {
+      "description": "One applied retro.",
+      "type": "object",
+      "required": [
+        "issue",
+        "title",
+        "at",
+        "fix",
+        "dropped",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "issue": {
+          "description": "The issue.",
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "description": "Its title.",
+          "type": "string"
+        },
+        "at": {
+          "description": "retro-applied.json's applied_at.",
+          "$ref": "#/$defs/time"
+        },
+        "fix": {
+          "description": "Patterns it decided to fix.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "dropped": {
+          "description": "Patterns it dropped.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "path": {
+          "description": "The record, from the project root.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "answer": {
+      "description": "One answered scope question.",
+      "type": "object",
+      "required": [
+        "issue",
+        "title",
+        "n",
+        "question",
+        "answer",
+        "at",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "issue": {
+          "description": "The issue.",
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "description": "Its title.",
+          "type": "string"
+        },
+        "n": {
+          "description": "The question's number.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "question": {
+          "description": "The question, one line.",
+          "type": "string"
+        },
+        "answer": {
+          "description": "The answer, as the ledger has it.",
+          "type": "string"
+        },
+        "at": {
+          "description": "When it was answered.",
+          "$ref": "#/$defs/time"
+        },
+        "path": {
+          "description": "The record, from the project root.",
+          "type": "string",
+          "minLength": 1
         }
       }
     },
