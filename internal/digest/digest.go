@@ -30,7 +30,7 @@ const Usage = "usage: andon digest collect <id>          期間の記録を libr
 	"       andon digest build <id> <file|->     担当が書いた JSON（§27）を照らし、digest.json・digest.html・message.txt を書く\n" +
 	"       andon digest send <id>               digest.html を files/ に出し、URL を出して sent.json（§28）に書く\n" +
 	"<id> はダイジェストの課題。期間は、同じルーチンの前に送ったダイジェストの終わりから今まで（無ければ 24 時間前から、7 日より前へは遡らない）。\n" +
-	"collect は kanban と dispatcher の記録と GitHub のマージされた PR の一覧を読み、書くのは input.json だけ。\n" +
+	"collect は kanban と dispatcher の記録と GitHub のマージされた PR の一覧と、課題の repo の最新の main の文書（代わりに決めたこと）を読み、書くのは input.json だけ。\n" +
 	"build は入力に無い課題を指した・要旨が 2〜5 文でない・テーマが 9 つ以上・知らない図の型などを理由1行ずつで断り、何も書かない。\n" +
 	"send は送った先に打ち直しても送らない。送り先は今は files/ だけ。\n" +
 	"projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"

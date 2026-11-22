@@ -61,6 +61,9 @@ td:first-child { white-space: nowrap; }
 .steps span.focus { border-color: var(--bar-auto); border-width: 2px; font-weight: bold; }
 .mark { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
 .wrap { overflow-x: auto; }
+.decided { margin-bottom: 12px; }
+.decided li { margin-bottom: 8px; overflow-wrap: anywhere; }
+.decided .answer { white-space: pre-line; }
 @media (max-width: 480px) { .ba { grid-template-columns: 1fr; } .ba svg { transform: rotate(90deg); margin: 0 auto; } }
 </style>
 </head>
@@ -119,7 +122,16 @@ td:first-child { white-space: nowrap; }
 {{end}}</table></div>{{else}}<p>この期間に自動でマージした変更は無い。</p>{{end}}
 
 <h2>代わりに決めたこと</h2>
-<p class="muted">まだ集めていない。</p>
+{{with .Decided}}<h3>文書に入った決定（{{len .Decisions}} 件）</h3>
+{{if .Decisions}}<ul class="decided">{{range .Decisions}}<li>{{.Text}}（{{.Mark}}）<br><span class="muted">{{if .URL}}<a href="{{.URL}}">{{.Where}}</a>{{else}}{{.Where}}{{end}}</span></li>
+{{end}}</ul>{{else}}<p>この期間に印の付いた決定の行は見つからなかった。</p>
+{{end}}<h3>CoS が決めたこと</h3>
+{{if or .Triage .Retro .Answers}}<ul class="decided">{{range .Triage}}<li>{{.Issue}} {{.Title}}: トリアージで {{.Closed}} 件を閉じ、{{.Cut}} 件を課題に切った。<br><span class="muted">{{.When}} {{.Path}}</span></li>
+{{end}}{{range .Retro}}<li>{{.Issue}} {{.Title}}: 振り返りで {{.Fix}} 件を直すと決め、{{.Dropped}} 件を捨てた。<br><span class="muted">{{.When}} {{.Path}}</span></li>
+{{end}}{{range .Answers}}<li>{{.Issue}} {{.Title}}: 範囲の問い「{{.Question}}」に答えた。<br><span class="answer">{{.Answer}}</span><br><span class="muted">{{.When}} {{.Path}} の問い {{.N}}</span></li>
+{{end}}</ul>{{else}}<p>この期間のトリアージ・振り返り・範囲の問いの答えは見つからなかった。</p>
+{{end}}{{else}}<p class="muted">この入力には代わりに決めたことが入っていない。andon digest collect で集め直すと載る。</p>
+{{end}}
 
 <h2>気になること</h2>
 {{if .Concerns}}<div class="wrap"><table>
