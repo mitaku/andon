@@ -38,7 +38,7 @@ A read that fails keeps the last value until it is 90 seconds old. It writes not
 | `herdr-app do inbox.call` | a press: the inbox opens the next thing that waits |
 | `herdr-app` (no arguments, detached) | after that ended 0 or 1: the running App comes to the front |
 
-Both run without a shell and without a window, in your home folder, with the environment Stream Deck gave the plugin. If the first doesn't end 0 or 1 within 5 seconds, or can't start, nothing else runs and the key shows Stream Deck's alert. An end of 1 (the inbox isn't on screen) raises the App and shows the alert. A press during another is dropped. The App is never started by a press: no window, no second call.
+Both run without a shell and without a window, in your home folder, with the environment Stream Deck gave the plugin. If the first doesn't end 0 or 1 within 5 seconds, or can't start, nothing else runs and the key shows Stream Deck's alert. An end of 1 (the inbox isn't on screen) raises the App and shows the alert. A press during another is dropped. A press doesn't start a closed App: without a window, the second call isn't made.
 
 The program is `HERDR_APP_BIN`, else `herdr-app` on PATH, else on Windows `%LOCALAPPDATA%\Programs\herdr-app\herdr-app.exe`. Programs started from the macOS Dock get a short PATH: if the key only alerts there, set `HERDR_APP_BIN` where Stream Deck can see it and start Stream Deck again.
 
