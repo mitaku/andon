@@ -9,19 +9,19 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、キー 1 つに色と件数を出すことと、押して待っているものへ飛ぶことにする | この ADR | 生きている |
-| 2 | 灯りの元は Herdr App に置き、App を閉じている間は「分からない」を出す | この ADR | まだ実装していない |
-| 3 | Stream Deck の plugin を Andon の repo に作り、Marketplace には出さない | この ADR | まだ実装していない |
-| 4 | plugin は、App が書く `shared.json` の `inbox.lamp` を 2 秒ごとに読む | この ADR | まだ実装していない |
-| 5 | `inbox.lamp` に `version` と `at` を足し、mod `inbox` は描画を待たずに置き直す | この ADR | まだ実装していない |
-| 6 | 「分からない」は plugin の表示だけの状態にし、灯りの状態は 3 つのままにする | この ADR | まだ実装していない |
-| 7 | キーには、行燈と同じ色と、待っているものの合計と、内訳を 2 行まで出す | この ADR | まだ実装していない |
-| 8 | 押すと mod `inbox` に待っているものを開かせ、Herdr App を前に出す。App は起動しない | この ADR | まだ実装していない |
-| 9 | mod `inbox` に、待っているものを順に開く command `inbox.call` を足す | この ADR | まだ実装していない |
-| 10 | plugin は npm の依存を持たず、Stream Deck の WebSocket の約束を直接話す | この ADR | まだ実装していない |
-| 11 | plugin の名前は `andon.lamp` にし、`package/host/streamdeck/` に置く | この ADR | まだ実装していない |
-| 12 | `host-install` は、置き場を指定されたときだけ plugin を置く | この ADR | まだ実装していない |
-| 13 | 設定の画面は作らず、App の置き場と実行ファイルは環境変数で替える | この ADR | まだ実装していない |
-| 14 | `inbox.lamp` の形は Andon の約束に足さず、mod と plugin をつないだ検査で守る | この ADR | まだ実装していない |
+| 2 | 灯りの元は Herdr App に置き、App を閉じている間は「分からない」を出す | `package/host/inbox/main.js`・`package/host/streamdeck/andon.lamp.sdPlugin/key.js` | 生きている |
+| 3 | Stream Deck の plugin を Andon の repo に作り、Marketplace には出さない | `package/host/streamdeck/andon.lamp.sdPlugin/manifest.json` | 生きている |
+| 4 | plugin は、App が書く `shared.json` の `inbox.lamp` を 2 秒ごとに読む | `package/host/streamdeck/andon.lamp.sdPlugin/lamp.js` | 生きている |
+| 5 | `inbox.lamp` に `version` と `at` を足し、mod `inbox` は描画を待たずに置き直す | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
+| 6 | 「分からない」は plugin の表示だけの状態にし、灯りの状態は 3 つのままにする | `package/host/streamdeck/andon.lamp.sdPlugin/key.js` | 生きている |
+| 7 | キーには、行燈と同じ色と、待っているものの合計と、内訳を 2 行まで出す | `package/host/streamdeck/andon.lamp.sdPlugin/key.js` | 生きている |
+| 8 | 押すと mod `inbox` に待っているものを開かせ、Herdr App を前に出す。App は起動しない | `package/host/streamdeck/andon.lamp.sdPlugin/app.js` | 生きている |
+| 9 | mod `inbox` に、待っているものを順に開く command `inbox.call` を足す | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
+| 10 | plugin は npm の依存を持たず、Stream Deck の WebSocket の約束を直接話す | `package/host/streamdeck/andon.lamp.sdPlugin/lamp.js`・`package/host/streamdeck/andon.lamp.sdPlugin/manifest.json` | 生きている |
+| 11 | plugin の名前は `andon.lamp` にし、`package/host/streamdeck/` に置く | `package/host/streamdeck/andon.lamp.sdPlugin/manifest.json`・`package/host/streamdeck/andon.lamp.sdPlugin/README.md` | 生きている |
+| 12 | `host-install` は、置き場を指定されたときだけ plugin を置く | `init/bin/bootstrap`・`docs/operate.md` | 生きている |
+| 13 | 設定の画面は作らず、App の置き場と実行ファイルは環境変数で替える | `package/host/streamdeck/andon.lamp.sdPlugin/app.js`・`package/host/streamdeck/andon.lamp.sdPlugin/README.md` | 生きている |
+| 14 | `inbox.lamp` の形は Andon の約束に足さず、mod と plugin をつないだ検査で守る | `package/host/inbox/README.md`・`tests/host/screen.mjs` | 生きている |
 | 15 | herdr-core の API から、動いている役の端末の数を出す 2 つ目のキーを足す | この ADR | まだ実装していない |
 
 ## 問題（オーナーの言葉で。言い直しの段落）

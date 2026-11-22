@@ -8,7 +8,9 @@
 
 ## 未リリース
 
-（まだ無い）
+### 上げるときにすること
+
+- **host-install**: 雛形が変わった。mod `inbox`（`inbox.lamp` に `version` と `at`、command `inbox.call`）と、新しい Stream Deck の plugin `andon.lamp.sdPlugin`（ADR-0045）。`inbox` は退避して置き直す。plugin を使うなら `STREAMDECK_PLUGINS` を指定して `host-install` を打つ。前に作ったセルは、先に `bin/bootstrap` を雛形で置き換える（手順は [docs/operate.md](docs/operate.md) の「Stream Deck に行燈のキーを置く」）。
 
 ## v0.0.13 — 2026-11-21
 

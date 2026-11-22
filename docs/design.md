@@ -84,7 +84,7 @@
 
 推奨: **意味は三色ランプから、絵は行燈から**取る。文書と画面の語彙は「灯りがつく＝オーナーの判断待ち」「緑・黄・赤」で揃え、ロゴや README の絵柄は行燈でよい。最終決定はオーナー（§6 の問い1）。
 
-画面の行燈（Herdr App の左の列の一番上）は、緑を使わず、消灯・琥珀・赤の3つで灯る（[ADR-0023](adr/0023-sidebar-andon-look.md)・[ADR-0043](adr/0043-lamp-lights-on-owner-waits.md)）。琥珀は「オーナーが呼ばれている。答えるかマージすれば進む」で、止まってオーナーを待つ端末（「Needs you」）があるときと、kanban にマージの依頼か判断のオーナー待ちがあるときに灯る。手作業のオーナー待ちでは灯さない。赤は端末のターンが失敗して止まっているときで、琥珀より強い。Chief of Staff と Chief Engineer が返事をしただけでは灯さず、Projects の役の行に未読の印を付ける。オーナー待ちは Needs you の上にプロジェクトごとの件数の1行で出る。状態を決めるのは mod `inbox` の1か所で、表は用語集の「灯り」と `package/host/inbox/README.md` にある。
+画面の行燈（Herdr App の左の列の一番上）は、緑を使わず、消灯・琥珀・赤の3つで灯る（[ADR-0023](adr/0023-sidebar-andon-look.md)・[ADR-0043](adr/0043-lamp-lights-on-owner-waits.md)）。琥珀は「オーナーが呼ばれている。答えるかマージすれば進む」で、止まってオーナーを待つ端末（「Needs you」）があるときと、kanban にマージの依頼か判断のオーナー待ちがあるときに灯る。手作業のオーナー待ちでは灯さない。赤は端末のターンが失敗して止まっているときで、琥珀より強い。Chief of Staff と Chief Engineer が返事をしただけでは灯さず、Projects の役の行に未読の印を付ける。オーナー待ちは Needs you の上にプロジェクトごとの件数の1行で出る。状態を決めるのは mod `inbox` の1か所で、表は用語集の「灯り」と `package/host/inbox/README.md` にある。Stream Deck のキーにも同じ灯りと件数が出る（[ADR-0045](adr/0045-stream-deck-lamp.md)）。
 
 ### 1.2 選択的 Dark Factory と、リーンの原則
 
@@ -583,7 +583,7 @@ andon/
 | `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
 | `/opt/andon/gate.json` ＋ セルの `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
 | `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
-| `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM・オーナーの Herdr App の設定フォルダ（`mods/`・`layouts/`） | `bin/bootstrap host-install` で写す（今あるものは上書きしない） |
+| `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM・オーナーの Herdr App の設定フォルダ（`mods/`・`layouts/`）・Stream Deck の plugin の置き場（`STREAMDECK_PLUGINS` を指定したとき） | `bin/bootstrap host-install` で写す（今あるものは上書きしない） |
 
 セルの repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` のバージョンを上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。Andon を直してセルで試すときは、`bootstrap rebuild --from <andon の checkout>` がその checkout から base image を焼いて `FROM` を差し替える（GHCR を通さない。配るバージョンは `vX.Y.Z` の tag だけ）。
 
