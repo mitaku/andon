@@ -329,7 +329,8 @@ digest-input|.numbers.current|since until merged auto closed lead_time_hours que
 digest-input|.next|ready observations routines
 digest-input|.next.observations[0]|id title not_before
 digest-input|.next.routines[0]|name title next
-digest-input|.decided|decisions triage retro answers
+digest-input|.decided|decisions triage retro answers mains
+digest-input|.decided.mains[0]|repo commit
 digest-input|.decided.decisions[0]|text mark repo commit path line url
 digest-input|.decided.triage[0]|issue title at closed cut path
 digest-input|.decided.retro[0]|issue title at fix dropped path
@@ -898,8 +899,9 @@ fail|digest-input|.waiting = []|waiting が object でない
 fail|digest-input|.waiting |= del(.slots)|waiting に slots が無い
 pass|digest-input|del(.decided)|前のバージョンの入力（代わりに決めたことが無い）
 pass|digest-input|.decided.decisions[0].url = null|GitHub でない repo の決定の行
-pass|digest-input|.decided = {decisions: [], triage: [], retro: [], answers: []}|代わりに決めたことが無い期間
+pass|digest-input|.decided = {decisions: [], triage: [], retro: [], answers: [], mains: []}|代わりに決めたことが無い期間
 fail|digest-input|.decided = null|代わりに決めたことが null
+fail|digest-input|.decided.mains[0].commit = "main"|読んだ main が commit でない
 fail|digest-input|.decided.decisions[0].commit = "9c4e1b0"|決定の行の commit が短い
 fail|digest-input|.decided.decisions[0].line = 0|決定の行の行番号が 0
 fail|digest-input|.decided.decisions[0].mark = ""|決定の行の印が空

@@ -229,7 +229,7 @@ func Collect(env Env, id string) (*Input, error) {
 	in.Concerns = c.concerns(in.Issues, rows, inPeriod, gh)
 	in.Numbers = c.numbers(now, gh)
 	in.Next = c.next(now, cfg.Timezone)
-	in.Decided = c.decided(rows, inPeriod)
+	in.Decided = c.decided(rows, since, now, in.Previous)
 	in.Skipped = append([]Skip{}, c.skipped...)
 
 	// 秘密の形を伏せる（決めたこと 17。振り返りと同じ伏せ方）

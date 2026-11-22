@@ -29,6 +29,19 @@ type Decided struct {
 	Triage    []Triaged    `json:"triage"`
 	Retro     []Retroed    `json:"retro"`
 	Answers   []ScopeReply `json:"answers"`
+	Mains     []MainRead   `json:"mains"`
+}
+
+// MainRead は repo の main をどこまで読んだか。次のダイジェストはここから比べる。
+type MainRead struct {
+	Repo   string `json:"repo"`
+	Commit string `json:"commit"`
+}
+
+// lastRead は前に送ったダイジェストの入力に残した、読んだ main と読み飛ばした記録。
+type lastRead struct {
+	mains   map[string]string // repo → commit
+	skipped map[string]bool   // skipped の source
 }
 
 // Decision は期間に main に入った、Chief Engineer の印の付いた決定の行 1 つ。
@@ -83,102 +96,160 @@ const (
 	terminalBy     = "terminal:"
 )
 
-func (c *collector) decided(rows []ledger.Row, in func(time.Time) bool) *Decided {
-	return &Decided{Decisions: c.decisions(in), Triage: c.triaged(rows, in), Retro: c.retroed(in), Answers: c.scopeReplies(in)}
+func (c *collector) decided(rows []ledger.Row, since, until time.Time, prev *Previous) *Decided {
+	in := func(t time.Time) bool { return !t.Before(since) && !t.After(until) }
+	last := c.lastRead(prev, since)
+	d := &Decided{Triage: c.triaged(rows, in), Retro: c.retroed(in, last.skipped), Answers: c.scopeReplies(in)}
+	d.Decisions, d.Mains = c.decisions(since, until, last.mains)
+	return d
+}
+
+// lastRead は前のダイジェストの input.json を読む。7 日で切った期間と、送ったあとに集め直した入力には使わない（時刻で切る）。
+func (c *collector) lastRead(prev *Previous, since time.Time) lastRead {
+	out := lastRead{mains: map[string]string{}, skipped: map[string]bool{}}
+	if prev == nil || prev.Until != since.Format(timeLayout) {
+		return out
+	}
+	var was struct {
+		Until   string `json:"until"`
+		Skipped []Skip `json:"skipped"`
+		Decided *struct {
+			Mains []MainRead `json:"mains"`
+		} `json:"decided"`
+	}
+	if !c.readJSON(filepath.Join(c.lib(prev.Issue), dirName, inputFile), &was) || was.Until != prev.Until || was.Decided == nil {
+		return out
+	}
+	for _, m := range was.Decided.Mains {
+		out.mains[m.Repo] = m.Commit
+	}
+	for _, x := range was.Skipped {
+		out.skipped[x.Source] = true
+	}
+	return out
 }
 
 // decisions は kanban の課題の repo ごとに、期間に main に入った決定の行を repo・文書・行の順に並べる。
-func (c *collector) decisions(in func(time.Time) bool) []Decision {
+func (c *collector) decisions(since, until time.Time, seen map[string]string) ([]Decision, []MainRead) {
 	repos := map[string]bool{}
 	for _, t := range c.byID {
 		if t.repo != "" {
 			repos[t.repo] = true
 		}
 	}
-	out := []Decision{}
+	out, mains := []Decision{}, []MainRead{}
 	for _, repo := range sortedKeys(repos) {
-		got, err := repoDecisions(repo, in)
+		got, read, err := repoDecisions(repo, seen[repo], since, until)
 		if err != nil {
 			c.skip(repo, "期間に main に入った文書を読めない（%v）。代わりに決めたことの決定の行を探していない", err)
-			continue
+			read = seen[repo] // 読めなかった分は次のダイジェストが同じ所から読む
+		}
+		if read != "" {
+			mains = append(mains, MainRead{Repo: repo, Commit: read})
 		}
 		out = append(out, got...)
 	}
-	return out
+	return out, mains
 }
 
-// repoDecisions は、期間の前と期間の終わりの main（first-parent）を比べて、増えた決定の行を読む。
+// repoDecisions は、期間の前と期間の終わりの main（first-parent）を比べて増えた決定の行と、読んだ main の commit。
+// 期間の前の main は seen（前のダイジェストが読んだ main）。fast-forward の push は commit の時刻が古いまま入るので、時刻だけでは切らない。
+// seen が無いか main に無ければ、committer の時刻で切る。
 // commit ごとに拾わないのは、期間の中で語を直された行が2度並び、取り消された行も残るため。
-// 手元の origin/main は古いことがあり、漏らした行は次の期間にも載らないので取り直す。collect は checkout に何も書かないので、
-// 取り直す先は object を借りる一時の bare の写しにする。
-func repoDecisions(repo string, in func(time.Time) bool) ([]Decision, error) {
+// 手元の origin/main は古いことがあるので取り直す。collect は checkout に何も書かないので、取り直す先は object を借りる一時の bare の写しにする。
+func repoDecisions(repo, seen string, since, until time.Time) ([]Decision, string, error) {
 	checkout, err := spawn.RepoPath(repo)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	origin, err := git(checkout, "remote", "get-url", "origin")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	tmp, err := os.MkdirTemp("", "andon-digest-")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer os.RemoveAll(tmp) //nolint:errcheck // 一時の写しで、消しそこねても集めた中身に効かない
 	if _, err := git(checkout, "clone", "-q", "--bare", "--shared", checkout, tmp); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if _, err := git(tmp, "fetch", "-q", "--no-tags", strings.TrimSpace(string(origin)), "HEAD"); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	list, err := git(tmp, "rev-list", "--first-parent", "--timestamp", "--parents", "FETCH_HEAD")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	var base, head string
-	for line := range strings.Lines(string(list)) { // 新しい順に <main に入った時刻> <commit> [<親>…]
+	var tip, base, end string
+	found := false
+	for line := range strings.Lines(string(list)) { // 新しい順に <committer の時刻> <commit> [<親>…]
 		f := strings.Fields(line)
 		if len(f) < 2 {
-			return nil, fmt.Errorf("git rev-list の行が読めない: %q", line)
+			return nil, "", fmt.Errorf("git rev-list の行が読めない: %q", line)
+		}
+		if tip == "" {
+			tip = f[1]
+		}
+		if f[1] == seen {
+			found = true
+			break
 		}
 		sec, err := strconv.ParseInt(f[0], 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("git rev-list の時刻が読めない: %q", line)
+			return nil, "", fmt.Errorf("git rev-list の時刻が読めない: %q", line)
 		}
-		if !in(time.Unix(sec, 0)) {
+		at := time.Unix(sec, 0)
+		if at.After(until) {
 			continue
 		}
-		if head == "" {
-			head = f[1]
+		if end == "" {
+			end, base = f[1], f[1]
 		}
-		base = emptyTree
-		if len(f) > 2 {
-			base = f[2]
+		if !at.Before(since) {
+			base = emptyTree
+			if len(f) > 2 {
+				base = f[2]
+			}
 		}
 	}
-	if head == "" {
-		return nil, nil
+	if found {
+		base, end = seen, tip
 	}
-	out, err := addedDecisions(tmp, base, head)
+	if base == end { // 期間に main が動いていない
+		return nil, end, nil
+	}
+	out, err := addedDecisions(tmp, base, end)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	for i := range out {
-		out[i].Repo, out[i].Commit = repo, head
-		out[i].URL = blobURL(repo, head, out[i].Path, out[i].Line)
+		out[i].Repo, out[i].Commit = repo, end
+		out[i].URL = blobURL(repo, end, out[i].Path, out[i].Line)
 	}
-	return out, nil
+	return out, end, nil
 }
 
-// addedDecisions は docs/ の変わった文書のうち、head にあって base のどの文書にも同じ 1 文の無い決定の行。
-// 差分の + の行をそのまま拾わないのは、本文・番号・括弧の中だけを直した行と、ほかの文書へ移した行を、新しい決定として出さないため。
+// addedDecisions は docs/ の変わった文書のうち、head にあって base に無い決定の行。base の決定の行と同じとみなすのは、
+// 同じ 1 文（どの文書でも）か、残りのうち同じ文書・番号・日付の行。差分の + の行をそのまま拾わないのは、
+// 語・本文・括弧の中だけを直した行と、ほかの文書へ移した行を、新しい決定として出さないため。
 func addedDecisions(dir, base, head string) ([]Decision, error) {
 	b, err := git(dir, "diff-tree", "-r", "-z", "--no-renames", "--name-status", base, head, "--", docsDir)
 	if err != nil {
 		return nil, err
 	}
-	had := map[string]int{}
-	var now []Decision
+	var was, now []markedLine
+	read := func(commit, path string, to *[]markedLine) error {
+		doc, err := git(dir, "cat-file", "blob", commit+":"+path)
+		if err != nil {
+			return err
+		}
+		for _, d := range markedDecisions(doc) {
+			d.Path = path
+			*to = append(*to, d)
+		}
+		return nil
+	}
 	f := strings.Split(string(b), "\x00") // <A・M・D・T> <path> の繰り返し
 	for i := 0; i+1 < len(f); i += 2 {
 		status, path := f[i], f[i+1]
@@ -186,44 +257,56 @@ func addedDecisions(dir, base, head string) ([]Decision, error) {
 			continue
 		}
 		if status != "A" {
-			doc, err := git(dir, "cat-file", "blob", base+":"+path)
-			if err != nil {
+			if err := read(base, path, &was); err != nil {
 				return nil, err
-			}
-			for _, d := range markedDecisions(doc) {
-				had[d.Text]++
 			}
 		}
 		if status != "D" {
-			doc, err := git(dir, "cat-file", "blob", head+":"+path)
-			if err != nil {
+			if err := read(head, path, &now); err != nil {
 				return nil, err
-			}
-			for _, d := range markedDecisions(doc) {
-				d.Path = path
-				now = append(now, d)
 			}
 		}
 	}
+	// 同じ 1 文を先に除く（割り込んだ決定に番号を奪われた行を、直した行と読まないため）
+	now, was = unmatched(now, was, func(a, b markedLine) bool { return a.Text == b.Text })
+	now, _ = unmatched(now, was, func(a, b markedLine) bool {
+		return a.date != "" && a.date == b.date && a.number == b.number && a.Path == b.Path
+	})
 	var out []Decision
 	for _, d := range now {
-		if had[d.Text] > 0 {
-			had[d.Text]--
-			continue
-		}
-		out = append(out, d)
+		out = append(out, d.Decision)
 	}
 	return out, nil
 }
 
+// unmatched は now と was の行を same で 1 対 1 に組にし、組にならなかった行を返す。
+func unmatched(now, was []markedLine, same func(a, b markedLine) bool) (left, rest []markedLine) {
+	rest = slices.Clone(was)
+	for _, a := range now {
+		if i := slices.IndexFunc(rest, func(b markedLine) bool { return same(a, b) }); i >= 0 {
+			rest = slices.Delete(rest, i, i+1)
+		} else {
+			left = append(left, a)
+		}
+	}
+	return left, rest
+}
+
+// markedLine は文書の中の決定の行。number と date（1 文か括弧の中の最初の日付）は、語を直しただけの行を見分けるため。
+type markedLine struct {
+	Decision
+	number, date string
+}
+
 var (
 	headingRe  = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
-	numberedRe = regexp.MustCompile(`^ {0,3}[0-9]+\.[ \t]+\*\*(.*)$`)
+	numberedRe = regexp.MustCompile(`^ {0,3}([0-9]+)\.[ \t]+\*\*(.*)$`)
+	dateRe     = regexp.MustCompile(`[0-9]{4}-[0-9]{2}-[0-9]{2}`)
 )
 
 // markedDecisions は文書の「決めたこと」の節の番号つきの行のうち、印の付いたもの。コードの囲みの中は読まない。
-func markedDecisions(doc []byte) []Decision {
-	var out []Decision
+func markedDecisions(doc []byte) []markedLine {
+	var out []markedLine
 	level := 0 // いまいる決定の節の見出しの深さ（0 なら節の外）
 	fence := ""
 	for i, line := range strings.Split(string(doc), "\n") {
@@ -253,8 +336,8 @@ func markedDecisions(doc []byte) []Decision {
 			continue
 		}
 		if m := numberedRe.FindStringSubmatch(line); m != nil {
-			if text, mark, ok := splitMark(m[1]); ok {
-				out = append(out, Decision{Text: text, Mark: mark, Line: i + 1})
+			if text, mark, ok := splitMark(m[2]); ok {
+				out = append(out, markedLine{Decision{Text: text, Mark: mark, Line: i + 1}, m[1], dateRe.FindString(text + " " + mark)})
 			}
 		}
 	}
@@ -399,8 +482,9 @@ func (c *collector) triaged(rows []ledger.Row, in func(time.Time) bool) []Triage
 	return out
 }
 
-// retroed は期間に当てた振り返りの記録（retro-applied.json）。
-func (c *collector) retroed(in func(time.Time) bool) []Retroed {
+// retroed は期間に当てた振り返りの記録（retro-applied.json）。applied_at は当て始めの時刻なので、
+// 前のダイジェストが読み飛ばした記録（skipped）は、期間の前の時刻でも数える。
+func (c *collector) retroed(in func(time.Time) bool, skipped map[string]bool) []Retroed {
 	out := []Retroed{}
 	for _, id := range c.ids {
 		var rec struct {
@@ -417,9 +501,9 @@ func (c *collector) retroed(in func(time.Time) bool) []Retroed {
 		switch {
 		case err != nil:
 			c.skip(c.rel(path), "applied_at が読めない（振り返りで決めたことを数えていない）")
-		case !in(at):
+		case !in(at) && !skipped[c.rel(path)]:
 		case !rec.Complete:
-			c.skip(c.rel(path), "振り返りを当て終えていない（数えていない。当て直すと、その時刻の期間に載る）")
+			c.skip(c.rel(path), "振り返りを当て終えていない（数えていない。当て終えたあとのダイジェストに載る）")
 		default:
 			out = append(out, Retroed{Issue: id, Title: c.title(id), At: at.UTC().Format(timeLayout),
 				Fix: len(rec.Issues), Dropped: len(rec.Dropped), Path: c.rel(path)})

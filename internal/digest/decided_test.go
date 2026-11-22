@@ -219,7 +219,7 @@ func TestDecisionsNet(t *testing.T) {
 // 最初の commit（親が無い）の文書の行も拾う。
 func TestDecisionsRootCommit(t *testing.T) {
 	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n1. **最初。**（Chief Engineer が決めた）\n"})
-	got, err := repoDecisions(docRepo, func(time.Time) bool { return true })
+	got, _, err := repoDecisions(docRepo, "", time.Time{}, now.AddDate(1, 0, 0))
 	if err != nil || len(got) != 1 || got[0].Line != 2 || got[0].Commit != g.git(g.origin, "rev-parse", "HEAD") {
 		t.Errorf("%+v %v", got, err)
 	}
@@ -303,6 +303,7 @@ func TestDecidedRecords(t *testing.T) {
 	got := contract.Marshal(in.Decided)
 	want := contract.Marshal(&Decided{
 		Decisions: []Decision{},
+		Mains:     []MainRead{},
 		Triage:    []Triaged{{Issue: "S-0020", Title: "題 S-0020", At: "2026-11-21T06:00:00Z", Closed: 2, Cut: 2, Path: "kanban/library/triage/2026-11-21-S-0020.json"}},
 		Retro:     []Retroed{{Issue: "S-0030", Title: "題 S-0030", At: "2026-11-21T07:00:00Z", Fix: 2, Dropped: 1, Path: "kanban/issues/S-0030/library/retro-applied.json"}},
 		Answers: []ScopeReply{
@@ -354,5 +355,129 @@ func TestBuildDecided(t *testing.T) {
 	html = buildHTML(t, f, validText())
 	if !strings.Contains(html, "代わりに決めたことが入っていない") || strings.Contains(html, "見つからなかった。</p>") {
 		t.Error("decided の無い入力を、決めたことが無かったと描いた")
+	}
+}
+
+// 前からある決定の 1 文の語を直しても、新しい決定にしない（同じ文書・番号・日付）。番号を奪った別の決定と、日付の変わった決め直しは載せる。
+func TestDecisionsRewording(t *testing.T) {
+	const sec = "## 決めたこと\n"
+	g := newGitRepo(t, map[string]string{"docs/a.md": sec +
+		"1. **2026-11-01 一覧を新しい順にする（Chief Engineer が決めた）。**\n" +
+		"2. **形を揃える。**（2026-11-02。Chief Engineer が決めた）\n" +
+		"3. **2026-11-03 下書きを残す（Chief Engineer が決めた）。**\n" +
+		"4. **2026-11-04 検索を足す（Chief Engineer が決めた）。**\n"})
+	g.commit("2026-11-21T01:00:00Z", map[string]string{"docs/a.md": sec +
+		"1. **2026-11-01 一覧を新着順にする（Chief Engineer が決めた）。**\n" + // 語の直し
+		"2. **書式を揃える。**（2026-11-02。Chief Engineer が決めた）\n" + // 日付が括弧の中
+		"3. **2026-11-21 下書きを残さない（Chief Engineer が決めた）。**\n" + // 決め直し
+		"4. **2026-11-04 通知を足す（Chief Engineer が決めた）。**\n" + // 割り込んだ決定
+		"5. **2026-11-04 検索を足す（Chief Engineer が決めた）。**\n"})
+	f := newFake(t)
+	f.issue("S-0001", "doing", "repo: "+docRepo)
+	var got []string
+	for _, d := range collectDecisions(t, f) {
+		got = append(got, d.Text)
+	}
+	if want := "2026-11-21 下書きを残さない。|2026-11-04 通知を足す。"; strings.Join(got, "|") != want {
+		t.Errorf("決定の行 %q, want %q", strings.Join(got, "|"), want)
+	}
+}
+
+// sentBefore は at に集めて送り終えた前のダイジェスト。
+func sentBefore(f *fake, at time.Time) {
+	f.t.Helper()
+	const id = "S-0090"
+	f.issue(id, "doing", "routine: digest")
+	today := f.env.Now
+	f.env.Now = at
+	in := f.collect(id)
+	f.env.Now = today
+	f.issue(id, "done", "routine: digest")
+	f.lib(id, "digest/sent.json", `{"issue": "`+id+`", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "http://files.cell.localhost:1355/x.html"}]}`)
+}
+
+// commit の時刻が期間の前でも、前のダイジェストのあとに main に入った行は載る（fast-forward の push は commit の時刻が古いまま入る）。
+func TestDecisionsPushedLate(t *testing.T) {
+	const sec = "## 決めたこと\n"
+	for name, newer := range map[string]bool{"それだけ": false, "上に新しい commit": true} {
+		t.Run(name, func(t *testing.T) {
+			g := newGitRepo(t, map[string]string{"docs/a.md": sec})
+			f := newFake(t)
+			f.issue("S-0001", "doing", "repo: "+docRepo)
+			sentBefore(f, now.Add(-2*time.Hour))
+			g.commit("2026-11-20T09:00:00Z", map[string]string{"docs/a.md": sec + "1. **遅れて入った（Chief Engineer が決めた）。**\n"})
+			if newer {
+				g.commit("2026-11-21T09:00:00Z", map[string]string{"README.md": "x\n"})
+			}
+			if got := collectDecisions(t, f); len(got) != 1 || got[0].Text != "遅れて入った。" {
+				t.Errorf("決定の行: %+v", got)
+			}
+		})
+	}
+}
+
+// main を読めなかった回の分は、次のダイジェストが同じ所から読む。
+func TestDecisionsAfterFailedRead(t *testing.T) {
+	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n"})
+	f := newFake(t)
+	f.issue("S-0001", "doing", "repo: "+docRepo)
+	today := f.env.Now
+	f.env.Now = today.Add(-3 * time.Hour)
+	sentBefore(f, f.env.Now)
+	g.commit("2026-11-21T07:30:00Z", map[string]string{"docs/a.md": "## 決めたこと\n1. **読めなかった回の分（Chief Engineer が決めた）。**\n"})
+	away := g.origin + ".away"
+	if err := os.Rename(g.origin, away); err != nil {
+		t.Fatal(err)
+	}
+	f.env.Now = today.Add(-time.Hour)
+	f.issue("S-0091", "doing", "routine: digest")
+	in := f.collect("S-0091")
+	f.issue("S-0091", "done", "routine: digest")
+	f.lib("S-0091", "digest/sent.json", `{"issue": "S-0091", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "http://files.cell.localhost:1355/y.html"}]}`)
+	if err := os.Rename(away, g.origin); err != nil {
+		t.Fatal(err)
+	}
+	f.env.Now = today
+	if got := collectDecisions(t, f); len(got) != 1 || got[0].Text != "読めなかった回の分。" {
+		t.Errorf("決定の行: %+v", got)
+	}
+}
+
+// 集めている最中に当て終えていなかった振り返りは、終わった次のダイジェストに 1 度だけ載る（applied_at は当て始めの時刻のまま）。
+func TestRetroFinishedAfterCollect(t *testing.T) {
+	f := newFake(t)
+	f.issue("S-0030", "review")
+	rec := func(complete bool) {
+		f.lib("S-0030", "retro-applied.json", fmt.Sprintf(`{"applied_at": "2026-11-21T07:59:59Z", "complete": %t, "issues": [{}], "dropped": []}`, complete))
+	}
+	rec(false)
+	sentBefore(f, now.Add(-2*time.Hour))
+	rec(true)
+	if in := f.collect("S-0100"); len(in.Decided.Retro) != 1 || in.Decided.Retro[0].Issue != "S-0030" {
+		t.Errorf("retro=%+v skipped=%+v", in.Decided.Retro, in.Skipped)
+	}
+}
+
+// 読んだ main を使えない前の入力（前のバージョン・main に無い commit・送ったあとの集め直し・7 日で切った期間）では、時刻で切る。
+func TestDecisionsWithoutLastMain(t *testing.T) {
+	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n"})
+	g.commit("2026-11-21T09:00:00Z", map[string]string{"docs/a.md": "## 決めたこと\n1. **期間の中（Chief Engineer が決めた）。**\n"})
+	tip := g.git(g.origin, "rev-parse", "HEAD")
+	for name, c := range map[string]struct{ until, body string }{
+		"前のバージョン":         {"2026-11-21T08:00:00Z", `{"until": "2026-11-21T08:00:00Z", "skipped": []}`},
+		"main に無い commit": {"2026-11-21T08:00:00Z", `{"until": "2026-11-21T08:00:00Z", "decided": {"mains": [{"repo": "` + docRepo + `", "commit": "` + sha1 + `"}]}}`},
+		"集め直した":           {"2026-11-21T08:00:00Z", `{"until": "2026-11-21T09:30:00Z", "decided": {"mains": [{"repo": "` + docRepo + `", "commit": "` + tip + `"}]}}`},
+		"7 日で切った":         {"2026-11-12T08:00:00Z", `{"until": "2026-11-12T08:00:00Z", "decided": {"mains": [{"repo": "` + docRepo + `", "commit": "` + tip + `"}]}}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFake(t)
+			f.issue("S-0001", "doing", "repo: "+docRepo)
+			f.issue("S-0090", "done", "routine: digest")
+			f.lib("S-0090", "digest/input.json", c.body)
+			f.lib("S-0090", "digest/sent.json", `{"issue": "S-0090", "since": "2026-11-01T00:00:00Z", "until": "`+c.until+`", "destinations": [{"kind": "files", "at": "`+c.until+`", "ok": true, "url": "http://files.cell.localhost:1355/x.html"}]}`)
+			if got := collectDecisions(t, f); len(got) != 1 || got[0].Commit != tip {
+				t.Errorf("決定の行: %+v", got)
+			}
+		})
 	}
 }

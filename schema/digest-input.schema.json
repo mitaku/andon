@@ -230,7 +230,8 @@
         "decisions",
         "triage",
         "retro",
-        "answers"
+        "answers",
+        "mains"
       ],
       "additionalProperties": false,
       "properties": {
@@ -260,6 +261,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/answer"
+          }
+        },
+        "mains": {
+          "description": "How far main was read, by repository. The next digest compares from here, so a commit pushed later with an older committer time is not lost.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/main_read"
           }
         }
       }
@@ -665,6 +673,27 @@
           "description": "The record, from the project root.",
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "main_read": {
+      "description": "One repository's main as read.",
+      "type": "object",
+      "required": [
+        "repo",
+        "commit"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "description": "The repository, as issue.yaml's repo.",
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "description": "The last commit read.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
         }
       }
     },
