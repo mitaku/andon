@@ -182,10 +182,10 @@ image/apply-main.sh revert          # イメージのバージョンへ戻す
 bin/bootstrap host-install
 ```
 
-`andon-up`（PC を起動したあとに全セルを起動する）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に、Herdr App の mod とレイアウト `andon` を App の設定フォルダに（下の「Herdr App の mod とレイアウト」）置く。**今あるファイルは上書きしない**。最後に、App のレイアウトを `andon` に切り替える1手を案内する。
+`andon-up`（PC を起動したあとに全セルを起動する）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に、Herdr App の mod とレイアウト `andon` を App の設定フォルダに（下の「Herdr App の mod とレイアウト」）置く。`STREAMDECK_PLUGINS` を指定したときは、Stream Deck の plugin もそこに置く（下の「Stream Deck に行燈のキーを置く」）。**今あるファイルは上書きしない**。最後に、App のレイアウトを `andon` に切り替える1手を案内する。
 
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
-- **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。
+- **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。`STREAMDECK_PLUGINS は絶対パスで指定する` — Windows のパスは `wslpath` に通す。
 
 ### バージョンを上げるとき: host-install が置いたものを退避する
 
@@ -199,6 +199,7 @@ bin/bootstrap host-install
 | cloud-init の雛形 | セルの repo の `.andon/cloud-init.yaml` |
 | App の mod 6つ（`andon`・`inbox`・`kanban-board`・`context-header`・`files-plus`・`waiting`。ディレクトリ） | App の設定フォルダの `mods/<名前>` |
 | App のレイアウト | App の設定フォルダの `layouts/andon.json`・`andon.svg` |
+| Stream Deck の plugin（`STREAMDECK_PLUGINS` を指定したとき。ディレクトリ） | Stream Deck の plugin の置き場の `andon.lamp.sdPlugin` |
 
 ```bash
 bak=~/andon-host-backup-$(date +%Y%m%d); mkdir -p "$bak"
@@ -286,7 +287,7 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 | mod | 何をする | 中身 |
 |---|---|---|
 | `andon` | Space・tab に名前を付ける（下の段）。もう1つの copy（props `brand`）が左の列の一番上に行燈と「Andon」を描き、窓の色で灯りの状態（消灯・琥珀・赤。決めるのは `inbox`）を出す（ADR-0023・ADR-0043） | `package/host/andon/README.md` |
-| `inbox` | 止まってオーナーを待つ端末（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の上に、マージの依頼か判断のオーナー待ちがあるプロジェクトごとに件数の1行を出す（セルで `andon waiting --json --project <slug>` を呼んで読む。数える式は持たない）。灯りの状態（消灯・琥珀・赤）を決める1か所で、琥珀は止まった端末かマージの依頼・判断のオーナー待ち、赤は失敗した端末。役の返事は灯さず、Projects の行の未読の印にする。オーナー待ちを読めないプロジェクトでは、今までどおり返事を Reply として灯す。読むだけでラベルを書かない（ADR-0015・ADR-0023・ADR-0043） | `package/host/inbox/README.md` |
+| `inbox` | 止まってオーナーを待つ端末（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の上に、マージの依頼か判断のオーナー待ちがあるプロジェクトごとに件数の1行を出す（セルで `andon waiting --json --project <slug>` を呼んで読む。数える式は持たない）。灯りの状態（消灯・琥珀・赤）を決める1か所で、その値と内訳を `inbox.lamp` に置く（Stream Deck のキーもこれを読む。ADR-0045）。琥珀は止まった端末かマージの依頼・判断のオーナー待ち、赤は失敗した端末。役の返事は灯さず、Projects の行の未読の印にする。オーナー待ちを読めないプロジェクトでは、今までどおり返事を Reply として灯す。読むだけでラベルを書かない（ADR-0015・ADR-0023・ADR-0043） | `package/host/inbox/README.md` |
 | `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（Board・List・課題の連なりの Flow。`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
@@ -331,6 +332,58 @@ for m in andon inbox kanban-board context-header files-plus waiting; do herdr-ap
 mod は端末のラベルと実際の pane の所属から既存の Space・tab を名前付けする。同じ名前なら何もせず、作成・選択・フォーカス・削除は行わない。レビュアー自身の題で担当の tab を上書きしない。dispatcher（`role=dispatcher`）は tab を「dispatcher」に、kanban が2つ以上のときのセルの Space を `<セルの slug> plant` にする（ADR-0002 決めたこと 21）。題の空白・制御文字は1つの空白に揃え、前後の空白を除く。空白だけの題では命名しない。役ごとのアイコンは含まない（それは inbox が描く: CoS は `clipboard-list`、CE は `drafting-compass`。App 自身のサイドバーには効かない）。
 
 API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/defaults/AGENTS.md) と [snapshot の実装](https://github.com/herdrdev/herdr-app/blob/903dc810da0c839ba865d6b190f3aeeceb3a636b/src/window.rs)。端末の `labels`、pane の `terminal`・`tab`、Space の `id`・`machine`・`tabs` を読む。リモートの App ID にだけ machine の接頭辞が付く。
+
+### Stream Deck に行燈のキーを置く
+
+Stream Deck のキー「Lamp」に行燈の色と件数を出し、押すと待っているものを App で開く（[ADR-0045](adr/0045-stream-deck-lamp.md)）。plugin は `package/host/streamdeck/andon.lamp.sdPlugin/` で、読むものと起動するものはその README にある。要るのは、Stream Deck のアプリ 7.1 以上と、同じマシンの Herdr App（レイアウト `andon` と、plugin と同じバージョンの mod `inbox`）。
+
+plugin の置き場は `host-install` が推測しない。`STREAMDECK_PLUGINS` に絶対パスで指定する。
+
+| Stream Deck のあるマシン | plugin の置き場の既定 |
+|---|---|
+| Windows | `%APPDATA%\Elgato\StreamDeck\Plugins` |
+| macOS | `~/Library/Application Support/com.elgato.StreamDeck/Plugins` |
+
+1. Stream Deck のアプリを終える（動いている間は plugin のファイルを掴んでいる）。
+2. セルの repo で `host-install` を打つ。
+   ```bash
+   # macOS
+   STREAMDECK_PLUGINS="$HOME/Library/Application Support/com.elgato.StreamDeck/Plugins" bin/bootstrap host-install
+   # WSL＋Windows（<user> は Windows の利用者名に置き換える）
+   HERDR_APP_HOME="$(wslpath 'C:\Users\<user>\.config\herdr-app')" \
+   STREAMDECK_PLUGINS="$(wslpath 'C:\Users\<user>\AppData\Roaming\Elgato\StreamDeck\Plugins')" \
+     bin/bootstrap host-install
+   ```
+3. mod `inbox` が前のバージョンなら、上の「新しいバージョンに置き直す」の手順で置き直す。前の `inbox` のままだと、キーは「?」のままになる。
+4. Stream Deck のアプリを起動し、分類「Andon」の「Lamp」をキーに置く。
+
+- **通ったら見えるもの**: `+ <置き場>/andon.lamp.sdPlugin`。キーが App の行燈と同じ色になる。押すと App が前に出て、待っているものが開く。もう一度押すと次が開く。
+- **落ちたら見る所**:
+  - `! … はすでにある（触らない）` — 前の plugin がある。下の置き直し。
+  - `! このイメージに Stream Deck の plugin が無い` — image が古い。上げてから打ち直す。
+  - plugin の行が1行も出ない — セルの `bin/bootstrap` が古い。下の「前に作ったセル」。
+  - キーが「?」 — App が閉じている、レイアウトに `inbox` が見えていない、`inbox` が古い、App の設定フォルダが既定と違うのに Stream Deck に `HERDR_APP_HOME` が渡っていない、のどれか。
+  - 押すと警告の印 — App が動いていない、`inbox` が見えていない、`herdr-app` が見つからない（`HERDR_APP_BIN` に実行ファイルのパスを入れて Stream Deck を起動し直す）、のどれか。
+
+**置き直す**: Stream Deck を終え、前のフォルダを置き場の外へ退避してから打ち直す。置き場の中で名前を変えるだけにしない。
+
+```bash
+plugins=<plugin の置き場>      # WSL なら wslpath に通したパス
+mv "$plugins/andon.lamp.sdPlugin" ~/andon.lamp.sdPlugin.old-$(date +%Y%m%d%H%M)
+STREAMDECK_PLUGINS="$plugins" bin/bootstrap host-install      # WSL なら HERDR_APP_HOME も付ける
+```
+
+**外す**: Stream Deck を終え、置き場の `andon.lamp.sdPlugin` を消して起動し直す。mod `inbox` はそのままでよい（足した項目と command は、読む plugin が無くても害が無い）。
+
+**前に作ったセル**: `bin/bootstrap` は `andon init` のときに写したきりで、追従しない。plugin を知らない `bin/bootstrap` は `STREAMDECK_PLUGINS` を読まない。雛形はセルごとの値を持たないので、そのまま置き換える。新しい image の `andon` を使い、セルの中で打つ。
+
+```bash
+t=$(mktemp -d); andon init x --dir "$t/x" > /dev/null
+install -m 755 "$t/x/bin/bootstrap" /workspace/bin/bootstrap      # 手を入れていたら、先に diff を見る
+rm -r "$t"
+```
+
+`bin/bootstrap` の差分はセルの repo に commit する。
 
 ## 5. セルに入って、立ち上がりを確かめる
 
@@ -586,7 +639,7 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 バージョンごとの変更と「上げるときにすること」は [CHANGELOG.md](../CHANGELOG.md) に書く。**書くのはバージョンを切るときだけ**で、PR ごとには触らない（全部の PR がバージョンと CHANGELOG を触るとぶつかるので、その形は持たない。[design.md](design.md) §3.3）。
 
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前のバージョンからの範囲は `git log <前のバージョン>..origin/main`。各バージョンに「変わったこと」（オーナーの目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
-   `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト）を変えたバージョンは、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「バージョンを上げるとき」](#バージョンを上げるとき-host-install-が置いたものを退避する)）を書く。変えていないバージョンは書かない。
+   `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト・Stream Deck の plugin）を変えたバージョンは、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「バージョンを上げるとき」](#バージョンを上げるとき-host-install-が置いたものを退避する)）を書く。変えていないバージョンは書かない。
 2. **マージ**（オーナーか Chief of Staff）。
    v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 11。Andon を開発するセルの条件表で、`AGENTS.md`・`package/environment.md`・`package/writing.md`・テンプレート・モデルの規則と控えと対応表を B に下げた上書き。決め直すのはオーナー）。
 3. **annotated tag**: マージした commit に `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>"` を打って push する（打つのはオーナー。tag の push で GHCR に image が出る。[image.md](image.md) の「CI と配布」）。

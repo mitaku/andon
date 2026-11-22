@@ -11,7 +11,7 @@
 #   bin/bootstrap rebuild        イメージを作り直して入れ替える（Dockerfile の FROM を上げたあと）
 #   bin/bootstrap rebuild --from <andon の checkout>
 #                                その checkout から base image（andon:local-<短い SHA>）を焼き、FROM をそれにして入れ替える
-#   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod）を置く
+#   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod・Stream Deck の plugin）を置く
 #   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
 #
 # compose.yaml はセルの repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
@@ -247,6 +247,35 @@ is_wsl() {
   return 1
 }
 
+# install_streamdeck は、Stream Deck の plugin を STREAMDECK_PLUGINS に置く（場所は推測しない）。今あるものは触らない。
+install_streamdeck() {
+  local name=andon.lamp.sdPlugin plugins=${STREAMDECK_PLUGINS:-}
+  local from=$1/streamdeck/$name to part
+  if [ -z "$plugins" ]; then
+    echo "Stream Deck の plugin は置いていない: 使うなら plugin の置き場を STREAMDECK_PLUGINS に指定して打ち直す（docs/operate.md の host-install を参照）"
+    return 0
+  fi
+  to=${plugins%/}/$name
+  if [ -e "$to" ] || [ -L "$to" ]; then
+    echo "! $to はすでにある（触らない）"
+  elif [ ! -d "$from" ]; then
+    echo "! このイメージに Stream Deck の plugin が無い（置かない。イメージを新しくして打ち直す）"
+  elif [ "$dry" = 1 ]; then
+    echo "+ cp -R $from $to"
+  else
+    mkdir -p "$plugins"
+    # 写している途中の形を、Stream Deck が読む名前で残さない
+    part=$(mktemp -d "${plugins%/}/.andon-lamp.XXXXXX")
+    # 移す先は親のフォルダで言う（$to を名指すと、その間に出来ていたフォルダの中へ入ってしまう）
+    if ! { cp -R "$from" "$part/" && mv "$part/$name" "${plugins%/}/"; }; then
+      rm -rf "$part"
+      die "$to に置けなかった"
+    fi
+    rm -rf "$part"
+    echo "+ $to"
+  fi
+}
+
 # host_install は、イメージの /opt/andon/host/ からホストの置き場へ写す。今あるファイルは上書きしない。
 host_install() {
   local app_home
@@ -257,6 +286,10 @@ host_install() {
   else
     app_home=${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app
   fi
+  case "${STREAMDECK_PLUGINS:-}" in
+    '' | /*) ;;
+    *) die "STREAMDECK_PLUGINS は絶対パスで指定する（Windows のパスは wslpath で変換する。docs/operate.md の host-install を参照）" ;;
+  esac
   local bin=${ANDON_HOST_BIN:-$HOME/.local/bin}
   local src
   tmp=$(mktemp -d)
@@ -298,6 +331,7 @@ host_install() {
   done
   place "$src/layouts/andon.json" "$app_home/layouts/andon.json" 644
   place "$src/layouts/andon.svg" "$app_home/layouts/andon.svg" 644
+  install_streamdeck "$src"
   echo "App のレイアウトを andon に切り替える: App のあるマシンで herdr-app do layout.switch --name andon（keys.json・settings.json はオーナーのもの。各 mod の README の断片を足す）"
   echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM にセルを立てるとき、<…> を埋めて渡す）"
   if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then

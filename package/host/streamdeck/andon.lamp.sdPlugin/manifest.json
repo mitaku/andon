@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "andon.lamp",
+  "Name": "Andon",
+  "Version": "0.1.0.0",
+  "Author": "Andon",
+  "Description": "Andon's lantern on a key: lit while you are called, with what waits. Press it to open that in Herdr App.",
+  "Category": "Andon",
+  "CategoryIcon": "imgs/category",
+  "Icon": "imgs/plugin",
+  "CodePath": "plugin.js",
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "7.1" },
+  "Nodejs": { "Version": "26" },
+  "OS": [
+    { "Platform": "windows", "MinimumVersion": "10" },
+    { "Platform": "mac", "MinimumVersion": "13" }
+  ],
+  "Actions": [
+    {
+      "UUID": "andon.lamp.light",
+      "Name": "Lamp",
+      "Tooltip": "Andon's lantern and what waits on you. Press to open what waits.",
+      "Icon": "imgs/action",
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false,
+      "States": [{ "Image": "imgs/key" }]
+    }
+  ]
+}

@@ -17,7 +17,7 @@
 | 7 | オーナー待ちは、Needs you の上の 1 行にプロジェクトごとの件数で出し、1 件ずつは並べない | `package/host/inbox/main.js` | 生きている |
 | 8 | mod `inbox` が `andon waiting --json --project <slug>` をセルで呼び、数える式を持たない | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
 | 9 | オーナー待ちを読めないプロジェクトでは、今までどおり Reply で灯す | `package/host/inbox/main.js` | 生きている |
-| 10 | 状態を決める場所は mod `inbox` の 1 か所にし、ほかの画面は共有の値を読む | `package/host/inbox/main.js`・`package/skills/glossary/SKILL.md` | 生きている |
+| 10 | 状態を決める場所は mod `inbox` の 1 か所にし、ほかの画面は共有の値を読む | `package/host/inbox/main.js`・`package/host/inbox/README.md`・`package/host/streamdeck/andon.lamp.sdPlugin/lamp.js`・`package/skills/glossary/SKILL.md` | 生きている。`inbox.lamp` に `version` と `at` を足した（ADR-0045 決めたこと 5） |
 | 11 | Chief Engineer は、本文の問いで答えを待ってターンを終える前に、その問いを kanban に置く | `package/skills/chief-engineer/SKILL.md`・`docs/design.md` §1.8 | 生きている |
 | 12 | 灯りを後回しにする口は作らない | この ADR | 生きている |
 | 13 | mod `inbox` が `andon waiting` に渡すプロジェクトの名前の形は、kanban のプロジェクトの名前の形に揃える | `package/host/inbox/main.js` | 生きている |
