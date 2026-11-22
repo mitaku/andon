@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足し、同じ日に [ADR-0049](adr/0049-owner-touches-by-kind.md) の介在回数の数え方で流れの数え〈§13〉をバージョン 2 にした）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -548,7 +548,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 `andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` が、1つの kanban の期間の流れ・効率・対抗の指標を数えて出す（[決定](decisions/2026-11-09-measure-flow-metrics.md)）。**読むだけで、何も書かない・保存しない**。この節はその `--json` の形で、置き場は無い（標準出力だけ）。人向けの表（`--json` 無し）は先頭が「価値: 仮説を確かめた数 …」の1行で、価値 → 流れ → 効率の順に並び（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 18。[決定](decisions/2026-11-10-measure-value-line.md)）、自動マージ率の行に対抗の指標を並べる。表は人が読むもので、機械は読まない。
 
-読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`・`parent`・`session`・`worktree`・`who`・`estimate`）・`config.yaml`（`chief_of_staff`。`estimate` の履歴の照合）・`questions.yaml`（`asked`・`answered`）・`report.json`（`pr`・`observation.result`・`estimate.size`）・gate の記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、kanban の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）と、dispatcher の控え（`<slug>.json` の `gone`。端末が Gone だと見た時刻）・記録だけの通知（§6 の `<slug>.recorded.jsonl`。`at`・`kind`）・届けた通知の記録（§17 の `<slug>.delivered.jsonl`。`at`・`acked`・`news[].kind`）と、担当とレビュアーのセッションの記録（Claude Code の `<CLAUDE_CONFIG_DIR か ~/.claude>/projects/*/<session>.jsonl` とその `<session>/subagents/*.jsonl` の `requestId`・`message.usage`、Codex の `<CODEX_HOME か ~/.codex>/sessions/**/rollout-*.jsonl` の先頭行の `cwd` と `token_count` の `total_token_usage`。読むだけで書き換えない）。期間は UTC の日付で両端を含む（既定は今日までの7日）。人向けの表は効率のあとに見込みの節（収まった割合の1行と課題ごとの1行。見込みが無ければ「見込み無し」。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 9）、その後にトークンの節（課題ごとの1行。記録が無ければ「記録なし」）を置く（[決定](decisions/2026-11-12-measure-tokens.md)）。最後の節は通知で、kind ごとの数の行のあと、末尾に「記録だけへ移す候補」の1行を出す（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
+読むもの: `log.jsonl`（`at`・`by`・`id`・`change.status`。問いの行の `status` は問いの状態なので課題の状態に数えない）・`issue.yaml`（`created`・`after`・`links`・`profile`・`parent`・`session`・`worktree`・`who`・`estimate`）・`config.yaml`（`chief_of_staff`。`estimate` の履歴の照合）・`questions.yaml`（`asked`・`answered`・`decidedBy`）・`report.json`（`pr`・`observation.result`・`estimate.size`）・gate の記録（`at`・`pr`・`tier`・`decision`・`merged`）・`corrections.json`（要素の数）と、kanban の PR がある repo ごとに1回の `gh pr list --state merged`（`number`・`url`・`title`・`body`・`mergedAt`）と、dispatcher の控え（`<slug>.json` の `gone`。端末が Gone だと見た時刻）・記録だけの通知（§6 の `<slug>.recorded.jsonl`。`at`・`kind`）・届けた通知の記録（§17 の `<slug>.delivered.jsonl`。`at`・`acked`・`news[].kind`）と、担当とレビュアーのセッションの記録（Claude Code の `<CLAUDE_CONFIG_DIR か ~/.claude>/projects/*/<session>.jsonl` とその `<session>/subagents/*.jsonl` の `requestId`・`message.usage`、Codex の `<CODEX_HOME か ~/.codex>/sessions/**/rollout-*.jsonl` の先頭行の `cwd` と `token_count` の `total_token_usage`。読むだけで書き換えない）。期間は UTC の日付で両端を含む（既定は今日までの7日）。人向けの表は効率のあとに見込みの節（収まった割合の1行と課題ごとの1行。見込みが無ければ「見込み無し」。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 9）、その後にトークンの節（課題ごとの1行。記録が無ければ「記録なし」）を置く（[決定](decisions/2026-11-12-measure-tokens.md)）。最後の節は通知で、kind ごとの数の行のあと、末尾に「記録だけへ移す候補」の1行を出す（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
 
 ```json
 {"project": "sample-site", "since": "2026-11-01", "until": "2026-11-04", "days": 4,
@@ -559,7 +559,8 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
             "doing": {"count": 3, "hours": 19}, "review": {"count": 2, "hours": 10.5}},
    "question_open": {"count": 1, "hours": 2},
    "closed": {"count": 2, "per_day": 0.5}, "wip_end": 1},
- "efficiency": {"merged_prs": 2, "human_touches": {"total": 3, "per_pr": 1.5},
+ "efficiency": {"merged_prs": 2, "human_touches": {"total": 3, "per_pr": 1.5, "merge": 1, "decision": 1, "task": 1},
+   "answers": {"owner": 1, "chief_of_staff": 1, "machine": 1, "unmarked": 0},
    "auto_merge": {"count": 1, "rate": 0.5},
    "gate": {"records": 3, "fix": 1, "needs_human": 1, "rate": 0.67}},
  "counter": {"reverted": 1, "follow_ups": 1,
@@ -574,7 +575,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
    {"issue": "S-0001", "pr": "https://github.com/example/sample-site/pull/1", "merged_at": "2026-11-01T06:00:00Z",
     "tier": "A", "auto": true, "human_touches": 1, "lead_time_hours": 6, "reverted": true, "corrections": false},
    {"issue": "S-0002", "pr": "https://github.com/example/sample-site/pull/2", "merged_at": "2026-11-02T12:00:00Z",
-    "tier": "B", "auto": false, "human_touches": 2, "lead_time_hours": 12, "reverted": false, "corrections": true}],
+    "tier": "B", "auto": false, "human_touches": 1, "lead_time_hours": 12, "reverted": false, "corrections": true}],
  "estimate": {"count": 1, "within": 1, "rate": 1, "none": 1},
  "issues": [
    {"issue": "S-0001", "estimate_minutes": 60, "agent_estimate_minutes": 120, "worked_minutes": 57, "ratio": 0.95},
@@ -597,7 +598,12 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `flow.closed` | 期間に最後の列へ動いた課題の数と、日数で割った値 |
 | `flow.wip_end` | 期間の終わりに、最初の列・`queued`・最後の列のどれでもない課題の数 |
 | `efficiency.merged_prs` | `report.json` の `pr`（無ければ最後の gate の記録の `pr`）が、期間に GitHub でマージされた課題の数 |
-| `efficiency.human_touches` | その課題の `log.jsonl` の行のうち `by` が `terminal:`・`routine:` でないもの（一次の指標）。`per_pr` はマージした PR あたり |
+| `efficiency.human_touches` | 期間に起きたオーナーの操作の数（一次の指標。[ADR-0049](adr/0049-owner-touches-by-kind.md)）。`total` は下の3つの和。`per_pr` は `total` ÷ `merged_prs`（`merged_prs` が 0 なら `null`。`total` は 0 でないことがある）。`log.jsonl` の `by` では数えない。PR の上のコメントと commit（`corrections.json`）も数えない |
+| `efficiency.human_touches.merge` | `merged_prs` のうち gate の記録に `merged: true` が無いもの（`merged_prs` − `auto_merge.count`）。GitHub のマージした者は読まない。gate の記録を読めない PR もここに入る（読めなかった記録は `skipped[]` に出る） |
+| `efficiency.human_touches.decision` | `efficiency.answers.owner` と同じ数 |
+| `efficiency.human_touches.task` | 期間にほかの列から最後の列へ動いたオーナーの課題（`who: person`）のうち、問いを1つも持たないもの（課題ごとに1回。片付いた課題への `kanban done` の打ち直しは動いたうちに入らない）。問いを持つ課題は答えで数える。`questions.yaml` を読めない課題は数えない |
+| `efficiency.answers` | `answered` が期間の中の答え（課題と問いの種類は問わない）を、問いの `decidedBy` ごとに: `owner`・`chief_of_staff`（値は `chief-of-staff`）・`machine`。`decidedBy` が無いか3つの値のどれでもない答えは `unmarked` で、介在回数に入れない |
+| `prs[].human_touches` | オーナーのマージ（`auto` が偽なら 1）と、その課題の問いの `decidedBy: owner` の答え（答えた時期を問わない）の和。期間への入れ方が違うので、行の和と `efficiency.human_touches.total` は一致しないことがある |
 | `efficiency.auto_merge` | そのうち gate の記録が `merged: true`（dispatcher がマージ）のもの |
 | `efficiency.gate` | 期間に書かれた gate の記録と、差し戻し率（`fix` ＋ `needs_human`）÷ 記録（[design.md](design.md) §5.1） |
 | `counter.reverted` | 期間にマージされた PR のうち題が `Revert ` で始まり、本文が `<owner>/<repo>#<n>` か URL で kanban のマージされた PR を指すもの、が指す PR の数 |
@@ -609,7 +615,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `issues[]` | 期間に最後の列へ最後に動いた担当の課題（レビュアー・Chief Engineer〈`profile: chief-engineer`〉・オーナー〈`who: person`〉の課題を除く。調べる課題を含む。id の順）ごとに1行（ADR-0014 決めたこと 9・11 の 6）。`estimate_minutes` は予約キー `estimate` の分（§2 の段→分。最後に書いたのが Chief of Staff のときだけ）、`agent_estimate_minutes` は `report.json` の `estimate.size` の分、`worked_minutes` は実働（その課題が期間の中で最後の列へ動いた時刻までの行で数える。あとで起動し直した作業は入れない。待ちを除いた分。dispatcher の `estimate` と同じ数え方〈`internal/ledger` の `Worked`〉で、`doing` の区間の総和から自分の問いが `open` の区間・レビュアーの子課題の `add` から `review` まで・端末が死んでいた区間〈dispatcher の控えの `gone` から次の `agent` の行まで〉を引く。控えが無ければ死んでいた区間は引かない）、`ratio` は実働 ÷ 見込み。見込みが無ければ分と比は `null`（0 と分ける） |
 | `estimate` | `issues[]` のうち見込みのある課題の数 `count`・そのうち実働が見込みの中に収まった（`ratio` が 1 以下）数 `within`・`rate`（`within` ÷ `count`。`count` が 0 なら `null`）・見込みの無い課題の数 `none` |
 | `tokens[]` | 期間に `log.jsonl` の行がある課題（レビュアーの課題も。id の順）ごとに、課題の記録の全体（期間で切らない）のトークン数。`source` は `profile` のブランド。`claude` は `issue.yaml` の `session` の記録とそのサブエージェントの記録の assistant の行の `usage` を、`requestId`（無ければ `message.id`）ごとに1回だけ足す（content block ごとに同じ `usage` の行が並ぶ）。`codex` は先頭行の `cwd` が課題の kanban の `issues/<id>/` か `worktree` の rollout 全部の、それぞれ最後の `total_token_usage` を足す。`input` はキャッシュを読み書きしなかった入力（Codex は `input_tokens` から `cached_input_tokens` と `cache_write_input_tokens` を引く）・`output`（Codex は推論の出力を含む）・`cache_read`・`cache_write`。記録が1つも無ければ `usage` は `null`（0 と分ける）。ドルには直さない |
-| `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、dispatcher の通知の記録の、JSON でない・`at` が UTC の時刻でない・`kind`〈記録だけ〉か `acked`〈届けた〉が無い行と `kind` の無い通知、在るが読めないファイルとディレクトリ（課題・gate の記録の置き場を含む）、`answered` が UTC の時刻でない問い、`observation.result` が hit・miss・unknown のどれでもない報告、PR の一覧を読めない repo、セッションの記録の JSON でない行と読めないファイル〈`claude/<session>.jsonl`・`codex/<rollout の名前>` の形で、記録の置き場の絶対パスは書かない〉）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
+| `skipped[]` | 読めなかった記録（JSON でない・`at` か `by` が無い `log.jsonl` の行、dispatcher の通知の記録の、JSON でない・`at` が UTC の時刻でない・`kind`〈記録だけ〉か `acked`〈届けた〉が無い行と `kind` の無い通知、在るが読めないファイルとディレクトリ（課題・gate の記録の置き場を含む）、`answered` が UTC の時刻でない問いと、`status` が `answered`・`received` なのに `answered` が無い問い、`observation.result` が hit・miss・unknown のどれでもない報告、PR の一覧を読めない repo、セッションの記録の JSON でない行と読めないファイル〈`claude/<session>.jsonl`・`codex/<rollout の名前>` の形で、記録の置き場の絶対パスは書かない〉）。止まらずに飛ばし、0 には数えない。理由に絶対パスは書かない |
 
 - 書き手は `andon measure` だけ（出力するだけ）。読み手はオーナーと振り返り（委譲を広げる根拠）。gate も dispatcher も判定に使わない。
 - 数えるものが無ければ件数は 0、率・平均・中央値は `null`（表は「記録なし」）で、終了コード 0。kanban の `config.yaml` が読めない・バージョンが 3 でないときだけ終了コード 1。
