@@ -1097,7 +1097,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 読むもの: kanban の `config.yaml`（`columns`・`timezone`）・`issues/<id>/issue.yaml`・`log.jsonl`（期間に `done` へ動いた行）・`routines/*.yaml`（`schedule` と `paused`）、課題の `library/` の `report.json`（`pr`・`review_request.extra`）・`outcome.json`（§19）・gate の記録（`library/gate/<head>.json` の `decision`・`delegation.grant`）・`digest/sent.json`、dispatcher の `<slug>.delivered.jsonl`（§17）と `<slug>.signals.json`（§15）、`andon waiting` と同じ数え方（§25）、`andon measure` と同じ数え方（§13。直近 7 日とその前の 7 日）、GitHub のマージされた PR の一覧（`gh pr list`。repo ごとに1回）。
 
 ```json
-{"version": 1, "project": "sample-site", "issue": "S-0100", "title": "日次のダイジェスト",
+{"version": 1, "project": "sample-site", "issue": "S-0100", "title": "デイリーダイジェスト",
  "at": "2026-11-21T10:00:00Z", "since": "2026-11-20T10:00:00Z", "until": "2026-11-21T10:00:00Z",
  "previous": {"issue": "S-0090", "until": "2026-11-20T10:00:00Z", "sent_at": "2026-11-20T10:05:00Z"}, "truncated": false,
  "issues": [
@@ -1114,7 +1114,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
   "current": {"since": "2026-11-15", "until": "2026-11-21", "merged": 9, "auto": 5, "closed": 12, "lead_time_hours": 3.5, "question_open_hours": 1.2, "tokens": 1200000},
   "previous": {"since": "2026-11-08", "until": "2026-11-14", "merged": 7, "auto": 3, "closed": 10, "lead_time_hours": null, "question_open_hours": null, "tokens": null}},
  "next": {"ready": 3, "observations": [{"id": "S-0040", "title": "観察: 下書きボタン", "not_before": "2026-11-25"}],
-  "routines": [{"name": "digest", "title": "日次のダイジェスト", "next": "2026-11-22T10:00:00Z"}]},
+  "routines": [{"name": "daily-digest", "title": "デイリーダイジェスト", "next": "2026-11-22T10:00:00Z"}]},
  "redacted": 0, "skipped": []}
 ```
 

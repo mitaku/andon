@@ -11,7 +11,7 @@ done
 
 # 起動に触れる手引きが同じ枠（slots.free）を指す
 miss=
-for f in triage retro verify watch; do grep -qF '`andon waiting` の `slots.free`' "$pb/$f.md" || miss="$miss [$f.md]"; done
+for f in triage retro digest verify watch; do grep -qF '`andon waiting` の `slots.free`' "$pb/$f.md" || miss="$miss [$f.md]"; done
 grep -qF '`start.md` の 1 で枠を数え直し' "$pb/gate.md" || miss="$miss [gate.md の数え直し]"
 grep -qF '`start.md` の 1 で枠を数え直し' "$pb/finish.md" || miss="$miss [finish.md の数え直し]"
 [ -z "$miss" ] && pass "ADR-0042 A8: 起動に触れる手引きが andon waiting の枠を指し、gate.md と finish.md が枠を数え直す" || fail "ADR-0042 A8: 枠を指していない手引き:$miss"

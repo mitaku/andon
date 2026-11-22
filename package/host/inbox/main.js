@@ -30,9 +30,13 @@ const GLOW = {
 const glowOf = (i) => (i.kind === "Failed" ? "red" : "amber");
 // What the lantern at the top of the column shows: red, amber, or null (unlit). Every copy sees it.
 const LANTERN = "inbox.lantern";
-// The same decision with what it counted (ADR-0043 decision 10): {light, failed, blocked, merge,
-// decision, reply, unread, unreadable}. A value between mods, not one of Andon's contracts.
+// The same decision with what it counted (ADR-0043 decision 10): {version, at, light, failed, blocked,
+// merge, decision, reply, unread, unreadable} (README "Lights"). The Stream Deck plugin reads it from
+// the App's shared.json (../streamdeck/, ADR-0045): not one of Andon's contracts, but change both together.
 const LAMP = "inbox.lamp";
+const LAMP_VERSION = 1;
+// The same value is put again, `at` renewed, this often: how a reader outside the App tells it's still kept.
+const LAMP_EVERY = 30000;
 // Owner waits per machine and project (ADR-0043 decisions 8 and 9), shared so every copy judges
 // alike and only one calls: "<machine>/<project>" -> {at, fails, why, ok: {at, items: [{kind, since}]}}.
 const WAITING = "inbox.waiting";
@@ -67,6 +71,15 @@ export function parseWaiting(r, project) {
   if (!Array.isArray(out.items)) return [null, "andon waiting printed no items"];
   return [out.items.map((x) => ({ kind: String(x?.kind ?? ""), since: String(x?.since ?? "") })), null];
 }
+
+// Whether what is put says the same, whenever it was put. Field by field: the App keeps its own order.
+function sameLamp(was, lamp) {
+  if (!was || typeof was !== "object") return false;
+  const names = Object.keys(lamp);
+  return Object.keys(was).length === names.length && names.every((k) => k === "at" || was[k] === lamp[k]);
+}
+// Put this recently, and not ahead of the clock (which may have gone back).
+const recent = (was, now) => typeof was?.at === "number" && was.at <= now && now - was.at < LAMP_EVERY;
 
 const machineOf = (addr) => (addr.includes("/") ? addr.split("/")[0] : null);
 const LOCAL = "local";
@@ -142,6 +155,8 @@ export default class Inbox extends View {
     // Machine and project pairs this copy is reading now, with when the call went out.
     this.reading = new Map();
     this.sel = null;
+    // What inbox.call opened last, in this copy.
+    this.called = null;
     this.filter = "";
     this.typing = false;
     this.gAt = 0;
@@ -318,6 +333,8 @@ export default class Inbox extends View {
     const failed = needing.filter((i) => glowOf(i) === "red").length;
     const replies = needing.filter((i) => i.reply).length;
     const lamp = {
+      version: LAMP_VERSION,
+      at: now,
       light: null,
       failed,
       blocked: needing.length - failed - replies,
@@ -329,7 +346,8 @@ export default class Inbox extends View {
     };
     lamp.light = lamp.failed ? "red" : lamp.blocked + lamp.merge + lamp.decision + lamp.reply ? "amber" : null;
     if ((shared(LANTERN) ?? null) !== lamp.light) setShared(LANTERN, lamp.light);
-    if (JSON.stringify(shared(LAMP) ?? null) !== JSON.stringify(lamp)) setShared(LAMP, lamp);
+    const put = /** @type {any} */ (shared(LAMP));
+    if (!sameLamp(put, lamp) || !recent(put, now)) setShared(LAMP, lamp);
     const picked = this.picked?.filter((n) => hosts.some((x) => x.name === n)) ?? null;
     const here = (i) => !picked || picked.includes(i.machine);
     const pick = (id) => items.filter((i) => i.section === id && match(i) && here(i));
@@ -357,6 +375,12 @@ export default class Inbox extends View {
     // decision 5). What j/k walk: both sections.
     m.queue = [...m.needs, ...m.projects.filter((i) => i.unread).sort(oldest)];
     m.rows = [...m.needs, ...m.projects];
+    // What inbox.call walks (ADR-0045 decision 9): what lights the lantern, so neither the pick nor
+    // the filter narrows it. Needs you, oldest first, then the count lines, oldest first.
+    m.calls = [
+      ...[...needing].sort(oldest).map((row) => ({ key: `row:${row.address}`, row })),
+      ...[...owed].sort(oldest).map((line) => ({ key: `owed:${line.key}`, line })),
+    ];
     return m;
   }
 
@@ -412,6 +436,8 @@ export default class Inbox extends View {
       }
       this.reading.delete(p.key);
       put((was) => (items ? { fails: 0, why: null, ok: { at: Date.now(), items } } : { fails: (was.fails ?? 0) + 1, why }));
+      // The lantern and inbox.lamp now, not at the next paint: a window out of sight may not paint.
+      this.model();
       cx.notify();
     });
   }
@@ -423,9 +449,21 @@ export default class Inbox extends View {
     if (i) this.open(i);
   }
 
+  // The one after what this opened last, else the first: a key outside the App can't see what is in view.
+  call(m) {
+    if (!m.calls.length) return;
+    const one = m.calls[(m.calls.findIndex((x) => x.key === this.called) + 1) % m.calls.length];
+    this.called = one.key;
+    if (one.row) {
+      this.sel = one.row.address;
+      this.open(one.row);
+    } else this.openOwed(one.line);
+  }
+
   command(c, cx) {
     const m = this.model();
     if (c === "next") this.next(m);
+    else if (c === "call") this.call(m);
     else if (c === "focus") {
       this.sel ??= m.rows[0]?.address ?? null;
       this.handle.focus();

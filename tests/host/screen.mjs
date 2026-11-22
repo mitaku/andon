@@ -8,6 +8,8 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import vm from 'node:vm';
 
+import { deck, textsOf, svgOf } from './streamdeck-fake.mjs';
+
 const HOST = 'package/host';
 const MODS = ['andon', 'inbox', 'kanban-board', 'context-header', 'files-plus', 'waiting'];
 let failed = 0;
@@ -1068,7 +1070,7 @@ async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => 
   const ns = await load(`${HOST}/inbox`, {
     agents: () => state.agents ?? [], terminals: () => state.terms ?? [], spaces: () => [], panes: () => [], machines: () => state.machines ?? [],
     focused: () => state.focused ?? null, theme: () => THEME, setAgentOrder: () => {}, nextCommand: () => new Promise(() => {}),
-    shared: (k) => store[k] ?? null, setShared: (k, val) => { store[k] = JSON.parse(JSON.stringify(val)); },
+    shared: (k) => store[k] ?? null, setShared: (k, val) => { store[k] = JSON.parse(JSON.stringify(val)); calls.puts = [...(calls.puts ?? []), [k, store[k]]]; },
     run: (cmd, a) => calls.run.push([cmd, JSON.parse(JSON.stringify(a))]),
     exec: async (cmd, a, opts = {}) => { calls.exec.push([cmd, [...a], { on: opts.on ?? null }]); calls.timeouts = [...(calls.timeouts ?? []), opts.timeout]; return reply(a, opts); },
     layout: () => layoutTree,
@@ -1092,7 +1094,13 @@ async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => 
 const cos = (address, project, status = 'idle', extra = {}) => sampleTerm(address, status, { project, role: 'chief-of-staff' }, extra);
 const ce = (address, project, status = 'idle', extra = {}) => sampleTerm(address, status, { project, role: 'chief-engineer', issue: 'S-0009', title: 'Design' }, extra);
 const plain = (x) => JSON.parse(JSON.stringify(x));
-const lampOf = (store) => plain(store['inbox.lamp']);
+// What the lantern counted, without what only dates the value (checked here).
+const lampOf = (store) => {
+  const { version, at, ...counted } = plain(store['inbox.lamp']);
+  assert.equal(version, 1, 'inbox.lamp に version の 1 が無い');
+  assert.equal(typeof at, 'number', 'inbox.lamp に数の at が無い');
+  return counted;
+};
 const lit = (store) => store['inbox.lantern'] ?? null;
 const LAMP0 = { light: null, failed: 0, blocked: 0, merge: 0, decision: 0, reply: 0, unread: 0, unreadable: 0 };
 
@@ -1371,6 +1379,175 @@ await check('inbox: 「次へ」は Needs you の行を古い順に回り、無�
   state.focused = { terminal: 'cell/t3' };
   c.v.next(c.v.model());
   assert.deepEqual(c.calls.run.at(-1), ['terminal.peek', { terminal: 'cell/t2' }], 'Needs you が無くなったあと未読の役へ行かない');
+});
+
+const lampPuts = (c) => (c.calls.puts ?? []).filter(([k]) => k === 'inbox.lamp').map(([, v]) => v);
+const oneCell = (extra = {}) => ({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': [] }, ...extra });
+
+await check('inbox.lamp: version と at、置き直しの決まり（ADR-0045 受け入れ条件 10 の 7 つの場合）', async () => {
+  const state = oneCell();
+  const c = await inboxCell(state);
+  await c.look();
+  assert.deepEqual([lampPuts(c).length, lampPuts(c)[0].version, lampPuts(c)[0].at], [1, 1, T0], 'version と at');
+  // A change is put at once.
+  c.clock.t += 1000;
+  state.terms.push(sampleTerm('cell/t2', 'blocked', { project: 'sample-site', issue: 'S-0002' }));
+  c.v.model();
+  assert.deepEqual([lampPuts(c).length, lampPuts(c)[1].blocked, lampPuts(c)[1].at], [2, 1, T0 + 1000], 'すぐ置き直さない');
+  // No change: not before 30 seconds, then only `at` moves.
+  c.clock.t += 29999;
+  c.v.model();
+  assert.equal(lampPuts(c).length, 2, '30 秒たつ前に置いた');
+  c.clock.t += 1;
+  c.v.model();
+  assert.equal(lampPuts(c).length, 3, '30 秒で置き直さない');
+  assert.deepEqual(lampPuts(c)[2], { ...lampPuts(c)[1], at: T0 + 31000 }, 'at のほかが変わった');
+  // Ahead of now (the clock went back), or no number: put again.
+  for (const at of [c.clock.t + 1, undefined, String(c.clock.t)]) {
+    c.store['inbox.lamp'] = { ...c.store['inbox.lamp'], at };
+    const n = lampPuts(c).length;
+    c.v.model();
+    assert.deepEqual([lampPuts(c).length, c.store['inbox.lamp'].at], [n + 1, c.clock.t], `at ${at} を置き直さない`);
+  }
+  // The same fields in another order are the same value.
+  c.store['inbox.lamp'] = Object.fromEntries(Object.entries(c.store['inbox.lamp']).reverse());
+  let n = lampPuts(c).length;
+  c.v.model();
+  assert.equal(lampPuts(c).length, n, '項目の順だけの違いで置いた');
+  // Another version's value, a field more or one less: not the same.
+  for (const spoil of [(v) => { v.version = 2; }, (v) => { v.extra = 1; }, (v) => { delete v.unread; }]) {
+    spoil(c.store['inbox.lamp']);
+    n = lampPuts(c).length;
+    c.v.model();
+    assert.equal(lampPuts(c).length, n + 1, '形の違う値を置き直さない');
+  }
+  assert.equal(lit(c.store), 'amber', 'inbox.lantern の値が変わった');
+  // What an older inbox put (no version, no at), and no object at all.
+  for (const was of [{ ...LAMP0 }, null, 'amber']) {
+    const old = await inboxCell(oneCell(), { store: { 'inbox.lamp': was } });
+    old.v.model();
+    assert.deepEqual(lampOf(old.store), LAMP0, `${JSON.stringify(was)} を置き直さない`);
+  }
+});
+
+await check('inbox.lamp: andon waiting の結果で、描画もタイマーも待たずに merge が変わる（ADR-0045 受け入れ条件 10）', async () => {
+  const state = oneCell();
+  let answer;
+  const c = await inboxCell(state, { reply: () => new Promise((resolve) => { answer = resolve; }) });
+  c.draw();
+  assert.equal(lampOf(c.store).merge, 0);
+  answer(waitOut('sample-site', [wait('merge', 'S-0001', '2026-11-21T09:00:00Z')]));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual([lampOf(c.store).merge, lit(c.store)], [1, 'amber'], '結果のあと置かれていない');
+});
+
+await check('inbox.lamp: 写しが 2 つでも 30 秒に置くのは 1 回（ADR-0045 受け入れ条件 10）', async () => {
+  const state = oneCell(), store = {}, clock = { t: T0 }, calls = { exec: [], run: [] };
+  const a = await inboxCell(state, { store, clock, calls });
+  const b = await inboxCell(state, { store, clock, calls });
+  await a.look(); await b.look();
+  for (let i = 1; i <= 4; i++) {
+    clock.t = T0 + i * 30000;
+    const n = lampPuts(a).length;
+    await a.tick();
+    clock.t += 200;
+    await b.tick();
+    assert.equal(lampPuts(a).length, n + 1, `${i} 回目: 2 つの写しが置いた`);
+  }
+});
+
+await check('inbox → plugin: 本物の mod が置いた値を、本物の plugin が同じ色と合計で描く（ADR-0045 受け入れ条件 11）', async () => {
+  const state = oneCell();
+  state.terms.push(sampleTerm('cell/t2', 'error', { project: 'sample-site', issue: 'S-0002' }), sampleTerm('cell/t3', 'blocked', { project: 'sample-site', issue: 'S-0003' }));
+  state.items['sample-site'] = [wait('merge', 'S-0004', '2026-11-21T09:00:00Z'), wait('merge', 'S-0005', '2026-11-21T09:30:00Z'), wait('decision', 'S-0006', '2026-11-21T10:00:00Z')];
+  const c = await inboxCell(state);
+  await c.look();
+  const d = await deck({ at: c.clock.t });
+  try {
+    d.put(c.store);
+    d.event('willAppear');
+    const image = d.images()[0];
+    assert.ok(svgOf(image).includes('#D8453B'), '赤でない');
+    assert.deepEqual(textsOf(image), ['5', '1 failed', '1 blocked']);
+    // The red is answered; a minute later only the ledger waits.
+    state.terms.splice(1, 2);
+    c.clock.t += 60000; d.clock = c.clock.t;
+    await c.tick();
+    d.put(c.store);
+    d.tick(0);
+    assert.ok(svgOf(d.images().at(-1)).includes('#F0A202'), '琥珀でない');
+    assert.deepEqual(textsOf(d.images().at(-1)), ['3', '1 decide', '2 merge']);
+  } finally { await d.done(); }
+});
+
+await check('inbox.call: Needs you の古い順 → 件数の行 → 先頭（ADR-0045 受け入れ条件 12 の 5 つの場合）', async () => {
+  const PANE = [['layout.show', { id: 'panel' }], ['layout.select', { stack: 'panel-body', child: 'waiting' }]];
+  const peek = (t) => [['terminal.peek', { terminal: `cell/${t}` }]];
+  const calling = async (options = {}, items = { 'sample-site': [wait('merge', 'S-0009', '2026-11-21T01:00:00Z')] }) => {
+    const state = oneCell({ items });
+    state.terms.push(sampleTerm('cell/t2', 'idle', { project: 'sample-site', issue: 'S-0002' }), sampleTerm('cell/t3', 'idle', { project: 'sample-site', issue: 'S-0003' }));
+    const c = await inboxCell(state, options);
+    await c.look();
+    c.clock.t += 1000; state.terms[2].status = 'blocked'; await c.look();
+    c.clock.t += 1000; state.terms[1].status = 'blocked'; await c.look();
+    const press = () => { const n = c.calls.run.length; c.v.command('call', c.cx); return c.calls.run.slice(n); };
+    return { c, state, press };
+  };
+  const round = (press) => [press(), press(), press(), press()];
+
+  const bare = await calling();
+  assert.deepEqual(round(bare.press), [peek('t3'), peek('t2'), peek('t1'), peek('t3')], 'ペインの無いレイアウト');
+  assert.deepEqual(round((await calling({ layoutTree: PANE_LAYOUT })).press), [peek('t3'), peek('t2'), PANE, peek('t3')], 'ペインのあるレイアウト');
+
+  const narrowed = await calling();
+  narrowed.c.v.picked = ['local'];
+  assert.deepEqual(plain(narrowed.c.v.model().needs), [], '絞り込みが効いていない（検査が何も見ていない）');
+  assert.deepEqual(round(narrowed.press), [peek('t3'), peek('t2'), peek('t1'), peek('t3')], 'マシンの絞り込みで順が変わった');
+  narrowed.c.v.picked = null;
+  narrowed.c.v.filter = 'no such row';
+  assert.deepEqual(plain(narrowed.c.v.model().needs), [], '検索が効いていない（検査が何も見ていない）');
+  assert.deepEqual(round(narrowed.press), [peek('t2'), peek('t1'), peek('t3'), peek('t2')], '検索で順が変わった');
+
+  // What was opened last is gone: from the front.
+  const gone = await calling();
+  gone.press(); gone.press();
+  gone.state.terms[1].status = 'working';
+  assert.deepEqual(gone.press(), peek('t3'), '前に開いたものが無いのに先頭でない');
+
+  // Two count lines go by their oldest wait, not by name.
+  const two = oneCell({ items: { 'a-site': [wait('merge', 'S-0001', '2026-11-21T10:00:00Z')], 'b-site': [wait('decision', 'S-0002', '2026-11-21T08:00:00Z')] } });
+  two.terms = [cos('cell/t1', 'a-site'), cos('cell/t2', 'b-site')];
+  const t = await inboxCell(two);
+  await t.look();
+  t.v.command('call', t.cx); t.v.command('call', t.cx);
+  assert.deepEqual(t.calls.run, [...peek('t2'), ...peek('t1')], '件数の行が古い順でない');
+
+  const none = await inboxCell(oneCell());
+  await none.look();
+  none.v.command('call', none.cx);
+  assert.deepEqual(none.calls.run, [], '空なのに何か開いた');
+
+  // next still stays inside the pick and skips the one in view.
+  const next = await calling();
+  next.state.focused = { terminal: 'cell/t3' };
+  next.c.v.command('next', next.c.cx);
+  assert.deepEqual(next.c.calls.run, peek('t2'), 'inbox.next の動きが変わった');
+});
+
+await check('inbox の README に inbox.lamp の全項目の表と inbox.call がある（ADR-0045 受け入れ条件 13）', async () => {
+  const c = await inboxCell(oneCell());
+  await c.look();
+  const names = Object.keys(c.store['inbox.lamp']);
+  assert.equal(names.length, 10);
+  const missing = (text) => [
+    ...names.filter((name) => !new RegExp(`^\\| *\`${name}\` *\\|`, 'm').test(text)),
+    ...(/`inbox\.call`/.test(text) ? [] : ['inbox.call']),
+  ];
+  const readme = await readFile(`${HOST}/inbox/README.md`, 'utf8');
+  assert.deepEqual(missing(readme), []);
+  for (const name of [...names, 'inbox.call']) {
+    assert.deepEqual(missing(readme.replaceAll(`\`${name}\``, '`gone`')), [name], `${name} が無くても通る`);
+  }
 });
 
 if (failed) process.exit(1);

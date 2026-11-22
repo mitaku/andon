@@ -31,10 +31,27 @@ A row that needs you is lit in Andon's colors, the logo's rather than the theme'
 The lantern at the top of the column (the andon mod's brand, `../andon/`) shows the state at a glance. The inbox keeps it in `shared("inbox.lantern")` (`"red"`, `"amber"` or null), and what it counted in `shared("inbox.lamp")`:
 
 ```json
-{"light": "amber", "failed": 0, "blocked": 1, "merge": 2, "decision": 1, "reply": 0, "unread": 1, "unreadable": 0}
+{"version": 1, "at": 1795262400000, "light": "amber", "failed": 0, "blocked": 1, "merge": 2, "decision": 1, "reply": 0, "unread": 1, "unreadable": 0}
 ```
 
-`light` equals `inbox.lantern`. `failed` counts the failed rows, `blocked` the other blocked rows, `merge` and `decision` the waits on the ledger, `reply` the replies lit where waits can't be read, `unread` the unread marks (not lit), `unreadable` the projects whose waits can't be read. Both count every machine, whatever the machine pick or filter hides (as `+3 waiting elsewhere` does). `inbox.lamp` is a value between mods, not one of Andon's contracts.
+| Field | Is |
+|---|---|
+| `version` | 1, the form of this value |
+| `at` | when the inbox put it: milliseconds since 1970-01-01 UTC |
+| `light` | equals `inbox.lantern` |
+| `failed` | the failed rows |
+| `blocked` | the other blocked rows |
+| `merge` | the merges waiting on the ledger |
+| `decision` | the decisions waiting on the ledger |
+| `reply` | the replies lit where waits can't be read |
+| `unread` | the unread marks (not lit) |
+| `unreadable` | the projects whose waits can't be read |
+
+Both count every machine, whatever the machine pick or filter hides (as `+3 waiting elsewhere` does).
+
+`inbox.lamp` is put again at once when anything but `at` changes, and otherwise when its `at` is 30 seconds old or ahead of the clock (ADR-0045 decision 5). It is decided again as soon as a project's waits are read, painted or not. So `at` tells a reader outside the App whether someone still keeps the value.
+
+The Stream Deck plugin (`../streamdeck/andon.lamp.sdPlugin/`) reads `inbox.lamp` from the App's `shared.json`. It is not one of Andon's contracts (`schema/`): this table is its form. A change that gives a field another meaning raises `version`, and changes the plugin with it.
 
 ## Owner waits
 
@@ -91,20 +108,22 @@ While the queue has the keyboard:
 | `/` | filter by name, space, tab or machine; Enter keeps it, Esc clears it |
 | `Esc` | clear the filter, else back to the terminal (`pane.go` right) |
 
+One more command has no key: `inbox.call`, for something outside the App (the Stream Deck plugin runs `herdr-app do inbox.call`). It opens the next of what lights the lantern, as a click would: Needs you oldest first, then the waiting lines by their oldest wait, and round again, whatever the machine pick or the filter hides. With nothing to open it does nothing (ADR-0045 decision 9).
+
 The commands reach only a shown copy of the mod: in a layout without it, `inbox.next` is an unknown command.
 
 ## What it runs
 
 | Call | When |
 |---|---|
-| `run("agent.focus", {terminal})` | opening a row, next |
+| `run("agent.focus", {terminal})` | opening a row, next, `inbox.call` |
 | `run("terminal.peek", {terminal})` | opening a blocked sub-agent, or one of Andon's agents, without a pane |
 | `run("pane.go", {direction: "right"})` | `Esc` in the queue |
 | `run("mod.open", {name: "kanban-board"})` | the header's kanban-board button |
-| `run("layout.show", {id: "panel"})`, then `run("layout.select", {stack: "panel-body", child: "waiting"})` | the header's waiting button (the `andon` layout's right panel), and a waiting line when the layout has the waiting pane |
+| `run("layout.show", {id: "panel"})`, then `run("layout.select", {stack: "panel-body", child: "waiting"})` | the header's waiting button (the `andon` layout's right panel), and a waiting line (clicked, or by `inbox.call`) when the layout has the waiting pane |
 | `exec("andon", ["waiting", "--json", "--project", slug], {on, timeout: 15000})` | reading a project's owner waits on its Chief of Staff's machine: on the 30-second timer and when a role's state changed, at most once per pair in 10 seconds; the App stops a call after 15 seconds |
 
-Addresses come from `agents()` / `terminals()` only; `layout()` only tells whether the waiting pane is there. The one `exec` is the read-only command above. No `hc`, no other command, no file reads, no `fetch`, no sounds, no notifications: the mod only reads. `shared("inbox.memory")`: when each agent last changed state, and the turn of a paneless role's reply you opened. `shared("inbox.waiting")`: per machine and project, when it was last read, the items' kinds and times, and the failures in a row. `shared("inbox.lantern")` and `shared("inbox.lamp")`: what the lantern shows, and what it counted. `localStorage` (per copy): the machine picked.
+Addresses come from `agents()` / `terminals()` only; `layout()` only tells whether the waiting pane is there. The one `exec` is the read-only command above. No `hc`, no other command, no file reads, no `fetch`, no sounds, no notifications: the mod only reads. `shared("inbox.memory")`: when each agent last changed state, and the turn of a paneless role's reply you opened. `shared("inbox.waiting")`: per machine and project, when it was last read, the items' kinds and times, and the failures in a row. `shared("inbox.lantern")` and `shared("inbox.lamp")`: what the lantern shows, and what it counted with when it was put (the Stream Deck plugin reads the second). `localStorage` (per copy): the machine picked.
 
 A `settled=` label an older inbox wrote is no longer read; it ends with its terminal.
 
@@ -114,4 +133,4 @@ A `settled=` label an older inbox wrote is no longer read; it ends with its term
 
 ## Origin
 
-Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/inbox` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the roles that talk with you are `chief-of-staff` and `chief-engineer` (ADR-0002) instead of `coordinator`; it no longer names tabs (the andon mod does); the kanban-board button, the waiting button (ADR-0042) and the icons' file names; cut to Needs you and Projects, without Done, the shelves, settle and the board dialog (ADR-0015). The Needs you badges lit amber and red, and the lantern's state (ADR-0023). The lantern lit by blocked terminals and the ledger's owner waits instead of replies, the waiting lines and the unread mark (ADR-0043). The one Chief of Staff icon (`network`) became one per role. The preview picture was not copied. It was named `focus-queue` there until 2026-11-04; what such a copy remembered in `shared("focus-queue.memory")` is still read once. Under Andon's licence (Apache-2.0), with the Lucide icons under ISC as above.
+Copied from herdr-flightdeck (a private repository that Andon came out of) `herdr-app/mods/inbox` at commit `afc57ac5ec85d3123cbf5c067a9cd4ee3cf5b268`. Changed for Andon: the roles that talk with you are `chief-of-staff` and `chief-engineer` (ADR-0002) instead of `coordinator`; it no longer names tabs (the andon mod does); the kanban-board button, the waiting button (ADR-0042) and the icons' file names; cut to Needs you and Projects, without Done, the shelves, settle and the board dialog (ADR-0015). The Needs you badges lit amber and red, and the lantern's state (ADR-0023). The lantern lit by blocked terminals and the ledger's owner waits instead of replies, the waiting lines and the unread mark (ADR-0043). `inbox.lamp` dated and kept fresh, and `inbox.call` (ADR-0045). The one Chief of Staff icon (`network`) became one per role. The preview picture was not copied. It was named `focus-queue` there until 2026-11-04; what such a copy remembered in `shared("focus-queue.memory")` is still read once. Under Andon's licence (Apache-2.0), with the Lucide icons under ISC as above.
