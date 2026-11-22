@@ -48,6 +48,9 @@ dispatcher が書く（`internal/dispatcher` の `reviewerBrief`。型を変え�
 - **plan と担当の報告は見せない**。渡すのは差分と仕様の正（元の課題の依頼書の完了条件・README・docs の該当節）だけ。
 - 見てほしいこと（重い順）: 一番怖いところ（外向きの面）・正しさ（並行性・失敗の波及・境界・前のバージョンの形・落ちたあとの起き直し）・仕様と実装の食い違い・テストが主張を本当に検証しているか。
   加えて、画面に触れる差分（条件表の `screen_paths` に当たるファイル）に画面の証拠（PR の画像の添付）が無い・証拠と差分が合わないときは major の指摘にする。
+- **1回目は PR 自身の差分だけを見せる**。差分は `gh pr diff`。手元の git で読むなら、起点は merge-base: `git diff <baseRefOid>...<commit>`（点3つ。対象の worktree で打ち、読めなければ `gh pr diff` だけで読む）。
+  main の先頭（baseRefOid）との2点の差分 `git diff <baseRefOid>..<commit>` は使わない（空白で並べる形・origin/main との2点も同じ。main に後から入った変更が PR の削除に見える）。
+  書く前に、指摘する file が PR の差分にあるかを `gh pr diff <PR> --name-only` で確かめる。差分に無い file の変更や削除は PR のものと読ませず、その file を指すなら差分のどの行か・どの完了条件による指摘かを報告に書かせる（課題の前からあった問題は `preexisting: true`）。
 - **再レビュー（2回目以降）は前の回からの違いだけを見せる**。前の回の commit が今の commit の祖先なら `git diff <前>..<今>`。
   祖先でない（rebase をまたいだ）なら素の差分は base に入ったほかの変更まで含むので、PR 自身の差分どうしの違い `git range-diff <前の merge-base>..<前> <今の merge-base>..<今>` を見せる（merge-base は PR の base の今の先頭とのもの）。
   range-diff が中身を出さない足した commit は `git show` で、直しを前後ごと読むときは `gh pr diff` で読むよう依頼書に書く。
