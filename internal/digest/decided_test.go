@@ -27,6 +27,9 @@ func newGitRepo(t *testing.T, files map[string]string) *gitRepo {
 	t.Helper()
 	base := t.TempDir()
 	t.Setenv("HOME", filepath.Join(base, "home"))
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(base, "cell"))
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", "")
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	for _, k := range []string{"GIT_AUTHOR", "GIT_COMMITTER"} {
@@ -387,12 +390,12 @@ func TestDecisionsRewording(t *testing.T) {
 func sentBefore(f *fake, at time.Time) {
 	f.t.Helper()
 	const id = "S-0090"
-	f.issue(id, "doing", "routine: digest")
+	f.issue(id, "doing", "routine: daily-digest")
 	today := f.env.Now
 	f.env.Now = at
 	in := f.collect(id)
 	f.env.Now = today
-	f.issue(id, "done", "routine: digest")
+	f.issue(id, "done", "routine: daily-digest")
 	f.lib(id, "digest/sent.json", `{"issue": "`+id+`", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "http://files.cell.localhost:1355/x.html"}]}`)
 }
 
@@ -430,9 +433,9 @@ func TestDecisionsAfterFailedRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.env.Now = today.Add(-time.Hour)
-	f.issue("S-0091", "doing", "routine: digest")
+	f.issue("S-0091", "doing", "routine: daily-digest")
 	in := f.collect("S-0091")
-	f.issue("S-0091", "done", "routine: digest")
+	f.issue("S-0091", "done", "routine: daily-digest")
 	f.lib("S-0091", "digest/sent.json", `{"issue": "S-0091", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "http://files.cell.localhost:1355/y.html"}]}`)
 	if err := os.Rename(away, g.origin); err != nil {
 		t.Fatal(err)
@@ -472,7 +475,7 @@ func TestDecisionsWithoutLastMain(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newFake(t)
 			f.issue("S-0001", "doing", "repo: "+docRepo)
-			f.issue("S-0090", "done", "routine: digest")
+			f.issue("S-0090", "done", "routine: daily-digest")
 			f.lib("S-0090", "digest/input.json", c.body)
 			f.lib("S-0090", "digest/sent.json", `{"issue": "S-0090", "since": "2026-11-01T00:00:00Z", "until": "`+c.until+`", "destinations": [{"kind": "files", "at": "`+c.until+`", "ok": true, "url": "http://files.cell.localhost:1355/x.html"}]}`)
 			if got := collectDecisions(t, f); len(got) != 1 || got[0].Commit != tip {
