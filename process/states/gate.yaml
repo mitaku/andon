@@ -1,6 +1,6 @@
 name: gate
 title: gate とマージ
-source: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
+source: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたマージを打ち直した回数。Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
 states:
   - id: waiting
     title: 待つ（review に入った行ごと。gate を回す。Row が今の行で Decision が空）
@@ -12,7 +12,7 @@ states:
     title: gh の上限が戻るのを待つ（gate が gh の rate limit で落ちた。gh api rate_limit の reset と、続けて落ちるたびに倍にする待ち〈1分から〉の遅いほうまで、この kanban の gate を回さない）
     record: [dispatcher:GHReset, dispatcher:GHWait]
   - id: approved
-    title: approve（merge auto・委譲の範囲内。記録だけにしてマージに進む。マージの直前に読み直して変わっていれば決めずに回し直す。Approved は回し直しても測り直さない）
+    title: approve（merge auto・委譲の範囲内。記録だけにしてマージに進む。マージの直前に読み直して変わっていれば、base が動いてマージが通らなければ、決めずに回し直す。Approved は回し直しても測り直さない）
     record: merge:Approved
   - id: stuck
     title: approve のまま 10 分たっても決まらない（dispatcher が merge の記録の Approved を読んで通知 `gate` を届けた。同じ Approved では二度届けない）
@@ -28,7 +28,7 @@ states:
     record: merge:Merged
   - id: finished
     title: 片付けた
-positions: [merge:Sha, merge:Decision, merge:Polled]
+positions: [merge:Sha, merge:Decision, merge:Retries, merge:Polled]
 transitions:
   - { from: "[*]", to: waiting, on: "review に入った", by: machine }
   - { from: waiting, to: approved, on: "gate を回す（approve・merge auto・委譲の範囲内。§7.2 #4）", by: machine, command: andon issue merge, once: true }
@@ -43,6 +43,8 @@ transitions:
   - { from: rate-limited, to: waiting, on: "reset の時刻を過ぎた（その見回りで gate から）", by: machine }
   - { from: approved, to: merged, on: "マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）", by: machine, command: andon issue merge, once: true }
   - { from: approved, to: waiting, on: "読み直すと head か checks が替わっていた（次の見回りで gate から）", by: machine }
+  - { from: approved, to: waiting, on: "base が動いて gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで）", by: machine, command: andon issue merge }
+  - { from: approved, to: needs-human, on: "gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す）", by: machine, command: andon issue merge, once: true }
   - { from: approved, to: stuck, on: "10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25）", by: machine, once: true }
   - { from: stuck, to: "[*]", on: "merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる）", by: machine, command: andon issue merge }
   - { from: approved, to: "[*]", on: "gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ）", by: machine }

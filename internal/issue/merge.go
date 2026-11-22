@@ -192,7 +192,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			Facts: facts, Reason: "gate の決定式が needs_human を返した（委譲・レベル・オーナーが見る PR の事情）", From: "gate",
 			Options: []contract.Option{{Label: "オーナーが PR を読んでマージする", Pick: ptr(true)}, {Label: "担当に直させる（理由を Chief of Staff が返す）"}}})
 	}
-	w.Sha, w.Decision, w.Approved = gr.Head, gr.Decision, ""
+	w.Sha, w.Decision, w.Approved, w.Retries = gr.Head, gr.Decision, "", 0
 	w.Polled = now.UTC().Format("2006-01-02T15:04:05Z") // gate が今 head を読んだ。次に聞くのは1分たってから
 	res.State = gr.Decision
 	if w.Merged != "" {
@@ -411,7 +411,8 @@ func (c *ctx) markGate(res *contract.Merge, key string, v any) {
 
 // approve は merge: auto ＋ 委譲の範囲内ならマージして片付ける。それ以外は通知 `gate` のまま止まる（オーナーがマージする）。
 // マージの直前に、課題の Settings・履歴・委譲を読み直し、gate のときと変わっていればマージせず regate を返す
-// （呼び手は決めたことを書かず、次に打ったとき gate から回し直す）。
+// （呼び手は決めたことを書かず、次に打ったとき gate から回し直す）。gh pr merge が base の動きで通らなかったとき（RetryMerge）も
+// regate を返す: その場では打ち直さず、次に打ったとき gate と直前の読み直しを全部通してから打ち直す。
 func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *contract.Merging, res *contract.Merge, stderr io.Writer) (regate bool) {
 	if !res.Auto {
 		return false
@@ -473,6 +474,11 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		if sha, ok := MergedBefore(out, gr.Head); verr == nil && ok {
 			logf("の PR %s は gh pr merge の前に同じ head でマージされていた（%s）。問いを出さずオーナーのマージとして片付ける", rep.PR, short12(sha))
 			return false
+		}
+		if RetryMerge(err.Error(), w.Retries) {
+			w.Retries++
+			logf("をいまはマージしない（次に打ったとき gate から回し直して打ち直す。%d/%d 回）: base が動いて gh pr merge が通らなかった: %v", w.Retries, mergeRetries, err)
+			return true
 		}
 		stop("gh pr merge に失敗: " + err.Error())
 		return false
@@ -575,6 +581,20 @@ func ChecksStill(gateHead, nowHead string, checks gate.GitHubChecks, optional bo
 		return false, fmt.Sprintf("GitHub の checks が gate のあとに変わった（%s: %s）", checks.State, strings.Join(checks.Names, ", "))
 	}
 	return true, ""
+}
+
+// baseModified は、ほかの PR のマージと重なって base が動いたときに gh pr merge が返す文。
+// head が動いたときの文（Head branch was modified. …）や衝突の文には当たらない。
+const baseModified = "Base branch was modified. Review and try the merge again"
+
+// mergeRetries は base の動きで通らなかったマージを打ち直す上限（仮の値）。dispatcher は1分ごとに打つので、
+// 使い切っても approve のまま 10 分（dispatcher の approveWait）より先に問いになる。
+const mergeRetries = 3
+
+// RetryMerge は、gh pr merge の失敗 failure を、次に打ったとき gate から照合し直して打ち直すか（純粋関数）。
+// base が動いた失敗だけで、打ち直した回数 retries が上限に届いていないときだけ。
+func RetryMerge(failure string, retries int) bool {
+	return retries < mergeRetries && strings.Contains(failure, baseModified)
 }
 
 // MergedBefore は、gh pr merge が失敗したあとに読み直した PR（gh pr view --json state,mergeCommit,headRefOid の返事）が、

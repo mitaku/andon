@@ -86,8 +86,9 @@ case "\$*" in
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
   "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted
     if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi ;;  # gate の最後の書き込み。マージの前に状態を変える
-  "pr merge 7 --repo example/app "*)   # race があれば、オーナーが直前に同じ head でマージしていて失敗する
+  "pr merge 7 --repo example/app "*)   # race があれば、オーナーが直前に同じ head でマージしていて失敗する。mergefail があれば、その文を stderr に出してマージせずに失敗する
     echo "\$*" >> \$d/merges
+    if [ -f \$d/mergefail ]; then cat \$d/mergefail >&2; exit 1; fi
     h=\$(jq -r .headRefOid \$d/view.json)
     git -C $tmp/origin update-ref refs/heads/main "\$h" && echo "\$h" > \$d/merged
     if [ -f \$d/race ]; then rm \$d/race; echo "Pull request example/app#7 was already merged" >&2; exit 1; fi ;;
@@ -1141,7 +1142,94 @@ jq -e '.from == "gate" and (.question | contains("判定できなかった"))' "
     jq -e '(.gh_reset // "") == ""' "$state" >/dev/null || die "rate limit でない終了コード 3 が needs_human の問いにならない: $(cat "$L/issues/$id/library/questions/1.json" 2>/dev/null)"
 ok 'rate limit でない gh の失敗で gate が落ちたら、今どおり needs_human の問いにする（上限の控えは付けない）'
 
-# 9f. gate のあと checks が変わった・push されたら、マージの直前に読み直して打たない
+# 9e-2. ほかの PR のマージと重なって gh pr merge が「Base branch was modified」で失敗した → 問いにせず、次の巡で gate から照合し直して打ち直す
+basemod='GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)'
+tried() { grep -c -- "--match-head-commit $head\$" "$tmp/gh/merges" || true; }   # 今の head（$head）に gh pr merge を打った回数
+no_question() { [ ! -e "$L/issues/$id/library/questions" ]; }
+base_moved() { # base_moved <題>: gate の approve のあと、1回目の gh pr merge が base の動きで失敗した所まで。id と head を置く
+    id=$(newtask "$1" auto)
+    printf '%s\n' "$basemod" > "$tmp/gh/mergefail"
+    to_gate "$id" docs/a.md
+    [ "$(tried)" = 1 ] || die "前提: gh pr merge を1回打っていない（$1）: $(tried)"
+    no_question || die "base が動いただけの失敗を問いにした（$1）: $(cat "$L/issues/$id/library/questions/1.json")"
+    jq -e --arg t "$id" '.[$t] | (.decision // "") == "" and .retries == 1 and .approved != ""' "$mergerec" >/dev/null ||
+        die "打ち直しの回数を記録していない・決めたことにした（$1）: $(cat "$mergerec")"
+    grep -q "$id をいまはマージしない.*base が動いて gh pr merge が通らなかった" "$tmp/dispatcher.log" || die "打ち直す理由がログに無い（$1）"
+}
+drop() { # drop: 場面の課題を片付ける（あとの場面の数に入れない）
+    rm -f "$tmp/gh/mergefail"
+    checks COMPLETED SUCCESS
+    HC_TERMINAL_ID=t5 kanban done "$id" --force >/dev/null
+}
+
+base_moved 'マージが重なる'
+rm "$tmp/gh/mergefail"   # base が落ち着いた
+dispatcher
+[ "$(tried)" = 2 ] || die "同じ head で打ち直していない: $(tried)"
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die "打ち直したのに片付かない・問いにした: $(tail -3 "$tmp/dispatcher.log")"
+jq -e '.merged == true' "$L/issues/$id/library/gate/$head.json" >/dev/null || die '打ち直したマージを gate の記録に書いていない'
+ok 'base が動いて gh pr merge が失敗したら問いにせず、次の巡で gate から照合し直し、同じ head でマージを打ち直して片付ける'
+
+base_moved '打ち直す前に push される'
+jq --arg h "$(printf 'e%.0s' $(seq 40))" '.headRefOid = $h' "$tmp/gh/view.json" > "$tmp/gh/v" && mv "$tmp/gh/v" "$tmp/gh/view.json"
+merges=$(wc -l < "$tmp/gh/merges")
+dispatcher
+[ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'head が動いたのに打ち直した'
+grep -q "^t7	\[gate\] $id（.*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die '動いた head を担当へ返していない'
+drop
+
+base_moved '打ち直す前に衝突する'
+jq '.mergeStateStatus = "DIRTY"' "$tmp/gh/view.json" > "$tmp/gh/v" && mv "$tmp/gh/v" "$tmp/gh/view.json"
+dispatcher
+[ "$(tried)" = 1 ] || die '衝突したのに打ち直した'
+jq -e '.from == "gate" and (.facts | index("conflict"))' "$L/issues/$id/library/questions/1.json" >/dev/null || die '衝突が gate の問いになっていない'
+drop
+
+base_moved '打ち直す前に判定が変わる'
+checks COMPLETED FAILURE
+dispatcher
+[ "$(tried)" = 1 ] || die 'gate の判定が fix に変わったのに打ち直した'
+jq -e --arg t "$id" '.[$t] | .decision == "fix" and (.retries // 0) == 0' "$mergerec" >/dev/null || die "変わった判定を記録していない・回数を残した: $(cat "$mergerec")"
+drop
+
+base_moved '打ち直す前に委譲の外になる'
+HC_TERMINAL_ID=t5 kanban set "$id" merge=person >/dev/null
+dispatcher
+[ "$(tried)" = 1 ] || die 'merge: person に変わったのに打ち直した'
+drop
+ok 'base が動いたあと head が動く・衝突する・gate の判定が変わる・merge: person になると、マージを打ち直さない'
+
+base_moved '重なり続ける'
+checks IN_PROGRESS   # checks を待つ巡は打たず、回数も忘れない
+dispatcher
+[ "$(tried)" = 1 ] || die 'checks を待つ間に打ち直した'
+checks COMPLETED SUCCESS
+dispatcher; dispatcher
+[ "$(tried)" = 3 ] && no_question || die "上限の内で問いにした・打ち直していない: $(tried)"
+dispatcher
+[ "$(tried)" = 4 ] || die "上限（打ち直し 3 回）まで打っていない: $(tried)"
+jq -e '.from == "gate" and .kind == "irreversible" and (.question | contains("dispatcher がマージできなかった")) and (.facts[0] | contains("Base branch was modified"))' \
+    "$L/issues/$id/library/questions/1.json" >/dev/null || die "上限を超えた失敗がオーナーへの問いにならない: $(cat "$L/issues/$id/library/questions/1.json" 2>/dev/null)"
+dispatcher
+[ "$(tried)" = 4 ] || die '上限を超えても打ち直した'
+jq -e --arg t "$id" '.[$t] | .decision == "approve" and (.retries // 0) == 0 and (.approved // "") == ""' "$mergerec" >/dev/null || die "決めたあとに待ちを残した: $(cat "$mergerec")"
+drop
+ok 'base が動き続けたら打ち直しは 3 回までで、checks を待っても回数を忘れず、超えたら今までどおりオーナーへの問いにする'
+
+# 似た文の失敗は今までどおり1回で問いにする
+for why in 'GraphQL: Pull Request is not mergeable (mergePullRequest)' \
+    'GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)' 'HTTP 502: Bad Gateway'; do
+    id=$(newtask 'ほかの失敗' auto)
+    printf '%s\n' "$why" > "$tmp/gh/mergefail"
+    to_gate "$id" docs/a.md
+    dispatcher
+    [ "$(tried)" = 1 ] || die "ほかの失敗で打ち直した: $why"
+    jq -e --arg w "$why" '.from == "gate" and (.facts[0] | contains($w))' "$L/issues/$id/library/questions/1.json" >/dev/null || die "ほかの失敗が問いにならない: $why"
+    drop
+done
+ok 'base の動きでない gh pr merge の失敗（衝突・head の動き・502）は、打ち直さず今までどおり問いにする'
+
+# 9f.gate のあと checks が変わった・push されたら、マージの直前に読み直して打たない
 # 遅い機械を写す: 前の場面までの課題の見張りの時刻を、実際の2分前にする（負荷が高いと、9e から 9f までに1分を超え、dispatcher はこう読む）。
 # 時計が止まっていなければ、approve・needs_human のまま残った前の場面の課題の PR を聞き直し、head が動いたので gate を回し直す。
 # その gate の書き込みが 9f の hook を先に使うと、9f の gate は checks の走り直しを見ずに終わる（揺れの元）

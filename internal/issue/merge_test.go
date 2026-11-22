@@ -101,6 +101,29 @@ func TestChecksStill(t *testing.T) {
 	}
 }
 
+// base が動いた失敗だけを、上限の内で打ち直す。head が動いた・衝突した・gh の一時の失敗は打ち直さない。
+func TestRetryMerge(t *testing.T) {
+	base := "gh pr merge: exit status 1 GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)"
+	for _, c := range []struct {
+		name, failure string
+		retries       int
+		want          bool
+	}{
+		{"1回目", base, 0, true},
+		{"上限の1つ手前", base, mergeRetries - 1, true},
+		{"上限", base, mergeRetries, false},
+		{"head が動いた", "gh pr merge: exit status 1 GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)", 0, false},
+		{"衝突", "gh pr merge: exit status 1 GraphQL: Pull Request is not mergeable (mergePullRequest)", 0, false},
+		{"base が古い（ruleset）", "gh pr merge: exit status 1 GraphQL: Head branch is out of date (mergePullRequest)", 0, false},
+		{"502", "gh pr merge: exit status 1 HTTP 502: Bad Gateway", 0, false},
+		{"文が無い", "gh pr merge: exit status 1 ", 0, false},
+	} {
+		if got := RetryMerge(c.failure, c.retries); got != c.want {
+			t.Errorf("%s: RetryMerge = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 // gh pr merge が失敗したあと、gate の判定した head のまま MERGED ならオーナーが先にマージしたとして問いにしない。
 // head が違う・MERGED でない・返事が読めないときは今までどおり問いにする（dispatcher.md §7.2 #5）。
 func TestMergedBefore(t *testing.T) {
