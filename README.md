@@ -105,6 +105,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
   - [0044 オーナーが読むダイジェストを定期に作り、Slack へ送る](docs/adr/0044-owner-digest.md): 決定
   - [0045 行燈を Stream Deck のキーに出す](docs/adr/0045-stream-deck-lamp.md): 決定
   - [0049 オーナーの介在回数を、操作の種類で数える](docs/adr/0049-owner-touches-by-kind.md): 決定
+  - [0051 外の信号の受け口を実際に流し、main の失敗を壊した変更に結ぶ](docs/adr/0051-signals-flow-and-breaking-change.md): 決定
   - [0052 「題」をやめ、タイトル・テーマと書く](docs/adr/0052-title-and-theme-not-dai.md): 決定
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 のオーナーの答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル
 - [CHANGELOG.md](CHANGELOG.md) — バージョンごとの変更と、上げるときにすること
