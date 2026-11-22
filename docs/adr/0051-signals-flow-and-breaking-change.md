@@ -11,7 +11,7 @@
 | 1 | 範囲は、受け口を流すことと、失敗を壊した変更に結ぶことの 2 つにする | この ADR | 生きている |
 | 2 | 工場の中の出来事は、信号の記録に乗せず、この文書では新しく足さない | この ADR | 生きている |
 | 3 | Andon を開発するセルは、main の CI の失敗を `now`、issue を `later` で読む | この ADR | まだ実装していない |
-| 4 | `andon create` の下書きに、main の CI の失敗を `now` で読む 1 行を入れる | この ADR | まだ実装していない |
+| 4 | `andon create` の下書きに、main の CI の失敗を `now` で読む 1 行を入れる | `internal/create/create.go` | 生きている |
 | 5 | `github-ci` の `release` は、失敗が始まった run の commit にする | この ADR | まだ実装していない |
 | 6 | 出来事が続いている間、信号の記録の `release` を書き換えない | この ADR | まだ実装していない |
 | 7 | 通知 `signal` の `detail` に `release` を足す | この ADR | まだ実装していない |
