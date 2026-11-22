@@ -580,7 +580,7 @@ func TestPeriodSlack(t *testing.T) {
 		t.Fatal("送れた")
 	}
 	f.env.Now = now.Add(2 * time.Hour)
-	f.issue("S-0101", "doing", "routine: digest", "profile: claude")
+	f.issue("S-0101", "doing", "routine: daily-digest", "profile: claude")
 	if in := f.collect("S-0101"); in.Previous != nil || in.Since != "2026-11-20T12:00:00Z" {
 		t.Errorf("Slack へ送れなかったものを数えた: since=%s previous=%+v", in.Since, in.Previous)
 	}
@@ -691,7 +691,7 @@ func TestCheck(t *testing.T) {
 // 短い文: 行が無くても長すぎるときに URL と削った数を残す。タイトルの <!channel> で全員を呼ばない。
 func TestMessageKeepsURLAndNoMention(t *testing.T) {
 	const u = "http://files.cell.localhost:1355/x.html"
-	in := &Input{Title: "日次", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
+	in := &Input{Title: "デイリーダイジェスト", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
 	in.Waiting.Items = []waiting.Item{{Kind: "merge", ID: "S-0001", Title: "直す"}}
 	msg := Message(&Text{Headline: []string{strings.Repeat("長", messageMax), "二。"}}, in, newLoc(""), u)
 	if utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "全文: "+u) || !strings.Contains(msg, "ほか 1 件") || !strings.Contains(msg, "オーナーを待っているもの: 1 件") {

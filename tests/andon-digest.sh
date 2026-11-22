@@ -16,7 +16,7 @@ trap 'rm -rf "$tmp"' EXIT
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET
 # set -e は A && B の A が偽でも止まらないので、並べた確かめには || die を付ける
-die() { echo "FAIL $*"; exit 1; }
+die() { echo "FAIL $*" >&2; exit 1; }
 mkdir -p "$tmp/bin"
 # 偽の git は「repo はあり、HEAD に project.json が無い」を返す（show は落ち、ls-tree は空で成功する）
 printf '#!/bin/sh\necho "git $*" >>"%s/called"\n[ "$3" = ls-tree ] && exit 0\nexit 128\n' "$tmp" >"$tmp/bin/git"
@@ -148,7 +148,6 @@ grep -q '^gh pr list' "$tmp/gh"
 echo "ok repo の無い kanban では kanban の CLI を呼ばず、git は送り先の読み取りだけ（GitHub は gh pr list で読む）"
 
 # ルーチンの例（受け入れ条件 12 のルーチンの部分）。ここからは本物の kanban の CLI を使うので、偽の git・kanban を外す。kanban は別の一時の置き場。
-die() { echo "FAIL $*" >&2; exit 1; }
 rm "$tmp/bin/git" "$tmp/bin/kanban"
 hash -r
 skill=$andon_root/package/skills/digest

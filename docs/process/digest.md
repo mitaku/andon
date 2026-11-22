@@ -44,7 +44,7 @@ flowchart LR
   s_collect -->|"library/digest/input.json"| s_write
   s_write -->|"担当の文の JSON"| s_build
   s_build -->|"library/digest/digest.json・library/digest/digest.html・library/digest/message.txt"| s_send
-  s_send -->|"files/（HTML）・library/digest/sent.json"| s_report
+  s_send -->|"files/（HTML）・Slack（送り先があるとき）・library/digest/sent.json"| s_report
   s_report -->|"報告・kanban（review）"| fin
   s_check -->|"オーナーへの知らせ（送れなかったとき）"| s_finish
   s_finish -->|"kanban（done）"| fin
@@ -60,7 +60,7 @@ flowchart LR
 | `collect` | 前に送った 1 枚のあとの記録を集める | 機械 | `kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）` | `library/digest/input.json` | `write` |
 | `write` | 要旨とテーマと気になることを書く | AI | `library/digest/input.json`・`入力にある課題と PR` | `担当の文の JSON` | `build` |
 | `build` | 担当の文を照らし、1 枚に組み立てる | 機械 | `担当の文の JSON`・`library/digest/input.json` | `library/digest/digest.json`・`library/digest/digest.html`・`library/digest/message.txt` | `send` |
-| `send` | 1 枚を届ける | 機械 | `library/digest/digest.html`・`library/digest/sent.json` | `files/（HTML）`・`library/digest/sent.json` | `report` |
+| `send` | 1 枚を届ける | 機械 | `library/digest/digest.html`・`library/digest/sent.json`・`project.json（digest）` | `files/（HTML）`・`Slack（送り先があるとき）`・`library/digest/sent.json` | `report` |
 | `report` | 送った結果を報告して返す | AI | `library/digest/sent.json` | `報告`・`kanban（review）` | 終わり |
 | `check` | 送った結果を見て、そのターンで片付ける | AI | `notification.report`・`kanban（status）`・`報告`・`library/digest/sent.json` | `オーナーへの知らせ（送れなかったとき）` | `finish` |
 | `finish` | ダイジェストの課題を片付ける | 機械 | `kanban（review）` | `kanban（done）` | 終わり |
@@ -84,9 +84,9 @@ flowchart LR
 | `report` | `digest#5`・`worker#7` | 報告の要約 |  |
 | `check` | `chief-of-staff/playbooks/digest.md` | done なら何もしない・doing なら待つ・review なら送れていなくても片付ける |  |
 
-見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（片付いていないダイジェストの課題）`・`notification.ready`・`andon waiting --json（slots）`・`kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）`・`library/digest/input.json`・`入力にある課題と PR`・`担当の文の JSON`・`library/digest/digest.html`・`library/digest/sent.json`・`notification.report`・`kanban（status）`・`報告`・`kanban（review）`
+見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（片付いていないダイジェストの課題）`・`notification.ready`・`andon waiting --json（slots）`・`kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）`・`library/digest/input.json`・`入力にある課題と PR`・`担当の文の JSON`・`library/digest/digest.html`・`library/digest/sent.json`・`project.json（digest）`・`notification.report`・`kanban（status）`・`報告`・`kanban（review）`
 
-残すもの（手順の出るものの和）: `kanban（ダイジェストの課題。routine daily-digest）`・`kanban（予約キー review と estimate）`・`hc（担当の端末）`・`kanban（doing）`・`library/digest/input.json`・`担当の文の JSON`・`library/digest/digest.json`・`library/digest/digest.html`・`library/digest/message.txt`・`files/（HTML）`・`library/digest/sent.json`・`報告`・`kanban（review）`・`オーナーへの知らせ（送れなかったとき）`・`kanban（done）`
+残すもの（手順の出るものの和）: `kanban（ダイジェストの課題。routine daily-digest）`・`kanban（予約キー review と estimate）`・`hc（担当の端末）`・`kanban（doing）`・`library/digest/input.json`・`担当の文の JSON`・`library/digest/digest.json`・`library/digest/digest.html`・`library/digest/message.txt`・`files/（HTML）`・`Slack（送り先があるとき）`・`library/digest/sent.json`・`報告`・`kanban（review）`・`オーナーへの知らせ（送れなかったとき）`・`kanban（done）`
 
 ## 数えるもの
 

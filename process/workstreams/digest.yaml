@@ -61,8 +61,8 @@ steps:
   - id: send
     title: 1 枚を届ける
     by: machine
-    input: [library/digest/digest.html, library/digest/sent.json]
-    output: [files/（HTML）, library/digest/sent.json]
+    input: [library/digest/digest.html, library/digest/sent.json, project.json（digest）]
+    output: [files/（HTML）, Slack（送り先があるとき）, library/digest/sent.json]
     command: andon digest send
     record: library/digest/sent.json
     once: true

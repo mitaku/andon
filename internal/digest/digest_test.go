@@ -43,6 +43,8 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("ANDON_WORKSPACE", filepath.Join(base, "workspace"))
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("CODEX_HOME", "")
+	// 一時の置き場が別の repo の中（担当の worktree・tests/isolation）でも、git は上の repo を読まない
+	t.Setenv("GIT_CEILING_DIRECTORIES", base)
 	root := filepath.Join(base, "sample-site")
 	f := &fake{t: t, root: root, ws: filepath.Join(base, "workspace")}
 	f.write("kanban/config.yaml", "version: 3\nprefix: S\nchief_of_staff: t1\n")
