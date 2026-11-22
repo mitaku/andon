@@ -171,7 +171,7 @@ image/apply-main.sh revert          # イメージのバージョンへ戻す
 - **一覧と警告**: 当てたあとに、当てる前から動いている端末（dispatcher を除く live のもの）を一覧に出す。止めない。イメージの元の commit から当てる commit までに `image/` が変わっていたら、変わったファイルを並べて「焼き直しが要るかもしれない」と警告する（当てるのは続ける。`status` にも `origin/main` の先頭までの警告が出る）。
 - **いつ効くか**: hooks と `andon`・`kanban` は当てた直後から全員に効く。テンプレート・managed settings・skill は、次に起動するエージェントから効く。動いているエージェントはそのまま（起動し直すかは Chief of Staff とオーナーが決める）。
 - **revert**: 退避から `/opt/andon` と `kanban` を戻し、記録と退避を消して、同じく dispatcher を片付けて `andon boot` を打ち直す。`andon`・`kanban` が壊れていても動く（cp・mv・rm だけで戻す）。当てていなければ何もしない。
-- **古いバージョンへ戻す前に（revert でも GHCR のバージョンへ戻すときでも）**: 委譲に名指しの grant（`issues` のある行。[contract.md](contract.md) §11）があれば、オーナーが `project.json` からその行を消して commit する（`revoke` では行が残るので足りない）。名指しを知らないバージョンの `andon` と `kanban` は、その `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
+- **古いバージョンへ戻す前に（revert でも GHCR のバージョンへ戻すときでも）**: 委譲に名指しの grant（`issues` のある行。[contract.md](contract.md) §11）があれば、オーナーが `project.json` からその行を消して commit する（`revoke` では行が残るので足りない）。名指しを知らないバージョンの `andon` と `kanban` は、その `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。`digest`（ダイジェストの送り先）も同じで、あれば先にキーごと消して commit する。
 - **消えるとき**: 当てた状態と退避はコンテナの書ける層にあるので、コンテナの再起動では残り、作り直し（`bin/bootstrap rebuild`）で消える。正はイメージのまま。
 - **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
 - **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ。
@@ -456,6 +456,29 @@ andon delegate show          # 型と効いている値（commit の前は「無
 - 外の信号の出所（`project.json` の `signals`。[contract.md](contract.md) §11）は、**セルの image を `signals` を知るバージョンに上げてから**書く。古いバージョンの `andon` は知らないキーとして `project.json` ごと弾き、無委譲・repo 無しに倒れて担当を一切起動できない。
 - 信号を読むのは `andon signal collect`（`projects/<slug>/` で打つか `--project <slug>`。[contract.md](contract.md) §15）。GitHub（`github-ci`・`github-issues`）は `gh` の資格情報をそのまま使う。Sentry・Linear・Cloudflare のトークンは `andon signal auth <source>` がセルの中で聞いて `~/.config/andon/signals/<source>.token`（mode 600。compose の volume `signals`）に置く。**トークンは読み取り専用の scope で作る**（Linear はコメントが書けるまで。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 10・15）。置き場は守りではない（セルの中の役は同じユーザーで読める）。守りは scope。最初のバージョンで読むのは GitHub だけで、ほかの出所は「読む command がまだ無い」と1行出して飛ばす。
 - **通ったら見えるもの**: 出所と repo ごとに `github-ci github.com/<owner>/<repo>: 見えている 1 件（新しい 1・また出た 0・消えた 0）`。**落ちたら見る所**: `読めないので信号の記録は変えずに飛ばす` — `gh auth status`（その出所の記録は変えず、終了コード 1。次に打てば読み直す）。`信号の記録が読めない` — `~/.local/state/andon/dispatcher/<slug>.signals.json` が壊れている（退ければ次の collect が作り直す。`delivered_episode` も消えるので、`now` の信号は届け直される）。
+- ダイジェストを Slack へ送る（[ADR-0044](adr/0044-owner-digest.md) 決めたこと 12〜14。送らないなら何もしなくてよい。`files/` にだけ出る）:
+  1. Slack の <https://api.slack.com/apps> で、次の manifest からアプリを作る（Create New App → From a manifest）。scope は `files:write` の 1 つだけで、読む scope を持たせない。
+
+     ```yaml
+     display_information:
+       name: Andon Digest
+     features:
+       bot_user:
+         display_name: Andon Digest
+         always_online: false
+     oauth_config:
+       scopes:
+         bot:
+           - files:write
+     settings:
+       org_deploy_enabled: false
+       socket_mode_enabled: false
+     ```
+
+  2. ワークスペースに入れ、**ダイジェスト用のチャンネル 1 つだけ**に bot を招く（そのチャンネルで `/invite @Andon Digest`）。ほかのチャンネルには招かない。bot は招かれたチャンネルにしか送れないので、これが守りになる（トークンの置き場は守りではない。セルの中の役は同じユーザーで読める）。
+  3. セルの中で `andon digest auth slack` を打ち、Bot User OAuth Token を貼る。`~/.config/andon/digest/slack.token`（mode 600。compose の volume `digest`）に置かれる。引数に書かない。トークンはセルに 1 本で、ワークスペースはセルに 1 つ。
+  4. セルのパッケージを `digest` を知るバージョンに上げてから（volume が増えるので `rebuild`。古いバージョンは `project.json` ごと読めなくなる）、オーナーが `projects/<slug>/project.json` に `"digest": {"destinations": [{"kind": "slack", "channel": "<チャンネルの ID>"}]}` を足して commit する。ID はチャンネルの詳細の一番下にある（`C` か `G` で始まる。名前ではない）。書いたことが、毎回の送信への go になる。
+  5. `projects/<slug>/` で `andon digest check` を打つ。**通ったら見えるもの**: `送った: Slack の <ID> に確かめのファイル F…` と、チャンネルに小さなテキストのファイル。**落ちたら見る所**: `設定が無い` — commit していない。`送り先を読めない` — owner の commit でないか、形が違う。`not_in_channel`・`channel_not_found` — 2 の招待か ID。`invalid_auth`・`missing_scope` — 1 の scope を確かめて 3 をやり直す。
 - 並行の上限と独立レビューを入れる条件は `project.json` の `chief_of_staff`（`parallel`・`review_when`。[contract.md](contract.md) §11）に書く。無ければ並行の上限は 2。`projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・指示）は任意。
 - 課題の id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じ課題）。
 
