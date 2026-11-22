@@ -56,7 +56,8 @@ jq -e '.issue == "S-0100" and .previous == null and .truncated == false and ([.i
 emit "$d/input.json" digest-input.json
 jq -e '.decided.decisions == [] and [.decided.retro[].issue] == ["S-0002"] and [.decided.answers[].answer] == ["c1 だけ"]' "$d/input.json" >/dev/null
 printf '%s\n' "$text" | "$andon" digest build S-0100 - >"$tmp/out"
-grep -q 'c1 だけ' "$d/digest.html" && grep -q '振り返りで 1 件を直すと決め、0 件を捨てた' "$d/digest.html"
+grep -q 'c1 だけ' "$d/digest.html"
+grep -q '振り返りで 1 件を直すと決め、0 件を捨てた' "$d/digest.html"
 [ "$(wc -l <"$tmp/out")" = 3 ] && [ -f "$d/digest.json" ] && [ -f "$d/digest.html" ] && [ -f "$d/message.txt" ]
 emit "$d/digest.json" digest.json
 "$andon" digest send S-0100 >"$tmp/url1"
