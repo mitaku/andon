@@ -452,7 +452,7 @@ func workerPlace(agent string) []string {
 
 // reviewerBrief はレビュアーの依頼書（independent-review skill の §4 の型）。plan と担当の報告は見せない。
 // 結果の宛先は元の課題の担当（issue.yaml の agent）に固定する。Chief of Staff へは送らない（dispatcher が届ける）。
-// 再レビューの差分の範囲は sp（reviewSpan）で決める。前の回の commit が今の commit の祖先なら `git diff 前..今`、
+// 1回目の差分の読み方は firstReviewRange。再レビューの差分の範囲は sp（reviewSpan）で決める。前の回の commit が今の commit の祖先なら `git diff 前..今`、
 // rebase をまたいだら PR 自身の差分どうしの違い（`git range-diff`）、確かめられなければレビュアーが確かめる手順。
 func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Reviewer, sp span, repo, number string) string {
 	rr := rep.ReviewRequest
@@ -467,6 +467,8 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	if rr.Previous != nil {
 		b.WriteString(reReviewRange(*rr.Previous, rr.Commit, rep.PR, sp))
 		b.WriteString("この回は直しの確認だけ: 前の回の指摘が直ったか・直しが壊していないか。新しい指摘は critical で、起きる条件と証拠（具体的な入力 → 結果）があるものだけ書く（gate も、前の回に無い file の critical でない指摘は数えない）。\n")
+	} else {
+		b.WriteString(firstReviewRange(rr.Commit, rep.PR))
 	}
 	fmt.Fprintf(&b, "仕様の正: 元の課題の依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n\n", filepath.Join(l.Dir, "issues", r.Issue, "brief.md"))
 	b.WriteString("見てほしいこと（重い順）:\n" +
@@ -493,6 +495,18 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	fmt.Fprintf(&b, "宛先は %s の issue.yaml の agent（`kanban show %s --json` の .issue.agent。起動した時点では %s）。", r.Issue, r.Issue, orNone(agent))
 	b.WriteString("Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。\n")
 	return b.String()
+}
+
+// firstReviewRange は1回目の依頼書の、差分の読み方の段。`gh pr diff` を示すだけでは、レビュアーが手元の git で
+// baseRefOid（base の今の先頭）からの2点の差分を読み、main に後から入った変更を PR の削除として指摘した。
+func firstReviewRange(commit, pr string) string {
+	return fmt.Sprintf("手元の git で差分を読むなら、起点は merge-base: `git diff <baseRefOid>...%s`（点3つ。git が merge-base から数える。対象の worktree で打つ）。"+
+		"baseRefOid は `gh pr view %s --json baseRefOid -q .baseRefOid`。"+
+		"main の先頭（baseRefOid）との2点の差分 `git diff <baseRefOid>..%s` は使わない（空白で並べる形・origin/main との2点も同じ。main に後から入った変更が PR の削除に見える）。"+
+		"点3つの差分を読めなければ `gh pr diff` だけで読む。\n"+
+		"指摘を書く前に、指摘する file が PR の差分にあるかを `gh pr diff %s --name-only` で確かめる（名前を変えた file の元のパスは一覧に出ないので、`gh pr diff` の `rename from` のパスも PR の差分に数える）。差分に無い file の変更や削除は PR のものと読まない。"+
+		"差分に無い file を指すなら、差分のどの行か、どの完了条件による指摘かを報告に書く（課題の前からあった問題は preexisting: true）。\n",
+		commit, pr, commit, pr)
 }
 
 // span は再レビューで見せる差分の範囲（reviewSpan が決める）。

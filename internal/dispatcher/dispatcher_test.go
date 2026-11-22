@@ -189,6 +189,60 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	}
 }
 
+// 1回目の依頼書は、手元の git で読む差分の起点を merge-base にさせ、指摘の file を PR の差分と照らさせる。
+// 根拠の出来事: レビュアーが gh pr diff のあと baseRefOid（main の先頭）からの2点の差分を読み、
+// main に後から入った変更を「PR が削除した」と読んで major を付けた。レビュアー向けの2つの skill も同じことを言う。
+func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
+	pr, head := "https://github.com/example/app/pull/7", strings.Repeat("b", 40)
+	rep := &contract.Report{PR: pr, ReviewRequest: &contract.ReviewRequest{Round: 1, Limit: 2, Commit: head, Reviewer: "codex-review"}}
+	l := ledger.At(filepath.Join(t.TempDir(), "demo"))
+	brief := func() string {
+		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 1, Worktree: "/w/demo-D-1-r1"}, span{}, "example/app", "7")
+	}
+	has := func(name, text, commit, pr string) {
+		t.Helper()
+		for _, want := range []string{
+			"起点は merge-base: `git diff <baseRefOid>..." + commit + "`（点3つ",
+			"main の先頭（baseRefOid）との2点の差分 `git diff <baseRefOid>.." + commit + "` は使わない",
+			"指摘する file が PR の差分にあるかを `gh pr diff " + pr + " --name-only` で確かめる",
+			// --name-only は rename の新しいパスしか出さない。元のパスの削除は PR のもの
+			"`gh pr diff` の `rename from` のパスも PR の差分に数える",
+		} {
+			if !strings.Contains(text, want) {
+				t.Errorf("%s に %q が無い:\n%s", name, want, text)
+			}
+		}
+	}
+	first := brief()
+	has("1回目の依頼書", first, head, pr)
+	if !strings.Contains(first, "`gh pr view "+pr+" --json baseRefOid -q .baseRefOid`") {
+		t.Errorf("1回目の依頼書に baseRefOid の取り方が無い:\n%s", first)
+	}
+	// 見るのはその節だけ（レビュアーは worker skill の §6 だけに従う）
+	for _, s := range []struct{ skill, from, to string }{
+		{"independent-review", "\n## 4. ", "\n## 5. "},
+		{"worker", "\n## 6. ", "\n## 7. "},
+	} {
+		body, err := os.ReadFile(filepath.Join("..", "..", "package", "skills", s.skill, "SKILL.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, section, found := strings.Cut(string(body), s.from)
+		section, _, closed := strings.Cut(section, s.to)
+		if !found || !closed {
+			t.Fatalf("skill %s に節 %q〜%q が無い", s.skill, s.from, s.to)
+		}
+		has("skill "+s.skill, section, "<commit>", "<PR>")
+	}
+
+	// 再レビューが見る範囲は reReviewRange だけが決める
+	prev := strings.Repeat("a", 40)
+	rep.ReviewRequest.Round, rep.ReviewRequest.Previous = 2, &prev
+	if b := brief(); strings.Contains(b, "<baseRefOid>") {
+		t.Errorf("再レビューの依頼書に1回目の範囲を書いた:\n%s", b)
+	}
+}
+
 // rebase をまたいだ再レビューは、前後の commit の素の差分（base に入ったほかの変更まで含む）でなく、PR 自身の差分どうしの違いを見せる。
 // 根拠の出来事: 前の回のあと main が進み、担当が rebase して直した。`git diff 前..今` は PR の外の main の変更まで見せていた
 // （PR の 36 ファイルに対し 140 ファイル）。
