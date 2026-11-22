@@ -61,7 +61,7 @@ func TestCollectPutsMemoryAndSignalFirstOverLimit(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got []string
-		for _, it := range items {
+		for _, it := range prioritize(items) {
 			name := it.From
 			if it.Kind == "signal" {
 				name = it.Text

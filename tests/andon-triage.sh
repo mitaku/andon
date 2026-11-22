@@ -365,6 +365,30 @@ jq -e '[.items[]|select(.memory_kept)] | length==1 and .[0].decision=="fix" and 
 jq -e '[.items[]|select(.decision=="close")][0] | has("memory_kept")|not' "$rec" >/dev/null
 grep -q '消さずに残した memory' "$tmp/race-md"
 echo 'ok memory: a file rewritten after collect is kept with its index line, reason in the record'
+# 20 時間の内に keep にした項目は collect に出ない。key を名指せば見直せて、課題も memory も閉じられる（ADR-0047 決めたこと 19）。
+printf -- '伏せる学び\n' > "$mem/held.md"
+held_todo=$(kanban add '伏せる課題' --repo example.invalid/me/app)
+collect "$tmp/hold1" --limit 100
+jq -e --arg t "$held_todo" '([.[]|select(.from=="held")]|length)==1 and ([.[]|select(.from==$t)]|length)==1' "$tmp/hold1" >/dev/null
+hold=$(kanban add hold)
+mkdir -p "kanban/issues/$hold/library"
+cp "$tmp/hold1.raw" "kanban/issues/$hold/library/items.json"
+jq --arg t "$held_todo" '{goal:"hold",collected:(now|floor|todate),items:
+  [.[]|select(.from=="held" or .from==$t)|{key,commit,decision:"keep",reason:"待つ: T-1"}]}' "$tmp/hold1" > "kanban/issues/$hold/library/decisions.json"
+"$script" triage apply "$hold" >/dev/null
+collect "$tmp/hold2" --limit 100
+jq -e --arg t "$held_todo" 'all(.[]; .from!="held" and .from!=$t)' "$tmp/hold2" >/dev/null
+[[ -f $mem/held.md ]]
+echo 'ok keep: held from collect within 20 hours'
+named=$(kanban add named)
+mkdir -p "kanban/issues/$named/library"
+cp "$tmp/hold2.raw" "kanban/issues/$named/library/items.json"
+jq '.collected=(now|floor|todate) | .items|=map(.decision="close" | .closing="gone" | .reason="対象が無い: 名指し")' \
+    "kanban/issues/$hold/library/decisions.json" > "kanban/issues/$named/library/decisions.json"
+verdict "$named" "$(jq -r --arg t "$held_todo" '.[]|select(.from==$t).key' "$tmp/hold1")" ok >/dev/null
+"$script" triage apply "$named" >/dev/null
+[[ ! -e $mem/held.md && $(kanban show "$held_todo" --json | jq -r .issue.status) == "done" ]]
+echo 'ok keep: a held key named in decisions can still be closed'
 # kind: signal（ADR-0011 決めたこと 6・7、受け入れ条件 4・11）。読むのは dispatcher が書く信号の記録だけ（gh は tripwire のまま）。
 sigfile=$HOME/.local/state/andon/dispatcher/demo.signals.json
 mkdir -p "${sigfile%/*}"
