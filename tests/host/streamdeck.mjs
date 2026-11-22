@@ -335,8 +335,8 @@ await check('9 manifest: UUID・Node.js 26・アプリ 7.1・2 つの偽の指�
   for (const [why, spoil] of Object.entries({
     UUID: (m) => { m.UUID = 'andon.lamps'; }, Node: (m) => { m.Nodejs.Version = '24'; }, '7.0': (m) => { m.Software.MinimumVersion = '7.0'; },
     '6.9': (m) => { m.Software.MinimumVersion = '6.9'; }, OS: (m) => { m.OS.pop(); }, '2 つ目': (m) => { m.Actions.push(m.Actions[0]); },
-    題: (m) => { m.Actions[0].UserTitleEnabled = true; }, 題の指定なし: (m) => { delete m.Actions[0].UserTitleEnabled; },
-    多: (m) => { delete m.Actions[0].SupportedInMultiActions; }, 名前: (m) => { m.Actions[0].Name = 'Lamps'; },
+    タイトル: (m) => { m.Actions[0].UserTitleEnabled = true; }, タイトルの指定なし: (m) => { delete m.Actions[0].UserTitleEnabled; },
+    マルチアクション: (m) => { delete m.Actions[0].SupportedInMultiActions; }, 名前: (m) => { m.Actions[0].Name = 'Lamps'; },
     入口: (m) => { m.CodePath = 'no-such.js'; }, 画像: (m) => { m.Actions[0].States[0].Image = 'imgs/no-such'; },
   })) {
     const copy = structuredClone(manifest);
