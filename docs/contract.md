@@ -703,7 +703,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `active` | 必須 | 最後の巡で見えたか（`false`: CI が通った・issue が閉じた・resolved） |
 | `episodes` | 必須 | 出来事の数。最初は 1、消えてまた出るたびに 1 増える |
 | `delivered_episode` | 必須 | 通知 `signal`（§6）で届けた出来事の番号。届けていなければ 0（`later` は常に 0） |
-| `release` | 任意 | 見えたリリースの名前（マージ commit の SHA。§16）。出所が持つときだけ |
+| `release` | 任意 | いまの出来事（`active: false` なら最後の出来事）が始まったリリースの名前（マージ commit の SHA。§16）。出来事が続く間は書き換えない。出所が持つときだけ |
 | `read_at` | 任意 | 出所と repo の組（`"<source> <repo>"`）ごとに、collect が最後に読みに行った時刻（読めなかったときも）。`collect --due` の間隔に使う。まだ読みに行っていなければ無い |
 
 - **本文・スタックトレースは持たない**（記録を大きくしない・外の人の文を写さない）。担当が読むときに `url` から取る。
@@ -711,8 +711,8 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 `andon signal collect` の当て方（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 3・8・9）:
 
 - `--due`（dispatcher の巡が打つ）は、組ごとに `read_at` から `every` 分（§11。既定 10）たったものだけを読む。読みに行った組は、読めても読めなくても `read_at` を今にする（gh が落ちている・上限のときも `every` より短く読みに行かない）。`--due` が無ければ（オーナーが手で打つ）全部の組を読む。
-- 出所と repo の組ごとに1回読み、見えたものは `count` を 1 増やして `last_seen`・`url`・`title`・`weight`・`release` を今の値にする。初めてなら `count`・`episodes` が 1、`delivered_episode` が 0。`active: false` のものがまた見えたら `active: true` にして `episodes` を 1 増やす。その組の記録で見えなかったものは `active: false`。ただし読んだ範囲で結果が分からなかったもの（下の CI の 100 件・issue の上限）は変えない（読めていないものを「消えた」にしない）。**`delivered_episode` は collect が触らない**（書くのは届けた dispatcher）。
-- `github-ci`: main の CI（`gh api repos/<owner>/<repo>/actions/runs?branch=main&status=completed`。pull request の run は除く）を workflow のファイルごとに見て、最新の結果（成功・失敗・時間切れ・起動の失敗。取り消しと飛ばしは数えない）が失敗なら信号。読むのは新しい 100 件で、その中に結果の出た run の無い workflow は今の記録のまま。`key` は `<repo>/<workflow のファイル名>@main`、`title` は `<workflow の名前>: <run の題>`、`release` は run の `head_sha`（main の commit）。
+- 出所と repo の組ごとに1回読み、見えたものは `count` を 1 増やして `last_seen`・`url`・`title`・`weight` を今の値にする。初めてなら `count`・`episodes` が 1、`delivered_episode` が 0。`active: false` のものがまた見えたら `active: true` にして `episodes` を 1 増やす。`release` は、初めて見えたときと、また見えて `episodes` が増えたときに、見えた値を入れる。`active` のまま見えたときは書き換えず、記録に無いときだけ見えた値を入れる（出所によらず同じ。[ADR-0051](adr/0051-signals-flow-and-breaking-change.md) 決めたこと 6）。その組の記録で見えなかったものは `active: false`。ただし読んだ範囲で結果が分からなかったもの（下の CI の 100 件・issue の上限）は変えない（読めていないものを「消えた」にしない）。**`delivered_episode` は collect が触らない**（書くのは届けた dispatcher）。
+- `github-ci`: main の CI（`gh api repos/<owner>/<repo>/actions/runs?branch=main&status=completed`。pull request の run は除く）を workflow のファイルごとに見て、最新の結果（成功・失敗・時間切れ・起動の失敗。取り消しと飛ばしは数えない）が失敗なら信号。読むのは新しい 100 件で、その中に結果の出た run の無い workflow は今の記録のまま。`key` は `<repo>/<workflow のファイル名>@main`、`url` は最新の run のもの、`title` は最新の run の `<workflow の名前>: <run の題>`。見えた `release` は、失敗が始まった run の `head_sha`（main の commit）。同じ 100 件の中を古いほうへ、成功の手前まで遡った、いちばん古い失敗の run のもので、取り消し・飛ばし・pull request の run は数えない。成功が 100 件の中に無ければ、その中でいちばん古い失敗の run のもの（ADR-0051 決めたこと 5）。
 - `github-issues`: open の issue（`gh issue list --state open`。`filter` があれば `--search` にそのまま。上限 1000 件で、上限まで返ったら見えなかった issue も今の記録のまま）。`key` は `<repo>#<番号>`。
 - 読めなかった組（API が落ちた・`gh` の資格情報が無い）は、その組の信号の記録を変えずに飛ばして1行出す（終了コード 1。`read_at` だけ書く。`--due` なら `every` 分のあとに読み直す）。読みに行った組が無ければ何も書かない。`signals` が無い・`project.json` が無ければ何も読まず書かない。Sentry・Linear・Cloudflare は読む command がまだ無く、トークン（`andon signal auth`）が無ければそう、あれば「まだ無い」と1行出して飛ばす（止まらない）。
 - 出所へは書かない（GitHub は `gh` の token が書ける token でも、打つのは読む API だけ）。

@@ -322,13 +322,17 @@ func merge(f *File, slug, source, weight, prefix string, seen []Seen, judged fun
 			continue
 		}
 		r := &f.Signals[i]
+		// release は出来事の始まりを指す。続きなら留め、また出たときと、まだ無いときだけ入れる（ADR-0051 決めたこと 6）
+		if !r.Active || r.Release == "" {
+			r.Release = s.Release
+		}
 		if !r.Active {
 			r.Active = true
 			r.Episodes++
 			again++
 		}
 		r.Count++
-		r.LastSeen, r.URL, r.Title, r.Weight, r.Release = now, s.URL, s.Title, weight, s.Release
+		r.LastSeen, r.URL, r.Title, r.Weight = now, s.URL, s.Title, weight
 	}
 	for i := range f.Signals {
 		r := &f.Signals[i]
@@ -349,6 +353,7 @@ func split(repo string) (string, string) {
 // readCI は repo の main の CI を読み、workflow ごとに最新の結果が失敗のものを返す（key は <repo>/<workflow のファイル名>@main）。
 // 見るのは結果の出た run（成功・失敗・時間切れ・起動の失敗）だけで、取り消し・飛ばしは workflow の状態を決めない。
 // 読むのは新しい 100 件で、その中に結果の出た run の無い workflow は judged が false（消えたことにしない）。
+// url と title は最新の run のもの。release は、そこから成功の手前まで遡ったいちばん古い失敗の run の commit（ADR-0051 決めたこと 5）。
 func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 	host, name := split(repo)
 	b, err := gh("api", "--hostname", host, "repos/"+name+"/actions/runs?branch=main&status=completed&per_page=100")
@@ -370,11 +375,20 @@ func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 		return nil, nil, fmt.Errorf("gh api の応答が読めない: %v", err)
 	}
 	decided := map[string]bool{}
+	failing := map[string]int{} // 失敗の始まりを遡っている workflow → out の位置
 	var out []Seen
 	for _, r := range res.WorkflowRuns { // 新しい順
 		file := filepath.Base(r.Path)
-		if r.Path == "" || decided[file] || strings.HasPrefix(r.Event, "pull_request") ||
+		if r.Path == "" || strings.HasPrefix(r.Event, "pull_request") ||
 			!slices.Contains([]string{"success", "failure", "timed_out", "startup_failure"}, r.Conclusion) {
+			continue
+		}
+		if decided[file] {
+			if r.Conclusion == "success" {
+				delete(failing, file)
+			} else if i, ok := failing[file]; ok && shaRe.MatchString(r.HeadSHA) {
+				out[i].Release = r.HeadSHA
+			}
 			continue
 		}
 		decided[file] = true
@@ -385,6 +399,7 @@ func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 		if shaRe.MatchString(r.HeadSHA) {
 			s.Release = r.HeadSHA
 		}
+		failing[file] = len(out)
 		out = append(out, s)
 	}
 	return out, func(key string) bool { return decided[strings.TrimSuffix(strings.TrimPrefix(key, repo+"/"), "@main")] }, nil

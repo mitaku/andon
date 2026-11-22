@@ -2,6 +2,7 @@ package signal
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -401,5 +402,122 @@ func TestDuplicateFingerprintRefused(t *testing.T) {
 	}
 	if err := save(path, &File{Signals: []Record{r, r}}); err == nil {
 		t.Error("重なった記録を書いた")
+	}
+}
+
+// commit は検査の commit の SHA（1 字を 40 個並べる）。
+func commit(c string) string { return strings.Repeat(c, 40) }
+
+func runURL(id int) string {
+	return fmt.Sprintf("https://github.com/example/sample-site/actions/runs/%d", id)
+}
+
+// ciRun は偽の gh が返す run の1件。
+func ciRun(id int, workflow, event, conclusion, sha string) string {
+	return fmt.Sprintf(`{"path": ".github/workflows/%s.yml", "name": %q, "event": %q, "conclusion": %q, "html_url": %q, "head_sha": %q, "display_title": "run %d"}`,
+		workflow, workflow, event, conclusion, runURL(id), sha, id)
+}
+
+func ciRuns(newestFirst ...string) string {
+	return `{"workflow_runs": [` + strings.Join(newestFirst, ",\n") + `]}`
+}
+
+// ADR-0051 受け入れ条件 1〜3・決めたこと 5: release は、読んだ run の中で失敗が始まった run の commit。url と title は最新の run。
+func TestReleaseIsWhereFailureBegan(t *testing.T) {
+	a, b, c, x, y := commit("a"), commit("b"), commit("c"), commit("1"), commit("2")
+	fail := func(id int, sha string) string { return ciRun(id, "ci", "push", "failure", sha) }
+	pass := func(id int, sha string) string { return ciRun(id, "ci", "push", "success", sha) }
+	for _, tc := range []struct {
+		name string
+		runs []string // 新しい順
+		want string
+	}{
+		{"条件1 失敗・失敗・成功", []string{fail(3, c), fail(2, b), pass(1, a)}, b},
+		{"条件2 取り消しを挟む", []string{fail(5, c), ciRun(4, "ci", "push", "cancelled", x), fail(3, b), ciRun(2, "ci", "push", "cancelled", y), pass(1, a)}, b},
+		{"条件2 pull request の run を挟む", []string{fail(5, c), ciRun(4, "ci", "pull_request", "success", x), fail(3, b), ciRun(2, "ci", "pull_request", "failure", y), pass(1, a)}, b},
+		{"条件2 pull_request_target の run を挟む", []string{fail(4, c), ciRun(3, "ci", "pull_request_target", "success", x), fail(2, b), pass(1, a)}, b},
+		{"条件3 全部失敗", []string{fail(3, c), fail(2, b), fail(1, a)}, a},
+		{"飛ばしを挟む", []string{fail(5, c), ciRun(4, "ci", "push", "skipped", x), fail(3, b), ciRun(2, "ci", "push", "skipped", y), pass(1, a)}, b},
+		{"時間切れも失敗", []string{fail(3, c), ciRun(2, "ci", "push", "timed_out", b), pass(1, a)}, b},
+		{"起動の失敗も失敗", []string{fail(3, c), ciRun(2, "ci", "push", "startup_failure", b), pass(1, a)}, b},
+		{"成功より前の失敗へは辿らない", []string{fail(4, c), fail(3, b), pass(2, a), fail(1, x)}, b},
+		{"最新の失敗だけ", []string{fail(2, c), pass(1, a)}, c},
+		{"ほかの workflow の成功では止まらない", []string{fail(5, c), ciRun(4, "lint", "push", "success", x), fail(3, b), ciRun(2, "lint", "push", "failure", y), pass(1, a)}, b},
+		{"commit の形でない run は release にしない", []string{fail(3, c), fail(2, b), fail(1, "")}, b},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &fake{ci: ciRuns(tc.runs...), issues: "[]"}
+			f := collect(t, Options{Slug: "x", Project: project(nil), Path: filepath.Join(t.TempDir(), "x.json"), Now: time.Now(), GH: g.gh})
+			r := find(f, repo+"/ci.yml@main")
+			latest := len(tc.runs) // run の番号は、新しいものほど大きい
+			if len(f.Signals) != 1 || r.Release != tc.want || r.URL != runURL(latest) || r.Title != fmt.Sprintf("ci: run %d", latest) {
+				t.Errorf("release %q（want %q）・%+v", r.Release, tc.want, f.Signals)
+			}
+		})
+	}
+
+	t.Run("workflow ごとに別々に辿る", func(t *testing.T) {
+		g := &fake{ci: ciRuns(fail(6, c), ciRun(5, "lint", "push", "failure", y), fail(4, b), pass(3, a),
+			ciRun(2, "lint", "push", "failure", x), ciRun(1, "lint", "push", "success", a)), issues: "[]"}
+		f := collect(t, Options{Slug: "x", Project: project(nil), Path: filepath.Join(t.TempDir(), "x.json"), Now: time.Now(), GH: g.gh})
+		if ci, lint := find(f, repo+"/ci.yml@main"), find(f, repo+"/lint.yml@main"); ci.Release != b || lint.Release != x {
+			t.Errorf("ci %+v・lint %+v", ci, lint)
+		}
+	})
+}
+
+// ADR-0051 受け入れ条件 4・5・決めたこと 6: 出来事が続く間は release を留め、消えてまた出たら入れ直す。
+func TestReleaseHeldDuringEpisode(t *testing.T) {
+	a, b, c, d, e, f, h := commit("a"), commit("b"), commit("c"), commit("d"), commit("e"), commit("f"), commit("7")
+	fail := func(id int, sha string) string { return ciRun(id, "ci", "push", "failure", sha) }
+	pass := func(id int, sha string) string { return ciRun(id, "ci", "push", "success", sha) }
+	g := &fake{issues: "[]"}
+	o := Options{Slug: "x", Project: project(nil), Path: filepath.Join(t.TempDir(), "x.json"), GH: g.gh, Now: time.Date(2026, 11, 22, 1, 0, 0, 0, time.UTC)}
+	for _, step := range []struct {
+		name            string
+		runs            []string // 新しい順
+		active          bool
+		count, episodes int
+		url             int
+		release         string
+	}{
+		{"条件1 の失敗", []string{fail(3, c), fail(2, b), pass(1, a)}, true, 1, 1, 3, b},
+		{"条件4 新しい失敗 D", []string{fail(4, d), fail(3, c), fail(2, b), pass(1, a)}, true, 2, 1, 4, b},
+		{"始まりが読める件数の外へ出た", []string{fail(4, d), fail(3, c)}, true, 3, 1, 4, b},
+		{"成功 E", []string{pass(5, e), fail(4, d), fail(3, c)}, false, 3, 1, 4, b},
+		{"条件5 また失敗 F", []string{fail(6, f), pass(5, e), fail(4, d)}, true, 4, 2, 6, f},
+		{"2つめの出来事も留める", []string{fail(7, h)}, true, 5, 2, 7, f},
+	} {
+		g.ci = ciRuns(step.runs...)
+		o.Now = o.Now.Add(10 * time.Minute)
+		r := find(collect(t, o), repo+"/ci.yml@main")
+		if r.Active != step.active || r.Count != step.count || r.Episodes != step.episodes || r.URL != runURL(step.url) || r.Release != step.release {
+			t.Errorf("%s: %+v（want active %v・count %d・episodes %d・run %d・release %s）", step.name, r, step.active, step.count, step.episodes, step.url, step.release)
+		}
+	}
+}
+
+// ADR-0051 決めたこと 6: 留めるのは出所によらない。release の無い続きの記録にだけ、見えた値を入れる。
+func TestMergeRelease(t *testing.T) {
+	b, c := commit("b"), commit("c")
+	for _, source := range []string{"github-ci", "sentry"} {
+		for _, tc := range []struct {
+			name      string
+			active    bool
+			had, seen string
+			want      string
+		}{
+			{"続き: 留める", true, b, c, b},
+			{"続き: 見えた値が無くても留める", true, b, "", b},
+			{"続き: 無ければ入れる", true, "", c, c},
+			{"また出た: 入れ直す", false, b, c, c},
+			{"また出た: 見えた値が無ければ前の出来事のものは残さない", false, b, "", ""},
+		} {
+			file := &File{Signals: []Record{{Source: source, Project: "x", Key: "k", Fingerprint: Fingerprint(source, "k"), Count: 1, Episodes: 1, Active: tc.active, Release: tc.had}}}
+			merge(file, "x", source, "now", "", []Seen{{Key: "k", Release: tc.seen}}, func(string) bool { return true }, "2026-11-22T01:00:00Z")
+			if got := file.Signals[0].Release; got != tc.want {
+				t.Errorf("%s %s: release %q（want %q）", source, tc.name, got, tc.want)
+			}
+		}
 	}
 }
