@@ -159,6 +159,50 @@ cmp -s .andon/cloud-init.yaml "$andon_root/package/host/cloud-init.yaml" && pass
 echo '# 埋めた' >.andon/cloud-init.yaml
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>&1
 grep -qx '# 埋めた' .andon/cloud-init.yaml && pass "host-install は編集済みの cloud-init.yaml を残す" || fail "cloud-init.yaml を上書きした"
+# Stream Deck の plugin（ADR-0045 の 12）。置き場は推測せず、STREAMDECK_PLUGINS にだけ置く
+deck="$tmp/stream deck/Plugins"
+lamp=$deck/andon.lamp.sdPlugin
+sandbox HOME="$tmp/deck-home" STREAMDECK_PLUGINS="$deck" bash bin/bootstrap --dry-run host-install >"$tmp/out" 2>&1; r=$?
+[ "$r" = 0 ] && [ ! -e "$deck" ] && grep -qxF "+ cp -R $img/opt/andon/host/streamdeck/andon.lamp.sdPlugin $lamp" "$tmp/out" \
+  && pass "Stream Deck の dry-run は置き場を示すだけ" || fail "Stream Deck の dry-run: rc=$r $(cat "$tmp/out")"
+sandbox HOME="$tmp/deck-home" STREAMDECK_PLUGINS="$deck/" bash bin/bootstrap host-install >"$tmp/out" 2>&1; r=$?
+[ "$r" = 0 ] && diff -r "$lamp" "$andon_root/package/host/streamdeck/andon.lamp.sdPlugin" >/dev/null && [ "$(ls -A "$deck")" = "andon.lamp.sdPlugin" ] && grep -qxF "+ $lamp" "$tmp/out" \
+  && pass "STREAMDECK_PLUGINS に andon.lamp.sdPlugin を置く（空白を含むパス・途中の残りなし）" || fail "Stream Deck の plugin: rc=$r $(cat "$tmp/out")"
+echo '// personal' >"$lamp/plugin.js"
+rm "$lamp/manifest.json"
+sandbox HOME="$tmp/deck-home" STREAMDECK_PLUGINS="$deck" bash bin/bootstrap host-install >"$tmp/out" 2>&1; r=$?
+[ "$r" = 0 ] && grep -qxF "! $lamp はすでにある（触らない）" "$tmp/out" && grep -qx '// personal' "$lamp/plugin.js" && [ ! -e "$lamp/manifest.json" ] \
+  && pass "2回目は今ある plugin に触らない（編集済み・不完全でも）" || fail "plugin に触った: rc=$r $(cat "$tmp/out")"
+rm -r "$lamp"
+ln -s "$tmp/missing-plugin" "$lamp"
+sandbox HOME="$tmp/deck-home" STREAMDECK_PLUGINS="$deck" bash bin/bootstrap host-install >"$tmp/out" 2>&1; r=$?
+[ "$r" = 0 ] && [ -L "$lamp" ] && [ ! -e "$tmp/missing-plugin" ] && grep -qF "はすでにある（触らない）" "$tmp/out" \
+  && pass "リンク切れの plugin も触らない" || fail "plugin のリンクを変更した: rc=$r"
+n=0
+for unset_as in STREAMDECK_UNUSED= STREAMDECK_PLUGINS=; do
+  n=$((n + 1))
+  h="$tmp/nodeck-$n"
+  sandbox HOME="$h" "$unset_as" bash bin/bootstrap host-install >"$tmp/out" 2>&1; r=$?
+  [ "$r" = 0 ] && [ "$(grep -c STREAMDECK_PLUGINS "$tmp/out")" = 1 ] && [ -f "$h/.config/herdr-app/mods/inbox/main.js" ] && [ -x "$h/.local/bin/andon-up" ] && [ -f "$h/.config/herdr-app/layouts/andon.json" ] \
+    && ! grep -q 'andon.lamp.sdPlugin' "$tmp/out" \
+    && pass "STREAMDECK_PLUGINS が無い（$unset_as）: 置かずに案内1行、ほかは従来どおり" || fail "未指定の host-install（$unset_as）: rc=$r $(cat "$tmp/out")"
+done
+# 相対パス（wslpath に通していない Windows のパスも）は、セルの repo の中に置いてしまう。書く前に止める
+for relative in 'C:\Users\sample\Plugins' Plugins; do
+  sandbox HOME="$tmp/relative-home" STREAMDECK_PLUGINS="$relative" bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
+  [ "$r" = 1 ] && [ ! -e "$relative" ] && [ ! -e "$tmp/relative-home" ] && grep -q '絶対パス' "$tmp/err" \
+    && pass "STREAMDECK_PLUGINS が絶対パスでなければ書く前に止まる（$relative）" || fail "相対の置き場（$relative）: rc=$r"
+done
+# 新しい bootstrap と、plugin の無い前のイメージ
+mkdir -p "$tmp/old-image/opt"
+cp -R "$img/opt/andon" "$tmp/old-image/opt/andon"
+rm -rf "$tmp/old-image/opt/andon/host/streamdeck"
+sandbox HOME="$tmp/old-home" ANDON_IMAGE_ROOT="$tmp/old-image" STREAMDECK_PLUGINS="$tmp/old-deck" bash bin/bootstrap host-install >"$tmp/out" 2>&1; r=$?
+[ "$r" = 0 ] && [ ! -e "$tmp/old-deck" ] && grep -q 'イメージに Stream Deck の plugin が無い' "$tmp/out" && [ -f "$tmp/old-home/.config/herdr-app/mods/inbox/main.js" ] \
+  && pass "plugin の無いイメージでは置かずに知らせ、ほかは置く" || fail "前のイメージ: rc=$r $(cat "$tmp/out")"
+# 前に作ったセルは bin/bootstrap を写して置き換える: 雛形はセルごとの値を持たない
+cmp -s bin/bootstrap "$andon_root/init/bin/bootstrap" \
+  && pass "bin/bootstrap は雛形と同じ（そのまま置き換えられる）" || fail "bin/bootstrap にセルごとの値が入った"
 echo 'SSH_PORT=22/;s/x/y' >.env
 sandbox bash bin/bootstrap host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '数字だけ' "$tmp/err" && pass "host-install は数字でない番号で止まる" || fail "番号の検査: rc=$r $(cat "$tmp/out" "$tmp/err")"
