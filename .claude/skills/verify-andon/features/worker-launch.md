@@ -24,7 +24,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh worker-launch` を打つ。セルの本物の `projects/*/kanban/issues/*/library/launches.jsonl` を読むだけで、何も起動しない。
 - **記録を読む。** `wl-record` の行に、当てたあとの起動が1行ずつ（課題・役・`package.commit`・`package.drift`）出る。全部の `package.commit` が当てた commit で、`ok   wl-record` が見えれば動いた。
 - **端末を読む。** `wl-terminal` の行に、動いている端末の `hc get` のラベルが出る。`ok   wl-terminal` が見えれば動いた。
-- **最初の turn を読む（`wl-first-turn`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）のうち `role` が `worker`、`launch` が `start` のものを `hc read <address>` で読み、依頼書のパスの入った最初のメッセージのあとに turn が進んだことを確かめる。`kanban start <id>` は kanban の履歴で読む。`jq -c 'select(.id == "<id>" and .by == "terminal:<address>" and .change.status == "doing")' <kanban>/log.jsonl` に、起動の `at` より後で最初に `review` へ入る前の行が2行以上あれば、担当が打った。1行なら打った証拠は無い。起動したばかりの端末が無ければ、報告の `## Next` に「試しの課題を1件起動する」と書く。
+- **最初の turn を読む（`wl-first-turn`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）のうち `role` が `worker`、`launch` が `start` のものを `hc read <address>` で読み、依頼書のパスの入った最初のメッセージのあとに turn が進んだことを確かめる。`kanban start <id>` は kanban の履歴で読む。`jq -c 'select(.id == "<id>" and .by == "terminal:<address>" and .change.status == "doing")' <kanban>/log.jsonl` に、起動の `at` より後で最初に `review` へ入る前の行が2行以上あれば、担当が打った。2行に満たなければ打った証拠が無いので未確認と書き、壊れに数えない（担当は `doing` になっているのを見て、打ち直さないことがある）。起動したばかりの端末が無ければ、報告の `## Next` に「試しの課題を1件起動する」と書く。
 
 ## 変えたら動かすパス
 
