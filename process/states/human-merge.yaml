@@ -17,7 +17,7 @@ states:
 positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha]
 transitions:
   - { from: "[*]", to: watching, on: "review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）", by: machine, command: andon issue settle }
-  - { from: watching, to: merged, on: "MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも）", by: person }
+  - { from: watching, to: merged, on: "MERGED になった（dispatcher の gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていたときも）", by: person }
   - { from: watching, to: closed, on: "CLOSED になった", by: person }
   - { from: merged, to: finished, on: "オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19）", by: machine, command: andon issue settle, once: true }
   - { from: merged, to: held, on: "gate の外の問いが開いている・finish が失敗した", by: machine, command: andon issue settle }

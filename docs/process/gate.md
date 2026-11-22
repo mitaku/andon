@@ -32,10 +32,10 @@ stateDiagram-v2
   s_approved --> s_merged: マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）
   s_approved --> s_waiting: 読み直すと head か checks が替わっていた（次の見回りで gate から）
   s_approved --> s_waiting: base が動いて gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで）
-  s_approved --> s_needs_human: gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す）
+  s_approved --> s_needs_human: gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す。§7.2 #5）
   s_approved --> s_stuck: 10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25）
   s_stuck --> [*]: merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる）
-  s_approved --> [*]: gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ）
+  s_approved --> [*]: gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていた（オーナーのマージの見張りへ）
   s_merged --> s_finished: マージして片付ける（finish は merge の中で打つ。§7.2 #5）
   s_held --> [*]: オーナーがマージするか決める
   s_held --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から）
@@ -80,10 +80,10 @@ stateDiagram-v2
 | `approved` | `merged` | マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5） | 機械 | `andon issue merge` | はい |
 | `approved` | `waiting` | 読み直すと head か checks が替わっていた（次の見回りで gate から） | 機械 |  |  |
 | `approved` | `waiting` | base が動いて gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで） | 機械 | `andon issue merge` |  |
-| `approved` | `needs-human` | gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す） | 機械 | `andon issue merge` | はい |
+| `approved` | `needs-human` | gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す。§7.2 #5） | 機械 | `andon issue merge` | はい |
 | `approved` | `stuck` | 10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25） | 機械 |  | はい |
 | `stuck` | （始まり・終わり） | merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる） | 機械 | `andon issue merge` |  |
-| `approved` | （始まり・終わり） | gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ） | 機械 |  |  |
+| `approved` | （始まり・終わり） | gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていた（オーナーのマージの見張りへ） | 機械 |  |  |
 | `merged` | `finished` | マージして片付ける（finish は merge の中で打つ。§7.2 #5） | 機械 | `andon issue merge` | はい |
 | `held` | （始まり・終わり） | オーナーがマージするか決める | オーナー |  |  |
 | `held` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から） | 機械 | `andon issue merge` |  |

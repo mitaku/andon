@@ -14,7 +14,7 @@ stateDiagram-v2
   state "片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる）" as s_held
   state "片付けた" as s_finished
   [*] --> s_watching: review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）
-  s_watching --> s_merged: MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも）
+  s_watching --> s_merged: MERGED になった（dispatcher の gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていたときも）
   s_watching --> s_closed: CLOSED になった
   s_merged --> s_finished: オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19）
   s_merged --> s_held: gate の外の問いが開いている・finish が失敗した
@@ -43,7 +43,7 @@ stateDiagram-v2
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
 | （始まり・終わり） | `watching` | review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ） | 機械 | `andon issue settle` |  |
-| `watching` | `merged` | MERGED になった（dispatcher の gh pr merge の前にオーナーがマージしていたときも） | オーナー |  |  |
+| `watching` | `merged` | MERGED になった（dispatcher の gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていたときも） | オーナー |  |  |
 | `watching` | `closed` | CLOSED になった | オーナー |  |  |
 | `merged` | `finished` | オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19） | 機械 | `andon issue settle` | はい |
 | `merged` | `held` | gate の外の問いが開いている・finish が失敗した | 機械 | `andon issue settle` |  |

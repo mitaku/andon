@@ -1199,6 +1199,28 @@ dispatcher
 drop
 ok 'base が動いたあと head が動く・衝突する・gate の判定が変わる・merge: person になると、マージを打ち直さない'
 
+# 打ち直しを待つ間にオーナーが同じ head でマージした → gate を回さず（fix を送らず）、settle が片付ける
+base_moved '待つ間にオーナーがマージする'
+rm "$tmp/gh/mergefail"
+git -C "$tmp/origin" update-ref refs/heads/main "$head"; echo "$head" > "$tmp/gh/merged"
+jq '.state = "MERGED"' "$tmp/gh/view.json" > "$tmp/gh/v" && mv "$tmp/gh/v" "$tmp/gh/view.json"
+watch_due "$id"
+dispatcher
+[ "$(tried)" = 1 ] || die 'オーナーがマージしたのに打ち直した'
+! grep -q "^t7	\[gate\] $id（" "$tmp/hc/sent" || die "オーナーがマージした課題の担当へ fix を送った: $(grep "\[gate\] $id（" "$tmp/hc/sent")"
+jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$id/library/gate/$head.json" >/dev/null || die 'オーナーのマージで gate の記録を書き換えた'
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die '待つ間のオーナーのマージを片付けない・問いにした'
+ok '打ち直しを待つ間にオーナーが同じ head でマージしたら、fix も問いも出さずオーナーのマージとして片付ける'
+
+base_moved '待つ間に gate が落ちる'
+printf 'HTTP 502: Bad Gateway\n' > "$tmp/gh/ghfail"
+dispatcher
+rm "$tmp/gh/ghfail"
+jq -e '.question | contains("判定できなかった")' "$L/issues/$id/library/questions/1.json" >/dev/null || die '落ちた gate が問いにならない'
+jq -e --arg t "$id" '.[$t] | (.approved // "") == "" and (.retries // 0) == 0' "$mergerec" >/dev/null || die "問いにしたのに approve の待ちを残した（10 分で止まったと届く）: $(cat "$mergerec")"
+drop
+ok '打ち直しを待つ間に gate が落ちて問いにしたら、approve の待ちと回数を残さない'
+
 base_moved '重なり続ける'
 checks IN_PROGRESS   # checks を待つ巡は打たず、回数も忘れない
 dispatcher

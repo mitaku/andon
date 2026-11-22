@@ -3,15 +3,17 @@
 - 日付: 2026-11-22
 - 出典: gate が approve した自動マージの PR（https://github.com/mitaku/andon/pull/485 ）の `gh pr merge` が、別の PR（https://github.com/mitaku/andon/pull/483 ）のマージの1秒後に「Base branch was modified. Review and try the merge again.」で失敗し、メンテナーのマージ待ちになった。
 
-`andon issue merge` は、この文の失敗だけを問いにせず、決めたことを書かずに終わる。次に打たれたとき（dispatcher の次の見回り）に gate から回し直し、マージの直前の読み直しも通ったときだけ打ち直す。
+`andon issue merge` は、この文の失敗だけを問いにせず、決めたことを書かずに終わる。次に打たれたとき（dispatcher の次の見回り。`review` の課題があれば5秒後）に gate から回し直し、マージの直前の読み直しも通ったときだけ打ち直す。
 
 - head が動いた、衝突した、gate の判定が変わったときは、回し直した gate の答えに従い、打たない。
+- 待つ間にメンテナーが同じ head でマージしていたら、gate を回さず、メンテナーのマージとして片付ける。
 - 打ち直しは3回まで（仮の値）。回数は merge の記録の `retries` に持ち、決まったら消す。超えたら今までどおり問いにする。
 - ほかの失敗の扱い、gate の判定、委譲、`--match-head-commit` は変えない。
 
 引き受けたリスク:
 
 - 打ち直しごとに gate が回るので、PR に gate のコメントが最大3つ増え、REST の読みと検査も増える。
+- base が数十秒動き続ければ、3回を使い切って問いになる。
 - GitHub の失敗の文が変われば当たらず、今までどおり問いになる。
 - GitHub が衝突を計算し終える前は gate が衝突を見られない。そのときは GitHub がマージを断り、問いになる。
 

@@ -44,10 +44,10 @@ transitions:
   - { from: approved, to: merged, on: "マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）", by: machine, command: andon issue merge, once: true }
   - { from: approved, to: waiting, on: "読み直すと head か checks が替わっていた（次の見回りで gate から）", by: machine }
   - { from: approved, to: waiting, on: "base が動いて gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで）", by: machine, command: andon issue merge }
-  - { from: approved, to: needs-human, on: "gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す）", by: machine, command: andon issue merge, once: true }
+  - { from: approved, to: needs-human, on: "gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す。§7.2 #5）", by: machine, command: andon issue merge, once: true }
   - { from: approved, to: stuck, on: "10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25）", by: machine, once: true }
   - { from: stuck, to: "[*]", on: "merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる）", by: machine, command: andon issue merge }
-  - { from: approved, to: "[*]", on: "gh pr merge の前にオーナーがマージしていた（オーナーのマージの見張りへ）", by: machine }
+  - { from: approved, to: "[*]", on: "gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていた（オーナーのマージの見張りへ）", by: machine }
   - { from: merged, to: finished, on: "マージして片付ける（finish は merge の中で打つ。§7.2 #5）", by: machine, command: andon issue merge, once: true }
   - { from: held, to: "[*]", on: "オーナーがマージするか決める", by: person }
   - { from: held, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から）", by: machine, command: andon issue merge }
