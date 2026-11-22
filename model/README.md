@@ -100,7 +100,7 @@ gate が決めたあとに起きる 3 つの変化を、行動として入れて
 | `PRClosesOrReopens` | オーナーが PR をマージせずに閉じる・閉じた PR を開き直す。`andon issue settle` が聞き直して知る |
 | `MergeSettingChanges` | issue.yaml の `merge` か委譲の `merge` が変わる。モデルは 2 つを「任されている」の 1 つ（`mergeAuto`）にまとめた |
 
-gate の答えを捨てて回し直すのは、gate の 3 つの行動の始まりの 1 つ（`Regate`）にまとめました。コードでは、読み直しが通らない巡は決めたことを書かずに終わり、次の巡で gate が決め直します。モデルはその 2 歩を 1 歩にしています。dispatcher が自分でマージする approve は、マージの直前に head と任されているかを読み直し、通ったときだけマージします（`DispatcherMerges`）。
+gate の答えを捨てて回し直すのは、gate の 3 つの行動の始まりの 1 つ（`Regate`）にまとめました。コードでは、読み直しが通らない巡と、base が動いて `gh pr merge` が通らなかった巡は決めたことを書かずに終わり、次の巡で gate が決め直します。モデルはその 2 歩を 1 歩にしています。dispatcher が自分でマージする approve は、マージの直前に head と任されているかを読み直し、通ったときだけマージします（`DispatcherMerges`）。
 
 R8 は、dispatcher がマージした状態で、gate の答えと head と設定を確かめます。マージしたあとは、head は動かず、PR も閉じず、設定の変更も入れていないので、マージした時点の値がそのまま残ります。
 

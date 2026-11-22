@@ -179,12 +179,13 @@ DispatcherResumes ==
 \*   - approve か needs_human を決めたあとに head が動いた。前の head の gate の問いを閉じて回し直す（internal/issue/merge.go
 \*     mergeOne → headMoved）。report.json の commit が前の head のままなので、回し直した gate は fix を返す
 \*     （docs/dispatcher.md の「回し直す」の行）。dispatcher が自分でマージする approve なら、マージの直前の読み直し（approve の ChecksStill）
-\*   - dispatcher が自分でマージする approve（told が偽）で、マージの直前に読み直すと任されていない（approve の stillAuthorized）
+\*   - dispatcher が自分でマージする approve（told が偽）で、マージの直前に読み直すと任されていない（approve の stillAuthorized）か、
+\*     gh pr merge が base の動きで通らなかった（approve の RetryMerge）。base はモデルに無いので、この approve はいつでも回し直せるとする
 \* コードでは、読み直しが通らない巡は決めたことを書かずに終わり（regate）、次の巡で gate が決め直す。モデルはその 2 歩を 1 歩にまとめた
 Regate ==
     /\ pr = "open"
     /\ gate \in {"approve", "human"}
-    /\ moved \/ (gate = "approve" /\ ~told /\ ~mergeAuto)
+    /\ moved \/ (gate = "approve" /\ ~told)
 
 \* gate が fix（internal/issue/merge.go mergeOne → sendFix）: 理由を担当へ hc send。送れなければ通知 `gate` に unsent を、
 \* 担当（agent）がいなければ no_agent を書き、dispatcher が Chief of Staff に届ける（internal/dispatcher/route.go RouteOf。送れた fix は記録だけ）。
