@@ -35,7 +35,6 @@ flowchart LR
     s_write("要旨とテーマと気になることを書く"):::ai
     s_report("送った結果を報告して返す"):::ai
     s_check("送った結果を見て、そのターンで片付ける"):::ai
-    g_check{"分かれ道"}
   end
   t_routine --> s_start
   t_person --> s_add
@@ -47,9 +46,7 @@ flowchart LR
   s_build -->|"library/digest/digest.json・library/digest/digest.html・library/digest/message.txt"| s_send
   s_send -->|"files/（HTML）・library/digest/sent.json"| s_report
   s_report -->|"報告・kanban（review）"| fin
-  s_check -->|"オーナーへの知らせ（送れなかったとき）"| g_check
-  g_check -->|"送れておらず今なら送れる"| s_send
-  g_check -->|"送れたか今は送れない"| s_finish
+  s_check -->|"オーナーへの知らせ（送れなかったとき）"| s_finish
   s_finish -->|"kanban（done）"| fin
   fin(("終わり")):::event
 ```
@@ -65,7 +62,7 @@ flowchart LR
 | `build` | 担当の文を照らし、1 枚に組み立てる | 機械 | `担当の文の JSON`・`library/digest/input.json` | `library/digest/digest.json`・`library/digest/digest.html`・`library/digest/message.txt` | `send` |
 | `send` | 1 枚を届ける | 機械 | `library/digest/digest.html`・`library/digest/sent.json` | `files/（HTML）`・`library/digest/sent.json` | `report` |
 | `report` | 送った結果を報告して返す | AI | `library/digest/sent.json` | `報告`・`kanban（review）` | 終わり |
-| `check` | 送った結果を見て、そのターンで片付ける | AI | `notification.report`・`kanban（status）`・`報告`・`library/digest/sent.json` | `オーナーへの知らせ（送れなかったとき）` | `send`（送れておらず今なら送れる）・`finish`（送れたか今は送れない） |
+| `check` | 送った結果を見て、そのターンで片付ける | AI | `notification.report`・`kanban（status）`・`報告`・`library/digest/sent.json` | `オーナーへの知らせ（送れなかったとき）` | `finish` |
 | `finish` | ダイジェストの課題を片付ける | 機械 | `kanban（review）` | `kanban（done）` | 終わり |
 
 ## 機械がやる手順
@@ -85,7 +82,7 @@ flowchart LR
 | `start` | `chief-of-staff/playbooks/digest.md`・`chief-of-staff/playbooks/start.md` | オーナーに聞かずに起動する・枠が空くまで待つ |  |
 | `write` | `digest#2`・`digest#3` | テーマの束ね方・図を付けるか・気になることに挙げるか |  |
 | `report` | `digest#5`・`worker#7` | 報告の要約 |  |
-| `check` | `chief-of-staff/playbooks/digest.md` | doing なら待つ・担当に送り直させる・片付ける |  |
+| `check` | `chief-of-staff/playbooks/digest.md` | done なら何もしない・doing なら待つ・review なら送れていなくても片付ける |  |
 
 見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（片付いていないダイジェストの課題）`・`notification.ready`・`andon waiting --json（slots）`・`kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）`・`library/digest/input.json`・`入力にある課題と PR`・`担当の文の JSON`・`library/digest/digest.html`・`library/digest/sent.json`・`notification.report`・`kanban（status）`・`報告`・`kanban（review）`
 

@@ -80,8 +80,8 @@ steps:
     input: [notification.report, kanban（status）, 報告, library/digest/sent.json]
     output: [オーナーへの知らせ（送れなかったとき）]
     skill: chief-of-staff/playbooks/digest.md
-    decides: [doing なら待つ, 担当に送り直させる, 片付ける]
-    next: [{ id: send, when: 送れておらず今なら送れる }, { id: finish, when: 送れたか今は送れない }]
+    decides: [done なら何もしない, doing なら待つ, review なら送れていなくても片付ける]
+    next: [{ id: finish }]
   - id: finish
     title: ダイジェストの課題を片付ける
     by: machine

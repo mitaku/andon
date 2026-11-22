@@ -277,8 +277,10 @@ done <<DIGEST
 $digest_report@通知 report から check（送った結果を見て片付ける）が始まる
 [.steps[] | select(.by == "machine") | .command] == ["andon digest collect", "andon digest build", "andon digest send", "andon issue finish"]@機械の手順が collect → build → send → finish
 any(.steps[]; .command == "andon digest send" and .once == true and .record == "library/digest/sent.json")@送る手順は1回だけで、記録は library/digest/sent.json
-any(.steps[]; .id == "check" and any(.next[]; .id == "finish"))@確かめた段から片付けへ進む
+any(.steps[]; .id == "check" and ([.next[]?.id] == ["finish"]))@確かめた段からは片付けへだけ進む（送る段へ戻る輪が無い）
 DIGEST
+jq '(.steps[] | select(.id == "check")).next += [{"id": "send", "when": "送れていない"}]' "$tmp/digest.json" >"$tmp/bad.json"
+! jq -e 'any(.steps[]; .id == "check" and ([.next[]?.id] == ["finish"]))' "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: check から send へ戻る" || ng "check から send へ戻る定義が通る"
 jq '(.triggers[] | select(.start == "check")).notification = "review"' "$tmp/digest.json" >"$tmp/bad.json"
 ! jq -e "$digest_report" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: ダイジェストのきっかけが review" || ng "review の通知で片付ける定義が通る"
 # 壊すと落ちる
