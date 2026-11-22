@@ -335,7 +335,7 @@ signal: github-ci github.com/<owner>/sample-site/ci.yml@main（https://github.co
 
 - **まとめて1通**: Chief of Staff は複数をまとめて1回で答えるほうが安い。
 - **末尾の1行**: 通知はデータで、依頼ではない。Chief of Staff は kanban を読んで動き、オーナーに言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える（文は ADR-0010 決めたこと 3。①②のどちらで届いても同じ。③の待ち役で起動したときも、渡すのは①）。
-- **`news.replied=<turn>`**（ボードとの約束。約束を持つのはボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: `<news>` を渡したターンが終わって、そのターンに Chief of Staff が `andon news ack`（ラベル `news.ack=<turn>`）を打っていれば、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「オーナーが見る返事」に数えない。照らすのは、渡したときに控えた端末の `turn` とラベル `news.ack` の値で、答えの文は読まない（次の `Stop` フックの `drain`）。①②で渡す前から同じ値の `news.ack` があった（同じ turn の前の ack）ら数えない。ack の無いターンは、答えが `<no-reply>` だけでも書かない（`<no-reply>` の受け口は ack を入れたバージョン〈v0.0.8〉の次のバージョンで外した）。書いた数は控えの `replied` に数える（`ack`）。形は contract.md §6、決定は [ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6・8。
+- **`news.replied=<turn>`**（ボードとの約束。約束を持つのはボード側で、変えるときは Andon から知らせる。decisions.md §7 の F8）: `<news>` を渡したターンが終わって、そのターンに Chief of Staff が `andon news ack`（ラベル `news.ack=<turn>`）を打っていれば、その端末にラベル `news.replied=<そのターン>` を書く。ボードはそのターンを「オーナーが見る返事」に数えない。照らすのは、渡したときに控えた端末の `turn` とラベル `news.ack` の値で、答えの文は読まない（次の `Stop` フックの `drain`）。①②で渡す前から同じ値の `news.ack` があった（同じ turn の前の ack）ら数えない。確かめ済みにした `news.ack` は dispatcher が消すので、同じ turn の続きで2回目の `<news>` を渡したときの ack も数える（消せなかったときは前の値を控えて、数えない側に倒す）。ack の無いターンは、答えが `<no-reply>` だけでも書かない（`<no-reply>` の受け口は ack を入れたバージョン〈v0.0.8〉の次のバージョンで外した）。書いた数は控えの `replied` に数える（`ack`）。形は contract.md §6、決定は [ADR-0010](adr/0010-news-ack.md) 決めたこと 4〜6・8。
 
 ### 3.2 届けるか・記録だけか
 

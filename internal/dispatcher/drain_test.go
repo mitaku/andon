@@ -335,3 +335,65 @@ func TestDrainStopWithoutPromptIDRetriesOnce(t *testing.T) {
 		t.Fatalf("確かめた通知が控えに残った: hook=%+v pending=%+v", st.Hook, st.Pending)
 	}
 }
+
+// 同じ hc の turn の続き（Stop の block）に <news> を2回渡したとき、2回目の ack も数える（A-0305）。
+// 1回目の ack を数えたあとに news.ack を消すので、2回目の渡し時の ack_before は空になる。
+// ack していない2回目は acked: false のまま。
+func TestDrainSecondAckInSameTurn(t *testing.T) {
+	for _, ack2 := range []bool{true, false} {
+		bin := t.TempDir()
+		hc := "#!/bin/sh\n" +
+			"if [ \"$1 $2 $3\" = 'get t1 --json' ]; then\n" +
+			"  if [ -e \"$FAKE_DIR/acked\" ]; then ack=',\"news.ack\":\"5\"'; else ack=''; fi\n" +
+			"  echo \"{\\\"turn\\\":5,\\\"labels\\\":{\\\"role\\\":\\\"chief-of-staff\\\",\\\"project\\\":\\\"demo\\\"$ack}}\"\n" +
+			"  exit 0\n" +
+			"fi\n" +
+			"if [ \"$1 $2 $3\" = 'label t1 news.ack=' ]; then rm -f \"$FAKE_DIR/acked\"; exit 0; fi\n" +
+			"if [ \"$1 $2\" = 'label t1' ]; then exit 0; fi\n" +
+			"exit 1\n"
+		if err := os.WriteFile(filepath.Join(bin, "hc"), []byte(hc), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", bin+":/usr/bin:/bin") // 偽の hc が rm を使う
+		t.Setenv("FAKE_DIR", bin)
+		t.Setenv("HC_TERMINAL_ID", "t1")
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+		const slug = "demo"
+		push := func(issue string) {
+			st, _, _ := LoadState(slug)
+			st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: slug, Issue: issue, Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/" + issue + "/report.md"}}}
+			st.Save(slug)
+		}
+		ack := func() { os.WriteFile(filepath.Join(bin, "acked"), nil, 0o644) }
+		in := hookInput{SessionID: "s1", PromptID: "p1", StopHookActive: true}
+		push("A-0001")
+		if out, err := drain(slug, false, in); err != nil || out == nil {
+			t.Fatalf("1回目を渡さない: %v %v", out, err)
+		}
+		ack()
+		push("A-0002") // 1回目の ack のあと、同じ turn の続きで2回目を渡す
+		if out, err := drain(slug, false, in); err != nil || out == nil {
+			t.Fatalf("2回目を渡さない: %v %v", out, err)
+		}
+		if ack2 {
+			ack()
+		}
+		drain(slug, false, in)
+		b, _ := os.ReadFile(DeliveredPath(slug))
+		lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("ack2=%v: 記録が2行でない: %q", ack2, b)
+		}
+		var d1, d2 Delivered
+		if json.Unmarshal([]byte(lines[0]), &d1) != nil || json.Unmarshal([]byte(lines[1]), &d2) != nil {
+			t.Fatalf("記録が読めない: %q", b)
+		}
+		if !d1.Acked {
+			t.Errorf("ack2=%v: 1回目が acked でない", ack2)
+		}
+		if d2.Acked != ack2 {
+			t.Logf("%s", b)
+			t.Errorf("ack2=%v: 2回目の acked = %v", ack2, d2.Acked)
+		}
+	}
+}
