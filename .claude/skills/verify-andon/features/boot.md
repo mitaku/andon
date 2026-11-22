@@ -35,6 +35,7 @@
 - `package/environment.md`
 - `package/writing.md`
 - `package/skills/`
+- `package/gh-skills.txt`
 - `image/apply-main.sh`
 - `init/`
 
@@ -49,3 +50,4 @@
 - boot は中身が変わらなければ控え（`boot.json`）を書き直さない。控えの時刻は、boot が走ったかの証拠にならない。
 - 検証の担当は `andon boot` を打たない。dispatcher を起動し直し、動いている見回りを止める。
 - オーナーが手で直したファイルは `bt-generated` で「控えと違う」と出る。壊れか手直しかを、そのファイルの中身と `git log` で書き分ける。
+- `package/gh-skills.txt` の外の skill は、boot が `gh` のログインがあるときだけ入れる。`bt-skills` が見るのは `/opt/andon/skills` の symlink だけで、この一覧の skill は見ない。一覧を変えたときは、`~/.agents/skills` に入ったかを `ls` で別に読む。
