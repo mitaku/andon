@@ -1323,7 +1323,9 @@ HC_TERMINAL_ID=t5 "$andon" news ack >/dev/null && HC_TERMINAL_ID=t5 "$andon" new
 term t5 working 8 role=chief-of-staff project=demo news.ack=8
 cstop p8 '片付けた。オーナーへ言うことは無い' true >/dev/null
 cstop p8 '片付けた。オーナーへ言うことは無い' true >/dev/null
-[ "$(replied)" = $((n + 1)) ] && tail -1 "$tmp/hc/labels" | grep -qx 't5 news.replied=8' || die 'ack したターンに news.replied を1回だけ書かない'
+[ "$(replied)" = $((n + 1)) ] && grep -qx 't5 news.replied=8' "$tmp/hc/labels" || die 'ack したターンに news.replied を1回だけ書かない'
+# 確かめ済みの news.ack は消す（同じ turn の続きで次の <news> を渡したとき、2回目の ack も数えるため。A-0305）
+tail -1 "$tmp/hc/labels" | grep -qx 't5 news.ack=' || die '確かめ済みの news.ack を消さない'
 jq -e --argjson a "$a" '.replied.ack == $a + 1' "$state" >/dev/null || die 'ack で書いたことを控えに数えない'
 # ack の無いターン（前のターンの値のまま）は書かない
 id=$(event 'ack しない通知')

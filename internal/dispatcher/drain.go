@@ -200,6 +200,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return nil, err
 	}
 	changed := false
+	cleared := false // 確かめ済みの news.ack を消せた（次に渡すときの ack_before を空にする）
 	// lock が取れなかった Stop で見た、渡した turn の終わり（noteStop）。同じ印にだけ当てる
 	if n, ok := takeStop(slug); ok {
 		if h := st.Hook; h != nil && reflect.DeepEqual(n.Hook, *h) {
@@ -208,6 +209,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 			}
 			logDelivered(slug, h, n.Acked)
 			st.Hook, changed = nil, true
+			cleared = clearAck(addr, self)
 		}
 	}
 	// 前にフックで渡した <news>。渡した turn が Stop で終わったら確かめ済み（ラベル news.ack が渡したときの turn と同じなら news.replied を書く。
@@ -221,6 +223,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 				st.countReplied("ack")
 			}
 			logDelivered(slug, h, ok) // 素通りはラベルの一致で決める（news.replied を書けたかとは分ける）
+			cleared = clearAck(addr, self)
 		} else {
 			again = h.News // 届け直しは1回だけ（h.Again は捨てる）
 		}
@@ -244,7 +247,10 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		h := &HookNews{Terminal: addr, Via: "stop", SessionID: in.SessionID, PromptID: in.PromptID}
 		if self != nil {
 			turn := self.Turn
-			h.Turn, h.AckBefore = &turn, self.Labels[AckLabel]
+			h.Turn = &turn
+			if !cleared {
+				h.AckBefore = self.Labels[AckLabel]
+			}
 		}
 		if context {
 			h.Via = "prompt"
@@ -351,6 +357,21 @@ func EnsureFromHook(who string) {
 }
 
 // label は Chief of Staff の端末に news.replied=<turn> を書く（ボードとの約束。dispatcher.md §3.1）。
+// clearAck は、確かめ済みの news.ack を消す。消さないと、同じ turn の続きで次の <news> を渡したとき、
+// 2回目の ack が前の ack と同じ値になり、数えられない（A-0305）。渡したあとに ack が無ければラベルが無いので数えない。
+// 消せたら true（次の ack_before は空）。消せなければ false で、前の値を ack_before に控えて数えない側に倒す。
+func clearAck(addr string, self *terminal) bool {
+	if self == nil {
+		return false
+	}
+	if _, ok := self.Labels[AckLabel]; !ok {
+		return true
+	}
+	cmd := exec.Command("hc", "label", addr, AckLabel+"=")
+	cmd.Env = withoutTerminal()
+	return cmd.Run() == nil
+}
+
 func label(addr string, turn int) error {
 	cmd := exec.Command("hc", "label", addr, "news.replied="+strconv.Itoa(turn))
 	cmd.Env = withoutTerminal()

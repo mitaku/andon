@@ -51,6 +51,7 @@ func NewsMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 // acked は、端末 t のラベル news.ack が、<news> を渡したときに控えた turn と同じか（ADR-0010 決めたこと 5）。
 // before は渡したときのラベルの値で、渡す前からその値なら（同じ turn の前の ack）数えない。
+// 確かめ済みの ack は clearAck がラベルを消すので、同じ turn の2回目の渡しでは before が空になり、2回目の ack を数える。
 func acked(t *terminal, turn *int, before string) bool {
 	if t == nil || turn == nil {
 		return false
