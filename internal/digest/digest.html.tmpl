@@ -123,7 +123,7 @@ td:first-child { white-space: nowrap; }
 
 <h2>代わりに決めたこと</h2>
 {{with .Decided}}<h3>文書に入った決定（{{len .Decisions}} 件）</h3>
-{{if .Decisions}}<ul class="decided">{{range .Decisions}}<li>{{.Text}}（{{.Mark}}）<br><span class="muted">{{.At}} {{if .URL}}<a href="{{.URL}}">{{.Where}}</a>{{else}}{{.Where}}{{end}}</span></li>
+{{if .Decisions}}<ul class="decided">{{range .Decisions}}<li>{{.Text}}（{{.Mark}}）<br><span class="muted">{{if .URL}}<a href="{{.URL}}">{{.Where}}</a>{{else}}{{.Where}}{{end}}</span></li>
 {{end}}</ul>{{else}}<p>この期間に印の付いた決定の行は見つからなかった。</p>
 {{end}}<h3>CoS が決めたこと</h3>
 {{if or .Triage .Retro .Answers}}<ul class="decided">{{range .Triage}}<li>{{.Issue}} {{.Title}}: トリアージで {{.Closed}} 件を閉じ、{{.Cut}} 件を課題に切った。<br><span class="muted">{{.When}} {{.Path}}</span></li>

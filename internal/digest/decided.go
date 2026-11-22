@@ -36,8 +36,7 @@ type Decision struct {
 	Text   string  `json:"text"`
 	Mark   string  `json:"mark"` // 括弧の中。書いてあるとおり
 	Repo   string  `json:"repo"`
-	Commit string  `json:"commit"`
-	At     string  `json:"at"`
+	Commit string  `json:"commit"` // 期間の終わりの main（path と line はその木のもの）
 	Path   string  `json:"path"`
 	Line   int     `json:"line"`
 	URL    *string `json:"url" andon:"nullable"`
@@ -78,6 +77,7 @@ const (
 	decidedHeading = "決めたこと"            // 決定の節の見出しの頭
 	decidedMark    = "Chief Engineer が" // 拾う括弧の印（決めたこと 6 の細部）
 	docsDir        = "docs/"
+	emptyTree      = "4b825dc642cb6eb9a060e54bf8d69288fbee4904" // git の空の木（期間に最初の commit があるとき、その前の木）
 	githubHost     = "github.com/"
 	dispatcherBy   = "terminal:dispatcher"
 	terminalBy     = "terminal:"
@@ -87,7 +87,7 @@ func (c *collector) decided(rows []ledger.Row, in func(time.Time) bool) *Decided
 	return &Decided{Decisions: c.decisions(in), Triage: c.triaged(rows, in), Retro: c.retroed(in), Answers: c.scopeReplies(in)}
 }
 
-// decisions は kanban の課題の repo ごとに、期間に main に入った決定の行を古い順に並べる。
+// decisions は kanban の課題の repo ごとに、期間に main に入った決定の行を repo・文書・行の順に並べる。
 func (c *collector) decisions(in func(time.Time) bool) []Decision {
 	repos := map[string]bool{}
 	for _, t := range c.byID {
@@ -104,11 +104,11 @@ func (c *collector) decisions(in func(time.Time) bool) []Decision {
 		}
 		out = append(out, got...)
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].At < out[j].At })
 	return out
 }
 
-// repoDecisions は repo の最新の main の first-parent の commit のうち期間のものが足した決定の行を読む。
+// repoDecisions は、期間の前と期間の終わりの main（first-parent）を比べて、増えた決定の行を読む。
+// commit ごとに拾わないのは、期間の中で語を直された行が2度並び、取り消された行も残るため。
 // 手元の origin/main は古いことがあり、漏らした行は次の期間にも載らないので取り直す。collect は checkout に何も書かないので、
 // 取り直す先は object を借りる一時の bare の写しにする。
 func repoDecisions(repo string, in func(time.Time) bool) ([]Decision, error) {
@@ -135,10 +135,8 @@ func repoDecisions(repo string, in func(time.Time) bool) ([]Decision, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []Decision
-	lines := strings.Split(strings.TrimSpace(string(list)), "\n")
-	for _, line := range slices.Backward(lines) {
-		// <マージの時刻> <commit> [<親>…]
+	var base, head string
+	for line := range strings.Lines(string(list)) { // 新しい順に <main に入った時刻> <commit> [<親>…]
 		f := strings.Fields(line)
 		if len(f) < 2 {
 			return nil, fmt.Errorf("git rev-list の行が読めない: %q", line)
@@ -147,79 +145,76 @@ func repoDecisions(repo string, in func(time.Time) bool) ([]Decision, error) {
 		if err != nil {
 			return nil, fmt.Errorf("git rev-list の時刻が読めない: %q", line)
 		}
-		at := time.Unix(sec, 0).UTC()
-		if !in(at) {
+		if !in(time.Unix(sec, 0)) {
 			continue
 		}
-		parent := ""
+		if head == "" {
+			head = f[1]
+		}
+		base = emptyTree
 		if len(f) > 2 {
-			parent = f[2]
-		}
-		added, err := addedDecisions(tmp, f[1], parent)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range added {
-			d.Repo, d.Commit, d.At = repo, f[1], at.Format(timeLayout)
-			d.URL = blobURL(repo, d.Commit, d.Path, d.Line)
-			out = append(out, d)
+			base = f[2]
 		}
 	}
-	return out, nil
-}
-
-// addedDecisions は commit の docs/ の文書にあって、親の同じ文書に無い決定の行。
-// 差分の + の行をそのまま拾わないのは、本文だけを直した行と、名前を変えた文書の行を、新しい決定として出さないため。
-func addedDecisions(dir, commit, parent string) ([]Decision, error) {
-	args := []string{"diff-tree", "-r", "-z", "-M", "--name-status", "--no-commit-id"}
-	if parent == "" {
-		args = append(args, "--root", commit)
-	} else {
-		args = append(args, parent, commit)
+	if head == "" {
+		return nil, nil
 	}
-	b, err := git(dir, append(args, "--", docsDir)...)
+	out, err := addedDecisions(tmp, base, head)
 	if err != nil {
 		return nil, err
 	}
-	f := strings.Split(strings.TrimSuffix(string(b), "\x00"), "\x00")
-	var out []Decision
-	for i := 0; i+1 < len(f); i += 2 {
-		status, before, after := f[i], f[i+1], f[i+1]
-		if strings.HasPrefix(status, "R") && i+2 < len(f) {
-			after = f[i+2]
-			i++
-		}
-		if status == "D" || !strings.HasSuffix(after, ".md") {
-			continue
-		}
-		had := map[markedLine]int{}
-		if status != "A" {
-			old, err := git(dir, "cat-file", "blob", parent+":"+before)
-			if err != nil {
-				return nil, err
-			}
-			for _, d := range markedDecisions(old) {
-				had[markedLine{d.Text, d.Mark}]++
-			}
-		}
-		doc, err := git(dir, "cat-file", "blob", commit+":"+after)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range markedDecisions(doc) {
-			if k := (markedLine{d.Text, d.Mark}); had[k] > 0 {
-				had[k]--
-				continue
-			}
-			d.Path = after
-			out = append(out, d)
-		}
+	for i := range out {
+		out[i].Repo, out[i].Commit = repo, head
+		out[i].URL = blobURL(repo, head, out[i].Path, out[i].Line)
 	}
 	return out, nil
 }
 
-// markedLine は決定の行の同一（番号と行の位置は見ない）。
-type markedLine struct{ text, mark string }
+// addedDecisions は docs/ の変わった文書のうち、head にあって base のどの文書にも同じ 1 文の無い決定の行。
+// 差分の + の行をそのまま拾わないのは、本文・番号・括弧の中だけを直した行と、ほかの文書へ移した行を、新しい決定として出さないため。
+func addedDecisions(dir, base, head string) ([]Decision, error) {
+	b, err := git(dir, "diff-tree", "-r", "-z", "--no-renames", "--name-status", base, head, "--", docsDir)
+	if err != nil {
+		return nil, err
+	}
+	had := map[string]int{}
+	var now []Decision
+	f := strings.Split(string(b), "\x00") // <A・M・D・T> <path> の繰り返し
+	for i := 0; i+1 < len(f); i += 2 {
+		status, path := f[i], f[i+1]
+		if !strings.HasSuffix(path, ".md") {
+			continue
+		}
+		if status != "A" {
+			doc, err := git(dir, "cat-file", "blob", base+":"+path)
+			if err != nil {
+				return nil, err
+			}
+			for _, d := range markedDecisions(doc) {
+				had[d.Text]++
+			}
+		}
+		if status != "D" {
+			doc, err := git(dir, "cat-file", "blob", head+":"+path)
+			if err != nil {
+				return nil, err
+			}
+			for _, d := range markedDecisions(doc) {
+				d.Path = path
+				now = append(now, d)
+			}
+		}
+	}
+	var out []Decision
+	for _, d := range now {
+		if had[d.Text] > 0 {
+			had[d.Text]--
+			continue
+		}
+		out = append(out, d)
+	}
+	return out, nil
+}
 
 var (
 	headingRe  = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)

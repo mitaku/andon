@@ -139,7 +139,7 @@ type decidedView struct {
 }
 
 type decisionRow struct {
-	Text, Mark, Where, URL, At string
+	Text, Mark, Where, URL string
 }
 
 type triageRow struct {
@@ -351,7 +351,7 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 	if d := in.Decided; d != nil {
 		dv := &decidedView{}
 		for _, x := range d.Decisions {
-			r := decisionRow{Text: x.Text, Mark: x.Mark, At: loc.short(x.At),
+			r := decisionRow{Text: x.Text, Mark: x.Mark,
 				Where: fmt.Sprintf("%s %s:%d", strings.TrimPrefix(x.Repo, githubHost), x.Path, x.Line)}
 			if x.URL != nil {
 				r.URL = *x.URL

@@ -330,7 +330,7 @@ digest-input|.next|ready observations routines
 digest-input|.next.observations[0]|id title not_before
 digest-input|.next.routines[0]|name title next
 digest-input|.decided|decisions triage retro answers
-digest-input|.decided.decisions[0]|text mark repo commit at path line url
+digest-input|.decided.decisions[0]|text mark repo commit path line url
 digest-input|.decided.triage[0]|issue title at closed cut path
 digest-input|.decided.retro[0]|issue title at fix dropped path
 digest-input|.decided.answers[0]|issue title n question answer at path

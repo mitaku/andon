@@ -1118,7 +1118,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
   "routines": [{"name": "daily-digest", "title": "デイリーダイジェスト", "next": "2026-11-22T10:00:00Z"}]},
  "decided": {
   "decisions": [{"text": "2026-11-21 一覧を新しい順にする。", "mark": "Chief Engineer が決めた", "repo": "github.com/example/sample-site",
-    "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "at": "2026-11-21T09:00:00Z", "path": "docs/adr/0003-list.md", "line": 42,
+    "commit": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", "path": "docs/adr/0003-list.md", "line": 42,
     "url": "https://github.com/example/sample-site/blob/9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08/docs/adr/0003-list.md?plain=1#L42"}],
   "triage": [{"issue": "S-0050", "title": "トリアージ", "at": "2026-11-21T06:00:00Z", "closed": 12, "cut": 2, "path": "kanban/library/triage/2026-11-21-S-0050.json"}],
   "retro": [{"issue": "S-0051", "title": "振り返り", "at": "2026-11-21T07:00:00Z", "fix": 1, "dropped": 4, "path": "kanban/issues/S-0051/library/retro-applied.json"}],
@@ -1142,7 +1142,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `next.ready` | `todo` の担当の課題（レビュアーとオーナーの課題を除く）のうち、`after` の相手が全部 `done` で `not_before` の日を過ぎたものの数 |
 | `next.observations[]` | 親が Chief Engineer の課題で、済んでおらず、`not_before` が 7 日以内の課題（観察の課題） |
 | `next.routines[]` | kanban のルーチン。`next` は次に足す時刻で、止めてある・読めない `schedule` は `null` |
-| `decided` | 期間にオーナーの代わりに決められたこと（ADR-0044 決めたこと 6 の節 5）。下の表の4つで、どれも古い順。collect はいつも書く。前のバージョンの入力には無く、build は「入っていない」と描く（「無かった」とは描かない） |
+| `decided` | 期間にオーナーの代わりに決められたこと（ADR-0044 決めたこと 6 の節 5）。下の表の4つ。collect はいつも書く。前のバージョンの入力には無く、build は「入っていない」と描く（「無かった」とは描かない） |
 | `redacted` | 秘密の形を伏せた数（§20 と同じ伏せ方。一覧の正は `internal/redact/redact.go`） |
 | `skipped[]` | 読めなかったもの（`source` は kanban の根からのパスか出所の名前、`reason` は1行） |
 
@@ -1157,7 +1157,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 | `decided` のキー | 集めるもの |
 |---|---|
-| `decisions[]` | main の first-parent の commit のうち committer の時刻が期間の中のものが、`docs/` の下の `.md` に足した決定の行。決定の行は、見出しが「決めたこと」で始まる節（下の小見出しを含む。コードの囲みは除く）の番号つきの行で、頭の太字の 1 文の中か、閉じの `**` のすぐ後ろの全角の括弧に「Chief Engineer が」を含むもの。`mark` は括弧の中（書いてあるとおり）、`text` は太字の 1 文からその括弧を除いたもの。親の同じ文書（名前の変更は追う）に同じ `text` と `mark` の行があれば足した行に数えない（本文・番号・位置だけの直しを新しい決定として出さない）。`line` はその commit の文書の行、`url` は GitHub でなければ `null` |
+| `decisions[]` | 期間の前と期間の終わりの main（first-parent。時刻は committer の時刻）の `docs/` の下の `.md` を比べて、増えた決定の行。決定の行は、見出しが「決めたこと」で始まる節（下の小見出しを含む。コードの囲みは除く）の番号つきの行で、頭の太字の 1 文の中か、閉じの `**` のすぐ後ろの全角の括弧に「Chief Engineer が」を含むもの。`mark` は括弧の中（書いてあるとおり）、`text` は太字の 1 文からその括弧を除いたもの。期間の前の変わった文書に同じ `text` の決定の行があれば増えた行に数えない（本文・番号・括弧の中だけの直しと、文書の移しを新しい決定として出さない）。期間の中で足して直した行は最後の形の1行で、足して取り消した行は出ない。`commit` は期間の終わりの main で、`path`・`line`・`url` はその木のもの（`url` は GitHub でなければ `null`）。repo・文書・行の順 |
 | `triage[]` | 期間に `done` へ動いたトリアージの課題の記録（`library/triage/<日付>-<id>.json`）。記録に当てた時刻が無いので、当てた直後の片付けの時刻で切る。`closed` は `close` の項目の数、`cut` は `fix`・`bundle` から足した課題の数（束ねたものは 1。オーナーの課題は数えない） |
 | `retro[]` | `applied_at` が期間の中で `complete: true` の振り返りの記録。`fix` は `issues` の数、`dropped` は `dropped` の数。当て終えていない記録は `skipped` に出す |
 | `answers[]` | `answered` が期間の中の `kind: scope` の問い。`answeredBy` が `terminal:<id>` のものだけで、`terminal:dispatcher` と端末の外（オーナーの shell）の答えは載せない（オーナーが打った文をセルの外へ出さない）。`question` は問いの JSON（§5）の1行で、無ければ kanban の `text` の頭の行 |

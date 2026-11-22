@@ -235,7 +235,7 @@
       "additionalProperties": false,
       "properties": {
         "decisions": {
-          "description": "Marked decision lines that commits on main's first-parent line added to docs/ in the period, oldest first.",
+          "description": "Marked decision lines that main's docs/ gained over the period (the tree before the period against the tree at its end), by repository, document and line.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/decision"
@@ -489,7 +489,6 @@
         "mark",
         "repo",
         "commit",
-        "at",
         "path",
         "line",
         "url"
@@ -511,13 +510,9 @@
           "minLength": 1
         },
         "commit": {
-          "description": "The commit on main that added the line.",
+          "description": "The last commit that entered main in the period: path and line are of its tree.",
           "type": "string",
           "pattern": "^[0-9a-f]{40}$"
-        },
-        "at": {
-          "description": "That commit's committer time (the merge time).",
-          "$ref": "#/$defs/time"
         },
         "path": {
           "description": "The document, from the repository root.",

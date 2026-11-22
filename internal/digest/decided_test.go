@@ -111,16 +111,16 @@ func TestDecisions(t *testing.T) {
 	three := "1. **2026-11-21 一覧を新しい順にする（Chief Engineer が決めた）。** 理由。\n" +
 		"2. **2026-11-21 下書きを残す（Chief Engineer が決めた。推奨は別の案だった）。**\n" +
 		"3. **2026-11-21 送る前に聞く（オーナーが決めた）。**\n"
-	first := g.commit("2026-11-21T08:00:00Z", map[string]string{doc: head + section + three})
-	g.commit("2026-11-21T09:00:00Z", map[string]string{doc: head + "1. **2026-11-21 節の外の文（Chief Engineer が決めた）。**\n\n" + section + three +
+	g.commit("2026-11-21T08:00:00Z", map[string]string{doc: head + section + three})
+	last := g.commit("2026-11-21T09:00:00Z", map[string]string{doc: head + "1. **2026-11-21 節の外の文（Chief Engineer が決めた）。**\n\n" + section + three +
 		"\n## やらないこと\n\n4. **2026-11-21 節のあとの文（Chief Engineer が決めた）。**\n"})
 
 	f := newFake(t)
 	f.issue("S-0001", "doing", "repo: "+docRepo)
 	got := collectDecisions(t, f)
 	want := []wantDecision{
-		{Text: "2026-11-21 一覧を新しい順にする。", Mark: "Chief Engineer が決めた", Path: doc, Commit: first, Line: 7},
-		{Text: "2026-11-21 下書きを残す。", Mark: "Chief Engineer が決めた。推奨は別の案だった", Path: doc, Commit: first, Line: 8},
+		{Text: "2026-11-21 一覧を新しい順にする。", Mark: "Chief Engineer が決めた", Path: doc, Commit: last, Line: 9},
+		{Text: "2026-11-21 下書きを残す。", Mark: "Chief Engineer が決めた。推奨は別の案だった", Path: doc, Commit: last, Line: 10},
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("決定の行\n got %+v\nwant %+v", got, want)
@@ -190,7 +190,7 @@ func TestDecisionsHistory(t *testing.T) {
 	}
 	d := in.Decided.Decisions[0]
 	wantURL := "https://" + docRepo + "/blob/" + merge + "/docs/adr/%E6%97%A5%E6%9C%AC%20%E8%AA%9E.md?plain=1#L3"
-	if d.Text != "マージで入った。" || d.Commit != merge || d.At != "2026-11-21T03:00:00Z" || str(d.URL) != wantURL {
+	if d.Text != "マージで入った。" || d.Commit != merge || str(d.URL) != wantURL {
 		t.Errorf("決定の行: %+v url=%s", d, str(d.URL))
 	}
 	if g.git(g.local, "for-each-ref") != refs || g.git(g.local, "status", "--porcelain") != status {
@@ -198,6 +198,21 @@ func TestDecisionsHistory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(g.local, ".git", "FETCH_HEAD")); err == nil {
 		t.Error("checkout に FETCH_HEAD を書いた")
+	}
+}
+
+// 期間の中で語を直した行は最後の形の 1 行、足して取り消した行は出ない、括弧の中だけの直しは新しい決定でない。
+func TestDecisionsNet(t *testing.T) {
+	const sec = "## 決めたこと\n"
+	g := newGitRepo(t, map[string]string{"docs/a.md": sec + "1. **前からある。**（Chief Engineer が決め、人が見た）\n"})
+	kept := "1. **前からある。**（Chief Engineer が決め、オーナーが見た）\n"
+	g.commit("2026-11-21T01:00:00Z", map[string]string{"docs/a.md": sec + kept + "2. **版を上げる（Chief Engineer が決めた）。**\n3. **あとで取り消す（Chief Engineer が決めた）。**\n",
+		"docs/b.md": sec + "1. **文書ごと取り消す（Chief Engineer が決めた）。**\n"})
+	g.commit("2026-11-21T02:00:00Z", map[string]string{"docs/a.md": sec + kept + "2. **バージョンを上げる（Chief Engineer が決めた）。**\n", "docs/b.md": ""})
+	f := newFake(t)
+	f.issue("S-0001", "doing", "repo: "+docRepo)
+	if got := collectDecisions(t, f); len(got) != 1 || got[0].Text != "バージョンを上げる。" || got[0].Line != 3 {
+		t.Errorf("決定の行: %+v", got)
 	}
 }
 
