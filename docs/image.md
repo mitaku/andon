@@ -106,7 +106,7 @@ PR と main の push は、tests の job（`packages` の権限を持たない�
 tests の job は、ほとんどが image の build と `tests/image.sh` の検査だった（PR で 6〜7 分）。次の4つで縮める。どれも check の名前（`tests`・`go`）は変えず、飛ばすときも job は成功で終わる（gate は PR の head の checks が揃うのを待つので、workflow ごと `paths` で外さない）。
 
 - **andon・kanban を1回だけ焼く**: job の先頭で `go build` し、`ANDON_BIN`・`KANBAN_BIN` で `tests/*.sh` に渡す。release の job も同じく焼いて渡す。`tests/*.sh` を回すのは tests の workflow だけで、go の workflow は回さない（二重に回さない。`workflow_test.go` が確かめる）。
-- **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。ただし `tests/image.sh` だけは溜めずに、1行ごとに「[tests/image.sh] 」を付けて流す（job が上限で打ち切られても、どこまで進んだかがログに残る）。tests の job の上限は45分。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。長い `tests/image.sh` と `tests/andon-dispatcher.sh` を先に起動する。`tests/schema.sh` は command の出力を schema に通すのに、写す側の検査（`andon-dispatcher.sh` など9本）が同じ回で写したものを読む。写す側が全部終わってから最後に起動し、回し直さない（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 2。前は自分の中で9本をもう一度走らせ、102〜220 秒かかっていた）。
+- **並べる**: `tests/lib/run-tests.sh` が `tests/*.sh` を runner の CPU 数だけ並べて走らせる。出力は1本ごとに受けて、終わった順に1本ずつまとめて出す（混ざらない）。ただし `tests/image.sh` だけは溜めずに、1行ごとに「[tests/image.sh] 」を付けて流す（job が上限で打ち切られても、どこまで進んだかがログに残る）。tests の job の上限は45分。最後に1本ごとの秒の表を、ログと job の summary に出す。release の job も同じものを打つ。長い `tests/image.sh` と `tests/andon-dispatcher.sh` を先に起動する。`tests/schema.sh` は command の出力を schema に通すのに、写す側の検査（`andon-dispatcher.sh` など11本）が同じ回で写したものを読む。写す側が全部終わってから最後に起動し、回し直さない（[ADR-0032](adr/0032-shorten-time-to-merge.md) 決めたこと 2。前は自分の中で11本をもう一度走らせ、102〜220 秒かかっていた）。
 - **image に関係しない PR では `tests/image.sh` を飛ばす**（下の表）。
 - **文書だけの PR では、文書を読む検査だけを走らせる**（下の「文書だけの PR」）。go の job もこれに従う。
 
@@ -142,7 +142,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `agents-md.sh` | root の `AGENTS.md` の「決まり｜守らせるもの」の表と、守らせるものが名指したファイル（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 6） | いつも |
 | `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5） | いつも |
-| `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む9本も並べる。下の「手元は関係する検査だけ」） |
+| `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む11本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
 | `adr-index.sh` | `docs/adr/` の索引・状態行と `README.md` の ADR の一覧（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)）、ADR ごとの決定の記録（`docs/decisions/`・`docs/decisions.md` §14） | `docs/adr/`・`README.md`・`docs/decisions.md`・`docs/decisions/` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
@@ -172,7 +172,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `tests/lib/` のほか | `image.sh` 以外の全部 |
 | `cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`embed.go`・andon に埋め込む `process/states/issue.yaml` | 重い検査を除く全部と、変えたパスを見る重い検査（下の表） |
 | それ以外（`go.mod`・`go.sum`・`mise.toml`・`.dockerignore`・`.github/`・`model/` と知らないパス） | `image.sh` 以外の全部 |
-| `schema.sh` を走らせるとき | `schema.sh` が出力を読む9本（`andon-issue.sh`・`andon-dispatcher.sh` など。`bash tests/schema.sh --emitters`）も並べる。並べないと `schema.sh` が自分の中で1本ずつ走らせて遅い |
+| `schema.sh` を走らせるとき | `schema.sh` が出力を読む11本（`andon-issue.sh`・`andon-dispatcher.sh` など。`bash tests/schema.sh --emitters`）も並べる。並べないと `schema.sh` が自分の中で1本ずつ走らせて遅い |
 | CI の表で「走らせる」もの | `image.sh` も（Docker が無ければ SKIP） |
 
 重い検査と、その検査が見る部分は次のとおり（正は `tests/lib/scope.sh` の表。`bash tests/lib/scope.sh --heavy` で出る）。Go の package は、検査が打つ command の package と、それが import する package。`tests/ci.sh` が `go list -deps` と突き合わせ、import を足して表から漏れると落ちる。`cmd/andon` と `internal/cli` は全部の command の入口なので、どの検査の部分にも入る。
@@ -185,7 +185,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `apply-main.sh` | `image/apply-main.sh`・`cmd/andon`・`cmd/kanban`・`internal/cli`・`internal/pkgversion` と、`cmd/kanban` が import する `internal/ledger`・`delegate`・`spawn`・`contract`、`contract` が import する root の `embed.go` |
 | `schema.sh` | `schema/` の直下の `*.schema.json`・`schema/ledger/` の `*.schema.json`・`docs/contract.md`・`package/lib/andon/schema_check.py`・照合に打つ `andon schema` の Go の package（`cmd/andon`・`internal/cli`・`internal/schema`・`internal/contract`・root の `embed.go`） |
 
-andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`retro`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`・`schema/` の直下の `*.schema.json`。たとえば `internal/measure/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
+andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`retro`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`・`redact`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`・`schema/` の直下の `*.schema.json`。たとえば `internal/measure/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
 
 ## 残る危険
 

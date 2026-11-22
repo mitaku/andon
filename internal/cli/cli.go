@@ -16,6 +16,7 @@ import (
 	"andon/internal/chiefofstaff"
 	"andon/internal/create"
 	"andon/internal/delegate"
+	"andon/internal/digest"
 	"andon/internal/dispatcher"
 	"andon/internal/gate"
 	"andon/internal/issue"
@@ -113,6 +114,12 @@ var commands = []command{
 		about: "kanban と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
 		usage: measure.Usage,
 		run:   measure.Main,
+	},
+	{
+		name:  "digest",
+		about: "期間の記録を集め（collect）、担当の文と組み立てて 1 枚の HTML にし（build）、files/ に出す（send）",
+		usage: digest.Usage,
+		run:   digest.Main,
 	},
 	{
 		name:  "waiting",

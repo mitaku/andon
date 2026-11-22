@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/digest/1",
+  "title": "Digest text",
+  "description": "What the digest's worker writes and passes to `andon digest build <id> -` (ADR-0044 decision 8): the headline, the themes and the concerns. The command checks it against this schema and against the input (every issue must be in input.json; the counts' upper limits), hides secret shapes, and keeps it as issues/<id>/library/digest/digest.json. Counts, lists and bars are not here: the command draws them from the input. Only these keys.",
+  "type": "object",
+  "required": [
+    "headline",
+    "themes",
+    "concerns"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "headline": {
+      "description": "The headline, one sentence each (2 to 5; the command checks the upper limit).",
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/sentence"
+      }
+    },
+    "themes": {
+      "description": "The changes bundled by theme (up to 8; the command checks it).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/theme"
+      }
+    },
+    "concerns": {
+      "description": "The worker's sentences about what went wrong, with grounds (up to 3; the command checks it).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "issues"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "The sentence.",
+            "$ref": "#/$defs/sentence"
+          },
+          "issues": {
+            "description": "The issues it is grounded on.",
+            "$ref": "#/$defs/issues"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sentence": {
+      "description": "One line of text: not empty, no line break.",
+      "type": "string",
+      "pattern": "^[^\\n\\r]*[^\\n\\r \\t][^\\n\\r]*$"
+    },
+    "issues": {
+      "description": "Issue ids from input.json's issues (one or more).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+      }
+    },
+    "theme": {
+      "description": "One theme: its name, what changed (1 to 3 sentences; the command checks the upper limit), the issues it bundles, and at most one figure.",
+      "type": "object",
+      "required": [
+        "title",
+        "body",
+        "issues"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "description": "The theme's name.",
+          "$ref": "#/$defs/sentence"
+        },
+        "body": {
+          "description": "What changed, one sentence each.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        },
+        "issues": {
+          "description": "The issues the theme bundles.",
+          "$ref": "#/$defs/issues"
+        },
+        "figure": {
+          "description": "A figure, when one helps.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/before_after"
+            },
+            {
+              "$ref": "#/$defs/steps"
+            }
+          ]
+        }
+      }
+    },
+    "before_after": {
+      "description": "Before and after side by side (up to 3 lines each; the command checks it).",
+      "type": "object",
+      "required": [
+        "type",
+        "before",
+        "after"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "description": "The figure type.",
+          "const": "before_after"
+        },
+        "before": {
+          "description": "The lines before the change.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        },
+        "after": {
+          "description": "The lines after the change.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        }
+      }
+    },
+    "steps": {
+      "description": "Steps in order with one stood out (up to 6 steps; focus is the 1-based step to stand out; the command checks both upper limits).",
+      "type": "object",
+      "required": [
+        "type",
+        "steps",
+        "focus"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "description": "The figure type.",
+          "const": "steps"
+        },
+        "steps": {
+          "description": "The steps, in order.",
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        },
+        "focus": {
+          "description": "The step to stand out, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

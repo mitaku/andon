@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の18本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
+#   1. schema/ の21本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
 #      schema の決まり（draft 2020-12・$id のバージョン・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff・andon waiting）と
+#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff・andon waiting・andon digest）と
 #      kanban の CLI が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
@@ -17,7 +17,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # command の出力を写す検査（下の 5）。tests/lib/run-tests.sh は --emitters でこの並びを読み、先に走らせて写させる
-emitters=(andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-retro-apply andon-signal andon-chief-of-staff andon-waiting)
+emitters=(andon-issue andon-gate andon-dispatcher andon-dispatcher-signal andon-measure andon-retro andon-retro-apply andon-signal andon-chief-of-staff andon-waiting andon-digest)
 if [ "${1:-}" = --emitters ]; then printf 'tests/%s.sh\n' "${emitters[@]}"; exit 0; fi
 
 check_py=package/lib/andon/schema_check.py
@@ -74,10 +74,11 @@ schema_of() {
   case "$1" in
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
     6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; 21) echo patterns ;;
-    22) echo ledger-log ;; 23) echo ledger-ready ;; 24) echo run ;; 25) echo waiting ;; *) return 1 ;;
+    22) echo ledger-log ;; 23) echo ledger-ready ;; 24) echo run ;; 25) echo waiting ;;
+    26) echo digest-input ;; 27) echo digest ;; 28) echo digest-sent ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered findings gate issue-keys launch measure notification outcome patterns project question report retro run signal waiting"
+expected="candidates corrections delivered digest digest-input digest-sent findings gate issue-keys launch measure notification outcome patterns project question report retro run signal waiting"
 # kanban の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
 ledger="ledger-log ledger-ready"
 schema_file() {
@@ -86,7 +87,7 @@ schema_file() {
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は18本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は21本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 actual="$(cd "$schema_dir/ledger" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "config.v3 issue.v3 log.v3 questions.v3 ready.v3 routine.v3" ]; then ok "schema/ledger/ は6本（$actual）"; else ng "schema/ledger/ の顔ぶれが違う: $actual"; fi
 for name in $expected $ledger; do
@@ -96,7 +97,7 @@ flush
 
 # バージョン（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 # kanban の行と ready の2本は kanban の形式のバージョン（3）
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 ledger-log/3 ledger-ready/3; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 digest/1 digest-input/1 digest-sent/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
@@ -177,6 +178,9 @@ declare -A required=(
   [patterns]="retro at since until days previous_retro patterns fixes"
   [run]="id command expect exit_code started_at finished_at output output_bytes truncated"
   [waiting]="version at project slots items"
+  [digest-input]="version project issue title at since until previous truncated issues waiting concerns numbers next redacted skipped"
+  [digest]="headline themes concerns"
+  [digest-sent]="issue since until destinations"
   [ledger-log]="at by id change"   # 最初の例は課題の行。ほかの形の行は 3b で作る
   [ledger-ready]=""                # 並び。課題の必須（id・status）は 3b で消す
 )
@@ -316,6 +320,20 @@ waiting|.slots|limit working waiting free waiting_full
 waiting|.items[0]|kind id title since holds
 waiting|.items[1].ask|kind question options
 waiting|.items[1].ask.options[0]|label
+digest-input|.previous|issue until sent_at
+digest-input|.issues[0]|id title status done_at pr merged_at merged_by tier grant retro
+digest-input|.concerns[0]|kind issue title at url
+digest-input|.numbers|days current previous
+digest-input|.numbers.days[0]|date merged auto
+digest-input|.numbers.current|since until merged auto closed lead_time_hours question_open_hours tokens
+digest-input|.next|ready observations routines
+digest-input|.next.observations[0]|id title not_before
+digest-input|.next.routines[0]|name title next
+digest|.themes[0]|title body issues
+digest|.themes[0].figure|type before after
+digest|.themes[1].figure|type steps focus
+digest|.concerns[0]|text issues
+digest-sent|.destinations[0]|kind at ok
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -850,6 +868,53 @@ fail|waiting|.items[1].ask.kind = "scope"|判断の行の問いの種類が scop
 fail|waiting|.items[1].ask.from = "gate"|判断の行の問いを gate が出した
 fail|waiting|.items[1].ask.options = [{"label": "一つ"}]|選択肢が 1 つ
 fail|waiting|.items[1].answerable = "yes"|answerable が真偽値でない
+pass|digest-input|.previous = null|前に送ったダイジェストが無い
+pass|digest-input|.issues = [] | .concerns = [] | .skipped = []|期間に何も無い
+pass|digest-input|.issues[0].merged_by = null | .issues[0].merged_at = null|期間にマージされていない片付け
+pass|digest-input|.next.routines[0].next = null|止めてあるルーチン
+pass|digest-input|.skipped = [{source: "github.com/example/sample-site", reason: "読めない"}]|読めなかったもの
+fail|digest-input|.version = 2|version が 1 でない
+fail|digest-input|.since = "2026-11-20"|since が日付だけ
+fail|digest-input|.truncated = "no"|truncated が真偽値でない
+fail|digest-input|.issues[0].merged_by = "owner"|merged_by が dispatcher・person でない
+fail|digest-input|.issues[0].tier = "D"|tier が A・B・C でない
+fail|digest-input|.issues[0].grant = "2"|grant が d<n> でない
+fail|digest-input|.issues[0].id = "a/b"|課題の id に /
+fail|digest-input|.issues[1].id = .issues[0].id|課題が重なる
+fail|digest-input|.issues[0].pr = "http://example.com/1"|pr が GitHub の PR の URL でない
+fail|digest-input|.concerns[0].kind = "slow"|気になることの種類を知らない
+fail|digest-input|.concerns[0].url = "javascript:alert(1)"|気になることの url が https でない
+fail|digest-input|.numbers.days[0].merged = -1|日のマージが負
+fail|digest-input|.numbers.current.lead_time_hours = "3"|時間が数でない
+fail|digest-input|.next.ready = -1|着手できる数が負
+fail|digest-input|.next.observations[0].not_before = "11/25"|見る日が日付でない
+fail|digest-input|.redacted = -1|伏せた数が負
+fail|digest-input|.waiting = []|waiting が object でない
+fail|digest-input|.waiting |= del(.slots)|waiting に slots が無い
+pass|digest|.concerns = []|担当が添える気になることが無い
+pass|digest|.themes = []|テーマが無い
+pass|digest|.themes[0] |= del(.figure)|図の無いテーマ
+fail|digest|.headline = ["一文だけ。"]|要旨が 1 文
+fail|digest|.headline[0] = "一。\n二。"|要旨の文に改行
+fail|digest|.headline[0] = "  "|要旨の文が空白だけ
+fail|digest|.themes[0].body = []|テーマの文が無い
+fail|digest|.themes[0].issues = []|テーマが課題を指さない
+fail|digest|.themes[0].issues = ["a/b"]|テーマが指す id に /
+fail|digest|.themes[0].figure.type = "pie"|図の型を知らない
+fail|digest|.themes[0].figure.before = []|before_after の前が空
+fail|digest|.themes[1].figure.steps = ["一つ"]|steps が 1 段
+fail|digest|.themes[1].figure.focus = 0|focus が 0
+fail|digest|.themes[1].figure += {before: ["x"]}|steps に before を混ぜる
+fail|digest|.concerns[0].issues = []|気になることが根拠の課題を指さない
+pass|digest-sent|.destinations[0] = {kind: "files", at: "2026-11-21T10:01:00Z", ok: false, error: "files/ を作れない"}|送りそこねた送り先
+fail|digest-sent|.destinations = []|送り先が無い
+fail|digest-sent|.destinations[0].kind = "slack"|送り先の種類を知らない（今は files だけ）
+fail|digest-sent|.destinations[0] |= del(.url)|送れたのに url が無い
+fail|digest-sent|.destinations[0] += {error: "x"}|送れたのに error がある
+fail|digest-sent|.destinations[0].ok = false|送れなかったのに error が無い（url がある）
+fail|digest-sent|.destinations[0].error = "一行目\n二行目" | .destinations[0].ok = false | .destinations[0] |= del(.url)|error が1行でない
+fail|digest-sent|.destinations += [.destinations[0]]|同じ送り先が2行
+fail|digest-sent|.until = "2026-11-21"|until が日付だけ
 
 EOF
 
@@ -939,6 +1004,11 @@ waiting|.required -= ["slots"]|オーナー待ちの必須から slots を外す
 waiting|."$defs".item.properties.kind.enum += ["review"]|行の kind を緩める
 waiting|."$defs".ask.properties.kind.enum += ["scope"]|判断の行の問いの種類に scope を許す
 waiting|.properties.slots.properties.free.minimum = -10|空きの負を許す
+digest-input|.required -= ["truncated"]|ダイジェストの入力の必須から truncated を外す
+digest-input|."$defs".issue.properties.merged_by.anyOf[0].enum += ["owner"]|merged_by を緩める
+digest|."$defs".issues.minItems = 0|テーマと気になることが課題を指さなくてよい
+digest|.properties.headline.minItems = 1|要旨の下限を 1 文に緩める
+digest-sent|."$defs".destination.properties.kind.enum += ["slack"]|送り先の種類を緩める
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -1040,6 +1110,10 @@ ledger-log.jsonl|ledger-log|kanban の CLI が書いた log.jsonl（andon dispat
 ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
 waiting.json|waiting|andon waiting --json の出力
 waiting-empty.json|waiting|andon waiting --json の出力（オーナー待ちが無い kanban）
+digest-input.json|digest-input|andon digest collect の input.json
+digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
+digest.json|digest|andon digest build の digest.json
+digest-sent.json|digest-sent|andon digest send の sent.json
 EMIT
     flush
   fi
