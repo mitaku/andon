@@ -22,9 +22,17 @@ EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 
-# 課題 1 件（自動マージして revert された）と、壊れた log.jsonl の行
+# 担当の課題 1 件（自動マージして revert された。owner の答え 2・Chief of Staff の答え 1・印の無い答え 1）と、
+# 問いを持たずに片付いたオーナーの課題 1 件と、壊れた log.jsonl の行
 k=$tmp/sample-site/kanban
-mkdir -p "$k/issues/S-0001/library/gate"
+mkdir -p "$k/issues/S-0001/library/gate" "$k/issues/S-0002"
+printf 'id: S-0002\ntitle: two\nstatus: done\nwho: person\ncreated: "2026-11-01T00:00:00Z"\n' >"$k/issues/S-0002/issue.yaml"
+n=0
+for mark in owner owner chief-of-staff ''; do
+  n=$((n + 1))
+  printf -- '- n: %d\n  text: x\n  status: received\n  asked: "2026-11-01T01:30:00Z"\n  answered: "2026-11-01T01:40:00Z"\n' "$n"
+  if [[ -n "$mark" ]]; then printf '  decidedBy: %s\n' "$mark"; fi
+done >"$k/issues/S-0001/questions.yaml"
 printf 'version: 3\nprefix: S\n' >"$k/config.yaml"
 printf 'id: S-0001\ntitle: one\nstatus: done\ncreated: "2026-11-01T00:00:00Z"\nsession: 11111111-0000-4000-8000-000000000001\n' >"$k/issues/S-0001/issue.yaml"
 printf '{"pr": "%s/1"}\n' "$pr" >"$k/issues/S-0001/library/report.json"
@@ -36,6 +44,7 @@ cat >"$k/log.jsonl" <<'EOF'
 {"at":"2026-11-01T02:00:00Z","by":"someone","id":"S-0001","change":{"merge":"auto"}}
 {"at":"broken
 {"at":"2026-11-01T07:00:00Z","by":"terminal:t1","id":"S-0001","change":{"status":"done"}}
+{"at":"2026-11-01T08:00:00Z","by":"terminal:t1","id":"S-0002","change":{"status":"done"}}
 EOF
 # dispatcher の置き場（記録だけの通知・届けた通知の記録）は一時の XDG_STATE_HOME に置く: report を2回届けて2回とも ack、merged を1回記録だけ
 export XDG_STATE_HOME=$tmp/state
@@ -56,13 +65,15 @@ before=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 export KANBAN_ROOT=$tmp/sample-site
 "$andon" measure --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
 jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_observe: {count: 0, days: null}, no_hypothesis: 0}
-  and .efficiency.merged_prs == 1 and .efficiency.auto_merge.rate == 1 and .efficiency.human_touches.total == 1
+  and .efficiency.merged_prs == 1 and .efficiency.auto_merge.rate == 1
+  and .efficiency.human_touches == {total: 3, per_pr: 3, merge: 0, decision: 2, task: 1} and .prs[0].human_touches == 2
+  and .efficiency.answers == {owner: 2, chief_of_staff: 1, machine: 0, unmarked: 1}
   and .counter.reverted == 1 and .counter.reopened.by_tier.A == 1 and .counter.reopened.corrections == "none" and .counter.corrected == {corrections: "none", by_tier: {A: 0, B: 0, C: 0, none: 0}}
-  and .flow.lead_time.hours == 6 and .flow.closed.count == 1
+  and .flow.lead_time.hours == 6 and .flow.closed.count == 2
   and (.skipped | length) == 1 and .skipped[0].line == 4
   and .news.kinds == [{kind: "merged", delivered: 0, acked: 0, rate: null, recorded: 1}, {kind: "report", delivered: 2, acked: 2, rate: 1, recorded: 0}]
   and .news.candidates == ["report"]
-  and .tokens == [{issue: "S-0001", source: "claude", usage: {input: 3, output: 40, cache_read: 500, cache_write: 60}}]
+  and .tokens == [{issue: "S-0001", source: "claude", usage: {input: 3, output: 40, cache_read: 500, cache_write: 60}}, {issue: "S-0002", source: "claude", usage: null}]
   and .estimate == {count: 0, within: 0, rate: null, none: 1} and (.issues | map(.issue)) == ["S-0001"] and .issues[0].estimate_minutes == null' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
 echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）'
@@ -73,6 +84,9 @@ grep '自動マージ率' "$tmp/table" | grep -q '対抗: revert 1本'
 grep -q 'kanban/log.jsonl:4' "$tmp/table"
 grep -q '^  記録だけへ移す候補.*  report$' "$tmp/table"
 grep -q '^  S-0001  *claude 入力 3・出力 40・キャッシュ読み 500・キャッシュ書き 60$' "$tmp/table"
+grep -q '^  PR あたりのオーナーの介在回数  *3\.00（3回 / 1本。マージ 0・判断 2・オーナーの課題 1）$' "$tmp/table"
+grep -q '^  答えを決めた者  *オーナー 2・Chief of Staff 1・command 0・印なし 1$' "$tmp/table"
+echo 'ok 表: 介在の内訳と、答えを決めた者の行'
 echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標・飛ばした行・記録だけへ移す候補'
 after=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 [ "$before" = "$after" ]
@@ -86,6 +100,8 @@ printf '#!/bin/sh\necho forbidden-gh >&2\nexit 99\n' >"$tmp/bin/gh"
 export KANBAN_ROOT=$tmp/empty
 "$andon" measure --json >"$tmp/empty.json"
 jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .flow.closed.count == 0
+  and .efficiency.human_touches == {total: 0, per_pr: null, merge: 0, decision: 0, task: 0}
+  and .efficiency.answers == {owner: 0, chief_of_staff: 0, machine: 0, unmarked: 0}
   and .prs == [] and .issues == [] and .estimate == {count: 0, within: 0, rate: null, none: 0} and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"

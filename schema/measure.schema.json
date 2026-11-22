@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://andon.example.com/schema/measure/1",
+  "$id": "https://andon.example.com/schema/measure/2",
   "title": "Measure",
   "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
@@ -71,18 +71,33 @@
     "efficiency": {
       "description": "Efficiency, per pull request merged in the period. Read next to counter.",
       "type": "object",
-      "required": ["merged_prs", "human_touches", "auto_merge", "gate"],
+      "required": ["merged_prs", "human_touches", "answers", "auto_merge", "gate"],
       "additionalProperties": false,
       "properties": {
         "merged_prs": { "description": "Ledger pull requests (report.json pr) merged in the period.", "$ref": "#/$defs/count" },
         "human_touches": {
-          "description": "log.jsonl lines of those issues whose by is not terminal: or routine:, and per pull request (the primary metric).",
+          "description": "The owner's operations in the period by kind, and per merged pull request (the primary metric). Each is placed by its own time, so total can differ from the sum over prs[] (ADR-0049).",
           "type": "object",
-          "required": ["total", "per_pr"],
+          "required": ["total", "per_pr", "merge", "decision", "task"],
           "additionalProperties": false,
           "properties": {
-            "total": { "description": "Lines.", "$ref": "#/$defs/count" },
-            "per_pr": { "description": "total / merged_prs; null when none merged.", "$ref": "#/$defs/rate" }
+            "total": { "description": "merge + decision + task.", "$ref": "#/$defs/count" },
+            "per_pr": { "description": "total / merged_prs; null when none merged (total may still be above 0).", "$ref": "#/$defs/rate" },
+            "merge": { "description": "Pull requests among merged_prs without a gate record with merged true: merged by the owner.", "$ref": "#/$defs/count" },
+            "decision": { "description": "Answers decided by the owner; equal to answers.owner.", "$ref": "#/$defs/count" },
+            "task": { "description": "Issues with who person and no question that moved from another column to the last in the period (done again on a done issue is not a move), once per issue.", "$ref": "#/$defs/count" }
+          }
+        },
+        "answers": {
+          "description": "Answers in questions.yaml whose answered is in the period, by decidedBy, across all issues but reviewer issues.",
+          "type": "object",
+          "required": ["owner", "chief_of_staff", "machine", "unmarked"],
+          "additionalProperties": false,
+          "properties": {
+            "owner": { "description": "decidedBy owner.", "$ref": "#/$defs/count" },
+            "chief_of_staff": { "description": "decidedBy chief-of-staff.", "$ref": "#/$defs/count" },
+            "machine": { "description": "decidedBy machine: closed by a command.", "$ref": "#/$defs/count" },
+            "unmarked": { "description": "No decidedBy, or a value that is none of the three. Not in human_touches.", "$ref": "#/$defs/count" }
           }
         },
         "auto_merge": {
@@ -262,7 +277,7 @@
         "merged_at": { "description": "When GitHub merged it, UTC, YYYY-MM-DDTHH:MM:SSZ.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
         "tier": { "description": "Gate tier (see counter.reopened.by_tier), none when there is no gate record.", "enum": ["A", "B", "C", "none"] },
         "auto": { "description": "Merged by the dispatcher.", "type": "boolean" },
-        "human_touches": { "description": "log.jsonl lines of the issue by the person.", "$ref": "#/$defs/count" },
+        "human_touches": { "description": "1 when the owner merged it (auto is false), plus the issue's answers with decidedBy owner, whenever answered.", "$ref": "#/$defs/count" },
         "lead_time_hours": { "description": "From the issue's creation to the merge; null when the creation time is unknown.", "$ref": "#/$defs/rate" },
         "reverted": { "description": "Reverted by a pull request merged in the period.", "type": "boolean" },
         "corrections": { "description": "The issue's corrections.json has one or more entries.", "type": "boolean" }

@@ -39,13 +39,14 @@ const repoURL = "https://github.com/example/sample-site/pull/"
 //
 // 期間 2026-11-01〜2026-11-04（4日）で手で数えた値:
 //
-//	S-0001 作成 11-01 00:00。todo 1h → doing 4h → review 5h → done 10:00。PR #1 を 06:00 に dispatcher がマージ（レベル A）。オーナーの行 1。
+//	S-0001 作成 11-01 00:00。todo 1h → doing 4h → review 5h → done 10:00。PR #1 を 06:00 に dispatcher がマージ（レベル A）。端末でない by の行 1（数えない）。
 //	S-0002 作成 11-02 00:00。todo 2h → doing 4h → review 2h（fix）→ doing 2h → review 14h → done 11-03 00:00。
-//	       PR #2 を 12:00 にオーナーがマージ（最後の記録は needs_human・レベル B）。オーナーの行 2。問い 03:00〜05:00（2h）。corrections 1件。
+//	       PR #2 を 12:00 にオーナーがマージ（最後の記録は needs_human・レベル B）。端末でない by の行 2（数えない）。
+//	       問い 03:00〜05:00（2h。答えに印は無い）。corrections 1件。
 //	S-0003 作成 11-03 00:00。todo 1h → doing のまま（11-05 00:00 まで 47h）。links に PR #1（同じ箇所の課題）。
 //	PR #4 "Revert ..." が 11-04 にマージされ、PR #1 を revert。
 //
-//	(1) オーナーの介在 3 回 / 2 本 = 1.5   (2) 自動マージ 1 / 2 = 0.5   (3) 差し戻し (fix 1 + needs_human 1) / 3 = 0.67
+//	(1) オーナーの介在（マージ 1・判断 0・オーナーの課題 0）1 回 / 2 本 = 0.5・印の無い答え 1   (2) 自動マージ 1 / 2 = 0.5   (3) 差し戻し (fix 1 + needs_human 1) / 3 = 0.67
 //	(4) 依頼書からマージ 6h・12h → 中央値 9h   (5) todo (1+2+1)/3 = 1.33・doing (4+6+47)/3 = 19・review (5+16)/2 = 10.5・問い 2h
 //	(6) 閉じた 2 件 / 4 日 = 0.5   (7) WIP 1   (8) revert 1・同じ箇所の課題 1・開け直した A 1（revert）・B 1（corrections）
 func fakeLedger(t *testing.T) string {
@@ -131,8 +132,12 @@ func TestMeasureMatchesHandCount(t *testing.T) {
 	}{
 		{"days", res.Days, 4},
 		{"(1) merged PRs", e.MergedPRs, 2},
-		{"(1) human touches", e.HumanTouches.Total, 3},
-		{"(1) per PR", val(e.HumanTouches.PerPR), 1.5},
+		{"(1) human touches", e.HumanTouches.Total, 1},
+		{"(1) merge", e.HumanTouches.Merge, 1},
+		{"(1) decision", e.HumanTouches.Decision, 0},
+		{"(1) task", e.HumanTouches.Task, 0},
+		{"(1) per PR", val(e.HumanTouches.PerPR), 0.5},
+		{"(1) unmarked answers", e.Answers.Unmarked, 1},
 		{"(2) auto merged", e.AutoMerge.Count, 1},
 		{"(2) auto merge rate", val(e.AutoMerge.Rate), 0.5},
 		{"(3) gate records", e.Gate.Records, 3},
@@ -310,7 +315,7 @@ func snapshot(t *testing.T, root string) string {
 	return b.String()
 }
 
-func TestLineWithoutByIsSkippedNotHuman(t *testing.T) {
+func TestLineWithoutByIsSkipped(t *testing.T) {
 	root := fakeLedger(t)
 	f, err := os.OpenFile(filepath.Join(root, "kanban/log.jsonl"), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -325,8 +330,8 @@ func TestLineWithoutByIsSkippedNotHuman(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := res.Efficiency.HumanTouches.Total; got != 3 {
-		t.Errorf("by の無い行をオーナーの介在に数えた: %d", got)
+	if got := res.Efficiency.HumanTouches.Total; got != 1 {
+		t.Errorf("by の無い行で介在の数が変わった: %d", got)
 	}
 	found := false
 	for _, s := range res.Skipped {

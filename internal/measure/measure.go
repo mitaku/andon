@@ -125,16 +125,35 @@ type Closed struct {
 // Efficiency は効率。
 type Efficiency struct {
 	MergedPRs    int       `json:"merged_prs"`
-	HumanTouches PerPR     `json:"human_touches"`
+	HumanTouches Touches   `json:"human_touches"`
+	Answers      Answers   `json:"answers"`
 	AutoMerge    Rate      `json:"auto_merge"`
 	Gate         GateStats `json:"gate"`
 }
 
-// PerPR は合計と PR あたり。
-type PerPR struct {
-	Total int      `json:"total"`
-	PerPR *float64 `json:"per_pr"`
+// Touches はオーナーの介在回数。期間に起きた操作の数で、Total は3種の和（ADR-0049 決めたこと 2・11）。
+type Touches struct {
+	Total    int      `json:"total"`
+	PerPR    *float64 `json:"per_pr"`
+	Merge    int      `json:"merge"`    // gate の記録にマージの印が無い、マージされた PR（決めたこと 3）
+	Decision int      `json:"decision"` // 印が owner の答え（決めたこと 7）
+	Task     int      `json:"task"`     // 問いを持たずに片付いたオーナーの課題（決めたこと 9）
 }
+
+// Answers は期間に書かれた答えを、決めた者（questions.yaml の decidedBy）ごとに数えたもの（ADR-0049 決めたこと 8）。
+type Answers struct {
+	Owner        int `json:"owner"`
+	ChiefOfStaff int `json:"chief_of_staff"`
+	Machine      int `json:"machine"`
+	Unmarked     int `json:"unmarked"` // 印が無いか3つの値のどれでもない。介在回数に入れない
+}
+
+// decidedBy の値。
+const (
+	decidedOwner        = "owner"
+	decidedChiefOfStaff = "chief-of-staff"
+	decidedMachine      = "machine"
+)
 
 // GateStats は gate の記録の数と差し戻し率（(fix + needs_human) ÷ 記録）。
 type GateStats struct {
@@ -221,7 +240,6 @@ var prRe = regexp.MustCompile(`^https://github\.com/([!-.0-~]+)/([!-.0-~]+)/pull
 
 type logRow struct {
 	at     time.Time
-	by     string
 	id     string
 	status string
 	add    bool
@@ -237,7 +255,8 @@ type issue struct {
 	pr       string
 	gates    []gateRec
 	corr     bool
-	asked    []span
+	asked    []question
+	hasQs    bool // 問いを持つか、持たないと言えない（questions.yaml を読めない）
 	profile  string
 	parent   string
 	obs      string // report.json の observation.result（観察の報告が無ければ空）
@@ -247,7 +266,10 @@ type issue struct {
 	raw      ledger.Issue
 }
 
-type span struct{ from, to time.Time } // to がゼロなら開いたまま
+type question struct {
+	from, to  time.Time // to（答えた時刻）がゼロなら開いたまま
+	decidedBy string    // 印が無いか文字列でなければ空
+}
 
 type gateRec struct {
 	at       time.Time
@@ -414,9 +436,12 @@ func Measure(o Options) (*Result, error) {
 				latest, x.Tier = g.at, g.tier
 			}
 		}
-		for _, row := range rows {
-			if row.id == id && human(row.by) {
-				x.HumanTouches++
+		if !x.Auto {
+			x.HumanTouches++
+		}
+		for _, q := range t.asked {
+			if !q.to.IsZero() && q.decidedBy == decidedOwner {
+				x.HumanTouches++ // PR の行は答えた時期を問わない（ADR-0049 決めたこと 11）
 			}
 		}
 		if born := t.born(); !born.IsZero() {
@@ -427,16 +452,50 @@ func Measure(o Options) (*Result, error) {
 		res.PRs = append(res.PRs, x)
 	}
 
-	// 効率
+	closedIn := map[string]bool{} // 期間に最後の列の行がある課題（flow.closed）
+	movedIn := map[string]bool{}  // そのうち、ほかの列から動いた課題。kanban done の打ち直しも同じ形の行を足す
+	column := map[string]string{}
+	for _, row := range rows {
+		if row.status == "" {
+			continue
+		}
+		if row.status == last && in(row.at) {
+			closedIn[row.id] = true
+			if column[row.id] != last {
+				movedIn[row.id] = true
+			}
+		}
+		column[row.id] = row.status
+	}
+
+	// 効率。介在は操作ごとの時刻で期間に入れる（PR の行の和ではない。ADR-0049 決めたこと 11）
 	e := &res.Efficiency
 	e.MergedPRs = len(res.PRs)
+	touches := &e.HumanTouches
 	for _, x := range res.PRs {
-		e.HumanTouches.Total += x.HumanTouches
 		if x.Auto {
 			e.AutoMerge.Count++
+		} else {
+			touches.Merge++
 		}
 	}
-	e.HumanTouches.PerPR = ratio(e.HumanTouches.Total, e.MergedPRs)
+	for _, id := range ids {
+		t := byID[id]
+		if t.reviewer {
+			continue
+		}
+		if movedIn[id] && !t.hasQs && t.raw.Str("who") == "person" {
+			touches.Task++
+		}
+		for _, q := range t.asked {
+			if !q.to.IsZero() && in(q.to) {
+				e.Answers.add(q.decidedBy)
+			}
+		}
+	}
+	touches.Decision = e.Answers.Owner
+	touches.Total = touches.Merge + touches.Decision + touches.Task
+	touches.PerPR = ratio(touches.Total, e.MergedPRs)
 	e.AutoMerge.Rate = ratio(e.AutoMerge.Count, e.MergedPRs)
 	for _, id := range ids {
 		for _, g := range byID[id].gates {
@@ -472,7 +531,6 @@ func Measure(o Options) (*Result, error) {
 		}
 		since := t.born()
 		seen := map[string]bool{}
-		wasClosed := false
 		account := func(to time.Time) {
 			if since.IsZero() || cur == last {
 				return
@@ -493,12 +551,9 @@ func Measure(o Options) (*Result, error) {
 				account(row.at)
 				cur, since = row.status, row.at
 			}
-			if row.status == last && in(row.at) {
-				wasClosed = true
-			}
 		}
 		account(end)
-		if wasClosed {
+		if closedIn[id] {
 			closed++
 		}
 		if !since.IsZero() && cur != first && cur != "queued" && cur != last {
@@ -668,9 +723,17 @@ func (t *issue) mergedIn(merged map[string]ghPR, in func(time.Time) bool) bool {
 	return ok && in(at)
 }
 
-// human は log.jsonl の by がオーナーか（terminal:・routine: でない）。
-func human(by string) bool {
-	return !strings.HasPrefix(by, "terminal:") && !strings.HasPrefix(by, "routine:")
+func (a *Answers) add(decidedBy string) {
+	switch decidedBy {
+	case decidedOwner:
+		a.Owner++
+	case decidedChiefOfStaff:
+		a.ChiefOfStaff++
+	case decidedMachine:
+		a.Machine++
+	default:
+		a.Unmarked++
+	}
 }
 
 // containsRef は本文に ref（owner/repo#n か PR の URL）が、続く数字なしで現れるか。
@@ -817,10 +880,10 @@ func (r *reader) log() []logRow {
 			continue
 		}
 		if v.By == "" {
-			r.skip(r.rel(path), i+1, "by が無い（誰の行か分からないのでオーナーの介在に数えない）")
+			r.skip(r.rel(path), i+1, "by が無い（誰の行か分からない）")
 			continue
 		}
-		row := logRow{at: at, by: v.By, id: ledger.CanonID(v.ID), add: v.Change["add"] != nil}
+		row := logRow{at: at, id: ledger.CanonID(v.ID), add: v.Change["add"] != nil}
 		// 問いの行（{"question": n, "status": …}）の status は問いの状態で、課題の状態ではない
 		if s, ok := v.Change["status"]; ok && v.Change["question"] == nil {
 			if err := json.Unmarshal(s, &row.status); err != nil {
@@ -878,7 +941,7 @@ func (r *reader) issues() []*issue {
 			}
 		}
 		t.corr = r.corrections(lib)
-		t.asked = r.questions(filepath.Join(r.dir, "issues", id, "questions.yaml"))
+		t.asked, t.hasQs = r.questions(filepath.Join(r.dir, "issues", id, "questions.yaml"))
 		out = append(out, t)
 	}
 	return out
@@ -980,21 +1043,24 @@ func (r *reader) hasCorrections(t *issue) bool {
 	return err == nil
 }
 
-func (r *reader) questions(path string) []span {
+// questions は読めた問いと、課題が問いを持つか。在るのに読めなければ持つ側に倒す（問いの無いオーナーの課題に数えない）。
+func (r *reader) questions(path string) (out []question, has bool) {
 	b, ok := r.read(path)
 	if !ok {
-		return nil
+		_, err := os.Stat(path)
+		return nil, !errors.Is(err, os.ErrNotExist)
 	}
 	var v []struct {
-		N        int    `yaml:"n"`
-		Asked    string `yaml:"asked"`
-		Answered string `yaml:"answered"`
+		N         int    `yaml:"n"`
+		Asked     string `yaml:"asked"`
+		Answered  string `yaml:"answered"`
+		Status    any    `yaml:"status"`
+		DecidedBy any    `yaml:"decidedBy"` // 文字列でない値でもファイルを丸ごと落とさない
 	}
 	if yaml.Unmarshal(b, &v) != nil {
 		r.skip(r.rel(path), 0, "questions.yaml を読めない")
-		return nil
+		return nil, true
 	}
-	var out []span
 	for _, q := range v {
 		from, ok := parseAt(q.Asked)
 		if !ok {
@@ -1008,10 +1074,14 @@ func (r *reader) questions(path string) []span {
 				r.skip(r.rel(path), 0, "問い %d の answered が UTC の時刻でない", q.N)
 				continue
 			}
+		} else if q.Status == "answered" || q.Status == "received" {
+			r.skip(r.rel(path), 0, "問い %d は答え済みなのに answered が無い", q.N)
+			continue
 		}
-		out = append(out, span{from, to})
+		by, _ := q.DecidedBy.(string)
+		out = append(out, question{from: from, to: to, decidedBy: by})
 	}
-	return out
+	return out, len(v) > 0
 }
 
 func (r *reader) github(gh func(string) ([]byte, error), repo string) ([]ghPR, error) {
@@ -1283,11 +1353,19 @@ func Table(w io.Writer, res *Result, states []string) {
 	fmt.Fprintf(w, "  1日に閉じた数                  %s\n", closed)
 	fmt.Fprintf(w, "  期間の終わりの WIP             %d\n", f.WIPEnd)
 	fmt.Fprintln(w, "\n効率")
-	touches := none
-	if e.HumanTouches.PerPR != nil {
-		touches = fmt.Sprintf("%.2f（%d回 / %d本）", *e.HumanTouches.PerPR, e.HumanTouches.Total, e.MergedPRs)
+	h, touches := e.HumanTouches, none
+	if h.PerPR != nil {
+		touches = fmt.Sprintf("%.2f", *h.PerPR)
+	}
+	if h.PerPR != nil || h.Total > 0 { // マージされた PR が無くても、介在があれば数を出す
+		touches += fmt.Sprintf("（%d回 / %d本。マージ %d・判断 %d・オーナーの課題 %d）", h.Total, e.MergedPRs, h.Merge, h.Decision, h.Task)
 	}
 	fmt.Fprintf(w, "  PR あたりのオーナーの介在回数        %s\n", touches)
+	answers := none
+	if a := e.Answers; a != (Answers{}) {
+		answers = fmt.Sprintf("オーナー %d・Chief of Staff %d・command %d・印なし %d", a.Owner, a.ChiefOfStaff, a.Machine, a.Unmarked)
+	}
+	fmt.Fprintf(w, "  答えを決めた者                 %s\n", answers)
 	corr := "corrections あり"
 	if c.Reopened.Corrections == "none" {
 		corr = "corrections " + none

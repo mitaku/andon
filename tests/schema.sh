@@ -97,7 +97,7 @@ flush
 
 # バージョン（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 # kanban の行と ready の2本は kanban の形式のバージョン（3）
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/1 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 digest/1 digest-input/1 digest-sent/1 ledger-log/3 ledger-ready/3; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/2 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 digest/1 digest-input/1 digest-sent/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
@@ -259,8 +259,9 @@ measure|.flow|lead_time wait question_open closed wip_end
 measure|.flow.lead_time|count hours
 measure|.flow.wait.todo|count hours
 measure|.flow.closed|count per_day
-measure|.efficiency|merged_prs human_touches auto_merge gate
-measure|.efficiency.human_touches|total per_pr
+measure|.efficiency|merged_prs human_touches answers auto_merge gate
+measure|.efficiency.human_touches|total per_pr merge decision task
+measure|.efficiency.answers|owner chief_of_staff machine unmarked
 measure|.efficiency.auto_merge|count rate
 measure|.efficiency.gate|records fix needs_human rate
 measure|.counter|reverted follow_ups reopened corrected
@@ -619,6 +620,12 @@ fail|measure|.flow.wait.todo = 1|待ち時間の値が {count, hours} でない
 fail|measure|.efficiency.auto_merge.rate = -0.5|率が負
 fail|measure|.efficiency.auto_merge.rate = "50%"|率が文字列
 fail|measure|.flow.wip_end = -1|WIP が負
+pass|measure|.efficiency.human_touches.per_pr = null|マージされた PR が無くても介在がある（per_pr が null）
+fail|measure|.efficiency.human_touches = {total: 3, per_pr: 1.5}|前のバージョンの介在の形（内訳が無い）
+fail|measure|.efficiency.human_touches.task = -1|オーナーの課題の数が負
+fail|measure|.efficiency.human_touches.merge = "1"|マージの数が文字列
+fail|measure|.efficiency.answers.unmarked = 1.5|印の無い答えの数が整数でない
+fail|measure|.efficiency.answers += {"chief-of-staff": 1}|答えの欄に印の値（chief-of-staff）をそのまま使う
 fail|measure|.value.observed.hit = -1|仮説を確かめた数が負
 fail|measure|.value.days_to_observe.days = "3"|見るまでの日数が文字列
 fail|measure|.value.no_hypothesis = 1.5|仮説「無し」の数が整数でない
