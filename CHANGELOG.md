@@ -8,9 +8,67 @@
 
 ## 未リリース
 
+（まだ無い）
+
+## v0.0.14 — 2026-11-23
+
+オーナー待ちが待っていない仕事を止めない形（ADR-0042）と、オーナーが呼ばれているときだけ灯る行燈（ADR-0043）、行燈を出す Stream Deck のキー（ADR-0045）、期間の記録を 1 枚にして Slack へも送れるダイジェスト（ADR-0044）が入ったバージョン。ほかに、`andon measure` の介在回数の数え直し（ADR-0049）、main の CI の失敗を読む下書き（ADR-0051）、起動・レビュー・マージで担当が止まる所の直しが入った。**kanban の形式（3）は変わらない。schema のバージョンは `measure` だけが 1 から 2 に上がる**（`andon measure --json` の読み手は直しが要る）。`project.json` の新しい欄 `digest` は v0.0.13 が読めないので、書く順と戻す順がある。`package/host/` が変わり、今あるセルは `bin/bootstrap` の置き換えと host-install が要る。
+
+### 変わったこと
+
+- **オーナー待ちが、待っていない仕事を止めない**（[ADR-0042](docs/adr/0042-owner-waits-do-not-stop-the-line.md)。ADR は #448）: オーナー待ちと並行の枠を読む `andon waiting` を足した（#453）。並行の枠にオーナー待ちを数えず、オーナー待ちが上限に達したら新しい起動を止める（#457）。待ちの後ろにしか着手できる課題が無いときは、その時点でオーナーに知らせる（#467）。Chief of Staff は問いをダイアログでなく返事の本文に書き（#452）、Chief Engineer は本文の問いで待つ前にその問いを kanban に置く（#461）。Chief Engineer の文書から切った課題を、もとの課題に `parent` で結ぶ（#451）。
+- **Herdr App のオーナー待ちのペインと Flow**（ADR-0042）: 右のパネルに mod `waiting` のペインを足した（#458）。判断の問いには、ペインから選択肢で答えられる（#465）。答えは `andon waiting answer` が書き、通知 `answered` で Chief of Staff に届く（#460）。戻せない決断はペインから答えられず、マージは GitHub のまま。ボードには、課題の連なりを順番の段で見せる表示 Flow を足した（#459）。
+- **行燈は、オーナーが呼ばれているときだけ灯る**（[ADR-0043](docs/adr/0043-lamp-lights-on-owner-waits.md)。ADR は #456）: 琥珀は、止まった端末と、マージの依頼か判断のオーナー待ちで灯す。役がターンを終えただけの返事は、未読の印にする（#462）。オーナー待ちを読めないプロジェクトでは、今までどおり返事でも灯る。
+- **Stream Deck のキー「Lamp」**（[ADR-0045](docs/adr/0045-stream-deck-lamp.md)。ADR は #473）: 行燈の色と件数をキーに出し、押すと待っているものを App で開く（#477）。動いている端末の数を出す 2 つ目のキーは、まだ無い。
+- **ダイジェスト**（[ADR-0044](docs/adr/0044-owner-digest.md)。ADR は #466）: 期間の記録を集めて 1 枚の HTML にし、`files/` に出す `andon digest`（#472）、書く担当の skill とルーチンの例（#478）、代わりに決めたことの節（#480）を足した。オーナーが `project.json` に送り先を書けば Slack へも送る（#487）。送り先を書いたことが、毎回の送信へのオーナーの go になる。
+- **介在回数を操作の種類で数える**（[ADR-0049](docs/adr/0049-owner-touches-by-kind.md)。ADR は #475）: `andon measure` の介在回数を、マージ・判断・オーナーの手作業の課題の和に改め、答えを決めた者ごとの数を足した（#486）。答えに決めた者の印を書く口はまだ無いので、判断は当面 0 になり、答えは `unmarked` に入る。前のバージョンの数とは比べられない。
+- **main の CI の失敗を読む**（[ADR-0051](docs/adr/0051-signals-flow-and-breaking-change.md)。ADR は #481）: repo を渡して `andon create` すると、`project.json` の下書きに `github-ci` を `now` で読む 1 行が入る（#490）。失敗を壊した変更に結ぶところは、まだ実装していない。
+- **課題の起動**: `andon issue start` は、予約キーが揃っていないか、今の Chief of Staff が書いたものでない課題を起動せずに断り、直す `kanban set` の行を出す（#464）。memory の目録が空でも起動の記録を書ける（#439）。
+- **レビュー**: `review: off` の課題でも差分がレベル B・C なら、gate と同じ条件でレビューを受ける（#450）。担当は 1 回目のレビューの前に、読むだけのサブエージェントに自分の差分を壊させる（#463）。レビュアーの依頼書に、前のバージョンの形と落ちたあとの起き直しの観点（#446）と、差分の起点が merge-base であること（#485）を書く。再レビューの差分の読み方を、rebase をまたぐ場合に揃えた（#470・#471）。`review-request` の stdin を省くと、前の報告の本文を残して依頼の行を足す（#454）。
+- **gate・マージ・通知の直し**: base が動いて通らなかった自動マージを、gate から照合し直して 3 回まで打ち直す（#494）。gate が早く `fix` を返すときの出力を、いつも読める JSON にした（#439）。機械が閉じた gate の問いを、オーナーの手直しに数えない（#449）。届けた通知の ack の数え方（#474）と、届けたターンの見分け（#442）を直した。
+- **記録・振り返り・トリアージの直し**: `andon issue record` は空の引数を走らせる前に断る（#437）。`andon retro apply` を打ち直しても課題を重ねず、`retro collect` の入力にレビューの回の理由が載る（#445）。トリアージの束ねた依頼書で同じ段落を繰り返さない（#441）。
+- **決定の文書だけが入ったもの（このバージョンに実装は無い）**: README の組み直し（[ADR-0046](docs/adr/0046-readme-for-first-time-readers.md)。#483）、枠が空いたときに点検などを回す形（[ADR-0047](docs/adr/0047-idle-slots-run-upkeep.md)。#484）、薄いセルの入口（[ADR-0048](docs/adr/0048-thin-cell-entry.md)。#482）、「題」をタイトル・テーマと書く直し（[ADR-0052](docs/adr/0052-title-and-theme-not-dai.md)。#479）、コマンドの組み直し（[ADR-0053](docs/adr/0053-command-system.md)。#492）、マージ待ちの PR に gate が赤い印を付けない形（[ADR-0054](docs/adr/0054-gate-status-by-decision.md)。#491）、ADR の一覧と番号を並行の PR で衝突しない持ち方にする形（[ADR-0055](docs/adr/0055-adr-prs-without-conflicts.md)。#493）。外のマシンで回す設計（[ADR-0050](docs/adr/0050-external-compute.md)。#476）は提案で、決定していない。
+- **Andon を開発する人向けの整理**: skill と文書の小直し（#432・#436・#444）、`AGENTS.md` の決まり（#435・#440）、ADR の索引と試しの終了の記録（#433・#443）、検査の切り離しと安定（#438・#447・#455・#468・#488）、検証の skill の機能の地図（#469・#489）。
+
 ### 上げるときにすること
 
-- **host-install**: 雛形が変わった。mod `inbox`（`inbox.lamp` に `version` と `at`、command `inbox.call`）と、新しい Stream Deck の plugin `andon.lamp.sdPlugin`（ADR-0045）。`inbox` は退避して置き直す。plugin を使うなら `STREAMDECK_PLUGINS` を指定して `host-install` を打つ。前に作ったセルは、先に `bin/bootstrap` を雛形で置き換える（手順は [docs/operate.md](docs/operate.md) の「Stream Deck に行燈のキーを置く」）。
+上から順に行う。
+
+- **`merge: auto` の `review` の課題が片付いてから上げる**: 下で Chief of Staff を起動し直すとアドレスが変わる。予約キーを書き直す前に gate が回った課題は自動でマージされず、オーナーの判断待ちになる。キーを書き直しても、PR の head が動くまで戻らない。
+- **image を上げて `rebuild` する**: セルの `Dockerfile` の `FROM` を v0.0.14 に上げて `bin/bootstrap rebuild` を打つ。`package/compose.yaml` に volume `digest`（ダイジェストのトークンの置き場）が増え、`image/Dockerfile` がその置き場を作る。volume は `rebuild` が作るので手で作らない。前からある `bin/bootstrap` のままで `rebuild` できる。`image/apply-main.sh` で当てたセルも、compose は当たらないので `rebuild` が要る。
+- **互換**: kanban の形式（3）は変わらず、kanban のための手作業は無い。`schema/` で変わったのは次のとおり。
+  - `measure` は 1 から 2 に上がり、**互換が無い**。`human_touches` の意味と項目が変わり、`answers` が増えた。`andon measure --json` を読むものを自作していれば直す。
+  - `project` に任意の `digest`、`notification` に種類 `answered`、`retro`（`andon retro collect` の出力）に必須の `reviews[].reason` が、バージョンを変えずに増えた。v0.0.13 が書いた `project.json` と通知は v0.0.14 がそのまま読める。逆は読めない（下の「戻すとき」）。
+  - `waiting`・`digest`・`digest-input`・`digest-sent` の 4 本は新しい。
+  - **既知の不具合**: `delivered`（届けた通知の記録）の schema に `answered` が無い。`answered` を渡したターンは、一緒に渡したほかの通知ごと、この記録に残らない。通知は届くが、`andon measure` の届けた通知の数と、ダイジェストの止まった担当から落ちる。
+- **今あるセルの `bin/bootstrap` を置き換える**: `bin/bootstrap` はセルの repo の持ち物で、`rebuild` では変わらない。前のままで host-install を打つと、mod `waiting` も Stream Deck の plugin も置かれない。`rebuild` のあと、host-install の前に、新しい image の雛形で置き換えて commit する（手順は [docs/operate.md](docs/operate.md) の「Stream Deck に行燈のキーを置く」の「前に作ったセル」。Stream Deck を使わなくても要る）。
+- **host-install**: 雛形が変わった。`host-install` は今あるものを上書きしないので、変わったものを退避してから打ち直す（手順は [docs/operate.md](docs/operate.md) の「バージョンを上げるとき: host-install が置いたものを退避する」）。
+
+  | 置かれるもの | 変わったこと | すること |
+  |---|---|---|
+  | mod `inbox` | 行燈の灯し方、オーナー待ちの行、未読の印、`inbox.lamp` の `version` と `at`、command `inbox.call`（`main.js`・`waiting.svg`・README・RECIPE） | 退避して置き直す |
+  | mod `kanban-board` | 表示 Flow とオーナー待ちの印（`main.js`・README・RECIPE） | 退避して置き直す |
+  | mod `waiting` | 新しい | 打ち直せば置かれる |
+  | レイアウト `andon` | 右のパネルに `waiting`（`layouts/andon.json`・`andon.svg`） | 2 つとも退避して置き直す |
+  | Stream Deck の plugin `andon.lamp.sdPlugin` | 新しい（ADR-0045） | 使うなら `STREAMDECK_PLUGINS` を指定して打つ。`inbox` が前のままだとキーは「?」になる |
+  | mod `andon` | README だけ（行燈の説明） | 動きは変わらない。説明も揃えるなら退避して置き直す |
+
+  `andon-up`・herdr の設定・ssh config・cloud-init の雛形・mod `context-header`・`files-plus` は変わらない。
+- **Chief of Staff と担当を起動し直す**: skill・テンプレート・`environment.md`・`writing.md` の変更と、Chief of Staff のダイアログを外す起動行は、動いている Claude Code に効かない。Chief of Staff（と動いている担当）を `hc kill` し、`andon chief-of-staff` で起動し直す。dispatcher は boot が起動し直す。Chief of Staff のアドレスが変わるので、Chief of Staff は開いている課題の予約キーを同じ値で書き直す。書き直すまで `andon issue start` はその課題を断り、gate は自動マージをしない。
+- **並行の上限の書き方を見る**: 枠は `andon waiting` が数え、上限は `project.json` の `chief_of_staff.parallel`（無ければ 2）から読む。プロジェクトの `AGENTS.md` に上限や「doing と review の数」という数え方を書いていたら、上限は `project.json` に移し、古い数え方の文は消す。
+- **ダイジェストを使うなら（任意）**: ルーチン `daily-digest` は自動では入らない。オーナーの go で Chief of Staff が [例](package/skills/digest/assets/daily-digest.yaml) を kanban に写す。Slack へも送るなら、次の順で行う（[docs/operate.md](docs/operate.md) §8）。
+  1. セルを v0.0.14 に上げて `rebuild` する。同じ `project.json` を読むセルが別のマシンにもあれば、先に全部を上げる。
+  2. Slack のアプリを作って送り先のチャンネルに招き、セルの中で `andon digest auth slack` を打つ。
+  3. オーナーが `project.json` に `digest` を書いて commit する。
+  4. `andon digest check` で届くことを確かめる。
+- **今あるプロジェクトの `signals`（任意）**: 下書きの 1 行は新しく作るプロジェクトにだけ入る。要るなら、オーナーが `project.json` に `"signals": [{"source": "github-ci", "weight": "now"}]` を足して commit する。v0.0.13 も読める欄なので、順は問わない。
+- **v0.0.13 へ戻すとき**: image を下げる前に、次の順で戻す。
+  1. `project.json` に `digest` があれば、オーナーがキーごと消して commit する。残すと v0.0.13 は `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
+  2. ルーチン `daily-digest` があれば止める（`paused: true`）。v0.0.13 には skill も command も無い。
+  3. mod とレイアウトを退避したものに戻し、mod `waiting` を消す。これでペインから新しい答えが入らない。`andon waiting answer` も、下げ終わるまで打たない。
+  4. 2 分待って dispatcher に見回らせてから、セルの中で `grep -l '"kind": "answered"' ~/.local/state/andon/dispatcher/*.json` を打ち、何も出ないことを確かめる。ファイル名が出たら、Chief of Staff に受け取らせ、そのターンが終わってから打ち直す。残したまま下げると、v0.0.13 の dispatcher は控えを書けず、通知が届かない。
+  5. セルの repo で `bin/bootstrap` を置き換える前の commit のものに戻す（`git checkout <置き換える前の commit> -- bin/bootstrap`）。新しいもののままだと、v0.0.13 の image には mod `waiting` が無いので host-install が途中で落ちる。
+  6. `FROM` を戻して `rebuild` する。
 
 ## v0.0.13 — 2026-11-21
 

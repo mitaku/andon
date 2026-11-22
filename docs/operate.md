@@ -665,5 +665,9 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前のバージョンからの範囲は `git log <前のバージョン>..origin/main`。各バージョンに「変わったこと」（オーナーの目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
    `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト・Stream Deck の plugin）を変えたバージョンは、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「バージョンを上げるとき」](#バージョンを上げるとき-host-install-が置いたものを退避する)）を書く。変えていないバージョンは書かない。
 2. **マージ**（オーナーか Chief of Staff）。
-   v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 11。Andon を開発するセルの条件表で、`AGENTS.md`・`package/environment.md`・`package/writing.md`・テンプレート・モデルの規則と控えと対応表を B に下げた上書き。決め直すのはオーナー）。
-3. **annotated tag**: マージした commit に `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>"` を打って push する（打つのはオーナー。tag の push で GHCR に image が出る。[image.md](image.md) の「CI と配布」）。
+   v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 11。Andon を開発するセルの条件表で、`AGENTS.md`・`package/environment.md`・`package/writing.md`・テンプレート・モデルの規則と控えと対応表を B に下げた上書き。[タグを Chief of Staff が打つ決定](decisions/2026-11-22-v0-0-x-tag-by-chief-of-staff.md)。決め直すのはオーナー）。
+3. **annotated tag**: v0.0.x の間は、Andon を開発するセルの Chief of Staff が打つ（[決定](decisions/2026-11-22-v0-0-x-tag-by-chief-of-staff.md)）。v0.1.0 からの打ち手は、2 の見直しでオーナーが決める。答えを受けるまで v0.1.0 のタグは打たない。
+   1. 節の PR のマージ commit が `origin/main` にあり、その commit の main の `go`・`model`・`tests` の 3 つが通ったことを確かめる（`gh run list --branch main --commit <commit の 40 桁>`）。
+   2. `git log --oneline <前のタグ>..<commit の 40 桁>` を節と突き合わせる。main の ruleset は base が古い PR もマージできるので、節を書いたあとに入った PR が混ざる。節に無い PR があればタグを打たず、節に足す PR を先に入れて、そのマージ commit で 1 からやり直す。
+   3. `git tag -a vX.Y.Z -m "vX.Y.Z: <一行>" <commit の 40 桁>` を打ち、`git push origin refs/tags/vX.Y.Z` でその名前だけを push する。既にあるタグは動かさない・消さない。
+   4. tag の push で動く release の job が GHCR に image を出す（[image.md](image.md) の「CI と配布」）。job の終わりまで見て、結果をオーナーに知らせる。
