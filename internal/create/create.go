@@ -1,7 +1,7 @@
 // Package create は andon create [slug]: セルの repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
 //
 //	projects/<slug>/kanban/      kanban（`kanban init` で作る。prefix と repos を渡す）
-//	projects/<slug>/project.json 下書き（version・project〈題・接頭字〉・repos。delegation は無し＝無委譲）。commit しない
+//	projects/<slug>/project.json 下書き（version・project〈題・接頭字〉・repos・repo があれば signals。delegation は無し＝無委譲）。commit しない
 //	projects/<slug>/AGENTS.md    薄い地図の見出しだけ
 //	repos の clone               ghq get（GHQ_ROOT の下に無いものだけ）
 //
@@ -34,6 +34,7 @@ import (
 const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <題>]\n" +
 	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に kanban（projects/<slug>/kanban/）・project.json の下書き・\n" +
 	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（オーナーが見て commit する）。\n" +
+	"repo が 1 つ以上あれば、下書きの signals に main の CI の失敗を読む 1 行（github-ci・now）を入れる（要らなければ commit の前に消す）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
 	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
 	"slug は英小文字・数字・_・-（28字まで）。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
@@ -272,11 +273,17 @@ func fill(in *input, a *asker) error {
 var errCanceled = errors.New("取り消した。何も作っていない")
 
 // Draft は project.json の下書き（delegation は無し＝無委譲）。Andon が読むのと同じ検査を通したものだけを返す。
+// repo があれば、main の CI の失敗を now で読む 1 行を signals に入れる（ADR-0051 決めたこと 4）。
+// その行に repo は書かない（repos の全部を読む）。issue の出所は入れない。
 func Draft(slug, title, prefix string, repos []string) ([]byte, error) {
 	if repos == nil {
 		repos = []string{}
 	}
-	b, err := contract.Encode(contract.SchemaProject, delegate.Project{Version: 1, Project: delegate.ProjectInfo{Title: title, Prefix: prefix}, Repos: repos})
+	p := delegate.Project{Version: 1, Project: delegate.ProjectInfo{Title: title, Prefix: prefix}, Repos: repos}
+	if len(repos) > 0 {
+		p.Signals = []delegate.Signal{{Source: "github-ci", Weight: "now"}}
+	}
+	b, err := contract.Encode(contract.SchemaProject, p)
 	if err != nil {
 		return nil, fmt.Errorf("project.json の下書きが schema に合わない: %v", err)
 	}
@@ -487,6 +494,9 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 		made = append(made, path)
 	}
 	fmt.Fprintf(stdout, "作った: %s/（kanban/・project.json・AGENTS.md）\n", rel)
+	if len(in.repos) > 0 {
+		fmt.Fprintf(stdout, "project.json に、main の CI の失敗をすぐ Chief of Staff に知らせる signals を入れた。要らなければ commit の前に消す\n")
+	}
 	fmt.Fprintf(stdout, "project.json と AGENTS.md はオーナーのファイルで、commit していない。中身を見て、andon.toml の owner の email で commit する:\n")
 	fmt.Fprintf(stdout, "  cd %s && git add %s/project.json %s/AGENTS.md && git commit -m %s\n", quote(ws), rel, rel, rel)
 	fmt.Fprintf(stdout, "確かめる: andon delegate show --project %s（無委譲と出る）\n", in.slug)

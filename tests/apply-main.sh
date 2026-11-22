@@ -39,11 +39,18 @@ git config --global init.defaultBranch main
 
 # $1 の作業ツリーを $2 へ写す: 追跡しているファイルを commit していない変更ごと、無視していない追跡外のファイルも。
 # 無視している追跡外の .go も写す（go build は無視の設定に関係なくそれを組む）。消したファイルと、追跡外の入れ子の repo
-# （ls-files が dir/ で出す）は写さない。HEAD を写すと、commit していない変更が黙って試しから外れる
+# （ls-files が dir/ で出す）は写さない。HEAD を写すと、commit していない変更が黙って試しから外れる。
+# 一時ディレクトリの根（$tmp の親）が作業ツリーの中にあれば、その中の追跡外のファイルも写さない。並んで走るほかの検査の
+# 書きかけで、作業ツリーの中身ではない（写すと tar が「file changed as we read it」で落ちる）
 copy_worktree() (
   set -o pipefail
-  cd "$1" && { git ls-files -z --cached --others --exclude-standard \
-    && git ls-files -z --others --ignored --exclude-standard -- '*.go'; } \
+  temp_root=$(cd "$(dirname "$tmp")" && pwd -P) || exit 1
+  cd "$1" || exit 1
+  top=$(pwd -P) others=()
+  case $temp_root in "$top"/*) others=(":(exclude,literal)${temp_root#"$top"/}") ;; esac
+  { git ls-files -z --cached \
+    && git ls-files -z --others --exclude-standard -- "${others[@]}" \
+    && git ls-files -z --others --ignored --exclude-standard -- '*.go' "${others[@]}"; } \
     | while IFS= read -r -d '' f; do
         case $f in */) continue ;; esac
         if [ -e "$f" ] || [ -L "$f" ]; then printf '%s\0' "$f"; fi
@@ -74,6 +81,23 @@ if copy_worktree "$w11" "$tmp/c11" && commit_all "$tmp/c11" c11 \
   pass "11 試しの repo は作業ツリーを写して commit する（commit していない変更・追跡外のファイル・無視している .go を含み、消したファイルと無視している .go 以外を除く）"
 else
   fail "11 作業ツリーの写し: $(git -C "$tmp/c11" ls-tree -r --name-only HEAD 2>&1 | tr '\n' ' ')"
+fi
+# 一時ディレクトリの根が作業ツリーの中（名前に空白と glob の字）: ほかの検査の追跡外のファイルと無視している .go は写さず、
+# 追跡しているファイルと、根の外の似た名前のファイルは写す
+t11="$w11/t [1]"
+mkdir -p "$t11/mine" "$t11/other" "$w11/t 1"
+echo tracked >"$t11/keep.txt"
+git -C "$w11" add -- ":(literal)t [1]/keep.txt"
+echo other >"$t11/other/half"
+echo 'package x' >"$t11/other/ignored_half.go"
+echo near >"$w11/t 1/near.txt"
+c11t=$tmp/c11t
+git init -q "$c11t"
+if (tmp=$t11/mine && copy_worktree "$w11" "$c11t") && commit_all "$c11t" c11t \
+  && [ "$(git -C "$tmp/c11t" ls-tree -r --name-only HEAD | tr '\n' ' ')" = ".gitignore cmd/x/ignored_gen.go cmd/x/main.go internal/y/new file.go t 1/near.txt t [1]/keep.txt " ]; then
+  pass "11 一時ディレクトリの根が作業ツリーの中でも、ほかの検査の一時ファイルを写さない"
+else
+  fail "11 作業ツリーの中の一時ディレクトリ: $(git -C "$tmp/c11t" ls-tree -r --name-only HEAD 2>&1 | tr '\n' ' ')"
 fi
 
 # 試しの repo: c0（イメージの元。この repo の作業ツリー）→ c1（origin/main）。道具そのものは写さない（当てる commit のスクリプトに替わらない）

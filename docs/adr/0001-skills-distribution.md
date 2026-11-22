@@ -12,7 +12,7 @@
 | 2 | Claude Code 系は `/opt/andon` を plugin で読ませ、Codex 系は名前空間つきの symlink を張る | `package/.claude-plugin/plugin.json`・`package/templates/claude.md` | 生きている |
 | 3 | Claude Code 系は役の skill を `--append-system-prompt-file` で system prompt に足す | `package/templates/claude.md` | 生きている |
 | 4 | 作業側の別マシンは image で立て、skill を binary に埋め込まない | `embed.go` | 生きている |
-| 5 | PR 時の stale 検査は入れず、バージョンの照合は別マシンへ出す課題で足す | この ADR | 生きている |
+| 5 | PR 時の stale 検査は入れず、バージョンの照合は別マシンへ出す課題で足す | この ADR | 覆された → ADR-0053（検査を入れない、の部分。バージョンの照合を別の課題で足す部分は生きている） |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 

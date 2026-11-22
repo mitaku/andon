@@ -217,6 +217,9 @@ await check('kanban-board: version のある kanban/ だけを kanban とみな�
       window: () => ({ platform: 'linux' }),
       exec: async (cmd, args, opts = {}) => {
         if (cmd === 'git') return String(opts.cwd).startsWith(`${plant}/.ghq/`) ? { code: 0, stdout: `${plant}/.ghq/github.com/sample/repo/.git\n`, stderr: '' } : { code: 128, stdout: '', stderr: 'not a git repository' };
+        // The board climbs every folder above cwd. Above tmp is the real cell when TMPDIR is in a worktree,
+        // so the fake machine has nothing there (as tests/lib/isolate.sh does for git).
+        if (args.slice(3).some((a) => a.startsWith('/') && !`${a}/`.startsWith(`${tmp}/`))) return { code: 0, stdout: '', stderr: '' };
         const r = spawnSync(cmd, args, { cwd: opts.cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
         return { code: r.status, stdout: r.stdout, stderr: r.stderr };
       },

@@ -20,10 +20,11 @@ src=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 
-# 道具は本物の置き場のまま使う（HOME を替える前に決める。go と node のキャッシュは番兵の外）
-gobin=$(command -v go || mise which go 2>/dev/null || true)
+# 道具は本物の置き場のまま使う（HOME を替える前に決める。go と node のキャッシュは番兵の外）。
+# mise があれば mise which を先に聞く。command -v が返すのは shim のことがあり、shim は番兵の HOME へ道具を入れ直す
+gobin=$(cd "$src" && mise which go 2>/dev/null || command -v go || true)
 [ -n "$gobin" ] || { echo "FAIL go が無い" >&2; exit 1; }
-nodebin=$(command -v node || mise which node 2>/dev/null || true)
+nodebin=$(cd "$src" && mise which node 2>/dev/null || command -v node || true)
 path="$(dirname "$gobin")${nodebin:+:$(dirname "$nodebin")}:$PATH"
 gocache=$(PATH=$path go env GOCACHE) gomodcache=$(PATH=$path go env GOMODCACHE)
 
