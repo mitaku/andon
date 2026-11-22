@@ -59,8 +59,9 @@ p=$ws/projects/sample-site
 [ "$(jq -c '[.project, .repos, has("delegation")]' "$p/project.json")" = '[{"title":"Sample site","prefix":"SS"},["example.com/o/have","example.com/o/new"],false]' ] \
   && pass "project.json は題・prefix・repos で、delegation が無い（無委譲）" || fail "project.json: $(cat "$p/project.json")"
 [ "$(jq -c '.signals' "$p/project.json")" = '[{"source":"github-ci","weight":"now"}]' ] \
-  && [ "$(grep -c 'signals' "$tmp/out")" = 1 ] && grep 'signals' "$tmp/out" | grep -q '要らなければ' \
-  && pass "repo があれば main の CI を now で読む 1 行が入り、案内に 1 行出る" || fail "signals: $(cat "$p/project.json" "$tmp/out")"
+  && [ "$(grep -c 'signals' "$tmp/out")" = 1 ] \
+  && [[ "$(sed '/git add/,$d' "$tmp/out")" == *"signals"*"要らなければ"* ]] \
+  && pass "repo があれば main の CI を now で読む 1 行が入り、commit の手順より前に案内が 1 行出る" || fail "signals: $(cat "$p/project.json" "$tmp/out")"
 grep -qx '# Sample site' "$p/AGENTS.md" && grep -qx '## Chief of Staff' "$p/AGENTS.md" && [ "$(grep -cv '^\(#.*\)\{0,1\}$' "$p/AGENTS.md")" = 0 ] \
   && pass "AGENTS.md は見出しだけ" || fail "AGENTS.md: $(cat "$p/AGENTS.md")"
 [ "$(cat "$tmp/ghq.log")" = 'get example.com/o/new' ] && pass "ghq get は clone の無い repo だけ" || fail "ghq: $(cat "$tmp/ghq.log")"
@@ -89,6 +90,11 @@ r=0; "$andon" create --prefix X </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 2 ] && grep -q 'slug が無い' "$tmp/err" && pass "端末でなく slug が無ければ止まる（rc 2）" || fail "slug 無し: rc=$r $(cat "$tmp/err")"
 r=0; "$andon" create Bad_Slug </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 2 ] && [ ! -e "$ws/projects/Bad_Slug" ] && pass "slug の形を確かめる" || fail "slug: rc=$r $(cat "$tmp/err")"
+# repo が 1 つでも入る（下の「signals が無い」の検査が当たる場合があることも、ここで確かめる）
+"$andon" create one-repo --repo example.com/o/have </dev/null >"$tmp/out" 2>"$tmp/err" \
+  && [ "$(jq -c 'has("signals")' "$ws/projects/one-repo/project.json")" = true ] \
+  && grep -q signals "$tmp/out" \
+  && pass "repo が 1 つでも signals と案内がある" || fail "repo が 1 つ: $(cat "$tmp/err" "$ws/projects/one-repo/project.json" 2>&1)"
 "$andon" create web-app </dev/null >"$tmp/out" 2>"$tmp/err" \
   && [ "$(jq -c '[.project, .repos, has("signals")]' "$ws/projects/web-app/project.json")" = '[{"title":"web-app","prefix":"WA"},[],false]' ] \
   && ! grep -q signals "$tmp/out" \
