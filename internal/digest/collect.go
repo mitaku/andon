@@ -38,6 +38,7 @@ type Input struct {
 	Concerns  []Concern      `json:"concerns"`
 	Numbers   Numbers        `json:"numbers"`
 	Next      Next           `json:"next"`
+	Decided   *Decided       `json:"decided,omitempty"` // 節 5。前のバージョンの入力には無い（build は入っていないと描く）
 	Redacted  int            `json:"redacted"`
 	Skipped   []Skip         `json:"skipped"`
 }
@@ -142,8 +143,8 @@ const (
 
 // task は issue.yaml から読む所。
 type task struct {
-	id, title, status, profile, who, parent, routine, notBefore, estimate string
-	after                                                                 []string
+	id, title, status, profile, who, parent, routine, notBefore, estimate, repo string
+	after                                                                       []string
 }
 
 func (t *task) reviewer() bool {
@@ -228,6 +229,7 @@ func Collect(env Env, id string) (*Input, error) {
 	in.Concerns = c.concerns(in.Issues, rows, inPeriod, gh)
 	in.Numbers = c.numbers(now, gh)
 	in.Next = c.next(now, cfg.Timezone)
+	in.Decided = c.decided(rows, since, now, in.Previous)
 	in.Skipped = append([]Skip{}, c.skipped...)
 
 	// 秘密の形を伏せる（決めたこと 17。振り返りと同じ伏せ方）
@@ -261,7 +263,7 @@ func (c *collector) readTasks() error {
 			continue
 		}
 		t := &task{id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"), who: raw.Str("who"),
-			parent: ledger.CanonID(raw.Str("parent")), routine: raw.Str("routine"), notBefore: raw.Str("not_before"), estimate: raw.Str("estimate")}
+			parent: ledger.CanonID(raw.Str("parent")), routine: raw.Str("routine"), notBefore: raw.Str("not_before"), estimate: raw.Str("estimate"), repo: raw.Str("repo")}
 		if list, ok := raw["after"].([]any); ok {
 			for _, a := range list {
 				if s, ok := a.(string); ok && s != "" {
@@ -341,16 +343,30 @@ func (c *collector) readJSON(path string, v any) bool {
 	return true
 }
 
-// issues は期間に done になったか、PR がマージされた課題（レビュアーの子課題と、同じルーチンのダイジェストを除く）。
-func (c *collector) issues(self *task, rows []ledger.Row, in func(time.Time) bool) []Issue {
-	doneAt := map[string]time.Time{}
+// doneAt は期間に done へ動いた課題と、その時刻。
+func (c *collector) doneAt(rows []ledger.Row, in func(time.Time) bool) map[string]time.Time {
+	out := map[string]time.Time{}
 	for _, r := range rows {
 		if s, _ := r.Change["status"].(string); s == c.last {
 			if at, err := time.Parse(timeLayout, r.At); err == nil && in(at) {
-				doneAt[r.ID] = at
+				out[r.ID] = at
 			}
 		}
 	}
+	return out
+}
+
+// title は課題の題（kanban に無ければ id）。
+func (c *collector) title(id string) string {
+	if t := c.byID[id]; t != nil {
+		return t.title
+	}
+	return id
+}
+
+// issues は期間に done になったか、PR がマージされた課題（レビュアーの子課題と、同じルーチンのダイジェストを除く）。
+func (c *collector) issues(self *task, rows []ledger.Row, in func(time.Time) bool) []Issue {
+	doneAt := c.doneAt(rows, in)
 	out := []Issue{}
 	for _, id := range c.ids {
 		t := c.byID[id]
@@ -470,12 +486,6 @@ func (c *collector) concerns(issues []Issue, rows []ledger.Row, in func(time.Tim
 			latest[k] = x
 		}
 	}
-	title := func(id string) string {
-		if t := c.byID[id]; t != nil {
-			return t.title
-		}
-		return id
-	}
 	// 止まった担当: 届けた通知の記録のうち error・stalled
 	if c.env.Delivered != "" {
 		c.jsonl(c.env.Delivered, func(b []byte) {
@@ -496,7 +506,7 @@ func (c *collector) concerns(issues []Issue, rows []ledger.Row, in func(time.Tim
 			for _, n := range line.News {
 				if (n.Kind == "error" || n.Kind == "stalled") && n.Issue != "" {
 					id := ledger.CanonID(n.Issue)
-					add(Concern{Kind: "stalled", Issue: ptr(id), Title: title(id), At: line.At})
+					add(Concern{Kind: "stalled", Issue: ptr(id), Title: c.title(id), At: line.At})
 				}
 			}
 		})
