@@ -138,7 +138,7 @@ Andon は一人のソフトウェア工場で、工場を2つの面で言い分�
 ```bash
 andon init <slug> --image ghcr.io/<owner>/andon:<バージョン> --owner <email>
 cd <slug>-cell && bin/bootstrap            # イメージを焼き、compose.yaml をイメージから取り出して起動する（入らない。TUI で入るなら bin/bootstrap herdr）
-bin/bootstrap host-install                  # ホストの andon-up・ssh config・herdr の設定を置く（今あるものは上書きしない）
+bin/bootstrap host-install                  # ホストの andon-up・ssh config・herdr の設定・App の mod と、指定したとき Stream Deck の plugin を置く（今あるものは上書きしない）
 ```
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）とタイムゾーン（`CELL_TZ`。既定 `Asia/Tokyo`）はセルの `.env` に書く。`bin/bootstrap --dry-run` は docker を打たずに、打つものを出す。

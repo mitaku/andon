@@ -59,7 +59,7 @@
 `package/` の下のうち、次の3つはどの機能のファイルにも載せない。変えても検証の課題は切られない（`scripts/features.sh` が機能を返さない）。
 
 - `package/lib/`（statusline と schema の検査器）。利用者が動かす道が無い。statusline は Claude Code が画面に出すだけで、検査器は `tests/schema.sh` と `go test ./internal/contract/` が CI で見ている。セルの本物で動かして増える証拠が無い。
-- `package/host/`（ホスト用の雛形と Herdr App の mod）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
+- `package/host/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
 - `package/compose.yaml`。セルを起動し直す口で、動いているセルの中からは打ち直せない。`tests/image.sh` が docker のある CI で見ている。
 
 `package/gh-skills.txt` は覆う。`boot.md` の「変えたら動かすパス」に載せた。
