@@ -216,12 +216,21 @@ func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
 	if !strings.Contains(first, "`gh pr view "+pr+" --json baseRefOid -q .baseRefOid`") {
 		t.Errorf("1回目の依頼書に baseRefOid の取り方が無い:\n%s", first)
 	}
-	for _, skill := range []string{"independent-review", "worker"} {
-		body, err := os.ReadFile(filepath.Join("..", "..", "package", "skills", skill, "SKILL.md"))
+	// 見るのはその節だけ（レビュアーは worker skill の §6 だけに従う）
+	for _, s := range []struct{ skill, from, to string }{
+		{"independent-review", "\n## 4. ", "\n## 5. "},
+		{"worker", "\n## 6. ", "\n## 7. "},
+	} {
+		body, err := os.ReadFile(filepath.Join("..", "..", "package", "skills", s.skill, "SKILL.md"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		has("skill "+skill, string(body), "<commit>", "<PR>")
+		_, section, found := strings.Cut(string(body), s.from)
+		section, _, closed := strings.Cut(section, s.to)
+		if !found || !closed {
+			t.Fatalf("skill %s に節 %q〜%q が無い", s.skill, s.from, s.to)
+		}
+		has("skill "+s.skill, section, "<commit>", "<PR>")
 	}
 
 	// 再レビューが見る範囲は reReviewRange だけが決める
