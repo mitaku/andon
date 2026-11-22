@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -94,9 +95,11 @@ func filesURL(env Env, in *Input) string {
 // destinations はオーナーが project.json に書いた送り先（決めたこと 12）。セルの repo の HEAD のものを、作者の照合を通して読む。
 // project.json か digest が無ければ空。信じられない・形が違えば誤り（どこへも送らない）。
 func destinations(env Env) ([]delegate.DigestDestination, error) {
-	p, err := delegate.ReadProject(env.Workspace, filepath.Base(env.Root))
+	slug := filepath.Base(env.Root)
+	p, err := delegate.ReadProject(env.Workspace, slug)
 	if errors.Is(err, delegate.ErrAbsent) {
-		return nil, nil
+		// git の失敗を「送り先が無い」に読むと、送りそこねた行を落として期間を進める
+		return nil, delegate.ConfirmProjectAbsent(env.Workspace, slug)
 	}
 	if err != nil {
 		return nil, err
@@ -141,7 +144,19 @@ func composed(env Env, id string, in *Input) ([]byte, *Text, error) {
 
 // Send は課題 id の digest.html を files/ と project.json の送り先へ出し、files/ の URL を返す（決めたこと 12・13・15）。
 // 済んだ送り先には送らない。失敗した送り先には送り直す（決めたこと 16）。files/ に出せていれば、誤りのときも URL を返す。
+// files/・Slack・sent.json は、鍵を取ったあとに読んで照らした同じ 1 枚を指す。
 func Send(env Env, id string) (string, error) {
+	// 鍵を置く前に、課題と入力が在ることだけ確かめる（中身は鍵を取ってから読む）
+	if _, err := readInput(env.Root, id); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir(env.Root, id), sentFile)
+	// 読んでから送って書くまでを1人ずつにする（同時に打っても、外へ2度送らない・結果が消えない）
+	unlock, err := flock.Lock(path + ".lock")
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	in, err := readInput(env.Root, id)
 	if err != nil {
 		return "", err
@@ -150,14 +165,6 @@ func Send(env Env, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	d := dir(env.Root, id)
-	path := filepath.Join(d, sentFile)
-	// 読んでから送って書くまでを1人ずつにする（同時に打っても、外へ2度送らない・結果が消えない）
-	unlock, err := flock.Lock(path + ".lock")
-	if err != nil {
-		return "", err
-	}
-	defer unlock()
 
 	var old []Destination
 	switch prev, err := readSent(path); {
@@ -186,10 +193,13 @@ func Send(env Env, id string) (string, error) {
 	}
 
 	files := &sent.Destinations[0]
-	if !files.OK {
-		u, perr := publish.Publish(filesEnv(env, in), filepath.Join(d, htmlFile), filesSlug(in))
+	// まだの Slack へ送る回は、files/ にも同じ 1 枚を置き直す（組み立て直していると、短い文の URL が古い 1 枚を指す）
+	toSend := unread == nil && slices.ContainsFunc(sent.Destinations[1:], func(x Destination) bool { return !x.OK })
+	if !files.OK || toSend {
+		u, perr := publishPage(filesEnv(env, in), page, filesSlug(in))
+		files.At = now
 		if perr != nil {
-			files.Error = oneLine(perr.Error())
+			files.OK, files.URL, files.Error = false, "", oneLine(perr.Error())
 		} else {
 			files.OK, files.URL, files.Error = true, u, ""
 		}
@@ -227,6 +237,23 @@ func Send(env Env, id string) (string, error) {
 		return files.URL, errors.New(strings.Join(failed, "、"))
 	}
 	return files.URL, nil
+}
+
+// publishPage は照らした中身そのものを files/ に出す（digest.html を読み直さない。照らしたあとに変わっていても出さない）。
+func publishPage(env publish.Env, page []byte, slug string) (string, error) {
+	tmp, err := os.CreateTemp("", "andon-digest-*.html")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck // 一時ファイルの片付けで、失敗しても出した中身に効かない
+	_, err = tmp.Write(page)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return "", err
+	}
+	return publish.Publish(env, tmp.Name(), slug)
 }
 
 // plan は今回の送り先の行。先頭は files で、済んだ行は残す（同じ kind へ2度送らない）。

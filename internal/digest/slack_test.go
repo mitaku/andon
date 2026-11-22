@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"andon/internal/flock"
 	"andon/internal/waiting"
 )
 
@@ -118,15 +119,17 @@ func toChannel(id string) string {
 	return projectWith(`{"destinations": [{"kind": "slack", "channel": "` + id + `"}]}`)
 }
 
-// commitProject はセルの repo の project.json を author で commit する。
+// commitProject はセルの repo の project.json を author で commit する。body が空なら project.json の無い repo を作る。
 func (f *fake) commitProject(body, author string) {
 	f.t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		f.t.Skip("git が無い")
 	}
 	f.write(filepath.Join(f.ws, "andon.toml"), "owner = \""+owner+"\"\n")
-	f.write(filepath.Join(f.ws, "projects", "sample-site", "project.json"), body)
-	for _, args := range [][]string{{"init", "-q"}, {"add", "andon.toml", "projects"}, {"commit", "-q", "--allow-empty", "-m", "project"}} {
+	if body != "" {
+		f.write(filepath.Join(f.ws, "projects", "sample-site", "project.json"), body)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "--allow-empty", "-m", "project"}} {
 		cmd := exec.Command("git", append([]string{"-C", f.ws, "-c", "commit.gpgsign=false"}, args...)...)
 		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL="+author, "GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL="+author)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -333,14 +336,97 @@ func TestSendSlack(t *testing.T) {
 
 	t.Run("前のバージョンの sent.json", func(t *testing.T) {
 		f, s := ready(t)
-		const u = "http://files.cell.localhost:1355/old.html"
 		in, err := readInput(f.root, "S-0100")
 		if err != nil {
 			t.Fatal(err)
 		}
+		u := filesURL(f.env, in)
 		f.lib("S-0100", "digest/sent.json", `{"issue": "S-0100", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "`+u+`"}]}`)
 		if got, err := Send(f.env, "S-0100"); err != nil || got != u || len(s.calls()) != 3 {
 			t.Errorf("files だけ済んだ記録から Slack へ送らない: %v %s", err, got)
+		}
+	})
+}
+
+// published は files/ に出した HTML。
+func (f *fake) published() []byte {
+	f.t.Helper()
+	names, err := filepath.Glob(filepath.Join(f.ws, "files", "*-S-0100.html"))
+	if err != nil || len(names) != 1 {
+		f.t.Fatalf("files/ の HTML: %v %v", names, err)
+	}
+	b, err := os.ReadFile(names[0])
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return b
+}
+
+type writerFunc func(p []byte) (int, error)
+
+func (w writerFunc) Write(p []byte) (int, error) { return w(p) }
+
+// 反論で見つけた疑い: files/ と Slack と sent.json が、同じ 1 枚を指す。
+func TestSendSameDigest(t *testing.T) {
+	t.Run("送り直す前に組み立て直した", func(t *testing.T) {
+		f, s := ready(t)
+		s.set(func(s *fakeSlack) { s.completeError = "not_in_channel" })
+		if _, err := Send(f.env, "S-0100"); err == nil {
+			t.Fatal("送れた")
+		}
+		buildHTML(t, f, strings.Replace(validText(), "ボードの表示が増えた。", "ボードの表示を直した。", 1))
+		s.set(func(s *fakeSlack) { s.completeError = "" })
+		if _, err := Send(f.env, "S-0100"); err != nil {
+			t.Fatal(err)
+		}
+		if got := s.calls(); !bytes.Equal(got[len(got)-2].body, f.published()) {
+			t.Error("files/ と Slack の中身が違う（短い文の URL が古い 1 枚を指す）")
+		}
+	})
+
+	t.Run("鍵を待つ間に集め直して組み立て直した", func(t *testing.T) {
+		f, s := ready(t)
+		unlock, err := flock.Lock(filepath.Join(dir(f.root, "S-0100"), sentFile+".lock"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		env, done := f.env, make(chan error, 1)
+		go func() {
+			_, err := Send(env, "S-0100")
+			done <- err
+		}()
+		time.Sleep(300 * time.Millisecond) // send が鍵の待ちに入る
+		f.env.Now = now.Add(time.Hour)
+		in := f.collect("S-0100")
+		buildHTML(t, f, validText())
+		page, err := os.ReadFile(filepath.Join(dir(f.root, "S-0100"), htmlFile))
+		unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if got := s.calls(); len(got) != 3 || !bytes.Equal(got[1].body, page) || f.sent().Until != in.Until {
+			t.Error("鍵を待つ前に読んだ古い 1 枚を送った")
+		}
+	})
+
+	t.Run("照らしたあとに HTML が変わった", func(t *testing.T) {
+		f, _ := ready(t)
+		p := filepath.Join(dir(f.root, "S-0100"), htmlFile)
+		page, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.commitProject(toChannel("C9999999999"), "worker@example.com")
+		// 送り先を読めない知らせは、照らしたあと・files/ に出す前に出る
+		f.env.Stderr = writerFunc(func(b []byte) (int, error) { return len(b), os.WriteFile(p, []byte("別の中身"), 0o600) })
+		if _, err := Send(f.env, "S-0100"); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(f.published(), page) {
+			t.Error("照らしていない中身を files/ に出した")
 		}
 	})
 }
@@ -456,6 +542,34 @@ func TestSendFails(t *testing.T) {
 			t.Errorf("届いていない期間を送ったことにした: %+v", r)
 		}
 	})
+
+	// HEAD に無いことと、読めないことは違う（読めないのに行を落とすと、届かない期間が送ったことになる）
+	for name, breakRepo := range map[string]func(f *fake) error{
+		"git が repo を読めない": func(f *fake) error { return os.Rename(filepath.Join(f.ws, ".git"), filepath.Join(f.ws, "git.away")) },
+		"HEAD が壊れている": func(f *fake) error {
+			return os.WriteFile(filepath.Join(f.ws, ".git", "HEAD"), []byte("broken\n"), 0o600)
+		},
+	} {
+		t.Run("失敗のあとに"+name, func(t *testing.T) {
+			f, s := ready(t)
+			s.set(func(s *fakeSlack) { s.completeError = "not_in_channel" })
+			if _, err := Send(f.env, "S-0100"); err == nil {
+				t.Fatal("送れた")
+			}
+			if err := breakRepo(f); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Send(f.env, "S-0100"); err == nil {
+				t.Error("終了コード 0")
+			}
+			if r := slackRow(f.sent()); r == nil || r.OK {
+				t.Error("届いていない期間を送ったことにした")
+			}
+			if err := CheckDestinations(f.env, io.Discard); err == nil || !strings.Contains(err.Error(), "読めない") {
+				t.Errorf("check の理由: %v", err)
+			}
+		})
+	}
 }
 
 // 受け入れ条件 2 の Slack の部分: Slack へ送れなかった前のダイジェストは期間に数えない。送り直せば数える。
@@ -508,7 +622,7 @@ func TestCheck(t *testing.T) {
 	})
 
 	for name, c := range map[string]struct{ body, author, why string }{
-		"project.json が無い": {"", "", "設定が無い"},
+		"project.json が無い": {"", owner, "設定が無い"},
 		"digest が無い":       {projectWith(""), owner, "設定が無い"},
 		"空":                {projectWith(`{"destinations": []}`), owner, "設定が無い"},
 		"信じられない":           {toChannel(channel), "worker@example.com", "読めない"},
@@ -516,9 +630,7 @@ func TestCheck(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newFake(t)
 			s := f.withSlack()
-			if c.body != "" {
-				f.commitProject(c.body, c.author)
-			}
+			f.commitProject(c.body, c.author)
 			var out, errb bytes.Buffer
 			rc := run([]string{"check"}, nil, &out, &errb, func() (Env, error) { return f.env, nil })
 			if rc != 1 || out.Len() != 0 || strings.Count(errb.String(), "\n") != 1 || !strings.Contains(errb.String(), c.why) || len(s.calls()) != 0 {
@@ -582,8 +694,13 @@ func TestMessageKeepsURLAndNoMention(t *testing.T) {
 	in := &Input{Title: "日次", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
 	in.Waiting.Items = []waiting.Item{{Kind: "merge", ID: "S-0001", Title: "直す"}}
 	msg := Message(&Text{Headline: []string{strings.Repeat("長", messageMax), "二。"}}, in, newLoc(""), u)
-	if utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "全文: "+u) || !strings.Contains(msg, "ほか 1 件") {
-		t.Errorf("URL か削った数が落ちた: %d 字", utf8.RuneCountInString(msg))
+	if utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "全文: "+u) || !strings.Contains(msg, "ほか 1 件") || !strings.Contains(msg, "オーナーを待っているもの: 1 件") {
+		t.Errorf("URL か数が落ちた: %d 字", utf8.RuneCountInString(msg))
+	}
+	empty := *in
+	empty.Waiting.Items = nil
+	if msg := Message(&Text{Headline: []string{strings.Repeat("長", messageMax), "二。"}}, &empty, newLoc(""), u); utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "オーナーを待っているもの: 0 件") {
+		t.Errorf("待ちが無いときに数の行が落ちた: %d 字", utf8.RuneCountInString(msg))
 	}
 	in.Waiting.Items[0].Title = "<!channel> を呼ぶ"
 	msg = Message(&Text{Headline: []string{"<https://example.com|確認>", "二。"}}, in, newLoc(""), u)

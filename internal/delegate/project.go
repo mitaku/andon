@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 
 	"andon/internal/contract"
 	"andon/internal/spawn"
@@ -203,4 +204,17 @@ func ReadProject(ws, slug string) (*Project, error) {
 		return nil, fmt.Errorf("%s の形が違う: %v", ProjectRel(slug), err)
 	}
 	return p, nil
+}
+
+// ConfirmProjectAbsent は project.json がセルの repo の HEAD に無いと確かめる。言い切れなければ誤り。
+// ReadProject の ErrAbsent は git の失敗（repo・HEAD を読めない）も含むので、無いことと読めないことを分ける読み手（andon digest）が使う。
+func ConfirmProjectAbsent(ws, slug string) error {
+	out, err := git(ws, "ls-tree", "--full-tree", "--name-only", "HEAD", "--", ProjectRel(slug))
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(out) != "" {
+		return fmt.Errorf("%s は HEAD にあるが読めない", ProjectRel(slug))
+	}
+	return nil
 }

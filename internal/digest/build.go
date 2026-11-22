@@ -278,8 +278,8 @@ func Message(t *Text, in *Input, loc *Loc, url string) string {
 	for _, it := range in.Waiting.Items {
 		counts[it.Kind]++
 	}
-	head = append(head, fmt.Sprintf("オーナーを待っているもの: %d 件（マージの依頼 %d・判断 %d・手作業 %d）",
-		len(in.Waiting.Items), counts["merge"], counts["decision"], counts["task"]))
+	count := fmt.Sprintf("オーナーを待っているもの: %d 件（マージの依頼 %d・判断 %d・手作業 %d）",
+		len(in.Waiting.Items), counts["merge"], counts["decision"], counts["task"])
 	var rows []string
 	for i, it := range in.Waiting.Items {
 		if i == messageTop {
@@ -302,12 +302,12 @@ func Message(t *Text, in *Input, loc *Loc, url string) string {
 	}
 	tail := []string{fmt.Sprintf("マージした PR: %d 本（自動 %d 本）", merged, auto), "全文: " + url}
 	for {
-		shown, rest := strings.Join(append(append([]string{}, head...), rows...), "\n")+"\n", tail
+		keep := append([]string{count}, rows...)
 		if omitted := len(in.Waiting.Items) - len(rows); omitted > 0 {
-			rest = append([]string{fmt.Sprintf("（ほか %d 件は全文に載せた）", omitted)}, tail...)
+			keep = append(keep, fmt.Sprintf("（ほか %d 件は全文に載せた）", omitted))
 		}
-		shown = plainText.Replace(shown)
-		end := strings.Join(rest, "\n") + "\n"
+		shown := plainText.Replace(strings.Join(head, "\n") + "\n")
+		end := plainText.Replace(strings.Join(keep, "\n")+"\n") + strings.Join(tail, "\n") + "\n"
 		room := messageMax - utf8.RuneCountInString(end)
 		if utf8.RuneCountInString(shown) <= room {
 			return shown + end

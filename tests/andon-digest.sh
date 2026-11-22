@@ -15,11 +15,13 @@ trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/kanban.sh"
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET
+# set -e は A && B の A が偽でも止まらないので、並べた確かめには || die を付ける
+die() { echo "FAIL $*"; exit 1; }
 mkdir -p "$tmp/bin"
-for name in git kanban; do
-  printf '#!/bin/sh\necho "%s $*" >>"%s/called"\nexit 99\n' "$name" "$tmp" >"$tmp/bin/$name"
-  chmod +x "$tmp/bin/$name"
-done
+# 偽の git は「repo はあり、HEAD に project.json が無い」を返す（show は落ち、ls-tree は空で成功する）
+printf '#!/bin/sh\necho "git $*" >>"%s/called"\n[ "$3" = ls-tree ] && exit 0\nexit 128\n' "$tmp" >"$tmp/bin/git"
+printf '#!/bin/sh\necho "kanban $*" >>"%s/called"\nexit 99\n' "$tmp" >"$tmp/bin/kanban"
+chmod +x "$tmp/bin/git" "$tmp/bin/kanban"
 printf '#!/bin/sh\necho "gh $*" >>"%s/gh"\necho "[]"\n' "$tmp" >"$tmp/bin/gh"
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -63,14 +65,14 @@ jq -e '.decided.decisions == [] and [.decided.retro[].issue] == ["S-0002"] and [
 printf '%s\n' "$text" | "$andon" digest build S-0100 - >"$tmp/out"
 grep -q 'c1 だけ' "$d/digest.html"
 grep -q '振り返りで 1 件を直すと決め、0 件を捨てた' "$d/digest.html"
-[ "$(wc -l <"$tmp/out")" = 3 ] && [ -f "$d/digest.json" ] && [ -f "$d/digest.html" ] && [ -f "$d/message.txt" ]
+[ "$(wc -l <"$tmp/out")" = 3 ] && [ -f "$d/digest.json" ] && [ -f "$d/digest.html" ] && [ -f "$d/message.txt" ] || die "build が 3 ファイルを書かない"
 emit "$d/digest.json" digest.json
 "$andon" digest send S-0100 >"$tmp/url1"
 url1=$(cat "$tmp/url1")
 f1=$ANDON_WORKSPACE/files/${url1##*/}
 [[ "$url1" == http://files.*.localhost:*/*-digest-sample-site-S-0100.html ]]
 cmp -s "$f1" "$d/digest.html"
-grep -q '<svg' "$f1" && ! grep -qi '<script' "$f1"
+grep -q '<svg' "$f1" && ! grep -qi '<script' "$f1" || die "図が無いか script がある"
 grep -qF "$url1" "$d/message.txt"
 jq -e --arg u "$url1" '.destinations == [.destinations[0]] and .destinations[0].ok and .destinations[0].url == $u' "$d/sent.json" >/dev/null
 emit "$d/sent.json" digest-sent.json
@@ -85,16 +87,16 @@ emit "$d2/input.json" digest-input-previous.json
 set +e
 printf '%s\n' "$text" | "$andon" digest build S-0101 - >/dev/null 2>"$tmp/err"; rc=$?
 set -e
-[ "$rc" = 1 ] && grep -q '入力に無い課題 S-0001' "$tmp/err"
+[ "$rc" = 1 ] && grep -q '入力に無い課題 S-0001' "$tmp/err" || die "入力に無い課題を断らない"
 [[ "$(ls "$d2")" == "input.json" ]]
 printf '%s\n' '{"headline": ["動きは無かった。", "待っているものも無い。"], "themes": [], "concerns": []}' | "$andon" digest build S-0101 - >/dev/null
 url2=$("$andon" digest send S-0101)
-[[ "$url2" != "$url1" ]] && [ -f "$ANDON_WORKSPACE/files/${url2##*/}" ] && cmp -s "$f1" "$d/digest.html"
+[[ "$url2" != "$url1" ]] && [ -f "$ANDON_WORKSPACE/files/${url2##*/}" ] && cmp -s "$f1" "$d/digest.html" || die "前の 1 枚が残らない"
 echo "ok 同じ日に別の課題で作っても前の 1 枚が残り、期間は前に送ったものの終わりから"
 
 # 済んだ送り先には打ち直しても送らない
 rm "$f1"
-[[ "$("$andon" digest send S-0100)" == "$url1" ]] && [ ! -e "$f1" ]
+[[ "$("$andon" digest send S-0100)" == "$url1" ]] && [ ! -e "$f1" ] || die "済んだ送り先へ送り直した"
 echo "ok 済んだ送り先には打ち直しても送らない"
 
 # 使い方の誤りは終了コード 2、無い課題は 1
@@ -103,21 +105,26 @@ set +e
 "$andon" digest build S-0100 >/dev/null 2>&1; rc2=$?
 "$andon" digest collect S-0999 >/dev/null 2>"$tmp/err"; rc3=$?
 set -e
-[ "$rc1" = 2 ] && [ "$rc2" = 2 ] && [ "$rc3" = 1 ] && grep -q 'S-0999 が kanban に無い' "$tmp/err"
+[ "$rc1" = 2 ] && [ "$rc2" = 2 ] && [ "$rc3" = 1 ] && grep -q 'S-0999 が kanban に無い' "$tmp/err" || die "終了コードが違う: $rc1 $rc2 $rc3"
 echo "ok 使い方の誤りは 2、無い課題は 1"
 
 # 受け入れ条件 11: auth が置いたファイルが mode 600。設定が無ければ何も送らずに 1 行。トークンは出力にも記録にも出ない
 token="xo""xb-test-0000-not-a-token"
 printf '%s\n' "$token" | "$andon" digest auth slack >"$tmp/auth" 2>&1
 tf=$HOME/.config/andon/digest/slack.token
-[[ "$(stat -c %a "$tf")" == "600" ]] && [[ "$(stat -c %a "${tf%/*}")" == "700" ]] && [[ "$(cat "$tf")" == "$token" ]]
+[[ "$(stat -c %a "$tf")" == "600" ]] || die "トークンの mode が 600 でない"
+[[ "$(stat -c %a "${tf%/*}")" == "700" ]] || die "置き場の mode が 700 でない"
+[[ "$(cat "$tf")" == "$token" ]] || die "置いたトークンが違う"
 set +e
 "$andon" digest check >"$tmp/check.out" 2>"$tmp/check.err"; rc1=$?
 "$andon" digest auth "$token" </dev/null >"$tmp/auth.bad" 2>&1; rc2=$?
 "$andon" digest auth slack </dev/null >"$tmp/auth.empty" 2>&1; rc3=$?
 set -e
-[ "$rc1" = 1 ] && [ "$rc2" = 2 ] && [ "$rc3" = 2 ]
-[ ! -s "$tmp/check.out" ] && [ "$(wc -l <"$tmp/check.err")" = 1 ]
+[ "$rc1" = 1 ] || die "設定の無い check の終了コードが $rc1"
+[ "$rc2" = 2 ] || die "知らない送り先の auth の終了コードが $rc2"
+[ "$rc3" = 2 ] || die "空の入力の auth の終了コードが $rc3"
+[ ! -s "$tmp/check.out" ] || die "設定の無い check が標準出力に出した"
+[ "$(wc -l <"$tmp/check.err")" = 1 ] || die "設定の無い check の知らせが 1 行でない"
 grep -q 'digest の送り先の設定が無いので何も送らない' "$tmp/check.err"
 [[ "$(cat "$tf")" == "$token" ]]
 "$andon" digest send S-0100 >"$tmp/send.out" 2>&1
@@ -129,7 +136,7 @@ grep -qF -- "$token" "$tf"
 echo "ok auth は mode 600 で置き、設定が無ければ check も send も送らず、トークンは出力にも記録にも出ない"
 
 # git は送り先の読み取りだけ
-others() { grep -v '^git .*show HEAD:projects/sample-site/project\.json$' "$tmp/called" || true; }
+others() { grep -vE '^git -C [^ ]+ (show HEAD:|ls-tree --full-tree --name-only HEAD -- )projects/sample-site/project\.json$' "$tmp/called" || true; }
 extra=$(others)
 [ -z "$extra" ] || { echo "FAIL project.json の読み取りのほかに git・kanban を呼んだ: $extra"; exit 1; }
 grep -q '^git ' "$tmp/called"
