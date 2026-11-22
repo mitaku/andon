@@ -204,14 +204,14 @@ func TestDecisionsHistory(t *testing.T) {
 // 期間の中で語を直した行は最後の形の 1 行、足して取り消した行は出ない、括弧の中だけの直しは新しい決定でない。
 func TestDecisionsNet(t *testing.T) {
 	const sec = "## 決めたこと\n"
-	g := newGitRepo(t, map[string]string{"docs/a.md": sec + "1. **前からある。**（Chief Engineer が決め、人が見た）\n"})
-	kept := "1. **前からある。**（Chief Engineer が決め、オーナーが見た）\n"
-	g.commit("2026-11-21T01:00:00Z", map[string]string{"docs/a.md": sec + kept + "2. **版を上げる（Chief Engineer が決めた）。**\n3. **あとで取り消す（Chief Engineer が決めた）。**\n",
+	g := newGitRepo(t, map[string]string{"docs/a.md": sec + "1. **前からある。**（Chief Engineer が決め、推奨どおり）\n"})
+	kept := "1. **前からある。**（Chief Engineer が決め、オーナーが確かめた）\n"
+	g.commit("2026-11-21T01:00:00Z", map[string]string{"docs/a.md": sec + kept + "2. **並びを変える（Chief Engineer が決めた）。**\n3. **あとで取り消す（Chief Engineer が決めた）。**\n",
 		"docs/b.md": sec + "1. **文書ごと取り消す（Chief Engineer が決めた）。**\n"})
-	g.commit("2026-11-21T02:00:00Z", map[string]string{"docs/a.md": sec + kept + "2. **バージョンを上げる（Chief Engineer が決めた）。**\n", "docs/b.md": ""})
+	g.commit("2026-11-21T02:00:00Z", map[string]string{"docs/a.md": sec + kept + "2. **並び順を変える（Chief Engineer が決めた）。**\n", "docs/b.md": ""})
 	f := newFake(t)
 	f.issue("S-0001", "doing", "repo: "+docRepo)
-	if got := collectDecisions(t, f); len(got) != 1 || got[0].Text != "バージョンを上げる。" || got[0].Line != 3 {
+	if got := collectDecisions(t, f); len(got) != 1 || got[0].Text != "並び順を変える。" || got[0].Line != 3 {
 		t.Errorf("決定の行: %+v", got)
 	}
 }
