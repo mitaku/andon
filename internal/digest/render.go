@@ -52,6 +52,7 @@ const (
 
 type view struct {
 	Title, Project, Period, Zone, PrevSent string
+	PeriodKey                              string // 組み立てた入力の期間（send が今の入力と照らす）
 	Truncated                              bool
 	Headline                               []string
 	Big                                    []bigNum
@@ -170,7 +171,7 @@ func scale(v, max float64, w int) int {
 
 // Render は担当の JSON と入力から HTML を組み立てる（数・一覧・図は入力から描く。決めたこと 8）。
 func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
-	v := view{Title: in.Title, Project: in.Project, Zone: loc.name, Truncated: in.Truncated, Headline: t.Headline,
+	v := view{PeriodKey: periodKey(in), Title: in.Title, Project: in.Project, Zone: loc.name, Truncated: in.Truncated, Headline: t.Headline,
 		Period: loc.full(in.Since) + " 〜 " + loc.full(in.Until), Redacted: in.Redacted, Skipped: in.Skipped,
 		Ready: in.Next.Ready, Observations: in.Next.Observations}
 	if in.Previous != nil {
@@ -401,6 +402,9 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 	}
 	return b.Bytes(), nil
 }
+
+// periodKey は入力の期間の印（HTML の meta に書き、send が照らす。英数と - : _ だけで、html/template がエスケープしない）。
+func periodKey(in *Input) string { return in.Since + "_" + in.Until }
 
 // duration は待っている時間の人が読む形。
 func duration(h float64) string {

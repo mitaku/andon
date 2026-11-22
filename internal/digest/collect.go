@@ -369,12 +369,14 @@ func (c *collector) issues(self *task, rows []ledger.Row, in func(time.Time) boo
 			x.PR = &rep.PR
 		}
 		var o outcome
-		if c.readJSON(filepath.Join(c.lib(id), "outcome.json"), &o) {
+		opath := filepath.Join(c.lib(id), "outcome.json")
+		if c.readJSON(opath, &o) {
 			if x.PR == nil && o.PR != nil {
 				x.PR = o.PR
 			}
+			// 結果の記録は done のあとに書かれるので、マージが前の期間でも done が今の期間なら、前のダイジェストには載っていない
 			if o.Result == "merged" && o.MergedAt != nil {
-				if at, err := time.Parse(timeLayout, *o.MergedAt); err == nil && in(at) {
+				if at, err := time.Parse(timeLayout, *o.MergedAt); err == nil && (in(at) || x.DoneAt != nil) {
 					x.MergedAt = o.MergedAt
 					by := "person"
 					for _, g := range o.Gates {
@@ -396,6 +398,9 @@ func (c *collector) issues(self *task, rows []ledger.Row, in func(time.Time) boo
 		}
 		if x.DoneAt == nil && x.MergedAt == nil {
 			continue
+		}
+		if x.DoneAt != nil && x.PR != nil && !fileExists(opath) {
+			c.skip(c.rel(opath), "PR のある課題が片付いたのに結果の記録がまだ無い（マージしたかを数えていない。次の 1 巡で dispatcher が書く）")
 		}
 		if p := c.byID[t.parent]; p != nil && p.routine == retroName {
 			x.Retro = true
@@ -612,6 +617,11 @@ func (c *collector) concerns(issues []Issue, rows []ledger.Row, in func(time.Tim
 		return out[i].Kind+out[i].Title < out[j].Kind+out[j].Title
 	})
 	return out
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // readJSONQuiet は readJSON と同じで、読めなくても skipped に足さない（同じファイルを先に readJSON で読んだとき）。

@@ -1125,7 +1125,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `at`・`since`・`until` | 集めた時刻と期間（UTC。`until` は `at` と同じ） |
 | `previous` | 期間の始まりにした前のダイジェスト（`sent_at` は送り先が最後に済んだ時刻）。無ければ `null` |
 | `issues[]` | 期間に `done` へ動いたか、`outcome.json` の `merged_at` が期間の中の課題。レビュアーの子課題（`<id>-r<k>`・`profile` が `-review` で終わる）、このダイジェストの課題、同じルーチンのダイジェストは数えない。id の順 |
-| `issues[].merged_by` | 期間にマージされた課題だけ。`outcome.json` の `gates[]` に `merged: true` があれば `dispatcher`、無ければ `person`。期間にマージされていなければ `null` |
+| `issues[].merged_by` | `outcome.json` の `result` が `merged` で、`merged_at` か `done_at` が期間の中の課題だけ（結果の記録は `done` のあとに書かれるので、前の期間にマージして今の期間に片付いた課題は前のダイジェストに載っていない）。`gates[]` に `merged: true` があれば `dispatcher`、無ければ `person`。そうでなければ `null`。PR のある課題が期間に片付いたのに `outcome.json` がまだ無いときは、マージを数えずに `skipped` に出す |
 | `issues[].tier`・`grant` | `tier` はマージした gate（無ければ最後の gate）のレベル。`grant` はマージした head の gate の記録の `delegation.grant`（名指しの委譲でマージしたとき） |
 | `issues[].retro` | 親の課題が振り返りのルーチン（`routine: retro`）の課題か |
 | `waiting` | 集めた時刻の `andon waiting --json`（§25）と同じもの。build は §25 の schema にも照らす |
@@ -1165,13 +1165,13 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `headline[]` | 要旨。2〜5 文。1 文は1行（改行を含まない） |
 | `themes[]` | テーマ。8 つまで。`body` は 1〜3 文、`issues` は 1 件以上で、§26 の `issues[]` にある課題だけ |
 | `themes[].figure` | 図（任意。決めたこと 9）。`before_after` は `before`・`after` がそれぞれ 1〜3 行。`steps` は 2〜6 段で、`focus` は目立たせる段（1 から） |
-| `concerns[]` | 担当が添える気になること。3 つまで。`issues` は 1 件以上で、§26 の `issues[]` にある課題だけ |
+| `concerns[]` | 担当が添える気になること。3 つまで。`issues` は 1 件以上で、§26 の `issues[]`・`concerns[].issue`・`waiting.items[].id` にある課題だけ（止まっている課題やオーナーを待っている課題も根拠に指せる） |
 
-- build は次のどれかなら理由を1行ずつ標準エラーに出し、終了コード 1 で何も書かない: schema に合わない（知らない図の型を含む）・入力に無い課題を指す・要旨が 2〜5 文でない・テーマが 9 つ以上・テーマの文が 4 つ以上・気になることが 4 つ以上・図の行や段が多い・`focus` が段の数を超える。
+- build は次のどれかなら理由を1行ずつ標準エラーに出し、終了コード 1 で何も書かない: schema に合わない（知らない図の型を含む）・入力に無い課題を指す（テーマは `issues[]` だけ、気になることは上の 3 つ）・要旨が 2〜5 文でない・テーマが 9 つ以上・テーマの文が 4 つ以上・気になることが 4 つ以上・図の行や段が多い・`focus` が段の数を超える。
 - どのテーマにも入らないマージ済みの課題は、build が「そのほか」に題で並べる（黙って落とさない）。
 - 組み立てる前に、入力と担当の文の文字列から秘密の形を伏せる（決めたこと 17）。
 - build は `digest.json`・`digest.html`（下）・`message.txt`（下）の3つを書く。
-  - `digest.html`: 依存の無い単一の HTML（決めたこと 7）。インラインの SVG の図を持ち、`<script>`・`<link>`・`<a>` のほかで外を指す `src`・`href`・`url(` を持たない。`prefers-color-scheme: dark` で暗い配色に変わり、スマホの幅で読める。色と大きさはクラスで決め、値をスタイルに渡さない。琥珀はマージの依頼と判断の行と冒頭の「オーナーが呼ばれている」数だけ、赤は止まった担当・main の CI の失敗・revert の行だけ（決めたこと 10）。1 MiB より小さい。build は書く前にこれを確かめ、通らなければ書かない。
+  - `digest.html`: 依存の無い単一の HTML（決めたこと 7）。インラインの SVG の図を持ち、`<script>`・`<link>`・`<a>` のほかで外を指す `src`・`href` を持たず、スタイル（`<style>` の中と `style` 属性）に `url(` を持たない。`prefers-color-scheme: dark` で暗い配色に変わり、スマホの幅で読める。色と大きさはクラスで決め、値をスタイルに渡さない。琥珀はマージの依頼と判断の行と冒頭の「オーナーが呼ばれている」数だけ、赤は止まった担当・main の CI の失敗・revert の行だけ（決めたこと 10）。1 MiB より小さい。build は書く前にこれを確かめ、通らなければ書かない。
   - `message.txt`: Slack などに添える短い文（決めたこと 13）。題・プロジェクト・期間・要旨・オーナーを待っているものの数と上から 5 件（題と PR の URL）・マージした数と自動の数・files/ の URL。装飾の記法を使わず、3000 字まで。超えたら待っているものの行を下から削り、削った数を出す。
 
 ## 28. ダイジェストを送った結果（`library/digest/sent.json`）
@@ -1192,3 +1192,4 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - 済んだ送り先（`ok: true`）には、打ち直しても送らない。送りそこねた送り先は打ち直しで送り直す。
 - 集め直して期間が変わったときは、前の結果を捨てて送り直す。
 - 次のダイジェストの期間は、送り先が全部済んだ `sent.json` の `until` から始まる（§26）。
+- build は `digest.html` に組み立てた入力の期間の印（`<meta name="andon-digest-period">`）を入れる。send は今の `input.json` の期間と照らし、違えば（組み立てたあとに集め直した）送らずに終了コード 1 で、組み立て直すよう言う。古い HTML を新しい期間として送ると、間の出来事がどの 1 枚にも載らないため。

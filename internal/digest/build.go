@@ -139,14 +139,30 @@ func redactInto[T any](v *T) error {
 func Check(t *Text, in *Input) []string {
 	var errs []string
 	bad := func(format string, a ...any) { errs = append(errs, fmt.Sprintf(format, a...)) }
-	known := map[string]bool{}
+	// テーマは期間の課題（issues）だけ、気になることはそれに加えて、command が見つけた気になることの課題と待っている課題を指せる
+	known, watched := map[string]bool{}, map[string]bool{}
 	for _, x := range in.Issues {
-		known[x.ID] = true
+		known[x.ID], watched[x.ID] = true, true
+	}
+	for _, c := range in.Concerns {
+		if c.Issue != nil {
+			watched[*c.Issue] = true
+		}
+	}
+	for _, it := range in.Waiting.Items {
+		watched[it.ID] = true
 	}
 	refs := func(where string, ids []string) {
 		for _, id := range ids {
 			if !known[id] {
 				bad("%s が入力に無い課題 %s を指す（input.json の issues にある課題だけを指す）", where, id)
+			}
+		}
+	}
+	concernRefs := func(where string, ids []string) {
+		for _, id := range ids {
+			if !watched[id] {
+				bad("%s が入力に無い課題 %s を指す（input.json の issues・concerns・waiting にある課題だけを指す）", where, id)
 			}
 		}
 	}
@@ -184,22 +200,24 @@ func Check(t *Text, in *Input) []string {
 		bad("気になることが %d（%d まで）", n, concernsMax)
 	}
 	for i, c := range t.Concerns {
-		refs(fmt.Sprintf("気になること %d", i+1), c.Issues)
+		concernRefs(fmt.Sprintf("気になること %d", i+1), c.Issues)
 	}
 	return errs
 }
 
 var (
-	tagRe  = regexp.MustCompile(`(?is)<([a-z][a-z0-9:-]*)\b([^>]*)>`)
-	refRe  = regexp.MustCompile(`(?is)\b(?:xlink:)?(?:src|href)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
-	urlRe  = regexp.MustCompile(`(?i)url\s*\(`)
-	svgRe  = regexp.MustCompile(`(?i)<svg\b`)
-	scrRe  = regexp.MustCompile(`(?i)<script\b`)
-	linkRe = regexp.MustCompile(`(?i)<link\b`)
+	tagRe = regexp.MustCompile(`(?is)<([a-z][a-z0-9:-]*)\b([^>]*)>`)
+	refRe = regexp.MustCompile(`(?is)\b(?:xlink:)?(?:src|href)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
+	urlRe = regexp.MustCompile(`(?i)url\s*\(`)
+	// url( を見るのはスタイルの中（<style> の中身と style 属性）だけ。本文の「curl (」には当てない
+	styleRe = regexp.MustCompile(`(?is)<style\b[^>]*>(.*?)</style>|\bstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
+	svgRe   = regexp.MustCompile(`(?i)<svg\b`)
+	scrRe   = regexp.MustCompile(`(?i)<script\b`)
+	linkRe  = regexp.MustCompile(`(?i)<link\b`)
 )
 
 // CheckHTML は組み立てた HTML が依存の無い単一のファイルかを確かめ、問題を1行ずつ返す（決めたこと 7 の細部）。
-// SVG の図が1つ以上あること、<script>・<link> が無いこと、<a> のほかに外を指す src・href が無いこと、url( が無いこと、
+// SVG の図が1つ以上あること、<script>・<link> が無いこと、<a> のほかに外を指す src・href が無いこと、スタイルに url( が無いこと、
 // html/template が値を捨てた印 ZgotmplZ が無いこと、1 MiB より小さいこと。
 func CheckHTML(b []byte) []string {
 	var probs []string
@@ -223,8 +241,11 @@ func CheckHTML(b []byte) []string {
 			}
 		}
 	}
-	if urlRe.Match(b) {
-		probs = append(probs, "HTML に url( がある")
+	for _, m := range styleRe.FindAllSubmatch(b, -1) {
+		if urlRe.Match(m[1]) || urlRe.Match(m[2]) {
+			probs = append(probs, "HTML のスタイルに url( がある")
+			break
+		}
 	}
 	if bytes.Contains(b, []byte("ZgotmplZ")) {
 		probs = append(probs, "HTML に ZgotmplZ がある（html/template が値を捨てた）")

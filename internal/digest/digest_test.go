@@ -374,15 +374,17 @@ func TestSingleFile(t *testing.T) {
 		}
 	}
 	broken := map[string]string{
-		"script":     strings.Replace(html, "</main>", "<script>alert(1)</script></main>", 1),
-		"外の画像":       strings.Replace(html, "</main>", `<img src="https://example.com/a.png"></main>`, 1),
-		"引用符の無い src": strings.Replace(html, "</main>", `<img src=//example.com/a.png></main>`, 1),
-		"SVG の外の参照":  strings.Replace(html, "</svg>", `<image href="https://example.com/a.png"></image></svg>`, 1),
-		"url(":       strings.Replace(html, "</style>", "body { background: url(https://example.com/a.png); }</style>", 1),
-		"link":       strings.Replace(html, "</head>", `<link rel="stylesheet" href="a.css"></head>`, 1),
-		"ZgotmplZ":   strings.Replace(html, "</main>", `<a href="#ZgotmplZ">x</a></main>`, 1),
-		"SVG が無い":    regexp.MustCompile(`(?s)<svg.*?</svg>`).ReplaceAllString(html, ""),
-		"1 MiB":      strings.Replace(html, "</main>", strings.Repeat("あ", htmlMax/3+1)+"</main>", 1),
+		"script":             strings.Replace(html, "</main>", "<script>alert(1)</script></main>", 1),
+		"外の画像":               strings.Replace(html, "</main>", `<img src="https://example.com/a.png"></main>`, 1),
+		"引用符の無い src":         strings.Replace(html, "</main>", `<img src=//example.com/a.png></main>`, 1),
+		"SVG の外の参照":          strings.Replace(html, "</svg>", `<image href="https://example.com/a.png"></image></svg>`, 1),
+		"url(":               strings.Replace(html, "</style>", "body { background: url(https://example.com/a.png); }</style>", 1),
+		"style 属性の url(":     strings.Replace(html, "</main>", `<div style="background: URL (https://example.com/a.png)"></div></main>`, 1),
+		"SVG の style の url(": strings.Replace(html, "</svg>", `<style>rect { fill: url(https://example.com/a.svg#g); }</style></svg>`, 1),
+		"link":               strings.Replace(html, "</head>", `<link rel="stylesheet" href="a.css"></head>`, 1),
+		"ZgotmplZ":           strings.Replace(html, "</main>", `<a href="#ZgotmplZ">x</a></main>`, 1),
+		"SVG が無い":            regexp.MustCompile(`(?s)<svg.*?</svg>`).ReplaceAllString(html, ""),
+		"1 MiB":              strings.Replace(html, "</main>", strings.Repeat("あ", htmlMax/3+1)+"</main>", 1),
 	}
 	for name, b := range broken {
 		if len(CheckHTML([]byte(b))) == 0 {
@@ -601,5 +603,80 @@ func TestOutputsMatchSchema(t *testing.T) {
 		if json.Unmarshal(b, &v) != nil {
 			t.Errorf("%s が JSON でない", file)
 		}
+	}
+}
+
+// 反論の段で見つけた道: マージの時刻が前の期間で、done が今の期間（オーナーのマージの片付けが止まっていた）でも、マージとして数える。
+// done なのに結果の記録がまだ無い課題は、黙って落とさず skipped に出す。
+func TestMergeAcrossBoundary(t *testing.T) {
+	f := newFake(t)
+	f.merged("S-0001", 1, "2026-11-19T08:00:00Z", sha1, false)
+	f.log = nil
+	f.row("2026-11-21T08:00:00Z", "dispatcher", "S-0001", `{"status":"done"}`)
+	f.issue("S-0002", "done")
+	f.lib("S-0002", "report.json", fmt.Sprintf(`{"commit": "%s", "pr": "%s"}`, sha2, prURL(2)))
+	f.row("2026-11-21T09:00:00Z", "dispatcher", "S-0002", `{"status":"done"}`)
+	in := f.collect("S-0100")
+	if x := f.byID(in, "S-0001"); x == nil || str(x.MergedBy) != "person" {
+		t.Errorf("前の期間にマージして今の期間に done になった課題をマージに数えていない: %+v", x)
+	}
+	found := false
+	for _, s := range in.Skipped {
+		if strings.Contains(s.Source, "S-0002") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("結果の記録の無い done の課題を skipped に出していない: %+v", in.Skipped)
+	}
+}
+
+// 反論の段で見つけた道: 組み立てたあとに集め直したら、古い HTML を新しい期間として送らない。
+func TestSendStaleBuild(t *testing.T) {
+	f := newFake(t)
+	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
+	f.collect("S-0100")
+	buildHTML(t, f, validText())
+	f.env.Now = now.Add(time.Hour)
+	f.collect("S-0100")
+	if _, err := Send(f.env, "S-0100"); err == nil {
+		t.Errorf("集め直した入力で、前に組み立てた HTML を送った")
+	}
+	if _, err := os.Stat(filepath.Join(f.ws, "files")); err == nil {
+		t.Errorf("files/ に出した")
+	}
+	buildHTML(t, f, validText())
+	if _, err := Send(f.env, "S-0100"); err != nil {
+		t.Errorf("組み立て直したあとに送れない: %v", err)
+	}
+}
+
+// 反論の段で見つけた道: 課題の題の「curl (」で url( の検査に当たらない（検査はスタイルの中だけを見る）。
+func TestTitleWithParen(t *testing.T) {
+	f := newFake(t)
+	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
+	f.write("kanban/issues/S-0001/issue.yaml", "id: S-0001\ntitle: gh の代わりに curl (標準の HTTP) で呼ぶ\nstatus: done\n")
+	f.collect("S-0100")
+	html := buildHTML(t, f, validText())
+	if !strings.Contains(html, "curl (標準の HTTP)") {
+		t.Errorf("題が出ていない")
+	}
+}
+
+// 反論の段で見つけた道: 担当が添える気になることは、command が見つけた気になることの課題と、オーナーを待っている課題も指せる。
+func TestConcernRefs(t *testing.T) {
+	f := newFake(t)
+	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
+	f.issue("S-0008", "review")
+	f.lib("S-0008", "gate/"+sha1+".json", `{"at": "2026-11-21T09:30:00Z", "decision": "fix"}`)
+	f.mergeWait("S-0009", 9, sha2, "マージを待つ")
+	f.collect("S-0100")
+	text := `{"headline": ["一。", "二。"], "themes": [], "concerns": [{"text": "差し戻しが続いた。", "issues": ["S-0008", "S-0009"]}]}`
+	if _, errs := Build(f.env, "S-0100", []byte(text)); len(errs) > 0 {
+		t.Errorf("気になることの課題・待っている課題を指せない: %v", errs)
+	}
+	text = `{"headline": ["一。", "二。"], "themes": [{"title": "t", "body": ["文。"], "issues": ["S-0008"]}], "concerns": []}`
+	if _, errs := Build(f.env, "S-0100", []byte(text)); len(errs) == 0 {
+		t.Errorf("テーマが期間に片付いていない課題を指せた")
 	}
 }

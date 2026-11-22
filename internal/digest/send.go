@@ -85,8 +85,13 @@ func Send(env Env, id string) (string, error) {
 	}
 	d := dir(env.Root, id)
 	html := filepath.Join(d, htmlFile)
-	if _, err := os.Stat(html); err != nil {
+	page, err := os.ReadFile(html)
+	if err != nil {
 		return "", fmt.Errorf("%s が無い（先に andon digest build %s）", html, id)
+	}
+	// 組み立てたあとに集め直したら、古い HTML を新しい期間として送らない（送った期間のあとから次が数えるので、間の出来事が落ちる）
+	if !strings.Contains(string(page), `<meta name="andon-digest-period" content="`+periodKey(in)+`">`) {
+		return "", fmt.Errorf("%s は今の %s と違う期間から組み立てた（andon digest build %s で組み立て直す）", html, inputFile, id)
 	}
 	path := filepath.Join(d, sentFile)
 	sent := &Sent{Issue: id, Since: in.Since, Until: in.Until}
