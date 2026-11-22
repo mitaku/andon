@@ -34,11 +34,13 @@
 
 上から順に行う。
 
+- **`merge: auto` の `review` の課題が片付いてから上げる**: 下で Chief of Staff を起動し直すとアドレスが変わる。予約キーを書き直す前に gate が回った課題は自動でマージされず、オーナーの判断待ちになる。キーを書き直しても、PR の head が動くまで戻らない。
 - **image を上げて `rebuild` する**: セルの `Dockerfile` の `FROM` を v0.0.14 に上げて `bin/bootstrap rebuild` を打つ。`package/compose.yaml` に volume `digest`（ダイジェストのトークンの置き場）が増え、`image/Dockerfile` がその置き場を作る。volume は `rebuild` が作るので手で作らない。前からある `bin/bootstrap` のままで `rebuild` できる。`image/apply-main.sh` で当てたセルも、compose は当たらないので `rebuild` が要る。
 - **互換**: kanban の形式（3）は変わらず、kanban のための手作業は無い。`schema/` で変わったのは次のとおり。
   - `measure` は 1 から 2 に上がり、**互換が無い**。`human_touches` の意味と項目が変わり、`answers` が増えた。`andon measure --json` を読むものを自作していれば直す。
   - `project` に任意の `digest`、`notification` に種類 `answered`、`retro`（`andon retro collect` の出力）に必須の `reviews[].reason` が、バージョンを変えずに増えた。v0.0.13 が書いた `project.json` と通知は v0.0.14 がそのまま読める。逆は読めない（下の「戻すとき」）。
   - `waiting`・`digest`・`digest-input`・`digest-sent` の 4 本は新しい。
+  - **既知の不具合**: `delivered`（届けた通知の記録）の schema に `answered` が無い。`answered` を渡したターンは、一緒に渡したほかの通知ごと、この記録に残らない。通知は届くが、`andon measure` の届けた通知の数と、ダイジェストの止まった担当から落ちる。
 - **今あるセルの `bin/bootstrap` を置き換える**: `bin/bootstrap` はセルの repo の持ち物で、`rebuild` では変わらない。前のままで host-install を打つと、mod `waiting` も Stream Deck の plugin も置かれない。`rebuild` のあと、host-install の前に、新しい image の雛形で置き換えて commit する（手順は [docs/operate.md](docs/operate.md) の「Stream Deck に行燈のキーを置く」の「前に作ったセル」。Stream Deck を使わなくても要る）。
 - **host-install**: 雛形が変わった。`host-install` は今あるものを上書きしないので、変わったものを退避してから打ち直す（手順は [docs/operate.md](docs/operate.md) の「バージョンを上げるとき: host-install が置いたものを退避する」）。
 
@@ -52,7 +54,7 @@
   | mod `andon` | README だけ（行燈の説明） | 動きは変わらない。説明も揃えるなら退避して置き直す |
 
   `andon-up`・herdr の設定・ssh config・cloud-init の雛形・mod `context-header`・`files-plus` は変わらない。
-- **Chief of Staff と担当を起動し直す**: skill・テンプレート・`environment.md`・`writing.md` の変更と、Chief of Staff のダイアログを外す起動行は、動いている Claude Code に効かない。Chief of Staff（と動いている担当）を `hc kill` し、`andon chief-of-staff` で起動し直す。dispatcher は boot が起動し直す。Chief of Staff のアドレスが変わるので、Chief of Staff は開いている課題の予約キーを同じ値で書き直す。書き直すまで `andon issue start` はその課題を断る。
+- **Chief of Staff と担当を起動し直す**: skill・テンプレート・`environment.md`・`writing.md` の変更と、Chief of Staff のダイアログを外す起動行は、動いている Claude Code に効かない。Chief of Staff（と動いている担当）を `hc kill` し、`andon chief-of-staff` で起動し直す。dispatcher は boot が起動し直す。Chief of Staff のアドレスが変わるので、Chief of Staff は開いている課題の予約キーを同じ値で書き直す。書き直すまで `andon issue start` はその課題を断り、gate は自動マージをしない。
 - **並行の上限の書き方を見る**: 枠は `andon waiting` が数え、上限は `project.json` の `chief_of_staff.parallel`（無ければ 2）から読む。プロジェクトの `AGENTS.md` に上限や「doing と review の数」という数え方を書いていたら、上限は `project.json` に移し、古い数え方の文は消す。
 - **ダイジェストを使うなら（任意）**: ルーチン `daily-digest` は自動では入らない。オーナーの go で Chief of Staff が [例](package/skills/digest/assets/daily-digest.yaml) を kanban に写す。Slack へも送るなら、次の順で行う（[docs/operate.md](docs/operate.md) §8）。
   1. セルを v0.0.14 に上げて `rebuild` する。同じ `project.json` を読むセルが別のマシンにもあれば、先に全部を上げる。
@@ -63,8 +65,10 @@
 - **v0.0.13 へ戻すとき**: image を下げる前に、次の順で戻す。
   1. `project.json` に `digest` があれば、オーナーがキーごと消して commit する。残すと v0.0.13 は `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
   2. ルーチン `daily-digest` があれば止める（`paused: true`）。v0.0.13 には skill も command も無い。
-  3. dispatcher の控え（`~/.local/state/andon/dispatcher/<slug>.json`）に通知 `answered` が残っていないことを確かめる。残っていたら Chief of Staff に受け取らせる。残したまま下げると、v0.0.13 の dispatcher は控えを書けない。
-  4. `FROM` を戻して `rebuild` する。mod とレイアウトも、退避したものに戻す。
+  3. mod とレイアウトを退避したものに戻し、mod `waiting` を消す。これでペインから新しい答えが入らない。`andon waiting answer` も、下げ終わるまで打たない。
+  4. 2 分待って dispatcher に見回らせてから、セルの中で `grep -l '"kind": "answered"' ~/.local/state/andon/dispatcher/*.json` を打ち、何も出ないことを確かめる。ファイル名が出たら、Chief of Staff に受け取らせ、そのターンが終わってから打ち直す。残したまま下げると、v0.0.13 の dispatcher は控えを書けず、通知が届かない。
+  5. セルの repo で `bin/bootstrap` を置き換える前の commit のものに戻す（`git checkout <置き換える前の commit> -- bin/bootstrap`）。新しいもののままだと、v0.0.13 の image には mod `waiting` が無いので host-install が途中で落ちる。
+  6. `FROM` を戻して `rebuild` する。
 
 ## v0.0.13 — 2026-11-21
 
