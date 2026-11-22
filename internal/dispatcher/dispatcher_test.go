@@ -205,6 +205,8 @@ func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
 			"起点は merge-base: `git diff <baseRefOid>..." + commit + "`（点3つ",
 			"main の先頭（baseRefOid）との2点の差分 `git diff <baseRefOid>.." + commit + "` は使わない",
 			"指摘する file が PR の差分にあるかを `gh pr diff " + pr + " --name-only` で確かめる",
+			// --name-only は rename の新しいパスしか出さない。元のパスの削除は PR のもの
+			"`gh pr diff` の `rename from` のパスも PR の差分に数える",
 		} {
 			if !strings.Contains(text, want) {
 				t.Errorf("%s に %q が無い:\n%s", name, want, text)

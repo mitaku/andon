@@ -504,7 +504,7 @@ func firstReviewRange(commit, pr string) string {
 		"baseRefOid は `gh pr view %s --json baseRefOid -q .baseRefOid`。"+
 		"main の先頭（baseRefOid）との2点の差分 `git diff <baseRefOid>..%s` は使わない（空白で並べる形・origin/main との2点も同じ。main に後から入った変更が PR の削除に見える）。"+
 		"点3つの差分を読めなければ `gh pr diff` だけで読む。\n"+
-		"指摘を書く前に、指摘する file が PR の差分にあるかを `gh pr diff %s --name-only` で確かめる。差分に無い file の変更や削除は PR のものと読まない。"+
+		"指摘を書く前に、指摘する file が PR の差分にあるかを `gh pr diff %s --name-only` で確かめる（名前を変えた file の元のパスは一覧に出ないので、`gh pr diff` の `rename from` のパスも PR の差分に数える）。差分に無い file の変更や削除は PR のものと読まない。"+
 		"差分に無い file を指すなら、差分のどの行か、どの完了条件による指摘かを報告に書く（課題の前からあった問題は preexisting: true）。\n",
 		commit, pr, commit, pr)
 }
