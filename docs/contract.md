@@ -433,6 +433,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
       "evidence": "移行中はデプロイをオーナーが見る",
       "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]},
  "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3, "retro_every": 25},
+ "digest": {"destinations": [{"kind": "slack", "channel": "C0123456789"}]},
  "signals": [
    {"source": "github-ci", "repo": "github.com/example/sample-site", "weight": "now"},
    {"source": "github-issues", "repo": "github.com/example/sample-site", "weight": "later", "every": 30, "filter": "label:bug", "write_back": true},
@@ -448,6 +449,18 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部オーナー） |
 | `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる）・`retro_every`（前の振り返りが集めたあとに片付いた担当の課題がこの件数に達したら、dispatcher がルーチン `retro` を撃つ。1 以上。既定 25。読むのは dispatcher。数え方は [dispatcher.md](dispatcher.md) §2.1.1 の 3a。`project.json` が信じられない・形が違うときは既定で数え、ログに 1 行） |
 | `signals` | 任意 | 外の信号の出所（下の表。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 11）。無い・空なら何も取りに行かない |
+| `digest` | 任意 | ダイジェストをセルの外へ送る先（下の表。[ADR-0044](adr/0044-owner-digest.md) 決めたこと 12）。無い・空なら、どこへも送らず `files/` にだけ出す |
+
+`digest.destinations[]` の1件（読むのは `andon digest send` と `andon digest check`。§28。kind ごとに1件）:
+
+| キー | 要るか | 意味 |
+|---|---|---|
+| `kind` | 必須 | 送り先の道具。`slack` だけ |
+| `channel` | 必須 | チャンネルの ID（`C` か `G` で始まる英大文字と数字）。名前（`#…`）と利用者の ID は書けない |
+
+- オーナーが送り先を書いたことが、毎回の送信への go になる。委譲の `publish` の値では決まらない。読むのは下の読み方の 1・2 のとおり HEAD のものだけで、信じられなければどこへも送らない。
+- トークンは書かない。`andon digest auth slack` がセルの中で聞いて `~/.config/andon/digest/slack.token`（mode 600。compose の volume `digest`）に置く（[operate.md](operate.md) §8）。
+- **`digest` を書くのは、セルのパッケージを `digest` を知るバージョンに上げてから**（`signals` と同じ。古いバージョンの `andon` は `project.json` ごと読めず、無委譲・書いてよい repo 無しに倒れる）。パッケージを古いバージョンに戻すときは、先に `digest` を消す。
 
 `signals[]` の1件（読むのは `andon signal collect`。§15）:
 
@@ -488,7 +501,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 2. そのファイルを最後に変えた commit の author が `andon.toml` の `owner` と一致しなければ、**無委譲**（全部オーナー）・**書いてよい repo 無し**として読む。無い・JSON でない・schema を通らない・`delegation.project` が違う・`version` を知らない、も同じ（原則2）。`delegation` が無ければ無委譲。
 3. **移す前の `projects/<slug>/delegation.json`・`delegation.md` は読まない**。`project.json` が無く `delegation.json` だけがあるセルは、移すまで無委譲・repo 無し（安全側。`andon delegate show` の理由にそう出る）。移すのは kanban の改名の課題（ADR-0004 決めたこと 5 の 4）。
 4. `delegation.preset` の値に、有効な `grants[]`（`revoked` が無く `until` が過ぎていない）を `at` の順に重ねる。`issues` のある grant（名指し）は重ねない。これがプロジェクト全体の値（`andon delegate show` の実効の値）になる。
-5. 読み手ごとに見るもの: gate とマージの直前の読み直し＝課題ごとの `merge`（プロジェクト全体の `merge` と、その課題を名指しした有効な grant の値のうち、いちばん広いもの。名指しは広げる向きにだけ効き、狭めるのは課題の `merge: person` か `revoke`。担当が `risk.one_way: true` を申告した課題では名指しを読まない。委譲の `merge` を読むのはこの2か所だけ）。dispatcher と `andon issue …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon issue start`＝`repos`（課題の `repo` が無ければ起動しない）。Chief of Staff＝委譲の全部（起動するたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
+5. 読み手ごとに見るもの: gate とマージの直前の読み直し＝課題ごとの `merge`（プロジェクト全体の `merge` と、その課題を名指しした有効な grant の値のうち、いちばん広いもの。名指しは広げる向きにだけ効き、狭めるのは課題の `merge: person` か `revoke`。担当が `risk.one_way: true` を申告した課題では名指しを読まない。委譲の `merge` を読むのはこの2か所だけ）。dispatcher と `andon issue …`＝`deploy`・`publish`・`irreversible`（打つ前。範囲外なら止まって理由1行）。`andon issue start`＝`repos`（課題の `repo` が無ければ起動しない）。`andon digest send`・`check`＝`digest`（委譲は読まない）。Chief of Staff＝委譲の全部（起動するたび。`UserPromptSubmit` のフック経由。範囲外の判断は §5 の問い）と `chief_of_staff`。
 6. command は、プロジェクトの slug を見て `preset` と grant の値を決めない。slug が `andon` のプロジェクトも、ほかのプロジェクトと同じ型と値を書ける（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 2。型 `andon` は、どのプロジェクトも選べる型の 1 つ）。`irreversible` に `delete-remote` は型でも grant でも入れられない。
 
 **書き方**: `project.json` はオーナーが書いて commit する（`andon delegate` は無い `project.json` を作らない）。委譲はオーナーがセルの repo で `andon delegate grant <scope> <value> --evidence <path|text> [--until <date>]`・`grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until <date>]`（名指し。`narrow` は `--issues` を取らない。id は `A-5` も `A-0005` に揃えて書く）・`narrow`・`revoke <id> --reason <text>`・`show [--json]` を打つ。`show` は名指しの grant を、名指しした課題と一緒に並べる（`--json` の `grants[]` に `issues`）。command はセルの repo の **HEAD** の `project.json`（最後の commit の author が owner のもの）から組み立て、`delegation` だけを変え（ほかのキーは HEAD のまま。形は2字下げに揃う）、全体を検証して書き、`project.json` を commit する（message に `scope`・`value`・`evidence`）。commit の author と committer は端末の git の user ではなく `andon.toml` の owner（名前は HEAD の `project.json` を最後に変えた owner の commit のもの）にする。owner が `andon.toml` に無ければ commit せずに止まる。`project.json` に commit していない変更があるか、HEAD を最後に変えたのが owner でなければ打たない（ほかの書き手の変更をオーナーの commit に混ぜて信じられる形にしない）。Chief of Staff・担当・dispatcher の端末では打てない（managed deny ＋ 端末のラベルに `role=` か `issue=` があれば拒む）。
@@ -1194,20 +1207,29 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 ## 28. ダイジェストを送った結果（`library/digest/sent.json`）
 
-`andon digest send <id>` が、送り先ごとの結果を書く（決めたこと 15・16）。送り先は今は `files` だけで、`digest.html` を `files/<日付>-digest-<project>-<id>.html` に出し（`andon publish` と同じ置き場と URL。日付は期間の終わりの日）、URL を標準出力に出す。
+`andon digest send <id>` が、送り先ごとの結果を書く（決めたこと 15・16）。送り先は、いつも出す `files` と、`project.json` の `digest` に書かれた `slack`（§11）。`digest.html` を `files/<日付>-digest-<project>-<id>.html` に出し（`andon publish` と同じ置き場と URL。日付は期間の終わりの日）、URL を標準出力に出す。そのあと Slack へ、短い文（`files/` の URL を含む。3,000 字まで）を添えたファイル `digest-<project>-<日付>.html` を 1 回の投稿で送る（決めたこと 13）。
 
 ```json
 {"issue": "S-0100", "since": "2026-11-20T10:00:00Z", "until": "2026-11-21T10:00:00Z",
- "destinations": [{"kind": "files", "at": "2026-11-21T10:01:00Z", "ok": true, "url": "http://files.cell.localhost:1355/2026-11-21-digest-sample-site-S-0100.html"}]}
+ "destinations": [{"kind": "files", "at": "2026-11-21T10:01:00Z", "ok": true, "url": "http://files.cell.localhost:1355/2026-11-21-digest-sample-site-S-0100.html"},
+  {"kind": "slack", "at": "2026-11-21T10:01:00Z", "ok": true, "channel": "C0123456789", "file": "F0123456789"}]}
 ```
 
 | キー | 意味 |
 |---|---|
 | `issue`・`since`・`until` | 送ったダイジェストの課題と期間（§26 の写し） |
 | `destinations[]` | 送り先ごとの結果。送り先 1 つに 1 行 |
-| `destinations[].ok` | 送れたか。`true` なら `url`、`false` なら `error`（1行の理由）を持つ |
+| `destinations[].kind` | `files` か `slack`。kind ごとに1行 |
+| `destinations[].at` | その回の send を打った時刻 |
+| `destinations[].ok` | 送れたか。`true` なら `files` は `url`、`slack` は `file`（Slack のファイルの id）、`false` なら `error`（1行の理由）を持つ |
+| `destinations[].channel` | `slack` の行だけ。送った、または送ろうとしたチャンネル |
 
-- 済んだ送り先（`ok: true`）には、打ち直しても送らない。送りそこねた送り先は打ち直しで送り直す。
+- 済んだ送り先（`ok: true`）には、打ち直しても送らない。送ったあとに設定のチャンネルが変わっても、その 1 枚は送り直さない。送りそこねた送り先は打ち直しで送り直す。そのときの送り先は打ち直した時点の設定で、設定から消えていれば行を落とす。
+- 送る前に、まだの送り先を `ok: false` で書き、1つ送るごとに書き直す。途中で落ちても済んだことにならない。Slack に届いたあと、書く前に落ちたときは、打ち直しで同じものがもう一度届く（届くのは 1 度か 2 度で、落ちることは無い）。同時に打った send は1つずつ走る（`sent.json.lock`）。
+- `project.json` か `digest` が無い・空なら `files` だけに出す。信じられない・形が違うときも `files` だけに出して理由を標準エラーに1行出す。ただし前に送りそこねた Slack の行があれば残して終了コード 1 にする（届いていない期間を送ったことにしない）。
+- `files` に出せなければ Slack へ送らない。Slack へ送れなければ、`files` の URL を出したうえで終了コード 1。
+- 送る中身は組み立てたダイジェストだけ。send は `input.json` と `digest.json` から組み立て直し、`digest.html` と同じでなければ送らない。短い文も同じ JSON から作り、`message.txt` は読まない（`message.txt` は控え）。
+- `andon digest check` は、`digest` の送り先へ確かめの小さなテキストのファイルを send と同じ 3 回の呼び出しで送る。`sent.json` は書かない。設定が無い・読めなければ送らずに終了コード 1。
 - 集め直して期間が変わったときは、前の結果を捨てて送り直す。
 - 次のダイジェストの期間は、送り先が全部済んだ `sent.json` の `until` から始まる（§26）。
 - build は `digest.html` に組み立てた入力の期間の印（`<meta name="andon-digest-period">`）を入れる。send は今の `input.json` の期間と照らし、違えば（組み立てたあとに集め直した）送らずに終了コード 1 で、組み立て直すよう言う。古い HTML を新しい期間として送ると、間の出来事がどの 1 枚にも載らないため。

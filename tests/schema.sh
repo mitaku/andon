@@ -286,6 +286,8 @@ corrections|.corrections[2].finding|severity file line
 corrections|.corrections[3]|kind question recommended answer
 project|.signals[0]|source weight
 project|.signals[2]|source weight
+project|.digest|destinations
+project|.digest.destinations[0]|kind channel
 signal|.signals[0]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
 signal|.signals[1]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
 launch|.harness|name version
@@ -340,6 +342,7 @@ digest|.themes[0].figure|type before after
 digest|.themes[1].figure|type steps focus
 digest|.concerns[0]|text issues
 digest-sent|.destinations[0]|kind at ok
+digest-sent|.destinations[1]|kind at ok channel
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -572,6 +575,16 @@ fail|project|.signals[1].filter = ""|signals: filter が空
 fail|project|.signals[1].write_back = "yes"|signals: write_back が真偽値でない
 fail|project|.signals[2].org = null|signals: org が null
 fail|project|.signals = {}|signals が配列でない
+pass|project|del(.digest)|digest が無い（セルの外へ送らない）
+pass|project|.digest.destinations = []|digest の送り先が空（セルの外へ送らない）
+pass|project|.digest.destinations[0].channel = "G0123456789"|digest: G で始まるチャンネルの ID
+fail|project|.digest = null|digest が null
+fail|project|.digest.destinations[0].kind = "email"|digest: 送り先の kind が enum の外
+fail|project|.digest.destinations[0].channel = "#digest"|digest: channel が ID でなく名前
+fail|project|.digest.destinations[0].channel = "U0123456789"|digest: channel が利用者の ID
+fail|project|.digest.destinations[0].channel = " C0123456789"|digest: channel の前に空白
+fail|project|.digest.destinations[0].channel = "c0123456789"|digest: channel が小文字
+fail|project|.digest.destinations += [.digest.destinations[0] + {channel: "C0000000000"}]|digest: 同じ kind の送り先が2つ
 fail|project|.delegation.version = "1"|委譲: version が文字列
 fail|project|.delegation.preset = "free"|委譲: 知らない preset
 pass|project|.delegation = {version: 1, project: "sample-site"}|委譲: preset も grants も無くても通る（型 work）
@@ -926,7 +939,15 @@ fail|digest|.themes[1].figure += {before: ["x"]}|steps に before を混ぜる
 fail|digest|.concerns[0].issues = []|気になることが根拠の課題を指さない
 pass|digest-sent|.destinations[0] = {kind: "files", at: "2026-11-21T10:01:00Z", ok: false, error: "files/ を作れない"}|送りそこねた送り先
 fail|digest-sent|.destinations = []|送り先が無い
-fail|digest-sent|.destinations[0].kind = "slack"|送り先の種類を知らない（今は files だけ）
+fail|digest-sent|.destinations[1].kind = "email"|送り先の種類を知らない（ほかは slack の行の形のまま。kind の enum だけが落とす）
+pass|digest-sent|.destinations = [.destinations[0]]|送り先が files だけ（前のバージョンの形）
+pass|digest-sent|.destinations[1] = {kind: "slack", at: "2026-11-21T10:01:00Z", ok: false, channel: "C0123456789", error: "not_in_channel"}|Slack へ送りそこねた
+fail|digest-sent|del(.destinations[1].file)|Slack へ送れたのに file が無い
+fail|digest-sent|del(.destinations[1].channel)|slack の行に channel が無い
+fail|digest-sent|.destinations[1].url = "https://example.com/x"|slack の行に url
+fail|digest-sent|.destinations[0].channel = "C0123456789"|files の行に channel
+fail|digest-sent|.destinations[0].file = "F0001"|files の行に file
+fail|digest-sent|.destinations[1] += {ok: false, error: "x"}|送れなかったのに file がある
 fail|digest-sent|.destinations[0] |= del(.url)|送れたのに url が無い
 fail|digest-sent|.destinations[0] += {error: "x"}|送れたのに error がある
 fail|digest-sent|.destinations[0].ok = false|送れなかったのに error が無い（url がある）
@@ -1028,7 +1049,10 @@ digest-input|."$defs".decision.properties.commit.pattern = "^.+$"|決定の行�
 digest-input|.properties.decided.required -= ["decisions"]|代わりに決めたことの必須から decisions を外す
 digest|."$defs".issues.minItems = 0|テーマと気になることが課題を指さなくてよい
 digest|.properties.headline.minItems = 1|要旨の下限を 1 文に緩める
-digest-sent|."$defs".destination.properties.kind.enum += ["slack"]|送り先の種類を緩める
+digest-sent|."$defs".destination.properties.kind.enum += ["email"]|送り先の種類を緩める
+digest-sent|del(."$defs".destination.allOf)|送り先の kind と ok ごとの形を外す
+project|del(.properties.digest.properties.destinations.uniqueKeys)|digest の送り先の kind ごとに1件を外す
+project|del(."$defs".digest_destination.properties.channel.pattern)|digest の channel の形を外す
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
