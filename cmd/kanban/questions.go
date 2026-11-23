@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"andon/internal/ledger"
 
@@ -333,6 +334,12 @@ func cmdAnswer(e env, a args) error {
 	}
 	if len(a.rest) < 2 {
 		return fail(usage)
+	}
+	// A word before -- that looks like a flag with one dash (-decided-by) is a misspelt flag, not the answer.
+	for _, w := range a.rest[1:a.loose] {
+		if len(w) > 1 && w[0] == '-' && unicode.IsLetter(rune(w[1])) {
+			return fail("%s looks like a flag; an answer that starts with - goes after -- (%s)", w, usage)
+		}
 	}
 	answer, err := questionText(e, a.rest[1:])
 	if err != nil {

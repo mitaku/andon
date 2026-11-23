@@ -78,6 +78,8 @@ type args struct {
 	flags map[string]string   // the last value of each flag
 	all   map[string][]string // every value of each flag, for flags that repeat (--repo in init)
 	rest  []string
+	// loose is how many words of rest came before a --; the words after it are words whatever they start with.
+	loose int
 }
 
 func (a args) has(k string) bool { _, ok := a.flags[k]; return ok }
@@ -87,8 +89,9 @@ func parseArgs(argv []string) (args, error) {
 	for i := 0; i < len(argv); i++ {
 		s := argv[i]
 		if s == "--" { // the rest are words, also those that start with --
+			a.loose = len(a.rest)
 			a.rest = append(a.rest, argv[i+1:]...)
-			break
+			return a, nil
 		}
 		if !strings.HasPrefix(s, "--") {
 			a.rest = append(a.rest, s)
@@ -108,6 +111,7 @@ func parseArgs(argv []string) (args, error) {
 		a.flags[k] = v
 		a.all[k] = append(a.all[k], v)
 	}
+	a.loose = len(a.rest)
 	return a, nil
 }
 

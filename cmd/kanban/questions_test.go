@@ -151,9 +151,11 @@ func TestAnswerDecidedBy(t *testing.T) {
 		{"answer", "W-0001#1", "--decidedBy", "owner", "yes"},
 		{"answer", "W-0001#1", "--decided-by-owner", "x", "yes"},
 		{"answer", "--force", "W-0001#1", "yes"},
+		{"answer", "W-0001#1", "-decided-by", "owner", "yes"},
+		{"answer", "W-0001#1", "yes", "-d", "owner"},
 	} {
 		msg := kanbanFails(t, root, "", argv...)
-		if !strings.Contains(msg, "decided") && !strings.Contains(msg, "takes no --") {
+		if !strings.Contains(msg, "decided") && !strings.Contains(msg, "takes no --") && !strings.Contains(msg, "looks like a flag") {
 			t.Errorf("%v: %q", argv, msg)
 		}
 	}
@@ -166,7 +168,7 @@ func TestAnswerDecidedBy(t *testing.T) {
 	kanban(t, root, "answer", "--decided-by=chief-of-staff", "W-0001#2", "no longer needed")
 	kanbanIn(t, root, "closed by gate\n", "answer", "W-0001#3", "-", "--decided-by", "machine")
 	kanban(t, root, "answer", "W-0001#4", "no mark")
-	kanban(t, root, "answer", "W-0001#5", "--decided-by", "owner", "--", "--starts with dashes")
+	kanban(t, root, "answer", "W-0001#5", "--decided-by", "owner", "--", "-d", "--starts with dashes")
 	want := map[int]string{1: "owner", 2: "chief-of-staff", 3: "machine", 4: "", 5: "owner"}
 	for _, q := range questionsOf(t, root, "W-0001") {
 		n := q["n"].(int)
@@ -178,7 +180,7 @@ func TestAnswerDecidedBy(t *testing.T) {
 			t.Errorf("#%d: %v", n, q)
 		}
 	}
-	if q := questionsOf(t, root, "W-0001")[4]; q["answer"] != "--starts with dashes" {
+	if q := questionsOf(t, root, "W-0001")[4]; q["answer"] != "-d --starts with dashes" {
 		t.Errorf("#5 answer = %v", q["answer"])
 	}
 	if strings.Contains(read(logFile), "decidedBy") {
