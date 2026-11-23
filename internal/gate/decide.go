@@ -311,7 +311,7 @@ func (t *Table) ScreenFiles(repo RepoTable, files []File) []string {
 	return hit
 }
 
-// attachmentRe は GitHub の添付の URL（gh pr create／comment --attach と Web の画面で上げた画像・動画）。
+// attachmentRe は GitHub の添付の URL（gh pr create／edit／comment --attach と Web の画面で上げた画像・動画）。
 // gh は本文に ![alt](https://github.com/user-attachments/assets/<id>) を足し、動画は URL だけを置く。
 // 外の画像の URL や書き換えられていない相対パス（![x](./a.png)）は添付でない。
 var attachmentRe = regexp.MustCompile(`https://github\.com/user-attachments/assets/[0-9A-Za-z][0-9A-Za-z-]*`)

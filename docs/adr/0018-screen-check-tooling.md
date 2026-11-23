@@ -14,7 +14,7 @@
 | 4 | レビュアーの観点に、画面の証拠が無い・差分と合わない、を足す | `package/skills/independent-review/SKILL.md` | 生きている |
 | 5 | 同梱の skill は boot が symlink で張る | `internal/boot/extskills.go` | 生きている |
 | 6 | managed settings に許可規則を managed だけにする設定を足す | `package/settings.json` | 生きている |
-| 7 | PR を出したあとの画面の写しは、コメントでなく PR の本文に足す | `docs/adr/0058-agents-stay-out-of-pr-conversation.md` | まだ実装していない |
+| 7 | PR を出したあとの画面の写しは、コメントでなく PR の本文に足す | `package/skills/worker/SKILL.md` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 

@@ -42,7 +42,9 @@
       "WebSearch"
     ],
     "deny": [
+      "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
+      "Bash(gh pr review:*)",
       "Bash(git diff *--output*)",
       "Bash(git diff *--ext-diff*)",
       "Bash(git log *--output*)",

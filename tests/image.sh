@@ -212,7 +212,7 @@ dc exec -T dev bash -euc '
   test -d /workspace/files
   # Codex の承認・sandbox・rules（docs/image.md の「Codex の承認と sandbox」）。モデルは呼ばない:
   # prompt-input は実効の設定から組んだ permissions の文を出す（承認 never・sandbox なし・network あり＝確認の画面を出さない）。
-  # rules は boot が置いたファイルを Codex 自身の execpolicy で引く（gh pr merge は forbidden、git push・kanban への書き込みは当たらない）
+  # rules は boot が置いたファイルを Codex 自身の execpolicy で引く（gh pr merge・comment・review は forbidden、git push・kanban への書き込みは当たらない）
   cmp /opt/andon/codex.rules "$HOME/.codex/rules/andon.rules"
   pi=$(cd /workspace && codex debug prompt-input x 2>/dev/null)
   for want in "No filesystem sandboxing" "Network access is enabled" "Approval policy is currently never"; do
@@ -225,6 +225,15 @@ dc exec -T dev bash -euc '
     "nohup gh pr merge 1" "nice gh pr merge 1" "sudo gh pr merge 1" "xargs gh pr merge"; do
     test "$(codex execpolicy check $rules $c | jq -r .decision)" = forbidden || { echo "FAIL image: Codex の rules が「$c」を拒まない" >&2; exit 1; }
   done
+  # PR の会話欄に書く頭（ADR-0058 決めたこと 4・受け入れ条件 2）。本文を書き直す形と読む形は当たらない
+  for c in "gh pr comment 1 --body x" "gh pr review 1 --comment --body x" "env gh pr comment 1 --body x" "env gh pr review 1 --comment --body x" \
+    "command gh pr comment 1 --body x" "command gh pr review 1 --comment --body x" "/usr/bin/gh pr comment 1" "xargs gh pr review"; do
+    test "$(codex execpolicy check $rules $c | jq -r .decision)" = forbidden || { echo "FAIL image: Codex の rules が「$c」を拒まない" >&2; exit 1; }
+  done
+  for c in "gh pr view 1" "gh pr edit 1 --attach a.png" "gh pr create --title t"; do
+    test "$(codex execpolicy check $rules $c | jq -c .matchedRules)" = "[]" || { echo "FAIL image: 「$c」が rules に当たる（PR の本文を書く形と読む形は通す）" >&2; exit 1; }
+  done
+  echo "ok   image: Codex の rules が gh pr comment・gh pr review を拒み、gh pr view・edit・create は通す（ADR-0058）"
   # 拒めないことが分かっている形（docs/image.md）。rules は token の頭の一致なので、引数を取る wrapper・先頭の代入・$( ) の中は当たらない。
   # 代入と置換を含む script は Codex が割らないので、script ごと1つの argv（bash -lc …）として引かれる。拒めるようになったらここを直す
   for c in "timeout 30 gh pr merge 1" "env FOO=bar gh pr merge 1"; do

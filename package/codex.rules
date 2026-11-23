@@ -17,3 +17,31 @@ prefix_rule(
     match = [["env", "gh", "pr", "merge", "1"], ["xargs", "gh", "pr", "merge"]],
     not_match = [["env", "gh", "pr", "view", "1"]],
 )
+prefix_rule(
+    pattern = ["gh", "pr", "comment"],
+    decision = "forbidden",
+    justification = "PR の会話欄には書かない。伝えることは PR の本文に書く（gh pr edit）",
+    match = [["gh", "pr", "comment", "1", "--body", "x"]],
+    not_match = [["gh", "pr", "edit", "1", "--attach", "a.png"]],
+)
+prefix_rule(
+    pattern = [["env", "command", "exec", "nohup", "nice", "sudo", "xargs"], "gh", "pr", "comment"],
+    decision = "forbidden",
+    justification = "PR の会話欄には書かない。伝えることは PR の本文に書く（gh pr edit）",
+    match = [["env", "gh", "pr", "comment", "1"], ["xargs", "gh", "pr", "comment"]],
+    not_match = [["env", "gh", "pr", "edit", "1"]],
+)
+prefix_rule(
+    pattern = ["gh", "pr", "review"],
+    decision = "forbidden",
+    justification = "PR の会話欄には書かない。伝えることは PR の本文に書く（gh pr edit）",
+    match = [["gh", "pr", "review", "1", "--comment", "--body", "x"]],
+    not_match = [["gh", "pr", "view", "1"]],
+)
+prefix_rule(
+    pattern = [["env", "command", "exec", "nohup", "nice", "sudo", "xargs"], "gh", "pr", "review"],
+    decision = "forbidden",
+    justification = "PR の会話欄には書かない。伝えることは PR の本文に書く（gh pr edit）",
+    match = [["env", "gh", "pr", "review", "1"], ["xargs", "gh", "pr", "review"]],
+    not_match = [["env", "gh", "pr", "view", "1"]],
+)
