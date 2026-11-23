@@ -254,8 +254,9 @@ func (p *project) idleLint(cur *Idle) int {
 	return len(v.Problems)
 }
 
-// pushIdle は通知 idle を積む。まだ届いていない idle があれば、その unstarted と fired を新しいほうに足す
-// （idle は issue を持たないので、同じ出来事として置き換わる。決めたこと 11 の細部）。
+// pushIdle は通知 idle を積む。まだ届いていない idle があれば、その unstarted と fired を新しいほうに足し、
+// この回に lint の件数が無ければ前の件数を残す（idle は issue を持たないので、同じ出来事として置き換わる。
+// lint の印はもう「知らせた」と控えてあるので、ここで落とすと problem の並びが変わるまで知らせない。決めたこと 11・12 の細部）。
 func (p *project) pushIdle(free int, unstarted, fired []string, lint int) {
 	for _, n := range p.st.Pending {
 		if n.Kind != "idle" {
@@ -263,8 +264,22 @@ func (p *project) pushIdle(free int, unstarted, fired []string, lint int) {
 		}
 		unstarted = mergeIDs(idList(n.Detail["unstarted"]), unstarted)
 		fired = mergeIDs(idList(n.Detail["fired"]), fired)
+		if lint == 0 {
+			lint = countOf(n.Detail["lint"])
+		}
 	}
 	p.notify("", "idle", map[string]any{"free": free, "unstarted": nonNil(unstarted), "fired": nonNil(fired), "lint": lint})
+}
+
+// countOf は detail の数（積んだプロセスの中では int、控えから読んだあとは float64）。数でなければ 0。
+func countOf(v any) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case float64:
+		return int(n)
+	}
+	return 0
 }
 
 // mergeIDs は old のあとに、old に無い add を足す。

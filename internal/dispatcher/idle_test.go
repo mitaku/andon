@@ -344,6 +344,39 @@ func TestIdleTellsLintOnce(t *testing.T) {
 	}
 }
 
+// 届く前の idle に lint の件数があるとき、同じ problem のままの次の回が別の理由で idle を積んでも、件数を残す
+// （印は「知らせた」として控えに残るので、ここで落とすと problem の並びが変わるまで二度と知らせない）。
+func TestIdleKeepsLintOfPendingIdle(t *testing.T) {
+	r := newIdleRig(t)
+	r.tools.reply("kanban lint --json", `{"ok":false,"problems":["S-0001: no title","S-0002: parent S-9, which doesn't exist","S-0003: no title"]}`)
+	r.p.tasks = []ledger.Issue{{"id": "S-0001", "title": "a", "status": "todo"}}
+	r.look(0, false)
+	r.look(15*time.Minute, false)
+	if got := r.idles(); len(got) != 1 || got[0].Detail["lint"] != 3 {
+		t.Fatalf("前提: lint の件数が idle に入らない: %v", got)
+	}
+	// 控えを保存して読み直す（読み直した detail の数は float64 になる。次の回は別のプロセスのことがある）
+	if err := r.p.st.Save(r.p.l.Slug); err != nil {
+		t.Fatal(err)
+	}
+	st, _, err := LoadState(r.p.l.Slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.p.st = st
+	rd := []string{"S-0001"}
+	r.p.st.Ready = &rd
+	r.look(15*time.Minute, false)
+	r.look(15*time.Minute, false)
+	got := r.idles()
+	if len(got) != 1 || !slices.Equal(idList(got[0].Detail["unstarted"]), []string{"S-0001"}) {
+		t.Fatalf("前提: 次の回が unstarted で idle を積まない: %v", got)
+	}
+	if got[0].Detail["lint"] != 3 {
+		t.Errorf("届く前の idle の lint の件数が、次の idle で消えた: %v", got[0].Detail)
+	}
+}
+
 // 受け入れ条件 8: Chief of Staff が留守の回と、chief_of_staff.idle_minutes が 0 のとき、空きを見る段は何も打たない。
 // 留守の間は前の回の結果を消すので、戻った最初の回も控えるだけ。
 func TestIdleSkipsAwayAndOff(t *testing.T) {
