@@ -1,6 +1,6 @@
 name: human-merge
 title: オーナーのマージの見張り
-source: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ
+source: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ。settle は PR を聞く同じ読みで、開いている PR の印（andon/gate）を課題の状態に揃える（ADR-0056 決めたこと 5・6。記録は持たない）
 states:
   - id: watching
     title: 見ている（PR ごとに 1 分に 1 回 gh pr view。State が空）
@@ -17,6 +17,7 @@ states:
 positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha]
 transitions:
   - { from: "[*]", to: watching, on: "review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）", by: machine, command: andon issue settle }
+  - { from: watching, to: watching, on: "開いている PR の今の head の印が課題の状態と違う（gate の判定の印・doing に戻った課題の赤・Chief Engineer の文書の PR の緑。判定の無い head には書かない）", by: machine, command: andon issue settle }
   - { from: watching, to: merged, on: "MERGED になった（dispatcher の gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていたときも）", by: person }
   - { from: watching, to: closed, on: "CLOSED になった", by: person }
   - { from: merged, to: finished, on: "オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19）", by: machine, command: andon issue settle, once: true }

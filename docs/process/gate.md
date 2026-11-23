@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/gate.yaml`](../../process/states/gate.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたマージを打ち直した回数。Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
+出所: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたか必須の check で断られたマージを打ち直した回数。Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
 
 ## 図
 
@@ -31,7 +31,7 @@ stateDiagram-v2
   s_rate_limited --> s_waiting: reset の時刻を過ぎた（その見回りで gate から）
   s_approved --> s_merged: マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5）
   s_approved --> s_waiting: 読み直すと head か checks が替わっていた（次の見回りで gate から）
-  s_approved --> s_waiting: base が動いて gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで）
+  s_approved --> s_waiting: base が動いたか、必須の check がまだ揃わず（the base branch policy prohibits the merge）gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで。ADR-0056 決めたこと 12）
   s_approved --> s_needs_human: gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す。§7.2 #5）
   s_approved --> s_stuck: 10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25）
   s_stuck --> [*]: merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる）
@@ -79,7 +79,7 @@ stateDiagram-v2
 | `rate-limited` | `waiting` | reset の時刻を過ぎた（その見回りで gate から） | 機械 |  |  |
 | `approved` | `merged` | マージして片付ける（直前に読み直して判定した head だけ。§7.2 #5） | 機械 | `andon issue merge` | はい |
 | `approved` | `waiting` | 読み直すと head か checks が替わっていた（次の見回りで gate から） | 機械 |  |  |
-| `approved` | `waiting` | base が動いて gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで） | 機械 | `andon issue merge` |  |
+| `approved` | `waiting` | base が動いたか、必須の check がまだ揃わず（the base branch policy prohibits the merge）gh pr merge が通らなかった（Retries を進め、次の見回りで gate から。3 回まで。ADR-0056 決めたこと 12） | 機械 | `andon issue merge` |  |
 | `approved` | `needs-human` | gh pr merge が通らず打ち直さない（ほかの失敗・base の動きが 3 回を超えた。問いを出す。§7.2 #5） | 機械 | `andon issue merge` | はい |
 | `approved` | `stuck` | 10 分たっても決まらない（dispatcher が merge の記録を読んで届ける待ちに 1 回だけ積む。§7.2 #25） | 機械 |  | はい |
 | `stuck` | （始まり・終わり） | merge が回し直して決めた（Approved が消え、dispatcher は Stuck を捨てる） | 機械 | `andon issue merge` |  |

@@ -451,7 +451,7 @@ Andon で「オーナーの手直し」が起きる所は5つしか無い。全�
 **誰が読むか・いつ**:
 
 - **Chief of Staff**: 起動するたび。`UserPromptSubmit` のフックが `andon delegate show --json` をコンテキストに添える（§4 のフックと同じ口）。判断が範囲内なら聞かずに進め、範囲外なら問いの JSON を出す（`kind` は判断の種類。`facts` に「委譲 `merge: B` の外」と書く）。
-- **gate**: 判定のたび。判定のレベルが `merge` の値を超えていれば、approve でも `needs_human`（理由に `delegation: merge=B < tier C`）。読む `merge` は課題ごとの値で、オーナーが課題を名指しした grant（`andon delegate grant merge <A|B|C> --issues <id,…>`）があれば、その課題だけ広がる。担当が戻せないと申告した課題には名指しが効かない（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 6・7。形は [contract.md](contract.md) §11）。
+- **gate**: 判定のたび。判定のレベルが `merge` の値を超えていれば、検査・CI・レビュー・受け入れ条件がどれも通ったあとの最後に `needs_human`（理由に `delegation: merge=B < tier C`。差し戻す理由があれば先に `fix`。[ADR-0056](adr/0056-gate-required-before-merge.md) 決めたこと 4）。読む `merge` は課題ごとの値で、オーナーが課題を名指しした grant（`andon delegate grant merge <A|B|C> --issues <id,…>`）があれば、その課題だけ広がる。担当が戻せないと申告した課題には名指しが効かない（[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 6・7。形は [contract.md](contract.md) §11）。
 - **dispatcher・担当の command**: デプロイ・公開・不可逆な操作の**前**に読み、無ければ command が止まって理由を1行出す（ポカヨケ。判断しない。できなくする）。
 - 読む側はセルの repo の **HEAD** の `projects/<slug>/project.json` の `delegation` だけを読む（最初は別の `delegation.json` だった。ADR-0004 決めたこと 5 の移行で `project.json` に入れた）（worktree や作業側の写しは読まない）。
 

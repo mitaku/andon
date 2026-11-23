@@ -368,6 +368,7 @@ For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべ�
 `doing` のまま報告も問いも書かずにターンを終えると、`Stop` フック（`andon issue stop-check`）が止めて理由を返す。報告か問いを書いてから止まる。問いの答えや、`review-request` のあとレビュアーの結果を待つだけのターンは止めない（届いたら受けて動く）。
 そのあとは待つ。`review` に入ると dispatcher が gate（`andon gate`）を回し、`approve` ＋ `merge: auto` ＋ 委譲の範囲内ならマージして片付ける。
 `hc send` で直し（gate の `fix` か Chief of Staff から）が届いたら `kanban start <id>` で `doing` に戻して直し、§3 から通して同じ手順で返す。
+`doing` に戻すと、dispatcher が次に PR を読んだとき（1 分ほどで）、gate が前の commit に付けた緑の印（`andon/gate`）を赤（「作った側が直しています」）に書き換える。直している途中の PR をマージさせないためで、`andon issue ready` のあと gate が今の commit を判定すると印が付き直る。
 PR を出したあとは、rebase や push の前に `gh pr view <n> --json state` で PR の状態を見る。`MERGED` か `CLOSED` なら手を止め、rebase も push も `review-request` もせず、PR の状態を `## Report` に書いて `andon issue report <id>` で返す。
 Chief of Staff から**ほかの課題のマージで前提が変わった**と届いたら（dispatcher の `impact` を読んだ Chief of Staff の判断。`<hc from=…>` の印つきのデータ）:
 

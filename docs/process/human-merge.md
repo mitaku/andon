@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/human-merge.yaml`](../../process/states/human-merge.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ
+出所: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ。settle は PR を聞く同じ読みで、開いている PR の印（andon/gate）を課題の状態に揃える（ADR-0056 決めたこと 5・6。記録は持たない）
 
 ## 図
 
@@ -14,6 +14,7 @@ stateDiagram-v2
   state "片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる）" as s_held
   state "片付けた" as s_finished
   [*] --> s_watching: review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）
+  s_watching --> s_watching: 開いている PR の今の head の印が課題の状態と違う（gate の判定の印・doing に戻った課題の赤・Chief Engineer の文書の PR の緑。判定の無い head には書かない）
   s_watching --> s_merged: MERGED になった（dispatcher の gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていたときも）
   s_watching --> s_closed: CLOSED になった
   s_merged --> s_finished: オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19）
@@ -43,6 +44,7 @@ stateDiagram-v2
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
 | （始まり・終わり） | `watching` | review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ） | 機械 | `andon issue settle` |  |
+| `watching` | `watching` | 開いている PR の今の head の印が課題の状態と違う（gate の判定の印・doing に戻った課題の赤・Chief Engineer の文書の PR の緑。判定の無い head には書かない） | 機械 | `andon issue settle` |  |
 | `watching` | `merged` | MERGED になった（dispatcher の gh pr merge の前か、打ち直しを待つ間にオーナーがマージしていたときも） | オーナー |  |  |
 | `watching` | `closed` | CLOSED になった | オーナー |  |  |
 | `merged` | `finished` | オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19） | 機械 | `andon issue settle` | はい |
