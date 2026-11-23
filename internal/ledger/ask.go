@@ -64,19 +64,26 @@ func ownerBrief(q *contract.Question) string {
 }
 
 // NewOwnerQuestion はオーナーの課題を足し、who: person を書き、問いを置く（andon issue ask --new。ADR-0057 決めたこと 7）。
+// タイトルは問いの文に「（オーナーの判断待ち）」を付けたもの、依頼書は問いの JSON から書く写し。
 // トリアージと振り返りの apply も同じ関数を呼べるよう、andon issue の外（この package）に置く（internal/issue は
 // dispatcher を通して triage・retro を import するので、そちらに置くと循環する）。
+// 足した id と kanban の CLI の返事（<id>#<n>）を返す。
+func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []string) (string, string, error) {
+	return l.NewOwnerIssue(q, ownerTitle(q), ownerBrief(q), parent, after)
+}
+
+// NewOwnerIssue は NewOwnerQuestion の、タイトルと依頼書を呼ぶ側が決める口（振り返りの apply は今のタイトルと依頼書のまま
+// 足す。ADR-0057 決めたこと 11）。
 // 問いは確かめたもの（contract.ParseQuestion）を渡す。scope の問い（Chief of Staff が答える）は置かない。
 // after があれば課題は queued で作られ、その課題にも問いを置く。
-// 同じタイトルの片付いていない課題が、問いを持たずにあれば、足し直さずにその課題へ続きを置く（足したあと who を書く前や
-// 問いを置く前に落ちた回の打ち直し）。問いを持っていれば、同じ問いを 2 つ足さないよう断る。
+// 同じタイトルで同じ parent の片付いていない課題が、問いを持たずにあれば、足し直さずにその課題へ続きを置く（足したあと who を
+// 書く前や問いを置く前に落ちた回の打ち直し）。問いを持っていれば、同じ問いを 2 つ足さないよう断る。
 // 足した id と kanban の CLI の返事（<id>#<n>）を返す。課題を足したあとで落ちたら、足した id と打ち直す command を誤りに書く。
-func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []string) (string, string, error) {
+func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string, after []string) (string, string, error) {
 	if q.Kind == "scope" {
 		return "", "", fmt.Errorf("scope の問いはオーナーの課題に置かない（Chief of Staff が答える問い。kind は business/users/promise/irreversible/line）")
 	}
-	title := ownerTitle(q)
-	id, err := l.unfinished(title)
+	id, err := l.unfinished(title, parent)
 	if err != nil {
 		return "", "", err
 	}
@@ -88,7 +95,7 @@ func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []s
 		if len(after) > 0 {
 			args = append(args, "--after", strings.Join(after, ","))
 		}
-		if id, err = l.Run(ownerBrief(q), append(args, "--", title)...); err != nil {
+		if id, err = l.Run(brief, append(args, "--", title)...); err != nil {
 			return "", "", err
 		}
 		if !addedRe.MatchString(id) {
@@ -105,32 +112,42 @@ func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []s
 	return id, out, nil
 }
 
-// unfinished は、タイトルが title で片付いていない（done でない）課題のうち、問いを持たないものの id を返す。無ければ空。
-// 問いを持つものがあれば、同じ問いのオーナーの課題がもうあるとして誤りを返す。
-func (l *Ledger) unfinished(title string) (string, error) {
+// unfinished は、タイトルが title で parent が同じ（どちらも無いも同じに数える）片付いていない（done でない）課題のうち、
+// 問いを持たないものの id を返す。無ければ空。問いを持つものがあれば、同じ問いのオーナーの課題がもうあるとして誤りを返す。
+// parent を見るのは、別の振り返りが足した同じタイトルの課題を、この振り返りの課題と取り違えないため。
+func (l *Ledger) unfinished(title, parent string) (string, error) {
 	tasks, err := l.List()
 	if err != nil {
 		return "", err
 	}
 	for _, t := range tasks {
-		if t.Str("title") != title || t.Str("status") == "done" {
+		if t.Str("title") != title || t.Str("status") == "done" || CanonID(t.Str("parent")) != CanonID(parent) {
 			continue
 		}
 		id := t.Str("id")
-		out, err := l.Run("", "show", id, "--json")
+		n, err := l.Questions(id)
 		if err != nil {
 			return "", err
 		}
-		var v struct {
-			Questions []json.RawMessage `json:"questions"`
-		}
-		if err := json.Unmarshal([]byte(out), &v); err != nil {
-			return "", fmt.Errorf("課題 %s が読めない", id)
-		}
-		if len(v.Questions) > 0 {
+		if n > 0 {
 			return "", fmt.Errorf("同じ問いのオーナーの課題 %s がもうある（問いを足すなら andon issue ask %s -）", id, id)
 		}
 		return id, nil
 	}
 	return "", nil
+}
+
+// Questions は課題 id に置かれた問いの数（状態を問わない）。
+func (l *Ledger) Questions(id string) (int, error) {
+	out, err := l.Run("", "show", id, "--json")
+	if err != nil {
+		return 0, err
+	}
+	var v struct {
+		Questions []json.RawMessage `json:"questions"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		return 0, fmt.Errorf("課題 %s が読めない", id)
+	}
+	return len(v.Questions), nil
 }

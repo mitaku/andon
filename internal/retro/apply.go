@@ -117,6 +117,8 @@ type plan struct {
 	Title   string `json:"title"`
 	Repo    string `json:"repo,omitempty"`
 	Brief   string `json:"brief"`
+	// Question はオーナーの課題（who: person）に置く問い（contract.md §5）。担当の課題には無い。
+	Question *contract.Question `json:"question,omitempty"`
 }
 
 // runApply は andon retro apply: library/retro.json を書いたときと同じ窓で照らし直し、fix ごとに課題を1件足す。
@@ -243,21 +245,18 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 		}
 		keys := ledger.DefaultSettings("", "off") // 担当の課題の予約キー（off なので reviewer は書かず、起動のときの profile から選ばれる）
 		added := newID == ""
-		if added {
+		if pl.Who == "person" {
+			// オーナーの課題は andon issue ask --new と同じ関数で、課題と問いを置く（ADR-0057 決めたこと 11）。
+			// 打ち直しで見つけた課題（前の回が add・set・ask のどこかで落ちた）には、課題を足さずに続き（who と問い）だけを置く。
+			if newID, err = addOwner(l, id, newID, who, pl); err != nil {
+				return err
+			}
+		} else if added {
 			args := []string{"add", pl.Title, "--parent", id}
 			if pl.Repo != "" {
 				args = append(args, "--repo", pl.Repo)
 			}
-			brief := pl.Brief
-			if pl.Who == "worker" {
-				brief += "\n" + ledger.SettingsCopy(keys)
-			}
-			if newID, err = l.Run(brief, append(args, "--brief", "-")...); err != nil {
-				return err
-			}
-		}
-		if pl.Who == "person" && who != "person" { // 前の回が add のあと set の前で落ちていれば、ここで付ける
-			if _, err := l.Run("", "set", newID, "who=person"); err != nil {
+			if newID, err = l.Run(pl.Brief+"\n"+ledger.SettingsCopy(keys), append(args, "--brief", "-")...); err != nil {
 				return err
 			}
 		}
@@ -282,6 +281,52 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 	return nil
 }
 
+// addOwner はオーナーの課題を、問いと一緒に足して id を返す（parent は振り返りの課題）。打ち直しで見つけた課題（found。
+// 空なら無い。who はその課題の who）には、課題を足さずに、無い who: person と、問いが無ければ問いだけを置く。
+func addOwner(l *ledger.Ledger, retro, found, who string, pl plan) (string, error) {
+	if found == "" {
+		// 足したあとで落ちたら、誤りが足した id を名指す。打ち直しはその課題を親とタイトルで見つけて、ここの下へ来る
+		newID, _, err := l.NewOwnerIssue(pl.Question, pl.Title, pl.Brief, retro, nil)
+		return newID, err
+	}
+	if who != "person" { // 前の回が add のあと set の前で落ちていれば、ここで付ける
+		if _, err := l.Run("", "set", found, "who=person"); err != nil {
+			return "", err
+		}
+	}
+	n, err := l.Questions(found)
+	if err != nil {
+		return "", err
+	}
+	if n == 0 { // 前の回が問いを置く前に落ちていれば、ここで置く
+		if _, err := l.Ask(found, pl.Question); err != nil {
+			return "", err
+		}
+	}
+	return found, nil
+}
+
+// tellLabel と dropLabel は「Andon へ伝えるか」の問いの選択肢（先頭が推奨案）。
+const (
+	tellLabel = "Andon のメンテナーへ伝える"
+	dropLabel = "捨てる"
+)
+
+// ownerQuestion は「Andon へ伝えるか」の課題に置く問い（contract.md §5）。外のメンテナーへの頼みごとなので種類は promise。
+// パターンは別々の出来事から拾われて command が数を確かめたものなので、推奨は伝える側（ADR-0057 決めたこと 11）。
+func ownerQuestion(retro string, x Pattern) *contract.Question {
+	pick := true
+	return &contract.Question{
+		Kind:     "promise",
+		Question: "Andon へ伝えるか: " + x.Summary,
+		Facts:    []string{fmt.Sprintf("%s/library/%s のパターン %s", retro, retroFile, x.ID)},
+		Reason: "振り返りが別々の出来事から拾い、command が根拠の数を確かめたパターン。直す先は Andon のパッケージ（" +
+			strings.Join(x.Target.Paths, "・") + "）だが、このプロジェクトは Andon の repo を持たないので直せない",
+		Options: []contract.Option{{Label: tellLabel, Pick: &pick}, {Label: dropLabel}},
+		From:    "retro",
+	}
+}
+
 func list(ids []string) string {
 	if len(ids) == 0 {
 		return ""
@@ -296,6 +341,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	if x.Target.Kind == "andon" && (x.Target.Repo == "" || !slices.Contains(repos, x.Target.Repo)) {
 		pl.Who, pl.Repo = "person", ""
 		pl.Title = "Andon へ伝えるか: " + x.Summary
+		pl.Question = ownerQuestion(retro, x)
 	}
 	where := x.Target.Repo
 	if x.Target.Kind == "andon" {
@@ -309,6 +355,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	if pl.Who == "person" {
 		fmt.Fprintf(&b, "解決すべき問題: 振り返り %s が拾ったパターン %s の直す先は Andon のパッケージだが、このプロジェクトは Andon の repo を持たないので直せない。"+
 			"Andon のメンテナーへ伝えるか、捨てるかをオーナーが決める。\n", retro, x.ID)
+		fmt.Fprintf(&b, "推奨案: %s（ほかの案: %s）。問いの正は library/questions/ にある。\n", tellLabel, dropLabel)
 	} else {
 		fmt.Fprintf(&b, "解決すべき問題: %s。振り返り %s がパターン %s として、別々の出来事から拾った（根拠は下）。\n", x.Summary, retro, x.ID)
 	}
