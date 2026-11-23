@@ -31,6 +31,8 @@
 - `internal/issue/merge.go`
 - `internal/issue/settle.go`
 - `internal/dispatcher/route.go`
+- `internal/contract/merge.go`
+- `process/states/gate.yaml`
 
 ## 既に見ている検査
 

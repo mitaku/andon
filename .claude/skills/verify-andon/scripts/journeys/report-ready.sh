@@ -8,6 +8,9 @@ git init -q "$tmp/wt" && echo one >"$tmp/wt/f" && git -C "$tmp/wt" add f && git 
 head=$(git -C "$tmp/wt" rev-parse HEAD)
 pr=https://github.com/example/sample-site/pull/7
 echo "$head" >"$tmp/gh/head"
+# PR のファイルと差分（ready が gate と同じ関数でレビューが要るかを決めるのに読む）。文書1行だけのレベル A にして、review: off で通す
+echo '[[{"filename":"docs/verify.md","additions":1,"deletions":0}]]' >"$tmp/gh/files"
+printf '%s\n' 'diff --git a/docs/verify.md b/docs/verify.md' 'new file mode 100644' '--- /dev/null' '+++ b/docs/verify.md' '@@ -0,0 +1 @@' '+verify' >"$tmp/gh/diff"
 
 ledger_init V
 id=$(HC_TERMINAL_ID=tc "$kanban" add "$run の報告と ready" --profile claude)
