@@ -56,7 +56,7 @@ EOF
 open(p,'w').write(s.replace(old, old + '# (a0)\n'))
 EOF
 %%
-cd /workspace/.worktrees/andon/andon-A-0152; python3 - <<'PYEND'
+cd @ROOT@; python3 - <<'PYEND'
 import re
 p='tests/package.sh'
 s=open(p).read()
@@ -73,7 +73,7 @@ head -7 tests/andon-digest.sh
 sed -i 's/kind: scope\\n  status: received/kind: scope\\n  asked: "%s"\\n  status: received/; s/answeredBy: terminal:t1\\n'"'"' "\$hour_ago"/answeredBy: terminal:t1\\n'"'"' "$hour_ago" "$hour_ago"/' tests/andon-digest.sh
 grep -n "kind: scope" tests/andon-digest.sh; bash tests/andon-digest.sh
 %%
-s=/tmp/claude-1000/x/scratchpad
+s=$S
 cat > "$s/docs.py" <<'EOF'
 p=None
 s=''
@@ -92,7 +92,7 @@ op(None)
 EOF
 python3 "$s/docs.py" && git status --short
 %%
-cd /workspace/.worktrees/andon/andon-A-0328
+cd @ROOT@
 python3 -I - <<'E'
 p='tests/andon-create.sh'
 s=open(p).read()
@@ -156,6 +156,56 @@ from pathlib import Path
 p = Path('tests/words.sh')
 p.write_text(p.read_text().replace('a', 'b'))
 EOF
+%%
+python3 - tests/smoke.sh <<'EOF'
+import sys
+p = sys.argv[1]
+open(p, 'w').write(open(p).read().replace('a', 'b'))
+EOF
+%%
+python3 -c 'import sys; p = sys.argv[1]; open(p, "w").write("")' tests/smoke.sh
+%%
+node -e "require('fs').writeFileSync(process.argv[1], '')" tests/host.sh
+%%
+python3 - <<'EOF'
+n = 'smoke'
+p = f'tests/{n}.sh'
+open(p, 'w').write('')
+EOF
+%%
+python3 - <<'EOF'
+import os
+p = os.path.join('tests', 'smoke.sh')
+open(p, 'w').write('')
+EOF
+%%
+python3 - <<'EOF'
+from pathlib import Path
+(Path('tests') / 'smoke.sh').write_text('')
+EOF
+%%
+python3 - <<'EOF'
+import subprocess
+subprocess.run(['sed', '-i', 's/a/b/', 'tests/smoke.sh'])
+EOF
+%%
+bash <<'EOF'
+sed -i 's/a/b/' tests/smoke.sh
+EOF
+%%
+bash -c "sed -i 's/a/b/' tests/smoke.sh"
+%%
+sh -c 'echo x >> tests/smoke.sh'
+%%
+mise exec -- sed -i 's/a/b/' tests/smoke.sh
+%%
+sudo -u andon sed -i 's/a/b/' tests/smoke.sh
+%%
+env -u X sed -i 's/a/b/' tests/smoke.sh
+%%
+cd tests && sed -i 's/a/b/' smoke.sh
+%%
+cd @ROOT@/tests; perl -pi -e 's/a/b/' lib/isolate.sh
 CASES
 miss=
 for c in "${cases[@]}"; do pt_deny "$c" || miss="$miss [${c%%$'\n'*}]"; done
@@ -190,11 +240,11 @@ sed -i 's/節 20/節 21/g' $S/pr-body.md && bash tests/package.sh
 %%
 python3 -c "print(open('tests/words.sh').read().count('ok'))"
 %%
-cat >> /workspace/projects/p/kanban/issues/X-0001/library/journal.md <<'EOF'
+cat >> "$j/journal.md" <<'EOF'
 - 作業: tests/*.sh を heredoc で包んだ python と sed -i で差し替えた。以後は Edit で直す。
 EOF
 %%
-s=/tmp/claude-1000/x/scratchpad
+s=$S
 cat > "$s/variants.py" <<'EOF'
 import subprocess, sys, os
 src, d = sys.argv[1], sys.argv[2]
@@ -216,11 +266,61 @@ p = sys.argv[1]
 s = open(p).read()
 open(p, 'w').write(s.replace('`tests/andon-digest.sh` が通った', '`tests/andon-digest.sh` と `tests/smoke.sh` が通った'))
 EOF
+%%
+grep -n '>' tests/smoke.sh
+%%
+grep -c ">>" tests/smoke.sh; grep -F '&>' tests/andon-boot.sh
+%%
+rg -n '>|' tests/*.sh
+%%
+python3 - <<'EOF'
+s = open('tests/smoke.sh').read()
+open('/tmp/s/out.txt', 'w').write(s)
+EOF
+%%
+python3 -c "import sys; sys.stdout.write(open('tests/words.sh').read()[:200])"
+%%
+cd tests && grep -n ok smoke.sh && bash smoke.sh > "$S/o" 2>&1
+%%
+bash -c 'bash tests/smoke.sh > "$S/o" 2>&1'
+%%
+python3 - "$S" <<'EOF'
+import json, sys
+d = {'waived': [{'severity': 'trivial', 'file': 'tests/andon-digest.sh', 'line': 139}]}
+open(sys.argv[1] + '/data.json', 'w').write(json.dumps(d))
+EOF
+%%
+python3 - <<'EOF'
+p = 'internal/ghpr/ghpr_test.go'
+s = open(p).read()
+open(p, 'w').write(s + '{"checks": {"state": "failure", "failed": ["tests"]}}\n')
+EOF
+%%
+cat > "$S/mut.py" <<'EOF'
+import os, subprocess, sys
+d = sys.argv[1]
+open(os.path.join(d, 'internal/digest/digest.go'), 'w').write('x')
+subprocess.run(['bash', f'tests/{sys.argv[2]}.sh'], cwd=d)
+EOF
+%%
+cd $S/old && sed -i 's/a/b/' tests/andon-dispatcher.sh
 CASES
 extra=
 for c in "${cases[@]}"; do out=$(pt Bash "$c"); [ -z "$out" ] || extra="$extra [${c%%$'\n'*}]"; done
 [ -z "$extra" ] && ok "読むだけ・走らせるだけ・別の置き場への写し・ほかのファイルへの書き込みの呼び出し ${#cases[@]} 件はフックが通す" \
   || ng "フックが通すはずの呼び出しを断る:$extra"
+
+# cwd が tests/ のとき（前の呼び出しで cd tests した）は、tests/ の字が無くても検査のシェルを指す。CLAUDE_PROJECT_DIR が無ければ cwd を根と見る
+cwd_out() { # cwd_out <cwd> <command> [<CLAUDE_PROJECT_DIR>]
+  jq -n --arg c "$2" --arg d "$1" '{tool_name: "Bash", cwd: $d, tool_input: {command: $c}}' | CLAUDE_PROJECT_DIR=${3-$root} "$h" 2>/dev/null || true
+}
+extra=
+[ -n "$(cwd_out "$root/tests" "sed -i 's/a/b/' smoke.sh")" ] || extra="$extra [cwd tests の sed -i]"
+[ -n "$(cwd_out "$root/tests" "echo x >> lib/isolate.sh")" ] || extra="$extra [cwd tests のリダイレクト]"
+[ -z "$(cwd_out "$root/tests" "grep -n ok smoke.sh; bash smoke.sh > \"\$S/o\" 2>&1")" ] || extra="$extra [cwd tests の読むだけ]"
+[ -z "$(cwd_out "$root/docs" "sed -i 's/a/b/' tests/x.sh")" ] || extra="$extra [cwd docs の docs/tests/x.sh]"
+[ -n "$(cwd_out "$root" "sed -i 's/a/b/' $root/tests/smoke.sh" "")" ] || extra="$extra [CLAUDE_PROJECT_DIR が無いときの根の絶対パス]"
+[ -z "$extra" ] && ok "cwd が tests/ の下なら tests/ の字が無くても断り、読むだけは通し、根の外の tests/ は見ない" || ng "cwd を辿り損ねる:$extra"
 
 # Bash でないツール・壊れた入力は、何も出さずに 0 で通す
 extra=
