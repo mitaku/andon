@@ -25,4 +25,29 @@ while IFS=$'\t' read -r id decision merged file; do
 done < <(jq -r '[.id, .decision, (.merged | tostring), .file] | @tsv' <<<"$recs")
 [ "$unread" = 0 ] && ok "gt-route: 判定ごとの課題の今の status を並べた（読み方は features/gate.md）" \
   || fail "gt-route: 課題 $unread 件の今の status を kanban show で読めない"
+
+# gt-answer: dispatcher が閉じた問い（kanban の履歴で by が terminal:dispatcher の received）は、gate の問い（from: gate）だけ。
+# dispatcher が答えも書いた問いは、印が machine で、「決め直した」の答えが名指す gate の記録が在る。閉じた問いが無ければ note（終了コードは変えない）
+closed=0 f0=$fails
+for k in "$ws"/projects/*/kanban; do
+  [ -f "$k/log.jsonl" ] || continue
+  while IFS=$'\t' read -r id n; do
+    closed=$((closed + 1))
+    from=$(jq -r '.from // "?"' "$k/issues/$id/library/questions/$n.json" 2>/dev/null || echo '?')
+    q=$(KANBAN_ROOT="${k%/kanban}" kanban show "$id" --json 2>/dev/null | jq -c --argjson n "$n" '.questions[]? | select(.n == $n) | {answeredBy, decidedBy, answer}')
+    echo "  | $id#$n: from $from・$(jq -r '"答えた \(.answeredBy // "?")・印 \(.decidedBy // "無し")・\(.answer // "答え無し")"' <<<"${q:-null}")"
+    [ "$from" = gate ] || fail "gt-answer: dispatcher が gate の外の問い $id#$n（from $from）を閉じた"
+    [ -n "$q" ] || { fail "gt-answer: 問い $id#$n を kanban show で読めない"; continue; }
+    [ "$(jq -r '.answeredBy // empty' <<<"$q")" = terminal:dispatcher ] || continue
+    [ "$(jq -r .decidedBy <<<"$q")" = machine ] || fail "gt-answer: dispatcher が答えた $id#$n の印が machine でない"
+    rec=$(jq -r '.answer' <<<"$q" | sed -n 's/.*決め直した（記録 \([^）]*\)）.*/\1/p')
+    [ -z "$rec" ] || [ -f "$rec" ] || fail "gt-answer: $id#$n の答えが名指す gate の記録 $rec が無い"
+  done < <(dsince "$k/log.jsonl" | jq -r 'select(.by == "terminal:dispatcher" and .change.status == "received" and .change.question) | [.id, (.change.question | tostring)] | @tsv')
+done
+echo "-- gt-answer: 当てたあとに dispatcher が閉じた問い $closed 件"
+if [ "$closed" = 0 ]; then
+  echo "note gt-answer: 当てたあとに dispatcher が閉じた問いが無い。gate がオーナーへ回した PR の head が動くか、オーナーがマージしたあとで打ち直す"
+elif [ "$fails" = "$f0" ]; then
+  ok "gt-answer: dispatcher が閉じた問い $closed 件は全部 gate の問いで、dispatcher の答えは印が machine、名指す gate の記録が在る"
+fi
 [ "$fails" = 0 ]

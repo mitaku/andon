@@ -6,6 +6,7 @@
 
 - `gt-record` 当てたあとの gate の記録（`library/gate/<head>.json`）が、判定・レベル・head・理由の形を持つ。見る道: 検証の担当だけ。
 - `gt-route` 判定ごとに課題が動いた（`approve` はマージかオーナーへ、`fix` は `doing`、`needs_human` は問い）。見る道: 検証の担当だけ。
+- `gt-answer` dispatcher が閉じた問いは gate の問い（`from: gate`）だけで、dispatcher が書いた答えは印が `machine`、「決め直した」の答えが名指す gate の記録が在る。見る道: 検証の担当だけ。
 
 ## 辿り着き方（利用者から）
 
@@ -22,6 +23,7 @@
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh gate` を打つ。セルの本物の `projects/*/kanban/issues/*/library/gate/*.json` を読むだけ。
 - **記録を読む。** `gt-record` の行に、当てたあとの gate が1行ずつ（課題・PR・レベル・判定・理由の数・checks・レビュー）出る。`ok   gt-record` が見えれば動いた。
 - **行き先を読む。** `gt-route` の行に、課題ごとの判定と今の `status` が出る。`approve` で `merged` が true なら課題は `done` か片付けの途中、`fix` なら `doing`、`needs_human` なら `review` のままオーナーの問いがある。食い違えば、`kanban show <id>` と `log.jsonl` を読んで報告に書く。
+- **閉じた問いを読む。** `gt-answer` の行に、検証する間に dispatcher が閉じた問い（kanban の `log.jsonl` で `by` が `terminal:dispatcher` の `received`）が1件ずつ（問いの `from`・答えた端末・印・答え）出る。`ok   gt-answer` が見えれば動いた。閉じた問いが無ければ `note gt-answer` が出て、gt-answer は未確認になる（終了コードは変えない）。
 - **印を読む。** `drive.sh` は GitHub の印を読まない。`internal/gate/mark.go` を変えた差分では、記録の head ごとに `gh api repos/<owner>/<repo>/commits/<head>/statuses --jq '.[] | select(.context == "andon/gate") | [.created_at, .state, .description] | @tsv'` で印を読む。`approve` と `needs_human` は `success`（緑）、`fix` は `failure`（赤）で、説明文の見出しが判定に合えば動いた。
 
 ## 変えたら動かすパス
@@ -44,6 +46,7 @@
 ## 落とし穴
 
 - `gate` は `andon gate` を本物の課題に打つと、その課題の記録と GitHub の status を書く。検証の担当は打たない。読むだけにする。
+- dispatcher が問いを閉じるのは2つの場合だけ。1つは、gate がオーナーへ回した PR の head が動いたとき（答えは「PR の head が動いた（前 → 今）」で始まる）。もう1つは、オーナーが手でマージしたとき（答えは「オーナーがマージした」で始まる）。どちらも起きなければ `gt-answer` は未確認になる。オーナーが先に答えていた問いは、dispatcher が受け取るだけで答えを上書きしないので、答えた端末はオーナーのまま。
 - 同じ head の gate は記録を上書きする。`at` が当てた時刻より後でも、判定は最後の1回のもの。
 - `needs_human` の多くは条件表どおりのレベル C（オーナーがマージ）で、壊れではない。`tier_reasons` を読んで書き分ける。
 - 検証の途中で次の commit が当たったら、`drive.sh gate <検証する commit>` と2つ目の引数を渡す。`/opt/andon/applied.json` の `previous` から、検証する commit の dispatcher が動いていた間（dispatcher が切り替わった時刻 `switched_at` から、次の commit で切り替わった時刻まで）の gate だけを読む。gate は dispatcher の中で回るので、次の commit を当ててから前の dispatcher が見回りを終えるまでの gate は、前の commit のコードの結果。引数を省くと、最後に当てた commit のあとだけを読む。
