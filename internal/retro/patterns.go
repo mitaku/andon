@@ -258,13 +258,28 @@ func checkFixes(fixes []FixView, in *Input) error {
 }
 
 // checkRepos は直す先の repo を kanban の repos に照らす。project の repo は kanban の repos の中でなければならない。
+// オーナーの課題になる fix のパターン（toOwner）は summary が重ならない。重なると 2 つ目が同じ問いのオーナーの課題になり、
+// apply が 1 つ目を足したあとで断られて当て終わらない（ADR-0057 決めたこと 11）。
 func checkRepos(ps []Pattern, repos []string) error {
+	owner := map[string]string{}
 	for _, p := range ps {
 		if p.Target.Kind == "project" && !slices.Contains(repos, p.Target.Repo) {
 			return fmt.Errorf("パターン %s の target.repo %s がこのプロジェクトの repos に無い", p.ID, p.Target.Repo)
 		}
+		if p.Decision != "fix" || !toOwner(p.Target, repos) {
+			continue
+		}
+		if first, ok := owner[p.Summary]; ok {
+			return fmt.Errorf("パターン %s と %s の summary が同じ（どちらもオーナーの課題「Andon へ伝えるか」になり、同じ問いを 2 つ置くことになる。1 つにまとめる）", first, p.ID)
+		}
+		owner[p.Summary] = p.ID
 	}
 	return nil
+}
+
+// toOwner は直す先が Andon のパッケージで、その repo をこのプロジェクトが持たないか（直す課題でなくオーナーの課題になる）。
+func toOwner(t Target, repos []string) bool {
+	return t.Kind == "andon" && (t.Repo == "" || !slices.Contains(repos, t.Repo))
 }
 
 // ParsePatternsInput は担当の入力を読んで形を確かめる。
