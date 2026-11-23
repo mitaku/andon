@@ -35,16 +35,23 @@ flock "$lock"
 # fetch には鍵の fd を渡さない（fetch が裏に残す gc --auto が鍵を持ち続けて、次の回を待たせないように）
 git fetch --quiet origin {lock}>&- || die "git fetch origin が通らない。番号を取らない"
 
-# 4 桁を集める。枝の木は 1 本ずつ読む（消えた枝の古い控えは main より小さい番号しか持たないので、掃除しない）
-nums() {
-  git for-each-ref --format='%(refname)' refs/heads refs/remotes | while IFS= read -r ref; do
-    git ls-tree --name-only "$ref:docs/adr" 2>/dev/null || true
-  done
-  git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt; do
-    if [ -d "$wt/docs/adr" ]; then ls -A "$wt/docs/adr"; fi
-  done
-}
-max=$(nums | sed -n 's/^\([0-9]\{4\}\)-.*\.md$/\1/p' | sort -u | tail -n 1)
+# 4 桁を集める。枝の木は 1 本ずつ読む（消えた枝の古い控えは main より小さい番号しか持たないので、掃除しない）。
+# どこか 1 つでも読めなければ、番号を取らずに止まる（読めた所だけで取ると、読めなかった所の番号と重なる）
+names=
+refs=$(git for-each-ref --format='%(refname)' refs/heads refs/remotes) || die "枝の一覧を読めない。番号を取らない"
+while IFS= read -r ref; do
+  [ -n "$ref" ] || continue
+  # パスで渡すと、docs/adr の無い木は空で 0、読めない木は 0 でない
+  got=$(git ls-tree --name-only "$ref" -- docs/adr/) || die "$ref の docs/adr を読めない。番号を取らない"
+  names+=$got$'\n'
+done <<<"$refs"
+wts=$(git worktree list --porcelain) || die "worktree の一覧を読めない。番号を取らない"
+while IFS= read -r wt; do
+  [ -d "$wt/docs/adr" ] || continue # 消えた worktree の番号は、その枝の木で拾う
+  got=$(ls -A "$wt/docs/adr") || die "$wt/docs/adr を読めない。番号を取らない"
+  names+=$got$'\n'
+done < <(sed -n 's/^worktree //p' <<<"$wts")
+max=$(sed -n 's|^\(docs/adr/\)\{0,1\}\([0-9]\{4\}\)-[^/]*\.md$|\2|p' <<<"$names" | sort -u | tail -n 1)
 next=$(printf '%04d' $((10#${max:-0} + 1)))
 [ "${#next}" -eq 4 ] || die "番号が 4 桁に収まらない: $next"
 

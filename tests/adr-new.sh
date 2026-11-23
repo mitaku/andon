@@ -102,6 +102,23 @@ check 'fetch できないと 0 でない終了' bash -c '! (cd "$1" && "$2" brok
 check 'そのとき理由を 1 行出す' grep -q 'git fetch origin が通らない' "$tmp/nofetch.err"
 check 'そのときファイルを作らない' test "$(adrs)" = "$before"
 
+# 3b 番号を集める所が 1 つでも読めなければ、0 でない終了で、ファイルを作らない（読めた所だけで取ると、worktree の無い枝の 0005 と重なる）。
+#    偽の git は、名指した subcommand だけ落ち、ほかは本物に渡す
+realgit=$(command -v git)
+mkdir -p "$tmp/fakegit"
+printf '#!/usr/bin/env bash\n[ "${1:-}" = "$FAIL_GIT" ] && { echo "偽の git: $1 が落ちる" >&2; exit 1; }\nexec %q "$@"\n' "$realgit" >"$tmp/fakegit/git"
+chmod +x "$tmp/fakegit/git"
+for sub in for-each-ref ls-tree worktree; do
+  scene "fail-$sub"
+  git -C "$s/c" switch -qc local-only && adr 0005 local-only "$s/c" && git -C "$s/c" add -A && git -C "$s/c" commit -qm l && git -C "$s/c" switch -q main
+  before=$(adrs)
+  check "git $sub が落ちると 0 でない終了" bash -c '! (cd "$1" && PATH="$4:$PATH" FAIL_GIT="$5" "$2" broken "取れない") 2>"$3"' _ "$s/w1" "$new" "$tmp/fail.err" "$tmp/fakegit" "$sub"
+  check "git $sub が落ちると理由を出す" grep -q '番号を取らない' "$tmp/fail.err"
+  check "git $sub が落ちるとファイルを作らない" test "$(adrs)" = "$before"
+done
+check '偽の git は落とさない subcommand を本物に渡す（上の落ちる行が見ている）' bash -c 'cd "$1" && PATH="$2:$PATH" FAIL_GIT=none "$3" passes "通る" >/dev/null' _ "$s/w1" "$tmp/fakegit" "$new"
+check 'そのとき worktree の無い枝の 0005 を飛ばして 0006 を取る' test -f "$s/w1/docs/adr/0006-passes.md"
+
 # 4 置いたファイルと、断る名前
 scene shape
 check '名前を受けて置く' took "$s/w1" 0003 shape
