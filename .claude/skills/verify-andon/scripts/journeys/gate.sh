@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # gate（features/gate.md）。当てたあとに dispatcher が回した gate の記録（library/gate/<head>.json）を読む。読むだけ。
-# 当てたあとに gate が1回も回っていなければ 3（未確認）。
+# 当てたあと（検証する commit が当たっていた間）に gate が1回も回っていなければ 3（未確認）。
 set -uo pipefail
 . "$(dirname "$0")/../cell.sh"
 
 recs=$(for f in "$ws"/projects/*/kanban/issues/*/library/gate/*.json; do
   [ -f "$f" ] && jq -c --arg f "$f" '. + {file: $f}' "$f" 2>/dev/null
-done | jq -c --arg t "$a_at" 'select(.at >= $t)')
+done | dsince)
 n=$(grep -c . <<<"$recs" || true)
 echo "-- gt-record: 当てたあとの gate の記録 $n 件"
 [ "$n" -gt 0 ] || { echo "note 当てたあとに gate が回っていない。次の課題が review に入ったあとで打ち直す"; exit 3; }

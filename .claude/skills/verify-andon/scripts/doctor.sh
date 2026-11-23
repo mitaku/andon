@@ -27,6 +27,7 @@ if [ -f "$applied" ]; then
   a_commit=$(jq -r .commit "$applied") a_at=$(jq -r .applied_at "$applied")
   ok "当てた記録: commit $a_commit（$a_at。イメージの元 $(jq -r .image_commit "$applied")）"
   [ "$a_commit" = "$commit" ] || bad "当てた commit $a_commit と andon version の commit $commit が違う"
+  echo "     前に当てた記録 $(jq '.previous // [] | length' "$applied") 件$(jq -r '.previous[0]? // empty | "（直前は \(.commit[0:12]) を \(.applied_at) に当てた）"' "$applied" 2>/dev/null)。前の commit を検証するときは drive.sh の2つ目の引数に渡す"
 else
   a_at=
   echo "note 当てた記録が無い（イメージのバージョンのまま）。当てたあとに起きた出来事を読む機能は、確かめられない"

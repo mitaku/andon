@@ -176,4 +176,52 @@ if [ "$self" = true ]; then
   links worker retro; ln -s "$c/ws" "$c/home/.agents/skills/andon-extra"; journey boot
   [ "$jrc" = 1 ] && grep -qF 'andon-extra がパッケージの外' <<<"$jout" || die "boot: 余分な andon-extra がパッケージの外を指すのに落ちない（$jrc）: $jout"
   ok "verify-andon: 記録を読む道は、記録だけの通知なら未確認の 3 で終わり、skill のリンクが無い・パッケージの外を指すと落ちる"
+
+  # 検証の途中で次の commit が当たった: 検証する commit（VERIFY_COMMIT）が当たっていた間だけを、次に当てた時刻まで読む
+  lib=$c/ws/projects/v/kanban/issues/V-0002/library; mkdir -p "$lib"
+  launch() { echo "{\"at\": \"$1\", \"issue\": \"V-0002\", \"role\": \"worker\", \"terminal\": \"t$2\", \"package\": {\"commit\": \"$2\", \"source\": \"applied\", \"drift\": false, \"root\": \"$c/pkg\"}}"; }
+  { launch 2026-01-01T00:02:00Z c0ffee; launch 2026-01-01T00:12:00Z beef02; } >"$lib/launches.jsonl"
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  VERIFY_COMMIT=c0f journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" && grep -qF '次に当てた時刻 2026-01-01T00:10:00Z' <<<"$jout" \
+    || die "worker-launch: 前に当てた c0ffee の間（次に当てた 00:10 まで）だけを読まない（$jrc）: $jout"
+  VERIFY_COMMIT=beef02 journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 今当たっている beef02 の起動だけを読まない（$jrc）: $jout"
+  journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 検証する commit を省くと今当たっているものを読まない（$jrc）: $jout"
+  # 今の状態を読む行（dn-live・bt-ran）は、検証する commit でなく最後に当てた時刻と比べる
+  VERIFY_COMMIT=c0ffee journey dispatcher-news
+  [ "$jrc" = 1 ] && grep -qF 'dn-live' <<<"$jout" || die "dispatcher-news: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
+  links worker retro; VERIFY_COMMIT=c0ffee journey boot
+  [ "$jrc" = 1 ] && grep -qF 'FAIL bt-ran' <<<"$jout" || die "boot: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
+  sed -i "s/\"created_ms\": [0-9]*/\"created_ms\": $(($(date -u -d 2026-01-01T00:11:00Z +%s) * 1000))/" "$c/dispatcher.json"
+  VERIFY_COMMIT=c0ffee journey dispatcher-news
+  [ "$jrc" = 0 ] || die "dispatcher-news: c0ffee の間に届けた通知があり dispatcher も最後に当てたあとに起動したのに終了コード $jrc: $jout"
+  # 同じ commit を続けて当てた: 最初に当てた時刻から読む（c0ffee を 00:00 と 00:05 に当て、beef02 を 00:10 に当てた）
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:05:00Z"}, {"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" && grep -qF '当てた時刻 2026-01-01T00:00:00Z' <<<"$jout" \
+    || die "worker-launch: c0ffee を続けて2回当てたのに、最初に当てた 00:00 から読まない（$jrc）: $jout"
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:11:00Z", "image_commit": "x",\n "previous": [{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z"}, {"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 今の beef02 を続けて2回当てたのに、最初に当てた 00:10 から読まない（$jrc）: $jout"
+  # 当ててから前の dispatcher が見回りを終えるまで（00:10〜00:13）に届けた通知は、前の c0ffee の dispatcher が書いた。
+  # dispatcher の記録は切り替わった時刻（switched_at）で区切り、起動の記録は当てた時刻で区切る
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x", "switched_at": "2026-01-01T00:13:00Z",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z", "switched_at": "2026-01-01T00:01:00Z"}]}\n' >"$c/pkg/applied.json"
+  echo '{"at": "2026-01-01T00:12:00Z", "project": "v", "acked": true, "news": [{"issue": "V-0001", "kind": "review"}]}' >"$c/state/andon/dispatcher/v.delivered.jsonl"
+  VERIFY_COMMIT=c0ffee journey dispatcher-news
+  [ "$jrc" = 0 ] && grep -qF '届けた通知 1 件' <<<"$jout" || die "dispatcher-news: 前の dispatcher が見回りを終えるまでに届けた通知を c0ffee の間に読まない（$jrc）: $jout"
+  journey dispatcher-news
+  [ "$jrc" = 3 ] || die "dispatcher-news: beef02 の dispatcher が切り替わる前の通知を beef02 の間に読む（$jrc。3 でない）: $jout"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 起動の記録を当てた時刻でなく切り替わった時刻で区切る（$jrc）: $jout"
+  # 前のバージョンの記録（previous が無い）と、記録に無い commit: 間が決まらないので未確認の 3。落ちない
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x"}\n' >"$c/pkg/applied.json"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 3 ] && grep -qF 'c0ffee を当てた記録が無い' <<<"$jout" || die "worker-launch: previous の無い記録で前の commit を 3 で断らない（$jrc）: $jout"
+  journey worker-launch
+  [ "$jrc" = 0 ] || die "worker-launch: previous の無い記録で今当たっている commit を読めない（$jrc）: $jout"
+  VERIFY_COMMIT=dead01 journey worker-launch
+  [ "$jrc" = 3 ] || die "worker-launch: 記録に無い commit で終了コード $jrc（3 でない）: $jout"
+  ok "verify-andon: 記録を読む道は、検証する commit が当たっていた間を次に当てた時刻まで読み、前のバージョンの記録や記録に無い commit は未確認の 3 で終わる"
 fi

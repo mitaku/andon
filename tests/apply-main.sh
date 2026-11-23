@@ -10,6 +10,7 @@
 #   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 #   11 試しの repo はこの repo の作業ツリーを写す（commit していない変更を見落とさない）
+#   12 記録に前に当てた commit と日時を新しい順に残す（前のバージョンの記録・読めない記録からも当てる）
 set -u
 cd "$(dirname "$0")/.." || exit 2
 here=$(pwd)
@@ -305,6 +306,7 @@ git -C "$tmp/repo" reset -q --hard origin/main
 
 # === 8b. hc ls が失敗したら、警告を出して当てる ===
 : >"$HC_LS_FAIL"
+at1=$(jq -r .applied_at "$rec")
 if run apply && grep -q '警告: hc ls に失敗' "$tmp/out"; then
   pass "8 hc ls が失敗すると、一覧を出せない警告を出して当てる"
 else
@@ -318,6 +320,32 @@ else
   fail "8 hc ls の空応答: $(cat "$tmp/out")"
 fi
 rm -f "$HC_LS_EMPTY"
+
+# === 12. 記録に前に当てた commit と日時（新しい順）を残す。前のバージョンの記録・読めない記録からも当てる ===
+# ここまでに c1 → origin/main の先頭（c3）→ c3 と3回当てた
+c3=$(git -C "$tmp/repo" rev-parse origin/main)
+# dispatcher を片付けて boot を打ち直した回は、切り替わった時刻（当てた時刻より後）を書き、次の回の previous に写す
+if [ "$(jq -c '[.previous[].commit]' "$rec")" = "[\"$c3\",\"$c1\"]" ] && [ "$(jq -r '.previous[1].applied_at' "$rec")" = "$at1" ] \
+  && [ "$(jq -r .commit "$rec")" = "$c3" ] \
+  && [ "$(jq -r '[., .previous[]] | all(.switched_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$"))' "$rec")" = true ] \
+  && [ "$(jq -r '.switched_at >= .applied_at' "$rec")" = true ] \
+  && [ "$(sed -n 's/.*"commit": *"\([0-9a-f]*\)".*/\1/p' "$rec" | head -1)" = "$c3" ]; then
+  pass "12 記録の previous に前に当てた commit と日時が新しい順にある（1行目だけを読む前のバージョンの読み方でも当てた commit を読む）"
+else
+  fail "12 記録の previous: $(cat "$rec")"
+fi
+echo "{\"commit\": \"$c1\", \"applied_at\": \"2026-01-01T00:00:00Z\", \"image_commit\": \"${c0:0:12}\"}" >"$rec"
+if run apply && [ "$(jq -c .previous "$rec")" = "[{\"commit\":\"$c1\",\"applied_at\":\"2026-01-01T00:00:00Z\"}]" ]; then
+  pass "12 previous の無い前のバージョンの記録から当てると、その1件を previous に写す"
+else
+  fail "12 前のバージョンの記録から当てる: $(cat "$rec") $(cat "$tmp/out")"
+fi
+echo '{"commit": ' >"$rec"
+if run apply && [ "$(jq -c .previous "$rec")" = '[]' ] && [ "$(jq -r .commit "$rec")" = "$c3" ]; then
+  pass "12 読めない記録から当てても落ちず、previous は空"
+else
+  fail "12 読めない記録から当てる: $(cat "$rec") $(cat "$tmp/out")"
+fi
 
 # === 9b. image/ が変わったら警告して当てる ===
 printf 'x\n' >"$tmp/repo/image/drift-marker.txt"
@@ -356,8 +384,9 @@ git -C "$tmp/repo" push -q origin main
 echo "$oldd" >"$DISPATCHER_PID"
 : >"$CALLS"
 if run apply && [ "$(grep -c '^hc \(keep\|kill\|rm\) ' "$CALLS")" = 0 ] && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] \
-  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '確かめられないので、止めずに残した' "$tmp/out"; then
-  pass "7 前のバージョンの dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す"
+  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '確かめられないので、止めずに残した' "$tmp/out" \
+  && [ "$(jq -r '.switched_at // "none"' "$rec")" = none ]; then
+  pass "7 前のバージョンの dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す（記録に切り替わった時刻を書かない）"
 else
   fail "7 前のバージョンの dispatcher: $(cat "$CALLS") / $(cat "$tmp/out")"
 fi

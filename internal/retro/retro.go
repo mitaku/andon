@@ -917,7 +917,7 @@ func (r *reader) fix(t *task, gh *github, now time.Time) (Fix, bool) {
 	return Fix{Issue: t.id, Title: t.title, Retro: t.parent, PR: pr, MergedAt: at.UTC().Format(time.RFC3339)}, true
 }
 
-// applied はパッケージの当て直しの記録（ADR-0027。<置き場>/applied.json。最後の1回だけ）。
+// applied はパッケージの当て直しの記録（ADR-0027。<置き場>/applied.json）。振り返りは最後の1回だけを読む。
 type applied struct {
 	Commit    string `json:"commit"`
 	AppliedAt string `json:"applied_at"`

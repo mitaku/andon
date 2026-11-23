@@ -26,7 +26,8 @@ repo=${ANDON_APPLY_REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 root=${ANDON_APPLY_ROOT:-/opt/andon}
 kanban=${ANDON_APPLY_KANBAN:-/usr/local/bin/kanban}
 stash=${ANDON_APPLY_STASH:-/opt/andon-image}
-record=$root/applied.json # 当てた commit・日時・イメージの元の commit。/opt/andon の中なので作り直しで一緒に消える
+record=$root/applied.json # 当てた commit・日時・イメージの元の commit・前に当てたもの。/opt/andon の中なので作り直しで一緒に消える
+switched_at= # reboot が dispatcher を切り替えた時刻（切り替えなければ空）
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || die "$repo が git の repo でない（ANDON_APPLY_REPO で andon の checkout を指す）"
 
 # 書く先の親に書けなければ sudo（/opt と /usr/local/bin は root の持ち物）
@@ -80,7 +81,7 @@ image_commit() {
   fi
 }
 
-applied_commit() { [ -f "$record" ] && sed -n 's/.*"commit": *"\([0-9a-f]*\)".*/\1/p' "$record" | head -1 || true; }
+applied_commit() { jq -r '.commit // empty' "$record" 2>/dev/null || true; }
 
 # $1 を $2 に入れ替える（同じファイルシステムの中の rename）。overlay の下の層にある dir（イメージの /opt/andon）は
 # rename できない（EXDEV）ので、そのときは消してから入れる（中身は退避にある）。入れられなければ退避から戻す。
@@ -121,10 +122,12 @@ reboot() {
     addr=$(jq -r '.address // empty' <<<"$got" 2>/dev/null || true)
     pid=$(jq -r '.foreground.pid // empty' <<<"$got" 2>/dev/null || true)
   fi
+  switched_at=
+  local keep_old=
   if [ -n "$addr" ] && ! { [ -n "$pid" ] && grep -aq '\.pass\.lock' "/proc/$pid/exe" 2>/dev/null; }; then
     say "警告: 動いている dispatcher（$addr）が見回りの鍵を取るバージョンと確かめられないので、止めずに残した（見回りの途中で止めない）。"
     say "  新しい andon で動かすには、見回りの合間に hc kill $addr・hc rm $addr を打ってから $andon boot を打つ"
-    addr=
+    addr= keep_old=1
   elif [ -n "$addr" ]; then
     # 鍵を取るバージョンは見回りのたびにこのファイルを作るので、ここで作ってもよい
     mkdir -p "$(dirname "$passlock")"
@@ -141,12 +144,26 @@ reboot() {
     done
     say "dispatcher の端末（$addr）を片付けた"
   fi
+  # 前の dispatcher が止まった（か、もとから無かった）時刻。ここから後の dispatcher の記録は、当てたパッケージの dispatcher が書く
+  local stopped=
+  command -v hc >/dev/null && [ -z "$keep_old" ] && stopped=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   local rc=0
   # 鍵の fd は子に渡さない（boot が起動する常駐のものが持ち続けると、見回りが止まる）
   ANDON_HOME=$root "$andon" boot 8<&- 9>&- || rc=$?
   exec 9>&-
   [ "$rc" = 0 ] || { say "警告: andon boot が rc $rc で終わった（出力を見て打ち直す）"; return 1; }
   say "andon boot を打ち直した（dispatcher が無ければ boot が起動する）"
+  switched_at=$stopped
+}
+
+# 記録に、dispatcher が当てたパッケージに切り替わった時刻 switched_at を書き足す（$1）。当てた時刻からこの時刻までは、
+# 前の dispatcher が見回りを終えるのを待つ間で、その間の dispatcher の記録（gate・通知）は前のパッケージのコードが書く。
+# 書けなければ警告して続ける（検証の道は当てた時刻を境にする）
+mark_switched() {
+  local new=$root/applied.json.new.$$ body
+  body=$(jq -r --arg s "$1" '"{\"commit\": \(.commit | tojson), \"applied_at\": \(.applied_at | tojson), \"image_commit\": \(.image_commit | tojson), \"switched_at\": \($s | tojson),\n \"previous\": \(.previous // [] | tojson)}"' "$record" 2>/dev/null) \
+    && printf '%s\n' "$body" | $as_root tee "$new" >/dev/null && $as_root mv -f -T "$new" "$record" \
+    || { $as_root rm -f "$new"; say "警告: 記録に dispatcher が切り替わった時刻を書けなかった"; }
 }
 
 gobin() {
@@ -215,8 +232,14 @@ apply() {
     say "イメージのバージョン（$image）を $stash に退避した"
   fi
 
-  printf '{"commit": "%s", "applied_at": "%s", "image_commit": "%s"}\n' \
-    "$commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" >"$build/pkg/applied.json"
+  # 前に当てた commit と日時（新しい順に 20 件。dispatcher が切り替わった時刻 switched_at も、書けていれば写す）。
+  # 検証が、ある commit の当たっていた間を次に当てた時刻までと読む。
+  # 記録が無い・読めないときは空、前のバージョンの記録（previous が無い）は今の1件だけを写す。
+  # previous は2行目に置く（1行目だけを sed で読む前のバージョンの apply-main.sh が、当てた commit を取り違えない）
+  local previous
+  previous=$(jq -c '[{commit, applied_at, switched_at} | with_entries(select(.value != null))] + (.previous // []) | .[:20]' "$record" 2>/dev/null) || previous='[]'
+  printf '{"commit": "%s", "applied_at": "%s", "image_commit": "%s",\n "previous": %s}\n' \
+    "$commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${previous:-[]}" >"$build/pkg/applied.json"
   # 焼いたときの印（andon version が commit と食い違いを読む。ADR-0028 P0-1）。中身はこれより後に足さない。
   # andon version の無い古い commit では書けない（andon version は commit だけ読み、食い違いは null と出す）
   ANDON_HOME=$build/pkg "$build/pkg/bin/andon" version stamp "$commit" >/dev/null 2>&1 \
@@ -235,7 +258,9 @@ apply() {
     printf '%s\n' "$terminals" >&2
   fi
 
-  reboot || true
+  if reboot && [ -n "$switched_at" ]; then
+    mark_switched "$switched_at"
+  fi
 }
 
 revert() {
@@ -265,7 +290,7 @@ status() {
   applied=$(applied_commit)
   echo "イメージのバージョン: $image"
   if [ -n "$applied" ]; then
-    echo "当てた commit: $applied（$(sed -n 's/.*"applied_at": *"\([^"]*\)".*/\1/p' "$record")）"
+    echo "当てた commit: $applied（$(jq -r '.applied_at // empty' "$record" 2>/dev/null)）"
     base=$applied
   else
     echo "当てた commit: 当てていない"
