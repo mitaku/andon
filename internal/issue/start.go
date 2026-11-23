@@ -287,7 +287,7 @@ func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) 
 // 値は決めずに書かない。直す kanban set の行を出し、無いキーの値は選ぶ場所を残す（値を決めるのは Chief of Staff）。
 // ただしルーチンが足した課題（ledger.FiredBy）は、Chief of Staff の端末で打つときだけ、無いキーを既定（ledger.DefaultSettings。
 // review は off）で埋める: 足すのは dispatcher の kanban tick で、Chief of Staff の書いた値を持てないため。埋めるキーは p.Fill に置き、
-// start が起動の前に kanban set で書く（--dry-run は書かない）。書いてあるキーは変えない。
+// start が起動の前に kanban set で書く（--dry-run は書かない）。既定と同じ値なのに照合が外れたキーも同じ値で書き直し、既定と違う値は変えない。
 // Chief Engineer の課題は見ない（予約キーを置かない）。レビュアーの課題は plan がこの前に断る。
 func (c *ctx) checkSettings(p *startPlan) error {
 	if p.Profile == chiefengineer.Profile {
@@ -330,6 +330,9 @@ func (c *ctx) checkSettings(p *startPlan) error {
 		case v == "" || settingValue[k](s) != v:
 			missing = append(missing, k)
 			args = append(args, "'"+k+"="+settingChoices[k]+"'")
+		case v == defaults[k] && !c.l.Trusted(rows, c.issue, k):
+			// 既定のまま照合が外れた（前の start の kanban set が log.jsonl に足す前に止まった・Chief of Staff が起き直した）。同じ値で書き直す
+			p.Fill = append(p.Fill, k+"="+v)
 		case !c.l.Trusted(rows, c.issue, k):
 			untrusted = append(untrusted, k)
 			args = append(args, k+"="+v)
@@ -337,7 +340,7 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	}
 	if len(args) == 0 {
 		if len(p.Fill) > 0 {
-			p.check("settings", "ok", "揃っている（%s）。ルーチン %s が足した課題なので、無いキーを既定で書く: %s", strings.Join(need, "・"), routine, strings.Join(p.Fill, " "))
+			p.check("settings", "ok", "揃っている（%s）。ルーチン %s が足した課題なので、無いキー（と照合の外れた既定のキー）を既定で書く: %s", strings.Join(need, "・"), routine, strings.Join(p.Fill, " "))
 			return nil
 		}
 		p.check("settings", "ok", "揃っている（%s。最後に書いたのは Chief of Staff の端末 %s）", strings.Join(need, "・"), cos)

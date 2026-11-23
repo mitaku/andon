@@ -320,6 +320,20 @@ func DefaultSettings(profile, review string) []string {
 	return []string{"review=on", "must_fix=major", "reviewer=" + reviewer, "review_rounds=2", "merge=person", "estimate=medium"}
 }
 
+// Unsettled は、既定（DefaultSettings の key=value の並び）のうち、課題 t に書き直すものを返す: キーが無いか、
+// 既定と同じ値なのに履歴の照合（Trusted）が外れている（kanban set が issue.yaml を書いたあと log.jsonl に足す前に止まった・
+// Chief of Staff が起き直してアドレスが変わった）。既定と違う値は誰かが選んだものなので、照合が外れていても返さない。
+func (l *Ledger) Unsettled(rows []Row, t Issue, defaults []string) []string {
+	var out []string
+	for _, kv := range defaults {
+		k, v, _ := strings.Cut(kv, "=")
+		if cur := t.Str(k); cur == "" || (cur == v && !l.Trusted(rows, t, k)) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
 // SettingsCopy は予約キー（DefaultSettings の key=value の並び）を、依頼書の ## Settings の写しにする
 // （行の名前と見込みの段の名は playbooks/brief.md の表）。正は issue.yaml で、これは人が読む写し。
 func SettingsCopy(keys []string) string {

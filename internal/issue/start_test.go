@@ -512,12 +512,39 @@ func TestStartFillsRoutineSettings(t *testing.T) {
 			t.Errorf("review=on の課題で reviewer を別ブランドで埋めない: %q", f.calls())
 		}
 	})
+	// 前の start の kanban set が issue.yaml を書いたあと log.jsonl に足す前に止まった（照合が外れた既定の値）なら、同じ値で書き直す。
+	// 既定と違う値は誰かが選んだものなので、照合が外れていれば今までどおり断る
+	// Chief of Staff が起き直してアドレスが変わった（前の端末 t5 が書いた行は照合が外れる）ときも同じ。
+	t.Run("rewrites untrusted defaults", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("reviewer", "review_rounds")
+		f.set("t5", map[string]any{"review": "off", "must_fix": "major", "merge": "person", "estimate": "medium"})
+		os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t6\n"), 0o644)
+		t.Setenv("HC_TERMINAL_ID", "t6")
+		fired(f, "triage", "S-0007")
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if !f.has(strings.Replace(setLine, "HC_TERMINAL_ID=t5", "HC_TERMINAL_ID=t6", 1)) {
+			t.Errorf("照合の外れた既定を書き直さない: %q", f.calls())
+		}
+	})
+	t.Run("keeps refusing untrusted non-defaults", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("estimate")
+		f.set("t42", map[string]any{"merge": "auto"})
+		fired(f, "triage", "S-0007")
+		rc, _, errs := f.run()
+		if rc != 1 || !strings.Contains(errs, "でない: merge。") || f.has("kanban set") {
+			t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+		}
+	})
 	t.Run("dry run writes nothing", func(t *testing.T) {
 		f := newStart(t)
 		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
 		fired(f, "triage", "S-0007")
 		rc, out, errs := f.run("--dry-run")
-		if rc != 0 || !strings.Contains(out, "ルーチン triage が足した課題なので、無いキーを既定で書く: review=off must_fix=major merge=person estimate=medium") {
+		if rc != 0 || !strings.Contains(out, "ルーチン triage が足した課題なので、無いキー（と照合の外れた既定のキー）を既定で書く: review=off must_fix=major merge=person estimate=medium") {
 			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 		}
 		if f.has("kanban set") {

@@ -231,12 +231,13 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 	}
 	parent := ledger.CanonID(id)
 	for _, pl := range left {
-		newID, who, review := "", "", ""
+		newID, who := "", ""
+		var found ledger.Issue
 		for _, t := range all {
 			tid := ledger.CanonID(t.Str("id"))
 			if ledger.CanonID(t.Str("parent")) == parent && t.Str("title") == pl.Title &&
 				!slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Issue == tid }) {
-				newID, who, review = tid, t.Str("who"), t.Str("review")
+				newID, who, found = tid, t.Str("who"), t
 				break
 			}
 		}
@@ -261,10 +262,16 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 			}
 		}
 		// 担当の課題には予約キーを書く（打つのは Chief of Staff の端末なので、andon issue start と gate の履歴の照合が通る）。
-		// 前の回が add のあと set の前で落ちていれば、打ち直しで書く。書いてある課題は Chief of Staff が変えたかもしれないので触らない
-		if pl.Who == "worker" && (added || review == "") {
-			if _, err := l.Run("", append([]string{"set", newID}, keys...)...); err != nil {
-				return err
+		// 打ち直しで見つけた課題には、前の回が書き切れなかったキー（無い・既定のまま照合が外れた）だけを書く。
+		// 既定と違う値は Chief of Staff が変えたものなので触らない（ledger.Unsettled）
+		if pl.Who == "worker" {
+			if !added {
+				keys = l.Unsettled(l.Log(), found, keys)
+			}
+			if len(keys) > 0 {
+				if _, err := l.Run("", append([]string{"set", newID}, keys...)...); err != nil {
+					return err
+				}
 			}
 		}
 		rec.Issues = append(rec.Issues, AppliedIssue{Pattern: pl.Pattern, Issue: newID, Who: pl.Who, Title: pl.Title})

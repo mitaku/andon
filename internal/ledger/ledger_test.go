@@ -3,6 +3,7 @@ package ledger
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -238,5 +239,26 @@ func TestTakenByChiefOfStaff(t *testing.T) {
 		if got := TakenByChiefOfStaff(c.rows, "S-7", last); got != c.want {
 			t.Errorf("%s: %v（want %v）", c.name, got, c.want)
 		}
+	}
+}
+
+// Unsettled は既定のうち、無いキーと、既定と同じ値なのに照合が外れたキーを返す（command が足した課題の打ち直しで書き直す）。
+// Chief of Staff が書いた値と、既定と違う値（誰かが選んだもの）は返さない。
+func TestUnsettled(t *testing.T) {
+	root := t.TempDir()
+	l := At(root)
+	os.MkdirAll(l.Dir, 0o755)
+	os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
+	os.WriteFile(filepath.Join(l.Dir, "log.jsonl"), []byte(ledgertest.Log(t,
+		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t5","id":"A-0001","change":{"review":"off","must_fix":"major"}}`,
+		`{"at":"2026-11-01T00:00:00Z","by":"terminal:t9","id":"A-0001","change":{"merge":"auto"}}`)), 0o644)
+	issue := Issue{"id": "A-0001", "review": "off", "must_fix": "major", "merge": "auto", "estimate": "medium"}
+	got := l.Unsettled(l.Log(), issue, DefaultSettings("claude", "off"))
+	if want := []string{"estimate=medium"}; !slices.Equal(got, want) {
+		t.Errorf("Unsettled = %q, want %q", got, want)
+	}
+	delete(issue, "estimate")
+	if got := l.Unsettled(l.Log(), issue, DefaultSettings("claude", "off")); !slices.Equal(got, []string{"estimate=medium"}) {
+		t.Errorf("無いキー: %q", got)
 	}
 }
