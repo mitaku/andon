@@ -290,7 +290,7 @@ func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle)
 	f := gate.MarkFacts{Status: c.issue.Str("status"), Engineer: c.issue.Str("profile") == "chief-engineer", Have: have, HaveDescUnknown: true}
 	if b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", head+".json")); err == nil {
 		var g gate.Record
-		if json.Unmarshal(b, &g) == nil && g.Head == head && gate.JudgedThisRound(c.l.Log(), c.id, g.At) {
+		if json.Unmarshal(b, &g) == nil && g.Head == head && c.decidedThisRound(head) {
 			f.Decision, f.Reasons = g.Decision, g.Reasons
 		}
 	}
@@ -306,6 +306,27 @@ func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle)
 		return
 	}
 	res.Log = append(res.Log, fmt.Sprintf("%s の PR の印を %s に揃えた（%s。前は %s）", c.id, m.State, m.Description, orNone(have.State)))
+}
+
+// decidedThisRound は、課題が今 review に入っている行（log.jsonl で最後に review に入った行）について、dispatcher の
+// merge の記録がこの head の gate の判定を持つか。同じ head のまま doing から review に入り直し、今の回の gate がまだ
+// 決めていない（wait・落ちた）とき、前の回の判定から印を書き戻さないため（ADR-0056 決めたこと 3 の「判定の前」）。
+// 時刻で比べないのは、gate が review に入ったのと同じ秒に判定を書くことがあり、秒までの時刻では前の回と見分けられないから。
+// merge の記録が無い・読めない・行が違う・判定が空（決めたあとに head が動いて捨てた）なら持たない（印を書かない）。
+func (c *ctx) decidedThisRound(head string) bool {
+	row := 0
+	for i, r := range c.l.Log() {
+		if r.ID == c.id && r.Change["status"] == "review" {
+			row = i + 1
+		}
+	}
+	b, err := os.ReadFile(dispatcher.MergePath(c.l.Slug))
+	rec := map[string]contract.Merging{}
+	if row == 0 || err != nil || json.Unmarshal(b, &rec) != nil {
+		return false
+	}
+	w, ok := rec[c.id]
+	return ok && w.Row == row && w.Decision != "" && w.Sha == head
 }
 
 func orNone(s string) string {

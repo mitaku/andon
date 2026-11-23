@@ -933,7 +933,8 @@ watch_due "$al"; dispatcher
 [ "$(marks "$head")" = $((n + 1)) ] || die '赤くした印をまた書いた'
 ok 'gate が緑を付けたあと課題が doing に戻ったら、次に PR を読んだとき赤（作った側が直しています）に書き換える（ADR-0056 A6）'
 # 同じ head のまま review に入り直し、今の回の gate がまだ決めていない → 前の回の判定（緑）を書き戻さない
-sleep 1; (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban review "$al" >/dev/null)
+# （前の回の判定・doing・review が同じ秒に並んでも見分ける。時刻でなく merge の記録の行で照らす）
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban review "$al" >/dev/null)
 watch_due "$al"; HC_TERMINAL_ID=dispatcher "$andon" issue settle "$al" >/dev/null
 [ "$(marks "$head")" = $((n + 1)) ] || die "review に入り直した回で、前の回の判定から印を書き戻した: $(lastmark "$head")"
 (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban start "$al" >/dev/null)

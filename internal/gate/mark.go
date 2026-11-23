@@ -3,9 +3,6 @@ package gate
 import (
 	"strconv"
 	"strings"
-	"time"
-
-	"andon/internal/ledger"
 )
 
 // Mark は PR の head の commit に付ける印（commit status andon/gate）の状態と説明文。
@@ -133,24 +130,4 @@ func GateLink(items []CheckItem) string {
 		}
 	}
 	return ""
-}
-
-// JudgedThisRound は、gate の記録（at）が課題の今の review 入り（log.jsonl で最後に review に入った行）より後に書かれたか（純粋関数）。
-// doing に戻ったあと同じ head のまま review に入り直し、今の回の gate がまだ決めていない（wait・落ちた）とき、
-// 前の回の判定から印を書き戻さないため（ADR-0056 決めたこと 3 の「判定の前」）。review の行が無ければ記録を使う。
-// 時刻は秒までなので、review に入った秒と同じ秒の記録は前の回のものと見分けられず、使わない（今の回の gate が
-// その秒に書いた印は gate 自身が書いている。settle は書き直さないだけで、印を緑に倒すことはない）。
-func JudgedThisRound(rows []ledger.Row, id, at string) bool {
-	entered := ""
-	for _, r := range rows {
-		if r.ID == id && r.Change["status"] == "review" {
-			entered = r.At
-		}
-	}
-	if entered == "" {
-		return true
-	}
-	e, err1 := time.Parse(time.RFC3339, entered)
-	a, err2 := time.Parse(time.RFC3339, at)
-	return err1 == nil && err2 == nil && a.After(e)
 }
