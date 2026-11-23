@@ -88,7 +88,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	if c.issue.Str("status") != "review" {
 		return nil
 	}
-	rows := c.l.Log()
+	rows, logErr := c.l.ReadLog()
 	row := 0
 	for i, r := range rows {
 		if r.ID == c.id && r.Change["status"] == "review" {
@@ -99,7 +99,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	if row == 0 || err != nil || rep == nil {
 		return nil
 	}
-	if reason, held, err := c.l.Hold(rows, c.issue); err != nil || held {
+	if reason, held, err := c.l.Hold(rows, logErr, c.issue); err != nil || held {
 		if w.Row != row {
 			w = contract.Merging{Row: row}
 		}
@@ -601,10 +601,10 @@ func (c *ctx) stillAuthorized(gr gateResult, rep *contract.Report) (bool, string
 	if err != nil {
 		return false, "課題を読み直せない: " + err.Error()
 	}
-	rows := c.l.Log()
+	rows, logErr := c.l.ReadLog()
 	trusted := c.l.Trusted(rows, now, "merge") && c.l.Trusted(rows, now, "review") && c.l.Trusted(rows, now, "must_fix")
 	merge, _ := gate.Delegated(delegate.Read(delegate.Workspace(), c.l.Slug, time.Now().UTC().Format("2006-01-02")), c.id, rep)
-	hold, held, err := c.l.Hold(rows, now)
+	hold, held, err := c.l.Hold(rows, logErr, now)
 	if err != nil {
 		hold, held = "（読めない: "+err.Error()+"）", true // 止めを読めなければ止めているものとしてマージしない
 	}

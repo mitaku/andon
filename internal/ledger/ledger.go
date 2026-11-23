@@ -255,16 +255,15 @@ func HoldOf(rows []Row, tasks []Issue, cos string, t Issue) (string, bool) {
 	if v := t.Str("hold"); v != "" {
 		return v, true
 	}
-	last, prev := -1, ""
+	// prev は hold を最後に変えた行の直前の値（外したあとに空をもう一度消した行では空）
+	last, prev, cur := -1, "", ""
 	for i, r := range rows {
 		if r.ID != id || r.Change == nil {
 			continue
 		}
 		if v, ok := r.Change["hold"]; ok {
-			last = i
-			if s, _ := v.(string); s != "" {
-				prev = s
-			}
+			last, prev = i, cur
+			cur, _ = v.(string)
 		}
 	}
 	if last < 0 || prev == "" {
@@ -300,11 +299,16 @@ func HoldOf(rows []Row, tasks []Issue, cos string, t Issue) (string, bool) {
 	return "", false
 }
 
-// Hold は HoldOf を、kanban の今の Chief of Staff で読む。子の課題の一覧は、hold が空で、hold を消した行があるときだけ読む
-// （止めていない課題で kanban の一覧を読まない）。一覧を読めなければ誤りを返す（呼び手は止めているものとして扱う）。
-func (l *Ledger) Hold(rows []Row, t Issue) (string, bool, error) {
+// Hold は HoldOf を、kanban の今の Chief of Staff で読む。rows と logErr は呼び手が ReadLog で読んだ log.jsonl と、その誤り。
+// 子の課題の一覧は、hold が空で、hold を消した行があるときだけ読む（止めていない課題で kanban の一覧を読まない）。
+// hold が空で log.jsonl を読み切れない（無いのは除く）か、一覧を読めなければ誤りを返す（呼び手は止めているものとして扱う。
+// 担当が消した止めを、読めないまま外れたと読まない）。
+func (l *Ledger) Hold(rows []Row, logErr error, t Issue) (string, bool, error) {
 	if v := t.Str("hold"); v != "" {
 		return v, true, nil
+	}
+	if logErr != nil && !errors.Is(logErr, os.ErrNotExist) {
+		return "", false, fmt.Errorf("log.jsonl が読めない: %w", logErr)
 	}
 	touched := false
 	for _, r := range rows {

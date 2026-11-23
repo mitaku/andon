@@ -290,7 +290,8 @@ func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle)
 		return
 	}
 	f := c.markFacts(head, have)
-	reason, held, err := c.l.Hold(c.l.Log(), c.issue)
+	rows, logErr := c.l.ReadLog()
+	reason, held, err := c.l.Hold(rows, logErr, c.issue)
 	// 止めを読めなければ止めているものとして揃える（緑を残さない側。ADR-0056 決めたこと 9）
 	f.Held = held || err != nil
 	m, ok := gate.WantMark(f)

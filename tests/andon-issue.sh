@@ -1066,7 +1066,7 @@ case "\$1 \$2" in
 esac
 EOF
 hh=$(git -C "$tmp/wt" rev-parse HEAD)
-view() { jq -n --arg h "$hh" --arg s "$1" '{state: "OPEN", headRefOid: $h, mergeCommit: null,
+view() { jq -n --arg h "$hh" --arg s "$1" --arg st "${2:-OPEN}" '{state: $st, headRefOid: $h, mergeCommit: null,
   statusCheckRollup: (if $s == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: $s}] end)}' > "$tmp/hold-view"; }
 held=$(as t5 kanban add '止める PR' --repo github.com/example/app --profile claude)
 why=$(as t5 kanban add 'オーナーの答えを待つ問い' --repo github.com/example/app)
@@ -1098,6 +1098,17 @@ ok 'hold: 渡していない（印が無く、gate の判定も無い）commit �
 expect_fail 'T-9999 が無い' as t5 "$andon" issue hold "$held" T-9999
 [ "$(field "$held" hold)" = "" ] || die '無い課題を理由にした hold が hold を書いた'
 ok 'hold: 無い課題を理由に渡すと何も書かずに断る'
+cp "kanban/issues/$held/library/report.json" "$tmp/hold-report"; echo '{' > "kanban/issues/$held/library/report.json"
+view SUCCESS; : > "$tmp/hold-gh"
+expect_fail 'report.json' as t5 "$andon" issue hold "$held" "$why"
+[ "$(field "$held" hold)" = "$why" ] && [ ! -s "$tmp/hold-gh" ] || die '壊れた report.json で hold を書かないか、印を書いた'
+cp "$tmp/hold-report" "kanban/issues/$held/library/report.json"; as t5 "$andon" issue unhold "$held" >/dev/null
+ok 'hold: report.json を読めないと、PR が無いのと分けて 0 以外で終わる（印が緑のまま成功と言わない）'
+view SUCCESS MERGED; : > "$tmp/hold-gh"
+expect_fail 'MERGED' as t5 "$andon" issue hold "$held" "$why"
+[ ! -s "$tmp/hold-gh" ] || die 'マージ済みの PR に印を書いた'
+as t5 "$andon" issue unhold "$held" >/dev/null
+ok 'hold: PR がもうマージされていれば 0 以外で終わる（止められていないのに成功と言わない）'
 view SUCCESS; : > "$tmp/hold-gh"
 flock "$lk" sleep 2 & lp=$!
 sleep 0.3; t0=$(date +%s%N)

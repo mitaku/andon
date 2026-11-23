@@ -319,8 +319,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	}
 	// 止めている課題は GitHub を読まずに待つ（記録も印も書かない。--dry-run も同じ。ADR-0056 決めたこと 9）。
 	// 待ちが長いとオーナー待ちに倒す決まり（github_checks_wait_minutes）は当てない。止めを読めなければ止めているものとして待つ
-	rows := l.Log()
-	if reason, held, err := l.Hold(rows, t); err != nil || held {
+	rows, logErr := l.ReadLog()
+	if reason, held, err := l.Hold(rows, logErr, t); err != nil || held {
 		if err != nil {
 			return nil, "", holding("止めを読めない（止めているものとして待つ）: " + err.Error())
 		}

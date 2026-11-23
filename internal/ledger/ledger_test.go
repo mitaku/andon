@@ -368,6 +368,10 @@ func TestHoldOf(t *testing.T) {
 		{"今の担当（issue.yaml の agent）が消した", "", []Row{row("terminal:w2", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
 		{"子の課題の担当が消した", "", []Row{row("terminal:r1", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
 		{"ほかの課題の担当が消した", "", []Row{row("terminal:x9", "A-0001", map[string]any{"hold": nil})}, "", false},
+		// Chief of Staff が外したあとに担当が空のキーをもう一度消しても、外した止めは戻らない（消す前の値は空）
+		{"外したあとに担当が空を消し直した", "", []Row{row("terminal:cos", "A-0001", map[string]any{"hold": nil}), row("terminal:w1", "A-0001", map[string]any{"hold": nil})}, "", false},
+		// 理由は消す直前の値（その前の値ではない）
+		{"理由を書き換えたあと担当が消した", "", []Row{row("terminal:cos", "A-0001", map[string]any{"hold": "A-0007"}), row("terminal:w1", "A-0001", map[string]any{"hold": nil})}, "A-0007", true},
 	}
 	for _, c := range cases {
 		rows := append(append([]Row{}, base...), c.extra...)
@@ -383,5 +387,32 @@ func TestHoldOf(t *testing.T) {
 	rows := append(append([]Row{}, base...), row("terminal:cos", "A-0001", map[string]any{"agent": "cos"}), row("terminal:cos", "A-0001", map[string]any{"hold": nil}))
 	if _, held := HoldOf(rows, tasks, "cos", Issue{"id": "A-0001"}); held {
 		t.Error("Chief of Staff が消した止めを、担当が消したと読んだ")
+	}
+}
+
+// log.jsonl を読めないとき、hold が空の課題の止めは分からない。Ledger.Hold は誤りを返し、呼び手は止めているものとして扱う
+// （担当が消した止めを、読めないまま外れたと読まない。ADR-0056 決めたこと 10）。
+func TestHoldUnreadableLog(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("version: 3\nprefix: A\nchief_of_staff: cos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "log.jsonl"), 0o755); err != nil { // 開けるが読めない
+		t.Fatal(err)
+	}
+	l := &Ledger{Dir: dir, Slug: "demo"}
+	rows, logErr := l.ReadLog()
+	if _, _, err := l.Hold(rows, logErr, Issue{"id": "A-0001"}); err == nil {
+		t.Error("log.jsonl を読めないのに、hold が空の課題を止めていないと読んだ")
+	}
+	if r, held, err := l.Hold(rows, logErr, Issue{"id": "A-0001", "hold": "A-0009"}); err != nil || !held || r != "A-0009" {
+		t.Errorf("hold に値があるのに log を読もうとした: %q %v %v", r, held, err)
+	}
+	if err := os.Remove(filepath.Join(dir, "log.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	rows, logErr = l.ReadLog()
+	if _, held, err := l.Hold(rows, logErr, Issue{"id": "A-0001"}); err != nil || held {
+		t.Errorf("log.jsonl がまだ無い kanban で止めていると読んだか誤りにした: %v %v", held, err)
 	}
 }

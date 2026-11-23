@@ -18,7 +18,8 @@ const (
 	HoldUsage = "usage: andon issue hold <id> <理由の課題>\n" +
 		"課題の PR を止める（Chief of Staff が打つ）: 予約キー hold に、答えを待つ理由の課題の id を書く。\n" +
 		"dispatcher のマージと同じ鍵と gate の鍵を取り、今の commit を渡していれば（gate が通したかオーナー待ちと判定した・印が緑）\n" +
-		"PR の印 andon/gate を黄（pending）に書き換えてから返る。黄を書けない・PR を読めなければ hold を書いたまま終了コード 1。\n" +
+		"PR の印 andon/gate を黄（pending）に書き換えてから返る。黄を書けない・report.json か PR を読めない・PR がもうマージされていれば\n" +
+		"hold を書いたまま終了コード 1。\n" +
 		"止めている間、gate は回らず、dispatcher はマージしない。外すのは andon issue unhold だけ（理由の課題が done でも外れない）。\n"
 	UnholdUsage = "usage: andon issue unhold <id>\n" +
 		"止めを外す（Chief of Staff が打つ）: hold と同じ鍵を取り、予約キー hold を消す。印は書かない（次の巡で gate が回り直して書く）。\n" +
@@ -93,10 +94,14 @@ func (c *ctx) hold(stdout io.Writer, reason string) error {
 }
 
 // holdMark は、止めた課題の PR の今の commit を渡していれば、印を黄に書き換える。PR が無ければ何も書かない。
-// PR を読めない・印を書けなければ誤り（止まったことを確かめられない）。返すのは何をしたかの1文。
+// report.json や PR を読めない・PR がもうマージされている・印を書けなければ誤り（止まったことを確かめられない）。
+// 返すのは何をしたかの1文。
 func (c *ctx) holdMark() (string, error) {
 	rep, err := c.previous()
-	if err != nil || rep == nil || rep.PR == "" {
+	if err != nil {
+		return "", fmt.Errorf("report.json を読めない（%v）。PR があるかを確かめられない", err)
+	}
+	if rep == nil || rep.PR == "" {
 		return "PR がまだ無いので印は書かない", nil
 	}
 	owner, name, number, ok := contract.ParsePR(rep.PR)
@@ -107,6 +112,9 @@ func (c *ctx) holdMark() (string, error) {
 	state, head, _, have, err := prState(number, slug)
 	if err != nil {
 		return "", fmt.Errorf("PR を読めない（%v）", err)
+	}
+	if state == "MERGED" {
+		return "", fmt.Errorf("PR はもうマージされている（止められない）")
 	}
 	if state != "OPEN" {
 		return fmt.Sprintf("PR は %s なので印は書かない", state), nil
@@ -134,7 +142,8 @@ func (c *ctx) unhold(stdout io.Writer) error {
 		return err
 	}
 	defer unlock()
-	reason, held, err := c.l.Hold(c.l.Log(), c.issue)
+	rows, logErr := c.l.ReadLog()
+	reason, held, err := c.l.Hold(rows, logErr, c.issue)
 	if err != nil {
 		return fail("止めを読めない: %v", err)
 	}
