@@ -155,8 +155,12 @@ func line(n Notification) string {
 		}
 		return s
 	case "signal":
-		// 題は外の人の文。区切りと制御文字を消し、囲いの中に置く（ADR-0011 決めたこと 16）
-		return "signal: " + short("source") + " " + d("key") + "（" + d("url") + "）" + signal.Untrusted(d("title"))
+		// 題は外の人の文。区切りと制御文字を消し、囲いの中に置く（ADR-0011 決めたこと 16）。release は先頭の 12 桁（ADR-0051 決めたこと 7）
+		s := "signal: " + short("source") + " " + d("key") + "（" + d("url") + "）"
+		if _, ok := n.Detail["release"]; ok {
+			s += "release " + clean(n.Detail["release"], 12) + " "
+		}
+		return s + signal.Untrusted(d("title"))
 	case "memory":
 		return "memory: memory が " + d("count") + " 件で線（" + d("line") + " 件）を超えた。臨時のトリアージを足すかを決める"
 	case "idle":

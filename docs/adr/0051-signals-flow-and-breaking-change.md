@@ -14,8 +14,8 @@
 | 4 | `andon create` の下書きに、main の CI の失敗を `now` で読む 1 行を入れる | `internal/create/create.go` | 生きている |
 | 5 | `github-ci` の `release` は、失敗が始まった run の commit にする | `internal/signal/signal.go` | 生きている |
 | 6 | 出来事が続いている間、信号の記録の `release` を書き換えない | `internal/signal/signal.go` | 生きている |
-| 7 | 通知 `signal` の `detail` に `release` を足す | この ADR | まだ実装していない |
-| 8 | Chief of Staff は、`release` から壊した変更の候補を引いて依頼書に書く | この ADR | まだ実装していない |
+| 7 | 通知 `signal` の `detail` に `release` を足す | `internal/dispatcher/signals.go` | 生きている |
+| 8 | Chief of Staff は、`release` から壊した変更の候補を引いて依頼書に書く | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
