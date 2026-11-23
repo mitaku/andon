@@ -26,10 +26,10 @@ grep -qx 'issue start' "$tmp/leaves" && grep -qx 'open' "$tmp/leaves" && [ "$n" 
 # === A7 生成物が表と揃う ===
 "$andon" help --all --markdown >"$tmp/commands.md" && "$andon" help --all --bash >"$tmp/completion" \
   || fail "andon help --all --markdown・--bash が通らない"
-for p in "docs/commands.md:$tmp/commands.md" "image/completions/andon:$tmp/completion"; do
-  f=${p%%:*} g=${p#*:}
+for p in "docs/commands.md:--markdown:$tmp/commands.md" "image/completions/andon:--bash:$tmp/completion"; do
+  IFS=: read -r f flag g <<<"$p"
   if cmp -s "$f" "$g"; then pass "$f は葉の表から作り直しても変わらない"
-  else fail "$f が葉の表と揃わない（andon help --all ${f#image/} で作り直す）: $(diff "$f" "$g" | head -5)"; fi
+  else fail "$f が葉の表と揃わない（andon help --all $flag >$f で作り直す）: $(diff "$f" "$g" | sed -n 1,5p)"; fi
 done
 # 比べ方が何も見ていなくても通らないこと: 説明を1つ変えたものは揃わないと読む
 sed '0,/^| `andon issue start` |/s//| `andon issue start` | 変えた説明 |/' "$tmp/commands.md" >"$tmp/commands.bad"
