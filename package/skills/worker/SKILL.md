@@ -47,7 +47,8 @@ description: Chief of Staff が `andon issue start` で起動した担当とレ�
 
 3. Chief of Staff の address を控える: kanban の `config.yaml` の `chief_of_staff`（自分を起動した端末〈`hc get "$HC_TERMINAL_ID" --json` の `parent`〉は dispatcher のことがあるので使わない）。
    こちらから打ち込むことはない（通知は dispatcher が届ける）が、届いた文の送り手を見分けるのに使う。gate の `fix` は dispatcher から届く。
-4. `kanban start <id>`。`status: doing` になり、`agent` が自分の address になる。
+4. 1 の `kanban show <id>` で `status` を見る。`andon issue start` が自分の端末の名前で `kanban start` を打ってあるので、ふつうは `status: doing` で、`agent` が自分の address になっている。そのときは `kanban start` を打たない。
+   `status` が `todo` のまま（start が `kanban start` に失敗した回。端末は起きている）のときだけ、自分で `kanban start <id>` を打つ。
 
 最初のメッセージが「課題 `<slug>/<id>` の続き。セルが起き直した。…」のときは、起動し直された続き（`andon issue resume`）。依頼書を読み直さず、`kanban list`・`kanban show <id>`・`git status`・`git log` で今の状態を確かめ、報告・問いの続きから進める（`kanban start` は既に `doing` なら要らない）。自分の cwd で `claude`・`codex` を起動しない（別のセッションが cwd の最新になり、resume が違う会話を拾う）。
 
