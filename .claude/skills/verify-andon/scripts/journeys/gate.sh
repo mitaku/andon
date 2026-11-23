@@ -15,10 +15,14 @@ bad=$(jq -c 'select((.decision | IN("approve", "fix", "needs_human") | not) or (
 [ -z "$bad" ] && ok "gt-record: 当てたあとの gate $n 回は、全部が判定・レベル・head・理由の形を持つ" \
   || { fail "gt-record: 形の違う gate の記録がある"; sed 's/^/  | /' <<<"$bad"; }
 
-# gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージかオーナーへ）。課題の今の status を並べる
-while IFS=$'\t' read -r id decision merged; do
-  st=$(cd "$ws" && kanban show "$id" --json 2>/dev/null | jq -r .issue.status) || st='?'
+# gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージかオーナーへ）。課題の今の status を並べる。
+# $ws を cwd にしても kanban は見つからない（projects/*/kanban が複数あり得る）ので、記録のパスから kanban の親を KANBAN_ROOT に渡す
+unread=0
+while IFS=$'\t' read -r id decision merged file; do
+  st=$(KANBAN_ROOT="${file%%/kanban/issues/*}" kanban show "$id" --json 2>/dev/null | jq -r '.issue.status // empty')
+  [ -n "$st" ] || { st='?'; unread=$((unread + 1)); }
   echo "  | $id: 判定 $decision・merged $merged・今の status $st"
-done < <(jq -r '[.id, .decision, (.merged | tostring)] | @tsv' <<<"$recs")
-ok "gt-route: 判定ごとの課題の今の status を並べた（読み方は features/gate.md）"
+done < <(jq -r '[.id, .decision, (.merged | tostring), .file] | @tsv' <<<"$recs")
+[ "$unread" = 0 ] && ok "gt-route: 判定ごとの課題の今の status を並べた（読み方は features/gate.md）" \
+  || fail "gt-route: 課題 $unread 件の今の status を kanban show で読めない"
 [ "$fails" = 0 ]
