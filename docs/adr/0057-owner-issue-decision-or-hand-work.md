@@ -17,8 +17,8 @@
 | 6 | `andon waiting` の出力の形とバージョンは変えず、mod は変えない | `schema/waiting.schema.json`・`tests/host/screen.mjs` | 生きている |
 | 7 | `andon issue ask --new` を足し、オーナーの課題と問いを 1 回で置く | `internal/ledger/ask.go`・`internal/issue/leaves.go`・`process/states/issue.yaml`・`docs/contract.md` §5・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 8 | 手作業の課題は、今の command のまま、印を足して作る | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
-| 9 | トリアージの apply は、判断を問いにして置き、手作業に印を付ける | この ADR | まだ実装していない |
-| 10 | トリアージの種類に `line` を足し、「判断がつかない」は印 `unsure` に替える | この ADR | まだ実装していない |
+| 9 | トリアージの apply は、判断を問いにして置き、手作業に印を付ける | `internal/triage/apply.go`・`internal/triage/decisions.go`・`package/skills/triage/SKILL.md`・`docs/contract.md` §15 のトリアージの読み方 | 生きている |
+| 10 | トリアージの種類に `line` を足し、「判断がつかない」は印 `unsure` に替える | `internal/triage/decisions.go`・`internal/triage/apply.go` の要約・`package/skills/triage/SKILL.md`・`package/skills/chief-of-staff/playbooks/triage.md` | 生きている |
 | 11 | 振り返りの apply が足すオーナーの課題も、問いにして置く | この ADR | まだ実装していない |
 | 12 | 今あるオーナーの課題は、当てたあと Chief of Staff が仕分ける | `CHANGELOG.md` | まだ実装していない。CHANGELOG の「上げるときにすること」は書いた。仕分けは、当てたあとの Chief of Staff の手 |
 | 13 | 守る場所は数え方の 1 か所にし、通知と検査とフックは足さない | この ADR | 生きている |

@@ -79,7 +79,7 @@ steps:
     title: 仕分けを kanban に当てる
     by: machine
     input: [library/decisions.json, library/items.json, library/verdicts.json]
-    output: [kanban（閉じた・足した課題）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
+    output: [kanban（閉じた・足した課題と、判断のオーナーの課題に置いた問い）, library/triage/<日付>-<id>.md, library/triage/<日付>-<id>.json]
     command: andon triage apply
     record: library/triage/<日付>-<id>.json
     next: [{ id: finish }]
@@ -102,4 +102,5 @@ steps:
       - { question: 使い勝手の好み（person に仕分けた項目）, kind: users }
       - { question: 外との約束と公開（person に仕分けた項目）, kind: promise }
       - { question: 消す・本番・権限（person に仕分けた項目）, kind: irreversible }
+      - { question: ラインの変更（person に仕分けた項目）, kind: line }
 counts: [flow.closed, flow.wip_end, flow.wait.todo]
