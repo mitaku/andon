@@ -18,10 +18,10 @@
   - `raw/` — 元資料。書いたら変えない。4種: (1) オーナーの発言の写し（`raw/<日付>-<短い名>.md`。言葉のまま・日付つき。要約しない）、(2) オーナーが持ち込む外の資料（記事・資料）、(3) finish した課題の記録の写し（`raw/<id>/report.md` と、あれば `raw/<id>/corrections.json`）、(4) トリアージで wiki 行きになった memory の写し（`raw/memory/<日付>-<短い名>.md`。言葉のまま）。指摘（findings）・gate の記録は写さず、要れば kanban を指す。
   - `sources/` — 元資料に1対1の要約（`raw/` と同じ名）。front matter に `date`・`source`（`raw/` のパス）。
   - `entities/` — 実体（役・部品・案件・オーナー）ごとに1ページ。例 `entities/owner.md`・`entities/dispatcher.md`。
-  - `topics/` — 概念・運用の題ごとに1ページ（比べたもの・まとめもここ）。例 `topics/review-after-rebase.md`（rebase のあとのレビューの頼み直し）。
+  - `topics/` — 概念・運用のテーマごとに1ページ（比べたもの・まとめもここ）。例 `topics/review-after-rebase.md`（rebase のあとのレビューの頼み直し）。
   - `overview.md` — wiki 全体のまとめ1枚。
   - `index.md` — 目録。種類ごとの節（Sources・Entities・Topics）に、ページごとに1行（リンク・1行の要約）。query は最初にこれを読む。
-  - `log.md` — 追記だけの時系列。ingest・query・lint の1件に1項で、先頭を `## [YYYY-MM-DD] ingest | <題>`（`query`・`lint` も同じ形）に揃える。`grep '^## \[' wiki/log.md` で引ける。
+  - `log.md` — 追記だけの時系列。ingest・query・lint の1件に1項で、先頭を `## [YYYY-MM-DD] ingest | <タイトル>`（`query`・`lint` も同じ形）に揃える。`grep '^## \[' wiki/log.md` で引ける。
 - **元資料を置くとき**（置いたらその場で ingest）:
   - 書く前に秘密（token・鍵・パスワード）と、オーナーが出さないでと言った個人の情報を `<伏せた: 種類>` に置き換える（「言葉のまま」の唯一の例外）。伏せたかを確かめられない資料は写さず、kanban か元の場所を指すだけにする。
   - オーナーの発言: オーナーの答えが推奨案と違ったとき・志向や理由が見えたとき（`blocked.md` の「オーナーに聞くこと」）・オーナーが「残して」と言ったとき。決断そのものは問いの答えと ADR に残るので写さない。
@@ -32,7 +32,7 @@
   1. `sources/` に要約のページを書く（全部は写さない。次に効くもの・確かめた事実・志向）。
   2. 関わる `entities/`・`topics/` のページを直す（無ければ作る）。主張ごとに出典（`sources/` のページ）へリンクする。
   3. `index.md` に足し、直したページの1行も直す。全体の見え方が変われば `overview.md` も直す。
-  4. `log.md` の末尾に `## [YYYY-MM-DD] ingest | <題>` と、触ったページを1行。
+  4. `log.md` の末尾に `## [YYYY-MM-DD] ingest | <タイトル>` と、触ったページを1行。
 - **query**: 引く口は3つ — Chief Engineer の「読む」・課題を切るとき（`cut.md`）・オーナーが Chief of Staff に聞いたとき。`index.md` → ページの順で読み、出典（`sources/` のページか `raw/` の元資料）つきで答える。
   オーナーに答えたもののうち次も使えるものは `topics/` のページにして（戻すかは自分の判断）、`index.md` に足し、`log.md` に `## [YYYY-MM-DD] query | <問い>` を足す。
 - **lint**: ingest 約10件ごと（`log.md` の前の `lint` の項から `ingest` の項を数える）と、オーナーが頼んだとき。定期の課題は作らない。

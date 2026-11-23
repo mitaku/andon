@@ -36,13 +36,13 @@ chk3 "セルの物を指さず案件の repo は Andon の用語を書かない"
 # ADR-0026 A2
 grep -qF 'PR 本文の「トレードオフ」と報告の「見送り」にも写す' "$w" && pass "ADR-0026 A2: worker §4 の見送りの写し先は トレードオフ" || fail "ADR-0026 A2: worker §4 の見送りの写し先が トレードオフ でない"
 # ADR-0026 A3
-d3=$(sed -n '/^# <題>（仕様・設計。日付）$/p' "$ce" docs/design.md | wc -l)
+d3=$(sed -n '/^# <タイトル>（仕様・設計。日付）$/p' "$ce" docs/design.md | wc -l)
 [ "$d3" = 2 ] && ! grep -q 'Chief Engineer の課題 id）' "$ce" docs/design.md \
   && grep -qF 'オーナーの発言の日付だけ' "$ce" && grep -qF 'オーナーの発言の日付だけ' docs/design.md && grep -qF 'オーナーの発言の日付だけ' docs/decisions.md \
   && ! grep -qF '`sources/` のページか `raw/` の元資料' "$ce" \
-  && pass "ADR-0026 A3: CE skill・design.md §1.8・decisions.md の出典は題に課題 id を求めず、セルの wiki と kanban を指さない" || fail "ADR-0026 A3: 文書の形か出典の書き方が古い"
+  && pass "ADR-0026 A3: CE skill・design.md §1.8・decisions.md の出典はタイトルに課題 id を求めず、セルの wiki と kanban を指さない" || fail "ADR-0026 A3: 文書の形か出典の書き方が古い"
 # 否定の検査が当たる場合があること: 古い形を持つ文字列では上の検査が落ちる
-! printf '%s\n' '# <題>（仕様・設計。日付・Chief Engineer の課題 id）' | grep -q '^# <題>（仕様・設計。日付）$' && pass "ADR-0026 A3: 古い題の行は新しい形に当たらない（検査が見ている）" || fail "ADR-0026 A3: 検査が何も見ていない"
+! printf '%s\n' '# <タイトル>（仕様・設計。日付・Chief Engineer の課題 id）' | grep -q '^# <タイトル>（仕様・設計。日付）$' && pass "ADR-0026 A3: 古いタイトルの行は新しい形に当たらない（検査が見ている）" || fail "ADR-0026 A3: 検査が何も見ていない"
 # ADR-0026 A4
 grep -q '^- 番号だけで指さない。この決まりはセルの中のオーナーへの文に効く。PR のタイトルや本文・commit・repo のファイルの文は' package/writing.md \
   && pass "ADR-0026 A4: writing.md の番号の決まりに範囲（セルの中のオーナーへの文。PR と repo の文は除く）がある" || fail "ADR-0026 A4: writing.md の番号の決まりに範囲が無い"

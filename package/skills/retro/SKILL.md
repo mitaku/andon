@@ -27,7 +27,7 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
 
 - 出力は1つの JSON（形は `contract.md` §20）。束は2つの形で入る:
   - `issues[]`: 全文の束。境目（`boundary`。前の振り返りが集めた時刻）より後に片付いた担当の課題。読む起点はここ。
-  - `summaries[]`: 要約の束。境目より前に片付いた担当の課題。題・PR と、つまずきの跡の見出し（`findings` は major 以上の指摘の1行目、`gate_fixes` は gate が返した `fix` の理由、`corrections` は「マージした」以外の手直しの有無、`remember` は Remember の行数）だけを持つ。「同じことが前にもあったか」を引く索引として読む。
+  - `summaries[]`: 要約の束。境目より前に片付いた担当の課題。タイトル・PR と、つまずきの跡の見出し（`findings` は major 以上の指摘の1行目、`gate_fixes` は gate が返した `fix` の理由、`corrections` は「マージした」以外の手直しの有無、`remember` は Remember の行数）だけを持つ。「同じことが前にもあったか」を引く索引として読む。
   - `cut` が `null` でなければ、新しい束が 100 件を超え、古いほうを要約にした。報告に書く。
 - `typed[]` はオーナーが打った文（期間の全部）、`fixes[]` は前の振り返りが切った直しのうちマージから 14 日以内のもの、`previous_retro` は前の振り返り。
 - 要約の束の全文が要るときは id で引く: `andon retro collect [--days N] --issue <id>`（`issues[]` の1件と同じ形）。引くのは、全文の束で拾ったパターンと突き合わせる束だけにする。
@@ -77,7 +77,7 @@ r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/H
 | 段（`level`） | 直し方 | 例 |
 |---|---|---|
 | `design` 設計・型 | schema・command の照合・状態の定義を変え、起きようのない形にする | command が断る・必須のキーにする |
-| `test` テスト・lint | テストか CI の検査にして検出する。gate の条件表もここ | PR の題を検査するテスト |
+| `test` テスト・lint | テストか CI の検査にして検出する。gate の条件表もここ | PR のタイトルを検査するテスト |
 | `check` 決まった手順の確かめ | hook か、command の中の確かめにする | `Stop` フック・`andon issue ready` の確かめ |
 | `skill` skill・指針 | skill・プロファイル・手引き・`AGENTS.md`・`REVIEW.md` の構成や手順を直す | 手順の抜けを足す |
 | `text` 文面 | 言い回しを直す。最後の手段 | 読み違えた1文を書き直す |
@@ -107,16 +107,16 @@ r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/H
 - `fix` の数に上限は無い。`drop` の理由は中身だけで、数の都合（多すぎる・枠が無い）を書かない。
 - `fix` のパターンは優先の順に並べる。効き目の確かな段・オーナーの手直しの多いもの・再発したものを先にする。`andon retro apply` は一覧の順に課題を切るので、課題の番号の順が Chief of Staff の起動の手がかりになる。
 - `drop` は持ち越さない。同じことがまた起きれば、次の振り返りが新しい根拠で拾う。
-- `summary` は直す課題の題になり、その先の PR の要約の元になる。オーナーのコメントやオーナーが打った文の本文・人の名前を写さず、「何が何回起きたか」を自分の言葉で1行に書く。
+- `summary` は直す課題のタイトルになり、その先の PR の要約の元になる。オーナーのコメントやオーナーが打った文の本文・人の名前を写さず、「何が何回起きたか」を自分の言葉で1行に書く。
 
 ## 6. 書く
 
 ```
 andon retro patterns "$id" [--days N] - <<'JSON'
 {"patterns": [
-  {"id": "p1", "summary": "PR の題に課題番号が入り、オーナーが2回直した", "evidence": ["S-0012", "h-6f1c2d3e-0000-4000-8000-000000000001"],
+  {"id": "p1", "summary": "PR のタイトルに課題番号が入り、オーナーが2回直した", "evidence": ["S-0012", "h-6f1c2d3e-0000-4000-8000-000000000001"],
    "level": "test", "action": "add", "target": {"kind": "project", "repo": "github.com/example/sample-site", "paths": ["tests/pr-title.sh"]},
-   "effect": "題に課題番号が入った PR が CI で落ちる。受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- bash tests/pr-title.sh の記録を、報告の acceptance の行が run で指す）。", "risk": "題の検査が、課題番号に似た語を誤って拾う", "decision": "fix", "reason": "テストで止められ、根拠が2件ある"}],
+   "effect": "タイトルに課題番号が入った PR が CI で落ちる。受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- bash tests/pr-title.sh の記録を、報告の acceptance の行が run で指す）。", "risk": "タイトルの検査が、課題番号に似た語を誤って拾う", "decision": "fix", "reason": "テストで止められ、根拠が2件ある"}],
  "fixes": [{"issue": "S-0041", "recurred": 0, "view": "マージのあと 6 件片付き、再発は無い。残す"}]}
 JSON
 ```
