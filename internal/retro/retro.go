@@ -917,10 +917,29 @@ func (r *reader) fix(t *task, gh *github, now time.Time) (Fix, bool) {
 	return Fix{Issue: t.id, Title: t.title, Retro: t.parent, PR: pr, MergedAt: at.UTC().Format(time.RFC3339)}, true
 }
 
-// applied はパッケージの当て直しの記録（ADR-0027。<置き場>/applied.json）。振り返りは最後の1回だけを読む。
+// applied はパッケージの当て直しの記録（ADR-0027。<置き場>/applied.json）。最後の1回と、前に当てた分の並び previous
+// （新しい順。image/apply-main.sh が appliedKept 件まで残す）を読む。previous の無い前のバージョンの記録は最後の1回だけ。
 type applied struct {
+	Commit    string        `json:"commit"`
+	AppliedAt string        `json:"applied_at"`
+	Previous  []appliedPrev `json:"previous"`
+}
+
+type appliedPrev struct {
 	Commit    string `json:"commit"`
 	AppliedAt string `json:"applied_at"`
+}
+
+// appliedKept は image/apply-main.sh が previous に残す件数の上限（`.[:20]`）。並びがこの件数なら、もっと前の当て直しが落ちている。
+const appliedKept = 20
+
+// times は当て直した時刻を新しい順に返す。
+func (a *applied) times() []string {
+	out := []string{a.AppliedAt}
+	for _, p := range a.Previous {
+		out = append(out, p.AppliedAt)
+	}
+	return out
 }
 
 // readApplied は当て直しの記録を読む。無ければ nil, nil。読めなければ err。
@@ -942,14 +961,20 @@ func readApplied(root string) (*applied, error) {
 	if _, err := time.Parse(time.RFC3339, a.AppliedAt); err != nil {
 		return nil, fmt.Errorf("applied_at が時刻でない: %q", a.AppliedAt)
 	}
+	for i, p := range a.Previous {
+		if _, err := time.Parse(time.RFC3339, p.AppliedAt); err != nil {
+			return nil, fmt.Errorf("previous[%d].applied_at が時刻でない: %q", i, p.AppliedAt)
+		}
+	}
 	return &a, nil
 }
 
 // reapplied は課題の途中でパッケージが当て直されたかの印（ADR-0028 決めたこと 14 の 5）。
-//   - 当て直しの記録の applied_at が、最初の起動と片付けの間にある
-//   - 起動の記録のパッケージの commit が、起動ごとに違う（当て直しの記録は最後の1回しか残らないので、前の当て直しはこちらで拾う）
+//   - 当て直しの記録の applied_at（最後の1回か previous のどれか）が、最初の起動と片付けの間にある
+//   - 起動の記録のパッケージの commit が、起動ごとに違う（previous の無い前のバージョンの記録や、previous から落ちた古い当て直しはこちらで拾う）
 //
-// どちらでもなく、どちらかを確かめられない（起動の記録が無い・当て直しの記録が読めない）なら null。
+// どちらでもなく、どちらかを確かめられない（起動の記録が無い・当て直しの記録が読めない・previous が上限まで埋まっていて
+// 最初の起動の時刻まで届かない）なら null。
 func reapplied(launches []map[string]any, doneAt string, a *applied, aerr error) (*bool, []string) {
 	reasons := []string{}
 	yes, unknown := false, false
@@ -980,10 +1005,18 @@ func reapplied(launches []map[string]any, doneAt string, a *applied, aerr error)
 		unknown = true
 		reasons = append(reasons, "起動の記録が無いので、起動の時刻が分からない")
 	case a != nil:
-		at := mustTime(a.AppliedAt)
-		if at.After(start) && at.Before(end) {
-			yes = true
-			reasons = append(reasons, "パッケージを当て直した時刻（"+a.AppliedAt+"）が、起動と片付けの間にある")
+		times := a.times()
+		for _, s := range times {
+			if at := mustTime(s); at.After(start) && at.Before(end) {
+				yes = true
+				reasons = append(reasons, "パッケージを当て直した時刻（"+s+"）が、起動と片付けの間にある")
+			}
+		}
+		// previous が上限まで埋まっていて、残っている一番古い当て直しが起動より後なら、それより前の当て直しは記録から落ちている
+		// （当て直したと言えたら、落ちた分は要らない）
+		if oldest := mustTime(times[len(times)-1]); !yes && len(a.Previous) >= appliedKept && oldest.After(start) {
+			unknown = true
+			reasons = append(reasons, "当て直しの記録が "+strconv.Itoa(appliedKept)+" 件で切れていて、起動の時刻（"+start.UTC().Format(time.RFC3339)+"）まで届かない")
 		}
 	}
 	if yes {
