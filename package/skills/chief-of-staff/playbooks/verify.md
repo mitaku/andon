@@ -1,5 +1,5 @@
 ---
-読む時: マージした変更をセルへ当てたとき（`image/apply-main.sh apply`）と、検証の課題の報告が届いたとき
+読む時: マージした変更をセルへ当てたとき（`image/apply-main.sh apply`）と、検証の課題の報告が届いたときと、検証の課題か点検のルーチン `check-verify` が足した課題を起動するとき（`start.md` の 1 のぶつかりの確かめから）
 消す条件: 「当てる command が、差分が機能の地図に当たるかを見て、検証の課題を自分で足すようになったら」
 ---
 
@@ -8,6 +8,8 @@
 セルへ当てた変更が、セルの本物で利用者と同じ道で動くかを、独立の検証の担当に確かめさせる（ADR-0035 決めたこと 4・9）。手順と機能の地図は、当てた repo の検証の skill（`.claude/skills/verify-andon/`）が持つ。自分は、切るかを決めて切り、届いた報告から直す課題を切るだけ。機能を自分で動かさない。
 
 効くのは、当てた commit に `.claude/skills/verify-andon/` があるとき（Andon の repo）だけ。無ければ何もしない。ほかの案件の repo には広げない。
+
+検証の課題（タイトルが「検証: 」）と、点検のルーチン `check-verify` が足した課題（`routine: check-verify`。タイトルが「点検: 」）は、どちらも地図の機能をセルの本物で動かすので同時に動かさない。どちらかが `doing`・`review` の間は、もう一方を起動しない（`kanban list --json | jq -r '.[] | select(.status == "doing" or .status == "review") | select((.title | startswith("検証: ")) or .routine == "check-verify") | .id'` が出れば待つ）。
 
 ## 当てたら
 

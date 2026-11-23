@@ -20,8 +20,8 @@
 | 10 | 撃つ数は空いた枠の数までにし、起動できる課題の数は引かない | `internal/dispatcher/idle.go` | 生きている |
 | 11 | 起動されないまま 15 分残った課題は、通知 `idle` で Chief of Staff に 1 回だけ知らせる | `internal/dispatcher/idle.go`・`schema/notification.schema.json`・`docs/contract.md` §6 | 生きている |
 | 12 | kanban の整合（`kanban lint`）は、空きを見た回に dispatcher が打つ | `internal/dispatcher/idle.go` | 生きている |
-| 13 | wiki の lint は、通知 `idle` を受けたターンに Chief of Staff が今の条件のまま回す | この ADR | まだ実装していない |
-| 14 | Chief of Staff の手は、手引き `idle.md` の 1 枚に置く | この ADR | まだ実装していない |
+| 13 | wiki の lint は、通知 `idle` を受けたターンに Chief of Staff が今の条件のまま回す | `package/skills/chief-of-staff/playbooks/idle.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 14 | Chief of Staff の手は、手引き `idle.md` の 1 枚に置く | `package/skills/chief-of-staff/playbooks/idle.md` | 生きている |
 | 15 | 空きで回した仕事から出るオーナーの課題は、今と同じ線で切り、1 日の数に上限を置かない | この ADR | まだ実装していない |
 | 16 | 空きの仕事のトークンと Chief of Staff の手には上限を置かず、線と、止める設定 1 つで抑える | この ADR | まだ実装していない |
 | 17 | Chief of Staff が留守の間と、オーナー待ちが上限に達している間は、空きを見ない | `internal/dispatcher/idle.go` | 生きている |
