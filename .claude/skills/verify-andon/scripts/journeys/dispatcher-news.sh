@@ -40,15 +40,18 @@ fi
 # paused・片付いていない課題・検証する間に足した課題。paused のルーチンと、課題が片付かずに残っているルーチンは空きでも撃たないので、
 # 撃てるものが無ければ撃つところは見られない。履歴の fired は dispatcher の空きと schedule の別を持たない
 echo "-- dn-idle: 空きで撃てるルーチン（名前・idle_hours・paused・片付いていない課題・検証する間に足した課題）"
+# yval <欄> <ファイル>: 頭の欄の値（YAML と同じく、前に空白のある # から後を注釈として外す）。欄が無ければ何も出さず 1
+yval() { grep -q "^$1:" "$2" || return 1; sed -n "s/^$1:[[:space:]]*//p" "$2" | sed -n 1p | sed -E 's/(^|[[:space:]]+)#.*$//; s/[[:space:]]+$//'; }
 can=0 hrs=0
 for k in "$ws"/projects/*/kanban; do
   for r in "$k"/routines/*.yaml; do
     [ -f "$r" ] || continue
     n=${r##*/}; n=${n%.yaml}
-    h=$(sed -n 's/^idle_hours:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$r" | sed -n 1p)
+    h=$(yval idle_hours "$r")
     hv=0; [[ "$h" =~ ^[1-9][0-9]*$ ]] && hv=1
     case $n in triage | retro) hv=1 ;; *) [ -n "$h" ] || continue; [ "$hv" = 0 ] || hrs=$((hrs + 1)) ;; esac
-    pz=$(grep -c -x 'paused:[[:space:]]*true' "$r" || true)
+    # dispatcher（routineOn）が撃つのは paused が無いか、真偽値の false のときだけ。true・引用符の文字列・空・null は撃たない
+    pz=1; if ! pv=$(yval paused "$r"); then pz=0; else case $pv in false | False | FALSE) pz=0 ;; esac; fi
     open=$(grep -l -x "routine: $n" "$k"/issues/*/issue.yaml 2>/dev/null | xargs -r grep -L -x 'status: done' | sed 's#.*/issues/\([^/]*\)/issue.yaml#\1#' | tr '\n' ' ')
     fired=$(dsince "$k/log.jsonl" | jq -r --arg n "$n" 'select(.routine == $n and .fired != null) | "\(.fired)@\(.at)"' 2>/dev/null | tr '\n' ' ')
     s=${k%/kanban}; echo "  | ${s##*/}: $n idle_hours=${h:--}$([ "$hv" = 1 ] || echo '（1 以上の整数でないので撃たない）') paused=$([ "$pz" = 0 ] && echo false || echo true) open=[${open% }] fired=[${fired% }]"
