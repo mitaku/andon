@@ -2,7 +2,9 @@ package ledger
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -77,15 +79,28 @@ func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []s
 // 問いは確かめたもの（contract.ParseQuestion）を渡す。scope の問い（Chief of Staff が答える）は置かない。
 // after があれば課題は queued で作られ、その課題にも問いを置く。
 // 同じタイトルで同じ parent の片付いていない課題が、問いを持たずにあれば、足し直さずにその課題へ続きを置く（足したあと who を
-// 書く前や問いを置く前に落ちた回の打ち直し）。問いを持っていれば、同じ問いを 2 つ足さないよう断る。
+// 書く前や問いを置く前に落ちた回の打ち直し）。問いを持っていれば、同じ問いを 2 つ足さないよう断る。ただし問いが q と同じ 1 つだけで、
+// 問いの控えが無ければ（kanban ask のあと控えを書く前に落ちた回）、控えだけを書き直して続ける（RestoreQuestion）。
 // 足した id と kanban の CLI の返事（<id>#<n>）を返す。課題を足したあとで落ちたら、足した id と打ち直す command を誤りに書く。
 func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string, after []string) (string, string, error) {
 	if q.Kind == "scope" {
 		return "", "", fmt.Errorf("scope の問いはオーナーの課題に置かない（Chief of Staff が答える問い。kind は business/users/promise/irreversible/line）")
 	}
-	id, err := l.unfinished(title, parent)
+	id, asked, err := l.unfinished(title, parent)
 	if err != nil {
 		return "", "", err
+	}
+	if asked > 0 {
+		if asked == 1 {
+			restored, err := l.RestoreQuestion(id, q)
+			if err != nil {
+				return id, "", err
+			}
+			if restored {
+				return id, id + "#1", nil
+			}
+		}
+		return "", "", fmt.Errorf("同じ問いのオーナーの課題 %s がもうある（問いを足すなら andon issue ask %s -）", id, id)
 	}
 	if id == "" {
 		args := []string{"add", "--brief", "-"}
@@ -112,13 +127,13 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 	return id, out, nil
 }
 
-// unfinished は、タイトルが title で parent が同じ（どちらも無いも同じに数える）片付いていない（done でない）課題のうち、
-// 問いを持たないものの id を返す。無ければ空。問いを持つものがあれば、同じ問いのオーナーの課題がもうあるとして誤りを返す。
+// unfinished は、タイトルが title で parent が同じ（どちらも無いも同じに数える）片付いていない（done でない）課題の id と、
+// その課題に置かれた問いの数を返す。無ければ空。
 // parent を見るのは、別の振り返りが足した同じタイトルの課題を、この振り返りの課題と取り違えないため。
-func (l *Ledger) unfinished(title, parent string) (string, error) {
+func (l *Ledger) unfinished(title, parent string) (string, int, error) {
 	tasks, err := l.List()
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	for _, t := range tasks {
 		if t.Str("title") != title || t.Str("status") == "done" || CanonID(t.Str("parent")) != CanonID(parent) {
@@ -127,14 +142,44 @@ func (l *Ledger) unfinished(title, parent string) (string, error) {
 		id := t.Str("id")
 		n, err := l.Questions(id)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
-		if n > 0 {
-			return "", fmt.Errorf("同じ問いのオーナーの課題 %s がもうある（問いを足すなら andon issue ask %s -）", id, id)
-		}
-		return id, nil
+		return id, n, nil
 	}
-	return "", nil
+	return "", 0, nil
+}
+
+// RestoreQuestion は、課題 id の 1 つ目の問いの控え（library/questions/1.json）が無く、kanban の 1 つ目の問いの文が q の文
+// （q.Text()）と同じなら、控えを q で書き、true を返す。kanban ask のあと控えを書く前に落ちた回の打ち直しで呼ぶ（控えが無いと
+// andon waiting に選択肢が出ず、オーナーが答えられない）。控えがあるか、文が違えば何も書かずに false。
+func (l *Ledger) RestoreQuestion(id string, q *contract.Question) (bool, error) {
+	p := filepath.Join(l.Library(id), "questions", "1.json")
+	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+		return false, err
+	}
+	out, err := l.Run("", "show", id, "--json")
+	if err != nil {
+		return false, err
+	}
+	var v struct {
+		Questions []struct {
+			N    int    `json:"n"`
+			Text string `json:"text"`
+		} `json:"questions"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		return false, fmt.Errorf("課題 %s が読めない", id)
+	}
+	if len(v.Questions) == 0 || v.Questions[0].N != 1 || v.Questions[0].Text != strings.TrimRight(q.Text(), " \t\r\n") {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return false, err
+	}
+	if err := contract.Write(p, contract.SchemaQuestion, q); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Questions は課題 id に置かれた問いの数（状態を問わない）。

@@ -114,6 +114,13 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		return err
 	}
 
+	return l.applyItems(id, date, base, data, items, past, memoryPath, stdout)
+}
+
+// applyItems は確かめ終えた決定（items）を1つずつ kanban に当て、当てるたびに記録（base の .json）を書き直し、終われば要約（.md）を書く。
+// date は当てた日、base は記録の置き場（library/triage/<日付>-<id>。拡張子なし）、data は decisions.json の残りの欄、past は閉じる課題ごとに越える問い、
+// memoryPath は仕分けの済んだ memory の置き場。
+func (l *ledger) applyItems(id, date, base string, data obj, items []item, past map[string][]int, memoryPath map[string]string, stdout io.Writer) error {
 	// 当てた決定を1つずつ記録する。途中で kanban の CLI が落ちても、どこまで当たったかが残り、黙って当て直されない。
 	if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
 		return err
@@ -191,7 +198,7 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	if err := os.WriteFile(base+".md", []byte(md), 0o644); err != nil {
 		return err
 	}
-	_, err = io.WriteString(stdout, md)
+	_, err := io.WriteString(stdout, md)
 	return err
 }
 

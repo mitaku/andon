@@ -646,6 +646,19 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
 		}
 	})
+	// kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まった課題は、足した行が無い。印と題が合えば埋める
+	t.Run("added without the add row", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		adding(f, "Add the button", "terminal:t5")
+		if err := os.WriteFile(filepath.Join(f.root, "kanban", "log.jsonl"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		want := "kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"
+		if rc, out, errs := f.run(); rc != 0 || !f.has(want) {
+			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+	})
 	for _, c := range []struct{ name, title, by string }{
 		{"added before recorded by another terminal", "Add the button", "terminal:t9"},
 		{"added before recorded with another title", "Other", "terminal:t5"},
