@@ -35,6 +35,7 @@ change() { # change <path> <行>: origin に commit して head を返す
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 d=$tmp/gh
+echo "\$*" >> \$d/calls   # 呼ばれたことの控え（止めている課題で gate が GitHub を読まないことを見る）
 case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view 7 --repo example/app --json "*) cat \$d/view.json ;;
@@ -522,5 +523,26 @@ got=$(gate "$sid")
     { cat "$tmp/out" "$tmp/err" >&2; die "照合が外れた candidates に rc $got"; }
 [ ! -e "kanban/issues/$sid/library/gate" ] && [ ! -e "$tmp/gh/posted" ] || die '照合が外れた candidates なのに記録・GitHub に書いた'
 ok 'deliverable: candidates は回さず終了コード 3（記録しない）。最後に書いたのが Chief of Staff でなくても PR を求めない'
+
+# 13. 止めている課題（予約キー hold。ADR-0056 決めたこと 9・10。受け入れ条件 A4）: gate は GitHub を読まずに wait を返し、記録も印も書かない
+HC_TERMINAL_ID=t5 kanban set "$id" agent=t7 >/dev/null   # 担当の端末は t7
+HC_TERMINAL_ID=t5 kanban set "$id" hold="$sid" >/dev/null
+nrec=$(ls "$lib/gate" | wc -l)
+rm -f "$tmp/gh/posted" "$tmp/gh/calls"
+got=$(gate "$id"); expect 5 wait "理由の課題 $sid"
+got=$(gate "$id" --dry-run); expect 5 wait '止めている'
+[ ! -e "$tmp/gh/calls" ] && [ ! -e "$tmp/gh/posted" ] && [ "$(ls "$lib/gate" | wc -l)" = "$nrec" ] || die "止めている課題で GitHub を読んだか記録を書いた: $(cat "$tmp/gh/calls" 2>/dev/null)"
+cp "$log" "$tmp/log.bak"
+jq -c --arg id "$id" 'if .id == $id and .change.status == "review" then .at = "2020-01-01T00:00:00Z" else . end' "$tmp/log.bak" > "$log"
+got=$(gate "$id"); expect 5 wait '止めている'
+cp "$tmp/log.bak" "$log"
+ok '止めている課題の gate は、GitHub を1度も読まずに wait（記録も印も書かない。--dry-run も同じ）。review から github_checks_wait_minutes を過ぎても wait のまま'
+HC_TERMINAL_ID=t7 kanban set "$id" hold= >/dev/null
+got=$(gate "$id" --dry-run); expect 5 wait "理由の課題 $sid"
+[ ! -e "$tmp/gh/calls" ] || die '担当が消した hold で GitHub を読んだ'
+HC_TERMINAL_ID=t5 kanban set "$id" hold= >/dev/null
+got=$(gate "$id" --dry-run); expect 1 fix 'runs/9.json'
+[ -s "$tmp/gh/calls" ] || die 'Chief of Staff が外したのに GitHub を読まない'
+ok 'hold を最後に消したのが担当の端末なら止めているものとして wait、Chief of Staff の端末が消したら判定に進む（ADR-0056 決めたこと 10）'
 
 echo "all passed ($pass)"
