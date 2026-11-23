@@ -6,6 +6,8 @@ EXTENDS IssueRules
 
 BrokenDispatcherMerges ==
     /\ status = "review" /\ gate = "approve" /\ ~told /\ pr = "open"
+    /\ ~hold /\ (required => mark = "ok")
+    /\ badMerge' = (badMerge \/ hold)
     /\ pr' = "merged" /\ autoMerged' = TRUE
     /\ IF q
        THEN /\ told' = TRUE
@@ -13,7 +15,7 @@ BrokenDispatcherMerges ==
        ELSE /\ Finish
             /\ UNCHANGED told
     /\ UNCHANGED <<gate, moved, fixSent, q, cancel, mergeAuto, qVars>>
-    /\ UNCHANGED mark
+    /\ UNCHANGED <<mark, hold, required, rel>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -25,7 +27,7 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

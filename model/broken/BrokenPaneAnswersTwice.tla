@@ -8,7 +8,7 @@ BrokenOwnerAnswersInPane ==
     /\ q /\ status # "done"
     /\ ans' = "pane" /\ twice' = (twice \/ ans # "none")
     /\ UNCHANGED <<status, worker, wt, pr, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged, news, sent>>
-    /\ UNCHANGED mark
+    /\ UNCHANGED <<mark, hold, required, rel, badMerge>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ BrokenOwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -20,7 +20,7 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

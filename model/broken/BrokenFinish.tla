@@ -15,7 +15,7 @@ BrokenCancels ==
     /\ cancel' = TRUE
     /\ BrokenFinishStep
     /\ UNCHANGED <<pr, gate, fixSent, told, q, mergeAuto, moved, autoMerged, qVars>>
-    /\ UNCHANGED mark
+    /\ UNCHANGED <<mark, hold, required, rel, badMerge>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -27,7 +27,7 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ BrokenCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

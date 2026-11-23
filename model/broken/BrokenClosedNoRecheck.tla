@@ -8,7 +8,7 @@ BrokenPRCloses ==
     /\ status \in {"doing", "review"}
     /\ pr = "open" /\ pr' = "closed"
     /\ UNCHANGED <<status, worker, wt, reviewVars, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged, qVars>>
-    /\ UNCHANGED mark
+    /\ UNCHANGED <<mark, hold, required, rel, badMerge>>
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -20,7 +20,7 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
     \/ HeadMovesAfterGate \/ BrokenPRCloses \/ MergeSettingChanges
-    \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 
