@@ -134,7 +134,7 @@ func TestAnswerDecidedBy(t *testing.T) {
 	root := routineLedger(t)
 	t.Setenv("HC_TERMINAL_ID", "t2")
 	kanban(t, root, "add", "Export")
-	for range 5 {
+	for range 7 {
 		kanban(t, root, "ask", "W-0001", "CSV only?", "--kind", "users")
 	}
 	qfile := filepath.Join(taskDir(root, "W-0001"), "questions.yaml")
@@ -169,7 +169,11 @@ func TestAnswerDecidedBy(t *testing.T) {
 	kanbanIn(t, root, "closed by gate\n", "answer", "W-0001#3", "-", "--decided-by", "machine")
 	kanban(t, root, "answer", "W-0001#4", "no mark")
 	kanban(t, root, "answer", "W-0001#5", "--decided-by", "owner", "--", "-d", "--starts with dashes")
-	want := map[int]string{1: "owner", 2: "chief-of-staff", 3: "machine", 4: "", 5: "owner"}
+	// The form the code writers use: the flag first, then --, then <id>#<n> and the words (none of them loose).
+	kanban(t, root, "answer", "--decided-by", "machine", "--", "W-0001#6", "-gate closed it")
+	// A word that starts with - and a letter of another script is an answer, not a flag.
+	kanban(t, root, "answer", "W-0001#7", "-はい")
+	want := map[int]string{1: "owner", 2: "chief-of-staff", 3: "machine", 4: "", 5: "owner", 6: "machine", 7: ""}
 	for _, q := range questionsOf(t, root, "W-0001") {
 		n := q["n"].(int)
 		got, has := q["decidedBy"]
@@ -180,8 +184,10 @@ func TestAnswerDecidedBy(t *testing.T) {
 			t.Errorf("#%d: %v", n, q)
 		}
 	}
-	if q := questionsOf(t, root, "W-0001")[4]; q["answer"] != "-d --starts with dashes" {
-		t.Errorf("#5 answer = %v", q["answer"])
+	for i, a := range map[int]string{4: "-d --starts with dashes", 5: "-gate closed it", 6: "-はい"} {
+		if q := questionsOf(t, root, "W-0001")[i]; q["answer"] != a {
+			t.Errorf("#%d answer = %v, want %q", i+1, q["answer"], a)
+		}
 	}
 	if strings.Contains(read(logFile), "decidedBy") {
 		t.Errorf("the log has the mark (it has only the number and status): %s", read(logFile))
@@ -193,7 +199,7 @@ func TestAnswerDecidedBy(t *testing.T) {
 	var listed []map[string]any
 	json.Unmarshal([]byte(kanban(t, root, "questions", "--json")), &listed)
 	for name, qs := range map[string][]map[string]any{"show --json": shown.Questions, "questions --json": listed} {
-		if len(qs) != 5 || qs[0]["decidedBy"] != "owner" || qs[2]["decidedBy"] != "machine" {
+		if len(qs) != 7 || qs[0]["decidedBy"] != "owner" || qs[2]["decidedBy"] != "machine" {
 			t.Errorf("%s: %v", name, qs)
 		}
 		if _, has := qs[3]["decidedBy"]; has {
@@ -202,8 +208,8 @@ func TestAnswerDecidedBy(t *testing.T) {
 	}
 	kanban(t, root, "ask", "W-0001", "another")
 	var answered map[string]any
-	json.Unmarshal([]byte(kanban(t, root, "answer", "W-0001#6", "--decided-by", "chief-of-staff", "--json", "ok")), &answered)
-	if answered["decidedBy"] != "chief-of-staff" || answered["name"] != "W-0001#6" {
+	json.Unmarshal([]byte(kanban(t, root, "answer", "W-0001#8", "--decided-by", "chief-of-staff", "--json", "ok")), &answered)
+	if answered["decidedBy"] != "chief-of-staff" || answered["name"] != "W-0001#8" {
 		t.Errorf("answer --json: %v", answered)
 	}
 	kanban(t, root, "lint")

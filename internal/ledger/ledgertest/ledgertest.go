@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -103,13 +104,22 @@ func Kanban(t testing.TB) string {
 	if err != nil {
 		t.Skip("go が無い")
 	}
+	// go test は build した kanban の元を入力と見ないので、元を読んで入力に数えさせる（元を変えたのに前の結果が
+	// キャッシュから返らないように）。
+	repo := filepath.Join(Dir(), "..", "..")
+	srcs, _ := filepath.Glob(filepath.Join(repo, "cmd", "kanban", "*.go"))
+	for _, f := range srcs {
+		if _, err := os.ReadFile(f); err != nil {
+			t.Fatal(err)
+		}
+	}
 	dir := t.TempDir()
 	name := "kanban"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
 	c := exec.Command(gobin, "build", "-o", filepath.Join(dir, name), "./cmd/kanban")
-	c.Dir = filepath.Join(Dir(), "..", "..")
+	c.Dir = repo
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("kanban の CLI を build できない: %v\n%s", err, out)
 	}
