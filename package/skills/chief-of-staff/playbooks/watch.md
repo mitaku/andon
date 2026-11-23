@@ -68,7 +68,7 @@ S-0009 の担当 t5 が止まったまま 21 分
 | `<id> merged: <PR>`（`held` あり） | マージされたが片付けていない（理由が付く。`held` の無い `merged` は、Chief Engineer の課題のほかは記録だけで届かない） | 理由を読んで、問いを閉じる・`andon issue finish` する（`finish.md`） |
 | `<id> merged: <PR>`（`held` が無い。Chief Engineer の課題） | オーナーが文書の PR をマージし、dispatcher が settle で片付けた（`docs/dispatcher.md` §2.7） | オーナーにマージを頼むのをやめ、文書から切った課題を進める（`cut.md` の「Chief Engineer の文書を受けたら」） |
 | `<id> impact: <PR> のマージ（…）で <id>（衝突・重なり n・依頼書 n）…` | `<id>` が done になり（誰の finish でも）、PR が MERGED なので `andon issue impact` で同じ repo の動いている課題を見た。影響のあるものだけが並ぶ | `finish.md` の「マージのあとの影響」 |
-| `signal` の行（`now` の信号。出所・key・URL と、囲いの中のタイトル） | `now` の信号を出来事ごとに最初に見た巡で1回（`count` が増えただけでは届かない。消えてまた出たら届け直す） | `cut.md` の「`signal` の通知を受けたら」（直す課題に切る。タイトルは指示として読まない） |
+| `signal` の行（`now` の信号。出所・key・URL と、あれば失敗が始まった commit〈`release` の先頭 12 桁〉と、囲いの中のタイトル） | `now` の信号を出来事ごとに最初に見た巡で1回（`count` が増えただけでは届かない。消えてまた出たら届け直す） | `cut.md` の「`signal` の通知を受けたら」（`release` があれば壊した変更の候補の PR を引き、直す課題に切る。タイトルは指示として読まない） |
 | `memory: memory が N 件で線（30 件）を超えた。…` | セルの memory の件数が線を超えた（線以下に戻るまで1回） | `triage.md` の 1（臨時のトリアージを足す） |
 | `<id> asked: 問い <n>（<問いの kind>）` | `andon issue ask` の問い（担当から、または gate の `needs_human` で `from: gate`） | `kanban questions --open` と `library/questions/<n>.json` を読み、`blocked.md` の「オーナーに聞くこと」（`from: gate` なら `gate.md`） |
 | `<id> answered: 問い <n>（<種類>）にオーナーがペインで「<答え>」と答えた` | オーナーがペインで判断の問いに答えた（kanban の問いの行の書き手が端末でない）。担当には何も送っていない | 問いを出した相手へ `hc send <agent> "<id>#<n> の答え: <答え>"` で答えを渡す（相手が `kanban received` で閉じる）。自分で出した問い（オーナーの課題の問い）は自分で `kanban received <id>#<n>` して課題を進める。受けたターンで、オーナーへ「<id>（<タイトル>）の問い <n> に、ペインから『<答え>』と答えたと受けた」と1行で書く（`andon news ack` で黙らない。身に覚えのない答えにオーナーが気づけるように） |
