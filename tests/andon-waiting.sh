@@ -8,6 +8,8 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
+# set -e は A && B の A が偽でも止まらないので、並べた確かめには || die を付ける
+die() { echo "FAIL $*" >&2; exit 1; }
 unset HC_TERMINAL_ID HC_TERMINAL_SOCKET
 mkdir -p "$tmp/bin"
 for name in gh git kanban; do
@@ -82,6 +84,6 @@ set +e
 "$andon" waiting --project nothing >/dev/null 2>"$tmp/err"; rc=$?
 "$andon" waiting --bogus >/dev/null 2>&1; rc2=$?
 set -e
-[[ $rc == 1 ]] && grep -q 'プロジェクト nothing の kanban が無い' "$tmp/err"
+[[ $rc == 1 ]] && grep -q 'プロジェクト nothing の kanban が無い' "$tmp/err" || die "無いプロジェクトを終了コード 1 で断らない（rc=$rc）"
 [[ $rc2 == 2 ]]
 echo 'ok 無いプロジェクトは終了コード 1、知らない引数は 2'

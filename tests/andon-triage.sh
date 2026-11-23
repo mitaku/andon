@@ -7,6 +7,8 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/andon.sh"
 . "$(dirname "$0")/lib/kanban.sh"
+# set -e は A && B の A が偽でも止まらないので、並べた確かめには || die を付ける
+die() { echo "FAIL $*" >&2; exit 1; }
 script=$andon
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1
 # auto memory の置き場（<ANDON_WORKSPACE>/memory）は、memory の節まで作らない（無くても collect は落ちない）。
@@ -153,7 +155,7 @@ git -C "$ANDON_WORKSPACE" -c user.name=x -c user.email=other@example.com commit 
 set +e
 "$script" triage apply "$triage" --dry-run >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q '起動する上限を決められない' "$tmp/err"
+[[ $rc == 1 ]] && grep -q '起動する上限を決められない' "$tmp/err" || die "起動する上限を決められないのに断らない（rc=$rc）"
 rm -rf "$ANDON_WORKSPACE"
 snapshot > "$tmp/after"
 cmp "$tmp/before" "$tmp/after"
@@ -165,7 +167,7 @@ for filter in ".items[0].commit=\"$stale\"" 'del(.items[0].commit)'; do
     set +e
     "$script" triage apply "$triage" --dry-run >/dev/null 2> "$tmp/err"; rc=$?
     set -e
-    [[ $rc == 1 ]] && grep -q '見た commit が collect の出したもの' "$tmp/err"
+    [[ $rc == 1 ]] && grep -q '見た commit が collect の出したもの' "$tmp/err" || die "見た commit が古いか無い判定を断らない（$filter、rc=$rc）"
 done
 cp "$tmp/good" "$file"
 "$script" triage apply "$triage" --dry-run >/dev/null
@@ -175,7 +177,7 @@ set +e
 "$script" triage apply "$triage" --dry-run >/dev/null 2> "$tmp/err"; rc=$?
 set -e
 mv "$tmp/items.away" "kanban/issues/$triage/library/items.json"
-[[ $rc == 1 ]] && grep -q 'library/items.json が無い' "$tmp/err"
+[[ $rc == 1 ]] && grep -q 'library/items.json が無い' "$tmp/err" || die "collect の記録が無いのに断らない（rc=$rc）"
 # 前の collect の出力（commit の無い項目の配列）と commit の無い判定の組は、照らせないので通らない（レビューの指摘）。
 cp "kanban/issues/$triage/library/items.json" "$tmp/items.keep"
 jq '[.items[]|del(.commit)]' "$tmp/items.keep" > "kanban/issues/$triage/library/items.json"
@@ -183,13 +185,13 @@ jq '.items[]|=del(.commit)' "$tmp/good" > "$file"
 set +e
 "$script" triage apply "$triage" --dry-run >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q 'library/items.json を読めない' "$tmp/err"
+[[ $rc == 1 ]] && grep -q 'library/items.json を読めない' "$tmp/err" || die "前の形の collect の記録を断らない（rc=$rc）"
 # commits を空にしても同じ。
 jq '.commits={}' "$tmp/items.keep" > "kanban/issues/$triage/library/items.json"
 set +e
 "$script" triage apply "$triage" --dry-run >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q '見た commit を照らせない' "$tmp/err"
+[[ $rc == 1 ]] && grep -q '見た commit を照らせない' "$tmp/err" || die "commits が空の記録を断らない（rc=$rc）"
 cp "$tmp/items.keep" "kanban/issues/$triage/library/items.json"; cp "$tmp/good" "$file"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok apply: a stale or missing commit is refused, the collected one passes'
@@ -230,19 +232,19 @@ jq -e '.review|all(.text and .reason and .from and .closing)' "$tmp/plan" >/dev/
 set +e
 "$script" triage apply "$triage" --max-issues 2 >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q 'Chief of Staff の判定が 2 件足りない' "$tmp/err"
+[[ $rc == 1 ]] && grep -q 'Chief of Staff の判定が 2 件足りない' "$tmp/err" || die "判定の無い課題の閉じを断らない（rc=$rc）"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 [[ $(kanban show "$todo" --json | jq -r .issue.status) == todo && $(kanban show "$person" --json | jq -r .issue.status) == todo ]]
 # 判定を書くのは Chief of Staff の端末だけ。判定の要らない項目には書けない。
 set +e
 HC_TERMINAL_ID=t99 "$script" triage verdict "$triage" "$todo_key" ok >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q 'Chief of Staff の端末だけ' "$tmp/err"
+[[ $rc == 1 ]] && grep -q 'Chief of Staff の端末だけ' "$tmp/err" || die "Chief of Staff でない端末の判定を断らない（rc=$rc）"
 lib_key=$(jq -r --arg l "$lib" '.[]|select(.from==$l).key' "$tmp/items")
 set +e
 verdict "$triage" "$lib_key" ok >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q '判定の要らない項目' "$tmp/err"
+[[ $rc == 1 ]] && grep -q '判定の要らない項目' "$tmp/err" || die "判定の要らない項目への判定を断らない（rc=$rc）"
 [[ ! -e kanban/issues/$triage/library/verdicts.json ]]
 verdict "$triage" "$todo_key" ok | grep -q '閉じてよい'
 verdict "$triage" "$person_key" ok >/dev/null
@@ -280,7 +282,7 @@ for issue in $created; do
         [[ "$last" == "terminal:t50" ]] || { echo "$issue の $k を最後に書いたのが $last" >&2; exit 1; }
     done
     review=$(kanban show "$issue" --json | jq -r .issue.review)
-    grep -qx -- "- Review: $review" "kanban/issues/$issue/brief.md" && grep -qx -- '- Estimate: 中' "kanban/issues/$issue/brief.md"
+    grep -qx -- "- Review: $review" "kanban/issues/$issue/brief.md" && grep -qx -- '- Estimate: 中' "kanban/issues/$issue/brief.md" || die "$issue の依頼書に Review: $review か Estimate: 中 の行が無い"
 done
 echo 'ok apply: fix and bundle issues carry the reserved keys written by the Chief of Staff terminal'
 collect "$tmp/again" --limit 100
@@ -382,7 +384,7 @@ exec "%s" "$@"
 chmod +x "$tmp/race-bin/kanban"
 PATH="$tmp/race-bin:$PATH" "$script" triage apply "$race" > "$tmp/race-md"
 [[ $(cat "$mem/race.md") == $'race の学び\n書きかけの新しい学び' && ! -e $mem/gone.md ]]
-grep -q '(race.md)' "$mem/MEMORY.md" && ! grep -q '(gone.md)' "$mem/MEMORY.md"
+grep -q '(race.md)' "$mem/MEMORY.md" && ! grep -q '(gone.md)' "$mem/MEMORY.md" || die "MEMORY.md に race.md の行が無いか、gone.md の行が残る"
 rec=$(ls kanban/library/triage/*-"$race".json)
 jq -e '[.items[]|select(.memory_kept)] | length==1 and .[0].decision=="fix" and (.[0].created_issue|length>0)' "$rec" >/dev/null
 jq -e '[.items[]|select(.decision=="close")][0] | has("memory_kept")|not' "$rec" >/dev/null
@@ -519,7 +521,7 @@ dry() { "$script" triage apply "$judge" --dry-run 2> "$tmp/err"; }
 refused() { set +e; "$@" >/dev/null 2> "$tmp/err"; local rc=$?; set -e; [[ $rc == 1 ]]; }
 # 受け入れ条件 1: 閉じ方の欄が無い close は通らない。欄を足すと通る。
 d next 'src の次' - | judge_with
-refused dry && grep -q 'close に閉じ方（closing）が無い' "$tmp/err"
+refused dry && grep -q 'close に閉じ方（closing）が無い' "$tmp/err" || die "閉じ方の欄が無い close を断らない"
 d next 'src の次' done | judge_with
 dry >/dev/null
 echo 'ok closing: a close without the closing field is refused, with it passes (AC 1)'
@@ -527,10 +529,10 @@ echo 'ok closing: a close without the closing field is refused, with it passes (
 for bad in "next|src の次|wont-happen" "remember|src の学び|wont-happen"; do
     IFS='|' read -r k t c <<<"$bad"
     d "$k" "$t" "$c" | judge_with
-    refused dry && grep -q "閉じ方 $c は $k の項目に使えない" "$tmp/err"
+    refused dry && grep -q "閉じ方 $c は $k の項目に使えない" "$tmp/err" || die "$k の項目の閉じ方 $c を断らない"
 done
 jq -c --arg o "$open" '.items[]|select(.from==$o and .kind=="issue")|{key,commit,decision:"close",closing:"one-off",reason:"その場限り"}' "$jl/items.json" | judge_with
-refused dry && grep -q '閉じ方 one-off は issue の項目に使えない' "$tmp/err"
+refused dry && grep -q '閉じ方 one-off は issue の項目に使えない' "$tmp/err" || die "issue の項目の閉じ方 one-off を断らない"
 { d waived 'src の見送り' wont-happen; d remember 'src の学び' one-off; } | judge_with
 dry >/dev/null
 echo 'ok closing: judgment closes pass only in the decided pairs (AC 2)'
@@ -543,11 +545,11 @@ echo 'ok dry-run: judgment closes come out in a separate table with text, reason
 # 受け入れ条件 9: 判定なし・1件だけ「閉じてよい」は断り、kanban と記録の置き場が変わらない。
 wkey=$(d waived 'src の見送り' wont-happen | jq -r .key); rkey=$(d remember 'src の学び' one-off | jq -r .key)
 snapshot > "$tmp/before"
-refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 2 件足りない' "$tmp/err"
+refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 2 件足りない' "$tmp/err" || die "判定の無い判断の閉じ 2 件を断らない"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 verdict "$judge" "$wkey" ok >/dev/null
 snapshot > "$tmp/before"
-refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err"
+refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err" || die "1 件だけ「閉じてよい」の判断の閉じを断らない"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 [[ $(kanban show "$src" --json | jq -r .issue.status) == done ]]
 echo 'ok apply: without a verdict on every judgment close, nothing is written (AC 9)'
@@ -555,7 +557,7 @@ echo 'ok apply: without a verdict on every judgment close, nothing is written (A
 verdict "$judge" "$rkey" ok >/dev/null
 cp "$jl/decisions.json" "$tmp/judge-good"
 jq --arg k "$rkey" '(.items[]|select(.key==$k)).reason="書き換えた理由"' "$tmp/judge-good" > "$jl/decisions.json"
-refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err"
+refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err" || die "判定のあとで理由を書き換えた閉じを断らない"
 dry | jq -e --arg k "$rkey" '(.review[]|select(.key==$k)).verdict=="stale"' >/dev/null
 cp "$tmp/judge-good" "$jl/decisions.json"
 echo 'ok apply: a verdict is void once the reason is rewritten (AC 10)'
@@ -564,7 +566,7 @@ cp "$jl/verdicts.json" "$tmp/verdicts-good"
 for filter in "(.verdicts[]|select(.key==\"$rkey\")) |= del(.by)" "(.verdicts[]|select(.key==\"$rkey\")).by=\"terminal:t99\""; do
     jq "$filter" "$tmp/verdicts-good" > "$jl/verdicts.json"
     snapshot > "$tmp/before"
-    refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err"
+    refused "$script" triage apply "$judge" && grep -q 'Chief of Staff の判定が 1 件足りない' "$tmp/err" || die "書き手が Chief of Staff の端末でない判定を数えた（$filter）"
     snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
     dry | jq -e --arg k "$rkey" '(.review[]|select(.key==$k)).verdict=="foreign"' >/dev/null
 done
@@ -593,7 +595,7 @@ r2=$(jq -c --arg s "$src" '.items[]|select(.from==$s and .kind=="remember" and (
 jq -n --argjson r "$r2" '{goal:"覆す",collected:"2026-11-19T00:00:00Z",items:[$r]}' > "$al/decisions.json"
 verdict "$again" "$(jq -r .key <<<"$r2")" overturn | grep -q '覆す'
 snapshot > "$tmp/before"
-refused "$script" triage apply "$again" && grep -q 'Chief of Staff が覆した close が残っている' "$tmp/err"
+refused "$script" triage apply "$again" && grep -q 'Chief of Staff が覆した close が残っている' "$tmp/err" || die "覆した close が残るのに断らない"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 jq -n --argjson r "$r2" '{goal:"覆す",collected:"2026-11-19T00:00:00Z",items:[$r + {decision:"fix",reason:"学びを AGENTS.md へ",issue:{title:"学びを足す",repo:"example.invalid/me/app",profile:"sonnet",review:"off",brief:"AGENTS.md に1行"}} | del(.closing)]}' > "$al/decisions.json"
 "$script" triage apply "$again" > "$tmp/again-md"
@@ -630,7 +632,7 @@ chmod +x "$tmp/failset/kanban"
 set +e
 PATH="$tmp/failset:$PATH" HC_TERMINAL_ID=t50 "$script" triage apply "$stop" >/dev/null 2> "$tmp/err"; rc=$?
 set -e
-[[ $rc == 1 ]] && grep -q '予約キーを書けない' "$tmp/err"
+[[ $rc == 1 ]] && grep -q '予約キーを書けない' "$tmp/err" || die "予約キーを書けないのに終了コード 1 で止まらない（rc=$rc）"
 rec=$(ls kanban/library/triage/*-"$stop".json)
 made=$(jq -r '.items[0].created_issue // empty' "$rec")
 [[ -n $made && -z $(kanban show "$made" --json | jq -r '.issue.review // empty') ]]
@@ -689,7 +691,7 @@ ls kanban/library/triage/*-"$t_open".json >/dev/null
 echo 'ok apply: closing an owner issue moves past its open question with kanban done (ADR-0057 AC 13)'
 IFS=$'\t' read -r t_ans o_ans < <(owner_close 'B を公開するか' yes)
 snapshot > "$tmp/before"
-refused "$script" triage apply "$t_ans" && grep -q "答えられてまだ受け取られていない問い $o_ans#1" "$tmp/err"
+refused "$script" triage apply "$t_ans" && grep -q "答えられてまだ受け取られていない問い $o_ans#1" "$tmp/err" || die "受け取られていない答えのあるオーナーの課題の閉じを断らない"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 kanban show "$o_ans" --json | jq -e '.issue.status=="todo" and .questions[0].status=="answered"' >/dev/null
 ! ls kanban/library/triage/*-"$t_ans".* >/dev/null 2>&1
@@ -698,7 +700,7 @@ echo 'ok apply: an owner issue with an answer not received is not closed and no 
 IFS=$'\t' read -r t_brk o_brk < <(owner_close 'C を公開するか' no)
 printf ':\n' > "kanban/issues/$o_brk/questions.yaml"
 snapshot > "$tmp/before"
-refused "$script" triage apply "$t_brk" && grep -q "close の対象 $o_brk の問いを読めない" "$tmp/err"
+refused "$script" triage apply "$t_brk" && grep -q "close の対象 $o_brk の問いを読めない" "$tmp/err" || die "問いを読めないオーナーの課題の閉じを断らない"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 ! ls kanban/library/triage/*-"$t_brk".* >/dev/null 2>&1
 echo 'ok apply: an owner issue whose questions cannot be read is not closed and no record is left'
@@ -715,7 +717,7 @@ person_of() { jq -c --arg o "$1" --arg q "$2" '.items[]|select(.from==$o and .ki
 jq -e '.items|length==2' "kanban/issues/$td/library/decisions.json" >/dev/null
 printf 'D を公開するか\n' | kanban ask "$dup" - --kind promise >/dev/null
 snapshot > "$tmp/before"
-refused "$script" triage apply "$td" && grep -q "同じ問いのオーナーの課題 $dup がもう問いを持っている" "$tmp/err"
+refused "$script" triage apply "$td" && grep -q "同じ問いのオーナーの課題 $dup がもう問いを持っている" "$tmp/err" || die "もう問いを持つオーナーの課題への person を断らない"
 snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 echo 'ok apply: a decision whose owner issue already has a question is refused before any write'
 jq --arg o "$bare" 'del(.items[0])' "kanban/issues/$td/library/decisions.json" > "$tmp/td"; cp "$tmp/td" "kanban/issues/$td/library/decisions.json"
