@@ -27,6 +27,7 @@ JSON Schemas for editors and checks: [config.v3.schema.json](../schema/ledger/co
 | 2026-11-07 | `questions.yaml` `kind: scope` (`kanban ask --kind scope`) | [Questions](#issuesidquestionsyaml) |
 | 2026-11-10 | `issue.yaml` `not_before` (a date; `kanban ready` holds the issue back until then) | [`issue.yaml`](#issuesidissueyaml), [Status rules](#status-rules) |
 | 2026-11-10 | `issue.yaml` `session` (the agent's harness session id) | [`issue.yaml`](#issuesidissueyaml) |
+| 2026-11-23 | `questions.yaml` `decidedBy` (`kanban answer --decided-by`: who decided the answer) | [Questions](#issuesidquestionsyaml) |
 
 A board that reads the files itself and does not know `not_before` will show such an issue as ready before its day (it ignores a key it doesn't know, as above). The person who keeps such a board should be told once; `kanban ready` is the one place that holds the issue back.
 
@@ -227,6 +228,7 @@ A list, oldest first. Each question is named `<id>#<n>` (`FD-0012#2`).
     CSV only for now.
   answered: "2026-11-03T02:05:00Z"
   answeredBy: terminal:t2
+  decidedBy: owner                # optional: who decided the answer
   received: "2026-11-03T02:06:00Z"
 ```
 
@@ -239,6 +241,7 @@ A list, oldest first. Each question is named `<id>#<n>` (`FD-0012#2`).
 | `asked`, `answered`, `received` | string | UTC times, as in `issue.yaml`. |
 | `askedBy`, `answeredBy` | string | As `by` in `log.jsonl`. |
 | `answer` | string | The answer, as the person gave it. |
+| `decidedBy` | string | Optional. Who decided the answer, written by `kanban answer --decided-by`: `owner` (the owner answered this question), `chief-of-staff` (the Chief of Staff decided on its own, answered a `scope` question, or closed a question no longer needed), `machine` (a command closed it from facts, as `andon issue settle` and `andon issue merge` do with gate questions). Absent when the writer gave no mark; `answeredBy` says only who wrote it. |
 
 Any other key is allowed and kept.
 
@@ -246,7 +249,7 @@ Any other key is allowed and kept.
 
 - `kanban ask <id> "<text>"` (the issue's agent): adds an `open` question. The agent then ends its turn and waits.
 - `kanban questions` (Chief of Staff): lists the `open` and `answered` questions of the ledger, oldest first; `--open` only the open ones, `--json` for programs. This is where the Chief of Staff starts every time, not from what it remembers.
-- `kanban answer <id>#<n> "<answer>"` (Chief of Staff): writes the answer; `answered`. The Chief of Staff then passes it to the issue's agent.
+- `kanban answer <id>#<n> [--decided-by owner|chief-of-staff|machine] "<answer>"` (Chief of Staff): writes the answer; `answered`. The Chief of Staff then passes it to the issue's agent. `--decided-by` writes `decidedBy`; without it no key is written. A value other than the three, and any flag but `--decided-by` and `--json` (a misspelt `--decided_by` among them), and a word before `--` that starts with `-` and a letter (`-decided-by`), are refused and nothing is written. An answer that starts with `-` goes after `--`.
 - `kanban received <id>#<n>` (the issue's agent): `received`. The question is closed.
 - `kanban done` refuses an issue with an `open` or `answered` question (it says which). `--force` closes it anyway and logs that. `--past <id>#<n>,…` moves past only the questions it names: any other question not received still refuses, also one asked after the caller looked (the check runs under the ledger's lock). `kanban set <id> status=<last column>` checks the same, takes the same `--force` and `--past`, and frees the same issues.
 - `kanban review` (and `kanban set <id> status=review`) checks the same when the issue moves into `review` from another status, and takes the same `--force` and `--past`: an issue returned with a question not received would be refused by `andon issue finish` later. An issue already in `review` is not checked again (a question asked there, by the gate, does not stop it).

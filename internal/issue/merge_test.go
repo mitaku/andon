@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,9 @@ import (
 	"andon/internal/delegate"
 	"andon/internal/gate"
 	"andon/internal/ledger"
+	"andon/internal/ledger/ledgertest"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func TestAuthorized(t *testing.T) {
@@ -200,7 +204,7 @@ func TestCloseQuestionAfterAnswer(t *testing.T) {
 		return string(b)
 	}
 
-	if err := c.closeQuestion("T-0001#1", "open", "head が動いた"); err != nil || calls() != "answer T-0001#1 head が動いた\nreceived T-0001#1\n" {
+	if err := c.closeQuestion("T-0001#1", "open", "head が動いた"); err != nil || calls() != "answer --decided-by machine -- T-0001#1 head が動いた\nreceived T-0001#1\n" {
 		t.Fatalf("open の問いを答えて受け取っていない: %v", err)
 	}
 	os.WriteFile(filepath.Join(dir, "answered"), nil, 0o644)
@@ -213,5 +217,63 @@ func TestCloseQuestionAfterAnswer(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "fail"), nil, 0o644)
 	if err := c.closeQuestion("T-0001#1", "open", "head が動いた"); err == nil || !strings.Contains(err.Error(), "answer:") {
 		t.Fatalf("受け取れないのに誤りを返していない: %v", err)
+	}
+}
+
+// settle と merge が閉じた gate の問いの答えに、本物の kanban の CLI で decidedBy: machine が付く（ADR-0049 受け入れ条件 3）。
+// gate の問いに答えを書くのは closeQuestion だけで、settle も merge もそれを呼ぶ（書き手の数は dispatcher の
+// TestMachineGateAnswersMatchWriters が見る）。gate の外の問いと、オーナーが先に答えた gate の問いには触らない。
+func TestGateAnswersMarkedMachine(t *testing.T) {
+	bin := ledgertest.Kanban(t)
+	root := filepath.Join(t.TempDir(), "sample-site")
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("KANBAN_ROOT", root)
+	t.Setenv("HC_TERMINAL_ID", "")
+	l := &ledger.Ledger{Root: root, Slug: "sample-site", Dir: filepath.Join(root, "kanban")}
+	run := func(args ...string) {
+		t.Helper()
+		if _, err := l.Run("", args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("init", "--root", root, "--prefix", "T", "--repo", "github.com/example/sample-site")
+	run("add", "題", "--repo", "github.com/example/sample-site")
+	for range 4 {
+		run("ask", "T-0001", "マージするか", "--kind", "line")
+	}
+	lib := l.Library("T-0001")
+	for n, from := range map[int]string{1: "gate", 2: "gate", 3: "issue", 4: "gate"} {
+		p := filepath.Join(lib, "questions", fmt.Sprint(n)+".json")
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte(`{"from": "`+from+`"}`), 0o644)
+	}
+	run("answer", "--decided-by", "owner", "T-0001#4", "担当に直させる")
+
+	c := &ctx{l: l, id: "T-0001"}
+	var res contract.Merge
+	c.closeGateQuestions("PR の head が gate のあとに動いた（aaaa → bbbb）。gate が今の head で回し直す", &res) // merge の headMoved の道
+	if len(res.Log) != 0 {
+		t.Fatalf("log: %v", res.Log)
+	}
+	b, err := os.ReadFile(filepath.Join(l.Dir, "issues", "T-0001", "questions.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var qs []map[string]any
+	if err := yaml.Unmarshal(b, &qs); err != nil {
+		t.Fatal(err)
+	}
+	want := map[int][2]string{ // n → status, decidedBy
+		1: {"received", "machine"}, 2: {"received", "machine"}, 3: {"open", ""}, 4: {"received", "owner"},
+	}
+	for _, q := range qs {
+		n := q["n"].(int)
+		got := [2]string{fmt.Sprint(q["status"]), ""}
+		if v, ok := q["decidedBy"]; ok {
+			got[1] = fmt.Sprint(v)
+		}
+		if got != want[n] {
+			t.Errorf("#%d: status, decidedBy = %v, want %v\n%s", n, got, want[n], b)
+		}
 	}
 }

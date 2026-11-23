@@ -41,7 +41,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
                                             scope asks the Chief of Staff which candidates to fix)
   kanban questions [--open] [--json]        open and answered questions, oldest first
-  kanban answer <id>#<n> "<answer>"|-       write the person's answer (open → answered)
+  kanban answer <id>#<n> "<answer>"|- [--decided-by owner|chief-of-staff|machine]
+                                            write the answer (open → answered); --decided-by marks who decided it
   kanban received <id>#<n>                  the agent has the answer (answered → received)
   kanban lint [--json]                      issues, questions, routines and config.yaml
   kanban tick [--json]                      add an issue for each routine whose schedule came due
@@ -77,6 +78,8 @@ type args struct {
 	flags map[string]string   // the last value of each flag
 	all   map[string][]string // every value of each flag, for flags that repeat (--repo in init)
 	rest  []string
+	// loose is how many words of rest came before a --; the words after it are words whatever they start with.
+	loose int
 }
 
 func (a args) has(k string) bool { _, ok := a.flags[k]; return ok }
@@ -86,8 +89,9 @@ func parseArgs(argv []string) (args, error) {
 	for i := 0; i < len(argv); i++ {
 		s := argv[i]
 		if s == "--" { // the rest are words, also those that start with --
+			a.loose = len(a.rest)
 			a.rest = append(a.rest, argv[i+1:]...)
-			break
+			return a, nil
 		}
 		if !strings.HasPrefix(s, "--") {
 			a.rest = append(a.rest, s)
@@ -107,6 +111,7 @@ func parseArgs(argv []string) (args, error) {
 		a.flags[k] = v
 		a.all[k] = append(a.all[k], v)
 	}
+	a.loose = len(a.rest)
 	return a, nil
 }
 

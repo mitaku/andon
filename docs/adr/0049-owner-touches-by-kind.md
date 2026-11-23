@@ -11,9 +11,9 @@
 | 1 | 介在回数に数えるのは、マージ・判断の答え・オーナーの課題の 3 種にする | `docs/contract.md`・`internal/measure/measure.go` | 生きている |
 | 2 | 数え方を、履歴の書き手で見分ける形から、操作の種類で数える形に改める | `docs/contract.md`・`internal/measure/measure.go` | 生きている |
 | 3 | オーナーのマージは、gate の記録にマージの印が無いことで見分け、GitHub のマージした者は読まない | `docs/contract.md`・`internal/measure/measure.go` | 生きている |
-| 4 | 問いの答えに、誰が決めたかの印を足す | この ADR | まだ実装していない |
-| 5 | 印は kanban の問いの任意のキー `decidedBy` にし、`kanban answer --decided-by` で書く | この ADR | まだ実装していない |
-| 6 | 答えを書く者が、場面に合う値を書く | この ADR | まだ実装していない |
+| 4 | 問いの答えに、誰が決めたかの印を足す | `docs/ledger.md` | 生きている |
+| 5 | 印は kanban の問いの任意のキー `decidedBy` にし、`kanban answer --decided-by` で書く | `docs/ledger.md`・`schema/ledger/questions.v3.schema.json` | 生きている |
+| 6 | 答えを書く者が、場面に合う値を書く | `docs/contract.md` | まだ実装していない（コードの書き手は付けた。skill の分が残る） |
 | 7 | 判断は、印が `owner` の答えを、答えた時刻で数える | `docs/contract.md` | 生きている |
 | 8 | 答えを、決めた者ごとに数えて出し、印の無い答えは介在回数に入れない | `schema/measure.schema.json`・`docs/contract.md` | 生きている |
 | 9 | 問いを持たないオーナーの課題は、片付いたら 1 回と数える | `docs/contract.md` | 生きている |

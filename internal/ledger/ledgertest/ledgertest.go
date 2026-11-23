@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -92,4 +94,34 @@ func Ready(t testing.TB, issues ...any) string {
 		t.Fatalf("手で書いた kanban ready --json の返事が、kanban の CLI の書く形でない: %v\n%s", err, b)
 	}
 	return string(b)
+}
+
+// Kanban は repo の cmd/kanban を一時のフォルダに build し、そのフォルダを返す。PATH の先頭に置くと、コードが打つ
+// kanban の CLI が本物になる（答えの印のように、kanban が書いた結果そのものを見たいテストが使う）。go が無ければ飛ばす。
+func Kanban(t testing.TB) string {
+	t.Helper()
+	gobin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go が無い")
+	}
+	// go test は build した kanban の元を入力と見ないので、元を読んで入力に数えさせる（元を変えたのに前の結果が
+	// キャッシュから返らないように）。
+	repo := filepath.Join(Dir(), "..", "..")
+	srcs, _ := filepath.Glob(filepath.Join(repo, "cmd", "kanban", "*.go"))
+	for _, f := range srcs {
+		if _, err := os.ReadFile(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := t.TempDir()
+	name := "kanban"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	c := exec.Command(gobin, "build", "-o", filepath.Join(dir, name), "./cmd/kanban")
+	c.Dir = repo
+	if out, err := c.CombinedOutput(); err != nil {
+		t.Fatalf("kanban の CLI を build できない: %v\n%s", err, out)
+	}
+	return dir
 }

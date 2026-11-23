@@ -62,9 +62,10 @@ func Answer(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "andon waiting answer: %s: %v\n", ref, err)
 		return 1
 	}
-	// kanban answer が開いている問いだけを通す（読んでから書くまでに答えが入っても、2つ目は断られる。モデルの R10）
+	// kanban answer が開いている問いだけを通す（読んでから書くまでに答えが入っても、2つ目は断られる。モデルの R10）。
+	// ペインで選んだのはオーナーなので、印は owner（ADR-0049 決めたこと 6）。label は -- のあとに置き、-- で始まっても旗に読まれない
 	qref := fmt.Sprintf("%s#%d", id, n)
-	if _, err := ledger.At(root).Run("", "answer", qref, label); err != nil {
+	if _, err := ledger.At(root).Run("", "answer", "--decided-by", "owner", "--", qref, label); err != nil {
 		fmt.Fprintf(stderr, "andon waiting answer: %s に書けない: %v\n", qref, err)
 		return 1
 	}

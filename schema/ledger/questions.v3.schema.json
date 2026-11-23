@@ -46,6 +46,10 @@
         "description": "Who wrote the answer, as by in log.jsonl.",
         "type": "string"
       },
+      "decidedBy": {
+        "description": "Optional. Who decided the answer, written by kanban answer --decided-by: owner (the owner answered), chief-of-staff (the Chief of Staff decided on its own or closed a question no longer needed), machine (a command closed it from facts). Absent when the writer gave no mark.",
+        "enum": ["owner", "chief-of-staff", "machine"]
+      },
       "received": {
         "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, written as a string.",
         "type": "string",

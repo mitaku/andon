@@ -189,9 +189,11 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 		calls["closeQuestion"] += strings.Count(src, "c.closeQuestion(")
 		calls["closeGateQuestions"] += strings.Count(src, "c.closeGateQuestions(")
 		calls["answer"] += strings.Count(src, `"answer", `)
+		// その1つは印 machine を付けて書く（ADR-0049 決めたこと 6）。印を外すと、この答えは印の無い答えに数えられる
+		calls["answer machine"] += strings.Count(src, `"answer", "--decided-by", "machine", "--", `)
 	}
-	if want := map[string]int{"closeQuestion": 3, "closeGateQuestions": 1, "answer": 1}; fmt.Sprint(calls) != fmt.Sprint(want) {
-		t.Errorf("gate の問いを閉じる書き手の数が変わった: %v（前は %v）。足した書き手の答えを machineGateAnswers に足す", calls, want)
+	if want := map[string]int{"closeQuestion": 3, "closeGateQuestions": 1, "answer": 1, "answer machine": 1}; fmt.Sprint(calls) != fmt.Sprint(want) {
+		t.Errorf("gate の問いを閉じる書き手の数か印が変わった: %v（前は %v）。足した書き手の答えを machineGateAnswers に足し、印は machine で書く", calls, want)
 	}
 	sha := strings.Repeat("1", 40)
 	// settle.go: c.closeQuestion(name, q.Status, "オーナーがマージした（"+pr+"）")

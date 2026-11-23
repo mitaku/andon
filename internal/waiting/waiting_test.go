@@ -510,7 +510,38 @@ func TestAnswer(t *testing.T) {
 		t.Fatalf("開いている判断の問い: code %d, stdout %q, stderr %q", code, out, errs)
 	}
 	b, _ := os.ReadFile(calls)
-	if got, want := strings.TrimSpace(string(b)), f.root+"|answer|S-0030#1|CSV だけ|"; got != want {
-		t.Errorf("kanban の呼び出し = %q, want %q（書くのは kanban answer だけで、答えは選んだ選択肢の label）", got, want)
+	if got, want := strings.TrimSpace(string(b)), f.root+"|answer|--decided-by|owner|--|S-0030#1|CSV だけ|"; got != want {
+		t.Errorf("kanban の呼び出し = %q, want %q（書くのは kanban answer だけで、答えは選んだ選択肢の label、印は owner）", got, want)
+	}
+}
+
+// andon waiting answer が本物の kanban の CLI で書いた答えに、decidedBy: owner が付く。選択肢の label が -- で始まっても、
+// 旗に読まれずに答えになる（ADR-0049 受け入れ条件 2）。
+func TestAnswerMarksOwner(t *testing.T) {
+	f := newFake(t, 0)
+	f.issue("S-0031", "doing", "profile: claude")
+	f.questions("S-0031", q(1, "users", "open", "2026-11-21T02:00:00Z"), q(2, "business", "open", "2026-11-21T02:00:00Z"))
+	f.ask("S-0031", 1, `{"kind": "users", "question": "書き出しは CSV だけにするか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}], "from": "issue"}`)
+	f.ask("S-0031", 2, `{"kind": "business", "question": "旗の形の案", "options": [{"label": "--force で進める", "pick": true}, {"label": "止める"}], "from": "issue"}`)
+	t.Setenv("PATH", ledgertest.Kanban(t)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HC_TERMINAL_ID", "")
+	t.Setenv("KANBAN_ROOT", f.root)
+	for _, ref := range []string{"S-0031#1", "S-0031#2"} {
+		var out, errb bytes.Buffer
+		if code := Answer([]string{ref, "--option", "1"}, &out, &errb); code != 0 {
+			t.Fatalf("%s: code %d, stdout %q, stderr %q", ref, code, out.String(), errb.String())
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(f.root, "kanban/issues/S-0031/questions.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"answer: CSV だけ", "answer: --force で進める", "status: answered"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("questions.yaml に %q が無い:\n%s", want, b)
+		}
+	}
+	if got := strings.Count(string(b), "decidedBy: owner"); got != 2 {
+		t.Errorf("decidedBy: owner が %d 件（2 件のはず）:\n%s", got, b)
 	}
 }

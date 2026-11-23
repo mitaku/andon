@@ -126,6 +126,102 @@ func TestQuestionLifecycle(t *testing.T) {
 	kanban(t, root, "lint")
 }
 
+// kanban answer --decided-by writes decidedBy next to the answer, and show --json and questions --json carry it.
+// Without the flag no key is written. A value that isn't one of the three, and a flag answer doesn't take
+// (a misspelt --decided-by among them), are refused and write nothing (docs/adr/0049-owner-touches-by-kind.md,
+// acceptance 1).
+func TestAnswerDecidedBy(t *testing.T) {
+	root := routineLedger(t)
+	t.Setenv("HC_TERMINAL_ID", "t2")
+	kanban(t, root, "add", "Export")
+	for range 7 {
+		kanban(t, root, "ask", "W-0001", "CSV only?", "--kind", "users")
+	}
+	qfile := filepath.Join(taskDir(root, "W-0001"), "questions.yaml")
+	logFile := filepath.Join(root, "kanban", "log.jsonl")
+	read := func(file string) string { b, _ := os.ReadFile(file); return string(b) }
+
+	// Refused: nothing is written, the question stays open, the log has no line.
+	beforeQ, beforeLog := read(qfile), read(logFile)
+	for _, argv := range [][]string{
+		{"answer", "W-0001#1", "--decided-by", "person", "yes"},
+		{"answer", "W-0001#1", "--decided-by", "Owner", "yes"},
+		{"answer", "W-0001#1", "--decided-by=", "yes"},
+		{"answer", "W-0001#1", "--decided_by", "owner", "yes"},
+		{"answer", "W-0001#1", "--decidedBy", "owner", "yes"},
+		{"answer", "W-0001#1", "--decided-by-owner", "x", "yes"},
+		{"answer", "--force", "W-0001#1", "yes"},
+		{"answer", "W-0001#1", "-decided-by", "owner", "yes"},
+		{"answer", "W-0001#1", "yes", "-d", "owner"},
+	} {
+		msg := kanbanFails(t, root, "", argv...)
+		if !strings.Contains(msg, "decided") && !strings.Contains(msg, "takes no --") && !strings.Contains(msg, "looks like a flag") {
+			t.Errorf("%v: %q", argv, msg)
+		}
+	}
+	if read(qfile) != beforeQ || read(logFile) != beforeLog {
+		t.Fatalf("a refused answer wrote:\n%s\n%s", read(qfile), read(logFile))
+	}
+
+	// Each of the three values, before or after the words, with = or not; and no flag at all.
+	kanban(t, root, "answer", "W-0001#1", "--decided-by", "owner", "CSV only")
+	kanban(t, root, "answer", "--decided-by=chief-of-staff", "W-0001#2", "no longer needed")
+	kanbanIn(t, root, "closed by gate\n", "answer", "W-0001#3", "-", "--decided-by", "machine")
+	kanban(t, root, "answer", "W-0001#4", "no mark")
+	kanban(t, root, "answer", "W-0001#5", "--decided-by", "owner", "--", "-d", "--starts with dashes")
+	// The form the code writers use: the flag first, then --, then <id>#<n> and the words (none of them loose).
+	kanban(t, root, "answer", "--decided-by", "machine", "--", "W-0001#6", "-gate closed it")
+	// A word that starts with - and a letter of another script is an answer, not a flag.
+	kanban(t, root, "answer", "W-0001#7", "-はい")
+	want := map[int]string{1: "owner", 2: "chief-of-staff", 3: "machine", 4: "", 5: "owner", 6: "machine", 7: ""}
+	for _, q := range questionsOf(t, root, "W-0001") {
+		n := q["n"].(int)
+		got, has := q["decidedBy"]
+		if w := want[n]; (w == "") == has || (has && got != w) {
+			t.Errorf("#%d decidedBy = %v (has %v), want %q", n, got, has, w)
+		}
+		if q["status"] != "answered" || q["answeredBy"] != "terminal:t2" {
+			t.Errorf("#%d: %v", n, q)
+		}
+	}
+	for i, a := range map[int]string{4: "-d --starts with dashes", 5: "-gate closed it", 6: "-はい"} {
+		if q := questionsOf(t, root, "W-0001")[i]; q["answer"] != a {
+			t.Errorf("#%d answer = %v, want %q", i+1, q["answer"], a)
+		}
+	}
+	if strings.Contains(read(logFile), "decidedBy") {
+		t.Errorf("the log has the mark (it has only the number and status): %s", read(logFile))
+	}
+
+	// show --json and questions --json carry the key as it is; --json on answer too.
+	var shown struct{ Questions []map[string]any }
+	json.Unmarshal([]byte(kanban(t, root, "show", "W-0001", "--json")), &shown)
+	var listed []map[string]any
+	json.Unmarshal([]byte(kanban(t, root, "questions", "--json")), &listed)
+	for name, qs := range map[string][]map[string]any{"show --json": shown.Questions, "questions --json": listed} {
+		if len(qs) != 7 || qs[0]["decidedBy"] != "owner" || qs[2]["decidedBy"] != "machine" {
+			t.Errorf("%s: %v", name, qs)
+		}
+		if _, has := qs[3]["decidedBy"]; has {
+			t.Errorf("%s: #4 has decidedBy: %v", name, qs[3])
+		}
+	}
+	kanban(t, root, "ask", "W-0001", "another")
+	var answered map[string]any
+	json.Unmarshal([]byte(kanban(t, root, "answer", "W-0001#8", "--decided-by", "chief-of-staff", "--json", "ok")), &answered)
+	if answered["decidedBy"] != "chief-of-staff" || answered["name"] != "W-0001#8" {
+		t.Errorf("answer --json: %v", answered)
+	}
+	kanban(t, root, "lint")
+
+	// lint names a mark that isn't one of the three (written by hand).
+	os.WriteFile(qfile, []byte(strings.Replace(read(qfile), "decidedBy: machine", "decidedBy: robot", 1)), 0o644)
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint"}, root, strings.NewReader(""), &out, &errb); code != 1 || !strings.Contains(out.String(), `decidedBy "robot"`) {
+		t.Errorf("lint: exit %d, %q %q", code, out.String(), errb.String())
+	}
+}
+
 // n is never reused, even after a person removes questions from the file by hand.
 func TestQuestionNumbersAreNotReused(t *testing.T) {
 	root := newLedger(t)
