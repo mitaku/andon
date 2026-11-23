@@ -12,7 +12,7 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// retroFault は振り返りの apply を本物の kanban で当てる下ごしらえ（Chief of Staff の端末 t5・振り返りの課題 T-0001・
+// retroFault は振り返りの apply を本物の kanban の CLI で当てる下ごしらえ（Chief of Staff の端末 t5・振り返りの課題 T-0001・
 // 担当の課題になるパターン p1 とオーナーの課題になるパターン p2）。
 type retroFault struct {
 	f     *ledgertest.Fault

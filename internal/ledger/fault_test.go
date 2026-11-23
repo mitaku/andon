@@ -8,7 +8,7 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// faultLedger は本物の kanban を Chief of Staff の端末 t5 で書く置き場を、Setup のたびに作り直す（Fault.Converge の下ごしらえ）。
+// faultLedger は本物の kanban の CLI を Chief of Staff の端末 t5 で書く置き場を、Setup のたびに作り直す（Fault.Converge の下ごしらえ）。
 // 返す関数は、今の置き場の Ledger と、その記録と課題（Fault.Snapshot。予約キーの履歴の照合つき）を返す。
 func faultLedger(f *ledgertest.Fault) (setup func(t *testing.T), cur func() *Ledger, state func(t *testing.T) string) {
 	var l *Ledger

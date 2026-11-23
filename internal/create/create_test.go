@@ -17,7 +17,7 @@ import (
 )
 
 // setup は偽のセル（git の repo・projects/）と、偽の kanban の CLI・ghq・hc を PATH の先頭に置く。
-// 偽の kanban は init の引数を kanban/args に書き、偽の ghq は get の引数を ghq.log に足す。
+// 偽の kanban の CLI は init の引数を kanban/args に書き、偽の ghq は get の引数を ghq.log に足す。
 func setup(t *testing.T) (ws, log string) {
 	t.Helper()
 	ws = t.TempDir()

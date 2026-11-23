@@ -36,7 +36,7 @@ type Idle struct {
 	Lint  string   `json:"lint,omitempty"`  // 知らせた kanban lint の problem の並びの印（problem が 0 件に戻ったら消す）
 }
 
-// 検査が差し替える口（偽の kanban では枠もトリアージの未処理も数えられないため）。
+// 検査が差し替える口（偽の kanban の CLI では枠もトリアージの未処理も数えられないため）。
 var (
 	// slotsOf は空いた枠の数（andon waiting と同じ式。ADR-0042 決めたこと 9）
 	slotsOf = func(root string, now time.Time) (int, error) {

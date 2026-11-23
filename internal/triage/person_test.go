@@ -24,7 +24,7 @@ ask) cat >/dev/null; echo "$*" >>"$log"; echo "$2#1" ;;
 esac
 `
 
-// personLedger は偽の kanban を PATH に置いた ledger と、打った command の記録のパスを返す。
+// personLedger は偽の kanban の CLI を PATH に置いた ledger と、打った command の記録のパスを返す。
 func personLedger(t *testing.T) (*ledger, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -156,7 +156,7 @@ func TestApplyPersonPlacesQuestionOrHandWorkMark(t *testing.T) {
 }
 
 // トリアージの apply は、person の項目が判断と手作業のどちらの形でもなければ、kanban に何も打たずに断る
-// （ADR-0057 受け入れ条件 11）。偽の kanban は打たれたら記録に残るので、記録が空なら課題の数は変わっていない。
+// （ADR-0057 受け入れ条件 11）。偽の kanban の CLI は打たれたら記録に残るので、記録が空なら課題の数は変わっていない。
 func TestApplyRefusesPersonOfNeitherForm(t *testing.T) {
 	key := "demo:T-5:question:" + strings.Repeat("0", 40)
 	base := func(extra map[string]any) map[string]any {
