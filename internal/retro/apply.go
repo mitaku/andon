@@ -151,16 +151,8 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 	if p.Retro != id {
 		return fmt.Errorf("%s/library/%s の retro が %q（別の課題の一覧）", id, retroFile, p.Retro)
 	}
-	rec := Applied{Retro: id, Issues: []AppliedIssue{}, Dropped: []Dropped{}}
-	recPath := filepath.Join(lib, appliedFile)
-	if rb, err := os.ReadFile(recPath); err == nil {
-		if err := json.Unmarshal(rb, &rec); err != nil {
-			return fmt.Errorf("%s/library/%s が読めない", id, appliedFile)
-		}
-		if rec.Complete {
-			return fmt.Errorf("%s は当て済み（%s/library/%s）", id, id, appliedFile)
-		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	rec, err := loadApplied(l, id)
+	if err != nil {
 		return err
 	}
 	until := mustTime(p.Until)
@@ -189,8 +181,30 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 		_, err := stdout.Write(contract.Marshal(out))
 		return err
 	}
+	return applyPlans(l, id, plans, dropped, rec, stdout)
+}
+
+// loadApplied は andon retro apply の記録（retro-applied.json）を読む。無ければ空の記録、当て済み（complete）なら断る。
+func loadApplied(l *ledger.Ledger, id string) (Applied, error) {
+	rec := Applied{Retro: id, Issues: []AppliedIssue{}, Dropped: []Dropped{}}
+	if rb, err := os.ReadFile(filepath.Join(l.Library(id), appliedFile)); err == nil {
+		if err := json.Unmarshal(rb, &rec); err != nil {
+			return rec, fmt.Errorf("%s/library/%s が読めない", id, appliedFile)
+		}
+		if rec.Complete {
+			return rec, fmt.Errorf("%s は当て済み（%s/library/%s）", id, id, appliedFile)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return rec, err
+	}
+	return rec, nil
+}
+
+// applyPlans は計画（plans）を kanban に当て、記録（rec。loadApplied が読んだもの）を足すたびに書き直し、全部を足したら complete にする。
+func applyPlans(l *ledger.Ledger, id string, plans []plan, dropped []Dropped, rec Applied, stdout io.Writer) error {
 	rec.AppliedAt = time.Now().UTC().Format(time.RFC3339)
 	rec.Dropped = dropped
+	recPath := filepath.Join(l.Library(id), appliedFile)
 	save := func() error { return contract.WriteState(recPath, rec) } // retro-applied.json は schema の無い記録
 	if err := save(); err != nil {
 		return err
@@ -305,16 +319,8 @@ func addOwner(l *ledger.Ledger, retro, found, who string, pl plan) (string, erro
 		}
 		return found, nil
 	}
-	// 前の回が kanban ask のあと問いの控えを書く前に落ちていれば、控えだけを書き直す（控えが無いと andon waiting に選択肢が
-	// 出ず、オーナーが答えられない）。この課題の問いは apply が置いた 1 つ目なので、番号は 1
-	p := filepath.Join(l.Library(found), "questions", "1.json")
-	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
-		return found, err
-	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return "", err
-	}
-	if err := contract.Write(p, contract.SchemaQuestion, pl.Question); err != nil {
+	// 前の回が kanban ask のあと問いの控えを書く前に落ちていれば、控えだけを書き直す（ledger.RestoreQuestion）
+	if _, err := l.RestoreQuestion(found, pl.Question); err != nil {
 		return "", err
 	}
 	return found, nil

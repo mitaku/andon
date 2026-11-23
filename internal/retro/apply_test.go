@@ -16,7 +16,7 @@ import (
 
 // fakeKanbanApply は list・add・set・ask・show だけを受ける偽の kanban の CLI を PATH に置く。課題は FAKE_STATE に1行1件
 // （id・題・parent・who・review・問いの数を | で区切る。空の欄を潰さないため）で持つ。add は行を足して新しい id を出し、set は who と
-// review を覚え、ask は問いの数を1つ増やして <id>#<n> を出す（FAKE_ASK_FAIL があれば落ちる）。打った add・set・ask は FAKE_LOG に1行ずつ。
+// review を覚え、ask は問いの数を1つ増やして <id>#<n> を出す（FAKE_ASK_FAIL があれば落ちる。1 つ目の問いの文は覚え、show が n と text で出す）。打った add・set・ask は FAKE_LOG に1行ずつ。
 const fakeKanbanApply = `#!/usr/bin/env bash
 st=$FAKE_STATE
 put() { awk -F'|' -v OFS='|' -v id="$1" -v f="$2" -v v="$3" '$1==id{$f=v}1' "$st" >"$st.new" && mv "$st.new" "$st"; }
@@ -33,10 +33,16 @@ add) cat >/dev/null; shift; title= parent=
   printf '%s|%s|%s|||0\n' "$id" "$title" "$parent" >>"$st"; echo "add $title" >>"$FAKE_LOG"; echo "$id" ;;
 set) echo "$*" >>"$FAKE_LOG"
   for kv in "${@:3}"; do case $kv in who=*) put "$2" 4 "${kv#who=}" ;; review=*) put "$2" 5 "${kv#review=}" ;; esac; done ;;
-ask) cat >/dev/null; echo "ask $2 $4 $5" >>"$FAKE_LOG"
+ask) text=$(cat); echo "ask $2 $4 $5" >>"$FAKE_LOG"
   [ -n "$FAKE_ASK_FAIL" ] && exit 9
-  n=$(( $(row "$2" | cut -d'|' -f6) + 1 )); put "$2" 6 "$n"; echo "$2#$n" ;;
-show) n=$(row "$2" | cut -d'|' -f6); qs=; for ((i = 0; i < n; i++)); do qs+=${qs:+,}'{}'; done
+  n=$(( $(row "$2" | cut -d'|' -f6) + 1 )); put "$2" 6 "$n"
+  [ "$n" = 1 ] && printf '%s' "$text" >"$st.q.$2"
+  echo "$2#$n" ;;
+show) n=$(row "$2" | cut -d'|' -f6); qs=
+  for ((i = 1; i <= n; i++)); do
+    q='{}'; [ "$i" = 1 ] && q="{\"n\":1,\"text\":$(jq -Rs . <"$st.q.$2")}"
+    qs+=${qs:+,}$q
+  done
   printf '{"issue":{"id":"%s"},"questions":[%s]}\n' "$2" "$qs" ;;
 *) exit 9 ;;
 esac

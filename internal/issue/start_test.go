@@ -628,7 +628,7 @@ func TestStartFillsTriageSettings(t *testing.T) {
 		dir := filepath.Join(f.root, "kanban", "library", "triage")
 		os.MkdirAll(dir, 0o755)
 		b, _ := json.Marshal(map[string]any{"items": []map[string]any{
-			{"key": "k", "decision": "fix", "adding": true, "issue": map[string]any{"title": title, "review": "on"}}}})
+			{"key": "k", "decision": "fix", "adding": true, "adding_at": "2026-11-23T09:00:00Z", "issue": map[string]any{"title": title, "review": "on"}}}})
 		os.WriteFile(filepath.Join(dir, "2026-11-23-S-0005.json"), b, 0o644)
 		lf, _ := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		fmt.Fprintf(lf, `{"at":"2026-11-23T00:00:00Z","by":"%s","id":"S-0007","change":{"add":"%s"}}`+"\n", by, title)
@@ -646,6 +646,34 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
 		}
 	})
+	// kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まった課題は、足した行が無い。印と題が合い、印（09:00）より後に
+	// 作られた課題なら埋める。印より前に作られた同じ題の課題（前に別の端末が足す途中で止めたもの）と、log.jsonl が空なら
+	// （読めないのと分けられないので）今までどおり断る
+	cfgRow := `{"at":"2026-11-23T00:00:00Z","by":"terminal:t5","config":{"chief_of_staff":"t5"}}` + "\n"
+	for _, c := range []struct {
+		name, created, log string
+		ok                 bool
+	}{
+		{"added without the add row", "2026-11-23T09:00:00Z", cfgRow, true},
+		{"made before the mark without the add row", "2026-11-23T08:59:59Z", cfgRow, false},
+		{"added without the add row nor created", "", cfgRow, false},
+		{"added without any log row", "2026-11-23T09:00:00Z", "", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			f.task["created"] = c.created
+			adding(f, "Add the button", "terminal:t5")
+			if err := os.WriteFile(filepath.Join(f.root, "kanban", "log.jsonl"), []byte(c.log), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			want := "kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"
+			rc, out, errs := f.run()
+			if c.ok && (rc != 0 || !f.has(want)) || !c.ok && (rc != 1 || !strings.Contains(errs, "無い・知らない値: review・") || f.has("kanban set")) {
+				t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+		})
+	}
 	for _, c := range []struct{ name, title, by string }{
 		{"added before recorded by another terminal", "Add the button", "terminal:t9"},
 		{"added before recorded with another title", "Other", "terminal:t5"},
