@@ -16,7 +16,7 @@ type Merging struct {
 
 // Merge は andon issue merge の出力（docs/contract.md の「gate のあとのマージと片付け」）。Notify を待ちに積むのは dispatcher。
 // State は skip（回さない）・wait（checks を待つ）・rate-limited（gh の上限）・regate（読み直して変わった・base が動いてマージが通らなかった。次に回し直す）・
-// approve・fix・needs_human・merged。
+// approve・fix・needs_human・merged・hold（Chief of Staff が止めている。gate を回さない。ADR-0056 決めたこと 9）。
 type Merge struct {
 	Issue  string   `json:"issue"`
 	State  string   `json:"state"`

@@ -19,6 +19,8 @@ states:
     record: dispatcher:Stuck
   - id: held
     title: approve だがマージしない（merge person・委譲の外。オーナーのマージの見張りへ）
+  - id: on-hold
+    title: Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9）
   - id: fix
     title: fix（理由を担当へ送った）
   - id: needs-human
@@ -54,4 +56,9 @@ transitions:
   - { from: fix, to: "[*]", on: "担当が直して doing に戻った", by: kanban, command: kanban start }
   - { from: needs-human, to: "[*]", on: "オーナーが答えた", by: person }
   - { from: needs-human, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から）", by: machine, command: andon issue merge }
+  - { from: waiting, to: on-hold, on: "Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す）", by: machine, command: andon issue merge }
+  - { from: approved, to: on-hold, on: "approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9）", by: machine, command: andon issue merge }
+  - { from: held, to: on-hold, on: "approve のあとに止められた（判定を捨てる）", by: machine, command: andon issue merge }
+  - { from: needs-human, to: on-hold, on: "needs_human のあとに止められた（判定を捨て、gate の問いを閉じる）", by: machine, command: andon issue merge }
+  - { from: on-hold, to: waiting, on: "Chief of Staff が andon issue unhold で外した（次の見回りで今の head の gate から。gate が印を書く）", by: ai, command: andon issue unhold }
   - { from: finished, to: "[*]", on: "終わり", by: machine }

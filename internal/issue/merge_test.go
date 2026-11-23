@@ -30,19 +30,21 @@ func TestAuthorized(t *testing.T) {
 		trusted             bool
 		gateMerge, nowMerge string
 		tier                string
+		held                bool
 		want                bool
 		why                 string
 	}{
-		{"変わっていない", auto, auto, "review", true, "B", "B", "B", true, ""},
-		{"merge: person に変わった", auto, person, "review", true, "B", "B", "B", false, "予約キー"},
-		{"must_fix が変わった", auto, minor, "review", true, "B", "B", "B", false, "予約キー"},
-		{"Chief of Staff でない者が書いた", auto, auto, "review", false, "B", "B", "B", false, "Chief of Staff"},
-		{"review でなくなった", auto, auto, "doing", true, "B", "B", "B", false, "review でなくなった"},
-		{"委譲を取り消した", auto, auto, "review", true, "B", "none", "B", false, "B → none"},
-		{"委譲を広げた（判定とずれる）", auto, auto, "review", true, "A", "B", "A", false, "A → B"},
-		{"委譲の外", auto, auto, "review", true, "A", "A", "B", false, "merge=A < tier B"},
+		{"変わっていない", auto, auto, "review", true, "B", "B", "B", false, true, ""},
+		{"gate のあとに止められた（ADR-0056 決めたこと 9。A7）", auto, auto, "review", true, "B", "B", "B", true, false, "止めた（理由の課題 A-0009）"},
+		{"merge: person に変わった", auto, person, "review", true, "B", "B", "B", false, false, "予約キー"},
+		{"must_fix が変わった", auto, minor, "review", true, "B", "B", "B", false, false, "予約キー"},
+		{"Chief of Staff でない者が書いた", auto, auto, "review", false, "B", "B", "B", false, false, "Chief of Staff"},
+		{"review でなくなった", auto, auto, "doing", true, "B", "B", "B", false, false, "review でなくなった"},
+		{"委譲を取り消した", auto, auto, "review", true, "B", "none", "B", false, false, "B → none"},
+		{"委譲を広げた（判定とずれる）", auto, auto, "review", true, "A", "B", "A", false, false, "A → B"},
+		{"委譲の外", auto, auto, "review", true, "A", "A", "B", false, false, "merge=A < tier B"},
 	} {
-		got, why := Authorized(c.before, c.now, c.status, c.trusted, c.gateMerge, c.nowMerge, c.tier)
+		got, why := Authorized(c.before, c.now, c.status, c.trusted, c.gateMerge, c.nowMerge, c.tier, "A-0009", c.held)
 		if got != c.want || !strings.Contains(why, c.why) {
 			t.Errorf("%s: Authorized = %v %q, want %v（%q を含む）", c.name, got, why, c.want, c.why)
 		}
@@ -66,11 +68,11 @@ func TestAuthorizedNamedGrantRevoked(t *testing.T) {
 	if gateMerge != "C" || grant != "d1" {
 		t.Fatalf("gate のときの値: %s %q", gateMerge, grant)
 	}
-	if ok, why := Authorized(auto, auto, "review", true, gateMerge, gateMerge, "C"); !ok {
+	if ok, why := Authorized(auto, auto, "review", true, gateMerge, gateMerge, "C", "", false); !ok {
 		t.Fatalf("取り消す前に断った: %s", why)
 	}
 	nowMerge, _ := gate.Delegated(read(named+`,"revoked":{"at":"2026-11-21","by":"owner","reason":"やめる"}}`), "A-0001", rep)
-	if ok, why := Authorized(auto, auto, "review", true, gateMerge, nowMerge, "C"); ok || !strings.Contains(why, "C → B") {
+	if ok, why := Authorized(auto, auto, "review", true, gateMerge, nowMerge, "C", "", false); ok || !strings.Contains(why, "C → B") {
 		t.Errorf("取り消したあとの読み直し = %v %q, want 断る（C → B）", ok, why)
 	}
 	yes := true

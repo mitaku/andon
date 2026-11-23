@@ -112,6 +112,8 @@ func line(n Notification) string {
 		return clean(n.Issue, 40) + " の担当 " + short("from") + " が止まったので、resume して " + short("agent") + " で続きから起動した"
 	case "closed":
 		return head + d("pr") + " はマージされずに閉じた。片付けていない"
+	case "hold":
+		return clean(n.Issue, 40) + " の PR を止めた理由の課題 " + d("reason") + " が done になったが、止めは残っている。答えを担当へ伝えて直ったら andon issue unhold " + clean(n.Issue, 40) + " で外す"
 	case "impact":
 		if e, ok := n.Detail["error"]; ok && e != nil {
 			return head + d("pr") + " のマージの影響を集められなかった（" + clean(e, 120) + "）。andon issue impact " + clean(n.Issue, 40) + " を打って読む"

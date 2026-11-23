@@ -159,6 +159,8 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		p.st.Corrections.Add(id)
 		// 結果の記録も同じ done の行から1回だけ書く（outcome.go）
 		p.st.Outcomes.Add(id)
+		// 止めた理由の課題が済んでも止めは外れない。残っていれば Chief of Staff に1回知らせる（done の行は1回だけ読む。ADR-0056 決めたこと 7）
+		p.heldOn(id)
 		return true
 	}
 	if r.By == by {

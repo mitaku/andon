@@ -12,7 +12,7 @@
     "issue": { "description": "Issue id, when the notification is about an issue.", "$ref": "#/$defs/id" },
     "kind": {
       "description": "What happened.",
-      "enum": ["report", "review", "asked", "answered", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate", "memory", "idle"]
+      "enum": ["report", "review", "asked", "answered", "ready", "review-requested", "gate", "merged", "closed", "impact", "corrections", "signal", "blocked", "error", "finished", "stalled", "resumed", "estimate", "memory", "idle", "hold"]
     },
     "detail": { "description": "Depends on kind (see allOf).", "type": "object" }
   },
@@ -50,7 +50,9 @@
     { "if": { "properties": { "kind": { "const": "memory" } } },
       "then": { "properties": { "detail": { "$ref": "#/$defs/memory" } } } },
     { "if": { "properties": { "kind": { "const": "idle" } } },
-      "then": { "properties": { "detail": { "$ref": "#/$defs/idle" } } } }
+      "then": { "properties": { "detail": { "$ref": "#/$defs/idle" } } } },
+    { "if": { "properties": { "kind": { "const": "hold" } } },
+      "then": { "properties": { "detail": { "$ref": "#/$defs/hold" } } } }
   ],
   "$defs": {
     "time": { "description": "UTC time, YYYY-MM-DDTHH:MM:SSZ, a real calendar date and time.", "type": "string", "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$" },
@@ -132,6 +134,11 @@
         "by": { "description": "Only when a person merged on GitHub (absent when the dispatcher merged).", "const": "person" },
         "held": { "description": "Why the dispatcher did not finish the issue (an open question not from the gate, or finish failed).", "type": "string", "minLength": 1 }
       }
+    },
+    "hold": {
+      "description": "kind hold: the issue whose answer the Chief of Staff held this issue's pull request for is done, and the hold is still there. The hold is not released by itself (andon issue unhold). Notified once, from the done row of the reason issue.",
+      "type": "object", "required": ["reason"], "additionalProperties": false,
+      "properties": { "reason": { "description": "The issue the hold names (issue.yaml hold), now done.", "$ref": "#/$defs/id" } }
     },
     "closed": {
       "description": "kind closed: the pull request of an issue in review was closed without merging. Not finished; notified once.",

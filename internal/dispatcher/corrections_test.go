@@ -175,7 +175,7 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 		return string(b)
 	}
 	// 書き手の数: gate の問いに答えを書くのは closeQuestion だけで、その呼び手は settle の closeAndFinish・merge の
-	// closeGateQuestions（呼び手は headMoved の1つ）・closeStaleGateQuestions。増えたら、その答えの形を machineGateAnswers と下に足す。
+	// closeGateQuestions（呼び手は headMoved と holdDecision の2つ）・closeStaleGateQuestions。増えたら、その答えの形を machineGateAnswers と下に足す。
 	files, err := filepath.Glob(filepath.Join("..", "issue", "*.go"))
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +192,7 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 		// その1つは印 machine を付けて書く（ADR-0049 決めたこと 6）。印を外すと、この答えは印の無い答えに数えられる
 		calls["answer machine"] += strings.Count(src, `"answer", "--decided-by", "machine", "--", `)
 	}
-	if want := map[string]int{"closeQuestion": 3, "closeGateQuestions": 1, "answer": 1, "answer machine": 1}; fmt.Sprint(calls) != fmt.Sprint(want) {
+	if want := map[string]int{"closeQuestion": 3, "closeGateQuestions": 2, "answer": 1, "answer machine": 1}; fmt.Sprint(calls) != fmt.Sprint(want) {
 		t.Errorf("gate の問いを閉じる書き手の数か印が変わった: %v（前は %v）。足した書き手の答えを machineGateAnswers に足し、印は machine で書く", calls, want)
 	}
 	sha := strings.Repeat("1", 40)
@@ -214,13 +214,19 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 		t.Fatal("merge.go に head が動いて gate の問いを閉じる答えが見つからない")
 	}
 	moved := fmt.Sprintf(g[1], sha[:12], strings.Repeat("2", 12))
-	for _, a := range []string{merged, regated, moved} {
+	// merge.go の holdDecision: why := fmt.Sprintf("Chief of Staff が PR を止めた（理由の課題 %s）。…", reason)
+	h := regexp.MustCompile(`why := fmt\.Sprintf\("(Chief of Staff が PR を止めた[^"]*)",`).FindStringSubmatch(read("merge.go"))
+	if h == nil {
+		t.Fatal("merge.go に止めたときに gate の問いを閉じる答えが見つからない")
+	}
+	held := fmt.Sprintf(h[1], "S-0002")
+	for _, a := range []string{merged, regated, moved, held} {
 		if !machineGateAnswer(a) {
 			t.Errorf("機械が閉じた答えを見分けない: %q", a)
 		}
 	}
 	// 見分けが広すぎないこと: オーナーが書いた答え（推奨案・ほかの案・文の頭だけ同じもの）は機械の答えでない
-	for _, a := range []string{"オーナーが PR を読んでマージする", "担当に直させる（理由を Chief of Staff が返す）", merged + "。でも次からは直させる", "PR の head が動いた（前のはだめ）"} {
+	for _, a := range []string{"オーナーが PR を読んでマージする", "担当に直させる（理由を Chief of Staff が返す）", merged + "。でも次からは直させる", "PR の head が動いた（前のはだめ）", "Chief of Staff が PR を止めた（理由の課題 S-0002）"} {
 		if machineGateAnswer(a) {
 			t.Errorf("オーナーの答えを機械の答えと見分けた: %q", a)
 		}
