@@ -682,6 +682,23 @@ eval "HC_TERMINAL_ID=t5 ${fix/<small|medium|large>/small}" >/dev/null
   || die "直す行を打っても起動できない: $("$andon" issue start "$s12" --dry-run 2>&1)"
 ok 'start: 予約キーが無いか最後に書いたのが今の Chief of Staff の端末でなければ、何も作らず値も書かずに止まり、直す kanban set の行を出す。埋めて打てば起動できる'
 
+# ルーチンが足した課題（log.jsonl に by: routine:<名前>・fired の行）は、Chief of Staff の端末で打てば、無い予約キーを既定で書いてから起動する。
+# --dry-run は書かない。ほかの端末で打てば今までどおり断る
+mkdir -p kanban/routines
+printf 'title: "Upkeep"\nprofile: claude\nbrief: |\n  # Upkeep\nschedule: "0 0 1 1 *"\n' > kanban/routines/upkeep.yaml
+s13=$(kanban routine run upkeep | sed -n 's/^upkeep: added //p')
+[ -n "$s13" ] && [ "$(field "$s13" routine)" = upkeep ] && [ -z "$(field "$s13" review)$(field "$s13" estimate)" ] || die "ルーチンが課題を足さない: $s13"
+before=$(wc -l < kanban/log.jsonl)
+"$andon" issue start "$s13" --dry-run --json | jq -e '.fill == ["review=off", "estimate=medium"]' >/dev/null \
+  || die "dry-run が埋めるキー: $("$andon" issue start "$s13" --dry-run 2>&1)"
+[ "$(wc -l < kanban/log.jsonl)" = "$before" ] || die 'dry-run が kanban を書いた'
+HC_TERMINAL_ID=t7 expect_fail '無い・知らない値: review・estimate。' "$andon" issue start "$s13"
+"$andon" issue start "$s13" >/dev/null || die "ルーチンが足した課題を起動できない: $(cat "$tmp/err" 2>/dev/null)"
+[ "$(field "$s13" status)" = doing ] && [ "$(field "$s13" review)" = off ] && [ "$(field "$s13" estimate)" = medium ] \
+  && jq -e --arg id "$s13" 'select(.id == $id and .change.review == "off" and .change.estimate == "medium") | .by == "terminal:t5"' kanban/log.jsonl >/dev/null \
+  || die "既定を Chief of Staff の端末で書いていない: $(kanban show "$s13" --json | jq -c .issue)"
+ok 'start: ルーチンが足した課題は、Chief of Staff の端末で打てば無い予約キーを既定で書いてから起動する（--dry-run は書かない。ほかの端末では断る）'
+
 # hc run が落ちたら、作った worktree と branch を戻す
 s4=$(kanban add 'Run fails' --repo github.com/example/app --profile codex --brief - <<<'# x')
 keys "$s4"

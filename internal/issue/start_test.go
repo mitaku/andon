@@ -3,6 +3,7 @@ package issue
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -456,6 +457,205 @@ func TestStartSettingsNotNeeded(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ルーチンが足した課題（log.jsonl に by: routine:<名前>・fired の行がある）は、Chief of Staff の端末で打てば、無い予約キーを既定で
+// 書いてから起動する（足すのは dispatcher の kanban tick で、Chief of Staff の書いた値を持てない）。書いてあるキーは変えない。
+// --dry-run は書かない。欄だけの課題（kanban set で routine を書いた）と、ほかの端末で打ったときは今までどおり断る。
+func TestStartFillsRoutineSettings(t *testing.T) {
+	fired := func(f *startFixture, name, id string) {
+		f.task["routine"] = name
+		b, _ := json.Marshal(map[string]any{"at": "2026-11-23T00:00:00Z", "by": "routine:" + name, "routine": name, "fired": id})
+		lf, err := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		defer lf.Close()
+		lf.Write(append(b, '\n'))
+	}
+	const setLine = "kanban set S-0007 review=off must_fix=major merge=person estimate=medium | HC_TERMINAL_ID=t5"
+
+	t.Run("fills", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		fired(f, "triage", "S-0007")
+		rc, out, errs := f.run()
+		if rc != 0 || errs != "" {
+			t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+		calls := f.calls()
+		i := slices.IndexFunc(calls, func(c string) bool { return strings.HasPrefix(c, setLine) })
+		j := slices.IndexFunc(calls, func(c string) bool { return strings.HasPrefix(c, "hc run ") })
+		if i < 0 || j < 0 || i > j {
+			t.Errorf("起動の前に既定を書かない:\n%s", strings.Join(calls, "\n"))
+		}
+	})
+	t.Run("keeps written keys", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("estimate", "merge")
+		fired(f, "triage", "S-0007")
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if !f.has("kanban set S-0007 merge=person estimate=medium | HC_TERMINAL_ID=t5") {
+			t.Errorf("無いキーだけを書かない: %q", f.calls())
+		}
+	})
+	t.Run("review on picks the other brand", func(t *testing.T) {
+		f := newStart(t)
+		f.task["profile"] = "codex"
+		f.unset("reviewer", "review_rounds", "estimate")
+		fired(f, "triage", "S-0007")
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if !f.has("kanban set S-0007 reviewer=claude-review review_rounds=2 estimate=medium | HC_TERMINAL_ID=t5") {
+			t.Errorf("review=on の課題で reviewer を別ブランドで埋めない: %q", f.calls())
+		}
+	})
+	// 前の start の kanban set が issue.yaml を書いたあと log.jsonl に足す前に止まった（照合が外れた既定の値）なら、同じ値で書き直す。
+	// 既定と違う値は誰かが選んだものなので、照合が外れていれば今までどおり断る
+	// Chief of Staff が起き直してアドレスが変わった（前の端末 t5 が書いた行は照合が外れる）ときも同じ。
+	t.Run("rewrites untrusted defaults", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("reviewer", "review_rounds")
+		f.set("t5", map[string]any{"review": "off", "must_fix": "major", "merge": "person", "estimate": "medium"})
+		os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t6\n"), 0o644)
+		t.Setenv("HC_TERMINAL_ID", "t6")
+		fired(f, "triage", "S-0007")
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if !f.has(strings.Replace(setLine, "HC_TERMINAL_ID=t5", "HC_TERMINAL_ID=t6", 1)) {
+			t.Errorf("照合の外れた既定を書き直さない: %q", f.calls())
+		}
+	})
+	t.Run("keeps refusing untrusted non-defaults", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("estimate")
+		f.set("t42", map[string]any{"merge": "auto"})
+		fired(f, "triage", "S-0007")
+		rc, _, errs := f.run()
+		if rc != 1 || !strings.Contains(errs, "でない: merge。") || f.has("kanban set") {
+			t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+		}
+	})
+	t.Run("dry run writes nothing", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		fired(f, "triage", "S-0007")
+		rc, out, errs := f.run("--dry-run")
+		if rc != 0 || !strings.Contains(out, "ルーチン triage が足した課題なので、無いキー（と照合の外れた既定のキー）を既定で書く: review=off must_fix=major merge=person estimate=medium") {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if f.has("kanban set") {
+			t.Errorf("--dry-run が書いた: %q", f.calls())
+		}
+	})
+	for _, c := range []struct {
+		name string
+		edit func(f *startFixture)
+	}{
+		{"routine key without a fired row", func(f *startFixture) { f.task["routine"] = "triage" }},
+		{"fired as another issue", func(f *startFixture) { fired(f, "triage", "S-0008") }},
+		{"not the chief of staff", func(f *startFixture) {
+			fired(f, "triage", "S-0007")
+			t.Setenv("HC_TERMINAL_ID", "t9")
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			c.edit(f)
+			rc, _, errs := f.run()
+			if rc != 1 || !strings.Contains(errs, "無い・知らない値: review・must_fix・reviewer・review_rounds・merge・estimate。") || f.has("kanban set") {
+				t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+			}
+		})
+	}
+}
+
+// トリアージの apply が足した課題（記録の created_issue）は、apply が予約キーを書く前に止まっていても、Chief of Staff の端末で打てば
+// 無いキーを既定で書いてから起動する。review は決定の値（束ならどれか1つが on で on）。記録に無い課題は今までどおり断る。
+func TestStartFillsTriageSettings(t *testing.T) {
+	record := func(f *startFixture, created string, reviews ...string) {
+		var items []map[string]any
+		for _, r := range reviews {
+			items = append(items, map[string]any{"key": "k", "decision": "bundle", "created_issue": created, "issue": map[string]any{"review": r}})
+		}
+		items = append(items, map[string]any{"key": "p", "decision": "person", "created_issue": "S-0099"})
+		dir := filepath.Join(f.root, "kanban", "library", "triage")
+		os.MkdirAll(dir, 0o755)
+		b, _ := json.Marshal(map[string]any{"items": items})
+		os.WriteFile(filepath.Join(dir, "2026-11-23-S-0005.json"), b, 0o644)
+	}
+	for _, c := range []struct {
+		name, created string
+		reviews       []string
+		want          string
+	}{
+		{"review on", "S-0007", []string{"off", "on"}, "kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"},
+		{"review off", "S-7", []string{"off"}, "kanban set S-0007 review=off must_fix=major merge=person estimate=medium | HC_TERMINAL_ID=t5"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			record(f, c.created, c.reviews...)
+			rc, out, errs := f.run("--dry-run")
+			if rc != 0 || !strings.Contains(out, "トリアージ S-0005 が足した課題なので") || f.has("kanban set") {
+				t.Fatalf("dry-run: rc=%d out=%q err=%q", rc, out, errs)
+			}
+			if rc, out, errs := f.run(); rc != 0 || !f.has(c.want) {
+				t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+		})
+	}
+	// apply が kanban add のあと記録の前で止まった課題: 記録には足す前の印（adding）と題だけが残る。
+	// 題が同じで、足したのが Chief of Staff の端末なら埋める。足した端末が違う・題が違うなら今までどおり断る。
+	adding := func(f *startFixture, title, by string) {
+		dir := filepath.Join(f.root, "kanban", "library", "triage")
+		os.MkdirAll(dir, 0o755)
+		b, _ := json.Marshal(map[string]any{"items": []map[string]any{
+			{"key": "k", "decision": "fix", "adding": true, "issue": map[string]any{"title": title, "review": "on"}}}})
+		os.WriteFile(filepath.Join(dir, "2026-11-23-S-0005.json"), b, 0o644)
+		lf, _ := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		fmt.Fprintf(lf, `{"at":"2026-11-23T00:00:00Z","by":"%s","id":"S-0007","change":{"add":"%s"}}`+"\n", by, title)
+		lf.Close()
+	}
+	t.Run("added before recorded", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		adding(f, "Add the button", "terminal:t5")
+		want := "kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"
+		if rc, out, _ := f.run("--dry-run"); rc != 0 || !strings.Contains(out, "トリアージ S-0005 が足した課題なので") || f.has("kanban set") {
+			t.Fatalf("dry-run: rc=%d out=%q", rc, out)
+		}
+		if rc, out, errs := f.run(); rc != 0 || !f.has(want) {
+			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+	})
+	for _, c := range []struct{ name, title, by string }{
+		{"added before recorded by another terminal", "Add the button", "terminal:t9"},
+		{"added before recorded with another title", "Other", "terminal:t5"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			adding(f, c.title, c.by)
+			if rc, _, errs := f.run(); rc != 1 || !strings.Contains(errs, "無い・知らない値: review・") || f.has("kanban set") {
+				t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+			}
+		})
+	}
+	t.Run("not in the record", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		record(f, "S-0008", "on")
+		rc, _, errs := f.run()
+		if rc != 1 || !strings.Contains(errs, "無い・知らない値: review・") || f.has("kanban set") {
+			t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+		}
+	})
 }
 
 func TestStartHcRunFails(t *testing.T) {

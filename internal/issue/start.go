@@ -47,6 +47,7 @@ type startPlan struct {
 	BriefPath    string       `json:"brief_path"`
 	Brief        string       `json:"brief"`
 	Checks       []startCheck `json:"checks"`
+	Fill         []string     `json:"fill,omitempty"` // 起動の前に書く予約キー（ルーチンが足した課題の無いキー。checkSettings）
 	repoDir      string
 	command      *string // template の command（起動の記録の起動行。dry では読まない）
 }
@@ -83,6 +84,12 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 
 	id := c.id
+	if len(p.Fill) > 0 {
+		// ルーチンが足した課題の無い予約キーを、Chief of Staff の端末で書く（gate と dispatcher の履歴の照合も通る）
+		if _, err := c.l.Run("", append([]string{"set", id}, p.Fill...)...); err != nil {
+			return err
+		}
+	}
 	undo := func() {}
 	if p.Repo != "" {
 		wt, err := spawn.NewWorktree(p.repoDir, c.l.Slug, id, p.Title)
@@ -278,14 +285,45 @@ func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) 
 // 最後に書いたのが今の Chief of Staff の端末か（ledger.Trusted。gate・dispatcher と同じ履歴の照合）。
 // 揃っていなければ起動しない: 担当は予約キーを書けず、実装を終えてから review-request・ready・gate で止まるため。
 // 値は決めずに書かない。直す kanban set の行を出し、無いキーの値は選ぶ場所を残す（値を決めるのは Chief of Staff）。
+// ただしルーチンが足した課題（ledger.FiredBy）とトリアージの apply が足した課題（triageMade）は、Chief of Staff の端末で打つときだけ、
+// 無いキーを既定（ledger.DefaultSettings。review は書いてある値、無ければトリアージの決定の値か off）で埋める: ルーチンの課題は
+// dispatcher の kanban tick が足すので Chief of Staff の書いた値を持てず、トリアージの課題は apply が予約キーを書く前（記録の前も）に止まりうるため。埋めるキーは p.Fill に置き、
+// start が起動の前に kanban set で書く（--dry-run は書かない）。既定と同じ値なのに照合が外れたキーも同じ値で書き直し、既定と違う値は変えない。
 // Chief Engineer の課題は見ない（予約キーを置かない）。レビュアーの課題は plan がこの前に断る。
 func (c *ctx) checkSettings(p *startPlan) error {
 	if p.Profile == chiefengineer.Profile {
 		p.check("settings", "ok", "Chief Engineer の課題は予約キーを見ない")
 		return nil
 	}
-	keys, optional := requiredSettings(c.issue)
 	rows, s, cos := c.l.Log(), ledger.SettingsOf(c.issue), c.l.ChiefOfStaff()
+	defaults := map[string]string{}
+	// 足したのがルーチンか、トリアージの apply（足したあと予約キーを書く前に止まった）か
+	source, made := "", "off"
+	if r := ledger.FiredBy(rows, c.issue); r != "" {
+		source = "ルーチン " + r
+	} else if t, review := triageMade(c.l.Dir, rows, cos, c.issue); t != "" {
+		source, made = "トリアージ "+t, review
+	}
+	// 要るキーは埋めたあとの課題で数える（review を off で埋めれば reviewer・review_rounds は要らない）
+	filled := c.issue
+	if source != "" && cos != "" && os.Getenv("HC_TERMINAL_ID") == cos {
+		review := c.issue.Str("review") // 書いてあればその値で（on なら reviewer はいまの profile から選ぶ）。無ければ足した側の値
+		if review != "on" && review != "off" {
+			review = made
+		}
+		filled = ledger.Issue{}
+		for k, v := range c.issue {
+			filled[k] = v
+		}
+		for _, kv := range ledger.DefaultSettings(p.Profile, review) {
+			k, v, _ := strings.Cut(kv, "=")
+			defaults[k] = v
+			if c.issue.Str(k) == "" {
+				filled[k] = v
+			}
+		}
+	}
+	keys, optional := requiredSettings(filled)
 	var need, missing, untrusted, args []string
 	for _, k := range keys {
 		v := c.issue.Str(k)
@@ -294,15 +332,24 @@ func (c *ctx) checkSettings(p *startPlan) error {
 		}
 		need = append(need, k)
 		switch {
+		case v == "" && defaults[k] != "":
+			p.Fill = append(p.Fill, k+"="+defaults[k])
 		case v == "" || settingValue[k](s) != v:
 			missing = append(missing, k)
 			args = append(args, "'"+k+"="+settingChoices[k]+"'")
+		case v == defaults[k] && !c.l.Trusted(rows, c.issue, k):
+			// 既定のまま照合が外れた（前の start の kanban set が log.jsonl に足す前に止まった・Chief of Staff が起き直した）。同じ値で書き直す
+			p.Fill = append(p.Fill, k+"="+v)
 		case !c.l.Trusted(rows, c.issue, k):
 			untrusted = append(untrusted, k)
 			args = append(args, k+"="+v)
 		}
 	}
 	if len(args) == 0 {
+		if len(p.Fill) > 0 {
+			p.check("settings", "ok", "揃っている（%s）。%s が足した課題なので、無いキー（と照合の外れた既定のキー）を既定で書く: %s", strings.Join(need, "・"), source, strings.Join(p.Fill, " "))
+			return nil
+		}
 		p.check("settings", "ok", "揃っている（%s。最後に書いたのは Chief of Staff の端末 %s）", strings.Join(need, "・"), cos)
 		return nil
 	}
@@ -319,6 +366,68 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	}
 	// 打つ行は shell にそのまま貼れるよう、文の最後に置く
 	return fail("%s: kanban set %s %s", msg, c.id, strings.Join(args, " "))
+}
+
+// triageMade は、課題 t を足したトリアージの apply の記録（kanban の library/triage/<日付>-<トリアージの id>.json の items。
+// fix と bundle の決定）を探し、そのトリアージの id と、決定の review（束ならどれか1つが on で on）を返す。無ければ空。
+// 記録の項目が t を指すのは、created_issue が t の id のときか、apply が足す前に残す印（adding）があって、題が t の題と同じで、
+// t を足したのが今の Chief of Staff の端末（log.jsonl の最初の add の行）のとき。kanban add が返ったあと記録の前で止まった課題も分かる。
+func triageMade(dir string, rows []ledger.Row, cos string, t ledger.Issue) (string, string) {
+	id := ledger.CanonID(t.Str("id"))
+	byCos := false
+	for _, r := range rows {
+		if _, ok := r.Change["add"]; ok && ledger.CanonID(r.ID) == id {
+			byCos = cos != "" && r.By == "terminal:"+cos
+			break
+		}
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "library", "triage", "*.json"))
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var rec struct {
+			Items []struct {
+				Created  string `json:"created_issue"`
+				Adding   bool   `json:"adding"`
+				Decision string `json:"decision"`
+				Issue    struct {
+					Title  string `json:"title"`
+					Review string `json:"review"`
+				} `json:"issue"`
+			} `json:"items"`
+		}
+		if json.Unmarshal(b, &rec) != nil {
+			continue
+		}
+		// 印のある項目は1つの決定（apply は決定を1つずつ当て、止まればそこで終わる）なので、review は印のある項目の全部で見る
+		created, adding, onCreated, onAdding := false, false, false, false
+		for _, it := range rec.Items {
+			if it.Decision != "fix" && it.Decision != "bundle" {
+				continue
+			}
+			switch {
+			case it.Created != "" && ledger.CanonID(it.Created) == id:
+				created, onCreated = true, onCreated || it.Issue.Review == "on"
+			case it.Created == "" && it.Adding:
+				adding, onAdding = adding || (byCos && it.Issue.Title == t.Str("title")), onAdding || it.Issue.Review == "on"
+			}
+		}
+		if !created && !adding {
+			continue
+		}
+		review := "off"
+		if created && onCreated || !created && onAdding {
+			review = "on"
+		}
+		name := strings.TrimSuffix(filepath.Base(f), ".json")
+		if len(name) > len("2006-01-02-") {
+			name = name[len("2006-01-02-"):]
+		}
+		return name, review
+	}
+	return "", ""
 }
 
 // writableRepo は課題の repo を書いてよいかを確かめ、clone の置き場を返す（start と resume の確かめ）:

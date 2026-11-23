@@ -14,17 +14,18 @@ import (
 )
 
 // fakeKanbanApply は list・add・set だけを受ける偽の kanban の CLI を PATH に置く。課題は FAKE_STATE に1行1件
-// （id・題・parent・who をタブで区切る）で持ち、add は行を足して新しい id を出す。打った add と set は FAKE_LOG に1行ずつ。
+// （id・題・parent・who・review を | で区切る。空の欄を潰さないため）で持ち、add は行を足して新しい id を出し、set は review を覚える。打った add と set は FAKE_LOG に1行ずつ。
 const fakeKanbanApply = `#!/usr/bin/env bash
 st=$FAKE_STATE
 case $1 in
 list) sep=; printf '['
-  while IFS=$'\t' read -r id title parent who; do
-    printf '%s{"id":"%s","title":"%s","parent":"%s","who":"%s"}' "$sep" "$id" "$title" "$parent" "$who"; sep=,
+  while IFS='|' read -r id title parent who review; do
+    printf '%s{"id":"%s","title":"%s","parent":"%s","who":"%s","review":"%s"}' "$sep" "$id" "$title" "$parent" "$who" "$review"; sep=,
   done <"$st"; printf ']\n' ;;
 add) cat >/dev/null; id="S-00$(( $(wc -l <"$st") + 20 ))"
-  printf '%s\t%s\t%s\t\n' "$id" "$2" "$4" >>"$st"; echo "add $2" >>"$FAKE_LOG"; echo "$id" ;;
-set) echo "set $2 $3" >>"$FAKE_LOG" ;;
+  printf '%s|%s|%s||\n' "$id" "$2" "$4" >>"$st"; echo "add $2" >>"$FAKE_LOG"; echo "$id" ;;
+set) echo "$*" >>"$FAKE_LOG"
+  case $3 in review=*) awk -F'|' -v OFS='|' -v id="$2" -v r="${3#review=}" '$1==id{$5=r}1' "$st" >"$st.new" && mv "$st.new" "$st" ;; esac ;;
 *) exit 9 ;;
 esac
 `
@@ -42,7 +43,7 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 	state, logf := filepath.Join(dir, "state"), filepath.Join(dir, "log")
 	t.Setenv("FAKE_STATE", state)
 	t.Setenv("FAKE_LOG", logf)
-	os.WriteFile(state, []byte("S-0010\t直す A\tS-0001\t\n"), 0o644) // 別の振り返りが足した同じ題の課題
+	os.WriteFile(state, []byte("S-0010|直す A|S-0001||\n"), 0o644) // 別の振り返りが足した同じ題の課題
 	os.WriteFile(logf, nil, 0o644)
 
 	l := ledger.At(filepath.Join(dir, "sample-site"))
@@ -63,7 +64,10 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 	}
 	b, _ := os.ReadFile(logf)
 	got := strings.Split(strings.TrimSpace(string(b)), "\n")
-	want := []string{"add 直す A", "add Andon へ伝えるか: B", "set S-0022 who=person"}
+	// 担当の課題には予約キーを書く（off は reviewer を書かない。profile は後で決まる）。偽の kanban は log.jsonl を書かないので、
+	// 打ち直しは前の回の値を照合の外れた既定と見て、同じ値で書き直す（書き直さない場合は ledger の TestUnsettled が見る）
+	keys := "set S-0021 review=off must_fix=major merge=person estimate=medium"
+	want := []string{"add 直す A", keys, keys, "add Andon へ伝えるか: B", "set S-0022 who=person"}
 	if !slices.Equal(got, want) {
 		t.Errorf("打った kanban の CLI: %q（want %q）", got, want)
 	}

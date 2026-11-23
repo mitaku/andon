@@ -248,7 +248,8 @@ verdict "$triage" "$todo_key" ok | grep -q '閉じてよい'
 verdict "$triage" "$person_key" ok >/dev/null
 "$script" triage apply "$triage" --max-issues 2 --dry-run | jq -e '[.review[].verdict] == ["ok","ok"]' >/dev/null
 echo 'ok apply: closing an issue needs the verdict of the Chief of Staff, even with evidence (AC 17)'
-"$script" triage apply "$triage" --max-issues 2 > "$tmp/summary"
+# 当てるのは Chief of Staff の端末（足した課題の予約キーの書き手になる）
+HC_TERMINAL_ID=t50 "$script" triage apply "$triage" --max-issues 2 > "$tmp/summary"
 [[ $(kanban show "$todo" --json | jq -r .issue.status) == done && $(kanban show "$person" --json | jq -r .issue.status) == done ]]
 tail -1 "kanban/issues/$todo/report.md" | grep -q '不要（'
 record=$(echo kanban/library/triage/*.json)
@@ -260,6 +261,25 @@ grep -q '閉じた 3 ・ 直す 2（うち束ね 1） ・ オーナーへ 3 ・ 
 jq -e --arg h "$head" '[.items[]|select(.commit==$h)] | length>=6' "$record" >/dev/null
 jq -e '[.items[]|select(.verdict)] | length==2 and all(.verdict.verdict=="ok" and .verdict.by=="terminal:t50")' "$record" >/dev/null
 echo 'ok apply: close, bundle, person, summary'
+# 足した fix・bundle の課題は、予約キーを全部持ち、最後に書いたのが Chief of Staff の端末（andon issue start がそのまま通る）。
+# 依頼書の Settings はその写し
+created=$(jq -r '[.items[]|select(.decision=="fix" or .decision=="bundle")|.created_issue]|unique[]' "$record")
+[[ -n $created ]]
+for issue in $created; do
+    # reviewer・review_rounds は review が on のときだけ（off は起動のときの profile から別ブランドが選ばれる）
+    kanban show "$issue" --json | jq -e '.issue | .must_fix == "major" and .merge == "person" and .estimate == "medium"
+      and (if .review == "on" then .reviewer == "codex-review" and .review_rounds == "2" else .review == "off" and .reviewer == null and .review_rounds == null end)' >/dev/null \
+      || { echo "予約キーが揃っていない: $(kanban show "$issue" --json | jq -c .issue)" >&2; exit 1; }
+    keys="review must_fix merge estimate"
+    [[ "$(kanban show "$issue" --json | jq -r .issue.review)" == on ]] && keys="$keys reviewer review_rounds"
+    for k in $keys; do
+        last=$(jq -r --arg id "$issue" --arg k "$k" 'select(.id==$id and (.change|has($k))) | .by' kanban/log.jsonl | sed -n '$p')
+        [[ "$last" == "terminal:t50" ]] || { echo "$issue の $k を最後に書いたのが $last" >&2; exit 1; }
+    done
+    review=$(kanban show "$issue" --json | jq -r .issue.review)
+    grep -qx -- "- Review: $review" "kanban/issues/$issue/brief.md" && grep -qx -- '- Estimate: 中' "kanban/issues/$issue/brief.md"
+done
+echo 'ok apply: fix and bundle issues carry the reserved keys written by the Chief of Staff terminal'
 collect "$tmp/again" --limit 100
 jq -e --slurpfile r "$record" '
  [.[].key] as $keys | all($r[0].items[]|select(.decision!="keep"); .key as $k | ($keys|index($k))==null)
@@ -571,7 +591,7 @@ snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 jq -n --argjson r "$r2" '{goal:"覆す",collected:"2026-11-19T00:00:00Z",items:[$r + {decision:"fix",reason:"学びを AGENTS.md へ",issue:{title:"学びを足す",repo:"example.invalid/me/app",profile:"sonnet",review:"off",brief:"AGENTS.md に1行"}} | del(.closing)]}' > "$al/decisions.json"
 "$script" triage apply "$again" > "$tmp/again-md"
 rec=$(ls kanban/library/triage/*-"$again".json)
-jq -e '.items | length==1 and .[0].decision=="fix" and (.[0].created_issue|length>0)
+jq -e '.items | length==1 and .[0].decision=="fix" and (.[0].created_issue|length>0) and (.[0]|has("adding")|not)
     and .[0].overturned.reason=="その場限り" and .[0].overturned.closing=="one-off" and .[0].overturned.by=="terminal:t50"' "$rec" >/dev/null
 grep -q '^## Chief of Staff が覆した close' "$tmp/again-md"
 echo 'ok apply: an overturned close is refused, rewritten as fix it passes and the record keeps the overturn (AC 11)'
@@ -587,4 +607,54 @@ old_title=$(kanban add '古い印（人の判断待ち）'); new_title=$(kanban 
 jq -e '[.items[]|select(.kind=="question").text] | index("- 見出し 人に聞くこと の問い") != null and index("- 見出し オーナーに聞くこと の問い") != null' "$tmp/words.json" >/dev/null
 jq -e --arg o "$old_title" --arg n "$new_title" '[.items[]|select(.kind=="person").from] | index($o) != null and index($n) != null' "$tmp/words.json" >/dev/null
 echo 'ok collect: reads both the old and the new heading and title suffix (ADR-0036 A5)'
+# 足した課題に予約キーを書く前に止まっても（ここでは予約キーの kanban set が落ちる）、足した課題は記録に残る
+# （andon issue start が記録からトリアージの課題と分かり、無いキーを既定で書く）。打ち直しは記録済みで断り、課題を重ねて足さない。
+stop=$(kanban add stop)
+sl=kanban/issues/$stop/library
+mkdir -p "$sl"
+"$script" triage collect --limit 1000 > "$sl/items.json"
+r3=$(jq -c '.items[]|select(.kind=="question" and .text=="- 見出し 人に聞くこと の問い")
+  |{key,commit,decision:"fix",reason:"直す",issue:{title:"止まる直し",repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"直す"}}' "$sl/items.json")
+[[ -n $r3 ]]
+jq -n --argjson r "$r3" '{goal:"止まる",collected:"2026-11-20T00:00:00Z",items:[$r]}' > "$sl/decisions.json"
+mkdir -p "$tmp/failset"
+printf '#!/bin/sh\ncase "$1 $3" in "set review="*) echo "予約キーを書けない" >&2; exit 1 ;; esac\nexec %s "$@"\n' "$kanban" > "$tmp/failset/kanban"
+chmod +x "$tmp/failset/kanban"
+set +e
+PATH="$tmp/failset:$PATH" HC_TERMINAL_ID=t50 "$script" triage apply "$stop" >/dev/null 2> "$tmp/err"; rc=$?
+set -e
+[[ $rc == 1 ]] && grep -q '予約キーを書けない' "$tmp/err"
+rec=$(ls kanban/library/triage/*-"$stop".json)
+made=$(jq -r '.items[0].created_issue // empty' "$rec")
+[[ -n $made && -z $(kanban show "$made" --json | jq -r '.issue.review // empty') ]]
+set +e
+HC_TERMINAL_ID=t50 "$script" triage apply "$stop" >/dev/null 2>&1; rc=$?
+set -e
+[[ $rc == 1 && $(kanban list --all --json | jq '[.[]|select(.title=="止まる直し")]|length') == 1 ]]
+echo 'ok apply: an issue added before its reserved keys fail to be written stays in the record; a rerun adds no second issue'
+# kanban add が返った直後、足した課題を記録に書く前に apply が止まっても（ここでは add のあと apply を kill する）、
+# 記録には足す前の印（adding）と題が残る（andon issue start が印と題からトリアージの課題と分かる）。打ち直しは課題を重ねて足さない。
+cut=$(kanban add cut)
+cl=kanban/issues/$cut/library
+mkdir -p "$cl"
+"$script" triage collect --limit 1000 > "$cl/items.json"
+r4=$(jq -c '.items[]|select(.kind=="question" and .text=="- 見出し オーナーに聞くこと の問い")
+  |{key,commit,decision:"fix",reason:"直す",issue:{title:"止まる足し",repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"直す"}}' "$cl/items.json")
+[[ -n $r4 ]]
+jq -n --argjson r "$r4" '{goal:"止まる",collected:"2026-11-20T00:00:00Z",items:[$r]}' > "$cl/decisions.json"
+mkdir -p "$tmp/killadd"
+printf '#!/bin/sh\nif [ "$1" = add ]; then %s "$@" || exit 1; kill -9 $PPID; exit 0; fi\nexec %s "$@"\n' "$kanban" "$kanban" > "$tmp/killadd/kanban"
+chmod +x "$tmp/killadd/kanban"
+set +e
+PATH="$tmp/killadd:$PATH" HC_TERMINAL_ID=t50 "$script" triage apply "$cut" >/dev/null 2>&1; rc=$?
+set -e
+[[ $rc != 0 ]]
+rec=$(ls kanban/library/triage/*-"$cut".json)
+jq -e '.items | length==1 and .[0].adding==true and (.[0].created_issue == null) and .[0].issue.title=="止まる足し"' "$rec" >/dev/null
+[[ $(kanban list --all --json | jq '[.[]|select(.title=="止まる足し")]|length') == 1 ]]
+set +e
+HC_TERMINAL_ID=t50 "$script" triage apply "$cut" >/dev/null 2>&1; rc=$?
+set -e
+[[ $rc == 1 && $(kanban list --all --json | jq '[.[]|select(.title=="止まる足し")]|length') == 1 ]]
+echo 'ok apply: stopped right after kanban add, the record keeps the adding mark and the title; a rerun adds no second issue'
 echo 'all passed'

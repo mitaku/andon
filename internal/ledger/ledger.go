@@ -159,6 +159,9 @@ type Row struct {
 	ID     string         `json:"id"`
 	Change map[string]any `json:"change"`
 	Config map[string]any `json:"config"` // kanban config set の行（id と change は無い）
+	// ルーチンが課題を足した行（by は routine:<名前>。id と change は無い）
+	Routine string `json:"routine"`
+	Fired   string `json:"fired"`
 }
 
 // Log は log.jsonl を読む。読めない行は飛ばす（無いキーと同じ）。ファイルが読めなければ読めたところまで（無ければ nil）。
@@ -282,6 +285,70 @@ func SeverityRank(s string) int {
 		}
 	}
 	return -1
+}
+
+// FiredBy は、課題 t を足したのがルーチンで、それが課題の routine の欄と同じルーチンなら、その名前を返す
+// （log.jsonl の by が routine:<名前> で fired が課題の id の行。kanban の CLI がルーチンを撃つときだけ書く）。
+// 欄だけがあって行が無い（kanban set で routine を書いた）課題は空。
+func FiredBy(rows []Row, t Issue) string {
+	name, id := t.Str("routine"), CanonID(t.Str("id"))
+	if name == "" {
+		return ""
+	}
+	for _, r := range rows {
+		if r.By == "routine:"+name && r.Routine == name && CanonID(r.Fired) == id {
+			return name
+		}
+	}
+	return ""
+}
+
+// DefaultSettings は、command が足す担当の課題に書く予約キーの既定を、kanban set に渡す key=value の並びで返す
+// （トリアージと振り返りの apply が足した課題・ルーチンが足した課題。contract.md §2）。値は Chief of Staff の
+// playbooks/brief.md の表の既定（review は呼び手が決める）で、estimate は中。
+// reviewer と review_rounds は review が on のときだけ書き、reviewer は実装と別ブランドにする。off のときは書かない:
+// 書くと足した時点の profile で固定され、あとで Chief of Staff が profile を替えたとき同じブランドのレビュアーが起動される
+// （書かなければ SettingsOf が読むときの profile から選ぶ。andon issue start も off なら求めない）。
+func DefaultSettings(profile, review string) []string {
+	if review != "on" {
+		return []string{"review=" + review, "must_fix=major", "merge=person", "estimate=medium"}
+	}
+	reviewer := "codex-review"
+	if Brand(profile) == "codex" {
+		reviewer = "claude-review"
+	}
+	return []string{"review=on", "must_fix=major", "reviewer=" + reviewer, "review_rounds=2", "merge=person", "estimate=medium"}
+}
+
+// Unsettled は、既定（DefaultSettings の key=value の並び）のうち、課題 t に書き直すものを返す: キーが無いか、
+// 既定と同じ値なのに履歴の照合（Trusted）が外れている（kanban set が issue.yaml を書いたあと log.jsonl に足す前に止まった・
+// Chief of Staff が起き直してアドレスが変わった）。既定と違う値は誰かが選んだものなので、照合が外れていても返さない。
+func (l *Ledger) Unsettled(rows []Row, t Issue, defaults []string) []string {
+	var out []string
+	for _, kv := range defaults {
+		k, v, _ := strings.Cut(kv, "=")
+		if cur := t.Str(k); cur == "" || (cur == v && !l.Trusted(rows, t, k)) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+// SettingsCopy は予約キー（DefaultSettings の key=value の並び）を、依頼書の ## Settings の写しにする
+// （行の名前と見込みの段の名は playbooks/brief.md の表）。正は issue.yaml で、これは人が読む写し。
+func SettingsCopy(keys []string) string {
+	names := map[string]string{"review": "Review", "reviewer": "Reviewer", "must_fix": "Must fix", "review_rounds": "Review rounds", "merge": "Merge", "estimate": "Estimate"}
+	sizes := map[string]string{"small": "小", "medium": "中", "large": "大"}
+	var b strings.Builder
+	b.WriteString("## Settings\n")
+	for _, kv := range keys {
+		k, v, _ := strings.Cut(kv, "=")
+		if k == "estimate" {
+			v = sizes[v]
+		}
+		b.WriteString("- " + names[k] + ": " + v + "\n")
+	}
+	return b.String()
 }
 
 // Brand はプロファイルのブランド（codex* → codex、ほかは claude）。
