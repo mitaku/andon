@@ -77,9 +77,10 @@ while IFS= read -r p; do
     # design.md は §1.8 の文書の形と役の表を CE skill と突き合わせ、語の検査の範囲にも入る（package.sh）
     docs/design.md) run[tests/package.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
-    # adr-index.sh は ADR の索引・状態行と README の ADR の一覧（ADR-0033）、ADR ごとの決定の記録（docs/decisions/・decisions.md §14）を突き合わせる
+    # adr-index.sh は ADR の索引・状態行（ADR-0033）、ADR ごとの決定の記録（docs/decisions/・decisions.md §14）、
+    # docs/adr/README.md の一覧の見出しのバージョンと CHANGELOG.md の一番上のバージョン（ADR-0055）を突き合わせる
     docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;
-    README.md | docs/decisions.md | docs/decisions/*) run[tests/adr-index.sh]=1 ;;
+    docs/decisions.md | docs/decisions/* | CHANGELOG.md) run[tests/adr-index.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
     # package.sh の節（1節1ファイル）。入口の tests/package.sh が順に読む
     tests/package/*) run[tests/package.sh]=1 ;;
@@ -100,7 +101,7 @@ while IFS= read -r p; do
     # yomiyasu の許可の一覧。image にも andon にも入らない。正との突き合わせは package.sh の節（tests/package/23-yomiyasu-words.sh）、語は words.sh（いつもの分）
     .yomiyasu-words/*) run[tests/package.sh]=1 ;;
     # Go のテスト（go test ./... が見る）・人用の文書は、いつもの分だけ
-    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    cmd/*_test.go | internal/*_test.go | docs/* | tests/* | README.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # コード・andon に埋め込むもの・image に入るもの。重い検査は上の表で足した分だけ
     cmd/* | internal/* | package/* | schema/* | init/* | image/* | embed.go) light=true ;;
     # go.mod・go.sum・mise.toml・.dockerignore・.github/・model/ とまだ無いパス

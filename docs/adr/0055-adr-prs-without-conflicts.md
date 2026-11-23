@@ -9,15 +9,15 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、ADR の一覧と ADR の番号の 2 つにする | この ADR | 生きている |
-| 2 | ADR の一覧は `docs/adr/README.md` に残す。ADR の PR は触らず、バージョンを切る PR が作り直す | この ADR | まだ実装していない |
-| 3 | 一覧は `tests/adr-index.sh` が ADR から読んで出し、書き込む | この ADR | まだ実装していない |
-| 4 | `docs/adr/README.md` は、手で書く読み方と、command が書く一覧の 2 つにする | この ADR | まだ実装していない |
-| 5 | 検査は ADR ごとの行を求めない。一覧の見出しのバージョンを CHANGELOG と突き合わせる | この ADR | まだ実装していない |
+| 2 | ADR の一覧は `docs/adr/README.md` に残す。ADR の PR は触らず、バージョンを切る PR が作り直す | `docs/adr/README.md`・`docs/operate.md` §14 | 生きている |
+| 3 | 一覧は `tests/adr-index.sh` が ADR から読んで出し、書き込む | `tests/adr-index.sh` | 生きている |
+| 4 | `docs/adr/README.md` は、手で書く読み方と、command が書く一覧の 2 つにする | `docs/adr/README.md` | 生きている |
+| 5 | 検査は ADR ごとの行を求めない。一覧の見出しのバージョンを CHANGELOG と突き合わせる | `tests/adr-index.sh` | 生きている |
 | 6 | ADR の番号は `tests/adr-new` が鍵を取って決め、その場でファイルを置く | この ADR | まだ実装していない |
 | 7 | 同じ番号の ADR が 2 本あると検査が落ちる | この ADR | まだ実装していない |
 | 8 | 番号は詰めない。重なったら、あとからマージする側が取り直す | この ADR | 生きている |
-| 9 | 決まりは `AGENTS.md` の表と `docs/operate.md` に置き、Chief Engineer の skill は変えない | この ADR | まだ実装していない |
-| 10 | 実装の PR が一覧を移す。そのとき開いている ADR の PR は自分の 1 行を外す | この ADR | まだ実装していない |
+| 9 | 決まりは `AGENTS.md` の表と `docs/operate.md` に置き、Chief Engineer の skill は変えない | `AGENTS.md`・`docs/operate.md` §14 | まだ実装していない（番号の行。一覧の行と operate.md は済んだ） |
+| 10 | 実装の PR が一覧を移す。そのとき開いている ADR の PR は自分の 1 行を外す | `docs/adr/README.md` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
