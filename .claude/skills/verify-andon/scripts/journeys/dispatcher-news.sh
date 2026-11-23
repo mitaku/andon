@@ -54,6 +54,29 @@ if [ "$nc" -gt 0 ]; then
 else
   echo "note dn-corrections: 当てたあとに書いた手直しの記録が無い（当てたあとに片付いた課題がまだ無い）。dn-corrections は未確認"
 fi
+
+# dn-signal: 当てたあとの通知 signal。届けた記録（delivered.jsonl）は課題と kind だけなので数を読み、通知の detail の元の
+# 信号の記録（<slug>.signals.json。通知は記録の写しで、release は記録にあるときだけ載る）の release が 40 桁の commit かを見る。title は外の人の文なので出さない
+echo "-- dn-signal: 当てたあとの通知 signal と、信号の記録の release"
+nsd=$(jq -c '.news[]? | select(.kind == "signal")' <<<"$del" 2>/dev/null | grep -c . || true)
+nsr=$(jq -c 'select(.kind == "signal")' <<<"$rec" 2>/dev/null | grep -c . || true)
+echo "  | 届けた通知 signal $nsd 件・記録だけの通知 signal $nsr 件"
+srel=$( { jq -c 'select(.kind == "signal") | {at, key: .detail.key, release: .detail.release}' <<<"$rec"
+  for f in "$state"/*.signals.json; do
+    [ -f "$f" ] && jq -c --arg t "$d_at" '.signals[]? | select(.last_seen >= $t) | {last_seen, source, key, url, delivered: "\(.delivered_episode)/\(.episodes)", release}' "$f"
+  done; } 2>/dev/null)
+jq -c '.release //= "-"' <<<"$srel" 2>/dev/null | tail -5 | sed 's/^/  | /'
+if [ $((nsd + nsr)) = 0 ]; then
+  echo "note dn-signal: 当てたあとの通知 signal が無い（信号の出所が無いか、新しい信号がまだ無い）。dn-signal は未確認"
+else
+  bad=$(jq -c 'select(.release != null and (.release | test("^[0-9a-f]{40}$") | not))' <<<"$srel" 2>/dev/null | grep -c . || true)
+  wr=$(jq -c 'select(.release != null)' <<<"$srel" 2>/dev/null | grep -c . || true)
+  if [ "$bad" = 0 ]; then
+    ok "dn-signal: 当てたあとの通知 signal が $((nsd + nsr)) 件。release を持つ信号と通知は $wr 件で、どれも 40 桁の commit"
+  else
+    fail "dn-signal: release が 40 桁の commit でない信号か通知が $bad 件"
+  fi
+fi
 # 記録だけの通知は Chief of Staff に届けていないので、届けた証拠にしない
 [ "$fails" = 0 ] || exit 1
 if [ "$nd" = 0 ]; then
