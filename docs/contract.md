@@ -1076,7 +1076,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `expect` | 必須 | `pass`（終了コード 0 を期待する。既定）か `fail`（0 以外を期待する。誤りを戻すと検査が落ちることを示す記録。決めたこと 8） |
 | `exit_code` | 必須 | command の終了コード。signal で終わったら `-1` |
 | `commit` | repo のある課題では必須（schema では任意。書くのは `andon issue record`）。repo の無い課題では書かない | 走らせる前の worktree の `HEAD`（40桁・小文字） |
-| `dirty` | `commit` があるときだけ、必ず書く | 走らせる前に commit していない変更があったか。`pass` を期待する記録は、`false` のものだけが証拠になる。`fail` を期待する記録は、誤りを戻した木で撮るので `true` でよい（決めたこと 11） |
+| `dirty` | `commit` があるときだけ、必ず書く | 走らせる前に commit していない変更があったか（`git status --porcelain` が空でない。git が無視するものは数えない。yomiyasu の記録の `.yomiyasu/` は、yomiyasu が中に置く `.gitignore` で外れる）。`pass` を期待する記録は、`false` のものだけが証拠になる。`fail` を期待する記録は、誤りを戻した木で撮るので `true` でよい（決めたこと 11） |
 | `started_at`・`finished_at` | 必須 | 始めた時刻と終わった時刻（UTC） |
 | `output` | 必須 | 出力の置き場。`library/` からの相対で、`runs/<id>.log` |
 | `output_bytes` | 必須 | command が書いた出力の全体のバイト数（切る前） |

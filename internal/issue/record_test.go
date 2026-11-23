@@ -256,3 +256,100 @@ func TestRecordTruncates(t *testing.T) {
 		t.Fatalf("切り方が違う: %+v（log %d バイト）", r, len(log))
 	}
 }
+
+// linkedWorktree は fixture の repo から linked worktree を切り、課題の worktree をそこへ向ける（案件の repo の worktree と同じ形）。
+// repo には .gitignore が無い。利用者の git の設定（core.excludesFile）が結果を変えないよう、設定を読ませない。
+func (f *fixture) linkedWorktree() string {
+	f.t.Helper()
+	f.t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	f.t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	linked := filepath.Join(filepath.Dir(f.wt), "linked")
+	if out, err := exec.Command("git", "-C", f.wt, "worktree", "add", "-q", "-b", "case", linked).CombinedOutput(); err != nil {
+		f.t.Fatalf("git worktree add: %v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(linked, ".gitignore")); err == nil {
+		f.t.Fatal("worktree に .gitignore がある（案件の repo の形でない）")
+	}
+	f.task["worktree"] = linked
+	return linked
+}
+
+// yomiyasu の状態フォルダ（git の最上位の .yomiyasu/）は、yomiyasu が中に置く .gitignore（中身は *）で git から外れる。
+// 案件の repo の worktree（.gitignore が無い）でも、記録はそれを commit していない変更に数えない。
+// 検査が当たる場合があること: 中の .gitignore が無いフォルダは、commit していない変更に数える。
+func TestRecordIgnoresYomiyasuState(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		gitignore bool
+		dirty     bool
+	}{{"中に .gitignore がある", true, false}, {"中に .gitignore が無い", false, true}} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.task["repo"] = "github.com/example/app"
+			state := filepath.Join(f.linkedWorktree(), ".yomiyasu")
+			files := map[string]string{"state.json": `{"format": "yomiyasu-state", "format_version": 1}` + "\n",
+				"inputs/a.md": "原文の写し\n", "runs/r1/record.json": "{}\n"}
+			if c.gitignore {
+				files[".gitignore"] = "# yomiyasu の検査記録。git に入れない。\n*\n"
+			}
+			for name, body := range files {
+				p := filepath.Join(state, name)
+				if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if rc, _, errs := f.recordRun("--", "true"); rc != 0 {
+				t.Fatalf("rc=%d err=%q", rc, errs)
+			}
+			if r := f.readRecord("1"); r.Dirty == nil || *r.Dirty != c.dirty {
+				t.Fatalf("dirty が %v でない: %+v", c.dirty, r)
+			}
+		})
+	}
+}
+
+// 本物の yomiyasu を案件の repo の worktree で走らせても、記録は commit していない変更に数えない。
+// yomiyasu はパッケージに入らない外の skill なので、ANDON_TEST_YOMIYASU_CHECK に yomiyasu_check.py のパスを渡したときだけ走る。
+func TestRecordIgnoresRealYomiyasu(t *testing.T) {
+	check := os.Getenv("ANDON_TEST_YOMIYASU_CHECK")
+	if check == "" {
+		t.Skip("ANDON_TEST_YOMIYASU_CHECK が無い（yomiyasu_check.py のパスを渡すと走る）")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 が無い")
+	}
+	f := newFixture(t)
+	f.task["repo"] = "github.com/example/app"
+	linked := f.linkedWorktree()
+	t.Setenv("YOMIYASU_STATE_DIR", "") // 既定の置き場（git の最上位の .yomiyasu/）に書かせる
+	for _, name := range []string{"source.md", "final.md"} {
+		if err := os.WriteFile(filepath.Join(linked, name), []byte("# 見出し\n\n推敲の文です。\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"add", "source.md", "final.md"}, {"commit", "-q", "-m", "原稿"}} {
+		c := exec.Command("git", append([]string{"-C", linked}, args...)...)
+		c.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	run := exec.Command(python, check, "run", "--final", "final.md", "--source", "source.md")
+	run.Dir = linked
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("yomiyasu_check.py run: %v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(linked, ".yomiyasu", "state.json")); err != nil {
+		t.Fatalf("yomiyasu が worktree の最上位に .yomiyasu/ を作っていない: %v", err)
+	}
+	if rc, _, errs := f.recordRun("--", "true"); rc != 0 {
+		t.Fatalf("rc=%d err=%q", rc, errs)
+	}
+	if r := f.readRecord("1"); r.Dirty == nil || *r.Dirty {
+		t.Fatalf("yomiyasu の記録を commit していない変更に数えた: %+v", r)
+	}
+}
