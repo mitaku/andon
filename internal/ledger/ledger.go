@@ -244,6 +244,85 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 	return ok && v == t.Str(key)
 }
 
+// HoldOf は課題 t の止め（予約キー hold。Chief of Staff が PR を止めた理由の課題の id。ADR-0056 決めたこと 7・10）を読む
+// （純粋関数）。返すのは止めた理由の課題の id と、止めているか。
+// hold が空でなければ、誰が書いても止めている（足すほうは誰が書いても止まる）。
+// hold が空でも、hold を最後に変えた log.jsonl の行の書き手が、その課題かその子の課題（tasks のうち parent がその課題のもの）の
+// 担当の端末（その課題の agent に書かれたことのある端末。Chief of Staff の端末 cos を除く）なら、止めているものとして読む
+// （担当が消しても止めは外れない）。そのときの理由は、消す前に最後に書かれていた値。消してよいのは Chief of Staff とオーナーである。
+func HoldOf(rows []Row, tasks []Issue, cos string, t Issue) (string, bool) {
+	id := t.Str("id")
+	if v := t.Str("hold"); v != "" {
+		return v, true
+	}
+	last, prev := -1, ""
+	for i, r := range rows {
+		if r.ID != id || r.Change == nil {
+			continue
+		}
+		if v, ok := r.Change["hold"]; ok {
+			last = i
+			if s, _ := v.(string); s != "" {
+				prev = s
+			}
+		}
+	}
+	if last < 0 || prev == "" {
+		return "", false
+	}
+	by, ok := strings.CutPrefix(rows[last].By, "terminal:")
+	if !ok || by == "" || by == cos {
+		return "", false
+	}
+	mine := map[string]bool{id: true}
+	for _, o := range tasks {
+		if CanonID(o.Str("parent")) == id {
+			mine[CanonID(o.Str("id"))] = true
+		}
+	}
+	agents := map[string]bool{}
+	for _, o := range tasks {
+		if mine[CanonID(o.Str("id"))] && o.Str("agent") != "" {
+			agents[o.Str("agent")] = true
+		}
+	}
+	for _, r := range rows {
+		if !mine[r.ID] || r.Change == nil {
+			continue
+		}
+		if s, _ := r.Change["agent"].(string); s != "" {
+			agents[s] = true
+		}
+	}
+	if agents[by] {
+		return prev, true
+	}
+	return "", false
+}
+
+// Hold は HoldOf を、kanban の今の Chief of Staff で読む。子の課題の一覧は、hold が空で、hold を消した行があるときだけ読む
+// （止めていない課題で kanban の一覧を読まない）。一覧を読めなければ誤りを返す（呼び手は止めているものとして扱う）。
+func (l *Ledger) Hold(rows []Row, t Issue) (string, bool, error) {
+	if v := t.Str("hold"); v != "" {
+		return v, true, nil
+	}
+	touched := false
+	for _, r := range rows {
+		if _, ok := r.Change["hold"]; ok && r.ID == t.Str("id") {
+			touched = true
+		}
+	}
+	if !touched {
+		return "", false, nil
+	}
+	tasks, err := l.List()
+	if err != nil {
+		return "", false, err
+	}
+	reason, held := HoldOf(rows, tasks, l.ChiefOfStaff(), t)
+	return reason, held, nil
+}
+
 // Candidates は、課題の成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
 // Chief of Staff か（contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは false。
 // 読み手は andon gate（終了コード 3 の理由の文を分ける）。dispatcher と andon issue ready は照合を見ずに

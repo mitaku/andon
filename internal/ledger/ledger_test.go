@@ -341,3 +341,47 @@ func TestRewriteSettings(t *testing.T) {
 		})
 	}
 }
+
+// 止め（予約キー hold）は、値があれば誰が書いても止めている。空でも、最後に消したのがその課題か子の課題の担当の端末なら
+// 止めているものとして読む。Chief of Staff とオーナー（端末の外）が消したら外れる（ADR-0056 決めたこと 10）。
+func TestHoldOf(t *testing.T) {
+	row := func(by, id string, change map[string]any) Row { return Row{By: by, ID: id, Change: change} }
+	base := []Row{
+		row("terminal:cos", "A-0001", map[string]any{"add": "x"}),
+		row("terminal:w1", "A-0001", map[string]any{"status": "doing", "agent": "w1"}),
+		row("terminal:r1", "A-0001-r1", map[string]any{"status": "doing", "agent": "r1"}),
+		row("terminal:cos", "A-0001", map[string]any{"hold": "A-0009"}),
+	}
+	tasks := []Issue{{"id": "A-0001", "agent": "w2"}, {"id": "A-0001-r1", "parent": "A-0001", "agent": "r1"}, {"id": "A-0002", "agent": "x9"}}
+	cases := []struct {
+		name   string
+		hold   string
+		extra  []Row
+		reason string
+		held   bool
+	}{
+		{"値がある", "A-0009", nil, "A-0009", true},
+		{"担当が書いた値でも止まる", "A-0008", []Row{row("terminal:w1", "A-0001", map[string]any{"hold": "A-0008"})}, "A-0008", true},
+		{"Chief of Staff が消した", "", []Row{row("terminal:cos", "A-0001", map[string]any{"hold": nil})}, "", false},
+		{"オーナーが端末の外で消した", "", []Row{row("owner", "A-0001", map[string]any{"hold": nil})}, "", false},
+		{"担当の端末が消した", "", []Row{row("terminal:w1", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
+		{"今の担当（issue.yaml の agent）が消した", "", []Row{row("terminal:w2", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
+		{"子の課題の担当が消した", "", []Row{row("terminal:r1", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
+		{"ほかの課題の担当が消した", "", []Row{row("terminal:x9", "A-0001", map[string]any{"hold": nil})}, "", false},
+	}
+	for _, c := range cases {
+		rows := append(append([]Row{}, base...), c.extra...)
+		reason, held := HoldOf(rows, tasks, "cos", Issue{"id": "A-0001", "hold": c.hold, "agent": "w2"})
+		if reason != c.reason || held != c.held {
+			t.Errorf("%s: got (%q, %v), want (%q, %v)", c.name, reason, held, c.reason, c.held)
+		}
+	}
+	if _, held := HoldOf(nil, nil, "cos", Issue{"id": "A-0001"}); held {
+		t.Error("hold を一度も書いていない課題を止めていると読んだ")
+	}
+	// 担当が Chief of Staff の端末と同じ（Chief of Staff が自分で引き取った課題）なら、消したのは Chief of Staff として外す
+	rows := append(append([]Row{}, base...), row("terminal:cos", "A-0001", map[string]any{"agent": "cos"}), row("terminal:cos", "A-0001", map[string]any{"hold": nil}))
+	if _, held := HoldOf(rows, tasks, "cos", Issue{"id": "A-0001"}); held {
+		t.Error("Chief of Staff が消した止めを、担当が消したと読んだ")
+	}
+}
