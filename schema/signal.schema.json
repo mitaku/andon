@@ -41,7 +41,7 @@
         "active": { "description": "Seen by the last collect (false: the CI passed, the issue was closed or resolved).", "type": "boolean" },
         "episodes": { "description": "How many times it appeared: 1 at first, one more each time it disappeared and appeared again.", "type": "integer", "minimum": 1 },
         "delivered_episode": { "description": "The episode last delivered as a notification; 0 when none (always 0 for later).", "type": "integer", "minimum": 0 },
-        "release": { "description": "The release it was seen in: the merge commit's SHA, when the source has one.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
+        "release": { "description": "The release the current episode (the last one when inactive) began in: the merge commit's SHA, when the source has one. Not rewritten while the episode lasts. For github-ci, the commit of the run where the failure began, as far back as the runs read show.", "type": "string", "pattern": "^[0-9a-f]{40}$" }
       }
     }
   }

@@ -66,6 +66,11 @@ const Every = 10
 // Seen は出所を1回読んで見えた信号1つ。
 type Seen struct {
 	Key, URL, Title, Release string
+	// Runs は、最新の run から成功の手前までの失敗の run の URL（github-ci だけ）。Bounded は、その手前に成功の run を読めたか。
+	// 記録の url（前の collect が見た最新の失敗の run）が Runs に無く Bounded なら、前の collect のあとに成功してまた失敗した
+	// （新しい出来事。ADR-0051 受け入れ条件 5）。同じ commit が何度も走るので、commit でなく run で見る
+	Runs    []string
+	Bounded bool
 }
 
 // GH は gh を引数で打ち、標準出力を返す。
@@ -322,13 +327,19 @@ func merge(f *File, slug, source, weight, prefix string, seen []Seen, judged fun
 			continue
 		}
 		r := &f.Signals[i]
-		if !r.Active {
+		// 読んだ run が、前の collect が見た失敗の run のあとに成功を挟んでいれば、collect が成功を見ていなくても新しい出来事（ADR-0051 受け入れ条件 5）
+		missed := r.Active && s.Bounded && !slices.Contains(s.Runs, r.URL)
+		// release は出来事の始まりを指す。続きなら留め、新しい出来事と、まだ無いときだけ入れる（ADR-0051 決めたこと 6）
+		if !r.Active || missed || r.Release == "" {
+			r.Release = s.Release
+		}
+		if !r.Active || missed {
 			r.Active = true
 			r.Episodes++
 			again++
 		}
 		r.Count++
-		r.LastSeen, r.URL, r.Title, r.Weight, r.Release = now, s.URL, s.Title, weight, s.Release
+		r.LastSeen, r.URL, r.Title, r.Weight = now, s.URL, s.Title, weight
 	}
 	for i := range f.Signals {
 		r := &f.Signals[i]
@@ -349,6 +360,8 @@ func split(repo string) (string, string) {
 // readCI は repo の main の CI を読み、workflow ごとに最新の結果が失敗のものを返す（key は <repo>/<workflow のファイル名>@main）。
 // 見るのは結果の出た run（成功・失敗・時間切れ・起動の失敗）だけで、取り消し・飛ばしは workflow の状態を決めない。
 // 読むのは新しい 100 件で、その中に結果の出た run の無い workflow は judged が false（消えたことにしない）。
+// url と title は最新の run のもの。release は、そこから成功の手前まで遡ったいちばん古い失敗の run の commit（ADR-0051 決めたこと 5）。
+// 遡った失敗の run の URL を Runs に、成功に当たったかを Bounded に返す。
 func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 	host, name := split(repo)
 	b, err := gh("api", "--hostname", host, "repos/"+name+"/actions/runs?branch=main&status=completed&per_page=100")
@@ -370,21 +383,38 @@ func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 		return nil, nil, fmt.Errorf("gh api の応答が読めない: %v", err)
 	}
 	decided := map[string]bool{}
+	failing := map[string]int{} // 失敗の始まりを遡っている workflow → out の位置
 	var out []Seen
 	for _, r := range res.WorkflowRuns { // 新しい順
 		file := filepath.Base(r.Path)
-		if r.Path == "" || decided[file] || strings.HasPrefix(r.Event, "pull_request") ||
+		if r.Path == "" || strings.HasPrefix(r.Event, "pull_request") ||
 			!slices.Contains([]string{"success", "failure", "timed_out", "startup_failure"}, r.Conclusion) {
+			continue
+		}
+		if decided[file] {
+			i, ok := failing[file]
+			switch {
+			case !ok:
+			case r.Conclusion == "success":
+				out[i].Bounded = true
+				delete(failing, file)
+			default:
+				out[i].Runs = append(out[i].Runs, r.HTMLURL)
+				if shaRe.MatchString(r.HeadSHA) {
+					out[i].Release = r.HeadSHA
+				}
+			}
 			continue
 		}
 		decided[file] = true
 		if r.Conclusion == "success" || !urlRe.MatchString(r.HTMLURL) {
 			continue
 		}
-		s := Seen{Key: repo + "/" + file + "@main", URL: r.HTMLURL, Title: line(r.Name + ": " + r.DisplayTitle)}
+		s := Seen{Key: repo + "/" + file + "@main", URL: r.HTMLURL, Title: line(r.Name + ": " + r.DisplayTitle), Runs: []string{r.HTMLURL}}
 		if shaRe.MatchString(r.HeadSHA) {
 			s.Release = r.HeadSHA
 		}
+		failing[file] = len(out)
 		out = append(out, s)
 	}
 	return out, func(key string) bool { return decided[strings.TrimSuffix(strings.TrimPrefix(key, repo+"/"), "@main")] }, nil
