@@ -151,7 +151,7 @@ func TestJudgedThisRound(t *testing.T) {
 		want   bool
 	}{
 		{"A-0001", "2026-11-20T00:30:00Z", false}, // 前の回の判定
-		{"A-0001", "2026-11-20T02:00:00Z", true},  // 入った秒と同じ
+		{"A-0001", "2026-11-20T02:00:00Z", false}, // 入った秒と同じ（前の回の記録と見分けられない）
 		{"A-0001", "2026-11-20T02:10:00Z", true},
 		{"A-0001", "壊れた時刻", false},
 		{"A-0009", "2026-11-20T00:00:00Z", true}, // review の行が無い
@@ -159,5 +159,20 @@ func TestJudgedThisRound(t *testing.T) {
 		if got := JudgedThisRound(rows, c.id, c.at); got != c.want {
 			t.Errorf("JudgedThisRound(%s, %s) = %v, want %v", c.id, c.at, got, c.want)
 		}
+	}
+}
+
+// GateLink は gate 自身の印のリンクを読む（前のバージョンのリンクの無い印を書き直すため。ADR-0054 決めたこと 6）
+func TestGateLink(t *testing.T) {
+	items := []CheckItem{
+		{Typename: "StatusContext", Context: "ci/other", State: "SUCCESS", TargetURL: "https://example.com/other"},
+		{Typename: "StatusContext", Context: GateContext, State: "SUCCESS", CreatedAt: "2026-11-20T00:00:00Z", TargetURL: "https://example.com/old"},
+		{Typename: "StatusContext", Context: GateContext, State: "SUCCESS", CreatedAt: "2026-11-20T01:00:00Z"},
+	}
+	if got := GateLink(items); got != "" {
+		t.Errorf("最新の印にリンクが無いのに %q を返した", got)
+	}
+	if got := GateLink(items[:2]); got != "https://example.com/old" {
+		t.Errorf("GateLink = %q", got)
 	}
 }

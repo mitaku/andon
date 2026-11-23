@@ -61,12 +61,12 @@ EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 # rollup <状態…>: GitHub の checks（CheckRun の status/conclusion か ctx:<state>）。gate 自身の andon/gate の印をいつも混ぜる
-# （既定は説明文の無い failure。gate_state・gate_desc で変える）
+# （既定は説明文とリンクの無い failure。gate_state・gate_desc・gate_link で変える）
 rollup() {
-    printf '%s\n' "$@" | jq -R -s --arg gs "${gate_state:-FAILURE}" --arg gd "${gate_desc:-}" '[split("\n")[] | select(. != "") |
+    printf '%s\n' "$@" | jq -R -s --arg gs "${gate_state:-FAILURE}" --arg gd "${gate_desc:-}" --arg gl "${gate_link:-}" '[split("\n")[] | select(. != "") |
       if startswith("ctx:") then {__typename: "StatusContext", context: "ci/x", state: .[4:]}
       else (split("/") | {__typename: "CheckRun", name: "test", status: .[0], conclusion: (.[1] // "")}) end]
-      + [{__typename: "StatusContext", context: "andon/gate", state: $gs, description: $gd}]' > "$tmp/gh/rollup.json"
+      + [{__typename: "StatusContext", context: "andon/gate", state: $gs, description: $gd, targetUrl: $gl}]' > "$tmp/gh/rollup.json"
 }
 rollup COMPLETED/SUCCESS
 # pr <path> <行数>: PR の head を進め、view・files・diff を作る
@@ -191,15 +191,20 @@ rm "$tmp/gh/commentfail"
 grep -q 'status .*state=success' "$tmp/gh/posted" && ! grep -q 'target_url' "$tmp/gh/posted" && ! grep -q '^comment' "$tmp/gh/posted" && grep -q 'コメントの記録に失敗' "$tmp/err" ||
     die "コメントが落ちたときに印を書かない・リンクを付けた: $(cat "$tmp/gh/posted" 2>/dev/null) $(cat "$tmp/err")"
 rm -f "$tmp/gh/posted"
-gate_state=SUCCESS gate_desc='andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）' rollup COMPLETED/SUCCESS
+gate_state=SUCCESS gate_desc='andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）' gate_link=https://github.com/example/app/pull/7#issuecomment-1 rollup COMPLETED/SUCCESS
 got=$(gate "$id"); expect 4 needs_human 'delegation'
 grep -q '^comment' "$tmp/gh/posted" && ! grep -q '^status' "$tmp/gh/posted" || die "同じ印が既にあるのに書き直した: $(cat "$tmp/gh/posted")"
+rm -f "$tmp/gh/posted"
+# 同じ状態と説明文でもリンクが無い印（前のバージョンが書いた印・コメントが書けなかった回の印）は、リンクを付けて書き直す（ADR-0054 決めたこと 6）
+gate_state=SUCCESS gate_desc='andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）' rollup COMPLETED/SUCCESS
+got=$(gate "$id"); expect 4 needs_human 'delegation'
+grep -q '^status .*state=success .*-f target_url=https://github.com/example/app/pull/7#issuecomment-' "$tmp/gh/posted" || die "リンクの無い同じ印にリンクを付けて書き直さない: $(cat "$tmp/gh/posted")"
 rm -f "$tmp/gh/posted"
 gate_state=SUCCESS gate_desc='andon gate: 確かめが通った変更です' rollup COMPLETED/SUCCESS
 got=$(gate "$id"); expect 4 needs_human 'delegation'
 grep -q '^status .*state=success' "$tmp/gh/posted" || die "説明文の違う緑を書き直さない: $(cat "$tmp/gh/posted")"
 rollup COMPLETED/SUCCESS
-ok 'コメントが書けなくても印はリンク無しで書く。同じ状態と説明文の印が既にあれば書き直さず、説明文が違えば書き直す（ADR-0054 A5・ADR-0056 決めたこと 3）'
+ok 'コメントが書けなくても印はリンク無しで書く。同じ状態と説明文でリンクのある印は書き直さず、リンクが無いか説明文が違えば書き直す（ADR-0054 A5・決めたこと 6・ADR-0056 決めたこと 3）'
 
 # 3. andon delegate: オーナーが委譲を書く（project.json の delegation。project.json は先にオーナーが書く）
 rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?

@@ -471,7 +471,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if err := contract.Write(path, contract.SchemaGate, rec); err != nil {
 		return nil, "", err
 	}
-	postGitHub(slug, number, rec, cr.Mark, stderr)
+	postGitHub(slug, number, rec, cr.Mark, cr.Link, stderr)
 	return rec, "", nil
 }
 
@@ -554,7 +554,7 @@ const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $afte
       pageInfo { hasNextPage endCursor }
       nodes { __typename
         ... on CheckRun { name status conclusion databaseId checkSuite { app { slug } workflowRun { workflow { id } } } }
-        ... on StatusContext { context state createdAt description } } } } } } } } } }`
+        ... on StatusContext { context state createdAt description targetUrl } } } } } } } } } }`
 
 // checksPages は読むページの上限（100件ずつ。超えたら読めないとして止める）。
 const checksPages = 50
@@ -571,6 +571,7 @@ type checksRead struct {
 	Head          string
 	Checks        GitHubChecks
 	Mark          Mark   // head に今ある gate 自身の印（無ければ空）
+	Link          string // その印のリンク（target_url。無ければ空）
 	DefaultBranch string // repo の既定ブランチ
 	Viewer        string // gh のアカウント（login）
 }
@@ -663,16 +664,17 @@ func readChecks(number, slug string) (checksRead, error) {
 			return checksRead{}, errors.New("GitHub の checks の続きのページが読めない")
 		}
 	}
-	cr.Head, cr.Checks, cr.Mark = head, SummarizeChecks(items), GateMark(items)
+	cr.Head, cr.Checks, cr.Mark, cr.Link = head, SummarizeChecks(items), GateMark(items), GateLink(items)
 	return cr, nil
 }
 
 // postGitHub は記録を PR のコメントと commit status（andon/gate）に写す。失敗しても判定は変えない。
 // コメントを先に書き、gh pr comment が出したコメントの URL を印のリンク（target_url）にする（ADR-0054 決めたこと 6。
 // コメントを書けなかったときはリンクの無い印）。印は通したときとオーナー待ちは緑、差し戻しは赤（ADR-0056 決めたこと 3）。
-// head に同じ状態と説明文の印が既にあれば（have。判定し直しても同じ印）、印は書き直さない。
+// head に同じ状態と説明文の印が既にあれば（have。判定し直しても同じ印）、印は書き直さない。ただし今の印に
+// リンクが無く（haveLink が空。前のバージョンの印か、コメントを書けなかった回の印）、今回コメントの URL を得たときは、リンクを付けて書き直す。
 // 写す文は外の人が読む文（comment.go・mark.go）で、記録の文をそのまま写さない（ADR-0026 決めたこと 9）。
-func postGitHub(slug, number string, rec *Record, have Mark, stderr io.Writer) {
+func postGitHub(slug, number string, rec *Record, have Mark, haveLink string, stderr io.Writer) {
 	url := ""
 	if out, err := gh("pr", "comment", number, "--repo", slug, "--body", CommentBody(rec)); err != nil {
 		fmt.Fprintln(stderr, "andon gate: コメントの記録に失敗:", err)
@@ -680,7 +682,7 @@ func postGitHub(slug, number string, rec *Record, have Mark, stderr io.Writer) {
 		url = u
 	}
 	mark, ok := DecisionMark(rec.Decision, rec.Reasons)
-	if !ok || Same(mark, have, false) {
+	if !ok || (Same(mark, have, false) && (url == "" || haveLink != "")) {
 		return
 	}
 	args := []string{"api", "-X", "POST", "repos/" + slug + "/statuses/" + rec.Head, "-f", "context=" + GateContext, "-f", "state=" + mark.State, "-f", "description=" + mark.Description}

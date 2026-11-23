@@ -418,6 +418,7 @@ type CheckItem struct {
 	State       string `json:"state"`       // StatusContext
 	CreatedAt   string `json:"createdAt"`   // StatusContext
 	Description string `json:"description"` // StatusContext（gate 自身の印を書き直すかを決めるのに読む。GateMark）
+	TargetURL   string `json:"targetUrl"`   // StatusContext（gate 自身の印にコメントへのリンクがあるか。GateLink）
 }
 
 // key は同じ check を見分ける鍵（CheckRun は app・workflow の id・名前、StatusContext は context）。
