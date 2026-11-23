@@ -29,7 +29,7 @@ for f in "$state"/*.json; do
   i=$(jq -c --arg t "$a_at" 'select(.idle.at != null and .idle.at >= $t) | {at: .idle.at, free: .idle.free, ready: (.idle.ready // [] | length), told: (.idle.told // [])}' "$f" 2>/dev/null) || continue
   [ -n "$i" ] && { echo "  | ${f##*/}: $i"; looked=$((looked + 1)); }
 done
-ni=$(jq -c 'select(.news[]?.kind == "idle")' <<<"$del" 2>/dev/null | grep -c . || true)
+ni=$(jq -c 'select(any(.news[]?; .kind == "idle"))' <<<"$del" 2>/dev/null | grep -c . || true)
 jq -c '.at as $at | .news[] | select(.kind == "idle") | {at: $at, detail}' <<<"$del" 2>/dev/null | tail -5 | sed 's/^/  | /'
 if [ "$looked" -gt 0 ]; then
   ok "dn-idle: 当てたあとに枠の空きを見た控えが $looked 件。通知 idle を届けた回は $ni 回"
