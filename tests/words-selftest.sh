@@ -236,6 +236,9 @@ setup; mkdir -p "$tmp/r/package/skills/worker"; echo "$r" >"$tmp/r/package/skill
 m='# 古い語を見る（ADR-0052 決めたこと 10）'
 setup; mkdir -p "$tmp/r/tests/package"; echo "! grep -q '1人1題' \"\$g\"  $m" >"$tmp/r/tests/package/08-x.sh"; expect ok 'tests/package/ の、末尾に印のある行の「題」は通る'
 setup; mkdir -p "$tmp/r/tests/package"; echo "! grep -q '1人1題' \"\$g\"  $m。あとに文" >"$tmp/r/tests/package/08-x.sh"; expect fail 'tests/package/ の、印が末尾でない行の「題」で落ちる'
+for w in "この題では決めない; ! grep -q '1人1題' \"\$g\"  $m" "! grep -q '1人1題' \"\$g\" || fail \"題が残る\"  $m" "echo 1人1題  $m"; do
+  setup; mkdir -p "$tmp/r/tests/package"; echo "$w" >"$tmp/r/tests/package/08-x.sh"; expect fail "tests/package/ の、印のある行の単引用符の外の「題」で落ちる（${w:0:30}）"
+done
 setup; mkdir -p "$tmp/r/package"; echo "1人1題  $m" >"$tmp/r/package/x.sh"; expect fail 'tests/ の外では、末尾に印があっても「題」で落ちる'
 setup; echo 'S-7（題）を t42' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/ の残り）の「題」はまだ見ない'
 
