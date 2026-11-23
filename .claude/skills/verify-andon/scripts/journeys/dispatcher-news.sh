@@ -36,6 +36,24 @@ if [ "$looked" -gt 0 ]; then
 else
   echo "note dn-idle: 当てたあとに枠の空きを見た控えが無い（idle_minutes が 0 か、Chief of Staff の留守か、dispatcher がまだ見ていない）。dn-idle は未確認"
 fi
+
+# dn-corrections: 当てたあとに片付いた課題の手直しの記録（library/corrections.json。書き手は dispatcher だけ）。片付く課題が無ければ書かれないので、無くても壊れではない
+echo "-- dn-corrections: 当てたあとに dispatcher が書いた手直しの記録"
+nc=0
+for f in "$ws"/projects/*/kanban/issues/*/library/corrections.json; do
+  [ -f "$f" ] || continue
+  cr=$(jq -c --arg t "$d_at" --arg u "$d_until" 'select(.at != null and .at >= $t and ($u == "" or .at < $u))
+    | {at, kinds: ([.corrections[]?.kind] | group_by(.) | map({(.[0]): length}) | add // {}), human_commits: ([.corrections[]?.human_commits[]?] | length)}' "$f" 2>/dev/null) || continue
+  [ -n "$cr" ] || continue
+  i=${f%/library/corrections.json}
+  echo "  | ${i##*/}: $cr"
+  nc=$((nc + 1))
+done
+if [ "$nc" -gt 0 ]; then
+  ok "dn-corrections: 当てたあとに手直しの記録を $nc 件書いた"
+else
+  echo "note dn-corrections: 当てたあとに書いた手直しの記録が無い（当てたあとに片付いた課題がまだ無い）。dn-corrections は未確認"
+fi
 # 記録だけの通知は Chief of Staff に届けていないので、届けた証拠にしない
 [ "$fails" = 0 ] || exit 1
 if [ "$nd" = 0 ]; then
