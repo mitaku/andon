@@ -64,7 +64,7 @@ for f in docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md READM
 done
 setup; sed -i 's/^## 未リリース$/&\n- 人の判断待ちの課題を数える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「人の判断待ち」で落ちる'
 setup; printf -- '- 人の判断待ちの課題を数えた\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG の版の節の「人の判断待ち」は通る'
-# docs/contract.md が古い語も読むと書いた所と、README の ADR の一覧（ADR の題の写し）は通り、同じ行の地の文は当たる
+# docs/contract.md が古い語も読むと書いた所は通り、同じ行の地の文は当たる。docs/adr/README.md の一覧（ADR の 1 行目の写し）は ADR と同じに読む
 for w in '`## オーナーに聞くこと`（古い見出し `## 人に聞くこと` も同じに読む）' '題の末尾が「（オーナーの判断待ち）」。古い末尾「（人の判断待ち）」も同じに読む' \
   '答え（前のバージョンの「人がマージした（…）」か、今の「オーナーがマージした（…）」）'; do
   setup; echo "$w" >"$tmp/r/docs/contract.md"; expect ok "docs/contract.md の「${w:0:40}」は通る"
@@ -72,9 +72,9 @@ done
 setup; echo '古い見出し `## 人に聞くこと` も同じに読む。人が答える' >"$tmp/r/docs/contract.md"
 expect fail 'docs/contract.md の古い見出しと同じ行の地の文の「人が答える」で落ちる'
 setup; echo '`## 人に聞くこと` を拾う' >"$tmp/r/docs/contract.md"; expect fail 'docs/contract.md の「古い見出し」と書かない `## 人に聞くこと` で落ちる'
-setup; echo '  - [0009 Chief of Staff を人の既定の入口にする](docs/adr/0009-cos-default-entry.md): 決定' >"$tmp/r/README.md"
-expect fail 'README.md の ADR の一覧の行（ADR の題の写し）の「人の既定の入口」で落ちる（ADR の題も替えた）'
-setup; echo '- [docs/contract.md](docs/contract.md) — 人の手直し' >"$tmp/r/README.md"; expect fail 'README.md の一覧でない行の「人の手直し」で落ちる'
+setup; echo '- [0009 Chief of Staff を人の既定の入口にする](0009-cos-default-entry.md): 決定' >"$tmp/r/docs/adr/README.md"
+expect fail 'docs/adr/README.md の一覧の行の「人の既定の入口」で落ちる（ADR の 1 行目も替えた）'
+setup; echo '- [docs/contract.md](docs/contract.md) — 人の手直し' >"$tmp/r/README.md"; expect fail 'README.md の文書の地図の行の「人の手直し」で落ちる'
 # ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md）も替えた範囲。名指しした引用とバッククォートの中は外し、
 # ほかの「」の中（引用でない言い回し・節の名前の写し）と地の文は当たる
 for f in docs/adr/0001-x.md:人がマージする docs/decisions/2026-01-01-x.md:人の判断待ち 'docs/decisions.md:| 2026-11-05 | 人に聞く | 問い1 |' \
@@ -174,20 +174,20 @@ setup; mkdir -p "$tmp/r/.claude/skills/verify-andon/scripts"; echo "x 台帳  $m
 expect fail 'tests/ の外では、末尾に印があっても「台帳」で落ちる'
 setup; echo 'gate が kanban の課題を読む。版を上げる' >"$tmp/r/docs/design.md"; expect fail '替えた範囲（docs/design.md）の「版」で落ちる'
 setup; echo '日本語の呼び名を「台帳」のままにした。2006 版では' >"$tmp/r/docs/design.md"; expect ok 'docs/design.md の「」の中と「2006 版」は通る'
-# 生きている文書（docs/ の5本と root の4本）も替えた範囲。CHANGELOG.md は未リリースの節だけ、README.md は ADR の一覧の行を外す
+# 生きている文書（docs/ の5本と root の4本）も替えた範囲。CHANGELOG.md は未リリースの節だけ。docs/adr/README.md の一覧の行は ADR と同じに読む
 for f in docs/contract.md:台帳に書く docs/dispatcher.md:ゲートを回す docs/operate.md:版を上げるとき docs/image.md:各版の節 docs/ledger.md:台帳の形式 \
   README.md:役・ゲート・約束 REVIEW.md:前の版に戻す SECURITY.md:台帳の外; do
   setup; echo "${f#*:}" >"$tmp/r/${f%%:*}"; expect fail "替えた範囲（${f%%:*}）の「${f#*:}」で落ちる"
 done
 setup; sed -i 's/^## 未リリース$/&\n- 前の版の台帳を読む/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「版」「台帳」で落ちる'
 setup; printf -- '- 前の版の台帳を読む。ゲートを回す\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG のバージョンの節の「版」「台帳」「ゲート」は通る'
-setup; echo '  - [0040 「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く](docs/adr/0040-x.md): 決定' >"$tmp/r/README.md"
-expect ok 'README.md の ADR の一覧の行の「」の中の 3 語は通る'
-setup; echo '  - [0040 「台帳」をやめる。ゲートを回す](docs/adr/0040-x.md): 決定' >"$tmp/r/README.md"
-expect fail 'README.md の ADR の一覧の、0025 から後の行の「ゲート」で落ちる（ADR を全部替えた）'
-setup; echo '  - [0008 台帳のカードを「課題（issue）」に改名する](docs/adr/0008-issue-naming.md): 決定' >"$tmp/r/README.md"
-expect fail 'README.md の ADR の一覧の 0001〜0024 の行の「台帳」で落ちる'
-setup; echo '- 台帳のカードを「課題（issue）」に改名する' >"$tmp/r/README.md"; expect fail 'README.md の ADR の一覧でない行の「台帳」で落ちる'
+setup; echo '- [0040 「台帳」「ゲート」「版」をやめ、kanban・gate・バージョンと書く](0040-x.md): 決定' >"$tmp/r/docs/adr/README.md"
+expect ok 'docs/adr/README.md の一覧の行の「」の中の 3 語は通る'
+setup; echo '- [0040 「台帳」をやめる。ゲートを回す](0040-x.md): 決定' >"$tmp/r/docs/adr/README.md"
+expect fail 'docs/adr/README.md の一覧の行の「」の外の「ゲート」で落ちる'
+setup; echo '- [0008 台帳のカードを「課題（issue）」に改名する](0008-issue-naming.md): 決定' >"$tmp/r/docs/adr/README.md"
+expect fail 'docs/adr/README.md の一覧の行の「台帳」で落ちる'
+setup; echo '- 台帳のカードを「課題（issue）」に改名する' >"$tmp/r/README.md"; expect fail 'README.md の「台帳」で落ちる'
 # ADR は全部を見る。ADR-0018 のオーナーの期待の 1 行と、ADR-0040 の決めたことの表の「今」の列は外す
 for f in docs/adr/0001-x.md docs/adr/0013-short-role-names-and-plain-japanese.md docs/adr/0024-x.md docs/adr/0025-x.md docs/adr/0039-x.md docs/adr/0041-x.md; do
   for w in '台帳に書く' 'ゲートを回す' '前の版に戻す'; do
