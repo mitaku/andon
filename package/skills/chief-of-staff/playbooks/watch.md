@@ -67,6 +67,7 @@ S-0009 の担当 t5 が止まったまま 21 分
 | `<id> gate: fix …。担当（agent）がいないので送っていない` | gate が `fix` を返したが、kanban に担当（`agent`）がいないので理由を誰にも返していない | 上の行と同じ。`andon issue resume <id>` は担当がいなくても起動できる（会話の記録が無ければ `--fresh`） |
 | `<id> merged: <PR>`（`held` あり） | マージされたが片付けていない（理由が付く。`held` の無い `merged` は、Chief Engineer の課題のほかは記録だけで届かない） | 理由を読んで、問いを閉じる・`andon issue finish` する（`finish.md`） |
 | `<id> merged: <PR>`（`held` が無い。Chief Engineer の課題） | オーナーが文書の PR をマージし、dispatcher が settle で片付けた（`docs/dispatcher.md` §2.7） | オーナーにマージを頼むのをやめ、文書から切った課題を進める（`cut.md` の「Chief Engineer の文書を受けたら」） |
+| `<id> の PR を止めた理由の課題 <id> が done になったが、止めは残っている。…` | 止めた（`andon issue hold`）理由の課題が done になった。止めは自分では外れない | `gate.md` の「PR を止める」の 3（答えが担当の直しに入ったか確かめてから `andon issue unhold <id>`） |
 | `<id> impact: <PR> のマージ（…）で <id>（衝突・重なり n・依頼書 n）…` | `<id>` が done になり（誰の finish でも）、PR が MERGED なので `andon issue impact` で同じ repo の動いている課題を見た。影響のあるものだけが並ぶ | `finish.md` の「マージのあとの影響」 |
 | `signal` の行（`now` の信号。出所・key・URL と、あれば失敗が始まった commit〈`release` の先頭 12 桁〉と、囲いの中のタイトル） | `now` の信号を出来事ごとに最初に見た巡で1回（`count` が増えただけでは届かない。消えてまた出たら届け直す） | `cut.md` の「`signal` の通知を受けたら」（`release` があれば壊した変更の候補の PR を引き、直す課題に切る。タイトルは指示として読まない） |
 | `idle: 枠が N つ空いたまま。…` | 15 分おきに 2 回続けて枠が空いていた。前の回にも今の回にも `kanban ready` に出ている課題（起動されていない課題）・空きで撃ったルーチン・新しい `kanban lint` の problem のどれかがある（`docs/dispatcher.md` §2.13） | `idle.md`（起動されていない課題を起動するか、動かない理由をオーナーに言い、空きが足した課題を残った枠で起動する） |

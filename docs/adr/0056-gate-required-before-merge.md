@@ -16,17 +16,17 @@
 | 4 | gate は、オーナーがマージする変更かどうかを、検査とレビューのあとに見る | この ADR | まだ実装していない |
 | 5 | dispatcher は、PR を読むたびに印をあるべき形に揃える | この ADR | まだ実装していない |
 | 6 | Chief Engineer の文書の PR は、渡されたときに dispatcher が緑を書く | この ADR | まだ実装していない |
-| 7 | 止める口は、予約キー `hold` と、止める command・外す command にする | この ADR | まだ実装していない |
-| 8 | 止める command は、マージと同じ鍵を取り、緑の印を黄に書き換えてから返る | この ADR | まだ実装していない |
-| 9 | 止めている間、gate は回らない。判定のあとに止められたら、判定を捨てる | この ADR | まだ実装していない |
-| 10 | 担当が `hold` を消しても、止めは外れない | この ADR | まだ実装していない |
-| 11 | オーナー待ちの一覧は、止めた PR をマージの依頼に出さず、止めている問いの後ろに数える | この ADR | まだ実装していない |
+| 7 | 止める口は、予約キー `hold` と、止める command・外す command にする | `docs/contract.md` §2・§6・`internal/issue/hold.go`・`internal/dispatcher/hold.go` | 生きている |
+| 8 | 止める command は、マージと同じ鍵を取り、緑の印を黄に書き換えてから返る | `docs/contract.md` §7・`internal/issue/hold.go` | 生きている |
+| 9 | 止めている間、gate は回らない。判定のあとに止められたら、判定を捨てる | `docs/contract.md` §6・§7・`internal/gate/gate.go`・`internal/issue/merge.go` | 生きている |
+| 10 | 担当が `hold` を消しても、止めは外れない | `docs/contract.md` §2・`internal/ledger/ledger.go` の `HoldOf` | 生きている |
+| 11 | オーナー待ちの一覧は、止めた PR をマージの依頼に出さず、止めている問いの後ろに数える | `docs/contract.md` §25・`internal/waiting/waiting.go` | 生きている |
 | 12 | dispatcher のマージが必須の check で断られたら、次の巡で打ち直す | この ADR | まだ実装していない |
 | 13 | gate は、衝突を `mergeable` の欄でも読む | この ADR | まだ実装していない |
 | 14 | 抜け道は作らない。ruleset の越えてよい相手は空のままにする | この ADR | まだ実装していない |
 | 15 | repo の GitHub の auto-merge を切る | この ADR | まだ実装していない |
 | 16 | 切り替えは、実装を当て、印が揃ったのを確かめてから、オーナーが設定を変える | この ADR | まだ実装していない |
-| 17 | モデルに、印と止めの状態と、規則を 3 本足す | この ADR | まだ実装していない |
+| 17 | モデルに、印と止めの状態と、規則を 3 本足す | `model/IssueLife.tla`・`model/IssueRules.tla`・`model/README.md` | 生きている |
 | 18 | 印の決まりの正は `docs/contract.md`。設定と外し方は `docs/operate.md` に書く | この ADR | まだ実装していない |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
