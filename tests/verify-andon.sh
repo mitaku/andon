@@ -3,11 +3,12 @@
 #   1. SKILL.md は名指されたときだけ読まれる設定で、Codex 向けの置き場（.agents/skills/verify-andon）が同じ中身を指す
 #   2. 目次（features/README.md の表）と features/*.md と scripts/journeys/*.sh が1対1
 #   3. 機能のファイルの節の形と、「変えたら動かすパス」が repo に在ること
-#   4. 手順が名指す command の実在（andon <sub>・andon issue <sub>・scripts/・tests/ の名前・repo のパス）
+#   4. 手順が名指す command の実在（andon の葉は andon help --all の表と照らす。tests/lib/andon-refs.sh で、tests/commands.sh と同じ読み方。
+#      scripts/・tests/ の名前・repo のパス）
 #   5. scripts/features.sh: 当たる範囲で機能の名前、当たらない範囲（文書・Go のテストだけ）で何も出さず 0
 #   6. 自分の確かめ: 地図のファイルを1つ消すか、無い command を名指した写しで、この検査が落ちる
 #   7. 記録を読む道（dispatcher-news・boot）: 偽のセル（パッケージの置き場・HOME・hc）で、証拠が足りないときに 0 で終わらない
-# 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。go も build もしない）
+# 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。andon は tests/lib/andon.sh が用意し、写しの回にも渡す）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$PWD
@@ -17,6 +18,9 @@ die() { echo "FAIL verify-andon: $*" >&2; exit 1; }
 ok() { echo "ok   $*"; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/lib/andon.sh
+. tests/lib/andon-refs.sh
+export ANDON_BIN=$andon # 6 の写しの回が焼き直さない
 
 # 1. 名指されたときだけ読まれる・Codex 向けの symlink
 [ -f "$skill/SKILL.md" ] || die "$skill/SKILL.md が無い"
@@ -70,29 +74,19 @@ done
 ok "verify-andon: 機能のファイルは6つの節をこの順に持ち、変えたら動かすパスが repo に在る"
 
 # 4. 手順が名指す command の実在
-subs=$(sed -n 's/^\t\tname: *"\([a-z-]*\)",$/\1/p' internal/cli/cli.go | sort -u)
-isubs=$(sed -n 's/^\tcase "\([a-z-]*\)":$/\1/p' internal/issue/issue.go | sort -u)
-[ -n "$subs" ] && grep -qx issue <<<"$subs" || die "internal/cli/cli.go から andon の sub-command が読めない（下の確かめが何も見ない）"
-grep -qx record <<<"$isubs" || die "internal/issue/issue.go から andon issue の sub-command が読めない"
+andon_leaves >"$tmp/leaves"
+grep -qx 'issue record' "$tmp/leaves" || die "andon help --all から葉が読めない（下の確かめが何も見ない）"
+andon_refs md "$skill/SKILL.md" "$skill"/features/*.md >"$tmp/refs"
+bad=$(andon_bad_refs "$tmp/leaves" <"$tmp/refs" | sed -n 1p)
+[ -z "$bad" ] || die "手順が名指す ${bad#*: } が無い（${bad%%: andon *}）"
+n=$(wc -l <"$tmp/refs")
 # `` で囲んだ語と、コードの囲み（```）の中の行
 spans=$( {
   cat "$skill/SKILL.md" "$skill"/features/*.md | grep -v '^```' | grep -oE '`[^`]+`' | tr -d '`'
   cat "$skill/SKILL.md" "$skill"/features/*.md | awk '/^```/ { inside = !inside; next } inside'
 } | sort -u)
-n=0
 while IFS= read -r s; do
   read -r -a w <<<"$s"
-  for i in "${!w[@]}"; do
-    [ "${w[$i]}" = andon ] || continue
-    sub=${w[$((i + 1))]:-}
-    case "$sub" in '' | -* | '<'*) continue ;; esac
-    grep -qx -- "$sub" <<<"$subs" || die "手順が名指す andon $sub が無い（「$s」）"
-    n=$((n + 1))
-    if [ "$sub" = issue ]; then
-      isub=${w[$((i + 2))]:-}
-      case "$isub" in '' | -* | '<'*) ;; *) grep -qx -- "$isub" <<<"$isubs" || die "手順が名指す andon issue $isub が無い（「$s」）" ;; esac
-    fi
-  done
   for t in "${w[@]}"; do
     case "$t" in
       *'<'* | *'*'*) ;;

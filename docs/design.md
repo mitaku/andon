@@ -539,7 +539,7 @@ andon/
   process/                   仕事の流れ（workstreams/）と状態（states/）の定義（YAML。ADR-0017。states/issue.yaml は andon に埋め込む）
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
     bin/andon                入口の CLI（Go の1バイナリ。cmd/andon から焼く）
-    lib/andon/               command が読む資材（statusline・schema の決まりの検査 schema_check.py。照合は andon schema）。sub-command の中身のソースは internal/<sub>（一覧は andon help。言語は §2.7）
+    lib/andon/               command が読む資材（statusline・schema の決まりの検査 schema_check.py。照合は andon schema）。sub-command の中身のソースは internal/<sub>（葉の表は internal/cli/leaves.go、一覧は andon help --all と docs/commands.md。言語は §2.7）
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・retro・digest・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     writing.md               AI 用: オーナーへの書き方（全役がオーナーに返す文の決まり。エージェントの設定ファイルが @ で読む）

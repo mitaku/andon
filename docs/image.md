@@ -21,7 +21,7 @@ kanban の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は
 シェルは bash のまま。設定は `image/bashrc`（image の `/etc/andon-bashrc`。`~/.bashrc` の末尾が読む）に1か所にまとめてある。ssh のログインシェル（`~/.profile` → `~/.bashrc`）・`bin/bootstrap herdr`・App の端末のどれでも同じに効く。
 
 - **道具**: ripgrep（`rg`）・fzf・jq。aqua でバージョンと checksum を固定している（`image/aqua/`）。fzf は Ctrl-R（履歴検索）・Ctrl-T（ファイル）・Alt-C（cd）が効く。mise の補完が呼ぶ `usage` も入っている。
-- **Tab 補完**: bash-completion（apt）と、git・gh・hc・andon・kanban・just・mise。gh・just・mise は各 CLI の生成物、hc は `hc --help` の一覧から image を焼くときに作る（hc に生成の口が無い）、andon・kanban はサブコマンド名だけ（`image/completions/`。フラグは補わない）。どれも `/usr/share/bash-completion/completions/` に置き、最初の Tab を待たずに登録する。
+- **Tab 補完**: bash-completion（apt）と、git・gh・hc・andon・kanban・just・mise。gh・just・mise は各 CLI の生成物、hc は `hc --help` の一覧から image を焼くときに作る（hc に生成の口が無い）、andon・kanban はサブコマンド名だけ（`image/completions/`。フラグは補わない。andon の分は葉の表から `andon help --all --bash` で作り、`tests/commands.sh` が作り直しても変わらないことを見る）。どれも `/usr/share/bash-completion/completions/` に置き、最初の Tab を待たずに登録する。
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `セルの名前:ディレクトリ (git のブランチ)`。色は控えめ。
 
@@ -141,12 +141,13 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `agents-md.sh` | root の `AGENTS.md` の「決まり｜守らせるもの」の表と、守らせるものが名指したファイル（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 6） | いつも |
-| `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5） | いつも |
+| `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5。andon のコマンドは `andon help --all` の表と照らす） | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む11本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
 | `adr-index.sh` | `docs/adr/` の索引・状態行（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)）と同じ番号の ADR が 2 本無いこと、ADR ごとの決定の記録（`docs/decisions/`・`docs/decisions.md` §14）、`docs/adr/README.md` の一覧の見出しのバージョンと `CHANGELOG.md` の一番上のバージョン（[ADR-0055](adr/0055-adr-prs-without-conflicts.md)） | `docs/adr/`・`docs/decisions.md`・`docs/decisions/`・`CHANGELOG.md` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
 | `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
+| `commands.sh` | `docs/commands.md` が andon の葉の表から作り直して変わらないか（[ADR-0053](adr/0053-command-system.md) 決めたこと 16）。配る文の andon のコマンドは `package/` を見る | `docs/commands.md` |
 
 ほかの `tests/*.sh`（`andon-*.sh`・`host.sh`・`sshd-env.sh`・`image.sh`）は、文書をコメントやテストの中の例の名前として書くだけで、repo の文書を読まない。
 

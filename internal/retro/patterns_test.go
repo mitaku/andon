@@ -299,7 +299,7 @@ func TestPreviousRetroExcludesSelfAndLater(t *testing.T) {
 
 func TestMainPatternsApplyUsage(t *testing.T) {
 	for _, args := range [][]string{{"patterns"}, {"patterns", "A-0001"}, {"apply"}, {"apply", "A-0001", "--days", "3"},
-		{"patterns", "A-0001", "--dry-run", "-"}, {"patterns", "../x", "-"}, {"bogus"}} {
+		{"patterns", "A-0001", "--dry-run", "-"}, {"patterns", "../x", "-"}} {
 		var out, errs strings.Builder
 		if rc := Main(args, nil, &out, &errs); rc != 2 {
 			t.Errorf("%v: rc=%d %q", args, rc, errs.String())

@@ -36,20 +36,25 @@ import (
 	"andon/internal/sessionlog"
 )
 
-// Usage は andon retro の使い方。
-const Usage = "usage: andon retro collect [--days N] [--issue <id>]        振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）\n" +
-	"       andon retro patterns <id> [--days N] <patterns.json|->  パターンの一覧を検査して library/retro.json に書く（振り返りの担当。§21）\n" +
-	"       andon retro apply <id> [--dry-run]                      パターンの一覧の fix を直す課題に切る（Chief of Staff。§21）\n" +
-	"collect: 直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・gate の判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
-	"見送り・オーナーの手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
-	"前の振り返りが集めたあとに片付いた束は全文（新しい順に 100 件まで）、それより前の束は要約（題・PR・つまずきの跡の見出し）で出す。\n" +
-	"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のもの\n" +
-	"（前の振り返りが書いた再発の数つき）を出す。--issue は期間の束1件を全文で出す。秘密の形に合う文字列は伏せてから出す。\n" +
-	"patterns: collect と同じ入力を集め直し、根拠が別々の2件以上か・入力にあるか・前の振り返りより後のものがあるか・\n" +
-	"skill と文面の直しに上の段で止められない理由があるか・全部に判定があるか・前の直しの見立てが揃うかを確かめる（fix の数は確かめない）。\n" +
-	"apply: library/retro.json を同じ窓で照らし直し、fix ごとに一覧の順で直す課題（parent は振り返りの課題）を1件足す。\n" +
-	"直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ、オーナーの課題にする。記録は library/retro-applied.json。\n" +
-	"projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
+// 葉ごとの使い方（andon retro <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	where        = "projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
+	CollectUsage = "usage: andon retro collect [--days N] [--issue <id>]\n" +
+		"振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）。\n" +
+		"直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・gate の判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
+		"見送り・オーナーの手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
+		"前の振り返りが集めたあとに片付いた束は全文（新しい順に 100 件まで）、それより前の束は要約（題・PR・つまずきの跡の見出し）で出す。\n" +
+		"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のもの\n" +
+		"（前の振り返りが書いた再発の数つき）を出す。--issue は期間の束1件を全文で出す。秘密の形に合う文字列は伏せてから出す。\n" + where
+	PatternsUsage = "usage: andon retro patterns <id> [--days N] <patterns.json|->\n" +
+		"パターンの一覧を検査して library/retro.json に書く（振り返りの担当。docs/contract.md §21）。\n" +
+		"collect と同じ入力を集め直し、根拠が別々の2件以上か・入力にあるか・前の振り返りより後のものがあるか・\n" +
+		"skill と文面の直しに上の段で止められない理由があるか・全部に判定があるか・前の直しの見立てが揃うかを確かめる（fix の数は確かめない）。\n" + where
+	ApplyUsage = "usage: andon retro apply <id> [--dry-run]\n" +
+		"パターンの一覧の fix を直す課題に切る（Chief of Staff。docs/contract.md §21）。\n" +
+		"library/retro.json を同じ窓で照らし直し、fix ごとに一覧の順で直す課題（parent は振り返りの課題）を1件足す。\n" +
+		"直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ、オーナーの課題にする。記録は library/retro-applied.json。\n" + where
+)
 
 // 既定と上限。
 const (
@@ -1011,13 +1016,26 @@ func strings1(v any) []string {
 	return out
 }
 
-// Main は andon retro。
-func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	usage := func() int { fmt.Fprint(stderr, Usage); return 2 }
-	if len(args) == 0 {
-		return usage()
+// CollectMain は andon retro collect。
+func CollectMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("collect", args, stdin, stdout, stderr)
+}
+
+// PatternsMain は andon retro patterns。
+func PatternsMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("patterns", args, stdin, stdout, stderr)
+}
+
+// ApplyMain は andon retro apply。
+func ApplyMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("apply", args, stdin, stdout, stderr)
+}
+
+func run(cmd string, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	usage := func() int {
+		fmt.Fprint(stderr, map[string]string{"collect": CollectUsage, "patterns": PatternsUsage, "apply": ApplyUsage}[cmd])
+		return 2
 	}
-	cmd, args := args[0], args[1:]
 	days, id, src, dry, one := defaultDays, "", "", false, ""
 	if cmd == "patterns" || cmd == "apply" {
 		if len(args) == 0 {

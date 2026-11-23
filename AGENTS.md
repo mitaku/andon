@@ -50,6 +50,7 @@
 | 決まり | 守らせるもの |
 |---|---|
 | 約束の正は `schema/`。schema を変えたら `docs/contract.md` と tests も直す。 | `tests/schema.sh`。`docs/contract.md` の例を schema と突き合わせる。 |
+| andon の葉を足す・変えるときは `internal/cli/leaves.go` の表に載せ、`andon help --all --markdown >docs/commands.md` と `andon help --all --bash >image/completions/andon` で作り直す。 | `tests/commands.sh`。作り直したものと比べ、`package/` の skill・フック・テンプレートが名指すコマンドを表と照らす。 |
 | `go:embed` で repo のファイルを足したら、`image/Dockerfile` の `COPY` と `.dockerignore` も直す。 | `tests/image.sh`。image の build で、`go build` が埋め込むファイルを見つけられずに落ちる。 |
 | `package/` の変更のうち、検証の skill（`.claude/skills/verify-andon/`）の機能の地図の「変えたら動かすパス」に当たるものは、マージしてセルへ当てたあと（`image/apply-main.sh apply`）、検証の課題が当たる機能をセルの本物で動かす。検証の課題は Chief of Staff が `package/skills/chief-of-staff/playbooks/verify.md` の手順で切る。地図に無いパス（`package/lib/`・`package/host/` など）の変更では、検証の課題は切られない。 | `tests/verify-andon.sh`。機能の地図の形と、地図の「変えたら動かすパス」が repo に在ること、`.claude/skills/verify-andon/scripts/features.sh` が差分から機能を引くことを見る。地図が `package/` の全部を覆うかは見ない。 |
 | `package/skills` の文を `playbooks/` へ移したら、`tests/words.sh` の禁止語に当たらないか回す。 | `tests/words.sh`。CI でいつも走る。 |

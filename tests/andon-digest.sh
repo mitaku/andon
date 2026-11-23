@@ -99,12 +99,14 @@ rm "$f1"
 [[ "$("$andon" digest send S-0100)" == "$url1" ]] && [ ! -e "$f1" ] || die "済んだ送り先へ送り直した"
 echo "ok 済んだ送り先には打ち直しても送らない"
 
-# 使い方の誤りは終了コード 2、無い課題は 1
+# 名詞だけは葉の一覧で 0（ADR-0053 決めたこと 17）、使い方の誤りは終了コード 2、無い課題は 1
 set +e
-"$andon" digest >/dev/null 2>&1; rc1=$?
+"$andon" digest >"$tmp/out" 2>&1; rc0=$?
+"$andon" digest build >/dev/null 2>&1; rc1=$?
 "$andon" digest build S-0100 >/dev/null 2>&1; rc2=$?
 "$andon" digest collect S-0999 >/dev/null 2>"$tmp/err"; rc3=$?
 set -e
+[ "$rc0" = 0 ] && grep -q '^  digest collect  ' "$tmp/out" || die "名詞だけで葉の一覧を出さない: rc=$rc0 $(cat "$tmp/out")"
 [ "$rc1" = 2 ] && [ "$rc2" = 2 ] && [ "$rc3" = 1 ] && grep -q 'S-0999 が kanban に無い' "$tmp/err" || die "終了コードが違う: $rc1 $rc2 $rc3"
 echo "ok 使い方の誤りは 2、無い課題は 1"
 

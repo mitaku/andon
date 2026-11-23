@@ -77,6 +77,8 @@ while IFS= read -r p; do
     # design.md は §1.8 の文書の形と役の表を CE skill と突き合わせ、語の検査の範囲にも入る（package.sh）
     docs/design.md) run[tests/package.sh]=1 ;;
     docs/ledger.md) run[tests/kanban.sh]=1 ;;
+    # commands.md は andon の葉の表から作る一覧（ADR-0053 決めたこと 16）。作り直しても変わらないかを commands.sh が見る
+    docs/commands.md) run[tests/commands.sh]=1 ;;
     # adr-index.sh は ADR の索引・状態行（ADR-0033）、ADR ごとの決定の記録（docs/decisions/・decisions.md §14）、
     # docs/adr/README.md の一覧の見出しのバージョンと CHANGELOG.md の一番上のバージョン（ADR-0055）を突き合わせる
     docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;

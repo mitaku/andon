@@ -476,7 +476,7 @@ func TestAnswer(t *testing.T) {
 		t.Setenv("HC_TERMINAL_ID", term)
 		t.Setenv("KANBAN_ROOT", f.root)
 		var out, errb bytes.Buffer
-		code := Main(append([]string{"answer"}, args...), nil, &out, &errb)
+		code := Answer(args, &out, &errb)
 		return code, out.String(), errb.String()
 	}
 

@@ -321,7 +321,7 @@ func TestSummary(t *testing.T) {
 }
 
 func TestMainUsage(t *testing.T) {
-	for _, args := range [][]string{nil, {"bogus"}, {"apply"}, {"collect", "--limit"}, {"collect", "--limit", "x"},
+	for _, args := range [][]string{{"apply"}, {"collect", "--limit"}, {"collect", "--limit", "x"},
 		{"collect", "--limit", "1234567"}, {"collect", "--max-issues", "1"}, {"apply", "T-1", "--limit", "1"}, {"collect", "--dry-run"},
 		{"verdict"}, {"verdict", "T-1"}, {"verdict", "T-1", "k"}, {"verdict", "T-1", "k", "ok", "extra"}} {
 		var out, errb bytes.Buffer

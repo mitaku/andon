@@ -30,7 +30,7 @@ type stopState struct {
 // 担当の端末でない・kanban が読めないときは何も出さずに通す。
 func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && !idRe.MatchString(args[0])) {
-		fmt.Fprint(stderr, Usage)
+		fmt.Fprint(stderr, StopCheckUsage)
 		return exitUsage
 	}
 	var in struct {

@@ -14,33 +14,41 @@ import (
 	"andon/internal/contract"
 )
 
-// Usage は andon schema の使い方。
-const Usage = "usage: andon schema check <schema> <json>\n" +
-	"       andon schema batch <cases.tsv>\n" +
-	"<schema> は andon に埋め込んだ schema/ の直下の名前（report・question・findings など）か、*.schema.json のパス。\n" +
-	"<json> は JSON のファイルのパスか -（標準入力）。\n" +
-	"check: 合えば終了コード 0。合わなければ 1 と理由（標準出力）。検査できなければ 2 と理由（標準エラー）。\n" +
-	"  検査できないのは、schema が読めない・検査器の知らないキーワードがある・JSON でない・置き場が読めないとき。\n" +
-	"batch: 1行1件 `<schema><TAB><json>` を、検査器を1度読むだけでまとめて照らす（tests/schema.sh が使う）。\n" +
-	"  行ごとに `終了コード<TAB>理由の1行目` を出す（終了コードは check と同じ）。batch そのものは、表が読めれば 0。\n"
+// 葉ごとの使い方（andon schema <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	CheckUsage = "usage: andon schema check <schema> <json>\n" +
+		"<schema> は andon に埋め込んだ schema/ の直下の名前（report・question・findings など）か、*.schema.json のパス。\n" +
+		"<json> は JSON のファイルのパスか -（標準入力）。\n" +
+		"合えば終了コード 0。合わなければ 1 と理由（標準出力）。検査できなければ 2 と理由（標準エラー）。\n" +
+		"検査できないのは、schema が読めない・検査器の知らないキーワードがある・JSON でない・置き場が読めないとき。\n"
+	BatchUsage = "usage: andon schema batch <cases.tsv>\n" +
+		"1行1件 `<schema><TAB><json>` を、検査器を1度読むだけでまとめて照らす（tests/schema.sh が使う）。\n" +
+		"行ごとに `終了コード<TAB>理由の1行目` を出す（終了コードは check と同じ）。batch そのものは、表が読めれば 0。\n"
+)
 
-// Main は andon schema を走らせる。
-func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	switch {
-	case len(args) == 3 && args[0] == "check":
-		rc, why := check(args[1], args[2], stdin)
-		switch rc {
-		case 1:
-			fmt.Fprintln(stdout, why)
-		case 2:
-			fmt.Fprintln(stderr, "andon schema: 検査できない: "+why)
-		}
-		return rc
-	case len(args) == 2 && args[0] == "batch":
-		return batch(args[1], stdin, stdout, stderr)
+// CheckMain は andon schema check。
+func CheckMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) != 2 {
+		fmt.Fprint(stderr, CheckUsage)
+		return 2
 	}
-	fmt.Fprint(stderr, Usage)
-	return 2
+	rc, why := check(args[0], args[1], stdin)
+	switch rc {
+	case 1:
+		fmt.Fprintln(stdout, why)
+	case 2:
+		fmt.Fprintln(stderr, "andon schema: 検査できない: "+why)
+	}
+	return rc
+}
+
+// BatchMain は andon schema batch。
+func BatchMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprint(stderr, BatchUsage)
+		return 2
+	}
+	return batch(args[0], stdin, stdout, stderr)
 }
 
 // isPath は <schema> の引数がファイルの置き場か（/ を含むか .json で終わる）。でなければ埋め込んだ schema の名前。

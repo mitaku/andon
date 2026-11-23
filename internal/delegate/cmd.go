@@ -17,33 +17,57 @@ import (
 	"andon/internal/ledger"
 )
 
-// Usage は andon delegate --help の中身。
-const Usage = "usage: andon delegate grant <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
-	"       andon delegate grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
-	"       andon delegate narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
-	"       andon delegate revoke <id> --reason <text> [--project <slug>]\n" +
-	"       andon delegate show [--json] [--project <slug>]\n" +
-	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
-	"project.json を andon.toml の owner を author にして commit する（project.json は先にオーナーが書く）。show は HEAD の委譲を読み手と同じに読む。\n" +
-	"scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
-	"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
-	"       line-change(none/project/plant)。narrow は今の値より広げない。--project を省くと cwd の projects/<slug>/。\n" +
-	"--issues は名指し: 並べた課題（kanban にあり done でないもの）の判定にだけ merge の値を足す（プロジェクト全体の値は変えない）。\n" +
-	"       grant merge だけが取る。担当が戻せない（risk.one_way）と申告した課題には効かない。名指しは gate が回る前に出す。\n" +
-	"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か issue= がある）では打てない。\n"
+// 葉ごとの使い方（andon delegate <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	owner = "オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
+		"project.json を andon.toml の owner を author にして commit する（project.json は先にオーナーが書く）。--project を省くと cwd の projects/<slug>/。\n" +
+		"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か issue= がある）では打てない。\n"
+	scopes = "scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
+		"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
+		"       line-change(none/project/plant)。\n"
+	GrantUsage = "usage: andon delegate grant <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+		"       andon delegate grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+		"委譲を足す。\n" + scopes +
+		"--issues は名指し: 並べた課題（kanban にあり done でないもの）の判定にだけ merge の値を足す（プロジェクト全体の値は変えない）。\n" +
+		"       grant merge だけが取る。担当が戻せない（risk.one_way）と申告した課題には効かない。名指しは gate が回る前に出す。\n" + owner
+	NarrowUsage = "usage: andon delegate narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+		"委譲を狭める。今の値より広げない。\n" + scopes + owner
+	RevokeUsage = "usage: andon delegate revoke <id> --reason <text> [--project <slug>]\n" +
+		"委譲を1件取り消す。\n" + owner
+	ShowUsage = "usage: andon delegate show [--json] [--project <slug>]\n" +
+		"HEAD の委譲を読み手と同じに読んで出す（読むだけ）。--project を省くと cwd の projects/<slug>/。\n"
+)
+
+var usages = map[string]string{"grant": GrantUsage, "narrow": NarrowUsage, "revoke": RevokeUsage, "show": ShowUsage}
 
 const (
 	exitFail  = 1
 	exitUsage = 2
 )
 
-// Main は andon delegate。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	usage := func() int { fmt.Fprint(stderr, Usage); return exitUsage }
-	if len(args) == 0 {
-		return usage()
-	}
-	sub := args[0]
+// GrantMain は andon delegate grant。
+func GrantMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("grant", args, stdout, stderr)
+}
+
+// NarrowMain は andon delegate narrow。
+func NarrowMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("narrow", args, stdout, stderr)
+}
+
+// RevokeMain は andon delegate revoke。
+func RevokeMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("revoke", args, stdout, stderr)
+}
+
+// ShowMain は andon delegate show。
+func ShowMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("show", args, stdout, stderr)
+}
+
+func run(sub string, args []string, stdout, stderr io.Writer) int {
+	usage := func() int { fmt.Fprint(stderr, usages[sub]); return exitUsage }
+	args = append([]string{sub}, args...)
 	var pos []string
 	opt := map[string]string{}
 	asJSON := false

@@ -44,14 +44,11 @@ import (
 )
 
 // Usage は andon dispatcher --help の中身。
-const Usage = "usage: andon dispatcher [--project <slug>]          回り続ける（hc の端末 dispatcher の中で動く）\n" +
-	"       andon dispatcher --once [--project <slug>]   1回だけ回して終わる\n" +
-	"       andon dispatcher drain [--context] [--project <slug>]   待ちの通知を取り出す（Chief of Staff のフックが打つ）\n" +
-	"       andon dispatcher wait [--timeout <秒>] [--project <slug>]   待ち役（Chief of Staff の Stop フックが asyncRewake で起動する）\n" +
-	"       andon dispatcher rewake [--project <slug>]   プロバイダに切られた Chief of Staff を起動する（StopFailure フックが asyncRewake で起動する）\n" +
+const Usage = "usage: andon dispatcher [--once] [--project <slug>]\n" +
+	"回り続ける（hc の端末 dispatcher の中で動く）。--once は1回だけ回して終わる。\n" +
 	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起動する・gate を回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +
-	"待ちの通知は Chief of Staff のフック（drain）が届ける。離席中は待ち役（wait）が合図で Chief of Staff を起動する（入力欄へは打たない）。\n" +
+	"待ちの通知は Chief of Staff のフック（andon dispatcher drain）が届ける。離席中は待ち役（andon dispatcher wait）が合図で Chief of Staff を起動する（入力欄へは打たない）。\n" +
 	"Chief of Staff（config.yaml の chief_of_staff）の端末が生きていない間（留守）も回し、配る段だけ止める（戻った最初の <news> に留守の1行）。\n" +
 	"chief_of_staff が設定に無い kanban は飛ばす。初めて見る kanban は通知の元を控えるだけ（今の review_request は拾う）。\n" +
 	"巡ごとに kanban tick を打つ。前の振り返りのあとに片付いた担当の課題が project.json の chief_of_staff.retro_every 件（既定 25）\n" +
@@ -69,15 +66,6 @@ const (
 // Main は andon dispatcher。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	once, only := false, ""
-	if len(args) > 0 && args[0] == "drain" {
-		return Drain(args[1:], stdin, stdout, stderr)
-	}
-	if len(args) > 0 && args[0] == "wait" {
-		return WaitMain(args[1:], stdin, stderr)
-	}
-	if len(args) > 0 && args[0] == "rewake" {
-		return RewakeMain(args[1:], stdin, stderr)
-	}
 	for i := 0; i < len(args); i++ {
 		switch {
 		case args[i] == "--once":

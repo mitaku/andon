@@ -190,7 +190,7 @@ func TestMain_(t *testing.T) {
 	root := pkg(t)
 	t.Setenv("ANDON_HOME", root)
 	var out, errb bytes.Buffer
-	if rc := Main([]string{"stamp", c1}, strings.NewReader(""), &out, &errb); rc != 0 {
+	if rc := StampMain([]string{c1}, strings.NewReader(""), &out, &errb); rc != 0 {
 		t.Fatalf("stamp: rc=%d err=%s", rc, errb.String())
 	}
 	out.Reset()
@@ -204,10 +204,14 @@ func TestMain_(t *testing.T) {
 	if got["commit"] != c1 || got["source"] != "image" || got["drift"] != false || got["root"] != root {
 		t.Errorf("出力: %s", out.String())
 	}
-	for _, args := range [][]string{{"bogus"}, {"stamp"}, {"stamp", "unknown", "extra"}} {
+	errb.Reset()
+	if rc := Main([]string{"bogus"}, strings.NewReader(""), &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon version") {
+		t.Errorf("bogus: rc=%d err=%q", rc, errb.String())
+	}
+	for _, args := range [][]string{nil, {"unknown", "extra"}} {
 		errb.Reset()
-		if rc := Main(args, strings.NewReader(""), &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon version") {
-			t.Errorf("%v: rc=%d err=%q", args, rc, errb.String())
+		if rc := StampMain(args, strings.NewReader(""), &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon version stamp") {
+			t.Errorf("stamp %v: rc=%d err=%q", args, rc, errb.String())
 		}
 	}
 }

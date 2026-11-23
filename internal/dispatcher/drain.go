@@ -279,7 +279,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	}
 	ctx := news
 	var d, dc bytes.Buffer
-	if delegate.Main([]string{"show", "--json", "--project", slug}, nil, &d, io.Discard) == 0 && json.Compact(&dc, d.Bytes()) == nil {
+	if delegate.ShowMain([]string{"--json", "--project", slug}, nil, &d, io.Discard) == 0 && json.Compact(&dc, d.Bytes()) == nil {
 		if ctx != "" {
 			ctx += "\n"
 		}

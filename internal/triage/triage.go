@@ -29,11 +29,17 @@ import (
 	"andon/internal/spawn"
 )
 
-// Usage は andon triage の使い方。
-const Usage = "usage: andon triage collect [--limit N]                    kanban の未処理と repo ごとの最新の main を JSON に出す\n" +
-	"       andon triage apply <id> [--max-issues N] [--dry-run] decisions.json を kanban に当てる（--dry-run は Chief of Staff が読む判定の表 review も出す）\n" +
-	"                                                       起動する上限は project.json の chief_of_staff.triage_max_issues（無ければ 3）。--max-issues はその回だけ上書きする\n" +
-	"       andon triage verdict <id> <key> ok|overturn           Chief of Staff が判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く\n"
+// 葉ごとの使い方（andon triage <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	where        = "projects/<slug>/ で打つ。\n"
+	CollectUsage = "usage: andon triage collect [--limit N]\n" +
+		"kanban の未処理と repo ごとの最新の main を JSON に出す（読むだけ。担当が打つ）。\n" + where
+	ApplyUsage = "usage: andon triage apply <id> [--max-issues N] [--dry-run]\n" +
+		"decisions.json を kanban に当てる（Chief of Staff が打つ）。--dry-run は Chief of Staff が読む判定の表 review も出す。\n" +
+		"起動する上限は project.json の chief_of_staff.triage_max_issues（無ければ 3）。--max-issues はその回だけ上書きする。\n" + where
+	VerdictUsage = "usage: andon triage verdict <id> <key> ok|overturn\n" +
+		"Chief of Staff が、判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く。\n" + where
+)
 
 var (
 	idRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
@@ -61,13 +67,26 @@ func (f failure) Error() string { return f.msg }
 
 func fail(format string, a ...any) error { return failure{fmt.Sprintf(format, a...)} }
 
-// Main は andon triage。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	usage := func() int { fmt.Fprint(stderr, Usage); return exitUsage }
-	if len(args) == 0 {
-		return usage()
+// Collect は andon triage collect。
+func Collect(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("collect", args, stdout, stderr)
+}
+
+// Apply は andon triage apply。
+func Apply(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("apply", args, stdout, stderr)
+}
+
+// Verdict は andon triage verdict。
+func Verdict(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("verdict", args, stdout, stderr)
+}
+
+func run(cmd string, args []string, stdout, stderr io.Writer) int {
+	usage := func() int {
+		fmt.Fprint(stderr, map[string]string{"collect": CollectUsage, "apply": ApplyUsage, "verdict": VerdictUsage}[cmd])
+		return exitUsage
 	}
-	cmd, args := args[0], args[1:]
 	limit, maxIssues, maxSet, dry, id, key, value := defaultLimit, 0, false, false, "", "", ""
 	switch cmd {
 	case "collect":

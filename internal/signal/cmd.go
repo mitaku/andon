@@ -20,12 +20,27 @@ import (
 // jsonDecode は出所の応答を読む（知らないキーは無視。出所の形は Andon の約束ではない）。
 func jsonDecode(b []byte, v any) error { return json.Unmarshal(b, v) }
 
-// Main は andon signal。
-func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	usage := func() int { fmt.Fprint(stderr, Usage); return 2 }
-	if len(args) == 0 {
-		return usage()
+// CollectMain は andon signal collect。
+func CollectMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("collect", args, stdin, stdout, stderr)
+}
+
+// DeliveredMain は andon signal delivered。
+func DeliveredMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("delivered", args, stdin, stdout, stderr)
+}
+
+// AuthMain は andon signal auth。
+func AuthMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run("auth", args, stdin, stdout, stderr)
+}
+
+func run(cmd string, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	usage := func() int {
+		fmt.Fprint(stderr, map[string]string{"collect": CollectUsage, "delivered": DeliveredUsage, "auth": AuthUsage}[cmd])
+		return 2
 	}
+	args = append([]string{cmd}, args...)
 	switch args[0] {
 	case "collect":
 		given, due := "", false

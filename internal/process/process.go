@@ -23,70 +23,66 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Usage は andon process の使い方。
-const Usage = "usage: andon process render [--check] [<repo の根>]\n" +
-	"       andon process json <file.yaml>\n" +
-	"render: process/workstreams/*.yaml と process/states/*.yaml から docs/process/<名>.md（表と Mermaid の図）を作る。\n" +
-	"  docs/process/ の README.md 以外の .md は生成物で、定義の無いものは消す。--check は書かずに、作り直すと差分が出れば\n" +
-	"  そのファイルを並べて終了コード 1。<repo の根> の既定は今のディレクトリ。\n" +
-	"json: YAML の定義を JSON にして出す（tests/process.sh が schema/process/ に通すため）。\n"
+// 葉ごとの使い方（andon process <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	RenderUsage = "usage: andon process render [--check] [<repo の根>]\n" +
+		"process/workstreams/*.yaml と process/states/*.yaml から docs/process/<名>.md（表と Mermaid の図）を作る。\n" +
+		"docs/process/ の README.md 以外の .md は生成物で、定義の無いものは消す。--check は書かずに、作り直すと差分が出れば\n" +
+		"そのファイルを並べて終了コード 1。<repo の根> の既定は今のディレクトリ。\n"
+	JSONUsage = "usage: andon process json <file.yaml>\n" +
+		"YAML の定義を JSON にして出す（tests/process.sh が schema/process/ に通すため）。\n"
+)
 
-// Main は andon process を走らせる。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 0 {
-		fmt.Fprint(stderr, Usage)
+// RenderMain は andon process render。
+func RenderMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("andon process render", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	check := fs.Bool("check", false, "書かずに差分を確かめる")
+	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	switch args[0] {
-	case "render":
-		fs := flag.NewFlagSet("andon process render", flag.ContinueOnError)
-		fs.SetOutput(stderr)
-		check := fs.Bool("check", false, "書かずに差分を確かめる")
-		if err := fs.Parse(args[1:]); err != nil {
-			return 2
-		}
-		root := "."
-		switch fs.NArg() {
-		case 0:
-		case 1:
-			root = fs.Arg(0)
-		default:
-			fmt.Fprint(stderr, Usage)
-			return 2
-		}
-		diff, err := Render(root, *check)
-		if err != nil {
-			fmt.Fprintf(stderr, "andon process render: %v\n", err)
-			return 1
-		}
-		if *check && len(diff) > 0 {
-			for _, p := range diff {
-				fmt.Fprintf(stderr, "andon process render: 作り直すと変わる: %s\n", p)
-			}
-			fmt.Fprintln(stderr, "andon process render: andon process render で作り直して commit する")
-			return 1
-		}
-		if !*check {
-			for _, p := range diff {
-				fmt.Fprintln(stdout, p)
-			}
-		}
-		return 0
-	case "json":
-		if len(args) != 2 {
-			fmt.Fprint(stderr, Usage)
-			return 2
-		}
-		out, err := ToJSON(args[1])
-		if err != nil {
-			fmt.Fprintf(stderr, "andon process json: %v\n", err)
-			return 1
-		}
-		stdout.Write(out)
-		return 0
+	root := "."
+	switch fs.NArg() {
+	case 0:
+	case 1:
+		root = fs.Arg(0)
+	default:
+		fmt.Fprint(stderr, RenderUsage)
+		return 2
 	}
-	fmt.Fprint(stderr, Usage)
-	return 2
+	diff, err := Render(root, *check)
+	if err != nil {
+		fmt.Fprintf(stderr, "andon process render: %v\n", err)
+		return 1
+	}
+	if *check && len(diff) > 0 {
+		for _, p := range diff {
+			fmt.Fprintf(stderr, "andon process render: 作り直すと変わる: %s\n", p)
+		}
+		fmt.Fprintln(stderr, "andon process render: andon process render で作り直して commit する")
+		return 1
+	}
+	if !*check {
+		for _, p := range diff {
+			fmt.Fprintln(stdout, p)
+		}
+	}
+	return 0
+}
+
+// JSONMain は andon process json。
+func JSONMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprint(stderr, JSONUsage)
+		return 2
+	}
+	out, err := ToJSON(args[0])
+	if err != nil {
+		fmt.Fprintf(stderr, "andon process json: %v\n", err)
+		return 1
+	}
+	stdout.Write(out)
+	return 0
 }
 
 // ToJSON は YAML のファイルを JSON にする（1 文書だけ。値の型は YAML のまま）。
