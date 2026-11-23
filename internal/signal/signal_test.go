@@ -573,3 +573,34 @@ func TestReleaseMissedEpisodeBoundary(t *testing.T) {
 		t.Errorf("前のバージョンの記録で出来事を増やした: %+v", r)
 	}
 }
+
+// ADR-0051 受け入れ条件 5（同じ commit の run が失敗・成功・失敗と並ぶとき）: 切れ目は commit でなく run で見る。
+// 手で起動した run や schedule の run は、同じ commit で何度も走る（レビュー 2 回目）。
+func TestReleaseMissedEpisodeBoundarySameCommit(t *testing.T) {
+	a := commit("a")
+	fail := func(id int) string { return ciRun(id, "ci", "push", "failure", a) }
+	g0 := &fake{issues: "[]"}
+	o := Options{Slug: "x", Project: project(nil), Path: filepath.Join(t.TempDir(), "x.json"), GH: g0.gh, Now: time.Date(2026, 11, 22, 1, 0, 0, 0, time.UTC)}
+	step := func(runs ...string) Record {
+		t.Helper()
+		g0.ci = ciRuns(runs...)
+		o.Now = o.Now.Add(10 * time.Minute)
+		return find(collect(t, o), repo+"/ci.yml@main")
+	}
+	if r := step(fail(1)); r.Episodes != 1 || r.Release != a {
+		t.Fatalf("初めて: %+v", r)
+	}
+	file, _ := Load(o.Path)
+	file.Signals[0].DeliveredEpisode = 1
+	writeFile(t, o.Path, file)
+	if r := step(fail(3), ciRun(2, "ci", "push", "success", a), fail(1)); r.Episodes != 2 || r.Release != a || r.URL != runURL(3) {
+		t.Errorf("同じ commit の成功を挟んだ失敗: %+v", r)
+	}
+	after, _ := Load(o.Path)
+	if len(Undelivered(after, "x")) != 1 {
+		t.Errorf("新しい出来事を届け直さない: %+v", after.Signals)
+	}
+	if r := step(fail(4), fail(3), ciRun(2, "ci", "push", "success", a)); r.Episodes != 2 || r.Count != 3 {
+		t.Errorf("同じ commit の続きで出来事を増やした: %+v", r)
+	}
+}

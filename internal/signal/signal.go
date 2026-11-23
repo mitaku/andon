@@ -66,9 +66,10 @@ const Every = 10
 // Seen は出所を1回読んで見えた信号1つ。
 type Seen struct {
 	Key, URL, Title, Release string
-	// Streak は、最新の run から成功の手前までの失敗の run の commit（github-ci だけ）。Bounded は、その手前に成功の run を読めたか。
-	// 記録の release が Streak に無く Bounded なら、前の collect のあとに成功してまた失敗した（新しい出来事。ADR-0051 受け入れ条件 5）
-	Streak  []string
+	// Runs は、最新の run から成功の手前までの失敗の run の URL（github-ci だけ）。Bounded は、その手前に成功の run を読めたか。
+	// 記録の url（前の collect が見た最新の失敗の run）が Runs に無く Bounded なら、前の collect のあとに成功してまた失敗した
+	// （新しい出来事。ADR-0051 受け入れ条件 5）。同じ commit が何度も走るので、commit でなく run で見る
+	Runs    []string
 	Bounded bool
 }
 
@@ -326,8 +327,8 @@ func merge(f *File, slug, source, weight, prefix string, seen []Seen, judged fun
 			continue
 		}
 		r := &f.Signals[i]
-		// 読んだ run が、記録の始まりのあとに成功を挟んでいれば、collect が成功を見ていなくても新しい出来事（ADR-0051 受け入れ条件 5）
-		missed := r.Active && s.Bounded && r.Release != "" && !slices.Contains(s.Streak, r.Release)
+		// 読んだ run が、前の collect が見た失敗の run のあとに成功を挟んでいれば、collect が成功を見ていなくても新しい出来事（ADR-0051 受け入れ条件 5）
+		missed := r.Active && s.Bounded && !slices.Contains(s.Runs, r.URL)
 		// release は出来事の始まりを指す。続きなら留め、新しい出来事と、まだ無いときだけ入れる（ADR-0051 決めたこと 6）
 		if !r.Active || missed || r.Release == "" {
 			r.Release = s.Release
@@ -360,7 +361,7 @@ func split(repo string) (string, string) {
 // 見るのは結果の出た run（成功・失敗・時間切れ・起動の失敗）だけで、取り消し・飛ばしは workflow の状態を決めない。
 // 読むのは新しい 100 件で、その中に結果の出た run の無い workflow は judged が false（消えたことにしない）。
 // url と title は最新の run のもの。release は、そこから成功の手前まで遡ったいちばん古い失敗の run の commit（ADR-0051 決めたこと 5）。
-// 遡った失敗の commit を Streak に、成功に当たったかを Bounded に返す。
+// 遡った失敗の run の URL を Runs に、成功に当たったかを Bounded に返す。
 func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 	host, name := split(repo)
 	b, err := gh("api", "--hostname", host, "repos/"+name+"/actions/runs?branch=main&status=completed&per_page=100")
@@ -397,9 +398,11 @@ func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 			case r.Conclusion == "success":
 				out[i].Bounded = true
 				delete(failing, file)
-			case shaRe.MatchString(r.HeadSHA):
-				out[i].Release = r.HeadSHA
-				out[i].Streak = append(out[i].Streak, r.HeadSHA)
+			default:
+				out[i].Runs = append(out[i].Runs, r.HTMLURL)
+				if shaRe.MatchString(r.HeadSHA) {
+					out[i].Release = r.HeadSHA
+				}
 			}
 			continue
 		}
@@ -407,10 +410,9 @@ func readCI(gh GH, repo string) ([]Seen, func(string) bool, error) {
 		if r.Conclusion == "success" || !urlRe.MatchString(r.HTMLURL) {
 			continue
 		}
-		s := Seen{Key: repo + "/" + file + "@main", URL: r.HTMLURL, Title: line(r.Name + ": " + r.DisplayTitle)}
+		s := Seen{Key: repo + "/" + file + "@main", URL: r.HTMLURL, Title: line(r.Name + ": " + r.DisplayTitle), Runs: []string{r.HTMLURL}}
 		if shaRe.MatchString(r.HeadSHA) {
 			s.Release = r.HeadSHA
-			s.Streak = []string{r.HeadSHA}
 		}
 		failing[file] = len(out)
 		out = append(out, s)
