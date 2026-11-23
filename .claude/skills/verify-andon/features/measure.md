@@ -30,6 +30,7 @@
 ## 変えたら動かすパス
 
 - `internal/measure/`
+- `internal/ledger/`
 - `internal/sessionlog/`
 - `internal/ghpr/`
 - `schema/measure.schema.json`

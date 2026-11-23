@@ -118,13 +118,19 @@ if [ "$self" = true ]; then
   c4=$(put internal/gate/x_test.go x)
   c5=$(put internal/digest/x.go x)
   c6=$(put internal/ledger/ask.go x)
+  c7=$(put internal/spawn/x.go x)
+  c8=$(put internal/delegate/x.go x)
   feat() { (cd "$repo" && bash "$root/$skill/scripts/features.sh" "$1"); }
   [ "$(feat "$c0..$c1")" = gate ] || die "features.sh: internal/gate/ の差分で gate だけにならない: $(feat "$c0..$c1" | tr '\n' ' ')"
   got=$(feat "$c0..$c2" | tr '\n' ' ')
   [ "$got" = "dispatcher-news gate hooks " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hooks にならない: $got"
   [ "$(feat "$c4..$c5")" = digest ] || die "features.sh: internal/digest/ の差分で digest だけにならない: $(feat "$c4..$c5" | tr '\n' ' ')"
   got=$(feat "$c5..$c6" | tr '\n' ' ')
-  [ "$got" = "report-ready waiting " ] || die "features.sh: internal/ledger/ask.go の差分で report-ready waiting にならない: $got"
+  [ "$got" = "digest measure report-ready waiting " ] || die "features.sh: internal/ledger/ask.go の差分で digest measure report-ready waiting にならない: $got"
+  got=$(feat "$c6..$c7" | tr '\n' ' ')
+  [[ " $got" == *" create "* ]] || die "features.sh: internal/spawn/ の差分で create を返さない: $got"
+  got=$(feat "$c7..$c8" | tr '\n' ' ')
+  [[ " $got" == *" create "* ]] || die "features.sh: internal/delegate/ の差分で create を返さない: $got"
   out=$(feat "$c2..$c4") || die "features.sh: 当たらない範囲で 0 で終わらない"
   [ -z "$out" ] || die "features.sh: 文書と Go のテストだけの差分で $out を出す"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?

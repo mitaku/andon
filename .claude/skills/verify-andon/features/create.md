@@ -31,6 +31,8 @@
 
 - `internal/create/`
 - `internal/dispatcher/terminal.go`
+- `internal/spawn/`
+- `internal/delegate/`
 - `schema/project.schema.json`
 
 ## 既に見ている検査

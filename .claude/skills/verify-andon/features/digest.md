@@ -34,6 +34,7 @@
 ## 変えたら動かすパス
 
 - `internal/digest/`
+- `internal/ledger/`
 - `internal/publish/`
 - `internal/redact/`
 - `internal/measure/`
