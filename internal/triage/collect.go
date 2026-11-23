@@ -185,7 +185,7 @@ func gitIn(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// collect は kanban から未処理の項目を集める。前回までの記録で keep 以外に仕分けた key は出さない。
+// collect は担当に出す項目を集める。前回までの記録で keep 以外に仕分けた key と、keep にして keepHold たたない key は出さない。
 // 読むだけで、kanban にもリポジトリにも書かない（main を取り直すのは runCollect の latestMains）。
 func (l *ledger) collect() ([]Item, error) {
 	records, err := l.records()
@@ -196,10 +196,39 @@ func (l *ledger) collect() ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	return l.collectFrom(records, signals)
+	return l.listFrom(records, signals)
 }
 
-// collectFrom は読んだ記録（records）と信号（signals）で collect する。
+// listFrom は読んだ記録と信号で、担当に出す項目を出す順に返す。
+// 並びと上限は出す項目の数で決めるので、伏せる分を先に除いてから並べる。
+func (l *ledger) listFrom(records []record, signals []signal.Record) ([]Item, error) {
+	items, err := l.collectFrom(records, signals)
+	if err != nil {
+		return nil, err
+	}
+	return prioritize(withoutHeld(items, records, l.now)), nil
+}
+
+// withoutHeld は、集めた時刻から keepHold たたない記録が keep にした項目を除く（ADR-0047 決めたこと 19）。
+// どれか1つの記録が当たれば除くので、いちばん新しい記録から数えるのと同じになる。
+// 時刻を読めない記録と、now より先の時刻の記録では除かない（書き誤りで項目がいつまでも消えないように）。
+func withoutHeld(items []Item, records []record, now time.Time) []Item {
+	held := map[string]bool{}
+	for _, r := range records {
+		if since := now.Sub(r.collected); since < 0 || since >= keepHold {
+			continue
+		}
+		for _, it := range r.items {
+			if it.decision() == "keep" {
+				held[it.key()] = true
+			}
+		}
+	}
+	return slices.DeleteFunc(items, func(it Item) bool { return held[it.Key] })
+}
+
+// collectFrom は読んだ記録（records）と信号（signals）で、未処理の項目の全部を古い順に返す。
+// 20 時間たたない keep も入る: apply はこれで key を照らすので、伏せた項目も key の名指しで見直して閉じられる。
 func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item, error) {
 	out, err := l.kanban("", "list", "--all", "--json")
 	if err != nil {
@@ -212,7 +241,7 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 	seen := map[string]bool{}
 	for _, r := range records {
 		for _, it := range r.items {
-			// keep は次回に回しただけ。次も出す。
+			// keep は次回に回しただけで、仕分けは済んでいない。
 			if it.decision() != "keep" {
 				seen[it.key()] = true
 			}
@@ -295,12 +324,16 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 		}
 		return items[i].Key < items[j].Key
 	})
-	// 上限の既定を超える日は、memory と signal を先頭に寄せる（その中と残りは古い順のまま）。
-	// 担当は先頭から N 件だけ仕分けるので、古い順のままだと後ろに来る memory と signal がいつまでも仕分けられない。
+	return items, nil
+}
+
+// prioritize は、上限の既定を超える日に memory と signal を先頭に寄せる（その中と残りは古い順のまま）。
+// 担当は先頭から N 件だけ仕分けるので、古い順のままだと後ろに来る memory と signal がいつまでも仕分けられない。
+func prioritize(items []Item) []Item {
 	if len(items) > defaultLimit {
 		sort.SliceStable(items, func(i, j int) bool { return firstOverLimit(items[i].Kind) && !firstOverLimit(items[j].Kind) })
 	}
-	return items, nil
+	return items
 }
 
 // firstOverLimit は、項目が上限の既定を超える日に先頭に寄せる kind か。memory は仕分けるまで全部の役に載り続け、signal は外の不具合。

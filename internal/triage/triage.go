@@ -51,6 +51,10 @@ const (
 // defaultLimit は collect の項目の上限の既定（--limit が無いとき）。
 const defaultLimit = 50
 
+// keepHold は、次回に回した（keep）項目を collect が出さない時間（ADR-0047 決めたこと 19）。
+// 毎朝の回には全部が出るように、1 日より短い。
+const keepHold = 20 * time.Hour
+
 type failure struct{ msg string }
 
 func (f failure) Error() string { return f.msg }

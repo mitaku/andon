@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -48,8 +49,9 @@ func (i item) issue() obj { t, _ := i["issue"].(obj); return t }
 func (i item) issueStr(k string) string { s, _ := i.issue()[k].(string); return s }
 
 type record struct {
-	path  string
-	items []item
+	path      string
+	collected time.Time // その回の collect を打った時刻。読めなければゼロ
+	items     []item
 }
 
 // records は library/triage/*.json（前回までの記録）を名前の順に読む。
@@ -75,6 +77,12 @@ func (l *ledger) records() ([]record, error) {
 			return nil, fail("記録を読めない: %s", p)
 		}
 		r := record{path: p}
+		// collected は担当が decisions.json に書いた文字列。時刻として読めない記録は、項目を伏せる理由にしない。
+		if s, ok := o["collected"].(string); ok {
+			if at, err := time.Parse(time.RFC3339, s); err == nil {
+				r.collected = at
+			}
+		}
 		for _, x := range raw {
 			it, ok := x.(obj)
 			if !ok {

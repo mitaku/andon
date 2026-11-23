@@ -56,7 +56,7 @@ func TestCollectPutsMemoryAndSignalFirstOverLimit(t *testing.T) {
 				LastSeen: now.Format("2006-01-02T15:04:05Z"), Count: 1, Active: true, Episodes: 1}
 		}
 		l := &ledger{cli: cli, root: dir, slug: "demo", dir: filepath.Join(dir, "kanban.d"), memory: mem, now: now}
-		items, err := l.collectFrom(nil, []signal.Record{sig("github.com/example/app#1", 10), sig("github.com/example/app#2", 3)})
+		items, err := l.listFrom(nil, []signal.Record{sig("github.com/example/app#1", 10), sig("github.com/example/app#2", 3)})
 		if err != nil {
 			t.Fatal(err)
 		}
