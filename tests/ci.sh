@@ -49,7 +49,7 @@ ok "docs-scope: 文書だけなら true、コード・tests・知らないパス
 #     重い検査を除く全部と、変えたパスを見る重い検査。知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
 has() { grep -qw -- "$2" <<<"$1"; }
-always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/smoke.sh tests/verify-andon.sh tests/words-selftest.sh tests/words.sh '
+always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/shell-and.sh tests/smoke.sh tests/verify-andon.sh tests/words-selftest.sh tests/words.sh '
 # with <検査>…: いつもの分に検査を足し、scope.sh と同じ並び（名前の順）で出す
 with() { printf '%s\n' $always "$@" | sort | tr '\n' ' '; }
 heavy='tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh'
