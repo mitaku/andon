@@ -106,6 +106,12 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		c.holdDecision(&w, reason, err, res)
 		return &w
 	}
+	if w.Row == row && RegateWatched(w) {
+		// 止めてから外すまでに dispatcher が一度も見なかった: 止める前の判定でマージも印の揃えもせず、今の head で gate から回す
+		if reason, ok := c.heldAfterDecision(rows, row, w.Sha); ok {
+			c.discardForHold(&w, reason, res)
+		}
+	}
 	if w.Row != row {
 		w = contract.Merging{Row: row}
 		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head の gate の記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
@@ -219,6 +225,12 @@ func (c *ctx) holdDecision(w *contract.Merging, reason string, err error, res *c
 		res.Log = append(res.Log, fmt.Sprintf("%s の止めを読めない（止めているものとして gate を回さない）: %v", c.id, err))
 		return
 	}
+	c.discardForHold(w, reason, res)
+}
+
+// discardForHold は、approve か needs_human を決めたあとに止められた判定を捨て、gate の問いを閉じる（ADR-0056 決めたこと 9）。
+// 止めている間の巡（holdDecision）と、止めてから外すまでに dispatcher が一度も見なかった巡（heldAfterDecision）が呼ぶ。
+func (c *ctx) discardForHold(w *contract.Merging, reason string, res *contract.Merge) {
 	if !RegateWatched(*w) {
 		return // 判定の前・fix・マージ済み: 捨てるものが無い（巡ごとにログを書かない）
 	}
@@ -226,6 +238,28 @@ func (c *ctx) holdDecision(w *contract.Merging, reason string, err error, res *c
 	res.Log = append(res.Log, fmt.Sprintf("%s は gate の判定（%s）のあとに止められた。判定を捨てて gate の問いを閉じる: %s", c.id, w.Decision, why))
 	c.closeGateQuestions(why, res)
 	*w = contract.Merging{Row: w.Row}
+}
+
+// heldAfterDecision は、review に入った行 row より後で、gate が head sha を判定した時刻（gate の記録の at）以後に
+// Chief of Staff が止めを書いたか（今はもう外れていても）。返すのはその止めの理由の課題。gate は止めている間は判定しない
+// （止める口は gate の鍵を取る）ので、判定より後の止めは、その判定を捨てるべき止め。同じ秒は止めのほうを後と読む
+// （捨てて回し直すだけで済む）。gate の記録を読めないときも捨てる側に倒す。
+func (c *ctx) heldAfterDecision(rows []ledger.Row, row int, sha string) (string, bool) {
+	reason, at, ok := ledger.LastHoldSet(rows, c.id, row)
+	if !ok {
+		return "", false
+	}
+	b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", sha+".json"))
+	var g gate.Record
+	if err != nil || json.Unmarshal(b, &g) != nil {
+		return reason, true
+	}
+	decided, err1 := time.Parse(time.RFC3339, g.At)
+	held, err2 := time.Parse(time.RFC3339, at)
+	if err1 != nil || err2 != nil {
+		return reason, true
+	}
+	return reason, !held.Before(decided)
 }
 
 // mergedWhileRetrying は、base が動いたマージの打ち直しを待つ間に、オーナーが gate の判定した head のままマージしたか。

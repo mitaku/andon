@@ -299,6 +299,21 @@ func HoldOf(rows []Row, tasks []Issue, cos string, t Issue) (string, bool) {
 	return "", false
 }
 
+// LastHoldSet は、log.jsonl の after 行目（1 から数える）より後で、課題 id の hold に値を書いた行のうち最後のものの値と時刻
+// （純粋関数）。止めてから外すまでの間に dispatcher が一度も見なかったとき、止める前の gate の判定を捨てるために読む
+// （ADR-0056 決めたこと 9）。無ければ ok が false。
+func LastHoldSet(rows []Row, id string, after int) (reason, at string, ok bool) {
+	for i, r := range rows {
+		if i < after || r.ID != id || r.Change == nil {
+			continue
+		}
+		if v, _ := r.Change["hold"].(string); v != "" {
+			reason, at, ok = v, r.At, true
+		}
+	}
+	return reason, at, ok
+}
+
 // Hold は HoldOf を、kanban の今の Chief of Staff で読む。rows と logErr は呼び手が ReadLog で読んだ log.jsonl と、その誤り。
 // 子の課題の一覧は、hold が空で、hold を消した行があるときだけ読む（止めていない課題で kanban の一覧を読まない）。
 // hold が空で log.jsonl を読み切れない（無いのは除く）か、一覧を読めなければ誤りを返す（呼び手は止めているものとして扱う。

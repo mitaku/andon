@@ -1021,6 +1021,16 @@ kanban show "$hd" --json | jq -e '.questions[1] | .status == "open"' >/dev/null 
     die "外したのに gate を回し直さない: $(kanban show "$hd" --json | jq -c '.questions')"
 lastmark "$head" | grep -q 'state=success' || die "外したあと gate が印を書かない: $(lastmark "$head")"
 ok '止めを外したら、次の巡で gate を今の head で回し直す（ADR-0056 A6）'
+# 止めてから外すまでに dispatcher が一度も見なかったとき: 止める前の判定から緑に戻さず、判定を捨てて今の head で gate から回す
+lastmark "$head" | grep -q 'state=success' || die '前提: 回し直した gate の緑が無い'
+HC_TERMINAL_ID=t5 "$andon" issue hold "$hd" "$hwhy" >/dev/null || die '止める口が落ちた'
+lastmark "$head" | grep -q 'state=pending' || die "止める口が黄を書かない: $(lastmark "$head")"
+HC_TERMINAL_ID=t5 "$andon" issue unhold "$hd" >/dev/null
+: > "$tmp/dispatcher.log"; watch_due "$hd"; dispatcher
+kanban show "$hd" --json | jq -e '.questions[1].status == "received" and .questions[2].status == "open"' >/dev/null ||
+    die "止めてすぐ外したのに、止める前の判定を捨てて gate を回し直さない: $(kanban show "$hd" --json | jq -c '.questions')"
+grep -q "$hd は gate の判定（needs_human）のあとに止められた" "$tmp/dispatcher.log" || die "判定を捨てたことをログに書かない: $(cat "$tmp/dispatcher.log")"
+ok '止めてから外すまでに dispatcher が見なかったときも、止める前の判定を捨てて gate を今の head で回し直す（ADR-0056 A6）'
 HC_TERMINAL_ID=t5 "$andon" issue hold "$hd" "$hwhy" >/dev/null
 HC_TERMINAL_ID=t5 kanban done "$hwhy" >/dev/null
 dispatcher

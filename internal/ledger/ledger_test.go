@@ -416,3 +416,22 @@ func TestHoldUnreadableLog(t *testing.T) {
 		t.Errorf("log.jsonl がまだ無い kanban で止めていると読んだか誤りにした: %v %v", held, err)
 	}
 }
+
+func TestLastHoldSet(t *testing.T) {
+	rows := []Row{
+		{At: "2026-01-01T00:00:01Z", ID: "A-0001", Change: map[string]any{"hold": "A-0007"}},
+		{At: "2026-01-01T00:00:02Z", ID: "A-0001", Change: map[string]any{"status": "review"}},
+		{At: "2026-01-01T00:00:03Z", ID: "A-0002", Change: map[string]any{"hold": "A-0008"}},
+		{At: "2026-01-01T00:00:04Z", ID: "A-0001", Change: map[string]any{"hold": "A-0009"}},
+		{At: "2026-01-01T00:00:05Z", ID: "A-0001", Change: map[string]any{"hold": nil}},
+	}
+	if r, at, ok := LastHoldSet(rows, "A-0001", 2); !ok || r != "A-0009" || at != "2026-01-01T00:00:04Z" {
+		t.Errorf("review に入ったあとに止めた行を読まない: %q %q %v", r, at, ok)
+	}
+	if _, _, ok := LastHoldSet(rows, "A-0001", 4); ok {
+		t.Error("外した行（値が空）を止めた行と読んだ")
+	}
+	if _, _, ok := LastHoldSet(rows[:3], "A-0001", 2); ok {
+		t.Error("review に入る前の止めやほかの課題の止めを読んだ")
+	}
+}
