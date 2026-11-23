@@ -3,9 +3,9 @@
 #      CoS の規約7（write_back の出所への finish の1コメントは委譲の中。決めたこと 15）。
 # === 11. 価値のループ（ADR-0011 受け入れ条件 8・決めたこと 4・7・12・13） ===
 ce=package/skills/chief-engineer/SKILL.md
-ce_form=$(block "$ce" '# <題>（仕様・設計。')
+ce_form=$(block "$ce" '# <タイトル>（仕様・設計。')
 miss=
-grep -q '^## 価値の仮説（下の 6 項目。利用者に見えない題は「無し: <理由>」の1行）$' <<<"$ce_form" || miss="$miss 文書の形の見出し"
+grep -q '^## 価値の仮説（下の 6 項目。利用者に見えないテーマは「無し: <理由>」の1行）$' <<<"$ce_form" || miss="$miss 文書の形の見出し"
 i=0
 for k in '誰の何が変わるか' '見る信号（' '見る日（絶対の日付' '誰が要るか' '効いたとどう分かるか' '何があれば止めるか'; do
   i=$((i + 1)); grep -q "^$i\. $k" "$ce" || miss="$miss ($i)$k"
@@ -16,7 +16,7 @@ grep -q 'P6 で形を決める\|P6 で形が決まるまで' "$ce" && miss="$mis
 cos1=$(cat "$pb/cut.md")
 miss=
 grep -q '「価値の仮説」の節が見出しだけ（空）なら、\*\*切らずに Chief Engineer へ戻す\*\*' <<<"$cos1" || miss="$miss 空なら戻す"
-grep -q '`kanban add "観察: <題>の価値の仮説" --parent <Chief Engineer の id>' <<<"$cos1" && grep -q '`kanban set <新しい id> not_before=<(3) の日付>`' <<<"$cos1" || miss="$miss 観察の課題を --parent と not_before で足す"
+grep -q '`kanban add "観察: <タイトル>の価値の仮説" --parent <Chief Engineer の id>' <<<"$cos1" && grep -q '`kanban set <新しい id> not_before=<(3) の日付>`' <<<"$cos1" || miss="$miss 観察の課題を --parent と not_before で足す"
 grep -q '^## `signal` の通知を受けたら$' <<<"$cos1" && grep -q '^1\. \*\*直す課題に切る\*\*.*`links` に信号の `url` と `key`' <<<"$cos1" || miss="$miss signal を直す課題に切る"
 grep -q '^## 観察の課題の報告を受けたら$' <<<"$cos1" && grep -q '\*\*ラインは何もしない\*\*' <<<"$cos1" || miss="$miss 観察の報告をオーナーへ返すだけ"
 block "$pb/brief.md" '# <id> 観察: ' | grep -q '^完了条件: report.json の observation' || miss="$miss 観察の課題の雛形"

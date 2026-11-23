@@ -11,7 +11,7 @@ left=$(grep -n 'タスク' "$g" | grep -v '^[0-9]*:_避ける_' | grep -v '^[0-9
 # skill 7本と template 8本に「タスク」と andon task・旧欄名・旧キーが無い（glossary は上で見た）
 left=$(grep -rnE 'タスク|andon task|to: task|from: task|max-tasks|created_task|task\.yaml|kanban/tasks' package/skills package/templates --exclude-dir=glossary || true)
 [ -z "$left" ] && pass "skill と template に「タスク」・andon task・旧キーが無い" || fail "旧語が残る: $left"
-sed -n '/^# <id> <題>$/,/^```$/p' "$pb/brief.md" | sed -n '2p' | grep -q '^解決すべき問題:' \
+sed -n '/^# <id> <タイトル>$/,/^```$/p' "$pb/brief.md" | sed -n '2p' | grep -q '^解決すべき問題:' \
   && ! grep -q '^やること:' <<<"$cosall" && pass "chief-of-staff の brief.md の雛形の最初の欄が 解決すべき問題: で、やること: が無い" || fail "chief-of-staff の雛形の最初の欄が 解決すべき問題: でない"
 grep -q '解決すべき問題' package/skills/triage/SKILL.md && ! grep -q 'やること' package/skills/triage/SKILL.md package/skills/triage/assets/triage.yaml \
   && pass "triage skill とルーチンの依頼書の欄名が 解決すべき問題" || fail "triage の欄名が 解決すべき問題 でない"

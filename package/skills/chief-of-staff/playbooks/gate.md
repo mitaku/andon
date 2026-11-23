@@ -19,7 +19,7 @@ Chief of Staff が決めるのは、依頼書の Settings（`brief.md`。`review
 2. 理由が委譲（`delegation: merge=… < tier …`）だけなら照合は通っている。オーナーにマージを頼む（3）。
    ほかの理由（conflict・base・作者・予約キーを信じられない・Must fix の見送り・同じ head で2度目の Must fix・gate が判定できない）は、オーナーへ（ask-one-by-one skill の1問ずつ）。
    直せば済むとオーナーが答えたら、担当へ `hc send` で理由を返す（担当が `kanban start` で戻して直し、同じ手順で返す）。
-3. オーナーにマージを頼む。ほかの問いと同じく返事の本文に書いて終える（ask-one-by-one skill §2）。課題の番号（題）と PR の URL を書き、何が変わったかを言う。CI の結果も書く。レビューの回数と結果、見送った指摘があればそれも、それぞれ文で書く。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
+3. オーナーにマージを頼む。ほかの問いと同じく返事の本文に書いて終える（ask-one-by-one skill §2）。課題の番号（タイトル）と PR の URL を書き、何が変わったかを言う。CI の結果も書く。レビューの回数と結果、見送った指摘があればそれも、それぞれ文で書く。**Chief of Staff はマージしない**（`gh pr merge` は managed settings で打てない）。
    オーナーがマージしたら、dispatcher が次の見回り（1分以内）で拾い、この問いを「オーナーがマージした」と閉じて片付ける（`finish.md`）。問いの答えと受け取りを手で書かない。
    マージ待ちの PR の rebase を担当に頼んだときも、この問いを手で閉じない。担当の `andon issue ready` は前の head の問いを数えずに通り、gate が今の head で決めたときに dispatcher が閉じる（今の head でもオーナーへ回れば新しい問いが来る）。
 4. マージの依頼を出した課題はオーナー待ちになり、枠から外れる。続けて `start.md` の 1 で枠を数え直し、空いていれば起動できる課題を起動する（オーナーのマージを待たない）。
@@ -43,5 +43,5 @@ minor 以下だけが残っているなら起動せず、見送りに残して `
 1. 返す前に、依頼書（`issues/<id>/brief.md`）の末尾に `## 差し戻し（<日付>）` と理由を1行足す。
    gate の `fix` は dispatcher が担当へ返し済みなので、`<id> gate: fix` の行を受けたら足すだけ（届くのは担当へ送れなかったときだけ。`watch.md` の表の `gate: fix` の行）。オーナーの差し戻しは足してから `hc send <agent> "<理由>"`。
 2. 依頼書に `## 差し戻し` が2つあってまだ通らない（3回目を返すことになる）なら、手直しを重ねない（advisor に相談してから決める。`cut.md` の「オーナーの入口」）:
-   依頼書を直した新しい課題を `kanban add`（「なぜ」に元の番号（題）と差し戻しの要点）し、オーナーに go を取って元の課題を `andon issue finish <id>`、PR を `gh pr close <n>`（branch は残る）。
+   依頼書を直した新しい課題を `kanban add`（「なぜ」に元の番号（タイトル）と差し戻しの要点）し、オーナーに go を取って元の課題を `andon issue finish <id>`、PR を `gh pr close <n>`（branch は残る）。
    go を待つ間は担当へ `hc send <agent> "手を止めて。依頼書を直して切り直す"`。新しい課題は `start.md` の手順で起動する。

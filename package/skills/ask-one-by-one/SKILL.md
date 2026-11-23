@@ -66,13 +66,13 @@ kanban set "$id" who=person
 続けて `andon issue ask "$id" -` に問いの JSON を stdin で渡す（`kind`・`question`・`options`〈先頭が推奨案〉・`facts` に出どころ・`from: chief-of-staff`。worker skill §5 の1）。
 command が形を確かめ、kanban に問い、`library/questions/<n>.json` に置く。`brief.md` は人が読む写し。
 
-- 題は問いを1行、末尾に「（オーナーの判断待ち）」。`--profile` を付けない（エージェントを起動しない課題）。足したら `kanban set <id> who=person`。
+- タイトルは問いを1行、末尾に「（オーナーの判断待ち）」。`--profile` を付けない（エージェントを起動しない課題）。足したら `kanban set <id> who=person`。
 - `kind` は灯りの決断（`business`／`users`／`promise`／`irreversible`／`line`＝ラインの変更）のどれか。
   これに当たらないもの（§1 の1のオーナーにしかできないもの・どれとも決められないもの）は問いの JSON にできないので、`brief.md` の `kind: 判断がつかない` だけで貯める（`kanban ask` もしない）。オーナーにしかできないものは推奨案の代わりに期限の目安を書く。
   トリアージの `andon triage apply` が足すオーナーの課題も同じ形（出どころ・kind・推奨案・理由）。
 - **出す順**: 止めている作業が多いもの → `kind: 判断がつかない` → 不可逆な操作の決断待ち（`irreversible`）→ それ以外。止めている作業の多さは `andon waiting --json` の `items` の並びで読む（`holds`〈後ろで待つ課題〉の多い順、同じなら古い順。マージの依頼も同じ並びに入る）。`holds` が1件以上の行をその並びのまま先に出し、`holds` が空の行を残りの順で出す。
-- **答えが出たら** `kanban answer <id>#<n> --decided-by owner "<答え>"`（オーナーが答えた言葉を写すとき。印の値は `owner`）→ `kanban received <id>#<n>` → `kanban done <id>`（問いの無いオーナーの課題は `kanban done` だけ）。決定は担当へ `hc send`、残す方針は担当に PR でリポジトリの文書へ書かせる（規約9）。
-- 聞いたが答えがまだのものは `todo` のまま残す。同じ問いを2つ足さない（足す前に `kanban list` で題を見る）。
+- **答えが出たら** `kanban answer <id>#<n> --decided-by owner "<答え>"`（オーナーが答えた言葉を写すとき。印の値は `owner`） → `kanban received <id>#<n>` → `kanban done <id>`（問いの無いオーナーの課題は `kanban done` だけ）。決定は担当へ `hc send`、残す方針は担当に PR でリポジトリの文書へ書かせる（規約9）。
+- 聞いたが答えがまだのものは `todo` のまま残す。同じ問いを2つ足さない（足す前に `kanban list` でタイトルを見る）。
 
 ## 4. 委譲・届いた文から生まれた決断
 
@@ -83,5 +83,5 @@ command が形を確かめ、kanban に問い、`library/questions/<n>.json` に
 
 ## 5. まとめて見たいと言われたら
 
-既定は1問ずつ。オーナーが「まとめて見たい」「全部出して」と言ったときだけ、オーナーの課題（題が「（オーナーの判断待ち）」で終わる `todo`）を
+既定は1問ずつ。オーナーが「まとめて見たい」「全部出して」と言ったときだけ、オーナーの課題（タイトルが「（オーナーの判断待ち）」で終わる `todo`）を
 一覧で見せる（問い・出どころ・推奨案を1行ずつ）。答えは一覧のどれからでも受ける。

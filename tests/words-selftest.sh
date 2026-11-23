@@ -220,6 +220,27 @@ expect ok 'docs/decisions.md の表の「」の中と、残す「版」と、新
 setup; mkdir -p "$tmp/r/docs/decisions"; printf '# 「台帳」「ゲート」「版」をやめる\n\nkanban に書き、gate を回す\n' >"$tmp/r/docs/decisions/2026-01-01-x.md"
 expect ok 'docs/decisions/ の「」の中の 3 語と、新しい語は通る'
 
+# 漢字 1 字の「題」（ADR-0052 受け入れ条件 2）: 替えた範囲に古い形を足すと落ち、熟語と名指しした例外は通る
+for f in package/x.md docs/design.md tests/package/x.sh tests/andon-init.sh init/wiki/log.md; do
+  for w in 'S-7（題）を t42' 'この題では決めない' '`andon chief-engineer "<題>"`' '1人に1題' '題が空'; do
+    setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo "$w" >"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
+  done
+done
+for w in '課題を切る' '問題を言い直す' '主題の行' '議題に載せる' '話題にする' '本題に戻る' '題名を付ける' '題材を集める' 'タイトルとテーマ'; do
+  setup; mkdir -p "$tmp/r/package"; echo "$w" >"$tmp/r/package/x.md"; expect ok "package/ の「$w」は通る"
+done
+r='- 課題や PR の名前は「タイトル」、Chief Engineer が受け持つ検討の単位は「テーマ」と書き、漢字 1 字の「題」では書かない。'
+setup; mkdir -p "$tmp/r/package"; echo "$r" >"$tmp/r/package/writing.md"; expect ok 'package/writing.md の語の決まりの行の、かぎ括弧で語を挙げた「題」は通る'
+setup; mkdir -p "$tmp/r/package"; echo "${r}番号（題）を添える" >"$tmp/r/package/writing.md"; expect fail 'package/writing.md の語の決まりの行の、ほかの「題」で落ちる'
+setup; mkdir -p "$tmp/r/package/skills/worker"; echo "$r" >"$tmp/r/package/skills/worker/SKILL.md"; expect fail 'package/writing.md の外では、語の決まりの行と同じ文でも「題」で落ちる'
+m='# 古い語を見る（ADR-0052 決めたこと 10）'
+setup; mkdir -p "$tmp/r/tests/package"; echo "! grep -q '1人1題' \"\$g\"  $m" >"$tmp/r/tests/package/08-x.sh"; expect ok 'tests/package/ の、末尾に印のある行の「題」は通る'
+setup; mkdir -p "$tmp/r/tests/package"; echo "! grep -q '1人1題' \"\$g\"  $m。あとに文" >"$tmp/r/tests/package/08-x.sh"; expect fail 'tests/package/ の、印が末尾でない行の「題」で落ちる'
+for w in "この題では決めない; ! grep -q '1人1題' \"\$g\"  $m" "! grep -q '1人1題' \"\$g\" || fail \"題が残る\"  $m" "echo 1人1題  $m"; do
+  setup; mkdir -p "$tmp/r/tests/package"; echo "$w" >"$tmp/r/tests/package/08-x.sh"; expect fail "tests/package/ の、印のある行の単引用符の外の「題」で落ちる（${w:0:30}）"
+done
+setup; mkdir -p "$tmp/r/package"; echo "1人1題  $m" >"$tmp/r/package/x.sh"; expect fail 'tests/ の外では、末尾に印があっても「題」で落ちる'
+setup; echo 'S-7（題）を t42' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/ の残り）の「題」はまだ見ない'
 
 # 句読点のすぐ後ろの半角の空白（\p{Han} が句読点も含むため、和字と英字の間に空白を足す置き換えが作る形）: 落ち、決まりの形は通る
 for f in docs/x.md package/x.md internal/x.go tests/x.sh model/X.tla README.md; do
@@ -260,12 +281,13 @@ solo docs/design.md '日本語の呼び名を「台帳」のままにした。20
 solo docs/adr/0001-x.md '台帳に書く'; expect fail 'docs/adr/0001 のファイル1つだけの根の「台帳」で落ちる（「台帳」「ゲート」「版」の段）'
 solo README.md '課題の kanban、 gate を読む'; expect fail 'README.md だけの根の「、 gate」で落ちる（句読点の段）'
 solo README.md '開く。 https://example.com/x を読む'; expect ok 'README.md だけの根の URL の前の空白は通る（句読点の段）'
+solo package/x.md 'この題では決めない'; expect fail 'package/ のファイル1つだけの根の「題」で落ちる（「題」の段）'
 # 範囲が空の根: grep -r にファイルを渡さないと根の全体を見る。範囲の外（.github/）は見ない
 solo .github/x.md '費用。 gate、 kanban'; expect ok '範囲が空の根では、範囲の外（.github/）の語と空白を見ない'
 # 段の grep -r はどれも -H を持つ（新しい段の抜けを、範囲がファイル1つの例を書く前に止める）。当たる行が段の数だけあることも確かめる
 runs=$(grep -nE '\bgrep -r[A-Za-z]*' tests/words.sh | grep -vE '^[0-9]+:[[:space:]]*#' || true)   # 注釈の行は外す
 n=$(printf '%s' "$runs" | grep -c . || true)
-if [ "$n" -ge 4 ]; then echo "ok   words.sh の grep -r を $n 本読んだ"; else echo "FAIL words.sh の grep -r が $n 本しか読めない（段は 4 つ）"; fail=1; fi
+if [ "$n" -ge 5 ]; then echo "ok   words.sh の grep -r を $n 本読んだ"; else echo "FAIL words.sh の grep -r が $n 本しか読めない（段は 5 つ）"; fail=1; fi
 noh=$(printf '%s\n' "$runs" | grep -vE 'grep -r[A-Za-z]*H|[[:space:]](-H|--with-filename)([[:space:]]|$)' || true)
 if [ -z "$noh" ]; then echo "ok   words.sh の段の grep -r はどれも -H を持つ"; else echo "FAIL words.sh の段の grep -r に -H が無い: $noh"; fail=1; fi
 
