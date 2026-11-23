@@ -528,7 +528,7 @@ func TestAnswerMarksOwner(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", f.root)
 	for _, ref := range []string{"S-0031#1", "S-0031#2"} {
 		var out, errb bytes.Buffer
-		if code := Main([]string{"answer", ref, "--option", "1"}, nil, &out, &errb); code != 0 {
+		if code := Answer([]string{ref, "--option", "1"}, &out, &errb); code != 0 {
 			t.Fatalf("%s: code %d, stdout %q, stderr %q", ref, code, out.String(), errb.String())
 		}
 	}
