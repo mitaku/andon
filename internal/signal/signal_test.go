@@ -521,3 +521,55 @@ func TestMergeRelease(t *testing.T) {
 		}
 	}
 }
+
+// ADR-0051 受け入れ条件 5（1 回の collect が成功を挟んで読んだとき）: 前の collect のあとに成功してまた失敗したなら、
+// collect が成功を見ていなくても新しい出来事にする（episodes を増やし、release を入れ直し、届け直す）。
+// 読んだ run が成功で区切れていて、記録の release がその手前の失敗の中にあれば同じ出来事のまま（レビュー 1 回目）。
+func TestReleaseMissedEpisodeBoundary(t *testing.T) {
+	a, b, c, d, e, f, g, h := commit("a"), commit("b"), commit("c"), commit("d"), commit("e"), commit("f"), commit("7"), commit("8")
+	fail := func(id int, sha string) string { return ciRun(id, "ci", "push", "failure", sha) }
+	pass := func(id int, sha string) string { return ciRun(id, "ci", "push", "success", sha) }
+	g0 := &fake{issues: issues2}
+	o := Options{Slug: "x", Project: project(nil), Path: filepath.Join(t.TempDir(), "x.json"), GH: g0.gh, Now: time.Date(2026, 11, 22, 1, 0, 0, 0, time.UTC)}
+	step := func(name string, runs ...string) Record {
+		t.Helper()
+		g0.ci = ciRuns(runs...)
+		o.Now = o.Now.Add(10 * time.Minute)
+		return find(collect(t, o), repo+"/ci.yml@main")
+	}
+	if r := step("初めて", fail(3, c), fail(2, b), pass(1, a)); r.Episodes != 1 || r.Release != b {
+		t.Fatalf("初めて: %+v", r)
+	}
+	file, _ := Load(o.Path)
+	for i := range file.Signals {
+		file.Signals[i].DeliveredEpisode = file.Signals[i].Episodes // dispatcher が届けたとする
+	}
+	writeFile(t, o.Path, file)
+
+	r := step("成功 E を挟んだ失敗 F を 1 回で読む", fail(6, f), pass(5, e), fail(4, d))
+	if !r.Active || r.Count != 2 || r.Episodes != 2 || r.Release != f || r.URL != runURL(6) || r.DeliveredEpisode != 1 {
+		t.Errorf("見落とした切れ目: %+v", r)
+	}
+	after, _ := Load(o.Path)
+	if u := Undelivered(after, "x"); len(u) != 1 || u[0].Key != repo+"/ci.yml@main" {
+		t.Errorf("新しい出来事を届け直さない: %+v", u)
+	}
+	if is := find(after, repo+"#12"); is.Episodes != 1 || is.Count != 2 {
+		t.Errorf("issue の出来事が変わった: %+v", is)
+	}
+	if r := step("続き", fail(7, g), fail(6, f), pass(5, e)); r.Episodes != 2 || r.Release != f || r.Count != 3 {
+		t.Errorf("続きで出来事を増やした: %+v", r)
+	}
+
+	// 前のバージョンが書いた記録（release が始まりでなく、その時の最新の失敗の commit）は、失敗の中にあるので同じ出来事のまま留める
+	file, _ = Load(o.Path)
+	for i := range file.Signals {
+		if file.Signals[i].Source == "github-ci" {
+			file.Signals[i].Release = g
+		}
+	}
+	writeFile(t, o.Path, file)
+	if r := step("前のバージョンの記録", fail(8, h), fail(7, g), fail(6, f), pass(5, e)); r.Episodes != 2 || r.Release != g || r.Count != 4 {
+		t.Errorf("前のバージョンの記録で出来事を増やした: %+v", r)
+	}
+}

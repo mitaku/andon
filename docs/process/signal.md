@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/signal.yaml`](../../process/states/signal.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: ADR-0011 決めたこと 8・16・contract.md §15・ADR-0017 決めたこと 4 の (8)・5 の (c)・ADR-0051 決めたこと 6。記録は <slug>.signals.json の 1 件（フィンガープリントごと）。状態は active・episodes・delivered_episode の 3 つで、残りは出所のデータと位置
+出所: ADR-0011 決めたこと 8・16・contract.md §15・ADR-0017 決めたこと 4 の (8)・5 の (c)・ADR-0051 決めたこと 6・受け入れ条件 5。記録は <slug>.signals.json の 1 件（フィンガープリントごと）。状態は active・episodes・delivered_episode の 3 つで、残りは出所のデータと位置
 
 ## 図
 
@@ -12,9 +12,10 @@ stateDiagram-v2
   state "見えている・この出来事を届けた（delivered_episode が episodes と同じ。count が増えても届け直さない）" as s_delivered
   state "消えた（active が false。CI が通った・issue が閉じた）" as s_gone
   [*] --> s_active: 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0）
-  s_active --> s_active: また見えた（count を 1 増やし、last_seen・url・title・weight を今の値に。release は無いときだけ入れる）
+  s_active --> s_active: また見えた（count を 1 増やし、last_seen・url・title・weight を今の値に。release は無いときだけ入れる。github-ci で読んだ run が記録の始まりのあとに成功を挟んでいれば、新しい出来事として episodes を 1 増やし release を見えた値に）
   s_active --> s_delivered: weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23）
   s_delivered --> s_delivered: また見えた（count だけ増える。届け直さない）
+  s_delivered --> s_active: github-ci で、読んだ run が記録の始まりのあとに成功を挟んでいた（collect が成功を見ずに出来事が切れた。新しい出来事として episodes を 1 増やし release を見えた値に。now なら届け直す）
   s_active --> s_gone: 読んだ範囲で見えなくなった（結果が分からないものは変えない）
   s_delivered --> s_gone: 読んだ範囲で見えなくなった（結果が分からないものは変えない）
   s_gone --> s_active: また見えた（新しい出来事。active を true にし episodes を 1 増やし、release を見えた値に。now なら届け直す）
@@ -35,9 +36,10 @@ stateDiagram-v2
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
 | （始まり・終わり） | `active` | 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0） | 機械 | `andon signal collect --due` |  |
-| `active` | `active` | また見えた（count を 1 増やし、last_seen・url・title・weight を今の値に。release は無いときだけ入れる） | 機械 | `andon signal collect --due` |  |
+| `active` | `active` | また見えた（count を 1 増やし、last_seen・url・title・weight を今の値に。release は無いときだけ入れる。github-ci で読んだ run が記録の始まりのあとに成功を挟んでいれば、新しい出来事として episodes を 1 増やし release を見えた値に） | 機械 | `andon signal collect --due` |  |
 | `active` | `delivered` | weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23） | 機械 | `andon signal delivered <fingerprint> <episode>` | はい |
 | `delivered` | `delivered` | また見えた（count だけ増える。届け直さない） | 機械 | `andon signal collect --due` |  |
+| `delivered` | `active` | github-ci で、読んだ run が記録の始まりのあとに成功を挟んでいた（collect が成功を見ずに出来事が切れた。新しい出来事として episodes を 1 増やし release を見えた値に。now なら届け直す） | 機械 | `andon signal collect --due` |  |
 | `active` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect --due` |  |
 | `delivered` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect --due` |  |
 | `gone` | `active` | また見えた（新しい出来事。active を true にし episodes を 1 増やし、release を見えた値に。now なら届け直す） | 機械 | `andon signal collect --due` |  |
