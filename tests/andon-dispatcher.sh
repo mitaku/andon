@@ -186,13 +186,14 @@ r=0; flock "$tmp/state/andon/dispatcher/.dispatcher.lock" "$andon" dispatcher --
 ok 'andon dispatcher は .dispatcher.lock をほかが持っていれば巡を回さずに終わる'
 
 # Chief of Staff が課題を切る（t5 が予約キーを書く）。担当 t7 が worktree で作業し、PR 7 を出す
-newtask() { # newtask <題> <merge> → id
-    local id; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app)
-    HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major merge="$2" >/dev/null
-    git -C "$app" fetch -q origin
-    git -C "$app" worktree add -q -b "demo/$id" "$ANDON_WORKSPACE/.worktrees/app/demo-$id" origin/main
-    HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$ANDON_WORKSPACE/.worktrees/app/demo-$id" >/dev/null  # andon issue start の代わり
-    (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
+newtask() { # newtask <題> <merge> → id。$(...) の中で呼ばれて set -e が効かないので、各行の失敗は die で止める（die の exit 1 が外の代入を落とす）
+    local id; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app) || die "newtask: kanban add が失敗した: $1"
+    [ -n "$id" ] || die "newtask: kanban add が id を返さなかった: $1"
+    HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major merge="$2" >/dev/null || die "newtask: kanban set（review・must_fix・merge）が失敗した: $id"
+    git -C "$app" fetch -q origin || die "newtask: git fetch が失敗した: $id"
+    git -C "$app" worktree add -q -b "demo/$id" "$ANDON_WORKSPACE/.worktrees/app/demo-$id" origin/main || die "newtask: git worktree add が失敗した: $id"
+    HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$ANDON_WORKSPACE/.worktrees/app/demo-$id" >/dev/null || die "newtask: kanban set（branch・worktree）が失敗した: $id"  # andon issue start の代わり
+    (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null) || die "newtask: kanban start が失敗した: $id"
     echo "t7 $id" >> "$tmp/hc/live"
     echo "$id"
 }
