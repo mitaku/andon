@@ -356,6 +356,72 @@ func TestMerge(t *testing.T) {
 	}
 }
 
+// ADR-0056 受け入れ条件 A8（決めたこと 11）: Chief of Staff が止めた課題は、マージの依頼の 3 つの形（gate の approve・gate の問い・
+// Chief Engineer の文書の PR）のどれでもマージの依頼に出ず、理由の課題の行の holds に数え、枠ではオーナー待ちに数える。
+// 理由の課題が行を持たなくなっても（オーナーが答えた）、外すまでオーナー待ちのまま、どの行にも出ない（ADR-0057 事実 19）。
+func TestHeld(t *testing.T) {
+	f := newFake(t, 4)
+	at := func(id string) { f.row("2026-11-21T03:00:00Z", "terminal:t9", id, `{"status":"review"}`) }
+	hold := func(id string) { f.row("2026-11-21T05:00:00Z", "terminal:t1", id, `{"hold":"S-0010"}`) }
+	// gate の approve・merge: person
+	f.issue("S-0001", "review", "profile: claude", "merge: person", "hold: S-0010")
+	f.report("S-0001", head)
+	f.gate("S-0001", head, "2026-11-21T03:10:00Z", "approve", false)
+	at("S-0001")
+	hold("S-0001")
+	// gate の問い（needs_human）
+	f.issue("S-0002", "review", "profile: claude", "hold: S-0010")
+	f.report("S-0002", head)
+	f.questions("S-0002", q(1, "line", "open", "2026-11-21T04:00:00Z"))
+	f.gateAsk("S-0002", 1, head)
+	at("S-0002")
+	hold("S-0002")
+	// Chief Engineer の文書の PR（枠には数えない）
+	f.issue("S-0003", "review", "profile: chief-engineer", "hold: S-0010")
+	f.report("S-0003", head)
+	at("S-0003")
+	hold("S-0003")
+	// hold は空だが、最後に消したのが担当の端末（t7） → 止めているまま
+	f.issue("S-0004", "review", "profile: claude", "merge: person", "agent: t7")
+	f.report("S-0004", head)
+	f.gate("S-0004", head, "2026-11-21T03:10:00Z", "approve", false)
+	at("S-0004")
+	hold("S-0004")
+	f.row("2026-11-21T06:00:00Z", "terminal:t7", "S-0004", `{"hold":null}`)
+	// S-0001 の後ろで待つ課題も理由の課題の holds に入る
+	f.issue("S-0005", "todo", "profile: claude", "after: [S-0001]")
+	// 止めていない同じ形の課題は今までどおりマージの依頼
+	f.issue("S-0006", "review", "profile: claude", "merge: person")
+	f.report("S-0006", head)
+	f.gate("S-0006", head, "2026-11-21T03:10:00Z", "approve", false)
+	at("S-0006")
+	// 理由の課題: オーナーの課題の判断
+	f.issue("S-0010", "todo", "who: person")
+	f.questions("S-0010", q(1, "promise", "open", "2026-11-21T04:30:00Z"))
+	r := f.read()
+	want(t, r, "S-0006=merge", "S-0010#1=decision")
+	for _, it := range r.Items {
+		if it.ID == "S-0010" && !slices.Equal(it.Holds, []string{"S-0001", "S-0002", "S-0003", "S-0004", "S-0005"}) {
+			t.Errorf("理由の課題の holds = %v, want 止めた 4 件と S-0001 の後ろの S-0005", it.Holds)
+		}
+	}
+	if r.Slots != (Slots{Limit: 4, Working: 0, Waiting: 4, Free: 0, WaitingFull: true}) {
+		t.Errorf("slots = %+v, want waiting 4（止めた S-0001・S-0002・S-0004 と S-0006）", r.Slots)
+	}
+	// オーナーが答えた（受け取られるまで理由の課題も行を持たない）: 止めた課題はどの行にも出ず、外すまで waiting のまま
+	f.questions("S-0010", q(1, "promise", "answered", "2026-11-21T04:30:00Z"))
+	r = f.read()
+	want(t, r, "S-0006=merge")
+	if r.Slots.Waiting != 4 {
+		t.Errorf("答えたあとの slots = %+v, want waiting 4", r.Slots)
+	}
+	// Chief of Staff が外した → マージの依頼に戻る
+	f.row("2026-11-21T07:00:00Z", "terminal:t1", "S-0001", `{"hold":null}`)
+	f.issue("S-0001", "review", "profile: claude", "merge: person")
+	r = f.read()
+	want(t, r, "S-0001=merge", "S-0006=merge")
+}
+
 // 受け入れ条件 3: holds は直接と後ろで待つ済んでいない課題。並びは holds の多い順、同じなら古い順。
 func TestHoldsAndOrder(t *testing.T) {
 	f := newFake(t, 4)
