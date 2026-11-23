@@ -606,8 +606,8 @@ dispatcher
 [ "$(hv "$pb")" = "needs_human $head" ] || die "今の head で gate を回していない: $(hv "$pb")"
 kanban show "$pb" --json | jq -e '.questions[0].status == "received"' >/dev/null || die "前の head の gate の問いが閉じていない: $(kanban show "$pb" --json | jq -c '.questions')"
 grep -q "PR の head が動いた（${old:0:12} → ${head:0:12}）。gate が今の head で決め直した" "$L/issues/$pb/questions.yaml" || die '前の head の gate の問いに、閉じた理由を答えていない'
-# 事実の行の頭の語は andon gate が決める（RecordFact）。ここは今の head の記録を指す行があることだけを見る
-jq -e --arg p "$L/issues/$pb/library/gate/$head.json" '.from == "gate" and (.facts | any(endswith("の記録 " + $p)))' "$L/issues/$pb/library/questions/2.json" >/dev/null ||
+# 事実の行の頭の語は andon gate が決める（RecordFact）。ここは今の head の記録を指す「gate の記録 <パス>」の行があることを見る
+jq -e --arg p "$L/issues/$pb/library/gate/$head.json" '.from == "gate" and (.facts | any(startswith("gate の記録 ") and endswith(" " + $p)))' "$L/issues/$pb/library/questions/2.json" >/dev/null ||
     die '今の head の gate の問いを出していない'
 kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '今の head の gate の問いまで閉じた'
 jq -se --arg t "$pb" '[.[] | select(.id == $t and .change.status == "review")] | last | .change.forced == [1]' "$L/log.jsonl" >/dev/null ||
