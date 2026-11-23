@@ -923,6 +923,8 @@ type applied struct {
 	Commit    string        `json:"commit"`
 	AppliedAt string        `json:"applied_at"`
 	Previous  []appliedPrev `json:"previous"`
+	// cut は previous がそこで途切れている理由（上限まで埋まった・時刻の読めない1件があった）。途切れていなければ空。
+	cut string
 }
 
 type appliedPrev struct {
@@ -961,9 +963,15 @@ func readApplied(root string) (*applied, error) {
 	if _, err := time.Parse(time.RFC3339, a.AppliedAt); err != nil {
 		return nil, fmt.Errorf("applied_at が時刻でない: %q", a.AppliedAt)
 	}
+	if len(a.Previous) >= appliedKept {
+		a.cut = "当て直しの記録が " + strconv.Itoa(appliedKept) + " 件で切れていて"
+	}
+	// previous に時刻の読めない1件があれば、そこで記録が途切れたと読む（最後の1回とそれより新しい分は使う）
 	for i, p := range a.Previous {
 		if _, err := time.Parse(time.RFC3339, p.AppliedAt); err != nil {
-			return nil, fmt.Errorf("previous[%d].applied_at が時刻でない: %q", i, p.AppliedAt)
+			a.Previous = a.Previous[:i]
+			a.cut = fmt.Sprintf("当て直しの記録の previous[%d] の applied_at（%q）が時刻でなく、それより前を読めないので", i, p.AppliedAt)
+			break
 		}
 	}
 	return &a, nil
@@ -973,8 +981,9 @@ func readApplied(root string) (*applied, error) {
 //   - 当て直しの記録の applied_at（最後の1回か previous のどれか）が、最初の起動と片付けの間にある
 //   - 起動の記録のパッケージの commit が、起動ごとに違う（previous の無い前のバージョンの記録や、previous から落ちた古い当て直しはこちらで拾う）
 //
-// どちらでもなく、どちらかを確かめられない（起動の記録が無い・当て直しの記録が読めない・previous が上限まで埋まっていて
-// 最初の起動の時刻まで届かない）なら null。
+// どちらでもなく、どちらかを確かめられない（起動の記録が無い・当て直しの記録が読めない・previous が上限まで埋まっているか
+// 時刻の読めない1件で途切れていて、最初の起動の時刻まで届かない）なら null。
+// revert（記録を消す）や previous を書かない前のバージョンの apply-main.sh で履歴が切れた記録は、途切れた印を持たないので見分けない。
 func reapplied(launches []map[string]any, doneAt string, a *applied, aerr error) (*bool, []string) {
 	reasons := []string{}
 	yes, unknown := false, false
@@ -1012,11 +1021,11 @@ func reapplied(launches []map[string]any, doneAt string, a *applied, aerr error)
 				reasons = append(reasons, "パッケージを当て直した時刻（"+s+"）が、起動と片付けの間にある")
 			}
 		}
-		// previous が上限まで埋まっていて、残っている一番古い当て直しが起動より後なら、それより前の当て直しは記録から落ちている
+		// previous が途切れていて、残っている一番古い当て直しが起動より後なら、それより前の当て直しは記録から落ちている
 		// （当て直したと言えたら、落ちた分は要らない）
-		if oldest := mustTime(times[len(times)-1]); !yes && len(a.Previous) >= appliedKept && oldest.After(start) {
+		if oldest := mustTime(times[len(times)-1]); !yes && a.cut != "" && oldest.After(start) {
 			unknown = true
-			reasons = append(reasons, "当て直しの記録が "+strconv.Itoa(appliedKept)+" 件で切れていて、起動の時刻（"+start.UTC().Format(time.RFC3339)+"）まで届かない")
+			reasons = append(reasons, a.cut+"、起動の時刻（"+start.UTC().Format(time.RFC3339)+"）まで届かない")
 		}
 	}
 	if yes {

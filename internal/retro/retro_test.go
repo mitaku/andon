@@ -445,6 +445,13 @@ func TestReappliedPrevious(t *testing.T) {
 		{"previous が上限で起動まで届かない", last + `,"previous":` + prev(many(appliedKept, 13*time.Hour)...) + `}`, nil, "件で切れて"},
 		// 上限まで埋まっていても、一番古い当て直しが起動の前なら落ちた分は期間の外
 		{"previous が上限で起動の前まで届く", last + `,"previous":` + prev(append(many(appliedKept-1, 13*time.Hour), ago(4*day))...) + `}`, boolPtr(false), ""},
+		// previous に時刻の読めない1件があれば、そこで途切れたと読む。それより新しい分で当て直したと言えれば true
+		{"壊れた1件の前に期間の中の当て直し", last + `,"previous":[` + `{"commit":"a","applied_at":"` + ago(2*day) + `"},{"commit":"b","applied_at":"昨日"}]}`, boolPtr(true), ago(2 * day)},
+		{"最後の1回が期間の中で previous[0] が壊れている", `{"commit":"` + sha1 + `","applied_at":"` + ago(2*day) + `","previous":[{"commit":"b"}]}`, boolPtr(true), ago(2 * day)},
+		// 途切れた所が起動より後なら、それより前は分からない
+		{"壊れた1件で起動まで届かない", last + `,"previous":[{"commit":"b","applied_at":"昨日"},{"commit":"c","applied_at":"` + ago(2*day) + `"}]}`, nil, "previous[0]"},
+		// 途切れた所が起動より前なら、落ちた分は期間の外
+		{"壊れた1件が起動の前", last + `,"previous":[{"commit":"a","applied_at":"` + ago(4*day) + `"},{"commit":"b","applied_at":"昨日"}]}`, boolPtr(false), ""},
 	} {
 		a, err := read(c.body)
 		if err != nil {
@@ -461,9 +468,9 @@ func TestReappliedPrevious(t *testing.T) {
 			t.Errorf("%s: false なのに理由 = %v", c.name, reasons)
 		}
 	}
-	// previous の時刻が読めなければ、記録が読めない（印は null）
-	if _, err := read(last + `,"previous":[{"commit":"x","applied_at":"昨日"}]}`); err == nil || !strings.Contains(err.Error(), "previous[0]") {
-		t.Errorf("previous の時刻が壊れている: err = %v", err)
+	// 最後の1回の時刻が読めなければ、今までどおり記録が読めない
+	if _, err := read(`{"commit":"x","applied_at":"昨日","previous":[]}`); err == nil {
+		t.Error("applied_at が壊れているのに読めた")
 	}
 }
 
