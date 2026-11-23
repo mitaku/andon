@@ -324,7 +324,7 @@ func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any,
 				return nil, err
 			}
 			var c struct {
-				Parents []json.RawMessage `json:"parents"`
+				Parents json.RawMessage `json:"parents"` // 形を問わず読む（配列でなければ親の数が読めないとして入れる）
 				Files   []struct {
 					Filename string `json:"filename"`
 				} `json:"files"`
@@ -332,7 +332,8 @@ func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any,
 			if err := json.Unmarshal([]byte(out), &c); err != nil {
 				return nil, fmt.Errorf("commit %s のファイルが読めない: %v", short12(h.Sha), err)
 			}
-			if len(c.Parents) >= 2 {
+			var parents []json.RawMessage
+			if json.Unmarshal(c.Parents, &parents) == nil && len(parents) >= 2 {
 				continue // ほかの branch を取り込んだ merge commit はエージェントの仕事を直した跡でない（ADR-0058 決めたこと 7）。親が読めなければ入れる
 			}
 			for _, f := range c.Files {
