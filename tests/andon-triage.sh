@@ -694,4 +694,35 @@ snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 kanban show "$o_ans" --json | jq -e '.issue.status=="todo" and .questions[0].status=="answered"' >/dev/null
 ! ls kanban/library/triage/*-"$t_ans".* >/dev/null 2>&1
 echo 'ok apply: an owner issue with an answer not received is not closed and no record is left (ADR-0057 AC 13)'
+# 閉じる課題の問いが読めなければ、kanban done も断るので、当てる前に断る（途中で止まって打ち直せない回を作らない）。
+IFS=$'\t' read -r t_brk o_brk < <(owner_close 'C を公開するか' no)
+printf ':\n' > "kanban/issues/$o_brk/questions.yaml"
+snapshot > "$tmp/before"
+refused "$script" triage apply "$t_brk" && grep -q "close の対象 $o_brk の問いを読めない" "$tmp/err"
+snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
+! ls kanban/library/triage/*-"$t_brk".* >/dev/null 2>&1
+echo 'ok apply: an owner issue whose questions cannot be read is not closed and no record is left'
+# 判断の person が足すオーナーの課題と同じタイトルの課題が、もう問いを持っていれば、当てる前に断る。
+# 問いを持たない同じタイトルの課題には、足し直さずに問いを置く（andon issue ask --new と同じ関数）。
+dup=$(kanban add 'D を公開するか（オーナーの判断待ち）'); kanban set "$dup" who=person >/dev/null
+bare=$(kanban add 'E を公開するか（オーナーの判断待ち）'); kanban set "$bare" who=person >/dev/null
+td=$(kanban add '同じ題')
+mkdir -p "kanban/issues/$td/library"
+"$script" triage collect --limit 1000 > "kanban/issues/$td/library/items.json"
+# person_of <課題> <問い>: その課題の項目を、同じ問いの判断の person にする。
+person_of() { jq -c --arg o "$1" --arg q "$2" '.items[]|select(.from==$o and .kind=="person")|{key,commit,decision:"person",kind:"promise",question:$q,options:["公開する","公開しない"],reason:"外との約束"}' "kanban/issues/$td/library/items.json"; }
+{ person_of "$dup" 'D を公開するか'; person_of "$bare" 'E を公開するか'; } | jq -s '{goal:"同じ題",collected:"2026-11-23T00:00:00Z",items:.}' > "kanban/issues/$td/library/decisions.json"
+jq -e '.items|length==2' "kanban/issues/$td/library/decisions.json" >/dev/null
+printf 'D を公開するか\n' | kanban ask "$dup" - --kind promise >/dev/null
+snapshot > "$tmp/before"
+refused "$script" triage apply "$td" && grep -q "同じ問いのオーナーの課題 $dup がもう問いを持っている" "$tmp/err"
+snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
+echo 'ok apply: a decision whose owner issue already has a question is refused before any write'
+jq --arg o "$bare" 'del(.items[0])' "kanban/issues/$td/library/decisions.json" > "$tmp/td"; cp "$tmp/td" "kanban/issues/$td/library/decisions.json"
+n_before=$(kanban list --all --json | jq length)
+"$script" triage apply "$td" >/dev/null
+[[ $(kanban list --all --json | jq length) == "$n_before" ]]
+kanban show "$bare" --json | jq -e '.questions|length==1 and .[0].status=="open"' >/dev/null
+jq -e --arg b "$bare" '.items[0].created_issue==$b' kanban/library/triage/*-"$td".json >/dev/null
+echo 'ok apply: a decision whose owner issue has no question yet places the question on it without adding an issue'
 echo 'all passed'

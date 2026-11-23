@@ -215,10 +215,19 @@ func TestCheckPersons(t *testing.T) {
 		return it
 	}
 	hand := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機"}
-	for _, it := range []item{decision(nil), decision(map[string]any{"kind": "line"}), decision(map[string]any{"unsure": true}), hand} {
+	handNullOptions := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機", "options": nil, "kind": nil}
+	for _, it := range []item{decision(nil), decision(map[string]any{"kind": "line"}), decision(map[string]any{"unsure": true}), hand, handNullOptions} {
 		if err := checkPersons([]item{it}); err != nil {
 			t.Errorf("%v が断られた: %v", it, err)
 		}
+	}
+	// 同じ question の判断が 2 つあれば断る（あとの方は当てる途中で、問いを持つ同じタイトルの課題に当たる）。手作業は数えない。
+	other := decision(map[string]any{"key": "demo:T-6:question:" + strings.Repeat("0", 40)})
+	if err := checkPersons([]item{decision(nil), other}); err == nil || !strings.Contains(err.Error(), "同じものが 2 つ") {
+		t.Errorf("同じ question の判断 2 つが通った: %v", err)
+	}
+	if err := checkPersons([]item{hand, decision(nil)}); err != nil {
+		t.Errorf("同じ question の手作業と判断が断られた: %v", err)
 	}
 	for name, it := range map[string]item{
 		"問いが空":           decision(map[string]any{"question": ""}),

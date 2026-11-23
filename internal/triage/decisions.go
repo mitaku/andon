@@ -214,7 +214,9 @@ func (i item) unsure() bool { return i["unsure"] == true }
 // checkPersons は person の項目が、判断（kind・question・options・reason）か手作業（only_owner・question・reason）の
 // どちらか 1 つの形かを確かめる（ADR-0057 決めたこと 9）。どちらでもない項目があれば、kanban に手を入れる前に断る。
 // 推奨案は options の先頭で、前の形の pick は受けない。unsure は判断にだけ付ける。
+// 同じ question の判断を 2 つ置かない（あとの方は、同じタイトルのオーナーの課題が問いを持つので当てる途中で断られる）。
 func checkPersons(items []item) error {
+	questions := map[string]bool{}
 	for _, it := range items {
 		if it.decision() != "person" {
 			continue
@@ -242,11 +244,15 @@ func checkPersons(items []item) error {
 			if len(it.options()) < 2 {
 				return fail("判断の person の options が 1 行の文字列 2 つ以上でない（先頭が推奨案）: %s", k)
 			}
+			if questions[it.str("question")] {
+				return fail("判断の person の question が同じものが 2 つある（1 つにまとめる）: %s", k)
+			}
+			questions[it.str("question")] = true
 		case owner != nil:
 			if !oneLine(owner) {
 				return fail("手作業の person の only_owner が 1 行でない: %s", k)
 			}
-			if _, ok := it["options"]; ok || it.unsure() {
+			if it["options"] != nil || it.unsure() {
 				return fail("手作業の person に options・unsure は付けない: %s", k)
 			}
 		default:

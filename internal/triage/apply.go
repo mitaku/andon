@@ -290,6 +290,7 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, map[stri
 				N      int    `json:"n"`
 				Status string `json:"status"`
 			} `json:"questions"`
+			Broken string `json:"questionsBroken"`
 		}
 		if err := json.Unmarshal([]byte(out), &show); err != nil {
 			return nil, nil, fail("出どころを読めない: %s", src)
@@ -304,6 +305,9 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, map[stri
 		if (show.Issue.Status != "todo" && show.Issue.Status != "queued") || show.Issue.Agent != "" {
 			return nil, nil, fail("close の対象が未担当の todo/queued でない: %s", src)
 		}
+		if show.Broken != "" { // kanban done も読めずに断るので、当てる途中で止まらないよう先に断る
+			return nil, nil, fail("close の対象 %s の問いを読めない: %s", src, show.Broken)
+		}
 		for _, q := range show.Questions {
 			switch q.Status {
 			case "answered":
@@ -313,7 +317,53 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, map[stri
 			}
 		}
 	}
+	if err := l.checkOwnerTitles(items); err != nil {
+		return nil, nil, err
+	}
 	return repos, past, nil
+}
+
+// checkOwnerTitles は、判断の person が足すオーナーの課題と同じタイトルの片付いていない課題が、もう問いを持っていないかを確かめる。
+// 持っていれば、andon issue ask --new と同じ関数は同じ問いを 2 つ足さないよう断るので、当てる途中で止まらないよう先に断る。
+// 問いを持たない同じタイトルの課題は、その関数が足し直さずに問いを置くので通す。
+func (l *ledger) checkOwnerTitles(items []item) error {
+	titles := map[string]string{}
+	for _, it := range items {
+		if it.decision() == "person" && !it.handWork() {
+			titles[it.str("question")+ownerSuffix] = it.key()
+		}
+	}
+	if len(titles) == 0 {
+		return nil
+	}
+	out, err := l.kanban("", "list", "--all", "--json")
+	if err != nil {
+		return fail("kanban を読めない")
+	}
+	var issues []ledgerIssue
+	if err := json.Unmarshal([]byte(out), &issues); err != nil {
+		return fail("kanban を読めない")
+	}
+	for _, t := range issues {
+		key, ok := titles[t.Title]
+		if !ok || t.Status == "done" {
+			continue
+		}
+		out, err := l.kanban("", "show", t.ID, "--json")
+		if err != nil {
+			return fail("課題を読めない: %s", t.ID)
+		}
+		var show struct {
+			Questions []json.RawMessage `json:"questions"`
+		}
+		if err := json.Unmarshal([]byte(out), &show); err != nil {
+			return fail("課題を読めない: %s", t.ID)
+		}
+		if len(show.Questions) > 0 {
+			return fail("同じ問いのオーナーの課題 %s がもう問いを持っている（その課題を仕分けるか、question を変える）: %s", t.ID, key)
+		}
+	}
+	return nil
 }
 
 // applyGroup は1つの決定（bundle は束）を kanban に当て、足した課題の id と、記録のあとに書く予約キーを返す。
