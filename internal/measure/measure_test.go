@@ -934,3 +934,52 @@ func TestMeasureEstimateIgnoresLaterDone(t *testing.T) {
 		t.Fatalf("期間の外の再着手を実働に混ぜた: %s（want worked_minutes 30）", b)
 	}
 }
+
+// GH は --limit で切らない。偽の gh（PATH の先頭）は新しい順に --limit 件で切る。手で数えた PR の前に新しい PR を 1000 本足しても、
+// 期間の数は足す前（fakeGH）と同じ。
+func TestGHReadsPastLimit(t *testing.T) {
+	b, err := fakeGH("example/sample-site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old []json.RawMessage
+	if err := json.Unmarshal(b, &old); err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	for i := 2000; i > 1000; i-- {
+		lines = append(lines, fmt.Sprintf(`{"number": %d, "url": "%s%d", "title": "pad", "body": "", "mergedAt": "2026-11-08T00:00:00Z"}`, i, repoURL, i))
+	}
+	for i := len(old) - 1; i >= 0; i-- { // 新しい順
+		lines = append(lines, strings.Join(strings.Fields(string(old[i])), " "))
+	}
+	dir := t.TempDir()
+	put(t, filepath.Join(dir, "prs"), strings.Join(lines, "\n")+"\n")
+	put(t, filepath.Join(dir, "gh"), `#!/bin/sh
+limit=; prev=
+for a in "$@"; do [ "$prev" = --limit ] && limit=$a; prev=$a; done
+[ -n "$limit" ] || { echo "no --limit: $*" >&2; exit 9; }
+printf '['; head -n "$limit" "`+filepath.Join(dir, "prs")+`" | sed '1!s/^/,/'; printf ']'
+`)
+	if err := os.Chmod(filepath.Join(dir, "gh"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	root := fakeLedger(t)
+	want, err := Measure(opts(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := opts(root)
+	o.GH = GH
+	got, err := Measure(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, _ := json.Marshal(want)
+	g, _ := json.Marshal(got)
+	if !bytes.Equal(w, g) {
+		t.Errorf("1000 本を超えると期間の数が変わる:\n got  %s\n want %s", g, w)
+	}
+}

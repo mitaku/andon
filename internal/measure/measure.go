@@ -29,6 +29,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/dispatcher"
+	"andon/internal/ghpr"
 	"andon/internal/ledger"
 )
 
@@ -1198,10 +1199,14 @@ func (r *reader) jsonl(path string, f func(src string, line int, b []byte)) {
 	}
 }
 
-// GH は gh pr list でマージされた PR を読む。
+// GH は gh pr list でマージされた PR を全部読む（--limit で切らない。ghpr.Merged）。
 func GH(repo string) ([]byte, error) {
-	out, err := exec.Command("gh", "pr", "list", "--repo", repo, "--state", "merged", "--limit", "1000",
-		"--json", "number,url,title,body,mergedAt").Output()
+	return ghpr.Merged(runGH, repo, "number,url,title,body,mergedAt")
+}
+
+// runGH は gh を打つ。誤りには stderr の最初の行を添える。
+func runGH(args ...string) ([]byte, error) {
+	out, err := exec.Command("gh", args...).Output()
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
