@@ -15,8 +15,8 @@ grep -q 'gh pr create --attach' <<<"$w3" && grep -q 'gh pr edit <n> --body-file 
 # ADR-0058 受け入れ条件 3: package/ の下に、PR の会話欄に書く command（gh pr comment・gh pr review に引数が続く形）を打たせる行が無い。
 # 名前を挙げるだけの行（`gh pr comment` と …）は当たらない
 talk='gh[[:space:]]+pr[[:space:]]+(comment|review)([[:space:]]|$)'
-hits=$(grep -rnE "$talk" package/ || true)
-[ -z "$hits" ] && pass "package/ に gh pr comment・gh pr review を打たせる行が無い（ADR-0058）" || fail "package/ に PR の会話欄に書く command の行がある: $hits"
+hits=$(grep -rnE "$talk" package/); rc=$?
+[ "$rc" = 1 ] && [ -z "$hits" ] && pass "package/ に gh pr comment・gh pr review を打たせる行が無い（ADR-0058）" || fail "package/ に PR の会話欄に書く command の行がある（grep の rc $rc）: $hits"
 # 検査が見ていることの確かめ: 直す前の行と、引数の形を変えた行には当たり、名前を挙げるだけの行には当たらない
 miss=
 for l in '（PR を出したあとなら `gh pr comment <n> --attach <画像>`。1枚 10 MB まで）' 'gh pr comment --body x' 'gh  pr review 12 --comment -b x' 'env gh pr comment 3'; do

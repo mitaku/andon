@@ -227,7 +227,7 @@ dc exec -T dev bash -euc '
   done
   # PR の会話欄に書く頭（ADR-0058 決めたこと 4・受け入れ条件 2）。本文を書き直す形と読む形は当たらない
   for c in "gh pr comment 1 --body x" "gh pr review 1 --comment --body x" "env gh pr comment 1 --body x" "env gh pr review 1 --comment --body x" \
-    "command gh pr comment 1 --body x" "command gh pr review 1 --comment --body x"; do
+    "command gh pr comment 1 --body x" "command gh pr review 1 --comment --body x" "/usr/bin/gh pr comment 1" "xargs gh pr review"; do
     test "$(codex execpolicy check $rules $c | jq -r .decision)" = forbidden || { echo "FAIL image: Codex の rules が「$c」を拒まない" >&2; exit 1; }
   done
   for c in "gh pr view 1" "gh pr edit 1 --attach a.png" "gh pr create --title t"; do
