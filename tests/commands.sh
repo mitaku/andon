@@ -60,7 +60,7 @@ done
 [ -z "$bad" ] && [ "$m" -gt 100 ] && pass "package/ の skill・フック・テンプレートの andon のコマンド $m 件が、全部表にある" \
   || fail "表に無い andon のコマンド（$m 件を見た）:"$'\n'"$bad"
 
-# 落ちるべき入力の変種: 古い名前・綴りの誤り・表に無い動詞・引用符・空白の数・入れ子の置き場・フックの中の呼び出し。
+# 落ちるべき入力の変種: 古い名前・綴りの誤り・表に無い動詞・引用符・空白の数・パスつきの andon・後ろにつく句読点・入れ子の置き場・フックの中の呼び出し。
 # 印の行・名指しの形（<名詞>）・1語の葉の引数・名詞だけは通る
 mkdir -p "$tmp/pkg/skills/x/playbooks" "$tmp/pkg/hooks"
 cat >"$tmp/pkg/skills/x/SKILL.md" <<'EOF'
@@ -69,7 +69,9 @@ cat >"$tmp/pkg/skills/x/SKILL.md" <<'EOF'
 ```
 andon  issue   submit S-0012
 "andon" 'waiting' list
+/opt/andon/bin/andon issue stat S-0012
 ```
+句読点のつく `andon issue sumbit,` と `andon issue revue.` も見る。
 用語集の行 `andon task` <!-- andon の古い名前 -->
 通る: `andon <名詞> <動詞>`・`andon open sample-site`・`andon gate S-0012`・`andon waiting --json`・`andon issue`・`andon issue start <id>`
 地の文の andon design start は見ない（`` の外）。
@@ -78,8 +80,8 @@ printf '%s\n' '| `andon design start "<タイトル>"` | 入れ子の置き場 |
 printf '%s\n' '#!/bin/sh' 'out=$(andon dispatcher drian 2>/dev/null)' >"$tmp/pkg/hooks/stop"
 { andon_refs md "$tmp/pkg/skills/x/SKILL.md" "$tmp/pkg/skills/x/playbooks/deep.md"; andon_refs code "$tmp/pkg/hooks/stop"; } >"$tmp/refs.bad"
 got=$(andon_bad_refs "$tmp/leaves" <"$tmp/refs.bad" | sed 's/^.*: andon /andon /' | sort | tr '\n' '|')
-want='andon design start|andon dispatcher drian|andon issue recrd|andon issue submit|andon task start|andon waiting list|'
-[ "$got" = "$want" ] && pass "書き戻した古い名前・誤った綴り・表に無い動詞は、引用符・空白・入れ子・フックの中でも落ち、印の行と名指しの形は通る" \
+want='andon design start|andon dispatcher drian|andon issue recrd|andon issue revue|andon issue stat|andon issue submit|andon issue sumbit|andon task start|andon waiting list|'
+[ "$got" = "$want" ] && pass "書き戻した古い名前・誤った綴り・表に無い動詞は、引用符・空白・パス・句読点・入れ子・フックの中でも落ち、印の行と名指しの形は通る" \
   || fail "変種: got=[$got] want=[$want]"
 
 # ホストの部品が打つ引数（引数を配列で渡すので、上の読み方では見えない。決めたこと 21）

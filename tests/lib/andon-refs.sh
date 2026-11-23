@@ -26,10 +26,11 @@ andon_refs() {
         } else {
           my @spans = ($mode eq "code" || $fence) ? ($line) : ($line =~ /`([^`]+)`/g);
           for my $t (@spans) {
-            $t =~ s/[`\$(){};|&"\x27=\[\]「」（）、。・／，：:！？]/ /g;
+            $t =~ s/[`\$(){};|&"\x27=\[\]>\\「」（）、。・／，：:！？]/ /g;
+            $t =~ s/[,.]+(?=\s|$)/ /g; # 語の後ろの句読点だけ（andon.toml は1語のまま）
             my @w = split " ", $t;
             for my $i (0 .. $#w) {
-              next unless $w[$i] eq "andon";
+              next unless $w[$i] =~ m{(?:^|/)andon$};
               my $n = $w[$i + 1] // "";
               my $v = $w[$i + 2] // "";
               next unless $n =~ /^[a-z][a-z-]*$/;
