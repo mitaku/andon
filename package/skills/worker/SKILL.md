@@ -203,11 +203,13 @@ EOF
    画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（1枚 10 MB まで）。PR を出したあとなら `gh pr edit <n> --body-file <本文> --attach <画像>` で本文に足す。本文の「検証結果と確かめ方」に `![説明](./<画像の名前>)` と書いておくと、その参照が添付の URL に書き換わる（本文のファイルの中のパスはそのファイルのフォルダから読むので、本文のファイルと画像を同じフォルダに置く。旗だけで足すと、画像は本文の末尾のメモの行の後ろに付く）。コメントでは添付しない。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。gate と dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す。`hc wait` は終わりの前にも返るので、1回の `hc wait` を終わりと読まない。長いコマンド（checks・テスト）を hc の端末で待つときは、いつも次の順で待つ:
-   1. `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` で起動する。
-   2. `hc wait <その名前> --json` を打ち、返った `reason` を読む。`exit` なら終わり（`exit_code` がコマンドの終了コード）。
-      `timeout`（既定で 180 秒ごとの途中の返り）と `message`（自分あてに文が届いた）は終わりではない。`message` で届いた文は先に受けるが、待っている端末の新着の証拠にしない（その文は端末の出力ではない）。どちらも 2 を打ち直す。
-   3. `hc get <その名前> --json` の `state` が `finished` になったのを確かめてから、`hc read <その名前>` で結果を読み、`hc rm <その名前>` で片付ける。`finished` の前の `hc read` は途中の画面を返し、`hc rm` は「still running」で断られる。
-   落ちたら直して push し、1 から待ち直す（同じ名前の端末は 3 で片付けてから起動する）。PR を出した直後は checks がまだ出ず「no checks reported」ですぐ終わることがある。その場合は数十秒おいて打ち直し、それでも出なければ checks の無い repo と読んで、それで済み。
+   1. `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` で起動し、返った `address` を控える。2 からはその address で打つ（片付けていない同じ名前の終わった端末が残っていると、名前では古い端末に当たりうる）。`--rm` は付けない（終わった直後に端末が消え、3 で読めない）。
+   2. `hc wait <address> --json` を打ち、返った `reason` を読む。`exit` なら終わり。`exit_code` がコマンドの終了コードで、`null` なら `signal` で止められた（結果ではない）。
+      `timeout`（既定で 180 秒ごとの途中の返り）と `message` は終わりではなく、2 を打ち直す。`message` は新しい文が来た証拠にもしない（受け取り済みの文でも立つ）。新しい文が来たと言うのは、その文を入力で受け取ってから。
+      `hc wait` が `reason` を返さず終了コード 0 以外で終わった（端末が無い `not_found` など）ら打ち直さず、`hc get <address> --json` で端末を確かめる。
+      進んでいるかを見たいときは `hc read <address>` で途中の画面を見てよいが、終わりの結果として読まない。
+   3. `hc get <address> --json` の `state` が `finished` になったのを確かめてから、`hc read <address>` で結果を読み、`hc rm <address>` で片付ける。動いている端末への `hc rm` は「still running」で断られる。
+   待つのをやめるとき（§4 の 4 で checks の終わりを待たずに §7 へ進む・直して push して起動し直す）は、`hc kill <address>` → `hc rm <address>` で片付けてから進む。落ちたら直して push し、片付けてから 1 で起動し直す。PR を出した直後は checks がまだ出ず「no checks reported」ですぐ終わることがある。その場合は数十秒おいて打ち直し、それでも出なければ checks の無い repo と読んで、それで済み。
    これはエージェントではなく、コマンドを走らせるための端末なので起動してよい。
    `Review: on` なら、checks を待つ前に §4 の 1 でレビューを頼み、checks はレビューの裏で待つ。
 
