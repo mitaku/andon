@@ -3,6 +3,7 @@ package issue
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -606,6 +607,43 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			}
 			if rc, out, errs := f.run(); rc != 0 || !f.has(c.want) {
 				t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+		})
+	}
+	// apply が kanban add のあと記録の前で止まった課題: 記録には足す前の印（adding）と題だけが残る。
+	// 題が同じで、足したのが Chief of Staff の端末なら埋める。足した端末が違う・題が違うなら今までどおり断る。
+	adding := func(f *startFixture, title, by string) {
+		dir := filepath.Join(f.root, "kanban", "library", "triage")
+		os.MkdirAll(dir, 0o755)
+		b, _ := json.Marshal(map[string]any{"items": []map[string]any{
+			{"key": "k", "decision": "fix", "adding": true, "issue": map[string]any{"title": title, "review": "on"}}}})
+		os.WriteFile(filepath.Join(dir, "2026-11-23-S-0005.json"), b, 0o644)
+		lf, _ := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		fmt.Fprintf(lf, `{"at":"2026-11-23T00:00:00Z","by":"%s","id":"S-0007","change":{"add":"%s"}}`+"\n", by, title)
+		lf.Close()
+	}
+	t.Run("added before recorded", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		adding(f, "Add the button", "terminal:t5")
+		want := "kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"
+		if rc, out, _ := f.run("--dry-run"); rc != 0 || !strings.Contains(out, "トリアージ S-0005 が足した課題なので") || f.has("kanban set") {
+			t.Fatalf("dry-run: rc=%d out=%q", rc, out)
+		}
+		if rc, out, errs := f.run(); rc != 0 || !f.has(want) {
+			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+	})
+	for _, c := range []struct{ name, title, by string }{
+		{"added before recorded by another terminal", "Add the button", "terminal:t9"},
+		{"added before recorded with another title", "Other", "terminal:t5"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			adding(f, c.title, c.by)
+			if rc, _, errs := f.run(); rc != 1 || !strings.Contains(errs, "無い・知らない値: review・") || f.has("kanban set") {
+				t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 			}
 		})
 	}

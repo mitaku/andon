@@ -591,7 +591,7 @@ snapshot > "$tmp/after"; cmp "$tmp/before" "$tmp/after"
 jq -n --argjson r "$r2" '{goal:"覆す",collected:"2026-11-19T00:00:00Z",items:[$r + {decision:"fix",reason:"学びを AGENTS.md へ",issue:{title:"学びを足す",repo:"example.invalid/me/app",profile:"sonnet",review:"off",brief:"AGENTS.md に1行"}} | del(.closing)]}' > "$al/decisions.json"
 "$script" triage apply "$again" > "$tmp/again-md"
 rec=$(ls kanban/library/triage/*-"$again".json)
-jq -e '.items | length==1 and .[0].decision=="fix" and (.[0].created_issue|length>0)
+jq -e '.items | length==1 and .[0].decision=="fix" and (.[0].created_issue|length>0) and (.[0]|has("adding")|not)
     and .[0].overturned.reason=="その場限り" and .[0].overturned.closing=="one-off" and .[0].overturned.by=="terminal:t50"' "$rec" >/dev/null
 grep -q '^## Chief of Staff が覆した close' "$tmp/again-md"
 echo 'ok apply: an overturned close is refused, rewritten as fix it passes and the record keeps the overturn (AC 11)'
@@ -632,4 +632,29 @@ HC_TERMINAL_ID=t50 "$script" triage apply "$stop" >/dev/null 2>&1; rc=$?
 set -e
 [[ $rc == 1 && $(kanban list --all --json | jq '[.[]|select(.title=="止まる直し")]|length') == 1 ]]
 echo 'ok apply: an issue added before its reserved keys fail to be written stays in the record; a rerun adds no second issue'
+# kanban add が返った直後、足した課題を記録に書く前に apply が止まっても（ここでは add のあと apply を kill する）、
+# 記録には足す前の印（adding）と題が残る（andon issue start が印と題からトリアージの課題と分かる）。打ち直しは課題を重ねて足さない。
+cut=$(kanban add cut)
+cl=kanban/issues/$cut/library
+mkdir -p "$cl"
+"$script" triage collect --limit 1000 > "$cl/items.json"
+r4=$(jq -c '.items[]|select(.kind=="question" and .text=="- 見出し オーナーに聞くこと の問い")
+  |{key,commit,decision:"fix",reason:"直す",issue:{title:"止まる足し",repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"直す"}}' "$cl/items.json")
+[[ -n $r4 ]]
+jq -n --argjson r "$r4" '{goal:"止まる",collected:"2026-11-20T00:00:00Z",items:[$r]}' > "$cl/decisions.json"
+mkdir -p "$tmp/killadd"
+printf '#!/bin/sh\nif [ "$1" = add ]; then %s "$@" || exit 1; kill -9 $PPID; exit 0; fi\nexec %s "$@"\n' "$kanban" "$kanban" > "$tmp/killadd/kanban"
+chmod +x "$tmp/killadd/kanban"
+set +e
+PATH="$tmp/killadd:$PATH" HC_TERMINAL_ID=t50 "$script" triage apply "$cut" >/dev/null 2>&1; rc=$?
+set -e
+[[ $rc != 0 ]]
+rec=$(ls kanban/library/triage/*-"$cut".json)
+jq -e '.items | length==1 and .[0].adding==true and (.[0].created_issue == null) and .[0].issue.title=="止まる足し"' "$rec" >/dev/null
+[[ $(kanban list --all --json | jq '[.[]|select(.title=="止まる足し")]|length') == 1 ]]
+set +e
+HC_TERMINAL_ID=t50 "$script" triage apply "$cut" >/dev/null 2>&1; rc=$?
+set -e
+[[ $rc == 1 && $(kanban list --all --json | jq '[.[]|select(.title=="止まる足し")]|length') == 1 ]]
+echo 'ok apply: stopped right after kanban add, the record keeps the adding mark and the title; a rerun adds no second issue'
 echo 'all passed'

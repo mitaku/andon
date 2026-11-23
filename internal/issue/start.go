@@ -287,7 +287,7 @@ func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) 
 // 値は決めずに書かない。直す kanban set の行を出し、無いキーの値は選ぶ場所を残す（値を決めるのは Chief of Staff）。
 // ただしルーチンが足した課題（ledger.FiredBy）とトリアージの apply が足した課題（triageMade）は、Chief of Staff の端末で打つときだけ、
 // 無いキーを既定（ledger.DefaultSettings。review は書いてある値、無ければトリアージの決定の値か off）で埋める: ルーチンの課題は
-// dispatcher の kanban tick が足すので Chief of Staff の書いた値を持てず、トリアージの課題は apply が予約キーを書く前に止まりうるため。埋めるキーは p.Fill に置き、
+// dispatcher の kanban tick が足すので Chief of Staff の書いた値を持てず、トリアージの課題は apply が予約キーを書く前（記録の前も）に止まりうるため。埋めるキーは p.Fill に置き、
 // start が起動の前に kanban set で書く（--dry-run は書かない）。既定と同じ値なのに照合が外れたキーも同じ値で書き直し、既定と違う値は変えない。
 // Chief Engineer の課題は見ない（予約キーを置かない）。レビュアーの課題は plan がこの前に断る。
 func (c *ctx) checkSettings(p *startPlan) error {
@@ -301,7 +301,7 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	source, made := "", "off"
 	if r := ledger.FiredBy(rows, c.issue); r != "" {
 		source = "ルーチン " + r
-	} else if t, review := triageMade(c.l.Dir, c.id); t != "" {
+	} else if t, review := triageMade(c.l.Dir, rows, cos, c.issue); t != "" {
 		source, made = "トリアージ "+t, review
 	}
 	// 要るキーは埋めたあとの課題で数える（review を off で埋めれば reviewer・review_rounds は要らない）
@@ -368,10 +368,19 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	return fail("%s: kanban set %s %s", msg, c.id, strings.Join(args, " "))
 }
 
-// triageMade は、課題 id を足したトリアージの apply の記録（kanban の library/triage/<日付>-<トリアージの id>.json の
-// items の created_issue。fix と bundle の決定）を探し、そのトリアージの id と、決定の review（束ならどれか1つが on で on）を返す。
-// 無ければ空。apply は課題を足した直後、予約キーを書く前に記録を書くので、書く前に止まった課題もここで分かる。
-func triageMade(dir, id string) (string, string) {
+// triageMade は、課題 t を足したトリアージの apply の記録（kanban の library/triage/<日付>-<トリアージの id>.json の items。
+// fix と bundle の決定）を探し、そのトリアージの id と、決定の review（束ならどれか1つが on で on）を返す。無ければ空。
+// 記録の項目が t を指すのは、created_issue が t の id のときか、apply が足す前に残す印（adding）があって、題が t の題と同じで、
+// t を足したのが今の Chief of Staff の端末（log.jsonl の最初の add の行）のとき。kanban add が返ったあと記録の前で止まった課題も分かる。
+func triageMade(dir string, rows []ledger.Row, cos string, t ledger.Issue) (string, string) {
+	id := ledger.CanonID(t.Str("id"))
+	byCos := false
+	for _, r := range rows {
+		if _, ok := r.Change["add"]; ok && ledger.CanonID(r.ID) == id {
+			byCos = cos != "" && r.By == "terminal:"+cos
+			break
+		}
+	}
 	files, _ := filepath.Glob(filepath.Join(dir, "library", "triage", "*.json"))
 	for _, f := range files {
 		b, err := os.ReadFile(f)
@@ -381,8 +390,10 @@ func triageMade(dir, id string) (string, string) {
 		var rec struct {
 			Items []struct {
 				Created  string `json:"created_issue"`
+				Adding   bool   `json:"adding"`
 				Decision string `json:"decision"`
 				Issue    struct {
+					Title  string `json:"title"`
 					Review string `json:"review"`
 				} `json:"issue"`
 			} `json:"items"`
@@ -390,23 +401,31 @@ func triageMade(dir, id string) (string, string) {
 		if json.Unmarshal(b, &rec) != nil {
 			continue
 		}
-		review, found := "off", false
+		// 印のある項目は1つの決定（apply は決定を1つずつ当て、止まればそこで終わる）なので、review は印のある項目の全部で見る
+		created, adding, onCreated, onAdding := false, false, false, false
 		for _, it := range rec.Items {
-			if ledger.CanonID(it.Created) != id || (it.Decision != "fix" && it.Decision != "bundle") {
+			if it.Decision != "fix" && it.Decision != "bundle" {
 				continue
 			}
-			found = true
-			if it.Issue.Review == "on" {
-				review = "on"
+			switch {
+			case it.Created != "" && ledger.CanonID(it.Created) == id:
+				created, onCreated = true, onCreated || it.Issue.Review == "on"
+			case it.Created == "" && it.Adding:
+				adding, onAdding = adding || (byCos && it.Issue.Title == t.Str("title")), onAdding || it.Issue.Review == "on"
 			}
 		}
-		if found {
-			name := strings.TrimSuffix(filepath.Base(f), ".json")
-			if len(name) > len("2006-01-02-") {
-				name = name[len("2006-01-02-"):]
-			}
-			return name, review
+		if !created && !adding {
+			continue
 		}
+		review := "off"
+		if created && onCreated || !created && onAdding {
+			review = "on"
+		}
+		name := strings.TrimSuffix(filepath.Base(f), ".json")
+		if len(name) > len("2006-01-02-") {
+			name = name[len("2006-01-02-"):]
+		}
+		return name, review
 	}
 	return "", ""
 }

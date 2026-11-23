@@ -127,15 +127,30 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		return err
 	}
 	for _, g := range applyGroups(items) {
+		// 課題を足す決定（fix・bundle）は、足す前に「足している」印（adding）を記録に残す。kanban add が返ったあと
+		// 記録の前で止まっても、andon issue start が印（題と、Chief of Staff の端末が足した課題か）からトリアージの課題と分かる
+		adding := g[0].decision() == "fix" || g[0].decision() == "bundle"
+		if adding {
+			for _, it := range g {
+				it["adding"] = true
+			}
+			done = append(done, g...)
+			if err := save(); err != nil {
+				return err
+			}
+		}
 		newID, keys, err := l.applyGroup(id, date, g)
 		if err != nil {
 			return err
 		}
 		for _, it := range g {
+			delete(it, "adding")
 			if newID != "" {
 				it["created_issue"] = newID
 			}
-			done = append(done, it)
+			if !adding {
+				done = append(done, it)
+			}
 		}
 		if err := save(); err != nil {
 			return err
