@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -488,5 +489,42 @@ func TestReviewReason(t *testing.T) {
 	}
 	if !bytes.Contains(out, []byte(`"reason":"fixed"`)) && !bytes.Contains(out, []byte(`"reason": "fixed"`)) {
 		t.Errorf("collect の出力に reason が無い: %s", out)
+	}
+}
+
+// マージされた PR の一覧は --limit で切らない。偽の gh が新しい順に --limit 件で切っても、一覧の前に新しい PR を 1000 本足したときの
+// 束（マージ後のこと）は、足す前と同じ。
+func TestMergedListReadsPastLimit(t *testing.T) {
+	f := newFixture(t)
+	_, want := f.collect(t)
+	inner := f.gh
+	f.gh = func(args ...string) ([]byte, error) {
+		b, err := inner(args...)
+		if err != nil || args[0] != "pr" || args[1] != "list" {
+			return b, err
+		}
+		limit := 0
+		for i, a := range args {
+			if a == "--limit" {
+				limit, _ = strconv.Atoi(args[i+1])
+			}
+		}
+		var old []json.RawMessage
+		if err := json.Unmarshal(b, &old); err != nil {
+			return nil, err
+		}
+		var l []json.RawMessage
+		for i := 2000; i > 1000; i-- {
+			l = append(l, json.RawMessage(fmt.Sprintf(`{"number":%d,"url":"https://github.com/example/sample-site/pull/%d","title":"pad","body":"","mergedAt":%q,"mergeCommit":null}`,
+				i, i, now.UTC().Format(time.RFC3339))))
+		}
+		l = append(l, old...)
+		if len(l) > limit {
+			l = l[:limit]
+		}
+		return json.Marshal(l)
+	}
+	if _, got := f.collect(t); !bytes.Equal(got, want) {
+		t.Errorf("1000 本を超えると束が変わる:\n got  %s\n want %s", got, want)
 	}
 }

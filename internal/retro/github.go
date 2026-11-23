@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"andon/internal/contract"
+	"andon/internal/ghpr"
 )
 
 // AfterMerge はマージ後のこと（ADR-0028 決めたこと 7・14 の 4）。記録には書かず、集めるときに GitHub から読む。
@@ -68,8 +69,7 @@ func (g *github) list(repo string) ([]ghPR, bool) {
 	if l, ok := g.lists[repo]; ok {
 		return l, l != nil
 	}
-	b, err := g.gh("pr", "list", "--repo", repo, "--state", "merged", "--limit", "1000",
-		"--json", "number,url,title,body,mergedAt,mergeCommit")
+	b, err := ghpr.Merged(g.gh, repo, "number,url,title,body,mergedAt,mergeCommit")
 	var l []ghPR
 	if err == nil {
 		err = json.Unmarshal(b, &l)
