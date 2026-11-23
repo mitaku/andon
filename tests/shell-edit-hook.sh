@@ -346,9 +346,9 @@ rc=0; input Bash "sed -i 's/a/b/' tests/smoke.sh" | env -i PATH="$tmp/nopy" CLAU
 { [ "$rc" = 2 ] && grep -q 'python3' "$tmp/nopy.err"; } || extra="$extra [python3 が無いとき tests を含む呼び出しを止めない（$rc）]"
 rc=0; input Bash "git status" | env -i PATH="$tmp/nopy" CLAUDE_PROJECT_DIR="$root" /bin/sh -c "$hook_cmd" >/dev/null 2>&1 || rc=$?
 [ "$rc" = 0 ] || extra="$extra [python3 が無いとき tests を含まない呼び出しを止める（$rc）]"
-# 例外を起こす写し（解析の入口で投げる）
-sed 's/^def denied(text, cur, whole, depth=0):$/&\n    raise RuntimeError("壊した写し")/' "$h" >"$tmp/broken"
-grep -q '壊した写し' "$tmp/broken" || extra="$extra [例外を起こす写しを作れない]"
+# 例外を出す写し（解析の入口で投げる）
+sed 's/^def denied(text, cur, whole, depth=0):$/&\n    raise RuntimeError("壊した写し")/' "$h" >"$tmp/broken" 2>/dev/null || true
+grep -q '壊した写し' "$tmp/broken" || extra="$extra [例外を出す写しを作れない]"
 out=$(input Bash "bash tests/smoke.sh" | CLAUDE_PROJECT_DIR=$root python3 "$tmp/broken" 2>/dev/null || true)
 jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$out" >/dev/null 2>&1 || extra="$extra [例外のとき tests を含む呼び出しを deny しない]"
 out=$(input Bash "git status" | CLAUDE_PROJECT_DIR=$root python3 "$tmp/broken" 2>/dev/null || true)
