@@ -19,7 +19,7 @@
 | 7 | 止める口は、予約キー `hold` と、止める command・外す command にする | `docs/contract.md` §2・§6・`internal/issue/hold.go`・`internal/dispatcher/hold.go` | 生きている |
 | 8 | 止める command は、マージと同じ鍵を取り、緑の印を黄に書き換えてから返る | `docs/contract.md` §7・`internal/issue/hold.go` | 生きている |
 | 9 | 止めている間、gate は回らない。判定のあとに止められたら、判定を捨てる | `docs/contract.md` §6・§7・`internal/gate/gate.go`・`internal/issue/merge.go` | 生きている |
-| 10 | 担当が `hold` を消しても、止めは外れない | `docs/contract.md` §2・`internal/ledger/ledger.go` の `HoldOf` | 生きている |
+| 10 | 担当が `hold` を消しても、止めは外れない | `docs/contract.md` §2・`internal/ledger/ledger.go` | 生きている |
 | 11 | オーナー待ちの一覧は、止めた PR をマージの依頼に出さず、止めている問いの後ろに数える | `docs/contract.md` §25・`internal/waiting/waiting.go` | 生きている |
 | 12 | dispatcher のマージが必須の check で断られたら、次の巡で打ち直す | この ADR | まだ実装していない |
 | 13 | gate は、衝突を `mergeable` の欄でも読む | この ADR | まだ実装していない |
