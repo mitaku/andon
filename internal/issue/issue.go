@@ -557,16 +557,17 @@ func (c *ctx) ready(stdout io.Writer) error {
 	return nil
 }
 
-// checkAcceptanceRows は、課題の予約キー acceptance が名指す受け入れ条件の番号ごとに、報告の acceptance[] に同じ id の行が
+// checkAcceptanceRows は、課題の予約キー acceptance が名指す受け入れ条件の番号ごとに、報告の acceptance[] に同じ番号の行が
 // あるかを確かめる（結果が pass・fail・manual のどれでも行があればよい。中身は gate と CheckRuns が見る）。
+// 番号は ledger.AcceptanceKey で比べる（予約キーの 4 と行の A4 は同じ番号）。
 func checkAcceptanceRows(t ledger.Issue, rows []contract.Acceptance) error {
 	ids, ok := ledger.AcceptanceOf(t)
 	if !ok {
-		return fail("issue.yaml の acceptance の形が違う（%v）。受け入れ条件の番号をコンマで並べる（A1,A4）。Chief of Staff に書き直してもらう", t["acceptance"])
+		return fail("issue.yaml の acceptance の形が違う（%v）。受け入れ条件の番号をコンマで並べる（4,13）。Chief of Staff に書き直してもらう", t["acceptance"])
 	}
 	var missing []string
 	for _, id := range ids {
-		if !slices.ContainsFunc(rows, func(a contract.Acceptance) bool { return a.ID == id }) {
+		if !slices.ContainsFunc(rows, func(a contract.Acceptance) bool { return ledger.AcceptanceKey(a.ID) == ledger.AcceptanceKey(id) }) {
 			missing = append(missing, id)
 		}
 	}

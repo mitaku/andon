@@ -168,6 +168,9 @@ func TestAcceptanceOf(t *testing.T) {
 		{nil, "", true, ""},
 		{"A4", "A4", true, "A4"},
 		{"A4,A13,A4", "A4,A13", true, "A4,A13,A4"}, // 重なりは1つに（settings は書いたまま）
+		{"4,13", "4,13", true, "4,13"},             // Chief Engineer の文書の番号の振り方（数字だけ）
+		{"4,A4,13", "4,13", true, "4,A4,13"},       // 4 と A4 は同じ番号
+		{"A01,A1", "A01,A1", true, "A01,A1"},       // 数字の綴りは変えない
 		{"A1, A4", "", false, ""},                  // 空白
 		{"A1,,A4", "", false, ""},                  // 空の番号
 		{"", "", false, ""},
@@ -183,6 +186,15 @@ func TestAcceptanceOf(t *testing.T) {
 		}
 		if got := SettingsOf(task).Acceptance; got != c.settings {
 			t.Errorf("SettingsOf(%v).Acceptance = %q, want %q", c.v, got, c.settings)
+		}
+	}
+}
+
+// 受け入れ条件の番号は A を付けた形（A4）と数字だけの形（4）を同じ番号と読む。A の後が数字だけでなければそのまま。
+func TestAcceptanceKey(t *testing.T) {
+	for id, want := range map[string]string{"4": "4", "A4": "4", "A13": "13", "A01": "01", "A": "A", "A4a": "A4a", "a4": "a4", "B4": "B4", "AA4": "AA4"} {
+		if got := AcceptanceKey(id); got != want {
+			t.Errorf("AcceptanceKey(%q) = %q, want %q", id, got, want)
 		}
 	}
 }

@@ -279,6 +279,13 @@ func TestReady(t *testing.T) {
 		}, ""},
 		{"報告に受け入れ条件の欄が無い", func(f *fixture) { f.task["acceptance"] = "A1,A4" }, "acceptance に無いので review にしない: A1・A4"},
 		{"足りない番号だけを出す", func(f *fixture) { f.task["acceptance"] = "A1,A4,A13"; f.runRow(0, "", 0, "", false) }, "acceptance に無いので review にしない: A4・A13。"},
+		// 予約キーは数字だけ（Chief Engineer の文書の振り方）、行の id は A を付けた形でも同じ番号と読む
+		{"数字だけの番号に A を付けた行で通る", func(f *fixture) { f.task["acceptance"] = "1"; f.runRow(0, "", 0, "", false) }, ""},
+		{"A を付けた番号に数字だけの行で通る", func(f *fixture) {
+			f.task["acceptance"] = "A4,13"
+			f.report = strings.TrimSuffix(f.report, "}") + `, "acceptance": [{"id": "4", "result": "pass", "evidence": "go test"}, {"id": "A13", "result": "manual", "evidence": "オーナーが見る"}]}`
+		}, ""},
+		{"足りない番号は予約キーの綴りで出す", func(f *fixture) { f.task["acceptance"] = "1,4,13"; f.runRow(0, "", 0, "", false) }, "acceptance に無いので review にしない: 4・13。"},
 		{"番号の綴りが違う行は数えない", func(f *fixture) { f.task["acceptance"] = "A01"; f.runRow(0, "", 0, "", false) }, ": A01。"},
 		{"番号の形が違えば断る", func(f *fixture) { f.task["acceptance"] = "A1, A4" }, "acceptance の形が違う"},
 		{"番号が文字列でなければ断る", func(f *fixture) { f.task["acceptance"] = []any{"A1"} }, "acceptance の形が違う"},

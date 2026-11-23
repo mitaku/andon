@@ -395,8 +395,9 @@ func SettingsOf(t Issue) Settings {
 	return s
 }
 
-// AcceptanceOf は予約キー acceptance（課題が満たす受け入れ条件の番号を、報告の acceptance[].id と同じ綴りでコンマで並べた文字列。
-// A4,A13）を並びにする（ADR-0035 決めたこと 3）。キーが無ければ nil と true（番号を持たない課題）。
+// AcceptanceOf は予約キー acceptance（課題が満たす受け入れ条件の番号をコンマで並べた文字列。4,13）を並びにする
+// （ADR-0035 決めたこと 3）。キーが無ければ nil と true（番号を持たない課題）。番号は書いた綴りのまま返し、
+// 同じ番号（AcceptanceKey が同じもの。4 と A4）の重なりは先のものだけを残す。
 // 文字列でない・空の番号・知らない文字があれば nil と false（読み手の andon issue ready は黙って通さず断る）。
 // 履歴の照合（Trusted）は見ない: 担当が書き換えても求める行が増えるか、キーを消して今までどおりになるだけで、
 // 照合を求めると Chief of Staff が起き直したあと書き直す前の課題で番号が消える。
@@ -414,11 +415,21 @@ func AcceptanceOf(t Issue) ([]string, bool) {
 		if !nameOK(id) {
 			return nil, false
 		}
-		if !slices.Contains(ids, id) {
+		if !slices.ContainsFunc(ids, func(x string) bool { return AcceptanceKey(x) == AcceptanceKey(id) }) {
 			ids = append(ids, id)
 		}
 	}
 	return ids, true
+}
+
+// AcceptanceKey は受け入れ条件の番号を比べるときの形を返す。A の後に数字だけが続く番号（A4）は A を外した形（4）にし、
+// ほかはそのまま返す。Chief Engineer の文書は受け入れ条件を数字で振り（4）、担当は A を付けて書くことがある（A4）ので、
+// 予約キー acceptance と報告の acceptance[].id はどちらの形でも同じ番号と読む。数字の綴りは変えない（A01 と A1 は別）。
+func AcceptanceKey(id string) string {
+	if n, ok := strings.CutPrefix(id, "A"); ok && n != "" && strings.Trim(n, "0123456789") == "" {
+		return n
+	}
+	return id
 }
 
 // nameOK は英数字で始まり、英数字と . _ - だけの名前か（machine の名前と受け入れ条件の番号）。

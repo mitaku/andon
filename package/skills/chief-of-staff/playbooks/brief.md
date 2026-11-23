@@ -109,7 +109,7 @@ kanban set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 
 | `merge`（Merge） | `auto` / `person` | `person` | `auto` は**委譲がこのプロジェクトのマージを任せているときだけ**（委譲の `merge` が無ければ `person`）。`auto` でも、マージするのは gate が approve し、変更のレベルが委譲の範囲の中のときだけ（委譲を広げることはできない）。オーナーが課題を名指しして `merge` を委譲したら（`andon delegate show` の「名指し」の行）、名指しされた課題は担当が `andon issue ready` を打つ前に `merge=auto` にする |
 | `deliverable`（Deliverable） | `pr` / `candidates` | `pr` | 調べる課題（成果が候補の一覧で PR が無い。上の雛形）のときだけ `candidates`。`kanban set <id> deliverable=candidates` |
 | `estimate`（Estimate） | `small` / `medium` / `large`（依頼書には段の名 小・中・大） | 無し（書かないと見込み無しと数える） | 担当の課題（直す・調べる）には毎回書く。小 30 分・中 60 分・大 120 分（待ちを除いた実働の目安。上限ではない）。大雑把でよい。大を超えそうなら課題を分けることも検討する（Stacked PR も使える。分けるかは決まりにせず、ズレの記録から学んで決める）。レビュアー・Chief Engineer の課題には書かない |
-| `acceptance`（Acceptance） | 受け入れ条件の番号のコンマの並び（`A4,A13`。空白を入れない。報告の `acceptance[].id` と同じ綴り） | 書かない（番号を持たない課題） | Chief Engineer の文書から切る課題で、完了条件に受け入れ条件の番号を書いたら毎回書く（`cut.md` の「Chief Engineer の文書を受けたら」の4）。`kanban set <id> acceptance=A4,A13`。`andon issue ready` は、番号ごとに報告の受け入れ条件の行が無ければ断る。「13 の前半」のように一部だけ満たす条件も番号で書き、どこまでかは完了条件に書く |
+| `acceptance`（Acceptance） | 受け入れ条件の番号のコンマの並び（`4,13`。Chief Engineer の文書の番号のまま。空白を入れない。`A4` と書いても同じ番号と読む） | 書かない（番号を持たない課題） | Chief Engineer の文書から切る課題で、完了条件に受け入れ条件の番号を書いたら毎回書く（`cut.md` の「Chief Engineer の文書を受けたら」の4）。`kanban set <id> acceptance=4,13`。`andon issue ready` は、番号ごとに報告の受け入れ条件の行が無ければ断る。「13 の前半」のように一部だけ満たす条件も番号で書き、どこまでかは完了条件に書く |
 | `machine` | マシンの名前 | 書かない（指揮側と同じ） | **まだ使えない**。`machine` を書いた課題は `andon issue start` が断る（作業側を別のマシンで起動する仕組みが無い）。足さない |
 
 - **既定から変えた行には、行末に `★` と短い理由を付ける**（例 `- Review: on ★新しい module`）。
