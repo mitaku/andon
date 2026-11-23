@@ -213,7 +213,7 @@
 5. **生成した文書が合っている。** `bash tests/process.sh` が通り、`docs/process/*.md` の表に「kanban の CLI」と「kanban（review）」の形が出る。
 6. **過去の記録は語だけが替わっている。** ADR と決定の記録を替える PR で、`git diff --word-diff=porcelain --word-diff-regex=. <base>..HEAD -- docs/adr docs/decisions docs/decisions.md` の削除が 3 語と決めたこと 2〜4 の表の形（「版上げ」の「上げ」など）だけ、追加が kanban・gate・バージョンと表の形だけであることを、担当が出力を数えて報告に書く。文を言い直した行があれば、PR の本文に一覧で載せ、レビュアーが元の文と照らす。`bash tests/adr-index.sh` が通る。
 7. **yomiyasu の指摘が消えている。** 用語集と skill を替える PR で、担当が `package/` の Markdown を 1 本ずつ yomiyasu の検査（skill のフォルダの `scripts/yomiyasu_lint.py --json --no-words -`）に標準入力で渡し、語を名指す指摘を語ごとに数える。「台帳」「ゲート」「版」が 0 件で、kanban・gate・バージョンへの指摘も 0 件であることを、数えた出力ごと報告に書く。置き換える前は 82 件・53 件・3 件（事実 5）。反論が置き換えた写しで試したときは、指摘の合計が 367 件から 229 件に減り、新しい語への指摘は 0 件だった。yomiyasu が入っていないセルで走った担当は、この条件を Chief of Staff に回す。
-8. **紛れる形が残っていない。** kanban に替える PR ごとに、担当が `git grep -nE 'kanban（kanban）|kanban の CLI（`kanban`）の CLI|kanban を[^。]*kanban で'` などで、同じ語が 2 つの意味で並ぶ行を探し、残った行と直し方を報告に書く。
+8. **紛れる形が残っていない。** kanban に替える PR ごとに、担当が `git grep -nE 'kanban（kanban）|kanban の CLI（`kanban`）の CLI|kanban を[^。]*kanban で|kanban の `kanban`'` などで、同じ語が 2 つの意味で並ぶ行を探し、残った行と直し方を報告に書く。
 9. **全体。** `go test ./...` と `tests/run --changed` が通り、`gofmt -l .` が空。
 
 ## 価値の仮説
