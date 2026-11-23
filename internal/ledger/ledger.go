@@ -305,13 +305,19 @@ func FiredBy(rows []Row, t Issue) string {
 
 // DefaultSettings は、command が足す担当の課題に書く予約キーの既定を、kanban set に渡す key=value の並びで返す
 // （トリアージと振り返りの apply が足した課題・ルーチンが足した課題。contract.md §2）。値は Chief of Staff の
-// playbooks/brief.md の表の既定（review は呼び手が決める）で、estimate は中。reviewer は実装と別ブランドにする。
+// playbooks/brief.md の表の既定（review は呼び手が決める）で、estimate は中。
+// reviewer と review_rounds は review が on のときだけ書き、reviewer は実装と別ブランドにする。off のときは書かない:
+// 書くと足した時点の profile で固定され、あとで Chief of Staff が profile を替えたとき同じブランドのレビュアーが起動される
+// （書かなければ SettingsOf が読むときの profile から選ぶ。andon issue start も off なら求めない）。
 func DefaultSettings(profile, review string) []string {
+	if review != "on" {
+		return []string{"review=" + review, "must_fix=major", "merge=person", "estimate=medium"}
+	}
 	reviewer := "codex-review"
 	if Brand(profile) == "codex" {
 		reviewer = "claude-review"
 	}
-	return []string{"review=" + review, "must_fix=major", "reviewer=" + reviewer, "review_rounds=2", "merge=person", "estimate=medium"}
+	return []string{"review=on", "must_fix=major", "reviewer=" + reviewer, "review_rounds=2", "merge=person", "estimate=medium"}
 }
 
 // SettingsCopy は予約キー（DefaultSettings の key=value の並び）を、依頼書の ## Settings の写しにする

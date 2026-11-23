@@ -65,7 +65,7 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 	b, _ := os.ReadFile(logf)
 	got := strings.Split(strings.TrimSpace(string(b)), "\n")
 	// 担当の課題には予約キーを書く。前の回が書いた課題（review がある）には、打ち直しで書き直さない（Chief of Staff が変えたかもしれない）
-	keys := "set S-0021 review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium"
+	keys := "set S-0021 review=off must_fix=major merge=person estimate=medium" // off は reviewer を書かない（profile は後で決まる）
 	want := []string{"add 直す A", keys, "add Andon へ伝えるか: B", "set S-0022 who=person"}
 	if !slices.Equal(got, want) {
 		t.Errorf("打った kanban の CLI: %q（want %q）", got, want)

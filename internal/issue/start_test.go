@@ -472,7 +472,7 @@ func TestStartFillsRoutineSettings(t *testing.T) {
 		defer lf.Close()
 		lf.Write(append(b, '\n'))
 	}
-	const setLine = "kanban set S-0007 review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"
+	const setLine = "kanban set S-0007 review=off must_fix=major merge=person estimate=medium | HC_TERMINAL_ID=t5"
 
 	t.Run("fills", func(t *testing.T) {
 		f := newStart(t)
@@ -500,12 +500,24 @@ func TestStartFillsRoutineSettings(t *testing.T) {
 			t.Errorf("無いキーだけを書かない: %q", f.calls())
 		}
 	})
+	t.Run("review on picks the other brand", func(t *testing.T) {
+		f := newStart(t)
+		f.task["profile"] = "codex"
+		f.unset("reviewer", "review_rounds", "estimate")
+		fired(f, "triage", "S-0007")
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if !f.has("kanban set S-0007 reviewer=claude-review review_rounds=2 estimate=medium | HC_TERMINAL_ID=t5") {
+			t.Errorf("review=on の課題で reviewer を別ブランドで埋めない: %q", f.calls())
+		}
+	})
 	t.Run("dry run writes nothing", func(t *testing.T) {
 		f := newStart(t)
 		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
 		fired(f, "triage", "S-0007")
 		rc, out, errs := f.run("--dry-run")
-		if rc != 0 || !strings.Contains(out, "ルーチン triage が足した課題なので、無いキーを既定で書く: review=off must_fix=major") {
+		if rc != 0 || !strings.Contains(out, "ルーチン triage が足した課題なので、無いキーを既定で書く: review=off must_fix=major merge=person estimate=medium") {
 			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 		}
 		if f.has("kanban set") {

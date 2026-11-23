@@ -294,16 +294,29 @@ func (c *ctx) checkSettings(p *startPlan) error {
 		p.check("settings", "ok", "Chief Engineer の課題は予約キーを見ない")
 		return nil
 	}
-	keys, optional := requiredSettings(c.issue)
 	rows, s, cos := c.l.Log(), ledger.SettingsOf(c.issue), c.l.ChiefOfStaff()
 	defaults := map[string]string{}
 	routine := ledger.FiredBy(rows, c.issue)
+	// 要るキーは埋めたあとの課題で数える（review を off で埋めれば reviewer・review_rounds は要らない）
+	filled := c.issue
 	if routine != "" && cos != "" && os.Getenv("HC_TERMINAL_ID") == cos {
-		for _, kv := range ledger.DefaultSettings(p.Profile, "off") {
+		review := "off" // Chief of Staff が review=on を書いていれば、reviewer はいまの profile から選ぶ
+		if c.issue.Str("review") == "on" {
+			review = "on"
+		}
+		filled = ledger.Issue{}
+		for k, v := range c.issue {
+			filled[k] = v
+		}
+		for _, kv := range ledger.DefaultSettings(p.Profile, review) {
 			k, v, _ := strings.Cut(kv, "=")
 			defaults[k] = v
+			if c.issue.Str(k) == "" {
+				filled[k] = v
+			}
 		}
 	}
+	keys, optional := requiredSettings(filled)
 	var need, missing, untrusted, args []string
 	for _, k := range keys {
 		v := c.issue.Str(k)

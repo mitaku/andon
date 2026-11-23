@@ -240,7 +240,7 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 				break
 			}
 		}
-		keys := ledger.DefaultSettings("", "off") // 担当の課題の予約キー（profile は書かないので reviewer は codex-review）
+		keys := ledger.DefaultSettings("", "off") // 担当の課題の予約キー（off なので reviewer は書かず、起動のときの profile から選ばれる）
 		added := newID == ""
 		if added {
 			args := []string{"add", pl.Title, "--parent", id}

@@ -266,10 +266,13 @@ echo 'ok apply: close, bundle, person, summary'
 created=$(jq -r '[.items[]|select(.decision=="fix" or .decision=="bundle")|.created_issue]|unique[]' "$record")
 [[ -n $created ]]
 for issue in $created; do
-    kanban show "$issue" --json | jq -e '.issue | .review != null and .must_fix == "major" and .reviewer == "codex-review"
-      and .review_rounds == "2" and .merge == "person" and .estimate == "medium"' >/dev/null \
+    # reviewer・review_rounds は review が on のときだけ（off は起動のときの profile から別ブランドが選ばれる）
+    kanban show "$issue" --json | jq -e '.issue | .must_fix == "major" and .merge == "person" and .estimate == "medium"
+      and (if .review == "on" then .reviewer == "codex-review" and .review_rounds == "2" else .review == "off" and .reviewer == null and .review_rounds == null end)' >/dev/null \
       || { echo "予約キーが揃っていない: $(kanban show "$issue" --json | jq -c .issue)" >&2; exit 1; }
-    for k in review must_fix reviewer review_rounds merge estimate; do
+    keys="review must_fix merge estimate"
+    [[ "$(kanban show "$issue" --json | jq -r .issue.review)" == on ]] && keys="$keys reviewer review_rounds"
+    for k in $keys; do
         last=$(jq -r --arg id "$issue" --arg k "$k" 'select(.id==$id and (.change|has($k))) | .by' kanban/log.jsonl | sed -n '$p')
         [[ "$last" == "terminal:t50" ]] || { echo "$issue の $k を最後に書いたのが $last" >&2; exit 1; }
     done
