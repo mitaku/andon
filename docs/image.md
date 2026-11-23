@@ -144,7 +144,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5） | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む11本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
-| `adr-index.sh` | `docs/adr/` の索引・状態行（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)）、ADR ごとの決定の記録（`docs/decisions/`・`docs/decisions.md` §14）、`docs/adr/README.md` の一覧の見出しのバージョンと `CHANGELOG.md` の一番上のバージョン（[ADR-0055](adr/0055-adr-prs-without-conflicts.md)） | `docs/adr/`・`docs/decisions.md`・`docs/decisions/`・`CHANGELOG.md` |
+| `adr-index.sh` | `docs/adr/` の索引・状態行（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)）と同じ番号の ADR が 2 本無いこと、ADR ごとの決定の記録（`docs/decisions/`・`docs/decisions.md` §14）、`docs/adr/README.md` の一覧の見出しのバージョンと `CHANGELOG.md` の一番上のバージョン（[ADR-0055](adr/0055-adr-prs-without-conflicts.md)） | `docs/adr/`・`docs/decisions.md`・`docs/decisions/`・`CHANGELOG.md` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
 | `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
 
@@ -165,6 +165,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh`・`adr-index.sh` を足す |
 | `docs/decisions.md`・`docs/decisions/`・root の `CHANGELOG.md` | `adr-index.sh` を足す |
+| `tests/adr-new`（ADR の番号を取る command） | `adr-new.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `image/apply-main.sh` | `apply-main.sh` を足す |
 | `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`.claude/skills/`・`.agents/skills/` など | 足さない |

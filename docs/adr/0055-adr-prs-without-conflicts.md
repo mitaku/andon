@@ -13,10 +13,10 @@
 | 3 | 一覧は `tests/adr-index.sh` が ADR から読んで出し、書き込む | `tests/adr-index.sh` | 生きている |
 | 4 | `docs/adr/README.md` は、手で書く読み方と、command が書く一覧の 2 つにする | `docs/adr/README.md` | 生きている |
 | 5 | 検査は ADR ごとの行を求めない。一覧の見出しのバージョンを CHANGELOG と突き合わせる | `tests/adr-index.sh` | 生きている |
-| 6 | ADR の番号は `tests/adr-new` が鍵を取って決め、その場でファイルを置く | この ADR | まだ実装していない |
-| 7 | 同じ番号の ADR が 2 本あると検査が落ちる | この ADR | まだ実装していない |
+| 6 | ADR の番号は `tests/adr-new` が鍵を取って決め、その場でファイルを置く | `tests/adr-new` | 生きている |
+| 7 | 同じ番号の ADR が 2 本あると検査が落ちる | `tests/adr-index.sh` | 生きている |
 | 8 | 番号は詰めない。重なったら、あとからマージする側が取り直す | この ADR | 生きている |
-| 9 | 決まりは `AGENTS.md` の表と `docs/operate.md` に置き、Chief Engineer の skill は変えない | `AGENTS.md`・`docs/operate.md` §14 | まだ実装していない（番号の行。一覧の行と operate.md は済んだ） |
+| 9 | 決まりは `AGENTS.md` の表と `docs/operate.md` に置き、Chief Engineer の skill は変えない | `AGENTS.md`・`docs/operate.md` §14 | 生きている |
 | 10 | 実装の PR が一覧を移す。そのとき開いている ADR の PR は自分の 1 行を外す | `docs/adr/README.md` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）

@@ -58,7 +58,7 @@
 | Chief Engineer の skill の骨格の正は `docs/design.md` §1.8。`package/skills/chief-engineer/SKILL.md` の手順を変える PR は、同じ PR で §1.8 も直す。 | 無し。`tests/package.sh` は skill の有無を見るだけで、SKILL.md と §1.8 の食い違いは見ない。 |
 | 決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。 | `tests/smoke.sh`。`docs/decisions/` のファイルの名前と行の形、`docs/decisions.md` の凍結した表に行が足されていないことを見る。 |
 | ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、決定の記録を突き合わせ、`docs/adr/README.md` の一覧の行が在る ADR を指すことを見る。 |
-| ADR の番号は書き終える直前にも、ほかの worktree を `git worktree list` で見直す。書いている間に別の担当が同じ番号を取ることがある。 | 無し。取り合いは書いている間に起きて、見るものが無い。 |
+| ADR は `tests/adr-new <英字の短い名前> "<タイトル>"` で始める。番号を手で決めない。同じ番号の ADR が main と重なったら、あとからマージする側が取り直す。 | `tests/adr-index.sh`。`docs/adr/` に同じ番号の ADR が 2 本あると落ちる。 |
 | ADR の PR は `docs/adr/README.md` の一覧に触らない。一覧は、バージョンを切る PR が `bash tests/adr-index.sh --write-list` で置き換える。 | `tests/adr-index.sh`。一覧の見出しの下のバージョンを `CHANGELOG.md` の一番上のバージョンと突き合わせ、違えば落ちる。ADR ごとの行は求めない。 |
 | ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` で足す。 | `tests/adr-index.sh`。ADR ごとに `docs/decisions/` の対か `docs/decisions.md` の凍結した表（§14）の行が無ければ落ちる。 |
 | 迷ったら推奨案で進めて報告に書く。 | 無し。判断の決まりで、見るものが無い。 |

@@ -82,6 +82,8 @@ while IFS= read -r p; do
     docs/adr/*) run[tests/package.sh]=1 run[tests/adr-index.sh]=1 ;;
     docs/decisions.md | docs/decisions/* | CHANGELOG.md) run[tests/adr-index.sh]=1 ;;
     tests/kanban/*) run[tests/kanban.sh]=1 ;;
+    # ADR の番号を取る command（ADR-0055 決めたこと 6）。検査ではないので名前に .sh を付けない。打つのは adr-new.sh
+    tests/adr-new) run[tests/adr-new.sh]=1 ;;
     # package.sh の節（1節1ファイル）。入口の tests/package.sh が順に読む
     tests/package/*) run[tests/package.sh]=1 ;;
     tests/host/*) run[tests/host.sh]=1 ;;
