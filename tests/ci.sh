@@ -180,6 +180,22 @@ grep -qxF "    if: github.event_name == 'pull_request'" <<<"$job" || die "job is
 grep -qxF '          git diff --name-only --no-renames HEAD^1 HEAD | bash tests/lib/scope.sh --isolation | tee "$RUNNER_TEMP/isolation"' <<<"$job" \
   || die "job isolation が PR の変更を scope.sh --isolation で選ばない"
 grep -qxF '          tests/isolation "${tests[@]}"' <<<"$job" || die "job isolation が選んだ検査を tests/isolation に渡さない"
+# 落ちても成功にしない・選んだのに飛ばさない: job に continue-on-error が無く、tests/isolation を打つ step は選んだときだけ動き、
+# tests/isolation の行で終わる（後ろに true などを足して終了コードを消さない）。選ぶ step は一覧が空でないとき run=true を出す
+grep -qE '^[[:space:]]*continue-on-error:' <<<"$job" && die "job isolation に continue-on-error がある（落ちても成功になる）"
+step='' cur=''
+while IFS= read -r l; do
+  [[ "$l" == '      - '* ]] && cur=''
+  cur+="$l"$'\n'
+  [ "$l" = '          tests/isolation "${tests[@]}"' ] && step=$cur
+done <<<"$job"
+[ -n "$step" ] || die "job isolation に tests/isolation を打つ step が無い"
+[ "$(grep -cE '^[[:space:]]*if:' <<<"$step")" = 1 ] && grep -qxF "        if: steps.scope.outputs.run == 'true'" <<<"$step" \
+  || die "tests/isolation を打つ step の if が選んだときだけ（steps.scope.outputs.run == 'true'）でない: $(grep -E '^[[:space:]]*if:' <<<"$step")"
+after=$(sed -n '/^          tests\/isolation "\${tests\[@\]}"$/,/^      - /p' <<<"$job" | sed '1d' | grep -vE '^      - |^  [a-z][a-z-]*:$|^[[:space:]]*(#|$)' || true)
+[ -z "$after" ] || die "tests/isolation を打つ行の後ろに行がある（終了コードを消しうる）: $after"
+grep -qxF '        id: scope' <<<"$job" && grep -qxF '          if [ -s "$RUNNER_TEMP/isolation" ]; then' <<<"$job" \
+  && grep -qxF '            echo "run=true" >>"$GITHUB_OUTPUT"' <<<"$job" || die "選ぶ step が、一覧が空でないとき run=true を出さない"
 ok "scope --isolation: 検査の土台では全部、tests/ の検査と置き場ではその検査、Go では smoke.sh を、job isolation が tests/isolation で回す"
 
 # 2. run-tests: 1本ごとに出力をまとめ（混ざらない）、表を出し、落ちたものがあれば 1。skip は走らせない

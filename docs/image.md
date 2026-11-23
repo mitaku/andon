@@ -192,7 +192,7 @@ andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`interna
 
 ### 検査の隔離
 
-検査がセルの本物（kanban・HOME）を読み書きしないかは、`tests/isolation` が偽のセル（番兵）で回して確かめる（`tests/README.md`）。全部を回すと 15 分を超えるので、tests の job では回さない。PR では、別の job の isolation が、PR の変更に関係する分だけを回す。tests の job と並んで走るので、回す分が少なければ待ちはほとんど延びない。
+検査がセルの本物（kanban・HOME）を読み書きしないかは、`tests/isolation` が偽のセル（番兵）で回して確かめる（`tests/README.md`）。全部を回すと、セルでは 15 分を超え、GitHub の runner では約 5 分かかる（tests の job は約 3 分半）。tests の job に足すとその分だけ延びるので、PR では別の job の isolation が、PR の変更に関係する分だけを並べて回す。
 
 回す検査は `tests/lib/scope.sh --isolation` が PR の変更（tests の job と同じ差分）から選び、`tests/isolation` に渡す。`tests/isolation` は `go test ./...` を毎回回し、渡した `tests/*.sh` を番兵の中で回す。選ぶものが無ければ回さず、job は成功で終わる。選び方は `tests/ci.sh` が確かめる。
 
