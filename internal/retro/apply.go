@@ -338,7 +338,7 @@ func list(ids []string) string {
 // オーナーの課題（決めたこと 2）。依頼書には要約・根拠・直す先・期待する効果・リスクを入れ、オーナーが打った文の本文は写さない。
 func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	pl := plan{Pattern: x.ID, Who: "worker", Title: x.Summary, Repo: x.Target.Repo}
-	if x.Target.Kind == "andon" && (x.Target.Repo == "" || !slices.Contains(repos, x.Target.Repo)) {
+	if toOwner(x.Target, repos) {
 		pl.Who, pl.Repo = "person", ""
 		pl.Title = "Andon へ伝えるか: " + x.Summary
 		pl.Question = ownerQuestion(retro, x)

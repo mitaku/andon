@@ -306,3 +306,22 @@ func TestMainPatternsApplyUsage(t *testing.T) {
 		}
 	}
 }
+
+// オーナーの課題になる fix のパターン（直す先が Andon のパッケージで、その repo を持たない）が同じ summary を持つと、2 つ目は
+// 同じ問いのオーナーの課題になり、apply が 1 つ目を足したあとで断られて当て終わらない。先に断る（ADR-0057 決めたこと 11）。
+// 担当の課題になるパターンと、drop のパターンは、summary が重なっても通る。
+func TestOwnerPatternsWithSameSummaryRefused(t *testing.T) {
+	ps := []Pattern{pattern("S-0012", "S-0013"), pattern("S-0012", "S-0013")}
+	ps[1].ID = "p2"
+	if err := CheckPatterns(ps, []FixView{}, patternsInput(), repos, true); err != nil {
+		t.Fatalf("担当の課題になるパターンは summary が重なっても通る: %v", err)
+	}
+	for i := range ps {
+		ps[i].Target = Target{Kind: "andon", Paths: []string{"package/skills/worker/SKILL.md"}}
+	}
+	wantRefused(t, CheckPatterns(ps, []FixView{}, patternsInput(), repos, true), "パターン p1 と p2 の summary が同じ")
+	ps[1].Decision = "drop"
+	if err := CheckPatterns(ps, []FixView{}, patternsInput(), repos, true); err != nil {
+		t.Fatalf("drop のパターンは課題を足さないので通る: %v", err)
+	}
+}
