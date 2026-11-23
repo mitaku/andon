@@ -94,6 +94,9 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	if w.PR != rep.PR || w.Commit != rep.Commit {
 		w = contract.Settled{PR: rep.PR, Commit: rep.Commit}
 	}
+	// Chief Engineer の課題は、doing の間（オーナーと話している途中）は片付けず、閉じたことも知らせない。PR の印だけを揃え、
+	// マージされていれば記録して、review に入ったときに片付ける（dispatcher.md §2.7・ADR-0056 決めたこと 6）
+	engineerDoing := c.issue.Str("profile") == "chief-engineer" && c.issue.Str("status") == "doing"
 	res.State = "watching"
 	// CLOSED は開き直されうるので、MERGED になるまで OPEN と同じ間隔で聞き直す（知らせるのは閉じるたびに1回）
 	if w.State != "MERGED" {
@@ -112,6 +115,9 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 		case "MERGED":
 			w.State, w.Head, w.Sha = state, head, sha
 		case "CLOSED":
+			if engineerDoing {
+				break
+			}
 			if w.State != "CLOSED" {
 				res.Notify = append(res.Notify, contract.Notice{Kind: "closed", Detail: map[string]any{"pr": rep.PR}})
 			}
@@ -123,7 +129,7 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 			c.alignMark(owner+"/"+name, head, mark, res)
 		}
 	}
-	if w.State != "MERGED" {
+	if w.State != "MERGED" || engineerDoing {
 		return &w, nil
 	}
 	// dispatcher が自分でマージした PR は gate の記録の merged が true（dispatcher の控えは読まない。ADR-0017 決めたこと 5 の (d)）
@@ -275,7 +281,8 @@ func mergedByGate(record string) bool {
 // gate のあとに動いた head）には書かない。前のバージョンが書いた、オーナー待ちの赤い印もここで緑に直る。
 // doing に戻った課題は、緑が残っていれば赤（作った側が直しています）。Chief Engineer の文書の PR は、review なら緑（gate を通らない。決めたこと 6）。
 // gh pr view の statusCheckRollup は説明文を出さないので、今の印とは状態だけで比べる。書けなければ記録に残して次の読みで直す。
-// settle は課題の lock の中で走るので、同じ課題の gate とは重ならない。
+// settle は課題の lock の中で走るので、dispatcher の巡が回す同じ課題の gate（andon issue merge の中）とは重ならない。
+// 手で打つ andon gate は gate の lock だけを取るので重なりうる（印は次に聞いたとき揃え直す。リンクは付かない）。
 func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle) {
 	if !contract.IsSHA(head) {
 		return
@@ -283,7 +290,7 @@ func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle)
 	f := gate.MarkFacts{Status: c.issue.Str("status"), Engineer: c.issue.Str("profile") == "chief-engineer", Have: have, HaveDescUnknown: true}
 	if b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", head+".json")); err == nil {
 		var g gate.Record
-		if json.Unmarshal(b, &g) == nil && g.Head == head {
+		if json.Unmarshal(b, &g) == nil && g.Head == head && gate.JudgedThisRound(c.l.Log(), c.id, g.At) {
 			f.Decision, f.Reasons = g.Decision, g.Reasons
 		}
 	}

@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/human-merge.yaml`](../../process/states/human-merge.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ。settle は PR を聞く同じ読みで、開いている PR の印（andon/gate）を課題の状態に揃える（ADR-0056 決めたこと 5・6。記録は持たない）
+出所: dispatcher.md §2.7・ADR-0017 決めたこと 4 の (6)・5・6。andon issue settle の記録（<slug>.settle.json。書き手は settle だけ）の 1 件（課題ごと）が PR・聞いた時刻・MERGED／CLOSED・知らせた理由を持つ。dispatcher は review・doing の課題ごとに settle を打ち、返った通知を積むだけ（Chief Engineer の課題は doing の間は片付けず、印を揃えるだけ）。settle は PR を聞く同じ読みで、開いている PR の印（andon/gate）を課題の状態に揃える（ADR-0056 決めたこと 5・6。記録は持たない）
 
 ## 図
 

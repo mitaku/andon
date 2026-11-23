@@ -3,6 +3,8 @@ package gate
 import (
 	"strings"
 	"testing"
+
+	"andon/internal/ledger"
 )
 
 // TestWantMark は ADR-0056 受け入れ条件 A2: 判定ごとの印が決めたこと 3 の表のとおりになる。
@@ -108,5 +110,54 @@ func TestGateMark(t *testing.T) {
 	}
 	if got := GateMark(items[:2]); got != (Mark{}) {
 		t.Errorf("gate の印が無いのに読んだ: %+v", got)
+	}
+}
+
+// Final は、checks で待たないときだけ条件表の検査を回させる（ADR-0056 決めたこと 4。反論の段で見つけた穴）
+func TestChecksFinal(t *testing.T) {
+	for _, c := range []struct {
+		state             string
+		optional, overdue bool
+		want              bool
+	}{
+		{"success", false, false, true},
+		{"unknown", false, false, true},
+		{"", false, false, true},
+		{"none", false, true, true},
+		{"none", true, false, true},
+		{"none", false, false, false},
+		{"pending", false, true, false},
+		{"failure", false, false, false},
+	} {
+		if got := (GitHubChecks{State: c.state}).Final(c.optional, c.overdue); got != c.want {
+			t.Errorf("Final(%q, optional=%v, overdue=%v) = %v, want %v", c.state, c.optional, c.overdue, got, c.want)
+		}
+	}
+}
+
+// JudgedThisRound は、同じ head のまま review に入り直した回の前の判定を使わせない（反論の段で見つけた穴）
+func TestJudgedThisRound(t *testing.T) {
+	row := func(id, at, status string) ledger.Row {
+		return ledger.Row{ID: id, At: at, Change: map[string]any{"status": status}}
+	}
+	rows := []ledger.Row{
+		row("A-0001", "2026-11-20T00:00:00Z", "review"),
+		row("A-0001", "2026-11-20T01:00:00Z", "doing"),
+		row("A-0002", "2026-11-20T03:00:00Z", "review"),
+		row("A-0001", "2026-11-20T02:00:00Z", "review"),
+	}
+	for _, c := range []struct {
+		id, at string
+		want   bool
+	}{
+		{"A-0001", "2026-11-20T00:30:00Z", false}, // 前の回の判定
+		{"A-0001", "2026-11-20T02:00:00Z", true},  // 入った秒と同じ
+		{"A-0001", "2026-11-20T02:10:00Z", true},
+		{"A-0001", "壊れた時刻", false},
+		{"A-0009", "2026-11-20T00:00:00Z", true}, // review の行が無い
+	} {
+		if got := JudgedThisRound(rows, c.id, c.at); got != c.want {
+			t.Errorf("JudgedThisRound(%s, %s) = %v, want %v", c.id, c.at, got, c.want)
+		}
 	}
 }

@@ -869,7 +869,8 @@ rm -f "$tmp/gh/merged"
 ok 'doing のうちにオーナーがマージした PR も、review のときと同じ道で片付ける（done・端末・worktree）。問い・commit していない変更があれば片付けず、理由ごとに1回だけ知らせる'
 
 # 4h. Chief Engineer の課題（profile chief-engineer）の文書の PR をオーナーがマージした → gate は回さず、review にいれば settle で片付け、
-#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（オーナーと話している）は見ない。dispatcher.md §2.7
+#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（オーナーと話している）は PR を読んで印を揃えるだけで、
+#     片付けない（マージされたことは記録し、review に入ったら GitHub に聞き直さずに片付ける）。dispatcher.md §2.7・ADR-0056 決めたこと 6
 ce=$(HC_TERMINAL_ID=t5 kanban add '設計を文書にする' --profile chief-engineer --repo github.com/example/app)
 cwt=$ANDON_WORKSPACE/.worktrees/app/demo-$ce
 git -C "$app" fetch -q origin
@@ -880,7 +881,8 @@ work "$ce" docs/adr/0001-design.md
 as_worker "$ce" report --pr https://github.com/example/app/pull/7
 person_merges
 n=$(wc -l < "$tmp/gh/states"); watch_due "$ce"; dispatcher
-kanban show "$ce" --json | jq -e '.issue.status == "doing"' >/dev/null && [ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die 'doing の Chief Engineer の課題の PR を見た・片付けた'
+kanban show "$ce" --json | jq -e '.issue.status == "doing"' >/dev/null && [ "$(pending "$ce" merged)" = null ] || die 'doing の Chief Engineer の課題の PR を片付けた・知らせた'
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] && jq -e --arg t "$ce" '.[$t].state == "MERGED"' "$settled" >/dev/null || die "doing の Chief Engineer の課題の PR を読まない・マージを記録しない: $(jq -c --arg t "$ce" '.[$t]' "$settled" 2>/dev/null)"
 (cd "$cwt" && HC_TERMINAL_ID=t7 kanban review "$ce" >/dev/null)
 merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
 dispatcher
@@ -894,7 +896,7 @@ jq --arg t "$ce" '.pending |= map(select(.issue != $t))' "$state" > "$state.new"
 dispatcher
 [ "$(pending "$ce" merged)" = null ] || die '片付けた Chief Engineer の課題をまた知らせた'
 rm -f "$tmp/gh/merged"
-ok 'Chief Engineer の文書の PR をオーナーがマージしたら、gate を回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は見ない'
+ok 'Chief Engineer の文書の PR をオーナーがマージしたら、gate を回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は片付けない'
 
 # 4i. ADR-0056 A6（揃える場面）: dispatcher は PR を読むたびに（settle の 1 分に 1 回の読み）、開いている PR の head の印を課題の状態に揃える。
 #     オーナー待ちに残った前のバージョンの赤は緑に、判定のあと doing に戻った課題の緑は赤に、Chief Engineer の文書の PR は緑に。
@@ -930,6 +932,12 @@ watch_due "$al"; dispatcher
 watch_due "$al"; dispatcher
 [ "$(marks "$head")" = $((n + 1)) ] || die '赤くした印をまた書いた'
 ok 'gate が緑を付けたあと課題が doing に戻ったら、次に PR を読んだとき赤（作った側が直しています）に書き換える（ADR-0056 A6）'
+# 同じ head のまま review に入り直し、今の回の gate がまだ決めていない → 前の回の判定（緑）を書き戻さない
+sleep 1; (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban review "$al" >/dev/null)
+watch_due "$al"; HC_TERMINAL_ID=dispatcher "$andon" issue settle "$al" >/dev/null
+[ "$(marks "$head")" = $((n + 1)) ] || die "review に入り直した回で、前の回の判定から印を書き戻した: $(lastmark "$head")"
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban start "$al" >/dev/null)
+ok '同じ head のまま review に入り直しても、今の回の gate が決めるまで前の回の判定から印を書き戻さない'
 # 担当が push した（gate の判定の無い head）→ 書かない。印の無い head は doing でも review でも書かない
 old=$head; work "$al" package/gate.json; n=$(wc -l < "$tmp/gh/posted")
 watch_due "$al"; dispatcher
@@ -955,7 +963,11 @@ watch_due "$ce2"; dispatcher
 [ "$(marks "$head")" = 1 ] && lastmark "$head" | grep -q 'state=success -f description=andon gate: 仕様・設計の文書です。メンテナーがマージします$' ||
     die "Chief Engineer の文書の PR に緑を書かない: $(lastmark "$head")"
 [ ! -e "$L/issues/$ce2/library/gate" ] || die 'Chief Engineer の課題に gate を回した'
-ok 'Chief Engineer の文書の PR は、review に入って PR を読んだとき緑（仕様・設計の文書です）。閉じた PR には書かない（ADR-0056 A6）'
+(cd "$cwt2" && HC_TERMINAL_ID=t7 kanban start "$ce2" >/dev/null)   # オーナーと話し直す（doing に戻った）
+watch_due "$ce2"; dispatcher
+[ "$(marks "$head")" = 2 ] && lastmark "$head" | grep -q 'state=failure -f description=andon gate: 作った側が直しています$' && kanban show "$ce2" --json | jq -e '.issue.status == "doing"' >/dev/null ||
+    die "doing に戻った Chief Engineer の文書の PR の緑を赤にしない: $(lastmark "$head")"
+ok 'Chief Engineer の文書の PR は、review に入って PR を読んだとき緑（仕様・設計の文書です）、doing に戻ったら赤。閉じた PR には書かない（ADR-0056 A6）'
 HC_TERMINAL_ID=t5 kanban done "$ce2" >/dev/null
 sed -i "/^t7 $ce2\$/d" "$tmp/hc/live"
 
