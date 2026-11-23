@@ -344,12 +344,24 @@ grep -qx 'kind: promise' "kanban/issues/$own/brief.md" && grep -qx '推奨案: �
 "$andon" waiting --json | jq -e --arg id "$own" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1") and .[0].answerable == true' >/dev/null \
   || die "ask --new: 判断の行に出ない: $("$andon" waiting --json)"
 ok 'ask --new: 課題を 1 つ足し、who: person・タイトル・依頼書（種類・推奨案）・開いた問い・questions/1.json を置き、andon waiting の判断の行に答えられる形で出る（受け入れ条件 7）'
-for bad in '.options = [.options[0]]|options が2つ未満' '.kind = "other"|kind が'; do
+for bad in '.options = [.options[0]]|options が2つ未満' '.kind = "other"|kind が' '.kind = "scope"|scope の問いはオーナーの課題に置かない'; do
     expect_fail "${bad#*|}" as t5 "$andon" issue ask --new - <<<"$(jq -c "${bad%|*}" <<<"$nq")"
 done
 expect_fail '問いの JSON の形が違う' as t5 "$andon" issue ask --new - <<<'オーナーに聞きたいことがある'
 [ "$(count)" = $((n0 + 1)) ] || die 'ask --new: 形の違う問いで課題が増えた'
-ok 'ask --new: 選択肢が 1 つ・知らない種類・JSON でない文は、終了コード 1 で課題を足さない（受け入れ条件 8）'
+ok 'ask --new: 選択肢が 1 つ・知らない種類・scope・JSON でない文は、終了コード 1 で課題を足さない（受け入れ条件 8）'
+# 途中で落ちたあとの打ち直し: kanban add のあと who: person を書く前に止まった課題（同じタイトルで、who も問いも無い）は、
+# 同じ command を打ち直すと足し直さずに続きから置く。でき上がった課題に同じ問いをもう一度渡すと、2 つ目を足さずに断る
+hq=$(jq -c '.question = "途中で止まった判断"' <<<"$nq")
+half=$(as t5 kanban add '途中で止まった判断（オーナーの判断待ち）')
+n1=$(count)
+out=$(as t5 "$andon" issue ask --new - <<<"$hq")
+[[ "$out" == "$half#1" ]] || die "ask --new: 途中で止まった課題 $half に続きから置いていない: $out"
+[ "$(count)" = "$n1" ] || die 'ask --new: 打ち直しで課題が増えた'
+kanban show "$half" --json | jq -e '.issue.who == "person" and (.questions | length == 1 and .[0].status == "open")' >/dev/null
+expect_fail "同じ問いのオーナーの課題 $half がもうある" as t5 "$andon" issue ask --new - <<<"$hq"
+[ "$(count)" = "$n1" ] && [ "$(kanban show "$half" --json | jq '.questions | length')" = 1 ] || die 'ask --new: 同じ問いで課題か問いが増えた'
+ok 'ask --new: who を書く前に止まった課題には打ち直しで続きから置き、でき上がった課題には同じ問いを足さない'
 pre=$(as t5 kanban add '前の課題' --profile claude)
 out=$(as t5 "$andon" issue ask --new --after "$pre" --parent "$id" - <<<"$(jq -c '.question = "前の課題のあとで go を出すか" | .kind = "line"' <<<"$nq")")
 own2=${out%#*}

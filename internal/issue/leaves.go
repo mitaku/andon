@@ -34,7 +34,8 @@ const (
 		"問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く。\n" +
 		"--new はオーナーの課題を足し（タイトルは問いの文に「（オーナーの判断待ち）」、依頼書は問いの写し）、\n" +
 		"who: person を書いて問いを置き、<id>#<n> を出す。--after を付けると課題は queued で作られ、その課題にも問いを置く。\n" +
-		"JSON の形が違えば何も足さない。queued の課題に問いを置けるのはオーナーの課題（who: person）だけ。\n"
+		"JSON の形が違うか kind が scope なら何も足さない。同じタイトルの片付いていない課題が問いを持たずにあれば、\n" +
+		"足し直さずにその課題へ続きを置く（途中で落ちた回の打ち直し）。queued の課題に問いを置けるのはオーナーの課題（who: person）だけ。\n"
 	CandidatesUsage = "usage: andon issue candidates <id> <candidates.json|->\n" +
 		"候補の一覧を検査して library/candidates.json に書く（repo があれば commit は command が HEAD を書く）。\n"
 	RecordUsage = "usage: andon issue record <id> [--expect pass|fail] -- <command> [<arg>…]\n" +
