@@ -45,6 +45,8 @@ printf '# 番兵\n' >"$ws/AGENTS.local.md"
 : >"$ws/memory/MEMORY.md"                                # 中身が空の memory の目録（本物のセルで起きた形）
 printf '{"version": 2, "plugins": {\n' >"$ws/home/.claude/plugins/installed_plugins.json" # 壊れた JSON
 mkdir -p "$repo/tests/.task-tmp"
+# 一時置き場は写しの git から外す。git ls-files --others で tests/ を数える検査が、並んで走る検査の作っては消すファイルを拾わないように
+printf '/tests/.task-tmp/\n' >>"$repo/.git/info/exclude"
 
 # 数えないのは、検査が動く repo の写し（TMPDIR もこの中）と、go の道具が自分で書く telemetry（~/.config/go。検査ではなく go が書く）だけ
 skip=(-path ./.ghq/example.com/owner/andon -prune -o -path ./home/.config/go -prune -o)
