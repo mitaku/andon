@@ -230,13 +230,17 @@ func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	for _, id := range ready {
 		tasks = append(tasks, ledger.Issue{"id": id, "title": "起動できる", "status": "todo", "profile": "claude"})
 	}
+	// retroFired は同じ巡で件数のきっかけが振り返りを撃ったか。撃った 1 つも空いた枠を使うので、空きで撃てる数から引く
 	for _, c := range []struct {
-		free int
-		want []string
+		free       int
+		retroFired bool
+		want       []string
 	}{
-		{1, []string{"triage"}},
-		{2, []string{"triage", "retro"}},
-		{3, []string{"triage", "retro"}},
+		{1, false, []string{"triage"}},
+		{2, false, []string{"triage", "retro"}},
+		{3, false, []string{"triage", "retro"}},
+		{1, true, nil},
+		{2, true, []string{"triage"}},
 	} {
 		r := newIdleRig(t)
 		r.routine("triage", "")
@@ -247,8 +251,8 @@ func TestIdleFiresUpToFreeSlots(t *testing.T) {
 		rd := append([]string{}, ready...)
 		r.p.st.Ready = &rd
 		r.look(0, false)
-		if got := routineRuns(r.look(15*time.Minute, false)); !slices.Equal(got, c.want) {
-			t.Errorf("空いた枠 %d・起動できる課題 3 件: 撃ったルーチン %v（%v のはず）", c.free, got, c.want)
+		if got := routineRuns(r.look(15*time.Minute, c.retroFired)); !slices.Equal(got, c.want) {
+			t.Errorf("空いた枠 %d・件数のきっかけが撃った %v・起動できる課題 3 件: 撃ったルーチン %v（%v のはず）", c.free, c.retroFired, got, c.want)
 		}
 	}
 }

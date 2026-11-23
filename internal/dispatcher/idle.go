@@ -167,9 +167,14 @@ func keepIn(ids, in []string) []string {
 
 // fireIdle は空いたときのルーチンを、トリアージ・振り返りの順に、空いた枠の数まで撃つ（決めたこと 5・7・8・10）。
 // ルーチンが無い・読めない・paused のとき、そのルーチンの課題が片付かずに残っているときは、数えも撃ちもしない。
-// 起動できる課題の数は引かない（決めたこと 10）。撃ったルーチンの名前を返す。
+// 起動できる課題の数は引かない（決めたこと 10）。同じ巡で件数のきっかけが振り返りを撃っていれば、その 1 つも
+// 空いた枠を使うので、撃てる数から引く。撃ったルーチンの名前を返す。
 func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 	var fired []string
+	budget := free
+	if retroFired {
+		budget--
+	}
 	fire := func(name, why string) {
 		out, err := p.l.Run("", "routine", "run", name)
 		if err != nil {
@@ -180,7 +185,7 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 		p.logf("枠が %d つ空いたままなので、%s のルーチンを撃った（%s）: %s", free, name, why, strings.TrimSpace(out))
 		fired = append(fired, name)
 	}
-	if routineOn(p.l.Dir, triageRoutine) && !p.triageOpen() {
+	if budget > 0 && routineOn(p.l.Dir, triageRoutine) && !p.triageOpen() {
 		switch n, err := unsortedOf(p.l.Root, now); {
 		case err != nil:
 			p.idleOnce("triage", fmt.Sprintf("仕分けていない項目を数えられない（空きのトリアージを撃たない）: %v", err))
@@ -191,7 +196,7 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 			}
 		}
 	}
-	if len(fired) < free && !retroFired && routineOn(p.l.Dir, retroRoutine) && !p.routineOpen(retroRoutine) {
+	if len(fired) < budget && !retroFired && routineOn(p.l.Dir, retroRoutine) && !p.routineOpen(retroRoutine) {
 		every, err := retroEveryOf(p.c.WS, p.l.Slug)
 		if err != nil {
 			p.retroOnce("set", fmt.Sprintf("project.json の chief_of_staff.retro_every を読めない（既定の %d 件で数える）: %v", retroEvery, err))
