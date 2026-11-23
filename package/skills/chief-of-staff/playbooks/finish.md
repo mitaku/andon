@@ -11,14 +11,14 @@
   | 届く行 | dispatcher がしたこと | すること |
   |---|---|---|
   | `<id> merged: <PR> はオーナーがマージした（…）。gate の問いを閉じて片付けた` | gate の問い（`from: gate`）を「オーナーがマージした」と閉じ、`andon issue finish` 済み | 何もしない（wiki だけ。下） |
-  | `<id> merged: <PR> はオーナーがマージした（…）が、片付けていない: <理由>` | 片付けていない（gate の外の問いが開いている・commit していない変更がある・finish が失敗した） | 理由の問いを先に閉じる（担当の問いなら答えを返す・要らなくなった問いなら `kanban answer`・`kanban received`）か、finish の理由を直す（commit していない変更は担当に聞くか、オーナーへ）。dispatcher が次の巡で片付ける |
+  | `<id> merged: <PR> はオーナーがマージした（…）が、片付けていない: <理由>` | 片付けていない（gate の外の問いが開いている・commit していない変更がある・finish が失敗した） | 理由の問いを先に閉じる（担当の問いなら答えを返す・要らなくなった問いなら `kanban answer --decided-by chief-of-staff`・`kanban received`）か、finish の理由を直す（commit していない変更は担当に聞くか、オーナーへ）。dispatcher が次の巡で片付ける |
   | `<id> closed: <PR> はマージされずに閉じた` | 何もしない（片付けていない） | オーナーが閉じた理由を確かめ、やめるならオーナーの go を取って `andon issue finish <id>`、出し直すなら担当へ返す |
 
 - どちらのマージでも、finish のあと dispatcher が動いている課題への影響を見て、影響があれば `<id> impact` で届く（下の「マージのあとの影響」）。
 - どちらのマージでも、片付けるとオーナー待ちか動いている課題が1つ減る。`start.md` の 1 で枠を数え直し、空いていれば起動できる課題を起動する（オーナー待ちが上限の数で止めていた起動も、ここで戻る）。
 - 調べる課題（`deliverable: candidates`）は PR が無いので、報告と `candidates.json` を読んで直す課題を切ったあと（切らない候補は報告の Next に残っている）、オーナーの go は要らず `andon issue finish <id>`。commit していない変更があって止まったら、担当に捨てさせる（報告の Next に「commit は捨ててよい」と書かせる）。
 - dispatcher が止まっているときは、`review`・`doing` の課題なら `andon issue settle <id>` を打つ（dispatcher が打つのと同じ。マージを確かめ、gate の問いを閉じて片付ける。出力の `notify[]` が届くはずだった行）。`report.json` に `pr` が無い課題をオーナーがマージしたときだけ、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
-  受け取られていない問い（`open`・`answered`。レビュアーの子課題のものも）があると、端末にも worktree にも触らずに止まる（課題は元の状態のまま）。commit していない変更があっても止まる。そのときは担当に聞くか、オーナーへ。やめる課題も、問いを閉じて（`kanban answer`・`kanban received`）から打ち直す。
+  受け取られていない問い（`open`・`answered`。レビュアーの子課題のものも）があると、端末にも worktree にも触らずに止まる（課題は元の状態のまま）。commit していない変更があっても止まる。そのときは担当に聞くか、オーナーへ。やめる課題も、問いを閉じて（`kanban answer --decided-by chief-of-staff`・`kanban received`）から打ち直す。
 - マージせずにやめる課題は、**オーナーの go を取ってから** `andon issue finish <id>`（branch は残る）。
 - レビュアーの課題は、元の課題の `andon issue finish` で片付く。元の課題をやめずにレビュアーだけ残っていれば `andon issue finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
 - finish のたびに、報告とオーナーの手直しを wiki の `raw/` に写して ingest する（`wiki.md`）。
