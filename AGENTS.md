@@ -54,6 +54,8 @@
 | セルに入れたバイナリで `tests/andon-dispatcher.sh` を回すときは、`ANDON_BIN` に `readlink -f` で引いた実体のパス（`/opt/andon/bin/andon` の実体）を渡す。symlink のままだと「シェルに替わった dispatcher を片付けて起動し直さない」の検査が誤って落ちる。 | 無し。どのバイナリで回すかは手順の話で、見るものが無い。 |
 | go が mise の shim のとき、`tests/isolation` は「番兵に書いた」で誤って落ちる。`PATH="$(dirname "$(mise which go)"):$PATH" tests/isolation …` と実体を先頭に置いて回す。 | 無し。`tests/isolation` は CI で回らず、どの go で回したかを見るものが無い。 |
 | `tests/andon-dispatcher.sh` の merge・settle の見張りの時刻は `freeze` が止める。直に打つ口を足すときは先に `freeze` を呼び、聞き直させたい課題だけ `mpoll`・`watch_due` で due にする。 | `tests/andon-dispatcher.sh`。`freeze` を呼ばずに打つと時刻が進み、後の場面の問い合わせの数の検査が落ちる。 |
+| `internal/chiefofstaff` の `TestChiefOfStaffForegroundUnknown` と `internal/dispatcher` の `TestRewakeSkipsWhenNoLongerStopped` は、`tests/run` と `go test ./...` を並べるなど負荷の下で揺れる。落ちたら単独で回し直す。 | 無し。負荷で揺れるので見るものが無い。 |
+| この表の「守らせるもの」の列は、repo に在るパスを名指す。無いものを名指さない。 | 無し。書き方の決まり。 |
 
 ## 約束と文書
 
@@ -77,6 +79,7 @@
 | この repo は public。秘密・個人の環境に固有の値（セル名・ホスト名・ポート番号・メールアドレス・ユーザー名・ホームのパス）・案件に固有の名前を入れない。例は架空の名前（`example.com`・`<owner>`・`sample-site`）で。禁止リストは repo の外に置く（書き方は `tests/README.md`。リストの語を repo に書かない）。 | `tests/public.sh`。禁止リストと秘密の形に当たる行で落ちる。 |
 | この表の決まりは「決まり｜守らせるもの」の対で書く。守らせるものは、検査・command・hook・repo の設定の名前か、「無し。」と理由。 | `tests/agents-md.sh`。表の外の決まり・対になっていない行・名指したファイルが無い行で落ちる。CI でいつも走る。 |
 | settle（オーナーのマージの片付け）の約束は、コードの注釈・`docs/dispatcher.md`・`docs/contract.md`・`process/states/human-merge.yaml`・`docs/decisions/` に写されている。settle を変えたら全部を揃え、YAML を変えたら `andon process render` で `docs/process/` を作り直す。 | `tests/process.sh`。`docs/process/` が `process/` から作り直しても変わらないことを見る。ほかの写しの食い違いは見ない。 |
+| ADR の決定の索引の「今の正」は、実物の `ls`・`grep` で在るパスを確かめてから書く。 | 無し。書き方の決まり。 |
 
 ## PR とマージ
 
