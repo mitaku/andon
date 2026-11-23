@@ -90,6 +90,11 @@
           "description": "How many worker issues done since the previous retrospective collected make the dispatcher fire the routine retro (kanban routine run retro), besides its schedule. Read by the dispatcher. Default 25.",
           "type": "integer",
           "minimum": 1
+        },
+        "idle_minutes": {
+          "description": "How often (minutes) the dispatcher looks for free slots. Free at two looks in a row: it fires the routines triage and retro over their lines (as many as the free slots) and notifies idle. 0: never look. Read by the dispatcher. Default 15.",
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

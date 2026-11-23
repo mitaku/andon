@@ -3,7 +3,8 @@ name: triage
 title: 仕分け（Triage）
 purpose: kanban に溜まったものと外のお知らせを仕分けて、課題に切る・閉じる・オーナーへ回すを決める
 triggers:
-  # ルーチン triage（週 1）が足した課題の ready
+  # ルーチン triage（週 1）が足した課題の ready。枠が空いたままの回に、仕分けていない項目が 50 件以上なら
+  # dispatcher も同じルーチンを撃つ（dispatcher.md §2.13。ADR-0047 決めたこと 6・7）
   - name: routine
     kind: notification
     notification: ready

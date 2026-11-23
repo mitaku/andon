@@ -262,6 +262,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `estimate` | 見回りで、`doing` の担当の課題（レビュアー・Chief Engineer・オーナーの課題を除く）の実働（待ちを除いた時間。§2 の `Worked`）が、見込み（§2 の `estimate`。Chief of Staff が書いたものだけ）の 1・2・4 倍を超えたとき。段ごとに1回（一度に複数の段を超えたら上の段だけ）。見込みの無い課題には出さない。担当には何も送らない（dispatcher.md §2.10。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 6〜8） | `estimate`（段の値）・`estimate_minutes`（見込みの分）・`worked_minutes`（実働の分。切り捨て）・`ratio`（実働÷見込み。小数2桁）・`stage`（`1`・`2`・`4`）・`sign`（詰まりの兆し。兆しがあるときだけ。下の表） |
 | `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
 | `memory` | 見回りで、セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory` の直下の `.md`。目録 `MEMORY.md` を除く）の件数が線（30 件）を超えたとき。線以下に戻るまで1回で、kanban が2つ以上あってもセルに1通。`issue` は無い（dispatcher.md §2.11。[ADR-0020](adr/0020-auto-memory-as-intake.md) 決めたこと 4） | `count`（件数）・`line`（線） |
+| `idle` | 見回りで、`project.json` の `chief_of_staff.idle_minutes` 分（既定 15）おきに枠を見て、前の回も今の回も枠が 1 つ以上空いていた回のうち、前の回にも今の回にも `kanban ready` に出ている課題（オーナーの課題とレビュアーの子課題を除く。同じ課題は ready に出ている間 1 回だけ）・この回に撃ったルーチン・前に知らせた結果と違う `kanban lint` の problem のどれかがあるとき。届く前に次の `idle` を積むときは、前の `unstarted` と `fired` を新しいほうに足す。`issue` は無い（dispatcher.md §2.13。[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 11・12） | `free`（今の回の `slots.free`。1 以上）・`unstarted`（起動されないまま残った課題の id の配列）・`fired`（この回に撃ったルーチンの名前の配列。撃った順）・`lint`（`kanban lint` の problem の件数。前に知らせた結果と同じか 0 件なら 0） |
 
 - **届けるか**（表の正は `internal/dispatcher/route.go` の `RouteOf`。理由は ADR-0010 決めたこと 1・7）:
 
@@ -280,7 +281,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
   | `merged`（`held` あり。片付けていない） | 届ける |
   | `report`（レビュアーの課題: `parent` があり `profile` が `*-review`） | 記録だけ |
   | `stalled`・`blocked`・`ready`（Chief Engineer の課題: `profile: chief-engineer`） | 記録だけ |
-  | `report`（ほか）・`asked`・`answered`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled`・`estimate`・`memory` | 届ける |
+  | `report`（ほか）・`asked`・`answered`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled`・`estimate`・`memory`・`idle` | 届ける |
 
 - **記録だけの置き場** `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下。控えと同じ所）: 1行が1件の通知で、形はこの節の通知の JSON そのもの（`schema/notification.schema.json` に通る）。書き手は dispatcher だけで、記録だけと決めた通知を、待ちに積む代わりにここへ1行足す。追記だけ（書き換えも切り詰めもしない）。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボード（記録の一覧）と `andon measure`（§13 の `news`）。届けた通知はここに書かない（渡したターンの終わりに §17 の記録に書く）。全部の出来事の一覧は kanban の `log.jsonl` が正で、この記録はその代わりではない。
 - `estimate` の `sign` は、段の通知を積むときに課題の worktree（`issue.yaml` の `worktree`）の git で数えた兆しの配列（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 11）。段の間には数えず、兆しだけで通知を出さない。worktree が無い・git で読めない兆しは数えない。
@@ -432,7 +433,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
       "by": "owner", "at": "2026-11-05", "until": "2026-12-31",
       "evidence": "移行中はデプロイをオーナーが見る",
       "revoked": {"at": "2026-11-20", "by": "owner", "reason": "移行が済んだ"}}]},
- "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3, "retro_every": 25},
+ "chief_of_staff": {"parallel": 2, "review_when": ["外向きの面", "新しい module", "約500行を超える差分"], "triage_max_issues": 3, "retro_every": 25, "idle_minutes": 15},
  "digest": {"destinations": [{"kind": "slack", "channel": "C0123456789"}]},
  "signals": [
    {"source": "github-ci", "repo": "github.com/example/sample-site", "weight": "now"},
@@ -447,7 +448,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon issue start` は課題の `repo` がここに無ければ起動しない。kanban の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
 | `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部オーナー） |
-| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる）・`retro_every`（前の振り返りが集めたあとに片付いた担当の課題がこの件数に達したら、dispatcher がルーチン `retro` を撃つ。1 以上。既定 25。読むのは dispatcher。数え方は [dispatcher.md](dispatcher.md) §2.1.1 の 3a。`project.json` が信じられない・形が違うときは既定で数え、ログに 1 行） |
+| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる。dispatcher が空きのトリアージを撃つ線〈仕分けていない項目 50 件〉は、1 回のトリアージが増やす項目〈自身の報告・起動した直す課題の報告・そのレビュアーの子の読めない報告〉の合計を超える数として決めてある。この値を大きくしたセルでは、その合計が 50 を超えないかをオーナーが見る。[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 7）・`retro_every`（前の振り返りが集めたあとに片付いた担当の課題がこの件数に達したら、dispatcher がルーチン `retro` を撃つ。1 以上。既定 25。読むのは dispatcher。数え方は [dispatcher.md](dispatcher.md) §2.1.1 の 3a。`project.json` が信じられない・形が違うときは既定で数え、ログに 1 行）・`idle_minutes`（dispatcher が並行の枠の空きを見る間〈分〉。0 以上。既定 15。0 は空きを見ない。2 回続けて枠が空いていれば、dispatcher がトリアージと振り返りのルーチンを線の上で撃ち、通知 `idle` を積む。読むのは dispatcher。見方と線は [dispatcher.md](dispatcher.md) §2.13。`project.json` が信じられない・形が違うときは既定で見て、ログに 1 行） |
 | `signals` | 任意 | 外の信号の出所（下の表。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 11）。無い・空なら何も取りに行かない |
 | `digest` | 任意 | ダイジェストをセルの外へ送る先（下の表。[ADR-0044](adr/0044-owner-digest.md) 決めたこと 12）。無い・空なら、どこへも送らず `files/` にだけ出す |
 

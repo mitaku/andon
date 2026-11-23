@@ -10,21 +10,21 @@
 |---|---|---|---|
 | 1 | 範囲は、空きに気づく仕組みと、起動されない課題の知らせと、トリアージ・振り返り・4 つの点検までにする | この ADR | まだ実装していない |
 | 2 | 「Chief of Staff 自身が」は、担当を起動して回す意味にし、原則 1 は変えない | この ADR | 生きている |
-| 3 | 空きは dispatcher が見つける。Chief of Staff の心がけと、待ち役の張り直しには頼らない | この ADR | まだ実装していない |
-| 4 | 空きは「15 分おきに見て、前の回も今の回も枠が 1 つ以上空いている」で決める | この ADR | まだ実装していない |
-| 5 | 空いたときの仕事は、dispatcher がルーチンを撃って足し、起動は今までどおり Chief of Staff がする | この ADR | まだ実装していない |
-| 6 | 振り返りとトリアージを回すきっかけに、空きを足す | この ADR | まだ実装していない |
-| 7 | 空きのトリアージは、仕分けていない項目が 1 回分（50 件）以上のときだけ撃つ | この ADR | まだ実装していない |
-| 8 | 空きの振り返りは、ルーチンが足した課題を除いた片付いた担当の課題が、件数のきっかけの半分以上のときだけ撃つ | この ADR | まだ実装していない |
+| 3 | 空きは dispatcher が見つける。Chief of Staff の心がけと、待ち役の張り直しには頼らない | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | 生きている |
+| 4 | 空きは「15 分おきに見て、前の回も今の回も枠が 1 つ以上空いている」で決める | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13・`docs/contract.md` §11 | 生きている |
+| 5 | 空いたときの仕事は、dispatcher がルーチンを撃って足し、起動は今までどおり Chief of Staff がする | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | 生きている |
+| 6 | 振り返りとトリアージを回すきっかけに、空きを足す | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | dispatcher の側は生きている。手引きの文はまだ実装していない |
+| 7 | 空きのトリアージは、仕分けていない項目が 1 回分（50 件）以上のときだけ撃つ | `internal/triage/unsorted.go`・`internal/dispatcher/idle.go` | 生きている |
+| 8 | 空きの振り返りは、ルーチンが足した課題を除いた片付いた担当の課題が、件数のきっかけの半分以上のときだけ撃つ | `internal/retro/retro.go`（`FreshOwn`）・`internal/dispatcher/idle.go` | 生きている |
 | 9 | プロジェクトの点検は、ルーチンに `idle_hours` を書いたものを空きのときにも撃つ | この ADR | まだ実装していない |
-| 10 | 撃つ数は空いた枠の数までにし、起動できる課題の数は引かない | この ADR | まだ実装していない |
-| 11 | 起動されないまま 15 分残った課題は、通知 `idle` で Chief of Staff に 1 回だけ知らせる | この ADR | まだ実装していない |
-| 12 | kanban の整合（`kanban lint`）は、空きを見た回に dispatcher が打つ | この ADR | まだ実装していない |
+| 10 | 撃つ数は空いた枠の数までにし、起動できる課題の数は引かない | `internal/dispatcher/idle.go` | 生きている |
+| 11 | 起動されないまま 15 分残った課題は、通知 `idle` で Chief of Staff に 1 回だけ知らせる | `internal/dispatcher/idle.go`・`schema/notification.schema.json`・`docs/contract.md` §6 | 生きている |
+| 12 | kanban の整合（`kanban lint`）は、空きを見た回に dispatcher が打つ | `internal/dispatcher/idle.go` | 生きている |
 | 13 | wiki の lint は、通知 `idle` を受けたターンに Chief of Staff が今の条件のまま回す | この ADR | まだ実装していない |
 | 14 | Chief of Staff の手は、手引き `idle.md` の 1 枚に置く | この ADR | まだ実装していない |
 | 15 | 空きで回した仕事から出るオーナーの課題は、今と同じ線で切り、1 日の数に上限を置かない | この ADR | まだ実装していない |
 | 16 | 空きの仕事のトークンと Chief of Staff の手には上限を置かず、線と、止める設定 1 つで抑える | この ADR | まだ実装していない |
-| 17 | Chief of Staff が留守の間と、オーナー待ちが上限に達している間は、空きを見ない | この ADR | まだ実装していない |
+| 17 | Chief of Staff が留守の間と、オーナー待ちが上限に達している間は、空きを見ない | `internal/dispatcher/idle.go` | 生きている |
 | 18 | Andon を開発するセルには、点検のルーチンを 2 つ置く | この ADR | まだ実装していない |
 | 19 | トリアージが次回に回した項目は、回してから 20 時間は集めに出さない | `internal/triage/collect.go`・`package/skills/triage/SKILL.md` | 生きている |
 

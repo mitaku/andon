@@ -159,6 +159,18 @@ func line(n Notification) string {
 		return "signal: " + short("source") + " " + d("key") + "（" + d("url") + "）" + signal.Untrusted(d("title"))
 	case "memory":
 		return "memory: memory が " + d("count") + " 件で線（" + d("line") + " 件）を超えた。臨時のトリアージを足すかを決める"
+	case "idle":
+		s := "idle: 枠が " + d("free") + " つ空いたまま"
+		if ids := idList(n.Detail["unstarted"]); len(ids) > 0 {
+			s += "。起動されていない課題 " + strings.Join(ids, "・")
+		}
+		if ids := idList(n.Detail["fired"]); len(ids) > 0 {
+			s += "。空きで撃ったルーチン " + strings.Join(ids, "・")
+		}
+		if l := d("lint"); l != "0" && l != "" {
+			s += "。kanban lint の problem " + l + " 件"
+		}
+		return s
 	case "stalled":
 		s := clean(n.Issue, 40) + " の担当 " + short("agent") + " が止まったまま"
 		if m := minutesSince(n); m >= 0 {

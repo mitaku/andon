@@ -50,7 +50,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
   - `chief_of_staff` が設定に無い kanban は、今どおり丸ごと飛ばす（留守と区別する。飛ばし始めたときにログへ1行〈kanban・理由〉と `herdr notification show` を1つ）。
 - 端末に出すログは1行ずつで、頭に秒までの時刻（RFC 3339）が付く。時刻は kanban の `config.yaml` の `timezone` で、無ければ UTC。kanban に属さない行は UTC。機械が読む記録（控え・`log.jsonl`・`recorded.jsonl`）には付けない。例:
   `2026-11-12T16:05:09+09:00 andon dispatcher: andon: A-0050 のレビュー（2 回目）を A-0050-r2（t15y）で起動した`
-- 1 巡ごとに `kanban tick` を 1 回打つ（ルーチンの `schedule` が来たものを課題にする。置き場は §2.1.1 の 3a）。その前に、前の振り返りのあとに片付いた担当の課題が設定の件数に達していれば `kanban routine run retro` を打つ（件数のきっかけ。§2.1.1 の 3a）。kanban の CLI の仕事を、周期を持つ dispatcher が代わりに起動するだけ。打つのは dispatcher だけで、cron は置かない（§7.2 #8）。Chief of Staff の留守の間も打つ（足した課題の `ready` は待ちに積む）。
+- 1 巡ごとに `kanban tick` を 1 回打つ（ルーチンの `schedule` が来たものを課題にする。置き場は §2.1.1 の 3a）。その前に、前の振り返りのあとに片付いた担当の課題が設定の件数に達していれば `kanban routine run retro` を打つ（件数のきっかけ。§2.1.1 の 3a）。続けて、枠が空いたままなら、トリアージと振り返りのルーチンを線の上で撃ち、起動されないまま残った課題を Chief of Staff に知らせる（空きの段。§2.13）。kanban の CLI の仕事を、周期を持つ dispatcher が代わりに起動するだけ。打つのは dispatcher だけで、cron は置かない（§7.2 #8）。Chief of Staff の留守の間も打つ（足した課題の `ready` は待ちに積む）。
 - **初めて見る kanban**（控えが無い）は、通知の元（§2.2・§2.3）について今の ready と `log.jsonl` の位置を控えるだけで送らない（過去の出来事を一度に流さない）。
   ただし `doing` の課題の今の `review_request`（§5）は拾う。commit が PR の head と同じことを確かめてから起動するので、過去の出来事ではなく、いま止まっている工程だから（dispatcher が止まっている間に出たレビュー依頼を取りこぼさない。2026-11-06 の P7）。
   二重に起動しない守りは控えではなく kanban で持つ: その commit のレビュアーの子課題がもうあれば引き継ぐ（§5 の「二度起動しない」）。
@@ -65,7 +65,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 1 | 控えの lock | `drain`（フック）と控えを取り合わないよう、控えの lock を巡の終わりまで持つ | — |
 | 2 | 控えを読む | 控え（初めてなら「初めて見る kanban」＝`first`）を読む。留守なら `Away` の始まりを、戻ったなら終わりを書く（§2.1） | 読むだけ・控えに書く |
 | 3 | kanban を1回だけ読む | 課題の一覧と `log.jsonl` の全行を**この1回だけ**読む。以降の段はこの写しを使う | 読むだけ |
-| 3a | ルーチンを撃つ（`tick`） | 先に**件数のきっかけ**を見る。前の振り返りが集めたあとに片付いた担当の課題（次の振り返りが全文で読む束。境目と選び方は `andon retro collect` と同じ〈[contract.md](contract.md) §20〉。期間は直近 7 日。100 件の切りは無い）を 3 の写しから数え、`project.json` の `chief_of_staff.retro_every`（既定 25。[contract.md](contract.md) §11）以上なら `kanban routine run retro` を 1 回打つ。ルーチン `retro` が kanban に無い・読めない・`paused: true` のとき、または `routine: retro` の課題が片付かずに残っているときは、数えも撃ちもしない（kanban は撃ち損ねのたびに履歴へ 1 行を書くため）。撃ったらログに 1 行（数と件数と kanban の返事）。続けて `kanban tick` を 1 回打つ。件数で撃った巡に振り返りの `schedule` の時刻が来ても、kanban が `open` で撃ち損ねにする（足されない。[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 8）。足した課題は 3 の写しに無いが、4a の `ready` の差で同じ巡に拾う。初めて見る kanban（前回の ready が無い）は、撃つ前の ready を先に控え、件数と `tick` が足した分だけを拾う（過去の ready は流さない。届けるのは次の巡の 6）。失敗（読めないルーチン・lock が取れない）はログに 1 行で、巡は止めない（§2.1）。件数のきっかけの失敗と、`project.json` が読めずに既定で数えたことは、同じ理由が続く間は 1 行だけ | kanban に書く（kanban の CLI） |
+| 3a | ルーチンを撃つ（`tick`） | 先に**件数のきっかけ**を見る。前の振り返りが集めたあとに片付いた担当の課題（次の振り返りが全文で読む束。境目と選び方は `andon retro collect` と同じ〈[contract.md](contract.md) §20〉。期間は直近 7 日。100 件の切りは無い）を 3 の写しから数え、`project.json` の `chief_of_staff.retro_every`（既定 25。[contract.md](contract.md) §11）以上なら `kanban routine run retro` を 1 回打つ。ルーチン `retro` が kanban に無い・読めない・`paused: true` のとき、または `routine: retro` の課題が片付かずに残っているときは、数えも撃ちもしない（kanban は撃ち損ねのたびに履歴へ 1 行を書くため）。撃ったらログに 1 行（数と件数と kanban の返事）。続けて**空き**を見る（`idle_minutes` ごと。枠が 2 回続けて空いていれば、トリアージと振り返りのルーチンを線の上で空いた枠の数まで撃ち、`idle` を積む。同じ巡で件数のきっかけが撃っていれば、空きの振り返りは撃たない。Chief of Staff の留守の間は見ない。§2.13）。続けて `kanban tick` を 1 回打つ。件数で撃った巡に振り返りの `schedule` の時刻が来ても、kanban が `open` で撃ち損ねにする（足されない。[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 8）。足した課題は 3 の写しに無いが、4a の `ready` の差で同じ巡に拾う。初めて見る kanban（前回の ready が無い）は、撃つ前の ready を先に控え、件数と `tick` が足した分だけを拾う（過去の ready は流さない。届けるのは次の巡の 6）。失敗（読めないルーチン・lock が取れない）はログに 1 行で、巡は止めない（§2.1）。件数のきっかけの失敗と、`project.json` が読めずに既定で数えたことは、同じ理由が続く間は 1 行だけ | kanban に書く（kanban の CLI） |
 | 4 | 通知の元を拾う（`collect`） | 次の a→b→c の順に、届ける通知は `Pending` へ積み、記録だけの通知は記録の置き場に1行足す（§2.2・§2.3・§3.2。4〜5c で出る通知はどれも同じ） | 控えと記録に書く |
 | 4a | ready の差 | `kanban ready --json` を前回と比べる（`ready`） | |
 | 4b | `log.jsonl` の続き | 前回の位置から（`report`・`review`・`asked`・`answered`）。Chief of Staff 自身の行は飛ばす。問いが答え済みになった行は、書き手が端末（`terminal:` で始まる）でないときだけ `answered` にする（§2.2）。dispatcher 自身が出した問いの行（`by` が `terminal:dispatcher`）は、出した巡で積んだ印があれば `asked` にしない（§2.2）。`{"status": "done"}` は誰の行でも控えの `Impact` と `Corrections` と `Outcomes` に積む（§2.5・§2.6・§2.12） | |
@@ -91,7 +91,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 - **gate が `wait` のとき**は merge の記録に決めたこと（`decision`）を書かず、通知も出さない。次の巡で gate から回し直す（5）。`wait` を返した head は merge の記録の `wait` に書き、次の巡からは PR の head と checks だけを GraphQL で読む。head が同じで、checks がまだ走っているか、1つも無く `github_checks_wait_minutes` の内なら gate を回さない（gate は1回で REST を files・diff の2回読むので、待つ間は読まない）。
 - **gate が gh の上限（rate limit）で落ちたとき**（終了コード 3 で、stderr に gh の rate limit の文がある）は、`wait` と同じく merge の記録に決めたことを書かず、問いも通知も出さない（merge は `state: rate-limited` を返す）。`gh api rate_limit`（上限に数えない）で残りが 0 の resource の reset を読み、一番遅いものを控えの `GHReset` に書く。ただし最短でも1分後で、続けて上限で落ちるたびに2分・4分…と倍にする（60分まで。控えの `GHWait`）。secondary rate limit の `Retry-After` は gh の失敗の出力に出ず読めないので、GitHub の案内（`Retry-After` が無ければ1分以上待ち、続けて落ちれば間を倍々に延ばす）に従う。上限で落ちずに gate が返れば `GHWait` を 0 に戻す。その時刻までは、この kanban のどの課題にも `andon issue merge` を打たない（gate も checks も読まない。上限は kanban ごとなので、待ちは dispatcher の控えに残す）。rate limit でない終了コード 3 は今どおり `needs_human` の問い。
 - **5 の中**では、1課題につき `doing` の工程か `review` の工程のどちらか1つだけが走る（状態は排他）。別の課題の工程は互いに独立で、一覧の順に走る（ある課題の失敗で後ろを止めない）。
-- **初めて見る kanban**（2）は、4 は位置を控えるだけで送らない（4e の `signal` と 4f の `memory` だけは別: `signal` は届けたかを控えでなく信号の記録で見るので、届けていない `now` の信号を積む〈§2.2.1〉。`memory` は今の件数という事実なので、線を超えていれば積む〈§2.11〉）。5 のうち、いま止まっている `doing` の `review_request` は拾い、`review` には今までどおり `andon issue merge` を打つ（gate を回したかは merge が自分の記録で見る。merge の記録も無ければ、その review 入りのあとに書かれた今の head の gate の記録 `library/gate/<head>.json` を引き継ぎ、無いものだけ回す）。6 は飛ばす（§2.1）。
+- **初めて見る kanban**（2）は、4 は位置を控えるだけで送らない（4e の `signal` と 4f の `memory` だけは別: `signal` は届けたかを控えでなく信号の記録で見るので、届けていない `now` の信号を積む〈§2.2.1〉。`memory` は今の件数という事実なので、線を超えていれば積む〈§2.11〉）。3a の空きは控えるだけで、撃たず積まない（§2.13）。5 のうち、いま止まっている `doing` の `review_request` は拾い、`review` には今までどおり `andon issue merge` を打つ（gate を回したかは merge が自分の記録で見る。merge の記録も無ければ、その review 入りのあとに書かれた今の head の gate の記録 `library/gate/<head>.json` を引き継ぎ、無いものだけ回す）。6 は飛ばす（§2.1）。
 - **控えの保存は7の1回が基本。** 例外は最初のメッセージの送り直しと「続けて」（4c・4d）で、送る前に「送りかけ」・回数だけ先に保存する（二度送らないため。§2.4・§5）。途中で落ちた巡の積みは残らないが、次の巡が同じ出来事を kanban から拾い直す（拾う元が kanban なので失われない。§1 の3）。
 
 ### 2.2 通知の元
@@ -115,6 +115,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 | 担当の実働が見込みの 1・2・4 倍を超えた | 課題の一覧・`log.jsonl`・控えの `Gone`（§2.10） | `estimate` |
 | 外の信号の `now`（main の CI の失敗）が出来事ごとに初めて見えた | 信号の記録 `<slug>.signals.json`（contract.md §15）の `delivered_episode` < `episodes`（§2.2.1） | `signal` |
 | セルの memory の件数が線を超えた | `<ANDON_WORKSPACE>/memory` の直下の `.md`（目録 `MEMORY.md` を除く。§2.11） | `memory` |
+| 枠が 2 回続けて空いていて、起動されないまま残った課題・空きで撃ったルーチン・新しい `kanban lint` の problem のどれかがある | `andon waiting` の式・控えの `Ready` と `Idle`・`kanban lint --json`（§2.13） | `idle` |
 
 - `log.jsonl` は前回の続きから読む。読んだ位置は dispatcher の控えに持つ（相談 F1 の `kanban events --follow` が入れば、その cursor に替える。cursor は不透明な文字列として扱う）。
 - 位置には最初の行の hash を添える。kanban の log は追記だけなので、短くなった・最初の行が替わった（手で書き直した）ときは新しいファイルとして先頭から読む。
@@ -297,6 +298,21 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 - **片付けたあとで GitHub に聞くのは PR の状態だけ**（`gh pr view --json state,mergeCommit,mergedAt`）。コストはその場でセッションログから読む（Claude Code は 30 日で消える）。数え方は `andon measure` と同じ（`internal/sessionlog`）。
 - 読めないもの（gh・kanban・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で控えから外す（通知は積まない。ファイルが無いのが「集めていない」で、読み手の振り返りは無い欄を null として読む）。gh の上限で止めている間は打たず、回数にも数えない。
 - 課題のステータスの移り方は変えない（done のあとの段だけ）。課題の一生の形式モデル（`model/`）は変えない。
+### 2.13 枠の空き
+
+並行の枠が空いたままの時間に、だれも気づかずラインが待つことをやめる（[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 3〜8・10〜12・17）。dispatcher が空きを見つけ、たまっている仕事のルーチン（トリアージ・振り返り）を撃ち、起動されないまま残っている課題を Chief of Staff に知らせる。起動は今までどおり Chief of Staff がする（dispatcher は課題を起動しない。[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) の「やらないこと」のまま）。
+
+- **見る間**: `project.json` の `chief_of_staff.idle_minutes` 分（既定 15。0 は見ない。[contract.md](contract.md) §11）ごとに 1 回、巡の 3a で見る。kanban ごとで、前に見た時刻と結果は控えの `Idle` に持つ。枠の数は `andon waiting` と同じ式（`internal/waiting`）の `slots.free`。
+- **空き**は「前の回も今の回も枠が 1 つ以上空いている」。次の回は控えるだけで、撃たず積まない: 初めて見る kanban・dispatcher が起動し直した最初の回（`--once` は検査と手で 1 巡回す口なので起動し直しに数えない）・前の回から見る間の 2 倍を超えて間が空いた回（dispatcher が止まっていた間に空きが切れて戻ったのを、続いていたと見誤らない）。
+- **見ない回**: Chief of Staff の留守の間（足した課題を起動する者がいない）と `idle_minutes` が 0 のときは見ず、前の回の結果を消す。枠を数えられない回はログに 1 行（同じ理由が続く間は 1 行）で飛ばし、前の回の結果を消す。オーナー待ちが上限に達している間は `slots.free` が 0 なので空きにならない。
+- **撃つもの**（空きの回。トリアージ、振り返りの順に、空いた枠の数まで。起動できる課題の数は引かない）:
+  - トリアージ（ルーチン `triage`）: 仕分けていない項目（`andon triage collect` が出す項目のうち、前のトリアージが次回に回した項目を除いたもの。数える口は `internal/triage` の `Unsorted`）が 1 回分（`andon triage collect` の既定の上限 50 件）以上のとき。片付いていないトリアージの課題があれば撃たない（ルーチンが足したものと、Chief of Staff が臨時に足したもの〈タイトルが「トリアージ」で始まり、repo を持たない〉の両方。同時に 1 つ）。
+  - 振り返り（ルーチン `retro`）: 件数のきっかけ（3a）の束から、ルーチンが足した課題（`routine` を持つ課題）を除いた数（`internal/retro` の `FreshOwn`）が、`retro_every` の半分を切り上げた数（既定の 25 なら 13）以上のとき。同じ巡で件数のきっかけが撃っていれば撃たない。
+  - ルーチンが kanban に無い・読めない・`paused: true`、またはそのルーチンの課題が片付かずに残っているときは、数えも撃ちもしない（撃ち損ねの行で履歴を埋めない）。撃ったらログに 1 行（ルーチンの名前と、撃った理由の数）。
+- **kanban lint**: 空きの回に `kanban lint --json` を打ち、problem が 1 件以上あって、前に知らせた結果（problem の並びのハッシュ。控えの `Idle.Lint`）と違えば、件数を `idle` の `lint` に入れる。problem が 0 件に戻ったら印を消す。
+- **知らせるもの**: 前の回にも今の回にも `kanban ready` に出ている課題（オーナーの課題とレビュアーの子課題を除く）を拾う。今の ready は、前の巡が控えた ready（`Ready`）から、この巡に読んだ一覧で起動された・無くなった課題を除いたもの。拾った課題・この回に撃ったルーチン・`lint` のどれかがあるときだけ `idle` を積む（届ける。形は [contract.md](contract.md) §6）。同じ課題は ready に出ている間 1 回だけ知らせる（知らせた id は控えの `Idle.Told` に持ち、ready から消えたら外す。起動し直しと留守では消さない）。積むときに、まだ届いていない `idle` があれば、その `unstarted` と `fired` を新しいほうに足す（`idle` は `issue` を持たないので、届く前の 1 件は置き換わる）。
+- 失敗（ルーチンを撃てない・未処理を数えられない・`kanban lint` を読めない・`project.json` を読めない）はログに 1 行（同じ理由が続く間は 1 行）で、巡は止めない。
+
 ---
 
 ## 3. 誰に・いつ・どう届けるか
@@ -362,6 +378,7 @@ Chief of Staff が受けて、すること（判断・オーナーへの1行・�
 | `report`（ほか）・`asked`・`ready`・`impact`・`closed`・`corrections`・`signal`・`blocked`・`error`・`finished`・`stalled` | 届ける | 報告を読む・問いを間引く・起動する・rebase を頼む・オーナーへ知らせる・続きを促す |
 | `estimate` | 届ける | 見込みが外れた。担当の画面を読み、要れば `hc send`（続ける・見込みを改める・分ける・切り直す）（§2.10） |
 | `memory` | 届ける | memory が線を超えた。動いているトリアージが無ければ臨時のトリアージを足す（§2.11） |
+| `idle` | 届ける | 枠が空いたまま。起動されていない課題を起動するか、動かない理由をオーナーに言い、空きが足した課題を残った枠で起動する（§2.13） |
 
 - **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボードと `andon measure`。
 - **届けた通知の記録**は同じ所の `<slug>.delivered.jsonl`（contract.md §17）。`drain` がフックで渡した `<news>` のターンの終わりを見たときに1行（時刻・`acked`・渡した通知の `issue` と `kind`）。追記だけで、書けなくても届けは止めない。`andon measure` が記録だけの置き場と合わせて、kind ごとの素通り（ack で終わった数）を数える（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
@@ -498,7 +515,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 5 | マージして片付ける | `andon issue merge`（approve ＋ `merge: auto` ＋ 委譲の範囲内。finish も同じプロセスで打つ）。`merge: person` はオーナー | 2 度目の `gh pr merge` が失敗する。オーナーが先にマージしたときも同じ。head が替わっていれば止まる | ⑤`--match-head-commit`（判定した head だけ）＋マージ直前の読み直し（`stillAuthorized`・`ChecksStill`）＋②merge の記録の `merged`・`decision`（同じ行・同じ head では二度回さない。決めたあとに PR の head が動けば、今の head で1回回し直す）。`finish` は④kanban の `worktree`・`branch` が空なら何も消さない（本体の checkout は消さない）。`gh pr merge` が失敗したら `gh pr view --json state,mergeCommit,headRefOid` を読み直し、`MERGED` で head が gate の記録の `head` と同じなら**問いを出さず**、オーナーがマージしたときの道（§2.7）で片付ける（gate の記録の `merged` は書かず、同じ巡の `andon issue settle` が finish する）。違えば、base が動いた失敗（「Base branch was modified …」）は次の巡で gate から回し直して3回まで打ち直し（merge の記録の `retries`）、ほかは今までどおり `irreversible` の問い |
 | 6 | 担当の最初のメッセージの送り直し・プロバイダに切られたときの「続けて」（担当・レビュアー。§2.4・P6a） | dispatcher | 同じメッセージを 2 度送る・「続けて」を 5 回以上打つ・最初のメッセージの前に「続けて」を打つ | ③ラベル `first_message.sent=false`（送ったら外す）＋②控えの `First`（送る前に「送りかけ」を保存。外しそこねても二度と送らない）・`Retry`（回数。4 回まで。打つ前に保存する。最初のメッセージが届いていない端末には打たない）。送っている最中に落ちたら**送らない側に倒れる**（`stalled` で気づく） |
 | 7 | 通知を Chief of Staff へ届ける（§3） | Chief of Staff 自身のフック（経路①②の `drain`）だけ。経路③の待ち役（`andon dispatcher wait`。§4）は合図だけで `<news>` を運ばない。dispatcher は Chief of Staff の入力欄へ打たない | 同じ通知が 2 度届く（`<news>` が二重）・待ち役が 2 つで合図が二重 | ①控えの lock（#2 と同じ）＋②控えの `Pending`（届けたら空にする）・`Hook`（渡した turn の終わりまで。来なければ1回だけ届け直す）・`<slug>.json.stop`。`andon news ack` があれば `news.replied` を書く。待ち役は控えを読むだけで書かない（lock は待たずに取ってみてすぐ放すだけで、待たない）。待ち役は端末に 1 つ（`<slug>.json.wait` の印。後から起動したほうが替わり、前のは 0 で終わる）。合図が二重でも中身が無いので通知は 2 度届かない（StopFailure のフック `rewake` の合図と重なっても同じ。§2.4） |
-| 8 | `kanban tick`（routine の `schedule`）と件数のきっかけ（`kanban routine run retro`） | dispatcher だけ（1 巡の 3a。§2.1.1）。cron は置かない。オーナーが `kanban tick`・`kanban routine run` を手で打つことはある | schedule の時刻に 2 度課題が足される。件数と時刻で振り返りが 2 つ足される | kanban の側にある: ①kanban の lock（`kanban/.lock`。書き手は 1 つ）の中で `state/routines.json` の「最後に撃った時刻」を読んで書く＝同じ時刻は 1 度だけ撃つ。逃した時刻は 1 度にまとめる。`open`（未完了の数）で積み上げを止める。手で打つ分も、件数で撃つ分も同じ lock と `open` で守られる。件数のきっかけは、振り返りの課題が残っている間は撃たない（撃ち損ねの行を増やさない） |
+| 8 | `kanban tick`（routine の `schedule`）と件数のきっかけ（`kanban routine run retro`）と空き（§2.13。#28） | dispatcher だけ（1 巡の 3a。§2.1.1）。cron は置かない。オーナーが `kanban tick`・`kanban routine run` を手で打つことはある | schedule の時刻に 2 度課題が足される。件数と時刻で振り返りが 2 つ足される | kanban の側にある: ①kanban の lock（`kanban/.lock`。書き手は 1 つ）の中で `state/routines.json` の「最後に撃った時刻」を読んで書く＝同じ時刻は 1 度だけ撃つ。逃した時刻は 1 度にまとめる。`open`（未完了の数）で積み上げを止める。手で打つ分も、件数で撃つ分も同じ lock と `open` で守られる。件数のきっかけは、振り返りの課題が残っている間は撃たない（撃ち損ねの行を増やさない） |
 | 9 | kanban への書き込み（kanban の CLI） | 打つ者は誰でも（Chief of Staff・担当・dispatcher・オーナー）。ファイルは kanban の CLI だけが書く | 同時の書き込みで id の重複・行の混ざり | ①`kanban/.lock`（書き手は 1 つ。待つのは 10 秒）。書き込みは一時ファイル＋rename |
 | 10 | 担当・Chief of Staff・Chief Engineer を起動する（`andon issue start`・`chief-of-staff`・`chief-engineer`） | Chief of Staff（オーナーが `chief-of-staff` を打つ） | 同じ課題の worktree と branch が二重に作られる・Chief of Staff が 2 人になる | ④kanban（`todo` だけ起動できる・`worktree`・`branch` が空でなければ起動済みで断る）。1 プロジェクト 1 人は③ラベル `role=chief-of-staff`・`project=` の live な端末を数えて 2 人以上なら止まる。起動できなかったら worktree と branch を戻す。`andon issue start`・`resume`・`finish` は kanban ごとの issue lock（`<slug>.issue.lock`。控えの lock とは別）を命令の間持つ。`andon chief-of-staff` は①`<slug>.cos.lock`（控えの置き場）を「数える→起動する→config.yaml に書く」の間持つ（取れるまで待つ。後の方は先の方が起動した端末を数えて使う）。**`andon chief-engineer` の「見る→起動する」の間は塞がない**（課題を1つ起動するだけで、1プロジェクト1人の決まりは無い） |
 | 11 | 担当の Stop フック（`andon issue stop-check`） | 担当・レビュアー自身（その端末のフック） | 止める回数が数え間違う | 担当の課題ごとの状態（`Blocks`。3 回で通す）。端末ごとなので他と取り合わない |
@@ -518,6 +535,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | 25 | approve のまま止まったを届ける（通知 `gate`。§3.2） | dispatcher（1 巡の 5d）だけ。merge の記録を読むだけで、書かない | 同じ approve の止まりが 2 通届く | ②控えの `Stuck`（課題 → 届けた `approved`。同じ値では積まない。merge の記録の `approved` が消えるか替われば捨てる）。`approved` を書く・消すのは merge だけ（回し直しでは測り直さない） |
 | 26 | 結果の記録を書く（`outcome.json`。§2.12） | dispatcher（`log.jsonl` の `{"status": "done"}` の行ごとに 1 回。1 巡の 5e）。ほかの書き手はいない | `outcome.json` が書き直される（`at` が替わる）。2 度目の読みの間に PR が閉じられた・開き直された・セッションログが消えた（30 日）なら中身も替わる | ④`outcome.json` が在れば書かない（ファイルが「書いた」の印）＋②控えの `log_pos`（`done` の行は 1 度しか読まない）と `Outcomes`（書いたら外す。失敗は次の見回りの 1 回だけ打ち直し、諦めたらログに 1 行で外す）。書くのは一時ファイル＋rename |
 | 27 | ダイジェストを集めて組み立て、`files/` と Slack へ出す（`andon digest collect`・`build`・`send`。[contract.md](contract.md) §26〜§28。collect が main を取り直すのは打つたびに別の一時の写しで、checkout に書かない） | ダイジェストの課題の担当（課題ごとに 1 人）。オーナーや Chief of Staff が手で打つこともある | `input.json`・`digest.json`・`digest.html`・`message.txt` が書き直される・同じダイジェストが同じ送り先へ 2 度出る | ④kanban（課題を受け持つ担当は 1 人）＋②`sent.json` の `ok`（送る前に `false` で書き、送れたら `true`。済んだ送り先には打ち直しても出さない。送りそこねた送り先だけ出し直す）＋⑤send は `sent.json.lock` の flock で1本ずつ（読んで、送って、書くまで）＋⑥`files/` の名前に課題の番号を入れる（同じ日に別の課題で作っても前の 1 枚を上書きしない）。書くのは一時ファイル＋rename。**Slack に届いてから `ok` を書くまでに落ちた分は防がない**（次に打つともう一度届く。届くのは 1 度か 2 度で、落ちることは無い） |
+| 28 | 空きでルーチンを撃ち、通知 `idle` を届ける（§2.13） | dispatcher（1 巡の 3a）。オーナーが `kanban routine run` を手で打つこともある | 同じ空きでトリアージ・振り返りが 2 つ足される・同じ課題の `idle` が 2 度届く | ①控えの lock（#2）＋kanban の lock と `open`（#8。ルーチンの課題が残っている間は撃たない。トリアージは臨時の課題があっても撃たない）＋②控えの `Idle`（前に見た時刻。見る間より短い間は見直さない。知らせた id と lint の印。積んだ巡の終わりに保存。保存の前に落ちたら次の回でもう一度積む＝届くのは1度か2度で、落ちることは無い）＋②控えの `Pending`（課題の無い `idle` は置き換え。前の `unstarted` と `fired` を足す） |
 
 ### 7.3 守りが無い所（直さない。報告のための一覧）
 
