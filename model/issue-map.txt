@@ -37,6 +37,7 @@ action ChiefOfStaffCancels andon issue finish
 action HeadMovesAfterGate -
 action PRClosesOrReopens -
 action MergeSettingChanges -
+action DispatcherAlignsMark -
 action Done -
 
 # outside <from> <to> <コマンド> — <理由>

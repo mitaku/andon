@@ -179,6 +179,7 @@ type prView struct {
 	HeadRefOid        string `json:"headRefOid"`
 	BaseRefName       string `json:"baseRefName"`
 	MergeStateStatus  string `json:"mergeStateStatus"`
+	Mergeable         string `json:"mergeable"`
 	ChangedFiles      int    `json:"changedFiles"`
 	IsCrossRepository bool   `json:"isCrossRepository"`
 	Author            struct {
@@ -327,7 +328,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	}
 
 	var pv prView
-	b, err := gh("pr", "view", number, "--repo", slug, "--json", "state,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,author,changedFiles,isCrossRepository,body,comments")
+	b, err := gh("pr", "view", number, "--repo", slug, "--json", "state,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,mergeable,author,changedFiles,isCrossRepository,body,comments")
 	if err != nil {
 		return nil, "", err
 	}
@@ -358,7 +359,9 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if len(files) != pv.ChangedFiles {
 		facts.Blockers = append(facts.Blockers, "files の件数が changedFiles と合わない（一覧の上限・取得中の変更）")
 	}
-	if pv.MergeStateStatus == "DIRTY" {
+	// 衝突は mergeable でも読む: 必須の check が足りない PR は mergeStateStatus が BLOCKED になり、
+	// 衝突と重なったときに DIRTY が返る順の決まりは GitHub の文書に無い（ADR-0056 決めたこと 13）
+	if pv.MergeStateStatus == "DIRTY" || pv.Mergeable == "CONFLICTING" {
 		facts.Blockers = append(facts.Blockers, "conflict")
 	}
 	if pv.IsCrossRepository {
@@ -427,7 +430,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	// L3 レビュー・L2 検査（前の段で決まっていれば回さない）
 	facts.ReviewRequired = ReviewRequired(tier, s.Review)
 	rec.Review = ledger.Review{State: "off", Waived: len(rep.Waived)}
-	gated := len(facts.LedgerReasons) == 0 && facts.PROpen && len(facts.Blockers) == 0 && facts.SettingsReason == "" && known && rec.Delegation.OK
+	// 委譲の外（オーナーがマージする変更）でも条件表の検査を回す。委譲は決定式の最後に見る（ADR-0056 決めたこと 4）
+	gated := len(facts.LedgerReasons) == 0 && facts.PROpen && len(facts.Blockers) == 0 && facts.SettingsReason == "" && known
 	if facts.ReviewRequired {
 		tasks, err := l.List()
 		if err != nil {
@@ -436,7 +440,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		rec.Review = l.CheckReview(rows, tasks, t, head, s.MustFix, rep.Waived, AddedLines(string(diff)))
 	}
 	facts.Review = rec.Review
-	if gated && (!facts.ReviewRequired || rec.Review.State == "current") && checks.Passed(facts.ChecksOptional) {
+	if gated && (!facts.ReviewRequired || rec.Review.State == "current") && checks.Final(facts.ChecksOptional, facts.ChecksOverdue) {
 		rec.Checks, err = runChecks(repo, head, rt.Check)
 		if err != nil {
 			return nil, "", err
@@ -467,7 +471,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if err := contract.Write(path, contract.SchemaGate, rec); err != nil {
 		return nil, "", err
 	}
-	postGitHub(slug, number, rec, stderr)
+	postGitHub(slug, number, rec, cr.Mark, cr.Link, stderr)
 	return rec, "", nil
 }
 
@@ -550,7 +554,7 @@ const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $afte
       pageInfo { hasNextPage endCursor }
       nodes { __typename
         ... on CheckRun { name status conclusion databaseId checkSuite { app { slug } workflowRun { workflow { id } } } }
-        ... on StatusContext { context state createdAt } } } } } } } } } }`
+        ... on StatusContext { context state createdAt description targetUrl } } } } } } } } } }`
 
 // checksPages は読むページの上限（100件ずつ。超えたら読めないとして止める）。
 const checksPages = 50
@@ -566,6 +570,8 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 type checksRead struct {
 	Head          string
 	Checks        GitHubChecks
+	Mark          Mark   // head に今ある gate 自身の印（無ければ空）
+	Link          string // その印のリンク（target_url。無ければ空）
 	DefaultBranch string // repo の既定ブランチ
 	Viewer        string // gh のアカウント（login）
 }
@@ -658,21 +664,32 @@ func readChecks(number, slug string) (checksRead, error) {
 			return checksRead{}, errors.New("GitHub の checks の続きのページが読めない")
 		}
 	}
-	cr.Head, cr.Checks = head, SummarizeChecks(items)
+	cr.Head, cr.Checks, cr.Mark, cr.Link = head, SummarizeChecks(items), GateMark(items), GateLink(items)
 	return cr, nil
 }
 
-// postGitHub は記録を PR の commit status（andon/gate）とコメントに写す。失敗しても判定は変えない。
-// 写す文は外の人が読む文（comment.go）で、記録の文をそのまま写さない（ADR-0026 決めたこと 9）。
-func postGitHub(slug, number string, rec *Record, stderr io.Writer) {
-	state := "failure"
-	if rec.Decision == "approve" {
-		state = "success"
-	}
-	if _, err := gh("api", "-X", "POST", "repos/"+slug+"/statuses/"+rec.Head, "-f", "context="+GateContext, "-f", "state="+state, "-f", "description="+StatusDescription(rec)); err != nil {
-		fmt.Fprintln(stderr, "andon gate: commit status の記録に失敗:", err)
-	}
-	if _, err := gh("pr", "comment", number, "--repo", slug, "--body", CommentBody(rec)); err != nil {
+// postGitHub は記録を PR のコメントと commit status（andon/gate）に写す。失敗しても判定は変えない。
+// コメントを先に書き、gh pr comment が出したコメントの URL を印のリンク（target_url）にする（ADR-0054 決めたこと 6。
+// コメントを書けなかったときはリンクの無い印）。印は通したときとオーナー待ちは緑、差し戻しは赤（ADR-0056 決めたこと 3）。
+// head に同じ状態と説明文の印が既にあれば（have。判定し直しても同じ印）、印は書き直さない。ただし今の印に
+// リンクが無く（haveLink が空。前のバージョンの印か、コメントを書けなかった回の印）、今回コメントの URL を得たときは、リンクを付けて書き直す。
+// 写す文は外の人が読む文（comment.go・mark.go）で、記録の文をそのまま写さない（ADR-0026 決めたこと 9）。
+func postGitHub(slug, number string, rec *Record, have Mark, haveLink string, stderr io.Writer) {
+	url := ""
+	if out, err := gh("pr", "comment", number, "--repo", slug, "--body", CommentBody(rec)); err != nil {
 		fmt.Fprintln(stderr, "andon gate: コメントの記録に失敗:", err)
+	} else if u := strings.TrimSpace(string(out)); strings.HasPrefix(u, "https://") && !strings.ContainsAny(u, " \n") {
+		url = u
+	}
+	mark, ok := DecisionMark(rec.Decision, rec.Reasons)
+	if !ok || (Same(mark, have, false) && (url == "" || haveLink != "")) {
+		return
+	}
+	args := []string{"api", "-X", "POST", "repos/" + slug + "/statuses/" + rec.Head, "-f", "context=" + GateContext, "-f", "state=" + mark.State, "-f", "description=" + mark.Description}
+	if url != "" {
+		args = append(args, "-f", "target_url="+url)
+	}
+	if _, err := gh(args...); err != nil {
+		fmt.Fprintln(stderr, "andon gate: commit status の記録に失敗:", err)
 	}
 }

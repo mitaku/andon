@@ -13,6 +13,7 @@ BrokenDispatcherMerges ==
        ELSE /\ Finish
             /\ UNCHANGED told
     /\ UNCHANGED <<gate, moved, fixSent, q, cancel, mergeAuto, qVars>>
+    /\ UNCHANGED mark
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -23,7 +24,8 @@ BrokenNext ==
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ BrokenDispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
-    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
+    \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

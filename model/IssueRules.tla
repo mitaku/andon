@@ -17,6 +17,7 @@ TypeOK ==
     /\ moved \in BOOLEAN /\ autoMerged \in BOOLEAN
     /\ ans \in {"none", "cos", "pane"} /\ news \in {"none", "pending", "read"}
     /\ sent \in BOOLEAN /\ twice \in BOOLEAN
+    /\ mark \in {"none", "ok", "red"}
 
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
 R1_NoWorkerAfterCancel == cancel => worker # "live"

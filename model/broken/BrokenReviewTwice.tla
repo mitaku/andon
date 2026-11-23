@@ -10,6 +10,7 @@ BrokenReviewerStarts ==
     /\ "head" \notin reviewing /\ ~headSeen
     /\ reviewing' = reviewing \cup {"head"}
     /\ UNCHANGED <<status, worker, wt, pr, ci, result, headSeen, dirty, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged, qVars>>
+    /\ UNCHANGED mark
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -20,7 +21,8 @@ BrokenNext ==
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
-    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
+    \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

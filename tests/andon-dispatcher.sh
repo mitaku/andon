@@ -59,6 +59,13 @@ case "\$*" in
     if [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
     elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
     else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
+  "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid,statusCheckRollup")   # andon issue settle。打った回数を states に（上と同じ）。
+    echo x >> \$d/states                                                                    # statusCheckRollup は head に書いた gate の印（marks/<sha>。説明文は出さない）
+    h=\$(jq -r .headRefOid \$d/view.json); m=\$(cat \$d/marks/\$h 2>/dev/null || :)
+    r=\$(jq -n --arg m "\$m" 'if \$m == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: (\$m | ascii_upcase)}] end')
+    if [ -f \$d/closed ]; then jq --argjson r "\$r" '{state:"CLOSED",mergeCommit:null,headRefOid,statusCheckRollup:\$r}' \$d/view.json
+    elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" --argjson r "\$r" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid,statusCheckRollup:\$r}' \$d/view.json
+    else jq --argjson r "\$r" '{state:"OPEN",mergeCommit:null,headRefOid,statusCheckRollup:\$r}' \$d/view.json; fi ;;
   "pr view 7 --repo example/app --json state,commits,comments,reviews")   # オーナーの手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
@@ -83,9 +90,12 @@ case "\$*" in
         {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
-  "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
+  "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted   # 書いた印は head ごとに marks/<sha>（settle の読みが返す）
+    [ ! -f \$d/statusfail ] || { echo "HTTP 502" >&2; exit 1; }
+    sha=\${4##*/}; mkdir -p \$d/marks; printf '%s\n' "\$@" | sed -n 's/^state=//p' > \$d/marks/\$sha ;;
   "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted
-    if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi ;;  # gate の最後の書き込み。マージの前に状態を変える
+    if [ -f \$d/hook ]; then sh \$d/hook; rm -f \$d/hook; fi
+    echo "https://github.com/example/app/pull/7#issuecomment-1" ;;  # gate の最後の書き込み。マージの前に状態を変える
   "pr merge 7 --repo example/app "*)   # race があれば、オーナーが直前に同じ head でマージしていて失敗する。mergefail があれば、その文を stderr に出してマージせずに失敗する
     echo "\$*" >> \$d/merges
     if [ -f \$d/mergefail ]; then cat \$d/mergefail >&2; exit 1; fi
@@ -859,7 +869,8 @@ rm -f "$tmp/gh/merged"
 ok 'doing のうちにオーナーがマージした PR も、review のときと同じ道で片付ける（done・端末・worktree）。問い・commit していない変更があれば片付けず、理由ごとに1回だけ知らせる'
 
 # 4h. Chief Engineer の課題（profile chief-engineer）の文書の PR をオーナーがマージした → gate は回さず、review にいれば settle で片付け、
-#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（オーナーと話している）は見ない。dispatcher.md §2.7
+#     通知 merged（by: person）を届ける（CE の課題に impact は回らない）。doing の間（オーナーと話している）は PR を読んで印を揃えるだけで、
+#     片付けない（マージされたことは記録し、review に入ったら GitHub に聞き直さずに片付ける）。dispatcher.md §2.7・ADR-0056 決めたこと 6
 ce=$(HC_TERMINAL_ID=t5 kanban add '設計を文書にする' --profile chief-engineer --repo github.com/example/app)
 cwt=$ANDON_WORKSPACE/.worktrees/app/demo-$ce
 git -C "$app" fetch -q origin
@@ -870,7 +881,8 @@ work "$ce" docs/adr/0001-design.md
 as_worker "$ce" report --pr https://github.com/example/app/pull/7
 person_merges
 n=$(wc -l < "$tmp/gh/states"); watch_due "$ce"; dispatcher
-kanban show "$ce" --json | jq -e '.issue.status == "doing"' >/dev/null && [ "$(wc -l < "$tmp/gh/states")" = "$n" ] || die 'doing の Chief Engineer の課題の PR を見た・片付けた'
+kanban show "$ce" --json | jq -e '.issue.status == "doing"' >/dev/null && [ "$(pending "$ce" merged)" = null ] || die 'doing の Chief Engineer の課題の PR を片付けた・知らせた'
+[ "$(wc -l < "$tmp/gh/states")" = $((n + 1)) ] && jq -e --arg t "$ce" '.[$t].state == "MERGED"' "$settled" >/dev/null || die "doing の Chief Engineer の課題の PR を読まない・マージを記録しない: $(jq -c --arg t "$ce" '.[$t]' "$settled" 2>/dev/null)"
 (cd "$cwt" && HC_TERMINAL_ID=t7 kanban review "$ce" >/dev/null)
 merges=$(cat "$tmp/gh/merges" 2>/dev/null | wc -l)
 dispatcher
@@ -884,7 +896,81 @@ jq --arg t "$ce" '.pending |= map(select(.issue != $t))' "$state" > "$state.new"
 dispatcher
 [ "$(pending "$ce" merged)" = null ] || die '片付けた Chief Engineer の課題をまた知らせた'
 rm -f "$tmp/gh/merged"
-ok 'Chief Engineer の文書の PR をオーナーがマージしたら、gate を回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は見ない'
+ok 'Chief Engineer の文書の PR をオーナーがマージしたら、gate を回さずに review の課題を片付け、通知 merged（by: person）を届ける。doing の間は片付けない'
+
+# 4i. ADR-0056 A6（揃える場面）: dispatcher は PR を読むたびに（settle の 1 分に 1 回の読み）、開いている PR の head の印を課題の状態に揃える。
+#     オーナー待ちに残った前のバージョンの赤は緑に、判定のあと doing に戻った課題の緑は赤に、Chief Engineer の文書の PR は緑に。
+#     判定の無い head・閉じた PR には書かない。揃っていれば書かない（ADR-0056 決めたこと 3・5・6）
+marks() { grep -c "^status .*/statuses/$1 " "$tmp/gh/posted" || true; }   # その head に書いた印の数
+lastmark() { grep "^status .*/statuses/$1 " "$tmp/gh/posted" | tail -1; }
+al=$(newtask '印を揃える課題' person)
+work "$al" package/gate.json
+as_worker "$al" report --pr https://github.com/example/app/pull/7
+as_worker "$al" review-request
+dispatcher
+review_by "$(kanban list --all --json | jq -r --arg p "$al" '[.[] | select(.parent == $p)] | last | .id')" '[]'
+as_worker "$al" ready
+dispatcher
+jq -e '.from == "gate"' "$L/issues/$al/library/questions/1.json" >/dev/null || die '前提: needs_human の問いが無い'
+lastmark "$head" | grep -q 'state=success .*description=andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更） -f target_url=https://' ||
+    die "gate がオーナー待ちに緑の印（コメントへのリンクつき）を書かない: $(lastmark "$head")"
+# 前のバージョンが書いた赤（オーナー待ちなのに failure）が残っている → 次に読んだとき緑に直す
+echo failure > "$tmp/gh/marks/$head"; n=$(marks "$head"); : > "$tmp/dispatcher.log"
+watch_due "$al"; dispatcher
+[ "$(marks "$head")" = $((n + 1)) ] && lastmark "$head" | grep -q 'context=andon/gate -f state=success -f description=andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）$' ||
+    die "オーナー待ちの赤を緑に直さない: $(lastmark "$head")"
+grep -q "$al の PR の印を success に揃えた" "$tmp/dispatcher.log" || die "揃えたことをログに書かない: $(cat "$tmp/dispatcher.log")"
+n=$(marks "$head"); watch_due "$al"; dispatcher
+[ "$(marks "$head")" = "$n" ] || die '揃っている印を書き直した'
+ok 'オーナー待ちの PR に残った赤は、次に PR を読んだとき緑（理由の括弧つき）に直し、揃っていれば書き直さない（ADR-0056 A6）'
+# 判定のあと doing に戻った（オーナーが直させると答えた）→ 緑を赤に書き換える。赤になったら書き直さない
+HC_TERMINAL_ID=t5 kanban answer "$al#1" '直させる' >/dev/null; HC_TERMINAL_ID=t7 kanban received "$al#1" >/dev/null
+restart "$al"; n=$(marks "$head")
+watch_due "$al"; dispatcher
+[ "$(marks "$head")" = $((n + 1)) ] && lastmark "$head" | grep -q 'state=failure -f description=andon gate: 作った側が直しています$' ||
+    die "doing に戻った課題の緑を赤にしない: $(lastmark "$head")"
+watch_due "$al"; dispatcher
+[ "$(marks "$head")" = $((n + 1)) ] || die '赤くした印をまた書いた'
+ok 'gate が緑を付けたあと課題が doing に戻ったら、次に PR を読んだとき赤（作った側が直しています）に書き換える（ADR-0056 A6）'
+# 同じ head のまま review に入り直し、今の回の gate がまだ決めていない → 前の回の判定（緑）を書き戻さない
+# （前の回の判定・doing・review が同じ秒に並んでも見分ける。時刻でなく merge の記録の行で照らす）
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban review "$al" >/dev/null)
+watch_due "$al"; HC_TERMINAL_ID=dispatcher "$andon" issue settle "$al" >/dev/null
+[ "$(marks "$head")" = $((n + 1)) ] || die "review に入り直した回で、前の回の判定から印を書き戻した: $(lastmark "$head")"
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban start "$al" >/dev/null)
+ok '同じ head のまま review に入り直しても、今の回の gate が決めるまで前の回の判定から印を書き戻さない'
+# 担当が push した（gate の判定の無い head）→ 書かない。印の無い head は doing でも review でも書かない
+old=$head; work "$al" package/gate.json; n=$(wc -l < "$tmp/gh/posted")
+watch_due "$al"; dispatcher
+as_worker "$al" report; (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$al" && HC_TERMINAL_ID=t7 kanban review "$al" >/dev/null)
+freeze; HC_TERMINAL_ID=dispatcher "$andon" issue settle "$al" >/dev/null   # review でも、判定の無い head（gate の前）
+[ "$(wc -l < "$tmp/gh/posted")" = "$n" ] && [ "$(marks "$head")" = 0 ] || die "判定の無い head に印を書いた: $(tail -2 "$tmp/gh/posted")"
+ok '判定の無い head（gate の前）には doing でも review でも印を書かない'
+HC_TERMINAL_ID=t5 kanban done "$al" >/dev/null; sed -i "/^t7 $al\$/d" "$tmp/hc/live"   # あとの場面が数える動いている課題に残さない
+# Chief Engineer の文書の PR（gate を通らない）は review に入ったら緑。閉じた PR には書かない
+ce2=$(HC_TERMINAL_ID=t5 kanban add '設計の文書の印' --profile chief-engineer --repo github.com/example/app)
+cwt2=$ANDON_WORKSPACE/.worktrees/app/demo-$ce2
+git -C "$app" fetch -q origin
+git -C "$app" worktree add -q -b "demo/$ce2" "$cwt2" origin/main
+HC_TERMINAL_ID=t5 kanban set "$ce2" "branch=demo/$ce2" "worktree=$cwt2" >/dev/null
+(cd "$cwt2" && HC_TERMINAL_ID=t7 kanban start "$ce2" >/dev/null); echo "t7 $ce2" >> "$tmp/hc/live"
+work "$ce2" docs/adr/0002-design.md
+as_worker "$ce2" report --pr https://github.com/example/app/pull/7
+(cd "$cwt2" && HC_TERMINAL_ID=t7 kanban review "$ce2" >/dev/null)
+touch "$tmp/gh/closed"; watch_due "$ce2"; dispatcher; rm "$tmp/gh/closed"
+[ "$(marks "$head")" = 0 ] || die "閉じた PR に印を書いた: $(lastmark "$head")"
+jq --arg t "$ce2" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"   # 閉じた通知は見ない
+watch_due "$ce2"; dispatcher
+[ "$(marks "$head")" = 1 ] && lastmark "$head" | grep -q 'state=success -f description=andon gate: 仕様・設計の文書です。メンテナーがマージします$' ||
+    die "Chief Engineer の文書の PR に緑を書かない: $(lastmark "$head")"
+[ ! -e "$L/issues/$ce2/library/gate" ] || die 'Chief Engineer の課題に gate を回した'
+(cd "$cwt2" && HC_TERMINAL_ID=t7 kanban start "$ce2" >/dev/null)   # オーナーと話し直す（doing に戻った）
+watch_due "$ce2"; dispatcher
+[ "$(marks "$head")" = 2 ] && lastmark "$head" | grep -q 'state=failure -f description=andon gate: 作った側が直しています$' && kanban show "$ce2" --json | jq -e '.issue.status == "doing"' >/dev/null ||
+    die "doing に戻った Chief Engineer の文書の PR の緑を赤にしない: $(lastmark "$head")"
+ok 'Chief Engineer の文書の PR は、review に入って PR を読んだとき緑（仕様・設計の文書です）、doing に戻ったら赤。閉じた PR には書かない（ADR-0056 A6）'
+HC_TERMINAL_ID=t5 kanban done "$ce2" >/dev/null
+sed -i "/^t7 $ce2\$/d" "$tmp/hc/live"
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
@@ -1140,7 +1226,10 @@ dispatcher
 rm "$tmp/gh/ghfail"
 jq -e '.from == "gate" and (.question | contains("判定できなかった"))' "$L/issues/$id/library/questions/1.json" >/dev/null &&
     jq -e '(.gh_reset // "") == ""' "$state" >/dev/null || die "rate limit でない終了コード 3 が needs_human の問いにならない: $(cat "$L/issues/$id/library/questions/1.json" 2>/dev/null)"
-ok 'rate limit でない gh の失敗で gate が落ちたら、今どおり needs_human の問いにする（上限の控えは付けない）'
+# ADR-0056 A7: 印が無いとオーナーもマージできないので、先頭（推奨）は「原因を直して回し直す」
+jq -e '.options[0].pick == true and (.options[0].label | contains("原因を直してから回し直す")) and (.options[1].label | contains("オーナーが PR を読んで"))' "$L/issues/$id/library/questions/1.json" >/dev/null ||
+    die "gate が判定できない問いの先頭が原因を直して回し直すでない: $(jq -c .options "$L/issues/$id/library/questions/1.json")"
+ok 'rate limit でない gh の失敗で gate が落ちたら、今どおり needs_human の問いにする（上限の控えは付けない。先頭は原因を直して回し直す）'
 
 # 9e-2. ほかの PR のマージと重なって gh pr merge が「Base branch was modified」で失敗した → 問いにせず、次の巡で gate から照合し直して打ち直す
 basemod='GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)'
@@ -1169,6 +1258,17 @@ dispatcher
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die "打ち直したのに片付かない・問いにした: $(tail -3 "$tmp/dispatcher.log")"
 jq -e '.merged == true' "$L/issues/$id/library/gate/$head.json" >/dev/null || die '打ち直したマージを gate の記録に書いていない'
 ok 'base が動いて gh pr merge が失敗したら問いにせず、次の巡で gate から照合し直し、同じ head でマージを打ち直して片付ける'
+
+# ADR-0056 A7（決めたこと 12）: 印を書いた直後で必須の check がまだ揃わず「the base branch policy prohibits the merge」で断られた → 同じく打ち直す
+id=$(newtask '必須の check が揃う前' auto)
+printf 'X Pull request example/app#7 is not mergeable: the base branch policy prohibits the merge.\n' > "$tmp/gh/mergefail"
+to_gate "$id" docs/a.md
+no_question && jq -e --arg t "$id" '.[$t].retries == 1' "$mergerec" >/dev/null && grep -q "$id をいまはマージしない.*必須の check がまだ揃わず gh pr merge が通らなかった" "$tmp/dispatcher.log" ||
+    die "必須の check で断られたマージを打ち直しにしない: $(cat "$mergerec") $(grep "$id" "$tmp/dispatcher.log" | tail -2)"
+rm "$tmp/gh/mergefail"
+dispatcher
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question && [ "$(tried)" = 2 ] || die "必須の check が揃ったあと打ち直して片付けない: $(tail -3 "$tmp/dispatcher.log")"
+ok '必須の check で断られた gh pr merge（the base branch policy prohibits the merge）も問いにせず、次の巡で gate から照合し直して打ち直す（ADR-0056 A7）'
 
 base_moved '打ち直す前に push される'
 jq --arg h "$(printf 'e%.0s' $(seq 40))" '.headRefOid = $h' "$tmp/gh/view.json" > "$tmp/gh/v" && mv "$tmp/gh/v" "$tmp/gh/view.json"

@@ -10,6 +10,7 @@ BrokenGateSaysFix ==
     /\ dirty' = (dirty \/ result # "old")
     /\ moved' = FALSE
     /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, told, q, cancel, mergeAuto, autoMerged, qVars>>
+    /\ mark' = "red"
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -20,7 +21,8 @@ BrokenNext ==
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
-    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
+    \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

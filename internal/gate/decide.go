@@ -407,16 +407,18 @@ const GateContext = "andon/gate"
 
 // CheckItem は head の commit の statusCheckRollup.contexts の1件（CheckRun か StatusContext）。
 type CheckItem struct {
-	Typename   string `json:"__typename"`
-	Name       string `json:"name"`       // CheckRun
-	Status     string `json:"status"`     // CheckRun
-	Conclusion string `json:"conclusion"` // CheckRun
-	DatabaseID int64  `json:"databaseId"` // CheckRun（再実行ほど大きい）
-	App        string `json:"app"`        // CheckRun の check suite の app（slug）
-	Workflow   string `json:"workflow"`   // CheckRun の workflow の id（GraphQL の Workflow.id。表示名でなく。Actions でなければ空）
-	Context    string `json:"context"`    // StatusContext
-	State      string `json:"state"`      // StatusContext
-	CreatedAt  string `json:"createdAt"`  // StatusContext
+	Typename    string `json:"__typename"`
+	Name        string `json:"name"`        // CheckRun
+	Status      string `json:"status"`      // CheckRun
+	Conclusion  string `json:"conclusion"`  // CheckRun
+	DatabaseID  int64  `json:"databaseId"`  // CheckRun（再実行ほど大きい）
+	App         string `json:"app"`         // CheckRun の check suite の app（slug）
+	Workflow    string `json:"workflow"`    // CheckRun の workflow の id（GraphQL の Workflow.id。表示名でなく。Actions でなければ空）
+	Context     string `json:"context"`     // StatusContext
+	State       string `json:"state"`       // StatusContext
+	CreatedAt   string `json:"createdAt"`   // StatusContext
+	Description string `json:"description"` // StatusContext（gate 自身の印を書き直すかを決めるのに読む。GateMark）
+	TargetURL   string `json:"targetUrl"`   // StatusContext（gate 自身の印にコメントへのリンクがあるか。GateLink）
 }
 
 // key は同じ check を見分ける鍵（CheckRun は app・workflow の id・名前、StatusContext は context）。
@@ -506,6 +508,19 @@ func (g GitHubChecks) Passed(optional bool) bool {
 	return g.State == "success" || (g.State == "none" && optional)
 }
 
+// Final は、gate がこの checks で待たない（通るか、オーナー待ちで決まる）か。条件表の検査はこのとき回す。
+// 待つ（pending・まだ1つも無い）ときと落ちたときは回さない。決められない・待ちを過ぎたときも回すのは、
+// オーナー待ち（緑の印）にする前に差し戻す理由を拾うため（ADR-0056 決めたこと 4）。
+func (g GitHubChecks) Final(optional, overdue bool) bool {
+	switch g.State {
+	case "pending", "failure":
+		return false
+	case "none":
+		return optional || overdue
+	}
+	return true
+}
+
 var checkRank = map[string]int{"none": 0, "success": 1, "pending": 2, "unknown": 3, "failure": 4}
 
 // SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。gate 自身の status（andon/gate）は数えない。
@@ -571,6 +586,9 @@ type Facts struct {
 
 // Decide は決定式（純粋関数）。decision と reasons を返す。approve の reasons は空。
 // wait は GitHub の checks を待つ（記録も PR への書き込みもしない。dispatcher が次の見回りで回し直す）。
+// 委譲の範囲の外（オーナーがマージする変更）かは、検査・CI・レビュー・受け入れ条件・画面の証拠・CI の待ちのあと、通す直前に見る
+// （ADR-0056 決めたこと 4）。オーナー待ちになるのは、委譲の中なら通していた PR だけ。PR の事情・予約キー・条件表の理由は
+// gate が判定できない形なので、先に見てオーナー待ちにする。
 func Decide(f Facts) (string, []string) {
 	switch {
 	case len(f.LedgerReasons) > 0:
@@ -583,20 +601,14 @@ func Decide(f Facts) (string, []string) {
 		return "needs_human", []string{f.SettingsReason}
 	case !f.RepoKnown:
 		return "needs_human", []string{"条件表の repos にこの repo が無い（検査を回せない）"}
-	case !Within(f.Tier, f.MergeLevel):
-		return "needs_human", []string{fmt.Sprintf("delegation: merge=%s < tier %s", f.MergeLevel, f.Tier)}
 	}
 	for _, c := range f.Checks {
 		if !c.OK {
 			return "fix", []string{"check: " + c.Cmd}
 		}
 	}
-	switch g := f.GitHubChecks; g.State {
-	case "failure":
+	if g := f.GitHubChecks; g.State == "failure" {
 		return "fix", []string{"GitHub の checks が落ちた: " + strings.Join(g.Names, ", ")}
-	case "success", "pending", "none":
-	default: // unknown・読めていない（空）
-		return "needs_human", []string{"GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", ")}
 	}
 	if f.ReviewRequired {
 		switch r := f.Review; {
@@ -625,14 +637,20 @@ func Decide(f Facts) (string, []string) {
 		}
 		return "fix", reasons
 	}
-	// 待ち（wait）は、ほかに止める理由が無く GitHub の checks だけが揃っていないとき
+	// 待ち（wait）と、GitHub の checks を通すか決められないオーナー待ちは、ほかに差し戻す理由が無いときだけ
+	// （オーナー待ちの印は緑なので、差し戻す理由を先に担当へ返す。ADR-0056 決めたこと 4）
 	switch g := f.GitHubChecks; {
+	case g.State != "success" && g.State != "pending" && g.State != "none": // unknown・読めていない（空）
+		return "needs_human", []string{"GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", ")}
 	case g.State == "pending":
 		return "wait", []string{"GitHub の checks がまだ走っている: " + strings.Join(g.Names, ", ")}
 	case g.State == "none" && !f.ChecksOptional && f.ChecksOverdue:
 		return "needs_human", []string{fmt.Sprintf("GitHub の checks が1つも無いまま %d 分過ぎた（条件表の github_checks: optional でない）", f.ChecksWait)}
 	case g.State == "none" && !f.ChecksOptional:
 		return "wait", []string{"GitHub の checks がまだ1つも無い"}
+	}
+	if !Within(f.Tier, f.MergeLevel) {
+		return "needs_human", []string{fmt.Sprintf("delegation: merge=%s < tier %s", f.MergeLevel, f.Tier)}
 	}
 	return "approve", []string{}
 }

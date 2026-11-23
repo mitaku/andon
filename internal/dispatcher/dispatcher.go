@@ -322,8 +322,9 @@ func (p *project) pass() (bool, error) {
 		status := t.Str("status")
 		busy = busy || status == "doing" || status == "review"
 		if !p.gated(t) {
-			if isEngineer(t) && t.Str("repo") != "" && status == "review" {
-				// Chief Engineer の文書の PR はオーナーがマージする。gate は回さず、オーナーのマージだけ見て片付ける（dispatcher.md §2.7）
+			if isEngineer(t) && t.Str("repo") != "" && (status == "review" || status == "doing") {
+				// Chief Engineer の文書の PR はオーナーがマージする。gate は回さず、オーナーのマージだけ見て片付ける（dispatcher.md §2.7）。
+				// doing の間は片付けず、PR の印だけを揃える（review で付けた緑を赤に。ADR-0056 決めたこと 6）
 				if rep, err := contract.ReadReport(filepath.Join(p.l.Library(t.Str("id")), "report.json")); err == nil {
 					p.humanMerge(t, rep)
 				}

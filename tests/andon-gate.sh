@@ -30,7 +30,8 @@ change() { # change <path> <行>: origin に commit して head を返す
     git -C "$tmp/origin" add -A; as_agent git -C "$tmp/origin" commit -qm "$1"; git -C "$tmp/origin" rev-parse HEAD
 }
 
-# 偽の gh: PR の事実は $tmp/gh/ のファイル（GitHub の checks は rollup.json）。書き込み（status・comment）は $tmp/gh/posted に1行ずつ、コメントの本文は $tmp/gh/bodies に足す
+# 偽の gh: PR の事実は $tmp/gh/ のファイル（GitHub の checks は rollup.json）。書き込み（status・comment）は $tmp/gh/posted に1行ずつ、コメントの本文は $tmp/gh/bodies に足す。
+# pr comment はコメントの URL を出す（commentfail があれば落ちる）
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 d=$tmp/gh
@@ -46,7 +47,9 @@ case "\$*" in
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
-  "pr comment 7 --repo example/app --body "*) echo "comment" >> \$d/posted; printf '%s\n' "\$7" >> \$d/bodies ;;
+  "pr comment 7 --repo example/app --body "*) [ ! -f \$d/commentfail ] || { echo "HTTP 502" >&2; exit 1; }
+    echo "comment" >> \$d/posted; printf '%s\n' "\$7" >> \$d/bodies
+    echo x >> \$d/ncomments; echo "https://github.com/example/app/pull/7#issuecomment-\$(wc -l < \$d/ncomments)" ;;
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
 esac
 EOF
@@ -57,19 +60,20 @@ cat > "$tmp/bin/hc" <<EOF
 EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
-# rollup <状態…>: GitHub の checks（CheckRun の status/conclusion か ctx:<state>）。gate 自身の andon/gate の failure をいつも混ぜる
+# rollup <状態…>: GitHub の checks（CheckRun の status/conclusion か ctx:<state>）。gate 自身の andon/gate の印をいつも混ぜる
+# （既定は説明文とリンクの無い failure。gate_state・gate_desc・gate_link で変える）
 rollup() {
-    printf '%s\n' "$@" | jq -R -s '[split("\n")[] | select(. != "") |
+    printf '%s\n' "$@" | jq -R -s --arg gs "${gate_state:-FAILURE}" --arg gd "${gate_desc:-}" --arg gl "${gate_link:-}" '[split("\n")[] | select(. != "") |
       if startswith("ctx:") then {__typename: "StatusContext", context: "ci/x", state: .[4:]}
       else (split("/") | {__typename: "CheckRun", name: "test", status: .[0], conclusion: (.[1] // "")}) end]
-      + [{__typename: "StatusContext", context: "andon/gate", state: "FAILURE"}]' > "$tmp/gh/rollup.json"
+      + [{__typename: "StatusContext", context: "andon/gate", state: $gs, description: $gd, targetUrl: $gl}]' > "$tmp/gh/rollup.json"
 }
 rollup COMPLETED/SUCCESS
 # pr <path> <行数>: PR の head を進め、view・files・diff を作る
 pr() {
     head=$(change "$1" "${3:-x}")
     jq -n --arg h "$head" '{state:"OPEN",isDraft:false,headRefName:"feat",headRefOid:$h,baseRefName:"main",
-      mergeStateStatus:"CLEAN",author:{login:"plant-bot"},changedFiles:1,isCrossRepository:false}' > "$tmp/gh/view.json"
+      mergeStateStatus:"CLEAN",mergeable:"MERGEABLE",author:{login:"plant-bot"},changedFiles:1,isCrossRepository:false}' > "$tmp/gh/view.json"
     jq -n --arg p "$1" --argjson n "$2" '[[{filename:$p,additions:$n,deletions:0}]]' > "$tmp/gh/files.json"
     printf '+++ b/%s\n+%s\n' "$1" "${3:-x}" > "$tmp/gh/diff"
     git -C "$tmp/wt" fetch -q origin && git -C "$tmp/wt" checkout -q "$head"
@@ -122,9 +126,20 @@ unset HC_TERMINAL_ID
 # 2. 委譲が無ければ approve にならない（全部オーナー）
 got=$(gate "$id"); expect 4 needs_human 'delegation: merge=none < tier B'
 rec="$lib/gate/$head.json"
-jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and (.review | has("issue") and (has("task") | not)) and .checks == [] and .merged == false' "$rec" >/dev/null
-grep -q 'status .*state=failure' "$tmp/gh/posted" && grep -q comment "$tmp/gh/posted"
-ok '委譲が無ければ needs_human（記録を書き、status と comment を付ける）'
+jq -e '.tier == "B" and .delegation == {merge: "none", ok: false} and .review.state == "current" and (.review | has("issue") and (has("task") | not)) and .merged == false' "$rec" >/dev/null
+# ADR-0056 A1: 委譲の外でも、条件表の検査を回してから委譲を見る（オーナー待ちは検査とレビューが済んだものだけ）
+jq -e '.checks == [{cmd: "test -f docs/a.md", ok: true}] and .reasons == ["delegation: merge=none < tier B"]' "$rec" >/dev/null || die "委譲の外で検査を回していない: $(jq -c '{checks, reasons}' "$rec")"
+grep -q comment "$tmp/gh/posted" || die 'コメントを書いていない'
+ok '委譲が無ければ needs_human（検査を回し、記録を書き、status と comment を付ける）'
+# ADR-0056 A3: オーナー待ちは緑（context=andon/gate・state=success）。説明文は見出しに最初の理由を括弧で持つ（ADR-0054 決めたこと 5）
+grep 'status ' "$tmp/gh/posted" | grep -q 'context=andon/gate .*state=success .*description=andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）' ||
+    die "オーナー待ちに緑の印と理由の括弧が無い: $(cat "$tmp/gh/posted")"
+! grep -q 'status .*state=failure' "$tmp/gh/posted" || die "オーナー待ちに赤い印を書いた: $(cat "$tmp/gh/posted")"
+grep -q 'status .*state=failure' <<<"status api -X POST repos/example/app/statuses/x -f context=andon/gate -f state=failure" || die '赤い印の検査が当たらない（上の検査が何も見ていない）'
+# ADR-0054 A5: コメントを先に書き、gh pr comment が出した URL を印のリンク（target_url）にする
+[ "$(sed -n 1p "$tmp/gh/posted")" = comment ] && grep -q 'status .*target_url=https://github.com/example/app/pull/7#issuecomment-1$' "$tmp/gh/posted" ||
+    die "コメントが印より先でない・印にコメントへのリンクが無い: $(cat "$tmp/gh/posted")"
+ok 'needs_human は緑の印（理由を括弧で持つ）。コメントを先に書き、その URL を印のリンクにする（ADR-0056 A3・ADR-0054 A5）'
 # ADR-0026 A5: PR のコメントと commit status の説明文は外の人が読む文（内輪の語が無い。頭は andon gate: ）。記録の文は今までどおり
 inside='needs_human|tier|delegation|report\.json|issue\.yaml|条件表'
 jq -r '.decision, .reasons[]' "$rec" | grep -qE "$inside" || die '記録の文に内輪の語が無い（下の検査が何も見ていない）'
@@ -147,6 +162,15 @@ jq '.author.login = "someone-else"' "$tmp/view0.json" > "$tmp/gh/view.json"
 got=$(gate "$id" --dry-run); expect 4 needs_human '作者がセルの gh アカウントでない'
 cp "$tmp/view0.json" "$tmp/gh/view.json"
 ok 'base が既定ブランチでない・作者が gh のアカウントでなければ needs_human（どちらも GraphQL で読む）'
+# 2a-2. ADR-0056 A3（決めたこと 13）: 必須の check が足りない PR は mergeStateStatus が BLOCKED になる。mergeable が CONFLICTING なら衝突として needs_human
+jq '.mergeStateStatus = "BLOCKED" | .mergeable = "CONFLICTING"' "$tmp/view0.json" > "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 4 needs_human 'conflict'
+jq -e '.reasons == ["conflict"]' "$tmp/out" >/dev/null || die "衝突の理由が違う: $(jq -c .reasons "$tmp/out")"
+jq '.mergeStateStatus = "BLOCKED"' "$tmp/view0.json" > "$tmp/gh/view.json"
+got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation'
+! jq -e '.reasons | any(. == "conflict")' "$tmp/out" >/dev/null || die 'BLOCKED だけで衝突と読んだ'
+cp "$tmp/view0.json" "$tmp/gh/view.json"
+ok 'mergeStateStatus が BLOCKED で mergeable が CONFLICTING なら衝突として needs_human（BLOCKED だけでは衝突にしない）'
 
 # 2b. 同時に2本（dispatcher の巡と手の andon gate）: 後の run は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（書かない・写さない）
 posted=$(wc -l < "$tmp/gh/posted")
@@ -159,6 +183,28 @@ got=0; wait "$bg" || got=$?
 expect 4 needs_human 'ほかの run の記録'
 [ "$(wc -l < "$tmp/gh/posted")" = "$posted" ] && jq -e '.reasons == ["ほかの run の記録"]' "$rec" >/dev/null || die "lock を待つ間に書かれた記録を上書きした・PR に二重に付けた: $(tail -2 "$tmp/gh/posted")"
 ok '同時に打たれた gate は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（上書きしない・PR に二重に付けない）'
+
+# 2c. ADR-0054 A5: コメントが書けなくても印は書く（リンクの無い印）。ADR-0056 決めたこと 3: 同じ状態と説明文の印が既にあれば書き直さない
+rm -f "$tmp/gh/posted"; touch "$tmp/gh/commentfail"
+got=$(gate "$id"); expect 4 needs_human 'delegation'
+rm "$tmp/gh/commentfail"
+grep -q 'status .*state=success' "$tmp/gh/posted" && ! grep -q 'target_url' "$tmp/gh/posted" && ! grep -q '^comment' "$tmp/gh/posted" && grep -q 'コメントの記録に失敗' "$tmp/err" ||
+    die "コメントが落ちたときに印を書かない・リンクを付けた: $(cat "$tmp/gh/posted" 2>/dev/null) $(cat "$tmp/err")"
+rm -f "$tmp/gh/posted"
+gate_state=SUCCESS gate_desc='andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）' gate_link=https://github.com/example/app/pull/7#issuecomment-1 rollup COMPLETED/SUCCESS
+got=$(gate "$id"); expect 4 needs_human 'delegation'
+grep -q '^comment' "$tmp/gh/posted" && ! grep -q '^status' "$tmp/gh/posted" || die "同じ印が既にあるのに書き直した: $(cat "$tmp/gh/posted")"
+rm -f "$tmp/gh/posted"
+# 同じ状態と説明文でもリンクが無い印（前のバージョンが書いた印・コメントが書けなかった回の印）は、リンクを付けて書き直す（ADR-0054 決めたこと 6）
+gate_state=SUCCESS gate_desc='andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更）' rollup COMPLETED/SUCCESS
+got=$(gate "$id"); expect 4 needs_human 'delegation'
+grep -q '^status .*state=success .*-f target_url=https://github.com/example/app/pull/7#issuecomment-' "$tmp/gh/posted" || die "リンクの無い同じ印にリンクを付けて書き直さない: $(cat "$tmp/gh/posted")"
+rm -f "$tmp/gh/posted"
+gate_state=SUCCESS gate_desc='andon gate: 確かめが通った変更です' rollup COMPLETED/SUCCESS
+got=$(gate "$id"); expect 4 needs_human 'delegation'
+grep -q '^status .*state=success' "$tmp/gh/posted" || die "説明文の違う緑を書き直さない: $(cat "$tmp/gh/posted")"
+rollup COMPLETED/SUCCESS
+ok 'コメントが書けなくても印はリンク無しで書く。同じ状態と説明文でリンクのある印は書き直さず、リンクが無いか説明文が違えば書き直す（ADR-0054 A5・決めたこと 6・ADR-0056 決めたこと 3）'
 
 # 3. andon delegate: オーナーが委譲を書く（project.json の delegation。project.json は先にオーナーが書く）
 rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?

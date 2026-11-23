@@ -14,10 +14,12 @@ type Settled struct {
 
 // Settle は andon issue settle の出力（docs/contract.md の「オーナーのマージの片付け」）。Notify を待ちに積むのは dispatcher。
 // State は skip（見ない）・watching（まだ OPEN）・auto（dispatcher がマージした）・closed・held・finished。
+// Log は dispatcher が自分のログに写す行（PR の印を揃えた・揃えられなかった。ADR-0056 決めたこと 5）。
 type Settle struct {
 	Issue  string   `json:"issue"`
 	State  string   `json:"state"`
 	Notify []Notice `json:"notify"`
+	Log    []string `json:"log,omitempty"`
 }
 
 // Notice は Settle が返す通知の種類と detail（通知の形は docs/contract.md §6）。

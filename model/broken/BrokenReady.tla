@@ -7,6 +7,7 @@ BrokenWorkerReady ==
     /\ result \in {"clean", "mustfix"}
     /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
     /\ UNCHANGED <<worker, wt, pr, reviewVars, q, cancel, mergeAuto, moved, autoMerged, qVars>>
+    /\ UNCHANGED mark
 
 BrokenNext ==
     \/ ChiefOfStaffStarts \/ WorkerAsks \/ ChiefOfStaffAnswers \/ OwnerAnswersInPane \/ DispatcherNotifiesAnswer
@@ -17,7 +18,8 @@ BrokenNext ==
     \/ ChiefOfStaffSendsBack \/ ChiefOfStaffRevives \/ WorkerTakesFix \/ DispatcherMerges
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
-    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges \/ Done
+    \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
+    \/ DispatcherAlignsMark \/ Done
 
 BrokenSpec == Init /\ [][BrokenNext]_vars
 

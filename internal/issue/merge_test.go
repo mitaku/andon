@@ -120,11 +120,29 @@ func TestRetryMerge(t *testing.T) {
 		{"衝突", "gh pr merge: exit status 1 GraphQL: Pull Request is not mergeable (mergePullRequest)", 0, false},
 		{"base が古い（ruleset）", "gh pr merge: exit status 1 GraphQL: Head branch is out of date (mergePullRequest)", 0, false},
 		{"502", "gh pr merge: exit status 1 HTTP 502: Bad Gateway", 0, false},
+		// ADR-0056 A7（決めたこと 12）: 必須の check で断られた（印を書いた直後の BLOCKED）も、3 回まで打ち直し、4 回目で問いにする
+		{"必須の check で断られた 1 回目", "gh pr merge: exit status 1 X Pull request example/app#7 is not mergeable: the base branch policy prohibits the merge.", 0, true},
+		{"必須の check で断られた 3 回目", "gh pr merge: exit status 1 X Pull request example/app#7 is not mergeable: the base branch policy prohibits the merge.", mergeRetries - 1, true},
+		{"必須の check で断られた 4 回目", "gh pr merge: exit status 1 X Pull request example/app#7 is not mergeable: the base branch policy prohibits the merge.", mergeRetries, false},
 		{"文が無い", "gh pr merge: exit status 1 ", 0, false},
 	} {
 		if got := RetryMerge(c.failure, c.retries); got != c.want {
 			t.Errorf("%s: RetryMerge = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// ADR-0056 A7（決めたこと 14 の細部）: gate が判定できなかったときの問いの先頭（推奨）は「原因を直して回し直す」。
+func TestGateFailedQuestion(t *testing.T) {
+	q := GateFailedQuestion("T-0001", "題", "andon gate T-0001: 終了コード 3 x")
+	if len(q.Options) != 2 || q.Options[0].Pick == nil || !*q.Options[0].Pick || !strings.Contains(q.Options[0].Label, "原因を直して") || !strings.Contains(q.Options[0].Label, "回し直す") {
+		t.Errorf("先頭が原因を直して回し直すでない: %+v", q.Options)
+	}
+	if q.Options[1].Pick != nil || !strings.Contains(q.Options[1].Label, "オーナーが PR を読んで") {
+		t.Errorf("2 つ目がオーナーが読むでない: %+v", q.Options[1])
+	}
+	if q.From != "gate" || q.Kind != "irreversible" || q.Facts[0] != "andon gate T-0001: 終了コード 3 x" {
+		t.Errorf("問いの形: %+v", q)
 	}
 }
 
