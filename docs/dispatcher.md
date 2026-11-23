@@ -216,7 +216,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 オーナーがエージェントの仕事を直した跡（design.md §1.9 の (b) の表の 1〜3）を、振り返りの入力として課題の `library/corrections.json` に1回だけ集める。形と拾う規則は [contract.md](contract.md) §14。
 
 - **合図は §2.5 と同じ `done` の行**。拾った id は控えの `Corrections` に積み、5c で集める。`corrections.json` がもう在れば書かない（同じ finish を2度拾っても1回）。レビュアーの課題には書かない。
-- 読むのは kanban（`kanban show --json` の `questions`・`library/questions/<n>.json`・`report.json`・予約キー `must_fix`）と、`report.json` に `pr` があれば `gh pr view --json state,commits,comments,reviews`・インラインのレビューコメント（`gh api …/pulls/<n>/comments`）とオーナーの commit ごとの `gh api …/commits/<sha>`。
+- 読むのは kanban（`kanban show --json` の `questions`・`library/questions/<n>.json`・`report.json`・予約キー `must_fix`）と、`report.json` に `pr` があれば `gh pr view --json state,commits,comments,reviews`・インラインのレビューコメント（`gh api …/pulls/<n>/comments`）とオーナーの commit ごとの `gh api …/commits/<sha>`（親の数とファイル。merge commit は外す。Chief Engineer の課題では commit を数えず、読まない）。
 - 手直しが無ければ空の配列で書く。読めないものがあれば書かず、次の見回りで1回だけ打ち直し、それも駄目なら通知 `corrections`（`error`）を積んで控えから外す（「集めていない」をファイルの無さで残し、Chief of Staff が手で集めるか決める）。
 - 判断はしない。拾うのは事実だけで、どれを定義（テスト・`REVIEW.md`・`AGENTS.md`・skill）の直しにするかは振り返り（PR を通る）。
 

@@ -662,7 +662,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 課題の `library/corrections.json`。オーナーがエージェントの仕事を直した跡（[design.md](design.md) §1.9 の (b) の表の 1〜3）を、振り返りの入力として1か所に集める。書き手は dispatcher だけで、`log.jsonl` の `{"status": "done"}` の行（`andon issue finish`。Chief of Staff の `kanban done` も）を拾った課題ごとに**1回だけ**書く。もう在れば書き直さない（同じ finish を2度拾っても1回）。レビュアーの課題には書かない。
 
 - **空の配列は「無かった」、ファイルが無いのは「集めていない」。** 手直しが無ければ `{"at": …, "corrections": []}` を書く。`gh` か kanban が読めなければ書かず、次の見回りで1回だけ打ち直す。それも駄目なら書かずに通知 `corrections`（§6。`detail` は `error`）を Chief of Staff へ積む。
-- 読み手は振り返りだけ。gate も dispatcher も判定に使わない。端末に送った文（表の 4）と Chief Engineer の推奨案を覆したこと（表の 5）は拾わない（文の解析になる）。
+- 読み手は3つ: 振り返り（束の中の記録をそのまま読む）、`andon measure`（手直しの記録が1件以上ある課題を対抗の指標の `counter.reopened`・`counter.corrected` に数える）、Chief of Staff（片付いた課題の記録を wiki の元資料に写す）。gate も dispatcher も判定に使わない。端末に送った文（表の 4）と Chief Engineer の推奨案を覆したこと（表の 5）は拾わない（文の解析になる）。
 
 ```json
 {"at": "2026-11-09T09:00:00Z",
@@ -684,12 +684,13 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `kind` | 元 | 拾う規則 | キー |
 |---|---|---|---|
 | `answer` | `questions.yaml`（`kanban show --json` の `questions`）＋ `library/questions/<n>.json` | 答えがある（`answered`・`received`）問いのうち、gate の問い（`from: gate`）と範囲の問い（`kind: scope`。Chief of Staff が答える）を除き、答え（前後の空白を除く）が推奨案（`pick: true`）の `label` と違うもの。問いの JSON が無い問い（`andon issue ask` を通らない）は推奨案が分からないので拾わない | `question`（`n`）・`decision_kind`（問いの `kind`）・`recommended`・`picked`（kanban の答えのまま） |
-| `pr` | `gh pr view <n> --json state,commits,comments,reviews`・`gh api --paginate --slurp repos/<owner>/<repo>/pulls/<n>/comments`（インラインのレビューコメント）・オーナーの commit ごとに `gh api repos/<owner>/<repo>/commits/<sha>` | コメント（会話欄・レビューの本文・インラインのレビューコメント）のうち `andon gate: ` で始まらないもの（gate のコメントは同じ token で書かれる）と本文の無いもの・インラインでは `user.type` が `Bot` のものを除いたものと、PR の commit のうち `report.json` の `commit`（担当の最後の報告）より後のもの。`report.json` の `commit` が PR に無ければ commit は数えない。どちらも無ければ書かない | `comments[]`（`author`・`at`・`body`。インラインのレビューコメントは `file`・`line` も）・`human_commits[]`（`sha`・`headline`・`files[]`） |
+| `pr` | `gh pr view <n> --json state,commits,comments,reviews`・`gh api --paginate --slurp repos/<owner>/<repo>/pulls/<n>/comments`（インラインのレビューコメント）・オーナーの commit ごとに `gh api repos/<owner>/<repo>/commits/<sha>`（`parents` と `files`） | コメント（会話欄・レビューの本文・インラインのレビューコメント）のうち `andon gate: ` で始まらないもの（gate のコメントは同じ token で書かれる）と本文の無いもの・インラインでは `user.type` が `Bot` のものを除いたものと、PR の commit のうち `report.json` の `commit`（担当の最後の報告）より後のもの。そのうち親が 2 つ以上の commit（main を取り込んだ merge commit など）は除く。親の数が読めない commit は入れる。`report.json` の `commit` が PR に無ければ commit は数えない。Chief Engineer の課題（`profile: chief-engineer`）では commit を数えない（報告のあとの push で報告を書き直さないので、報告より後の commit が Chief Engineer のものでありうる）。コメントはどの課題でも拾う。どちらも無ければ書かない（報告より後が merge commit だけでコメントも無いときも書かない） | `comments[]`（`author`・`at`・`body`。インラインのレビューコメントは `file`・`line` も）・`human_commits[]`（`sha`・`headline`・`files[]`） |
 | `override`（指摘） | `report.json` の `waived` ＋ PR の `state` | PR が `MERGED` で、`waived` のうち `must_fix`（Chief of Staff が書いたもの。無ければ全部）以上の重さのもの。gate は担当がレビュアーを覆したものをオーナーへ回す（`needs_human`）ので、マージされたならオーナーが通した | `finding`（`severity`・`file`・`line`）・`reason` |
 | `override`（問い） | `questions.yaml` ＋ `library/questions/<n>.json` | 答えがある gate の問い（`from: gate`。`needs_human` へのオーナーの答え）。推奨案どおりの答えも拾う。機械が閉じた答えは除く: `andon issue settle` がオーナーのマージを見て書いた「オーナーがマージした（<PR>）」と、gate の判定のあとに PR の head が動いて gate を回し直すときの「PR の head が gate のあとに動いた（<前> → <今>）。gate が今の head で回し直す」と「PR の head が動いた（<前> → <今>）。gate が今の head で決め直した（記録 <パス>）」。見分けは答えの全体が一致するかで、答えた者（`answeredBy`）では見分けない（dispatcher が止まっているときは Chief of Staff が settle を打つ）。オーナーが自分で書いた答えは、推奨案と同じでも違っても拾う | `question`・`recommended`・`answer` |
 
 - オーナーの commit を author の email で見分けない: 担当も repo のオーナーの noreply アドレスで commit するので、email ではオーナーと担当が分かれない（[decisions/2026-11-09-corrections-json.md](decisions/2026-11-09-corrections-json.md)）。
-- 拾うのは事実だけで、手直しの意味は読まない（答えが推奨案と同じ意味の別の言い方でも `answer` に入る。振り返りが読んで捨てる）。多めに拾い、少なく拾わない。
+- 拾うのは事実だけで、手直しの意味は読まない（答えが推奨案と同じ意味の別の言い方でも `answer` に入る。振り返りが読んで捨てる）。多めに拾い、少なく拾わない。ただし merge commit と Chief Engineer の課題の commit は、エージェントの仕事を直した跡でないか、オーナーのものと言えないので除く（[ADR-0058](adr/0058-agents-stay-out-of-pr-conversation.md) 決めたこと 7・8）。
+- エージェントは PR の会話欄に書かない決まりなので、`pr` の `comments` に入るのはメンテナーのコメントのはずである。断れない書き方でエージェントが書いたコメントは入る（拾う側では見分けない）。振り返りが中身を読んで、決まりが破られた跡として拾う（ADR-0058 決めたこと 11）。
 
 ## 15. 信号の記録（`<slug>.signals.json`）
 

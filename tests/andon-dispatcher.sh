@@ -70,7 +70,8 @@ case "\$*" in
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
     else jq --arg s "\$(if [ -f \$d/merged ]; then echo MERGED; else echo OPEN; fi)" '{state:\$s,commits:[{oid:.headRefOid,messageHeadline:"x"}],comments:[],reviews:[]}' \$d/view.json; fi ;;
-  "api repos/example/app/commits/"*) echo '{"files":[{"filename":"docs/b.md"}]}' ;;
+  "api repos/example/app/commits/"*)   # オーナーの commit ごとの親とファイル（commits/<sha>.json があればその中身）
+    sha=\${2##*/}; if [ -f \$d/commits/\$sha.json ]; then cat \$d/commits/\$sha.json; else echo '{"files":[{"filename":"docs/b.md"}]}'; fi ;;
   "api --paginate --slurp repos/example/app/pulls/7/comments") if [ -f \$d/inline.json ]; then cat \$d/inline.json; else echo '[[]]'; fi ;;   # インラインのレビューコメント
   "pr view 8 --repo example/app --json state,mergeCommit,mergedAt") echo '{"state":"CLOSED","mergeCommit":null,"mergedAt":null}' ;;   # 結果の記録（閉じられた PR）
   "pr view 7 --repo example/app --json state,mergeCommit,mergedAt")   # 結果の記録（outcomefail があれば落ちる。closed・merged で PR の状態）
@@ -452,6 +453,21 @@ jq -e '.corrections == [{kind: "pr", comments: [{author: "o", at: "2026-11-09T01
 emit "$(cj "$id")" corrections-pr-inline.json
 rm "$tmp/gh/inline.json"
 ok 'インラインのレビューコメントだけの PR でも pr を1件書く（Bot のコメントは数えない）'
+# 1d-2c. 報告より後の commit が、main を取り込んだ merge commit（親 2 つ）と親 1 つの 1 本ずつ → human_commits は親 1 つの 1 本だけ（ADR-0058 決めたこと 7）
+id=$(newtask '見出しを揃える' person)
+work "$id" docs/a.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+mc=$(printf 'e%.0s' {1..40}); oc=$(printf 'b%.0s' {1..40})
+jq --arg m "$mc" --arg o "$oc" '{state: "MERGED", commits: [{oid: .headRefOid, messageHeadline: "x"}, {oid: $m, messageHeadline: "Merge branch main"}, {oid: $o, messageHeadline: "オーナーが直した"}], comments: [], reviews: []}' \
+    "$tmp/gh/view.json" > "$tmp/gh/prc.json"
+mkdir -p "$tmp/gh/commits"
+jq -n --arg h "$head" '{parents: [{sha: $h}, {sha: "0000000000000000000000000000000000000000"}], files: [{filename: "docs/adr/README.md"}]}' > "$tmp/gh/commits/$mc.json"
+jq -n --arg m "$mc" '{parents: [{sha: $m}], files: [{filename: "docs/b.md"}]}' > "$tmp/gh/commits/$oc.json"
+cos_done "$id"; dispatcher
+jq -e --arg o "$oc" '.corrections == [{kind: "pr", comments: [], human_commits: [{sha: $o, headline: "オーナーが直した", files: ["docs/b.md"]}]}]' "$(cj "$id")" >/dev/null ||
+    die "merge commit を外し、親 1 つの commit だけを human_commits にしていない: $(cat "$(cj "$id")" 2>/dev/null)"
+rm -r "$tmp/gh/prc.json" "$tmp/gh/commits"
+ok '報告より後の merge commit（親 2 つ）はオーナーの commit に数えず、親 1 つの commit だけを human_commits に書く'
 # 1d-3. must_fix 以上の指摘を waive してマージした → override
 id=$(newtask '例外を足す' person)
 work "$id" docs/a.md
