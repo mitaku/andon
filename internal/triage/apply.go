@@ -127,7 +127,7 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		return err
 	}
 	for _, g := range applyGroups(items) {
-		newID, err := l.applyGroup(id, date, g)
+		newID, keys, err := l.applyGroup(id, date, g)
 		if err != nil {
 			return err
 		}
@@ -139,6 +139,13 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 		}
 		if err := save(); err != nil {
 			return err
+		}
+		// 予約キーは、足した課題を記録に残してから書く。ここで止まっても、andon issue start が記録から
+		// トリアージの足した課題と分かり、無いキーを既定で書いて起動する（打ち直しは記録済みで断るので要らない）
+		if len(keys) > 0 {
+			if _, err := l.kanban("", append([]string{"set", newID}, keys...)...); err != nil {
+				return err
+			}
 		}
 		// 本文と理由を記録に残してから、仕分けの済んだ memory を消す（ADR-0020 決めたこと 5）。keep は残す。
 		// 収集のあと書き換わったものは消さずに残し、理由を記録に書く（新しい中身は次のトリアージで拾う。A-0155）。
@@ -275,8 +282,8 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, error) {
 	return repos, nil
 }
 
-// applyGroup は1つの決定（bundle は束）を kanban に当て、足した課題の id を返す。
-func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
+// applyGroup は1つの決定（bundle は束）を kanban に当て、足した課題の id と、記録のあとに書く予約キーを返す。
+func (l *ledger) applyGroup(id, date string, g []item) (string, []string, error) {
 	first := g[0]
 	switch first.decision() {
 	case "close":
@@ -284,25 +291,22 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 			src := first.keyPart(1)
 			note := fmt.Sprintf("不要（%s・%s）: %s\n", id, date, first.str("reason"))
 			if _, err := l.kanban(note, "report", src, "--append"); err != nil {
-				return "", err
+				return "", nil, err
 			}
 			if _, err := l.kanban("", "done", src); err != nil {
-				return "", err
+				return "", nil, err
 			}
 		}
 	case "fix", "bundle":
-		// 予約キーも足したその場で書く（打つのは Chief of Staff の端末なので、andon issue start と gate の履歴の照合が通る）。
+		// 予約キーは呼び手が記録のあとに書く（打つのは Chief of Staff の端末なので、andon issue start と gate の履歴の照合が通る）。
 		// 値は束の review と既定（ledger.DefaultSettings）。依頼書の Settings はその写し
 		profile := first.issueStr("profile")
 		keys := ledgercli.DefaultSettings(profile, groupReview(g))
 		newID, err := l.kanban(groupBrief(g, keys), "add", first.issueStr("title"), "--repo", first.issueStr("repo"), "--profile", profile, "--brief", "-")
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		if _, err := l.kanban("", append([]string{"set", newID}, keys...)...); err != nil {
-			return "", err
-		}
-		return newID, nil
+		return newID, keys, nil
 	case "person":
 		brief := "出どころ: " + first.key() +
 			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
@@ -310,14 +314,14 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 			"\n理由: " + first.str("reason") + "\n"
 		newID, err := l.kanban(brief, "add", first.str("question")+personSuffix, "--brief", "-")
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if _, err := l.kanban("", "set", newID, "who=person"); err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return newID, nil
+		return newID, nil, nil
 	}
-	return "", nil
+	return "", nil, nil
 }
 
 // groupReview は束の review（どれか1つが on なら on）。

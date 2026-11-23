@@ -574,6 +574,52 @@ func TestStartFillsRoutineSettings(t *testing.T) {
 	}
 }
 
+// トリアージの apply が足した課題（記録の created_issue）は、apply が予約キーを書く前に止まっていても、Chief of Staff の端末で打てば
+// 無いキーを既定で書いてから起動する。review は決定の値（束ならどれか1つが on で on）。記録に無い課題は今までどおり断る。
+func TestStartFillsTriageSettings(t *testing.T) {
+	record := func(f *startFixture, created string, reviews ...string) {
+		var items []map[string]any
+		for _, r := range reviews {
+			items = append(items, map[string]any{"key": "k", "decision": "bundle", "created_issue": created, "issue": map[string]any{"review": r}})
+		}
+		items = append(items, map[string]any{"key": "p", "decision": "person", "created_issue": "S-0099"})
+		dir := filepath.Join(f.root, "kanban", "library", "triage")
+		os.MkdirAll(dir, 0o755)
+		b, _ := json.Marshal(map[string]any{"items": items})
+		os.WriteFile(filepath.Join(dir, "2026-11-23-S-0005.json"), b, 0o644)
+	}
+	for _, c := range []struct {
+		name, created string
+		reviews       []string
+		want          string
+	}{
+		{"review on", "S-0007", []string{"off", "on"}, "kanban set S-0007 review=on must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium | HC_TERMINAL_ID=t5"},
+		{"review off", "S-7", []string{"off"}, "kanban set S-0007 review=off must_fix=major merge=person estimate=medium | HC_TERMINAL_ID=t5"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newStart(t)
+			f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+			record(f, c.created, c.reviews...)
+			rc, out, errs := f.run("--dry-run")
+			if rc != 0 || !strings.Contains(out, "トリアージ S-0005 が足した課題なので") || f.has("kanban set") {
+				t.Fatalf("dry-run: rc=%d out=%q err=%q", rc, out, errs)
+			}
+			if rc, out, errs := f.run(); rc != 0 || !f.has(c.want) {
+				t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+			}
+		})
+	}
+	t.Run("not in the record", func(t *testing.T) {
+		f := newStart(t)
+		f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+		record(f, "S-0008", "on")
+		rc, _, errs := f.run()
+		if rc != 1 || !strings.Contains(errs, "無い・知らない値: review・") || f.has("kanban set") {
+			t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
+		}
+	})
+}
+
 func TestStartHcRunFails(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN_RC", "1")

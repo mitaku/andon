@@ -607,4 +607,29 @@ old_title=$(kanban add '古い印（人の判断待ち）'); new_title=$(kanban 
 jq -e '[.items[]|select(.kind=="question").text] | index("- 見出し 人に聞くこと の問い") != null and index("- 見出し オーナーに聞くこと の問い") != null' "$tmp/words.json" >/dev/null
 jq -e --arg o "$old_title" --arg n "$new_title" '[.items[]|select(.kind=="person").from] | index($o) != null and index($n) != null' "$tmp/words.json" >/dev/null
 echo 'ok collect: reads both the old and the new heading and title suffix (ADR-0036 A5)'
+# 足した課題に予約キーを書く前に止まっても（ここでは予約キーの kanban set が落ちる）、足した課題は記録に残る
+# （andon issue start が記録からトリアージの課題と分かり、無いキーを既定で書く）。打ち直しは記録済みで断り、課題を重ねて足さない。
+stop=$(kanban add stop)
+sl=kanban/issues/$stop/library
+mkdir -p "$sl"
+"$script" triage collect --limit 1000 > "$sl/items.json"
+r3=$(jq -c '.items[]|select(.kind=="question" and .text=="- 見出し 人に聞くこと の問い")
+  |{key,commit,decision:"fix",reason:"直す",issue:{title:"止まる直し",repo:"example.invalid/me/app",profile:"claude",review:"on",brief:"直す"}}' "$sl/items.json")
+[[ -n $r3 ]]
+jq -n --argjson r "$r3" '{goal:"止まる",collected:"2026-11-20T00:00:00Z",items:[$r]}' > "$sl/decisions.json"
+mkdir -p "$tmp/failset"
+printf '#!/bin/sh\ncase "$1 $3" in "set review="*) echo "予約キーを書けない" >&2; exit 1 ;; esac\nexec %s "$@"\n' "$kanban" > "$tmp/failset/kanban"
+chmod +x "$tmp/failset/kanban"
+set +e
+PATH="$tmp/failset:$PATH" HC_TERMINAL_ID=t50 "$script" triage apply "$stop" >/dev/null 2> "$tmp/err"; rc=$?
+set -e
+[[ $rc == 1 ]] && grep -q '予約キーを書けない' "$tmp/err"
+rec=$(ls kanban/library/triage/*-"$stop".json)
+made=$(jq -r '.items[0].created_issue // empty' "$rec")
+[[ -n $made && -z $(kanban show "$made" --json | jq -r '.issue.review // empty') ]]
+set +e
+HC_TERMINAL_ID=t50 "$script" triage apply "$stop" >/dev/null 2>&1; rc=$?
+set -e
+[[ $rc == 1 && $(kanban list --all --json | jq '[.[]|select(.title=="止まる直し")]|length') == 1 ]]
+echo 'ok apply: an issue added before its reserved keys fail to be written stays in the record; a rerun adds no second issue'
 echo 'all passed'
