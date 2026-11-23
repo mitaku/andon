@@ -14,6 +14,7 @@
 | 4 | レビュアーの観点に、画面の証拠が無い・差分と合わない、を足す | `package/skills/independent-review/SKILL.md` | 生きている |
 | 5 | 同梱の skill は boot が symlink で張る | `internal/boot/extskills.go` | 生きている |
 | 6 | managed settings に許可規則を managed だけにする設定を足す | `package/settings.json` | 生きている |
+| 7 | PR を出したあとの画面の写しは、コメントでなく PR の本文に足す | `docs/adr/0058-agents-stay-out-of-pr-conversation.md` | まだ実装していない |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
@@ -47,6 +48,9 @@ Andon の担当は Web の画面を持つ案件でも、今はテストとレビ
 6. **2026-11-11 managed settings（`package/settings.json`）に `allowManagedPermissionRulesOnly: true` を足す。** 許可の規則は managed だけになり、skill の `allowed-tools` と user／project／local の `allow` は無視される。
    理由（反論 3）: 同梱の skill の frontmatter は `allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)` で、担当がこの skill を読んだ turn の中では `npx <任意の package>` が許可の確認なしで通る（Claude Code の docs: allowed-tools はその turn の間だけ許可、deny と ask は勝つ）。Node の案件で npm／npx は正当に使うので deny にできない。Andon はもともと「常に許可」を選ばず（chief-of-staff skill §4）、許可の確認は Chief of Staff が答える設計なので、managed だけにしても失うものが無い。必要な allow は `package/settings.json` に足す。
    捨てた案: 受け入れる（その turn だけの穴。セルが境界）／managed に `ask` の `Bash(npx:*)`・`Bash(npm:*)`（`npm test` も毎回確認になり Chief of Staff の答える回数が増える）／deny（Node の案件が止まる）。
+
+7. **2026-11-23 PR を出したあとの画面の写しは、コメントでなく PR の本文に足す。**（[ADR-0058](0058-agents-stay-out-of-pr-conversation.md) 決めたこと 6 が改めた）
+   決めたこと 3 の「`gh pr create`／`comment --attach` で PR に添付」のうち、PR を出したあとの打ち方を `gh pr edit <n> --attach` に改める。エージェントは PR の会話欄に書かない、と決めたからである（ADR-0058 決めたこと 2）。証拠が PR への画像の添付であることと、`report.json` の証拠欄に URL と command を書くことは変えない。受け入れ条件 4 の「§3 に `gh pr create/comment --attach`」は、ADR-0058 の受け入れ条件 3 が置き換える。
 
 ## やらないこと（範囲の外。理由）
 
