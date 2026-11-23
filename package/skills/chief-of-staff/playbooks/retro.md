@@ -19,7 +19,7 @@
    読めない・合わないなら、担当に `hc send` で戻す（`andon retro patterns` から打ち直させる）。
 4. **当てる**: `andon retro apply <id>`。終了コード 1 は理由を読んで担当に戻す。記録は `library/retro-applied.json`（途中で落ちても、打ち直せば残りから続ける）。
    当てたら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
-5. **続ける**: `apply` が足した直す課題（`parent` が振り返りの課題）は、ほかの課題と同じ決まりで Settings を書いてから（`brief.md`・`cut.md`。Andon のパッケージと `AGENTS.md` に触れる直しは、既定の条件表でレベル C。委譲の `merge` が C でなければオーナーがマージ）、`start.md` の手順で起動する。依頼書の本文は `apply` が書いたものを書き換えない。足りなければ追記する。
+5. **続ける**: `apply` が足した直す課題（`parent` が振り返りの課題）は、予約キーを既定（`review=off`・`merge=person`・`estimate=medium` など）で持って足される。`profile` を書き、既定から変える Settings だけ書き直してから（`brief.md`・`cut.md`。Andon のパッケージと `AGENTS.md` に触れる直しは、既定の条件表でレベル C。委譲の `merge` が C でなければオーナーがマージ）、`start.md` の手順で起動する。依頼書の本文は `apply` が書いたものを書き換えない。足りなければ追記する。
    オーナーの課題（タイトルが「Andon へ伝えるか: …」。このプロジェクトが Andon の repo を持たないとき）は ask-one-by-one で1問ずつ。
    改善の PR のラベル `retro` が repo に無ければ、最初の1回に `gh label create retro --repo <owner>/<repo>` で作る。
 6. **オーナーへ**: 知らせる（オーナーがいるターンならその返事で。いなければ kanban の問いとボードで足りる）。「振り返りでパターンを a 件見つけた。直す課題を b 件、オーナーの課題を c 件切った。d 件は捨てた。」。捨てたものはオーナーが `retro.json` で見て戻せる（戻す＝課題に切る）。

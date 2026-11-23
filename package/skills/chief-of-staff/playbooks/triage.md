@@ -26,7 +26,7 @@ kanban に溜まったもの（報告の Next・見送り・Remember・For AGENT
 4. **適用する**: `andon triage apply <id>`。起動する上限は、`apply` が `projects/<slug>/project.json` の `chief_of_staff.triage_max_issues`（無ければ 3）から読む。上限はオーナーが `project.json` に書くもので、`--max-issues` で変えない。
    `review` の全部に「閉じてよい」が揃うまで `apply` は kanban に手を入れずに断る（覆したものが残っていても断る）。終了コード 1 は理由を読み、判定が足りなければ 3 に戻り、ほかは担当に戻す。
    要約は `library/triage/<日付>-<id>.md`、記録は同じ名前の `.json`。適用したら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
-5. **続ける**: `apply` が足した fix／bundle の課題は、オーナーに聞かずに `start.md` の手順で起動する（枠〈`andon waiting` の `slots.free`〉の中で。残りは次の周回）。
+5. **続ける**: `apply` が足した fix／bundle の課題は、予約キーを既定（`review` は決定の値・`merge=person`・`estimate=medium` など）で持って足される。既定から変えるものだけ書き直し、オーナーに聞かずに `start.md` の手順で起動する（枠〈`andon waiting` の `slots.free`〉の中で。残りは次の周回）。
    報告の `## Next` の「〜の Chief of Staff へ委譲」は規約10の形で渡す（下）。`keep`「片付け待ち」は `finish.md` の手順で `andon issue finish`。
    memory の項目（`kind: memory`）で `close`「wiki へ: <タイトル>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（`wiki.md`）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。
 6. **オーナーへ**: 知らせる（オーナーがいるターンならその返事で、いなければ `herdr notification show "<slug> のトリアージで a 件を閉じた。b 件を直す課題にし、c 件をオーナーへ回した。要約は library/triage/…"`。TUI が動いているときだけ効く。無ければ kanban の問いとボードで足りる）。

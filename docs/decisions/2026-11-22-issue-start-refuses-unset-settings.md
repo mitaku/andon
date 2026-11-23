@@ -1,6 +1,7 @@
 # andon issue start は、予約キーが揃っていない課題を起動せずに断る
 
 - 日付: 2026-11-22
+- 覆された: [2026-11-23-commands-write-default-settings.md](2026-11-23-commands-write-default-settings.md)（ルーチンが足した課題だけ）
 - 出典: Chief of Staff の依頼（2026-11-22）。11月の3日間で少なくとも3件、予約キーが無いか前のアドレスの Chief of Staff が書いた課題で、担当が実装を終えたあと `andon issue review-request` か `ready` を断られ、Chief of Staff が気づくまで止まった
 
 - `andon issue start` は、起動する前に予約キー（[contract.md](../contract.md) §2）を確かめる。要るキーが無い・知らない値か、最後に書いたのが今の Chief of Staff の端末でない（gate・dispatcher と同じ履歴の照合）なら、何も作らずに終了コード 1 で断る。`--dry-run` も同じ理由で断る。

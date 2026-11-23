@@ -47,6 +47,7 @@ type startPlan struct {
 	BriefPath    string       `json:"brief_path"`
 	Brief        string       `json:"brief"`
 	Checks       []startCheck `json:"checks"`
+	Fill         []string     `json:"fill,omitempty"` // 起動の前に書く予約キー（ルーチンが足した課題の無いキー。checkSettings）
 	repoDir      string
 	command      *string // template の command（起動の記録の起動行。dry では読まない）
 }
@@ -83,6 +84,12 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 
 	id := c.id
+	if len(p.Fill) > 0 {
+		// ルーチンが足した課題の無い予約キーを、Chief of Staff の端末で書く（gate と dispatcher の履歴の照合も通る）
+		if _, err := c.l.Run("", append([]string{"set", id}, p.Fill...)...); err != nil {
+			return err
+		}
+	}
 	undo := func() {}
 	if p.Repo != "" {
 		wt, err := spawn.NewWorktree(p.repoDir, c.l.Slug, id, p.Title)
@@ -278,6 +285,9 @@ func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) 
 // 最後に書いたのが今の Chief of Staff の端末か（ledger.Trusted。gate・dispatcher と同じ履歴の照合）。
 // 揃っていなければ起動しない: 担当は予約キーを書けず、実装を終えてから review-request・ready・gate で止まるため。
 // 値は決めずに書かない。直す kanban set の行を出し、無いキーの値は選ぶ場所を残す（値を決めるのは Chief of Staff）。
+// ただしルーチンが足した課題（ledger.FiredBy）は、Chief of Staff の端末で打つときだけ、無いキーを既定（ledger.DefaultSettings。
+// review は off）で埋める: 足すのは dispatcher の kanban tick で、Chief of Staff の書いた値を持てないため。埋めるキーは p.Fill に置き、
+// start が起動の前に kanban set で書く（--dry-run は書かない）。書いてあるキーは変えない。
 // Chief Engineer の課題は見ない（予約キーを置かない）。レビュアーの課題は plan がこの前に断る。
 func (c *ctx) checkSettings(p *startPlan) error {
 	if p.Profile == chiefengineer.Profile {
@@ -286,6 +296,14 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	}
 	keys, optional := requiredSettings(c.issue)
 	rows, s, cos := c.l.Log(), ledger.SettingsOf(c.issue), c.l.ChiefOfStaff()
+	defaults := map[string]string{}
+	routine := ledger.FiredBy(rows, c.issue)
+	if routine != "" && cos != "" && os.Getenv("HC_TERMINAL_ID") == cos {
+		for _, kv := range ledger.DefaultSettings(p.Profile, "off") {
+			k, v, _ := strings.Cut(kv, "=")
+			defaults[k] = v
+		}
+	}
 	var need, missing, untrusted, args []string
 	for _, k := range keys {
 		v := c.issue.Str(k)
@@ -294,6 +312,8 @@ func (c *ctx) checkSettings(p *startPlan) error {
 		}
 		need = append(need, k)
 		switch {
+		case v == "" && defaults[k] != "":
+			p.Fill = append(p.Fill, k+"="+defaults[k])
 		case v == "" || settingValue[k](s) != v:
 			missing = append(missing, k)
 			args = append(args, "'"+k+"="+settingChoices[k]+"'")
@@ -303,6 +323,10 @@ func (c *ctx) checkSettings(p *startPlan) error {
 		}
 	}
 	if len(args) == 0 {
+		if len(p.Fill) > 0 {
+			p.check("settings", "ok", "揃っている（%s）。ルーチン %s が足した課題なので、無いキーを既定で書く: %s", strings.Join(need, "・"), routine, strings.Join(p.Fill, " "))
+			return nil
+		}
 		p.check("settings", "ok", "揃っている（%s。最後に書いたのは Chief of Staff の端末 %s）", strings.Join(need, "・"), cos)
 		return nil
 	}

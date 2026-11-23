@@ -231,26 +231,39 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 	}
 	parent := ledger.CanonID(id)
 	for _, pl := range left {
-		newID, who := "", ""
+		newID, who, review := "", "", ""
 		for _, t := range all {
 			tid := ledger.CanonID(t.Str("id"))
 			if ledger.CanonID(t.Str("parent")) == parent && t.Str("title") == pl.Title &&
 				!slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Issue == tid }) {
-				newID, who = tid, t.Str("who")
+				newID, who, review = tid, t.Str("who"), t.Str("review")
 				break
 			}
 		}
-		if newID == "" {
+		keys := ledger.DefaultSettings("", "off") // 担当の課題の予約キー（profile は書かないので reviewer は codex-review）
+		added := newID == ""
+		if added {
 			args := []string{"add", pl.Title, "--parent", id}
 			if pl.Repo != "" {
 				args = append(args, "--repo", pl.Repo)
 			}
-			if newID, err = l.Run(pl.Brief, append(args, "--brief", "-")...); err != nil {
+			brief := pl.Brief
+			if pl.Who == "worker" {
+				brief += "\n" + ledger.SettingsCopy(keys)
+			}
+			if newID, err = l.Run(brief, append(args, "--brief", "-")...); err != nil {
 				return err
 			}
 		}
 		if pl.Who == "person" && who != "person" { // 前の回が add のあと set の前で落ちていれば、ここで付ける
 			if _, err := l.Run("", "set", newID, "who=person"); err != nil {
+				return err
+			}
+		}
+		// 担当の課題には予約キーを書く（打つのは Chief of Staff の端末なので、andon issue start と gate の履歴の照合が通る）。
+		// 前の回が add のあと set の前で落ちていれば、打ち直しで書く。書いてある課題は Chief of Staff が変えたかもしれないので触らない
+		if pl.Who == "worker" && (added || review == "") {
+			if _, err := l.Run("", append([]string{"set", newID}, keys...)...); err != nil {
 				return err
 			}
 		}

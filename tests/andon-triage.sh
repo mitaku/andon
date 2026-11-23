@@ -248,7 +248,8 @@ verdict "$triage" "$todo_key" ok | grep -q '閉じてよい'
 verdict "$triage" "$person_key" ok >/dev/null
 "$script" triage apply "$triage" --max-issues 2 --dry-run | jq -e '[.review[].verdict] == ["ok","ok"]' >/dev/null
 echo 'ok apply: closing an issue needs the verdict of the Chief of Staff, even with evidence (AC 17)'
-"$script" triage apply "$triage" --max-issues 2 > "$tmp/summary"
+# 当てるのは Chief of Staff の端末（足した課題の予約キーの書き手になる）
+HC_TERMINAL_ID=t50 "$script" triage apply "$triage" --max-issues 2 > "$tmp/summary"
 [[ $(kanban show "$todo" --json | jq -r .issue.status) == done && $(kanban show "$person" --json | jq -r .issue.status) == done ]]
 tail -1 "kanban/issues/$todo/report.md" | grep -q '不要（'
 record=$(echo kanban/library/triage/*.json)
@@ -260,6 +261,22 @@ grep -q '閉じた 3 ・ 直す 2（うち束ね 1） ・ オーナーへ 3 ・ 
 jq -e --arg h "$head" '[.items[]|select(.commit==$h)] | length>=6' "$record" >/dev/null
 jq -e '[.items[]|select(.verdict)] | length==2 and all(.verdict.verdict=="ok" and .verdict.by=="terminal:t50")' "$record" >/dev/null
 echo 'ok apply: close, bundle, person, summary'
+# 足した fix・bundle の課題は、予約キーを全部持ち、最後に書いたのが Chief of Staff の端末（andon issue start がそのまま通る）。
+# 依頼書の Settings はその写し
+created=$(jq -r '[.items[]|select(.decision=="fix" or .decision=="bundle")|.created_issue]|unique[]' "$record")
+[[ -n $created ]]
+for issue in $created; do
+    kanban show "$issue" --json | jq -e '.issue | .review != null and .must_fix == "major" and .reviewer == "codex-review"
+      and .review_rounds == "2" and .merge == "person" and .estimate == "medium"' >/dev/null \
+      || { echo "予約キーが揃っていない: $(kanban show "$issue" --json | jq -c .issue)" >&2; exit 1; }
+    for k in review must_fix reviewer review_rounds merge estimate; do
+        last=$(jq -r --arg id "$issue" --arg k "$k" 'select(.id==$id and (.change|has($k))) | .by' kanban/log.jsonl | sed -n '$p')
+        [[ "$last" == "terminal:t50" ]] || { echo "$issue の $k を最後に書いたのが $last" >&2; exit 1; }
+    done
+    review=$(kanban show "$issue" --json | jq -r .issue.review)
+    grep -qx -- "- Review: $review" "kanban/issues/$issue/brief.md" && grep -qx -- '- Estimate: 中' "kanban/issues/$issue/brief.md"
+done
+echo 'ok apply: fix and bundle issues carry the reserved keys written by the Chief of Staff terminal'
 collect "$tmp/again" --limit 100
 jq -e --slurpfile r "$record" '
  [.[].key] as $keys | all($r[0].items[]|select(.decision!="keep"); .key as $k | ($keys|index($k))==null)

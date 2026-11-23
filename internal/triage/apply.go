@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	ledgercli "andon/internal/ledger"
 	"andon/internal/signal"
 )
 
@@ -290,7 +291,18 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 			}
 		}
 	case "fix", "bundle":
-		return l.kanban(groupBrief(g), "add", first.issueStr("title"), "--repo", first.issueStr("repo"), "--profile", first.issueStr("profile"), "--brief", "-")
+		// 予約キーも足したその場で書く（打つのは Chief of Staff の端末なので、andon issue start と gate の履歴の照合が通る）。
+		// 値は束の review と既定（ledger.DefaultSettings）。依頼書の Settings はその写し
+		profile := first.issueStr("profile")
+		keys := ledgercli.DefaultSettings(profile, groupReview(g))
+		newID, err := l.kanban(groupBrief(g, keys), "add", first.issueStr("title"), "--repo", first.issueStr("repo"), "--profile", profile, "--brief", "-")
+		if err != nil {
+			return "", err
+		}
+		if _, err := l.kanban("", append([]string{"set", newID}, keys...)...); err != nil {
+			return "", err
+		}
+		return newID, nil
 	case "person":
 		brief := "出どころ: " + first.key() +
 			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
@@ -308,22 +320,29 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, error) {
 	return "", nil
 }
 
-// groupBrief は fix と bundle の依頼書を組む。束ねた項目は同じ brief を写していることが多いので、同じ brief は1回だけ書く。
-func groupBrief(g []item) string {
-	review := "off"
-	var briefs, keys []string
+// groupReview は束の review（どれか1つが on なら on）。
+func groupReview(g []item) string {
 	for _, it := range g {
 		if it.issueStr("review") == "on" {
-			review = "on"
+			return "on"
 		}
+	}
+	return "off"
+}
+
+// groupBrief は fix と bundle の依頼書を組む。束ねた項目は同じ brief を写していることが多いので、同じ brief は1回だけ書く。
+// Settings は issue.yaml に書く予約キー（keys。key=value の並び）の人が読む写し。
+func groupBrief(g []item, keys []string) string {
+	var briefs, refs []string
+	for _, it := range g {
 		if b := it.issueStr("brief"); !slices.Contains(briefs, b) {
 			briefs = append(briefs, b)
 		}
-		keys = append(keys, it.key())
+		refs = append(refs, it.key())
 	}
 	return "解決すべき問題:\n" + strings.Join(briefs, "\n\n") +
-		"\nなぜ: トリアージ " + strings.Join(keys, ", ") +
-		"\n完了条件: 上記の依頼を満たす。\n守ること: 依頼の範囲内で作業する。\n\n## Settings\n- Review: " + review + "\n"
+		"\nなぜ: トリアージ " + strings.Join(refs, ", ") +
+		"\n完了条件: 上記の依頼を満たす。\n守ること: 依頼の範囲内で作業する。\n\n" + ledgercli.SettingsCopy(keys)
 }
 
 // orDefault は jq の `v // d`（null と false なら d）。

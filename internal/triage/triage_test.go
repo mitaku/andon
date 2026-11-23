@@ -484,14 +484,14 @@ func TestGroupBriefWritesEachBriefOnce(t *testing.T) {
 		return f
 	}
 	k3 := "demo:T-3:next:0000000000000000000000000000000000000003"
-	got := groupBrief([]item{b(k1, "同じ段落。"), b(k2, "同じ段落。"), b(k3, "同じ段落。")})
+	got := groupBrief([]item{b(k1, "同じ段落。"), b(k2, "同じ段落。"), b(k3, "同じ段落。")}, nil)
 	if n := strings.Count(got, "同じ段落。"); n != 1 {
 		t.Errorf("同じ段落が %d 回:\n%s", n, got)
 	}
 	if !strings.Contains(got, "なぜ: トリアージ "+k1+", "+k2+", "+k3+"\n") {
 		t.Errorf("key を全部書かない:\n%s", got)
 	}
-	got = groupBrief([]item{b(k1, "一つ目。"), b(k2, "二つ目。"), b(k3, "一つ目。")})
+	got = groupBrief([]item{b(k1, "一つ目。"), b(k2, "二つ目。"), b(k3, "一つ目。")}, nil)
 	if !strings.HasPrefix(got, "解決すべき問題:\n一つ目。\n\n二つ目。\nなぜ:") {
 		t.Errorf("違う段落を順に残さない:\n%s", got)
 	}
