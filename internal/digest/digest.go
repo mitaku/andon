@@ -28,19 +28,28 @@ import (
 	"andon/internal/signal"
 )
 
-// Usage は andon digest の使い方。
-const Usage = "usage: andon digest collect <id>          期間の記録を library/digest/input.json に集める（読むだけ。docs/contract.md §26）\n" +
-	"       andon digest build <id> <file|->     担当が書いた JSON（§27）を照らし、digest.json・digest.html・message.txt を書く\n" +
-	"       andon digest send <id>               digest.html を files/ と送り先へ出し、URL を出して sent.json（§28）に書く\n" +
-	"       andon digest check                   送り先へ確かめの小さなファイルを送る\n" +
-	"       andon digest auth slack              Slack の bot のトークン（scope は files:write だけ）をセルの中で聞いて置く\n" +
-	"<id> はダイジェストの課題。期間は、同じルーチンの前に送ったダイジェストの終わりから今まで（無ければ 24 時間前から、7 日より前へは遡らない）。\n" +
-	"collect は kanban と dispatcher の記録と GitHub のマージされた PR の一覧と、課題の repo の最新の main の文書（代わりに決めたこと）を読み、書くのは input.json だけ。\n" +
-	"build は入力に無い課題を指した・要旨が 2〜5 文でない・テーマが 9 つ以上・知らない図の型などを理由1行ずつで断り、何も書かない。\n" +
-	"送り先は files/ と、オーナーが project.json の digest に書いたチャンネルだけ（§11）。無い・信じられなければ files/ だけに出す。\n" +
-	"send は送った先に打ち直しても送らない。送りそこねたら終了コード 1 で、打ち直すと送り直す。\n" +
-	"auth は標準入力の1行を ~/.config/andon/digest/slack.token（mode 600）に置く。トークンを引数に書かない。\n" +
-	"projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
+// 葉ごとの使い方（andon digest <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	where        = "projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
+	period       = "<id> はダイジェストの課題。期間は、同じルーチンの前に送ったダイジェストの終わりから今まで（無ければ 24 時間前から、7 日より前へは遡らない）。\n"
+	CollectUsage = "usage: andon digest collect <id>\n" +
+		"期間の記録を library/digest/input.json に集める（読むだけ。docs/contract.md §26）。\n" + period +
+		"kanban と dispatcher の記録と GitHub のマージされた PR の一覧と、課題の repo の最新の main の文書（代わりに決めたこと）を読み、書くのは input.json だけ。\n" + where
+	BuildUsage = "usage: andon digest build <id> <file|->\n" +
+		"担当が書いた JSON（docs/contract.md §27）を照らし、digest.json・digest.html・message.txt を書く。\n" + period +
+		"入力に無い課題を指した・要旨が 2〜5 文でない・テーマが 9 つ以上・知らない図の型などを理由1行ずつで断り、何も書かない。\n" + where
+	SendUsage = "usage: andon digest send <id>\n" +
+		"digest.html を files/ と送り先へ出し、URL を出して sent.json（docs/contract.md §28）に書く。\n" +
+		"送り先は files/ と、オーナーが project.json の digest に書いたチャンネルだけ（§11）。無い・信じられなければ files/ だけに出す。\n" +
+		"送った先に打ち直しても送らない。送りそこねたら終了コード 1 で、打ち直すと送り直す。\n" + where
+	CheckUsage = "usage: andon digest check\n" +
+		"送り先へ確かめの小さなファイルを送る。\n" + where
+	AuthUsage = "usage: andon digest auth slack\n" +
+		"Slack の bot のトークン（scope は files:write だけ）をセルの中で聞いて置く。\n" +
+		"標準入力の1行を ~/.config/andon/digest/slack.token（mode 600）に置く。トークンを引数に書かない。\n"
+)
+
+var usages = map[string]string{"collect": CollectUsage, "build": BuildUsage, "send": SendUsage, "check": CheckUsage, "auth": AuthUsage}
 
 // 置き場（課題の library/digest/）。
 const (
@@ -78,13 +87,33 @@ func (e Env) warn(format string, a ...any) {
 	}
 }
 
-// Main は andon digest。
-func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	return run(args, stdin, stdout, stderr, defaultEnv)
+// CollectMain は andon digest collect。
+func CollectMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(append([]string{"collect"}, args...), stdin, stdout, stderr, defaultEnv)
+}
+
+// BuildMain は andon digest build。
+func BuildMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(append([]string{"build"}, args...), stdin, stdout, stderr, defaultEnv)
+}
+
+// SendMain は andon digest send。
+func SendMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(append([]string{"send"}, args...), stdin, stdout, stderr, defaultEnv)
+}
+
+// CheckMain は andon digest check。
+func CheckMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(append([]string{"check"}, args...), stdin, stdout, stderr, defaultEnv)
+}
+
+// AuthMain は andon digest auth。
+func AuthMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(append([]string{"auth"}, args...), stdin, stdout, stderr, defaultEnv)
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer, newEnv func() (Env, error)) int {
-	usage := func() int { fmt.Fprint(stderr, Usage); return 2 }
+	usage := func() int { fmt.Fprint(stderr, usages[args[0]]); return 2 }
 	fail := func(err error) int { fmt.Fprintf(stderr, "andon digest: %v\n", err); return 1 }
 	switch {
 	case len(args) == 2 && args[0] == "auth":

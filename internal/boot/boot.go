@@ -41,7 +41,6 @@ import (
 
 // Usage は andon boot --help の中身。
 const Usage = "usage: andon boot\n" +
-	"       andon boot serve-files <dir> <port>   files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
@@ -99,14 +98,24 @@ func getenv(k, def string) string {
 }
 
 // Main は andon boot。
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 3 && args[0] == "serve-files" {
-		if err := serveFiles(args[1], args[2]); err != nil {
-			fmt.Fprintf(stderr, "andon boot serve-files: %v\n", err)
-			return 1
-		}
-		return 0
+// ServeFilesUsage は andon boot serve-files の使い方。
+const ServeFilesUsage = "usage: andon boot serve-files <dir> <port>\n" +
+	"files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）。\n"
+
+// ServeFilesMain は andon boot serve-files。
+func ServeFilesMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	if len(args) != 2 {
+		fmt.Fprint(stderr, ServeFilesUsage)
+		return 2
 	}
+	if err := serveFiles(args[0], args[1]); err != nil {
+		fmt.Fprintf(stderr, "andon boot serve-files: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		fmt.Fprint(stderr, Usage)
 		return 2

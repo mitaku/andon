@@ -433,10 +433,6 @@ func TestReadOnly(t *testing.T) {
 
 func TestMainUsage(t *testing.T) {
 	var out, errs strings.Builder
-	if rc := Main(nil, nil, &out, &errs); rc != 2 || !strings.HasPrefix(errs.String(), "usage: andon retro collect") {
-		t.Errorf("rc=%d %q", rc, errs.String())
-	}
-	errs.Reset()
 	if rc := Main([]string{"collect", "--days", "0"}, nil, &out, &errs); rc != 2 {
 		t.Errorf("--days 0: rc=%d", rc)
 	}

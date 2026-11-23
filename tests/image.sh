@@ -63,7 +63,7 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
   kanban --version
   ! command -v deck >/dev/null || { echo "deck が残っている" >&2; exit 1; }
   test -d /opt/andon
-  andon help | grep -q "andon <sub-command>"
+  andon help | grep -q "andon <名詞> <動詞>"
   test "$(readlink -f /usr/local/bin/andon)" = /opt/andon/bin/andon
   test -f /opt/andon/environment.md
   test -f /opt/andon/compose.yaml

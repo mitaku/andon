@@ -15,9 +15,8 @@ import (
 
 // Usage は andon waiting の使い方。
 const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
-	"       andon waiting answer <id>#<n> --option <番号> [--project <slug>]\n" +
 	"オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す。読むだけで、何も書かない。GitHub も git も読まない。\n" +
-	"answer はオーナーのペインから判断の問いに選択肢で答える口（書くのは kanban answer だけ。andon waiting answer --help）。\n" +
+	"判断の問いにペインから選択肢で答える口は andon waiting answer。\n" +
 	"kanban の履歴（log.jsonl）が読めなければ数えずに終了コード 1。\n" +
 	"数えるのは今の head について決め終えたものだけ（docs/adr/0042-owner-waits-do-not-stop-the-line.md 決めたこと 8・9）。\n" +
 	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
@@ -25,9 +24,6 @@ const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
 
 // Main は andon waiting。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) > 0 && args[0] == "answer" {
-		return Answer(args[1:], stdout, stderr)
-	}
 	asJSON, slug := false, ""
 	for len(args) > 0 {
 		switch {

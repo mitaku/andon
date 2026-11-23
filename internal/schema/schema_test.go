@@ -53,7 +53,6 @@ func TestCheck(t *testing.T) {
 		{"無い JSON", "", []string{"check", "report", filepath.Join(dir, "none.json")}, 2, "", "JSON が読めない"},
 		{"無い schema", "", []string{"check", filepath.Join(dir, "none.schema.json"), good}, 2, "", "schema が読めない"},
 		{"引数が足りない", "", []string{"check", "report"}, 2, "", "usage: andon schema check"},
-		{"知らない口", "", []string{"validate", "report", good}, 2, "", "usage: andon schema check"},
 	} {
 		rc, out, errOut := run(t, c.stdin, c.args...)
 		if rc != c.rc || !strings.Contains(out, c.out) || !strings.Contains(errOut, c.errText) {

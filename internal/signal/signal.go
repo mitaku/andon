@@ -25,15 +25,20 @@ import (
 	"andon/internal/flock"
 )
 
-// Usage は andon signal の使い方。
-const Usage = "usage: andon signal collect [--due] [--project <slug>]   project.json の signals の出所を読み、信号の記録を書く\n" +
-	"       andon signal delivered [--project <slug>] <fingerprint> <episode>   通知 signal で届けた出来事を記録に書く（dispatcher だけ。HC_TERMINAL_ID=dispatcher）\n" +
-	"       andon signal auth <source>             出所のトークンをセルの中で聞いて置く（sentry・linear・cloudflare）\n" +
-	"collect は projects/<slug>/ で打つか --project。記録は ~/.local/state/andon/dispatcher/<slug>.signals.json\n" +
-	"（XDG_STATE_HOME があればその下。docs/contract.md §15）。signals が無ければ何も読まず、何も書かない。\n" +
-	"--due は、出所と repo の組ごとに前に読みに行った時刻（記録の read_at）から every 分（既定 10）たったものだけを読む（dispatcher の巡）。\n" +
-	"GitHub（github-ci・github-issues）は gh の資格情報を使う。読めなかった出所はその出所の記録を変えずに飛ばし、終了コード 1。\n" +
-	"auth は標準入力の1行をトークンとして ~/.config/andon/signals/<source>.token（mode 600）に置く。トークンは読み取り専用の scope で作る。\n"
+// 葉ごとの使い方（andon signal <動詞> --help の中身と、引数を誤ったときに出す文）。
+const (
+	CollectUsage = "usage: andon signal collect [--due] [--project <slug>]\n" +
+		"project.json の signals の出所を読み、信号の記録を書く。\n" +
+		"projects/<slug>/ で打つか --project。記録は ~/.local/state/andon/dispatcher/<slug>.signals.json\n" +
+		"（XDG_STATE_HOME があればその下。docs/contract.md §15）。signals が無ければ何も読まず、何も書かない。\n" +
+		"--due は、出所と repo の組ごとに前に読みに行った時刻（記録の read_at）から every 分（既定 10）たったものだけを読む（dispatcher の巡）。\n" +
+		"GitHub（github-ci・github-issues）は gh の資格情報を使う。読めなかった出所はその出所の記録を変えずに飛ばし、終了コード 1。\n"
+	DeliveredUsage = "usage: andon signal delivered [--project <slug>] <fingerprint> <episode>\n" +
+		"通知 signal で届けた出来事を記録に書く（dispatcher だけ。HC_TERMINAL_ID=dispatcher）。\n"
+	AuthUsage = "usage: andon signal auth <source>\n" +
+		"出所のトークンをセルの中で聞いて置く（sentry・linear・cloudflare）。\n" +
+		"標準入力の1行をトークンとして ~/.config/andon/signals/<source>.token（mode 600）に置く。トークンは読み取り専用の scope で作る。\n"
+)
 
 // Record は信号の記録の1件（schema/signal.schema.json）。
 type Record struct {

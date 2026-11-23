@@ -26,15 +26,34 @@ import (
 )
 
 // Usage は andon version の使い方。
-const Usage = "usage: andon version [stamp <revision>]\n" +
+const Usage = "usage: andon version\n" +
 	"パッケージの置き場（ANDON_HOME。既定 /opt/andon）の commit と、中身がその commit と食い違うかを JSON で出す（読むだけ）。\n" +
 	"  root     置き場\n" +
 	"  commit   当て直しの記録（applied.json）があればその commit、無ければ焼いたときの commit。分からなければ null\n" +
 	"  source   commit をどこから読んだか（applied・image・none）\n" +
 	"  drift    中身が commit と食い違うか。true なら当時の文を git から復元できない。確かめられなければ null\n" +
 	"  reasons  drift が true か null のときの理由\n" +
-	"stamp <revision> は焼くとき（image の build・image/apply-main.sh）だけ打つ。置き場の中身を数えて version.json を書く。\n" +
+	"焼いたときの印は andon version stamp が書く。\n"
+
+// StampUsage は andon version stamp の使い方。
+const StampUsage = "usage: andon version stamp <revision>\n" +
+	"焼くとき（image の build・image/apply-main.sh）だけ打つ。置き場（ANDON_HOME。既定 /opt/andon）の中身を数えて version.json を書く。\n" +
 	"<revision> は 40 桁の commit（汚れた checkout なら末尾に -dirty）か unknown。\n"
+
+// StampMain は andon version stamp。
+func StampMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprint(stderr, StampUsage)
+		return 2
+	}
+	root := Home()
+	if err := Stamp(root, args[0]); err != nil {
+		fmt.Fprintln(stderr, "✗", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "%s/%s を書いた\n", root, stampFile)
+	return 0
+}
 
 // Info は andon version の出力。
 type Info struct {
@@ -253,13 +272,6 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintln(stdout, string(b))
-		return 0
-	case args[0] == "stamp" && len(args) == 2:
-		if err := Stamp(root, args[1]); err != nil {
-			fmt.Fprintln(stderr, "✗", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "%s/%s を書いた\n", root, stampFile)
 		return 0
 	}
 	fmt.Fprint(stderr, Usage)

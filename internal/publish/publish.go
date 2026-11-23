@@ -19,7 +19,9 @@ import (
 // 大きいもの（動画など）は納品物の面に置かず拒む。LFS は使わない。
 const MaxSize = 20 << 20
 
-const usage = "usage: andon publish <file> [slug]\n"
+// Usage は andon publish の使い方。
+const Usage = "usage: andon publish <file> [slug]\n" +
+	"セルの repo（ANDON_WORKSPACE。無ければ /workspace）の files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n"
 
 // DefaultPort は .env に PORTLESS_PORT が無いときの番号。
 const DefaultPort = "1355"
@@ -34,7 +36,7 @@ type Env struct {
 // Main は andon publish。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) < 1 || len(args) > 2 || args[0] == "" {
-		fmt.Fprint(stderr, usage)
+		fmt.Fprint(stderr, Usage)
 		return 2
 	}
 	host, err := os.Hostname()

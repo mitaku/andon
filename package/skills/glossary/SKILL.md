@@ -296,6 +296,6 @@ _避ける_: 端末の土台（作った語）
 | 段 A／B／C | レベル A／B／C |
 | 来歴・道しるべ・推し | 履歴・指針・推奨案 |
 | deck（仮設の kanban の CLI） | kanban の CLI（`kanban`） |
-| タスク（kanban のカード。`tasks/<id>/`・`task.yaml`・`andon task`） | 課題（`issue`。`issues/<id>/`・`issue.yaml`・`andon issue`） |
+| タスク（kanban のカード。`tasks/<id>/`・`task.yaml`・`andon task`）<!-- andon の古い名前 --> | 課題（`issue`。`issues/<id>/`・`issue.yaml`・`andon issue`） |
 | flightdeck（Web ボード・画面の mod） | ボード |
 | （無い。コーディネーターが兼ねていた） | Chief Engineer（`chief-engineer`） |

@@ -1,15 +1,32 @@
-# bash completion for andon（サブコマンド名だけ。フラグまでは補わない）。image/Dockerfile が /usr/share/bash-completion/completions/ に置く
+# bash completion for andon。andon help --all --bash が葉の表から作るので、手で直さない。
+# image/Dockerfile が /usr/share/bash-completion/completions/ に置く
 _andon() {
   local cur=${COMP_WORDS[COMP_CWORD]}
-  if [ "$COMP_CWORD" -eq 2 ] && [ "${COMP_WORDS[1]}" = open ]; then
-    local ws=${ANDON_WORKSPACE:-/workspace} d s=
-    for d in "$ws"/projects/*/kanban/config.yaml; do
-      [ -e "$d" ] && s="$s $(basename "$(dirname "$(dirname "$d")")")"
-    done
-    COMPREPLY=($(compgen -W "$s" -- "$cur"))
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=($(compgen -W "help open version boot chief-of-staff chief-engineer create waiting delegate measure signal digest init issue gate news publish triage retro dispatcher schema process" -- "$cur"))
     return 0
   fi
-  [ "$COMP_CWORD" -eq 1 ] || return 0
-  COMPREPLY=($(compgen -W "issue chief-of-staff create open chief-engineer dispatcher news publish triage signal measure process boot init gate delegate help" -- "$cur"))
+  [ "$COMP_CWORD" -eq 2 ] || return 0
+  case ${COMP_WORDS[1]} in
+    version) COMPREPLY=($(compgen -W "stamp" -- "$cur")) ;;
+    boot) COMPREPLY=($(compgen -W "serve-files" -- "$cur")) ;;
+    waiting) COMPREPLY=($(compgen -W "answer" -- "$cur")) ;;
+    delegate) COMPREPLY=($(compgen -W "show grant narrow revoke" -- "$cur")) ;;
+    signal) COMPREPLY=($(compgen -W "auth collect delivered" -- "$cur")) ;;
+    digest) COMPREPLY=($(compgen -W "auth collect build send check" -- "$cur")) ;;
+    issue) COMPREPLY=($(compgen -W "start resume finish impact show report review-request candidates ask record ready merge settle session stop-check" -- "$cur")) ;;
+    news) COMPREPLY=($(compgen -W "ack" -- "$cur")) ;;
+    triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
+    retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;
+    dispatcher) COMPREPLY=($(compgen -W "drain wait rewake" -- "$cur")) ;;
+    schema) COMPREPLY=($(compgen -W "check batch" -- "$cur")) ;;
+    process) COMPREPLY=($(compgen -W "render json" -- "$cur")) ;;
+    open)
+      local ws=${ANDON_WORKSPACE:-/workspace} d s=
+      for d in "$ws"/projects/*/kanban/config.yaml; do
+        [ -e "$d" ] && s="$s $(basename "$(dirname "$(dirname "$d")")")"
+      done
+      COMPREPLY=($(compgen -W "$s" -- "$cur")) ;;
+  esac
 }
 complete -F _andon andon

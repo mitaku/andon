@@ -1,212 +1,400 @@
-// Package cli は andon の sub-command を振り分ける。
+// Package cli は andon の葉を、葉の表（leaves.go）から振り分ける（ADR-0053 決めたこと 11・12・16）。
 //
-//	andon help              一覧
-//	andon <sub> --help      その sub-command の使い方
-//	andon <sub> [引数…]     中身に渡す
+//	andon [help]                       例と、オーナーが打つ葉の一覧（役と機械は名詞の1行）
+//	andon help --all [--markdown|--bash]  全部の葉（--markdown は docs/commands.md、--bash は bash の補完）
+//	andon <名詞>                       その名詞の葉の一覧
+//	andon <名詞> <動詞> [引数…]        葉に渡す。-h・--help は -- より前のどこでも使い方を出す
 //
-// 知らない sub-command は一覧を stderr に出して終了コード 2。
+// 表に無い名詞と動詞は、綴りの近い葉を1つ勧めて終了コード 2。
 package cli
 
 import (
 	"fmt"
 	"io"
-
-	"andon/internal/boot"
-	"andon/internal/chiefengineer"
-	"andon/internal/chiefofstaff"
-	"andon/internal/create"
-	"andon/internal/delegate"
-	"andon/internal/digest"
-	"andon/internal/dispatcher"
-	"andon/internal/gate"
-	"andon/internal/issue"
-	"andon/internal/measure"
-	"andon/internal/open"
-	"andon/internal/pkgversion"
-	"andon/internal/plantinit"
-	"andon/internal/process"
-	"andon/internal/publish"
-	"andon/internal/retro"
-	"andon/internal/schema"
-	"andon/internal/signal"
-	"andon/internal/triage"
-	"andon/internal/waiting"
+	"slices"
+	"strings"
 )
 
-type command struct {
-	name  string
-	about string
-	usage string
-	run   func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
+const helpUsage = "usage: andon help [--all [--markdown|--bash]]\n" +
+	"例と、オーナーが打つ葉の一覧を出す。役と機械が打つものは名詞の1行で出す。\n" +
+	"--all は全部の葉を打つ者と一緒に出す。--markdown は docs/commands.md の中身、--bash は bash の補完のスクリプトを出す。\n"
+
+var whoName = map[who]string{owner: "オーナー", role: "役", machine: "機械"}
+
+func (l leaf) words() []string { return strings.Fields(l.name) }
+func (l leaf) noun() string    { return l.words()[0] }
+
+func (l leaf) whoText() string {
+	var s []string
+	for _, w := range l.who {
+		s = append(s, whoName[w])
+	}
+	return strings.Join(s, "・")
 }
 
-var commands = []command{
-	{
-		name:  "issue",
-		about: "担当を起動する（start）・担当が kanban に返す（show・report・review-request・ready・ask）・走らせた記録を残す（record）・片付ける（finish）",
-		usage: issue.Usage,
-		run:   issue.Main,
-	},
-	{
-		name:  "chief-of-staff",
-		about: "プロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う）",
-		usage: chiefofstaff.Usage,
-		run:   chiefofstaff.Main,
-	},
-	{
-		name:  "create",
-		about: "プロジェクトを立てる（projects/<slug>/ に kanban・project.json の下書き・AGENTS.md。足りないものは聞く）",
-		usage: create.Usage,
-		run:   create.Main,
-	},
-	{
-		name:  "open",
-		about: "プロジェクトを選んで Chief of Staff を開く（andon open <slug>。slug 無しは fzf で選ぶ）",
-		usage: open.Usage,
-		run:   open.Main,
-	},
-	{
-		name:  "chief-engineer",
-		about: "オーナーと仕様・設計を対話する Chief Engineer を、kanban の課題として起動する",
-		usage: chiefengineer.Usage,
-		run:   chiefengineer.Main,
-	},
-	{
-		name:  "dispatcher",
-		about: "kanban を回り、インナーループ（レビュアーを起動する・gate・merge: auto のマージと片付け）を回す。待ちの通知は Chief of Staff のフック（drain）が届ける",
-		usage: dispatcher.Usage,
-		run:   dispatcher.Main,
-	},
-	{
-		name:  "news",
-		about: "Chief of Staff が届いた <news> にオーナーへ言うことが無いと示す（ack。ラベル news.ack=<turn>）",
-		usage: dispatcher.NewsUsage,
-		run:   dispatcher.NewsMain,
-	},
-	{
-		name:  "publish",
-		about: "生成したファイルを files/ へ公開し、URL を返す",
-		usage: "usage: andon publish <file> [slug]\n" +
-			"セルの repo（ANDON_WORKSPACE。無ければ /workspace）の files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n",
-		run: publish.Main,
-	},
-	{
-		name:  "triage",
-		about: "kanban の溜まったものを集める（collect）・仕分けの決定を kanban に当てる（apply）",
-		usage: triage.Usage +
-			"projects/<slug>/ で打つ。collect は読むだけ（担当が打つ）。apply は Chief of Staff が打つ。\n",
-		run: triage.Main,
-	},
-	{
-		name:  "retro",
-		about: "振り返りの入力を集める（collect）・パターンの一覧を書く（patterns）・直す課題に切る（apply）",
-		usage: retro.Usage,
-		run:   retro.Main,
-	},
-	{
-		name:  "signal",
-		about: "外の出所（GitHub の main の CI・issue）の信号を読んで記録する（collect）・出所のトークンを置く（auth）",
-		usage: signal.Usage,
-		run:   signal.Main,
-	},
-	{
-		name:  "measure",
-		about: "kanban と記録からラインの流れ（待ち時間・流量・WIP）・効率・対抗の指標を数える（読むだけ）",
-		usage: measure.Usage,
-		run:   measure.Main,
-	},
-	{
-		name:  "digest",
-		about: "期間の記録を集め（collect）、担当の文と組み立てて 1 枚の HTML にし（build）、files/ と Slack へ出す（send）・送り先を確かめる（check）・トークンを置く（auth）",
-		usage: digest.Usage,
-		run:   digest.Main,
-	},
-	{
-		name:  "waiting",
-		about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す（読むだけ）。answer はペインから判断の問いに答える",
-		usage: waiting.Usage,
-		run:   waiting.Main,
-	},
-	{
-		name:  "process",
-		about: "流れと状態の定義（process/ の YAML）から人が読む docs/process/<名>.md を作る（render）",
-		usage: process.Usage,
-		run:   process.Main,
-	},
-	{
-		name:  "schema",
-		about: "JSON を約束の schema と照らす（check・batch。command が書く前に照らすのと同じ検査器）",
-		usage: schema.Usage,
-		run:   schema.Main,
-	},
-	{
-		name:  "boot",
-		about: "パッケージからセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する（毎起動）",
-		usage: boot.Usage,
-		run:   boot.Main,
-	},
-	{
-		name:  "init",
-		about: "セルの repo の雛形（<slug>-cell）を作る",
-		usage: plantinit.Usage,
-		run:   plantinit.Main,
-	},
-	{
-		name:  "gate",
-		about: "kanban の課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
-		usage: gate.Usage,
-		run:   gate.Main,
-	},
-	{
-		name:  "delegate",
-		about: "委譲（projects/<slug>/project.json の delegation）を読む（show）・オーナーが書く（grant・narrow・revoke）",
-		usage: delegate.Usage,
-		run:   delegate.Main,
-	},
-	{
-		name:  "version",
-		about: "パッケージの置き場の commit と、中身がその commit と食い違うかを JSON で出す（読むだけ）",
-		usage: pkgversion.Usage,
-		run:   pkgversion.Main,
-	},
+func find(name string) (leaf, bool) {
+	for _, l := range leaves {
+		if l.name == name {
+			return l, true
+		}
+	}
+	return leaf{}, false
 }
 
-func list(w io.Writer) {
-	fmt.Fprint(w, "usage: andon <sub-command> [引数…]\n\n")
-	width := len("help")
-	for _, c := range commands {
-		width = max(width, len(c.name))
+// children は名詞 noun の2語の葉。
+func children(noun string) []leaf {
+	var out []leaf
+	for _, l := range leaves {
+		if w := l.words(); len(w) > 1 && w[0] == noun {
+			out = append(out, l)
+		}
 	}
-	for _, c := range commands {
-		fmt.Fprintf(w, "  %-*s  %s\n", width, c.name, c.about)
+	return out
+}
+
+// wantsHelp は -- より前に -h か --help があるか。
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		if a == "-h" || a == "--help" {
+			return true
+		}
 	}
-	fmt.Fprintf(w, "  %-*s  %s\n", width, "help", "この一覧")
-	fmt.Fprint(w, "\nandon <sub-command> --help で、その sub-command の使い方を出す。kanban は kanban の CLI で書く。\n")
+	return false
 }
 
 // Run は andon を args で走らせ、終了コードを返す。
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	sub := "help"
-	if len(args) > 0 {
-		sub = args[0]
-	}
-	switch sub {
-	case "help", "-h", "--help":
-		list(stdout)
+	if len(args) == 0 {
+		help(stdout)
 		return 0
 	}
-	for _, c := range commands {
-		if c.name != sub {
-			continue
+	if args[0] == "-h" || args[0] == "--help" {
+		args = append([]string{"help"}, args[1:]...)
+	}
+	if args[0] == "help" {
+		return helpCmd(args[1:], stdout, stderr)
+	}
+	noun := args[0]
+	kids := children(noun)
+	verb := len(args) > 1 && !strings.HasPrefix(args[1], "-")
+	if verb && len(kids) > 0 {
+		l, ok := find(noun + " " + args[1])
+		if !ok {
+			return unknown(args[:2], stderr)
 		}
-		rest := args[1:]
-		if len(rest) > 0 && (rest[0] == "-h" || rest[0] == "--help") {
-			fmt.Fprint(stdout, c.usage)
+		return runLeaf(l, args[2:], stdin, stdout, stderr)
+	}
+	if l, ok := find(noun); ok {
+		return runLeaf(l, args[1:], stdin, stdout, stderr)
+	}
+	if len(kids) > 0 {
+		if len(args) == 1 || wantsHelp(args[1:]) {
+			nounHelp(noun, stdout)
 			return 0
 		}
-		return c.run(rest, stdin, stdout, stderr)
+		return unknown(args[:1], stderr)
 	}
-	fmt.Fprintf(stderr, "andon: 知らない sub-command: %s\n", sub)
-	list(stderr)
+	if verb {
+		return unknown(args[:2], stderr)
+	}
+	return unknown(args[:1], stderr)
+}
+
+func runLeaf(l leaf, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if wantsHelp(args) {
+		leafHelp(l, stdout)
+		return 0
+	}
+	return l.run(args, stdin, stdout, stderr)
+}
+
+// unknown は表に無い名前を断り、綴りの近い葉を1つ勧める（決めたこと 12）。typed は打った1語か2語。
+// 2語で近い葉が無ければ1語目で探す（andon gat S-0012 に gate を勧める）。
+func unknown(typed []string, stderr io.Writer) int {
+	near := nearest(strings.Join(typed, " "))
+	if near == "" && len(typed) > 1 {
+		near = nearest(typed[0])
+	}
+	if near != "" {
+		fmt.Fprintf(stderr, "andon: 知らないコマンド: %s。近いのは andon %s\n", strings.Join(typed, " "), near)
+	} else {
+		fmt.Fprintf(stderr, "andon: 知らないコマンド: %s\n", strings.Join(typed, " "))
+	}
+	fmt.Fprintln(stderr, "andon help で一覧を出す。")
 	return 2
+}
+
+// nearest は typed との編集距離が 2 以内でいちばん近い葉か名詞（同じ距離なら表の先）。無ければ空。
+func nearest(typed string) string {
+	best, bestD := "", 3
+	seen := map[string]bool{}
+	for _, l := range leaves {
+		for _, c := range []string{l.name, l.noun()} {
+			if seen[c] {
+				continue
+			}
+			seen[c] = true
+			if d := distance(typed, c); d < bestD {
+				best, bestD = c, d
+			}
+		}
+	}
+	return best
+}
+
+func distance(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	prev := make([]int, len(rb)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ra); i++ {
+		cur := make([]int, len(rb)+1)
+		cur[0] = i
+		for j := 1; j <= len(rb); j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev = cur
+	}
+	return prev[len(rb)]
+}
+
+func helpCmd(args []string, stdout, stderr io.Writer) int {
+	if wantsHelp(args) {
+		l, _ := find("help")
+		leafHelp(l, stdout)
+		return 0
+	}
+	var all, md, bash bool
+	for _, a := range args {
+		switch a {
+		case "--all":
+			all = true
+		case "--markdown":
+			md = true
+		case "--bash":
+			bash = true
+		default:
+			fmt.Fprint(stderr, helpUsage)
+			return 2
+		}
+	}
+	switch {
+	case (md || bash) && (!all || md == bash):
+		fmt.Fprint(stderr, helpUsage)
+		return 2
+	case md:
+		markdown(stdout)
+	case bash:
+		completion(stdout)
+	case all:
+		helpAll(stdout)
+	default:
+		help(stdout)
+	}
+	return 0
+}
+
+// byPrimary は主に打つ者が w の葉（表の順）。
+func byPrimary(w who) []leaf {
+	var out []leaf
+	for _, l := range leaves {
+		if l.who[0] == w {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func rows(w io.Writer, ls []leaf, withWho bool) {
+	nameW, whoW := 0, 0
+	for _, l := range ls {
+		nameW = max(nameW, len(l.name))
+		whoW = max(whoW, len([]rune(l.whoText())))
+	}
+	for _, l := range ls {
+		if withWho {
+			pad := strings.Repeat("　", whoW-len([]rune(l.whoText())))
+			fmt.Fprintf(w, "  %-*s  %s%s  %s\n", nameW, l.name, l.whoText(), pad, l.about)
+		} else {
+			fmt.Fprintf(w, "  %-*s  %s\n", nameW, l.name, l.about)
+		}
+	}
+}
+
+// help は andon と andon help の中身（決めたこと 12）: 1行の説明・オーナーがよく打つ例・オーナーが打つ葉・
+// 役と機械が打つ名詞の1行・続きの引き方。
+func help(w io.Writer) {
+	fmt.Fprint(w, "usage: andon <名詞> <動詞> [引数…]\n")
+	fmt.Fprint(w, "andon はセルの道具。プロジェクトの Chief of Staff・Chief Engineer・担当を起動し、ラインを回す。\n\n")
+	fmt.Fprint(w, "例:\n")
+	exW := 0
+	for _, n := range featured {
+		l, _ := find(n)
+		exW = max(exW, width(l.examples[0]))
+	}
+	for _, n := range featured {
+		l, _ := find(n)
+		pad := strings.Repeat(" ", exW-width(l.examples[0]))
+		fmt.Fprintf(w, "  andon %s%s  %s\n", l.examples[0], pad, l.about)
+	}
+	fmt.Fprint(w, "\nオーナーが打つ:\n")
+	rows(w, byPrimary(owner), false)
+	fmt.Fprintf(w, "\n役が打つ: %s\n", strings.Join(nouns(role), "・"))
+	fmt.Fprintf(w, "機械が打つ: %s\n", strings.Join(nouns(machine), "・"))
+	fmt.Fprint(w, "\nandon help --all で全部の葉、andon <名詞> --help でその名詞の葉、andon <名詞> <動詞> --help で使い方を出す。\n")
+	fmt.Fprint(w, "課題の読み書きは kanban、端末は hc で打つ。\n")
+}
+
+// width は端末に出したときの幅。全角の字（U+1100 から）を 2 と数える。
+func width(s string) int {
+	n := 0
+	for _, r := range s {
+		if r >= 0x1100 {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
+}
+
+// nouns は主に打つ者が w の葉の1語目（表の順。重ねない）。
+func nouns(w who) []string {
+	var out []string
+	for _, l := range byPrimary(w) {
+		if !slices.Contains(out, l.noun()) {
+			out = append(out, l.noun())
+		}
+	}
+	return out
+}
+
+var groups = []who{owner, role, machine}
+
+func helpAll(w io.Writer) {
+	fmt.Fprint(w, "usage: andon <名詞> <動詞> [引数…]\n")
+	for _, g := range groups {
+		fmt.Fprintf(w, "\n%sが打つ:\n", whoName[g])
+		rows(w, byPrimary(g), true)
+	}
+	fmt.Fprint(w, "\nandon <名詞> <動詞> --help で使い方を出す。課題の読み書きは kanban、端末は hc で打つ。\n")
+}
+
+func nounHelp(noun string, w io.Writer) {
+	fmt.Fprintf(w, "usage: andon %s <動詞> [引数…]\n", noun)
+	kids := children(noun)
+	for _, g := range groups {
+		var ls []leaf
+		for _, l := range kids {
+			if l.who[0] == g {
+				ls = append(ls, l)
+			}
+		}
+		if len(ls) > 0 {
+			fmt.Fprintf(w, "\n%sが打つ:\n", whoName[g])
+			rows(w, ls, false)
+		}
+	}
+	fmt.Fprintf(w, "\nandon %s <動詞> --help で使い方を出す。\n", noun)
+}
+
+// leafHelp は andon <葉> --help の中身: 使い方・打つ者・例・終了コード（決めたこと 12・15）。
+func leafHelp(l leaf, w io.Writer) {
+	fmt.Fprint(w, l.usage)
+	fmt.Fprintf(w, "\n打つ者: %s\n", l.whoText())
+	fmt.Fprint(w, "例:\n")
+	for _, e := range l.examples {
+		fmt.Fprintf(w, "  andon %s\n", e)
+	}
+	fmt.Fprintf(w, "終了コード: %s\n", exitText(l))
+	if kids := children(l.name); len(kids) > 0 {
+		fmt.Fprintf(w, "\n同じ名詞の葉:\n")
+		rows(w, kids, false)
+	}
+}
+
+func exitText(l leaf) string {
+	means := map[int]string{0: "成功", 1: "失敗か断り", 2: "使い方の誤り"}
+	codes := []int{0, 1, 2}
+	if slices.ContainsFunc(l.exits, func(e exit) bool { return e.code == 0 }) {
+		means, codes = map[int]string{}, nil
+	}
+	for _, e := range l.exits {
+		if _, ok := means[e.code]; !ok {
+			codes = append(codes, e.code)
+		}
+		means[e.code] = e.means
+	}
+	slices.Sort(codes)
+	var s []string
+	for _, c := range codes {
+		s = append(s, fmt.Sprintf("%d %s", c, means[c]))
+	}
+	return strings.Join(s, "・")
+}
+
+// markdown は docs/commands.md の中身（決めたこと 16）。andon help --all と同じ葉を、同じ群と順で出す。
+func markdown(w io.Writer) {
+	esc := strings.NewReplacer("<", "&lt;", ">", "&gt;", "|", `\|`)
+	fmt.Fprint(w, "# andon のコマンド\n\n")
+	fmt.Fprint(w, "andon の葉（実際に打てる1つのコマンド）の一覧。`andon help --all --markdown` が葉の表から作るので、手で直さない。\n")
+	fmt.Fprint(w, "使い方・フラグ・終了コードは、セルの中で `andon <名詞> <動詞> --help` を打って読む。\n")
+	for _, g := range groups {
+		fmt.Fprintf(w, "\n## %sが打つ\n\n", whoName[g])
+		fmt.Fprint(w, "| コマンド | 打つ者 | 説明 |\n|---|---|---|\n")
+		for _, l := range byPrimary(g) {
+			fmt.Fprintf(w, "| `andon %s` | %s | %s |\n", l.name, l.whoText(), esc.Replace(l.about))
+		}
+	}
+}
+
+// completion は bash の補完のスクリプト（決めたこと 11。image/completions/andon に置く）。1語目と2語目を補い、
+// slug を取る葉にはプロジェクトの slug を補う。フラグは補わない。
+func completion(w io.Writer) {
+	var first []string
+	for _, l := range leaves {
+		if !slices.Contains(first, l.noun()) {
+			first = append(first, l.noun())
+		}
+	}
+	fmt.Fprint(w, "# bash completion for andon。andon help --all --bash が葉の表から作るので、手で直さない。\n")
+	fmt.Fprint(w, "# image/Dockerfile が /usr/share/bash-completion/completions/ に置く\n")
+	fmt.Fprint(w, "_andon() {\n")
+	fmt.Fprint(w, "  local cur=${COMP_WORDS[COMP_CWORD]}\n")
+	fmt.Fprint(w, "  if [ \"$COMP_CWORD\" -eq 1 ]; then\n")
+	fmt.Fprintf(w, "    COMPREPLY=($(compgen -W \"%s\" -- \"$cur\"))\n", strings.Join(first, " "))
+	fmt.Fprint(w, "    return 0\n  fi\n")
+	fmt.Fprint(w, "  [ \"$COMP_CWORD\" -eq 2 ] || return 0\n")
+	fmt.Fprint(w, "  case ${COMP_WORDS[1]} in\n")
+	var slugs []string
+	for _, n := range first {
+		if l, ok := find(n); ok && l.slugArg {
+			slugs = append(slugs, n)
+			continue
+		}
+		var verbs []string
+		for _, k := range children(n) {
+			verbs = append(verbs, k.words()[1])
+		}
+		if len(verbs) > 0 {
+			fmt.Fprintf(w, "    %s) COMPREPLY=($(compgen -W \"%s\" -- \"$cur\")) ;;\n", n, strings.Join(verbs, " "))
+		}
+	}
+	if len(slugs) > 0 {
+		fmt.Fprintf(w, "    %s)\n", strings.Join(slugs, "|"))
+		fmt.Fprint(w, "      local ws=${ANDON_WORKSPACE:-/workspace} d s=\n")
+		fmt.Fprint(w, "      for d in \"$ws\"/projects/*/kanban/config.yaml; do\n")
+		fmt.Fprint(w, "        [ -e \"$d\" ] && s=\"$s $(basename \"$(dirname \"$(dirname \"$d\")\")\")\"\n")
+		fmt.Fprint(w, "      done\n")
+		fmt.Fprint(w, "      COMPREPLY=($(compgen -W \"$s\" -- \"$cur\")) ;;\n")
+	}
+	fmt.Fprint(w, "  esac\n}\ncomplete -F _andon andon\n")
 }

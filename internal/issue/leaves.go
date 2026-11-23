@@ -1,0 +1,308 @@
+package issue
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"slices"
+	"time"
+
+	"andon/internal/ledger"
+)
+
+// 葉ごとの使い方（andon issue <動詞> --help の中身と、引数を誤ったときに出す文）。どの葉を打てるかは internal/cli の葉の表が決める。
+const (
+	ShowUsage = "usage: andon issue show <id>\n" +
+		"予約キー（既定で埋めたもの）・report.json・レビューの照合を JSON で出す（読むだけ）。\n"
+	ReportUsage = "usage: andon issue report <id> [--pr <url>] [--data <json>] < report.md\n" +
+		"report.json を書き（commit は HEAD）、stdin の Markdown で kanban に報告する。\n" +
+		"--data は report.json の任意のキー（pr・estimate・plan・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
+		"--pr を省くと前の report.json の pr を、--data に estimate・plan が無ければ前のそれを引き継ぐ。\n" +
+		"review_request は、HEAD が前の report.json の commit と同じ間だけ引き継ぐ（HEAD が進めば消える。頼み直しは review-request）。\n"
+	ReviewRequestUsage = "usage: andon issue review-request <id> [< report.md]\n" +
+		"report.json に review_request を足して報告する（レビューを頼む。回数・前回の commit は command が数える）。\n" +
+		"stdin を省くと前の報告の本文にレビュー依頼の行を足す。渡せば置き換える。\n" +
+		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
+	ReadyUsage = "usage: andon issue ready <id>\n" +
+		"HEAD・report.json・PR の head・レビューが揃えば kanban を review にする。\n" +
+		"deliverable: candidates なら PR の代わりに candidates.json を確かめる。\n" +
+		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
+	AskUsage = "usage: andon issue ask <id> <question.json|->\n" +
+		"問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く。\n"
+	CandidatesUsage = "usage: andon issue candidates <id> <candidates.json|->\n" +
+		"候補の一覧を検査して library/candidates.json に書く（repo があれば commit は command が HEAD を書く）。\n"
+	RecordUsage = "usage: andon issue record <id> [--expect pass|fail] -- <command> [<arg>…]\n" +
+		"worktree で command を走らせ、記録を library/runs/<n>.json・<n>.log に書く。\n" +
+		"期待は既定で pass（終了コード 0）。fail は誤りを戻すと落ちることを示す記録。\n" +
+		"期待と違っても記録は書いて終了コード 1。起動できなければ書かない。\n"
+	FinishUsage = "usage: andon issue finish <id>\n" +
+		"端末と worktree を片付け、origin に入った branch を消して done にする（MERGED を確かめてから打つ）。\n" +
+		"受け取られていない問いがあれば何も消さずに止まる。\n" +
+		"links に write_back: true の出所の issue があれば、結果を1コメント書く。\n"
+	SettleUsage = "usage: andon issue settle <id>\n" +
+		"review・doing の課題の PR をオーナーがマージしていたら、gate の問いを閉じて片付ける。\n" +
+		"PR ごとに1分に1回 gh pr view。積む通知を JSON で出す。2回打っても同じ。\n"
+	MergeUsage = "usage: andon issue merge <id>\n" +
+		"review の課題に gate を回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして片付ける。\n" +
+		"review に入った行ごとに1回。fix は担当へ、needs_human は問い。積む通知を JSON で出す。\n"
+	ImpactUsage = "usage: andon issue impact <id>\n" +
+		"マージした PR と、同じ repo の動いている課題の重なり・衝突を JSON で出す（読むだけ）。\n"
+	StartUsage = "usage: andon issue start <id> [--dry-run [--json]]\n" +
+		"担当を起動する: worktree と branch を切り、hc run で起動し、kanban start で結ぶ（Chief of Staff が打つ）。\n" +
+		"--dry-run は確かめだけ通し、hc を呼ばず何も作らずに、渡すもの（最初のメッセージ・依頼書・ラベル・端末の名前・\n" +
+		"worktree・branch・プロファイル・確かめの結果）を出す。\n"
+	ResumeUsage = "usage: andon issue resume <id> [--fresh] [--dry-run [--json]]\n" +
+		"止まった担当・Chief Engineer を続きから起動する（doing で端末が無い・終わった・素のシェル）。\n" +
+		"worktree が無ければ戻し、<profile>-resume の template でセッションの続きから起動する。\n" +
+		"記録が無い・最初のメッセージが届かなければ kanban を変えずに終了コード 1。\n"
+	SessionUsage = "usage: andon issue session\n" +
+		"自分の端末（HC_TERMINAL_ID）のラベル session を出す（template の command・resume の行が読む）。\n"
+	StopCheckUsage = "usage: andon issue stop-check [<id>] < フックの入力の JSON\n" +
+		"担当・レビュアーの Stop フック: doing で報告も問いも無ければ止める（contract.md §9）。\n" +
+		"id を省くと端末のラベル issue= から引く。担当でなければ何も出さない。\n"
+)
+
+// errUsage は葉の body が使い方の誤りを返す印。
+var errUsage = errors.New("使い方の誤り")
+
+// leaf は id を取る葉の共通の形: id を確かめ、body が打つ。errUsage を返したら使い方を出して終了コード 2。
+// 誤りの終了コード: 最初のメッセージが届かない 3、PR がまだ MERGED でない 4、ほかは 1。
+func leaf(sub, usage string, args []string, stderr io.Writer, body func(id string, rest []string) error) int {
+	if len(args) < 1 {
+		fmt.Fprint(stderr, usage)
+		return exitUsage
+	}
+	id, rest := ledger.CanonID(args[0]), args[1:]
+	if !idRe.MatchString(id) {
+		fmt.Fprintf(stderr, "andon issue %s: id が不正: %q\n", sub, id)
+		return exitUsage
+	}
+	err := body(id, rest)
+	if errors.Is(err, errUsage) {
+		fmt.Fprint(stderr, usage)
+		return exitUsage
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "andon issue %s: %v\n", sub, err)
+		if errors.As(err, new(notSent)) {
+			return exitFirst
+		}
+		if errors.As(err, new(notMerged)) {
+			return exitNotMerged
+		}
+		return exitFail
+	}
+	return 0
+}
+
+// guard は定義（process/states/issue.yaml）に無い移り方を、何かを書く前に断る（ADR-0017 決めたこと 15）。
+// start は自分の確かめの順の中で見る（start.go。--dry-run の確かめの一覧に載せる）。
+func guard(sub string, f func(*ctx) error) func(*ctx) error {
+	return func(c *ctx) error {
+		if err := allowed(sub, c.id, c.issue.Str("status")); err != nil {
+			return err
+		}
+		return f(c)
+	}
+}
+
+// Show は andon issue show。
+func Show(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("show", ShowUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withIssue(id, func(c *ctx) error { return c.show(stdout) })
+	})
+}
+
+// Report は andon issue report。
+func Report(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return leaf("report", ReportUsage, args, stderr, func(id string, rest []string) error {
+		var pr, data string
+		for len(rest) > 0 {
+			if len(rest) < 2 || (rest[0] != "--pr" && rest[0] != "--data") {
+				return errUsage
+			}
+			if rest[0] == "--pr" {
+				pr = rest[1]
+			} else {
+				data = rest[1]
+			}
+			rest = rest[2:]
+		}
+		return withIssue(id, guard("report", func(c *ctx) error { return c.report(stdin, stdout, pr, data) }))
+	})
+}
+
+// ReviewRequest は andon issue review-request。
+func ReviewRequest(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return leaf("review-request", ReviewRequestUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withIssue(id, guard("review-request", func(c *ctx) error { return c.reviewRequest(stdin, stdout) }))
+	})
+}
+
+// Ready は andon issue ready。
+func Ready(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("ready", ReadyUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withIssue(id, guard("ready", func(c *ctx) error { return c.ready(stdout) }))
+	})
+}
+
+// Ask は andon issue ask。
+func Ask(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return leaf("ask", AskUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) != 1 {
+			return errUsage
+		}
+		return withIssue(id, guard("ask", func(c *ctx) error { return c.ask(stdin, stdout, rest[0]) }))
+	})
+}
+
+// Candidates は andon issue candidates。
+func Candidates(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return leaf("candidates", CandidatesUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) != 1 {
+			return errUsage
+		}
+		return withIssue(id, guard("candidates", func(c *ctx) error { return c.candidates(stdin, stdout, rest[0]) }))
+	})
+}
+
+// Record は andon issue record。
+func Record(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("record", RecordUsage, args, stderr, func(id string, rest []string) error {
+		expect := "pass"
+		if len(rest) >= 2 && rest[0] == "--expect" {
+			expect, rest = rest[1], rest[2:]
+		}
+		if (expect != "pass" && expect != "fail") || len(rest) < 2 || rest[0] != "--" {
+			return errUsage
+		}
+		argv := rest[1:]
+		// 空の引数は記録の形（command の要素は空でない）に合わないので、走らせる前に断る。
+		// 走らせてから断ると、出力だけ残って記録が書かれない。
+		if slices.Contains(argv, "") {
+			return errUsage
+		}
+		return withIssue(id, guard("record", func(c *ctx) error { return c.record(stdout, expect, argv) }))
+	})
+}
+
+// Finish は andon issue finish。
+func Finish(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("finish", FinishUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withLockedIssue(id, guard("finish", func(c *ctx) error {
+			if err := c.finish(stdout); err != nil {
+				return err
+			}
+			c.writeBack(stdout) // done になってから。書けなくても finish は戻さない（ADR-0011 決めたこと 15）
+			return nil
+		}))
+	})
+}
+
+// Settle は andon issue settle。
+func Settle(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("settle", SettleUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withLockedIssue(id, func(c *ctx) error { return c.settle(stdout, stderr, time.Now()) })
+	})
+}
+
+// Merge は andon issue merge。
+func Merge(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("merge", MergeUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withLockedIssue(id, func(c *ctx) error { return c.merge(stdout, stderr, time.Now()) })
+	})
+}
+
+// Impact は andon issue impact。
+func Impact(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("impact", ImpactUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withIssue(id, func(c *ctx) error { return c.impact(stdout) })
+	})
+}
+
+// Start は andon issue start。
+func Start(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("start", StartUsage, args, stderr, func(id string, rest []string) error {
+		var dry, asJSON bool
+		for _, a := range rest {
+			switch {
+			case a == "--dry-run" && !dry:
+				dry = true
+			case a == "--json" && !asJSON:
+				asJSON = true
+			default:
+				return errUsage
+			}
+		}
+		if asJSON && !dry {
+			return errUsage
+		}
+		with := withLockedIssue
+		if dry {
+			with = withIssue
+		}
+		return with(id, func(c *ctx) error { return c.start(stdout, stderr, dry, asJSON) })
+	})
+}
+
+// Resume は andon issue resume。
+func Resume(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("resume", ResumeUsage, args, stderr, func(id string, rest []string) error {
+		var dry, asJSON, fresh bool
+		for _, a := range rest {
+			switch {
+			case a == "--dry-run" && !dry:
+				dry = true
+			case a == "--json" && !asJSON:
+				asJSON = true
+			case a == "--fresh" && !fresh:
+				fresh = true
+			default:
+				return errUsage
+			}
+		}
+		if asJSON && !dry {
+			return errUsage
+		}
+		with := withLockedIssue
+		if dry {
+			with = withIssue
+		}
+		return with(id, func(c *ctx) error { return c.resume(stdout, stderr, dry, asJSON, fresh) })
+	})
+}
+
+// Session は andon issue session。
+func Session(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	if len(args) > 0 {
+		fmt.Fprint(stderr, SessionUsage)
+		return exitUsage
+	}
+	return session(stdout, stderr)
+}
+
+// StopCheck は andon issue stop-check。
+func StopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return stopCheck(args, stdin, stdout, stderr)
+}

@@ -21,7 +21,7 @@ kanban の CLI `kanban`（`cmd/kanban/`。P3c）と `andon`（`cmd/andon/`）は
 シェルは bash のまま。設定は `image/bashrc`（image の `/etc/andon-bashrc`。`~/.bashrc` の末尾が読む）に1か所にまとめてある。ssh のログインシェル（`~/.profile` → `~/.bashrc`）・`bin/bootstrap herdr`・App の端末のどれでも同じに効く。
 
 - **道具**: ripgrep（`rg`）・fzf・jq。aqua でバージョンと checksum を固定している（`image/aqua/`）。fzf は Ctrl-R（履歴検索）・Ctrl-T（ファイル）・Alt-C（cd）が効く。mise の補完が呼ぶ `usage` も入っている。
-- **Tab 補完**: bash-completion（apt）と、git・gh・hc・andon・kanban・just・mise。gh・just・mise は各 CLI の生成物、hc は `hc --help` の一覧から image を焼くときに作る（hc に生成の口が無い）、andon・kanban はサブコマンド名だけ（`image/completions/`。フラグは補わない）。どれも `/usr/share/bash-completion/completions/` に置き、最初の Tab を待たずに登録する。
+- **Tab 補完**: bash-completion（apt）と、git・gh・hc・andon・kanban・just・mise。gh・just・mise は各 CLI の生成物、hc は `hc --help` の一覧から image を焼くときに作る（hc に生成の口が無い）、andon・kanban はサブコマンド名だけ（`image/completions/`。フラグは補わない。andon の分は葉の表から `andon help --all --bash` で作り、`tests/commands.sh` が作り直しても変わらないことを見る）。どれも `/usr/share/bash-completion/completions/` に置き、最初の Tab を待たずに登録する。
 - **履歴**: `~/.local/state/bash/history`。`state` の volume の下なので、作り直しても残る。追記式・大きめの上限・重複と先頭空白の行は残さない。
 - **プロンプト**: `セルの名前:ディレクトリ (git のブランチ)`。色は控えめ。
 

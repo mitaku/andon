@@ -395,7 +395,7 @@ bin/bootstrap herdr         # herdr（TUI）に入る。App なら machine andon
 
 ```bash
 hostname                    # slug（home）
-andon help                  # sub-command の一覧
+andon help                  # オーナーが打つコマンドの一覧（全部は andon help --all。docs/commands.md と同じ中身）
 hc ls                       # 端末の一覧。dispatcher が出る
 ls ~/.config/herdr-core/templates     # claude・sonnet・fable・codex・codex-review・claude-review・chief-of-staff・chief-engineer
 ls -l ~/.agents/skills                # andon-<name> が /opt/andon/skills/<name> への symlink、playwright-cli が /opt/andon-tools の下への symlink
