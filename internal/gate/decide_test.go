@@ -182,7 +182,7 @@ func TestDecide(t *testing.T) {
 		{"Must fix を見送った", func(f *Facts) { f.Review.WaivedHeavy = 1 }, "needs_human"},
 		{"受け入れ条件の fail", func(f *Facts) { f.AcceptanceFail = 1 }, "fix"},
 		{"screen_paths に当たるのに添付が無い", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"} }, "fix"},
-		{"添付が無くても委譲の外はオーナーへ", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"}; f.Tier = "C" }, "needs_human"},
+		{"委譲の外でも添付が無ければ先に担当へ", func(f *Facts) { f.ScreenMissing = []string{"web/a.css"}; f.Tier = "C" }, "fix"},
 		{"添付が無ければ checks を待たずに担当へ", func(f *Facts) {
 			f.ScreenMissing = []string{"web/a.css"}
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
@@ -210,7 +210,7 @@ func TestDecide(t *testing.T) {
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 			f.Review.MustFixOpen = 1
 		}, "fix"},
-		{"走っていても委譲の外はオーナーへ", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}; f.Tier = "C" }, "needs_human"},
+		{"委譲の外でも走っていれば待つ", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}; f.Tier = "C" }, "wait"},
 		{"走っていても head が kanban と違えば止める", func(f *Facts) {
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 			f.LedgerReasons = []string{"report.json の commit が PR の head と違う"}
@@ -227,6 +227,55 @@ func TestDecide(t *testing.T) {
 	}
 	if _, r := Decide(func() Facts { f := good; f.Tier = "C"; return f }()); !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
 		t.Errorf("委譲の理由の形: %v", r)
+	}
+}
+
+// TestDecideDelegationLast は ADR-0056 受け入れ条件 A1: 委譲の外（オーナーがマージする変更）かは、検査・CI・レビュー・
+// 受け入れ条件・CI の待ちのあとに見る。差し戻す理由があれば先に担当へ、CI が走っていれば待つ。オーナー待ちになるのは、
+// 委譲の中なら通していた PR だけで、理由は委譲の 1 件。PR の事情・予約キー・条件表の理由は、今の順のままオーナー待ち。
+func TestDecideDelegationLast(t *testing.T) {
+	outside := Facts{PROpen: true, RepoKnown: true, Tier: "C", MergeLevel: "B", ReviewRequired: true,
+		Checks: []Check{{"bash tests/*.sh", true}}, Review: ledger.Review{State: "current"},
+		GitHubChecks: GitHubChecks{State: "success", Names: []string{"test"}}, ChecksWait: 30}
+	for _, c := range []struct {
+		name   string
+		mod    func(*Facts)
+		want   string
+		reason string // 理由の 1 件目に含む語
+	}{
+		{"CI が落ちていれば fix", func(f *Facts) { f.GitHubChecks = GitHubChecks{"failure", []string{"test"}} }, "fix", "GitHub の checks が落ちた"},
+		{"条件表の検査が落ちていれば fix", func(f *Facts) { f.Checks[0].OK = false }, "fix", "check: "},
+		{"レビューが無ければ fix", func(f *Facts) { f.Review.State = "missing" }, "fix", "review missing"},
+		{"レビューが古ければ fix", func(f *Facts) { f.Review.State = "stale" }, "fix", "review stale"},
+		{"Must fix が残っていれば fix", func(f *Facts) { f.Review.MustFixOpen = 1 }, "fix", "Must fix 以上が 1 件"},
+		{"受け入れ条件の fail があれば fix", func(f *Facts) { f.AcceptanceFail = 1 }, "fix", "受け入れ条件の fail"},
+		{"CI が走っていれば wait", func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}} }, "wait", "まだ走っている"},
+		{"どれも無ければ needs_human（理由は委譲の 1 件）", func(*Facts) {}, "needs_human", "delegation: merge=B < tier C"},
+		{"PR の事情は今の順のまま needs_human", func(f *Facts) {
+			f.Blockers = []string{"conflict"}
+			f.GitHubChecks = GitHubChecks{"failure", []string{"test"}}
+		}, "needs_human", "conflict"},
+		{"予約キーを信じられなければ今の順のまま needs_human", func(f *Facts) {
+			f.SettingsReason = "issue.yaml の review・must_fix が無い"
+			f.Review.State = "missing"
+		}, "needs_human", "issue.yaml の review・must_fix"},
+		{"条件表に repo が無ければ今の順のまま needs_human", func(f *Facts) {
+			f.RepoKnown = false
+			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
+		}, "needs_human", "条件表の repos"},
+		{"同じ head で2度目の Must fix は変えない", func(f *Facts) { f.Review.MustFixOpen = 1; f.PreviousMustFix = true }, "needs_human", "2度目"},
+		{"レビュアーを覆したときは変えない", func(f *Facts) { f.Review.WaivedHeavy = 1 }, "needs_human", "見送った"},
+	} {
+		f := outside
+		f.Checks = append([]Check{}, outside.Checks...)
+		c.mod(&f)
+		d, r := Decide(f)
+		if d != c.want || len(r) == 0 || !strings.Contains(r[0], c.reason) {
+			t.Errorf("%s: %s %v want %s（%s）", c.name, d, r, c.want, c.reason)
+		}
+		if c.want == "needs_human" && c.reason == "delegation: merge=B < tier C" && len(r) != 1 {
+			t.Errorf("%s: 理由が委譲の 1 件でない: %v", c.name, r)
+		}
 	}
 }
 

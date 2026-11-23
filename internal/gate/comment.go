@@ -40,12 +40,9 @@ func tierText(tier string) string {
 	return "区分の分からない変更"
 }
 
-// StatusDescription は commit status（andon/gate）の説明文。
+// StatusDescription は commit status（andon/gate）の説明文。見出しに最初の理由を括弧で足す（ADR-0054 決めたこと 5。mark.go の describe）。
 func StatusDescription(rec *Record) string {
-	if rec.Decision == "approve" {
-		return CommentPrefix + headline(rec.Decision)
-	}
-	return CommentPrefix + headline(rec.Decision) + "（" + tierText(rec.Tier) + "）"
+	return describe(rec.Decision, rec.Reasons)
 }
 
 // CommentBody は PR に書くコメントの本文。
