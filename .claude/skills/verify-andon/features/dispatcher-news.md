@@ -6,12 +6,14 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 
 - `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
 - `dn-delivered` 当てたあとに Chief of Staff へ通知を届けた記録がある。見る道: 検証の担当だけ。
+- `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
 - `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
 
 ## 辿り着き方（利用者から）
 
 - 担当が `andon issue report`・`ask`・`ready` を打つと、次の見回りで通知になる。
 - Chief of Staff の turn の終わり（Stop）とオーナーの送信（UserPromptSubmit）で、待ちの通知が届く。
+- 枠が空いたまま `idle_minutes`（既定 15 分）を2回またぐと、dispatcher がルーチンを撃ち、通知 `idle` を積む。誰も打たない。
 
 ## 動かし方
 
@@ -23,6 +25,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
 - **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`ok   dn-live` が見えれば動いた。
 - **届けたものを読む。** `dn-delivered` の行に、当てたあとに届けた通知（課題と種類）と記録だけの通知が出る。`ok   dn-delivered` が見えれば動いた。
+- **枠の空きを見たかを読む。** `dn-idle` の行に、控えの `idle`（見た時刻・枠が空いていたか・起動できる課題の数・知らせた id）と、当てたあとに届けた通知 `idle` の `detail` が出る。`ok   dn-idle` が見えれば、当てたあとに枠の空きを見た。撃ったルーチンは `kanban routine list` の `last` でも読める。控えが無ければ `note dn-idle` が出て、dn-idle は未確認になる（終了コードは変えない）。
 - **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
 
 ## 変えたら動かすパス
@@ -43,3 +46,6 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - dispatcher に `hc send` や `andon dispatcher drain` を手で打たない。待ちの通知を本物の Chief of Staff から抜き取ってしまう。
 - `acked` が false の行は、Chief of Staff がオーナーへ何かを言ったことを示し、届かなかったことではない。
 - 控えの置き場は `XDG_STATE_HOME` があればその下。`drive.sh` は呼んだ端末の環境で読む。
+- dispatcher は起動して最初の回では枠を数えて控えるだけで、撃たない。ルーチンと通知 `idle` を見るには、当てたあと `idle_minutes` の2倍ほど待ってから打ち直す。枠が埋まっていれば撃たないので、通知 `idle` が無いことは壊れではない。
+- 通知 `idle` は課題を持たない。`dn-delivered` の行では課題が `-` になる。
+- 次の commit が当たると dispatcher は起動し直し、枠の空きの見回りは最初の回からやり直しになる。当てる間が `idle_minutes` の2倍より短い間は、ルーチンを撃つところは見られない。dn-idle の撃つところは未確認と書く。
