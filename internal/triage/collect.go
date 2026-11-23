@@ -196,11 +196,16 @@ func (l *ledger) collect() ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
+	return l.listFrom(records, signals)
+}
+
+// listFrom は読んだ記録と信号で、担当に出す項目を出す順に返す。
+// 並びと上限は出す項目の数で決めるので、伏せる分を先に除いてから並べる。
+func (l *ledger) listFrom(records []record, signals []signal.Record) ([]Item, error) {
 	items, err := l.collectFrom(records, signals)
 	if err != nil {
 		return nil, err
 	}
-	// 並びと上限は、出す項目の数で決める。だから伏せる分を先に除く。
 	return prioritize(withoutHeld(items, records, l.now)), nil
 }
 
