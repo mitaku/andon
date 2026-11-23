@@ -249,6 +249,7 @@
 - **状態を動かす流れを変えること。** `andon triage apply` と `andon retro apply` が片付けと起動まで回すこと、Chief of Staff のアドレスが変わったときに予約キーを書き直すこと、dispatcher が届く行ごとに打つ1手を持つことは、流れを変える。モデルで調べる別のテーマにする。
 - **Chief of Staff をセルに1人にすること。** ADR-0031 の検討で決める。この ADR の名前と決まりは、どちらに決まっても使える（決めたこと 3・4・6）。
 - **オーナーの課題を切る手順をまとめること。** [ADR-0042](0042-owner-waits-do-not-stop-the-line.md) の「やらないこと」のままにする。`andon issue create` は予約キーだけを受ける（決めたこと 18）。
+  → 2026-11-23 に、[ADR-0057](0057-owner-issue-decision-or-hand-work.md) 決めたこと 7 が、この 1 行を覆した。オーナーの課題と問いは `andon issue ask --new` の 1 回で置く。`andon issue create` が予約キーだけを受けることは変わらない（オーナーが決めた）。
 - **`andon triage verdict` で判定をまとめて打つこと。** 1件ずつ command で書くと [ADR-0030](0030-triage-close-safety-net.md) が決めている。繰り返して打てば同じで、覆すほどの得が無い。
 - **セルに main を当てる道具を andon の葉にすること。** 当てる commit から取り出したスクリプトで当てるという [ADR-0027](0027-apply-package-without-rebuild.md) 決めたこと 5 の理由は、今も成り立つ。
 - **Chief Engineer の端末の問いを `andon waiting list` に出すこと。** ADR-0043 が、本文の問いを kanban に置く形で決めた。
