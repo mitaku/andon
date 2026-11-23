@@ -737,6 +737,34 @@ await check('waiting: andon waiting answer が断ったときは理由を 1 行�
   }
 });
 
+// An owner issue with neither a question nor the mark only_owner (ADR-0057 decision 4): a decision row with no question number.
+const UNASKED = { kind: 'decision', id: 'S-0032', title: '公開の範囲を決める', since: '2026-11-21T09:10:00Z',
+  reason: 'オーナーに聞く問いが置かれていない。判断なら問いを置き、オーナーにしかできない手作業なら印 only_owner を書く（Chief of Staff が直す）',
+  answerable: false, holds: [] };
+
+await check('waiting: 問いの番号の無い判断の行は課題の id で描き、開くと理由と Chief of Staff へ行く口を出し、選択肢も答えるボタンも出さない（ADR-0057 受け入れ条件 6）', async () => {
+  const cos = { address: 't1', state: 'live', labels: { project: 'sample-site', role: 'chief-of-staff' } };
+  const { v, calls, draw, cx } = await waitingPane(json({ ...SAMPLE_WAITING, items: [...SAMPLE_WAITING.items, UNASKED] }), { terms: [cos] });
+  let tree = draw();
+  const rows = walk(tree).map((n) => last(n, 'id')).filter((id) => /^waiting-row-/.test(id ?? ''));
+  assert.deepEqual(rows, ['waiting-row-S-0021', 'waiting-row-S-0030-1', 'waiting-row-S-0031', 'waiting-row-S-0032'], '問いの番号の無い判断の行を課題の id で描かない');
+  assert.equal(textOf(byId(tree, 'waiting-kind-S-0032'))[0], 'Decide');
+  v.toggle('S-0032');
+  tree = draw();
+  const detail = byId(tree, 'waiting-detail-S-0032');
+  assert.ok(detail, '開いた行の中身が無い');
+  const said = textOf(detail);
+  assert.ok(said.includes(UNASKED.reason), `理由が無い: ${said}`);
+  assert.ok(said.includes('Answer it to the Chief of Staff.'), `Chief of Staff へ答える案内が無い: ${said}`);
+  assert.ok(!said.some((x) => /^Question /.test(x)), `問いの番号の行を出した: ${said}`);
+  const pressable = walk(detail).filter((n) => /^waiting-option-/.test(String(last(n, 'id') ?? '')) && args(n, 'on_click').length > 0);
+  assert.equal(pressable.length, 0, '選択肢が押せる');
+  assert.ok(!byId(tree, 'waiting-answer-S-0032'), '答えるボタンがある');
+  clickOn(cx)(byId(tree, 'waiting-cos-S-0032'));
+  assert.deepEqual(calls.run.at(-1), ['agent.focus', { terminal: 't1' }], 'Chief of Staff へ行けない');
+  assert.ok(!calls.exec.some((c) => c[1][1] === 'answer'), 'andon waiting answer を呼んだ');
+});
+
 await check('waiting: 選んだあとにフォーカスが別のフォルダへ移ったら、前のフォルダで描いた行のボタンを押しても andon waiting answer を呼ばない（ADR-0042 受け入れ条件 18）', async () => {
   const { v, calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING));
   const click = clickOn(cx);
@@ -1201,6 +1229,15 @@ await check('inbox: merge 2 件・decision 1 件・task 1 件のプロジェク�
   assert.deepEqual(plain((await two.look()).owed.map((w) => [w.project, w.merge, w.decision])), [['other-site', 0, 1], ['sample-site', 1, 0]]);
   assert.deepEqual(plain(textOf(byId(two.draw(), 'owed-cell/other-site')).slice(0, 2)), ['other-site', '1 to decide']);
   assert.deepEqual(lampOf(two.store), { ...LAMP0, light: 'amber', merge: 1, decision: 1 });
+});
+
+await check('inbox: 問いの番号の無い判断の行（question も ask も無く answerable が false）だけのプロジェクトは「to decide」に数えて琥珀（ADR-0057 受け入れ条件 6）', async () => {
+  const state = { terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': [UNASKED] } };
+  const { store, look, draw } = await inboxCell(state);
+  const m = await look();
+  assert.equal(m.owed.length, 1, '件数の行が無い');
+  assert.deepEqual(plain(textOf(byId(draw(), 'owed-cell/sample-site')).slice(0, 2)), ['sample-site', '1 to decide']);
+  assert.deepEqual(lampOf(store), { ...LAMP0, light: 'amber', decision: 1 });
 });
 
 await check('inbox: 件数の行を押すとオーナー待ちのペインを開き、ペインが無ければそのプロジェクトの Chief of Staff へ行く。マシンを絞ると外の件数の行は消えて「ほかのマシンで待っている数」に足され、行燈は変わらない（ADR-0043 受け入れ条件 4・6）', async () => {

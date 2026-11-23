@@ -31,29 +31,33 @@ printf '{"commit": "%s", "pr": "%s"}\n' "$head" "$pr" | put "$k/issues/S-0001/li
 printf '{"kind": "line", "question": "マージするか", "facts": ["gate の記録 %s"], "options": [{"label": "マージする", "pick": true}, {"label": "直させる"}], "from": "gate"}\n' \
   "$k/issues/S-0001/library/gate/$head.json" | put "$k/issues/S-0001/library/questions/1.json"
 printf 'id: S-0002\ntitle: 後ろで待つ\nstatus: todo\nafter: [S-0001]\ncreated: "2026-11-21T01:00:00Z"\n' | put "$k/issues/S-0002/issue.yaml"
-# 判断（担当の問い）と手作業（オーナーの課題）
+# 判断（担当の問い）と手作業（印 only_owner のあるオーナーの課題）と、問いも印も無いオーナーの課題（問いの番号の無い判断。ADR-0057）
 printf 'id: S-0003\ntitle: 書き出しの形を決める\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' | put "$k/issues/S-0003/issue.yaml"
 printf -- '- n: 1\n  text: CSV だけにするか\n  kind: users\n  status: open\n  asked: "2026-11-21T02:12:13Z"\n' | put "$k/issues/S-0003/questions.yaml"
 printf '{"kind": "users", "question": "CSV だけにするか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}], "from": "issue"}\n' \
   | put "$k/issues/S-0003/library/questions/1.json"
-printf 'id: S-0004\ntitle: image を焼き直す\nstatus: todo\nwho: person\ncreated: "2026-11-21T08:55:43Z"\n' | put "$k/issues/S-0004/issue.yaml"
+printf 'id: S-0004\ntitle: image を焼き直す\nstatus: todo\nwho: person\nonly_owner: ホストで image を焼き直す\ncreated: "2026-11-21T08:55:43Z"\n' | put "$k/issues/S-0004/issue.yaml"
+printf 'id: S-0005\ntitle: 公開の範囲を決める\nstatus: todo\nwho: person\ncreated: "2026-11-21T09:10:00Z"\n' | put "$k/issues/S-0005/issue.yaml"
 printf '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"review"}}\n' | put "$k/log.jsonl"
 before=$(cd "$p" && find . -type f -exec sha1sum {} + | sort)
 
 "$andon" waiting --json --project sample-site >"$tmp/out.json"
 jq -e '.version == 1 and .project == "sample-site"
   and .slots == {limit: 3, working: 0, waiting: 2, free: 3, waiting_full: false}
-  and ([.items[] | [.kind, .id, (.question // "")]] == [["merge", "S-0001", "S-0001#1"], ["decision", "S-0003", "S-0003#1"], ["task", "S-0004", ""]])
+  and ([.items[] | [.kind, .id, (.question // "")]] == [["merge", "S-0001", "S-0001#1"], ["decision", "S-0003", "S-0003#1"], ["task", "S-0004", ""], ["decision", "S-0005", ""]])
   and .items[0].holds == ["S-0002"] and .items[0].pr == $pr
-  and .items[1].ask.question == "CSV だけにするか" and .items[1].answerable == true' --arg pr "$pr" "$tmp/out.json" >/dev/null
+  and .items[1].ask.question == "CSV だけにするか" and .items[1].answerable == true
+  and .items[2].reason == "ホストで image を焼き直す"
+  and (.items[3] | has("ask") | not) and .items[3].answerable == false and (.items[3].reason | startswith("オーナーに聞く問いが置かれていない"))' --arg pr "$pr" "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" waiting.json
-echo 'ok --json --project: マージの依頼・判断・手作業と、枠・後ろで待つ課題・並び'
+echo 'ok --json --project: マージの依頼・判断・手作業・問いの番号の無い判断と、枠・後ろで待つ課題・並び'
 
 (cd "$p" && KANBAN_ROOT=$p "$andon" waiting) >"$tmp/text"
 grep -q '^sample-site の枠: 上限 3、動いている 0、オーナー待ち 2、空き 3$' "$tmp/text"
 grep -q '^マージの依頼 S-0001#1（名指しの口を足す）。2026-11-21T04:43:35Z から。後ろで 1 件が待つ（S-0002）。理由: マージするか。PR https://github.com/example/sample-site/pull/41$' "$tmp/text"
 grep -q '^判断 S-0003#1（書き出しの形を決める）。.*問い: CSV だけにするか$' "$tmp/text"
-grep -q '^手作業 S-0004（image を焼き直す）' "$tmp/text"
+grep -q '^手作業 S-0004（image を焼き直す）。.*理由: ホストで image を焼き直す$' "$tmp/text"
+grep -q '^判断 S-0005（公開の範囲を決める）。.*直す: 判断なら andon issue ask S-0005 -、手作業なら kanban set S-0005 only_owner="<理由>"$' "$tmp/text"
 echo 'ok 人が読む行: 枠の行と、行ごとの種類・問い・後ろで待つ数・PR'
 
 after=$(cd "$p" && find . -type f -exec sha1sum {} + | sort)

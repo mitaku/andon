@@ -143,8 +143,8 @@ func TestKinds(t *testing.T) {
 	f.issue("S-0002", "doing", "profile: claude")
 	f.questions("S-0002", q(1, "users", "open", "2026-11-21T05:00:00Z"))
 	f.ask("S-0002", 1, `{"kind": "users", "question": "CSV だけにするか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}], "from": "issue"}`)
-	// 3. 起動できて問いの無いオーナーの課題 → task
-	f.issue("S-0003", "todo", "who: person")
+	// 3. 起動できて問いの無い、印のあるオーナーの課題 → task
+	f.issue("S-0003", "todo", "who: person", "only_owner: ホストで image を焼き直す")
 	// 4. answered の問い → 入らない
 	f.issue("S-0004", "doing", "profile: claude")
 	f.questions("S-0004", q(1, "business", "answered", "2026-11-21T05:00:00Z"))
@@ -154,9 +154,9 @@ func TestKinds(t *testing.T) {
 	// 6. answered の問いを持つオーナーの課題 → 入らない
 	f.issue("S-0006", "todo", "who: person")
 	f.questions("S-0006", q(1, "business", "answered", "2026-11-21T05:00:00Z"))
-	// 7. 前の課題を待つオーナーの課題 → 入らない（日付を待つものも）
+	// 7. 前の課題を待つオーナーの課題 → 入らない（日付を待つ印のある課題も）
 	f.issue("S-0007", "todo", "who: person", "after: [S-0002]")
-	f.issue("S-0008", "todo", "who: person", "not_before: \"2026-12-01\"")
+	f.issue("S-0008", "todo", "who: person", "only_owner: 手元の App に置き直す", "not_before: \"2026-12-01\"")
 	r := f.read()
 	want(t, r, "S-0001#1=merge", "S-0002#1=decision", "S-0003=task")
 	for _, it := range r.Items {
@@ -171,6 +171,124 @@ func TestKinds(t *testing.T) {
 			}
 		}
 	}
+}
+
+// usersAsk は灯りの種類（users）の問いの JSON。
+const usersAsk = `{"kind": "users", "question": "CSV だけにするか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}], "from": "chief-of-staff"}`
+
+// unasked は問いの置かれていない判断の行の形を確かめる（ADR-0057 受け入れ条件 1）。
+func unasked(t *testing.T, r Result, id string) {
+	t.Helper()
+	for _, it := range r.Items {
+		if it.ID != id {
+			continue
+		}
+		if it.Kind != "decision" || it.Question != "" || it.Ask != nil || it.Answerable == nil || *it.Answerable || it.Reason != unaskedReason {
+			t.Errorf("%s の行 = %+v, want 問いの番号の無い decision で answerable false、理由つき", id, it)
+		}
+		return
+	}
+	t.Errorf("%s の行が無い", id)
+}
+
+// ADR-0057 受け入れ条件 1: 灯りの種類の問いも印 only_owner も無いオーナーの課題は、問いの番号の無い判断の行に出る。
+// scope の問いと種類の無い問いだけを持つ課題も同じ（オーナーに届く問いでない）。
+func TestOwnerIssueWithoutQuestionOrMark(t *testing.T) {
+	f := newFake(t, 4)
+	// 1. 問いも印も無い
+	f.issue("S-0001", "todo", "who: person")
+	// 2. scope の問いだけを持つ
+	f.issue("S-0002", "todo", "who: person")
+	f.questions("S-0002", q(1, "scope", "open", "2026-11-21T05:00:00Z"))
+	// 3. 種類の無い問い（灯りの種類でない種類）だけを持つ
+	f.issue("S-0003", "doing", "who: person")
+	f.questions("S-0003", q(1, "判断がつかない", "open", "2026-11-21T05:00:00Z"))
+	r := f.read()
+	want(t, r, "S-0001=decision", "S-0002=decision", "S-0003=decision")
+	for _, id := range []string{"S-0001", "S-0002", "S-0003"} {
+		unasked(t, r, id)
+	}
+	if r.Slots.Waiting != 0 || r.Slots.Working != 0 {
+		t.Errorf("slots = %+v, want オーナーの課題は枠に数えない", r.Slots)
+	}
+}
+
+// ADR-0057 受け入れ条件 2: 印 only_owner を持つオーナーの課題は手作業（理由は印の値）。開いている問いがあれば問いの行だけ、
+// 答えられてまだ受け取られていない問いがあればどの行にも出ない。who: person が無ければオーナーの課題でない。
+func TestOwnerIssueWithMark(t *testing.T) {
+	f := newFake(t, 4)
+	// 1. 印だけ → task（値の 1 行目が理由）
+	f.issue("S-0001", "todo", "who: person", "only_owner: \"ホストで image を焼き直す\\n2 行目は出さない\"")
+	// 2. 印と開いている問い → 問いの判断の行だけ
+	f.issue("S-0002", "todo", "who: person", "only_owner: 手元の App に置き直す")
+	f.questions("S-0002", q(1, "users", "open", "2026-11-21T05:00:00Z"))
+	f.ask("S-0002", 1, usersAsk)
+	// 3. 印と答えられてまだ受け取られていない問い → 入らない
+	f.issue("S-0003", "todo", "who: person", "only_owner: 決まりのファイルを書く")
+	f.questions("S-0003", q(1, "users", "answered", "2026-11-21T05:00:00Z"))
+	// 4. 印があって who: person が無い → 入らない
+	f.issue("S-0004", "todo", "only_owner: オーナーの目で見る")
+	r := f.read()
+	want(t, r, "S-0001=task", "S-0002#1=decision")
+	for _, it := range r.Items {
+		if it.ID == "S-0001" && it.Reason != "ホストで image を焼き直す" {
+			t.Errorf("手作業の理由 = %q, want 印の値の 1 行目", it.Reason)
+		}
+		if it.ID == "S-0002" && (it.Answerable == nil || !*it.Answerable) {
+			t.Errorf("印のある課題の問いの行 = %+v, want answerable true", it)
+		}
+	}
+}
+
+// ADR-0057 受け入れ条件 3: 印の無いオーナーの課題の灯りの種類の問いが全部受け取られていれば、片付いていなくてもどの行にも出ない。
+func TestOwnerIssueAllReceived(t *testing.T) {
+	f := newFake(t, 4)
+	f.issue("S-0001", "todo", "who: person")
+	f.questions("S-0001", q(1, "business", "received", "2026-11-21T05:00:00Z"))
+	want(t, f.read())
+}
+
+// ADR-0057 受け入れ条件 4: 前の課題を待つオーナーの課題は、問いが開いていても、問いも印も無くても出ない。前の課題が片付くと出る。
+// not_before はオーナーの課題の判断の行を隠さず、印のある課題（手作業）だけを日付まで隠す。担当の課題の問いは after を見ない。
+func TestOwnerIssueAfterAndNotBefore(t *testing.T) {
+	setup := func(t *testing.T, prev string) *fake {
+		f := newFake(t, 4)
+		f.issue("S-0001", prev, "profile: claude")
+		// 1. 前の課題を待ち、問いが開いている
+		f.issue("S-0002", "queued", "who: person", "after: [S-0001]")
+		f.questions("S-0002", q(1, "users", "open", "2026-11-21T05:00:00Z"))
+		f.ask("S-0002", 1, usersAsk)
+		// 2. 前の課題を待ち、問いも印も無い
+		f.issue("S-0003", "queued", "who: person", "after: [S-0001]")
+		// 3. 日付の前で、問いが開いている
+		f.issue("S-0004", "todo", "who: person", "not_before: \"2026-12-01\"")
+		f.questions("S-0004", q(1, "users", "open", "2026-11-21T05:00:00Z"))
+		f.ask("S-0004", 1, usersAsk)
+		// 4. 日付の前で、問いも印も無い
+		f.issue("S-0005", "todo", "who: person", "not_before: \"2026-12-01\"")
+		// 5. 日付の前で、印がある
+		f.issue("S-0006", "todo", "who: person", "only_owner: 手元の App に置き直す", "not_before: \"2026-12-01\"")
+		// 6. 前の課題を待つ担当の課題の開いている問い
+		f.issue("S-0007", "doing", "profile: claude", "after: [S-0001]")
+		f.questions("S-0007", q(1, "users", "open", "2026-11-21T05:00:00Z"))
+		f.ask("S-0007", 1, usersAsk)
+		return f
+	}
+	t.Run("前の課題が片付いていない", func(t *testing.T) {
+		r := setup(t, "doing").read()
+		want(t, r, "S-0004#1=decision", "S-0005=decision", "S-0007#1=decision")
+		unasked(t, r, "S-0005")
+	})
+	t.Run("前の課題が片付いた", func(t *testing.T) {
+		r := setup(t, "done").read()
+		want(t, r, "S-0002#1=decision", "S-0003=decision", "S-0004#1=decision", "S-0005=decision", "S-0007#1=decision")
+		unasked(t, r, "S-0003")
+	})
+	t.Run("日付を過ぎた印のある課題は手作業", func(t *testing.T) {
+		f := setup(t, "done")
+		f.issue("S-0006", "todo", "who: person", "only_owner: 手元の App に置き直す", "not_before: \"2026-11-21\"")
+		want(t, f.read(), "S-0002#1=decision", "S-0003=decision", "S-0004#1=decision", "S-0005=decision", "S-0006=task", "S-0007#1=decision")
+	})
 }
 
 // 受け入れ条件 2: マージの依頼は今の head について決め終えたものだけ（7 つの場合）。
@@ -388,10 +506,14 @@ func TestFastAndOffline(t *testing.T) {
 // 人が読む出力は枠の行と、行ごとの種類・課題・後ろで待つ数を出す。
 func TestText(t *testing.T) {
 	f := newFake(t, 4)
-	f.issue("S-0001", "todo", "who: person")
+	f.issue("S-0001", "todo", "who: person", "only_owner: ホストで image を焼き直す")
 	f.issue("S-0002", "todo", "after: [S-0001]")
+	f.issue("S-0003", "todo", "who: person")
 	out := Text(f.read())
-	for _, s := range []string{"sample-site の枠: 上限 4、動いている 0、オーナー待ち 0、空き 4", "手作業 S-0001（題 S-0001）", "後ろで 1 件が待つ（S-0002）"} {
+	for _, s := range []string{"sample-site の枠: 上限 4、動いている 0、オーナー待ち 0、空き 4", "手作業 S-0001（題 S-0001）", "後ろで 1 件が待つ（S-0002）",
+		"理由: ホストで image を焼き直す",
+		"判断 S-0003（題 S-0003）。2026-11-21T01:00:00Z から。理由: オーナーに聞く問いが置かれていない",
+		`直す: 判断なら andon issue ask S-0003 -、手作業なら kanban set S-0003 only_owner="<理由>"`} {
 		if !strings.Contains(out, s) {
 			t.Errorf("出力に %q が無い:\n%s", s, out)
 		}

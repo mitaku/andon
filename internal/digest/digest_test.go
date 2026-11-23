@@ -410,7 +410,7 @@ func TestColors(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
 	f.mergeWait("S-0010", 10, sha1, "マージを待つ")
-	f.issue("S-0011", "todo", "who: person")
+	f.issue("S-0011", "todo", "who: person", "only_owner: ホストで image を焼き直す")
 	f.issue("S-0012", "review")
 	f.lib("S-0012", "report.json", fmt.Sprintf(`{"commit": "%s", "pr": "%s"}`, sha2, prURL(12)))
 	f.lib("S-0012", "gate/"+sha2+".json", `{"at": "2026-11-21T09:30:00Z", "decision": "fix"}`)
