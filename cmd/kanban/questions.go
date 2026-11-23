@@ -27,8 +27,14 @@ var (
 	// questionKinds: the four kinds of decision point, line (a change to the line) and scope (which candidates a
 	// fix task should fix; for the Chief of Staff, not a decision point for the person).
 	questionKinds = []string{"business", "users", "promise", "irreversible", "line", "scope"}
+	// decidedBys: who decided an answer (docs/adr/0049-owner-touches-by-kind.md, decision 5): the owner, the Chief
+	// of Staff on its own, or a command that closed the question from facts.
+	decidedBys = []string{"owner", "chief-of-staff", "machine"}
+	// answerFlags are the flags kanban answer takes; any other is refused, so a misspelt --decided-by
+	// doesn't write an answer without the mark.
+	answerFlags = []string{"decided-by", "json", "help"}
 	// questionKeys are the keys kanban knows (the schema describes exactly these).
-	questionKeys = []string{"n", "text", "kind", "asked", "askedBy", "status", "answer", "answered", "answeredBy", "received"}
+	questionKeys = []string{"n", "text", "kind", "asked", "askedBy", "status", "answer", "answered", "answeredBy", "decidedBy", "received"}
 )
 
 // questionsFile is one issues/<id>/questions.yaml kept as a node tree, so that a person's
@@ -315,7 +321,16 @@ func moveQuestion(e env, a args, ref, from, to string, set func(d *doc)) error {
 }
 
 func cmdAnswer(e env, a args) error {
-	const usage = `usage: kanban answer <id>#<n> "<answer>"  (answer - reads stdin)`
+	const usage = `usage: kanban answer <id>#<n> [--decided-by owner|chief-of-staff|machine] "<answer>"  (answer - reads stdin)`
+	for k := range a.flags {
+		if !slices.Contains(answerFlags, k) {
+			return fail("kanban answer takes no --%s (%s)", k, usage)
+		}
+	}
+	decidedBy := a.flags["decided-by"]
+	if a.has("decided-by") && !slices.Contains(decidedBys, decidedBy) {
+		return fail("--decided-by must be one of %s", strings.Join(decidedBys, ", "))
+	}
 	if len(a.rest) < 2 {
 		return fail(usage)
 	}
@@ -330,6 +345,9 @@ func cmdAnswer(e env, a args) error {
 		d.setStr("answer", answer)
 		d.setStr("answered", now())
 		d.setStr("answeredBy", who())
+		if decidedBy != "" {
+			d.setStr("decidedBy", decidedBy)
+		}
 	})
 }
 
@@ -476,6 +494,9 @@ func lintQuestions(root string) []string {
 			}
 			if k := d.get("kind"); !isNull(k) && !slices.Contains(questionKinds, d.str("kind")) {
 				out = append(out, fmt.Sprintf("%s: kind %q is not %s", at, k.Value, strings.Join(questionKinds, ", ")))
+			}
+			if k := d.get("decidedBy"); !isNull(k) && !slices.Contains(decidedBys, d.str("decidedBy")) {
+				out = append(out, fmt.Sprintf("%s: decidedBy %q is not %s", at, k.Value, strings.Join(decidedBys, ", ")))
 			}
 			for _, k := range []string{"asked", "answered", "received"} {
 				if v := d.get(k); !isNull(v) {

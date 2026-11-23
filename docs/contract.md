@@ -233,6 +233,7 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 
 - 書き手: 担当（`andon issue ask <id> <json>`）、dispatcher（gate の `needs_human`。`from: gate`）、Chief of Staff・Chief Engineer（オーナーに出すとき）。command が JSON を検証して `text` を描き、`kanban ask` を打つ。
 - 読み手: Chief of Staff（`kanban questions --json` と並べて読む）・通知の口（将来）・ボードの返事欄（相談 F2）。答えは今までどおり `kanban answer`・`kanban received`。gate の問い（`from: gate`）は、課題の PR をオーナーが GitHub でマージしたら dispatcher が「オーナーがマージした（<PR>）」と答えて受け取りまで閉じる（[dispatcher.md](dispatcher.md) §2.7）。gate の判定のあとに PR の head が動いたときも、gate を回し直す前に gate の問いを「PR の head が gate のあとに動いた（<前> → <今>）。gate が今の head で回し直す」と答えて閉じ、回し直した gate が今の head で決めたときは、前の head の gate の問いを「PR の head が動いた（<前> → <今>）。gate が今の head で決め直した（記録 <パス>）」と答えて閉じる。この3つの機械の答えは、§14 の `answer` にも `override` にも数えない。
+- 誰が決めたかの印（[ADR-0049](adr/0049-owner-touches-by-kind.md) 決めたこと 5・6）: 答えを書く者は `kanban answer <id>#<n> --decided-by <値> "<答え>"` で、答えと一緒に `questions.yaml` の `decidedBy` を書く。値は `owner`（オーナーがその問いに答えた）・`chief-of-staff`（Chief of Staff が範囲の問いに答えた・委譲の中で自分で決めた・要らなくなった問いを片付けた）・`machine`（command が事実を見て閉じた）の3つで、kanban の CLI がほかの値と名前の違う旗を断る。コードの書き手は旗を必ず付ける。`andon waiting answer` は `owner`、`andon issue settle`・`andon issue merge` が gate の問いを閉じる上の3つの答えは `machine` を書く。旗の無い答えはキーを持たない（印の無い答え）。
 
 ## 6. 通知
 
@@ -1107,7 +1108,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `items[].holds` | その課題を `after` で待っている済んでいない課題の id（直接待つものと、その後ろで待つもの全部。id の順） |
 
 - 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。
-- **答える口** `andon waiting answer <id>#<n> --option <番号> [--project <slug>]`: オーナーのペインが、判断の行（`answerable: true`）の問いに、問いの JSON の選択肢の1つで答える（決めたこと 17・18）。番号は `ask.options` の並びの 1 から。書くのは `kanban answer <id>#<n> "<選んだ選択肢の label>"` の1つだけで、答えの文はその `label`。次のどれかなら何も書かずに終了コード 1 で断る: herdr の端末の中で打たれた（`HC_TERMINAL_ID` がある。担当も Chief of Staff も端末の中で動き、App の `exec` は端末の外で動く）・問いが `open` でない・問いの JSON が無いか読めない・`from: gate`・種類が `irreversible`・種類が判断（`business`・`users`・`promise`・`line`）でない・番号が選択肢の外。使い方の誤りは終了コード 2。`kanban answer` も `open` の問いだけを通すので、読んでから書くまでに答えが入っても、答えは1つだけになる。書いた答えの行は書き手が端末でないので、dispatcher が通知 `answered`（§6）で Chief of Staff に届ける。
+- **答える口** `andon waiting answer <id>#<n> --option <番号> [--project <slug>]`: オーナーのペインが、判断の行（`answerable: true`）の問いに、問いの JSON の選択肢の1つで答える（決めたこと 17・18）。番号は `ask.options` の並びの 1 から。書くのは `kanban answer <id>#<n> --decided-by owner -- "<選んだ選択肢の label>"` の1つだけで、答えの文はその `label`、印は `owner`。次のどれかなら何も書かずに終了コード 1 で断る: herdr の端末の中で打たれた（`HC_TERMINAL_ID` がある。担当も Chief of Staff も端末の中で動き、App の `exec` は端末の外で動く）・問いが `open` でない・問いの JSON が無いか読めない・`from: gate`・種類が `irreversible`・種類が判断（`business`・`users`・`promise`・`line`）でない・番号が選択肢の外。使い方の誤りは終了コード 2。`kanban answer` も `open` の問いだけを通すので、読んでから書くまでに答えが入っても、答えは1つだけになる。書いた答えの行は書き手が端末でないので、dispatcher が通知 `answered`（§6）で Chief of Staff に届ける。
 - kanban の `config.yaml` が読めないとき、`log.jsonl` が読めない（課題があるのに無い）とき、`--project` の kanban が無いときは終了コード 1。履歴が無いと、課題が `review` に入った時刻と `merge` の書き手が分からず、マージの依頼を動いている仕事に数えてしまうため、数えずに止まる。読めない `issue.yaml` は数えずに理由を標準エラーに出し、終了コード 0。
 
 ## 26. ダイジェストの入力（`library/digest/input.json`）

@@ -216,7 +216,7 @@ func TestQuestionsFitTheSchema(t *testing.T) {
 	kanban(t, root, "ask", "W-0001", "two")
 	kanban(t, root, "ask", "W-0001", "three", "--kind", "line")
 	kanban(t, root, "answer", "W-0001#2", "yes")
-	kanban(t, root, "answer", "W-0001#3", "no")
+	kanban(t, root, "answer", "W-0001#3", "--decided-by", "owner", "no")
 	kanban(t, root, "received", "W-0001#3")
 	data, _ := os.ReadFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"))
 	var written any
@@ -244,6 +244,8 @@ func TestQuestionsFitTheSchema(t *testing.T) {
 		{"- n: '1'\n  text: x\n", false},
 		{"- n: 1\n  text: x\n  status: closed\n", false},
 		{"- n: 1\n  text: x\n  kind: money\n", false},
+		{"- n: 1\n  text: x\n  decidedBy: chief-of-staff\n", true},
+		{"- n: 1\n  text: x\n  decidedBy: person\n", false},
 		{"- n: 1\n  text: x\n  asked: 2026-11-03\n", false},
 	} {
 		var v any

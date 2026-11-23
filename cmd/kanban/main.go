@@ -41,7 +41,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
   kanban ask <id> "<text>"|- [--kind k]     ask the person a question (k: business, users, promise, irreversible, line;
                                             scope asks the Chief of Staff which candidates to fix)
   kanban questions [--open] [--json]        open and answered questions, oldest first
-  kanban answer <id>#<n> "<answer>"|-       write the person's answer (open → answered)
+  kanban answer <id>#<n> "<answer>"|- [--decided-by owner|chief-of-staff|machine]
+                                            write the answer (open → answered); --decided-by marks who decided it
   kanban received <id>#<n>                  the agent has the answer (answered → received)
   kanban lint [--json]                      issues, questions, routines and config.yaml
   kanban tick [--json]                      add an issue for each routine whose schedule came due

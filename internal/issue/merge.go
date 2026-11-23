@@ -291,10 +291,11 @@ func (c *ctx) closeGateQuestions(why string, res *contract.Merge) {
 // closeQuestion は問い name（一覧を読んだときの状態 status）を、open なら why と答えて受け取る。一覧を読んだあとに
 // オーナーや Chief of Staff が答えていれば answer は断られるが、答えのある問いは受け取れるので、そのまま received に進む
 // （オーナーの答えは上書きしない）。受け取れなければ誤りを返す（呼び手は次に打たれたときに閉じ直す）。
+// 答えは command が事実を見て書くので、印は machine（ADR-0049 決めたこと 6）。
 func (c *ctx) closeQuestion(name, status, why string) error {
 	var answerErr error
 	if status == "open" {
-		_, answerErr = c.l.Run("", "answer", name, why)
+		_, answerErr = c.l.Run("", "answer", "--decided-by", "machine", "--", name, why)
 	}
 	if _, err := c.l.Run("", "received", name); err != nil {
 		if answerErr != nil {
