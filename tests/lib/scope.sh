@@ -46,7 +46,7 @@ fi
 # --isolation: CI の job isolation が tests/isolation に渡す tests/*.sh を1行ずつ出す。何も出さなければ job は回さない。
 # tests/isolation は go test ./... を毎回回し、渡した検査を偽のセル（番兵）で回す。表は docs/image.md の「検査の隔離」。
 #   検査の土台（tests/lib/ のうち判定の道具と image の道具を除くもの・tests/isolation・この job を書く tests.yml）: image.sh を除く全部
-#   tests/ の検査と、その検査が読む置き場（tests/host/ など）: その検査。Go（cmd/・internal/・root の *.go・go.mod・go.sum）: smoke.sh
+#   tests/ の検査と、その検査が読む置き場（tests/host/ など。host.sh は package/host/ も）: その検査。Go（cmd/・internal/・root の *.go・go.mod・go.sum）: smoke.sh
 #   ほか（文書・package/・schema/・image/ など）: 足さない。image.sh は docker が要るので回さない（tests の job が回す）
 if [ "${1:-}" = --isolation ]; then
   declare -A iso=()
@@ -56,7 +56,8 @@ if [ "${1:-}" = --isolation ]; then
       '' | tests/image.sh | tests/lib/pty-probe.py) ;;
       tests/lib/scope.sh | tests/lib/docs-scope.sh | tests/lib/image-scope.sh) ;; # 判定の道具は tests/ci.sh が見る
       tests/isolation | tests/lib/* | .github/workflows/tests.yml) full=true ;;
-      tests/host/*) iso[tests/host.sh]=1 ;;
+      # host.sh は tests/host/ の検査で package/host/ の plugin（HOME や上のフォルダの kanban を読む）を回す
+      tests/host/* | package/host/*) iso[tests/host.sh]=1 ;;
       tests/kanban/*) iso[tests/kanban.sh]=1 ;;
       tests/package/*) iso[tests/package.sh]=1 ;;
       tests/process/*) iso[tests/process.sh]=1 ;;

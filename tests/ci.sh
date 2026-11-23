@@ -157,6 +157,7 @@ for p in tests/lib/isolate.sh tests/lib/kanban.sh tests/lib/andon.sh tests/lib/a
 done
 # 検査が読む置き場で、隔離の漏れが main に入った形（tests/host/ の検査がセルの kanban を読んだ）
 [ "$(iso tests/host/screen.mjs)" = "tests/host.sh " ] || die "tests/host/ で host.sh だけにならない: $(iso tests/host/screen.mjs)"
+[ "$(iso package/host/kanban-board/index.js)" = "tests/host.sh " ] || die "host.sh が見る plugin のコードで host.sh だけにならない: $(iso package/host/kanban-board/index.js)"
 [ "$(iso tests/kanban/test-deck.mjs)" = "tests/kanban.sh " ] || die "tests/kanban/ で kanban.sh だけにならない: $(iso tests/kanban/test-deck.mjs)"
 [ "$(iso tests/package/01-names.sh)" = "tests/package.sh " ] || die "tests/package/ で package.sh だけにならない: $(iso tests/package/01-names.sh)"
 [ "$(iso tests/andon-gate.sh)" = "tests/andon-gate.sh " ] || die "触った検査だけにならない: $(iso tests/andon-gate.sh)"

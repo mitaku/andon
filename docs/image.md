@@ -200,9 +200,10 @@ andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`interna
 |---|---|
 | 検査の土台（`tests/lib/` のうち判定の道具と `pty-probe.py` を除くもの・`tests/isolation`・job を書く `.github/workflows/tests.yml`） | `image.sh` を除く全部 |
 | 検査が読む置き場（`tests/host/`・`tests/kanban/`・`tests/package/`・`tests/process/`・`tests/adr-new`） | その置き場を読む検査（`host.sh` など） |
+| `package/host/`（`host.sh` が回す plugin。HOME や上のフォルダの kanban を読む） | `host.sh` |
 | `tests/<x>.sh` | その `tests/<x>.sh`（`schema.sh` なら出力を読む11本も） |
 | Go（`cmd/`・`internal/`・root の `*.go`・`go.mod`・`go.sum`） | `smoke.sh`（`go test ./...` の隔離を見る。数分） |
-| それ以外（文書・`package/`・`schema/`・`image/`・`model/`・`mise.toml` など） | 回さない |
+| それ以外（文書・`package/` のほか・`schema/`・`image/`・`model/`・`mise.toml` など） | 回さない |
 
 `image.sh` は docker が要るので番兵の中では回さない（tests の job が回す）。main の push では回さない。main で隔離が壊れていないかは、Andon を開発するセルの週1回の点検 `check-isolation`（[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 18）が全部を回して見る。
 
