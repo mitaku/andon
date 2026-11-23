@@ -28,6 +28,8 @@
 | `tests/andon-dispatcher.sh` で pending の report を `last` で見ると、担当の review-request が積んだ report を拾う。通知が積まれたかは前後の件数で比べる。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | `tests/package.sh` の仮設の語の検査は `package/skills` の文を「推し」で見るので、「推した」と書かず「推奨は〜だった」と書く。 | `tests/package.sh`。`package/skills` に「推し」を含む文があると落ちる。 |
 | `.claude/skills/verify-andon/` は追跡済み。生成物を片付けるときは `.claude` を丸ごと消さず、`git ls-files` と `git status --short` で自分が作ったフォルダだけを消す。 | 無し。片付けの手順で、見るものが無い。 |
+| worker skill §2 の「3つの観点」の並びは `tests/package.sh` の検査 20 と 23（yomiyasu の `allow.txt`）が数と語を固定している。観点を足すなら、並びの外の項にする。 | `tests/package.sh` の検査 20 と 23。並びの数と語が変わると落ちる。 |
+| `tests/andon-init.sh` の sandbox の `PATH` には `awk` が無い。`bin/bootstrap` はホストの前提が docker と bash だけなので、文字の処理は bash で書き、`awk` などの外の command を足さない。 | 無し。sandbox の `PATH` に無い command は、その場で「見つからない」と落ちて気づく。 |
 | 検査の中の偽の鍵と秘密鍵の見出しは、文字列を組み立てて作る（そのまま書くと `tests/public.sh` に当たる）。 | `tests/public.sh`。そのまま書くと当たって落ちる。 |
 | 起動の口を足すときは、Go の検査が `hc` の呼び出しの並びを固定しているので、`hc` を余分に呼ぶと `internal/issue`・`chiefengineer`・`chiefofstaff` の検査が落ちる。 | `go test ./...`。`internal/issue` などの検査が `hc` の呼び出しの並びを固定している。 |
 | `tests/schema.sh` に新しい schema を足すときは、`schema_of`・`expected`・`$id`・必須の表・`NESTED`・3b の値・`LOOSE`・`EMIT` の8か所を触る。 | `tests/schema.sh`。`schema/` の顔ぶれと `expected`、`$id` のバージョンを突き合わせるので、触り忘れの一部で落ちる。 |
