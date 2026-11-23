@@ -80,7 +80,7 @@ image_commit() {
   fi
 }
 
-applied_commit() { [ -f "$record" ] && sed -n 's/.*"commit": *"\([0-9a-f]*\)".*/\1/p' "$record" | head -1 || true; }
+applied_commit() { jq -r '.commit // empty' "$record" 2>/dev/null || true; }
 
 # $1 を $2 に入れ替える（同じファイルシステムの中の rename）。overlay の下の層にある dir（イメージの /opt/andon）は
 # rename できない（EXDEV）ので、そのときは消してから入れる（中身は退避にある）。入れられなければ退避から戻す。
@@ -215,8 +215,13 @@ apply() {
     say "イメージのバージョン（$image）を $stash に退避した"
   fi
 
-  printf '{"commit": "%s", "applied_at": "%s", "image_commit": "%s"}\n' \
-    "$commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" >"$build/pkg/applied.json"
+  # 前に当てた commit と日時（新しい順に 20 件）。検証が、ある commit の当たっていた間を次に当てた時刻までと読む。
+  # 記録が無い・読めないときは空、前のバージョンの記録（previous が無い）は今の1件だけを写す。
+  # previous は2行目に置く（1行目だけを sed で読む前のバージョンの apply-main.sh が、当てた commit を取り違えない）
+  local previous
+  previous=$(jq -c '[{commit, applied_at}] + (.previous // []) | .[:20]' "$record" 2>/dev/null) || previous='[]'
+  printf '{"commit": "%s", "applied_at": "%s", "image_commit": "%s",\n "previous": %s}\n' \
+    "$commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${previous:-[]}" >"$build/pkg/applied.json"
   # 焼いたときの印（andon version が commit と食い違いを読む。ADR-0028 P0-1）。中身はこれより後に足さない。
   # andon version の無い古い commit では書けない（andon version は commit だけ読み、食い違いは null と出す）
   ANDON_HOME=$build/pkg "$build/pkg/bin/andon" version stamp "$commit" >/dev/null 2>&1 \
@@ -265,7 +270,7 @@ status() {
   applied=$(applied_commit)
   echo "イメージのバージョン: $image"
   if [ -n "$applied" ]; then
-    echo "当てた commit: $applied（$(sed -n 's/.*"applied_at": *"\([^"]*\)".*/\1/p' "$record")）"
+    echo "当てた commit: $applied（$(jq -r '.applied_at // empty' "$record" 2>/dev/null)）"
     base=$applied
   else
     echo "当てた commit: 当てていない"

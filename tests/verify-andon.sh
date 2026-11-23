@@ -176,4 +176,28 @@ if [ "$self" = true ]; then
   links worker retro; ln -s "$c/ws" "$c/home/.agents/skills/andon-extra"; journey boot
   [ "$jrc" = 1 ] && grep -qF 'andon-extra がパッケージの外' <<<"$jout" || die "boot: 余分な andon-extra がパッケージの外を指すのに落ちない（$jrc）: $jout"
   ok "verify-andon: 記録を読む道は、記録だけの通知なら未確認の 3 で終わり、skill のリンクが無い・パッケージの外を指すと落ちる"
+
+  # 検証の途中で次の commit が当たった: 検証する commit（VERIFY_COMMIT）が当たっていた間だけを、次に当てた時刻まで読む
+  lib=$c/ws/projects/v/kanban/issues/V-0002/library; mkdir -p "$lib"
+  launch() { echo "{\"at\": \"$1\", \"issue\": \"V-0002\", \"role\": \"worker\", \"terminal\": \"t$2\", \"package\": {\"commit\": \"$2\", \"source\": \"applied\", \"drift\": false, \"root\": \"$c/pkg\"}}"; }
+  { launch 2026-01-01T00:02:00Z c0ffee; launch 2026-01-01T00:12:00Z beef02; } >"$lib/launches.jsonl"
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  VERIFY_COMMIT=c0f journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" && grep -qF '次に当てた時刻 2026-01-01T00:10:00Z' <<<"$jout" \
+    || die "worker-launch: 前に当てた c0ffee の間（次に当てた 00:10 まで）だけを読まない（$jrc）: $jout"
+  VERIFY_COMMIT=beef02 journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 今当たっている beef02 の起動だけを読まない（$jrc）: $jout"
+  journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 検証する commit を省くと今当たっているものを読まない（$jrc）: $jout"
+  VERIFY_COMMIT=c0ffee journey dispatcher-news
+  [ "$jrc" = 0 ] || die "dispatcher-news: c0ffee の間に届けた通知があるのに終了コード $jrc: $jout"
+  # 前のバージョンの記録（previous が無い）と、記録に無い commit: 間が決まらないので未確認の 3。落ちない
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x"}\n' >"$c/pkg/applied.json"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 3 ] && grep -qF 'c0ffee を前に当てた記録が無い' <<<"$jout" || die "worker-launch: previous の無い記録で前の commit を 3 で断らない（$jrc）: $jout"
+  journey worker-launch
+  [ "$jrc" = 0 ] || die "worker-launch: previous の無い記録で今当たっている commit を読めない（$jrc）: $jout"
+  VERIFY_COMMIT=dead01 journey worker-launch
+  [ "$jrc" = 3 ] || die "worker-launch: 記録に無い commit で終了コード $jrc（3 でない）: $jout"
+  ok "verify-andon: 記録を読む道は、検証する commit が当たっていた間を次に当てた時刻まで読み、前のバージョンの記録や記録に無い commit は未確認の 3 で終わる"
 fi

@@ -10,6 +10,7 @@
 #   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 #   11 試しの repo はこの repo の作業ツリーを写す（commit していない変更を見落とさない）
+#   12 記録に前に当てた commit と日時を新しい順に残す（前のバージョンの記録・読めない記録からも当てる）
 set -u
 cd "$(dirname "$0")/.." || exit 2
 here=$(pwd)
@@ -305,6 +306,7 @@ git -C "$tmp/repo" reset -q --hard origin/main
 
 # === 8b. hc ls が失敗したら、警告を出して当てる ===
 : >"$HC_LS_FAIL"
+at1=$(jq -r .applied_at "$rec")
 if run apply && grep -q '警告: hc ls に失敗' "$tmp/out"; then
   pass "8 hc ls が失敗すると、一覧を出せない警告を出して当てる"
 else
@@ -318,6 +320,29 @@ else
   fail "8 hc ls の空応答: $(cat "$tmp/out")"
 fi
 rm -f "$HC_LS_EMPTY"
+
+# === 12. 記録に前に当てた commit と日時（新しい順）を残す。前のバージョンの記録・読めない記録からも当てる ===
+# ここまでに c1 → origin/main の先頭（c3）→ c3 と3回当てた
+c3=$(git -C "$tmp/repo" rev-parse origin/main)
+if [ "$(jq -c '[.previous[].commit]' "$rec")" = "[\"$c3\",\"$c1\"]" ] && [ "$(jq -r '.previous[1].applied_at' "$rec")" = "$at1" ] \
+  && [ "$(jq -r .commit "$rec")" = "$c3" ] \
+  && [ "$(sed -n 's/.*"commit": *"\([0-9a-f]*\)".*/\1/p' "$rec" | head -1)" = "$c3" ]; then
+  pass "12 記録の previous に前に当てた commit と日時が新しい順にある（1行目だけを読む前のバージョンの読み方でも当てた commit を読む）"
+else
+  fail "12 記録の previous: $(cat "$rec")"
+fi
+echo "{\"commit\": \"$c1\", \"applied_at\": \"2026-01-01T00:00:00Z\", \"image_commit\": \"${c0:0:12}\"}" >"$rec"
+if run apply && [ "$(jq -c .previous "$rec")" = "[{\"commit\":\"$c1\",\"applied_at\":\"2026-01-01T00:00:00Z\"}]" ]; then
+  pass "12 previous の無い前のバージョンの記録から当てると、その1件を previous に写す"
+else
+  fail "12 前のバージョンの記録から当てる: $(cat "$rec") $(cat "$tmp/out")"
+fi
+echo '{"commit": ' >"$rec"
+if run apply && [ "$(jq -c .previous "$rec")" = '[]' ] && [ "$(jq -r .commit "$rec")" = "$c3" ]; then
+  pass "12 読めない記録から当てても落ちず、previous は空"
+else
+  fail "12 読めない記録から当てる: $(cat "$rec") $(cat "$tmp/out")"
+fi
 
 # === 9b. image/ が変わったら警告して当てる ===
 printf 'x\n' >"$tmp/repo/image/drift-marker.txt"

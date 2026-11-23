@@ -26,7 +26,7 @@ jq -c '{at, issue, kind}' <<<"$rec" 2>/dev/null | tail -10 | sed 's/^/  | /'
 echo "-- dn-idle: 控えの idle と、当てたあとの通知 idle"
 looked=0
 for f in "$state"/*.json; do
-  i=$(jq -c --arg t "$a_at" 'select(.idle.at != null and .idle.at >= $t) | {at: .idle.at, free: .idle.free, ready: (.idle.ready // [] | length), told: (.idle.told // [])}' "$f" 2>/dev/null) || continue
+  i=$(jq -c --arg t "$a_at" --arg u "$a_until" 'select(.idle.at != null and .idle.at >= $t and ($u == "" or .idle.at < $u)) | {at: .idle.at, free: .idle.free, ready: (.idle.ready // [] | length), told: (.idle.told // [])}' "$f" 2>/dev/null) || continue
   [ -n "$i" ] && { echo "  | ${f##*/}: $i"; looked=$((looked + 1)); }
 done
 ni=$(jq -c 'select(any(.news[]?; .kind == "idle"))' <<<"$del" 2>/dev/null | grep -c . || true)

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# drive.sh <機能>
+# drive.sh <機能> [<検証する commit>]
 #
 # 機能の地図（features/<機能>.md）の1機能を、scripts/journeys/<機能>.sh で動かす。証拠は標準出力に出る（andon issue record で撮る）。
 # 1回の呼び出しの中で、一時の置き場を作り・動かし・片付け・跡が残っていないことを確かめるまでを済ませる
 # （エージェントの Bash は呼び出しごとに環境が戻るので、手順を呼び出しに分けない）。
+# 検証する commit（先頭の数文字でよい）を渡すと、本物の記録を読む道はその commit が当たっていた間（次に当てた時刻まで）だけを読む。
+# 省くと、今当たっている commit を当てた時刻から今まで。切り離して動かす道は今当たっている本物を動かし、この引数を使わない。
 # 終了コード: 0 は動いた証拠が取れた、1 は動かなかった（壊れ）か跡が残った、2 は使い方の誤り、
 # 3 は前提が無く確かめられなかった（未確認。動いたと書かない）。
 set -uo pipefail
-[ $# = 1 ] || { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# = 1 ] || [ $# = 2 ] || { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 scripts=$(cd "$(dirname "$0")" && pwd)
 journey=$scripts/journeys/$1.sh
 [ -f "$journey" ] || { echo "drive.sh: 知らない機能 $1（features/README.md の一覧から選ぶ）" >&2; exit 2; }
@@ -23,8 +25,9 @@ echo "== $run"
 echo "機能: $1（$journey）"
 echo "andon: $(command -v andon) $(andon version 2>/dev/null | jq -c '{commit, source, drift}')"
 echo "当てた記録: $(cat /opt/andon/applied.json 2>/dev/null || echo 無し)"
+echo "検証する commit: ${2:-今当たっているもの}"
 echo "始めた: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-VERIFY_RUN=$run VERIFY_TMP=$tmp VERIFY_REPO=$(cd "$scripts/../../../.." && pwd) bash "$journey"
+VERIFY_COMMIT=${2:-} VERIFY_RUN=$run VERIFY_TMP=$tmp VERIFY_REPO=$(cd "$scripts/../../../.." && pwd) bash "$journey"
 rc=$?
 echo "== 動かした結果: 終了コード $rc"
 
