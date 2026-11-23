@@ -45,7 +45,7 @@ func TestCollectHoldsKeptItemsFor20Hours(t *testing.T) {
 		{"閉じたものは 20 時間たっても出ない", []map[string]any{kept(ago(30*time.Hour), "close")}, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := collectTitles(t, now, 1, defaultLimit, c.records...)
+			got, err := collectTitles(t, now, 1, DefaultLimit, c.records...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -61,7 +61,7 @@ func TestCollectHoldsKeptItemsFor20Hours(t *testing.T) {
 		fifty = append(fifty, map[string]any{"key": itemKey("demo", fmt.Sprintf("T-%d", i), "issue", fmt.Sprintf("課題 %d", i)), "decision": "keep"})
 	}
 	full := map[string]any{"collected": ago(time.Hour), "items": fifty}
-	got, err := collectTitles(t, now, 51, defaultLimit, full)
+	got, err := collectTitles(t, now, 51, DefaultLimit, full)
 	if err != nil || !slices.Equal(got, []string{"課題 51"}) {
 		t.Errorf("回した 50 件と新しい 1 件: got %v, %v", got, err)
 	}

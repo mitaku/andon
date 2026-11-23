@@ -73,3 +73,24 @@ func TestFreshWithoutPreviousRetro(t *testing.T) {
 		t.Errorf("前の振り返りが集めたあとの 1 件だけを数えない: %d", got)
 	}
 }
+
+// 空きの振り返りの線（ADR-0047 決めたこと 8）は、Fresh の束からルーチンが足した課題（routine を持つ）を除いて数える。
+// Fresh（件数のきっかけ）の数え方は変えない。
+func TestFreshOwnSkipsRoutineIssues(t *testing.T) {
+	f := newSplit(t)
+	for i := 1; i <= 3; i++ {
+		f.issue(fmt.Sprintf("A-%04d", i), now.Add(-time.Duration(i)*time.Hour).Format(time.RFC3339))
+	}
+	for _, id := range []string{"A-0004", "A-0005"} { // 空きが撃ったトリアージと点検の課題
+		f.issue(id, now.Add(-30*time.Minute).Format(time.RFC3339))
+		write(t, filepath.Join(f.is(id), "issue.yaml"), issueYAML(id, "done", "profile: sonnet\nroutine: triage\n"))
+	}
+	f.collect(Options{})
+	issues, rows := f.issues(), ledger.At(f.root).Log()
+	if got := Fresh(f.root, issues, rows, now); got != 5 {
+		t.Errorf("Fresh = %d（ルーチンの課題も数えて 5 のはず）", got)
+	}
+	if got := FreshOwn(f.root, issues, rows, now); got != 3 {
+		t.Errorf("FreshOwn = %d（ルーチンの課題を除いて 3 のはず）", got)
+	}
+}
