@@ -22,6 +22,7 @@
 # 引数なしは repo を見たあと、壊した写し（索引・状態行・決定の記録・一覧）でそれぞれ落ちることと、ADR を足しただけ・状態を
 # 変えただけの写しで落ちないこと、--list と --write-list が出すものを確かめる。
 set -euo pipefail
+caller=$PWD # 相対の --root は打った所から読む
 cd "$(dirname "$0")/.."
 
 adr() { # adr check|list|write <root>
@@ -120,9 +121,10 @@ if mode == "write":
     summary = f"CHANGELOG の一番上が {top} のときに作り直した {len(files)} 本。それより新しい ADR と変わった状態は `bash tests/adr-index.sh --list` で出せる。"
     out = board[:board.index(LIST_HEADING) + 1] + ["", summary, ""] + listed
     dst = os.path.join(root, LIST)
-    with open(dst + ".tmp", "w", encoding="utf-8") as fh:
+    part = f"{dst}.{os.getpid()}.tmp"  # 同時に打った回と一時ファイルを取り合わない
+    with open(part, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out) + "\n")
-    os.replace(dst + ".tmp", dst)
+    os.replace(part, dst)
     sys.exit()
 
 for f, lines in bodies.items():
@@ -234,7 +236,8 @@ usage() { sed -n '2,/^set /{/^set /d;s/^# \{0,1\}//;p;}' "$0" >&2; exit 2; }
 root=
 if [ "${1:-}" = --root ]; then
   [ -n "${2:-}" ] || usage
-  root=$2; shift 2
+  case "$2" in /*) root=$2 ;; *) root=$caller/$2 ;; esac
+  shift 2
 fi
 [ "$#" -le 1 ] || usage
 case "${1:-}" in
@@ -372,5 +375,11 @@ setup; sed -i '/^- 状態: /d' "$tmp/r/$a03"
 verify '状態行の無い ADR があると --list は落ちる' rejects copy --list
 verify '状態行の無い ADR があると --write-list は落ちる' rejects copy --write-list
 verify '落ちた --write-list は一覧に書かない' cmp -s "$board" "$tmp/r/$board"
+
+# --root の相対パスは打った所から読む（repo の根から読むと、写しでなく repo の一覧に書く）
+setup; sed -i '0,/^## v/s//## v999.0.0\n\n&/' "$tmp/r/CHANGELOG.md"; cp "$board" "$tmp/board"
+(cd "$tmp" && bash "$OLDPWD/tests/adr-index.sh" --root r --write-list) >/dev/null 2>&1 || true
+verify '打った所からの相対の --root に --write-list を打つと、写しの一覧に書く' grep -qF 'CHANGELOG の一番上が v999.0.0 のときに' "$tmp/r/$board"
+verify 'そのとき repo の一覧は元のまま' cmp -s "$tmp/board" "$board"
 
 exit "$fail"
