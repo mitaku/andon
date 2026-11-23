@@ -324,8 +324,11 @@ rm -f "$HC_LS_EMPTY"
 # === 12. 記録に前に当てた commit と日時（新しい順）を残す。前のバージョンの記録・読めない記録からも当てる ===
 # ここまでに c1 → origin/main の先頭（c3）→ c3 と3回当てた
 c3=$(git -C "$tmp/repo" rev-parse origin/main)
+# dispatcher を片付けて boot を打ち直した回は、切り替わった時刻（当てた時刻より後）を書き、次の回の previous に写す
 if [ "$(jq -c '[.previous[].commit]' "$rec")" = "[\"$c3\",\"$c1\"]" ] && [ "$(jq -r '.previous[1].applied_at' "$rec")" = "$at1" ] \
   && [ "$(jq -r .commit "$rec")" = "$c3" ] \
+  && [ "$(jq -r '[., .previous[]] | all(.switched_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$"))' "$rec")" = true ] \
+  && [ "$(jq -r '.switched_at >= .applied_at' "$rec")" = true ] \
   && [ "$(sed -n 's/.*"commit": *"\([0-9a-f]*\)".*/\1/p' "$rec" | head -1)" = "$c3" ]; then
   pass "12 記録の previous に前に当てた commit と日時が新しい順にある（1行目だけを読む前のバージョンの読み方でも当てた commit を読む）"
 else
@@ -381,8 +384,9 @@ git -C "$tmp/repo" push -q origin main
 echo "$oldd" >"$DISPATCHER_PID"
 : >"$CALLS"
 if run apply && [ "$(grep -c '^hc \(keep\|kill\|rm\) ' "$CALLS")" = 0 ] && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] \
-  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '確かめられないので、止めずに残した' "$tmp/out"; then
-  pass "7 前のバージョンの dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す"
+  && grep -q '^hc get dispatcher' "$CALLS" && grep -q '確かめられないので、止めずに残した' "$tmp/out" \
+  && [ "$(jq -r '.switched_at // "none"' "$rec")" = none ]; then
+  pass "7 前のバージョンの dispatcher は、鍵のファイルが残っていても止めず、boot だけ打ち直す（記録に切り替わった時刻を書かない）"
 else
   fail "7 前のバージョンの dispatcher: $(cat "$CALLS") / $(cat "$tmp/out")"
 fi

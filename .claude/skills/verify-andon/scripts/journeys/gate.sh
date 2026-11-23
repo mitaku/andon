@@ -6,7 +6,7 @@ set -uo pipefail
 
 recs=$(for f in "$ws"/projects/*/kanban/issues/*/library/gate/*.json; do
   [ -f "$f" ] && jq -c --arg f "$f" '. + {file: $f}' "$f" 2>/dev/null
-done | since)
+done | dsince)
 n=$(grep -c . <<<"$recs" || true)
 echo "-- gt-record: 当てたあとの gate の記録 $n 件"
 [ "$n" -gt 0 ] || { echo "note 当てたあとに gate が回っていない。次の課題が review に入ったあとで打ち直す"; exit 3; }

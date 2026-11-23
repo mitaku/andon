@@ -16,7 +16,7 @@ else
 fi
 
 # dn-delivered: 当てたあとに Chief of Staff へ届けた通知（<slug>.delivered.jsonl）と、記録だけの通知（<slug>.recorded.jsonl）
-del=$(since "$state"/*.delivered.jsonl) rec=$(since "$state"/*.recorded.jsonl)
+del=$(dsince "$state"/*.delivered.jsonl) rec=$(dsince "$state"/*.recorded.jsonl)
 nd=$(grep -c . <<<"$del" || true) nr=$(grep -c . <<<"$rec" || true)
 echo "-- dn-delivered: 当てたあとに届けた通知 $nd 件・記録だけの通知 $nr 件"
 jq -c '{at, project, acked, news: [.news[] | "\(.issue // "-") \(.kind)"]}' <<<"$del" 2>/dev/null | tail -10 | sed 's/^/  | /'
@@ -26,7 +26,7 @@ jq -c '{at, issue, kind}' <<<"$rec" 2>/dev/null | tail -10 | sed 's/^/  | /'
 echo "-- dn-idle: 控えの idle と、当てたあとの通知 idle"
 looked=0
 for f in "$state"/*.json; do
-  i=$(jq -c --arg t "$a_at" --arg u "$a_until" 'select(.idle.at != null and .idle.at >= $t and ($u == "" or .idle.at < $u)) | {at: .idle.at, free: .idle.free, ready: (.idle.ready // [] | length), told: (.idle.told // [])}' "$f" 2>/dev/null) || continue
+  i=$(jq -c --arg t "$d_at" --arg u "$d_until" 'select(.idle.at != null and .idle.at >= $t and ($u == "" or .idle.at < $u)) | {at: .idle.at, free: .idle.free, ready: (.idle.ready // [] | length), told: (.idle.told // [])}' "$f" 2>/dev/null) || continue
   [ -n "$i" ] && { echo "  | ${f##*/}: $i"; looked=$((looked + 1)); }
 done
 ni=$(jq -c 'select(any(.news[]?; .kind == "idle"))' <<<"$del" 2>/dev/null | grep -c . || true)
