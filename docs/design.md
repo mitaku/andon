@@ -232,7 +232,7 @@ Andon が**持つ**のは パッケージ・約束・文書と、セルの形。
 
 | 役 | 本業 | オーナーとの会話 | 持つ判断 | 起動の仕方・寿命 | プロファイル |
 |---|---|---|---|---|---|
-| **Chief Engineer** | 仕様・設計を自分で調べて作り込み、文書にして渡す。**実装も課題切りもしない** | **する**（入口と出口の2回。オーナーが直接話す） | 作り方の決定と、どちらとも読める決定。オーナーに聞く線（7 種）の中の決定はオーナーが決める（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 2） | Chief of Staff かオーナーが `andon chief-engineer "<題>"`。1題＝1課題。同時に複数いてよい。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
+| **Chief Engineer** | 仕様・設計を自分で調べて作り込み、文書にして渡す。**実装も課題切りもしない** | **する**（入口と出口の2回。オーナーが直接話す） | 作り方の決定と、どちらとも読める決定。オーナーに聞く線（7 種）の中の決定はオーナーが決める（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 2） | Chief of Staff かオーナーが `andon chief-engineer "<タイトル>"`。1テーマ＝1課題。同時に複数いてよい。文書を渡したら finish | `chief-engineer`（下の「プロファイル」） |
 | **Chief of Staff** | ラインを回す: 文書を依頼書に切る・担当を起動する・検収・振り返り・wiki | **オーナーの入口**（依頼の受付・`needs_human` の問いの中継）。何を作るかを詰める話は Chief Engineer を起動して渡す | 課題の範囲内の許可・範囲（候補のどれを直すか。委譲と判断の4種の中で）・案件側のアウターループ | オーナーが `andon chief-of-staff`。常駐 | `chief-of-staff` |
 | dispatcher | 通知・レビュアーの起動・gate・片付け | しない | しない | セルに1つ常駐 | — |
 | 担当・レビュアー | 1課題・1レビュー | 問いは kanban 経由 | 自工程の品質 | Chief of Staff（dispatcher）が起動する | `claude`・`codex`・`*-review` |
@@ -246,7 +246,7 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 参考にしたもの（出典は付録。**本文は複製しない**。要点だけ取り、Andon の語で書き直す）: mattpocock/skills の `grilling`（決定を木の形で持つ・今出せる問いだけ出す・一度に出す問いの束・事実と判断の分離・終わりの確認）・`grill-me`（何を・いつ）・`to-spec`（決めたことだけ書く・テストの継ぎ目を先に）・`to-tickets`（縦に薄く切る・依存を書く）・`handoff`。pstack（poteto 作。本家は `github.com/cursor/plugins` の `pstack/`）の `in-your-own-words`（目的の言い直し）・`sharpen`（深く、大きくではなく）・`architect`（構造の違う案を2つ以上）・`interrogate`（反論は走らせて証明したものだけ）・`show-me-your-work`（決定の履歴）。gstack の `office-hours`（前提への反論・代案 A/B/C・設計書の形）・`plan-ceo-review`（範囲の4モード: 広げる・選んで広げる・保つ・減らす）・`plan-eng-review`（構造・端・テスト表。これは担当とレビュアーの側で使う）。
 
 1. **読む（事実は Chief Engineer の仕事）。** オーナーに聞く前に自分で調べる: 案件のマスタ（用語・合意事項）・repo の docs・セルの wiki（`index.md` → ページの順で引く。[ADR-0016](adr/0016-cell-wiki-llm-wiki.md)。使う事実は数や結果ごと文書に書き切り、wiki のページを出典として指さない）・kanban（進行中の課題と開いている問い）・決定の記録。事実は自分で読む。広く探して結論だけ要るとき（多くのファイル・場所を掃く）に限り、副エージェント（新しいコンテキスト）に回してよい（待つ間は別の枝を進める）。数回の読みで済むものは回さない。**オーナーに事実を聞かない。オーナーに聞くのは判断だけ。**
-2. **入口: 言い直しと前提を1問で確かめる。** オーナーの目的と困りごとを自分の言葉で1段落に書き（pstack `in-your-own-words`）、その下に前提を**同意する／しない**の文で並べる（「本当にこの問題か」「何もしないとどうなるか」「既にあるもので済む部分」「配り方」。office-hours Phase 3）。言い直しと前提を1問に束ねて確かめ、同意しない前提だけを1問ずつ聞き直す。同じ前提で2度失敗していたら前提を疑う（pstack attack-the-premise）。ここで題の大きさを見る: 1セッションに収まらない題は先に割る（grill-me の「問いが200になったら範囲が大きすぎる」）。設計が状態を動かす流れを変えるか（下の「状態を動かす設計をモデルで調べる」の線）も、ここで決める。
+2. **入口: 言い直しと前提を1問で確かめる。** オーナーの目的と困りごとを自分の言葉で1段落に書き（pstack `in-your-own-words`）、その下に前提を**同意する／しない**の文で並べる（「本当にこの問題か」「何もしないとどうなるか」「既にあるもので済む部分」「配り方」。office-hours Phase 3）。言い直しと前提を1問に束ねて確かめ、同意しない前提だけを1問ずつ聞き直す。同じ前提で2度失敗していたら前提を疑う（pstack attack-the-premise）。ここでテーマの大きさを見る: 1セッションに収まらないテーマは先に割る（grill-me の「問いが200になったら範囲が大きすぎる」）。設計が状態を動かす流れを変えるか（下の「状態を動かす設計をモデルで調べる」の線）も、ここで決める。
 3. **入口: 続けて範囲を聞く。** 範囲は plan-ceo-review の4モード（広げる・選んで広げる・保つ・減らす）で聞く。答えで設計の大半が分かれる線の中の決定も、ここで聞く。範囲を出口まで持ち越すと、作り込んだ案を組み直すことになる（過去の対話では、線の中の決定の 3 問に 1 問で推奨と違う答えが出た。[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 1・4）。入口の終わりに、案を持って戻る目安をオーナーに伝える。問いの形は kanban の問い（[contract.md](contract.md) §5）と同じ: **何の判断か・事実・理由・選択肢・推奨案・あと何問**。「はい」で推奨案が通る文にし、1問ずつ出す（skill `ask-one-by-one`。§6 問い19）。本文の問い（自由に書く答えが要る問い・ダイアログの無いハーネスで出す問い）で答えを待ってターンを終える前に、その問いを kanban に置く（入口も出口も同じ。置かないと行燈もオーナー待ちの一覧も気づけない。ダイアログの問いは今までどおり置かない。[ADR-0043](adr/0043-lamp-lights-on-owner-waits.md) 決めたこと 11）。
 4. **真ん中: 決定の一覧の全部に答えを入れる（本体）。** 設計を**決定の一覧**として持ち（前提 → それに依る決定 → さらに依る決定、の順。木の形。grilling）、決定ごとに**オーナーに聞く線**に当てる。線は 7 種: a 目的と範囲・b 利用者に見える挙動と好み・c 外への約束と公開とお金・d 戻せないこと・e オーナーの関わり方と安全の網（誰がマージするか・gate のレベル・委譲・役の持ち場・オーナーに届く問いや通知の量・オーナーの発言や記録の扱い）・f オーナーが前に決めたことの覆し・g 事実で決まらず答えで設計の大半が分かれる不明点（表は skill `chief-engineer` の「オーナーに聞く線」）。線に当たらない作り方の決定と、どちらとも読める決定は Chief Engineer が決める。線の中の決定には推奨の答えを入れて先へ進み、出口で聞く。真ん中でオーナーに聞いてよいのは g だけで、問いを出すとき以外は止まらない（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 2・5）。推奨案は、自分のプロダクトだと思って最適と考える案にする。オーナーの好みに合わせて推奨を変えず、変えるのはオーナーの指摘が事実か理由で推奨の前提を崩したときだけ。線の中の決定は、それでも決めるのはオーナー（[decisions/2026-11-20-ce-recommend-own-best.md](decisions/2026-11-20-ce-recommend-own-best.md)）。
    - **話しても決まらない問い**（見た目・手触り）は話し続けない。試作を1つ、捨てる前提の小さい課題（レベル A・`review: off`）として Chief of Staff へ渡し、返るまで別の枝を進める（grill-me の prototype・pstack exhaust-the-design-space）。Chief Engineer 自身は書かない。
@@ -262,27 +262,27 @@ mattpocock の chief-of-staff は「spec を書く（to-spec）・tickets に切
 - 文書には「モデルで調べた」か「調べなかった理由」を 1 行書く。調べ終えたモデルは資料として添え、Chief of Staff が最初の実装の課題の依頼書にパスを書く。担当はそれを土台に実装する。repo にその流れのモデルがあれば、実装の PR でそこへ入れる。モデルが無い流れのモデルは資料のまま使い切り、repo に新しく置かない（[ADR-0038](adr/0038-statechart-in-chief-engineer-design.md) 決めたこと 5）。
 - statechart を反論の代わりにせず、当てはまらない設計には使わない。Andon の repo に固有の調べ方（`model/` の写しと `model/check --draft`）は repo の `AGENTS.md` に書く。
 
-**成果物の形**（人用の Markdown。1題1文書。機械は読まない）:
+**成果物の形**（人用の Markdown。1テーマ1文書。機械は読まない）:
 
 ```
-# <題>（仕様・設計。日付）
+# <タイトル>（仕様・設計。日付）
 ## 決定の索引
 ## 問題（オーナーの言葉で。言い直しの段落）
 ## 前提（同意済み。番号）
 ## 決めたこと（番号・日付・誰が決めたか・理由・捨てた案。あとから覆したら上書きせず下に足す）
 ## やらないこと（範囲の外。理由）
 ## 受け入れ条件（テストできる形。どの継ぎ目でテストするか＝seams を先に。TDD と独立レビューがここを見る）
-## 価値の仮説（必須。誰の何が変わるか・見る信号・見る日・当たりの条件・撤退の条件の6項目。利用者に見えない題は「無し: <理由>」の1行。ADR-0011。書き方は skill `chief-engineer`）
+## 価値の仮説（必須。誰の何が変わるか・見る信号・見る日・当たりの条件・撤退の条件の6項目。利用者に見えないテーマは「無し: <理由>」の1行。ADR-0011。書き方は skill `chief-engineer`）
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 ## 開いている問い（残った問い。判断の種類つき）
-## 出典（repo の中の文書・外の URL・オーナーの発言の日付だけ。セルの wiki や kanban は指さず中身を写す。題にも課題番号を書かない。[ADR-0026](adr/0026-pr-rules-for-outside-readers.md)）
+## 出典（repo の中の文書・外の URL・オーナーの発言の日付だけ。セルの wiki や kanban は指さず中身を写す。タイトルにも課題番号を書かない。[ADR-0026](adr/0026-pr-rules-for-outside-readers.md)）
 ```
 
-置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<題の英字>.md`（4桁の通し番号。先頭の状態行は `提案`／`決定（日付）`／`覆された → ADR-NNNN`。中身の形は上のとおりで、受け入れ条件と切る案が ADR の「結果」に当たる。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。オーナーの決定 2026-11-05。最初の ADR は [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)）。決定の記録には ADR 1本につき1件（要点と番号）を [decisions/](decisions/) に1ファイルで足し、各決定を写し直さない（書き方は [decisions.md](decisions.md) の冒頭）。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。
+置き場: 案件の repo の `docs/` に PR（案件のマスタ〈用語・合意事項〉があれば「合意事項」としてマスタへ。用語の増減は案件の用語集へ。§6 問い21）。**Andon 自身の設計は ADR** `docs/adr/NNNN-<タイトルの英字>.md`（4桁の通し番号。先頭の状態行は `提案`／`決定（日付）`／`覆された → ADR-NNNN`。中身の形は上のとおりで、受け入れ条件と切る案が ADR の「結果」に当たる。構造が変わる覆しは新しい ADR、小さな改めは同じ ADR の「決めたこと」に下から足す。オーナーの決定 2026-11-05。最初の ADR は [adr/0001-skills-distribution.md](adr/0001-skills-distribution.md)）。決定の記録には ADR 1本につき1件（要点と番号）を [decisions/](decisions/) に1ファイルで足し、各決定を写し直さない（書き方は [decisions.md](decisions.md) の冒頭）。受け入れ条件の継ぎ目は to-spec の「seams before prose」のとおり: 既存の継ぎ目を優先し、できるだけ高く、できるだけ少なく。
 
 **ADR の決定の索引と書き分け**（[ADR-0033](adr/0033-adr-inventory-and-slimming.md) 決めたこと 3・4・5。決まりの写しは Chief Engineer の skill の「文書の形」）:
 
-- **冒頭に決定の索引を必ず置く。** 見出しは `## 決定の索引` で、題と状態行の下の最初の節。ADR でない文書は省いてよい。
+- **冒頭に決定の索引を必ず置く。** 見出しは `## 決定の索引` で、タイトルと状態行の下の最初の節。ADR でない文書は省いてよい。
 - **索引は 4 列の表**（`| # | 何を決めたか | 今の正 | 今 |`）。`#` は「決めたこと」の番号と同じ並びで、受け入れ条件と決定の中の小番号は並べない。「何を決めたか」は見出しの写しでなく短い 1 文（目安は 60 字まで）。「今の正」は repo の中のパス（節があれば節まで）で、正の場所が repo に無い決定は「この ADR」。「今」は 生きている・覆された（どこが覆したかを添える）・役目を終えた・まだ実装していない の 4 つの語のどれか。
 - **「決めたこと」の 1 件は、決定の 1〜2 文・理由・捨てた案を先に書く。** 表・JSON の例・手順は、その下に「細部:」と断って分ける。節の並びと見出しは上の形のまま。
 - **実装が済んだら、索引の行だけを直す。** 実装の PR が、その決定の行の「今の正」と「今」を埋める。本文は畳まない。担当の側の決まりは worker skill §3。
@@ -298,7 +298,7 @@ sequenceDiagram
   participant K as dispatcher
   participant C as Chief of Staff
   H->>C: 設計の話（オーナーの入口は Chief of Staff）
-  C->>CE: andon chief-engineer "<題>" --brief -（kanban add ＋ start。経緯を依頼書に）
+  C->>CE: andon chief-engineer "<タイトル>" --brief -（kanban add ＋ start。経緯を依頼書に）
   CE->>H: 入口: 言い直しと前提（1問）、続けて範囲
   H->>CE: 答える
   Note over CE: 真ん中: 決定に答えを入れ、案を選び、反論を走らせて文書を書き切る（聞くのは事実で決まらない不明点だけ）
@@ -312,15 +312,15 @@ sequenceDiagram
   C->>L: S-1 を finish（文書の PR がマージされたら）
 ```
 
-- Chief Engineer は**kanban の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は kanban の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<題>"` で選ぶ。依頼書は題の下に、Chief of Staff が経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を `--brief -` で渡す。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は、オーナーが出口の最後の確かめでした）。ただし文書を切るとき、オーナーに聞く線に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見て、見つけたら切らずにオーナーへ知らせる（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 8）。Chief Engineer の課題の文書の PR は、どの案件でもいつもオーナーがマージする（dispatcher は Chief Engineer の課題に gate を回さず、自動でマージしない。[dispatcher.md](dispatcher.md) §2.7）。
+- Chief Engineer は**kanban の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は kanban の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<タイトル>"` で選ぶ。依頼書はタイトルの下に、Chief of Staff が経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を `--brief -` で渡す。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は、オーナーが出口の最後の確かめでした）。ただし文書を切るとき、オーナーに聞く線に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見て、見つけたら切らずにオーナーへ知らせる（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 8）。Chief Engineer の課題の文書の PR は、どの案件でもいつもオーナーがマージする（dispatcher は Chief Engineer の課題に gate を回さず、自動でマージしない。[dispatcher.md](dispatcher.md) §2.7）。
 - 渡すものは**文書だけ**（コンテキストのポインタ。chief-of-staff の「context pointers」）。会話の記録は渡さない。例外として、検討で調べたモデルのファイルは資料として添えてよく、依頼書はそのパスを指してよい（[ADR-0038](adr/0038-statechart-in-chief-engineer-design.md) 決めたこと 15）。Chief of Staff が切った依頼書は文書の節を `links` で指す。
-- Chief Engineer は同時に複数いてよい（1題＝1課題。Andon 自身の docs はレベル C で、文書の PR のマージ待ちの間も別の題を止めないため。[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 3）。
+- Chief Engineer は同時に複数いてよい（1テーマ＝1課題。Andon 自身の docs はレベル C で、文書の PR のマージ待ちの間も別のテーマを止めないため。[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 3）。
 
 **プロファイルとオーナーの呼び出し方**（案。推奨つき）:
 
 | 案 | プロファイル | 呼び出し | 推奨 |
 |---|---|---|---|
-| **A**（推奨） | 専用のプロファイル `chief-engineer`（モデルは最上位（別名 fable。effort は high を明示）。SKILL `chief-engineer` を `--append-system-prompt-file` で system prompt に入れる。書けるのは docs と自分の課題だけ。実装の command は deny） | プロジェクトの場所で `andon chief-engineer "<題>"`。動いていればその端末に乗る。将来はボードの「Needs you」から | 問いを重ねる仕事は「モデルの知識で系が壊れる所を当てる」仕事で、モデルの差が一番出る（mattpocock の docs）。Chief of Staff と同じ形（command 1つ・プロファイル 1つ）で開発体験が変わらない |
+| **A**（推奨） | 専用のプロファイル `chief-engineer`（モデルは最上位（別名 fable。effort は high を明示）。SKILL `chief-engineer` を `--append-system-prompt-file` で system prompt に入れる。書けるのは docs と自分の課題だけ。実装の command は deny） | プロジェクトの場所で `andon chief-engineer "<タイトル>"`。動いていればその端末に乗る。将来はボードの「Needs you」から | 問いを重ねる仕事は「モデルの知識で系が壊れる所を当てる」仕事で、モデルの差が一番出る（mattpocock の docs）。Chief of Staff と同じ形（command 1つ・プロファイル 1つ）で開発体験が変わらない |
 | B | 既存の最上位のプロファイルを流用（プロファイルを足さない） | Chief of Staff が `kanban add` して `andon issue start`（この文書を書いた課題と同じ） | 仮設の間はこれ（§5.3 の 9）。ただし「オーナーと直接話す」が依頼書の文に頼る |
 | C | `chief-of-staff` のプロファイルに SKILL を足し、Chief of Staff が「設計モード」に入る | `andon chief-of-staff` の中で `/grill` | 分けない案。コンテキストが太る（オーナーの指摘そのもの）。採らない |
 
@@ -510,12 +510,12 @@ andon/
     contract.md              機械向けの約束の説明（正は schema/）
     dispatcher.md               dispatcher の設計（何を拾い、誰にいつどう届け、どこまで動かすか）
     decisions.md             決定の記録（日付・出典。仮設の設計文書の決定を写す。表は 2026-11-07 で凍結）
-    decisions/YYYY-MM-DD-<題>.md  2026-11-07 からの決定の記録（1件1ファイル。ADR は1本1件。書き方は decisions.md の冒頭）
+    decisions/YYYY-MM-DD-<タイトル>.md  2026-11-07 からの決定の記録（1件1ファイル。ADR は1本1件。書き方は decisions.md の冒頭）
     operate.md               セルの立て方・更新・引っ越し（オーナーの手順）
     vision.md                ビジョン・ミッション・バリューと、工程・役・仕組みの図
     ledger.md  image.md      kanban の形式と kanban の CLI・セルの image
     process/                 仕事の流れと状態の定義の、人が読む頁（process/ の YAML から andon process render が作る。ADR-0017）
-    adr/NNNN-<題>.md         Chief Engineer の題ごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（dispatcher.md・image.md・ledger.md）は直下のまま
+    adr/NNNN-<タイトル>.md         Chief Engineer のテーマごとの ADR（§1.8。番号と状態つき）。部品の生きた設計（dispatcher.md・image.md・ledger.md）は直下のまま
     assets/logo/             Andon と dispatcher の記号・ワードマーク（SVG。明るい背景用と -dark。窓の色の意味は置き場の README）
   schema/                    機械用（約束の正。JSON Schema）
     ledger/                  kanban の形式（形式 3。config・issue・questions・routine。§3.5）
@@ -880,7 +880,7 @@ andon/
 | 5 | 自分をテストできる | セルの中で `bash tests/*.sh` が green |
 | 6 | 仮設は止まっていない | 仮設のセルの kanban と端末に異常なし。仮設のプロジェクトは Andon のセルができるまで Andon の仕事を持つ |
 
-**数える指標**（Warp に倣う。§1.9 の 4。振り返りの入力。kanban の履歴 `log.jsonl` と `report.json`・gate の記録から数えられる形にする）: **一次は PR あたりのオーナーの介在回数**（期間に起きたオーナーのマージ・判断の答え・問いの無いオーナーの課題の数。数え方は [ADR-0049](adr/0049-owner-touches-by-kind.md)。オーナーの答え 2026-11-07）。並べて見るのは自動マージ率（dispatcher がマージした PR ／ 全 PR）と gate の差し戻し率（`fix`＋`needs_human` ／ 全判定）。後悔しないマージの率は測らない。ほかに PR あたりの token コスト（hcか担当の報告から。最初のバージョンは無くてよい）・依頼書からマージまでの時間。最初のバージョンでは「1本流れる」で1回数えるだけでよい。2026-11-09 に、1件あたりの待ち時間（状態ごと・問いが open の間）・1日に閉じた数・期間の終わりの WIP・対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）を足し、価値 → 流れ → 効率の順に並べると決めた。2026-11-10 に、先頭の価値の行を「未計測」から、仮説を確かめた数・題から結果を見るまでの日数・価値の仮説「無し」の題の数に替えた（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 18。[decisions/2026-11-10-measure-value-line.md](decisions/2026-11-10-measure-value-line.md)）。2026-11-12 に、表の最後に通知の節（kind ごとに Chief of Staff へ届けた数・`andon news ack` で終わった素通りの数・記録だけの数と、末尾に8割以上が素通りの「記録だけへ移す候補」）を足した（[decisions/2026-11-12-measure-news-pass-through.md](decisions/2026-11-12-measure-news-pass-through.md)）。数えるのは読むだけの `andon measure`（[decisions/2026-11-09-measure-flow-metrics.md](decisions/2026-11-09-measure-flow-metrics.md)・[contract.md](contract.md) §13）。
+**数える指標**（Warp に倣う。§1.9 の 4。振り返りの入力。kanban の履歴 `log.jsonl` と `report.json`・gate の記録から数えられる形にする）: **一次は PR あたりのオーナーの介在回数**（期間に起きたオーナーのマージ・判断の答え・問いの無いオーナーの課題の数。数え方は [ADR-0049](adr/0049-owner-touches-by-kind.md)。オーナーの答え 2026-11-07）。並べて見るのは自動マージ率（dispatcher がマージした PR ／ 全 PR）と gate の差し戻し率（`fix`＋`needs_human` ／ 全判定）。後悔しないマージの率は測らない。ほかに PR あたりの token コスト（hcか担当の報告から。最初のバージョンは無くてよい）・依頼書からマージまでの時間。最初のバージョンでは「1本流れる」で1回数えるだけでよい。2026-11-09 に、1件あたりの待ち時間（状態ごと・問いが open の間）・1日に閉じた数・期間の終わりの WIP・対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）を足し、価値 → 流れ → 効率の順に並べると決めた。2026-11-10 に、先頭の価値の行を「未計測」から、仮説を確かめた数・テーマから結果を見るまでの日数・価値の仮説「無し」のテーマの数に替えた（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 18。[decisions/2026-11-10-measure-value-line.md](decisions/2026-11-10-measure-value-line.md)）。2026-11-12 に、表の最後に通知の節（kind ごとに Chief of Staff へ届けた数・`andon news ack` で終わった素通りの数・記録だけの数と、末尾に8割以上が素通りの「記録だけへ移す候補」）を足した（[decisions/2026-11-12-measure-news-pass-through.md](decisions/2026-11-12-measure-news-pass-through.md)）。数えるのは読むだけの `andon measure`（[decisions/2026-11-09-measure-flow-metrics.md](decisions/2026-11-09-measure-flow-metrics.md)・[contract.md](contract.md) §13）。
 
 ここまでが「一定できあがった」。クラウド常駐・通知の口・作業側を別のマシンに出す（`machine` はまだ使えない）は**その先**で、Andon のセルの上で Andon の課題として建てる。
 
@@ -978,7 +978,7 @@ andon/
 - TPS の役: lean.org Lexicon「Chief Engineer」（https://www.lean.org/lexicon-terms/chief-engineer/ ）・lean.org Lean Post「The book that opens Toyota's product development black box」（Morgan & Liker『The Toyota Product Development System』の紹介）・flier の『トヨタの製品開発』要約（https://www.flierinc.com/summary/847 。主査制度と豊田英二の言葉）・Toyota Global Newsroom 2026-05-27（Production Engineering Group の新設 https://global.toyota/en/newsroom/corporate/44429395.html ）・トヨタ系の生産技術・生産準備の求人票（職務の記述だけ）。チームリーダー・工長はアンドンの出典（Lean Blog）と Liker『The Toyota Way』の一般的な紹介から。
 - 仕様・設計の役の参考（MIT。本文は複製していない）: mattpocock/skills（`skills/productivity/{grill-me,grilling,handoff}`・`skills/engineering/{grill-with-docs,to-spec,to-tickets}`・`skills/in-progress/{chief-of-staff,software-factory}`・`docs/productivity/{grill-me,grilling}.md`・`docs/engineering/to-spec.md`・`README.md`・`LICENSE`）。`cursor/plugins` の `pstack/`（poteto＝Lauren Tan。Claude Code 向けの写しがある。読んだのは Codex 向けの移植 painhardcore/pstack の `README.md`・`skills/{interrogate,figure-it-out,architect,sharpen,why,in-your-own-words,show-me-your-work,arena}`・`skills/principle-{attack-the-premise,exhaust-the-design-space,never-block-on-the-human}`）。garrytan/gstack（`README.md`・`office-hours/SKILL.md` と `sections/{manifest.json,phase-2a-startup-diagnostic.md,design-and-handoff.md}`・`plan-ceo-review/SKILL.md`・`plan-eng-review/SKILL.md` の見出し・`licenses/MIT-pstack.txt`）。
 - 系譜: Wikipedia「Lean software development」（7原則と 2006 版の改名）・Wikipedia「Kanban (development)」（Anderson、2005・2010）・lean.org『Learning to See』の序文 PDF（https://www.lean.org/wp-content/uploads/2021/01/Learning-to-See-introduction.pdf 。Material and Information Flow Mapping）。原典の本は読んでいない。
-- Warp の software factory: オーナーが NotebookLM で出した講演の要約（仮設の kanban。2026-11-04。private）・講演ページ https://www.youtube.com/watch?v=tUPPVhBBcoM （字幕は取れず）・ai.engineer の講演ページ（題と長さだけ https://ai.engineer/speakers/zach-lloyd ）・Latent Space「Warp CEO Zach Lloyd on why software factories are the next phase of coding」（2026-07-01 https://www.latent.space/p/software-factories ）・Latent Space「AIEWF Daily Dispatch: Loops, Software Factories & Forward Deployed Engineers」（https://www.latent.space/p/aiewf-daily-dispatch-loops ）・BigGo の要約「Self-Improving software factories: The new open source model — Zach Lloyd, Warp」（構成図の説明 https://finance.biggo.com/podcast/c01c12f9f35987c7 ）・paddo.dev「The Future of AI Is CI: Building a Software Factory From the Back」（https://paddo.dev/blog/future-of-ai-is-ci ）・Jory Pestorious「AI Engineer World's Fair 2026: Takeaways & Verification」（https://jorypestorious.com/blog/ai-engineer-verification/ ）・Warp newsroom「Warp launches Oz」（2026-02-10）・Fortune の press release「Warp launches Warp Factories」（2026-08-18）・It's FOSS の記事・Lenny's Newsletter「How Warp ships 2,000 PRs a month」（2026-09-21。章立てと指標の名前だけ）。
+- Warp の software factory: オーナーが NotebookLM で出した講演の要約（仮設の kanban。2026-11-04。private）・講演ページ https://www.youtube.com/watch?v=tUPPVhBBcoM （字幕は取れず）・ai.engineer の講演ページ（タイトルと長さだけ https://ai.engineer/speakers/zach-lloyd ）・Latent Space「Warp CEO Zach Lloyd on why software factories are the next phase of coding」（2026-07-01 https://www.latent.space/p/software-factories ）・Latent Space「AIEWF Daily Dispatch: Loops, Software Factories & Forward Deployed Engineers」（https://www.latent.space/p/aiewf-daily-dispatch-loops ）・BigGo の要約「Self-Improving software factories: The new open source model — Zach Lloyd, Warp」（構成図の説明 https://finance.biggo.com/podcast/c01c12f9f35987c7 ）・paddo.dev「The Future of AI Is CI: Building a Software Factory From the Back」（https://paddo.dev/blog/future-of-ai-is-ci ）・Jory Pestorious「AI Engineer World's Fair 2026: Takeaways & Verification」（https://jorypestorious.com/blog/ai-engineer-verification/ ）・Warp newsroom「Warp launches Oz」（2026-02-10）・Fortune の press release「Warp launches Warp Factories」（2026-08-18）・It's FOSS の記事・Lenny's Newsletter「How Warp ships 2,000 PRs a month」（2026-09-21。章立てと指標の名前だけ）。
 - 道具: `hc --help`・`hc run|machine|events --help`・`hc templates`・`hc ls`（0.1.17）・`deck --help`（deck-v0.3.0）。
 - 用語: 仮設の用語集 skill（v0.2.0）・担当の skill。
 - TPS の語彙（2026-11-04。web で読んだ）: Toyota UK「Toyota Production System glossary」（https://mag.toyota.co.uk/toyota-production-system-glossary 。andon・genchi genbutsu・heijunka・jidoka・kanban）・同「Jidoka」（https://mag.toyota.co.uk/jidoka-toyota-production-system/ ）・lean.org Lexicon「hansei」（https://www.lean.org/lexicon-terms/hansei/ ）・「obeya」（https://www.lean.org/lexicon-terms/obeya/ ）・Wikipedia「Obeya」（https://en.wikipedia.org/wiki/Obeya ）・Creative Safety Supply の用語集（yokoten・poka-yoke。https://creativesafetysupply.com/glossary/understanding-lean-manufacturing-terms ）・TechTarget「Lean water spider」（https://www.techtarget.com/searcherp/definition/Lean-water-spider ）・Shoplogix「Mizusumashi」（https://shoplogix.com/?p=6813 ）・Lean Blog「What Is an Andon Cord?」（https://www.leanblog.org/2024/07/demystifying-toyotas-andon-system-how-it-works-and-common-misconceptions/ ）・自工程完結は newswitch（https://newswitch.jp/p/9346 ）と MONOist（https://monoist.itmedia.co.jp/mn/articles/1807/26/news064_2.html ）。トヨタ本体の公式の定義は見つからなかった語（yokoten・hansei・mizusumashi）は lean の解説の定義。

@@ -12,8 +12,8 @@
 ## 端末の場所の名前
 
 - **オーナーに端末を指すときは「<Space 名> / <tab 名>」で言う**（オーナーの Herdr App の画面の場所。App が端末の `where` に書く形と同じ）。オーナーは App で hc の address が見えない。
-  address は末尾に添えるだけ（`S-0003 返事の下書きボタン / S-0003（t7）`）。名前の決まり: Space は `<slug>`（自分と Chief Engineer）と課題ごとの `<id> <題>`（担当とレビュアー）、
-  tab は自分が `CoS`・Chief Engineer が `CE <id> <題>`・担当が `<id>`（レビュアーは担当と同じ tab に並ぶ）。`andon chief-of-staff`・`andon chief-engineer`・`andon issue start` は最後に `出た場所 …` の行で同じ形を出すので、それを写す。
+  address は末尾に添えるだけ（`S-0003 返事の下書きボタン / S-0003（t7）`）。名前の決まり: Space は `<slug>`（自分と Chief Engineer）と課題ごとの `<id> <タイトル>`（担当とレビュアー）、
+  tab は自分が `CoS`・Chief Engineer が `CE <id> <タイトル>`・担当が `<id>`（レビュアーは担当と同じ tab に並ぶ）。`andon chief-of-staff`・`andon chief-engineer`・`andon issue start` は最後に `出た場所 …` の行で同じ形を出すので、それを写す。
   置き場はコマンドがラベル `herdr.space`・`herdr.tab` で決める（`contract.md` §8）。自分では `hc label` も `herdr-app` も打たない（Space・tab を作る・閉じる・名前を付ける・前に出す、をしない）。
 
 ## 起動したら1回

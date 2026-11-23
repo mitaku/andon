@@ -28,7 +28,7 @@ kanban に溜まったもの（報告の Next・見送り・Remember・For AGENT
    要約は `library/triage/<日付>-<id>.md`、記録は同じ名前の `.json`。適用したら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
 5. **続ける**: `apply` が足した fix／bundle の課題は、オーナーに聞かずに `start.md` の手順で起動する（枠〈`andon waiting` の `slots.free`〉の中で。残りは次の周回）。
    報告の `## Next` の「〜の Chief of Staff へ委譲」は規約10の形で渡す（下）。`keep`「片付け待ち」は `finish.md` の手順で `andon issue finish`。
-   memory の項目（`kind: memory`）で `close`「wiki へ: <題>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（`wiki.md`）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。
+   memory の項目（`kind: memory`）で `close`「wiki へ: <タイトル>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（`wiki.md`）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。
 6. **オーナーへ**: 知らせる（オーナーがいるターンならその返事で、いなければ `herdr notification show "<slug> のトリアージで a 件を閉じた。b 件を直す課題にし、c 件をオーナーへ回した。要約は library/triage/…"`。TUI が動いているときだけ効く。無ければ kanban の問いとボードで足りる）。
    オーナーの課題はそのあと ask-one-by-one で1問ずつ。要約に問いを並べない。要約の「閉じた」は、自分が読んだもの（判断の閉じと課題の閉じ）が先、根拠の閉じが後に出る。
    閉じたものはあとからも戻せる（戻す＝次のトリアージの依頼書に「<key> を fix に」と書く）。

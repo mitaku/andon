@@ -170,6 +170,37 @@ if [ -n "$hits" ]; then
 fi
 echo "ok   words: 「台帳」「ゲート」「版」が替えた範囲（${old_paths[*]}）に出ない"
 
+# 漢字 1 字の「題」（ADR-0052 決めたこと 10、受け入れ条件 2）。前後が熟語（課題・問題・主題・話題・議題・本題・題名・題材）の字で
+# ない「題」を禁じる。名前は「タイトル」、Chief Engineer が受け持つ検討の単位は「テーマ」と書く。
+# バッククォートの中も見る（置き場の形 `<…>` はバッククォートの中にある）。「」の中も丸ごとは外さない。
+# 例外は名指しした句だけを外し、同じ行のほかの字は見る: このファイルと tests/words-selftest.sh・package/writing.md の語の決まりの行の
+#   「漢字 1 字の「…」では書かない」（かぎ括弧で囲んだ 1 字の形で語を挙げた所）・古い語が無いことを見る検査の行（tests/ の .sh のうち
+#   行の末尾に「# 古い語を見る（ADR-0052 決めたこと 10）」と書いた行）の単引用符の中（grep や sed に渡す古い形の文字列）。
+#   印のある行も、単引用符の外の字は見る。
+# 範囲は替え終えた場所だけで、替えるたびに dai_paths に足す（docs/vision.md と .github/ は足さない）。
+dai='(?<![課問主話議本])題(?![名材])'
+dai_paths=(package init tests/package tests/andon-init.sh docs/design.md)
+existing=()
+for p in "${dai_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
+hits=""
+[ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$dai" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
+  | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
+  | perl -CSDA -Mutf8 -ne '
+      BEGIN { $d = shift }
+      my ($f, $n, $t) = /^([^:]*):(\d+):(.*)$/s or next;
+      $t =~ s/漢字 1 字の「題」では書かない//g if $f eq "package/writing.md" && $t =~ /^- 課題や PR の名前は「タイトル」/;
+      if ($f =~ m{^tests/.*\.sh$} && $t =~ s/# 古い語を見る（ADR-0052 決めたこと 10）$//) {
+        $t =~ s/\x27[^\x27]*\x27//g;                     # 印のある行は、単引用符の中（古い形の文字列）だけを外す
+      }
+      $t =~ /$d/ or next;
+      print' "$dai" || true)
+if [ -n "$hits" ]; then
+  echo "FAIL words: 漢字 1 字の「題」が残る（ADR-0052。名前は「タイトル」、Chief Engineer が受け持つ検討の単位は「テーマ」と書く）" >&2
+  printf '%s\n' "$hits" | cut -c1-200 >&2
+  exit 1
+fi
+echo "ok   words: 漢字 1 字の「題」が替えた範囲（${dai_paths[*]}）に出ない"
+
 # 句読点（「、」「。」「・」）の前後の余分な半角の空白。語を perl で一括して置き換えるとき、\p{Han}・\p{Katakana} は
 # Script_Extensions で句読点も含むので、和字と英字の間に空白を足す規則が「、 kanban」「。 gate」「kanban ・」を作る。
 # 置き換えの誤りを差分を読む前に拾う。見るのは、句読点のすぐ後ろの空白と、英数字と句読点の間の空白（「kanban ・」）。
