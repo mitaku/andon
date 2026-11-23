@@ -115,7 +115,7 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 	if err := addPlans(l, "S-0020", plans, &again, func() error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	// 担当の課題には予約キーを書く（off は reviewer を書かない。profile は後で決まる）。偽の kanban は log.jsonl を書かないので、
+	// 担当の課題には予約キーを書く（off は reviewer を書かない。profile は後で決まる）。偽の kanban の CLI は log.jsonl を書かないので、
 	// 打ち直しは前の回の値を照合の外れた既定と見て、同じ値で書き直す（書き直さない場合は ledger の TestUnsettled が見る）
 	keys := "set S-0022 review=off must_fix=major merge=person estimate=medium"
 	want := []string{"add 直す A", keys, keys, "add Andon へ伝えるか: B", "set S-0023 who=person", "ask S-0023 --kind promise"}

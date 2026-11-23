@@ -12,7 +12,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// 偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ。
+// 偽の kanban の CLI と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ。
 // 振る舞いは環境変数で変える: FAKE_LS（hc ls）・FAKE_GET（hc get。FAKE_GET_<address> があればその address はそれ）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）。
 const fakeKanban = `#!/usr/bin/env bash
 printf 'kanban %s | KANBAN_ROOT=%s\n' "$*" "${KANBAN_ROOT:-}" >>"$LOG"

@@ -33,7 +33,7 @@ var unchecked = map[string]struct {
 	"internal/dispatcher/state.go":             {map[string]int{"json.MarshalIndent": 1}, "dispatcher の控え（schema の無い控え。中の通知は Save が書く前に照らす）"},
 	"internal/dispatcher/wait.go":              {map[string]int{"json.Marshal": 1}, "待ち役の控え（schema の無い控え）"},
 	"internal/gate/gate.go":                    {map[string]int{"json.Marshal": 2}, "条件表を重ねた途中の形（書かない。Decode で読み直す）と、信じられる PR が無いときの fix の出力（decision と reasons だけ。記録ではないので schema が無い）"},
-	"internal/ledger/ledgertest/ledgertest.go": {map[string]int{"json.Marshal": 1}, "テストが偽の kanban ready --json の返事を作る形（schema/ledger/ready.v3 と照らしてから返す。テストだけが使う）"},
+	"internal/ledger/ledgertest/ledgertest.go": {map[string]int{"json.Marshal": 1}, "テストが偽の kanban の CLI の ready --json の返事を作る形（schema/ledger/ready.v3 と照らしてから返す。テストだけが使う）"},
 	"internal/issue/impact.go":                 {map[string]int{"contract.Marshal": 1}, "andon issue impact の出力（schema の無い形。dispatcher が通知の detail にして照らす）"},
 	"internal/issue/issue.go":                  {map[string]int{"contract.Marshal": 1}, "andon issue show の出力（読み直した report.json と kanban の項目を見せる形）"},
 	"internal/issue/merge.go":                  {map[string]int{"contract.Marshal": 1, "contract.WriteState": 1, "json.Marshal": 1}, "andon issue merge の出力と merge の記録（schema の無い形）と、問いを ask に渡す形（書くのは ask で、そこで照らす）"},

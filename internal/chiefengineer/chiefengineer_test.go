@@ -13,7 +13,7 @@ import (
 	"andon/internal/spawn"
 )
 
-// fake は偽の kanban と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ（コマンド名 引数… と、HC_TERMINAL_ID）。
+// fake は偽の kanban の CLI と hc を PATH の先頭に置く。打たれた引数は $LOG に1行ずつ（コマンド名 引数… と、HC_TERMINAL_ID）。
 // 振る舞いは環境変数で変える: FAKE_LS（hc ls の返事）・FAKE_GET（hc get。無ければ Claude Code が動いている）・FAKE_TPL（hc templates）・FAKE_RUN（hc run）・FAKE_RUN_RC。
 type fake struct {
 	t       *testing.T

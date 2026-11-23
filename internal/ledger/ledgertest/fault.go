@@ -139,7 +139,7 @@ func (f *Fault) Converge(t *testing.T, c Case) {
 		want = c.State(t)
 	}
 	if total == 0 {
-		t.Fatal("kanban に1回も書いていない（偽の kanban を通っていない）")
+		t.Fatal("kanban に1回も書いていない（偽の kanban の CLI を通っていない）")
 	}
 	retry := c.Retry
 	if retry == nil {

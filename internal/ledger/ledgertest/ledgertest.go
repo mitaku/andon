@@ -1,6 +1,6 @@
 // Package ledgertest は、Go のテストが手で書く kanban を、kanban の CLI が書く形（schema/ledger/）に通す補助。
-// 本物の kanban を呼ばないテストが手で書いた log.jsonl の行や kanban ready --json の返事が、kanban の書く形からずれたら、
-// そのテストを落とす（ADR-0034 決めたこと 7）。cmd/kanban のテストも、本物の kanban の出力を同じ照合に通す。
+// 本物の kanban の CLI を呼ばないテストが手で書いた log.jsonl の行や kanban ready --json の返事が、kanban の書く形からずれたら、
+// そのテストを落とす（ADR-0034 決めたこと 7）。cmd/kanban のテストも、本物の kanban の CLI の出力を同じ照合に通す。
 // テストだけが使う（配る binary には入らない）。
 package ledgertest
 

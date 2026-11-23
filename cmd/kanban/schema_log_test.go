@@ -14,7 +14,7 @@ import (
 )
 
 // log.jsonl の行と kanban ready --json の出力の形は schema/ledger/ の log.v3・ready.v3（ADR-0034 決めたこと 7）。
-// 本物の kanban に全部の形の行を書かせ、全部の行と ready の出力をその schema に通す。照らすのは、Go のテストが
+// 本物の kanban の CLI に全部の形の行を書かせ、全部の行と ready の出力をその schema に通す。照らすのは、Go のテストが
 // 手で書く kanban を通す補助（internal/ledger/ledgertest）と同じ既製の検査器。
 
 // lineShape は log.jsonl の1行の形の名前（どの形の行を書かせたかを数える）。

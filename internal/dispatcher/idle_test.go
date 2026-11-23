@@ -13,7 +13,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// idleRig は空きの段を、偽の kanban（routine run と lint を答える）と偽の時計・偽の枠・偽の未処理で回す。
+// idleRig は空きの段を、偽の kanban の CLI（routine run と lint を答える）と偽の時計・偽の枠・偽の未処理で回す。
 type idleRig struct {
 	t        *testing.T
 	p        *project
@@ -315,7 +315,7 @@ func TestIdleFailedRunUsesSlot(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("a-check", "idle_hours: 24\n")
 	r.routine("b-check", "idle_hours: 24\n")
-	os.Remove(r.tools.key("kanban routine run a-check") + ".out") // 答えが無いと偽の kanban は 1 で落ちる
+	os.Remove(r.tools.key("kanban routine run a-check") + ".out") // 答えが無いと偽の kanban の CLI は 1 で落ちる
 	r.free = 1
 	r.look(0, false)
 	if got := routineRuns(r.look(15*time.Minute, false)); !slices.Equal(got, []string{"a-check"}) {
