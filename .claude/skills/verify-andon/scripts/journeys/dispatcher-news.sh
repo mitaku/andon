@@ -36,6 +36,24 @@ if [ "$looked" -gt 0 ]; then
 else
   echo "note dn-idle: 当てたあとに枠の空きを見た控えが無い（idle_minutes が 0 か、Chief of Staff の留守か、dispatcher がまだ見ていない）。dn-idle は未確認"
 fi
+# 空きで撃てるルーチン: 名前・idle_hours（空きで撃つのはトリアージ・振り返りと、これを持つルーチン）・片付いていない課題・検証する間に足した課題。
+# 課題が片付かずに残っているルーチンは空きでも撃たないので、撃てるものが無ければ撃つところは見られない。履歴の fired は dispatcher の空きと schedule の別を持たない
+echo "-- dn-idle: 空きで撃てるルーチン（名前・idle_hours・片付いていない課題・検証する間に足した課題）"
+can=0 hrs=0
+for k in "$ws"/projects/*/kanban; do
+  for r in "$k"/routines/*.yaml; do
+    [ -f "$r" ] || continue
+    n=${r##*/}; n=${n%.yaml}
+    h=$(sed -n 's/^idle_hours:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$r" | sed -n 1p)
+    case $n in triage | retro) ;; *) [ -n "$h" ] || continue; hrs=$((hrs + 1)) ;; esac
+    open=$(grep -l -x "routine: $n" "$k"/issues/*/issue.yaml 2>/dev/null | xargs -r grep -L -x 'status: done' | sed 's#.*/issues/\([^/]*\)/issue.yaml#\1#' | tr '\n' ' ')
+    fired=$(dsince "$k/log.jsonl" | jq -r --arg n "$n" 'select(.routine == $n and .fired != null) | "\(.fired)@\(.at)"' 2>/dev/null | tr '\n' ' ')
+    s=${k%/kanban}; echo "  | ${s##*/}: $n idle_hours=${h:--} open=[${open% }] fired=[${fired% }]"
+    [ -n "$open" ] || can=$((can + 1))
+  done
+done
+[ "$hrs" -gt 0 ] || echo "note dn-idle: idle_hours を持つルーチンが kanban に無い。空きで idle_hours のルーチンを撃つところは未確認"
+[ "$can" -gt 0 ] || echo "note dn-idle: 空きで撃てるルーチンがどれも片付いていない課題を持つ。空きでルーチンを撃つところは未確認"
 
 # dn-corrections: 当てたあとに片付いた課題の手直しの記録（library/corrections.json。書き手は dispatcher だけ）。片付く課題が無ければ書かれないので、無くても壊れではない
 echo "-- dn-corrections: 当てたあとに dispatcher が書いた手直しの記録"

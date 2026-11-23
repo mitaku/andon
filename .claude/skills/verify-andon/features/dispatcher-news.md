@@ -6,7 +6,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 
 - `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
 - `dn-delivered` 当てたあとに Chief of Staff へ通知を届けた記録がある。見る道: 検証の担当だけ。
-- `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
+- `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを線の上で、`idle_hours` を持つルーチンを時間の上で撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
 - `dn-corrections` 当てたあとに片付いた課題の手直しの記録（`library/corrections.json`）を、当てた dispatcher が書いた。見る道: 検証の担当だけ。
 - `dn-signal` 当てたあとの通知 signal に、記録にあるときだけ失敗が始まった commit（`release`、40 桁）が載った。見る道: 検証の担当だけ。
 - `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
@@ -28,7 +28,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
 - **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`ok   dn-live` が見えれば動いた。
 - **届けたものを読む。** `dn-delivered` の行に、当てたあとに届けた通知（課題と種類）と記録だけの通知が出る。`ok   dn-delivered` が見えれば動いた。
-- **枠の空きを見たかを読む。** `dn-idle` の行に、控えの `idle`（見た時刻・枠が空いていたか・起動できる課題の数・知らせた id）と、当てたあとに届けた通知 `idle` の `detail` が出る。`ok   dn-idle` が見えれば、当てたあとに枠の空きを見た。撃ったルーチンは `kanban routine list` の `last` でも読める。控えが無ければ `note dn-idle` が出て、dn-idle は未確認になる（終了コードは変えない）。
+- **枠の空きを見たかを読む。** `dn-idle` の行に、控えの `idle`（見た時刻・枠が空いていたか・起動できる課題の数・知らせた id）と、当てたあとに届けた通知 `idle` の `detail` が出る。`ok   dn-idle` が見えれば、当てたあとに枠の空きを見た。撃ったルーチンは `kanban routine list` の `last` でも読める。控えが無ければ `note dn-idle` が出て、dn-idle は未確認になる（終了コードは変えない）。続く行に、空きで撃てるルーチン（トリアージ・振り返りと `idle_hours` を持つもの）ごとに `idle_hours`・片付いていない課題・検証する間に足した課題が出る。`idle_hours` を持つルーチンが無いか、撃てるルーチンがどれも片付いていない課題を持てば、`note dn-idle` が出て、空きで撃つところは未確認になる（終了コードは変えない）。
 - **手直しの記録を読む。** `dn-corrections` の行に、当てたあとに書いた `corrections.json` ごとの課題・時刻・種類ごとの数・`human_commits` の数が出る。`ok   dn-corrections` が見えれば、当てた dispatcher が手直しの記録を書いた。当てたあとに片付いた課題が無ければ `note dn-corrections` が出て、dn-corrections は未確認になる（終了コードは変えない）。拾う規則（merge commit を外すなど）が効いたかは、記録の `human_commits` と PR の commit を見比べて読む。
 - **通知 signal を読む。** `dn-signal` の行に、当てたあとの通知 signal の数（届けたものと記録だけのもの）と、記録だけの通知 signal の key・URL・`release` が出る。`ok   dn-signal` が見えれば、検証する間の通知 signal の detail に、40 桁の commit の `release` が載った。届けた記録（`delivered.jsonl`）は課題と kind だけで detail を持たないので、届けた通知 signal に `release` が載ったかはこの行では言えない。detail を読める通知に `release` が無いか、通知 signal が無ければ `note dn-signal` が出て、dn-signal は未確認になる（終了コードは変えない）。`release` の commit から PR を引く手（Chief of Staff の手引き）は、この行では見ない。
 - **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
@@ -56,5 +56,6 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - 通知 signal は、信号の出所（`andon signal auth` で入れる）が無いセルでは出ない。出ないことは壊れではない。`release` は出所が github-ci で、記録が失敗の始まった run の commit を持つときだけ載る。
 - 通知 signal の `title` は外の人の文。`dn-signal` の行には出さない。
 - 信号の記録（`<slug>.signals.json`）の `release` を、通知に載った証拠にしない。信号の記録は今の状態で、通知の中身でも、検証する commit が当たっていた間の状態でもない。届けた通知 signal に `release` が載ることは `tests/andon-dispatcher-signal.sh` と `go test ./internal/dispatcher/` が見ている。
+- 空きで撃つのは、片付いていない課題を持たないルーチンだけ。`idle_hours` はルーチンのファイルに Andon が読む欄で、書いたルーチンが kanban に無ければ、`idle_hours` で撃つところは見られない。履歴の `fired` の行は、空きで撃ったか `schedule` で撃ったかを区別しない。どちらで撃ったかは dispatcher の端末のログ（`hc read dispatcher`）の行で読む。
 - 通知 `idle` は課題を持たない。`dn-delivered` の行では課題が `-` になる。
 - 次の commit が当たると dispatcher は起動し直し、枠の空きの見回りは最初の回からやり直しになる。当てる間が `idle_minutes` の2倍より短い間は、ルーチンを撃つところは見られない。dn-idle の撃つところは未確認と書く。
