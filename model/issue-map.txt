@@ -48,6 +48,7 @@ outside queued todo kanban set — after の書き換えで待つ課題が無く
 outside queued done andon issue finish — queued はモデルに入れていない（やらないこと 5）
 outside queued done kanban done — トリアージの close。queued はモデルに入れていない（やらないこと 5）
 outside todo todo andon issue ask — オーナーの課題（who: person）の問い。オーナーの課題はモデルに入れていない（やらないこと 5）
+outside queued queued andon issue ask — 前の課題を待つオーナーの課題（who: person）の問い。queued とオーナーの課題はモデルに入れていない（やらないこと 5）
 outside todo doing kanban start — Chief Engineer の課題とレビュアーの課題の起動。PR の無い課題とレビュアーの課題はモデルに入れていない（やらないこと 5）
 outside todo done andon issue finish — 起動する前にやめる。モデルのやめるは担当を起こしたあと（ChiefOfStaffCancels）だけ
 outside todo done kanban done — トリアージの close。トリアージの一生はモデルに入れていない（やらないこと 5）

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
 
+	"andon/internal/contract"
 	"andon/internal/ledger"
 )
 
@@ -28,7 +30,11 @@ const (
 		"deliverable: candidates なら PR の代わりに candidates.json を確かめる。\n" +
 		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
 	AskUsage = "usage: andon issue ask <id> <question.json|->\n" +
-		"問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く。\n"
+		"       andon issue ask --new [--parent <id>] [--after <id>,…] <question.json|->\n" +
+		"問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く。\n" +
+		"--new はオーナーの課題を足し（タイトルは問いの文に「（オーナーの判断待ち）」、依頼書は問いの写し）、\n" +
+		"who: person を書いて問いを置き、<id>#<n> を出す。--after を付けると課題は queued で作られ、その課題にも問いを置く。\n" +
+		"JSON の形が違えば何も足さない。queued の課題に問いを置けるのはオーナーの課題（who: person）だけ。\n"
 	CandidatesUsage = "usage: andon issue candidates <id> <candidates.json|->\n" +
 		"候補の一覧を検査して library/candidates.json に書く（repo があれば commit は command が HEAD を書く）。\n"
 	RecordUsage = "usage: andon issue record <id> [--expect pass|fail] -- <command> [<arg>…]\n" +
@@ -155,14 +161,77 @@ func Ready(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Ask は andon issue ask。
+// Ask は andon issue ask。--new はオーナーの課題を足して問いを置く（askNew）。
 func Ask(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "--new" {
+		return askNew(args[1:], stdin, stdout, stderr)
+	}
 	return leaf("ask", AskUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) != 1 {
 			return errUsage
 		}
-		return withIssue(id, guard("ask", func(c *ctx) error { return c.ask(stdin, stdout, rest[0]) }))
+		return withIssue(id, guard("ask", func(c *ctx) error {
+			if err := c.askQueued(); err != nil {
+				return err
+			}
+			return c.ask(stdin, stdout, rest[0])
+		}))
 	})
+}
+
+// askNew は andon issue ask --new [--parent <id>] [--after <id>,…] <file|->。問いの形を確かめてから課題を足す。
+func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	var parent string
+	var after []string
+	for len(args) > 1 && (args[0] == "--parent" || args[0] == "--after") {
+		if args[0] == "--parent" {
+			parent = ledger.CanonID(args[1])
+		} else {
+			for _, a := range strings.Split(args[1], ",") {
+				after = append(after, ledger.CanonID(strings.TrimSpace(a)))
+			}
+		}
+		args = args[2:]
+	}
+	if len(args) != 1 || strings.HasPrefix(args[0], "--") {
+		fmt.Fprint(stderr, AskUsage)
+		return exitUsage
+	}
+	ids := slices.Clone(after)
+	if parent != "" {
+		ids = append(ids, parent)
+	}
+	for _, id := range ids {
+		if !idRe.MatchString(id) {
+			fmt.Fprintf(stderr, "andon issue ask: id が不正: %q\n", id)
+			return exitUsage
+		}
+	}
+	err := func() error {
+		b, err := readInput(stdin, args[0])
+		if err != nil {
+			return err
+		}
+		q, err := contract.ParseQuestion(b)
+		if err != nil {
+			return fail("問いの JSON の形が違う: %v", err)
+		}
+		l, err := ledger.Open()
+		if err != nil {
+			return err
+		}
+		_, out, err := NewOwnerQuestion(l, q, parent, after)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(stdout, out)
+		return nil
+	}()
+	if err != nil {
+		fmt.Fprintf(stderr, "andon issue ask: %v\n", err)
+		return exitFail
+	}
+	return 0
 }
 
 // Candidates は andon issue candidates。

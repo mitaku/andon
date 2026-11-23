@@ -20,6 +20,7 @@ stateDiagram-v2
   s_todo --> s_doing: 担当を起動した（§7.2 #10）
   s_todo --> s_doing: Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ）
   s_todo --> s_todo: オーナーの課題（who： person）に問いを置いた（ask-one-by-one skill §3）
+  s_queued --> s_queued: 前の課題を待つオーナーの課題（who： person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る）
   s_doing --> s_doing: 報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた
   s_doing --> s_review: 確かめて返した（受け取られていない問いが無い）
   s_doing --> s_review: Chief Engineer・トリアージが返した（受け取られていない問いが無い）
@@ -57,6 +58,7 @@ stateDiagram-v2
 | `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
 | `todo` | `doing` | Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ） | kanban の CLI | `kanban start` |  |
 | `todo` | `todo` | オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
+| `queued` | `queued` | 前の課題を待つオーナーの課題（who: person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る） | AI | `andon issue ask` |  |
 | `doing` | `doing` | 報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた | AI | `andon issue report・review-request・candidates・record・ask` |  |
 | `doing` | `review` | 確かめて返した（受け取られていない問いが無い） | AI | `andon issue ready` |  |
 | `doing` | `review` | Chief Engineer・トリアージが返した（受け取られていない問いが無い） | kanban の CLI | `kanban review` |  |

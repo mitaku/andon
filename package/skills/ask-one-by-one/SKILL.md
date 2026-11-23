@@ -51,22 +51,21 @@ description: kanban と hc のプロジェクトの Chief of Staff（CoS）と C
 ## 3. 問いは聞く前に kanban のオーナーの課題に置く
 
 Chief of Staff がオーナーに聞く問いは、まだ聞いていないものも今の返事で聞くものも、聞く前に kanban のオーナーの課題にして置く（Chief of Staff が起動し直されても問いが残り、オーナー待ちの一覧は kanban から作る）。
-担当の問いと gate の問いはもう kanban にあるので、写しを作らない。問いそのものは**問いの JSON**（contract.md §5・`question.schema.json`）にして、その課題に置く（機械と通知の口はこちらを読む）:
+担当の問いと gate の問いはもう kanban にあるので、写しを作らない。問いそのものは**問いの JSON**（contract.md §5・`question.schema.json`）にして、`andon issue ask --new` に stdin で渡す。課題を足すのと問いを置くのは、この1回で済む:
 
 ```
-id=$(kanban add "PR #12 の push 先を fork に変えてよいか（オーナーの判断待ち）" --brief - <<'EOF'
-出どころ: S-0007（返事の下書きボタン。担当 t9 が止まっている）
-kind: irreversible
-推奨案: 変えない。upstream に直接 PR を出す（権限はある）
+andon issue ask --new - <<'EOF'
+{"kind": "irreversible", "question": "PR #12 の push 先を fork に変えてよいか",
+ "facts": ["S-0007（返事の下書きボタン。担当 t9 が止まっている）"], "reason": "push 先は戻しにくい",
+ "options": [{"label": "変えない。upstream に直接 PR を出す（権限はある）", "pick": true}, {"label": "fork に変える"}],
+ "from": "chief-of-staff"}
 EOF
-)
-kanban set "$id" who=person
 ```
 
-続けて `andon issue ask "$id" -` に問いの JSON を stdin で渡す（`kind`・`question`・`options`〈先頭が推奨案〉・`facts` に出どころ・`from: chief-of-staff`。worker skill §5 の1）。
-command が形を確かめ、kanban に問い、`library/questions/<n>.json` に置く。`brief.md` は人が読む写し。
+command が形を確かめてからオーナーの課題を足し、`who: person` を書き、問いを置いて `<id>#<n>` を出す（形が違えば何も足さない）。タイトルは問いの文に「（オーナーの判断待ち）」を付けたもの、`brief.md` は問いの JSON から書いた人が読む写しで、機械と通知の口は `library/questions/<n>.json` を読む。
 
-- タイトルは問いを1行、末尾に「（オーナーの判断待ち）」。`--profile` を付けない（エージェントを起動しない課題）。足したら `kanban set <id> who=person`。
+- 判断の課題を `kanban add` と `kanban set <id> who=person` で作らない。問いを置く手順が抜けると、オーナーはペインから答えられない。今あるオーナーの課題に問いを置くときだけ `andon issue ask <id> -` を打つ。
+- 出どころの課題は `facts` の先頭に書き、課題の親にするなら `--parent <id>` を付ける。前の課題の結果が出るまで聞けない判断（前の課題のあとで go をもらう判断）は `--after <id>` を付ける。課題は `queued` で作られ、前の課題が片付くまで `andon waiting` に出ない。
 - `kind` は灯りの決断（`business`／`users`／`promise`／`irreversible`／`line`＝ラインの変更）のどれか。
   どれとも決めきれない判断は、いちばん近い種類で問いにし、決めきれなかったことを `facts` に1行で書く。
   §1 の1のオーナーにしかできない手作業は問いにせず、`kanban set <id> who=person only_owner="<オーナーにしかできない理由>"` で印を付ける（タイトルに「（オーナーの判断待ち）」を付けず、依頼書に期限の目安を書く）。問いも印も無いオーナーの課題は、`andon waiting` が判断に数えて灯す。
@@ -74,7 +73,7 @@ command が形を確かめ、kanban に問い、`library/questions/<n>.json` に
 - **問いの番号の無い判断の行を先に直す**: `andon waiting` を読むたびに、問いの番号の無い判断の行（問いも印も無いオーナーの課題）を先に直す。判断なら `andon issue ask <id> -` で問いを置き、手作業なら `kanban set <id> only_owner="<理由>"` を書く。
 - **出す順**: 止めている作業が多いもの → 不可逆な操作の決断待ち（`irreversible`）→ それ以外。止めている作業の多さは `andon waiting --json` の `items` の並びで読む（`holds`〈後ろで待つ課題〉の多い順、同じなら古い順。マージの依頼も同じ並びに入る）。`holds` が1件以上の行をその並びのまま先に出し、`holds` が空の行を残りの順で出す。
 - **答えが出たら** `kanban answer <id>#<n> --decided-by owner "<答え>"`（オーナーが答えた言葉を写すとき。印の値は `owner`） → `kanban received <id>#<n>` → `kanban done <id>`（問いの無いオーナーの課題は `kanban done` だけ）。決定は担当へ `hc send`、残す方針は担当に PR でリポジトリの文書へ書かせる（規約9）。
-- 聞いたが答えがまだのものは `todo` のまま残す。同じ問いを2つ足さない（足す前に `kanban list` でタイトルを見る）。
+- 聞いたが答えがまだのものは `todo` のまま残す（`--after` で作ったものは前の課題が片付くまで `queued`）。同じ問いを2つ足さない（足す前に `kanban list` でタイトルを見る）。
 
 ## 4. 委譲・届いた文から生まれた決断
 
@@ -85,5 +84,5 @@ command が形を確かめ、kanban に問い、`library/questions/<n>.json` に
 
 ## 5. まとめて見たいと言われたら
 
-既定は1問ずつ。オーナーが「まとめて見たい」「全部出して」と言ったときだけ、オーナーの課題（タイトルが「（オーナーの判断待ち）」で終わる `todo`）を
+既定は1問ずつ。オーナーが「まとめて見たい」「全部出して」と言ったときだけ、オーナーの課題（タイトルが「（オーナーの判断待ち）」で終わる `todo`。前の課題を待つ `queued` のものは、前の課題が片付くまで入れない）を
 一覧で見せる（問い・出どころ・推奨案を1行ずつ）。答えは一覧のどれからでも受ける。

@@ -327,6 +327,48 @@ done
 [ "$(kanban show "$id" --json | jq '.questions | length')" = 2 ]
 ok 'ask: 形の違う問いは kanban に書く前に止まる'
 
+# ask --new: オーナーの課題と問いを 1 回で置く（ADR-0057 決めたこと 7。受け入れ条件 7・8・9）。Chief of Staff（t5）が打つ
+count() { kanban list --all --json | jq length; }
+nq=$(jq -nc '{kind: "promise", question: "外のメンテナーに約束の日を伝えるか", facts: ["T-0001（andon issue を足す）", "docs/a.md"],
+  reason: "約束は外に出ると戻せない", options: [{label: "伝える", pick: true}, {label: "伝えない"}], from: "chief-of-staff"}')
+n0=$(count)
+out=$(as t5 "$andon" issue ask --new - <<<"$nq")
+own=${out%#*}
+[[ "$out" == "$own#1" ]] || die "ask --new: 出力が <id>#<n> でない: $out"
+[ "$(count)" = $((n0 + 1)) ] || die 'ask --new: 課題が 1 つ増えていない'
+kanban show "$own" --json | jq -e '.issue | .who == "person" and .status == "todo" and .title == "外のメンテナーに約束の日を伝えるか（オーナーの判断待ち）" and (has("profile") | not)' >/dev/null
+kanban show "$own" --json | jq -e '.questions | length == 1 and .[0].status == "open" and .[0].kind == "promise"' >/dev/null
+jq -e --argjson q "$nq" '. == $q' "kanban/issues/$own/library/questions/1.json" >/dev/null || die 'ask --new: questions/1.json が渡した JSON でない'
+grep -qx 'kind: promise' "kanban/issues/$own/brief.md" && grep -qx '推奨案: 伝える' "kanban/issues/$own/brief.md" \
+  && grep -q '^出どころ: T-0001（andon issue を足す） / docs/a.md$' "kanban/issues/$own/brief.md" || die "ask --new: 依頼書に種類・推奨案・出どころが無い: $(cat "kanban/issues/$own/brief.md")"
+"$andon" waiting --json | jq -e --arg id "$own" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1") and .[0].answerable == true' >/dev/null \
+  || die "ask --new: 判断の行に出ない: $("$andon" waiting --json)"
+ok 'ask --new: 課題を 1 つ足し、who: person・タイトル・依頼書（種類・推奨案）・開いた問い・questions/1.json を置き、andon waiting の判断の行に答えられる形で出る（受け入れ条件 7）'
+for bad in '.options = [.options[0]]|options が2つ未満' '.kind = "other"|kind が'; do
+    expect_fail "${bad#*|}" as t5 "$andon" issue ask --new - <<<"$(jq -c "${bad%|*}" <<<"$nq")"
+done
+expect_fail '問いの JSON の形が違う' as t5 "$andon" issue ask --new - <<<'オーナーに聞きたいことがある'
+[ "$(count)" = $((n0 + 1)) ] || die 'ask --new: 形の違う問いで課題が増えた'
+ok 'ask --new: 選択肢が 1 つ・知らない種類・JSON でない文は、終了コード 1 で課題を足さない（受け入れ条件 8）'
+pre=$(as t5 kanban add '前の課題' --profile claude)
+out=$(as t5 "$andon" issue ask --new --after "$pre" --parent "$id" - <<<"$(jq -c '.question = "前の課題のあとで go を出すか" | .kind = "line"' <<<"$nq")")
+own2=${out%#*}
+kanban show "$own2" --json | jq -e --arg pre "$pre" --arg p "$id" '(.issue | .status == "queued" and .after == [$pre] and .parent == $p and .who == "person") and .questions[0].status == "open"' >/dev/null \
+  || die "ask --new --after: queued・after・parent・開いた問いでない: $(kanban show "$own2" --json)"
+"$andon" waiting --json | jq -e --arg id "$own2" '[.items[] | select(.id == $id)] | length == 0' >/dev/null || die 'ask --new --after: 前の課題が片付く前に andon waiting に出た'
+as t5 kanban done "$pre" >/dev/null
+"$andon" waiting --json | jq -e --arg id "$own2" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1")' >/dev/null \
+  || die 'ask --new --after: 前の課題が片付いても判断の行に出ない'
+ok 'ask --new --after --parent: queued で after と parent を持ち、問いを置き、前の課題が片付くまで andon waiting に出ず、片付くと判断の行に出る（受け入れ条件 9）'
+pre2=$(as t5 kanban add '前の課題 2' --profile claude)
+wq=$(as t5 kanban add '前を待つ担当の課題' --profile claude --after "$pre2")
+[ "$(kanban show "$wq" --json | jq -r .issue.status)" = queued ] || die '担当の課題が queued で作られていない'
+expect_fail "$wq は queued（queued の課題に問いを置けるのはオーナーの課題" "$andon" issue ask "$wq" - <<<"$q"
+[ "$(kanban show "$wq" --json | jq '.questions | length')" = 0 ] || die 'queued の担当の課題に問いが置かれた'
+as t5 kanban done "$pre2" >/dev/null
+as t5 kanban done "$wq" >/dev/null
+ok 'ask: queued の担当の課題には今までどおり問いを置かない（受け入れ条件 9）'
+
 # 候補・範囲の問い・調べる課題の ready（ADR-0006 決めたこと 2・3・4・7。受け入れ条件 2）。worktree は別に切る
 git init -q "$tmp/wt2"
 commit2() { echo "$1" > "$tmp/wt2/f"; git -C "$tmp/wt2" add f; git -C "$tmp/wt2" commit -qm "$1"; git -C "$tmp/wt2" rev-parse HEAD; }

@@ -25,7 +25,9 @@ func TestRefusesUndefinedMove(t *testing.T) {
 		{"done", []string{"review-request", "T-0001"}, "T-0001 は done（andon issue review-request は doing の課題にだけ打てる。process/states/issue.yaml）"},
 		{"review", []string{"report", "T-0001"}, "andon issue report は doing の課題にだけ打てる"},
 		{"queued", []string{"candidates", "T-0001", "-"}, "andon issue candidates は doing の課題にだけ打てる"},
-		{"done", []string{"ask", "T-0001", "-"}, "andon issue ask は todo・doing・review の課題にだけ打てる"},
+		{"done", []string{"ask", "T-0001", "-"}, "andon issue ask は todo・queued・doing・review の課題にだけ打てる"},
+		// queued の課題に問いを置けるのはオーナーの課題だけ（ADR-0057 決めたこと 7）。担当の課題は今までどおり断る
+		{"queued", []string{"ask", "T-0001", "-"}, "T-0001 は queued（queued の課題に問いを置けるのはオーナーの課題〈who: person〉だけ。process/states/issue.yaml）"},
 		{"done", []string{"finish", "T-0001"}, "andon issue finish は review・queued・todo・doing の課題にだけ打てる"},
 	}
 	for _, c := range cases {
@@ -53,7 +55,7 @@ func TestRefusesUndefinedMove(t *testing.T) {
 // 定義に在る移り方は通す（ready は doing から review にする。TestReady が残りを見る）。
 func TestAllowsDefinedMove(t *testing.T) {
 	for _, c := range []struct{ sub, status string }{
-		{"ready", "doing"}, {"ask", "review"}, {"ask", "todo"}, {"finish", "doing"}, {"finish", "review"}, {"start", "todo"},
+		{"ready", "doing"}, {"ask", "review"}, {"ask", "todo"}, {"ask", "queued"}, {"finish", "doing"}, {"finish", "review"}, {"start", "todo"},
 	} {
 		if err := allowed(c.sub, "T-0001", c.status); err != nil {
 			t.Errorf("%s を %s で断った: %v", c.sub, c.status, err)
