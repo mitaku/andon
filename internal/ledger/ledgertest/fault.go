@@ -25,6 +25,8 @@ real=$KANBAN_FAULT_REAL
 case $1 in
 show|list|ready|root|questions|lint|routines|help|--help|version) exec "$real" "$@" ;;
 esac
+# log.jsonl の置き場が分からなければ、中で止めた形を作れないので打たずに落ちる（黙って止まり方を変えない）
+[ -n "$KANBAN_ROOT" ] || { echo "kanban (fault): KANBAN_ROOT が無い" >&2; exit 64; }
 count=$KANBAN_FAULT_COUNT at=${KANBAN_FAULT_AT:-0}
 n=$(cat "$count" 2>/dev/null); n=${n:-0}
 log=$KANBAN_ROOT/kanban/log.jsonl

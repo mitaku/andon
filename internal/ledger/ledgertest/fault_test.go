@@ -53,3 +53,17 @@ func TestFaultStopsAtEachPointOfAWrite(t *testing.T) {
 		}
 	}
 }
+
+// KANBAN_ROOT の無いまま書く command を打たれたら、log.jsonl の置き場が分からず中で止めた形を作れないので、本物を打たずに落ちる。
+func TestFaultRefusesAWriteWithoutKanbanRoot(t *testing.T) {
+	NewFault(t)
+	dir := t.TempDir()
+	cmd := exec.Command("kanban", "init", "--root", filepath.Join(dir, "sample-site"))
+	cmd.Env = append(os.Environ(), "KANBAN_ROOT=")
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "KANBAN_ROOT が無い") {
+		t.Errorf("KANBAN_ROOT の無い書く command を打った: %v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sample-site", "kanban")); err == nil {
+		t.Error("断ったのに kanban を作った")
+	}
+}

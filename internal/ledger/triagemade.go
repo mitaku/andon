@@ -16,8 +16,9 @@ func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 	dir, cos := l.Dir, l.ChiefOfStaff()
 	id := CanonID(t.Str("id"))
 	// 足した行が無い課題は、kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まったもの（kanban add は行を書かずに
-	// 終わらない）。足した端末は分からないが、ほかの端末が kanban add で足した課題には行が残るので、印と題が合えば辿る
-	byCos := cos != ""
+	// 終わらない）。足した端末は分からないが、ほかの端末が kanban add で足した課題には行が残るので、印と題が合えば辿る。
+	// log.jsonl が読めない・空のときは、行が無いのか読めないのかを分けられないので辿らない
+	byCos := cos != "" && len(rows) > 0
 	for _, r := range rows {
 		if _, ok := r.Change["add"]; ok && CanonID(r.ID) == id {
 			byCos = cos != "" && r.By == "terminal:"+cos
