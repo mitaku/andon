@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+# この repo の Claude Code の PreToolUse のフック（matcher Bash。.claude/settings.json が呼ぶ）。
+# tests/ の下の検査のシェル（.sh）を Bash で書き換える呼び出しを deny し、Edit ツールで直すよう理由の1行を返す。
+# heredoc で包んだスクリプトで差し替えると、内側の区切り（EOF）で外側が閉じ、残りの行（検査の rm など）が本物の HOME で走る。
+# 断るもの:
+#   1. sed -i（--in-place・-ni なども）・perl -i（-pi・-i.bak なども）で、引数に検査のシェルを渡すもの
+#   2. 検査のシェルへのリダイレクト（> >> &> >|）と tee
+#   3. heredoc か python・node・perl の呼び出しを含み、検査のシェルのパスと書き込み（open(…,'w')・.write(・writeFileSync など）が
+#      同じ呼び出しの中にあるもの。heredoc の区切りがぶつかって外側が閉じた形も、呼び出しの全体で見るので拾う
+# 通すもの: 読むだけ（grep・sed -n・cat・git diff）と走らせるだけ（bash tests/x.sh・'bash', 'tests/x.sh'）の呼び出し、
+#   検査のシェルを別の置き場へ写すもの（cp tests/x.sh "$S/x.sh"・"$m/tests/x.sh" への書き込み）。
+# 検査のシェルのパスは、repo の根からの相対（tests/x.sh・./tests/x.sh・tests/*.sh）か、根の絶対パスで書いたものだけを見る。
+# コマンドの字面で見るので、find や一覧を渡す一括置換（xargs sed -i）と、ファイルに置いたスクリプトの中身は拾わない。
+# 入力が読めない・python3 が落ちるときは何も出さずに通す（フックは守りの1枚。Codex には効かない）。
+import json
+import os
+import re
+import shlex
+import sys
+
+REASON = (
+    "tests/ の下の検査のシェル（.sh）は Edit ツールで直す。heredoc で包んだ python・node・perl、sed -i・perl -i、"
+    "リダイレクトで書き換えると、内側の区切り（EOF）で外側が閉じて残りの行が本物の HOME で走ったり、差分を読まずに崩したりする"
+    "（AGENTS.md の検査を回す表）。読むだけ・走らせるだけの呼び出しは通る。"
+)
+
+# 根からの相対の検査のシェル（glob も）。"$m/tests/x.sh" のように前に置き場の付くものは別の置き場なので見ない
+NAME = r"(?:\./)?tests/(?:[\w.*?\[\]-]+/)*[\w.*?\[\]-]*(?:\.sh|\*)"
+TARGET_TOKEN = re.compile(r"^" + NAME + r"$")
+# スクリプトの中のパス: 文字列のまるごとがパスのもの（p='tests/x.sh'・open("tests/x.sh", …)）。PR の本文などの文の中に
+# 書いたパス（'`tests/x.sh` が通った'）は数えない
+TARGET_LITERAL = re.compile(r"(['\"])" + NAME + r"\1")
+# 走らせるだけの書き方: ['bash', 'tests/x.sh']・["sh", "-n", "tests/x.sh"]
+RUN_BEFORE = re.compile(r"['\"](?:bash|sh)['\"]\s*,\s*(?:['\"]-\w+['\"]\s*,\s*)*$")
+WRITE = re.compile(
+    r"open\([^)\n]*,\s*['\"][wax]|mode\s*=\s*['\"][wax]|\.write\(|write_(?:text|bytes)\(|os\.(?:replace|rename)\("
+    r"|shutil\.(?:copy|move)|writeFile|appendFile|createWriteStream|\bopen\b[^\n;]*['\"]\+?>|\$\^I\b"
+)
+INTERP = re.compile(r"(?:^|[\s;&|(`/])(?:python[\d.]*|node|perl)(?=\s|$)")
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][\w.-]*)\2")
+KEYWORDS = {"then", "do", "else", "elif", "if", "while", "until", "!", "{", "}"}
+# 後ろのコマンドを走らせるコマンド。続くオプションと数（xargs -n 1・timeout 30）も飛ばす
+WRAPPERS = {"sudo", "env", "command", "exec", "nohup", "time", "xargs", "timeout", "nice", "ionice", "stdbuf"}
+SEPARATORS = {";", ";;", "&", "&&", "|", "||", "|&", "(", ")", "\n"}
+REDIRECTS = {">", ">>", ">|", "&>", "&>>"}
+
+
+def split_heredocs(text):
+    """bash と同じく heredoc の本文を外し、(本文の外, [本文…]) を返す。区切りの語の行で本文が閉じる。"""
+    outside, bodies = [], []
+    lines = text.split("\n")
+    quote = None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        outside.append(line)
+        pending = []
+        j = 0
+        while j < len(line):
+            c = line[j]
+            if quote:
+                if c == "\\" and quote == '"':
+                    j += 2
+                    continue
+                if c == quote:
+                    quote = None
+            elif c == "\\":
+                j += 2
+                continue
+            elif c in "'\"":
+                quote = c
+            elif c == "<" and line.startswith("<<", j) and not line.startswith("<<<", j) and (j == 0 or line[j - 1] != "<"):
+                m = HEREDOC.match(line, j)
+                if m:
+                    pending.append((m.group(1) == "-", m.group(3)))
+                    j = m.end()
+                    continue
+            j += 1
+        i += 1
+        for strip_tabs, word in pending:
+            body = []
+            while i < len(lines):
+                cur = lines[i].lstrip("\t") if strip_tabs else lines[i]
+                i += 1
+                if cur == word:
+                    break
+                body.append(lines[i - 1])
+            bodies.append("\n".join(body))
+    return "\n".join(outside), bodies
+
+
+def tokens(text):
+    lex = shlex.shlex(text, posix=True, punctuation_chars=";&|()<>\n")
+    lex.whitespace = " \t\r"
+    lex.whitespace_split = True
+    lex.commenters = ""
+    try:
+        return list(lex)
+    except ValueError:
+        # 引用符が閉じていない（heredoc の区切りがぶつかった残りなど）。空白で割って見る
+        return re.findall(r"[;&|()\n]+|[<>&]*>[>|]?|[^\s;&|()<>]+", text)
+
+
+def segments(toks):
+    seg = []
+    for t in toks:
+        if t in SEPARATORS or (t and set(t) <= set(";&|()\n")):
+            if seg:
+                yield seg
+            seg = []
+        else:
+            seg.append(t)
+    if seg:
+        yield seg
+
+
+def command_word(seg):
+    k, wrapped = 0, False
+    while k < len(seg):
+        t = seg[k]
+        if t in KEYWORDS or re.match(r"^[A-Za-z_]\w*=", t):
+            pass
+        elif os.path.basename(t) in WRAPPERS:
+            wrapped = True
+        elif not (wrapped and (t.startswith("-") or re.match(r"^[\d.]+[smhd]?$", t) or t == "{}")):
+            break
+        k += 1
+    return (os.path.basename(seg[k]), seg[k + 1:]) if k < len(seg) else ("", [])
+
+
+def normalize(text, roots):
+    for r in roots:
+        r = r.rstrip("/")
+        if r:  # 根が / のときは外さない（全部の / を消してしまう）
+            text = text.replace(r + "/", "")
+    return text.replace('"$PWD"/', "").replace("$PWD/", "").replace("${PWD}/", "")
+
+
+def is_target(tok):
+    return bool(TARGET_TOKEN.match(tok))
+
+
+def denied(cmd, roots):
+    text = normalize(cmd, roots)
+    outside, bodies = split_heredocs(text)
+    for seg in segments(tokens(outside)):
+        name, args = command_word(seg)
+        # 1. sed -i・perl -i
+        if name in ("sed", "gsed") and any(a == "--in-place" or a.startswith("--in-place=") or re.match(r"^-[A-Za-z]*i", a) for a in args if a.startswith("-")):
+            if any(is_target(a) for a in args):
+                return True
+        if name == "perl" and any(re.match(r"^-[pnlaw0-9]*i", a) for a in args):
+            if any(is_target(a) for a in args):
+                return True
+        # 2. リダイレクトと tee
+        if name == "tee" and any(is_target(a) for a in args if not a.startswith("-")):
+            return True
+        for k, t in enumerate(seg[:-1]):
+            if t in REDIRECTS and is_target(seg[k + 1]):
+                return True
+    # 3. heredoc か python・node・perl の呼び出しの中の書き込み
+    if bodies or INTERP.search(outside):
+        mentions = [m for m in TARGET_LITERAL.finditer(text) if not RUN_BEFORE.search(text[max(0, m.start() - 40):m.start()])]
+        if mentions and WRITE.search(text):
+            return True
+    return False
+
+
+def main():
+    try:
+        data = json.load(sys.stdin)
+    except Exception:
+        return
+    if not isinstance(data, dict) or data.get("tool_name") != "Bash":
+        return
+    cmd = (data.get("tool_input") or {}).get("command")
+    if not isinstance(cmd, str) or "tests/" not in cmd:
+        return
+    roots = [os.environ.get("CLAUDE_PROJECT_DIR", ""), data.get("cwd") or "", '"$CLAUDE_PROJECT_DIR"', "$CLAUDE_PROJECT_DIR", '"${CLAUDE_PROJECT_DIR}"', "${CLAUDE_PROJECT_DIR}"]
+    if denied(cmd, roots):
+        json.dump({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": REASON}}, sys.stdout, ensure_ascii=False)
+        sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        pass
+    sys.exit(0)

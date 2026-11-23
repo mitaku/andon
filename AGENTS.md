@@ -41,7 +41,7 @@
 | `tests/andon-dispatcher.sh` は場面が kanban を共有する。場面を足して課題を `doing` のまま残すと、後の場面の数がずれる。足した場面は終わりで `kanban done` する。 | `tests/andon-dispatcher.sh`。残した課題があると、後の場面の数の検査が落ちる。 |
 | `set -o pipefail` の下で `cmd \| head -1` を使わず、`sed -n 1p` か `$(…)` で受ける。`cmd` の出力が増えると SIGPIPE で落ちる。 | 無し。出力が少ないうちは通り、見るものが無い。 |
 | `tests/` の下のシェルで判定を `A && B` と並べたら、行末に `\|\| die "<何が起きなかったか>"` を付ける。set -e は `&&` の最後でない項と `!` の付いた文では止まらない。if・while の条件と、関数・サブシェルの本体の最後の文には要らない。A が偽なら B を見ずに先へ進む見張り（`[ -n "$want" ] && grep -q …`）は、判定と見分けられないので `if A; then B; fi` と書く。 | `tests/shell-and.sh`。set -e が効く所で、最後の項が判定（`[`・`[[`・`grep`・`cmp`・`jq -e` など）の `A && B` に受け手が無いと、ファイルと行を出して落ちる。`tests/lib/scope.sh` のいつもの分で、CI でもいつも走る。 |
-| 検査のシェル（`tests/*.sh`）を直すときは Edit ツールで直し、heredoc で包んだスクリプトで文字列を差し替えない。内側の `EOF` で外側が閉じ、破壊的な行（`rm -f "$HOME/.gitconfig"` など）が本物の HOME で走る。 | 無し。直し方の手順で、見るものが無い。 |
+| 検査のシェル（`tests/*.sh`）を直すときは Edit ツールで直し、heredoc で包んだスクリプトで文字列を差し替えない。内側の `EOF` で外側が閉じ、破壊的な行（`rm -f "$HOME/.gitconfig"` など）が本物の HOME で走る。 | `.claude/hooks/test-shell-edit`。`.claude/settings.json` が Claude Code の PreToolUse で呼び、`tests/` の下の検査のシェルへ書く Bash の呼び出し（heredoc で包んだ python・node・perl の書き込み・`sed -i`・`perl -i`・リダイレクト・`tee`）を断る。断る形と通す形は `tests/shell-edit-hook.sh` が見る。字面で見るので、find や一覧を渡す一括置換とファイルに置いたスクリプトの中身は拾わない。Codex には効かない。 |
 | 否定の検査で注釈の行を外すときは、行頭の空白と `#` で外す（`^[^#]*` は `"${#arr[@]}"` の `#` に当たり、行を全部落とす）。 | 無し。書き方の決まりで、見るものが無い。 |
 | 対話シェルの grep は ugrep の関数で、ファイルが1つでもファイル名を出す。`bash tests/*.sh` の中は GNU grep で、ファイルが1つだと出さない。出力の形を確かめるときは `/usr/bin/grep` か `bash -c` で打つ。 | 無し。確かめ方の手順で、見るものが無い。 |
 | 表の「守らせるもの」の列に repo に無いファイル（`gate.local.json` など）を `…` で書くと `tests/agents-md.sh` が落ちる。repo の外の置き場は「決まり」の列に書く。 | `tests/agents-md.sh`。守らせるものの `…` に書いたパスの語が repo に無いと落ちる。 |
