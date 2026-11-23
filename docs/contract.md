@@ -71,6 +71,7 @@ projects/<slug>/kanban/
       retro.json                  振り返りの担当（§21。andon retro patterns が検査して書く。パターンの一覧）
       retro-applied.json          andon retro apply（§21。Chief of Staff が打つ。足した課題と捨てたパターン）
   chief-of-staff/launches.jsonl   andon chief-of-staff（§18。Chief of Staff は課題を持たないので kanban の直下）
+  routines/<name>.yaml            オーナー（kanban のルーチン。形式は ledger.md。Andon が読む欄 idle_hours は §22 の下）
   log.jsonl                       kanban の CLI が書く（§22）。by で履歴を照合
 projects/<slug>/project.json      オーナー（§11。書いてよい repo・委譲など。セルの repo。git の履歴が照合の元）
 ~/.local/state/andon/dispatcher/<slug>.json   dispatcher の控え（§6。kanban の外）
@@ -470,7 +471,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 | `repos` | 必須 | このプロジェクトが**書いてよい** repo（`<host>/<owner>/<repo>`。重ならない〈command が確かめる〉）。`andon issue start` は課題の `repo` がここに無ければ起動しない。kanban の `config.yaml` の `repos` はこの部分集合。空なら repo を持たない |
 | `references` | 任意 | 読むだけの repo（`<host>/<owner>/<repo>`）か `https` の URL。書かない |
 | `delegation` | 任意 | 委譲（下の表。移す前の `delegation.json` と同じ形）。無ければ無委譲（全部オーナー） |
-| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる。dispatcher が空きのトリアージを撃つ線〈仕分けていない項目 50 件〉は、1 回のトリアージが増やす項目〈自身の報告・起動した直す課題の報告・そのレビュアーの子の読めない報告〉の合計を超える数として決めてある。この値を大きくしたセルでは、その合計が 50 を超えないかをオーナーが見る。[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 7）・`retro_every`（前の振り返りが集めたあとに片付いた担当の課題がこの件数に達したら、dispatcher がルーチン `retro` を撃つ。1 以上。既定 25。読むのは dispatcher。数え方は [dispatcher.md](dispatcher.md) §2.1.1 の 3a。`project.json` が信じられない・形が違うときは既定で数え、ログに 1 行）・`idle_minutes`（dispatcher が並行の枠の空きを見る間〈分〉。0 以上。既定 15。0 は空きを見ない。2 回続けて枠が空いていれば、dispatcher がトリアージと振り返りのルーチンを線の上で撃ち、通知 `idle` を積む。読むのは dispatcher。見方と線は [dispatcher.md](dispatcher.md) §2.13。`project.json` が信じられない・形が違うときは既定で見て、ログに 1 行） |
+| `chief_of_staff` | 任意 | Chief of Staff が読む設定値。`parallel`（並行の上限。1 以上。既定 2）・`review_when`（独立レビューを入れる条件。1行1条件。command は読まない）・`triage_max_issues`（1回のトリアージで起動する課題の上限。1 以上。既定 3。`andon triage apply` も読む。`--max-issues` を渡せばその回だけそれが先。`project.json` が信じられない・形が違うときは上限を決めずに止まる。dispatcher が空きのトリアージを撃つ線〈仕分けていない項目 50 件〉は、1 回のトリアージが増やす項目〈自身の報告・起動した直す課題の報告・そのレビュアーの子の読めない報告〉の合計を超える数として決めてある。この値を大きくしたセルでは、その合計が 50 を超えないかをオーナーが見る。[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 7）・`retro_every`（前の振り返りが集めたあとに片付いた担当の課題がこの件数に達したら、dispatcher がルーチン `retro` を撃つ。1 以上。既定 25。読むのは dispatcher。数え方は [dispatcher.md](dispatcher.md) §2.1.1 の 3a。`project.json` が信じられない・形が違うときは既定で数え、ログに 1 行）・`idle_minutes`（dispatcher が並行の枠の空きを見る間〈分〉。0 以上。既定 15。0 は空きを見ない。2 回続けて枠が空いていれば、dispatcher がトリアージと振り返りのルーチンを線の上で、ルーチンのファイルに `idle_hours` を書いたルーチンを時間の上で撃ち、通知 `idle` を積む。読むのは dispatcher。見方と線は [dispatcher.md](dispatcher.md) §2.13。`project.json` が信じられない・形が違うときは既定で見て、ログに 1 行） |
 | `signals` | 任意 | 外の信号の出所（下の表。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 11）。無い・空なら何も取りに行かない |
 | `digest` | 任意 | ダイジェストをセルの外へ送る先（下の表。[ADR-0044](adr/0044-owner-digest.md) 決めたこと 12）。無い・空なら、どこへも送らず `files/` にだけ出す |
 
@@ -1031,6 +1032,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | 移した | `migrate` | `kanban migrate` が移した元のフォルダの名前（`from`）と、改めた id（`ids`。古い id → 新しい id） |
 
 - 知らないキーは書かない（`additionalProperties: false`）。読み手は読めない行を飛ばす。キーを足すのは ledger.md と `schema/ledger/log.v3.schema.json` を同じ PR で直す。
+- ルーチンのファイル `routines/<name>.yaml` に、Andon が読む欄 `idle_hours`（1 以上の整数。時間）を書ける。kanban の CLI は読まない（ルーチンの schema はほかのキーを許して残す）。書いたルーチンは、枠が空いたままの回に、ルーチンの行のうち `fired` のあるいちばん新しい行の `at` から `idle_hours` 時間以上たっていれば（1 度も足していなければすぐ）dispatcher が撃つ。値が 1 以上の整数でなければ欄が無いものとして扱う（[dispatcher.md](dispatcher.md) §2.13。[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 9）。
 - 本物の `kanban` に全部の形の行を書かせて schema に通すのは `cmd/kanban` のテスト（`TestLogAndReadyFitTheLedgerSchemas`）。Go のテストが手で書く `log.jsonl` は、補助 `internal/ledger/ledgertest` の `Log` を通して書く。補助は行が schema に合わなければテストを落とす。読めない行の扱いを確かめるテストだけは、補助を通さずに書く。
 
 ## 23. 引き取れる課題（`kanban ready --json` の出力）

@@ -1,6 +1,6 @@
 name: idle
 title: 枠の空き
-source: dispatcher.md §2.13・ADR-0047 決めたこと 3〜8・10〜12・17。kanban ごと。idle_minutes（既定 15 分）おきに枠を数え、前の回も今の回も枠が 1 つ以上空いていたら、トリアージと振り返りのルーチンを線の上で空いた枠の数まで撃ち、通知 idle を積む
+source: dispatcher.md §2.13・ADR-0047 決めたこと 3〜12・17。kanban ごと。idle_minutes（既定 15 分）おきに枠を数え、前の回も今の回も枠が 1 つ以上空いていたら、トリアージと振り返りのルーチンを線の上で、idle_hours を持つルーチンを時間の上で、空いた枠の数まで撃ち、通知 idle を積む
 states:
   - id: unknown
     title: 前の回の結果が無い（初めて見る・起動し直した・留守・数えられない・idle_minutes が 0）

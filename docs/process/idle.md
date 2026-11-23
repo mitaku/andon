@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/idle.yaml`](../../process/states/idle.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §2.13・ADR-0047 決めたこと 3〜8・10〜12・17。kanban ごと。idle_minutes（既定 15 分）おきに枠を数え、前の回も今の回も枠が 1 つ以上空いていたら、トリアージと振り返りのルーチンを線の上で空いた枠の数まで撃ち、通知 idle を積む
+出所: dispatcher.md §2.13・ADR-0047 決めたこと 3〜12・17。kanban ごと。idle_minutes（既定 15 分）おきに枠を数え、前の回も今の回も枠が 1 つ以上空いていたら、トリアージと振り返りのルーチンを線の上で、idle_hours を持つルーチンを時間の上で、空いた枠の数まで撃ち、通知 idle を積む
 
 ## 図
 

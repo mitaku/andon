@@ -31,6 +31,9 @@ func newIdleRig(t *testing.T) *idleRig {
 	r.tools.reply("kanban lint --json", `{"ok":true,"problems":[]}`)
 	r.tools.reply("kanban routine run triage", "T-0090")
 	r.tools.reply("kanban routine run retro", "T-0091")
+	for _, name := range []string{"check", "a-check", "b-check"} {
+		r.tools.reply("kanban routine run "+name, "T-0092")
+	}
 	r.p = gluedProject(t, r.log)
 	r.p.c.WS = t.TempDir() // project.json が無い（idle_minutes は既定の 15、retro_every は既定の 25）
 	r.p.c.Now = func() time.Time { return r.clk }
@@ -213,6 +216,95 @@ func TestIdleFiresRetro(t *testing.T) {
 				t.Errorf("撃ったルーチン %v（%v のはず）", got, want)
 			}
 		})
+	}
+}
+
+// 受け入れ条件 4: idle_hours: 24 のルーチンは、最後に課題を足してから 24 時間以上で、空いているときに撃たれる。23 時間では撃たれない。
+// 撃ち損ねの行だけが新しいときは撃たれる。1 度も足していなければ撃たれる。値が 1 以上の整数でないルーチンは撃たれず、ログに 1 行が出る
+// （同じ理由が続く間は 1 行）。idle_hours の無いルーチン・paused・課題が残っているルーチンは撃たれない。
+func TestIdleFiresHoursRoutine(t *testing.T) {
+	// 偽の時計は 2026-11-23T00:00Z から。2 回目の look（15 分あと）が撃つ回
+	fired := func(ago time.Duration) ledger.Row {
+		at := time.Date(2026, 11, 23, 0, 15, 0, 0, time.UTC).Add(-ago).Format(time.RFC3339)
+		return ledger.Row{At: at, By: "routine:check", Routine: "check", Fired: "S-0700"}
+	}
+	skipped := func(ago time.Duration) ledger.Row {
+		at := time.Date(2026, 11, 23, 0, 15, 0, 0, time.UTC).Add(-ago).Format(time.RFC3339)
+		return ledger.Row{At: at, By: "routine:check", Routine: "check"} // skipped: open（ledger.Row は skipped を読まない）
+	}
+	for _, c := range []struct {
+		name  string
+		extra string
+		rows  []ledger.Row
+		tasks []ledger.Issue
+		fire  bool
+		log   string
+	}{
+		{name: "24 時間", extra: "idle_hours: 24\n", rows: []ledger.Row{fired(24 * time.Hour)}, fire: true},
+		{name: "23 時間", extra: "idle_hours: 24\n", rows: []ledger.Row{fired(23 * time.Hour)}},
+		{name: "いちばん新しい足した行で数える", extra: "idle_hours: 24\n", rows: []ledger.Row{fired(23 * time.Hour), fired(48 * time.Hour)}},
+		{name: "撃ち損ねの行だけが新しい", extra: "idle_hours: 24\n", rows: []ledger.Row{fired(30 * time.Hour), skipped(time.Hour)}, fire: true},
+		{name: "1 度も足していない", extra: "idle_hours: 24\n", fire: true},
+		{name: "ほかのルーチンの行は数えない", extra: "idle_hours: 24\n", rows: []ledger.Row{{At: "2026-11-23T00:00:00Z", By: "routine:other", Routine: "other", Fired: "S-0701"}}, fire: true},
+		{name: "idle_hours が無い", extra: ""},
+		{name: "小数", extra: "idle_hours: 1.5\n", log: "ルーチン check の idle_hours が 1 以上の整数でない"},
+		{name: "文字列", extra: "idle_hours: \"24\"\n", log: "ルーチン check の idle_hours が 1 以上の整数でない"},
+		{name: "0", extra: "idle_hours: 0\n", log: "ルーチン check の idle_hours が 1 以上の整数でない"},
+		{name: "paused", extra: "idle_hours: 24\npaused: true\n"},
+		{name: "課題が残っている", extra: "idle_hours: 24\n", tasks: []ledger.Issue{{"id": "S-0700", "title": "点検", "status": "todo", "routine": "check"}}},
+		{name: "片付いた課題は数えない", extra: "idle_hours: 24\n", tasks: []ledger.Issue{{"id": "S-0700", "title": "点検", "status": "done", "routine": "check"}}, fire: true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := newIdleRig(t)
+			r.routine("check", c.extra)
+			r.p.rows, r.p.tasks = c.rows, c.tasks
+			r.look(0, false)
+			got := routineRuns(r.look(15*time.Minute, false))
+			if want := map[bool][]string{true: {"check"}}[c.fire]; !slices.Equal(got, want) {
+				t.Errorf("撃ったルーチン %v（%v のはず）", got, want)
+			}
+			if c.fire && !strings.Contains(r.log.String(), "check のルーチンを撃った") {
+				t.Errorf("撃ったログが無い: %s", r.log.String())
+			}
+			r.look(15*time.Minute, false)
+			if n := strings.Count(r.log.String(), "idle_hours が 1 以上の整数でない"); c.log == "" && n != 0 || c.log != "" && n != 1 {
+				t.Errorf("idle_hours の値のログが %d 行（%q を 1 行のはず）: %s", n, c.log, r.log.String())
+			}
+		})
+	}
+}
+
+// idle_hours を持つルーチンは、トリアージ・振り返りのあとに名前の順で、空いた枠の数まで撃つ。トリアージと振り返りに
+// idle_hours があっても、その線（決めたこと 7・8）のほかでは撃たない。
+func TestIdleHoursRoutinesOrderAndBudget(t *testing.T) {
+	for _, c := range []struct {
+		free int
+		want []string
+	}{
+		{1, []string{"triage"}},
+		{2, []string{"triage", "a-check"}},
+		{3, []string{"triage", "a-check", "b-check"}},
+		{4, []string{"triage", "a-check", "b-check"}},
+	} {
+		r := newIdleRig(t)
+		r.routine("triage", "idle_hours: 1\n")
+		r.routine("retro", "idle_hours: 1\n") // 片付いた担当の課題が 0 件で、振り返りの線に届かない
+		r.routine("b-check", "idle_hours: 24\n")
+		r.routine("a-check", "idle_hours: 72\n")
+		r.routine("plain", "")
+		r.unsorted = 80
+		r.free = c.free
+		r.look(0, false)
+		if got := routineRuns(r.look(15*time.Minute, false)); !slices.Equal(got, c.want) {
+			t.Errorf("空いた枠 %d: 撃ったルーチン %v（%v のはず）", c.free, got, c.want)
+		}
+	}
+	r := newIdleRig(t)
+	r.routine("triage", "idle_hours: 1\n")
+	r.unsorted = 10 // 線の 50 件に届かない
+	r.look(0, false)
+	if got := routineRuns(r.look(15*time.Minute, false)); len(got) != 0 {
+		t.Errorf("idle_hours のあるトリアージを、線の外で撃った: %v", got)
 	}
 }
 

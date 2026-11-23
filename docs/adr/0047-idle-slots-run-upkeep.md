@@ -16,7 +16,7 @@
 | 6 | 振り返りとトリアージを回すきっかけに、空きを足す | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | 生きている |
 | 7 | 空きのトリアージは、仕分けていない項目が 1 回分（50 件）以上のときだけ撃つ | `internal/triage/unsorted.go`・`internal/dispatcher/idle.go` | 生きている |
 | 8 | 空きの振り返りは、ルーチンが足した課題を除いた片付いた担当の課題が、件数のきっかけの半分以上のときだけ撃つ | `internal/retro/retro.go`・`internal/dispatcher/idle.go` | 生きている |
-| 9 | プロジェクトの点検は、ルーチンに `idle_hours` を書いたものを空きのときにも撃つ | この ADR | まだ実装していない |
+| 9 | プロジェクトの点検は、ルーチンに `idle_hours` を書いたものを空きのときにも撃つ | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13・`docs/contract.md` §22 | 生きている |
 | 10 | 撃つ数は空いた枠の数までにし、起動できる課題の数は引かない | `internal/dispatcher/idle.go` | 生きている |
 | 11 | 起動されないまま 15 分残った課題は、通知 `idle` で Chief of Staff に 1 回だけ知らせる | `internal/dispatcher/idle.go`・`schema/notification.schema.json`・`docs/contract.md` §6 | 生きている |
 | 12 | kanban の整合（`kanban lint`）は、空きを見た回に dispatcher が打つ | `internal/dispatcher/idle.go` | 生きている |

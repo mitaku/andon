@@ -55,11 +55,11 @@ func (c *Dispatcher) clock() time.Time {
 	return time.Now().UTC()
 }
 
-// idle は空きを見る段（1巡の 3a。振り返りの件数のきっかけのあと、kanban tick の前。ADR-0047 決めたこと 3〜8・10〜12・17。
+// idle は空きを見る段（1巡の 3a。振り返りの件数のきっかけのあと、kanban tick の前。ADR-0047 決めたこと 3〜12・17。
 // dispatcher.md §2.13）。idle_minutes ごとに枠を数え、前の回も今の回も枠が1つ以上空いていたら、撃てるルーチン（トリアージ・
 // 振り返り）を空いた枠の数まで撃ち、前の回にも今の回にも起動できる課題の一覧に出ている課題と kanban lint の結果を通知 idle で
 // Chief of Staff に知らせる。初めて見る kanban・dispatcher が起動し直した最初の回・前の回から間が2倍を超えて空いた回は、
-// 控えるだけで何もしない。retroFired は同じ巡で件数のきっかけが振り返りを撃ったか。失敗はログに1行で、巡は止めない。
+// 控えるだけで何もしない。idle_hours を持つルーチン（決めたこと 9）も撃つ。retroFired は同じ巡で件数のきっかけが振り返りを撃ったか。失敗はログに1行で、巡は止めない。
 func (p *project) idle(retroFired bool) {
 	if p.away {
 		p.forgetIdle() // 留守の間は足した課題を起動する者がいない（決めたこと 17）
@@ -165,7 +165,8 @@ func keepIn(ids, in []string) []string {
 	return out
 }
 
-// fireIdle は空いたときのルーチンを、トリアージ・振り返りの順に、空いた枠の数まで撃つ（決めたこと 5・7・8・10）。
+// fireIdle は空いたときのルーチンを、トリアージ・振り返り・idle_hours を持つルーチン（名前の順）の順に、空いた枠の数まで撃つ
+// （決めたこと 5・7〜10）。
 // ルーチンが無い・読めない・paused のとき、そのルーチンの課題が片付かずに残っているときは、数えも撃ちもしない。
 // 起動できる課題の数は引かない（決めたこと 10）。同じ巡で件数のきっかけが振り返りを撃っていれば、その 1 つも
 // 空いた枠を使うので、撃てる数から引く。撃ったルーチンの名前を返す。
@@ -206,7 +207,83 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 			fire(retroRoutine, fmt.Sprintf("ルーチンの課題を除いた片付いた担当の課題 %d 件。線 %d 件", n, line))
 		}
 	}
+	// idle_hours を持つルーチン（名前の順。決めたこと 9）。トリアージと振り返りは上の線で撃つので、ここでは見ない
+	for _, name := range routineNames(p.l.Dir) {
+		if name == triageRoutine || name == retroRoutine {
+			continue
+		}
+		hours, ok := p.idleHoursOf(name)
+		if !ok || len(fired) >= budget || !routineOn(p.l.Dir, name) || p.routineOpen(name) {
+			continue
+		}
+		last, found := lastFired(p.rows, name)
+		switch {
+		case !found:
+			fire(name, fmt.Sprintf("まだ課題を足していない。線 %d 時間", hours))
+		case now.Sub(last) >= time.Duration(hours)*time.Hour:
+			fire(name, fmt.Sprintf("最後に課題を足してから %d 時間。線 %d 時間", int(now.Sub(last).Hours()), hours))
+		}
+	}
 	return fired
+}
+
+// routineNames は kanban のルーチンの名前（routines/*.yaml。名前の順）。読めなければ無い。
+func routineNames(dir string) []string {
+	ents, err := os.ReadDir(filepath.Join(dir, "routines"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		if name, ok := strings.CutSuffix(e.Name(), ".yaml"); ok && !e.IsDir() {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// idleHoursOf はルーチン name の idle_hours（Andon が読む欄。kanban の CLI は読まない。決めたこと 9）。欄が無い・ファイルを
+// 読めないときは false。値が 1 以上の整数でなければ欄が無いものとして false を返し、ログに 1 行を書く（同じ理由が続く間は 1 行）。
+func (p *project) idleHoursOf(name string) (int, bool) {
+	b, err := os.ReadFile(filepath.Join(p.l.Dir, "routines", name+".yaml"))
+	if err != nil {
+		return 0, false
+	}
+	var r map[string]any
+	if yaml.Unmarshal(b, &r) != nil {
+		return 0, false
+	}
+	v, ok := r["idle_hours"]
+	if !ok {
+		p.idleOnce("hours-"+name, "")
+		return 0, false
+	}
+	if n, isInt := v.(int); isInt && n >= 1 {
+		p.idleOnce("hours-"+name, "")
+		return n, true
+	}
+	p.idleOnce("hours-"+name, fmt.Sprintf("ルーチン %s の idle_hours が 1 以上の整数でない（%v）。空きでは撃たない", name, v))
+	return 0, false
+}
+
+// lastFired はルーチン name が最後に課題を足した時刻（log.jsonl の fired の行。撃ち損ねの行〈skipped〉は数えない。
+// kanban の state/routines.json は撃ち損ねと初めて見たときにも書かれるので読まない。決めたこと 9）。
+func lastFired(rows []ledger.Row, name string) (time.Time, bool) {
+	var last time.Time
+	found := false
+	for _, r := range rows {
+		if r.Routine != name || r.Fired == "" {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, r.At)
+		if err != nil {
+			continue
+		}
+		if !found || at.After(last) {
+			last, found = at, true
+		}
+	}
+	return last, found
 }
 
 // routineOpen はルーチン name が足した課題が片付かずに残っているか。
