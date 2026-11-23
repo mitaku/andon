@@ -202,9 +202,12 @@ EOF
    出す前に、PR 本文と報告に書いた日本語の文を声に出すつもりで読み返す（「のは」「を」などの助詞の脱字は、検査もレビューも拾わない）。
    画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（1枚 10 MB まで）。PR を出したあとなら `gh pr edit <n> --body-file <本文> --attach <画像>` で本文に足す。本文の「検証結果と確かめ方」に `![説明](./<画像の名前>)` と書いておくと、その参照が添付の URL に書き換わる（本文のファイルの中のパスはそのファイルのフォルダから読むので、本文のファイルと画像を同じフォルダに置く。旗だけで足すと、画像は本文の末尾のメモの行の後ろに付く）。コメントでは添付しない。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。gate と dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
-4. checks を待つ。自分の shell を止めないよう hc の端末で回す:
-   `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` → `hc wait <その名前>` → `hc read <その名前>` → `hc rm <その名前>`。
-   落ちたら直して push し、待ち直す。PR を出した直後は checks がまだ出ず「no checks reported」ですぐ終わることがある。その場合は数十秒おいて打ち直し、それでも出なければ checks の無い repo と読んで、それで済み。
+4. checks を待つ。自分の shell を止めないよう hc の端末で回す。`hc wait` は終わりの前にも返るので、1回の `hc wait` を終わりと読まない。長いコマンド（checks・テスト）を hc の端末で待つときは、いつも次の順で待つ:
+   1. `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` で起動する。
+   2. `hc wait <その名前> --json` を打ち、返った `reason` を読む。`exit` なら終わり（`exit_code` がコマンドの終了コード）。
+      `timeout`（既定で 180 秒ごとの途中の返り）と `message`（自分あてに文が届いた）は終わりではない。`message` で届いた文は先に受けるが、待っている端末の新着の証拠にしない（その文は端末の出力ではない）。どちらも 2 を打ち直す。
+   3. `hc get <その名前> --json` の `state` が `finished` になったのを確かめてから、`hc read <その名前>` で結果を読み、`hc rm <その名前>` で片付ける。`finished` の前の `hc read` は途中の画面を返し、`hc rm` は「still running」で断られる。
+   落ちたら直して push し、1 から待ち直す（同じ名前の端末は 3 で片付けてから起動する）。PR を出した直後は checks がまだ出ず「no checks reported」ですぐ終わることがある。その場合は数十秒おいて打ち直し、それでも出なければ checks の無い repo と読んで、それで済み。
    これはエージェントではなく、コマンドを走らせるための端末なので起動してよい。
    `Review: on` なら、checks を待つ前に §4 の 1 でレビューを頼み、checks はレビューの裏で待つ。
 
