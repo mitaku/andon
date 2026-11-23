@@ -28,6 +28,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 | [docs/vision.md](docs/vision.md) | Vision, mission and values on one page, with a figure of the line (stages, roles, mechanisms, and what Andon does not have yet) |
 | [docs/contract.md](docs/contract.md), [schema/](schema/) | Machine-readable contracts (ledger keys, findings, reports, questions, notifications, gate, delegation). `schema/` is the source of truth |
 | [docs/operate.md](docs/operate.md) | How to set up a cell and run one issue |
+| [docs/commands.md](docs/commands.md) | Every `andon` command with who runs it, generated from the command table (`andon help --all --markdown`) |
 | [docs/dispatcher.md](docs/dispatcher.md), [docs/ledger.md](docs/ledger.md), [docs/image.md](docs/image.md) | The dispatcher (resident notifier), the ledger CLI, the container image |
 | [docs/adr/](docs/adr/), [docs/decisions.md](docs/decisions.md), [docs/decisions/](docs/decisions/) | Architecture decision records and the decision log (one file per decision from 2026-11-07) |
 | [process/](process/), [docs/process/](docs/process/) | Definitions of the Chief of Staff's workstreams and of the state machines (YAML), and the pages rendered from them ([ADR-0017](docs/adr/0017-process-definitions.md)) |
@@ -57,6 +58,7 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 - [docs/ledger.md](docs/ledger.md) — kanban の形式（形式 3）と kanban の CLI `kanban` の約束（英語）
 - [docs/image.md](docs/image.md) — セルの image の中身・ビルド・検査・CI と配布
 - [docs/process/](docs/process/) — Chief of Staff の定常の仕事（ワークストリーム）と、課題・担当・通知などの状態の移り方の定義。`process/` の YAML から `andon process render` が作る（[ADR-0017](docs/adr/0017-process-definitions.md)）
+- [docs/commands.md](docs/commands.md) — andon のコマンドの全部を、誰が打つかと1行の説明で並べた一覧。葉の表から `andon help --all --markdown` が作る（[ADR-0053](docs/adr/0053-command-system.md)）
 - [docs/operate.md](docs/operate.md) — セルを立てて1本流す手順（ホストで打つ順。各段の「通ったら見えるもの」「落ちたら見る所」・設計書 §5.1 の確かめ方との対応表・フックと skill の実測の見る場所・いま通らない所の回り道と直しの課題）
 - [docs/adr/README.md](docs/adr/README.md) — Chief Engineer の題ごとの ADR の読み方と、番号・状態つきの一覧（設計書 §1.8）
 - [docs/decisions.md](docs/decisions.md) — 決定の記録（日付・出典）。設計書 §6 のオーナーの答えと、仮設の設計文書の決定。2026-11-07 からの決定は [docs/decisions/](docs/decisions/) に1件1ファイル

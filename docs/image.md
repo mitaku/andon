@@ -141,12 +141,13 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `agents-md.sh` | root の `AGENTS.md` の「決まり｜守らせるもの」の表と、守らせるものが名指したファイル（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 6） | いつも |
-| `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5） | いつも |
+| `verify-andon.sh` | 検証の skill（`.claude/skills/verify-andon/`）の目次・機能の地図と、手順が名指す command の実在（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 5。andon のコマンドは `andon help --all` の表と照らす） | いつも |
 | `schema.sh` | `docs/contract.md` の例を schema と突き合わせる | `docs/contract.md`（出力を読む11本も並べる。下の「手元は関係する検査だけ」） |
 | `package.sh` | `docs/contract.md` §4 の `acceptance[]` の行を skill と突き合わせる | `docs/contract.md`・`docs/adr/` |
 | `adr-index.sh` | `docs/adr/` の索引・状態行（[ADR-0033](adr/0033-adr-inventory-and-slimming.md)）、ADR ごとの決定の記録（`docs/decisions/`・`docs/decisions.md` §14）、`docs/adr/README.md` の一覧の見出しのバージョンと `CHANGELOG.md` の一番上のバージョン（[ADR-0055](adr/0055-adr-prs-without-conflicts.md)） | `docs/adr/`・`docs/decisions.md`・`docs/decisions/`・`CHANGELOG.md` |
 | `kanban.sh` | `docs/ledger.md`。schema・`docs/ledger.md`・`cmd/kanban` が指す `docs/` の文書があるか | `docs/ledger.md`・消した（動かした）`docs/` の文書 |
 | `process.sh` | `docs/process/` が `process/` から作り直して変わらないか・`docs/dispatcher.md` §7.2 | `docs/process/`・`docs/dispatcher.md` |
+| `commands.sh` | `docs/commands.md` が andon の葉の表から作り直して変わらないか（[ADR-0053](adr/0053-command-system.md) 決めたこと 16）。配る文の andon のコマンドは `package/` を見る | `docs/commands.md` |
 
 ほかの `tests/*.sh`（`andon-*.sh`・`host.sh`・`sshd-env.sh`・`image.sh`）は、文書をコメントやテストの中の例の名前として書くだけで、repo の文書を読まない。
 
