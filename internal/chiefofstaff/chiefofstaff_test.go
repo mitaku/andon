@@ -42,6 +42,13 @@ type fake struct {
 	root, log string
 }
 
+// 偽の claude・codex。起動の記録（launch.Gather）が打つ --version にだけバージョンを返す。検査が PATH の本物の harness を打たないように、
+// newFake が一時の PATH の先頭に置く。--version のほかを打たれたら落ちる
+const fakeHarness = `#!/bin/sh
+[ "$1" = --version ] || { echo "unexpected $(basename "$0") $*" >&2; exit 9; }
+echo "$(basename "$0") 0.0.0-fake"
+`
+
 func newFake(t *testing.T) *fake {
 	t.Helper()
 	dir := t.TempDir()
@@ -49,7 +56,7 @@ func newFake(t *testing.T) *fake {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for name, body := range map[string]string{"kanban": fakeKanban, "hc": fakeHc} {
+	for name, body := range map[string]string{"kanban": fakeKanban, "hc": fakeHc, "claude": fakeHarness, "codex": fakeHarness} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
 			t.Fatal(err)
 		}
