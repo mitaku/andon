@@ -51,6 +51,13 @@ case $1 in
 esac
 `
 
+// 偽の claude・codex。起動の記録（launch.Gather）が打つ --version にだけバージョンを返す。検査が PATH の本物の harness を打たないように、
+// newFake が一時の PATH の先頭に置く。--version のほかを打たれたら落ちる
+const fakeHarness = `#!/bin/sh
+[ "$1" = --version ] || { echo "unexpected $(basename "$0") $*" >&2; exit 9; }
+echo "$(basename "$0") 0.0.0-fake"
+`
+
 func newFake(t *testing.T) *fake {
 	t.Helper()
 	dir := t.TempDir()
@@ -58,7 +65,7 @@ func newFake(t *testing.T) *fake {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for name, body := range map[string]string{"kanban": fakeDeck, "hc": fakeHc} {
+	for name, body := range map[string]string{"kanban": fakeDeck, "hc": fakeHc, "claude": fakeHarness, "codex": fakeHarness} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -76,6 +83,7 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("HOME", f.home)
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", "")       // 起動の記録が読む置き場は一時の HOME の下。受け継いだ本物の CODEX_HOME を読まない
 	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban/ を読む
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LOG", f.log)

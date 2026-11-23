@@ -37,6 +37,13 @@ type retryFixture struct {
 	t0  time.Time
 }
 
+// 偽の claude・codex。起動の記録（launch.Gather）が打つ --version にだけバージョンを返す。検査が PATH の本物の harness を打たないように、
+// newRetry が一時の PATH の先頭に置く。--version のほかを打たれたら落ちる
+const retryHarness = `#!/bin/sh
+[ "$1" = --version ] || { echo "unexpected $(basename "$0") $*" >&2; exit 9; }
+echo "$(basename "$0") 0.0.0-fake"
+`
+
 func newRetry(t *testing.T) *retryFixture {
 	t.Helper()
 	f := &retryFixture{t: t, d: t.TempDir(), t0: time.UnixMilli(1_800_000_000_000)}
@@ -44,8 +51,10 @@ func newRetry(t *testing.T) *retryFixture {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bin, "hc"), []byte(retryHc), 0o755); err != nil {
-		t.Fatal(err)
+	for name, body := range map[string]string{"hc": retryHc, "claude": retryHarness, "codex": retryHarness} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)

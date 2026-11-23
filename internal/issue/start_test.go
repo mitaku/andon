@@ -44,6 +44,13 @@ case $1 in
 esac
 `
 
+// 偽の claude・codex。起動の記録（launch.Gather）が打つ --version にだけバージョンを返す。検査が PATH の本物の harness を打たないように、
+// newStart が一時の PATH の先頭に置く。--version のほかを打たれたら落ちる
+const startHarness = `#!/bin/sh
+[ "$1" = --version ] || { echo "unexpected $(basename "$0") $*" >&2; exit 9; }
+echo "$(basename "$0") 0.0.0-fake"
+`
+
 type startFixture struct {
 	t                        *testing.T
 	root, log, repoDir, home string
@@ -67,6 +74,8 @@ func newStart(t *testing.T) *startFixture {
 	}
 	os.WriteFile(filepath.Join(bin, "kanban"), []byte(startKanban), 0o755)
 	os.WriteFile(filepath.Join(bin, "hc"), []byte(startHc), 0o755)
+	os.WriteFile(filepath.Join(bin, "claude"), []byte(startHarness), 0o755)
+	os.WriteFile(filepath.Join(bin, "codex"), []byte(startHarness), 0o755)
 	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# 題\n"), 0o644)
 	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t5\n"), 0o644)
 	origin := filepath.Join(dir, "origin.git")
@@ -89,8 +98,7 @@ func newStart(t *testing.T) *startFixture {
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
 	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	// 起動の記録（launch.Gather）は PATH の本物の codex に --version を打つ。codex は CODEX_HOME の下に
-	// 助けのファイル（tmp/arg0-linux）を作るので、受け継いだ本物の CODEX_HOME ではなく一時の HOME の下に向ける
+	// 起動の記録（launch.Gather）が読む置き場は一時の HOME の下。受け継いだ本物の CODEX_HOME を読まない
 	t.Setenv("CODEX_HOME", "")
 	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban を読む
 
@@ -261,6 +269,10 @@ func TestStart(t *testing.T) {
 	}
 	if toml := read(t, filepath.Join(f.home, ".codex", "config.toml")); !strings.Contains(toml, `[projects."`+repo+`"]`+"\ntrust_level = \"trusted\"\n") {
 		t.Errorf("config.toml に repo の根の信頼が無い:\n%s", toml)
+	}
+	// 起動の記録の harness のバージョンは、PATH の先頭に置いた偽の claude から読む（本物の harness を打たない）
+	if l := read(t, filepath.Join(f.root, "kanban", "issues", "S-0007", "library", "launches.jsonl")); !strings.Contains(l, `"harness":{"name":"claude","version":"claude 0.0.0-fake"}`) {
+		t.Errorf("起動の記録の harness が偽の claude でない:\n%s", l)
 	}
 	// skill はプロファイルの command が system prompt に足す（ADR-0001 決定 3）。最初のメッセージで読ませない
 	if all := strings.Join(calls, "\n"); strings.Contains(all, "SKILL.md") || strings.Contains(all, "先に") {
