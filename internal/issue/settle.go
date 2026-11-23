@@ -18,6 +18,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/dispatcher"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -103,7 +104,7 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 			return &w, nil
 		}
 		w.At = now.UTC().Format("2006-01-02T15:04:05Z")
-		state, head, sha, err := prState(number, owner+"/"+name)
+		state, head, sha, mark, err := prState(number, owner+"/"+name)
 		if err != nil {
 			return &w, fail("%s の PR の状態が読めない（次に打ったとき聞き直す）: %v", c.id, err)
 		}
@@ -119,6 +120,7 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 		case "OPEN":
 			w.State = "" // 開き直された。また閉じたら知らせる
 			res.State = "watching"
+			c.alignMark(owner+"/"+name, head, mark, res)
 		}
 	}
 	if w.State != "MERGED" {
@@ -267,14 +269,53 @@ func mergedByGate(record string) bool {
 	return err == nil && json.Unmarshal(b, &v) == nil && v.Merged
 }
 
-// prState は PR の state（OPEN・MERGED・CLOSED）と、MERGED なら head とマージの commit（gh pr view。1回）。
-func prState(number, slug string) (state, head, sha string, err error) {
-	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid")
+// alignMark は、開いている PR の head の印（commit status andon/gate）を、課題の今の状態に揃える（ADR-0056 決めたこと 5）。
+// settle が PR を聞く 1 分に 1 回の読みに乗せ、GitHub に聞き足さない。書くのは揃っていないときだけ:
+// review の課題は、その head を gate が判定した結果（gate の記録 library/gate/<head>.json）の印。判定の無い head（gate の前・wait・
+// gate のあとに動いた head）には書かない。前のバージョンが書いた、オーナー待ちの赤い印もここで緑に直る。
+// doing に戻った課題は、緑が残っていれば赤（作った側が直しています）。Chief Engineer の文書の PR は、review なら緑（gate を通らない。決めたこと 6）。
+// gh pr view の statusCheckRollup は説明文を出さないので、今の印とは状態だけで比べる。書けなければ記録に残して次の読みで直す。
+// settle は課題の lock の中で走るので、同じ課題の gate とは重ならない。
+func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle) {
+	if !contract.IsSHA(head) {
+		return
+	}
+	f := gate.MarkFacts{Status: c.issue.Str("status"), Engineer: c.issue.Str("profile") == "chief-engineer", Have: have, HaveDescUnknown: true}
+	if b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", head+".json")); err == nil {
+		var g gate.Record
+		if json.Unmarshal(b, &g) == nil && g.Head == head {
+			f.Decision, f.Reasons = g.Decision, g.Reasons
+		}
+	}
+	m, ok := gate.WantMark(f)
+	if !ok {
+		return
+	}
+	cmd := exec.Command("gh", "api", "-X", "POST", "repos/"+slug+"/statuses/"+head, "-f", "context="+gate.GateContext, "-f", "state="+m.State, "-f", "description="+m.Description)
+	var errb strings.Builder
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		res.Log = append(res.Log, fmt.Sprintf("%s の PR の印を揃えられない（次に聞いたとき揃え直す）: %v %s", c.id, err, firstLine(errb.String())))
+		return
+	}
+	res.Log = append(res.Log, fmt.Sprintf("%s の PR の印を %s に揃えた（%s。前は %s）", c.id, m.State, m.Description, orNone(have.State)))
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "無し"
+	}
+	return s
+}
+
+// prState は PR の state（OPEN・MERGED・CLOSED）と、MERGED なら head とマージの commit、OPEN なら head と gate 自身の印（gh pr view。1回）。
+func prState(number, slug string) (state, head, sha string, mark gate.Mark, err error) {
+	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid,statusCheckRollup")
 	var errb strings.Builder
 	cmd.Stderr = &errb
 	out, err := cmd.Output()
 	if err != nil {
-		return "", "", "", fmt.Errorf("gh pr view: %v %s", err, firstLine(errb.String()))
+		return "", "", "", gate.Mark{}, fmt.Errorf("gh pr view: %v %s", err, firstLine(errb.String()))
 	}
 	var view struct {
 		State       string `json:"state"`
@@ -282,20 +323,23 @@ func prState(number, slug string) (state, head, sha string, err error) {
 		MergeCommit *struct {
 			Oid string `json:"oid"`
 		} `json:"mergeCommit"`
+		Rollup []gate.CheckItem `json:"statusCheckRollup"`
 	}
 	if json.Unmarshal(out, &view) != nil {
-		return "", "", "", fmt.Errorf("gh pr view の返事が読めない")
+		return "", "", "", gate.Mark{}, fmt.Errorf("gh pr view の返事が読めない")
 	}
 	switch view.State {
 	case "MERGED":
 		if view.MergeCommit == nil || !contract.IsSHA(view.MergeCommit.Oid) {
-			return "", "", "", fmt.Errorf("MERGED だがマージの commit が読めない")
+			return "", "", "", gate.Mark{}, fmt.Errorf("MERGED だがマージの commit が読めない")
 		}
-		return view.State, view.HeadRefOid, view.MergeCommit.Oid, nil
-	case "OPEN", "CLOSED":
-		return view.State, "", "", nil
+		return view.State, view.HeadRefOid, view.MergeCommit.Oid, gate.Mark{}, nil
+	case "OPEN":
+		return view.State, view.HeadRefOid, "", gate.GateMark(view.Rollup), nil
+	case "CLOSED":
+		return view.State, "", "", gate.Mark{}, nil
 	}
-	return "", "", "", fmt.Errorf("PR の state が知らない値: %q", view.State)
+	return "", "", "", gate.Mark{}, fmt.Errorf("PR の state が知らない値: %q", view.State)
 }
 
 func firstLine(s string) string {

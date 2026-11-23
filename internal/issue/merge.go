@@ -143,10 +143,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		w.Approved, w.Retries = "", 0 // 問いで決まった。approve のまま止まったとは届けない
 		why := fmt.Sprintf("andon gate %s: 終了コード %d %s", c.id, code, firstLine(errb.String()))
 		res.Log = append(res.Log, fmt.Sprintf("%s の gate が判定できない: %s", c.id, why))
-		c.askGate(res, contract.Question{
-			Kind: "irreversible", Question: fmt.Sprintf("%s（%s）の gate が判定できなかった。PR をオーナーが見るか", c.id, short(c.issue.Str("title"))),
-			Facts: []string{why}, From: "gate",
-			Options: []contract.Option{{Label: "オーナーが PR を読んでマージを決める", Pick: ptr(true)}, {Label: "Chief of Staff が原因を直してから回し直す"}}})
+		c.askGate(res, GateFailedQuestion(c.id, c.issue.Str("title"), why))
 		return &w
 	}
 	if gr.Decision == "wait" {
@@ -504,7 +501,11 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		}
 		if RetryMerge(err.Error(), w.Retries) {
 			w.Retries++
-			logf("をいまはマージしない（次に打ったとき gate から回し直して打ち直す。%d/%d 回）: base が動いて gh pr merge が通らなかった: %v", w.Retries, mergeRetries, err)
+			why := "base が動いて"
+			if strings.Contains(err.Error(), policyProhibits) {
+				why = "必須の check がまだ揃わず"
+			}
+			logf("をいまはマージしない（次に打ったとき gate から回し直して打ち直す。%d/%d 回）: %s gh pr merge が通らなかった: %v", w.Retries, mergeRetries, why, err)
 			return true
 		}
 		stop("gh pr merge に失敗: " + err.Error())
@@ -614,14 +615,28 @@ func ChecksStill(gateHead, nowHead string, checks gate.GitHubChecks, optional bo
 // head が動いたときの文（Head branch was modified. …）や衝突の文には当たらない。
 const baseModified = "Base branch was modified. Review and try the merge again"
 
+// policyProhibits は、PR の mergeStateStatus が BLOCKED のとき gh pr merge が要求を送らずに返す文。
+// 必須の check（andon/gate）を書いた直後は、GitHub の側の計算が追いつかず BLOCKED のままのことがある（ADR-0056 決めたこと 12）。
+const policyProhibits = "the base branch policy prohibits the merge"
+
 // mergeRetries は base の動きで通らなかったマージを打ち直す上限（仮の値）。間は dispatcher の見回り（review の課題があれば
 // 5秒ごと）と gate の所要で、数秒の重なりをやり過ごす。
 const mergeRetries = 3
 
 // RetryMerge は、gh pr merge の失敗 failure を、次に打ったとき gate から照合し直して打ち直すか（純粋関数）。
-// base が動いた失敗だけで、打ち直した回数 retries が上限に届いていないときだけ。
+// base が動いた失敗と、必須の check で断られた失敗（policyProhibits）だけで、打ち直した回数 retries が上限に届いていないときだけ。
+// 回し直しでは、印は既に緑なので gate は書き直さない（ADR-0056 決めたこと 3・12）。
 func RetryMerge(failure string, retries int) bool {
-	return retries < mergeRetries && strings.Contains(failure, baseModified)
+	return retries < mergeRetries && (strings.Contains(failure, baseModified) || strings.Contains(failure, policyProhibits))
+}
+
+// GateFailedQuestion は、gate が判定できなかった（終了コードが決まった値でない）ときにオーナーへ出す問い。
+// 印が無いと必須の check でオーナーもマージできないので、先頭（推奨）は Chief of Staff が原因を直して回し直すこと（ADR-0056 決めたこと 14）。
+func GateFailedQuestion(id, title, why string) contract.Question {
+	return contract.Question{
+		Kind: "irreversible", Question: fmt.Sprintf("%s（%s）の gate が判定できなかった。どう進めるか", id, short(title)),
+		Facts: []string{why}, From: "gate",
+		Options: []contract.Option{{Label: "Chief of Staff が原因を直してから回し直す", Pick: ptr(true)}, {Label: "オーナーが PR を読んでマージを決める"}}}
 }
 
 // MergedBefore は、gh pr merge が失敗したあとに読み直した PR（gh pr view --json state,mergeCommit,headRefOid の返事）が、
