@@ -404,6 +404,78 @@ func TestReapplied(t *testing.T) {
 	}
 }
 
+// 当て直しの記録の previous（前に当てた分）も読む。最後の当て直しが片付けの後でも、previous の1件が起動と片付けの間にあれば印が付く。
+// previous の無い前のバージョンの記録は、最後の1回だけで決める。
+func TestReappliedPrevious(t *testing.T) {
+	launches := []map[string]any{{"at": ago(3 * day), "package": map[string]any{"commit": sha1}}}
+	doneAt := ago(1 * day)
+	read := func(body string) (*applied, error) {
+		d := t.TempDir()
+		write(t, filepath.Join(d, "applied.json"), body)
+		return readApplied(d)
+	}
+	prev := func(ats ...string) string {
+		var xs []string
+		for i, at := range ats {
+			xs = append(xs, fmt.Sprintf(`{"commit":"%040d","applied_at":%q}`, i, at))
+		}
+		return "[" + strings.Join(xs, ",") + "]"
+	}
+	last := `{"commit":"` + sha1 + `","applied_at":"` + ago(12*time.Hour) + `","image_commit":"x","switched_at":"` + ago(12*time.Hour) + `"`
+	many := func(n int, d time.Duration) []string {
+		var ats []string
+		for i := 0; i < n; i++ {
+			ats = append(ats, ago(d+time.Duration(i)*time.Minute))
+		}
+		return ats
+	}
+	for _, c := range []struct {
+		name, body string
+		want       *bool
+		reason     string
+	}{
+		// 期間の途中で当て直し、最後の当て直しは片付けの後
+		{"previous が起動と片付けの間", last + `,` + "\n" + ` "previous":` + prev(ago(18*time.Hour), ago(2*day)) + `}`, boolPtr(true), ago(2 * day)},
+		// 同じ記録で previous が無い（前のバージョン）: 最後の1回だけで読むので、今までどおり false
+		{"previous が無い", last + `}`, boolPtr(false), ""},
+		{"previous が空", last + `,"previous":[]}`, boolPtr(false), ""},
+		// previous が全部起動の前か片付けの後
+		{"previous が期間の外", last + `,"previous":` + prev(ago(18*time.Hour), ago(4*day)) + `}`, boolPtr(false), ""},
+		// previous が上限まで埋まり、残る一番古い当て直しが起動の後: それより前が落ちているので分からない
+		{"previous が上限で起動まで届かない", last + `,"previous":` + prev(many(appliedKept, 13*time.Hour)...) + `}`, nil, "件で切れて"},
+		// 上限まで埋まっていても、一番古い当て直しが起動の前なら落ちた分は期間の外
+		{"previous が上限で起動の前まで届く", last + `,"previous":` + prev(append(many(appliedKept-1, 13*time.Hour), ago(4*day))...) + `}`, boolPtr(false), ""},
+		// previous に時刻の読めない1件があれば、そこで途切れたと読む。それより新しい分で当て直したと言えれば true
+		{"壊れた1件の前に期間の中の当て直し", last + `,"previous":[` + `{"commit":"a","applied_at":"` + ago(2*day) + `"},{"commit":"b","applied_at":"昨日"}]}`, boolPtr(true), ago(2 * day)},
+		{"最後の1回が期間の中で previous[0] が壊れている", `{"commit":"` + sha1 + `","applied_at":"` + ago(2*day) + `","previous":[{"commit":"b"}]}`, boolPtr(true), ago(2 * day)},
+		// 途切れた所が起動より後なら、それより前は分からない
+		{"壊れた1件で起動まで届かない", last + `,"previous":[{"commit":"b","applied_at":"昨日"},{"commit":"c","applied_at":"` + ago(2*day) + `"}]}`, nil, "previous[0]"},
+		// 途切れた所が起動より前なら、落ちた分は期間の外
+		{"壊れた1件が起動の前", last + `,"previous":[{"commit":"a","applied_at":"` + ago(4*day) + `"},{"commit":"b","applied_at":"昨日"}]}`, boolPtr(false), ""},
+	} {
+		a, err := read(c.body)
+		if err != nil {
+			t.Fatalf("%s: 読めない: %v", c.name, err)
+		}
+		got, reasons := reapplied(launches, doneAt, a, nil)
+		if (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
+			t.Errorf("%s: 印 = %v（%v）、want %v", c.name, got, reasons, c.want)
+		}
+		if c.reason != "" && !strings.Contains(strings.Join(reasons, ""), c.reason) {
+			t.Errorf("%s: 理由 = %v、want %q を含む", c.name, reasons, c.reason)
+		}
+		if c.want != nil && !*c.want && len(reasons) != 0 {
+			t.Errorf("%s: false なのに理由 = %v", c.name, reasons)
+		}
+	}
+	// 最後の1回の時刻が読めなければ、今までどおり記録が読めない
+	if _, err := read(`{"commit":"x","applied_at":"昨日","previous":[]}`); err == nil {
+		t.Error("applied_at が壊れているのに読めた")
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
+
 // 読むだけ: kanban とセッションログのファイルを書き換えない。
 func TestReadOnly(t *testing.T) {
 	f := newFixture(t)
