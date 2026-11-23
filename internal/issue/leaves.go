@@ -220,7 +220,7 @@ func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if err != nil {
 			return err
 		}
-		_, out, err := NewOwnerQuestion(l, q, parent, after)
+		_, out, err := l.NewOwnerQuestion(q, parent, after)
 		if err != nil {
 			return err
 		}

@@ -706,25 +706,8 @@ func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
 	return nil
 }
 
-// put は確かめた問いを kanban に問い、library/questions/<n>.json に置く。kanban の CLI の返事（<id>#<n>）を返す。
-func (c *ctx) put(q *contract.Question) (string, error) {
-	out, err := c.l.Run(q.Text(), "ask", c.id, "-", "--kind", q.Kind)
-	if err != nil {
-		return "", err
-	}
-	m := askedRe.FindStringSubmatch(out)
-	if m == nil {
-		return "", fail("kanban の CLI の返事から問いの番号が読めない: %q", out)
-	}
-	dir := filepath.Join(c.l.Library(c.id), "questions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	if err := contract.Write(filepath.Join(dir, m[1]+".json"), contract.SchemaQuestion, q); err != nil {
-		return "", err
-	}
-	return out, nil
-}
+// put は確かめた問いを kanban に問い、library/questions/<n>.json に置く（ledger.Ask）。
+func (c *ctx) put(q *contract.Question) (string, error) { return c.l.Ask(c.id, q) }
 
 // askQueued は queued の課題に問いを置けるかを確かめる。置けるのはオーナーの課題（who: person）だけで、
 // 担当の課題は前の課題を待つ間は問いを出さない（ADR-0057 決めたこと 7）。
@@ -733,57 +716,4 @@ func (c *ctx) askQueued() error {
 		return fail("%s は queued（queued の課題に問いを置けるのはオーナーの課題〈who: person〉だけ。process/states/issue.yaml）", c.id)
 	}
 	return nil
-}
-
-// ownerTitle は andon issue ask --new が問いの文から作るオーナーの課題のタイトル。
-func ownerTitle(q *contract.Question) string { return q.Question + "（オーナーの判断待ち）" }
-
-// ownerBrief は andon issue ask --new が問いの JSON から書く依頼書（人が読む写し。問いの正は library/questions/）。
-func ownerBrief(q *contract.Question) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s\n\n", ownerTitle(q))
-	b.WriteString("オーナーの判断を待つ課題。andon issue ask --new が問いの JSON から書いた写しで、問いの正は library/questions/ にある。\n\n")
-	if len(q.Facts) > 0 {
-		fmt.Fprintf(&b, "出どころ: %s\n", strings.Join(q.Facts, " / "))
-	}
-	fmt.Fprintf(&b, "kind: %s\n", q.Kind)
-	fmt.Fprintf(&b, "推奨案: %s\n", q.Options[0].Label)
-	var others []string
-	for _, o := range q.Options[1:] {
-		others = append(others, o.Label)
-	}
-	fmt.Fprintf(&b, "ほかの案: %s\n", strings.Join(others, " / "))
-	if q.Reason != "" {
-		fmt.Fprintf(&b, "理由: %s\n", q.Reason)
-	}
-	return b.String()
-}
-
-// NewOwnerQuestion はオーナーの課題を足し、who: person を書き、問いを置く（andon issue ask --new。ADR-0057 決めたこと 7）。
-// 問いは確かめたもの（contract.ParseQuestion）を渡す。after があれば課題は queued で作られ、その課題にも問いを置く。
-// 足した id と kanban の CLI の返事（<id>#<n>）を返す。課題を足したあとで落ちたら、足した id と打ち直す command を誤りに書く
-// （残った課題は問いも印も無いので、andon waiting が判断に数えて灯す）。
-func NewOwnerQuestion(l *ledger.Ledger, q *contract.Question, parent string, after []string) (string, string, error) {
-	args := []string{"add", "--brief", "-"}
-	if parent != "" {
-		args = append(args, "--parent", parent)
-	}
-	if len(after) > 0 {
-		args = append(args, "--after", strings.Join(after, ","))
-	}
-	id, err := l.Run(ownerBrief(q), append(args, "--", ownerTitle(q))...)
-	if err != nil {
-		return "", "", err
-	}
-	if !idRe.MatchString(id) {
-		return "", "", fail("kanban の CLI の返事から課題の id が読めない: %q", id)
-	}
-	if _, err := l.Run("", "set", id, "who=person"); err != nil {
-		return id, "", fail("課題 %s を足したが who: person を書けなかった（%v）。kanban set %s who=person のあと andon issue ask %s - で問いを置き直す", id, err, id, id)
-	}
-	out, err := (&ctx{l: l, id: id}).put(q)
-	if err != nil {
-		return id, "", fail("オーナーの課題 %s を足したが問いを置けなかった（%v）。andon issue ask %s - で問いを置き直す", id, err, id)
-	}
-	return id, out, nil
 }

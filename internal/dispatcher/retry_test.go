@@ -555,3 +555,27 @@ func TestWatchNotifiesStopped(t *testing.T) {
 		t.Fatalf("新しい status_ms の blocked を知らせない: %q", k)
 	}
 }
+
+// オーナーの課題（who: person）は、親の担当の課題のレビュアーではない。andon issue ask --new --parent <id> で作った
+// オーナーの課題が todo の間も、親の担当が idle のまま 15 分たてば stalled を知らせる（ADR-0057 決めたこと 7）。
+// レビュアーの子の課題（who が無い）は今までどおり stalled を止める。
+func TestOwnerChildDoesNotHideStalled(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		child ledger.Issue
+		want  int
+	}{
+		{"オーナーの課題", ledger.Issue{"id": "S-8", "status": "todo", "parent": "S-7", "who": "person"}, 1},
+		{"レビュアーの課題", ledger.Issue{"id": "S-7-r1", "status": "doing", "parent": "S-7", "profile": "codex-review"}, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newRetry(t)
+			f.p.tasks = append(f.p.tasks, c.child)
+			f.term("t42", "idle", "", 0, false)
+			f.at(16*time.Minute, "")
+			if k := f.kinds(); len(k) != c.want || (c.want == 1 && k[0] != "S-7:stalled") {
+				t.Fatalf("子の課題が %s のとき、stalled の通知 %q（want %d 件）", c.name, k, c.want)
+			}
+		})
+	}
+}
