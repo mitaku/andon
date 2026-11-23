@@ -15,7 +15,7 @@
 | 5 | Chief of Staff がオーナーに聞く問いは、聞く前に kanban に置く | `package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 6 | 1 回の返事で聞くのは 1 問のままにし、答えは待っている問いのどれからでも受ける | `package/skills/ask-one-by-one/SKILL.md` | 生きている。§5 をペインを指す 1 行に替えるのは、ペインを足すときにする |
 | 7 | Chief Engineer の問いの出し方は変えない | `package/skills/chief-engineer/SKILL.md` | 生きている |
-| 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/glossary/SKILL.md` | 生きている |
+| 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/glossary/SKILL.md` | 覆された → ADR-0057（手作業の定義と、オーナーの課題の問いを数える条件。3 種に分けることと、今の head について決め終えたものだけを数えることは生きている） |
 | 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている。答えを書く口（決めたこと 17）は同じ command の `andon waiting answer` |
 | 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 生きている |
 | 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
@@ -126,6 +126,7 @@
    - 予約キーの照合が外れて approve が止まっている課題は、マージの依頼に出る。Chief of Staff が起動し直されると、予約キーを書き直すまでこの形になる。書き直せば消える。
    - 答えが書かれて担当が受け取っていない問い（`answered`）は、オーナー待ちに数えない。その問いを持つオーナーの課題は、手作業にも出さない。範囲の問い（`scope`）は Chief of Staff が答えるので数えない。前の課題か日付を待っているオーナーの課題は、まだオーナーの番でないので出さない。止まった端末は mod `inbox` が見せるので、ここには入れない。
    - 「オーナー待ち」という語は、repo にまだ無い。今ある「オーナーの判断待ち」は、3 種のうちの判断を指す語として残す。
+   → 2026-11-23 に、[ADR-0057](0057-owner-issue-decision-or-hand-work.md) 決めたこと 2・4・5 が、手作業と判断の定義を改めた。手作業は、印 `only_owner` を持つオーナーの課題で、受け取られていない問いを持たないものにする。灯りの種類の問いも印も無いオーナーの課題は、判断に数える。オーナーの課題の問いは、その課題が前の課題を待っていない間だけ数える。3 種に分けることと、マージの依頼の定義は変わらない（範囲はオーナーが決めた。数える条件は Chief Engineer が決めた）。
 9. **2026-11-21 オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする（Chief Engineer が決めた）。** Chief of Staff が枠を数えるときも、問いを出す順を決めるときも、ペインが一覧を描くときも、この 1 つの出力を使う。
    理由: 数える式が 2 か所にあると、ずれる。今は Chief of Staff が `kanban list` を読んで目で数えていて、approve で止まった PR を見分けるには、gate の記録と予約キーの書き手まで読む必要がある（事実 11・12）。判断は標準にして、機械・文・オーナーの順に置く（[ADR-0006](0006-survey-fix-decide.md) 決めたこと 14）。
    細部:
@@ -241,6 +242,7 @@
 - **問いを出す専用の端末。** 決めたこと 3 の捨てた案。
 - **起動の順の欄を kanban に足すこと。** Flow は、今ある `after`・`parent`・`phase` で描く（決めたこと 13）。
 - **オーナーの課題を切る手順を 1 つの command にまとめること。** 今の 3 つの command のままで足りる。
+  → 2026-11-23 に、[ADR-0057](0057-owner-issue-decision-or-hand-work.md) 決めたこと 7 が、この 1 行を覆した。オーナーの課題と問いを 1 回で置く `andon issue ask --new` を足す。3 つに分かれた手順の 3 つ目が、判断の課題 10 件のうち 6 件で打たれなかった（オーナーが決めた）。
 
 ## 受け入れ条件（テストできる形。どの継ぎ目でテストするかを先に）
 
