@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# tests/lib/scope.sh [--heavy] < 変更されたパス（repo からの相対・1行1つ）
+# tests/lib/scope.sh [--heavy | --isolation] < 変更されたパス（repo からの相対・1行1つ）
 #
 # 手元で「変えたものに関係する検査だけ」を走らせるとき（tests/run --changed）と CI の文書だけの PR で、走らせる tests/*.sh を
 # 1行1つで出す。安く全体を見るもの（public・public-selftest・smoke・ci・words・words-selftest・agents-md・verify-andon・shell-and）はいつも。コードや package/ を
 # 変えたら、重い検査（下の表）を除く全部と、変えたパスが「見る部分」に入る重い検査を足す。知らないパスは重い検査を含む全部。
 # tests/image.sh は CI と同じ tests/lib/image-scope.sh が true のときだけ。表は docs/image.md の「手元は関係する検査だけ」。
 #   --heavy  重い検査と見る部分の表を「<検査> <部分>」で1行ずつ出す（tests/ci.sh が Go の import と突き合わせる）
+#   --isolation  CI の job isolation が tests/isolation に渡す tests/*.sh を出す（下の --isolation の段）
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -39,6 +40,40 @@ parts() { read -r -d '' -a parts <<<"${heavy[$1]}" || true; }
 
 if [ "${1:-}" = --heavy ]; then
   for t in "${!heavy[@]}"; do parts "$t"; for part in "${parts[@]}"; do echo "$t $part"; done; done | sort
+  exit 0
+fi
+
+# --isolation: CI の job isolation が tests/isolation に渡す tests/*.sh を1行ずつ出す。何も出さなければ job は回さない。
+# tests/isolation は go test ./... を毎回回し、渡した検査を偽のセル（番兵）で回す。表は docs/image.md の「検査の隔離」。
+#   検査の土台（tests/lib/ のうち判定の道具と image の道具を除くもの・tests/isolation・この job を書く tests.yml）: image.sh を除く全部
+#   tests/ の検査と、その検査が読む置き場（tests/host/ など）: その検査。Go（cmd/・internal/・root の *.go・go.mod・go.sum）: smoke.sh
+#   ほか（文書・package/・schema/・image/ など）: 足さない。image.sh は docker が要るので回さない（tests の job が回す）
+if [ "${1:-}" = --isolation ]; then
+  declare -A iso=()
+  full=false
+  while IFS= read -r p; do # 入力は終わりまで読む（CI は pipefail で git diff から渡す）
+    case "$p" in
+      '' | tests/image.sh | tests/lib/pty-probe.py) ;;
+      tests/lib/scope.sh | tests/lib/docs-scope.sh | tests/lib/image-scope.sh) ;; # 判定の道具は tests/ci.sh が見る
+      tests/isolation | tests/lib/* | .github/workflows/tests.yml) full=true ;;
+      tests/host/*) iso[tests/host.sh]=1 ;;
+      tests/kanban/*) iso[tests/kanban.sh]=1 ;;
+      tests/package/*) iso[tests/package.sh]=1 ;;
+      tests/process/*) iso[tests/process.sh]=1 ;;
+      tests/adr-new) iso[tests/adr-new.sh]=1 ;;
+      tests/*.sh) [ -f "$p" ] && iso[$p]=1 ;;
+      cmd/* | internal/* | *.go | go.mod | go.sum) iso[tests/smoke.sh]=1 ;;
+    esac
+  done
+  if [ "$full" = true ]; then
+    for f in tests/*.sh; do iso[$f]=1; done
+  fi
+  # schema.sh は emitters が同じ回に写したものを読む（下の本体と同じ）
+  if [ -n "${iso[tests/schema.sh]:-}" ]; then
+    while IFS= read -r e; do iso[$e]=1; done < <(bash tests/schema.sh --emitters)
+  fi
+  unset 'iso[tests/image.sh]'
+  for f in tests/*.sh; do [ -n "${iso[$f]:-}" ] && echo "$f"; done
   exit 0
 fi
 

@@ -190,6 +190,22 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`retro`・`ghpr`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`・`redact`・`waiting`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`・`schema/` の直下の `*.schema.json`。たとえば `internal/measure/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
 
+### 検査の隔離
+
+検査がセルの本物（kanban・HOME）を読み書きしないかは、`tests/isolation` が偽のセル（番兵）で回して確かめる（`tests/README.md`）。全部を回すと 15 分を超えるので、tests の job では回さない。PR では、別の job の isolation が、PR の変更に関係する分だけを回す。tests の job と並んで走るので、回す分が少なければ待ちはほとんど延びない。
+
+回す検査は `tests/lib/scope.sh --isolation` が PR の変更（tests の job と同じ差分）から選び、`tests/isolation` に渡す。`tests/isolation` は `go test ./...` を毎回回し、渡した `tests/*.sh` を番兵の中で回す。選ぶものが無ければ回さず、job は成功で終わる。選び方は `tests/ci.sh` が確かめる。
+
+| 変えたもの | 番兵の中で回す `tests/*.sh` |
+|---|---|
+| 検査の土台（`tests/lib/` のうち判定の道具と `pty-probe.py` を除くもの・`tests/isolation`・job を書く `.github/workflows/tests.yml`） | `image.sh` を除く全部 |
+| 検査が読む置き場（`tests/host/`・`tests/kanban/`・`tests/package/`・`tests/process/`・`tests/adr-new`） | その置き場を読む検査（`host.sh` など） |
+| `tests/<x>.sh` | その `tests/<x>.sh`（`schema.sh` なら出力を読む11本も） |
+| Go（`cmd/`・`internal/`・root の `*.go`・`go.mod`・`go.sum`） | `smoke.sh`（`go test ./...` の隔離を見る。数分） |
+| それ以外（文書・`package/`・`schema/`・`image/`・`model/`・`mise.toml` など） | 回さない |
+
+`image.sh` は docker が要るので番兵の中では回さない（tests の job が回す）。main の push では回さない。main で隔離が壊れていないかは、Andon を開発するセルの週1回の点検 `check-isolation`（[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 18）が全部を回して見る。
+
 ## 残る危険
 
 workflow を書き換えた branch をこの repo に push できる者は、マージ前でも GHCR に push できる。workflow 内の権限制限だけでは、この操作を防げない。
