@@ -19,8 +19,23 @@ fi
 del=$(since "$state"/*.delivered.jsonl) rec=$(since "$state"/*.recorded.jsonl)
 nd=$(grep -c . <<<"$del" || true) nr=$(grep -c . <<<"$rec" || true)
 echo "-- dn-delivered: 当てたあとに届けた通知 $nd 件・記録だけの通知 $nr 件"
-jq -c '{at, project, acked, news: [.news[] | "\(.issue) \(.kind)"]}' <<<"$del" 2>/dev/null | tail -10 | sed 's/^/  | /'
+jq -c '{at, project, acked, news: [.news[] | "\(.issue // "-") \(.kind)"]}' <<<"$del" 2>/dev/null | tail -10 | sed 's/^/  | /'
 jq -c '{at, issue, kind}' <<<"$rec" 2>/dev/null | tail -10 | sed 's/^/  | /'
+
+# dn-idle: 当てたあとに枠の空きを見た控え（<slug>.json の idle）と、通知 idle。撃つかは枠の空き次第なので、通知が無くても壊れではない
+echo "-- dn-idle: 控えの idle と、当てたあとの通知 idle"
+looked=0
+for f in "$state"/*.json; do
+  i=$(jq -c --arg t "$a_at" 'select(.idle.at != null and .idle.at >= $t) | {at: .idle.at, free: .idle.free, ready: (.idle.ready // [] | length), told: (.idle.told // [])}' "$f" 2>/dev/null) || continue
+  [ -n "$i" ] && { echo "  | ${f##*/}: $i"; looked=$((looked + 1)); }
+done
+ni=$(jq -c 'select(.news[]?.kind == "idle")' <<<"$del" 2>/dev/null | grep -c . || true)
+jq -c '.at as $at | .news[] | select(.kind == "idle") | {at: $at, detail}' <<<"$del" 2>/dev/null | tail -5 | sed 's/^/  | /'
+if [ "$looked" -gt 0 ]; then
+  ok "dn-idle: 当てたあとに枠の空きを見た控えが $looked 件。通知 idle を届けた回は $ni 回"
+else
+  echo "note dn-idle: 当てたあとに枠の空きを見た控えが無い（idle_minutes が 0 か、Chief of Staff の留守か、dispatcher がまだ見ていない）。dn-idle は未確認"
+fi
 # 記録だけの通知は Chief of Staff に届けていないので、届けた証拠にしない
 [ "$fails" = 0 ] || exit 1
 if [ "$nd" = 0 ]; then
