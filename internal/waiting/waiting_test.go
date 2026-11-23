@@ -284,6 +284,11 @@ func TestOwnerIssueAfterAndNotBefore(t *testing.T) {
 		want(t, r, "S-0002#1=decision", "S-0003=decision", "S-0004#1=decision", "S-0005=decision", "S-0007#1=decision")
 		unasked(t, r, "S-0003")
 	})
+	t.Run("doing の印のある課題は前の課題を待っていても手作業（手作業の行は今のまま）", func(t *testing.T) {
+		f := setup(t, "doing")
+		f.issue("S-0008", "doing", "who: person", "only_owner: ホストで image を焼き直す", "after: [S-0001]")
+		want(t, f.read(), "S-0004#1=decision", "S-0005=decision", "S-0007#1=decision", "S-0008=task")
+	})
 	t.Run("日付を過ぎた印のある課題は手作業", func(t *testing.T) {
 		f := setup(t, "done")
 		f.issue("S-0006", "todo", "who: person", "only_owner: 手元の App に置き直す", "not_before: \"2026-11-21\"")

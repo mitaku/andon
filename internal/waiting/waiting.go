@@ -230,17 +230,17 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 			items = append(items, it)
 			waiting[t.id] = true
 		}
-		if t.who == "person" && waitsOnPrev(t, byID, done) {
-			continue // 前の課題を待つオーナーの課題は、まだオーナーの番でない（ADR-0057 決めたこと 5）
+		// 前の課題を待つオーナーの課題の判断は、まだオーナーの番でない（ADR-0057 決めたこと 5）。手作業の行は今のまま
+		if t.who != "person" || !waitsOnPrev(t, byID, done) {
+			for _, it := range decisionItems(t, lib) {
+				items = append(items, it)
+				waiting[t.id] = true
+			}
+			if it, ok := unaskedItem(t, lib); ok {
+				items = append(items, it)
+			}
 		}
-		for _, it := range decisionItems(t, lib) {
-			items = append(items, it)
-			waiting[t.id] = true
-		}
-		if it, ok := unaskedItem(t, lib); ok {
-			items = append(items, it)
-		}
-		if it, ok := taskItem(t, now.In(loc)); ok {
+		if it, ok := taskItem(t, byID, done, now.In(loc)); ok {
 			items = append(items, it)
 		}
 	}
@@ -408,8 +408,8 @@ func unaskedItem(t *issue, lib string) (Item, bool) {
 }
 
 // taskItem は手作業（ADR-0042 決めたこと 8・ADR-0057 決めたこと 2・3）: 印 only_owner を持つオーナーの課題で、起動できるか
-// 動いていて、受け取られていない問いを持たない。日付（not_before）を待っている間は出さない。理由は印の値。
-func taskItem(t *issue, now time.Time) (Item, bool) {
+// 動いていて、受け取られていない問いを持たない。起動できる前（todo・queued で前の課題か日付を待っている間）は出さない。理由は印の値。
+func taskItem(t *issue, byID map[string]*issue, done string, now time.Time) (Item, bool) {
 	if !t.owed() || t.onlyOwner == "" {
 		return Item{}, false
 	}
@@ -419,6 +419,9 @@ func taskItem(t *issue, now time.Time) (Item, bool) {
 		}
 	}
 	if t.status != "doing" {
+		if waitsOnPrev(t, byID, done) {
+			return Item{}, false // 前の課題を待っている（まだオーナーの番でない）
+		}
 		if day, err := time.Parse("2006-01-02", t.notBefore); err == nil && now.Format("2006-01-02") < day.Format("2006-01-02") {
 			return Item{}, false // 日付を待っている
 		}
