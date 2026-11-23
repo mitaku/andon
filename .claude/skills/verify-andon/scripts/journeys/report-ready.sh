@@ -44,12 +44,23 @@ $run の検証の報告" \
   || fail "rr-report: report.json か report.md が無い・形が違う"
 jq -c '{commit, pr, acceptance}' "$lib/report.json" 2>/dev/null | sed 's/^/  report.json: /'
 
+# rr-acceptance: 予約キー acceptance は数字だけで書く（Chief Engineer の文書の振り方）。報告の行は A1 のまま。
+# 行の無い番号（2）だけを名指して断り、A1 の行は番号 1 に数える。断ったあとキーを 1 にすると、rr-ready が A1 の行で通す
+HC_TERMINAL_ID=tc "$kanban" set "$id" acceptance=1,2 >/dev/null
+step "rr-acceptance: 予約キー acceptance=1,2 で ready を打つ（報告の行は A1 だけ）" "$andon" issue ready "$id" \
+  && fail "rr-acceptance: 番号 2 の行が無いのに ready が通った" \
+  || { grep -q '無いので review にしない: 2。' "$tmp/step.out" \
+    && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
+    && ok "rr-acceptance: 行の無い番号 2 だけを名指して断り（A1 の行は番号 1 に数える）、課題は doing のまま" \
+    || fail "rr-acceptance: 断る理由が番号 2 だけでないか、status が動いた"; }
+HC_TERMINAL_ID=tc "$kanban" set "$id" acceptance=1 >/dev/null
+
 # rr-ready: ready で review へ進む
 step "rr-ready: ready を打つ" "$andon" issue ready "$id" \
   && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = review ] \
   && ok "rr-ready: ready が通り、課題が review に入る" \
   || fail "rr-ready: ready が通らないか、status が review でない"
-"$kanban" show "$id" --json | jq -c '.issue | {id, status, review, merge}' | sed 's/^/  kanban show: /'
+"$kanban" show "$id" --json | jq -c '.issue | {id, status, review, merge, acceptance}' | sed 's/^/  kanban show: /'
 jq -c --arg id "$id" 'select(.id == $id and .change.status) | {by, change}' "$tmp/project/kanban/log.jsonl" | sed 's/^/  log.jsonl: /'
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"

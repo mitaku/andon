@@ -7,6 +7,7 @@
 - `rr-record` 走らせた記録 `runs/<n>.json` と出力 `runs/<n>.log` が残り、commit と commit していない変更の有無を持つ。見る道: 検証の担当だけ。
 - `rr-ready-refuse` 報告の無い `ready` は断り、課題は `doing` のまま。見る道: 検証の担当だけ。
 - `rr-report` 報告が `report.json`（commit は HEAD・`pr`・`acceptance[].run`）と `report.md` になる。見る道: 検証の担当だけ。
+- `rr-acceptance` 課題の予約キー `acceptance` が名指す受け入れ条件の番号のうち、報告に行の無い番号だけを名指して `ready` が断る。番号は数字だけの形（`1`）と A を付けた形（`A1`）を同じ番号と読む。見る道: 検証の担当だけ。
 - `rr-ready` 揃った報告の `ready` で課題が `review` に入り、kanban の履歴に担当の端末の行が残る。見る道: 検証の担当だけ。
 
 ## 辿り着き方（利用者から）
@@ -22,11 +23,12 @@
 - `scripts/doctor.sh` が終了コード 0。
 - 自分の課題が `doing`（記録を撮るため）。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として4つの細かい機能を順に動かす。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として5つの細かい機能を順に動かす。
 - **記録を撮る。** `rr-record` の行に `andon issue record V-0001 -- git -C <worktree> log -1 --format=%H` が出る。`runs/1.json` の JSON（`exit_code` 0・`commit` が HEAD・`dirty` false）と `ok   rr-record` が見えれば動いた。
 - **断られる。** `rr-ready-refuse` の行に `andon issue ready` の終了コード 1 と理由1行（`report.json が無い`）が出る。`ok   rr-ready-refuse` が見えれば動いた。
 - **報告する。** `rr-report` の行に `report.json` の `commit`・`pr`・`acceptance` が出る。`ok   rr-report` が見えれば動いた。
-- **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
+- **受け入れ条件の番号で断られる。** 報告の行は `A1` だけのまま、`kanban set V-0001 acceptance=1,2`（Chief of Staff の端末 `tc` として）のあと `andon issue ready` を打つ。`rr-acceptance` の行に終了コード 1 と、足りない番号として `2` だけを名指す理由1行（`… review にしない: 2。…`）が出る。`ok   rr-acceptance` が見えれば動いた。そのあと予約キーを `acceptance=1` に書き直す。
+- **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`・`acceptance` が `1`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
 ## 変えたら動かすパス
@@ -52,6 +54,7 @@
 ## 落とし穴
 
 - 偽の `gh` が知らない呼び出しを受けると終了コード 99 で落ちる。`ready` が新しく `gh` を呼ぶようになったら、`rr-ready` が落ち、出力の `gh.calls` に呼び出しが出る。地図と `scripts/sandbox.sh` を直す。
+- `rr-acceptance` と `rr-ready` は、予約キーの番号を数字だけ（`1`）、報告の行を A を付けた形（`A1`）で書く。両方を同じ形で書くと、番号の読み方が変わっても落ちず、確かめにならない。
 - `rr-ready` は `review: off`・`merge: person` の課題で通す。レビューの照合は `tests/andon-issue.sh` が見ており、ここでは見ない。
 - 偽の `gh` が返す PR のファイルと差分は、`journeys/report-ready.sh` が置く文書1行（レベル A）。条件表（`/opt/andon/gate.json`）で `docs/**` がレベル A でなくなると、`ready` がレビューを求めて断り `rr-ready` が落ちる。そのときは偽の差分をレベル A のファイルに替える。
 - 記録を撮る自分の課題の worktree に commit していない変更があると、自分の記録の `dirty` が true になる。証拠を撮る前に commit する。
