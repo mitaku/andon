@@ -13,9 +13,9 @@
 | 3 | 空きは dispatcher が見つける。Chief of Staff の心がけと、待ち役の張り直しには頼らない | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | 生きている |
 | 4 | 空きは「15 分おきに見て、前の回も今の回も枠が 1 つ以上空いている」で決める | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13・`docs/contract.md` §11 | 生きている |
 | 5 | 空いたときの仕事は、dispatcher がルーチンを撃って足し、起動は今までどおり Chief of Staff がする | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | 生きている |
-| 6 | 振り返りとトリアージを回すきっかけに、空きを足す | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | dispatcher の側は生きている。手引きの文はまだ実装していない |
+| 6 | 振り返りとトリアージを回すきっかけに、空きを足す | `internal/dispatcher/idle.go`・`docs/dispatcher.md` §2.13 | 生きている |
 | 7 | 空きのトリアージは、仕分けていない項目が 1 回分（50 件）以上のときだけ撃つ | `internal/triage/unsorted.go`・`internal/dispatcher/idle.go` | 生きている |
-| 8 | 空きの振り返りは、ルーチンが足した課題を除いた片付いた担当の課題が、件数のきっかけの半分以上のときだけ撃つ | `internal/retro/retro.go`（`FreshOwn`）・`internal/dispatcher/idle.go` | 生きている |
+| 8 | 空きの振り返りは、ルーチンが足した課題を除いた片付いた担当の課題が、件数のきっかけの半分以上のときだけ撃つ | `internal/retro/retro.go`・`internal/dispatcher/idle.go` | 生きている |
 | 9 | プロジェクトの点検は、ルーチンに `idle_hours` を書いたものを空きのときにも撃つ | この ADR | まだ実装していない |
 | 10 | 撃つ数は空いた枠の数までにし、起動できる課題の数は引かない | `internal/dispatcher/idle.go` | 生きている |
 | 11 | 起動されないまま 15 分残った課題は、通知 `idle` で Chief of Staff に 1 回だけ知らせる | `internal/dispatcher/idle.go`・`schema/notification.schema.json`・`docs/contract.md` §6 | 生きている |
