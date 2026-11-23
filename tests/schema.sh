@@ -508,6 +508,9 @@ fail|notification|.kind = "asked"|asked なのに detail が review の形
 pass|notification|.kind = "corrections" | .detail = {error: "2 回打って失敗"}|kind corrections（集められなかった）
 fail|notification|.kind = "corrections" | .detail = {error: ""}|corrections の error が空
 pass|notification|.kind = "signal" | .detail = {source: "github-ci", key: "github.com/example/app/ci.yml@main", url: "https://github.com/example/app/actions/runs/1", title: "x", weight: "now"} | del(.issue)|kind signal（issue 無し）
+pass|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", title: "x", weight: "now", release: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"} | del(.issue)|kind signal に失敗が始まった commit（release）
+fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", title: "x", weight: "now", release: "9c4e1b0d7a3f"}|signal の release が40桁でない
+fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", title: "x", weight: "now", release: "9C4E1B0D7A3F5E2C8B6D4A1F0E9C7B5A3D2E1F08"}|signal の release が大文字
 fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", weight: "now"}|signal の detail に title が無い
 fail|notification|.kind = "signal" | .detail = {source: "github-ci", key: "x", url: "https://example.com/x", title: "x", weight: "now", count: 2}|signal の detail に知らないキー（記録のキー）
 fail|notification|.kind = "signal" | .detail = {source: "datadog", key: "x", url: "https://example.com/x", title: "x", weight: "now"}|signal の source が知らない出所

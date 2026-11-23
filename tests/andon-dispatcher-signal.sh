@@ -48,11 +48,12 @@ export PATH="$tmp/bin:$PATH"
 printf 't5\ndispatcher\n' >"$tmp/hc/live"
 : >"$tmp/gh/calls"
 
-# main の CI の結果（workflow ごとに最新の1件）
-runs() { # runs <repo> <workflow:conclusion>...
+# main の CI の結果（workflow ごとに最新の1件。3つ目があれば run の commit〈head_sha〉）
+runs() { # runs <repo> <workflow:conclusion[:sha]>...
   local r=$1; shift
   printf '%s\n' "$@" | jq -R --arg r "$r" 'split(":") | {path: (".github/workflows/" + .[0]), name: (.[0] | rtrimstr(".yml")), event: "push",
-    conclusion: .[1], html_url: ("https://github.com/example/" + $r + "/actions/runs/" + (.[0] | length | tostring)), display_title: "main に <b>入れた</b>"}' |
+    conclusion: .[1], html_url: ("https://github.com/example/" + $r + "/actions/runs/" + (.[0] | length | tostring)), display_title: "main に <b>入れた</b>"}
+    + (if .[2] then {head_sha: .[2]} else {} end)' |
     jq -s '{workflow_runs: .}' >"$tmp/gh/runs-$r.json"
 }
 
@@ -84,17 +85,20 @@ ep() { jq -c --arg k "$1" '.signals[] | select(.key == $k) | [.active, .episodes
 app=github.com/example/app/ci.yml@main
 
 # 受け入れ条件 3・10: 初めて見る kanban（控えが無い）の巡でも、届けていない now の信号を積む。later は積まない
-runs app ci.yml:failure
+# ADR-0051 受け入れ条件 6: 記録の release（失敗の run の commit）を、通知の detail に同じ値で載せる
+sha=9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08
+runs app "ci.yml:failure:$sha"
 dispatcher
 [ "$(signals)" = "[\"$app\"]" ] || die "初めての巡に now の信号が積まれない: $(jq -c .pending "$state")"
-jq -e --arg k "$app" '.pending[] | select(.kind == "signal") | .issue == null and .detail == {source: "github-ci", key: $k,
-  url: "https://github.com/example/app/actions/runs/6", title: "ci: main に <b>入れた</b>", weight: "now"}' "$state" >/dev/null ||
+jq -e --arg k "$app" --arg sha "$sha" '.pending[] | select(.kind == "signal") | .issue == null and .detail == {source: "github-ci", key: $k,
+  url: "https://github.com/example/app/actions/runs/6", title: "ci: main に <b>入れた</b>", weight: "now", release: $sha}' "$state" >/dev/null ||
   die "通知の形: $(jq -c .pending "$state")"
+[ "$(jq -r --arg k "$app" '.signals[] | select(.key == $k) | .release' "$rec")" = "$sha" ] || die "記録の release: $(jq -c .signals "$rec")"
 [ "$(ep "$app")" = '[true,1,1,1]' ] || die "delivered_episode を書いていない: $(ep "$app")"
 [ "$(ep github.com/example/app#3)" = '[true,1,0,1]' ] || die "later を届けた: $(ep github.com/example/app#3)"
 [ "$(calls)" = 3 ] || die "1巡目の gh: $(cat "$tmp/gh/calls")"   # CI は app・web、issue は app
 jq '.pending[] | select(.kind == "signal")' "$state" >"$tmp/n.json"; emit "$tmp/n.json" notification-signal.json
-ok '初めて見る kanban の巡でも、届けていない now の信号を通知 signal で積み（detail は記録の写し）、delivered_episode を書く。later は積まない'
+ok '初めて見る kanban の巡でも、届けていない now の信号を通知 signal で積み（detail は記録の写しで、release も同じ値）、delivered_episode を書く。later は積まない'
 
 # 受け入れ条件 9: every より短い巡では読みに行かない。届けた出来事は積み直さない
 drained
@@ -118,7 +122,9 @@ runs app ci.yml:failure lint.yml:failure
 runs web ci.yml:failure
 later; dispatcher
 [ "$(signals)" = '["github.com/example/app/lint.yml@main","github.com/example/web/ci.yml@main"]' ] || die "2件とも積まない: $(signals)"
-ok '同じ巡に出た別の workflow・別の repo の now の信号を、2件とも積む'
+jq -e '[.pending[] | select(.kind == "signal") | .detail | has("release")] == [false, false]' "$state" >/dev/null ||
+  die "commit の無い run の信号の通知に release がある: $(jq -c .pending "$state")"
+ok '同じ巡に出た別の workflow・別の repo の now の信号を、2件とも積む（run に commit が無ければ通知に release を載せない）'
 
 # 受け入れ条件 10: 控えを失った巡でも、届けていない now の信号を届ける（届けたかは記録で見る）
 rm -f "$state"

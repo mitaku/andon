@@ -64,10 +64,14 @@ func hasSignals(path string) bool {
 	return json.Unmarshal(b, &v) == nil && len(v.Signals) > 0
 }
 
-// signalNotification は記録1件の通知 signal（contract.md §6。detail は記録の写し）。
+// signalNotification は記録1件の通知 signal（contract.md §6。detail は記録の写し）。release は記録にあるときだけ載せる
+// （ADR-0051 決めたこと 7。Chief of Staff が壊した変更の候補を引く）。
 func signalNotification(slug string, r signal.Record, at time.Time) Notification {
-	return Notification{At: at.UTC().Format("2006-01-02T15:04:05Z"), Project: slug, Kind: "signal", Detail: map[string]any{
-		"source": r.Source, "key": r.Key, "url": r.URL, "title": r.Title, "weight": r.Weight}}
+	d := map[string]any{"source": r.Source, "key": r.Key, "url": r.URL, "title": r.Title, "weight": r.Weight}
+	if r.Release != "" {
+		d["release"] = r.Release
+	}
+	return Notification{At: at.UTC().Format("2006-01-02T15:04:05Z"), Project: slug, Kind: "signal", Detail: d}
 }
 
 // oneLine は出力を1行にまとめる（ログ用）。

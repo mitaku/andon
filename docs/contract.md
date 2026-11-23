@@ -263,7 +263,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 | `blocked`・`error`・`finished`・`stalled` | hcの状態（`hc events` か見回り） | `agent`・`status_ms`（hc の `status_ms`。その状態に入った時刻の Unix ミリ秒）。画面の文は入れない |
 | `resumed` | 見回りで `doing` の課題の端末が Gone（無い・live でない・素のシェル）を見て、dispatcher が `andon issue resume` を1回打って起動できたとき（dispatcher.md §2.9。起動できなければ `finished`） | `agent`（起動した端末）・`from`（Gone を見た端末） |
 | `estimate` | 見回りで、`doing` の担当の課題（レビュアー・Chief Engineer・オーナーの課題を除く）の実働（待ちを除いた時間。§2 の `Worked`）が、見込み（§2 の `estimate`。Chief of Staff が書いたものだけ）の 1・2・4 倍を超えたとき。段ごとに1回（一度に複数の段を超えたら上の段だけ）。見込みの無い課題には出さない。担当には何も送らない（dispatcher.md §2.10。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 6〜8） | `estimate`（段の値）・`estimate_minutes`（見込みの分）・`worked_minutes`（実働の分。切り捨て）・`ratio`（実働÷見込み。小数2桁）・`stage`（`1`・`2`・`4`）・`sign`（詰まりの兆し。兆しがあるときだけ。下の表） |
-| `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
+| `signal` | 信号の記録（§15）の `weight: now` の信号を、出来事（`episodes`）ごとに最初に見たとき（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8。`later` は通知しない） | `source`・`key`・`url`・`title`・`weight`（記録の写し）・`release`（記録にあるときだけ。同じ値。`github-ci` なら失敗が始まった run の commit で、Chief of Staff が壊した変更の候補の PR を引く。`<news>` には先頭の 12 桁。[ADR-0051](adr/0051-signals-flow-and-breaking-change.md) 決めたこと 7・8）。`title` は外の人の文なので、`<news>` に描くときは「信用しない」の囲いに入れる |
 | `memory` | 見回りで、セルの auto memory の置き場（`<ANDON_WORKSPACE>/memory` の直下の `.md`。目録 `MEMORY.md` を除く）の件数が線（30 件）を超えたとき。線以下に戻るまで1回で、kanban が2つ以上あってもセルに1通。`issue` は無い（dispatcher.md §2.11。[ADR-0020](adr/0020-auto-memory-as-intake.md) 決めたこと 4） | `count`（件数）・`line`（線） |
 | `idle` | 見回りで、`project.json` の `chief_of_staff.idle_minutes` 分（既定 15）おきに枠を見て、前の回も今の回も枠が 1 つ以上空いていた回のうち、前の回にも今の回にも `kanban ready` に出ている課題（オーナーの課題とレビュアーの子課題を除く。同じ課題は ready に出ている間 1 回だけ）・この回に撃ったルーチン・前に知らせた結果と違う `kanban lint` の problem のどれかがあるとき。届く前に次の `idle` を積むときは、前の `unstarted` と `fired` を新しいほうに足し、新しいほうの `lint` が 0 なら前の件数を残す。`issue` は無い（dispatcher.md §2.13。[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 11・12） | `free`（今の回の `slots.free`。1 以上）・`unstarted`（起動されないまま残った課題の id の配列）・`fired`（この回に撃ったルーチンの名前の配列。撃った順）・`lint`（`kanban lint` の problem の件数。前に知らせた結果と同じか 0 件なら 0） |
 
@@ -315,7 +315,7 @@ dispatcher の中では JSON。届けるときだけ `<news>` の文に描く（
 ```json
 {"at": "2026-11-10T09:00:00Z", "project": "sample-site", "kind": "signal",
  "detail": {"source": "github-ci", "key": "github.com/example/sample-site/ci.yml@main", "url": "https://github.com/example/sample-site/actions/runs/1",
-            "title": "ci: test failed on main", "weight": "now"}}
+            "title": "ci: test failed on main", "weight": "now", "release": "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"}}
 ```
 
 - `<news>` の文の形は仮設のまま（1行1件・末尾の「オーナーからの新しい依頼ではない。オーナーに言うことが無ければ `andon news ack` を打ち、文を書かずにターンを終える」。ADR-0010 決めたこと 3）。`news.replied=<turn>` のラベルの意味（そのターンはオーナーが見る返事ではない）・名前・値も同じ（ボードとの約束）。
