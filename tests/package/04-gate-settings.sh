@@ -21,6 +21,11 @@ for p in 'projects/*/project.json' gate.local.json andon.toml '**/AGENTS.local.m
 done
 if jq -e . package/settings.json >/dev/null 2>&1; then pass "package/settings.json は JSON"; else fail "package/settings.json が JSON でない"; fi
 jq -e '.permissions.deny | index("Bash(gh pr merge:*)")' package/settings.json >/dev/null && pass "settings は gh pr merge を deny" || fail "settings の deny に gh pr merge が無い"
+# PR の会話欄に書く頭も断る（ADR-0058 決めたこと 4・受け入れ条件 1）。rules の一覧が deny と同じことは下の突き合わせが見る
+for h in "gh pr comment" "gh pr review"; do
+  jq -e --arg r "Bash($h:*)" '.permissions.deny | index($r)' package/settings.json >/dev/null \
+    && pass "settings は $h を deny（PR の会話欄に書かない。ADR-0058）" || fail "settings の deny に $h が無い（ADR-0058）"
+done
 # commit と PR の帰属を消すのは attribution（includeCoAuthoredBy は v2.0.62 から非推奨。false は v2.1.281 から。A-0204）
 jq -e '.attribution == false and (has("includeCoAuthoredBy") | not)' package/settings.json >/dev/null \
   && pass "settings は attribution: false で帰属を消す（includeCoAuthoredBy を使わない）" || fail "settings の帰属の消し方が attribution: false でない"

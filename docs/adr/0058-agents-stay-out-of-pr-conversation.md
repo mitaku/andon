@@ -10,16 +10,16 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、エージェントのコメントと commit を、オーナーの手直しの記録から外すこと | この ADR | 生きている |
-| 2 | どの役のエージェントも、PR の会話欄に書かない。書く場所は PR の本文だけにする | この ADR | まだ実装していない |
+| 2 | どの役のエージェントも、PR の会話欄に書かない。書く場所は PR の本文だけにする | `package/environment.md` | 生きている |
 | 3 | コメントを拾う規則は変えず、印も記録も足さない | `docs/contract.md` | 生きている |
-| 4 | `gh pr comment` と `gh pr review` を、設定の deny と Codex の rules で断る | この ADR | まだ実装していない |
-| 5 | 決まりの文は、全部の役が読む環境メモと、担当の手引きに置く | この ADR | まだ実装していない |
-| 6 | PR を出したあとの画面の写しは、`gh pr edit --attach` で本文に足す | この ADR | まだ実装していない |
+| 4 | `gh pr comment` と `gh pr review` を、設定の deny と Codex の rules で断る | `package/settings.json`・`package/codex.rules` | 生きている |
+| 5 | 決まりの文は、全部の役が読む環境メモと、担当の手引きに置く | `package/environment.md`・`package/skills/worker/SKILL.md` | 生きている |
+| 6 | PR を出したあとの画面の写しは、`gh pr edit --attach` で本文に足す | `package/skills/worker/SKILL.md` | 生きている |
 | 7 | 親が 2 つ以上の commit は、オーナーの commit に数えない | この ADR | まだ実装していない |
 | 8 | Chief Engineer の課題では、オーナーの commit を数えない | この ADR | まだ実装していない |
 | 9 | 担当の課題の commit の境目は、担当の最後の報告のままにする | `docs/contract.md` | 生きている |
 | 10 | もう書いた手直しの記録は直さない | この ADR | 生きている |
-| 11 | 断れない書き方で書かれたコメントは、今までどおり拾い、振り返りが読んで見分ける | この ADR | まだ実装していない |
+| 11 | 断れない書き方で書かれたコメントは、今までどおり拾い、振り返りが読んで見分ける | `package/skills/retro/SKILL.md` | まだ実装していない（振り返りの手引きの分は実装した。残りは `docs/contract.md` §14 の読み手の文） |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
