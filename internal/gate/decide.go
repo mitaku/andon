@@ -507,6 +507,19 @@ func (g GitHubChecks) Passed(optional bool) bool {
 	return g.State == "success" || (g.State == "none" && optional)
 }
 
+// Final は、gate がこの checks で待たない（通るか、オーナー待ちで決まる）か。条件表の検査はこのとき回す。
+// 待つ（pending・まだ1つも無い）ときと落ちたときは回さない。決められない・待ちを過ぎたときも回すのは、
+// オーナー待ち（緑の印）にする前に差し戻す理由を拾うため（ADR-0056 決めたこと 4）。
+func (g GitHubChecks) Final(optional, overdue bool) bool {
+	switch g.State {
+	case "pending", "failure":
+		return false
+	case "none":
+		return optional || overdue
+	}
+	return true
+}
+
 var checkRank = map[string]int{"none": 0, "success": 1, "pending": 2, "unknown": 3, "failure": 4}
 
 // SummarizeChecks は statusCheckRollup をまとめる（純粋関数）。gate 自身の status（andon/gate）は数えない。
@@ -593,12 +606,8 @@ func Decide(f Facts) (string, []string) {
 			return "fix", []string{"check: " + c.Cmd}
 		}
 	}
-	switch g := f.GitHubChecks; g.State {
-	case "failure":
+	if g := f.GitHubChecks; g.State == "failure" {
 		return "fix", []string{"GitHub の checks が落ちた: " + strings.Join(g.Names, ", ")}
-	case "success", "pending", "none":
-	default: // unknown・読めていない（空）
-		return "needs_human", []string{"GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", ")}
 	}
 	if f.ReviewRequired {
 		switch r := f.Review; {
@@ -627,8 +636,11 @@ func Decide(f Facts) (string, []string) {
 		}
 		return "fix", reasons
 	}
-	// 待ち（wait）は、ほかに止める理由が無く GitHub の checks だけが揃っていないとき
+	// 待ち（wait）と、GitHub の checks を通すか決められないオーナー待ちは、ほかに差し戻す理由が無いときだけ
+	// （オーナー待ちの印は緑なので、差し戻す理由を先に担当へ返す。ADR-0056 決めたこと 4）
 	switch g := f.GitHubChecks; {
+	case g.State != "success" && g.State != "pending" && g.State != "none": // unknown・読めていない（空）
+		return "needs_human", []string{"GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", ")}
 	case g.State == "pending":
 		return "wait", []string{"GitHub の checks がまだ走っている: " + strings.Join(g.Names, ", ")}
 	case g.State == "none" && !f.ChecksOptional && f.ChecksOverdue:

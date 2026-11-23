@@ -440,7 +440,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		rec.Review = l.CheckReview(rows, tasks, t, head, s.MustFix, rep.Waived, AddedLines(string(diff)))
 	}
 	facts.Review = rec.Review
-	if gated && (!facts.ReviewRequired || rec.Review.State == "current") && checks.Passed(facts.ChecksOptional) {
+	if gated && (!facts.ReviewRequired || rec.Review.State == "current") && checks.Final(facts.ChecksOptional, facts.ChecksOverdue) {
 		rec.Checks, err = runChecks(repo, head, rt.Check)
 		if err != nil {
 			return nil, "", err

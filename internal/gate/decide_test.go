@@ -263,6 +263,21 @@ func TestDecideDelegationLast(t *testing.T) {
 			f.RepoKnown = false
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 		}, "needs_human", "条件表の repos"},
+		// 反論の段で見つけた穴: CI の状態が読めない・CI が来ないまま待ちを過ぎたときも、差し戻す理由があれば先に担当へ
+		{"CI が読めなくてもレビューが無ければ fix", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{"unknown", []string{"x"}}
+			f.Review.State = "missing"
+		}, "fix", "review missing"},
+		{"CI が読めなくても Must fix が残れば fix", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{"unknown", []string{"x"}}
+			f.Review.MustFixOpen = 1
+		}, "fix", "Must fix 以上が 1 件"},
+		{"CI が来ないまま待ちを過ぎてもレビューが無ければ fix", func(f *Facts) {
+			f.GitHubChecks = GitHubChecks{State: "none"}
+			f.ChecksOverdue = true
+			f.Review.State = "missing"
+		}, "fix", "review missing"},
+		{"CI が読めず差し戻す理由も無ければ needs_human", func(f *Facts) { f.GitHubChecks = GitHubChecks{"unknown", []string{"x"}} }, "needs_human", "通すか決められない"},
 		{"同じ head で2度目の Must fix は変えない", func(f *Facts) { f.Review.MustFixOpen = 1; f.PreviousMustFix = true }, "needs_human", "2度目"},
 		{"レビュアーを覆したときは変えない", func(f *Facts) { f.Review.WaivedHeavy = 1 }, "needs_human", "見送った"},
 	} {
