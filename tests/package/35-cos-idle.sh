@@ -30,7 +30,11 @@ sed -n '/^1\. \*\*足す\*\*/,/^2\. /p' "$pb/retro.md" | grep -q '枠が空い�
 grep -q '^- \*\*lint\*\*: .*通知 `idle` を受けたターン（`idle.md` の 6）' "$pb/wiki.md" || miss="$miss [wiki.md の lint のきっかけ]"
 grep -q '^読む時: .*通知 `idle`' "$pb/start.md" || miss="$miss [start.md の読む時]"
 grep -q '検証の課題.*`check-verify`.*同時に動かさない' "$pb/verify.md" || miss="$miss [verify.md の check-verify]"
-[ -z "$miss" ] && pass "ADR-0047 決めたこと 13・14・18: triage.md・retro.md の足すが空きを書き、wiki.md の lint と start.md が idle を読み、verify.md が check-verify と検証を同時に動かさない" || fail "ADR-0047 ほかの手引き:$miss"
+# 検証と点検の排他は、ready と idle のどちらから来ても通る start.md の 1 に置く
+sed -n '/^1\. \*\*枠を確かめる\*\*/,/^2\. /p' "$pb/start.md" | grep -q '検証の課題.*`routine: check-verify`.*もう一方が `doing`・`review` の間は起動しない.*`<id> ready` と通知 `idle` のどちらから来ても' || miss="$miss [start.md の 1 の検証と点検の排他]"
+# 枠が埋まっても、動かせない理由をオーナーに言う手は省かない
+grep -q '^1\. \*\*読み直す\*\*: .*課題の起動（2 の起動と 3）は枠の残りの中でだけする。2 の、動かせない理由をオーナーに言う手は、枠が無くてもする。' "$pb/idle.md" || miss="$miss [idle.md の 1 が枠の制限を起動だけにかける]"
+[ -z "$miss" ] && pass "ADR-0047 決めたこと 13・14・18: triage.md・retro.md の足すが空きを書き、wiki.md の lint と start.md が idle を読み、verify.md と start.md の 1 が check-verify と検証を同時に動かさず、idle.md の枠の制限は起動だけにかかる" || fail "ADR-0047 ほかの手引き:$miss"
 
 # 検査が当たる場合があること: 行の無い目次と表では上の切り出しが当たらない
 ! printf '%s\n' '## 手引き（状況が来たら読む）' '| `<news>` が届いた | `watch.md` |' '## 手引きの扱い' | sed -n '/^## 手引き（状況が来たら読む）$/,/^## 手引きの扱い$/p' | grep -q "$idle_row" \
