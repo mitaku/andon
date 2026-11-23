@@ -81,6 +81,7 @@ type issue struct {
 	notBefore string
 	created   string
 	updated   string
+	onlyOwner string // 手作業の印（予約キー only_owner の 1 行目。ADR-0057 決めたこと 3）
 	questions []question
 }
 
@@ -174,7 +175,8 @@ func readIssues(dir string) ([]*issue, []string) {
 		}
 		raw["id"] = id
 		t := &issue{raw: raw, id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
-			who: raw.Str("who"), notBefore: raw.Str("not_before"), created: raw.Str("created"), updated: raw.Str("updated")}
+			who: raw.Str("who"), notBefore: raw.Str("not_before"), created: raw.Str("created"), updated: raw.Str("updated"),
+			onlyOwner: firstLine(raw.Str("only_owner"))}
 		if list, ok := raw["after"].([]any); ok {
 			for _, a := range list {
 				if s, ok := a.(string); ok && s != "" {
@@ -228,9 +230,15 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 			items = append(items, it)
 			waiting[t.id] = true
 		}
-		for _, it := range decisionItems(t, lib) {
-			items = append(items, it)
-			waiting[t.id] = true
+		// 前の課題を待つオーナーの課題の判断は、まだオーナーの番でない（ADR-0057 決めたこと 5）。手作業の行は今のまま
+		if t.who != "person" || !waitsOnPrev(t, byID, done) {
+			for _, it := range decisionItems(t, lib) {
+				items = append(items, it)
+				waiting[t.id] = true
+			}
+			if it, ok := unaskedItem(t, lib); ok {
+				items = append(items, it)
+			}
 		}
 		if it, ok := taskItem(t, byID, done, now.In(loc)); ok {
 			items = append(items, it)
@@ -328,7 +336,8 @@ func mergeItem(l *ledger.Ledger, t *issue, rows []ledger.Row, since, lib string)
 	return Item{}, false
 }
 
-// decisionItems は判断（決めたこと 8）: 灯りの種類の問いが開いていて、出したのが gate でない。問い1件に1行。
+// decisionItems は判断（ADR-0042 決めたこと 8）: 灯りの種類の問いが開いていて、出したのが gate でない。問い1件に1行。
+// 前の課題を待つオーナーの課題は、呼ぶ前に外す（ADR-0057 決めたこと 5）。
 func decisionItems(t *issue, lib string) []Item {
 	var out []Item
 	for _, q := range t.questions {
@@ -355,9 +364,53 @@ func decisionItems(t *issue, lib string) []Item {
 	return out
 }
 
-// taskItem は手作業（決めたこと 8）: オーナーの課題で、起動できるか動いていて、受け取られていない問いを持たない。
+// questionKind は問いの種類。問いの JSON があればその種類で決める（questions.yaml と食い違っても行の種類と揃える）。
+func questionKind(lib string, q question) string {
+	if ask := readAsk(lib, q.N); ask != nil {
+		return ask.Kind
+	}
+	return q.Kind
+}
+
+// owed はオーナーの課題が起動できるか動いているか（手作業と、問いの置かれていない判断を数える状態）。
+func (t *issue) owed() bool {
+	return t.who == "person" && (t.status == "todo" || t.status == "queued" || t.status == "doing")
+}
+
+// waitsOnPrev は after の相手に済んでいない課題（か kanban に無い課題）があるか。
+func waitsOnPrev(t *issue, byID map[string]*issue, done string) bool {
+	for _, a := range t.after {
+		if o := byID[a]; o == nil || o.status != done {
+			return true
+		}
+	}
+	return false
+}
+
+// unaskedReason は問いの置かれていない判断の行の理由（直す 1 手。ADR-0057 決めたこと 4）。
+const unaskedReason = "オーナーに聞く問いが置かれていない。判断なら問いを置き、オーナーにしかできない手作業なら印 only_owner を書く（Chief of Staff が直す）"
+
+// unaskedItem は問いの置かれていない判断（ADR-0057 決めたこと 4）: オーナーの課題で、起動できるか動いていて、
+// 灯りの種類の問いを1つも持たず（種類の無い問いと scope の問いはオーナーに届かないので数えない）、印 only_owner も無い。
+// 問いの番号を持たず、ペインからは答えられない。日付（not_before）では隠さない（決めたこと 5）。
+func unaskedItem(t *issue, lib string) (Item, bool) {
+	if !t.owed() || t.onlyOwner != "" {
+		return Item{}, false
+	}
+	for _, q := range t.questions {
+		if slices.Contains(lightKinds, questionKind(lib, q)) {
+			return Item{}, false
+		}
+	}
+	answerable := false
+	return Item{Kind: "decision", ID: t.id, Title: t.title, Since: firstOf(t.created, t.updated), Reason: unaskedReason,
+		Answerable: &answerable}, true
+}
+
+// taskItem は手作業（ADR-0042 決めたこと 8・ADR-0057 決めたこと 2・3）: 印 only_owner を持つオーナーの課題で、起動できるか
+// 動いていて、受け取られていない問いを持たない。起動できる前（todo・queued で前の課題か日付を待っている間）は出さない。理由は印の値。
 func taskItem(t *issue, byID map[string]*issue, done string, now time.Time) (Item, bool) {
-	if t.who != "person" {
+	if !t.owed() || t.onlyOwner == "" {
 		return Item{}, false
 	}
 	for _, q := range t.questions {
@@ -365,21 +418,21 @@ func taskItem(t *issue, byID map[string]*issue, done string, now time.Time) (Ite
 			return Item{}, false
 		}
 	}
-	switch t.status {
-	case "doing":
-	case "todo", "queued":
-		for _, a := range t.after {
-			if o := byID[a]; o == nil || o.status != done {
-				return Item{}, false // 前の課題を待っている（まだオーナーの番でない）
-			}
+	if t.status != "doing" {
+		if waitsOnPrev(t, byID, done) {
+			return Item{}, false // 前の課題を待っている（まだオーナーの番でない）
 		}
 		if day, err := time.Parse("2006-01-02", t.notBefore); err == nil && now.Format("2006-01-02") < day.Format("2006-01-02") {
 			return Item{}, false // 日付を待っている
 		}
-	default:
-		return Item{}, false
 	}
-	return Item{Kind: "task", ID: t.id, Title: t.title, Since: firstOf(t.created, t.updated)}, true
+	return Item{Kind: "task", ID: t.id, Title: t.title, Since: firstOf(t.created, t.updated), Reason: t.onlyOwner}, true
+}
+
+// firstLine は値の 1 行目（前後の空白を除く）。
+func firstLine(s string) string {
+	s, _, _ = strings.Cut(s, "\n")
+	return strings.TrimSpace(s)
 }
 
 // holders は、課題の id から、それを after で待つ済んでいない課題（直接と、その後ろで待つもの全部）を id の順で返す関数を作る。

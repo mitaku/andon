@@ -95,6 +95,7 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 | `machine` | hcの machine の名前 | 既定: 指揮側と同じマシン | Chief of Staff | `andon issue start`・dispatcher | 作業側（担当・レビュアー）を起動するマシン。**まだ使えない**: `machine` のある課題は `andon issue start` と `resume` が起動せずに止まる（黙って指揮側で起動しない） |
 | `deliverable` | `pr` / `candidates` | 既定: `pr` | Chief of Staff（依頼書の Settings の `Deliverable:` の写し） | `andon issue ready`・dispatcher・`andon gate`・ボード・担当 | 課題の成果の形。`pr`: PR（直す課題・Chief Engineer の文書）。`candidates`: PR を出さず `library/candidates.json`（§12）が成果（調べる課題）。`andon issue ready` は `pr` の代わりに `candidates.json` が在って形が合い（repo があれば）`commit` が `HEAD` と同じことを確かめる。dispatcher は `review` の通知だけ届けて gate を回さず、`review_request` があっても起動しない。`andon gate` を手で打てば回さずに終了コード 3（[ADR-0006](adr/0006-survey-fix-decide.md) 決めたこと 7）。`andon issue ready` と dispatcher は、値が `candidates` なら履歴の照合が外れていても `candidates` として読む（Chief of Staff が起き直して書き直す前でも PR を求めない。照合が外れていると、`andon gate` は理由の1行でそう言う。決めたこと 17） |
 | `estimate` | `small` / `medium` / `large`（段→分は下の表） | 見込み無し（既定の段で埋めない。比べず、記録に「見込み無し」と数える） | Chief of Staff（依頼書を切るとき。依頼書の Settings の `Estimate:` の写し。段の名 小・中・大） | dispatcher・`andon measure`・担当 | 課題の大きさの見込み（目安であって上限ではない）。担当の課題（直す・調べる）だけ。レビュアー・Chief Engineer の課題には置かない（[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 2・3・8） |
+| `only_owner` | 空でない 1 行の文字列（オーナーにしかできない理由） | 手作業の印が無い（`who: person` の課題なら、灯りの種類の問いが無ければ判断として数える） | Chief of Staff（`kanban set <id> who=person only_owner="<理由>"`） | `andon waiting` | オーナーの課題（`who: person`）が手作業だという印。`andon waiting` は、この印を持つオーナーの課題を手作業（§25 の `task`）に数え、値の 1 行目を行の `reason` に出す。`who: person` が無い課題の印は読まない。履歴の照合はしない（[ADR-0057](adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 2・3） |
 | `acceptance` | 受け入れ条件の番号を、報告の `acceptance[].id` と同じ綴りでコンマで並べた文字列（`A4,A13`。空白を入れない） | 番号を持たない課題（何も確かめない） | Chief of Staff（Chief Engineer の文書から課題を切るとき。依頼書の完了条件が名指す番号の写し） | `andon issue ready`・担当 | 課題が満たす受け入れ条件。`andon issue ready` は、番号ごとに `report.json` の `acceptance[]` に同じ `id` の行（`pass`・`fail`・`manual` のどれでもよい）が無ければ断り、足りない番号を出す。形が違う値も断る（黙って通さない）。履歴の照合は見ない（担当が書き換えても、求める行が増えるか、キーを消して今までどおりになるだけ。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 3） |
 
 `kanban show <id> --json` の `.issue`（Andon の予約キー以外は kanban の形式のキー）:
@@ -1075,7 +1076,8 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
    {"kind": "decision", "id": "S-0030", "title": "書き出しの形を決める", "since": "2026-11-21T02:12:13Z",
     "question": "S-0030#1", "ask": {"kind": "users", "question": "書き出しは CSV だけにするか", "facts": ["依頼書の「やること」"],
      "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}]}, "answerable": true, "holds": []},
-   {"kind": "task", "id": "S-0031", "title": "image を焼き直す", "since": "2026-11-21T08:55:43Z", "holds": []}]}
+   {"kind": "task", "id": "S-0031", "title": "image を焼き直す", "since": "2026-11-21T08:55:43Z",
+    "reason": "ホストで image を焼き直す", "holds": []}]}
 ```
 
 オーナー待ちは 3 種で、今の head について決め終えたものだけを数える。`done`（`columns` の最後の列）の課題は数えない。
@@ -1083,9 +1085,10 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `kind` | 数えるもの | `since` |
 |---|---|---|
 | `merge`（マージの依頼） | 課題が `review` にいて、次のどれか。1 つ目は、今の head（`report.json` の `commit`）について gate が出した問い（問いの JSON の `from: gate`）が `open` のまま。どの head の問いかは、事実の gate の記録の行から読む（読めない問いは今の head の問いとして数える）。2 つ目は、今の head の gate の記録が、課題が最後に `review` へ動いたあとに書かれて `approve` で、課題が `merge: auto` でないか、`merge: auto` を最後に書いたのが Chief of Staff の端末でない（§2 の履歴の照合）。3 つ目は、Chief Engineer の課題（`profile: chief-engineer`）で `report.json` に `pr` がある。今の head の gate の記録が `merged: true` の課題は数えない。課題1件に1行 | 1 つ目は問いの `asked`、2 つ目は gate の記録の `at`、3 つ目は最後に `review` へ動いた時刻 |
-| `decision`（判断） | 灯りの種類（`business`・`users`・`promise`・`irreversible`・`line`）の問いが `open` で、出したのが gate でない。問い1件に1行 | 問いの `asked` |
-| `task`（手作業） | オーナーの課題（`who: person`）で、起動できる（`todo` か `queued` で、`after` の相手が全部 `done`、`not_before` の日を過ぎた）か `doing` にいて、`open` か `answered` の問いを持たない | 課題の `created` |
+| `decision`（判断） | 2 つある。1 つ目は、灯りの種類（`business`・`users`・`promise`・`irreversible`・`line`）の問いが `open` で、出したのが gate でない。問い1件に1行。2 つ目は、オーナーの課題（`who: person`）で、起動できる（`todo` か `queued`）か `doing` にいて、灯りの種類の問いを1つも持たず（`scope` と種類の無い問いは数えない）、印 `only_owner`（§2）も無い。課題1件に1行で、`question` と `ask` を持たず、`answerable` は `false`、`reason` に直す 1 手を書く。どちらも、オーナーの課題は `after` の相手が全部 `done` になるまで出さない。`not_before` の日付では隠さない | 1 つ目は問いの `asked`、2 つ目は課題の `created` |
+| `task`（手作業） | 印 `only_owner` を持つオーナーの課題で、起動できる（`todo` か `queued` で、`after` の相手が全部 `done`、`not_before` の日を過ぎた）か `doing` にいて、`open` か `answered` の問いを持たない | 課題の `created` |
 
+- オーナーの課題は、問いを持つ判断か、印 `only_owner` を持つ手作業のどちらかの形で作る。どちらでもない課題は作り方の誤りで、判断の 2 つ目の行にして灯す。灯りの種類の問いが全部受け取られたオーナーの課題は、印が無ければどの行にも出さない（片付けるのは Chief of Staff）。人が読む出力は、判断の 2 つ目の行に、直す 1 手を 2 つ並べて出す（判断なら `andon issue ask <id> -`、手作業なら `kanban set <id> only_owner="<理由>"`。[ADR-0057](adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 2・4・5）。
 - `answered` の問い（答えが書かれて担当がまだ受け取っていない）と、`scope` の問い（Chief of Staff が答える）は数えない。`doing` の課題は、gate の問いが開いていてもマージの依頼に数えない。
 - 委譲は読み直さない。approve のあと dispatcher が自動でマージする途中の課題は数えない。委譲が gate のあとに変わっていれば、dispatcher がマージの直前に断って gate の問いを出すので、次の読みで 1 つ目として数えられる。オーナーがマージしてから dispatcher が片付けるまでの 1 分ほどは一覧に残る。
 
@@ -1100,11 +1103,11 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `slots.waiting_full` | `waiting` が `limit` 以上のとき `true`。新しい課題を起動しない |
 | `slots.free` | `waiting_full` なら 0。そうでなければ `limit` から `working` を引いた数で、0 より小さくしない |
 | `items[]` | オーナー待ちの行。`holds` の数の多い順、同じなら `since` の古い順。Chief Engineer の文書の PR とオーナーの課題は、行には出るが枠には数えない |
-| `items[].question` | `merge` の 1 つ目は gate の問い、`decision` はその問い（`<id>#<n>`） |
+| `items[].question` | `merge` の 1 つ目は gate の問い、`decision` の 1 つ目はその問い（`<id>#<n>`）。`decision` の 2 つ目は持たない |
 | `items[].pr` | `report.json` の `pr`（`merge` の行で、あれば） |
-| `items[].reason` | 人が読む理由（`merge` の行）。1 つ目は gate の記録の `reasons`（無ければ問いの文）、2 つ目と 3 つ目は待つわけの1文 |
+| `items[].reason` | 人が読む理由。`merge` の 1 つ目は gate の記録の `reasons`（無ければ問いの文）、2 つ目と 3 つ目は待つわけの1文。`decision` の 2 つ目は問いが置かれていないことと直す 1 手。`task` は印 `only_owner` の値の 1 行目 |
 | `items[].ask` | `decision` の行の問いの JSON（§5）の写し。問いの JSON が無い・形が違う問いは `ask` を持たない |
-| `items[].answerable` | `decision` の行だけ。オーナーのペインから答えられるか（`ask` があり、種類が `irreversible` でない）。答える口は下の `andon waiting answer`（決めたこと 17） |
+| `items[].answerable` | `decision` の行だけ。オーナーのペインから答えられるか（`ask` があり、種類が `irreversible` でない。2 つ目の行は `false`）。答える口は下の `andon waiting answer`（決めたこと 17） |
 | `items[].holds` | その課題を `after` で待っている済んでいない課題の id（直接待つものと、その後ろで待つもの全部。id の順） |
 
 - 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。

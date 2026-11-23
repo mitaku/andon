@@ -47,21 +47,21 @@
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "description": "merge: a pull request waiting on the owner's merge. decision: an open question of a decision kind not asked by the gate. task: an owner issue that can start or is going, with no question not yet received.",
+          "description": "merge: a pull request waiting on the owner's merge. decision: an open question of a decision kind not asked by the gate, or an owner issue that can start or is going with no question of a decision kind and no mark only_owner (no question, not answerable, a reason). An owner issue's decisions wait until every issue in its after is done; not_before does not hide them. task: an owner issue with the mark only_owner that can start or is going, with no question not yet received.",
           "enum": ["merge", "decision", "task"]
         },
         "id": { "description": "The issue.", "$ref": "#/$defs/id" },
         "title": { "description": "The issue's title.", "type": "string" },
         "since": { "description": "Since when it waits.", "$ref": "#/$defs/at" },
         "question": {
-          "description": "The question, <id>#<n>: the gate's question of a merge item, or the question of a decision item.",
+          "description": "The question, <id>#<n>: the gate's question of a merge item, or the question of a decision item. Absent on the decision item of an owner issue with no question.",
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*#[1-9][0-9]*$"
         },
         "pr": { "description": "report.json pr.", "type": "string", "minLength": 1 },
-        "reason": { "description": "Why it waits, for people.", "type": "string", "minLength": 1 },
+        "reason": { "description": "Why it waits, for people. On a task item, the first line of only_owner; on the decision item of an owner issue with no question, what to fix.", "type": "string", "minLength": 1 },
         "ask": { "description": "A copy of the question JSON (docs/contract.md section 5) of a decision item. Absent when the question has none.", "$ref": "#/$defs/ask" },
-        "answerable": { "description": "Decision items only: whether the owner's pane may answer it (it has options and is not irreversible).", "type": "boolean" },
+        "answerable": { "description": "Decision items only: whether the owner's pane may answer it (it has options and is not irreversible). false on an owner issue with no question.", "type": "boolean" },
         "holds": {
           "description": "The issues not done that wait on this one through after, directly or behind those.",
           "type": "array",

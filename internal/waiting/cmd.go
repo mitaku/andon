@@ -112,6 +112,10 @@ func Text(r Result) string {
 		} else if it.Reason != "" {
 			fmt.Fprintf(&b, "。理由: %s", it.Reason)
 		}
+		if it.Kind == "decision" && it.Question == "" {
+			// 問いの置かれていない判断の行は、直す 1 手を 2 つ並べる（ADR-0057 決めたこと 4）
+			fmt.Fprintf(&b, "。直す: 判断なら andon issue ask %s -、手作業なら kanban set %s only_owner=\"<理由>\"", it.ID, it.ID)
+		}
 		if it.PR != "" {
 			fmt.Fprintf(&b, "。PR %s", it.PR)
 		}

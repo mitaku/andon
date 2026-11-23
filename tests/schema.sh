@@ -894,6 +894,7 @@ fail|ledger-ready|.[0] += {"broken": "can't read"}|読めない課題
 fail|ledger-ready|.[0]|並びでない
 pass|waiting|.items = []|オーナー待ちが無い
 pass|waiting|.items[1] |= del(.ask)|問いの JSON の無い判断の行
+pass|waiting|.items[1] |= (del(.ask, .question) | .answerable = false | .reason = "オーナーに聞く問いが置かれていない")|問いの番号の無い判断の行（ADR-0057）
 fail|waiting|.version = 2|version が 1 でない
 fail|waiting|.slots.limit = 0|上限が 0
 fail|waiting|.slots.free = -1|空きが負
@@ -1172,7 +1173,7 @@ run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期�
 run-norepo.json|run|andon issue record の runs/<n>.json（repo の無い課題。commit 無し）
 ledger-log.jsonl|ledger-log|kanban の CLI が書いた log.jsonl（andon dispatcher がレビューからマージまで回した kanban）
 ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
-waiting.json|waiting|andon waiting --json の出力
+waiting.json|waiting|andon waiting --json の出力（問いの番号の無い判断の行を含む）
 waiting-empty.json|waiting|andon waiting --json の出力（オーナー待ちが無い kanban）
 digest-input.json|digest-input|andon digest collect の input.json
 digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
