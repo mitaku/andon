@@ -200,3 +200,26 @@ func TestApplyRefusesWhileAnotherApplyRuns(t *testing.T) {
 		t.Errorf("lock が外れたのに断られた（retro.json が無いことで断られるはず）: %v", err)
 	}
 }
+
+// kanban ask は通ったが、問いの控え（library/questions/1.json）を書けずに落ちた回のあとで打ち直すと、問いは足さず、控えだけを
+// 書き直す。控えが無いと andon waiting に選択肢が出ず、オーナーが答えられない（A-0417 のレビュー）。
+func TestApplyRerunRestoresMissingQuestionJSON(t *testing.T) {
+	l, logged := applyFixture(t, "S-0010|ほかの課題||||0\n")
+	plans := andonPlans()[1:]
+	block := filepath.Join(l.Library("S-0021"), "questions")
+	os.MkdirAll(filepath.Dir(block), 0o755)
+	os.WriteFile(block, nil, 0o644) // questions/ を作れなくする
+	var first Applied
+	if err := addPlans(l, "S-0020", plans, &first, func() error { return nil }); err == nil {
+		t.Fatal("問いの控えを書けなかったのにエラーにならない")
+	}
+	os.Remove(block)
+	var again Applied
+	if err := addPlans(l, "S-0020", plans, &again, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := l.Questions("S-0021"); n != 1 {
+		t.Errorf("問いの数: %d（1 つのまま）。打った CLI %q", n, logged())
+	}
+	checkOwnerQuestion(t, l, "S-0021")
+}

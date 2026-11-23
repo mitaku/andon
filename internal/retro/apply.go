@@ -282,7 +282,8 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 }
 
 // addOwner はオーナーの課題を、問いと一緒に足して id を返す（parent は振り返りの課題）。打ち直しで見つけた課題（found。
-// 空なら無い。who はその課題の who）には、課題を足さずに、無い who: person と、問いが無ければ問いだけを置く。
+// 空なら無い。who はその課題の who）には、課題を足さずに、無い who: person と、問いが無ければ問いを、問いの控えが無ければ
+// 控えだけを置く。
 func addOwner(l *ledger.Ledger, retro, found, who string, pl plan) (string, error) {
 	if found == "" {
 		// 足したあとで落ちたら、誤りが足した id を名指す。打ち直しはその課題を親とタイトルで見つけて、ここの下へ来る
@@ -302,6 +303,19 @@ func addOwner(l *ledger.Ledger, retro, found, who string, pl plan) (string, erro
 		if _, err := l.Ask(found, pl.Question); err != nil {
 			return "", err
 		}
+		return found, nil
+	}
+	// 前の回が kanban ask のあと問いの控えを書く前に落ちていれば、控えだけを書き直す（控えが無いと andon waiting に選択肢が
+	// 出ず、オーナーが答えられない）。この課題の問いは apply が置いた 1 つ目なので、番号は 1
+	p := filepath.Join(l.Library(found), "questions", "1.json")
+	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+		return found, err
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return "", err
+	}
+	if err := contract.Write(p, contract.SchemaQuestion, pl.Question); err != nil {
+		return "", err
 	}
 	return found, nil
 }
