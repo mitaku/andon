@@ -189,12 +189,26 @@ if [ "$self" = true ]; then
   [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 今当たっている beef02 の起動だけを読まない（$jrc）: $jout"
   journey worker-launch
   [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 検証する commit を省くと今当たっているものを読まない（$jrc）: $jout"
+  # 今の状態を読む行（dn-live・bt-ran）は、検証する commit でなく最後に当てた時刻と比べる
   VERIFY_COMMIT=c0ffee journey dispatcher-news
-  [ "$jrc" = 0 ] || die "dispatcher-news: c0ffee の間に届けた通知があるのに終了コード $jrc: $jout"
+  [ "$jrc" = 1 ] && grep -qF 'dn-live' <<<"$jout" || die "dispatcher-news: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
+  links worker retro; VERIFY_COMMIT=c0ffee journey boot
+  [ "$jrc" = 1 ] && grep -qF 'FAIL bt-ran' <<<"$jout" || die "boot: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
+  sed -i "s/\"created_ms\": [0-9]*/\"created_ms\": $(($(date -u -d 2026-01-01T00:11:00Z +%s) * 1000))/" "$c/dispatcher.json"
+  VERIFY_COMMIT=c0ffee journey dispatcher-news
+  [ "$jrc" = 0 ] || die "dispatcher-news: c0ffee の間に届けた通知があり dispatcher も最後に当てたあとに起動したのに終了コード $jrc: $jout"
+  # 同じ commit を続けて当てた: 最初に当てた時刻から読む（c0ffee を 00:00 と 00:05 に当て、beef02 を 00:10 に当てた）
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:05:00Z"}, {"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" && grep -qF '当てた時刻 2026-01-01T00:00:00Z' <<<"$jout" \
+    || die "worker-launch: c0ffee を続けて2回当てたのに、最初に当てた 00:00 から読まない（$jrc）: $jout"
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:11:00Z", "image_commit": "x",\n "previous": [{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z"}, {"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  journey worker-launch
+  [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 今の beef02 を続けて2回当てたのに、最初に当てた 00:10 から読まない（$jrc）: $jout"
   # 前のバージョンの記録（previous が無い）と、記録に無い commit: 間が決まらないので未確認の 3。落ちない
   printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x"}\n' >"$c/pkg/applied.json"
   VERIFY_COMMIT=c0ffee journey worker-launch
-  [ "$jrc" = 3 ] && grep -qF 'c0ffee を前に当てた記録が無い' <<<"$jout" || die "worker-launch: previous の無い記録で前の commit を 3 で断らない（$jrc）: $jout"
+  [ "$jrc" = 3 ] && grep -qF 'c0ffee を当てた記録が無い' <<<"$jout" || die "worker-launch: previous の無い記録で前の commit を 3 で断らない（$jrc）: $jout"
   journey worker-launch
   [ "$jrc" = 0 ] || die "worker-launch: previous の無い記録で今当たっている commit を読めない（$jrc）: $jout"
   VERIFY_COMMIT=dead01 journey worker-launch

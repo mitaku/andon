@@ -6,11 +6,11 @@ state=${XDG_STATE_HOME:-$HOME/.local/state}/andon
 managed=${ANDON_MANAGED_SETTINGS:-/etc/claude-code/managed-settings.json}
 
 # bt-ran: apply-main.sh は dispatcher の端末を片付けてから andon boot を打ち直し、boot が dispatcher を起動する。
-# dispatcher の端末が当てたあとに起動していれば、boot は当てたあとに走った（boot.json は中身が変わらなければ書き直さないので、時刻は見ない）
+# dispatcher の端末が最後に当てたあとに起動していれば（今の状態なので、検証する commit でなく最後に当てた時刻と比べる）、boot は当てたあとに走った（boot.json は中身が変わらなければ書き直さないので、時刻は見ない）
 d=$(hc get dispatcher --json 2>/dev/null) || d=
 ms=$(jq -r '.created_ms // 0' <<<"$d" 2>/dev/null || echo 0)
 echo "-- bt-ran: dispatcher の端末の起動 $( [ "$ms" -gt 0 ] && date -u -d "@$((ms / 1000))" +%Y-%m-%dT%H:%M:%SZ || echo 無し)"
-[ "$ms" -ge "$a_ms" ] && ok "bt-ran: boot が当てたあとに走り、dispatcher を起動した" \
+[ "$ms" -ge "$now_ms" ] && ok "bt-ran: boot が最後に当てたあとに走り、dispatcher を起動した" \
   || fail "bt-ran: dispatcher が当てる前から動いている（apply-main.sh の boot の打ち直しが通っていない）"
 
 # bt-generated: boot が書いたファイルが、控えの sha256 のまま在る（生成物が揃い、あとから書き換わっていない）

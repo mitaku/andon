@@ -19,7 +19,7 @@ disable-model-invocation: true
 検証の担当は当てない。当てるのは Chief of Staff で、検証の担当は当たったものを確かめる。
 
 1. 依頼書から、前の検証が見た commit（無ければ依頼書が書く始まりの commit）を読む。
-2. 当てた commit は `/opt/andon/applied.json` の `commit`（`scripts/doctor.sh` の最後の行にも出る）。検証の途中で次の commit が当たったら、検証する commit は変えず、3 の機能を `drive.sh` の2つ目の引数に検証する commit を渡して動かす（前に当てた commit と時刻は記録の `previous` にある）。
+2. 当てた commit は `/opt/andon/applied.json` の `commit`（`scripts/doctor.sh` の最後の行にも出る）。検証の途中で次の commit が当たったら、検証する commit は変えず、3 の機能を `drive.sh` の2つ目の引数に検証する commit を渡して動かす（前に当てた commit と時刻は記録の `previous` にある）。2つ目の引数が効くのは本物の記録を読む行だけで、その commit が当たっていた間（次に当てた時刻まで）の出来事を読む。切り離して動かす道と今の状態を読む行（dispatcher の端末・boot の生成物）は、今当たっているパッケージを見る。
 3. 自分の worktree で `git fetch origin` し、`bash .claude/skills/verify-andon/scripts/features.sh <前の commit>..<当てた commit>` を打つ。出た名前が、この課題で動かす機能。何も出なければ、動かす機能は無い（報告にそう書いて終える）。
 4. 依頼書が機能を名指していれば、それも動かす。
 

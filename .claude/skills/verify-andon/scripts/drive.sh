@@ -25,7 +25,7 @@ echo "== $run"
 echo "機能: $1（$journey）"
 echo "andon: $(command -v andon) $(andon version 2>/dev/null | jq -c '{commit, source, drift}')"
 echo "当てた記録: $(cat /opt/andon/applied.json 2>/dev/null || echo 無し)"
-echo "検証する commit: ${2:-今当たっているもの}"
+echo "検証する commit: ${2:-今当たっているもの}（本物の記録を読む行が読む間を決める。切り離して動かす道と今の状態を読む行は、今当たっているパッケージを見る）"
 echo "始めた: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 VERIFY_COMMIT=${2:-} VERIFY_RUN=$run VERIFY_TMP=$tmp VERIFY_REPO=$(cd "$scripts/../../../.." && pwd) bash "$journey"
 rc=$?
