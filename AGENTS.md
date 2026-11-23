@@ -38,6 +38,13 @@
 | `tests/andon-dispatcher.sh` は場面が kanban を共有する。場面を足して課題を `doing` のまま残すと、後の場面の数がずれる。足した場面は終わりで `kanban done` する。 | `tests/andon-dispatcher.sh`。残した課題があると、後の場面の数の検査が落ちる。 |
 | `set -o pipefail` の下で `cmd \| head -1` を使わず、`sed -n 1p` か `$(…)` で受ける。`cmd` の出力が増えると SIGPIPE で落ちる。 | 無し。出力が少ないうちは通り、見るものが無い。 |
 | 検査のシェル（`tests/*.sh`）を直すときは Edit ツールで直し、heredoc で包んだスクリプトで文字列を差し替えない。内側の `EOF` で外側が閉じ、破壊的な行（`rm -f "$HOME/.gitconfig"` など）が本物の HOME で走る。 | 無し。直し方の手順で、見るものが無い。 |
+| 否定の検査で注釈の行を外すときは、行頭の空白と `#` で外す（`^[^#]*` は `"${#arr[@]}"` の `#` に当たり、行を全部落とす）。 | 無し。書き方の決まりで、見るものが無い。 |
+| 対話シェルの grep は ugrep の関数で、ファイルが1つでもファイル名を出す。`bash tests/*.sh` の中は GNU grep で、ファイルが1つだと出さない。出力の形を確かめるときは `/usr/bin/grep` か `bash -c` で打つ。 | 無し。確かめ方の手順で、見るものが無い。 |
+| 表の「守らせるもの」の列に repo に無いファイル（`gate.local.json` など）を `…` で書くと `tests/agents-md.sh` が落ちる。repo の外の置き場は「決まり」の列に書く。 | `tests/agents-md.sh`。守らせるものの `…` に書いたパスの語が repo に無いと落ちる。 |
+| `tests/smoke.sh` の否定の grep は Go の検査の関数名にも当たる。消す識別子を含む名前を検査に付けない。 | 無し。名前の付け方の決まりで、見るものが無い。 |
+| gate の差分の見本を repo に置くときは、元の PR の削除行に古い語が残って `tests/words.sh` に当たる。当たった所の前後で行を切って置く。 | `tests/words.sh`。CI でいつも走る。 |
+| andon の schema の検査器は `uniqueItems` を知らず、schema に書くと command が落ちる。重なりは Go の Parse で見る。 | 無し。検査器の lint が知らない書き方は、その場で断られて気づく。 |
+| 直す前の木で新しい検査が落ちるかを見るときは、ローカルの main でなく自分の HEAD から一時の worktree を切る。 | 無し。確かめ方の手順で、見るものが無い。 |
 | `tests/schema.sh` を単独で `andon issue record` に撮らない。emitters を全部走らせ直して10分を超える。schema の証拠は `tests/run --changed` の中で撮る。 | 無し。撮り方の手順で、見るものが無い。 |
 | `andon process render` は、その worktree で `mise exec -- go build ./cmd/andon` で作った andon で打つ。セルの andon は古いバージョンのことがある。 | `tests/process.sh`。`docs/process/` が `process/` から作り直しても変わらないことを見る。どの andon で打ったかは見ない。 |
 | 手元に docker が無いと `tests/image.sh` は飛ばされる。boot の `gh` の呼び出しを変えたら、偽の `gh` の部分を `env -i` と一時の HOME で `andon boot` に打たせて確かめる。 | 無し。手で確かめる手順で、見るものが無い。 |
