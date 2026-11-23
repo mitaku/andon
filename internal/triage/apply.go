@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"andon/internal/contract"
 	ledgercli "andon/internal/ledger"
 	"andon/internal/signal"
 )
@@ -26,6 +27,9 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	if err := checkClosings(items); err != nil {
 		return err
 	}
+	if err := checkPersons(items); err != nil {
+		return err
+	}
 	verdicts, err := readVerdicts(verdictPath(l, id))
 	if err != nil {
 		return err
@@ -34,7 +38,7 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	if err != nil {
 		return err
 	}
-	repos, err := l.preflight(id, items)
+	repos, past, err := l.preflight(id, items)
 	if err != nil {
 		return err
 	}
@@ -139,7 +143,7 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 				return err
 			}
 		}
-		newID, keys, err := l.applyGroup(id, date, g)
+		newID, keys, err := l.applyGroup(id, date, g, past)
 		if err != nil {
 			return err
 		}
@@ -256,9 +260,12 @@ func checkCommits(items []item, commits, repos map[string]string) error {
 	return nil
 }
 
-// preflight は出どころの課題が kanban にあるかと、閉じる課題が未担当の todo／queued かを確かめ、出どころの課題の repo を返す。
+// preflight は出どころの課題が kanban にあるかと、閉じる課題が未担当の todo／queued かを確かめ、出どころの課題の repo と、
+// 閉じる課題ごとに越える問い（開いている問いの番号。kanban done --past に渡す）を返す。
 // memory と signal の項目は出どころが課題ではないので、kanban show で照らさない。
-func (l *ledger) preflight(id string, items []item) (map[string]string, error) {
+// 閉じる課題に、答えられてまだ受け取られていない問いがあれば断る。閉じるとオーナーの答えを捨てることになる（ADR-0057 決めたこと 9）。
+// 越えるのはここで読んだ番号だけで、読んだあとに置かれた問いは kanban done が断る。
+func (l *ledger) preflight(id string, items []item) (map[string]string, map[string][]int, error) {
 	var sources []string
 	for _, it := range items {
 		if k := it.keyPart(2); k == "memory" || k == "signal" { // 出どころは課題でなく memory のファイル・信号の記録
@@ -268,47 +275,68 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, error) {
 	}
 	slices.Sort(sources)
 	repos := map[string]string{}
+	past := map[string][]int{}
 	for _, src := range slices.Compact(sources) {
 		if src == id {
-			return nil, fail("自分自身は仕分けできない")
+			return nil, nil, fail("自分自身は仕分けできない")
 		}
 		out, err := l.kanban("", "show", src, "--json")
 		if err != nil {
-			return nil, fail("出どころが無い: %s", src)
+			return nil, nil, fail("出どころが無い: %s", src)
 		}
 		var show struct {
-			Issue ledgerIssue `json:"issue"`
+			Issue     ledgerIssue `json:"issue"`
+			Questions []struct {
+				N      int    `json:"n"`
+				Status string `json:"status"`
+			} `json:"questions"`
 		}
 		if err := json.Unmarshal([]byte(out), &show); err != nil {
-			return nil, fail("出どころを読めない: %s", src)
+			return nil, nil, fail("出どころを読めない: %s", src)
 		}
 		repos[src] = show.Issue.Repo
 		closes := slices.ContainsFunc(items, func(it item) bool {
-			k := it.keyPart(2)
-			return it.keyPart(1) == src && (k == "issue" || k == "person") && it.decision() == "close"
+			return it.keyPart(1) == src && it.closesIssue()
 		})
 		if !closes {
 			continue
 		}
 		if (show.Issue.Status != "todo" && show.Issue.Status != "queued") || show.Issue.Agent != "" {
-			return nil, fail("close の対象が未担当の todo/queued でない: %s", src)
+			return nil, nil, fail("close の対象が未担当の todo/queued でない: %s", src)
+		}
+		for _, q := range show.Questions {
+			switch q.Status {
+			case "answered":
+				return nil, nil, fail("close の対象 %s に、答えられてまだ受け取られていない問い %s#%d がある（閉じると答えを捨てる。Chief of Staff が受け取ってから仕分け直す）", src, src, q.N)
+			case "open":
+				past[src] = append(past[src], q.N)
+			}
 		}
 	}
-	return repos, nil
+	return repos, past, nil
 }
 
 // applyGroup は1つの決定（bundle は束）を kanban に当て、足した課題の id と、記録のあとに書く予約キーを返す。
-func (l *ledger) applyGroup(id, date string, g []item) (string, []string, error) {
+// past は閉じる課題ごとに越える問いの番号（preflight が読んだもの）。
+func (l *ledger) applyGroup(id, date string, g []item, past map[string][]int) (string, []string, error) {
 	first := g[0]
 	switch first.decision() {
 	case "close":
-		if k := first.keyPart(2); k == "issue" || k == "person" {
+		if first.closesIssue() {
 			src := first.keyPart(1)
 			note := fmt.Sprintf("不要（%s・%s）: %s\n", id, date, first.str("reason"))
 			if _, err := l.kanban(note, "report", src, "--append"); err != nil {
 				return "", nil, err
 			}
-			if _, err := l.kanban("", "done", src); err != nil {
+			args := []string{"done", src}
+			if ns := past[src]; len(ns) > 0 {
+				refs := make([]string, len(ns))
+				for i, n := range ns {
+					refs[i] = fmt.Sprintf("%s#%d", src, n)
+				}
+				args = append(args, "--past", strings.Join(refs, ","))
+			}
+			if _, err := l.kanban("", args...); err != nil {
 				return "", nil, err
 			}
 		}
@@ -323,18 +351,14 @@ func (l *ledger) applyGroup(id, date string, g []item) (string, []string, error)
 		}
 		return newID, keys, nil
 	case "person":
-		brief := "出どころ: " + first.key() +
-			"\nkind: " + orDefault(first["kind"], "判断がつかない") +
-			"\n推奨案: " + orDefault(first["pick"], "なし") +
-			"\n理由: " + first.str("reason") + "\n"
-		newID, err := l.kanban(brief, "add", first.str("question")+personSuffix, "--brief", "-")
-		if err != nil {
-			return "", nil, err
+		var newID string
+		var err error
+		if first.handWork() {
+			newID, err = l.addHandWork(first)
+		} else {
+			newID, err = l.addDecision(first)
 		}
-		if _, err := l.kanban("", "set", newID, "who=person"); err != nil {
-			return "", nil, err
-		}
-		return newID, nil, nil
+		return newID, nil, err
 	}
 	return "", nil, nil
 }
@@ -347,6 +371,54 @@ func groupReview(g []item) string {
 		}
 	}
 	return "off"
+}
+
+// personQuestion は判断の person から、オーナーの課題に置く問い（contract.md §5）を作る。出し手は apply を打つ Chief of Staff、
+// 事実の先頭は出どころの key。種類を決めきれなかった項目は、そのことと理由を事実に 1 行足す（ADR-0057 決めたこと 9・10）。
+func personQuestion(it item) *contract.Question {
+	q := &contract.Question{Kind: it.str("kind"), Question: it.str("question"), Facts: []string{it.key()}, Reason: it.str("reason"), From: "chief-of-staff"}
+	if it.unsure() {
+		q.Facts = append(q.Facts, unsureFact+it.str("reason"))
+	}
+	for i, label := range it.options() {
+		o := contract.Option{Label: label}
+		if i == 0 {
+			pick := true
+			o.Pick = &pick
+		}
+		q.Options = append(q.Options, o)
+	}
+	return q
+}
+
+// unsureFact は、種類を決めきれなかった判断の問いに足す事実の行の頭（続けて何が分からないか〈項目の reason〉）。
+const unsureFact = "トリアージは種類を決めきれなかった: "
+
+// addDecision は判断の person を、andon issue ask --new と同じ関数でオーナーの課題と問いにして置く（ADR-0057 決めたこと 7・9）。
+func (l *ledger) addDecision(it item) (string, error) {
+	newID, _, err := ledgercli.At(l.root).NewOwnerQuestion(personQuestion(it), "", nil)
+	if err != nil && newID != "" {
+		// トリアージの apply は打ち直せない（記録が先に置かれる）。残った課題は問いも印も無いので andon waiting が判断に数えて灯す。
+		return "", fail("%v（トリアージの apply は打ち直さず、andon issue ask %s - で問いを置く）", err, newID)
+	}
+	return newID, err
+}
+
+// addHandWork は手作業の person を、印 only_owner を持つオーナーの課題にする（ADR-0057 決めたこと 8・9）。
+// タイトルは question のままで「（オーナーの判断待ち）」を付けない。
+func (l *ledger) addHandWork(it item) (string, error) {
+	brief := "出どころ: " + it.key() +
+		"\nオーナーにしかできない理由: " + it.str("only_owner") +
+		"\nしてほしいこと: " + it.str("question") +
+		"\n理由: " + it.str("reason") + "\n"
+	newID, err := l.kanban(brief, "add", it.str("question"), "--brief", "-")
+	if err != nil {
+		return "", err
+	}
+	if _, err := l.kanban("", "set", newID, "who=person", "only_owner="+it.str("only_owner")); err != nil {
+		return "", err
+	}
+	return newID, nil
 }
 
 // groupBrief は fix と bundle の依頼書を組む。束ねた項目は同じ brief を写していることが多いので、同じ brief は1回だけ書く。
@@ -422,16 +494,18 @@ func summary(slug, date string, goal any, items []item) string {
 	}
 
 	var b strings.Builder
-	if count(func(it item) bool {
-		_, has := it["kind"]
-		return it.decision() == "person" && (!has || it["kind"] == nil)
-	}) > 3 {
+	person := is("person")
+	hand := func(it item) bool { return person(it) && it.handWork() }
+	unsure := func(it item) bool { return person(it) && it.unsure() }
+	// 種類を決めきれなかった判断が 3 件を超えたら、オーナーに回す線を見直す知らせを先頭に出す（ADR-0057 決めたこと 10）。
+	if count(unsure) > 3 {
 		b.WriteString("線引きを見直す\n")
 	}
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "# トリアージ %s %s（ゴール: %s）\n", slug, date, cell(goal))
-	fmt.Fprintf(&b, "閉じた %d ・ 直す %d（うち束ね %d） ・ オーナーへ %d ・ 次回 %d ・ 読めない %d\n",
-		count(is("close")), created("fix", "bundle"), created("bundle"), count(is("person")), count(is("keep")),
+	fmt.Fprintf(&b, "閉じた %d ・ 直す %d（うち束ね %d） ・ オーナーへ %d（判断 %d・手作業 %d・unsure %d） ・ 次回 %d ・ 読めない %d\n",
+		count(is("close")), created("fix", "bundle"), created("bundle"),
+		count(person), count(person)-count(hand), count(hand), count(unsure), count(is("keep")),
 		count(func(it item) bool { return it.keyPart(2) == "unreadable" }))
 	// 閉じたものは、Chief of Staff が読んだもの（判断の閉じと、課題を閉じる判定）を先に、根拠の閉じを後に出す（ADR-0030 決めたこと 5 の 5）。
 	b.WriteString("\n## 閉じた（判断の閉じと課題の閉じ。Chief of Staff が読んだ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n")
@@ -452,10 +526,21 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))
 		}
 	}
-	b.WriteString("\n## オーナーへ（オーナーの課題）\n| 課題 | 問い | kind | 推奨案 |\n|---|---|---|---|\n")
+	// 判断は種類と推奨案（options の先頭）、手作業は「手作業」と印の理由を出す。
+	b.WriteString("\n## オーナーへ（オーナーの課題）\n| 課題 | 問い | 種類 | 推奨案（手作業は理由） |\n|---|---|---|---|\n")
 	for _, it := range items {
-		if it.decision() == "person" {
-			b.WriteString(row(it["created_issue"], it["question"], orDefault(it["kind"], "判断がつかない"), orDefault(it["pick"], "なし")))
+		switch {
+		case hand(it):
+			b.WriteString(row(it["created_issue"], it["question"], "手作業", it["only_owner"]))
+		case person(it):
+			kind, pick := it.str("kind"), ""
+			if it.unsure() {
+				kind += "（unsure）"
+			}
+			if o := it.options(); len(o) > 0 {
+				pick = o[0]
+			}
+			b.WriteString(row(it["created_issue"], it["question"], kind, pick))
 		}
 	}
 	b.WriteString("\n## 次回に回した（keep）\n| 出どころ | 項目 | 待つもの |\n|---|---|---|\n")

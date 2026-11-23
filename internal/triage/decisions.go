@@ -105,7 +105,8 @@ var (
 
 var (
 	decisionNames = []string{"close", "fix", "bundle", "person", "keep"}
-	personKinds   = []string{"business", "users", "promise", "irreversible"}
+	// personKinds は person の判断の種類（灯りの 5 種。問いの JSON の kind から scope を除いたもの。ADR-0057 決めたこと 10）。
+	personKinds = []string{"business", "users", "promise", "irreversible", "line"}
 )
 
 // nonempty は空白でない文字を1つ以上持つ文字列か。
@@ -179,20 +180,80 @@ func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 				}
 				bundleRepo[b] = repo
 			}
-		case "person":
-			if !nonempty(it["question"]) || strings.HasPrefix(it.str("question"), "-") {
-				return nil, nil, false
-			}
-			if kind, present := it["kind"]; present && kind != nil {
-				ks, ok := kind.(string)
-				if !ok || !slices.Contains(personKinds, ks) || !nonempty(it["pick"]) {
-					return nil, nil, false
-				}
-			}
 		}
 		items = append(items, it)
 	}
 	return data, items, true
+}
+
+// oneLine は空白でない 1 行の文字列か。
+func oneLine(v any) bool { return nonempty(v) && !strings.Contains(v.(string), "\n") }
+
+// options は判断の person の選択肢（1 行の文字列。先頭が推奨案）。形が違えば nil。
+func (i item) options() []string {
+	raw, ok := i["options"].([]any)
+	if !ok {
+		return nil
+	}
+	got := make([]string, 0, len(raw))
+	for _, o := range raw {
+		if !oneLine(o) {
+			return nil
+		}
+		got = append(got, o.(string))
+	}
+	return got
+}
+
+// handWork は手作業の person か（印 only_owner を持つ）。checkPersons を通ったあとに読む。
+func (i item) handWork() bool { return i["only_owner"] != nil }
+
+// unsure はトリアージが種類を決めきれなかった判断の person か（判定表の 10。ADR-0057 決めたこと 10）。
+func (i item) unsure() bool { return i["unsure"] == true }
+
+// checkPersons は person の項目が、判断（kind・question・options・reason）か手作業（only_owner・question・reason）の
+// どちらか 1 つの形かを確かめる（ADR-0057 決めたこと 9）。どちらでもない項目があれば、kanban に手を入れる前に断る。
+// 推奨案は options の先頭で、前の形の pick は受けない。unsure は判断にだけ付ける。
+func checkPersons(items []item) error {
+	for _, it := range items {
+		if it.decision() != "person" {
+			continue
+		}
+		k := it.key()
+		if !oneLine(it["question"]) || strings.HasPrefix(it.str("question"), "-") {
+			return fail("person の question が 1 行でないか - で始まる: %s", k)
+		}
+		if _, ok := it["pick"]; ok {
+			return fail("person に pick は使わない（推奨案は options の先頭に書く）: %s", k)
+		}
+		if u, ok := it["unsure"]; ok && u != nil {
+			if _, isBool := u.(bool); !isBool {
+				return fail("person の unsure は true か false: %s", k)
+			}
+		}
+		kind, owner := it["kind"], it["only_owner"]
+		switch {
+		case kind != nil && owner != nil:
+			return fail("person に kind と only_owner の両方がある（判断か手作業のどちらか 1 つ）: %s", k)
+		case kind != nil:
+			if ks, ok := kind.(string); !ok || !slices.Contains(personKinds, ks) {
+				return fail("person の kind が %s でない: %s", strings.Join(personKinds, "・"), k)
+			}
+			if len(it.options()) < 2 {
+				return fail("判断の person の options が 1 行の文字列 2 つ以上でない（先頭が推奨案）: %s", k)
+			}
+		case owner != nil:
+			if !oneLine(owner) {
+				return fail("手作業の person の only_owner が 1 行でない: %s", k)
+			}
+			if _, ok := it["options"]; ok || it.unsure() {
+				return fail("手作業の person に options・unsure は付けない: %s", k)
+			}
+		default:
+			return fail("person に kind も only_owner も無い（判断なら kind・options、手作業なら only_owner を書く）: %s", k)
+		}
+	}
+	return nil
 }
 
 // 閉じ方（decisions.json の close の closing。ADR-0030 決めたこと 5 の 1）。

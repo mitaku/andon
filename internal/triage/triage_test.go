@@ -159,12 +159,9 @@ func TestParseDecisionsRejects(t *testing.T) {
 				return f
 			}(),
 		},
-		"問いが空":               {{"key": k1, "decision": "person", "reason": "r", "question": ""}},
-		"kind に推しが無い":        {{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": "promise"}},
-		"知らない kind の person": {{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": "other", "pick": "p"}},
-		"commit の形":          {with(fix(k1, "t"), "commit", "HEAD")},
-		"commit が短い":         {with(fix(k1, "t"), "commit", "5ccac6a")},
-		"commit が文字列でない":     {with(fix(k1, "t"), "commit", 1)},
+		"commit の形":      {with(fix(k1, "t"), "commit", "HEAD")},
+		"commit が短い":     {with(fix(k1, "t"), "commit", "5ccac6a")},
+		"commit が文字列でない": {with(fix(k1, "t"), "commit", 1)},
 	}
 	for name, items := range bad {
 		if ok(items...) {
@@ -175,9 +172,6 @@ func TestParseDecisionsRejects(t *testing.T) {
 		if _, _, ok := parseDecisions([]byte(raw), "demo"); ok {
 			t.Errorf("%s が通った", raw)
 		}
-	}
-	if !ok(map[string]any{"key": k1, "decision": "person", "reason": "r", "question": "q", "kind": nil}) {
-		t.Error("kind が null の person が通らない")
 	}
 	if !ok(with(fix(k1, "t"), "commit", sha1a)) || !ok(with(fix(k1, "t"), "commit", nil)) {
 		t.Error("commit が 40 桁か null の判定が通らない")
@@ -286,12 +280,16 @@ func TestSummary(t *testing.T) {
 		{"key": k2, "decision": "fix", "reason": "r", "created_issue": "T-9", "issue": map[string]any{"title": "題", "review": "on"}},
 		{"key": "demo:T-3:unreadable:0000000000000000000000000000000000000003", "decision": "keep", "reason": "読む"},
 	}
+	// 種類を決めきれなかった判断（unsure）が 4 件と、手作業が 1 件（ADR-0057 受け入れ条件 12）。
 	for i := range 4 {
-		items = append(items, item{"key": "demo:T-5:question:" + strings.Repeat("0", 39) + string(rune('a'+i)), "decision": "person", "reason": "r", "question": "q", "created_issue": "T-1" + string(rune('0'+i))})
+		items = append(items, item{"key": "demo:T-5:question:" + strings.Repeat("0", 39) + string(rune('a'+i)), "decision": "person", "reason": "r",
+			"question": "q", "kind": "line", "unsure": true, "options": []any{"推す案", "ほかの案"}, "created_issue": "T-1" + string(rune('0'+i))})
 	}
+	items = append(items, item{"key": "demo:T-6:person:" + strings.Repeat("0", 40), "decision": "person", "reason": "r",
+		"question": "実機で確かめる（今週中）", "only_owner": "実機はオーナーの手元にだけある", "created_issue": "T-20"})
 	got := summary("demo", "2026-01-02", "ゴール", items)
 	want := "線引きを見直す\n\n# トリアージ demo 2026-01-02（ゴール: ゴール）\n" +
-		"閉じた 2 ・ 直す 1（うち束ね 0） ・ オーナーへ 4 ・ 次回 1 ・ 読めない 1\n" +
+		"閉じた 2 ・ 直す 1（うち束ね 0） ・ オーナーへ 5（判断 4・手作業 1・unsure 4） ・ 次回 1 ・ 読めない 1\n" +
 		"\n## 閉じた（判断の閉じと課題の閉じ。Chief of Staff が読んだ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n" +
 		"| demo:T-4:remember:0000000000000000000000000000000000000004 | 学び | one-off | その場限り |\n" +
 		"\n## 閉じた（根拠の閉じ）\n| 出どころ | 項目 | 閉じ方 | 理由 |\n|---|---|---|---|\n" +
@@ -301,7 +299,8 @@ func TestSummary(t *testing.T) {
 	}
 	for _, line := range []string{
 		"| T-9 | 題 | " + k2 + " | on |\n",
-		"| T-10 | q | 判断がつかない | なし |\n",
+		"| T-10 | q | line（unsure） | 推す案 |\n",
+		"| T-20 | 実機で確かめる（今週中） | 手作業 | 実機はオーナーの手元にだけある |\n",
 		"| demo:T-3:unreadable:0000000000000000000000000000000000000003 | demo:T-3:unreadable:0000000000000000000000000000000000000003 | 読む |\n",
 	} {
 		if !strings.Contains(got, line) {
@@ -316,7 +315,12 @@ func TestSummary(t *testing.T) {
 		t.Errorf("覆した表が無い:\n%s", got)
 	}
 	if s := summary("demo", "d", "g", nil); !strings.HasPrefix(s, "\n# トリアージ") {
-		t.Errorf("オーナーの kind 無しが3以下なら先頭は空行: %q", s)
+		t.Errorf("unsure が無ければ先頭は空行: %q", s)
+	}
+	// unsure が 3 件なら「線引きを見直す」を出さない。種類を決めた判断と手作業は数えない。
+	items[5]["unsure"] = false
+	if s := summary("demo", "d", "g", items); !strings.HasPrefix(s, "\n# トリアージ") || !strings.Contains(s, "オーナーへ 5（判断 4・手作業 1・unsure 3）") {
+		t.Errorf("unsure が 3 件なら先頭は空行で、内訳は 3:\n%s", s)
 	}
 }
 
