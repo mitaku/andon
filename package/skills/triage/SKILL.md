@@ -168,7 +168,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   - レベル C に当たる変更は `fix` にしない（表の 6 で `person`）。
 - `person` は判断か手作業のどちらか1つの形にする。どちらでもない項目（`kind` も `only_owner` も無い・両方ある）があれば、`apply` は kanban に手を入れずに断る。どちらも `question`（1行・`-` で始めない）と `reason` が必須。
   - 判断（6・10）: `kind` は `business`／`users`／`promise`／`irreversible`／`line`。`options` は1行の文字列を2つ以上並べ、先頭を推奨案にする（推奨案が無いと思っても、いちばんよいと考える案を先頭に書く）。前の形の `pick` は断られる。
-    `apply` は `andon issue ask --new` と同じ関数で、オーナーの課題（タイトルは `question` に「（オーナーの判断待ち）」を付けたもの）と問いを置く。問いの `from` は `chief-of-staff`、`facts` の先頭は出どころの `key`、`reason` は項目の `reason`。
+    `apply` は `andon issue ask --new` と同じ関数で、オーナーの課題（タイトルは `question` に「（オーナーの判断待ち）」を付けたもの）と問いを置く。同じ `question` の判断を2つ書かない。同じタイトルの片付いていない課題がもう問いを持っていれば `apply` が断るので、その課題（`person` の項目）を仕分ける。問いの `from` は `chief-of-staff`、`facts` の先頭は出どころの `key`、`reason` は項目の `reason`。
   - 種類を決めきれなかった判断（10）は、いちばん近い `kind` にし、`"unsure": true` を付ける。`apply` は問いの `facts` に「トリアージは種類を決めきれなかった: <reason>」を足すので、`reason` に何が分からないかを書く。
   - 手作業（5）: `only_owner` にオーナーにしかできない理由を1行で書く。`kind`・`options`・`unsure` は付けない。`apply` は `question` をタイトルにしたオーナーの課題を足し、`who: person` と `only_owner` を書く。
 - `fix`／`bundle` が上限（既定 3。bundle は 1 つで数える）を超えた分は、`apply` が `keep`「次回（起動する上限）」に落とす。並べる順（先に書いたものが残る）＝優先の順。
