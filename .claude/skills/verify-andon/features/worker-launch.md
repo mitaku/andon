@@ -25,6 +25,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - **記録を読む。** `wl-record` の行に、当てたあとの起動が1行ずつ（課題・役・`package.commit`・`package.drift`）出る。全部の `package.commit` が当てた commit で、`ok   wl-record` が見えれば動いた。
 - **端末を読む。** `wl-terminal` の行に、動いている端末の `hc get` のラベルが出る。`ok   wl-terminal` が見えれば動いた。
 - **最初の turn を読む（`wl-first-turn`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）のうち `role` が `worker`、`launch` が `start` のものを `hc read <address>` で読み、依頼書のパスの入った最初のメッセージのあとに turn が進んだことを確かめる。`kanban start <id>` は kanban の履歴で読む。`jq -c 'select(.id == "<id>" and .by == "terminal:<address>" and .change.status == "doing")' <kanban>/log.jsonl` に、起動の `at` より後で最初に `review` へ入る前の行が2行以上あれば、担当が打った。2行に満たなければ打った証拠が無いので未確認と書き、壊れに数えない（担当は `doing` になっているのを見て、打ち直さないことがある）。起動したばかりの端末が無ければ、報告の `## Next` に「試しの課題を1件起動する」と書く。
+  - 検証の担当自身も、当てたあとに Chief of Staff が起動した担当にあたる（`wl-record` に自分の課題が出る）。ほかに起動した担当が無ければ、自分の端末を `hc read <自分の address>` で読む。依頼書のパスの入った最初のメッセージのあとに turn が進んだことと、最初のメッセージの起動の文が `/opt/andon/templates/<プロファイル>.md` の今の文と同じことを確かめる。見たのが自分の端末だということを `evidence` に書く。`kanban start` の行は、自分が打っていなければ1行のまま、上と同じく未確認と書く。証拠を作るために後から `kanban start` を打たない。
 
 ## 変えたら動かすパス
 
