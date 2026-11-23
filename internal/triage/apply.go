@@ -138,12 +138,14 @@ func (l *ledger) applyItems(id, date, base string, data obj, items []item, past 
 		return err
 	}
 	for _, g := range applyGroups(items) {
-		// 課題を足す決定（fix・bundle）は、足す前に「足している」印（adding）を記録に残す。kanban add が返ったあと
-		// 記録の前で止まっても、andon issue start が印（題と、Chief of Staff の端末が足した課題か）からトリアージの課題と分かる
+		// 課題を足す決定（fix・bundle）は、足す前に「足している」印（adding）と印を残した時刻（adding_at）を記録に残す。kanban add が
+		// 返ったあと記録の前で止まっても、andon issue start が印（題と、Chief of Staff の端末が足した課題か。足した行が無ければ、
+		// 課題が印より後に作られたか）からトリアージの課題と分かる（ledger.TriageMade）
 		adding := g[0].decision() == "fix" || g[0].decision() == "bundle"
 		if adding {
+			at := time.Now().UTC().Format(time.RFC3339)
 			for _, it := range g {
-				it["adding"] = true
+				it["adding"], it["adding_at"] = true, at
 			}
 			done = append(done, g...)
 			if err := save(); err != nil {
@@ -156,6 +158,7 @@ func (l *ledger) applyItems(id, date, base string, data obj, items []item, past 
 		}
 		for _, it := range g {
 			delete(it, "adding")
+			delete(it, "adding_at")
 			if newID != "" {
 				it["created_issue"] = newID
 			}

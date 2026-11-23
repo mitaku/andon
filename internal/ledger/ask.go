@@ -151,7 +151,8 @@ func (l *Ledger) unfinished(title, parent string) (string, int, error) {
 
 // RestoreQuestion は、課題 id の 1 つ目の問いの控え（library/questions/1.json）が無く、kanban の 1 つ目の問いの文が q の文
 // （q.Text()）と同じなら、控えを q で書き、true を返す。kanban ask のあと控えを書く前に落ちた回の打ち直しで呼ぶ（控えが無いと
-// andon waiting に選択肢が出ず、オーナーが答えられない）。控えがあるか、文が違えば何も書かずに false。
+// andon waiting に選択肢が出ず、オーナーが答えられない）。控えがあれば何も書かずに false。控えが無いのに文が違う（打ち直しの前に
+// 問いが変わった）・1 つ目の問いが無ければ、書き直せないので誤りを返す（控えの無い問いを残したまま進まない）。
 func (l *Ledger) RestoreQuestion(id string, q *contract.Question) (bool, error) {
 	p := filepath.Join(l.Library(id), "questions", "1.json")
 	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
@@ -171,7 +172,8 @@ func (l *Ledger) RestoreQuestion(id string, q *contract.Question) (bool, error) 
 		return false, fmt.Errorf("課題 %s が読めない", id)
 	}
 	if len(v.Questions) == 0 || v.Questions[0].N != 1 || v.Questions[0].Text != strings.TrimRight(q.Text(), " \t\r\n") {
-		return false, nil
+		return false, fmt.Errorf("課題 %s の問いの控え（library/questions/1.json）が無く、kanban の問いの文が置く問いと違うので書き直せない"+
+			"（kanban show %s で問いを見て、控えを andon issue ask の JSON で書き直すか、問いを置き直す）", id, id)
 	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return false, err

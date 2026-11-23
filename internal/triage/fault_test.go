@@ -35,7 +35,6 @@ func TestApplyLeavesAddedIssuesTraceableAfterAnyStop(t *testing.T) {
 	}
 	setup := func(t *testing.T) {
 		t.Setenv("HC_TERMINAL_ID", "t5")
-		t.Setenv("DECK_NOW", "2026-11-23T10:00:00Z")
 		root := filepath.Join(t.TempDir(), "sample-site")
 		f.Kanban(root, "", nil, "init", "--root", root, "--prefix", "T", "--repo", repo)
 		f.Kanban(root, "", nil, "config", "set", "chief_of_staff=t5")

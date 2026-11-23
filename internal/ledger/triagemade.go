@@ -5,25 +5,35 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // TriageMade は、課題 t を足したトリアージの apply の記録（kanban の library/triage/<日付>-<トリアージの id>.json の items。
 // fix と bundle の決定）を探し、そのトリアージの id と、決定の review（束ならどれか1つが on で on）を返す。無ければ空。
 // 記録の項目が t を指すのは、created_issue が t の id のときか、apply が足す前に残す印（adding）があって、題が t の題と同じで、
-// t を足したのが今の Chief of Staff の端末（log.jsonl の最初の add の行。行が無ければ足す途中で止まったものとして数える）のとき。andon issue start が無い予約キーを埋めるかの判定に使い、
+// t を足したのが今の Chief of Staff の端末（log.jsonl の最初の add の行。行が無ければ、t が印を残した時刻〈adding_at〉より後に作られた）のとき。andon issue start が無い予約キーを埋めるかの判定に使い、
 // トリアージの検査も、止まったあと足した課題を辿れるかを同じ判定で見る。kanban add が返ったあと記録の前で止まった課題も分かる。
 func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 	dir, cos := l.Dir, l.ChiefOfStaff()
 	id := CanonID(t.Str("id"))
 	// 足した行が無い課題は、kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まったもの（kanban add は行を書かずに
-	// 終わらない）。足した端末は分からないが、ほかの端末が kanban add で足した課題には行が残るので、印と題が合えば辿る。
+	// 終わらない）。足した端末は分からないので、課題が印（adding_at）より後に作られた（created）ときだけ、その印の課題と見る。
+	// 前に別の端末が足す途中で止めた同じ題の課題は、印より前に作られているので辿らない。
 	// log.jsonl が読めない・空のときは、行が無いのか読めないのかを分けられないので辿らない
-	byCos := cos != "" && len(rows) > 0
+	hasRow, byCos := false, false
 	for _, r := range rows {
 		if _, ok := r.Change["add"]; ok && CanonID(r.ID) == id {
-			byCos = cos != "" && r.By == "terminal:"+cos
+			hasRow, byCos = true, cos != "" && r.By == "terminal:"+cos
 			break
 		}
+	}
+	marked := func(addingAt string) bool {
+		if hasRow {
+			return byCos
+		}
+		mark, err1 := time.Parse(time.RFC3339, addingAt)
+		made, err2 := time.Parse(time.RFC3339, t.Str("created"))
+		return cos != "" && len(rows) > 0 && err1 == nil && err2 == nil && !made.Before(mark.Truncate(time.Second))
 	}
 	files, _ := filepath.Glob(filepath.Join(dir, "library", "triage", "*.json"))
 	for _, f := range files {
@@ -35,6 +45,7 @@ func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 			Items []struct {
 				Created  string `json:"created_issue"`
 				Adding   bool   `json:"adding"`
+				AddingAt string `json:"adding_at"`
 				Decision string `json:"decision"`
 				Issue    struct {
 					Title  string `json:"title"`
@@ -55,7 +66,7 @@ func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 			case it.Created != "" && CanonID(it.Created) == id:
 				created, onCreated = true, onCreated || it.Issue.Review == "on"
 			case it.Created == "" && it.Adding:
-				adding, onAdding = adding || (byCos && it.Issue.Title == t.Str("title")), onAdding || it.Issue.Review == "on"
+				adding, onAdding = adding || (marked(it.AddingAt) && it.Issue.Title == t.Str("title")), onAdding || it.Issue.Review == "on"
 			}
 		}
 		if !created && !adding {
