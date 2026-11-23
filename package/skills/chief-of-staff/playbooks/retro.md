@@ -9,6 +9,7 @@
 拾い方と判定は retro skill、パターンの一覧の形と command が断る線は `contract.md` §21 にあり、ここには書かない。
 
 1. **足す**: ルーチン `retro`（`routines/retro.yaml`。例は retro skill の `assets/retro.yaml`。kanban へ写すのはオーナーの go で。名前は `retro` のまま）が毎朝1件足す。片付いた担当の課題が `project.json` の `chief_of_staff.retro_every` 件（既定 25）たまると、dispatcher が数えて同じルーチンを撃つので、朝を待たずに足されることもある。
+   枠が空いたままのときは、ルーチンが足した課題を除いた片付いた担当の課題が `retro_every` の半分以上で、片付いていない振り返りが無ければ、dispatcher が同じルーチンを撃つ（`idle.md`。ADR-0047 決めたこと 8）。
    オーナーが頼んだら `kanban routine run retro`（`routine: retro` が付き、前の振り返りとして数えられる。`open` と `paused` はそのまま効く）。
 2. **起動する**: オーナーに聞かずに `andon issue start <id>`（`start.md`。枠〈`andon waiting` の `slots.free`〉とぶつかりは守る）。
 3. **`review` が来たら**: 報告の表と `issues/<id>/library/retro.json` を読み、`andon retro apply <id> --dry-run` を打つ。検収で見ること:
@@ -22,6 +23,6 @@
 5. **続ける**: `apply` が足した直す課題（`parent` が振り返りの課題）は、予約キーを既定（`review=off`・`merge=person`・`estimate=medium` など）で持って足される。`profile` を書き、既定から変える Settings だけ書き直してから（`brief.md`・`cut.md`。Andon のパッケージと `AGENTS.md` に触れる直しは、既定の条件表でレベル C。委譲の `merge` が C でなければオーナーがマージ）、`start.md` の手順で起動する。依頼書の本文は `apply` が書いたものを書き換えない。足りなければ追記する。
    オーナーの課題（タイトルが「Andon へ伝えるか: …」。このプロジェクトが Andon の repo を持たないとき）は ask-one-by-one で1問ずつ。
    改善の PR のラベル `retro` が repo に無ければ、最初の1回に `gh label create retro --repo <owner>/<repo>` で作る。
-6. **オーナーへ**: 知らせる（オーナーがいるターンならその返事で。いなければ kanban の問いとボードで足りる）。「振り返りでパターンを a 件見つけた。直す課題を b 件、オーナーの課題を c 件切った。d 件は捨てた。」。捨てたものはオーナーが `retro.json` で見て戻せる（戻す＝課題に切る）。
+6. **オーナーへ**: 知らせる（オーナーがいるターンならその返事で。いなければ kanban の問いとボードで足りる）。「振り返りでパターンを a 件見つけた。直す課題を b 件、オーナーの課題を c 件切った。d 件は捨てた。」。捨てたものはオーナーが `retro.json` で見て戻せる（戻す＝課題に切る）。空きで dispatcher が撃った回も同じ返事に 1 文にまとめる（`idle.md` の「オーナーへ」）。
    前にオーナーへ知らせたあとに自動でマージされた振り返りの直し（`parent` が振り返りの課題）があれば、PR の番号とタイトルを1行で並べる。skill に触れたものと、振り返り自身を直したものは、そう書き添える。オーナーは止めず、あとから読む。
 7. **止める**: ルーチンの `paused: true` はオーナーが書く。見る日（ADR-0028 の価値の仮説）に、止める条件に当たればオーナーに伝える。

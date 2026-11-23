@@ -37,6 +37,7 @@ description: kanban と hc で動くプロジェクトの Chief of Staff が読�
 | 担当を起動する | `start.md` |
 | 担当が blocked・オーナーに聞くこと・範囲の問いを返した | `blocked.md` |
 | `<news>` が届いた・止まった担当を見つけた・見込みのズレ | `watch.md` |
+| 通知 `idle`（枠が空いたまま） | `idle.md` |
 | gate がオーナーを要する・approve で止まった・上限を超えた回・差し戻し | `gate.md` |
 | 片付け・マージのあとの影響 | `finish.md` |
 | マージした変更をセルへ当てた・検証の課題の報告が届いた | `verify.md` |

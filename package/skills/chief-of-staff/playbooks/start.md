@@ -1,5 +1,5 @@
 ---
-読む時: 担当を起動するとき（`andon issue start` を打つ前）。枠が動いたとき（`<id> ready`・`<id> asked`・approve で止まった・`<id> merged`・オーナーの答え）も 1 から読み直す
+読む時: 担当を起動するとき（`andon issue start` を打つ前）。枠が動いたとき（`<id> ready`・`<id> asked`・approve で止まった・`<id> merged`・オーナーの答え）と、枠が空いたままの通知 `idle`（`idle.md`）も 1 から読み直す
 消す条件: ぶつかりの照合（1）は「`andon issue start --dry-run` が動いている課題と出ている PR の files との重なりを確かめるようになったら」。終了コードの読み方（3）は「`andon issue start` が終了コードごとに打つべき1手を出すようになったら」
 ---
 
