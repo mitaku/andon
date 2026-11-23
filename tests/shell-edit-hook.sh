@@ -10,19 +10,23 @@ ok() { echo "ok   $1"; }
 ng() { echo "FAIL $1"; fail=1; }
 h=.claude/hooks/test-shell-edit
 root=$PWD
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 
-# フックの在りかと繋ぎ方
-if jq -e '.hooks.PreToolUse | any(.[]; .matcher == "Bash" and any(.hooks[]; .type == "command" and .command == "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/test-shell-edit"))' .claude/settings.json >/dev/null 2>&1 \
-  && [ -x "$h" ] && python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' "$h" 2>/dev/null; then
-  ok ".claude/settings.json の PreToolUse（matcher Bash）が .claude/hooks/test-shell-edit を指し、フックは実行できる"
+# フックの在りかと繋ぎ方。settings の command（Claude Code が sh で打つ）をそのまま使って当てる
+hook_cmd=$(jq -r '[.hooks.PreToolUse[]? | select(.matcher == "Bash") | .hooks[]? | select(.type == "command") | .command | select(contains(".claude/hooks/test-shell-edit"))][0] // empty' .claude/settings.json 2>/dev/null || true)
+if [ -n "$hook_cmd" ] && [ -x "$h" ] && python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' "$h" 2>/dev/null; then
+  ok ".claude/settings.json の PreToolUse（matcher Bash）が .claude/hooks/test-shell-edit を呼び、フックは実行できる"
 else
   ng ".claude/settings.json に Bash の PreToolUse のフック（.claude/hooks/test-shell-edit）が無いか、フックが実行できない"
 fi
 
-# pt <tool> <command>: フックに PreToolUse の入力を渡し、出力を返す（フックが無ければ空）
+# input <tool> <command>: PreToolUse の入力の JSON
+input() { jq -n --arg t "$1" --arg c "$2" --arg d "$root" '{hook_event_name: "PreToolUse", tool_name: $t, cwd: $d, tool_input: {command: $c}}'; }
+# pt <tool> <command>: settings の command でフックに入力を渡し、出力を返す（フックが無ければ空）
 pt() {
-  jq -n --arg t "$1" --arg c "$2" --arg d "$root" '{hook_event_name: "PreToolUse", tool_name: $t, cwd: $d, tool_input: {command: $c}}' \
-    | CLAUDE_PROJECT_DIR=$root "$h" 2>/dev/null || true
+  [ -n "$hook_cmd" ] || return 0
+  input "$1" "$2" | CLAUDE_PROJECT_DIR=$root /bin/sh -c "$hook_cmd" 2>/dev/null || true
 }
 pt_deny() {
   pt Bash "$1" | jq -e '.hookSpecificOutput | .hookEventName == "PreToolUse" and .permissionDecision == "deny"
@@ -206,6 +210,14 @@ env -u X sed -i 's/a/b/' tests/smoke.sh
 cd tests && sed -i 's/a/b/' smoke.sh
 %%
 cd @ROOT@/tests; perl -pi -e 's/a/b/' lib/isolate.sh
+%%
+echo "$(sed -i 's/a/b/' tests/smoke.sh)"
+%%
+x="$(printf x > tests/smoke.sh)"
+%%
+echo "`sed -i 's/a/b/' tests/smoke.sh`"
+%%
+node -e 'require("fs").writeFileSync(`tests/smoke.sh`, "x")'
 CASES
 miss=
 for c in "${cases[@]}"; do pt_deny "$c" || miss="$miss [${c%%$'\n'*}]"; done
@@ -304,6 +316,10 @@ subprocess.run(['bash', f'tests/{sys.argv[2]}.sh'], cwd=d)
 EOF
 %%
 cd $S/old && sed -i 's/a/b/' tests/andon-dispatcher.sh
+%%
+echo "$(bash tests/smoke.sh 2>&1 | tail -1)"; n="$(grep -c '>' tests/smoke.sh)"
+%%
+node -e 'console.log(require("fs").readFileSync(`tests/smoke.sh`, "utf8").length)'
 CASES
 extra=
 for c in "${cases[@]}"; do out=$(pt Bash "$c"); [ -z "$out" ] || extra="$extra [${c%%$'\n'*}]"; done
@@ -321,6 +337,23 @@ extra=
 [ -z "$(cwd_out "$root/docs" "sed -i 's/a/b/' tests/x.sh")" ] || extra="$extra [cwd docs の docs/tests/x.sh]"
 [ -n "$(cwd_out "$root" "sed -i 's/a/b/' $root/tests/smoke.sh" "")" ] || extra="$extra [CLAUDE_PROJECT_DIR が無いときの根の絶対パス]"
 [ -z "$extra" ] && ok "cwd が tests/ の下なら tests/ の字が無くても断り、読むだけは通し、根の外の tests/ は見ない" || ng "cwd を辿り損ねる:$extra"
+
+# フックが走れないときは止める側に倒す: python3 が無ければ settings の command が tests を含む呼び出しを終了コード 2 で止め、
+# フックの中で例外が出れば tests を含む呼び出しを deny する。tests を含まない呼び出しは、どちらでも通す
+extra=
+mkdir -p "$tmp/nopy"; ln -s "$(command -v grep)" "$tmp/nopy/grep"
+rc=0; input Bash "sed -i 's/a/b/' tests/smoke.sh" | env -i PATH="$tmp/nopy" CLAUDE_PROJECT_DIR="$root" /bin/sh -c "$hook_cmd" >/dev/null 2>"$tmp/nopy.err" || rc=$?
+{ [ "$rc" = 2 ] && grep -q 'python3' "$tmp/nopy.err"; } || extra="$extra [python3 が無いとき tests を含む呼び出しを止めない（$rc）]"
+rc=0; input Bash "git status" | env -i PATH="$tmp/nopy" CLAUDE_PROJECT_DIR="$root" /bin/sh -c "$hook_cmd" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 0 ] || extra="$extra [python3 が無いとき tests を含まない呼び出しを止める（$rc）]"
+# 例外を起こす写し（解析の入口で投げる）
+sed 's/^def denied(text, cur, whole, depth=0):$/&\n    raise RuntimeError("壊した写し")/' "$h" >"$tmp/broken"
+grep -q '壊した写し' "$tmp/broken" || extra="$extra [例外を起こす写しを作れない]"
+out=$(input Bash "bash tests/smoke.sh" | CLAUDE_PROJECT_DIR=$root python3 "$tmp/broken" 2>/dev/null || true)
+jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$out" >/dev/null 2>&1 || extra="$extra [例外のとき tests を含む呼び出しを deny しない]"
+out=$(input Bash "git status" | CLAUDE_PROJECT_DIR=$root python3 "$tmp/broken" 2>/dev/null || true)
+[ -z "$out" ] || extra="$extra [例外のとき tests を含まない呼び出しまで deny する]"
+[ -z "$extra" ] && ok "python3 が無いときとフックの中の例外では、tests を含む呼び出しを止め、含まない呼び出しは通す" || ng "フックが走れないときに止める側に倒れない:$extra"
 
 # Bash でないツール・壊れた入力は、何も出さずに 0 で通す
 extra=

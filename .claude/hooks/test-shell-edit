@@ -15,7 +15,9 @@
 # 検査のシェルは repo の根からの相対で見る。cwd と cd を辿り、根の絶対パス（"$CLAUDE_PROJECT_DIR"/tests/x.sh）も読む。
 # 行き先が変数の cd（cd "$S/old"）のあとは根の外と見る。
 # コマンドの字面で見るので、for・find・xargs の一覧で渡す一括置換と、ファイルに置いたスクリプトを後で走らせるものは拾わない。
-# 入力が読めない・python3 が落ちるときは何も出さずに通す（フックは守りの1枚。Codex には効かない）。
+# 走れないときは止める側に倒す: tests を含む呼び出しを読み切れずに例外が出たら deny する。python3 が無いときは、
+# .claude/settings.json の command が tests を含む呼び出しを終了コード 2 で止める。入力が JSON でない・Bash でない・command が
+# 文字列でないときは、見るものが無いので何も出さずに通す。Codex には効かない。
 import json
 import os
 import posixpath
@@ -26,6 +28,10 @@ REASON = (
     "tests/ の下の検査のシェル（.sh）は Edit ツールで直す。heredoc で包んだ python・node・perl、sed -i・perl -i、"
     "リダイレクトで書き換えると、内側の区切り（EOF）で外側が閉じて残りの行が本物の HOME で走ったり、差分を読まずに崩したりする"
     "（AGENTS.md の検査を回す表）。読むだけ・走らせるだけの呼び出しは通る。"
+)
+REASON_ERROR = (
+    "tests を含むこの呼び出しを、検査のシェルを守るフック（.claude/hooks/test-shell-edit）が読み切れずに止めた。"
+    "検査のシェルを直すなら Edit ツールで直す。読むだけ・走らせるだけなら、呼び出しを分けて短くすると通る。"
 )
 
 ROOT = "\x00R"  # 根の絶対パスを置き換える印
@@ -45,6 +51,7 @@ WRITE = re.compile(
     r"|\bopen\b[^\n;]*['\"]\+?>|\$\^I\b|['\"](?:g?sed|perl)['\"]\s*,\s*['\"]-[A-Za-z0-9]*i"
 )
 LITERAL = re.compile(r"(['\"])([^'\"\n]{1,300})\1")
+LITERAL_JS = re.compile(r"(['\"`])([^'\"`\n]{1,300})\1")
 RUN_BEFORE = re.compile(r"['\"](?:bash|sh)['\"]\s*,\s*(?:['\"]-\w+['\"]\s*,\s*)*[rbfuRBFU]{0,2}$")
 # JSON や辞書の値（"paths": ["tests/x.sh"]・{'file': 'tests/x.sh'}）は、開くパスでない
 VALUE_BEFORE = re.compile(r":\s*\[?\s*[rbfuRBFU]{0,2}$")
@@ -61,7 +68,35 @@ def read_only(before, after):
 
 class Seg:
     def __init__(self):
-        self.words, self.redirects, self.bodies = [], [], []
+        self.words, self.redirects, self.bodies, self.subs = [], [], [], []
+
+
+def substitution_end(text, i):
+    """text[i] から始まる $(…) か `…` の、閉じた直後の位置。閉じなければ text の終わり。"""
+    n = len(text)
+    if text[i] == "`":
+        j = i + 1
+        while j < n and text[j] != "`":
+            j += 2 if text[j] == "\\" else 1
+        return min(j + 1, n)
+    depth, j, quote = 1, i + 2, None
+    while j < n and depth:
+        c = text[j]
+        if quote:
+            if c == "\\" and quote == '"':
+                j += 1
+            elif c == quote:
+                quote = None
+        elif c == "\\":
+            j += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        j += 1
+    return j
 
 
 def scan(text):
@@ -101,6 +136,13 @@ def scan(text):
             if c == "\\" and i + 1 < n and text[i + 1] in '"\\$`':
                 word.append(text[i + 1])
                 i += 2
+                continue
+            # 二重引用符の中のコマンドの置き換え（"$(…)"・"`…`"）は走るので、中身を別に読む
+            if text.startswith("$(", i) or c == "`":
+                end = substitution_end(text, i)
+                seg.subs.append(text[i + 2:end - 1] if c == "$" else text[i + 1:end - 1])
+                word.append(text[i:end])
+                i = end
                 continue
             if c == '"':
                 quote = None
@@ -190,10 +232,11 @@ def is_target(path, cur):
     return bool(p and TARGET.match(p))
 
 
-def literal_targets(script, cur):
-    """スクリプトの中の、検査のシェルを指す文字列（読むだけ・走らせるだけのものを除く）。"""
+def literal_targets(script, cur, js=False):
+    """スクリプトの中の、検査のシェルを指す文字列（読むだけ・走らせるだけのものを除く）。js は `…` のテンプレート文字列も見る
+    （python の文の中の `tests/x.sh` は Markdown のコードなので見ない）。"""
     hits = []
-    for m in LITERAL.finditer(script):
+    for m in (LITERAL_JS if js else LITERAL).finditer(script):
         v = m.group(2)
         before, after = script[max(0, m.start() - 40):m.start()], script[m.end():m.end() + 20]
         if RUN_BEFORE.search(before) or VALUE_BEFORE.search(before) or read_only(before, after):
@@ -230,6 +273,9 @@ def denied(text, cur, whole, depth=0):
         if name == "perl" and any(re.match(r"^-[pnlaw0-9]*i", a) for a in args):
             if any(is_target(a, cur) for a in args if not a.startswith("-")):
                 return True
+        # 二重引用符の中のコマンドの置き換え（"$(sed -i … tests/x.sh)"）
+        if any(denied(sub, cur, sub, depth + 1) for sub in seg.subs):
+            return True
         # 2. リダイレクトと tee
         if any(is_target(r, cur) for r in seg.redirects):
             return True
@@ -249,7 +295,7 @@ def denied(text, cur, whole, depth=0):
                 rest = [a for a in args if a != "-"]
             scripts = ([script] if script else []) + seg.bodies
             argv = [a for a in (rest or []) if is_target(a, cur)]
-            if (argv or any(literal_targets(s, cur) for s in scripts)) and (any(WRITE.search(s) for s in scripts) or WRITE.search(whole)):
+            if (argv or any(literal_targets(s, cur, name == "node") for s in scripts)) and (any(WRITE.search(s) for s in scripts) or WRITE.search(whole)):
                 return True
         else:
             for body in seg.bodies:
@@ -280,8 +326,13 @@ def main():
     names = ([re.escape(root)] if len(root) > 1 else []) + [r'"\$\{?CLAUDE_PROJECT_DIR\}?"', r"\$\{?CLAUDE_PROJECT_DIR\}?"]
     text = re.sub(r"(?:%s)(?=/|[\s;&|)'\"]|$)" % "|".join(names), ROOT, cmd)
     text = re.sub(r'"\$\{?PWD\}?"/|\$\{?PWD\}?/', "", text)
-    if denied(text, cur, text):
-        json.dump({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": REASON}}, sys.stdout, ensure_ascii=False)
+    try:
+        reason = REASON if denied(text, cur, text) else None
+    except Exception:
+        # 読み切れない呼び出しは、tests を含む以上、書き換えかもしれないので止める側に倒す
+        reason = REASON_ERROR
+    if reason:
+        json.dump({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason}}, sys.stdout, ensure_ascii=False)
         sys.stdout.write("\n")
 
 
