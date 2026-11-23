@@ -23,9 +23,24 @@ scan() { # scan <ファイル> …: 拾った行を「<ファイル>:<行>: <並
 import bisect, re, sys
 
 META = set(" \t\n;&|()<>")
-CMD_PREV_OPS = {"&&", "||", ";", "&", "|", "|&", "(", ";;", ";&", ";;&"}
+# ) は case のパターンの閉じ（a) [[ … ]] …）。サブシェルの ) の直後にコマンドは来ない
+CMD_PREV_OPS = {"&&", "||", ";", "&", "|", "|&", "(", ")", ";;", ";&", ";;&"}
 CMD_PREV_WORDS = {"then", "do", "else", "elif", "if", "while", "until", "!", "{", "time", "for"}
 CHECKS = {"[", "test", "grep", "egrep", "fgrep", "cmp", "diff"}
+# 成功を言うだけの項（A && ok "…"）。A が偽なら言わずに先へ進むので、判定の続きとして扱う
+REPORTS = {"ok", "pass"}
+# 受け手にならないもの。|| echo "FAIL …" >&2 は言うだけで止めない。ほかの受け手（die・fail・ng・exit・true など。
+# 検査ごとに定義した関数を含む）は、止めるか失敗を数えるか、失敗を流すと書いたものとして通す
+TALKS = {"echo", "printf"}
+# 前に置く道具（timeout 5 grep …・env X=1 grep …・command grep …）。外してから名前を見る。
+# 値は（名前の後ろの位置の引数の数, 値を取る旗）
+WRAPPERS = {
+    "command": (0, ()),
+    "env": (0, ("-u", "-C", "-S")),
+    "timeout": (1, ("-s", "-k")),
+    "nice": (0, ("-n",)),
+    "stdbuf": (0, ("-i", "-o", "-e")),
+}
 
 
 class ReadError(Exception):
@@ -491,34 +506,99 @@ class Parser:
         return Node(kind="func", body=c)
 
 
+ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=")
+
+
+def name_of(c):
+    """単純なコマンドの名前（パスは最後の段だけ）と引数。前に置いた代入（X=1 cmd）と道具（timeout 5 …）は外す。"""
+    words = list(c.words)
+    while True:
+        while words and ASSIGN.match(words[0]):
+            words.pop(0)
+        if not words:
+            return None, []
+        name = re.sub(r"[\"'\\]", "", words[0]).rsplit("/", 1)[-1]
+        if name not in WRAPPERS:
+            return name, words[1:]
+        words.pop(0)
+        positional, valued = WRAPPERS[name]
+        while words and words[0].startswith("-"):
+            if words.pop(0) in valued:
+                words = words[1:]  # 値を取る旗（timeout -s KILL・env -u X・stdbuf -o L）
+        words = words[positional:]
+
+
+def has_stop(stmts):
+    """並びのどこかに、止める文（die・fail・exit・return）があるか。関数の定義の中は数えない。"""
+    for st in stmts:
+        for p in st.items:
+            for c in p.cmds:
+                if c.kind == "simple" and name_of(c)[0] in ("die", "fail", "exit", "return"):
+                    return True
+                bodies = [c.body] if c.kind in ("group", "subshell", "loop") else c.bodies if c.kind == "if" else []
+                if any(has_stop(b) for b in bodies):
+                    return True
+    return False
+
+
 def is_check(p):
+    """項が判定か。A && <判定> の A が偽だと、判定を飛ばして先へ進む。"""
     if p.neg:
         return True  # A && ! B は、B が真でも set -e が止めない
     c = p.cmds[-1]
     if c.kind == "test":
         return True
+    if c.kind in ("group", "subshell"):
+        # A && { grep …; grep …; } は判定のまとまり。A && { echo FAIL; exit 1; } は逆の判定で、拾わない
+        if not c.body or has_stop(c.body):
+            return False
+        st = c.body[-1]
+        return st.ops[-1:] != ["||"] and is_check(st.items[-1])
     if c.kind != "simple":
         return False
-    words = [w for w in c.words]
-    while words and re.match(r"^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=", words[0]):
-        words.pop(0)  # 前に置いた代入（X=1 cmd）
-    if words and words[0] == "command":
-        words.pop(0)
-    if not words:
-        return False
-    name = re.sub(r"[\"'\\]", "", words[0])
-    if name in CHECKS:
+    name, args = name_of(c)
+    if name in CHECKS or name in REPORTS:
         return True
     if name == "jq":
-        return any(w == "--exit-status" or re.match(r"^-[a-zA-Z]*e[a-zA-Z]*$", w) for w in words[1:])
+        return any(w == "--exit-status" or re.match(r"^-[a-zA-Z]*e[a-zA-Z]*$", w) for w in args)
+    if name == "git":
+        return bool(args) and args[0] == "diff" and ("--quiet" in args or "--exit-code" in args)
     return False
+
+
+def talks(stmts):
+    """並びが echo・printf だけか。"""
+    return all(
+        not st.ops and len(st.items[0].cmds) == 1 and st.items[0].cmds[0].kind == "simple"
+        and name_of(st.items[0].cmds[0])[0] in TALKS
+        for st in stmts
+    )
+
+
+def stops(p):
+    """|| の受け手になっているか。|| echo "FAIL …" >&2 と || { echo …; printf …; } は言うだけで止めない。"""
+    c = p.cmds[-1]
+    if c.kind == "simple":
+        return name_of(c)[0] not in TALKS
+    if c.kind in ("group", "subshell"):
+        return not talks(c.body)
+    return True
+
+
+def unguarded(st):
+    """受け手の無い A && <判定> か。|| があっても、最後の演算子が && か、受け手が止めないなら受け手の無いのと同じ。"""
+    if "&&" not in st.ops or st.bg:
+        return False
+    if st.ops[-1] == "&&":
+        return is_check(st.items[-1])
+    return not stops(st.items[-1]) and "&&" in st.ops[:-1] and is_check(st.items[-2])
 
 
 def walk(stmts, tail, hits):
     """tail は、並びの最後の文の終了コードが外へ返る（関数かサブシェルの本体の最後）か。"""
     for k, st in enumerate(stmts):
         last = k == len(stmts) - 1
-        if "&&" in st.ops and "||" not in st.ops and not st.bg and not (tail and last) and is_check(st.items[-1]):
+        if not (tail and last) and unguarded(st):
             hits.append(st.pos)
         # 1つだけのコマンドの文が最後なら、if・case・{ } の本体の最後も外へ返る
         alone = tail and last and not st.ops and len(st.items[0].cmds) == 1 and not st.items[0].neg
@@ -549,7 +629,16 @@ def descend(c, tail, hits):
             descend(b, True, hits)
 
 
-ERREXIT = re.compile(r"^[ \t]*set[ \t]+(-[a-zA-Z]*e|-o[ \t]+errexit)", re.M)
+def errexit(src):
+    """set -e・set -eu・set -u -e・set -o errexit・set -o nounset -o errexit のどれかを書いたか。"""
+    for m in re.finditer(r"^[ \t]*set[ \t]+([^\n;#]*)", src, re.M):
+        args = m.group(1).split()
+        for k, a in enumerate(args):
+            if re.match(r"^-[a-zA-Z]*e[a-zA-Z]*$", a) or (a == "-o" and args[k + 1 : k + 2] == ["errexit"]):
+                return True
+    return False
+
+
 bad = False
 for path in sys.argv[1:]:
     with open(path, encoding="utf-8") as f:
@@ -567,7 +656,7 @@ for path in sys.argv[1:]:
         print(f"{path}:{line(pos) if pos >= 0 else '?'}: 読めない（{msg}）", file=sys.stderr)
         bad = True
         continue
-    if not ERREXIT.search(src):
+    if not errexit(src):
         continue  # set -e を書いていないファイルは、判定を pass と fail で受ける
     hits = []
     walk(stmts, False, hits)
@@ -581,9 +670,17 @@ PY
 
 die() { echo "FAIL $*" >&2; exit 1; }
 
+# check <ファイル> …: 拾った行を出して落ちる。読めないファイルがあっても、読めたファイルで拾った行は出す
+check() {
+  local out rc=0
+  out=$(scan "$@") || rc=$?
+  [ -z "$out" ] || printf '%s\n' "$out"
+  [ "$rc" = 0 ] || die "読めないファイルがある（終了コード $rc）"
+  [ -z "$out" ] || die "set -e で止まらない A && B の判定に、失敗の受け手が無い。判定なら行末に || die \"<何が起きなかったか>\" を付ける。A が偽なら B を見ずに先へ進む見張り（[ -n \"\$want\" ] && grep -q …）なら if A; then B; fi と書く"
+}
+
 if [ $# -gt 0 ]; then
-  out=$(scan "$@") || die "読めないファイルがある"
-  [ -z "$out" ] || { printf '%s\n' "$out"; die "set -e で止まらない A && B の判定に、失敗の受け手（|| die など）が無い"; }
+  check "$@"
   echo "ok shell-and: $# ファイル"
   exit 0
 fi
@@ -621,6 +718,25 @@ case $x in
   *) : ;;
 esac
 { [ -f a ] && grep -q b a; } # 拾う
+case $x in
+  a) [[ $rc == 1 || $rc == 2 ]] && grep -q y x ;; # 拾う（パターンの後ろの [[ … ]] の中の || は受け手でない）
+  b*) [[ $x =~ ^a(b|c)$ ]] || exit 1 ;;
+esac
+[[ $rc == 1 ]] && ok "断る" # 拾う（成功を言うだけの項は判定の続き）
+[[ $rc == 1 ]] && pass "断る" # 拾う
+[[ $rc == 1 ]] && { grep -q x err; grep -q y err; } # 拾う
+[[ $rc == 1 ]] && timeout 5 grep -q x err # 拾う
+[[ $rc == 1 ]] && env LC_ALL=C grep -q x err # 拾う
+[[ $rc == 1 ]] && /usr/bin/grep -q x err # 拾う
+[[ $rc == 1 ]] && git diff --quiet # 拾う
+[[ $rc == 1 ]] || [[ $rc == 2 ]] && grep -q x err # 拾う（最後の演算子が &&）
+[[ $rc == 1 ]] && grep -q x err || echo "FAIL rc=$rc" >&2 # 拾う（受け手が止まらない）
+[[ $rc == 1 ]] && grep -q x err || { echo "FAIL rc=$rc" >&2; exit 1; }
+[[ $rc == 1 ]] && grep -q x err || fail "x"
+[[ $rc == 1 ]] && grep -q x err || true
+[[ $rc == 1 ]] && { echo FAIL >&2; exit 1; }
+[ -n "$want" ] && grep -q "$want" out # 拾う（判定と見分けられない。見張りは次の行の if で書く）
+if [ -n "$want" ]; then grep -q "$want" out; fi
 f() {
   [ -f a ] && grep -q b a # 拾う（関数の最後でない）
   :
@@ -671,10 +787,17 @@ printf '#!/usr/bin/env bash\n[ -f a ] && grep -q b a\n' >"$tmp/no-e.sh"
 printf '#!/usr/bin/env bash\nset -o errexit\n[ -f a ] && grep -q b a\n' >"$tmp/errexit.sh"
 [ -z "$(scan "$tmp/no-e.sh")" ] || die "set -e の無いファイルを見た"
 [ "$(scan "$tmp/errexit.sh" | cut -d: -f2)" = 3 ] || die "set -o errexit のファイルで拾わない"
+for opts in '-u -e' '-o nounset -o errexit' '-eu'; do
+  printf '#!/usr/bin/env bash\nset %s\n[ -f a ] && grep -q b a\n' "$opts" >"$tmp/opts.sh"
+  [ "$(scan "$tmp/opts.sh" | cut -d: -f2)" = 3 ] || die "set $opts のファイルで拾わない"
+done
 # 読めない形は落ちる（黙って何も見ずに通らない）
 printf '#!/usr/bin/env bash\nset -e\necho "x\n' >"$tmp/broken.sh"
 if scan "$tmp/broken.sh" >/dev/null 2>"$tmp/err"; then die "閉じていない引用符のファイルを読めたことにした"; fi
 grep -q '読めない' "$tmp/err" || die "読めないときの理由が出ない"
+# 読めないファイルが混ざっても、読めたファイルで拾った行は出す
+if (check "$tmp/errexit.sh" "$tmp/broken.sh") >"$tmp/out" 2>&1; then die "読めないファイルが混ざって通った"; fi
+grep -q 'errexit.sh:3:' "$tmp/out" || die "読めないファイルが混ざると、拾った行が出ない"
 echo 'ok shell-and: 見本の拾う形と拾わない形'
 
 # tests/ の下で git が追跡するシェル
@@ -686,9 +809,5 @@ while IFS= read -r f; do
   esac
 done < <(git ls-files --cached --others --exclude-standard tests)
 [ "${#files[@]}" -ge 50 ] || die "見るファイルが少なすぎる（${#files[@]} 本）"
-out=$(scan "${files[@]}") || die "読めないファイルがある"
-if [ -n "$out" ]; then
-  printf '%s\n' "$out"
-  die "set -e で止まらない A && B の判定に、失敗の受け手（|| die など）が無い（行末に || die \"<何が起きなかったか>\" を付ける）"
-fi
+check "${files[@]}"
 echo "ok shell-and: tests/ の下のシェル ${#files[@]} 本に、受け手の無い A && B の判定が無い"
