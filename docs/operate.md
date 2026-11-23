@@ -186,11 +186,13 @@ bin/bootstrap host-install
 `andon-up`（PC を起動したあとに全セルを起動する）を `~/.local/bin` に、herdr の設定を `~/.config/herdr/`、ssh config を `~/.ssh/config.d/andon-home.conf` に、cloud-init の雛形を `.andon/` に、Herdr App の mod とレイアウト `andon` を App の設定フォルダに（下の「Herdr App の mod とレイアウト」）置く。`STREAMDECK_PLUGINS` を指定したときは、Stream Deck の plugin もそこに置く（下の「Stream Deck に行燈のキーを置く」）。**今あるファイルは上書きしない**。最後に、App のレイアウトを `andon` に切り替える1手を案内する。
 
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
-- **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。 WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。`STREAMDECK_PLUGINS は絶対パスで指定する` — Windows のパスは `wslpath` に通す。
+- **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。`STREAMDECK_PLUGINS は絶対パスで指定する` — Windows のパスは `wslpath` に通す。
 
 ### バージョンを上げるとき: host-install が置いたものを退避する
 
 `host-install` は今あるファイルを上書きしないので、バージョンを上げて打ち直すと、前のバージョンが置いたものは `! … はすでにあり、雛形と違う` と出て古いままになる。**そのバージョンの CHANGELOG の「host-install」の項に「雛形が変わった」とあるときだけ**、打ち直す前に次を退避する（`~/.local/bin/andon-up` など、自分で手を入れたものは先に差分を見て、残したい行を控える）。
+
+バージョンを上げるときにすることを探すには、前のバージョンとの差分で `image/`・`package/compose.yaml`・`init/bin/bootstrap`・`package/host/`・`schema/` の `$id` を見る。`package/compose.yaml` の環境変数の既定（`CELL_TZ` など）は、依頼書の点検項目に無くても上げるときの手作業に効く。
 
 | 置かれるもの | 置き場 |
 |---|---|
@@ -666,6 +668,7 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 1. **CHANGELOG の節を足す PR**: 一番上に `## vX.Y.Z — 日付` を足す。前のバージョンからの範囲は `git log <前のバージョン>..origin/main`。各バージョンに「変わったこと」（オーナーの目に効くもの。PR の番号と ADR へのリンクで遡れるように）と「上げるときにすること」（手作業・互換が無いこと・この手順書の節への参照）。
    `package/host/` の雛形（`andon-up`・`herdr-config.toml`・`ssh_config`・`cloud-init.yaml`・App の mod とレイアウト・Stream Deck の plugin）を変えたバージョンは、「上げるときにすること」に `host-install` の項を足し、変わったファイルの名前と、退避してから打ち直すこと（[§4 の「バージョンを上げるとき」](#バージョンを上げるとき-host-install-が置いたものを退避する)）を書く。変えていないバージョンは書かない。
    同じ PR で `bash tests/adr-index.sh --write-list` を打ち、ADR の一覧（[adr/README.md](adr/README.md)）を作り直す。ADR の PR は一覧に触らないので、一覧はこのときだけ新しくなる。打ち忘れると、`tests/adr-index.sh` が一覧の見出しのバージョンと CHANGELOG の一番上のバージョンの違いで落ちる（[ADR-0055](adr/0055-adr-prs-without-conflicts.md)）。
+   v0.0.x の間は、CHANGELOG の「未リリース」の節を、バージョンを切ったあとも「（まだ無い）」だけの空の節で残す（v0.0.12 のタグの時点の `CHANGELOG.md` がこの形）。
 2. **マージ**（オーナーか Chief of Staff）。
    v0.1.0 を切る前に、v0.0.x の間だけと決めた決定を見直す（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 15。skill の自動マージと、振り返りが自分自身を直せること。[ADR-0041](adr/0041-delegation-cap-out-of-command.md) 決めたこと 11。Andon を開発するセルの条件表で、`AGENTS.md`・`package/environment.md`・`package/writing.md`・テンプレート・モデルの規則と控えと対応表を B に下げた上書き。[タグを Chief of Staff が打つ決定](decisions/2026-11-22-v0-0-x-tag-by-chief-of-staff.md)。決め直すのはオーナー）。
 3. **annotated tag**: v0.0.x の間は、Andon を開発するセルの Chief of Staff が打つ（[決定](decisions/2026-11-22-v0-0-x-tag-by-chief-of-staff.md)）。v0.1.0 からの打ち手は、2 の見直しでオーナーが決める。答えを受けるまで v0.1.0 のタグは打たない。
