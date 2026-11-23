@@ -88,6 +88,7 @@ R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）�
 
 - 課題の一生の動き（finish・resume・gate の返し方など、行動が写しているコード）を変えたら、`IssueLife.tla` の行動とコードの場所を直します。状態の数が変わったら、`model/check` を打って `expected.txt` の `states` を直します。
 - 規則を足すときは `IssueRules.tla` に書き、`IssueRules.cfg` の `INVARIANT`（「行ける」の形なら `\* REACH` の行）と `expected.txt` の `rule` に名前を足します。
+- `model/` のモデルは整数の演算を読み込んでいないので、写しに足す変数は数でなく真偽で書きます。数で書くと検査器が構文で落ちます。
 - 流れの順や状態の移り方を変えるときは、実装の前にこのモデルに書いて `model/check` で確かめます（ADR-0032 決めたこと 9）。
 
 ## gate が決めたあとの変化

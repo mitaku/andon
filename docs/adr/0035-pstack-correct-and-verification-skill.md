@@ -144,7 +144,7 @@
    理由: このセルでは、andon の PR がマージされるたびに Chief of Staff がセルへ当てる決まり。マージは直近 7 日で 90 本（1日約 13 本）、`package/` に触れるものは 37 本（1日約 5 本）で、当てるたびに切ると検証の担当が1日に何度も起動される。並行の上限は 4（事実 26・28）。
    捨てた案: 「kanban のルーチンが毎朝1件足し、前回からの差分をまとめて見る」（コストは1日1回で Chief of Staff の手も要らないが、壊れが分かるのが最長で翌朝）。「頻度を決めず、Chief of Staff かオーナーが要ると見たときだけ切る」（切り忘れると跡が残らない）。
 
-10. **[ADR-0021](0021-pstack-in-cell.md) の「やらないこと」を改める**（2026-11-20。Chief Engineer が推奨案で仮に決め、オーナーが最後の確かめで「決めた」と言った）。 pstack の `create-verification-skill` は、検証の skill を作る課題が手順として1回読む（決めたこと 4）。`correct` と `maintain-verification-skill` は工程に入れず、要点だけを Andon の仕組みに移した（決めたこと 5・6・8）。画面の確かめ（[ADR-0018](0018-screen-check-tooling.md)）と気づきの蒸留は今のまま。担当は skill を Skill tool で呼ばず、依頼書が名指した SKILL.md を読んで従う（3本とも、名指されたときだけ読まれる設定になっている。事実 4）。
+10. **[ADR-0021](0021-pstack-in-cell.md) の「やらないこと」を改める**（2026-11-20。Chief Engineer が推奨案で仮に決め、オーナーが最後の確かめで「決めた」と言った）。pstack の `create-verification-skill` は、検証の skill を作る課題が手順として1回読む（決めたこと 4）。`correct` と `maintain-verification-skill` は工程に入れず、要点だけを Andon の仕組みに移した（決めたこと 5・6・8）。画面の確かめ（[ADR-0018](0018-screen-check-tooling.md)）と気づきの蒸留は今のまま。担当は skill を Skill tool で呼ばず、依頼書が名指した SKILL.md を読んで従う（3本とも、名指されたときだけ読まれる設定になっている。事実 4）。
     理由: 前提 2・3 と決めたこと 4 から出る帰結。ADR-0021 は「Andon が既に持つものに替えない」としてこの2本を外したが、検証の skill を作る手順は Andon に無かった。
 
 11. **記録と検証の skill の細部**（2026-11-20。Chief Engineer が推奨案で仮に決め、オーナーが最後の確かめで「決めた」と言った）。

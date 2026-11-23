@@ -207,8 +207,7 @@ echo "ok   words: 漢字 1 字の「題」が替えた範囲（${dai_paths[*]}�
 # 通るもの: 後ろの空白は、後ろが URL（URL の前後には空白を置く決まり）・表の区切りの「|」・「→」・閉じる「``」（空白を挟む
 #   コードの書き方）・行の末尾なら通る。空白が 2 つ以上続けば、後ろが何でも落ちる（行の末尾を除く）。前の空白は、前が URL なら通る。
 # 例外: このファイルと tests/words-selftest.sh（落ちる例）・triage の要約の行（「閉じた N ・ 直す N」。空白を挟む「・」で項目を区切る形）・
-#   docs/decisions/2026-11-13-cos-principles-playbooks.md の表の、元の文を写した行（改行を空白にした写し）・
-#   今の main にある 4 行（docs/operate.md・ADR-0005・ADR-0035・ADR-0040。直したら外す）。
+#   docs/decisions/2026-11-13-cos-principles-playbooks.md の表の、元の文を写した行（改行を空白にした写し）。
 punct='(?:、|。|・) (?!https?://|[|→]|``|\s*$)|(?<=[A-Za-z0-9]) (?:、|。|・)'
 punct_paths=("${paths[@]}" model)
 existing=()
@@ -218,10 +217,6 @@ hits=""
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
     -e '^\(internal/triage/[a-z_]*\.go\|package/skills/triage/SKILL\.md\|tests/andon-triage\.sh\):[0-9]*:.*閉じ[たる] .* ・ 直す ' \
     -e '^docs/decisions/2026-11-13-cos-principles-playbooks\.md:[0-9]*:| [0-9]* | `' \
-    -e '^docs/operate\.md:[0-9]*:.*PATH にあるか。 WSL で' \
-    -e '^docs/adr/0005-cell-repo\.md:[0-9]*:.*以下は記録のまま。 伝令は' \
-    -e '^docs/adr/0035-pstack-correct-and-verification-skill\.md:[0-9]*:.*と言った）。 pstack の' \
-    -e '^docs/adr/0040-kanban-gate-version-words\.md:[0-9]*:.*が落ちる。 この文書を' \
   | perl -CSDA -Mutf8 -ne '
       BEGIN { $p = shift }
       my ($f, $n, $t) = /^([^:]*):(\d+):(.*)$/s or next;
