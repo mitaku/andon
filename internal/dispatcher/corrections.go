@@ -168,7 +168,8 @@ type correctionQuestion struct {
 // Corrections は1つの課題のオーナーの手直しを並べる（純粋関数。contract.md §14 の規則）。
 //   - answer: 答えのある問い（gate の問いと scope を除く）で、答えが推奨案（pick: true）の label と違うもの
 //   - override（問い）: 答えのある gate の問い（from: gate。needs_human へのオーナーの答え）。機械が閉じた答え（machineGateAnswer）は除く
-//   - pr: PR の上の、gate のものでないコメント（会話欄・レビューの本文・インラインのレビューコメント〈Bot を除く〉）と、担当の最後の報告より後の commit（humans）
+//   - pr: PR の上の、gate のものでないコメント（会話欄・レビューの本文・インラインのレビューコメント〈Bot を除く〉）と、担当の最後の報告より後の commit（humans。
+//     merge commit と Chief Engineer の課題の commit は collectCorrections が外す）
 //   - override（指摘）: マージした PR の waived のうち must_fix 以上のもの（must_fix が無ければ全部。安全側＝多めに拾う）
 //
 // 返すのは空でも nil でない配列。
@@ -313,24 +314,33 @@ func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any,
 		for _, pg := range pages {
 			pr.Inline = append(pr.Inline, pg...)
 		}
-		humans = HumanCommits(rep.Commit, pr)
-		for i := range humans {
-			out, _, err := run("", nil, "", "gh", "api", "repos/"+owner+"/"+name+"/commits/"+humans[i].Sha)
+		if !isEngineer(t) { // Chief Engineer は報告のあとの push で報告を書き直さないので、報告より後でもオーナーの commit と言えない（ADR-0058 決めたこと 8）
+			humans = HumanCommits(rep.Commit, pr)
+		}
+		kept := humans[:0]
+		for _, h := range humans {
+			out, _, err := run("", nil, "", "gh", "api", "repos/"+owner+"/"+name+"/commits/"+h.Sha)
 			if err != nil {
 				return nil, err
 			}
 			var c struct {
-				Files []struct {
+				Parents []json.RawMessage `json:"parents"`
+				Files   []struct {
 					Filename string `json:"filename"`
 				} `json:"files"`
 			}
 			if err := json.Unmarshal([]byte(out), &c); err != nil {
-				return nil, fmt.Errorf("commit %s のファイルが読めない: %v", short12(humans[i].Sha), err)
+				return nil, fmt.Errorf("commit %s のファイルが読めない: %v", short12(h.Sha), err)
+			}
+			if len(c.Parents) >= 2 {
+				continue // ほかの branch を取り込んだ merge commit はエージェントの仕事を直した跡でない（ADR-0058 決めたこと 7）。親が読めなければ入れる
 			}
 			for _, f := range c.Files {
-				humans[i].Files = append(humans[i].Files, f.Filename)
+				h.Files = append(h.Files, f.Filename)
 			}
+			kept = append(kept, h)
 		}
+		humans = kept
 	}
 	mustFix := ""
 	if p.l.Trusted(p.l.Log(), t, "must_fix") {

@@ -383,7 +383,7 @@ Andon で「オーナーの手直し」が起きる所は5つしか無い。全�
 | # | オーナーが直す所 | 今どこに残るか | 拾う口（dispatcher が `andon issue finish` のときに `library/corrections.json` に集める） |
 |---|---|---|---|
 | 1 | **問いの答えが推奨案と違った**（担当・gate・Chief Engineer の問い） | `questions.yaml` の答え ＋ `library/questions/<n>.json` の `options[].pick` | `{"kind": "answer", "question": n, "decision_kind": "...", "recommended": "...", "picked": "..."}`。推奨案が外れた率を判断の種類ごとに数えられる |
-| 2 | **PR の上でオーナーが直した**（レビューのコメント・担当のブランチへのオーナーの commit・マージ前の手直し） | GitHub（PR のコメント・commits の author） | `{"kind": "pr", "comments": [...], "human_commits": [{"sha", "files"}]}`。`gh pr view --json comments,commits` から |
+| 2 | **PR の上でオーナーが直した**（レビューのコメント・担当のブランチへのオーナーの commit・マージ前の手直し） | GitHub（PR のコメント・commits の author） | `{"kind": "pr", "comments": [...], "human_commits": [{"sha", "files"}]}`。`gh pr view --json comments,commits` から。commit は担当の最後の報告より後のものだけで、merge commit（親が 2 つ以上）と Chief Engineer の課題の commit は数えない（[ADR-0058](adr/0058-agents-stay-out-of-pr-conversation.md) 決めたこと 7・8） |
 | 3 | **指摘をオーナーが覆した**（`must_fix` を waive してマージ・レベル C で fix を押し切った） | gate の記録（`by` がオーナーの行）・`report.json` の `waived` | `{"kind": "override", "finding": {...}, "reason": "..."}`（`waived` のうちオーナーが書いたもの、gate の `needs_human` への答え） |
 | 4 | **オーナーが担当に直しを指示した**（端末へ送った文） | 端末の記録 | 最初のバージョンでは拾わない（文の解析になる＝厚くなる。仮設の経験: Markdown や画面の文を正規表現で読むと端が尽きない）。代わりに担当が報告の `next[{to: issue}]`・`remember[]` に書く（自己申告。今と同じ） |
 | 5 | **Chief Engineer の推奨案をオーナーが覆した**（対話の中） | 文書「決めたこと」の「捨てた案」 | 文書に残る（人用）。機械では拾わない。Chief Engineer の問いを kanban の問いにした分だけ 1 に入る |
