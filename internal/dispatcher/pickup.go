@@ -510,9 +510,11 @@ func Asking(rows []ledger.Row) map[string]bool {
 // watch は doing の課題の担当を hc で見る（見回りで hc get）。
 func (p *project) watch(now time.Time, cos string) {
 	nowMs := now.UnixMilli()
+	// 子のレビュアーの課題が todo／doing の親は止まって見えても待っている。オーナーの課題（who: person。
+	// andon issue ask --new --parent で親を持つ）はレビュアーでないので数えない（ADR-0057 決めたこと 7）
 	reviewing := map[string]bool{}
 	for _, t := range p.tasks {
-		if s := t.Str("status"); t.Str("parent") != "" && (s == "todo" || s == "doing") {
+		if s := t.Str("status"); t.Str("parent") != "" && t.Str("who") != "person" && (s == "todo" || s == "doing") {
 			reviewing[t.Str("parent")] = true
 		}
 	}

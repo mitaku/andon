@@ -15,8 +15,8 @@
 | 4 | 問いも印も無いオーナーの課題は、判断として数えて灯す | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 5 | オーナーの課題の判断の行は、前の課題が片付いてから出す。日付では隠さない | `internal/waiting/waiting.go`・`docs/contract.md` §25 | 生きている |
 | 6 | `andon waiting` の出力の形とバージョンは変えず、mod は変えない | `schema/waiting.schema.json`・`tests/host/screen.mjs` | 生きている |
-| 7 | `andon issue ask --new` を足し、オーナーの課題と問いを 1 回で置く | この ADR | まだ実装していない |
-| 8 | 手作業の課題は、今の command のまま、印を足して作る | この ADR | まだ実装していない |
+| 7 | `andon issue ask --new` を足し、オーナーの課題と問いを 1 回で置く | `internal/ledger/ask.go`・`internal/issue/leaves.go`・`process/states/issue.yaml`・`docs/contract.md` §5・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
+| 8 | 手作業の課題は、今の command のまま、印を足して作る | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 9 | トリアージの apply は、判断を問いにして置き、手作業に印を付ける | この ADR | まだ実装していない |
 | 10 | トリアージの種類に `line` を足し、「判断がつかない」は印 `unsure` に替える | この ADR | まだ実装していない |
 | 11 | 振り返りの apply が足すオーナーの課題も、問いにして置く | この ADR | まだ実装していない |

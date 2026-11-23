@@ -37,6 +37,7 @@ EOF
   「直してほしいが場所が分からない」は直す課題（調べるのは担当の理解の工程）。オーナーが「直す前に全体の候補を見て決めたい」と言ったら、完了条件が「候補が出る」になったので調べる課題。
   例: 「docs の誤字を1つ直して」→ 直す課題（`sonnet`）。担当が同じ種類を3つ見つけ、小さければ3つとも直して報告する（止まらない）。種類や直し方が違えば `## 範囲の問い` で止まる（`blocked.md`）。
 - 1つの依頼に関係の無い仕事が2つあれば、課題も2つにする。順番があれば `--after <id>`（`queued` になり、前が done で `todo` に戻る）。
+- オーナーの判断とオーナーにしかできない手作業は、担当の課題にせずオーナーの課題にする（ask-one-by-one skill §3）。判断は、問いの JSON を `andon issue ask --new -` に渡し、課題と問いを1回で置く（前の課題のあとで go をもらう判断は `--after <id>`）。手作業は `kanban add "<何をしてほしいか>" --brief -`（依頼書に期限の目安）のあと、`kanban set <id> who=person only_owner="<オーナーにしかできない理由>"` で印を付ける。
 - `kanban add "<タイトル>" --repo <host/owner/repo> --profile <名前> [--after <id>]`。`profile` は Andon のプロファイルの名前だけ（`hc templates` に出るもの:
   `claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`。`chief-of-staff`・`chief-engineer` は課題には書かない）。repo の無い課題は `--repo` を付けない（`issues/<id>/` で起動する）。
 - プロファイルの選び方（迷ったら `claude`）:

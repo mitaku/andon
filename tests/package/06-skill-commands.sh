@@ -132,7 +132,7 @@ grep -q '元の課題（`issue.yaml` の `parent`）の担当だけ' package/ski
 ce=package/skills/chief-engineer/SKILL.md
 grep -q 'cwd は案件の repo の自分の worktree' "$ce" && grep -q '`pr`＝文書の PR' "$ce" && ! grep -q 'issues/<id>/library/<タイトル' "$ce" \
   && pass "Chief Engineer は worktree で文書の PR と report.json を返す" || fail "chief-engineer の渡し方"
-grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -q 'andon issue ask "$id" -' package/skills/ask-one-by-one/SKILL.md \
+grep -q 'worker skill §5 の1の手順で1問ずつ問いの JSON' "$ce" && grep -qF 'andon issue ask --new -' package/skills/ask-one-by-one/SKILL.md \
   && pass "Chief Engineer と Chief of Staff の問いは問いの JSON の手順を使う" || fail "問いの JSON の手順を指していない"
 # ADR-0009 受け入れ条件 5: WIP の行が無い・読むに価値の仮説の結果・文書の形に価値の仮説の見出し・言い直すで決断が無ければ next で返す
 ! grep -qE '1プロジェクトに1テーマ|前のテーマが終わらないまま' "$ce" package/skills/glossary/SKILL.md \

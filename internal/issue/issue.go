@@ -698,21 +698,22 @@ func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
 	if err != nil {
 		return fail("問いの JSON の形が違う: %v", err)
 	}
-	out, err := c.l.Run(q.Text(), "ask", c.id, "-", "--kind", q.Kind)
+	out, err := c.put(q)
 	if err != nil {
 		return err
 	}
-	m := askedRe.FindStringSubmatch(out)
-	if m == nil {
-		return fail("kanban の CLI の返事から問いの番号が読めない: %q", out)
-	}
-	dir := filepath.Join(c.l.Library(c.id), "questions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	if err := contract.Write(filepath.Join(dir, m[1]+".json"), contract.SchemaQuestion, q); err != nil {
-		return err
-	}
 	fmt.Fprintln(stdout, out)
+	return nil
+}
+
+// put は確かめた問いを kanban に問い、library/questions/<n>.json に置く（ledger.Ask）。
+func (c *ctx) put(q *contract.Question) (string, error) { return c.l.Ask(c.id, q) }
+
+// askQueued は queued の課題に問いを置けるかを確かめる。置けるのはオーナーの課題（who: person）だけで、
+// 担当の課題は前の課題を待つ間は問いを出さない（ADR-0057 決めたこと 7）。
+func (c *ctx) askQueued() error {
+	if c.issue.Str("status") == "queued" && c.issue.Str("who") != "person" {
+		return fail("%s は queued（queued の課題に問いを置けるのはオーナーの課題〈who: person〉だけ。process/states/issue.yaml）", c.id)
+	}
 	return nil
 }
