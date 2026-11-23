@@ -220,7 +220,7 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 		switch {
 		case !found:
 			fire(name, fmt.Sprintf("まだ課題を足していない。線 %d 時間", hours))
-		case now.Sub(last) >= time.Duration(hours)*time.Hour:
+		case now.Sub(last).Hours() >= float64(hours): // time.Duration に直すと大きい値であふれるので、時間で比べる
 			fire(name, fmt.Sprintf("最後に課題を足してから %d 時間。線 %d 時間", int(now.Sub(last).Hours()), hours))
 		}
 	}

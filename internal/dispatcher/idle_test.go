@@ -246,6 +246,7 @@ func TestIdleFiresHoursRoutine(t *testing.T) {
 		{name: "撃ち損ねの行だけが新しい", extra: "idle_hours: 24\n", rows: []ledger.Row{fired(30 * time.Hour), skipped(time.Hour)}, fire: true},
 		{name: "1 度も足していない", extra: "idle_hours: 24\n", fire: true},
 		{name: "ほかのルーチンの行は数えない", extra: "idle_hours: 24\n", rows: []ledger.Row{{At: "2026-11-23T00:00:00Z", By: "routine:other", Routine: "other", Fired: "S-0701"}}, fire: true},
+		{name: "時間に直すとあふれるほど大きい", extra: "idle_hours: 3000000\n", rows: []ledger.Row{fired(time.Hour)}},
 		{name: "idle_hours が無い", extra: ""},
 		{name: "小数", extra: "idle_hours: 1.5\n", log: "ルーチン check の idle_hours が 1 以上の整数でない"},
 		{name: "文字列", extra: "idle_hours: \"24\"\n", log: "ルーチン check の idle_hours が 1 以上の整数でない"},
