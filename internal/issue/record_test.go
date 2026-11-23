@@ -258,11 +258,15 @@ func TestRecordTruncates(t *testing.T) {
 }
 
 // linkedWorktree は fixture の repo から linked worktree を切り、課題の worktree をそこへ向ける（案件の repo の worktree と同じ形）。
-// repo には .gitignore が無い。利用者の git の設定（core.excludesFile）が結果を変えないよう、設定を読ませない。
+// repo には .gitignore が無い。利用者の git の設定と無視ファイル（core.excludesFile と、未設定のとき git が読む
+// $XDG_CONFIG_HOME/git/ignore・$HOME/.config/git/ignore）が結果を変えないよう、設定を読ませず、無視ファイルを空にする。
 func (f *fixture) linkedWorktree() string {
 	f.t.Helper()
 	f.t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	f.t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	f.t.Setenv("GIT_CONFIG_COUNT", "1")
+	f.t.Setenv("GIT_CONFIG_KEY_0", "core.excludesFile")
+	f.t.Setenv("GIT_CONFIG_VALUE_0", os.DevNull)
 	linked := filepath.Join(filepath.Dir(f.wt), "linked")
 	if out, err := exec.Command("git", "-C", f.wt, "worktree", "add", "-q", "-b", "case", linked).CombinedOutput(); err != nil {
 		f.t.Fatalf("git worktree add: %v %s", err, out)
@@ -343,13 +347,24 @@ func TestRecordIgnoresRealYomiyasu(t *testing.T) {
 	if out, err := run.CombinedOutput(); err != nil {
 		t.Fatalf("yomiyasu_check.py run: %v %s", err, out)
 	}
-	if _, err := os.Stat(filepath.Join(linked, ".yomiyasu", "state.json")); err != nil {
-		t.Fatalf("yomiyasu が worktree の最上位に .yomiyasu/ を作っていない: %v", err)
+	ignore := filepath.Join(linked, ".yomiyasu", ".gitignore")
+	if _, err := os.Stat(ignore); err != nil {
+		t.Fatalf("yomiyasu が worktree の最上位の .yomiyasu/ に .gitignore を置いていない: %v", err)
 	}
 	if rc, _, errs := f.recordRun("--", "true"); rc != 0 {
 		t.Fatalf("rc=%d err=%q", rc, errs)
 	}
 	if r := f.readRecord("1"); r.Dirty == nil || *r.Dirty {
 		t.Fatalf("yomiyasu の記録を commit していない変更に数えた: %+v", r)
+	}
+	// 外れたのが中の .gitignore のためであること: それを消すと、yomiyasu の記録を commit していない変更に数える
+	if err := os.Remove(ignore); err != nil {
+		t.Fatal(err)
+	}
+	if rc, _, errs := f.recordRun("--", "true"); rc != 0 {
+		t.Fatalf("rc=%d err=%q", rc, errs)
+	}
+	if r := f.readRecord("2"); r.Dirty == nil || !*r.Dirty {
+		t.Fatalf("中の .gitignore を消しても dirty が true でない（ほかの無視の規則が効いている）: %+v", r)
 	}
 }
