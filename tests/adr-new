@@ -32,7 +32,8 @@ common=$(git rev-parse --path-format=absolute --git-common-dir)
 exec {lock}>>"$common/andon-adr-new.lock"
 flock "$lock"
 
-git fetch --quiet origin || die "git fetch origin が通らない。番号を取らない"
+# fetch には鍵の fd を渡さない（fetch が裏に残す gc --auto が鍵を持ち続けて、次の回を待たせないように）
+git fetch --quiet origin {lock}>&- || die "git fetch origin が通らない。番号を取らない"
 
 # 4 桁を集める。枝の木は 1 本ずつ読む（消えた枝の古い控えは main より小さい番号しか持たないので、掃除しない）
 nums() {
