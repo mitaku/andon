@@ -968,3 +968,66 @@ func TestStartFirstMessageGuide(t *testing.T) {
 		t.Errorf("ファイルがあるのに指していない: %q", m)
 	}
 }
+
+// 振り返りやトリアージの apply が依頼書に ## Settings の写しを書いたあと、Chief of Staff が kanban set で予約キーを書き直した課題でも、
+// andon issue start は担当を起動する前に写しを予約キー（正）に合わせて書き直す。写しの後ろの地の文と追記の節は残す。
+// --dry-run は書き直したものを出すだけで、brief.md を書かない。
+func TestStartRewritesSettingsCopy(t *testing.T) {
+	const tail = "\n## 根拠\n- 前の課題の記録\n\n## 追記（Chief of Staff）\n- 完了条件に画面の確かめを足す\n"
+	const old = "# 題\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail
+	const want = "# 題\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail
+	setup := func(t *testing.T) (*startFixture, string) {
+		f := newStart(t)
+		path := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
+		if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		f.set("t5", map[string]any{"review": "on", "merge": "auto"})
+		return f, path
+	}
+	t.Run("run", func(t *testing.T) {
+		f, path := setup(t)
+		if rc, out, errs := f.run(); rc != 0 || errs != "" {
+			t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+		if got := read(t, path); got != want {
+			t.Errorf("担当に渡る依頼書の写しが予約キーと違う:\n got %q\nwant %q", got, want)
+		}
+		if m, _ := filepath.Glob(path + ".tmp-*"); len(m) > 0 {
+			t.Errorf("一時のファイルが残る: %q", m)
+		}
+	})
+	t.Run("dry run", func(t *testing.T) {
+		f, path := setup(t)
+		f.noHc()
+		p := f.dryJSON()
+		if p.Brief != want {
+			t.Errorf("--dry-run が出す依頼書が書き直したものでない:\n got %q\nwant %q", p.Brief, want)
+		}
+		if got := read(t, path); got != old {
+			t.Errorf("--dry-run が brief.md を書いた: %q", got)
+		}
+	})
+	// ルーチンの課題で起動の前に既定を書くキー（fill）も、写しに入る
+	t.Run("fill", func(t *testing.T) {
+		f, path := setup(t)
+		f.unset("estimate")
+		f.task["routine"] = "nightly"
+		b, _ := json.Marshal(map[string]any{"at": "2026-11-23T00:00:00Z", "by": "routine:nightly", "routine": "nightly", "fired": "S-0007"})
+		lf, err := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lf.Write(append(b, '\n'))
+		lf.Close()
+		if err := os.WriteFile(path, []byte(strings.Replace(old, "- Estimate: 中\n", "- Estimate: 大\n", 1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if got := read(t, path); got != want {
+			t.Errorf("fill のキーが写しに入らない:\n got %q\nwant %q", got, want)
+		}
+	})
+}

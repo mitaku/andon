@@ -334,21 +334,111 @@ func (l *Ledger) Unsettled(rows []Row, t Issue, defaults []string) []string {
 	return out
 }
 
+// settingNames は予約キーの、依頼書の ## Settings の行の名前（playbooks/brief.md の表）。settingOrder は写しに足すときの順。
+var (
+	settingNames = map[string]string{"review": "Review", "reviewer": "Reviewer", "must_fix": "Must fix", "review_rounds": "Review rounds",
+		"merge": "Merge", "deliverable": "Deliverable", "acceptance": "Acceptance", "estimate": "Estimate"}
+	settingOrder = []string{"review", "reviewer", "must_fix", "review_rounds", "merge", "deliverable", "acceptance", "estimate"}
+	settingSizes = map[string]string{"small": "小", "medium": "中", "large": "大"}
+)
+
+// copyValue は予約キーの値の、写しでの書き方（見込みは段の名）。
+func copyValue(k, v string) string {
+	if k == "estimate" {
+		return settingSizes[v]
+	}
+	return v
+}
+
 // SettingsCopy は予約キー（DefaultSettings の key=value の並び）を、依頼書の ## Settings の写しにする
 // （行の名前と見込みの段の名は playbooks/brief.md の表）。正は issue.yaml で、これは人が読む写し。
 func SettingsCopy(keys []string) string {
-	names := map[string]string{"review": "Review", "reviewer": "Reviewer", "must_fix": "Must fix", "review_rounds": "Review rounds", "merge": "Merge", "estimate": "Estimate"}
-	sizes := map[string]string{"small": "小", "medium": "中", "large": "大"}
 	var b strings.Builder
 	b.WriteString("## Settings\n")
 	for _, kv := range keys {
 		k, v, _ := strings.Cut(kv, "=")
-		if k == "estimate" {
-			v = sizes[v]
-		}
-		b.WriteString("- " + names[k] + ": " + v + "\n")
+		b.WriteString("- " + settingNames[k] + ": " + copyValue(k, v) + "\n")
 	}
 	return b.String()
+}
+
+// RewriteSettings は依頼書 brief の ## Settings の写しを、課題 t の予約キー（正）に合わせて書き直す。書き換えたかを返す。
+// 写しは見出しの直後に続く「- 名前: 値」の行の並びで、その後ろ（空行・地の文・追記の節）は触らない。見出しが無ければ書き足さない。
+// 行の値は issue.yaml の値（無いキーは SettingsOf の既定。reviewer・review_rounds・merge・deliverable）で、値の頭が同じ行は
+// そのまま残す（「Deliverable: candidates ★調べる」）。値の無い行は消し、行の無いキーで issue.yaml にあるものは並びの末尾に足す。
+// 知らない名前の行は残す。課題があとから kanban set で予約キーを書き直しても、担当に渡る写しが正と食い違わないように、
+// andon issue start が起動の前に打つ。
+func RewriteSettings(brief string, t Issue) (string, bool) {
+	lines := strings.SplitAfter(brief, "\n")
+	head := -1
+	for i, ln := range lines {
+		if strings.TrimRight(ln, " \t\r\n") == "## Settings" {
+			head = i
+			break
+		}
+	}
+	if head < 0 {
+		return brief, false
+	}
+	end := head + 1
+	for end < len(lines) && strings.HasPrefix(lines[end], "- ") {
+		end++
+	}
+	eol := "\n"
+	if strings.HasSuffix(lines[head], "\r\n") {
+		eol = "\r\n"
+	}
+	def := SettingsOf(t)
+	defaults := map[string]string{"reviewer": def.Reviewer, "review_rounds": def.ReviewRounds, "merge": def.Merge, "deliverable": def.Deliverable}
+	value := func(k string) string {
+		if v := t.Str(k); v != "" {
+			return copyValue(k, v)
+		}
+		return defaults[k]
+	}
+	byName := map[string]string{}
+	for k, n := range settingNames {
+		byName[strings.ToLower(n)] = k
+	}
+	var block []string
+	add := func(ln string) {
+		// 写しが依頼書の最後の行で改行が無いとき、前の行に改行を足してから足す（行がつながらないように）
+		if n := len(block); n > 0 && !strings.HasSuffix(block[n-1], "\n") {
+			block[n-1] += eol
+		}
+		block = append(block, ln)
+	}
+	seen := map[string]bool{}
+	for _, ln := range lines[head+1 : end] {
+		name, cur, ok := strings.Cut(strings.TrimRight(strings.TrimPrefix(ln, "- "), "\r\n"), ":")
+		k, known := byName[strings.ToLower(strings.TrimSpace(name))]
+		switch {
+		case !ok || !known:
+			add(ln) // 知らない名前の行は残す
+			continue
+		case seen[k]:
+			continue // 同じキーの2つ目の行は消す（どちらが正かを読み手に迷わせない）
+		}
+		seen[k] = true
+		v := value(k)
+		switch f := strings.Fields(cur); {
+		case v == "": // 正に値が無い行は消す
+		case len(f) > 0 && f[0] == v:
+			add(ln)
+		default:
+			add("- " + settingNames[k] + ": " + v + eol)
+		}
+	}
+	for _, k := range settingOrder {
+		if v := copyValue(k, t.Str(k)); !seen[k] && v != "" {
+			add("- " + settingNames[k] + ": " + v + eol)
+		}
+	}
+	if len(block) > 0 && !strings.HasSuffix(lines[head], "\n") {
+		lines[head] += eol // 見出しが依頼書の最後の行のとき
+	}
+	out := strings.Join(lines[:head+1], "") + strings.Join(block, "") + strings.Join(lines[end:], "")
+	return out, out != brief
 }
 
 // Brand はプロファイルのブランド（codex* → codex、ほかは claude）。

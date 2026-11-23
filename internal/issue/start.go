@@ -49,6 +49,7 @@ type startPlan struct {
 	Checks       []startCheck `json:"checks"`
 	Fill         []string     `json:"fill,omitempty"` // 起動の前に書く予約キー（ルーチンが足した課題の無いキー。checkSettings）
 	repoDir      string
+	rewrite      bool    // Brief は依頼書の ## Settings の写しを予約キーに合わせて書き直したもので、起動の前に brief.md に書く（copySettings）
 	command      *string // template の command（起動の記録の起動行。dry では読まない）
 }
 
@@ -86,6 +87,12 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	id := c.id
 	if err := c.fill(p); err != nil {
 		return err
+	}
+	// 写しは予約キーを書いたあと、何かを作る前に書く（ここで止まっても、打ち直せば plan が今の予約キーから作り直す）
+	if p.rewrite {
+		if err := writeAtomic(p.BriefPath, []byte(p.Brief)); err != nil {
+			return fail("依頼書 %s の ## Settings の写しを書き直せない: %v。%s は todo のまま", p.BriefPath, err, id)
+		}
 	}
 	undo := func() {}
 	if p.Repo != "" {
@@ -239,6 +246,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	if err := c.checkSettings(p); err != nil {
 		return nil, err
 	}
+	c.copySettings(p)
 	p.Labels = workLabels(slug, id, p.Title)
 	// Claude 系はセッションの id を Andon が決めて渡し（template の command が端末のラベルから読む）、kanban の session に書く。
 	// Codex 系は id を決める口が無いので、resume のときに記録から引く（ADR-0012 決めたこと 11）
@@ -363,6 +371,50 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	}
 	// 打つ行は shell にそのまま貼れるよう、文の最後に置く
 	return fail("%s: kanban set %s %s", msg, c.id, strings.Join(args, " "))
+}
+
+// copySettings は依頼書の ## Settings の写しを、予約キー（正。起動の前に fill が書くキーも足したもの）に合わせて書き直す
+// （ledger.RewriteSettings）。課題を足したあと Chief of Staff が kanban set で予約キーを書き直しても、写しは足したときのままなので、
+// 担当に渡る前に揃える。書き直した依頼書は p.Brief に置き、start が起動の前に brief.md に書く（--dry-run は書かずに出す）。
+// Chief Engineer の課題は予約キーを置かないので見ない。
+func (c *ctx) copySettings(p *startPlan) {
+	if p.Profile == chiefengineer.Profile {
+		return
+	}
+	t := ledger.Issue{}
+	for k, v := range c.issue {
+		t[k] = v
+	}
+	for _, kv := range p.Fill {
+		k, v, _ := strings.Cut(kv, "=")
+		t[k] = v
+	}
+	brief, changed := ledger.RewriteSettings(p.Brief, t)
+	if !changed {
+		p.check("copy", "ok", "依頼書の ## Settings の写しは予約キーと合っている（写しが無ければ書き足さない）")
+		return
+	}
+	p.Brief, p.rewrite = brief, true
+	p.check("copy", "ok", "依頼書の ## Settings の写しが予約キーと違うので、起動の前に予約キーから書き直す")
+}
+
+// writeAtomic は file を data で置き換える（一時のファイルに書いてから rename する。途中で止まっても半分の依頼書を残さない）。
+func writeAtomic(file string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(file), filepath.Base(file)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if err := errors.Join(werr, cerr, os.Chmod(tmp.Name(), 0o644)); err != nil {
+		os.Remove(tmp.Name()) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
+		return err
+	}
+	if err := os.Rename(tmp.Name(), file); err != nil {
+		os.Remove(tmp.Name()) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
+		return err
+	}
+	return nil
 }
 
 // fill は checkSettings が p.Fill に置いた予約キー（ルーチンとトリアージの apply が足した課題の無いキーと、照合の外れた既定のキー）を、

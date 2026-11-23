@@ -274,3 +274,52 @@ func TestUnsettled(t *testing.T) {
 		t.Errorf("無いキー: %q", got)
 	}
 }
+
+// 依頼書の ## Settings の写しは予約キー（正）に合わせて書き直す。写しの後ろの地の文と追記の節は触らない。
+func TestRewriteSettings(t *testing.T) {
+	const tail = "\n頼まれていない稀なケースのために設計しない。\n\n## 追記（2026-11-23）\n- Review: off のままにしない\n"
+	for _, c := range []struct {
+		name, brief, want string
+		issue             Issue
+	}{
+		{"あとから書き直した予約キー",
+			"# 題\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail,
+			"# 題\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail,
+			Issue{"review": "on", "must_fix": "major", "reviewer": "codex-review", "review_rounds": "2", "merge": "auto", "estimate": "medium"}},
+		{"合っていれば変えない",
+			"## Settings\n- Review: on\n- Merge: person\n- Estimate: 小\n" + tail, "",
+			Issue{"review": "on", "merge": "person", "estimate": "small"}},
+		{"値の頭が同じ行は注釈ごと残す",
+			"## Settings\n- Deliverable: candidates ★調べる\n- Review: on", "",
+			Issue{"deliverable": "candidates", "review": "on"}},
+		{"知らない行は残し、正に値の無い行と重なった行は消す",
+			"## Settings\n- Review: on\n- 横展開: 指された箇所だけ\n- Acceptance: 4\n- review: off\n",
+			"## Settings\n- Review: off\n- 横展開: 指された箇所だけ\n",
+			Issue{"review": "off"}},
+		{"無いキーは SettingsOf の既定",
+			"## Settings\n- Reviewer: codex-review\n- Merge: auto\n",
+			"## Settings\n- Reviewer: claude-review\n- Merge: person\n",
+			Issue{"profile": "codex"}},
+		{"最後の行に改行が無くても行がつながらない",
+			"## Settings\n- Review: off", "## Settings\n- Review: on\n- Merge: auto\n",
+			Issue{"review": "on", "merge": "auto"}},
+		{"見出しで終わる依頼書", "## Settings", "## Settings\n- Review: on\n", Issue{"review": "on"}},
+		{"CRLF", "## Settings\r\n- Review: off\r\n", "## Settings\r\n- Review: on\r\n", Issue{"review": "on"}},
+		{"写しが無ければ書き足さない", "# 題\n完了条件: 押せる\n", "", Issue{"review": "on"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			want := c.want
+			if want == "" {
+				want = c.brief
+			}
+			got, changed := RewriteSettings(c.brief, c.issue)
+			if got != want || changed != (want != c.brief) {
+				t.Errorf("changed=%v\n got %q\nwant %q", changed, got, want)
+			}
+			// 書き直したものをもう一度書き直しても変わらない（打ち直しても写しが動かない）
+			if again, ch := RewriteSettings(got, c.issue); ch || again != got {
+				t.Errorf("2回目で変わった: %q", again)
+			}
+		})
+	}
+}
