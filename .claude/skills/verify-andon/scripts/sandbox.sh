@@ -3,7 +3,9 @@
 #   - andon と kanban は PATH にある本物（当てたもの）。ANDON_HOME は外すので、パッケージは既定の /opt/andon（当てたもの）。
 #   - 偽の hc と gh を PATH の先頭に置く。本物の端末と GitHub には届かない。呼ばれた引数は $tmp/hc.calls・$tmp/gh.calls に残る。
 #     偽の hc: get <addr> --json は $tmp/hc/<addr>.json を返す（無ければ 1）。ほかは記録して 0。
-#     偽の gh: pr view <url> --json headRefOid -q .headRefOid は $tmp/gh/head、--json state -q .state は OPEN。ほかは記録して 99。
+#     偽の gh: pr view <url> --json headRefOid -q .headRefOid は $tmp/gh/head、--json state -q .state は OPEN。
+#       PR のファイル（api --paginate --slurp repos/<owner>/<repo>/pulls/<n>/files）は $tmp/gh/files、
+#       差分（pr diff <n> --repo <owner>/<repo>）は $tmp/gh/diff（どちらも無ければ 1）。ほかは記録して 99。
 # 読んだあとに使えるもの: common.sh の分と $andon・$kanban・ledger_init <prefix>
 . "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 andon=$(command -v andon) kanban=$(command -v kanban)
@@ -22,6 +24,10 @@ EOF
 cat >"$tmp/bin/gh" <<EOF
 #!/bin/sh
 echo "gh \$*" >>"$tmp/gh.calls"
+case "\$*" in
+  "api --paginate --slurp repos/"*"/pulls/"*"/files") exec cat "$tmp/gh/files" ;;
+  "pr diff "*" --repo "*) exec cat "$tmp/gh/diff" ;;
+esac
 case "\$1 \$2 \$4 \$5 \$6" in
   "pr view --json headRefOid -q") cat "$tmp/gh/head" ;;
   "pr view --json state -q") echo OPEN ;;

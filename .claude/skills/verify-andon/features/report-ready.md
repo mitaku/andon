@@ -26,7 +26,7 @@
 - **記録を撮る。** `rr-record` の行に `andon issue record V-0001 -- git -C <worktree> log -1 --format=%H` が出る。`runs/1.json` の JSON（`exit_code` 0・`commit` が HEAD・`dirty` false）と `ok   rr-record` が見えれば動いた。
 - **断られる。** `rr-ready-refuse` の行に `andon issue ready` の終了コード 1 と理由1行（`report.json が無い`）が出る。`ok   rr-ready-refuse` が見えれば動いた。
 - **報告する。** `rr-report` の行に `report.json` の `commit`・`pr`・`acceptance` が出る。`ok   rr-report` が見えれば動いた。
-- **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。
+- **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
 ## 変えたら動かすパス
@@ -40,6 +40,8 @@
 - `cmd/kanban/`
 - `cmd/andon/`
 - `internal/cli/`
+- `internal/gate/review.go`
+- `internal/gate/gate.go`
 
 ## 既に見ている検査
 
@@ -51,4 +53,5 @@
 
 - 偽の `gh` が知らない呼び出しを受けると終了コード 99 で落ちる。`ready` が新しく `gh` を呼ぶようになったら、`rr-ready` が落ち、出力の `gh.calls` に呼び出しが出る。地図と `scripts/sandbox.sh` を直す。
 - `rr-ready` は `review: off`・`merge: person` の課題で通す。レビューの照合は `tests/andon-issue.sh` が見ており、ここでは見ない。
+- 偽の `gh` が返す PR のファイルと差分は、`journeys/report-ready.sh` が置く文書1行（レベル A）。条件表（`/opt/andon/gate.json`）で `docs/**` がレベル A でなくなると、`ready` がレビューを求めて断り `rr-ready` が落ちる。そのときは偽の差分をレベル A のファイルに替える。
 - 記録を撮る自分の課題の worktree に commit していない変更があると、自分の記録の `dirty` が true になる。証拠を撮る前に commit する。
