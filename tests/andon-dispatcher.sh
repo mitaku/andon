@@ -194,7 +194,7 @@ newtask() { # newtask <題> <merge> → id。$(...) の中で呼ばれて set -e
     git -C "$app" worktree add -q -b "demo/$id" "$ANDON_WORKSPACE/.worktrees/app/demo-$id" origin/main || die "newtask: git worktree add が失敗した: $id"
     HC_TERMINAL_ID=t5 kanban set "$id" "branch=demo/$id" "worktree=$ANDON_WORKSPACE/.worktrees/app/demo-$id" >/dev/null || die "newtask: kanban set（branch・worktree）が失敗した: $id"  # andon issue start の代わり
     (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null) || die "newtask: kanban start が失敗した: $id"
-    echo "t7 $id" >> "$tmp/hc/live"
+    echo "t7 $id" >> "$tmp/hc/live" || die "newtask: hc/live への追記が失敗した: $id"
     echo "$id"
 }
 work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実をその head にする
