@@ -518,13 +518,30 @@ def name_of(c):
         if not words:
             return None, []
         name = re.sub(r"[\"'\\]", "", words[0]).rsplit("/", 1)[-1]
+        if name in ("sh", "bash") and words[1:2] == ["-c"] and len(words) > 2:
+            # bash -c '<コマンド> …' は、文字列の最後のコマンドの終了コードを返す。それで見る
+            words = [x for x in re.split(r"[;&|\n]", re.sub(r"[\"']", "", words[2])) if x.strip()][-1:]
+            words = words[0].split() if words else []
+            continue
         if name not in WRAPPERS:
             return name, words[1:]
         words.pop(0)
         positional, valued = WRAPPERS[name]
-        while words and words[0].startswith("-"):
-            if words.pop(0) in valued:
+        split = None
+        while words and words[0].startswith("-") and split is None:
+            flag = words.pop(0)
+            # env -S '<コマンド> <引数>…' の値は、割ってコマンドとして読む（-S'…'・--split-string=… も）
+            if name == "env" and flag in ("-S", "--split-string"):
+                split, words = (words[0] if words else ""), words[1:]
+            elif name == "env" and flag.startswith("--split-string="):
+                split = flag[len("--split-string=") :]
+            elif name == "env" and flag.startswith("-S"):
+                split = flag[2:]
+            elif flag in valued:
                 words = words[1:]  # 値を取る旗（timeout -s KILL・env -u X・stdbuf -o L）
+        if split is not None:
+            words = re.sub(r"[\"']", "", split).split() + words
+            continue
         words = words[positional:]
 
 
@@ -727,6 +744,13 @@ esac
 [[ $rc == 1 ]] && { grep -q x err; grep -q y err; } # 拾う
 [[ $rc == 1 ]] && timeout 5 grep -q x err # 拾う
 [[ $rc == 1 ]] && env LC_ALL=C grep -q x err # 拾う
+[[ $rc == 1 ]] && env -S 'grep -q x' err # 拾う（-S の値はコマンドと引数）
+[[ $rc == 1 ]] && env --split-string="grep -q x" err # 拾う
+[[ $rc == 1 ]] && env -u HOME -S'LC_ALL=C grep -q x' err # 拾う
+[[ $rc == 1 ]] && bash -c 'grep -q x err' # 拾う（-c の文字列の最後のコマンドで見る）
+[[ $rc == 1 ]] && sh -c "cd d; grep -q x err" # 拾う
+[[ $rc == 1 ]] && sh -c "grep -q x err && mv a b"
+[[ $rc == 1 ]] && bash -c 'mv a b'
 [[ $rc == 1 ]] && /usr/bin/grep -q x err # 拾う
 [[ $rc == 1 ]] && git diff --quiet # 拾う
 [[ $rc == 1 ]] || [[ $rc == 2 ]] && grep -q x err # 拾う（最後の演算子が &&）
