@@ -169,14 +169,17 @@ func keepIn(ids, in []string) []string {
 // （決めたこと 5・7〜10）。
 // ルーチンが無い・読めない・paused のとき、そのルーチンの課題が片付かずに残っているときは、数えも撃ちもしない。
 // 起動できる課題の数は引かない（決めたこと 10）。同じ巡で件数のきっかけが振り返りを撃っていれば、その 1 つも
-// 空いた枠を使うので、撃てる数から引く。撃ったルーチンの名前を返す。
+// 空いた枠を使うので、撃てる数から引く。kanban routine run が失敗した試みも撃てる数から引く（課題と履歴の行を書いたあとに
+// state/routines.json の保存で失敗することがあり、足したかを command の返事では決められない）。撃ったルーチンの名前を返す。
 func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 	var fired []string
 	budget := free
 	if retroFired {
 		budget--
 	}
+	tried := 0
 	fire := func(name, why string) {
+		tried++
 		out, err := p.l.Run("", "routine", "run", name)
 		if err != nil {
 			p.idleOnce("run-"+name, fmt.Sprintf("kanban routine run %s が通らない（巡は続ける）: %v", name, err))
@@ -197,7 +200,7 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 			}
 		}
 	}
-	if len(fired) < budget && !retroFired && routineOn(p.l.Dir, retroRoutine) && !p.routineOpen(retroRoutine) {
+	if tried < budget && !retroFired && routineOn(p.l.Dir, retroRoutine) && !p.routineOpen(retroRoutine) {
 		every, err := retroEveryOf(p.c.WS, p.l.Slug)
 		if err != nil {
 			p.retroOnce("set", fmt.Sprintf("project.json の chief_of_staff.retro_every を読めない（既定の %d 件で数える）: %v", retroEvery, err))
@@ -213,7 +216,7 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 			continue
 		}
 		hours, ok := p.idleHoursOf(name)
-		if !ok || len(fired) >= budget || !routineOn(p.l.Dir, name) || p.routineOpen(name) {
+		if !ok || tried >= budget || !routineOn(p.l.Dir, name) || p.routineOpen(name) {
 			continue
 		}
 		last, found := lastFired(p.rows, name)

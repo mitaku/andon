@@ -309,6 +309,23 @@ func TestIdleHoursRoutinesOrderAndBudget(t *testing.T) {
 	}
 }
 
+// kanban routine run が失敗を返しても、課題と履歴の行は書いたあと（state/routines.json の保存の失敗など）のことがある。
+// 失敗した試みも空いた枠を使ったものとして数え、空いた枠より多く撃たない。
+func TestIdleFailedRunUsesSlot(t *testing.T) {
+	r := newIdleRig(t)
+	r.routine("a-check", "idle_hours: 24\n")
+	r.routine("b-check", "idle_hours: 24\n")
+	os.Remove(r.tools.key("kanban routine run a-check") + ".out") // 答えが無いと偽の kanban は 1 で落ちる
+	r.free = 1
+	r.look(0, false)
+	if got := routineRuns(r.look(15*time.Minute, false)); !slices.Equal(got, []string{"a-check"}) {
+		t.Errorf("空いた枠 1 で、失敗した a-check のあとに撃った: %v（a-check だけのはず）", got)
+	}
+	if !strings.Contains(r.log.String(), "kanban routine run a-check が通らない") {
+		t.Errorf("失敗のログが無い: %s", r.log.String())
+	}
+}
+
 // 受け入れ条件 5: 1回に撃つルーチンの数は slots.free を超えない。kanban ready に担当の課題が残っていても、撃つ数は減らない。
 func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	var tasks []ledger.Issue
