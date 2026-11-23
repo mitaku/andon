@@ -54,8 +54,9 @@ const (
 	exitLimit = 4 // collect の項目が上限を超えた
 )
 
-// defaultLimit は collect の項目の上限の既定（--limit が無いとき）。
-const defaultLimit = 50
+// DefaultLimit は collect の項目の上限の既定（--limit が無いとき）。dispatcher が空きのトリアージを撃つ線も、この数を読む
+// （ADR-0047 決めたこと 7。1 回分）。
+const DefaultLimit = 50
 
 // keepHold は、次回に回した（keep）項目を collect が出さない時間（ADR-0047 決めたこと 19）。
 // 毎朝の回には全部が出るように、1 日より短い。
@@ -87,7 +88,7 @@ func run(cmd string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, map[string]string{"collect": CollectUsage, "apply": ApplyUsage, "verdict": VerdictUsage}[cmd])
 		return exitUsage
 	}
-	limit, maxIssues, maxSet, dry, id, key, value := defaultLimit, 0, false, false, "", "", ""
+	limit, maxIssues, maxSet, dry, id, key, value := DefaultLimit, 0, false, false, "", "", ""
 	switch cmd {
 	case "collect":
 	case "verdict":
@@ -210,8 +211,12 @@ func openLedger() (*ledger, error) {
 	if err != nil {
 		return nil, fail("kanban が見つからない")
 	}
-	root := strings.TrimRight(string(out), "\n")
-	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: MemoryDir(), now: time.Now()}
+	return ledgerAt(cli, strings.TrimRight(string(out), "\n"), time.Now())
+}
+
+// ledgerAt はプロジェクトの根 root（kanban/ の親）の ledger。
+func ledgerAt(cli, root string, now time.Time) (*ledger, error) {
+	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: MemoryDir(), now: now}
 	if !slugRe.MatchString(l.slug) {
 		return nil, fail("slug が不正")
 	}

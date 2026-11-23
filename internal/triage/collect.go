@@ -330,7 +330,7 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 // prioritize は、上限の既定を超える日に memory と signal を先頭に寄せる（その中と残りは古い順のまま）。
 // 担当は先頭から N 件だけ仕分けるので、古い順のままだと後ろに来る memory と signal がいつまでも仕分けられない。
 func prioritize(items []Item) []Item {
-	if len(items) > defaultLimit {
+	if len(items) > DefaultLimit {
 		sort.SliceStable(items, func(i, j int) bool { return firstOverLimit(items[i].Kind) && !firstOverLimit(items[j].Kind) })
 	}
 	return items

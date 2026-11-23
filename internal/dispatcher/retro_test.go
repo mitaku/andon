@@ -15,7 +15,7 @@ import (
 // 読めない・paused が真偽でないファイルは、kanban の CLI も撃たないので無いと同じ。
 func TestRetroOn(t *testing.T) {
 	dir := t.TempDir()
-	if retroOn(dir) {
+	if routineOn(dir, retroRoutine) {
 		t.Error("ルーチン retro が無いのに数える")
 	}
 	for body, want := range map[string]bool{
@@ -32,7 +32,7 @@ func TestRetroOn(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "routines", "retro.yaml"), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if got := retroOn(dir); got != want {
+		if got := routineOn(dir, retroRoutine); got != want {
 			t.Errorf("%q → %v（want %v）", body, got, want)
 		}
 	}

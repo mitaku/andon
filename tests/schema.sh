@@ -487,6 +487,14 @@ fail|notification|.kind = "estimate" | .detail = {estimate: "small", estimate_mi
 pass|notification|.kind = "memory" | .detail = {count: 31, line: 30} | del(.issue)|kind memory（issue 無し）
 fail|notification|.kind = "memory" | .detail = {count: 31} | del(.issue)|memory に line が無い
 fail|notification|.kind = "memory" | .detail = {count: 31, line: 30, dir: "/x"} | del(.issue)|memory に知らないキー
+pass|notification|.kind = "idle" | .detail = {free: 3, unstarted: ["S-0031", "S-0032"], fired: ["triage"], lint: 0} | del(.issue)|kind idle（issue 無し）
+pass|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [], lint: 2} | del(.issue)|kind idle（lint だけ）
+fail|notification|.kind = "idle" | .detail = {free: 0, unstarted: [], fired: [], lint: 2} | del(.issue)|idle の free が 0
+fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], lint: 2} | del(.issue)|idle に fired が無い
+fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: ["a/b"], fired: [], lint: 0} | del(.issue)|idle の unstarted が id でない
+fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [""], lint: 0} | del(.issue)|idle の fired が空の名前
+fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [], lint: -1} | del(.issue)|idle の lint が負
+fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [], lint: 0, ready: []} | del(.issue)|idle に知らないキー
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "3 回打って失敗"}|kind impact（集められなかった）
@@ -561,6 +569,9 @@ fail|project|.chief_of_staff.parallel = 0|parallel が 0
 fail|project|.chief_of_staff.review_when = "外向きの面"|review_when が配列でない
 fail|project|.chief_of_staff.triage_max_issues = "3"|triage_max_issues が文字列
 fail|project|.chief_of_staff.retro_every = 0|retro_every が 0
+pass|project|.chief_of_staff.idle_minutes = 0|idle_minutes が 0（空きを見ない）
+fail|project|.chief_of_staff.idle_minutes = -1|idle_minutes が負
+fail|project|.chief_of_staff.idle_minutes = "15"|idle_minutes が文字列
 fail|project|.chief_of_staff.triage_max_tasks = .chief_of_staff.triage_max_issues | del(.chief_of_staff.triage_max_issues)|古いキー triage_max_tasks（project/2 は triage_max_issues）
 fail|project|.delegation.version = 2|委譲: 知らない version
 pass|project|.signals = []|signals が空（何も取りに行かない）
@@ -665,6 +676,7 @@ fail|measure|.tokens[0] += {"dollars": 1}|ドルの欄を足す
 pass|delivered|.acked = false|ack の無いターン
 pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
 pass|delivered|.news = [{kind: "estimate", issue: "S-0001"}, {kind: "memory"}]|見込みとのズレと memory の量の通知（notification の kind は全部通る）
+pass|delivered|.news = [{kind: "idle"}]|枠の空きの通知
 fail|delivered|.news = []|渡した通知が無い
 fail|delivered|.news[0].kind = "nope"|知らない kind
 fail|delivered|.acked = "true"|acked が文字列
@@ -1134,6 +1146,7 @@ corrections-answer.json|corrections|andon dispatcher の corrections.json（answ
 signals.json|signal|andon signal collect の信号の記録
 signals-delivered.json|signal|andon dispatcher が collect と delivered で書いた信号の記録（read_at・delivered_episode）
 notification-signal.json|notification|andon dispatcher の通知 signal（now の信号）
+notification-idle.json|notification|andon dispatcher の通知 idle（枠の空き）
 corrections-pr-inline.json|corrections|andon dispatcher の corrections.json（pr。インラインのレビューコメント）
 corrections-override.json|corrections|andon dispatcher の corrections.json（override）
 notification-corrections.json|notification|andon dispatcher の通知 corrections（集められなかった）

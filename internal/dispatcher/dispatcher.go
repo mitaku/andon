@@ -104,7 +104,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return exitFail
 	}
 	defer unlock()
-	c := &Dispatcher{WS: delegate.Workspace(), Andon: self, Log: stderr}
+	c := &Dispatcher{WS: delegate.Workspace(), Andon: self, Log: stderr, Once: once}
 	for {
 		// 見回りの間は PassLock を持つ（Ensure が置き直すのは合間だけ）
 		unpass, err := flock.Lock(PassLock())
@@ -152,6 +152,12 @@ type Dispatcher struct {
 	memoryUnsaved bool
 	// 件数のきっかけの失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。retro.go）
 	retroLogged map[string]string
+	// Once は1回だけ回して終わる（andon dispatcher --once）。空きの段は、起動し直した最初の回に数えない（idle.go）
+	Once bool
+	// 空きの段で、このプロセスが一度でも見た kanban（無ければ起動し直した最初の回。idle.go）
+	idleSeen map[string]bool
+	// 空きの段の失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。idle.go）
+	idleLogged map[string]string
 }
 
 // cosDown は Chief of Staff の端末が無い（留守）理由。hc が端末を無い（not_found）・live でないと答えたときだけ返す。
@@ -371,7 +377,7 @@ func (p *project) markAway(at string) {
 	}
 }
 
-// tick はルーチンを撃つ（1巡の 3a）。先に件数のきっかけ（retroDue。ADR-0039 決めたこと 8）を見て、続けて kanban tick を
+// tick はルーチンを撃つ（1巡の 3a）。先に件数のきっかけ（retroDue。ADR-0039 決めたこと 8）と空き（idle。ADR-0047）を見て、続けて kanban tick を
 // 1回打つ（ルーチンの schedule が来たものを課題にする。dispatcher.md §2.1・§7.2 #8）。
 // 打つのは dispatcher だけ（cron は置かない）。同じ時刻を二度撃たない守りは kanban の側（kanban/.lock と state/routines.json）。
 // 件数で撃った巡に振り返りの schedule の時刻が来ても、kanban が open で撃ち損ねにする（足されない）。
@@ -381,7 +387,7 @@ func (p *project) tick() {
 	if p.st.Ready == nil {
 		p.readReady()
 	}
-	p.retroDue()
+	p.idle(p.retroDue())
 	if _, err := p.l.Run("", "tick"); err != nil {
 		p.logf("kanban tick が通らない（巡は続ける）: %v", err)
 	}

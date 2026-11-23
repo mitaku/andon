@@ -45,12 +45,13 @@ type ProjectInfo struct {
 }
 
 // ChiefOfStaff は Chief of Staff の設定値（読むのは Chief of Staff。無いキーは skill の既定）。triage_max_issues は
-// andon triage apply、retro_every は dispatcher（件数のきっかけ）も読む。
+// andon triage apply、retro_every は dispatcher（件数のきっかけ）、idle_minutes は dispatcher（空きを見る間）も読む。
 type ChiefOfStaff struct {
 	Parallel        *int     `json:"parallel,omitempty"`
 	ReviewWhen      []string `json:"review_when,omitempty"`
 	TriageMaxIssues *int     `json:"triage_max_issues,omitempty"`
 	RetroEvery      *int     `json:"retro_every,omitempty"`
+	IdleMinutes     *int     `json:"idle_minutes,omitempty"`
 }
 
 // Signal は外の信号の出所1つ（contract.md §11・ADR-0011 決めたこと 11）。読むのは andon signal collect。
@@ -124,6 +125,9 @@ func ParseProject(b []byte, slug string) (*Project, error) {
 	if c := p.ChiefOfStaff; c != nil {
 		if (c.Parallel != nil && *c.Parallel < 1) || (c.TriageMaxIssues != nil && *c.TriageMaxIssues < 1) || (c.RetroEvery != nil && *c.RetroEvery < 1) {
 			return nil, errors.New("chief_of_staff の parallel・triage_max_issues・retro_every は 1 以上")
+		}
+		if c.IdleMinutes != nil && *c.IdleMinutes < 0 {
+			return nil, errors.New("chief_of_staff.idle_minutes は 0 以上")
 		}
 		if slices.Contains(c.ReviewWhen, "") {
 			return nil, errors.New("chief_of_staff.review_when に空の条件がある")

@@ -451,6 +451,16 @@ func inWindow(t *task, done map[string]time.Time, retros map[string]bool, since,
 // fullLimit では切らない。issues は kanban の課題の一覧（kanban list --all --json）、rows は log.jsonl。
 // ファイルは課題ごとの library/retro.json の有無と、前の振り返りの retro.json だけを読む。
 func Fresh(root string, issues []ledger.Issue, rows []ledger.Row, now time.Time) int {
+	return fresh(root, issues, rows, now, false)
+}
+
+// FreshOwn は Fresh の束のうち、ルーチンが足した課題（issue.yaml の routine を持つ）を除いた数（空きの振り返りの線。
+// ADR-0047 決めたこと 8）。空きが撃ったトリアージや点検の課題だけで線に届かないように除く。境目と期間は Fresh と同じ。
+func FreshOwn(root string, issues []ledger.Issue, rows []ledger.Row, now time.Time) int {
+	return fresh(root, issues, rows, now, true)
+}
+
+func fresh(root string, issues []ledger.Issue, rows []ledger.Row, now time.Time, own bool) int {
 	r := &reader{o: Options{Root: root}, dir: filepath.Join(root, "kanban")}
 	until := now.UTC()
 	since := until.Add(-defaultDays * 24 * time.Hour)
@@ -470,7 +480,7 @@ func Fresh(root string, issues []ledger.Issue, rows []ledger.Row, now time.Time)
 	e := r.edgeOf(byID, retros, done, "", until)
 	n := 0
 	for _, t := range tasks {
-		if inWindow(t, done, retros, since, until) && e.fresh(done[t.id]) {
+		if inWindow(t, done, retros, since, until) && e.fresh(done[t.id]) && (!own || t.routine == "") {
 			n++
 		}
 	}

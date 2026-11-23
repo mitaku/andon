@@ -90,6 +90,16 @@ type dispatcherState struct {
 	Away *dsAway `json:"away,omitempty"`
 	// Questions the dispatcher asked and queued itself, whose log.jsonl row it has not read yet (<issue>#<n>)
 	Asked map[string]bool `json:"asked,omitempty"`
+	// The previous look for free slots, and what notification idle already told
+	Idle *dsIdle `json:"idle,omitempty"`
+}
+
+type dsIdle struct {
+	At    string   `json:"at,omitempty"`
+	Free  bool     `json:"free,omitempty"`
+	Ready []string `json:"ready,omitempty"`
+	Told  []string `json:"told,omitempty"`
+	Lint  string   `json:"lint,omitempty"`
 }
 
 type dsAway struct {

@@ -1778,4 +1778,51 @@ rk; rk; rk
 [ "$(retros)" = 3 ] && [ "$(routine_rows)" = "$rows" ] || die "振り返りが残っている間に撃った・撃ち損ねの行を書いた: $(retros) 件・行 $rows → $(routine_rows)"
 ok '数えるのは担当の課題だけで、paused のルーチンは撃たず、振り返りが残っている間は 3 巡回しても kanban の履歴にルーチンの行を足さない'
 
+# 28. 空き（ADR-0047 決めたこと 4・11・12。受け入れ条件 6・7。dispatcher.md §2.13）。別の kanban ie（Chief of Staff は t4。生きている）。
+#     project.json は無い（idle_minutes は既定の 15 分）。並行の上限は既定の 2 で、動いている課題が無いので枠は 2 つ空いている。
+#     --once は起動し直しに数えない。見る時刻は、控えの idle.at を 16 分前に戻して来させる
+mkdir -p "$tmp/plant/projects/ie"
+cd "$tmp/plant/projects/ie"
+env -u KANBAN_ROOT kanban init --prefix I >/dev/null
+export KANBAN_ROOT=$PWD
+kanban config set chief_of_staff=t4 >/dev/null
+echo "t4 chief-of-staff" >> "$tmp/hc/live"
+echo '{"address":"t4","state":"live","status":{"state":"working"},"labels":{}}' > "$tmp/hc/term-t4.json"
+I=$PWD/kanban
+ist=$tmp/state/andon/dispatcher/ie.json
+ik() { "$andon" dispatcher --once --project ie 2>>"$tmp/dispatcher.log"; }
+later() { jq '.idle.at = (now - 16 * 60 | strftime("%Y-%m-%dT%H:%M:%SZ"))' "$ist" > "$ist.tmp" && mv "$ist.tmp" "$ist"; }   # 前に見てから 16 分たった
+pidle() { jq -c '[.pending[] | select(.kind == "idle")]' "$ist"; }
+w1=$(HC_TERMINAL_ID=t4 kanban add "起動できる担当の課題" --profile claude)
+ow=$(HC_TERMINAL_ID=t4 kanban add "オーナーの課題（オーナーの判断待ち）"); HC_TERMINAL_ID=t4 kanban set "$ow" who=person >/dev/null
+rp=$(HC_TERMINAL_ID=t4 kanban add "レビューの親" --profile claude --status doing)
+rv=$(HC_TERMINAL_ID=t4 kanban add "レビュー" --profile codex-review --parent "$rp" --round 1)
+kanban ready --json | jq -e --arg o "$ow" --arg r "$rv" 'map(.id) | index($o) and index($r)' >/dev/null || die "前提: オーナーの課題とレビュアーの子が ready に出ない: $(kanban ready --json | jq -c 'map(.id)')"
+ik
+[ "$(pidle)" = '[]' ] || die "初めて見る kanban で idle を積んだ: $(pidle)"
+later; ik
+pidle | jq -e --arg w "$w1" 'length == 1 and (.[0] | has("issue") | not) and .[0].detail == {free: 1, unstarted: [$w], fired: [], lint: 0}' >/dev/null \
+  || die "2 回続けて ready に出た担当の課題で idle を積まない・形が違う（オーナーの課題とレビュアーの子は入らない）: $(pidle)"
+emit <(pidle | jq '.[0]') notification-idle.json
+later; ik
+pidle | jq -e --arg w "$w1" 'length == 1 and .[0].detail.unstarted == [$w]' >/dev/null || die "同じ課題でもう一度 idle を積んだ: $(pidle)"
+w2=$(HC_TERMINAL_ID=t4 kanban add "あとから起動できる担当の課題" --profile claude)
+later; ik; later; ik; later; ik
+pidle | jq -e --arg a "$w1" --arg b "$w2" 'length == 1 and .[0].detail.unstarted == [$a, $b]' >/dev/null \
+  || die "届く前に積んだ次の idle が、前の unstarted を残さない: $(pidle)"
+jq '.pending = []' "$ist" > "$ist.tmp" && mv "$ist.tmp" "$ist"
+later; ik
+[ "$(pidle)" = '[]' ] || die "知らせた課題で、届いたあとにもう一度 idle を積んだ: $(pidle)"
+ok '前の回にも今の回にも ready に出ている担当の課題を idle で 1 回だけ知らせ、届く前の次の idle に前の unstarted を残す（オーナーの課題とレビュアーの子は入れない）'
+
+d1=$(HC_TERMINAL_ID=t4 kanban add "片付いた課題" --profile claude); HC_TERMINAL_ID=t4 kanban done "$d1" >/dev/null
+echo "parent: I-9999" >> "$I/issues/$d1/issue.yaml"   # kanban lint の problem（無い親）
+! kanban lint >/dev/null 2>&1 || die '前提: kanban lint が problem を出さない'
+later; ik
+pidle | jq -e 'length == 1 and .[0].detail.lint == 1 and .[0].detail.unstarted == []' >/dev/null || die "kanban lint の problem の件数が idle に入らない: $(pidle)"
+jq '.pending = []' "$ist" > "$ist.tmp" && mv "$ist.tmp" "$ist"
+later; ik
+[ "$(pidle)" = '[]' ] || die "同じ problem のままの次の回に idle を積んだ: $(pidle)"
+ok 'kanban lint が problem を出す回に idle の lint へ件数を入れ、同じ problem のままの次の回には積まない'
+
 echo "all passed ($pass)"

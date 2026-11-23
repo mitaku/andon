@@ -78,6 +78,8 @@ type State struct {
 	// dispatcher 自身が出して積んだ問いのうち、log.jsonl の問いの行をまだ読んでいないもの（<issue>#<n>。pickup.go の logRow が
 	// 行を読んだら消す）。待ちの通知と同じ控えに保存するので、積んだのに保存の前に落ちた問いは印が無く、行から積み直せる
 	Asked map[string]bool `json:"asked,omitempty"`
+	// 空きを見た前の回の結果と、通知 idle で知らせたもの（idle.go。ADR-0047 決めたこと 4・11・12）
+	Idle *Idle `json:"idle,omitempty"`
 }
 
 // Tries は done の行ごとに1回だけする仕事（影響の集め・オーナーの手直しの集め・結果の記録）の、まだ済んでいない課題 →
