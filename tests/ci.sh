@@ -61,6 +61,7 @@ emitters=$(bash tests/schema.sh --emitters | tr '\n' ' ')
 for p in docs/decisions.md docs/decisions/2026-11-21-adr-0041-delegation-cap-out-of-command.md; do
   [ "$(pick "$p")" = "$(with tests/adr-index.sh)" ] || die "決定の記録で adr-index.sh だけを足さない: $(pick "$p")"
 done
+[ "$(pick tests/adr-new)" = "$(with tests/adr-new.sh)" ] || die "ADR の番号を取る command で adr-new.sh だけを足さない（ADR-0055）: $(pick tests/adr-new)"
 [ "$(pick CHANGELOG.md)" = "$(with tests/adr-index.sh)" ] || die "CHANGELOG.md で adr-index.sh だけを足さない（一覧の作り直し忘れ。ADR-0055）: $(pick CHANGELOG.md)"
 # AGENTS.md だけの PR でも、表の形を見る agents-md.sh が走る（ADR-0035 受け入れ条件 10）。CI の文書だけの PR も同じ scope.sh で選ぶ
 [ "$(printf '%s\n' AGENTS.md | bash tests/lib/docs-scope.sh)" = true ] || die "AGENTS.md だけが文書だけにならない"

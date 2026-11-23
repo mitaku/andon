@@ -13,6 +13,7 @@
 #     覆されたは、どこが覆したかを「覆された → ADR-NNNN」か「覆された → この ADR の N」で書く（あとに（…）を添えてよい）。
 #     ADR-NNNN は在る別の ADR、N はその ADR の「決めたこと」に在る、行の自分と別の番号。
 #   - 全部の ADR: 状態行（「- 状態: **決定…**」。語は 決定・提案・覆された）がある。
+#   - 同じ 4 桁で始まる ADR のファイルが 2 つ以上無い（ADR-0055 決めたこと 7）。あれば番号と名前を出す。番号の連なり（詰めること）は見ない。
 #   - docs/adr/README.md に見出し「## 一覧」があり、その下の 1 行のバージョンが CHANGELOG.md の一番上のバージョンと同じで、
 #     続く行はどれも一覧の行の形で、在る ADR を同じ番号で指す（ADR-0055 決めたこと 5）。一覧は前のバージョンまでの写しなので、
 #     ADR ごとの行があることと、行のタイトル・状態が今の ADR と同じことは見ない。
@@ -127,6 +128,12 @@ if mode == "write":
     os.replace(part, dst)
     sys.exit()
 
+# 同じ番号の ADR（ADR-0055 決めたこと 7）。番号は tests/adr-new で取り、重なったらあとからマージする側が取り直す（決めたこと 8）
+for n in sorted(nums):
+    same = [f for f in files if f[:4] == n]
+    if len(same) > 1:
+        fail(f"docs/adr/: 番号 {n} の ADR が {len(same)} 本ある（{'・'.join(same)}）。あとからマージする側が tests/adr-new で番号を取り直す")
+
 for f, lines in bodies.items():
     path = f"docs/adr/{f}"
     num = f[:4]
@@ -226,7 +233,7 @@ for f in files:
 for m in fails:
     print(f"FAIL {m}")
 if not fails:
-    print(f"ok   ADR {len(files)} 本すべての状態行があり、索引が本文と repo に合い、決定の記録がある。一覧の見出しは CHANGELOG の {top} に合い、行の指す先が在る")
+    print(f"ok   ADR {len(files)} 本の番号が重ならず、すべての状態行があり、索引が本文と repo に合い、決定の記録がある。一覧の見出しは CHANGELOG の {top} に合い、行の指す先が在る")
 sys.exit(1 if fails else 0)
 PY
 }
@@ -297,6 +304,7 @@ ls docs/decisions/*-adr-0002-*.md >/dev/null 2>&1 && { echo "FAIL 自己確認�
 [ "$(sed -n '/^## 14\. /,/^## 15\. /p' docs/decisions.md | grep -cF '](adr/0002-herdr-spaces.md)')" -eq 1 ] || { echo "FAIL 自己確認の前提: decisions.md §14 に ADR-0002 の行が 1 つでない"; exit 1; }
 [ "$(grep -c '](adr/0002-' docs/decisions.md)" -gt 1 ] || { echo "FAIL 自己確認の前提: decisions.md の §14 の外に ADR-0002 を指す行が無い"; exit 1; }
 [ ! -e docs/adr/9998-no-record.md ] || { echo "FAIL 自己確認の前提: docs/adr/9998-no-record.md が在る"; exit 1; }
+for f in 0002-same-number.md 0002-a-first.md; do [ ! -e "docs/adr/$f" ] || { echo "FAIL 自己確認の前提: docs/adr/$f が在る"; exit 1; }; done
 
 setup; expect ok '壊していない写しは通る'
 setup; sed -i '/^| 3 | /d' "$tmp/r/$a33"; expect fail '索引から 1 行を抜いた写しで落ちる' '索引の番号 [1, 2, 4, 5, 6, 7] が「決めたこと」の番号 [1, 2, 3, 4, 5, 6, 7] と違う'
@@ -319,6 +327,13 @@ setup; sed -i '/^## 14\. /,/^## 15\. /{/](adr\/0002-/d}' "$tmp/r/docs/decisions.
 setup; sed -i '/^## 14\. /,/^## 15\. /s/](adr\/0002-herdr-spaces\.md)/](adr\/0002-no-such-title.md)/' "$tmp/r/docs/decisions.md"
 expect fail 'decisions.md §14 の行のリンクを番号だけ合う在りえない名前にした写しで落ちる' 'docs/adr/0002-herdr-spaces.md: 決定の記録'
 setup; rm "$tmp/r/$d41"; expect fail 'docs/decisions/ の記録を消した写しで落ちる' "$a41: 決定の記録"
+
+# 同じ番号の ADR（ADR-0055 受け入れ条件 4）: 今ある 1 本を同じ番号の別の名前で写すと、番号と 2 つの名前を出して落ちる。
+# 名前の並びで間に別の名前が入る 3 本でも、全部の名前を出す
+setup; cp "$a02" "$tmp/r/docs/adr/0002-same-number.md"
+expect fail '今ある 1 本を同じ番号の別の名前で写した写しで落ちる' '番号 0002 の ADR が 2 本ある（0002-herdr-spaces.md・0002-same-number.md）'
+cp "$a02" "$tmp/r/docs/adr/0002-a-first.md"
+expect fail '同じ番号の 3 本目を足した写しで落ちる' '番号 0002 の ADR が 3 本ある（0002-a-first.md・0002-herdr-spaces.md・0002-same-number.md）'
 
 # 一覧の作り直し忘れ（ADR-0055 受け入れ条件 3）。見出しの書き方の揺れと、今のバージョンで始まる別のバージョンでも落ちる
 for h in '## v999.0.0 — 2026-01-01' '## v999.0.0' '##  v999.0.0 — 2026-01-01' '## v999.0.0—2026-01-01' "## ${cur}0 — 2026-01-01"; do

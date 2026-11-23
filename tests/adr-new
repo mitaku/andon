@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# tests/adr-new <英字の短い名前> "<タイトル>"
+#
+# 新しい ADR の番号を取り、打った worktree に docs/adr/NNNN-<英字の短い名前>.md を置いて、そのパスを出す（ADR-0055 決めたこと 6）。
+# 置くのは 1 行目（# ADR-NNNN: <タイトル>）と状態行（- 状態: **提案**）だけ。本文はそのあとに書く。
+#   1. repo の共有の git のフォルダ（git rev-parse --git-common-dir）の鍵のファイルを flock で取る。同じ repo の worktree は同じ鍵を見る。
+#   2. git fetch origin を打つ。通らなければ番号を取らず、ファイルを置かずに 1 で終わる。
+#   3. 手元の枝と origin の枝の控え（refs/heads・refs/remotes）の木の docs/adr/ と、git worktree list の全部の worktree の
+#      docs/adr/（追跡していないファイルも）から NNNN-….md の 4 桁を集め、最大に 1 を足す。
+#   4. 鍵の中でファイルを置き、鍵を放す。
+# 英字の短い名前は小文字・数字・- だけ。打った worktree の docs/adr/ に同じ名前の ADR が在れば断る。
+# 鍵が効くのは同じ repo の中だけ。別のセルとの重なりは tests/adr-index.sh（同じ番号の 2 本で落ちる）が見る。
+set -euo pipefail
+
+die() { echo "tests/adr-new: $*" >&2; exit 1; }
+usage() { sed -n '2,/^set /{/^set /d;s/^# \{0,1\}//;p;}' "$0" >&2; exit 2; }
+
+[ "$#" -eq 2 ] || usage
+name=$1 title=$2
+[[ "$name" =~ ^[a-z0-9-]+$ ]] || die "英字の短い名前は小文字・数字・- だけ: $name"
+[ -n "$title" ] || die "タイトルが空"
+case "$title" in *$'\n'* | *$'\r'*) die "タイトルは 1 行" ;; esac
+
+top=$(git rev-parse --show-toplevel 2>/dev/null) || die "git の worktree の中で打つ"
+adr_dir=$top/docs/adr
+[ -d "$adr_dir" ] || die "$adr_dir が無い（ADR を書く worktree で打つ）"
+for f in "$adr_dir"/[0-9][0-9][0-9][0-9]-"$name".md; do
+  [ -e "$f" ] && die "同じ名前の ADR が在る: docs/adr/${f##*/}"
+done
+
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+exec {lock}>>"$common/andon-adr-new.lock"
+flock "$lock"
+
+# fetch には鍵の fd を渡さない（fetch が裏に残す gc --auto が鍵を持ち続けて、次の回を待たせないように）
+git fetch --quiet origin {lock}>&- || die "git fetch origin が通らない。番号を取らない"
+
+# 4 桁を集める。枝の木は 1 本ずつ読む（消えた枝の古い控えは main より小さい番号しか持たないので、掃除しない）。
+# どこか 1 つでも読めなければ、番号を取らずに止まる（読めた所だけで取ると、読めなかった所の番号と重なる）
+names=
+refs=$(git for-each-ref --format='%(refname)' refs/heads refs/remotes) || die "枝の一覧を読めない。番号を取らない"
+while IFS= read -r ref; do
+  [ -n "$ref" ] || continue
+  # パスで渡すと、docs/adr の無い木は空で 0、読めない木は 0 でない
+  got=$(git ls-tree --name-only "$ref" -- docs/adr/) || die "$ref の docs/adr を読めない。番号を取らない"
+  names+=$got$'\n'
+done <<<"$refs"
+wts=$(git worktree list --porcelain) || die "worktree の一覧を読めない。番号を取らない"
+while IFS= read -r wt; do
+  [ -d "$wt/docs/adr" ] || continue # 消えた worktree の番号は、その枝の木で拾う
+  got=$(ls -A "$wt/docs/adr") || die "$wt/docs/adr を読めない。番号を取らない"
+  names+=$got$'\n'
+done < <(sed -n 's/^worktree //p' <<<"$wts")
+max=$(sed -n 's|^\(docs/adr/\)\{0,1\}\([0-9]\{4\}\)-[^/]*\.md$|\2|p' <<<"$names" | sort -u | tail -n 1)
+next=$(printf '%04d' $((10#${max:-0} + 1)))
+[ "${#next}" -eq 4 ] || die "番号が 4 桁に収まらない: $next"
+
+path=$adr_dir/$next-$name.md
+printf '# ADR-%s: %s\n\n- 状態: **提案**\n' "$next" "$title" >"$path"
+exec {lock}>&-
+echo "$path"
