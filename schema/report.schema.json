@@ -146,6 +146,21 @@
       "description": "Machine copy of the report's For AGENTS.md lines.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "gaps": {
+      "description": "Knowledge gaps the agent or the Chief Engineer found during the work, each naming the knowledge it is about (ADR-0061). Written only when there is one; reviewers and the Chief of Staff do not write it. andon issue report carries it over from the previous report.json when --data has none; an empty array withdraws them.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "where", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "description": "missing: the knowledge was nowhere; wrong: what was written was wrong or stale; hard_to_find: it was there but reaching it took long.", "enum": ["missing", "wrong", "hard_to_find"] },
+          "where": { "description": "The knowledge it is about: a path in the repository, a path in the package, a wiki page path, or brief for the issue's brief. For missing, where it was looked for; unknown when that cannot be said.", "type": "string", "minLength": 1 },
+          "text": { "description": "What was missing, wrong or hard to find, in one line.", "type": "string", "minLength": 1 },
+          "proposal": { "description": "How to fix it, in one line. Optional.", "type": "string", "minLength": 1 }
+        }
+      }
     }
   },
   "$defs": {

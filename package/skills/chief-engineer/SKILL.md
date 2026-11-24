@@ -134,6 +134,7 @@ description: Chief of Staff（かオーナー）が `andon chief-engineer "<タ�
 1. 文書を commit し、worker skill §3 の手順で push・PR・checks。
 2. worker skill §7 の手順で `report.json` を書く: `pr`＝文書の PR、`next='[{"to": "chief-of-staff", "text": "<文書のパス> を依頼書に切る"}]'`（モデルで調べた設計なら `{"to": "chief-of-staff", "text": "最初の実装の課題の依頼書に <モデルのパス> を添える"}` も。開いている問いがあれば `{"to": "person", …}` も）。
 3. 人が読む報告（worker skill §7 の書式）: `## Report` に文書のパス・決めたことの数（オーナーが決めた数と、あなたが決めた数）・開いている問いの数・オーナーが「決めた」と言った日。モデルで調べた設計なら、モデルのパスも書く。
+   **申告の欄**: 読む・調べる中で、知識（skill・手引き・repo の `AGENTS.md` と docs・セルの wiki のページ）が無かった、誤っていた、辿り着くのが遅れた、と名指せたら、`report.json` の `gaps[]`（worker skill §7。2 の `--data` に一緒に渡す）と報告の `## Gaps` に1件ずつ書く。担当と同じ書き方で、名指せない学びは `## Remember` に書き、同じ中身を両方に書かない。欠けが無ければ節を書かない。申告は直す許しではない（直すのは Chief of Staff が切る課題）。
 4. `kanban review <id>`（報告は 2・3 の `andon issue report` で書いてある。`kanban report` を打ち直すと空になる）。Chief of Staff へ `hc send` しない（dispatcher が届ける）。Chief of Staff はあなたの課題を検収しない（検収は、オーナーが出口の最後の確かめでした）。文書の PR がマージされたら Chief of Staff が片付ける。
 5. Chief of Staff が「価値の仮説が空」と戻してきたら（`<hc from=…>` の印つき）、6 項目か「無し: <理由>」を書いてオーナーに確かめ、文書を直して、1 から同じ手順で返す。
 
