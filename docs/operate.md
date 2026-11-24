@@ -291,11 +291,11 @@ App の Add Machine でセル（`Host andon-home`）を足すと、App は SSH �
 | mod | 何をする | 中身 |
 |---|---|---|
 | `andon` | Space・tab に名前を付ける（下の段）。もう1つの copy（props `brand`）が左の列の一番上に行燈と「Andon」を描き、窓の色で灯りの状態（消灯・琥珀・赤。決めるのは `inbox`）を出す（ADR-0023・ADR-0043） | `package/host/andon/README.md` |
-| `inbox` | 止まってオーナーを待つ端末（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の上に、マージの依頼か判断のオーナー待ちがあるプロジェクトごとに件数の1行を出す（セルで `andon waiting --json --project <slug>` を呼んで読む。数える式は持たない）。灯りの状態（消灯・琥珀・赤）を決める1か所で、その値と内訳を `inbox.lamp` に置く（Stream Deck のキーもこれを読む。ADR-0045）。琥珀は止まった端末かマージの依頼・判断のオーナー待ち、赤は失敗した端末。役の返事は灯さず、Projects の行の未読の印にする。オーナー待ちを読めないプロジェクトでは、今までどおり返事を Reply として灯す。読むだけでラベルを書かない（ADR-0015・ADR-0023・ADR-0043） | `package/host/inbox/README.md` |
-| `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（Board・List・課題の連なりの Flow。`ctrl-shift-y`） | `package/host/kanban-board/README.md` |
+| `inbox` | 止まってオーナーを待つ端末（Needs you）と、プロジェクトの役（Chief of Staff・Chief Engineer）への入口（Projects）の2つの節。担当は止まったときだけ出る。Needs you の上に、オーナーを呼んでいるオーナー待ち（マージの依頼・判断・手作業）があるプロジェクトごとに件数の1行を出す（セルで `andon waiting --json --project <slug>` を呼んで読み、行の `call` で数える。数える式は持たない）。灯りの状態（消灯・琥珀・赤）を決める1か所で、その値と内訳を `inbox.lamp`（バージョン 2）に置く（Stream Deck のキーもこれを読む。ADR-0045）。琥珀は止まった端末か、呼んでいるオーナー待ち、赤は失敗した端末。置いてあるオーナー待ち（`call` が偽）は灯さず、数だけを `inbox.lamp` の `later` に置く。`call` の無い前のセルでは、今までどおりマージの依頼と判断で灯す。役の返事は灯さず、Projects の行の未読の印にする。オーナー待ちを読めないプロジェクトでは、今までどおり返事を Reply として灯す。読むだけでラベルを書かない（ADR-0015・ADR-0023・ADR-0043・ADR-0062） | `package/host/inbox/README.md` |
+| `kanban-board` | kanban `projects/<slug>/kanban/` を読むだけのボード（Board・List・課題の連なりの Flow。`ctrl-shift-y`）。Flow は呼んでいるオーナー待ちの課題に琥珀の印を、置いてあるだけの課題に灰色の「Later」の印を付ける（ADR-0062） | `package/host/kanban-board/README.md` |
 | `context-header` | pane の見出し（名前・状態・場所・blocked の問い） | `package/host/context-header/README.md` |
 | `files-plus` | App の Files に画像・Mermaid・Markdown・HTML の表示を足したもの | `package/host/files-plus/README.md` |
-| `waiting` | 右のパネルの 3 つ目の画面。フォーカスした pane のプロジェクトで `andon waiting --json` を呼び、並行の枠とオーナー待ち（マージの依頼・判断・手作業）を出力の並びのまま描く。行を開くと問いと選択肢が読め、マージの依頼は PR を開ける。判断の問い（`answerable: true`）は、選択肢を選んで確かめのボタンを押すと `andon waiting answer` で答えられる。数える式も書く式も持たず、書くのはその command だけ。inbox の見出しのボタンで開く（ADR-0042） | `package/host/waiting/README.md` |
+| `waiting` | 右のパネルの 3 つ目の画面。フォーカスした pane のプロジェクトで `andon waiting --json` を呼び、並行の枠とオーナー待ち（マージの依頼・判断・手作業）を出力の並びのまま描く。置いてある行（`call` が偽）は「Later」の見出しの下に分けて出し、開くと置いた理由と日付が読め、同じに答えられる（ADR-0062）。行を開くと問いと選択肢が読め、マージの依頼は PR を開ける。判断の問い（`answerable: true`）は、選択肢を選んで確かめのボタンを押すと `andon waiting answer` で答えられる。数える式も書く式も持たず、書くのはその command だけ。inbox の見出しのボタンで開く（ADR-0042） | `package/host/waiting/README.md` |
 
 由来は前身の herdr-flightdeck（private）の `herdr-app/`（commit `afc57ac`。`work-board` を `kanban-board` に改名）。ライセンスは各 README の Origin・Licence の節（files-plus は Herdr の `files` mod の改変で Apache-2.0、andon の `brand.js` は Herdr の `workspace-chrome` の brand の改変で Apache-2.0、同梱の Pele は MIT、inbox の Lucide のアイコンは ISC、kanban-board の js-yaml は MIT）。
 
@@ -369,7 +369,7 @@ plugin の置き場は `host-install` が推測しない。`STREAMDECK_PLUGINS` 
   - キーが「?」 — App が閉じている、レイアウトに `inbox` が見えていない、`inbox` が古い、App の設定フォルダが既定と違うのに Stream Deck に `HERDR_APP_HOME` が渡っていない、のどれか。
   - 押すと警告の印 — App が動いていない、`inbox` が見えていない、`herdr-app` が見つからない（`HERDR_APP_BIN` に実行ファイルのパスを入れて Stream Deck を起動し直す）、のどれか。
 
-**置き直す**: Stream Deck を終え、前のフォルダを置き場の外へ退避してから打ち直す。置き場の中で名前を変えるだけにしない。
+**置き直す**: Stream Deck を終え、前のフォルダを置き場の外へ退避してから打ち直す。置き場の中で名前を変えるだけにしない。mod `inbox` が置く値のバージョンが変わったときは、plugin と mod `inbox` を一緒に置き直す。片方だけだと、キーは「?」を描く（`inbox.lamp` のバージョン 2 は ADR-0062）。
 
 ```bash
 plugins=<plugin の置き場>      # WSL なら wslpath に通したパス

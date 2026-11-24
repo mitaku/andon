@@ -1813,12 +1813,12 @@ const plain = (x) => JSON.parse(JSON.stringify(x));
 // What the lantern counted, without what only dates the value (checked here).
 const lampOf = (store) => {
   const { version, at, ...counted } = plain(store['inbox.lamp']);
-  assert.equal(version, 1, 'inbox.lamp に version の 1 が無い');
+  assert.equal(version, 2, 'inbox.lamp に version の 2 が無い');
   assert.equal(typeof at, 'number', 'inbox.lamp に数の at が無い');
   return counted;
 };
 const lit = (store) => store['inbox.lantern'] ?? null;
-const LAMP0 = { light: null, failed: 0, blocked: 0, merge: 0, decision: 0, reply: 0, unread: 0, unreadable: 0 };
+const LAMP0 = { light: null, failed: 0, blocked: 0, merge: 0, decision: 0, task: 0, later: 0, reply: 0, unread: 0, unreadable: 0 };
 
 await check('inbox: オーナー待ちを読めているプロジェクトでは、役の返事は Needs you に出ず Projects の行の未読の印になり、行燈は消灯のまま。見ると消え、ペインの無い役は開いた turn の間は付かない。news.replied の有無で変わらない（ADR-0043 受け入れ条件 1・6）', async () => {
   const state = { terms: [cos('cell/t1', 'sample-site'), ce('cell/t2', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': [] } };
@@ -2113,7 +2113,7 @@ await check('inbox.lamp: version と at、置き直しの決まり（ADR-0045 �
   const state = oneCell();
   const c = await inboxCell(state);
   await c.look();
-  assert.deepEqual([lampPuts(c).length, lampPuts(c)[0].version, lampPuts(c)[0].at], [1, 1, T0], 'version と at');
+  assert.deepEqual([lampPuts(c).length, lampPuts(c)[0].version, lampPuts(c)[0].at], [1, 2, T0], 'version と at');
   // A change is put at once.
   c.clock.t += 1000;
   state.terms.push(sampleTerm('cell/t2', 'blocked', { project: 'sample-site', issue: 'S-0002' }));
@@ -2140,7 +2140,7 @@ await check('inbox.lamp: version と at、置き直しの決まり（ADR-0045 �
   c.v.model();
   assert.equal(lampPuts(c).length, n, '項目の順だけの違いで置いた');
   // Another version's value, a field more or one less: not the same.
-  for (const spoil of [(v) => { v.version = 2; }, (v) => { v.extra = 1; }, (v) => { delete v.unread; }]) {
+  for (const spoil of [(v) => { v.version = 1; }, (v) => { v.extra = 1; }, (v) => { delete v.unread; }]) {
     spoil(c.store['inbox.lamp']);
     n = lampPuts(c).length;
     c.v.model();
@@ -2263,7 +2263,7 @@ await check('inbox の README に inbox.lamp の全項目の表と inbox.call �
   const c = await inboxCell(oneCell());
   await c.look();
   const names = Object.keys(c.store['inbox.lamp']);
-  assert.equal(names.length, 10);
+  assert.equal(names.length, 12);
   const missing = (text) => [
     ...names.filter((name) => !new RegExp(`^\\| *\`${name}\` *\\|`, 'm').test(text)),
     ...(/`inbox\.call`/.test(text) ? [] : ['inbox.call']),
@@ -2273,6 +2273,149 @@ await check('inbox の README に inbox.lamp の全項目の表と inbox.call �
   for (const name of [...names, 'inbox.call']) {
     assert.deepEqual(missing(readme.replaceAll(`\`${name}\``, '`gone`')), [name], `${name} が無くても通る`);
   }
+});
+
+// Owner waits that call and those left for later (ADR-0062 decisions 7 and 8, acceptance 14 to 16).
+const called = (kind, id, since, call, extra = {}) => ({ ...wait(kind, id, since), call, ...extra });
+const CALLED = [
+  called('merge', 'S-0041', '2026-11-21T10:00:00Z', true), called('decision', 'S-0042', '2026-11-21T09:00:00Z', true),
+  called('task', 'S-0043', '2026-11-21T11:00:00Z', true),
+  ...['S-0044', 'S-0045', 'S-0046'].map((id) => called('decision', id, '2026-11-19T08:00:00Z', false, { later: '急がない' })),
+];
+
+await check('inbox: call のある出力は call で数える。呼ぶ merge・decision・task が 1 件ずつと置いた decision 3 件で、件数の行は「1 to merge · 1 to decide · 1 to do」、琥珀、inbox.lamp は version 2・task 1・later 3。置いたものだけなら行も灯りも無い。call の無い出力は今までどおり（ADR-0062 受け入れ条件 14）', async () => {
+  // 1. Calling and left for later together.
+  const c = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': CALLED } });
+  const m = await c.look();
+  assert.deepEqual(plain(textOf(byId(c.draw(), 'owed-cell/sample-site'))), ['sample-site', '1 to merge · 1 to decide · 1 to do', '3h'],
+    '件数の行の中身（いちばん古い待ちは置いたものを数えず 09:00）');
+  assert.deepEqual(lampOf(c.store), { ...LAMP0, light: 'amber', merge: 1, decision: 1, task: 1, later: 3 });
+  assert.equal(lit(c.store), 'amber');
+  assert.equal(m.calls.length, 1, 'inbox.call が件数の行を回らない');
+  // Hand work that calls lights alone.
+  const task = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': [CALLED[2]] } });
+  await task.look();
+  assert.deepEqual(lampOf(task.store), { ...LAMP0, light: 'amber', task: 1 }, '呼ぶ手作業だけで灯らない');
+  // 2. Only what is left for later, a task among it: no line, unlit, counted in later.
+  const later = [...CALLED.slice(3), called('task', 'S-0047', '2026-11-20T08:00:00Z', false), called('merge', 'S-0048', '2026-11-20T08:00:00Z', false)];
+  const left = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': later } });
+  assert.equal((await left.look()).owed.length, 0, '置いたものだけで件数の行が出た');
+  assert.deepEqual(lampOf(left.store), { ...LAMP0, later: 5 });
+  assert.equal(lit(left.store), null, '置いたものだけで灯った');
+  assert.ok(textOf(left.draw()).includes('Nothing needs you.'));
+  // 3. Without call (an andon older than the field): merges and decisions, not tasks; nothing is later.
+  const old = CALLED.map(({ call, later: _, ...x }) => x);
+  const before = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }], items: { 'sample-site': old } });
+  await before.look();
+  assert.deepEqual(lampOf(before.store), { ...LAMP0, light: 'amber', merge: 1, decision: 4 }, 'call の無い出力の数え方が変わった');
+  assert.deepEqual(plain(textOf(byId(before.draw(), 'owed-cell/sample-site')).slice(0, 2)), ['sample-site', '1 to merge · 4 to decide']);
+  // A call that isn't true or false is read as missing.
+  const odd = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }],
+    items: { 'sample-site': [called('task', 'S-0049', '2026-11-21T08:00:00Z', 'true'), called('decision', 'S-0050', '2026-11-21T08:00:00Z', 'false')] } });
+  await odd.look();
+  assert.deepEqual(lampOf(odd.store), { ...LAMP0, light: 'amber', decision: 1 }, '真偽でない call を真偽として読んだ');
+});
+
+await check('inbox: 置いたものの数は、ほかのマシンへ絞っても、ほかのマシンで待っている数に足さない（ADR-0062 決めたこと 7）', async () => {
+  const c = await inboxCell({ terms: [cos('cell/t1', 'sample-site'), cos('lab/t1', 'other-site')], machines: [{ name: 'cell' }, { name: 'lab' }],
+    items: { 'sample-site': [CALLED[0]], 'other-site': [CALLED[2], ...CALLED.slice(3)] } });
+  c.v.picked = ['cell'];
+  const m = await c.look();
+  assert.equal(m.elsewhere, 1, 'ほかのマシンの数に置いたものが入った');
+  assert.deepEqual(lampOf(c.store), { ...LAMP0, light: 'amber', merge: 1, task: 1, later: 3 }, '絞り込みで inbox.lamp が変わった');
+});
+
+const LATER_WAITING = {
+  ...SAMPLE_WAITING,
+  items: [SAMPLE_WAITING.items[0], { ...SAMPLE_WAITING.items[2], call: true },
+    { ...SAMPLE_WAITING.items[1], call: false, later: '急がない。次のリリースで決めればよい\n2 行目は読まない', later_until: '2026-12-01' },
+    { kind: 'task', id: 'S-0032', title: '鍵を作り直す', since: '2026-11-20T02:00:00Z', holds: [], call: false, later: '月末でよい' }].map((i, n) => (n === 0 ? { ...i, call: true } : i)),
+};
+const rowIds = (tree) => walk(tree).map((n) => last(n, 'id')).filter((id) => /^waiting-row-|^waiting-later-heading$|^waiting-none-calling$/.test(id ?? ''));
+
+await check('waiting: call が偽の行を Later の見出しの下に描き、開くと理由と日付が出て、選択肢のある判断は同じに答えられる。call の無い出力では見出しを出さない（ADR-0062 受け入れ条件 15）', async () => {
+  const { draw, cx, calls } = await waitingPane(json(LATER_WAITING));
+  let tree = draw();
+  assert.deepEqual(rowIds(tree), ['waiting-row-S-0021', 'waiting-row-S-0031', 'waiting-later-heading', 'waiting-row-S-0030-1', 'waiting-row-S-0032'], '呼んでいる行・見出し・置いた行の順でない');
+  assert.deepEqual(textOf(byId(tree, 'waiting-later-heading')), ['Later', '2']);
+  const click = clickOn(cx);
+  click(byId(tree, 'waiting-head-S-0030-1'));
+  tree = draw();
+  assert.deepEqual(textOf(byId(tree, 'waiting-later-S-0030-1')), ['急がない。次のリリースで決めればよい (until 2026-12-01)'], '開いた行に理由と日付が無い');
+  click(byId(tree, 'waiting-option-S-0030-1-0'));
+  tree = draw();
+  const button = byId(tree, 'waiting-answer-S-0030-1');
+  assert.ok(button, '置いた判断に答えるボタンが無い');
+  click(button);
+  await cx.settle();
+  assert.deepEqual(calls.exec.filter((c) => c[1][1] === 'answer').map((c) => c[1]), [['waiting', 'answer', 'S-0030#1', '--option', '1']]);
+  click(byId(tree, 'waiting-head-S-0032'));
+  assert.deepEqual(textOf(byId(draw(), 'waiting-later-S-0032')), ['月末でよい'], '日付の無い理由の形');
+  // A row that calls says nothing of later.
+  click(byId(tree, 'waiting-head-S-0031'));
+  assert.ok(!byId(draw(), 'waiting-later-S-0031'), '呼んでいる行に置いた理由の欄が出た');
+  // Only rows left for later: one line first, then the heading.
+  const only = (await waitingPane(json({ ...LATER_WAITING, items: LATER_WAITING.items.slice(2) }))).draw();
+  assert.deepEqual(rowIds(only), ['waiting-none-calling', 'waiting-later-heading', 'waiting-row-S-0030-1', 'waiting-row-S-0032']);
+  // Without call: no heading, every row as before, in the output's order.
+  const old = (await waitingPane(json({ ...LATER_WAITING, items: LATER_WAITING.items.map(({ call, later, later_until, ...i }) => i) }))).draw();
+  assert.deepEqual(rowIds(old), ['waiting-row-S-0021', 'waiting-row-S-0031', 'waiting-row-S-0030-1', 'waiting-row-S-0032'], 'call の無い出力に見出しを出した');
+});
+
+await check('kanban-board: Flow は call が偽の行だけの課題を琥珀にせず「Later」の印にし、呼んでいる課題は琥珀のまま先に並べる。call の無い行は呼んでいると読む（ADR-0062 受け入れ条件 15）', async () => {
+  const out = (items) => ({ code: 0, stdout: JSON.stringify({ version: 1, at: '2026-11-21T10:00:00Z', project: 'sample-site', slots: {}, items }), stderr: '' });
+  const reading = async (items) => {
+    const ns = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }), exec: async () => out(items) });
+    return fromMod(await ns.readWaiting('/cell/projects/sample-site', null));
+  };
+  const item = (kind, id, call) => ({ kind, id, title: id, since: '2026-11-21T04:00:00Z', holds: [], ...(call === undefined ? {} : { call }) });
+  assert.deepEqual(await reading([item('merge', 'S-0001', true), item('decision', 'S-0002', false), item('task', 'S-0003'), item('decision', 'S-0004', false), item('task', 'S-0004', true)]),
+    new Map([['S-0001', 'merge'], ['S-0002', 'later'], ['S-0003', 'task'], ['S-0004', 'task']]), '印の読み方');
+  // Drawn: the later mark isn't amber; the calling mark is.
+  const ui = recordingUi();
+  const ns = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }), theme: () => THEME,
+    focused: () => null, panes: () => [], spaces: () => [], agents: () => [], terminals: () => [], props: () => ({}) }, ui);
+  const b = new ns.default();
+  b.init({}, { focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after() {} }, spawn: () => {} });
+  b.where = { key: JSON.stringify([null, null]), cwd: null, on: null };
+  const ledger = ledgerOf('sample-site');
+  b.root = ledger.root; b.searched = true;
+  b.data = { ledgers: [ledger], tasks: TEN, columns: ledger.columns, unreadable: [] };
+  b.view = 'flow';
+  b.waits = new Map([['sample-site/S-0008', 'later']]);
+  let tree = b.flowView(THEME);
+  const mark = byId(tree, 'wb-wait-sample-site/S-0008');
+  assert.deepEqual(textOf(mark), ['Later'], '置いた印の名前');
+  assert.ok(!colors(mark).includes(AMBER), '置いた印を琥珀にした');
+  b.waits = new Map([['sample-site/S-0008', 'decision']]);
+  tree = b.flowView(THEME);
+  assert.ok(colors(byId(tree, 'wb-wait-sample-site/S-0008')).includes(AMBER), '呼んでいる印が琥珀でない');
+  // Order: a later wait doesn't put its issue first; a calling one does.
+  const top = (waits) => fromMod(ns.flowRows([ledger], TEN, waits).filter((r) => r.kind === 'task' && r.depth === 0).map((r) => r.task.id))[0];
+  const plainTop = top(new Map());
+  const other = TEN.find((x) => x.parent == null && x.id !== plainTop && x.status !== 'done');
+  assert.ok(other, '見本に先頭でない根の課題が無い（検査が何も見ていない）');
+  assert.equal(top(new Map([[other.key, 'decision']])), other.id, '呼んでいる課題が先に来ない');
+  assert.equal(top(new Map([[other.key, 'later']])), plainTop, '置いた課題が先に来た');
+});
+
+await check('inbox → plugin: 本物の mod が置いたバージョン 2 の値で、呼んでいる手作業 1 件だけなら琥珀に「1」と「1 task」を描く。バージョン 1 の値には「?」を描く（ADR-0062 受け入れ条件 16）', async () => {
+  const c = await inboxCell({ ...oneCell(), items: { 'sample-site': [CALLED[2], ...CALLED.slice(3)] } });
+  await c.look();
+  assert.deepEqual(lampOf(c.store), { ...LAMP0, light: 'amber', task: 1, later: 3 });
+  const d = await deck({ at: c.clock.t });
+  try {
+    d.put(c.store);
+    d.event('willAppear');
+    const image = d.images().at(-1);
+    assert.ok(svgOf(image).includes('#F0A202'), '琥珀でない');
+    assert.deepEqual(textsOf(image), ['1', '1 task']);
+    // What an inbox older than this plugin puts (version 1).
+    const { task, later, ...older } = c.store['inbox.lamp'];
+    d.put({ 'inbox.lamp': { ...older, version: 1, merge: 1 } });
+    d.tick(0);
+    assert.deepEqual(textsOf(d.images().at(-1)), ['?'], 'バージョン 1 の値に「?」を描かない');
+  } finally { await d.done(); }
 });
 
 if (failed) process.exit(1);

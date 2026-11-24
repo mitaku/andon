@@ -1,8 +1,9 @@
 // What the Lamp key shows for a value of inbox.lamp, as an SVG (ADR-0045 decisions 6 and 7).
 // The inbox mod decides the light. This only tells whether the value can still be trusted, and draws it.
 
-// The only version of inbox.lamp this plugin knows (../../inbox/README.md has the fields).
-const VERSION = 1;
+// The only version of inbox.lamp this plugin knows (../../inbox/README.md has the fields). Version 2 counts
+// only what calls you, with hand work in `task`; `later` doesn't light and isn't drawn (ADR-0062 decision 7).
+const VERSION = 2;
 // Three times the 30 seconds the inbox takes to put its value again.
 const FRESH = 90000;
 // The sidebar lantern's colors (../../andon/brand.js).
@@ -12,7 +13,7 @@ const LIT = {
 };
 const DARK = { ground: "#1F2328", frame: "#ECE6DA", window: "#454B53" };
 // What waits, the most pressing first, and the word the key says for it.
-const KINDS = [["failed", "failed"], ["blocked", "blocked"], ["decision", "decide"], ["merge", "merge"], ["reply", "reply"]];
+const KINDS = [["failed", "failed"], ["blocked", "blocked"], ["decision", "decide"], ["merge", "merge"], ["task", "task"], ["reply", "reply"]];
 const LINES = 2;
 // Stream Deck draws SVG with Qt, which takes one family name, not a list.
 const FONT = 'font-family="Arial" font-weight="bold" text-anchor="middle"';
