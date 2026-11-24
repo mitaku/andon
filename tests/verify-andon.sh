@@ -10,7 +10,7 @@
 #      手順が drive.sh を名指すときは、いつも検証する commit を添える（省ける書き方を残さない）
 #   5. scripts/features.sh: 当たる範囲で機能の名前、当たらない範囲（文書・Go のテストだけ）で何も出さず 0
 #   6. 自分の確かめ: 地図のファイルを1つ消すか、無い command を名指した写しで、この検査が落ちる
-#   7. 記録を読む道（dispatcher-news・boot・worker-launch・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban）で、証拠が足りないときに 0 で終わらない。
+#   7. 記録を読む道（dispatcher-news・boot・worker-launch〈wl-resume を含む〉・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban・Claude Code のセッションの記録）で、証拠が足りないときに 0 で終わらない。
 #      drive.sh は検証する commit を省けず、省く・空・短い・16進数でないと 2 で断り、道を動かさない（検証の途中で次の commit が当たっても、新しい間を読まない）
 # 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。andon は tests/lib/andon.sh が用意し、写しの回にも渡す）
 set -euo pipefail
@@ -307,12 +307,13 @@ if [ "$self" = true ]; then
   touch "$c/pkg/skills/worker/SKILL.md" "$c/pkg/skills/retro/SKILL.md"
   ms=$(($(date -u -d 2026-01-01T00:01:00Z +%s) * 1000))
   echo "{\"state\": \"live\", \"argv\": [\"$c/pkg/bin/andon\"], \"created_ms\": $ms, \"labels\": {}}" >"$c/dispatcher.json"
-  printf '#!/bin/sh\n[ "$1 $2" = "get dispatcher" ] && cat "%s/dispatcher.json"\n' "$c" >"$c/bin/hc"; chmod +x "$c/bin/hc"
+  # 偽の hc: get dispatcher は dispatcher.json、read は $c/screen（無ければ空）を出す。ほかは 1
+  printf '#!/bin/sh\ncase "$1 $2" in\n"get dispatcher") cat "%s/dispatcher.json" ;;\n"read "*) cat "%s/screen" 2>/dev/null; exit 0 ;;\n*) exit 1 ;;\nesac\n' "$c" "$c" >"$c/bin/hc"; chmod +x "$c/bin/hc"
   echo x >"$c/gen"; echo "{\"$c/gen\": \"$(sha256sum "$c/gen" | cut -d' ' -f1)\"}" >"$c/state/andon/boot.json"
   echo "{\"hooks\": {\"Stop\": [{\"hooks\": [{\"command\": \"$c/pkg/hooks/stop\"}]}]}}" >"$c/managed.json"
   links() { rm -f "$c/home/.agents/skills"/andon-*; for n in "$@"; do ln -s "$c/pkg/skills/$n" "$c/home/.agents/skills/andon-$n"; done; }
   journey() { # journey <道> → 終了コードを $jrc に、出力を $jout に
-    jrc=0; jout=$(env PATH="$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" \
+    jrc=0; jout=$(env PATH="$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" CLAUDE_CONFIG_DIR="$c/claude" \
       ANDON_MANAGED_SETTINGS="$c/managed.json" VERIFY_TMP="$c" VERIFY_RUN=verify-selftest bash "$skill/scripts/journeys/$1.sh" 2>&1) || jrc=$?
   }
   at='"at": "2026-01-01T00:02:00Z"'
@@ -334,7 +335,12 @@ if [ "$self" = true ]; then
 
   # 検証の途中で次の commit が当たった: 検証する commit（VERIFY_COMMIT）が当たっていた間だけを、次に当てた時刻まで読む
   lib=$c/ws/projects/v/kanban/issues/V-0002/library; mkdir -p "$lib"
-  launch() { echo "{\"at\": \"$1\", \"issue\": \"V-0002\", \"role\": \"worker\", \"terminal\": \"t$2\", \"package\": {\"commit\": \"$2\", \"source\": \"applied\", \"drift\": false, \"root\": \"$c/pkg\"}}"; }
+  # 起動は andon issue resume（launch が resume）で、セッションの記録 sess の最初のメッセージの最後の段落が [resume] で始まる（wl-resume が確かめられ、0 で終わる）
+  launch() { echo "{\"at\": \"$1\", \"issue\": \"V-0002\", \"role\": \"worker\", \"launch\": \"resume\", \"terminal\": \"t$2\", \"harness\": {\"name\": \"claude\"}, \"session\": \"sess\", \"package\": {\"commit\": \"$2\", \"source\": \"applied\", \"drift\": false, \"root\": \"$c/pkg\"}}"; }
+  umsg() { jq -cn --arg t "$1" --arg m "$2" '{type: "user", timestamp: $t, origin: {kind: "human"}, message: {role: "user", content: $m}}'; } # umsg <時刻> <文>: セッションの記録のオーナーの印の user の行
+  rmsg='<pasted_content id="ab12">\nAndon の担当として働く。\n\n[resume] 課題 `v/V-0002` の続き。セルが起き直した。worktree は同じ場所に戻した。\n</pasted_content id="ab12">\n'
+  sess=$c/claude/projects/-v/sess.jsonl; mkdir -p "${sess%/*}"
+  { umsg 2026-01-01T00:02:05.000Z "$(printf "$rmsg")"; umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")"; } >"$sess"
   { launch 2026-01-01T00:02:00Z c0ffee; launch 2026-01-01T00:12:00Z beef02; } >"$lib/launches.jsonl"
   printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
   VERIFY_COMMIT=c0f journey worker-launch
@@ -380,6 +386,66 @@ if [ "$self" = true ]; then
   [ "$jrc" = 3 ] || die "worker-launch: 記録に無い commit で終了コード $jrc（3 でない）: $jout"
   ok "verify-andon: 記録を読む道は、検証する commit が当たっていた間を次に当てた時刻まで読み、前のバージョンの記録や記録に無い commit は未確認の 3 で終わる"
 
+  # wl-resume: resume で起動した端末の最初のメッセージの最後の段落が [resume] で始まるか。今当たっている beef02（00:10 から）の間の起動 1 件を差し替えて見る
+  wl() { # wl <起動の記録の行> <セッションの記録の行…>: 起動の記録と sess を置き換えて worker-launch を動かす
+    echo "$1" >"$lib/launches.jsonl"; shift
+    printf '%s\n' "$@" >"$sess"
+    journey worker-launch
+  }
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")")"
+  [ "$jrc" = 0 ] && grep -qF 'ok   wl-resume' <<<"$jout" || die "wl-resume: 最後の段落が [resume] で始まるのに ok でない（$jrc）: $jout"
+  wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.launch = "start"')" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")")"
+  [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: resume の起動が無いのに未確認の 3 で終わらない（$jrc）: $jout"
+  wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.launch = "fresh"')" "$(umsg 2026-01-01T00:12:05.000Z '課題 `v/V-0002`。依頼書は x')"
+  [ "$jrc" = 3 ] && grep -qF 'resume の起動 0 件' <<<"$jout" || die "wl-resume: --fresh の起動を resume に数える（$jrc）: $jout"
+  # 印の無い文・resume なのに start の形の文は壊れ。印が文の頭にある文は、製品（spawn.Marked・振り返りの machineText）と同じく印つきと読む
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg" | sed 's/\[resume\] //')")"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 最後の段落に印が無いのに落ちない（$jrc）: $jout"
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf 'Andon の担当として働く。\n\n課題 `v/V-0002`。\n依頼書は x')")"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: resume の最初のメッセージが start の形なのに落ちない（$jrc）: $jout"
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf '[resume] 課題 `v/V-0002` の続き。セルが起き直した。\n\n足した段落。')")"
+  [ "$jrc" = 0 ] && grep -qF 'ok   wl-resume' <<<"$jout" || die "wl-resume: 印が文の頭にあるのに ok でない（製品の判定と食い違う）（$jrc）: $jout"
+  # 起動の直後に入る裏の作業の知らせ（origin.kind が task-notification）と道具の結果は、最初のメッセージに数えない
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:02.000Z '<task-notification>x</task-notification>' | jq -c '.origin.kind = "task-notification"')" \
+    "$(umsg 2026-01-01T00:12:03.000Z x | jq -c 'del(.origin) | .message.content = [{type: "tool_result", content: "y"}]')" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")")"
+  [ "$jrc" = 0 ] && grep -qF 'ok   wl-resume' <<<"$jout" || die "wl-resume: 起動の直後の知らせや道具の結果を最初のメッセージと読む（$jrc）: $jout"
+  # 同じ課題の次の起動のあとの文を、この起動の証拠にしない（次の起動の前に文が無ければ未確認）
+  wl "$(launch 2026-01-01T00:12:00Z beef02; launch 2026-01-01T00:13:00Z beef02 | jq -c '.launch = "start" | .session = "other"')" "$(umsg 2026-01-01T00:13:05.000Z "$(printf "$rmsg")")"
+  [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: 次の起動のあとの印つきの文を前の起動の証拠にした（$jrc）: $jout"
+  # 前に当てた commit を見るときは、次に当てた時刻のあとの文を証拠にしない（c0ffee は 00:00 から 00:10 まで）
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  echo "$(launch 2026-01-01T00:02:00Z c0ffee)" >"$lib/launches.jsonl"; umsg 2026-01-01T00:11:00.000Z "$(printf "$rmsg")" >"$sess"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: 次に当てた時刻のあとの文を前の commit の証拠にした（$jrc）: $jout"
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x"}\n' >"$c/pkg/applied.json"
+  # 起動の前の文（前に印の付いた resume）を、この起動の証拠にしない。起動のあとの印の無い文で落ちる
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:11:59.000Z "$(printf "$rmsg")")" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg" | sed 's/\[resume\] //')")"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 起動の前の文を証拠にした（$jrc）: $jout"
+  # content が道具の結果と同じ配列の形でも読む
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")" | jq -c '.message.content = [{type: "text", text: .message.content}]')"
+  [ "$jrc" = 0 ] && grep -qF 'ok   wl-resume' <<<"$jout" || die "wl-resume: content が配列の形の文を読まない（$jrc）: $jout"
+  # セッションの記録が無い（Codex）: 画面に印の行があれば ok、無ければ未確認の 3（壊れにしない）
+  wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
+  [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: 画面にもセッションの記録にも読めないのに未確認の 3 で終わらない（$jrc）: $jout"
+  printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
+  wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
+  rm -f "$c/screen"
+  # 画面に前の起動の印つきの行だけが残り、今回の最初のメッセージが届いていなくても、画面だけでは今回の起動の文と分けられない。ok にせず未確認の 3
+  [ "$jrc" = 3 ] && grep -qF '画面の続きの行は全部印 [resume] つきだが' <<<"$jout" && ! grep -qF 'ok   wl-resume' <<<"$jout" \
+    || die "wl-resume: 画面の印つきの行だけで ok にした（前の起動の印を今回の証拠にする）（$jrc）: $jout"
+  # 画面は前の起動の印つきの文も映す。印の無い続きの行が1つでもあれば ok にしない（壊れとも言えないので未確認）
+  printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n…\n› 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
+  wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
+  rm -f "$c/screen"
+  [ "$jrc" = 3 ] && grep -qF '画面に印の無い続きの行がある' <<<"$jout" || die "wl-resume: 画面に印の無い続きの行があるのに未確認の 3 で終わらない（$jrc）: $jout"
+  # Claude Code の担当はセッションの記録で決める。画面に前の起動の印つきの行があっても、記録の印の無い文で落ちる
+  printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg" | sed 's/\[resume\] //')")"
+  rm -f "$c/screen"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 画面の前の起動の印で、記録の印の無い文を ok にした（$jrc）: $jout"
+  { umsg 2026-01-01T00:02:05.000Z "$(printf "$rmsg")"; umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")"; } >"$sess"
+  ok "verify-andon: wl-resume は、resume の起動のあとの最初のオーナーの印の文の頭にも最後の段落の頭にも [resume] が無いと落ち、知らせ・次の起動や次に当てたあとの文・画面の前の起動の印を証拠にせず、確かめられなければ未確認の 3 で終わる"
+
   # gate の gt-answer: dispatcher が閉じた問いは gate の問いだけで、「決め直した」の答えが名指す gate の記録が在る。
   # 偽のセルに本物の kanban の CLI で kanban を作り、dispatcher の端末として問いを出して答えて受け取る（今の時刻なので、上の beef02 の間に入る）
   . tests/lib/kanban.sh
@@ -416,7 +482,7 @@ if [ "$self" = true ]; then
   printf '{"commit": "%s", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "%s", "applied_at": "2026-01-01T00:00:00Z"}]}\n' "$new" "$old" >"$c/pkg/applied.json"
   { launch 2026-01-01T00:02:00Z "$old"; launch 2026-01-01T00:12:00Z "$new"; } >"$lib/launches.jsonl"
   drive() { # drive <引数…> → 終了コードを $drc に、出力（標準エラーも）を $dout に
-    drc=0; dout=$(env PATH="$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" TMPDIR="$c" \
+    drc=0; dout=$(env PATH="$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" CLAUDE_CONFIG_DIR="$c/claude" TMPDIR="$c" \
       bash "$skill/scripts/drive.sh" "$@" 2>&1) || drc=$?
   }
   refused() { # refused <何が違うか> <drive.sh の引数…>: 使い方の誤り 2 で断り、道を動かさない（当てた記録を読む行が出ない）
