@@ -24,7 +24,7 @@ const timeLayout = "2006-01-02T15:04:05Z"
 type routine struct {
 	name   string
 	d      *doc
-	broken string // why the file can't be read
+	broken string
 }
 
 func routinesDir(root string) string { return filepath.Join(ledgerDir(root), "routines") }
@@ -32,8 +32,6 @@ func statePath(root string) string {
 	return filepath.Join(ledgerDir(root), "state", "routines.json")
 }
 
-// readRoutines reads routines/*.yaml, by name. A routines/ that is a symbolic link is
-// refused; a routine file that is a link, or can't be read, comes back broken.
 func readRoutines(root string) ([]*routine, error) {
 	dir := routinesDir(root)
 	if err := checkNoLink(dir, false); err != nil {
@@ -69,7 +67,6 @@ func (r *routine) schedule() string { return r.d.str("schedule") }
 // schema's type. A null, or a value of another type, is a problem (kanban lint), and a routine
 // with a problem doesn't fire. A missing key takes its default.
 
-// on is the statuses the routine fires on: a list of strings.
 func (r *routine) on() []string {
 	if n := r.d.get("on"); !isList(n) {
 		return nil
@@ -77,7 +74,6 @@ func (r *routine) on() []string {
 	return r.d.list("on")
 }
 
-// paused is the routine's paused key, a YAML boolean; default false.
 func (r *routine) paused() (bool, error) {
 	if r.d.index("paused") < 0 {
 		return false, nil
@@ -89,7 +85,6 @@ func (r *routine) paused() (bool, error) {
 	return v, nil
 }
 
-// open is how many of its tasks may be not done; default 1.
 func (r *routine) open() (int, error) {
 	if r.d.index("open") < 0 {
 		return 1, nil
@@ -102,12 +97,10 @@ func (r *routine) open() (int, error) {
 	return v, nil
 }
 
-// isTagged is a scalar of the YAML type tag (!!str, !!int, !!bool).
 func isTagged(n *yaml.Node, tag string) bool {
 	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == tag
 }
 
-// isList is a sequence of strings.
 func isList(n *yaml.Node) bool {
 	if n == nil || n.Kind != yaml.SequenceNode {
 		return false
@@ -120,7 +113,6 @@ func isList(n *yaml.Node) bool {
 	return true
 }
 
-// problems are what keep a routine from firing (kanban lint reports them).
 func (r *routine) problems(cfg config) []string {
 	if err := checkSegment("name", r.name); err != nil {
 		return []string{err.Error()}
@@ -160,7 +152,6 @@ func (r *routine) problems(cfg config) []string {
 	return out
 }
 
-// loadLocation is config.yaml's timezone, else UTC.
 func loadLocation(cfg config) (*time.Location, error) {
 	if cfg.timezone == "" {
 		return time.UTC, nil
@@ -172,8 +163,6 @@ func loadLocation(cfg config) (*time.Location, error) {
 	return loc, nil
 }
 
-// firing is one command's work on routines, under the lock: the routines, the state
-// (routine name -> UTC time of its last firing, or of when kanban first saw it), and what fired.
 type firing struct {
 	root    string
 	cfg     config
@@ -181,11 +170,9 @@ type firing struct {
 	all     []*routine
 	state   map[string]any
 	changed bool
-	done    []*omap // {routine, fired|skipped}
+	done    []*omap
 }
 
-// startFiring reads the routines and the state before anything is written, so a link
-// or a broken state file stops the command with nothing half done.
 func startFiring(root string, cfg config) (*firing, error) {
 	f := &firing{root: root, cfg: cfg, at: clock(), state: map[string]any{}}
 	var err error
@@ -220,8 +207,6 @@ func (f *firing) find(name string) *routine {
 	return nil
 }
 
-// since is the time a routine's schedule counts from. The first time kanban sees a routine,
-// it notes now and returns false: that time doesn't fire.
 func (f *firing) since(r *routine) (time.Time, bool) {
 	if s, ok := f.state[r.name].(string); ok {
 		if t, err := time.Parse(timeLayout, s); err == nil {
@@ -237,7 +222,6 @@ func (f *firing) note(r *routine) {
 	f.changed = true
 }
 
-// notDone counts the tasks a routine added that aren't done.
 func notDone(tasks []*task, cfg config, name string) int {
 	n := 0
 	for _, t := range tasks {
@@ -248,8 +232,6 @@ func notDone(tasks []*task, cfg config, name string) int {
 	return n
 }
 
-// fire is one firing: skipped when paused or when open of its tasks are not done,
-// else a task added as kanban add would. Either way it is logged and its time noted.
 func (f *firing) fire(r *routine) error {
 	result := &omap{}
 	result.set("routine", r.name)
@@ -287,8 +269,6 @@ func (f *firing) fire(r *routine) error {
 	return nil
 }
 
-// entered fires the routines whose on lists the status a task just moved into,
-// except routines that added that task. Routines with problems don't fire.
 func (f *firing) entered(t *task, status string) error {
 	for _, r := range f.all {
 		if r.d == nil || !slices.Contains(r.on(), status) || t.d.str("routine") == r.name || len(r.problems(f.cfg)) > 0 {
@@ -315,7 +295,6 @@ func (f *firing) save() error {
 	return writeAtomic(statePath(f.root), append(data, '\n'))
 }
 
-// lines are the firings for people: "<routine>: added W-5" or "<routine>: skipped (open)".
 func (f *firing) lines() []string {
 	var out []string
 	for _, d := range f.done {
@@ -328,8 +307,6 @@ func (f *firing) lines() []string {
 	return out
 }
 
-// withEvents runs fn under the lock with a firing for the statuses it reports, then saves
-// the state. A command that moves tasks calls entered for each move.
 func withEvents(e env, cfg config, fn func(f *firing) error) (*firing, error) {
 	var f *firing
 	err := withLock(e.root, lockWait, func() error {
@@ -345,7 +322,6 @@ func withEvents(e env, cfg config, fn func(f *firing) error) (*firing, error) {
 	return f, err
 }
 
-// printFired tells a person which routines a move fired (not in --json, whose shape stays).
 func printFired(e env, a args, f *firing) {
 	if f != nil && !a.has("json") {
 		for _, l := range f.lines() {
@@ -515,7 +491,6 @@ func routineRun(e env, a args) error {
 	return nil
 }
 
-// lintRoutines is kanban lint's part for routines and the time zone.
 func lintRoutines(root string, cfg config, cfgRead bool) []string {
 	var out []string
 	if cfgRead {

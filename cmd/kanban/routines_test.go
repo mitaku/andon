@@ -34,13 +34,13 @@ func TestCronNext(t *testing.T) {
 		{"0 9 * * *", "2026-11-02T09:00:00Z", "2026-11-03T09:00:00Z", utc},
 		{"0 9 * * *", "2026-11-02T08:59:59Z", "2026-11-02T09:00:00Z", utc},
 		{"*/15 * * * *", "2026-11-02T10:01:00Z", "2026-11-02T10:15:00Z", utc},
-		{"0 9 * * 1-5", "2026-11-06T09:00:00Z", "2026-11-09T09:00:00Z", utc}, // Friday -> Monday
-		{"0 0 * * 7", "2026-11-02T00:00:00Z", "2026-11-08T00:00:00Z", utc},   // 7 is Sunday
-		{"0 0 1 * 0", "2026-11-02T00:00:00Z", "2026-11-08T00:00:00Z", utc},   // day of month OR day of week
+		{"0 9 * * 1-5", "2026-11-06T09:00:00Z", "2026-11-09T09:00:00Z", utc},
+		{"0 0 * * 7", "2026-11-02T00:00:00Z", "2026-11-08T00:00:00Z", utc}, // 7 is Sunday
+		{"0 0 1 * 0", "2026-11-02T00:00:00Z", "2026-11-08T00:00:00Z", utc}, // day of month OR day of week
 		{"0 0 1 */2 *", "2026-11-02T00:00:00Z", "2027-01-01T00:00:00Z", utc},
 		{"5,10-20/5 3 * * *", "2026-11-02T03:06:00Z", "2026-11-02T03:10:00Z", utc},
 		{"0 0 29 2 *", "2026-03-01T00:00:00Z", "2028-02-29T00:00:00Z", utc},
-		{"0 9 * * *", "2026-11-01T23:59:59Z", "2026-11-02T00:00:00Z", tokyo}, // 09:00 in Tokyo is 00:00 UTC
+		{"0 9 * * *", "2026-11-01T23:59:59Z", "2026-11-02T00:00:00Z", tokyo},
 		{"0 9 * * *", "2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z", tokyo},
 	} {
 		s, err := ledger.ParseCron(c.expr)
@@ -66,7 +66,6 @@ func TestCronNext(t *testing.T) {
 	}
 }
 
-// routineLedger is a ledger with a clock set by DECK_NOW.
 func routineLedger(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "root")
@@ -140,7 +139,6 @@ func TestTickFiresOnScheduleOnce(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "triage", "# a person's note\ntitle: Look at untriaged tasks\nbrief: |\n  List them.\nprofile: sonnet\nrepo: github.com/x/app\nschedule: \"0 9 * * *\"\nowner: me\n")
 
-	// The first tick only notes when kanban first saw the routine; it doesn't fire.
 	kanban(t, root, "tick")
 	if n := taskCount(root); n != 0 {
 		t.Fatalf("first tick added %d tasks", n)
@@ -157,7 +155,7 @@ func TestTickFiresOnScheduleOnce(t *testing.T) {
 	if out := kanban(t, root, "tick"); !strings.Contains(out, "triage") || !strings.Contains(out, "W-0001") {
 		t.Fatalf("tick at 9:00: %q", out)
 	}
-	kanban(t, root, "tick") // the same minute again: nothing
+	kanban(t, root, "tick")
 	t.Setenv("DECK_NOW", "2026-11-02T09:05:00Z")
 	kanban(t, root, "tick")
 	if n := taskCount(root); n != 1 {
@@ -177,12 +175,10 @@ func TestTickFiresOnScheduleOnce(t *testing.T) {
 	if s := readState(t, root); s["triage"] != "2026-11-02T09:00:00Z" {
 		t.Fatalf("state %v", s)
 	}
-	// The routine file is only read.
 	if b, _ := os.ReadFile(filepath.Join(root, "kanban", "routines", "triage.yaml")); !strings.Contains(string(b), "# a person's note") {
 		t.Fatalf("routine file changed: %q", b)
 	}
 
-	// Three days missed: one task, not three (after the first is done).
 	kanban(t, root, "done", "W-0001")
 	t.Setenv("DECK_NOW", "2026-11-05T12:00:00Z")
 	kanban(t, root, "tick")
@@ -197,7 +193,7 @@ func TestOpenStopsUntilDone(t *testing.T) {
 	writeRoutine(t, root, "hourly", "title: Hourly check\nschedule: \"0 * * * *\"\n")
 	kanban(t, root, "tick")
 	t.Setenv("DECK_NOW", "2026-11-02T09:00:00Z")
-	kanban(t, root, "tick") // W-0001
+	kanban(t, root, "tick")
 	t.Setenv("DECK_NOW", "2026-11-02T10:00:00Z")
 	if out := kanban(t, root, "tick"); !strings.Contains(out, "open") {
 		t.Fatalf("tick with one open: %q", out)
@@ -221,7 +217,6 @@ func TestOpenStopsUntilDone(t *testing.T) {
 		t.Fatalf("log %v", l)
 	}
 
-	// open: 2 lets two be not done.
 	writeRoutine(t, root, "hourly", "title: Hourly check\nschedule: \"0 * * * *\"\nopen: 2\n")
 	t.Setenv("DECK_NOW", "2026-11-02T12:00:00Z")
 	kanban(t, root, "tick")
@@ -234,16 +229,16 @@ func TestEventFires(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "after-done", "title: Look at what was done\non: [done]\n")
 	writeRoutine(t, root, "on-review", "title: Review it\non: [review]\n")
-	kanban(t, root, "add", "Work")                  // W-0001
-	kanban(t, root, "add", "Other")                 // W-0002
-	kanban(t, root, "start", "W-0001")              // doing: nothing listens
-	kanban(t, root, "review", "W-0001")             // on-review -> W-0003
-	kanban(t, root, "done", "W-0001")               // after-done -> W-0004
-	kanban(t, root, "start", "W-0003")              //
-	kanban(t, root, "done", "W-0003")               // after-done open (W-0004 not done): skipped
-	kanban(t, root, "done", "W-0004")               // its own task: nothing
-	kanban(t, root, "set", "W-0002", "status=done") // after-done -> W-0005
-	kanban(t, root, "set", "W-0002", "status=done") // not a move: nothing
+	kanban(t, root, "add", "Work")
+	kanban(t, root, "add", "Other")
+	kanban(t, root, "start", "W-0001")
+	kanban(t, root, "review", "W-0001")
+	kanban(t, root, "done", "W-0001")
+	kanban(t, root, "start", "W-0003")
+	kanban(t, root, "done", "W-0003")
+	kanban(t, root, "done", "W-0004")
+	kanban(t, root, "set", "W-0002", "status=done")
+	kanban(t, root, "set", "W-0002", "status=done")
 	want := []string{
 		"on-review fired W-0003 by routine:on-review",
 		"after-done fired W-0004 by routine:after-done",
@@ -264,12 +259,12 @@ func TestEventFires(t *testing.T) {
 func TestDoneFreeingQueuedFires(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "on-todo", "title: Something is ready\non: [todo]\n")
-	kanban(t, root, "add", "First")                       // W-0001 todo (add is not a move)
-	kanban(t, root, "add", "Second", "--after", "W-0001") // W-0002 queued
+	kanban(t, root, "add", "First")
+	kanban(t, root, "add", "Second", "--after", "W-0001")
 	if n := taskCount(root); n != 2 {
 		t.Fatalf("add fired: %d tasks", n)
 	}
-	kanban(t, root, "done", "W-0001") // W-0002 queued -> todo: on-todo -> W-0003
+	kanban(t, root, "done", "W-0001")
 	if l := routineLog(t, root); len(l) != 1 || l[0] != "on-todo fired W-0003 by routine:on-todo" {
 		t.Fatalf("log %v", l)
 	}
@@ -318,7 +313,6 @@ func TestRoutineList(t *testing.T) {
 	if len(got) != 2 || got[0]["name"] != "after" || got[1]["name"] != "triage" {
 		t.Fatalf("list %s", out)
 	}
-	// 2026-11-02 is a Monday; 09:00 in Tokyo is 00:00 UTC, so the next one after 08:00 UTC is Tuesday's.
 	if got[1]["last"] != "2026-11-02T08:00:00Z" || got[1]["next"] != "2026-11-03T00:00:00Z" || got[1]["notDone"] != float64(0) {
 		t.Fatalf("triage %v", got[1])
 	}
@@ -333,7 +327,6 @@ func TestRoutineList(t *testing.T) {
 	}
 }
 
-// paused is a YAML boolean: True pauses as true does, and false doesn't.
 func TestPausedIsReadAsABoolean(t *testing.T) {
 	root := routineLedger(t)
 	writeRoutine(t, root, "capital", "title: Capital\non: [review]\npaused: True\n")
@@ -344,7 +337,6 @@ func TestPausedIsReadAsABoolean(t *testing.T) {
 	if out := kanban(t, root, "routine", "run", "off"); !strings.Contains(out, "W-0001") {
 		t.Fatalf("paused: false didn't fire: %q", out)
 	}
-	// An explicit null is not a boolean: the routine has a problem and fires neither by hand nor on an event.
 	writeRoutine(t, root, "nulled", "title: Paused null\non: [review]\npaused: null\n")
 	kanbanFails(t, root, "", "routine", "run", "nulled")
 	kanban(t, root, "start", "W-0001")
@@ -390,7 +382,6 @@ func TestLintRoutines(t *testing.T) {
 	if code != 1 || strings.Contains(out.String(), "routines/ok.yaml") {
 		t.Errorf("exit %d:\n%s", code, out.String())
 	}
-	// A broken routine doesn't stop tick for the others, but tick says so.
 	kanbanFails(t, root, "", "tick")
 	if s := readState(t, root); s["ok"] == "" {
 		t.Fatalf("tick skipped the good routine: %v", s)
@@ -421,7 +412,6 @@ func TestRoutineLinksAreRefused(t *testing.T) {
 	kanbanFails(t, root, "", "tick")
 	assertUnchanged(t, out, "{}\n")
 
-	// A routine file that is a link, or a routines/ that is a link, is not read.
 	root2 := routineLedger(t)
 	elsewhere := t.TempDir()
 	os.WriteFile(filepath.Join(elsewhere, "x.yaml"), []byte("title: X\non: [done]\n"), 0o644)

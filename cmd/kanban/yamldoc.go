@@ -9,14 +9,11 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// keyOrder is where kanban puts a key it adds. Keys a person put elsewhere stay where they are.
 var keyOrder = []string{"id", "title", "status", "repo", "parent", "phase", "after", "profile", "who", "agent", "branch", "worktree", "session", "links", "routine", "not_before", "created", "updated"}
 
-// doc is one YAML file kept as a node tree, so that changing a value keeps the
-// comments and the order of everything else.
 type doc struct {
-	root *yaml.Node // the document node
-	m    *yaml.Node // its top-level mapping
+	root *yaml.Node
+	m    *yaml.Node
 }
 
 func parseDoc(data []byte) (*doc, error) {
@@ -25,7 +22,7 @@ func parseDoc(data []byte) (*doc, error) {
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return nil, err
 	}
-	if root.Kind == 0 { // empty file
+	if root.Kind == 0 {
 		root = yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}}
 	}
 	m := root.Content[0]
@@ -83,7 +80,6 @@ func isNull(n *yaml.Node) bool {
 	return n == nil || (n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null")
 }
 
-// str is a scalar's text, or "" when the key is missing, null or not a scalar.
 func (d *doc) str(key string) string {
 	n := d.get(key)
 	if isNull(n) || n.Kind != yaml.ScalarNode {
@@ -92,7 +88,6 @@ func (d *doc) str(key string) string {
 	return n.Value
 }
 
-// list reads a sequence of scalars; a single scalar counts as a list of one.
 func (d *doc) list(key string) []string {
 	n := d.get(key)
 	switch {
@@ -134,8 +129,6 @@ func (d *doc) setList(key string, items []string) {
 	d.set(key, listNode(items))
 }
 
-// set replaces a value in place (keeping the comments around it), or adds the key
-// next to its neighbours in keyOrder.
 func (d *doc) set(key string, value *yaml.Node) {
 	if i := d.index(key); i >= 0 {
 		old := d.m.Content[i+1]
@@ -149,7 +142,6 @@ func (d *doc) set(key string, value *yaml.Node) {
 	at := d.insertAt(key)
 	k := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
 	if at == 0 && len(d.m.Content) > 0 {
-		// The comment at the top of the file stays at the top.
 		k.HeadComment, d.m.Content[0].HeadComment = d.m.Content[0].HeadComment, ""
 	}
 	d.m.Content = slices.Insert(d.m.Content, at, k, value)
@@ -183,7 +175,6 @@ func (d *doc) insertAt(key string) int {
 
 func (d *doc) del(key string) {
 	if i := d.index(key); i >= 0 {
-		// The value goes; a person's comments around it stay, on the next key.
 		k, v := d.m.Content[i], d.m.Content[i+1]
 		kept := joinComments(joinComments(k.HeadComment, k.FootComment), v.FootComment)
 		d.m.Content = slices.Delete(d.m.Content, i, i+2)
@@ -203,7 +194,6 @@ func joinComments(a, b string) string {
 	return strings.Trim(a+"\n"+b, "\n")
 }
 
-// value turns a node into plain values for JSON: mappings keep their order.
 func value(n *yaml.Node) any {
 	n = resolveAlias(n)
 	if n == nil {

@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// A new ledger's tasks are numbered from A-0001; A-1 and A-01 name the same task.
 func TestIdsHaveFourDigitsAndShortIdsAreRead(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "root")
 	t.Setenv("KANBAN_ROOT", root)
@@ -37,7 +36,6 @@ func TestIdsHaveFourDigitsAndShortIdsAreRead(t *testing.T) {
 	}
 }
 
-// kanban/ is a plain name: a kanban/ folder without a ledger's config.yaml is not a ledger.
 func TestAKanbanFolderInARepositoryIsNotALedger(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	ws := t.TempDir()
@@ -60,7 +58,6 @@ func TestAKanbanFolderInARepositoryIsNotALedger(t *testing.T) {
 	if out := strings.TrimSpace(kanban(t, filepath.Join(repo, "kanban"), "root")); !sameFile(out, project) {
 		t.Fatalf("root from its kanban/: %q, want %q", out, project)
 	}
-	// A quoted version is a string, not a format: kanban writes to the project's ledger, not the repository's.
 	if out := kanban(t, repo, "add", "x"); out != "W-0001\n" || !exists(taskFile(project, "W-0001")) || exists(filepath.Join(repo, "kanban", "tasks", "W-0001")) {
 		t.Fatalf("add from the repository: %q", out)
 	}
@@ -68,8 +65,6 @@ func TestAKanbanFolderInARepositoryIsNotALedger(t *testing.T) {
 	kanbanFails(t, repo, "", "list")
 }
 
-// kanban migrate moves .flightdeck/ to kanban/: the folder (still out of git), chief_of_staff, the ids,
-// coordinator.md and the dispatcher's state. log.jsonl keeps the old ids, read as the new.
 func TestMigrateMovesTheOldLedger(t *testing.T) {
 	ws := t.TempDir()
 	root := filepath.Join(ws, "projects", "app")
@@ -122,7 +117,6 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	if out := git(ws, "status", "--porcelain", "--untracked-files=all"); strings.Contains(out, "kanban/") || git(ws, "diff", "--cached", "--name-only") != "" {
 		t.Fatalf("git status after migrate:\n%s", out)
 	}
-	// A draft of project.json from config.yaml and delegation.json, which Andon reads with the same delegation.
 	p, err := delegate.ParseProject([]byte(readFile(t, filepath.Join(root, "project.json"))), "app")
 	if err != nil || p.Project.Title != "app" || p.Project.Prefix != "A" || len(p.Repos) != 0 || p.Signals != nil {
 		t.Fatalf("project.json draft: %+v %v", p, err)
@@ -139,11 +133,9 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	if want := `{"coord":"t5","gates":{"A-0005#3":{"task":"A-0005"}},"pending":[{"kind":"review","task":"A-0003"}],"ready":["A-0005"],"reviewers":{"A-0005@abc":{"reviewer_task":"A-0012","task":"A-0005"}},"sent":{"A-0005|t9|done|1":true},"worktree":"/w/yard-A-5"}`; string(b) != want {
 		t.Fatalf("dispatcher state:\n%s\nwant\n%s", b, want)
 	}
-	// kanban migrate leaves format 2: every command stops until the person moves it by hand.
 	t.Setenv("KANBAN_ROOT", root)
 	kanbanFails(t, root, "", "list")
 	moveByHand(t, root)
-	// A-5#1 still answers: the question kept its number (log.jsonl says A-5).
 	kanban(t, root, "answer", "A-5#1", "this")
 	if out := kanban(t, root, "ask", "A-0005", "and?"); out != "A-0005#2\n" {
 		t.Fatalf("ask after migrate: %q", out)
@@ -153,7 +145,6 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	}
 }
 
-// A task in doing or review stops the move, and nothing changes.
 func TestMigrateStopsOnDoingOrReview(t *testing.T) {
 	for _, status := range []string{"doing", "review"} {
 		root := t.TempDir()
@@ -175,7 +166,6 @@ func TestMigrateStopsOnDoingOrReview(t *testing.T) {
 	}
 }
 
-// migrate refuses when there is nothing to move, or kanban/ is already there.
 func TestMigrateRefusesWithoutOldOrWithNew(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	root := t.TempDir()
@@ -219,7 +209,6 @@ func sameFile(a, b string) bool {
 	return err1 == nil && err2 == nil && os.SameFile(fa, fb)
 }
 
-// A task folder that is a symbolic link stops the move before anything changes.
 func TestMigrateRefusesALinkedTaskFolder(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -237,7 +226,6 @@ func TestMigrateRefusesALinkedTaskFolder(t *testing.T) {
 	assertUnchanged(t, filepath.Join(old, "tasks", "A-1", "task.yaml"), "id: A-1\ntitle: one\nstatus: todo\n")
 }
 
-// A dispatcher state that isn't JSON stops the move before anything changes; once it is fixed, migrate runs.
 func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	state := t.TempDir()
@@ -263,7 +251,6 @@ func TestMigrateChecksTheDispatcherStateFirst(t *testing.T) {
 	}
 }
 
-// project.json is drafted only when there is none, and a delegation.json that isn't a JSON object stops the move.
 func TestMigrateProjectDraft(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -291,7 +278,6 @@ func TestMigrateProjectDraft(t *testing.T) {
 	}
 }
 
-// A quoted version is not format 2: nothing moves; an integer one does.
 func TestMigrateNeedsAnIntegerVersion(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())

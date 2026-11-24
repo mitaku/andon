@@ -75,10 +75,9 @@ var (
 )
 
 type args struct {
-	flags map[string]string   // the last value of each flag
-	all   map[string][]string // every value of each flag, for flags that repeat (--repo in init)
+	flags map[string]string
+	all   map[string][]string
 	rest  []string
-	// loose is how many words of rest came before a --; the words after it are words whatever they start with.
 	loose int
 }
 
@@ -88,7 +87,7 @@ func parseArgs(argv []string) (args, error) {
 	a := args{flags: map[string]string{}, all: map[string][]string{}}
 	for i := 0; i < len(argv); i++ {
 		s := argv[i]
-		if s == "--" { // the rest are words, also those that start with --
+		if s == "--" {
 			a.loose = len(a.rest)
 			a.rest = append(a.rest, argv[i+1:]...)
 			return a, nil
@@ -115,7 +114,6 @@ func parseArgs(argv []string) (args, error) {
 	return a, nil
 }
 
-// env is what a command runs with; tests replace stdin and stdout.
 type env struct {
 	root, cwd string
 	stdin     io.Reader
@@ -145,7 +143,6 @@ func init() {
 	}
 }
 
-// errLint is a lint that found problems: its output is already printed, exit code 1.
 var errLint = errors.New("lint found problems")
 
 func run(argv []string, cwd string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -189,9 +186,6 @@ func dispatch(argv []string, cwd string, stdin io.Reader, stdout io.Writer) erro
 		if e.root, err = findRoot(cwd); err != nil {
 			return err
 		}
-		// Every command but init (which checks for itself) and lint (which reports it as a
-		// problem) stops on a format it doesn't know, before it reads or writes anything else.
-		// A format 2 ledger stops lint too: it is not broken, it is to be moved by hand.
 		if argv[0] != "lint" {
 			if _, err := readConfig(e.root); err != nil {
 				return err
@@ -255,7 +249,6 @@ func cmdInit(e env, a args) error {
 	root, _ = filepath.Abs(root)
 	dir := ledgerDir(root)
 	file := filepath.Join(dir, "config.yaml")
-	// An existing ledger is checked before anything is made, so a format kanban doesn't know stays as it is.
 	already := exists(file)
 	if already {
 		if _, err := readConfig(root); err != nil {
@@ -282,7 +275,6 @@ func cmdInit(e env, a args) error {
 	return nil
 }
 
-// strNodeText is a string as a YAML scalar (quoted when it would read as something else).
 func strNodeText(s string) string {
 	d := newDoc()
 	d.setStr("x", s)
@@ -371,9 +363,6 @@ func listDoc(key string, items []string) *doc {
 	return d
 }
 
-// reviewerID is the id kanban add gives a reviewer's task (--parent and a *-review --profile):
-// <parent>-r<k>, k from --round, else one more than the parent's reviewer tasks so far (of either id form).
-// It takes no number from the prefix's sequence. Empty for any other task (the next number).
 func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 	if parent == "" || !isReviewProfile(a.flags["profile"]) {
 		if a.has("round") {
@@ -408,8 +397,6 @@ func reviewerID(a args, parent string, all map[string]*task) (string, error) {
 	return id, checkSegment("id", id)
 }
 
-// newTask adds a task under the lock, as kanban add does: id (when empty, the next <prefix>-<n>), title, the non-empty
-// fields, after, status, created and updated, and brief.md when brief isn't nil. The caller logs it.
 func newTask(root string, cfg config, id, title string, fields map[string]string, after []string, status string, brief *string) (*task, error) {
 	if id == "" {
 		re := regexp.MustCompile(`^` + regexp.QuoteMeta(cfg.prefix) + `-(\d+)$`)
@@ -448,8 +435,6 @@ func newTask(root string, cfg config, id, title string, fields map[string]string
 	return t, nil
 }
 
-// taskRepo is the repo for a new or started task: --repo, which must be one of repos,
-// else the entry of repos that the current folder's main checkout matches, else "".
 func taskRepo(e env, a args, cfg config) (string, error) {
 	if a.has("repo") {
 		r := a.flags["repo"]
@@ -464,7 +449,6 @@ func taskRepo(e env, a args, cfg config) (string, error) {
 	return repoOf(cfg.repos, mainCheckout(e.cwd)), nil
 }
 
-// repoName is the last part of a repo (github.com/x/app -> app), for short lines.
 func repoName(r string) string { return r[strings.LastIndex(r, "/")+1:] }
 
 func padEnd(s string, n int) string {
@@ -636,8 +620,6 @@ func cmdStart(e env, a args) error {
 		if w := waitingOn(t, all, cfg); len(w) > 0 && !a.has("force") {
 			return fail("%s waits for %s (--force to start anyway)", id, strings.Join(w, ", "))
 		}
-		// A reviewer's issue (--parent and a *-review profile) gets its worktree from the dispatcher's first
-		// start (cwd = the detached worktree). Once set, a later start from any cwd does not infer it again.
 		var branch, top string
 		if t.d.str("parent") == "" || !isReviewProfile(t.d.str("profile")) || t.d.str("worktree") == "" {
 			branch = git(e.cwd, "rev-parse", "--abbrev-ref", "HEAD")
@@ -745,8 +727,6 @@ func cmdSet(e env, a args) error {
 			}
 		}
 		_, moved := change.vals["status"]
-		// A queued task whose after was rewritten to nothing left to wait for moves to the first column,
-		// as freeWaiting does after kanban done. A status set in the same command wins.
 		if _, rewired := change.vals["after"]; rewired && !moved && was == "queued" && len(waitingOn(t, byID(allTasks(e.root)), cfg)) == 0 {
 			t.d.setStr("status", cfg.columns[0])
 			change.set("status", cfg.columns[0])
@@ -756,8 +736,6 @@ func cmdSet(e env, a args) error {
 			}
 		}
 		done := moved && t.status() == cfg.done()
-		// Returning an issue (into review from another status) checks what done checks: an issue
-		// returned with a question not received is refused by andon issue finish later.
 		if done || (moved && t.status() == "review" && was != "review") {
 			verb := "close"
 			if !done {
@@ -805,7 +783,6 @@ func cmdReview(e env, a args) error {
 	return cmdSet(e, args{flags: a.flags, all: a.all, rest: []string{id, "status=review"}})
 }
 
-// cmdDone marks a task done; then any queued task with nothing left to wait for moves to the first column.
 func cmdDone(e env, a args) error {
 	id, err := need(a, "kanban done <id>")
 	if err != nil {
@@ -895,7 +872,6 @@ func closing(root, id string, force bool, past map[int]bool, verb string) ([]int
 	return moved, nil
 }
 
-// pastOf reads --past <id>#<n>,… (each of them a question of the issue id) as the numbers closing may move past.
 func pastOf(a args, id string) (map[int]bool, error) {
 	past := map[int]bool{}
 	for _, v := range a.all["past"] {
@@ -914,9 +890,6 @@ func pastOf(a args, id string) (map[int]bool, error) {
 	return past, nil
 }
 
-// freeWaiting moves each queued task that waited for id, done now, and has nothing left to wait
-// for, to the first column; it logs and fires each move and returns the ids it moved that are ready
-// now (one whose not_before is still ahead moves too, but isn't said to be ready, as kanban ready doesn't list it).
 func freeWaiting(root string, cfg config, f *firing, id string) ([]string, error) {
 	freed := []string{}
 	tasks := allTasks(root)
@@ -999,7 +972,7 @@ func cmdReport(e env, a args) error {
 func cmdLint(e env, a args) error {
 	problems := []string{}
 	cfg, err := readConfig(e.root)
-	cfgRead := err == nil // repos can be checked only against a config.yaml that was read
+	cfgRead := err == nil
 	if err != nil {
 		problems = append(problems, "config.yaml: "+firstLine(err.Error()))
 		cfg = config{prefix: "W", columns: defaultColumns}
@@ -1071,9 +1044,6 @@ func cmdLint(e env, a args) error {
 	return nil
 }
 
-// cmdConfig changes config.yaml under the lock. Only chief_of_staff: the Chief of Staff's address changes
-// each time it is started again, and it sets it here rather than by hand, outside the lock.
-// config.yaml is edited as a YAML tree, so comments and key order stay.
 func cmdConfig(e env, a args) error {
 	const usage = "usage: kanban config set chief_of_staff=<address>  (empty value removes it)"
 	if len(a.rest) != 2 || a.rest[0] != "set" || !strings.Contains(a.rest[1], "=") {
@@ -1088,7 +1058,6 @@ func cmdConfig(e env, a args) error {
 		if err := checkNoLink(file, true); err != nil {
 			return err
 		}
-		// Read again under the lock: a format kanban doesn't know stops here, before anything is written.
 		if _, err := readConfig(e.root); err != nil {
 			return err
 		}
