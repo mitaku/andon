@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,13 +113,24 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 			c.discardForHold(&w, reason, res)
 		}
 	}
+	lost := false // 記録が消えて、マージに進んだ approve を引き継がなかった（打ち直しを待っていたかもしれない）
 	if w.Row != row {
 		w = contract.Merging{Row: row}
-		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head の gate の記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
+		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head の gate の記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）。
+		// 判定のあとに止められた判定（止めている間の巡が捨てて問いを閉じた）と、決め終えた印の無いマージに進んだ approve（decidedApprove）は
+		// 引き継がず、gate から回し直す（引き継ぐと、マージも問いも無いまま止まる）
 		if fresh {
 			if g := c.gatedSince(rep.Commit, rows[row-1].At); g != nil {
-				w.Sha, w.Decision = g.Head, g.Decision
-				return &w
+				_, held := c.heldAfterDecision(rows, row, g.Head)
+				switch {
+				case held && g.Decision != "fix":
+					// 止める前の判定は捨てる（fix は担当が ready し直すので捨てない。discardForHold と同じ）
+				case g.Decision != "approve" || c.decidedApprove(rows, row, g):
+					w.Sha, w.Decision = g.Head, g.Decision
+					return &w
+				default:
+					w.Sha, lost = g.Head, true
+				}
 			}
 		}
 	}
@@ -140,7 +152,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		return &w
 	}
 	w.Wait = ""
-	if w.Retries > 0 && c.mergedWhileRetrying(&w, rep, res, now) {
+	if (w.Retries > 0 || lost) && c.mergedWhileRetrying(&w, rep, res, now) {
 		return &w
 	}
 	var out, errb bytes.Buffer
@@ -174,7 +186,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		// （担当が doing に戻って rebase し、ready が数えずに通した問い。ready の staleGateQuestions）
 		c.closeStaleGateQuestions(gr.Head, res)
 		record = filepath.Join(c.l.Library(c.id), "gate", gr.Head+".json")
-		res.Auto = gr.Decision == "approve" && c.autoMerge(rows, gr)
+		res.Auto = gr.Decision == "approve" && c.autoMerge(rows, gr.Delegation.OK)
 		res.Notify = append(res.Notify, contract.Notice{Kind: "gate",
 			Detail: map[string]any{"decision": gr.Decision, "reasons": nonNil(gr.Reasons), "record": record}})
 	}
@@ -262,7 +274,7 @@ func (c *ctx) heldAfterDecision(rows []ledger.Row, row int, sha string) (string,
 	return reason, !held.Before(decided)
 }
 
-// mergedWhileRetrying は、base が動いたマージの打ち直しを待つ間に、オーナーが gate の判定した head のままマージしたか。
+// mergedWhileRetrying は、base が動いたマージの打ち直しを待つ間（記録が消えて待っていたか分からない間も）に、オーナーが gate の判定した head のままマージしたか。
 // していれば gate を回さず（回すと「PR が open でない」の fix が担当へ飛ぶ）、gh pr merge の前にマージされていたとき（MergedBefore）と同じに
 // approve のまま決めて settle に渡す。読めなければ false（gate が読み直す）。
 func (c *ctx) mergedWhileRetrying(w *contract.Merging, rep *contract.Report, res *contract.Merge, now time.Time) bool {
@@ -432,9 +444,39 @@ type gateResult struct {
 	} `json:"delegation"`
 }
 
-// autoMerge は gate の approve のあとマージに進むか（merge: auto を Chief of Staff が書いた・委譲の範囲内）。
-func (c *ctx) autoMerge(rows []ledger.Row, gr gateResult) bool {
-	return ledger.SettingsOf(c.issue).Merge == "auto" && c.l.Trusted(rows, c.issue, "merge") && gr.Delegation.OK
+// autoMerge は gate の approve のあとマージに進むか（merge: auto を Chief of Staff が書いた・委譲の範囲内 delegated）。
+func (c *ctx) autoMerge(rows []ledger.Row, delegated bool) bool {
+	return ledger.SettingsOf(c.issue).Merge == "auto" && c.l.Trusted(rows, c.issue, "merge") && delegated
+}
+
+// decidedApprove は、記録が消えたときに引き継ぐ gate の記録 g の approve を、merge が決めたこととして書いた approve と読めるか。
+// マージに進まない approve（merge: person・委譲の外）、dispatcher がマージした approve（g.merged）、review に入った行 row より後に
+// gate の問いを出した approve（マージできなかった・回し直した gate が判定できなかった。その head か、どの head か読めない問い。
+// 受け取られた問いも数える）は決め終えている。それ以外のマージに進んだ approve は、マージの直前の読み直しか base の動きで
+// regate を返した回（決めたことを書かない）と見分けられないので、引き継がずに gate から回し直す。
+// 前の review 入りの問いは数えない（担当が ready し直した回の approve は、その問いと関わらない）。
+func (c *ctx) decidedApprove(rows []ledger.Row, row int, g *gate.Record) bool {
+	if g.Merged || !c.autoMerge(rows, g.Delegation.OK) {
+		return true
+	}
+	for _, r := range rows[row:] {
+		n, ok := r.Change["question"].(float64)
+		if r.ID != c.id || !ok || r.Change["status"] != "open" {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "questions", strconv.Itoa(int(n))+".json"))
+		var q struct {
+			From  string   `json:"from"`
+			Facts []string `json:"facts"`
+		}
+		if err != nil || json.Unmarshal(b, &q) != nil || q.From != "gate" {
+			continue // 読めない問いは無いものとして回し直す（止まるより問いが重なるほうがよい）
+		}
+		if h := gate.QuestionHead(q.Facts); h == g.Head || h == "" {
+			return true
+		}
+	}
+	return false
 }
 
 // stillWaiting は、PR の head が wait を返したときの head のままで、gate を回しても wait になる checks のままか（GraphQL を1回）。

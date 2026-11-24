@@ -542,6 +542,13 @@ ok 'レビュアーの課題の id は <親>-r<回>（1 回目 r1・2 回目 r2�
 # 3b. andon issue merge は2回打っても同じ結果（同じ review 入りでは gate も問いも通知も1回だけ）。
 #     記録が無くなっても、その review 入りのあとの gate の記録を引き継ぎ、問いを出し直さない（ADR-0017 受け入れ条件 7）
 mrun() { freeze; HC_TERMINAL_ID=dispatcher "$andon" issue merge "$1"; }
+lost_merge_record() { # lost_merge_record <id>: merge の記録を消してその課題に andon issue merge を打ち、ほかの課題の記録は戻す（あとの場面の数に入れない）
+    # dispatcher の巡では、記録を作り直すのは最初に打つ課題なので、場面の課題に直に打つ（下の 3b と同じ）
+    cp "$mergerec" "$tmp/merge.bak"
+    rm "$mergerec"
+    mrun "$1" > "$tmp/merge.out"
+    jq -s --arg t "$1" '(.[0] | del(.[$t])) + .[1]' "$tmp/merge.bak" "$mergerec" > "$tmp/merge.new" && mv "$tmp/merge.new" "$mergerec"
+}
 posted=$(grep -c '^status' "$tmp/gh/posted")
 mrun "$id" | jq -e --arg t "$id" '.issue == $t and .state == "skip" and .notify == []' >/dev/null || die "2 回目の merge が何かをした: $(mrun "$id")"
 jq -e --arg t "$id" '.[$t].decision == "needs_human" and .[$t].row > 0' "$mergerec" >/dev/null || die "merge の記録に決めたことが無い: $(cat "$mergerec")"
@@ -1040,7 +1047,15 @@ holds() { jq --arg t "$hd" '[.pending[] | select(.issue == $t and .kind == "hold
 dispatcher
 [ "$(holds)" = 1 ] || die '理由の課題の done を2度知らせた'
 ok '止めた理由の課題が done になっても止めは外れず、止めが残っていれば Chief of Staff に1回だけ知らせる（ADR-0056 A6）'
-HC_TERMINAL_ID=t5 "$andon" issue unhold "$hd" >/dev/null; HC_TERMINAL_ID=t5 kanban done "$hd" >/dev/null; sed -i "/^t7 $hd\$/d" "$tmp/hc/live"
+# 止めている間の巡が判定を捨てて問いを閉じたあと、merge の記録が消えてから外した → 止める前の判定を gate の記録から引き継がず、gate から回し直す
+kanban show "$hd" --json | jq -e '[.questions[] | select(.status != "received")] | length == 0' >/dev/null || die "前提: 止めている間に gate の問いを閉じていない: $(kanban show "$hd" --json | jq -c '.questions')"
+nq=$(kanban show "$hd" --json | jq '.questions | length')
+HC_TERMINAL_ID=t5 "$andon" issue unhold "$hd" >/dev/null
+lost_merge_record "$hd"
+kanban show "$hd" --json | jq -e --argjson n "$nq" '.questions | length == $n + 1 and (last | .status == "open")' >/dev/null ||
+    die "止めのあとに記録が消えたら、捨てた判定を引き継いで問いも無く止まった: $(cat "$tmp/merge.out") $(kanban show "$hd" --json | jq -c '.questions')"
+ok '止めて判定を捨てたあとに merge の記録が消えても、外したら止める前の判定を引き継がず、gate を今の head で回し直す'
+HC_TERMINAL_ID=t5 kanban done "$hd" --force >/dev/null; sed -i "/^t7 $hd\$/d" "$tmp/hc/live"
 jq --arg t "$hd" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
@@ -1330,6 +1345,14 @@ kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_ques
 jq -e '.merged == true' "$L/issues/$id/library/gate/$head.json" >/dev/null || die '打ち直したマージを gate の記録に書いていない'
 ok 'base が動いて gh pr merge が失敗したら問いにせず、次の巡で gate から照合し直し、同じ head でマージを打ち直して片付ける'
 
+# 打ち直しを待つ間に merge の記録が消えた → gate の記録の approve を決め終えたと引き継がず、gate から回し直して打ち直す
+base_moved '待つ間に merge の記録が消える'
+rm "$tmp/gh/mergefail"
+lost_merge_record "$id"
+[ "$(tried)" = 2 ] || die "記録が消えたら approve を引き継いで止まり、打ち直さない: $(tried) $(cat "$tmp/merge.out")"
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die "記録が消えたあと打ち直して片付けない・問いにした: $(cat "$tmp/merge.out")"
+ok '打ち直しを待つ間に merge の記録が消えても、gate の approve を決め終えたと読まず、gate から回し直して打ち直す'
+
 # ADR-0056 A7（決めたこと 12）: 印を書いた直後で必須の check がまだ揃わず「the base branch policy prohibits the merge」で断られた → 同じく打ち直す
 id=$(newtask '必須の check が揃う前' auto)
 printf 'X Pull request example/app#7 is not mergeable: the base branch policy prohibits the merge.\n' > "$tmp/gh/mergefail"
@@ -1383,12 +1406,29 @@ jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$id/li
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die '待つ間のオーナーのマージを片付けない・問いにした'
 ok '打ち直しを待つ間にオーナーが同じ head でマージしたら、fix も問いも出さずオーナーのマージとして片付ける'
 
+# 同じく待つ間にオーナーがマージし、settle が片付ける前に merge の記録が消えた → 引き継がない approve でも gate を回さず（fix を送らず）、settle が片付ける
+base_moved '待つ間にオーナーがマージして記録が消える'
+rm "$tmp/gh/mergefail"
+git -C "$tmp/origin" update-ref refs/heads/main "$head"; echo "$head" > "$tmp/gh/merged"
+jq '.state = "MERGED"' "$tmp/gh/view.json" > "$tmp/gh/v" && mv "$tmp/gh/v" "$tmp/gh/view.json"
+lost_merge_record "$id"
+[ "$(tried)" = 1 ] || die "記録が消えたあと、オーナーがマージしたのに打ち直した: $(cat "$tmp/merge.out")"
+! grep -q "^t7	\[gate\] $id（" "$tmp/hc/sent" || die "記録が消えたあと、オーナーがマージした課題の担当へ fix を送った: $(cat "$tmp/merge.out")"
+watch_due "$id"
+dispatcher
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die '記録が消えたあと、待つ間のオーナーのマージを片付けない・問いにした'
+ok '打ち直しを待つ間にオーナーがマージし、merge の記録が消えても、gate を回さずオーナーのマージとして片付ける'
+
 base_moved '待つ間に gate が落ちる'
 printf 'HTTP 502: Bad Gateway\n' > "$tmp/gh/ghfail"
 dispatcher
 rm "$tmp/gh/ghfail"
 jq -e '.question | contains("判定できなかった")' "$L/issues/$id/library/questions/1.json" >/dev/null || die '落ちた gate が問いにならない'
 jq -e --arg t "$id" '.[$t] | (.approved // "") == "" and (.retries // 0) == 0' "$mergerec" >/dev/null || die "問いにしたのに approve の待ちを残した（10 分で止まったと届く）: $(cat "$mergerec")"
+printf 'HTTP 502: Bad Gateway\n' > "$tmp/gh/ghfail"   # まだ落ちる間に merge の記録が消えても、判定できなかった問いを出し直さない
+lost_merge_record "$id"
+rm "$tmp/gh/ghfail"
+[ ! -e "$L/issues/$id/library/questions/2.json" ] || die "判定できなかった問いのあとに記録が消えたら、問いを出し直した: $(cat "$tmp/merge.out")"
 drop
 ok '打ち直しを待つ間に gate が落ちて問いにしたら、approve の待ちと回数を残さない'
 
@@ -1406,8 +1446,27 @@ jq -e '.from == "gate" and .kind == "irreversible" and (.question | contains("di
 dispatcher
 [ "$(tried)" = 4 ] || die '上限を超えても打ち直した'
 jq -e --arg t "$id" '.[$t] | .decision == "approve" and (.retries // 0) == 0 and (.approved // "") == ""' "$mergerec" >/dev/null || die "決めたあとに待ちを残した: $(cat "$mergerec")"
-drop
+lost_merge_record "$id"   # 問いを出したあとに記録が消えても、gate の記録を引き継いで打ち直さず、問いを出し直さない
+[ "$(tried)" = 4 ] && [ ! -e "$L/issues/$id/library/questions/2.json" ] || die "問いを出した approve の記録が消えたら、打ち直した・問いを出し直した: $(tried) $(cat "$tmp/merge.out")"
 ok 'base が動き続けたら打ち直しは 3 回までで、checks を待っても回数を忘れず、超えたら今までどおりオーナーへの問いにする'
+# Chief of Staff が原因を直し、担当が同じ head で ready し直した回でまた base が動き、待つ間に記録が消えた → 前の review 入りの問いで決め終えたと読まない
+HC_TERMINAL_ID=t5 kanban answer "$id#1" 'Chief of Staff が原因を直した。ready し直す' >/dev/null
+HC_TERMINAL_ID=t7 kanban received "$id#1" >/dev/null
+rm -f "$tmp/gh/mergefail"   # 同じ review 入りで問いを受け取ったあとに記録が消えても、問いを出した行で決め終えたと読み、打ち直さない
+lost_merge_record "$id"
+[ "$(tried)" = 4 ] && [ ! -e "$L/issues/$id/library/questions/2.json" ] || die "受け取った問いのあとに記録が消えたら、打ち直した・問いを出し直した: $(tried) $(cat "$tmp/merge.out")"
+printf '%s\n' "$basemod" > "$tmp/gh/mergefail"
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
+as_worker "$id" ready
+dispatcher
+[ "$(tried)" = 5 ] && jq -e --arg t "$id" '.[$t] | (.decision // "") == "" and .retries == 1' "$mergerec" >/dev/null ||
+    die "前提: ready し直した回で gate が approve して打ち直しを待っていない: $(tried) $(jq -c --arg t "$id" '.[$t]' "$mergerec")"
+rm "$tmp/gh/mergefail"
+lost_merge_record "$id"
+[ "$(tried)" = 6 ] || die "ready し直した回の記録が消えたら、前の回の問いで approve を引き継いで止まった: $(tried) $(cat "$tmp/merge.out")"
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && [ ! -e "$L/issues/$id/library/questions/2.json" ] ||
+    die "ready し直した回の記録が消えたあと打ち直して片付けない・問いにした: $(cat "$tmp/merge.out")"
+ok '同じ head で ready し直した回の打ち直しを待つ間に merge の記録が消えても、前の review 入りの問いで決め終えたと読まず、打ち直して片付ける'
 
 # 似た文の失敗は今までどおり1回で問いにする
 for why in 'GraphQL: Pull Request is not mergeable (mergePullRequest)' \
