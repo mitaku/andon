@@ -3,14 +3,14 @@
 #
 # Andon を開発するセルで、origin/main の commit をイメージの焼き直しなしにセルへ当てる（ADR-0027）。
 #   apply [<commit>]  commit（既定は origin/main の先頭。origin/main に含まれるものだけ）の package/・schema/ を
-#                     /opt/andon に、そこから焼いた andon・kanban を置き、andon boot を打ち直して dispatcher を起動し直す。
+#                     /opt/andon に、そこから焼いた andon・kanban を置き、andon boot を打ち直して dispatcher とハーネスの受け口を起動し直す。
 #                     最初に当てる前に、イメージの /opt/andon と kanban を退避する。
 #   status            イメージのバージョン・当てた commit・origin/main の先頭からの遅れを出す。
 #                     イメージの元の commit から当てた commit（origin/main の先頭）までに image/ が変わっていたら警告も出す。
-#   revert            退避からイメージのバージョンへ戻し、記録を消し、andon boot を打ち直して dispatcher を起動し直す。
+#   revert            退避からイメージのバージョンへ戻し、記録を消し、andon boot を打ち直して dispatcher とハーネスの受け口を起動し直す。
 # 書く先と元の repo は環境変数で差し替える（検査が一時の置き場に向ける）:
 #   ANDON_APPLY_REPO（既定はこのスクリプトの repo）・ANDON_APPLY_ROOT（/opt/andon）・ANDON_APPLY_KANBAN（/usr/local/bin/kanban）・
-#   ANDON_APPLY_STASH（退避。/opt/andon-image）・ANDON_APPLY_ANDON（boot を打つ andon。既定は <ROOT>/bin/andon）。
+#   ANDON_APPLY_STASH（退避。/opt/andon-image）・ANDON_APPLY_ANDON（boot を打つ andon。既定は <ROOT>/bin/andon）・ANDON_APPLY_PASS_WAIT（dispatcher の見回りの鍵を待つ秒。900）。
 # 書く先の親に書けなければ sudo で書く。andon の持ち物の置き場なら sudo は使わない。
 set -euo pipefail
 
@@ -106,6 +106,54 @@ swap_dir() {
   [ -z "$old" ] || $as_root rm -rf "$old"
 }
 
+# pid $1 が動いているか（終わって親に拾われていないもの〈状態 Z〉は動いていないと読む）
+alive() {
+  local s
+  s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+  s=${s##*) }
+  [ "${s%% *}" != Z ]
+}
+
+# ハーネスの受け口（andon otel serve。ADR-0060 決めたこと 4）を止める。boot が、受け口が listen していなければ当てたパッケージの andon で
+# 起動し直す（boot が起動したときと同じ形。出力は /tmp/andon-otel.log）。止まっている間に届いた記録は欠ける（決めたこと 4 のとおり）。
+# 止めるのは <根>/bin/andon から起動した受け口だけ（boot と andon otel env はその実行ファイルの名前で起動する。入れ替えたあとも argv は変わらない）。
+# hc が無ければ boot は受け口を起動しないので止めない。受け口が動いていなければ何もしない。止めたら otel_stopped を 1 にする
+otel_stopped=
+stop_otel() {
+  local bin=$root/bin/andon p argv pids=()
+  otel_stopped=
+  command -v hc >/dev/null || return 0
+  for p in /proc/[0-9]*; do
+    mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
+    if [ "${#argv[@]}" = 3 ] && [ "${argv[0]}" = "$bin" ] && [ "${argv[1]} ${argv[2]}" = "otel serve" ]; then
+      pids+=("${p#/proc/}")
+    fi
+  done
+  for p in "${pids[@]}"; do
+    kill -TERM "$p" 2>/dev/null || { say "警告: 受け口（pid $p）を止められなかった（前のパッケージのまま動く）"; continue; }
+    for _ in $(seq 50); do alive "$p" || break; sleep 0.1; done
+    if alive "$p"; then
+      kill -KILL "$p" 2>/dev/null || true
+      for _ in $(seq 20); do alive "$p" || break; sleep 0.1; done
+    fi
+    if alive "$p"; then
+      say "警告: 受け口（pid $p）が止まらない（前のパッケージのまま動く）"
+    else
+      say "受け口（pid $p）を止めた（当てたパッケージで起動し直す）"
+      otel_stopped=1
+    fi
+  done
+}
+
+# 止めた受け口を、boot を打たない道（dispatcher の見回りが終わらない）で起動し直す。boot が起動するときと同じ形
+# （<andon> otel serve を新しいセッションで手放し、出力は一時の置き場の andon-otel.log に足す。internal/otel の Detach）。
+# 2 つ目は bind に失敗して終わるので、役の起動が先に起動していても重ならない
+start_otel() {
+  local andon=$1
+  ANDON_HOME=$root setsid "$andon" otel serve >>"${TMPDIR:-/tmp}/andon-otel.log" 2>&1 </dev/null 8<&- 9>&- &
+  say "受け口を当てたパッケージで起動し直した（boot を打たないので、ここで起動した）"
+}
+
 # andon boot を打ち直し、dispatcher を起動し直す。dispatcher の端末を片付けてから boot（boot が無い端末を起動する）。
 # 見回りの途中で止めないよう、dispatcher の見回りの鍵（internal/dispatcher の PassLock）が外れるのを待つ。
 # 鍵を取るのは、見回りのたびに鍵を取るバージョンの dispatcher だけ。前のバージョンは鍵を取らないので、鍵が取れても見回りの合間とは限らない。
@@ -132,8 +180,12 @@ reboot() {
     # 鍵を取るバージョンは見回りのたびにこのファイルを作るので、ここで作ってもよい
     mkdir -p "$(dirname "$passlock")"
     exec 9>>"$passlock"
-    if ! flock -w 900 9; then
+    if ! flock -w "${ANDON_APPLY_PASS_WAIT:-900}" 9; then
+      exec 9>&-
       say "警告: dispatcher の見回りが15分終わらないので起動し直さなかった。終わってから $andon boot を打ち、hc で dispatcher を起動し直す"
+      # 受け口は dispatcher の見回りと関わらないので、ここでも当てたパッケージに替える
+      stop_otel
+      [ -z "$otel_stopped" ] || start_otel "$andon"
       return 1
     fi
   fi
@@ -144,6 +196,7 @@ reboot() {
     done
     say "dispatcher の端末（$addr）を片付けた"
   fi
+  stop_otel
   # 前の dispatcher が止まった（か、もとから無かった）時刻。ここから後の dispatcher の記録は、当てたパッケージの dispatcher が書く
   local stopped=
   command -v hc >/dev/null && [ -z "$keep_old" ] && stopped=$(date -u +%Y-%m-%dT%H:%M:%SZ)

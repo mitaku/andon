@@ -7,6 +7,7 @@
 #   3 origin/main の外の commit を断る・作業ツリーの未 commit の変更が当たらない  4 go build が落ちても半端にならない
 #   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（6a 2回当ててから・6b andon と kanban を壊してから）
 #   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ（7a）・鍵を取らない前のバージョンの dispatcher は止めない（7b）  10 道具が package/ の下に無い（以上 S1）
+#   13 ハーネスの受け口（<根>/bin/andon otel serve）を boot の前に止める（当てる・戻す）。ほかの実行ファイルの受け口は止めない。動いていなければ何もしない
 #   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 #   11 試しの repo はこの repo の作業ツリーを写す（commit していない変更を見落とさない）
@@ -136,6 +137,13 @@ cat >"$tmp/fakebin/andon" <<'EOF'
 #!/usr/bin/env bash
 c=$(jq -r .commit "$ANDON_APPLY_ROOT/applied.json" 2>/dev/null || echo none)
 echo "andon $* home=$ANDON_HOME applied=$c" >>"$CALLS"
+# boot を打たれたときに、偽の受け口が動いていたか（boot は受け口が listen していなければ起動する）
+p=$(cat "$OTEL_PID" 2>/dev/null) || p=
+if [ -n "$p" ]; then
+  s=$(cat "/proc/$p/stat" 2>/dev/null) || s=
+  s=${s##*) }
+  if [ -n "$s" ] && [ "${s%% *}" != Z ]; then echo "otel alive $p" >>"$CALLS"; else echo "otel gone $p" >>"$CALLS"; fi
+fi
 EOF
 cat >"$tmp/fakebin/hc" <<'EOF'
 #!/usr/bin/env bash
@@ -160,7 +168,18 @@ printf 'andon/dispatcher/.pass.lock' >>"$tmp/new-dispatcher"
 grep -aq '\.pass\.lock' "$tmp/old-dispatcher" && fail "前のバージョンの偽の dispatcher に鍵のファイル名がある"
 "$tmp/new-dispatcher" 600 & newd=$!
 "$tmp/old-dispatcher" 600 & oldd=$!
-trap 'kill "$newd" "$oldd" 2>/dev/null; rm -rf "$tmp"' EXIT
+# 偽の受け口: argv が「<実行ファイル> otel serve」の、眠るだけのプロセス（argv[0] を exec -a で差し替える）。
+# <根>/bin/andon のもの（当てる道具が止める）と、ほかの実行ファイルのもの（セルの本物に当たる。止めない）
+mkdir -p "$tmp/rcvsrc"
+printf 'package main\n\nimport "time"\n\nfunc main() { time.Sleep(10 * time.Minute) }\n' >"$tmp/rcvsrc/main.go"
+(cd "$tmp/rcvsrc" && GOFLAGS= "$gobin" build -o "$tmp/rcv" main.go) || fail "13 偽の受け口を組めない"
+export OTEL_PID=$tmp/otel.pid
+rcvs=()
+start_rcv() { (exec -a "$1" "$tmp/rcv" otel serve) & rcvs+=("$!"); }
+alive() { local s; s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }
+start_rcv "$tmp/other/bin/andon"
+other_rcv=$!
+trap 'kill "$newd" "$oldd" "${rcvs[@]}" 2>/dev/null; rm -rf "$tmp"' EXIT
 export DISPATCHER_PID=$tmp/dispatcher.pid HC_LS=$tmp/hc-ls.json HC_LS_FAIL=$tmp/hc-ls-fail HC_LS_EMPTY=$tmp/hc-ls-empty
 cat >"$HC_LS" <<'JSON'
 {"terminals":[
@@ -206,8 +225,20 @@ fi
 echo "dirty-marker-$$" >>"$tmp/repo/package/writing.md"
 grep -q "dirty-marker-$$" "$tmp/repo/package/writing.md" || fail "3 作業ツリーを汚せていない"
 : >"$CALLS"
+start_rcv "$img/andon/bin/andon"
+rcv=$!
+echo "$rcv" >"$OTEL_PID"
+alive "$rcv" || fail "13 偽の受け口が動いていない"
 if run apply; then pass "1 origin/main の先頭を当てると rc 0"; else fail "1 当てる: $(cat "$tmp/out")"; fi
 cp "$tmp/out" "$tmp/out_apply"
+# 13. 受け口は boot の前に止まり、boot が当てたパッケージで起動し直す。ほかの実行ファイルの受け口は止めない
+if ! alive "$rcv" && grep -q "^otel gone $rcv\$" "$CALLS" && grep -q "受け口（pid $rcv）を止めた" "$tmp/out_apply"; then
+  pass "13 当てると <根>/bin/andon の受け口を boot の前に止める"
+else
+  fail "13 当てたあとの受け口: $(cat "$CALLS") / $(cat "$tmp/out_apply")"
+fi
+if alive "$other_rcv"; then pass "13 ほかの実行ファイルの受け口は止めない"; else fail "13 ほかの実行ファイルの受け口を止めた"; fi
+: >"$OTEL_PID"
 # 9a. image/ が変わっていない間は警告が無い
 if ! grep -q '警告' "$tmp/out_apply" && ! grep -q 'image変更' "$tmp/out_apply"; then
   pass "9 image/ が変わっていないときは警告が無い"
@@ -394,6 +425,25 @@ else
 fi
 echo "$newd" >"$DISPATCHER_PID"
 
+# === 13. dispatcher の見回りが終わらず boot を打たない道でも、受け口は止めて当てたパッケージで起動し直す（dispatcher は止めない） ===
+: >"$CALLS"
+start_rcv "$img/andon/bin/andon"
+rcv=$!
+echo "$rcv" >"$OTEL_PID"
+flock "$passlock" sleep 4 &
+holder=$!
+sleep 0.5
+ANDON_APPLY_PASS_WAIT=1 run apply
+for _ in $(seq 30); do grep -q '^andon otel serve ' "$CALLS" && break; sleep 0.1; done
+if ! alive "$rcv" && grep -q "受け口（pid $rcv）を止めた" "$tmp/out" && grep -q '15分終わらない' "$tmp/out" \
+  && [ "$(grep -c '^andon otel serve ' "$CALLS")" = 1 ] && ! grep -q '^andon boot ' "$CALLS" && ! grep -q '^hc kill ' "$CALLS"; then
+  pass "13 見回りが終わらず boot を打たない道でも、受け口を止めて当てたパッケージで起動し直す（dispatcher は止めない）"
+else
+  fail "13 見回りが終わらない道の受け口: $(cat "$CALLS") / $(cat "$tmp/out")"
+fi
+wait "$holder"
+: >"$OTEL_PID"
+
 # === 6a. 2回当ててから戻す ===
 if run apply && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ]; then
   pass "6 2回目を当てても記録のイメージのバージョンは最初のまま"
@@ -404,6 +454,9 @@ fi
 # 見回りの途中（鍵を持っている）なら、外れるまで dispatcher を止めない
 flock "$passlock" sh -c 'sleep 2; echo released >>"$CALLS"' &
 holder=$!
+start_rcv "$img/andon/bin/andon"
+rcv=$!
+echo "$rcv" >"$OTEL_PID"
 sleep 0.5
 if run revert && same_as "$tmp/initial/andon" "$tmp/initial/bin/kanban" && [ ! -e "$rec" ] && [ ! -e "$img/andon-image" ]; then
   pass "6 戻すと <根> と kanban が最初の中身に一致し、記録が無い（rc 0）"
@@ -421,10 +474,22 @@ if [ "$(grep -c '^andon boot .*applied=none$' "$CALLS")" = 1 ] && [ "$(grep -c '
 else
   fail "7 戻したあとの呼び出し: $(cat "$CALLS")"
 fi
+if ! alive "$rcv" && grep -q "^otel gone $rcv\$" "$CALLS" && grep -q "受け口（pid $rcv）を止めた" "$tmp/out"; then
+  pass "13 戻すときも <根>/bin/andon の受け口を boot の前に止める"
+else
+  fail "13 戻したあとの受け口: $(cat "$CALLS") / $(cat "$tmp/out")"
+fi
+: >"$OTEL_PID"
 if run status && grep -q "当てた commit: 当てていない" "$tmp/out"; then pass "6 戻したあとの状態は「当てていない」"; else fail "6 戻したあとの状態: $(cat "$tmp/out")"; fi
 
 # === 6b. andon と kanban を壊してから戻す ===
-run apply || fail "6 当て直す: $(cat "$tmp/out")"
+# 13. 受け口が動いていなければ、当てる道具は受け口に触らずに当てる（受け口を起動するかは boot が決める。hc があれば起動する〈ADR-0060 決めたこと 4〉）
+: >"$CALLS"
+if run apply && ! grep -q '受け口' "$tmp/out" && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] && ! grep -q '^otel ' "$CALLS"; then
+  pass "13 受け口が動いていなければ、当てる道具は受け口に触らずに当てる（rc 0）"
+else
+  fail "13 受け口の無いときの当て直し: $(cat "$CALLS") / $(cat "$tmp/out")"
+fi
 echo broken >"$img/andon/bin/andon"
 chmod 644 "$img/andon/bin/andon"
 echo broken >"$img/bin/kanban"

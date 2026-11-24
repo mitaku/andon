@@ -10,7 +10,7 @@ root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel
 name=$(curl -s -m 2 http://127.0.0.1:4318/ 2>/dev/null | tr -d '\r\n') || name=
 echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 [ "$name" = andon-otel ] && ok "ot-listen: 受け口が listen し、名前 andon-otel を返す" || fail "ot-listen: 受け口が listen していないか、ほかのプロセスがポートを取っている"
-# 受け口は止まっていたときだけ起動されるので、当てても起動し直さない。検証する commit を当てる前から動く受け口は、
+# 当てる道具は受け口を起動し直す（ot-applied）が、前のバージョンの道具で当てたときや失敗したときは残る。検証する commit を当てる前から動く受け口は、
 # その commit の受け口のコード（internal/otel/ の受けて書く処理・落とす属性）を持たない。記録の読み方が変わるので書き出す。
 # 見えるのは今動いている受け口だけで、検証する間に記録を書いた受け口が別のこともある（起動が当てた時刻より後のとき）。
 # 起動の時刻は ps の lstart（秒まで。ps と date は同じ TZ で読む）。当てた時刻と同じ秒の起動は当てたあとに数える。
@@ -31,6 +31,28 @@ while read -r rpid rargs; do
   fi
 done < <(ps -eo pid=,args= 2>/dev/null)
 [ "$rfound" -gt 0 ] || echo "note ot-listen: 受け口のプロセスが ps に見えない（ps が無いか、別の名前空間）。置き場の記録を書いた受け口のコードは確かめていない"
+
+# ot-applied: 受け口のプロセス（argv が「<パッケージ>/bin/andon otel serve」）の実体が当てたパッケージで、起動の時刻が最後に当てた時刻より後（今の状態）
+rpid=
+for p in /proc/[0-9]*; do
+  mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
+  if [ "${#argv[@]}" = 3 ] && [ "${argv[0]}" = "$pkg/bin/andon" ] && [ "${argv[1]} ${argv[2]}" = "otel serve" ]; then rpid=${p#/proc/}; fi
+done
+if [ -z "$rpid" ]; then
+  fail "ot-applied: $pkg/bin/andon otel serve のプロセスが無い"
+else
+  exe=$(readlink "/proc/$rpid/exe" 2>/dev/null) || exe=
+  st=$(cat "/proc/$rpid/stat" 2>/dev/null) || st=
+  read -ra f <<<"${st##*) }"
+  btime=$(awk '/^btime /{print $2}' /proc/stat)
+  started_ms=$((btime * 1000 + ${f[19]:-0} * 1000 / $(getconf CLK_TCK))) # stat の 22 番目（状態から数えて 20 番目）は起動からの tick
+  echo "-- ot-applied: pid $rpid・実体 ${exe:-読めない}・起動 $(date -u -d "@$((started_ms / 1000))" +%Y-%m-%dT%H:%M:%SZ)"
+  if [ -n "$exe" ] && [[ "$exe" != *"(deleted)" ]] && [ "$started_ms" -ge "$now_ms" ]; then
+    ok "ot-applied: 受け口の実体は当てたパッケージで、最後に当てた時刻より後に起動している"
+  else
+    fail "ot-applied: 受け口が前のパッケージのまま動いている（実体が消えたファイルか、起動が最後に当てた時刻より前）"
+  fi
+fi
 
 # ot-codex: 当てたあとに Codex のプロファイルで起動した課題ごとに、置き場の traces.jsonl と logs.jsonl を読む（ADR-0060 受け入れ条件 17）。
 # 記録が無いことは報告に書く条件なので、note にして道の終了コードを変えない。個人の属性かツールの出力が残っていれば fail。
