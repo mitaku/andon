@@ -11,7 +11,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"andon/internal/flock"
+	"andon/internal/ledger"
 	"andon/internal/ledger/ledgertest"
 	"andon/internal/spawn"
 )
@@ -26,7 +29,7 @@ printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-
 case $1 in
   root) echo "$FAKE_ROOT" ;;
   show) cat "$FAKE_ROOT/show-$2.json" ;;
-  set) echo "$2 updated" ;;
+  set) if [ -n "${FAKE_SET_APPEND:-}" ] && [ ! -e "$FAKE_ROOT/appended" ]; then printf '%s' "$FAKE_SET_APPEND" >>"$FAKE_ROOT/kanban/issues/$2/brief.md"; : >"$FAKE_ROOT/appended"; fi; echo "$2 updated" ;;
   ready) cat "$FAKE_ROOT/ready.json" ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
@@ -966,5 +969,132 @@ func TestStartFirstMessageGuide(t *testing.T) {
 	os.WriteFile(filepath.Join(ws, spawn.GuideFile), []byte("x"), 0o644)
 	if m := f.dryJSON().FirstMessage; !strings.Contains(m, filepath.Join(ws, spawn.GuideFile)) {
 		t.Errorf("ファイルがあるのに指していない: %q", m)
+	}
+}
+
+// 振り返りやトリアージの apply が依頼書に ## Settings の写しを書いたあと、Chief of Staff が kanban set で予約キーを書き直した課題でも、
+// andon issue start は担当を起動する前に写しを予約キー（正）に合わせて書き直す。写しの後ろの地の文と追記の節は残す。
+// --dry-run は書き直したものを出すだけで、brief.md を書かない。
+func TestStartRewritesSettingsCopy(t *testing.T) {
+	const tail = "\n## 根拠\n- 前の課題の記録\n\n## 追記（Chief of Staff）\n- 完了条件に画面の確かめを足す\n"
+	const old = "# 題\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail
+	const want = "# 題\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail
+	setup := func(t *testing.T) (*startFixture, string) {
+		f := newStart(t)
+		path := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
+		if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		f.set("t5", map[string]any{"review": "on", "merge": "auto"})
+		return f, path
+	}
+	t.Run("run", func(t *testing.T) {
+		f, path := setup(t)
+		if rc, out, errs := f.run(); rc != 0 || errs != "" {
+			t.Fatalf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
+		}
+		if got := read(t, path); got != want {
+			t.Errorf("担当に渡る依頼書の写しが予約キーと違う:\n got %q\nwant %q", got, want)
+		}
+		if m, _ := filepath.Glob(path + ".tmp-*"); len(m) > 0 {
+			t.Errorf("一時のファイルが残る: %q", m)
+		}
+	})
+	t.Run("dry run", func(t *testing.T) {
+		f, path := setup(t)
+		f.noHc()
+		p := f.dryJSON()
+		if p.Brief != want {
+			t.Errorf("--dry-run が出す依頼書が書き直したものでない:\n got %q\nwant %q", p.Brief, want)
+		}
+		if got := read(t, path); got != old {
+			t.Errorf("--dry-run が brief.md を書いた: %q", got)
+		}
+	})
+	// ルーチンの課題で起動の前に既定を書くキー（fill）も、写しに入る
+	t.Run("fill", func(t *testing.T) {
+		f, path := setup(t)
+		f.unset("estimate")
+		f.task["routine"] = "nightly"
+		b, _ := json.Marshal(map[string]any{"at": "2026-11-23T00:00:00Z", "by": "routine:nightly", "routine": "nightly", "fired": "S-0007"})
+		lf, err := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lf.Write(append(b, '\n'))
+		lf.Close()
+		if err := os.WriteFile(path, []byte(strings.Replace(old, "- Estimate: 中\n", "- Estimate: 大\n", 1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if got := read(t, path); got != want {
+			t.Errorf("fill のキーが写しに入らない:\n got %q\nwant %q", got, want)
+		}
+	})
+	// 確かめで依頼書を読んだあと書くまでの間（ここでは fill の kanban set）に Chief of Staff が足した追記の節を、古い全文で上書きして消さない
+	t.Run("keeps what was added meanwhile", func(t *testing.T) {
+		f, path := setup(t)
+		f.unset("estimate")
+		f.task["routine"] = "nightly"
+		b, _ := json.Marshal(map[string]any{"at": "2026-11-23T00:00:00Z", "by": "routine:nightly", "routine": "nightly", "fired": "S-0007"})
+		lf, err := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lf.Write(append(b, '\n'))
+		lf.Close()
+		const added = "\n## 追記（起動の直前）\n- 守ること: README は触らない\n"
+		t.Setenv("FAKE_SET_APPEND", added)
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if got := read(t, path); got != want+added {
+			t.Errorf("間に足した追記が消えた:\n got %q\nwant %q", got, want+added)
+		}
+	})
+}
+
+// 写しを書くのは kanban の CLI と同じ鍵（kanban/.lock）を取ってから: 鍵を持つ書き手（kanban add など）が依頼書を書いている間は
+// 読み直しも置き換えもせず、鍵が外れてから読み直すので、その間に足された追記を古い全文で上書きして消さない。
+func TestWriteSettingsCopyTakesTheKanbanLock(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "kanban")
+	path := filepath.Join(dir, "issues", "S-0007", "brief.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("## Settings\n- Review: off\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := flock.Lock(filepath.Join(dir, ".lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &ctx{l: ledger.At(root), id: "S-0007"}
+	p := &startPlan{BriefPath: path, settings: ledger.Issue{"review": "on"}}
+	done := make(chan error, 1)
+	go func() { done <- c.writeSettingsCopy(p) }()
+	select {
+	case err := <-done:
+		unlock()
+		t.Fatalf("kanban の鍵を持つ書き手がいる間に書いた（err=%v）: %q", err, read(t, path))
+	case <-time.After(300 * time.Millisecond):
+	}
+	// 鍵を持つ書き手が追記してから外す
+	const added = "\n## 追記\n- 守ること: README は触らない\n"
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(added)
+	f.Close()
+	unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got, want := read(t, path), "## Settings\n- Review: on\n"+added; got != want {
+		t.Errorf("鍵を持つ書き手の追記が消えた:\n got %q\nwant %q", got, want)
 	}
 }

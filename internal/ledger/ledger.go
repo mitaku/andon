@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -334,21 +335,127 @@ func (l *Ledger) Unsettled(rows []Row, t Issue, defaults []string) []string {
 	return out
 }
 
+// fenceRe はコード例の囲みの行（3つ以上の ` か ~ の並びと、その後ろ）。
+var fenceRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})(.*)$")
+
+// settingNames は予約キーの、依頼書の ## Settings の行の名前（playbooks/brief.md の表）。settingOrder は写しに足すときの順。
+var (
+	settingNames = map[string]string{"review": "Review", "reviewer": "Reviewer", "must_fix": "Must fix", "review_rounds": "Review rounds",
+		"merge": "Merge", "deliverable": "Deliverable", "acceptance": "Acceptance", "estimate": "Estimate"}
+	settingOrder = []string{"review", "reviewer", "must_fix", "review_rounds", "merge", "deliverable", "acceptance", "estimate"}
+	settingSizes = map[string]string{"small": "小", "medium": "中", "large": "大"}
+)
+
+// copyValue は予約キーの値の、写しでの書き方（見込みは段の名）。
+func copyValue(k, v string) string {
+	if k == "estimate" {
+		return settingSizes[v]
+	}
+	return v
+}
+
 // SettingsCopy は予約キー（DefaultSettings の key=value の並び）を、依頼書の ## Settings の写しにする
 // （行の名前と見込みの段の名は playbooks/brief.md の表）。正は issue.yaml で、これは人が読む写し。
 func SettingsCopy(keys []string) string {
-	names := map[string]string{"review": "Review", "reviewer": "Reviewer", "must_fix": "Must fix", "review_rounds": "Review rounds", "merge": "Merge", "estimate": "Estimate"}
-	sizes := map[string]string{"small": "小", "medium": "中", "large": "大"}
 	var b strings.Builder
 	b.WriteString("## Settings\n")
 	for _, kv := range keys {
 		k, v, _ := strings.Cut(kv, "=")
-		if k == "estimate" {
-			v = sizes[v]
-		}
-		b.WriteString("- " + names[k] + ": " + v + "\n")
+		b.WriteString("- " + settingNames[k] + ": " + copyValue(k, v) + "\n")
 	}
 	return b.String()
+}
+
+// RewriteSettings は依頼書 brief の ## Settings の写しを、課題 t の予約キー（正）に合わせて書き直す。書き換えたかを返す。
+// 写しは見出しの直後に続く「- 名前: 値」の行の並びで、その後ろ（空行・地の文・追記の節）は触らない。見出しが無ければ書き足さない。
+// 見出しが2つ以上あれば（追記の節に写しを書き直した依頼書）、どれも書き直す。コード例（``` か ~~~ の囲み）の中の見出しは写しでないので触らない。
+// 行の値は SettingsOf が読む値（無いキーと知らない値は既定か空。gate・dispatcher が読む値と同じ）で、値の頭が同じ行は
+// そのまま残す（「Deliverable: candidates ★調べる」）。値の無い行は消し、行の無いキーで issue.yaml にあるものは並びの末尾に足す。
+// 知らない名前の行は残す。課題があとから kanban set で予約キーを書き直しても、担当に渡る写しが正と食い違わないように、
+// andon issue start が起動の前に打つ。
+func RewriteSettings(brief string, t Issue) (string, bool) {
+	lines := strings.SplitAfter(brief, "\n")
+	var out strings.Builder
+	fence := "" // 開いているコード例の囲みの印（``` か ~~~ の並び）。空なら囲みの外
+	for i := 0; i < len(lines); i++ {
+		ln := lines[i]
+		trim := strings.TrimRight(ln, " \t\r\n")
+		if m := fenceRe.FindStringSubmatch(trim); m != nil {
+			switch {
+			case fence == "":
+				fence = m[1]
+			case m[2] == "" && m[1][0] == fence[0] && len(m[1]) >= len(fence):
+				fence = "" // 閉じるのは開いたのと同じ文字で同じ数以上の並びだけの行（CommonMark）
+			}
+		}
+		if fence != "" || trim != "## Settings" {
+			out.WriteString(ln)
+			continue
+		}
+		end := i + 1
+		for end < len(lines) && strings.HasPrefix(lines[end], "- ") {
+			end++
+		}
+		eol := "\n"
+		if strings.HasSuffix(ln, "\r\n") {
+			eol = "\r\n"
+		}
+		block := settingsBlock(lines[i+1:end], t, eol)
+		if len(block) > 0 && !strings.HasSuffix(ln, "\n") {
+			ln += eol // 見出しが依頼書の最後の行のとき
+		}
+		out.WriteString(ln + strings.Join(block, ""))
+		i = end - 1
+	}
+	return out.String(), out.String() != brief
+}
+
+// settingsBlock は写しの行の並び old を、課題 t の予約キーに合わせて書き直した行の並びにする（RewriteSettings）。
+func settingsBlock(old []string, t Issue, eol string) []string {
+	// 値は SettingsOf が読んだもの（gate・dispatcher・担当が読む値）。知らない値は既定か空になり、空の行は消す
+	s := SettingsOf(t)
+	vals := map[string]string{"review": s.Review, "must_fix": s.MustFix, "reviewer": s.Reviewer, "review_rounds": s.ReviewRounds,
+		"merge": s.Merge, "deliverable": s.Deliverable, "acceptance": s.Acceptance, "estimate": copyValue("estimate", s.Estimate)}
+	value := func(k string) string { return vals[k] }
+	byName := map[string]string{}
+	for k, n := range settingNames {
+		byName[strings.ToLower(n)] = k
+	}
+	var block []string
+	add := func(ln string) {
+		// 写しが依頼書の最後の行で改行が無いとき、前の行に改行を足してから足す（行がつながらないように）
+		if n := len(block); n > 0 && !strings.HasSuffix(block[n-1], "\n") {
+			block[n-1] += eol
+		}
+		block = append(block, ln)
+	}
+	seen := map[string]bool{}
+	for _, ln := range old {
+		name, cur, ok := strings.Cut(strings.TrimRight(strings.TrimPrefix(ln, "- "), "\r\n"), ":")
+		k, known := byName[strings.ToLower(strings.TrimSpace(name))]
+		switch {
+		case !ok || !known:
+			add(ln) // 知らない名前の行は残す
+			continue
+		case seen[k]:
+			continue // 同じキーの2つ目の行は消す（どちらが正かを読み手に迷わせない）
+		}
+		seen[k] = true
+		v := value(k)
+		switch f := strings.Fields(cur); {
+		case v == "": // 正に値が無い行は消す
+		case len(f) > 0 && f[0] == v:
+			add(ln)
+		default:
+			add("- " + settingNames[k] + ": " + v + eol)
+		}
+	}
+	for _, k := range settingOrder {
+		if v := value(k); !seen[k] && t.Str(k) != "" && v != "" {
+			add("- " + settingNames[k] + ": " + v + eol)
+		}
+	}
+	return block
 }
 
 // Brand はプロファイルのブランド（codex* → codex、ほかは claude）。

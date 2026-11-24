@@ -11,11 +11,13 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/flock"
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
@@ -49,7 +51,8 @@ type startPlan struct {
 	Checks       []startCheck `json:"checks"`
 	Fill         []string     `json:"fill,omitempty"` // 起動の前に書く予約キー（ルーチンが足した課題の無いキー。checkSettings）
 	repoDir      string
-	command      *string // template の command（起動の記録の起動行。dry では読まない）
+	settings     ledger.Issue // 写しを合わせる予約キー（課題のキーに fill が書くキーを足したもの。copySettings）
+	command      *string      // template の command（起動の記録の起動行。dry では読まない）
 }
 
 // startCheck は起動する前の確かめ1つの結果。result は ok（通った）か skipped（--dry-run では確かめない: hc を呼ぶもの・作るもの）。
@@ -86,6 +89,10 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	id := c.id
 	if err := c.fill(p); err != nil {
 		return err
+	}
+	// 写しは予約キーを書いたあと、何かを作る前に書く（ここで止まっても、打ち直せば plan が今の予約キーから作り直す）
+	if err := c.writeSettingsCopy(p); err != nil {
+		return fail("依頼書 %s の ## Settings の写しを書き直せない: %v。%s は todo のまま", p.BriefPath, err, id)
 	}
 	undo := func() {}
 	if p.Repo != "" {
@@ -239,6 +246,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	if err := c.checkSettings(p); err != nil {
 		return nil, err
 	}
+	c.copySettings(p)
 	p.Labels = workLabels(slug, id, p.Title)
 	// Claude 系はセッションの id を Andon が決めて渡し（template の command が端末のラベルから読む）、kanban の session に書く。
 	// Codex 系は id を決める口が無いので、resume のときに記録から引く（ADR-0012 決めたこと 11）
@@ -363,6 +371,96 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	}
 	// 打つ行は shell にそのまま貼れるよう、文の最後に置く
 	return fail("%s: kanban set %s %s", msg, c.id, strings.Join(args, " "))
+}
+
+// copySettings は依頼書の ## Settings の写しを、予約キー（正。起動の前に fill が書くキーも足したもの）に合わせて書き直す
+// （ledger.RewriteSettings）。課題を足したあと Chief of Staff が kanban set で予約キーを書き直しても、写しは足したときのままなので、
+// 担当に渡る前に揃える。書き直した依頼書は p.Brief に置き、start が起動の前に brief.md に書く（--dry-run は書かずに出す）。
+// Chief Engineer の課題は予約キーを置かないので見ない。
+func (c *ctx) copySettings(p *startPlan) {
+	if p.Profile == chiefengineer.Profile {
+		return
+	}
+	t := ledger.Issue{}
+	for k, v := range c.issue {
+		t[k] = v
+	}
+	for _, kv := range p.Fill {
+		k, v, _ := strings.Cut(kv, "=")
+		t[k] = v
+	}
+	p.settings = t
+	brief, changed := ledger.RewriteSettings(p.Brief, t)
+	if !changed {
+		p.check("copy", "ok", "依頼書の ## Settings の写しは予約キーと合っている（写しが無ければ書き足さない）")
+		return
+	}
+	p.Brief = brief
+	p.check("copy", "ok", "依頼書の ## Settings の写しが予約キーと違うので、起動の前に予約キーから書き直す")
+}
+
+// writeSettingsCopy は、書く直前に依頼書を読み直して写しを書き直し、違えば置き換える（copySettings が合わせるキーで）。
+// plan で読んだ全文を書かないのは、読んでから書くまでの間（fill の kanban set など）に Chief of Staff が足した追記を消さないため。
+// 読み直しから置き換えまでは kanban の CLI と同じ鍵（kanban/.lock の flock）を持つ: 鍵を取って依頼書を書く kanban の CLI と重ならない。
+// 鍵を持つ間は kanban の CLI を打たない（打つと待ち合って止まる）。書いた依頼書を p.Brief に置き直す。
+func (c *ctx) writeSettingsCopy(p *startPlan) error {
+	if p.settings == nil {
+		return nil
+	}
+	unlock, err := lockKanban(filepath.Join(c.l.Dir, ".lock"), kanbanLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	cur, err := os.ReadFile(p.BriefPath)
+	if err != nil {
+		return err
+	}
+	brief, changed := ledger.RewriteSettings(string(cur), p.settings)
+	p.Brief = brief
+	if !changed {
+		return nil
+	}
+	return writeAtomic(p.BriefPath, []byte(brief))
+}
+
+// kanbanLockWait は kanban の鍵を待つ長さ（kanban の CLI の lockWait と同じ）。
+const kanbanLockWait = 10 * time.Second
+
+// lockKanban は kanban の CLI の鍵（path の flock）を、wait の間待って取る。取れなければ理由1つで返す。返した関数で外す。
+func lockKanban(path string, wait time.Duration) (func(), error) {
+	deadline := time.Now().Add(wait)
+	for {
+		unlock, err := flock.TryLock(path)
+		switch {
+		case err == nil:
+			return unlock, nil
+		case !errors.Is(err, flock.ErrBusy):
+			return nil, err
+		case time.Now().After(deadline):
+			return nil, fmt.Errorf("kanban の鍵 %s を %s 待っても取れない", path, wait)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// writeAtomic は file を data で置き換える（一時のファイルに書いてから rename する。途中で止まっても半分の依頼書を残さない）。
+func writeAtomic(file string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(file), filepath.Base(file)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if err := errors.Join(werr, cerr, os.Chmod(tmp.Name(), 0o644)); err != nil {
+		os.Remove(tmp.Name()) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
+		return err
+	}
+	if err := os.Rename(tmp.Name(), file); err != nil {
+		os.Remove(tmp.Name()) //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
+		return err
+	}
+	return nil
 }
 
 // fill は checkSettings が p.Fill に置いた予約キー（ルーチンとトリアージの apply が足した課題の無いキーと、照合の外れた既定のキー）を、
