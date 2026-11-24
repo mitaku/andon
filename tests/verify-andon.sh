@@ -90,7 +90,7 @@ inpart() {
     *) [[ "$2" == "$1" ]] ;;
   esac
 }
-tracked=$(git -C "$root" ls-files -- internal cmd package schema process init image | grep -vE '_test\.go$|(^|/)testdata/|^internal/([^/]+/)*([a-z]+)/\2test/' || true)
+tracked=$(git -C "$root" ls-files -- internal cmd package schema process init image | grep -vE '_test\.go$|(^|/)testdata/' | grep -vE '^internal/([^/]+/)*([a-z]+)/\2test/' || true)
 [ "$(grep -c '^internal/.*\.go$' <<<"$tracked")" -gt 100 ] || die "git ls-files から internal/ の Go のファイルが読めない（下の確かめが何も見ない）"
 allparts=() seeall=()
 for name in $files; do
