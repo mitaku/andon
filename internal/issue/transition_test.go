@@ -52,7 +52,6 @@ func TestRefusesUndefinedMove(t *testing.T) {
 	}
 }
 
-// 定義に在る移り方は通す（ready は doing から review にする。TestReady が残りを見る）。
 func TestAllowsDefinedMove(t *testing.T) {
 	for _, c := range []struct{ sub, status string }{
 		{"ready", "doing"}, {"ask", "review"}, {"ask", "todo"}, {"ask", "queued"}, {"finish", "doing"}, {"finish", "review"}, {"start", "todo"},
@@ -68,7 +67,6 @@ func TestAllowsDefinedMove(t *testing.T) {
 	}
 }
 
-// 定義の andon issue の command は moves と同じ集まりで、by: kanban の移り方は kanban のコマンドだけ（断らない）。
 func TestDefinitionMatchesMoves(t *testing.T) {
 	f, err := froms(andon.IssueStates)
 	if err != nil {

@@ -21,7 +21,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// resumePlan は andon issue resume が起動する前に決めるもの。--dry-run はこれを出して終わる。
 type resumePlan struct {
 	DryRun       bool         `json:"dry_run"`
 	Fresh        bool         `json:"fresh"`
@@ -30,22 +29,22 @@ type resumePlan struct {
 	Profile      string       `json:"profile"`
 	Template     string       `json:"template"`
 	Terminal     string       `json:"terminal"`
-	Agent        string       `json:"agent,omitempty"` // kanban の agent（止まった端末）
-	AgentState   string       `json:"agent_state"`     // none・not_found・finished・bare_shell
+	Agent        string       `json:"agent,omitempty"`
+	AgentState   string       `json:"agent_state"`
 	Labels       []string     `json:"labels"`
 	Cwd          string       `json:"cwd"`
 	Repo         string       `json:"repo,omitempty"`
 	Worktree     string       `json:"worktree,omitempty"`
 	Branch       string       `json:"branch,omitempty"`
-	Commit       string       `json:"commit,omitempty"`   // レビュアー: detached worktree を戻す commit（依頼書の commit <sha>）
+	Commit       string       `json:"commit,omitempty"`
 	Reviewer     bool         `json:"reviewer,omitempty"` // profile *-review の子課題（cwd issues/<rev>/。ADR-0012 決めたこと 8）
-	Restore      string       `json:"restore,omitempty"`  // add（git worktree add で戻す）・keep（あるので触らない）
+	Restore      string       `json:"restore,omitempty"`
 	Session      string       `json:"session,omitempty"`
 	FirstMessage string       `json:"first_message"`
 	BriefPath    string       `json:"brief_path"`
 	Checks       []startCheck `json:"checks"`
 	repoDir      string
-	command      *string // template の command（起動の記録の起動行。dry では読まない）
+	command      *string
 }
 
 func (p *resumePlan) check(name, result, format string, a ...any) {
@@ -104,7 +103,6 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	if err := boot.TrustFromOS(io.Discard); err != nil {
 		fmt.Fprintf(stderr, "andon issue: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
-	// 起動する直前にもう一度読む（lock の外で kanban が書き換えられていれば起動しない）
 	now, err := c.l.Show(id)
 	if err != nil {
 		return err
@@ -138,7 +136,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	c.appendLaunch(stderr, rec, run.Address)
 	set := []string{"set", id, "agent=" + run.Address}
 	if p.Session != c.issue.Str("session") {
-		set = append(set, "session="+p.Session) // 空なら消す（Codex の --fresh）
+		set = append(set, "session="+p.Session)
 	}
 	if _, err := c.l.Run("", set...); err != nil {
 		return fail("kanban %s に失敗: %v（端末 %s は起きている。kanban の agent を手で直す）", strings.Join(set, " "), err, run.Address)
@@ -158,8 +156,6 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	return nil
 }
 
-// resumePlan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、kanban も書かない。
-// dry でも hc get（止まった端末の様子）と hc ls（名前）は打つ（読むだけ）。template の有無は dry では確かめない。
 func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	for _, cmd := range []string{"git", "hc"} {
 		if _, err := exec.LookPath(cmd); err != nil {
@@ -200,7 +196,6 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		return nil, fail("端末の名前 %s が hc の決まり（a-z 0-9 - _ で32字まで）に合わない", p.Terminal)
 	}
 
-	// 止まった端末: 無い・終わっている・素のシェルだけ起動し直す。動いていれば止まる
 	p.Agent, p.AgentState = c.issue.Str("agent"), "none"
 	if p.Agent != "" {
 		t, err := lookTerm(p.Agent)
@@ -221,7 +216,6 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		return nil, fail("端末 %s（%s）がもう動いている（hc ls で確かめる）", p.Terminal, a)
 	}
 
-	// cwd と worktree
 	p.Cwd = filepath.Join(c.l.Dir, "issues", id)
 	if repo := c.issue.Str("repo"); repo != "" {
 		repoDir, err := c.writableRepo(repo, p.check)
@@ -241,7 +235,6 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 		}
 	}
 
-	// セッション
 	brand := ledger.Brand(p.Profile)
 	switch {
 	case fresh:
@@ -307,9 +300,6 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	return p, nil
 }
 
-// restorePlan は kanban の worktree を戻す手を決める。パスは kanban の値をそのまま使う（組み直さない）が、
-// andon issue start がこの課題に作る置き場（今の置き場か旧の置き場の <repo 名>/<slug>-<id>）でなければ止まる。
-// あれば、その branch の worktree であることだけ確かめて触らない（commit していない変更を消さない）。
 func (c *ctx) restorePlan(p *resumePlan) error {
 	slug, id := c.l.Slug, c.id
 	p.Worktree, p.Branch = c.issue.Path("worktree"), c.issue.Str("branch")
@@ -357,7 +347,6 @@ func ReviewerLabels(slug, id, title, parent string) []string {
 		"herdr.space=andon-" + slug + "-" + parent, "herdr.tab=andon-" + slug + "-" + parent}
 }
 
-// reviewCommitRe は dispatcher がレビュアーの依頼書に書く対象の行（「対象: worktree `…`（detached）。commit <sha>。」）の commit。
 var reviewCommitRe = regexp.MustCompile(`(?m)^対象: .*?commit ([0-9a-f]{40})。`)
 
 // reviewerRestorePlan はレビュアーの detached worktree を戻す手を決める（ADR-0012 決めたこと 8・13 の 5）。
@@ -407,7 +396,6 @@ func (c *ctx) reviewerRestorePlan(p *resumePlan) error {
 	return nil
 }
 
-// print は --dry-run の人向けの出力。
 func (p *resumePlan) print(w io.Writer) {
 	fmt.Fprintf(w, "andon issue: %s を起動し直す乾いた実行（hc run を打たず、worktree・端末を作らず kanban も書かない）\n", p.ID)
 	row := func(k, v string) {
@@ -445,7 +433,6 @@ func or(s, def string) string {
 	return s
 }
 
-// seenTerm は hc get --json のうち、止まった端末の見分けに読むもの。State は not_found・finished・bare_shell・live。
 type seenTerm struct {
 	State      string            `json:"state"`
 	Argv       []string          `json:"argv"`
@@ -463,8 +450,6 @@ func (t *seenTerm) describe() string {
 	return "argv " + strings.Join(t.Argv, " ") + "・前に " + fg
 }
 
-// lookTerm は hc get addr。not_found なら State not_found。live で top-level の argv も前に出ているものも引数の無いシェルなら bare_shell
-// （作り直しで戻った端末。dispatcher の Gone と同じ見分け）。live でなければ finished。
 func lookTerm(addr string) (*seenTerm, error) {
 	cmd := exec.Command("hc", "get", addr, "--json")
 	var errb bytes.Buffer
@@ -494,7 +479,6 @@ func lookTerm(addr string) (*seenTerm, error) {
 	return &t, nil
 }
 
-// liveTerms は動いている端末の名前 → address。
 func liveTerms() (map[string]string, error) {
 	out, err := spawn.Output(nil, "", "hc", "ls", "--json")
 	if err != nil {
@@ -516,7 +500,6 @@ func liveTerms() (map[string]string, error) {
 	return m, nil
 }
 
-// claudeDir は Claude Code の設定の置き場（CLAUDE_CONFIG_DIR。無ければ ~/.claude）。
 func claudeDir() string {
 	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
 		return d
@@ -534,7 +517,6 @@ func claudeRecord(id string) (string, bool) {
 	return pat, false
 }
 
-// codexSessions は Codex の記録の置き場（CODEX_HOME。無ければ ~/.codex）/sessions。
 func codexSessions() string {
 	home := os.Getenv("CODEX_HOME")
 	if home == "" {

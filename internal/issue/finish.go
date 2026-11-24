@@ -33,8 +33,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 			return fail("%s が無い", cmd)
 		}
 	}
-	// 何かを消す・書き換える前に、kanban が done を受け取るかを確かめる（片付けは全部か無し）。`kanban done`（closing）が断る問いが
-	// この課題かレビュアーの子課題にあれば、端末にも worktree にも触らずに止まる（片付けかけの課題に担当が戻らないように）
 	tasks, err := c.l.List()
 	if err != nil {
 		return err
@@ -60,8 +58,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 		repoDir = d
 	}
 
-	// repo の無い課題（レビュアーなど）は、担当の kanban start が cwd（issues/<id>/）を包む checkout を書く。
-	// start が作ったものではないので、git には触らず kanban から消すだけ（その checkout と一致するときだけ）
 	if repo == "" && wt != "" {
 		top, err := git(filepath.Join(c.l.Dir, "issues", c.id), "rev-parse", "--show-toplevel")
 		if err == nil && top == wt {
@@ -76,14 +72,12 @@ func (c *ctx) finish(stdout io.Writer) error {
 		if repoDir == "" {
 			return fail("%s に worktree があるが repo が無い", c.id)
 		}
-		// 本体の checkout（git worktree list の先頭）は、置き場の検査より先に、明示的に消さない
 		if MainCheckout(repoDir, wt) {
 			return fail("%s の worktree が repo の本体の checkout: %s（消さない。kanban の worktree・branch を確かめる）", c.id, wt)
 		}
 		want := ""
 		for _, home := range worktreeHomes() {
 			dir := filepath.Join(home, filepath.Base(repoDir))
-			// レビュアーの子課題は、dispatcher が kanban start をその detached worktree（<slug>-<parent>-r<回>）で打つ。branch は無い
 			if p := c.issue.Str("parent"); p != "" && strings.HasSuffix(c.issue.Str("profile"), "-review") && branch == "" && reviewRound(wt, filepath.Join(dir, slug+"-"+p+"-r")) {
 				want, detached = wt, true
 				break
@@ -116,7 +110,7 @@ func (c *ctx) finish(stdout io.Writer) error {
 			if !Pair(repoDir, wt, "detached") {
 				return fail("%s は %s の detached worktree でない", wt, repoDir)
 			}
-			own = true // レビュアーは読むだけ。検査の残り物があっても消す（親の片付けと同じく --force）
+			own = true
 		} else if err == nil {
 			if branch == "" {
 				return fail("%s に worktree があるが branch が無い", c.id)
@@ -135,7 +129,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 	}
 
-	// レビュアーの子課題と detached worktree
 	for _, t := range tasks {
 		if t.Str("parent") != c.id || !strings.HasSuffix(t.Str("profile"), "-review") || t.Str("status") == "done" {
 			continue
@@ -160,7 +153,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 		}
 	}
 
-	// 端末: この課題のラベルのものだけ
 	if err := removeTerminals(slug, c.id); err != nil {
 		return err
 	}
@@ -179,7 +171,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 		git(repoDir, "worktree", "prune") //nolint:errcheck // prune は消えた worktree の印を掃くだけで、試すだけ
 		if branch != "" {
 			if _, err := git(repoDir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
-				// 消すのは、worktree と組で確かめた branch のうち origin の既定の branch に入っているものだけ
 				switch def := defaultBranch(repoDir); {
 				case !own:
 					kept = fmt.Sprintf(" branch %s は worktree と組で確かめられないので残した", branch)
@@ -210,7 +201,6 @@ func (c *ctx) finish(stdout io.Writer) error {
 	return nil
 }
 
-// closable は ids の課題がどれも kanban done で断られないか。断られる問いがあれば片付けずに止まる理由を返す。
 func (c *ctx) closable(ids []string) error {
 	held, err := c.unreceived(ids, nil)
 	if err != nil {
@@ -222,9 +212,6 @@ func (c *ctx) closable(ids []string) error {
 	return nil
 }
 
-// unreceived は ids の課題の、受け取られていない問いを「<id>#<n>（<status>）」の形で返す（kanban questions --json を1回読む）。
-// `kanban done`（closing）と同じく、open と answered の問いと、読めない questions.yaml（broken）を数える。
-// finish（closable）と ready が使う。skip の「<id>#<n>」は数えない（ready が、gate が前の head について出した問いを外す）。
 func (c *ctx) unreceived(ids []string, skip map[string]string) ([]string, error) {
 	out, err := c.l.Run("", "questions", "--json")
 	if err != nil {
@@ -257,8 +244,6 @@ func (c *ctx) unreceived(ids []string, skip map[string]string) ([]string, error)
 	return held, nil
 }
 
-// mergedPRHead は、この課題の PR（report.json の pr）が MERGED で、その head の commit が branch の先と同じなら、その SHA を返す。
-// 違えば空と理由を返す（PR のあとに commit が足された branch や、マージされていない branch は消さない）。
 func (c *ctx) mergedPRHead(repoDir, branch string) (string, string) {
 	rep, err := c.previous()
 	if err != nil || rep == nil || rep.PR == "" {
@@ -320,7 +305,6 @@ func MainCheckout(repoDir, path string) bool {
 	return false
 }
 
-// reviewRound は wt が prefix（…/<slug>-<parent>-r）に回の数を足したものか。
 func reviewRound(wt, prefix string) bool {
 	n, ok := strings.CutPrefix(wt, prefix)
 	if !ok || n == "" {
@@ -354,7 +338,6 @@ func Pair(repoDir, path, line string) bool {
 	return false
 }
 
-// removeTerminals は project=<slug>・issue=<id> のラベルの端末を止めて消す。
 func removeTerminals(slug, id string) error {
 	out, err := exec.Command("hc", "ls", "--all", "--json", "--label", "project="+slug, "--label", "issue="+id).Output()
 	if err != nil {
@@ -382,7 +365,6 @@ func removeTerminals(slug, id string) error {
 	return nil
 }
 
-// defaultBranch は origin の既定の branch を聞き、refs/remotes/origin/<それ> を取り直す。分からなければ空。
 func defaultBranch(repoDir string) string {
 	sym, err := git(repoDir, "-c", "url.https://github.com/.insteadOf=git@github.com:", "ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {
@@ -400,7 +382,6 @@ func defaultBranch(repoDir string) string {
 	return ""
 }
 
-// deleteBranch は main に入った branch を消す。消せなければ残した理由を finish の文の続きで返す（消せたら ""）。
 func deleteBranch(repoDir, branch string) string {
 	if _, err := git(repoDir, "branch", "-D", branch); err != nil {
 		return fmt.Sprintf(" branch %s は消せなかったので残した（%v）", branch, err)
@@ -408,7 +389,6 @@ func deleteBranch(repoDir, branch string) string {
 	return ""
 }
 
-// git は dir で git を打ち、stdout を返す（前後の空白を除く）。
 func git(dir string, args ...string) (string, error) {
 	c := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	var errb bytes.Buffer

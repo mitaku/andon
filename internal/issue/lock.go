@@ -31,7 +31,6 @@ func lockIssues(slug string) (func(), error) {
 	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil //nolint:errcheck // lock は Close でも外れる
 }
 
-// withLockedIssue は lockIssues を持ってから課題を読む（読んだ status が命令の間変わらないように）。
 func withLockedIssue(id string, f func(*ctx) error) error {
 	l, err := ledger.Open()
 	if err != nil {
@@ -49,8 +48,6 @@ func withLockedIssue(id string, f func(*ctx) error) error {
 	return f(&ctx{l: l, id: id, issue: t})
 }
 
-// session は andon issue session: 自分の端末（HC_TERMINAL_ID）のラベル session の値を出す（template の command・resume の行が読む）。
-// 無い・読めない・形が違うときは何も出さずに 0（template の行を落とさない。読めなかった理由は stderr）。
 func session(stdout, stderr io.Writer) int {
 	addr := os.Getenv("HC_TERMINAL_ID")
 	if addr == "" {

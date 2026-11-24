@@ -10,10 +10,6 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// andon issue start は、ルーチンとトリアージの apply が足した課題の無い予約キーを既定で書いてから起動する（checkSettings と fill）。
-// その kanban set の所（前・ファイルと log.jsonl の間・後）のどこで止まっても、start を打ち直せば、止まらなかった回と同じ予約キーが
-// 履歴の照合まで揃う（照合が外れたまま断られて起動できなくならない）。足した側は、ルーチン（log.jsonl の fired の行）・トリアージの
-// 記録の created_issue・トリアージが足す前に残す印（adding。記録の前で止まった回）の3つ。
 func TestStartFillConvergesAfterAnyStop(t *testing.T) {
 	const repo = "github.com/example/sample-site"
 	record := func(t *testing.T, root string, item map[string]any) {
@@ -28,7 +24,7 @@ func TestStartFillConvergesAfterAnyStop(t *testing.T) {
 	}
 	for _, c := range []struct {
 		name string
-		by   string // 課題を足した端末
+		by   string
 		made func(t *testing.T, f *ledgertest.Fault, root string)
 	}{
 		{"routine", "dispatcher", func(t *testing.T, f *ledgertest.Fault, root string) {
@@ -63,7 +59,6 @@ func TestStartFillConvergesAfterAnyStop(t *testing.T) {
 				c.made(t, f, root)
 				cur = &ctx{l: ledger.At(root), id: "T-0001"}
 			}
-			// start の確かめ（checkSettings）と、起動の前に書く予約キー（fill）。打ち直しも同じ順で読み直す
 			run := func() error {
 				is, err := cur.l.Show(cur.id)
 				if err != nil {

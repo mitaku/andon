@@ -10,7 +10,6 @@ import (
 	"testing"
 )
 
-// 本体の checkout（git worktree list の先頭）は、repo の側から見ても path の側から見ても分かる。worktree は本体でない
 func TestMainCheckout(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git が無い")
@@ -31,10 +30,10 @@ func TestMainCheckout(t *testing.T) {
 		path string
 		want bool
 	}{
-		{repo, true},                     // repo の本体
-		{wt, false},                      // detached worktree
-		{other, true},                    // 別の repo の本体（kanban を包むセルの checkout など）
-		{filepath.Join(tmp, "x"), false}, // 無い
+		{repo, true},
+		{wt, false},
+		{other, true},
+		{filepath.Join(tmp, "x"), false},
 	} {
 		if got := MainCheckout(repo, c.path); got != c.want {
 			t.Errorf("MainCheckout(%s) = %v, want %v", c.path, got, c.want)
@@ -58,8 +57,6 @@ func TestReviewRound(t *testing.T) {
 	}
 }
 
-// squash マージの PR の branch は、MERGED で PR の head と先が同じときだけ消せる。
-// マージされていない、PR のあとに commit が足された、PR が読めないときは消さずに理由を返す
 func TestMergedPRHead(t *testing.T) {
 	for _, c := range []string{"git", "sh"} {
 		if _, err := exec.LookPath(c); err != nil {
@@ -114,7 +111,6 @@ func TestMergedPRHead(t *testing.T) {
 	}
 }
 
-// 確かめた SHA を期待値にした update-ref -d は、確かめたあとに branch が進んでいれば消さない
 func TestCompareAndDeleteBranch(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git が無い")
@@ -144,7 +140,6 @@ func TestCompareAndDeleteBranch(t *testing.T) {
 	}
 }
 
-// 別の worktree が checkout している branch は、消さない（その worktree の HEAD が壊れる）
 func TestBranchCheckedOut(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git が無い")
@@ -175,7 +170,6 @@ func TestBranchCheckedOut(t *testing.T) {
 	}
 }
 
-// main に入った branch を消せなければ、黙らずに残した理由を返す（別の worktree が checkout していると git が断る）
 func TestDeleteBranch(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git が無い")

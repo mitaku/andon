@@ -77,7 +77,6 @@ func (c *ctx) settle(stdout, stderr io.Writer, now time.Time) error {
 	return err
 }
 
-// settleOne は1つの課題を見て res を埋め、残す記録を返す（nil なら記録から外す）。
 func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writer, now time.Time) (*contract.Settled, error) {
 	if !slices.Contains(settleOn, c.issue.Str("status")) {
 		return nil, nil
@@ -86,7 +85,6 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	if err != nil || rep == nil || rep.PR == "" {
 		return nil, err
 	}
-	// 見るのは issue.yaml の repo の PR だけ（ほかの repo の PR がマージされても、この課題は片付かない）
 	owner, name, number, ok := contract.ParsePR(rep.PR)
 	if !ok || "github.com/"+owner+"/"+name != c.issue.Str("repo") {
 		return nil, nil
@@ -98,7 +96,6 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	// マージされていれば記録して、review に入ったときに片付ける（dispatcher.md §2.7・ADR-0056 決めたこと 6）
 	engineerDoing := c.issue.Str("profile") == "chief-engineer" && c.issue.Str("status") == "doing"
 	res.State = "watching"
-	// CLOSED は開き直されうるので、MERGED になるまで OPEN と同じ間隔で聞き直す（知らせるのは閉じるたびに1回）
 	if w.State != "MERGED" {
 		if w.State == "CLOSED" {
 			res.State = "closed"
@@ -124,7 +121,7 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 			w.State = state
 			res.State = "closed"
 		case "OPEN":
-			w.State = "" // 開き直された。また閉じたら知らせる
+			w.State = ""
 			res.State = "watching"
 			c.alignMark(owner+"/"+name, head, mark, res)
 		}
@@ -157,8 +154,6 @@ var oldWords = [][2]string{{"台帳", "kanban"}, {"ゲート", "gate"}, {"版", 
 // keptBan は、読み替えない「版」の前の語（製品や文書の種類を言う形。ADR-0040 決めたこと 4）。
 var keptBan = []string{"最新", "初", "英語", "更新", "出"}
 
-// readOld は文 s の古い語を新しい語に読み替える。英字の語は、前後が空白・句読点・括弧・文の端でなければ半角の空白で区切る
-// （「ゲートの外の問い」→「gate の外の問い」）。読み替えないと、片付けを待っている課題ごとに、上げた直後に同じ理由をもう一度知らせる。
 func readOld(s string) string {
 	for _, w := range oldWords {
 		parts := strings.Split(s, w[0])
@@ -172,7 +167,7 @@ func readOld(s string) string {
 			r, _ := utf8.DecodeLastRuneInString(before)
 			switch {
 			case w[1] == "バージョン" && (keepsBan(before) || r < utf8.RuneSelf && r != ' ' && before != ""):
-				b.WriteString(w[0]) // 最新版・初版・Go 版など。読み替えない
+				b.WriteString(w[0])
 			case w[1][0] < utf8.RuneSelf:
 				if before != "" && !separates(r) {
 					b.WriteByte(' ')
@@ -191,17 +186,14 @@ func readOld(s string) string {
 	return s
 }
 
-// keepsBan は、s の終わりが読み替えない「版」の前の語か（数字・英字のあとは readOld が見る）。
 func keepsBan(s string) bool {
 	return slices.ContainsFunc(keptBan, func(k string) bool { return strings.HasSuffix(s, k) })
 }
 
-// separates は、英字の語の隣に空白を置かなくてよい字か（空白・句読点・括弧）。
 func separates(r rune) bool {
 	return unicode.IsSpace(r) || unicode.IsPunct(r) || strings.ContainsRune("（）「」『』〈〉【】、。・：", r)
 }
 
-// closeAndFinish は gate の問いを「オーナーがマージした」と閉じて finish する。片付けなかったら理由を返す。
 func (c *ctx) closeAndFinish(pr string, stderr io.Writer) string {
 	gateQs, others, err := c.openQuestions()
 	if err != nil {
@@ -226,15 +218,12 @@ func (c *ctx) closeAndFinish(pr string, stderr io.Writer) string {
 	return ""
 }
 
-// question は kanban questions --json の1件（open と answered。received は出ない）。
 type question struct {
 	ID     string `json:"id"`
 	N      int    `json:"n"`
 	Status string `json:"status"`
 }
 
-// openQuestions はこの課題のまだ受け取られていない問いを、gate が出したもの（library/questions/<n>.json の from: gate）と
-// それ以外（名前 <id>#<n>）に分ける。問いの JSON が無い・読めないものは gate の外に数える（閉じない）。
 func (c *ctx) openQuestions() ([]question, []string, error) {
 	out, err := c.l.Run("", "questions", "--json")
 	if err != nil {
@@ -309,8 +298,6 @@ func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle)
 	res.Log = append(res.Log, fmt.Sprintf("%s の PR の印を %s に揃えた（%s。前は %s%s）", c.id, m.State, m.Description, orNone(have.State), why))
 }
 
-// markFacts は、PR の今の head と今ある印 have から、印を決める事実を集める（止めているかは呼び手が足す）。
-// review の課題は、その head を今の回の gate が判定した結果（gate の記録 library/gate/<head>.json）を持つ。
 func (c *ctx) markFacts(head string, have gate.Mark) gate.MarkFacts {
 	f := gate.MarkFacts{Status: c.issue.Str("status"), Engineer: c.issue.Str("profile") == "chief-engineer", Have: have, HaveDescUnknown: true}
 	if b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", head+".json")); err == nil {
@@ -357,7 +344,6 @@ func orNone(s string) string {
 	return s
 }
 
-// prState は PR の state（OPEN・MERGED・CLOSED）と、MERGED なら head とマージの commit、OPEN なら head と gate 自身の印（gh pr view。1回）。
 func prState(number, slug string) (state, head, sha string, mark gate.Mark, err error) {
 	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid,statusCheckRollup")
 	var errb strings.Builder

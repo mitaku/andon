@@ -22,7 +22,6 @@ import (
 // command を起動できなければ記録を書かない（打ち間違いを「落ちた」記録にしない）。
 // 記録は書き足すだけで書き直さない。番号は runs/<n>.log を排他で作って取る（同じ課題で並べて打っても重ならない）。
 
-// recordLimit は残す出力の上限（バイト）。超えたら終わりの側を残す（検査の結果は終わりに出る）。
 const recordLimit = 1 << 20
 
 func (c *ctx) record(stdout io.Writer, expect string, argv []string) error {
@@ -106,7 +105,6 @@ func (c *ctx) record(stdout io.Writer, expect string, argv []string) error {
 	return nil
 }
 
-// worktreeDirty は commit していない変更（追跡していないファイルを含む。無視するファイルは除く）があるか。
 func worktreeDirty(dir string) (bool, error) {
 	out, err := exec.Command("git", "-C", dir, "status", "--porcelain").Output()
 	if err != nil {
@@ -115,7 +113,6 @@ func worktreeDirty(dir string) (bool, error) {
 	return len(bytes.TrimSpace(out)) > 0, nil
 }
 
-// reserve は runs/ の次の番号の出力のファイルを排他で作る。番号は今ある記録・出力の最大 ＋ 1 から。
 func reserve(runs string) (int, *os.File, error) {
 	entries, err := os.ReadDir(runs)
 	if err != nil {
@@ -139,7 +136,6 @@ func reserve(runs string) (int, *os.File, error) {
 	}
 }
 
-// tailBuffer は書かれたものの終わりの limit バイトだけを持ち、全体のバイト数を数える。
 type tailBuffer struct {
 	limit int
 	total int64
@@ -149,14 +145,12 @@ type tailBuffer struct {
 func (t *tailBuffer) Write(p []byte) (int, error) {
 	t.total += int64(len(p))
 	t.buf = append(t.buf, p...)
-	// 上限の2倍まで溜めてから詰める（書くたびに詰めると、細かい書き込みのたびに上限の分を動かす）
 	if over := len(t.buf) - t.limit; over > t.limit {
 		t.buf = append(t.buf[:0], t.buf[over:]...)
 	}
 	return len(p), nil
 }
 
-// kept は残す終わりの limit バイト。
 func (t *tailBuffer) kept() []byte {
 	if over := len(t.buf) - t.limit; over > 0 {
 		return t.buf[over:]
@@ -164,10 +158,8 @@ func (t *tailBuffer) kept() []byte {
 	return t.buf
 }
 
-// cut は切った先頭のバイト数。
 func (t *tailBuffer) cut() int64 { return t.total - int64(len(t.kept())) }
 
-// bytes は残す中身。切ったなら、先頭に切った量の1行を置き、文字の途中から始めない。
 func (t *tailBuffer) bytes() []byte {
 	b := t.kept()
 	if t.cut() == 0 {

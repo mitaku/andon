@@ -16,15 +16,12 @@ import (
 	"andon/internal/ledger"
 )
 
-// exitNotMerged は andon issue impact で、課題の PR がまだ MERGED でないとき（何も出さない。dispatcher は飛ばす）。
 const exitNotMerged = 4
 
 type notMerged struct{ state string }
 
 func (n notMerged) Error() string { return "PR が MERGED でない（" + n.state + "）" }
 
-// impact は課題の PR がマージされたあと、同じ repo の動いている課題への影響の事実を集めて JSON で出す。
-// 書くのは git fetch だけ（kanban・worktree・branch には触らない）。何度打っても同じ事実から同じ出力になる。
 func (c *ctx) impact(stdout io.Writer) error {
 	repo := c.issue.Str("repo")
 	if repo == "" {
@@ -91,7 +88,6 @@ func (c *ctx) impact(stdout io.Writer) error {
 	return err
 }
 
-// impactOf は1つの課題について、マージの commit との事実を集める。読めないところは Error に書いて続ける。
 func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) contract.ImpactIssue {
 	id := t.Str("id")
 	it := contract.ImpactIssue{Issue: id, Title: t.Str("title"), Status: t.Str("status"), Agent: t.Str("agent"), Branch: t.Str("branch"),
@@ -123,8 +119,6 @@ func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) con
 		return it
 	}
 	files := lines(changed)
-	// worktree の commit していない変更（追跡している変更と、まだ git add していない新しいファイル）も数える。
-	// worktree が無い（片付けた・別のマシン）ときは branch の分だけ。あるのに読めなければ error（影響なしに倒さない）
 	if wt := t.Path("worktree"); wt != "" {
 		if _, err := os.Stat(wt); err != nil && !errors.Is(err, os.ErrNotExist) {
 			it.Error = "worktree を確かめられない: " + wt
@@ -150,7 +144,6 @@ func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) con
 	return it
 }
 
-// mergeTree は head と sha を git merge-tree で合わせてみる（どの worktree にも触らない）。ぶつかればそのファイルを返す。
 func mergeTree(repoDir, head, sha string) (bool, []string, error) {
 	cmd := exec.Command("git", "-C", repoDir, "merge-tree", "--write-tree", "--name-only", "--no-messages", head, sha)
 	out, err := cmd.Output()
@@ -206,7 +199,6 @@ func lines(s string) []string {
 	return out
 }
 
-// repoDirOf は kanban の repo（host/owner/name）の ghq の checkout。
 func repoDirOf(repo string) (string, error) {
 	root := os.Getenv("GHQ_ROOT")
 	if root == "" {

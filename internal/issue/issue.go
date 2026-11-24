@@ -1,26 +1,6 @@
 // Package issue は担当が打つ andon issue …（docs/contract.md §4・§5）。機械向けの約束（report.json・問いの JSON）を
 // 書いて検査し、kanban の CLI（report・review・ask）を打つ。担当は JSON を手で書かず、一致の確認も command がする。
 //
-//	show <id>             予約キー（既定で埋めたもの）・report.json・レビューの照合を JSON で出す（読むだけ）
-//	report <id>           report.json を書き（commit は HEAD）、stdin の Markdown で kanban に報告する
-//	review-request <id>   report.json に review_request を足して報告する（回数・前回の commit は command が数える）
-//	ready <id>            report.json・HEAD・PR の head・レビューの commit が揃っていれば kanban を review にする
-//	                      （deliverable: candidates なら PR の代わりに candidates.json を確かめる）
-//	ask <id> <file|->     問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く
-//	candidates <id> <file|->  候補の一覧の JSON を検査し、library/candidates.json に置く（repo があれば commit は HEAD）
-//	record <id> [--expect fail] -- <command…>  worktree で command を走らせ、出力と終了コード・commit・commit していない変更の有無・時刻を
-//	                      library/runs/<n>.json と <n>.log に残す（record.go。証拠の記録）
-//	start <id>            worktree と branch を切り、hc run で担当を起動し、kanban start で結ぶ（Chief of Staff が打つ）
-//	                      （--dry-run は確かめだけ通し、起動するときに渡すものを出す。--json で JSON）
-//	resume <id>           止まった担当・Chief Engineer を同じ worktree でセッションの続きから起動する（--fresh は新しいセッション。ADR-0012）
-//	session               自分の端末のラベル session を出す（template の command・resume の行が読む）
-//	finish <id>           端末と worktree を片付け、origin に入った branch を消し、kanban を done にする（Chief of Staff・dispatcher が打つ）
-//	                      （links に write_back: true の出所の issue があれば、そこに結果を1コメント書く。writeback.go）
-//	settle <id>           review・doing の課題の PR をオーナーがマージしていたら、gate の問いを閉じて finish する（積む通知を JSON で出す。dispatcher が打つ）
-//	merge <id>            review の課題に gate を回し、approve ＋ merge: auto ＋ 委譲の範囲内ならマージして finish する（積む通知を JSON で出す。dispatcher が打つ）
-//	impact <id>           マージした PR が、同じ repo の doing／review の課題にぶつかる・重なるかの事実を JSON で出す（読むだけ。dispatcher が打つ）
-//	stop-check [<id>]     担当・レビュアーの Stop フック: doing で報告・review・問いが無ければ止める（contract.md §9）
-//
 // 定義（process/states/issue.yaml）に無い移り方（今の status で打てないサブコマンド）は断る（transition.go）。
 // 合わなければ終了コード 1 と理由1行。使い方の誤りは 2。start で最初のメッセージが届かなければ 3。impact で PR がまだ MERGED でなければ 4。
 package issue
@@ -60,7 +40,6 @@ func (f failure) Error() string { return f.msg }
 
 func fail(format string, a ...any) error { return failure{fmt.Sprintf(format, a...)} }
 
-// ctx は1つの課題について読んだもの。
 type ctx struct {
 	l     *ledger.Ledger
 	id    string
@@ -83,12 +62,8 @@ func (c *ctx) reportPath() string { return filepath.Join(c.l.Library(c.id), "rep
 
 func (c *ctx) candidatesPath() string { return filepath.Join(c.l.Library(c.id), "candidates.json") }
 
-// hasRepo は repo のある課題か（issue.yaml の repo）。worktree では見ない: kanban start は cwd の git の根を
-// worktree に書くので、repo の無い課題でも kanban が git の checkout の中にあれば worktree が入る。
-// repo の無い課題の報告と候補は commit を持たない。
 func (c *ctx) hasRepo() bool { return c.issue.Str("repo") != "" }
 
-// readInput は <file|-> の中身。
 func readInput(stdin io.Reader, src string) ([]byte, error) {
 	if src == "-" {
 		return io.ReadAll(stdin)
@@ -96,7 +71,6 @@ func readInput(stdin io.Reader, src string) ([]byte, error) {
 	return os.ReadFile(src)
 }
 
-// head は担当の worktree（issue.yaml の worktree。無ければ cwd）の HEAD。
 func (c *ctx) head() (string, error) {
 	dir := c.issue.Path("worktree")
 	args := []string{"rev-parse", "HEAD"}
@@ -111,7 +85,6 @@ func (c *ctx) head() (string, error) {
 	return sha, nil
 }
 
-// prHead は PR の head の commit（gh pr view）。
 func prHead(pr string) (string, error) {
 	var errb bytes.Buffer
 	c := exec.Command("gh", "pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid")
@@ -131,9 +104,6 @@ var (
 	prHeadWait  = 3 * time.Second
 )
 
-// waitPRHead は PR の head を読み、head と違えば追いつくのを待って読み直す。上限まで待っても違えば、
-// 最後に読んだ PR の head を返す（照合して断るのは呼び手）。worktree の upstream が HEAD と違う
-// （push していない）なら待たずに返す。upstream が無ければ push したかが分からないので待つ。
 func (c *ctx) waitPRHead(pr, head string) (string, error) {
 	for i := 1; ; i++ {
 		ph, err := prHead(pr)
@@ -144,7 +114,6 @@ func (c *ctx) waitPRHead(pr, head string) (string, error) {
 	}
 }
 
-// maybePushed は head を push したかもしれないか。worktree の upstream（@{u}）が読めて head と違えば false。
 func (c *ctx) maybePushed(head string) bool {
 	args := []string{"rev-parse", "--verify", "-q", "@{u}"}
 	if dir := c.issue.Path("worktree"); dir != "" {
@@ -154,7 +123,6 @@ func (c *ctx) maybePushed(head string) bool {
 	return err != nil || strings.TrimSpace(string(out)) == head
 }
 
-// previous は前の report.json（無ければ nil）。あるのに形が壊れていれば誤り。
 func (c *ctx) previous() (*contract.Report, error) {
 	r, err := contract.ReadReport(c.reportPath())
 	if errors.Is(err, os.ErrNotExist) {
@@ -193,7 +161,6 @@ func (c *ctx) show(stdout io.Writer) error {
 	return err
 }
 
-// readMarkdown は stdin の人用の報告。空なら誤り（報告の Markdown はオーナーと Chief of Staff が読む）。
 func readMarkdown(stdin io.Reader) (string, error) {
 	b, err := io.ReadAll(stdin)
 	if err != nil {
@@ -205,7 +172,6 @@ func readMarkdown(stdin io.Reader) (string, error) {
 	return string(b), nil
 }
 
-// write は report.json を検査して置き、kanban の CLI で報告する（dispatcher は report の書き込みを合図に report.json を読む）。
 func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
 	if err := r.Check(); err != nil {
 		return fail("report.json の形が違う: %v", err)
@@ -245,11 +211,10 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 			return fail("--data に commit・review_request は書かない（command が書く）")
 		}
 	}
-	r.Commit = head // repo の無い課題では空（書かない）
+	r.Commit = head
 	if pr != "" {
 		r.PR = pr
 	}
-	// 前の report.json が壊れていても、pr・estimate・plan を全部渡せば書き直せる（引き継ぐものが要るときだけ断る）
 	prev, err := c.previous()
 	if err != nil && (r.PR == "" || r.Estimate == nil || r.Plan == nil) {
 		return err
@@ -272,9 +237,6 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 	return c.write(r, md, stdout)
 }
 
-// carriedReviewRequest は報告の打ち直しが引き継ぐ review_request。HEAD が前の報告の commit とも頼んだ commit とも
-// 同じときだけ引き継ぐ（同じ commit のレビュー依頼を、報告を書き直しただけで消さない）。HEAD が進んだら引き継がない
-// （古い commit の依頼を残すと、dispatcher が PR の head と違う commit のレビュアーを起動しに行く）。repo の無い課題（head が空）も引き継がない。
 func carriedReviewRequest(prev *contract.Report, head string) *contract.ReviewRequest {
 	q := prev.ReviewRequest
 	if q == nil || head == "" || prev.Commit != head || q.Commit != head {
@@ -332,8 +294,6 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	if ph != head {
 		return fail("PR の head（%s）が HEAD（%s）と違う。push してから頼む", ph[:12], head[:12])
 	}
-	// 受けるかは gate がレビューを求めるかと同じ関数で決める（review: off でも差分がレベル B・C なら受ける。
-	// review の値は書き換えない。dispatcher も起動の前に同じ関数で決め直す）
 	need, cl, err := gate.NeedsReview(c.issue.Str("repo"), s.Review, prev)
 	if err != nil {
 		return fail("差分のレベルを決められない（レビューが要るか分からない）: %v", err)
@@ -363,12 +323,8 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	return c.write(&r, reviewHeader+line+"\n\n"+md, stdout)
 }
 
-// reviewHeader は review-request が報告の先頭に足す段の見出し。
 const reviewHeader = "## レビュー依頼\n"
 
-// reviewMarkdown は review-request の人用の報告。stdin があればそれで置き換える（今までどおり）。stdin が空なら
-// kanban の前の報告（report.md）の本文を使い、前の review-request が足したレビュー依頼の段は外す（段を重ねない）。
-// 報告を書き直すたびに Next と Remember を渡し直して落とすことを防ぐ。stdin が端末なら読まない（打つだけで待ち続けない）。
 func (c *ctx) reviewMarkdown(stdin io.Reader) (string, error) {
 	in := ""
 	if f, ok := stdin.(*os.File); !ok || !spawn.IsTerminal(f) {
@@ -400,7 +356,6 @@ func (c *ctx) reviewMarkdown(stdin io.Reader) (string, error) {
 	return md, nil
 }
 
-// briefCommitRe はレビュアーの依頼書の commit（「commit <sha>。」の形。ledger.BriefReviews と同じ読み方）。
 var briefCommitRe = regexp.MustCompile(`commit ([0-9a-f]{40})。`)
 
 // rounds は今度の回と前回の commit を数える: レビュアーの子課題（profile が *-review）の findings.json の
@@ -418,7 +373,7 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 		return 0, nil, err
 	}
 	seen := map[string]bool{}
-	taken := 0 // 結果の有無に関わらず、kanban にあるレビュアーの課題（<id>-rN）の最大の N
+	taken := 0
 	var last *string
 	lastAt := ""
 	for _, t := range tasks {
@@ -457,15 +412,10 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 	if rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, "", nil, nil); rv.State == "current" {
 		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（足した行と消した行が空白も含めて同じ）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue ready へ進む", head[:12], rv.Issue, rv.Commit)
 	}
-	// 結果を残さず止まったレビュアーの課題も kanban に残り、その N は使えない（dispatcher の `kanban add --round` が落ちる）。
-	// 数え方の決まりは変えず（previous も結果のある回だけ）、番号が被るときだけ空いた先へ送る
 	return max(len(seen), taken) + 1, last, nil
 }
 
 func (c *ctx) ready(stdout io.Writer) error {
-	// 受け取られていない問いを残して review に入ると、gate とマージのあとの片付け（finish）が問いで断られる。
-	// 確かめの形は finish と `kanban done`（closing）と同じ。ただし gate が前の head について出した問いは数えない
-	// （rebase や直しで head が動いた。回し直した gate が今の head で決め直し、そのとき閉じる。merge.go closeStaleGateQuestions）
 	stale, err := c.staleGateQuestions()
 	if err != nil {
 		return err
@@ -519,8 +469,6 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if s.Review == "" {
 		return fail("issue.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.issue.Str("review"))
 	}
-	// レビューが要るかは gate と同じ関数で決める（review: off でも差分がレベル B・C なら gate はレビューを求める）。
-	// ここで断らないと、review に入ってから gate が review missing で返し、担当が1巡むだにする
 	need, cl, err := gate.NeedsReview(c.issue.Str("repo"), s.Review, r)
 	if err != nil {
 		return fail("差分のレベルを決められない（gate がレビューを求めるか分からない）: %v", err)
@@ -541,9 +489,6 @@ func (c *ctx) ready(stdout io.Writer) error {
 	}
 	review := []string{"review", c.id}
 	if len(stale) > 0 {
-		// kanban review も受け取られていない問いで断る。越えてよいのは外した問いだけなので、その番号を名指す。
-		// --force にすると、上の確かめのあとに kanban ask で足された問いまで越えてしまう（kanban は名指しの外の問いで、
-		// kanban の lock の中で断る）。越えた問いの番号は log.jsonl の行の forced に残る
 		review = append(review, "--past", strings.Join(slices.Sorted(maps.Keys(stale)), ","))
 	}
 	out, err := c.l.Run("", review...)
@@ -557,9 +502,6 @@ func (c *ctx) ready(stdout io.Writer) error {
 	return nil
 }
 
-// checkAcceptanceRows は、課題の予約キー acceptance が名指す受け入れ条件の番号ごとに、報告の acceptance[] に同じ番号の行が
-// あるかを確かめる（結果が pass・fail・manual のどれでも行があればよい。中身は gate と CheckRuns が見る）。
-// 番号は ledger.AcceptanceKey で比べる（予約キーの 4 と行の A4 は同じ番号）。
 func checkAcceptanceRows(t ledger.Issue, rows []contract.Acceptance) error {
 	ids, ok := ledger.AcceptanceOf(t)
 	if !ok {
@@ -577,8 +519,6 @@ func checkAcceptanceRows(t ledger.Issue, rows []contract.Acceptance) error {
 	return nil
 }
 
-// gateQuestionHeads は、この課題のまだ受け取られていない gate の問い（library/questions/<n>.json の from: gate）のうち、
-// どの head について出たかが読めるもの（gate.QuestionHead）を「<id>#<n>」→ head で返す。読めない問いは入れない。
 func (c *ctx) gateQuestionHeads() (map[string]string, error) {
 	gateQs, _, err := c.openQuestions()
 	if err != nil {
@@ -593,7 +533,6 @@ func (c *ctx) gateQuestionHeads() (map[string]string, error) {
 	return heads, nil
 }
 
-// questionHead は、この課題の問い n（library/questions/<n>.json）が gate のどの head について出たか。読めなければ空。
 func (c *ctx) questionHead(n int) string {
 	b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "questions", strconv.Itoa(n)+".json"))
 	var v struct {
@@ -605,8 +544,6 @@ func (c *ctx) questionHead(n int) string {
 	return gate.QuestionHead(v.Facts)
 }
 
-// staleGateQuestions は、まだ受け取られていない gate の問いのうち、担当の HEAD と違う head についての問いを
-// 「<id>#<n>」→ その head で返す（ready が数えない問い）。どの head の問いか読めない問いは入れない（今の head の問いとして数える）。
 func (c *ctx) staleGateQuestions() (map[string]string, error) {
 	heads, err := c.gateQuestionHeads()
 	if err != nil || len(heads) == 0 {
@@ -707,7 +644,6 @@ func (c *ctx) ask(stdin io.Reader, stdout io.Writer, src string) error {
 	return nil
 }
 
-// put は確かめた問いを kanban に問い、library/questions/<n>.json に置く（ledger.Ask）。
 func (c *ctx) put(q *contract.Question) (string, error) { return c.l.Ask(c.id, q) }
 
 // askQueued は queued の課題に問いを置けるかを確かめる。置けるのはオーナーの課題（who: person）だけで、

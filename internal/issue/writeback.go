@@ -13,7 +13,6 @@ import (
 	"andon/internal/delegate"
 )
 
-// githubIssueRe は GitHub の issue の URL（https://github.com/<owner>/<repo>/issues/<n>）。組 1 が <host>/<owner>/<repo>。
 var githubIssueRe = regexp.MustCompile(`^https://(github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)/issues/[1-9][0-9]*$`)
 
 // writeBack は課題が done になったあと、links にある write_back: true の出所のトラッカーへ1コメント書く
@@ -78,14 +77,12 @@ func trackers(p *delegate.Project, links []string) []string {
 	return out
 }
 
-// 書き戻しの結果（outcome が返す）。
 const (
-	resultMerged = "merged" // PR がマージされた
-	resultClosed = "closed" // PR がマージされずに閉じられた
-	resultNoPR   = "no_pr"  // PR を作らずに終えた
+	resultMerged = "merged"
+	resultClosed = "closed"
+	resultNoPR   = "no_pr"
 )
 
-// writeBackBody は外の Issue へ書く本文（3 つの場合。課題番号は書かない）。
 func writeBackBody(pr, result string) string {
 	switch result {
 	case resultMerged:
@@ -96,8 +93,6 @@ func writeBackBody(pr, result string) string {
 	return "この Issue に対応する作業は、変更（PR）を作らずに終えた。\n"
 }
 
-// outcome は report.json の pr と結果（MERGED なら merged、CLOSED なら closed）。PR が無ければ no_pr。
-// PR が読めない・OPEN など MERGED でも CLOSED でもなければ誤り（結果を書き違えない。外へのコメントは戻せない）。
 func (c *ctx) outcome() (string, string, error) {
 	rep, err := c.previous()
 	if err != nil {
@@ -115,12 +110,11 @@ func (c *ctx) outcome() (string, string, error) {
 		return rep.PR, resultMerged, nil
 	case "CLOSED":
 		return rep.PR, resultClosed, nil
-	default: // OPEN など: マージも閉じもしていない PR の結果は書けない（やめた課題の PR が開いたまま、など）
+	default:
 		return "", "", fmt.Errorf("PR が MERGED でも CLOSED でもない: %s %s", rep.PR, st)
 	}
 }
 
-// links は issue.yaml の links（並び）。
 func (c *ctx) links() []string {
 	var out []string
 	switch v := c.issue["links"].(type) {

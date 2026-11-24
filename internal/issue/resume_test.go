@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// fakeHcGet は hc get の返事を FAKE_GET（終了コードは FAKE_GET_RC。stderr は FAKE_GET_ERR）にする偽の hc を PATH に置く。
 func fakeHcGet(t *testing.T) {
 	t.Helper()
 	bin := t.TempDir()
@@ -19,7 +18,6 @@ func fakeHcGet(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// andon issue session は自分の端末のラベル session を出す。無い・形が違う・hc が落ちたら何も出さずに 0（template の行を落とさない）。
 func TestSession(t *testing.T) {
 	fakeHcGet(t)
 	t.Setenv("HC_TERMINAL_ID", "t7")
@@ -43,7 +41,6 @@ func TestSession(t *testing.T) {
 	}
 }
 
-// 止まった端末の見分け: not_found・live でない・素のシェル（top-level も前に出ているものも）・それ以外は live。
 func TestLookTerm(t *testing.T) {
 	fakeHcGet(t)
 	for _, c := range []struct{ get, rc, errOut, want string }{
@@ -69,7 +66,6 @@ func TestLookTerm(t *testing.T) {
 	}
 }
 
-// Codex の記録は先頭行だけを読み、cwd が同じもののうち最新の id。先頭行の外・形の違う行・別の cwd は数えない。
 func TestCodexRecord(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CODEX_HOME", home)
@@ -105,15 +101,13 @@ func TestFreshMessageGuide(t *testing.T) {
 	}
 }
 
-// 担当の端末が Gone の doing の課題を resume すると（dispatcher が打つ andon issue resume）、名前 <slug>-<id>・課題とセッションのラベル・
-// template <profile>-resume で hc run を打ち、kanban の agent を起動した端末に替える（repo の無い課題。cwd は issues/<id>/）。
 func TestResumeRunsHcAndMovesAgent(t *testing.T) {
 	f := newStart(t)
 	sid := "11111111-2222-4333-8444-555555555555"
 	cfg := filepath.Join(f.home, ".claude")
 	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
 	os.MkdirAll(filepath.Join(cfg, "projects", "x"), 0o755)
-	os.WriteFile(filepath.Join(cfg, "projects", "x", sid+".jsonl"), nil, 0o644) // セッションの記録（中身は読まない）
+	os.WriteFile(filepath.Join(cfg, "projects", "x", sid+".jsonl"), nil, 0o644)
 	hc := strings.Replace(startHc, "case $1 in\n", "case $1 in\n  get) echo '{\"error\":{\"kind\":\"not_found\"}}' >&2; exit 3 ;;\n", 1)
 	os.WriteFile(filepath.Join(filepath.Dir(f.log), "bin", "hc"), []byte(hc), 0o755)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"claude-resume","command":"claude --resume \"$s\""}]}`)

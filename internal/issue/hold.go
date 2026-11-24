@@ -26,7 +26,6 @@ const (
 		"答えを担当へ伝え、答えのとおりに直ってから打つ。\n"
 )
 
-// Hold は andon issue hold。
 func Hold(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("hold", HoldUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) != 1 {
@@ -40,7 +39,6 @@ func Hold(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Unhold は andon issue unhold。
 func Unhold(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("unhold", UnholdUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) != 0 {
@@ -50,8 +48,6 @@ func Unhold(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// lockGate は gate の鍵（library/.gate.lock。andon gate が記録を書く間持つもの）を取る。課題の鍵のあとに取る
-// （dispatcher のマージは課題の鍵の中で gate を回すので、同じ順にして重ならないようにする）。
 func (c *ctx) lockGate() (func(), error) {
 	return flock.Lock(filepath.Join(c.l.Library(c.id), ".gate.lock"))
 }
@@ -93,9 +89,6 @@ func (c *ctx) hold(stdout io.Writer, reason string) error {
 	return nil
 }
 
-// holdMark は、止めた課題の PR の今の commit を渡していれば、印を黄に書き換える。PR が無ければ何も書かない。
-// report.json や PR を読めない・PR がもうマージされている・印を書けなければ誤り（止まったことを確かめられない）。
-// 返すのは何をしたかの1文。
 func (c *ctx) holdMark() (string, error) {
 	rep, err := c.previous()
 	if err != nil {
@@ -158,7 +151,6 @@ func (c *ctx) unhold(stdout io.Writer) error {
 	return nil
 }
 
-// postMark は PR の head に印（commit status andon/gate）を書く（gh api。1回）。
 func postMark(slug, head string, m gate.Mark) error {
 	cmd := exec.Command("gh", "api", "-X", "POST", "repos/"+slug+"/statuses/"+head, "-f", "context="+gate.GateContext, "-f", "state="+m.State, "-f", "description="+m.Description)
 	var errb strings.Builder

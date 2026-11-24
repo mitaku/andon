@@ -21,9 +21,6 @@ import (
 
 var sessionRe = regexp.MustCompile(`session=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
-// start は偽の kanban の CLI と hc・本物の git（bare な origin とその clone）で見る（kanban を本物の kanban の CLI で回すのは tests/andon-issue.sh）。
-// 偽の kanban の CLI は $FAKE_ROOT/show-<id>.json を返し、打たれたものを $LOG に書く。偽の hc は FAKE_LS・FAKE_TPL・FAKE_RUN（FAKE_RUN_RC）を返す。
-
 const startKanban = `#!/usr/bin/env bash
 printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-}" "${KANBAN_ROOT:-}" >>"$LOG"
 case $1 in
@@ -47,8 +44,6 @@ case $1 in
 esac
 `
 
-// 偽の claude・codex。起動の記録（launch.Gather）が打つ --version にだけバージョンを返す。検査が PATH の本物の harness を打たないように、
-// newStart が一時の PATH の先頭に置く。--version のほかを打たれたら落ちる
 const startHarness = `#!/bin/sh
 [ "$1" = --version ] || { echo "unexpected $(basename "$0") $*" >&2; exit 9; }
 echo "$(basename "$0") 0.0.0-fake"
@@ -86,29 +81,25 @@ func newStart(t *testing.T) *startFixture {
 	gitT(t, "", "clone", "-q", origin, f.repoDir)
 	gitT(t, f.repoDir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "init")
 	gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:main")
-	// セルの repo（dir）: owner が commit した project.json が、書いてよい repo を持つ
 	f.plant = dir
 	gitT(t, dir, "init", "-q")
 	os.WriteFile(filepath.Join(dir, "andon.toml"), []byte("owner = \"owner@example.com\"\n"), 0o644)
 	f.project(`{"version":1,"project":{"title":"Sample site","prefix":"S"},"repos":["github.com/example/sample-site","github.com/example/none"]}`, "owner@example.com")
 	f.task = map[string]any{"id": "S-0007", "title": "Add the button", "status": "todo", "profile": "claude", "repo": "github.com/example/sample-site"}
-	// 予約キーは Chief of Staff（t5）が書いたもの（andon issue start は揃っていなければ断る）
 	f.set("t5", map[string]any{"review": "on", "must_fix": "major", "reviewer": "codex-review", "review_rounds": "2", "merge": "person", "estimate": "medium"})
 	f.ready(f.task)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", f.home)
-	t.Setenv("XDG_STATE_HOME", filepath.Join(f.home, ".local", "state")) // start の lock も一時の HOME の下に。受け継いだ置き場に書かない
+	t.Setenv("XDG_STATE_HOME", filepath.Join(f.home, ".local", "state"))
 	t.Setenv("GHQ_ROOT", filepath.Join(dir, "ghq"))
-	// 信頼の設定（boot.TrustFromOS）は一時の HOME に書く。本物の CLAUDE_CONFIG_DIR・セルの repo に触らない
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	// 起動の記録（launch.Gather）が読む置き場は一時の HOME の下。受け継いだ本物の CODEX_HOME を読まない
 	t.Setenv("CODEX_HOME", "")
-	t.Setenv("ANDON_WORKSPACE", dir) // projects/sample-site/kanban を読む
+	t.Setenv("ANDON_WORKSPACE", dir)
 
 	t.Setenv("LOG", f.log)
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("KANBAN_ROOT", "")
-	t.Setenv("HC_TERMINAL_ID", "t5") // 打った Chief of Staff。担当の agent にしてはいけない
+	t.Setenv("HC_TERMINAL_ID", "t5")
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t5","name":"sample-site-cos"}]}`)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"codex"}]}`)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":true}}`)
@@ -147,7 +138,6 @@ func (f *startFixture) run(flags ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-// set は課題に予約キーを書き、端末 by が書いた行を kanban の log.jsonl に足す（kanban set の代わり。履歴の照合が読む）。
 func (f *startFixture) set(by string, kv map[string]any) {
 	f.t.Helper()
 	for k, v := range kv {
@@ -162,14 +152,12 @@ func (f *startFixture) set(by string, kv map[string]any) {
 	lf.Write(append(b, '\n'))
 }
 
-// unset は課題から予約キーを消す（書かなかった課題）。
 func (f *startFixture) unset(keys ...string) {
 	for _, k := range keys {
 		delete(f.task, k)
 	}
 }
 
-// project はセルの repo の projects/sample-site/project.json を書き、author を email にして commit する。
 func (f *startFixture) project(body, email string) {
 	f.t.Helper()
 	os.WriteFile(filepath.Join(f.plant, "projects", "sample-site", "project.json"), []byte(body), 0o644)
@@ -177,8 +165,6 @@ func (f *startFixture) project(body, email string) {
 	gitT(f.t, f.plant, "-c", "user.name=x", "-c", "user.email="+email, "commit", "-q", "-m", "project")
 }
 
-// addRepo は kanban の config.yaml の repos に足す。
-// ready は偽の kanban の CLI に ready --json の返事を置く（kanban の CLI の書く形でなければテストを落とす）。
 func (f *startFixture) ready(issues ...any) {
 	f.t.Helper()
 	if err := os.WriteFile(filepath.Join(f.root, "ready.json"), []byte(ledgertest.Ready(f.t, issues...)), 0o644); err != nil {
@@ -265,7 +251,6 @@ func TestStart(t *testing.T) {
 			t.Errorf("call %d:\n got %q\nwant %q", i, calls[i], want[i])
 		}
 	}
-	// 起動する前に案件の repo の根を信頼に足す（boot のあとに追加した repo でも信頼の画面を出さない）
 	repo, _ := filepath.EvalSymlinks(f.repoDir)
 	if cj := read(t, filepath.Join(f.home, ".claude.json")); !strings.Contains(cj, `"`+repo+`": {`) || !strings.Contains(cj, `"hasTrustDialogAccepted": true`) {
 		t.Errorf(".claude.json に repo の根の信頼が無い:\n%s", cj)
@@ -273,7 +258,6 @@ func TestStart(t *testing.T) {
 	if toml := read(t, filepath.Join(f.home, ".codex", "config.toml")); !strings.Contains(toml, `[projects."`+repo+`"]`+"\ntrust_level = \"trusted\"\n") {
 		t.Errorf("config.toml に repo の根の信頼が無い:\n%s", toml)
 	}
-	// 起動の記録の harness のバージョンは、PATH の先頭に置いた偽の claude から読む（本物の harness を打たない）
 	if l := read(t, filepath.Join(f.root, "kanban", "issues", "S-0007", "library", "launches.jsonl")); !strings.Contains(l, `"harness":{"name":"claude","version":"claude 0.0.0-fake"}`) {
 		t.Errorf("起動の記録の harness が偽の claude でない:\n%s", l)
 	}
@@ -297,8 +281,6 @@ func TestStartWithoutRepo(t *testing.T) {
 	}
 }
 
-// レビュアーの課題として断るのは、parent があって profile が *-review の課題だけ。
-// 子課題（観察など）と、parent の無い *-review の課題は起動する。
 func TestStartNotReviewer(t *testing.T) {
 	for _, c := range []struct {
 		name, parent, profile string
@@ -342,7 +324,7 @@ func TestStartRefuses(t *testing.T) {
 
 type startRefusal struct {
 	name, want string
-	hc         bool // hc を呼ぶか作る直前の確かめ（--dry-run では確かめない）
+	hc         bool
 	edit       func(f *startFixture)
 }
 
@@ -371,12 +353,10 @@ func startRefusals(t *testing.T) []startRefusal {
 			f.addRepo("github.com/example/none")
 		}},
 		{"not in repos", "repo github.com/example/other が kanban の config.yaml の repos に無い", false, func(f *startFixture) {
-			// clone はあるが、このプロジェクトの repo ではない
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
 		}},
 		{"not in project repos", "repo github.com/example/other が projects/sample-site/project.json の repos に無い", false, func(f *startFixture) {
-			// kanban の config.yaml にはあるが、オーナーが書いた project.json の repos に無い
 			gitT(t, "", "clone", "-q", f.repoDir, filepath.Join(filepath.Dir(f.repoDir), "other"))
 			f.task["repo"] = "github.com/example/other"
 			f.addRepo("github.com/example/other")
@@ -416,12 +396,10 @@ func startRefusals(t *testing.T) []startRefusal {
 				f.unset("must_fix", "reviewer")
 				f.set("t42", map[string]any{"estimate": "large"})
 			}},
-		// review が off でも、PR を出す課題は gate が must_fix と merge を読む
 		{"review off needs must_fix", "無い・知らない値: must_fix。", false, func(f *startFixture) {
 			f.set("t5", map[string]any{"review": "off"})
 			f.unset("must_fix", "reviewer", "review_rounds")
 		}},
-		// review が off でも、差分がレベル B・C なら dispatcher はレビュアーを起動し、値のある reviewer・review_rounds の照合を求める
 		{"review off with untrusted reviewer", "最後に書いたのが今の Chief of Staff の端末（t5）でない: reviewer。Chief of Staff の端末で打つ: kanban set S-0007 reviewer=claude-review\n", false,
 			func(f *startFixture) {
 				f.set("t5", map[string]any{"review": "off"})
@@ -431,15 +409,12 @@ func startRefusals(t *testing.T) []startRefusal {
 			f.set("t5", map[string]any{"review": "off", "review_rounds": "0"})
 		}},
 		{"origin branch", "branch sample-site/S-0007-add-the-button が origin にもうある", true, func(f *startFixture) {
-			// clone は fetch していないが、origin にだけ同名の branch がある
 			gitT(t, f.repoDir, "push", "-q", "origin", "HEAD:refs/heads/sample-site/S-0007-add-the-button")
 			gitT(t, f.repoDir, "update-ref", "-d", "refs/remotes/origin/sample-site/S-0007-add-the-button")
 		}},
 	}
 }
 
-// 要らない予約キーは求めない: review が off なら reviewer・review_rounds、PR を出さない課題（repo が無い・調べる課題）なら
-// must_fix・merge も。Chief Engineer の課題は予約キーを見ない。
 func TestStartSettingsNotNeeded(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -474,9 +449,6 @@ func TestStartSettingsNotNeeded(t *testing.T) {
 	}
 }
 
-// ルーチンが足した課題（log.jsonl に by: routine:<名前>・fired の行がある）は、Chief of Staff の端末で打てば、無い予約キーを既定で
-// 書いてから起動する（足すのは dispatcher の kanban tick で、Chief of Staff の書いた値を持てない）。書いてあるキーは変えない。
-// --dry-run は書かない。欄だけの課題（kanban set で routine を書いた）と、ほかの端末で打ったときは今までどおり断る。
 func TestStartFillsRoutineSettings(t *testing.T) {
 	fired := func(f *startFixture, name, id string) {
 		f.task["routine"] = name
@@ -528,9 +500,6 @@ func TestStartFillsRoutineSettings(t *testing.T) {
 			t.Errorf("review=on の課題で reviewer を別ブランドで埋めない: %q", f.calls())
 		}
 	})
-	// 前の start の kanban set が issue.yaml を書いたあと log.jsonl に足す前に止まった（照合が外れた既定の値）なら、同じ値で書き直す。
-	// 既定と違う値は誰かが選んだものなので、照合が外れていれば今までどおり断る
-	// Chief of Staff が起き直してアドレスが変わった（前の端末 t5 が書いた行は照合が外れる）ときも同じ。
 	t.Run("rewrites untrusted defaults", func(t *testing.T) {
 		f := newStart(t)
 		f.unset("reviewer", "review_rounds")
@@ -590,8 +559,6 @@ func TestStartFillsRoutineSettings(t *testing.T) {
 	}
 }
 
-// トリアージの apply が足した課題（記録の created_issue）は、apply が予約キーを書く前に止まっていても、Chief of Staff の端末で打てば
-// 無いキーを既定で書いてから起動する。review は決定の値（束ならどれか1つが on で on）。記録に無い課題は今までどおり断る。
 func TestStartFillsTriageSettings(t *testing.T) {
 	record := func(f *startFixture, created string, reviews ...string) {
 		var items []map[string]any
@@ -625,8 +592,6 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			}
 		})
 	}
-	// apply が kanban add のあと記録の前で止まった課題: 記録には足す前の印（adding）とタイトルだけが残る。
-	// タイトルが同じで、足したのが Chief of Staff の端末なら埋める。足した端末が違う・タイトルが違うなら今までどおり断る。
 	adding := func(f *startFixture, title, by string) {
 		dir := filepath.Join(f.root, "kanban", "library", "triage")
 		os.MkdirAll(dir, 0o755)
@@ -649,9 +614,6 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
 		}
 	})
-	// kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まった課題は、足した行が無い。印とタイトルが合い、印（09:00）より後に
-	// 作られた課題なら埋める。印より前に作られた同じタイトルの課題（前に別の端末が足す途中で止めたもの）と、log.jsonl が空なら
-	// （読めないのと分けられないので）今までどおり断る
 	cfgRow := `{"at":"2026-11-23T00:00:00Z","by":"terminal:t5","config":{"chief_of_staff":"t5"}}` + "\n"
 	for _, c := range []struct {
 		name, created, log string
@@ -708,7 +670,6 @@ func TestStartHcRunFails(t *testing.T) {
 	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-0007 は todo のまま") || f.has("kanban start") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
-	// やり直せるように worktree と branch を戻し、kanban の欄も消す
 	if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") || !f.has("kanban set S-0007 branch= worktree=") {
 		t.Errorf("戻していない: branches=%q calls=%q", f.branches(), f.calls())
 	}
@@ -717,7 +678,6 @@ func TestStartHcRunFails(t *testing.T) {
 func TestStartFirstMessageNotSent(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
-	// hc run は template の本文（役目の文）を課題の文の前に足して届ける。手で送る案内も同じ文にする
 	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates", "claude.md")
 	if err := os.MkdirAll(filepath.Dir(tpl), 0o755); err != nil {
 		t.Fatal(err)
@@ -739,7 +699,6 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 			t.Errorf("err に %q が無い: %q", want, errs)
 		}
 	}
-	// 手で送る行は案内の最後（貼ったときに後ろの文を拾わない）
 	if !strings.HasSuffix(errs, "`。'\n") {
 		t.Errorf("手で送る行が最後でない: %q", errs)
 	}
@@ -747,7 +706,6 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	if !f.has("hc label t42 first_message.sent=false") {
 		t.Errorf("ラベルを付けていない: calls=%q", f.calls())
 	}
-	// 起きた端末は kanban に結ぶ（worktree は残す。画面に答えて送り直せば続く）
 	if !f.has("kanban start S-0007 | HC_TERMINAL_ID=t42") {
 		t.Errorf("calls=%q", f.calls())
 	}
@@ -756,7 +714,6 @@ func TestStartFirstMessageNotSent(t *testing.T) {
 	}
 }
 
-// hc が送ったと返しても、動き出さなければ（started=false。起動の途中で入力を捨てられた）届いていない扱いにする。
 func TestStartFirstMessageNotStarted(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":true,"started":false,"turn":1}}`)
@@ -769,7 +726,6 @@ func TestStartFirstMessageNotStarted(t *testing.T) {
 	}
 }
 
-// ラベルを付けられなければ、dispatcher は送り直さないので手で送る案内だけにする。
 func TestStartFirstMessageNoLabel(t *testing.T) {
 	f := newStart(t)
 	t.Setenv("FAKE_RUN", `{"address":"t42","first_message":{"sent":false,"reason":"trust prompt"}}`)
@@ -800,7 +756,6 @@ func read(t *testing.T, path string) string {
 	return string(b)
 }
 
-// noHc は呼ばれたら落ちる偽の hc にする（--dry-run は hc を1回も呼ばない）。
 func (f *startFixture) noHc() {
 	f.t.Helper()
 	bin := filepath.Join(filepath.Dir(f.log), "bin", "hc")
@@ -822,7 +777,6 @@ func (f *startFixture) dryJSON() startPlan {
 	return p
 }
 
-// runArgs は偽の hc が書いた hc run の引数（run の後ろ）。
 func (f *startFixture) runArgs() []string {
 	f.t.Helper()
 	b, err := os.ReadFile(filepath.Join(f.root, "run-args"))
@@ -856,7 +810,6 @@ func TestStartDryRunCallsNoHc(t *testing.T) {
 			if _, err := os.Stat(f.wt()); err == nil || strings.Contains(f.branches(), "S-0007") {
 				t.Errorf("worktree か branch を作った: %q", f.branches())
 			}
-			// 信頼の設定（boot.TrustFromOS）も書かない
 			for _, p := range []string{filepath.Join(f.home, ".claude.json"), filepath.Join(f.home, ".codex")} {
 				if _, err := os.Stat(p); err == nil {
 					t.Errorf("%s を書いた", p)
@@ -885,7 +838,6 @@ func TestStartDryRunHuman(t *testing.T) {
 	}
 }
 
-// --dry-run が出すものは、本番で hc run に渡すものと1文字も違わない（最初のメッセージ・名前・ラベル・cwd・プロファイル）。
 func TestStartDryRunMatchesRun(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -931,11 +883,10 @@ func TestStartDryRunMatchesRun(t *testing.T) {
 	}
 }
 
-// 止まる課題（書けない repo など）では、--dry-run も本番と同じ終了コードと理由1行を返す。
 func TestStartDryRunRefusesLikeRun(t *testing.T) {
 	for _, c := range startRefusals(t) {
 		if c.hc {
-			continue // hc を呼ぶ・作る直前の確かめは --dry-run ではしない
+			continue
 		}
 		t.Run(c.name, func(t *testing.T) {
 			f := newStart(t)
@@ -962,7 +913,7 @@ func TestStartUsage(t *testing.T) {
 
 func TestStartFirstMessageGuide(t *testing.T) {
 	f := newStart(t)
-	ws := os.Getenv("ANDON_WORKSPACE") // newStart が置いたセルの repo
+	ws := os.Getenv("ANDON_WORKSPACE")
 	if m := f.dryJSON().FirstMessage; strings.Contains(m, spawn.GuideFile) {
 		t.Errorf("ファイルが無いのに指している: %q", m)
 	}
@@ -972,9 +923,6 @@ func TestStartFirstMessageGuide(t *testing.T) {
 	}
 }
 
-// 振り返りやトリアージの apply が依頼書に ## Settings の写しを書いたあと、Chief of Staff が kanban set で予約キーを書き直した課題でも、
-// andon issue start は担当を起動する前に写しを予約キー（正）に合わせて書き直す。写しの後ろの地の文と追記の節は残す。
-// --dry-run は書き直したものを出すだけで、brief.md を書かない。
 func TestStartRewritesSettingsCopy(t *testing.T) {
 	const tail = "\n## 根拠\n- 前の課題の記録\n\n## 追記（Chief of Staff）\n- 完了条件に画面の確かめを足す\n"
 	const old = "# タイトル\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail
@@ -1011,7 +959,6 @@ func TestStartRewritesSettingsCopy(t *testing.T) {
 			t.Errorf("--dry-run が brief.md を書いた: %q", got)
 		}
 	})
-	// ルーチンの課題で起動の前に既定を書くキー（fill）も、写しに入る
 	t.Run("fill", func(t *testing.T) {
 		f, path := setup(t)
 		f.unset("estimate")
@@ -1033,7 +980,6 @@ func TestStartRewritesSettingsCopy(t *testing.T) {
 			t.Errorf("fill のキーが写しに入らない:\n got %q\nwant %q", got, want)
 		}
 	})
-	// 確かめで依頼書を読んだあと書くまでの間（ここでは fill の kanban set）に Chief of Staff が足した追記の節を、古い全文で上書きして消さない
 	t.Run("keeps what was added meanwhile", func(t *testing.T) {
 		f, path := setup(t)
 		f.unset("estimate")
@@ -1056,8 +1002,6 @@ func TestStartRewritesSettingsCopy(t *testing.T) {
 	})
 }
 
-// 写しを書くのは kanban の CLI と同じ鍵（kanban/.lock）を取ってから: 鍵を持つ書き手（kanban add など）が依頼書を書いている間は
-// 読み直しも置き換えもせず、鍵が外れてから読み直すので、その間に足された追記を古い全文で上書きして消さない。
 func TestWriteSettingsCopyTakesTheKanbanLock(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "kanban")
@@ -1082,7 +1026,6 @@ func TestWriteSettingsCopyTakesTheKanbanLock(t *testing.T) {
 		t.Fatalf("kanban の鍵を持つ書き手がいる間に書いた（err=%v）: %q", err, read(t, path))
 	case <-time.After(300 * time.Millisecond):
 	}
-	// 鍵を持つ書き手が追記してから外す
 	const added = "\n## 追記\n- 守ること: README は触らない\n"
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
