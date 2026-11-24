@@ -311,7 +311,7 @@ func stopOutput(note, news string) any {
 // ownerWords は、オーナーへの文ではふだんの言葉で言う語と、その言い方。
 // 正は用語集（package/skills/glossary/SKILL.md）の「オーナーへはふだんの言葉で言う語」の表で、ここはその写し。
 // 用語集の行がここにあるかは drain_words_test.go が、ここの行が用語集にあるかは tests/package/08-writing.sh が見る。
-// 語の中の半角の空白は、空白が無い・幾つかある書き方にも当てる。
+// 語の中の半角の空白は、空白が無い・幾つかある書き方にも当てる。英字で終わる語は、英字が続けば当てない（レベル AA は別の語）。
 var ownerWords = []struct{ Word, Say string }{
 	{"灯り", "オーナーの判断待ち"},
 	{"レベル A", "テストが通れば自動でマージ"},
@@ -337,7 +337,11 @@ func ownerWordsNote(slug string, in hookInput) string {
 	text := codeSpan.ReplaceAllString(in.LastAssistantMessage, " ")
 	var found []string
 	for _, w := range ownerWords {
-		re := regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(w.Word), " ", `[ \t　]*`))
+		pat := strings.ReplaceAll(regexp.QuoteMeta(w.Word), " ", `[ \t　]*`)
+		if c := w.Word[len(w.Word)-1]; c < 0x80 && (c|0x20) >= 'a' && (c|0x20) <= 'z' {
+			pat += `([^A-Za-z]|$)`
+		}
+		re := regexp.MustCompile(pat)
 		if re.MatchString(text) {
 			found = append(found, fmt.Sprintf("「%s」→「%s」", w.Word, w.Say))
 		}
@@ -356,7 +360,7 @@ func ownerWordsNote(slug string, in hookInput) string {
 		}
 	}
 	return "<owner-words>\n直前の返事に、オーナーへの文ではふだんの言葉で言う語があった: " + strings.Join(found, "、") + "。\n" +
-		"オーナーが読む部分を、この言い方で短く言い直す（/opt/andon/writing.md の内輪の語の決まり）。識別子やオーナーの言葉の引用だけなら、言い直さずに続ける。\n" +
+		"オーナーが読む部分を、この言い方で短く言い直す（/opt/andon/writing.md の内輪の語の決まり）。識別子・オーナーの言葉の引用・案件の語（地図アプリの地図など）として使っているだけなら、言い直さずに続ける。\n" +
 		"</owner-words>"
 }
 

@@ -64,6 +64,7 @@ func TestDrainOwnerWordsSkipsPlainAndCode(t *testing.T) {
 		"PR をマージしました。",
 		"`.claude/skills/verify-andon/features/地図.md` と `灯り` は識別子です。",
 		"```\nレベル C\n```\n片付けました。",
+		"アクセシビリティはレベル AA を満たしています。", // 英字が続く語は別の語（WCAG のレベル AA）
 	} {
 		if got := stopDrain(t, map[string]any{"session_id": "s1", "prompt_id": "p" + string(rune('a'+i)), "last_assistant_message": msg}); got != "" {
 			t.Errorf("止めてはいけない返事で止めた: %q → %q", msg, got)
