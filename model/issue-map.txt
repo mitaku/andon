@@ -37,6 +37,8 @@ action ChiefOfStaffCancels andon issue finish
 action HeadMovesAfterGate -
 action PRClosesOrReopens -
 action MergeSettingChanges -
+action ChiefOfStaffHolds -
+action ChiefOfStaffUnholds -
 action DispatcherAlignsMark -
 action Done -
 

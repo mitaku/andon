@@ -1053,4 +1053,71 @@ ce=$(kanban list --json | jq -r '.[] | select(.title == "Design topic") | .id')
 emit "$(launches "$ce")" launch-chief-engineer.json
 ok 'andon chief-engineer: Chief Engineer の課題に起動の記録が1件（役 chief-engineer・session・worktree の commit。ADR-0028 受け入れ条件 2）'
 
+# 止める口（ADR-0056 決めたこと 7・8。受け入れ条件 A5）: andon issue hold・unhold。偽の gh を止めの場面のものに替える:
+# pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup は $tmp/hold-view を返し、
+# api -X POST …/statuses/<sha> は引数を $tmp/hold-gh に1行で足す（$tmp/hold-fail があれば落ちる）
+cat > "$tmp/bin/gh" <<EOF
+#!/bin/sh
+case "\$1 \$2" in
+  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup ] || { echo "unexpected gh \$*" >&2; exit 99; }
+    cat "$tmp/hold-view" ;;
+  "api -X") echo "\$*" >> "$tmp/hold-gh"; [ ! -e "$tmp/hold-fail" ] || { echo "HTTP 502" >&2; exit 1; } ;;
+  *) echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
+EOF
+hh=$(git -C "$tmp/wt" rev-parse HEAD)
+view() { jq -n --arg h "$hh" --arg s "$1" --arg st "${2:-OPEN}" '{state: $st, headRefOid: $h, mergeCommit: null,
+  statusCheckRollup: (if $s == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: $s}] end)}' > "$tmp/hold-view"; }
+held=$(as t5 kanban add '止める PR' --repo github.com/example/app --profile claude)
+why=$(as t5 kanban add 'オーナーの答えを待つ問い' --repo github.com/example/app)
+as t5 kanban set "$held" status=review >/dev/null
+mkdir -p "kanban/issues/$held/library"
+jq -n --arg c "$hh" --arg pr "$pr" '{commit: $c, pr: $pr}' > "kanban/issues/$held/library/report.json"
+: > "$tmp/hold-gh"
+view SUCCESS
+as t5 "$andon" issue hold "$held" "$why" > "$tmp/out" || die "hold が落ちた: $(cat "$tmp/out")"
+[ "$(field "$held" hold)" = "$why" ] && grep -q "\"by\":\"terminal:t5\",\"id\":\"$held\",\"change\":{\"hold\":\"$why\"}" kanban/log.jsonl \
+  && grep -q "^api -X POST repos/example/app/statuses/$hh -f context=andon/gate -f state=pending -f description=andon gate: メンテナーの確認を待っています$" "$tmp/hold-gh" \
+  || die "hold が hold を書き、渡している commit に黄を書いていない: $(cat "$tmp/hold-gh") $(field "$held" hold)"
+ok 'hold: 予約キー hold に理由の課題を書き、印が緑（渡している）の commit に state=pending を書いて 0 で終わる'
+: > "$tmp/hold-gh"
+as t5 "$andon" issue unhold "$held" > "$tmp/out" || die "unhold が落ちた: $(cat "$tmp/out")"
+[ "$(field "$held" hold)" = "" ] && [ ! -s "$tmp/hold-gh" ] || die "unhold が hold を消さない・印を書いた: $(cat "$tmp/hold-gh")"
+ok 'unhold: hold を消し、印は書かない（gh を呼ばない）'
+touch "$tmp/hold-fail"
+expect_fail '黄にできない' as t5 "$andon" issue hold "$held" "$why"
+[ "$(field "$held" hold)" = "$why" ] || die '印を書けなかった hold で hold が残っていない'
+rm "$tmp/hold-fail"; as t5 "$andon" issue unhold "$held" >/dev/null
+ok 'hold: 印の書き込みに失敗すると 0 以外で終わり、hold は書いたまま（dispatcher が揃える）'
+: > "$tmp/hold-gh"
+view ''
+as t5 "$andon" issue hold "$held" "$why" > "$tmp/out" || die "渡していない commit の hold が落ちた: $(cat "$tmp/out")"
+[ ! -s "$tmp/hold-gh" ] && grep -q 'まだ渡していない' "$tmp/out" || die "渡していない commit に印を書いた: $(cat "$tmp/hold-gh")"
+as t5 "$andon" issue unhold "$held" >/dev/null
+ok 'hold: 渡していない（印が無く、gate の判定も無い）commit には印を書かない'
+expect_fail 'T-9999 が無い' as t5 "$andon" issue hold "$held" T-9999
+[ "$(field "$held" hold)" = "" ] || die '無い課題を理由にした hold が hold を書いた'
+ok 'hold: 無い課題を理由に渡すと何も書かずに断る'
+cp "kanban/issues/$held/library/report.json" "$tmp/hold-report"; echo '{' > "kanban/issues/$held/library/report.json"
+view SUCCESS; : > "$tmp/hold-gh"
+expect_fail 'report.json' as t5 "$andon" issue hold "$held" "$why"
+[ "$(field "$held" hold)" = "$why" ] && [ ! -s "$tmp/hold-gh" ] || die '壊れた report.json で hold を書かないか、印を書いた'
+cp "$tmp/hold-report" "kanban/issues/$held/library/report.json"; as t5 "$andon" issue unhold "$held" >/dev/null
+ok 'hold: report.json を読めないと、PR が無いのと分けて 0 以外で終わる（印が緑のまま成功と言わない）'
+view SUCCESS MERGED; : > "$tmp/hold-gh"
+expect_fail 'MERGED' as t5 "$andon" issue hold "$held" "$why"
+[ ! -s "$tmp/hold-gh" ] || die 'マージ済みの PR に印を書いた'
+as t5 "$andon" issue unhold "$held" >/dev/null
+ok 'hold: PR がもうマージされていれば 0 以外で終わる（止められていないのに成功と言わない）'
+view SUCCESS; : > "$tmp/hold-gh"
+flock "$lk" sleep 2 & lp=$!
+sleep 0.3; t0=$(date +%s%N)
+as t5 "$andon" issue hold "$held" "$why" >/dev/null || die 'lock のあと hold が落ちた'
+wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'hold がマージの鍵（issue lock）を待たなかった'
+flock "kanban/issues/$held/library/.gate.lock" sleep 2 & lp=$!
+sleep 0.3; t0=$(date +%s%N)
+as t5 "$andon" issue unhold "$held" >/dev/null || die 'gate の lock のあと unhold が落ちた'
+wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'unhold が gate の鍵を待たなかった'
+ok 'hold・unhold: 別のプロセスがマージの鍵か gate の鍵を持っている間は、放されるまで待つ'
+
 echo "all passed ($pass)"

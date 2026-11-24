@@ -30,6 +30,8 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon issue start` | 役・機械 | worktree と branch を切り、担当を起動して kanban start で結ぶ |
 | `andon issue resume` | 役・機械 | 止まった担当・Chief Engineer を同じ worktree でセッションの続きから起動する |
 | `andon issue finish` | 役・機械 | 端末と worktree を片付け、origin に入った branch を消して done にする |
+| `andon issue hold` | 役 | 課題の PR を止める（理由の課題を書き、渡していれば印を黄にしてから返る） |
+| `andon issue unhold` | 役 | 課題の PR の止めを外す |
 | `andon issue impact` | 役・機械 | マージした PR が、動いている課題にぶつかる・重なるかを JSON で出す |
 | `andon gate` | 役 | 課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない） |
 | `andon issue show` | 役 | 予約キー・report.json・レビューの照合を JSON で出す |

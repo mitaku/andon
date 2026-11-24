@@ -30,6 +30,8 @@ const gateCommentPrefix = "andon gate: "
 //     （internal/issue/merge.go の headMoved から closeGateQuestions）
 //   - andon issue merge が、今の head で gate を回し直したときに前の head の問いを閉じた答え
 //     （internal/issue/merge.go closeStaleGateQuestions）
+//   - andon issue merge が、gate の判定のあとに Chief of Staff が PR を止めたのを見て、判定を捨てて閉じた答え
+//     （internal/issue/merge.go holdDecision から closeGateQuestions。ADR-0056 決めたこと 9）
 //
 // 答えた者（answeredBy）では見分けない: dispatcher が止まっているときは Chief of Staff が settle を打ち、答えた者が Chief of Staff になる。
 // 書き方が変わるか、gate の問いを閉じる書き手が増えたら TestMachineGateAnswersMatchWriters が落ちる。
@@ -37,6 +39,7 @@ var machineGateAnswers = []*regexp.Regexp{
 	regexp.MustCompile(`^オーナーがマージした（[^（）]*）$`),
 	regexp.MustCompile(`^PR の head が gate のあとに動いた（[0-9a-f]+ → [0-9a-f]+）。gate が今の head で回し直す$`),
 	regexp.MustCompile(`^PR の head が動いた（[0-9a-f]+ → [0-9a-f]+）。gate が今の head で決め直した（記録 [^（）]*）$`),
+	regexp.MustCompile(`^Chief of Staff が PR を止めた（理由の課題 [^（）]*）。外したら gate が今の head で回し直す$`),
 }
 
 // machineGateAnswer は gate の問いの答え a（前後の空白を除いたもの）が、機械が閉じたときの答えか。

@@ -14,6 +14,7 @@ stateDiagram-v2
   state "approve（merge auto・委譲の範囲内。記録だけにしてマージに進む。マージの直前に読み直して変わっていれば、base が動いてマージが通らなければ、決めずに回し直す。Approved は回し直しても測り直さない）" as s_approved
   state "approve のまま 10 分たっても決まらない（dispatcher が merge の記録の Approved を読んで通知 `gate` を届けた。同じ Approved では二度届けない）" as s_stuck
   state "approve だがマージしない（merge person・委譲の外。オーナーのマージの見張りへ）" as s_held
+  state "Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9）" as s_on_hold
   state "fix（理由を担当へ送った）" as s_fix
   state "needs_human（問いを出した）" as s_needs_human
   state "マージした" as s_merged
@@ -42,6 +43,11 @@ stateDiagram-v2
   s_fix --> [*]: 担当が直して doing に戻った
   s_needs_human --> [*]: オーナーが答えた
   s_needs_human --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から）
+  s_waiting --> s_on_hold: Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す）
+  s_approved --> s_on_hold: approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9）
+  s_held --> s_on_hold: approve のあとに止められた（判定を捨てる）
+  s_needs_human --> s_on_hold: needs_human のあとに止められた（判定を捨て、gate の問いを閉じる）
+  s_on_hold --> s_waiting: Chief of Staff が andon issue unhold で外した（次の見回りで今の head の gate から。gate が印を書く）
   s_finished --> [*]: 終わり
 ```
 
@@ -55,6 +61,7 @@ stateDiagram-v2
 | `approved` | approve（merge auto・委譲の範囲内。記録だけにしてマージに進む。マージの直前に読み直して変わっていれば、base が動いてマージが通らなければ、決めずに回し直す。Approved は回し直しても測り直さない） | `merge:Approved` |
 | `stuck` | approve のまま 10 分たっても決まらない（dispatcher が merge の記録の Approved を読んで通知 `gate` を届けた。同じ Approved では二度届けない） | `dispatcher:Stuck` |
 | `held` | approve だがマージしない（merge person・委譲の外。オーナーのマージの見張りへ） |  |
+| `on-hold` | Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9） |  |
 | `fix` | fix（理由を担当へ送った） |  |
 | `needs-human` | needs_human（問いを出した） |  |
 | `merged` | マージした | `merge:Merged` |
@@ -90,4 +97,9 @@ stateDiagram-v2
 | `fix` | （始まり・終わり） | 担当が直して doing に戻った | kanban の CLI | `kanban start` |  |
 | `needs-human` | （始まり・終わり） | オーナーが答えた | オーナー |  |  |
 | `needs-human` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から） | 機械 | `andon issue merge` |  |
+| `waiting` | `on-hold` | Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す） | 機械 | `andon issue merge` |  |
+| `approved` | `on-hold` | approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9） | 機械 | `andon issue merge` |  |
+| `held` | `on-hold` | approve のあとに止められた（判定を捨てる） | 機械 | `andon issue merge` |  |
+| `needs-human` | `on-hold` | needs_human のあとに止められた（判定を捨て、gate の問いを閉じる） | 機械 | `andon issue merge` |  |
+| `on-hold` | `waiting` | Chief of Staff が andon issue unhold で外した（次の見回りで今の head の gate から。gate が印を書く） | AI | `andon issue unhold` |  |
 | `finished` | （始まり・終わり） | 終わり | 機械 |  |  |

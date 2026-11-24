@@ -17,7 +17,8 @@ TypeOK ==
     /\ moved \in BOOLEAN /\ autoMerged \in BOOLEAN
     /\ ans \in {"none", "cos", "pane"} /\ news \in {"none", "pending", "read"}
     /\ sent \in BOOLEAN /\ twice \in BOOLEAN
-    /\ mark \in {"none", "ok", "red"}
+    /\ mark \in {"none", "ok", "red", "held"} /\ hold \in BOOLEAN /\ required \in BOOLEAN
+    /\ rel \in BOOLEAN /\ badMerge \in BOOLEAN
 
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
 R1_NoWorkerAfterCancel == cancel => worker # "live"
@@ -56,5 +57,15 @@ R10_OneAnswerPerQuestion == ~twice
 
 \* R11 答えの無い問いは、担当に届いたことにならない
 R11_NoRelayWithoutAnswer == (q /\ ans = "none") => ~sent
+
+\* ---- gate の印と止めの規則（ADR-0056 決めたこと 17） ----
+\* R12 ruleset が印を必須にしていれば、gate が渡していない head も、止めている間の PR も、マージされない（オーナーのマージも dispatcher のマージも）
+R12_NoMergeBeforeGate == required => ~badMerge
+
+\* R13 緑の印が付いているのは、gate がその head を approve か needs_human と判定していて、止めていないときだけ
+R13_GreenOnlyWhenReleased == (pr = "open" /\ mark = "ok") => (rel /\ ~hold)
+
+\* R14 dispatcher は、止めている PR を自分でマージしない（ruleset が印を必須にしていなくても）
+R14_NoAutoMergeWhileHeld == autoMerged => ~badMerge
 
 ====

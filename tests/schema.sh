@@ -370,6 +370,8 @@ fail|issue-keys|.deliverable = "Candidates"|deliverable の綴りが大文字
 pass|issue-keys|.acceptance = "A4,A13"|acceptance が受け入れ条件の番号のコンマの並び
 fail|issue-keys|.acceptance = "A1, A4"|acceptance の番号の間に空白
 fail|issue-keys|.acceptance = ["A1"]|acceptance が並び（kanban set は文字列で書く）
+pass|issue-keys|.hold = "A-0015"|hold が理由の課題の id
+fail|issue-keys|.hold = "A-0015 A-0016"|hold に空白（理由の課題は1つ）
 pass|findings|.findings = []|指摘が無い
 fail|findings|.commit = "2a17f63"|commit が40桁でない
 fail|findings|.commit |= ascii_upcase|commit が大文字
@@ -495,6 +497,9 @@ fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: ["a/b"], fired
 fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [""], lint: 0} | del(.issue)|idle の fired が空の名前
 fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [], lint: -1} | del(.issue)|idle の lint が負
 fail|notification|.kind = "idle" | .detail = {free: 1, unstarted: [], fired: [], lint: 0, ready: []} | del(.issue)|idle に知らないキー
+pass|notification|.kind = "hold" | .detail = {reason: "A-0015"}|kind hold（止めた理由の課題が done）
+fail|notification|.kind = "hold" | .detail = {}|hold に reason が無い
+fail|notification|.kind = "hold" | .detail = {reason: "A-0015", pr: .detail.pr}|hold に知らないキー
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "3 回打って失敗"}|kind impact（集められなかった）

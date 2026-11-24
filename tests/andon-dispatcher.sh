@@ -989,6 +989,60 @@ ok 'Chief Engineer の文書の PR は、review に入って PR を読んだと�
 HC_TERMINAL_ID=t5 kanban done "$ce2" >/dev/null
 sed -i "/^t7 $ce2\$/d" "$tmp/hc/live"
 
+# 4j. ADR-0056 A6（止める場面）: Chief of Staff が止めた課題（予約キー hold）は gate を回さない。判定のあとに止めたら、判定を捨てて
+#     gate の問いを閉じ、緑を黄（メンテナーの確認を待っています）に揃える。外したら次の巡で gate から回し直す。理由の課題が done に
+#     なったら、止めが残っている間だけ1回知らせる（決めたこと 7・9）
+hd=$(newtask '止める課題' person)
+hwhy=$(HC_TERMINAL_ID=t5 kanban add '止めた理由の問い' --profile claude --repo github.com/example/app)
+work "$hd" package/gate.json
+as_worker "$hd" report --pr https://github.com/example/app/pull/7
+as_worker "$hd" review-request
+dispatcher
+review_by "$(kanban list --all --json | jq -r --arg p "$hd" '[.[] | select(.parent == $p)] | last | .id')" '[]'
+as_worker "$hd" ready
+dispatcher
+kanban show "$hd" --json | jq -e '.questions[0].status == "open"' >/dev/null && lastmark "$head" | grep -q 'state=success' || die '前提: gate の問いと緑が無い'
+hrec=$L/issues/$hd/library/gate/$head.json; hat=$(jq -r .at "$hrec")   # gate の記録は head ごとに1つ（回し直すと上書き）
+HC_TERMINAL_ID=t5 kanban set "$hd" "hold=$hwhy" >/dev/null   # 口（andon issue hold）を通さずに書いても、dispatcher が揃える
+n=$(marks "$head"); : > "$tmp/dispatcher.log"
+watch_due "$hd"; dispatcher
+[ "$(jq -r .at "$hrec")" = "$hat" ] || die '止めた課題に gate を回した'   # 秒の時刻なので、回し直しの見張りは問いで見る
+kanban show "$hd" --json | jq -e '.questions[0].status == "received"' >/dev/null || die "止めたのに gate の問いを閉じない: $(kanban show "$hd" --json | jq -c '.questions')"
+jq -e --arg t "$hd" '.[$t] | has("decision") | not' "$mergerec" >/dev/null || die "止めたのに判定を捨てない: $(jq -c --arg t "$hd" '.[$t]' "$mergerec")"
+[ "$(marks "$head")" = $((n + 1)) ] && lastmark "$head" | grep -q 'state=pending -f description=andon gate: メンテナーの確認を待っています$' ||
+    die "止めた課題の緑を黄にしない: $(lastmark "$head")"
+grep -q "$hd は gate の判定（needs_human）のあとに止められた" "$tmp/dispatcher.log" || die "判定を捨てたことをログに書かない: $(cat "$tmp/dispatcher.log")"
+n=$(marks "$head"); watch_due "$hd"; dispatcher
+[ "$(marks "$head")" = "$n" ] && [ "$(jq -r .at "$hrec")" = "$hat" ] || die '止めている間に gate を回したか、黄を書き直した'
+ok '判定のあとに止めた課題は、次の巡で判定を捨てて gate の問いを閉じ、緑を黄にする。止めている間は gate を回さない（ADR-0056 A6）'
+HC_TERMINAL_ID=t5 "$andon" issue unhold "$hd" >/dev/null
+watch_due "$hd"; dispatcher
+kanban show "$hd" --json | jq -e '.questions[1] | .status == "open"' >/dev/null ||
+    die "外したのに gate を回し直さない: $(kanban show "$hd" --json | jq -c '.questions')"
+lastmark "$head" | grep -q 'state=success' || die "外したあと gate が印を書かない: $(lastmark "$head")"
+ok '止めを外したら、次の巡で gate を今の head で回し直す（ADR-0056 A6）'
+# 止めてから外すまでに dispatcher が一度も見なかったとき: 止める前の判定から緑に戻さず、判定を捨てて今の head で gate から回す
+lastmark "$head" | grep -q 'state=success' || die '前提: 回し直した gate の緑が無い'
+HC_TERMINAL_ID=t5 "$andon" issue hold "$hd" "$hwhy" >/dev/null || die '止める口が落ちた'
+lastmark "$head" | grep -q 'state=pending' || die "止める口が黄を書かない: $(lastmark "$head")"
+HC_TERMINAL_ID=t5 "$andon" issue unhold "$hd" >/dev/null
+: > "$tmp/dispatcher.log"; watch_due "$hd"; dispatcher
+kanban show "$hd" --json | jq -e '.questions[1].status == "received" and .questions[2].status == "open"' >/dev/null ||
+    die "止めてすぐ外したのに、止める前の判定を捨てて gate を回し直さない: $(kanban show "$hd" --json | jq -c '.questions')"
+grep -q "$hd は gate の判定（needs_human）のあとに止められた" "$tmp/dispatcher.log" || die "判定を捨てたことをログに書かない: $(cat "$tmp/dispatcher.log")"
+ok '止めてから外すまでに dispatcher が見なかったときも、止める前の判定を捨てて gate を今の head で回し直す（ADR-0056 A6）'
+HC_TERMINAL_ID=t5 "$andon" issue hold "$hd" "$hwhy" >/dev/null
+HC_TERMINAL_ID=t5 kanban done "$hwhy" >/dev/null
+dispatcher
+pending "$hd" hold | jq -e --arg r "$hwhy" '.detail == {reason: $r}' >/dev/null || die "理由の課題が done になったのに知らせない: $(pending "$hd" hold)"
+holds() { jq --arg t "$hd" '[.pending[] | select(.issue == $t and .kind == "hold")] | length' "$state"; }
+[ "$(holds)" = 1 ] || die "知らせが1件でない: $(holds)"
+dispatcher
+[ "$(holds)" = 1 ] || die '理由の課題の done を2度知らせた'
+ok '止めた理由の課題が done になっても止めは外れず、止めが残っていれば Chief of Staff に1回だけ知らせる（ADR-0056 A6）'
+HC_TERMINAL_ID=t5 "$andon" issue unhold "$hd" >/dev/null; HC_TERMINAL_ID=t5 kanban done "$hd" >/dev/null; sed -i "/^t7 $hd\$/d" "$tmp/hc/live"
+jq --arg t "$hd" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null
 restart "$id"

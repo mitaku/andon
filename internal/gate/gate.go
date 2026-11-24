@@ -82,13 +82,22 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	dry := len(args) == 2
 	rec, early, err := run(ledger.CanonID(args[0]), dry, stderr)
+	var h holding
+	if errors.As(err, &h) {
+		// 止めている: wait（decision と reasons だけ。記録も GitHub への書き込みもしない）
+		if err := writeShort(stdout, "wait", string(h)); err != nil {
+			fmt.Fprintf(stderr, "andon gate: %v\n", err)
+			return exitError
+		}
+		return exitWait
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "andon gate: %v\n", err)
 		return exitError
 	}
 	if early != "" {
 		// 信じられる PR が無い（report.json・kanban と PR が合わない）。記録も GitHub への書き込みもしない。
-		if err := writeEarly(stdout, early); err != nil {
+		if err := writeShort(stdout, "fix", early); err != nil {
 			fmt.Fprintf(stderr, "andon gate: %v\n", err)
 			return exitError
 		}
@@ -103,13 +112,19 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return ExitCode(rec.Decision)
 }
 
-// writeEarly は信じられる PR が無いときの fix（decision と reasons だけ。internal/issue の gateResult が読む形）を w に1行で出す。
+// holding は、Chief of Staff が止めている課題で gate を回さなかった印（run が誤りの形で返し、Main が wait を出す）。値は理由の1文。
+type holding string
+
+func (h holding) Error() string { return string(h) }
+
+// writeShort は記録を持たない判定（信じられる PR が無いときの fix・止めているときの wait。decision と reasons だけ。
+// internal/issue の gateResult が読む形）を w に1行で出す。
 // 理由は issue.yaml の値を含み、制御文字があっても JSON の文字列になるよう encoding/json で組む。
-func writeEarly(w io.Writer, reason string) error {
+func writeShort(w io.Writer, decision, reason string) error {
 	b, err := json.Marshal(struct {
 		Decision string   `json:"decision"`
 		Reasons  []string `json:"reasons"`
-	}{"fix", []string{reason}})
+	}{decision, []string{reason}})
 	if err != nil {
 		return err
 	}
@@ -289,6 +304,28 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		}
 		return nil, "", errors.New("deliverable: candidates の課題に gate は無い（候補の一覧は Chief of Staff が読む）")
 	}
+	if !dry {
+		// 記録を書いて PR に写す run は課題ごとに1つずつ（G2 を塞いだ。dispatcher.md §7.2 #4）。
+		// 待った間にほかの run が同じ head の記録を書いていれば、それを返して書かない・写さない（下の written）。
+		// 止め（予約キー hold）は鍵を取ってから読む: andon issue hold は同じ鍵の中で hold を書く（ADR-0056 決めたこと 8）
+		unlock, err := flock.Lock(filepath.Join(l.Library(id), ".gate.lock"))
+		if err != nil {
+			return nil, "", err
+		}
+		defer unlock()
+		if t, err = l.Show(id); err != nil {
+			return nil, "", err
+		}
+	}
+	// 止めている課題は GitHub を読まずに待つ（記録も印も書かない。--dry-run も同じ。ADR-0056 決めたこと 9）。
+	// 待ちが長いとオーナー待ちに倒す決まり（github_checks_wait_minutes）は当てない。止めを読めなければ止めているものとして待つ
+	rows, logErr := l.ReadLog()
+	if reason, held, err := l.Hold(rows, logErr, t); err != nil || held {
+		if err != nil {
+			return nil, "", holding("止めを読めない（止めているものとして待つ）: " + err.Error())
+		}
+		return nil, "", holding(fmt.Sprintf("Chief of Staff が PR を止めている（理由の課題 %s）。andon issue unhold で外すまで gate は回らない", reason))
+	}
 	ws := delegate.Workspace()
 	table, warn, err := LoadTable(getenv("ANDON_HOME", "/opt/andon"), ws)
 	if err != nil {
@@ -317,15 +354,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "issue.yaml に branch が無い", nil
 	}
 	slug := owner + "/" + name
-	if !dry {
-		// 記録を書いて PR に写す run は課題ごとに1つずつ（G2 を塞いだ。dispatcher.md §7.2 #4）。
-		// 待った間にほかの run が同じ head の記録を書いていれば、それを返して書かない・写さない（下の written）
-		unlock, err := flock.Lock(filepath.Join(l.Library(id), ".gate.lock"))
-		if err != nil {
-			return nil, "", err
-		}
-		defer unlock()
-	}
 
 	var pv prView
 	b, err := gh("pr", "view", number, "--repo", slug, "--json", "state,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,mergeable,author,changedFiles,isCrossRepository,body,comments")
@@ -369,7 +397,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	}
 
 	// 予約キーは Chief of Staff が書いたものだけを信じる（log.jsonl の by）
-	rows := l.Log()
 	s := ledger.SettingsOf(t)
 	switch {
 	case s.Review == "" || s.MustFix == "":

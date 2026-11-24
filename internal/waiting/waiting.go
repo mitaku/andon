@@ -219,6 +219,13 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 			loc = z
 		}
 	}
+	// Chief of Staff が止めた課題（予約キー hold。ADR-0056 決めたこと 11）: マージの依頼に出さず、理由の課題の行の holds に数え、
+	// 枠ではオーナー待ちに数える。理由の課題がもう行を持たない（オーナーが答えた）あとは、外すまでどの行にも出ない（ADR-0057 事実 19）
+	raws := make([]ledger.Issue, len(issues))
+	for i, t := range issues {
+		raws[i] = t.raw
+	}
+	heldOn := map[string][]string{}
 	items := []Item{}
 	waiting := map[string]bool{}
 	for _, t := range issues {
@@ -226,7 +233,10 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 			continue
 		}
 		lib := l.Library(t.id)
-		if it, ok := mergeItem(l, t, rows, reviewAt[t.id], lib); ok {
+		if reason, held := ledger.HoldOf(rows, raws, cfg.ChiefOfStaff, t.raw); held {
+			heldOn[ledger.CanonID(reason)] = append(heldOn[ledger.CanonID(reason)], t.id)
+			waiting[t.id] = true
+		} else if it, ok := mergeItem(l, t, rows, reviewAt[t.id], lib); ok {
 			items = append(items, it)
 			waiting[t.id] = true
 		}
@@ -244,7 +254,7 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 			items = append(items, it)
 		}
 	}
-	holds := holders(issues, done)
+	holds := holders(issues, heldOn, done)
 	for i := range items {
 		items[i].Holds = holds(items[i].ID)
 	}
@@ -435,9 +445,13 @@ func firstLine(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// holders は、課題の id から、それを after で待つ済んでいない課題（直接と、その後ろで待つもの全部）を id の順で返す関数を作る。
-func holders(issues []*issue, done string) func(string) []string {
+// holders は、課題の id から、それを after で待つ済んでいない課題と、それを理由に止めた課題 heldOn（直接と、その後ろで待つもの全部）を
+// id の順で返す関数を作る。
+func holders(issues []*issue, heldOn map[string][]string, done string) func(string) []string {
 	waitsOn := map[string][]string{}
+	for r, ids := range heldOn {
+		waitsOn[r] = append(waitsOn[r], ids...)
+	}
 	for _, t := range issues {
 		if t.status == done {
 			continue

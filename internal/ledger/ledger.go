@@ -244,6 +244,104 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 	return ok && v == t.Str(key)
 }
 
+// HoldOf は課題 t の止め（予約キー hold。Chief of Staff が PR を止めた理由の課題の id。ADR-0056 決めたこと 7・10）を読む
+// （純粋関数）。返すのは止めた理由の課題の id と、止めているか。
+// hold が空でなければ、誰が書いても止めている（足すほうは誰が書いても止まる）。
+// hold が空でも、hold を最後に変えた log.jsonl の行の書き手が、その課題かその子の課題（tasks のうち parent がその課題のもの）の
+// 担当の端末（その課題の agent に書かれたことのある端末。Chief of Staff の端末 cos を除く）なら、止めているものとして読む
+// （担当が消しても止めは外れない）。そのときの理由は、消す前に最後に書かれていた値。消してよいのは Chief of Staff とオーナーである。
+func HoldOf(rows []Row, tasks []Issue, cos string, t Issue) (string, bool) {
+	id := t.Str("id")
+	if v := t.Str("hold"); v != "" {
+		return v, true
+	}
+	// prev は hold を最後に変えた行の直前の値（外したあとに空をもう一度消した行では空）
+	last, prev, cur := -1, "", ""
+	for i, r := range rows {
+		if r.ID != id || r.Change == nil {
+			continue
+		}
+		if v, ok := r.Change["hold"]; ok {
+			last, prev = i, cur
+			cur, _ = v.(string)
+		}
+	}
+	if last < 0 || prev == "" {
+		return "", false
+	}
+	by, ok := strings.CutPrefix(rows[last].By, "terminal:")
+	if !ok || by == "" || by == cos {
+		return "", false
+	}
+	mine := map[string]bool{id: true}
+	for _, o := range tasks {
+		if CanonID(o.Str("parent")) == id {
+			mine[CanonID(o.Str("id"))] = true
+		}
+	}
+	agents := map[string]bool{}
+	for _, o := range tasks {
+		if mine[CanonID(o.Str("id"))] && o.Str("agent") != "" {
+			agents[o.Str("agent")] = true
+		}
+	}
+	for _, r := range rows {
+		if !mine[r.ID] || r.Change == nil {
+			continue
+		}
+		if s, _ := r.Change["agent"].(string); s != "" {
+			agents[s] = true
+		}
+	}
+	if agents[by] {
+		return prev, true
+	}
+	return "", false
+}
+
+// LastHoldSet は、log.jsonl の after 行目（1 から数える）より後で、課題 id の hold に値を書いた行のうち最後のものの値と時刻
+// （純粋関数）。止めてから外すまでの間に dispatcher が一度も見なかったとき、止める前の gate の判定を捨てるために読む
+// （ADR-0056 決めたこと 9）。無ければ ok が false。
+func LastHoldSet(rows []Row, id string, after int) (reason, at string, ok bool) {
+	for i, r := range rows {
+		if i < after || r.ID != id || r.Change == nil {
+			continue
+		}
+		if v, _ := r.Change["hold"].(string); v != "" {
+			reason, at, ok = v, r.At, true
+		}
+	}
+	return reason, at, ok
+}
+
+// Hold は HoldOf を、kanban の今の Chief of Staff で読む。rows と logErr は呼び手が ReadLog で読んだ log.jsonl と、その誤り。
+// 子の課題の一覧は、hold が空で、hold を消した行があるときだけ読む（止めていない課題で kanban の一覧を読まない）。
+// hold が空で log.jsonl を読み切れない（無いのは除く）か、一覧を読めなければ誤りを返す（呼び手は止めているものとして扱う。
+// 担当が消した止めを、読めないまま外れたと読まない）。
+func (l *Ledger) Hold(rows []Row, logErr error, t Issue) (string, bool, error) {
+	if v := t.Str("hold"); v != "" {
+		return v, true, nil
+	}
+	if logErr != nil && !errors.Is(logErr, os.ErrNotExist) {
+		return "", false, fmt.Errorf("log.jsonl が読めない: %w", logErr)
+	}
+	touched := false
+	for _, r := range rows {
+		if _, ok := r.Change["hold"]; ok && r.ID == t.Str("id") {
+			touched = true
+		}
+	}
+	if !touched {
+		return "", false, nil
+	}
+	tasks, err := l.List()
+	if err != nil {
+		return "", false, err
+	}
+	reason, held := HoldOf(rows, tasks, l.ChiefOfStaff(), t)
+	return reason, held, nil
+}
+
 // Candidates は、課題の成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
 // Chief of Staff か（contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは false。
 // 読み手は andon gate（終了コード 3 の理由の文を分ける）。dispatcher と andon issue ready は照合を見ずに

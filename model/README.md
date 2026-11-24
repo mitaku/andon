@@ -41,13 +41,13 @@ model/check --draft <フォルダ> [<モジュール>]
 | ファイル | 中身 |
 |---|---|
 | `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・オーナーの動き・gate が決めたあとの変化）。行動ごとに写したコードの場所 |
-| `IssueRules.tla` | 規則 R1〜R11（`IssueLife` を読む。R7 は文で書き、確かめるのは `reach.mjs`） |
+| `IssueRules.tla` | 規則 R1〜R14（`IssueLife` を読む。R7 は文で書き、確かめるのは `reach.mjs`） |
 | `IssueRules.cfg` | 検査器の設定（調べる規則の並び）と、`reach.mjs` が読む `\* REACH` の行 |
 | `reach.mjs` | 状態の図を読んで「行ける」の形の規則を確かめる（`check` が打つ。Node の標準だけ） |
 | `issue-map.txt` | 対応表: 行動とコマンドの対応と、「モデルの外」と名指しする `issue.yaml` の行 |
 | `conform.mjs` | 状態の図と `issue.yaml` を対応表で照らす（`check` が打つ。Node の標準だけ） |
 | `expected.txt` | 調べるはずの規則・状態の数の控えと、見本ごとの落ちるはずの規則 |
-| `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動きと、ADR-0032 決めたこと 8 で直す review-request の守り）と、守りを外した見本（ADR-0034 決めたこと 3 の、マージの直前の読み直しと、閉じた PR の聞き直し。ADR-0042 決めたこと 19 の、ペインの答えの通知と、開いている問いだけに書く守り） |
+| `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動きと、ADR-0032 決めたこと 8 で直す review-request の守り）と、守りを外した見本（ADR-0034 決めたこと 3 の、マージの直前の読み直しと、閉じた PR の聞き直し。ADR-0042 決めたこと 19 の、ペインの答えの通知と、開いている問いだけに書く守り。ADR-0056 決めたこと 17 の、止める口が印を黄にする守りと、マージの直前に止めを読み直す守り） |
 | `check` | 入口 |
 | `package.json`・`package-lock.json` | 検査器のバージョン |
 
@@ -75,6 +75,9 @@ model/check --draft <フォルダ> [<モジュール>]
 | R9 `R9_OnlyWrittenAnswersReachWorker` | 担当に届く答えは、だれかが書いた答えだけ。ペインの答えは、Chief of Staff が通知 `answered` を読んでから届く（ADR-0042 決めたこと 19） |
 | R10 `R10_OneAnswerPerQuestion` | 1 つの問いに、答えは 1 つだけ（会話の答えとペインの答えが重ならない。ADR-0042 決めたこと 19） |
 | R11 `R11_NoRelayWithoutAnswer` | 答えの無い問いは、担当に届いたことにならない（ADR-0042 決めたこと 19） |
+| R12 `R12_NoMergeBeforeGate` | repo の ruleset が印 `andon/gate` を必須にしていれば、gate が渡していない head も、止めている間の PR も、マージされない（オーナーのマージも dispatcher のマージも。ADR-0056 決めたこと 17） |
+| R13 `R13_GreenOnlyWhenReleased` | 開いている PR の今の head の印が緑なのは、gate がその head を approve か needs_human と判定していて、止めていないときだけ（ADR-0056 決めたこと 17） |
+| R14 `R14_NoAutoMergeWhileHeld` | dispatcher は、止めている PR を自分でマージしない（ruleset が印を必須にしていなくても。ADR-0056 決めたこと 17） |
 
 ### 「行ける」の形の規則
 
@@ -102,6 +105,16 @@ gate が決めたあとに起きる 3 つの変化を、行動として入れて
 | `MergeSettingChanges` | issue.yaml の `merge` か委譲の `merge` が変わる。モデルは 2 つを「任されている」の 1 つ（`mergeAuto`）にまとめた |
 
 gate の答えを捨てて回し直すのは、gate の 3 つの行動の始まりの 1 つ（`Regate`）にまとめました。コードでは、読み直しが通らない巡と、base が動いて `gh pr merge` が通らなかった巡は決めたことを書かずに終わり、次の巡で gate が決め直します。モデルはその 2 歩を 1 歩にしています。dispatcher が自分でマージする approve は、マージの直前に head と任されているかを読み直し、通ったときだけマージします（`DispatcherMerges`）。
+
+## 印と止め
+
+gate の印 `andon/gate`（`mark`）と、Chief of Staff の止め（`hold`。issue.yaml の予約キー）を入れてあります（ADR-0056 決めたこと 17）。`required` は repo の ruleset が印を必須にしているかで、初めにどちらかに決まり、途中で変わりません。`rel` は gate が今の head を渡した（approve か needs_human と判定した）か、`badMerge` は渡していない head か止めている間の PR がマージされたかです。
+
+| 行動 | 中身 |
+|---|---|
+| `ChiefOfStaffHolds` | `andon issue hold`。hold を書き、今の head の緑を黄にしてから返る。gate が決めたあとなら判定を捨てる（コードでは次の巡の `holdDecision` が捨て、その間のマージは直前の読み直しが断る） |
+| `ChiefOfStaffUnholds` | `andon issue unhold`。印は書かず、次の巡で gate が回り直して書く |
+| `DispatcherAlignsMark` | dispatcher が PR を読むとき印を揃える。止めているのに緑なら黄に、doing に戻った課題の緑は赤に |
 
 R8 は、dispatcher がマージした状態で、gate の答えと head と設定を確かめます。マージしたあとは、head は動かず、PR も閉じず、設定の変更も入れていないので、マージした時点の値がそのまま残ります。
 

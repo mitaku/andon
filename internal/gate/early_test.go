@@ -15,7 +15,7 @@ func TestWriteEarly(t *testing.T) {
 		"壊れた UTF-8 \xff\xfe",
 	} {
 		var out bytes.Buffer
-		if err := writeEarly(&out, reason); err != nil {
+		if err := writeShort(&out, "fix", reason); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.HasSuffix(out.String(), "}\n") || strings.Count(out.String(), "\n") != 1 {

@@ -88,7 +88,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	if c.issue.Str("status") != "review" {
 		return nil
 	}
-	rows := c.l.Log()
+	rows, logErr := c.l.ReadLog()
 	row := 0
 	for i, r := range rows {
 		if r.ID == c.id && r.Change["status"] == "review" {
@@ -98,6 +98,19 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	rep, err := c.previous()
 	if row == 0 || err != nil || rep == nil {
 		return nil
+	}
+	if reason, held, err := c.l.Hold(rows, logErr, c.issue); err != nil || held {
+		if w.Row != row {
+			w = contract.Merging{Row: row}
+		}
+		c.holdDecision(&w, reason, err, res)
+		return &w
+	}
+	if w.Row == row && RegateWatched(w) {
+		// 止めてから外すまでに dispatcher が一度も見なかった: 止める前の判定でマージも印の揃えもせず、今の head で gate から回す
+		if reason, ok := c.heldAfterDecision(rows, row, w.Sha); ok {
+			c.discardForHold(&w, reason, res)
+		}
 	}
 	if w.Row != row {
 		w = contract.Merging{Row: row}
@@ -200,6 +213,53 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		res.State = "merged"
 	}
 	return &w
+}
+
+// holdDecision は、Chief of Staff が止めている課題（予約キー hold）の回（ADR-0056 決めたこと 9）: gate を回さず、GitHub も読まない。
+// gate が通したかオーナー待ちと判定したあと（dispatcher がマージしていない）に止められたら、PR の head が動いたときと同じに
+// 判定を捨て、gate の問い（from: gate）を閉じる（止めている PR のマージをオーナーに頼まない）。外したら次の巡で gate から回し直す。
+// 差し戻し（fix）は担当が直して ready し直すので捨てない。止めを読めなければ止めているものとして待つ。
+func (c *ctx) holdDecision(w *contract.Merging, reason string, err error, res *contract.Merge) {
+	res.State = "hold"
+	if err != nil {
+		res.Log = append(res.Log, fmt.Sprintf("%s の止めを読めない（止めているものとして gate を回さない）: %v", c.id, err))
+		return
+	}
+	c.discardForHold(w, reason, res)
+}
+
+// discardForHold は、approve か needs_human を決めたあとに止められた判定を捨て、gate の問いを閉じる（ADR-0056 決めたこと 9）。
+// 止めている間の巡（holdDecision）と、止めてから外すまでに dispatcher が一度も見なかった巡（heldAfterDecision）が呼ぶ。
+func (c *ctx) discardForHold(w *contract.Merging, reason string, res *contract.Merge) {
+	if !RegateWatched(*w) {
+		return // 判定の前・fix・マージ済み: 捨てるものが無い（巡ごとにログを書かない）
+	}
+	why := fmt.Sprintf("Chief of Staff が PR を止めた（理由の課題 %s）。外したら gate が今の head で回し直す", reason)
+	res.Log = append(res.Log, fmt.Sprintf("%s は gate の判定（%s）のあとに止められた。判定を捨てて gate の問いを閉じる: %s", c.id, w.Decision, why))
+	c.closeGateQuestions(why, res)
+	*w = contract.Merging{Row: w.Row}
+}
+
+// heldAfterDecision は、review に入った行 row より後で、gate が head sha を判定した時刻（gate の記録の at）以後に
+// Chief of Staff が止めを書いたか（今はもう外れていても）。返すのはその止めの理由の課題。gate は止めている間は判定しない
+// （止める口は gate の鍵を取る）ので、判定より後の止めは、その判定を捨てるべき止め。同じ秒は止めのほうを後と読む
+// （捨てて回し直すだけで済む）。gate の記録を読めないときも捨てる側に倒す。
+func (c *ctx) heldAfterDecision(rows []ledger.Row, row int, sha string) (string, bool) {
+	reason, at, ok := ledger.LastHoldSet(rows, c.id, row)
+	if !ok {
+		return "", false
+	}
+	b, err := os.ReadFile(filepath.Join(c.l.Library(c.id), "gate", sha+".json"))
+	var g gate.Record
+	if err != nil || json.Unmarshal(b, &g) != nil {
+		return reason, true
+	}
+	decided, err1 := time.Parse(time.RFC3339, g.At)
+	held, err2 := time.Parse(time.RFC3339, at)
+	if err1 != nil || err2 != nil {
+		return reason, true
+	}
+	return reason, !held.Before(decided)
 }
 
 // mergedWhileRetrying は、base が動いたマージの打ち直しを待つ間に、オーナーが gate の判定した head のままマージしたか。
@@ -575,16 +635,23 @@ func (c *ctx) stillAuthorized(gr gateResult, rep *contract.Report) (bool, string
 	if err != nil {
 		return false, "課題を読み直せない: " + err.Error()
 	}
-	rows := c.l.Log()
+	rows, logErr := c.l.ReadLog()
 	trusted := c.l.Trusted(rows, now, "merge") && c.l.Trusted(rows, now, "review") && c.l.Trusted(rows, now, "must_fix")
 	merge, _ := gate.Delegated(delegate.Read(delegate.Workspace(), c.l.Slug, time.Now().UTC().Format("2006-01-02")), c.id, rep)
-	return Authorized(ledger.SettingsOf(c.issue), ledger.SettingsOf(now), now.Str("status"), trusted, gr.Delegation.Merge, merge, gr.Tier)
+	hold, held, err := c.l.Hold(rows, logErr, now)
+	if err != nil {
+		hold, held = "（読めない: "+err.Error()+"）", true // 止めを読めなければ止めているものとしてマージしない
+	}
+	return Authorized(ledger.SettingsOf(c.issue), ledger.SettingsOf(now), now.Str("status"), trusted, gr.Delegation.Merge, merge, gr.Tier, hold, held)
 }
 
-// Authorized は、gate のときの事実（before・gateMerge）とマージ直前に読み直した事実（now・status・trusted・nowMerge）から、
+// Authorized は、gate のときの事実（before・gateMerge）とマージ直前に読み直した事実（now・status・trusted・nowMerge・止め）から、
 // dispatcher の道でマージしてよいかを決める（純粋関数）。どれか1つでも変わっていれば、いまはマージしない。
-func Authorized(before, now ledger.Settings, status string, trusted bool, gateMerge, nowMerge, tier string) (bool, string) {
+// 止めている（held。理由の課題 hold）ならマージしない（ADR-0056 決めたこと 9。gate のあとに kanban set で直に止められたとき）。
+func Authorized(before, now ledger.Settings, status string, trusted bool, gateMerge, nowMerge, tier, hold string, held bool) (bool, string) {
 	switch {
+	case held:
+		return false, fmt.Sprintf("Chief of Staff が PR を止めた（理由の課題 %s）", hold)
 	case status != "review":
 		return false, fmt.Sprintf("課題が review でなくなった（%s）", status)
 	case now != before:
