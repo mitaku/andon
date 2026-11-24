@@ -14,7 +14,6 @@ import (
 	"andon/internal/dispatcher"
 )
 
-// fixture は偽の HOME・偽のセル・偽のパッケージを一時ディレクトリに作る。
 type fixture struct {
 	root, pkg, ws, home, claude, managed string
 	log                                  bytes.Buffer
@@ -70,7 +69,6 @@ func read(t *testing.T, path string) string {
 	return string(b)
 }
 
-// snapshot は root の下の全部（種類・中身・リンク先・mode・更新時刻）を1つの文字列にする。
 func snapshot(t *testing.T, root string) string {
 	t.Helper()
 	var b strings.Builder
@@ -101,7 +99,6 @@ func snapshot(t *testing.T, root string) string {
 	return b.String()
 }
 
-// fullPackage はパッケージとセルに、生成の元になるものを一通り置く。
 func (f *fixture) fullPackage(t *testing.T) {
 	put(t, filepath.Join(f.pkg, "settings.json"), `{"permissions":{"deny":["Bash(gh pr merge:*)"]},"hooks":{}}`)
 	put(t, filepath.Join(f.pkg, "templates", "claude.md"), "---\nname: claude\ncommand: claude --plugin-dir /opt/andon\n---\nパッケージの claude。`/opt/andon/skills/worker/SKILL.md`\n")
@@ -135,7 +132,7 @@ func TestGenerateWritesEverything(t *testing.T) {
 	tpl := filepath.Join(f.home, ".config", "herdr-core", "templates")
 	for name, want := range map[string]string{
 		"claude.md":     "パッケージの claude",
-		"sonnet.md":     "セルの sonnet", // セルの templates.local が勝つ
+		"sonnet.md":     "セルの sonnet",
 		"local-only.md": "セルだけ",
 	} {
 		if s := read(t, filepath.Join(tpl, name)); !strings.Contains(s, want) {
@@ -150,7 +147,6 @@ func TestGenerateWritesEverything(t *testing.T) {
 	if s := read(t, filepath.Join(f.claude, "CLAUDE.md")); s != want {
 		t.Errorf("CLAUDE.md = %q, want %q", s, want)
 	}
-	// Codex は @ で読まないので3本を連結し、writing.md の用語集のパスはパッケージの置き場を指す。
 	wantCodex := "# セルの環境\n\n# 書き方\n用語集は `" + filepath.Join(f.pkg, "skills", "glossary", "SKILL.md") + "`\n\n# 案件の部分\n"
 	if s := read(t, filepath.Join(f.home, ".codex", "AGENTS.md")); s != wantCodex {
 		t.Errorf("Codex の AGENTS.md = %q, want %q", s, wantCodex)
@@ -207,7 +203,6 @@ func TestGenerateWithEmptyPackage(t *testing.T) {
 	}
 }
 
-// 仮設の symlink の網から移るとき: リンクを外して実ファイルを生成し、リンク先には書かない。
 func TestReplacesLegacySymlinks(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
@@ -273,12 +268,10 @@ func TestSkillLinks(t *testing.T) {
 			}
 		}
 	}
-	// 前の置き場の andon-worker（仮設の形から移るときに残っているもの）
 	if err := os.Symlink(filepath.Join(f.pkg, "skills", "worker"), filepath.Join(old, "andon-worker")); err != nil {
 		t.Fatal(err)
 	}
 	put(t, filepath.Join(agents, "andon-real", "SKILL.md"), "実ディレクトリ\n")
-	// 利用者が andon- の名前で置いた skill（パッケージの外を指す）: 消えた名前でも同じ名前でも触らない
 	if err := os.Symlink(filepath.Join(f.root, "my-skill"), filepath.Join(agents, "andon-personal")); err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +298,6 @@ func TestSkillLinks(t *testing.T) {
 	}
 }
 
-// 同じ名前でも、利用者のリンク（パッケージの外を指す）は張り替えない。ログに1行出す。
 func TestSkillLinkSameNameUserLinkIsKept(t *testing.T) {
 	f := newFixture(t)
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
@@ -326,7 +318,6 @@ func TestSkillLinkSameNameUserLinkIsKept(t *testing.T) {
 	}
 }
 
-// ANDON_HOME を替えて打ち直すと、既定の /opt/andon の skills を指す前のリンクは boot のものとして張り替える。
 func TestSkillLinkFollowsPackageChange(t *testing.T) {
 	f := newFixture(t)
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
@@ -366,7 +357,6 @@ func TestAgentsSkillsDirSymlinkStops(t *testing.T) {
 	}
 }
 
-// 前の置き場 <claude>/skills が symlink（仮設の形）なら、その先には触らない（andon-* も外さない）。
 func TestOldClaudeSkillsDirSymlinkIsLeftAlone(t *testing.T) {
 	f := newFixture(t)
 	put(t, filepath.Join(f.pkg, "skills", "worker", "SKILL.md"), "worker\n")
@@ -390,7 +380,6 @@ func TestOldClaudeSkillsDirSymlinkIsLeftAlone(t *testing.T) {
 	}
 }
 
-// プロファイルの本文の /opt/andon は ANDON_HOME に置き換わる。既定のままなら変えない。
 func TestTemplatesUsePackagePath(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
@@ -418,7 +407,6 @@ func TestTemplatesUsePackagePath(t *testing.T) {
 			t.Errorf("Template(%q) = %q %v, want %q", pkg, got, err, want)
 		}
 	}
-	// パスの要素の境界だけ置き換える
 	for in, want := range map[string]string{
 		"--plugin-dir /opt/andon-snapshot":     "--plugin-dir /opt/andon-snapshot",
 		"--plugin-dir /opt/andonx/skills":      "--plugin-dir /opt/andonx/skills",
@@ -432,7 +420,6 @@ func TestTemplatesUsePackagePath(t *testing.T) {
 			t.Errorf("Template(%q) = %q %v, want %q", in, got, err, want)
 		}
 	}
-	// command で割れる文字・相対パスはエラー（quote を作らない）
 	for _, pkg := range []string{"/tmp/andon checkout/package", "/tmp/a\tb", "/tmp/a'b", "/tmp/$x", "rel/package"} {
 		if _, err := Template(in, pkg); err == nil {
 			t.Errorf("Template(%q) がエラーにならない", pkg)
@@ -440,7 +427,6 @@ func TestTemplatesUsePackagePath(t *testing.T) {
 	}
 }
 
-// ANDON_HOME が command で割れるなら、プロファイルを1枚も書かずにエラー（今あるものを残す）。
 func TestTemplatesUnsafePackageStops(t *testing.T) {
 	f := newFixture(t)
 	f.pkg = filepath.Join(f.root, "andon checkout", "package")
@@ -469,7 +455,7 @@ func TestClaudeLauncherAndRescue(t *testing.T) {
 		put(t, filepath.Join(versions, v), "bin")
 	}
 	put(t, filepath.Join(f.claude, "backups", ".claude.json.backup.1"), strings.Repeat("x", 2000))
-	put(t, filepath.Join(f.claude, "backups", ".claude.json.backup.2"), "{}") // 空に近いものは飛ばす
+	put(t, filepath.Join(f.claude, "backups", ".claude.json.backup.2"), "{}")
 	if err := Generate(f.env()); err != nil {
 		t.Fatal(err)
 	}
@@ -493,8 +479,6 @@ func TestVersionLess(t *testing.T) {
 	}
 }
 
-// Main を環境変数だけで走らせる: 偽の HOME・偽のセル、PATH には記録するだけの偽の hc。
-// 本物の hc・HOME・/workspace に触らない。2回目は dispatcher を起動し直さない（中身が andon dispatcher のまま）。
 func TestMainWithFakeHome(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
@@ -510,7 +494,7 @@ func TestMainWithFakeHome(t *testing.T) {
 	}
 	t.Setenv("PATH", bin)
 	t.Setenv("HOME", f.home)
-	t.Setenv("XDG_STATE_HOME", filepath.Join(f.home, ".local", "state")) // dispatcher の lock も一時の HOME の下に。受け継いだ置き場に書かない
+	t.Setenv("XDG_STATE_HOME", filepath.Join(f.home, ".local", "state"))
 	t.Setenv("CLAUDE_CONFIG_DIR", f.claude)
 	t.Setenv("ANDON_HOME", f.pkg)
 	t.Setenv("ANDON_WORKSPACE", f.ws)
@@ -543,7 +527,6 @@ func TestMainRejectsArgs(t *testing.T) {
 	}
 }
 
-// herdr-core は ~/.local/bin が正。無いか symlink なら aqua の種へ繋ぎ、実ファイル（Herdr App が置いたもの）は触らない
 func TestHerdrCoreLink(t *testing.T) {
 	f := newFixture(t)
 	seed := filepath.Join(f.root, "aqua", "pkgs", "herdr-core")
@@ -563,7 +546,6 @@ func TestHerdrCoreLink(t *testing.T) {
 	bin := filepath.Join(f.home, ".local", "bin")
 	core, hc := filepath.Join(bin, "herdr-core"), filepath.Join(bin, "hc")
 
-	// 無い → 種へ。hc は herdr-core への相対 symlink
 	if err := linkHerdrCore(e); err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +556,6 @@ func TestHerdrCoreLink(t *testing.T) {
 		t.Fatalf("hc → %q", got)
 	}
 
-	// 古い種を指す symlink → 今の種へ張り直す
 	if err := os.Remove(core); err != nil {
 		t.Fatal(err)
 	}
@@ -588,7 +569,6 @@ func TestHerdrCoreLink(t *testing.T) {
 		t.Fatalf("herdr-core → %q（張り直していない）", got)
 	}
 
-	// 実ファイル（App が置いた）→ 触らない。hc もそのまま
 	if err := os.Remove(core); err != nil {
 		t.Fatal(err)
 	}
@@ -603,7 +583,6 @@ func TestHerdrCoreLink(t *testing.T) {
 		t.Fatalf("hc → %q", got)
 	}
 
-	// hc が実ファイルなら触らない
 	if err := os.Remove(hc); err != nil {
 		t.Fatal(err)
 	}

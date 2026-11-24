@@ -13,8 +13,6 @@ const codexMemory = "memories = { generate_memories = false, use_memories = fals
 
 const codexHead = "# andon boot が足した（セルが信頼の境界。承認・sandbox の既存値は保ち、記憶は止める）\n"
 
-// withoutCodexDefaults は genCodexConfig が先頭に足した塊（見出しの行からその後の空行まで）を外す
-// （信頼のテストが、同じファイルに足す既定に左右されないように）。
 func withoutCodexDefaults(s string) string {
 	if !strings.HasPrefix(s, codexHead) {
 		return s
@@ -34,7 +32,7 @@ func TestCodexConfigAndRulesFromNothing(t *testing.T) {
 	}
 	cfg := filepath.Join(f.home, ".codex", "config.toml")
 	want := codexHead + codexMemory + "approval_policy = \"never\"\nsandbox_mode = \"danger-full-access\"\n"
-	if s := read(t, cfg); !strings.HasPrefix(s, want) { // 後ろに信頼の表（trust.go）が続く
+	if s := read(t, cfg); !strings.HasPrefix(s, want) {
 		t.Errorf("config.toml = %q, want %q で始まる", s, want)
 	}
 	if st, err := os.Stat(cfg); err != nil || st.Mode().Perm() != 0o600 {
@@ -45,7 +43,6 @@ func TestCodexConfigAndRulesFromNothing(t *testing.T) {
 		t.Errorf("andon.rules = %q", s)
 	}
 
-	// 2回目は何も書かない
 	f.log.Reset()
 	before := snapshot(t, f.root)
 	if err := Generate(f.env()); err != nil {
@@ -60,7 +57,6 @@ func TestCodexConfigKeepsUserValues(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
 	cfg := filepath.Join(f.home, ".codex", "config.toml")
-	// オーナーが決めた approval_policy は残す。表の中の sandbox_mode は top-level ではないので足す
 	user := "model = \"gpt-x\"\r\napproval_policy = \"on-request\" # オーナーの値\r\n\r\n[profiles.ro]\r\nsandbox_mode = \"read-only\"\r\n\r\n[projects.\"/workspace\"]\r\ntrust_level = \"trusted\"\r\n"
 	put(t, cfg, user)
 	if err := os.Chmod(cfg, 0o640); err != nil {
@@ -81,7 +77,6 @@ func TestCodexConfigKeepsUserValues(t *testing.T) {
 		t.Errorf("ログ: %s", f.log.String())
 	}
 
-	// 両方あれば触らない（値が何でも。引用した key も key として数える）
 	both := codexMemory + "\"approval_policy\" = \"untrusted\"\nsandbox_mode='workspace-write'\n[sandbox_workspace_write]\nnetwork_access = true\n"
 	put(t, cfg, both)
 	f.log.Reset()
@@ -119,7 +114,6 @@ func TestCodexConfigKeepsBOMFirst(t *testing.T) {
 func TestCodexConfigReadsMultilineStrings(t *testing.T) {
 	f := newFixture(t)
 	cfg := filepath.Join(f.home, ".codex", "config.toml")
-	// 複数行の文字列の中の [example] は表ではない。その後ろの top-level のキーも数える
 	user := codexMemory + "developer_instructions = \"\"\"\n[example]\n\"\"\"\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n"
 	put(t, cfg, user)
 	if err := genCodexConfig(f.env()); err != nil {

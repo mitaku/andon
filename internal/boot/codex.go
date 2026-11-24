@@ -16,8 +16,6 @@ import (
 // Claude Code の managed settings の deny のうち頭で引く線を、Codex の execpolicy の rules で引く（forbidden は承認の方針に
 // かかわらず先に効く。拒めるのは直接の形とよくある wrapper だけ）。
 
-// codexDefaults は ~/.codex/config.toml の top-level に無ければ足すキー（足す順）。
-// sandbox を外すのは、担当が worktree の外（kanban の report・library）に書き、git push と hc の socket を使うため。
 var codexDefaults = []struct{ key, line string }{
 	{"approval_policy", `approval_policy = "never"`},
 	{"sandbox_mode", `sandbox_mode = "danger-full-access"`},
@@ -43,8 +41,6 @@ func genCodexConfig(e Env) error {
 		e.logf("Codex の既定を足さない: %s が TOML として読めない（書かない）: %v", path, err)
 		return nil
 	}
-	// memories・features の表が無ければ inline table を先頭に足し、ほかの行とコメントは保持する。
-	// 既存の表を直す場合だけ TOML を再生成する。引用キー・dotted key・inline table も同じ意味で扱う。
 	var add, keys []string
 	rewrite := false
 	for _, policy := range []struct {
@@ -98,7 +94,6 @@ func genCodexConfig(e Env) error {
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
 	}
-	// 再生成するとコメントと書式が失われるため、元の設定は通常の生成物と同じく退避する。
 	write := e.writeFile
 	if rewrite {
 		write = e.generate
@@ -110,9 +105,6 @@ func genCodexConfig(e Env) error {
 	return nil
 }
 
-// genCodexRules は <pkg>/codex.rules を ~/.codex/rules/andon.rules に生成する（boot が持つファイル。
-// オーナーが書き換えていれば .bak に退避してから書く）。オーナーの rules は別のファイル（default.rules など）に書く。
-// パッケージに無ければ飛ばす。
 func genCodexRules(e Env) error {
 	b, err := os.ReadFile(filepath.Join(e.Package, "codex.rules"))
 	if errors.Is(err, fs.ErrNotExist) {

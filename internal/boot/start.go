@@ -20,7 +20,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// 番号の既定。セルの .env（PORTLESS_PORT・FILES_PORT）で上書きする。
 const (
 	DefaultPortlessPort = "1355"
 	DefaultFilesPort    = "8907"
@@ -28,7 +27,7 @@ const (
 
 // Start は起動の手を順に打つ。道具が無ければ飛ばし、失敗は警告にして続ける。
 func Start(e Env) {
-	oldLive := false // 前のバージョンの係の端末を片付けられなかった（dispatcher を起動しない）
+	oldLive := false
 	for _, step := range []struct {
 		name string
 		run  func(Env) error
@@ -41,7 +40,7 @@ func Start(e Env) {
 		{"sshd", startSSHD},
 		{"前のバージョンの係の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
-		{"外の skill", installGhSkills}, // ネットワークが要るので最後（ほかの起動を待たせない）
+		{"外の skill", installGhSkills},
 	} {
 		if step.name == "dispatcher" && oldLive {
 			e.logf("前のバージョンの係の端末が残っているので dispatcher は起動しない（二重に回さない）。オーナーが hc kill <address> で片付けてから andon boot を打ち直す")
@@ -62,7 +61,6 @@ func (e Env) has(tool string) (string, bool) {
 	return p, err == nil
 }
 
-// dotenv は <ws>/.env の key の値。無ければ def。
 func (e Env) dotenv(key, def string) string { return delegate.Dotenv(e.Workspace, key, def) }
 
 func listening(port string) bool {
@@ -74,7 +72,6 @@ func listening(port string) bool {
 	return true
 }
 
-// detach は name を起動して手放す（boot が終わっても残る）。出力は logPath へ。
 func detach(logPath, name string, args ...string) error {
 	out, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -145,7 +142,6 @@ func fixClaudeInstall(e Env) error {
 	return nil
 }
 
-// startPortless はアプリを名前で当てるプロキシを起動する（http://<app>.<セル名>.localhost:<番号>）。
 func startPortless(e Env) error {
 	portless, ok := e.has("portless")
 	if !ok {
@@ -167,8 +163,6 @@ func startPortless(e Env) error {
 	return nil
 }
 
-// startFiles は納品物 files/ を読み取りで公開する files サーバ（andon boot serve-files）を起動し、
-// portless に files で登録する。返すのは実体が files/ の中にあるものだけ（FilesHandler）。
 func startFiles(e Env) error {
 	portless, ok := e.has("portless")
 	if !ok || e.Self == "" {
@@ -188,7 +182,6 @@ func startFiles(e Env) error {
 			return fmt.Errorf("待ち受けが上がらない（%s）", logPath)
 		}
 	}
-	// 登録は volume に残るが、冪等なので毎回打つ。失敗すれば納品物の URL が届かないので知らせる
 	if out, err := exec.Command(portless, "alias", "files", port).CombinedOutput(); err != nil {
 		return fmt.Errorf("portless alias files %s: %v: %s", port, err, strings.TrimSpace(string(out)))
 	}
@@ -200,7 +193,7 @@ func startFiles(e Env) error {
 // andon の受け口がもう listen していれば何もしない。役は hc の端末からしか起動しないので、hc が無ければ起動しない
 // （送り手が無い。偽の PATH で boot を打つ検査が本物のポートに受け口を残さない）。起動し直す所は役の起動の口（andon otel env）にもある。
 func startOtel(e Env) error {
-	if _, ok := e.has("hc"); !ok || !otel.IsAndon(e.Self) { // go test のバイナリ（boot の Main の検査）から起動しない
+	if _, ok := e.has("hc"); !ok || !otel.IsAndon(e.Self) {
 		return nil
 	}
 	if why := otel.Ensure(e.Self); why != "" {
@@ -210,7 +203,6 @@ func startOtel(e Env) error {
 	return nil
 }
 
-// startSSHD は外の端末から入る口を開ける。セルの .ssh/authorized_keys が無いか読めなければ無効のまま。
 // 設定は image に焼いた sshd_config。ホスト鍵は volume の ~/.ssh に置き、`-h` で sshd に渡す（渡さないと image の /etc/ssh の鍵が使われ、image を焼き直すたびに変わる）。
 func startSSHD(e Env) error {
 	keys := filepath.Join(e.Workspace, ".ssh", "authorized_keys")
@@ -257,31 +249,22 @@ func startSSHD(e Env) error {
 	return nil
 }
 
-// oldDispatcher は名前を改める前の常駐の係の名前（端末の名前と role= の値。2026-11-06 に dispatcher へ改めた）。
 const oldDispatcher = "courier"
 
-// errOldDispatcher は前のバージョンの係の端末が live のまま残った（片付けなかった・片付けに失敗した）。
-// Start はその起動で dispatcher を起動しない（前の係が動いていれば二重に回る）。
 var errOldDispatcher = errors.New("前のバージョンの係の端末が残っている")
 
-// dropStaleRoles は、名前を改める前の常駐の係の端末（名前もラベル role= も oldDispatcher の live な端末）を片付ける
-// （keep を外して kill・rm）。セルの upgrade のあとに残り、前のバージョンの係が動いたままなら今の dispatcher と二重に回る
-// （同じ PR をマージしにいく）ので、起動する前に片付ける。前に出ているものが前の係（andon courier）か引数の無いシェル
-// （作り直しで戻った中身）のときだけ片付ける。それ以外（オーナーが中で何か動かしている・前に出ているものが取れない）と
-// 片付けに失敗したときは errOldDispatcher を返す（Start はその起動で dispatcher を起動しない）。
 func dropStaleRoles(e Env) error {
 	hc, ok := e.has("hc")
 	if !ok {
 		return nil
 	}
 	// 作り直しの直後は、戻った端末の前に出ているものがまだ取れない（foreground が無い）ことがある。
-	// 取れるまで dispatcherWait まで読み直す。上限を過ぎても取れなければ、最後に読んだものを使う（下で触らずに残す）。
 	end := time.Now().Add(dispatcherWait)
 	var t spawn.Term
 	for {
 		got, err := spawn.Output(nil, "", hc, "get", oldDispatcher, "--json")
 		if err != nil {
-			return nil // 前の係の端末は無い（not_found）。hc 自体の不調は dispatcher の段が出す
+			return nil
 		}
 		t = spawn.Term{}
 		if json.Unmarshal([]byte(got), &t) != nil || t.State != "live" || t.Address == "" ||
@@ -307,15 +290,11 @@ func dropStaleRoles(e Env) error {
 	return nil
 }
 
-// isOldDispatcher は前に出ているものが前のバージョンの係（andon courier）か。
 func isOldDispatcher(argv []string) bool {
 	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == oldDispatcher
 }
 
-// startDispatcher は dispatcher の端末を確かめる（dispatcher.Ensure。無ければ起動し、中身がシェルに替わっていれば片付けて起動し直す）。
 // --keep なので core が起き直すと中身がシェルに替わる。core の起き直しは boot を通らないので、Chief of Staff と担当のフックも同じ確かめを打つ。
-// 作り直しの直後は、戻った端末の前に出ているものがまだ取れないことがあるので、dispatcherWait まで読み直す。
-// 何もしなかったときは理由ごとに書き分ける（動いている・確かめられなかった・ほかが確かめている）。
 func startDispatcher(e Env) error {
 	if _, ok := e.has("hc"); !ok {
 		return nil
@@ -335,8 +314,6 @@ func startDispatcher(e Env) error {
 	return nil
 }
 
-// dispatcherWait は、dispatcher の端末の前に出ているものが取れるまで boot が待つ上限。テストで差し替える。
 var dispatcherWait = 5 * time.Second
 
-// stalePoll は、dropStaleRoles が前に出ているものを読み直す間隔。テストで差し替える。
 var stalePoll = 200 * time.Millisecond

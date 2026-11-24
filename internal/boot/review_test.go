@@ -10,8 +10,6 @@ import (
 	"testing"
 )
 
-// オーナーが書いた CLAUDE.md・Codex の AGENTS.md は黙って消さず .bak に退避する。
-// boot が前に書いたものは、パッケージが変わっても退避せずに書き直す。
 func TestBacksUpHandWrittenFiles(t *testing.T) {
 	f := newFixture(t)
 	f.fullPackage(t)
@@ -50,7 +48,6 @@ func TestBacksUpHandWrittenFiles(t *testing.T) {
 		}
 	}
 
-	// パッケージが変わった: boot が書いたものなので退避しない
 	put(t, filepath.Join(f.pkg, "templates", "claude.md"), "新しい claude\n")
 	f.log.Reset()
 	if err := Generate(f.env()); err != nil {
@@ -134,7 +131,6 @@ func TestFilesHandlerServesOnlyInsideRoot(t *testing.T) {
 	}
 }
 
-// portless alias が失敗したら、成功の行を出さずに誤りを返す（Start が警告にする）。
 func TestFilesAliasFailureIsReported(t *testing.T) {
 	f := newFixture(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -150,7 +146,7 @@ func TestFilesAliasFailureIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := f.env()
-	e.Self = "/nonexistent/andon" // 待ち受けがあるので起動しない
+	e.Self = "/nonexistent/andon"
 	e.LookPath = func(n string) (string, error) {
 		if n == "portless" {
 			return portless, nil

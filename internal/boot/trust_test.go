@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// trustEnv はセルの repo と、kanban に載った ghq の repo を2つ（片方は .git が file の worktree 型）置いた Env。
-// kanban に載っていない repo・clone されていない repo・形の違う repo の名前は根にしない。
 func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	t.Helper()
 	e := f.env()
@@ -19,12 +17,12 @@ func trustEnv(t *testing.T, f *fixture) (Env, []string) {
 	mustMkdir(t, filepath.Join(a, ".git"))
 	put(t, filepath.Join(b, ".git"), "gitdir: elsewhere\n")
 	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "not-a-repo"))
-	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "unlisted", ".git")) // kanban に無い repo は信頼しない
+	mustMkdir(t, filepath.Join(e.GhqRoot, "github.com", "example", "unlisted", ".git"))
 	put(t, filepath.Join(f.ws, "projects", "sample-site", "kanban", "config.yaml"),
 		"version: 3\nrepos:\n  - github.com/example/sample-site\n  - github.com/example/not-a-repo\n  - github.com/example/missing\nchief_of_staff: t5\n")
 	put(t, filepath.Join(f.ws, "projects", "tools", "kanban", "config.yaml"),
 		"version: 3\nrepos:\n  - github.com/example/tools\n  - ../../../etc\n")
-	mustMkdir(t, filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "x-1")) // 置き場は足さない
+	mustMkdir(t, filepath.Join(f.home, ".herdr", "worktrees", "sample-site", "x-1"))
 	roots := []string{f.ws, a, b}
 	for i, r := range roots {
 		p, err := filepath.EvalSymlinks(r)
@@ -87,7 +85,6 @@ func TestTrustFromNothing(t *testing.T) {
 		t.Errorf(".claude.json の権限 = %v", st.Mode().Perm())
 	}
 
-	// 2回目は何も書かない
 	first := snapshot(t, f.root)
 	f.log.Reset()
 	if err := Generate(e); err != nil {
@@ -103,7 +100,6 @@ func TestTrustKeepsExisting(t *testing.T) {
 	e, roots := trustEnv(t, f)
 	ws, repo := roots[0], roots[1]
 	cj := filepath.Join(f.claude, ".claude.json")
-	// 利用者の設定: 大きな数・<>& を含む文字列・ほかの project・信頼前の project（false と、ほかのキー）・信頼済みの project
 	before := `{"numStartups": 12345678901234567890, "oauthAccount": {"email": "a<b>&c@example.com"},
  "projects": {"/elsewhere": {"hasTrustDialogAccepted": false, "allowedTools": ["x"]},
   "` + ws + `": {"hasTrustDialogAccepted": false, "allowedTools": ["Bash(ls)"], "lastCost": 0.10},
@@ -163,7 +159,6 @@ memories = false`)
 		t.Errorf("無い表を末尾に足していない:\n%s", toml)
 	}
 
-	// 2回目は何も書かない
 	first := snapshot(t, f.root)
 	f.log.Reset()
 	if err := Generate(e); err != nil {
@@ -187,7 +182,7 @@ func TestTrustLeavesUnreadable(t *testing.T) {
 			codex := filepath.Join(f.home, ".codex", "config.toml")
 			claude := c.claude
 			if name == "bad-escape" {
-				claude = `{"projects": {"` + roots[0] + `": 1}}` // 根の project が object でない
+				claude = `{"projects": {"` + roots[0] + `": 1}}`
 			}
 			put(t, cj, claude)
 			put(t, codex, c.codex)
@@ -204,7 +199,6 @@ func TestTrustLeavesUnreadable(t *testing.T) {
 	}
 }
 
-// kanban に載っていても、GHQ_ROOT の外へ逃げる symlink の repo は信頼しない（実体のパスで判定する）。
 func TestTrustRefusesSymlinkOutsideGhq(t *testing.T) {
 	f := newFixture(t)
 	e, roots := trustEnv(t, f)
@@ -230,7 +224,6 @@ func TestTrustRefusesSymlinkOutsideGhq(t *testing.T) {
 	}
 }
 
-// 読んだあとに動いている Claude Code が .claude.json を書き換えたら、古い中身で上書きせず、新しい中身に足す。
 func TestTrustClaudeConcurrentWriter(t *testing.T) {
 	f := newFixture(t)
 	e, roots := trustEnv(t, f)
@@ -239,7 +232,7 @@ func TestTrustClaudeConcurrentWriter(t *testing.T) {
 	calls := 0
 	claudeRace = func(path string) {
 		calls++
-		if calls == 1 { // 1回目の読み直しの前に Claude Code が書いた
+		if calls == 1 {
 			put(t, path, `{"numStartups": 2, "oauthAccount": {"emailAddress": "a@example.com"}}`)
 		}
 	}
@@ -255,7 +248,6 @@ func TestTrustClaudeConcurrentWriter(t *testing.T) {
 		t.Errorf("信頼を足していない: %v", got)
 	}
 
-	// 読むたびに書き換わるなら、書かずにログに1行
 	put(t, cj, `{"numStartups": 1}`)
 	n := 0
 	claudeRace = func(path string) { n++; put(t, path, `{"numStartups": `+strings.Repeat("9", n)+`}`) }
@@ -275,7 +267,6 @@ func TestTrustCodexIgnoresTablesInMultilineStrings(t *testing.T) {
 	f := newFixture(t)
 	e, roots := trustEnv(t, f)
 	codex := filepath.Join(f.home, ".codex", "config.toml")
-	// 複数行の文字列の中の見出しと trust_level は本物ではない。本物の表を末尾に足す
 	user := "developer_instructions = \"\"\"\n[projects." + quoteTOML(roots[0]) + "]\ntrust_level = \"trusted\"\n\"\"\"\nnote = '''\n[projects." + quoteTOML(roots[1]) + "]\n'''\n"
 	put(t, codex, user)
 	if err := trustCodex(e); err != nil {
@@ -294,7 +285,6 @@ func TestTrustCodexIgnoresTablesInMultilineStrings(t *testing.T) {
 			t.Errorf("%s の本物の表が無い:\n%s", r, got)
 		}
 	}
-	// 2回目は何も書かない
 	f.log.Reset()
 	if err := trustCodex(e); err != nil {
 		t.Fatal(err)
@@ -317,8 +307,6 @@ func TestTrustCodexLeavesBrokenTOML(t *testing.T) {
 	}
 }
 
-// 配布するプロファイルが --add-dir で渡すフォルダは、Claude Code だけで信頼済みにする（Codex には足さない）。
-// 本物の package/templates を置いて、どの --add-dir も（実在すれば）信頼済みになることを見る。
 func TestTrustAddDirsOfPackageTemplates(t *testing.T) {
 	f := newFixture(t)
 	e, roots := trustEnv(t, f)
@@ -326,7 +314,7 @@ func TestTrustAddDirsOfPackageTemplates(t *testing.T) {
 	if err != nil || len(src) == 0 {
 		t.Fatalf("package/templates が読めない: %v", err)
 	}
-	var dirs []string // 本物のプロファイルが --add-dir で渡すフォルダ（/opt/andon は fixture のパッケージに）
+	var dirs []string
 	for _, s := range src {
 		body := read(t, s)
 		put(t, filepath.Join(f.pkg, "templates", filepath.Base(s)), body)
@@ -353,13 +341,12 @@ func TestTrustAddDirsOfPackageTemplates(t *testing.T) {
 	for _, d := range dirs {
 		real, err := filepath.EvalSymlinks(d)
 		if err != nil {
-			continue // セルの外では /workspace/wiki が無い。無いフォルダは足さない
+			continue
 		}
 		if !got[real] {
 			t.Errorf("--add-dir %s を信頼していない: %v", d, got)
 		}
 	}
-	// 渡したフォルダより広げない（親は足さない）
 	for _, d := range []string{filepath.Dir(pb), filepath.Join(f.pkg, "skills"), f.pkg} {
 		real, _ := filepath.EvalSymlinks(d)
 		if got[real] {
@@ -374,7 +361,6 @@ func TestTrustAddDirsOfPackageTemplates(t *testing.T) {
 			t.Errorf("根 %s を信頼していない", r)
 		}
 	}
-	// 2回目は何も書かない
 	first := snapshot(t, f.root)
 	f.log.Reset()
 	if err := Generate(e); err != nil {
@@ -385,8 +371,6 @@ func TestTrustAddDirsOfPackageTemplates(t *testing.T) {
 	}
 }
 
-// --add-dir を読むのは、boot が生成するのと同じ元のファイルの command と resume の行だけ。templates.local が同じ名前の
-// パッケージのプロファイルに勝つ。無いフォルダ・相対パス・frontmatter の外と description の --add-dir は足さない。
 func TestTrustAddDirsReadsOnlyCommandLines(t *testing.T) {
 	f := newFixture(t)
 	e := f.env()
