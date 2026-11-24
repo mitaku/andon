@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -205,6 +206,9 @@ func TestEnvMainWithoutTerminal(t *testing.T) {
 	}
 }
 
+// claudeRe は claude を起動する語（前が空白か / の claude のあとに空白）。/usr/bin/claude のような書き方も Claude Code の行と見る。
+var claudeRe = regexp.MustCompile(`(^|[ /])claude `)
+
 // 決めたこと 5: Claude Code を起動する template の行（command・resume）は、どれも andon otel env を env に渡す。Codex の行は渡さない（切る案 7）。
 func TestTemplatesPassOtelEnv(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "package", "templates", "*.md"))
@@ -221,8 +225,9 @@ func TestTemplatesPassOtelEnv(t *testing.T) {
 			if !strings.HasPrefix(l, "command:") && !strings.HasPrefix(l, "resume:") {
 				continue
 			}
-			claude := strings.Contains(l, " claude ")
-			passes := strings.Contains(l, "env $(andon otel env) ")
+			claude := claudeRe.MatchString(l)
+			passes := strings.Contains(l, "env $(andon otel env) CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude ")
+			// 渡す設定は claude を起動する env の中だけで効く（別の command の env や注釈に書いても効かない）
 			if claude != passes {
 				t.Errorf("%s: Claude Code の行が andon otel env を渡さないか、Claude Code でない行が渡す: %s", filepath.Base(f), l)
 			}
