@@ -28,8 +28,8 @@ done < <(jq -r '[.terminal, .issue] | @tsv' <<<"$lines" | sort -u)
 # 読むのは、Claude Code なら起動の記録の session のセッションの記録（<CLAUDE_CONFIG_DIR>/projects/*/<session>.jsonl）で、起動の at から、
 # 同じ課題の次の起動か次に当てた時刻の前までの、最初のオーナーの印（origin.kind が human）の user の文（hc が打ち込んだ文はこの印を持つ。
 # 道具の結果・裏の作業の知らせ〈origin.kind が task-notification〉・isMeta・isSidechain は除く。振り返りの typed と同じ見分け方）。印が無ければ壊れ。
-# セッションの記録が読めない（Codex・記録が無い）ときだけ hc read の画面（履歴を含む）を読み、その課題の「の続き」の行が全部印つきなら ok、
-# 印の無い行があれば未確認（画面は前の起動の文や担当の言い直しも映すので、壊れの証拠にしない）。1件も確かめられなければ終了コード 3
+# セッションの記録が読めない（Codex・記録が無い）ときは hc read の画面（履歴を含む）の、その課題の「の続き」の行を参考に出すだけで、未確認にする
+# （画面は前の起動の文や担当の言い直しも映し、今回の起動の文と結び付けられないので、ok の証拠にも壊れの証拠にもしない）。1件も確かめられなければ終了コード 3
 res=$(jq -c 'select(.launch == "resume")' <<<"$lines")
 nres=$(grep -c . <<<"$res" || true)
 echo "-- wl-resume: 当てたあとの resume の起動 $nres 件"
@@ -65,7 +65,8 @@ while IFS=$'\x1f' read -r at issue addr harness session; do
   elif grep -vqE "\[resume\] 課題 \`[^\`]*/$issue\` の続き" <<<"$seen"; then
     echo "  | $addr（$issue・$at）: 画面に印の無い続きの行がある（前の起動の文か、担当の言い直しかもしれない）。未確認"
   else
-    echo "  | $addr（$issue・$at）: 画面の続きの行は全部印 [resume] つき"; echo x >>"$conf"
+    # 続きから起動すると前の起動の印つきの文も画面に映り、今回の起動の文と結び付けられない。画面だけでは確かめたことにしない
+    echo "  | $addr（$issue・$at）: 画面の続きの行は全部印 [resume] つきだが、今回の起動の文か前の起動の文かを画面では分けられない。未確認（参考）"
   fi
 done < <(jq -r '[.at, .issue, .terminal, (.harness.name // ""), (.session // "")] | join("\u001f")' <<<"$res")
 nconf=$(grep -c . "$conf" || true)

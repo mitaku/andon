@@ -430,7 +430,9 @@ if [ "$self" = true ]; then
   printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
   wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
   rm -f "$c/screen"
-  [ "$jrc" = 0 ] && grep -qF '画面の続きの行は全部印 [resume] つき' <<<"$jout" || die "wl-resume: 画面に印の行があるのに ok でない（$jrc）: $jout"
+  # 画面に前の起動の印つきの行だけが残り、今回の最初のメッセージが届いていなくても、画面だけでは今回の起動の文と分けられない。ok にせず未確認の 3
+  [ "$jrc" = 3 ] && grep -qF '画面の続きの行は全部印 [resume] つきだが' <<<"$jout" && ! grep -qF 'ok   wl-resume' <<<"$jout" \
+    || die "wl-resume: 画面の印つきの行だけで ok にした（前の起動の印を今回の証拠にする）（$jrc）: $jout"
   # 画面は前の起動の印つきの文も映す。印の無い続きの行が1つでもあれば ok にしない（壊れとも言えないので未確認）
   printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n…\n› 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
   wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
