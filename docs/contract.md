@@ -961,7 +961,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 
 - **このプロジェクトのセッションだけ。** どの役・課題のセッションかは、起動の記録（§18）の `session` か、ログの行の `cwd`（プロジェクトの根は Chief of Staff、kanban の `issues/<id>/` と課題の `worktree` はその課題）で決める。どちらにも当たらないセッションは読まない。
 - **抜く行**: `type` が `user`・`isSidechain`・`isMeta`・`isCompactSummary` が真でない・`origin.kind` が `human`・中身が文字列か text の block（道具の結果の block があれば抜かない）・時刻が期間の中。
-- **除く行**: セッションの最初のオーナーの印の文（起動の最初のメッセージ）。包みのある文（先頭が `<hc from=`・`<news`・`<task-notification>`。貼った文の包み `<pasted_content …>` の内側も見る）。Andon の command が端末の外から `hc send` した文（hc の包みが付かずオーナーの印になる）。dispatcher と gate は、担当・レビュアーへ送る文の先頭に送り手の印 `[dispatcher] `・`[gate] ` を置く（dispatcher.md §5 の「送り手の印」）。この印で照らし、文の意味は読まない。貼った文の包みの内側も見る。
+- **除く行**: セッションの最初のオーナーの印の文（起動の最初のメッセージ）。包みのある文（先頭が `<hc from=`・`<news`・`<task-notification>`。貼った文の包み `<pasted_content …>` の内側も見る）。Andon の command が端末の外から `hc send` した文（hc の包みが付かずオーナーの印になる）。dispatcher と gate は、担当・レビュアーへ送る文の先頭に送り手の印 `[dispatcher] `・`[gate] ` を置く（dispatcher.md §5 の「送り手の印」）。`andon issue resume` の最初のメッセージはハーネスのセッションの続きに入り、セッションの最初の文として外せないので、先頭に印 `[resume] ` を置く。この印で照らし、文の意味は読まない。貼った文の包みの内側も見る。
 - 文の意味は読まない。抜いた文はこの出力にだけ置き、PR には写さない（[ADR-0028](adr/0028-improvement-loop.md) 前提 7）。
 
 秘密を伏せる: 出力の JSON を書いたあと、文字列の中で秘密の形に合う所を `[REDACTED:<形の名前>]` に置き換える（鍵の名前に続く値は名前を残して値だけ）。形は秘密鍵の塊・Anthropic と OpenAI の API キー・GitHub のトークン・AWS のアクセスキー・Slack のトークン・Google の API キー・JWT・`Bearer` のトークン・`api_key`／`token`／`password` などの名前に続く値（値の長さは問わない）。一覧の正は `internal/redact/redact.go` で、ダイジェスト（§26）と共有する（検査は偽の値で `internal/retro/retro_test.go`）。多めに伏せる。伏せたあと JSON として読めなければ出さずに終了コード 1。

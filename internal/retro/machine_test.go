@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"andon/internal/dispatcher"
+	"andon/internal/issue"
 	"andon/internal/retro"
 	"andon/internal/spawn"
 )
@@ -15,6 +16,7 @@ func TestMachineText(t *testing.T) {
 		spawn.Mark(spawn.FromDispatcher, dispatcher.RetryText):                       true,
 		spawn.Mark(spawn.FromGate, "A-0017（PR #262 の衝突を解く）: gate が fix を返した。理由: x。"): true,
 		"<pasted_content id=\"1\">\n[gate] A-0017（タイトル）: gate が fix を返した。":           true,
+		issue.ResumeMessage("sample-site", "S-7"):                                    true,
 		"  [dispatcher] 課題 `sample-site/S-7`。":                                       true,
 		"[dispatcher]の文はどこから？":                                                       false,
 		"[cos] オーナーが書いた角括弧":                                                          false,

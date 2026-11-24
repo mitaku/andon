@@ -252,14 +252,16 @@ func WithBody(template, msg string) string {
 
 // 機械の送り手の名前。dispatcher と gate（andon issue merge の差し戻し）は端末の外から hc send するので、文に hc の包み
 // （<hc from=…>）が付かず、受け手のセッションログではオーナーが打った文と同じ印（origin.kind: human）になる。
+// andon issue resume の最初のメッセージ（resume）も同じで、ハーネスのセッションの続きに入るので、セッションの最初の文として位置で外せない。
 // そこで担当・レビュアーへ送る文の先頭に、送り手の名前を角括弧で1つ置く（Mark）。オーナーの文を抜く処理はこの印で外す（Marked）。
 const (
 	FromDispatcher = "dispatcher"
 	FromGate       = "gate"
+	FromResume     = "resume"
 )
 
 // machineFrom は印に使う送り手の名前（Marked が照らす）。
-var machineFrom = []string{FromDispatcher, FromGate}
+var machineFrom = []string{FromDispatcher, FromGate, FromResume}
 
 // Mark は msg の先頭に送り手 from の印（"[<from>] "）を置いた文。文の中身は変えない。
 func Mark(from, msg string) string {

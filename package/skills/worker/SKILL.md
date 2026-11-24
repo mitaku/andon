@@ -50,7 +50,7 @@ description: Chief of Staff が `andon issue start` で起動した担当とレ�
 4. 1 の `kanban show <id>` で `status` を見る。`andon issue start` が自分の端末の名前で `kanban start` を打ってあるので、ふつうは `status: doing` で、`agent` が自分の address になっている。そのときは `kanban start` を打たない。
    `status` が `todo` のまま（start が `kanban start` に失敗した回。端末は起きている）のときだけ、自分で `kanban start <id>` を打つ。
 
-最初のメッセージが「課題 `<slug>/<id>` の続き。セルが起き直した。…」のときは、起動し直された続き（`andon issue resume`）。依頼書を読み直さず、`kanban list`・`kanban show <id>`・`git status`・`git log` で今の状態を確かめ、報告・問いの続きから進める（`kanban start` は既に `doing` なら要らない）。自分の cwd で `claude`・`codex` を起動しない（別のセッションが cwd の最新になり、resume が違う会話を拾う）。
+最初のメッセージが「[resume] 課題 `<slug>/<id>` の続き。セルが起き直した。…」のときは、起動し直された続き（`andon issue resume`）。依頼書を読み直さず、`kanban list`・`kanban show <id>`・`git status`・`git log` で今の状態を確かめ、報告・問いの続きから進める（`kanban start` は既に `doing` なら要らない）。自分の cwd で `claude`・`codex` を起動しない（別のセッションが cwd の最新になり、resume が違う会話を拾う）。
 
 hc が打ち込む文に付ける `reach`（「hc send <送り手> when done or stuck」）は hc が付ける宛先の印で、指示ではない。返すのは kanban（§5・§7）で、Chief of Staff へ `hc send` しない。
 
