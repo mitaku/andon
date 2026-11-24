@@ -17,7 +17,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 葉ごとの使い方（andon delegate <動詞> --help の中身と、引数を誤ったときに出す文）。
 const (
 	owner = "オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
 		"project.json を andon.toml の owner を author にして commit する（project.json は先にオーナーが書く）。--project を省くと cwd の projects/<slug>/。\n" +
@@ -45,22 +44,18 @@ const (
 	exitUsage = 2
 )
 
-// GrantMain は andon delegate grant。
 func GrantMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("grant", args, stdout, stderr)
 }
 
-// NarrowMain は andon delegate narrow。
 func NarrowMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("narrow", args, stdout, stderr)
 }
 
-// RevokeMain は andon delegate revoke。
 func RevokeMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("revoke", args, stdout, stderr)
 }
 
-// ShowMain は andon delegate show。
 func ShowMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("show", args, stdout, stderr)
 }

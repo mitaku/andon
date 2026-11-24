@@ -22,7 +22,6 @@ import (
 )
 
 var (
-	// RepoRe は kanban の repo（<host>/<owner>/<repo>）。
 	RepoRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	// NameRe は hc の端末の名前の決まり（a-z 0-9 - _ で32字まで）。
 	NameRe = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
@@ -76,7 +75,6 @@ func GhqRoot() (string, error) {
 	return "", errors.New("GHQ_ROOT が無く ghq root も読めない")
 }
 
-// RepoPath は GhqRoot()/<repo>。
 func RepoPath(repo string) (string, error) {
 	root, err := GhqRoot()
 	if err != nil {
@@ -108,7 +106,6 @@ func TemplateCommand(name string) (command string, found bool, err error) {
 	return "", false, nil
 }
 
-// Started は hc run --json の返事。
 type Started struct {
 	Address string `json:"address"`
 	First   First  `json:"first_message"`
@@ -186,7 +183,6 @@ func Wiki() string {
 	return fmt.Sprintf("\nセルの wiki の目録 `%s` の Entities と Topics の節を読み、課題に当たるページがあれば読む。", p)
 }
 
-// wikiHasPages は目録の Entities か Topics の節に、ページの行が1つ以上あるか。
 func wikiHasPages(index string) bool {
 	in := false
 	for _, l := range strings.Split(index, "\n") {
@@ -260,7 +256,6 @@ const (
 	FromResume     = "resume"
 )
 
-// machineFrom は印に使う送り手の名前（Marked が照らす）。
 var machineFrom = []string{FromDispatcher, FromGate, FromResume}
 
 // Mark は msg の先頭に送り手 from の印（"[<from>] "）を置いた文。文の中身は変えない。
@@ -314,7 +309,6 @@ func Run(name string, labels []string, cwd, template, msg string) (*Started, err
 	return &s, nil
 }
 
-// Worktree は NewWorktree が切ったもの。
 type Worktree struct{ RepoDir, Path, Branch string }
 
 // NewWorktree は origin の既定の branch の最新から、upstream の無い branch と worktree を切る。

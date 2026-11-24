@@ -3,8 +3,6 @@ package andon
 
 import "embed"
 
-// Init はセルの repo の雛形（init/）。andon init が写す。
-//
 //go:embed all:init
 var Init embed.FS
 

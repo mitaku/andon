@@ -10,11 +10,8 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// tagOnly は vX.Y.Z の tag の push でだけ動く job の条件（.github/workflows/tests.yml の release）。
 const tagOnly = "github.event_name == 'push' && github.ref_type == 'tag'"
 
-// writes は permissions（write-all・read-all の文字列か、scope → 権限の map）が、
-// GHCR か repo に書ける scope（packages・contents）を持つか。
 func writes(perm any) []string {
 	switch p := perm.(type) {
 	case string:
@@ -89,9 +86,6 @@ func TestWorkflowWritePermissionsOnlyOnTagJob(t *testing.T) {
 	}
 }
 
-// tests/*.sh を回す job は .github/workflows/tests.yml の中だけにし（go.yml と二重に回さない）、どれも先に焼いた
-// andon・kanban を ANDON_BIN・KANBAN_BIN で渡す（渡さないと tests/*.sh が1本ごとに go build し、release の job では
-// runner の go で焼く）。
 func TestWorkflowShellTestsRunOnceWithPrebuiltBinaries(t *testing.T) {
 	files, _ := filepath.Glob(".github/workflows/*.y*ml")
 	runners := 0
@@ -227,8 +221,6 @@ func TestWorkflowModelCheckOnlyInModelJob(t *testing.T) {
 	}
 }
 
-// image の build の apt を Azure の mirror へ向ける ANDON_APT_MIRROR は、tests.yml の tests の job の tests/*.sh を回す step だけに置く。
-// release の job（GHCR へ push する image を焼く）は既定の archive・security のまま。workflow・job の env に置くと release にも効くので置かない。
 func TestWorkflowAptMirrorOnlyInTestsJob(t *testing.T) {
 	b, err := os.ReadFile(".github/workflows/tests.yml")
 	if err != nil {

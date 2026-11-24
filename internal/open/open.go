@@ -20,7 +20,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// Usage は andon open の使い方。
 const Usage = "usage: andon open [slug]\n" +
 	"slug があれば projects/<slug>/ の Chief of Staff を開く（andon chief-of-staff と同じ。cd は要らない）。\n" +
 	"slug が無ければ、kanban のあるプロジェクトの一覧から fzf で選ぶ（横に Chief of Staff が動いているかを出す）。\n" +
@@ -31,7 +30,6 @@ const (
 	exitUsage = 2
 )
 
-// 差し替えられる外部とのつなぎ（テスト用）。
 var (
 	start      = chiefofstaff.Start
 	isTerminal = spawn.IsTerminal
@@ -56,7 +54,6 @@ func Slugs(ws string) []string {
 	return out
 }
 
-// running は slug の Chief of Staff が hc で動いているか（ラベルで分かる範囲。hc が無い・失敗なら false）。
 func running(slug string) bool {
 	out, err := spawn.Output(nil, "", "hc", "ls", "--json", "--label", "role="+chiefofstaff.Profile, "--label", "project="+slug)
 	return err == nil && strings.Contains(out, `"address"`)
@@ -69,7 +66,6 @@ func line(slug string) string {
 	return slug
 }
 
-// Main は andon open を走らせ、終了コードを返す。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 {
 		fmt.Fprint(stderr, Usage)

@@ -19,21 +19,18 @@ import (
 // 大きいもの（動画など）は納品物の面に置かず拒む。LFS は使わない。
 const MaxSize = 20 << 20
 
-// Usage は andon publish の使い方。
 const Usage = "usage: andon publish <file> [slug]\n" +
 	"セルの repo（ANDON_WORKSPACE。無ければ /workspace）の files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n"
 
 // DefaultPort は .env に PORTLESS_PORT が無いときの番号。
 const DefaultPort = "1355"
 
-// Env は公開先を決める値。テストで差し替える。
 type Env struct {
 	Workspace string    // セルの repo（ANDON_WORKSPACE。無ければ /workspace）
 	Hostname  string    // URL のホスト名に使うセルの名前
 	Now       time.Time // 日付
 }
 
-// Main は andon publish。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) < 1 || len(args) > 2 || args[0] == "" {
 		fmt.Fprint(stderr, Usage)
@@ -58,8 +55,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 }
 
 // Publish は file を <Workspace>/files/<日付>-<slug><拡張子> にコピーし、URL を返す。
-// slug が空なら file の名前から拡張子を除いたもの。拡張子の無い file は拡張子を付けない
-// （仮設は <日付>-report.report にしていた。意図して変えた）。
+// slug が空なら file の名前から拡張子を除いたもの。拡張子の無い file は拡張子を付けない。
 func Publish(env Env, file, slug string) (string, error) {
 	st, err := os.Stat(file)
 	if err != nil || !st.Mode().IsRegular() {

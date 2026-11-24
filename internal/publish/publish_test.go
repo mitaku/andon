@@ -97,7 +97,6 @@ func TestMainUsage(t *testing.T) {
 	}
 }
 
-// andon publish は ANDON_WORKSPACE のセルへ書く（ほかの command と同じ。検査が本物の /workspace/files に書かない）。
 func TestMainPublishesIntoTheCellOfTheEnvironment(t *testing.T) {
 	ws := t.TempDir()
 	t.Setenv("ANDON_WORKSPACE", ws)
@@ -139,7 +138,6 @@ func TestPublishSameFileKeepsContent(t *testing.T) {
 	}
 }
 
-// 拡張子の無いファイルは拡張子を付けない（仮設の <日付>-report.report から意図して変えた）。
 func TestPublishWithoutExtension(t *testing.T) {
 	e := env(t)
 	src := writeTemp(t, "report", "x")

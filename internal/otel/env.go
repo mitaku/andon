@@ -20,7 +20,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// EnvUsage は andon otel env の使い方。
 const EnvUsage = "usage: andon otel env [--codex | --codex-env]\n" +
 	"役の起動の行（package/templates/ の command・resume）が読む。自分の端末（HC_TERMINAL_ID）のラベル project・issue・role から、\n" +
 	"ハーネスが受け口 " + Addr + " へトレースとログを送る設定を出す（1 行に 1 つ。template が展開して渡す）。\n" +
@@ -30,7 +29,6 @@ const EnvUsage = "usage: andon otel env [--codex | --codex-env]\n" +
 	"受け口が listen していなければ起動する。送らない設定（project.json の otel.enabled が false）・project.json が無い・読めない・\n" +
 	"ラベルが読めない・受け口を起動できない・ポートをほかのプロセスが取っているときは、何も出さずに終了コード 0（起動は止めない）。\n"
 
-// harness は andon otel env が設定を出す相手と形。
 type harness int
 
 const (
@@ -39,7 +37,6 @@ const (
 	codexEnv                  // Codex の resource 属性の環境変数（--codex-env）
 )
 
-// envDeps は andon otel env が外に触る所（検査が偽物に替える）。
 type envDeps struct {
 	terminal string                                       // 自分の端末の address（HC_TERMINAL_ID）
 	labels   func(addr string) (map[string]string, error) // 端末のラベル
@@ -50,7 +47,6 @@ type envDeps struct {
 	wait     time.Duration                                // 起動してから listen を待つ長さ
 }
 
-// EnvMain は andon otel env。
 func EnvMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	h := claudeCode
 	switch {
@@ -180,7 +176,6 @@ func codexLines(addr, project, issue, role string) []string {
 	}
 }
 
-// listener は受け口の所を確かめた結果。
 type listener int
 
 const (
@@ -277,7 +272,6 @@ func Detach(bin, log string) error {
 	return cmd.Process.Release()
 }
 
-// hcLabels は端末 addr のラベル（hc get <addr> --json の labels）。
 func hcLabels(addr string) (map[string]string, error) {
 	cmd := exec.Command("hc", "get", addr, "--json")
 	var errb bytes.Buffer

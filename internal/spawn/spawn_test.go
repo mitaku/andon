@@ -35,8 +35,6 @@ func TestDefaultBranchErrorAuthHint(t *testing.T) {
 	}
 }
 
-// 最初のメッセージは、送れて動き出さなかった（started=false）のでもないときだけ届いたとみる。
-// started が無い（状態を報告しない program）は誰にも分からないので届いたとみる。
 func TestFirstDelivered(t *testing.T) {
 	yes, no := true, false
 	for _, c := range []struct {
@@ -81,7 +79,6 @@ func TestGuide(t *testing.T) {
 	}
 }
 
-// 案件の repo の置き場は GHQ_ROOT、無ければ ghq root。どちらも無ければ誤り。
 func TestGhqRoot(t *testing.T) {
 	t.Setenv("GHQ_ROOT", "/w/.ghq")
 	if got, err := GhqRoot(); err != nil || got != "/w/.ghq" {
@@ -103,7 +100,6 @@ func TestGhqRoot(t *testing.T) {
 	}
 }
 
-// WithBody は hc run が届ける最初のメッセージ（template の本文、空行、課題の文）を組む。hc send で送り直す文はこれにする。
 func TestWithBody(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -142,8 +138,6 @@ func TestWithBody(t *testing.T) {
 	}
 }
 
-// SendCommand の行を bash にそのまま貼ると、hc send は hc run が届ける文（WithBody）をそのまま受け取る。
-// 本文の `…`・$・単引用符を展開させず、改行は改行のまま渡す。
 func TestSendCommandInBash(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -158,7 +152,6 @@ func TestSendCommandInBash(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(TemplatesDir(), "codex-review.md"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// 偽の hc: 受け取った引数を1つずつ NUL で区切って書く
 	bin := t.TempDir()
 	got := filepath.Join(bin, "args")
 	if err := os.WriteFile(filepath.Join(bin, "hc"), []byte("#!/usr/bin/env bash\nprintf '%s\\0' \"$@\" >"+got+"\n"), 0o755); err != nil {
@@ -184,7 +177,6 @@ func TestSendCommandInBash(t *testing.T) {
 	}
 }
 
-// 機械の送り手の印: 先頭に角括弧の名前を1つ置くだけで、文の中身は変えない。照らすのは dispatcher・gate・resume の印だけ。
 func TestMark(t *testing.T) {
 	if got := Mark(FromGate, "S-7（タイトル）: gate が fix を返した。"); got != "[gate] S-7（タイトル）: gate が fix を返した。" {
 		t.Errorf("Mark: %q", got)

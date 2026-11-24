@@ -42,7 +42,6 @@ func encode(t *testing.T, v any) []byte {
 	return b
 }
 
-// setResourceAttr は見本の最初の resource の属性 key を値 val（nil なら消す）にする。
 func setResourceAttr(m map[string]any, listKey, key string, val any) {
 	res := m[listKey].([]any)[0].(map[string]any)["resource"].(map[string]any)
 	var out []any
@@ -86,7 +85,6 @@ func (c *cell) post(t *testing.T, path, ctype string, body []byte) int {
 	return resp.StatusCode
 }
 
-// files は根を含む一時のフォルダの下のファイルを、一時のフォルダからの相対パスで返す。
 func (c *cell) files(t *testing.T) []string {
 	t.Helper()
 	var out []string
@@ -126,7 +124,6 @@ func readLines(t *testing.T, path string) []map[string]any {
 	return out
 }
 
-// count は OTLP の書き出しの要求の中の span（traces）か log record（logs）の数。
 func count(m map[string]any, listKey, scopeKey, itemKey string) int {
 	n := 0
 	for _, r := range m[listKey].([]any) {
@@ -137,7 +134,6 @@ func count(m map[string]any, listKey, scopeKey, itemKey string) int {
 	return n
 }
 
-// keys は JSON の中の全部の属性の key を数える。
 func keys(v any, out map[string]int) {
 	switch x := v.(type) {
 	case map[string]any:
@@ -212,8 +208,6 @@ func TestReceiveSample(t *testing.T) {
 	}
 }
 
-// 1 つの書き出しの要求に resource が 2 つあれば、resource ごとに 1 行。課題の属性の無い役（Chief of Staff）は、
-// 役ごとの UTC の日付のファイルへ書く。
 func TestReceiveSplitsResources(t *testing.T) {
 	c := newCell(t)
 	a := sample(t, "traces.json")
@@ -230,7 +224,6 @@ func TestReceiveSplitsResources(t *testing.T) {
 	if n := len(readLines(t, filepath.Join(c.root, "sample-site", "roles", "chief-of-staff", "2026-11-24.traces.jsonl"))); n != 1 {
 		t.Errorf("役のファイルの行が %d", n)
 	}
-	// 2 度目は同じファイルに書き足す
 	if got := c.post(t, "/v1/traces", "application/json", encode(t, a)); got != http.StatusOK {
 		t.Fatalf("POST が %d", got)
 	}
@@ -268,8 +261,6 @@ func TestReceiveRedactsSecrets(t *testing.T) {
 	}
 }
 
-// 伏せるのは送り手の文字列そのもの。改行の直後のトークン（ヒアドキュメント）も、JSON の文字列の中の
-// 引用符つきの値（ツールの引数を JSON の文字列で運ぶ属性）も、行の JSON の書き直しで \n や \\\" に化ける前に伏せる。
 func TestReceiveRedactsInsideStrings(t *testing.T) {
 	c := newCell(t)
 	token := "gh" + "p_" + strings.Repeat("Ab1", 12)
@@ -296,7 +287,6 @@ func TestReceiveRedactsInsideStrings(t *testing.T) {
 	}
 }
 
-// 属性の名前が秘密の名前（password・token・api_key など）なら、短い値でも値を伏せる。数を運ぶ属性（input_tokens など）は伏せない。
 func TestReceiveRedactsSecretNamedAttributes(t *testing.T) {
 	c := newCell(t)
 	in := sample(t, "traces.json")
@@ -390,7 +380,6 @@ func TestReceiveRejects(t *testing.T) {
 	}
 }
 
-// gzip の本文も受ける。知らない圧縮は 415。
 func TestReceiveGzip(t *testing.T) {
 	c := newCell(t)
 	var zb bytes.Buffer
@@ -435,7 +424,6 @@ func TestName(t *testing.T) {
 	}
 }
 
-// 置き場の中に根の外を指す symlink があっても、辿って書かない。
 func TestReceiveDoesNotFollowSymlink(t *testing.T) {
 	c := newCell(t)
 	outside := filepath.Join(c.top, "outside")
@@ -456,7 +444,6 @@ func TestReceiveDoesNotFollowSymlink(t *testing.T) {
 	}
 }
 
-// ポートをほかのプロセスが取っていれば、andon otel serve は起動せずに終了コード 1（二重の起動は bind の失敗で防ぐ）。
 func TestServeMainPortTaken(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	ln, err := net.Listen("tcp", Addr)
@@ -475,7 +462,6 @@ func TestServeMainPortTaken(t *testing.T) {
 	}
 }
 
-// serve は渡された listener で受け、置き場の根を作る。
 func TestServe(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

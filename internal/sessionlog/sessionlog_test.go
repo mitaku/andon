@@ -66,7 +66,6 @@ func TestClaude(t *testing.T) {
 	}
 }
 
-// promptId の無い古い記録はターンを数えない（0 でなく nil）。
 func TestClaudeNoPromptID(t *testing.T) {
 	dir := t.TempDir()
 	put(t, filepath.Join(dir, "projects", "-w", "s1.jsonl"), `{"type":"user","message":{"content":"x"}}`+"\n"+assistant("r", "m", "claude-opus-5-5", "", 1, 1)+"\n")
@@ -131,7 +130,6 @@ func deref(p *int) any {
 	return *p
 }
 
-// 読み切れない記録（ディレクトリ）は、飛ばした記録にして Unread を立てる（0 トークンと分ける）。
 func TestClaudeUnreadable(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "projects", "-w", "s1.jsonl"), 0o755); err != nil {
@@ -153,8 +151,6 @@ func TestClaudeUnreadable(t *testing.T) {
 	}
 }
 
-// 読み切れない rollout（ディレクトリ）は、飛ばした記録にしてそのセッションに Unread を立てる（0 トークンの計った値にしない）。
-// 読める rollout のセッションは Unread にしない。
 func TestCodexLogsUnreadable(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "rollout-1.jsonl"), 0o755); err != nil {
@@ -179,7 +175,6 @@ func TestCodexLogsUnreadable(t *testing.T) {
 	}
 }
 
-// サブエージェントの置き場を一覧できなければ、本線が読めても Unread（本線に使用量が無くても0トークンにしない）。
 func TestClaudeSubagentsUnlistable(t *testing.T) {
 	dir := t.TempDir()
 	put(t, filepath.Join(dir, "projects", "-w", "s1.jsonl"), `{"type":"user","promptId":"p1"}`+"\n")

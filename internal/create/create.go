@@ -30,7 +30,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// Usage は andon create --help の中身。
 const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <タイトル>]\n" +
 	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に kanban（projects/<slug>/kanban/）・project.json の下書き・\n" +
 	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（オーナーが見て commit する）。\n" +
@@ -50,7 +49,6 @@ var (
 	prefixRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
 )
 
-// 差し替えられる外部とのつなぎ（テスト用）。
 var isTerminal = spawn.IsTerminal
 
 // input は引数で渡されたもの（空は渡されていない。repos は hasRepo で見分ける）。
@@ -126,7 +124,6 @@ func checkRepos(rs []string) error {
 	return nil
 }
 
-// asker は端末で1問ずつ聞く。
 type asker struct {
 	r *bufio.Reader
 	w io.Writer
@@ -302,7 +299,6 @@ func AgentsMD(title string) []byte {
 		"## Chief of Staff\n")
 }
 
-// isClone は path が git の作業ツリーの一番上か。
 func isClone(path string) bool {
 	top, err := spawn.Output(nil, "", "git", "-C", path, "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -367,7 +363,6 @@ func quote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// Main は andon create。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	in, err := parse(args)
 	if err != nil {

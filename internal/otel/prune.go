@@ -37,7 +37,6 @@ func LimitsOf(o *delegate.Otel) Limits {
 	return lim
 }
 
-// pruneEvery は片付けを走らせる間（1 日に 1 回）。
 const pruneEvery = 24 * time.Hour
 
 // stampName は前に片付けた時刻の印（プロジェクトの置き場の直下。mtime が時刻。.jsonl でないので片付けは消さない）。
@@ -121,7 +120,6 @@ func Prune(dir string, now time.Time, lim Limits) (int, error) {
 			}
 		}
 	}
-	// 深い順に、中身の無いフォルダを消す（中身があれば Remove が断るので、そのまま残す）
 	sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
 	for _, d := range dirs {
 		_ = os.Remove(d) // 中身のあるフォルダは消えないのが正しい

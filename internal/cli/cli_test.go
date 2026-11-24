@@ -298,7 +298,6 @@ func TestHelpAll(t *testing.T) {
 	}
 }
 
-// 1語で動く葉と、引数を取る1語の葉は、今と同じに引数を受ける。
 func TestPassesArgsToLeaf(t *testing.T) {
 	if rc, _, errs := run("dispatcher", "--bogus"); rc != 2 || !strings.HasPrefix(errs, "usage: andon dispatcher") {
 		t.Errorf("dispatcher: rc=%d err=%q", rc, errs)

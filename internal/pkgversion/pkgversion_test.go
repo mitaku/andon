@@ -12,7 +12,6 @@ import (
 const c1 = "0123456789abcdef0123456789abcdef01234567"
 const c2 = "89abcdef0123456789abcdef0123456789abcdef"
 
-// pkg は /opt/andon に当たる偽の置き場を作る
 func pkg(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -112,7 +111,6 @@ func TestAddedRemovedModeChangedIsDrift(t *testing.T) {
 	}
 }
 
-// 記録のファイルと、python が書く cache は中身に数えない
 func TestRecordsAndCacheAreNotContent(t *testing.T) {
 	root := pkg(t)
 	if err := Stamp(root, c1); err != nil {
@@ -158,14 +156,12 @@ func TestAppliedWithStamp(t *testing.T) {
 	check(t, "当て直して焼いた", Read(root), c2, "applied", "false")
 }
 
-// 前のバージョンの道具で当て直した（version.json が無い）: commit は読めるが、食い違いは確かめられない
 func TestAppliedWithoutStamp(t *testing.T) {
 	root := pkg(t)
 	applied(t, root, c2)
 	check(t, "印の無い当て直し", Read(root), c2, "applied", "null")
 }
 
-// 当て直しの記録と焼いた印が違う commit を指す: 手で入れ替えたので食い違い
 func TestAppliedAndStampDisagree(t *testing.T) {
 	root := pkg(t)
 	if err := Stamp(root, c1); err != nil {

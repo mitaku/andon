@@ -41,7 +41,6 @@ func find(name string) (leaf, bool) {
 	return leaf{}, false
 }
 
-// children は名詞 noun の2語の葉。
 func children(noun string) []leaf {
 	var out []leaf
 	for _, l := range leaves {
@@ -52,7 +51,6 @@ func children(noun string) []leaf {
 	return out
 }
 
-// wantsHelp は -- より前に -h か --help があるか。
 func wantsHelp(args []string) bool {
 	for _, a := range args {
 		if a == "--" {
@@ -65,7 +63,6 @@ func wantsHelp(args []string) bool {
 	return false
 }
 
-// Run は andon を args で走らせ、終了コードを返す。
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		help(stdout)
@@ -202,7 +199,6 @@ func helpCmd(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// byPrimary は主に打つ者が w の葉（表の順）。
 func byPrimary(w who) []leaf {
 	var out []leaf
 	for _, l := range leaves {
@@ -266,7 +262,6 @@ func width(s string) int {
 	return n
 }
 
-// nouns は主に打つ者が w の葉の1語目（表の順。重ねない）。
 func nouns(w who) []string {
 	var out []string
 	for _, l := range byPrimary(w) {

@@ -18,7 +18,6 @@ import (
 	"andon/internal/delegate"
 )
 
-// nameServer は GET / に body を返す HTTP のサーバ（andon の受け口か、ほかのプロセスの代わり）。
 func nameServer(t *testing.T, body string) string {
 	t.Helper()
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { fmt.Fprintln(w, body) }))
@@ -26,7 +25,6 @@ func nameServer(t *testing.T, body string) string {
 	return strings.TrimPrefix(s.URL, "http://")
 }
 
-// freeAddr は誰も listen していない 127.0.0.1 の所。
 func freeAddr(t *testing.T) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -45,7 +43,6 @@ func projectJSON(otel string) func(string) (*delegate.Project, error) {
 	}
 }
 
-// deps は担当の端末（ラベル project・issue）の偽物。受け口は andon の受け口として listen している。
 func deps(t *testing.T, labels map[string]string, profile string) envDeps {
 	return envDeps{
 		terminal: "t1",
@@ -241,7 +238,6 @@ func TestEnvStartsReceiver(t *testing.T) {
 	if want := wantLines(d.addr, "andon.project=sample-site,andon.issue=S-0012,andon.role=worker"); !slices.Equal(got, want) {
 		t.Errorf("並びが違う: %q", got)
 	}
-	// もう listen しているので、2 回目は起動しない
 	if _, why := d.env(claudeCode); why != "" || started != 1 {
 		t.Errorf("2 回目: 起動 %d 回・理由 %q", started, why)
 	}
@@ -266,10 +262,8 @@ func TestEnvMainWithoutTerminal(t *testing.T) {
 	}
 }
 
-// claudeRe は claude を起動する語（前が空白か / の claude のあとに空白）。/usr/bin/claude のような書き方も Claude Code の行と見る。
 var claudeRe = regexp.MustCompile(`(^|[ /])claude `)
 
-// codexRe は codex を起動する語（claudeRe と同じ見方）。
 var codexRe = regexp.MustCompile(`(^|[ /])codex `)
 
 // 決めたこと 5・19: Claude Code を起動する template の行（command・resume）は、どれも andon otel env を env に渡す。
@@ -313,7 +307,6 @@ func TestTemplatesPassOtelEnv(t *testing.T) {
 	}
 }
 
-// go test のバイナリに otel serve を打たせない（検査を走らせ直し、また起動して process が際限なく増える）。
 func TestDetachOnlyAndon(t *testing.T) {
 	self, err := os.Executable()
 	if err != nil {

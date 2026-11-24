@@ -20,7 +20,6 @@ import (
 	"andon"
 )
 
-// Usage は andon init --help の中身。
 const Usage = "usage: andon init <slug> [--dir <path>] [--image <ref>] [--owner <email>]\n" +
 	"セルの repo の雛形を <path>（既定 ./<slug>-cell）に作る。<path> がすでにあって空でなければ何もしない。\n" +
 	"  --image  Dockerfile の FROM（既定は埋める場所だけを置く。bin/bootstrap は埋めるまで動かない）\n" +
@@ -32,7 +31,6 @@ const PlaceholderImage = "ghcr.io/<owner>/andon:<バージョン>"
 
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
-// Options は雛形を埋める値。
 type Options struct {
 	Slug  string
 	Dir   string
@@ -40,7 +38,6 @@ type Options struct {
 	Owner string
 }
 
-// Main は andon init。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("andon init", flag.ContinueOnError)
 	fl.SetOutput(io.Discard)
