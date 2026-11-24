@@ -23,13 +23,14 @@ type ImpactIssue struct {
 	ConflictFiles []string `json:"conflict_files"` // ぶつかるファイル
 	Overlap       []string `json:"overlap"`        // マージした PR と、この課題の branch（＋worktree の commit していない変更）の両方が触ったファイル
 	BriefRefs     []string `json:"brief_refs"`     // マージした PR が触ったファイルのうち、この課題の依頼書に path か名前が出てくるもの
+	ChecksMoved   []string `json:"checks_moved"`   // マージした PR が変えた検査の置き場（gate.CheckPlaces）のファイル。branch がマージの commit を含まないときだけ（古い base の checks は今の検査を通っていない）
 	Error         string   `json:"error,omitempty"`
 }
 
-// Affected は Chief of Staff が見るべきか（ぶつかる・重なる・依頼書が指す・事実を読めなかった）。
+// Affected は Chief of Staff が見るべきか（ぶつかる・重なる・依頼書が指す・検査の置き場が動いた・事実を読めなかった）。
 func (t ImpactIssue) Affected() bool {
 	if t.Error != "" {
 		return true
 	}
-	return !t.Contains && (t.Conflict || len(t.Overlap) > 0 || len(t.BriefRefs) > 0)
+	return !t.Contains && (t.Conflict || len(t.Overlap) > 0 || len(t.BriefRefs) > 0 || len(t.ChecksMoved) > 0)
 }

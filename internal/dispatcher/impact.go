@@ -70,7 +70,8 @@ func ImpactDetail(res contract.Impact) map[string]any {
 		if !t.Affected() {
 			continue
 		}
-		row := map[string]any{"issue": t.Issue, "conflict": t.Conflict, "overlap": cap20(t.Overlap), "brief_refs": cap20(t.BriefRefs)}
+		row := map[string]any{"issue": t.Issue, "conflict": t.Conflict, "overlap": cap20(t.Overlap), "brief_refs": cap20(t.BriefRefs),
+			"checks_moved": cap20(t.ChecksMoved)}
 		if t.Error != "" {
 			row["error"] = t.Error
 		}

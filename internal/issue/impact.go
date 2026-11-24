@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"andon/internal/contract"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -91,7 +92,7 @@ func (c *ctx) impact(stdout io.Writer) error {
 func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) contract.ImpactIssue {
 	id := t.Str("id")
 	it := contract.ImpactIssue{Issue: id, Title: t.Str("title"), Status: t.Str("status"), Agent: t.Str("agent"), Branch: t.Str("branch"),
-		ConflictFiles: []string{}, Overlap: []string{}, BriefRefs: []string{}}
+		ConflictFiles: []string{}, Overlap: []string{}, BriefRefs: []string{}, ChecksMoved: []string{}}
 	if r, err := contract.ReadReport(filepath.Join(c.l.Library(id), "report.json")); err == nil {
 		it.PR = r.PR
 	}
@@ -108,6 +109,8 @@ func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) con
 		it.Contains = true
 		return it
 	}
+	// branch がマージの commit を含まない: マージで変わった検査の置き場は、この branch の checks に入っていない
+	it.ChecksMoved = ChecksMoved(merged)
 	base, err := git(repoDir, "merge-base", head, sha)
 	if err != nil {
 		it.Error = "マージの commit との merge-base が無い"
@@ -160,6 +163,17 @@ func mergeTree(repoDir, head, sha string) (bool, []string, error) {
 		return true, Intersect(ls, ls), nil
 	}
 	return false, nil, fmt.Errorf("git merge-tree に失敗")
+}
+
+// ChecksMoved は files のうち検査の置き場（gate.CheckPlaces。定義は gate だけに置く）に当たるものを返す（並びは files の順）。
+func ChecksMoved(files []string) []string {
+	out := []string{}
+	for _, f := range files {
+		if gate.IsCheckPlace(f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // BriefRefs は、files のうち依頼書の文に path そのものか、名前（base name）が出てくるものを返す（並びは files の順）。

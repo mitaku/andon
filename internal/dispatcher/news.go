@@ -133,6 +133,9 @@ func line(n Notification) string {
 			if b, _ := m["brief_refs"].([]any); len(b) > 0 {
 				what = append(what, fmt.Sprintf("依頼書 %d", len(b)))
 			}
+			if c, _ := m["checks_moved"].([]any); len(c) > 0 {
+				what = append(what, fmt.Sprintf("検査の置き場 %d", len(c)))
+			}
 			if m["error"] != nil {
 				what = append(what, "読めない")
 			}
