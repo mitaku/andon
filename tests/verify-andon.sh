@@ -5,6 +5,8 @@
 #   3. 機能のファイルの節の形と、「変えたら動かすパス」が repo に在ること
 #      3b. 細かい機能の見るファイルが、変えたら動かすパスの下のテストでないファイルを全部名指し、internal/・cmd/・package/ の下は
 #          地図か目次の「地図が覆わないもの」に入る（製品の変更が足したファイルや package を、同じ変更で地図に載せさせる）
+#      3c. 見るファイルを変えた変更は、変えたファイルを見る細かい機能を commit の本文の Verify-features: の行で名指し、名前は地図に在る
+#          （比べる base は CI が ANDON_VERIFY_BASE で渡す。手元は origin/main との分かれ目。どちらも無ければ飛ばす）
 #   4. 手順が名指す command の実在（andon の葉は andon help --all の表と照らす。tests/lib/andon-refs.sh で、tests/commands.sh と同じ読み方。
 #      scripts/・tests/ の名前・repo のパス）
 #      手順が drive.sh を名指すときは、いつも検証する commit を添える（省ける書き方を残さない）
@@ -22,6 +24,7 @@ die() { echo "FAIL verify-andon: $*" >&2; exit 1; }
 ok() { echo "ok   $*"; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+verify_base=${ANDON_VERIFY_BASE:-} # 3c の比べる base（tests/lib/andon.sh が環境を切り離す前に読む）
 . tests/lib/andon.sh
 . tests/lib/andon-refs.sh
 export ANDON_BIN=$andon # 6 の写しの回が焼き直さない
@@ -164,6 +167,81 @@ done <<<"$tracked"
 [ "$nseen" -gt 100 ] || die "見るファイルの確かめが $nseen 件しか見ていない（読み方が壊れている）"
 [ "$nout" -gt 50 ] || die "「地図が覆わないもの」に入るファイルが $nout 件しか読めない（読み方が壊れている）"
 ok "verify-andon: 変えたら動かすパスの下のファイル $nseen 件はどれも細かい機能の見るファイルに入り、internal/・cmd/・package/ の下は地図か「地図が覆わないもの」（$nout 件）に入る（$nall 件）"
+
+# 3c. 変更ごとの名指し。見るファイルを変えた変更は、その commit の本文の Verify-features: の行で、変えたファイルを見る細かい機能を名指す。
+#   見るファイルに載っているだけでは、変えた振る舞いを通る細かい機能があるとは限らない（載ったファイルの新しい振る舞いを、どの細かい機能も
+#   通らないまま当たる）。変えた側が名指せなければ、同じ変更で細かい機能を足す
+#   - 変えたファイル（テストでないもの）が細かい機能の見るファイルに入るなら、それを見る細かい機能の1つ以上が名指されている
+#   - 名指した名前は、どれも地図の細かい機能にある（同じ変更で足した細かい機能も数える）
+# 名指しの行は、比べる base から HEAD までの commit の本文のどこにあってもよい（後から足すなら、行だけの commit を積む）
+declare -A subsee=()
+for name in $files; do
+  while IFS=$'\t' read -r s e; do
+    subsee[$s]="${subsee[$s]:+${subsee[$s]} }$e"
+  done < <(sed -n '/^## 細かい機能$/,/^## /p' "$skill/features/$name.md" | awk '/^- `/ { match($0, /`[^`]+`/); s = substr($0, RSTART + 1, RLENGTH - 2); next } /^  - 見るファイル: / { n = split($0, a, "`"); for (i = 2; i < n; i += 2) print s "\t" a[i] }')
+done
+[ "${#subsee[@]}" -gt 30 ] || die "細かい機能と見るファイルの対が ${#subsee[@]} 件しか読めない（読み方が壊れている）"
+# named_gaps <変えたファイル（1行1つ）> <commit の本文>: 足りないものを1行ずつ出す（何も出さなければ通る）
+named_gaps() {
+  local t n s e want covered line
+  local -a names=() some
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^[a-z0-9-]+(,?\ *[a-z0-9-]+)*,?\ *$ ]]; then
+      read -ra some <<<"${line//,/ }"
+      names+=("${some[@]}")
+    else
+      echo "Verify-features: の行の書き方が違う（細かい機能の名前をコンマで並べる）: Verify-features: $line"
+    fi
+  done < <(sed -n 's/^Verify-features:[[:space:]]*//p' <<<"$2")
+  for n in "${names[@]}"; do
+    [ -n "${subsee[$n]+x}" ] || echo "Verify-features: で名指した $n は、地図の細かい機能に無い"
+  done
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    want=() covered=false
+    for s in "${!subsee[@]}"; do
+      for e in ${subsee[$s]}; do
+        if inpart "$e" "$t"; then want+=("$s"); break; fi
+      done
+    done
+    [ "${#want[@]}" -gt 0 ] || continue
+    for s in "${want[@]}"; do
+      for n in "${names[@]}"; do
+        if [[ "$n" == "$s" ]]; then covered=true; fi
+      done
+    done
+    [ "$covered" = true ] || echo "$t を変えたのに、それを見る細かい機能（$(tr ' ' '\n' <<<"${want[*]}" | sort | tr '\n' ' ' | sed 's/ $//')）のどれも Verify-features: で名指していない"
+  done <<<"$1"
+}
+# 名指しの確かめが何も見ていないことを避ける（地図の写しは要らない。読んだ対で確かめる）
+gaps=$(named_gaps $'internal/issue/resume.go\ndocs/contract.md' '')
+grep -qF 'internal/issue/resume.go を変えたのに' <<<"$gaps" || die "名指しの無い変更で、見るファイルの internal/issue/resume.go を拾わない: $gaps"
+! grep -qF 'docs/contract.md' <<<"$gaps" || die "見るファイルでない docs/contract.md に名指しを求める: $gaps"
+gaps=$(named_gaps 'internal/issue/resume.go' $'fix\n\nVerify-features: wl-nosuch')
+grep -qF '名指した wl-nosuch は、地図の細かい機能に無い' <<<"$gaps" || die "地図に無い名前を拾わない: $gaps"
+grep -qF 'internal/issue/resume.go を変えたのに' <<<"$gaps" || die "地図に無い名前だけで、変えたファイルを覆ったことにする: $gaps"
+gaps=$(named_gaps 'internal/issue/resume.go' $'fix\n\nVerify-features: gt-route')
+grep -qF 'internal/issue/resume.go を変えたのに' <<<"$gaps" || die "変えたファイルを見ない細かい機能の名指しで通る: $gaps"
+gaps=$(named_gaps 'internal/issue/resume.go' $'fix\n\nVerify-features: wl-resume の行で名指す')
+grep -qF 'Verify-features: の行の書き方が違う' <<<"$gaps" || die "名前でない語の並ぶ行を、書き方の誤りとして拾わない: $gaps"
+gaps=$(named_gaps $'internal/issue/resume.go\npackage/skills/worker/SKILL.md\ninternal/issue/resume_test.go' $'a\n\nVerify-features: wl-resume\n---\nb\n\nVerify-features: wl-first-turn, wl-record')
+[ -z "$gaps" ] || die "見るファイルを覆う名指し（置き場の見るファイル・複数の commit・コンマで並べた名前）で通らない: $gaps"
+if [ "$self" = true ]; then
+  # 比べる base: CI の tests の job は PR の base（merge commit の1つ目の親）を ANDON_VERIFY_BASE で渡す。手元は origin/main との分かれ目
+  grep -qE '^ +echo "ANDON_VERIFY_BASE=' .github/workflows/tests.yml || die ".github/workflows/tests.yml の tests の job が ANDON_VERIFY_BASE を渡さない（CI で名指しを見ない）"
+  base=$verify_base
+  if [ -z "$base" ] && [ "${CI:-}" != true ] && git rev-parse -q --verify origin/main >/dev/null; then base=$(git merge-base HEAD origin/main); fi
+  if [ -z "$base" ]; then
+    echo "skip verify-andon: 変更ごとの名指し（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
+  else
+    git rev-parse -q --verify "$base^{commit}" >/dev/null || die "比べる base $base が読めない（CI は履歴を全部取る）"
+    changed=$(git -c core.quotepath=off diff --name-only --no-renames "$base" HEAD)
+    gaps=$(named_gaps "$changed" "$(git log --format=%B "$base..HEAD")")
+    [ -z "$gaps" ] || die "変更ごとの名指しが足りない（変えた振る舞いを通る細かい機能を commit の本文の「Verify-features: <名前>, …」の行で名指す。名指せなければ、同じ変更で細かい機能を足す。features/README.md の「変更ごとの名指し」）:
+$gaps"
+    ok "verify-andon: ${base:0:12}..HEAD で変えたファイル $(grep -c . <<<"$changed") 件のうち、細かい機能の見るファイルに入るものは、どれもそれを見る細かい機能が名指されている"
+  fi
+fi
 
 # 手順が drive.sh を名指すときは、いつも検証する commit を添える（省いて打つと 2 で断られる。省ける書き方を写させない）
 uses=$(cat "$skill/SKILL.md" "$skill"/features/*.md | grep -oE 'scripts/drive\.sh [^`|]*' || true)
