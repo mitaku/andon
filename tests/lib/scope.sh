@@ -140,6 +140,8 @@ while IFS= read -r p; do
     tests/*.sh) [ -f "$p" ] && run[$p]=1 ;;
     # repo の中の skill の置き場（ADR-0035 決めたこと 4）。image にも andon にも入らない。形は verify-andon.sh、語は words.sh（どちらもいつもの分）
     .claude/skills/* | .agents/skills/*) ;;
+    # 検査のシェルを Bash で書き換える呼び出しを断る、この repo の Claude Code のフック。image にも andon にも入らない。.claude/settings.json は知らないパスのまま
+    .claude/hooks/test-shell-edit) run[tests/shell-edit-hook.sh]=1 ;;
     # yomiyasu の許可の一覧。image にも andon にも入らない。正との突き合わせは package.sh の節（tests/package/23-yomiyasu-words.sh）、語は words.sh（いつもの分）
     .yomiyasu-words/*) run[tests/package.sh]=1 ;;
     # Go のテスト（go test ./... が見る）・人用の文書は、いつもの分だけ

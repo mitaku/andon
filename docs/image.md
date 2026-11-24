@@ -164,6 +164,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `tests/host/` | `host.sh` を足す |
 | `tests/package/` | `package.sh` を足す（`package.sh` の節。入口の `tests/package.sh` が順に読む） |
 | `.yomiyasu-words/` | `package.sh` を足す（yomiyasu の許可の一覧。節の `tests/package/23-yomiyasu-words.sh` が正と突き合わせる。image には入らない） |
+| `.claude/hooks/test-shell-edit` | `shell-edit-hook.sh` を足す（検査のシェルを Bash で書き換える呼び出しを断る、この repo の Claude Code のフック。image には入らない。`.claude/settings.json` は知らないパスとして全部） |
 | `docs/process/`・`docs/dispatcher.md`・`process/`・`schema/process/`・`tests/process/` | `process.sh` を足す |
 | `docs/adr/` | `package.sh`・`adr-index.sh` を足す |
 | `docs/decisions.md`・`docs/decisions/`・root の `CHANGELOG.md` | `adr-index.sh` を足す |

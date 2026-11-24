@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+# この repo の Claude Code の PreToolUse のフック（matcher Bash。.claude/settings.json が呼ぶ）。
+# tests/ の下の検査のシェル（.sh）を Bash で書き換える呼び出しを deny し、Edit ツールで直すよう理由の1行を返す。
+# heredoc で包んだスクリプトで差し替えると、内側の区切り（EOF）で外側が閉じ、残りの行（検査の rm など）が本物の HOME で走る。
+# 断るもの:
+#   1. sed -i（--in-place・-ni なども）・perl -i（-pi・-i.bak なども）で、引数に検査のシェルを渡すもの
+#   2. 検査のシェルへのリダイレクト（> >> &> >|）と tee
+#   3. python・node・perl のスクリプト（heredoc・-c・-e）で、検査のシェルを指す文字列か引数と、書き込み（open(…,'w')・.write(・
+#      writeFileSync など）があるもの。cat > x.py <<'EOF' のようにファイルへ置くスクリプトの本文も見る。heredoc の区切りがぶつかって
+#      外側が閉じた形も拾うよう、書き込みは呼び出しの全体で探す
+#   4. bash・sh に渡した heredoc と -c の中身は、同じ決まりで読み直す
+# 通すもの: 読むだけ（grep '>'・sed -n・cat・git diff・open('tests/x.sh').read()）と走らせるだけ（bash tests/x.sh・['bash', 'tests/x.sh']）、
+#   検査のシェルを別の置き場へ写すもの（cp tests/x.sh "$S/x.sh"・"$m/tests/x.sh" への書き込み）、JSON や辞書の値として書くだけのもの
+#   （{'file': 'tests/x.sh'}・"failed": ["tests"]）。
+# 検査のシェルは repo の根からの相対で見る。cwd と cd を辿り、根の絶対パス（"$CLAUDE_PROJECT_DIR"/tests/x.sh）も読む。
+# 行き先が変数の cd（cd "$S/old"）のあとは根の外と見る。
+# コマンドの字面で見るので、for・find・xargs の一覧で渡す一括置換と、ファイルに置いたスクリプトを後で走らせるものは拾わない。
+# 走れないときは止める側に倒す: tests を含む呼び出しを読み切れずに例外が出たら deny する。python3 が無いときは、
+# .claude/settings.json の command が tests を含む呼び出しを終了コード 2 で止める。入力が JSON でない・Bash でない・command が
+# 文字列でないときは、見るものが無いので何も出さずに通す。Codex には効かない。
+import json
+import os
+import posixpath
+import re
+import sys
+
+REASON = (
+    "tests/ の下の検査のシェル（.sh）は Edit ツールで直す。heredoc で包んだ python・node・perl、sed -i・perl -i、"
+    "リダイレクトで書き換えると、内側の区切り（EOF）で外側が閉じて残りの行が本物の HOME で走ったり、差分を読まずに崩したりする"
+    "（AGENTS.md の検査を回す表）。読むだけ・走らせるだけの呼び出しは通る。"
+)
+REASON_ERROR = (
+    "tests を含むこの呼び出しを、検査のシェルを守るフック（.claude/hooks/test-shell-edit）が読み切れずに止めた。"
+    "検査のシェルを直すなら Edit ツールで直す。読むだけ・走らせるだけなら、呼び出しを分けて短くすると通る。"
+)
+
+ROOT = "\x00R"  # 根の絶対パスを置き換える印
+TARGET = re.compile(r"^tests/(?:[^/]+/)*[^/]*(?:\.sh|\*)$")
+OPS = ["&>>", ">>", ">|", "&>", "&&", "||", "|&", ";;", ">&", "<&", "<<<", "<<-", "<<", ";", "&", "|", "(", ")", "<", ">", "\n", "`"]
+REDIRECTS = {">", ">>", ">|", "&>", "&>>", ">&"}
+SEPARATORS = {";", ";;", "&", "&&", "|", "||", "|&", "(", ")", "\n", "`"}
+KEYWORDS = {"then", "do", "else", "elif", "if", "while", "until", "!", "{", "}", "time"}
+# 後ろのコマンドを走らせるコマンド。後ろから、知っている名前のコマンドを探す
+WRAPPERS = {"sudo", "env", "command", "exec", "nohup", "xargs", "timeout", "nice", "ionice", "stdbuf", "mise"}
+EDITORS = {"sed", "gsed", "perl", "tee", "cd", "bash", "sh", "zsh", "dash"}
+SHELLS = {"bash", "sh", "zsh", "dash"}
+INTERP = re.compile(r"^(?:python[\d.]*|node|perl|ruby)$")
+WRITE = re.compile(
+    r"open\([^)\n]*,\s*['\"][wax]|mode\s*=\s*['\"][wax]|(?<!stdout)(?<!stderr)\.write\(|write_(?:text|bytes)\("
+    r"|os\.(?:replace|rename)\(|shutil\.(?:copy|move)|writeFile|appendFile|createWriteStream"
+    r"|\bopen\b[^\n;]*['\"]\+?>|\$\^I\b|['\"](?:g?sed|perl)['\"]\s*,\s*['\"]-[A-Za-z0-9]*i"
+)
+LITERAL = re.compile(r"(['\"])([^'\"\n]{1,300})\1")
+LITERAL_JS = re.compile(r"(['\"`])([^'\"`\n]{1,300})\1")
+RUN_BEFORE = re.compile(r"['\"](?:bash|sh)['\"]\s*,\s*(?:['\"]-\w+['\"]\s*,\s*)*[rbfuRBFU]{0,2}$")
+# JSON や辞書の値（"paths": ["tests/x.sh"]・{'file': 'tests/x.sh'}）は、開くパスでない
+VALUE_BEFORE = re.compile(r":\s*\[?\s*[rbfuRBFU]{0,2}$")
+# パスを組み立てる 'tests'（os.path.join('tests', …)・Path('tests') / …）
+JOIN_BEFORE = re.compile(r"\b(?:join|Path)\((?:[^()]*,\s*)?$")
+
+
+def read_only(before, after):
+    """open('tests/x.sh')・open('tests/x.sh', 'r')・Path('tests/x.sh').read_text() のように、読むだけの文字列か。"""
+    if re.search(r"\bopen\(\s*$", before):
+        return bool(re.match(r"\s*(?:\)|,\s*['\"]r)", after))
+    return bool(re.search(r"\bPath\(\s*$", before) and re.match(r"\)\.read_(?:text|bytes)\(", after))
+
+
+class Seg:
+    def __init__(self):
+        self.words, self.redirects, self.bodies, self.subs = [], [], [], []
+
+
+def substitution_end(text, i):
+    """text[i] から始まる $(…) か `…` の、閉じた直後の位置。閉じなければ text の終わり。"""
+    n = len(text)
+    if text[i] == "`":
+        j = i + 1
+        while j < n and text[j] != "`":
+            j += 2 if text[j] == "\\" else 1
+        return min(j + 1, n)
+    depth, j, quote = 1, i + 2, None
+    while j < n and depth:
+        c = text[j]
+        if quote:
+            if c == "\\" and quote == '"':
+                j += 1
+            elif c == quote:
+                quote = None
+        elif c == "\\":
+            j += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        j += 1
+    return j
+
+
+def scan(text):
+    """シェルの字句を読み、コマンドの塊（Seg）の並びにする。引用符の中の演算子は語の一部。heredoc の本文は塊に付ける。"""
+    segs, seg = [], Seg()
+    pending = []  # 読みかけの heredoc（区切りの語, タブを外すか）
+    word, has_word, quote = [], False, None
+    i, n = 0, len(text)
+    expect = None  # 直前の演算子が語を待っている（リダイレクトの先・heredoc の区切り）
+
+    def end_word():
+        nonlocal word, has_word, expect
+        if not has_word:
+            return
+        w = "".join(word)
+        word, has_word = [], False
+        if expect == "redirect":
+            seg.redirects.append(w)
+        elif expect in ("<<", "<<-"):
+            pending.append((w, expect == "<<-", seg))  # 本文は << を書いた塊に付ける
+        elif expect == "skip":  # 入力のリダイレクト（< x・<<< x）の語は引数でない
+            pass
+        else:
+            seg.words.append(w)
+        expect = None
+
+    while i < n:
+        c = text[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+            else:
+                word.append(c)
+            i += 1
+            continue
+        if quote == '"':
+            if c == "\\" and i + 1 < n and text[i + 1] in '"\\$`':
+                word.append(text[i + 1])
+                i += 2
+                continue
+            # 二重引用符の中のコマンドの置き換え（"$(…)"・"`…`"）は走るので、中身を別に読む
+            if text.startswith("$(", i) or c == "`":
+                end = substitution_end(text, i)
+                seg.subs.append(text[i + 2:end - 1] if c == "$" else text[i + 1:end - 1])
+                word.append(text[i:end])
+                i = end
+                continue
+            if c == '"':
+                quote = None
+            else:
+                word.append(c)
+            i += 1
+            continue
+        if c in "'\"":
+            quote, has_word = c, True
+            i += 1
+            continue
+        if c == "\\" and i + 1 < n:
+            if text[i + 1] != "\n":
+                word.append(text[i + 1])
+                has_word = True
+            i += 2
+            continue
+        if c in " \t\r":
+            end_word()
+            i += 1
+            continue
+        if c == "#" and not has_word:
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        op = next((o for o in OPS if text.startswith(o, i)), None)
+        if op is None:
+            word.append(c)
+            has_word = True
+            i += 1
+            continue
+        end_word()
+        i += len(op)
+        if op in REDIRECTS:
+            expect = "redirect"
+        elif op in ("<<", "<<-"):
+            expect = op
+        elif op in ("<&", "<<<", "<"):
+            expect = "skip"
+        if op == "\n" and pending:
+            for delim, strip, owner in pending:
+                body = []
+                while i < n:
+                    j = text.find("\n", i)
+                    line = text[i:] if j < 0 else text[i:j]
+                    i = n if j < 0 else j + 1
+                    if (line.lstrip("\t") if strip else line) == delim:
+                        break
+                    body.append(line)
+                owner.bodies.append("\n".join(body))
+            pending = []
+        if op in SEPARATORS:
+            expect = None
+            segs.append(seg)
+            seg = Seg()
+    end_word()
+    segs.append(seg)
+    return [s for s in segs if s.words or s.redirects or s.bodies]
+
+
+def command(words):
+    """(コマンドの名前, 引数) を返す。前に置いた変数・語・ラッパー（xargs -n 1・sudo -u x・mise exec --）を飛ばす。"""
+    k = 0
+    while k < len(words) and (words[k] in KEYWORDS or re.match(r"^[A-Za-z_]\w*=", words[k])):
+        k += 1
+    if k < len(words) and os.path.basename(words[k]) in WRAPPERS:
+        for m in range(k + 1, len(words)):
+            name = os.path.basename(words[m])
+            if name in EDITORS or INTERP.match(name):
+                return name, words[m + 1:]
+        return os.path.basename(words[k]), words[k + 1:]
+    return (os.path.basename(words[k]), words[k + 1:]) if k < len(words) else ("", [])
+
+
+def resolve(path, cur):
+    """根からの相対のパスにする。根の外か分からなければ None。"""
+    if path.startswith(ROOT):
+        return posixpath.normpath(path[len(ROOT):].lstrip("/") or ".")
+    if cur is None or path.startswith("/") or path.startswith("$") or path.startswith("~"):
+        return None
+    p = posixpath.normpath(posixpath.join(cur, path))
+    return None if p.startswith("..") else p
+
+
+def is_target(path, cur):
+    p = resolve(path, cur)
+    return bool(p and TARGET.match(p))
+
+
+def literal_targets(script, cur, js=False):
+    """スクリプトの中の、検査のシェルを指す文字列（読むだけ・走らせるだけのものを除く）。js は `…` のテンプレート文字列も見る
+    （python の文の中の `tests/x.sh` は Markdown のコードなので見ない）。"""
+    hits = []
+    for m in (LITERAL_JS if js else LITERAL).finditer(script):
+        v = m.group(2)
+        before, after = script[max(0, m.start() - 40):m.start()], script[m.end():m.end() + 20]
+        if RUN_BEFORE.search(before) or VALUE_BEFORE.search(before) or read_only(before, after):
+            continue
+        v = v.replace("{", "x").replace("}", "")  # f'tests/{n}.sh'
+        p = resolve(v, cur)
+        if p and (TARGET.match(p) or (p == "tests" and JOIN_BEFORE.search(before))):
+            hits.append(v)
+    return hits
+
+
+def flag(args, *names):
+    """-c・-e の後ろの語（スクリプト）と、その後ろの引数を返す。"""
+    for k, a in enumerate(args):
+        if a in names and k + 1 < len(args):
+            return args[k + 1], args[k + 2:]
+    return None, None
+
+
+def denied(text, cur, whole, depth=0):
+    if depth > 3:
+        return False
+    for seg in scan(text):
+        name, args = command(seg.words)
+        if name == "cd":
+            dest = next((a for a in args if not a.startswith("-")), None)
+            # cd "$S/old" のように行き先が変数で分からないときは、根の外（作業用の写しなど）と見る
+            cur = None if dest is None or dest == "-" else resolve(dest, cur)
+            continue
+        # 1. sed -i・perl -i
+        if name in ("sed", "gsed") and any(a == "--in-place" or a.startswith("--in-place=") or re.match(r"^-[A-Za-z]*i", a) for a in args):
+            if any(is_target(a, cur) for a in args if not a.startswith("-")):
+                return True
+        if name == "perl" and any(re.match(r"^-[pnlaw0-9]*i", a) for a in args):
+            if any(is_target(a, cur) for a in args if not a.startswith("-")):
+                return True
+        # 二重引用符の中のコマンドの置き換え（"$(sed -i … tests/x.sh)"）
+        if any(denied(sub, cur, sub, depth + 1) for sub in seg.subs):
+            return True
+        # 2. リダイレクトと tee
+        if any(is_target(r, cur) for r in seg.redirects):
+            return True
+        if name == "tee" and any(is_target(a, cur) for a in args if not a.startswith("-")):
+            return True
+        # 4. bash・sh の heredoc と -c
+        if name in SHELLS:
+            script, _ = flag(args, "-c")
+            for inner in ([script] if script else []) + seg.bodies:
+                if denied(inner, cur, inner, depth + 1):
+                    return True
+            continue
+        # 3. python・node・perl のスクリプト。ファイルへ置く heredoc の本文も
+        if INTERP.match(name):
+            script, rest = flag(args, "-c", "-e")
+            if script is None:
+                rest = [a for a in args if a != "-"]
+            scripts = ([script] if script else []) + seg.bodies
+            argv = [a for a in (rest or []) if is_target(a, cur)]
+            if (argv or any(literal_targets(s, cur, name == "node") for s in scripts)) and (any(WRITE.search(s) for s in scripts) or WRITE.search(whole)):
+                return True
+        else:
+            for body in seg.bodies:
+                if literal_targets(body, cur) and WRITE.search(body):
+                    return True
+    return False
+
+
+def main():
+    try:
+        data = json.load(sys.stdin)
+    except Exception:
+        return
+    if not isinstance(data, dict) or data.get("tool_name") != "Bash":
+        return
+    cmd = (data.get("tool_input") or {}).get("command")
+    if not isinstance(cmd, str):
+        return
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else ""
+    root = (os.environ.get("CLAUDE_PROJECT_DIR") or cwd).rstrip("/")
+    cur = ""
+    if root and cwd:
+        rel = posixpath.relpath(cwd, root) if cwd.startswith("/") else None
+        cur = None if rel is None or rel.startswith("..") else ("" if rel == "." else rel)
+    if "tests" not in cmd and not (cur or "").startswith("tests"):
+        return
+    # 根の絶対パスと "$CLAUDE_PROJECT_DIR" を印に、"$PWD"/ を今の場所からの相対に置き換える
+    names = ([re.escape(root)] if len(root) > 1 else []) + [r'"\$\{?CLAUDE_PROJECT_DIR\}?"', r"\$\{?CLAUDE_PROJECT_DIR\}?"]
+    text = re.sub(r"(?:%s)(?=/|[\s;&|)'\"]|$)" % "|".join(names), ROOT, cmd)
+    text = re.sub(r'"\$\{?PWD\}?"/|\$\{?PWD\}?/', "", text)
+    try:
+        reason = REASON if denied(text, cur, text) else None
+    except Exception:
+        # 読み切れない呼び出しは、tests を含む以上、書き換えかもしれないので止める側に倒す
+        reason = REASON_ERROR
+    if reason:
+        json.dump({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason}}, sys.stdout, ensure_ascii=False)
+        sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        pass
+    sys.exit(0)
