@@ -34,21 +34,14 @@
   ],
   "$defs": {
     "issue": {
-      "description": "One issue: its issue.yaml as plain values with id set to the folder name, the same as kanban list --json prints. Any key of the ledger format is kept. An issue the command will not read carries id and broken only.",
+      "description": "One issue: its issue.yaml as plain values with id set to the folder name, the same as kanban list --json prints. Any key of the ledger format is kept. An issue the command will not read carries id and broken only; a reader treats any issue with broken as unreadable, as it does with kanban list --json.",
       "type": "object",
       "required": ["id"],
       "properties": {
         "id": { "description": "The issue folder's name.", "type": "string", "minLength": 1 },
         "broken": {
-          "description": "Why the issue is not read, in one line: symbolic link (issue.yaml or its folder is one), larger than 262144 bytes, has a YAML alias, or the reader's error.",
-          "type": "string",
-          "minLength": 1
+          "description": "On an issue the command will not read: why, in one line (symbolic link, larger than 262144 bytes, has a YAML alias, or the reader's error), and the issue carries id and broken only. An issue that is read keeps a broken key of its own as kanban list --json does, so its value is not checked here."
         }
-      },
-      "if": { "required": ["broken"] },
-      "then": {
-        "properties": { "id": true, "broken": true },
-        "additionalProperties": false
       }
     }
   }

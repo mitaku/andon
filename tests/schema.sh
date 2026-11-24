@@ -345,7 +345,6 @@ digest|.themes[1].figure|type steps focus
 digest|.concerns[0]|text issues
 digest-sent|.destinations[0]|kind at ok
 digest-sent|.destinations[1]|kind at ok channel
-issue-board|.issues[1]|id
 NESTED
 
 # 3b. 値と入れ子（pass|fail ｜ 例の key ｜ jq の式 ｜ 説明。jq の式は | を含んでよい。説明は含まない）
@@ -998,8 +997,7 @@ fail|issue-board|. + {more: 1}|board の形に more
 fail|issue-board|del(.since) + {more: 1}|history の形に older
 fail|issue-board|del(.since, .older)|board の形も history の形も持たない
 fail|issue-board|del(.since, .older) + {more: -1}|more が負
-fail|issue-board|.issues[1] += {title: "x"}|読めない課題に id と broken のほかのキー
-fail|issue-board|.issues[1].broken = ""|broken が空
+pass|issue-board|.issues[0] += {broken: null}|読めた課題が自分で持つ broken のキー（kanban list --json と同じに写す）
 fail|issue-board|.issues[0].id = ""|課題の id が空
 fail|issue-board|.issues[0] |= del(.id)|課題に id が無い
 fail|issue-board|.issues = {}|issues が並びでない
@@ -1106,7 +1104,7 @@ project|del(.properties.digest.properties.destinations.uniqueKeys)|digest の送
 project|del(."$defs".digest_destination.properties.channel.pattern)|digest の channel の形を外す
 issue-board|.required -= ["done"]|ボードの課題の必須から done を外す
 issue-board|del(.oneOf)|board と history の形の分け方を外す
-issue-board|del(."$defs".issue.then)|読めない課題のほかのキーを許す
+issue-board|del(."$defs".issue.required)|課題の id の必須を外す
 issue-board|.properties.since.pattern = "^.+$"|since の形を緩める
 LOOSE
   wait

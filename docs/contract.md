@@ -1317,7 +1317,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `done` | 片付いた列の名前（`columns` の最後の列） |
 | `since` | `board` だけ。渡された `--since` を UTC にしたもの。`--since` は省けない（24 時間の線を持つのはボードだけ） |
 | `issues[]` | `board` は範囲の課題を番号の順に、`history` は片付いた課題を `updated` の新しい順（同じ時刻は番号の新しい順、時刻の読めない課題は最後）に `--limit` の件数まで。1 件は `kanban list --json` が出す課題と同じ中身で、`issue.yaml` のキーと、フォルダの名前から取った `id` を持つ |
-| `issues[].broken` | 読めない課題だけ。`id` と、理由を 1 行で書いた `broken` だけを持つ |
+| `issues[].broken` | 読めない課題だけ。`id` と、理由を 1 行で書いた `broken` だけを持つ。読めた課題が `issue.yaml` に自分で `broken` のキーを持つときは、`kanban list --json` と同じにそのまま写す（読み手は、どちらも読めない課題として扱う。schema はこのキーの値を見ない） |
 | `older` | `board` だけ。`updated` が `--since` より前の片付いた課題の数。ウ・エ・オで範囲に入った課題も数える |
 | `more` | `history` だけ。条件に合うのに出さなかった課題の数 |
 

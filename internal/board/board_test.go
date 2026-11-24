@@ -553,6 +553,29 @@ func TestValuesLikeKanban(t *testing.T) {
 	}
 }
 
+// 読めた課題が自分で broken というキーを持っていても、kanban list --json と同じに写し、出力は schema を通る（落ちない）
+func TestOwnBrokenKey(t *testing.T) {
+	f := newFake(t)
+	for i, v := range []string{"yes", `""`, "null", "5"} {
+		f.issue(fmt.Sprintf("S-%04d", i+1), "doing", fresh, "broken: "+v)
+	}
+	t.Setenv("KANBAN_ROOT", f.root)
+	if rc, _, e := run(t, boardMain, "--json", "--since", since.Format(time.RFC3339)); rc != 0 {
+		t.Fatalf("board: rc %d %s", rc, e)
+	}
+	f.issue("S-0009", "done", fresh, "broken: yes")
+	if rc, _, e := run(t, historyMain, "--json"); rc != 0 {
+		t.Fatalf("history: rc %d %s", rc, e)
+	}
+	b := boardJSON(t, f.root)
+	var got struct {
+		Issues []map[string]any `json:"issues"`
+	}
+	if err := json.Unmarshal(b, &got); err != nil || len(got.Issues) != 5 || got.Issues[0]["broken"] != "yes" || got.Issues[0]["status"] != "doing" {
+		t.Fatalf("issues = %v (%v)", got.Issues, err)
+	}
+}
+
 // kanban/issues が symlink なら、先を読まずに断る
 func TestIssuesDirSymlink(t *testing.T) {
 	f := newFake(t)
