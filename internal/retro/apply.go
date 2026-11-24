@@ -389,8 +389,9 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	if pl.Who == "worker" {
 		b.WriteString("完了条件: 期待する効果が、直す先の段で確かめられる形で入る。段がテストか確かめなら、根拠の出来事を写した入力で直す前に落ち、直したあと通る。\n")
 		// paths の範囲だけを言うと、paths の文を固定する検査と同じ文の写しに手を出すかで担当が迷う。直してよい所をその2つに限って書く
-		b.WriteString("守ること: 直す先の段と paths の範囲で直す。paths の変更で落ちる検査と、paths の文をそのまま写した所（docs など）は、paths に無くても同じ PR で直してよい。" +
-			"それより外は直さず、報告の ## Next に1行書く。上の段で止められるなら下の段で直さない。PR は worker skill §3 の「改善の PR」の決まりで出す" +
+		// 振る舞いを止めて落ちる検査と、書き換えない ADR・決定の記録は許す所に入れない
+		b.WriteString("守ること: 直す先の段と paths の範囲で直す。paths の文を字面で確かめる検査と、paths の文をそのまま写した所（docs など。docs/adr/ と docs/decisions/ の記録は除く）は、" +
+			"paths に無くても同じ PR で直してよい。それより外は直さず、報告の ## Next に1行書く。上の段で止められるなら下の段で直さない。PR は worker skill §3 の「改善の PR」の決まりで出す" +
 			"（ラベル retro。本文に根拠の課題番号の一覧・オーナーのコメントやオーナーが打った文の本文・人の名前を書かない）。\n")
 	}
 	b.WriteString("\n## 根拠（セルの中の記録。PR に写さない）\n")

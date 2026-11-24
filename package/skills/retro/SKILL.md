@@ -86,7 +86,7 @@ r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/H
 - `skill` と `text` を選ぶなら、`not_upstream` に「なぜ上の3段で止められないか」を1行書く（無いと command が断る）。「機械が確かめる値が無い（文で決まること）」のように具体的に。
 - **削る**（`action: remove`）も直し。効いていない指示・モデルが替わって要らなくなった指示を消す。前の直しで再発した文は、まず削る候補にする。
 - 直す先（`target`）: `kind: project` は案件の repo（テスト・`AGENTS.md`・`REVIEW.md` など。`repo` はプロジェクトの `repos` の1つ）。`kind: andon` は Andon のパッケージ（skill・プロファイル・hook・設定・gate の条件表。`repo` は Andon の repo を持っていれば書く）。`paths` は repo の中の相対パス。
-- **`paths` を選ぶとき、直す文を固定する検査と同じ文の写しも拾う。** 直す文の一部で repo を grep し（`git -C "$r" grep -n '<直す文の一部>' -- tests docs package internal`）、その文を字面で確かめる検査（`tests/package.sh` など）と、その文をそのまま写した所（`docs/` など）を `paths` に足す。語が似ているだけの所は足さない。
+- **`paths` を選ぶとき、直す文を固定する検査と同じ文の写しも拾う。** 直す先の repo の clone（`r="$(ghq root)/<直す先の repo>"`）で、直す文の一部を既定の branch の木から探す（`git -C "$r" fetch -q origin && git -C "$r" grep -n -F '<直す文の一部>' origin/HEAD`。作業木は古い branch のことがあり、文の `[` や `.` は正規表現に読まれる）。当たったうち、その文を字面で確かめる検査（`tests/package.sh` など）と、その文をそのまま写した所（`docs/` など）を `paths` に足す。語が似ているだけの所と、書き換えない記録（`docs/adr/`・`docs/decisions/`）は足さない。
 - **検査を足すか変える直し**（誤りを見つけて落とすもの: テスト・lint・CI の検査・hook・command の確かめ。多くは `level: test`・`check`）は、`effect` の終わりに受け入れ条件を1文足す:
   `受け入れ条件: 根拠の誤りを戻した木で、足した検査が落ちる（andon issue record <id> --expect fail -- <検査の command> の記録を、報告の acceptance の行が run で指す）。`
   `effect` は直す課題の依頼書の「期待する効果:」の行になる。落ちない検査は、足しても何も止めない。誤りを戻した木は commit していない変更があってよい（落ちることを期待する記録だけの例外）。
