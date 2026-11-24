@@ -1564,6 +1564,32 @@ await check('kanban-board: andon issue board の older が無い・負・文字�
   }
 });
 
+await check('kanban-board: command の道で、課題自身の broken が偽（false・0・空の文字）なら読める課題として欄と表示先を保ち、真なら読めない課題にする。戻った道と同じ', async () => {
+  const good = JSON.parse(boardOut('sample-site').stdout);
+  const issues = good.issues.map((x) => (x.id === 'S-0001' ? { ...x, broken: false } : x.id === 'S-0002' ? { ...x, broken: 0 } : x.id === 'S-0006' ? { ...x, broken: '' } : x));
+  issues.push({ id: 'S-0010', title: 'Says broken', status: 'todo', broken: true });
+  const cell = await oldCell({ files: false, reply: (a) => (a[1] === 'board' ? { code: 0, stdout: JSON.stringify({ ...good, issues }), stderr: '' } : { code: 2, stdout: '', stderr: '' }) });
+  try {
+    cell.b.refresh(cell.cx);
+    await cell.settle();
+    assert.equal(cell.b.data.tasks.find((x) => x.id === 'S-0001')?.title, 'Open', 'broken: false の課題の欄が失われた');
+    oldScreen(cell, '偽の broken');
+    assert.ok(textIn(cell.draw()).some((x) => x.includes('S-0010 (true)')), '真の broken を読めない課題にしていない');
+  } finally {
+    await cell.done();
+  }
+  // The fixed scripts read the same issue.yaml the same way.
+  const files = await oldCell();
+  try {
+    await writeFile(`${files.root}/kanban/issues/S-0001/issue.yaml`, 'title: Open\nstatus: todo\nbroken: false\n');
+    files.b.refresh(files.cx);
+    await files.settle();
+    oldScreen(files, '戻った道の偽の broken');
+  } finally {
+    await files.done();
+  }
+});
+
 // What kanban-board runs (ADR-0042 acceptance 12): the programs named in its exec() calls, against a
 // fixed list. Nothing that writes the ledger, no network.
 await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決まった名前だけ（andon は waiting --json・issue board・issue history だけ）。README の What it runs に 3 つの andon の行がある（ADR-0042 受け入れ条件 12・ADR-0059 受け入れ条件 12）', async () => {

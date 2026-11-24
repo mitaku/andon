@@ -213,7 +213,9 @@ function fromBoard(root, issues) {
   const slug = slugOf(root), seen = new Set();
   return issues.filter((x) => x && typeof x === "object" && !Array.isArray(x) && typeof x.id === "string" && ID.test(x.id) && !seen.has(x.id) && seen.add(x.id)).map((x) => {
     const at = { id: x.id, slug, root, key: `${slug}/${x.id}` };
-    return x.broken != null ? { ...at, broken: String(x.broken).split("\n")[0] } : { ...x, ...at };
+    // Unreadable when `broken` holds a true value, as the fixed scripts' issue.yaml with its own `broken` is
+    // held (false, 0 or "" keep the issue readable; andon judges an issue's own key the same way).
+    return x.broken ? { ...at, broken: String(x.broken).split("\n")[0] } : { ...x, ...at };
   });
 }
 
