@@ -146,6 +146,24 @@ func LastStatusUntil(rows []Row, id, status string, until time.Time) (int, time.
 	return 0, time.Time{}, false
 }
 
+// MovedTo は rows の行ごとに、課題をほかの列から status の列へ動かした行か（rows と同じ長さ）。前の列も status の行
+// （片付いた課題への kanban done の打ち直し）は動いたうちに入れない。問いの行（question を持つ）は課題の列に数えない。
+// 履歴に前の列が無い課題の最初の行は動いたうちに入れる。
+func MovedTo(rows []Row, status string) []bool {
+	out := make([]bool, len(rows))
+	column := map[string]any{}
+	for i, r := range rows {
+		s, ok := r.Change["status"]
+		if !ok || r.Change["question"] != nil {
+			continue
+		}
+		id := CanonID(r.ID)
+		out[i] = s == status && column[id] != status
+		column[id] = s
+	}
+	return out
+}
+
 // union は区間を時刻の順に並べ、重なるものをつなぐ。
 func union(in []span) []span {
 	sort.Slice(in, func(i, j int) bool { return in[i].from.Before(in[j].from) })

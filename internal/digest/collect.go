@@ -343,11 +343,12 @@ func (c *collector) readJSON(path string, v any) bool {
 	return true
 }
 
-// doneAt は期間に done へ動いた課題と、その時刻。
+// doneAt は期間にほかの列から done へ動いた課題と、その時刻。片付いた課題への kanban done の打ち直しは動いたうちに入れない。
 func (c *collector) doneAt(rows []ledger.Row, in func(time.Time) bool) map[string]time.Time {
 	out := map[string]time.Time{}
-	for _, r := range rows {
-		if s, _ := r.Change["status"].(string); s == c.last {
+	moved := ledger.MovedTo(rows, c.last)
+	for i, r := range rows {
+		if moved[i] {
 			if at, err := time.Parse(timeLayout, r.At); err == nil && in(at) {
 				out[r.ID] = at
 			}

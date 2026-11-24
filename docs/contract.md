@@ -637,7 +637,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 | `flow.lead_time` | 期間にマージされた kanban の PR の、課題の `created` から `mergedAt` まで（中央値の時間） |
 | `flow.wait.<status>` | `log.jsonl` の `change.status` を辿り、期間の中でその状態にいた時間の、1件あたりの平均（最後の列を除く。入った時刻は `created`、`after` のある課題は `queued` から） |
 | `flow.question_open` | `asked` から `answered`（無ければ期間の終わり）までの、期間の中の時間の1問あたりの平均 |
-| `flow.closed` | 期間に最後の列へ動いた課題の数と、日数で割った値 |
+| `flow.closed` | 期間にほかの列から最後の列へ動いた課題の数と、日数で割った値（課題ごとに1回。片付いた課題への `kanban done` の打ち直しは動いたうちに入らない） |
 | `flow.wip_end` | 期間の終わりに、最初の列・`queued`・最後の列のどれでもない課題の数 |
 | `efficiency.merged_prs` | `report.json` の `pr`（無ければ最後の gate の記録の `pr`）が、期間に GitHub でマージされた課題の数 |
 | `efficiency.human_touches` | 期間に起きたオーナーの操作の数（一次の指標。[ADR-0049](adr/0049-owner-touches-by-kind.md)）。`total` は下の3つの和。`per_pr` は `total` ÷ `merged_prs`（`merged_prs` が 0 なら `null`。`total` は 0 でないことがある）。`log.jsonl` の `by` では数えない。PR の上のコメントと commit（`corrections.json`）も数えない |
