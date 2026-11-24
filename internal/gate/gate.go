@@ -141,7 +141,7 @@ const recordFact = "gate の記録 "
 
 // oldRecordFact は、2026-11-20 までの語で書いた recordFact の頭。動いているセルの kanban に開いたまま残る gate の問いを読むため、
 // 読む側だけが受ける（ADR-0040 決めたこと 7）。書く側は recordFact だけを使う。
-const oldRecordFact = "ゲートの記録 "
+const oldRecordFact = "ゲートの記録 " // 古い語を読む（ADR-0040 決めたこと 7）
 
 // RecordFact の行から、問いがどの head について出たかを QuestionHead で読む。
 func RecordFact(record string) string { return recordFact + record }
@@ -543,7 +543,7 @@ func baseFiles(slug, head, base string) ([]File, int, bool, error) {
 	return ParseCompare(b)
 }
 
-// ahead は分かれ目より後に既定ブランチにだけある commit の数。
+// ParseCompare の ahead は分かれ目より後に既定ブランチにだけある commit の数。
 func ParseCompare(b []byte) ([]File, int, bool, error) {
 	var v struct {
 		AheadBy *int `json:"ahead_by"`
@@ -636,7 +636,7 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	return checks, nil
 }
 
-// gh のアカウント（viewer）と repo の既定ブランチも一緒に読む（gate が作者と base を見る）。
+// checksQuery は PR の head の checks と一緒に、gh のアカウント（viewer）と repo の既定ブランチも読む（gate が作者と base を見る）。
 const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   viewer { login }
   repository(owner: $owner, name: $name) { defaultBranchRef { name } pullRequest(number: $number) { headRefOid

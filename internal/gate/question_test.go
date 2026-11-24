@@ -21,7 +21,7 @@ func TestQuestionHead(t *testing.T) {
 		{"行の頭が違う", []string{"記録 " + record}, ""},
 		// ADR-0040 決めたこと 7・受け入れ条件 3: 行の頭は新しい語で書き、古い語の行も同じに読む
 		{"新しい語の行の頭", []string{"gate の記録 " + record}, head},
-		{"古い語の行の頭", []string{"ゲートの記録 " + record}, head},
+		{"古い語の行の頭", []string{"ゲートの記録 " + record}, head}, // 古い語を読む（ADR-0040 決めたこと 7）
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

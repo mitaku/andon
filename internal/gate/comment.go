@@ -111,7 +111,7 @@ func fixed(s string) func([]string) string { return func([]string) string { retu
 // 記録の文を変えたら、ここと comment_test.go の recordReasons の両方を直す。
 var reasonRewrites = []rewrite{
 	// 2026-11-20 までの記録の文（「台帳の…」）も同じに読む（ADR-0040 決めたこと 7）
-	{regexp.MustCompile(`^(?:kanban |台帳)の課題が review でない（.*）$`), fixed("作業がまだ確認待ちになっていない")},
+	{regexp.MustCompile(`^(?:kanban |台帳)の課題が review でない（.*）$`), fixed("作業がまだ確認待ちになっていない")}, // 古い語を読む（ADR-0040 決めたこと 7）
 	{regexp.MustCompile(`^PR の branch（(.*)）が issue\.yaml の branch と違う$`), func(m []string) string {
 		return "PR の branch（" + m[1] + "）が、作業を始めたときの branch と違う"
 	}},

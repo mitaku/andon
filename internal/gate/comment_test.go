@@ -209,7 +209,7 @@ func TestCommentReasonOldWords(t *testing.T) {
 	const want = "作業がまだ確認待ちになっていない"
 	for _, r := range []string{
 		"kanban の課題が review でない（doing）",
-		"台帳の課題が review でない（doing）",
+		"台帳の課題が review でない（doing）", // 古い語を読む（ADR-0040 決めたこと 7）
 	} {
 		if got := outsideReason(r); got != want {
 			t.Errorf("outsideReason(%q) = %q, want %q", r, got, want)

@@ -339,7 +339,7 @@ func Raise(tier string) string {
 	return tier
 }
 
-// StaleRuns は記録を指す行のうち、記録の commit が head と違うもの（ADR-0035 決めたこと 2。戻さず、記録に出すだけ）。
+// AcceptanceCount の StaleRuns は記録を指す行のうち、記録の commit が head と違うもの（ADR-0035 決めたこと 2。戻さず、記録に出すだけ）。
 type AcceptanceCount struct {
 	Pass      int                 `json:"pass"`
 	Fail      int                 `json:"fail"`

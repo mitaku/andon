@@ -24,7 +24,7 @@ const (
 // descriptionLimit は commit status の説明文の上限（GitHub は 140 字を超えると断る）。
 const descriptionLimit = 140
 
-// 通した（approve）とオーナー待ち（needs_human）は緑、差し戻し（fix）は赤。wait と知らない判定は書かない（false）。
+// DecisionMark は、通した（approve）とオーナー待ち（needs_human）は緑、差し戻し（fix）は赤。wait と知らない判定は書かない（false）。
 func DecisionMark(decision string, reasons []string) (Mark, bool) {
 	switch decision {
 	case "approve", "needs_human":
