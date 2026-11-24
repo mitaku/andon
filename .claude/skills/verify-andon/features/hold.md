@@ -25,13 +25,13 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 
 - `scripts/doctor.sh` が終了コード 0。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hold <検証する commit>` を打つ（切り離して動かす道なので、commit は手順の記録に残るだけで、動かすのは今当たっている本物）。切り離した kanban に、担当の端末 `tw` が `kanban start` で受け持って `andon issue report --pr` で報告した課題と、理由の課題・片付いた課題を作り、Chief of Staff の端末 `tc` として止めて外す。偽の `gh` は、PR を読む `gh pr view <n> --repo <owner>/<repo> --json state,mergeCommit,headRefOid,statusCheckRollup`（印 `andon/gate` が緑の PR を返す）と、印を書く `gh api -X POST …/statuses/<sha>` だけを知る。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hold <検証する commit>` を打つ。切り離した kanban に、担当の端末 `tw` が `kanban start` で受け持って `andon issue report --pr` で報告した課題と、理由の課題・片付いた課題を作り、Chief of Staff の端末 `tc` として止めて外す。偽の `gh` は、PR を読む `gh pr view`（印 `andon/gate` が緑の PR を返す）と、印を書く `gh api -X POST …/statuses/<sha>` だけを知る。
 - **断られる。** `hd-refuse` の行が2つ出る。自分自身と片付いた課題を理由に渡した `andon issue hold` が終了コード 1 で理由1行を返し、`hold` が空のままで、`ok   hd-refuse` が2行見えれば動いた。
 - **止める。** `hd-hold` の行に `andon issue hold` の出力（「PR の印を黄にした」）、`kanban show` の `hold`、偽の `gh` への2つの呼び出し（`state=pending` と説明文「メンテナーの確認を待っています」）が出る。`ok   hd-hold` が見えれば動いた。
 - **gate が待つ。** `hd-gate-wait` の行に `andon gate` の終了コード 5 と、理由の課題を名指す `{"decision":"wait",…}` が出る。`ok   hd-gate-wait` が見えれば、GitHub を読まず記録も書いていない。
-- **担当が消しても止まる。** `hd-worker` の行の前に、担当 `tw` が `kanban set <id> hold=` を打った終了コードと今の `hold` が出る。道は、担当が消せた（`hold` が空で、`hold` を最後に変えた行が `terminal:tw`）ことを確かめてから `andon gate` を打つ。gate がまた wait を返し、`ok   hd-worker` が見えれば動いた。担当が消せていなければ `FAIL hd-worker: 担当が hold を消せていない` が出る（`hold` の欄が埋まったままだと gate はそれだけで wait を返し、担当が消した止めの読み方を通らない）。
+- **担当が消しても止まる。** `hd-worker` の行の前に、担当 `tw` が `kanban set <id> hold=` を打った終了コードと今の `hold` が出る。道は、担当が消せた（`hold` が空で、最後に変えた行が `terminal:tw`）ことを確かめてから `andon gate` を打つ。gate がまた wait を返し、`ok   hd-worker` が見えれば動いた。
 - **外す。** `hd-unhold` の行に `andon issue unhold` の出力（「止めを外した（理由の課題 …）」）と、もう一度外したときの「止めていない」が出る。`ok   hd-unhold` が2行見え、最後の `log.jsonl` の行で `hold` を最後に変えたのが `terminal:tc` なら動いた。
-- **dispatcher の巡で確かめる。** 続けて、偽のセルの repo（オーナーが条件表と委譲 preset work を commit したもの）のプロジェクト `hd` で、本物の `andon dispatcher --once --project hd` を回す。課題は担当が文書1行の PR を出して `andon issue ready` まで進めたもの（`review: off`・レベル A）。偽の `gh` は gate・マージ・読み直しの呼び出しを知るものに替え、`gh pr merge` は記録だけしてマージ済みにする。
+- **dispatcher の巡で確かめる。** 続けて、偽のセルの repo（オーナーが条件表と委譲 preset work を commit したもの）のプロジェクト `hd` で、本物の `andon dispatcher --once --project hd` を回す。課題は担当が文書1行の PR で `andon issue ready` まで進めたもの（レベル A）。偽の `gh` の `gh pr merge` は記録だけしてマージ済みにする。
   - `hd-dispatch-hold`: `merge: auto` の課題を止めてから回す。巡の出力と偽の `gh` への呼び出しが出る。gate の記録が無く、`gh pr merge` が呼ばれず、課題が review のままで、`ok   hd-dispatch-hold` が見えれば動いた。
   - `hd-dispatch-release`: 止めを外してまた回す。dispatcher の「PR … をマージした」の行・`gh pr merge … --match-head-commit <sha>`・gate の記録（`approve`・レベル A）が出て、`ok   hd-dispatch-release` が見えれば、止めがマージを止めていた。
   - `hd-dispatch-discard`: `merge: person` の課題で gate に approve を決めさせてから止め、`merge: auto` に書き換えて回す。dispatcher の「… は gate の判定（approve）のあとに止められた。判定を捨てて gate の問いを閉じる」の行が出て、`gh pr merge` が呼ばれず、`ok   hd-dispatch-discard` が見えれば動いた。
@@ -57,6 +57,8 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 ## 落とし穴
 
 - 止めの読み方は、`hold` を消した端末が課題の `agent` に書かれた端末かで決まる。担当の端末を `agent` にしないで消させると、止めが外れたと読まれ `hd-worker` が落ちる。道は担当に `kanban start` で受け持たせる。
+- 担当が `hold` を消せていなければ `FAIL hd-worker: 担当が hold を消せていない` が出る。`hold` の欄が埋まったままだと gate はそれだけで wait を返し、担当が消した止めの読み方を通らないので、ok にしない。
+- 「動かし方」の節は 4KB 未満に保つ。`tests/verify-andon.sh` はこの節を `sed | grep -q` で読み、節が大きいと pipefail の下で sed が SIGPIPE で落ちて、検査が「drive.sh を名指さない」と誤って落ちる。細かい話は落とし穴に書く。
 - 担当が消した行と Chief of Staff が外した行は、どちらも `log.jsonl` に `"hold":null` で残る。外したかは値でなく、最後に変えた行の `by` で読む。
 - 印を書くのは、gate が今の commit を渡しているとき（印が緑か、この回の gate の判定が approve・needs_human）だけ。偽の PR の印を緑にしないと、`andon issue hold` は「まだ渡していないので印は書かない」と返し、`hd-hold` が落ちる。
 - 検証の担当は、セルの本物の課題に `andon issue hold`・`unhold`・`andon gate` を打たない。本物の PR の印と、Chief of Staff の止めを書き換える。
