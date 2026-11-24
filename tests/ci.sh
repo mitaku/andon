@@ -320,7 +320,10 @@ ok "run: 2本目は理由を1行出して1本目が終わるまで待つ。鍵�
 # 4. isolation: 番兵に数千のファイルを書かれても、出力はフォルダごとの件数のまとめで1画面に収まり、全部の差分はファイルに残る。
 #    まとめに隠れずに、別の置き場への小さな書き込みと読んだファイルも出る。go test を偽の go に替えて、tests/isolation を回す。
 #    偽の go は、mise の shim が番兵の HOME へ go を入れ直した形（2000 のファイル）・60 のフォルダへの書き込み・
-#    セルの repo の根の1ファイルの書き換え・番兵の1ファイルの読みをする。偽の mise は go の場所だけを答え、偽の kanban は何もしない
+#    mise と同じ上のフォルダ（XDG_DATA_HOME）の別の置き場への1ファイル・セルの repo の根の1ファイルの書き換え・番兵の1ファイルの読みをする。
+#    偽の mise は go の場所だけを答え、偽の kanban は何もしない。
+#    CI の形（GITHUB_ACTIONS=true）で回す: 一時の置き場は job と一緒に消えるので、全部の差分を畳んだ group でログにも出す。
+#    GITHUB_STEP_SUMMARY は外す（入れ子の run-tests.sh が、在りもしない検査の表を job の summary に足さないように）
 iso=$tmp/iso
 mkdir -p "$iso/bin" "$iso/tmp"
 cat >"$iso/bin/go" <<'EOF'
@@ -331,6 +334,7 @@ case "$1" in
     d=$HOME/.local/share/mise/installs/go/9.9.9/src
     mkdir -p "$d" && (cd "$d" && seq 2000 | sed 's/$/.go/' | xargs touch)
     for i in $(seq 60); do mkdir -p "$HOME/.cache/many/d$i" && : >"$HOME/.cache/many/d$i/f"; done
+    mkdir -p "$XDG_DATA_HOME/andon" && echo '{}' >"$XDG_DATA_HOME/andon/state.json"
     echo x >>"$ANDON_WORKSPACE/AGENTS.local.md"
     cat "$HOME/.claude/CLAUDE.md" >/dev/null ;;
 esac
@@ -339,30 +343,42 @@ printf '#!/usr/bin/env bash\n[ "$1 $2" = "which go" ] || exit 1\necho "$(dirname
 printf '#!/usr/bin/env bash\nexit 0\n' >"$iso/bin/kanban"
 chmod +x "$iso/bin/go" "$iso/bin/mise" "$iso/bin/kanban"
 set +e
-env PATH="$iso/bin:$PATH" TMPDIR="$iso/tmp" bash tests/isolation tests/no-such-test.sh >"$iso/out" 2>&1
+env -u GITHUB_STEP_SUMMARY PATH="$iso/bin:$PATH" TMPDIR="$iso/tmp" GITHUB_ACTIONS=true \
+  bash tests/isolation tests/no-such-test.sh >"$iso/out" 2>&1
 st=$?
 set -e
-if grep -q 'atime が動かない' "$iso/out"; then
-  echo "skip isolation のまとめ（一時の置き場の atime が動かない。$(grep 'atime が動かない' "$iso/out")）"
+# seen は畳んだ group の外（ログを開いて目に入る行）。まとめの確かめは seen だけを見る（group の中の全部の差分に当てない）。
+# die で出すのは seen だけで、入れ子の run-tests.sh の ::error の行も外す（ci.sh が落ちたときに、在りもしない検査の注記を CI に出さない）
+awk '/^::group::/ { g = 1; next } /^::endgroup::/ { g = 0; next } !g' "$iso/out" >"$iso/seen"
+outside() { grep -v '^::' "$iso/seen" | head -c 3000; }
+inside() { awk '/^::group::全部の差分/ { g = 1; next } /^::endgroup::/ { g = 0 } g' "$iso/out"; }
+if grep -q 'atime が動かない' "$iso/seen"; then
+  echo "skip isolation のまとめ（一時の置き場の atime が動かない。$(grep 'atime が動かない' "$iso/seen")）"
 else
-  [ "$st" = 1 ] || die "isolation: 番兵に書いても 1 で終わらない（exit $st）: $(tail -5 "$iso/out")"
-  lines=$(wc -l <"$iso/out")
-  [ "$lines" -le 60 ] || die "isolation: 番兵に 2000 のファイルを書かれた出力が $lines 行（60 行を超え、どこに書いたかが1画面で分からない）: $(head -c 2000 "$iso/out")"
-  # 60 のフォルダは 4 段では 40 か所を超えるので、3 段に浅くして全部を出す（「ほか」に隠さない）
-  grep -qF 'FAIL 検査が番兵（セルの本物の代わり）に書いた: ' "$iso/out" || die "isolation: 書いたことの見出しが無い: $(cat "$iso/out")"
-  grep -qF '（上から 3 段のフォルダごと。多い順）' "$iso/out" || die "isolation: か所が 40 を超えたのに段を浅くしない: $(cat "$iso/out")"
-  grep -q 'ほか .* か所' "$iso/out" && die "isolation: 段を浅くすれば出せるか所を「ほか」に隠した: $(cat "$iso/out")"
-  # 数は増えたもの（2000 のファイルと入れ子のフォルダ）を数える
-  n=$(sed -nE 's|^  増えた +([0-9]+) .*  \./home/\.local/share$|\1|p' "$iso/out")
-  [ -n "$n" ] && [ "$n" -ge 2000 ] || die "isolation: mise の置き場（./home/.local/share）に増えた数が出ない（$n）: $(cat "$iso/out")"
-  n=$(sed -nE 's|^  増えた +([0-9]+) .*  \./home/\.cache/many$|\1|p' "$iso/out")
-  [ -n "$n" ] && [ "$n" -ge 120 ] || die "isolation: 60 のフォルダ（./home/.cache/many）に増えた数が出ない（$n）: $(cat "$iso/out")"
-  grep -qE '^  増えた +0  消えた +0  変わった +1  \./AGENTS\.local\.md$' "$iso/out" || die "isolation: 1ファイルの書き換え（./AGENTS.local.md）がまとめに隠れた: $(cat "$iso/out")"
-  grep -qxF '  ./home/.claude/CLAUDE.md' "$iso/out" || die "isolation: 読んだファイルが出ない: $(cat "$iso/out")"
-  keep=$(sed -n 's/^  全部の差分: //p' "$iso/out")
-  [ -n "$keep" ] && [ -s "$keep" ] || die "isolation: 全部の差分を残したファイルのパスが出ないか、ファイルが無い（$keep）: $(cat "$iso/out")"
-  [ "$(sed -n 's/^  全部: //p' "$iso/out")" = "$keep" ] || die "isolation: 読んだファイルの全部を、差分と同じファイルに残さない: $(cat "$iso/out")"
+  [ "$st" = 1 ] || die "isolation: 番兵に書いても 1 で終わらない（exit $st）: $(outside)"
+  lines=$(wc -l <"$iso/seen")
+  [ "$lines" -le 60 ] || die "isolation: 番兵に 2000 のファイルを書かれた出力が、畳んだ group の外に $lines 行（60 行を超え、どこに書いたかが1画面で分からない）: $(outside)"
+  grep -qF 'FAIL 検査が番兵（セルの本物の代わり）に書いた: ' "$iso/seen" || die "isolation: 書いたことの見出しが無い: $(outside)"
+  # 60 のフォルダは 40 か所を超えるので、そのフォルダだけを1つ上（./home/.cache/many）にまとめる。
+  # ほかの置き場は細かいまま出す（mise と同じ上のフォルダの andon の1ファイルが、mise の塊に溶けない）。「ほか」にも隠さない
+  grep -q '\./home/\.cache/many/d[0-9]' "$iso/seen" && die "isolation: か所の多いフォルダを1つ上にまとめない: $(outside)"
+  grep -q 'ほか .* か所' "$iso/seen" && die "isolation: まとめれば出せるか所を「ほか」に隠した: $(outside)"
+  n=$(sed -nE 's|^  増えた +([0-9]+) .*  \./home/\.local/share/mise$|\1|p' "$iso/seen")
+  [ -n "$n" ] && [ "$n" -ge 2000 ] || die "isolation: mise の置き場（./home/.local/share/mise）に増えた数が出ない（$n）: $(outside)"
+  n=$(sed -nE 's|^  増えた +([0-9]+) .*  \./home/\.cache/many$|\1|p' "$iso/seen")
+  [ -n "$n" ] && [ "$n" -ge 120 ] || die "isolation: 60 のフォルダ（./home/.cache/many）に増えた数が出ない（$n）: $(outside)"
+  grep -qE '^  増えた +2  消えた +0  変わった +0  \./home/\.local/share/andon$' "$iso/seen" || die "isolation: mise と同じ上のフォルダの別の置き場への1ファイル（./home/.local/share/andon）が、mise の塊に溶けた: $(outside)"
+  grep -qE '^  増えた +0  消えた +0  変わった +1  \./AGENTS\.local\.md$' "$iso/seen" || die "isolation: 1ファイルの書き換え（./AGENTS.local.md）がまとめに隠れた: $(outside)"
+  grep -qxF '  ./home/.claude/CLAUDE.md' "$iso/seen" || die "isolation: 読んだファイルが出ない: $(outside)"
+  keep=$(sed -n 's/^  全部の差分: //p' "$iso/seen")
+  [ -n "$keep" ] && [ -s "$keep" ] || die "isolation: 全部の差分を残したファイルのパスが出ないか、ファイルが無い（$keep）: $(outside)"
+  [ "$(sed -n 's/^  全部: //p' "$iso/seen")" = "$keep" ] || die "isolation: 読んだファイルの全部を、差分と同じファイルに残さない: $(outside)"
   [ "$(grep -cE '^> .*/installs/go/9\.9\.9/src/[0-9]+\.go( |$)' "$keep")" -ge 4000 ] || die "isolation: 残したファイルに全部の差分（2000 のファイルの stat と sha256）が無い: $(head -c 2000 "$keep")"
   grep -qxF './home/.claude/CLAUDE.md' "$keep" || die "isolation: 残したファイルに読んだファイルが無い"
-  ok "isolation: 番兵に数千のファイルを書かれても、フォルダごとの件数のまとめは $lines 行。小さな書き込みと読んだファイルも出し、全部の差分はファイルに残す"
+  # CI では一時の置き場が job と一緒に消えるので、全部を畳んだ group でログにも出す。まとめは group の後ろ（ログの終わり）に出す
+  [ "$(inside | grep -cE '^> .*/installs/go/9\.9\.9/src/[0-9]+\.go( |$)')" -ge 4000 ] && inside | grep -qxF './home/.claude/CLAUDE.md' \
+    || die "isolation: CI（GITHUB_ACTIONS=true）で、全部の差分と読んだファイルを畳んだ group でログに出さない: $(outside)"
+  [ "$(grep -n '^::endgroup::' "$iso/out" | tail -1 | cut -d: -f1)" -lt "$(grep -n '^FAIL 検査が番兵（セルの本物の代わり）に書いた: ' "$iso/out" | cut -d: -f1)" ] \
+    || die "isolation: CI で、まとめが全部の差分の group より前にある（ログの終わりに出ない）: $(outside)"
+  ok "isolation: 番兵に数千のファイルを書かれても、フォルダごとの件数のまとめは $lines 行。小さな書き込みと読んだファイルも出し、全部の差分はファイル（CI では畳んだ group にも）に残す"
 fi
