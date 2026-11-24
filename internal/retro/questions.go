@@ -45,6 +45,13 @@ type askedQuestion struct {
 	From string `json:"from"`
 }
 
+// questionKinds と questionFroms は questions[] に入れる問いの kind と from（schema/retro.schema.json の question）。
+// from の空は、問いの JSON に from が無い問い（null で出す）。
+var (
+	questionKinds = map[string]bool{"business": true, "users": true, "promise": true, "irreversible": true, "line": true}
+	questionFroms = map[string]bool{"": true, "issue": true, "retro": true, "chief-of-staff": true, "chief-engineer": true}
+)
+
 // questions は期間（since より後、until まで）に聞かれた問いを、聞いた時刻の順に並べる。gate の問い（from: gate）と
 // 範囲の問い（kind: scope）は入れない。問いの JSON が無い・読めない問いは、gate の問いかを決められないので入れず、skipped に1行。
 func (r *reader) questions(tasks []*task, since, until time.Time) []Question {
@@ -81,6 +88,11 @@ func (r *reader) questions(tasks []*task, since, until time.Time) []Question {
 				continue
 			}
 			if a.From == "gate" || a.Kind == "scope" {
+				continue
+			}
+			if !questionKinds[a.Kind] || !questionFroms[a.From] {
+				// 前のバージョンの値（from: task など）か知らない値。載せると出力が schema に落ち、collect 全体が出ない
+				r.skip(r.rel(jp), "問いの kind か from が知らない値（入れていない）")
 				continue
 			}
 			x := Question{Issue: t.id, N: q.N, From: strPtr(a.From), Kind: a.Kind, Question: a.Question,

@@ -137,6 +137,9 @@ type Summary struct {
 	Gaps        []GapRef `json:"gaps"`
 }
 
+// gapKinds は申告の種類（schema/report.schema.json の gaps の kind）。ほかの値の申告は要約に載せない（載せると出力が schema に落ちる）。
+var gapKinds = map[string]bool{"missing": true, "wrong": true, "hard_to_find": true}
+
 // GapRef は要約の束に載せる申告1件の種類と先（本文は載せない。ADR-0061 決めたこと 9）。
 type GapRef struct {
 	Kind  string `json:"kind"`
@@ -745,8 +748,8 @@ func (r *reader) summary(b Bundle) Summary {
 		g, _ := x.(map[string]any)
 		kind, _ := g["kind"].(string)
 		where, _ := g["where"].(string)
-		if kind == "" || where == "" {
-			r.skip(r.rel(filepath.Join(b.Library, "report.json")), "申告に kind か where が無い（要約に載せていない）")
+		if !gapKinds[kind] || where == "" {
+			r.skip(r.rel(filepath.Join(b.Library, "report.json")), "申告の kind が知らない値か、where が無い（要約に載せていない）")
 			continue
 		}
 		s.Gaps = append(s.Gaps, GapRef{Kind: kind, Where: where})

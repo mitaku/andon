@@ -2,7 +2,9 @@ package retro
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -117,5 +119,100 @@ func TestPatternEvidenceRefusesQuestion(t *testing.T) {
 		Options: []QOption{{Label: "a", Pick: true}, {Label: "b"}}, AskedAt: ago(1 * day)}}
 	for _, ev := range []string{"S-0050", "S-0050#1"} {
 		wantRefused(t, checkOne(t, pattern("S-0012", ev), in), "集めた入力")
+	}
+}
+
+// 要約の束の申告の kind が schema の値の外（前後のバージョン・手で書いた report.json）なら、要約に載せず skipped に回す。
+// 載せると出力が schema/retro.schema.json に落ち、collect 全体が出ない。
+func TestSummaryGapsUnknownKind(t *testing.T) {
+	r := &reader{o: Options{Root: t.TempDir()}}
+	s := r.summary(Bundle{Library: "/x/library", Gaps: []any{map[string]any{"kind": "stale", "where": "AGENTS.md", "text": "x"}}})
+	if len(s.Gaps) != 0 || len(r.skipped) != 1 {
+		t.Errorf("知らない種類の申告: gaps = %+v、skipped = %+v", s.Gaps, r.skipped)
+	}
+}
+
+// 問いの JSON の from か kind が今の値の外（前のバージョンの from: task など）なら入れず skipped に回し、collect は出力を出す。
+func TestQuestionsUnknownFromOrKind(t *testing.T) {
+	f := questionsFixture(t)
+	is := filepath.Join(f.root, "kanban", "issues", "A-0009")
+	write(t, filepath.Join(is, "questions.yaml"), "- n: 1\n  text: 問い\n  asked: \""+ago(1*day)+"\"\n- n: 2\n  text: 問い\n  asked: \""+ago(1*day)+"\"\n")
+	write(t, filepath.Join(is, "library", "questions", "1.json"), `{"kind":"line","question":"古い","options":[{"label":"a","pick":true},{"label":"b"}],"from":"task"}`)
+	write(t, filepath.Join(is, "library", "questions", "2.json"), `{"kind":"future","question":"新しい種類","options":[{"label":"a","pick":true},{"label":"b"}],"from":"chief-engineer"}`)
+	in, _ := f.collect(t) // schema に落ちれば collect が t.Fatal
+	if len(in.Questions) != 1 || in.Questions[0].Issue != "A-0005" {
+		t.Errorf("questions = %+v", in.Questions)
+	}
+	n := 0
+	for _, s := range in.Skipped {
+		if strings.Contains(s.Source, filepath.Join("A-0009", "library", "questions")) {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("知らない from・kind の問いは skipped に1行ずつ: %+v", in.Skipped)
+	}
+}
+
+// 申告の種類と問いの kind・from の表が、元の schema（report・question）と振り返りの入力の schema の値と揃っている。
+// 元の schema に値を足して表と振り返りの schema を直し忘れると落ちる。
+func TestKindTablesMatchSchemas(t *testing.T) {
+	load := func(name string) any {
+		b, err := os.ReadFile(filepath.Join("..", "..", "schema", name+".schema.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	at := func(m any, path ...any) any {
+		for _, k := range path {
+			switch k := k.(type) {
+			case string:
+				m = m.(map[string]any)[k]
+			case int:
+				m = m.([]any)[k]
+			}
+		}
+		return m
+	}
+	set := func(v any, drop string) []string {
+		var out []string
+		for _, x := range v.([]any) {
+			if s := x.(string); s != drop {
+				out = append(out, s)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	keys := func(m map[string]bool) []string {
+		var out []string
+		for k := range m {
+			if k != "" {
+				out = append(out, k)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	report, question, retro := load("report"), load("question"), load("retro")
+	for _, c := range []struct {
+		name      string
+		got, want []string
+	}{
+		{"申告の種類（report）", keys(gapKinds), set(at(report, "properties", "gaps", "items", "properties", "kind", "enum"), "")},
+		{"申告の種類（retro の要約）", keys(gapKinds), set(at(retro, "$defs", "summary", "properties", "gaps", "items", "properties", "kind", "enum"), "")},
+		{"問いの kind（question から scope を除く）", keys(questionKinds), set(at(question, "properties", "kind", "enum"), "scope")},
+		{"問いの kind（retro）", keys(questionKinds), set(at(retro, "$defs", "question", "properties", "kind", "enum"), "")},
+		{"問いの from（question から gate を除く）", keys(questionFroms), set(at(question, "properties", "from", "enum"), "gate")},
+		{"問いの from（retro）", keys(questionFroms), set(at(retro, "$defs", "question", "properties", "from", "anyOf", 0, "enum"), "")},
+	} {
+		if strings.Join(c.got, " ") != strings.Join(c.want, " ") {
+			t.Errorf("%s: 表 %v、schema %v", c.name, c.got, c.want)
+		}
 	}
 }
