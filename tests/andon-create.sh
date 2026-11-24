@@ -7,7 +7,7 @@ for c in jq git; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; e
 tmp=$(mktemp -d)
 trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 # go の shim（mise）は道具を HOME の下から引く。HOME を一時に向ける前に go の実体を PATH の先に置き、一時の HOME に go を取り直させない
-if command -v go >/dev/null; then PATH="$(go env GOROOT)/bin:$PATH"; fi
+if goroot=$(cd "$(dirname "$0")/.." && { go env GOROOT || mise exec -- go env GOROOT; } 2>/dev/null); then PATH="$goroot/bin:$PATH"; fi
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOMODCACHE="$tmp/gomodcache" GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
 mkdir -p "$HOME"
 . "$(dirname "$0")/lib/andon.sh"
