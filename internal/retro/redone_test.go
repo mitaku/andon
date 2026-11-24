@@ -7,8 +7,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 片付いた課題に done を打ち直しても、片付いた時刻を動かさない（前の振り返りが集めた課題を新しい束に戻さない）。
-// 戻してから片付ければ、その時刻にする。
 func TestDoneTimesSkipsRedone(t *testing.T) {
 	row := func(at, status string) ledger.Row {
 		return ledger.Row{At: at, By: "terminal:t1", ID: "S-0001", Change: map[string]any{"status": status}}

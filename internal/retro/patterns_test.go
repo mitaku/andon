@@ -10,9 +10,6 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// patternsInput は根拠の照合に使う、集めた入力の代わり。
-// S-0011 は前の振り返り（S-0010、2日前に片付いた）より前、S-0012・S-0013 は後に片付いた。
-// h-a・h-b は Chief of Staff の同じセッション、h-c は別のセッション、h-w は S-0012 の担当のセッション、h-r は S-0012 のレビュアーのセッション。
 func patternsInput() *Input {
 	issue := func(id string) *string { return &id }
 	pr := "https://github.com/example/sample-site/pull/12"
@@ -248,9 +245,6 @@ func TestPlan(t *testing.T) {
 	if strings.Contains(pl.Brief, "オーナーが打った本文") {
 		t.Errorf("依頼書にオーナーの文の本文が入った")
 	}
-	// 守ることの行が paths の範囲だけを言うと、paths の文を固定する検査と同じ文の写しを直してよいかで担当が迷う。
-	// 行は、paths の文を字面で確かめる検査と paths の文の写しを同じ PR で直してよいと書き、それより広くは許さない。
-	// 振る舞いを止めて落ちる検査と、書き換えない ADR・決定の記録は許す所に入らない
 	keep := ""
 	for _, line := range strings.Split(pl.Brief, "\n") {
 		if strings.HasPrefix(line, "守ること: ") {
@@ -282,11 +276,9 @@ func TestPlan(t *testing.T) {
 	}
 }
 
-// 前の振り返りは、期間の終わりまでに片付いたものだけ。パターンの一覧を書く・当てる振り返りの課題自身は数えない。
 func TestPreviousRetroExcludesSelfAndLater(t *testing.T) {
 	f := newFixture(t)
 	k := filepath.Join(f.root, "kanban")
-	// A-0011: 今回の振り返り（retro.json がある）。昨日、一度片付いた
 	write(t, filepath.Join(k, "issues", "A-0011", "issue.yaml"), issueYAML("A-0011", "done", "profile: claude\n"))
 	write(t, filepath.Join(k, "issues", "A-0011", "library", "retro.json"), "{}")
 	log, _ := os.ReadFile(filepath.Join(k, "log.jsonl"))

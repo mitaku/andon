@@ -21,22 +21,19 @@ type Typed struct {
 	ID        string  `json:"id"`
 	Session   string  `json:"session"`
 	At        string  `json:"at"`
-	Role      string  `json:"role"`  // chief-of-staff・chief-engineer・worker・reviewer
-	Issue     *string `json:"issue"` // Chief of Staff は null
+	Role      string  `json:"role"`
+	Issue     *string `json:"issue"`
 	Text      string  `json:"text"`
 	Truncated bool    `json:"truncated"`
 }
 
-// maxTyped は1つの文の長さの上限（文字）。超えた分は切って truncated にする（貼った長い文書が入力を埋めないように）。
 const maxTyped = 2000
 
-// owner はセッションを持つもの（このプロジェクトの役と課題）。
 type owner struct {
 	role  string
 	issue string
 }
 
-// wrapped は機械が送った文の包み（hc send・dispatcher の通知・ハーネスの通知）。貼った文の包みの内側も見る。
 var (
 	pastedOpen  = regexp.MustCompile(`^<pasted_content[^>]*>\s*`)
 	pastedClose = regexp.MustCompile(`\s*</pasted_content[^>]*>$`)
@@ -54,8 +51,6 @@ func wrappedText(s string) bool {
 	return false
 }
 
-// machineText は Andon の command が端末の外から送った文か（hc の包みが付かず、オーナーの印が付く）。
-// dispatcher と gate は、担当・レビュアーへ送る文の先頭に送り手の印（[dispatcher]・[gate]。spawn.Mark）を置く。
 // andon issue resume は最初のメッセージの先頭に [resume] を置くが、hc run が template の本文と空行をその前に貼るので、
 // 印は最後の段落の頭に来る。文の頭か最後の段落の頭の印で照らし、文の意味は読まない。貼った文の包みの内側も見る。
 // 起動の最初のメッセージ（andon issue start）は位置で除く。resume はハーネスのセッションの続きに入るので位置で除けない。
@@ -70,7 +65,6 @@ func machineText(s string) bool {
 	return false
 }
 
-// roleOf は課題のプロファイルから役を決める（起動の記録の role と同じ決め方）。
 func roleOf(t *task) string {
 	switch {
 	case t.profile == "chief-engineer":
@@ -83,8 +77,6 @@ func roleOf(t *task) string {
 
 // typed は期間にオーナーが打った文を、このプロジェクトの Claude Code のセッションログから抜く（Codex の記録にはオーナーの印が無いので抜かない）。
 //
-// セッションを持つものは、起動の記録の session（課題と Chief of Staff）か、ログの cwd（プロジェクトの根は Chief of Staff、
-// kanban の issues/<id>/ と課題の worktree はその課題）で決める。どちらにも当たらないセッションは読まない。
 // 抜く文: user の行で、本線（isSidechain でない）・isMeta でない・要約でない・オーナーの印（origin.kind が human）があり、
 // セッションの最初のオーナーの印の文（起動の最初のメッセージ）でなく、包み（hc send・通知）が無く、Andon の command が端末の外から送った
 // 定型の文（machineText）でもなく、時刻が期間の中のもの。文の意味は読まない。
@@ -119,7 +111,7 @@ func (r *reader) typed(tasks []*task, since, until time.Time) []Typed {
 	for _, f := range files {
 		st, err := os.Stat(f)
 		if err != nil || st.ModTime().Before(since) {
-			continue // 期間より前に書き終わったログに期間の文は無い
+			continue
 		}
 		out = append(out, r.typedFile(f, bySession, byCwd, since, until)...)
 	}
@@ -132,7 +124,6 @@ func (r *reader) typed(tasks []*task, since, until time.Time) []Typed {
 	return out
 }
 
-// launchesQuiet は起動の記録を読む（読めない行は黙って飛ばす。束ねる段が skipped に書く）。
 func (r *reader) launchesQuiet(path string) []map[string]any {
 	saved := r.skipped
 	l := r.launches(path)
@@ -140,7 +131,6 @@ func (r *reader) launchesQuiet(path string) []map[string]any {
 	return l
 }
 
-// userLine はセッションログの1行のうち読む所。
 type userLine struct {
 	Type             string `json:"type"`
 	UUID             string `json:"uuid"`
@@ -201,7 +191,7 @@ func (r *reader) typedFile(f string, bySession, byCwd map[string]owner, since, u
 				if !known && u.Cwd != "" {
 					o, known = byCwd[filepath.Clean(u.Cwd)]
 					if !known {
-						return nil // このプロジェクトのセッションでない
+						return nil
 					}
 				}
 				if t, ok := r.typedLine(&u, session, n, o, &first, since, until); ok && known {
@@ -219,7 +209,6 @@ func (r *reader) typedFile(f string, bySession, byCwd map[string]owner, since, u
 	return out
 }
 
-// typedLine は1行が抜く文なら返す。first は「まだオーナーの印の文を見ていない」（見たら false にする）。
 func (r *reader) typedLine(u *userLine, session string, n int, o owner, first *bool, since, until time.Time) (Typed, bool) {
 	if u.Type != "user" || u.IsSidechain || u.IsMeta || u.IsCompactSummary || u.Origin == nil || u.Origin.Kind != "human" {
 		return Typed{}, false
@@ -230,7 +219,7 @@ func (r *reader) typedLine(u *userLine, session string, n int, o owner, first *b
 	}
 	if *first {
 		*first = false
-		return Typed{}, false // 起動の最初のメッセージ
+		return Typed{}, false
 	}
 	at, err := time.Parse(time.RFC3339, u.Timestamp)
 	if err != nil || at.Before(since) || at.After(until) || wrappedText(text) || machineText(text) {

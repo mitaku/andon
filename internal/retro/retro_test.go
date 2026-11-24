@@ -68,7 +68,6 @@ func newFixture(t *testing.T) *fixture {
 	is := func(id string) string { return filepath.Join(k, "issues", id) }
 	write(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: A\n")
 	wt := filepath.Join(tmp, "wt", "A-0001")
-	// A-0001: 期間の内に片付いた担当の課題。PR はマージされ、revert され、マージ commit の checks が落ちた
 	write(t, filepath.Join(is("A-0001"), "issue.yaml"), issueYAML("A-0001", "done", "profile: claude\nrepo: github.com/example/sample-site\nestimate: medium\nworktree: "+wt+"\n"))
 	write(t, filepath.Join(is("A-0001"), "library", "launches.jsonl"), launchLine(ago(3*day), workSess, sha1))
 	write(t, filepath.Join(is("A-0001"), "library", "report.json"), `{"pr":"`+pr1+`","estimate":{"size":"large","reason":"x"},"waived":[{"severity":"minor","file":"a.go","line":1,"reason":"軽い"}],"remember":["学び"],"agents_md":["作法"]}`)
@@ -76,22 +75,16 @@ func newFixture(t *testing.T) *fixture {
 	write(t, filepath.Join(is("A-0001"), "library", "gate", sha1+".json"), `{"head":"`+sha1+`","at":"`+ago(2*day)+`","tier":"B","decision":"approve","reasons":[],"merged":true}`)
 	write(t, filepath.Join(is("A-0001"), "library", "corrections.json"), `{"at":"x","corrections":[{"kind":"pr","comments":[{"author":"o","at":"x","body":"token = `+dummyKey()+`"}],"human_commits":[]}]}`)
 	write(t, filepath.Join(is("A-0001"), "library", "journal.md"), "迷った\n")
-	// A-0001-r1: レビュアーの子（親に束ねる）
 	write(t, filepath.Join(is("A-0001-r1"), "issue.yaml"), issueYAML("A-0001-r1", "done", "profile: codex-review\nparent: A-0001\n"))
 	write(t, filepath.Join(is("A-0001-r1"), "library", "findings.json"), `{"commit":"`+sha1+`","findings":[{"severity":"major","file":"a.go","line":3}]}`)
-	// A-0002: 期間の外に片付いた
 	write(t, filepath.Join(is("A-0002"), "issue.yaml"), issueYAML("A-0002", "done", "profile: claude\n"))
-	// A-0003: 起動の記録のパッケージの commit が2通り（途中で当て直した）
 	write(t, filepath.Join(is("A-0003"), "issue.yaml"), issueYAML("A-0003", "done", "profile: claude\n"))
 	write(t, filepath.Join(is("A-0003"), "library", "launches.jsonl"), launchLine(ago(4*day), "", sha1)+launchLine(ago(3*day), "", strings.Repeat("2", 40)))
-	// A-0004: 当て直しの記録の時刻が起動と片付けの間
 	write(t, filepath.Join(is("A-0004"), "issue.yaml"), issueYAML("A-0004", "done", "profile: claude\n"))
 	write(t, filepath.Join(is("A-0004"), "library", "launches.jsonl"), launchLine(ago(2*day), "", sha1))
-	// A-0005: オーナーの課題（束ねない）・A-0009: Chief Engineer の課題（束ねない）・A-0010: まだ片付いていない
 	write(t, filepath.Join(is("A-0005"), "issue.yaml"), issueYAML("A-0005", "done", "who: person\n"))
 	write(t, filepath.Join(is("A-0009"), "issue.yaml"), issueYAML("A-0009", "done", "profile: chief-engineer\n"))
 	write(t, filepath.Join(is("A-0010"), "issue.yaml"), issueYAML("A-0010", "doing", "profile: claude\n"))
-	// A-0006: 前の振り返り（ルーチンが足した）。A-0007・A-0008 はそれが切った直し（マージは3日前と20日前）
 	write(t, filepath.Join(is("A-0006"), "issue.yaml"), issueYAML("A-0006", "done", "profile: claude\nroutine: retro\n"))
 	write(t, filepath.Join(is("A-0007"), "issue.yaml"), issueYAML("A-0007", "done", "profile: claude\nparent: A-0006\n"))
 	write(t, filepath.Join(is("A-0007"), "library", "report.json"), `{"pr":"`+pr7+`"}`)
@@ -108,13 +101,12 @@ func newFixture(t *testing.T) *fixture {
 	write(t, filepath.Join(k, "log.jsonl"), ledgertest.Log(t, log...))
 	write(t, filepath.Join(f.pkg, "applied.json"), `{"commit":"`+sha1+`","applied_at":"`+ago(36*time.Hour)+`","image_commit":"x"}`)
 
-	// セッションログ: Chief of Staff（cwd がプロジェクトの根）・担当（起動の記録の session）・ほかのプロジェクト
 	hum := func(uuid, at, text string) string {
 		b, _ := json.Marshal(map[string]any{"type": "user", "uuid": uuid, "timestamp": at, "cwd": f.root,
 			"origin": map[string]any{"kind": "human"}, "promptSource": "typed", "message": map[string]any{"role": "user", "content": text}})
 		return string(b) + "\n"
 	}
-	cos := hum("u0", ago(3*day), "プロジェクト sample-site の Chief of Staff。") + // 起動の最初のメッセージ
+	cos := hum("u0", ago(3*day), "プロジェクト sample-site の Chief of Staff。") +
 		hum("u1", ago(2*day), "PR のタイトルに課題番号を書かないで。鍵は "+dummyKey()) +
 		hum("u2", ago(2*day), `<hc from="t9 x">担当から届いた文</hc>`) +
 		hum("u3", ago(2*day), "<pasted_content id=\"1\">\n<hc from=\"t9 x\">貼った中の hc</hc>") +
@@ -129,7 +121,7 @@ func newFixture(t *testing.T) *fixture {
 		`{"type":"user","uuid":"u10","timestamp":"` + ago(1*day) + `","origin":{"kind":"human"},"message":{"content":[{"type":"text","text":"block の文"}]}}` + "\n"
 	write(t, filepath.Join(f.claude, "projects", "-sample-site", cosSess+".jsonl"), cos)
 	work := strings.ReplaceAll(hum("w0", ago(3*day), "<hc from=\"t1 cos\">課題 A-0001。依頼書は …</hc>")+hum("w1", ago(2*day), "そこは直さなくていい")+
-		hum("w2", ago(2*day), "\n\n<pasted_content id=\"b23d\">\nAndon の担当として働く。\n\n[resume] 課題 `sample-site/A-0001` の続き。セルが起き直した。worktree は同じ場所に戻した。\n</pasted_content id=\"b23d\">\n"), f.root, wt) // w2: andon issue resume の最初のメッセージ（セッションの続きに入り、template の本文の後ろに印が来る）
+		hum("w2", ago(2*day), "\n\n<pasted_content id=\"b23d\">\nAndon の担当として働く。\n\n[resume] 課題 `sample-site/A-0001` の続き。セルが起き直した。worktree は同じ場所に戻した。\n</pasted_content id=\"b23d\">\n"), f.root, wt)
 	write(t, filepath.Join(f.claude, "projects", "-wt-A-0001", workSess+".jsonl"), work)
 	other := strings.ReplaceAll(hum("o0", ago(2*day), "最初")+hum("o1", ago(2*day), "ほかのプロジェクトの文"), f.root, filepath.Join(tmp, "other"))
 	write(t, filepath.Join(f.claude, "projects", "-other", otherSess+".jsonl"), other)
@@ -227,7 +219,6 @@ func TestAfterMerge(t *testing.T) {
 		len(a.RevertedBy) != 1 || a.RevertedBy[0].PR != "https://github.com/example/sample-site/pull/3" {
 		t.Fatalf("マージ後のこと = %+v", a)
 	}
-	// GitHub を読まないときは null で、skipped に1行
 	f := newFixture(t)
 	f.gh = nil
 	in, _ = f.collect(t)
@@ -244,7 +235,6 @@ func TestChecksState(t *testing.T) {
 		{`[{"name":"a","status":"in_progress","conclusion":null}]`, "pending"},
 		{`[{"name":"a","status":"completed","conclusion":"cancelled"}]`, "success"},
 		{`[{"name":"a","status":"completed","conclusion":"timed_out"},{"name":"b","status":"queued"}]`, "failure"},
-		// 2ページ目の失敗も数える（1ページ目は成功だけ）
 		{`[{"name":"a","status":"completed","conclusion":"success"}]}` + "\n" + `{"check_runs":[{"name":"b","status":"completed","conclusion":"failure"}]`, "failure"},
 	} {
 		g := newGitHub(&reader{}, func(...string) ([]byte, error) { return []byte(`{"check_runs":` + c.runs + `}`), nil })
@@ -296,7 +286,6 @@ func TestRedactsSecrets(t *testing.T) {
 	}
 }
 
-// 伏せる形の一覧（どれも検査の中で組み立てた偽の値）。秘密でない文は伏せない。
 func TestRedactPatterns(t *testing.T) {
 	rep := strings.Repeat
 	for _, c := range []struct{ in, want string }{
@@ -309,14 +298,12 @@ func TestRedactPatterns(t *testing.T) {
 		{"eyJ" + rep("e", 12) + "." + rep("f", 12) + "." + rep("g", 12), "[REDACTED:jwt]"},
 		{"Authorization: Bearer " + rep("h", 24), "Authorization: Bearer [REDACTED:bearer]"},
 		{"api_key=" + rep("i", 10), "api_key=[REDACTED:assignment]"},
-		// 短い値も伏せる（引用あり・なし）
 		{"password=" + rep("l", 7), "password=[REDACTED:assignment]"},
 		{`pwd: "` + rep("m", 3) + `"`, `pwd: "[REDACTED:assignment]"`},
 		{"token=x", "token=[REDACTED:assignment]"},
 		{`GITHUB_TOKEN: ` + rep("j", 10), "GITHUB_TOKEN: [REDACTED:assignment]"},
 		// 鍵の塊の見出しは組み立てる（repo に鍵の形の文字列を置かない）
 		{"-----BEGIN OPENSSH " + "PRIVATE KEY-----\n" + rep("k", 40) + "\n-----END OPENSSH " + "PRIVATE KEY-----", "[REDACTED:private-key]"},
-		// 伏せないもの
 		{"task-assessment-for-something-long", "task-assessment-for-something-long"},
 		{"tokens: 1200 と token の数", "tokens: 1200 と token の数"},
 		{"commit " + sha1, "commit " + sha1},
@@ -332,7 +319,6 @@ func TestRedactPatterns(t *testing.T) {
 			t.Errorf("%q → %q、want %q", c.in, v["s"], c.want)
 		}
 	}
-	// JSON の中の "password": "…" の形（文字列の中のエスケープした引用符）
 	b, _ := json.Marshal(map[string]string{"s": `{"password": "` + rep("p", 12) + `"}`})
 	got, _ := redact.JSON(b)
 	if strings.Contains(string(got), rep("p", 12)) || !json.Valid(got) {
@@ -347,7 +333,6 @@ func TestPreviousFixes(t *testing.T) {
 		t.Fatalf("前の直し = %+v（3日前のものだけ）", in.Fixes)
 	}
 	x := in.Fixes[0]
-	// マージ（3日前）のあとに片付いた担当の課題: A-0001（2日前）・A-0003・A-0004（1日前）
 	if x.Issue != "A-0007" || x.Retro != "A-0006" || x.PR != pr7 || x.MergedAt != ago(3*day) || x.IssuesAfter != 3 {
 		t.Errorf("前の直し = %+v", x)
 	}
@@ -399,14 +384,11 @@ func TestReapplied(t *testing.T) {
 	if r := bundle(t, in, "A-0004").ReappliedReasons; !strings.Contains(strings.Join(r, ""), "起動と片付けの間") {
 		t.Errorf("A-0004 の理由 = %v", r)
 	}
-	// 起動の記録が無い課題は分からない（null）
 	if got, reasons := reapplied(nil, ago(day), nil, nil); got != nil || len(reasons) != 1 {
 		t.Errorf("起動の記録が無い: %v %v", got, reasons)
 	}
 }
 
-// 当て直しの記録の previous（前に当てた分）も読む。最後の当て直しが片付けの後でも、previous の1件が起動と片付けの間にあれば印が付く。
-// previous の無い前のバージョンの記録は、最後の1回だけで決める。
 func TestReappliedPrevious(t *testing.T) {
 	launches := []map[string]any{{"at": ago(3 * day), "package": map[string]any{"commit": sha1}}}
 	doneAt := ago(1 * day)
@@ -435,23 +417,15 @@ func TestReappliedPrevious(t *testing.T) {
 		want       *bool
 		reason     string
 	}{
-		// 期間の途中で当て直し、最後の当て直しは片付けの後
 		{"previous が起動と片付けの間", last + `,` + "\n" + ` "previous":` + prev(ago(18*time.Hour), ago(2*day)) + `}`, boolPtr(true), ago(2 * day)},
-		// 同じ記録で previous が無い（前のバージョン）: 最後の1回だけで読むので、今までどおり false
 		{"previous が無い", last + `}`, boolPtr(false), ""},
 		{"previous が空", last + `,"previous":[]}`, boolPtr(false), ""},
-		// previous が全部起動の前か片付けの後
 		{"previous が期間の外", last + `,"previous":` + prev(ago(18*time.Hour), ago(4*day)) + `}`, boolPtr(false), ""},
-		// previous が上限まで埋まり、残る一番古い当て直しが起動の後: それより前が落ちているので分からない
 		{"previous が上限で起動まで届かない", last + `,"previous":` + prev(many(appliedKept, 13*time.Hour)...) + `}`, nil, "件で切れて"},
-		// 上限まで埋まっていても、一番古い当て直しが起動の前なら落ちた分は期間の外
 		{"previous が上限で起動の前まで届く", last + `,"previous":` + prev(append(many(appliedKept-1, 13*time.Hour), ago(4*day))...) + `}`, boolPtr(false), ""},
-		// previous に時刻の読めない1件があれば、そこで途切れたと読む。それより新しい分で当て直したと言えれば true
 		{"壊れた1件の前に期間の中の当て直し", last + `,"previous":[` + `{"commit":"a","applied_at":"` + ago(2*day) + `"},{"commit":"b","applied_at":"昨日"}]}`, boolPtr(true), ago(2 * day)},
 		{"最後の1回が期間の中で previous[0] が壊れている", `{"commit":"` + sha1 + `","applied_at":"` + ago(2*day) + `","previous":[{"commit":"b"}]}`, boolPtr(true), ago(2 * day)},
-		// 途切れた所が起動より後なら、それより前は分からない
 		{"壊れた1件で起動まで届かない", last + `,"previous":[{"commit":"b","applied_at":"昨日"},{"commit":"c","applied_at":"` + ago(2*day) + `"}]}`, nil, "previous[0]"},
-		// 途切れた所が起動より前なら、落ちた分は期間の外
 		{"壊れた1件が起動の前", last + `,"previous":[{"commit":"a","applied_at":"` + ago(4*day) + `"},{"commit":"b","applied_at":"昨日"}]}`, boolPtr(false), ""},
 	} {
 		a, err := read(c.body)
@@ -469,7 +443,6 @@ func TestReappliedPrevious(t *testing.T) {
 			t.Errorf("%s: false なのに理由 = %v", c.name, reasons)
 		}
 	}
-	// 最後の1回の時刻が読めなければ、今までどおり記録が読めない
 	if _, err := read(`{"commit":"x","applied_at":"昨日","previous":[]}`); err == nil {
 		t.Error("applied_at が壊れているのに読めた")
 	}
@@ -477,7 +450,6 @@ func TestReappliedPrevious(t *testing.T) {
 
 func boolPtr(b bool) *bool { return &b }
 
-// 読むだけ: kanban とセッションログのファイルを書き換えない。
 func TestReadOnly(t *testing.T) {
 	f := newFixture(t)
 	snap := func() string {
@@ -512,9 +484,6 @@ func TestMainUsage(t *testing.T) {
 	}
 }
 
-// collect の束の reviews は、回ごとにその回を頼んだ理由を持つ。理由はレビュアーの依頼書の「再レビュー: 前の回の commit」の段と、
-// その commit を見た前の回の findings.json から決まる: 1回目は first、前の回に major があれば fixed、rebase をまたいだら rebased、
-// どれでもなければ rerequested。依頼書が無い・2回目以降なのに再レビューの段が無ければ null。
 func TestReviewReason(t *testing.T) {
 	f := newFixture(t)
 	k := filepath.Join(f.root, "kanban", "issues")
@@ -532,15 +501,10 @@ func TestReviewReason(t *testing.T) {
 			write(t, filepath.Join(k, id, "library", "findings.json"), findings)
 		}
 	}
-	// r1（fixture の findings は sha1 に major）: 1回目
 	write(t, filepath.Join(k, "A-0001-r1", "brief.md"), "# A-0001 のレビュー（1 回目）\n"+target(sha1))
-	// r2: 前の回（sha1）に major → 直して頼んだ
 	child("A-0001-r2", target(sha2)+again(sha1), `{"commit":"`+sha2+`","findings":[{"severity":"minor","file":"a.go","line":9}]}`)
-	// r3: 前の回（sha2）は minor だけで、rebase をまたいだ
 	child("A-0001-r3", target(sha3)+"再レビュー: 前の回の commit "+sha2+"。"+ledger.RebasedMark+"。\n", `{"commit":"`+sha3+`","findings":[]}`)
-	// r4: 前の回（sha3）に指摘は無く、祖先のまま（CI の直しなど）
 	child("A-0001-r4", target(sha4)+again(sha3), "")
-	// r5: 2回目以降なのに再レビューの段が無い・r6: 依頼書が無い
 	child("A-0001-r5", target(sha4), "")
 	child("A-0001-r6", "", "")
 	in, out := f.collect(t)
@@ -561,8 +525,6 @@ func TestReviewReason(t *testing.T) {
 	}
 }
 
-// マージされた PR の一覧は --limit で切らない。偽の gh が新しい順に --limit 件で切っても、一覧の前に新しい PR を 1000 本足したときの
-// 束（マージ後のこと）は、足す前と同じ。
 func TestMergedListReadsPastLimit(t *testing.T) {
 	f := newFixture(t)
 	_, want := f.collect(t)

@@ -14,7 +14,6 @@ import (
 
 // 件数のきっかけの数え方（ADR-0039 決めたこと 8）。数えるのは次の振り返りが全文で読む束で、collect と同じ境目と選び方。
 
-// issues は kanban の課題の一覧を、kanban list --all --json と同じ形（id つきの issue.yaml の項目）で読む。
 func (f *split) issues() []ledger.Issue {
 	f.t.Helper()
 	ents, err := os.ReadDir(filepath.Join(f.k(), "issues"))
@@ -39,12 +38,10 @@ func (f *split) issues() []ledger.Issue {
 
 func (f *split) fresh() int {
 	f.t.Helper()
-	f.collect(Options{}) // log.jsonl を書く
+	f.collect(Options{})
 	return Fresh(f.root, f.issues(), ledger.At(f.root).Log(), now)
 }
 
-// 境目（前の振り返りが集めた時刻）より後に片付いた担当の課題だけを数え、collect が全文で出す束と同じ数になる。
-// レビュアーの子・振り返りの課題・期間の外は数えない。全文の上限（fullLimit）では切らない。
 func TestFreshCountsWhatNextRetroReadsInFull(t *testing.T) {
 	f, _ := boundaryFixture(t)
 	in := f.collect(Options{})
@@ -58,13 +55,12 @@ func TestFreshCountsWhatNextRetroReadsInFull(t *testing.T) {
 	}
 }
 
-// 前の振り返りが無ければ、期間（直近 7 日）に片付いた担当の課題を全部数える。前の振り返りが片付くと、その境目のあとだけを数える。
 func TestFreshWithoutPreviousRetro(t *testing.T) {
 	f := newSplit(t)
 	for i := 1; i <= 3; i++ {
 		f.issue(fmt.Sprintf("A-%04d", i), now.Add(-time.Duration(i)*time.Hour).Format(time.RFC3339))
 	}
-	f.issue("A-0009", now.Add(-8*day).Format(time.RFC3339)) // 期間の外
+	f.issue("A-0009", now.Add(-8*day).Format(time.RFC3339))
 	if got := f.fresh(); got != 3 {
 		t.Fatalf("前の振り返りが無いとき %d（want 3）", got)
 	}
@@ -81,7 +77,7 @@ func TestFreshOwnSkipsRoutineIssues(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		f.issue(fmt.Sprintf("A-%04d", i), now.Add(-time.Duration(i)*time.Hour).Format(time.RFC3339))
 	}
-	for _, id := range []string{"A-0004", "A-0005"} { // 空きが撃ったトリアージと点検の課題
+	for _, id := range []string{"A-0004", "A-0005"} {
 		f.issue(id, now.Add(-30*time.Minute).Format(time.RFC3339))
 		write(t, filepath.Join(f.is(id), "issue.yaml"), issueYAML(id, "done", "profile: sonnet\nroutine: triage\n"))
 	}
