@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"andon/internal/contract"
 	"andon/internal/signal"
 	"andon/internal/spawn"
 )
@@ -35,7 +37,17 @@ type Item struct {
 	// kind: signal の項目だけ: オーナーと担当が読む所と、text（出所のタイトル）が外の人の文であることの印。
 	URL       string `json:"url,omitempty"`
 	Untrusted bool   `json:"untrusted,omitempty"`
-	path      string // kind: memory の項目のファイル（apply が消す）
+	// kind: gap の項目だけ: kanban の中の、同じ先を名指した別の課題の申告（ADR-0061 決めたこと 8）。
+	// 担当はこれを読んで、同じ欠けの根拠が別々に 2 件あるか（決めたこと 7）を決める。
+	Prior []PriorGap `json:"prior,omitempty"`
+	path  string     // kind: memory の項目のファイル（apply が消す）
+}
+
+// PriorGap は種類 gap の項目に添える、別の課題の申告の1件（課題の id と種類と本文）。
+type PriorGap struct {
+	Issue string `json:"issue"`
+	Kind  string `json:"kind"`
+	Text  string `json:"text"`
 }
 
 // ledgerIssue は kanban の CLI の list --json の1件のうち、ここが読むキー。
@@ -258,6 +270,7 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 		return issues[i].ID < issues[j].ID
 	})
 
+	gaps := l.reportGaps(issues)
 	byKey := map[string]Item{}
 	for _, t := range issues {
 		if !idRe.MatchString(t.ID) {
@@ -291,6 +304,16 @@ func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item,
 		}
 		if t.Status != "done" && t.Status != "review" {
 			continue
+		}
+		// 申告は報告の JSON から拾う（種類と先を文から読み取らない。ADR-0061 決めたこと 6）。報告の文が読めなくても拾う。
+		for _, g := range gaps[t.ID] {
+			k := itemKey(l.slug, t.ID, "gap", gapText(g))
+			if seen[k] {
+				continue
+			}
+			if _, dup := byKey[k]; !dup {
+				byKey[k] = Item{Key: k, Kind: "gap", From: t.ID, Repo: t.Repo, Text: gapText(g), AgeDays: age, Prior: priorGaps(gaps, t.ID, g.Where)}
+			}
 		}
 		body, err := os.ReadFile(filepath.Join(l.dir, "issues", t.ID, "report.md"))
 		if err != nil || !hasHeading(body) {
@@ -435,6 +458,61 @@ var (
 	planDiffRe = regexp.MustCompile(`^\s*(?:[-*]\s*)?計画との差:`)
 )
 
+// reportGaps は kanban の全部の課題の report.json の申告（gaps）を、課題の id ごとに返す。
+// report.json が無い・読めない課題は申告が無いものとして読む（collect を止めない。報告の文の読めなさは unreadable が拾う）。
+func (l *ledger) reportGaps(issues []ledgerIssue) map[string][]contract.Gap {
+	got := map[string][]contract.Gap{}
+	for _, t := range issues {
+		r, err := contract.ReadReport(filepath.Join(l.dir, "issues", t.ID, "library", "report.json"))
+		if err == nil && len(r.Gaps) > 0 {
+			got[t.ID] = r.Gaps
+		}
+	}
+	return got
+}
+
+// gapText は申告の項目の文: 「<種類> <先>: <本文>」と、直し方があれば「 直し方: <直し方>」。key はこの文の sha1。
+func gapText(g contract.Gap) string {
+	s := g.Kind + " " + g.Where + ": " + g.Text
+	if g.Proposal != nil {
+		s += " 直し方: " + *g.Proposal
+	}
+	return s
+}
+
+// gapWhere は申告の先を比べる形にする（前後の空白と先頭の ./ を除き、パスを整える）。先が言えない申告（unknown）は空で、どれとも同じにしない。
+func gapWhere(w string) string {
+	w = strings.TrimSpace(w)
+	if w == "" || w == "unknown" {
+		return ""
+	}
+	return path.Clean(strings.TrimPrefix(w, "./"))
+}
+
+// priorGaps は、id の課題でない課題の申告のうち、where と同じ先を名指したものを、課題の id の順で返す。課題の状態は問わない。
+func priorGaps(gaps map[string][]contract.Gap, id, where string) []PriorGap {
+	w := gapWhere(where)
+	if w == "" {
+		return nil
+	}
+	var ids []string
+	for other := range gaps {
+		if other != id {
+			ids = append(ids, other)
+		}
+	}
+	sort.Strings(ids)
+	var got []PriorGap
+	for _, other := range ids {
+		for _, g := range gaps[other] {
+			if gapWhere(g.Where) == w {
+				got = append(got, PriorGap{Issue: other, Kind: g.Kind, Text: g.Text})
+			}
+		}
+	}
+	return got
+}
+
 // reportLines は報告から項目になる行を拾う。見出し（## ）で節を切り、
 // For AGENTS.md の行・「見送」を含む行とその下の箇条書き・Next／Remember／オーナーに聞くこと の節の行。
 // Remember の節の「計画との差:」の行は拾わない（ADR-0030 決めたこと 5 の 2。振り返りと measure は別に読む）。
@@ -444,6 +522,10 @@ func reportLines(body []byte) []reportLine {
 	for _, ln := range splitLines(body) {
 		if rest, ok := strings.CutPrefix(ln, "## "); ok {
 			section, waived = rest, false
+		}
+		// 申告の節（## Gaps）は report.json の gaps の写しで、申告は JSON から拾う。行はどの種類の項目にもしない（ADR-0061 決めたこと 6）。
+		if section == "Gaps" {
+			continue
 		}
 		if strings.TrimFunc(ln, unicode.IsSpace) == "" || (section == "Remember" && planDiffRe.MatchString(ln)) {
 			waived = false
