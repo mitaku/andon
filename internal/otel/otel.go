@@ -44,6 +44,10 @@ var personal = map[string]bool{
 	"organization.id":   true,
 }
 
+// secretKey は値を伏せる属性の名前（名前を区切った語のどれかが秘密の名前）。値の形に秘密が現れない短い値
+// （"password": "hunter2"）も、名前で伏せる。数を運ぶ input_tokens などは語が違うので当たらない。
+var secretKey = regexp.MustCompile(`(?i)(?:^|[._-])(?:token|password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|credentials?)(?:$|[._-])`)
+
 // 属性の値の形。送り手が書く値をパスに使うので、書く前に確かめる（決めたこと 9）。
 // どれも先頭が英数字なので、"." と ".." と "/" を含む値は通らない。
 var (
@@ -279,7 +283,8 @@ func resourceAttrs(entry any) map[string]string {
 	return out
 }
 
-// strip は、属性の並び（どの深さの "attributes" も。kvlistValue の "values" も）から個人の属性を落とす。
+// strip は、属性の並び（どの深さの "attributes" も。kvlistValue の "values" も）から個人の属性を落とし、
+// 名前が秘密の名前の属性の文字列の値を伏せる。
 func strip(v any) {
 	switch x := v.(type) {
 	case map[string]any:
@@ -321,8 +326,14 @@ func dropPersonal(list []any) []any {
 	out := list[:0:0]
 	for _, a := range list {
 		if kv, ok := a.(map[string]any); ok {
-			if key, ok := kv["key"].(string); ok && personal[key] {
+			key, _ := kv["key"].(string)
+			if personal[key] {
 				continue
+			}
+			if val, ok := kv["value"].(map[string]any); ok && secretKey.MatchString(key) {
+				if _, ok := val["stringValue"].(string); ok {
+					val["stringValue"] = "[REDACTED:attribute]"
+				}
 			}
 		}
 		out = append(out, a)

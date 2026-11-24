@@ -296,6 +296,35 @@ func TestReceiveRedactsInsideStrings(t *testing.T) {
 	}
 }
 
+// 属性の名前が秘密の名前（password・token・api_key など）なら、短い値でも値を伏せる。数を運ぶ属性（input_tokens など）は伏せない。
+func TestReceiveRedactsSecretNamedAttributes(t *testing.T) {
+	c := newCell(t)
+	in := sample(t, "traces.json")
+	span := in["resourceSpans"].([]any)[0].(map[string]any)["scopeSpans"].([]any)[0].(map[string]any)["spans"].([]any)[0].(map[string]any)
+	secrets := map[string]string{"password": "hunter2xyz", "http.request.header.x-api-key": "k3y", "access_token": "a1", "DB_PASSWORD": "pw9"}
+	for k, v := range secrets {
+		span["attributes"] = append(span["attributes"].([]any), map[string]any{"key": k, "value": map[string]any{"stringValue": v}})
+	}
+	span["attributes"] = append(span["attributes"].([]any),
+		map[string]any{"key": "input_tokens", "value": map[string]any{"stringValue": "1200"}},
+		map[string]any{"key": "token_note", "value": map[string]any{"intValue": "7"}})
+	if got := c.post(t, "/v1/traces", "application/json", encode(t, in)); got != http.StatusOK {
+		t.Fatalf("POST が %d", got)
+	}
+	b, err := os.ReadFile(filepath.Join(c.root, "sample-site", "issues", "S-0001", "traces.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range secrets {
+		if bytes.Contains(b, []byte(`"`+v+`"`)) {
+			t.Errorf("属性 %s の値 %q が残っている", k, v)
+		}
+	}
+	if !bytes.Contains(b, []byte(`"key":"input_tokens","value":{"stringValue":"1200"}`)) {
+		t.Error("数を運ぶ属性 input_tokens まで伏せた")
+	}
+}
+
 // 受け入れ条件 4: andon.issue が ../x のものと andon.project の無いものは、200 が返り、何も書かれず、捨てた数が 1 ずつ増える。
 // 置き場の外にファイルができない。
 func TestReceiveDropsBadAttributes(t *testing.T) {
