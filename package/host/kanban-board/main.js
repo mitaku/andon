@@ -61,6 +61,12 @@ const WAIT_LABEL = { merge: "Merge", decision: "Decision", task: "Your task" };
 const AMBER = "#F0A202";            // the logo's amber, as the inbox lights what waits on you
 const TREE_W = 400;
 const STAGE_W = 128;
+// Old done issues (ADR-0059 decisions 2–4): a done issue whose `updated` is more than a day ago
+// leaves Board's Done column and List for History. Flow keeps what it needs (decision 5).
+const RECENT_MS = 24 * 60 * 60 * 1000;
+const HISTORY_STEP = 200;           // History shows this many at first and adds this many at a time
+const HISTORY_MAX = 2000;           // past this, find older ones with /
+const VIEWS = ["board", "list", "flow", "history"];
 
 const alpha = (color, aa) => /** @type {`#${string}`} */ (`${color}${aa}`);
 const label = (column) => LABEL[column] ?? column;
@@ -69,6 +75,17 @@ const byId = (a, b) => String(a.slug).localeCompare(String(b.slug)) || num(a.id)
 const short = (repo) => String(repo).split("/").pop();
 const slugOf = (root) => root.replace(/\/+$/, "").split("/").pop();
 const local = (on) => !on && window()?.platform === "windows";
+// An issue's `updated` as milliseconds: kanban writes a quoted time; js-yaml makes an unquoted one a
+// Date. NaN when it has none or it doesn't parse: such a done issue counts as old.
+const timeOf = (x) => (typeof x?.updated?.getTime === "function" ? x.updated.getTime() : Date.parse(String(x?.updated ?? "")));
+// Newest first; issues without a time last.
+const newest = (a, b) => (Number.isFinite(timeOf(b)) ? timeOf(b) : -Infinity) - (Number.isFinite(timeOf(a)) ? timeOf(a) : -Infinity) || byId(b, a);
+function when(x) {
+  const t = timeOf(x);
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t), p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 function ago(ms) {
   if (ms == null) return "never";
@@ -327,7 +344,8 @@ export default class KanbanBoard extends View {
     this.handle = cx.focus_handle();
     // As a dialog, take the keyboard when it opens (focus can't move during a render).
     if (props()?.overlay) cx.timer.after(30, () => this.handle.focus());
-    this.view = "board";     // "board", "list" or "flow"
+    this.view = "board";     // "board", "list", "flow" or "history"
+    this.historyLimit = HISTORY_STEP; // how many of the newest done issues History shows
     this.folded = new Set(); // Flow's folded rows, by key
     this.filter = "";
     this.typing = false;
@@ -438,6 +456,7 @@ export default class KanbanBoard extends View {
       this.openKey = null;
       this.detail = null;
       this.pick = null;
+      this.historyLimit = HISTORY_STEP;
     }
     if (!cwd || this.reading) return;
     const where = this.where, scope = this.scope;
@@ -528,7 +547,7 @@ export default class KanbanBoard extends View {
     if (!this.plant || (!all && !this.root) || this.all === all) return;
     this.all = all;
     this.scope++;
-    this.pick = null; this.openKey = null; this.detail = null;
+    this.pick = null; this.openKey = null; this.detail = null; this.historyLimit = HISTORY_STEP;
     this.data = null; this.signature = null; this.changedAt = null; this.checkedAt = null; this.failure = null;
     this.waits = new Map();
     this.refresh(cx);
@@ -579,18 +598,51 @@ export default class KanbanBoard extends View {
     return task.status === (this.ledgerOf(task)?.columns.at(-1) ?? "done");
   }
 
+  // What the chips and the `/` filter leave.
+  matches(t) {
+    const f = this.filter.toLowerCase();
+    return (!this.pick || (this.all ? t.slug === this.pick : t.repo === this.pick))
+      && (!f || [t.id, t.title, t.repo, t.slug, t.profile, t.agent].some((x) => String(x ?? "").toLowerCase().includes(f)));
+  }
+
+  // A done issue whose `updated` is a day ago or more (ADR-0059 decision 2): History's, not Board's or List's.
+  old(task) {
+    if (!this.done(task)) return false;
+    const t = timeOf(task);
+    return !Number.isFinite(t) || t < Date.now() - RECENT_MS;
+  }
+
+  // Board's columns and List's issues: old done issues are left out, and the Done column runs newest
+  // first (ADR-0059 decision 3). `old` is what the filter leaves of them (List keeps those that head a
+  // tree), `older` how many old done issues the shown projects hold, filter or not. `all` is every
+  // issue the filter leaves, old or not: Flow's (decision 5).
   columns() {
     const cols = this.data?.columns ?? DEFAULT_COLUMNS;
-    const f = this.filter.toLowerCase();
-    const shown = (this.data?.tasks ?? []).filter((t) => (!this.pick || (this.all ? t.slug === this.pick : t.repo === this.pick))
-      && (!f || [t.id, t.title, t.repo, t.slug, t.profile, t.agent].some((x) => String(x ?? "").toLowerCase().includes(f))));
+    const tasks = this.data?.tasks ?? [];
+    const shown = tasks.filter((t) => this.matches(t));
     const broken = shown.filter((t) => t.broken);
     const place = (t, c, i) => this.done(t) ? i === cols.length - 1 : t.status === c || (i === 0 && !cols.includes(t.status));
+    const recent = shown.filter((t) => !t.broken && !this.old(t));
     return {
-      cols: cols.map((c, i) => ({ id: c, tasks: shown.filter((t) => !t.broken && place(t, c, i)) })),
+      cols: cols.map((c, i) => {
+        const here = recent.filter((t) => place(t, c, i));
+        return { id: c, tasks: i === cols.length - 1 ? here.sort(newest) : here };
+      }),
       broken,
       all: shown,
+      old: shown.filter((t) => !t.broken && this.old(t)),
+      older: tasks.filter((t) => !t.broken && this.old(t)).length,
     };
+  }
+
+  // History (ADR-0059 decision 4): every done issue, newest first, up to historyLimit. While `/` is
+  // being typed it narrows the rows shown; after Enter it looks through every done issue held.
+  history() {
+    const done = (this.data?.tasks ?? []).filter((t) => !t.broken && this.done(t)).sort(newest);
+    const picked = done.filter((t) => !this.pick || (this.all ? t.slug === this.pick : t.repo === this.pick));
+    const found = this.typing ? picked : picked.filter((t) => this.matches(t));
+    const rows = found.slice(0, this.historyLimit);
+    return { rows: this.typing ? rows.filter((t) => this.matches(t)) : rows, more: found.length - rows.length };
   }
 
   close() {
@@ -621,7 +673,7 @@ export default class KanbanBoard extends View {
     else if (k === "g") {
       const a = card && this.agentOf(card.agent, agents(), terminals());
       if (a && !a.missing) run("agent.focus", { terminal: a.address });
-    } else if (k === "v") this.view = this.view === "board" ? "list" : this.view === "list" ? "flow" : "board";
+    } else if (k === "v") this.view = VIEWS[(VIEWS.indexOf(this.view) + 1) % VIEWS.length];
     else if (k === "p") this.setAll(!this.all, cx);
     else if (ch === "/" || k === "/") { this.typing = true; this.filter = ""; }
     else if (k === "escape") { if (this.openKey) { this.openKey = null; this.detail = null; } else if (this.filter) this.filter = ""; else this.close(); }
@@ -717,9 +769,20 @@ export default class KanbanBoard extends View {
         .children(d.library.map((n) => div().text_size(12).text_color(t.muted).child(n))));
   }
 
-  listView(t, cols, list, terms, tasksById) {
+  listView(t, cols, old, list, terms, tasksById) {
     const order = new Map(cols.map((c, i) => [c.id, i]));
     const all = cols.flatMap((c) => c.tasks);
+    // An old done issue stays as the head of a tree while something under it is shown (ADR-0059 decision 3).
+    const oldByKey = new Map(old.map((x) => [x.key, x]));
+    const seen = new Set(all.map((x) => x.key));
+    for (const x of [...all]) {
+      for (let p = x; p.parent != null;) {
+        p = tasksById.get(`${p.slug}/${p.parent}`);
+        if (!p || seen.has(p.key)) break;
+        seen.add(p.key);
+        if (oldByKey.has(p.key)) all.push(p);
+      }
+    }
     const roots = all.filter((x) => !x.parent || !tasksById.has(`${x.slug}/${x.parent}`));
     const kids = (task) => all.filter((x) => x.slug === task.slug && String(x.parent) === String(task.id));
     const rank = (x) => this.done(x) ? cols.length : order.get(x.status) ?? 0;
@@ -739,6 +802,28 @@ export default class KanbanBoard extends View {
     };
     for (const r of roots.sort((x, y) => rank(x) - rank(y) || byId(x, y))) add(r, 0);
     return v_flex().id("wb-list").flex_1().min_w(0).min_h(0).p(10).overflow_y_scrollbar().children(rows);
+  }
+
+  // History (ADR-0059 decision 4): one row per done issue, newest first; Load older adds 200 up to 2,000.
+  historyView(t) {
+    const { rows, more } = this.history();
+    const line = (task) => h_flex().id(`wb-hist-${task.key}`).h(30).px(10).gap(10).items_center().rounded(6).flex_none().cursor_pointer()
+      .bg(this.openKey === task.key ? t.selected : alpha(t.background, "00")).hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => { this.openTask(task, cx); cx.notify(); })
+      .child(div().w(60).flex_none().text_size(11.5).text_color(t.dim).child(String(task.id)))
+      .child(div().w(110).flex_none().text_size(11).text_color(t.muted).child(when(task)))
+      .child(div().flex_1().min_w(0).truncate().text_size(13).text_color(t.foreground).child(String(task.title ?? "(no title)")))
+      .when(this.all, (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(String(this.ledgerOf(task)?.name ?? task.slug))))
+      .when(Boolean(task.profile), (el) => el.child(this.pill(t, String(task.profile))));
+    const end = more <= 0 ? null : this.historyLimit < HISTORY_MAX
+      ? div().id("wb-load-older").px(10).h(30).flex_none().flex().items_center().rounded(6).text_size(12).text_color(t.accent).cursor_pointer()
+        .hover((s) => s.bg(t.hover)).on_click((_e, cx) => { this.historyLimit = Math.min(HISTORY_MAX, this.historyLimit + HISTORY_STEP); cx.notify(); }).child("Load older")
+      : div().id("wb-history-end").px(10).h(30).flex_none().flex().items_center().text_size(12).text_color(t.dim)
+        .child(`Showing the newest ${HISTORY_MAX}. Find older ones with /`);
+    return v_flex().id("wb-history").flex_1().min_w(0).min_h(0).p(10).overflow_y_scrollbar()
+      .when(rows.length === 0, (el) => el.child(div().p(10).text_size(13).text_color(t.dim).child(this.filter ? "Nothing done matches." : "Nothing done yet.")))
+      .children(rows.map(line))
+      .when(Boolean(end), (el) => el.child(end));
   }
 
   // Flow (ADR-0042 decision 13): the tree on the left, a bar per issue on the order axis on the right.
@@ -790,7 +875,7 @@ export default class KanbanBoard extends View {
     const { cwd, on } = location();
     if (this.where?.key !== JSON.stringify([cwd, on])) this.refresh(cx);
     const list = agents(), terms = terminals();
-    const { cols, broken } = this.columns();
+    const { cols, broken, old, older } = this.columns();
     const tasksById = new Map((this.data?.tasks ?? []).map((x) => [x.key, x]));
     const keyboard = this.handle.is_focused();
     const ledgers = this.data?.ledgers ?? [];
@@ -810,7 +895,8 @@ export default class KanbanBoard extends View {
       .child(h_flex().gap(4)
         .child(button("wb-view-board", "Board", this.view === "board", (_e, cx) => { this.view = "board"; cx.notify(); }))
         .child(button("wb-view-list", "List", this.view === "list", (_e, cx) => { this.view = "list"; cx.notify(); }))
-        .child(button("wb-view-flow", "Flow", this.view === "flow", (_e, cx) => { this.view = "flow"; cx.notify(); })))
+        .child(button("wb-view-flow", "Flow", this.view === "flow", (_e, cx) => { this.view = "flow"; cx.notify(); }))
+        .child(button("wb-view-history", "History", this.view === "history", (_e, cx) => { this.view = "history"; cx.notify(); })))
       .when(Boolean(this.plant && this.root), (el) => el.child(h_flex().gap(4)
         .child(button("wb-scope-project", "This project", !this.all, (_e, cx) => { this.setAll(false, cx); cx.notify(); }))
         .child(button("wb-scope-all", "All projects", this.all, (_e, cx) => { this.setAll(true, cx); cx.notify(); }))))
@@ -831,15 +917,23 @@ export default class KanbanBoard extends View {
     else if (this.lookError) body = empty(`Can't tell which project this is: ${this.lookError}.`);
     else if (!this.root && !this.plant) body = empty("No project ledger here. Make one in the project's folder with `kanban init --repo <host>/<owner>/<repo>`.");
     else if (!this.data) body = empty(this.failure ? "" : "Reading…");
-    else if (this.view === "list") body = this.listView(t, cols, list, terms, tasksById);
+    else if (this.view === "list") body = this.listView(t, cols, old, list, terms, tasksById);
     else if (this.view === "flow") body = this.flowView(t);
+    else if (this.view === "history") body = this.historyView(t);
     else {
+      // Under the Done column: how many old done issues there are and the way to History (ADR-0059
+      // decision 3). Filtered, the count isn't shown: it is the whole project's.
+      const filtered = Boolean(this.pick || this.filter);
+      const olderRow = older > 0 ? div().id("wb-older").flex_none().px(4).h(22).flex().items_center().text_size(11.5).text_color(t.muted).cursor_pointer()
+        .hover((s) => s.text_color(t.foreground)).on_click((_e, cx) => { this.view = "history"; cx.notify(); })
+        .child(filtered ? "Older · History" : `${older} older · History`) : null;
       body = h_flex().id("wb-board").flex_1().min_w(0).h_full().min_h(0).p(12).gap(12).overflow_x_scrollbar()
         .children(cols.map((c, ci) => v_flex().id(`wb-col-${c.id}`).w(270).flex_none().h_full().min_h(0).gap(8).p(8).rounded(10).bg(t.surface)
           .child(h_flex().h(22).gap(6).items_center().text_size(11.5).font_medium().text_color(t.muted)
             .child(div().child(label(c.id).toUpperCase())).child(div().text_color(t.dim).child(String(c.tasks.length))))
           .child(v_flex().id(`wb-cards-${c.id}`).flex_1().gap(8).min_h(0).overflow_y_scrollbar()
-            .children(c.tasks.map((task, ri) => this.card(t, task, keyboard && ci === this.selCol && ri === this.selRow, list, terms, tasksById))))));
+            .children(c.tasks.map((task, ri) => this.card(t, task, keyboard && ci === this.selCol && ri === this.selRow, list, terms, tasksById))))
+          .when(ci === cols.length - 1 && Boolean(olderRow), (el) => el.child(olderRow))));
     }
     const unreadable = [...broken.map((b) => `${this.all ? `${b.slug}/` : ""}${b.id} (${b.broken})`), ...(this.data?.unreadable ?? [])];
     return v_flex()
@@ -852,6 +946,6 @@ export default class KanbanBoard extends View {
       .when(unreadable.length > 0, (el) => el.child(div().px(14).py(4).text_size(11.5).text_color(t.blocked).child(`Unreadable: ${unreadable.join(", ")}`)))
       .child(h_flex().flex_1().min_h(0).child(body).when(Boolean(this.openKey), (el) => el.child(this.detailView(t, list, terms, tasksById))))
       .when(keyboard, (el) => el.child(div().h(22).px(14).flex_none().flex().items_center().text_size(10.5).text_color(t.dim)
-        .child(`h/l columns · j/k cards · Enter open · g go to agent · v board/list/flow${this.plant && this.root ? " · p this project/all" : ""} · / filter · Esc close`)));
+        .child(`h/l columns · j/k cards · Enter open · g go to agent · v board/list/flow/history${this.plant && this.root ? " · p this project/all" : ""} · / filter · Esc close`)));
   }
 }

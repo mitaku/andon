@@ -10,18 +10,18 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、Board と List から古い片付いた課題を外し、見る表示を 1 つ足し、毎回の読みを軽くすることにする | この ADR | まだ実装していない |
-| 2 | 「古い」の線は、片付いてから 24 時間にし、`updated` で測る | この ADR | まだ実装していない |
-| 3 | Board の Done の列は線の内側だけを新しい順に並べ、List も同じ線で外す | この ADR | まだ実装していない |
-| 4 | 4 つ目の表示 History を足し、片付いた課題の全部を新しい順に並べて、全部から探せるようにする | この ADR | まだ実装していない |
-| 5 | Flow とカードが出すものは変えず、そのために要る片付いた課題は毎回の読みに含める | この ADR | まだ実装していない |
+| 2 | 「古い」の線は、片付いてから 24 時間にし、`updated` で測る | `package/host/kanban-board/main.js` | 生きている |
+| 3 | Board の Done の列は線の内側だけを新しい順に並べ、List も同じ線で外す | `package/host/kanban-board/main.js` | 生きている |
+| 4 | 4 つ目の表示 History を足し、片付いた課題の全部を新しい順に並べて、全部から探せるようにする | `package/host/kanban-board/main.js` | 生きている。mod が `andon issue history` を呼ぶ道は依頼書に切る案 3 で足す |
+| 5 | Flow とカードが出すものは変えず、そのために要る片付いた課題は毎回の読みに含める | `package/host/kanban-board/main.js` | 生きている |
 | 6 | 毎回の読みは、読むだけの command `andon issue board` をセルで呼んで受ける | `internal/board/cmd.go`・`internal/cli/leaves.go` | 生きている。command は在り、mod が呼ぶ道は依頼書に切る案 3 で足す |
 | 7 | `andon issue board` が出す課題の範囲は 5 つの組にする | `internal/board/board.go` | 生きている |
 | 8 | History の読みは、もう 1 つの command `andon issue history` にする | `internal/board/board.go`・`internal/board/cmd.go` | 生きている。command は在り、mod が呼ぶ道は依頼書に切る案 3 で足す |
 | 9 | 2 つの command の出力は、バージョンを持つ 1 つの形にする | `schema/issue-board.schema.json`・`docs/contract.md` §29 | 生きている |
 | 10 | 2 つの command は `issue.yaml` を自分で読み、symlink・大きすぎるファイル・alias のあるファイルの中身を出さない | `internal/board/board.go` | 生きている |
-| 11 | command が使えないとき、mod は今の読み方に戻り、同じ見せ方を当てる | この ADR | まだ実装していない |
+| 11 | command が使えないとき、mod は今の読み方に戻り、同じ見せ方を当てる | `package/host/kanban-board/main.js` | まだ実装していない。戻った道の見せ方だけが入り、command を先に呼ぶ道は依頼書に切る案 3 で足す |
 | 12 | mod は何も書かないままにし、呼ぶ command が 2 つ増える | この ADR | まだ実装していない |
-| 13 | 見せ方の直しを先に配り、command、command を呼ぶ道の順に足す | この ADR | まだ実装していない |
+| 13 | 見せ方の直しを先に配り、command、command を呼ぶ道の順に足す | この ADR | まだ実装していない。見せ方の直しと command が入り、command を呼ぶ道はまだ |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
