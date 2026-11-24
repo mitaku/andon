@@ -21,7 +21,7 @@
 | 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 12 | オーナー待ちは、右のパネルのペインに出す | `package/host/waiting/`・`package/host/layouts/andon.json`・`package/host/inbox/main.js` | 生きている（右のパネルの 3 つ目の画面を開く App の操作は、オーナーの手元の App で確かめる） |
 | 13 | ボードに 3 つ目の表示として、ガントチャートの形の Flow を足す | `package/host/kanban-board/main.js`・`package/host/kanban-board/README.md` | 生きている |
-| 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js`・`package/host/kanban-board/main.js` | 生きている |
+| 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js`・`package/host/kanban-board/main.js` | 生きている。ボードが呼ぶ command に、読むだけの `andon issue board` と `andon issue history` が増えた（[ADR-0059](0059-board-leaves-old-done-to-history.md) 決めたこと 12） |
 | 15 | Chief Engineer の文書から切った課題を、もとの Chief Engineer の課題に `parent` で結ぶ | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 16 | Chief of Staff がオーナーへ書く文は増やさず、マージの依頼に、後ろで待つ課題の数を書き足すだけにする | この ADR | まだ実装していない |
 | 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | `internal/waiting/answer.go`・`docs/contract.md` §25・`package/host/waiting/main.js` | 生きている |

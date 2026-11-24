@@ -5,7 +5,7 @@
 #   A8 package/skills/ の文（`` で囲んだ語とコードの囲みの中）と package/hooks/・package/templates/ の全部の行の
 #      andon <名詞> <動詞> は、全部が表にある（tests/lib/andon-refs.sh。読み方は検証の skill の検査と同じ）。
 #      古い名前・綴りの誤り・表に無い動詞を書き戻すと落ちる（引用符・空白の数・入れ子の置き場・印の行を変種で見る）。
-#      ホストの部品（package/host/*/main.js）が打つ引数は、今の waiting --json と waiting answer で、どちらも表にある。
+#      ホストの部品（package/host/*/main.js）が打つ引数は、waiting --json・waiting answer・issue board・issue history で、どれも表にある（ADR-0059 受け入れ条件 12）。
 # 道具は andon（tests/lib/andon.sh）と perl。kanban も hc も起動しない。
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
@@ -86,7 +86,13 @@ want='andon design start|andon dispatcher drian|andon issue recrd|andon issue re
 
 # ホストの部品が打つ引数（引数を配列で渡すので、上の読み方では見えない。決めたこと 21）
 host=$(perl -ne 'while (/exec\("andon", \[\s*"([^"]+)"(?:,\s*"([^"]+)")?/g) { print "$1" . (defined $2 ? " $2" : "") . "\n" }' package/host/*/main.js | LC_ALL=C sort -u)
-[ "$host" = "$(printf 'waiting --json\nwaiting answer')" ] && grep -qx 'waiting' "$tmp/leaves" && grep -qx 'waiting answer' "$tmp/leaves" \
-  && pass "ホストの部品が打つのは andon waiting --json と andon waiting answer で、どちらも表にある" || fail "ホストの部品の引数: [$host]"
+if [ "$host" = "$(printf 'issue board\nissue history\nwaiting --json\nwaiting answer')" ] && grep -qx 'waiting' "$tmp/leaves" && grep -qx 'waiting answer' "$tmp/leaves" \
+  && grep -qx 'issue board' "$tmp/leaves" && grep -qx 'issue history' "$tmp/leaves"; then
+  pass "ホストの部品が打つのは andon waiting --json・waiting answer・issue board・issue history で、どれも表にある"
+else fail "ホストの部品の引数: [$host]"; fi
+# 引数の拾い方が何も見ていなくても通らないこと: 表に無い葉や書く葉を足した写しは、一覧が変わる
+extra=$(printf '%s\n' 'exec("andon", ["issue", "done", id], { cwd });' 'exec("andon", ["issue", "board", "--json"], { cwd });' \
+  | perl -ne 'while (/exec\("andon", \[\s*"([^"]+)"(?:,\s*"([^"]+)")?/g) { print "$1" . (defined $2 ? " $2" : "") . "\n" }' | LC_ALL=C sort -u | tr '\n' '|')
+[ "$extra" = 'issue board|issue done|' ] && pass "ホストの部品の引数を拾う式は、足した呼び出しを拾う" || fail "ホストの部品の引数を拾う式: [$extra]"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }
