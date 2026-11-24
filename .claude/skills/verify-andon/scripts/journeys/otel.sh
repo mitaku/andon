@@ -14,7 +14,9 @@ echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 # ot-codex: 当てたあとに Codex のプロファイルで起動した課題ごとに、置き場の traces.jsonl と logs.jsonl を読む（ADR-0060 受け入れ条件 17）。
 # 記録が無いことは報告に書く条件なので、note にして道の終了コードを変えない。個人の属性かツールの出力が残っていれば fail。
 # 数えるのは、その課題を当てたあとに Codex で最初に起動した時刻より後の時刻（span の startTimeUnixNano・ログの timeUnixNano）を
-# 持つ行だけ（同じ課題の前の起動の行で ok にしない）。個人の属性とツールの出力は、前の行も含めてファイルの全部を見る。
+# 持つ行だけ（同じ課題の前の起動の行で ok にしない）。起動の記録の時刻は秒までなので、起動と同じ秒の行は前の起動のものと
+# 見分けられず、数えない（次の秒の頭から数える。Codex は立ち上がりに 1 秒より長くかかる）。
+# 個人の属性とツールの出力は、前の行も含めてファイルの全部を見る。
 # codex_tied は、resource に andon.issue と andon.role があり、時刻 $t（ナノ秒）以後の記録を持つ行を出す。
 codex_tied='select([.. | objects | (.startTimeUnixNano?, .timeUnixNano?) | select(type == "string" or type == "number") | tonumber] | (max // 0) >= $t)
   | (.resourceSpans // .resourceLogs)[0].resource.attributes | map(.key) | select(index("andon.issue") != null and index("andon.role") != null)'
@@ -29,7 +31,7 @@ while IFS=$'\t' read -r kanban id at; do
   for kind in traces logs; do
     f=$root/$slug/issues/$id/$kind.jsonl
     [ -f "$f" ] || { echo "  | $slug/$id: Codex の $kind.jsonl が無い"; continue; }
-    tied=$(jq -c --argjson t "${t}000000000" "$codex_tied" "$f" 2>/dev/null | grep -c . || true)
+    tied=$(jq -c --argjson t "$((t + 1))000000000" "$codex_tied" "$f" 2>/dev/null | grep -c . || true)
     email=$(grep -c '"user.email"' "$f" || true)
     output=$(jq -c '.. | objects | select(.attributes? and ((.attributes | map(select(.key == "event.name")) | .[0].value.stringValue) == "codex.tool_result" or .eventName? == "codex.tool_result")) | .attributes[] | select(.key == "output")' "$f" 2>/dev/null | grep -c . || true)
     echo "  | $slug/$id: Codex の $kind.jsonl の、起動（$at）より後で andon.issue・andon.role を持つ行 $tied・user.email を持つ行 $email・codex.tool_result の output $output"
