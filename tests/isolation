@@ -9,6 +9,9 @@
 #     XDG_DATA_HOME・HC_* を番兵へ向ける（XDG_* は番兵の HOME の下。セルで値があってもなくても同じ置き場を見る）。
 #   - TMPDIR を repo の写しの中に置く（担当が一時ディレクトリを worktree の中に置いたときと同じ）。
 # 番兵（セルの repo の根 <ws> の下。repo の写しと go の telemetry を除く）のファイルが1つでも変われば、変わったものを出して 1 で終わる。
+#   出すのは、増えた・消えた・変わったパスを上から4段のフォルダごとに数えたまとめ（40 か所まで。超えるときは、か所の多いフォルダから
+#   1つ上にまとめる）と、全部の差分を残したファイル（${TMPDIR:-/tmp}/isolation.XXXXXX。消さない）のパス。
+#   数千のファイルが増えても、どの置き場に書いたかが1画面で分かる。GitHub Actions では、全部を畳んだ group でログにも出す。
 # kanban と HOME のほか、ANDON_WORKSPACE（<ws>）と GHQ_ROOT（<ws>/.ghq）の下に書いたものも見る。検査の失敗も 1。
 # 番兵のファイルを読んだ検査も、読んだファイルを出して 1 で終わる。セルの本物の置き場の中身（空の memory の目録など）で
 # 手元の検査が落ちるのを防ぐ。読んだかは atime で見る: 検査の前に番兵のファイルの atime を古い時刻へ戻す
@@ -33,7 +36,10 @@ repo=$ws/.ghq/example.com/owner/andon
 mkdir -p "$ws/.ghq/example.com/owner" "$ws/projects/sample" "$ws/home/.local/state" "$ws/home/.local/share" "$ws/home/.claude/plugins" "$ws/home/.codex" "$ws/home/.config/go" "$ws/memory"
 git clone -q "$src" "$repo"
 (cd "$src" && git diff HEAD --binary) | (cd "$repo" && git apply --allow-empty)
-(cd "$src" && git ls-files --others --exclude-standard -z) | (cd "$src" && xargs -0r cp --parents -t "$repo")
+# 未追跡のファイルも写す。この回の一時の置き場（TMPDIR が作業ツリーの中なら、その下に番兵と repo の写しがある）は除く
+own=()
+case "$(cd "$tmp" && pwd -P)/" in "$(cd "$src" && pwd -P)"/*) own=(":(exclude)$(realpath --relative-to="$src" "$tmp")") ;; esac
+(cd "$src" && git ls-files --others --exclude-standard -z -- . "${own[@]}") | (cd "$src" && xargs -0r cp --parents -t "$repo")
 (cd "$ws/projects/sample" && env -u KANBAN_ROOT PATH="$path" HC_TERMINAL_ID=t1 bash -c '
   kanban init --prefix S --repo example.com/owner/andon >/dev/null
   kanban add "番兵の課題" >/dev/null
@@ -81,18 +87,88 @@ failed=0
 
 read=$(readfiles) # snap が読む前に見る
 after=$(snap)
+
+# 番兵に書いた・読んだときは、全部をファイルに残し（$tmp は終わりに消すので外に置く）、画面にはまとめを $max 行まで出す。
+# 数千のファイルが増えても、どの置き場に書いたかが1画面で分かるように
+max=40
+keep=''
+# 一時の置き場に書けなければ、全部を画面（stderr）に出す（まとめのために全部を捨てない）
+keepfile() { [ -n "$keep" ] || keep=$(mktemp "${TMPDIR:-/tmp}/isolation.XXXXXX" 2>/dev/null) || keep=/dev/stderr; }
+# diff の < と > の行からパスを取り、増えた（> だけ）・消えた（< だけ）・変わった（両方）に分けて、上から4段のフォルダごとに数える。
+# か所が $max を超えるあいだ、か所を一番多く抱えるフォルダだけを1つ上にまとめる（小さな書き込みが「ほか」に隠れないように。
+# 段を一律に浅くすると、別の置き場への1ファイルが同じ上のフォルダの大きな塊に溶けるので、ほかの置き場の細かさは落とさない）。
+# 読めない行（stat の種類を知らない・名前に改行がある）は数えて出す（黙って落とさない）。
+# 出すのは1行目に「<まとめた回数> <増えた> <消えた> <変わった> <読めない行>」、2行目から「<計> <増えた> <消えた> <変わった> <フォルダ>」
+changes() {
+  sed -nE -e 's/^([<>]) [0-9a-f]{64}  (.*)$/\1 \2/p; t' \
+    -e 's/^([<>]) (.*) (regular file|regular empty file|directory|symbolic link|fifo|socket|character special file|block special file|weird file) [0-9]+ [0-9]+$/\1 \2/p; t' \
+    -e 's/^[<>] .*/?/p' |
+    awk -v max="$max" '
+      $0 == "?" { bad++; next }
+      { p = substr($0, 3); if (substr($0, 1, 1) == "<") a[p] = 1; else b[p] = 1; all[p] = 1 }
+      function group(p,   x, n, g, i) { n = split(p, x, "/"); g = x[1]; for (i = 2; i <= n && i <= 5; i++) g = g "/" x[i]; return g }
+      function up(q) { if (q == ".") return ""; sub(/\/[^\/]*$/, "", q); return q }
+      END {
+        for (p in all) g[p] = group(p)
+        m = 0
+        while (1) {
+          split("", seen); split("", kids); k = 0
+          for (p in all) if (!(g[p] in seen)) { seen[g[p]] = 1; k++ }
+          if (k <= max) break
+          # か所を一番多く抱えるフォルダだけを1つ上にまとめる（ほかの置き場の細かさは落とさない）
+          for (q in seen) { u = up(q); if (u != "") kids[u]++ }
+          best = ""; bn = 1
+          for (u in kids) if (kids[u] > bn || (kids[u] == bn && best != "" && u < best)) { best = u; bn = kids[u] }
+          if (best == "") break
+          for (p in all) if (up(g[p]) == best) g[p] = best
+          m++
+        }
+        for (p in all) {
+          t = (p in a) ? ((p in b) ? "c" : "r") : "n"
+          cnt[g[p], t]++; tot[g[p]]++; T[t]++
+        }
+        printf "%d %d %d %d %d\n", m, T["n"], T["r"], T["c"], bad
+        for (q in tot) printf "%d %d %d %d %s\n", tot[q], cnt[q, "n"], cnt[q, "r"], cnt[q, "c"], q
+      }'
+}
+wrote='' readmsg=''
 if [ "$before" != "$after" ]; then
-  echo "FAIL 検査が番兵（セルの本物の代わり）に書いた:" >&2
-  diff <(echo "$before") <(echo "$after") >&2 || true
+  keepfile
+  { echo "# 検査が番兵に書いた（番兵の前と後の diff。< が前、> が後）"; diff <(echo "$before") <(echo "$after") || true; } >>"$keep"
+  sum=$(diff <(echo "$before") <(echo "$after") | changes || true)
+  read -r merged n r c bad <<<"$(sed -n 1p <<<"$sum")"
+  places=$(sed 1d <<<"$sum" | sort -k1,1nr -k5)
+  k=$(grep -c . <<<"$places" || true)
+  wrote=$(
+    echo "FAIL 検査が番兵（セルの本物の代わり）に書いた: 増えた $n・消えた $r・変わった $c（上から4段のフォルダごと。多い順）"
+    [ "${merged:-0}" = 0 ] || echo "  か所が $max を超えたので、か所の多いフォルダを1つ上のフォルダにまとめた（$merged 回）"
+    [ "$k" = 0 ] || head -n "$max" <<<"$places" | while read -r _ pn pr pc g; do printf '  増えた %6d  消えた %6d  変わった %6d  %s\n' "$pn" "$pr" "$pc" "$g"; done
+    [ "$k" -le "$max" ] || echo "  ほか $((k - max)) か所"
+    [ "${bad:-0}" = 0 ] || echo "  読めない行 $bad（全部の差分で見る）"
+    echo "  全部の差分: $keep"
+  )
   failed=1
 else
   echo "ok   番兵（kanban projects/sample・HOME・セルの repo の根・GHQ_ROOT）は変わらなかった"
 fi
 if [ -n "$read" ]; then
-  echo "FAIL 検査が番兵（セルの本物の代わり）のファイルを読んだ（検査の環境で置き場を一時に向ける）:" >&2
-  echo "$read" >&2
+  keepfile
+  { echo "# 検査が読んだ番兵のファイル"; echo "$read"; } >>"$keep"
+  k=$(grep -c . <<<"$read")
+  readmsg=$(
+    echo "FAIL 検査が番兵（セルの本物の代わり）のファイルを読んだ（検査の環境で置き場を一時に向ける）: $k 件"
+    head -n "$max" <<<"$read" | sed 's/^/  /'
+    [ "$k" -le "$max" ] || echo "  ほか $((k - max)) 件"
+    echo "  全部: $keep"
+  )
   failed=1
 else
   echo "ok   番兵のファイルは読まれなかった"
 fi
+# CI（GitHub Actions）では一時の置き場が job と一緒に消えるので、全部を畳んだ group でログにも出す。まとめはその後ろ（ログの終わり）に出す
+if [ -n "$keep" ] && [ -f "$keep" ] && [ "${GITHUB_ACTIONS:-false}" = true ]; then
+  { echo "::group::全部の差分（$keep）"; cat "$keep"; echo "::endgroup::"; } >&2
+fi
+[ -z "$wrote" ] || echo "$wrote" >&2
+[ -z "$readmsg" ] || echo "$readmsg" >&2
 [ "$failed" = 0 ] || { echo "FAIL 検査が落ちた（上の出力）" >&2; exit 1; }
