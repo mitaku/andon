@@ -19,13 +19,11 @@ type AfterMerge struct {
 	RevertedBy  []Revert `json:"reverted_by"`
 }
 
-// Checks はマージ commit の checks（check run）の結果。読めなければ AfterMerge.Checks が null。
 type Checks struct {
-	State  string   `json:"state"`  // failure（1つ以上失敗）・pending（終わっていないものがある）・success・none（check run が無い）
-	Failed []string `json:"failed"` // 失敗した check run の名前（名前の順・重ねない）
+	State  string   `json:"state"`
+	Failed []string `json:"failed"`
 }
 
-// Revert はその PR を revert した PR（マージされたもの）。
 type Revert struct {
 	PR       string `json:"pr"`
 	MergedAt string `json:"merged_at"`
@@ -45,11 +43,10 @@ type ghPR struct {
 	} `json:"mergeCommit"`
 }
 
-// github は repo ごとのマージされた PR の一覧を1回だけ読んで控える。
 type github struct {
 	r      *reader
 	gh     func(args ...string) ([]byte, error)
-	lists  map[string][]ghPR // owner/repo → 一覧。読めなければ nil を控える
+	lists  map[string][]ghPR
 	warned bool
 }
 
@@ -57,7 +54,6 @@ func newGitHub(r *reader, gh func(args ...string) ([]byte, error)) *github {
 	return &github{r: r, gh: gh, lists: map[string][]ghPR{}}
 }
 
-// list は repo（owner/repo）のマージされた PR の一覧。読めなければ false（skipped に1回だけ書く）。
 func (g *github) list(repo string) ([]ghPR, bool) {
 	if g.gh == nil {
 		if !g.warned {
@@ -86,7 +82,6 @@ func (g *github) list(repo string) ([]ghPR, bool) {
 	return l, true
 }
 
-// merged は PR の URL がマージされていれば、その一覧の1件。
 func (g *github) merged(pr string) (ghPR, bool) {
 	owner, name, _, ok := contract.ParsePR(pr)
 	if !ok {
@@ -104,8 +99,6 @@ func (g *github) merged(pr string) (ghPR, bool) {
 	return ghPR{}, false
 }
 
-// afterMerge は課題の PR がマージされていれば、マージ commit の checks と、その PR を revert した PR を読む。
-// PR が無い・マージされていない・一覧が読めないなら null。
 func (g *github) afterMerge(b Bundle) *AfterMerge {
 	if b.PR == nil {
 		return nil
@@ -143,7 +136,6 @@ func (g *github) afterMerge(b Bundle) *AfterMerge {
 	return a
 }
 
-// checks はマージ commit の check run を読む。読めなければ nil（skipped に1行）。
 // --paginate でページを最後まで読む（gh はページごとの JSON の object を続けて出す）。
 func (g *github) checks(repo, sha string) *Checks {
 	b, err := g.gh("api", "--paginate", "repos/"+repo+"/commits/"+sha+"/check-runs?per_page=100")
@@ -195,7 +187,6 @@ func (g *github) checks(repo, sha string) *Checks {
 	return c
 }
 
-// containsRef は本文に ref（owner/repo#n か PR の URL）が、続く数字なしで現れるか（andon measure と同じ照合）。
 func containsRef(body, ref string) bool {
 	for i := 0; ; {
 		j := strings.Index(body[i:], ref)

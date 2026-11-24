@@ -24,16 +24,14 @@ import (
 // 段（決めたこと 9）。上から効き目の確かな順。
 var levels = []string{"design", "test", "check", "skill", "text"}
 
-// levelName は段の日本語の名前（依頼書に書く）。
 var levelName = map[string]string{
 	"design": "設計・型", "test": "テスト・lint", "check": "決まった手順の確かめ", "skill": "skill・指針", "text": "文面",
 }
 
 var (
-	actions   = []string{"add", "change", "remove"}
-	kinds     = []string{"andon", "project"}
-	decisions = []string{"fix", "drop"}
-	// actionName は足すか変えるか削るかの日本語。
+	actions    = []string{"add", "change", "remove"}
+	kinds      = []string{"andon", "project"}
+	decisions  = []string{"fix", "drop"}
 	actionName = map[string]string{"add": "足す", "change": "変える", "remove": "削る"}
 )
 
@@ -42,13 +40,11 @@ var (
 	repoRe      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
-// PatternsInput は担当が andon retro patterns に渡す JSON（command が足す欄は書かない）。
 type PatternsInput struct {
 	Patterns []Pattern `json:"patterns"`
 	Fixes    []FixView `json:"fixes"`
 }
 
-// Patterns は library/retro.json（PatternsInput に、command が集めた入力の窓を足したもの）。
 type Patterns struct {
 	Retro         string     `json:"retro"`
 	At            string     `json:"at"`
@@ -60,7 +56,6 @@ type Patterns struct {
 	Fixes         []FixView  `json:"fixes"`
 }
 
-// Pattern はパターン1つ。
 type Pattern struct {
 	ID          string   `json:"id"`
 	Summary     string   `json:"summary"`
@@ -75,7 +70,6 @@ type Pattern struct {
 	Reason      string   `json:"reason"`
 }
 
-// Target は直す先。kind は andon（Andon のパッケージ）か project（案件の repo のテスト・AGENTS.md・REVIEW.md など）。
 type Target struct {
 	Kind  string   `json:"kind"`
 	Repo  string   `json:"repo,omitempty"`
@@ -89,12 +83,10 @@ type FixView struct {
 	View     string `json:"view"`
 }
 
-// line は空白でない字を持ち、改行を含まない文字列か。
 func line(s string) bool {
 	return strings.IndexFunc(s, func(r rune) bool { return !unicode.IsSpace(r) }) >= 0 && !strings.ContainsAny(s, "\r\n")
 }
 
-// checkShape は入力の形を確かめる（集めた入力が要らない所）。
 func checkShape(ps []Pattern, fixes []FixView) error {
 	ids := map[string]bool{}
 	for i, p := range ps {
@@ -195,7 +187,6 @@ func evidenceUnit(id string, in *Input) (unit string, at time.Time, ok bool) {
 	return "", time.Time{}, false
 }
 
-// checkEvidence は根拠を集めた入力に照らす: 実在・別々の2件以上・境目（前の振り返りが集めた時刻）より後のものが1件以上。
 func checkEvidence(ps []Pattern, in *Input) error {
 	var prev time.Time
 	if in.Boundary != nil {
@@ -277,12 +268,10 @@ func checkRepos(ps []Pattern, repos []string) error {
 	return nil
 }
 
-// toOwner は直す先が Andon のパッケージで、その repo をこのプロジェクトが持たないか（直す課題でなくオーナーの課題になる）。
 func toOwner(t Target, repos []string) bool {
 	return t.Kind == "andon" && (t.Repo == "" || !slices.Contains(repos, t.Repo))
 }
 
-// ParsePatternsInput は担当の入力を読んで形を確かめる。
 func ParsePatternsInput(b []byte) (*PatternsInput, error) {
 	var p PatternsInput
 	if err := contract.Decode(b, &p); err != nil {
@@ -297,7 +286,6 @@ func ParsePatternsInput(b []byte) (*PatternsInput, error) {
 	return &p, nil
 }
 
-// ParsePatterns は library/retro.json を読んで形を確かめる（集めた入力には照らさない）。
 func ParsePatterns(b []byte) (*Patterns, error) {
 	var p Patterns
 	if err := contract.Decode(b, &p); err != nil {
@@ -323,7 +311,6 @@ func ParsePatterns(b []byte) (*Patterns, error) {
 	return &p, nil
 }
 
-// CheckPatterns は集めた入力 in に照らして、パターンの一覧を全部確かめる（書くときと当てるとき）。
 // withFixes が真なら、前の直しの見立ても入力の前の直しに照らす（当てるときは GitHub を読まないので照らさない）。
 func CheckPatterns(ps []Pattern, fixes []FixView, in *Input, repos []string, withFixes bool) error {
 	if err := checkShape(ps, fixes); err != nil {

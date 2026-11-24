@@ -12,8 +12,6 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// retroFault は振り返りの apply を本物の kanban の CLI で当てる下ごしらえ（Chief of Staff の端末 t5・振り返りの課題 T-0001・
-// 担当の課題になるパターン p1 とオーナーの課題になるパターン p2）。
 type retroFault struct {
 	f     *ledgertest.Fault
 	l     *ledger.Ledger
@@ -73,16 +71,11 @@ func (r *retroFault) state(t *testing.T) string {
 	return s + "record " + string(got) + "\n"
 }
 
-// andon retro apply は、kanban に書く所（担当の課題の add・予約キーの set、オーナーの課題の add・set・ask の、前・
-// ファイルと log.jsonl の間・後）のどこで止まっても、同じ command を打ち直せば、止まらなかった回と同じ課題・予約キー
-// （履歴の照合まで）・問い・問いの控え・記録（retro-applied.json）に揃う。
 func TestApplyConvergesAfterAnyStop(t *testing.T) {
 	r := &retroFault{f: ledgertest.NewFault(t)}
 	r.f.Converge(t, ledgertest.Case{Setup: r.setup, Run: r.run, Tries: 2, State: r.state})
 }
 
-// オーナーの課題に問いを置いたあと控えを書く前に止まり、打ち直しの前に問い（retro.json から作る文）が変わったら、控えを
-// 書き直せない。打ち直しは誤りで止まり、記録を当て済み（complete）にしない（控えの無い問いを当て済みとして残さない）。
 func TestApplyRerunRefusesWhenTheQuestionChanged(t *testing.T) {
 	r := &retroFault{f: ledgertest.NewFault(t)}
 	r.setup(t)
@@ -90,7 +83,7 @@ func TestApplyRerunRefusesWhenTheQuestionChanged(t *testing.T) {
 	if err := r.run(); err != nil {
 		t.Fatal(err)
 	}
-	last := r.f.Points() // 最後の所は、オーナーの課題の kanban ask を書き切ったあと
+	last := r.f.Points()
 	r.setup(t)
 	r.f.Arm(last)
 	if err := r.run(); err == nil {

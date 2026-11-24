@@ -28,7 +28,6 @@ type Question struct {
 	AskedAt  string    `json:"asked_at"`
 }
 
-// QOption は問いの選択肢1つ（問いの JSON の写し）。
 type QOption struct {
 	Label string `json:"label"`
 	Pick  bool   `json:"pick"`
@@ -52,8 +51,6 @@ var (
 	questionFroms = map[string]bool{"": true, "issue": true, "retro": true, "chief-of-staff": true, "chief-engineer": true}
 )
 
-// questions は期間（since より後、until まで）に聞かれた問いを、聞いた時刻の順に並べる。gate の問い（from: gate）と
-// 範囲の問い（kind: scope）は入れない。問いの JSON が無い・読めない問いは、gate の問いかを決められないので入れず、skipped に1行。
 func (r *reader) questions(tasks []*task, since, until time.Time) []Question {
 	out := []Question{}
 	for _, t := range tasks {

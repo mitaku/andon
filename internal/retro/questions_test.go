@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// questionsFixture は newFixture に、申告を持つ担当の課題（A-0004）と、gate の問い・範囲の問い・Chief of Staff の問いを
-// 1 件ずつ足す。ほかに、期間の外の Chief of Staff の問いと、問いの JSON の無い問いを足す。
 func questionsFixture(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture(t)
@@ -27,15 +25,12 @@ func questionsFixture(t *testing.T) *fixture {
 		}
 		return s
 	}
-	// gate の問い（A-0001）
 	write(t, filepath.Join(is("A-0001"), "questions.yaml"), q(1, ago(2*day), "マージした"))
 	write(t, filepath.Join(is("A-0001"), "library", "questions", "1.json"),
 		`{"kind":"line","question":"マージするか","options":[{"label":"マージする","pick":true},{"label":"しない"}],"from":"gate"}`)
-	// 範囲の問い（A-0003）
 	write(t, filepath.Join(is("A-0003"), "questions.yaml"), q(1, ago(2*day), "c1"))
 	write(t, filepath.Join(is("A-0003"), "library", "questions", "1.json"),
 		`{"kind":"scope","question":"どれを直すか","options":[{"label":"c1","pick":true},{"label":"c2"}],"from":"issue"}`)
-	// Chief of Staff の問い（オーナーの課題 A-0005）。2 つ目は期間の外、3 つ目は問いの JSON が無い
 	write(t, filepath.Join(is("A-0005"), "questions.yaml"), q(1, ago(1*day), "CSV と Excel")+q(2, ago(9*day), "")+q(3, ago(1*day), ""))
 	write(t, filepath.Join(is("A-0005"), "library", "questions", "1.json"),
 		`{"kind":"users","question":"書き出しの形をどうするか","options":[{"label":"CSV だけ","pick":true},{"label":"CSV と Excel"}],"from":"chief-of-staff"}`)
@@ -46,7 +41,7 @@ func questionsFixture(t *testing.T) *fixture {
 
 // ADR-0061 受け入れ条件 5: 全文の束に gaps があり、questions[] に Chief of Staff の問いだけがあり、出力が schema に通る。
 func TestQuestionsAndGaps(t *testing.T) {
-	in, out := questionsFixture(t).collect(t) // collect は Redacted で schema/retro.schema.json に照らす
+	in, out := questionsFixture(t).collect(t)
 	b := bundle(t, in, "A-0004")
 	if len(b.Gaps) != 2 {
 		t.Fatalf("A-0004 の束の gaps = %v（申告 2 件）", b.Gaps)
@@ -132,14 +127,13 @@ func TestSummaryGapsUnknownKind(t *testing.T) {
 	}
 }
 
-// 問いの JSON の from か kind が今の値の外（前のバージョンの from: task など）なら入れず skipped に回し、collect は出力を出す。
 func TestQuestionsUnknownFromOrKind(t *testing.T) {
 	f := questionsFixture(t)
 	is := filepath.Join(f.root, "kanban", "issues", "A-0009")
 	write(t, filepath.Join(is, "questions.yaml"), "- n: 1\n  text: 問い\n  asked: \""+ago(1*day)+"\"\n- n: 2\n  text: 問い\n  asked: \""+ago(1*day)+"\"\n")
 	write(t, filepath.Join(is, "library", "questions", "1.json"), `{"kind":"line","question":"古い","options":[{"label":"a","pick":true},{"label":"b"}],"from":"task"}`)
 	write(t, filepath.Join(is, "library", "questions", "2.json"), `{"kind":"future","question":"新しい種類","options":[{"label":"a","pick":true},{"label":"b"}],"from":"chief-engineer"}`)
-	in, _ := f.collect(t) // schema に落ちれば collect が t.Fatal
+	in, _ := f.collect(t)
 	if len(in.Questions) != 1 || in.Questions[0].Issue != "A-0005" {
 		t.Errorf("questions = %+v", in.Questions)
 	}

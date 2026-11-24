@@ -12,7 +12,6 @@ import (
 
 // 全文と要約の分け方（ADR-0039 決めたこと 6・受け入れ条件 4〜9）。
 
-// split は束を多く並べる kanban。束は同じ形で作るので、全文の大きさは束の数に比例する。
 type split struct {
 	t    *testing.T
 	root string
@@ -33,7 +32,6 @@ func (f *split) done(id string, at string) {
 	f.log = append(f.log, fmt.Sprintf(`{"at":%q,"by":"terminal:t1","id":%q,"change":{"status":"done"}}`, at, id))
 }
 
-// issue は担当の課題1件を、全文が重くなる記録（日報・起動の記録・結果の記録・レビュアーの子の major・gate の fix・手直し）つきで置く。
 func (f *split) issue(id string, doneAt string) {
 	t := f.t
 	write(t, filepath.Join(f.is(id), "issue.yaml"), issueYAML(id, "done", "profile: claude\n"))
@@ -54,7 +52,6 @@ func (f *split) issue(id string, doneAt string) {
 	f.done(id, doneAt)
 }
 
-// retro は振り返りの課題を置く。untilAgo が 0 でなければ retro.json（集めた時刻 until と前の直しの再発の数）を書く。
 func (f *split) retro(id string, doneAt time.Time, until time.Time, fixes string) {
 	t := f.t
 	write(t, filepath.Join(f.is(id), "issue.yaml"), issueYAML(id, "done", "profile: claude\nroutine: retro\n"))
@@ -97,8 +94,6 @@ func idsOf(in *Input) (full, summ []string) {
 	return full, summ
 }
 
-// 前の振り返り A-0900 が 2 日前に片付き、その 1 時間前に集めた。古い束 300 件と新しい束 25 件。
-// A-0800 は前の振り返りが集めてから片付くまでの間に片付いた。
 func boundaryFixture(t *testing.T) (*split, time.Time) {
 	f := newSplit(t)
 	until := now.Add(-2*day - time.Hour)
@@ -128,7 +123,6 @@ func TestSplitAtPreviousUntil(t *testing.T) {
 	if in.Boundary == nil || *in.Boundary != until.Format(time.RFC3339) || in.PreviousRetro.Until == nil || *in.PreviousRetro.Until != *in.Boundary {
 		t.Errorf("境目 = %v・前の振り返り = %+v（want %s）", in.Boundary, in.PreviousRetro, until.Format(time.RFC3339))
 	}
-	// 同じ kanban を全部全文で出す: 前の振り返りを数えず、全文の上限を外す
 	defer func(n int) { fullLimit = n }(fullLimit)
 	fullLimit = 1000
 	all := f.collect(Options{Exclude: "A-0900"})
@@ -147,7 +141,6 @@ func TestSplitAtPreviousUntil(t *testing.T) {
 	wantRefused(t, checkOne(t, pattern("A-0002", "A-0001"), in), "境目")
 }
 
-// 前の振り返りに retro.json が無ければ、片付いた時刻を境目にする。
 func TestSplitAtDoneWithoutRetroJSON(t *testing.T) {
 	f := newSplit(t)
 	f.retro("A-0900", now.Add(-2*day), time.Time{}, "")
@@ -191,7 +184,6 @@ func TestSummaryEvidenceAndIssue(t *testing.T) {
 	if strings.Count(string(b), "- 理解: 迷った。") != 25 {
 		t.Error("日報の本文が全文の束の外（要約）にも出ている")
 	}
-	// --issue: 要約の束の全文を引く
 	one := f.collect(Options{Issue: "A-0001"})
 	if len(one.Issues) != 1 || len(one.Summaries) != 0 || one.Issues[0].Journal == nil || len(one.Issues[0].Reviews) != 1 ||
 		one.Issues[0].Reviews[0].Findings == nil {
@@ -202,7 +194,6 @@ func TestSummaryEvidenceAndIssue(t *testing.T) {
 	}
 }
 
-// 要約の手直しの印: 「人がマージした」と「オーナーがマージした」の答えだけなら false、ほかがあれば true、記録が無ければ null。
 func TestSummaryCorrections(t *testing.T) {
 	merged := map[string]any{"kind": "override", "question": float64(1), "answer": "オーナーがマージした（PR #2）"}
 	other := map[string]any{"kind": "answer", "question": float64(2), "picked": "x"}
@@ -241,7 +232,6 @@ func TestSplitCutNewest(t *testing.T) {
 func TestFixesRecurredBefore(t *testing.T) {
 	f := newSplit(t)
 	pr := func(n int) string { return fmt.Sprintf("https://github.com/example/sample-site/pull/%d", n) }
-	// A-0900: 古い振り返り。A-0901: 前の振り返り（集めたのは 2 日前）。
 	f.retro("A-0900", now.Add(-10*day), now.Add(-10*day-time.Hour), "")
 	f.retro("A-0901", now.Add(-2*day), now.Add(-2*day-time.Hour), `{"issue":"A-0011","recurred":2,"view":"再発した"}`)
 	for _, x := range []struct {
@@ -268,7 +258,6 @@ func TestFixesRecurredBefore(t *testing.T) {
 			got[x.Issue] = fmt.Sprint(*x.RecurredBefore)
 		}
 	}
-	// A-0011: 前の振り返りが 2 と書いた。A-0012: 境目より前のマージで、前の振り返りが数えていない（null）。A-0013: 境目より後のマージ（0）
 	if want := map[string]string{"A-0011": "2", "A-0012": "null", "A-0013": "0"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("前の再発の数 = %v（want %v）", got, want)
 	}
