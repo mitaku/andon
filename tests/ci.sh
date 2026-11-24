@@ -316,3 +316,53 @@ set -e
 [ "$st" = 1 ] || die "run: 検査が落ちたのに run-tests の終了コード 1 を伝えない（exit $st）"
 grep -qF '| tests/x.sh | FAIL(3) |' "$r/b.out" || die "run: 2本目の表に検査の FAIL(3) が無い: $(cat "$r/b.out")"
 ok "run: 2本目は理由を1行出して1本目が終わるまで待つ。鍵は検査を待つ runner が持ち、検査に渡さない。終了コードは run-tests のまま"
+
+# 4. isolation: 番兵に数千のファイルを書かれても、出力はフォルダごとの件数のまとめで1画面に収まり、全部の差分はファイルに残る。
+#    まとめに隠れずに、別の置き場への小さな書き込みと読んだファイルも出る。go test を偽の go に替えて、tests/isolation を回す。
+#    偽の go は、mise の shim が番兵の HOME へ go を入れ直した形（2000 のファイル）・60 のフォルダへの書き込み・
+#    セルの repo の根の1ファイルの書き換え・番兵の1ファイルの読みをする。偽の mise は go の場所だけを答え、偽の kanban は何もしない
+iso=$tmp/iso
+mkdir -p "$iso/bin" "$iso/tmp"
+cat >"$iso/bin/go" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  env) echo /nonexistent ;;
+  test)
+    d=$HOME/.local/share/mise/installs/go/9.9.9/src
+    mkdir -p "$d" && (cd "$d" && seq 2000 | sed 's/$/.go/' | xargs touch)
+    for i in $(seq 60); do mkdir -p "$HOME/.cache/many/d$i" && : >"$HOME/.cache/many/d$i/f"; done
+    echo x >>"$ANDON_WORKSPACE/AGENTS.local.md"
+    cat "$HOME/.claude/CLAUDE.md" >/dev/null ;;
+esac
+EOF
+printf '#!/usr/bin/env bash\n[ "$1 $2" = "which go" ] || exit 1\necho "$(dirname "$0")/go"\n' >"$iso/bin/mise"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$iso/bin/kanban"
+chmod +x "$iso/bin/go" "$iso/bin/mise" "$iso/bin/kanban"
+set +e
+env PATH="$iso/bin:$PATH" TMPDIR="$iso/tmp" bash tests/isolation tests/no-such-test.sh >"$iso/out" 2>&1
+st=$?
+set -e
+if grep -q 'atime が動かない' "$iso/out"; then
+  echo "skip isolation のまとめ（一時の置き場の atime が動かない。$(grep 'atime が動かない' "$iso/out")）"
+else
+  [ "$st" = 1 ] || die "isolation: 番兵に書いても 1 で終わらない（exit $st）: $(tail -5 "$iso/out")"
+  lines=$(wc -l <"$iso/out")
+  [ "$lines" -le 60 ] || die "isolation: 番兵に 2000 のファイルを書かれた出力が $lines 行（60 行を超え、どこに書いたかが1画面で分からない）: $(head -c 2000 "$iso/out")"
+  # 60 のフォルダは 4 段では 40 か所を超えるので、3 段に浅くして全部を出す（「ほか」に隠さない）
+  grep -qF 'FAIL 検査が番兵（セルの本物の代わり）に書いた: ' "$iso/out" || die "isolation: 書いたことの見出しが無い: $(cat "$iso/out")"
+  grep -qF '（上から 3 段のフォルダごと。多い順）' "$iso/out" || die "isolation: か所が 40 を超えたのに段を浅くしない: $(cat "$iso/out")"
+  grep -q 'ほか .* か所' "$iso/out" && die "isolation: 段を浅くすれば出せるか所を「ほか」に隠した: $(cat "$iso/out")"
+  # 数は増えたもの（2000 のファイルと入れ子のフォルダ）を数える
+  n=$(sed -nE 's|^  増えた +([0-9]+) .*  \./home/\.local/share$|\1|p' "$iso/out")
+  [ -n "$n" ] && [ "$n" -ge 2000 ] || die "isolation: mise の置き場（./home/.local/share）に増えた数が出ない（$n）: $(cat "$iso/out")"
+  n=$(sed -nE 's|^  増えた +([0-9]+) .*  \./home/\.cache/many$|\1|p' "$iso/out")
+  [ -n "$n" ] && [ "$n" -ge 120 ] || die "isolation: 60 のフォルダ（./home/.cache/many）に増えた数が出ない（$n）: $(cat "$iso/out")"
+  grep -qE '^  増えた +0  消えた +0  変わった +1  \./AGENTS\.local\.md$' "$iso/out" || die "isolation: 1ファイルの書き換え（./AGENTS.local.md）がまとめに隠れた: $(cat "$iso/out")"
+  grep -qxF '  ./home/.claude/CLAUDE.md' "$iso/out" || die "isolation: 読んだファイルが出ない: $(cat "$iso/out")"
+  keep=$(sed -n 's/^  全部の差分: //p' "$iso/out")
+  [ -n "$keep" ] && [ -s "$keep" ] || die "isolation: 全部の差分を残したファイルのパスが出ないか、ファイルが無い（$keep）: $(cat "$iso/out")"
+  [ "$(sed -n 's/^  全部: //p' "$iso/out")" = "$keep" ] || die "isolation: 読んだファイルの全部を、差分と同じファイルに残さない: $(cat "$iso/out")"
+  [ "$(grep -cE '^> .*/installs/go/9\.9\.9/src/[0-9]+\.go( |$)' "$keep")" -ge 4000 ] || die "isolation: 残したファイルに全部の差分（2000 のファイルの stat と sha256）が無い: $(head -c 2000 "$keep")"
+  grep -qxF './home/.claude/CLAUDE.md' "$keep" || die "isolation: 残したファイルに読んだファイルが無い"
+  ok "isolation: 番兵に数千のファイルを書かれても、フォルダごとの件数のまとめは $lines 行。小さな書き込みと読んだファイルも出し、全部の差分はファイルに残す"
+fi
