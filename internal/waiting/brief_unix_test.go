@@ -49,3 +49,38 @@ func TestTaskBriefNotRegular(t *testing.T) {
 		t.Fatal("普通のファイルでない依頼書を読んで止まった")
 	}
 }
+
+// 普通のファイルと見たあとに FIFO へ差し替えられても止まらない: 開く口そのものが、FIFO を書き手を待たずに開いて断る
+// （開く前に見る形では、見てから開くまでの差し替えで開くところが止まる）。
+func TestOpenRegularFIFO(t *testing.T) {
+	dir := t.TempDir()
+	fifo := filepath.Join(dir, "brief.md")
+	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plain := filepath.Join(dir, "plain.md")
+	if err := os.WriteFile(plain, []byte("手順\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		fh, err := openRegular(fifo)
+		if err == nil {
+			fh.Close()
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("FIFO を普通のファイルとして開いた")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("FIFO を開くところで止まった")
+	}
+	// 同じ口が普通のファイルは開いて読める
+	b, err := readBrief(plain)
+	if err != nil || string(b) != "手順\n" {
+		t.Fatalf("普通のファイルを読めない: %q %v", b, err)
+	}
+}

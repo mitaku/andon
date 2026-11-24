@@ -493,13 +493,7 @@ const maxBriefBytes = 1 << 20
 // readBrief は依頼書を読む。普通のファイルでなければ（FIFO・装置を指す symlink）読まない: 読むと止まるか際限なく読み、
 // andon waiting と、それを呼ぶ dispatcher が止まる。上限を超えた分は読まず、末尾で切れた文字を落とす。
 func readBrief(path string) ([]byte, error) {
-	// FIFO は開くだけで止まるので、開く前に見る
-	if st, err := os.Stat(path); err != nil {
-		return nil, err
-	} else if !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s は普通のファイルでない", path)
-	}
-	fh, err := os.Open(path)
+	fh, err := openRegular(path)
 	if err != nil {
 		return nil, err
 	}
@@ -514,6 +508,24 @@ func readBrief(path string) ([]byte, error) {
 		}
 	}
 	return b, nil
+}
+
+// openRegular は path を開き、開いたものが普通のファイルのときだけ返す。開く前に見ると、見てから開くまでに FIFO へ
+// 差し替えられたとき開くところで止まるので、待たずに開いてから、開いたものを見る。
+func openRegular(path string) (*os.File, error) {
+	fh, err := openNoWait(path)
+	if err != nil {
+		return nil, err
+	}
+	st, err := fh.Stat()
+	if err == nil && !st.Mode().IsRegular() {
+		err = fmt.Errorf("%s は普通のファイルでない", path)
+	}
+	if err != nil {
+		fh.Close() //nolint:errcheck // 読まずに閉じる
+		return nil, err
+	}
+	return fh, nil
 }
 
 // firstLine は値の 1 行目（前後の空白を除く）。
