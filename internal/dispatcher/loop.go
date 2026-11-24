@@ -416,7 +416,8 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	} else {
 		b.WriteString(firstReviewRange(rr.Commit, rep.PR))
 	}
-	fmt.Fprintf(&b, "仕様の正: 元の課題の依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n\n", filepath.Join(l.Dir, "issues", r.Issue, "brief.md"))
+	fmt.Fprintf(&b, "仕様の正: 元の課題の依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n", filepath.Join(l.Dir, "issues", r.Issue, "brief.md"))
+	b.WriteString("repo の観点: 対象の worktree の root に `REVIEW.md` があれば先に読み、その観点も下の観点と同じく当てる（無ければ下の観点だけ）。\n\n")
 	b.WriteString("見てほしいこと（重い順）:\n" +
 		"1. この PR で一番怖いところ（外向きの面・壊すと戻せないもの）\n" +
 		"2. 正しさ: 並行性・失敗の波及・境界・前のバージョンの形・落ちたあとの起き直し\n" +

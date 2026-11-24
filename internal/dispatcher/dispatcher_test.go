@@ -173,7 +173,9 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`",
 		// 正しさは worker skill §2 の3つの観点を名指しする
 		"2. 正しさ: 並行性・失敗の波及・境界・前のバージョンの形・落ちたあとの起き直し\n",
-		"screen_paths", "画像の添付が無い", "commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
+		"screen_paths", "画像の添付が無い",
+		// repo の REVIEW.md の観点は、依頼書が指さないとレビュアーに届かない
+		"対象の worktree の root に `REVIEW.md` があれば先に読み", "commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
 	} {
 		if !strings.Contains(b, want) {
 			t.Errorf("依頼書に %q が無い:\n%s", want, b)

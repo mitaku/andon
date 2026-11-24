@@ -23,6 +23,28 @@ while IFS=$'\t' read -r addr issue; do
 done < <(jq -r '[.terminal, .issue] | @tsv' <<<"$lines" | sort -u)
 [ "$fails" = 0 ] && ok "wl-terminal: 動いている端末は、起動した課題のラベルを持つ"
 
+# wl-review-brief: 当てたあとに dispatcher が起動したレビュアーの課題の依頼書が、対象の repo の REVIEW.md を先に読む指示を持つ（読むだけ）。
+# レビュアーの起動が無ければ note を出して先へ進む（wl-resume は別に見る）
+rv=$(jq -r 'select(.role == "reviewer" and .launch == "start") | .issue' <<<"$lines" | sort -u)
+nrv=$(grep -c . <<<"$rv" || true)
+echo "-- wl-review-brief: 当てたあとのレビュアーの起動 $nrv 件"
+if [ "$nrv" = 0 ]; then
+  echo "note wl-review-brief: 当てたあとにレビュアーが起動していない。Review: on の課題のレビューが起動したあとで打ち直す"
+else
+  rvbad=0
+  while read -r issue; do
+    brief=$(ls "$ws"/projects/*/kanban/issues/"$issue"/brief.md 2>/dev/null | sed -n 1p)
+    if [ -z "$brief" ]; then
+      fail "wl-review-brief: $issue の依頼書が読めない"; rvbad=1
+    elif grep -qF '`REVIEW.md` があれば先に読み' "$brief"; then
+      echo "  | $issue: 依頼書に REVIEW.md を読む指示がある"
+    else
+      fail "wl-review-brief: $issue の依頼書（$brief）に REVIEW.md を読む指示が無い"; rvbad=1
+    fi
+  done <<<"$rv"
+  if [ "$rvbad" = 0 ]; then ok "wl-review-brief: 当てたあとのレビュアー $nrv 件の依頼書は、全部 REVIEW.md を読む指示を持つ"; fi
+fi
+
 # wl-resume: 当てたあとに andon issue resume（launch が resume。--fresh の fresh は印を付けないので数えない）で起動した端末の最初のメッセージに、
 # 送り手の印 [resume] がある。判定は製品（spawn.Marked と振り返りの machineText）と同じで、貼った文の包みを外した文の頭か、最後の段落の頭が印。
 # 読むのは、Claude Code なら起動の記録の session のセッションの記録（<CLAUDE_CONFIG_DIR>/projects/*/<session>.jsonl）で、起動の at から、
