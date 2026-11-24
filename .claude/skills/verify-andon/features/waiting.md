@@ -1,6 +1,6 @@
 # オーナー待ち
 
-Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new` で出すと、オーナーの課題（`who: person`）が足され、問いが置かれる。同じタイトルの片付いていない課題でも、親が違えば取り違えない。オーナーと役は `andon waiting` で、マージの依頼・判断・手作業のオーナー待ちと並行の枠を読む。
+Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new` で出すと、オーナーの課題（`who: person`）が足され、問いが置かれる。同じタイトルの片付いていない課題でも、親が違えば取り違えない。オーナーと役は `andon waiting` で、マージの依頼・判断・手作業のオーナー待ちと並行の枠を読む。Chief of Staff が予約キー `later`（急がない理由）を書いたオーナー待ちは、呼ばずに置いてある行として後ろに分かれ、`later_until` の日が来るとまた呼ぶ。
 
 ## 細かい機能
 
@@ -10,12 +10,15 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
   - 見るファイル: `internal/ledger/ask.go`
 - `ow-waiting` `andon waiting --json` と人が読む出力に、足したオーナーの課題が答えられる判断の行として出る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/waiting/open_unix.go`、`internal/waiting/open_other.go`、`schema/waiting.schema.json`
+- `ow-later` Chief of Staff が `kanban set <id> later=<理由>` を書いたオーナーの課題は、`andon waiting --json` で `call: false` と理由を持ち、呼んでいる行の後に並ぶ。人が読む出力は「置いてあるもの N 件」の見出しの下に置いた理由つきで出す。`later_until` の日が先なら置いたまま、来たらまた呼ぶ。担当の端末が書き直した印は信じない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 - `ow-pane` Herdr App のオーナー待ちのパネル（`package/host/waiting/`）に、オーナーの課題が判断の行として出て、選択肢で答えられる。見る道: オーナーが見る。
   - 見るファイル: `internal/waiting/answer.go`
 
 ## 辿り着き方（利用者から）
 
 - Chief of Staff か振り返り・トリアージの担当が `andon issue ask --new [--parent <id>] [--after <id>,…] -` に問いの JSON を渡す。
+- Chief of Staff が `kanban set <id> later=<理由>`（と `later_until=<YYYY-MM-DD>`）で、急がないオーナー待ちを置いておく。
 - オーナーか役が `andon waiting [--json]` を打つ。Herdr App のオーナー待ちのパネルは同じ出力を描く。
 
 ## 動かし方
@@ -28,6 +31,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - **オーナーの課題を足す。** `ow-ask-new` の行に `<id>#1` と、足した課題の `who`・`parent`・タイトルが出る。`ok   ow-ask-new` が見えれば動いた。
 - **取り違えない。** `ow-same-title` の行に、親の違う2つ目の課題の id と、同じ親で打ち直したときの「同じ問いのオーナーの課題 … がもうある」が出る。`ok   ow-same-title` が2行見えれば動いた。
 - **オーナー待ちを読む。** `ow-waiting` の行に、`andon waiting --json` の枠と判断の行、人が読む出力が出る。`ok   ow-waiting` が2行見えれば動いた。
+- **置いておく。** `ow-later` の行に、印を書いたあとの `andon waiting --json` の行（`call`・`later`・`later_until`）が出る。印を書いた課題が置いてある行になり、先の日では置いたまま、来た日ではまた呼び、担当の端末 `tw` が書き直した印では呼ぶ。`ok   ow-later` が5行見えれば動いた。
 - **パネルを見る（`ow-pane`）。** 本物のオーナーの課題がオーナー待ちにある間に、オーナーが Herdr App のパネルで見る。報告の `acceptance[]` に `manual` と書き、見る場所（Herdr App のオーナー待ちのパネル）を `evidence` に書く。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
@@ -38,15 +42,20 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - `cmd/kanban/questions.go`
 - `schema/waiting.schema.json`
 - `schema/question.schema.json`
+- `schema/issue-keys.schema.json`
+- `internal/ledger/ledger.go`
 
 ## 既に見ている検査
 
 - `tests/andon-waiting.sh`（バイナリの入口・人が読む行・何も書かないことを見る）
 - `tests/andon-issue.sh`（`ask --new` の出力・`who: person`・打ち直し）
-- `go test ./internal/waiting/`（マージの依頼・判断・手作業の数え方と枠）と `go test ./internal/ledger/`
+- `tests/andon-waiting.sh` の置いてあるものの段（印 later を Chief of Staff が書いた行と担当が書き直した行）
+- `go test ./internal/waiting/`（マージの依頼・判断・手作業の数え方と枠。置いておく印と呼ぶ日は `later_test.go`）と `go test ./internal/ledger/`
 
 ## 落とし穴
 
 - 判断の行に出るのは灯りの種類（`business`・`users`・`promise`・`irreversible`・`line`）の問いだけ。`scope` の問いは `ask --new` が断る。
 - `andon waiting` の枠の「オーナー待ち」（`slots.waiting`）は、`doing` か `review` の担当の課題のうちオーナー待ちの行を持つものの数で、オーナーの課題は数えない。判断の行が2つあっても 0 のことがある。
+- 置いておけるのは、オーナーの課題か、状態が `todo` か `queued` の課題だけ。マージの依頼と、`doing`・`review` の担当の課題の行は、印があっても呼ぶ。
+- 印 `later` は、その行の時点の Chief of Staff の端末が最後に書いたときだけ信じる。道は `HC_TERMINAL_ID=tc` で書き、担当は `tw` で書く。
 - 振り返りの apply が足すオーナーの課題（`internal/retro/`）は、この道を通らない。
