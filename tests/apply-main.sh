@@ -28,6 +28,8 @@ if [ -z "$gobin" ]; then
   if [ "${CI:-false}" = true ]; then echo 'FAIL CI requires go' >&2; exit 1; fi
   echo "skip: go が無い"; exit 0
 fi
+# go の shim（mise）は道具を HOME の下から引く。HOME を一時に向ける前に実体を引き、一時の HOME に go を取り直させない
+gobin=$("$gobin" env GOROOT)/bin/go
 
 # go の cache は今の置き場のまま（HOME を一時に向けると module を取り直し、読むだけのファイルが後片付けで消せない）
 GOMODCACHE=$("$gobin" env GOMODCACHE) GOCACHE=$("$gobin" env GOCACHE)
@@ -446,6 +448,13 @@ else
   fail "決めたこと 5: $(cat "$tmp/out")"
 fi
 run revert || fail "決めたこと 5 のあとの revert: $(cat "$tmp/out")"
+
+# === go の道具を一時の HOME に取り直さない（mise の shim が HOME の下に go を入れ直すと、遅くなり、網が無いと落ちる） ===
+if [ ! -e "$HOME/.local/share/mise" ]; then
+  pass "go の道具を一時の HOME（$HOME）に取り直さない"
+else
+  fail "一時の HOME に mise が道具を入れた: $(ls "$HOME/.local/share/mise/installs" 2>&1 | tr '\n' ' ')"
+fi
 
 [ "$fails" = 0 ] || { echo "$fails 件失敗" >&2; exit 1; }
 echo "all ok"

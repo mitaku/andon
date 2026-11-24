@@ -6,6 +6,8 @@ set -euo pipefail
 for c in jq; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT   # Go が落とす toolchain は読むだけで置かれる
+# go の shim（mise）は道具を HOME の下から引く。HOME を一時に向ける前に go の実体を PATH の先に置き、一時の HOME に go を取り直させない
+if command -v go >/dev/null; then PATH="$(go env GOROOT)/bin:$PATH"; fi
 # helper の go build が本物の HOME の Go のキャッシュに書かないように、helper を読む前に一時の HOME とキャッシュへ向ける
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOMODCACHE="$tmp/gomodcache" GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
 mkdir -p "$HOME"
@@ -15,6 +17,8 @@ mkdir -p "$HOME"
 if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
   [ -n "$(ls -A "$tmp/gocache" 2>/dev/null)" ] || { echo "FAIL go のキャッシュが一時ディレクトリに無い" >&2; exit 1; }
   echo "ok   go build のキャッシュは一時ディレクトリ（$tmp/gocache）"
+  [ ! -e "$HOME/.local/share/mise" ] || { echo "FAIL 一時の HOME に mise が道具を入れた: $(ls "$HOME/.local/share/mise/installs" 2>&1)" >&2; exit 1; }
+  echo "ok   go の道具を一時の HOME に取り直さない"
 fi
 unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/hc" "$tmp/projects/demo"
