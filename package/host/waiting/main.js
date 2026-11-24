@@ -61,9 +61,12 @@ export function answerFailure(r) {
   return `Not answered: ${firstLine(r.stderr) || `exit ${r.code}`}`;
 }
 
-// Web links open in the person's browser. Only http(s): anything else could name a program.
+// A web link: http(s) only, anything else could name a program.
+const WEB = /^https?:\/\/[^\s]+$/i;
+
+// Web links open in the person's browser.
 function openWeb(url) {
-  if (!/^https?:\/\/[^\s]+$/i.test(url)) return;
+  if (!WEB.test(url)) return;
   const platform = window()?.platform;
   exec(platform === "windows" ? "explorer.exe" : platform === "macos" ? "open" : "xdg-open", [url]).catch(() => {});
 }
@@ -217,6 +220,17 @@ export default class Waiting extends View {
           }))
         .child(`${n + 1}. ${o.label}${o.pick ? " (recommended)" : ""}`)));
     } else if (i.reason) parts.push(line(i.reason, t.muted));
+    // A task: the brief's text as the steps, line by line, and the brief's web links, each opening in the browser.
+    if (i.kind === "task") {
+      const steps = typeof i.steps === "string" ? i.steps.trim() : "";
+      if (steps) parts.push(label("Steps"), v_flex().id(`waiting-steps-${k}`).gap(2)
+        .children(steps.split("\n").map((l) => line(l.trim() ? l : " "))));
+      const links = (Array.isArray(i.links) ? i.links : []).filter((u) => typeof u === "string" && WEB.test(u));
+      if (links.length) parts.push(label("Links"), ...links.map((u, n) => div().id(`waiting-link-${k}-${n}`).text_size(12)
+        .text_color(t.accent).px(6).py(2).rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
+        .on_click((_e, cx) => { cx.stop_propagation(); openWeb(u); })
+        .child(u)));
+    }
     if (i.question) parts.push(line(`Question ${i.question}`, t.dim));
     // A merge is merged on GitHub. A decision the output doesn't mark answerable (no options, or irreversible),
     // and any answer that isn't one of the options, goes to the Chief of Staff.
