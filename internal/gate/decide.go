@@ -28,7 +28,6 @@ type Table struct {
 	Repos                  map[string]RepoTable `json:"repos,omitempty"`
 }
 
-// RepoTable は repo ごとの条件。
 type RepoTable struct {
 	Merge         string            `json:"merge,omitempty"`
 	StripPrefix   string            `json:"strip_prefix,omitempty"`
@@ -37,7 +36,6 @@ type RepoTable struct {
 	GitHubChecks  string            `json:"github_checks,omitempty"` // required（既定）/ optional
 }
 
-// File は PR の変更された1ファイル。
 type File struct {
 	Path         string
 	PreviousPath string
@@ -45,7 +43,6 @@ type File struct {
 	Deletions    int
 }
 
-// Classified はレベルの判定。
 type Classified struct {
 	Tier         string
 	TierReasons  []string
@@ -122,7 +119,6 @@ func (t *Table) matchesC(path string) bool {
 	return false
 }
 
-// Classify は変更のレベルを決める（純粋関数）。reviewOn は課題の review: on。
 func (t *Table) Classify(repo RepoTable, files []File, diff string, reviewOn bool) (Classified, error) {
 	var c, b []string
 	lines := 0
@@ -316,7 +312,6 @@ func (t *Table) ScreenFiles(repo RepoTable, files []File) []string {
 // 外の画像の URL や書き換えられていない相対パス（![x](./a.png)）は添付でない。
 var attachmentRe = regexp.MustCompile(`https://github\.com/user-attachments/assets/[0-9A-Za-z][0-9A-Za-z-]*`)
 
-// HasAttachment は PR の本文かコメントのどれかに GitHub の添付があるか（純粋関数）。
 func HasAttachment(texts []string) bool {
 	return slices.ContainsFunc(texts, attachmentRe.MatchString)
 }
@@ -337,7 +332,6 @@ func override(o map[string]string, p string) (string, bool) {
 
 var tiers = []string{"A", "B", "C"}
 
-// Raise はレベルを1つ上げる（acceptance に manual があるとき）。C は C のまま。
 func Raise(tier string) string {
 	if i := slices.Index(tiers, tier); i >= 0 && i < 2 {
 		return tiers[i+1]
@@ -345,8 +339,7 @@ func Raise(tier string) string {
 	return tier
 }
 
-// AcceptanceCount は report.json の acceptance[] の件数（gate の記録の acceptance）。
-// StaleRuns は記録を指す行のうち、記録の commit が head と違うもの（ADR-0035 決めたこと 2。戻さず、記録に出すだけ）。
+// AcceptanceCount の StaleRuns は記録を指す行のうち、記録の commit が head と違うもの（ADR-0035 決めたこと 2。戻さず、記録に出すだけ）。
 type AcceptanceCount struct {
 	Pass      int                 `json:"pass"`
 	Fail      int                 `json:"fail"`
@@ -354,7 +347,6 @@ type AcceptanceCount struct {
 	StaleRuns []contract.StaleRun `json:"stale_runs,omitempty"`
 }
 
-// OneWayReason は担当が risk.one_way: true と申告してレベルを C にしたときの理由。
 const OneWayReason = "担当の申告: one_way"
 
 // FromReport は Classify の判定に担当の report.json を足す（純粋関数）。担当の申告はレベルを上げる向きにだけ効く:
@@ -385,18 +377,15 @@ func FromReport(cl Classified, rep *contract.Report) (Classified, AcceptanceCoun
 	return cl, n
 }
 
-// OneWay は担当が risk.one_way: true と申告したか。
 func OneWay(rep *contract.Report) bool {
 	return rep != nil && rep.Risk != nil && rep.Risk.OneWay != nil && *rep.Risk.OneWay
 }
 
-// Within は tier が委譲の merge の範囲の中か（none は何も通さない）。
 func Within(tier, merge string) bool {
 	m := slices.Index(tiers, merge)
 	return m >= 0 && slices.Index(tiers, tier) <= m
 }
 
-// Check は検査の1つの結果。
 type Check struct {
 	Cmd string `json:"cmd"`
 	OK  bool   `json:"ok"`
@@ -562,42 +551,38 @@ func ChecksOverdue(rows []ledger.Row, id string, now time.Time, limit int) bool 
 	return err != nil || now.Sub(since) >= time.Duration(limit)*time.Minute
 }
 
-// Facts は決定式の入力（集めた事実）。
 type Facts struct {
 	LedgerReasons   []string // kanban と PR が合わない（fix）
 	PROpen          bool     // open で draft でない
 	Blockers        []string // オーナーが見る PR の事情（conflict・base・作者・fork・files の件数）
 	SettingsReason  string   // 予約キーを信じられない（空なら信じる）
-	RepoKnown       bool     // 条件表に repo がある
+	RepoKnown       bool
 	Tier            string
-	MergeLevel      string // 委譲の merge
+	MergeLevel      string
 	Checks          []Check
 	ReviewRequired  bool
 	Review          ledger.Review
 	PreviousMustFix bool // 同じ head で Must fix が残って fix を返したことがある
 	AcceptanceFail  int
-	RunProblems     []string     // 受け入れ条件の行が指す記録が証拠にならない（contract.CheckRuns）
-	GitHubChecks    GitHubChecks // PR の head の GitHub の checks
-	ChecksOptional  bool         // 条件表の repos.<repo>.github_checks が optional（1件も無くてよい）
-	ChecksOverdue   bool         // review に入ってから github_checks_wait_minutes を過ぎた
-	ChecksWait      int          // github_checks_wait_minutes（理由の文に入れる）
-	ScreenMissing   []string     // screen_paths に当たるのに PR に添付が無いファイル
-	StaleBase       []string     // PR の分かれ目より後に既定ブランチで変わった検査の置き場のファイル（CheckPlaces）
-	BaseUnread      bool         // 分かれ目より後の既定ブランチの変更が多く、検査の置き場が変わったか読み切れない
-	OwnChecks       []string     // PR 自身が変えた検査の置き場のファイル（CheckPlaces）
-	BaseAhead       int          // PR の分かれ目より後に既定ブランチにだけある commit の数
+	RunProblems     []string // 受け入れ条件の行が指す記録が証拠にならない（contract.CheckRuns）
+	GitHubChecks    GitHubChecks
+	ChecksOptional  bool     // 条件表の repos.<repo>.github_checks が optional（1件も無くてよい）
+	ChecksOverdue   bool     // review に入ってから github_checks_wait_minutes を過ぎた
+	ChecksWait      int      // github_checks_wait_minutes（理由の文に入れる）
+	ScreenMissing   []string // screen_paths に当たるのに PR に添付が無いファイル
+	StaleBase       []string // PR の分かれ目より後に既定ブランチで変わった検査の置き場のファイル（CheckPlaces）
+	BaseUnread      bool     // 分かれ目より後の既定ブランチの変更が多く、検査の置き場が変わったか読み切れない
+	OwnChecks       []string // PR 自身が変えた検査の置き場のファイル（CheckPlaces）
+	BaseAhead       int      // PR の分かれ目より後に既定ブランチにだけある commit の数
 }
 
-// staleBaseShown は古い base の理由に並べるファイルの数（残りは「ほか N 件」）。
 const staleBaseShown = 3
 
-// OwnChecksBehindReason は、PR 自身が検査の置き場を変え、その分かれ目より後に既定ブランチが進んだときの理由の文。
 func OwnChecksBehindReason(files []string, ahead int) string {
 	return fmt.Sprintf("base が古い: PR が検査の置き場を変えた（%s）のに、PR の分かれ目より後に既定ブランチが %d commit 進んだ。既定ブランチへ rebase して checks を回し直す",
 		shownFiles(files), ahead)
 }
 
-// shownFiles は理由に並べるファイル（staleBaseShown 件まで。残りは「ほか N 件」）。
 func shownFiles(files []string) string {
 	shown := strings.Join(files[:min(len(files), staleBaseShown)], ", ")
 	if n := len(files) - staleBaseShown; n > 0 {

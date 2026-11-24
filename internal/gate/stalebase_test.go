@@ -30,7 +30,6 @@ func TestStaleBaseFromIncident(t *testing.T) {
 	if !slices.Equal(moved, want) {
 		t.Fatalf("検査の置き場 = %v, want %v", moved, want)
 	}
-	// PR 自身は CI もレビューも通り、委譲の中（ほかに戻す理由が無い）
 	f := Facts{PROpen: true, RepoKnown: true, Tier: "B", MergeLevel: "B", ReviewRequired: true,
 		Checks: []Check{{"go test ./...", true}}, Review: ledger.Review{State: "current"},
 		GitHubChecks: GitHubChecks{State: "success", Names: []string{"go", "tests"}}, StaleBase: moved}
@@ -38,11 +37,9 @@ func TestStaleBaseFromIncident(t *testing.T) {
 	if d != "fix" || len(r) != 1 || !strings.HasPrefix(r[0], "base が古い: ") || !strings.Contains(r[0], "tests/verify-andon.sh") {
 		t.Fatalf("古い base の PR を戻さない: %s %v", d, r)
 	}
-	// 外の人（メンテナー）にも、CI が今の検査を通っていないことが分かる
 	if o := outsideReason(r[0]); !strings.Contains(o, "今の検査を通っていない") || !strings.Contains(o, "tests/verify-andon.sh") {
 		t.Fatalf("外向けの文が古い base を言わない: %s", o)
 	}
-	// rebase したあと（分かれ目が既定ブランチの先頭）は通す
 	f.StaleBase = nil
 	if d, r := Decide(f); d != "approve" {
 		t.Fatalf("rebase したあとも通さない: %s %v", d, r)
@@ -72,7 +69,6 @@ func TestStaleBaseFirst(t *testing.T) {
 	if d, _ := Decide(f); d != "needs_human" {
 		t.Fatalf("PR の事情より古い base を先にした: %s", d)
 	}
-	// 読み切れないときも戻す
 	f = base
 	f.StaleBase, f.BaseUnread = nil, true
 	if d, r := Decide(f); d != "fix" || !strings.Contains(r[0], "読み切れない") {
@@ -92,7 +88,6 @@ func TestCheckPlaceFiles(t *testing.T) {
 	if got := CheckPlaceFiles(RepoTable{}, files); !slices.Equal(got, want) {
 		t.Fatalf("CheckPlaceFiles = %v, want %v", got, want)
 	}
-	// strip_prefix を外して見る
 	if got := CheckPlaceFiles(RepoTable{StripPrefix: "app/"}, []File{{Path: "app/tests/x.sh"}, {Path: "tests/y.sh"}}); !slices.Equal(got, []string{"tests/x.sh", "tests/y.sh"}) {
 		t.Fatalf("strip_prefix を外さない: %v", got)
 	}

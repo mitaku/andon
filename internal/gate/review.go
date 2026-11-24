@@ -20,7 +20,6 @@ func ReviewRequired(tier, review string) bool {
 // NeedsReview は課題にレビューが要るかを、gate と同じ条件表・同じ分類で決める。
 // review が on なら PR を読まずに要る。off なら PR の差分のレベル（受け入れ条件の manual と risk.one_way で上げる分を含む。
 // review: on で上げる分は含まない）で決め、決めたレベルと理由を返す。on・off のどちらでもなければ要らない（呼ぶ側が断る）。
-// 条件表はパッケージの gate.json にセルの gate.local.json を重ねたもの（gate と同じ LoadTable）。
 // 差分は今の PR のもので、呼ぶ側が PR の head を確かめてから呼ぶ（gate は回すときに自分で読み直す）。
 func NeedsReview(repo, review string, rep *contract.Report) (bool, Classified, error) {
 	switch review {
@@ -59,7 +58,6 @@ func NeedsReview(repo, review string, rep *contract.Report) (bool, Classified, e
 	return ReviewRequired(cl.Tier, review), cl, nil
 }
 
-// TierLine はレベルとその理由を1行にする（理由は先頭の3件まで。残りは件数）。
 func TierLine(cl Classified) string {
 	reasons := cl.TierReasons
 	more := ""

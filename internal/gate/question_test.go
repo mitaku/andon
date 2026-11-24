@@ -2,7 +2,6 @@ package gate
 
 import "testing"
 
-// gate の問いがどの head について出たかは、事実の gate の記録の行（RecordFact）から読む。
 func TestQuestionHead(t *testing.T) {
 	if RecordFact("x") != "gate の記録 x" {
 		t.Fatalf("RecordFact が新しい語で書かない: %q", RecordFact("x"))

@@ -24,8 +24,7 @@ const (
 // descriptionLimit は commit status の説明文の上限（GitHub は 140 字を超えると断る）。
 const descriptionLimit = 140
 
-// DecisionMark は gate の判定 decision と記録の理由 reasons から、その head に書く印を返す（純粋関数）。
-// 通した（approve）とオーナー待ち（needs_human）は緑、差し戻し（fix）は赤。wait と知らない判定は書かない（false）。
+// DecisionMark は、通した（approve）とオーナー待ち（needs_human）は緑、差し戻し（fix）は赤。wait と知らない判定は書かない（false）。
 func DecisionMark(decision string, reasons []string) (Mark, bool) {
 	switch decision {
 	case "approve", "needs_human":
@@ -58,12 +57,12 @@ func describe(decision string, reasons []string) string {
 
 // MarkFacts は、dispatcher が PR を読んだときに、今の head にあるべき印を決める事実。
 type MarkFacts struct {
-	Status   string   // 課題の status（review・doing。ほかは書かない）
-	Engineer bool     // Chief Engineer の文書の PR（gate を通らない。review に入ったら緑。ADR-0056 決めたこと 6）
-	Decision string   // dispatcher が持つ、今の head を gate が判定した結果（無ければ空）
-	Reasons  []string // その判定の理由（gate の記録の reasons）
-	Held     bool     // Chief of Staff がこの PR を止めている
-	Have     Mark     // 今の head に今ある印（State が空なら無い）
+	Status   string // 課題の status（review・doing。ほかは書かない）
+	Engineer bool   // Chief Engineer の文書の PR（gate を通らない。review に入ったら緑。ADR-0056 決めたこと 6）
+	Decision string // dispatcher が持つ、今の head を gate が判定した結果（無ければ空）
+	Reasons  []string
+	Held     bool
+	Have     Mark
 	// HaveDescUnknown は、今ある印の説明文を読めていないこと（gh pr view の statusCheckRollup は説明文を出さない）。状態だけで比べる
 	HaveDescUnknown bool
 }
@@ -106,7 +105,6 @@ func wantMark(f MarkFacts) (Mark, bool) {
 	return DecisionMark(f.Decision, f.Reasons)
 }
 
-// Same は、今ある印 have が書こうとする印 want と同じか（同じなら書き直さない）。descUnknown なら状態だけで比べる。
 func Same(want, have Mark, descUnknown bool) bool {
 	return want.State == have.State && (descUnknown || want.Description == have.Description)
 }

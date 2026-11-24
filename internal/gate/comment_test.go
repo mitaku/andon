@@ -73,7 +73,6 @@ func recordReasons(t *testing.T) []string {
 	return out
 }
 
-// runProblems は contract.CheckRuns が出す理由の文の全部（記録が無い・読めない・出力が無い・終了コードが期待と違う・pass を期待して dirty）。
 func runProblems(t *testing.T) []string {
 	lib := t.TempDir()
 	runs := filepath.Join(lib, "runs")
@@ -105,7 +104,6 @@ func runProblems(t *testing.T) []string {
 	return p
 }
 
-// recordTierReasons は記録の tier_reasons に入りうる文の全部（Classify と FromReport の出力）。
 func recordTierReasons(t *testing.T) []string {
 	tb := pkgTable(t)
 	human, review := 3, 1
@@ -195,7 +193,6 @@ func TestCommentHasNoInsideWords(t *testing.T) {
 	}
 }
 
-// 判定ごとに見出しが違う（外の人が判定を読める）
 func TestCommentHeadlinePerDecision(t *testing.T) {
 	seen := map[string]bool{}
 	for _, d := range []string{"approve", "fix", "needs_human"} {
