@@ -60,6 +60,8 @@ type issue struct {
 	after   []string // CanonID
 	updated time.Time
 	hasTime bool // updated が時刻として読めた
+	// ownBroken は読めた課題が自分の broken のキーに空でない値（JavaScript で真）を持つこと
+	ownBroken bool
 }
 
 // kanban は読んだ kanban。
@@ -70,7 +72,9 @@ type kanban struct {
 	byKey   map[string]*issue
 }
 
-func (t *issue) isDone(done string) bool { return t.broken == "" && t.status == done }
+// isDone は片付いた課題か。読めない課題と、自分の broken のキーに空でない値を持つ課題（読み手は読めない課題として扱う。
+// contract.md §29）は片付いた課題に数えず、範囲のアに入れる。
+func (t *issue) isDone(done string) bool { return t.broken == "" && !t.ownBroken && t.status == done }
 
 // read は kanban の根 root（projects/<slug>/。kanban/ の親）を読む。
 func read(root string) (*kanban, error) {
@@ -246,6 +250,7 @@ func (t *issue) fill(m *yaml.Node) {
 		}
 	}
 	t.value["id"] = t.id
+	t.ownBroken = truthy(t.value["broken"])
 	t.status = scalar(status)
 	if p := scalar(parent); p != "" {
 		t.parent = ledger.CanonID(p)
@@ -256,6 +261,27 @@ func (t *issue) fill(m *yaml.Node) {
 			t.updated, t.hasTime = at, true
 		}
 	}
+}
+
+// truthy は JSON の値が JavaScript で真か（読み手の mod は、broken が真の課題を読めない課題として描く）。
+func truthy(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case bool:
+		return x
+	case string:
+		return x != ""
+	case int:
+		return x != 0
+	case int64:
+		return x != 0
+	case uint64:
+		return x != 0
+	case float64:
+		return x != 0 && !math.IsNaN(x)
+	}
+	return true
 }
 
 // scalar はスカラーの字面。無い・null・スカラーでなければ ""（kanban の CLI の str と同じ）。

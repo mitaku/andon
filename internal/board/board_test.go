@@ -576,6 +576,31 @@ func TestOwnBrokenKey(t *testing.T) {
 	}
 }
 
+// 課題自身の broken のキーが空でない値なら、読み手は読めない課題として扱うので、範囲のアに入れ、older にも History にも数えない。
+// 値が空・null・false・0 なら（JavaScript で偽。mod は読めない課題と見ない）、ふつうの課題として扱う
+func TestOwnBrokenKeyIsUnreadable(t *testing.T) {
+	f := newFake(t)
+	f.issue("S-0001", "done", stale, `broken: "unreadable"`)
+	f.issue("S-0002", "done", stale, "broken: 5")
+	f.issue("S-0003", "done", stale, `broken: ""`)
+	f.issue("S-0004", "done", stale, "broken: null")
+	f.issue("S-0005", "done", stale, "broken: false")
+	res, err := Board(f.root, since, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ids(res), []string{"S-0001", "S-0002"}; !slices.Equal(got, want) || *res.Older != 3 {
+		t.Fatalf("issues = %v older %d, want %v older 3", got, *res.Older, want)
+	}
+	h, err := History(f.root, DefaultLimit, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ids(h), []string{"S-0005", "S-0004", "S-0003"}; !slices.Equal(got, want) {
+		t.Fatalf("history = %v, want %v", got, want)
+	}
+}
+
 // kanban/issues が symlink なら、先を読まずに断る
 func TestIssuesDirSymlink(t *testing.T) {
 	f := newFake(t)
