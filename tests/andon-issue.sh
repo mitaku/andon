@@ -419,6 +419,20 @@ done
 "$andon" waiting --json | jq -e '[.items[] | select(.title | startswith("旗を変えて打ち直す判断 --now")) | .call] == [true]' >/dev/null \
   || die "ask --new --now の打ち直し: 呼ぶ行にならない: $("$andon" waiting --json)"
 ok 'ask --new: 前の回と旗の違う打ち直しは、前の回の later・later_until を消し、--now なら呼ぶ行になる'
+# kanban ask のあと控えを書く前に落ちた --later --until の回（問いはあり、questions/1.json が無い）を --now で打ち直しても、
+# 控えを書き直す道で前の回の印を消し、呼ぶ行になる
+cq=$(jq -c '.question = "控えを書く前に落ちた判断"' <<<"$nq")
+out=$(as t5 "$andon" issue ask --new --later '前の回の理由' --until 2099-12-31 - <<<"$cq")
+ch=${out%#*}
+rm "kanban/issues/$ch/library/questions/1.json"
+out=$(as t5 "$andon" issue ask --new --now - <<<"$cq")
+[[ "$out" == "$ch#1" ]] || die "ask --new --now: 控えの無い課題 $ch に続きから置いていない: $out"
+[ -f "kanban/issues/$ch/library/questions/1.json" ] || die 'ask --new --now: 控えを書き直していない'
+kanban show "$ch" --json | jq -e '.issue | (has("later") or has("later_until")) | not' >/dev/null \
+  || die "ask --new --now: 控えを書き直す打ち直しで前の回の印が残る: $(kanban show "$ch" --json | jq -c '.issue')"
+"$andon" waiting --json | jq -e --arg id "$ch" '[.items[] | select(.id == $id) | .call] == [true]' >/dev/null \
+  || die 'ask --new --now: 控えを書き直す打ち直しのあと、呼ぶ行にならない'
+ok 'ask --new: 控えを書く前に落ちた回を旗を変えて打ち直すと、控えを書き直し、前の回の印を消して呼ぶ行になる'
 pre2=$(as t5 kanban add '前の課題 2' --profile claude)
 wq=$(as t5 kanban add '前を待つ担当の課題' --profile claude --after "$pre2")
 [ "$(kanban show "$wq" --json | jq -r .issue.status)" = queued ] || die '担当の課題が queued で作られていない'

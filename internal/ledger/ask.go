@@ -107,6 +107,15 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 	}
 	if asked > 0 {
 		if asked == 1 {
+			// 控えが無ければ、控えを書き直す前に今の旗の印を書く（控えを書いたあとに落ちると、打ち直しは同じ問いとして断るので、
+			// 印が書けない。前の回と旗が違う打ち直しで、前の回の印を残さない）
+			if _, err := os.Stat(filepath.Join(l.Library(id), "questions", "1.json")); errors.Is(err, fs.ErrNotExist) {
+				if kv := m.keys(left); len(kv) > 0 {
+					if _, err := l.Run("", append([]string{"set", id}, kv...)...); err != nil {
+						return id, "", fmt.Errorf("オーナーの課題 %s の印を書けなかった（%v）。同じ command を打ち直すと続きから置く", id, err)
+					}
+				}
+			}
 			restored, err := l.RestoreQuestion(id, q)
 			if err != nil {
 				return id, "", err
