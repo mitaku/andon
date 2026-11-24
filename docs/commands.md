@@ -62,6 +62,8 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon boot` | 機械・オーナー | パッケージからセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する（毎起動） |
 | `andon issue merge` | 機械 | review の課題に gate を回し、委譲の範囲内ならマージして片付ける |
 | `andon issue settle` | 機械・役 | オーナーがマージした PR の課題の、gate の問いを閉じて片付ける |
+| `andon issue board` | 機械・オーナー | ボードが読む課題だけ（開いている課題・片付いたばかりの課題とその相手）を出す（読むだけ） |
+| `andon issue history` | 機械・オーナー | 片付いた課題を新しい順に件数まで出す（ボードの History が読む。読むだけ） |
 | `andon issue session` | 機械 | 自分の端末のラベル session を出す（テンプレートが読む） |
 | `andon issue stop-check` | 機械 | 担当・レビュアーの Stop フック: doing で報告も問いも無ければ止める |
 | `andon dispatcher` | 機械 | kanban を回り、レビュアーの起動・gate・merge: auto のマージと片付けを回す（常駐） |

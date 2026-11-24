@@ -3,6 +3,7 @@ package cli
 import (
 	"io"
 
+	"andon/internal/board"
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/chiefofstaff"
@@ -165,6 +166,10 @@ var leaves = []leaf{
 		usage: issue.MergeUsage, examples: []string{"issue merge S-0012"}, writes: true, project: true, json: true, run: issue.Merge},
 	{name: "issue settle", who: []who{machine, role}, about: "オーナーがマージした PR の課題の、gate の問いを閉じて片付ける",
 		usage: issue.SettleUsage, examples: []string{"issue settle S-0012"}, writes: true, project: true, json: true, run: issue.Settle},
+	{name: "issue board", who: []who{machine, owner}, about: "ボードが読む課題だけ（開いている課題・片付いたばかりの課題とその相手）を出す（読むだけ）",
+		usage: board.BoardUsage, examples: []string{"issue board --json --since 2026-11-22T13:00:00Z"}, project: true, json: true, run: board.BoardMain},
+	{name: "issue history", who: []who{machine, owner}, about: "片付いた課題を新しい順に件数まで出す（ボードの History が読む。読むだけ）",
+		usage: board.HistoryUsage, examples: []string{"issue history --json --limit 200 --match 下書き"}, project: true, json: true, run: board.HistoryMain},
 	{name: "issue session", who: []who{machine}, about: "自分の端末のラベル session を出す（テンプレートが読む）",
 		usage: issue.SessionUsage, examples: []string{"issue session"}, run: issue.Session},
 	{name: "issue stop-check", who: []who{machine}, about: "担当・レビュアーの Stop フック: doing で報告も問いも無ければ止める",

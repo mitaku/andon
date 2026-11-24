@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足し、同じ日に [ADR-0049](adr/0049-owner-touches-by-kind.md) の介在回数の数え方で流れの数え〈§13〉をバージョン 2 にした）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足し、同じ日に [ADR-0049](adr/0049-owner-touches-by-kind.md) の介在回数の数え方で流れの数え〈§13〉をバージョン 2 にした、2026-11-24 [ADR-0059](adr/0059-board-leaves-old-done-to-history.md) のボードの課題〈§29〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -27,10 +27,11 @@
 | §26 ダイジェストの入力（`input.json`） | `schema/digest-input.schema.json` |
 | §27 ダイジェストの中身（`digest.json`） | `schema/digest.schema.json` |
 | §28 ダイジェストを送った結果（`sent.json`） | `schema/digest-sent.schema.json` |
+| §29 ボードの課題（`andon issue board --json`・`andon issue history --json` の出力） | `schema/issue-board.schema.json` |
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、オーナーが書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
-- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`・`andon waiting`・`andon digest`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegate`・`andon measure`・`andon waiting`・`andon digest`・`andon issue board`・`andon issue history`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
 - kanban を読み書きするコマンドは `kanban`（`cmd/kanban`。command と形式は [ledger.md](ledger.md)）。
 - kanban の形式（形式 3。[ledger.md](ledger.md)・`schema/ledger/`）は Andon が持つ（[design.md](design.md) §3.5 で移した）。Andon のキーは「Any other key is allowed and kept」の上に置き、形式そのものを変えるときは形式のバージョンで変える。
 
@@ -1277,3 +1278,50 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - 集め直して期間が変わったときは、前の結果を捨てて送り直す。
 - 次のダイジェストの期間は、送り先が全部済んだ `sent.json` の `until` から始まる（§26）。
 - build は `digest.html` に組み立てた入力の期間の印（`<meta name="andon-digest-period">`）を入れる。send は今の `input.json` の期間と照らし、違えば（組み立てたあとに集め直した）送らずに終了コード 1 で、組み立て直すよう言う。古い HTML を新しい期間として送ると、間の出来事がどの 1 枚にも載らないため。
+
+## 29. ボードの課題（`andon issue board --json`・`andon issue history --json` の出力）
+
+`andon issue board --since <時刻> [--json] [--project <slug>]` が、ボード（mod `kanban-board`）が kanban を読み直すたびに要る課題だけを出し、`andon issue history [--json] [--limit <件数>] [--match <文字>] [--project <slug>]` が、ボードの表示 History が読む片付いた課題を出す（[ADR-0059](adr/0059-board-leaves-old-done-to-history.md) 決めたこと 6〜10）。**どちらも読むだけで、kanban のファイルも履歴も書かない**。置き場は無い（標準出力だけ）。読むのは kanban の `config.yaml`（`version`・`columns`）と `issues/<id>/issue.yaml` だけで、kanban の CLI は `--project` も `KANBAN_ROOT` も無いときに kanban の根を聞く（`kanban root`）だけに使う。`--json` を付けない出力は、1 課題 1 行の人が読む行で、機械は読まない。
+
+```json
+{"version": 1, "at": "2026-11-23T13:00:00Z", "project": "sample-site", "done": "done",
+ "since": "2026-11-22T13:00:00Z",
+ "issues": [
+   {"id": "S-0012", "title": "返事の下書きボタン", "status": "doing", "parent": "S-0010", "updated": "2026-11-23T12:10:00Z"},
+   {"id": "S-0013", "broken": "symbolic link"}],
+ "older": 565}
+```
+
+```json
+{"version": 1, "at": "2026-11-23T13:00:00Z", "project": "sample-site", "done": "done",
+ "issues": [
+   {"id": "S-0011", "title": "下書きの文を短くする", "status": "done", "parent": "S-0010", "updated": "2026-11-23T11:40:00Z"}],
+ "more": 37}
+```
+
+`andon issue board` が出す課題の範囲は、次の 5 つの組を合わせたものである（決めたこと 7）。片付いたかどうかは、状態が `config.yaml` の `columns` の最後の列（無ければ `done`）かどうかで決める。
+
+| 組 | 課題 |
+|---|---|
+| ア | 片付いていない課題と、読めない課題の全部。`issue.yaml` に自分で `broken` のキーを持ち、その値が空でない（空の文字列・`null`・`false`・`0` でない）課題も、読み手が読めない課題として扱うのでここに入れ、`older` にも `history` にも数えない |
+| イ | `updated` が `--since` 以降の片付いた課題。`updated` が無い・時刻として読めない片付いた課題もここに入れる |
+| ウ | アとイの課題の、親（`parent`）をたどった先の課題の全部 |
+| エ | アの課題の親をたどった先の課題のどれかを、親に持つ課題 |
+| オ | アとイの課題の `after` の相手 |
+
+| キー | 意味 |
+|---|---|
+| `version` | 出力の形のバージョン。今は 1。キーを足してもバージョンは上げない（読み手は知らないキーを読み飛ばす）。意味を変えるときだけ上げる |
+| `at` | 読んだ時刻（UTC） |
+| `project` | プロジェクトのフォルダの名前（kanban の根のディレクトリの名前） |
+| `done` | 片付いた列の名前（`columns` の最後の列） |
+| `since` | `board` だけ。渡された `--since` を UTC にしたもの。`--since` は省けない（24 時間の線を持つのはボードだけ） |
+| `issues[]` | `board` は範囲の課題を番号の順に、`history` は片付いた課題を `updated` の新しい順（同じ時刻は番号の新しい順、時刻の読めない課題は最後）に `--limit` の件数まで。1 件は `kanban list --json` が出す課題と同じ中身で、`issue.yaml` のキーと、フォルダの名前から取った `id` を持つ |
+| `issues[].broken` | 読めない課題だけ。`id` と、理由を 1 行で書いた `broken` だけを持つ。読めた課題が `issue.yaml` に自分で `broken` のキーを持つときは、`kanban list --json` と同じにそのまま写す（読み手は、値が空でなければどちらも読めない課題として扱う。範囲はアの決め方に従う。schema はこのキーの値を見ない） |
+| `older` | `board` だけ。`updated` が `--since` より前の片付いた課題の数。ウ・エ・オで範囲に入った課題も数える |
+| `more` | `history` だけ。条件に合うのに出さなかった課題の数 |
+
+- **読み方の守り**（決めたこと 10）: 2 つの command は `issue.yaml` を自分で読む。次のどれかに当たる課題は中身を出さず、読めない課題として出す。`issue.yaml` かその課題のフォルダが symlink（`symbolic link`。先は読まない）、`issue.yaml` が 256 KiB を超える（`larger than 262144 bytes`。大きさは読む前に確かめる）、`issue.yaml` が YAML の alias を含む（`has a YAML alias`。alias は開かない）。`kanban/issues` そのものが symlink なら、何も出さずに終了コード 1。守りに当たらない課題の中身は `kanban list --json --all` と同じにする（BOM・空のファイル・mapping でないファイル・`issue.yaml` の無いフォルダの扱いも同じ）。
+- `--match` は、番号・タイトル・repo・プロファイル・端末の名前（`agent`）のどれかにその文字を含む課題だけを残す。大文字と小文字は分けない。`--limit` は 1 から 2,000 で、省くと 200。
+- `--since` の無い `andon issue board`・時刻として読めない `--since`・範囲の外の `--limit`・知らないフラグは、何も出さずに終了コード 2。`config.yaml` が読めない・形式が 3 でない・`--project` の kanban が無いときは終了コード 1。
+- 書き手は 2 つの command だけ（出力するだけ）。読み手はボード（mod `kanban-board`）。gate も dispatcher も読まない。

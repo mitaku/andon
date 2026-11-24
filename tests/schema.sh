@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 約束の検査（docs/contract.md・schema/）。
-#   1. schema/ の21本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
+#   1. schema/ の22本と、schema/ledger/ のうち約束の節（contract.md §22・§23）を持つ2本（log.v3・ready.v3）が
 #      schema の決まり（draft 2020-12・$id のバージョン・description と識別子は英語）を守る。
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
@@ -75,10 +75,10 @@ schema_of() {
     2) echo issue-keys ;; 3) echo findings ;; 4) echo report ;; 5) echo question ;;
     6) echo notification ;; 7) echo gate ;; 11) echo project ;; 12) echo candidates ;; 13) echo measure ;; 14) echo corrections ;; 15) echo signal ;; 17) echo delivered ;; 18) echo launch ;; 19) echo outcome ;; 20) echo retro ;; 21) echo patterns ;;
     22) echo ledger-log ;; 23) echo ledger-ready ;; 24) echo run ;; 25) echo waiting ;;
-    26) echo digest-input ;; 27) echo digest ;; 28) echo digest-sent ;; *) return 1 ;;
+    26) echo digest-input ;; 27) echo digest ;; 28) echo digest-sent ;; 29) echo issue-board ;; *) return 1 ;;
   esac
 }
-expected="candidates corrections delivered digest digest-input digest-sent findings gate issue-keys launch measure notification outcome patterns project question report retro run signal waiting"
+expected="candidates corrections delivered digest digest-input digest-sent findings gate issue-board issue-keys launch measure notification outcome patterns project question report retro run signal waiting"
 # kanban の形式（schema/ledger/）のうち、約束の節を持つもの。名前 → schema/ のファイル（.schema.json を除く）
 ledger="ledger-log ledger-ready"
 schema_file() {
@@ -87,7 +87,7 @@ schema_file() {
 
 # 1. schema そのもの
 actual="$(cd "$schema_dir" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
-if [ "$actual" = "$expected" ]; then ok "schema/ は21本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
+if [ "$actual" = "$expected" ]; then ok "schema/ は22本（$expected）"; else ng "schema/ の顔ぶれが違う: $actual"; fi
 actual="$(cd "$schema_dir/ledger" && ls -1 *.schema.json | sed 's/\.schema\.json$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 if [ "$actual" = "config.v3 issue.v3 log.v3 questions.v3 ready.v3 routine.v3" ]; then ok "schema/ledger/ は6本（$actual）"; else ng "schema/ledger/ の顔ぶれが違う: $actual"; fi
 for name in $expected $ledger; do
@@ -97,7 +97,7 @@ flush
 
 # バージョン（ADR-0008 決めたこと 2）: task を issue に改めた5本は /2、改名した issue-keys は /1。task-keys は無い
 # kanban の行と ready の2本は kanban の形式のバージョン（3）
-for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/2 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 digest/1 digest-input/1 digest-sent/1 ledger-log/3 ledger-ready/3; do
+for v in notification/2 report/2 question/2 gate/2 project/2 issue-keys/1 findings/1 candidates/1 measure/2 corrections/1 signal/1 delivered/1 launch/1 outcome/1 retro/2 patterns/1 run/1 waiting/1 digest/1 digest-input/1 digest-sent/1 issue-board/1 ledger-log/3 ledger-ready/3; do
   f="$(schema_file "${v%/*}")"
   id="$(jq -r '."$id"' "$schema_dir/$f.schema.json")"
   if [ "$id" = "https://andon.example.com/schema/$v" ]; then ok "schema/$f の \$id は $v"; else ng "schema/$f の \$id が $v でない: $id"; fi
@@ -181,6 +181,7 @@ declare -A required=(
   [digest-input]="version project issue title at since until previous truncated issues waiting concerns numbers next redacted skipped"
   [digest]="headline themes concerns"
   [digest-sent]="issue since until destinations"
+  [issue-board]="version at project done issues since older"   # 最初の例は board。history の形は 3b で作る
   [ledger-log]="at by id change"   # 最初の例は課題の行。ほかの形の行は 3b で作る
   [ledger-ready]=""                # 並び。課題の必須（id・status）は 3b で消す
 )
@@ -982,6 +983,26 @@ fail|digest-sent|.destinations[0].ok = false|送れなかったのに error が�
 fail|digest-sent|.destinations[0].error = "一行目\n二行目" | .destinations[0].ok = false | .destinations[0] |= del(.url)|error が1行でない
 fail|digest-sent|.destinations += [.destinations[0]]|同じ送り先が2行
 fail|digest-sent|.until = "2026-11-21"|until が日付だけ
+pass|issue-board|.issues = []|範囲に課題が無い
+pass|issue-board|del(.since, .older) + {more: 3}|history の形（since と older の代わりに more）
+pass|issue-board|.issues[0] += {after: ["S-0011"], links: ["https://example.com"], x_custom: 1}|課題は kanban の形式のキーも知らないキーも持つ
+pass|issue-board|.since = "2026-11-22T13:00:00.123Z"|since に小数の秒
+fail|issue-board|.version = 2|version が 1 でない
+fail|issue-board|.at = "2026-11-23"|at が日付だけ
+fail|issue-board|.since = "2026-11-22"|since が日付だけ
+fail|issue-board|.since = "2026-11-22T22:00:00+09:00"|since が UTC でない
+fail|issue-board|.older = -1|older が負
+fail|issue-board|.older = "565"|older が数でない
+fail|issue-board|. + {more: 1}|board の形に more
+fail|issue-board|del(.since) + {more: 1}|history の形に older
+fail|issue-board|del(.since, .older)|board の形も history の形も持たない
+fail|issue-board|del(.since, .older) + {more: -1}|more が負
+pass|issue-board|.issues[0] += {broken: null}|読めた課題が自分で持つ broken のキー（kanban list --json と同じに写す）
+fail|issue-board|.issues[0].id = ""|課題の id が空
+fail|issue-board|.issues[0] |= del(.id)|課題に id が無い
+fail|issue-board|.issues = {}|issues が並びでない
+fail|issue-board|.done = ""|done が空
+fail|issue-board|.project = ""|project が空
 
 EOF
 
@@ -1081,6 +1102,10 @@ digest-sent|."$defs".destination.properties.kind.enum += ["email"]|送り先の�
 digest-sent|del(."$defs".destination.allOf)|送り先の kind と ok ごとの形を外す
 project|del(.properties.digest.properties.destinations.uniqueKeys)|digest の送り先の kind ごとに1件を外す
 project|del(."$defs".digest_destination.properties.channel.pattern)|digest の channel の形を外す
+issue-board|.required -= ["done"]|ボードの課題の必須から done を外す
+issue-board|del(.oneOf)|board と history の形の分け方を外す
+issue-board|del(."$defs".issue.required)|課題の id の必須を外す
+issue-board|.properties.since.pattern = "^.+$"|since の形を緩める
 LOOSE
   wait
   for i in $(seq 1 "$n"); do
@@ -1187,6 +1212,8 @@ digest-input.json|digest-input|andon digest collect の input.json
 digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
 digest.json|digest|andon digest build の digest.json
 digest-sent.json|digest-sent|andon digest send の sent.json
+issue-board.json|issue-board|andon issue board --json の出力
+issue-history.json|issue-board|andon issue history --json の出力
 EMIT
     flush
   fi

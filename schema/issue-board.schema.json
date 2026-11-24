@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andon.example.com/schema/issue-board/1",
+  "title": "Issues for the board and its History view",
+  "description": "The output of `andon issue board --json` and `andon issue history --json`: the issues the board's mod needs, read from each issues/<id>/issue.yaml by the command itself. Written by the command to stdout and never kept; neither command writes the ledger. board carries since and older; history carries more and neither since nor older. Adding a key does not raise the version; a reader skips keys it does not know. Only these keys.",
+  "type": "object",
+  "required": ["version", "at", "project", "done", "issues"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "description": "The output format version.", "const": 1 },
+    "at": {
+      "description": "When it was read (UTC, YYYY-MM-DDTHH:MM:SSZ).",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "project": { "description": "The name of the project's folder (the ledger's root directory).", "type": "string", "minLength": 1 },
+    "done": { "description": "The done column: the last of config.yaml columns.", "type": "string", "minLength": 1 },
+    "since": {
+      "description": "board only: the --since given, in UTC. Done issues updated before it are left out unless a rule brings them in.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?Z$"
+    },
+    "issues": {
+      "description": "board: the issues in the range (open or unreadable issues, done issues updated at or after since, the ancestors of both, the issues whose parent is an ancestor of an open issue, the after of both), in id order. history: done issues, most recently updated first, up to --limit.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    },
+    "older": { "description": "board only: the number of done issues updated before since, counting those a rule brought into issues.", "type": "integer", "minimum": 0 },
+    "more": { "description": "history only: the number of issues that matched but were not printed.", "type": "integer", "minimum": 0 }
+  },
+  "oneOf": [
+    { "description": "board.", "required": ["since", "older"], "not": { "required": ["more"] } },
+    { "description": "history.", "required": ["more"], "not": { "anyOf": [{ "required": ["since"] }, { "required": ["older"] }] } }
+  ],
+  "$defs": {
+    "issue": {
+      "description": "One issue: its issue.yaml as plain values with id set to the folder name, the same as kanban list --json prints. Any key of the ledger format is kept. An issue the command will not read carries id and broken only; a reader treats any issue with broken as unreadable, as it does with kanban list --json.",
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "description": "The issue folder's name.", "type": "string", "minLength": 1 },
+        "broken": {
+          "description": "On an issue the command will not read: why, in one line (symbolic link, larger than 262144 bytes, has a YAML alias, or the reader's error), and the issue carries id and broken only. An issue that is read keeps a broken key of its own as kanban list --json does, so its value is not checked here."
+        }
+      }
+    }
+  }
+}
