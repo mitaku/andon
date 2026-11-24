@@ -19,7 +19,7 @@ disable-model-invocation: true
 検証の担当は当てない。当てるのは Chief of Staff で、検証の担当は当たったものを確かめる。
 
 1. 依頼書から、前の検証が見た commit（無ければ依頼書が書く始まりの commit）を読む。
-2. 当てた commit は `/opt/andon/applied.json` の `commit`（`scripts/doctor.sh` の最後の行にも出る）。検証の途中で次の commit が当たったら、検証する commit は変えず、3 の機能を `drive.sh` の2つ目の引数に検証する commit を渡して動かす（前に当てた commit と時刻は記録の `previous` にある）。2つ目の引数が効くのは本物の記録を読む行だけで、その commit が当たっていた間（次に当てた時刻まで）の出来事を読む。切り離して動かす道と今の状態を読む行（dispatcher の端末・boot の生成物）は、今当たっているパッケージを見る。
+2. 検証する commit は依頼書の `当てた commit:` の行。`drive.sh` には毎回この commit を2つ目の引数で渡す（省くと使い方の誤りの終了コード 2 で断る）。検証の途中で次の commit が当たっても、検証する commit は変えない。本物の記録を読む行は、その commit が当たっていた間（次に当てた時刻まで）の出来事だけを読む（前に当てた commit と時刻は `/opt/andon/applied.json` の `previous` にある）。切り離して動かす道と今の状態を読む行（dispatcher の端末・boot の生成物）は、今当たっているパッケージを見る。検証の課題の外で今当たっているものを読むときは、`andon version` の `commit`（`scripts/doctor.sh` の最後の行にも出る）を渡す。
 3. 自分の worktree で `git fetch origin` し、`bash .claude/skills/verify-andon/scripts/features.sh <前の commit>..<当てた commit>` を打つ。出た名前が、この課題で動かす機能。何も出なければ、動かす機能は無い（報告にそう書いて終える）。
 4. 依頼書が機能を名指していれば、それも動かす。
 
@@ -38,7 +38,7 @@ disable-model-invocation: true
 機能ごとに、地図（`features/<機能>.md`）の「動かし方」を読み、次の1行で動かして記録に撮る。
 
 ```
-andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh <機能> [<検証する commit>]
+andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh <機能> <検証する commit>
 ```
 
 `drive.sh` は1回の呼び出しの中で、一時の置き場を作り・動かし・片付け・跡が残っていないことを確かめるまでを済ませる。エージェントの Bash は呼び出しごとに環境が戻るので、手順を呼び出しに分けない（分けると、後の呼び出しがセルの本物の kanban を見る）。`drive.sh` の終了コードは次のとおり。`andon issue record` の終了コードとは別で、記録の `exit_code` に入る。
@@ -47,7 +47,7 @@ andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts
 |---|---|---|
 | 0 | 動いた証拠が取れた | 機能の名前・記録の番号・`ok` の行の要約 |
 | 1 | 動かなかった（壊れ）か、跡が残った | `FAIL` の行・記録の番号・地図の食い違いか製品の壊れかの見立て |
-| 2 | 使い方の誤り（知らない機能の名前） | 直して打ち直す。報告には書かない |
+| 2 | 使い方の誤り（検証する commit が無い・先頭の 7 文字以上の16進数でない・知らない機能の名前） | 直して打ち直す。報告には書かない |
 | 3 | 前提が無く確かめられなかった（未確認） | `note` の行と、何が起きれば確かめられるか。動いたとは書かない |
 
 動かし方の形は2つある（地図の `README.md` の「動かし方の2つの形」）。切り離して動かす機能は一時の kanban と偽の `hc`・`gh` で本物の andon・`kanban`・`/opt/andon` を動かし、本物の記録を読む機能は、検証する commit が当たっていた間（当てた時刻から次に当てた時刻まで。今も当たっていれば今まで）にセルで本当に起きた出来事を読む。
@@ -97,6 +97,6 @@ worker skill §7 の書式で書く。`## Report` の先頭に次の3つを置�
 |---|---|---|
 | `features.sh` | `bash .claude/skills/verify-andon/scripts/features.sh <前>..<後>` | 差分が当たる機能の名前を1行1つで出す。当たらなければ何も出さず 0。地図の「変えたら動かすパス」が正 |
 | `doctor.sh` | `bash .claude/skills/verify-andon/scripts/doctor.sh` | 読むだけの診断。最後の行に `commit <当てた commit>` |
-| `drive.sh` | `bash .claude/skills/verify-andon/scripts/drive.sh <機能> [<検証する commit>]` | 1機能を動かし、片付けと跡の確かめまで。2つ目の引数は本物の記録を読む道が読む間を決める。終了コードは 3 の表 |
+| `drive.sh` | `bash .claude/skills/verify-andon/scripts/drive.sh <機能> <検証する commit>` | 1機能を動かし、片付けと跡の確かめまで。2つ目の引数は省けず、本物の記録を読む道が読む間を決める。終了コードは 3 の表 |
 | `journeys/<機能>.sh` | `drive.sh` が呼ぶ。直に打たない | 機能ごとの道。`sandbox.sh`（切り離して動かす）か `cell.sh`（本物の記録を読む）を読む |
 | `sandbox.sh`・`cell.sh`・`common.sh` | `journeys/*.sh` が読む | 一時の置き場・偽の `hc` と `gh`・証拠を出す関数 |

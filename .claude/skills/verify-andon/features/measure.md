@@ -20,7 +20,7 @@
 
 - `scripts/doctor.sh` が終了コード 0。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh measure` を打つ。切り離した kanban に、片付いた課題（todo → doing → review → done）と doing のまま残る課題を作り、片付いた課題の担当のセッションの記録を一時の HOME の `.claude/projects/` に置いてから打つ。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh measure <検証する commit>` を打つ。切り離した kanban に、片付いた課題（todo → doing → review → done）と doing のまま残る課題を作り、片付いた課題の担当のセッションの記録を一時の HOME の `.claude/projects/` に置いてから打つ。
 - **流れを読む。** `ms-flow` の行に `andon measure --json` の出力と、`closed`・`wip_end` の要約が出る。`closed.count` が 1、`wip_end` が 1 で、`ok   ms-flow` が見えれば動いた。
 - **トークンを読む。** `ms-tokens` の行に課題ごとの `tokens` が出る。片付いた課題が入力 11・出力 22・キャッシュの読み 33・書き 44、残った課題が `null` で、`ok   ms-tokens` が見えれば動いた。
 - **表を読む。** `ms-table` の行に人向けの表が出る。`ok   ms-table` が見えれば動いた。

@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# drive.sh <機能> [<検証する commit>]
+# drive.sh <機能> <検証する commit>
 #
 # 機能の地図（features/<機能>.md）の1機能を、scripts/journeys/<機能>.sh で動かす。証拠は標準出力に出る（andon issue record で撮る）。
 # 1回の呼び出しの中で、一時の置き場を作り・動かし・片付け・跡が残っていないことを確かめるまでを済ませる
 # （エージェントの Bash は呼び出しごとに環境が戻るので、手順を呼び出しに分けない）。
-# 検証する commit（先頭の数文字でよい）を渡すと、本物の記録を読む道はその commit が当たっていた間（次に当てた時刻まで）だけを読む。
-# 省くと、今当たっている commit を当てた時刻から今まで。切り離して動かす道は今当たっている本物を動かし、この引数を使わない。
-# 終了コード: 0 は動いた証拠が取れた、1 は動かなかった（壊れ）か跡が残った、2 は使い方の誤り、
+# 検証する commit（依頼書の「当てた commit:」の行。先頭の 7 文字以上の16進数）は省けない。本物の記録を読む道は、その commit が当たっていた間
+# （次に当てた時刻まで）だけを読む。今当たっているものを読むときも andon version の commit を渡す。切り離して動かす道は今当たっている本物を動かす。
+# 終了コード: 0 は動いた証拠が取れた、1 は動かなかった（壊れ）か跡が残った、2 は使い方の誤り（検証する commit が無い・形が違う・知らない機能）、
 # 3 は前提が無く確かめられなかった（未確認。動いたと書かない）。
 set -uo pipefail
-[ $# = 1 ] || [ $# = 2 ] || { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+# 検証する commit を省くと、検証の途中で次の commit が当たったとき、新しい commit の間を読んで未確認や誤りになる。既定は持たない
+[ $# = 2 ] || { echo "drive.sh: 機能と検証する commit の2つを渡す（今は $# 個）" >&2; usage; }
+[[ "$2" =~ ^[0-9a-f]{7,40}$ ]] || { echo "drive.sh: 検証する commit「$2」が先頭の 7 文字以上の16進数（小文字）でない" >&2; usage; }
 scripts=$(cd "$(dirname "$0")" && pwd)
 journey=$scripts/journeys/$1.sh
 [ -f "$journey" ] || { echo "drive.sh: 知らない機能 $1（features/README.md の一覧から選ぶ）" >&2; exit 2; }
@@ -24,10 +27,10 @@ trap cleanup EXIT
 echo "== $run"
 echo "機能: $1（$journey）"
 echo "andon: $(command -v andon) $(andon version 2>/dev/null | jq -c '{commit, source, drift}')"
-echo "当てた記録: $(cat /opt/andon/applied.json 2>/dev/null || echo 無し)"
-echo "検証する commit: ${2:-今当たっているもの}（本物の記録を読む行が読む間を決める。切り離して動かす道と今の状態を読む行は、今当たっているパッケージを見る）"
+echo "当てた記録: $(cat "${VERIFY_PACKAGE:-/opt/andon}/applied.json" 2>/dev/null || echo 無し)"
+echo "検証する commit: $2（本物の記録を読む行が読む間を決める。切り離して動かす道と今の状態を読む行は、今当たっているパッケージを見る）"
 echo "始めた: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-VERIFY_COMMIT=${2:-} VERIFY_RUN=$run VERIFY_TMP=$tmp VERIFY_REPO=$(cd "$scripts/../../../.." && pwd) bash "$journey"
+VERIFY_COMMIT=$2 VERIFY_RUN=$run VERIFY_TMP=$tmp VERIFY_REPO=$(cd "$scripts/../../../.." && pwd) bash "$journey"
 rc=$?
 echo "== 動かした結果: 終了コード $rc"
 

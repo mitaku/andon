@@ -21,7 +21,7 @@
 - `scripts/doctor.sh` が終了コード 0。
 - 当てた記録 `/opt/andon/applied.json` がある。無ければ終了コード 3。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh boot` を打つ。生成物と控えを読むだけで、boot は打たない。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh boot <検証する commit>` を打つ。生成物と控えを読むだけで、boot は打たない。
 - **走ったことを読む。** `bt-ran` の行に dispatcher の端末の起動の時刻が出る。当てた時刻より後で、`ok   bt-ran` が見えれば動いた。
 - **生成物を読む。** `bt-generated` の行に控えのファイルの数と、控えと違うものの数が出る。違うものが 0 で、`ok   bt-generated` が見えれば動いた。
 - **配った先を読む。** `bt-managed` と `bt-skills` の行に、hook の置き場と skill の symlink の先が出る。`ok   bt-managed` が見え、`bt-skills` に FAIL が無ければ動いた。

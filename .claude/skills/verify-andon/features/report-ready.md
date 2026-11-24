@@ -23,7 +23,7 @@
 - `scripts/doctor.sh` が終了コード 0。
 - 自分の課題が `doing`（記録を撮るため）。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として5つの細かい機能を順に動かす。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready <検証する commit>` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として5つの細かい機能を順に動かす。
 - **記録を撮る。** `rr-record` の行に `andon issue record V-0001 -- git -C <worktree> log -1 --format=%H` が出る。`runs/1.json` の JSON（`exit_code` 0・`commit` が HEAD・`dirty` false）と `ok   rr-record` が見えれば動いた。
 - **断られる。** `rr-ready-refuse` の行に `andon issue ready` の終了コード 1 と理由1行（`report.json が無い`）が出る。`ok   rr-ready-refuse` が見えれば動いた。
 - **報告する。** `rr-report` の行に `report.json` の `commit`・`pr`・`acceptance` が出る。`ok   rr-report` が見えれば動いた。

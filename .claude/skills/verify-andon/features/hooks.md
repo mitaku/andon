@@ -28,7 +28,7 @@ Claude Code が managed settings から呼ぶ5本の hook（`/opt/andon/hooks/pr
 - `scripts/doctor.sh` が終了コード 0。
 - managed settings の置き場は既定の `/etc/claude-code/managed-settings.json`（`ANDON_MANAGED_SETTINGS` で変えられる）。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hooks` を打つ。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hooks <検証する commit>` を打つ。
 - **つながりを読む。** `hk-wired` の行に managed settings の5行（`PreToolUse /opt/andon/hooks/pre-tool-use`・`Stop /opt/andon/hooks/stop` など）と PreToolUse の matcher が出る。`ok   hk-wired` の2行が見えれば動いた。
 - **止める。** 切り離した kanban の `doing` の課題を端末 `tw` のラベル `issue=` に結び、`/opt/andon/hooks/stop` に `{"stop_hook_active":false}` を渡す。出力が `{"decision":"block","reason":"…"}` で、`ok   hk-stop-block` が見えれば動いた。
 - **通す。** `kanban report` のあとに同じ hook を打つ。出力が空で、`ok   hk-stop-pass` が見えれば動いた。
