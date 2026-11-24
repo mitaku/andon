@@ -75,6 +75,8 @@ Verify-features: wl-resume, wl-record
 | プロジェクトを立てる | [create.md](./create.md) | 切り離して動かす | 検証の担当だけ。端末で聞く道はオーナーが見る |
 | オーナー待ち | [waiting.md](./waiting.md) | 切り離して動かす | 検証の担当だけ。Herdr App のパネルはオーナーが見る |
 | PR を止める | [hold.md](./hold.md) | 切り離して動かす | 検証の担当だけ |
+| トリアージ | [triage.md](./triage.md) | 切り離して動かす | 検証の担当だけ |
+| 振り返り | [retro.md](./retro.md) | 切り離して動かす | 検証の担当だけ |
 | ハーネスの受け口 | [otel.md](./otel.md) | 本物の記録を読む | 記録は検証の担当だけ。受け口を止めて起動する道は Chief of Staff の試しの課題 |
 
 ## 地図が覆わないもの
@@ -85,7 +87,7 @@ Verify-features: wl-resume, wl-record
 - `package/host/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
 - `package/compose.yaml`。セルを起動し直す口で、動いているセルの中からは打ち直せない。`tests/image.sh` が docker のある CI で見ている。
 - `package/bin/`。焼いた andon を置く場所で、repo には空の印しか無い。
-- `internal/triage/`・`internal/retro/`（トリアージと振り返り）。担当のエージェントが集めて判定する仕事で、検証の担当は起動できない。dispatcher がルーチンを撃つところは `dispatcher-news` の `dn-idle` が見る。機能のファイルはまだ無い。
+- `internal/triage/unsorted.go`（トリアージの溜まった数）。dispatcher がトリアージのルーチンを撃つかを決める数え方で、`triage` の道は通らない。撃つところは `dispatcher-news` の `dn-idle` が見る。`go test ./internal/triage/` が見ている。
 - `internal/board/`・`internal/chiefofstaff/`・`internal/chiefengineer/`・`internal/open/`（ボードと、Chief of Staff・Chief Engineer を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。
 - `internal/plantinit/`（`andon init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
 - `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
