@@ -15,6 +15,7 @@
 //	                                     通知 signal で積み、andon signal delivered で届けたと書く（signals.go。§2.2.1）
 //	前の振り返りのあとに片付いた担当の課題が project.json の chief_of_staff.retro_every 件（既定 25）
 //	                                  → kanban routine run retro（ルーチン retro が無い・paused・振り返りが残っていれば数えない。retro.go）
+//	ハーネスの生の記録（~/.local/state/andon/otel/<slug>/） → 1 日に 1 回、30 日を過ぎたものと 10 GB を超えた分を消す（otel.go。§2.14）
 //
 // 通知の元（pickup.go。dispatcher.md §2.2・§2.3）: log.jsonl の続き・ready の差・doing の担当の端末の状態を拾って積む。
 // 通知（contract.md §6）は控えに JSON で積む。Chief of Staff に届けるのはフック（drain.go。経路①②）だけで、
@@ -158,6 +159,10 @@ type Dispatcher struct {
 	idleSeen map[string]bool
 	// 空きの段の失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。idle.go）
 	idleLogged map[string]string
+	// OtelPrune はハーネスの生の記録の寿命の片付け（無ければ otel.PruneDue。検査が失敗を返す片付けに替える。otel.go）
+	OtelPrune func(project string, now time.Time) (ran bool, removed int, err error)
+	// 生の記録の片付けの失敗をログに書いた理由（kanban ごと。同じ理由を二度書かない。otel.go）
+	pruneLogged map[string]string
 }
 
 // cosDown は Chief of Staff の端末が無い（留守）理由。hc が端末を無い（not_found）・live でないと答えたときだけ返す。
@@ -350,6 +355,7 @@ func (p *project) pass() (bool, error) {
 	p.corrections()     // オーナーの手直し（dispatcher.md §2.6・contract.md §14）
 	p.outcomes()        // 結果の記録（dispatcher.md §2.12・contract.md §19）
 	p.stuck(time.Now()) // 記録だけにした approve のまま止まった（dispatcher.md §3.2）
+	p.otelPrune()       // ハーネスの生の記録の寿命の片付け（1 日に 1 回。dispatcher.md §2.14）
 	if !p.first && !p.away {
 		p.unwaited(cos) // 経路③は待ち役。dispatcher は打たず、待ち役がいなければログに1行（dispatcher.md §3・§4）
 	}

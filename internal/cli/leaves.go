@@ -15,6 +15,7 @@ import (
 	"andon/internal/issue"
 	"andon/internal/measure"
 	"andon/internal/open"
+	"andon/internal/otel"
 	"andon/internal/pkgversion"
 	"andon/internal/plantinit"
 	"andon/internal/process"
@@ -188,6 +189,8 @@ var leaves = []leaf{
 		usage: signal.DeliveredUsage, examples: []string{"signal delivered <fingerprint> <episode>"}, writes: true, project: true, run: signal.DeliveredMain},
 	{name: "boot serve-files", who: []who{machine}, about: "files サーバ（boot が自分で起動する）",
 		usage: boot.ServeFilesUsage, examples: []string{"boot serve-files /workspace/files 8080"}, run: boot.ServeFilesMain},
+	{name: "otel serve", who: []who{machine}, about: "ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く",
+		usage: otel.ServeUsage, examples: []string{"otel serve"}, writes: true, run: otel.ServeMain},
 	{name: "version stamp", who: []who{machine}, about: "焼くときに置き場の中身を数えて version.json を書く",
 		usage: pkgversion.StampUsage, examples: []string{"version stamp unknown"}, writes: true, run: pkgversion.StampMain},
 	{name: "schema check", who: []who{machine, role}, about: "JSON を約束の schema と照らす",

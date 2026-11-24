@@ -41,6 +41,7 @@ var unchecked = map[string]struct {
 	"internal/issue/settle.go":                 {map[string]int{"contract.Marshal": 1, "contract.WriteState": 1}, "andon issue settle の出力と settle の記録（schema の無い形）"},
 	"internal/issue/start.go":                  {map[string]int{"contract.Marshal": 1}, "andon issue start --dry-run --json の起動の計画（schema の無い形）"},
 	"internal/issue/stopcheck.go":              {map[string]int{"json.Marshal": 2}, "Stop フックの出力（Claude Code への decision）と、止めた回数の控え（schema の無い控え）"},
+	"internal/otel/otel.go":                    {map[string]int{"json.NewEncoder": 1}, "ハーネスの OTLP の JSON の行（約束の外の、OpenTelemetry の形。contract.md §30）"},
 	"internal/pkgversion/pkgversion.go":        {map[string]int{"json.MarshalIndent": 2}, "パッケージのバージョンの控えと andon version の出力（schema の無い形）"},
 	"internal/digest/build.go":                 {map[string]int{"contract.Marshal": 1}, "秘密を伏せる前の形（伏せたあとを contract.Decode で読み直し、書くときに Encode が照らす）"},
 	"internal/digest/collect.go":               {map[string]int{"contract.Marshal": 1}, "秘密を伏せる前の形（伏せたあとの入力を writeInput の contract.Write が照らす）"},

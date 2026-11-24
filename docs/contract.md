@@ -81,6 +81,8 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 ~/.local/state/andon/dispatcher/<slug>.recorded.jsonl   dispatcher（§6。記録だけの通知。1行1件・追記だけ。kanban の外）
 ~/.local/state/andon/dispatcher/<slug>.delivered.jsonl  dispatcher（§17。届けた通知の記録。渡したターン1つに1行・追記だけ。kanban の外）
 ~/.local/state/andon/dispatcher/.memory.json   dispatcher（§6 の memory。線を超えたと積んだか。セルに1つ。kanban の外）
+~/.local/state/andon/otel/<slug>/issues/<id>/traces.jsonl・logs.jsonl   andon otel serve（§30。ハーネスのトレースとログ。課題ごと・追記だけ。kanban の外）
+~/.local/state/andon/otel/<slug>/roles/<role>/<日付>.traces.jsonl・.logs.jsonl   andon otel serve（§30。課題の属性の無い役の分。kanban の外）
 ```
 
 ## 2. kanban の項目（`issue.yaml` の Andon の予約キー）
@@ -1325,3 +1327,18 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 - `--match` は、番号・タイトル・repo・プロファイル・端末の名前（`agent`）のどれかにその文字を含む課題だけを残す。大文字と小文字は分けない。`--limit` は 1 から 2,000 で、省くと 200。
 - `--since` の無い `andon issue board`・時刻として読めない `--since`・範囲の外の `--limit`・知らないフラグは、何も出さずに終了コード 2。`config.yaml` が読めない・形式が 3 でない・`--project` の kanban が無いときは終了コード 1。
 - 書き手は 2 つの command だけ（出力するだけ）。読み手はボード（mod `kanban-board`）。gate も dispatcher も読まない。
+
+## 30. ハーネスのトレースとログ（`~/.local/state/andon/otel/<slug>/`）
+
+ハーネス（Claude Code・Codex）が自分で出す OpenTelemetry のトレースとログの生の記録（[ADR-0060](adr/0060-otel-trace.md) 決めたこと 2・3・8・9・10）。書き手は受け口 `andon otel serve` だけ（受けて書くだけで、kanban も `project.json` も読まない）、消すのは dispatcher の寿命の片付けだけ（[dispatcher.md](dispatcher.md) §2.14）。置き場は作り直しても残る volume の中で、kanban の外にある。gate も dispatcher の判定も読まない。schema は無い（行の形は OpenTelemetry の OTLP の JSON で、Andon の約束ではない）。
+
+- **受け口**: `127.0.0.1:4318` だけに listen する。受けるのは OTLP/HTTP の `POST /v1/traces` と `POST /v1/logs` で、`Content-Type` が `application/json` のもの（`Content-Encoding: gzip` も受ける）。`/v1/metrics` は 404、JSON でない本文は 415、JSON として読めない本文は 400。認証は無い。`GET /` は名前 `andon-otel` を返す（ポートを取っている相手が andon の受け口かを確かめる口）。ポートを取れなければ起動せずに終了コード 1（二重の起動は bind の失敗で防ぐ）。
+- **置き場**: プロジェクトごとに `~/.local/state/andon/otel/<project>/`（`XDG_STATE_HOME` があればその下の `andon/otel/<project>/`）。resource 属性 `andon.issue` のある記録は `issues/<id>/traces.jsonl`・`issues/<id>/logs.jsonl` に、無い記録は `roles/<role>/<日付>.traces.jsonl`・`roles/<role>/<日付>.logs.jsonl` に足す。日付は受けた時刻の UTC（`2026-11-24`）。フォルダは 0700、ファイルは 0600 で作る。
+- **振り分けに使う属性**: resource 属性の `andon.project`（必須）・`andon.role`（必須）・`andon.issue`（任意。Chief of Staff には無い）。どれも文字列の値で、形は `andon.project` が `^[A-Za-z0-9][A-Za-z0-9_.-]{0,59}$`、`andon.issue` が `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`、`andon.role` が `^[a-z][a-z0-9-]{0,31}$`。必須の属性が無い・どれかの形が違う resource は書かずに捨て、受け口のログ（標準エラー）に理由と、起動してから捨てた数を 1 行で残す。捨てても応答は 200（送り直させても同じ記録はまた捨てる）。書けなかったときだけ 500。
+- **1 行の形**: resource 1 つ分の OTLP の書き出しの要求（`{"resourceSpans": [<resource 1 つ>]}` か `{"resourceLogs": [<resource 1 つ>]}`）を 1 行に書く。OpenTelemetry Collector のファイルの exporter と同じ形なので、標準の道具がそのまま読める。1 回の POST に resource が 2 つあれば 2 行になる。キーの並びは送り手のものと変わることがあり、数の書き方は変えない。ディスクが一杯のときや受け口が書く途中で落ちたときは、最後の行が途中で切れることがある。読み手は JSON として読めない行を飛ばし、飛ばした数を数える。
+- **書く前に落とす・伏せる**: どの深さの属性の並び（`attributes`、`kvlistValue` の `values`）からも、個人の属性 `user.email`・`user.account_uuid`・`user.account_id`・`user.id`・`organization.id` を落とす。名前を `.`・`_`・`-` で区切った語のどれかが秘密の名前（`token`・`password`・`passwd`・`pwd`・`secret`・`api_key`・`access_key`・`private_key`・`client_secret`・`credential`。大文字と小文字は分けない）の属性は、文字列の値を `[REDACTED:attribute]` に替える。そのあと行の全体を、振り返りとダイジェストが共有する伏せる部品（`internal/redact`）に通し、秘密の形を `[REDACTED:<名前>]` に替える。
+- **寿命と上限**: dispatcher が 1 巡ごとに見て、前の片付けから 1 日たっていればプロジェクトの置き場を片付ける。最後に書いてから 30 日を過ぎた `*.jsonl` を消し、残りの合計が 10 GB を超えていれば古いもの（mtime の古い順）から消して上限に収める。中身の無くなったフォルダも消す。圧縮はしない。前に片付けた時刻は置き場の直下の `.pruned` の mtime に持つ。値は既定のまま（`project.json` の `otel` で替えるのは ADR-0060 の切る案 2）。
+
+```text
+{"resourceSpans":[{"resource":{"attributes":[{"key":"andon.project","value":{"stringValue":"sample-site"}},{"key":"andon.issue","value":{"stringValue":"S-0012"}},{"key":"andon.role","value":{"stringValue":"worker"}},{"key":"service.name","value":{"stringValue":"claude-code"}}]},"scopeSpans":[{"scope":{"name":"com.anthropic.claude_code.tracing","version":"1.0.0"},"spans":[{"traceId":"c43ee97f7dd8f491fa3848a4438c5d81","spanId":"549d37a123c5b63a","name":"claude_code.interaction","kind":1,"startTimeUnixNano":"1795493633959000000","endTimeUnixNano":"1795493637451433805","attributes":[{"key":"session.id","value":{"stringValue":"56401e3a-30ce-4815-a5da-9acdc5bcf49f"}}]}]}]}]}
+```
