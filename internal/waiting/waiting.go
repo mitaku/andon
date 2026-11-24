@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -458,7 +459,7 @@ var urlPattern = regexp.MustCompile(`https?://[!-~]+`)
 // brief は手作業の行に運ぶ依頼書（issues/<id>/brief.md）の本文と、その中の http(s) の URL（出てくる順、重ねない）。
 // 依頼書が無い・読めない・空なら両方とも空（行はそのまま出す）。手順の部分を切り出さず、本文を運ぶ（依頼書の形は課題ごとに違う）。
 func brief(dir string) (string, []string) {
-	b, err := os.ReadFile(filepath.Join(dir, "brief.md"))
+	b, err := readBrief(filepath.Join(dir, "brief.md"))
 	if err != nil || !utf8.Valid(b) {
 		return "", nil
 	}
@@ -484,6 +485,35 @@ func brief(dir string) (string, []string) {
 		text = strings.TrimSpace(string(r[:maxSteps])) + stepsCut
 	}
 	return text, links
+}
+
+// maxBriefBytes は依頼書を読む上限。超えた分は読まない（手作業の行に運ぶ本文は maxSteps 文字まで）。
+const maxBriefBytes = 1 << 20
+
+// readBrief は依頼書を読む。普通のファイルでなければ（FIFO・装置を指す symlink）読まない: 読むと止まるか際限なく読み、
+// andon waiting と、それを呼ぶ dispatcher が止まる。上限を超えた分は読まず、末尾で切れた文字を落とす。
+func readBrief(path string) ([]byte, error) {
+	// FIFO は開くだけで止まるので、開く前に見る
+	if st, err := os.Stat(path); err != nil {
+		return nil, err
+	} else if !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s は普通のファイルでない", path)
+	}
+	fh, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close() //nolint:errcheck // 読むだけのファイル
+	b, err := io.ReadAll(io.LimitReader(fh, maxBriefBytes))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) == maxBriefBytes {
+		for i := 0; i < utf8.UTFMax && len(b) > 0 && !utf8.Valid(b); i++ {
+			b = b[:len(b)-1]
+		}
+	}
+	return b, nil
 }
 
 // firstLine は値の 1 行目（前後の空白を除く）。
