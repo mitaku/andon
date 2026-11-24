@@ -27,10 +27,12 @@ type ImpactIssue struct {
 	Error         string   `json:"error,omitempty"`
 }
 
-// Affected は Chief of Staff が見るべきか（ぶつかる・重なる・依頼書が指す・検査の置き場が動いた・事実を読めなかった）。
+// Affected は Chief of Staff が見るべきか（ぶつかる・重なる・依頼書が指す・review の課題で検査の置き場が動いた・事実を読めなかった）。
+// 検査の置き場の動きは review の課題だけ数える: doing の課題は ready のあと gate が古い base を返す（gate.CheckPlaces）ので、
+// Go の検査（*_test.go）を変えるマージのたびに doing の課題を並べない。
 func (t ImpactIssue) Affected() bool {
 	if t.Error != "" {
 		return true
 	}
-	return !t.Contains && (t.Conflict || len(t.Overlap) > 0 || len(t.BriefRefs) > 0 || len(t.ChecksMoved) > 0)
+	return !t.Contains && (t.Conflict || len(t.Overlap) > 0 || len(t.BriefRefs) > 0 || (t.Status == "review" && len(t.ChecksMoved) > 0))
 }

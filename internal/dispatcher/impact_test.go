@@ -18,8 +18,9 @@ func TestImpactDetail(t *testing.T) {
 		{Issue: "A-3", Overlap: []string{}, BriefRefs: []string{}},             // 何も重ならない
 		{Issue: "A-4", Conflict: true, ConflictFiles: []string{"x"}, Overlap: many, BriefRefs: []string{"docs/a.md"}},
 		{Issue: "A-5", Error: "branch demo/A-5 が読めない"},
-		{Issue: "A-6", Overlap: []string{}, BriefRefs: []string{}, ChecksMoved: []string{".github/workflows/go.yml"}}, // 検査の置き場が動いた
-		{Issue: "A-7", Contains: true, ChecksMoved: []string{".github/workflows/go.yml"}},                             // もう含む
+		{Issue: "A-6", Status: "review", Overlap: []string{}, BriefRefs: []string{}, ChecksMoved: []string{".github/workflows/go.yml"}}, // 検査の置き場が動いた
+		{Issue: "A-7", Status: "review", Contains: true, ChecksMoved: []string{".github/workflows/go.yml"}},
+		{Issue: "A-8", Status: "doing", ChecksMoved: []string{".github/workflows/go.yml"}}, // doing は gate が ready のあと返す                             // もう含む
 	}}
 	d := ImpactDetail(res)
 	if d == nil || d["pr"] != res.PR || d["sha"] != sha {

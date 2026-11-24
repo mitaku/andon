@@ -180,7 +180,7 @@
         "error": { "description": "Why the dispatcher gave up collecting the facts (after retries).", "type": "string", "minLength": 1 },
         "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "issues": {
-          "description": "Running issues in the same repo that conflict, overlap, are referenced by the brief, miss moved check places, or could not be read.",
+          "description": "Running issues in the same repo that conflict, overlap, are referenced by the brief, miss moved check places (review issues), or could not be read.",
           "type": "array", "minItems": 1,
           "items": {
             "type": "object", "required": ["issue", "conflict", "overlap", "brief_refs"], "additionalProperties": false,

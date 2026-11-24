@@ -39,7 +39,7 @@
 | `conflict: true` | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、<conflict_files> でぶつかる。origin の main に rebase して衝突を解き、検査を通して push。review にいたら kanban start で戻してから。Review: on ならレビューを頼み直す"` |
 | `checks_moved` があって、`review` にいる | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、検査の置き場 <checks_moved> が変わった。origin の main に rebase して新しい検査で checks を通し直し、push。kanban start で戻してから。Review: on ならレビューを頼み直す"`。gate が通したあとでも頼む（古い base の checks のままマージされると main が赤になる） |
 | `overlap` だけ（衝突しない）で、`review` にいる | **rebase を頼む** | 同じ文（「ぶつからないが <overlap> が重なる。rebase して検査を通し直す」）。マージの前に新しい main で検査を通すため |
-| `overlap`・`checks_moved` だけで、`doing` | 影響なし（いまは） | 何もしない。担当は PR を出す前に main を取り直す（同じファイルの次のマージでまた届く。検査の置き場が古い base のまま ready すると gate が返す） |
+| `overlap` だけで、`doing`（`checks_moved` があっても） | 影響なし（いまは） | 何もしない。担当は PR を出す前に main を取り直す（同じファイルの次のマージでまた届く。検査の置き場が古い base のまま ready すると gate が返す） |
 | 上のどれでもない | 影響なし | 何もしない |
 
 - 決めたことは、オーナーがいるターンならその返事で知らせる（`S-0011（…）に rebase を頼んだ。S-0012（…）は止めて、向きを確かめている。`）。影響なしだけなら `andon news ack` を打って文は書かない。
