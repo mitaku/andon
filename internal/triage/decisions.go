@@ -286,6 +286,9 @@ func checkLater(it item) error {
 		return nil
 	case !oneLine(v) || strings.Contains(v.(string), "\r"):
 		return fail("person の later が理由の 1 行か false でない（true は使わない）: %s", k)
+	case slices.Contains([]string{"true", "false", "null"}, strings.ToLower(strings.TrimSpace(v.(string)))):
+		// 引用符で包んだ true・false・null を理由の 1 行として通すと、呼ぶつもりの判断が黙って置いてある行になる
+		return fail("person の later が文字列の %q（呼ぶなら引用符の無い false、置いておくなら理由の 1 行を書く）: %s", v, k)
 	}
 	if u, ok := it["later_until"]; ok && u != nil {
 		us, _ := u.(string)
