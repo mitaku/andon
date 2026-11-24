@@ -306,6 +306,14 @@ func TestRewriteSettings(t *testing.T) {
 		{"見出しで終わる依頼書", "## Settings", "## Settings\n- Review: on\n", Issue{"review": "on"}},
 		{"CRLF", "## Settings\r\n- Review: off\r\n", "## Settings\r\n- Review: on\r\n", Issue{"review": "on"}},
 		{"写しが無ければ書き足さない", "# 題\n完了条件: 押せる\n", "", Issue{"review": "on"}},
+		{"見出しが2つあれば両方",
+			"## Settings\n- Review: off\n\n## 追記\n## Settings\n- Review: off\n- Merge: person\n",
+			"## Settings\n- Review: on\n- Merge: auto\n\n## 追記\n## Settings\n- Review: on\n- Merge: auto\n",
+			Issue{"review": "on", "merge": "auto"}},
+		{"コード例の中の見出しは触らない",
+			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: off\n",
+			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: on\n",
+			Issue{"review": "on"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			want := c.want

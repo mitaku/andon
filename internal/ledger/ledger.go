@@ -364,30 +364,45 @@ func SettingsCopy(keys []string) string {
 
 // RewriteSettings は依頼書 brief の ## Settings の写しを、課題 t の予約キー（正）に合わせて書き直す。書き換えたかを返す。
 // 写しは見出しの直後に続く「- 名前: 値」の行の並びで、その後ろ（空行・地の文・追記の節）は触らない。見出しが無ければ書き足さない。
+// 見出しが2つ以上あれば（追記の節に写しを書き直した依頼書）、どれも書き直す。コード例（``` の囲み）の中の見出しは写しでないので触らない。
 // 行の値は issue.yaml の値（無いキーは SettingsOf の既定。reviewer・review_rounds・merge・deliverable）で、値の頭が同じ行は
 // そのまま残す（「Deliverable: candidates ★調べる」）。値の無い行は消し、行の無いキーで issue.yaml にあるものは並びの末尾に足す。
 // 知らない名前の行は残す。課題があとから kanban set で予約キーを書き直しても、担当に渡る写しが正と食い違わないように、
 // andon issue start が起動の前に打つ。
 func RewriteSettings(brief string, t Issue) (string, bool) {
 	lines := strings.SplitAfter(brief, "\n")
-	head := -1
-	for i, ln := range lines {
-		if strings.TrimRight(ln, " \t\r\n") == "## Settings" {
-			head = i
-			break
+	var out strings.Builder
+	fence := false
+	for i := 0; i < len(lines); i++ {
+		ln := lines[i]
+		trim := strings.TrimRight(ln, " \t\r\n")
+		if strings.HasPrefix(strings.TrimLeft(trim, " "), "```") {
+			fence = !fence
 		}
+		if fence || trim != "## Settings" {
+			out.WriteString(ln)
+			continue
+		}
+		end := i + 1
+		for end < len(lines) && strings.HasPrefix(lines[end], "- ") {
+			end++
+		}
+		eol := "\n"
+		if strings.HasSuffix(ln, "\r\n") {
+			eol = "\r\n"
+		}
+		block := settingsBlock(lines[i+1:end], t, eol)
+		if len(block) > 0 && !strings.HasSuffix(ln, "\n") {
+			ln += eol // 見出しが依頼書の最後の行のとき
+		}
+		out.WriteString(ln + strings.Join(block, ""))
+		i = end - 1
 	}
-	if head < 0 {
-		return brief, false
-	}
-	end := head + 1
-	for end < len(lines) && strings.HasPrefix(lines[end], "- ") {
-		end++
-	}
-	eol := "\n"
-	if strings.HasSuffix(lines[head], "\r\n") {
-		eol = "\r\n"
-	}
+	return out.String(), out.String() != brief
+}
+
+// settingsBlock は写しの行の並び old を、課題 t の予約キーに合わせて書き直した行の並びにする（RewriteSettings）。
+func settingsBlock(old []string, t Issue, eol string) []string {
 	def := SettingsOf(t)
 	defaults := map[string]string{"reviewer": def.Reviewer, "review_rounds": def.ReviewRounds, "merge": def.Merge, "deliverable": def.Deliverable}
 	value := func(k string) string {
@@ -409,7 +424,7 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 		block = append(block, ln)
 	}
 	seen := map[string]bool{}
-	for _, ln := range lines[head+1 : end] {
+	for _, ln := range old {
 		name, cur, ok := strings.Cut(strings.TrimRight(strings.TrimPrefix(ln, "- "), "\r\n"), ":")
 		k, known := byName[strings.ToLower(strings.TrimSpace(name))]
 		switch {
@@ -434,11 +449,7 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 			add("- " + settingNames[k] + ": " + v + eol)
 		}
 	}
-	if len(block) > 0 && !strings.HasSuffix(lines[head], "\n") {
-		lines[head] += eol // 見出しが依頼書の最後の行のとき
-	}
-	out := strings.Join(lines[:head+1], "") + strings.Join(block, "") + strings.Join(lines[end:], "")
-	return out, out != brief
+	return block
 }
 
 // Brand はプロファイルのブランド（codex* → codex、ほかは claude）。

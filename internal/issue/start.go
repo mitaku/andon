@@ -49,8 +49,8 @@ type startPlan struct {
 	Checks       []startCheck `json:"checks"`
 	Fill         []string     `json:"fill,omitempty"` // 起動の前に書く予約キー（ルーチンが足した課題の無いキー。checkSettings）
 	repoDir      string
-	rewrite      bool    // Brief は依頼書の ## Settings の写しを予約キーに合わせて書き直したもので、起動の前に brief.md に書く（copySettings）
-	command      *string // template の command（起動の記録の起動行。dry では読まない）
+	settings     ledger.Issue // 写しを合わせる予約キー（課題のキーに fill が書くキーを足したもの。copySettings）
+	command      *string      // template の command（起動の記録の起動行。dry では読まない）
 }
 
 // startCheck は起動する前の確かめ1つの結果。result は ok（通った）か skipped（--dry-run では確かめない: hc を呼ぶもの・作るもの）。
@@ -89,10 +89,8 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 		return err
 	}
 	// 写しは予約キーを書いたあと、何かを作る前に書く（ここで止まっても、打ち直せば plan が今の予約キーから作り直す）
-	if p.rewrite {
-		if err := writeAtomic(p.BriefPath, []byte(p.Brief)); err != nil {
-			return fail("依頼書 %s の ## Settings の写しを書き直せない: %v。%s は todo のまま", p.BriefPath, err, id)
-		}
+	if err := c.writeSettingsCopy(p); err != nil {
+		return fail("依頼書 %s の ## Settings の写しを書き直せない: %v。%s は todo のまま", p.BriefPath, err, id)
 	}
 	undo := func() {}
 	if p.Repo != "" {
@@ -389,13 +387,33 @@ func (c *ctx) copySettings(p *startPlan) {
 		k, v, _ := strings.Cut(kv, "=")
 		t[k] = v
 	}
+	p.settings = t
 	brief, changed := ledger.RewriteSettings(p.Brief, t)
 	if !changed {
 		p.check("copy", "ok", "依頼書の ## Settings の写しは予約キーと合っている（写しが無ければ書き足さない）")
 		return
 	}
-	p.Brief, p.rewrite = brief, true
+	p.Brief = brief
 	p.check("copy", "ok", "依頼書の ## Settings の写しが予約キーと違うので、起動の前に予約キーから書き直す")
+}
+
+// writeSettingsCopy は、書く直前に依頼書を読み直して写しを書き直し、違えば置き換える（copySettings が合わせるキーで）。
+// plan で読んだ全文を書かないのは、読んでから書くまでの間（fill の kanban set など）に Chief of Staff が足した追記を消さないため。
+// 書いた依頼書を p.Brief に置き直す。
+func (c *ctx) writeSettingsCopy(p *startPlan) error {
+	if p.settings == nil {
+		return nil
+	}
+	cur, err := os.ReadFile(p.BriefPath)
+	if err != nil {
+		return err
+	}
+	brief, changed := ledger.RewriteSettings(string(cur), p.settings)
+	p.Brief = brief
+	if !changed {
+		return nil
+	}
+	return writeAtomic(p.BriefPath, []byte(brief))
 }
 
 // writeAtomic は file を data で置き換える（一時のファイルに書いてから rename する。途中で止まっても半分の依頼書を残さない）。

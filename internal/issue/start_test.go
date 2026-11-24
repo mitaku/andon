@@ -26,7 +26,7 @@ printf 'kanban %s | HC_TERMINAL_ID=%s KANBAN_ROOT=%s\n' "$*" "${HC_TERMINAL_ID:-
 case $1 in
   root) echo "$FAKE_ROOT" ;;
   show) cat "$FAKE_ROOT/show-$2.json" ;;
-  set) echo "$2 updated" ;;
+  set) if [ -n "${FAKE_SET_APPEND:-}" ] && [ ! -e "$FAKE_ROOT/appended" ]; then printf '%s' "$FAKE_SET_APPEND" >>"$FAKE_ROOT/kanban/issues/$2/brief.md"; : >"$FAKE_ROOT/appended"; fi; echo "$2 updated" ;;
   ready) cat "$FAKE_ROOT/ready.json" ;;
   start) printf 'start-cwd %s\n' "$PWD" >>"$LOG"; echo "$2 doing" ;;
   *) echo "unexpected kanban $1" >&2; exit 9 ;;
@@ -1028,6 +1028,27 @@ func TestStartRewritesSettingsCopy(t *testing.T) {
 		}
 		if got := read(t, path); got != want {
 			t.Errorf("fill のキーが写しに入らない:\n got %q\nwant %q", got, want)
+		}
+	})
+	// 確かめで依頼書を読んだあと書くまでの間（ここでは fill の kanban set）に Chief of Staff が足した追記の節を、古い全文で上書きして消さない
+	t.Run("keeps what was added meanwhile", func(t *testing.T) {
+		f, path := setup(t)
+		f.unset("estimate")
+		f.task["routine"] = "nightly"
+		b, _ := json.Marshal(map[string]any{"at": "2026-11-23T00:00:00Z", "by": "routine:nightly", "routine": "nightly", "fired": "S-0007"})
+		lf, err := os.OpenFile(filepath.Join(f.root, "kanban", "log.jsonl"), os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lf.Write(append(b, '\n'))
+		lf.Close()
+		const added = "\n## 追記（起動の直前）\n- 守ること: README は触らない\n"
+		t.Setenv("FAKE_SET_APPEND", added)
+		if rc, out, errs := f.run(); rc != 0 {
+			t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
+		}
+		if got := read(t, path); got != want+added {
+			t.Errorf("間に足した追記が消えた:\n got %q\nwant %q", got, want+added)
 		}
 	})
 }
