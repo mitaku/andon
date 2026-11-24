@@ -95,7 +95,6 @@ func TestDescribe(t *testing.T) {
 	}
 }
 
-// TestGateMark は statusCheckRollup から gate 自身の最新の印を読む（ほかの status と CheckRun は読まない）。
 func TestGateMark(t *testing.T) {
 	items := []CheckItem{
 		{Typename: "CheckRun", Name: "andon/gate", Status: "COMPLETED", Conclusion: "SUCCESS"},
@@ -111,7 +110,7 @@ func TestGateMark(t *testing.T) {
 	}
 }
 
-// Final は、checks で待たないときだけ条件表の検査を回させる（ADR-0056 決めたこと 4。反論の段で見つけた穴）
+// Final は、checks で待たないときだけ条件表の検査を回させる（ADR-0056 決めたこと 4）
 func TestChecksFinal(t *testing.T) {
 	for _, c := range []struct {
 		state             string

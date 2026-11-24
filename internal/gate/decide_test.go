@@ -100,7 +100,6 @@ func TestWithinAndRaise(t *testing.T) {
 	}
 }
 
-// TestFromReport は担当の report.json の申告がレベルを上げる向きにだけ効くことを固定する（risk.one_way・acceptance）。
 func TestFromReport(t *testing.T) {
 	const sha = "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"
 	base := `{"commit": "` + sha + `", "pr": "https://github.com/owner/andon/pull/1"`
@@ -132,14 +131,12 @@ func TestFromReport(t *testing.T) {
 			t.Errorf("%s: 入力の理由を書き換えた: %v", c.name, in.TierReasons)
 		}
 	}
-	// 申告で C になった変更は、委譲の merge が C でなければオーナーへ回る
 	rep, _ := contract.ParseReport([]byte(base + `, "risk": {"one_way": true}}`))
 	cl, _ := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
 	f := Facts{PROpen: true, RepoKnown: true, Tier: cl.Tier, MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"}}
 	if d, r := Decide(f); d != "needs_human" || !reflect.DeepEqual(r, []string{"delegation: merge=B < tier C"}) {
 		t.Errorf("one_way の変更がオーナーへ回らない: %s %v", d, r)
 	}
-	// acceptance に fail がある report は gate が fix を返す（数えて Decide に渡す）
 	rep, _ = contract.ParseReport([]byte(base + `, "acceptance": [{"id": "A1", "result": "pass", "evidence": "go test ./..."}, {"id": "A2", "result": "fail", "evidence": "bash tests/x.sh"}]}`))
 	cl, n := FromReport(Classified{Tier: "A", TierReasons: []string{}}, rep)
 	if !reflect.DeepEqual(n, AcceptanceCount{Pass: 1, Fail: 1}) || cl.Tier != "A" {
@@ -263,7 +260,6 @@ func TestDecideDelegationLast(t *testing.T) {
 			f.RepoKnown = false
 			f.GitHubChecks = GitHubChecks{"pending", []string{"test"}}
 		}, "needs_human", "条件表の repos"},
-		// 反論の段で見つけた穴: CI の状態が読めない・CI が来ないまま待ちを過ぎたときも、差し戻す理由があれば先に担当へ
 		{"CI が読めなくてもレビューが無ければ fix", func(f *Facts) {
 			f.GitHubChecks = GitHubChecks{"unknown", []string{"x"}}
 			f.Review.State = "missing"
@@ -485,7 +481,6 @@ func TestLoadTableRejectsNullAndWrongTypes(t *testing.T) {
 	}
 }
 
-// ownerPlant は owner が gate.local.json を commit したセルの repo を作る。
 func ownerPlant(t *testing.T, local string) string {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -584,12 +579,9 @@ func TestClassifyAddedLinePatternEdges(t *testing.T) {
 		// 離れた hunk の消した行では打ち消さない（ファイルごとに数えない）
 		{"別の hunk で消して足すと C", "diff --git a/docs/x.md b/docs/x.md\n--- a/docs/x.md\n+++ b/docs/x.md\n" +
 			"@@ -1,1 +1,0 @@\n-sudo a\n@@ -9,0 +9,1 @@\n+sudo b\n", "C"},
-		// ファイルを消して別の名前で足すと hunk が別なので C
 		{"消して別の名前で足すと C", "diff --git a/docs/a.md b/docs/a.md\ndeleted file mode 100644\n--- a/docs/a.md\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-sudo a\n" +
 			"diff --git a/docs/b.md b/docs/b.md\nnew file mode 100644\n--- /dev/null\n+++ b/docs/b.md\n@@ -0,0 +1,1 @@\n+sudo a\n", "C"},
-		// 行の頭が +++ の足した行も数える（中身が ++ で始まる行）
 		{"hunk の中の +++ の行も数える", hunkDiff("docs/x.md", 0, 1, "+++ sudo x"), "C"},
-		// 1 行の中の当たる箇所が増えれば C
 		{"同じ行で当たる箇所が増えると C", hunkDiff("docs/x.md", 1, 1, "-sudo a", "+sudo a && sudo b"), "C"},
 		// 当たった文字列ごとに数える（password= を token= に替えると token= が増えた）
 		{"別の文字列に替えると C", hunkDiff("docs/x.md", 1, 1, "-password=x", "+token=x"), "C"},
@@ -614,7 +606,6 @@ func TestHunks(t *testing.T) {
 		[]Hunk{{Added: []string{"b"}, Removed: []string{"a"}}, {Added: []string{"d"}, Removed: []string{"c"}}}) {
 		t.Errorf("行数の多すぎる見出しの Hunks = %#v", got)
 	}
-	// 見出しの無い差分は diff --git で区切った 1 つの hunk として数える
 	if got := Hunks("+a\n-b\ndiff --git a/y b/y\n+c\n"); len(got) != 2 || got[0].Added[0] != "a" || got[0].Removed[0] != "b" || got[1].Added[0] != "c" {
 		t.Errorf("見出しの無い差分の Hunks = %#v", got)
 	}

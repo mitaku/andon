@@ -1,6 +1,4 @@
 // Package gate は andon gate（docs/contract.md §7。仮設の gate lib/yard/gate を Go に移したもの）。
-// kanban の課題の PR を、issue.yaml の予約キー・report.json の pr と acceptance・レビュアーの findings.json・
-// gate の条件表・委譲（project.json の delegation）・PR の head の GitHub の checks で照合し、decision（approve / fix / needs_human / wait）を出して記録する。
 // Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
 // 終了コード: approve 0・fix 1・使い方 2・道具や kanban の誤り 3・needs_human 4・wait 5（記録しない）。
@@ -27,7 +25,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// Usage は andon gate --help の中身。
 const Usage = "usage: andon gate <id> [--dry-run]\n" +
 	"kanban の課題の PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は issues/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
@@ -69,12 +66,10 @@ type Record struct {
 
 // Delegated は課題 id の判定に使う委譲の merge の値と、それを広げた名指しの grant の id（ADR-0041 決めたこと 6・7）。
 // 担当が戻せない（one_way）と申告していれば名指しを読まず、プロジェクト全体の merge で判定する。
-// 読むのは gate の判定と、マージの直前の読み直し（internal/issue の stillAuthorized）の2か所だけ。
 func Delegated(d delegate.Result, id string, rep *contract.Report) (merge, grant string) {
 	return d.MergeFor(id, OneWay(rep))
 }
 
-// Main は andon gate。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) < 1 || len(args) > 2 || !idRe.MatchString(args[0]) || (len(args) == 2 && args[1] != "--dry-run") {
 		fmt.Fprint(stderr, Usage)
@@ -84,7 +79,6 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	rec, early, err := run(ledger.CanonID(args[0]), dry, stderr)
 	var h holding
 	if errors.As(err, &h) {
-		// 止めている: wait（decision と reasons だけ。記録も GitHub への書き込みもしない）
 		if err := writeShort(stdout, "wait", string(h)); err != nil {
 			fmt.Fprintf(stderr, "andon gate: %v\n", err)
 			return exitError
@@ -96,7 +90,6 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return exitError
 	}
 	if early != "" {
-		// 信じられる PR が無い（report.json・kanban と PR が合わない）。記録も GitHub への書き込みもしない。
 		if err := writeShort(stdout, "fix", early); err != nil {
 			fmt.Fprintf(stderr, "andon gate: %v\n", err)
 			return exitError
@@ -132,7 +125,6 @@ func writeShort(w io.Writer, decision, reason string) error {
 	return err
 }
 
-// ExitCode は decision を andon gate の終了コードにする（approve 0・fix 1・needs_human 4・wait 5）。
 func ExitCode(decision string) int {
 	switch decision {
 	case "approve":
@@ -145,20 +137,16 @@ func ExitCode(decision string) int {
 	return exitHuman
 }
 
-// recordFact は、gate の問い（from: gate）の事実のうち、gate の記録を指す行の頭。
 const recordFact = "gate の記録 "
 
 // oldRecordFact は、2026-11-20 までの語で書いた recordFact の頭。動いているセルの kanban に開いたまま残る gate の問いを読むため、
 // 読む側だけが受ける（ADR-0040 決めたこと 7）。書く側は recordFact だけを使う。
-const oldRecordFact = "ゲートの記録 " // 古い語を読む（ADR-0040 決めたこと 7）
+const oldRecordFact = "ゲートの記録 "
 
-// RecordFact は、gate の問いの事実に書く、gate の記録 record（issues/<id>/library/gate/<head>.json）を指す行。
-// 問いがどの head について出たかは、この行から QuestionHead で読む。
+// RecordFact の行から、問いがどの head について出たかを QuestionHead で読む。
 func RecordFact(record string) string { return recordFact + record }
 
-// QuestionHead は、gate の問いの事実 facts から、gate が判定した head を読む（RecordFact の行の <head>.json）。
-// 頭が古い語の行（oldRecordFact）も同じに読む。
-// その行が無い・head が読めなければ空（どの head の問いか分からない。呼び手は今の head の問いとして扱う）。
+// RecordFact の行が無い・head が読めなければ空（どの head の問いか分からない。呼び手は今の head の問いとして扱う）。
 func QuestionHead(facts []string) string {
 	for _, f := range facts {
 		p, ok := strings.CutPrefix(f, recordFact)
@@ -175,7 +163,6 @@ func QuestionHead(facts []string) string {
 	return ""
 }
 
-// gh は gh を打ち、stdout を返す。
 func gh(args ...string) ([]byte, error) {
 	var errb bytes.Buffer
 	c := exec.Command("gh", args...)
@@ -206,7 +193,6 @@ type prView struct {
 	} `json:"comments"`
 }
 
-// texts は PR の本文とコメントの本文（添付を探す先）。
 func (pv prView) texts() []string {
 	out := []string{pv.Body}
 	for _, c := range pv.Comments {
@@ -454,7 +440,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	facts.ChecksWait = *table.GitHubChecksWait
 	facts.ChecksOverdue = ChecksOverdue(rows, id, now, facts.ChecksWait)
 
-	// L3 レビュー・L2 検査（前の段で決まっていれば回さない）
 	facts.ReviewRequired = ReviewRequired(tier, s.Review)
 	rec.Review = ledger.Review{State: "off", Waived: len(rep.Waived)}
 	// 委譲の外（オーナーがマージする変更）でも条件表の検査を回す。委譲は決定式の最後に見る（ADR-0056 決めたこと 4）
@@ -512,7 +497,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	return rec, "", nil
 }
 
-// written は path の記録が began より後に書かれたか（この run が lock を待つ間に、ほかの run が書いた）。
 func written(path string, began time.Time) bool {
 	fi, err := os.Stat(path)
 	return err == nil && !fi.ModTime().Before(began)
@@ -524,7 +508,6 @@ func written(path string, began time.Time) bool {
 // Go の検査（*_test.go）も入れる: 既定ブランチに足した Go の検査は、それより前の base の PR が変えたコードを見ていない。
 var CheckPlaces = []string{"tests/**", ".github/workflows/**", ".claude/skills/verify-andon/**", "**/*_test.go"}
 
-// IsCheckPlace は path（repo の根からのパス）が検査の置き場か。
 func IsCheckPlace(path string) bool { return matchAny(CheckPlaces, path) }
 
 // CheckPlaceFiles は files のうち検査の置き場に当たるパス（純粋関数。strip_prefix を外し、rename の元も見る。files の順で重ねない）。
@@ -560,7 +543,6 @@ func baseFiles(slug, head, base string) ([]File, int, bool, error) {
 	return ParseCompare(b)
 }
 
-// ParseCompare は baseFiles が読んだ compare の応答（compareJq を通したもの）を読む（純粋関数）。
 // ahead は分かれ目より後に既定ブランチにだけある commit の数。
 func ParseCompare(b []byte) ([]File, int, bool, error) {
 	var v struct {
@@ -654,7 +636,6 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 	return checks, nil
 }
 
-// checksQuery は PR の head と、その commit の statusCheckRollup の contexts を100件ずつ読む。
 // gh のアカウント（viewer）と repo の既定ブランチも一緒に読む（gate が作者と base を見る）。
 const checksQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   viewer { login }
@@ -675,14 +656,13 @@ func ReadChecks(number, slug string) (string, GitHubChecks, error) {
 	return cr.Head, cr.Checks, err
 }
 
-// checksRead は checksQuery で読んだもの。
 type checksRead struct {
 	Head          string
 	Checks        GitHubChecks
-	Mark          Mark   // head に今ある gate 自身の印（無ければ空）
-	Link          string // その印のリンク（target_url。無ければ空）
-	DefaultBranch string // repo の既定ブランチ
-	Viewer        string // gh のアカウント（login）
+	Mark          Mark
+	Link          string
+	DefaultBranch string
+	Viewer        string
 }
 
 func readChecks(number, slug string) (checksRead, error) {

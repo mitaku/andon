@@ -11,10 +11,8 @@ import (
 // ここでは記録から外向けの文を作るだけで、記録の文を外へそのまま写さない。
 // 頭の「andon gate: 」は動かさない（dispatcher がこの頭で gate のコメントを見分け、オーナーの手直しから除く）。
 
-// CommentPrefix は gate が PR に書くコメントと commit status の説明文の頭（dispatcher の gateCommentPrefix と同じ）。
 const CommentPrefix = "andon gate: "
 
-// headline は判定ごとの見出し（外の人が読む文）。
 func headline(decision string) string {
 	switch decision {
 	case "approve":
@@ -27,7 +25,6 @@ func headline(decision string) string {
 	return "判定できなかった変更です"
 }
 
-// tierText は変更の区分（記録の tier）を外の人が読む文にする。
 func tierText(tier string) string {
 	switch tier {
 	case "A":
@@ -45,7 +42,6 @@ func StatusDescription(rec *Record) string {
 	return describe(rec.Decision, rec.Reasons)
 }
 
-// CommentBody は PR に書くコメントの本文。
 func CommentBody(rec *Record) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s**%s**（commit %s）\n\n", CommentPrefix, headline(rec.Decision), rec.Head)
@@ -112,11 +108,10 @@ type rewrite struct {
 
 func fixed(s string) func([]string) string { return func([]string) string { return s } }
 
-// reasonRewrites は記録の reasons（Decide と run が書く文）を外向けの文に直す表。
-// 記録の文を変えたら、ここと TestCommentReasons の両方を直す。
+// 記録の文を変えたら、ここと comment_test.go の recordReasons の両方を直す。
 var reasonRewrites = []rewrite{
 	// 2026-11-20 までの記録の文（「台帳の…」）も同じに読む（ADR-0040 決めたこと 7）
-	{regexp.MustCompile(`^(?:kanban |台帳)の課題が review でない（.*）$`), fixed("作業がまだ確認待ちになっていない")}, // 古い語を読む（ADR-0040 決めたこと 7）
+	{regexp.MustCompile(`^(?:kanban |台帳)の課題が review でない（.*）$`), fixed("作業がまだ確認待ちになっていない")},
 	{regexp.MustCompile(`^PR の branch（(.*)）が issue\.yaml の branch と違う$`), func(m []string) string {
 		return "PR の branch（" + m[1] + "）が、作業を始めたときの branch と違う"
 	}},
@@ -165,7 +160,6 @@ var reasonRewrites = []rewrite{
 	{regexp.MustCompile(`^GitHub の checks がまだ1つも無い$`), fixed("CI がまだ 1 つも無い")},
 }
 
-// tierReasonRewrites は記録の tier_reasons（Classify と FromReport が書く文）を外向けの文に直す表。
 var tierReasonRewrites = []rewrite{
 	{regexp.MustCompile(`^path (.*)（tier_overrides）$`), func(m []string) string { return "この repo で個別に決めたファイル " + m[1] }},
 	{regexp.MustCompile(`^path (.*)$`), func(m []string) string { return "メンテナーが見ると決めたファイル " + m[1] }},

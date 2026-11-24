@@ -7,7 +7,6 @@ import (
 	"andon/internal/contract"
 )
 
-// gate の L3 とレビューを受ける側が使う条件。差分がレベル B・C なら review: off でも要る。
 func TestReviewRequired(t *testing.T) {
 	for _, c := range []struct {
 		tier, review string
@@ -51,7 +50,6 @@ func TestReviewRequiredForReviewOffDiffs(t *testing.T) {
 	}
 }
 
-// review の値が on・off でなければ、PR を読まずに要らないと返す（呼ぶ側が値の誤りで断る）。on は PR を読まずに要る。
 func TestNeedsReviewWithoutPR(t *testing.T) {
 	if need, _, err := NeedsReview("github.com/example/app", "on", nil); !need || err != nil {
 		t.Errorf("on: need %v err %v", need, err)
