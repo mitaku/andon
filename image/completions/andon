@@ -14,7 +14,7 @@ _andon() {
     delegate) COMPREPLY=($(compgen -W "show grant narrow revoke" -- "$cur")) ;;
     signal) COMPREPLY=($(compgen -W "auth collect delivered" -- "$cur")) ;;
     digest) COMPREPLY=($(compgen -W "auth collect build send check" -- "$cur")) ;;
-    issue) COMPREPLY=($(compgen -W "start resume finish hold unhold impact show report review-request candidates ask record ready merge settle session stop-check" -- "$cur")) ;;
+    issue) COMPREPLY=($(compgen -W "start resume finish hold unhold impact show report review-request candidates ask record ready merge settle board history session stop-check" -- "$cur")) ;;
     news) COMPREPLY=($(compgen -W "ack" -- "$cur")) ;;
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
     retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;

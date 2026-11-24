@@ -1120,4 +1120,31 @@ as t5 "$andon" issue unhold "$held" >/dev/null || die 'gate の lock のあと u
 wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'unhold が gate の鍵を待たなかった'
 ok 'hold・unhold: 別のプロセスがマージの鍵か gate の鍵を持っている間は、放されるまで待つ'
 
+# andon issue board・history（ADR-0059 受け入れ条件 5）: 切り離した kanban に本物の kanban でいろいろなキーを持つ課題を作り、
+# 全部の課題より前の --since の board の issues が kanban list --json --all と同じであることを見る（2 つを jq -S で比べる）
+bk="$tmp/board"; mkdir -p "$bk"
+bkan() { (cd "$bk" && KANBAN_ROOT="$bk" HC_TERMINAL_ID=t5 kanban "$@"); }
+bkan init --prefix B --repo github.com/example/app >/dev/null
+b1=$(bkan add '親の課題' --repo github.com/example/app --profile claude)
+b2=$(bkan add '子の課題' --repo github.com/example/app --profile codex --parent "$b1")
+b3=$(bkan add '後ろで待つ課題' --repo github.com/example/app --after "$b2" --status queued)
+b4=$(bkan add 'レビュアーの子課題' --repo github.com/example/app --profile codex-review --parent "$b2" --round 1)
+bkan set "$b1" review=on must_fix=major review_rounds=2 merge=auto estimate=large links=https://example.com/a,https://example.com/b >/dev/null
+bkan set "$b2" status=doing agent=t9 branch=andon/b-2 not_before=2026-12-01 >/dev/null
+bkan set "$b4" status=done >/dev/null
+bkan set "$b1" status=done --force >/dev/null
+bkan list --json --all > "$tmp/board-list.json"
+[ "$(jq length "$tmp/board-list.json")" = 4 ] || die "board の見本の課題が 4 件でない: $(cat "$tmp/board-list.json")"
+(cd "$bk" && KANBAN_ROOT="$bk" "$andon" issue board --json --since 2000-01-01T00:00:00Z) > "$tmp/board-out.json" || die 'andon issue board が落ちた'
+jq -S '.issues | sort_by(.id)' "$tmp/board-out.json" > "$tmp/board-a.json"
+jq -S 'sort_by(.id)' "$tmp/board-list.json" > "$tmp/board-b.json"
+cmp -s "$tmp/board-a.json" "$tmp/board-b.json" || { diff "$tmp/board-a.json" "$tmp/board-b.json" >&2; die 'andon issue board の issues が kanban list --json --all と違う'; }
+[ "$(jq -c '[.version, .older, .done, .project]' "$tmp/board-out.json")" = '[1,0,"done","board"]' ] || die "board の頭が違う: $(cat "$tmp/board-out.json")"
+ok 'issue board: 全部の課題より前の --since で、issues が kanban list --json --all と同じ（ADR-0059 受け入れ条件 5）'
+emit "$tmp/board-out.json" issue-board.json
+(cd "$bk" && KANBAN_ROOT="$bk" "$andon" issue history --json --limit 1) > "$tmp/history-out.json" || die 'andon issue history が落ちた'
+[ "$(jq -c '[.issues[].status, .more]' "$tmp/history-out.json")" = '["done",1]' ] || die "history の出力が違う: $(cat "$tmp/history-out.json")"
+ok 'issue history: 片付いた課題を limit 件、more に残りの数'
+emit "$tmp/history-out.json" issue-history.json
+
 echo "all passed ($pass)"
