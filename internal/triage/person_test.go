@@ -70,7 +70,7 @@ func TestApplyPersonPlacesQuestionOrHandWorkMark(t *testing.T) {
 	}{
 		{
 			name: "判断",
-			it:   item{"key": key, "decision": "person", "kind": "promise", "question": "外へ公開するか", "options": []any{"公開する", "公開しない"}, "reason": "外との約束"},
+			it:   item{"key": key, "decision": "person", "kind": "promise", "question": "外へ公開するか", "options": []any{"公開する", "公開しない"}, "reason": "外との約束", "later": false},
 			log: []string{
 				"add add --brief - -- 外へ公開するか（オーナーの判断待ち）",
 				"set T-0100 who=person",
@@ -80,7 +80,7 @@ func TestApplyPersonPlacesQuestionOrHandWorkMark(t *testing.T) {
 		},
 		{
 			name: "line の判断",
-			it:   item{"key": key, "decision": "person", "kind": "line", "question": "検査を足すか", "options": []any{"足す", "足さない", "あとで"}, "reason": "ラインの変更"},
+			it:   item{"key": key, "decision": "person", "kind": "line", "question": "検査を足すか", "options": []any{"足す", "足さない", "あとで"}, "reason": "ラインの変更", "later": false},
 			log: []string{
 				"add add --brief - -- 検査を足すか（オーナーの判断待ち）",
 				"set T-0100 who=person",
@@ -91,7 +91,7 @@ func TestApplyPersonPlacesQuestionOrHandWorkMark(t *testing.T) {
 		{
 			name: "種類を決めきれなかった判断",
 			it: item{"key": key, "decision": "person", "kind": "business", "unsure": true, "question": "この機能を作るか", "options": []any{"作る", "作らない"},
-				"reason": "何を作るかの判断か、使い勝手の好みかが分からない"},
+				"reason": "何を作るかの判断か、使い勝手の好みかが分からない", "later": false},
 			log: []string{
 				"add add --brief - -- この機能を作るか（オーナーの判断待ち）",
 				"set T-0100 who=person",
@@ -101,10 +101,30 @@ func TestApplyPersonPlacesQuestionOrHandWorkMark(t *testing.T) {
 		},
 		{
 			name: "手作業",
-			it:   item{"key": key, "decision": "person", "only_owner": "実機はオーナーの手元にだけある", "question": "実機で表示を確かめる（今週中）", "reason": "目視が完了条件"},
+			it:   item{"key": key, "decision": "person", "only_owner": "実機はオーナーの手元にだけある", "question": "実機で表示を確かめる（今週中）", "reason": "目視が完了条件", "later": false},
 			log: []string{
 				"add add 実機で表示を確かめる（今週中） --brief -",
 				"set T-0100 who=person only_owner=実機はオーナーの手元にだけある",
+			},
+		},
+		{
+			name: "置いておく判断",
+			it: item{"key": key, "decision": "person", "kind": "users", "question": "既定の並びを変えるか", "options": []any{"変えない", "変える"}, "reason": "使い勝手の好み",
+				"later": "答えを待つ仕事が無い", "later_until": "2026-12-01"},
+			log: []string{
+				"add add --brief - -- 既定の並びを変えるか（オーナーの判断待ち）",
+				"set T-0100 who=person later=答えを待つ仕事が無い later_until=2026-12-01",
+				"ask T-0100 - --kind users",
+			},
+			facts: []string{key},
+		},
+		{
+			name: "置いておく手作業",
+			it: item{"key": key, "decision": "person", "only_owner": "実機はオーナーの手元にだけある", "question": "実機で表示を確かめる", "reason": "目視が完了条件",
+				"later": "急がない"},
+			log: []string{
+				"add add 実機で表示を確かめる --brief -",
+				"set T-0100 who=person only_owner=実機はオーナーの手元にだけある later=急がない",
 			},
 		},
 	} {
@@ -159,7 +179,7 @@ func TestApplyPersonPlacesQuestionOrHandWorkMark(t *testing.T) {
 func TestApplyRefusesPersonOfNeitherForm(t *testing.T) {
 	key := "demo:T-5:question:" + strings.Repeat("0", 40)
 	base := func(extra map[string]any) map[string]any {
-		it := map[string]any{"key": key, "decision": "person", "question": "外へ公開するか", "reason": "外との約束"}
+		it := map[string]any{"key": key, "decision": "person", "question": "外へ公開するか", "reason": "外との約束", "later": false}
 		for k, v := range extra {
 			it[k] = v
 		}
@@ -202,20 +222,75 @@ func TestApplyRefusesPersonOfNeitherForm(t *testing.T) {
 	}
 }
 
+// トリアージの apply は、person の項目に later が無いか、later が true なら、判断の形でも手作業の形でも kanban に何も打たずに断る
+// （ADR-0062 受け入れ条件 10）。偽の kanban の CLI は打たれたら記録に残るので、記録が空なら課題の数は変わっていない。
+func TestApplyRefusesPersonWithoutLater(t *testing.T) {
+	key := "demo:T-5:question:" + strings.Repeat("0", 40)
+	decision := map[string]any{"key": key, "decision": "person", "question": "外へ公開するか", "reason": "外との約束", "kind": "promise", "options": []any{"公開する", "公開しない"}}
+	hand := map[string]any{"key": key, "decision": "person", "question": "実機で確かめる", "reason": "目視が完了条件", "only_owner": "実機はオーナーの手元にだけある"}
+	with := func(base map[string]any, later any, present bool) map[string]any {
+		it := map[string]any{}
+		for k, v := range base {
+			it[k] = v
+		}
+		if present {
+			it["later"] = later
+		}
+		return it
+	}
+	for name, c := range map[string]struct {
+		it   map[string]any
+		want string
+	}{
+		"判断に later が無い":     {with(decision, nil, false), "person に later が無い"},
+		"判断の later が true":  {with(decision, true, true), "later が理由の 1 行か false でない"},
+		"手作業に later が無い":    {with(hand, nil, false), "person に later が無い"},
+		"手作業の later が true": {with(hand, true, true), "later が理由の 1 行か false でない"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			l, logf := personLedger(t)
+			lib := filepath.Join(l.dir, "issues", "T-0001", "library")
+			if err := os.MkdirAll(lib, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			b, err := json.Marshal(map[string]any{"goal": "g", "collected": "2026-11-23T00:00:00Z", "items": []any{c.it}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(lib, "decisions.json"), b, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			err = runApply(l, "T-0001", 3, false, time.Now(), &out)
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("断らないか理由が違う: %v（want %q）", err, c.want)
+			}
+			if got := readLog(t, logf); got != nil {
+				t.Errorf("断る前に kanban の CLI を打った（課題の数が変わりうる）: %q", got)
+			}
+			if _, err := os.Stat(filepath.Join(l.dir, "library", "triage")); err == nil {
+				t.Error("断ったのに記録の置き場を作った")
+			}
+		})
+	}
+}
+
 // person の形の確かめ。判断は kind（灯りの 5 種）と 2 つ以上の options、手作業は only_owner。
 // unsure は判断にだけ、bool で付ける。
 func TestCheckPersons(t *testing.T) {
 	key := "demo:T-5:question:" + strings.Repeat("0", 40)
 	decision := func(extra map[string]any) item {
-		it := item{"key": key, "decision": "person", "question": "q", "reason": "r", "kind": "users", "options": []any{"a", "b"}}
+		it := item{"key": key, "decision": "person", "question": "q", "reason": "r", "kind": "users", "options": []any{"a", "b"}, "later": false}
 		for k, v := range extra {
 			it[k] = v
 		}
 		return it
 	}
-	hand := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機"}
-	handNullOptions := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機", "options": nil, "kind": nil}
-	for _, it := range []item{decision(nil), decision(map[string]any{"kind": "line"}), decision(map[string]any{"unsure": true}), hand, handNullOptions} {
+	hand := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機", "later": false}
+	handNullOptions := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機", "options": nil, "kind": nil, "later": false}
+	handLater := item{"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "実機", "later": "急がない", "later_until": "2026-12-01"}
+	for _, it := range []item{decision(nil), decision(map[string]any{"kind": "line"}), decision(map[string]any{"unsure": true}), hand, handNullOptions, handLater,
+		decision(map[string]any{"later": "急がない"}), decision(map[string]any{"later": "急がない", "later_until": nil})} {
 		if err := checkPersons([]item{it}); err != nil {
 			t.Errorf("%v が断られた: %v", it, err)
 		}
@@ -229,17 +304,28 @@ func TestCheckPersons(t *testing.T) {
 		t.Errorf("同じ question の手作業と判断が断られた: %v", err)
 	}
 	for name, it := range map[string]item{
-		"問いが空":           decision(map[string]any{"question": ""}),
-		"問いが 2 行":        decision(map[string]any{"question": "a\nb"}),
-		"問いが - で始まる":     decision(map[string]any{"question": "-x"}),
-		"知らない kind":      decision(map[string]any{"kind": "scope"}),
-		"選択肢が空の文字列":      decision(map[string]any{"options": []any{"a", ""}}),
-		"選択肢が文字列でない":     decision(map[string]any{"options": []any{"a", map[string]any{"label": "b"}}}),
-		"unsure が文字列":    decision(map[string]any{"unsure": "yes"}),
-		"手作業の理由が 2 行":    {"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "a\nb"},
-		"手作業に options":   {"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "x", "options": []any{"a", "b"}},
-		"手作業に unsure":    {"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "x", "unsure": true},
-		"kind が null だけ": {"key": key, "decision": "person", "question": "q", "reason": "r", "kind": nil},
+		"問いが空":                    decision(map[string]any{"question": ""}),
+		"問いが 2 行":                 decision(map[string]any{"question": "a\nb"}),
+		"問いが - で始まる":              decision(map[string]any{"question": "-x"}),
+		"知らない kind":               decision(map[string]any{"kind": "scope"}),
+		"選択肢が空の文字列":               decision(map[string]any{"options": []any{"a", ""}}),
+		"選択肢が文字列でない":              decision(map[string]any{"options": []any{"a", map[string]any{"label": "b"}}}),
+		"unsure が文字列":             decision(map[string]any{"unsure": "yes"}),
+		"手作業の理由が 2 行":             {"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "a\nb", "later": false},
+		"手作業に options":            {"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "x", "options": []any{"a", "b"}, "later": false},
+		"手作業に unsure":             {"key": key, "decision": "person", "question": "q", "reason": "r", "only_owner": "x", "unsure": true, "later": false},
+		"kind が null だけ":          {"key": key, "decision": "person", "question": "q", "reason": "r", "kind": nil, "later": false},
+		"later が null":            decision(map[string]any{"later": nil}),
+		"later が true":            decision(map[string]any{"later": true}),
+		"later が空":                decision(map[string]any{"later": " "}),
+		"later が 2 行":             decision(map[string]any{"later": "a\nb"}),
+		"later が数":                decision(map[string]any{"later": 1}),
+		"later が文字列の false":       decision(map[string]any{"later": "false"}),
+		"later が文字列の True":        decision(map[string]any{"later": " True "}),
+		"later が文字列の null":        decision(map[string]any{"later": "null"}),
+		"later_until が false と一緒": decision(map[string]any{"later_until": "2026-12-01"}),
+		"later_until の形が違う":       decision(map[string]any{"later": "急がない", "later_until": "2026-12-1"}),
+		"later_until が数":          decision(map[string]any{"later": "急がない", "later_until": 20261201}),
 	} {
 		if err := checkPersons([]item{it}); err == nil {
 			t.Errorf("%s が通った", name)

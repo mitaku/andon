@@ -18,11 +18,11 @@
 | 7 | mod `inbox` は `call` で数え、`call` の無い行は今の規則で読み、`inbox.lamp` はバージョン 2 にする | この ADR | まだ実装していない |
 | 8 | ペインは、置いてある行を見出しの下に分けて出し、同じ口で答えられるようにする | この ADR | まだ実装していない |
 | 9 | ダイジェストと `andon measure` は、呼んでいるものと置いてあるものを分けて数える | この ADR | まだ実装していない |
-| 10 | 判断を作る口は、呼ぶか置いておくかを言い切らないと断る | `internal/issue/leaves.go`・`internal/ledger/ask.go`・`package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/cut.md` | まだ実装していない。`andon issue ask --new` の旗と、Chief of Staff が手で作る判断と手作業の手順は直した。トリアージの `decisions.json` の `later` と、振り返りの apply が書く印はまだ |
-| 11 | 置いておく基準は 3 つで、迷ったら呼ぶ | `package/skills/ask-one-by-one/SKILL.md` | まだ実装していない。skill `ask-one-by-one` には書いた。skill `triage` にはまだ書いていない |
+| 10 | 判断を作る口は、呼ぶか置いておくかを言い切らないと断る | `internal/issue/leaves.go`・`internal/ledger/ask.go`・`internal/triage/decisions.go`・`internal/triage/apply.go`・`internal/retro/apply.go`・`package/skills/ask-one-by-one/SKILL.md`・`package/skills/triage/SKILL.md`・`package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
+| 11 | 置いておく基準は 3 つで、迷ったら呼ぶ | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/triage/SKILL.md` | 生きている |
 | 12 | Chief of Staff は、置いてあるオーナー待ちを返事で聞かず、オーナーの一言で印を付け外す | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/start.md` | 生きている |
-| 13 | トリアージが拾う Andon の skill とパッケージの直しは、オーナーへの問いにせず、直す課題に切るか「1 件目」で閉じる | この ADR | まだ実装していない |
-| 14 | オーナーの決定を覆す直しと、種類を決めきれない判断と、文書の開いている問いは、問いのまま置く | この ADR | まだ実装していない |
+| 13 | トリアージが拾う Andon の skill とパッケージの直しは、オーナーへの問いにせず、直す課題に切るか「1 件目」で閉じる | `package/skills/triage/SKILL.md`・`internal/triage/decisions.go`・`package/skills/chief-of-staff/playbooks/triage.md` | 生きている |
+| 14 | オーナーの決定を覆す直しと、種類を決めきれない判断と、文書の開いている問いは、問いのまま置く | `package/skills/triage/SKILL.md` | 生きている |
 | 15 | 今あるオーナー待ちは、Chief of Staff が仕分けの一覧を作り、オーナーの go を 1 回もらって当てる | この ADR | まだ実装していない |
 | 16 | セルの外へ届く通知を足すときは、行燈と同じ線で絞る。リモートコントロールは次のテーマにする | この ADR | 生きている |
 | 17 | 印を付け外すのは Chief of Staff だけにし、ペインのボタンと、段の多い優先度と、日付で必ず戻す決まりは作らない | この ADR | 生きている |

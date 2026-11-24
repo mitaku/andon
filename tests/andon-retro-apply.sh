@@ -147,7 +147,13 @@ jq -e '[.issues[] | [.pattern, .who]] == [["p1", "worker"], ["p2", "person"], ["
   || die "--dry-run: $(jq -c . "$tmp/dry.json")"
 [ "$(issues)" = "$before" ] && [ ! -e "$k/issues/S-0020/library/retro-applied.json" ] || die "--dry-run が kanban に書いた"
 
-"$andon" retro apply S-0020 >"$tmp/apply.out" 2>"$tmp/err" || die "当てられない: $(cat "$tmp/err")"
+# オーナーの課題に置いておく印を書くので、当てるのは Chief of Staff の端末だけ。ほかの端末は何も書かずに断る（ADR-0062 決めたこと 10）
+kanban config set chief_of_staff=t50 >/dev/null
+rc=0; HC_TERMINAL_ID=t9 "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q '置いておく印を書くのは Chief of Staff の端末だけ' "$tmp/err" || die "Chief of Staff でない端末の apply を断らない（rc=$rc）: $(cat "$tmp/err")"
+[ "$(issues)" = "$before" ] && [ ! -e "$k/issues/S-0020/library/retro-applied.json" ] || die "断ったのに kanban が変わった: $(issues)"
+echo 'ok ADR-0062 決めたこと 10: オーナーの課題を足す apply は、Chief of Staff でない端末では何も書かずに断る'
+HC_TERMINAL_ID=t50 "$andon" retro apply S-0020 >"$tmp/apply.out" 2>"$tmp/err" || die "当てられない: $(cat "$tmp/err")"
 rec=$k/issues/S-0020/library/retro-applied.json
 jq -e '.complete == true and ([.issues[] | [.pattern, .who]] == [["p1", "worker"], ["p2", "person"], ["p4", "worker"], ["p5", "worker"], ["p6", "worker"]]) and .dropped == [{pattern: "p3", reason: "外の障害で、繰り返しではない"}]' "$rec" >/dev/null \
   || die "記録: $(jq -c . "$rec")"
@@ -182,6 +188,12 @@ kanban show "$person" --json >"$tmp/person.json"
 jq -e '.issue.who == "person" and .issue.parent == "S-0020" and (.issue.repo // "") == "" and (.issue.title | startswith("Andon へ伝えるか: "))' "$tmp/person.json" >/dev/null \
   || die "オーナーの課題: $(jq -c .issue "$tmp/person.json")"
 echo 'ok 17: Andon の repo を持たないプロジェクトでは、パッケージの直しはオーナーの課題（who=person）'
+# 「Andon へ伝えるか」の課題は、決まった理由の印 later を持ち、andon waiting で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 13）
+jq -e '.issue.later == "振り返りの直しの提案で、答えを待って止まる仕事が無い"' "$tmp/person.json" >/dev/null || die "オーナーの課題に印 later が無い: $(jq -c .issue "$tmp/person.json")"
+"$andon" waiting --json >"$tmp/waiting.json" || die "andon waiting が落ちた"
+jq -e --arg id "$person" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].call == false and .[0].later == "振り返りの直しの提案で、答えを待って止まる仕事が無い"' "$tmp/waiting.json" >/dev/null \
+  || die "「Andon へ伝えるか」の課題が置いてある行にならない: $(jq -c . "$tmp/waiting.json")"
+echo 'ok ADR-0062 受け入れ条件 13: 「Andon へ伝えるか」の課題は印 later を持ち、andon waiting で置いてある行になる'
 
 # 当て済みの一覧は当て直さない
 rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?

@@ -16,7 +16,7 @@
 | 5 | 名指せる欠けは申告に、名指せない学びは Remember に書き、欠けが無ければ節を書かない | `package/skills/worker/SKILL.md` | 生きている |
 | 6 | トリアージが申告を 1 件ずつ拾い、申告の先ごとに行き先を決める | この ADR | まだ実装していない |
 | 7 | skill とパッケージへの申告は、確かめた誤りと、根拠が 2 件そろったものを、オーナーへの問いにせず直す課題に切る | この ADR | まだ実装していない |
-| 8 | 根拠が 1 件の、skill とパッケージに足りないものの申告は「1 件目」で閉じ、次の申告のときに command が前の申告を並べる | この ADR | まだ実装していない |
+| 8 | 根拠が 1 件の、skill とパッケージに足りないものの申告は「1 件目」で閉じ、次の申告のときに command が前の申告を並べる | `internal/triage/decisions.go`・`internal/triage/collect.go`・`package/skills/triage/SKILL.md` | 生きている。「`first` は種類 `gap` の項目にだけ使える」を、Andon の skill とパッケージの直しの `remember`・`memory`・`next` にも使えるよう改めた（ADR-0062 決めたこと 13）。前の 1 件を並べるのは `gap` だけ |
 | 9 | 振り返りは申告を束に足して読むが、申告だけのパターンは作らない | `internal/retro/retro.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
 | 10 | 振り返りの入力にオーナーへの問いを足し、問いの繰り返しは振り返りの担当が申告として書く | `internal/retro/questions.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
 | 11 | 担当が wiki を引く口を足す | `package/skills/worker/SKILL.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
@@ -217,7 +217,7 @@ Andon には、気づきを書き溜めて wiki と repo へ出す流れがも�
 1. `gaps[]` に 3 つの種類の見本を 1 件ずつ持つ `report.json` が、`schema/report.schema.json` に通る。`kind` が 3 つのどれでもない見本と、`where` の無い見本は落ちる。証拠は、`tests/run --changed` の中の `tests/schema.sh` の出力である。
 2. `gaps` を持つ報告を書いたあと、`--data` に `gaps` を入れずに `andon issue report` を打ち直すと、`report.json` の `gaps` が前のまま残る。空の配列を渡すと、空になる。証拠は `go test ./internal/issue/` の出力である。
 3. 状態が `done` の課題の `report.json` に申告が 2 件ある偽の kanban で `andon triage collect` を打つと、種類 `gap` の項目が 2 つ出る。項目の文に、申告の種類と先と本文がある。同じ先を名指した申告が別の課題にあると、その課題の id と本文が項目に添えられる。Chief Engineer の課題の申告も、項目になる。`gaps` の無い報告からは、種類 `gap` の項目が出ない。人向けの報告の `## Gaps` の節の行は、どの種類の項目にもならない。証拠は `go test ./internal/triage/` の出力である。
-4. 種類 `gap` の項目を、閉じ方 `first` で閉じた判定は、`andon triage apply --dry-run` を通り、Chief of Staff の「閉じてよい」を待つ項目に出る。種類 `remember` の項目を `first` で閉じた判定は、断られる。証拠は同じ検査の出力である。
+4. 種類 `gap` の項目を、閉じ方 `first` で閉じた判定は、`andon triage apply --dry-run` を通り、Chief of Staff の「閉じてよい」を待つ項目に出る。`first` を使えない種類（`agents` など）の項目を `first` で閉じた判定は、断られる。証拠は同じ検査の出力である（[ADR-0062](0062-later-owner-waits.md) 決めたこと 13 で、`first` を使える種類に `remember`・`memory`・`next` を足し、「種類 `remember` の項目の `first` は断られる」をこの形に読み替えた。`go test ./internal/triage/` の `TestApplyDryRunTakesFirstForGap` が見る）。
 5. 申告を持つ担当の課題と、gate の問いと、範囲の問いと、Chief of Staff の問いを 1 件ずつ持つ偽の kanban で `andon retro collect` を打つと、全文の束に `gaps` があり、`questions[]` に Chief of Staff の問いだけがある。出力が `schema/retro.schema.json` に通る。証拠は `go test ./internal/retro/` と、`tests/run --changed` の中の `tests/schema.sh` の出力である。
 6. 根拠に問いを指したパターンは、今までどおり `andon retro patterns` が断る。証拠は `go test ./internal/retro/` の出力である。
 7. セルの目録の Topics の節にページの行が 1 つあるとき、担当の起動、前の会話を続けない起動し直し、dispatcher が担当へ送り直す最初のメッセージに、目録のパスを持つ 1 行がある。目録が雛形のままのとき、その行が無い。レビュアーと Chief Engineer への最初のメッセージと、会話を続ける起動し直しのメッセージには、どちらのときも無い。証拠は `go test ./internal/spawn/ ./internal/issue/ ./internal/dispatcher/ ./internal/chiefengineer/` の出力である。

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	ledgercli "andon/internal/ledger"
 )
 
 // obj は知らないキーもそのまま記録へ運ぶ。
@@ -202,6 +204,16 @@ func (i item) options() []string {
 // handWork は checkPersons を通ったあとに読む。
 func (i item) handWork() bool { return i["only_owner"] != nil }
 
+// mark は person の項目の置いておく印（ADR-0062 決めたこと 10）。later が false なら呼ぶ項目で、空の印を返す。
+// checkPersons を通ったあとに読む。
+func (i item) mark() ledgercli.Mark {
+	s, _ := i["later"].(string)
+	if s == "" {
+		return ledgercli.Mark{}
+	}
+	return ledgercli.Mark{Later: s, Until: i.str("later_until")}
+}
+
 // unsure はトリアージが種類を決めきれなかった判断の person か（判定表の 10。ADR-0057 決めたこと 10）。
 func (i item) unsure() bool { return i["unsure"] == true }
 
@@ -226,6 +238,9 @@ func checkPersons(items []item) error {
 			if _, isBool := u.(bool); !isBool {
 				return fail("person の unsure は true か false: %s", k)
 			}
+		}
+		if err := checkLater(it); err != nil {
+			return err
 		}
 		kind, owner := it["kind"], it["only_owner"]
 		switch {
@@ -256,6 +271,34 @@ func checkPersons(items []item) error {
 	return nil
 }
 
+// checkLater は person の項目が、呼ぶか置いておくかを言い切っているかを確かめる（ADR-0062 決めたこと 10）。
+// later は置いておく理由の 1 行か、呼ぶことを言う false。later_until は later が理由のときだけ、YYYY-MM-DD で持てる。
+func checkLater(it item) error {
+	k := it.key()
+	v, present := it["later"]
+	switch {
+	case !present:
+		return fail("person に later が無い（置いておくなら理由の 1 行、呼ぶなら false を書く）: %s", k)
+	case v == false:
+		if u, ok := it["later_until"]; ok && u != nil {
+			return fail("person の later_until は later が理由のときだけ付ける: %s", k)
+		}
+		return nil
+	case !oneLine(v) || strings.Contains(v.(string), "\r"):
+		return fail("person の later が理由の 1 行か false でない（true は使わない）: %s", k)
+	case slices.Contains([]string{"true", "false", "null"}, strings.ToLower(strings.TrimSpace(v.(string)))):
+		// 引用符で包んだ true・false・null を理由の 1 行として通すと、呼ぶつもりの判断が黙って置いてある行になる
+		return fail("person の later が文字列の %q（呼ぶなら引用符の無い false、置いておくなら理由の 1 行を書く）: %s", v, k)
+	}
+	if u, ok := it["later_until"]; ok && u != nil {
+		us, _ := u.(string)
+		if _, err := time.Parse("2006-01-02", us); err != nil {
+			return fail("person の later_until が YYYY-MM-DD でない: %s", k)
+		}
+	}
+	return nil
+}
+
 // 閉じ方（decisions.json の close の closing。ADR-0030 決めたこと 5 の 1）。
 // 根拠の閉じはどの種類の項目にも使える。判断の閉じは、使える項目の種類が決まっている。
 var (
@@ -265,7 +308,8 @@ var (
 		"one-off":        {"remember", "memory"}, // その場限り: ## Remember の行と auto memory だけ
 		"not-applicable": {"memory"},             // 当てはまらない: auto memory だけ
 		"read":           {"unreadable"},         // 読んだ: 拾うものなし: 読めない報告だけ
-		"first":          {"gap"},                // 1 件目: 根拠が 1 件の、skill とパッケージに足りないものの申告だけ（ADR-0061 決めたこと 8）
+		// 1 件目: 根拠が 1 件の、Andon の skill とパッケージの直し（申告と、報告の行と memory。ADR-0061 決めたこと 8・ADR-0062 決めたこと 13）
+		"first": {"gap", "remember", "memory", "next"},
 	}
 )
 
