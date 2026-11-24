@@ -21,7 +21,7 @@
 | 10 | 2 つの command は `issue.yaml` を自分で読み、symlink・大きすぎるファイル・alias のあるファイルの中身を出さない | `internal/board/board.go` | 生きている |
 | 11 | command が使えないとき、mod は今の読み方に戻り、同じ見せ方を当てる | `package/host/kanban-board/main.js` | まだ実装していない。戻った道の見せ方だけが入り、command を先に呼ぶ道は依頼書に切る案 3 で足す |
 | 12 | mod は何も書かないままにし、呼ぶ command が 2 つ増える | この ADR | まだ実装していない |
-| 13 | 見せ方の直しを先に配り、command、command を呼ぶ道の順に足す | この ADR | 見せ方の直しは実装した。command と、command を呼ぶ道はまだ |
+| 13 | 見せ方の直しを先に配り、command、command を呼ぶ道の順に足す | この ADR | まだ実装していない。見せ方の直しと command が入り、command を呼ぶ道はまだ |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
