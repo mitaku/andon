@@ -21,13 +21,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-          fetch-depth: 2
+          # 履歴を全部取る。tests/verify-andon.sh の 3c が PR の commit の本文（Verify-features: の行）を base から読む
+          fetch-depth: 0
       - name: Decide whether the image checks are needed
         id: scope
         run: |
           set -euo pipefail
           # PR の merge commit の1つ目の親が base。PR 以外（main の push）は必ず image まで全部見る
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            # tests/verify-andon.sh の 3c（変更ごとの細かい機能の名指し）が比べる base
+            echo "ANDON_VERIFY_BASE=$(git rev-parse HEAD^1)" >>"$GITHUB_ENV"
             # rename は元と先の両方を出す（image に入るものを外へ動かしても飛ばさない）
             git diff --name-only --no-renames HEAD^1 HEAD | tee "$RUNNER_TEMP/changed"
             image=$(bash tests/lib/image-scope.sh <"$RUNNER_TEMP/changed")

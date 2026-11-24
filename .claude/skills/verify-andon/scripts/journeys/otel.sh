@@ -10,6 +10,27 @@ root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel
 name=$(curl -s -m 2 http://127.0.0.1:4318/ 2>/dev/null | tr -d '\r\n') || name=
 echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 [ "$name" = andon-otel ] && ok "ot-listen: 受け口が listen し、名前 andon-otel を返す" || fail "ot-listen: 受け口が listen していないか、ほかのプロセスがポートを取っている"
+# 受け口は止まっていたときだけ起動されるので、当てても起動し直さない。検証する commit を当てる前から動く受け口は、
+# その commit の受け口のコード（internal/otel/ の受けて書く処理・落とす属性）を持たない。記録の読み方が変わるので書き出す。
+# 見えるのは今動いている受け口だけで、検証する間に記録を書いた受け口が別のこともある（起動が当てた時刻より後のとき）。
+# 起動の時刻は ps の lstart（秒まで。ps と date は同じ TZ で読む）。当てた時刻と同じ秒の起動は当てたあとに数える。
+rfound=0
+while read -r rpid rargs; do
+  case "$rargs" in *"andon otel serve"*) ;; *) continue ;; esac
+  rfound=$((rfound + 1))
+  rs=$(date -d "$(ps -o lstart= -p "$rpid" 2>/dev/null)" +%s 2>/dev/null) || rs=
+  rstart=$([ -n "$rs" ] && date -u -d "@$rs" +%Y-%m-%dT%H:%M:%SZ || echo ?)
+  rexe=$(readlink "/proc/$rpid/exe" 2>/dev/null) || rexe=?
+  echo "  | 受け口: pid $rpid・起動 $rstart・実体 $rexe"
+  if [ "$rstart" = ? ]; then
+    echo "note ot-listen: 受け口の起動の時刻が読めない。置き場の記録を当てた commit の受け口が書いたかは確かめていない"
+  elif [[ "$rstart" < "$a_at" ]]; then
+    echo "note ot-listen: 受け口は検証する commit を当てた $a_at より前から動いている。ot-codex・ot-records の落とした・残ったの判定（ok も FAIL も）は前のコードの受け口の結果で、検証する commit の internal/otel/ の受けて書く処理は確かめていない"
+  else
+    echo "note ot-listen: 受け口は $rstart に起動した。検証する間（$a_at から）のうちそれより前の記録は、今は動いていない別の受け口が書いた"
+  fi
+done < <(ps -eo pid=,args= 2>/dev/null)
+[ "$rfound" -gt 0 ] || echo "note ot-listen: 受け口のプロセスが ps に見えない（ps が無いか、別の名前空間）。置き場の記録を書いた受け口のコードは確かめていない"
 
 # ot-applied: 受け口のプロセス（argv が「<パッケージ>/bin/andon otel serve」）の実体が当てたパッケージで、起動の時刻が最後に当てた時刻より後（今の状態）
 rpid=
@@ -40,9 +61,11 @@ fi
 # 見分けられず、数えない（次の秒の頭から数える。Codex は立ち上がりに 1 秒より長くかかる）。
 # 個人の属性とツールの出力は、前の行も含めてファイルの全部を見る。
 # codex_tied は、resource に andon.issue と andon.role があり、時刻 $t（ナノ秒）以後の記録を持つ行を出す。
-codex_tied='select([.. | objects | (.startTimeUnixNano?, .timeUnixNano?) | select(type == "string" or type == "number") | tonumber] | (max // 0) >= $t)
+# Codex のログは timeUnixNano を "0" で送り、時刻は observedTimeUnixNano にだけある（v0.166.0）ので、それも読む。
+codex_tied='select([.. | objects | (.startTimeUnixNano?, .timeUnixNano?, .observedTimeUnixNano?) | select(type == "string" or type == "number") | tonumber] | (max // 0) >= $t)
   | (.resourceSpans // .resourceLogs)[0].resource.attributes | map(.key) | select(index("andon.issue") != null and index("andon.role") != null)'
 cx=0
+cx_fails0=$fails
 prev=
 while IFS=$'\t' read -r kanban id at; do
   [ -n "$id" ] || continue
@@ -63,7 +86,9 @@ while IFS=$'\t' read -r kanban id at; do
   done
 done < <(for f in "$ws"/projects/*/kanban/issues/*/library/launches.jsonl; do
   since "$f" | jq -r --arg k "${f%/issues/*}" 'select(.profile | test("codex")) | [$k, .issue, .at] | @tsv'; done | sort -t$'\t' -k1,1 -k2,2 -k3,3)
-if [ "$cx" -gt 0 ]; then
+if [ "$fails" -gt "$cx_fails0" ]; then
+  : # ot-codex の FAIL の行が理由。ok を出さない
+elif [ "$cx" -gt 0 ]; then
   ok "ot-codex: 当てたあとに Codex で起動した課題の記録 $cx 本が課題に結ばれ、user.email と codex.tool_result の output が無い"
 else
   echo "note ot-codex: 当てたあとに Codex で起動した課題の記録が無い（Codex の起動が無いか、送っていない・結べていない）。受け入れ条件 17 のとおり、その事実を報告に書く"
