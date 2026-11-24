@@ -82,7 +82,7 @@ ok "verify-andon: 機能のファイルは6つの節をこの順に持ち、変�
 #     置き場（<dir>/）で名指せるのは Go のファイルを持たない置き場だけ（Go のファイルは1つずつ書く。足した .go が名指しなしで通らない）
 #   - 「変えたら動かすパス」の下のテストでないファイルは、どれかの細かい機能の見るファイルに入る
 #   - internal/・cmd/・package/ の下のテストでないファイルは、どれかの機能の「変えたら動かすパス」か、目次の「地図が覆わないもの」に入る
-# パスとテストの読み方は scripts/features.sh と同じ（hits。テストでないファイルは *_test.go・testdata/・internal/ の下の <名>test/ の package を除いたもの）
+# パスとテストの読み方は scripts/features.sh と同じ（hits。テストでないファイルは *_test.go・testdata/・internal/ の下で親の package の名前に test を付けた package〈internal/ledger/ledgertest/〉を除いたもの）
 inpart() {
   case "$1" in
     */) [[ "$2" == "$1"* ]] ;;
@@ -90,7 +90,7 @@ inpart() {
     *) [[ "$2" == "$1" ]] ;;
   esac
 }
-tracked=$(git -C "$root" ls-files -- internal cmd package schema process init image | grep -vE '_test\.go$|(^|/)testdata/|^internal/([^/]+/)*[a-z]+test/' || true)
+tracked=$(git -C "$root" ls-files -- internal cmd package schema process init image | grep -vE '_test\.go$|(^|/)testdata/|^internal/([^/]+/)*([a-z]+)/\2test/' || true)
 [ "$(grep -c '^internal/.*\.go$' <<<"$tracked")" -gt 100 ] || die "git ls-files から internal/ の Go のファイルが読めない（下の確かめが何も見ない）"
 allparts=() seeall=()
 for name in $files; do
@@ -224,6 +224,8 @@ if [ "$self" = true ]; then
   c10=$(put internal/ledger/ledgertest/x.go x)
   out=$(feat "$c8..$c10") || die "features.sh: testdata/ とテスト用の package だけの範囲で 0 で終わらない"
   [ -z "$out" ] || die "features.sh: testdata/ とテスト用の package（ledgertest）だけの差分で $out を出す"
+  c11=$(put internal/gate/latest/x.go x)
+  [ "$(feat "$c10..$c11")" = gate ] || die "features.sh: 名前が test で終わるだけの置き場（internal/gate/latest/）の差分で gate を返さない: $(feat "$c10..$c11" | tr '\n' ' ')"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "features.sh: 範囲が無いのに終了コード $rc（2 でない）"
   rc=0; bash "$skill/scripts/drive.sh" no-such-feature 0123456789abcdef0123456789abcdef01234567 2>/dev/null || rc=$?
