@@ -21,12 +21,23 @@ import (
 )
 
 // EnvUsage は andon otel env の使い方。
-const EnvUsage = "usage: andon otel env\n" +
+const EnvUsage = "usage: andon otel env [--codex | --codex-env]\n" +
 	"役の起動の行（package/templates/ の command・resume）が読む。自分の端末（HC_TERMINAL_ID）のラベル project・issue・role から、\n" +
-	"Claude Code が受け口 " + Addr + " へトレースとログを送る設定を KEY=VALUE の並びで出す（1 行に 1 つ。template が env に渡す）。\n" +
+	"ハーネスが受け口 " + Addr + " へトレースとログを送る設定を出す（1 行に 1 つ。template が展開して渡す）。\n" +
+	"既定は Claude Code の環境変数の KEY=VALUE（env に渡す）。--codex は Codex の -c の並び（codex の引数に渡す）、\n" +
+	"--codex-env は Codex の resource 属性の環境変数 OTEL_RESOURCE_ATTRIBUTES=…（env に渡す。ログも課題に結ぶ）。\n" +
 	"役はラベル role。無ければラベル issue の課題のプロファイルから、起動の記録と同じ決め方で担当かレビュアーかを決める。\n" +
 	"受け口が listen していなければ起動する。送らない設定（project.json の otel.enabled が false）・project.json が無い・読めない・\n" +
 	"ラベルが読めない・受け口を起動できない・ポートをほかのプロセスが取っているときは、何も出さずに終了コード 0（起動は止めない）。\n"
+
+// harness は andon otel env が設定を出す相手と形。
+type harness int
+
+const (
+	claudeCode harness = iota // Claude Code の環境変数（既定）
+	codexArgs                 // Codex の -c の並び（--codex）
+	codexEnv                  // Codex の resource 属性の環境変数（--codex-env）
+)
 
 // envDeps は andon otel env が外に触る所（検査が偽物に替える）。
 type envDeps struct {
@@ -41,7 +52,14 @@ type envDeps struct {
 
 // EnvMain は andon otel env。
 func EnvMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) != 0 {
+	h := claudeCode
+	switch {
+	case len(args) == 0:
+	case len(args) == 1 && args[0] == "--codex":
+		h = codexArgs
+	case len(args) == 1 && args[0] == "--codex-env":
+		h = codexEnv
+	default:
 		fmt.Fprint(stderr, EnvUsage)
 		return 2
 	}
@@ -60,7 +78,7 @@ func EnvMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		start:   startServe,
 		wait:    3 * time.Second,
 	}
-	lines, why := d.env()
+	lines, why := d.env(h)
 	if why != "" {
 		fmt.Fprintf(stderr, "andon otel env: 送らない（%s）\n", why)
 		return 0
@@ -71,9 +89,9 @@ func EnvMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// env は送る設定の並びを返す。送らないときは空の並びと理由（stderr に 1 行。起動は止めない）。
+// env は h に渡す送る設定の並びを返す。送らないときは空の並びと理由（stderr に 1 行。起動は止めない）。
 // 送らない設定のときは理由も空（決めたことのとおりで、知らせることが無い）。
-func (d envDeps) env() ([]string, string) {
+func (d envDeps) env(h harness) ([]string, string) {
 	if d.terminal == "" {
 		return nil, "HC_TERMINAL_ID が無い（hc の端末の外）"
 	}
@@ -114,11 +132,12 @@ func (d envDeps) env() ([]string, string) {
 	if why := d.ensure(); why != "" {
 		return nil, why
 	}
-	attrs := "andon.project=" + project
-	if issue != "" {
-		attrs += ",andon.issue=" + issue
+	switch h {
+	case codexArgs:
+		return codexLines(d.addr, project, issue, role), ""
+	case codexEnv:
+		return []string{"OTEL_RESOURCE_ATTRIBUTES=" + resourceAttrList(project, issue, role)}, ""
 	}
-	attrs += ",andon.role=" + role
 	return []string{
 		"CLAUDE_CODE_ENABLE_TELEMETRY=1",
 		"CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1",
@@ -127,9 +146,38 @@ func (d envDeps) env() ([]string, string) {
 		"OTEL_METRICS_EXPORTER=none",
 		"OTEL_EXPORTER_OTLP_PROTOCOL=http/json",
 		"OTEL_EXPORTER_OTLP_ENDPOINT=http://" + d.addr,
-		"OTEL_RESOURCE_ATTRIBUTES=" + attrs,
+		"OTEL_RESOURCE_ATTRIBUTES=" + resourceAttrList(project, issue, role),
 		"OTEL_LOG_TOOL_DETAILS=1", // ツールの詳細だけ載せ、プロンプトと応答とツールの中身は載せない（決めたこと 7）
 	}, ""
+}
+
+// resourceAttrList は決めたこと 6 の 3 つを OTEL_RESOURCE_ATTRIBUTES の形（key=value をコンマで並べる）にする。
+// 値は形を確かめた後なので、コンマ・等号・空白を含まない。
+func resourceAttrList(project, issue, role string) string {
+	attrs := "andon.project=" + project
+	if issue != "" {
+		attrs += ",andon.issue=" + issue
+	}
+	return attrs + ",andon.role=" + role
+}
+
+// codexLines は Codex（v0.166.0 の config.toml の [otel]）へ渡す -c の並び（ADR-0060 決めたこと 19）。
+// ログとトレースを受け口の道へ OTLP/HTTP の JSON で送らせ、span_attributes に決めたこと 6 の 3 つを載せる。
+// ツールの結果の写し（ログの codex.tool_result の output。既定で 2 KB まで）は送らせない（決めたこと 7・8。受け口も落とす）。
+// metrics_exporter は書かない（既定の利用統計には触らない）。template は $(…) を引用符なしで展開するので、
+// 1 行は空白も glob の文字も持たない 1 語にする（値は形を確かめた後で、引用符・空白を含まない）。
+func codexLines(addr, project, issue, role string) []string {
+	attrs := `"andon.project"="` + project + `"`
+	if issue != "" {
+		attrs += `,"andon.issue"="` + issue + `"`
+	}
+	attrs += `,"andon.role"="` + role + `"`
+	return []string{
+		"-c", `otel.exporter={otlp-http={endpoint="http://` + addr + `/v1/logs",protocol="json"}}`,
+		"-c", `otel.trace_exporter={otlp-http={endpoint="http://` + addr + `/v1/traces",protocol="json"}}`,
+		"-c", "otel.span_attributes={" + attrs + "}",
+		"-c", "otel.tool_result.max_bytes=0",
+	}
 }
 
 // listener は受け口の所を確かめた結果。

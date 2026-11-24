@@ -11,6 +11,31 @@ name=$(curl -s -m 2 http://127.0.0.1:4318/ 2>/dev/null | tr -d '\r\n') || name=
 echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 [ "$name" = andon-otel ] && ok "ot-listen: 受け口が listen し、名前 andon-otel を返す" || fail "ot-listen: 受け口が listen していないか、ほかのプロセスがポートを取っている"
 
+# ot-codex: 当てたあとに Codex のプロファイルで起動した課題ごとに、置き場の traces.jsonl と logs.jsonl を読む（ADR-0060 受け入れ条件 17）。
+# 記録が無いことは報告に書く条件なので、note にして道の終了コードを変えない。個人の属性かツールの出力が残っていれば fail。
+cx=0
+while IFS=$'\t' read -r kanban id; do
+  [ -n "$id" ] || continue
+  slug=$(basename "$(dirname "$kanban")")
+  for kind in traces logs; do
+    f=$root/$slug/issues/$id/$kind.jsonl
+    [ -f "$f" ] || { echo "  | $slug/$id: Codex の $kind.jsonl が無い"; continue; }
+    tied=$(jq -c '(.resourceSpans // .resourceLogs)[0].resource.attributes | map(.key) | select(index("andon.issue") != null and index("andon.role") != null)' "$f" 2>/dev/null | grep -c . || true)
+    email=$(grep -c '"user.email"' "$f" || true)
+    output=$(jq -c '.. | objects | select(.attributes? and ((.attributes | map(select(.key == "event.name")) | .[0].value.stringValue) == "codex.tool_result" or .eventName? == "codex.tool_result")) | .attributes[] | select(.key == "output")' "$f" 2>/dev/null | grep -c . || true)
+    echo "  | $slug/$id: Codex の $kind.jsonl の andon.issue・andon.role を持つ行 $tied・user.email を持つ行 $email・codex.tool_result の output $output"
+    [ "$email" = 0 ] || fail "ot-codex: $f に user.email が残っている"
+    [ "$output" = 0 ] || fail "ot-codex: $f に codex.tool_result の output が残っている"
+    [ "$tied" -gt 0 ] && cx=$((cx + 1))
+  done
+done < <(for f in "$ws"/projects/*/kanban/issues/*/library/launches.jsonl; do
+  since "$f" | jq -r --arg k "${f%/issues/*}" 'select(.profile | test("codex")) | [$k, .issue] | @tsv'; done | sort -u)
+if [ "$cx" -gt 0 ]; then
+  ok "ot-codex: 当てたあとに Codex で起動した課題の記録 $cx 本が課題に結ばれ、user.email と codex.tool_result の output が無い"
+else
+  echo "note ot-codex: 当てたあとに Codex で起動した課題の記録が無い（Codex の起動が無いか、送っていない・結べていない）。受け入れ条件 17 のとおり、その事実を報告に書く"
+fi
+
 # ot-records: 当てたあとに Claude Code のプロファイル（codex でない）で起動した課題ごとに、置き場の traces.jsonl を読む
 lines=$(since "$ws"/projects/*/kanban/issues/*/library/launches.jsonl | jq -c 'select(.profile | test("codex") | not)')
 n=$(grep -c . <<<"$lines" || true)
