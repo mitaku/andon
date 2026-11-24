@@ -75,7 +75,7 @@
 | ADR の番号・状態行・覆し方は `docs/design.md` §1.8 の「置き場」。 | `tests/adr-index.sh`。ADR の状態行と索引、決定の記録を突き合わせ、`docs/adr/README.md` の一覧の行が在る ADR を指すことを見る。 |
 | ADR は `tests/adr-new <英字の短い名前> "<タイトル>"` で始める。番号を手で決めない。同じ番号の ADR が main と重なったら、あとからマージする側が取り直す。 | `tests/adr-index.sh`。`docs/adr/` に同じ番号の ADR が 2 本あると落ちる。 |
 | ADR の PR は `docs/adr/README.md` の一覧に触らない。一覧は、バージョンを切る PR が `bash tests/adr-index.sh --write-list` で置き換える。 | `tests/adr-index.sh`。一覧の見出しの下のバージョンを `CHANGELOG.md` の一番上のバージョンと突き合わせ、違えば落ちる。ADR ごとの行は求めない。 |
-| ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<題>.md` で足す。 | `tests/adr-index.sh`。ADR ごとに `docs/decisions/` の対か `docs/decisions.md` の凍結した表（§14）の行が無ければ落ちる。 |
+| ADR を足したら、決定の記録にも ADR 1本につき1件を `docs/decisions/YYYY-MM-DD-adr-NNNN-<タイトル>.md` で足す。 | `tests/adr-index.sh`。ADR ごとに `docs/decisions/` の対か `docs/decisions.md` の凍結した表（§14）の行が無ければ落ちる。 |
 | 迷ったら推奨案で進めて報告に書く。 | 無し。判断の決まりで、見るものが無い。 |
 | 1ファイル1読み手。人用の文書（`README.md`・`docs/`）に機械が読む行を埋めない。AI 用の文書（この `AGENTS.md`・`REVIEW.md`・`package/skills/`）に人向けの経緯を書かない。 | 無し。読み手は文の中身で決まり、機械では見分けない。 |
 | この repo は public。秘密・個人の環境に固有の値（セル名・ホスト名・ポート番号・メールアドレス・ユーザー名・ホームのパス）・案件に固有の名前を入れない。例は架空の名前（`example.com`・`<owner>`・`sample-site`）で。禁止リストは repo の外に置く（書き方は `tests/README.md`。リストの語を repo に書かない）。 | `tests/public.sh`。禁止リストと秘密の形に当たる行で落ちる。 |
