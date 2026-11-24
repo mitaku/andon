@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -334,6 +335,9 @@ func (l *Ledger) Unsettled(rows []Row, t Issue, defaults []string) []string {
 	return out
 }
 
+// fenceRe はコード例の囲みの行（3つ以上の ` か ~ の並びと、その後ろ）。
+var fenceRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})(.*)$")
+
 // settingNames は予約キーの、依頼書の ## Settings の行の名前（playbooks/brief.md の表）。settingOrder は写しに足すときの順。
 var (
 	settingNames = map[string]string{"review": "Review", "reviewer": "Reviewer", "must_fix": "Must fix", "review_rounds": "Review rounds",
@@ -364,22 +368,27 @@ func SettingsCopy(keys []string) string {
 
 // RewriteSettings は依頼書 brief の ## Settings の写しを、課題 t の予約キー（正）に合わせて書き直す。書き換えたかを返す。
 // 写しは見出しの直後に続く「- 名前: 値」の行の並びで、その後ろ（空行・地の文・追記の節）は触らない。見出しが無ければ書き足さない。
-// 見出しが2つ以上あれば（追記の節に写しを書き直した依頼書）、どれも書き直す。コード例（``` の囲み）の中の見出しは写しでないので触らない。
-// 行の値は issue.yaml の値（無いキーは SettingsOf の既定。reviewer・review_rounds・merge・deliverable）で、値の頭が同じ行は
+// 見出しが2つ以上あれば（追記の節に写しを書き直した依頼書）、どれも書き直す。コード例（``` か ~~~ の囲み）の中の見出しは写しでないので触らない。
+// 行の値は SettingsOf が読む値（無いキーと知らない値は既定か空。gate・dispatcher が読む値と同じ）で、値の頭が同じ行は
 // そのまま残す（「Deliverable: candidates ★調べる」）。値の無い行は消し、行の無いキーで issue.yaml にあるものは並びの末尾に足す。
 // 知らない名前の行は残す。課題があとから kanban set で予約キーを書き直しても、担当に渡る写しが正と食い違わないように、
 // andon issue start が起動の前に打つ。
 func RewriteSettings(brief string, t Issue) (string, bool) {
 	lines := strings.SplitAfter(brief, "\n")
 	var out strings.Builder
-	fence := false
+	fence := "" // 開いているコード例の囲みの印（``` か ~~~ の並び）。空なら囲みの外
 	for i := 0; i < len(lines); i++ {
 		ln := lines[i]
 		trim := strings.TrimRight(ln, " \t\r\n")
-		if strings.HasPrefix(strings.TrimLeft(trim, " "), "```") {
-			fence = !fence
+		if m := fenceRe.FindStringSubmatch(trim); m != nil {
+			switch {
+			case fence == "":
+				fence = m[1]
+			case m[2] == "" && m[1][0] == fence[0] && len(m[1]) >= len(fence):
+				fence = "" // 閉じるのは開いたのと同じ文字で同じ数以上の並びだけの行（CommonMark）
+			}
 		}
-		if fence || trim != "## Settings" {
+		if fence != "" || trim != "## Settings" {
 			out.WriteString(ln)
 			continue
 		}
@@ -403,14 +412,11 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 
 // settingsBlock は写しの行の並び old を、課題 t の予約キーに合わせて書き直した行の並びにする（RewriteSettings）。
 func settingsBlock(old []string, t Issue, eol string) []string {
-	def := SettingsOf(t)
-	defaults := map[string]string{"reviewer": def.Reviewer, "review_rounds": def.ReviewRounds, "merge": def.Merge, "deliverable": def.Deliverable}
-	value := func(k string) string {
-		if v := t.Str(k); v != "" {
-			return copyValue(k, v)
-		}
-		return defaults[k]
-	}
+	// 値は SettingsOf が読んだもの（gate・dispatcher・担当が読む値）。知らない値は既定か空になり、空の行は消す
+	s := SettingsOf(t)
+	vals := map[string]string{"review": s.Review, "must_fix": s.MustFix, "reviewer": s.Reviewer, "review_rounds": s.ReviewRounds,
+		"merge": s.Merge, "deliverable": s.Deliverable, "acceptance": s.Acceptance, "estimate": copyValue("estimate", s.Estimate)}
+	value := func(k string) string { return vals[k] }
 	byName := map[string]string{}
 	for k, n := range settingNames {
 		byName[strings.ToLower(n)] = k
@@ -445,7 +451,7 @@ func settingsBlock(old []string, t Issue, eol string) []string {
 		}
 	}
 	for _, k := range settingOrder {
-		if v := copyValue(k, t.Str(k)); !seen[k] && v != "" {
+		if v := value(k); !seen[k] && t.Str(k) != "" && v != "" {
 			add("- " + settingNames[k] + ": " + v + eol)
 		}
 	}

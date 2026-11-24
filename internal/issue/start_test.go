@@ -11,7 +11,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"andon/internal/flock"
+	"andon/internal/ledger"
 	"andon/internal/ledger/ledgertest"
 	"andon/internal/spawn"
 )
@@ -1051,4 +1054,47 @@ func TestStartRewritesSettingsCopy(t *testing.T) {
 			t.Errorf("間に足した追記が消えた:\n got %q\nwant %q", got, want+added)
 		}
 	})
+}
+
+// 写しを書くのは kanban の CLI と同じ鍵（kanban/.lock）を取ってから: 鍵を持つ書き手（kanban add など）が依頼書を書いている間は
+// 読み直しも置き換えもせず、鍵が外れてから読み直すので、その間に足された追記を古い全文で上書きして消さない。
+func TestWriteSettingsCopyTakesTheKanbanLock(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "kanban")
+	path := filepath.Join(dir, "issues", "S-0007", "brief.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("## Settings\n- Review: off\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := flock.Lock(filepath.Join(dir, ".lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &ctx{l: ledger.At(root), id: "S-0007"}
+	p := &startPlan{BriefPath: path, settings: ledger.Issue{"review": "on"}}
+	done := make(chan error, 1)
+	go func() { done <- c.writeSettingsCopy(p) }()
+	select {
+	case err := <-done:
+		unlock()
+		t.Fatalf("kanban の鍵を持つ書き手がいる間に書いた（err=%v）: %q", err, read(t, path))
+	case <-time.After(300 * time.Millisecond):
+	}
+	// 鍵を持つ書き手が追記してから外す
+	const added = "\n## 追記\n- 守ること: README は触らない\n"
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(added)
+	f.Close()
+	unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got, want := read(t, path), "## Settings\n- Review: on\n"+added; got != want {
+		t.Errorf("鍵を持つ書き手の追記が消えた:\n got %q\nwant %q", got, want)
+	}
 }

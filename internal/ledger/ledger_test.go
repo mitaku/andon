@@ -314,6 +314,16 @@ func TestRewriteSettings(t *testing.T) {
 			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: off\n",
 			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: on\n",
 			Issue{"review": "on"}},
+		{"4つのバッククォートの囲みの中の3つの囲みと見出しは触らない",
+			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: off\n",
+			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: on\n",
+			Issue{"review": "on"}},
+		{"知らない値は SettingsOf が読む値で写す",
+			"## Settings\n- Deliverable: survey\n- Merge: never\n- Review: maybe\n",
+			"## Settings\n- Deliverable: pr\n- Merge: person\n",
+			Issue{"deliverable": "survey", "merge": "never", "review": "maybe"}},
+		{"行の無いキーも知らない値は足さない", "## Settings\n- Review: on\n", "## Settings\n- Review: on\n- Merge: person\n",
+			Issue{"review": "on", "merge": "never", "estimate": "huge"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			want := c.want

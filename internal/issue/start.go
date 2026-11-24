@@ -11,11 +11,13 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/flock"
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
@@ -399,11 +401,17 @@ func (c *ctx) copySettings(p *startPlan) {
 
 // writeSettingsCopy は、書く直前に依頼書を読み直して写しを書き直し、違えば置き換える（copySettings が合わせるキーで）。
 // plan で読んだ全文を書かないのは、読んでから書くまでの間（fill の kanban set など）に Chief of Staff が足した追記を消さないため。
-// 書いた依頼書を p.Brief に置き直す。
+// 読み直しから置き換えまでは kanban の CLI と同じ鍵（kanban/.lock の flock）を持つ: 鍵を取って依頼書を書く kanban の CLI と重ならない。
+// 鍵を持つ間は kanban の CLI を打たない（打つと待ち合って止まる）。書いた依頼書を p.Brief に置き直す。
 func (c *ctx) writeSettingsCopy(p *startPlan) error {
 	if p.settings == nil {
 		return nil
 	}
+	unlock, err := lockKanban(filepath.Join(c.l.Dir, ".lock"), kanbanLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	cur, err := os.ReadFile(p.BriefPath)
 	if err != nil {
 		return err
@@ -414,6 +422,26 @@ func (c *ctx) writeSettingsCopy(p *startPlan) error {
 		return nil
 	}
 	return writeAtomic(p.BriefPath, []byte(brief))
+}
+
+// kanbanLockWait は kanban の鍵を待つ長さ（kanban の CLI の lockWait と同じ）。
+const kanbanLockWait = 10 * time.Second
+
+// lockKanban は kanban の CLI の鍵（path の flock）を、wait の間待って取る。取れなければ理由1つで返す。返した関数で外す。
+func lockKanban(path string, wait time.Duration) (func(), error) {
+	deadline := time.Now().Add(wait)
+	for {
+		unlock, err := flock.TryLock(path)
+		switch {
+		case err == nil:
+			return unlock, nil
+		case !errors.Is(err, flock.ErrBusy):
+			return nil, err
+		case time.Now().After(deadline):
+			return nil, fmt.Errorf("kanban の鍵 %s を %s 待っても取れない", path, wait)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // writeAtomic は file を data で置き換える（一時のファイルに書いてから rename する。途中で止まっても半分の依頼書を残さない）。
