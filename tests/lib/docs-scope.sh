@@ -11,7 +11,7 @@ seen=false other=false
 while IFS= read -r p; do
   case "$p" in
     '') ;;
-    docs/* | README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) seen=true ;;
+    docs/* | README.md | README.ja.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) seen=true ;;
     *) other=true ;;
   esac
 done

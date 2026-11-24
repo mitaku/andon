@@ -7,7 +7,8 @@ ok() { echo "ok   $*"; }
 
 # 1. image-scope: image に入らず tests/image.sh も読まない変更だけなら false。知らないパスは true
 scope() { printf '%s\n' "$@" | bash tests/lib/image-scope.sh; }
-[ "$(scope docs/image.md README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人用の文書だけで true"
+[ "$(scope docs/image.md README.md README.ja.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = false ] || die "人用の文書だけで true"
+[ "$(scope README.ja.md)" = false ] || die "README.ja.md だけで true"
 [ "$(scope tests/andon-issue.sh tests/kanban/test-deck.mjs workflow_test.go internal/issue/issue_test.go)" = false ] || die "ほかの tests・Go のテストだけで true"
 [ "$(scope CHANGELOG.md)" = false ] || die "CHANGELOG.md だけで true"
 [ "$(scope model/IssueLife.tla model/IssueRules.tla model/expected.txt model/broken/BrokenReady.tla model/package-lock.json model/README.md)" = false ] || die "モデルだけで true"
@@ -35,7 +36,8 @@ ok "image-scope: 文書・ほかの tests だけなら飛ばし、image に入�
 # 1a. docs-scope: 変更が全部 docs/ の下か root の人用の文書なら true。コード・tests・知らないパスが1つでも混ざれば、空でも false
 docs() { printf '%s\n' "$@" | bash tests/lib/docs-scope.sh; }
 [ "$(docs docs/adr/0023-x.md docs/decisions/2026-11-12-x.md)" = true ] || die "ADR と決定の記録だけで false（PR #218 の形）"
-[ "$(docs docs/assets/logo/x.svg README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = true ] || die "人用の文書だけで false"
+[ "$(docs docs/assets/logo/x.svg README.md README.ja.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md LICENSE)" = true ] || die "人用の文書だけで false"
+[ "$(docs README.ja.md)" = true ] || die "README.ja.md だけで false（日本語の README も文書だけ。ADR-0046）"
 [ "$(docs)" = false ] || die "変更が無いのに true"
 for p in internal/issue/issue.go workflow_test.go tests/README.md tests/lib/docs-scope.sh .github/workflows/go.yml \
   package/skills/worker/SKILL.md schema/report.schema.json go.mod docs-new/x NEW.md; do
@@ -49,13 +51,18 @@ ok "docs-scope: 文書だけなら true、コード・tests・知らないパス
 #     重い検査を除く全部と、変えたパスを見る重い検査。知らないパスでは全部。image.sh は image-scope と同じとき
 pick() { printf '%s\n' "$@" | bash tests/lib/scope.sh | tr '\n' ' '; }
 has() { grep -qw -- "$2" <<<"$1"; }
-always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/shell-and.sh tests/smoke.sh tests/verify-andon.sh tests/words-selftest.sh tests/words.sh '
+always='tests/agents-md.sh tests/ci.sh tests/public-selftest.sh tests/public.sh tests/readme.sh tests/shell-and.sh tests/smoke.sh tests/verify-andon.sh tests/words-selftest.sh tests/words.sh '
 # with <検査>…: いつもの分に検査を足し、scope.sh と同じ並び（名前の順）で出す
 with() { printf '%s\n' $always "$@" | sort | tr '\n' ' '; }
 heavy='tests/andon-dispatcher.sh tests/schema.sh tests/apply-main.sh tests/andon-issue.sh tests/andon-gate.sh'
 emitters=$(bash tests/schema.sh --emitters | tr '\n' ' ')
 [ "$(pick docs/image.md)" = "$always" ] || die "文書だけ: $(pick docs/image.md)"
 [ "$(pick README.md)" = "$always" ] || die "README.md だけ（adr-index.sh は読まない。ADR-0055）: $(pick README.md)"
+[ "$(pick README.ja.md)" = "$always" ] || die "README.ja.md だけ: $(pick README.ja.md)"
+# readme.sh はいつもの分（ADR-0046 受け入れ条件 3）。README に触れない文書だけの PR でも、README が指す文書を消す・動かす PR でも走る
+for p in docs/image.md docs/no-such-doc.md internal/measure/x.go; do
+  has "$(pick "$p")" tests/readme.sh || die "$p だけで readme.sh が無い: $(pick "$p")"
+done
 [ "$(pick docs/adr/README.md)" = "$(with tests/adr-index.sh tests/package.sh)" ] || die "ADR の一覧で adr-index.sh・package.sh が無い: $(pick docs/adr/README.md)"
 [ "$(pick docs/adr/0033-adr-inventory-and-slimming.md)" = "$(with tests/adr-index.sh tests/package.sh)" ] || die "ADR で adr-index.sh・package.sh が無い: $(pick docs/adr/0033-adr-inventory-and-slimming.md)"
 for p in docs/decisions.md docs/decisions/2026-11-21-adr-0041-delegation-cap-out-of-command.md; do
@@ -166,7 +173,7 @@ for t in tests/schema.sh $emitters; do has "$got" "$t" || die "schema.sh で $t 
 for p in internal/issue/issue.go cmd/andon/main.go internal/issue/issue_test.go internal/issue/testdata/x.json workflow_test.go embed.go go.mod go.sum; do
   [ "$(iso "$p")" = "tests/smoke.sh " ] || die "Go の $p で smoke.sh だけにならない: $(iso "$p")"
 done
-for p in docs/image.md README.md AGENTS.md tests/README.md package/skills/worker/SKILL.md schema/report.schema.json image/Dockerfile \
+for p in docs/image.md README.md README.ja.md AGENTS.md tests/README.md package/skills/worker/SKILL.md schema/report.schema.json image/Dockerfile \
   model/IssueLife.tla mise.toml tests/lib/scope.sh tests/lib/docs-scope.sh tests/lib/image-scope.sh tests/lib/pty-probe.py tests/image.sh tests/no-such.sh; do
   [ -z "$(iso "$p")" ] || die "$p で偽のセルの検査を選ぶ: $(iso "$p")"
 done

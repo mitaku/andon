@@ -4,7 +4,7 @@
 
 - 書くのは**バージョンを切るときだけ**。PR ごとには触らない（手順は [docs/operate.md](docs/operate.md) の「バージョンを切る」）。
 - `package/host/` の雛形を変えたバージョンには、「上げるときにすること」に **host-install** の項を足す（変わったファイル。退避の手順は [docs/operate.md](docs/operate.md) の「バージョンを上げるとき: host-install が置いたものを退避する」）。
-- 互換の約束はまだ無い（[README](README.md) の Status）。「上げるときにすること」に無い限り、バージョンを上げて `rebuild` するだけでよい。
+- 互換の約束はまだ無い（[README](README.md) の冒頭の注記）。「上げるときにすること」に無い限り、バージョンを上げて `rebuild` するだけでよい。
 
 ## 未リリース
 
