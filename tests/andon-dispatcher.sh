@@ -91,6 +91,7 @@ case "\$*" in
         {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
+  "api repos/example/app/compare/"*) echo '{"ahead_by":0,"files":[]}' ;;   # gate の古い base: 既定ブランチは PR の分かれ目から進んでいない
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted   # 書いた印は head ごとに marks/<sha>（settle の読みが返す）
     [ ! -f \$d/statusfail ] || { echo "HTTP 502" >&2; exit 1; }
     sha=\${4##*/}; mkdir -p \$d/marks; printf '%s\n' "\$@" | sed -n 's/^state=//p' > \$d/marks/\$sha ;;
@@ -1206,10 +1207,10 @@ dispatcher
 checks IN_PROGRESS
 gate_through "$id"
 merges=$(wc -l < "$tmp/gh/merges")
-rest() { grep -cE '^api --paginate --slurp repos/[^ ]+/pulls/[0-9]+/files$|^pr diff |^api user|^api repos/[^/ ]+/[^/ ]+ ' "$tmp/gh/calls" || true; }   # gate が読む REST
+rest() { grep -cE '^api --paginate --slurp repos/[^ ]+/pulls/[0-9]+/files$|^pr diff |^api user|^api repos/[^/ ]+/[^/ ]+ |^api repos/[^/ ]+/[^/ ]+/compare/' "$tmp/gh/calls" || true; }   # gate が読む REST
 : > "$tmp/gh/calls"
 dispatcher
-[ "$(rest)" = 2 ] || die "gate の1回で読む REST が files・diff の2回でない: $(cat "$tmp/gh/calls")"
+[ "$(rest)" = 3 ] || die "gate の1回で読む REST が files・diff・compare の3回でない: $(cat "$tmp/gh/calls")"
 : > "$tmp/gh/calls"
 dispatcher
 dispatcher
@@ -1234,7 +1235,7 @@ echo '[]' > "$tmp/gh/rollup.json"
 gate_through "$id"
 : > "$tmp/gh/calls"
 dispatcher
-[ "$(rest)" = 2 ] && grep -q "$id の gate は GitHub の checks を待つ: GitHub の checks がまだ1つも無い" "$tmp/dispatcher.log" || die "none の wait で gate を回していない: $(cat "$tmp/gh/calls")"
+[ "$(rest)" = 3 ] && grep -q "$id の gate は GitHub の checks を待つ: GitHub の checks がまだ1つも無い" "$tmp/dispatcher.log" || die "none の wait で gate を回していない: $(cat "$tmp/gh/calls")"
 : > "$tmp/gh/calls"
 dispatcher
 dispatcher

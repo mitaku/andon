@@ -47,6 +47,8 @@ case "\$*" in
   "pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
+  "api repos/example/app/compare/"*) # PR の分かれ目より後の既定ブランチの変更（compare.json が無ければ進んでいない）
+    if [ -f \$d/compare.json ]; then cat \$d/compare.json; else echo '{"ahead_by":0,"files":[]}'; fi ;;
   "api -X POST repos/example/app/statuses/"*) echo "status \$*" >> \$d/posted ;;
   "pr comment 7 --repo example/app --body "*) [ ! -f \$d/commentfail ] || { echo "HTTP 502" >&2; exit 1; }
     echo "comment" >> \$d/posted; printf '%s\n' "\$7" >> \$d/bodies
@@ -327,6 +329,22 @@ as_owner git -C "$tmp/plant" commit -qam 'checks を要るに戻す'
 rollup COMPLETED/SUCCESS
 got=$(gate "$id" --dry-run); expect 0 approve
 ok 'checks が1つも無ければ wait、review から github_checks_wait_minutes を過ぎたら needs_human。optional の repo は無くても通し、在る checks は見る'
+
+# 5c. 古い base: PR の分かれ目より後に既定ブランチで検査の置き場が変わっていれば、CI が通っていても fix（rebase して回し直す）。
+# 読むのは compare の1回で、PR の head と既定ブランチを名指す。検査の置き場の外だけが変わったなら通す
+echo '{"ahead_by":2,"files":[{"filename":"tests/verify-andon.sh","previous_filename":null},{"filename":"internal/a.go","previous_filename":null}]}' > "$tmp/gh/compare.json"
+rm -f "$tmp/gh/calls"
+got=$(gate "$id" --dry-run); expect 1 fix 'base が古い'
+jq -e '.reasons | length == 1 and (.[0] | contains("tests/verify-andon.sh") and (contains("internal/a.go") | not))' "$tmp/out" >/dev/null || die "古い base の理由が違う: $(jq -c .reasons "$tmp/out")"
+grep -qxF "api repos/example/app/compare/$head...main --jq {ahead_by, files: [.files[]? | {filename, previous_filename}]}" "$tmp/gh/calls" || die "compare を PR の head と既定ブランチで読んでいない: $(cat "$tmp/gh/calls")"
+echo '{"ahead_by":1,"files":[{"filename":"internal/a.go","previous_filename":null}]}' > "$tmp/gh/compare.json"
+got=$(gate "$id" --dry-run); expect 0 approve
+echo '{"files":[]}' > "$tmp/gh/compare.json"
+got=$(gate "$id" --dry-run)
+[ "$got" = 3 ] && grep -q 'compare' "$tmp/err" || { cat "$tmp/out" "$tmp/err" >&2; die "読めない compare で rc $got"; }
+rm -f "$tmp/gh/compare.json"
+got=$(gate "$id" --dry-run); expect 0 approve
+ok '古い base（分かれ目より後に既定ブランチで検査の置き場が変わった）は CI が通っていても fix。置き場の外だけなら通し、compare が読めなければ判定しない'
 
 # 6. 委譲を最後に変えたのが owner でなければ無委譲
 jq '.delegation = {"version": 1, "project": "demo", "preset": "hobby"}' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json

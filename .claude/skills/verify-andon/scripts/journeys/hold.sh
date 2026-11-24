@@ -128,6 +128,7 @@ case "\$*" in
         nodes: [{__typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "SUCCESS"}]}}}}]}}}}}' $d/view.json ;;
   "api --paginate --slurp repos/example/sample-site/pulls/7/files") cat $d/files.json ;;
   "pr diff 7 --repo example/sample-site") cat $d/diff ;;
+  "api repos/example/sample-site/compare/"*) echo '{"ahead_by":0,"files":[]}' ;;
   "api -X POST repos/example/sample-site/statuses/"*) printf '%s\n' "\$@" | sed -n 's/^state=//p' >>$d/marks ;;
   "pr comment 7 --repo example/sample-site --body "*) echo "https://github.com/example/sample-site/pull/7#issuecomment-1" ;;
   "pr merge 7 --repo example/sample-site "*) echo "\$*" >>$d/merges; touch $d/merged ;;
