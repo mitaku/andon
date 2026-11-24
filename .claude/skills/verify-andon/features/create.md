@@ -7,11 +7,11 @@
 - `cr-role-refuse` 役の端末（`hc` のラベル `role=` か `issue=`）では断り、`projects/<slug>` を作らない。見る道: 検証の担当だけ。
 - `cr-create` オーナーの端末で、kanban・`project.json` の下書き（接頭字・repos・main の CI の信号の行。委譲は無し）・`AGENTS.md` ができ、作った kanban に接頭字の番号の課題を足せる。dispatcher が無ければ `hc run` で起動しようとする。見る道: 検証の担当だけ。
 - `cr-exists-refuse` 在る slug は断り、`projects/<slug>` の中身を変えない。見る道: 検証の担当だけ。
-- `cr-ask` 端末で引数を省くと、slug・repos・接頭字・題を既定値つきで1つずつ聞く。見る道: オーナーが見る。
+- `cr-ask` 端末で引数を省くと、slug・repos・接頭字・タイトルを既定値つきで1つずつ聞く。見る道: オーナーが見る。
 
 ## 辿り着き方（利用者から）
 
-- オーナーがセルの repo で `andon create <slug> --repo <host>/<owner>/<repo> [--prefix X] [--title <題>]` を打つ。引数を省けば端末で聞かれる。
+- オーナーがセルの repo で `andon create <slug> --repo <host>/<owner>/<repo> [--prefix X] [--title <タイトル>]` を打つ。引数を省けば端末で聞かれる。
 - 作ったあと、オーナーが `project.json` と `AGENTS.md` を見て commit し、`andon open <slug>` で Chief of Staff を開く。
 
 ## 動かし方
