@@ -43,6 +43,7 @@ yaml S-0010 'status: done\nprofile: claude\nroutine: retro\n'
 yaml S-0011 'status: done\nprofile: claude\nrepo: github.com/example/sample-site\n'
 yaml S-0012 'status: done\nprofile: claude\nrepo: github.com/example/sample-site\n'
 printf '{"pr": "%s/12"}\n' "$pr" >"$k/issues/S-0012/library/report.json"
+printf '担当の報告の本文\n' >"$k/issues/S-0012/report.md" # 依頼書の根拠の行が、本文を写さずにパスを指す
 yaml S-0013 'status: done\nprofile: claude\nrepo: github.com/example/sample-site\n'
 yaml S-0020 'status: doing\nprofile: claude\nroutine: retro\nagent: t9\n'
 for x in "S-0010 2 days" "S-0011 3 days" "S-0012 1 day" "S-0013 1 day"; do
@@ -160,6 +161,10 @@ for want in '解決すべき問題: PR の題に課題番号が入り、オー�
   grep -qF -- "$want" <<<"$brief" || die "直す課題の依頼書に「$want」が無い: $brief"
 done
 ! grep -q 'また題に番号が入っている' <<<"$brief" || die "依頼書にオーナーの文の本文が入った"
+# 根拠の課題の下に、在る記録のパスを1行で書く（直す担当が日報や指摘を探し直さない）。無い記録のパスと本文は書かない
+grep -qxF -- "  中身の置き場（本文は写さない）: $k/issues/S-0012/report.md" <<<"$brief" || die "依頼書の根拠に S-0012 の報告のパスが無い: $brief"
+! grep -q '担当の報告の本文' <<<"$brief" || die "依頼書に報告の本文が入った"
+grep -q '担当の報告の本文' "$k/issues/S-0012/report.md" || die "検査の前提: 報告の本文がファイルにある"
 grep -q 'また題に番号が入っている' "$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl" || die "検査の前提: オーナーの文がログにある"
 [ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 5 ] || die "足した課題が5件でない: $(issues)"
 # 足した順（課題の番号の順）が一覧の順と同じ
