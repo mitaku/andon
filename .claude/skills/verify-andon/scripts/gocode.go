@@ -56,12 +56,13 @@ func lexes(src []byte, keepAll bool) ([]lex, bool) {
 }
 
 func directive(c string) bool {
-	for _, p := range []string{"//go:", "//line ", "/*line ", "//export ", "//extern ", "// +build", "//+build"} {
+	for _, p := range []string{"//go:", "//line ", "/*line ", "//export ", "//extern "} {
 		if strings.HasPrefix(c, p) {
 			return true
 		}
 	}
-	return false
+	// go/build は // のあとの空白を除いてから +build を読む（//  +build も //\t+build も効く）
+	return strings.HasPrefix(c, "//") && strings.HasPrefix(strings.TrimSpace(c[2:]), "+build")
 }
 
 // cgo は import "C" を持つか（字句の並びで見る。コメントや文字列の中の語には当たらない）。

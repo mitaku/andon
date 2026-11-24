@@ -225,7 +225,7 @@ code_files() {
   local gofiles code
   gofiles=$(grep -E '\.go$' <<<"$4" | grep -vE '_test\.go$' || true)
   [ -n "$gofiles" ] || { printf '%s\n' "$4"; return; }
-  code=$(cd "$root/$skill/scripts" && go run gocode.go "$1" "$2" "$3" <<<"$gofiles") || die "scripts/gocode.go が $2..$3 の Go のファイルを読めない"
+  code=$(cd "$root" && go run "$root/$skill/scripts/gocode.go" "$1" "$2" "$3" <<<"$gofiles") || die "scripts/gocode.go が $2..$3 の Go のファイルを読めない"
   { grep -vE '\.go$' <<<"$4" || true; grep -E '_test\.go$' <<<"$4" || true; echo "$code"; } | grep . || true
 }
 # 名指しの確かめが何も見ていないことを避ける（地図の写しは要らない。読んだ対で確かめる）
@@ -327,7 +327,11 @@ if [ "$self" = true ]; then
   c6=$(put internal/ledger/ask.go x)
   c7=$(put internal/spawn/x.go x)
   c8=$(put internal/delegate/x.go x)
-  feat() { (cd "$repo" && bash "$root/$skill/scripts/features.sh" "$1"); }
+  # CoS の手順（verify.md）は skill を repo の外へ展開して打つ。偽の go は、打った所（試しの repo）の外では落ちる（mise の shim と同じ）
+  ext=$tmp/ext && mkdir -p "$ext" && cp -r "$skill" "$ext/"
+  realgo=$(cd "$root" && go env GOROOT)/bin/go
+  mkdir -p "$tmp/gobin" && printf '#!/usr/bin/env bash\n[ "$PWD" = "%s" ] || { echo "go: 打った所の外で呼ばれた: $PWD" >&2; exit 1; }\nexec "%s" "$@"\n' "$repo" "$realgo" >"$tmp/gobin/go" && chmod +x "$tmp/gobin/go"
+  feat() { (cd "$repo" && PATH="$tmp/gobin:$PATH" bash "$ext/verify-andon/scripts/features.sh" "$1"); }
   [ "$(feat "$c0..$c1")" = gate ] || die "features.sh: internal/gate/ の差分で gate だけにならない: $(feat "$c0..$c1" | tr '\n' ' ')"
   got=$(feat "$c0..$c2" | tr '\n' ' ')
   [ "$got" = "dispatcher-news gate hooks " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hooks にならない: $got"
@@ -376,6 +380,11 @@ if [ "$self" = true ]; then
   [ "$(feat "$g2..$g3")" = gate ] || die "features.sh: Go の文字列の中の // を変えた差分で gate を返さない: $(feat "$g2..$g3" | tr '\n' ' ')"
   g4=$(put internal/gate/g.go $'//go:build linux\n\npackage gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// y"')
   [ "$(feat "$g3..$g4")" = gate ] || die "features.sh: Go の //go:build の指令を足した差分で gate を返さない: $(feat "$g3..$g4" | tr '\n' ' ')"
+  g7=$(put internal/gate/b.go $'package gate\n\nfunc B() {}')
+  g8=$(put internal/gate/b.go $'//  +build ignore\n\npackage gate\n\nfunc B() {}')
+  [ "$(feat "$g7..$g8")" = gate ] || die "features.sh: Go の // と +build の間に空白を2つ置いた指令を足した差分で gate を返さない: $(feat "$g7..$g8" | tr '\n' ' ')"
+  g9=$(put internal/gate/b.go $'//\t+build linux\n\npackage gate\n\nfunc B() {}')
+  [ "$(feat "$g8..$g9")" = gate ] || die "features.sh: Go の // と +build の間にタブを置いた指令に変えた差分で gate を返さない: $(feat "$g8..$g9" | tr '\n' ' ')"
   g5=$(put internal/gate/c.go $'package gate\n\n// #include <a.h>\nimport "C"')
   g6=$(put internal/gate/c.go $'package gate\n\n// #include <b.h>\nimport "C"')
   [ "$(feat "$g5..$g6")" = gate ] || die "features.sh: cgo の前置き（import \"C\" の前のコメント）を変えた差分で gate を返さない: $(feat "$g5..$g6" | tr '\n' ' ')"

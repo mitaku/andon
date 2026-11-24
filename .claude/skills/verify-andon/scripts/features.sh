@@ -18,8 +18,8 @@ if [[ "$1" == *..* ]]; then
   if [[ "$after" == .* ]]; then after=${after#.}; before=$(git merge-base "${before:-HEAD}" "${after:-HEAD}"); fi
   gofiles=$(grep -E '\.go$' <<<"$changed" | grep -vE '_test\.go$' || true)
   if [ -n "$gofiles" ]; then
-    repo=$PWD
-    code=$(cd "$here" && go run gocode.go "$repo" "${before:-HEAD}" "${after:-HEAD}" <<<"$gofiles")
+    # go は打った所（Andon の checkout。mise.toml が go を決める）で打つ。skill は repo の外へ展開して打たれることがある（verify.md）
+    code=$(go run "$here/gocode.go" "$PWD" "${before:-HEAD}" "${after:-HEAD}" <<<"$gofiles")
     changed=$( { grep -vE '\.go$' <<<"$changed" || true; grep -E '_test\.go$' <<<"$changed" || true; echo "$code"; } | grep . || true)
   fi
 fi
