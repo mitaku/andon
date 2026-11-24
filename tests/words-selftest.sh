@@ -261,7 +261,12 @@ for v in docs/vision.md docs/adr/0099-x.md docs/decisions/2026-01-01-x.md; do
   setup; mkdir -p "$(dirname "$tmp/r/$v")"; echo 'この題では決めない' >"$tmp/r/$v"; expect ok "替えていない範囲（$v）の「題」はまだ見ない"
 done
 setup; sed -i 's/^## 未リリース$/&\n- 番号（題）を添える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「題」で落ちる'
-setup; printf -- '- 番号（題）を添えた\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG のバージョンの節の「題」は通る'
+chl() { # chl <v0.0.15 の節の行> <v0.0.14 の節の行>。置き換えのあとと前に切ったバージョンの節に1行ずつ置く
+  setup; printf '# CHANGELOG\n\n## 未リリース\n\n## v0.0.15 — 2026-12-01\n%s\n\n## v0.0.14 — 2026-11-23\n%s\n' "$1" "$2" >"$tmp/r/CHANGELOG.md"
+}
+chl '- 番号にタイトルを添えた' '- 番号（題）を添えた'; expect ok 'CHANGELOG の置き換えより前に切ったバージョンの節（v0.0.14 から下）の「題」は通る'
+chl '- 番号（題）を添えた' '- 番号にタイトルを添えた'; expect fail 'CHANGELOG の置き換えのあとに切ったバージョンの節（v0.0.15）の「題」で落ちる'
+setup; printf -- '- 番号（題）を添えた\n' >>"$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG に v0.0.14 の節が無ければ、バージョンの節の「題」も見て落ちる'
 c='- **セルの側の文の語を直す**: Andon の文は漢字 1 字の「題」をやめ、名前を指す所は「タイトル」と書く。'
 setup; sed -i "s/^## 未リリース\$/&\n$c/" "$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG の未リリースの、語を挙げた句「漢字 1 字の「題」」は通る'
 setup; sed -i "s/^## 未リリース\$/&\n${c}この題では決めない/" "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの、語を挙げた句のほかの「題」で落ちる'

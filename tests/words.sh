@@ -178,7 +178,8 @@ echo "ok   words: 「台帳」「ゲート」「版」が替えた範囲（${old
 #   行の末尾に「# 古い語を見る（ADR-0052 決めたこと 10）」と書いた行）の単引用符の中（grep や sed に渡す古い形の文字列）。
 #   印のある行も、単引用符の外の字は見る。
 #   docs/decisions.md の「語の改め（」で始まる行と、CHANGELOG.md のリリース前の節が、語を挙げた句「漢字 1 字の「…」」。
-# CHANGELOG.md のバージョンごとの節（## v…。バージョンを切ったときの記録。ADR-0052 決めたこと 7）は外す。
+# CHANGELOG.md のバージョンごとの節（## v…。バージョンを切ったときの記録。ADR-0052 決めたこと 7）は、置き換えより前に切った節
+#   （## v0.0.14 から下）だけを外す。それより新しいバージョンの節は、置き換えのあとに書いた文なので見る。## v0.0.14 の行が無ければ全部を見る。
 # docs/decisions.md は、凍結した表（最初の「## 1. 」の行から下）をまだ見ない。表は ADR と決定の記録を替える課題（切る案 4）で
 #   替え、そのとき dai_frozen の行の制限を外す。
 # 範囲は替え終えた場所だけで、替えるたびに dai_paths に足す（docs/vision.md と .github/ は足さない）。
@@ -187,12 +188,13 @@ dai_paths=(package init tests docs/design.md internal cmd .claude/skills/verify-
   docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/ledger.md docs/commands.md docs/decisions.md
   README.md README.ja.md REVIEW.md SECURITY.md CHANGELOG.md AGENTS.md process docs/process model image)
 dai_frozen=$(grep -n -m1 '^## 1\. ' docs/decisions.md 2>/dev/null | cut -d: -f1 || true)
+dai_changelog=$(grep -n -m1 '^## v0\.0\.14\b' CHANGELOG.md 2>/dev/null | cut -d: -f1 || true)
 existing=()
 for p in "${dai_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
 [ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$dai" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
-  | awk -F: -v v="${changelog_v:-0}" -v z="${dai_frozen:-0}" \
+  | awk -F: -v v="${dai_changelog:-0}" -v z="${dai_frozen:-0}" \
       '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v) && !($1 == "docs/decisions.md" && z > 0 && $2 >= z)' \
   | perl -CSDA -Mutf8 -ne '
       BEGIN { $d = shift }
