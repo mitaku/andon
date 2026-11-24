@@ -543,7 +543,7 @@ andon/
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・retro・digest・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     writing.md               AI 用: オーナーへの書き方（全役がオーナーに返す文の決まり。エージェントの設定ファイルが @ で読む）
-    templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
+    templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・claude-medium・sonnet・fable・codex・codex-review・claude-review）
     hooks/                   ハーネスのフック（Stop・StopFailure・UserPromptSubmit。dispatcher と command を呼ぶだけ）
     gate.json                gate の条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）

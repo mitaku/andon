@@ -39,12 +39,13 @@ EOF
 - 1つの依頼に関係の無い仕事が2つあれば、課題も2つにする。順番があれば `--after <id>`（`queued` になり、前が done で `todo` に戻る）。
 - オーナーの判断とオーナーにしかできない手作業は、担当の課題にせずオーナーの課題にする（ask-one-by-one skill §3）。判断は、問いの JSON を `andon issue ask --new -` に渡し、課題と問いを1回で置く（前の課題のあとで go をもらう判断は `--after <id>`）。手作業は `kanban add "<何をしてほしいか>" --brief -`（依頼書に期限の目安）のあと、`kanban set <id> who=person only_owner="<オーナーにしかできない理由>"` で印を付ける。
 - `kanban add "<タイトル>" --repo <host/owner/repo> --profile <名前> [--after <id>]`。`profile` は Andon のプロファイルの名前だけ（`hc templates` に出るもの:
-  `claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`。`chief-of-staff`・`chief-engineer` は課題には書かない）。repo の無い課題は `--repo` を付けない（`issues/<id>/` で起動する）。
+  `claude`・`claude-medium`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`。`chief-of-staff`・`chief-engineer` は課題には書かない）。repo の無い課題は `--repo` を付けない（`issues/<id>/` で起動する）。
 - プロファイルの選び方（迷ったら `claude`）:
 
   | プロファイル | 使いどころ |
   |---|---|
-  | `claude` | 既存への手術・コンテキストが重い仕事（既定） |
+  | `claude` | 既存への手術・コンテキストが重い仕事（既定）。見込みが大の課題と、依頼書が effort high を要すると書いた課題 |
+  | `claude-medium` | `claude` の使いどころで、見込みが小・中の課題（effort が medium で、ほかは `claude` と同じ） |
   | `sonnet` | 型が決まった小さい仕事（バージョンアップ・文書の小直し） |
   | `fable` | 深い設計。完了条件は設計文書の PR（オーナーと対話する設計は Chief Engineer） |
   | `codex` | 新しい独立した module（別ブランドの担い手） |

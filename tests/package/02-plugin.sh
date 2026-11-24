@@ -5,7 +5,7 @@ jq -e '.name == "andon"' package/.claude-plugin/plugin.json >/dev/null 2>&1 \
   && pass "package/.claude-plugin/plugin.json の name は andon" || fail "package/.claude-plugin/plugin.json が無いか name が andon でない"
 # Claude Code 系: command が plugin と役の skill を運び、本文は skill を読ませない。役の skill は package/skills/ にある
 role() { case $1 in chief-engineer|chief-of-staff) echo "$1" ;; *) echo worker ;; esac; }
-for p in chief-engineer chief-of-staff claude sonnet fable claude-review; do
+for p in chief-engineer chief-of-staff claude claude-medium sonnet fable claude-review; do
   f=package/templates/$p.md r=$(role "$p")
   cmd=" $(fm "$f" command) "
   body=$(awk 'n >= 2; /^---$/ && n < 2 {n++}' "$f")
