@@ -875,7 +875,7 @@ andon/
 |---|---|---|
 | 1 | セルがパッケージから立つ | `andon init <slug>` → `bootstrap` でセルが立ち、セルの repo にパッケージのファイルが無い（`Dockerfile` は `FROM` ＋ 2行）。`gh auth login`・`claude login` はセルの中で済ませる |
 | 2 | 1本流れる | そのセルのプロジェクト `andon` の kanban で、課題1件が 依頼書（`review: on`・`merge: auto`）→ `andon issue start` → 担当の PR → `review-request` → dispatcher がレビュアーを起動する → `ready` → dispatcher が gate → approve → dispatcher がマージ → finish まで通る |
-| 3 | オーナーが触っていない | `andon measure` の `prs[]` のその PR の行が `auto: true` で、`human_touches` が 0（dispatcher がマージし、課題の問いにオーナーが決めた答え〈`decidedBy: owner`〉が無い）。`log.jsonl` の `by` では見分けない（オーナーの操作も Chief of Staff や dispatcher の端末の行として残る。[ADR-0049](adr/0049-owner-touches-by-kind.md)）。Chief of Staff の turn は「依頼を受ける」と「結果を見る」の2つだけ |
+| 3 | オーナーが触っていない | 依頼書からマージまでの期間の `andon measure` で、`efficiency.human_touches.total` が 0 で、`prs[]` のその PR の行が `auto: true`（dispatcher がマージした）。PR の行の `human_touches` はその課題のマージと問いへの答えしか数えず、問いの無いオーナーの課題の片付けやほかの課題の問いへのオーナーの答えが入らないので、期間の合計で見る。`log.jsonl` の `by` では見分けない（オーナーの操作も Chief of Staff や dispatcher の端末の行として残る。[ADR-0049](adr/0049-owner-touches-by-kind.md)）。Chief of Staff の turn は「依頼を受ける」と「結果を見る」の2つだけ |
 | 4 | 流れたのは Andon 自身の変更 | PR の repo が `<owner>/andon`。レベル A か B（レベル C は定義上、オーナーが見る） |
 | 5 | 自分をテストできる | セルの中で `bash tests/*.sh` が green |
 | 6 | 仮設は止まっていない | 仮設のセルの kanban と端末に異常なし。仮設のプロジェクトは Andon のセルができるまで Andon の仕事を持つ |
