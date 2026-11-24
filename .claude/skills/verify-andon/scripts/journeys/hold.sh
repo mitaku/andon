@@ -152,7 +152,7 @@ dispatch() { : >"$tmp/gh.calls"; : >"$dlog"; "$andon" dispatcher --once --projec
 # patrolled: 巡がこの kanban を回した（回さなかったときの行が無い）。回していなければ、gate もマージも起きないのは当たり前で証拠にならない
 patrolled() { ! grep -qF "この巡はこの kanban を回さない" "$dlog"; }
 gated() { compgen -G "$KANBAN_ROOT/kanban/issues/$1/library/gate/*.json" >/dev/null; }
-# mkpr <題> <merge>: Chief of Staff が課題を切り、担当 tw が受け持って文書1行の PR 7 を出し、報告して ready する（review: off・レベル A）。
+# mkpr <タイトル> <merge>: Chief of Staff が課題を切り、担当 tw が受け持って文書1行の PR 7 を出し、報告して ready する（review: off・レベル A）。
 # 標準出力は課題の id だけ。どこかで落ちたら 1 を返す（呼び手が fail を数える）
 mkpr() {
   local i wt
