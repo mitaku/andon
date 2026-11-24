@@ -227,22 +227,30 @@ func (r *Receiver) place(sig signal, entry any) (string, string) {
 		return "", "andon.project が無い"
 	}
 	if !projectRe.MatchString(project) {
-		return "", fmt.Sprintf("andon.project の形が違う（%q）", project)
+		return "", fmt.Sprintf("andon.project の形が違う（%q）", short(project))
 	}
 	role, ok := attrs["andon.role"]
 	if !ok {
 		return "", "andon.role が無い"
 	}
 	if !roleRe.MatchString(role) {
-		return "", fmt.Sprintf("andon.role の形が違う（%q）", role)
+		return "", fmt.Sprintf("andon.role の形が違う（%q）", short(role))
 	}
 	if issue, ok := attrs["andon.issue"]; ok {
 		if !issueRe.MatchString(issue) {
-			return "", fmt.Sprintf("andon.issue の形が違う（%q）", issue)
+			return "", fmt.Sprintf("andon.issue の形が違う（%q）", short(issue))
 		}
 		return filepath.Join(project, "issues", issue, sig.file+".jsonl"), ""
 	}
 	return filepath.Join(project, "roles", role, r.now().UTC().Format("2006-01-02")+"."+sig.file+".jsonl"), ""
+}
+
+// short は送り手が書いた値をログに出す長さに切る（長い値でログを膨らませない）。
+func short(s string) string {
+	if r := []rune(s); len(r) > 64 {
+		return string(r[:64]) + "…"
+	}
+	return s
 }
 
 // resourceAttrs は resource の属性のうち andon. で始まるものを、文字列の値で返す。文字列でない値は
