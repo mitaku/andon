@@ -31,9 +31,6 @@ func TestInitAndAddWriteFormat3(t *testing.T) {
 	}
 }
 
-// v2Ledger is a format 2 ledger as a person has it before moving it by hand: tasks/, task.yaml,
-// a question, and the files Andon wrote in library/ whose values name a task (report.json's
-// next[].to, questions/<n>.json's from).
 func v2Ledger(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "app")
@@ -50,7 +47,6 @@ func v2Ledger(t *testing.T) string {
 	return root
 }
 
-// snapshot is every file under dir with its contents, and every folder.
 func snapshot(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	m := map[string]string{}
@@ -70,7 +66,6 @@ func snapshot(t *testing.T, dir string) map[string]string {
 	return m
 }
 
-// Every sub command stops on a format 2 ledger with the same one line, exit 1, and writes nothing.
 func TestFormat2StopsEveryCommand(t *testing.T) {
 	root := v2Ledger(t)
 	argv := map[string][]string{
@@ -148,8 +143,6 @@ func moveByHand(t *testing.T, root string) {
 	put(t, cfg, regexp.MustCompile(`(?m)^version: 2$`).ReplaceAllString(b, "version: 3"))
 }
 
-// A copy of a format 2 ledger, moved by hand, passes lint and reads: list, show, questions.
-// The log, brief and the person's comments stay as they were.
 func TestFormat2MovedByHandPassesLint(t *testing.T) {
 	root := v2Ledger(t)
 	t.Setenv("KANBAN_ROOT", "")

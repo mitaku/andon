@@ -24,26 +24,20 @@ import (
 
 var (
 	questionStatuses = []string{"open", "answered", "received"}
-	// questionKinds: the four kinds of decision point, line (a change to the line) and scope (which candidates a
-	// fix task should fix; for the Chief of Staff, not a decision point for the person).
-	questionKinds = []string{"business", "users", "promise", "irreversible", "line", "scope"}
+	questionKinds    = []string{"business", "users", "promise", "irreversible", "line", "scope"}
 	// decidedBys: who decided an answer (docs/adr/0049-owner-touches-by-kind.md, decision 5): the owner, the Chief
 	// of Staff on its own, or a command that closed the question from facts.
-	decidedBys = []string{"owner", "chief-of-staff", "machine"}
-	// answerFlags are the flags kanban answer takes; any other is refused, so a misspelt --decided-by
-	// doesn't write an answer without the mark.
+	decidedBys  = []string{"owner", "chief-of-staff", "machine"}
 	answerFlags = []string{"decided-by", "json", "help"}
 	// questionKeys are the keys kanban knows (the schema describes exactly these).
 	questionKeys = []string{"n", "text", "kind", "asked", "askedBy", "status", "answer", "answered", "answeredBy", "decidedBy", "received"}
 )
 
-// questionsFile is one issues/<id>/questions.yaml kept as a node tree, so that a person's
-// comments, key order and keys kanban doesn't know stay.
 type questionsFile struct {
 	id    string
-	root  *yaml.Node // the document node
-	seq   *yaml.Node // its top-level sequence
-	items []*doc     // one per entry; nil for an entry that isn't a mapping
+	root  *yaml.Node
+	seq   *yaml.Node
+	items []*doc
 }
 
 func questionsPath(root, id string) (string, error) {
@@ -58,7 +52,6 @@ func questionsPath(root, id string) (string, error) {
 	return file, nil
 }
 
-// readQuestions reads a task's questions; a missing file is an empty list.
 func readQuestions(root, id string) (*questionsFile, error) {
 	file, err := questionsPath(root, id)
 	if err != nil {
@@ -77,7 +70,7 @@ func readQuestions(root, id string) (*questionsFile, error) {
 	if err := yaml.Unmarshal(data, &n); err != nil {
 		return nil, fail("%s/questions.yaml: %s", id, firstLine(err.Error()))
 	}
-	if n.Kind == 0 { // empty file
+	if n.Kind == 0 {
 		return q, nil
 	}
 	top := n.Content[0]
@@ -106,7 +99,6 @@ func (q *questionsFile) write(root string) error {
 	return writeAtomic(file, (&doc{root: q.root}).encode())
 }
 
-// number is a question's n: a whole number of 1 or more, else 0.
 func number(d *doc) int {
 	n := d.get("n")
 	if isNull(n) || n.Kind != yaml.ScalarNode || n.ShortTag() != "!!int" {
@@ -119,7 +111,6 @@ func number(d *doc) int {
 	return v
 }
 
-// usable refuses to write a file kanban can't read whole: an entry that isn't a mapping or has no n.
 func (q *questionsFile) usable() error {
 	for i, d := range q.items {
 		if d == nil || number(d) == 0 {
@@ -129,7 +120,6 @@ func (q *questionsFile) usable() error {
 	return nil
 }
 
-// find is the question numbered n, refusing one that is missing or in the file twice.
 func (q *questionsFile) find(n int) (*doc, error) {
 	var found *doc
 	for _, d := range q.items {
@@ -146,8 +136,6 @@ func (q *questionsFile) find(n int) (*doc, error) {
 	return found, nil
 }
 
-// loggedNumber is the highest question number log.jsonl has for the task, so that a question
-// removed from questions.yaml by hand still keeps its number.
 func loggedNumber(root, id string) int {
 	f, err := os.Open(filepath.Join(ledgerDir(root), "log.jsonl"))
 	if err != nil {
@@ -183,7 +171,6 @@ func logQuestion(root, id string, n int, status string) error {
 	return appendLog(root, id, change)
 }
 
-// questionJSON is a question as plain values, named and with its task's title.
 func questionJSON(id, title string, d *doc) *omap {
 	o := &omap{}
 	o.set("name", fmt.Sprintf("%s#%d", id, number(d)))
@@ -196,7 +183,6 @@ func questionJSON(id, title string, d *doc) *omap {
 	return o
 }
 
-// questionText is the text after <id> (joined), or stdin for "-"; trailing blank lines go.
 func questionText(e env, words []string) (string, error) {
 	s := strings.Join(words, " ")
 	if len(words) == 1 && words[0] == "-" {
@@ -266,7 +252,6 @@ func cmdAsk(e env, a args) error {
 	return nil
 }
 
-// parseRef reads <id>#<n>.
 func parseRef(s string) (string, int, error) {
 	i := strings.LastIndex(s, "#")
 	if i <= 0 {
@@ -279,7 +264,6 @@ func parseRef(s string) (string, int, error) {
 	return ledger.CanonID(s[:i]), n, nil
 }
 
-// moveQuestion moves <id>#<n> from status from to status to under the lock, setting keys.
 func moveQuestion(e env, a args, ref, from, to string, set func(d *doc)) error {
 	id, n, err := parseRef(ref)
 	if err != nil {
@@ -334,8 +318,6 @@ func cmdAnswer(e env, a args) error {
 	if len(a.rest) < 2 {
 		return fail(usage)
 	}
-	// A word before -- that looks like a flag with one dash (-decided-by) is a misspelt flag, not the answer.
-	// The words after -- (all of them when -- comes before <id>#<n>) are the answer whatever they start with.
 	for i, w := range a.rest {
 		if i >= 1 && i < a.loose && len(w) > 1 && w[0] == '-' && ('a' <= w[1] && w[1] <= 'z' || 'A' <= w[1] && w[1] <= 'Z') {
 			return fail("%s looks like a flag; an answer that starts with - goes after -- (%s)", w, usage)
@@ -367,7 +349,6 @@ func cmdReceived(e env, a args) error {
 	})
 }
 
-// age is how long ago a UTC time was, shortly: 5m, 3h, 2d ("?" when it can't be read).
 func age(at string) string {
 	t, err := time.Parse(timeLayout, at)
 	if err != nil {
@@ -409,7 +390,6 @@ func cmdQuestions(e env, a args) error {
 			}
 		}
 	}
-	// Oldest first; ties in task order (ids are already sorted) and by n.
 	sort.SliceStable(found, func(i, j int) bool {
 		x, y := found[i], found[j]
 		if ax, ay := x.d.str("asked"), y.d.str("asked"); ax != ay {
@@ -442,7 +422,6 @@ func cmdQuestions(e env, a args) error {
 	return nil
 }
 
-// notReceived are the questions that keep a task from done: open or answered.
 func notReceived(q *questionsFile) (nums []int, names []string) {
 	for _, d := range q.items {
 		if d == nil {
@@ -456,7 +435,6 @@ func notReceived(q *questionsFile) (nums []int, names []string) {
 	return nums, names
 }
 
-// questionCounts are open, answered and received, for kanban show.
 func questionCounts(q *questionsFile) map[string]int {
 	c := map[string]int{}
 	for _, d := range q.items {

@@ -32,8 +32,6 @@ func loadSchema(t *testing.T, name string) map[string]any {
 	return s
 }
 
-// fits returns the ways v (read from YAML) doesn't fit schema/ledger/<name>, checked by the same checker andon
-// uses before it writes a contract JSON (internal/contract). v goes through JSON first, as the schema describes JSON.
 func fits(t *testing.T, name string, v any) []string {
 	t.Helper()
 	c, err := contract.CompileFile(filepath.Join("..", "..", "schema", "ledger", name))
@@ -117,13 +115,12 @@ func TestWhatKanbanWritesFitsTheSchemas(t *testing.T) {
 	kanban(t, root, "config", "set", "chief_of_staff=t2")
 	os.MkdirAll(filepath.Join(root, "kanban", "routines"), 0o755)
 	os.WriteFile(filepath.Join(root, "kanban", "routines", "after.yaml"), []byte("title: After\nbrief: Look.\nprofile: sonnet\nrepo: github.com/x/app\non: [done]\n"), 0o644)
-	kanban(t, root, "done", "FD-0002") // the routine adds FD-0004
+	kanban(t, root, "done", "FD-0002")
 
 	cfg := readYAML(t, filepath.Join(root, "kanban", "config.yaml"))
 	for _, p := range fits(t, "config.v3.schema.json", cfg) {
 		t.Error(p)
 	}
-	// kanban writes only keys the schema describes.
 	cfgProps, _ := cfgSchema["properties"].(map[string]any)
 	for _, k := range keysOf(cfg) {
 		if cfgProps[k] == nil {
@@ -145,8 +142,6 @@ func TestWhatKanbanWritesFitsTheSchemas(t *testing.T) {
 			}
 		}
 	}
-	// The task schema describes exactly the keys kanban knows (keyOrder), and nothing is required
-	// but config.yaml's version.
 	if got, want := keysOf(taskProps), slices.Sorted(slices.Values(keyOrder)); !slices.Equal(got, want) {
 		t.Errorf("task schema keys %v, kanban's keys %v", got, want)
 	}
@@ -226,7 +221,6 @@ func TestQuestionsFitTheSchema(t *testing.T) {
 	for _, p := range fits(t, "questions.v3.schema.json", written) {
 		t.Error(p)
 	}
-	// The schema describes exactly the keys kanban knows.
 	props := schema["items"].(map[string]any)["properties"].(map[string]any)
 	if got, want := keysOf(props), slices.Sorted(slices.Values(questionKeys)); !slices.Equal(got, want) {
 		t.Errorf("questions schema keys %v, kanban's keys %v", got, want)
@@ -258,8 +252,6 @@ func TestQuestionsFitTheSchema(t *testing.T) {
 	}
 }
 
-// kanban lint and the routine schema say the same about a routine: a key written with another
-// type than the schema's (null included) is a problem, and a routine with a problem doesn't fire.
 func TestLintAgreesWithTheRoutineSchema(t *testing.T) {
 	cfg, err := readConfig(routineLedger(t))
 	if err != nil {

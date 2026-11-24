@@ -131,7 +131,6 @@ func TestNotAMapping(t *testing.T) {
 	}
 }
 
-// kanban runs a command in-process from cwd.
 func kanban(t *testing.T, cwd string, argv ...string) string {
 	t.Helper()
 	var out, errb bytes.Buffer
@@ -165,7 +164,6 @@ func TestCommandsKeepAPersonsComments(t *testing.T) {
 	}
 }
 
-// kanbanFails runs a command that must be refused: exit 1 and one "kanban: " line on stderr.
 func kanbanFails(t *testing.T, cwd, stdin string, argv ...string) string {
 	t.Helper()
 	var out, errb bytes.Buffer
@@ -177,7 +175,6 @@ func kanbanFails(t *testing.T, cwd, stdin string, argv ...string) string {
 	return msg
 }
 
-// taskFile is where an issue's issue.yaml is.
 func taskFile(root, id string) string { return filepath.Join(taskDir(root, id), issueFileName) }
 
 func newLedger(t *testing.T) string {
@@ -208,7 +205,6 @@ func TestPrefixThatLeavesTasksIsRefused(t *testing.T) {
 
 func TestIDThatLeavesTasksIsRefused(t *testing.T) {
 	root := newLedger(t)
-	// An issue.yaml one level up from issues/, which "../" ids would reach.
 	sentinel := filepath.Join(root, "kanban", "issue.yaml")
 	os.WriteFile(sentinel, []byte("title: sentinel\n"), 0o644)
 	abs := filepath.Join(root, "kanban")
@@ -393,7 +389,6 @@ func TestRepoAndProfile(t *testing.T) {
 	}
 }
 
-// v1 and unknown versions are refused by every command, before anything is read or made.
 func TestOtherVersionsAreRefusedByEveryCommand(t *testing.T) {
 	for _, cfg := range []string{"prefix: W\nprojects: {}\n", "version: 1\n", "version: 4\n"} {
 		root := t.TempDir()
@@ -419,7 +414,6 @@ func TestOtherVersionsAreRefusedByEveryCommand(t *testing.T) {
 			t.Errorf("%q: lint exit %d, %q %q", cfg, code, out.String(), errb.String())
 		}
 
-		// init on a folder holding only such a config.yaml makes neither tasks/ nor .gitignore.
 		bare := t.TempDir()
 		os.MkdirAll(filepath.Join(bare, "kanban"), 0o755)
 		os.WriteFile(filepath.Join(bare, "kanban", "config.yaml"), []byte(cfg), 0o644)
@@ -430,7 +424,6 @@ func TestOtherVersionsAreRefusedByEveryCommand(t *testing.T) {
 	}
 }
 
-// repos entries must be exactly host/owner/repo: init and --repo refuse others, lint reports them.
 func TestReposMustBeHostOwnerRepo(t *testing.T) {
 	t.Setenv("KANBAN_ROOT", "")
 	for _, bad := range []string{"github.com/x/app/", "/github.com/x/app", "x/app", "github.com//app"} {
@@ -459,7 +452,6 @@ func TestReposMustBeHostOwnerRepo(t *testing.T) {
 	}
 }
 
-// who goes between profile and agent (keyOrder), wherever the other keys are.
 func TestWhoGoesBetweenProfileAndAgent(t *testing.T) {
 	root := newLedger(t)
 	t.Setenv("HC_TERMINAL_ID", "t3")
@@ -476,7 +468,6 @@ func TestWhoGoesBetweenProfileAndAgent(t *testing.T) {
 	}
 }
 
-// kanban config set chief_of_staff= rewrites config.yaml under the lock, keeping comments and order, and logs it.
 func TestConfigSetChiefOfStaff(t *testing.T) {
 	root := newLedger(t)
 	file := filepath.Join(root, "kanban", "config.yaml")
@@ -516,7 +507,6 @@ func TestConfigLinkIsRefused(t *testing.T) {
 	assertUnchanged(t, real, "version: 3\n")
 }
 
-// A reviewer's task (--parent and a *-review profile) is <parent>-r<k> and takes no number from the sequence.
 func TestReviewerIDs(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("KANBAN_ROOT", root)
@@ -541,7 +531,6 @@ func TestReviewerIDs(t *testing.T) {
 	kanbanFails(t, root, "", "add", "x", "--parent", "A-0005", "--round", "3")
 	kanbanFails(t, root, "", "add", "x", "--parent", "A-0099", "--profile", "codex-review")
 
-	// read as typed, in every place an id is taken
 	kanban(t, root, "start", "A-5-r01")
 	kanban(t, root, "set", "A-0006", "after=A-5-r1")
 	got, _ := os.ReadFile(taskFile(root, "A-0006"))
@@ -555,14 +544,12 @@ func TestReviewerIDs(t *testing.T) {
 	if out := kanban(t, root, "show", "A-0005-r1"); !strings.Contains(out, "A-0005 のレビュー（1 回目）") {
 		t.Fatalf("show: %q", out)
 	}
-	// listed right after their parent, in round order
 	out := kanban(t, root, "list", "--all")
 	if a, b, c, d := strings.Index(out, "A-0005 "), strings.Index(out, "A-0005-r1"), strings.Index(out, "A-0005-r2"), strings.Index(out, "A-0006"); a >= b || b >= c || c >= d {
 		t.Fatalf("order:\n%s", out)
 	}
 }
 
-// Older reviewers' tasks took a number (A-0003 reviews A-0002); they still read, and count toward the round.
 func TestOldReviewerTasksAreRead(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("KANBAN_ROOT", root)
@@ -596,7 +583,6 @@ func TestLintChecksReviewerIDs(t *testing.T) {
 	}
 }
 
-// A folder named the way an id is typed (A-5, A-0005-r01) is read by no command; lint says so.
 func TestLintChecksIDsAreWrittenCanonically(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("KANBAN_ROOT", root)
@@ -612,7 +598,6 @@ func TestLintChecksIDsAreWrittenCanonically(t *testing.T) {
 	}
 }
 
-// An issue.yaml that can't be read stops a reviewer's add without --round (it can't be counted), with a line, not a panic.
 func TestReviewerAddWithABrokenTask(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("KANBAN_ROOT", root)
@@ -628,13 +613,11 @@ func TestReviewerAddWithABrokenTask(t *testing.T) {
 	}
 }
 
-// start writes a worktree under HOME as ~/…, and one whose path only begins with HOME's text (a sibling
-// directory) in full: readers open ~/ and nothing else.
 func TestStartShortensOnlyWorktreesUnderHome(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("HOME is not what os.UserHomeDir reads on Windows")
 	}
-	root := newLedger(t) // W-0001
+	root := newLedger(t)
 	kanban(t, root, "add", "second")
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -658,9 +641,8 @@ func TestStartShortensOnlyWorktreesUnderHome(t *testing.T) {
 	}
 }
 
-// A reviewer's issue keeps the worktree and branch it was given, from any cwd; a worker's issue still takes them from git.
 func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
-	root := newLedger(t) // W-0001
+	root := newLedger(t)
 	kanban(t, root, "add", "review", "--parent", "W-0001", "--profile", "codex-review")
 	kanban(t, root, "set", "W-0001-r1", "worktree=~/wt/sample-r1")
 
@@ -677,7 +659,6 @@ func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
 			t.Fatalf("reviewer's worktree/branch changed from %s:\n%s", cwd, got)
 		}
 	}
-	// the first start (the dispatcher's, from the detached worktree) sets it when it is still empty
 	kanban(t, root, "add", "review 2", "--parent", "W-0001", "--profile", "claude-review")
 	kanban(t, repo, "start", "W-0001-r2")
 	if got, _ := os.ReadFile(taskFile(root, "W-0001-r2")); !strings.Contains(string(got), "worktree: ") {
@@ -690,7 +671,6 @@ func TestStartKeepsAReviewersWorktreeAndBranch(t *testing.T) {
 	}
 }
 
-// --help after a command prints the help; after --, every word is a word, not a flag.
 func TestHelpFlagAndDoubleDash(t *testing.T) {
 	root := newLedger(t)
 	for _, argv := range [][]string{{"add", "--help"}, {"list", "--help"}, {"set", "W-0001", "--help"}} {
@@ -707,8 +687,6 @@ func TestHelpFlagAndDoubleDash(t *testing.T) {
 	}
 }
 
-// A queued task whose after is rewritten so nothing is left to wait for moves to the first column, as
-// kanban done's freeWaiting does; while something is still waited for, or a status is set too, it stays put.
 func TestSetAfterFreesQueued(t *testing.T) {
 	root := newLedger(t)
 	kanban(t, root, "add", "Second")
@@ -728,20 +706,17 @@ func TestSetAfterFreesQueued(t *testing.T) {
 		t.Fatalf("added with after: status %s, want queued", s)
 	}
 
-	// still waits for something not done: stays queued
 	kanban(t, root, "set", "W-0003", "after=W-0002")
 	if s := status("W-0003"); s != "queued" {
 		t.Fatalf("after=W-0002 (todo): status %s, want queued", s)
 	}
 
-	// a status set in the same command wins
 	kanban(t, root, "set", "W-0003", "after=", "status=queued")
 	if s := status("W-0003"); s != "queued" {
 		t.Fatalf("after= status=queued: status %s, want queued", s)
 	}
 	kanban(t, root, "set", "W-0003", "after=W-0001")
 
-	// nothing left to wait for: todo, logged with the after change, and said so
 	if out := kanban(t, root, "set", "W-0003", "after="); !strings.Contains(out, "now ready: W-0003") {
 		t.Fatalf("after=: output %q, want now ready: W-0003", out)
 	}
@@ -757,7 +732,6 @@ func TestSetAfterFreesQueued(t *testing.T) {
 		t.Fatalf("ready: %q, want W-0003", out)
 	}
 
-	// rewritten to point at an issue that is already done: todo too
 	kanban(t, root, "add", "Waits too", "--after", "W-0002")
 	kanban(t, root, "done", "W-0001")
 	kanban(t, root, "set", "W-0004", "after=W-0001")
@@ -765,7 +739,6 @@ func TestSetAfterFreesQueued(t *testing.T) {
 		t.Fatalf("after=W-0001 (done): status %s, want todo", s)
 	}
 
-	// a todo task given something to wait for is not moved (kanban set only frees)
 	kanban(t, root, "set", "W-0004", "after=W-0002")
 	if s := status("W-0004"); s != "todo" {
 		t.Fatalf("todo given after: status %s, want todo", s)

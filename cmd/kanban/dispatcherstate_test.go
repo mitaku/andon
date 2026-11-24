@@ -9,7 +9,6 @@ import (
 	"andon/internal/dispatcher"
 )
 
-// The copy in dispatcherstate.go has the dispatcher's State's JSON keys and value kinds, all the way down.
 func TestDispatcherStateShape(t *testing.T) {
 	var same func(path string, a, b reflect.Type)
 	same = func(path string, a, b reflect.Type) {

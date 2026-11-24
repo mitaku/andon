@@ -7,11 +7,6 @@ import (
 	"strings"
 )
 
-// kanban writes only inside kanban/. Task ids and the id prefix become folder names,
-// so they must be one plain path segment; and nothing on a write path may be a symbolic
-// link, which could point outside.
-
-// checkSegment refuses a name that isn't exactly one path segment.
 func checkSegment(what, s string) error {
 	if s == "" || s == "." || s == ".." || strings.ContainsAny(s, "/\\:\x00") || filepath.VolumeName(s) != "" || filepath.IsAbs(s) {
 		return fail("%s %q must be one plain name (no /, \\, :, . or ..)", what, s)
@@ -19,8 +14,6 @@ func checkSegment(what, s string) error {
 	return nil
 }
 
-// checkNoLink refuses an existing path that is a symbolic link (or, with wantFile, not a regular file).
-// A path that doesn't exist yet is fine.
 func checkNoLink(path string, wantFile bool) error {
 	fi, err := os.Lstat(path)
 	switch {
@@ -37,8 +30,6 @@ func checkNoLink(path string, wantFile bool) error {
 	return nil
 }
 
-// taskPath is issues/<id>, after checking that id is one segment and that neither
-// issues/ nor issues/<id> is a symbolic link.
 func taskPath(root, id string) (string, error) {
 	if err := checkSegment("issue id", id); err != nil {
 		return "", err
@@ -55,7 +46,6 @@ func taskPath(root, id string) (string, error) {
 	return dir, nil
 }
 
-// appendFile appends to a regular file (made if missing), never through a symbolic link.
 func appendFile(path string, data []byte) error {
 	if err := checkNoLink(path, true); err != nil {
 		return err

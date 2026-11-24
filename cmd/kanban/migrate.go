@@ -18,24 +18,9 @@ import (
 // (docs/ledger.md, Moving from .flightdeck/; docs/operate.md). Once, by a person, with the
 // Chief of Staff and the dispatcher stopped. The ledger stays format 2 (tasks/, task.yaml):
 // the person then moves it to format 3 by hand (docs/operate.md); kanban migrate doesn't.
-//
-//   - .flightdeck/ becomes kanban/ (its .gitignore, *, keeps it out of git as before);
-//   - config.yaml's coordinator becomes chief_of_staff;
-//   - task ids get four digits (A-5 → A-0005): the folders, and id, parent and after in task.yaml;
-//   - .flightdeck/coordinator.md becomes the Chief of Staff's section of the project's AGENTS.md;
-//   - the dispatcher's state for the project (~/.local/state/andon/dispatcher/<slug>.json)
-//     names the tasks by their new ids;
-//   - when the project has no project.json, a draft of it is written from config.yaml (title,
-//     prefix, repos) and delegation.json (delegation), for the person to check and commit.
-//     kanban commits nothing; delegation.json stays.
-//
-// log.jsonl, reports and briefs keep the ids they were written with: kanban and Andon read
-// A-5 as A-0005. A task in doing or review stops the move, before anything changes: its
-// worktree, branch and terminal carry its id.
 
 const oldLedgerName = ".flightdeck"
 
-// oldFormat is the format of a .flightdeck/ ledger, and of the kanban/ ledger kanban migrate makes.
 const oldFormat = 2
 
 func cmdMigrate(e env, a args) error {
@@ -62,8 +47,6 @@ func cmdMigrate(e env, a args) error {
 			return err
 		}
 	}
-	// What is read after the move is checked first, so that a failure there can't leave
-	// a ledger half moved (kanban migrate finds nothing to move the second time).
 	for _, p := range []string{filepath.Join(old, "coordinator.md"), filepath.Join(root, "AGENTS.md")} {
 		if err := checkNoLink(p, true); err != nil {
 			return err
@@ -86,7 +69,6 @@ func cmdMigrate(e env, a args) error {
 	if err != nil {
 		return err
 	}
-	// The lock goes with the process; the file moved with the folder.
 	if err := os.Rename(old, dir); err != nil {
 		return fail("can't move %s to %s: %v", old, dir, err)
 	}
@@ -149,8 +131,6 @@ func cmdMigrate(e env, a args) error {
 	return nil
 }
 
-// migrateIn checks the old ledger and changes it in place: config.yaml and the tasks.
-// It returns old id → new id for the ids that change. Nothing is written when a check fails.
 func migrateIn(root, old string) (map[string]string, error) {
 	cfgFile := filepath.Join(old, "config.yaml")
 	cfg, err := readDoc(cfgFile)
@@ -220,7 +200,6 @@ func migrateIn(root, old string) (map[string]string, error) {
 			moved[it.id] = n
 		}
 	}
-	// Write: task.yaml first (in their old folders), then the folders, then config.yaml.
 	for _, it := range items {
 		before := string(it.d.encode())
 		if v := it.d.str("id"); v != "" {
@@ -354,16 +333,12 @@ func projectDraft(root, old string) ([]byte, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	// Checked as Andon reads it (schema and rules, the delegation's too), before anything is moved:
-	// a draft Andon can't read would leave the project with no delegation.
 	if _, err := delegate.ParseProject(out, filepath.Base(root)); err != nil {
 		return nil, false, fail("not moved: the project.json drafted from config.yaml and delegation.json can't be read by Andon (%v); fix them first, or write project.json yourself", err)
 	}
 	return append(out, '\n'), signals != nil, nil
 }
 
-// readDispatcherState reads the dispatcher's state for slug: nil data when there is none,
-// an error when it can't be read or isn't JSON (kanban migrate stops before changing anything).
 func readDispatcherState(slug string) ([]byte, any, error) {
 	file := dispatcherStatePath(slug)
 	if err := checkNoLink(file, true); err != nil {
@@ -376,16 +351,12 @@ func readDispatcherState(slug string) ([]byte, any, error) {
 		return nil, nil, err
 	}
 	var v any
-	// The dispatcher reads it as its State (internal/dispatcher, LoadState; the shape is copied
-	// in dispatcherstate.go); valid JSON of another shape would stop the dispatcher after the
-	// move, so it stops the move instead.
 	if json.Unmarshal(data, &v) != nil || json.Unmarshal(data, new(dispatcherState)) != nil {
 		return nil, nil, fail("not moved: %s is not the dispatcher's state; fix or remove it first", file)
 	}
 	return data, v, nil
 }
 
-// dispatcherStatePath is Andon's dispatcher's state for the project slug (internal/dispatcher, StatePath).
 func dispatcherStatePath(slug string) string {
 	dir := os.Getenv("XDG_STATE_HOME")
 	if dir == "" {
@@ -394,9 +365,6 @@ func dispatcherStatePath(slug string) string {
 	return filepath.Join(dir, "andon", "dispatcher", slug+".json")
 }
 
-// migrateDispatcherState renames the moved ids in the dispatcher's state: any key or string
-// that is an id, or an id followed by #, @ or | (the state's keys are <task>#<row>,
-// <task>@<commit> and <task>|<agent>|…). It returns the file's path when it changed it.
 func migrateDispatcherState(slug string, moved map[string]string) (string, error) {
 	file := dispatcherStatePath(slug)
 	if len(moved) == 0 {

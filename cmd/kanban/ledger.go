@@ -25,15 +25,12 @@ var defaultColumns = []string{"todo", "queued", "doing", "review", "done"}
 
 const lockWait = 10 * time.Second
 
-// ledgerError is a failure meant for the person: one line on stderr, exit code 1.
 type ledgerError struct{ msg string }
 
 func (e ledgerError) Error() string { return e.msg }
 
 func fail(format string, a ...any) error { return ledgerError{fmt.Sprintf(format, a...)} }
 
-// clock is the time now, or $DECK_NOW (RFC 3339) when set: tests set it so that routines
-// fire without waiting for the real clock. dispatch refuses a DECK_NOW it can't read.
 func clock() time.Time {
 	if s := os.Getenv("DECK_NOW"); s != "" {
 		if t, err := time.Parse(time.RFC3339, s); err == nil {
@@ -66,7 +63,6 @@ func who() string {
 	return "unknown"
 }
 
-// git runs git without a shell and returns its trimmed output, or "" when it fails.
 func git(cwd string, args ...string) string {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = cwd
@@ -87,8 +83,6 @@ const ledgerName = "kanban"
 
 func ledgerDir(root string) string { return filepath.Join(root, ledgerName) }
 
-// isLedger: root/kanban/config.yaml is a mapping whose version is a YAML integer (2, not "2").
-// kanban/ is a plain name, so a kanban/ folder without that (in a product's repository, say) is not a ledger.
 func isLedger(root string) bool {
 	c, err := ledger.ReadConfig(ledgerDir(root))
 	return err == nil && c.IntVersion
@@ -114,8 +108,6 @@ func findUp(dir string) string {
 	}
 }
 
-// mainCheckout is the main checkout of the git repository that holds cwd (for a worktree,
-// the repository it belongs to), or "" outside git.
 func mainCheckout(cwd string) string {
 	common := git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if common == "" {
@@ -124,8 +116,6 @@ func mainCheckout(cwd string) string {
 	return filepath.Dir(filepath.FromSlash(common))
 }
 
-// validRepo: exactly <host>/<owner>/<repo>, three names with no empty part
-// (so no leading or trailing /). Other entries match nothing.
 func validRepo(repo string) bool {
 	parts := strings.Split(repo, "/")
 	return len(parts) == 3 && !slices.Contains(parts, "")
@@ -143,7 +133,6 @@ func repoMatches(checkout, repo string) bool {
 	return strings.HasSuffix(c, "/"+r)
 }
 
-// repoOf is the entry of repos that the checkout matches, or "".
 func repoOf(repos []string, checkout string) string {
 	if checkout == "" {
 		return ""
@@ -156,9 +145,6 @@ func repoOf(repos []string, checkout string) string {
 	return ""
 }
 
-// projectsFor walks up from the checkout and returns, at the first folder where any match,
-// the projects/<slug> folders whose kanban/config.yaml lists the checkout in repos.
-// It reads nothing but projects/*/kanban/config.yaml.
 func projectsFor(checkout string) (string, []string) {
 	for d := filepath.Clean(checkout); ; d = filepath.Dir(d) {
 		configs, _ := filepath.Glob(filepath.Join(d, "projects", "*", ledgerName, "config.yaml"))
@@ -224,12 +210,10 @@ func writeAtomic(file string, data []byte) error {
 	return nil
 }
 
-// tmpName is the temporary file beside file.
 func tmpName(file string) string {
 	return fmt.Sprintf("%s.tmp-%d-%x", file, os.Getpid(), rand.Uint32())
 }
 
-// renameWait is how long a rename keeps trying while the target is busy (Windows only).
 var renameWait = time.Second
 
 func renameRetrying(from, to string, wait time.Duration) error {
@@ -243,19 +227,15 @@ func renameRetrying(from, to string, wait time.Duration) error {
 	}
 }
 
-// withLock runs fn while holding an OS lock on kanban/.lock: one writer at a time
-// for ids and for task writes. The file stays (empty); the lock goes with the process.
 func withLock(root string, wait time.Duration, fn func() error) error {
 	return lockIn(ledgerDir(root), wait, fn)
 }
 
-// lockIn is withLock on the ledger folder dir (kanban migrate locks the old folder).
 func lockIn(dir string, wait time.Duration, fn func() error) error {
 	path := filepath.Join(dir, ".lock")
 	if fi, err := os.Lstat(path); err == nil && fi.IsDir() {
 		return fail("%s is a folder (left by the old node kanban); remove it", path)
 	}
-	// Checked before anything is written, so a refused log doesn't leave a task half-changed.
 	for _, p := range []string{path, filepath.Join(dir, "log.jsonl")} {
 		if err := checkNoLink(p, true); err != nil {
 			return err
@@ -295,7 +275,7 @@ type config struct {
 	prefix   string
 	columns  []string
 	repos    []string
-	timezone string // IANA name for routines' schedule; "" is UTC
+	timezone string
 }
 
 func (c config) done() string { return c.columns[len(c.columns)-1] }
@@ -310,14 +290,11 @@ func readDoc(file string) (*doc, error) {
 	return parseDoc(data)
 }
 
-// isFormat2: root's config.yaml says version 2.
 func isFormat2(root string) bool {
 	c, err := ledger.ReadConfig(ledgerDir(root))
 	return err == nil && c.VersionIs(2)
 }
 
-// readConfig reads config.yaml and stops on any version but 3 (none means 1).
-// title and chief_of_staff are kept in the file; kanban itself doesn't use them.
 func readConfig(root string) (config, error) {
 	cfg, err := ledger.ReadConfig(ledgerDir(root))
 	if err != nil {
@@ -344,16 +321,13 @@ func readConfig(root string) (config, error) {
 	return c, nil
 }
 
-// issueFileName is each issue's own file, issues/<id>/issue.yaml.
 const issueFileName = "issue.yaml"
 
 func issuesDir(root string) string   { return filepath.Join(ledgerDir(root), "issues") }
 func taskDir(root, id string) string { return filepath.Join(issuesDir(root), id) }
 
-// isReviewProfile is whether a task with this profile is a reviewer's (the yard's *-review profiles).
 func isReviewProfile(p string) bool { return strings.HasSuffix(p, "-review") }
 
-// canonIDs is ledger.CanonID on each.
 func canonIDs(ids []string) []string {
 	out := make([]string, len(ids))
 	for i, id := range ids {
@@ -377,7 +351,6 @@ func ids(root string) []string {
 	return out
 }
 
-// task is one issue, issues/<id>/issue.yaml. Its id is the folder's name.
 type task struct {
 	id     string
 	d      *doc
@@ -443,7 +416,6 @@ func writeTask(root string, t *task) error {
 	return writeAtomic(filepath.Join(dir, issueFileName), t.d.encode())
 }
 
-// json is the task as plain values (file order), with id set to the folder's name.
 func (t *task) json() any {
 	if t.broken != "" {
 		o := &omap{}
@@ -488,12 +460,8 @@ func isReady(t *task, all map[string]*task, cfg config) bool {
 	return (s == "todo" || s == "queued") && len(waitingOn(t, all, cfg)) == 0 && !notYet(t, cfg)
 }
 
-// notBeforeLayout is the form of an issue's not_before: a date, YYYY-MM-DD.
 const notBeforeLayout = "2006-01-02"
 
-// notYet is true when the issue has a not_before that is still in the future: its date, read in
-// config.yaml's timezone (UTC when there is none or it can't be read), is later than today there.
-// A not_before that isn't a date hides nothing (lint reports it).
 func notYet(t *task, cfg config) bool {
 	v := t.d.str("not_before")
 	if v == "" {
@@ -532,7 +500,6 @@ func splitList(v string) []string {
 	return out
 }
 
-// omap is a JSON object that keeps its keys in insertion order.
 type omap struct {
 	keys []string
 	vals map[string]any
@@ -578,7 +545,6 @@ func marshal(v any) ([]byte, error) {
 	return bytes.TrimRight(b.Bytes(), "\n"), nil
 }
 
-// pretty is JSON.stringify(v, null, 2).
 func pretty(v any) string {
 	raw, err := marshal(v)
 	if err != nil {

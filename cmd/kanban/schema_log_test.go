@@ -17,7 +17,6 @@ import (
 // 本物の kanban の CLI に全部の形の行を書かせ、全部の行と ready の出力をその schema に通す。照らすのは、Go のテストが
 // 手で書く kanban を通す補助（internal/ledger/ledgertest）と同じ既製の検査器。
 
-// lineShape は log.jsonl の1行の形の名前（どの形の行を書かせたかを数える）。
 func lineShape(t *testing.T, line string) string {
 	t.Helper()
 	var m map[string]any
@@ -53,12 +52,12 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	t.Setenv("DECK_NOW", "2026-11-02T08:00:00Z")
 	kanban(t, t.TempDir(), "init", "--root", root, "--prefix", "W", "--repo", "github.com/x/app")
-	kanban(t, root, "add", "Epic")                                                                            // W-0001
-	kanban(t, root, "add", "Work", "--parent", "W-0001", "--profile", "claude", "--repo", "github.com/x/app") // W-0002
-	kanban(t, root, "add", "Later", "--after", "W-0002")                                                      // W-0003, queued
-	kanban(t, root, "add", "Rewired", "--after", "W-0002")                                                    // W-0004, queued
-	kanban(t, root, "add", "Decide", "--status", "todo")                                                      // W-0005
-	kanban(t, root, "add", "Review of work", "--parent", "W-0002", "--profile", "codex-review")               // W-0002-r1
+	kanban(t, root, "add", "Epic")
+	kanban(t, root, "add", "Work", "--parent", "W-0001", "--profile", "claude", "--repo", "github.com/x/app")
+	kanban(t, root, "add", "Later", "--after", "W-0002")
+	kanban(t, root, "add", "Rewired", "--after", "W-0002")
+	kanban(t, root, "add", "Decide", "--status", "todo")
+	kanban(t, root, "add", "Review of work", "--parent", "W-0002", "--profile", "codex-review")
 	kanban(t, root, "set", "W-0002", "links=https://a.example,docs/x.md", "branch=work/2", "worktree=~/wt/2", "phase=P1")
 	kanban(t, root, "set", "W-0002", "phase=")
 	kanban(t, root, "set", "W-0004", "after=")
@@ -70,7 +69,7 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	kanban(t, root, "ask", "W-0002", "two")
 	kanban(t, root, "answer", "W-0002#1", "yes")
 	kanban(t, root, "received", "W-0002#1")
-	kanban(t, root, "review", "W-0002", "--force") // #2 is not received
+	kanban(t, root, "review", "W-0002", "--force")
 	kanban(t, root, "config", "set", "chief_of_staff=t2")
 	kanban(t, root, "config", "set", "chief_of_staff=")
 	kanban(t, root, "config", "set", "chief_of_staff=t2")
@@ -78,8 +77,8 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "after.yaml"), []byte("title: After\nbrief: Look.\nprofile: sonnet\nrepo: github.com/x/app\non: [done]\nopen: 1\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "stopped.yaml"), []byte("title: Stopped\non: [done]\npaused: true\n"), 0o644)
-	kanban(t, root, "done", "W-0002", "--force") // frees W-0003; after adds W-0006, stopped is skipped
-	kanban(t, root, "done", "W-0001")            // after is skipped: W-0006 is not done
+	kanban(t, root, "done", "W-0002", "--force")
+	kanban(t, root, "done", "W-0001")
 
 	lines := strings.Split(strings.TrimSuffix(readFile(t, filepath.Join(root, "kanban", "log.jsonl")), "\n"), "\n")
 	lines = append(lines, migratedLog(t)...)
@@ -120,7 +119,6 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 		}
 	}
 
-	// ready: オーナーの課題・レビュアーの子課題・ルーチンが足した課題・queued から出た課題が並ぶ。
 	out := kanban(t, root, "ready", "--json")
 	if err := ledgertest.Check(ledgertest.ReadySchema, []byte(out)); err != nil {
 		t.Errorf("kanban ready --json: %v\n%s", err, out)
@@ -136,7 +134,6 @@ func TestLogAndReadyFitTheLedgerSchemas(t *testing.T) {
 	if got := strings.Join(ids, " "); got != "W-0002-r1 W-0003 W-0004 W-0005 W-0006" {
 		t.Errorf("ready: %s", got)
 	}
-	// 何も無いときは空の並び。
 	empty := filepath.Join(t.TempDir(), "empty")
 	kanban(t, t.TempDir(), "init", "--root", empty)
 	if out := kanban(t, empty, "ready", "--json", "--root", empty); ledgertest.Check(ledgertest.ReadySchema, []byte(out)) != nil || strings.TrimSpace(out) != "[]" {
@@ -165,14 +162,12 @@ func TestSetRefusesLogKeys(t *testing.T) {
 	if readFile(t, log) != before || readFile(t, taskFile(root, "W-0001")) != yaml {
 		t.Errorf("断った set が kanban を書いた:\n%s", readFile(t, log))
 	}
-	// 予約キーの外は今までどおり書け、その行は schema に合う。
 	kanban(t, root, "set", "W-0001", "review=on", "added=x")
 	if err := ledgertest.CheckLog([]byte(readFile(t, log))); err != nil {
 		t.Error(err)
 	}
 }
 
-// migratedLog は .flightdeck から移した kanban の log.jsonl の行（kanban migrate の行を含む）。
 func migratedLog(t *testing.T) []string {
 	t.Helper()
 	ws := t.TempDir()
@@ -188,7 +183,6 @@ func migratedLog(t *testing.T) []string {
 	return strings.Split(strings.TrimSuffix(readFile(t, filepath.Join(root, "kanban", "log.jsonl")), "\n"), "\n")
 }
 
-// ready.v3 の課題の項目は issue.v3 の項目の写し（status だけ todo・queued に絞る）。issue.v3 を変えたら ready.v3 も直す。
 func TestReadySchemaCopiesTheIssueSchema(t *testing.T) {
 	read := func(name string) map[string]any {
 		var m map[string]any

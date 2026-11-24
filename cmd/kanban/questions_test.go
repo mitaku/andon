@@ -61,9 +61,8 @@ func TestAskKindScope(t *testing.T) {
 	kanban(t, root, "lint")
 }
 
-// One question all the way: ask → questions → answer → received, and no step skipped.
 func TestQuestionLifecycle(t *testing.T) {
-	root := routineLedger(t) // the clock is DECK_NOW
+	root := routineLedger(t)
 	t.Setenv("HC_TERMINAL_ID", "t3")
 	kanban(t, root, "add", "Export")
 	if got := kanban(t, root, "ask", "W-0001", "CSV only, or CSV and Excel?", "--kind", "business"); got != "W-0001#1\n" {
@@ -81,7 +80,6 @@ func TestQuestionLifecycle(t *testing.T) {
 	if got := kanban(t, root, "questions"); !strings.HasPrefix(got, "W-0001#1") || !strings.Contains(got, "open") || !strings.Contains(got, "3h") || !strings.Contains(got, "Export") || !strings.Contains(got, "CSV only") {
 		t.Fatalf("questions: %q", got)
 	}
-	// No step skipped: received needs answered, answer needs open.
 	kanbanFails(t, root, "", "received", "W-0001#1")
 	t.Setenv("HC_TERMINAL_ID", "t2")
 	kanbanIn(t, root, "CSV only for now.\n", "answer", "W-0001#1", "-")
@@ -107,14 +105,12 @@ func TestQuestionLifecycle(t *testing.T) {
 	if q1["status"] != "received" || q1["answered"] != "2026-11-02T11:00:00Z" || q1["answeredBy"] != "terminal:t2" || q1["received"] != "2026-11-02T11:00:00Z" {
 		t.Fatalf("after received: %v", q1)
 	}
-	// The log has the number and status, never the text or the answer.
 	if got := questionLog(t, root); !slices.Equal(got, []string{"W-0001#1 open", "W-0001#1 answered", "W-0001#1 received"}) {
 		t.Fatalf("log: %v", got)
 	}
 	if data, _ := os.ReadFile(filepath.Join(root, "kanban", "log.jsonl")); bytes.Contains(data, []byte("CSV")) {
 		t.Fatalf("the log has the text: %s", data)
 	}
-	// show counts them; --json has them all.
 	if got := kanban(t, root, "show", "W-0001"); !strings.Contains(got, "questions: 0 open, 0 answered, 1 received") {
 		t.Fatalf("show: %q", got)
 	}
@@ -141,7 +137,6 @@ func TestAnswerDecidedBy(t *testing.T) {
 	logFile := filepath.Join(root, "kanban", "log.jsonl")
 	read := func(file string) string { b, _ := os.ReadFile(file); return string(b) }
 
-	// Refused: nothing is written, the question stays open, the log has no line.
 	beforeQ, beforeLog := read(qfile), read(logFile)
 	for _, argv := range [][]string{
 		{"answer", "W-0001#1", "--decided-by", "person", "yes"},
@@ -163,15 +158,12 @@ func TestAnswerDecidedBy(t *testing.T) {
 		t.Fatalf("a refused answer wrote:\n%s\n%s", read(qfile), read(logFile))
 	}
 
-	// Each of the three values, before or after the words, with = or not; and no flag at all.
 	kanban(t, root, "answer", "W-0001#1", "--decided-by", "owner", "CSV only")
 	kanban(t, root, "answer", "--decided-by=chief-of-staff", "W-0001#2", "no longer needed")
 	kanbanIn(t, root, "closed by gate\n", "answer", "W-0001#3", "-", "--decided-by", "machine")
 	kanban(t, root, "answer", "W-0001#4", "no mark")
 	kanban(t, root, "answer", "W-0001#5", "--decided-by", "owner", "--", "-d", "--starts with dashes")
-	// The form the code writers use: the flag first, then --, then <id>#<n> and the words (none of them loose).
 	kanban(t, root, "answer", "--decided-by", "machine", "--", "W-0001#6", "-gate closed it")
-	// A word that starts with - and a letter of another script is an answer, not a flag.
 	kanban(t, root, "answer", "W-0001#7", "-はい")
 	want := map[int]string{1: "owner", 2: "chief-of-staff", 3: "machine", 4: "", 5: "owner", 6: "machine", 7: ""}
 	for _, q := range questionsOf(t, root, "W-0001") {
@@ -193,7 +185,6 @@ func TestAnswerDecidedBy(t *testing.T) {
 		t.Errorf("the log has the mark (it has only the number and status): %s", read(logFile))
 	}
 
-	// show --json and questions --json carry the key as it is; --json on answer too.
 	var shown struct{ Questions []map[string]any }
 	json.Unmarshal([]byte(kanban(t, root, "show", "W-0001", "--json")), &shown)
 	var listed []map[string]any
@@ -214,7 +205,6 @@ func TestAnswerDecidedBy(t *testing.T) {
 	}
 	kanban(t, root, "lint")
 
-	// lint names a mark that isn't one of the three (written by hand).
 	os.WriteFile(qfile, []byte(strings.Replace(read(qfile), "decidedBy: machine", "decidedBy: robot", 1)), 0o644)
 	var out, errb bytes.Buffer
 	if code := run([]string{"lint"}, root, strings.NewReader(""), &out, &errb); code != 1 || !strings.Contains(out.String(), `decidedBy "robot"`) {
@@ -222,7 +212,6 @@ func TestAnswerDecidedBy(t *testing.T) {
 	}
 }
 
-// n is never reused, even after a person removes questions from the file by hand.
 func TestQuestionNumbersAreNotReused(t *testing.T) {
 	root := newLedger(t)
 	kanban(t, root, "ask", "W-0001", "one")
@@ -236,12 +225,10 @@ func TestQuestionNumbersAreNotReused(t *testing.T) {
 	if got := kanban(t, root, "ask", "W-0001", "four"); got != "W-0001#4\n" {
 		t.Fatalf("after emptying the file: %q", got)
 	}
-	// A task of its own counts from 1.
 	kanban(t, root, "add", "Second")
 	if got := kanban(t, root, "ask", "W-0002", "first of W-0002"); got != "W-0002#1\n" {
 		t.Fatalf("W-0002: %q", got)
 	}
-	// A person's comment and unknown key survive a write.
 	os.WriteFile(file, []byte("# kept by hand\n- n: 1\n  text: one\n  status: open\n  asked: \"2026-11-02T08:00:00Z\"\n  mine: kept\n"), 0o644)
 	kanban(t, root, "answer", "W-0001#1", "yes")
 	got, _ := os.ReadFile(file)
@@ -250,7 +237,6 @@ func TestQuestionNumbersAreNotReused(t *testing.T) {
 	}
 }
 
-// done stops on a question not received; --force closes it and logs which.
 func TestDoneStopsOnQuestions(t *testing.T) {
 	root := newLedger(t)
 	kanban(t, root, "ask", "W-0001", "one")
@@ -269,7 +255,6 @@ func TestDoneStopsOnQuestions(t *testing.T) {
 	if last["status"] != "done" || fmt.Sprint(last["forced"]) != "[1 2]" {
 		t.Fatalf("log: %v", last)
 	}
-	// With every question received, done needs no --force and logs no forced.
 	kanban(t, root, "add", "Second")
 	kanban(t, root, "ask", "W-0002", "one")
 	kanban(t, root, "answer", "W-0002#1", "yes")
@@ -281,7 +266,6 @@ func TestDoneStopsOnQuestions(t *testing.T) {
 	}
 }
 
-// kanban questions lists the questions of every task, oldest first.
 func TestQuestionsOldestFirstAcrossTasks(t *testing.T) {
 	root := routineLedger(t)
 	kanban(t, root, "add", "First")
@@ -307,7 +291,6 @@ func TestQuestionsOldestFirstAcrossTasks(t *testing.T) {
 	}
 }
 
-// Two kanban ask at once get different numbers: the lock.
 func TestConcurrentAsksGetDifferentNumbers(t *testing.T) {
 	root := newLedger(t)
 	var wg sync.WaitGroup
@@ -379,7 +362,6 @@ func TestLintQuestions(t *testing.T) {
 	if strings.Contains(out.String(), "W-0001#1: no text") {
 		t.Errorf("lint flagged a good question:\n%s", out.String())
 	}
-	// kanban doesn't write a file it can't read whole.
 	kanbanFails(t, root, "", "ask", "W-0001", "more")
 	os.WriteFile(filepath.Join(taskDir(root, "W-0001"), "questions.yaml"), []byte("n: 1\n"), 0o644)
 	kanbanFails(t, root, "", "ask", "W-0001", "more")
@@ -399,11 +381,9 @@ func TestQuestionsLinkIsRefused(t *testing.T) {
 	}
 }
 
-// kanban set status=done is kanban done: it stops on questions not received (--force closes
-// anyway and logs which), and it frees the issues that waited for it.
 func TestSetStatusDoneIsDone(t *testing.T) {
 	root := newLedger(t)
-	kanban(t, root, "add", "Next", "--after", "W-0001") // W-0002, queued
+	kanban(t, root, "add", "Next", "--after", "W-0001")
 	kanban(t, root, "ask", "W-0001", "one")
 	msg := kanbanFails(t, root, "", "set", "W-0001", "status=done")
 	if !strings.Contains(msg, "W-0001#1 (open)") || !strings.Contains(msg, "--force") {
@@ -431,9 +411,6 @@ func TestSetStatusDoneIsDone(t *testing.T) {
 	}
 }
 
-// kanban review and set status=review check what done checks: an issue with a question not
-// received stays where it is (--force returns it anyway and logs which). An issue already in
-// review is not checked again, so a question asked in review (from the gate) does not stop it.
 func TestReviewStopsOnQuestions(t *testing.T) {
 	root := newLedger(t)
 	kanban(t, root, "set", "W-0001", "status=doing")
@@ -454,12 +431,10 @@ func TestReviewStopsOnQuestions(t *testing.T) {
 	if last := lines[len(lines)-1]["change"].(map[string]any); last["status"] != "review" || fmt.Sprint(last["forced"]) != "[1 2]" {
 		t.Fatalf("log: %v", last)
 	}
-	// Already in review: not checked again.
 	kanban(t, root, "review", "W-0001")
 	if s := readYAML(t, taskFile(root, "W-0001"))["status"]; s != "review" {
 		t.Fatalf("status: %v", s)
 	}
-	// With every question received, review needs no --force and logs no forced.
 	kanban(t, root, "add", "Second")
 	kanban(t, root, "set", "W-0002", "status=doing")
 	kanban(t, root, "ask", "W-0002", "one")
@@ -470,14 +445,10 @@ func TestReviewStopsOnQuestions(t *testing.T) {
 	if c := lines[len(lines)-1]["change"].(map[string]any); c["status"] != "review" || c["forced"] != nil {
 		t.Fatalf("log: %v", c)
 	}
-	// Other moves are not checked: back to doing with a question open.
 	kanban(t, root, "ask", "W-0002", "again")
 	kanban(t, root, "set", "W-0002", "status=doing")
 }
 
-// --past moves past only the questions it names. A question not named (one asked after the caller
-// looked, as andon issue ready names the gate's questions about an earlier head) still keeps the
-// issue where it is, for review, set status=review and done alike.
 func TestPastMovesOnlyNamedQuestions(t *testing.T) {
 	root := newLedger(t)
 	kanban(t, root, "set", "W-0001", "status=doing")
@@ -501,7 +472,6 @@ func TestPastMovesOnlyNamedQuestions(t *testing.T) {
 			t.Fatalf("--past %s: %q", bad, msg)
 		}
 	}
-	// Naming both (also over two flags, and a number not asked) moves it, and logs only the numbers moved past.
 	kanban(t, root, "review", "W-0001", "--past", "W-0001#1,W-0001#9", "--past", "W-0001#2")
 	lines := logLines(t, root)
 	if last := lines[len(lines)-1]["change"].(map[string]any); last["status"] != "review" || fmt.Sprint(last["forced"]) != "[1 2]" {
