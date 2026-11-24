@@ -38,7 +38,6 @@ type MainRead struct {
 	Commit string `json:"commit"`
 }
 
-// lastRead は前に送ったダイジェストの入力に残した、読んだ main と読み飛ばした記録。
 type lastRead struct {
 	mains   map[string]string // repo → commit
 	skipped map[string]bool   // skipped の source
@@ -55,7 +54,6 @@ type Decision struct {
 	URL    *string `json:"url" andon:"nullable"`
 }
 
-// Triaged は期間に片付いたトリアージ 1 回。
 type Triaged struct {
 	Issue  string `json:"issue"`
 	Title  string `json:"title"`
@@ -65,7 +63,6 @@ type Triaged struct {
 	Path   string `json:"path"`
 }
 
-// Retroed は期間に当てた振り返り 1 回。
 type Retroed struct {
 	Issue   string `json:"issue"`
 	Title   string `json:"title"`
@@ -216,7 +213,7 @@ func repoDecisions(repo, seen string, since, until time.Time) ([]Decision, strin
 	if found {
 		base, end = seen, tip
 	}
-	if base == end { // 期間に main が動いていない
+	if base == end {
 		return nil, end, nil
 	}
 	out, err := addedDecisions(tmp, base, end)

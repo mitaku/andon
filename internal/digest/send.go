@@ -26,7 +26,6 @@ type Sent struct {
 	Destinations []Destination `json:"destinations"`
 }
 
-// 送り先の kind。
 const (
 	kindFiles = "files"
 	kindSlack = "slack"
@@ -35,7 +34,6 @@ const (
 // notSent は、送る前に書く理由。送っている途中で落ちても、済んだ送り先に数えない（決めたこと 16）。
 const notSent = "送り終えていない（打ち直すと送る）"
 
-// Destination は送り先1つの結果。files は url、slack は channel とファイルの id（file）を持つ。
 type Destination struct {
 	Kind    string `json:"kind"`
 	At      string `json:"at"`
@@ -86,7 +84,6 @@ func filesSlug(in *Input) string {
 	return "digest-" + in.Project + "-" + in.Issue
 }
 
-// filesURL は digest.html を files/ に出したときの URL。
 func filesURL(env Env, in *Input) string {
 	pe := filesEnv(env, in)
 	return publish.URL(pe, publish.Name(pe, filesSlug(in), ".html"))

@@ -7,7 +7,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 期間の前に片付いた課題に done を打ち直しても、期間に done へ動いた課題に入れない。戻してから片付ければ入れる。
 func TestDoneAtSkipsRedone(t *testing.T) {
 	row := func(at, status string) ledger.Row {
 		return ledger.Row{At: at, By: "terminal:t1", ID: "S-0001", Change: map[string]any{"status": status}}

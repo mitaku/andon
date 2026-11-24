@@ -107,7 +107,6 @@ func (s *slack) upload(channel, name, comment string, body []byte) (string, erro
 	return slot.FileID, nil
 }
 
-// slackError は Slack が ok: false で返した誤り。
 type slackError struct{ method, code string }
 
 func (e slackError) Error() string { return e.method + " が " + e.code + " を返した" }
