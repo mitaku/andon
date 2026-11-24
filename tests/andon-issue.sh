@@ -951,7 +951,7 @@ meta "$new" "$cwt" 2026-11-10T02:00:00.000Z > "$cs/rollout-b.jsonl"
 meta "$other" /elsewhere 2026-11-10T03:00:00.000Z > "$cs/rollout-c.jsonl"
 : > "$tmp/hc/log"
 "$andon" issue resume "$s4" >/dev/null || die 'Codex の resume が落ちた'
-[ "$(field "$s4" session)" = "$new" ] && grep -q -- "--label session=$new --cwd $cwt codex-resume 課題 \`demo/$s4\` の続き。" "$tmp/hc/log" \
+[ "$(field "$s4" session)" = "$new" ] && grep -q -- "--label session=$new --cwd $cwt codex-resume \[resume\] 課題 \`demo/$s4\` の続き。" "$tmp/hc/log" \
   || die "Codex の resume: session=$(field "$s4" session) $(cat "$tmp/hc/log")"
 tail -n 1 "$(launches "$s4")" | jq -e --arg s "$new" '.launch == "resume" and .template == "codex-resume" and .session == $s' >/dev/null || die "Codex の起動し直しの記録: $(tail -n 1 "$(launches "$s4")")"
 ok 'resume: Codex 系は記録の先頭行から cwd が同じ最新の id を引き、codex-resume で起動し、引けた id を kanban の session に書く。無ければ非 0。起動の記録の session は引けた id'
@@ -1001,7 +1001,7 @@ jq -e --arg wt "$rvwt" --arg cwd "$rvcwd" --arg c "$rc" --arg s "$rvs" --arg id 
 : > "$tmp/hc/log"
 "$andon" issue resume "$rv" > "$tmp/out" || die "レビュアーの resume が落ちた: $(cat "$tmp/out")"
 [ "$(git -C "$rvwt" rev-parse HEAD)" = "$rc" ] && ! git -C "$rvwt" symbolic-ref -q HEAD >/dev/null || die "detached worktree が commit $rc に戻っていない: $(cat "$tmp/out")"
-grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
+grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume [resume] 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
 [ "$(field "$rv" agent)" != t90 ] && [ "$(field "$rv" status)" = doing ] && [ "$(field "$rv" session)" = "$rvs" ] && [ "$(field "$rv" worktree)" = "$rvwt" ] && [ -z "$(field "$rv" branch)" ] \
   || die "レビュアーの kanban: $(kanban show "$rv" --json | jq -c .issue)"
 jq -e --arg c "$rc" --arg wt "$rvwt" '.role == "reviewer" and .launch == "resume" and .repo.commit == $c and .repo.path == $wt' "$(launches "$rv")" >/dev/null \
