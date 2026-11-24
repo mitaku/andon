@@ -73,6 +73,7 @@
 - `internal/triage/`・`internal/retro/`（トリアージと振り返り）。担当のエージェントが集めて判定する仕事で、検証の担当は起動できない。dispatcher がルーチンを撃つところは `dispatcher-news` の `dn-idle` が見る。機能のファイルはまだ無い。
 - `internal/board/`・`internal/chiefofstaff/`・`internal/chiefengineer/`・`internal/open/`（ボードと、Chief of Staff・Chief Engineer を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。
 - `internal/plantinit/`（`andon init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
+- `internal/otel/serve.go`（`andon otel serve`）。ハーネスのトレースとログの受け口で、今は boot もハーネスの起動の行も受け口を起動しないので、どの機能の道にも出てこない。受け口の機能は、boot が受け口を起動する変更で地図に足す。`go test ./internal/otel/` が見ている。受け口の本体（受けて落として伏せて書く処理）は `internal/otel/otel.go` にあり、同じファイルの置き場の決め方（`Root`）を、生の記録の片付け（`internal/otel/prune.go`）が使う。片付けは dispatcher が巡ごとに呼ぶので、`otel.go` と `prune.go` は `dispatcher-news` の `dn-live` の見るファイルに入れた。`dn-live` で受け口の本体は動かない。
 - `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
 - `cmd/kanban/migrate.go`・`cmd/kanban/dispatcherstate.go`（`kanban migrate`）。前の形の kanban を移す口で、どの機能の道も打たない。`go test ./cmd/kanban/` と `tests/kanban.sh` が見ている。
 - `internal/delegate/cmd.go`（`andon delegate grant` など）。オーナーが委譲を変える口で、どの機能の道も打たない。gate が委譲を読むところは `gt-route` が見る。`go test ./internal/delegate/` と `tests/andon-gate.sh` が見ている。
