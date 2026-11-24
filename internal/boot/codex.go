@@ -73,6 +73,7 @@ func genCodexConfig(e Env) error {
 		if err := encoder.Encode(have); err != nil {
 			return err
 		}
+		// trustCodex が読む形は [projects."<path>"]。encoder が出す空の親見出しは省く。
 		text = strings.Replace(out.String(), "[projects]\n", "", 1)
 		keys = append(keys, "記憶を無効化")
 	}
