@@ -480,7 +480,7 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 	}
 }
 
-func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
+func (f *fixture) rebaseWorktree(conflict bool) string {
 	f.t.Helper()
 	git := func(args ...string) string {
 		c := exec.Command("git", append([]string{"-C", f.wt}, args...)...)
@@ -505,7 +505,7 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	git("checkout", "-q", "-b", "topic")
 	put("a.txt", "a\nA\n")
 	git("commit", "-q", "-m", "topic")
-	x = git("rev-parse", "HEAD")
+	x := git("rev-parse", "HEAD")
 	git("checkout", "-q", "main")
 	if conflict {
 		put("a.txt", "a\nM\n")
@@ -523,10 +523,10 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	} else {
 		git("rebase", "-q", "origin/main")
 	}
-	y = git("rev-parse", "HEAD")
+	y := git("rev-parse", "HEAD")
 	f.head, f.prHead, f.findings = y, y, x
 	f.report = `{"commit": "` + y + `", "pr": "https://github.com/example/app/pull/7"}`
-	return x, y
+	return x
 }
 
 func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
@@ -566,7 +566,7 @@ func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := newFixture(t)
-			x, _ := f.rebaseWorktree(c.conflict)
+			x := f.rebaseWorktree(c.conflict)
 			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 			f.write("list.json", js([]any{f.task, f.reviewer}))
 			f.write("kanban/log.jsonl", ledgertest.Log(t, js(map[string]any{"at": "2026-11-20T00:00:00Z", "by": f.by, "id": "T-0002", "change": map[string]any{"add": "review"}})))
