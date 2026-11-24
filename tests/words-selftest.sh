@@ -257,9 +257,38 @@ for f in docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/
 done
 setup; mkdir -p "$tmp/r/docs"; echo '行は「`<id> ready: 「題」。待つ相手 <id> がやめになった`」になる' >"$tmp/r/docs/dispatcher.md"
 expect fail 'docs/dispatcher.md の、かぎ括弧で囲んだ 1 字の置き場で落ちる'
-for v in docs/vision.md docs/adr/0099-x.md docs/decisions/2026-01-01-x.md; do
-  setup; mkdir -p "$(dirname "$tmp/r/$v")"; echo 'この題では決めない' >"$tmp/r/$v"; expect ok "替えていない範囲（$v）の「題」はまだ見ない"
+setup; mkdir -p "$tmp/r/docs"; echo 'この題では決めない' >"$tmp/r/docs/vision.md"; expect ok '範囲の外（docs/vision.md）の「題」は見ない'
+# ADR と決定の記録（ADR-0052 切る案 4）: 古い形で落ち、名指しした例外の句だけが通る
+for f in docs/adr/0099-x.md docs/decisions/2026-01-01-x.md docs/adr/README.md; do
+  for w in 'S-7（題）を t42' 'この題では決めない' '`docs/adr/NNNN-<題>.md`'; do
+    setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo "$w" >"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
+  done
 done
+a52=docs/adr/0052-title-and-theme-not-dai.md
+for f in "$a52" docs/decisions/2026-11-22-adr-0052-title-and-theme-not-dai.md docs/decisions/2026-11-22-dai-replacement-reaches-frozen-records.md; do
+  setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo '| 「この題」「1人1題」 | このテーマ |。オーナー「あまり「題」とは言わない」' >"$tmp/r/$f"
+  expect ok "$f の「」の中（入れ子も）の「題」は通る"
+  setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo '「この題」はこの題では決めない' >"$tmp/r/$f"; expect fail "$f の「」の外の「題」で落ちる"
+done
+setup; mkdir -p "$tmp/r/docs/adr"; echo '「この題」は古い形' >"$tmp/r/docs/adr/0099-x.md"; expect fail 'ADR-0052 の外では、「」の中の「題」で落ちる'
+# 名指しした句: ファイル・その行の印・句がそろうときだけ外し、同じ行のほかの「題」と、ほかのファイルの同じ句は落ちる
+exc() { # exc <ファイル> <行>
+  setup; mkdir -p "$(dirname "$tmp/r/$1")"; echo "$2" >"$tmp/r/$1"; expect ok "$1 の名指しした句は通る（${2:0:24}）"
+  setup; mkdir -p "$(dirname "$tmp/r/$1")"; echo "${2}この題では決めない" >"$tmp/r/$1"; expect fail "$1 の名指しした句と同じ行の、ほかの「題」で落ちる"
+  setup; mkdir -p "$tmp/r/docs/adr"; echo "$2" >"$tmp/r/docs/adr/0099-x.md"; expect fail "名指しした句（${2:0:24}）も、ほかのファイルでは落ちる"
+}
+exc docs/adr/0017-process-definitions.md '別のテーマ（指示文の「この題で入れる: 手順 1〜3」と違う）'
+setup; mkdir -p "$tmp/r/docs/adr"; echo '「この題で入れる: 次の手順」' >"$tmp/r/docs/adr/0017-process-definitions.md"
+expect fail 'ADR-0017 の、指示文の引用でない「この…で入れる:」で落ちる'
+exc docs/adr/0013-short-role-names-and-plain-japanese.md '20. **2026-11-11 Andon の語を yomiyasu から守らない。** yomiyasu は「台帳」「ゲート」「題」「版」を直す'
+exc docs/adr/0040-kanban-gate-version-words.md '5. **パッケージの文。** 残りは「土台」5 件、「題」2 件、「口」1 件'
+exc docs/adr/0040-kanban-gate-version-words.md '- **3 語のほかの語を見直すこと。** yomiyasu がまれに指摘する語（土台・題・口）は、このテーマでは触らない。'
+exc docs/adr/README.md '- [0052 「題」をやめ、タイトル・テーマと書く](0052-title-and-theme-not-dai.md): 決定'
+exc docs/adr/0026-pr-rules-for-outside-readers.md '| 16 | 「題」をタイトル・テーマに替える置き換えも、既存の ADR に及ぶ |'
+exc docs/adr/0053-command-system.md '「題」をタイトルとテーマに替える作業（ADR-0052）が使い方の文を触る'
+setup; mkdir -p "$tmp/r/docs/adr"; echo '6. 残りは「土台」5 件、「題」2 件' >"$tmp/r/docs/adr/0040-kanban-gate-version-words.md"
+expect fail 'ADR-0040 の事実 5 でない行の「題」2 件で落ちる'
+setup; mkdir -p "$tmp/r/docs/adr"; echo '21. yomiyasu は「台帳」「題」を直す' >"$tmp/r/$adr"; expect fail 'ADR-0013 の決めたこと 20 でない行の「題」で落ちる'
 setup; sed -i 's/^## 未リリース$/&\n- 番号（題）を添える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「題」で落ちる'
 chl() { # chl <v0.0.15 の節の行> <v0.0.14 の節の行>。置き換えのあとと前に切ったバージョンの節に1行ずつ置く
   setup; printf '# CHANGELOG\n\n## 未リリース\n\n## v0.0.15 — 2026-12-01\n%s\n\n## v0.0.14 — 2026-11-23\n%s\n' "$1" "$2" >"$tmp/r/CHANGELOG.md"
@@ -281,12 +310,11 @@ d='語の改め（2026-11-22 から）: 熟語でない漢字 1 字の「題」�
 dec() { # dec <冒頭の行> <表の行>。凍結した表（## 1. ）の前と後に1行ずつ置く
   setup; printf '# 決定の記録\n\n%s\n\n## 1. 設計書の答え\n\n%s\n' "$1" "$2" >"$tmp/r/docs/decisions.md"
 }
-dec "$d" '| 2026-11-05 | Chief Engineer の題は ADR |'; expect ok 'decisions.md の語の改めの句と、凍結した表の「題」は通る'
+dec "$d" '| 2026-11-05 | Chief Engineer のテーマは ADR |'; expect ok 'decisions.md の語の改めの句と、凍結した表の新しい語は通る'
+dec "$d" '| 2026-11-05 | Chief Engineer の題は ADR |'; expect fail 'decisions.md の凍結した表（「## 1.」から後ろ）の「題」で落ちる'
 dec '- 名前は `YYYY-MM-DD-<英字の短い題>.md`' '| 2026-11-05 | 決定 |'; expect fail 'decisions.md の冒頭の置き場の形で落ちる'
 dec "${d}この題では決めない" '| 2026-11-05 | 決定 |'; expect fail 'decisions.md の語の改めの行の、句のほかの「題」で落ちる'
 dec '- 熟語でない漢字 1 字の「題」を替える' '| 2026-11-05 | 決定 |'; expect fail 'decisions.md の、語の改めで始まらない行の語を挙げた句で落ちる'
-setup; mkdir -p "$tmp/r/docs"; printf '# 決定の記録\n\n| 2026-11-05 | Chief Engineer の題は ADR |\n' >"$tmp/r/docs/decisions.md"
-expect fail 'decisions.md に凍結した表の見出しが無ければ、全部を見て落ちる'
 
 # 句読点のすぐ後ろの半角の空白（\p{Han} が句読点も含むため、和字と英字の間に空白を足す置き換えが作る形）: 落ち、決まりの形は通る
 for f in docs/x.md package/x.md internal/x.go tests/x.sh model/X.tla README.md; do

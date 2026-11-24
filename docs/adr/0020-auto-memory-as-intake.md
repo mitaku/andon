@@ -78,7 +78,7 @@
 
 ## やらないこと（範囲の外。理由）
 
-- memory を長く残す知識の家にすること（前提 3）。毎セッション自動で載せたい事実が出たら、それは `AGENTS.md`・環境メモ・skill の題として別に扱う。
+- memory を長く残す知識の家にすること（前提 3）。毎セッション自動で載せたい事実が出たら、それは `AGENTS.md`・環境メモ・skill のテーマとして別に扱う。
 - memory を git で追うこと・セルをまたいで持ち運ぶこと（決めたこと 2）。
 - Codex の記憶を入れること（決めたこと 7）。
 - 蒸留の専用の役・memory のための command（`andon memory …`）。拾うのは `andon triage collect`、反映は `andon triage apply`（決めたこと 3）。

@@ -46,8 +46,8 @@
 - remote には branch が 168 本残っていて、167 本の名前に課題番号がある（`git ls-remote --heads origin`。マージで branch を消す設定は切ってあり、片付けが消すのは手元の branch だけ）。squash の commit に branch の名前は入らない。
 - テスト以外の Go のコードのコメントにも、実在の課題番号がある（架空の例の番号と混ざっている）。
 - repo のファイル（テストを除く）: `docs/adr/` に 436 か所、`docs/decisions/` と `docs/decisions.md` に 163 か所。skill・`contract.md`・`ledger.md` に出る番号は、ほとんどが書き方の例。
-- 今の決まり: worker skill §3 の PR の決まりは「本文に、やったこと・テスト結果・見送ったレビューの指摘」の 1 行で、タイトルの決まりは無い。chief-engineer skill の文書の形は、題に Chief Engineer の課題の id を、出典にセルの wiki と kanban を書かせる。
-- 機械: gate・dispatcher・measure は PR の場所を `report.json` の `pr` から読む。PR のタイトル・本文・commit のタイトルから課題番号を読む所は無い。measure は、タイトルが `Revert ` で始まる PR を revert と数え、本文の `owner/repo#n` か PR の URL で、どの PR の revert・続きかを引く。gate が本文とコメントから読むのは添付の画像で、`<details>` の中にあっても当たる。dispatcher は、頭が `andon gate: ` のコメントを gate のものと見分ける。レビュアーに渡るのは worktree と差分だけで、PR のタイトルと本文は渡らない。レビュアーの指摘は `file` と `line` が必須（`schema/findings.schema.json`）。branch の名前は `<slug>/<id>-<題の短い形>` で、PR の画面に出る。
+- 今の決まり: worker skill §3 の PR の決まりは「本文に、やったこと・テスト結果・見送ったレビューの指摘」の 1 行で、タイトルの決まりは無い。chief-engineer skill の文書の形は、タイトルに Chief Engineer の課題の id を、出典にセルの wiki と kanban を書かせる。
+- 機械: gate・dispatcher・measure は PR の場所を `report.json` の `pr` から読む。PR のタイトル・本文・commit のタイトルから課題番号を読む所は無い。measure は、タイトルが `Revert ` で始まる PR を revert と数え、本文の `owner/repo#n` か PR の URL で、どの PR の revert・続きかを引く。gate が本文とコメントから読むのは添付の画像で、`<details>` の中にあっても当たる。dispatcher は、頭が `andon gate: ` のコメントを gate のものと見分ける。レビュアーに渡るのは worktree と差分だけで、PR のタイトルと本文は渡らない。レビュアーの指摘は `file` と `line` が必須（`schema/findings.schema.json`）。branch の名前は `<slug>/<id>-<タイトルの短い形>` で、PR の画面に出る。
 - 検査: `tests/public.sh`・`tests/words.sh` は repo のファイルだけを見る。PR のタイトル・本文・commit のタイトルを見る検査は無い。
 - pstack（poteto-mode の「Opening a PR」）: タイトルは `type(scope): subject`。本文は 40 行以内で、`Why`・`What changed`・`Scope`・`Tradeoffs`（レビュアーが聞きそうな捨てた案だけ）・`Blast Radius`・`Verification` の順。中身の無い節は落とす。
 
@@ -63,7 +63,7 @@
    捨てた案: どこにも置かない（PR から課題に戻るには kanban を PR の URL で探すことになる）／PR のコメントに置く（コメントと担当の手順が 1 つずつ増える）。
    仮（2026-11-19・Chief Engineer）: squash の本文に PR の本文を使う設定の repo では、メモの行が履歴に入る。これは許す（メモの 1 行はよい、の範囲と読んだ）。
 3. **2026-11-19 セルの中の物を根拠にするときは、中身を写し、セルは指さない。**（オーナーが選んだ）
-   要る事実は数や結果ごと文書と PR に書き切り、要る資料は repo に入れる。出典に書くのは、repo の中の文書・外の URL・オーナーの発言の日付だけ。ほかの作業は課題番号でなく、PR の番号か、何の変更かを言う言葉で指す。ADR の題にも課題番号を書かない。コードのコメントも同じ。書き方の例とテストに出る架空の番号はそのままでよい。
+   要る事実は数や結果ごと文書と PR に書き切り、要る資料は repo に入れる。出典に書くのは、repo の中の文書・外の URL・オーナーの発言の日付だけ。ほかの作業は課題番号でなく、PR の番号か、何の変更かを言う言葉で指す。ADR のタイトルにも課題番号を書かない。コードのコメントも同じ。書き方の例とテストに出る架空の番号はそのままでよい。
    ほかの PR を指すときは、PR の URL か `owner/repo#n` の形で書く（measure が revert と続きの PR を引く形。`#n` だけでは引けない）。外の Issue を閉じる行（`Fixes <url>`）は、本文の末尾、メモの行の前に置く。
    捨てた案: 指してよいが「外からは読めない」と断る（読み手が開けない根拠が repo に残り続ける）／PR だけ厳しくし、ADR と決定の記録は今までどおり（前提 1 の対象を狭める）。
 4. **2026-11-19 PR の本文は 6 つの見出しをこの順で。3 節が必須、残りは書くことがあるときだけ。**（オーナーが選んだ）
@@ -137,8 +137,8 @@
 |---|---|---|---|
 | A1 | 担当の手引き（worker skill §3）に次がある: PR のタイトル・commit のタイトルと本文に課題番号を書かない／本文の末尾のメモの行の形／6 つの見出しと必須の 3 節／長い物だけ `<details>` に畳む／状態の移り方を変える変更は状態の図／ほかの PR は URL か `owner/repo#n`／セルの物を指さず、案件の repo では Andon の用語を書かない | `bash tests/package.sh` | 項目ごとの `ok` の行 |
 | A2 | 見送ったレビューの指摘の写し先（worker skill §4）が「トレードオフ」の節になっている | `bash tests/package.sh` | `ok` の行 |
-| A3 | Chief Engineer の手引きと `docs/design.md` §1.8 の文書の形が、題に課題の id を求めない。出典は repo の中の文書・外の URL・オーナーの発言の日付で、セルの wiki と kanban は指さず中身を写す、とある。`docs/decisions.md` の冒頭の出典の書き方も同じ | `bash tests/package.sh` | `ok` の行 |
-| A4 | `package/writing.md` の「課題は番号と題で書く」の決まりに、範囲（セルの中のオーナーへの文。PR と repo の文は除く）がある | `bash tests/package.sh` | `ok` の行 |
+| A3 | Chief Engineer の手引きと `docs/design.md` §1.8 の文書の形が、タイトルに課題の id を求めない。出典は repo の中の文書・外の URL・オーナーの発言の日付で、セルの wiki と kanban は指さず中身を写す、とある。`docs/decisions.md` の冒頭の出典の書き方も同じ | `bash tests/package.sh` | `ok` の行 |
+| A4 | `package/writing.md` の「課題は番号とタイトルで書く」の決まりに、範囲（セルの中のオーナーへの文。PR と repo の文は除く）がある | `bash tests/package.sh` | `ok` の行 |
 | A5 | gate が PR に書くコメントと、commit の合否の印の説明文に、内輪の語（`needs_human`・`tier`・`delegation`・`report.json`・`issue.yaml`・条件表）が出ない。判定ごとの文がある。頭は `andon gate: `。gate の記録（JSON）の文は変わらない | `go test ./internal/gate/...`・`bash tests/andon-gate.sh` | `ok`／`PASS` |
 | A6 | 新しい文面の gate のコメントを、dispatcher がオーナーの手直しに数えない | `go test ./internal/dispatcher/...` | `PASS` |
 | A7 | 外の Issue への書き戻しの文に課題番号が出ない。3 つの場合（マージした・マージせずに閉じた・PR が無い）の文がある | `bash tests/andon-issue.sh` | `ok` の行 |
@@ -156,7 +156,7 @@
 
 1. **手引きと文書の決まりを直す**（A1〜A4・A8・A10）。直す所:
    - `package/skills/worker/SKILL.md` §3（PR の本文の 3 項目の文・添付の置き場）と §4（見送りの写し先）。
-   - `package/skills/chief-engineer/SKILL.md`（題の課題 id・wiki の `sources/` と `raw/` を出典に書かせる文）と、同じ形を持つ `docs/design.md` §1.8。
+   - `package/skills/chief-engineer/SKILL.md`（タイトルの課題 id・wiki の `sources/` と `raw/` を出典に書かせる文）と、同じ形を持つ `docs/design.md` §1.8。
    - `docs/decisions.md` の冒頭（出典に課題の番号を書かせる文）。
    - `package/writing.md`（番号の決まりの範囲）。
    - `package/skills/triage/SKILL.md`（PR の本文の `Fixes <url>` の置き場）。

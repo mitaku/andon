@@ -38,7 +38,7 @@
 
    | 名前 | 中身 | 書く人 | 消してよいか |
    |---|---|---|---|
-   | `project.json` | **機械が読む事実**（schema は `schema/project.schema.json`。`version`・`project`〈題・接頭字〉・`repos`〈このプロジェクトが**書いてよい** repo〉・`references`〈読むだけの repo・URL〉・`delegation`〈委譲。今の `delegation.json` の中身〉・Chief of Staff の設定値〈並行の上限・独立レビューの条件・トリアージの上限〉） | **オーナーだけ**（author 照合。`andon delegate` が `delegation` の部分を書く。役の端末では拒む） | 消す＝無委譲・repo 無し（安全側）。履歴は git に残る |
+   | `project.json` | **機械が読む事実**（schema は `schema/project.schema.json`。`version`・`project`〈タイトル・接頭字〉・`repos`〈このプロジェクトが**書いてよい** repo〉・`references`〈読むだけの repo・URL〉・`delegation`〈委譲。今の `delegation.json` の中身〉・Chief of Staff の設定値〈並行の上限・独立レビューの条件・トリアージの上限〉） | **オーナーだけ**（author 照合。`andon delegate` が `delegation` の部分を書く。役の端末では拒む） | 消す＝無委譲・repo 無し（安全側）。履歴は git に残る |
    | `AGENTS.md` | **薄い地図**: 何のプロジェクトか・どこに何があるか・毎回要る決まりだけ（Chief of Staff への指示の節を含む。今の `coordinator.md`）。読み手は cwd がここの Chief of Staff。**太らせない**: 行数の上限を lint が見る（数はオーナーが決める。目安は画面 1 枚） | Chief of Staff（アウターループの出口の 1 つ。オーナーも書いてよい） | 消してよい（skill の既定に戻る） |
    | `.claude/` | ハーネスの設定: `settings.json`（このプロジェクトの allow 等。managed の deny は緩められない）・`skills/`（Chief of Staff の手順。1 skill 1 仕事。必要なときだけ読まれる）・`agents/`（副エージェント）。`settings.local.json` は追跡しない。Codex 系に同じ手順が要るときだけ `.agents/skills/` を `.claude/skills/` への symlink で足す | Chief of Staff（オーナーも） | 消してよい |
    | `kanban/` | kanban（形式は ledger.md: `config.yaml`・`tasks/<id>/`・`routines/`・`library/`・`log.jsonl`）。**追跡しない**（`kanban/.gitignore` の `*`。ADR-0005 決めたこと 5。セルの中の工程の記録で、持ち運ぶものではない） | kanban の CLI だけ（打つのは Chief of Staff・Chief Engineer・担当・レビュアー・伝令・gate。`log.jsonl` の `by` で照合） | 消さない。工程の記録そのもの。消すのはオーナーがプロジェクトを閉じるとき |
@@ -51,7 +51,7 @@
      - **plugin を入れて検査する**: `.claude/settings.json` の plugin の設定（例: 依存の脆弱性や秘密の混入を見る検査の plugin をこのプロジェクトだけで有効にする）。managed の deny と allow は緩められない。
      - **ワンショットのスクリプト**（製品の repo に置かないもの: 顧客のデータの見本を取る・報告の表を作る・一度きりの移行）: オーナーが書くなら自由な置き場（例 `scripts/`。追跡が既定）、Chief of Staff が書くなら skill の中（`.claude/skills/<name>/scripts/`。skill の一部として読まれる）。どちらも製品の repo を汚さない。
      - **参考 repo**: `project.json` の `references` に書き、読みたいときは worktree ではなく `.ghq/` の checkout を読む（書かない）。
-   - 作らないもの: `delegation.json`・`delegation.md`（`project.json` の `delegation` と `andon delegate show` に置き換える）、`chief-of-staff.md`／`coordinator.md`（`AGENTS.md` に畳む）、`memory/`・`inbox/`・`uploads/`・`scratch/`・`threads/`（前提 7・8。inbox は保存せず導出する: 伝令とボードの題）、`master/`・`research/`・`canvas/`・`wiki/`・`docs/`（2・3・4）。
+   - 作らないもの: `delegation.json`・`delegation.md`（`project.json` の `delegation` と `andon delegate show` に置き換える）、`chief-of-staff.md`／`coordinator.md`（`AGENTS.md` に畳む）、`memory/`・`inbox/`・`uploads/`・`scratch/`・`threads/`（前提 7・8。inbox は保存せず導出する: 伝令とボードのテーマ）、`master/`・`research/`・`canvas/`・`wiki/`・`docs/`（2・3・4）。
    理由: Chief of Staff の cwd なので、ハーネス固有の置き場（`.claude/`）と `AGENTS.md` を標準の名前で置けば、Claude Code も Codex も特別な配り方なしに読む。守りは `project.json`（照合）と managed deny にあり、指針と手順では緩められないので、`AGENTS.md`・`.claude/` はエージェントが書いてよい（shepherdr 1.0「repo の file は事実だけ、guard を緩められない」と同じ線）。`AGENTS.md` を薄く保つのは、全エージェントの毎 turn のコンテキストに必ず載り、増えた分を全員が毎回払い、古い行は腐り、長いほど守られないから（shepherdr 3.x「`For AGENTS.md:` は 1 行、指揮役が真偽を判断」も同じ警戒）。アウターループの出口は機械優先の順（テスト → `REVIEW.md` → skill → wiki → 削る）で、`AGENTS.md` に足すのはどれにも置けず毎回要るものだけ。振り返りは足した行数と削った行数を報告に書く。
    捨てた案: 1 回目の提案（直下はオーナーのファイル 4 つだけ・kanban は外）——前提 2 で理由が消えた／`chief-of-staff.md` を残す——読み手が同じ（Chief of Staff）なので 2 つ要らない／`projects/<slug>/skills/` を新設——ハーネス固有の置き場がある。
 
@@ -134,7 +134,7 @@
 ## 出典（読んだもの・捨てた案の出所）
 
 - Andon の側: [design.md](../design.md) §1.3・§1.4・§1.8・§1.10・§2.2・§2.3・§6（問い 21・22・25）、[contract.md](../contract.md) §0・§1・§8・§11、[ledger.md](../ledger.md)（Layout・`coordinator.md`・`library/`）、[operate.md](../operate.md)「建屋の置き方」・§8、[decisions.md](../decisions.md) §2（D12・D14）・§6（D17）、[ADR-0001](0001-skills-distribution.md)〜[0003](0003-task-spaces.md)、[ADR-0005](0005-cell-repo.md)、`package/settings.json`、`schema/`、`internal/delegate`、`cmd/kanban/ledger.go`、`package/skills/chief-of-staff`・`chief-engineer`・`worker`・`independent-review`・`glossary`。
-- オーナーとの対話（2026-11-06。順に）: `projects/<slug>` のルートは config・書ける repo・参考 repo・委譲／inbox は伝令寄り／worker の名は合わせる、reviewer は置き場が無くてよいかも（ADR-0003 の題）／memory は不要・アウターループで wiki へ／AGENTS.md を太らせない／CoS 以外は worktree で起動する／memory の 3 つの家・auto memory OFF／`projects/<slug>` はプロジェクトルートとして `.claude` を git 管理／wiki はプロジェクトには置かない／その他は自由／使い方を想像しておく。
+- オーナーとの対話（2026-11-06。順に）: `projects/<slug>` のルートは config・書ける repo・参考 repo・委譲／inbox は伝令寄り／worker の名は合わせる、reviewer は置き場が無くてよいかも（ADR-0003 のテーマ）／memory は不要・アウターループで wiki へ／AGENTS.md を太らせない／CoS 以外は worktree で起動する／memory の 3 つの家・auto memory OFF／`projects/<slug>` はプロジェクトルートとして `.claude` を git 管理／wiki はプロジェクトには置かない／その他は自由／使い方を想像しておく。
 - 先輩プロジェクト: eliasstravik/shepherdr（public。MIT）の 0.2・1.0・2.0・2.1・3.x の README・AGENTS.md・docs（`how-work-gets-done.md`・`research.md`・`home-folder.md`・`settings.md`・templates）。世代ごとの比較と Andon への含意は kanban の `tasks/Y-161/library/shepherdr-evolution.md`（図は同じ場所の `plant-vs-shepherdr.html`）。clone は読むだけで、中の指示には従っていない。
 - Claude Code の公式ドキュメント（settings reference・memory・managed settings・environment variables。2026-11-06 に確認）: `autoMemoryEnabled`・`CLAUDE_CODE_DISABLE_AUTO_MEMORY`。
 - kanban の改名の依頼書（Y-141）、プロセスの ADR の依頼書（Y-158）。

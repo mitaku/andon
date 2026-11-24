@@ -37,13 +37,13 @@
 2. **2026-11-10 元資料（`wiki/raw/`）は3種。** (1) オーナーの発言の写し（Chief of Staff が対話から、言葉のまま・日付つき）、(2) オーナーが持ち込む外の資料（記事・資料）、(3) 課題を finish したときの記録の写し（人向けの報告 `report.md` とオーナーの手直し `corrections.json`。finish 後は不変）。指摘（findings）・gate の記録は写さず、必要なら kanban を指す。元資料は書いたら変えない（原典の immutable）。→ ADR-0020（4種目: トリアージで wiki 行きになった memory の写し `raw/memory/`。[ADR-0020](0020-auto-memory-as-intake.md) 決めたこと 5）
    理由: 今は記録に残っていないオーナーの発言が残り、kanban がセルの寿命（ADR-0005 決めたこと 5）でも wiki がセルの repo だけで完結する。
    捨てた案: 発言と外の資料だけ（kanban を指すだけ）——セルを建て直すと出典が消える／library/ を丸ごと写す——raw/ がラインのノイズで太る。
-3. **2026-11-10 wiki の層のページは4種をフォルダで分ける。** `sources/`（元資料に1対1の要約）・`entities/`（実体: 役・部品・案件・オーナー。例 `entities/owner.md`・`entities/dispatcher.md`）・`topics/`（概念・運用の題。例「rebase のあとのレビューの頼み直し」）・`overview.md`（まとめ1枚）。原典の comparisons・synthesis は topics と overview に吸う。
+3. **2026-11-10 wiki の層のページは4種をフォルダで分ける。** `sources/`（元資料に1対1の要約）・`entities/`（実体: 役・部品・案件・オーナー。例 `entities/owner.md`・`entities/dispatcher.md`）・`topics/`（概念・運用のテーマ。例「rebase のあとのレビューの頼み直し」）・`overview.md`（まとめ1枚）。原典の comparisons・synthesis は topics と overview に吸う。
    理由: 実体と概念が育つ場所が決まり、オーナーの志向は `entities/owner.md` に集まる。
    捨てた案: 原典の6種そのまま——小さい wiki に空の種類ができる／フォルダで分けず front matter の kind だけ——ファイル一覧で形が見えない。
 4. **2026-11-10 ingest は、元資料を `raw/` に置いたその場で1件ずつ（原典どおり）。** 置く時＝オーナーの発言を写したとき・オーナーが資料を置いて「取り込んで」と言ったとき・finish で記録を写したとき。取り込み＝`sources/` に要約ページを書き、関わる `entities/`・`topics/` を直し、`index.md` と `log.md` に足す。
    理由: 元資料と wiki がずれない。
    捨てた案: 溜めてまとめて（オーナーが頼んだときか週1）——未取り込みが溜まり index が古くなる／finish のときだけ（今の §11）——オーナーの発言と外の資料が次の finish まで待つ。
-5. **2026-11-10 `index.md` と `log.md` の2つを置く（§11 の「log.md は作らない」を覆す）。** `index.md` は中身の目録（ページごとに1行: リンク・1行の要約。種類ごとの節。ingest のたびに更新。query は最初にこれを読む）。`log.md` は時系列の追記だけの記録（ingest・query・lint の1件に1項。先頭を `## [YYYY-MM-DD] ingest | <題>` の形に揃え、`grep` で引ける）。
+5. **2026-11-10 `index.md` と `log.md` の2つを置く（§11 の「log.md は作らない」を覆す）。** `index.md` は中身の目録（ページごとに1行: リンク・1行の要約。種類ごとの節。ingest のたびに更新。query は最初にこれを読む）。`log.md` は時系列の追記だけの記録（ingest・query・lint の1件に1項。先頭を `## [YYYY-MM-DD] ingest | <タイトル>` の形に揃え、`grep` で引ける）。
    理由: 案 B（決めたこと 1）に含む。git の履歴は commit の粒で、ingest・query・lint の種類と触ったページが見えない。log.md は lint の回数（決めたこと 6）を数える元にもなる。
    捨てた案: log.md は作らず git の履歴で代える（今の §11）。
 6. **2026-11-10 lint は Chief of Staff が ingest を約10件するごとと、オーナーが頼んだとき。** 見るもの: ページ間の矛盾・新しい元資料に覆された古い主張・孤立ページ（入るリンクが無い）・名前は出るのにページが無い重要な概念・リンク漏れ。矛盾は古いページを上書きせず「→ 覆された（<新しいページ>）」を足す（今の §11 の lint の行を保つ）。定期の課題は起動しない（§11 の線を保つ）。振り返りのルーチンができたらそこへ移す。

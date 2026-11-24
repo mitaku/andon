@@ -58,7 +58,7 @@
 ## 決めたこと（番号・日付・誰が決めたか・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-22 範囲は、README の組み直しと、それに要るものだけにする。（オーナーが決めた）** README を組み直し、課題の流れと行燈の図を 1 枚足し、ADR の一覧を README から出し、description の古い語を直す。
-   理由: 読み手の大半は README しか読まないので、README の中の並べ替えだけでは「どう回るか」が文でしか伝わらない。画面の写真と動画は、セルの名前など固有の値が写るので、作り方から決める別の題になる。
+   理由: 読み手の大半は README しか読まないので、README の中の並べ替えだけでは「どう回るか」が文でしか伝わらない。画面の写真と動画は、セルの名前など固有の値が写るので、作り方から決める別のテーマになる。
    捨てた案: 広げる（画面の写真かデモの動画、social preview と topics の見直し、docs の入口のページの新設まで含める）。保つ（`README.md` の 1 ファイルの中だけを直し、ADR の一覧は残し、図は足さない）。減らす（古い所の直しと、ADR の一覧を畳むことだけ）。
 
 2. **2026-11-22 主な読み手は日本語の開発者で、README の役目は「数分で判断できる」までにする。（オーナーが決めた。前提 1〜3 への同意）**
@@ -164,7 +164,7 @@
    - 一緒に直す所: `tests/adr-index.sh`（読み先・冒頭の説明・自己確認の写し・出力の文）。`tests/words-selftest.sh` の、一覧の行を `README.md` に書いて試す例。`tests/lib/scope.sh` の対応の表（`README.md` を `adr-index.sh` の行から外し、人用の文書の行へ移す。外すだけだと、知らないパスとして全部の検査が選ばれる）。`tests/ci.sh` の `README.md` で `adr-index.sh` が選ばれるという確かめ。image.md の検査の表の 2 行。design.md §1.8 の 1 文。`AGENTS.md` の ADR の行の「守らせるもの」。ADR-0033 の決めたこと 6 の下に足す改めの 1 行。
    - 新しい ADR の PR は、`docs/adr/README.md` に 1 行足す。README には足さない。
    - 払うもの: 一覧が 1 ファイルである限り、並んで走る ADR の PR は同じ所に行を足してぶつかる。これは移す前と変わらない。
-   捨てた案: 一覧を README に残して `<details>` で畳む（行は減らないまま、ADR のたびに 2 つの README を触ることになる）。一覧を持たず、ADR のフォルダのファイルの並びに任せる（並んで走る PR がぶつからなくなるが、ファイルの名前は英語の短い形で、日本語の題と状態は 1 本ずつ開かないと分からない）。
+   捨てた案: 一覧を README に残して `<details>` で畳む（行は減らないまま、ADR のたびに 2 つの README を触ることになる）。一覧を持たず、ADR のフォルダのファイルの並びに任せる（並んで走る PR がぶつからなくなるが、ファイルの名前は英語の短い形で、日本語のタイトルと状態は 1 本ずつ開かないと分からない）。
    → 2026-11-22 に、[ADR-0055](0055-adr-prs-without-conflicts.md) 決めたこと 2・5 が、「新しい ADR の PR は `docs/adr/README.md` に 1 行足す」と「検査が見ることは変えない」を覆した。一覧は command が書き、バージョンを切る PR が作り直す。検査は ADR ごとの行と状態の語を見ない。置き場と、冒頭の読み方と、2 つの README から指すことは変わらない（オーナーが決めた）。受け入れ条件 1 の「状態を変えた写しが落ちる」と切る案 1 は、ADR-0055 の受け入れ条件と切る案 1 に置き換える。
 
 10. **2026-11-22 2 つの README の構成がずれないことを、検査 1 本（`tests/readme.sh`）で守る。（Chief Engineer が決めた）**
@@ -200,7 +200,7 @@
 
 ## やらないこと（範囲の外。理由）
 
-- **画面の写真とデモの動画。** セルの名前など固有の値が写るので、作り方（見本のセルで撮るか・描くか）から決める別の題（決めたこと 1）。
+- **画面の写真とデモの動画。** セルの名前など固有の値が写るので、作り方（見本のセルで撮るか・描くか）から決める別のテーマ（決めたこと 1）。
 - **social preview の画像と topics の見直し、表示名の変更。** ADR-0029 のやらないことのまま。
 - **[vision.md](../vision.md) と図（vision.svg）の描き直し。** 冒頭に「2026-11-07 の時点のもの」と断ってあり、今の姿は design.md が正。
 - **design.md・operate.md・image.md の中身の書き直し。** README は指すだけ。直すのは、README の ADR の一覧や検査の範囲を説明している文（design.md §1.8 の 1 文と image.md の検査の表。決めたこと 9・10）だけ。
@@ -232,14 +232,14 @@
 3. **見る日**: 2026-12-09（README の PR のマージ見込み 2026-11-25 から 14 日後。GitHub の traffic は 14 日分しか残らないので、14 日目に見る）。
 4. **誰が要るか**: オーナー（読んで言う）。数のほうは、外の読み手が来ること。入口の unique が 14 日で 100 に届かなければ、数は「分からない」とする。
 5. **効いたとどう分かるか**: オーナーが、マージから 14 日のあいだに README を読み返して「骨子が伝わる」と言う。`README.ja.md` の割合は当たりの条件にしない。割合が低いとき、英語の README で足りたのか、最初の画面で離れたのかを、この数は分けられない。
-6. **何があれば止めるか**: `README.ja.md` の unique が入口の unique の 50% 以上なら、日本語の README まで進む読み手が多数で、最初の画面が合っていない。言語の並べ方（決めたこと 3）を見直す題を、オーナーと決める。
+6. **何があれば止めるか**: `README.ja.md` の unique が入口の unique の 50% 以上なら、日本語の README まで進む読み手が多数で、最初の画面が合っていない。言語の並べ方（決めたこと 3）を見直すテーマを、オーナーと決める。
 
 ## 依頼書に切る案（縦に薄く・依存だけ。切るのは Chief of Staff）
 
 この文書の PR に入れるもの（切らない）: この ADR、決定の記録 1 件、今の README の ADR の一覧の 1 行。
 
 1. **ADR の一覧を `docs/adr/README.md` に移す。** 決めたこと 9。受け入れ条件 1・5。依存なし。文書と検査だけ。並んで走る ADR の PR は README の一覧に 1 行足しているので、この課題がマージされたあとは `docs/adr/README.md` に足し直す。先に入れる。
-2. **`README.md`（英語）と `README.ja.md`（日本語）を書き、`tests/readme.sh` を足す。** 決めたこと 3〜8・10・11。受け入れ条件 2〜7。依存: 1。依頼書の完了条件に受け入れ条件 7 の 5 問を書く。マージはふだんどおり（決めたこと 13）。一緒に直す所: `README.md` を名指す一覧に `README.ja.md` を足す（`tests/words.sh` の 3 か所・`tests/words-selftest.sh`・`tests/lib/docs-scope.sh`・`tests/lib/image-scope.sh`・`tests/lib/scope.sh`・`tests/ci.sh`・`internal/chiefengineer` の `TestDocumentedInvocations` が読む一覧・image.md の文書だけの PR の説明と表）。`CHANGELOG.md` の冒頭の「README の Status」。README に `andon chief-engineer` の呼び出しを書くなら、`TestDocumentedInvocations` が打てる形（題を `"<題>"` と書く形）にする。
+2. **`README.md`（英語）と `README.ja.md`（日本語）を書き、`tests/readme.sh` を足す。** 決めたこと 3〜8・10・11。受け入れ条件 2〜7。依存: 1。依頼書の完了条件に受け入れ条件 7 の 5 問を書く。マージはふだんどおり（決めたこと 13）。一緒に直す所: `README.md` を名指す一覧に `README.ja.md` を足す（`tests/words.sh` の 3 か所・`tests/words-selftest.sh`・`tests/lib/docs-scope.sh`・`tests/lib/image-scope.sh`・`tests/lib/scope.sh`・`tests/ci.sh`・`internal/chiefengineer` の `TestDocumentedInvocations` が読む一覧・image.md の文書だけの PR の説明と表）。`CHANGELOG.md` の冒頭の「README の Status」。README に `andon chief-engineer` の呼び出しを書くなら、`TestDocumentedInvocations` が打てる形（タイトルを `"<タイトル>"` と書く形）にする。
 3. **description を直す。** 決めたこと 12。受け入れ条件 8。依存: 2 のマージ（README と同じ日に替える）。repo の設定を変える操作で、PR にならない。
 4. **観察。** 価値の仮説。見る日 2026-12-09。依存: 2・3。
 
@@ -249,7 +249,7 @@
 
 ## 出典
 
-- オーナーの発言 2026-11-21（v0.0.13 のあとにやりたいこと）と 2026-11-22（この題の対話。前提への同意・範囲・言語の並べ方・注記・冒頭と注記の文言・流れの数・description・README の PR のマージ）。
+- オーナーの発言 2026-11-21（v0.0.13 のあとにやりたいこと）と 2026-11-22（このテーマの対話。前提への同意・範囲・言語の並べ方・注記・冒頭と注記の文言・流れの数・description・README の PR のマージ）。
 - repo の中: `README.md`（main `b890baa`）、[design.md](../design.md) §0・§0.1・§1.1〜§1.3・§1.10・§2.1・§2.6・§2.7、[vision.md](../vision.md)、[decisions.md](../decisions.md) の 2026-11-05（文書の言語）と 2026-11-06（description・表示名）の行、[decisions/2026-11-08-predecessor-ids-and-public-logs.md](../decisions/2026-11-08-predecessor-ids-and-public-logs.md)、[ADR-0008](0008-issue-naming.md)、[ADR-0029](0029-factory-place-and-mechanism.md)、[ADR-0033](0033-adr-inventory-and-slimming.md)、[ADR-0036](0036-owner-not-hito.md)、[ADR-0040](0040-kanban-gate-version-words.md)、[ADR-0023](0023-sidebar-andon-look.md)、[image.md](../image.md)、[contract.md](../contract.md) §2、`tests/adr-index.sh`・`tests/words.sh`・`tests/words-selftest.sh`・`tests/ci.sh`・`tests/lib/scope.sh`、`internal/dispatcher/loop.go`（レビュアーの依頼書）、`internal/chiefengineer` の検査、`package/gate.json`。
 - GitHub の数（2026-11-22 に `gh api` で読んだ）: repo の traffic（views・popular/paths・popular/referrers）、スターの日付、repo の description と topics。
 - 流れの数: `andon measure --since 2026-11-15 --until 2026-11-21`（2026-11-22 に打った）。
