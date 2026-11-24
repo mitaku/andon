@@ -17,7 +17,7 @@ pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1" >&2; fails=$((fails + 1)); }
 
 skills="ask-one-by-one chief-engineer chief-of-staff digest glossary independent-review retro triage worker"
-profiles="chief-engineer chief-of-staff claude claude-review codex codex-review fable sonnet"
+profiles="chief-engineer chief-of-staff claude claude-medium claude-review codex codex-review fable sonnet"
 
 # frontmatter の key の値（最初の --- から次の --- まで）
 fm() { awk -v k="$2" 'NR==1 && $0!="---" {exit} NR>1 && $0=="---" {exit} NR>1 && index($0, k": ")==1 {print substr($0, length(k)+3); exit}' "$1"; }

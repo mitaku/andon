@@ -79,7 +79,7 @@ hc の端末1つで動くコーディングエージェント（Claude Code・Co
 _避ける_: 子エージェント（hc の子の端末と混ざる）
 
 **プロファイル**（profile）:
-エージェントの起動のしかた（CLI・モデル・effort）の名前。hc の template が中身を持つ（`chief-of-staff`・`chief-engineer`・`claude`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`）。作る・変えるのはオーナーだけ。
+エージェントの起動のしかた（CLI・モデル・effort）の名前。hc の template が中身を持つ（`chief-of-staff`・`chief-engineer`・`claude`・`claude-medium`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`）。作る・変えるのはオーナーだけ。
 _避ける_: モデル（プロファイルの中身の一部）
 
 ## 仕事

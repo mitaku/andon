@@ -30,7 +30,7 @@ Chief of Staff は `review` を `on` に書き直さない。書き直すのは�
 ## 2. プロファイルを選ぶ
 
 - **実装と別ブランド**。依頼書の Settings の `Reviewer`（既定 `codex-review`）。
-  - Claude が書いたもの（profile `claude`・`sonnet`・`fable`）→ `codex-review`。
+  - Claude が書いたもの（profile `claude`・`claude-medium`・`sonnet`・`fable`）→ `codex-review`。
   - Codex が書いたもの（profile `codex`）→ `claude-review`。
 - **強さはプロファイルの template が決める**（`/opt/andon/templates/`。`hc templates`）。`codex-review` は gpt-6-luna・effort max、`claude-review` は opus・effort medium。依頼書でモデルや effort を変えない。
 - プロファイルは hc の template（`hc templates`）。無ければオーナーに作ってもらうよう頼む。Chief of Staff は作らない。
