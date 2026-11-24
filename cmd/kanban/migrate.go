@@ -73,7 +73,7 @@ func cmdMigrate(e env, a args) error {
 	if _, _, err := readDispatcherState(slug); err != nil {
 		return err
 	}
-	draft, err := projectDraft(root, old)
+	draft, signals, err := projectDraft(root, old)
 	if err != nil {
 		return err
 	}
@@ -135,6 +135,9 @@ func cmdMigrate(e env, a args) error {
 	}
 	if project != "" {
 		lines = append(lines, "wrote a draft of "+project+" (not committed): check it, commit it as yours, then andon delegate show")
+		if signals {
+			lines = append(lines, "the draft's signals read main's CI failures and tell the Chief of Staff now; remove them before committing if the project doesn't want that")
+		}
 	}
 	o := &omap{}
 	o.set("root", root)
@@ -290,19 +293,21 @@ func moveCoordinatorMD(root string) (string, error) {
 
 // projectDraft is the project.json to write when the project has none (nil when it has one):
 // version 1, project (config.yaml title, else the folder's name; prefix), repos (config.yaml),
-// and delegation (delegation.json as it is). The shape is Andon's schema/project.schema.json;
+// delegation (delegation.json as it is) and, when there is a repo, signals with one line that
+// reads main's CI failures now, as andon create's draft has (ADR-0051, 4); signals says it has
+// that line. The shape is Andon's schema/project.schema.json;
 // andon delegate show checks it once the person has committed it.
-func projectDraft(root, old string) ([]byte, error) {
+func projectDraft(root, old string) ([]byte, bool, error) {
 	to := filepath.Join(root, "project.json")
 	if err := checkNoLink(to, true); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if exists(to) {
-		return nil, nil
+		return nil, false, nil
 	}
 	cfg, err := readDoc(filepath.Join(old, "config.yaml"))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	title := cfg.str("title")
 	if title == "" {
@@ -319,37 +324,42 @@ func projectDraft(root, old string) ([]byte, error) {
 	var delegation json.RawMessage
 	from := filepath.Join(root, "delegation.json")
 	if err := checkNoLink(from, true); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	switch b, err := os.ReadFile(from); {
 	case os.IsNotExist(err):
 	case err != nil:
-		return nil, err
+		return nil, false, err
 	default:
 		if !json.Valid(b) {
-			return nil, fail("not moved: %s is not JSON; fix it first (it becomes project.json's delegation)", from)
+			return nil, false, fail("not moved: %s is not JSON; fix it first (it becomes project.json's delegation)", from)
 		}
 		delegation = json.RawMessage(b)
+	}
+	var signals []delegate.Signal
+	if len(repos) > 0 {
+		signals = []delegate.Signal{{Source: "github-ci", Weight: "now"}}
 	}
 	type info struct {
 		Title  string `json:"title"`
 		Prefix string `json:"prefix"`
 	}
 	out, err := json.MarshalIndent(struct {
-		Version    int             `json:"version"`
-		Project    info            `json:"project"`
-		Repos      []string        `json:"repos"`
-		Delegation json.RawMessage `json:"delegation,omitempty"`
-	}{1, info{title, prefix}, repos, delegation}, "", "  ")
+		Version    int               `json:"version"`
+		Project    info              `json:"project"`
+		Repos      []string          `json:"repos"`
+		Delegation json.RawMessage   `json:"delegation,omitempty"`
+		Signals    []delegate.Signal `json:"signals,omitempty"`
+	}{1, info{title, prefix}, repos, delegation, signals}, "", "  ")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	// Checked as Andon reads it (schema and rules, the delegation's too), before anything is moved:
 	// a draft Andon can't read would leave the project with no delegation.
 	if _, err := delegate.ParseProject(out, filepath.Base(root)); err != nil {
-		return nil, fail("not moved: the project.json drafted from config.yaml and delegation.json can't be read by Andon (%v); fix them first, or write project.json yourself", err)
+		return nil, false, fail("not moved: the project.json drafted from config.yaml and delegation.json can't be read by Andon (%v); fix them first, or write project.json yourself", err)
 	}
-	return append(out, '\n'), nil
+	return append(out, '\n'), signals != nil, nil
 }
 
 // readDispatcherState reads the dispatcher's state for slug: nil data when there is none,
