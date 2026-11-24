@@ -16,6 +16,8 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 
 **Who it is for.** One developer who already runs several coding agents in terminals and wants them to keep working while the developer is away, without giving up control of merges and irreversible operations. It is built for its author's own use first.
 
+**Why build it, if models will absorb it.** Much of Andon (the split into roles, the hand-off rules, the dispatcher) makes up for what today's models and harnesses cannot do yet, and is expected to move into them as they grow. Andon is built to shrink. It is built anyway, for two reasons. First, the author wants to live through this shift and turn it into experience: what a platform can take over, where it breaks, and what must not be handed to it are learned only by running a factory yourself. Second, the cell repo is run as a home repo, close to a home directory. The cell's instructions, skills, wiki and project definitions stay in it as plain files, so they carry over to whatever runs on top of the cell next ([The cell](#セルの考え方)). Parts are retired by what is written down, too: each playbook of the Chief of Staff states when it can be deleted ([decision, Japanese](docs/decisions/2026-11-13-cos-principles-playbooks.md)), and retrospectives propose removing instructions that a newer model no longer needs.
+
 **Status.** Experimental. It is used by one person, and the interfaces change without notice. Most documents are written in Japanese; English is added only where needed. There are no releases with compatibility promises yet; what changed in each tagged version, and what to do when upgrading, is in [CHANGELOG.md](CHANGELOG.md). The host must be Linux or WSL with Docker and bash. The cell image bundles agent CLIs (Claude Code, Codex) and the terminal workspace herdr; you bring your own accounts for them.
 
 **Getting started.** The step-by-step procedure (Japanese) is [docs/operate.md](docs/operate.md): pull the image, create a cell repo with `andon init <slug>`, run `bin/bootstrap`, then start the Chief of Staff and run one issue. The commands are also in [Set up a cell](#セルを立てる) below.
@@ -48,6 +50,8 @@ The design calls this a *selective dark factory*. A "dark factory" is a factory 
 文書と commit メッセージにある `Y-<数>`（`Y-123` など）は、前身の仮設の工場の kanban の番号で、この repo の課題の id（`A-0001` の形）とは別物。履歴は書き換えない。
 
 今の状態: 実験的で、1人で使っている。約束（コマンド・形式）は断りなく変わる。文書は日本語が中心。1人用の repo なので、今は PR を受け付けていない。脆弱性の知らせ方は [SECURITY.md](SECURITY.md)。
+
+なぜ作るか（モデルに置き換わっていくとしても）: Andon の部品の多く（役の分け方・引き継ぎの決まり・dispatcher）は、今のモデルとハーネスにまだできないことを補っている。モデルとハーネスが育てば、そちらへ移って要らなくなる前提で、Andon は縮むように作る。それでも作る理由は2つある。1つは、この流れを自分で体験し、経験値にするため。基盤が何を肩代わりでき、どこで詰まり、何を渡してはいけないかは、自分で工場を回さないと分からない。もう1つは、セルの repo をホームディレクトリのように使い続けるため。セルの指針・skill・wiki・プロジェクトの定義は、セルの repo にふだんのファイルで残り、セルの上で動く仕組みが替わっても持ち越せる（[セルの考え方](#セルの考え方)）。部品を外すときも、書いたものに従う。Chief of Staff の手引きは1本ごとに消す条件を持ち（[決定の記録](docs/decisions/2026-11-13-cos-principles-playbooks.md)）、振り返りはモデルが替わって要らなくなった指示を削る候補に挙げる。
 
 ### 文書の地図
 
