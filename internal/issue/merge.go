@@ -114,9 +114,10 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	}
 	if w.Row != row {
 		w = contract.Merging{Row: row}
-		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head の gate の記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）
+		// 記録が無い（初めて打つ・消えた）ときは、この行のあとに書かれた今の head の gate の記録を引き継ぐ（同じ行に2度目の問いや通知を出さない）。
+		// マージに進んだ approve で決め終えた印の無いものは引き継がず、gate から回し直す（decidedApprove）
 		if fresh {
-			if g := c.gatedSince(rep.Commit, rows[row-1].At); g != nil {
+			if g := c.gatedSince(rep.Commit, rows[row-1].At); g != nil && (g.Decision != "approve" || c.decidedApprove(rows, g)) {
 				w.Sha, w.Decision = g.Head, g.Decision
 				return &w
 			}
@@ -174,7 +175,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		// （担当が doing に戻って rebase し、ready が数えずに通した問い。ready の staleGateQuestions）
 		c.closeStaleGateQuestions(gr.Head, res)
 		record = filepath.Join(c.l.Library(c.id), "gate", gr.Head+".json")
-		res.Auto = gr.Decision == "approve" && c.autoMerge(rows, gr)
+		res.Auto = gr.Decision == "approve" && c.autoMerge(rows, gr.Delegation.OK)
 		res.Notify = append(res.Notify, contract.Notice{Kind: "gate",
 			Detail: map[string]any{"decision": gr.Decision, "reasons": nonNil(gr.Reasons), "record": record}})
 	}
@@ -432,9 +433,36 @@ type gateResult struct {
 	} `json:"delegation"`
 }
 
-// autoMerge は gate の approve のあとマージに進むか（merge: auto を Chief of Staff が書いた・委譲の範囲内）。
-func (c *ctx) autoMerge(rows []ledger.Row, gr gateResult) bool {
-	return ledger.SettingsOf(c.issue).Merge == "auto" && c.l.Trusted(rows, c.issue, "merge") && gr.Delegation.OK
+// autoMerge は gate の approve のあとマージに進むか（merge: auto を Chief of Staff が書いた・委譲の範囲内 delegated）。
+func (c *ctx) autoMerge(rows []ledger.Row, delegated bool) bool {
+	return ledger.SettingsOf(c.issue).Merge == "auto" && c.l.Trusted(rows, c.issue, "merge") && delegated
+}
+
+// decidedApprove は、記録が消えたときに引き継ぐ gate の記録 g の approve を、merge が決めたこととして書いた approve と読めるか。
+// マージに進まない approve（merge: person・委譲の外）、dispatcher がマージした approve（g.merged）、その head について gate の問いを
+// 出した approve（マージできなかった。受け取られた問いも数える）は決め終えている。それ以外のマージに進んだ approve は、マージの直前の
+// 読み直しか base の動きで regate を返した回（決めたことを書かない）と見分けられないので、引き継がずに gate から回し直す
+// （引き継ぐと、マージも問いも無いまま止まる）。
+func (c *ctx) decidedApprove(rows []ledger.Row, g *gate.Record) bool {
+	if g.Merged || !c.autoMerge(rows, g.Delegation.OK) {
+		return true
+	}
+	dir := filepath.Join(c.l.Library(c.id), "questions")
+	entries, _ := os.ReadDir(dir) // 読めなければ問いは無いものとして回し直す（止まるより問いが重なるほうがよい）
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		var q struct {
+			From  string   `json:"from"`
+			Facts []string `json:"facts"`
+		}
+		if err == nil && json.Unmarshal(b, &q) == nil && q.From == "gate" && gate.QuestionHead(q.Facts) == g.Head {
+			return true
+		}
+	}
+	return false
 }
 
 // stillWaiting は、PR の head が wait を返したときの head のままで、gate を回しても wait になる checks のままか（GraphQL を1回）。

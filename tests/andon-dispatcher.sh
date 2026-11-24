@@ -1330,6 +1330,21 @@ kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_ques
 jq -e '.merged == true' "$L/issues/$id/library/gate/$head.json" >/dev/null || die '打ち直したマージを gate の記録に書いていない'
 ok 'base が動いて gh pr merge が失敗したら問いにせず、次の巡で gate から照合し直し、同じ head でマージを打ち直して片付ける'
 
+# 打ち直しを待つ間に merge の記録が消えた → gate の記録の approve を決め終えたと引き継がず、gate から回し直して打ち直す
+lost_merge_record() { # lost_merge_record: merge の記録を消して場面の課題に andon issue merge を打ち、ほかの課題の記録は戻す（あとの場面の数に入れない）
+    # dispatcher の巡では、記録を作り直すのは最初に打つ課題なので、場面の課題に直に打つ（3b と同じ）
+    cp "$mergerec" "$tmp/merge.bak"
+    rm "$mergerec"
+    freeze; HC_TERMINAL_ID=dispatcher "$andon" issue merge "$id" > "$tmp/merge.out"
+    jq -s --arg t "$id" '(.[0] | del(.[$t])) + .[1]' "$tmp/merge.bak" "$mergerec" > "$tmp/merge.new" && mv "$tmp/merge.new" "$mergerec"
+}
+base_moved '待つ間に merge の記録が消える'
+rm "$tmp/gh/mergefail"
+lost_merge_record
+[ "$(tried)" = 2 ] || die "記録が消えたら approve を引き継いで止まり、打ち直さない: $(tried) $(cat "$tmp/merge.out")"
+kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die "記録が消えたあと打ち直して片付けない・問いにした: $(cat "$tmp/merge.out")"
+ok '打ち直しを待つ間に merge の記録が消えても、gate の approve を決め終えたと読まず、gate から回し直して打ち直す'
+
 # ADR-0056 A7（決めたこと 12）: 印を書いた直後で必須の check がまだ揃わず「the base branch policy prohibits the merge」で断られた → 同じく打ち直す
 id=$(newtask '必須の check が揃う前' auto)
 printf 'X Pull request example/app#7 is not mergeable: the base branch policy prohibits the merge.\n' > "$tmp/gh/mergefail"
@@ -1406,6 +1421,8 @@ jq -e '.from == "gate" and .kind == "irreversible" and (.question | contains("di
 dispatcher
 [ "$(tried)" = 4 ] || die '上限を超えても打ち直した'
 jq -e --arg t "$id" '.[$t] | .decision == "approve" and (.retries // 0) == 0 and (.approved // "") == ""' "$mergerec" >/dev/null || die "決めたあとに待ちを残した: $(cat "$mergerec")"
+lost_merge_record   # 問いを出したあとに記録が消えても、gate の記録を引き継いで打ち直さず、問いを出し直さない
+[ "$(tried)" = 4 ] && [ ! -e "$L/issues/$id/library/questions/2.json" ] || die "問いを出した approve の記録が消えたら、打ち直した・問いを出し直した: $(tried) $(cat "$tmp/merge.out")"
 drop
 ok 'base が動き続けたら打ち直しは 3 回までで、checks を待っても回数を忘れず、超えたら今までどおりオーナーへの問いにする'
 
