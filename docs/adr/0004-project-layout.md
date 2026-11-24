@@ -51,7 +51,7 @@
      - **plugin を入れて検査する**: `.claude/settings.json` の plugin の設定（例: 依存の脆弱性や秘密の混入を見る検査の plugin をこのプロジェクトだけで有効にする）。managed の deny と allow は緩められない。
      - **ワンショットのスクリプト**（製品の repo に置かないもの: 顧客のデータの見本を取る・報告の表を作る・一度きりの移行）: オーナーが書くなら自由な置き場（例 `scripts/`。追跡が既定）、Chief of Staff が書くなら skill の中（`.claude/skills/<name>/scripts/`。skill の一部として読まれる）。どちらも製品の repo を汚さない。
      - **参考 repo**: `project.json` の `references` に書き、読みたいときは worktree ではなく `.ghq/` の checkout を読む（書かない）。
-   - 作らないもの: `delegation.json`・`delegation.md`（`project.json` の `delegation` と `andon delegate show` に置き換える）、`chief-of-staff.md`／`coordinator.md`（`AGENTS.md` に畳む）、`memory/`・`inbox/`・`uploads/`・`scratch/`・`threads/`（前提 7・8。inbox は保存せず導出する: 伝令とボードのタイトル）、`master/`・`research/`・`canvas/`・`wiki/`・`docs/`（2・3・4）。
+   - 作らないもの: `delegation.json`・`delegation.md`（`project.json` の `delegation` と `andon delegate show` に置き換える）、`chief-of-staff.md`／`coordinator.md`（`AGENTS.md` に畳む）、`memory/`・`inbox/`・`uploads/`・`scratch/`・`threads/`（前提 7・8。inbox は保存せず導出する: 伝令とボードのテーマ）、`master/`・`research/`・`canvas/`・`wiki/`・`docs/`（2・3・4）。
    理由: Chief of Staff の cwd なので、ハーネス固有の置き場（`.claude/`）と `AGENTS.md` を標準の名前で置けば、Claude Code も Codex も特別な配り方なしに読む。守りは `project.json`（照合）と managed deny にあり、指針と手順では緩められないので、`AGENTS.md`・`.claude/` はエージェントが書いてよい（shepherdr 1.0「repo の file は事実だけ、guard を緩められない」と同じ線）。`AGENTS.md` を薄く保つのは、全エージェントの毎 turn のコンテキストに必ず載り、増えた分を全員が毎回払い、古い行は腐り、長いほど守られないから（shepherdr 3.x「`For AGENTS.md:` は 1 行、指揮役が真偽を判断」も同じ警戒）。アウターループの出口は機械優先の順（テスト → `REVIEW.md` → skill → wiki → 削る）で、`AGENTS.md` に足すのはどれにも置けず毎回要るものだけ。振り返りは足した行数と削った行数を報告に書く。
    捨てた案: 1 回目の提案（直下はオーナーのファイル 4 つだけ・kanban は外）——前提 2 で理由が消えた／`chief-of-staff.md` を残す——読み手が同じ（Chief of Staff）なので 2 つ要らない／`projects/<slug>/skills/` を新設——ハーネス固有の置き場がある。
 
