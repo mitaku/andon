@@ -474,6 +474,16 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		}
 	}
 	facts.Checks = rec.Checks
+	if gated {
+		// 古い base: PR の分かれ目より後に既定ブランチで検査の置き場が変わっていれば、この PR の checks は今の検査を通っていない。
+		// 条件表の検査（分単位）のあとに読み、判定からマージまでの間に既定ブランチが動く窓を狭める
+		moved, ahead, unread, err := baseFiles(slug, head, pv.BaseRefName)
+		if err != nil {
+			return nil, "", err
+		}
+		facts.StaleBase, facts.BaseUnread = CheckPlaceFiles(rt, moved), unread
+		facts.OwnChecks, facts.BaseAhead = CheckPlaceFiles(rt, files), ahead
+	}
 	path := filepath.Join(l.Library(id), "gate", head+".json")
 	if prev, err := os.ReadFile(path); err == nil {
 		var p Record
@@ -506,6 +516,78 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 func written(path string, began time.Time) bool {
 	fi, err := os.Stat(path)
 	return err == nil && !fi.ModTime().Before(began)
+}
+
+// CheckPlaces は検査の置き場の glob（条件表の glob と同じ書き方）。ここが変わると、それより前の base で通した checks は今の検査を通っていない。
+// gate は既定ブランチでここが変わったあとの PR を、rebase して checks を回し直すまで通さない（StaleBaseReason）。
+// 検査の置き場の定義はここだけに置く（ほかの command も CheckPlaceFiles・IsCheckPlace で読む）。
+// Go の検査（*_test.go）も入れる: 既定ブランチに足した Go の検査は、それより前の base の PR が変えたコードを見ていない。
+var CheckPlaces = []string{"tests/**", ".github/workflows/**", ".claude/skills/verify-andon/**", "**/*_test.go"}
+
+// IsCheckPlace は path（repo の根からのパス）が検査の置き場か。
+func IsCheckPlace(path string) bool { return matchAny(CheckPlaces, path) }
+
+// CheckPlaceFiles は files のうち検査の置き場に当たるパス（純粋関数。strip_prefix を外し、rename の元も見る。files の順で重ねない）。
+func CheckPlaceFiles(repo RepoTable, files []File) []string {
+	hit := []string{}
+	for _, f := range files {
+		ps := []string{strings.TrimPrefix(f.Path, repo.StripPrefix)}
+		if f.PreviousPath != "" && f.PreviousPath != f.Path {
+			ps = append(ps, strings.TrimPrefix(f.PreviousPath, repo.StripPrefix))
+		}
+		for _, p := range ps {
+			if IsCheckPlace(p) && !slices.Contains(hit, p) {
+				hit = append(hit, p)
+			}
+		}
+	}
+	return hit
+}
+
+// compareFilesLimit は GitHub の compare が返すファイルの上限。これだけ返れば、一覧が切れているかもしれない。
+const compareFilesLimit = 300
+
+// compareJq は compare の応答から読む欄だけを残す（差分の本文を運ばない）。
+const compareJq = `{ahead_by, files: (if .files == null then null else [.files[] | {filename, previous_filename}] end)}`
+
+// baseFiles は、PR の head と base の分かれ目（merge-base）から base の先頭までに、base の側で変わったファイル（GitHub の compare）。
+// unread は一覧が上限で切れたかもしれない（読み切れない）とき。
+func baseFiles(slug, head, base string) ([]File, int, bool, error) {
+	b, err := gh("api", "repos/"+slug+"/compare/"+head+"..."+base, "--jq", compareJq)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	return ParseCompare(b)
+}
+
+// ParseCompare は baseFiles が読んだ compare の応答（compareJq を通したもの）を読む（純粋関数）。
+// ahead は分かれ目より後に既定ブランチにだけある commit の数。
+func ParseCompare(b []byte) ([]File, int, bool, error) {
+	var v struct {
+		AheadBy *int `json:"ahead_by"`
+		Files   *[]struct {
+			Filename         string `json:"filename"`
+			PreviousFilename string `json:"previous_filename"`
+		} `json:"files"`
+	}
+	if json.Unmarshal(b, &v) != nil || v.AheadBy == nil || *v.AheadBy < 0 {
+		return nil, 0, false, errors.New("既定ブランチとの比べ（compare）が読めない")
+	}
+	files := []File{}
+	if *v.AheadBy == 0 {
+		return files, 0, false, nil
+	}
+	if v.Files == nil {
+		// 既定ブランチが進んだのにファイルの一覧が無い: 変わっていないと読まない（読めないとして判定しない）
+		return nil, 0, false, errors.New("既定ブランチとの比べ（compare）にファイルの一覧が無い")
+	}
+	for _, f := range *v.Files {
+		if f.Filename == "" {
+			return nil, 0, false, errors.New("既定ブランチとの比べ（compare）のファイルに名前が無い")
+		}
+		files = append(files, File{Path: f.Filename, PreviousPath: f.PreviousFilename})
+	}
+	return files, *v.AheadBy, len(*v.Files) >= compareFilesLimit, nil
 }
 
 // prFiles は PR の変更されたファイル（REST を全ページ。GraphQL の files は100件で切れ、rename 元も無い）。

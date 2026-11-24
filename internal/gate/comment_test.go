@@ -38,6 +38,11 @@ func recordReasons(t *testing.T) []string {
 			f.SettingsReason = "issue.yaml の review・must_fix を最後に書いたのが Chief of Staff（config.yaml の chief_of_staff）でない・記録と値が違う"
 		},
 		func(f *Facts) { f.RepoKnown = false },
+		func(f *Facts) {
+			f.StaleBase = []string{"tests/a.sh", "tests/b.sh", "tests/c.sh", ".github/workflows/x.yml"}
+		},
+		func(f *Facts) { f.BaseUnread = true },
+		func(f *Facts) { f.OwnChecks = []string{"tests/a.sh"}; f.BaseAhead = 2 },
 		func(f *Facts) { f.Tier = "C" },
 		func(f *Facts) { f.Checks[0].OK = false },
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{"failure", []string{"test"}} },
