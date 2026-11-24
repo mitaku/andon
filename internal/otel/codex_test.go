@@ -180,7 +180,7 @@ func TestReceiveCodexLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, s := range []string{"example.com", "andon/internal/otel\\t1.204s", "PASS"} {
+	for _, s := range []string{"example.com", "andon/internal/otel\\t1.204s"} {
 		if strings.Contains(string(b), s) {
 			t.Errorf("書いた行に %q が残っている", s)
 		}

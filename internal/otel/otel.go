@@ -353,7 +353,7 @@ func liftSpanAttrs(entry any) string {
 func strip(v any) {
 	switch x := v.(type) {
 	case map[string]any:
-		content := contentAttrs[eventName(x)]
+		content := contentOf(x)
 		for k, child := range x {
 			if list, ok := child.([]any); ok && (k == "attributes" || k == "values") {
 				x[k] = dropPersonal(list, content)
@@ -388,21 +388,24 @@ func redactStrings(v any) any {
 	return v
 }
 
-// eventName は記録（ログの 1 件か span のイベント）の名前。OTLP の eventName か、属性 event.name の文字列の値。
-func eventName(rec map[string]any) string {
-	if s, ok := rec["eventName"].(string); ok && s != "" {
-		return s
+// contentOf は記録（ログの 1 件か span のイベント）の名前から、落とす本文の属性を引く。名前は属性 event.name の文字列の値と
+// OTLP の eventName の両方を見る。Codex のログの eventName は tracing の呼び出し元の名前（event <ファイル>:<行>）で、
+// codex.tool_result の名前は属性 event.name にだけある（opentelemetry-appender-tracing 0.31）。
+func contentOf(rec map[string]any) map[string]bool {
+	if s, ok := rec["eventName"].(string); ok && contentAttrs[s] != nil {
+		return contentAttrs[s]
 	}
 	list, _ := rec["attributes"].([]any)
 	for _, a := range list {
 		kv, _ := a.(map[string]any)
 		if k, _ := kv["key"].(string); k == "event.name" {
 			val, _ := kv["value"].(map[string]any)
-			s, _ := val["stringValue"].(string)
-			return s
+			if s, _ := val["stringValue"].(string); contentAttrs[s] != nil {
+				return contentAttrs[s]
+			}
 		}
 	}
-	return ""
+	return nil
 }
 
 // dropPersonal は属性の並びから個人の属性と content（その記録の本文を運ぶ属性）を落とし、名前が秘密の名前の値を伏せる。
