@@ -1311,13 +1311,13 @@ function oldScreen({ b, draw }, why) {
 }
 const SINCE = hoursAgo(24);
 
-await check('kanban-board: command の道で、andon issue board --json --since <24 時間前> --project <名前> をプロジェクトのフォルダで呼び、課題を読む決まったシェルの文を呼ばない。受け取った課題で戻った道と同じ Board と List を描き、Done の列の一番下の数は older の値（ADR-0059 受け入れ条件 10）', async () => {
+await check('kanban-board: command の道で、andon issue board --json --since <24 時間前> をプロジェクトのフォルダで呼び、課題を読む決まったシェルの文を呼ばない。受け取った課題で戻った道と同じ Board と List を描き、Done の列の一番下の数は older の値（ADR-0059 受け入れ条件 10）', async () => {
   // No issue.yaml on disk: whatever the board shows came from andon.
   let cell = await oldCell({ files: false, reply: (a) => (a[1] === 'board' ? boardOut('sample-site') : { code: 2, stdout: '', stderr: '' }) });
   try {
     cell.b.refresh(cell.cx);
     await cell.settle();
-    assert.deepEqual(cell.boardCalls(), [['andon', ['issue', 'board', '--json', '--since', SINCE, '--project', 'sample-site'], cell.root]], 'andon issue board の呼び方');
+    assert.deepEqual(cell.boardCalls(), [['andon', ['issue', 'board', '--json', '--since', SINCE, ], cell.root]], 'andon issue board の呼び方');
     assert.equal(cell.listed(), 0, '課題を読む決まったシェルの文を呼んだ');
     assert.equal(cell.b.data.tasks.length, 7, '受け取った課題を持っていない');
     oldScreen(cell, 'command の道');
@@ -1341,18 +1341,6 @@ await check('kanban-board: command の道で、andon issue board --json --since 
   }
 });
 
-await check('kanban-board: command の道で、--project はプロジェクトがセルの projects/ の下に在るときだけ付く（ADR-0059 受け入れ条件 10）', async () => {
-  const cell = await oldCell({ files: false, dir: 'work', reply: (a) => (a[1] === 'board' ? boardOut('sample-site') : { code: 2, stdout: '', stderr: '' }) });
-  try {
-    cell.b.refresh(cell.cx);
-    await cell.settle();
-    assert.deepEqual(cell.boardCalls(), [['andon', ['issue', 'board', '--json', '--since', SINCE], cell.root]], 'projects/ の外のプロジェクトに --project を付けた');
-    oldScreen(cell, 'projects/ の外');
-  } finally {
-    await cell.done();
-  }
-});
-
 await check('kanban-board: command の道で、History を開くと andon issue history --json --limit 200 を呼んで出力の行を描き、Load older で --limit 400、/ のあと Enter で --match を付けて呼び直す。打っている間は呼ばない。プロジェクトの名前に含まれる文字では --match を付けない（ADR-0059 受け入れ条件 10）', async () => {
   const hist = (issues, more) => ({ code: 0, stderr: '', stdout: JSON.stringify({ version: 1, at: hoursAgo(0), project: 'sample-site', done: 'done', issues, more }) });
   const old = (n) => ({ id: `S-${String(n).padStart(4, '0')}`, title: `Old ${n}`, status: 'done', updated: hoursAgo(100 + n), profile: 'claude' });
@@ -1371,7 +1359,7 @@ await check('kanban-board: command の道で、History を開くと andon issue 
     click(byId(draw(), 'wb-view-history'));
     draw();
     await settle();
-    assert.deepEqual(histCalls(), [[['issue', 'history', '--json', '--limit', '200', '--project', 'sample-site'], cell.root]], 'History を開いて呼んだ形');
+    assert.deepEqual(histCalls(), [[['issue', 'history', '--json', '--limit', '200', ], cell.root]], 'History を開いて呼んだ形');
     const rows = () => idsUnder(draw(), 'wb-hist-').map((x) => x.replace('wb-hist-sample-site/', ''));
     assert.deepEqual(rows(), ['S-0101', 'S-0102', 'S-0103'], 'andon issue history の行を新しい順に描いていない');
     click(byId(draw(), 'wb-hist-sample-site/S-0102'));
@@ -1382,7 +1370,7 @@ await check('kanban-board: command の道で、History を開くと andon issue 
     click(byId(draw(), 'wb-load-older'));
     draw();
     await settle();
-    assert.deepEqual(histCalls().at(-1), [['issue', 'history', '--json', '--limit', '400', '--project', 'sample-site'], cell.root], 'Load older で 400 件を呼んでいない');
+    assert.deepEqual(histCalls().at(-1), [['issue', 'history', '--json', '--limit', '400', ], cell.root], 'Load older で 400 件を呼んでいない');
     const before = histCalls().length;
     press('/');
     for (const ch of 'signing') { press(ch); draw(); }
@@ -1391,7 +1379,7 @@ await check('kanban-board: command の道で、History を開くと andon issue 
     press('enter');
     draw();
     await settle();
-    assert.deepEqual(histCalls().at(-1), [['issue', 'history', '--json', '--limit', '400', '--match', 'signing', '--project', 'sample-site'], cell.root], 'Enter で --match を付けて呼んでいない');
+    assert.deepEqual(histCalls().at(-1), [['issue', 'history', '--json', '--limit', '400', '--match', 'signing', ], cell.root], 'Enter で --match を付けて呼んでいない');
     assert.deepEqual(rows(), ['S-0120'], '--match の出力を描いていない');
     // Text in the project's name matches every issue of it: asked without --match.
     press('/');
@@ -1399,7 +1387,7 @@ await check('kanban-board: command の道で、History を開くと andon issue 
     press('enter');
     draw();
     await settle();
-    assert.deepEqual(histCalls().at(-1)[0], ['issue', 'history', '--json', '--limit', '400', '--project', 'sample-site'], 'プロジェクトの名前に含まれる文字で --match を付けた');
+    assert.deepEqual(histCalls().at(-1)[0], ['issue', 'history', '--json', '--limit', '400'], 'プロジェクトの名前に含まれる文字で --match を付けた');
     // At each read of the ledger while History is shown, History is asked again.
     const n = histCalls().length;
     b.refresh(cx);
@@ -1474,6 +1462,108 @@ await check('kanban-board: 返らない andon issue board のもとでは 3 秒�
   assert.deepEqual(calls.map(([c, a]) => [c, a[0], a[1]]), [['andon', 'issue', 'board']]);
 });
 
+await check('kanban-board: command の道で History の呼び出しが使えない（断る・形が違う・more が無い・返らない）ときは、そのプロジェクトの課題を決まったシェルの文で全部読んで History を作る（ADR-0059 決めたこと 11）', async () => {
+  const good = (issues, more) => ({ code: 0, stderr: '', stdout: JSON.stringify({ version: 1, at: hoursAgo(0), project: 'sample-site', done: 'done', issues, more }) });
+  for (const [why, reply] of [
+    ['断る', () => ({ code: 1, stdout: '', stderr: 'andon issue history: failed' })],
+    ['version 2', () => ({ ...good([], 0), stdout: JSON.stringify({ version: 2, project: 'sample-site', issues: [], more: 0 }) })],
+    ['more が無い', () => ({ ...good([], 0), stdout: JSON.stringify({ version: 1, project: 'sample-site', done: 'done', issues: [] }) })],
+    ['more が負', () => good([], -1)],
+    ['返らない', () => new Promise(() => {})],
+  ]) {
+    const cell = await oldCell({ reply: (a) => (a[1] === 'board' ? boardOut('sample-site') : a[1] === 'history' ? reply() : { code: 2, stdout: '', stderr: '' }) });
+    try {
+      cell.b.refresh(cell.cx);
+      await cell.settle();
+      assert.equal(cell.listed(), 0, `${why}: Board を決まったシェルの文で読んだ`);
+      cell.b.view = 'history';
+      cell.draw();
+      await Promise.race([cell.settle(), new Promise((r) => setTimeout(r, 3000))]);
+      const rows = idsUnder(cell.draw(), 'wb-hist-').map((x) => x.replace('wb-hist-sample-site/', ''));
+      assert.deepEqual(rows, ['S-0002', 'S-0008', 'S-0004', 'S-0003', 'S-0007', 'S-0005', 'S-0009'], `${why}: History が全部の片付いた課題でない`);
+      assert.equal(cell.listed(), 1, `${why}: History のために決まったシェルの文で読んでいない`);
+    } finally {
+      await cell.done();
+    }
+  }
+});
+
+await check('kanban-board: command の道で、repo が 2 つのプロジェクトをチップで 1 つの repo に絞った History は、その repo を --match で聞く（/ の文字が無いとき）', async () => {
+  const hist = (issues) => ({ code: 0, stderr: '', stdout: JSON.stringify({ version: 1, at: hoursAgo(0), project: 'sample-site', done: 'done', issues, more: 0 }) });
+  const x = (n, repo) => ({ id: `S-${String(n).padStart(4, '0')}`, title: `Done ${n}`, status: 'done', repo, updated: hoursAgo(100 + n) });
+  const cell = await oldCell({ files: false, reply: (a) => {
+    if (a[1] === 'board') return boardOut('sample-site');
+    // The newest 200 of the whole project are all the other repo's; the picked repo's come only when asked.
+    return a.includes('github.com/sample/sample-site') ? hist([x(301, 'github.com/sample/sample-site')]) : hist(Array.from({ length: 3 }, (_, i) => x(201 + i, 'github.com/sample/other')));
+  } });
+  try {
+    await writeFile(`${cell.root}/kanban/config.yaml`, 'version: 3\nrepos: [github.com/sample/sample-site, github.com/sample/other]\n');
+    cell.b.refresh(cell.cx);
+    await cell.settle();
+    cell.b.pick = 'github.com/sample/sample-site';
+    cell.b.view = 'history';
+    cell.draw();
+    await cell.settle();
+    const hc = cell.calls.filter(([c, a]) => c === 'andon' && a[1] === 'history').map(([, a]) => a);
+    assert.deepEqual(hc.at(-1), ['issue', 'history', '--json', '--limit', '200', '--match', 'github.com/sample/sample-site'], 'チップの repo を --match で聞いていない');
+    assert.deepEqual(idsUnder(cell.draw(), 'wb-hist-'), ['wb-hist-sample-site/S-0301'], 'チップの repo の行が出ない');
+  } finally {
+    await cell.done();
+  }
+});
+
+await check('kanban-board: --project はセルの /workspace/projects/<名前> にだけ付き、ほかの projects/ には付かない（Go の側は --project をセルの置き場で読む）', async () => {
+  const ns = await load(`${HOST}/kanban-board`, { exec: async () => ({}), readTextFile: async () => null, window: () => ({}) });
+  assert.deepEqual(fromMod(ns.projectArgs('/workspace/projects/sample-site')), ['--project', 'sample-site']);
+  assert.deepEqual(fromMod(ns.projectArgs('/workspace/projects/sample-site/')), ['--project', 'sample-site']);
+  for (const root of ['/tmp/x/projects/sample-site', '/workspace/.worktrees/cell/projects/sample-site', '/workspace/projects/Sample', '/workspace/sample-site', '/workspace/projects/a/projects/b'])
+    assert.deepEqual(fromMod(ns.projectArgs(root)), [], `${root} に --project を付けた`);
+  // The call itself, for a project in the cell on its machine (ADR-0059 acceptance 10).
+  const calls = [];
+  const { b } = await boardAt('/workspace/projects/sample-site', { exec: async (cmd, a, opts = {}) => { calls.push([cmd, fromMod(a), opts.cwd]); return boardOut('sample-site'); } });
+  assert.ok(await b.readBoard('/workspace/projects/sample-site', 'cell-machine', null), 'セルのプロジェクトの出力を受けていない');
+  assert.deepEqual(calls, [['andon', ['issue', 'board', '--json', '--since', SINCE, '--project', 'sample-site'], '/workspace/projects/sample-site']], 'セルのプロジェクトに --project を付けていない');
+});
+
+await check('kanban-board: andon issue board の older が無い・負・文字列なら形が違うとして決まったシェルの文で読む。同じ id が 2 つ来ても 1 つにして描き、updated の無い片付いた課題は older に足して数える', async () => {
+  const good = JSON.parse(boardOut('sample-site').stdout);
+  const { older: _o, ...noOlder } = good;
+  for (const [why, o] of [['older が無い', noOlder], ['older が負', { ...good, older: -1 }], ['older が文字列', { ...good, older: '4' }]]) {
+    const cell = await oldCell({ reply: (a) => (a[1] === 'board' ? { code: 0, stdout: JSON.stringify(o), stderr: '' } : { code: 2, stdout: '', stderr: '' }) });
+    try {
+      cell.b.refresh(cell.cx);
+      await cell.settle();
+      assert.equal(cell.listed(), 1, `${why}: 決まったシェルの文で読んでいない`);
+      oldScreen(cell, why);
+    } finally {
+      await cell.done();
+    }
+  }
+  // Duplicates (X twice, the second its own child): one X, and List and Flow draw.
+  const dup = { ...good, issues: [...good.issues, { id: 'S-0001', title: 'Again', status: 'todo', parent: 'S-0001' }] };
+  let cell = await oldCell({ files: false, reply: (a) => (a[1] === 'board' ? { code: 0, stdout: JSON.stringify(dup), stderr: '' } : { code: 2, stdout: '', stderr: '' }) });
+  try {
+    cell.b.refresh(cell.cx);
+    await cell.settle();
+    assert.equal(cell.b.data.tasks.filter((x) => x.id === 'S-0001').length, 1, '同じ id を 2 つ持った');
+    assert.equal(cell.b.data.tasks.find((x) => x.id === 'S-0001').title, 'Open', '先の課題を残していない');
+    for (const v of ['list', 'flow']) { cell.b.view = v; cell.draw(); }
+  } finally {
+    await cell.done();
+  }
+  // What andon really sends: a done issue without `updated` sits inside the line and isn't in older.
+  // The board counts it as old, so it is added: the same "4 older" as the fixed scripts.
+  const real = { ...good, issues: [...good.issues, { id: 'S-0009', ...OLD_SAMPLE['S-0009'] }], older: 3 };
+  cell = await oldCell({ files: false, reply: (a) => (a[1] === 'board' ? { code: 0, stdout: JSON.stringify(real), stderr: '' } : { code: 2, stdout: '', stderr: '' }) });
+  try {
+    cell.b.refresh(cell.cx);
+    await cell.settle();
+    oldScreen(cell, 'updated の無い片付いた課題');
+  } finally {
+    await cell.done();
+  }
+});
+
 // What kanban-board runs (ADR-0042 acceptance 12): the programs named in its exec() calls, against a
 // fixed list. Nothing that writes the ledger, no network.
 await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決まった名前だけ（andon は waiting --json・issue board・issue history だけ）。README の What it runs に 3 つの andon の行がある（ADR-0042 受け入れ条件 12・ADR-0059 受け入れ条件 12）', async () => {
@@ -1495,7 +1585,7 @@ await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決
   assert.deepEqual(andon, ['["waiting", "--json"]', '["issue", "board", "--json", "--since", since, ...projectArgs(root)]',
     '["issue", "history", "--json", "--limit", String(limit), ...text, ...projectArgs(root)]'], `andon の呼び方: ${andon}`);
   // What the spread arguments can be: --project <slug> and --match <text>, nothing that writes.
-  assert.match(src, /return parts\.at\(-2\) === "projects" && SLUG\.test\(parts\.at\(-1\)\) \? \["--project", parts\.at\(-1\)\] : \[\];/, 'projectArgs が --project のほかを渡しうる');
+  assert.match(src, /const m = root\.match\(CELL_PROJECT\);\n  return m \? \["--project", m\[1\]\] : \[\];/, 'projectArgs が --project のほかを渡しうる');
   assert.match(src, /const text = match && [^\n]* \? \["--match", match\] : \[\];/, 'History の text が --match のほかを渡しうる');
   assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|WebSocket|from "(node:)?(http|https|net)"/, 'ネットワークを使う');
   const readme = await readFile(`${HOST}/kanban-board/README.md`, 'utf8');

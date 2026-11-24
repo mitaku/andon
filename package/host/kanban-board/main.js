@@ -73,7 +73,8 @@ const VIEWS = ["board", "list", "flow", "history"];
 const BOARD_VERSION = 1;
 const BOARD_TIMEOUT = 2000;          // a call not back in this long is given up on, on the mod's clock
 const BOARD_RESTS = 5 * 60 * 1000;   // after one that didn't come back, read with the fixed scripts this long
-const SLUG = /^[a-z0-9][a-z0-9_-]*$/; // a project name andon takes (schema/project.schema.json)
+// A project in the cell's own folder: andon reads `--project <slug>` there, whatever the working folder.
+const CELL_PROJECT = /^\/workspace\/projects\/([a-z0-9][a-z0-9_-]*)\/*$/;
 const ID = /^(?!\.\.?$)[^/\\\x00-\x1f]+$/; // an issue id that names one folder
 const HUNG = Symbol("hung");
 
@@ -177,11 +178,12 @@ export async function readWaiting(root, on) {
   } catch { return null; }
 }
 
-// The project a folder is in the cell (projects/<slug>/), as andon's --project: with KANBAN_ROOT set in
-// the cell, andon would read another project without it (ADR-0059 decision 6). [] elsewhere.
-const projectArgs = (root) => {
-  const parts = root.replace(/\/+$/, "").split("/");
-  return parts.at(-2) === "projects" && SLUG.test(parts.at(-1)) ? ["--project", parts.at(-1)] : [];
+// The project a folder is in the cell (/workspace/projects/<slug>), as andon's --project: with KANBAN_ROOT
+// set in the cell, andon would read another project without it (ADR-0059 decision 6). andon takes
+// --project as the cell's own projects/<slug>, so another projects/ folder (a copy, a worktree) gets [].
+export const projectArgs = (root) => {
+  const m = root.match(CELL_PROJECT);
+  return m ? ["--project", m[1]] : [];
 };
 
 // A call raced against the mod's own clock: HUNG when it isn't back in BOARD_TIMEOUT (the App is
@@ -192,21 +194,24 @@ function within(timer, call) {
 
 // What `andon issue board --json` or `andon issue history --json` printed for the project at `root`
 // (docs/contract.md §29), or null when it can't be used: it failed, isn't JSON, has another version,
-// no issues or another project (ADR-0059 decision 11). Unknown keys are left alone.
-export function readBoardOutput(r, root) {
+// no issues, another project, or no count (`older` for the board, `more` for History; a whole number
+// from 0). Unknown keys are left alone (ADR-0059 decision 11).
+export function readBoardOutput(r, root, count) {
   if (!r || r === HUNG || r.code !== 0) return null;
   try {
     const out = JSON.parse(String(r.stdout));
     if (out?.version !== BOARD_VERSION || !Array.isArray(out.issues) || out.project !== slugOf(root)) return null;
+    if (!Number.isInteger(out[count]) || out[count] < 0) return null;
     return out;
   } catch { return null; }
 }
 
 // The issues a command printed, as the board holds them: an unreadable one keeps its id and why.
-// An entry without an id that names one folder is dropped.
+// An entry without an id that names one folder is dropped, and so is a second one with the same id
+// (folder names don't repeat; a repeat could make a parent its own child).
 function fromBoard(root, issues) {
-  const slug = slugOf(root);
-  return issues.filter((x) => x && typeof x === "object" && !Array.isArray(x) && typeof x.id === "string" && ID.test(x.id)).map((x) => {
+  const slug = slugOf(root), seen = new Set();
+  return issues.filter((x) => x && typeof x === "object" && !Array.isArray(x) && typeof x.id === "string" && ID.test(x.id) && !seen.has(x.id) && seen.add(x.id)).map((x) => {
     const at = { id: x.id, slug, root, key: `${slug}/${x.id}` };
     return x.broken != null ? { ...at, broken: String(x.broken).split("\n")[0] } : { ...x, ...at };
   });
@@ -488,7 +493,21 @@ export default class KanbanBoard extends View {
     const r = await within(timer, exec("andon", ["issue", "board", "--json", "--since", since, ...projectArgs(root)], { cwd: root, on, timeout: BOARD_TIMEOUT }));
     if (r === HUNG || Date.now() - started >= BOARD_TIMEOUT) { this.hung.set(key, Date.now()); return null; }
     this.hung.delete(key);
-    return readBoardOutput(r, root);
+    return readBoardOutput(r, root, "older");
+  }
+
+  // Every issue of a project with the fixed scripts (or, on this computer with Windows, PowerShell).
+  async tasksFromFiles(root, on) {
+    const slug = slugOf(root);
+    /** @type {Record<string, any>[]} */
+    const tasks = [];
+    for (const [id, t] of await this.readIssues(root, on)) {
+      const at = { id, slug, root, key: `${slug}/${id}` };
+      if (t.error) { tasks.push({ ...at, broken: t.error }); continue; }
+      try { tasks.push({ ...parseYaml(t.text), ...at }); }
+      catch (e) { tasks.push({ ...at, broken: String(e instanceof Error ? e.message : e).split("\n")[0] }); }
+    }
+    return tasks;
   }
 
   // One ledger: its config and tasks. Throws when its config can't be read. `via` says how its issues
@@ -500,18 +519,8 @@ export default class KanbanBoard extends View {
     const config = readConfig(got.text);
     const slug = slugOf(root);
     const board = await this.readBoard(root, on, timer);
-    const older = Number.isInteger(board?.older) && board.older >= 0 ? board.older : null;
-    const ledger = { root, slug, name: config.title ?? slug, ...config, via: board ? "andon" : "files", older };
-    if (board) return { ledger, tasks: fromBoard(root, board.issues) };
-    /** @type {Record<string, any>[]} */
-    const tasks = [];
-    for (const [id, t] of await this.readIssues(root, on)) {
-      const at = { id, slug, root, key: `${slug}/${id}` };
-      if (t.error) { tasks.push({ ...at, broken: t.error }); continue; }
-      try { tasks.push({ ...parseYaml(t.text), ...at }); }
-      catch (e) { tasks.push({ ...at, broken: String(e instanceof Error ? e.message : e).split("\n")[0] }); }
-    }
-    return { ledger, tasks };
+    const ledger = { root, slug, name: config.title ?? slug, ...config, via: board ? "andon" : "files", older: board ? board.older : null };
+    return { ledger, tasks: board ? fromBoard(root, board.issues) : await this.tasksFromFiles(root, on) };
   }
 
   refresh(cx) {
@@ -601,13 +610,17 @@ export default class KanbanBoard extends View {
   historyKey() {
     const roots = (this.data?.ledgers ?? []).filter((l) => l.via === "andon" && (!this.all || !this.pick || l.slug === this.pick)).map((l) => l.root);
     if (this.view !== "history" || !roots.length) return null;
-    return JSON.stringify([this.scope, roots, this.historyLimit, this.typing ? this.hist?.match ?? "" : this.filter]);
+    // The `/` text, else the repo a chip picks in one project: asked of andon, so the newest of the whole
+    // project don't crowd out the picked repo's. While the text is typed, what was asked last.
+    const ask = this.typing ? this.hist?.ask ?? "" : this.filter || (!this.all && this.pick) || "";
+    return JSON.stringify([this.scope, roots, this.historyLimit, ask]);
   }
 
   // History's rows from `andon issue history`, once per project, when what it asks changed (or `again`,
   // at each read of the ledger while it is shown). The text goes as one argument, never through a shell;
-  // a project whose name holds it is asked without it, as every issue of it matches. A project whose
-  // call can't be used shows the done issues held.
+  // a project whose name holds the `/` text is asked without it, as every issue of it matches. A project
+  // whose call can't be used has every issue read with the fixed scripts (ADR-0059 decision 11), and
+  // after a call that didn't come back, for BOARD_RESTS without asking.
   readHistory(cx, again = false) {
     const key = this.historyKey();
     if (!key || !cx?.spawn || this.histReading || (!again && this.hist?.key === key)) return;
@@ -618,12 +631,19 @@ export default class KanbanBoard extends View {
       try {
         const got = new Map();
         for (const root of roots) {
-          const text = match && !slugOf(root).toLowerCase().includes(match.toLowerCase()) ? ["--match", match] : [];
-          const r = await within(timer, exec("andon", ["issue", "history", "--json", "--limit", String(limit), ...text, ...projectArgs(root)], { cwd: root, on, timeout: BOARD_TIMEOUT }));
-          const out = readBoardOutput(r, root);
-          if (out) got.set(root, { tasks: fromBoard(root, out.issues).filter((t) => !t.broken), more: Number.isInteger(out.more) && out.more > 0 ? out.more : 0 });
+          const rest = JSON.stringify(["history", on ?? null, root]);
+          let out = null;
+          if (!(Date.now() - (this.hung.get(rest) ?? -Infinity) < BOARD_RESTS)) {
+            const text = match && !slugOf(root).toLowerCase().includes(match.toLowerCase()) ? ["--match", match] : [];
+            const started = Date.now();
+            const r = await within(timer, exec("andon", ["issue", "history", "--json", "--limit", String(limit), ...text, ...projectArgs(root)], { cwd: root, on, timeout: BOARD_TIMEOUT }));
+            if (r === HUNG || Date.now() - started >= BOARD_TIMEOUT) this.hung.set(rest, Date.now());
+            else out = readBoardOutput(r, root, "more");
+          }
+          if (out) got.set(root, { tasks: fromBoard(root, out.issues).filter((t) => !t.broken), more: out.more });
+          else got.set(root, { tasks: (await this.tasksFromFiles(root, on).catch(() => [])).filter((t) => !t.broken), more: 0 });
         }
-        if (this.where === where && this.scope === scope) this.hist = { key, match, got };
+        if (this.where === where && this.scope === scope) this.hist = { key, ask: match, got };
       } finally {
         this.histReading = false;
         // What History asks changed while it was read (Load older, Enter): ask again.
@@ -737,8 +757,10 @@ export default class KanbanBoard extends View {
       broken,
       all: shown,
       old: shown.filter((t) => !t.broken && this.old(t)),
-      // andon counted a project's old done issues (ADR-0059 decision 7); read with the fixed scripts, count them here.
-      older: (this.data?.ledgers ?? []).reduce((n, l) => n + (l.via === "andon" && Number.isInteger(l.older) ? l.older
+      // andon counted a project's old done issues (ADR-0059 decision 7), but sends a done issue without a time
+      // as recent: the board holds those as old, so they are added. Read with the fixed scripts, count here.
+      older: (this.data?.ledgers ?? []).reduce((n, l) => n + (l.via === "andon"
+        ? l.older + tasks.filter((t) => t.root === l.root && !t.broken && this.done(t) && !Number.isFinite(timeOf(t))).length
         : tasks.filter((t) => t.root === l.root && !t.broken && this.old(t)).length), 0),
     };
   }
