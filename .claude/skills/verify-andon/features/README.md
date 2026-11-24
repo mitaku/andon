@@ -6,13 +6,13 @@
 
 - 動かすのは、セルに当てた本物（`/usr/local/bin/andon`・`/usr/local/bin/kanban`・`/opt/andon` のパッケージ）。repo の checkout から焼いたものでは動かさない。
 - 先に `bash .claude/skills/verify-andon/scripts/doctor.sh` を打ち、終了コード 0 を確かめる。
-- 1機能は `bash .claude/skills/verify-andon/scripts/drive.sh <機能>` の1回の呼び出しで、作る・動かす・片付ける・跡の確かめまで済む。手順を Bash の呼び出しに分けない（呼び出しごとに環境が戻り、後の呼び出しがセルの本物の kanban を見る）。
-- 証拠は `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh <機能>` で撮る。出力がそのまま記録の `runs/<n>.log` になる。
+- 1機能は `bash .claude/skills/verify-andon/scripts/drive.sh <機能> <検証する commit>` の1回の呼び出しで、作る・動かす・片付ける・跡の確かめまで済む。手順を Bash の呼び出しに分けない（呼び出しごとに環境が戻り、後の呼び出しがセルの本物の kanban を見る）。
+- 証拠は `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh <機能> <検証する commit>` で撮る。出力がそのまま記録の `runs/<n>.log` になる。
 
 ## 動かし方の2つの形
 
 - **切り離して動かす**: `scripts/sandbox.sh` を読む道。一時の HOME と一時の kanban を作り、本物の andon・`kanban`・`/opt/andon` を動かす。`hc` と `gh` は偽物で、本物の端末と GitHub には届かない。kanban を書く機能はこの形にする。
-- **本物の記録を読む**: `scripts/cell.sh` を読む道。検証する commit を当てた時刻（`/opt/andon/applied.json`）から次の commit を当てた時刻までに、セルで本当に起きた出来事の記録を読む。検証する commit は `drive.sh` の2つ目の引数で、省くと今当たっている commit を当てた時刻から今まで。dispatcher が書く記録（gate・通知・枠の空き）は、当てた時刻でなく dispatcher が切り替わった時刻（記録の `switched_at`。無ければ当てた時刻）で区切る。当ててから前の dispatcher が見回りを終えるまで、その記録は前のパッケージのコードが書くため。前に当てた commit と時刻は記録の `previous`（新しい順）にあり、そこに無い commit（前のバージョンの記録）は間が決まらないので終了コード 3（未確認）。何も書かず、何も起動しない。出来事がまだ無ければ終了コード 3（未確認）。今の状態を読む行（dispatcher の端末・boot の生成物）は、今当たっているパッケージを読む。
+- **本物の記録を読む**: `scripts/cell.sh` を読む道。検証する commit を当てた時刻（`/opt/andon/applied.json`）から次の commit を当てた時刻までに、セルで本当に起きた出来事の記録を読む。検証する commit は `drive.sh` の2つ目の引数で、省けない（省くと使い方の誤りの終了コード 2）。dispatcher が書く記録（gate・通知・枠の空き）は、当てた時刻でなく dispatcher が切り替わった時刻（記録の `switched_at`。無ければ当てた時刻）で区切る。当ててから前の dispatcher が見回りを終えるまで、その記録は前のパッケージのコードが書くため。前に当てた commit と時刻は記録の `previous`（新しい順）にあり、そこに無い commit（前のバージョンの記録）は間が決まらないので終了コード 3（未確認）。何も書かず、何も起動しない。出来事がまだ無ければ終了コード 3（未確認）。今の状態を読む行（dispatcher の端末・boot の生成物）は、今当たっているパッケージを読む。
 
 ## 見る道（誰が見られるか）
 

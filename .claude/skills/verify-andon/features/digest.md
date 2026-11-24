@@ -22,7 +22,7 @@
 
 - `scripts/doctor.sh` が終了コード 0。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh digest` を打つ。切り離した kanban に片付いた課題とダイジェストの課題を作り、送り先を書かないセルの repo（一時の git の repo）で、担当として5つの細かい機能を順に動かす。Slack へは何も送らない。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh digest <検証する commit>` を打つ。切り離した kanban に片付いた課題とダイジェストの課題を作り、送り先を書かないセルの repo（一時の git の repo）で、担当として5つの細かい機能を順に動かす。Slack へは何も送らない。
 - **集める。** `dg-collect` の行に `input.json` の `since`・`until`・`issues`・`skipped` が出る。`ok   dg-collect` が見えれば動いた。
 - **断られる。** `dg-build-refuse` の行に `andon digest build` の終了コード 1 と、入力に無い課題を指したという理由1行が出る。`ok   dg-build-refuse` が見えれば動いた。
 - **組み立てる。** `dg-build` の行に3つのファイルのパスと `ls -l` が出る。`ok   dg-build` が見えれば動いた。

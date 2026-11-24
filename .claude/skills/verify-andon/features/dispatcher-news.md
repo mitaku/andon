@@ -25,7 +25,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `scripts/doctor.sh` が終了コード 0。
 - 当てた時刻より後に、Chief of Staff へ届けた通知が1件以上ある。無ければ `dn-live` だけを確かめて終了コード 3（`dn-delivered` は未確認）。記録だけの通知は届けた証拠にしない。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news <検証する commit>` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
 - **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`ok   dn-live` が見えれば動いた。
 - **届けたものを読む。** `dn-delivered` の行に、当てたあとに届けた通知（課題と種類）と記録だけの通知が出る。`ok   dn-delivered` が見えれば動いた。
 - **枠の空きを見たかを読む。** `dn-idle` の行に、控えの `idle`（見た時刻・枠が空いていたか・起動できる課題の数・知らせた id）と、当てたあとに届けた通知 `idle` の `detail` が出る。`ok   dn-idle` が見えれば、当てたあとに枠の空きを見た。撃ったルーチンは `kanban routine list` の `last` でも読める。控えが無ければ `note dn-idle` が出て、dn-idle は未確認になる（終了コードは変えない）。続く行に、空きで撃てるルーチン（トリアージ・振り返りと `idle_hours` を持つもの）ごとに `idle_hours`・`paused`・片付いていない課題・検証する間に足した課題が出る。足した課題のほかは今の状態で、前の commit を検証するときも今を読む。`idle_hours`（1 以上の整数）を持つルーチンが無いか、撃てるルーチンがどれも `paused` か片付いていない課題を持てば、`note dn-idle` が出て、空きで撃つところは未確認になる（終了コードは変えない）。

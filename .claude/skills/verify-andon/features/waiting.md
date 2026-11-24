@@ -20,7 +20,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 
 - `scripts/doctor.sh` が終了コード 0。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh waiting` を打つ。切り離した kanban に親の課題を2つ作り、Chief of Staff の端末 `tc` として、同じ問いを親を変えて出す。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh waiting <検証する commit>` を打つ。切り離した kanban に親の課題を2つ作り、Chief of Staff の端末 `tc` として、同じ問いを親を変えて出す。
 - **オーナーの課題を足す。** `ow-ask-new` の行に `<id>#1` と、足した課題の `who`・`parent`・タイトルが出る。`ok   ow-ask-new` が見えれば動いた。
 - **取り違えない。** `ow-same-title` の行に、親の違う2つ目の課題の id と、同じ親で打ち直したときの「同じ問いのオーナーの課題 … がもうある」が出る。`ok   ow-same-title` が2行見えれば動いた。
 - **オーナー待ちを読む。** `ow-waiting` の行に、`andon waiting --json` の枠と判断の行、人が読む出力が出る。`ok   ow-waiting` が2行見えれば動いた。
