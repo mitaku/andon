@@ -5,11 +5,24 @@
 # 機能と「変えたら動かすパス」は features/<機能>.md の「## 変えたら動かすパス」の節（1行1つ、`` で囲んだパス）が正。
 # パスの書き方は tests/lib/scope.sh と同じ: 「<dir>/」はその下の全部、「*」は同じ段の中だけ、それ以外はそのパス。
 # 目次（features/README.md）の「地図が覆わないもの」の行の先頭に名指したパスは、機能のパスの下にあっても数えない（どの機能の道も通らないもの）。
-# テスト（*_test.go・testdata/・internal/ の下で親の package の名前に test を付けたテスト用の package。internal/ledger/ledgertest/ など）は動きを変えないので数えない。git の repo の中（Andon の checkout）で打つ。
+# テスト（*_test.go・testdata/・internal/ の下で親の package の名前に test を付けたテスト用の package。internal/ledger/ledgertest/ など）は動きを変えないので数えない。
+# Go のファイルでコメントだけを変えたもの（gocode.go で字句の並びが前後で同じ。//go: の指令と cgo の前置きは字句に数える）も数えない。git の repo の中（Andon の checkout）で打つ。
 set -euo pipefail
-[ $# = 1 ] && [ -n "$1" ] || { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# = 1 ] && [ -n "$1" ] || { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 map=$(cd "$(dirname "$0")/../features" && pwd)
 changed=$(git -c core.quotepath=off diff --name-only --no-renames "$1") # ASCII でないパスを引用符で包ませない
+# Go のファイルでコメントだけを変えたもの（gocode.go で字句の並びが前後で同じ）は数えない。範囲が <前>..<後> か <前>...<後> のときだけ見る
+here=$(cd "$(dirname "$0")" && pwd)
+if [[ "$1" == *..* ]]; then
+  before=${1%%..*} after=${1#*..}
+  if [[ "$after" == .* ]]; then after=${after#.}; before=$(git merge-base "${before:-HEAD}" "${after:-HEAD}"); fi
+  gofiles=$(grep -E '\.go$' <<<"$changed" | grep -vE '_test\.go$' || true)
+  if [ -n "$gofiles" ]; then
+    # go は打った所（Andon の checkout。mise.toml が go を決める）で打つ。skill は repo の外へ展開して打たれることがある（verify.md）
+    code=$(go run "$here/gocode.go" "$PWD" "${before:-HEAD}" "${after:-HEAD}" <<<"$gofiles")
+    changed=$( { grep -vE '\.go$' <<<"$changed" || true; grep -E '_test\.go$' <<<"$changed" || true; echo "$code"; } | grep . || true)
+  fi
+fi
 
 # hits <部分> <パス>: パスが部分に入るか
 hits() {

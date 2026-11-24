@@ -6,11 +6,12 @@
 #      3b. 細かい機能の見るファイルが、変えたら動かすパスの下のテストでないファイルを全部名指し、internal/・cmd/・package/ の下は
 #          地図か目次の「地図が覆わないもの」に入る（製品の変更が足したファイルや package を、同じ変更で地図に載せさせる）
 #      3c. 見るファイルを変えた変更は、変えたファイルを見る細かい機能を commit の本文の Verify-features: の行で名指し、名前は地図に在る
-#          （比べる base は CI が ANDON_VERIFY_BASE で渡す。手元は origin/main との分かれ目。どちらも無ければ飛ばす）
+#          （比べる base は CI が ANDON_VERIFY_BASE で渡す。手元は origin/main との分かれ目。どちらも無ければ飛ばす）。
+#          Go のファイルでコメントだけを変えたもの（scripts/gocode.go で字句の並びが同じ。//go: の指令と cgo の前置きは字句に数える）は名指しを求めない
 #   4. 手順が名指す command の実在（andon の葉は andon help --all の表と照らす。tests/lib/andon-refs.sh で、tests/commands.sh と同じ読み方。
 #      scripts/・tests/ の名前・repo のパス）
 #      手順が drive.sh を名指すときは、いつも検証する commit を添える（省ける書き方を残さない）
-#   5. scripts/features.sh: 当たる範囲で機能の名前、当たらない範囲（文書・Go のテストだけ）で何も出さず 0
+#   5. scripts/features.sh: 当たる範囲で機能の名前、当たらない範囲（文書・Go のテスト・Go のコメントだけ）で何も出さず 0
 #   6. 自分の確かめ: 地図のファイルを1つ消すか、無い command を名指した写しで、この検査が落ちる
 #   7. 記録を読む道（dispatcher-news・boot・worker-launch〈wl-resume を含む〉・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban・Claude Code のセッションの記録）で、証拠が足りないときに 0 で終わらない。
 #      drive.sh は検証する commit を省けず、省く・空・短い・16進数でないと 2 で断り、道を動かさない（検証の途中で次の commit が当たっても、新しい間を読まない）
@@ -218,6 +219,15 @@ named_gaps() {
     [ "$covered" = true ] || echo "$t を変えたのに、それを見る細かい機能（$(tr ' ' '\n' <<<"${want[*]}" | sort -u | tr '\n' ' ' | sed 's/ $//')）のどれも Verify-features: で名指していない"
   done <<<"$1"
 }
+# code_files <repo> <base> <head> <変えたファイル（1行1つ）>: Go のファイルのうち、コメントだけを変えたもの（scripts/gocode.go で字句の並びが
+#   前後で同じ）を除いて出す。振る舞いを変えるコメント（//go: の指令・cgo の前置きなど）の変更は残す（features.sh と同じ読み方）
+code_files() {
+  local gofiles code
+  gofiles=$(grep -E '\.go$' <<<"$4" | grep -vE '_test\.go$' || true)
+  [ -n "$gofiles" ] || { printf '%s\n' "$4"; return; }
+  code=$(cd "$root" && go run "$root/$skill/scripts/gocode.go" "$1" "$2" "$3" <<<"$gofiles") || die "scripts/gocode.go が $2..$3 の Go のファイルを読めない"
+  { grep -vE '\.go$' <<<"$4" || true; grep -E '_test\.go$' <<<"$4" || true; echo "$code"; } | grep . || true
+}
 # 名指しの確かめが何も見ていないことを避ける（地図の写しは要らない。読んだ対で確かめる）
 gaps=$(named_gaps $'internal/issue/resume.go\ndocs/contract.md' '')
 grep -qF 'internal/issue/resume.go を変えたのに' <<<"$gaps" || die "名指しの無い変更で、見るファイルの internal/issue/resume.go を拾わない: $gaps"
@@ -255,7 +265,8 @@ if [ "$self" = true ]; then
         oldsee[$s]="${oldsee[$s]:+${oldsee[$s]} }$e"
       done < <(git show "$base:$p" | see_pairs)
     done < <(git ls-tree --name-only "$base" "$skill/features/" | grep '\.md$' || true)
-    gaps=$(named_gaps "$changed" "$(git log --format=%B "$base..HEAD")")
+    code=$(code_files "$root" "$base" HEAD "$changed") # 分けて受ける（引数の中の $(…) の失敗は set -e で止まらない）
+    gaps=$(named_gaps "$code" "$(git log --format=%B "$base..HEAD")")
     [ -z "$gaps" ] || die "変更ごとの名指しが足りない（変えた振る舞いを通る細かい機能を commit の本文の「Verify-features: <名前>, …」の行で名指す。名指せなければ、同じ変更で細かい機能を足す。features/README.md の「変更ごとの名指し」）:
 $gaps"
     ok "verify-andon: ${base:0:12}..HEAD で変えたファイル $(grep -c . <<<"$changed") 件のうち、細かい機能の見るファイルに入るものは、どれもそれを見る細かい機能が名指されている"
@@ -316,7 +327,11 @@ if [ "$self" = true ]; then
   c6=$(put internal/ledger/ask.go x)
   c7=$(put internal/spawn/x.go x)
   c8=$(put internal/delegate/x.go x)
-  feat() { (cd "$repo" && bash "$root/$skill/scripts/features.sh" "$1"); }
+  # CoS の手順（verify.md）は skill を repo の外へ展開して打つ。偽の go は、打った所（試しの repo）の外では落ちる（mise の shim と同じ）
+  ext=$tmp/ext && mkdir -p "$ext" && cp -r "$skill" "$ext/"
+  realgo=$(cd "$root" && go env GOROOT)/bin/go
+  mkdir -p "$tmp/gobin" && printf '#!/usr/bin/env bash\n[ "$PWD" = "%s" ] || { echo "go: 打った所の外で呼ばれた: $PWD" >&2; exit 1; }\nexec "%s" "$@"\n' "$repo" "$realgo" >"$tmp/gobin/go" && chmod +x "$tmp/gobin/go"
+  feat() { (cd "$repo" && PATH="$tmp/gobin:$PATH" bash "$ext/verify-andon/scripts/features.sh" "$1"); }
   [ "$(feat "$c0..$c1")" = gate ] || die "features.sh: internal/gate/ の差分で gate だけにならない: $(feat "$c0..$c1" | tr '\n' ' ')"
   got=$(feat "$c0..$c2" | tr '\n' ' ')
   [ "$got" = "dispatcher-news gate hooks " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hooks にならない: $got"
@@ -350,11 +365,51 @@ if [ "$self" = true ]; then
   [ "$(feat "$c14..$c15" | tr '\n' ' ')" = "dispatcher-news otel " ] || die "features.sh: internal/otel/prune.go の差分で dispatcher-news と otel にならない: $(feat "$c14..$c15" | tr '\n' ' ')"
   c16=$(put internal/otel/serve.go x)
   [ "$(feat "$c15..$c16")" = otel ] || die "features.sh: internal/otel/serve.go の差分で otel だけにならない: $(feat "$c15..$c16" | tr '\n' ' ')"
+  # Go のファイルでコメントだけを変えた差分は機能を出さず、名指しも求めない。コードの字句・//go: の指令・cgo の前置き・文字列の中の // を
+  # 変えた差分は、今までどおり機能を出し、名指しを求める
+  g0=$(put internal/gate/g.go $'package gate\n\n// F は 1 を返す\nfunc F() int { return 1 } // 行の終わり\n\nvar s = "// x"')
+  g1=$(put internal/gate/g.go $'package gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 1 }\n\nvar s = "// x"')
+  out=$(feat "$g0..$g1") || die "features.sh: Go のコメントだけの範囲で 0 で終わらない"
+  [ -z "$out" ] || die "features.sh: Go のコメントだけを変えた差分（internal/gate/g.go）で $out を出す"
+  out=$(feat "$g0...$g1") || die "features.sh: Go のコメントだけの範囲（...）で 0 で終わらない"
+  [ -z "$out" ] || die "features.sh: Go のコメントだけを変えた差分（... の範囲）で $out を出す"
+  g2=$(put internal/gate/g.go $'package gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// x"')
+  [ "$(feat "$g1..$g2")" = gate ] || die "features.sh: Go のコードの字句を変えた差分で gate を返さない: $(feat "$g1..$g2" | tr '\n' ' ')"
+  [ "$(feat "$g0..$g2")" = gate ] || die "features.sh: Go のコメントとコードを変えた差分で gate を返さない: $(feat "$g0..$g2" | tr '\n' ' ')"
+  g3=$(put internal/gate/g.go $'package gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// y"')
+  [ "$(feat "$g2..$g3")" = gate ] || die "features.sh: Go の文字列の中の // を変えた差分で gate を返さない: $(feat "$g2..$g3" | tr '\n' ' ')"
+  g4=$(put internal/gate/g.go $'//go:build linux\n\npackage gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// y"')
+  [ "$(feat "$g3..$g4")" = gate ] || die "features.sh: Go の //go:build の指令を足した差分で gate を返さない: $(feat "$g3..$g4" | tr '\n' ' ')"
+  g7=$(put internal/gate/b.go $'package gate\n\nfunc B() {}')
+  g8=$(put internal/gate/b.go $'//  +build ignore\n\npackage gate\n\nfunc B() {}')
+  [ "$(feat "$g7..$g8")" = gate ] || die "features.sh: Go の // と +build の間に空白を2つ置いた指令を足した差分で gate を返さない: $(feat "$g7..$g8" | tr '\n' ' ')"
+  g9=$(put internal/gate/b.go $'//\t+build linux\n\npackage gate\n\nfunc B() {}')
+  [ "$(feat "$g8..$g9")" = gate ] || die "features.sh: Go の // と +build の間にタブを置いた指令に変えた差分で gate を返さない: $(feat "$g8..$g9" | tr '\n' ' ')"
+  g5=$(put internal/gate/c.go $'package gate\n\n// #include <a.h>\nimport "C"')
+  g6=$(put internal/gate/c.go $'package gate\n\n// #include <b.h>\nimport "C"')
+  [ "$(feat "$g5..$g6")" = gate ] || die "features.sh: cgo の前置き（import \"C\" の前のコメント）を変えた差分で gate を返さない: $(feat "$g5..$g6" | tr '\n' ' ')"
+  # Go は import "\x43" も import "C" として読む（パスは引用符を外して比べる）
+  g10=$(put internal/gate/e.go $'package gate\n\n// #define VALUE 1\nimport "\\x43"')
+  g11=$(put internal/gate/e.go $'package gate\n\n// #define VALUE 2\nimport "\\x43"')
+  [ "$(feat "$g10..$g11")" = gate ] || die "features.sh: エスケープで書いた import \"\\x43\" の cgo の前置きを変えた差分で gate を返さない: $(feat "$g10..$g11" | tr '\n' ' ')"
+  # 3c の名指し: 見るファイル（internal/issue/resume.go）でコメントだけを変えた変更は名指し無しで通り、コードの字句を変えた変更は名指しを求める
+  r0=$(put internal/issue/resume.go $'package issue\n\n// Resume は続ける\nfunc Resume() {}')
+  r1=$(put internal/issue/resume.go $'package issue\n\n// Resume は端末で続きを始める。\nfunc Resume() {}')
+  r2=$(put internal/issue/resume.go $'package issue\n\n// Resume は端末で続きを始める。\nfunc Resume() { panic(0) }')
+  code=$(code_files "$repo" "$r0" "$r1" $'internal/issue/resume.go\ndocs/x.md')
+  [ "$code" = docs/x.md ] || die "名指しの確かめ: Go のコメントだけを変えた internal/issue/resume.go を除かない: $code"
+  gaps=$(named_gaps "$code" '')
+  [ -z "$gaps" ] || die "名指しの確かめ: Go のコメントだけを変えた変更に名指しを求める: $gaps"
+  code=$(code_files "$repo" "$r1" "$r2" 'internal/issue/resume.go')
+  gaps=$(named_gaps "$code" '')
+  grep -qF 'internal/issue/resume.go を変えたのに' <<<"$gaps" || die "名指しの確かめ: Go のコードの字句を変えた変更に名指しを求めない: $gaps"
+  code=$(code_files "$repo" "$r0" "$r2" 'internal/issue/resume.go')
+  [ "$code" = internal/issue/resume.go ] || die "名指しの確かめ: Go のコメントとコードを変えた internal/issue/resume.go を除く: $code"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "features.sh: 範囲が無いのに終了コード $rc（2 でない）"
   rc=0; bash "$skill/scripts/drive.sh" no-such-feature 0123456789abcdef0123456789abcdef01234567 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "drive.sh: 知らない機能で終了コード $rc（2 でない）"
-  ok "verify-andon: features.sh は当たる範囲で機能の名前を出し、文書と Go のテスト（testdata/・テスト用の package を含む）だけなら何も出さず 0。drive.sh は知らない機能を 2 で断る"
+  ok "verify-andon: features.sh は当たる範囲で機能の名前を出し、文書と Go のテスト（testdata/・テスト用の package を含む）と Go のコメントだけなら何も出さず 0。名指しの確かめも Go のコメントだけの変更を除き、コードの字句・指令・cgo の前置きの変更は残す。drive.sh は知らない機能を 2 で断る"
 fi
 
 # 6. 自分の確かめ: 写しを壊すと落ちる（上の確かめが何も見ていないことを避ける）
