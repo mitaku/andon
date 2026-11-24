@@ -16,8 +16,6 @@ import (
 // 受け入れ条件 11）。show・impact・resume・session・stop-check は移り方ではない（読むだけ・起動し直すだけ）。
 var moves = []string{"start", "report", "review-request", "candidates", "record", "ask", "ready", "finish"}
 
-// froms は定義（issue.yaml）から、サブコマンドごとに打ってよい status を引く。by: kanban の移り方は
-// kanban のコマンドなので入らない（断らない）。command の「andon issue a・b」は a と b の両方。
 func froms(def []byte) (map[string][]string, error) {
 	var sm process.StateMachine
 	if err := yaml.Unmarshal(def, &sm); err != nil {
@@ -39,7 +37,6 @@ func froms(def []byte) (map[string][]string, error) {
 	return out, nil
 }
 
-// allowed は status の課題に andon issue <sub> を打ってよいかを確かめる。定義に無ければ理由1行の誤り。
 func allowed(sub, id, status string) error {
 	if !slices.Contains(moves, sub) {
 		return nil

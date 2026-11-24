@@ -17,9 +17,6 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// ready の照合は偽の kanban の CLI と gh・本物の git で見る（振る舞いの全体は tests/andon-issue.sh）。
-// 偽の kanban の CLI は $FAKE_ROOT の show-<id>.json・list.json を返し、review は reviewed-<id> に引数を書くだけ。
-
 const fakeDeck = `#!/bin/sh
 case "$1" in
   root) echo "$FAKE_ROOT" ;;
@@ -32,9 +29,6 @@ case "$1" in
 esac
 `
 
-// 偽の gh は PR の head を読むたびに gh-calls に1行足す。prhead-lag に数 n があれば、n 回は prhead-old を返す
-// （push の直後に GitHub の PR の head が古いまま残る）。PR のファイル（api …/files）は prfiles、差分（pr diff）は prdiff を返し、
-// 数えない（review: off の課題で、gate と同じ条件でレビューが要るかを決めるのに読む）。
 const fakeGH = `#!/bin/sh
 case "$1 $2" in
   "api --paginate") cat "$FAKE_ROOT/prfiles"; exit 0 ;;
@@ -56,14 +50,14 @@ type fixture struct {
 	wt        string
 	head      string
 	task      map[string]any
-	reviewer  map[string]any // nil ならレビュアーの課題は無い
-	by        string         // レビュアーの課題を足した端末
-	report    string         // report.json の中身（空なら置かない）
-	findings  string         // レビュアーの findings.json の commit（空なら置かない）
+	reviewer  map[string]any
+	by        string
+	report    string
+	findings  string
 	prHead    string
-	prFile    string // PR が変えたファイル（偽の gh の api …/files。review: off の課題のレベルを決める）
-	questions string // kanban questions --json の中身（空なら問いが無い）
-	state     bool   // stop-check の控えの置き場を作ったか
+	prFile    string
+	questions string
+	state     bool
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -104,28 +98,23 @@ func newFixture(t *testing.T) *fixture {
 	f.findings = f.head
 	f.prFile = "docs/a.md"
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	// review: off の課題のレベルは repo の package/gate.json で決める。セルの repo（gate.local.json）は一時の置き場に向ける
 	_, file, _, _ := runtime.Caller(0)
 	t.Setenv("ANDON_HOME", filepath.Join(filepath.Dir(file), "..", "..", "package"))
 	t.Setenv("ANDON_WORKSPACE", filepath.Join(dir, "workspace"))
 	t.Setenv("FAKE_ROOT", f.root)
 	t.Setenv("KANBAN_ROOT", "")
-	// 控え（dispatcher の置き場と ready の lock）は一時ディレクトリに。本物の HOME の ~/.local/state に書かない
 	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))
-	// PR の head が追いつくのを待つ間隔は検査では短くする（回数は本物のまま）
 	wait := prHeadWait
 	prHeadWait = time.Millisecond
 	t.Cleanup(func() { prHeadWait = wait })
 	return f
 }
 
-// lagPRHead は、偽の gh が最初の n 回は PR の head に old を返すようにする（push の直後に GitHub が追いつく途中）。
 func (f *fixture) lagPRHead(n int, old string) {
 	f.write("prhead-lag", fmt.Sprintf("%d\n", n))
 	f.write("prhead-old", old+"\n")
 }
 
-// ghCalls は偽の gh が呼ばれた回数。
 func (f *fixture) ghCalls() int {
 	b, _ := os.ReadFile(filepath.Join(f.root, "gh-calls"))
 	return strings.Count(string(b), "\n")
@@ -143,7 +132,6 @@ func (f *fixture) write(rel, s string) {
 
 func js(v any) string { b, _ := json.Marshal(v); return string(b) }
 
-// ready を打ち、終了コードと stderr と review にしたかを返す。
 func (f *fixture) ready() (int, string, bool) {
 	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 	list := []any{f.task}
@@ -173,13 +161,10 @@ func (f *fixture) ready() (int, string, bool) {
 
 const other = "0000000000000000000000000000000000000001"
 
-// writePRFiles は偽の gh が返す PR のファイル（gh api --paginate --slurp の形）を置く。
 func (f *fixture) writePRFiles() {
 	f.write("prfiles", js([][]any{{map[string]any{"filename": f.prFile, "additions": 3, "deletions": 0}}}))
 }
 
-// gateQuestion は T-0001 の問い 1 を開いたまま置く。from が出した問いで、head が空でなければ事実に gate の記録
-// （library/gate/<head>.json）の行を書く（merge.go の needs_human の問いと同じ形）。
 func (f *fixture) gateQuestion(from, head string) {
 	facts := []string{"delegation: merge=B < tier C", "PR https://github.com/example/app/pull/7"}
 	if head != "" {
@@ -190,8 +175,6 @@ func (f *fixture) gateQuestion(from, head string) {
 	f.questions = `[{"id": "T-0001", "n": 1, "status": "open"}]`
 }
 
-// runRow は report.json に、記録 n を指す受け入れ条件の行 A1 を足す（n が 0 なら記録を指さない行）。
-// 記録は andon issue record が書く形で library/runs/<n>.json と <n>.log に置く（expect が空なら置かない）。
 func (f *fixture) runRow(n int, expect string, code int, commit string, dirty bool) {
 	row := map[string]any{"id": "A1", "result": "pass", "evidence": "go test ./internal/issue/"}
 	if n > 0 {
@@ -212,7 +195,7 @@ func TestReady(t *testing.T) {
 	cases := []struct {
 		name string
 		mod  func(*fixture)
-		want string // 空なら通る
+		want string
 	}{
 		{"揃えば review にする", func(*fixture) {}, ""},
 		{"report.json が無い", func(f *fixture) { f.report = "" }, "report.json が無い"},
@@ -228,7 +211,6 @@ func TestReady(t *testing.T) {
 		{"同じブランドのレビュアー", func(f *fixture) { f.reviewer["profile"] = "claude-review" }, "missing"},
 		{"レビュー中（review でも done でもない）", func(f *fixture) { f.reviewer["status"] = "doing" }, "missing"},
 		{"review: off で差分がレベル A ならレビューを見ない", func(f *fixture) { f.task["review"] = "off"; f.reviewer = nil }, ""},
-		// review: off で始めたコードの課題でも、差分がレベル B・C なら gate はレビューを求める。review に入る前に断る
 		{"review: off でも差分がレベル B ならレビューを求める", func(f *fixture) {
 			f.task["review"] = "off"
 			f.reviewer = nil
@@ -250,7 +232,6 @@ func TestReady(t *testing.T) {
 		{"受け取った問いと、ほかの課題の問いは見ない", func(f *fixture) {
 			f.questions = `[{"id": "T-0001", "n": 1, "status": "received"}, {"id": "T-0009", "n": 1, "status": "open"}]`
 		}, ""},
-		// gate が needs_human で問いを出したあと、担当が doing に戻って rebase した（head が動いた）。その問いは数えない
 		{"前の head についての gate の問いは数えない", func(f *fixture) { f.gateQuestion("gate", other) }, ""},
 		{"前の head の gate の問いに答えがあっても数えない", func(f *fixture) {
 			f.gateQuestion("gate", other)
@@ -279,7 +260,6 @@ func TestReady(t *testing.T) {
 		}, ""},
 		{"報告に受け入れ条件の欄が無い", func(f *fixture) { f.task["acceptance"] = "A1,A4" }, "acceptance に無いので review にしない: A1・A4"},
 		{"足りない番号だけを出す", func(f *fixture) { f.task["acceptance"] = "A1,A4,A13"; f.runRow(0, "", 0, "", false) }, "acceptance に無いので review にしない: A4・A13。"},
-		// 予約キーは数字だけ（Chief Engineer の文書の振り方）、行の id は A を付けた形でも同じ番号と読む
 		{"数字だけの番号に A を付けた行で通る", func(f *fixture) { f.task["acceptance"] = "1"; f.runRow(0, "", 0, "", false) }, ""},
 		{"A を付けた番号に数字だけの行で通る", func(f *fixture) {
 			f.task["acceptance"] = "A4,13"
@@ -313,13 +293,11 @@ func TestReady(t *testing.T) {
 	}
 }
 
-// ready が前の head の gate の問いを越えるときは、その問いだけを `kanban review --past` で名指す。--force は打たない
-// （確かめのあとに kanban ask で足された問いまで越えてしまう。名指しの外の問いは kanban が lock の中で断る）
 func TestReadyNamesOnlyStaleGateQuestions(t *testing.T) {
 	cases := []struct {
 		name string
 		mod  func(*fixture)
-		want string // 偽の kanban の CLI に届いた review の引数
+		want string
 	}{
 		{"問いが無ければ名指さない", func(*fixture) {}, "review T-0001"},
 		{"前の head の gate の問いだけを名指す", func(f *fixture) { f.gateQuestion("gate", other) }, "review T-0001 --past T-0001#1"},
@@ -351,9 +329,9 @@ func TestReadyNamesOnlyStaleGateQuestions(t *testing.T) {
 func TestReviewRequestWhileReviewerRuns(t *testing.T) {
 	cases := []struct {
 		name   string
-		status string // レビュアーの課題の status
-		brief  string // レビュアーの依頼書の commit（空なら依頼書を置かない）
-		want   string // 空なら頼める
+		status string
+		brief  string
+		want   string
 	}{
 		{"古い commit のレビュアーが doing", "doing", other, "レビュアー T-0001-r1 がまだ動いている（doing。commit " + other[:12] + " を見ている）"},
 		{"古い commit のレビュアーが todo", "todo", other, "レビュアー T-0001-r1 がまだ動いている（todo。"},
@@ -397,14 +375,12 @@ func TestReviewRequestWhileReviewerRuns(t *testing.T) {
 	}
 }
 
-// review-request が受けるかは gate がレビューを求めるかと同じ条件（gate.ReviewRequired）: review: off でも差分がレベル B・C なら受け、
-// レベル A なら断る。review の値が on/off でなければ断る。断ったときは report.json も報告も書かない。
 func TestReviewRequestFollowsGateTier(t *testing.T) {
 	cases := []struct {
 		name   string
 		review any
 		file   string
-		want   string // 空なら頼める
+		want   string
 	}{
 		{"review: off でも差分がレベル B なら頼める", "off", "internal/issue/start_test.go", ""},
 		{"review: off でも差分がレベル C なら頼める", "off", "model/issue-map.txt", ""},
@@ -453,10 +429,10 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 	const mine, theirs = "https://github.com/example/app/pull/7", "https://github.com/example/other/pull/7"
 	cases := []struct {
 		name string
-		repo string   // issue.yaml の repo（空なら repo の無い課題）
-		prev string   // 前の report.json の pr（空なら pr を書かない）
-		args []string // report <id> のあとの引数
-		want string   // 空なら通る
+		repo string
+		prev string
+		args []string
+		want string
 	}{
 		{"--pr で違う repo", "github.com/example/app", mine, []string{"--pr", theirs}, "pr の repo（github.com/example/other）が課題の repo（github.com/example/app）と違う"},
 		{"--data の pr で違う repo", "github.com/example/app", mine, []string{"--data", `{"pr": "` + theirs + `"}`}, "pr の repo（github.com/example/other）が課題の repo（github.com/example/app）と違う"},
@@ -504,9 +480,6 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 	}
 }
 
-// rebaseWorktree は f.wt の履歴を、根拠の出来事の形に作り直す: 課題の branch の commit x をレビューが見たあと、
-// main が衝突しない変更で進み、担当が fetch して rebase した（head は y）。conflict なら rebase で衝突を解き、PR が足した行も変わる。
-// f.head・f.prHead・f.report を y に、レビューの findings を x にする。
 func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	f.t.Helper()
 	git := func(args ...string) string {
@@ -544,8 +517,6 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 	git("checkout", "-q", "topic")
 	if conflict {
-		// 衝突を解いて rebase し直したのと同じ: main の上に、解いた中身の commit を積む。足した行 A も A2 に変える
-		// （足した行が同じなら、衝突を解いた rebase でもレビューを引き継ぐ）
 		git("reset", "-q", "--hard", "origin/main")
 		put("a.txt", "a\nM\nA2\n")
 		git("commit", "-q", "-m", "topic")
@@ -558,13 +529,11 @@ func (f *fixture) rebaseWorktree(conflict bool) (x, y string) {
 	return x, y
 }
 
-// 衝突の無い rebase で head だけが変わり、PR の差分が前のレビューと同じなら、ready はそのレビューを
-// head に引き継いで通す。衝突を解いて PR が足した行も変わった rebase は、今までどおり stale で止まる。
 func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
 	for _, c := range []struct {
 		name     string
 		conflict bool
-		want     string // 空なら通る
+		want     string
 	}{
 		{"衝突の無い rebase", false, ""},
 		{"衝突を解いて差分が変わった rebase", true, "stale"},
@@ -586,13 +555,11 @@ func TestReadyCarriesReviewOverSamePatchRebase(t *testing.T) {
 	}
 }
 
-// 衝突の無い rebase のあとの review-request は、前のレビューを引き継ぐので頼まない（レビュアーを起動しない）。
-// report.json も報告も書かない。差分が変わった rebase なら、今までどおり次の回を頼む。
 func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
 	for _, c := range []struct {
 		name     string
 		conflict bool
-		want     string // 空なら頼める
+		want     string
 	}{
 		{"衝突の無い rebase", false, "そのレビューを引き継ぐので頼まない"},
 		{"衝突を解いて差分が変わった rebase", true, ""},
@@ -626,19 +593,16 @@ func TestReviewRequestAfterSamePatchRebase(t *testing.T) {
 	}
 }
 
-// review-request の stdin を省くと、前の報告（report.md）の本文にレビュー依頼の行を足す。前の報告の Next と Remember を
-// 渡し直さずに頼める（stdin が報告を丸ごと置き換え、Next と Remember を落とした出来事を写す）。前のレビュー依頼の段は重ねない。
-// stdin があれば今までどおり置き換える。stdin も前の報告も空なら、report.json も報告も書かずに断る。
 func TestReviewRequestKeepsPreviousReport(t *testing.T) {
 	const body = "PR: https://github.com/example/app/pull/7\n## Report\n直した。\n## Next\n- マージ後に andon issue finish T-0001\n## Remember\n- 前の報告の学び\n"
 	const oldHeader = "## レビュー依頼\n1 回目／上限 2。commit " + other + "。PR https://github.com/example/app/pull/7。Reviewer codex-review\n\n"
 	for _, c := range []struct {
 		name  string
-		prev  string // kanban の report.md（空なら置かない）
+		prev  string
 		stdin string
-		want  []string // 報告に含む
-		not   []string // 報告に含まない
-		fail  string   // 空なら頼める
+		want  []string
+		not   []string
+		fail  string
 	}{
 		{"stdin が空なら前の報告を残す", body, "", []string{"## レビュー依頼\n1 回目", body}, nil, ""},
 		{"前のレビュー依頼の段は重ねない", oldHeader + body, "", []string{body}, []string{other}, ""},
@@ -685,7 +649,6 @@ func TestReviewRequestKeepsPreviousReport(t *testing.T) {
 	}
 }
 
-// 報告の打ち直しは、HEAD が前の報告の commit とも頼んだ commit とも同じときだけ review_request を引き継ぐ。
 func TestCarriedReviewRequest(t *testing.T) {
 	a, b := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	rr := &contract.ReviewRequest{Round: 1, Limit: 2, Commit: a, Reviewer: "codex-review"}
@@ -707,11 +670,7 @@ func TestCarriedReviewRequest(t *testing.T) {
 	}
 }
 
-// push の直後は GitHub の PR の head が古いまま十数秒残る。ready と review-request は、PR の head が HEAD に
-// 追いつくのを待ってから照合し、上限（prHeadTries 回）まで読んでも違うときだけ断る。worktree の upstream が
-// HEAD と違う（push していない）なら待たずに断る。
 func TestWaitPRHead(t *testing.T) {
-	// upstream を置く: 裸の remote に push して upstream にし、pushed でなければそのあと commit して HEAD だけ進める
 	upstream := func(f *fixture, pushed bool) {
 		bare := filepath.Join(filepath.Dir(f.wt), "remote.git")
 		git := func(dir string, args ...string) string {
@@ -737,9 +696,9 @@ func TestWaitPRHead(t *testing.T) {
 	cases := []struct {
 		name    string
 		mod     func(*fixture)
-		request bool   // review-request を打つ（false なら ready）
-		want    string // 空なら通る
-		calls   int    // 偽の gh が呼ばれた回数
+		request bool
+		want    string
+		calls   int
 	}{
 		{"ready は追いつくのを待って通る", func(f *fixture) { f.lagPRHead(2, other) }, false, "", 3},
 		{"review-request は追いつくのを待って頼む", func(f *fixture) { f.lagPRHead(2, other) }, true, "", 3},

@@ -7,7 +7,6 @@ import (
 	"andon/internal/delegate"
 )
 
-// 書き戻す先は write_back: true の github-issues の出所の repo の issue だけ（出所の repo が無ければ repos の全部）。重なりは1つ
 func TestTrackers(t *testing.T) {
 	yes, no := true, false
 	app, other := "github.com/example/app", "github.com/example/other"

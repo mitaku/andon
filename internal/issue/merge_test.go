@@ -107,7 +107,6 @@ func TestChecksStill(t *testing.T) {
 	}
 }
 
-// base が動いた失敗だけを、上限の内で打ち直す。head が動いた・衝突した・gh の一時の失敗は打ち直さない。
 func TestRetryMerge(t *testing.T) {
 	base := "gh pr merge: exit status 1 GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)"
 	for _, c := range []struct {
@@ -203,14 +202,11 @@ func TestHeadMoved(t *testing.T) {
 	}
 }
 
-// gate の問いを閉じるとき、一覧を読んだあとにオーナーか Chief of Staff が答えていれば answer は断られる。オーナーの答えは上書きせず、
-// そのまま received に進めて閉じる。受け取れなければ誤りを返す（merge は次に打たれたときに閉じ直す）。
 func TestCloseQuestionAfterAnswer(t *testing.T) {
 	if _, err := exec.LookPath("sh"); err != nil {
 		t.Skip("sh が無い")
 	}
 	dir := t.TempDir()
-	// 偽の kanban の CLI: 打たれた引数を calls に書く。answer は answered の印があれば断り、received は fail の印があれば断る
 	fake := "#!/bin/sh\necho \"$*\" >> \"$FAKE/calls\"\ncase \"$1\" in\n" +
 		"  answer) [ ! -f \"$FAKE/answered\" ] || { echo 'not open' >&2; exit 1; } ;;\n" +
 		"  received) [ ! -f \"$FAKE/fail\" ] || { echo 'not answered' >&2; exit 1; } ;;\nesac\n"
@@ -271,7 +267,7 @@ func TestGateAnswersMarkedMachine(t *testing.T) {
 
 	c := &ctx{l: l, id: "T-0001"}
 	var res contract.Merge
-	c.closeGateQuestions("PR の head が gate のあとに動いた（aaaa → bbbb）。gate が今の head で回し直す", &res) // merge の headMoved の道
+	c.closeGateQuestions("PR の head が gate のあとに動いた（aaaa → bbbb）。gate が今の head で回し直す", &res)
 	if len(res.Log) != 0 {
 		t.Fatalf("log: %v", res.Log)
 	}
@@ -283,7 +279,7 @@ func TestGateAnswersMarkedMachine(t *testing.T) {
 	if err := yaml.Unmarshal(b, &qs); err != nil {
 		t.Fatal(err)
 	}
-	want := map[int][2]string{ // n → status, decidedBy
+	want := map[int][2]string{
 		1: {"received", "machine"}, 2: {"received", "machine"}, 3: {"open", ""}, 4: {"received", "owner"},
 	}
 	for _, q := range qs {

@@ -11,7 +11,6 @@ import (
 	"andon/internal/contract"
 )
 
-// recordRun は andon issue record T-0001 <args…> を打ち、終了コード・stdout・stderr を返す。
 func (f *fixture) recordRun(args ...string) (int, string, string) {
 	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 	var out, errb bytes.Buffer
@@ -21,7 +20,6 @@ func (f *fixture) recordRun(args ...string) (int, string, string) {
 
 func (f *fixture) runsDir() string { return filepath.Join(f.root, "kanban/issues/T-0001/library/runs") }
 
-// readRecord は記録 n を読み、埋め込んだ schema/run.schema.json に通して返す。
 func (f *fixture) readRecord(n string) *contract.Run {
 	f.t.Helper()
 	p := filepath.Join(f.runsDir(), n+".json")
@@ -115,7 +113,6 @@ func TestRecordDirtyPass(t *testing.T) {
 	}
 }
 
-// repo の無い課題の記録は commit と dirty を持たない。
 func TestRecordNoRepo(t *testing.T) {
 	f := newFixture(t)
 	rc, _, errs := f.recordRun("--", "true")
@@ -127,7 +124,6 @@ func TestRecordNoRepo(t *testing.T) {
 	}
 }
 
-// 起動できない command（打ち間違い）は、落ちた記録にしない。記録も出力も残さず、次の番号も空けない。
 func TestRecordCannotStart(t *testing.T) {
 	f := newFixture(t)
 	f.task["repo"] = "github.com/example/app"
@@ -143,7 +139,6 @@ func TestRecordCannotStart(t *testing.T) {
 	}
 }
 
-// 番号は今ある記録と出力の最大 ＋ 1（前の記録を書き直さない）。
 func TestRecordNumbering(t *testing.T) {
 	f := newFixture(t)
 	f.write("kanban/issues/T-0001/library/runs/4.log", "前の出力\n")
@@ -159,7 +154,6 @@ func TestRecordNumbering(t *testing.T) {
 	}
 }
 
-// doing でない課題には打てない。使い方の誤りは終了コード 2 で、何も書かない。
 func TestRecordRefuses(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -191,7 +185,6 @@ func TestRecordRefuses(t *testing.T) {
 	}
 }
 
-// 空の引数は走らせる前に断る。走らせてから記録の形の確かめで断ると、出力だけ残って記録が書かれない。
 func TestRecordEmptyArgNotRun(t *testing.T) {
 	f := newFixture(t)
 	mark := filepath.Join(t.TempDir(), "ran")
@@ -207,7 +200,6 @@ func TestRecordEmptyArgNotRun(t *testing.T) {
 	}
 }
 
-// 記録は worktree で走らせる（cwd ではない）。
 func TestRecordRunsInWorktree(t *testing.T) {
 	f := newFixture(t)
 	f.task["repo"] = "github.com/example/app"
@@ -223,14 +215,13 @@ func TestRecordRunsInWorktree(t *testing.T) {
 	}
 }
 
-// 出力は上限を超えたら終わりの側を残し、先頭に切った量の1行を置く。文字の途中から始めない。
 func TestTailBuffer(t *testing.T) {
 	tb := &tailBuffer{limit: 8}
 	tb.Write([]byte("abc"))
 	if string(tb.bytes()) != "abc" || tb.cut() != 0 || tb.total != 3 {
 		t.Fatalf("上限の中で切った: %q", tb.bytes())
 	}
-	for _, s := range []string{"0123", "4567", "89", "あいう"} { // 「あいう」は 9 バイト
+	for _, s := range []string{"0123", "4567", "89", "あいう"} {
 		tb.Write([]byte(s))
 	}
 	got := string(tb.bytes())
@@ -240,7 +231,6 @@ func TestTailBuffer(t *testing.T) {
 	}
 }
 
-// 大きい出力でも記録は上限で切って書き、truncated と全体のバイト数を残す。
 func TestRecordTruncates(t *testing.T) {
 	if _, err := exec.LookPath("head"); err != nil {
 		t.Skip("head が無い")
@@ -357,7 +347,6 @@ func TestRecordIgnoresRealYomiyasu(t *testing.T) {
 	if r := f.readRecord("1"); r.Dirty == nil || *r.Dirty {
 		t.Fatalf("yomiyasu の記録を commit していない変更に数えた: %+v", r)
 	}
-	// 外れたのが中の .gitignore のためであること: それを消すと、yomiyasu の記録を commit していない変更に数える
 	if err := os.Remove(ignore); err != nil {
 		t.Fatal(err)
 	}

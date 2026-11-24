@@ -66,7 +66,6 @@ func TestStopCheckPassesReview(t *testing.T) {
 func TestStopCheckOpenQuestion(t *testing.T) {
 	f := newFixture(t)
 	f.reviewer, f.report = nil, ""
-	// 前回のターンで問いを書いて通した後、答えを待つだけのターン（新しい行は無い）
 	if out := f.stopCheck(q(1, "open")); out != "" {
 		t.Fatalf("問いを書いたターンを止めた: %s", out)
 	}
@@ -75,7 +74,6 @@ func TestStopCheckOpenQuestion(t *testing.T) {
 	if out.String() != "" {
 		t.Fatalf("問いが開いたまま待つターンを止めた: %s", out.String())
 	}
-	// 答えが届いたのに受けずに終わるのは止める（answered の行は担当が返した印ではない）
 	if !blocked(f.stopCheck(q(1, "open"), q(1, "answered"))) {
 		t.Fatal("答えが届いたのに止めなかった")
 	}
@@ -84,7 +82,6 @@ func TestStopCheckOpenQuestion(t *testing.T) {
 func TestStopCheckReviewRequested(t *testing.T) {
 	f := newFixture(t)
 	f.report = `{"commit": "` + f.head + `", "pr": "https://github.com/example/app/pull/7", "review_request": {"round": 1, "limit": 2, "commit": "` + f.head + `", "previous": null, "reviewer": "codex-review", "extra": false}}`
-	// レビュアーがまだ起きていない・findings が無い・古い commit を見た: どれも待ち
 	for name, set := range map[string]func(){
 		"レビュアー無し":     func() { f.reviewer = nil },
 		"findings 無し": func() { f.findings = "" },
@@ -97,7 +94,6 @@ func TestStopCheckReviewRequested(t *testing.T) {
 			t.Errorf("%s: レビュー待ちのターンを止めた: %s", name, out)
 		}
 	}
-	// 結果が届いたのに報告も ready もせずに終わるのは止める
 	f.reviewer = map[string]any{"id": "T-0002", "parent": "T-0001", "status": "review", "profile": "codex-review", "updated": "2026-11-05T00:00:00Z"}
 	f.findings = f.head
 	if !blocked(f.stopCheck()) {

@@ -16,13 +16,11 @@ import (
 	"andon/internal/ledger"
 )
 
-// maxBlocks は stop-check が続けて止める回数の上限。超えたら通して理由を1行出す（フックが続きのターンを回し続けない）。
 const maxBlocks = 3
 
-// stopState は stop-check の控え（~/.local/state/andon/stop-check/<slug>-<id>.json。kanban の外）。
 type stopState struct {
-	Pass   int `json:"pass"`   // 前回通したときの log.jsonl の行の数
-	Blocks int `json:"blocks"` // 続けて止めた回数
+	Pass   int `json:"pass"`
+	Blocks int `json:"blocks"`
 }
 
 // stopCheck は担当・レビュアーの Stop フック（contract.md §9）。kanban が doing で、前回の通過（無ければ doing に入った行）以後に
@@ -43,7 +41,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 1 {
 		id = ledger.CanonID(args[0])
 	} else if id = ownIssue(); id == "" {
-		return 0 // 担当・レビュアーの端末ではない
+		return 0
 	} else {
 		// Chief of Staff の留守にも、core の起き直しでシェルに替わった dispatcher を戻す（ADR-0017 決めたこと 8 の (e)）
 		dispatcher.EnsureFromHook("andon issue stop-check")
@@ -68,7 +66,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		json.Unmarshal(b, &st) //nolint:errcheck // 壊れた控えは空から数え直す
 	}
 	rows := l.Log()
-	if st.Pass > len(rows) { // log.jsonl が短くなった: 控えを捨てる
+	if st.Pass > len(rows) {
 		st = stopState{}
 	}
 	save := func() error {
@@ -98,7 +96,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return pass("")
 		}
 	}
-	if waiting(l, rows, t) { // 待つのが正しいターン（問いの答え・レビュアーの結果待ち）は止めない
+	if waiting(l, rows, t) {
 		st = stopState{Pass: len(rows)}
 		save() //nolint:errcheck // 通す側で、控えが書けなくても通すのは同じ
 		return pass("")
@@ -112,7 +110,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		save() //nolint:errcheck // 通す側で、控えが書けなくても通すのは同じ
 		return pass(fmt.Sprintf("%s は報告も問いも無いまま %d 回止めた", id, maxBlocks))
 	}
-	if err := save(); err != nil { // 止めた回数を数えられないなら止めない（止め続けない側に倒す）
+	if err := save(); err != nil {
 		return pass("控えが書けない: " + err.Error())
 	}
 	reason := fmt.Sprintf("%s は doing のまま、報告も問いも kanban に無い。報告（andon issue report。レビューを頼むなら review-request）か"+
@@ -122,7 +120,6 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// returned は log.jsonl の行が、担当が kanban に返した印（報告・review・問い）か。
 func returned(c map[string]any) bool {
 	if rep := c["report"]; rep == "write" || rep == "append" {
 		return true
@@ -134,9 +131,6 @@ func returned(c map[string]any) bool {
 	return q && c["status"] == "open"
 }
 
-// waiting は、担当が待つのが正しい状態か: 自分の問いが開いたまま（最後の行が open で、answered が来ていない）か、
-// report.json の review_request の commit を指すレビュアーの findings.json がまだ無い（CheckReview が current でない）。
-// 答え・レビューが届いたあとは待ちではない（受けて動く）。
 func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue) bool {
 	id := t.Str("id")
 	open := map[any]bool{}
@@ -161,7 +155,6 @@ func waiting(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue) bool {
 	return l.CheckReview(rows, tasks, t, rep.ReviewRequest.Commit, "", nil, nil).State != "current"
 }
 
-// ownIssue は自分の端末（HC_TERMINAL_ID）のラベル issue=。読めなければ空。
 func ownIssue() string {
 	addr := os.Getenv("HC_TERMINAL_ID")
 	if addr == "" {

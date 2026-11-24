@@ -10,9 +10,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// gate の fix を担当へ返す（hc send）。返せなければ通知 `gate` に印を書き、dispatcher が Chief of Staff に届ける:
-// 担当の端末が無くて送れなければ unsent（担当の address）、担当（agent）がいなければ no_agent。どちらも理由と記録のパスは
-// 通知 `gate` に残したまま（report のパスだけの通知にしない）、ログに1行書く。送れた fix は印を書かない。
 func TestSendFix(t *testing.T) {
 	d := t.TempDir()
 	bin := filepath.Join(d, "bin")

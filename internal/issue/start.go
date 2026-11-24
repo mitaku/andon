@@ -23,16 +23,14 @@ import (
 	"andon/internal/spawn"
 )
 
-const exitFirst = 3 // 起きたが、最初のメッセージが届いていない
+const exitFirst = 3
 
-// notSent は担当が起きたが最初のメッセージが届いていないこと（終了コード 3）。msg はオーナーか Chief of Staff への案内。
 type notSent struct{ msg string }
 
 func (n notSent) Error() string { return n.msg }
 
 var profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
-// startPlan は andon issue start が起動する前に決めるもの（確かめを通ったあと）。--dry-run はこれを出して終わる。
 type startPlan struct {
 	DryRun       bool         `json:"dry_run"`
 	ID           string       `json:"id"`
@@ -49,14 +47,12 @@ type startPlan struct {
 	BriefPath    string       `json:"brief_path"`
 	Brief        string       `json:"brief"`
 	Checks       []startCheck `json:"checks"`
-	Fill         []string     `json:"fill,omitempty"` // 起動の前に書く予約キー（ルーチンが足した課題の無いキー。checkSettings）
+	Fill         []string     `json:"fill,omitempty"`
 	repoDir      string
-	settings     ledger.Issue // 写しを合わせる予約キー（課題のキーに fill が書くキーを足したもの。copySettings）
-	command      *string      // template の command（起動の記録の起動行。dry では読まない）
+	settings     ledger.Issue
+	command      *string
 }
 
-// startCheck は起動する前の確かめ1つの結果。result は ok（通った）か skipped（--dry-run では確かめない: hc を呼ぶもの・作るもの）。
-// 通らなかった確かめは startCheck にならず、本番と同じ理由1行と終了コード 1 で止まる。
 type startCheck struct {
 	Name   string `json:"name"`
 	Result string `json:"result"`
@@ -79,7 +75,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 	if dry {
 		if asJSON {
-			stdout.Write(contract.Marshal(p)) // gate --dry-run と同じ書き方（HTML の文字を逃がさない）
+			stdout.Write(contract.Marshal(p))
 		} else {
 			p.print(stdout)
 		}
@@ -90,7 +86,6 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	if err := c.fill(p); err != nil {
 		return err
 	}
-	// 写しは予約キーを書いたあと、何かを作る前に書く（ここで止まっても、打ち直せば plan が今の予約キーから作り直す）
 	if err := c.writeSettingsCopy(p); err != nil {
 		return fail("依頼書 %s の ## Settings の写しを書き直せない: %v。%s は todo のまま", p.BriefPath, err, id)
 	}
@@ -124,7 +119,6 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 	c.appendLaunch(stderr, rec, run.Address)
 
-	// kanban を doing にし、agent をその端末にする（担当の cwd で、その端末として打つ）
 	if _, err := spawn.OutputIn(p.Cwd, []string{"KANBAN_ROOT=" + c.l.Root, "HC_TERMINAL_ID=" + run.Address}, "", "kanban", "start", id); err != nil {
 		return fail("kanban start %s に失敗: %v（端末 %s は起きている。kanban start は担当が打てばよい）", id, err, run.Address)
 	}
@@ -135,7 +129,6 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 	place := id + " " + p.Title + " / " + id // オーナーに端末を指す言い方（ADR-0002 決めたこと 17・ADR-0003）
 	if !run.First.Delivered() {
-		// 手で送る行（ResendHint の最後）は shell にそのまま貼れるよう、文の最後に置く
 		return notSent{fmt.Sprintf("%s（%s）に最初のメッセージが届いていない: %s。kanban は doing・agent %s のまま（App では %s）。%s",
 			run.Address, p.Terminal, run.Reason(), run.Address, place, spawn.ResendHint(run.Address, p.Profile, p.FirstMessage))}
 	}
@@ -148,9 +141,6 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	return nil
 }
 
-// plan は起動する前の確かめを通し、起動するときに渡すものを決める。何も作らず、kanban も書かない。
-// dry のときは hc を呼ぶ確かめ（template・動いている端末）を飛ばし、worktree と branch は作らずに名前だけ決める
-// （origin の branch・worktree の置き場の確かめは、本番で作る直前にする）。通らなければ本番と同じ理由1行で止まる。
 func (c *ctx) plan(dry bool) (*startPlan, error) {
 	tools := []string{"git", "hc"}
 	if dry {
@@ -170,7 +160,6 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		return nil, err
 	}
 	p.check("status", "ok", "%s", c.issue.Str("status"))
-	// kanban start の開始の条件（after が全部済んでいる）を、何かを作る前に確かめる
 	if ok, err := c.startable(); err != nil {
 		return nil, err
 	} else if !ok {
@@ -185,7 +174,6 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		return nil, fail("%s は起動済み（worktree=%s branch=%s）。やり直すなら先に andon issue finish", id, wt, br)
 	}
 	if m := c.issue.Str("machine"); m != "" {
-		// 別のマシンで起動する（hc run --on）はまだ扱わない。黙って指揮側で起動しない
 		return nil, fail("%s は machine=%s（別のマシンで起動する）。andon issue start はまだ扱わない。machine を消すか、オーナーが起動する", id, m)
 	}
 	p.Profile = c.issue.Str("profile")
@@ -196,7 +184,6 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		return nil, fail("profile が不正: '%s'", p.Profile)
 	}
 	if parent := c.issue.Str("parent"); parent != "" && strings.HasSuffix(p.Profile, "-review") {
-		// レビュアーの子課題を起動するのは dispatcher だけ（元の課題の Space に置き、レビューする commit の worktree を切る）
 		return nil, fail("%s は %s のレビュアーの課題（profile %s）。起動するのは dispatcher だけで、andon issue start は打たない", id, parent, p.Profile)
 	}
 	p.BriefPath = filepath.Join(c.l.Dir, "issues", id, "brief.md")
@@ -258,8 +245,6 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 	return p, nil
 }
 
-// settingChoices は予約キーの値の選び方（断るときに出す kanban set の行で、無いキーの値の場所に置く。値は Chief of Staff が選ぶ）。
-// settingValue は SettingsOf がそのキーを読んだ値（知らない値は空か既定になり、書いてある値と合わない）。
 var (
 	settingChoices = map[string]string{"review": "<on|off>", "must_fix": "<critical|major|minor|trivial>", "reviewer": "<codex-review|claude-review>",
 		"review_rounds": "<1 以上の数>", "merge": "<auto|person>", "estimate": "<small|medium|large>"}
@@ -286,15 +271,6 @@ func requiredSettings(t ledger.Issue) (keys []string, optional map[string]bool) 
 	return append(keys, "estimate"), optional
 }
 
-// checkSettings は予約キーが揃っているかを確かめる: 要るキー（requiredSettings）が全部あって知っている値で、
-// 最後に書いたのが今の Chief of Staff の端末か（ledger.Trusted。gate・dispatcher と同じ履歴の照合）。
-// 揃っていなければ起動しない: 担当は予約キーを書けず、実装を終えてから review-request・ready・gate で止まるため。
-// 値は決めずに書かない。直す kanban set の行を出し、無いキーの値は選ぶ場所を残す（値を決めるのは Chief of Staff）。
-// ただしルーチンが足した課題（ledger.FiredBy）とトリアージの apply が足した課題（ledger.TriageMade）は、Chief of Staff の端末で打つときだけ、
-// 無いキーを既定（ledger.DefaultSettings。review は書いてある値、無ければトリアージの決定の値か off）で埋める: ルーチンの課題は
-// dispatcher の kanban tick が足すので Chief of Staff の書いた値を持てず、トリアージの課題は apply が予約キーを書く前（記録の前も）に止まりうるため。埋めるキーは p.Fill に置き、
-// start が起動の前に kanban set で書く（--dry-run は書かない）。既定と同じ値なのに照合が外れたキーも同じ値で書き直し、既定と違う値は変えない。
-// Chief Engineer の課題は見ない（予約キーを置かない）。レビュアーの課題は plan がこの前に断る。
 func (c *ctx) checkSettings(p *startPlan) error {
 	if p.Profile == chiefengineer.Profile {
 		p.check("settings", "ok", "Chief Engineer の課題は予約キーを見ない")
@@ -302,17 +278,15 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	}
 	rows, s, cos := c.l.Log(), ledger.SettingsOf(c.issue), c.l.ChiefOfStaff()
 	defaults := map[string]string{}
-	// 足したのがルーチンか、トリアージの apply（足したあと予約キーを書く前に止まった）か
 	source, made := "", "off"
 	if r := ledger.FiredBy(rows, c.issue); r != "" {
 		source = "ルーチン " + r
 	} else if t, review := c.l.TriageMade(rows, c.issue); t != "" {
 		source, made = "トリアージ "+t, review
 	}
-	// 要るキーは埋めたあとの課題で数える（review を off で埋めれば reviewer・review_rounds は要らない）
 	filled := c.issue
 	if source != "" && cos != "" && os.Getenv("HC_TERMINAL_ID") == cos {
-		review := c.issue.Str("review") // 書いてあればその値で（on なら reviewer はいまの profile から選ぶ）。無ければ足した側の値
+		review := c.issue.Str("review")
 		if review != "on" && review != "off" {
 			review = made
 		}
@@ -343,7 +317,6 @@ func (c *ctx) checkSettings(p *startPlan) error {
 			missing = append(missing, k)
 			args = append(args, "'"+k+"="+settingChoices[k]+"'")
 		case v == defaults[k] && !c.l.Trusted(rows, c.issue, k):
-			// 既定のまま照合が外れた（前の start の kanban set が log.jsonl に足す前に止まった・Chief of Staff が起き直した）。同じ値で書き直す
 			p.Fill = append(p.Fill, k+"="+v)
 		case !c.l.Trusted(rows, c.issue, k):
 			untrusted = append(untrusted, k)
@@ -369,14 +342,9 @@ func (c *ctx) checkSettings(p *startPlan) error {
 	if len(missing) > 0 {
 		msg += "（<…> は brief.md の表から値を選んで埋める）"
 	}
-	// 打つ行は shell にそのまま貼れるよう、文の最後に置く
 	return fail("%s: kanban set %s %s", msg, c.id, strings.Join(args, " "))
 }
 
-// copySettings は依頼書の ## Settings の写しを、予約キー（正。起動の前に fill が書くキーも足したもの）に合わせて書き直す
-// （ledger.RewriteSettings）。課題を足したあと Chief of Staff が kanban set で予約キーを書き直しても、写しは足したときのままなので、
-// 担当に渡る前に揃える。書き直した依頼書は p.Brief に置き、start が起動の前に brief.md に書く（--dry-run は書かずに出す）。
-// Chief Engineer の課題は予約キーを置かないので見ない。
 func (c *ctx) copySettings(p *startPlan) {
 	if p.Profile == chiefengineer.Profile {
 		return
@@ -399,10 +367,6 @@ func (c *ctx) copySettings(p *startPlan) {
 	p.check("copy", "ok", "依頼書の ## Settings の写しが予約キーと違うので、起動の前に予約キーから書き直す")
 }
 
-// writeSettingsCopy は、書く直前に依頼書を読み直して写しを書き直し、違えば置き換える（copySettings が合わせるキーで）。
-// plan で読んだ全文を書かないのは、読んでから書くまでの間（fill の kanban set など）に Chief of Staff が足した追記を消さないため。
-// 読み直しから置き換えまでは kanban の CLI と同じ鍵（kanban/.lock の flock）を持つ: 鍵を取って依頼書を書く kanban の CLI と重ならない。
-// 鍵を持つ間は kanban の CLI を打たない（打つと待ち合って止まる）。書いた依頼書を p.Brief に置き直す。
 func (c *ctx) writeSettingsCopy(p *startPlan) error {
 	if p.settings == nil {
 		return nil
@@ -424,10 +388,8 @@ func (c *ctx) writeSettingsCopy(p *startPlan) error {
 	return writeAtomic(p.BriefPath, []byte(brief))
 }
 
-// kanbanLockWait は kanban の鍵を待つ長さ（kanban の CLI の lockWait と同じ）。
 const kanbanLockWait = 10 * time.Second
 
-// lockKanban は kanban の CLI の鍵（path の flock）を、wait の間待って取る。取れなければ理由1つで返す。返した関数で外す。
 func lockKanban(path string, wait time.Duration) (func(), error) {
 	deadline := time.Now().Add(wait)
 	for {
@@ -444,7 +406,6 @@ func lockKanban(path string, wait time.Duration) (func(), error) {
 	}
 }
 
-// writeAtomic は file を data で置き換える（一時のファイルに書いてから rename する。途中で止まっても半分の依頼書を残さない）。
 func writeAtomic(file string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(file), filepath.Base(file)+".tmp-*")
 	if err != nil {
@@ -463,8 +424,6 @@ func writeAtomic(file string, data []byte) error {
 	return nil
 }
 
-// fill は checkSettings が p.Fill に置いた予約キー（ルーチンとトリアージの apply が足した課題の無いキーと、照合の外れた既定のキー）を、
-// Chief of Staff の端末で書く（gate と dispatcher の履歴の照合も通る）。無ければ何もしない。
 func (c *ctx) fill(p *startPlan) error {
 	if len(p.Fill) == 0 {
 		return nil
@@ -473,8 +432,6 @@ func (c *ctx) fill(p *startPlan) error {
 	return err
 }
 
-// writableRepo は課題の repo を書いてよいかを確かめ、clone の置き場を返す（start と resume の確かめ）:
-// 形・kanban の config.yaml の repos・セルの repo の HEAD の project.json の repos（オーナーだけが書く。author 照合）・clone があること。
 func (c *ctx) writableRepo(repo string, check func(name, result, format string, a ...any)) (string, error) {
 	slug := c.l.Slug
 	if !spawn.RepoRe.MatchString(repo) {
@@ -484,7 +441,6 @@ func (c *ctx) writableRepo(repo string, check func(name, result, format string, 
 		return "", fail("repo %s が kanban の config.yaml の repos に無い（このプロジェクトの repo でない）", repo)
 	}
 	check("repos", "ok", "%s は kanban の config.yaml の repos にある", repo)
-	// 書いてよい repo の正はセルの repo の HEAD の project.json（オーナーだけが書く。author 照合）。読めなければ repo 無し（安全側）
 	ws := delegate.Workspace()
 	proj, err := delegate.ReadProject(ws, slug)
 	if errors.Is(err, delegate.ErrAbsent) {
@@ -506,7 +462,6 @@ func (c *ctx) writableRepo(repo string, check func(name, result, format string, 
 	return repoDir, nil
 }
 
-// print は --dry-run の人向けの出力。
 func (p *startPlan) print(w io.Writer) {
 	fmt.Fprintf(w, "andon issue: %s を起動する乾いた実行（hc を呼ばず、worktree・branch・端末・ラベルを作らず、kanban も書かない）\n", p.ID)
 	row := func(k, v string) {
@@ -547,7 +502,6 @@ func workLabels(slug, id, title string) []string {
 		"herdr.space=andon-" + slug + "-" + id, "herdr.tab=andon-" + slug + "-" + id}
 }
 
-// liveNames は動いている端末の名前（hc の名前は動いているものの中で1つ）。
 func liveNames() (map[string]bool, error) {
 	out, err := spawn.Output(nil, "", "hc", "ls", "--json")
 	if err != nil {
@@ -568,7 +522,6 @@ func liveNames() (map[string]bool, error) {
 	return names, nil
 }
 
-// startable は kanban の CLI の ready（todo か queued で、after が全部済んでいる）にこの課題があるか。
 func (c *ctx) startable() (bool, error) {
 	out, err := c.l.Run("", "ready", "--json")
 	if err != nil {
@@ -588,7 +541,6 @@ func (c *ctx) startable() (bool, error) {
 	return false, nil
 }
 
-// after は issue.yaml の after（並び）。
 func (c *ctx) after() []string {
 	var out []string
 	switch v := c.issue["after"].(type) {
@@ -604,7 +556,6 @@ func (c *ctx) after() []string {
 	return out
 }
 
-// roleOf はプロファイルから起動の記録の役を決める（chief-engineer は Chief Engineer、*-review はレビュアー、ほかは担当）。
 func roleOf(profile string) string {
 	switch {
 	case profile == chiefengineer.Profile:

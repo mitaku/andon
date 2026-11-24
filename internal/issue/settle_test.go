@@ -20,7 +20,7 @@ func TestReadOld(t *testing.T) {
 		{"kanban done が断った（台帳の問いが開いている）", "kanban done が断った（kanban の問いが開いている）"},
 		{"前の版の控え", "前のバージョンの控え"},
 		{"最新版・初版・Go版は読み替えない", "最新版・初版・Go版は読み替えない"},
-		{"gate の外の問いが開いている: A-1#1", "gate の外の問いが開いている: A-1#1"}, // 新しい語の文はそのまま
+		{"gate の外の問いが開いている: A-1#1", "gate の外の問いが開いている: A-1#1"},
 		{"", ""},
 	} {
 		if got := readOld(c.old); got != c.want {
@@ -29,7 +29,6 @@ func TestReadOld(t *testing.T) {
 	}
 }
 
-// 記録に残した理由が古い語で、今の理由が同じ中身の新しい語なら、通知 merged（held）を出し直さない。中身が違えば出す。
 func TestSettleHeldOldWords(t *testing.T) {
 	for _, c := range []struct {
 		name, held string
@@ -47,7 +46,7 @@ func TestSettleHeldOldWords(t *testing.T) {
 			f.write("list.json", js([]any{f.task}))
 			f.write("kanban/log.jsonl", "")
 			f.write("kanban/issues/T-0001/library/report.json", f.report)
-			f.write("questions.json", `[{"id": "T-0001", "n": 1, "status": "open"}]`) // 問いの JSON が無い: gate の外の問い
+			f.write("questions.json", `[{"id": "T-0001", "n": 1, "status": "open"}]`)
 			pr := "https://github.com/example/app/pull/7"
 			path := settlePath(filepath.Base(f.root))
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

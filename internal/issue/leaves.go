@@ -12,7 +12,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 葉ごとの使い方（andon issue <動詞> --help の中身と、引数を誤ったときに出す文）。どの葉を打てるかは internal/cli の葉の表が決める。
 const (
 	ShowUsage = "usage: andon issue show <id>\n" +
 		"予約キー（既定で埋めたもの）・report.json・レビューの照合を JSON で出す（読むだけ）。\n"
@@ -69,11 +68,8 @@ const (
 		"id を省くと端末のラベル issue= から引く。担当でなければ何も出さない。\n"
 )
 
-// errUsage は葉の body が使い方の誤りを返す印。
 var errUsage = errors.New("使い方の誤り")
 
-// leaf は id を取る葉の共通の形: id を確かめ、body が打つ。errUsage を返したら使い方を出して終了コード 2。
-// 誤りの終了コード: 最初のメッセージが届かない 3、PR がまだ MERGED でない 4、ほかは 1。
 func leaf(sub, usage string, args []string, stderr io.Writer, body func(id string, rest []string) error) int {
 	if len(args) < 1 {
 		fmt.Fprint(stderr, usage)
@@ -113,7 +109,6 @@ func guard(sub string, f func(*ctx) error) func(*ctx) error {
 	}
 }
 
-// Show は andon issue show。
 func Show(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("show", ShowUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -123,7 +118,6 @@ func Show(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Report は andon issue report。
 func Report(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return leaf("report", ReportUsage, args, stderr, func(id string, rest []string) error {
 		var pr, data string
@@ -142,7 +136,6 @@ func Report(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// ReviewRequest は andon issue review-request。
 func ReviewRequest(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return leaf("review-request", ReviewRequestUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -152,7 +145,6 @@ func ReviewRequest(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 	})
 }
 
-// Ready は andon issue ready。
 func Ready(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("ready", ReadyUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -162,7 +154,6 @@ func Ready(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Ask は andon issue ask。--new はオーナーの課題を足して問いを置く（askNew）。
 func Ask(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "--new" {
 		return askNew(args[1:], stdin, stdout, stderr)
@@ -180,7 +171,6 @@ func Ask(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// askNew は andon issue ask --new [--parent <id>] [--after <id>,…] <file|->。問いの形を確かめてから課題を足す。
 func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var parent string
 	var after []string
@@ -235,7 +225,6 @@ func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// Candidates は andon issue candidates。
 func Candidates(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return leaf("candidates", CandidatesUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) != 1 {
@@ -245,7 +234,6 @@ func Candidates(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Record は andon issue record。
 func Record(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("record", RecordUsage, args, stderr, func(id string, rest []string) error {
 		expect := "pass"
@@ -256,8 +244,6 @@ func Record(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return errUsage
 		}
 		argv := rest[1:]
-		// 空の引数は記録の形（command の要素は空でない）に合わないので、走らせる前に断る。
-		// 走らせてから断ると、出力だけ残って記録が書かれない。
 		if slices.Contains(argv, "") {
 			return errUsage
 		}
@@ -265,7 +251,6 @@ func Record(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Finish は andon issue finish。
 func Finish(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("finish", FinishUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -281,7 +266,6 @@ func Finish(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Settle は andon issue settle。
 func Settle(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("settle", SettleUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -291,7 +275,6 @@ func Settle(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Merge は andon issue merge。
 func Merge(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("merge", MergeUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -301,7 +284,6 @@ func Merge(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Impact は andon issue impact。
 func Impact(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("impact", ImpactUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
@@ -311,7 +293,6 @@ func Impact(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Start は andon issue start。
 func Start(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("start", StartUsage, args, stderr, func(id string, rest []string) error {
 		var dry, asJSON bool
@@ -336,7 +317,6 @@ func Start(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Resume は andon issue resume。
 func Resume(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return leaf("resume", ResumeUsage, args, stderr, func(id string, rest []string) error {
 		var dry, asJSON, fresh bool
@@ -363,7 +343,6 @@ func Resume(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	})
 }
 
-// Session は andon issue session。
 func Session(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		fmt.Fprint(stderr, SessionUsage)
@@ -372,7 +351,6 @@ func Session(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return session(stdout, stderr)
 }
 
-// StopCheck は andon issue stop-check。
 func StopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return stopCheck(args, stdin, stdout, stderr)
 }
