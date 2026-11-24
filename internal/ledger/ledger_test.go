@@ -435,3 +435,38 @@ func TestLastHoldSet(t *testing.T) {
 		t.Error("review に入る前の止めやほかの課題の止めを読んだ")
 	}
 }
+
+// TrustedThen は、キーを最後に変えた行の書き手を、その行の時点の Chief of Staff と比べる（ADR-0062 決めたこと 3）。
+func TestTrustedThen(t *testing.T) {
+	cos := func(v any) Row { return Row{By: "andon", Config: map[string]any{"chief_of_staff": v}} }
+	set := func(by string, v any) Row {
+		return Row{By: "terminal:" + by, ID: "S-0007", Change: map[string]any{"later": v}}
+	}
+	for _, c := range []struct {
+		name  string
+		rows  []Row
+		value string // 課題の今の値
+		now   string // 今の config.yaml の chief_of_staff
+		want  bool
+	}{
+		{"書いたあとで Chief of Staff が起き直した", []Row{cos("t5"), set("t5", "急がない"), cos("t6")}, "急がない", "t6", true},
+		{"担当が書いた", []Row{cos("t5"), set("t9", "急がない")}, "急がない", "t5", false},
+		{"Chief of Staff だったアドレスを、あとで担当が使って書いた", []Row{cos("t5"), cos("t6"), set("t5", "急がない")}, "急がない", "t6", false},
+		{"Chief of Staff が書いたあと、担当が書き換えた", []Row{cos("t5"), set("t5", "急がない"), set("t9", "あとで")}, "あとで", "t5", false},
+		{"今の値が書いた値と違う", []Row{cos("t5"), set("t5", "急がない")}, "あとで", "t5", false},
+		{"消した（空）", []Row{cos("t5"), set("t5", nil)}, "", "t5", false},
+		{"config の行が無く、今の Chief of Staff が書いた", []Row{set("t5", "急がない")}, "急がない", "t5", true},
+		{"config の行が無く、ほかの端末が書いた", []Row{set("t9", "急がない")}, "急がない", "t5", false},
+		{"書いたあとで初めて config の行が来た", []Row{set("t5", "急がない"), cos("t5")}, "急がない", "t5", false},
+		{"前の名前（coordinator）の行で Chief of Staff だった", []Row{{By: "andon", Config: map[string]any{"coordinator": "t5"}}, set("t5", "急がない")}, "急がない", "t5", true},
+		{"行が無い", nil, "急がない", "t5", false},
+	} {
+		issue := Issue{"id": "S-0007"}
+		if c.value != "" {
+			issue["later"] = c.value
+		}
+		if got := TrustedThen(c.rows, issue, "later", c.now); got != c.want {
+			t.Errorf("%s: %v（want %v）", c.name, got, c.want)
+		}
+	}
+}

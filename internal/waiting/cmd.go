@@ -97,8 +97,25 @@ func Text(r Result) string {
 		b.WriteString("オーナー待ちは無い\n")
 		return b.String()
 	}
-	kind := map[string]string{"merge": "マージの依頼", "decision": "判断", "task": "手作業"}
+	// 呼んでいる行と置いてある行を分けて出す（ADR-0062 決めたこと 6）。行は呼んでいるものが先に並んでいる
+	called, later := 0, 0
 	for _, it := range r.Items {
+		if it.Call {
+			called++
+		} else {
+			later++
+		}
+	}
+	if called > 0 {
+		fmt.Fprintf(&b, "呼んでいるもの %d 件（行燈を灯す）\n", called)
+	} else {
+		b.WriteString("呼んでいるものは無い\n")
+	}
+	kind := map[string]string{"merge": "マージの依頼", "decision": "判断", "task": "手作業"}
+	for i, it := range r.Items {
+		if !it.Call && (i == 0 || r.Items[i-1].Call) {
+			fmt.Fprintf(&b, "置いてあるもの %d 件（行燈を灯さない。いつでも答えられる）\n", later)
+		}
 		name := it.ID
 		if it.Question != "" {
 			name = it.Question
@@ -124,6 +141,12 @@ func Text(r Result) string {
 		}
 		if len(it.Links) > 0 {
 			fmt.Fprintf(&b, "。リンク: %s", strings.Join(it.Links, " "))
+		}
+		if !it.Call && it.Later != "" {
+			fmt.Fprintf(&b, "。置いた理由: %s", it.Later)
+			if it.LaterUntil != "" {
+				fmt.Fprintf(&b, "。%s に呼ぶ", it.LaterUntil)
+			}
 		}
 		b.WriteString("\n")
 	}

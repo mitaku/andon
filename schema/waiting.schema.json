@@ -24,7 +24,7 @@
       }
     },
     "items": {
-      "description": "What waits on the owner, most held issues first, then oldest first.",
+      "description": "What waits on the owner. Calling items (call true) first, most held issues first, then oldest first; then the items left for later (call false), oldest first.",
       "type": "array",
       "items": { "$ref": "#/$defs/item" }
     }
@@ -73,6 +73,20 @@
           "description": "The issues not done that wait on this one through after, directly or behind those.",
           "type": "array",
           "items": { "$ref": "#/$defs/id" }
+        },
+        "call": {
+          "description": "Whether the item calls the owner now (lights the lamp). false only when the item's issue can be left for later (an owner issue, or a todo or queued issue, whose mark later was last written by the Chief of Staff of that time with the current value), its later_until has not come, and every issue in holds can be left for later too. A merge item and the decision item of an owner issue with no question are always true. The command writes it on every item; it is not required so that inputs counted by an earlier version still pass (readers take an item without it by the old rule: merge and decision call, task does not).",
+          "type": "boolean"
+        },
+        "later": {
+          "description": "The first line of the trusted mark later: why it can wait. Only on items (not merge) of an issue that can be left for later, whether call is true or false.",
+          "type": "string",
+          "minLength": 1
+        },
+        "later_until": {
+          "description": "The issue's later_until, on items that have later and an issue with the key. From that day (in the ledger's timezone) the item calls again.",
+          "type": "string",
+          "minLength": 1
         }
       }
     },

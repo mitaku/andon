@@ -11,10 +11,10 @@
 |---|---|---|---|
 | 1 | 範囲は、3 種のオーナー待ちの灯し方、問いを置く口の線、今ある分の移し方までにする | この ADR | まだ実装していない |
 | 2 | 灯りの 5 種は変えず、オーナー待ちを「呼んでいる」と「置いてある」に分け、行燈は呼んでいるものだけで灯す | この ADR | まだ実装していない |
-| 3 | 置いておけるのは、担当が動かしていない課題の判断と手作業で、Chief of Staff が印 `later` を書いたものにする | この ADR | まだ実装していない |
-| 4 | 印があっても、日付が来たか、置いておけない課題を後ろで止めていれば呼ぶ | この ADR | まだ実装していない |
-| 5 | 手作業にも同じ規則を当て、印の無い手作業は灯す | この ADR | まだ実装していない |
-| 6 | `andon waiting` の行に `call` と `later` を足し、バージョンは上げない | この ADR | まだ実装していない |
+| 3 | 置いておけるのは、担当が動かしていない課題の判断と手作業で、Chief of Staff が印 `later` を書いたものにする | `internal/waiting/waiting.go`・`internal/ledger/ledger.go`・`docs/contract.md` §2 | 生きている |
+| 4 | 印があっても、日付が来たか、置いておけない課題を後ろで止めていれば呼ぶ | `internal/waiting/waiting.go`・`docs/contract.md` §25 | 生きている |
+| 5 | 手作業にも同じ規則を当て、印の無い手作業は灯す | `internal/waiting/waiting.go`・`package/skills/glossary/SKILL.md`・`docs/design.md` §0.1 | まだ実装していない。数え方（行の `call`）と用語集と設計書は直した。行燈が `call` で灯るのは mod `inbox` を直したあと |
+| 6 | `andon waiting` の行に `call` と `later` を足し、バージョンは上げない | `internal/waiting/waiting.go`・`internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている |
 | 7 | mod `inbox` は `call` で数え、`call` の無い行は今の規則で読み、`inbox.lamp` はバージョン 2 にする | この ADR | まだ実装していない |
 | 8 | ペインは、置いてある行を見出しの下に分けて出し、同じ口で答えられるようにする | この ADR | まだ実装していない |
 | 9 | ダイジェストと `andon measure` は、呼んでいるものと置いてあるものを分けて数える | この ADR | まだ実装していない |
