@@ -48,7 +48,7 @@ exec "$real" "$@"
 // 本物（Real）は repo の cmd/kanban を build したもので、検査の下ごしらえ（kanban init など）は本物で打つ（数えない）。
 type Fault struct {
 	t     testing.TB
-	Real  string // 本物の kanban の CLI
+	Real  string
 	count string
 }
 
@@ -174,7 +174,6 @@ func (f *Fault) Converge(t *testing.T, c Case) {
 	}
 }
 
-// lineDiff は want と got の違う行を -（want だけ）と +（got だけ）で並べる。
 func lineDiff(want, got string) string {
 	w, g := strings.Split(want, "\n"), strings.Split(got, "\n")
 	var b strings.Builder
@@ -195,8 +194,7 @@ func lineDiff(want, got string) string {
 }
 
 // Snapshot は kanban の課題と問い、課題の library/questions/ の控えを、比べられる文字列にする（時刻と端末は入れない）。
-// trusted は課題 id の予約キー key を最後に書いたのが Chief of Staff の端末か（呼び手が ledger.Trusted で答える。
-// この package は ledger を import できない）。
+// trusted は課題 id の予約キー key を最後に書いたのが Chief of Staff の端末か（呼び手が ledger.Trusted で答える）。
 func (f *Fault) Snapshot(root string, trusted func(id, key string) bool) string {
 	f.t.Helper()
 	var issues []map[string]any

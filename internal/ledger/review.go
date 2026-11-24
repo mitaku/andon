@@ -13,7 +13,7 @@ import (
 
 // Review は独立レビューの照合の結果（gate の記録の review と同じ形。contract.md §7）。
 type Review struct {
-	State       string `json:"state"` // current / stale / missing / off
+	State       string `json:"state"`
 	Issue       string `json:"issue,omitempty"`
 	Commit      string `json:"commit,omitempty"`
 	MustFixOpen int    `json:"must_fix_open"`
@@ -77,8 +77,6 @@ func (l *Ledger) CheckReview(rows []Row, tasks []Issue, t Issue, head, mustFix s
 	return r
 }
 
-// previousFiles は前の回のレビュー（earlier を新しい順に見て、findings.json が読めて commit が今の回と違う最初のもの）の
-// 指摘の file の集まり。前の回が無ければ nil（1回目）。今の回と同じ commit を見た頼み直しは同じ回なので飛ばす（andon issue review-request の数え方と同じ）。
 func (l *Ledger) previousFiles(earlier []string, commit string) map[string]bool {
 	for i := len(earlier) - 1; i >= 0; i-- {
 		f, err := contract.ReadFindings(filepath.Join(l.Library(earlier[i]), "findings.json"))
@@ -115,7 +113,6 @@ func SamePatch(dir, a, b string) bool {
 	return ok && bytes.Equal(pa, pb)
 }
 
-// hunkRe は hunk の見出し（@@ -a,b +c,d @@ <囲みの行>）。行番号は base が進むとずれるので比べず、囲みの行だけを取る。
 var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+[0-9]+(?:,[0-9]+)? @@ ?(.*)$`)
 
 // prDiff は commit の PR の差分を、比べる形に直したもの。差分はコンテキストを 0 行で取り（-U0。hunk を繋げる設定も 0 に
@@ -203,7 +200,6 @@ func short(sha string) string {
 // dispatcher の reReviewRange が書き、andon retro collect がレビューの回の理由（BriefReReview）に読む。
 const RebasedMark = "これは今の commit の祖先でない（rebase をまたいだ）"
 
-// reReviewRe はレビュアーの依頼書の「再レビュー: 前の回の commit <sha>。」（dispatcher の reReviewRange が書く）。
 var reReviewRe = regexp.MustCompile(`再レビュー: 前の回の commit ([0-9a-f]{40})。`)
 
 // BriefReReview は、レビュアーの依頼書 brief が再レビューなら前の回の commit を、そうでなければ空を返す。rebased は、

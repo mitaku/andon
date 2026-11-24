@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// fakeT は Fatalf を控えるだけの testing.TB（補助がテストを落とすかを確かめる）。
 type fakeT struct {
 	testing.TB
 	fatal string
@@ -18,7 +17,6 @@ func (f *fakeT) Fatal(a ...any)                 { f.fatal = fmt.Sprint(a...) }
 
 const at = `"at":"2026-11-02T10:03:00Z"`
 
-// log.jsonl の行の形: kanban が書く4つの形は通り、崩したものは落ちる。
 func TestLogLineShapes(t *testing.T) {
 	for _, c := range []struct {
 		line string
@@ -77,7 +75,6 @@ func TestLogLineShapes(t *testing.T) {
 	}
 }
 
-// Log は行をつないで返し、崩した行があればテストを落とす（何行目かを言う）。
 func TestLogFailsTheTestOnABrokenLine(t *testing.T) {
 	good := `{` + at + `,"by":"terminal:t3","id":"W-0001","change":{"add":"x"}}`
 	f := &fakeT{TB: t}
@@ -93,7 +90,6 @@ func TestLogFailsTheTestOnABrokenLine(t *testing.T) {
 	}
 }
 
-// Ready は課題の並びを JSON にし、kanban ready --json の形でなければテストを落とす。
 func TestReadyFailsTheTestOnABrokenIssue(t *testing.T) {
 	f := &fakeT{TB: t}
 	if got := Ready(f); got != "[]" || f.fatal != "" {

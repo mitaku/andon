@@ -13,7 +13,7 @@ import (
 // both day fields are restricted (neither starts with *), a day matches either one.
 // Names (MON, JAN) and @daily-style shortcuts are not read.
 type Cron struct {
-	minute, hour, dom, month, dow uint64 // bit n set: n matches
+	minute, hour, dom, month, dow uint64
 	domAny, dowAny                bool
 }
 
@@ -36,7 +36,7 @@ func ParseCron(expr string) (*Cron, error) {
 		bits[i] = b
 	}
 	if bits[4]&(1<<7) != 0 {
-		bits[4] |= 1 // 7 is Sunday too
+		bits[4] |= 1
 	}
 	return &Cron{minute: bits[0], hour: bits[1], dom: bits[2], month: bits[3], dow: bits[4],
 		domAny: strings.HasPrefix(parts[2], "*"), dowAny: strings.HasPrefix(parts[4], "*")}, nil
@@ -98,7 +98,6 @@ func (c *Cron) dayMatches(t time.Time) bool {
 	return dom || dow
 }
 
-// cronHorizon is how far Next looks; a schedule with no time in it never fires (Feb 30).
 const cronHorizon = 5 * 366 * 24 * time.Hour
 
 // Next is the first time after `after` that the schedule names, read in loc.
