@@ -63,4 +63,4 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - `andon waiting` の枠の「オーナー待ち」（`slots.waiting`）は、`doing` か `review` の担当の課題のうちオーナー待ちの行を持つものの数で、オーナーの課題は数えない。判断の行が2つあっても 0 のことがある。
 - 置いておけるのは、オーナーの課題か、状態が `todo` か `queued` の課題だけ。マージの依頼と、`doing`・`review` の担当の課題の行は、印があっても呼ぶ。
 - 印 `later` は、その行の時点の Chief of Staff の端末が最後に書いたときだけ信じる。道は `HC_TERMINAL_ID=tc` で書き、担当は `tw` で書く。
-- 振り返りの apply が足すオーナーの課題（`internal/retro/`）は、この道を通らない。
+- トリアージと振り返りの apply が足すオーナーの課題は、この道を通らない。`triage` の `tr-later` と `retro` の `rt-later` が見る。
