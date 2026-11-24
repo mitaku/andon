@@ -5,13 +5,21 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 ## 細かい機能
 
 - `hd-refuse` 理由の課題が自分自身か片付いた課題なら、何も書かずに断る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/hold.go`
 - `hd-hold` `hold` に理由の課題が Chief of Staff の端末の行で残り、渡している commit に黄の印を書いてから返る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/hold.go`、`internal/gate/mark.go`、`internal/ledger/ledger.go`
 - `hd-gate-wait` 止めている課題の gate は GitHub を読まずに wait（終了コード 5）を返し、記録を書かない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/gate/gate.go`
 - `hd-worker` 担当（課題の `agent` の端末）が `hold` を消しても、止めたままと読む。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/ledger/ledger.go`
 - `hd-unhold` Chief of Staff が外すと `hold` が消え、印は書かない。外したあとは「止めていない」と返す。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/hold.go`
 - `hd-dispatch-hold` `merge: auto` の課題を gate の前に止めると、dispatcher の巡は gate を回さず、マージもしない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/hold.go`、`internal/issue/merge.go`
 - `hd-dispatch-release` 止めを外すと、次の巡で gate が回り、approve で dispatcher がマージする（`hd-dispatch-hold` の対照）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/merge.go`
 - `hd-dispatch-discard` gate が approve を決めたあとに止めると、次の巡で dispatcher が判定を捨て、`merge: auto` に変えてもマージしない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/hold.go`、`internal/issue/settle.go`
 
 ## 辿り着き方（利用者から）
 

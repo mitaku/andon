@@ -5,10 +5,15 @@
 ## 細かい機能
 
 - `rr-record` 走らせた記録 `runs/<n>.json` と出力 `runs/<n>.log` が残り、commit と commit していない変更の有無を持つ。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/record.go`、`internal/contract/runs.go`、`schema/run.schema.json`
 - `rr-ready-refuse` 報告の無い `ready` は断り、課題は `doing` のまま。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/transition.go`、`internal/process/process.go`、`process/states/issue.yaml`
 - `rr-report` 報告が `report.json`（commit は HEAD・`pr`・`acceptance[].run`）と `report.md` になる。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/issue.go`、`internal/contract/contract.go`、`internal/contract/schema.go`、`schema/report.schema.json`
 - `rr-acceptance` 課題の予約キー `acceptance` が名指す受け入れ条件の番号のうち、報告に行の無い番号だけを名指して `ready` が断る。番号は数字だけの形（`1`）と A を付けた形（`A1`）を同じ番号と読む。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/issue.go`、`internal/contract/runs.go`
 - `rr-ready` 揃った報告の `ready` で課題が `review` に入り、kanban の履歴に担当の端末の行が残る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/issue.go`、`internal/issue/leaves.go`、`internal/issue/transition.go`、`internal/ledger/ledger.go`、`internal/ledger/id.go`、`internal/ledger/config.go`、`internal/ledger/review.go`、`internal/gate/review.go`、`internal/gate/gate.go`、`cmd/andon/main.go`、`internal/cli/cli.go`、`internal/cli/leaves.go`、`cmd/kanban/ledger.go`、`cmd/kanban/lock_unix.go`、`cmd/kanban/main.go`、`cmd/kanban/paths.go`、`cmd/kanban/rename_other.go`、`cmd/kanban/yamldoc.go`
 
 ## 辿り着き方（利用者から）
 
@@ -44,6 +49,7 @@
 - `internal/cli/`
 - `internal/gate/review.go`
 - `internal/gate/gate.go`
+- `internal/process/`
 
 ## 既に見ている検査
 

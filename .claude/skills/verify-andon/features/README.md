@@ -35,11 +35,14 @@
 各ファイルは、H1 のタイトルと、利用者から見た振る舞いの1段落で始める。そのあとの H2 は次の6つで、この順に置く。
 
 1. `細かい機能` は、短い名前・1行の説明・見る道を1行ずつ並べる。
+   各行の下に `  - 見るファイル: ` の行を置き、その細かい機能が動かすファイルを `` で囲んで「、」で並べる。見るファイルは同じ機能の「変えたら動かすパス」の下にあるものだけ。Go のファイルは1つずつ書き、`<dir>/` は Go のファイルを持たない置き場（skill・テンプレートなど）だけに使う。
 2. `辿り着き方（利用者から）` は、利用者（担当・Chief of Staff・オーナー）がその機能に触る入口を並べる。
 3. `動かし方` は `前提:` で始め、操作ごとに command と、見えれば動いた証拠になるものを対にして書く。
 4. `変えたら動かすパス` は、差分がこのパスに当たれば検証の課題でこの機能を動かす、という行を1行1つ `` で囲んで書く（`scripts/features.sh` が読む）。書き方は `tests/lib/scope.sh` と同じで、`<dir>/` はその下の全部。
 5. `既に見ている検査` は、同じ振る舞いを CI で見ている `tests/*.sh` と Go のテストを並べる。
 6. `落とし穴` は、検証を無駄にするか、証拠を無効にする罠を並べる。
+
+`tests/verify-andon.sh` は2つを見る。1つは、「変えたら動かすパス」の下のテストでないファイル（`*_test.go`・`testdata/`・親の package の名前に test を付けたテスト用の package〈`internal/ledger/ledgertest/`〉を除く）が、どれかの細かい機能の見るファイルに入ること。もう1つは、`internal/`・`cmd/`・`package/` の下のテストでないファイルが、どれかの機能の「変えたら動かすパス」か、下の「地図が覆わないもの」に入ること。製品の変更がファイルや package を足したら、同じ変更で地図を直す。
 
 実装の細部は地図に書かない。書くのは、利用者の道・決まった名前・要る状態・command・見える証拠だけ。
 
@@ -61,10 +64,18 @@
 
 ## 地図が覆わないもの
 
-`package/` の下のうち、次の3つはどの機能のファイルにも載せない。変えても検証の課題は切られない（`scripts/features.sh` が機能を返さない）。
+`internal/`・`cmd/`・`package/` の下のうち、次のものはどの機能の道も通らない。機能の「変えたら動かすパス」の下にあっても、変えたときに検証の課題は切られない（`scripts/features.sh` が機能を返さない）。細かい機能の見るファイルには書かない。機能のパスを丸ごと外す置き場も書かない。1行に置き場と理由を書く。行の先頭に `` で囲んで「・」で並べたパスを `tests/verify-andon.sh` が読む。
 
 - `package/lib/`（statusline と schema の検査器）。利用者が動かす道が無い。statusline は Claude Code が画面に出すだけで、検査器は `tests/schema.sh` と `go test ./internal/contract/` が CI で見ている。セルの本物で動かして増える証拠が無い。
 - `package/host/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
 - `package/compose.yaml`。セルを起動し直す口で、動いているセルの中からは打ち直せない。`tests/image.sh` が docker のある CI で見ている。
+- `package/bin/`。焼いた andon を置く場所で、repo には空の印しか無い。
+- `internal/triage/`・`internal/retro/`（トリアージと振り返り）。担当のエージェントが集めて判定する仕事で、検証の担当は起動できない。dispatcher がルーチンを撃つところは `dispatcher-news` の `dn-idle` が見る。機能のファイルはまだ無い。
+- `internal/board/`・`internal/chiefofstaff/`・`internal/chiefengineer/`・`internal/open/`（ボードと、Chief of Staff・Chief Engineer を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。
+- `internal/plantinit/`（`andon init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
+- `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
+- `cmd/kanban/migrate.go`・`cmd/kanban/dispatcherstate.go`（`kanban migrate`）。前の形の kanban を移す口で、どの機能の道も打たない。`go test ./cmd/kanban/` と `tests/kanban.sh` が見ている。
+- `internal/delegate/cmd.go`（`andon delegate grant` など）。オーナーが委譲を変える口で、どの機能の道も打たない。gate が委譲を読むところは `gt-route` が見る。`go test ./internal/delegate/` と `tests/andon-gate.sh` が見ている。
+- `cmd/kanban/lock_windows.go`・`cmd/kanban/rename_windows.go`・`internal/spawn/tty_other.go`・`internal/signal/echo_other.go`。linux でない OS でだけ build されるファイルで、セルの andon と kanban には入らない。
 
 `package/gh-skills.txt` は覆う。`boot.md` の「変えたら動かすパス」に載せた。
