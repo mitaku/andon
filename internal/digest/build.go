@@ -115,9 +115,11 @@ func compose(in *Input, text *Text, loc *Loc) ([]byte, []string) {
 	if errs := Check(text, in); len(errs) > 0 {
 		return nil, errs
 	}
+	noCall := in.noCall // JSON に出ないので、伏せたあとの入力へ持ち直す
 	if err := redactInto(in); err != nil {
 		return nil, []string{err.Error()}
 	}
+	in.noCall = noCall
 	if err := redactInto(text); err != nil {
 		return nil, []string{err.Error()}
 	}
@@ -270,14 +272,34 @@ func Message(t *Text, in *Input, loc *Loc, url string) string {
 		fmt.Sprintf("期間: %s 〜 %s（%s）", loc.full(in.Since), loc.full(in.Until), loc.name),
 	}
 	head = append(head, t.Headline...)
-	counts := map[string]int{}
+	// 数の行。call のある入力は、呼んでいるものと置いてあるものの 2 つの数を分けて書き、並べる行は呼んでいるものだけにする
+	// （ADR-0062 決めたこと 9）。call の無い入力は、今までどおり全部を 1 つの数にして並べる。
+	listed := in.Waiting.Items
+	counts, later := map[string]int{}, 0
 	for _, it := range in.Waiting.Items {
 		counts[it.Kind]++
 	}
-	count := fmt.Sprintf("オーナーを待っているもの: %d 件（マージの依頼 %d・判断 %d・手作業 %d）",
-		len(in.Waiting.Items), counts["merge"], counts["decision"], counts["task"])
+	count := []string{fmt.Sprintf("オーナーを待っているもの: %d 件（マージの依頼 %d・判断 %d・手作業 %d）",
+		len(in.Waiting.Items), counts["merge"], counts["decision"], counts["task"])}
+	if !in.noCall {
+		listed, counts = nil, map[string]int{}
+		for _, it := range in.Waiting.Items {
+			if !it.Call {
+				later++
+				continue
+			}
+			listed = append(listed, it)
+			counts[it.Kind]++
+		}
+		count = []string{fmt.Sprintf("オーナーを呼んでいるもの: %d 件（マージの依頼 %d・判断 %d・手作業 %d）",
+			len(listed), counts["merge"], counts["decision"], counts["task"]),
+			fmt.Sprintf("置いてあるもの: %d 件", later)}
+		if later > 0 {
+			count[1] += "（全文に載せた）"
+		}
+	}
 	var rows []string
-	for i, it := range in.Waiting.Items {
+	for i, it := range listed {
 		if i == messageTop {
 			break
 		}
@@ -298,8 +320,8 @@ func Message(t *Text, in *Input, loc *Loc, url string) string {
 	}
 	tail := []string{fmt.Sprintf("マージした PR: %d 本（自動 %d 本）", merged, auto), "全文: " + url}
 	for {
-		keep := append([]string{count}, rows...)
-		if omitted := len(in.Waiting.Items) - len(rows); omitted > 0 {
+		keep := append(append([]string{}, count...), rows...)
+		if omitted := len(listed) - len(rows); omitted > 0 {
 			keep = append(keep, fmt.Sprintf("（ほか %d 件は全文に載せた）", omitted))
 		}
 		shown := plainText.Replace(strings.Join(head, "\n") + "\n")

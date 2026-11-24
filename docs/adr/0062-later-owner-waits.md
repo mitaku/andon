@@ -17,7 +17,7 @@
 | 6 | `andon waiting` の行に `call` と `later` を足し、バージョンは上げない | `internal/waiting/waiting.go`・`internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている |
 | 7 | mod `inbox` は `call` で数え、`call` の無い行は今の規則で読み、`inbox.lamp` はバージョン 2 にする | この ADR | まだ実装していない |
 | 8 | ペインは、置いてある行を見出しの下に分けて出し、同じ口で答えられるようにする | この ADR | まだ実装していない |
-| 9 | ダイジェストと `andon measure` は、呼んでいるものと置いてあるものを分けて数える | この ADR | まだ実装していない |
+| 9 | ダイジェストと `andon measure` は、呼んでいるものと置いてあるものを分けて数える | `internal/digest/render.go`・`internal/digest/build.go`・`internal/digest/digest.html.tmpl`・`internal/measure/measure.go`・`docs/contract.md` §13・§26 | 生きている |
 | 10 | 判断を作る口は、呼ぶか置いておくかを言い切らないと断る | `internal/issue/leaves.go`・`internal/ledger/ask.go`・`internal/triage/decisions.go`・`internal/triage/apply.go`・`internal/retro/apply.go`・`package/skills/ask-one-by-one/SKILL.md`・`package/skills/triage/SKILL.md`・`package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 11 | 置いておく基準は 3 つで、迷ったら呼ぶ | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/triage/SKILL.md` | 生きている |
 | 12 | Chief of Staff は、置いてあるオーナー待ちを返事で聞かず、オーナーの一言で印を付け外す | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/start.md` | 生きている |

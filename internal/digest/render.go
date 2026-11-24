@@ -45,7 +45,7 @@ func (l *Loc) short(s string) string {
 
 // 色のクラス（決めたこと 10）。テンプレートはこの名前だけを書き、色の値をスタイルに渡さない。
 const (
-	amber = "c-amber" // マージの依頼と判断（オーナーが呼ばれているもの）
+	amber = "c-amber" // 呼んでいるオーナー待ち（オーナーが呼ばれているもの。ADR-0062 決めたこと 9）
 	red   = "c-red"   // 失敗して止まっているもの
 )
 
@@ -57,7 +57,10 @@ type view struct {
 	Big                                    []bigNum
 	Days                                   []dayBar
 	DaysMax                                int
-	Waiting                                []waitRow
+	Waiting                                []waitRow // 節 2。分けるときは呼んでいる行だけ
+	Later                                  []waitRow // 節 2 の置いてある行（Split のときだけ）
+	Split                                  bool      // 呼んでいる行と置いてある行を分けて描く（入力のどの行にも call がある）
+	WaitTotal                              int
 	Themes                                 []themeCard
 	Rest                                   []ref
 	Auto                                   []autoRow
@@ -88,6 +91,7 @@ type dayBar struct {
 
 type waitRow struct {
 	Kind, ID, Title, Since, Wait, PR, Class string
+	Later, Until                            string // 置いてある行の印の理由と later_until
 	Width, Holds                            int
 }
 
@@ -235,7 +239,7 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 	}
 	called := 0
 	for _, it := range in.Waiting.Items {
-		if it.Kind == "merge" || it.Kind == "decision" {
+		if in.calling(it) {
 			called++
 		}
 	}
@@ -268,13 +272,20 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		}
 		maxH = math.Max(maxH, hours[i])
 	}
+	v.Split, v.WaitTotal = !in.noCall, len(in.Waiting.Items)
 	for i, it := range in.Waiting.Items {
 		cls := ""
-		if it.Kind == "merge" || it.Kind == "decision" {
+		if in.calling(it) {
 			cls = amber
 		}
-		v.Waiting = append(v.Waiting, waitRow{Kind: kindName[it.Kind], ID: it.ID, Title: it.Title, Since: loc.short(it.Since),
-			Wait: duration(hours[i]), PR: it.PR, Class: cls, Width: scale(hours[i], maxH, barW), Holds: len(it.Holds)})
+		row := waitRow{Kind: kindName[it.Kind], ID: it.ID, Title: it.Title, Since: loc.short(it.Since),
+			Wait: duration(hours[i]), PR: it.PR, Class: cls, Width: scale(hours[i], maxH, barW), Holds: len(it.Holds)}
+		if v.Split && !it.Call {
+			row.Later, row.Until = it.Later, it.LaterUntil
+			v.Later = append(v.Later, row)
+			continue
+		}
+		v.Waiting = append(v.Waiting, row)
 	}
 
 	inTheme := map[string]string{}

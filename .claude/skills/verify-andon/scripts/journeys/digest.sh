@@ -14,6 +14,13 @@ git init -q "$ANDON_WORKSPACE" && git -C "$ANDON_WORKSPACE" commit -q --allow-em
 done_id=$(HC_TERMINAL_ID=tc "$kanban" add "$run の片付いた課題" --profile claude)
 HC_TERMINAL_ID=tc "$kanban" set "$done_id" status=doing >/dev/null
 HC_TERMINAL_ID=tc "$kanban" set "$done_id" status=done >/dev/null
+# オーナーの判断 2 件: Chief of Staff（tc）が呼ぶもの（--now）と、置いておくもの（--later）を足す（dg-later）
+echo '{"labels":{"role":"chief-of-staff"}}' >"$tmp/hc/tc.json"
+q="{\"kind\": \"users\", \"question\": \"$run の書き出しは CSV だけにするか\", \"options\": [{\"label\": \"CSV だけ\", \"pick\": true}, {\"label\": \"Excel も\"}], \"from\": \"chief-of-staff\"}"
+why="$run 急がない。答えを待つ仕事が無い"
+called=$(HC_TERMINAL_ID=tc "$andon" issue ask --new --now - <<<"$q" | sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p')
+placed=$(HC_TERMINAL_ID=tc "$andon" issue ask --new --later "$why" - <<<"${q/CSV だけにするか/並びを変えるか}" | sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p')
+echo "  | 呼ぶ判断: ${called:-無い}。置いておく判断: ${placed:-無い}"
 id=$(HC_TERMINAL_ID=tc "$kanban" add "$run のダイジェスト" --profile claude)
 HC_TERMINAL_ID=tc "$kanban" set "$id" status=doing >/dev/null
 d=$tmp/project/kanban/issues/$id/library/digest
@@ -42,6 +49,19 @@ step "dg-build: 担当の文を渡して組み立てる" "$andon" digest build "
   && ok "dg-build: digest.json・図を持つ digest.html・要旨の入った message.txt が書かれる" \
   || fail "dg-build: 3つのファイルが揃わないか、中身が違う"
 ls -l "$d" 2>/dev/null | sed 's/^/  | /'
+
+# dg-later: 冒頭の呼ばれている数と琥珀は呼んでいる行だけで、節 2 は呼んでいるものと置いてあるものに分かれ、短い文は 2 つの数を書く
+grep -E -o '<h3>(呼んでいるもの|置いてあるもの)（[0-9]+ 件）</h3>|置いた理由: [^<]*' "$d/digest.html" 2>/dev/null | sed 's/^/  | /'
+grep -E '^(オーナーを呼んでいるもの|置いてあるもの):' "$d/message.txt" 2>/dev/null | sed 's/^/  message.txt: /'
+html=$(cat "$d/digest.html" 2>/dev/null) msg=$(cat "$d/message.txt" 2>/dev/null)
+if [ -n "$called" ] && [ -n "$placed" ] && grep -qF '<div class="c-amber"><b>1</b><span>オーナーが呼ばれている</span>' <<<"$html" \
+  && grep -qF '呼んでいるもの（1 件）' <<<"$html" && grep -qF '置いてあるもの（1 件）' <<<"$html" && grep -qF "置いた理由: $why" <<<"$html" \
+  && [[ "${html#*置いてあるもの（}" == *"$placed"* ]] && [[ "${html#*置いてあるもの（}" != *"$called"* ]] \
+  && grep -qF 'オーナーを呼んでいるもの: 1 件（マージの依頼 0・判断 1・手作業 0）' <<<"$msg" && grep -qF '置いてあるもの: 1 件' <<<"$msg"; then
+  ok "dg-later: 呼ぶ $called は呼んでいるものに、置いた $placed は置いた理由つきで置いてあるものに分かれ、呼ばれている数と短い文の数は 1"
+else
+  fail "dg-later: 節 2 が分かれないか、置いた判断が呼んでいるものに入ったか、数が違う"
+fi
 
 # dg-send: 送り先の無い project.json では files/ だけに出し、URL と sent.json を残す
 step "dg-send: 送る" "$andon" digest send "$id"

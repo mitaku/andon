@@ -401,22 +401,26 @@ func TestSingleFile(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 6: 琥珀はマージの依頼と判断の行と冒頭の呼ばれている数だけ、赤は失敗して止まっているものだけ。色はクラスで決める。
+// 受け入れ条件 6: 琥珀は呼んでいる行と冒頭の呼ばれている数だけ、赤は失敗して止まっているものだけ。色はクラスで決める。
+// ADR-0062 受け入れ条件 17: 冒頭の数は call が真の行の数で、節 2 は呼んでいるものと置いてあるものに分かれ、琥珀は呼んでいる行だけに付く。
+// 印 later の無い手作業は呼んでいる（ADR-0062 決めたこと 5）。
 func TestColors(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
 	f.mergeWait("S-0010", 10, sha1, "マージを待つ")
 	f.issue("S-0011", "todo", "who: person", "only_owner: ホストで image を焼き直す")
+	f.issue("S-0013", "todo", "who: person", "only_owner: 鍵を作り直す", "later: 急がない", "later_until: \"2026-12-01\"")
+	f.row("2026-11-21T02:00:00Z", "terminal:t1", "S-0013", `{"later":"急がない","later_until":"2026-12-01"}`)
 	f.issue("S-0012", "review")
 	f.lib("S-0012", "report.json", fmt.Sprintf(`{"commit": "%s", "pr": "%s"}`, sha2, prURL(12)))
 	f.lib("S-0012", "gate/"+sha2+".json", `{"at": "2026-11-21T09:30:00Z", "decision": "fix"}`)
 	f.write(f.env.Delivered, `{"at":"2026-11-21T06:00:00Z","project":"sample-site","acked":true,"news":[{"issue":"S-0012","kind":"stalled"}]}`+"\n")
 	in := f.collect("S-0100")
-	kinds := map[string]int{}
+	call := map[string]bool{}
 	for _, it := range in.Waiting.Items {
-		kinds[it.Kind]++
+		call[it.ID] = it.Call
 	}
-	if kinds["merge"] != 1 || kinds["task"] != 1 {
+	if len(in.Waiting.Items) != 3 || !call["S-0010"] || !call["S-0011"] || call["S-0013"] {
 		t.Fatalf("検査の前提: 待っているもの %+v", in.Waiting.Items)
 	}
 	html := buildHTML(t, f, validText())
@@ -424,14 +428,24 @@ func TestColors(t *testing.T) {
 	if strings.Contains(body, "style=") {
 		t.Errorf("色や大きさを値としてスタイルに渡している")
 	}
+	for _, want := range []string{`<div class="c-amber"><b>2</b><span>オーナーが呼ばれている</span>`, "オーナーを待っているもの（3 件）",
+		"呼んでいるもの（2 件）", "置いてあるもの（1 件）", "置いた理由: 急がない（2026-12-01 から呼ぶ）"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("HTML に %q が無い", want)
+		}
+	}
+	if i, j := strings.Index(body, "呼んでいるもの（"), strings.Index(body, "置いてあるもの（"); i < 0 || j < i ||
+		strings.Contains(body[i:j], "S-0013") || !strings.Contains(body[j:], "S-0013") {
+		t.Errorf("置いてある行が置いてあるものの見出しの下に無い")
+	}
 	rows := regexp.MustCompile(`(?s)<tr( class="([^"]*)")?>(.*?)</tr>`).FindAllStringSubmatch(body, -1)
 	amberRows, redRows := 0, 0
 	for _, r := range rows {
 		switch r[2] {
 		case amber:
 			amberRows++
-			if !strings.Contains(r[3], "マージの依頼") && !strings.Contains(r[3], "判断") {
-				t.Errorf("琥珀の行がマージの依頼・判断でない: %s", r[3])
+			if !strings.Contains(r[3], "S-0010") && !strings.Contains(r[3], "S-0011") {
+				t.Errorf("琥珀の行が呼んでいる行でない: %s", r[3])
 			}
 		case red:
 			redRows++
@@ -439,22 +453,94 @@ func TestColors(t *testing.T) {
 				t.Errorf("赤の行が止まった担当でない: %s", r[3])
 			}
 		}
-		if strings.Contains(r[3], "手作業") && r[2] != "" {
-			t.Errorf("手作業の行に色がある: %s", r[0])
+		if strings.Contains(r[3], "S-0013") && strings.Contains(r[0], amber) {
+			t.Errorf("置いてある行に琥珀がある: %s", r[0])
 		}
 		if strings.Contains(r[3], "gate の差し戻し") && r[2] != "" {
 			t.Errorf("gate の差し戻しに色がある: %s", r[0])
 		}
 	}
-	if amberRows != 1 || redRows != 1 {
-		t.Errorf("琥珀の行 %d・赤の行 %d（want 1・1）", amberRows, redRows)
+	if amberRows != 2 || redRows != 1 {
+		t.Errorf("琥珀の行 %d・赤の行 %d（want 2・1）", amberRows, redRows)
 	}
 	// 琥珀の印が出るのは、行と棒のほかは冒頭の呼ばれている数の1か所だけ
-	if n := strings.Count(body, amber); n != 3 {
-		t.Errorf("琥珀の印が %d か所（want 3: 行・その棒・呼ばれている数）", n)
+	if n := strings.Count(body, amber); n != 5 {
+		t.Errorf("琥珀の印が %d か所（want 5: 行 2・その棒 2・呼ばれている数）", n)
 	}
 	if n := strings.Count(body, red); n != 1 {
 		t.Errorf("赤の印が %d か所（want 1）", n)
+	}
+	saved, err := readInput(f.root, "S-0100")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := Message(&Text{Headline: []string{"一。", "二。"}}, saved, newLoc(""), "http://files.cell.localhost:1355/x.html")
+	for _, want := range []string{"オーナーを呼んでいるもの: 2 件（マージの依頼 1・判断 0・手作業 1）", "置いてあるもの: 1 件（全文に載せた）", "- 手作業 S-0011"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("短い文に %q が無い: %s", want, msg)
+		}
+	}
+	if strings.Contains(msg, "S-0013") {
+		t.Errorf("短い文に置いてある行が並んだ: %s", msg)
+	}
+}
+
+// ADR-0062 受け入れ条件 17: call の無い入力（前のバージョンが集めた input.json）は、落ちずに今までの数え方で組み立つ。
+// 冒頭の数と琥珀はマージの依頼と判断で、手作業は琥珀にせず、節 2 は分けない。
+func TestBuildReadsInputWithoutCall(t *testing.T) {
+	f := newFake(t)
+	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
+	f.mergeWait("S-0010", 10, sha1, "マージを待つ")
+	f.issue("S-0011", "todo", "who: person", "only_owner: ホストで image を焼き直す")
+	f.collect("S-0100")
+	path := filepath.Join(dir(f.root, "S-0100"), inputFile)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	items := raw["waiting"].(map[string]any)["items"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("検査の前提: 待っているもの %v", items)
+	}
+	for _, it := range items {
+		m := it.(map[string]any)
+		if _, ok := m["call"]; !ok {
+			t.Fatalf("検査の前提: 集めた行に call が無い %v", m)
+		}
+		delete(m, "call")
+	}
+	b, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.write(path, string(b))
+	html := buildHTML(t, f, validText())
+	body := regexp.MustCompile(`(?s)<style>.*?</style>`).ReplaceAllString(html, "")
+	if !strings.Contains(body, `<div class="c-amber"><b>1</b><span>オーナーが呼ばれている</span>`) {
+		t.Errorf("冒頭の数がマージの依頼と判断の数でない")
+	}
+	if strings.Contains(body, "呼んでいるもの（") || strings.Contains(body, "置いてあるもの（") {
+		t.Errorf("call の無い入力で節 2 を分けた")
+	}
+	for _, r := range regexp.MustCompile(`(?s)<tr( class="([^"]*)")?>(.*?)</tr>`).FindAllStringSubmatch(body, -1) {
+		if strings.Contains(r[3], "S-0011") && r[2] != "" {
+			t.Errorf("call の無い入力で手作業の行に色がある: %s", r[0])
+		}
+		if strings.Contains(r[3], "S-0010") && r[2] != amber {
+			t.Errorf("call の無い入力でマージの依頼の行が琥珀でない: %s", r[0])
+		}
+	}
+	saved, err := readInput(f.root, "S-0100")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := Message(&Text{Headline: []string{"一。", "二。"}}, saved, newLoc(""), "http://files.cell.localhost:1355/x.html")
+	if !strings.Contains(msg, "オーナーを待っているもの: 2 件（マージの依頼 1・判断 0・手作業 1）") || strings.Contains(msg, "置いてあるもの") {
+		t.Errorf("call の無い入力の短い文: %s", msg)
 	}
 }
 
@@ -576,7 +662,7 @@ func TestMessageLimit(t *testing.T) {
 	in := &Input{Title: "デイリーダイジェスト", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
 	long := strings.Repeat("長", 700)
 	for i := 0; i < 8; i++ {
-		in.Waiting.Items = append(in.Waiting.Items, waiting.Item{Kind: "merge", ID: fmt.Sprintf("S-%04d", i), Title: long})
+		in.Waiting.Items = append(in.Waiting.Items, waiting.Item{Kind: "merge", ID: fmt.Sprintf("S-%04d", i), Title: long, Call: true})
 	}
 	msg := Message(&Text{Headline: []string{"一。", "二。"}}, in, newLoc(""), "http://files.cell.localhost:1355/x.html")
 	if n := len([]rune(msg)); n > messageMax {

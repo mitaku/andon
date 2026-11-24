@@ -89,11 +89,13 @@ td:first-child { white-space: nowrap; }
 {{range .Days}}<rect class="bar-auto" x="{{.X}}" y="{{.YAuto}}" width="24" height="{{.HAut}}"></rect><rect class="bar" x="{{.X}}" y="{{.YPerson}}" width="24" height="{{.HPers}}"></rect><text class="day" x="{{.Mid}}" y="96">{{.Label}}</text>
 {{end}}</svg>
 
-<h2>オーナーを待っているもの（{{len .Waiting}} 件）</h2>
-{{if .Waiting}}<div class="wrap"><table>
-<tr><th>種類</th><th>課題</th><th>待っている時間</th></tr>
-{{range .Waiting}}<tr{{if .Class}} class="{{.Class}}"{{end}}><td>{{.Kind}}</td><td>{{.ID}} {{.Title}}{{if .PR}} <a href="{{.PR}}">PR</a>{{end}}{{if .Holds}}<span class="mark">後ろに {{.Holds}} 件</span>{{end}}</td><td><svg viewBox="0 0 160 10" width="160"><rect class="bar{{if .Class}} {{.Class}}{{end}}" x="0" y="1" width="{{.Width}}" height="8"></rect></svg>{{.Wait}}（{{.Since}} から）</td></tr>
-{{end}}</table></div>{{else}}<p>いま待っているものは無い。</p>{{end}}
+<h2>オーナーを待っているもの（{{.WaitTotal}} 件）</h2>
+{{if not .WaitTotal}}<p>いま待っているものは無い。</p>
+{{else if .Split}}<h3>呼んでいるもの（{{len .Waiting}} 件）</h3>
+{{if .Waiting}}{{template "waiting" .Waiting}}{{else}}<p>いま呼んでいるものは無い。</p>{{end}}
+<h3>置いてあるもの（{{len .Later}} 件）</h3>
+{{if .Later}}{{template "waiting" .Later}}{{else}}<p>いま置いてあるものは無い。</p>{{end}}
+{{else}}{{template "waiting" .Waiting}}{{end}}
 
 <h2>進んだこと</h2>
 {{range .Themes}}<div class="card">
@@ -165,3 +167,7 @@ td:first-child { white-space: nowrap; }
 </main>
 </body>
 </html>
+{{define "waiting"}}<div class="wrap"><table>
+<tr><th>種類</th><th>課題</th><th>待っている時間</th></tr>
+{{range .}}<tr{{if .Class}} class="{{.Class}}"{{end}}><td>{{.Kind}}</td><td>{{.ID}} {{.Title}}{{if .PR}} <a href="{{.PR}}">PR</a>{{end}}{{if .Holds}}<span class="mark">後ろに {{.Holds}} 件</span>{{end}}{{if .Later}}<br><span class="muted">置いた理由: {{.Later}}{{if .Until}}（{{.Until}} から呼ぶ）{{end}}</span>{{end}}</td><td><svg viewBox="0 0 160 10" width="160"><rect class="bar{{if .Class}} {{.Class}}{{end}}" x="0" y="1" width="{{.Width}}" height="8"></rect></svg>{{.Wait}}（{{.Since}} から）</td></tr>
+{{end}}</table></div>{{end}}
