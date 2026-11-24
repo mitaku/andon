@@ -10,7 +10,6 @@ import (
 	"andon/internal/retro"
 )
 
-// retroRoutine は振り返りのルーチンの名前（kanban/routines/retro.yaml。issue.yaml の routine）。
 const retroRoutine = "retro"
 
 // retroEvery は件数のきっかけの既定（project.json の chief_of_staff.retro_every。ADR-0039 決めたこと 8）。
@@ -33,7 +32,7 @@ func (p *project) retroDue() bool {
 	if err != nil {
 		p.retroOnce("set", fmt.Sprintf("project.json の chief_of_staff.retro_every を読めない（既定の %d 件で数える）: %v", retroEvery, err))
 	} else {
-		p.retroOnce("set", "") // 読めたら覚えを消す。また読めなくなったときにもう一度書く
+		p.retroOnce("set", "")
 	}
 	if n < every {
 		return false
@@ -48,7 +47,6 @@ func (p *project) retroDue() bool {
 	return true
 }
 
-// retroOnce は件数のきっかけの失敗をログに1行だけ書く（kanban と種類ごとに、同じ理由が続く間は書かない）。reason が空なら覚えを消す。
 func (p *project) retroOnce(kind, reason string) {
 	key := p.l.Slug + "\x00" + kind
 	if p.c.retroLogged[key] == reason {
@@ -63,8 +61,6 @@ func (p *project) retroOnce(kind, reason string) {
 	}
 }
 
-// retroEveryOf は件数を、セルの repo の HEAD の project.json の chief_of_staff.retro_every から読む（author 照合は
-// delegate.ReadProject）。project.json か値が無ければ既定。信じられない・形が違うときは既定と、その理由を返す。
 func retroEveryOf(ws, slug string) (int, error) {
 	pj, err := delegate.ReadProject(ws, slug)
 	switch {

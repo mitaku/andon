@@ -13,7 +13,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// idleRig は空きの段を、偽の kanban の CLI（routine run と lint を答える）と偽の時計・偽の枠・偽の未処理で回す。
 type idleRig struct {
 	t        *testing.T
 	p        *project
@@ -35,7 +34,7 @@ func newIdleRig(t *testing.T) *idleRig {
 		r.tools.reply("kanban routine run "+name, "T-0092")
 	}
 	r.p = gluedProject(t, r.log)
-	r.p.c.WS = t.TempDir() // project.json が無い（idle_minutes は既定の 15、retro_every は既定の 25）
+	r.p.c.WS = t.TempDir()
 	r.p.c.Now = func() time.Time { return r.clk }
 	ready := []string{}
 	r.p.st.Ready = &ready
@@ -46,7 +45,6 @@ func newIdleRig(t *testing.T) *idleRig {
 	return r
 }
 
-// routine は kanban にルーチン name を置く。
 func (r *idleRig) routine(name, extra string) {
 	r.t.Helper()
 	dir := filepath.Join(r.p.l.Dir, "routines")
@@ -58,7 +56,6 @@ func (r *idleRig) routine(name, extra string) {
 	}
 }
 
-// look は時計を d 進めて空きの段を1回回し、打った kanban の CLI の引数を返す。
 func (r *idleRig) look(d time.Duration, retroFired bool) []string {
 	r.t.Helper()
 	r.clk = r.clk.Add(d)
@@ -66,7 +63,6 @@ func (r *idleRig) look(d time.Duration, retroFired bool) []string {
 	return r.tools.calls()
 }
 
-// routineRuns は打った kanban routine run の名前。
 func routineRuns(calls []string) []string {
 	var out []string
 	for _, c := range calls {
@@ -77,7 +73,6 @@ func routineRuns(calls []string) []string {
 	return out
 }
 
-// idles は待ちに積んだ通知 idle。
 func (r *idleRig) idles() []Notification {
 	var out []Notification
 	for _, n := range r.p.st.Pending {
@@ -88,8 +83,6 @@ func (r *idleRig) idles() []Notification {
 	return out
 }
 
-// 受け入れ条件 1: 前の回も今の回も枠が空いていて、仕分けていない項目が 50 件以上あり、片付いていないトリアージが無いとき、
-// kanban routine run triage を1回打つ。49 件のとき、片付いていないトリアージがあるとき、ルーチンが paused のときは打たない。
 func TestIdleFiresTriage(t *testing.T) {
 	for _, c := range []struct {
 		name     string
@@ -126,8 +119,6 @@ func TestIdleFiresTriage(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 2: 前の回に枠が空いていなかったとき、今の回が空いていても、何も打たず、通知も積まない。
-// 見る時刻の前・前の回から間が2倍を超えた回・初めて見る回・起動し直した最初の回も、控えるだけ。
 func TestIdleNeedsTwoFreeLooks(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")
@@ -149,7 +140,7 @@ func TestIdleNeedsTwoFreeLooks(t *testing.T) {
 	if c := r.look(31*time.Minute+16*time.Minute, false); len(c) != 0 || len(r.idles()) != 0 {
 		t.Fatalf("前の回から間が2倍を超えた回に打った・積んだ: %v %v", c, r.idles())
 	}
-	r.p.c.idleSeen = nil // dispatcher が起動し直した
+	r.p.c.idleSeen = nil
 	if c := r.look(15*time.Minute, false); len(c) != 0 || len(r.idles()) != 0 {
 		t.Fatalf("起動し直した最初の回に打った・積んだ: %v %v", c, r.idles())
 	}
@@ -164,14 +155,11 @@ func TestIdleNeedsTwoFreeLooks(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 3: ルーチンが足した課題を除いた片付いた担当の課題が retro_every の半分（25 なら 13）以上で、片付いていない振り返りが
-// 無いとき、kanban routine run retro を1回打つ。ルーチンの課題だけで半分に届くとき、同じ巡で件数のきっかけが撃っていたとき、
-// 振り返りの課題が残っているときは打たない。
 func TestIdleFiresRetro(t *testing.T) {
 	done := func(n int, routine string) ([]ledger.Issue, []ledger.Row) {
 		var tasks []ledger.Issue
 		var rows []ledger.Row
-		at := "2026-11-22T23:00:00Z" // 偽の時計（2026-11-23T00:00Z から）の 1 時間前
+		at := "2026-11-22T23:00:00Z"
 		for i := 0; i < n; i++ {
 			id := fmt.Sprintf("S-%04d", i+1)
 			if routine != "" {
@@ -219,18 +207,14 @@ func TestIdleFiresRetro(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 4: idle_hours: 24 のルーチンは、最後に課題を足してから 24 時間以上で、空いているときに撃たれる。23 時間では撃たれない。
-// 撃ち損ねの行だけが新しいときは撃たれる。1 度も足していなければ撃たれる。値が 1 以上の整数でないルーチンは撃たれず、ログに 1 行が出る
-// （同じ理由が続く間は 1 行）。idle_hours の無いルーチン・paused・課題が残っているルーチンは撃たれない。
 func TestIdleFiresHoursRoutine(t *testing.T) {
-	// 偽の時計は 2026-11-23T00:00Z から。2 回目の look（15 分あと）が撃つ回
 	fired := func(ago time.Duration) ledger.Row {
 		at := time.Date(2026, 11, 23, 0, 15, 0, 0, time.UTC).Add(-ago).Format(time.RFC3339)
 		return ledger.Row{At: at, By: "routine:check", Routine: "check", Fired: "S-0700"}
 	}
 	skipped := func(ago time.Duration) ledger.Row {
 		at := time.Date(2026, 11, 23, 0, 15, 0, 0, time.UTC).Add(-ago).Format(time.RFC3339)
-		return ledger.Row{At: at, By: "routine:check", Routine: "check"} // skipped: open（ledger.Row は skipped を読まない）
+		return ledger.Row{At: at, By: "routine:check", Routine: "check"}
 	}
 	for _, c := range []struct {
 		name  string
@@ -275,8 +259,6 @@ func TestIdleFiresHoursRoutine(t *testing.T) {
 	}
 }
 
-// idle_hours を持つルーチンは、トリアージ・振り返りのあとに名前の順で、空いた枠の数まで撃つ。トリアージと振り返りに
-// idle_hours があっても、その線（決めたこと 7・8）のほかでは撃たない。
 func TestIdleHoursRoutinesOrderAndBudget(t *testing.T) {
 	for _, c := range []struct {
 		free int
@@ -289,7 +271,7 @@ func TestIdleHoursRoutinesOrderAndBudget(t *testing.T) {
 	} {
 		r := newIdleRig(t)
 		r.routine("triage", "idle_hours: 1\n")
-		r.routine("retro", "idle_hours: 1\n") // 片付いた担当の課題が 0 件で、振り返りの線に届かない
+		r.routine("retro", "idle_hours: 1\n")
 		r.routine("b-check", "idle_hours: 24\n")
 		r.routine("a-check", "idle_hours: 72\n")
 		r.routine("plain", "")
@@ -302,20 +284,18 @@ func TestIdleHoursRoutinesOrderAndBudget(t *testing.T) {
 	}
 	r := newIdleRig(t)
 	r.routine("triage", "idle_hours: 1\n")
-	r.unsorted = 10 // 線の 50 件に届かない
+	r.unsorted = 10
 	r.look(0, false)
 	if got := routineRuns(r.look(15*time.Minute, false)); len(got) != 0 {
 		t.Errorf("idle_hours のあるトリアージを、線の外で撃った: %v", got)
 	}
 }
 
-// kanban routine run が失敗を返しても、課題と履歴の行は書いたあと（state/routines.json の保存の失敗など）のことがある。
-// 失敗した試みも空いた枠を使ったものとして数え、空いた枠より多く撃たない。
 func TestIdleFailedRunUsesSlot(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("a-check", "idle_hours: 24\n")
 	r.routine("b-check", "idle_hours: 24\n")
-	os.Remove(r.tools.key("kanban routine run a-check") + ".out") // 答えが無いと偽の kanban の CLI は 1 で落ちる
+	os.Remove(r.tools.key("kanban routine run a-check") + ".out")
 	r.free = 1
 	r.look(0, false)
 	if got := routineRuns(r.look(15*time.Minute, false)); !slices.Equal(got, []string{"a-check"}) {
@@ -326,11 +306,10 @@ func TestIdleFailedRunUsesSlot(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 5: 1回に撃つルーチンの数は slots.free を超えない。kanban ready に担当の課題が残っていても、撃つ数は減らない。
 func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	var tasks []ledger.Issue
 	var rows []ledger.Row
-	at := "2026-11-22T23:00:00Z" // 偽の時計（2026-11-23T00:00Z から）の 1 時間前
+	at := "2026-11-22T23:00:00Z"
 	for i := 0; i < 13; i++ {
 		id := fmt.Sprintf("S-%04d", i+1)
 		tasks = append(tasks, ledger.Issue{"id": id, "title": "直す", "status": "done", "profile": "claude"})
@@ -340,7 +319,6 @@ func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	for _, id := range ready {
 		tasks = append(tasks, ledger.Issue{"id": id, "title": "起動できる", "status": "todo", "profile": "claude"})
 	}
-	// retroFired は同じ巡で件数のきっかけが振り返りを撃ったか。撃った 1 つも空いた枠を使うので、空きで撃てる数から引く
 	for _, c := range []struct {
 		free       int
 		retroFired bool
@@ -367,9 +345,6 @@ func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 6（Go の側）: 前の回にも今の回にも起動できる課題の一覧に出ている課題を通知 idle に 1 回だけ入れる。
-// もう起動された課題は入れない。届く前に次の idle を積むと、前の unstarted と fired が新しいほうに残る。
-// 一覧から消えた id は知らせた控えから外す。
 func TestIdleTellsUnstartedOnce(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")
@@ -399,7 +374,6 @@ func TestIdleTellsUnstartedOnce(t *testing.T) {
 	if err := r.p.st.Save(r.p.l.Slug); err != nil {
 		t.Fatalf("idle が schema に合わない: %v", err)
 	}
-	// 届く前の次の回: S-0001 はもう知らせた。S-0004 が新しく 2 回続けて出た。トリアージは残っているので撃たない
 	r.p.tasks = append(r.p.tasks, ledger.Issue{"id": "T-0090", "title": "トリアージ", "status": "todo", "routine": "triage"})
 	r.look(15*time.Minute, false)
 	got = r.idles()
@@ -409,13 +383,11 @@ func TestIdleTellsUnstartedOnce(t *testing.T) {
 	if u, f := idList(got[0].Detail["unstarted"]), idList(got[0].Detail["fired"]); !slices.Equal(u, []string{"S-0001", "S-0004"}) || !slices.Equal(f, []string{"triage"}) {
 		t.Errorf("前の idle の unstarted・fired が残らない: unstarted %v fired %v", u, f)
 	}
-	// 届いたあと: 同じ id では積まない
 	r.p.st.Pending = nil
 	r.look(15*time.Minute, false)
 	if len(r.idles()) != 0 {
 		t.Errorf("知らせた id で、もう一度積んだ: %v", r.idles())
 	}
-	// 一覧から消えた id は控えから外す。また出て 2 回続けば、もう一度知らせる
 	set("S-0004")
 	r.look(15*time.Minute, false)
 	if slices.Contains(r.p.st.Idle.Told, "S-0001") {
@@ -430,8 +402,6 @@ func TestIdleTellsUnstartedOnce(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 7（Go の側）: kanban lint が problem を出すとき、通知 idle の lint に件数が入る。同じ problem のままの次の回には積まない。
-// problem が 0 件に戻ったら印を消し、また出たら知らせる。
 func TestIdleTellsLintOnce(t *testing.T) {
 	r := newIdleRig(t)
 	bad := `{"ok":false,"problems":["S-0001: no title","S-0002: parent S-9, which doesn't exist"]}`
@@ -458,8 +428,6 @@ func TestIdleTellsLintOnce(t *testing.T) {
 	}
 }
 
-// 届く前の idle に lint の件数があるとき、同じ problem のままの次の回が別の理由で idle を積んでも、件数を残す
-// （印は「知らせた」として控えに残るので、ここで落とすと problem の並びが変わるまで二度と知らせない）。
 func TestIdleKeepsLintOfPendingIdle(t *testing.T) {
 	r := newIdleRig(t)
 	r.tools.reply("kanban lint --json", `{"ok":false,"problems":["S-0001: no title","S-0002: parent S-9, which doesn't exist","S-0003: no title"]}`)
@@ -469,7 +437,6 @@ func TestIdleKeepsLintOfPendingIdle(t *testing.T) {
 	if got := r.idles(); len(got) != 1 || got[0].Detail["lint"] != 3 {
 		t.Fatalf("前提: lint の件数が idle に入らない: %v", got)
 	}
-	// 控えを保存して読み直す（読み直した detail の数は float64 になる。次の回は別のプロセスのことがある）
 	if err := r.p.st.Save(r.p.l.Slug); err != nil {
 		t.Fatal(err)
 	}
@@ -491,8 +458,6 @@ func TestIdleKeepsLintOfPendingIdle(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 8: Chief of Staff が留守の回と、chief_of_staff.idle_minutes が 0 のとき、空きを見る段は何も打たない。
-// 留守の間は前の回の結果を消すので、戻った最初の回も控えるだけ。
 func TestIdleSkipsAwayAndOff(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")
@@ -510,7 +475,6 @@ func TestIdleSkipsAwayAndOff(t *testing.T) {
 		t.Fatalf("戻ってから 2 回続けて空いた回に撃たない: %v", got)
 	}
 
-	// idle_minutes: 0（オーナーの commit の project.json）
 	r2 := newIdleRig(t)
 	r2.routine("triage", "")
 	r2.unsorted = 80
@@ -543,7 +507,6 @@ func TestIdleSkipsAwayAndOff(t *testing.T) {
 	}
 }
 
-// 枠を数えられない回はログに1行（同じ理由の間は1行）で飛ばし、前の回の結果を消す。
 func TestIdleSlotsUnreadable(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")

@@ -12,9 +12,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// 偽の hc: read は $D/screen（無ければ空の入力欄。$D/read-rc があれば落ちる）、keys は $D/log に1行（$D/send-rc で落ちる）。get は $D/status（無ければ idle）と top-level の argv（$D/argv。無ければ sh -c claude）と前に出ているもの（$D/fg。無ければ null）とラベル（$D/unsent があれば first_message.sent=false）を返す。
-// send は $D/send-rc があればその終了コードで落ちる。label は $D/label-rc があれば落ち、通れば $D/unsent を消す。
-// 打たれたものは $D/log に1行ずつ（send は本文の改行を | にして）。
 const firstHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -54,9 +51,9 @@ func newFirst(t *testing.T) *firstFixture {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)
-	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state")) // 送る前の控えの保存を一時の置き場へ（本物の控えに触らない）
-	t.Setenv("HOME", filepath.Join(f.d, "home"))            // template の本文（spawn.WithBody）を一時の HOME から読む。セルの本物を読まない
-	t.Setenv("ANDON_WORKSPACE", filepath.Join(f.d, "ws"))   // 指針のファイルと wiki の目録を一時のセルの repo から読む（セルの本物を読まない）
+	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state"))
+	t.Setenv("HOME", filepath.Join(f.d, "home"))
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(f.d, "ws"))
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
@@ -72,7 +69,6 @@ func (f *firstFixture) put(name, body string) {
 	}
 }
 
-// template は一時の HOME に hc の template（プロファイル）を置く。
 func (f *firstFixture) template(name, body string) {
 	f.t.Helper()
 	dir := filepath.Join(f.d, "home", ".config", "herdr-core", "templates")
@@ -86,7 +82,6 @@ func (f *firstFixture) template(name, body string) {
 
 func (f *firstFixture) rm(name string) { os.Remove(filepath.Join(f.d, name)) }
 
-// round は見回りを1回して、その回に打たれた hc send・label の行を返す。
 func (f *firstFixture) round() []string {
 	f.t.Helper()
 	f.rm("log")
@@ -103,12 +98,10 @@ func TestFirstMessageResent(t *testing.T) {
 	brief := filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
 	send := "send t42 [dispatcher] 課題 `sample-site/S-7`。|依頼書は `" + brief + "`。"
 
-	// 信頼の画面などで止まっている間は送らない（次の見回りへ持ち越す）
 	f.put("status", "blocked")
 	if got := f.round(); got != nil {
 		t.Fatalf("blocked なのに打った: %q", got)
 	}
-	// 入力を受けられるようになったが hc send が拒んだ: ラベルは残し、次の見回りでまた送る
 	f.put("status", "idle")
 	f.put("send-rc", "1")
 	if got := f.round(); len(got) != 1 || got[0] != send {
@@ -117,7 +110,6 @@ func TestFirstMessageResent(t *testing.T) {
 	if !strings.Contains(f.log.String(), "最初のメッセージを送れない（次の見回りで送り直す）") {
 		t.Errorf("送れなかったことがログに無い: %s", f.log.String())
 	}
-	// 送れた: ラベルを外し、ログに1行
 	f.rm("send-rc")
 	if got := f.round(); len(got) != 2 || got[0] != send || got[1] != "label t42 first_message.sent=" {
 		t.Fatalf("2回目: %q", got)
@@ -125,14 +117,11 @@ func TestFirstMessageResent(t *testing.T) {
 	if !strings.Contains(f.log.String(), "S-7 の担当 t42 に最初のメッセージを送った") {
 		t.Errorf("送ったことがログに無い: %s", f.log.String())
 	}
-	// ラベルが外れたので、もう送らない（1回だけ）
 	if got := f.round(); got != nil {
 		t.Fatalf("送ったあとにまた打った: %q", got)
 	}
 }
 
-// 送り直す文は hc run が届けるはずだった文と同じ: 課題の profile の template の本文、空行、課題の文。
-// 前に貼った文が入力欄に残っているかも、その1行目（本文の1行目）で見る。
 func TestFirstMessageResentWithBody(t *testing.T) {
 	f := newFirst(t)
 	f.template("claude", "---\nname: claude\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n")
@@ -143,7 +132,6 @@ func TestFirstMessageResentWithBody(t *testing.T) {
 		t.Fatalf("本文つきで送っていない: %q", got)
 	}
 
-	// 前に貼った本文つきの文が入力欄に残っていれば、貼り直さず Enter だけ押す
 	f = newFirst(t)
 	f.template("claude", "---\nname: claude\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n")
 	f.p.tasks[0]["profile"] = "claude"
@@ -155,7 +143,6 @@ func TestFirstMessageResentWithBody(t *testing.T) {
 
 func TestFirstMessageNotTwice(t *testing.T) {
 	f := newFirst(t)
-	// 送れたがラベルを外せない: 控えに「送った」を持ち、ラベルが残っていても二度と送らない
 	f.put("label-rc", "1")
 	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 ") {
 		t.Fatalf("1回目: %q", got)
@@ -180,18 +167,15 @@ func TestFirstMessageNotTwice(t *testing.T) {
 
 func TestFirstMessageSentByHand(t *testing.T) {
 	f := newFirst(t)
-	// オーナーが手で送って動き出していれば送らず、ラベルだけ外す
 	f.put("status", "working")
 	if got := f.round(); len(got) != 1 || got[0] != "label t42 first_message.sent=" {
 		t.Fatalf("動いている担当: %q", got)
 	}
-	// 初めて見る kanban では動かさない
 	f = newFirst(t)
 	f.p.first = true
 	if got := f.round(); got != nil {
 		t.Fatalf("初めて見る kanban で打った: %q", got)
 	}
-	// ラベルの無い担当には何もしない
 	f = newFirst(t)
 	f.rm("unsent")
 	if got := f.round(); got != nil {
@@ -199,17 +183,14 @@ func TestFirstMessageSentByHand(t *testing.T) {
 	}
 }
 
-// 送ってからラベルを外す前に dispatcher が落ちても、再開後に二度送らない（送る前に控えへ「送りかけ」を保存する）。
 func TestFirstMessageCrashBeforeUnlabel(t *testing.T) {
 	f := newFirst(t)
-	// 送れたがラベルを外せないまま落ちた、とみなす（控えは送る前に保存されている）
 	f.put("label-rc", "1")
 	f.round()
 	b, err := os.ReadFile(StatePath("sample-site"))
 	if err != nil || !strings.Contains(string(b), `"S-7|t42": true`) {
 		t.Fatalf("送る前に控えへ送りかけを保存していない: %v %s", err, b)
 	}
-	// 再開: 保存された控えから読み直す。ラベルは残っている
 	st, _, err := LoadState("sample-site")
 	if err != nil {
 		t.Fatal(err)
@@ -221,14 +202,12 @@ func TestFirstMessageCrashBeforeUnlabel(t *testing.T) {
 	}
 }
 
-// 送れなかったら、送りかけをその場で控えから消して保存する（pass の最後の保存より前に落ちても、再開後に送り直す）。
 func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 	f := newFirst(t)
 	f.put("send-rc", "1")
 	if got := f.round(); len(got) != 1 || !strings.HasPrefix(got[0], "send t42 ") {
 		t.Fatalf("1回目: %q", got)
 	}
-	// pass の最後の保存はしないまま落ちた、とみなし、保存された控えから再開する
 	st, _, err := LoadState("sample-site")
 	if err != nil {
 		t.Fatal(err)
@@ -243,8 +222,6 @@ func TestFirstMessageSendFailsThenCrash(t *testing.T) {
 	}
 }
 
-// dispatcher が起動したレビュアー（startReviewer がラベルを付けたもの）にも、見回りで1回だけ送り直す。文はレビュアーの最初のメッセージ。
-// hc run が送れなかったときも、送ったが動き出さなかった（入力欄が空のまま idle）ときも、端末のラベルは同じ。
 func TestFirstMessageReviewer(t *testing.T) {
 	f := newFirst(t)
 	f.p.tasks = []ledger.Issue{{"id": "S-8", "status": "doing", "agent": "t43", "parent": "S-7", "profile": "codex-review"}}
@@ -261,7 +238,6 @@ func TestFirstMessageReviewer(t *testing.T) {
 	}
 }
 
-// 作り直しで中身が素のシェルに替わって戻った担当の端末は、状態を報告しないので stalled にならない。終わった端末として見る。
 func TestSeenBareShellIsGone(t *testing.T) {
 	f := newFirst(t)
 	f.put("argv", `["/bin/bash"]`)
@@ -269,12 +245,10 @@ func TestSeenBareShellIsGone(t *testing.T) {
 	if s, ok := f.p.seen("t42"); !ok || !s.Gone {
 		t.Fatalf("中身がシェルの端末を生きているとみた: %+v %v", s, ok)
 	}
-	// top-level はエージェントの command で、前にシェル（中でオーナーが何かした）: 終わったとはみない
 	f.rm("argv")
 	if s, ok := f.p.seen("t42"); !ok || s.Gone {
 		t.Fatalf("top-level がエージェントの端末を終わったとみた: %+v %v", s, ok)
 	}
-	// エージェントは sh -c '… claude …' で起きる（前に出ているものの名前が sh でも、引数があればシェルではない）
 	f.put("fg", `{"name":"sh","argv":["sh","-c","claude"]}`)
 	if s, ok := f.p.seen("t42"); !ok || s.Gone {
 		t.Fatalf("起動したエージェントを終わったとみた: %+v %v", s, ok)
@@ -296,7 +270,6 @@ func TestFirstMessageLeftInInput(t *testing.T) {
 		t.Fatalf("押したあとにまた打った: %q", got)
 	}
 
-	// dispatcher が前に送った印つきの文が残っている: 同じく Enter だけ押す
 	f = newFirst(t)
 	brief = filepath.Join(f.d, "projects", "sample-site", "kanban", "issues", "S-7", "brief.md")
 	f.put("screen", "\n────\n❯ [dispatcher] 課題 `sample-site/S-7`。\n  依頼書は `"+brief+"`。\n────\n")
@@ -304,21 +277,18 @@ func TestFirstMessageLeftInInput(t *testing.T) {
 		t.Fatalf("印つきで残っている入力欄: %q", got)
 	}
 
-	// 入力欄にサジェストが出ている（色が無いと文と見分けられない）: 残っているとはみず、送る
 	f = newFirst(t)
 	f.put("screen", "────\n❯ Try \"fix lint errors\"\n────\n")
 	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 [dispatcher] 課題 ") {
 		t.Fatalf("サジェストの入力欄: %q", got)
 	}
 
-	// 画面の上に同じ行（送った文の写し）があっても、入力欄が空なら送る
 	f = newFirst(t)
 	f.put("screen", "❯ 課題 `sample-site/S-7`。\n\n⏺ 読む\n────\n❯ \n────\n")
 	if got := f.round(); len(got) != 2 || !strings.HasPrefix(got[0], "send t42 [dispatcher] 課題 ") {
 		t.Fatalf("入力欄が空: %q", got)
 	}
 
-	// Enter を押せなかった: 送りかけを消し、ラベルを残して次の見回りでまた読む
 	f = newFirst(t)
 	f.put("screen", "› 課題 `sample-site/S-7`。\n  依頼書は `x`。\n")
 	f.put("send-rc", "1")
@@ -329,7 +299,6 @@ func TestFirstMessageLeftInInput(t *testing.T) {
 		t.Error("押せなかったのに控えに送ったと持っている")
 	}
 
-	// 入力欄を読めない: 送らない（重ねないほうに倒す）。次の見回りで読み直す
 	f = newFirst(t)
 	f.put("read-rc", "1")
 	if got := f.round(); got != nil {

@@ -68,7 +68,6 @@ func TestOutcomeSessions(t *testing.T) {
 	if got != want {
 		t.Errorf("sessions:\n got  %s\n want %s", got, want)
 	}
-	// rollout が1つも無い Codex は session も cost も null の1件
 	if got := asJSON(t, sessions(launches[4:5], []string{"/nowhere"}, claude, codex)); got != `[{"harness":"codex","session":null,"cost":null}]` {
 		t.Errorf("rollout の無い Codex: %s", got)
 	}
@@ -114,7 +113,6 @@ func TestReadLaunches(t *testing.T) {
 	}
 }
 
-// outcomeProject は kanban（log.jsonl の行）を置いて、巡の写しを読んだ project を返す。
 func outcomeProject(t *testing.T, rows ...string) *project {
 	t.Helper()
 	l := ledger.At(t.TempDir())
@@ -129,7 +127,6 @@ func statusRow(id, at, status string) string {
 	return `{"at":"` + at + `","by":"terminal:t7","id":"` + id + `","change":{"status":"` + status + `"}}`
 }
 
-// 最後の done と同じ秒に todo の行があっても、完了した回の実働を数える（同じ秒の行で集計を延ばさない）。
 func TestOutcomeWorkedSameSecondAfterDone(t *testing.T) {
 	const id = "S-0001"
 	p := outcomeProject(t,
@@ -146,8 +143,6 @@ func TestOutcomeWorkedSameSecondAfterDone(t *testing.T) {
 	}
 }
 
-// 結果が未記録のまま起動し直した課題で、巡の写しを読んだあとに書かれた2回目の done を拾ったら、そこまでを数える
-// （写しにある1回目の done で止めない）。
 func TestOutcomeWorkedPickedDoneAfterSnapshot(t *testing.T) {
 	const id = "S-0001"
 	p := outcomeProject(t,
@@ -156,7 +151,7 @@ func TestOutcomeWorkedPickedDoneAfterSnapshot(t *testing.T) {
 		statusRow(id, "2026-11-19T00:20:00Z", "todo"),
 		statusRow(id, "2026-11-19T00:30:00Z", "doing"),
 	)
-	p.st.Outcomes = map[string]int{id: 1} // 1回目の done の結果は集められずに残っている
+	p.st.Outcomes = map[string]int{id: 1}
 	done := statusRow(id, "2026-11-19T00:50:00Z", "done")
 	f, err := os.OpenFile(filepath.Join(p.l.Dir, "log.jsonl"), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -179,7 +174,6 @@ func TestOutcomeWorkedPickedDoneAfterSnapshot(t *testing.T) {
 	}
 }
 
-// library/gate を一覧できなければ、gate の判定を0件として書かない（err）。置き場が無いときだけ空。
 func TestOutcomeGatesUnlistable(t *testing.T) {
 	const id = "S-0001"
 	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))
@@ -193,7 +187,6 @@ func TestOutcomeGatesUnlistable(t *testing.T) {
 	}
 }
 
-// 読めない Claude Code のログは、計測済みの0トークンでなく未計測（cost が null）として書く。
 func TestOutcomeUnreadableClaudeLog(t *testing.T) {
 	const id = "S-0001"
 	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))
@@ -211,7 +204,6 @@ func TestOutcomeUnreadableClaudeLog(t *testing.T) {
 	if got := asJSON(t, o.Sessions); got != `[{"harness":"claude","session":"s1","cost":null}]` {
 		t.Errorf("sessions: %s", got)
 	}
-	// 読めるログに直せば数える（未計測の印が読めないときだけに付く）
 	os.Remove(filepath.Join(claude, "projects", "-w", "s1.jsonl"))
 	writeFile(t, filepath.Join(claude, "projects", "-w", "s1.jsonl"), `{"type":"user","promptId":"p1"}`+"\n")
 	if o, err = p.collectOutcome(id, ledger.Issue{"id": id}); err != nil {
@@ -222,7 +214,6 @@ func TestOutcomeUnreadableClaudeLog(t *testing.T) {
 	}
 }
 
-// 巡の写しを読んだあとに log.jsonl が読めなくなったら（消えた・done の行の無いものに替わった）、実働0分の結果を書かずに err。
 func TestOutcomeWorkedLogUnreadable(t *testing.T) {
 	const id = "S-0001"
 	p := outcomeProject(t, statusRow(id, "2026-11-19T00:00:00Z", "doing"), statusRow(id, "2026-11-19T00:10:00Z", "done"))

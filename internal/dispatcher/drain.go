@@ -19,7 +19,6 @@ import (
 	"andon/internal/delegate"
 )
 
-// DrainUsage は andon dispatcher drain の使い方。
 const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>] < フックの入力の JSON\n" +
 	"Chief of Staff の Stop・UserPromptSubmit フックが打つ（package/hooks/。contract.md §9）。待ちの通知を全部取り出して <news> に描く。\n" +
 	"  既定（Stop）: 待ちがあれば {\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"<news>…</news>\"}}（続きのターンになる）。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
@@ -29,10 +28,8 @@ const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>]
 	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起動し直す（core が起き直したあと）。\n" +
 	"落ちたとき（kanban・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"
 
-// lockWait は drain が控えの lock を待つ長さ。dispatcher の見回りが持っていれば、待ちは次の口で届く。
 var lockWait = 10 * time.Second
 
-// lockState は控えの lock を取る（dispatcher の見回りと drain が控えを読み書きする間）。wait が 0 なら取れるまで待つ。
 func lockState(slug string, wait time.Duration) (func(), error) {
 	path := StatePath(slug) + ".lock"
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -60,18 +57,16 @@ func lockState(slug string, wait time.Duration) (func(), error) {
 	}
 }
 
-// terminal は hc get --json のうち、dispatcher とフックが読むもの。
 type terminal struct {
 	State  string `json:"state"`
 	Status struct {
 		State string `json:"state"`
 		Msg   string `json:"msg"` // 状態に添えた文（Claude Code の error の API のエラー。プロバイダに切られたかの見分けにだけ読む）
 	} `json:"status"`
-	StatusMs int64             `json:"status_ms"`
-	Turn     int               `json:"turn"`
-	Labels   map[string]string `json:"labels"`
-	// Argv と Foreground は top-level の command と前に出ているもの（作り直しで中身がシェルに替わった端末の見分けに読む）
-	Argv       []string `json:"argv"`
+	StatusMs   int64             `json:"status_ms"`
+	Turn       int               `json:"turn"`
+	Labels     map[string]string `json:"labels"`
+	Argv       []string          `json:"argv"`
 	Foreground *struct {
 		Argv []string `json:"argv"`
 	} `json:"foreground"`
@@ -102,7 +97,6 @@ func withoutTerminal() []string {
 	return env
 }
 
-// Drain は andon dispatcher drain。
 func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	context, slug := false, ""
 	for i := 0; i < len(args); i++ {
@@ -123,22 +117,20 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	out, err := drain(slug, context, in)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon dispatcher drain: %v（通す）\n", err) // 落ちても <owner-words> だけは渡す（out が nil でなければ）
+		fmt.Fprintf(stderr, "andon dispatcher drain: %v（通す）\n", err)
 	}
 	if out != nil {
 		enc := json.NewEncoder(stdout)
-		enc.SetEscapeHTML(false) // <news> を \u003c にしない（オーナーが debug のログで読む）
-		enc.Encode(out)          //nolint:errcheck // 出力への書き込み（fmt.Fprintf を設定で除くのと同じ扱い）
+		enc.SetEscapeHTML(false)
+		enc.Encode(out) //nolint:errcheck // 出力への書き込み（fmt.Fprintf を設定で除くのと同じ扱い）
 	}
 	return 0
 }
 
-// hookInput は Claude Code のフックの入力のうち drain が読むもの。
 type hookInput struct {
-	SessionID      string `json:"session_id"`
-	PromptID       string `json:"prompt_id"`
-	StopHookActive bool   `json:"stop_hook_active"`
-	// LastAssistantMessage は Stop の入力の最後の返事。内輪の語を探すのにだけ読み（ownerWordsNote）、通知の確かめには使わない
+	SessionID            string `json:"session_id"`
+	PromptID             string `json:"prompt_id"`
+	StopHookActive       bool   `json:"stop_hook_active"`
 	LastAssistantMessage string `json:"last_assistant_message"`
 }
 
@@ -166,7 +158,7 @@ func sameTurn(h *HookNews, addr string, in hookInput) bool {
 		return false
 	}
 	if h.PromptID != "" || in.PromptID != "" {
-		return h.PromptID == in.PromptID // 片方にしか無ければ別の turn と見る（届け直しは1回だけなので、間違えても2度届くだけ）
+		return h.PromptID == in.PromptID
 	}
 	return true
 }
@@ -179,7 +171,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	}
 	if slug == "" {
 		if self == nil || self.Labels["role"] != "chief-of-staff" || self.Labels["project"] == "" {
-			return nil, nil // Chief of Staff の端末ではない
+			return nil, nil
 		}
 		slug = self.Labels["project"]
 	}
@@ -188,14 +180,14 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	}
 	note := ""
 	if !context {
-		ResetRewake(slug) // ターンが通った: プロバイダに切られた回数を数え直す（rewake.go）
+		ResetRewake(slug)
 		note = ownerWordsNote(slug, in)
 	}
-	EnsureFromHook("andon dispatcher drain") // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
+	EnsureFromHook("andon dispatcher drain")
 	unlock, err := lockState(slug, lockWait)
 	if err != nil {
 		if !context {
-			noteStop(slug, addr, self, in) // 渡した turn の終わりは控えの外に残す（lock を待たない。次の drain が確かめ済みにする）
+			noteStop(slug, addr, self, in)
 		}
 		return stopOutput(note, ""), err
 	}
@@ -205,8 +197,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return stopOutput(note, ""), err
 	}
 	changed := false
-	cleared := false // 確かめ済みの news.ack を消せた（次に渡すときの ack_before を空にする）
-	// lock が取れなかった Stop で見た、渡した turn の終わり（noteStop）。同じ印にだけ当てる
+	cleared := false
 	if n, ok := takeStop(slug); ok {
 		if h := st.Hook; h != nil && reflect.DeepEqual(n.Hook, *h) {
 			if n.Replied {
@@ -227,10 +218,10 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 			if ok && label(addr, self.Turn) == nil {
 				st.countReplied("ack")
 			}
-			logDelivered(slug, h, ok) // 素通りはラベルの一致で決める（news.replied を書けたかとは分ける）
+			logDelivered(slug, h, ok)
 			cleared = clearAck(addr, self)
 		} else {
-			again = h.News // 届け直しは1回だけ（h.Again は捨てる）
+			again = h.News
 		}
 		st.Hook, changed = nil, true
 	}
@@ -240,7 +231,7 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		retry[eventKey(n)] = true
 	}
 	for _, n := range st.Pending {
-		delete(retry, eventKey(n)) // 新しい1件に置き換わったものは1回目として数える
+		delete(retry, eventKey(n))
 		tmp := State{Pending: ns}
 		tmp.Push(n)
 		ns = tmp.Pending
@@ -270,7 +261,6 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		st.Pending, st.Hook, changed = []Notification{}, h, true
 	}
 	if changed {
-		// 書けてから渡す（書けなければ通す。待ちは控えに残り、次の口で届く）
 		if err := st.Save(slug); err != nil {
 			return stopOutput(note, ""), err
 		}
@@ -320,7 +310,6 @@ var ownerWords = []struct{ Word, Say string }{
 	{"地図", "当てたあとに確かめる機能の一覧"},
 }
 
-// codeSpan はコードの囲み（``` の段と ` の識別子）。識別子とコマンドの中の語では止めない。
 var codeSpan = regexp.MustCompile("(?s)```.*?```|`[^`\n]*`")
 
 // ownerWordsNote は Stop の入力の最後の返事から ownerWords の語を探し、あれば言い直させる <owner-words> の文を返す。
@@ -353,7 +342,7 @@ func ownerWordsNote(slug string, in hookInput) string {
 		key := in.SessionID + " " + in.PromptID
 		path := StatePath(slug) + ".words"
 		if b, err := os.ReadFile(path); err == nil && string(b) == key {
-			return "" // この turn ではもう言い直させた
+			return ""
 		}
 		if os.MkdirAll(filepath.Dir(path), 0o755) != nil || os.WriteFile(path+".tmp", []byte(key), 0o644) != nil || os.Rename(path+".tmp", path) != nil {
 			return ""
@@ -368,14 +357,13 @@ func ownerWordsNote(slug string, in hookInput) string {
 // 見回りは lock を巡の終わりまで持つので、続きのターンの Stop が lock を諦めると、渡した印が残って
 // 次の送信で届け直していた（ADR-0019 決めたこと 7）。Hook を書くのは drain だけなので、lock の外で読んでよい。
 type stopNote struct {
-	Hook    HookNews `json:"hook"`              // 終わりを見た印（次の drain の Hook と同じときだけ確かめ済みにする）
-	Acked   bool     `json:"acked"`             // その turn に andon news ack があった（届けた通知の記録に書くのは次の drain）
-	Replied bool     `json:"replied,omitempty"` // news.replied を書けた（数えるのは次の drain）
+	Hook    HookNews `json:"hook"`
+	Acked   bool     `json:"acked"`
+	Replied bool     `json:"replied,omitempty"`
 }
 
 func stopPath(slug string) string { return StatePath(slug) + ".stop" }
 
-// noteStop は lock の外で控えを読み、Stop の入力 in が渡した turn の終わりなら控えに残す。落ちたら何もしない（届け直しになるだけ）。
 func noteStop(slug, addr string, self *terminal, in hookInput) {
 	st, _, err := LoadState(slug)
 	if err != nil || st.Hook == nil || !sameTurn(st.Hook, addr, in) {
@@ -396,7 +384,6 @@ func noteStop(slug, addr string, self *terminal, in hookInput) {
 	}
 }
 
-// takeStop は noteStop の控えを取り出す（先に名前を替えるので、取り出したあとに書かれた控えは次の drain に残る）。
 func takeStop(slug string) (stopNote, bool) {
 	var n stopNote
 	path := stopPath(slug)
@@ -419,7 +406,6 @@ func EnsureFromHook(who string) {
 	if err != nil {
 		return
 	}
-	// フックはオーナーの入力ごとに走るので待たない（前に何も出ていなければ ErrUnsure で次のターンに任せる）
 	if did, err := Ensure(self, delegate.Workspace(), 0); errors.Is(err, ErrBusy) {
 		return
 	} else if err != nil {

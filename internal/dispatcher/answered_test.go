@@ -50,9 +50,8 @@ func TestAnsweredFromPane(t *testing.T) {
 		}
 		return out
 	}
-	pass() // 位置を控える
+	pass()
 
-	// 積む: 書き手が端末でない答えの行（andon waiting answer が端末の外で kanban answer を打った）
 	questions("answered", "open", "open")
 	got := pass(`{"at":"2026-11-21T00:01:00Z","by":"owner","id":"S-0030","change":{"question":1,"status":"answered"}}`)
 	if len(got) != 1 || got[0].Issue != "S-0030" || fmt.Sprint(got[0].Detail["n"]) != "1" || got[0].Detail["kind"] != "users" || got[0].Detail["answer"] != "CSV だけ" {
@@ -65,7 +64,6 @@ func TestAnsweredFromPane(t *testing.T) {
 		t.Errorf("<news> の行 = %q", s)
 	}
 
-	// 積まない: Chief of Staff の端末・dispatcher・ほかの端末が書いた答えの行
 	questions("answered", "answered", "answered")
 	got = pass(
 		`{"at":"2026-11-21T00:02:00Z","by":"terminal:t51","id":"S-0030","change":{"question":2,"status":"answered"}}`,
@@ -75,7 +73,6 @@ func TestAnsweredFromPane(t *testing.T) {
 		t.Fatalf("端末の中で書いた答えも通知にした: %+v（問い 1 の1件のまま）", got)
 	}
 
-	// 2度目は積まない: 担当が受け取ったあと、log.jsonl を先頭から読み直しても（先頭の行が替わった）積み直さない
 	questions("received", "received", "received")
 	st, _, _ := LoadState(slug)
 	st.Pending = nil
@@ -87,18 +84,15 @@ func TestAnsweredFromPane(t *testing.T) {
 	if got = pass(); len(got) != 0 {
 		t.Fatalf("受け取った問いの答えを、読み直しでまた積んだ: %+v", got)
 	}
-	// 受け取る前に同じ問いの行を2度読んでも、通知は問いごとに1件（eventKey）
 	questions("answered", "open", "open")
 	row := `{"at":"2026-11-21T00:03:00Z","by":"owner","id":"S-0030","change":{"question":1,"status":"answered"}}`
 	if got = pass(row, row); len(got) != 1 {
 		t.Fatalf("同じ問いの答えを2件積んだ: %+v", got)
 	}
-	// 同じ課題の別の問いの答えは、前の問いの通知を消さない（eventKey は問いの n ごと）
 	questions("answered", "open", "answered")
 	if got = pass(`{"at":"2026-11-21T00:04:00Z","by":"owner","id":"S-0030","change":{"question":3,"status":"answered"}}`); len(got) != 2 {
 		t.Fatalf("問い 3 の答えが問い 1 の通知を消した・積まれない: %+v", got)
 	}
-	// questions.yaml が一時だけ読めない: その巡は積まずに位置を進めず、次の巡で読めたら1件積む
 	st, _, _ = LoadState(slug)
 	st.Pending = nil
 	if err := st.Save(slug); err != nil {
@@ -112,7 +106,6 @@ func TestAnsweredFromPane(t *testing.T) {
 	if got = pass(); len(got) != 1 || fmt.Sprint(got[0].Detail["n"]) != "1" {
 		t.Fatalf("1回目に読めなかった答えを、次の巡で読めたのに積まない: %+v", got)
 	}
-	// 2回続けて読めなければ、ログに残して先へ進む（次の行で止まり続けない）
 	st, _, _ = LoadState(slug)
 	st.Pending = nil
 	if err := st.Save(slug); err != nil {

@@ -21,62 +21,52 @@ type Notification struct {
 	Detail  map[string]any `json:"detail"`
 }
 
-// Reviewer は起動したレビュアー（控えの「issue → reviewer_issue・commit」）。状態は Started・Skipped・Failed のどれか。
 type Reviewer struct {
 	Issue         string `json:"issue"`
 	Commit        string `json:"commit"`
 	Round         int    `json:"round,omitempty"`
 	Repo          string `json:"repo,omitempty"`
-	Worktree      string `json:"worktree,omitempty"`       // 作った detached worktree（andon issue finish が消す）
-	ReviewerIssue string `json:"reviewer_issue,omitempty"` // 足したレビュアーの課題
-	Address       string `json:"address,omitempty"`        // 起動した端末
-	Started       bool   `json:"started,omitempty"`        // 最初のメッセージまで届いた（もう起動しない）
-	Skipped       string `json:"skipped,omitempty"`        // 起動しない理由（設定・上限・head 違い）
-	OverLimit     int    `json:"over_limit,omitempty"`     // 上限を超えて起動しなかったときの上限（それより上がれば起動し直す）
-	Untrusted     bool   `json:"untrusted,omitempty"`      // 予約キーの照合が外れていて起動しなかった（照合が戻れば起動し直す）
-	Failed        string `json:"failed,omitempty"`         // 起動しそこねた理由（次の見回りで続きから）
-	Attempts      int    `json:"attempts,omitempty"`       // 起動しそこねた回数
-	Row           int    `json:"row,omitempty"`            // 決めたときの課題の報告の最後の行（増えれば頼み直し。Skipped を拾い直す）
+	Worktree      string `json:"worktree,omitempty"`
+	ReviewerIssue string `json:"reviewer_issue,omitempty"`
+	Address       string `json:"address,omitempty"`
+	Started       bool   `json:"started,omitempty"`
+	Skipped       string `json:"skipped,omitempty"`
+	OverLimit     int    `json:"over_limit,omitempty"`
+	Untrusted     bool   `json:"untrusted,omitempty"`
+	Failed        string `json:"failed,omitempty"`
+	Attempts      int    `json:"attempts,omitempty"`
+	Row           int    `json:"row,omitempty"`
 }
 
-// State は dispatcher の控え（~/.local/state/andon/dispatcher/<slug>.json。kanban の外）。
 type State struct {
-	Reviewers map[string]Reviewer `json:"reviewers"`          // <issue>@<commit>
-	Pending   []Notification      `json:"pending"`            // 待ちの通知（drain.go のフックが届ける。離席中は wait.go の待ち役が合図で起動する）
-	Hook      *HookNews           `json:"hook,omitempty"`     // フックで渡して、その turn の終わりをまだ見ていない <news>
-	LogPos    *int64              `json:"log_pos,omitempty"`  // log.jsonl の読んだ位置（バイト。無ければ初めて）
-	LogHead   string              `json:"log_head,omitempty"` // log.jsonl の最初の行の sha256（替われば先頭から読み直す）
-	LogHold   *int64              `json:"log_hold,omitempty"` // 問いの JSON を待って止まった行の頭（1回だけ待つ）
-	Ready     *[]string           `json:"ready,omitempty"`    // 前回の ready の id（オーナーの課題を除く。無ければ初めて）
-	Sent      map[string]bool     `json:"sent,omitempty"`     // 知らせた担当の状態（<issue>|<agent>|<状態>|<status_ms>）
-	Retry     map[string]Resend   `json:"retry,omitempty"`    // プロバイダに切られて「続けて」を打った回数（<issue>|<agent>。Chief of Staff は :cos|<address>）
-	First     map[string]bool     `json:"first,omitempty"`    // 最初のメッセージを送ったがラベルを外しそこねた担当（<issue>|<agent>。二度と送らない）
-	Moved     map[string]Moved    `json:"moved,omitempty"`    // working の担当の status.msg と画面の要約と、それが最後に動いた時刻（<issue>|<agent>。止まったかの見分け）
-	Impact    Tries               `json:"impact,omitempty"`   // done になった、影響（andon issue impact）をまだ見ていない課題 → 失敗した回数
-	// done になった、オーナーの手直し（corrections.json）をまだ集めていない課題 → 失敗した回数
-	Corrections Tries `json:"corrections,omitempty"`
-	// done になった、結果の記録（outcome.json）をまだ書いていない課題 → 失敗した回数（outcome.go）
-	Outcomes Tries `json:"outcomes,omitempty"`
-	// approve のまま 10 分たって届けた課題 → andon issue merge の記録の approved（route.go の stuck。同じ approve では二度届けない）
-	Stuck map[string]string `json:"stuck,omitempty"`
-	// 記録だけの置き場に書けなかった通知（route.go の flush が次の見回りで先に書く）
-	Unrecorded []Notification `json:"unrecorded,omitempty"`
+	Reviewers   map[string]Reviewer `json:"reviewers"`
+	Pending     []Notification      `json:"pending"`
+	Hook        *HookNews           `json:"hook,omitempty"`
+	LogPos      *int64              `json:"log_pos,omitempty"`
+	LogHead     string              `json:"log_head,omitempty"`
+	LogHold     *int64              `json:"log_hold,omitempty"`
+	Ready       *[]string           `json:"ready,omitempty"`
+	Sent        map[string]bool     `json:"sent,omitempty"`
+	Retry       map[string]Resend   `json:"retry,omitempty"`
+	First       map[string]bool     `json:"first,omitempty"`
+	Moved       map[string]Moved    `json:"moved,omitempty"`
+	Impact      Tries               `json:"impact,omitempty"`
+	Corrections Tries               `json:"corrections,omitempty"`
+	Outcomes    Tries               `json:"outcomes,omitempty"`
+	Stuck       map[string]string   `json:"stuck,omitempty"`
+	Unrecorded  []Notification      `json:"unrecorded,omitempty"`
 	// news.replied を書いた数を、何で書いたかごとに（ack だけ。前のバージョンの控えには no-reply が残りうる。ADR-0010 決めたこと 6。ack.go）
 	Replied map[string]int `json:"replied,omitempty"`
 	// dispatcher が andon issue resume を打った課題 → Gone を見た端末と起動した端末（resume.go。ADR-0012 決めたこと 4・13 の 3）
 	Resumed map[string]Resumed `json:"resumed,omitempty"`
-	// gate が gh の上限（rate limit）で落ちたとき、上限が戻る時刻（RFC3339。loop.go の merge）。それまでこの kanban の andon issue merge を打たない
-	GHReset string `json:"gh_reset,omitempty"`
-	// gate が続けて gh の上限で落ちたときの、前の待ち（分。1・2・4…60。上限で落ちずに gate が返れば 0）
-	GHWait int `json:"gh_wait,omitempty"`
+	GHReset string             `json:"gh_reset,omitempty"`
+	GHWait  int                `json:"gh_wait,omitempty"`
 	// 見込みを超えた段を知らせた課題（<issue>|estimate|<見込みの値>|<段>。estimate.go。ADR-0014 決めたこと 6）
 	Estimate map[string]bool `json:"estimate,omitempty"`
 	// 担当の端末が Gone だと見た時刻（課題 → 端末と時刻。estimate.go が実働から死んでいた区間を引く。ADR-0014 決めたこと 5）
 	Gone map[string][]GoneAt `json:"gone,omitempty"`
 	// Chief of Staff の留守（端末が無い間。配る段だけ止めて、積んだ数を数える。ADR-0017 決めたこと 8。drain が戻った最初の <news> に1行付けて消す）
-	Away *Away `json:"away,omitempty"`
-	// dispatcher 自身が出して積んだ問いのうち、log.jsonl の問いの行をまだ読んでいないもの（<issue>#<n>。pickup.go の logRow が
-	// 行を読んだら消す）。待ちの通知と同じ控えに保存するので、積んだのに保存の前に落ちた問いは印が無く、行から積み直せる
+	Away  *Away           `json:"away,omitempty"`
 	Asked map[string]bool `json:"asked,omitempty"`
 	// 空きを見た前の回の結果と、通知 idle で知らせたもの（idle.go。ADR-0047 決めたこと 4・11・12）
 	Idle *Idle `json:"idle,omitempty"`
@@ -86,7 +76,6 @@ type State struct {
 // 失敗した回数。失敗を数えて上限で諦める控えを1つの型にまとめる（ADR-0034 決めたこと 9）。控えの JSON の形は課題 → 数のまま。
 type Tries map[string]int
 
-// Add は課題を控える。もう控えてあれば回数はそのまま（同じ done の行を2度読んでも数え直さない）。
 func (t *Tries) Add(id string) {
 	if *t == nil {
 		*t = Tries{}
@@ -96,7 +85,6 @@ func (t *Tries) Add(id string) {
 	}
 }
 
-// Each は控えた課題を id の順に do に渡し、true（済んだ）を返した課題を外す。空になれば nil にする（控えに空の欄を残さない）。
 func (t *Tries) Each(do func(id string) bool) {
 	ids := make([]string, 0, len(*t))
 	for id := range *t {
@@ -113,7 +101,6 @@ func (t *Tries) Each(do func(id string) bool) {
 	}
 }
 
-// Fail は課題の失敗を1回数え、上限（limit 回）に達したら true（諦める）を返す。
 func (t Tries) Fail(id string, limit int) bool {
 	t[id]++
 	return t[id] >= limit
@@ -121,25 +108,24 @@ func (t Tries) Fail(id string, limit int) bool {
 
 // Away は Chief of Staff の留守の記録（ADR-0017 決めたこと 8 の (b)）。
 type Away struct {
-	Since string `json:"since"`           // 留守に気づいた巡の時刻
-	Until string `json:"until,omitempty"` // 端末が戻ったと気づいた巡の時刻（空なら留守の最中か、drain が先に気づいた）
-	Count int    `json:"count"`           // 留守の間に待ちに積んだ通知の数（置き換えの前の数。決めたこと 8 の (d)）
+	Since string `json:"since"`
+	Until string `json:"until,omitempty"`
+	Count int    `json:"count"` // 留守の間に待ちに積んだ通知の数（置き換えの前の数。決めたこと 8 の (d)）
 }
 
 // HookNews はフックで渡した <news>（dispatcher.md §3）。渡した turn の Stop で確かめ済みにする。
 // 確かめないまま別の turn が来たら、News だけを1回届け直す（Again は届け直した分で、もう届け直さない）。
 type HookNews struct {
 	Terminal  string         `json:"terminal"`
-	Via       string         `json:"via"` // stop（block の reason）・prompt（additionalContext）
+	Via       string         `json:"via"`
 	SessionID string         `json:"session_id,omitempty"`
 	PromptID  string         `json:"prompt_id,omitempty"`
 	News      []Notification `json:"news,omitempty"`
 	Again     []Notification `json:"again,omitempty"`
-	Turn      *int           `json:"turn,omitempty"`       // 渡したときの端末の turn（ラベル news.ack と照らす。ADR-0010 決めたこと 5）
-	AckBefore string         `json:"ack_before,omitempty"` // 渡したときのラベル news.ack の値（同じ turn の前の ack を数えない）
+	Turn      *int           `json:"turn,omitempty"` // 渡したときの端末の turn（ラベル news.ack と照らす。ADR-0010 決めたこと 5）
+	AckBefore string         `json:"ack_before,omitempty"`
 }
 
-// StatePath は控えの置き場。
 func StatePath(slug string) string {
 	dir := os.Getenv("XDG_STATE_HOME")
 	if dir == "" {
@@ -153,7 +139,6 @@ func MergePath(slug string) string {
 	return strings.TrimSuffix(StatePath(slug), ".json") + ".merge.json"
 }
 
-// LoadState は控えを読む。無ければ空の控えと first=true（初めて見る kanban）。
 func LoadState(slug string) (*State, bool, error) {
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
@@ -198,7 +183,6 @@ func (s *State) Save(slug string) error {
 	return os.Rename(tmp, path)
 }
 
-// checkNotifications は控えの中の通知を全部 schema と照らす。
 func (s *State) checkNotifications() error {
 	all := append(append([]Notification{}, s.Pending...), s.Unrecorded...)
 	if s.Hook != nil {
@@ -212,7 +196,6 @@ func (s *State) checkNotifications() error {
 	return nil
 }
 
-// Push は通知を積む。同じ出来事（eventKey が同じ）は新しい1件に置き換える。留守の間は積んだ数を数える（置き換えの前の数）。
 func (s *State) Push(n Notification) {
 	out := s.Pending[:0]
 	for _, x := range s.Pending {

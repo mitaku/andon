@@ -29,8 +29,6 @@ func RenderAway(slug, away string, ns []Notification) string {
 	return b.String()
 }
 
-// awayLine は留守の1行（「留守の間（<from>〜<to>）に N 件」）。留守が無い・積んだものが無ければ空。
-// 戻ったと dispatcher がまだ気づいていなければ（until が空）、今を終わりにする（drain を打つのは戻った Chief of Staff）。
 func awayLine(a *Away) string {
 	if a == nil || a.Count == 0 {
 		return ""
@@ -42,7 +40,6 @@ func awayLine(a *Away) string {
 	return fmt.Sprintf("留守の間（%s〜%s）に %d 件", clean(a.Since, 40), clean(until, 40), a.Count)
 }
 
-// clean は制御文字と区切り（<>）を空白に替え、max 字に切る。タイトルや名前は外から来た文を含みうる。
 func clean(v any, max int) string {
 	s := strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) || r == '<' || r == '>' {
@@ -148,9 +145,9 @@ func line(n Notification) string {
 		s := head + "実働 " + d("worked_minutes") + " 分が見込み（" + short("estimate") + " " + d("estimate_minutes") + " 分）の " + d("stage") + " 倍を超えた（比 " + d("ratio") + "）"
 		var sign []string
 		switch v := n.Detail["sign"].(type) {
-		case []string: // 積んだ巡のうちに配るとき
+		case []string:
 			sign = v
-		case []any: // 控えから読み直したとき
+		case []any:
 			for _, x := range v {
 				sign = append(sign, clean(x, 20))
 			}
@@ -192,7 +189,6 @@ func line(n Notification) string {
 	return head + clean(n.Detail, 120)
 }
 
-// minutesSince は通知の at と detail.status_ms の差（分）。読めなければ -1。
 func minutesSince(n Notification) int {
 	at, err := time.Parse("2006-01-02T15:04:05Z", n.At)
 	ms, ok := n.Detail["status_ms"].(float64)

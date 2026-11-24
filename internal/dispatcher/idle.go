@@ -24,19 +24,17 @@ import (
 // idleEvery は空きを見る間の既定（分。project.json の chief_of_staff.idle_minutes。0 は見ない。ADR-0047 決めたこと 4・16）。
 const idleEvery = 15
 
-// triageRoutine はトリアージのルーチンの名前（kanban/routines/triage.yaml。issue.yaml の routine）。
 const triageRoutine = "triage"
 
 // Idle は空きを見た前の回の結果と、知らせたもの（控えの idle。ADR-0047 決めたこと 4・11・12）。
 type Idle struct {
-	At    string   `json:"at,omitempty"`    // 前の回に見た時刻（RFC3339。空なら前の回の結果が無い）
-	Free  bool     `json:"free,omitempty"`  // 前の回に枠が1つ以上空いていた
-	Ready []string `json:"ready,omitempty"` // 前の回に起動できる課題の一覧に出ていた id（オーナーの課題・レビュアーの子課題を除く）
-	Told  []string `json:"told,omitempty"`  // 通知 idle で知らせた id（一覧から消えたら外す。起動し直しと留守では消さない）
-	Lint  string   `json:"lint,omitempty"`  // 知らせた kanban lint の problem の並びの印（problem が 0 件に戻ったら消す）
+	At    string   `json:"at,omitempty"`
+	Free  bool     `json:"free,omitempty"`
+	Ready []string `json:"ready,omitempty"`
+	Told  []string `json:"told,omitempty"`
+	Lint  string   `json:"lint,omitempty"`
 }
 
-// 検査が差し替える口（偽の kanban の CLI では枠もトリアージの未処理も数えられないため）。
 var (
 	// slotsOf は空いた枠の数（andon waiting と同じ式。ADR-0042 決めたこと 9）
 	slotsOf = func(root string, now time.Time) (int, error) {
@@ -47,7 +45,6 @@ var (
 	unsortedOf = triage.Unsorted
 )
 
-// clock は今の時刻（検査は Dispatcher.Now で決める）。
 func (c *Dispatcher) clock() time.Time {
 	if c.Now != nil {
 		return c.Now().UTC()
@@ -85,7 +82,7 @@ func (p *project) idle(retroFired bool) {
 	known := prev.At != "" && atErr == nil
 	interval := time.Duration(every) * time.Minute
 	if known && seen && now.Sub(prevAt) < interval {
-		return // まだ見る時刻でない
+		return
 	}
 	free, err := slotsOf(p.l.Root, now)
 	if err != nil {
@@ -133,8 +130,6 @@ func (p *project) forgetIdle() {
 	p.st.Idle = &i
 }
 
-// readyNow は今の起動できる課題の id。前の巡が控えた kanban ready（オーナーの課題とレビュアーの子課題を除いたもの。readReady）を、
-// この巡に読んだ一覧で、もう起動された（doing・review・done）か無くなった課題を除いて読む。
 func (p *project) readyNow() []string {
 	if p.st.Ready == nil {
 		return nil
@@ -154,7 +149,6 @@ func (p *project) readyNow() []string {
 	return out
 }
 
-// keepIn は ids のうち in にあるものを、ids の順で返す。
 func keepIn(ids, in []string) []string {
 	var out []string
 	for _, id := range ids {
@@ -230,7 +224,6 @@ func (p *project) fireIdle(free int, retroFired bool, now time.Time) []string {
 	return fired
 }
 
-// routineNames は kanban のルーチンの名前（routines/*.yaml。名前の順）。読めなければ無い。
 func routineNames(dir string) []string {
 	ents, err := os.ReadDir(filepath.Join(dir, "routines"))
 	if err != nil {
@@ -289,7 +282,6 @@ func lastFired(rows []ledger.Row, name string) (time.Time, bool) {
 	return last, found
 }
 
-// routineOpen はルーチン name が足した課題が片付かずに残っているか。
 func (p *project) routineOpen(name string) bool {
 	for _, t := range p.tasks {
 		if t.Str("routine") == name && t.Str("status") != "done" {
@@ -356,7 +348,6 @@ func (p *project) pushIdle(free int, unstarted, fired []string, lint int) {
 	p.notify("", "idle", map[string]any{"free": free, "unstarted": nonNil(unstarted), "fired": nonNil(fired), "lint": lint})
 }
 
-// countOf は detail の数（積んだプロセスの中では int、控えから読んだあとは float64）。数でなければ 0。
 func countOf(v any) int {
 	switch n := v.(type) {
 	case int:
@@ -367,7 +358,6 @@ func countOf(v any) int {
 	return 0
 }
 
-// mergeIDs は old のあとに、old に無い add を足す。
 func mergeIDs(old, add []string) []string {
 	out := append([]string{}, old...)
 	for _, id := range add {
@@ -385,7 +375,6 @@ func nonNil(s []string) []string {
 	return s
 }
 
-// idleOnce は空きの段の失敗をログに1行だけ書く（kanban と種類ごとに、同じ理由が続く間は書かない）。reason が空なら覚えを消す。
 func (p *project) idleOnce(kind, reason string) {
 	key := p.l.Slug + "\x00" + kind
 	if p.c.idleLogged[key] == reason {
@@ -400,8 +389,6 @@ func (p *project) idleOnce(kind, reason string) {
 	}
 }
 
-// routineOn は kanban にルーチン name があり、止める印（paused: true）が無いか。読めない・paused が真偽でないファイルは、
-// kanban の CLI も撃たない（kanban lint の problem）ので無いと同じに扱う。
 func routineOn(dir, name string) bool {
 	b, err := os.ReadFile(filepath.Join(dir, "routines", name+".yaml"))
 	if err != nil {
@@ -419,8 +406,6 @@ func routineOn(dir, name string) bool {
 	return isBool && !paused
 }
 
-// idleMinutesOf は空きを見る間を、セルの repo の HEAD の project.json の chief_of_staff.idle_minutes から読む（author 照合は
-// delegate.ReadProject）。project.json か値が無ければ既定。信じられない・形が違うときは既定と、その理由を返す。
 func idleMinutesOf(ws, slug string) (int, error) {
 	pj, err := delegate.ReadProject(ws, slug)
 	switch {

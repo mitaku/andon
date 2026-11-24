@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// waitFixture は待ち役の試し: 偽の hc（retryHc）と控えの置き場。Chief of Staff の端末は t1（ラベル role=chief-of-staff・project=sample-site）。
 func waitFixture(t *testing.T) *retryFixture {
 	t.Helper()
 	f := newRetry(t)
@@ -65,7 +64,6 @@ func (r *waitRun) done(t *testing.T, within time.Duration) (int, bool) {
 	}
 }
 
-// 届ける通知が待ちにあり、Chief of Staff が idle・done なら、合図の1行で 2。待ちと控えは変えない（取り出さない・書かない）。
 func TestWaitSignals(t *testing.T) {
 	for _, state := range []string{"idle", "done"} {
 		f := waitFixture(t)
@@ -90,7 +88,6 @@ func TestWaitSignals(t *testing.T) {
 	}
 }
 
-// 待ちが無い間・Chief of Staff が working の間は終わらない。後から起きた待ち役に替わったら 0 で終わり、新しいほうが残る。
 func TestWaitHoldsAndIsReplaced(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(0)
@@ -119,7 +116,6 @@ func TestWaitHoldsAndIsReplaced(t *testing.T) {
 	}
 }
 
-// timeout の 9 割まで打つ機会が無ければ、idle・done なら張り直しの合図で 2。working なら静かに 0（そのターンの Stop で次が起きる）。
 func TestWaitRearms(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(0)
@@ -135,21 +131,20 @@ func TestWaitRearms(t *testing.T) {
 	}
 }
 
-// 張り直しの時刻に端末が一時に読めなくても待ち役を失わない: 読めるようになれば張り直す。95% まで読めなければ合図を打たずに 0。
 func TestWaitRearmSurvivesHcError(t *testing.T) {
 	f := waitFixture(t)
 	old := waitUnit
-	waitUnit = 50 * time.Millisecond // --timeout 60 → 3 秒。張り直し 2.7 秒、諦め 2.85 秒
+	waitUnit = 50 * time.Millisecond
 	t.Cleanup(func() { waitUnit = old })
 	f.pending(0)
 	start := time.Now()
 	r := startWait("--timeout", "60")
-	time.Sleep(100 * time.Millisecond) // 起きた後に壊す（起きるときの読みは通す）
+	time.Sleep(100 * time.Millisecond)
 	broken := filepath.Join(f.d, "t1.json")
 	if err := os.WriteFile(broken, []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(2750*time.Millisecond - time.Since(start)) // 張り直しの時刻 2.7 秒を過ぎるまで読めない
+	time.Sleep(2750*time.Millisecond - time.Since(start))
 	if _, ok := r.done(t, time.Millisecond); ok {
 		t.Fatal("張り直しの時刻に端末が読めないだけで待ち役が終わった")
 	}
@@ -162,7 +157,7 @@ func TestWaitRearmSurvivesHcError(t *testing.T) {
 	if err := os.WriteFile(broken, []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r = startWait("--timeout", "60") // 起きるときに読めなければ 0
+	r = startWait("--timeout", "60")
 	if code, ok := r.done(t, 10*time.Second); !ok || code != 0 {
 		t.Fatalf("起きるときに端末が読めないのに待った: %v %d", ok, code)
 	}
@@ -182,7 +177,6 @@ func TestWaitRearmSurvivesHcError(t *testing.T) {
 	}
 }
 
-// Chief of Staff の端末でなければ待たずに 0。控えが読めなければ 0（待ちは①②で届く）。
 func TestWaitPassesThrough(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(1)
@@ -202,8 +196,6 @@ func TestWaitPassesThrough(t *testing.T) {
 	}
 }
 
-// 見回りは Chief of Staff の入力欄へ <news> を打たない（hc send も attach --observe も呼ばない）。
-// 待ち役がいなければログに1行（同じ待ちには1回）、いればログも書かない。
 func TestPatrolDoesNotSendToChief(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(1)
@@ -219,14 +211,13 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 	f.cos("working")
 	f.pending(0)
 	r := startWait("--timeout", "60")
-	for i := 0; i < 1000 && !liveWaiter("sample-site", "t1"); i++ { // 遅い CI でも待つ（上限 10 秒）
+	for i := 0; i < 1000 && !liveWaiter("sample-site", "t1"); i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if !liveWaiter("sample-site", "t1") {
 		t.Fatal("待ち役が起動しない")
 	}
 	f.cos("idle")
-	// 待ちは見回りの手元にだけ置き、控えには書かない（控えに書くと、待ち役はそれを読んで合図で終わり、見回りより先に届けを消す）
 	f.p.st.Pending = []Notification{{At: "2026-11-11T00:00:00Z", Project: "sample-site", Issue: "S-9", Kind: "report", Detail: map[string]any{"report": "/w/kanban/issues/X/report.md"}}}
 	f.log.Reset()
 	f.p.unwaited("t1")
@@ -242,12 +233,10 @@ func TestPatrolDoesNotSendToChief(t *testing.T) {
 	}
 }
 
-// 見回りが控えの lock を持つ間は合図しない（起動したターンの Stop の drain が lock を待ちきれず何も渡さず、
-// 同じ Stop で起きた次の待ち役がまた合図して、中身の無いターンが続くため）。lock が空いたら合図し、そのターンの drain が渡す。
 func TestWaitHoldsWhileStateLocked(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(1)
-	unlock, err := lockState("sample-site", 0) // 見回りの巡（gate・resume・settle を打っている間）
+	unlock, err := lockState("sample-site", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +263,6 @@ func TestWaitHoldsWhileStateLocked(t *testing.T) {
 	}
 }
 
-// lock を持たれたまま張り直しの時刻が来たら、通知の合図ではなく張り直しの合図で 2（フックの timeout で待ち役を失わない）。
 func TestWaitRearmsWhileStateLocked(t *testing.T) {
 	f := waitFixture(t)
 	f.pending(1)
@@ -290,8 +278,6 @@ func TestWaitRearmsWhileStateLocked(t *testing.T) {
 	}
 }
 
-// 巡のつなぎ: 届ける待ちがあり Chief of Staff が入力を待っているのに待ち役がいなければ、巡の終わりにログへ1行だけ書く
-// （同じ待ちには1回。dispatcher は Chief of Staff へ打たない〈TestPatrolDoesNotSendToChief〉）。初めて見る kanban の巡では書かない。
 func TestPassLogsUnwaited(t *testing.T) {
 	d := t.TempDir()
 	bin := filepath.Join(d, "bin")
@@ -308,10 +294,10 @@ func TestPassLogsUnwaited(t *testing.T) {
 	led := filepath.Join(ws, "projects", "sample-site", "kanban")
 	os.MkdirAll(led, 0o755)
 	os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644)
-	os.WriteFile(filepath.Join(d, "cos"), nil, 0o644) // Chief of Staff は生きていて idle
+	os.WriteFile(filepath.Join(d, "cos"), nil, 0o644)
 	var logb bytes.Buffer
 	c := &Dispatcher{WS: ws, Log: &logb}
-	c.Pass("") // 初めて見る kanban
+	c.Pass("")
 	st, _, err := LoadState("sample-site")
 	if err != nil {
 		t.Fatal(err)

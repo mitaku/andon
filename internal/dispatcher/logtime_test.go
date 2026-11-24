@@ -10,7 +10,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// ログの行の頭に秒までの時刻が付く。kanban に timezone があればそれで、無ければ UTC。行の中身は変えない。
 func TestLogLineHasTimestamp(t *testing.T) {
 	now := time.Date(2026, 11, 12, 7, 5, 9, 0, time.UTC)
 	var b bytes.Buffer
@@ -39,7 +38,6 @@ func TestLogLineHasTimestamp(t *testing.T) {
 	}
 }
 
-// 実行環境に zoneinfo が無くても（time/tzdata を持っているので）kanban の timezone で出る。
 func TestLogTimezoneWithoutSystemZoneinfo(t *testing.T) {
 	t.Setenv("ZONEINFO", "/nonexistent")
 	t.Setenv("GOROOT", "/nonexistent")

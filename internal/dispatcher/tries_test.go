@@ -15,7 +15,7 @@ func TestTries(t *testing.T) {
 	if tr.Fail("D-0001", 3) {
 		t.Fatal("1 回目の失敗で諦めた")
 	}
-	tr.Add("D-0001") // 同じ done の行をもう一度読んだ
+	tr.Add("D-0001")
 	if tr["D-0001"] != 1 {
 		t.Fatalf("控え直しで失敗の回数が戻った: %v", tr)
 	}

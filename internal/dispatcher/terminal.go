@@ -26,7 +26,6 @@ import (
 // （どちらも毎ターン。EnsureFromHook）。core の起き直しは boot を通らない。dispatcher は Chief of Staff の留守にも回るので、
 // 留守の間に動いている担当のフックからも戻す（ADR-0017 決めたこと 8 の (e)）。
 
-// shells は、dispatcher の端末で前に出ていれば「中身がシェルに替わった」とみなすもの（hc keep の替わりと、オーナーが抜けたあと）。
 var shells = spawn.Shells
 
 // ErrBusy は、ほかが確かめている（boot と複数の Chief of Staff のフックが重なった）ので何もしなかった。
@@ -36,10 +35,8 @@ var ErrBusy = errors.New("ほかが dispatcher の端末を確かめている")
 // 「動いている」とはみなさない。
 var ErrUnsure = errors.New("dispatcher の端末を確かめられなかった")
 
-// ensurePoll は前に出ているものを読み直す間隔。
 var ensurePoll = 500 * time.Millisecond
 
-// dispatcherTerm は hc get dispatcher --json のうち、中身の見分けに読むもの。
 type dispatcherTerm struct {
 	Address    string            `json:"address"`
 	State      string            `json:"state"`
@@ -50,7 +47,6 @@ type dispatcherTerm struct {
 	} `json:"foreground"`
 }
 
-// IsDispatcher は前に出ているものが andon dispatcher（回り続けるもの）か。
 func IsDispatcher(argv []string) bool {
 	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == "dispatcher"
 }
@@ -74,15 +70,12 @@ func EnsureAfterCreate(andon, cwd string, wait time.Duration, waiting func()) (s
 	return ensureTerm(andon, cwd, wait, waiting)
 }
 
-// ErrOldDispatcher は、置き場が今の Place と違うが、動いている dispatcher が見回りの間 PassLock を持たない前のバージョンなので
-// 置き直さなかった（見回りの途中で止めうる）。端末が起き直す（core の起き直し・セルの作り直し）と今のバージョンで合う。
 var ErrOldDispatcher = errors.New("動いている dispatcher は見回りの間 lock を持たない前のバージョンなので、置き直さない")
 
-// ensureTerm の waiting が nil なら、見回りの途中のときは待たずに触らない。
 func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
 	unlock, err := ensureLock()
 	if err != nil {
-		return "", err // ErrBusy か、控えの置き場が作れない・開けない（起動できなかった理由を呼び手に見せる）
+		return "", err
 	}
 	defer unlock()
 	t, gone, err := getDispatcher()
@@ -108,12 +101,9 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		if t.Address == "" {
 			return "", fmt.Errorf("hc get %s に address が無い", Name)
 		}
-		// PassLock のファイルは、このバージョンの dispatcher が見回るたびに作る。無ければ動いているのは前のバージョンで、
-		// lock が取れても見回りの合間とは限らない
 		if _, err := os.Stat(PassLock()); errors.Is(err, fs.ErrNotExist) {
 			return "", fmt.Errorf("%w（%s の置き場は %s・%s、今の kanban の数では %s・%s）", ErrOldDispatcher, t.Address, t.Labels["herdr.space"], t.Labels["herdr.tab"], space, tab)
 		}
-		// 見回りの途中で止めない。lock は起動し直すまで持つ（新しい dispatcher は外れるのを待ってから回る）
 		unpass, err := flock.TryLock(PassLock())
 		if errors.Is(err, flock.ErrBusy) && waiting != nil {
 			waiting()
@@ -140,7 +130,6 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 	return fmt.Sprintf("dispatcher の端末（%s）の中身がシェルに替わっていたので、片付けて起動し直した", t.Address), nil
 }
 
-// hostName はセルの名前（hostname）。セルの kanban が2つ以上のときの Space 名に使う。テストで差し替える。
 var hostName = os.Hostname
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
@@ -185,7 +174,6 @@ func runDispatcher(andon, cwd string) error {
 	return nil
 }
 
-// getDispatcher は hc get dispatcher。端末が無い・終わっていれば gone。
 func getDispatcher() (*dispatcherTerm, bool, error) {
 	cmd := exec.Command("hc", "get", Name, "--json")
 	cmd.Env = withoutTerminal()
@@ -220,7 +208,6 @@ func hcRun(args ...string) (string, error) {
 	return string(out), err
 }
 
-// ensureLock は Ensure を1つずつにする lock（ほかが持っていれば ErrBusy ですぐ諦める。ほかの失敗はそのまま返す）。
 func ensureLock() (func(), error) {
 	path := filepath.Join(filepath.Dir(StatePath("x")), ".terminal.lock")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

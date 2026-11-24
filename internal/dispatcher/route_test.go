@@ -105,7 +105,6 @@ func recorded(t *testing.T) []Notification {
 	return out
 }
 
-// review-requested・merged・gate: fix だけが起きた見回りは <news> を1つも渡さず、記録に1行ずつ書く。
 func TestRecordOnly(t *testing.T) {
 	p := routeProject(t)
 	p.notify("D-0001", "review-requested", map[string]any{"round": 1, "reviewer": "codex-review", "reviewer_issue": "D-0001-r1"})
@@ -123,7 +122,6 @@ func TestRecordOnly(t *testing.T) {
 	if filepath.Base(RecordedPath("demo")) != "demo.recorded.jsonl" || filepath.Dir(RecordedPath("demo")) != filepath.Dir(StatePath("demo")) {
 		t.Fatalf("置き場が控えの横でない: %s", RecordedPath("demo"))
 	}
-	// Chief Engineer の課題の review と担当の report は今どおり届く
 	p.notify("D-0002", "review", map[string]any{"report": "/x/report.md", "pr": "https://github.com/example/app/pull/8"})
 	p.notify("D-0003", "report", map[string]any{"report": "/x/report.md"})
 	if len(p.st.Pending) != 2 || p.st.Pending[0].Issue != "D-0002" || p.st.Pending[1].Kind != "report" {
@@ -134,8 +132,6 @@ func TestRecordOnly(t *testing.T) {
 	}
 }
 
-// Chief Engineer の課題（profile chief-engineer）の stalled・blocked・ready は記録だけ。error・finished と、
-// 担当の同じ通知は今どおり届く（A-0036）。
 func TestEngineerRecordOnly(t *testing.T) {
 	p := routeProject(t)
 	at := map[string]any{"agent": "t9", "status_ms": 1}
@@ -158,8 +154,6 @@ func TestEngineerRecordOnly(t *testing.T) {
 	}
 }
 
-// merge: auto の approve は記録だけにし、andon issue merge の記録の approved から approveWait たっても決まらなければ
-// 通知 `gate` を1回だけ届ける。決まった（approved が消えた）・review にいない課題は届けない。merge: person の approve はすぐ届ける。
 func TestApproveStuck(t *testing.T) {
 	p := routeProject(t)
 	p.tasks = append(p.tasks, ledger.Issue{"id": "D-0004", "status": "done", "profile": "claude", "repo": "github.com/example/app"})
@@ -177,9 +171,9 @@ func TestApproveStuck(t *testing.T) {
 	os.MkdirAll(filepath.Dir(gateRecord), 0o755)
 	os.WriteFile(gateRecord, []byte(`{"decision":"approve","reasons":["L0"]}`), 0o644)
 	writeMerge(map[string]contract.Merging{
-		"D-0001": {Row: 3, Sha: head, Approved: at},                      // マージに進み始めて決まらない
-		"D-0003": {Row: 5, Sha: head, Decision: "approve", Merged: head}, // マージした
-		"D-0004": {Row: 7, Sha: head, Approved: at},                      // review にいない
+		"D-0001": {Row: 3, Sha: head, Approved: at},
+		"D-0003": {Row: 5, Sha: head, Decision: "approve", Merged: head},
+		"D-0004": {Row: 7, Sha: head, Approved: at},
 	})
 	p.put(Notification{At: at, Project: "demo", Issue: "D-0001", Kind: "gate", Detail: map[string]any{"decision": "approve", "reasons": []string{}, "record": gateRecord}}, Facts{Gated: true, AutoMerge: true})
 	if len(p.st.Pending) != 0 || len(recorded(t)) != 1 {
@@ -200,14 +194,12 @@ func TestApproveStuck(t *testing.T) {
 	if len(p.st.Pending) != 0 {
 		t.Fatalf("2回目を届けた: %+v", p.st.Pending)
 	}
-	// 回し直して、また決まらないまま新しい approved になったら、それは届ける
 	later := "2026-11-14T01:00:00Z"
 	writeMerge(map[string]contract.Merging{"D-0001": {Row: 9, Sha: head, Approved: later}})
 	p.stuck(start.Add(time.Hour + approveWait))
 	if len(p.st.Pending) != 1 || p.st.Pending[0].At != later {
 		t.Fatalf("新しい approve のまま止まったのを届けない: %+v", p.st.Pending)
 	}
-	// merge: person（マージしない）の approve は同じ巡で届ける
 	p.st.Pending = nil
 	p.put(Notification{At: at, Project: "demo", Issue: "D-0003", Kind: "gate", Detail: map[string]any{"decision": "approve", "reasons": []string{}, "record": gateRecord}}, Facts{Gated: true})
 	if len(p.st.Pending) != 1 || p.st.Pending[0].Issue != "D-0003" {
@@ -215,11 +207,10 @@ func TestApproveStuck(t *testing.T) {
 	}
 }
 
-// 記録の置き場に書けなければ控えに残して届けず、書けるようになったら1行だけ書く。
 func TestRecordRetry(t *testing.T) {
 	p := routeProject(t)
 	path := RecordedPath("demo")
-	if err := os.MkdirAll(path, 0o755); err != nil { // 置き場に同名のディレクトリ
+	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	p.notify("D-0001", "gate", map[string]any{"decision": "fix", "reasons": []string{"x"}, "record": "/r.json"})
@@ -246,7 +237,6 @@ func TestRecordRetry(t *testing.T) {
 	}
 }
 
-// 一部だけ書いて失敗したら半端な行を残さず、書き直しは書けていない行だけを足す（控えを保存する前に落ちても二重に書かない）。
 func TestAppendLinesPartial(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "demo.recorded.jsonl")
 	a, b, c := []byte(`{"n":1}`), []byte(`{"n":2}`), []byte(`{"n":3}`)
@@ -265,7 +255,7 @@ func TestAppendLinesPartial(t *testing.T) {
 		t.Fatalf("半端な行を残した: %q", got)
 	}
 	write = func(f *os.File, p []byte) (int, error) { return f.Write(p) }
-	for i := 0; i < 2; i++ { // 2回目は「追記のあと控えを保存する前に落ちた」書き直し
+	for i := 0; i < 2; i++ {
 		if err := appendLines(path, [][]byte{b, c}); err != nil {
 			t.Fatal(err)
 		}
@@ -273,14 +263,12 @@ func TestAppendLinesPartial(t *testing.T) {
 	if got, _ := os.ReadFile(path); string(got) != "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n" {
 		t.Fatalf("書き直しで二重に書いた・順が違う: %q", got)
 	}
-	// 先頭の1行だけ書けていた（その位置が行の頭）なら、残りだけを足す
 	if err := appendLines(path, [][]byte{c, []byte(`{"n":4}`)}); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(path); string(got) != "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n{\"n\":4}\n" {
 		t.Fatalf("書けていた行を飛ばさない: %q", got)
 	}
-	// 行の途中と一致しただけ（"x{"n":5}" の末尾）は書けていたことにしない
 	os.WriteFile(path, []byte("{\"m\":0,\"n\":5}\n"), 0o644)
 	if err := appendLines(path, [][]byte{[]byte(`"n":5}`)}); err != nil {
 		t.Fatal(err)
@@ -290,7 +278,6 @@ func TestAppendLinesPartial(t *testing.T) {
 	}
 }
 
-// 担当に送れなかった fix は <news> の行に送れなかった担当を書く（送れた fix の行は今どおり）。
 func TestLineGateUnsent(t *testing.T) {
 	d := map[string]any{"decision": "fix", "reasons": []any{"Must fix 以上が 1 件"}, "record": "/r.json"}
 	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json" {
@@ -302,7 +289,6 @@ func TestLineGateUnsent(t *testing.T) {
 	}
 }
 
-// 担当（agent）がいない fix は <news> の行に、理由と記録のほか送っていないことを書く。
 func TestLineGateNoAgent(t *testing.T) {
 	d := map[string]any{"decision": "fix", "reasons": []any{"Must fix 以上が 1 件"}, "record": "/r.json", "no_agent": true}
 	if got := line(Notification{Issue: "D-0001", Kind: "gate", Detail: d}); got != "D-0001 gate: fix（Must fix 以上が 1 件） 記録 /r.json。担当（agent）がいないので送っていない" {
@@ -310,8 +296,6 @@ func TestLineGateNoAgent(t *testing.T) {
 	}
 }
 
-// merge の段のつなぎ: andon issue merge が fix を担当へ返せずに印（unsent・no_agent）を書いた通知 `gate` は、
-// 記録だけにせず Chief of Staff への待ちに積み、merge のログの行を dispatcher のログに写す。送れた fix は記録だけ。
 func TestMergeDeliversUnsentFix(t *testing.T) {
 	for _, c := range []struct {
 		name, mark, log string

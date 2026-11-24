@@ -14,8 +14,8 @@ func TestImpactDetail(t *testing.T) {
 		many[i] = "f" + string(rune('a'+i))
 	}
 	res := contract.Impact{Issue: "A-1", PR: "https://github.com/example/app/pull/1", Sha: sha, Issues: []contract.ImpactIssue{
-		{Issue: "A-2", Contains: true, Conflict: true, Overlap: []string{"x"}}, // もう含む: 影響は済んでいる
-		{Issue: "A-3", Overlap: []string{}, BriefRefs: []string{}},             // 何も重ならない
+		{Issue: "A-2", Contains: true, Conflict: true, Overlap: []string{"x"}},
+		{Issue: "A-3", Overlap: []string{}, BriefRefs: []string{}},
 		{Issue: "A-4", Conflict: true, ConflictFiles: []string{"x"}, Overlap: many, BriefRefs: []string{"docs/a.md"}},
 		{Issue: "A-5", Error: "branch demo/A-5 が読めない"},
 		{Issue: "A-6", Status: "review", Overlap: []string{}, BriefRefs: []string{}, ChecksMoved: []string{".github/workflows/go.yml"}}, // 検査の置き場が動いた

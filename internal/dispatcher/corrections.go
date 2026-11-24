@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"andon/internal/contract"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -18,11 +19,7 @@ import (
 // library/corrections.json を書く。書き手は dispatcher だけ。手直しが無ければ空の配列で書き（「無かった」）、
 // gh が失敗したら書かない（「集めていない」）。打ち直すのは次の見回りの1回だけで、それも駄目なら通知 corrections を積む。
 
-// correctionsTries は corrections.json を集めようとする回数の上限（初めの1回 ＋ 次の見回りの1回）。
 const correctionsTries = 2
-
-// gateCommentPrefix は andon gate が PR に書くコメントの頭（gate.CommentPrefix。internal/gate/comment.go）。オーナーのコメントに数えない。
-const gateCommentPrefix = "andon gate: "
 
 // machineGateAnswers は、オーナーでなく機械が gate の問いを閉じたときの答えの形（全体一致）。オーナーの手直しに数えない。
 //   - andon issue settle がオーナーのマージを見て閉じた答え（internal/issue/settle.go closeAndFinish）
@@ -42,7 +39,6 @@ var machineGateAnswers = []*regexp.Regexp{
 	regexp.MustCompile(`^Chief of Staff が PR を止めた（理由の課題 [^（）]*）。外したら gate が今の head で回し直す$`),
 }
 
-// machineGateAnswer は gate の問いの答え a（前後の空白を除いたもの）が、機械が閉じたときの答えか。
 func machineGateAnswer(a string) bool {
 	for _, re := range machineGateAnswers {
 		if re.MatchString(a) {
@@ -52,7 +48,6 @@ func machineGateAnswer(a string) bool {
 	return false
 }
 
-// QA は kanban の問い1つ（`kanban show --json` の questions）と、その問いの JSON（library/questions/<n>.json。無ければ nil）。
 type QA struct {
 	N      int    `json:"n"`
 	Status string `json:"status"`
@@ -60,8 +55,6 @@ type QA struct {
 	Q      *contract.Question
 }
 
-// PRView は gh pr view --json state,commits,comments,reviews の読む所だけと、
-// PR のインラインのレビューコメント（gh api repos/<owner>/<repo>/pulls/<n>/comments。Inline）。
 type PRView struct {
 	State   string `json:"state"`
 	Commits []struct {
@@ -85,11 +78,10 @@ type PRView struct {
 	Inline []InlineComment `json:"-"`
 }
 
-// InlineComment は PR のインラインのレビューコメント（REST の pulls/<n>/comments の1件）。
 type InlineComment struct {
 	User struct {
 		Login string `json:"login"`
-		Type  string `json:"type"` // Bot はオーナーの手直しに数えない
+		Type  string `json:"type"`
 	} `json:"user"`
 	Body         string `json:"body"`
 	CreatedAt    string `json:"created_at"`
@@ -98,15 +90,12 @@ type InlineComment struct {
 	OriginalLine *int   `json:"original_line"`
 }
 
-// HumanCommit は PR の上で担当の最後の報告の commit より後に積まれた commit。
 type HumanCommit struct {
 	Sha      string   `json:"sha"`
 	Headline string   `json:"headline"`
 	Files    []string `json:"files"`
 }
 
-// HumanCommits は PR の commit（古い順）のうち、report.json の commit より後のもの（純粋関数）。
-// report.json の commit が PR に無ければ、どれが担当のものか分からないので数えない（nil）。
 func HumanCommits(reported string, pr *PRView) []HumanCommit {
 	if pr == nil || reported == "" {
 		return nil
@@ -139,7 +128,7 @@ type prComment struct {
 	Author string `json:"author"`
 	At     string `json:"at"`
 	Body   string `json:"body"`
-	File   string `json:"file,omitempty"` // インラインのレビューコメントだけ
+	File   string `json:"file,omitempty"`
 	Line   int    `json:"line,omitempty"`
 }
 
@@ -185,11 +174,9 @@ func Corrections(qs []QA, rep *contract.Report, mustFix string, pr *PRView, huma
 		rec, ans := strings.TrimSpace(qa.Q.Options[0].Label), strings.TrimSpace(qa.Answer)
 		switch {
 		case qa.Q.From == "gate" && machineGateAnswer(ans):
-			// settle のマージの答え・head が動いて gate を回し直すときの答え（オーナーの手直しではない）
 		case qa.Q.From == "gate":
 			out = append(out, correctionQuestion{Kind: "override", Question: qa.N, Recommended: rec, Answer: ans})
 		case qa.Q.Kind == "scope":
-			// 範囲の問いは Chief of Staff が答える（オーナーの手直しではない）
 		case ans != rec:
 			out = append(out, correctionAnswer{Kind: "answer", Question: qa.N, DecisionKind: qa.Q.Kind, Recommended: rec, Picked: ans})
 		}
@@ -197,19 +184,19 @@ func Corrections(qs []QA, rep *contract.Report, mustFix string, pr *PRView, huma
 	if pr != nil {
 		c := correctionPR{Kind: "pr", Comments: []prComment{}, HumanCommits: []HumanCommit{}}
 		for _, m := range pr.Comments {
-			if strings.TrimSpace(m.Body) == "" || strings.HasPrefix(m.Body, gateCommentPrefix) {
+			if strings.TrimSpace(m.Body) == "" || strings.HasPrefix(m.Body, gate.CommentPrefix) {
 				continue
 			}
 			c.Comments = append(c.Comments, prComment{Author: orUnknown(m.Author.Login), At: orUnknown(m.CreatedAt), Body: m.Body})
 		}
-		for _, m := range pr.Reviews { // レビューの本文（承認・変更の依頼。本文の無いものは数えない）
-			if strings.TrimSpace(m.Body) == "" || strings.HasPrefix(m.Body, gateCommentPrefix) {
+		for _, m := range pr.Reviews {
+			if strings.TrimSpace(m.Body) == "" || strings.HasPrefix(m.Body, gate.CommentPrefix) {
 				continue
 			}
 			c.Comments = append(c.Comments, prComment{Author: orUnknown(m.Author.Login), At: orUnknown(m.SubmittedAt), Body: m.Body})
 		}
-		for _, m := range pr.Inline { // インラインのレビューコメント
-			if strings.TrimSpace(m.Body) == "" || strings.HasPrefix(m.Body, gateCommentPrefix) || m.User.Type == "Bot" {
+		for _, m := range pr.Inline {
+			if strings.TrimSpace(m.Body) == "" || strings.HasPrefix(m.Body, gate.CommentPrefix) || m.User.Type == "Bot" {
 				continue
 			}
 			x := prComment{Author: orUnknown(m.User.Login), At: orUnknown(m.CreatedAt), Body: m.Body, File: m.Path}
@@ -245,20 +232,18 @@ func orUnknown(s string) string {
 	return s
 }
 
-// corrections は done になった課題（控えの Corrections）ごとに corrections.json を集める。
 func (p *project) corrections() {
 	p.st.Corrections.Each(p.correction)
 }
 
-// correction は1つの課題について集めて書く。true は済んだ（控えから外す）とき。
 func (p *project) correction(id string) bool {
 	path := filepath.Join(p.l.Library(id), "corrections.json")
 	if _, err := os.Stat(path); err == nil {
-		return true // もう書いた（同じ finish を2度拾っても書き直さない）
+		return true
 	}
 	t, qs, err := p.show(id)
 	if err == nil && isReviewer(t) {
-		return true // レビュアーの課題はオーナーの手直しの元にならない（問いも PR も持たない）
+		return true
 	}
 	var out []any
 	if err == nil {
@@ -282,7 +267,6 @@ func (p *project) correction(id string) bool {
 	return false
 }
 
-// collectCorrections は kanban と gh から1つの課題の手直しを集める。読めないものがあれば err（書かない）。
 func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any, error) {
 	rep, err := contract.ReadReport(filepath.Join(p.l.Library(id), "report.json"))
 	if errors.Is(err, os.ErrNotExist) {
@@ -327,7 +311,7 @@ func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any,
 				return nil, err
 			}
 			var c struct {
-				Parents json.RawMessage `json:"parents"` // 形を問わず読む（配列でなければ親の数が読めないとして入れる）
+				Parents json.RawMessage `json:"parents"`
 				Files   []struct {
 					Filename string `json:"filename"`
 				} `json:"files"`
@@ -353,7 +337,6 @@ func (p *project) collectCorrections(id string, t ledger.Issue, qs []QA) ([]any,
 	return Corrections(qs, rep, mustFix, pr, humans), nil
 }
 
-// show は課題の項目と kanban の問い（`kanban show --json`）と、それぞれの問いの JSON（無ければ Q は nil）。
 func (p *project) show(id string) (ledger.Issue, []QA, error) {
 	out, err := p.l.Run("", "show", id, "--json")
 	if err != nil {
@@ -369,7 +352,7 @@ func (p *project) show(id string) (ledger.Issue, []QA, error) {
 	for i := range v.Questions {
 		b, err := os.ReadFile(filepath.Join(p.l.Library(id), "questions", strconv.Itoa(v.Questions[i].N)+".json"))
 		if err != nil {
-			continue // andon issue ask を通らない問い（推奨案が分からない）
+			continue
 		}
 		if q, err := contract.ParseQuestion(b); err == nil {
 			v.Questions[i].Q = q

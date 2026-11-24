@@ -24,18 +24,8 @@ var (
 	nameRe = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 )
 
-// ---------------------------------------------------------------- レビュアーを起動する
-
-// retryReport は、起動しそこねてこの回数続いたら Chief of Staff に通知 report を積む（再試行は続ける）。
 const retryReport = 3
 
-// reviewRequest は report.json の review_request を拾い、レビュアーを起動する（<issue>@<commit> ごとに1回）。
-// 控えの状態は3つ: 起動した（Started。もう打たない。ただし、そのレビュアーの課題が結果〈その commit の findings.json〉を
-// 残さずに返っていて、担当が頼み直した〈報告の行が増えた〉ら、次の回のレビュアーを起動し直す）・起動しない（Skipped。担当が頼み直す〈報告の行が増える〉か、
-// 上限を超えた回で review_rounds が上がるか、予約キーの照合で見送った回で照合が戻れば〈Chief of Staff が起き直したあと
-// 書き直した〉起動し直す）・起動しそこねた（Failed。済んだ段〈worktree・課題・端末〉を持ったまま次の見回りで続きから）。
-// 初めて見る kanban でも、今の review_request は拾う（課題が doing で commit が PR の head なので、過去の出来事ではない）。
-// 二重に起動しない守りは控えではなく kanban で持つ: その commit のレビュアーの子課題がもうあれば、それを引き継ぐ（Adopt）。
 func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 	id, rr := t.Str("id"), rep.ReviewRequest
 	key := id + "@" + rr.Commit
@@ -63,11 +53,9 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 		}, func(rev string) (string, int, bool) { return liveIssue(p.l.Slug, rev) }, empty); ok {
 			r.ReviewerIssue, r.Address, r.Started = a.ReviewerIssue, a.Address, a.Started
 			if wt := p.reviewerWorktree(t, rr.Round); detachedAt(t.Str("repo"), wt, rr.Commit) {
-				r.Worktree = wt // 確かめられなければ空のまま（startReviewer が「置き場がもうある」で止まる）
+				r.Worktree = wt
 			}
 			if r.Address != "" && r.Worktree != "" && p.status(r.ReviewerIssue) == "todo" {
-				// 端末は起きているが `kanban start` が済んでいない（hc run のあとに落ちた）。kanban を端末に合わせる
-				// （worktree を確かめられないときは startReviewer の 4 が、置き場を作り直したあとで合わせる）
 				if err := p.startLedger(r.ReviewerIssue, r.Address, r.Worktree); err != nil {
 					p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", r.ReviewerIssue, ledger.CLI, r.Address, err)
 				}
@@ -92,7 +80,7 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 			r.OverLimit = limit
 		}
 		p.logf("%s のレビュアーを起動しない: %s", id, why)
-		p.notify(id, "report", map[string]any{"report": p.reportPath(id)}) // 判断は Chief of Staff（報告を読む）
+		p.notify(id, "report", map[string]any{"report": p.reportPath(id)})
 	case why != "":
 		r.Failed = why
 		r.Attempts++
@@ -108,38 +96,22 @@ func (p *project) reviewRequest(t ledger.Issue, rep *contract.Report) {
 	p.st.Reviewers[key] = r
 }
 
-// Retry は、控えの前の状態（seen が false なら無い）から、今度の見回りでレビュアーを起動しに行くか。
-// row はその課題の報告の最後の行（log.jsonl の何行目か）。起動しなかった回は、担当が頼み直して行が増えれば拾い直す
-// （同じ commit の出し直しでも、前回が起動せずに終わっていれば拾う。起動した回は二重に起動しない）。
-// trusted は今の予約キーの照合（reviewKeysTrusted）。照合で見送った回は、照合が戻れば拾い直す
-// （Chief of Staff が起き直してアドレスが変わり、予約キーを書き直した。担当の頼み直しを待たない）。
-// redo は、起動した回のレビュアーの課題が結果を残さずに返ったか（returnedEmpty）。返っていて担当が頼み直していれば起動し直す
-// （まだ見ている間の頼み直しは二重に起動しない）。
 func Retry(prev Reviewer, seen bool, limit, row int, trusted, redo bool) bool {
 	switch {
 	case !seen:
 		return true
 	case prev.Started:
-		return redo && row > prev.Row // 二重に起動しない。結果を残さずに返った回だけ、頼み直しで起動し直す
+		return redo && row > prev.Row
 	case prev.Skipped != "":
 		return row > prev.Row || (prev.OverLimit > 0 && limit > prev.OverLimit) || (prev.Untrusted && trusted)
 	}
-	return true // 起動しそこねた: 続きから
+	return true
 }
 
-// reviewKeysTrusted は、レビュアーを起動するのに読む予約キー（review・reviewer・review_rounds）を最後に書いたのが
-// 今の Chief of Staff か（startReviewer の最初の照合と同じ。値が on かは見ない）。
 func (p *project) reviewKeysTrusted(t ledger.Issue) bool {
 	return p.l.Trusted(p.rows, t, "review") && p.trusted(t, "reviewer") && p.trusted(t, "review_rounds")
 }
 
-// Adopt は、控えに無い review_request（初めて見た kanban・控えを無くした）のレビュアーの子課題が kanban にもうあるかを見る。
-// 子課題は parent が id のレビュアーで、依頼書（brief。reviewerBrief が書く）にその commit があるもの。
-// todo でなければ、もう受けている（Started。二重に起動しない）。
-// todo でも端末が起きていることがある（hc run は通ったが kanban start の前に落ちた）。live（ラベル issue=<子>）の端末を引き、
-// 何か受けていれば（turn が 1 以上）もう受けている、まだなら address を引き継いで続きから（最初のメッセージを送り直す）。
-// 端末が無いときだけ、起動するところから続ける。
-// round より前の回の子課題で、その commit の結果を残さずに返ったもの（empty）は引き継がない（担当が頼み直した回のレビュアーではない）。
 func Adopt(tasks []ledger.Issue, id, commit string, round int, brief func(rev string) string, live func(rev string) (addr string, turn int, ok bool), empty func(rev string) bool) (Reviewer, bool) {
 	for _, c := range tasks {
 		if c.Str("parent") != id || !isReviewer(c) || !ledger.BriefReviews(brief(c.Str("id")), commit) {
@@ -159,9 +131,6 @@ func Adopt(tasks []ledger.Issue, id, commit string, round int, brief func(rev st
 	return Reviewer{}, false
 }
 
-// liveIssue はプロジェクト slug の課題 rev の live な端末（hc ls --label project=<slug> --label issue=<rev>）。
-// 課題の id はプロジェクトをまたいで同じことがあるので、返った端末のラベル（hc get）も project・issue の両方で確かめる。
-// 無い・読めなければ ok=false。
 func liveIssue(slug, rev string) (string, int, bool) {
 	out, err := hcOut("ls", "--json", "--label", "project="+slug, "--label", "issue="+rev)
 	var ls struct {
@@ -187,8 +156,6 @@ func liveIssue(slug, rev string) (string, int, bool) {
 	return "", 0, false
 }
 
-// returnedEmpty は、レビュアーの課題 rev が返っていて（review か done）、commit を見た findings.json を残していないか
-// （無い・形が違う・ほかの commit を見た）。担当の頼み直しで次の回のレビュアーを起動し直す条件（Retry・Adopt）。
 func (p *project) returnedEmpty(rev, commit string) bool {
 	if s := p.status(rev); rev == "" || (s != "review" && s != "done") {
 		return false
@@ -197,7 +164,6 @@ func (p *project) returnedEmpty(rev, commit string) bool {
 	return err != nil || f.Commit != commit
 }
 
-// status は kanban の課題 id の status（この回に読んだ一覧から）。
 func (p *project) status(id string) string {
 	for _, t := range p.tasks {
 		if t.Str("id") == id {
@@ -207,7 +173,6 @@ func (p *project) status(id string) string {
 	return ""
 }
 
-// lastReport は課題 id の報告の最後の行（log.jsonl の何行目か。1 から。無ければ 0）。
 func lastReport(rows []ledger.Row, id string) int {
 	n := 0
 	for i, r := range rows {
@@ -218,8 +183,6 @@ func lastReport(rows []ledger.Row, id string) int {
 	return n
 }
 
-// detachedAt は wt が repo の detached worktree で、HEAD が commit か（symlink でない・worktree list に detached で載る）。
-// 引き継ぐのはこれを満たすものだけ。置き場にあるだけのものは信じない。
 func detachedAt(repo, wt, commit string) bool {
 	dir, err := repoDir(repo)
 	if fi, lerr := os.Lstat(wt); err != nil || wt == "" || lerr != nil || !fi.IsDir() {
@@ -238,7 +201,6 @@ func detachedAt(repo, wt, commit string) bool {
 	return false
 }
 
-// reviewerWorktree はレビュアーの detached worktree の置き場（repo の置き場が分からなければ空）。
 func (p *project) reviewerWorktree(t ledger.Issue, round int) string {
 	dir, err := repoDir(t.Str("repo"))
 	if err != nil {
@@ -247,10 +209,6 @@ func (p *project) reviewerWorktree(t ledger.Issue, round int) string {
 	return spawn.ReviewerWorktreePath(dir, p.l.Slug, t.Str("id"), round)
 }
 
-// startLedger はレビュアーの課題を doing にし、agent を端末 addr にする（kanban start）。
-// 打つ cwd はレビュアーの detached worktree wt: kanban start は cwd の checkout を worktree に、branch を書く
-// （detached なので branch は書かない）。kanban の issues/<子>/ で打つと、kanban が git の中にあるセルでは
-// kanban を包む checkout（セルの本体）が worktree・branch として書かれる。
 func (p *project) startLedger(rev, addr, wt string) error {
 	if wt == "" {
 		return fmt.Errorf("%s の detached worktree が分からない", rev)
@@ -259,9 +217,6 @@ func (p *project) startLedger(rev, addr, wt string) error {
 	return err
 }
 
-// startReviewer はレビュアーを起動する。段ごとに r に書き、済んだ段は飛ばす（起動しそこねても続きからやり直せる）:
-// detached worktree → レビュアーの課題（kanban add --parent）→ 端末（hc run）→ 最初のメッセージ。
-// 起動しない（final）か起動しそこねた（再試行）ときは理由を返す。最初のメッセージが届くまでは成功にしない。
 func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewer) (why string, final bool) {
 	id, rr, s := t.Str("id"), rep.ReviewRequest, ledger.SettingsOf(t)
 	limit, _ := strconv.Atoi(s.ReviewRounds)
@@ -272,7 +227,6 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 	case !p.trusted(t, "reviewer") || !p.trusted(t, "review_rounds"):
 		return "issue.yaml の reviewer・review_rounds を最後に書いたのが Chief of Staff でない", true
 	case rr.Round > limit:
-		// review_request.extra は頼んだ時点の上限で数えたもの。起動するかは今の review_rounds（Chief of Staff が上げれば起動する）
 		return fmt.Sprintf("追加の回（%d 回目／上限 %d）。起動するかは Chief of Staff が決める（review_rounds を上げれば起動する）", rr.Round, limit), true
 	}
 	owner, name, number, ok := contract.ParsePR(rep.PR)
@@ -289,8 +243,6 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 	} else if head != rr.Commit {
 		return fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12]), true
 	}
-	// review: off の課題は、gate がレビューを求めるか（差分がレベル B・C か）を gate と同じ関数で決め直す（review-request の言い分を信じない）。
-	// review の値は Chief of Staff が書いたもののまま。差分を読めなければ次の見回りでやり直す
 	if s.Review == "off" {
 		need, cl, err := gate.NeedsReview(r.Repo, s.Review, rep)
 		if err != nil {
@@ -305,7 +257,6 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		return err.Error(), false
 	}
 
-	// 1. PR の head を読む detached worktree（担当の worktree とは別。andon issue finish が片付ける）
 	if r.Worktree == "" {
 		wt := p.reviewerWorktree(t, rr.Round)
 		if _, err := os.Lstat(wt); err == nil {
@@ -323,7 +274,6 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		r.Worktree = wt
 	}
 
-	// 2. レビュアーの課題（一度だけ足す）
 	title := fmt.Sprintf("%s のレビュー（%d 回目）", id, rr.Round)
 	if r.ReviewerIssue == "" {
 		var sp span
@@ -342,9 +292,8 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 	}
 	msg := p.reviewerFirst(rev)
 
-	// 3. 端末（起動した端末が生きていれば起動し直さない）
 	if r.Address != "" && exec.Command("hc", "get", r.Address).Run() != nil {
-		r.Address = "" // 端末が無くなった: 起動し直す
+		r.Address = ""
 	}
 	if r.Address == "" {
 		started, session, err := p.runReviewer(t, rev, title, s.Reviewer, launch.LaunchStart, r.Worktree)
@@ -377,8 +326,6 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		return why + "（次の見回りで送り直す）", false
 	}
 
-	// 4. 起きているが最初のメッセージが届いていない端末へ送り直す（信頼の画面などで止まっていれば拒まれ、次の見回りへ）。
-	// `kanban start` が済んでいなければ先に kanban を端末に合わせる（引き継いだ端末で、worktree を作り直したとき）
 	if p.status(rev) == "todo" {
 		if err := p.startLedger(rev, r.Address, r.Worktree); err != nil {
 			p.logf("%s の %s start に失敗（端末 %s は起きている）: %v", rev, ledger.CLI, r.Address, err)
@@ -422,7 +369,6 @@ func (p *project) runReviewer(t ledger.Issue, rev, title, profile, how, worktree
 	return started, session, err
 }
 
-// reviewerFirst はレビュアーの課題 rev の最初のメッセージ（起動するときと、届かなかったのを sendFirst が送り直すときで同じ文）。
 func (p *project) reviewerFirst(rev string) string {
 	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。\n先に `%s` を読む。",
 		p.l.Slug, rev, filepath.Join(p.l.Dir, "issues", rev, "brief.md"), filepath.Join(home(), "skills", "worker", "SKILL.md")) + spawn.Guide()
@@ -509,12 +455,11 @@ func firstReviewRange(commit, pr string) string {
 		commit, pr, commit, pr)
 }
 
-// span は再レビューで見せる差分の範囲（reviewSpan が決める）。
 type span struct {
-	Unknown bool   // 前の回の commit が今の commit の祖先か確かめられなかった（前の回の commit が手元に無い）
-	Rebased bool   // 祖先でない（rebase をまたいだ・commit を作り直した）
-	Old     string // Rebased のとき、前の回の commit と PR の base の merge-base（空なら base が読めなかった）
-	New     string // Rebased のとき、今の commit と PR の base の merge-base
+	Unknown bool
+	Rebased bool
+	Old     string
+	New     string
 }
 
 // reviewSpan は、前の回の commit prev が今の commit の祖先かを repo の clone（dir）で確かめ、再レビューの範囲を返す。
@@ -534,7 +479,7 @@ func reviewSpan(dir, url, pr, prev, commit string) span {
 	}
 	c := ancestor()
 	if c != 0 && c != 1 { // 前の回の commit が手元に無い（1 は「祖先でない」、それ以外は確かめられない）
-		_, _, _ = git("fetch", "-q", url, prev) // 取れなければ次の確かめが Unknown にする
+		_, _, _ = git("fetch", "-q", url, prev)
 		c = ancestor()
 	}
 	switch c {
@@ -563,7 +508,6 @@ func reviewSpan(dir, url, pr, prev, commit string) span {
 	return sp
 }
 
-// reReviewRange は依頼書の「再レビュー:」の段（sp ごとに見る範囲が変わる）。
 func reReviewRange(prev, commit, pr string, sp span) string {
 	const tail = "前の回に「問題なし」の観点はやり直さない。\n"
 	switch {
@@ -596,15 +540,12 @@ func orNone(s string) string {
 	return s
 }
 
-// home はパッケージの置き場（ANDON_HOME。無ければ /opt/andon）。
 func home() string {
 	if h := os.Getenv("ANDON_HOME"); h != "" {
 		return h
 	}
 	return "/opt/andon"
 }
-
-// ---------------------------------------------------------------- gate とマージ
 
 // merge は review の課題に andon issue merge を打ち、返った通知を積む（dispatcher.md §2.1.1 の 5）。
 // gate を回す・マージして片付ける・fix を担当へ送る・問いを出す・自分の記録を持つのは merge で、dispatcher は打って積むだけ
@@ -613,7 +554,6 @@ func home() string {
 func (p *project) merge(t ledger.Issue) {
 	id := t.Str("id")
 	if until, err := time.Parse(time.RFC3339, p.st.GHReset); err == nil && time.Now().Before(until) {
-		// gh の上限（rate limit）が戻るまで、gate も checks も読まない
 		p.logf("%s の gate は gh の上限が戻る %s まで回さない", id, p.st.GHReset)
 		return
 	}
@@ -632,7 +572,6 @@ func (p *project) merge(t ledger.Issue) {
 	}
 	switch res.State {
 	case "rate-limited":
-		// gh の上限で落ちた: reset の時刻まで、この kanban の merge を打たない
 		p.st.GHWait = min(max(1, 2*p.st.GHWait), 60)
 		p.st.GHReset = ghReset(time.Now().UTC(), p.st.GHWait).Format(time.RFC3339)
 		p.logf("%s の gate は gh の上限（rate limit）で落ちた。%s まで回し直さない", id, p.st.GHReset)

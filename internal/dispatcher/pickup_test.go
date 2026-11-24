@@ -20,17 +20,15 @@ func TestProviderError(t *testing.T) {
 		"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header":               false,
 		"Login expired · Please run /login":                                                                  false,
 		"Invalid API key · Fix external API key":                                                             false,
-		// 前からの例
-		`API Error: 529 {"type":"overloaded_error"}`:         true,
-		"Rate limit reached. Try again later":                true,
-		"API Error: 503 service unavailable":                 true,
-		"connection reset by peer":                           true,
-		"API Error: 401 unauthorized · Please run /login":    false, // 認証の失敗はプロバイダのエラーでない
-		"API Error: 529 overloaded · authentication_error":   false,
-		"Error: ENOENT: no such file or directory, open 'x'": false,
-		// 使用量の上限は待っても直らない
-		"You've hit your usage limit · resets 3pm": false,
-		"Claude AI usage limit reached|1793999999": false,
+		`API Error: 529 {"type":"overloaded_error"}`:                                                         true,
+		"Rate limit reached. Try again later":                                                                true,
+		"API Error: 503 service unavailable":                                                                 true,
+		"connection reset by peer":                                                                           true,
+		"API Error: 401 unauthorized · Please run /login":                                                    false,
+		"API Error: 529 overloaded · authentication_error":                                                   false,
+		"Error: ENOENT: no such file or directory, open 'x'":                                                 false,
+		"You've hit your usage limit · resets 3pm":                                                           false,
+		"Claude AI usage limit reached|1793999999":                                                           false,
 		"": false,
 	} {
 		if got := ProviderError(s); got != want {
@@ -48,8 +46,6 @@ func TestJudge(t *testing.T) {
 	other := func() string { return "panic: x" }
 	none := func() string { t.Fatal("画面を読まなくてよいのに読んだ"); return "" }
 	cut := "API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment."
-	// 切断の見分けは status_ms（端末の時計）、間は控えの Since・At（dispatcher の時計）で測る。
-	// 端末の時計はずれていてよいので、status_ms はわざと dispatcher の時計と関係の無い値にする
 	const c1, c2 = int64(7), int64(9)
 	cases := []struct {
 		name   string
@@ -99,8 +95,6 @@ func TestJudge(t *testing.T) {
 	}
 }
 
-// 受け取られていない問い: log.jsonl の問いの行の最後の状態が open・answered の課題だけ（received で外れる）。
-// 移す前の番号（A-5）は今の番号に読み替え、問いの行でない行・番号の読めない行は数えない。
 func TestAsking(t *testing.T) {
 	q := func(id string, n any, st string) ledger.Row {
 		return ledger.Row{ID: id, Change: map[string]any{"question": n, "status": st}}
@@ -127,8 +121,6 @@ func TestAsking(t *testing.T) {
 	}
 }
 
-// working の進み: status.msg か画面の字が替われば動いた時刻を今にする。経過の時計・回る印・数字だけの替わりは進みに数えない。
-// 画面が読めなければ前の控えのまま（A-0036）。
 func TestMoved(t *testing.T) {
 	const now = int64(10_000_000_000)
 	scr := func(s string) func() (string, error) { return func() (string, error) { return s, nil } }
@@ -149,7 +141,6 @@ func TestMoved(t *testing.T) {
 	if m := moved(first, true, "go test を回す", fail, now); m != first {
 		t.Fatalf("画面が読めず msg も同じなのに控えを替えた: %+v", m)
 	}
-	// 画面が読めない間も msg の替わりは進みに数え、画面の要約は持ち越す
 	m := moved(first, true, "テストを読む", fail, now)
 	if m.At != now || m.Screen != first.Screen {
 		t.Fatalf("画面が読めない回に msg の替わりを進みに数えない: %+v", m)
@@ -162,13 +153,12 @@ func TestMoved(t *testing.T) {
 	}
 }
 
-// 画面で見るのは Codex のエラーの行（行頭が ■ の最後の行）だけ。エージェントの出力やファイルの中身にプロバイダの語があっても見ない。
 func TestScreenCut(t *testing.T) {
 	for screen, want := range map[string]bool{
 		"› hello\n■ We’re currently experiencing high demand, which may cause temporary errors.\n› Ask Codex to do anything\n":     true,
 		"• Ran curl …\n  └ HTTP/1.1 503 Service Unavailable\n    rate limit exceeded; high demand\n■ hook failed: exit status 2\n": false,
 		"README.md: retries on 429 and 503 (high demand)\n› Ask Codex to do anything\n":                                            false,
-		"■ Selected model is at capacity. Please try a different model.\n■ unexpected status 401 Unauthorized\n":                   false, // 最後の行が今の止まり
+		"■ Selected model is at capacity. Please try a different model.\n■ unexpected status 401 Unauthorized\n":                   false,
 	} {
 		if got := ProviderError(ScreenCut(screen)); got != want {
 			t.Errorf("ProviderError(ScreenCut(%q)) = %v, want %v", screen, got, want)

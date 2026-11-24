@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// wordsEnv は Drain を本物の置き場から切り離す（控えは一時の置き場、hc も andon も無い）。
 func wordsEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -19,7 +18,6 @@ func wordsEnv(t *testing.T) {
 	t.Setenv("HC_TERMINAL_ID", "")
 }
 
-// stopDrain は Stop フックと同じく、入力の JSON を stdin に渡して Drain を打ち、additionalContext を返す（出力が無ければ空）。
 func stopDrain(t *testing.T, in map[string]any) string {
 	t.Helper()
 	in["hook_event_name"] = "Stop"
@@ -38,8 +36,6 @@ func stopDrain(t *testing.T, in map[string]any) string {
 	return asContext(m)
 }
 
-// 根拠の出来事: CoS がオーナーへの返事に「検証の地図」と書いた。Stop で言い換えを渡して言い直させ、
-// 同じ turn の言い直した返事（続きの turn。同じ prompt_id）に語が残っても、もう止めない。次の turn ではまた探す。
 func TestDrainOwnerWordsOncePerTurn(t *testing.T) {
 	wordsEnv(t)
 	msg := "検証の地図に機能を足しました。灯りはついていません。"
@@ -57,14 +53,13 @@ func TestDrainOwnerWordsOncePerTurn(t *testing.T) {
 	}
 }
 
-// 語が無い返事と、コードの囲みの中だけにある語では止めない。
 func TestDrainOwnerWordsSkipsPlainAndCode(t *testing.T) {
 	wordsEnv(t)
 	for i, msg := range []string{
 		"PR をマージしました。",
 		"`.claude/skills/verify-andon/features/地図.md` と `灯り` は識別子です。",
 		"```\nレベル C\n```\n片付けました。",
-		"アクセシビリティはレベル AA を満たしています。", // 英字が続く語は別の語（WCAG のレベル AA）
+		"アクセシビリティはレベル AA を満たしています。",
 	} {
 		if got := stopDrain(t, map[string]any{"session_id": "s1", "prompt_id": "p" + string(rune('a'+i)), "last_assistant_message": msg}); got != "" {
 			t.Errorf("止めてはいけない返事で止めた: %q → %q", msg, got)
@@ -72,7 +67,6 @@ func TestDrainOwnerWordsSkipsPlainAndCode(t *testing.T) {
 	}
 }
 
-// prompt_id を渡さない入力では、続きの turn（stop_hook_active）で探さない（言い直しを止め続けない）。
 func TestDrainOwnerWordsWithoutPromptID(t *testing.T) {
 	wordsEnv(t)
 	if got := stopDrain(t, map[string]any{"session_id": "s1", "stop_hook_active": false, "last_assistant_message": "灯りがつきました"}); !strings.Contains(got, "<owner-words>") {
@@ -83,14 +77,13 @@ func TestDrainOwnerWordsWithoutPromptID(t *testing.T) {
 	}
 }
 
-// turn を控えに書けなければ探さない（書けないまま止めると、言い直すたびに止め続ける）。
 func TestDrainOwnerWordsNeedsRecord(t *testing.T) {
 	wordsEnv(t)
 	f := t.TempDir() + "/file"
 	if err := os.WriteFile(f, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_STATE_HOME", f) // 置き場がファイルで、控えも turn も書けない
+	t.Setenv("XDG_STATE_HOME", f)
 	for i := 0; i < 2; i++ {
 		if got := stopDrain(t, map[string]any{"session_id": "s1", "prompt_id": "p1", "last_assistant_message": "灯りがつきました"}); got != "" {
 			t.Fatalf("turn を書けないのに止めた（%d 回目）: %q", i+1, got)
@@ -98,7 +91,6 @@ func TestDrainOwnerWordsNeedsRecord(t *testing.T) {
 	}
 }
 
-// 控えの lock が取れなくても言い換えは渡す。待ちの通知があれば、同じ additionalContext の <owner-words> の後ろに <news> を添える。
 func TestDrainOwnerWordsWithLockAndNews(t *testing.T) {
 	wordsEnv(t)
 	defer func(w time.Duration) { lockWait = w }(lockWait)
@@ -124,8 +116,6 @@ func TestDrainOwnerWordsWithLockAndNews(t *testing.T) {
 	}
 }
 
-// 用語集の「オーナーへはふだんの言葉で言う語」の表の行ごとに、その語を書いた返事で、表の言い方を渡す
-// （用語集に足した行を drain.go の写しに足し忘れると落ちる。逆向きは tests/package/08-writing.sh が見る）。
 func TestDrainOwnerWordsMatchGlossary(t *testing.T) {
 	wordsEnv(t)
 	f, err := os.Open("../../package/skills/glossary/SKILL.md")

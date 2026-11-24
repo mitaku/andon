@@ -18,8 +18,8 @@ func TestCorrectionsSkipsGateComments(t *testing.T) {
 			GitHubChecks: gate.GitHubChecks{State: "success", Names: []string{"test"}}, Review: ledger.Review{State: "current"},
 			Decision: d, Reasons: []string{"delegation: merge=none < tier B"}}
 		body := gate.CommentBody(rec)
-		if !strings.HasPrefix(body, gateCommentPrefix) || !strings.HasPrefix(gate.StatusDescription(rec), gateCommentPrefix) {
-			t.Fatalf("%s: gate の文の頭が dispatcher の見分ける頭（%q）でない: %q", d, gateCommentPrefix, body)
+		if !strings.HasPrefix(body, gate.CommentPrefix) || !strings.HasPrefix(gate.StatusDescription(rec), gate.CommentPrefix) {
+			t.Fatalf("%s: gate の文の頭が dispatcher の見分ける頭（%q）でない: %q", d, gate.CommentPrefix, body)
 		}
 		v := &PRView{State: "MERGED"}
 		v.Commits = append(v.Commits, struct {

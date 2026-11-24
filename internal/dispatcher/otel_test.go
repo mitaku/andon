@@ -13,7 +13,6 @@ import (
 	"andon/internal/otel"
 )
 
-// otelCell は、Chief of Staff が生きている kanban を 1 つ持つ偽のセルを作り、dispatcher を返す。
 func otelCell(t *testing.T) (*Dispatcher, *bytes.Buffer, string) {
 	t.Helper()
 	d := t.TempDir()
@@ -26,7 +25,7 @@ func otelCell(t *testing.T) (*Dispatcher, *bytes.Buffer, string) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // Chief of Staff の端末は生きている
+	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -70,7 +69,6 @@ func TestPassOtelPruneFailureKeepsGoing(t *testing.T) {
 	}
 }
 
-// 本物の片付け（otel.PruneDue）を巡が走らせ、30 日を過ぎたファイルを消し、同じ日の 2 度目の巡では走らせない。
 func TestPassOtelPruneRemovesOld(t *testing.T) {
 	c, logb, state := otelCell(t)
 	dir := filepath.Join(state, "andon", "otel", "sample-site", "issues", "S-0001")
@@ -92,7 +90,6 @@ func TestPassOtelPruneRemovesOld(t *testing.T) {
 	if !strings.Contains(logb.String(), "ハーネスの生の記録を 1 本消した") {
 		t.Errorf("消したことをログに出さない:\n%s", logb.String())
 	}
-	// 同じ日の 2 度目の巡では走らせない（また 31 日前のファイルを置いても消えない）
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +105,6 @@ func TestPassOtelPruneRemovesOld(t *testing.T) {
 	}
 }
 
-// putOwnerProject はセルの repo に、オーナーの commit の project.json を置く（body が project.json の中身）。
 func putOwnerProject(t *testing.T, ws, body, author string) {
 	t.Helper()
 	git := func(args ...string) {
@@ -131,7 +127,6 @@ func putOwnerProject(t *testing.T, ws, body, author string) {
 	git("-c", "user.name=o", "-c", "user.email="+author, "commit", "-q", "-m", "project")
 }
 
-// putOld は課題の置き場に、最後に書いたのが days 日前の生の記録を 1 本置く。
 func putOld(t *testing.T, state, id string, days int) string {
 	t.Helper()
 	dir := filepath.Join(state, "andon", "otel", "sample-site", "issues", id)
@@ -166,7 +161,6 @@ func TestPassOtelPruneReadsProjectLimits(t *testing.T) {
 	}
 }
 
-// project.json が信じられない（オーナーの commit でない）ときは、既定の 30 日で片付け、ログに 1 行出す。
 func TestPassOtelPruneUnreadableProjectUsesDefault(t *testing.T) {
 	c, logb, state := otelCell(t)
 	putOwnerProject(t, c.WS, `{"version":1,"project":{"title":"Sample","prefix":"S"},"repos":[],"otel":{"days":7}}`, "someone@example.com")

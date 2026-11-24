@@ -8,7 +8,6 @@ import (
 	"andon/internal/contract"
 )
 
-// impactTries は andon issue impact が失敗したときに打ち直す回数の上限（fetch などの一時の失敗を見回りで打ち直す）。
 const impactTries = 3
 
 // impacts は done になった課題（控えの Impact）ごとに andon issue impact を1回だけ打ち、影響のある課題があれば
@@ -18,10 +17,7 @@ func (p *project) impacts() {
 	p.st.Impact.Each(p.impact)
 }
 
-// impact は1つの課題について打つ。true は済んだ（控えから外す）とき。
 func (p *project) impact(id string) bool {
-	// 影響を見るのは、PR を出した案件 repo の担当の課題だけ（レビュアー・Chief Engineer の文書・repo の無い課題は飛ばす。
-	// 写し〈巡の 3〉に無いのは、この巡で足されて done になったものだけで、それも report.json で見分ける）
 	for _, t := range p.tasks {
 		if t.Str("id") == id && (isReviewer(t) || isEngineer(t) || t.Str("repo") == "") {
 			return true
@@ -31,7 +27,6 @@ func (p *project) impact(id string) bool {
 	if err != nil || rep.PR == "" {
 		return true
 	}
-	// 集められなかったときも Chief of Staff に知らせる（待ちの通知は届くまで控えに残るので、手で確かめるきっかけは失われない）
 	gaveUp := func(why string) bool {
 		p.logf("%s の影響を集められない（諦めて Chief of Staff に知らせる。andon issue impact %s で読める）: %s", id, id, why)
 		p.notify(id, "impact", map[string]any{"pr": rep.PR, "error": clean(why, 200)})
@@ -62,8 +57,6 @@ func (p *project) impact(id string) bool {
 	return true
 }
 
-// ImpactDetail は andon issue impact の出力から通知 impact の detail を作る（純粋関数）。影響のある課題が無ければ nil。
-// 並べるファイルは1つの課題につき 20 まで（全部は andon issue impact で読む）。
 func ImpactDetail(res contract.Impact) map[string]any {
 	var rows []any
 	for _, t := range res.Issues {
@@ -80,7 +73,6 @@ func ImpactDetail(res contract.Impact) map[string]any {
 	if len(rows) == 0 {
 		return nil
 	}
-	// 控えから読み戻したときと同じ形（[]any・map[string]any）にそろえる（<news> の描き方が1つで済む）
 	var out map[string]any
 	b, _ := json.Marshal(map[string]any{"pr": res.PR, "sha": res.Sha, "issues": rows})
 	if json.Unmarshal(b, &out) != nil {

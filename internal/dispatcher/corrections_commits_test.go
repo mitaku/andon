@@ -41,7 +41,7 @@ func TestCorrectionsDropsMergeAndEngineerCommits(t *testing.T) {
 	tools.reply("gh api repos/example/app/commits/"+m, `{"parents":[{"sha":"`+a+`"},{"sha":"`+sha('9')+`"}],"files":[{"filename":"docs/adr/README.md"}]}`)
 	tools.reply("gh api repos/example/app/commits/"+b, `{"parents":[{"sha":"`+m+`"}],"files":[{"filename":"docs/b.md"}]}`)
 	tools.reply("gh api repos/example/app/commits/"+u, `{"files":[{"filename":"docs/c.md"}]}`)
-	tools.reply("gh api repos/example/app/commits/"+x, `{"parents":{"sha":"`+u+`"},"files":[{"filename":"docs/d.md"}]}`) // 親が配列でない
+	tools.reply("gh api repos/example/app/commits/"+x, `{"parents":{"sha":"`+u+`"},"files":[{"filename":"docs/d.md"}]}`)
 	p.corrections()
 	if p.st.Corrections != nil {
 		t.Fatalf("書いていない課題が控えに残った: %v\n%s", p.st.Corrections, log.String())

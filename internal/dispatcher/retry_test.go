@@ -12,8 +12,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc（プロバイダに切られたときの再送を見る）: get は $D/<addr>.json（無ければ not_found）、read は $D/<addr>.screen。attach は $D/log に1行。
-// send は $D/log に「send <addr> <本文>」を1行。label も1行（通れば $D/<addr>.unsent を消す。get が読むのは json の labels だけ）。
 const retryHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -37,8 +35,6 @@ type retryFixture struct {
 	t0  time.Time
 }
 
-// 偽の claude・codex。起動の記録（launch.Gather）が打つ --version にだけバージョンを返す。検査が PATH の本物の harness を打たないように、
-// newRetry が一時の PATH の先頭に置く。--version のほかを打たれたら落ちる
 const retryHarness = `#!/bin/sh
 [ "$1" = --version ] || { echo "unexpected $(basename "$0") $*" >&2; exit 9; }
 echo "$(basename "$0") 0.0.0-fake"
@@ -59,8 +55,8 @@ func newRetry(t *testing.T) *retryFixture {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("FAKE_HC", f.d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state"))
-	t.Setenv("ANDON_WORKSPACE", filepath.Join(f.d, "workspace")) // 起動の記録が読むセルの repo と memory の目録。セルの本物を読まない
-	t.Setenv("HOME", filepath.Join(f.d, "home"))                 // 起動の記録が読む plugin の控え・skill の置き場は一時の HOME の下。セルの本物を読まない
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(f.d, "workspace"))
+	t.Setenv("HOME", filepath.Join(f.d, "home"))
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("CODEX_HOME", "")
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
@@ -70,7 +66,6 @@ func newRetry(t *testing.T) *retryFixture {
 	return f
 }
 
-// term は端末 addr の hc get の答えを置く。at は status_ms（t0 からの分）。
 func (f *retryFixture) term(addr, state, msg string, at time.Duration, unsent bool) {
 	f.t.Helper()
 	labels := `{}`
@@ -91,7 +86,6 @@ func (f *retryFixture) screen(addr, body string) {
 	}
 }
 
-// at は t0 から m 分の見回り（watch と Chief of Staff の分）を1回して、その回に打たれたものを返す。
 func (f *retryFixture) at(m time.Duration, cos string) []string {
 	f.t.Helper()
 	os.Remove(filepath.Join(f.d, "log"))
@@ -107,7 +101,6 @@ func (f *retryFixture) at(m time.Duration, cos string) []string {
 	return nil
 }
 
-// sent は偽の hc の log（打ったもの）を返す。
 func (f *retryFixture) sent() string {
 	b, _ := os.ReadFile(filepath.Join(f.d, "log"))
 	return strings.TrimSpace(string(b))
@@ -121,15 +114,14 @@ func (f *retryFixture) kinds() []string {
 	return k
 }
 
-var resend = "send t42 [dispatcher] " + RetryText // 送り手の印（spawn.Mark）つき
+var resend = "send t42 [dispatcher] " + RetryText
 
-// 切られた 1〜4 回目は 1・2・4・8 分あとに続けて、5 回目に切られたら打たずに Chief of Staff へ error を1回だけ知らせる。
 func TestRetryWorkerIntervals(t *testing.T) {
 	f := newRetry(t)
-	cut := time.Duration(0) // 切られた時刻（t0 からの分）
+	cut := time.Duration(0)
 	for i, wait := range []time.Duration{1, 2, 4, 8} {
 		f.term("t42", "error", cutMsg, cut*time.Minute, false)
-		if got := f.at(cut*time.Minute, ""); got != nil { // 切られたのを見る（ここから測る）
+		if got := f.at(cut*time.Minute, ""); got != nil {
 			t.Fatalf("%d 回目: 見たその回に打った: %q", i+1, got)
 		}
 		if got := f.at((cut+wait)*time.Minute-time.Second, ""); got != nil {
@@ -138,11 +130,9 @@ func TestRetryWorkerIntervals(t *testing.T) {
 		if got := f.at((cut+wait)*time.Minute, ""); len(got) != 1 || got[0] != resend {
 			t.Fatalf("%d 回目: %v 分で打っていない: %q", i+1, wait, got)
 		}
-		// 打った直後の見回り（まだ同じ error のまま）では二度打たない
 		if got := f.at((cut+wait)*time.Minute+5*time.Second, ""); got != nil {
 			t.Fatalf("%d 回目: 打った直後にまた打った: %q", i+1, got)
 		}
-		// 続けて working になり、しばらくして また切られる
 		f.term("t42", "working", "", (cut+wait)*time.Minute+10*time.Second, false)
 		if got := f.at((cut+wait)*time.Minute+20*time.Second, ""); got != nil {
 			t.Fatalf("%d 回目: working に打った: %q", i+1, got)
@@ -155,7 +145,6 @@ func TestRetryWorkerIntervals(t *testing.T) {
 	if len(f.p.st.Pending) != 0 {
 		t.Fatalf("打ち切る前に知らせた: %q", f.kinds())
 	}
-	// 5 回目に切られた: もう打たず、error を知らせる
 	f.term("t42", "error", cutMsg, cut*time.Minute, false)
 	if got := f.at(cut*time.Minute, ""); got != nil {
 		t.Fatalf("5 回目に切られたのに打った: %q", got)
@@ -167,7 +156,6 @@ func TestRetryWorkerIntervals(t *testing.T) {
 	if got := f.at((cut+40)*time.Minute, ""); got != nil || len(f.p.st.Pending) != 0 {
 		t.Fatalf("打ち切ったあとにまた打った・知らせた: %q %q", got, f.kinds())
 	}
-	// idle に戻れば区切る（次に切られたらまた 1 分から）
 	f.term("t42", "idle", "", (cut+41)*time.Minute, false)
 	f.at((cut+42)*time.Minute, "")
 	if _, ok := f.p.st.Retry["S-7|t42"]; ok {
@@ -175,7 +163,6 @@ func TestRetryWorkerIntervals(t *testing.T) {
 	}
 }
 
-// プロバイダでない error・認証（blocked）・使用量の上限には打たない。
 func TestRetryWorkerNotProvider(t *testing.T) {
 	for _, c := range []struct{ state, msg, screen, kind string }{
 		{"error", "Error: tool crashed", "", "error"},
@@ -210,8 +197,6 @@ func TestRetryWorkerNotProvider(t *testing.T) {
 	}
 }
 
-// 最初のメッセージの送り直しと重ならない: 届いていない担当には「続けて」を打たず（error で知らせる）、最初のメッセージも error の間は送らない。
-// 届いた（控えの first にある）担当は、ラベルが残っていても続きを打つ。
 func TestRetryNotWithFirstMessage(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", cutMsg, 0, true)
@@ -226,7 +211,6 @@ func TestRetryNotWithFirstMessage(t *testing.T) {
 	if r := f.p.st.Retry["S-7|t42"]; r.N != 0 {
 		t.Fatalf("打っていないのに回数を数えた: %+v", r)
 	}
-	// 送ったがラベルを外せなかった（控えの first）: 届いているので続きを打つ。最初のメッセージは送り直さない
 	f.p.st.First["S-7|t42"] = true
 	got := f.at(31*time.Minute, "")
 	if len(got) != 2 || got[0] != "label t42 first_message.sent=" || got[1] != resend {
@@ -234,7 +218,6 @@ func TestRetryNotWithFirstMessage(t *testing.T) {
 	}
 }
 
-// stalled とは重ならない: 打ったあとの working は 20 分までは静か、画面も msg も 20 分動かなければ stalled を知らせるが打たない。
 func TestRetryThenStalled(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", cutMsg, 0, false)
@@ -243,7 +226,7 @@ func TestRetryThenStalled(t *testing.T) {
 		t.Fatalf("打っていない: %q", got)
 	}
 	f.term("t42", "working", "", time.Minute+time.Second, false)
-	f.at(2*time.Minute, "") // working を見た（画面と msg を控える）
+	f.at(2*time.Minute, "")
 	if got := f.at(20*time.Minute, ""); got != nil || len(f.p.st.Pending) != 0 {
 		t.Fatalf("20 分たたないのに: %q %q", got, f.kinds())
 	}
@@ -255,8 +238,6 @@ func TestRetryThenStalled(t *testing.T) {
 	}
 }
 
-// 1つのターンで長く働いている担当（working のまま。status.msg か画面が動いている）には stalled を届けない。
-// 画面も msg も 20 分動かなくなったら届ける（A-0036）。
 func TestWorkingMoving(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "working", "go test を回す", 0, false)
@@ -267,7 +248,7 @@ func TestWorkingMoving(t *testing.T) {
 	if k := f.kinds(); len(k) != 0 {
 		t.Fatalf("進んでいる担当に stalled を届けた: %q", k)
 	}
-	f.screen("t42", "✻ Working… (60m)\n"+strings.Repeat("Edit x.go\n", 6)) // 時計だけ進む
+	f.screen("t42", "✻ Working… (60m)\n"+strings.Repeat("Edit x.go\n", 6))
 	f.at(60*time.Minute, "")
 	if k := f.kinds(); len(k) != 0 {
 		t.Fatalf("動いて 20 分たたないのに: %q", k)
@@ -278,9 +259,8 @@ func TestWorkingMoving(t *testing.T) {
 	}
 }
 
-// hc read が失敗し続けても、status.msg が替わっていれば進んでいるとみて stalled を届けない（A-0036 のレビュー 1 回目）。
 func TestWorkingMovingMsgOnly(t *testing.T) {
-	f := newRetry(t) // 画面のファイルを置かない: 偽の hc read は失敗する
+	f := newRetry(t)
 	for i, m := range []time.Duration{1, 15, 30, 45} {
 		f.term("t42", "working", fmt.Sprintf("ツール %c を回す", 'a'+i), 0, false)
 		f.at(m*time.Minute, "")
@@ -294,7 +274,6 @@ func TestWorkingMovingMsgOnly(t *testing.T) {
 	}
 }
 
-// Chief Engineer（profile chief-engineer）の端末の stalled・blocked は記録だけで、error は届ける（A-0036）。
 func TestEngineerWatch(t *testing.T) {
 	f := newRetry(t)
 	f.p.l.Slug = "sample-site"
@@ -337,7 +316,6 @@ func TestChiefCut(t *testing.T) {
 	if len(f.p.st.Pending) != 0 || len(f.p.st.Retry) != 0 {
 		t.Fatalf("Chief of Staff の分を通知・回数に積んだ: %q %+v", f.kinds(), f.p.st.Retry)
 	}
-	// Claude Code 自身のやり直し（working）を挟んでまた切られても同じ止まり。担当の見回り（watch）を挟んでも控えは消えない
 	f.term("t1", "working", "", 3*time.Hour, false)
 	f.at(3*time.Hour, "t1")
 	f.term("t1", "error", cutMsg, 4*time.Hour, false)
@@ -345,7 +323,6 @@ func TestChiefCut(t *testing.T) {
 	if n := logged(); n != 1 {
 		t.Fatalf("working を挟んだ同じ止まりで %d 行: %s", n, f.log.String())
 	}
-	// done に戻れば区切り、次に切られたらもう1行
 	f.term("t1", "done", "", 5*time.Hour, false)
 	f.at(5*time.Hour, "t1")
 	f.term("t1", "error", cutMsg, 6*time.Hour, false)
@@ -353,14 +330,12 @@ func TestChiefCut(t *testing.T) {
 	if n := logged(); n != 2 {
 		t.Fatalf("区切ったあとの止まりで %d 行: %s", n, f.log.String())
 	}
-	// プロバイダでない error（認証）はログに書かない（オーナーは Herdr App の error で気づく）
 	f = newRetry(t)
 	f.p.tasks = nil
 	f.term("t1", "error", "API Error: 401 unauthorized · Please run /login", 0, false)
 	if got := f.at(time.Hour, "t1"); got != nil || logged() != 0 {
 		t.Fatalf("プロバイダでない error で打った・ログに書いた: %q %s", got, f.log.String())
 	}
-	// Chief of Staff の端末が doing の課題の agent でも、担当の見回り（watch）から「続けて」を打たない
 	f = newRetry(t)
 	f.p.tasks = []ledger.Issue{{"id": "S-8", "status": "doing", "agent": "t1"}}
 	f.term("t1", "error", cutMsg, 0, false)
@@ -372,7 +347,6 @@ func TestChiefCut(t *testing.T) {
 	if logged() != 1 || len(f.p.st.Pending) != 0 {
 		t.Fatalf("課題の agent になった Chief of Staff のログ・通知: %s %q", f.log.String(), f.kinds())
 	}
-	// 初めて見る kanban では書かない
 	f = newRetry(t)
 	f.p.tasks, f.p.first = nil, true
 	f.term("t1", "error", cutMsg, 0, false)
@@ -381,8 +355,6 @@ func TestChiefCut(t *testing.T) {
 	}
 }
 
-// hc の時計（status_ms）が dispatcher の時計とずれていても、間は dispatcher が切断を見た時刻から測る。
-// 打ってから status_ms が変われば、その値が打った時刻より前（端末の時計が遅れている）でも新しい切断とみる。
 func TestRetryClockSkew(t *testing.T) {
 	for _, skew := range []time.Duration{-30 * time.Minute, 30 * time.Minute} {
 		f := newRetry(t)
@@ -396,7 +368,6 @@ func TestRetryClockSkew(t *testing.T) {
 		if got := f.at(time.Minute, ""); len(got) != 1 {
 			t.Fatalf("skew %v: 1 分で打っていない: %q", skew, got)
 		}
-		// 4 回打ったところから、また切られた（status_ms は打った時刻より前に見える値）
 		r := f.p.st.Retry["S-7|t42"]
 		r.N = 4
 		f.p.st.Retry["S-7|t42"] = r
@@ -410,7 +381,6 @@ func TestRetryClockSkew(t *testing.T) {
 	}
 }
 
-// 打つ前に回数と時刻を控えに保存する: 打ってから見回りの最後の保存の前に落ちても、再開後に同じ切断へ打ち直さない。
 func TestRetrySavedBeforeSend(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", cutMsg, 0, false)
@@ -418,7 +388,6 @@ func TestRetrySavedBeforeSend(t *testing.T) {
 	if got := f.at(time.Minute, ""); len(got) != 1 {
 		t.Fatalf("打っていない: %q", got)
 	}
-	// 見回りの最後の保存はしないまま落ちた、とみなし、保存された控えから再開する
 	st, _, err := LoadState("sample-site")
 	if err != nil {
 		t.Fatal(err)
@@ -430,7 +399,6 @@ func TestRetrySavedBeforeSend(t *testing.T) {
 	if got := f.at(time.Minute+5*time.Second, ""); got != nil {
 		t.Fatalf("再開後に同じ切断へ打ち直した: %q", got)
 	}
-	// 控えを書けなければ打たない
 	f = newRetry(t)
 	f.term("t42", "error", cutMsg, 0, false)
 	f.at(0, "")
@@ -438,7 +406,7 @@ func TestRetrySavedBeforeSend(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dir, nil, 0o644); err != nil { // 置き場をファイルで塞ぐ
+	if err := os.WriteFile(dir, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.at(time.Minute, ""); got != nil {
@@ -449,7 +417,6 @@ func TestRetrySavedBeforeSend(t *testing.T) {
 	}
 }
 
-// 回数は error・working の間だけ持ち越す: 4 回打ったあと blocked（認証など）を通って working に戻り、また切られたら、1 分待ちからやり直す。
 func TestRetryResetThroughBlocked(t *testing.T) {
 	f := newRetry(t)
 	f.term("t42", "error", cutMsg, 0, false)
@@ -472,7 +439,6 @@ func TestRetryResetThroughBlocked(t *testing.T) {
 	}
 }
 
-// 巡のつなぎ: Chief of Staff がプロバイダに切られて error で止まっても、巡は「続けて」も入力欄の読みも打たず、同じ止まりにログを1行だけ残す。
 func TestPassChiefCut(t *testing.T) {
 	d := t.TempDir()
 	bin := filepath.Join(d, "bin")
@@ -494,7 +460,7 @@ func TestPassChiefCut(t *testing.T) {
 	os.WriteFile(filepath.Join(led, "config.yaml"), []byte("chief_of_staff: t6\n"), 0o644)
 	var logb bytes.Buffer
 	c := &Dispatcher{WS: ws, Log: &logb}
-	c.Pass("") // 初めて見る kanban（控えるだけ）
+	c.Pass("")
 	c.Pass("")
 	c.Pass("")
 	if n := strings.Count(logb.String(), "t6 はプロバイダに切られて止まった。続きは打たない"); n != 1 {
@@ -508,14 +474,11 @@ func TestPassChiefCut(t *testing.T) {
 	}
 }
 
-// 見回りのつなぎ: doing の担当の端末ごとに状態を読み、端末が無い（finished）・blocked・プロバイダでない error・idle 15 分を、
-// 担当と status_ms を detail に知らせる。子のレビュアーの課題を待つ担当・短い idle は知らせない。プロバイダでない error に続きを打たない。
-// 同じ状態・同じ status_ms は二度知らせず、新しい status_ms なら知らせ直す。
 func TestWatchNotifiesStopped(t *testing.T) {
 	f := newRetry(t)
 	f.p.l.Slug = "sample-site"
 	f.p.tasks = []ledger.Issue{
-		{"id": "S-1", "status": "doing", "agent": "t21"}, // 端末が無い
+		{"id": "S-1", "status": "doing", "agent": "t21"},
 		{"id": "S-2", "status": "doing", "agent": "t22"},
 		{"id": "S-3", "status": "doing", "agent": "t24"},
 		{"id": "S-4", "status": "doing", "agent": "t25"},

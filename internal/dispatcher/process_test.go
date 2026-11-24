@@ -16,8 +16,6 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// recordFields は process/states/*.yaml の states[].record と positions[] のうち、記録 rec の項目を
-// 「項目 → 出た場所（<ファイル>:<state の id か positions>）」で返す。
 func recordFields(t *testing.T, dir, rec string) map[string][]string {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
@@ -58,7 +56,6 @@ func recordFields(t *testing.T, dir, rec string) map[string][]string {
 	return seen
 }
 
-// topFields は構造体の一番上の項目の名前。
 func topFields(v any) []string {
 	typ := reflect.TypeOf(v)
 	var out []string
@@ -68,7 +65,6 @@ func topFields(v any) []string {
 	return out
 }
 
-// mismatches は fields（構造体の一番上の項目）と seen（定義に出た項目）を照らし、食い違いを 1 行ずつ返す。
 func mismatches(rec string, fields []string, seen map[string][]string) []string {
 	var out []string
 	have := map[string]bool{}
@@ -149,7 +145,6 @@ func TestMergeFieldsInProcess(t *testing.T) {
 	}
 }
 
-// TestMismatches は照合が抜けと重なりと余りを見分けることを見本で確かめる。
 func TestMismatches(t *testing.T) {
 	dir := t.TempDir()
 	def := "name: sample\ntitle: 見本\nsource: 見本\n" +
@@ -162,7 +157,7 @@ func TestMismatches(t *testing.T) {
 	got := mismatches("x", topFields(sample{}), recordFields(t, dir, "x"))
 	want := []string{
 		"項目 Two が process/states/ に 1 回より多く出る（1 回だけにする）: sample.yaml:a・sample.yaml:b",
-		"項目 Three が process/states/ のどの states[].record にも positions[] にも無い（x:Three を足す）", // y:Three は別の記録
+		"項目 Three が process/states/ のどの states[].record にも positions[] にも無い（x:Three を足す）",
 		"process/states/ の x:Gone が構造体に無い（sample.yaml:positions）",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {

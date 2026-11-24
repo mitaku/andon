@@ -2,7 +2,6 @@ package dispatcher
 
 import "testing"
 
-// 見込みを超えた担当の課題は、Chief of Staff に estimate を積むだけで、担当の端末には何も打たない（hc を呼ばない）。
 func TestEstimateDoesNotSendToWorker(t *testing.T) {
 	tools := newScripted(t, "hc")
 	f := newEstimate(t)

@@ -65,11 +65,11 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 		t.Errorf("留守で herdr の通知を出した（%d 回）", n-1)
 	}
 
-	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // 生き返る
+	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	c.Pass("")
-	if err := os.Remove(filepath.Join(d, "cos")); err != nil { // また死ぬ
+	if err := os.Remove(filepath.Join(d, "cos")); err != nil {
 		t.Fatal(err)
 	}
 	c.Pass("")
@@ -77,8 +77,7 @@ func TestPassSkipIsNotSilent(t *testing.T) {
 		t.Errorf("生き返ったあとの留守で出し直していない: %q", logb.String())
 	}
 
-	// hc get が一時に落ちた（not_found でない）巡は、留守にせず、その kanban を回さない（kanban の CLI を打たない・控えの留守の記録を作らない）。ログは1行
-	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // 生き返る（留守の記録は戻った巡で消える）
+	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	c.Pass("")
