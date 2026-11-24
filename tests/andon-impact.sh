@@ -17,6 +17,8 @@ if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
   echo "ok   go の道具を一時の HOME に取り直さない"
 fi
 export GIT_CONFIG_GLOBAL="$tmp/gitconfig" GIT_CONFIG_NOSYSTEM=1 GHQ_ROOT="$tmp/ghq"
+# 検査の置き場の判定は条件表を読む: セルの本物（/opt/andon・/workspace）でなく、この repo の package/ と一時の置き場
+export ANDON_HOME="$andon_root/package" ANDON_WORKSPACE="$tmp/plant"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$tmp/bin" "$tmp/gh"
@@ -114,7 +116,7 @@ row "$conf" | jq -e '.status == "review" and .conflict == true and .conflict_fil
 row "$clean" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "衝突しない重なり: $(row "$clean")"
 row "$dirty" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "commit していない変更の重なり: $(row "$dirty")"
 row "$brief" | jq -e '.conflict == false and .overlap == [] and .brief_refs == ["doc.md"]' >/dev/null || die "依頼書が指す: $(row "$brief")"
-row "$none" | jq -e '.conflict == false and .overlap == [] and .brief_refs == [] and (has("error") | not)' >/dev/null || die "関係ない: $(row "$none")"
+row "$none" | jq -e '.conflict == false and .overlap == [] and .brief_refs == [] and .checks_moved == [] and (has("error") | not)' >/dev/null || die "関係ない: $(row "$none")"
 row "$fresh" | jq -e '.overlap == ["new.md"] and (has("error") | not)' >/dev/null || die "まだ git add していない新しいファイルの重なり: $(row "$fresh")"
 chmod 755 "$tmp/locked"
 if [ "$(id -u)" != 0 ]; then   # root は権限で止まらない
