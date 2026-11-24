@@ -117,9 +117,6 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	return l.applyItems(id, date, base, data, items, past, memoryPath, stdout)
 }
 
-// applyItems は確かめ終えた決定（items）を1つずつ kanban に当て、当てるたびに記録（base の .json）を書き直し、終われば要約（.md）を書く。
-// date は当てた日、base は記録の置き場（library/triage/<日付>-<id>。拡張子なし）、data は decisions.json の残りの欄、past は閉じる課題ごとに越える問い、
-// memoryPath は仕分けの済んだ memory の置き場。
 func (l *ledger) applyItems(id, date, base string, data obj, items []item, past map[string][]int, memoryPath map[string]string, stdout io.Writer) error {
 	// 当てた決定を1つずつ記録する。途中で kanban の CLI が落ちても、どこまで当たったかが残り、黙って当て直されない。
 	if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
@@ -205,7 +202,6 @@ func (l *ledger) applyItems(id, date, base string, data obj, items []item, past 
 	return err
 }
 
-// memoryChanged は消さずに残した memory の理由（記録の memory_kept）。
 const memoryChanged = "収集のあと書き換わったので消さずに残した（次のトリアージで拾い直す）"
 
 func toAny(items []item) []any {
@@ -233,7 +229,6 @@ func sourceText(key string, inventory []Item, historical []item) any {
 	return key
 }
 
-// readCollected は collect の記録（担当が collect の出力を置いた library/items.json）の commits を読む。
 // 前の形（項目の配列）と、commits の無いもの・形の合わない commit は断る（照らせない判定を通さない）。
 func readCollected(path string) (map[string]string, error) {
 	b, err := os.ReadFile(path)
@@ -270,8 +265,6 @@ func checkCommits(items []item, commits, repos map[string]string) error {
 	return nil
 }
 
-// preflight は出どころの課題が kanban にあるかと、閉じる課題が未担当の todo／queued かを確かめ、出どころの課題の repo と、
-// 閉じる課題ごとに越える問い（開いている問いの番号。kanban done --past に渡す）を返す。
 // memory と signal の項目は出どころが課題ではないので、kanban show で照らさない。
 // 閉じる課題に、答えられてまだ受け取られていない問いがあれば断る。閉じるとオーナーの答えを捨てることになる（ADR-0057 決めたこと 9）。
 // 越えるのはここで読んだ番号だけで、読んだあとに置かれた問いは kanban done が断る。
@@ -333,7 +326,6 @@ func (l *ledger) preflight(id string, items []item) (map[string]string, map[stri
 	return repos, past, nil
 }
 
-// checkOwnerTitles は、判断の person が足すオーナーの課題と同じタイトルの片付いていない課題が、もう問いを持っていないかを確かめる。
 // 持っていれば、andon issue ask --new と同じ関数は同じ問いを 2 つ足さないよう断るので、当てる途中で止まらないよう先に断る。
 // 問いを持たない同じタイトルの課題は、その関数が足し直さずに問いを置くので通す。
 func (l *ledger) checkOwnerTitles(items []item) error {
@@ -376,8 +368,6 @@ func (l *ledger) checkOwnerTitles(items []item) error {
 	return nil
 }
 
-// applyGroup は1つの決定（bundle は束）を kanban に当て、足した課題の id と、記録のあとに書く予約キーを返す。
-// past は閉じる課題ごとに越える問いの番号（preflight が読んだもの）。
 func (l *ledger) applyGroup(id, date string, g []item, past map[string][]int) (string, []string, error) {
 	first := g[0]
 	switch first.decision() {
@@ -423,7 +413,6 @@ func (l *ledger) applyGroup(id, date string, g []item, past map[string][]int) (s
 	return "", nil, nil
 }
 
-// groupReview は束の review（どれか1つが on なら on）。
 func groupReview(g []item) string {
 	for _, it := range g {
 		if it.issueStr("review") == "on" {
@@ -451,7 +440,6 @@ func personQuestion(it item) *contract.Question {
 	return q
 }
 
-// unsureFact は、種類を決めきれなかった判断の問いに足す事実の行の頭（続けて何が分からないか〈項目の reason〉）。
 const unsureFact = "トリアージは種類を決めきれなかった: "
 
 // addDecision は判断の person を、andon issue ask --new と同じ関数でオーナーの課題と問いにして置く（ADR-0057 決めたこと 7・9）。
@@ -504,7 +492,6 @@ func orDefault(v any, d string) string {
 	return cell(v)
 }
 
-// cell は表のセル: 文字列はそのまま、ほかは JSON。| と改行を逃がす。
 func cell(v any) string {
 	s, ok := v.(string)
 	if !ok {
@@ -522,7 +509,6 @@ func row(cells ...any) string {
 	return "| " + strings.Join(parts, " | ") + " |\n"
 }
 
-// summary は人が読む要約（library/triage/<日付>-<id>.md）。
 func summary(slug, date string, goal any, items []item) string {
 	count := func(f func(item) bool) int {
 		n := 0
@@ -586,7 +572,6 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))
 		}
 	}
-	// 判断は種類と推奨案（options の先頭）、手作業は「手作業」と印の理由を出す。
 	b.WriteString("\n## オーナーへ（オーナーの課題）\n| 課題 | 問い | 種類 | 推奨案（手作業は理由） |\n|---|---|---|---|\n")
 	for _, it := range items {
 		switch {

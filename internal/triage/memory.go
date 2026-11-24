@@ -22,7 +22,6 @@ func MemoryDir() string {
 	return filepath.Join(ws, "memory")
 }
 
-// memoryItems は置き場の直下の .md（目録を除く）を1件1項目（kind: memory）にする。
 // 置き場が無ければ項目は無い。出どころ（from）はファイル名から作り、key がファイルごとに分かれる。
 func (l *ledger) memoryItems() ([]Item, error) {
 	if l.memory == "" {
@@ -87,7 +86,6 @@ func memoryFrom(name string) string {
 	return from
 }
 
-// removeMemory は仕分けの済んだ memory のファイルと、目録（MEMORY.md）でそれを指す行を消す。
 // 消す前に今の本文を収集のときの key（本文の sha1）と照らし、違えば（収集のあと書き換わった）ファイルも目録の行も残して false を返す（A-0155）。
 // ファイルがもう無ければ消えたものとして目録の行を消す。目録の行は同時書き込みで欠けうるので、無くても落ちない（A-0144）。
 func removeMemory(path, key string) (bool, error) {

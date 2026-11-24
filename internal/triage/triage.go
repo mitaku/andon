@@ -4,8 +4,6 @@
 // 仕分けの決定を kanban に当てる（apply）。
 //
 // collect は kanban を読むだけで、書くのは kanban の repo の checkout の refs/remotes/origin/<既定の branch>（最新の main を取り直す）だけ。
-// apply は判断を持たず、decisions.json を検査し（close の閉じ方と項目の種類の組み合わせも）、見た commit を collect の記録（library/items.json）と照らし、
-// 判断の閉じと課題を閉じる判定に Chief of Staff の判定（verdict が書く library/verdicts.json）が揃っているかを確かめてから kanban の CLI を打つ。
 // kanban を書くのは kanban の CLI だけで、ここは record（library/triage/）を書き、仕分けの済んだ memory のファイルと目録の行を消す。
 package triage
 
@@ -29,7 +27,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// 葉ごとの使い方（andon triage <動詞> --help の中身と、引数を誤ったときに出す文）。
 const (
 	where        = "projects/<slug>/ で打つ。\n"
 	CollectUsage = "usage: andon triage collect [--limit N]\n" +
@@ -43,13 +40,12 @@ const (
 
 var (
 	idRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
-	slugRe   = spawn.SlugRe // schema の project と同じ
+	slugRe   = spawn.SlugRe
 	numberRe = regexp.MustCompile(`^[0-9]{1,6}$`)
 )
 
-// 終了コード。
 const (
-	exitFail  = 1 // kanban・decisions.json・道具の誤り
+	exitFail  = 1
 	exitUsage = 2
 	exitLimit = 4 // collect の項目が上限を超えた
 )
@@ -68,17 +64,14 @@ func (f failure) Error() string { return f.msg }
 
 func fail(format string, a ...any) error { return failure{fmt.Sprintf(format, a...)} }
 
-// Collect は andon triage collect。
 func Collect(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("collect", args, stdout, stderr)
 }
 
-// Apply は andon triage apply。
 func Apply(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("apply", args, stdout, stderr)
 }
 
-// Verdict は andon triage verdict。
 func Verdict(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("verdict", args, stdout, stderr)
 }
@@ -185,12 +178,11 @@ type limitError struct{ limit int }
 
 func (e limitError) Error() string { return fmt.Sprintf("over limit %d", e.limit) }
 
-// ledger は1つの kanban。kanban（メソッド）は kanban の CLI をこの kanban に向けて打つ。
 type ledger struct {
-	cli     string // 打つ kanban の CLI
-	root    string // プロジェクトの根（kanban の親）
+	cli     string
+	root    string
 	slug    string
-	dir     string // <root>/kanban
+	dir     string
 	memory  string // auto memory の置き場（空なら拾わない）
 	signals string // 信号の記録（<slug>.signals.json。空なら拾わない）
 	tz      string // config.yaml の timezone（not_before を読む。空なら UTC）
@@ -214,7 +206,6 @@ func openLedger() (*ledger, error) {
 	return ledgerAt(cli, strings.TrimRight(string(out), "\n"), time.Now())
 }
 
-// ledgerAt はプロジェクトの根 root（kanban/ の親）の ledger。
 func ledgerAt(cli, root string, now time.Time) (*ledger, error) {
 	l := &ledger{cli: cli, root: root, slug: filepath.Base(root), dir: filepath.Join(root, "kanban"), memory: MemoryDir(), now: now}
 	if !slugRe.MatchString(l.slug) {
@@ -225,7 +216,6 @@ func ledgerAt(cli, root string, now time.Time) (*ledger, error) {
 	return l, nil
 }
 
-// kanban（メソッド）は kanban の CLI を打ち、stdout を返す（末尾の改行を除く）。stderr はそのまま流す。
 func (l *ledger) kanban(stdin string, args ...string) (string, error) {
 	c := exec.Command(l.cli, args...)
 	c.Env = append(os.Environ(), "KANBAN_ROOT="+l.root)
@@ -240,7 +230,6 @@ func (l *ledger) kanban(stdin string, args ...string) (string, error) {
 	return strings.TrimRight(string(out), "\n"), nil
 }
 
-// writeJSON は jq と同じく2字下げで、HTML の文字を逃がさずに書く。
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)

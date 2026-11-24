@@ -39,7 +39,6 @@ func verdictPath(l *ledger, id string) string {
 	return filepath.Join(l.dir, "issues", id, "library", verdictFileName)
 }
 
-// readVerdicts は判定を key ごとに読む。ファイルが無ければ空。
 func readVerdicts(path string) (map[string]verdict, error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -85,7 +84,6 @@ func verdictState(vs map[string]verdict, by string, it item) string {
 	}
 }
 
-// reviewTable は Chief of Staff が読む判定（判断の閉じと、課題を閉じる判定）の表。--dry-run が出す。
 func reviewTable(items []item, vs map[string]verdict, by string) []any {
 	got := []any{}
 	for _, it := range items {
@@ -100,7 +98,6 @@ func reviewTable(items []item, vs map[string]verdict, by string) []any {
 	return got
 }
 
-// checkVerdicts は判定の要る close の全部に、今の判定に結びついた「閉じてよい」があるかを確かめる。
 // 足りなければ kanban に手を入れる前に断る。通れば items に判定（verdict）と、覆した記録（overturned）を書く。
 // 判定は、書き手（by）が今の Chief of Staff の端末のものだけを数える。
 func checkVerdicts(items []item, vs map[string]verdict, by string) error {
@@ -135,7 +132,7 @@ func checkVerdicts(items []item, vs map[string]verdict, by string) error {
 	return nil
 }
 
-// runVerdict は andon triage verdict <id> <key> ok|overturn。Chief of Staff の端末でだけ書く。
+// runVerdict は Chief of Staff の端末でだけ書く。
 func runVerdict(l *ledger, id, key, value string, now time.Time, stdout io.Writer) error {
 	if value != verdictOK && value != verdictOverturn {
 		return fail("判定は ok（閉じてよい）か overturn（覆す）")

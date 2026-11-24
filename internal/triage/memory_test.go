@@ -62,7 +62,6 @@ func TestRemoveMemory(t *testing.T) {
 	if string(b) != "# 目録\n- [AB](ab.md) — ab\n" {
 		t.Errorf("index %q", b)
 	}
-	// 目録もファイルも無くても落ちない。
 	if _, err := removeMemory(filepath.Join(t.TempDir(), "gone.md"), itemKey("demo", "gone", "memory", "")); err != nil {
 		t.Error(err)
 	}
